@@ -123,16 +123,22 @@ One nit - to run from commannd line in build dir, I had to set ``LD_LIBRARY_PATH
 
 ## Baby step2: add a command line argument to ``openssl s_client``
 
-Lots of optional things are protected via ``#ifndef OPENSSL_NO_foo`` pragmas, so I guess
-I should wrap my code with ``#ifndef OPENSSL_NO_ESNI`` but I've yet to figure out how to
-properly define ``OPENSSL_NO_ESNI`` if needed - it *might* just work, from a quick look
-at the ``Configure`` script, but who knows. 
-
-TODO: figure out how to turn off my esni code.
+TODO: figure out how to turn off my esni code.  Lots of optional things are
+protected via ``#ifndef OPENSSL_NO_foo`` pragmas, so I guess I should wrap my
+code with ``#ifndef OPENSSL_NO_ESNI`` but I've yet to figure out how to
+properly define ``OPENSSL_NO_ESNI`` if needed - it *might* just work, from a
+quick look at the ``Configure`` script, but who knows. 
 
 TODO: figure out how to add a test that'll run as part of ``make test``
 
 File modified: ``apps/s_client.c``
+	- added ``-esni val`` option to CLI, setting ``char *encservername``
 
+### Side baby step:
+
+Writing standalone code in ``tempstuff/esni.c`` just to figure out 
+calls I'll wanna integrate into ``s_client.c``. Plan is to delete
+that soon's we get things working. That also has a hacked together
+``Makefile``. 
 
 
