@@ -188,9 +188,19 @@ err:
 	return(NULL);
 }
 
+/*
+ * TODO: This should output to a BIO*
+ */
 int SSL_ESNI_print(SSL_ESNI *esni)
 {
-	// dump it out
+	if (esni==NULL) {
+        CTerr(CT_F_SCT_NEW_FROM_BASE64, X509_R_BASE64_DECODE_ERROR);
+		return(1);
+	}
+	if (esni->erecs==NULL) {
+        CTerr(CT_F_SCT_NEW_FROM_BASE64, X509_R_BASE64_DECODE_ERROR);
+		return(1);
+	}
 	printf("ESNI version: %x\n",esni->erecs->version);
 	return(1);
 }
