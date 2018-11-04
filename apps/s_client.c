@@ -598,7 +598,12 @@ typedef enum OPTION_choice {
 #endif
     OPT_DANE_TLSA_RRDATA, OPT_DANE_EE_NO_NAME,
     OPT_ENABLE_PHA,
+#ifndef OPENSSL_NO_ESNI
+	OPT_R_ENUM,
+	OPT_ESNI
+#else
     OPT_R_ENUM
+#endif
 } OPTION_CHOICE;
 
 const OPTIONS s_client_options[] = {
@@ -702,6 +707,10 @@ const OPTIONS s_client_options[] = {
     {"nocommands", OPT_NOCMDS, '-', "Do not use interactive command letters"},
     {"servername", OPT_SERVERNAME, 's',
      "Set TLS extension servername (SNI) in ClientHello (default)"},
+#ifndef OPENSSL_NO_ESNI
+    {"esni", OPT_ESNI, 's',
+     "Set TLS extension encrypted servername (ESNI) in ClientHello, FIXME: make arg optional, defaulting to servername"},
+#endif
     {"noservername", OPT_NOSERVERNAME, '-',
      "Do not send the server name (SNI) extension in the ClientHello"},
     {"tlsextdebug", OPT_TLSEXTDEBUG, '-',
@@ -941,6 +950,9 @@ int s_client_main(int argc, char **argv)
     struct timeval tv;
 #endif
     const char *servername = NULL;
+#ifndef OPENSSL_NO_ESNI
+    const char *encservername = NULL;
+#endif
     int noservername = 0;
     const char *alpn_in = NULL;
     tlsextctx tlsextcbp = { NULL, 0 };
@@ -1447,6 +1459,12 @@ int s_client_main(int argc, char **argv)
         case OPT_SERVERNAME:
             servername = opt_arg();
             break;
+#ifndef OPENSSL_NO_ESNI
+        case OPT_ESNI:
+            encservername = opt_arg();
+			printf("ESNI for %s\n",encservername);
+            break;
+#endif
         case OPT_NOSERVERNAME:
             noservername = 1;
             break;
