@@ -173,10 +173,13 @@ LANG=C
 all: esni
 
 esni.o: esni.c
-	$(CC)  -I../apps -I. -I..  -I../include -I../ssl $(BIN_CFLAGS) $(BIN_CPPFLAGS) -MMD -MF $<.d.tmp -MT $@ -c -o $@ $< 
+	$(CC) -g -I../apps -I. -I..  -I../include -I../ssl $(BIN_CFLAGS) $(BIN_CPPFLAGS) -MMD -MF $<.d.tmp -MT $@ -c -o $@ $< 
 
 esni: esni.o
-	${CC} -pthread -m64 -Wa,--noexecstack -Wall -O3 -L.. -o $@ $< -lssl -lcrypto -ldl 
+	${CC} -g -pthread -m64 -Wa,--noexecstack -Wall -O3 -L.. -o $@ $< -lssl -lcrypto -ldl 
 
 test:
 	./doit.sh
+
+clean:
+	- rm -f esni esni.o
