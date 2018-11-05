@@ -16,6 +16,7 @@
 
 #include <stdio.h>
 #include <ssl_locl.h>
+#include <../ssl/packet_locl.h>
 
 #ifndef OPENSSL_NO_ESNI
 /*
@@ -47,8 +48,8 @@
  * TODO: figure out openssl style types for the above
  */
 typedef struct esni_record_st {
-	uint16_t version;
-	const char checksum[4];
+	unsigned int version;
+	unsigned char checksum[4];
 	unsigned int nkeys;
 	unsigned int *curve_ids;
 	EVP_PKEY *keys;
@@ -150,24 +151,33 @@ SSL_ESNI* SSL_ESNI_new_from_base64(char *esnikeys)
 	if (esnikeys==NULL)
 		return(NULL);
 
-    int declen;
-    unsigned char *outbuf = NULL;
+    unsigned char *outbuf = NULL; /* binary representation of ESNIKeys */
+    int declen; /* length of binary representation of ESNIKeys */
+	SSL_ESNI *newesni=NULL; /* decoded ESNIKeys */
+
     declen = esni_base64_decode(esnikeys, &outbuf);
-	SSL_ESNI *newesni=NULL;
     if (declen < 0) {
         CTerr(CT_F_SCT_NEW_FROM_BASE64, X509_R_BASE64_DECODE_ERROR);
         goto err;
     }
+
+	PACKET pkt={outbuf,declen};
+
+	size_t rm=PACKET_remaining(&pkt);
+	printf("inside: rm=%ld\n",rm);
+
 	newesni=OPENSSL_malloc(sizeof(SSL_ESNI));
 	if (newesni==NULL)
 		goto err;
-	/* version */
-	if (declen < 2) {
+
+	/* sanity check: version + checksum + KeyShareEntry have to be there - min len >= 10 */
+	if (declen < 10) {
         CTerr(CT_F_SCT_NEW_FROM_BASE64, X509_R_BASE64_DECODE_ERROR);
 		goto err;
 	}
+
 	/*
-	 * TODO: handle >1 RR in RRset here (somehow:-)
+	 * TODO: handle >1 RR in RRset here (later:-)
 	 */
 	newesni->nerecs=1;
 	newesni->erecs=NULL;
@@ -176,7 +186,28 @@ SSL_ESNI* SSL_ESNI_new_from_base64(char *esnikeys)
         CTerr(CT_F_SCT_NEW_FROM_BASE64, X509_R_BASE64_DECODE_ERROR);
 		goto err;
 	}
-	newesni->erecs->version=(outbuf[0] << 8 | outbuf [1]);
+	ESNI_RECORD *crec=newesni->erecs;
+
+	/* version */
+	if (!PACKET_get_net_2(&pkt,&crec->version))
+		goto err;
+	printf("inside: version=%x\n",crec->version);
+
+	/* checksum */
+	if (!PACKET_copy_bytes(&pkt,crec->checksum,4))
+		goto err;
+
+	/* list of KeyShareEntry elements - inspiration: ssl/statem/extensions_srvr.c:tls_parse_ctos_key_share */
+	int nkeys=0;
+	unsigned int *curve_ids=NULL;
+	EVP_PKEY *keys=NULL;
+	PACKET key_share_list;
+	if (!PACKET_as_length_prefixed_2(&pkt, &key_share_list)) {
+        CTerr(CT_F_SCT_NEW_FROM_BASE64, X509_R_BASE64_DECODE_ERROR);
+		goto err;
+    }
+
+
 	return(newesni);
 err:
 	if (newesni->erecs!=NULL)
@@ -202,6 +233,11 @@ int SSL_ESNI_print(SSL_ESNI *esni)
 		return(1);
 	}
 	printf("ESNI version: %x\n",esni->erecs->version);
+	printf("ESNI checksum: ");
+	for (int i=0;i!=4;i++) {
+		printf("%0x",esni->erecs->checksum[i]);
+	}
+	printf("\n");
 	return(1);
 }
 
@@ -245,7 +281,7 @@ out:
 	OPENSSL_free(frontname);
 	if (argc==4) 
 		OPENSSL_free(esnikeys_b64);
-	if (esnikeys->erecs!=NULL)
+	if (esnikeys!=NULL && esnikeys->erecs!=NULL)
 		OPENSSL_free(esnikeys->erecs);
 	if (esnikeys!=NULL)
 		OPENSSL_free(esnikeys);
