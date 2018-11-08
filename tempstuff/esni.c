@@ -17,6 +17,7 @@
 #include <stdio.h>
 #include <ssl_locl.h>
 #include <../ssl/packet_locl.h>
+#include <../apps/apps.h>
 
 #ifndef OPENSSL_NO_ESNI
 /*
@@ -222,7 +223,7 @@ SSL_ESNI* SSL_ESNI_new_from_base64(char *esnikeys)
                 || !PACKET_get_length_prefixed_2(&key_share_list, &encoded_pt)
                 || PACKET_remaining(&encoded_pt) == 0) {
         	CTerr(CT_F_SCT_NEW_FROM_BASE64, X509_R_BASE64_DECODE_ERROR);
-			printf("Exit1\n");
+			printf("inside: Exit1\n");
             goto err;
         }
 		printf("inside: group_id: %u\n",group_id);
@@ -234,7 +235,7 @@ SSL_ESNI* SSL_ESNI_new_from_base64(char *esnikeys)
 		 */
 		EVP_PKEY *kn=ssl_generate_param_group(group_id);
 		if (kn==NULL) {
-			printf("Exit2\n");
+			printf("inside: Exit2\n");
         	CTerr(CT_F_SCT_NEW_FROM_BASE64, X509_R_BASE64_DECODE_ERROR);
             goto err;
 		}
@@ -243,22 +244,22 @@ SSL_ESNI* SSL_ESNI_new_from_base64(char *esnikeys)
         if (!EVP_PKEY_set1_tls_encodedpoint(kn,
                 PACKET_data(&encoded_pt),
                 PACKET_remaining(&encoded_pt))) {
-			printf("Exit3\n");
+			printf("inside: Exit3\n");
         	CTerr(CT_F_SCT_NEW_FROM_BASE64, X509_R_BASE64_DECODE_ERROR);
             goto err;
         }
 		nkeys++;
-		keys=OPENSSL_realloc(keys,nkeys*EVP_PKEY_size(kn));
+		keys=(EVP_PKEY**)OPENSSL_realloc(keys,nkeys*EVP_PKEY_size(kn));
 		if (keys == NULL ) {
         	CTerr(CT_F_SCT_NEW_FROM_BASE64, X509_R_BASE64_DECODE_ERROR);
-			printf("Exit4\n");
+			printf("inside: Exit4\n");
             goto err;
 		}
 		keys[nkeys]=kn;
-		group_ids=OPENSSL_realloc(group_ids,nkeys*sizeof(int));
+		group_ids=(unsigned int*)OPENSSL_realloc(group_ids,nkeys*sizeof(int));
 		if (keys == NULL ) {
         	CTerr(CT_F_SCT_NEW_FROM_BASE64, X509_R_BASE64_DECODE_ERROR);
-			printf("Exit5\n");
+			printf("inside: Exit5\n");
             goto err;
 		}
     }
@@ -278,11 +279,24 @@ err:
 	return(NULL);
 }
 
+void SSL_ESNI_free(SSL_ESNI *esnikeys)
+{
+	if (esnikeys==NULL) 
+		return;
+	if (esnikeys!=NULL && esnikeys->erecs!=NULL)
+		OPENSSL_free(esnikeys->erecs);
+	if (esnikeys!=NULL)
+		OPENSSL_free(esnikeys);
+	return;
+}
+
 /*
  * TODO: This should output to a BIO*
  */
-int SSL_ESNI_print(SSL_ESNI *esni)
+int SSL_ESNI_print(BIO* out, SSL_ESNI *esni)
 {
+	int indent=0;
+	int rv=0;
 	if (esni==NULL) {
         CTerr(CT_F_SCT_NEW_FROM_BASE64, X509_R_BASE64_DECODE_ERROR);
 		return(1);
@@ -291,12 +305,25 @@ int SSL_ESNI_print(SSL_ESNI *esni)
         CTerr(CT_F_SCT_NEW_FROM_BASE64, X509_R_BASE64_DECODE_ERROR);
 		return(1);
 	}
-	printf("ESNI version: %x\n",esni->erecs->version);
-	printf("ESNI checksum: ");
+	BIO_printf(out,"ESNI version: %x\n",esni->erecs->version);
+	BIO_printf(out,"ESNI checksum: ");
 	for (int i=0;i!=4;i++) {
-		printf("%0x",esni->erecs->checksum[i]);
+		BIO_printf(out,"%0x",esni->erecs->checksum[i]);
 	}
-	printf("\n");
+	BIO_printf(out,"\n");
+	for (int i=0;i!=esni->erecs->nkeys;i++) {
+		BIO_printf(out,"ESNI Key[%d]: ",i);
+		if (esni->erecs->keys && esni->erecs->keys[i]) {
+			rv=EVP_PKEY_print_public(out, esni->erecs->keys[i], indent, NULL); // ASN1_PCTX *pctx);
+			if (!rv) {
+				BIO_printf(out,"Oops: %d\n",rv);
+			}
+		} else {
+			BIO_printf(out,"NULL!\n");
+		}
+
+
+	}
 	return(1);
 }
 
@@ -318,32 +345,48 @@ int main(int argc, char **argv)
 	char *frontname=OPENSSL_strdup(argv[2]);
 	char *esnikeys_b64=NULL;
 	char *deffront="cloudflare.net";
+	FILE *fp=NULL;
+	BIO *out=NULL;
+	SSL_ESNI *esnikeys=NULL;
+
 	if (argc==4) 
 		esnikeys_b64=OPENSSL_strdup(argv[3]);
 	else
 		esnikeys_b64=deffront;
+
 	printf("Trying r %s %s %s\n",encservername,frontname,esnikeys_b64);
-	if (!(rv=esni_checknames(encservername,frontname)))
+	if (!(rv=esni_checknames(encservername,frontname))) {
 		printf("Bad names! %d\n",rv);
-	SSL_ESNI *esnikeys=SSL_ESNI_new_from_base64(esnikeys_b64);
-	if (esnikeys==NULL) {
+		goto end;
+	}
+
+	esnikeys=SSL_ESNI_new_from_base64(esnikeys_b64);
+	if (esnikeys == NULL) {
 		printf("Can't create SSL_ESNI from b64!\n");
-		goto out;
+		goto end;
 	}
-	if (!SSL_ESNI_print(esnikeys)) {
+
+	fp=fopen("/dev/stdout","w");
+	if (fp==NULL)
+		goto end;
+
+	out=BIO_new_fp(fp,BIO_CLOSE|BIO_FP_TEXT);
+	if (out == NULL)
+		goto end;
+
+	if (!SSL_ESNI_print(out,esnikeys)) {
 		printf("Can't print SSL_ESNI!\n");
-		goto out;
+		goto end;
 	}
-		
-out:
+
+end:
+	BIO_free_all(out);
 	OPENSSL_free(encservername);
 	OPENSSL_free(frontname);
 	if (argc==4) 
 		OPENSSL_free(esnikeys_b64);
-	if (esnikeys!=NULL && esnikeys->erecs!=NULL)
-		OPENSSL_free(esnikeys->erecs);
 	if (esnikeys!=NULL)
-		OPENSSL_free(esnikeys);
+		SSL_ESNI_free(esnikeys);
 	return(0);
 }
 #endif
