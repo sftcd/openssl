@@ -193,4 +193,4 @@ test:
 	./doit.sh
 
 clean:
-	- rm -f esni esni.o
+	- rm -f esni esni.o libssl.a libcrypto.a 
