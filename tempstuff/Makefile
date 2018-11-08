@@ -93,7 +93,7 @@ CROSS_COMPILE=
 CC=$(CROSS_COMPILE)gcc
 CXX=$(CROSS_COMPILE)g++
 CPPFLAGS=
-CFLAGS=-Wall -O3
+CFLAGS=-Wall 
 CXXFLAGS=-Wall -O3
 LDFLAGS= 
 EX_LIBS= 
@@ -121,7 +121,7 @@ TARFILE=        ../$(NAME).tar
 
 # Variables starting with CNF_ are common variables for all product types
 
-CNF_CPPFLAGS=-DNDEBUG
+CNF_CPPFLAGS=-DDEBUG
 CNF_CFLAGS=-pthread -m64 -Wa,--noexecstack
 CNF_CXXFLAGS=-std=c++11 -pthread -m64
 CNF_LDFLAGS=
@@ -187,7 +187,8 @@ libcrypto.a: ../libcrypto.a
 	cp ../libcrypto.a .
 
 esni: esni.o libs
-	${CC} -g -pthread -m64 -Wa,--noexecstack -Wall -O3 -o $@ $< -L. -lssl -lcrypto -ldl 
+	#${CC} -g -pthread -m64 -Wa,--noexecstack -Wall -O3 -o $@ $< -L. -lssl -lcrypto -ldl 
+	${CC} -g -pthread -m64 -Wall -o $@ $< -L. -lssl -lcrypto -ldl 
 
 test:
 	./doit.sh
