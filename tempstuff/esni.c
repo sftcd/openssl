@@ -248,14 +248,17 @@ SSL_ESNI* SSL_ESNI_new_from_base64(char *esnikeys)
         	CTerr(CT_F_SCT_NEW_FROM_BASE64, X509_R_BASE64_DECODE_ERROR);
             goto err;
         }
+		csize=EVP_PKEY_size(kn);
+		printf("inside: csize2: %ld\n",csize);
 		nkeys++;
-		keys=(EVP_PKEY**)OPENSSL_realloc(keys,nkeys*EVP_PKEY_size(kn));
-		if (keys == NULL ) {
+		EVP_PKEY** tkeys=(EVP_PKEY**)OPENSSL_realloc(keys,nkeys*sizeof(EVP_PKEY*));
+		if (tkeys == NULL ) {
         	CTerr(CT_F_SCT_NEW_FROM_BASE64, X509_R_BASE64_DECODE_ERROR);
 			printf("inside: Exit4\n");
             goto err;
 		}
-		keys[nkeys]=kn;
+		keys=tkeys;
+		keys[nkeys-1]=kn;
 		group_ids=(unsigned int*)OPENSSL_realloc(group_ids,nkeys*sizeof(int));
 		if (keys == NULL ) {
         	CTerr(CT_F_SCT_NEW_FROM_BASE64, X509_R_BASE64_DECODE_ERROR);
@@ -298,11 +301,11 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esni)
 	int indent=0;
 	int rv=0;
 	if (esni==NULL) {
-        CTerr(CT_F_SCT_NEW_FROM_BASE64, X509_R_BASE64_DECODE_ERROR);
+		BIO_printf(out,"ESNI is NULL!\n");
 		return(1);
 	}
 	if (esni->erecs==NULL) {
-        CTerr(CT_F_SCT_NEW_FROM_BASE64, X509_R_BASE64_DECODE_ERROR);
+		BIO_printf(out,"ESNI has no keys!\n");
 		return(1);
 	}
 	BIO_printf(out,"ESNI version: %x\n",esni->erecs->version);
@@ -311,6 +314,7 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esni)
 		BIO_printf(out,"%0x",esni->erecs->checksum[i]);
 	}
 	BIO_printf(out,"\n");
+	BIO_printf(out,"Keys: %d\n",esni->erecs->nkeys);
 	for (int i=0;i!=esni->erecs->nkeys;i++) {
 		BIO_printf(out,"ESNI Key[%d]: ",i);
 		if (esni->erecs->keys && esni->erecs->keys[i]) {
