@@ -51,8 +51,8 @@ typedef struct esni_record_st {
 	unsigned int version;
 	unsigned char checksum[4];
 	unsigned int nkeys;
-	unsigned int *curve_ids;
-	EVP_PKEY *keys;
+	unsigned int *group_ids;
+	EVP_PKEY **keys;
 	unsigned int nsuites;
 	SSL_CIPHER *suites;
 	unsigned int padded_length;
@@ -138,6 +138,8 @@ err:
     return -1;
 }
 
+
+
 /*
  * Decode from TXT RR to SSL_ESNI
  * This time inspired but, but not the same as
@@ -196,17 +198,74 @@ SSL_ESNI* SSL_ESNI_new_from_base64(char *esnikeys)
 	/* checksum */
 	if (!PACKET_copy_bytes(&pkt,crec->checksum,4))
 		goto err;
+	printf("inside: checksum: %02x%02x%02x%02x\n",
+					crec->checksum[0],
+					crec->checksum[1],
+					crec->checksum[2],
+					crec->checksum[3]);
 
 	/* list of KeyShareEntry elements - inspiration: ssl/statem/extensions_srvr.c:tls_parse_ctos_key_share */
-	int nkeys=0;
-	unsigned int *curve_ids=NULL;
-	EVP_PKEY *keys=NULL;
 	PACKET key_share_list;
-	if (!PACKET_as_length_prefixed_2(&pkt, &key_share_list)) {
+	if (!PACKET_get_length_prefixed_2(&pkt, &key_share_list)) {
         CTerr(CT_F_SCT_NEW_FROM_BASE64, X509_R_BASE64_DECODE_ERROR);
 		goto err;
     }
 
+	unsigned int group_id;
+	PACKET encoded_pt;
+	int nkeys=0;
+	unsigned int *group_ids=NULL;
+	EVP_PKEY **keys=NULL;
+
+    while (PACKET_remaining(&key_share_list) > 0) {
+        if (!PACKET_get_net_2(&key_share_list, &group_id)
+                || !PACKET_get_length_prefixed_2(&key_share_list, &encoded_pt)
+                || PACKET_remaining(&encoded_pt) == 0) {
+        	CTerr(CT_F_SCT_NEW_FROM_BASE64, X509_R_BASE64_DECODE_ERROR);
+			printf("Exit1\n");
+            goto err;
+        }
+		printf("inside: group_id: %u\n",group_id);
+		rm=PACKET_remaining(&encoded_pt);
+		printf("inside: rm=%ld\n",rm);
+		/* 
+		 * TODO: ensure that we can call this - likely this calling code will need to be
+		 * in libssl.so as that seems to hide this symbol
+		 */
+		EVP_PKEY *kn=ssl_generate_param_group(group_id);
+		if (kn==NULL) {
+			printf("Exit2\n");
+        	CTerr(CT_F_SCT_NEW_FROM_BASE64, X509_R_BASE64_DECODE_ERROR);
+            goto err;
+		}
+		size_t csize=EVP_PKEY_size(kn);
+		printf("inside: csize: %ld\n",csize);
+        if (!EVP_PKEY_set1_tls_encodedpoint(kn,
+                PACKET_data(&encoded_pt),
+                PACKET_remaining(&encoded_pt))) {
+			printf("Exit3\n");
+        	CTerr(CT_F_SCT_NEW_FROM_BASE64, X509_R_BASE64_DECODE_ERROR);
+            goto err;
+        }
+		nkeys++;
+		keys=OPENSSL_realloc(keys,nkeys*EVP_PKEY_size(kn));
+		if (keys == NULL ) {
+        	CTerr(CT_F_SCT_NEW_FROM_BASE64, X509_R_BASE64_DECODE_ERROR);
+			printf("Exit4\n");
+            goto err;
+		}
+		keys[nkeys]=kn;
+		group_ids=OPENSSL_realloc(group_ids,nkeys*sizeof(int));
+		if (keys == NULL ) {
+        	CTerr(CT_F_SCT_NEW_FROM_BASE64, X509_R_BASE64_DECODE_ERROR);
+			printf("Exit5\n");
+            goto err;
+		}
+    }
+	printf("inside: found %d keys\n",nkeys);
+	crec->nkeys=nkeys;
+	crec->keys=keys;
+	crec->group_ids=group_ids;
 
 	return(newesni);
 err:
@@ -263,7 +322,7 @@ int main(int argc, char **argv)
 		esnikeys_b64=OPENSSL_strdup(argv[3]);
 	else
 		esnikeys_b64=deffront;
-	printf("Trying to do bits of esni to %s via %s using %s\n",encservername,frontname,esnikeys_b64);
+	printf("Trying r %s %s %s\n",encservername,frontname,esnikeys_b64);
 	if (!(rv=esni_checknames(encservername,frontname)))
 		printf("Bad names! %d\n",rv);
 	SSL_ESNI *esnikeys=SSL_ESNI_new_from_base64(esnikeys_b64);
