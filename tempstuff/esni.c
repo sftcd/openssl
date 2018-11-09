@@ -78,15 +78,37 @@ typedef struct ssl_esni_st {
 	uint64_t lastread;
 } SSL_ESNI;
 
+/*
+ * Utility functions
+ */
+
+/*
+* Check names for length 
+* TODO: other sanity checks, as becomes apparent
+*/
 int esni_checknames(const char *encservername, const char *frontname)
 {
-	/*
-	 * Check names for length 
-	 * TODO: other sanity checks, as becomes apparent
-	 */
 	if (OPENSSL_strnlen(encservername,TLSEXT_MAXLEN_host_name)>TLSEXT_MAXLEN_host_name) return(0);
 	if (OPENSSL_strnlen(frontname,TLSEXT_MAXLEN_host_name)>TLSEXT_MAXLEN_host_name) return(0);
 	return(1);
+}
+
+/*
+ * map 8 bytes to a 64-bit time
+ * TODO: there must be code for this somewhere - find it
+ */
+uint64_t uint64_from_bytes(unsigned char *buf)
+{
+	uint64_t rv=0;
+	rv = ((uint64_t)(*buf)) << 56;
+	rv |= ((uint64_t)(*(buf + 1))) << 48;
+	rv |= ((uint64_t)(*(buf + 2))) << 40;
+	rv |= ((uint64_t)(*(buf + 3))) << 32;
+	rv |= ((uint64_t)(*(buf + 4))) << 24;
+	rv |= ((uint64_t)(*(buf + 5))) << 16;
+	rv |= ((uint64_t)(*(buf + 6))) << 8;
+	rv |= *(buf + 7);
+	return(rv);
 }
 
 /*
@@ -141,6 +163,31 @@ err:
 }
 
 
+void SSL_ESNI_free(SSL_ESNI *esnikeys)
+{
+	if (esnikeys==NULL) 
+		return;
+	/*
+	 * ciphersuites
+	 */
+	if (esnikeys!=NULL && esnikeys->erecs != NULL && esnikeys->erecs->ciphersuites!=NULL) {
+		STACK_OF(SSL_CIPHER) *sk=esnikeys->erecs->ciphersuites;
+		sk_SSL_CIPHER_free(sk);
+	}
+	/*
+	 * keys
+	 */
+	if (esnikeys->erecs->nkeys!=0) {
+		for (int i=0;i!=esnikeys->erecs->nkeys;i++) {
+			EVP_PKEY_free(esnikeys->erecs->keys[i]);
+		}
+		OPENSSL_free(esnikeys->erecs->group_ids);
+		OPENSSL_free(esnikeys->erecs->keys);
+	}
+	if (esnikeys!=NULL && esnikeys->erecs!=NULL)
+		OPENSSL_free(esnikeys->erecs);
+	return;
+}
 
 /*
  * Decode from TXT RR to SSL_ESNI
@@ -167,8 +214,8 @@ SSL_ESNI* SSL_ESNI_new_from_base64(char *esnikeys)
 
 	PACKET pkt={outbuf,declen};
 
-	size_t rm=PACKET_remaining(&pkt);
-	printf("inside: rm=%ld\n",rm);
+	//size_t rm=PACKET_remaining(&pkt);
+	//printf("inside: rm=%ld\n",rm);
 
 	newesni=OPENSSL_malloc(sizeof(SSL_ESNI));
 	if (newesni==NULL)
@@ -195,16 +242,16 @@ SSL_ESNI* SSL_ESNI_new_from_base64(char *esnikeys)
 	/* version */
 	if (!PACKET_get_net_2(&pkt,&crec->version))
 		goto err;
-	printf("inside: version=%x\n",crec->version);
+	//printf("inside: version=%x\n",crec->version);
 
 	/* checksum */
 	if (!PACKET_copy_bytes(&pkt,crec->checksum,4))
 		goto err;
-	printf("inside: checksum: %02x%02x%02x%02x\n",
-					crec->checksum[0],
-					crec->checksum[1],
-					crec->checksum[2],
-					crec->checksum[3]);
+	//printf("inside: checksum: %02x%02x%02x%02x\n",
+					//crec->checksum[0],
+					//crec->checksum[1],
+					//crec->checksum[2],
+					//crec->checksum[3]);
 
 	/* list of KeyShareEntry elements - inspiration: ssl/statem/extensions_srvr.c:tls_parse_ctos_key_share */
 	PACKET key_share_list;
@@ -224,38 +271,38 @@ SSL_ESNI* SSL_ESNI_new_from_base64(char *esnikeys)
                 || !PACKET_get_length_prefixed_2(&key_share_list, &encoded_pt)
                 || PACKET_remaining(&encoded_pt) == 0) {
         	CTerr(CT_F_SCT_NEW_FROM_BASE64, X509_R_BASE64_DECODE_ERROR);
-			printf("inside: Exit1\n");
+			//printf("inside: Exit1\n");
             goto err;
         }
-		printf("inside: group_id: %u\n",group_id);
-		rm=PACKET_remaining(&encoded_pt);
-		printf("inside: rm=%ld\n",rm);
+		//printf("inside: group_id: %u\n",group_id);
+		//rm=PACKET_remaining(&encoded_pt);
+		//printf("inside: rm=%ld\n",rm);
 		/* 
 		 * TODO: ensure that we can call this - likely this calling code will need to be
 		 * in libssl.so as that seems to hide this symbol
 		 */
 		EVP_PKEY *kn=ssl_generate_param_group(group_id);
 		if (kn==NULL) {
-			printf("inside: Exit2\n");
+			//printf("inside: Exit2\n");
         	CTerr(CT_F_SCT_NEW_FROM_BASE64, X509_R_BASE64_DECODE_ERROR);
             goto err;
 		}
-		size_t csize=EVP_PKEY_size(kn);
-		printf("inside: csize: %ld\n",csize);
+		//size_t csize=EVP_PKEY_size(kn);
+		//printf("inside: csize: %ld\n",csize);
         if (!EVP_PKEY_set1_tls_encodedpoint(kn,
                 PACKET_data(&encoded_pt),
                 PACKET_remaining(&encoded_pt))) {
-			printf("inside: Exit3\n");
+			//printf("inside: Exit3\n");
         	CTerr(CT_F_SCT_NEW_FROM_BASE64, X509_R_BASE64_DECODE_ERROR);
             goto err;
         }
-		csize=EVP_PKEY_size(kn);
-		printf("inside: csize2: %ld\n",csize);
+		//csize=EVP_PKEY_size(kn);
+		//printf("inside: csize2: %ld\n",csize);
 		nkeys++;
 		EVP_PKEY** tkeys=(EVP_PKEY**)OPENSSL_realloc(keys,nkeys*sizeof(EVP_PKEY*));
 		if (tkeys == NULL ) {
         	CTerr(CT_F_SCT_NEW_FROM_BASE64, X509_R_BASE64_DECODE_ERROR);
-			printf("inside: Exit4\n");
+			//printf("inside: Exit4\n");
             goto err;
 		}
 		keys=tkeys;
@@ -263,11 +310,11 @@ SSL_ESNI* SSL_ESNI_new_from_base64(char *esnikeys)
 		group_ids=(unsigned int*)OPENSSL_realloc(group_ids,nkeys*sizeof(unsigned int));
 		if (keys == NULL ) {
         	CTerr(CT_F_SCT_NEW_FROM_BASE64, X509_R_BASE64_DECODE_ERROR);
-			printf("inside: Exit5\n");
+			//printf("inside: Exit5\n");
             goto err;
 		}
     }
-	printf("inside: found %d keys\n",nkeys);
+	//printf("inside: found %d keys\n",nkeys);
 	crec->nkeys=nkeys;
 	crec->keys=keys;
 	crec->group_ids=group_ids;
@@ -279,25 +326,25 @@ SSL_ESNI* SSL_ESNI_new_from_base64(char *esnikeys)
 	PACKET cipher_suites;
 	if (!PACKET_get_length_prefixed_2(&pkt, &cipher_suites)) {
        	CTerr(CT_F_SCT_NEW_FROM_BASE64, X509_R_BASE64_DECODE_ERROR);
-		printf("inside: Exit6\n");
+		//printf("inside: Exit6\n");
 		goto err;
 	}
 	int nsuites=PACKET_remaining(&cipher_suites);
-	printf("inside: found %d suites\n",nsuites);
+	//printf("inside: found %d suites\n",nsuites);
 	if (!nsuites || (nsuites % 1)) {
        	CTerr(CT_F_SCT_NEW_FROM_BASE64, X509_R_BASE64_DECODE_ERROR);
-		printf("inside: Exit7\n");
+		//printf("inside: Exit7\n");
 		goto err;
 	}
     const SSL_CIPHER *c;
-    STACK_OF(SSL_CIPHER) *sk = newesni->erecs->ciphersuites;
+    STACK_OF(SSL_CIPHER) *sk = sk_SSL_CIPHER_new_null();
     int n;
     unsigned char cipher[TLS_CIPHER_LEN];
     n = TLS_CIPHER_LEN;
     sk = sk_SSL_CIPHER_new_null();
     if (sk == NULL) {
        	CTerr(CT_F_SCT_NEW_FROM_BASE64, X509_R_BASE64_DECODE_ERROR);
-		printf("inside: Exit8\n");
+		//printf("inside: Exit8\n");
         goto err;
     }
     while (PACKET_copy_bytes(&cipher_suites, cipher, n)) {
@@ -305,59 +352,54 @@ SSL_ESNI* SSL_ESNI_new_from_base64(char *esnikeys)
         if (c != NULL) {
             if (c->valid && !sk_SSL_CIPHER_push(sk, c)) {
 				CTerr(CT_F_SCT_NEW_FROM_BASE64, X509_R_BASE64_DECODE_ERROR);
-				printf("inside: Exit9\n");
+				//printf("inside: Exit9\n");
                 goto err;
             }
         }
     }
     if (PACKET_remaining(&cipher_suites) > 0) {
        	CTerr(CT_F_SCT_NEW_FROM_BASE64, X509_R_BASE64_DECODE_ERROR);
-		printf("inside: Exit10\n");
+		//printf("inside: Exit10\n");
         goto err;
     }
+    newesni->erecs->ciphersuites=sk;
 
+	/*
+	 * remaining fields:
+	 * uint16 padded_length;
+	 * uint64 not_before;
+	 * uint64 not_after;
+	 * Extension extensions<0..2^16-1>;
+	 */
+
+	/* padded_length */
+	if (!PACKET_get_net_2(&pkt,&crec->padded_length))
+		goto err;
+	//printf("inside: padded_length=%x\n",crec->padded_length);
+	unsigned char nbs[8];
+	if (!PACKET_copy_bytes(&pkt,nbs,8)) {
+       	CTerr(CT_F_SCT_NEW_FROM_BASE64, X509_R_BASE64_DECODE_ERROR);
+		printf("inside: Exit10\n");
+		goto err;
+	}
+	crec->not_before=uint64_from_bytes(nbs);
+	if (!PACKET_copy_bytes(&pkt,nbs,8)) {
+       	CTerr(CT_F_SCT_NEW_FROM_BASE64, X509_R_BASE64_DECODE_ERROR);
+		printf("inside: Exit10\n");
+		goto err;
+	}
+	crec->not_after=uint64_from_bytes(nbs);
 	return(newesni);
 err:
-	if (newesni->erecs!=NULL) {
-		if (newesni->erecs->nkeys!=0) {
-			for (int i=0;i!=newesni->erecs->nkeys;i++) {
-				EVP_PKEY_free(newesni->erecs->keys[i]);
-			}
-			OPENSSL_free(newesni->erecs->group_ids);
-			OPENSSL_free(newesni->erecs->keys);
-		}
-		/*
-		if (newesni->erecs->nsuites!=0) {
-			for (int i=0;i!=newesni->erecs->nsuites;i++) {
-				SSL_CIPHER_free(newesni->erecs->suites[i]);
-			}
-			OPENSSL_free(newesni->erecs->suites);
-		}
-		*/
-	}
-	if (newesni->erecs!=NULL)
-		OPENSSL_free(newesni->erecs);
-	if (newesni!=NULL)
+	if (newesni!=NULL) {
+		SSL_ESNI_free(newesni);
 		OPENSSL_free(newesni);
+	}
 	if (outbuf!=NULL)
 		OPENSSL_free(outbuf);
 	return(NULL);
 }
 
-void SSL_ESNI_free(SSL_ESNI *esnikeys)
-{
-	if (esnikeys==NULL) 
-		return;
-	if (esnikeys!=NULL && esnikeys->erecs!=NULL)
-		OPENSSL_free(esnikeys->erecs);
-	if (esnikeys!=NULL)
-		OPENSSL_free(esnikeys);
-	return;
-}
-
-/*
- * TODO: This should output to a BIO*
- */
 int SSL_ESNI_print(BIO* out, SSL_ESNI *esni)
 {
 	int indent=0;
@@ -370,8 +412,8 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esni)
 		BIO_printf(out,"ESNI has no keys!\n");
 		return(1);
 	}
-	BIO_printf(out,"ESNI version: %x\n",esni->erecs->version);
-	BIO_printf(out,"ESNI checksum: ");
+	BIO_printf(out,"ESNI version: 0x%x\n",esni->erecs->version);
+	BIO_printf(out,"ESNI checksum: 0x");
 	for (int i=0;i!=4;i++) {
 		BIO_printf(out,"%0x",esni->erecs->checksum[i]);
 	}
@@ -385,10 +427,30 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esni)
 				BIO_printf(out,"Oops: %d\n",rv);
 			}
 		} else {
-			BIO_printf(out,"NULL!\n");
+			BIO_printf(out,"Key %d is NULL!\n",i);
 		}
 	}
 
+	/*
+	 * ciphersuites
+	 */
+    STACK_OF(SSL_CIPHER) *sk = esni->erecs->ciphersuites;
+	if (sk==NULL) {
+		BIO_printf(out,"No ciphersuites!\n");
+	} else {
+		for (int i = 0; i < sk_SSL_CIPHER_num(sk); i++) {
+			const SSL_CIPHER *c = sk_SSL_CIPHER_value(sk, i);
+			if (c!=NULL) {
+				BIO_printf(out,"Ciphersuite %d is %s\n",i,c->name);
+			} else {
+				BIO_printf(out,"Ciphersuite %d is NULL\n",i);
+			}
+		}
+
+	}
+	BIO_printf(out,"ESNI padded_length: %d\n",esni->erecs->padded_length);
+	BIO_printf(out,"ESNI not_before: %lu\n",esni->erecs->not_before);
+	BIO_printf(out,"ESNI not_after: %lu\n",esni->erecs->not_after);
 	return(1);
 }
 
@@ -450,8 +512,10 @@ end:
 	OPENSSL_free(frontname);
 	if (argc==4) 
 		OPENSSL_free(esnikeys_b64);
-	if (esnikeys!=NULL)
+	if (esnikeys!=NULL) {
 		SSL_ESNI_free(esnikeys);
+		OPENSSL_free(esnikeys);
+	}
 	return(0);
 }
 #endif
