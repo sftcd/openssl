@@ -186,8 +186,9 @@ libssl.a: ../libssl.a
 libcrypto.a: ../libcrypto.a
 	cp ../libcrypto.a .
 
+# change back to the line below when done debugging maybe
+#${CC} -g -pthread -m64 -Wa,--noexecstack -Wall -O3 -o $@ $< -L. -lssl -lcrypto -ldl 
 esni: esni.o libs
-	#${CC} -g -pthread -m64 -Wa,--noexecstack -Wall -O3 -o $@ $< -L. -lssl -lcrypto -ldl 
 	${CC} -g -pthread -m64 -Wall -o $@ $< -L. -lssl -lcrypto -ldl 
 
 test:
