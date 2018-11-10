@@ -6,7 +6,7 @@ COVER="cloudflare.net"
 HIDDEN="encryptedsni.com"
 VG="no"
 
-if [[ "$VG" == "mo" ]]
+if [[ "$VG" == "no" ]]
 then
 	./esni $HIDDEN $COVER $ESNI
 else
