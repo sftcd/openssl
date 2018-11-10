@@ -165,26 +165,28 @@ err:
 
 void SSL_ESNI_free(SSL_ESNI *esnikeys)
 {
+	//fprintf(stderr,"Inside SSL_ESNI_free freeing %p\n",esnikeys);
 	if (esnikeys==NULL) 
 		return;
 	/*
 	 * ciphersuites
 	 */
-	if (esnikeys!=NULL && esnikeys->erecs != NULL && esnikeys->erecs->ciphersuites!=NULL) {
+	if (esnikeys->erecs != NULL && esnikeys->erecs->ciphersuites!=NULL) {
 		STACK_OF(SSL_CIPHER) *sk=esnikeys->erecs->ciphersuites;
 		sk_SSL_CIPHER_free(sk);
 	}
 	/*
 	 * keys
 	 */
-	if (esnikeys->erecs->nkeys!=0) {
+	if (esnikeys->erecs != NULL && esnikeys->erecs->nkeys!=0) {
 		for (int i=0;i!=esnikeys->erecs->nkeys;i++) {
-			EVP_PKEY_free(esnikeys->erecs->keys[i]);
+			EVP_PKEY *pk=esnikeys->erecs->keys[i];
+			EVP_PKEY_free(pk);
 		}
 		OPENSSL_free(esnikeys->erecs->group_ids);
 		OPENSSL_free(esnikeys->erecs->keys);
 	}
-	if (esnikeys!=NULL && esnikeys->erecs!=NULL)
+	if (esnikeys->erecs!=NULL)
 		OPENSSL_free(esnikeys->erecs);
 	return;
 }
@@ -232,7 +234,7 @@ SSL_ESNI* SSL_ESNI_new_from_base64(char *esnikeys)
 	 */
 	newesni->nerecs=1;
 	newesni->erecs=NULL;
-	newesni->erecs=OPENSSL_malloc(sizeof(SSL_ESNI));
+	newesni->erecs=OPENSSL_malloc(sizeof(ESNI_RECORD));
 	if (newesni->erecs==NULL) { 
         CTerr(CT_F_SCT_NEW_FROM_BASE64, X509_R_BASE64_DECODE_ERROR);
 		goto err;
@@ -389,6 +391,28 @@ SSL_ESNI* SSL_ESNI_new_from_base64(char *esnikeys)
 		goto err;
 	}
 	crec->not_after=uint64_from_bytes(nbs);
+	/*
+	 * Extensions: we don't yet support any (does anyone?)
+	 * TODO: add extensions support at some level 
+	 */
+	if (!PACKET_get_net_2(&pkt,&crec->nexts)) {
+       	CTerr(CT_F_SCT_NEW_FROM_BASE64, X509_R_BASE64_DECODE_ERROR);
+		printf("inside: Exit11\n");
+		goto err;
+	}
+	if (crec->nexts != 0 ) {
+       	CTerr(CT_F_SCT_NEW_FROM_BASE64, X509_R_BASE64_DECODE_ERROR);
+		printf("Don't suppoer extensions yet!!!\n");
+		goto err;
+
+	}
+	int leftover=PACKET_remaining(&pkt);
+	if (leftover!=0) {
+       	CTerr(CT_F_SCT_NEW_FROM_BASE64, X509_R_BASE64_DECODE_ERROR);
+		printf("Packet has *%d leftover bytes - error\n",leftover);
+		goto err;
+	}
+
 	return(newesni);
 err:
 	if (newesni!=NULL) {
@@ -451,6 +475,7 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esni)
 	BIO_printf(out,"ESNI padded_length: %d\n",esni->erecs->padded_length);
 	BIO_printf(out,"ESNI not_before: %lu\n",esni->erecs->not_before);
 	BIO_printf(out,"ESNI not_after: %lu\n",esni->erecs->not_after);
+	BIO_printf(out,"ESNI number of extensions: %d\n",esni->erecs->nexts);
 	return(1);
 }
 
