@@ -339,7 +339,7 @@ SSL_ESNI* SSL_ESNI_new_from_base64(char *esnikeys)
 		goto err;
 	}
     const SSL_CIPHER *c;
-    STACK_OF(SSL_CIPHER) *sk = sk_SSL_CIPHER_new_null();
+    STACK_OF(SSL_CIPHER) *sk = NULL;
     int n;
     unsigned char cipher[TLS_CIPHER_LEN];
     n = TLS_CIPHER_LEN;
@@ -412,7 +412,7 @@ SSL_ESNI* SSL_ESNI_new_from_base64(char *esnikeys)
 		printf("Packet has *%d leftover bytes - error\n",leftover);
 		goto err;
 	}
-
+	OPENSSL_free(outbuf);
 	return(newesni);
 err:
 	if (newesni!=NULL) {
