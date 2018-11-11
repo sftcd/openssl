@@ -421,6 +421,16 @@ err:
 	}
 	if (outbuf!=NULL)
 		OPENSSL_free(outbuf);
+
+	/*
+	 * Process the exetnal public, if we're gonna thing abot it.
+	/*
+	 * Now encrypt something for em, as we would an SNI...
+	 */
+	if (!SSL_ESNI_enc(esnikeys,hiddensite,coversite)) {
+		printf("Can't encrypt for %s via %s!\n",hiddensite,coversite);
+		goto end;
+	}
 	return(NULL);
 }
 
