@@ -46,7 +46,6 @@
  * 
  * Note that I don't like the above, but it's what we have to
  * work with at the moment.
- * TODO: figure out openssl style types for the above
  */
 typedef struct esni_record_st {
 	unsigned int version;
@@ -54,8 +53,6 @@ typedef struct esni_record_st {
 	unsigned int nkeys;
 	unsigned int *group_ids;
 	EVP_PKEY **keys;
-	//unsigned int nsuites;
-	//SSL_CIPHER *suites;
 	STACK_OF(SSL_CIPHER) *ciphersuites;
 	unsigned int padded_length;
 	uint64_t not_before;
@@ -421,16 +418,6 @@ err:
 	}
 	if (outbuf!=NULL)
 		OPENSSL_free(outbuf);
-
-	/*
-	 * Process the exetnal public, if we're gonna thing abot it.
-	/*
-	 * Now encrypt something for em, as we would an SNI...
-	 */
-	if (!SSL_ESNI_enc(esnikeys,hiddensite,coversite)) {
-		printf("Can't encrypt for %s via %s!\n",hiddensite,coversite);
-		goto end;
-	}
 	return(NULL);
 }
 
@@ -489,6 +476,11 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esni)
 	return(1);
 }
 
+int SSL_ESNI_enc(SSL_ESNI *esnikeys, char *protectedserver, char *frontname, PACKET *the_esni)
+{
+	return 1;
+}
+
 #endif
 
 #define TESTMAIN
@@ -510,6 +502,7 @@ int main(int argc, char **argv)
 	FILE *fp=NULL;
 	BIO *out=NULL;
 	SSL_ESNI *esnikeys=NULL;
+	PACKET the_esni={NULL,0};
 
 	if (argc==4) 
 		esnikeys_b64=OPENSSL_strdup(argv[3]);
@@ -541,6 +534,11 @@ int main(int argc, char **argv)
 		goto end;
 	}
 
+	if (!SSL_ESNI_enc(esnikeys,encservername,frontname,&the_esni)) {
+		printf("Can't encrypt SSL_ESNI!\n");
+		goto end;
+	}
+
 end:
 	BIO_free_all(out);
 	OPENSSL_free(encservername);
@@ -550,6 +548,12 @@ end:
 	if (esnikeys!=NULL) {
 		SSL_ESNI_free(esnikeys);
 		OPENSSL_free(esnikeys);
+	}
+	if (the_esni.curr!=NULL) {
+		/*
+		 * TODO: Figure if this is a safe cast or not
+		 */
+		OPENSSL_free((char*)the_esni.curr);
 	}
 	return(0);
 }
