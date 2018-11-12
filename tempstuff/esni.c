@@ -19,6 +19,11 @@
 #include <../ssl/packet_locl.h>
 #include <../apps/apps.h>
 
+/*
+ * For local testing
+ */
+#define TESTMAIN
+
 #ifndef OPENSSL_NO_ESNI
 /*
  * code within here should be openssl-style
@@ -35,8 +40,15 @@
 #define SSL_MAX_SSL_RECORD_DIGEST_LENGTH 255 
 #define SSL_MAX_SSL_ENCRYPTED_SNI_LENGTH 255
 
+/*
+ * Wrap error handler for now
+ */
+#ifndef TESTMAIN
 /* destination: include/openssl/err.h: */
 #define ESNIerr(f,r) ERR_PUT_error(ERR_LIB_CT,(f),(r),OPENSSL_FILE,OPENSSL_LINE)
+#else
+#define ESNIerr(f,r) fprintf(stderr,"Error in %d,%d, File: %s,Line: %d\n",(f),(r),OPENSSL_FILE,OPENSSL_LINE)
+#endif
 
 /* destination: new include/openssl/esni_err.h: */
 
@@ -495,7 +507,7 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esni)
  * from an SSL session, integrating this is TBD, first we'll see how to
  * do the crypto ops OPENSSL-style...
  */
-int SSL_ESNI_enc(SSL *s, SSL_ESNI *esnikeys, char *protectedserver, char *frontname, WPACKET *the_esni)
+int SSL_ESNI_enc(SSL_ESNI *esnikeys, char *protectedserver, char *frontname, WPACKET *the_esni)
 {
 	/*
 	 * - make my private key
@@ -524,7 +536,7 @@ int SSL_ESNI_enc(SSL *s, SSL_ESNI *esnikeys, char *protectedserver, char *frontn
 	}
 
 	/*
-	 * TODO: handle case of >1 key, for now we just pick 1st
+	 * TODO: handle case of >1 keyshare, for now we just pick 1st and hope...
 	 */
 	if (esnikeys->erecs->nkeys>1) {
 		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
@@ -542,7 +554,35 @@ int SSL_ESNI_enc(SSL *s, SSL_ESNI *esnikeys, char *protectedserver, char *frontn
         goto err;
     }
 
+	/*
+	 * code from ssl/s3_lib.c:ssl_derive
+	 */
+	/*
     if (ssl_derive(s, ckey, skey, 0) == 0) {
+		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+	*/
+	unsigned char *shared = NULL;
+    size_t sharedlen = 0;
+    EVP_PKEY_CTX *pctx;
+
+	pctx = EVP_PKEY_CTX_new(ckey, NULL);
+
+    if (EVP_PKEY_derive_init(pctx) <= 0
+        || EVP_PKEY_derive_set_peer(pctx, skey) <= 0
+        || EVP_PKEY_derive(pctx, NULL, &sharedlen) <= 0) {
+		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+
+    shared = OPENSSL_malloc(sharedlen);
+    if (shared == NULL) {
+		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+
+    if (EVP_PKEY_derive(pctx, shared, &sharedlen) <= 0) {
 		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
     }
@@ -569,7 +609,6 @@ int SSL_ESNI_enc(SSL *s, SSL_ESNI *esnikeys, char *protectedserver, char *frontn
 
 #endif
 
-#define TESTMAIN
 #ifdef TESTMAIN
 // code within here need not be openssl-style, but we'll migrate there:-)
 int main(int argc, char **argv)
@@ -589,10 +628,6 @@ int main(int argc, char **argv)
 	BIO *out=NULL;
 	SSL_ESNI *esnikeys=NULL;
 	WPACKET the_esni={NULL,0};
-	/* 
-	 * a fake SSL session  - figure out what we need to init as we go...
-	 */
-	SSL *s; 
 
 	if (argc==4) 
 		esnikeys_b64=OPENSSL_strdup(argv[3]);
@@ -604,8 +639,6 @@ int main(int argc, char **argv)
 		printf("Bad names! %d\n",rv);
 		goto end;
 	}
-
-	s=SSL_new(NULL);
 
 	esnikeys=SSL_ESNI_new_from_base64(esnikeys_b64);
 	if (esnikeys == NULL) {
@@ -626,7 +659,7 @@ int main(int argc, char **argv)
 		goto end;
 	}
 
-	if (!SSL_ESNI_enc(s,esnikeys,encservername,frontname,&the_esni)) {
+	if (!SSL_ESNI_enc(esnikeys,encservername,frontname,&the_esni)) {
 		printf("Can't encrypt SSL_ESNI!\n");
 		goto end;
 	}
