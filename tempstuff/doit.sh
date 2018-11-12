@@ -9,7 +9,7 @@
 ESNI="/wHHBBOoACQAHQAg4YSfjSyJPNr1z3F8KqzBNBnMejim0mJZaPmria3XsicAAhMBAQQAAAAAW9pQEAAAAABb4jkQAAA="
 COVER="cloudflare.net"
 HIDDEN="encryptedsni.com"
-VG="yes"
+VG="no"
 
 # should really add getopt but this is likely short-term (famous last
 # words those:-)
