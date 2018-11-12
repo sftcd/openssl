@@ -45,6 +45,7 @@
  */
 #define ESNI_F_BASE64_DECODE							101
 #define ESNI_F_NEW_FROM_BASE64							102
+#define ESNI_F_ENC										103
 
 /*
  * ESNI reason codes
@@ -118,7 +119,7 @@ typedef struct client_esni_st {
 	unsigned char record_digest[SSL_MAX_SSL_RECORD_DIGEST_LENGTH];
 	size_t encrypted_sni_len;
 	unsigned char encrypted_sni[SSL_MAX_SSL_ENCRYPTED_SNI_LENGTH];
-} C_ESNI;
+} CLIENT_ESNI;
 
 /*
  * Utility functions
@@ -494,9 +495,76 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esni)
  * from an SSL session, integrating this is TBD, first we'll see how to
  * do the crypto ops OPENSSL-style...
  */
-int SSL_ESNI_enc(SSL_ESNI *esnikeys, char *protectedserver, char *frontname, PACKET *the_esni)
+int SSL_ESNI_enc(SSL *s, SSL_ESNI *esnikeys, char *protectedserver, char *frontname, WPACKET *the_esni)
 {
-	return 1;
+	/*
+	 * - make my private key
+	 * - generate shared secret
+	 * - encrypt protectedserver
+	 * - encode packet and return
+	 */
+	CLIENT_ESNI cesni;
+
+	/*
+	 * D-H stuff inspired by openssl/statem/statem_clnt.c:tls_construct_cke_ecdhe
+	 */
+    unsigned char *encodedPoint = NULL;
+    size_t encoded_pt_len = 0;
+    EVP_PKEY *ckey = NULL, *skey = NULL;
+    int ret = 0;
+
+	if (esnikeys->erecs==NULL) {
+		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
+		goto err;
+	}
+
+	if (esnikeys->erecs->nkeys==0) {
+		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
+		goto err;
+	}
+
+	/*
+	 * TODO: handle case of >1 key, for now we just pick 1st
+	 */
+	if (esnikeys->erecs->nkeys>1) {
+		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
+	}
+
+    skey = esnikeys->erecs->keys[0];
+    if (skey == NULL) {
+		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+
+    ckey = ssl_generate_pkey(skey);
+    if (ckey == NULL) {
+		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+
+    if (ssl_derive(s, ckey, skey, 0) == 0) {
+		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+
+    /* Generate encoding of client key */
+    encoded_pt_len = EVP_PKEY_get1_tls_encodedpoint(ckey, &encodedPoint);
+
+    if (encoded_pt_len == 0) {
+		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+
+    if (!WPACKET_sub_memcpy_u8(the_esni, encodedPoint, encoded_pt_len)) {
+		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+
+    ret = 1;
+ err:
+    OPENSSL_free(encodedPoint);
+    EVP_PKEY_free(ckey);
+    return ret;
 }
 
 #endif
@@ -520,7 +588,11 @@ int main(int argc, char **argv)
 	FILE *fp=NULL;
 	BIO *out=NULL;
 	SSL_ESNI *esnikeys=NULL;
-	PACKET the_esni={NULL,0};
+	WPACKET the_esni={NULL,0};
+	/* 
+	 * a fake SSL session  - figure out what we need to init as we go...
+	 */
+	SSL *s; 
 
 	if (argc==4) 
 		esnikeys_b64=OPENSSL_strdup(argv[3]);
@@ -532,6 +604,8 @@ int main(int argc, char **argv)
 		printf("Bad names! %d\n",rv);
 		goto end;
 	}
+
+	s=SSL_new(NULL);
 
 	esnikeys=SSL_ESNI_new_from_base64(esnikeys_b64);
 	if (esnikeys == NULL) {
@@ -552,7 +626,7 @@ int main(int argc, char **argv)
 		goto end;
 	}
 
-	if (!SSL_ESNI_enc(esnikeys,encservername,frontname,&the_esni)) {
+	if (!SSL_ESNI_enc(s,esnikeys,encservername,frontname,&the_esni)) {
 		printf("Can't encrypt SSL_ESNI!\n");
 		goto end;
 	}
@@ -567,12 +641,7 @@ end:
 		SSL_ESNI_free(esnikeys);
 		OPENSSL_free(esnikeys);
 	}
-	if (the_esni.curr!=NULL) {
-		/*
-		 * TODO: Figure if this is a safe cast or not
-		 */
-		OPENSSL_free((char*)the_esni.curr);
-	}
+	WPACKET_close(&the_esni);
 	return(0);
 }
 #endif
