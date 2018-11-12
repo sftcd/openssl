@@ -258,9 +258,6 @@ SSL_ESNI* SSL_ESNI_new_from_base64(char *esnikeys)
 
 	PACKET pkt={outbuf,declen};
 
-	//size_t rm=PACKET_remaining(&pkt);
-	//printf("inside: rm=%ld\n",rm);
-
 	newesni=OPENSSL_malloc(sizeof(SSL_ESNI));
 	if (newesni==NULL) {
         ESNIerr(ESNI_F_NEW_FROM_BASE64, ERR_R_MALLOC_FAILURE);
@@ -290,18 +287,12 @@ SSL_ESNI* SSL_ESNI_new_from_base64(char *esnikeys)
         ESNIerr(ESNI_F_NEW_FROM_BASE64, ESNI_R_RR_DECODE_ERROR);
 		goto err;
 	}
-	//printf("inside: version=%x\n",crec->version);
 
 	/* checksum */
 	if (!PACKET_copy_bytes(&pkt,crec->checksum,4)) {
         ESNIerr(ESNI_F_NEW_FROM_BASE64, ESNI_R_RR_DECODE_ERROR);
 		goto err;
 	}
-	//printf("inside: checksum: %02x%02x%02x%02x\n",
-					//crec->checksum[0],
-					//crec->checksum[1],
-					//crec->checksum[2],
-					//crec->checksum[3]);
 
 	/* list of KeyShareEntry elements - inspiration: ssl/statem/extensions_srvr.c:tls_parse_ctos_key_share */
 	PACKET key_share_list;
@@ -321,15 +312,12 @@ SSL_ESNI* SSL_ESNI_new_from_base64(char *esnikeys)
                 || !PACKET_get_length_prefixed_2(&key_share_list, &encoded_pt)
                 || PACKET_remaining(&encoded_pt) == 0) {
         	ESNIerr(ESNI_F_NEW_FROM_BASE64, ESNI_R_RR_DECODE_ERROR);
-			//printf("inside: Exit1\n");
             goto err;
         }
-		//printf("inside: group_id: %u\n",group_id);
-		//rm=PACKET_remaining(&encoded_pt);
-		//printf("inside: rm=%ld\n",rm);
 		/* 
 		 * TODO: ensure that we can call this - likely this calling code will need to be
-		 * in libssl.so as that seems to hide this symbol
+		 * in libssl.so as that seems to hide this symbol, for now, we hack the build
+		 * by copying the .a files and linking statically
 		 */
 		EVP_PKEY *kn=ssl_generate_param_group(group_id);
 		if (kn==NULL) {
@@ -337,21 +325,15 @@ SSL_ESNI* SSL_ESNI_new_from_base64(char *esnikeys)
         	ESNIerr(ESNI_F_NEW_FROM_BASE64, ESNI_R_RR_DECODE_ERROR);
             goto err;
 		}
-		//size_t csize=EVP_PKEY_size(kn);
-		//printf("inside: csize: %ld\n",csize);
         if (!EVP_PKEY_set1_tls_encodedpoint(kn,
                 PACKET_data(&encoded_pt),
                 PACKET_remaining(&encoded_pt))) {
-			//printf("inside: Exit3\n");
         	ESNIerr(ESNI_F_NEW_FROM_BASE64, ESNI_R_RR_DECODE_ERROR);
             goto err;
         }
-		//csize=EVP_PKEY_size(kn);
-		//printf("inside: csize2: %ld\n",csize);
 		nkeys++;
 		EVP_PKEY** tkeys=(EVP_PKEY**)OPENSSL_realloc(keys,nkeys*sizeof(EVP_PKEY*));
 		if (tkeys == NULL ) {
-			//printf("inside: Exit4\n");
         	ESNIerr(ESNI_F_NEW_FROM_BASE64, ESNI_R_RR_DECODE_ERROR);
             goto err;
 		}
@@ -359,12 +341,10 @@ SSL_ESNI* SSL_ESNI_new_from_base64(char *esnikeys)
 		keys[nkeys-1]=kn;
 		group_ids=(unsigned int*)OPENSSL_realloc(group_ids,nkeys*sizeof(unsigned int));
 		if (keys == NULL ) {
-			//printf("inside: Exit5\n");
         	ESNIerr(ESNI_F_NEW_FROM_BASE64, ESNI_R_RR_DECODE_ERROR);
             goto err;
 		}
     }
-	//printf("inside: found %d keys\n",nkeys);
 	crec->nkeys=nkeys;
 	crec->keys=keys;
 	crec->group_ids=group_ids;
@@ -376,14 +356,11 @@ SSL_ESNI* SSL_ESNI_new_from_base64(char *esnikeys)
 	PACKET cipher_suites;
 	if (!PACKET_get_length_prefixed_2(&pkt, &cipher_suites)) {
 		ESNIerr(ESNI_F_NEW_FROM_BASE64, ESNI_R_RR_DECODE_ERROR);
-		//printf("inside: Exit6\n");
 		goto err;
 	}
 	int nsuites=PACKET_remaining(&cipher_suites);
-	//printf("inside: found %d suites\n",nsuites);
 	if (!nsuites || (nsuites % 1)) {
 		ESNIerr(ESNI_F_NEW_FROM_BASE64, ESNI_R_RR_DECODE_ERROR);
-		//printf("inside: Exit7\n");
 		goto err;
 	}
     const SSL_CIPHER *c;
@@ -394,7 +371,6 @@ SSL_ESNI* SSL_ESNI_new_from_base64(char *esnikeys)
     sk = sk_SSL_CIPHER_new_null();
     if (sk == NULL) {
 		ESNIerr(ESNI_F_NEW_FROM_BASE64, ESNI_R_RR_DECODE_ERROR);
-		//printf("inside: Exit8\n");
         goto err;
     }
     while (PACKET_copy_bytes(&cipher_suites, cipher, n)) {
@@ -402,42 +378,28 @@ SSL_ESNI* SSL_ESNI_new_from_base64(char *esnikeys)
         if (c != NULL) {
             if (c->valid && !sk_SSL_CIPHER_push(sk, c)) {
 				ESNIerr(ESNI_F_NEW_FROM_BASE64, ESNI_R_RR_DECODE_ERROR);
-				//printf("inside: Exit9\n");
                 goto err;
             }
         }
     }
     if (PACKET_remaining(&cipher_suites) > 0) {
 		ESNIerr(ESNI_F_NEW_FROM_BASE64, ESNI_R_RR_DECODE_ERROR);
-		//printf("inside: Exit10\n");
         goto err;
     }
     newesni->erecs->ciphersuites=sk;
 
-	/*
-	 * remaining fields:
-	 * uint16 padded_length;
-	 * uint64 not_before;
-	 * uint64 not_after;
-	 * Extension extensions<0..2^16-1>;
-	 */
-
-	/* padded_length */
 	if (!PACKET_get_net_2(&pkt,&crec->padded_length)) {
 		ESNIerr(ESNI_F_NEW_FROM_BASE64, ESNI_R_RR_DECODE_ERROR);
 		goto err;
 	}
-	//printf("inside: padded_length=%x\n",crec->padded_length);
 	unsigned char nbs[8];
 	if (!PACKET_copy_bytes(&pkt,nbs,8)) {
 		ESNIerr(ESNI_F_NEW_FROM_BASE64, ESNI_R_RR_DECODE_ERROR);
-		//printf("inside: Exit10\n");
 		goto err;
 	}
 	crec->not_before=uint64_from_bytes(nbs);
 	if (!PACKET_copy_bytes(&pkt,nbs,8)) {
 		ESNIerr(ESNI_F_NEW_FROM_BASE64, ESNI_R_RR_DECODE_ERROR);
-		//printf("inside: Exit10\n");
 		goto err;
 	}
 	crec->not_after=uint64_from_bytes(nbs);
@@ -447,19 +409,16 @@ SSL_ESNI* SSL_ESNI_new_from_base64(char *esnikeys)
 	 */
 	if (!PACKET_get_net_2(&pkt,&crec->nexts)) {
 		ESNIerr(ESNI_F_NEW_FROM_BASE64, ESNI_R_RR_DECODE_ERROR);
-		//printf("inside: Exit11\n");
 		goto err;
 	}
 	if (crec->nexts != 0 ) {
 		ESNIerr(ESNI_F_NEW_FROM_BASE64, ESNI_R_RR_DECODE_ERROR);
-		//printf("Don't suppoer extensions yet!!!\n");
 		goto err;
 
 	}
 	int leftover=PACKET_remaining(&pkt);
 	if (leftover!=0) {
 		ESNIerr(ESNI_F_NEW_FROM_BASE64, ESNI_R_RR_DECODE_ERROR);
-		//printf("Packet has *%d leftover bytes - error\n",leftover);
 		goto err;
 	}
 	OPENSSL_free(outbuf);
