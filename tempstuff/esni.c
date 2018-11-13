@@ -50,11 +50,16 @@
 #define ESNIerr(f,r) fprintf(stderr,"Error in %d,%d, File: %s,Line: %d\n",(f),(r),OPENSSL_FILE,OPENSSL_LINE)
 #endif
 
-/* destination: new include/openssl/esni_err.h: */
+/* destination: new include/openssl/esni_err.h and/or include/openssl.err.h */
+
+/* 
+ * Currently 53 is last one, but lest not be presumptious (yet:-)
+ */
+#define ERR_LIB_ESNI 									 99
 
 /* 
  * ESNI function codes for ESNIerr
- * TODO: check uniqueness rules
+ * These may need to be >100 (or might be convention)
  */
 #define ESNI_F_BASE64_DECODE							101
 #define ESNI_F_NEW_FROM_BASE64							102
@@ -62,13 +67,40 @@
 
 /*
  * ESNI reason codes for ESNIerr
- * TODO: check uniqueness rules
+ * These should be >100
  */
 #define ESNI_R_BASE64_DECODE_ERROR						110
 #define ESNI_R_RR_DECODE_ERROR							111
 #define ESNI_R_NOT_IMPL									112
-#define ESNI_R_MALLOC_FAILURE							113
-#define ESNI_R_INTERNAL_ERROR							114
+
+
+/* 
+ * ESNI error strings - inspired by crypto/ct/cterr.c
+ */
+static const ERR_STRING_DATA ESNI_str_functs[] = {
+    {ERR_PACK(ERR_LIB_ESNI, ESNI_F_BASE64_DECODE, 0), "base64 decode"},
+    {ERR_PACK(ERR_LIB_ESNI, ESNI_F_NEW_FROM_BASE64, 0), "read from RR"},
+    {ERR_PACK(ERR_LIB_ESNI, ESNI_F_ENC, 0), "encrypt SNI details"},
+    {0, NULL}
+};
+
+static const ERR_STRING_DATA ESNI_str_reasons[] = {
+    {ERR_PACK(ERR_LIB_ESNI, 0, ESNI_R_BASE64_DECODE_ERROR), "base64 decode error"},
+    {ERR_PACK(ERR_LIB_ESNI, 0, ESNI_R_RR_DECODE_ERROR), "DNS resources record decode error"},
+    {ERR_PACK(ERR_LIB_ESNI, 0, ESNI_R_NOT_IMPL), "feature not implemented"},
+    {0, NULL}
+};
+
+int ERR_load_ESNI_strings(void)
+{
+#ifndef OPENSSL_NO_ESNI
+    if (ERR_func_error_string(ESNI_str_functs[0].error) == NULL) {
+        ERR_load_strings_const(ESNI_str_functs);
+        ERR_load_strings_const(ESNI_str_reasons);
+    }
+#endif
+    return 1;
+}
 
 /*
  * destination: new file include/openssl/esni.h
@@ -221,6 +253,9 @@ static int esni_checknames(const char *encservername, const char *frontname)
 		return(0);
 	if (OPENSSL_strnlen(frontname,TLSEXT_MAXLEN_host_name)>TLSEXT_MAXLEN_host_name) 
 		return(0);
+	/*
+	 * Check same A/AAAA exists for both names?
+	 */
 	return(1);
 }
 
@@ -269,7 +304,7 @@ static int esni_base64_decode(char *in, unsigned char **out)
     outlen = (inlen / 4) * 3;
     outbuf = OPENSSL_malloc(outlen);
     if (outbuf == NULL) {
-        ESNIerr(ESNI_F_BASE64_DECODE, ESNI_R_MALLOC_FAILURE);
+        ESNIerr(ESNI_F_BASE64_DECODE, ERR_R_MALLOC_FAILURE);
         goto err;
     }
 
@@ -376,7 +411,7 @@ SSL_ESNI* SSL_ESNI_new_from_base64(char *esnikeys)
 
 	newesni=OPENSSL_malloc(sizeof(SSL_ESNI));
 	if (newesni==NULL) {
-        ESNIerr(ESNI_F_NEW_FROM_BASE64, ESNI_R_MALLOC_FAILURE);
+        ESNIerr(ESNI_F_NEW_FROM_BASE64, ERR_R_MALLOC_FAILURE);
 		goto err;
 	}
 
@@ -390,7 +425,7 @@ SSL_ESNI* SSL_ESNI_new_from_base64(char *esnikeys)
 	newesni->erecs=NULL;
 	newesni->erecs=OPENSSL_malloc(sizeof(ESNI_RECORD));
 	if (newesni->erecs==NULL) { 
-        ESNIerr(ESNI_F_NEW_FROM_BASE64, ESNI_R_MALLOC_FAILURE);
+        ESNIerr(ESNI_F_NEW_FROM_BASE64, ERR_R_MALLOC_FAILURE);
 		goto err;
 	}
 	ESNI_RECORD *crec=newesni->erecs;
@@ -724,12 +759,12 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys, char *protectedserver, char *frontname, PAC
 	 * - encode packet and return
 	 */
 	if (esnikeys->client != NULL ) {
-		ESNIerr(ESNI_F_ENC, ESNI_R_INTERNAL_ERROR);
+		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
 		goto err;
 	}
 	CLIENT_ESNI *cesni=OPENSSL_zalloc(sizeof(CLIENT_ESNI));
 	if (cesni==NULL) {
-		ESNIerr(ESNI_F_ENC, ESNI_R_MALLOC_FAILURE);
+		ESNIerr(ESNI_F_ENC, ERR_R_MALLOC_FAILURE);
 		goto err;
 	}
 	CLIENT_ESNI_INNER *inner=&cesni->inner;
@@ -741,12 +776,12 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys, char *protectedserver, char *frontname, PAC
     int ret = 0;
 
 	if (esnikeys->erecs==NULL) {
-		ESNIerr(ESNI_F_ENC, ESNI_R_INTERNAL_ERROR);
+		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
 		goto err;
 	}
 
 	if (esnikeys->erecs->nkeys==0) {
-		ESNIerr(ESNI_F_ENC, ESNI_R_INTERNAL_ERROR);
+		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
 		goto err;
 	}
 
@@ -767,13 +802,13 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys, char *protectedserver, char *frontname, PAC
 
     skey = esnikeys->erecs[0].keys[0];
     if (skey == NULL) {
-		ESNIerr(ESNI_F_ENC, ESNI_R_INTERNAL_ERROR);
+		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
     }
 
     cesni->keyshare = ssl_generate_pkey(skey);
     if (cesni->keyshare == NULL) {
-		ESNIerr(ESNI_F_ENC, ESNI_R_INTERNAL_ERROR);
+		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
     }
 
@@ -785,23 +820,23 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys, char *protectedserver, char *frontname, PAC
     if (EVP_PKEY_derive_init(pctx) <= 0
         || EVP_PKEY_derive_set_peer(pctx, skey) <= 0
         || EVP_PKEY_derive(pctx, NULL, &cesni->shared_len) <= 0) {
-		ESNIerr(ESNI_F_ENC, ESNI_R_INTERNAL_ERROR);
+		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
     }
     cesni->shared = OPENSSL_malloc(cesni->shared_len);
     if (cesni->shared == NULL) {
-		ESNIerr(ESNI_F_ENC, ESNI_R_INTERNAL_ERROR);
+		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
     }
     if (EVP_PKEY_derive(pctx, cesni->shared, &cesni->shared_len) <= 0) {
-		ESNIerr(ESNI_F_ENC, ESNI_R_INTERNAL_ERROR);
+		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
     }
 
     /* Generate encoding of client key */
     cesni->encoded_keyshare_len = EVP_PKEY_get1_tls_encodedpoint(cesni->keyshare, &cesni->encoded_keyshare);
     if (cesni->encoded_keyshare_len == 0) {
-		ESNIerr(ESNI_F_ENC, ESNI_R_INTERNAL_ERROR);
+		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
     }
 
@@ -810,13 +845,13 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys, char *protectedserver, char *frontname, PAC
 	 */
 	inner->realSNI=esni_pad(protectedserver,esnikeys->mesni->padded_length);
 	if (inner->realSNI==NULL) {
-		ESNIerr(ESNI_F_ENC, ESNI_R_INTERNAL_ERROR);
+		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
 	}
 	inner->nonce_len=16;
 	inner->nonce=esni_nonce(inner->nonce_len);
 	if (!inner->nonce) {
-		ESNIerr(ESNI_F_ENC, ESNI_R_INTERNAL_ERROR);
+		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
 	}
 
@@ -845,7 +880,7 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys, char *protectedserver, char *frontname, PAC
 	 */
 	esnicontents.rd=OPENSSL_zalloc(esnicontents.rd_len); 
 	if (!esnicontents.rd) {
-		ESNIerr(ESNI_F_ENC, ESNI_R_MALLOC_FAILURE);
+		ESNIerr(ESNI_F_ENC, ERR_R_MALLOC_FAILURE);
         goto err;
 	}
 	RAND_bytes(esnicontents.rd,esnicontents.rd_len);
@@ -862,7 +897,7 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys, char *protectedserver, char *frontname, PAC
 	size_t hi_len=oh+esnicontents.rd_len+esnicontents.kse_len+esnicontents.cr_len;
 	unsigned char *hi=OPENSSL_zalloc(hi_len);
 	if (hi==NULL) {
-		ESNIerr(ESNI_F_ENC, ESNI_R_MALLOC_FAILURE);
+		ESNIerr(ESNI_F_ENC, ERR_R_MALLOC_FAILURE);
         goto err;
 	}
 	unsigned char *hip=hi;
@@ -892,7 +927,7 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys, char *protectedserver, char *frontname, PAC
             || EVP_DigestInit_ex(mctx, md, NULL) <= 0
 			|| EVP_DigestUpdate(mctx, hi, hi_len) <= 0
             || EVP_DigestFinal_ex(mctx, esnicontents.hash, NULL) <= 0) {
-		ESNIerr(ESNI_F_ENC, ESNI_R_INTERNAL_ERROR);
+		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
 	}
 
@@ -944,6 +979,10 @@ int main(int argc, char **argv)
 	// usage: esni frontname esniname
 	if (argc!=3 && argc!=4) {
 		printf("usage: esni frontname esniname [esnikeys]\n");
+		exit(1);
+	}
+	if (!ERR_load_ESNI_strings()) {
+		printf("Can't init error strings - exiting\n");
 		exit(1);
 	}
 	// init ciphers
