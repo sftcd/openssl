@@ -66,6 +66,7 @@
  */
 #define ESNI_R_BASE64_DECODE_ERROR						110
 #define ESNI_R_RR_DECODE_ERROR							111
+#define ESNI_R_NOT_IMPL									112
 
 /*
  * destination: new file include/openssl/esni.h
@@ -118,6 +119,25 @@ typedef struct ssl_esni_st {
 } SSL_ESNI;
 
 /*
+ * The plaintext form of SNI that we encrypt
+ *
+ *    struct {
+ *        ServerNameList sni;
+ *        opaque zeros[ESNIKeys.padded_length - length(sni)];
+ *    } PaddedServerNameList;
+ *
+ *    struct {
+ *        uint8 nonce[16];
+ *        PaddedServerNameList realSNI;
+ *    } ClientESNIInner;
+ */
+typedef struct client_esni_inner_st {
+	unsigned char nonce[16];
+	size_t padden_len;
+	unsigned char *realSNI;
+} CLIENT_ESNI_INNER; 
+
+/*
  * What we send in the esni CH extension:
  *
  *    struct {
@@ -135,7 +155,7 @@ typedef struct client_esni_st {
 	/*
 	 * Fields encoded in extension
 	 */
-	SSL_CIPHER suite;
+	const SSL_CIPHER *ciphersuite;
 	EVP_PKEY *keyshare;
 	size_t record_digest_len;
 	unsigned char record_digest[SSL_MAX_SSL_RECORD_DIGEST_LENGTH];
@@ -148,7 +168,10 @@ typedef struct client_esni_st {
 	unsigned char *shared; /* shared secret */
 	size_t encoded_keyshare_len; /* my encoded key share */
 	unsigned char *encoded_keyshare;
+	CLIENT_ESNI_INNER *inner;
 } CLIENT_ESNI;
+
+
 
 /*
  * TODO: Include function prototypes in esni.h
@@ -336,7 +359,6 @@ SSL_ESNI* SSL_ESNI_new_from_base64(char *esnikeys)
         ESNIerr(ESNI_F_NEW_FROM_BASE64, ESNI_R_RR_DECODE_ERROR);
 		goto err;
 	}
-
 	/* 
 	 * list of KeyShareEntry elements - 
 	 * inspiration: ssl/statem/extensions_srvr.c:tls_parse_ctos_key_share 
@@ -467,6 +489,10 @@ SSL_ESNI* SSL_ESNI_new_from_base64(char *esnikeys)
 		ESNIerr(ESNI_F_NEW_FROM_BASE64, ESNI_R_RR_DECODE_ERROR);
 		goto err;
 	}
+	/*
+	 * TODO: check bleedin checksum and not_before/not_after as if that's gonna help;-)
+	 */
+
 	OPENSSL_free(outbuf);
 	return(newesni);
 err:
@@ -538,9 +564,7 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esni)
 
 /*
  * Produce the encrypted SNI value for the CH
- * TODO: write code:-) We may also wanna produce or modify the SNI itself
- * from an SSL session, integrating this is TBD, first we'll see how to
- * do the crypto ops OPENSSL-style...
+ * TODO: handle >1 of things
  */
 int SSL_ESNI_enc(SSL_ESNI *esnikeys, char *protectedserver, char *frontname, PACKET *the_esni)
 {
@@ -569,13 +593,21 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys, char *protectedserver, char *frontname, PAC
 	}
 
 	/*
-	 * TODO: handle case of >1 keyshare, for now we just pick 1st and hope...
+	 * TODO: handle cases of >1 thing, for now we just pick 1st and hope...
 	 */
-	if (esnikeys->erecs->nkeys>1) {
-		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
+	if (esnikeys->nerecs>1) {
+		ESNIerr(ESNI_F_ENC, ESNI_R_NOT_IMPL);
+	}
+	if (esnikeys->erecs[0].nkeys>1) {
+		ESNIerr(ESNI_F_ENC, ESNI_R_NOT_IMPL);
+	}
+	if (sk_SSL_CIPHER_num(esnikeys->erecs[0].ciphersuites)>1) {
+		ESNIerr(ESNI_F_ENC, ESNI_R_NOT_IMPL);
 	}
 
-    skey = esnikeys->erecs->keys[0];
+	cesni.ciphersuite=sk_SSL_CIPHER_value(esnikeys->erecs[0].ciphersuites,0);
+
+    skey = esnikeys->erecs[0].keys[0];
     if (skey == NULL) {
 		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
@@ -591,22 +623,18 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys, char *protectedserver, char *frontname, PAC
 	 * code from ssl/s3_lib.c:ssl_derive
 	 */
     EVP_PKEY_CTX *pctx;
-
 	pctx = EVP_PKEY_CTX_new(cesni.keyshare, NULL);
-
     if (EVP_PKEY_derive_init(pctx) <= 0
         || EVP_PKEY_derive_set_peer(pctx, skey) <= 0
         || EVP_PKEY_derive(pctx, NULL, &cesni.shared_len) <= 0) {
 		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
     }
-
     cesni.shared = OPENSSL_malloc(cesni.shared_len);
     if (cesni.shared == NULL) {
 		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
     }
-
     if (EVP_PKEY_derive(pctx, cesni.shared, &cesni.shared_len) <= 0) {
 		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
@@ -614,18 +642,30 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys, char *protectedserver, char *frontname, PAC
 
     /* Generate encoding of client key */
     cesni.encoded_keyshare_len = EVP_PKEY_get1_tls_encodedpoint(cesni.keyshare, &cesni.encoded_keyshare);
-
     if (cesni.encoded_keyshare_len == 0) {
 		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
     }
 
 	/*
-    if (!WPACKET_sub_memcpy_u8(the_esni, cesni.encoded_keyshare_len, cesni.encoded_keyshare)) {
-		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
-        goto err;
-    }
-	*/
+	 * Form up the inner SNI stuff
+	 */
+
+	/* 
+	 * encrypt the actual SNI based on shared key, Z - the I-D says:
+	 *    Zx = HKDF-Extract(0, Z)
+     *    key = HKDF-Expand-Label(Zx, "esni key", Hash(ESNIContents), key_length)
+     *    iv = HKDF-Expand-Label(Zx, "esni iv", Hash(ESNIContents), iv_length)
+	 *
+     *    struct {
+     *        opaque record_digest<0..2^16-1>;
+     *        KeyShareEntry esni_key_share;
+	 *        Random client_hello_random;
+     *    } ESNIContents;
+	 *
+	 * The above implies we need the CH random as an input (or
+	 * the SSL context, but not yet for that)
+	 */
 
     ret = 1;
  err:
