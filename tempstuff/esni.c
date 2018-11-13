@@ -125,12 +125,22 @@ typedef struct ssl_esni_st {
  *
  */
 typedef struct client_esni_st {
+	/*
+	 * Fields encoded in extension
+	 */
 	SSL_CIPHER suite;
 	EVP_PKEY *keyshare;
 	size_t record_digest_len;
 	unsigned char record_digest[SSL_MAX_SSL_RECORD_DIGEST_LENGTH];
 	size_t encrypted_sni_len;
 	unsigned char encrypted_sni[SSL_MAX_SSL_ENCRYPTED_SNI_LENGTH];
+	/*
+	 * Locally handled fields
+	 */
+	size_t shared_len;
+	unsigned char *shared;
+	size_t encoded_keyshare_len;
+	unsigned char *encoded_keyshare;
 } CLIENT_ESNI;
 
 /*
@@ -446,6 +456,9 @@ err:
 	return(NULL);
 }
 
+/*
+ * Print out the DNS RR value(s)
+ */
 int SSL_ESNI_print(BIO* out, SSL_ESNI *esni)
 {
 	int indent=0;
@@ -507,7 +520,7 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esni)
  * from an SSL session, integrating this is TBD, first we'll see how to
  * do the crypto ops OPENSSL-style...
  */
-int SSL_ESNI_enc(SSL_ESNI *esnikeys, char *protectedserver, char *frontname, WPACKET *the_esni)
+int SSL_ESNI_enc(SSL_ESNI *esnikeys, char *protectedserver, char *frontname, PACKET *the_esni)
 {
 	/*
 	 * - make my private key
@@ -520,9 +533,7 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys, char *protectedserver, char *frontname, WPA
 	/*
 	 * D-H stuff inspired by openssl/statem/statem_clnt.c:tls_construct_cke_ecdhe
 	 */
-    unsigned char *encodedPoint = NULL;
-    size_t encoded_pt_len = 0;
-    EVP_PKEY *ckey = NULL, *skey = NULL;
+    EVP_PKEY *skey = NULL;
     int ret = 0;
 
 	if (esnikeys->erecs==NULL) {
@@ -548,8 +559,8 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys, char *protectedserver, char *frontname, WPA
         goto err;
     }
 
-    ckey = ssl_generate_pkey(skey);
-    if (ckey == NULL) {
+    cesni.keyshare = ssl_generate_pkey(skey);
+    if (cesni.keyshare == NULL) {
 		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
     }
@@ -557,53 +568,49 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys, char *protectedserver, char *frontname, WPA
 	/*
 	 * code from ssl/s3_lib.c:ssl_derive
 	 */
-	/*
-    if (ssl_derive(s, ckey, skey, 0) == 0) {
-		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
-        goto err;
-    }
-	*/
-	unsigned char *shared = NULL;
-    size_t sharedlen = 0;
     EVP_PKEY_CTX *pctx;
 
-	pctx = EVP_PKEY_CTX_new(ckey, NULL);
+	pctx = EVP_PKEY_CTX_new(cesni.keyshare, NULL);
 
     if (EVP_PKEY_derive_init(pctx) <= 0
         || EVP_PKEY_derive_set_peer(pctx, skey) <= 0
-        || EVP_PKEY_derive(pctx, NULL, &sharedlen) <= 0) {
+        || EVP_PKEY_derive(pctx, NULL, &cesni.shared_len) <= 0) {
 		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
     }
 
-    shared = OPENSSL_malloc(sharedlen);
-    if (shared == NULL) {
+    cesni.shared = OPENSSL_malloc(cesni.shared_len);
+    if (cesni.shared == NULL) {
 		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
     }
 
-    if (EVP_PKEY_derive(pctx, shared, &sharedlen) <= 0) {
+    if (EVP_PKEY_derive(pctx, cesni.shared, &cesni.shared_len) <= 0) {
 		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
     }
 
     /* Generate encoding of client key */
-    encoded_pt_len = EVP_PKEY_get1_tls_encodedpoint(ckey, &encodedPoint);
+    cesni.encoded_keyshare_len = EVP_PKEY_get1_tls_encodedpoint(cesni.keyshare, &cesni.encoded_keyshare);
 
-    if (encoded_pt_len == 0) {
+    if (cesni.encoded_keyshare_len == 0) {
 		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
     }
 
-    if (!WPACKET_sub_memcpy_u8(the_esni, encodedPoint, encoded_pt_len)) {
+	/*
+    if (!WPACKET_sub_memcpy_u8(the_esni, cesni.encoded_keyshare_len, cesni.encoded_keyshare)) {
 		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
     }
+	*/
 
     ret = 1;
  err:
-    OPENSSL_free(encodedPoint);
-    EVP_PKEY_free(ckey);
+	EVP_PKEY_CTX_free(pctx);
+    EVP_PKEY_free(cesni.keyshare);
+	OPENSSL_free(cesni.encoded_keyshare);
+	OPENSSL_free(cesni.shared);
     return ret;
 }
 
@@ -627,7 +634,7 @@ int main(int argc, char **argv)
 	FILE *fp=NULL;
 	BIO *out=NULL;
 	SSL_ESNI *esnikeys=NULL;
-	WPACKET the_esni={NULL,0};
+	PACKET the_esni={NULL,0};
 
 	if (argc==4) 
 		esnikeys_b64=OPENSSL_strdup(argv[3]);
@@ -674,7 +681,9 @@ end:
 		SSL_ESNI_free(esnikeys);
 		OPENSSL_free(esnikeys);
 	}
-	WPACKET_close(&the_esni);
+	if (the_esni.curr!=NULL) {
+		OPENSSL_free((char*)the_esni.curr);
+	}
 	return(0);
 }
 #endif
