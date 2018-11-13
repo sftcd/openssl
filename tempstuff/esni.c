@@ -244,8 +244,7 @@ typedef struct ssl_esni_st {
  */
 
 /*
-* Check names for length 
-* TODO: other sanity checks, as becomes apparent
+* Check names for length, maybe add more checks later before starting...
 */
 static int esni_checknames(const char *encservername, const char *frontname)
 {
@@ -254,7 +253,13 @@ static int esni_checknames(const char *encservername, const char *frontname)
 	if (OPENSSL_strnlen(frontname,TLSEXT_MAXLEN_host_name)>TLSEXT_MAXLEN_host_name) 
 		return(0);
 	/*
-	 * Check same A/AAAA exists for both names?
+	 * Possible checks:
+	 * - If no covername, then send no (clear) SNI, so allow that
+	 * - Check same A/AAAA exists for both names, if we have both
+	 *   	- could be a privacy leak though
+	 *   	- even if using DoT/DoH (but how'd we know for sure?)
+	 * - check/retrive RR's from DNS if not already in-hand and
+	 *   if (sufficiently) privacy preserving
 	 */
 	return(1);
 }
@@ -278,12 +283,12 @@ static uint64_t uint64_from_bytes(unsigned char *buf)
 }
 
 /*
- * TODO: Decode from TXT RR to binary buffer, this is the
+ * Decode from TXT RR to binary buffer, this is the
  * exact same as ct_base64_decode from crypto/ct/ct_b64.c
  * which function is declared static but could otherwise
  * be re-used. Returns -1 for error or length of decoded
  * buffer length otherwise (wasn't clear to me at first
- * glance). The TODO thing is to re-use the ct code by
+ * glance). Possible future change: re-use the ct code by
  * exporting it.
  *
  * Decodes the base64 string |in| into |out|.
@@ -390,7 +395,8 @@ void SSL_ESNI_free(SSL_ESNI *esnikeys)
  * Decode from TXT RR to SSL_ESNI
  * This time inspired by, but not the same as,
  * SCT_new_from_base64 from crypto/ct/ct_b64.c
- * TODO: handle >1 RRset (maybe at a higher layer)
+ * TODO: handle >1 of the many things that can 
+ * have >1 instance (maybe at a higher layer)
  */
 SSL_ESNI* SSL_ESNI_new_from_base64(char *esnikeys)
 {
@@ -747,7 +753,6 @@ static unsigned char *esni_pad(char *name, unsigned int padded_len)
 
 /*
  * Produce the encrypted SNI value for the CH
- * TODO: handle >1 of things
  * TODO: handle checksums/digests
  */
 int SSL_ESNI_enc(SSL_ESNI *esnikeys, char *protectedserver, char *frontname, PACKET *the_esni, unsigned char *client_random)
