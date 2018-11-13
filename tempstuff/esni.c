@@ -132,8 +132,8 @@ typedef struct ssl_esni_st {
  *    } ClientESNIInner;
  */
 typedef struct client_esni_inner_st {
-	unsigned char nonce[16];
-	size_t padden_len;
+	unsigned char *nonce;
+	size_t padded_len;
 	unsigned char *realSNI;
 } CLIENT_ESNI_INNER; 
 
@@ -168,7 +168,7 @@ typedef struct client_esni_st {
 	unsigned char *shared; /* shared secret */
 	size_t encoded_keyshare_len; /* my encoded key share */
 	unsigned char *encoded_keyshare;
-	CLIENT_ESNI_INNER *inner;
+	CLIENT_ESNI_INNER inner;
 } CLIENT_ESNI;
 
 
@@ -563,6 +563,34 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esni)
 }
 
 /*
+ * Make a 16 octet nonce for ESNI
+ */
+unsigned char *esni_nonce()
+{
+	unsigned char *ln=OPENSSL_malloc(16);
+	RAND_bytes(ln,16);
+	return ln;
+}
+
+/*
+ * Pad an SNI before encryption
+ */
+unsigned char *esni_pad(char *name, size_t *padded_len)
+{
+	/*
+	 * Seems too clunky to be true, as we only want a number for now, but if it works...
+	 */
+	unsigned char buf1[1];
+	RAND_bytes(buf1,1);
+	size_t blen=OPENSSL_strnlen(name,255)+buf1[0];
+	unsigned char *buf=OPENSSL_malloc(blen);
+	// copy
+	memset(buf,0,blen);
+	memcpy(buf,name,strlen(name));
+	return buf;
+}
+
+/*
  * Produce the encrypted SNI value for the CH
  * TODO: handle >1 of things
  */
@@ -575,6 +603,7 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys, char *protectedserver, char *frontname, PAC
 	 * - encode packet and return
 	 */
 	CLIENT_ESNI cesni;
+	CLIENT_ESNI_INNER *inner=&cesni.inner;
 
 	/*
 	 * D-H stuff inspired by openssl/statem/statem_clnt.c:tls_construct_cke_ecdhe
@@ -650,6 +679,9 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys, char *protectedserver, char *frontname, PAC
 	/*
 	 * Form up the inner SNI stuff
 	 */
+	inner->realSNI=esni_pad(protectedserver,&inner->padded_len);
+	inner->nonce=esni_nonce();
+
 
 	/* 
 	 * encrypt the actual SNI based on shared key, Z - the I-D says:
@@ -669,6 +701,8 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys, char *protectedserver, char *frontname, PAC
 
     ret = 1;
  err:
+	OPENSSL_free(inner->realSNI);
+	OPENSSL_free(inner->nonce);
 	EVP_PKEY_CTX_free(pctx);
     EVP_PKEY_free(cesni.keyshare);
 	OPENSSL_free(cesni.encoded_keyshare);
@@ -682,11 +716,16 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys, char *protectedserver, char *frontname, PAC
 // code within here need not be openssl-style, but we'll migrate there:-)
 int main(int argc, char **argv)
 {
+	// init (P)RNG
 	int rv;
 	// s_client gets stuff otherwise but for now...
 	// usage: esni frontname esniname
 	if (argc!=3 && argc!=4) {
 		printf("usage: esni frontname esniname [esnikeys]\n");
+		exit(1);
+	}
+	if (!RAND_set_rand_method(NULL)) {
+		printf("Can't init (P)RNG - exiting\n");
 		exit(1);
 	}
 	char *encservername=OPENSSL_strdup(argv[1]);
