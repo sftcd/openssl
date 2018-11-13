@@ -73,6 +73,10 @@
  * Basic structs for ESNI
  */
 
+/*
+ * TODO: simplify these structs once we have the full client-side story done
+ */
+
 /* 
  * From the -02 I-D, what we find in DNS:
  *     struct {
@@ -188,7 +192,7 @@ typedef struct ssl_esni_st {
 * Check names for length 
 * TODO: other sanity checks, as becomes apparent
 */
-int esni_checknames(const char *encservername, const char *frontname)
+static int esni_checknames(const char *encservername, const char *frontname)
 {
 	if (OPENSSL_strnlen(encservername,TLSEXT_MAXLEN_host_name)>TLSEXT_MAXLEN_host_name) 
 		return(0);
@@ -201,7 +205,7 @@ int esni_checknames(const char *encservername, const char *frontname)
  * map 8 bytes in n/w byte order from PACKET to a 64-bit time value
  * TODO: there must be code for this somewhere - find it
  */
-uint64_t uint64_from_bytes(unsigned char *buf)
+static uint64_t uint64_from_bytes(unsigned char *buf)
 {
 	uint64_t rv=0;
 	rv = ((uint64_t)(*buf)) << 56;
@@ -547,7 +551,7 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esni)
 		BIO_printf(out,"ESNI version: 0x%x\n",esni->erecs[e].version);
 		BIO_printf(out,"ESNI checksum: 0x");
 		for (int i=0;i!=4;i++) {
-			BIO_printf(out,"%0x",esni->erecs[e].checksum[i]);
+			BIO_printf(out,"%02x",esni->erecs[e].checksum[i]);
 		}
 		BIO_printf(out,"\n");
 		BIO_printf(out,"Keys: %d\n",esni->erecs[e].nkeys);
@@ -603,7 +607,7 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esni)
 		if (c->shared != NULL) {
 			BIO_printf(out,"ESNI Client shared: 0x");
 			for (int i=0;i!=c->shared_len;i++) {
-				BIO_printf(out,"%0x",c->shared[i]);
+				BIO_printf(out,"%02x",c->shared[i]);
 			}
 			BIO_printf(out,"\n");
 		} else {
@@ -613,7 +617,7 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esni)
 		if (c->encoded_keyshare != NULL) {
 			BIO_printf(out,"ESNI Client encoded_keyshare: 0x");
 			for (int i=0;i!=c->encoded_keyshare_len;i++) {
-				BIO_printf(out,"%0x",c->encoded_keyshare[i]);
+				BIO_printf(out,"%02x",c->encoded_keyshare[i]);
 			}
 			BIO_printf(out,"\n");
 		} else {
@@ -623,7 +627,7 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esni)
 		if (ci->nonce != NULL) {
 			BIO_printf(out,"ESNI Client inner nonce: 0x");
 			for (int i=0;i!=ci->nonce_len;i++) {
-				BIO_printf(out,"%0x",ci->nonce[i]);
+				BIO_printf(out,"%02x",ci->nonce[i]);
 			}
 			BIO_printf(out,"\n");
 		} else {
@@ -632,7 +636,7 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esni)
 		if (ci->realSNI != NULL) {
 			BIO_printf(out,"ESNI Client inner realSNI (padded: %d): 0x",esni->mesni->padded_length);
 			for (int i=0;i!=esni->mesni->padded_length;i++) {
-				BIO_printf(out,"%0x",ci->realSNI[i]);
+				BIO_printf(out,"%02x",ci->realSNI[i]);
 			}
 			BIO_printf(out,"\n");
 		} else {
@@ -666,12 +670,21 @@ static unsigned char *esni_nonce(size_t nl)
 static unsigned char *esni_pad(char *name, unsigned int padded_len)
 {
 	/*
-	 * Seems too clunky to be true, as we only want a number for now, but if it works...
+	 * TODO: check manual encoding of ServerNameList below is ok 
+	 * usual function is statem/extensions_clnt.c:tls_construct_ctos_server_name
+	 * encoding is 2 byte overall length, 0x00 for hostname, 2 byte length of name, name
 	 */
+	size_t nl=OPENSSL_strnlen(name,padded_len);
+	size_t oh=5; /* encoding overhead */
+	if ((nl+oh)>=padded_len) return(NULL);
 	unsigned char *buf=OPENSSL_malloc(padded_len);
-	// copy
 	memset(buf,0,padded_len);
-	memcpy(buf,name,strlen(name));
+	buf[0]=((nl+oh)/256);
+	buf[1]=((nl+oh)%256);
+	buf[2]=0x00;
+	buf[3]=(nl/256);
+	buf[4]=(nl%256);
+	memcpy(buf+oh,name,nl);
 	return buf;
 }
 
@@ -773,6 +786,10 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys, char *protectedserver, char *frontname, PAC
 	 * Form up the inner SNI stuff
 	 */
 	inner->realSNI=esni_pad(protectedserver,esnikeys->mesni->padded_length);
+	if (inner->realSNI==NULL) {
+		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
+        goto err;
+	}
 	inner->nonce_len=16;
 	inner->nonce=esni_nonce(inner->nonce_len);
 
