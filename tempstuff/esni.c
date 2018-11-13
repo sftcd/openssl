@@ -24,10 +24,10 @@
  */
 #define TESTMAIN
 
-#ifndef OPENSSL_NO_ESNI
 /*
  * code within here should be openssl-style
  */
+#ifndef OPENSSL_NO_ESNI
 
 /*
  * define'd constants to go in various places
@@ -53,37 +53,41 @@
 /* destination: new include/openssl/esni_err.h: */
 
 /* 
- * ESNI function codes
+ * ESNI function codes for ESNIerr
+ * TODO: check uniqueness rules
  */
 #define ESNI_F_BASE64_DECODE							101
 #define ESNI_F_NEW_FROM_BASE64							102
 #define ESNI_F_ENC										103
 
 /*
- * ESNI reason codes
+ * ESNI reason codes for ESNIerr
+ * TODO: check uniqueness rules
  */
 #define ESNI_R_BASE64_DECODE_ERROR						110
 #define ESNI_R_RR_DECODE_ERROR							111
 
-
-/* destination: new include/openssl/esni.h: */
 /*
- * From the I-D, what we find in DNS:
-       struct {
-           uint16 version;
-           uint8 checksum[4];
-           KeyShareEntry keys<4..2^16-1>;
-           CipherSuite cipher_suites<2..2^16-2>;
-           uint16 padded_length;
-           uint64 not_before;
-           uint64 not_after;
-           Extension extensions<0..2^16-1>;
-       } ESNIKeys;
+ * destination: new file include/openssl/esni.h
+ * Basic structs for ESNI
+ */
+
+/* 
+ * From the -02 I-D, what we find in DNS:
+ *     struct {
+ *         uint16 version;
+ *         uint8 checksum[4];
+ *         KeyShareEntry keys<4..2^16-1>;
+ *         CipherSuite cipher_suites<2..2^16-2>;
+ *         uint16 padded_length;
+ *         uint64 not_before;
+ *         uint64 not_after;
+ *         Extension extensions<0..2^16-1>;
+ *     } ESNIKeys;
  * 
  * Note that I don't like the above, but it's what we have to
  * work with at the moment.
  */
-
 typedef struct esni_record_st {
 	unsigned int version;
 	unsigned char checksum[4];
@@ -101,6 +105,7 @@ typedef struct esni_record_st {
 
 /*
  * Per connection ESNI state (inspired by include/internal/dane.h) 
+ * Has DNS RR values and some more
  */
 typedef struct ssl_esni_st {
 	int nerecs; /* number of DNS RRs in RRset */
@@ -113,15 +118,17 @@ typedef struct ssl_esni_st {
 } SSL_ESNI;
 
 /*
+ * What we send in the esni CH extension:
  *
- * And what we send in the esni CH extension:
+ *    struct {
+ *        CipherSuite suite;
+ *        KeyShareEntry key_share;
+ *        opaque record_digest<0..2^16-1>;
+ *        opaque encrypted_sni<0..2^16-1>;
+ *    } ClientEncryptedSNI;
  *
-      struct {
-          CipherSuite suite;
-          KeyShareEntry key_share;
-          opaque record_digest<0..2^16-1>;
-          opaque encrypted_sni<0..2^16-1>;
-      } ClientEncryptedSNI;
+ * We include some related non-transmitted 
+ * e.g. key structures too
  *
  */
 typedef struct client_esni_st {
@@ -138,10 +145,16 @@ typedef struct client_esni_st {
 	 * Locally handled fields
 	 */
 	size_t shared_len;
-	unsigned char *shared;
-	size_t encoded_keyshare_len;
+	unsigned char *shared; /* shared secret */
+	size_t encoded_keyshare_len; /* my encoded key share */
 	unsigned char *encoded_keyshare;
 } CLIENT_ESNI;
+
+/*
+ * TODO: Include function prototypes in esni.h
+ * We'll do that later, with one file for now, no
+ * need yet.
+ */
 
 /*
  * Utility functions
@@ -153,13 +166,15 @@ typedef struct client_esni_st {
 */
 int esni_checknames(const char *encservername, const char *frontname)
 {
-	if (OPENSSL_strnlen(encservername,TLSEXT_MAXLEN_host_name)>TLSEXT_MAXLEN_host_name) return(0);
-	if (OPENSSL_strnlen(frontname,TLSEXT_MAXLEN_host_name)>TLSEXT_MAXLEN_host_name) return(0);
+	if (OPENSSL_strnlen(encservername,TLSEXT_MAXLEN_host_name)>TLSEXT_MAXLEN_host_name) 
+		return(0);
+	if (OPENSSL_strnlen(frontname,TLSEXT_MAXLEN_host_name)>TLSEXT_MAXLEN_host_name) 
+		return(0);
 	return(1);
 }
 
 /*
- * map 8 bytes to a 64-bit time
+ * map 8 bytes in n/w byte order from PACKET to a 64-bit time value
  * TODO: there must be code for this somewhere - find it
  */
 uint64_t uint64_from_bytes(unsigned char *buf)
@@ -177,12 +192,13 @@ uint64_t uint64_from_bytes(unsigned char *buf)
 }
 
 /*
- * Decode from TXT RR to binary buffer, this is the
+ * TODO: Decode from TXT RR to binary buffer, this is the
  * exact same as ct_base64_decode from crypto/ct/ct_b64.c
  * which function is declared static but could otherwise
  * be re-used. Returns -1 for error or length of decoded
  * buffer length otherwise (wasn't clear to me at first
- * glance).
+ * glance). The TODO thing is to re-use the ct code by
+ * exporting it.
  *
  * Decodes the base64 string |in| into |out|.
  * A new string will be malloc'd and assigned to |out|. This will be owned by
@@ -230,29 +246,35 @@ err:
     return -1;
 }
 
-
+/*
+ * Free up an SSL_ESNI structure - note that we don't
+ * free the top level
+ */
 void SSL_ESNI_free(SSL_ESNI *esnikeys)
 {
-	//fprintf(stderr,"Inside SSL_ESNI_free freeing %p\n",esnikeys);
 	if (esnikeys==NULL) 
 		return;
-	/*
-	 * ciphersuites
-	 */
-	if (esnikeys->erecs != NULL && esnikeys->erecs->ciphersuites!=NULL) {
-		STACK_OF(SSL_CIPHER) *sk=esnikeys->erecs->ciphersuites;
-		sk_SSL_CIPHER_free(sk);
-	}
-	/*
-	 * keys
-	 */
-	if (esnikeys->erecs != NULL && esnikeys->erecs->nkeys!=0) {
-		for (int i=0;i!=esnikeys->erecs->nkeys;i++) {
-			EVP_PKEY *pk=esnikeys->erecs->keys[i];
-			EVP_PKEY_free(pk);
+	if (esnikeys->erecs != NULL) {
+		for (int i=0;i!=esnikeys->nerecs;i++) {
+			/*
+	 		* ciphersuites
+	 		*/
+			if (esnikeys->erecs[i].ciphersuites!=NULL) {
+				STACK_OF(SSL_CIPHER) *sk=esnikeys->erecs->ciphersuites;
+				sk_SSL_CIPHER_free(sk);
+			}
+			/*
+	 		* keys
+	 		*/
+			if (esnikeys->erecs[i].nkeys!=0) {
+				for (int j=0;j!=esnikeys->erecs[i].nkeys;j++) {
+					EVP_PKEY *pk=esnikeys->erecs[i].keys[j];
+					EVP_PKEY_free(pk);
+				}
+				OPENSSL_free(esnikeys->erecs[i].group_ids);
+				OPENSSL_free(esnikeys->erecs[i].keys);
+			}
 		}
-		OPENSSL_free(esnikeys->erecs->group_ids);
-		OPENSSL_free(esnikeys->erecs->keys);
 	}
 	if (esnikeys->erecs!=NULL)
 		OPENSSL_free(esnikeys->erecs);
@@ -261,8 +283,9 @@ void SSL_ESNI_free(SSL_ESNI *esnikeys)
 
 /*
  * Decode from TXT RR to SSL_ESNI
- * This time inspired but, but not the same as
+ * This time inspired by, but not the same as,
  * SCT_new_from_base64 from crypto/ct/ct_b64.c
+ * TODO: handle >1 RRset (maybe at a higher layer)
  */
 SSL_ESNI* SSL_ESNI_new_from_base64(char *esnikeys)
 {
@@ -293,9 +316,6 @@ SSL_ESNI* SSL_ESNI_new_from_base64(char *esnikeys)
 		goto err;
 	}
 
-	/*
-	 * TODO: handle >1 RR in RRset here (later:-)
-	 */
 	newesni->nerecs=1;
 	newesni->erecs=NULL;
 	newesni->erecs=OPENSSL_malloc(sizeof(ESNI_RECORD));
@@ -317,7 +337,10 @@ SSL_ESNI* SSL_ESNI_new_from_base64(char *esnikeys)
 		goto err;
 	}
 
-	/* list of KeyShareEntry elements - inspiration: ssl/statem/extensions_srvr.c:tls_parse_ctos_key_share */
+	/* 
+	 * list of KeyShareEntry elements - 
+	 * inspiration: ssl/statem/extensions_srvr.c:tls_parse_ctos_key_share 
+	 */
 	PACKET key_share_list;
 	if (!PACKET_get_length_prefixed_2(&pkt, &key_share_list)) {
         ESNIerr(ESNI_F_NEW_FROM_BASE64, ESNI_R_RR_DECODE_ERROR);
@@ -340,7 +363,7 @@ SSL_ESNI* SSL_ESNI_new_from_base64(char *esnikeys)
 		/* 
 		 * TODO: ensure that we can call this - likely this calling code will need to be
 		 * in libssl.so as that seems to hide this symbol, for now, we hack the build
-		 * by copying the .a files and linking statically
+		 * by copying the .a files locally and linking statically
 		 */
 		EVP_PKEY *kn=ssl_generate_param_group(group_id);
 		if (kn==NULL) {
@@ -467,50 +490,49 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esni)
 		BIO_printf(out,"ESNI is NULL!\n");
 		return(1);
 	}
+	BIO_printf(out,"ESNI has %d RRsets\n",esni->nerecs);
 	if (esni->erecs==NULL) {
 		BIO_printf(out,"ESNI has no keys!\n");
 		return(1);
 	}
-	BIO_printf(out,"ESNI version: 0x%x\n",esni->erecs->version);
-	BIO_printf(out,"ESNI checksum: 0x");
-	for (int i=0;i!=4;i++) {
-		BIO_printf(out,"%0x",esni->erecs->checksum[i]);
-	}
-	BIO_printf(out,"\n");
-	BIO_printf(out,"Keys: %d\n",esni->erecs->nkeys);
-	for (int i=0;i!=esni->erecs->nkeys;i++) {
-		BIO_printf(out,"ESNI Key[%d]: ",i);
-		if (esni->erecs->keys && esni->erecs->keys[i]) {
-			rv=EVP_PKEY_print_public(out, esni->erecs->keys[i], indent, NULL); // ASN1_PCTX *pctx);
-			if (!rv) {
-				BIO_printf(out,"Oops: %d\n",rv);
-			}
-		} else {
-			BIO_printf(out,"Key %d is NULL!\n",i);
+	for (int e=0;e!=esni->nerecs;e++) {
+		BIO_printf(out,"ESNI version: 0x%x\n",esni->erecs[e].version);
+		BIO_printf(out,"ESNI checksum: 0x");
+		for (int i=0;i!=4;i++) {
+			BIO_printf(out,"%0x",esni->erecs[e].checksum[i]);
 		}
-	}
-
-	/*
-	 * ciphersuites
-	 */
-    STACK_OF(SSL_CIPHER) *sk = esni->erecs->ciphersuites;
-	if (sk==NULL) {
-		BIO_printf(out,"No ciphersuites!\n");
-	} else {
-		for (int i = 0; i < sk_SSL_CIPHER_num(sk); i++) {
-			const SSL_CIPHER *c = sk_SSL_CIPHER_value(sk, i);
-			if (c!=NULL) {
-				BIO_printf(out,"Ciphersuite %d is %s\n",i,c->name);
+		BIO_printf(out,"\n");
+		BIO_printf(out,"Keys: %d\n",esni->erecs[e].nkeys);
+		for (int i=0;i!=esni->erecs[e].nkeys;i++) {
+			BIO_printf(out,"ESNI Key[%d]: ",i);
+			if (esni->erecs->keys && esni->erecs[e].keys[i]) {
+				rv=EVP_PKEY_print_public(out, esni->erecs[e].keys[i], indent, NULL); 
+				if (!rv) {
+					BIO_printf(out,"Oops: %d\n",rv);
+				}
 			} else {
-				BIO_printf(out,"Ciphersuite %d is NULL\n",i);
+				BIO_printf(out,"Key %d is NULL!\n",i);
 			}
 		}
-
+    	STACK_OF(SSL_CIPHER) *sk = esni->erecs[e].ciphersuites;
+		if (sk==NULL) {
+			BIO_printf(out,"No ciphersuites!\n");
+		} else {
+			for (int i = 0; i < sk_SSL_CIPHER_num(sk); i++) {
+				const SSL_CIPHER *c = sk_SSL_CIPHER_value(sk, i);
+				if (c!=NULL) {
+					BIO_printf(out,"Ciphersuite %d is %s\n",i,c->name);
+				} else {
+					BIO_printf(out,"Ciphersuite %d is NULL\n",i);
+				}
+			}
+	
+		}
+		BIO_printf(out,"ESNI padded_length: %d\n",esni->erecs[e].padded_length);
+		BIO_printf(out,"ESNI not_before: %lu\n",esni->erecs[e].not_before);
+		BIO_printf(out,"ESNI not_after: %lu\n",esni->erecs[e].not_after);
+		BIO_printf(out,"ESNI number of extensions: %d\n",esni->erecs[e].nexts);
 	}
-	BIO_printf(out,"ESNI padded_length: %d\n",esni->erecs->padded_length);
-	BIO_printf(out,"ESNI not_before: %lu\n",esni->erecs->not_before);
-	BIO_printf(out,"ESNI not_after: %lu\n",esni->erecs->not_after);
-	BIO_printf(out,"ESNI number of extensions: %d\n",esni->erecs->nexts);
 	return(1);
 }
 
