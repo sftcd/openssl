@@ -878,7 +878,7 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys, char *protectedserver, char *frontname, PAC
 	*hip++=esnicontents.cr_len%256;
 	memcpy(hip,esnicontents.cr,esnicontents.cr_len); 
 	hip+=esnicontents.cr_len;
-	size_t hilen=hi-hip;
+	hi_len=hip-hi;
 
 	/*
 	 * Hash that hi buffer
@@ -890,11 +890,20 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys, char *protectedserver, char *frontname, PAC
 
     if (mctx == NULL
             || EVP_DigestInit_ex(mctx, md, NULL) <= 0
-			|| EVP_DigestUpdate(mctx, hi, hilen) <= 0
+			|| EVP_DigestUpdate(mctx, hi, hi_len) <= 0
             || EVP_DigestFinal_ex(mctx, esnicontents.hash, NULL) <= 0) {
 		ESNIerr(ESNI_F_ENC, ESNI_R_INTERNAL_ERROR);
         goto err;
 	}
+
+	/*
+	 * Print hash temporarily
+	 */
+	printf("ESNIContents hash: ");
+	for (int i=0;i!=esnicontents.hash_len;i++) {
+		printf("%02x",esnicontents.hash[i]);
+	}
+	printf("\n");
 
 	/*
 	 * free up stuff needed just for encryption
@@ -907,13 +916,15 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys, char *protectedserver, char *frontname, PAC
 	 */
 	esnikeys->client=cesni;
 	EVP_PKEY_CTX_free(pctx);
+	EVP_MD_CTX_free(mctx);
+	OPENSSL_free(hi);
 
     ret = 1;
 	return(ret);
  err:
-	OPENSSL_free(inner->realSNI);
-	OPENSSL_free(inner->nonce);
-	EVP_PKEY_CTX_free(pctx);
+	if (pctx!=NULL) EVP_PKEY_CTX_free(pctx);
+	if (mctx!=NULL) EVP_MD_CTX_free(mctx);
+	if (hi!=NULL) OPENSSL_free(hi);
 	if (cesni!=NULL) {
 		CLIENT_ESNI_free(cesni);
 		OPENSSL_free(cesni);
@@ -928,12 +939,16 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys, char *protectedserver, char *frontname, PAC
 // code within here need not be openssl-style, but we'll migrate there:-)
 int main(int argc, char **argv)
 {
-	// init (P)RNG
 	int rv;
 	// s_client gets stuff otherwise but for now...
 	// usage: esni frontname esniname
 	if (argc!=3 && argc!=4) {
 		printf("usage: esni frontname esniname [esnikeys]\n");
+		exit(1);
+	}
+	// init ciphers
+	if (!ssl_load_ciphers()) {
+		printf("Can't init ciphers - exiting\n");
 		exit(1);
 	}
 	if (!RAND_set_rand_method(NULL)) {
