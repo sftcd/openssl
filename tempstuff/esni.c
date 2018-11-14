@@ -698,8 +698,7 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esni)
 		esni_pbuf(out,"ESNI CLient inner realSNI",ci->realSNI,
 							esni->mesni->padded_length,
 							indent);
-		/*
-
+		/* TODO: when these values figured out - print 'em
 	size_t record_digest_len;
 	unsigned char record_digest[SSL_MAX_SSL_RECORD_DIGEST_LENGTH];
 	size_t encrypted_sni_len;
@@ -748,6 +747,15 @@ static unsigned char *esni_pad(char *name, unsigned int padded_len)
 	buf[4]=(nl%256);
 	memcpy(buf+oh,name,nl);
 	return buf;
+}
+
+/*
+ * Local wrapper for HKDF-Extract(salt,IVM)=HMAC-Hash(salt,IKM) according
+ * to RFC5689
+ */
+unsigned char *esni_hkdf_extract(unsigned char *secret,size_t slen,size_t *olen)
+{
+	return NULL;
 }
 
 /*
@@ -922,7 +930,6 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys, char *protectedserver, char *frontname, PAC
 	EVP_MD_CTX *mctx = NULL;
 	mctx = EVP_MD_CTX_new();
 	esnicontents.hash_len = EVP_MD_size(md);
-
     if (mctx == NULL
             || EVP_DigestInit_ex(mctx, md, NULL) <= 0
 			|| EVP_DigestUpdate(mctx, hi, hi_len) <= 0
@@ -930,14 +937,23 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys, char *protectedserver, char *frontname, PAC
 		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
 	}
-
 	/* struct copy */
 	cesni->econt=esnicontents;
 
 	/*
-	 * free up stuff needed just for encryption
+	 * Derive key and encrypt
+	 * encrypt the actual SNI based on shared key, Z - the I-D says:
+	 *    Zx = HKDF-Extract(0, Z)
+     *    key = HKDF-Expand-Label(Zx, "esni key", Hash(ESNIContents), key_length)
+     *    iv = HKDF-Expand-Label(Zx, "esni iv", Hash(ESNIContents), iv_length)
 	 */
-	if (hi!=NULL) OPENSSL_free(hi);
+	size_t Zx_len=0;
+	unsigned char *Zx=NULL;
+	Zx=esni_hkdf_extract(cesni->shared,cesni->shared_len,&Zx_len);
+	if (Zx==NULL) {
+		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
+        goto err;
+	}
 
 	/* 
 	 * finish up
@@ -945,6 +961,7 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys, char *protectedserver, char *frontname, PAC
 	esnikeys->client=cesni;
 	EVP_PKEY_CTX_free(pctx);
 	EVP_MD_CTX_free(mctx);
+	if (hi!=NULL) OPENSSL_free(hi);
 
     ret = 1;
 	return(ret);
@@ -956,7 +973,6 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys, char *protectedserver, char *frontname, PAC
 		CLIENT_ESNI_free(cesni);
 		OPENSSL_free(cesni);
 	}
-	if (esnicontents.rd!=NULL) OPENSSL_free(esnicontents.rd);
     return ret;
 }
 
