@@ -18,6 +18,7 @@
 #include <ssl_locl.h>
 #include <../ssl/packet_locl.h>
 #include <../apps/apps.h>
+#include <openssl/kdf.h>
 
 /*
  * For local testing
@@ -183,6 +184,16 @@ typedef struct esni_contents_st {
 } ESNIContents;
 
 /*
+ * Place to keep crypto vars for when we try interop.
+ * This should probably disappear when/if we end up with
+ * a final working version that maps to an RFC.
+ */
+typedef struct esni_crypto_vars_st {
+	size_t Zx_len;
+	unsigned char *Zx;
+} ESNI_CRYPTO_VARS;
+
+/*
  * What we send in the esni CH extension:
  *
  *    struct {
@@ -216,9 +227,10 @@ typedef struct client_esni_st {
 	unsigned char *encoded_keyshare;
 	CLIENT_ESNI_INNER inner;
 	/*
-	 * Hash input fields
+	 * Various crypto vars
 	 */
 	ESNIContents econt;
+	ESNI_CRYPTO_VARS cvars;
 } CLIENT_ESNI;
 
 /*
@@ -354,6 +366,7 @@ void CLIENT_ESNI_free(CLIENT_ESNI *c)
 	if (c->inner.nonce != NULL ) OPENSSL_free(c->inner.nonce);
 	if (c->inner.realSNI != NULL ) OPENSSL_free(c->inner.realSNI);
 	if (c->econt.rd != NULL) OPENSSL_free(c->econt.rd);
+	if (c->cvars.Zx != NULL) OPENSSL_free(c->cvars.Zx);
 	return;
 }
 
@@ -482,7 +495,6 @@ SSL_ESNI* SSL_ESNI_new_from_base64(char *esnikeys)
 		 */
 		EVP_PKEY *kn=ssl_generate_param_group(group_id);
 		if (kn==NULL) {
-			//printf("inside: Exit2\n");
         	ESNIerr(ESNI_F_NEW_FROM_BASE64, ESNI_R_RR_DECODE_ERROR);
             goto err;
 		}
@@ -606,7 +618,7 @@ static void esni_pbuf(BIO *out,char *msg,unsigned char *buf,size_t blen,int inde
 		BIO_printf(out,"%s is NULL",msg);
 		return;
 	}
-	BIO_printf(out,"%s:\n    ",msg);
+	BIO_printf(out,"%s (%ld):\n    ",msg,blen);
 	int i;
 	for (i=0;i!=blen;i++) {
 		if ((i!=0) && (i%16==0))
@@ -711,6 +723,7 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esni)
 		/* don't bother with key share - it's above already */
 		esni_pbuf(out,"ESNI CLient ESNIContent hash",
 							c->econt.hash,c->econt.hash_len,indent);
+		esni_pbuf(out,"ESNI Cryptovars Zx",c->cvars.Zx,c->cvars.Zx_len,indent);
 
 	}
 	return(1);
@@ -800,24 +813,36 @@ err:
  */
 static unsigned char *esni_hkdf_extract(unsigned char *secret,size_t slen,size_t *olen, const EVP_MD *md)
 {
+	int ret=1;
+	unsigned char *outsecret=NULL;
+	EVP_PKEY_CTX *pctx = EVP_PKEY_CTX_new_id(EVP_PKEY_HKDF, NULL);
+	if (pctx==NULL) {
+		return NULL;
+	}
 
-		/* 
-		 * snippet from ssl/tls13_enc.c:tls13_generate_secret
-		 * we want something like this
+	outsecret=OPENSSL_zalloc(EVP_MAX_MD_SIZE);
+	if (outsecret==NULL) {
+		EVP_PKEY_CTX_free(pctx);
+		return NULL;
+	}
+
+	/* 
+	 * based on ssl/tls13_enc.c:tls13_generate_secret
+	 */
 
     ret = EVP_PKEY_derive_init(pctx) <= 0
-            || EVP_PKEY_CTX_hkdf_mode(pctx, EVP_PKEY_HKDEF_MODE_EXTRACT_ONLY)
-               <= 0
+            || EVP_PKEY_CTX_hkdf_mode(pctx, EVP_PKEY_HKDEF_MODE_EXTRACT_ONLY) <= 0
             || EVP_PKEY_CTX_set_hkdf_md(pctx, md) <= 0
-            || EVP_PKEY_CTX_set1_hkdf_key(pctx, insecret, insecretlen) <= 0
-            || EVP_PKEY_CTX_set1_hkdf_salt(pctx, prevsecret, prevsecretlen)
-               <= 0
-            || EVP_PKEY_derive(pctx, outsecret, &mdlen)
-               <= 0;
+            || EVP_PKEY_CTX_set1_hkdf_key(pctx, secret, slen) <= 0
+            || EVP_PKEY_CTX_set1_hkdf_salt(pctx, NULL, 0) <= 0
+            || EVP_PKEY_derive(pctx, outsecret, olen) <= 0;
 
-			   */
+	EVP_PKEY_CTX_free(pctx);
 
-	return NULL;
+	if (ret!=0) {
+		return NULL;
+	}
+	return outsecret;
 }
 
 /*
@@ -976,6 +1001,8 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys, char *protectedserver, char *frontname, PAC
 	/* struct copy */
 	cesni->econt=esnicontents;
 
+	ESNI_CRYPTO_VARS cv;
+
 	/*
 	 * Derive key and encrypt
 	 * encrypt the actual SNI based on shared key, Z - the I-D says:
@@ -990,6 +1017,11 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys, char *protectedserver, char *frontname, PAC
 		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
 	}
+	cv.Zx_len=Zx_len;
+	cv.Zx=Zx;
+
+	/* struct copy */
+	cesni->cvars=cv;
 
 	/* 
 	 * finish up
@@ -1054,7 +1086,6 @@ int main(int argc, char **argv)
 	else
 		esnikeys_b64=deffront;
 
-	printf("Trying r %s %s %s\n",encservername,frontname,esnikeys_b64);
 	if (!(rv=esni_checknames(encservername,frontname))) {
 		printf("Bad names! %d\n",rv);
 		goto end;

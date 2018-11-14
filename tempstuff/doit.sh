@@ -21,6 +21,7 @@ then
 	echo "Fresh ESNI value: $ESNI"
 fi	
 
+echo "gdb cheat: r $HIDDEN $COVER $ESNI"
 if [[ "$VG" == "no" ]]
 then
 	./esni $HIDDEN $COVER $ESNI
