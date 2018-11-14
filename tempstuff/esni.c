@@ -750,11 +750,73 @@ static unsigned char *esni_pad(char *name, unsigned int padded_len)
 }
 
 /*
+ * Hash up ESNIContents as per I-D
+ */
+static int esni_contentshash(ESNIContents *e, const EVP_MD *md)
+{
+	size_t oh=2+2+2;
+	size_t hi_len=oh+e->rd_len+e->kse_len+e->cr_len;
+	unsigned char *hi=OPENSSL_zalloc(hi_len);
+	if (hi==NULL) {
+		ESNIerr(ESNI_F_ENC, ERR_R_MALLOC_FAILURE);
+        goto err;
+	}
+	unsigned char *hip=hi;
+	*hip++=e->rd_len/256;
+	*hip++=e->rd_len%256;
+	memcpy(hip,e->rd,e->rd_len); 
+	hip+=e->rd_len;
+	*hip++=e->kse_len/256;
+	*hip++=e->kse_len%256;
+	memcpy(hip,e->kse,e->kse_len); 
+	hip+=e->kse_len;
+	*hip++=e->cr_len/256;
+	*hip++=e->cr_len%256;
+	memcpy(hip,e->cr,e->cr_len); 
+	hip+=e->cr_len;
+	hi_len=hip-hi;
+	EVP_MD_CTX *mctx = NULL;
+	mctx = EVP_MD_CTX_new();
+	e->hash_len = EVP_MD_size(md);
+    if (mctx == NULL
+            || EVP_DigestInit_ex(mctx, md, NULL) <= 0
+			|| EVP_DigestUpdate(mctx, hi, hi_len) <= 0
+            || EVP_DigestFinal_ex(mctx, e->hash, NULL) <= 0) {
+		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
+		goto err;
+	}
+	EVP_MD_CTX_free(mctx);
+	OPENSSL_free(hi);
+	return 1;
+err:
+	if (mctx!=NULL) EVP_MD_CTX_free(mctx);
+	if (hi!=NULL) OPENSSL_free(hi);
+    return 0;
+}
+
+/*
  * Local wrapper for HKDF-Extract(salt,IVM)=HMAC-Hash(salt,IKM) according
  * to RFC5689
  */
-unsigned char *esni_hkdf_extract(unsigned char *secret,size_t slen,size_t *olen)
+static unsigned char *esni_hkdf_extract(unsigned char *secret,size_t slen,size_t *olen, const EVP_MD *md)
 {
+
+		/* 
+		 * snippet from ssl/tls13_enc.c:tls13_generate_secret
+		 * we want something like this
+
+    ret = EVP_PKEY_derive_init(pctx) <= 0
+            || EVP_PKEY_CTX_hkdf_mode(pctx, EVP_PKEY_HKDEF_MODE_EXTRACT_ONLY)
+               <= 0
+            || EVP_PKEY_CTX_set_hkdf_md(pctx, md) <= 0
+            || EVP_PKEY_CTX_set1_hkdf_key(pctx, insecret, insecretlen) <= 0
+            || EVP_PKEY_CTX_set1_hkdf_salt(pctx, prevsecret, prevsecretlen)
+               <= 0
+            || EVP_PKEY_derive(pctx, outsecret, &mdlen)
+               <= 0;
+
+			   */
+
 	return NULL;
 }
 
@@ -905,38 +967,12 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys, char *protectedserver, char *frontname, PAC
 	 * Form up input for hashing, and hash it
 	 * TODO: Check encoding is right - and use some better fnc
 	 */
-	size_t oh=2+2+2;
-	size_t hi_len=oh+esnicontents.rd_len+esnicontents.kse_len+esnicontents.cr_len;
-	unsigned char *hi=OPENSSL_zalloc(hi_len);
-	if (hi==NULL) {
-		ESNIerr(ESNI_F_ENC, ERR_R_MALLOC_FAILURE);
-        goto err;
-	}
-	unsigned char *hip=hi;
-	*hip++=esnicontents.rd_len/256;
-	*hip++=esnicontents.rd_len%256;
-	memcpy(hip,esnicontents.rd,esnicontents.rd_len); 
-	hip+=esnicontents.rd_len;
-	*hip++=esnicontents.kse_len/256;
-	*hip++=esnicontents.kse_len%256;
-	memcpy(hip,esnicontents.kse,esnicontents.kse_len); 
-	hip+=esnicontents.kse_len;
-	*hip++=esnicontents.cr_len/256;
-	*hip++=esnicontents.cr_len%256;
-	memcpy(hip,esnicontents.cr,esnicontents.cr_len); 
-	hip+=esnicontents.cr_len;
-	hi_len=hip-hi;
 	const EVP_MD *md=ssl_md(cesni->ciphersuite->algorithm2);
-	EVP_MD_CTX *mctx = NULL;
-	mctx = EVP_MD_CTX_new();
-	esnicontents.hash_len = EVP_MD_size(md);
-    if (mctx == NULL
-            || EVP_DigestInit_ex(mctx, md, NULL) <= 0
-			|| EVP_DigestUpdate(mctx, hi, hi_len) <= 0
-            || EVP_DigestFinal_ex(mctx, esnicontents.hash, NULL) <= 0) {
+	if (!esni_contentshash(&esnicontents,md)) {
 		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
 	}
+
 	/* struct copy */
 	cesni->econt=esnicontents;
 
@@ -949,7 +985,7 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys, char *protectedserver, char *frontname, PAC
 	 */
 	size_t Zx_len=0;
 	unsigned char *Zx=NULL;
-	Zx=esni_hkdf_extract(cesni->shared,cesni->shared_len,&Zx_len);
+	Zx=esni_hkdf_extract(cesni->shared,cesni->shared_len,&Zx_len,md);
 	if (Zx==NULL) {
 		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
@@ -960,15 +996,11 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys, char *protectedserver, char *frontname, PAC
 	 */
 	esnikeys->client=cesni;
 	EVP_PKEY_CTX_free(pctx);
-	EVP_MD_CTX_free(mctx);
-	if (hi!=NULL) OPENSSL_free(hi);
 
     ret = 1;
 	return(ret);
  err:
 	if (pctx!=NULL) EVP_PKEY_CTX_free(pctx);
-	if (mctx!=NULL) EVP_MD_CTX_free(mctx);
-	if (hi!=NULL) OPENSSL_free(hi);
 	if (cesni!=NULL) {
 		CLIENT_ESNI_free(cesni);
 		OPENSSL_free(cesni);
