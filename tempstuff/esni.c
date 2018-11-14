@@ -215,6 +215,10 @@ typedef struct client_esni_st {
 	size_t encoded_keyshare_len; /* my encoded key share */
 	unsigned char *encoded_keyshare;
 	CLIENT_ESNI_INNER inner;
+	/*
+	 * Hash input fields
+	 */
+	ESNIContents econt;
 } CLIENT_ESNI;
 
 /*
@@ -349,6 +353,7 @@ void CLIENT_ESNI_free(CLIENT_ESNI *c)
 	if (c->shared != NULL) OPENSSL_free(c->shared);
 	if (c->inner.nonce != NULL ) OPENSSL_free(c->inner.nonce);
 	if (c->inner.realSNI != NULL ) OPENSSL_free(c->inner.realSNI);
+	if (c->econt.rd != NULL) OPENSSL_free(c->econt.rd);
 	return;
 }
 
@@ -595,6 +600,23 @@ err:
 	return(NULL);
 }
 
+static void esni_pbuf(BIO *out,char *msg,unsigned char *buf,size_t blen,int indent)
+{
+	if (buf==NULL) {
+		BIO_printf(out,"%s is NULL",msg);
+		return;
+	}
+	BIO_printf(out,"%s:\n    ",msg);
+	int i;
+	for (i=0;i!=blen;i++) {
+		if ((i!=0) && (i%16==0))
+			BIO_printf(out,"\n    ");
+		BIO_printf(out,"%02x:",buf[i]);
+	}
+	BIO_printf(out,"\n");
+	return;
+}
+
 /*
  * Print out the DNS RR value(s)
  */
@@ -668,45 +690,14 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esni)
 			BIO_printf(out,"ESNI Client Keyshare is NULL!\n");
 		}
 
-		if (c->shared != NULL) {
-			BIO_printf(out,"ESNI Client shared: 0x");
-			for (int i=0;i!=c->shared_len;i++) {
-				BIO_printf(out,"%02x",c->shared[i]);
-			}
-			BIO_printf(out,"\n");
-		} else {
-			BIO_printf(out,"ESNI Client shared is NULL!\n");
-		}
+		esni_pbuf(out,"ESNI CLient shared",c->shared,c->shared_len,indent);
 
-		if (c->encoded_keyshare != NULL) {
-			BIO_printf(out,"ESNI Client encoded_keyshare: 0x");
-			for (int i=0;i!=c->encoded_keyshare_len;i++) {
-				BIO_printf(out,"%02x",c->encoded_keyshare[i]);
-			}
-			BIO_printf(out,"\n");
-		} else {
-			BIO_printf(out,"ESNI Client encoded_keyshare is NULL!\n");
-		}
+		esni_pbuf(out,"ESNI CLient encoded_keyshare",c->encoded_keyshare,c->encoded_keyshare_len,indent);
 		CLIENT_ESNI_INNER *ci=&c->inner;
-		if (ci->nonce != NULL) {
-			BIO_printf(out,"ESNI Client inner nonce: 0x");
-			for (int i=0;i!=ci->nonce_len;i++) {
-				BIO_printf(out,"%02x",ci->nonce[i]);
-			}
-			BIO_printf(out,"\n");
-		} else {
-			BIO_printf(out,"ESNI Client inner nonce is NULL!\n");
-		}
-		if (ci->realSNI != NULL) {
-			BIO_printf(out,"ESNI Client inner realSNI (padded: %d): 0x",esni->mesni->padded_length);
-			for (int i=0;i!=esni->mesni->padded_length;i++) {
-				BIO_printf(out,"%02x",ci->realSNI[i]);
-			}
-			BIO_printf(out,"\n");
-		} else {
-			BIO_printf(out,"ESNI Client inner realSNI is NULL!\n");
-		}
-
+		esni_pbuf(out,"ESNI CLient inner nonce",ci->nonce,ci->nonce_len,indent);
+		esni_pbuf(out,"ESNI CLient inner realSNI",ci->realSNI,
+							esni->mesni->padded_length,
+							indent);
 		/*
 
 	size_t record_digest_len;
@@ -714,6 +705,14 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esni)
 	size_t encrypted_sni_len;
 	unsigned char encrypted_sni[SSL_MAX_SSL_ENCRYPTED_SNI_LENGTH];
 		*/
+		esni_pbuf(out,"ESNI CLient ESNIContent record_digest",
+							c->econt.rd,c->econt.rd_len,indent);
+		esni_pbuf(out,"ESNI CLient ESNIContent client_random",
+							c->econt.cr,c->econt.cr_len,indent);
+		/* don't bother with key share - it's above already */
+		esni_pbuf(out,"ESNI CLient ESNIContent hash",
+							c->econt.hash,c->econt.hash_len,indent);
+
 	}
 	return(1);
 }
@@ -895,7 +894,7 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys, char *protectedserver, char *frontname, PAC
 	esnicontents.cr=client_random;
 
 	/*
-	 * Form up input for hashing
+	 * Form up input for hashing, and hash it
 	 * TODO: Check encoding is right - and use some better fnc
 	 */
 	size_t oh=2+2+2;
@@ -919,10 +918,6 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys, char *protectedserver, char *frontname, PAC
 	memcpy(hip,esnicontents.cr,esnicontents.cr_len); 
 	hip+=esnicontents.cr_len;
 	hi_len=hip-hi;
-
-	/*
-	 * Hash that hi buffer
-	 */
 	const EVP_MD *md=ssl_md(cesni->ciphersuite->algorithm2);
 	EVP_MD_CTX *mctx = NULL;
 	mctx = EVP_MD_CTX_new();
@@ -936,19 +931,12 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys, char *protectedserver, char *frontname, PAC
         goto err;
 	}
 
-	/*
-	 * Print hash temporarily
-	 */
-	printf("ESNIContents hash: ");
-	for (int i=0;i!=esnicontents.hash_len;i++) {
-		printf("%02x",esnicontents.hash[i]);
-	}
-	printf("\n");
+	/* struct copy */
+	cesni->econt=esnicontents;
 
 	/*
 	 * free up stuff needed just for encryption
 	 */
-	if (esnicontents.rd!=NULL) OPENSSL_free(esnicontents.rd);
 	if (hi!=NULL) OPENSSL_free(hi);
 
 	/* 
@@ -957,7 +945,6 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys, char *protectedserver, char *frontname, PAC
 	esnikeys->client=cesni;
 	EVP_PKEY_CTX_free(pctx);
 	EVP_MD_CTX_free(mctx);
-	OPENSSL_free(hi);
 
     ret = 1;
 	return(ret);
