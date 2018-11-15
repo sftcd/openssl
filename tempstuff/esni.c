@@ -191,6 +191,10 @@ typedef struct esni_contents_st {
 typedef struct esni_crypto_vars_st {
 	size_t Zx_len;
 	unsigned char *Zx;
+	size_t key_len;
+	unsigned char *key;
+	size_t iv_len;
+	unsigned char *iv;
 } ESNI_CRYPTO_VARS;
 
 /*
@@ -367,6 +371,8 @@ void CLIENT_ESNI_free(CLIENT_ESNI *c)
 	if (c->inner.realSNI != NULL ) OPENSSL_free(c->inner.realSNI);
 	if (c->econt.rd != NULL) OPENSSL_free(c->econt.rd);
 	if (c->cvars.Zx != NULL) OPENSSL_free(c->cvars.Zx);
+	if (c->cvars.key != NULL) OPENSSL_free(c->cvars.key);
+	if (c->cvars.iv != NULL) OPENSSL_free(c->cvars.iv);
 	return;
 }
 
@@ -724,6 +730,9 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esni)
 		esni_pbuf(out,"ESNI CLient ESNIContent hash",
 							c->econt.hash,c->econt.hash_len,indent);
 		esni_pbuf(out,"ESNI Cryptovars Zx",c->cvars.Zx,c->cvars.Zx_len,indent);
+		esni_pbuf(out,"ESNI Cryptovars key",c->cvars.key,c->cvars.key_len,indent);
+		esni_pbuf(out,"ESNI Cryptovars iv",c->cvars.iv,c->cvars.iv_len,indent);
+
 
 	}
 	return(1);
@@ -840,9 +849,46 @@ static unsigned char *esni_hkdf_extract(unsigned char *secret,size_t slen,size_t
 	EVP_PKEY_CTX_free(pctx);
 
 	if (ret!=0) {
+		OPENSSL_free(outsecret);
 		return NULL;
 	}
 	return outsecret;
+}
+
+
+unsigned char *esni_hkdf_expand_label(
+			unsigned char *Zx, size_t Zx_len,
+			const char *label,
+			unsigned char *hash, size_t hash_len,
+			size_t *expanded_len,
+			const EVP_MD *md)
+{
+	int ret=1;
+	EVP_PKEY_CTX *pctx = EVP_PKEY_CTX_new_id(EVP_PKEY_HKDF, NULL);
+	if (pctx==NULL) {
+		return NULL;
+	}
+
+	unsigned char *out=OPENSSL_zalloc(EVP_MAX_MD_SIZE);
+	if (out==NULL) {
+		EVP_PKEY_CTX_free(pctx);
+		return NULL;
+	}
+
+    ret = EVP_PKEY_derive_init(pctx) <= 0
+            || EVP_PKEY_CTX_hkdf_mode(pctx, EVP_PKEY_HKDEF_MODE_EXPAND_ONLY)
+               <= 0
+            || EVP_PKEY_CTX_set_hkdf_md(pctx, md) <= 0
+            || EVP_PKEY_CTX_set1_hkdf_key(pctx, Zx, Zx_len) <= 0
+            || EVP_PKEY_CTX_add1_hkdf_info(pctx, label, strlen(label)) <= 0
+            || EVP_PKEY_derive(pctx, out, expanded_len) <= 0;
+
+    EVP_PKEY_CTX_free(pctx);
+	if (ret!=0) {
+		OPENSSL_free(out);
+		return NULL;
+	}
+	return out;
 }
 
 /*
@@ -972,36 +1018,34 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys, char *protectedserver, char *frontname, PAC
 	 * client_random is unsigned char client_random[SSL3_RANDOM_SIZE];
 	 * from ssl/ssl_locl.h
 	 */
-	ESNIContents esnicontents;
-	esnicontents.rd_len=32;
+	ESNIContents *esnicontents=&cesni->econt;
+	esnicontents->rd_len=32;
 	/* 
 	 * TODO: figure out digesting, just fill randomly for now 
 	 */
-	esnicontents.rd=OPENSSL_zalloc(esnicontents.rd_len); 
-	if (!esnicontents.rd) {
+	esnicontents->rd=OPENSSL_zalloc(esnicontents->rd_len); 
+	if (!esnicontents->rd) {
 		ESNIerr(ESNI_F_ENC, ERR_R_MALLOC_FAILURE);
         goto err;
 	}
-	RAND_bytes(esnicontents.rd,esnicontents.rd_len);
-	esnicontents.kse_len=cesni->encoded_keyshare_len;
-	esnicontents.kse=cesni->encoded_keyshare;
-	esnicontents.cr_len=SSL3_RANDOM_SIZE;
-	esnicontents.cr=client_random;
+	RAND_bytes(esnicontents->rd,esnicontents->rd_len);
+	esnicontents->kse_len=cesni->encoded_keyshare_len;
+	esnicontents->kse=cesni->encoded_keyshare;
+	esnicontents->cr_len=SSL3_RANDOM_SIZE;
+	esnicontents->cr=client_random;
 
 	/*
 	 * Form up input for hashing, and hash it
 	 * TODO: Check encoding is right - and use some better fnc
 	 */
 	const EVP_MD *md=ssl_md(cesni->ciphersuite->algorithm2);
-	if (!esni_contentshash(&esnicontents,md)) {
+	if (!esni_contentshash(esnicontents,md)) {
 		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
 	}
 
-	/* struct copy */
-	cesni->econt=esnicontents;
 
-	ESNI_CRYPTO_VARS cv;
+	ESNI_CRYPTO_VARS *cv=&cesni->cvars;
 
 	/*
 	 * Derive key and encrypt
@@ -1010,18 +1054,27 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys, char *protectedserver, char *frontname, PAC
      *    key = HKDF-Expand-Label(Zx, "esni key", Hash(ESNIContents), key_length)
      *    iv = HKDF-Expand-Label(Zx, "esni iv", Hash(ESNIContents), iv_length)
 	 */
-	size_t Zx_len=0;
-	unsigned char *Zx=NULL;
-	Zx=esni_hkdf_extract(cesni->shared,cesni->shared_len,&Zx_len,md);
-	if (Zx==NULL) {
+	cv->Zx_len=0;
+	cv->Zx=esni_hkdf_extract(cesni->shared,cesni->shared_len,&cv->Zx_len,md);
+	if (cv->Zx==NULL) {
 		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
 	}
-	cv.Zx_len=Zx_len;
-	cv.Zx=Zx;
 
-	/* struct copy */
-	cesni->cvars=cv;
+	cv->key_len=32;
+	cv->key=esni_hkdf_expand_label(cv->Zx,cv->Zx_len,"esni keys",
+					esnicontents->hash,esnicontents->hash_len,&cv->key_len,md);
+	if (cv->key==NULL) {
+		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
+        goto err;
+	}
+	cv->iv_len=32;
+	cv->iv=esni_hkdf_expand_label(cv->Zx,cv->Zx_len,"esni iv",
+					esnicontents->hash,esnicontents->hash_len,&cv->iv_len,md);
+	if (cv->iv==NULL) {
+		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
+        goto err;
+	}
 
 	/* 
 	 * finish up
