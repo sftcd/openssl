@@ -195,6 +195,14 @@ typedef struct esni_crypto_vars_st {
 	unsigned char *key;
 	size_t iv_len;
 	unsigned char *iv;
+	size_t aad_len;
+	unsigned char *aad;
+	size_t plain_len;
+	unsigned char *plain;
+	size_t cipher_len;
+	unsigned char *cipher;
+	size_t tag_len;
+	unsigned char *tag;
 } ESNI_CRYPTO_VARS;
 
 /*
@@ -374,6 +382,10 @@ void CLIENT_ESNI_free(CLIENT_ESNI *c)
 	if (c->cvars.Zx != NULL) OPENSSL_free(c->cvars.Zx);
 	if (c->cvars.key != NULL) OPENSSL_free(c->cvars.key);
 	if (c->cvars.iv != NULL) OPENSSL_free(c->cvars.iv);
+	if (c->cvars.aad != NULL) OPENSSL_free(c->cvars.aad);
+	if (c->cvars.plain != NULL) OPENSSL_free(c->cvars.plain);
+	if (c->cvars.cipher != NULL) OPENSSL_free(c->cvars.cipher);
+	if (c->cvars.tag != NULL) OPENSSL_free(c->cvars.tag);
 	return;
 }
 
@@ -733,8 +745,9 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esni)
 		esni_pbuf(out,"ESNI Cryptovars Zx",c->cvars.Zx,c->cvars.Zx_len,indent);
 		esni_pbuf(out,"ESNI Cryptovars key",c->cvars.key,c->cvars.key_len,indent);
 		esni_pbuf(out,"ESNI Cryptovars iv",c->cvars.iv,c->cvars.iv_len,indent);
-
-
+		esni_pbuf(out,"ESNI Cryptovars plain",c->cvars.plain,c->cvars.plain_len,indent);
+		esni_pbuf(out,"ESNI Cryptovars cipher",c->cvars.cipher,c->cvars.cipher_len,indent);
+		esni_pbuf(out,"ESNI Cryptovars tag",c->cvars.tag,c->cvars.tag_len,indent);
 	}
 	return(1);
 }
@@ -778,13 +791,13 @@ static unsigned char *esni_pad(char *name, unsigned int padded_len)
 static int esni_contentshash(ESNIContents *e, ESNI_CRYPTO_VARS *cv, const EVP_MD *md)
 {
 	size_t oh=2+2+2;
-	size_t hi_len=oh+e->rd_len+e->kse_len+e->cr_len;
-	unsigned char *hi=OPENSSL_zalloc(hi_len);
-	if (hi==NULL) {
+	cv->plain_len=oh+e->rd_len+e->kse_len+e->cr_len;
+	cv->plain=OPENSSL_zalloc(cv->plain_len);
+	if (cv->plain==NULL) {
 		ESNIerr(ESNI_F_ENC, ERR_R_MALLOC_FAILURE);
         goto err;
 	}
-	unsigned char *hip=hi;
+	unsigned char *hip=cv->plain;
 	*hip++=e->rd_len/256;
 	*hip++=e->rd_len%256;
 	memcpy(hip,e->rd,e->rd_len); 
@@ -797,7 +810,7 @@ static int esni_contentshash(ESNIContents *e, ESNI_CRYPTO_VARS *cv, const EVP_MD
 	*hip++=e->cr_len%256;
 	memcpy(hip,e->cr,e->cr_len); 
 	hip+=e->cr_len;
-	hi_len=hip-hi;
+	cv->plain_len=hip-cv->plain;
 	EVP_MD_CTX *mctx = NULL;
 	mctx = EVP_MD_CTX_new();
 	cv->hash_len = EVP_MD_size(md);
@@ -807,17 +820,15 @@ static int esni_contentshash(ESNIContents *e, ESNI_CRYPTO_VARS *cv, const EVP_MD
 	}
     if (mctx == NULL
             || EVP_DigestInit_ex(mctx, md, NULL) <= 0
-			|| EVP_DigestUpdate(mctx, hi, hi_len) <= 0
+			|| EVP_DigestUpdate(mctx, cv->plain, cv->plain_len) <= 0
             || EVP_DigestFinal_ex(mctx, cv->hash, NULL) <= 0) {
 		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
 		goto err;
 	}
 	EVP_MD_CTX_free(mctx);
-	OPENSSL_free(hi);
 	return 1;
 err:
 	if (mctx!=NULL) EVP_MD_CTX_free(mctx);
-	if (hi!=NULL) OPENSSL_free(hi);
 	if (cv->hash!=NULL) OPENSSL_free(cv->hash);
     return 0;
 }
@@ -895,6 +906,111 @@ unsigned char *esni_hkdf_expand_label(
 		return NULL;
 	}
 	return out;
+}
+
+unsigned char *esni_aead_enc(
+			unsigned char *key, size_t key_len,
+			unsigned char *iv, size_t iv_len,
+			unsigned char *aad, size_t aad_len,
+			unsigned char *plain, size_t plain_len,
+			unsigned char *tag, size_t tag_len, /* so we can print, TODO: remove later */
+			size_t *cipher_len,
+			const SSL_CIPHER *ciph)
+{
+	/*
+	 * From https://wiki.openssl.org/index.php/EVP_Authenticated_Encryption_and_Decryption
+	 */
+
+	EVP_CIPHER_CTX *ctx;
+	/*
+	 * TODO: Would be better as size_t but live with it for now
+	 */
+	int len;
+	size_t ciphertext_len;
+	unsigned char *ciphertext=NULL;
+
+	ciphertext=OPENSSL_malloc(plain_len+16);
+	if (ciphertext==NULL) {
+		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
+		goto err;
+	}
+
+	/* Create and initialise the context */
+	if(!(ctx = EVP_CIPHER_CTX_new())) {
+		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
+		goto err;
+	}
+
+	/* Initialise the encryption operation. */
+	/*
+	 * TODO: derive EVP settings from SSL_CIPHER input
+	 */
+	if(1 != EVP_EncryptInit_ex(ctx, EVP_aes_256_gcm(), NULL, NULL, NULL)) {
+		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
+		goto err;
+	}
+
+	/* Set IV length if default 12 bytes (96 bits) is not appropriate */
+	if(1 != EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_IVLEN, iv_len, NULL)) {
+		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
+		goto err;
+	}
+
+	/* Initialise key and IV */
+	if(1 != EVP_EncryptInit_ex(ctx, NULL, NULL, key, iv))  {
+		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
+		goto err;
+	}
+
+	/* Provide any AAD data. This can be called zero or more times as
+	 * required
+	 */
+	if(1 != EVP_EncryptUpdate(ctx, NULL, &len, aad, aad_len)) {
+		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
+		goto err;
+	}
+
+	/* Provide the message to be encrypted, and obtain the encrypted output.
+	 * EVP_EncryptUpdate can be called multiple times if necessary
+	 */
+	if(1 != EVP_EncryptUpdate(ctx, ciphertext, &len, plain, plain_len)) {
+		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
+		goto err;
+	}
+
+	ciphertext_len = len;
+
+	/* Finalise the encryption. Normally ciphertext bytes may be written at
+	 * this stage, but this does not occur in GCM mode
+	 */
+	if(1 != EVP_EncryptFinal_ex(ctx, ciphertext + len, &len))  {
+		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
+		goto err;
+	}
+
+	ciphertext_len += len;
+
+	/* Get the tag */
+	/*
+	 * TODO: figure out if this is a duplicate or if it needs to be added
+	 * to the ciphertext
+	 */
+	if(1 != EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_GET_TAG, tag_len, tag)) {
+		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
+		goto err;
+	}
+
+	/* Clean up */
+	EVP_CIPHER_CTX_free(ctx);
+
+	*cipher_len=ciphertext_len;
+
+	return ciphertext;
+
+err:
+	EVP_CIPHER_CTX_free(ctx);
+	if (ciphertext!=NULL) OPENSSL_free(ciphertext);
+	return NULL;
 }
 
 /*
@@ -1083,18 +1199,44 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys, char *protectedserver, char *frontname, PAC
         goto err;
 	}
 
+	/*
+	 * The actual encryption... from the I-D:
+	 *     encrypted_sni = AEAD-Encrypt(key, iv, ClientHello.KeyShareClientHello, ClientESNIInner)
+	 */
 
-	/* from tls13_enc.c:
-    if (EVP_CipherInit_ex(ciph_ctx, ciph, NULL, NULL, NULL, sending) <= 0
-        || !EVP_CIPHER_CTX_ctrl(ciph_ctx, EVP_CTRL_AEAD_SET_IVLEN, ivlen, NULL)
-        || (taglen != 0 && !EVP_CIPHER_CTX_ctrl(ciph_ctx, EVP_CTRL_AEAD_SET_TAG,
-                                                taglen, NULL))
-        || EVP_CipherInit_ex(ciph_ctx, NULL, NULL, key, NULL, -1) <= 0) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_DERIVE_SECRET_KEY_AND_IV,
-                 ERR_R_EVP_LIB);
+	/*
+	 * TODO: Get the ClientHello.KeyShareClientHello in here as aad. For now we fake it
+	 * since we're not in a real SSL session.
+	 */
+	cv->aad_len=40;
+	cv->aad=OPENSSL_zalloc(cv->aad_len); 
+	if (!cv->aad) {
+		ESNIerr(ESNI_F_ENC, ERR_R_MALLOC_FAILURE);
         goto err;
-    }
-	*/
+	}
+	RAND_bytes(cv->aad,cv->aad_len);
+
+	/*
+	 * TODO: figure out if tag needed or not (may be included in ciphertext)
+	 */
+	cv->tag_len=16;
+	cv->tag=OPENSSL_malloc(cv->tag_len);
+	if (cv->tag == NULL) {
+		ESNIerr(ESNI_F_ENC, ERR_R_MALLOC_FAILURE);
+        goto err;
+	}
+
+	cv->cipher=esni_aead_enc(cv->key, cv->key_len,
+			cv->iv, cv->iv_len,
+			cv->aad, cv->aad_len,
+			cv->plain, cv->plain_len,
+			cv->tag, cv->tag_len,
+			&cv->cipher_len,
+			cesni->ciphersuite);
+	if (cv->cipher==NULL) {
+		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
+        goto err;
+	}
 
 	/* 
 	 * finish up
