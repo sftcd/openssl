@@ -159,6 +159,7 @@ typedef struct esni_record_st {
 typedef struct client_esni_inner_st {
 	size_t nonce_len;
 	unsigned char *nonce;
+	size_t realSNI_len;
 	unsigned char *realSNI;
 } CLIENT_ESNI_INNER; 
 
@@ -187,6 +188,8 @@ typedef struct esni_contents_st {
  * a final working version that maps to an RFC.
  */
 typedef struct esni_crypto_vars_st {
+	size_t hi_len;
+	unsigned char *hi;
 	size_t hash_len;
 	unsigned char *hash;
 	size_t Zx_len;
@@ -378,6 +381,7 @@ void CLIENT_ESNI_free(CLIENT_ESNI *c)
 	if (c->inner.nonce != NULL ) OPENSSL_free(c->inner.nonce);
 	if (c->inner.realSNI != NULL ) OPENSSL_free(c->inner.realSNI);
 	if (c->econt.rd != NULL) OPENSSL_free(c->econt.rd);
+	if (c->cvars.hi != NULL) OPENSSL_free(c->cvars.hi);
 	if (c->cvars.hash != NULL) OPENSSL_free(c->cvars.hash);
 	if (c->cvars.Zx != NULL) OPENSSL_free(c->cvars.Zx);
 	if (c->cvars.key != NULL) OPENSSL_free(c->cvars.key);
@@ -739,6 +743,8 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esni)
 							c->econt.rd,c->econt.rd_len,indent);
 		esni_pbuf(out,"ESNI CLient ESNIContents client_random",
 							c->econt.cr,c->econt.cr_len,indent);
+
+		esni_pbuf(out,"ESNI Cryptovars hash input",c->cvars.hi,c->cvars.hi_len,indent);
 		/* don't bother with key share - it's above already */
 		esni_pbuf(out,"ESNI Cryptovars hash(ESNIContents)",
 							c->cvars.hash,c->cvars.hash_len,indent);
@@ -791,13 +797,13 @@ static unsigned char *esni_pad(char *name, unsigned int padded_len)
 static int esni_contentshash(ESNIContents *e, ESNI_CRYPTO_VARS *cv, const EVP_MD *md)
 {
 	size_t oh=2+2+2;
-	cv->plain_len=oh+e->rd_len+e->kse_len+e->cr_len;
-	cv->plain=OPENSSL_zalloc(cv->plain_len);
-	if (cv->plain==NULL) {
+	cv->hi_len=oh+e->rd_len+e->kse_len+e->cr_len;
+	cv->hi=OPENSSL_zalloc(cv->hi_len);
+	if (cv->hi==NULL) {
 		ESNIerr(ESNI_F_ENC, ERR_R_MALLOC_FAILURE);
         goto err;
 	}
-	unsigned char *hip=cv->plain;
+	unsigned char *hip=cv->hi;
 	*hip++=e->rd_len/256;
 	*hip++=e->rd_len%256;
 	memcpy(hip,e->rd,e->rd_len); 
@@ -810,7 +816,7 @@ static int esni_contentshash(ESNIContents *e, ESNI_CRYPTO_VARS *cv, const EVP_MD
 	*hip++=e->cr_len%256;
 	memcpy(hip,e->cr,e->cr_len); 
 	hip+=e->cr_len;
-	cv->plain_len=hip-cv->plain;
+	cv->hi_len=hip-cv->hi;
 	EVP_MD_CTX *mctx = NULL;
 	mctx = EVP_MD_CTX_new();
 	cv->hash_len = EVP_MD_size(md);
@@ -820,7 +826,7 @@ static int esni_contentshash(ESNIContents *e, ESNI_CRYPTO_VARS *cv, const EVP_MD
 	}
     if (mctx == NULL
             || EVP_DigestInit_ex(mctx, md, NULL) <= 0
-			|| EVP_DigestUpdate(mctx, cv->plain, cv->plain_len) <= 0
+			|| EVP_DigestUpdate(mctx, cv->hi, cv->hi_len) <= 0
             || EVP_DigestFinal_ex(mctx, cv->hash, NULL) <= 0) {
 		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
 		goto err;
@@ -913,7 +919,7 @@ unsigned char *esni_aead_enc(
 			unsigned char *iv, size_t iv_len,
 			unsigned char *aad, size_t aad_len,
 			unsigned char *plain, size_t plain_len,
-			unsigned char *tag, size_t tag_len, /* so we can print, TODO: remove later */
+			unsigned char *tag, size_t tag_len, 
 			size_t *cipher_len,
 			const SSL_CIPHER *ciph)
 {
@@ -992,13 +998,14 @@ unsigned char *esni_aead_enc(
 
 	/* Get the tag */
 	/*
-	 * TODO: figure out if this is a duplicate or if it needs to be added
-	 * to the ciphertext
+	 * This isn't a duplicate so needs to be added to the ciphertext
 	 */
 	if(1 != EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_GET_TAG, tag_len, tag)) {
 		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
 		goto err;
 	}
+	memcpy(ciphertext+plain_len,tag,tag_len);
+	ciphertext_len += tag_len;
 
 	/* Clean up */
 	EVP_CIPHER_CTX_free(ctx);
@@ -1110,7 +1117,8 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys, char *protectedserver, char *frontname, PAC
 	/*
 	 * Form up the inner SNI stuff
 	 */
-	inner->realSNI=esni_pad(protectedserver,esnikeys->mesni->padded_length);
+	inner->realSNI_len=esnikeys->mesni->padded_length;
+	inner->realSNI=esni_pad(protectedserver,inner->realSNI_len);
 	if (inner->realSNI==NULL) {
 		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
@@ -1121,6 +1129,27 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys, char *protectedserver, char *frontname, PAC
 		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
 	}
+
+	ESNI_CRYPTO_VARS *cv=&cesni->cvars;
+	memset(cv,0,sizeof(ESNI_CRYPTO_VARS));
+
+	/*
+	 * encode into our plaintext
+	 */
+	int oh=4;
+	cv->plain_len=oh+inner->nonce_len+inner->realSNI_len;
+	cv->plain=OPENSSL_malloc(cv->plain_len);
+	if (cv->plain == NULL) {
+		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
+        goto err;
+	}
+	unsigned char *pip=cv->plain;
+	*pip++=inner->nonce_len/256;
+	*pip++=inner->nonce_len%256;
+	memcpy(pip,inner->nonce,inner->nonce_len); pip+=inner->nonce_len;
+	*pip++=inner->realSNI_len/256;
+	*pip++=inner->realSNI_len%256;
+	memcpy(pip,inner->realSNI,inner->realSNI_len); pip+=inner->realSNI_len;
 
 	/* 
 	 * encrypt the actual SNI based on shared key, Z - the I-D says:
@@ -1141,8 +1170,6 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys, char *protectedserver, char *frontname, PAC
 	 * from ssl/ssl_locl.h
 	 */
 	ESNIContents *esnicontents=&cesni->econt;
-	ESNI_CRYPTO_VARS *cv=&cesni->cvars;
-	memset(cv,0,sizeof(ESNI_CRYPTO_VARS));
 
 	esnicontents->rd_len=32;
 	/* 
@@ -1168,7 +1195,6 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys, char *protectedserver, char *frontname, PAC
 		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
 	}
-
 
 	/*
 	 * Derive key and encrypt
