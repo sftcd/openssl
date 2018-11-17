@@ -108,10 +108,6 @@ int ERR_load_ESNI_strings(void)
  * Basic structs for ESNI
  */
 
-/*
- * TODO: simplify these structs once we have the full client-side story done
- */
-
 /* 
  * From the -02 I-D, what we find in DNS:
  *     struct {
@@ -184,10 +180,26 @@ typedef struct esni_contents_st {
 
 /*
  * Place to keep crypto vars for when we try interop.
- * This should probably disappear when/if we end up with
+ * This should probably (mostly) disappear when/if we end up with
  * a final working version that maps to an RFC.
+ *
+ * Fields below:
+ * keyshare: is the client's ephemeral public value
+ * shared: is the D-H shared secret
+ * hi: encoded ESNIContents hash input 
+ * hash: hash output from above
+ * Zx: derived from D-H shared secret
+ * key: derived from Zx as per I-D
+ * iv: derived from Zx as per I-D
+ * aad: the AAD for the AEAD
+ * plain: encoded plaintext
+ * cipher: ciphertext
+ * tag: AEAD tag (exposed by OpenSSL api?)
  */
 typedef struct esni_crypto_vars_st {
+	EVP_PKEY *keyshare;
+	size_t shared_len;
+	unsigned char *shared; /* shared secret */
 	size_t hi_len;
 	unsigned char *hi;
 	size_t hash_len;
@@ -220,7 +232,6 @@ typedef struct esni_crypto_vars_st {
  *
  * We include some related non-transmitted 
  * e.g. key structures too
- * TODO: make shared secret hidden below crypto API
  *
  */
 typedef struct client_esni_st {
@@ -228,23 +239,17 @@ typedef struct client_esni_st {
 	 * Fields encoded in extension
 	 */
 	const SSL_CIPHER *ciphersuite;
-	EVP_PKEY *keyshare;
+	size_t encoded_keyshare_len; /* my encoded key share */
+	unsigned char *encoded_keyshare;
 	size_t record_digest_len;
 	unsigned char record_digest[SSL_MAX_SSL_RECORD_DIGEST_LENGTH];
 	size_t encrypted_sni_len;
 	unsigned char encrypted_sni[SSL_MAX_SSL_ENCRYPTED_SNI_LENGTH];
 	/*
-	 * Locally handled fields
-	 */
-	size_t shared_len;
-	unsigned char *shared; /* shared secret */
-	size_t encoded_keyshare_len; /* my encoded key share */
-	unsigned char *encoded_keyshare;
-	CLIENT_ESNI_INNER inner;
-	/*
-	 * Various crypto vars
+	 * Various intermediate/crypto vars
 	 */
 	ESNIContents econt;
+	CLIENT_ESNI_INNER inner;
 	ESNI_CRYPTO_VARS cvars;
 } CLIENT_ESNI;
 
@@ -375,12 +380,12 @@ err:
 void CLIENT_ESNI_free(CLIENT_ESNI *c)
 {
 	if (c == NULL) return;
-    if (c->keyshare != NULL) EVP_PKEY_free(c->keyshare);
 	if (c->encoded_keyshare != NULL) OPENSSL_free(c->encoded_keyshare);
-	if (c->shared != NULL) OPENSSL_free(c->shared);
 	if (c->inner.nonce != NULL ) OPENSSL_free(c->inner.nonce);
 	if (c->inner.realSNI != NULL ) OPENSSL_free(c->inner.realSNI);
 	if (c->econt.rd != NULL) OPENSSL_free(c->econt.rd);
+    if (c->cvars.keyshare != NULL) EVP_PKEY_free(c->cvars.keyshare);
+	if (c->cvars.shared != NULL) OPENSSL_free(c->cvars.shared);
 	if (c->cvars.hi != NULL) OPENSSL_free(c->cvars.hi);
 	if (c->cvars.hash != NULL) OPENSSL_free(c->cvars.hash);
 	if (c->cvars.Zx != NULL) OPENSSL_free(c->cvars.Zx);
@@ -669,15 +674,15 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esni)
 		return(1);
 	}
 	for (int e=0;e!=esni->nerecs;e++) {
-		BIO_printf(out,"ESNI version: 0x%x\n",esni->erecs[e].version);
-		BIO_printf(out,"ESNI checksum: 0x");
+		BIO_printf(out,"ESNI Server version: 0x%x\n",esni->erecs[e].version);
+		BIO_printf(out,"ESNI Server checksum: 0x");
 		for (int i=0;i!=4;i++) {
 			BIO_printf(out,"%02x",esni->erecs[e].checksum[i]);
 		}
 		BIO_printf(out,"\n");
-		BIO_printf(out,"Keys: %d\n",esni->erecs[e].nkeys);
+		BIO_printf(out,"ESNI Server Keys: %d\n",esni->erecs[e].nkeys);
 		for (int i=0;i!=esni->erecs[e].nkeys;i++) {
-			BIO_printf(out,"ESNI Key[%d]: ",i);
+			BIO_printf(out,"ESNI Server Key[%d]: ",i);
 			if (esni->erecs->keys && esni->erecs[e].keys[i]) {
 				rv=EVP_PKEY_print_public(out, esni->erecs[e].keys[i], indent, NULL); 
 				if (!rv) {
@@ -689,22 +694,22 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esni)
 		}
     	STACK_OF(SSL_CIPHER) *sk = esni->erecs[e].ciphersuites;
 		if (sk==NULL) {
-			BIO_printf(out,"No ciphersuites!\n");
+			BIO_printf(out,"ESNI Server, No ciphersuites!\n");
 		} else {
 			for (int i = 0; i < sk_SSL_CIPHER_num(sk); i++) {
 				const SSL_CIPHER *c = sk_SSL_CIPHER_value(sk, i);
 				if (c!=NULL) {
-					BIO_printf(out,"Ciphersuite %d is %s\n",i,c->name);
+					BIO_printf(out,"ESNI Server Ciphersuite %d is %s\n",i,c->name);
 				} else {
-					BIO_printf(out,"Ciphersuite %d is NULL\n",i);
+					BIO_printf(out,"ENSI Server Ciphersuite %d is NULL\n",i);
 				}
 			}
 	
 		}
-		BIO_printf(out,"ESNI padded_length: %d\n",esni->erecs[e].padded_length);
-		BIO_printf(out,"ESNI not_before: %lu\n",esni->erecs[e].not_before);
-		BIO_printf(out,"ESNI not_after: %lu\n",esni->erecs[e].not_after);
-		BIO_printf(out,"ESNI number of extensions: %d\n",esni->erecs[e].nexts);
+		BIO_printf(out,"ESNI Server padded_length: %d\n",esni->erecs[e].padded_length);
+		BIO_printf(out,"ESNI Server not_before: %lu\n",esni->erecs[e].not_before);
+		BIO_printf(out,"ESNI Server not_after: %lu\n",esni->erecs[e].not_after);
+		BIO_printf(out,"ESNI Server number of extensions: %d\n",esni->erecs[e].nexts);
 	}
 	CLIENT_ESNI *c=esni->client;
 	if (c == NULL) {
@@ -715,17 +720,7 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esni)
 		} else {
 			BIO_printf(out,"ESNI Client Ciphersuite is NULL\n");
 		}
-		if (c->keyshare != NULL) {
-			BIO_printf(out,"ESNI Client Keyshare:\n");
-			rv=EVP_PKEY_print_public(out, c->keyshare, indent, NULL); 
-			if (!rv) {
-				BIO_printf(out,"Oops: %d\n",rv);
-			}
-		} else {
-			BIO_printf(out,"ESNI Client Keyshare is NULL!\n");
-		}
 
-		esni_pbuf(out,"ESNI CLient shared",c->shared,c->shared_len,indent);
 
 		esni_pbuf(out,"ESNI CLient encoded_keyshare",c->encoded_keyshare,c->encoded_keyshare_len,indent);
 		CLIENT_ESNI_INNER *ci=&c->inner;
@@ -739,11 +734,22 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esni)
 	size_t encrypted_sni_len;
 	unsigned char encrypted_sni[SSL_MAX_SSL_ENCRYPTED_SNI_LENGTH];
 		*/
+
 		esni_pbuf(out,"ESNI CLient ESNIContents record_digest",
 							c->econt.rd,c->econt.rd_len,indent);
 		esni_pbuf(out,"ESNI CLient ESNIContents client_random",
 							c->econt.cr,c->econt.cr_len,indent);
 
+		if (c->cvars.keyshare != NULL) {
+			BIO_printf(out,"ESNI Cryptovars Keyshare:\n");
+			rv=EVP_PKEY_print_public(out, c->cvars.keyshare, indent, NULL); 
+			if (!rv) {
+				BIO_printf(out,"Oops: %d\n",rv);
+			}
+		} else {
+			BIO_printf(out,"ESNI Client Keyshare is NULL!\n");
+		}
+		esni_pbuf(out,"ESNI Cryptovars shared",c->cvars.shared,c->cvars.shared_len,indent);
 		esni_pbuf(out,"ESNI Cryptovars hash input",c->cvars.hi,c->cvars.hi_len,indent);
 		/* don't bother with key share - it's above already */
 		esni_pbuf(out,"ESNI Cryptovars hash(ESNIContents)",
@@ -1026,6 +1032,7 @@ err:
  */
 int SSL_ESNI_enc(SSL_ESNI *esnikeys, char *protectedserver, char *frontname, PACKET *the_esni, unsigned char *client_random)
 {
+
 	/*
 	 * - make my private key
 	 * - generate shared secret
@@ -1041,6 +1048,8 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys, char *protectedserver, char *frontname, PAC
 		ESNIerr(ESNI_F_ENC, ERR_R_MALLOC_FAILURE);
 		goto err;
 	}
+	ESNI_CRYPTO_VARS *cv=&cesni->cvars;
+	memset(cv,0,sizeof(ESNI_CRYPTO_VARS));
 	CLIENT_ESNI_INNER *inner=&cesni->inner;
 
 	/*
@@ -1080,8 +1089,8 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys, char *protectedserver, char *frontname, PAC
         goto err;
     }
 
-    cesni->keyshare = ssl_generate_pkey(skey);
-    if (cesni->keyshare == NULL) {
+    cesni->cvars.keyshare = ssl_generate_pkey(skey);
+    if (cesni->cvars.keyshare == NULL) {
 		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
     }
@@ -1090,25 +1099,25 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys, char *protectedserver, char *frontname, PAC
 	 * code from ssl/s3_lib.c:ssl_derive
 	 */
     EVP_PKEY_CTX *pctx;
-	pctx = EVP_PKEY_CTX_new(cesni->keyshare, NULL);
+	pctx = EVP_PKEY_CTX_new(cesni->cvars.keyshare, NULL);
     if (EVP_PKEY_derive_init(pctx) <= 0
         || EVP_PKEY_derive_set_peer(pctx, skey) <= 0
-        || EVP_PKEY_derive(pctx, NULL, &cesni->shared_len) <= 0) {
+        || EVP_PKEY_derive(pctx, NULL, &cesni->cvars.shared_len) <= 0) {
 		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
     }
-    cesni->shared = OPENSSL_malloc(cesni->shared_len);
-    if (cesni->shared == NULL) {
+    cesni->cvars.shared = OPENSSL_malloc(cesni->cvars.shared_len);
+    if (cesni->cvars.shared == NULL) {
 		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
     }
-    if (EVP_PKEY_derive(pctx, cesni->shared, &cesni->shared_len) <= 0) {
+    if (EVP_PKEY_derive(pctx, cesni->cvars.shared, &cesni->cvars.shared_len) <= 0) {
 		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
     }
 
     /* Generate encoding of client key */
-    cesni->encoded_keyshare_len = EVP_PKEY_get1_tls_encodedpoint(cesni->keyshare, &cesni->encoded_keyshare);
+    cesni->encoded_keyshare_len = EVP_PKEY_get1_tls_encodedpoint(cesni->cvars.keyshare, &cesni->encoded_keyshare);
     if (cesni->encoded_keyshare_len == 0) {
 		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
@@ -1130,13 +1139,10 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys, char *protectedserver, char *frontname, PAC
         goto err;
 	}
 
-	ESNI_CRYPTO_VARS *cv=&cesni->cvars;
-	memset(cv,0,sizeof(ESNI_CRYPTO_VARS));
-
 	/*
 	 * encode into our plaintext
 	 */
-	int oh=4;
+	int oh=2;
 	cv->plain_len=oh+inner->nonce_len+inner->realSNI_len;
 	cv->plain=OPENSSL_malloc(cv->plain_len);
 	if (cv->plain == NULL) {
@@ -1144,8 +1150,6 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys, char *protectedserver, char *frontname, PAC
         goto err;
 	}
 	unsigned char *pip=cv->plain;
-	*pip++=inner->nonce_len/256;
-	*pip++=inner->nonce_len%256;
 	memcpy(pip,inner->nonce,inner->nonce_len); pip+=inner->nonce_len;
 	*pip++=inner->realSNI_len/256;
 	*pip++=inner->realSNI_len%256;
@@ -1204,7 +1208,7 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys, char *protectedserver, char *frontname, PAC
      *    iv = HKDF-Expand-Label(Zx, "esni iv", Hash(ESNIContents), iv_length)
 	 */
 	cv->Zx_len=0;
-	cv->Zx=esni_hkdf_extract(cesni->shared,cesni->shared_len,&cv->Zx_len,md);
+	cv->Zx=esni_hkdf_extract(cv->shared,cv->shared_len,&cv->Zx_len,md);
 	if (cv->Zx==NULL) {
 		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
