@@ -65,6 +65,7 @@
 #define ESNI_F_BASE64_DECODE							101
 #define ESNI_F_NEW_FROM_BASE64							102
 #define ESNI_F_ENC										103
+#define ESNI_F_CHECKSUM_CHECK							104
 
 /*
  * ESNI reason codes for ESNIerr
@@ -437,6 +438,50 @@ void SSL_ESNI_free(SSL_ESNI *esnikeys)
 	return;
 }
 
+int esni_checksum_check(unsigned char *buf, size_t buf_len)
+{
+	/* 
+	 * copy input with zero'd checksum, do SHA256 hash, compare with checksum, tedious but easy enough
+	 */
+	unsigned char *buf_zeros=OPENSSL_malloc(buf_len);
+	if (buf_zeros==NULL) {
+        ESNIerr(ESNI_F_NEW_FROM_BASE64, ERR_R_MALLOC_FAILURE);
+		goto err;
+	}
+	memcpy(buf_zeros,buf,buf_len);
+	memset(buf_zeros+2,0,4);
+
+	unsigned char md[EVP_MAX_MD_SIZE];
+
+    SHA256_CTX context;
+    if(!SHA256_Init(&context)) {
+		ESNIerr(ESNI_F_CHECKSUM_CHECK, ERR_R_INTERNAL_ERROR);
+		goto err;
+	}
+
+    if(!SHA256_Update(&context, buf_zeros, buf_len)) {
+		ESNIerr(ESNI_F_CHECKSUM_CHECK, ERR_R_INTERNAL_ERROR);
+		goto err;
+	}
+
+    if(!SHA256_Final(md, &context)) {
+		ESNIerr(ESNI_F_CHECKSUM_CHECK, ERR_R_INTERNAL_ERROR);
+		goto err;
+	}
+
+	OPENSSL_free(buf_zeros);
+
+	if (memcmp(buf+2,md,4)) {
+		/* non match - bummer */
+		return 0;
+	} else {
+		return 1;
+	}
+err:
+	if (buf_zeros!=NULL) OPENSSL_free(buf_zeros);
+	return 0;
+}
+
 /*
  * Decode from TXT RR to SSL_ESNI
  * This time inspired by, but not the same as,
@@ -458,6 +503,12 @@ SSL_ESNI* SSL_ESNI_new_from_base64(char *esnikeys)
         ESNIerr(ESNI_F_NEW_FROM_BASE64, ESNI_R_BASE64_DECODE_ERROR);
         goto err;
     }
+
+	int cksum_ok=esni_checksum_check(outbuf,declen);
+	if (cksum_ok!=1) {
+        ESNIerr(ESNI_F_NEW_FROM_BASE64, ERR_R_INTERNAL_ERROR);
+        goto err;
+	}
 
 	PACKET pkt={outbuf,declen};
 
@@ -488,7 +539,7 @@ SSL_ESNI* SSL_ESNI_new_from_base64(char *esnikeys)
 		goto err;
 	}
 
-	/* checksum */
+	/* checksum decode */
 	if (!PACKET_copy_bytes(&pkt,crec->checksum,4)) {
         ESNIerr(ESNI_F_NEW_FROM_BASE64, ESNI_R_RR_DECODE_ERROR);
 		goto err;
