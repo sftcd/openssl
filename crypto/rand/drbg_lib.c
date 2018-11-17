@@ -180,12 +180,17 @@ int RAND_DRBG_set(RAND_DRBG *drbg, int type, unsigned int flags)
         else
             ret = drbg_hash_init(drbg);
     } else {
+        drbg->type = 0;
+        drbg->flags = 0;
+        drbg->meth = NULL;
         RANDerr(RAND_F_RAND_DRBG_SET, RAND_R_UNSUPPORTED_DRBG_TYPE);
         return 0;
     }
 
-    if (ret == 0)
+    if (ret == 0) {
+        drbg->state = DRBG_ERROR;
         RANDerr(RAND_F_RAND_DRBG_SET, RAND_R_ERROR_INITIALISING_DRBG);
+    }
     return ret;
 }
 
@@ -290,10 +295,7 @@ static RAND_DRBG *rand_drbg_new(int secure,
     return drbg;
 
  err:
-    if (drbg->secure)
-        OPENSSL_secure_free(drbg);
-    else
-        OPENSSL_free(drbg);
+    RAND_DRBG_free(drbg);
 
     return NULL;
 }
@@ -435,6 +437,7 @@ int RAND_DRBG_uninstantiate(RAND_DRBG *drbg)
 {
     int index = -1, type, flags;
     if (drbg->meth == NULL) {
+        drbg->state = DRBG_ERROR;
         RANDerr(RAND_F_RAND_DRBG_UNINSTANTIATE,
                 RAND_R_NO_DRBG_IMPLEMENTATION_SELECTED);
         return 0;
@@ -554,11 +557,11 @@ int rand_drbg_restart(RAND_DRBG *drbg,
     const unsigned char *adin = NULL;
     size_t adinlen = 0;
 
-    if (drbg->pool != NULL) {
+    if (drbg->seed_pool != NULL) {
         RANDerr(RAND_F_RAND_DRBG_RESTART, ERR_R_INTERNAL_ERROR);
         drbg->state = DRBG_ERROR;
-        rand_pool_free(drbg->pool);
-        drbg->pool = NULL;
+        rand_pool_free(drbg->seed_pool);
+        drbg->seed_pool = NULL;
         return 0;
     }
 
@@ -578,8 +581,8 @@ int rand_drbg_restart(RAND_DRBG *drbg,
             }
 
             /* will be picked up by the rand_drbg_get_entropy() callback */
-            drbg->pool = rand_pool_attach(buffer, len, entropy);
-            if (drbg->pool == NULL)
+            drbg->seed_pool = rand_pool_attach(buffer, len, entropy);
+            if (drbg->seed_pool == NULL)
                 return 0;
         } else {
             if (drbg->max_adinlen < len) {
@@ -625,8 +628,8 @@ int rand_drbg_restart(RAND_DRBG *drbg,
         }
     }
 
-    rand_pool_free(drbg->pool);
-    drbg->pool = NULL;
+    rand_pool_free(drbg->seed_pool);
+    drbg->seed_pool = NULL;
 
     return drbg->state == DRBG_READY;
 }
@@ -1042,12 +1045,8 @@ static int drbg_bytes(unsigned char *out, int count)
  * Calculates the minimum length of a full entropy buffer
  * which is necessary to seed (i.e. instantiate) the DRBG
  * successfully.
- *
- * NOTE: There is a copy of this function in drbgtest.c.
- *       If you change anything here, you need to update
- *       the copy accordingly.
  */
-static size_t rand_drbg_seedlen(RAND_DRBG *drbg)
+size_t rand_drbg_seedlen(RAND_DRBG *drbg)
 {
     /*
      * If no os entropy source is available then RAND_seed(buffer, bufsize)
