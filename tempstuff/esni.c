@@ -137,7 +137,12 @@ typedef struct esni_record_st {
 	uint64_t not_after;
 	unsigned int nexts;
 	unsigned int *exttypes;
-	void *exts[];
+	void **exts;
+	/*
+	 * The Encoded (binary, after b64-decode) form of the RR
+	 */
+	size_t encoded_len;
+	unsigned char *encoded;
 } ESNI_RECORD;
 
 /*
@@ -427,6 +432,7 @@ void SSL_ESNI_free(SSL_ESNI *esnikeys)
 				OPENSSL_free(esnikeys->erecs[i].group_ids);
 				OPENSSL_free(esnikeys->erecs[i].keys);
 			}
+			if (esnikeys->erecs[i].encoded!=NULL) OPENSSL_free(esnikeys->erecs[i].encoded);
 		}
 	}
 	if (esnikeys->erecs!=NULL)
@@ -532,6 +538,8 @@ SSL_ESNI* SSL_ESNI_new_from_base64(char *esnikeys)
 		goto err;
 	}
 	ESNI_RECORD *crec=newesni->erecs;
+	crec->encoded_len=declen;
+	crec->encoded=outbuf;
 
 	/* version */
 	if (!PACKET_get_net_2(&pkt,&crec->version)) {
@@ -679,15 +687,12 @@ SSL_ESNI* SSL_ESNI_new_from_base64(char *esnikeys)
 	 * TODO: check bleedin not_before/not_after as if that's gonna help;-)
 	 */
 
-	OPENSSL_free(outbuf);
 	return(newesni);
 err:
 	if (newesni!=NULL) {
 		SSL_ESNI_free(newesni);
 		OPENSSL_free(newesni);
 	}
-	if (outbuf!=NULL)
-		OPENSSL_free(outbuf);
 	return(NULL);
 }
 
@@ -780,8 +785,6 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esni)
 							esni->mesni->padded_length,
 							indent);
 		/* TODO: when these values figured out - print 'em
-	size_t record_digest_len;
-	unsigned char record_digest[SSL_MAX_SSL_RECORD_DIGEST_LENGTH];
 	size_t encrypted_sni_len;
 	unsigned char encrypted_sni[SSL_MAX_SSL_ENCRYPTED_SNI_LENGTH];
 		*/
@@ -985,9 +988,6 @@ unsigned char *esni_aead_enc(
 	 */
 
 	EVP_CIPHER_CTX *ctx;
-	/*
-	 * TODO: Would be better as size_t but live with it for now
-	 */
 	int len;
 	size_t ciphertext_len;
 	unsigned char *ciphertext=NULL;
@@ -1083,9 +1083,41 @@ err:
 	return NULL;
 }
 
+int esni_make_rd(ESNI_RECORD *er,ESNIContents *ec)
+{
+	const SSL_CIPHER *sc=sk_SSL_CIPHER_value(er->ciphersuites,0);
+	const EVP_MD *md=ssl_md(sc->algorithm2);
+
+	if (er->encoded_len<=2) {
+		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
+		goto err;
+	}
+	unsigned char *hip=er->encoded+2;
+	size_t hi_len=er->encoded_len-2;
+
+	EVP_MD_CTX *mctx = NULL;
+	mctx = EVP_MD_CTX_new();
+	ec->rd_len=EVP_MD_size(md);
+	ec->rd=OPENSSL_malloc(ec->rd_len);
+	if (ec->rd==NULL) {
+		goto err;
+	}
+    if (mctx == NULL
+            || EVP_DigestInit_ex(mctx, md, NULL) <= 0
+			|| EVP_DigestUpdate(mctx, hip, hi_len) <= 0
+            || EVP_DigestFinal_ex(mctx, ec->rd, NULL) <= 0) {
+		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
+		goto err;
+	}
+	EVP_MD_CTX_free(mctx);
+
+	return 1;
+err:
+	return 0;
+}
+
 /*
  * Produce the encrypted SNI value for the CH
- * TODO: handle checksums/digests
  */
 int SSL_ESNI_enc(SSL_ESNI *esnikeys, 
 				char *protectedserver, 
@@ -1237,16 +1269,13 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys,
 	 */
 	ESNIContents *esnicontents=&cesni->econt;
 
-	esnicontents->rd_len=32;
-	/* 
-	 * TODO: figure out digesting, just fill randomly for now 
+	/*
+	 * Calculate digest of input RR as per I-D
 	 */
-	esnicontents->rd=OPENSSL_zalloc(esnicontents->rd_len); 
-	if (!esnicontents->rd) {
+	if (!esni_make_rd(esnikeys->mesni,esnicontents)) {
 		ESNIerr(ESNI_F_ENC, ERR_R_MALLOC_FAILURE);
         goto err;
 	}
-	RAND_bytes(esnicontents->rd,esnicontents->rd_len);
 	esnicontents->kse_len=cesni->encoded_keyshare_len;
 	esnicontents->kse=cesni->encoded_keyshare;
 	esnicontents->cr_len=SSL3_RANDOM_SIZE;
@@ -1255,7 +1284,9 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys,
 	/*
 	 * Form up input for hashing, and hash it
 	 */
-	const EVP_MD *md=ssl_md(cesni->ciphersuite->algorithm2);
+
+	const SSL_CIPHER *sc=sk_SSL_CIPHER_value(esnikeys->mesni->ciphersuites,0);
+	const EVP_MD *md=ssl_md(sc->algorithm2);
 	if (!esni_contentshash(esnicontents,cv,md)) {
 		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
