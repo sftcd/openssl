@@ -676,7 +676,7 @@ SSL_ESNI* SSL_ESNI_new_from_base64(char *esnikeys)
 	newesni->client=NULL;
 	newesni->mesni=&newesni->erecs[0];
 	/*
-	 * TODO: check bleedin checksum and not_before/not_after as if that's gonna help;-)
+	 * TODO: check bleedin not_before/not_after as if that's gonna help;-)
 	 */
 
 	OPENSSL_free(outbuf);
@@ -1006,9 +1006,15 @@ unsigned char *esni_aead_enc(
 
 	/* Initialise the encryption operation. */
 	/*
-	 * TODO: derive EVP settings from SSL_CIPHER input
+	 * derive EVP settings from SSL_CIPHER input via fake SSL session (for now)
 	 */
-	if(1 != EVP_EncryptInit_ex(ctx, EVP_aes_256_gcm(), NULL, NULL, NULL)) {
+	const EVP_CIPHER *enc=EVP_get_cipherbynid(SSL_CIPHER_get_cipher_nid(ciph));
+	if (enc == NULL) {
+		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
+		goto err;
+	}
+
+	if(1 != EVP_EncryptInit_ex(ctx, enc, NULL, NULL, NULL)) {
 		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
 		goto err;
 	}
@@ -1243,7 +1249,6 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys, char *protectedserver, char *frontname, PAC
 
 	/*
 	 * Form up input for hashing, and hash it
-	 * TODO: Check encoding is right - and use some better fnc
 	 */
 	const EVP_MD *md=ssl_md(cesni->ciphersuite->algorithm2);
 	if (!esni_contentshash(esnicontents,cv,md)) {
