@@ -1087,7 +1087,12 @@ err:
  * Produce the encrypted SNI value for the CH
  * TODO: handle checksums/digests
  */
-int SSL_ESNI_enc(SSL_ESNI *esnikeys, char *protectedserver, char *frontname, PACKET *the_esni, unsigned char *client_random)
+int SSL_ESNI_enc(SSL_ESNI *esnikeys, 
+				char *protectedserver, 
+				char *frontname, 
+				PACKET *the_esni, 
+				size_t  cr_len,
+				unsigned char *client_random)
 {
 
 	/*
@@ -1291,19 +1296,18 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys, char *protectedserver, char *frontname, PAC
 	 */
 
 	/*
-	 * TODO: Get the ClientHello.KeyShareClientHello in here as aad. For now we fake it
-	 * since we're not in a real SSL session.
+	 * Copy the ClientHello.KeyShareClientHello in here as aad. 
 	 */
-	cv->aad_len=40;
+	cv->aad_len=cr_len;
 	cv->aad=OPENSSL_zalloc(cv->aad_len); 
 	if (!cv->aad) {
 		ESNIerr(ESNI_F_ENC, ERR_R_MALLOC_FAILURE);
         goto err;
 	}
-	RAND_bytes(cv->aad,cv->aad_len);
+	memcpy(cv->aad,client_random,cr_len);
 
 	/*
-	 * TODO: figure out if tag needed or not (may be included in ciphertext)
+	 * Tag is in ciphertext anyway, but sure may as well keep it
 	 */
 	cv->tag_len=16;
 	cv->tag=OPENSSL_malloc(cv->tag_len);
@@ -1378,8 +1382,9 @@ int main(int argc, char **argv)
 	/* 
 	 * fake client random
 	 */
+	size_t cr_len=SSL3_RANDOM_SIZE;
 	unsigned char client_random[SSL3_RANDOM_SIZE];
-	RAND_bytes(client_random,SSL3_RANDOM_SIZE);
+	RAND_bytes(client_random,cr_len);
 
 
 	if (argc==4) 
@@ -1406,7 +1411,7 @@ int main(int argc, char **argv)
 	if (out == NULL)
 		goto end;
 
-	if (!SSL_ESNI_enc(esnikeys,encservername,frontname,&the_esni,client_random)) {
+	if (!SSL_ESNI_enc(esnikeys,encservername,frontname,&the_esni,cr_len,client_random)) {
 		printf("Can't encrypt SSL_ESNI!\n");
 		goto end;
 	}
