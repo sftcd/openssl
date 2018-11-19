@@ -503,3 +503,4 @@ SSL_ESNI_free                           503	1_1_1a	EXIST::FUNCTION:
 SSL_ESNI_new_from_base64                504	1_1_1a	EXIST::FUNCTION:
 SSL_ESNI_print                          505	1_1_1a	EXIST::FUNCTION:
 SSL_ESNI_enc                            506	1_1_1a	EXIST::FUNCTION:
+SSL_esni_enable                         507	1_1_1a	EXIST::FUNCTION:

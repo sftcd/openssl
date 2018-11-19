@@ -154,7 +154,7 @@ extern "C" {
 # endif
 
 #ifndef OPENSSL_NO_ESNI
-#define TLSEXT_TYPE_esni_type           0xffce
+#define TLSEXT_TYPE_esni                       0xffce
 #endif
 
 /* NameType value from RFC3546 */

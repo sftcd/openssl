@@ -57,6 +57,11 @@ static int final_early_data(SSL *s, unsigned int context, int sent);
 static int final_maxfragmentlen(SSL *s, unsigned int context, int sent);
 static int init_post_handshake_auth(SSL *s, unsigned int context);
 
+#ifndef OPENSSL_NO_ESNI
+static int init_esni(SSL *s, unsigned int context);
+static int final_esni(SSL *s, unsigned int context, int sent);
+#endif
+
 /* Structure to define a built-in extension */
 typedef struct extensions_definition_st {
     /* The defined type for the extension */
@@ -136,6 +141,19 @@ static const EXTENSION_DEFINITION ext_defs[] = {
         tls_construct_stoc_server_name, tls_construct_ctos_server_name,
         final_server_name
     },
+#ifndef OPENSSL_NO_ESNI
+    {
+        TLSEXT_TYPE_esni,
+        SSL_EXT_CLIENT_HELLO | SSL_EXT_TLS1_3_SERVER_HELLO |
+        SSL_EXT_TLS1_3_ONLY | SSL_EXT_TLS1_3_ENCRYPTED_EXTENSIONS,
+        init_esni,
+        tls_parse_ctos_esni, tls_parse_stoc_esni,
+        tls_construct_stoc_esni, tls_construct_ctos_esni,
+        final_esni
+    },
+#else
+	INVALID_EXTENSION,
+#endif
     {
         TLSEXT_TYPE_max_fragment_length,
         SSL_EXT_CLIENT_HELLO | SSL_EXT_TLS1_2_SERVER_HELLO
@@ -913,6 +931,24 @@ static int init_server_name(SSL *s, unsigned int context)
 
     return 1;
 }
+
+#ifndef OPENSSL_NO_ESNI
+static int init_esni(SSL *s, unsigned int context)
+{
+    if (s->server) {
+        s->esni_done = 0;
+
+        OPENSSL_free(s->ext.enchostname);
+        s->ext.enchostname = NULL;
+    }
+
+    return 1;
+}
+static int final_esni(SSL *s, unsigned int context, int sent)
+{
+	return 0;
+}
+#endif
 
 static int final_server_name(SSL *s, unsigned int context, int sent)
 {

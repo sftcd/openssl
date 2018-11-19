@@ -1957,3 +1957,17 @@ EXT_RETURN tls_construct_stoc_psk(SSL *s, WPACKET *pkt, unsigned int context,
 
     return EXT_RETURN_SENT;
 }
+
+#ifndef OPENSSL_NO_ESNI
+int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
+                               X509 *x, size_t chainidx)
+{
+	return 0;
+}
+EXT_RETURN tls_construct_stoc_esni(SSL *s, WPACKET *pkt,
+                                          unsigned int context, X509 *x,
+                                          size_t chainidx)
+{
+	return 0;
+}
+#endif
