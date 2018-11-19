@@ -33,6 +33,8 @@ Added stuff protected by #ifndef OPENSSL_NO_ESNI
 - apps/s_client.c
 
 - ssl/ssl-locl.h - TLSEXT_IDX_esni isn't #ifndef protected for some reason, maybe 'cause of enum
+- ssl/ssl-lib.c
+- ssl/s3_lib.c
 - ssl/statem/extensions.c - lots of new code, mainly copied from server_name handling
 - ssl/statem/statem_locl.h
 - ssl/statem/extensions_clnt.c

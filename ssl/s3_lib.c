@@ -3302,6 +3302,11 @@ int ssl3_new(SSL *s)
         goto err;
 #endif
 
+#ifndef OPENSSL_NO_ESNI
+	s->ext.enchostname=NULL;
+	s->esni=NULL;
+#endif
+
     if (!s->method->ssl_clear(s))
         return 0;
 
@@ -3338,6 +3343,19 @@ void ssl3_free(SSL *s)
     SSL_SRP_CTX_free(s);
 #endif
     OPENSSL_clear_free(s->s3, sizeof(*s->s3));
+#ifdef OPENSSL_NO_ESNI
+	SSL_ESNI_free(s->esni);
+	OPENSSL_free(s->esni);
+	s->esni=NULL;
+	if (s->ext.enchostname) {
+		OPENSSL_free(s->ext.enchostname);
+		s->ext.enchostname=NULL;
+	}
+	if (s->ext.hostname) {
+		OPENSSL_free(s->ext.hostname);
+		s->ext.hostname=NULL;
+	}
+#endif
     s->s3 = NULL;
 }
 

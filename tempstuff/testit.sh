@@ -8,8 +8,10 @@ export LD_LIBRARY_PATH=$TOP
 
 # this is one I downloaded manually via dig +short TXT _esni.encryptedsni.com
 ESNI="/wHHBBOoACQAHQAg4YSfjSyJPNr1z3F8KqzBNBnMejim0mJZaPmria3XsicAAhMBAQQAAAAAW9pQEAAAAABb4jkQAAA="
-COVER="cloudflare.net"
+#COVER="cloudflare.net"
+COVER="cf.net"
 HIDDEN="encryptedsni.com"
+#HIDDEN="2l.com"
 VG="no"
 FRESH="no"
 NOHOST="no"
