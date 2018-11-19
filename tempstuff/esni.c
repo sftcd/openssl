@@ -37,9 +37,12 @@
 /* destintion: include/openssl/tls1.h: */
 #define TLSEXT_TYPE_esni_type           0xffce
 
-/* destinatin: include/openssl/ssl.h: */
+/* destination: include/openssl/ssl.h: */
 #define SSL_MAX_SSL_RECORD_DIGEST_LENGTH 255 
-#define SSL_MAX_SSL_ENCRYPTED_SNI_LENGTH 255
+#define SSL_MAX_SSL_ENCRYPTED_SNI_LENGTH 1024
+
+/* destination: unknown */
+#define SSL_F_TLS_CONSTRUCT_CTOS_ENCRYPTED_SERVER_NAME 401
 
 /*
  * Wrap error handler for now
@@ -686,7 +689,6 @@ SSL_ESNI* SSL_ESNI_new_from_base64(char *esnikeys)
 	/*
 	 * TODO: check bleedin not_before/not_after as if that's gonna help;-)
 	 */
-
 	return(newesni);
 err:
 	if (newesni!=NULL) {
@@ -778,19 +780,23 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esni)
 		}
 
 
-		esni_pbuf(out,"ESNI CLient encoded_keyshare",c->encoded_keyshare,c->encoded_keyshare_len,indent);
 		CLIENT_ESNI_INNER *ci=&c->inner;
+
+		esni_pbuf(out,"ESNI Client keyshare",
+							c->encoded_keyshare,c->encoded_keyshare_len,indent);
+		esni_pbuf(out,"ESNI CLient record_digest",
+							c->record_digest,c->record_digest_len,indent);
+		esni_pbuf(out,"ESNI CLient encrypted_sni",
+							c->encrypted_sni,c->encrypted_sni_len,indent);
+
+
+		esni_pbuf(out,"ESNI CLient ESNIContents record_digest",
+							c->econt.rd,c->econt.rd_len,indent);
 		esni_pbuf(out,"ESNI CLient inner nonce",ci->nonce,ci->nonce_len,indent);
 		esni_pbuf(out,"ESNI CLient inner realSNI",ci->realSNI,
 							esni->mesni->padded_length,
 							indent);
-		/* TODO: when these values figured out - print 'em
-	size_t encrypted_sni_len;
-	unsigned char encrypted_sni[SSL_MAX_SSL_ENCRYPTED_SNI_LENGTH];
-		*/
 
-		esni_pbuf(out,"ESNI CLient ESNIContents record_digest",
-							c->econt.rd,c->econt.rd_len,indent);
 		esni_pbuf(out,"ESNI CLient ESNIContents client_random",
 							c->econt.cr,c->econt.cr_len,indent);
 
@@ -1122,9 +1128,9 @@ err:
 int SSL_ESNI_enc(SSL_ESNI *esnikeys, 
 				char *protectedserver, 
 				char *frontname, 
-				PACKET *the_esni, 
 				size_t  cr_len,
-				unsigned char *client_random)
+				unsigned char *client_random,
+				CLIENT_ESNI **the_esni)
 {
 
 	/*
@@ -1272,14 +1278,21 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys,
 	/*
 	 * Calculate digest of input RR as per I-D
 	 */
-	if (!esni_make_rd(esnikeys->mesni,esnicontents)) {
-		ESNIerr(ESNI_F_ENC, ERR_R_MALLOC_FAILURE);
-        goto err;
-	}
 	esnicontents->kse_len=cesni->encoded_keyshare_len;
 	esnicontents->kse=cesni->encoded_keyshare;
 	esnicontents->cr_len=SSL3_RANDOM_SIZE;
 	esnicontents->cr=client_random;
+	if (!esni_make_rd(esnikeys->mesni,esnicontents)) {
+		ESNIerr(ESNI_F_ENC, ERR_R_MALLOC_FAILURE);
+        goto err;
+	}
+
+	if (esnicontents->rd_len>SSL_MAX_SSL_RECORD_DIGEST_LENGTH) {
+		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
+        goto err;
+	}
+	cesni->record_digest_len=esnicontents->rd_len;
+	memcpy(cesni->record_digest,esnicontents->rd,esnicontents->rd_len);
 
 	/*
 	 * Form up input for hashing, and hash it
@@ -1359,23 +1372,19 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys,
         goto err;
 	}
 
+	if (cv->cipher_len>SSL_MAX_SSL_ENCRYPTED_SNI_LENGTH) {
+		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
+        goto err;
+	}
+	cesni->encrypted_sni_len=cv->cipher_len;
+	memcpy(cesni->encrypted_sni,cv->cipher,cv->cipher_len);
+
 	/* 
 	 * finish up
 	 */
 	esnikeys->client=cesni;
 	EVP_PKEY_CTX_free(pctx);
-
-	/*
-	 * Package up the encoded CH extension, which the I-D says is:
-	 *
-     *    struct {
-     *        CipherSuite suite;
-     *        KeyShareEntry key_share;
-     *        opaque record_digest<0..2^16-1>;
-     *        opaque encrypted_sni<0..2^16-1>;
-     *    } ClientEncryptedSNI;
-	 *    TODO: write the packet
-	 */
+	*the_esni=cesni;
 
     ret = 1;
 	return(ret);
@@ -1386,6 +1395,48 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys,
 		OPENSSL_free(cesni);
 	}
     return ret;
+}
+
+#endif
+
+
+#ifdef OPENSSL_ESNI_LIB
+
+/*
+ * This is code gettting ready for inclusion in the s_client binary and
+ * libraries. We're nearly there:-)
+ */
+
+/*
+ * destination: statem/extensions_clnt.c
+ */
+EXT_RETURN tls_construct_ctos_encrypted_server_name(SSL *s, WPACKET *pkt,
+                                          unsigned int context, X509 *x,
+                                          size_t chainidx)
+{
+	size_t len;
+	/*
+	 * TODO: if sending this zap SNI
+	 */
+    if (s->ext.hostname != NULL)
+        return EXT_RETURN_NOT_SENT;
+	/*
+	 * TODO: add esni stuff to SSL structure, assume for now calculations are done
+	 */
+	CLIENT_ESNI *c=s->cesni;
+    /* Add TLS extension encrypted_server_name to the Client Hello message */
+    if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_esni)
+			|| !s->method->put_cipher_by_char(c->ciphersuite, pkt, &len)
+            || !WPACKET_sub_memcpy_u16(pkt, c->encoded_keyshare, c->encoded_keyshare_len)
+            || !WPACKET_sub_memcpy_u16(pkt, c->record_digest, c->record_digest_len)
+            || !WPACKET_sub_memcpy_u16(pkt, c->encrypted_sni, c->encrypted_sni_len)
+            || !WPACKET_put_bytes_u8(pkt, TLSEXT_NAMETYPE_host_name)
+            || !WPACKET_close(pkt)) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ENCRYPTED_SERVER_NAME,
+                 ERR_R_INTERNAL_ERROR);
+        return EXT_RETURN_FAIL;
+    }
+    return EXT_RETURN_SENT;
 }
 
 #endif
@@ -1421,7 +1472,7 @@ int main(int argc, char **argv)
 	FILE *fp=NULL;
 	BIO *out=NULL;
 	SSL_ESNI *esnikeys=NULL;
-	PACKET the_esni={NULL,0};
+	CLIENT_ESNI *the_esni=NULL;
 	/* 
 	 * fake client random
 	 */
@@ -1454,7 +1505,7 @@ int main(int argc, char **argv)
 	if (out == NULL)
 		goto end;
 
-	if (!SSL_ESNI_enc(esnikeys,encservername,frontname,&the_esni,cr_len,client_random)) {
+	if (!SSL_ESNI_enc(esnikeys,encservername,frontname,cr_len,client_random,&the_esni)) {
 		printf("Can't encrypt SSL_ESNI!\n");
 		goto end;
 	}
@@ -1473,9 +1524,6 @@ end:
 	if (esnikeys!=NULL) {
 		SSL_ESNI_free(esnikeys);
 		OPENSSL_free(esnikeys);
-	}
-	if (the_esni.curr!=NULL) {
-		OPENSSL_free((char*)the_esni.curr);
 	}
 	return(0);
 }
