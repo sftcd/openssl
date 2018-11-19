@@ -27,4 +27,4 @@ test:
 	./doit.sh
 
 clean:
-	- rm -f esni esnimain.o libssl.a libcrypto.a
+	- rm -f esni esnimain.o libssl.a libcrypto.a *.tmp

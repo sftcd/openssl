@@ -7,15 +7,15 @@ all this before submitting any PR and to move any
 related test code etc into the proper openssl test
 framework.
 
-For now [esni.c](./esni.c) has (what I think is;-) 
+For now [esni.c](../ssl/esni.c) has (what I think is;-) 
 good OPENSSL-style code to decode and print the 
 content of a TXT RR as described by the -02 I-D
 and calculates the values for the encrypted SNI
 CH extension.
 
-If/when doing this for-real, that code would be
-distributed in a couple of library bits. Starting
-that now.
+This seems to build and run ok on both a 64 and
+32 bit ubuntus under valgrind. [testit.sh](./testit.sh)
+does that.
 
 ## Files modified so far
 
@@ -32,8 +32,7 @@ Added esni.c into sources for libssl
 ## New header files
 
 Apparently there's nothing to do to include these in the
-generated Makefile? TODO: check via clean clone on another
-box!
+generated 
 
 - include/openssl/esni.h
 - include/openssl/esnierr.h
@@ -41,6 +40,7 @@ box!
 ## New C files
 
 - ssl/esni.c
+
 - tempstuff/esnimain.c
 - tempstuff/doit.sh - calls esnimain
 - tempstuff/testit.sh - calls openssl s_client (evolving!)
