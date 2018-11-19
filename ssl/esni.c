@@ -112,7 +112,7 @@ static uint64_t uint64_from_bytes(unsigned char *buf)
  * A new string will be malloc'd and assigned to |out|. This will be owned by
  * the caller. Do not provide a pre-allocated string in |out|.
  */
-static int esni_base64_decode(char *in, unsigned char **out)
+static int esni_base64_decode(const char *in, unsigned char **out)
 {
     size_t inlen = strlen(in);
     int outlen, i;
@@ -270,7 +270,7 @@ err:
  * TODO: handle >1 of the many things that can 
  * have >1 instance (maybe at a higher layer)
  */
-SSL_ESNI* SSL_ESNI_new_from_base64(char *esnikeys)
+SSL_ESNI* SSL_ESNI_new_from_base64(const char *esnikeys)
 {
 	if (esnikeys==NULL)
 		return(NULL);

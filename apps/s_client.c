@@ -16,6 +16,11 @@
 #include <errno.h>
 #include <openssl/e_os2.h>
 
+#ifndef OPENSSL_NO_ESNI
+# include <openssl/esni.h>
+# include <openssl/esnierr.h>
+#endif
+
 #ifndef OPENSSL_NO_SOCK
 
 /*
@@ -597,12 +602,10 @@ typedef enum OPTION_choice {
     OPT_DANE_TLSA_RRDATA, OPT_DANE_EE_NO_NAME,
     OPT_ENABLE_PHA,
 #ifndef OPENSSL_NO_ESNI
-	OPT_R_ENUM,
-	OPT_ESNI,
-	OPT_ESNI_RR
-#else
-    OPT_R_ENUM
+    OPT_ESNI,
+    OPT_ESNI_RR,
 #endif
+    OPT_R_ENUM
 } OPTION_CHOICE;
 
 const OPTIONS s_client_options[] = {
@@ -950,6 +953,7 @@ int s_client_main(int argc, char **argv)
 #ifndef OPENSSL_NO_ESNI
     const char *encservername = NULL;
     const char *b64esnikeys = NULL;
+    SSL_ESNI *esnikeys=NULL;
 #endif
     int noservername = 0;
     const char *alpn_in = NULL;
@@ -1454,10 +1458,9 @@ int s_client_main(int argc, char **argv)
 #ifndef OPENSSL_NO_ESNI
         case OPT_ESNI:
             encservername = opt_arg();
-			printf("ESNI for %s\n",encservername);
+            break;
         case OPT_ESNI_RR:
             b64esnikeys = opt_arg();
-			printf("ESNI RR %s\n",b64esnikeys);
             break;
 #endif
         case OPT_NOSERVERNAME:
@@ -1541,14 +1544,32 @@ int s_client_main(int argc, char **argv)
         }
     }
 #ifndef OPENSSL_NO_ESNI
-	if (encservername != NULL) {
-		if (b64esnikeys == NULL) {
+    if (encservername != NULL) {
+        if (b64esnikeys == NULL) {
             BIO_printf(bio_err,
                        "%s: Can't use -esni without -esnirr \n",
                        prog);
             goto opthelp;
-		}
-	}
+        }
+        /*
+         * tee up encrypted SNI
+         */
+        if (esni_checknames(encservername,servername)!=1) {
+            BIO_printf(bio_err,
+                       "%s: ESNI name check failed.\n",
+                       prog);
+            goto opthelp;
+        } 
+
+        esnikeys=SSL_ESNI_new_from_base64(b64esnikeys);
+        if (esnikeys == NULL) {
+            BIO_printf(bio_err,
+                       "%s: ESNI base64 decode failed.\n",
+                       prog);
+            goto opthelp;
+        } 
+		SSL_ESNI_print(bio_err,esnikeys);
+    }
 #endif
     argc = opt_num_rest();
     if (argc == 1) {
@@ -3128,6 +3149,10 @@ int s_client_main(int argc, char **argv)
 
     BIO_closesocket(SSL_get_fd(con));
  end:
+#ifndef OPENSSL_NO_ESNI
+	SSL_ESNI_free(esnikeys);
+	OPENSSL_free(esnikeys);
+#endif
     if (con != NULL) {
         if (prexit != 0)
             print_stuff(bio_c_out, con, 1);
