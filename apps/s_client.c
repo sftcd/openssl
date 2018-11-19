@@ -1583,12 +1583,7 @@ int s_client_main(int argc, char **argv)
 		if (sdebug>0) {
 			SSL_ESNI_print(bio_err,esnikeys);
 		}
-		if (SSL_esni_enable(con,encservername,servername,esnikeys)!=1) {
-            BIO_printf(bio_err,
-                       "%s: ESNI enabling failed.\n",
-                       prog);
-            goto opthelp;
-		}
+
     }
 #endif
     argc = opt_num_rest();
@@ -2070,6 +2065,16 @@ int s_client_main(int argc, char **argv)
         }
     }
 
+#ifndef OPENSSL_NO_ESNI
+	if (encservername != NULL ) {
+		if (SSL_esni_enable(con,encservername,servername,esnikeys)!=1) {
+            BIO_printf(bio_err,
+                       "%s: ESNI enabling failed.\n",
+                       prog);
+            goto opthelp;
+		}
+	}
+#endif
     if (dane_tlsa_domain != NULL) {
         if (SSL_dane_enable(con, dane_tlsa_domain) <= 0) {
             BIO_printf(bio_err, "%s: Error enabling DANE TLSA "
@@ -3207,10 +3212,6 @@ int s_client_main(int argc, char **argv)
 
     BIO_closesocket(SSL_get_fd(con));
  end:
-#ifndef OPENSSL_NO_ESNI
-	SSL_ESNI_free(esnikeys);
-	OPENSSL_free(esnikeys);
-#endif
     if (con != NULL) {
         if (prexit != 0)
             print_stuff(bio_c_out, con, 1);
