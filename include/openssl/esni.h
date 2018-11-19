@@ -9,13 +9,7 @@
 
 #ifndef OPENSSL_NO_ESNI
 
-////# include <openssl/e_os2.h>
-//# include <openssl/opensslconf.h>
 # include <openssl/ssl.h>
-//#include <../ssl/ssl_locl.h>
-//#include <../ssl/packet_locl.h>
-//#include <apps/apps.h>
-//#include <openssl/kdf.h>
 
 
 /*
@@ -194,10 +188,10 @@ typedef struct ssl_esni_st {
  * Prototypes
  */
 
-int esni_checknames(const char *encservername, const char *frontname);
+__owur int esni_checknames(const char *encservername, const char *frontname);
 void CLIENT_ESNI_free(CLIENT_ESNI *c);
 void SSL_ESNI_free(SSL_ESNI *esnikeys);
-SSL_ESNI* SSL_ESNI_new_from_base64(char *esnikeys);
+SSL_ESNI* SSL_ESNI_new_from_base64(const char *esnikeys);
 int SSL_ESNI_print(BIO* out, SSL_ESNI *esni);
 int SSL_ESNI_enc(SSL_ESNI *esnikeys, 
                 char *protectedserver, 
