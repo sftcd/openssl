@@ -1580,7 +1580,15 @@ int s_client_main(int argc, char **argv)
                        prog);
             goto opthelp;
         } 
-		SSL_ESNI_print(bio_err,esnikeys);
+		if (sdebug>0) {
+			SSL_ESNI_print(bio_err,esnikeys);
+		}
+		if (SSL_esni_enable(con,encservername,servername,esnikeys)!=1) {
+            BIO_printf(bio_err,
+                       "%s: ESNI enabling failed.\n",
+                       prog);
+            goto opthelp;
+		}
     }
 #endif
     argc = opt_num_rest();
