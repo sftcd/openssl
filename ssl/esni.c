@@ -14,73 +14,23 @@
  * Date: 20181103
  */
 
-#include <stdio.h>
-#include <ssl_locl.h>
-#include <../ssl/packet_locl.h>
-#include <../apps/apps.h>
+#include "ssl_locl.h"
+#include <openssl/ssl.h>
+#include <openssl/rand.h>
 #include <openssl/kdf.h>
-#include <esni.h>
+#include <openssl/evp.h>
+#include <openssl/esni.h>
+#include <openssl/esnierr.h>
 
-
-/*
- * For local testing
- */
-#define TESTMAIN
 
 /*
  * code within here should be openssl-style
  */
 #ifndef OPENSSL_NO_ESNI
-#ifdef NOTDEF
 
 /*
- * define'd constants to go in various places
- */ 
-
-/* destintion: include/openssl/tls1.h: */
-#define TLSEXT_TYPE_esni_type           0xffce
-
-/* destination: include/openssl/ssl.h: */
-#define SSL_MAX_SSL_RECORD_DIGEST_LENGTH 255 
-#define SSL_MAX_SSL_ENCRYPTED_SNI_LENGTH 1024
-
-/* destination: unknown */
-#define SSL_F_TLS_CONSTRUCT_CTOS_ENCRYPTED_SERVER_NAME 401
-
-/*
- * Wrap error handler for now
+ * Utility functions
  */
-#ifndef TESTMAIN
-/* destination: include/openssl/err.h: */
-#define ESNIerr(f,r) ERR_PUT_error(ERR_LIB_CT,(f),(r),OPENSSL_FILE,OPENSSL_LINE)
-#else
-#define ESNIerr(f,r) fprintf(stderr,"Error in %d,%d, File: %s,Line: %d\n",(f),(r),OPENSSL_FILE,OPENSSL_LINE)
-#endif
-
-/* destination: new include/openssl/esni_err.h and/or include/openssl.err.h */
-
-/* 
- * Currently 53 is last one, but lest not be presumptious (yet:-)
- */
-#define ERR_LIB_ESNI 									 99
-
-/* 
- * ESNI function codes for ESNIerr
- * These may need to be >100 (or might be convention)
- */
-#define ESNI_F_BASE64_DECODE							101
-#define ESNI_F_NEW_FROM_BASE64							102
-#define ESNI_F_ENC										103
-#define ESNI_F_CHECKSUM_CHECK							104
-
-/*
- * ESNI reason codes for ESNIerr
- * These should be >100
- */
-#define ESNI_R_BASE64_DECODE_ERROR						110
-#define ESNI_R_RR_DECODE_ERROR							111
-#define ESNI_R_NOT_IMPL									112
-
 
 /* 
  * ESNI error strings - inspired by crypto/ct/cterr.c
@@ -111,191 +61,9 @@ int ERR_load_ESNI_strings(void)
 }
 
 /*
- * destination: new file include/openssl/esni.h
- * Basic structs for ESNI
- */
-
-/* 
- * From the -02 I-D, what we find in DNS:
- *     struct {
- *         uint16 version;
- *         uint8 checksum[4];
- *         KeyShareEntry keys<4..2^16-1>;
- *         CipherSuite cipher_suites<2..2^16-2>;
- *         uint16 padded_length;
- *         uint64 not_before;
- *         uint64 not_after;
- *         Extension extensions<0..2^16-1>;
- *     } ESNIKeys;
- * 
- * Note that I don't like the above, but it's what we have to
- * work with at the moment.
- */
-typedef struct esni_record_st {
-	unsigned int version;
-	unsigned char checksum[4];
-	unsigned int nkeys;
-	unsigned int *group_ids;
-	EVP_PKEY **keys;
-	STACK_OF(SSL_CIPHER) *ciphersuites;
-	unsigned int padded_length;
-	uint64_t not_before;
-	uint64_t not_after;
-	unsigned int nexts;
-	unsigned int *exttypes;
-	void **exts;
-	/*
-	 * The Encoded (binary, after b64-decode) form of the RR
-	 */
-	size_t encoded_len;
-	unsigned char *encoded;
-} ESNI_RECORD;
-
-/*
- * The plaintext form of SNI that we encrypt
- *
- *    struct {
- *        ServerNameList sni;
- *        opaque zeros[ESNIKeys.padded_length - length(sni)];
- *    } PaddedServerNameList;
- *
- *    struct {
- *        uint8 nonce[16];
- *        PaddedServerNameList realSNI;
- *    } ClientESNIInner;
- */
-typedef struct client_esni_inner_st {
-	size_t nonce_len;
-	unsigned char *nonce;
-	size_t realSNI_len;
-	unsigned char *realSNI;
-} CLIENT_ESNI_INNER; 
-
-/* 
- * a struct used in key derivation
- * from the I-D:
- *    struct {
- *        opaque record_digest<0..2^16-1>;
- *        KeyShareEntry esni_key_share;
- *        Random client_hello_random;
- *     } ESNIContents;
- *
- */
-typedef struct esni_contents_st {
-	size_t rd_len;
-	unsigned char *rd;
-	size_t kse_len;
-	unsigned char *kse;
-	size_t cr_len;
-	unsigned char *cr;
-} ESNIContents;
-
-/*
- * Place to keep crypto vars for when we try interop.
- * This should probably (mostly) disappear when/if we end up with
- * a final working version that maps to an RFC.
- *
- * Fields below:
- * keyshare: is the client's ephemeral public value
- * shared: is the D-H shared secret
- * hi: encoded ESNIContents hash input 
- * hash: hash output from above
- * Zx: derived from D-H shared secret
- * key: derived from Zx as per I-D
- * iv: derived from Zx as per I-D
- * aad: the AAD for the AEAD
- * plain: encoded plaintext
- * cipher: ciphertext
- * tag: AEAD tag (exposed by OpenSSL api?)
- */
-typedef struct esni_crypto_vars_st {
-	EVP_PKEY *keyshare;
-	size_t shared_len;
-	unsigned char *shared; /* shared secret */
-	size_t hi_len;
-	unsigned char *hi;
-	size_t hash_len;
-	unsigned char *hash;
-	size_t Zx_len;
-	unsigned char *Zx;
-	size_t key_len;
-	unsigned char *key;
-	size_t iv_len;
-	unsigned char *iv;
-	size_t aad_len;
-	unsigned char *aad;
-	size_t plain_len;
-	unsigned char *plain;
-	size_t cipher_len;
-	unsigned char *cipher;
-	size_t tag_len;
-	unsigned char *tag;
-} ESNI_CRYPTO_VARS;
-
-/*
- * What we send in the esni CH extension:
- *
- *    struct {
- *        CipherSuite suite;
- *        KeyShareEntry key_share;
- *        opaque record_digest<0..2^16-1>;
- *        opaque encrypted_sni<0..2^16-1>;
- *    } ClientEncryptedSNI;
- *
- * We include some related non-transmitted 
- * e.g. key structures too
- *
- */
-typedef struct client_esni_st {
-	/*
-	 * Fields encoded in extension
-	 */
-	const SSL_CIPHER *ciphersuite;
-	size_t encoded_keyshare_len; /* my encoded key share */
-	unsigned char *encoded_keyshare;
-	size_t record_digest_len;
-	unsigned char record_digest[SSL_MAX_SSL_RECORD_DIGEST_LENGTH];
-	size_t encrypted_sni_len;
-	unsigned char encrypted_sni[SSL_MAX_SSL_ENCRYPTED_SNI_LENGTH];
-	/*
-	 * Various intermediate/crypto vars
-	 */
-	ESNIContents econt;
-	CLIENT_ESNI_INNER inner;
-	ESNI_CRYPTO_VARS cvars;
-} CLIENT_ESNI;
-
-/*
- * Per connection ESNI state (inspired by include/internal/dane.h) 
- * Has DNS RR values and some more
- */
-typedef struct ssl_esni_st {
-	int nerecs; /* number of DNS RRs in RRset */
-    ESNI_RECORD *erecs; /* array of these */
-    ESNI_RECORD *mesni;      /* Matching esni record */
-	CLIENT_ESNI *client;
-	const char *encservername;
-	const char *frontname;
-	uint64_t ttl;
-	uint64_t lastread;
-} SSL_ESNI;
-
-#endif //NOTDEF
-
-/*
- * TODO: Include function prototypes in esni.h
- * We'll do that later, with one file for now, no
- * need yet.
- */
-
-/*
- * Utility functions
- */
-
-/*
 * Check names for length, maybe add more checks later before starting...
 */
-static int esni_checknames(const char *encservername, const char *frontname)
+int esni_checknames(const char *encservername, const char *frontname)
 {
 	if (OPENSSL_strnlen(encservername,TLSEXT_MAXLEN_host_name)>TLSEXT_MAXLEN_host_name) 
 		return(0);
@@ -866,6 +634,7 @@ static unsigned char *esni_pad(char *name, unsigned int padded_len)
  */
 static int esni_contentshash(ESNIContents *e, ESNI_CRYPTO_VARS *cv, const EVP_MD *md)
 {
+	EVP_MD_CTX *mctx = NULL;
 	size_t oh=2+2+2;
 	cv->hi_len=oh+e->rd_len+e->kse_len+e->cr_len;
 	cv->hi=OPENSSL_zalloc(cv->hi_len);
@@ -887,7 +656,6 @@ static int esni_contentshash(ESNIContents *e, ESNI_CRYPTO_VARS *cv, const EVP_MD
 	memcpy(hip,e->cr,e->cr_len); 
 	hip+=e->cr_len;
 	cv->hi_len=hip-cv->hi;
-	EVP_MD_CTX *mctx = NULL;
 	mctx = EVP_MD_CTX_new();
 	cv->hash_len = EVP_MD_size(md);
 	cv->hash=OPENSSL_malloc(cv->hash_len);
@@ -997,7 +765,7 @@ static unsigned char *esni_aead_enc(
 	 * From https://wiki.openssl.org/index.php/EVP_Authenticated_Encryption_and_Decryption
 	 */
 
-	EVP_CIPHER_CTX *ctx;
+	EVP_CIPHER_CTX *ctx=NULL;
 	int len;
 	size_t ciphertext_len;
 	unsigned char *ciphertext=NULL;
@@ -1137,6 +905,10 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys,
 				CLIENT_ESNI **the_esni)
 {
 
+    EVP_PKEY *skey = NULL;
+    int ret = 0;
+    EVP_PKEY_CTX *pctx=NULL;
+	CLIENT_ESNI *cesni=NULL;
 	/*
 	 * - make my private key
 	 * - generate shared secret
@@ -1147,7 +919,7 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys,
 		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
 		goto err;
 	}
-	CLIENT_ESNI *cesni=OPENSSL_zalloc(sizeof(CLIENT_ESNI));
+	cesni=OPENSSL_zalloc(sizeof(CLIENT_ESNI));
 	if (cesni==NULL) {
 		ESNIerr(ESNI_F_ENC, ERR_R_MALLOC_FAILURE);
 		goto err;
@@ -1159,8 +931,6 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys,
 	/*
 	 * D-H stuff inspired by openssl/statem/statem_clnt.c:tls_construct_cke_ecdhe
 	 */
-    EVP_PKEY *skey = NULL;
-    int ret = 0;
 
 	if (esnikeys->erecs==NULL) {
 		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
@@ -1202,7 +972,6 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys,
 	/*
 	 * code from ssl/s3_lib.c:ssl_derive
 	 */
-    EVP_PKEY_CTX *pctx;
 	pctx = EVP_PKEY_CTX_new(cesni->cvars.keyshare, NULL);
     if (EVP_PKEY_derive_init(pctx) <= 0
         || EVP_PKEY_derive_set_peer(pctx, skey) <= 0
@@ -1403,135 +1172,6 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys,
 
 #endif
 
-
-#ifdef OPENSSL_ESNI_LIB
-
-/*
- * This is code gettting ready for inclusion in the s_client binary and
- * libraries. We're nearly there:-)
- */
-
-/*
- * destination: statem/extensions_clnt.c
- */
-EXT_RETURN tls_construct_ctos_encrypted_server_name(SSL *s, WPACKET *pkt,
-                                          unsigned int context, X509 *x,
-                                          size_t chainidx)
-{
-	size_t len;
-	/*
-	 * TODO: if sending this zap SNI, either to NULL or to a front server name if we have one
-	 */
-    if (s->ext.hostname != NULL)
-        return EXT_RETURN_NOT_SENT;
-	/*
-	 * TODO: add esni stuff to SSL structure, assume for now calculations are done
-	 */
-	CLIENT_ESNI *c=s->cesni;
-    /* Add TLS extension encrypted_server_name to the Client Hello message */
-    if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_esni)
-			|| !s->method->put_cipher_by_char(c->ciphersuite, pkt, &len)
-            || !WPACKET_sub_memcpy_u16(pkt, c->encoded_keyshare, c->encoded_keyshare_len)
-            || !WPACKET_sub_memcpy_u16(pkt, c->record_digest, c->record_digest_len)
-            || !WPACKET_sub_memcpy_u16(pkt, c->encrypted_sni, c->encrypted_sni_len)
-            || !WPACKET_put_bytes_u8(pkt, TLSEXT_NAMETYPE_host_name)
-            || !WPACKET_close(pkt)) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ENCRYPTED_SERVER_NAME,
-                 ERR_R_INTERNAL_ERROR);
-        return EXT_RETURN_FAIL;
-    }
-    return EXT_RETURN_SENT;
-}
-
-#endif
-
-#ifdef TESTMAIN
-// code within here need not be openssl-style, but we'll migrate there:-)
-int main(int argc, char **argv)
-{
-	int rv;
-	// s_client gets stuff otherwise but for now...
-	// usage: esni frontname esniname
-	if (argc!=3 && argc!=4) {
-		printf("usage: esni frontname esniname [esnikeys]\n");
-		exit(1);
-	}
-	if (!ERR_load_ESNI_strings()) {
-		printf("Can't init error strings - exiting\n");
-		exit(1);
-	}
-	// init ciphers
-	if (!ssl_load_ciphers()) {
-		printf("Can't init ciphers - exiting\n");
-		exit(1);
-	}
-	if (!RAND_set_rand_method(NULL)) {
-		printf("Can't init (P)RNG - exiting\n");
-		exit(1);
-	}
-	char *encservername=OPENSSL_strdup(argv[1]);
-	char *frontname=OPENSSL_strdup(argv[2]);
-	char *esnikeys_b64=NULL;
-	char *deffront="cloudflare.net";
-	FILE *fp=NULL;
-	BIO *out=NULL;
-	SSL_ESNI *esnikeys=NULL;
-	CLIENT_ESNI *the_esni=NULL;
-	/* 
-	 * fake client random
-	 */
-	size_t cr_len=SSL3_RANDOM_SIZE;
-	unsigned char client_random[SSL3_RANDOM_SIZE];
-	RAND_bytes(client_random,cr_len);
-
-
-	if (argc==4) 
-		esnikeys_b64=OPENSSL_strdup(argv[3]);
-	else
-		esnikeys_b64=deffront;
-
-	if (!(rv=esni_checknames(encservername,frontname))) {
-		printf("Bad names! %d\n",rv);
-		goto end;
-	}
-
-	esnikeys=SSL_ESNI_new_from_base64(esnikeys_b64);
-	if (esnikeys == NULL) {
-		printf("Can't create SSL_ESNI from b64!\n");
-		goto end;
-	}
-
-	fp=fopen("/dev/stdout","w");
-	if (fp==NULL)
-		goto end;
-
-	out=BIO_new_fp(fp,BIO_CLOSE|BIO_FP_TEXT);
-	if (out == NULL)
-		goto end;
-
-	if (!SSL_ESNI_enc(esnikeys,encservername,frontname,cr_len,client_random,&the_esni)) {
-		printf("Can't encrypt SSL_ESNI!\n");
-		goto end;
-	}
-
-	if (!SSL_ESNI_print(out,esnikeys)) {
-		printf("Can't print SSL_ESNI!\n");
-		goto end;
-	}
-
-end:
-	BIO_free_all(out);
-	OPENSSL_free(encservername);
-	OPENSSL_free(frontname);
-	if (argc==4) 
-		OPENSSL_free(esnikeys_b64);
-	if (esnikeys!=NULL) {
-		SSL_ESNI_free(esnikeys);
-		OPENSSL_free(esnikeys);
-	}
-	return(0);
-}
-#endif
 
 
 
