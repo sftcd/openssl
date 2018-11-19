@@ -2422,6 +2422,10 @@ void SSL_CTX_set_allow_early_data_cb(SSL_CTX *ctx,
 void SSL_set_allow_early_data_cb(SSL *s,
                                  SSL_allow_early_data_cb_fn cb,
                                  void *arg);
+#ifndef OPENSSL_NO_ESNI
+#define SSL_MAX_SSL_RECORD_DIGEST_LENGTH 255 
+#define SSL_MAX_SSL_ENCRYPTED_SNI_LENGTH 1024
+#endif
 
 # ifdef  __cplusplus
 }

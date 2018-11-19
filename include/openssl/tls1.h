@@ -155,6 +155,10 @@ extern "C" {
 #  define TLSEXT_TYPE_next_proto_neg              13172
 # endif
 
+#ifndef OPENSSL_NO_ESNI
+#define TLSEXT_TYPE_esni_type           0xffce
+#endif
+
 /* NameType value from RFC3546 */
 # define TLSEXT_NAMETYPE_host_name 0
 /* status request value from RFC3546 */
