@@ -35,6 +35,9 @@
 # include "internal/refcount.h"
 # include "internal/tsan_assist.h"
 # include "internal/bio.h"
+#ifndef OPENSSL_NO_ESNI
+#include <openssl/esni.h>
+#endif
 
 # ifdef OPENSSL_BUILD_SHLIBSSL
 #  undef OPENSSL_EXTERN
@@ -705,6 +708,7 @@ typedef struct {
 typedef enum tlsext_index_en {
     TLSEXT_IDX_renegotiate,
     TLSEXT_IDX_server_name,
+    TLSEXT_IDX_esni,
     TLSEXT_IDX_max_fragment_length,
     TLSEXT_IDX_srp,
     TLSEXT_IDX_ec_point_formats,
@@ -1282,6 +1286,9 @@ struct ssl_st {
                          const unsigned char *data, int len, void *arg);
         void *debug_arg;
         char *hostname;
+#ifndef OPENSSL_NO_ESNI
+		char *enchostname;
+#endif
         /* certificate status request info */
         /* Status type or -1 if no status type */
         int status_type;
@@ -1377,6 +1384,10 @@ struct ssl_st {
      * 2 : don't call servername callback, no ack in server hello
      */
     int servername_done;
+#ifndef OPENSSL_NO_ESNI
+    int esni_done;
+	SSL_ESNI esni;
+#endif
 # ifndef OPENSSL_NO_CT
     /*
      * Validates that the SCTs (Signed Certificate Timestamps) are sufficient.

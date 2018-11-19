@@ -9,6 +9,9 @@
 
 #ifndef OPENSSL_NO_ESNI
 
+#ifndef HEADER_ESNI_H
+# define HEADER_ESNI_H
+
 # include <openssl/ssl.h>
 
 
@@ -199,5 +202,7 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys,
                 size_t  cr_len,
                 unsigned char *client_random,
                 CLIENT_ESNI **the_esni);
+int SSL_esni_enable(SSL *s, const char *hidden, const char *cover, SSL_ESNI *esni);
 
+#endif
 #endif

@@ -1170,6 +1170,11 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys,
     return ret;
 }
 
+int SSL_esni_enable(SSL *s, const char *hidden, const char *cover, SSL_ESNI *esni)
+{
+	return 0;
+}
+
 #endif
 
 
