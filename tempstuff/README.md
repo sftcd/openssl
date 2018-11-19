@@ -23,6 +23,7 @@ Added stuff protected by #ifndef OPENSSL_NO_ESNI
 - include/openssl/err.h
 - include/openssl/ssl.h
 - include/openssl/tls1.h
+- apps/s_client.c
 
 Added esni.c into sources for libssl
 - ssl/build.info 

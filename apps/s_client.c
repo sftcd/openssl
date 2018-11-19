@@ -600,7 +600,8 @@ typedef enum OPTION_choice {
     OPT_ENABLE_PHA,
 #ifndef OPENSSL_NO_ESNI
 	OPT_R_ENUM,
-	OPT_ESNI
+	OPT_ESNI,
+	OPT_ESNI_RR
 #else
     OPT_R_ENUM
 #endif
@@ -709,7 +710,9 @@ const OPTIONS s_client_options[] = {
      "Set TLS extension servername (SNI) in ClientHello (default)"},
 #ifndef OPENSSL_NO_ESNI
     {"esni", OPT_ESNI, 's',
-     "Set TLS extension encrypted servername (ESNI) in ClientHello, FIXME: make arg optional, defaulting to servername"},
+     "Set TLS extension encrypted servername (ESNI) in ClientHello, value is to-be-encrypted name"},
+    {"esnirr", OPT_ESNI_RR, 's',
+     "Set ESNI ESNIKeys, value is base64 encoded from TXT RR as per I-D -02"},
 #endif
     {"noservername", OPT_NOSERVERNAME, '-',
      "Do not send the server name (SNI) extension in the ClientHello"},
@@ -952,6 +955,7 @@ int s_client_main(int argc, char **argv)
     const char *servername = NULL;
 #ifndef OPENSSL_NO_ESNI
     const char *encservername = NULL;
+    const char *b64esnikeys = NULL;
 #endif
     int noservername = 0;
     const char *alpn_in = NULL;
@@ -1463,6 +1467,9 @@ int s_client_main(int argc, char **argv)
         case OPT_ESNI:
             encservername = opt_arg();
 			printf("ESNI for %s\n",encservername);
+        case OPT_ESNI_RR:
+            b64esnikeys = opt_arg();
+			printf("ESNI RR %s\n",b64esnikeys);
             break;
 #endif
         case OPT_NOSERVERNAME:
@@ -1545,6 +1552,16 @@ int s_client_main(int argc, char **argv)
             goto opthelp;
         }
     }
+#ifndef OPENSSL_NO_ESNI
+	if (encservername != NULL) {
+		if (b64esnikeys == NULL) {
+            BIO_printf(bio_err,
+                       "%s: Can't use -esni without -esnirr \n",
+                       prog);
+            goto opthelp;
+		}
+	}
+#endif
     argc = opt_num_rest();
     if (argc == 1) {
         /* If there's a positional argument, it's the equivalent of
