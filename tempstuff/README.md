@@ -26,7 +26,8 @@ Added stuff protected by #ifndef OPENSSL_NO_ESNI
 - apps/s_client.c
 
 Added esni.c into sources for libssl
-- ssl/build.info 
+- ssl/build.info - need to add new source files here (just esni.c for now)
+- utils/libssl.num - seem to need to add exported stuff here manually?
 
 ## New header files
 
@@ -41,6 +42,9 @@ box!
 
 - ssl/esni.c
 - tempstuff/esnimain.c
+- tempstuff/doit.sh - calls esnimain
+- tempstuff/testit.sh - calls openssl s_client (evolving!)
+
 
 
 
