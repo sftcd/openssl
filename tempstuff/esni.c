@@ -19,6 +19,8 @@
 #include <../ssl/packet_locl.h>
 #include <../apps/apps.h>
 #include <openssl/kdf.h>
+#include <esni.h>
+
 
 /*
  * For local testing
@@ -29,6 +31,7 @@
  * code within here should be openssl-style
  */
 #ifndef OPENSSL_NO_ESNI
+#ifdef NOTDEF
 
 /*
  * define'd constants to go in various places
@@ -277,6 +280,7 @@ typedef struct ssl_esni_st {
 	uint64_t lastread;
 } SSL_ESNI;
 
+#endif //NOTDEF
 
 /*
  * TODO: Include function prototypes in esni.h
@@ -447,7 +451,7 @@ void SSL_ESNI_free(SSL_ESNI *esnikeys)
 	return;
 }
 
-int esni_checksum_check(unsigned char *buf, size_t buf_len)
+static int esni_checksum_check(unsigned char *buf, size_t buf_len)
 {
 	/* 
 	 * copy input with zero'd checksum, do SHA256 hash, compare with checksum, tedious but easy enough
@@ -945,7 +949,7 @@ static unsigned char *esni_hkdf_extract(unsigned char *secret,size_t slen,size_t
 }
 
 
-unsigned char *esni_hkdf_expand_label(
+static unsigned char *esni_hkdf_expand_label(
 			unsigned char *Zx, size_t Zx_len,
 			const char *label,
 			unsigned char *hash, size_t hash_len,
@@ -980,7 +984,7 @@ unsigned char *esni_hkdf_expand_label(
 	return out;
 }
 
-unsigned char *esni_aead_enc(
+static unsigned char *esni_aead_enc(
 			unsigned char *key, size_t key_len,
 			unsigned char *iv, size_t iv_len,
 			unsigned char *aad, size_t aad_len,
@@ -1089,7 +1093,7 @@ err:
 	return NULL;
 }
 
-int esni_make_rd(ESNI_RECORD *er,ESNIContents *ec)
+static int esni_make_rd(ESNI_RECORD *er,ESNIContents *ec)
 {
 	const SSL_CIPHER *sc=sk_SSL_CIPHER_value(er->ciphersuites,0);
 	const EVP_MD *md=ssl_md(sc->algorithm2);
@@ -1416,7 +1420,7 @@ EXT_RETURN tls_construct_ctos_encrypted_server_name(SSL *s, WPACKET *pkt,
 {
 	size_t len;
 	/*
-	 * TODO: if sending this zap SNI
+	 * TODO: if sending this zap SNI, either to NULL or to a front server name if we have one
 	 */
     if (s->ext.hostname != NULL)
         return EXT_RETURN_NOT_SENT;
