@@ -172,7 +172,7 @@ LANG=C
 
 all: esni
 
-esni.o: esni.c
+esnimain.o: esnimain.c ../include/openssl/esni.h ../include/openssl/esnierr.h
 	$(CC) -g -I../apps -I. -I..  -I../include -I../ssl $(BIN_CFLAGS) $(BIN_CPPFLAGS) -MMD -MF $<.d.tmp -MT $@ -c -o $@ $< 
 
 # for some reason a symbol we need is not public in libssl.so but is in libssl.a
@@ -189,11 +189,11 @@ libcrypto.a: ../libcrypto.a
 # change back to the line below when done debugging maybe
 #${CC} -g -pthread -m64 -Wa,--noexecstack -Wall -O3 -o $@ $< -L. -lssl -lcrypto -ldl 
 
-esni: esni.o libssl.a libcrypto.a
-	${CC} -g -pthread -m64 -Wall -o $@ $< -L. -lssl -lcrypto -ldl 
+esni: esnimain.o libssl.a libcrypto.a
+	${CC} -g -pthread -m64 -Wall -o $@ esnimain.o -L. -lssl -lcrypto -ldl 
 
 test:
 	./doit.sh
 
 clean:
-	- rm -f esni esni.o libssl.a libcrypto.a 
+	- rm -f esni esnimain.o libssl.a libcrypto.a 
