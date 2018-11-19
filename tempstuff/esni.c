@@ -1365,6 +1365,18 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys,
 	esnikeys->client=cesni;
 	EVP_PKEY_CTX_free(pctx);
 
+	/*
+	 * Package up the encoded CH extension, which the I-D says is:
+	 *
+     *    struct {
+     *        CipherSuite suite;
+     *        KeyShareEntry key_share;
+     *        opaque record_digest<0..2^16-1>;
+     *        opaque encrypted_sni<0..2^16-1>;
+     *    } ClientEncryptedSNI;
+	 *    TODO: write the packet
+	 */
+
     ret = 1;
 	return(ret);
  err:
