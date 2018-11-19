@@ -61,27 +61,6 @@ int ERR_load_ESNI_strings(void)
 }
 
 /*
-* Check names for length, maybe add more checks later before starting...
-*/
-int esni_checknames(const char *encservername, const char *frontname)
-{
-	if (OPENSSL_strnlen(encservername,TLSEXT_MAXLEN_host_name)>TLSEXT_MAXLEN_host_name) 
-		return(0);
-	if (OPENSSL_strnlen(frontname,TLSEXT_MAXLEN_host_name)>TLSEXT_MAXLEN_host_name) 
-		return(0);
-	/*
-	 * Possible checks:
-	 * - If no covername, then send no (clear) SNI, so allow that
-	 * - Check same A/AAAA exists for both names, if we have both
-	 *   	- could be a privacy leak though
-	 *   	- even if using DoT/DoH (but how'd we know for sure?)
-	 * - check/retrive RR's from DNS if not already in-hand and
-	 *   if (sufficiently) privacy preserving
-	 */
-	return(1);
-}
-
-/*
  * map 8 bytes in n/w byte order from PACKET to a 64-bit time value
  * TODO: there must be code for this somewhere - find it
  */
@@ -1170,9 +1149,54 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys,
     return ret;
 }
 
+/*
+* Check names for length, maybe add more checks later before starting...
+*/
+int esni_checknames(const char *encservername, const char *frontname)
+{
+	if (OPENSSL_strnlen(encservername,TLSEXT_MAXLEN_host_name)>TLSEXT_MAXLEN_host_name) 
+		return(0);
+	if (OPENSSL_strnlen(frontname,TLSEXT_MAXLEN_host_name)>TLSEXT_MAXLEN_host_name) 
+		return(0);
+	/*
+	 * Possible checks:
+	 * - If no covername, then send no (clear) SNI, so allow that
+	 * - Check same A/AAAA exists for both names, if we have both
+	 *   	- could be a privacy leak though
+	 *   	- even if using DoT/DoH (but how'd we know for sure?)
+	 * - check/retrive RR's from DNS if not already in-hand and
+	 *   if (sufficiently) privacy preserving
+	 */
+	return(1);
+}
+
+/*
+ * API so application (e.g. s_client) can deposit stuff it got from CLI
+ */
 int SSL_esni_enable(SSL *s, const char *hidden, const char *cover, SSL_ESNI *esni)
 {
-	return 0;
+	if (s==NULL) {
+		return 0;
+	}
+	if (s->ext.enchostname!=NULL) {
+		OPENSSL_free(s->ext.enchostname);
+	}
+	if (hidden!=NULL ) {
+		s->ext.enchostname=OPENSSL_strndup(hidden,TLSEXT_MAXLEN_host_name);
+	}
+	if (s->ext.hostname!=NULL) {
+		OPENSSL_free(s->ext.hostname);
+	}
+	if (cover != NULL) {
+		s->ext.hostname=OPENSSL_strndup(cover,TLSEXT_MAXLEN_host_name);
+	}
+	if (s->esni!=NULL) {
+		SSL_ESNI_free(s->esni);
+	}
+	if (esni!=NULL) {
+		s->esni=esni;
+	}
+	return 1;
 }
 
 #endif

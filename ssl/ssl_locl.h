@@ -1382,7 +1382,7 @@ struct ssl_st {
     int servername_done;
 #ifndef OPENSSL_NO_ESNI
     int esni_done;
-	SSL_ESNI esni;
+	SSL_ESNI *esni;
 #endif
 # ifndef OPENSSL_NO_CT
     /*

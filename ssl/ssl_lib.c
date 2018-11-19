@@ -1215,6 +1215,16 @@ void SSL_free(SSL *s)
     sk_SRTP_PROTECTION_PROFILE_free(s->srtp_profiles);
 #endif
 
+#ifndef OPENSSL_NO_ESNI
+	if (s->esni!=NULL) {
+		SSL_ESNI_free(s->esni);
+		OPENSSL_free(s->esni);
+	}
+	if (s->ext.enchostname!=NULL) {
+		OPENSSL_free(s->ext.enchostname);
+	}
+#endif
+
     CRYPTO_THREAD_lock_free(s->lock);
 
     OPENSSL_free(s);
