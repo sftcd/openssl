@@ -476,7 +476,7 @@ static void esni_pbuf(BIO *out,char *msg,unsigned char *buf,size_t blen,int inde
 		BIO_printf(out,"%s is NULL",msg);
 		return;
 	}
-	BIO_printf(out,"%s (%ld):\n    ",msg,blen);
+	BIO_printf(out,"%s (%zd):\n    ",msg,blen);
 	int i;
 	for (i=0;i!=blen;i++) {
 		if ((i!=0) && (i%16==0))
@@ -537,8 +537,8 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esni)
 	
 		}
 		BIO_printf(out,"ESNI Server padded_length: %d\n",esni->erecs[e].padded_length);
-		BIO_printf(out,"ESNI Server not_before: %lu\n",esni->erecs[e].not_before);
-		BIO_printf(out,"ESNI Server not_after: %lu\n",esni->erecs[e].not_after);
+		BIO_printf(out,"ESNI Server not_before: %ju\n",esni->erecs[e].not_before);
+		BIO_printf(out,"ESNI Server not_after: %ju\n",esni->erecs[e].not_after);
 		BIO_printf(out,"ESNI Server number of extensions: %d\n",esni->erecs[e].nexts);
 	}
 	CLIENT_ESNI *c=esni->client;
