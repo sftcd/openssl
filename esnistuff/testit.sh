@@ -8,9 +8,7 @@ export LD_LIBRARY_PATH=$TOP
 
 # this is one I downloaded manually via dig +short TXT _esni.encryptedsni.com
 ESNI="/wHHBBOoACQAHQAg4YSfjSyJPNr1z3F8KqzBNBnMejim0mJZaPmria3XsicAAhMBAQQAAAAAW9pQEAAAAABb4jkQAAA="
-COVER="cloudflare.net"
-#COVER="cf.net"
-#COVER="tls13.crypto.mozilla.org"
+COVER="www.cloudflare.com"
 HIDDEN="encryptedsni.com"
 #HIDDEN="2l.com"
 VG="no"
@@ -24,7 +22,7 @@ SUPPLIEDPORT=""
 #default SNI to use
 SERVERNAME=$COVER
 
-URL="https://cloudflare.com/cdn-cgi/trace"
+URL="https://www.cloudflare.com/ssl/encrypted-sni"
 
 function whenisitagain()
 {
@@ -90,8 +88,8 @@ fi
 dbgstr=""
 if [[ "$DEBUG" == "yes" ]]
 then
-	#dbgstr="-msg -debug -security_debug_verbose -state -tlsextdebug"
-	dbgstr="-msg "
+	dbgstr="-msg -debug -security_debug_verbose -state -tlsextdebug"
+	#dbgstr="-msg "
 fi
 
 vgcmd=""
@@ -122,4 +120,4 @@ fi
 #force13="-cipher TLS13-AES-128-GCM-SHA256 -no_ssl3 -no_tls1 -no_tls1_1 -no_tls1_2"
 force13="-tls1_3 -cipher TLS13-AES-128-GCM-SHA256 "
 
-$vgcmd $TOP/apps/openssl s_client $dbgstr $target $esnistr $snicmd $force13
+echo "GET /\\r\\n\\r\\n" | $vgcmd $TOP/apps/openssl s_client $dbgstr $target $esnistr $snicmd $force13
