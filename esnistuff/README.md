@@ -30,6 +30,9 @@ but it's obviously not yet working...
 
 1. With esni included:
 
+- www.cloudflare.com finished the handshake but no sign of an
+  esni in the EE so far 
+
 - cloudflare.net gives "SSL alert number 70" in response to CH
 - tls13.crypto.mozilla.org gives "SSL alert number 40" in response to CH
 - 1.1.1.1:853 finishes the handshake, probably ignoring the esni
