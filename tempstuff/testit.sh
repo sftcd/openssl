@@ -10,12 +10,14 @@ export LD_LIBRARY_PATH=$TOP
 ESNI="/wHHBBOoACQAHQAg4YSfjSyJPNr1z3F8KqzBNBnMejim0mJZaPmria3XsicAAhMBAQQAAAAAW9pQEAAAAABb4jkQAAA="
 COVER="cloudflare.net"
 #COVER="cf.net"
+#COVER="tls13.crypto.mozilla.org"
 HIDDEN="encryptedsni.com"
 #HIDDEN="2l.com"
 VG="no"
 FRESH="no"
 NOESNI="no"
 DEBUG="no"
+SUPPLIEDSERVER=""
 
 #default SNI to use
 SERVERNAME=$COVER
@@ -59,7 +61,7 @@ do
 		-f|--fresh) FRESH="yes" ;;
 		-v|--valgrind) VG="yes" ;;
 		-n|--noesni) NOESNI="yes" ;;
-		-s|--servername) SERVERNAME=$2; shift;;
+		-s|--servername) SUPPLIEDSERVER=$2; shift;;
 		(--) shift; break;;
 		(-*) echo "$0: error - unrecognized option $1" 1>&2; exit 1;;
 		(*)  break;;
@@ -74,7 +76,6 @@ then
 	echo "Fresh ESNI value: $ESNI"
 fi	
 
-target=" -connect $COVER:443"
 esnistr="-esni $HIDDEN -esnirr $ESNI "
 if [[ "$NOESNI" == "yes" ]]
 then
@@ -85,7 +86,8 @@ fi
 dbgstr=""
 if [[ "$DEBUG" == "yes" ]]
 then
-	dbgstr="-msg -debug -security_debug_verbose -state -tlsextdebug"
+	#dbgstr="-msg -debug -security_debug_verbose -state -tlsextdebug"
+	dbgstr="-msg "
 fi
 
 vgcmd=""
@@ -95,9 +97,16 @@ then
 fi
 
 snicmd="-servername $SERVERNAME "
-if [[ "$SERVERNAME" == "NONE" ]]
+target=" -connect $COVER:443"
+if [[ "$SUPPLIEDSERVER" != "" ]]
 then
-	snicmd="-noservername "
+	if [[ "$SUPPLIEDSERVER" == "NONE" ]]
+	then
+		snicmd="-noservername "
+	else
+		snicmd="-servername $SUPPLIEDSERVER "
+		target=" -connect $SUPPLIEDSERVER:443"
+	fi
 fi
 
 # force tls13
