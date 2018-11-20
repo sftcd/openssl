@@ -26,6 +26,18 @@ My openssl s_client build though is failing all the time
 so it might not be down to how I'm encoding the esni
 extension (or it might:-). Will try with a clean build
 of openssl without my code just to see.
+Try that vs. https://tls13.crypto.mozilla.org/
+
+Ah, a clean build does work with tls1.3, must be
+my fault so, guess I broke something.
+Perhaps not all my fault - cloudflare.net seems to
+[not always](https://community.cloudflare.com/t/tls13-not-working-for-dns-over-tls/31332) have been working, but the moz site is 100%
+with a clean openssl, and my modified build fails
+100% even with no esni included, so that's the
+place to start.
+
+Might be near time to comment on [this](https://github.com/tlswg/draft-ietf-tls-esni/issues/118)
+issue to see if I can find more help.
 
 ## Files still to figure out/check
 
