@@ -17,7 +17,9 @@ VG="no"
 FRESH="no"
 NOESNI="no"
 DEBUG="no"
+PORT="443"
 SUPPLIEDSERVER=""
+SUPPLIEDPORT=""
 
 #default SNI to use
 SERVERNAME=$COVER
@@ -42,11 +44,12 @@ function usage()
 	echo "  -f means first get fresh ESNIKeys from DNS (via dig)"
 	echo "  -n means don't trigger esni at all"
 	echo "  -s [name] specifices a servername ('NONE' is special)"
+	echo "  -p [port] specifices a port (default: 442)"
 	exit 99
 }
 
 # options may be followed by one colon to indicate they have a required argument
-if ! options=$(getopt -s bash -o s:dfvnh -l servername:,debug,fresh,valgrind,noesni,help -- "$@")
+if ! options=$(getopt -s bash -o p:s:dfvnh -l port:,servername:,debug,fresh,valgrind,noesni,help -- "$@")
 then
 	# something went wrong, getopt will put out an error message for us
 	exit 1
@@ -62,6 +65,7 @@ do
 		-v|--valgrind) VG="yes" ;;
 		-n|--noesni) NOESNI="yes" ;;
 		-s|--servername) SUPPLIEDSERVER=$2; shift;;
+		-p|--port) SUPPLIEDPORT=$2; shift;;
 		(--) shift; break;;
 		(-*) echo "$0: error - unrecognized option $1" 1>&2; exit 1;;
 		(*)  break;;
@@ -96,8 +100,13 @@ then
 	vgcmd="valgrind --leak-check=full "
 fi
 
+if [[ "$SUPPLIEDPORT" != "" ]]
+then
+	PORT=$SUPPLIEDPORT
+fi
+
 snicmd="-servername $SERVERNAME "
-target=" -connect $COVER:443"
+target=" -connect $COVER:$PORT"
 if [[ "$SUPPLIEDSERVER" != "" ]]
 then
 	if [[ "$SUPPLIEDSERVER" == "NONE" ]]
@@ -105,7 +114,7 @@ then
 		snicmd="-noservername "
 	else
 		snicmd="-servername $SUPPLIEDSERVER "
-		target=" -connect $SUPPLIEDSERVER:443"
+		target=" -connect $SUPPLIEDSERVER:$PORT"
 	fi
 fi
 
