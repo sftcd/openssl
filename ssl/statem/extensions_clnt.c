@@ -1994,7 +1994,18 @@ int tls_parse_stoc_psk(SSL *s, PACKET *pkt, unsigned int context, X509 *x,
 EXT_RETURN tls_construct_ctos_esni(SSL *s, WPACKET *pkt, unsigned int context,
                                    X509 *x, size_t chainidx)
 {
-	return 0;
+	unsigned char rd[1024];
+	size_t rd_len=SSL_get_client_random(s,rd,1024);
+	if (!SSL_ESNI_enc(s->esni,s->ext.enchostname,s->ext.hostname,rd_len,rd,&s->esni->client)) {
+		return 0;
+	}
+
+	FILE *fp=NULL;
+	BIO *out=NULL;
+	fp=fopen("/dev/stdout","w");
+	out=BIO_new_fp(fp,BIO_CLOSE|BIO_FP_TEXT);
+	SSL_ESNI_print(out,s->esni);
+	return 1;
 }
 
 int tls_parse_stoc_esni(SSL *s, PACKET *pkt, unsigned int context,

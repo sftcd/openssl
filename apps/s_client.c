@@ -2046,13 +2046,13 @@ int s_client_main(int argc, char **argv)
 #ifndef OPENSSL_NO_ESNI
 	if (encservername != NULL ) {
 		if (SSL_esni_enable(con,encservername,servername,esnikeys)!=1) {
-            BIO_printf(bio_err,
-                       "%s: ESNI enabling failed.\n",
-                       prog);
-            goto opthelp;
+            BIO_printf(bio_err, "%s: ESNI enabling failed.\n", prog);
+            ERR_print_errors(bio_err);
+            goto end;
 		}
 	}
 #endif
+
     if (dane_tlsa_domain != NULL) {
         if (SSL_dane_enable(con, dane_tlsa_domain) <= 0) {
             BIO_printf(bio_err, "%s: Error enabling DANE TLSA "
