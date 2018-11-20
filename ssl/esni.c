@@ -968,12 +968,26 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys,
         goto err;
     }
 
-    /* Generate encoding of client key */
-    cesni->encoded_keyshare_len = EVP_PKEY_get1_tls_encodedpoint(cesni->cvars.keyshare, &cesni->encoded_keyshare);
-    if (cesni->encoded_keyshare_len == 0) {
+	/* 
+     * Generate encoding of client key 
+	 * Gotta prepend the NamedGroup and overall length to that
+	 * TODO: find a better API that does that for me.
+	 */
+	unsigned char *tmp=NULL;
+	size_t tlen=0;
+    tlen = EVP_PKEY_get1_tls_encodedpoint(cesni->cvars.keyshare,&tmp); 
+    if (tlen == 0) {
 		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
     }
+    cesni->encoded_keyshare_len = tlen+4;
+	cesni->encoded_keyshare=OPENSSL_malloc(cesni->encoded_keyshare_len);
+	cesni->encoded_keyshare[0]=0x00;
+	cesni->encoded_keyshare[1]=0x1d;
+	cesni->encoded_keyshare[2]=0x00;
+	cesni->encoded_keyshare[3]=0x20;
+	memcpy(cesni->encoded_keyshare+4,tmp,tlen);
+	OPENSSL_free(tmp);
 
 	/*
 	 * Form up the inner SNI stuff
@@ -1154,9 +1168,9 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys,
 */
 int esni_checknames(const char *encservername, const char *frontname)
 {
-	if (OPENSSL_strnlen(encservername,TLSEXT_MAXLEN_host_name)>TLSEXT_MAXLEN_host_name) 
+	if (encservername != NULL && OPENSSL_strnlen(encservername,TLSEXT_MAXLEN_host_name)>TLSEXT_MAXLEN_host_name) 
 		return(0);
-	if (OPENSSL_strnlen(frontname,TLSEXT_MAXLEN_host_name)>TLSEXT_MAXLEN_host_name) 
+	if (frontname != NULL && OPENSSL_strnlen(frontname,TLSEXT_MAXLEN_host_name)>TLSEXT_MAXLEN_host_name) 
 		return(0);
 	/*
 	 * Possible checks:
