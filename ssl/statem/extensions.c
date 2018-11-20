@@ -946,7 +946,7 @@ static int init_esni(SSL *s, unsigned int context)
 }
 static int final_esni(SSL *s, unsigned int context, int sent)
 {
-	return 0;
+	return 1;
 }
 #endif
 
