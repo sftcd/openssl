@@ -1994,18 +1994,55 @@ int tls_parse_stoc_psk(SSL *s, PACKET *pkt, unsigned int context, X509 *x,
 EXT_RETURN tls_construct_ctos_esni(SSL *s, WPACKET *pkt, unsigned int context,
                                    X509 *x, size_t chainidx)
 {
+    if (s->session->ssl_version != TLS1_3_VERSION) {
+        return EXT_RETURN_NOT_SENT;
+	}
+
+    if (s->ext.enchostname == NULL) {
+        return EXT_RETURN_NOT_SENT;
+	}
+
 	unsigned char rd[1024];
 	size_t rd_len=SSL_get_client_random(s,rd,1024);
 	if (!SSL_ESNI_enc(s->esni,s->ext.enchostname,s->ext.hostname,rd_len,rd,&s->esni->client)) {
 		return 0;
 	}
 
+#ifdef NOTDEF
 	FILE *fp=NULL;
 	BIO *out=NULL;
-	fp=fopen("/dev/stdout","w");
+	fp=fopen("/dev/stderr","w");
 	out=BIO_new_fp(fp,BIO_CLOSE|BIO_FP_TEXT);
 	SSL_ESNI_print(out,s->esni);
-	return 1;
+#endif
+
+	/*
+	 * Now encode the ESNI stuff 
+	 * struct {
+     *    CipherSuite suite; from c->ciphersuite (SSL_CIPHER)
+     *    KeyShareEntry key_share; from c->encoded_keshare (buffer)
+     *    opaque record_digest<0..2^16-1>; from c->record_digest (buffer)
+     *    opaque encrypted_sni<0..2^16-1>; from c->encrypted_sni (buffer)
+     * } ClientEncryptedSNI;
+	 */
+	CLIENT_ESNI *c=s->esni->client;
+	size_t len; /* TODO: what's this for? */
+    /* Add TLS extension encrypted servername to the Client Hello message */
+    if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_esni)
+               /* Sub-packet for esni extension */
+            || !WPACKET_start_sub_packet_u16(pkt)
+            || !s->method->put_cipher_by_char(c->ciphersuite, pkt, &len)
+            || !WPACKET_sub_memcpy_u16(pkt, c->encoded_keyshare, c->encoded_keyshare_len)
+            || !WPACKET_sub_memcpy_u16(pkt, c->record_digest, c->record_digest_len)
+            || !WPACKET_sub_memcpy_u16(pkt, c->encrypted_sni, c->encrypted_sni_len)
+            || !WPACKET_close(pkt)
+				) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ESNI,
+                 ERR_R_INTERNAL_ERROR);
+        return EXT_RETURN_FAIL;
+    }
+
+	return EXT_RETURN_SENT;
 }
 
 int tls_parse_stoc_esni(SSL *s, PACKET *pkt, unsigned int context,

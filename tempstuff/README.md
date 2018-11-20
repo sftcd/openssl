@@ -18,6 +18,14 @@ This seems to build and run ok on both a 64 and
 does that.
 
 Added stubs for the statem extension handling.
+The ctos encoder for esni is being called when a connection is
+attempted.
+ClientHello is being sent, but I'm getting back a protocol
+error. 
+My openssl s_client build though is failing all the time
+so it might not be down to how I'm encoding the esni
+extension (or it might:-). Will try with a clean build
+of openssl without my code just to see.
 
 ## Files still to figure out/check
 
@@ -29,6 +37,7 @@ Added stubs for the statem extension handling.
 Added stuff protected by #ifndef OPENSSL_NO_ESNI 
 - include/openssl/err.h
 - include/openssl/ssl.h
+- include/openssl/sslerr.h
 - include/openssl/tls1.h
 - apps/s_client.c
 

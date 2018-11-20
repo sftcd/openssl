@@ -15,13 +15,6 @@
 # include <openssl/ssl.h>
 
 
-/*
- * define'd constants to go in various places
- */ 
-
-/* destination: unknown */
-#define SSL_F_TLS_CONSTRUCT_CTOS_ENCRYPTED_SERVER_NAME 401
-
 /* 
  * From the -02 I-D, what we find in DNS:
  *     struct {
