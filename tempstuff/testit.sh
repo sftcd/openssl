@@ -14,8 +14,13 @@ HIDDEN="encryptedsni.com"
 #HIDDEN="2l.com"
 VG="no"
 FRESH="no"
-NOHOST="no"
+NOESNI="no"
 DEBUG="no"
+
+#default SNI to use
+SERVERNAME=$COVER
+
+URL="https://cloudflare.com/cdn-cgi/trace"
 
 function whenisitagain()
 {
@@ -33,12 +38,13 @@ function usage()
 	echo "	-d means run s_client in verbose mode"
 	echo "	-v means run with valgrind"
 	echo "  -f means first get fresh ESNIKeys from DNS (via dig)"
-	echo "  -n means don't provide a HOST:PORT so we bail before sending anything"
+	echo "  -n means don't trigger esni at all"
+	echo "  -s [name] specifices a servername ('NONE' is special)"
 	exit 99
 }
 
 # options may be followed by one colon to indicate they have a required argument
-if ! options=$(getopt -s bash -o dfvnh -l debug,fresh,valgrind,noconn,help -- "$@")
+if ! options=$(getopt -s bash -o s:dfvnh -l servername:,debug,fresh,valgrind,noesni,help -- "$@")
 then
 	# something went wrong, getopt will put out an error message for us
 	exit 1
@@ -52,7 +58,8 @@ do
 		-d|--debug) DEBUG="yes" ;;
 		-f|--fresh) FRESH="yes" ;;
 		-v|--valgrind) VG="yes" ;;
-		-n|--noconn) NOHOST="yes" ;;
+		-n|--noesni) NOESNI="yes" ;;
+		-s|--servername) SERVERNAME=$2; shift;;
 		(--) shift; break;;
 		(-*) echo "$0: error - unrecognized option $1" 1>&2; exit 1;;
 		(*)  break;;
@@ -68,16 +75,17 @@ then
 fi	
 
 target=" -connect $COVER:443"
-if [[ "$NOHOST" == "yes" ]]
+esnistr="-esni $HIDDEN -esnirr $ESNI "
+if [[ "$NOESNI" == "yes" ]]
 then
 	echo "Not connecting"
-	target=""
+	esnistr=""
 fi
 
 dbgstr=""
 if [[ "$DEBUG" == "yes" ]]
 then
-	dbgstr="-security_debug_verbose "
+	dbgstr="-msg -debug -security_debug_verbose -state -tlsextdebug"
 fi
 
 vgcmd=""
@@ -86,7 +94,14 @@ then
 	vgcmd="valgrind --leak-check=full "
 fi
 
-# force tls13
-force13="-cipher TLS13-AES-128-GCM-SHA256"
+snicmd="-servername $SERVERNAME "
+if [[ "$SERVERNAME" == "NONE" ]]
+then
+	snicmd="-noservername "
+fi
 
-$vgcmd $TOP/apps/openssl s_client $dbgstr $target -esni $HIDDEN -esnirr $ESNI -servername $COVER $force13
+# force tls13
+#force13="-cipher TLS13-AES-128-GCM-SHA256 -no_ssl3 -no_tls1 -no_tls1_1 -no_tls1_2"
+force13="-tls1_3 -cipher TLS13-AES-128-GCM-SHA256 "
+
+$vgcmd $TOP/apps/openssl s_client $dbgstr $target $esnistr $snicmd $force13
