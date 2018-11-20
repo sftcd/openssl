@@ -144,8 +144,7 @@ static const EXTENSION_DEFINITION ext_defs[] = {
 #ifndef OPENSSL_NO_ESNI
     {
         TLSEXT_TYPE_esni,
-        SSL_EXT_CLIENT_HELLO | SSL_EXT_TLS1_3_SERVER_HELLO |
-        SSL_EXT_TLS1_3_ONLY | SSL_EXT_TLS1_3_ENCRYPTED_EXTENSIONS,
+        SSL_EXT_CLIENT_HELLO | SSL_EXT_TLS1_3_ONLY | SSL_EXT_TLS1_3_ENCRYPTED_EXTENSIONS,
         init_esni,
         tls_parse_ctos_esni, tls_parse_stoc_esni,
         tls_construct_stoc_esni, tls_construct_ctos_esni,
@@ -946,6 +945,7 @@ static int init_esni(SSL *s, unsigned int context)
 }
 static int final_esni(SSL *s, unsigned int context, int sent)
 {
+	printf("final_esni called.\n");
 	return 1;
 }
 #endif

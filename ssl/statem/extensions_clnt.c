@@ -1994,6 +1994,7 @@ int tls_parse_stoc_psk(SSL *s, PACKET *pkt, unsigned int context, X509 *x,
 EXT_RETURN tls_construct_ctos_esni(SSL *s, WPACKET *pkt, unsigned int context,
                                    X509 *x, size_t chainidx)
 {
+	printf("tls_construct_ctos_esni called!!\n");
     if (s->session->ssl_version != TLS1_3_VERSION) {
         return EXT_RETURN_NOT_SENT;
 	}
@@ -2026,7 +2027,7 @@ EXT_RETURN tls_construct_ctos_esni(SSL *s, WPACKET *pkt, unsigned int context,
      * } ClientEncryptedSNI;
 	 */
 	CLIENT_ESNI *c=s->esni->client;
-	size_t len; /* TODO: what's this for? */
+	size_t len; 
     /* Add TLS extension encrypted servername to the Client Hello message */
     if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_esni)
                /* Sub-packet for esni extension */
@@ -2048,6 +2049,7 @@ EXT_RETURN tls_construct_ctos_esni(SSL *s, WPACKET *pkt, unsigned int context,
 int tls_parse_stoc_esni(SSL *s, PACKET *pkt, unsigned int context,
                                X509 *x, size_t chainidx)
 {
-	return 1;
+	printf("tls_parse_stoc_esni called!!\n");
+	return 0;
 }
 #endif
