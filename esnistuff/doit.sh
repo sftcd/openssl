@@ -6,9 +6,17 @@
 #export LD_LIBRARY_PATH=$HOME/code/openssl
 
 # this is one I downloaded manually via dig +short TXT _esni.encryptedsni.com
-ESNI="/wHHBBOoACQAHQAg4YSfjSyJPNr1z3F8KqzBNBnMejim0mJZaPmria3XsicAAhMBAQQAAAAAW9pQEAAAAABb4jkQAAA="
-COVER="cloudflare.net"
-HIDDEN="encryptedsni.com"
+# ESNI="/wHHBBOoACQAHQAg4YSfjSyJPNr1z3F8KqzBNBnMejim0mJZaPmria3XsicAAhMBAQQAAAAAW9pQEAAAAABb4jkQAAA="
+# COVER="cloudflare.net"
+# HIDDEN="encryptedsni.com"
+
+
+# this is one I downloaded manually via dig +short TXT _esni.www.cloudflare.com on 20181121
+ESNI="/wEU528gACQAHQAguwSAYz57kzOUzDXCAZ7aBJLWPrQwvSuNsRZbi7JzqkYAAhMBAQQAAAAAW/E4IAAAAABb+SEgAAA="
+HIDDEN="www.cloudflare.com"
+COVER="www.cloudflare.com"
+
+
 VG="yes"
 
 # should really add getopt but this is likely short-term (famous last

@@ -31,7 +31,13 @@ but it's obviously not yet working...
 1. With esni included:
 
 - www.cloudflare.com finished the handshake but no sign of an
-  esni in the EE so far 
+  esni in the EE so far (actually getting no EE from the
+  server)
+
+- I've gotten FF nightly to work with CF, and am now sending
+  the same structure. I did have 2 extra bytes in my
+  encrypted_sni field and took out a length but not sure
+  if that was the right one or not. There's a TODO...
 
 - cloudflare.net gives "SSL alert number 70" in response to CH
 - tls13.crypto.mozilla.org gives "SSL alert number 40" in response to CH
