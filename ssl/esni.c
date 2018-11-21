@@ -614,7 +614,9 @@ static unsigned char *esni_pad(char *name, unsigned int padded_len)
 static int esni_contentshash(ESNIContents *e, ESNI_CRYPTO_VARS *cv, const EVP_MD *md)
 {
 	EVP_MD_CTX *mctx = NULL;
-	size_t oh=2+2+2;
+	// TODO: check if my idea of encoding is correct
+	//size_t oh=2+2+2;
+	size_t oh=2;
 	cv->hi_len=oh+e->rd_len+e->kse_len+e->cr_len;
 	cv->hi=OPENSSL_zalloc(cv->hi_len);
 	if (cv->hi==NULL) {
@@ -626,12 +628,12 @@ static int esni_contentshash(ESNIContents *e, ESNI_CRYPTO_VARS *cv, const EVP_MD
 	*hip++=e->rd_len%256;
 	memcpy(hip,e->rd,e->rd_len); 
 	hip+=e->rd_len;
-	*hip++=e->kse_len/256;
-	*hip++=e->kse_len%256;
+	//*hip++=e->kse_len/256;
+	//*hip++=e->kse_len%256;
 	memcpy(hip,e->kse,e->kse_len); 
 	hip+=e->kse_len;
-	*hip++=e->cr_len/256;
-	*hip++=e->cr_len%256;
+	//*hip++=e->cr_len/256;
+	//*hip++=e->cr_len%256;
 	memcpy(hip,e->cr,e->cr_len); 
 	hip+=e->cr_len;
 	cv->hi_len=hip-cv->hi;
@@ -1114,6 +1116,7 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys,
 		ESNIerr(ESNI_F_ENC, ERR_R_MALLOC_FAILURE);
         goto err;
 	}
+	// TODO: Oops - should be keyshare not random! heh:-)
 	memcpy(cv->aad,client_random,cr_len);
 
 	/*
