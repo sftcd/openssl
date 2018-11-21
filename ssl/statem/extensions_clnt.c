@@ -2033,7 +2033,7 @@ EXT_RETURN tls_construct_ctos_esni(SSL *s, WPACKET *pkt, unsigned int context,
                /* Sub-packet for esni extension */
             || !WPACKET_start_sub_packet_u16(pkt)
             || !s->method->put_cipher_by_char(c->ciphersuite, pkt, &len)
-            || !WPACKET_sub_memcpy_u16(pkt, c->encoded_keyshare, c->encoded_keyshare_len)
+            || !WPACKET_memcpy(pkt, c->encoded_keyshare, c->encoded_keyshare_len)
             || !WPACKET_sub_memcpy_u16(pkt, c->record_digest, c->record_digest_len)
             || !WPACKET_sub_memcpy_u16(pkt, c->encrypted_sni, c->encrypted_sni_len)
             || !WPACKET_close(pkt)
