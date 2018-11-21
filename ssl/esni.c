@@ -1008,7 +1008,7 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys,
 	/*
 	 * encode into our plaintext
 	 */
-	int oh=2;
+	int oh=0; // TODO: check if it works - try remove these two bytes
 	cv->plain_len=oh+inner->nonce_len+inner->realSNI_len;
 	cv->plain=OPENSSL_malloc(cv->plain_len);
 	if (cv->plain == NULL) {
@@ -1017,8 +1017,8 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys,
 	}
 	unsigned char *pip=cv->plain;
 	memcpy(pip,inner->nonce,inner->nonce_len); pip+=inner->nonce_len;
-	*pip++=inner->realSNI_len/256;
-	*pip++=inner->realSNI_len%256;
+	// *pip++=inner->realSNI_len/256;
+	// *pip++=inner->realSNI_len%256;
 	memcpy(pip,inner->realSNI,inner->realSNI_len); pip+=inner->realSNI_len;
 
 	/* 
