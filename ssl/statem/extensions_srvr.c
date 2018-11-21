@@ -1962,12 +1962,12 @@ EXT_RETURN tls_construct_stoc_psk(SSL *s, WPACKET *pkt, unsigned int context,
 int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
                                X509 *x, size_t chainidx)
 {
-	return 0;
+	return 1;
 }
 EXT_RETURN tls_construct_stoc_esni(SSL *s, WPACKET *pkt,
                                           unsigned int context, X509 *x,
                                           size_t chainidx)
 {
-	return 0;
+	return 1;
 }
 #endif

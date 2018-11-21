@@ -90,6 +90,7 @@ out what I've been doing.  There are TODOs galore, of course:-)
 - ssl/ssl-locl.h - TLSEXT_IDX_esni isn't #ifndef protected for some reason, maybe because it's an enum?
 - ssl/ssl-lib.c
 - ssl/s3_lib.c
+- ssl/t1_trce.c
 - ssl/statem/extensions.c - lots of new code, mainly copied from server_name handling
 - ssl/statem/statem_locl.h
 - ssl/statem/extensions_clnt.c
