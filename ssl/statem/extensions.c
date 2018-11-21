@@ -141,18 +141,6 @@ static const EXTENSION_DEFINITION ext_defs[] = {
         tls_construct_stoc_server_name, tls_construct_ctos_server_name,
         final_server_name
     },
-#ifndef OPENSSL_NO_ESNI
-    {
-        TLSEXT_TYPE_esni,
-        SSL_EXT_CLIENT_HELLO | SSL_EXT_TLS1_3_ONLY | SSL_EXT_TLS1_3_ENCRYPTED_EXTENSIONS,
-        init_esni,
-        tls_parse_ctos_esni, tls_parse_stoc_esni,
-        tls_construct_stoc_esni, tls_construct_ctos_esni,
-        final_esni
-    },
-#else
-	INVALID_EXTENSION,
-#endif
     {
         TLSEXT_TYPE_max_fragment_length,
         SSL_EXT_CLIENT_HELLO | SSL_EXT_TLS1_2_SERVER_HELLO
@@ -381,6 +369,22 @@ static const EXTENSION_DEFINITION ext_defs[] = {
         tls_construct_stoc_early_data, tls_construct_ctos_early_data,
         final_early_data
     },
+
+#ifndef OPENSSL_NO_ESNI
+	/* 
+	 * Must be in this list after key_share as that input is needed for ESNI
+	 */
+    {
+        TLSEXT_TYPE_esni,
+        SSL_EXT_CLIENT_HELLO | SSL_EXT_TLS1_3_ONLY | SSL_EXT_TLS1_3_ENCRYPTED_EXTENSIONS,
+        init_esni,
+        tls_parse_ctos_esni, tls_parse_stoc_esni,
+        tls_construct_stoc_esni, tls_construct_ctos_esni,
+        final_esni
+    },
+#else
+	INVALID_EXTENSION,
+#endif
     {
         TLSEXT_TYPE_certificate_authorities,
         SSL_EXT_CLIENT_HELLO | SSL_EXT_TLS1_3_CERTIFICATE_REQUEST

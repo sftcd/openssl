@@ -152,6 +152,7 @@ void CLIENT_ESNI_free(CLIENT_ESNI *c)
 	if (c->cvars.key != NULL) OPENSSL_free(c->cvars.key);
 	if (c->cvars.iv != NULL) OPENSSL_free(c->cvars.iv);
 	if (c->cvars.aad != NULL) OPENSSL_free(c->cvars.aad);
+	if (c->cvars.cr != NULL) OPENSSL_free(c->cvars.cr);
 	if (c->cvars.plain != NULL) OPENSSL_free(c->cvars.plain);
 	if (c->cvars.cipher != NULL) OPENSSL_free(c->cvars.cipher);
 	if (c->cvars.tag != NULL) OPENSSL_free(c->cvars.tag);
@@ -560,6 +561,7 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esni)
 		} else {
 			BIO_printf(out,"ESNI Client Keyshare is NULL!\n");
 		}
+		esni_pbuf(out,"ESNI Cryptovars random", c->cvars.cr,c->cvars.cr_len,indent);
 		esni_pbuf(out,"ESNI Cryptovars shared",c->cvars.shared,c->cvars.shared_len,indent);
 		esni_pbuf(out,"ESNI Cryptovars hash input",c->cvars.hi,c->cvars.hi_len,indent);
 		/* don't bother with key share - it's above already */
@@ -764,9 +766,6 @@ static unsigned char *esni_aead_enc(
 	}
 
 	/* Initialise the encryption operation. */
-	/*
-	 * derive EVP settings from SSL_CIPHER input via fake SSL session (for now)
-	 */
 	const EVP_CIPHER *enc=EVP_get_cipherbynid(SSL_CIPHER_get_cipher_nid(ciph));
 	if (enc == NULL) {
 		ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
@@ -881,8 +880,10 @@ err:
 int SSL_ESNI_enc(SSL_ESNI *esnikeys, 
 				char *protectedserver, 
 				char *frontname, 
-				size_t  cr_len,
+				size_t  client_random_len,
 				unsigned char *client_random,
+				size_t  client_keyshare_len,
+				unsigned char *client_keyshare,
 				CLIENT_ESNI **the_esni)
 {
 
@@ -908,6 +909,17 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys,
 	ESNI_CRYPTO_VARS *cv=&cesni->cvars;
 	memset(cv,0,sizeof(ESNI_CRYPTO_VARS));
 	CLIENT_ESNI_INNER *inner=&cesni->inner;
+
+	/*
+	 * Copy into crypto var
+	 */
+	cv->cr_len=client_random_len;
+	cv->cr=OPENSSL_malloc(cv->cr_len);
+	if (cv->cr == NULL ) {
+		ESNIerr(ESNI_F_ENC, ERR_R_MALLOC_FAILURE);
+		goto err;
+	}
+	memcpy(cv->cr,client_random,cv->cr_len);
 
 	/*
 	 * D-H stuff inspired by openssl/statem/statem_clnt.c:tls_construct_cke_ecdhe
@@ -1048,7 +1060,7 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys,
 	 */
 	esnicontents->kse_len=cesni->encoded_keyshare_len;
 	esnicontents->kse=cesni->encoded_keyshare;
-	esnicontents->cr_len=SSL3_RANDOM_SIZE;
+	esnicontents->cr_len=client_random_len;
 	esnicontents->cr=client_random;
 	if (!esni_make_rd(esnikeys->mesni,esnicontents)) {
 		ESNIerr(ESNI_F_ENC, ERR_R_MALLOC_FAILURE);
@@ -1110,14 +1122,14 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys,
 	/*
 	 * Copy the ClientHello.KeyShareClientHello in here as aad. 
 	 */
-	cv->aad_len=cr_len;
+	cv->aad_len=client_keyshare_len;
 	cv->aad=OPENSSL_zalloc(cv->aad_len); 
 	if (!cv->aad) {
 		ESNIerr(ESNI_F_ENC, ERR_R_MALLOC_FAILURE);
         goto err;
 	}
 	// TODO: Oops - should be keyshare not random! heh:-)
-	memcpy(cv->aad,client_random,cr_len);
+	memcpy(cv->aad,client_keyshare,client_keyshare_len);
 
 	/*
 	 * Tag is in ciphertext anyway, but sure may as well keep it

@@ -33,6 +33,11 @@ but it's obviously not yet working...
 - www.cloudflare.com finished the handshake but no sign of an
   esni in the EE so far (actually getting no EE from the
   server)
+	- reverted a bit from that when I discovered I wasn't 
+	  handling the client h/s key share at all (heh:-), when
+	  I tried a fix, the client is bailing after getting
+	  the server hello, with no accompanying key share.
+	- need to check what FF gets when working - later
 
 - I've gotten FF nightly to work with CF, and am now sending
   the same structure. I did have 2 extra bytes in my

@@ -108,6 +108,17 @@ int main(int argc, char **argv)
 	unsigned char client_random[SSL3_RANDOM_SIZE];
 	RAND_bytes(client_random,cr_len);
 
+	/*
+	 * fake client keyshare
+	 */
+	size_t ckl=36;
+	unsigned char ck[36];
+	ck[0]=0x00;
+	ck[1]=0x1d;
+	ck[2]=0x00;
+	ck[3]=0x20;
+	RAND_bytes(ck+4,32);
+
 
 	if (argc==4) 
 		esnikeys_b64=OPENSSL_strdup(argv[3]);
@@ -133,7 +144,7 @@ int main(int argc, char **argv)
 	if (out == NULL)
 		goto end;
 
-	if (!SSL_ESNI_enc(esnikeys,encservername,frontname,cr_len,client_random,&the_esni)) {
+	if (!SSL_ESNI_enc(esnikeys,encservername,frontname,cr_len,client_random,ckl,ck,&the_esni)) {
 		printf("Can't encrypt SSL_ESNI!\n");
 		goto end;
 	}
