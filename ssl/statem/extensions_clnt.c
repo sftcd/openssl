@@ -2002,12 +2002,36 @@ EXT_RETURN tls_construct_ctos_esni(SSL *s, WPACKET *pkt, unsigned int context,
     if (s->ext.enchostname == NULL) {
         return EXT_RETURN_NOT_SENT;
 	}
-
+	
+	/*
+	 * client_random from CH
+	 */
 	unsigned char rd[1024];
 	size_t rd_len=SSL_get_client_random(s,rd,1024);
-	if (!SSL_ESNI_enc(s->esni,s->ext.enchostname,s->ext.hostname,rd_len,rd,&s->esni->client)) {
+
+	/*
+	 * keyshare from CH
+	 */
+	size_t ks_len=0;
+	unsigned char *ks=NULL;
+    if (s->s3->tmp.pkey != NULL) {
+		printf("Yay key share *is* done before esni.\n");
+    	/* Encode the public key. */
+    	ks_len = EVP_PKEY_get1_tls_encodedpoint(s->s3->tmp.pkey, &ks);
+    	if (ks_len == 0) {
+			return EXT_RETURN_NOT_SENT;
+    	}
+	} else {
+		/* 
+		 * fail, bummer
+		 */
+		return EXT_RETURN_NOT_SENT;
+	}
+
+	if (!SSL_ESNI_enc(s->esni,s->ext.enchostname,s->ext.hostname,rd_len,rd,ks_len,ks,&s->esni->client)) {
 		return 0;
 	}
+    OPENSSL_free(ks);
 
 #ifdef NOTDEF
 	FILE *fp=NULL;
