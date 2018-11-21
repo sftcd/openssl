@@ -112,7 +112,9 @@ typedef struct esni_crypto_vars_st {
     EVP_PKEY *keyshare;
     size_t shared_len;
     unsigned char *shared; /* shared secret */
-    size_t hi_len;
+	size_t cr_len; /* client random from h/s */
+	unsigned char *cr;
+    size_t hi_len; /* TODO: check - hash input == ESNIContent or is it? */
     unsigned char *hi;
     size_t hash_len;
     unsigned char *hash;
@@ -122,7 +124,7 @@ typedef struct esni_crypto_vars_st {
     unsigned char *key;
     size_t iv_len;
     unsigned char *iv;
-    size_t aad_len;
+    size_t aad_len; /* client key share from h/s */
     unsigned char *aad;
     size_t plain_len;
     unsigned char *plain;
@@ -192,8 +194,10 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esni);
 int SSL_ESNI_enc(SSL_ESNI *esnikeys, 
                 char *protectedserver, 
                 char *frontname, 
-                size_t  cr_len,
+                size_t  client_random_len,
                 unsigned char *client_random,
+				size_t  client_keyshare_len,
+				unsigned char *client_keyshare,
                 CLIENT_ESNI **the_esni);
 int SSL_esni_enable(SSL *s, const char *hidden, const char *cover, SSL_ESNI *esni);
 
