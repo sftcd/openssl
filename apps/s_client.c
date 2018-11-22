@@ -78,6 +78,9 @@ static void print_stuff(BIO *berr, SSL *con, int full);
 #ifndef OPENSSL_NO_OCSP
 static int ocsp_resp_cb(SSL *s, void *arg);
 #endif
+#ifndef OPENSSL_NO_ESNI
+static unsigned int esni_cb(SSL *s);
+#endif
 static int ldap_ExtendedResponse_parse(const char *buf, long rem);
 static char *base64encode (const void *buf, size_t len);
 
@@ -1580,7 +1583,7 @@ int s_client_main(int argc, char **argv)
                        prog);
             goto opthelp;
         } 
-		if (sdebug>0) {
+		if (c_msg>0) {
 			SSL_ESNI_print(bio_err,esnikeys);
 		}
 
@@ -2206,6 +2209,12 @@ int s_client_main(int argc, char **argv)
         SSL_CTX_set_tlsext_status_cb(ctx, ocsp_resp_cb);
         SSL_CTX_set_tlsext_status_arg(ctx, bio_c_out);
     }
+#endif
+
+#ifndef OPENSSL_NO_ESNI
+	if (c_msg) {
+		SSL_set_esni_callback(con, esni_cb);
+	}
 #endif
 
     SSL_set_bio(con, sbio, sbio);
@@ -3473,6 +3482,19 @@ static void print_stuff(BIO *bio, SSL *s, int full)
     /* flush, or debugging output gets mixed with http response */
     (void)BIO_flush(bio);
 }
+
+#ifndef OPENSSL_NO_ESNI
+static unsigned int esni_cb(SSL *s)
+{
+	BIO_printf(bio_c_out,"esni_cb called\n");
+	SSL_ESNI *esnistuff=NULL;
+	int rv=SSL_ESNI_get_esni(s,&esnistuff);
+	if (rv == 1 && esnistuff!=NULL) {
+		SSL_ESNI_print(bio_c_out,esnistuff);
+	}
+	return 1;
+}
+#endif
 
 # ifndef OPENSSL_NO_OCSP
 static int ocsp_resp_cb(SSL *s, void *arg)
