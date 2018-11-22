@@ -566,6 +566,7 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esni)
         esni_pbuf(out,"ESNI Cryptovars Zx",c->cvars.Zx,c->cvars.Zx_len,indent);
         esni_pbuf(out,"ESNI Cryptovars key",c->cvars.key,c->cvars.key_len,indent);
         esni_pbuf(out,"ESNI Cryptovars iv",c->cvars.iv,c->cvars.iv_len,indent);
+        esni_pbuf(out,"ESNI Cryptovars aad",c->cvars.aad,c->cvars.aad_len,indent);
         esni_pbuf(out,"ESNI Cryptovars plain",c->cvars.plain,c->cvars.plain_len,indent);
         esni_pbuf(out,"ESNI Cryptovars cipher",c->cvars.cipher,c->cvars.cipher_len,indent);
         esni_pbuf(out,"ESNI Cryptovars tag",c->cvars.tag,c->cvars.tag_len,indent);
