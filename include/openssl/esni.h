@@ -200,6 +200,7 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys,
 				unsigned char *client_keyshare,
                 CLIENT_ESNI **the_esni);
 int SSL_esni_enable(SSL *s, const char *hidden, const char *cover, SSL_ESNI *esni);
+int SSL_ESNI_get_esni(SSL *s, SSL_ESNI **esni);
 
 #endif
 #endif

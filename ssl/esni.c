@@ -1228,5 +1228,25 @@ int SSL_esni_enable(SSL *s, const char *hidden, const char *cover, SSL_ESNI *esn
 	return 1;
 }
 
+/*
+ * API for e.g. allowing s_client to print ESNI stuff
+ */
+void SSL_set_esni_callback(SSL *s, SSL_esni_client_cb_func f)
+{
+	s->esni_cb=f;
+}
+
+/*
+ * API for access to esnistuff
+ */
+int SSL_ESNI_get_esni(SSL *s, SSL_ESNI **esni)
+{
+	if (s==NULL || esni==NULL) {
+		return 0;
+	}
+	*esni=s->esni;
+	return 1;
+}
+
 #endif
 
