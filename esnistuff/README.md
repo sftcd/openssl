@@ -26,9 +26,18 @@ but it's obviously not yet working...
 
 # Results
 
-(Well, not a result, more state-of-play:-)
+(Well, not a result, more state-of-play, most recent 1st:-)
 
-1. With esni included:
+- Started instrumenting NSS's tls13esni.c, more as we get it...
+
+- Got NSS built and can use it's tstclnt - plan now is to dump the
+  same intermediate values 'till I get it right...
+  The [nssdoint.sh](./nssdoit.sh) script calls that as needed
+  and seems to get further than my code, as you'd expext.
+
+- Using a stale old value from DNS isn't a good plan - that
+  caused the NSS tsclnt to fail too - moved to using dig
+  each time in scripts.
 
 - www.cloudflare.com finished the handshake but no sign of an
   esni in the EE so far (actually getting no EE from the
@@ -44,27 +53,6 @@ but it's obviously not yet working...
 - cloudflare.net gives "SSL alert number 70" in response to CH
 - tls13.crypto.mozilla.org gives "SSL alert number 40" in response to CH
 - 1.1.1.1:853 finishes the handshake, probably ignoring the esni
-
-1. When esni omiteed but my build:
-
-- cloudflare.net gives "SSL alert number 70" in response to CH
-- tls13.crypto.mozilla.org finishes the handshake
-- 1.1.1.1:853 finishes the handshake
-
-1. A "clean" build right from [upstream](https://github.com/openssl/opennssl/):
-
-- cloudflare.net gives "SSL alert number 70" in response to CH
-- tls13.crypto.mozilla.org finishes the handshake
-- 1.1.1.1:853 finishes the handshake
-
-So cloudflare.net is doing something odd, it seems. And that's odd
-as it's them who say they support this. Maybe they're just reacting
-more quickly to my bad esni encoding but that doesn't explain the
-last case above.
-
-It might be near time to comment on
-[this](https://github.com/tlswg/draft-ietf-tls-esni/issues/118) issue to see if
-I can find more help.
 
 # Modifications for esni support (so far)
 
