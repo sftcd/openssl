@@ -704,7 +704,6 @@ typedef struct {
 typedef enum tlsext_index_en {
     TLSEXT_IDX_renegotiate,
     TLSEXT_IDX_server_name,
-    TLSEXT_IDX_esni,
     TLSEXT_IDX_max_fragment_length,
     TLSEXT_IDX_srp,
     TLSEXT_IDX_ec_point_formats,
@@ -727,6 +726,7 @@ typedef enum tlsext_index_en {
     TLSEXT_IDX_cryptopro_bug,
     TLSEXT_IDX_early_data,
     TLSEXT_IDX_certificate_authorities,
+    TLSEXT_IDX_esni,
     TLSEXT_IDX_padding,
     TLSEXT_IDX_psk,
     /* Dummy index - must always be the last entry */

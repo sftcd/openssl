@@ -2002,6 +2002,7 @@ EXT_RETURN tls_construct_ctos_esni(SSL *s, WPACKET *pkt, unsigned int context,
     if (s->ext.enchostname == NULL) {
         return EXT_RETURN_NOT_SENT;
 	}
+	printf("tls_construct_ctos_esni starting work!!\n");
 	
 	/*
 	 * client_random from CH
