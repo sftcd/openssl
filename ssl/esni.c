@@ -449,10 +449,10 @@ err:
 static void esni_pbuf(BIO *out,char *msg,unsigned char *buf,size_t blen,int indent)
 {
     if (buf==NULL) {
-        BIO_printf(out,"%s is NULL",msg);
+        BIO_printf(out,"OPENSSL: %s is NULL",msg);
         return;
     }
-    BIO_printf(out,"%s (%zd):\n    ",msg,blen);
+    BIO_printf(out,"OPENSSL: %s (%zd):\n    ",msg,blen);
     int i;
     for (i=0;i!=blen;i++) {
         if ((i!=0) && (i%16==0))
