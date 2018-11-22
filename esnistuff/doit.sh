@@ -12,7 +12,8 @@
 
 
 # this is one I downloaded manually via dig +short TXT _esni.www.cloudflare.com on 20181121
-ESNI="/wEU528gACQAHQAguwSAYz57kzOUzDXCAZ7aBJLWPrQwvSuNsRZbi7JzqkYAAhMBAQQAAAAAW/E4IAAAAABb+SEgAAA="
+#ESNI="/wEU528gACQAHQAguwSAYz57kzOUzDXCAZ7aBJLWPrQwvSuNsRZbi7JzqkYAAhMBAQQAAAAAW/E4IAAAAABb+SEgAAA="
+ESNI=`dig +short txt _esni.www.cloudflare.com | sed -e 's/"//g'`
 HIDDEN="www.cloudflare.com"
 COVER="www.cloudflare.com"
 

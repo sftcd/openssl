@@ -6,19 +6,18 @@
 TOP=$HOME/code/openssl
 export LD_LIBRARY_PATH=$TOP
 
-# this is one I downloaded manually via dig +short TXT _esni.encryptedsni.com around 20181110 (ish)
 #ESNI="/wHHBBOoACQAHQAg4YSfjSyJPNr1z3F8KqzBNBnMejim0mJZaPmria3XsicAAhMBAQQAAAAAW9pQEAAAAABb4jkQAAA="
 #HIDDEN="encryptedsni.com"
 #COVER="www.cloudflare.com"
 
-# this is one I downloaded manually via dig +short TXT _esni.www.cloudflare.com on 20181121
-ESNI="/wEU528gACQAHQAguwSAYz57kzOUzDXCAZ7aBJLWPrQwvSuNsRZbi7JzqkYAAhMBAQQAAAAAW/E4IAAAAABb+SEgAAA="
+# Seems like the ESNI value is rotated often
+ESNI=`dig +short txt _esni.www.cloudflare.com | sed -e 's/"//g'`
 HIDDEN="www.cloudflare.com"
 COVER="www.cloudflare.com"
 
 # variables/settings
 VG="no"
-FRESH="no"
+STALE="no"
 NOESNI="no"
 DEBUG="no"
 PORT="443"
@@ -41,7 +40,7 @@ function usage()
     echo "  -h means print this"
     echo "  -d means run s_client in verbose mode"
     echo "  -v means run with valgrind"
-    echo "  -f means first get fresh ESNIKeys from DNS (via dig)"
+    echo "  -l means use stale ESNIKeys"
     echo "  -n means don't trigger esni at all"
     echo "  -s [name] specifices a servername ('NONE' is special)"
     echo "  -p [port] specifices a port (default: 442)"
@@ -49,7 +48,7 @@ function usage()
 }
 
 # options may be followed by one colon to indicate they have a required argument
-if ! options=$(/usr/bin/getopt -s bash -o p:s:dfvnh -l port:,servername:,debug,fresh,valgrind,noesni,help -- "$@")
+if ! options=$(/usr/bin/getopt -s bash -o p:s:dfvnh -l port:,servername:,debug,stale,valgrind,noesni,help -- "$@")
 then
     # something went wrong, getopt will put out an error message for us
     exit 1
@@ -61,7 +60,7 @@ do
     case "$1" in
         -h|--help) usage;;
         -d|--debug) DEBUG="yes" ;;
-        -f|--fresh) FRESH="yes" ;;
+        -l|--stale) STALE="yes" ;;
         -v|--valgrind) VG="yes" ;;
         -n|--noesni) NOESNI="yes" ;;
         -s|--servername) SUPPLIEDSERVER=$2; shift;;
@@ -73,11 +72,10 @@ do
     shift
 done
 
-if [[ "$FRESH" == "yes" ]]
+if [[ "$STALE" == "yes" ]]
 then
-    echo "Checking for fresh ESNI value from $HIDDEN"
-    ESNI=`dig +short TXT _esni.$HIDDEN | sed -e 's/"//g'`    
-    echo "Fresh ESNI value: $ESNI"
+	ESNI="/wHHBBOoACQAHQAg4YSfjSyJPNr1z3F8KqzBNBnMejim0mJZaPmria3XsicAAhMBAQQAAAAAW9pQEAAAAABb4jkQAAA="
+    echo "Using stale ESNI value: $ESNI" 
 fi    
 
 esnistr="-esni $HIDDEN -esnirr $ESNI "
