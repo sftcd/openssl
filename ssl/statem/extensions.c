@@ -369,7 +369,6 @@ static const EXTENSION_DEFINITION ext_defs[] = {
         tls_construct_stoc_early_data, tls_construct_ctos_early_data,
         final_early_data
     },
-
 #ifndef OPENSSL_NO_ESNI
 	/* 
 	 * Must be in this list after key_share as that input is needed for ESNI
