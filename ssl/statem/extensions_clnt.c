@@ -1994,7 +1994,6 @@ int tls_parse_stoc_psk(SSL *s, PACKET *pkt, unsigned int context, X509 *x,
 EXT_RETURN tls_construct_ctos_esni(SSL *s, WPACKET *pkt, unsigned int context,
                                    X509 *x, size_t chainidx)
 {
-	printf("tls_construct_ctos_esni called!!\n");
     if (s->session->ssl_version != TLS1_3_VERSION) {
         return EXT_RETURN_NOT_SENT;
 	}
@@ -2002,7 +2001,6 @@ EXT_RETURN tls_construct_ctos_esni(SSL *s, WPACKET *pkt, unsigned int context,
     if (s->ext.enchostname == NULL) {
         return EXT_RETURN_NOT_SENT;
 	}
-	printf("tls_construct_ctos_esni starting work!!\n");
 	
 	/*
 	 * client_random from CH
@@ -2016,7 +2014,6 @@ EXT_RETURN tls_construct_ctos_esni(SSL *s, WPACKET *pkt, unsigned int context,
 	size_t ks_len=0;
 	unsigned char *ks=NULL;
     if (s->s3->tmp.pkey != NULL) {
-		printf("Yay key share *is* done before esni.\n");
     	/* Encode the public key. */
     	ks_len = EVP_PKEY_get1_tls_encodedpoint(s->s3->tmp.pkey, &ks);
     	if (ks_len == 0) {
@@ -2067,6 +2064,12 @@ EXT_RETURN tls_construct_ctos_esni(SSL *s, WPACKET *pkt, unsigned int context,
                  ERR_R_INTERNAL_ERROR);
         return EXT_RETURN_FAIL;
     }
+	if (s->esni_cb != NULL) {
+		unsigned int cbrv=s->esni_cb(s);
+		if (cbrv != 1) {
+        	return EXT_RETURN_FAIL;
+		}
+	}
 
 	return EXT_RETURN_SENT;
 }

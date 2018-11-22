@@ -1383,6 +1383,7 @@ struct ssl_st {
 #ifndef OPENSSL_NO_ESNI
     int esni_done;
 	SSL_ESNI *esni;
+    SSL_esni_client_cb_func esni_cb;
 #endif
 # ifndef OPENSSL_NO_CT
     /*
