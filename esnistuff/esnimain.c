@@ -111,13 +111,9 @@ int main(int argc, char **argv)
 	/*
 	 * fake client keyshare
 	 */
-	size_t ckl=36;
-	unsigned char ck[36];
-	ck[0]=0x00;
-	ck[1]=0x1d;
-	ck[2]=0x00;
-	ck[3]=0x20;
-	RAND_bytes(ck+4,32);
+	size_t ckl=32;
+	unsigned char ck[32];
+	RAND_bytes(ck,32);
 
 
 	if (argc==4) 

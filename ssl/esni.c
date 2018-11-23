@@ -521,12 +521,12 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esni)
     if (c == NULL) {
         BIO_printf(out,"ESNI client not done yet.\n");
     } else {
+        BIO_printf(out,"ESNI client:\n");
         if (c->ciphersuite!=NULL) {
             BIO_printf(out,"ESNI Client Ciphersuite is %s\n",c->ciphersuite->name);
         } else {
             BIO_printf(out,"ESNI Client Ciphersuite is NULL\n");
         }
-
 
         CLIENT_ESNI_INNER *ci=&c->inner;
 
@@ -536,18 +536,17 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esni)
                             c->record_digest,c->record_digest_len,indent);
         esni_pbuf(out,"ESNI CLient encrypted_sni",
                             c->encrypted_sni,c->encrypted_sni_len,indent);
-
-
         esni_pbuf(out,"ESNI CLient ESNIContents record_digest",
                             c->econt.rd,c->econt.rd_len,indent);
         esni_pbuf(out,"ESNI CLient inner nonce",ci->nonce,ci->nonce_len,indent);
         esni_pbuf(out,"ESNI CLient inner realSNI",ci->realSNI,
                             esni->mesni->padded_length,
                             indent);
-
         esni_pbuf(out,"ESNI CLient ESNIContents client_random",
                             c->econt.cr,c->econt.cr_len,indent);
 
+        esni_pbuf(out,"ESNI CLient record_digest",
+                            c->record_digest,c->record_digest_len,indent);
         if (c->cvars.keyshare != NULL) {
             BIO_printf(out,"ESNI Cryptovars Keyshare:\n");
             rv=EVP_PKEY_print_public(out, c->cvars.keyshare, indent, NULL); 
@@ -557,12 +556,11 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esni)
         } else {
             BIO_printf(out,"ESNI Client Keyshare is NULL!\n");
         }
-        esni_pbuf(out,"ESNI Cryptovars random", c->cvars.cr,c->cvars.cr_len,indent);
-        esni_pbuf(out,"ESNI Cryptovars shared",c->cvars.shared,c->cvars.shared_len,indent);
-        esni_pbuf(out,"ESNI Cryptovars hash input",c->cvars.hi,c->cvars.hi_len,indent);
-        /* don't bother with key share - it's above already */
+        esni_pbuf(out,"ESNI Cryptovars client_random", c->cvars.cr,c->cvars.cr_len,indent);
+        esni_pbuf(out,"ESNI Cryptovars Encoded ESNIContents (hash input)",c->cvars.hi,c->cvars.hi_len,indent);
         esni_pbuf(out,"ESNI Cryptovars hash(ESNIContents)",
                             c->cvars.hash,c->cvars.hash_len,indent);
+        esni_pbuf(out,"ESNI Cryptovars Z",c->cvars.shared,c->cvars.shared_len,indent);
         esni_pbuf(out,"ESNI Cryptovars Zx",c->cvars.Zx,c->cvars.Zx_len,indent);
         esni_pbuf(out,"ESNI Cryptovars key",c->cvars.key,c->cvars.key_len,indent);
         esni_pbuf(out,"ESNI Cryptovars iv",c->cvars.iv,c->cvars.iv_len,indent);
@@ -594,7 +592,7 @@ static unsigned char *esni_pad(char *name, unsigned int padded_len)
      * encoding is 2 byte overall length, 0x00 for hostname, 2 byte length of name, name
      */
     size_t nl=OPENSSL_strnlen(name,padded_len);
-    size_t oh=5; /* encoding overhead */
+    size_t oh=3; /* encoding overhead */
     if ((nl+oh)>=padded_len) return(NULL);
     unsigned char *buf=OPENSSL_malloc(padded_len);
     memset(buf,0,padded_len);
@@ -603,7 +601,7 @@ static unsigned char *esni_pad(char *name, unsigned int padded_len)
     buf[2]=0x00;
     buf[3]=(nl/256);
     buf[4]=(nl%256);
-    memcpy(buf+oh,name,nl);
+    memcpy(buf+5,name,nl);
     return buf;
 }
 
@@ -613,8 +611,6 @@ static unsigned char *esni_pad(char *name, unsigned int padded_len)
 static int esni_contentshash(ESNIContents *e, ESNI_CRYPTO_VARS *cv, const EVP_MD *md)
 {
     EVP_MD_CTX *mctx = NULL;
-    // TODO: check if my idea of encoding is correct
-    //size_t oh=2+2+2;
     size_t oh=2;
     cv->hi_len=oh+e->rd_len+e->kse_len+e->cr_len;
     cv->hi=OPENSSL_zalloc(cv->hi_len);
@@ -627,12 +623,8 @@ static int esni_contentshash(ESNIContents *e, ESNI_CRYPTO_VARS *cv, const EVP_MD
     *hip++=e->rd_len%256;
     memcpy(hip,e->rd,e->rd_len); 
     hip+=e->rd_len;
-    //*hip++=e->kse_len/256;
-    //*hip++=e->kse_len%256;
     memcpy(hip,e->kse,e->kse_len); 
     hip+=e->kse_len;
-    //*hip++=e->cr_len/256;
-    //*hip++=e->cr_len%256;
     memcpy(hip,e->cr,e->cr_len); 
     hip+=e->cr_len;
     cv->hi_len=hip-cv->hi;
@@ -847,8 +839,22 @@ static int esni_make_rd(ESNI_RECORD *er,ESNIContents *ec)
         ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
     }
+	/*
+	 * It seems that NSS uses the entire buffer, incl. the version, let's try
+	 * that. (Opened issue: https://github.com/tlswg/draft-ietf-tls-esni/issues/119)
+	 * Oddly - the ISSUE119YES branch seems to work worse!
+	 * That may be because CF handle the errors differently I guess.
+	 * TODO: find answer!
+	 */
+#define ISSUE119YES
+#ifdef ISSUE119NO
     unsigned char *hip=er->encoded+2;
     size_t hi_len=er->encoded_len-2;
+#endif
+#ifdef ISSUE119YES
+    unsigned char *hip=er->encoded;
+    size_t hi_len=er->encoded_len;
+#endif
 
     EVP_MD_CTX *mctx = NULL;
     mctx = EVP_MD_CTX_new();
@@ -1096,14 +1102,17 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys,
         goto err;
     }
 
-    cv->key_len=32;
+	/* 
+	 * TODO: use proper API to derive key and IV lengths from suite
+	 */
+    cv->key_len=16;
     cv->key=esni_hkdf_expand_label(cv->Zx,cv->Zx_len,"esni key",
                     cv->hash,cv->hash_len,&cv->key_len,md);
     if (cv->key==NULL) {
         ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
     }
-    cv->iv_len=32;
+    cv->iv_len=12;
     cv->iv=esni_hkdf_expand_label(cv->Zx,cv->Zx_len,"esni iv",
                     cv->hash,cv->hash_len,&cv->iv_len,md);
     if (cv->iv==NULL) {
@@ -1119,7 +1128,7 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys,
     /*
      * Copy the ClientHello.KeyShareClientHello in here as aad. 
      */
-    cv->aad_len=client_keyshare_len+8;
+    cv->aad_len=client_keyshare_len+8+6;
     cv->aad=OPENSSL_zalloc(cv->aad_len); 
     if (!cv->aad) {
         ESNIerr(ESNI_F_ENC, ERR_R_MALLOC_FAILURE);
@@ -1127,9 +1136,18 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys,
     }
 	/*
 	 * The NSS code prepends 0 zero bytes to the encoded key share, so let's try that too...
+	 * And they include the length before the actual key share
+	 * Note that that initial length (0x0024 below) is not included elsewhere, sigh
+     * TODO: find a better API that does that for me.
 	 */
 	memset(cv->aad,0,8);
-    memcpy(cv->aad+8,client_keyshare,client_keyshare_len);
+    cv->aad[8]=0x00;
+    cv->aad[9]=0x24;
+    cv->aad[10]=0x00;
+    cv->aad[11]=0x1d;
+    cv->aad[12]=0x00;
+    cv->aad[13]=0x20;
+    memcpy(cv->aad+14,client_keyshare,client_keyshare_len);
 
     /*
      * Tag is in ciphertext anyway, but sure may as well keep it
