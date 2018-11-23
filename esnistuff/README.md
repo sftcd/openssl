@@ -36,6 +36,10 @@ but it's obviously not yet working...
   include the ESNI, but doesn't without or for NSS's with ESNI
   included - guess it could be that so try eliminate that 
   first.
+	- reckon wireshark thing is spurious, it likely updates
+	  the protocol field for the CH after seeing answers
+	  (tested with different filter, and NSS also shows at
+ 	  just TLSv1 if I only capture outbound packets)
 
 - Started instrumenting NSS's tls13esni.c, more as we get it...
 
