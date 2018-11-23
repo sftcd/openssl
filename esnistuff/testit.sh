@@ -120,7 +120,7 @@ fi
 httpreq="GET $HTTPPATH\\r\\n\\r\\n"
 
 # force tls13
-#force13="-cipher TLS13-AES-128-GCM-SHA256 -no_ssl3 -no_tls1 -no_tls1_1 -no_tls1_2"
-force13="-tls1_3 -cipher TLS13-AES-128-GCM-SHA256 "
+force13="-cipher TLS13-AES-128-GCM-SHA256 -no_ssl3 -no_tls1 -no_tls1_1 -no_tls1_2"
+#force13="-tls1_3 -cipher TLS13-AES-128-GCM-SHA256 "
 
-echo "$httpreq" | $vgcmd $TOP/apps/openssl s_client $dbgstr $target $esnistr $snicmd $force13
+echo "$httpreq" | $vgcmd $TOP/apps/openssl s_client $dbgstr $force13 $target $esnistr $snicmd

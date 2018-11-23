@@ -28,6 +28,15 @@ but it's obviously not yet working...
 
 (Well, not a result, more state-of-play, most recent 1st:-)
 
+- Made a bunch of changes to be more like what the instrumented
+  NSS seems to do. (Incl. issue#119); getting down to where it
+  may be the crypto/kdf that I need to check via some test
+  vector I can run through both sets of code - first though
+  wireshark is calling my CH's TLSv1 and not TLSv1.3 when I
+  include the ESNI, but doesn't without or for NSS's with ESNI
+  included - guess it could be that so try eliminate that 
+  first.
+
 - Started instrumenting NSS's tls13esni.c, more as we get it...
 
 - Got NSS built and can use it's tstclnt - plan now is to dump the
