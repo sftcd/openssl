@@ -971,10 +971,6 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys,
     }
 
 #ifdef CRYPT_INTEROP
-	/*
-	 * use an (ascii hex) private value is from nss.ssl.debug, to check if I get the same Z,Zx etc.
-	 */
-#define AH2B(x) ((x>='a' && x<='f') ? (10+x-'a'): (x-'0') )
 
 	if (esnikeys->private_str==NULL) {
         ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);

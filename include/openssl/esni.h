@@ -22,8 +22,14 @@
  * TODO: use this to protect the cryptovars are only needed for tracing
  */
 #define CRYPT_INTEROP
-	
-	
+
+#ifdef CRYPT_INTEROP
+	/*
+	 * use an (ascii hex) private value is from nss.ssl.debug, to check if I get the same Z,Zx etc.
+	 */
+#define AH2B(x) ((x>='a' && x<='f') ? (10+x-'a'): (x-'0') )
+#endif
+
 /* 
  * From the -02 I-D, what we find in DNS:
  *     struct {

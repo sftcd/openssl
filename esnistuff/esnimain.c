@@ -112,17 +112,37 @@ int main(int argc, char **argv)
     /* 
      * fake client random
      */
+	if (client_random_str!=NULL && strlen(client_random_str) != 64 ) {
+        printf("Weird client_random length - exiting\n");
+        exit(1);
+	}
     size_t cr_len=SSL3_RANDOM_SIZE;
     unsigned char client_random[SSL3_RANDOM_SIZE];
-    RAND_bytes(client_random,cr_len);
+	if (client_random_str==NULL) {
+    	RAND_bytes(client_random,cr_len);
+	} else {
+		for (int i=0;i!=32;i++) {
+			client_random[i]=AH2B(client_random_str[2*i])*16+AH2B(client_random_str[(2*i)+1]);
+		}
+	}
 
     /*
      * fake client keyshare
      */
+	if (hs_key_share_str!=NULL && strlen(hs_key_share_str) != 64 ) {
+        printf("Weird hs_key_share length - exiting\n");
+        exit(1);
+	}
     size_t ckl=32;
     unsigned char ck[32];
-    //RAND_bytes(ck,32);
-    memset(ck,0xA5,32);
+	if (hs_key_share_str==NULL) {
+    	RAND_bytes(ck,32);
+    	memset(ck,0xA5,32);
+	} else {
+		for (int i=0;i!=32;i++) {
+			ck[i]=AH2B(hs_key_share_str[2*i])*16+AH2B(hs_key_share_str[(2*i)+1]);
+		}
+	}
 
 
     if (!(rv=esni_checknames(encservername,frontname))) {
