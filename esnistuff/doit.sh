@@ -21,13 +21,13 @@ COVER="www.cloudflare.com"
 # good until CF change they public key share
 
 # ASCII Hex of 1st private key in nss.ssl.debug, eliminate spaces etc.
-PRIV="73930029baeb928438fd65cdf0722c681f6c917d630e30ffa231679cf868dd2f"
+PRIV="b24dc635cdaf48b449c928e6eaa2f2d9486546a8d6c63d7854638aba14305a3d"
 
-# H/S key share
-HSKS="1c34c18543b9098efc3de3a5af7ca90caafa6baee43f87dc62576207e92d987b"
+# H/S key share - from AAD in nss.out
+HSKS="fd7db46fbe19d12bac868bbed3ccf320c25667c052400d7c885cf9425656005e"
 
 # Client_random
-CRND="348aa8e2d8745ceb91d40d47284a77436daa9b4dcd692a34938ea0ac9634383a"
+CRND="707800343affcdeda3ff0a0090eb4929e19e2efc0d68f3cc0fe97216097509b4"
 
 VG="yes"
 
