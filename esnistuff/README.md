@@ -24,9 +24,23 @@ handling.  The esni ctos (client-to-server) function is done and is called when 
 connection is attempted.  The ClientHello is then sent including that value, 
 but it's obviously not yet working...
 
+# Random notes
+
+- From NSS code: /* If we're not sending SNI, don't send ESNI. */
+  That should maybe be agreed upon, anything can work, but no harm
+  to pick one behaviour I reckon.
+
 # Results
 
 (Well, not a result, more state-of-play, most recent 1st:-)
+
+- Slow progress matching keys with NSS - finally got the NSS
+  private (exported via logging - see [nssdoit.sh](./nssdoit.sh))
+  to work when imported to OpenSSL. We now have the same 
+  key share derived on both. (Note: CF public share changes
+  often, so a new build of OpenSSL will be needed - check out
+  code protected via ``#ifdef TESTY`` in ssl/esni.c for
+  details 
 
 - Made a bunch of changes to be more like what the instrumented
   NSS seems to do. (Incl. issue#119); getting down to where it
