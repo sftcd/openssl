@@ -12,17 +12,20 @@ For now [esni.c](../ssl/esni.c) has (what I think is;-) good OPENSSL-style code
 to decode and print the content of the TXT RR as described by the -02 I-D and
 to calculate the values for the encrypted SNI CH extension.
 
-This seems to build and run ok on both 64 and 32 bit Ubuntus and not leak
-according to valgrind.
+This seems to build ok on both 64 and 32 bit Ubuntus and not leak
+according to valgrind. It's doesn't fully work yet.
 
-- [testit.sh](./testit.sh) calls tha via a modified ``openssl s_client``.. 
+- [testit.sh](./testit.sh) calls that via a locally modified ``openssl s_client``.. 
 - There's an [esnimain.c](./esnimain.c) that can be run locally that 
   just prints out the ESNI calculation values.
+- [nssdoit.sh](./nssdoit.sh) is a script for doing the same with an NSS
+  build - I made such a build and am using it help me develop my code
 
-In terms of integrating with openssl, I've added stubs for the statem extension 
-handling.  The esni ctos (client-to-server) function is done and is called when a
+In terms of integrating with openssl, I've added most of the client-side
+code, but nothing on the server-side yet.
+The esni ctos (client-to-server) function is done and is called when a
 connection is attempted.  The ClientHello is then sent including that value, 
-but it's obviously not yet working...
+but it's still to fully work out...
 
 # Random notes
 
@@ -30,9 +33,9 @@ but it's obviously not yet working...
   That should maybe be agreed upon, anything can work, but no harm
   to pick one behaviour I reckon.
 
-# Results
+# State-of-play...
 
-(Well, not a result, more state-of-play, most recent 1st:-)
+Most recent first...
 
 - Slow progress matching keys with NSS - finally got the NSS
   private (exported via logging - see [nssdoit.sh](./nssdoit.sh))
