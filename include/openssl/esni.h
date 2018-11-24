@@ -15,6 +15,15 @@
 # include <openssl/ssl.h>
 
 
+/*
+ * If defined, this provides enough API, internals and tracing so we can 
+ * ensure/check we're generating keys the same way as other code, in 
+ * partocular the existing NSS code
+ * TODO: use this to protect the cryptovars are only needed for tracing
+ */
+#define CRYPT_INTEROP
+	
+	
 /* 
  * From the -02 I-D, what we find in DNS:
  *     struct {
@@ -180,6 +189,9 @@ typedef struct ssl_esni_st {
     const char *frontname;
     uint64_t ttl;
     uint64_t lastread;
+#ifdef CRYPT_INTEROP
+	char *private_str; /* for debug purposes, requires special build */
+#endif
 } SSL_ESNI;
 
 /*
@@ -201,6 +213,9 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys,
                 CLIENT_ESNI **the_esni);
 int SSL_esni_enable(SSL *s, const char *hidden, const char *cover, SSL_ESNI *esni);
 int SSL_ESNI_get_esni(SSL *s, SSL_ESNI **esni);
+#ifdef CRYPT_INTEROP
+int SSL_ESNI_set_private(SSL_ESNI *esni, char *private_str);
+#endif
 
 #endif
 #endif
