@@ -28,47 +28,6 @@
  */
 #define TESTMAIN
 
-#ifdef OPENSSL_ESNI_LIB
-
-/*
- * This is code gettting ready for inclusion in the s_client binary and
- * libraries. We're nearly there:-)
- */
-
-/*
- * destination: statem/extensions_clnt.c
- */
-EXT_RETURN tls_construct_ctos_encrypted_server_name(SSL *s, WPACKET *pkt,
-                                          unsigned int context, X509 *x,
-                                          size_t chainidx)
-{
-	size_t len;
-	/*
-	 * TODO: if sending this zap SNI, either to NULL or to a front server name if we have one
-	 */
-    if (s->ext.hostname != NULL)
-        return EXT_RETURN_NOT_SENT;
-	/*
-	 * TODO: add esni stuff to SSL structure, assume for now calculations are done
-	 */
-	CLIENT_ESNI *c=s->cesni;
-    /* Add TLS extension encrypted_server_name to the Client Hello message */
-    if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_esni)
-			|| !s->method->put_cipher_by_char(c->ciphersuite, pkt, &len)
-            || !WPACKET_sub_memcpy_u16(pkt, c->encoded_keyshare, c->encoded_keyshare_len)
-            || !WPACKET_sub_memcpy_u16(pkt, c->record_digest, c->record_digest_len)
-            || !WPACKET_sub_memcpy_u16(pkt, c->encrypted_sni, c->encrypted_sni_len)
-            || !WPACKET_put_bytes_u8(pkt, TLSEXT_NAMETYPE_host_name)
-            || !WPACKET_close(pkt)) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ENCRYPTED_SERVER_NAME,
-                 ERR_R_INTERNAL_ERROR);
-        return EXT_RETURN_FAIL;
-    }
-    return EXT_RETURN_SENT;
-}
-
-#endif
-
 #ifdef TESTMAIN
 // code within here need not be openssl-style, but we'll migrate there:-)
 int main(int argc, char **argv)
@@ -113,7 +72,8 @@ int main(int argc, char **argv)
 	 */
 	size_t ckl=32;
 	unsigned char ck[32];
-	RAND_bytes(ck,32);
+	//RAND_bytes(ck,32);
+	memset(ck,0xA5,32);
 
 
 	if (argc==4) 

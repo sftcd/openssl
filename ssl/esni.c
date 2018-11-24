@@ -446,6 +446,9 @@ err:
     return(NULL);
 }
 
+/*
+ * print a buffer nicely
+ */
 static void esni_pbuf(BIO *out,char *msg,unsigned char *buf,size_t blen,int indent)
 {
     if (buf==NULL) {
@@ -460,6 +463,26 @@ static void esni_pbuf(BIO *out,char *msg,unsigned char *buf,size_t blen,int inde
         BIO_printf(out,"%02x:",buf[i]);
     }
     BIO_printf(out,"\n");
+    return;
+}
+
+/*
+ * stdout version of the above - just for odd/occasional debugging
+ */
+static void so_esni_pbuf(char *msg,unsigned char *buf,size_t blen,int indent)
+{
+    if (buf==NULL) {
+        printf("OPENSSL: %s is NULL",msg);
+        return;
+    }
+    printf("OPENSSL: %s (%zd):\n    ",msg,blen);
+    int i;
+    for (i=0;i!=blen;i++) {
+        if ((i!=0) && (i%16==0))
+            printf("\n    ");
+        printf("%02x:",buf[i]);
+    }
+    printf("\n");
     return;
 }
 
@@ -529,6 +552,7 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esni)
         }
 
         CLIENT_ESNI_INNER *ci=&c->inner;
+
 
         esni_pbuf(out,"ESNI Client keyshare",
                             c->encoded_keyshare,c->encoded_keyshare_len,indent);
@@ -890,7 +914,7 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys,
                 CLIENT_ESNI **the_esni)
 {
 
-    EVP_PKEY *skey = NULL;
+    EVP_PKEY *skey = NULL; /* server public key */
     int ret = 0;
     EVP_PKEY_CTX *pctx=NULL;
     CLIENT_ESNI *cesni=NULL;
@@ -959,19 +983,58 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys,
         goto err;
     }
 
+#define TESTY
+	
+#ifdef TESTY
+	/*
+	 * use an (ascii hex) private value is from nss.ssl.debug, to check if I get the same Z,Zx etc.
+	 */
+#define AH2B(x) ((x>='a' && x<='f') ? (10+x-'a'): (x-'0') )
+
+	//one of these for each NSS run...
+	//const char *NSSAHPRIVATE="9d8ada038afe57fc60a9a7e80d3f3cd70936e683f9798100696d0bebe6f65bb4";
+	//const char *NSSAHPRIVATE="66ef7bc2da43fda66106c941dffb57acf14a55200cde72d0658cd25fac400547";
+	const char *NSSAHPRIVATE="d69b5bc018aaa47ef370b8e169213a705833ee21fe68ebabf08da0f5acb15b54";
+
+	unsigned char binpriv[64];
+	size_t bp_len=32;
+	for (int i=0;i!=32;i++) {
+		binpriv[i]=AH2B(NSSAHPRIVATE[2*i])*16+AH2B(NSSAHPRIVATE[(2*i)+1]);
+	}
+	printf("Testy private(str): %s\n",NSSAHPRIVATE);
+	so_esni_pbuf("Testy private(buf)",binpriv,bp_len,0);
+
+    // const SSL_CIPHER *tsc=cesni->ciphersuite;
+    int foo=EVP_PKEY_X25519;
+	cesni->cvars.keyshare=EVP_PKEY_new_raw_private_key(foo,NULL,binpriv,bp_len);
+    if (cesni->cvars.keyshare == NULL) {
+        ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+#else
+	// random new private
     cesni->cvars.keyshare = ssl_generate_pkey(skey);
     if (cesni->cvars.keyshare == NULL) {
         ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
     }
+#endif
 
     /*
      * code from ssl/s3_lib.c:ssl_derive
      */
-    pctx = EVP_PKEY_CTX_new(cesni->cvars.keyshare, NULL);
-    if (EVP_PKEY_derive_init(pctx) <= 0
-        || EVP_PKEY_derive_set_peer(pctx, skey) <= 0
-        || EVP_PKEY_derive(pctx, NULL, &cesni->cvars.shared_len) <= 0) {
+    pctx = EVP_PKEY_CTX_new(cesni->cvars.keyshare,NULL);
+    if (EVP_PKEY_derive_init(pctx) <= 0 ) {
+        ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+    if (EVP_PKEY_derive_set_peer(pctx, skey) <= 0 ) {
+        ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+	int rv;
+    if ((rv=EVP_PKEY_derive(pctx, NULL, &cesni->cvars.shared_len)) <= 0) {
+		printf("RV=%d\n",rv);
         ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
     }
