@@ -278,6 +278,7 @@ SSL_ESNI* SSL_ESNI_new_from_base64(const char *esnikeys)
         ESNIerr(ESNI_F_NEW_FROM_BASE64, ERR_R_MALLOC_FAILURE);
         goto err;
     }
+	memset(newesni,0,sizeof(SSL_ESNI));
 
     /* sanity check: version + checksum + KeyShareEntry have to be there - min len >= 10 */
     if (declen < 10) {
@@ -560,8 +561,6 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esni)
                             c->record_digest,c->record_digest_len,indent);
         esni_pbuf(out,"ESNI CLient encrypted_sni",
                             c->encrypted_sni,c->encrypted_sni_len,indent);
-        esni_pbuf(out,"ESNI CLient ESNIContents record_digest",
-                            c->econt.rd,c->econt.rd_len,indent);
         esni_pbuf(out,"ESNI CLient inner nonce",ci->nonce,ci->nonce_len,indent);
         esni_pbuf(out,"ESNI CLient inner realSNI",ci->realSNI,
                             esni->mesni->padded_length,
@@ -569,18 +568,6 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esni)
         esni_pbuf(out,"ESNI CLient ESNIContents client_random",
                             c->econt.cr,c->econt.cr_len,indent);
 
-        esni_pbuf(out,"ESNI CLient record_digest",
-                            c->record_digest,c->record_digest_len,indent);
-        if (c->cvars.keyshare != NULL) {
-            BIO_printf(out,"ESNI Cryptovars Keyshare:\n");
-            rv=EVP_PKEY_print_public(out, c->cvars.keyshare, indent, NULL); 
-            if (!rv) {
-                BIO_printf(out,"Oops: %d\n",rv);
-            }
-        } else {
-            BIO_printf(out,"ESNI Client Keyshare is NULL!\n");
-        }
-        esni_pbuf(out,"ESNI Cryptovars client_random", c->cvars.cr,c->cvars.cr_len,indent);
         esni_pbuf(out,"ESNI Cryptovars Encoded ESNIContents (hash input)",c->cvars.hi,c->cvars.hi_len,indent);
         esni_pbuf(out,"ESNI Cryptovars hash(ESNIContents)",
                             c->cvars.hash,c->cvars.hash_len,indent);
@@ -983,26 +970,23 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys,
         goto err;
     }
 
-#define TESTY
-	
-#ifdef TESTY
+#ifdef CRYPT_INTEROP
 	/*
 	 * use an (ascii hex) private value is from nss.ssl.debug, to check if I get the same Z,Zx etc.
 	 */
 #define AH2B(x) ((x>='a' && x<='f') ? (10+x-'a'): (x-'0') )
 
-	//one of these for each NSS run...
-	//const char *NSSAHPRIVATE="9d8ada038afe57fc60a9a7e80d3f3cd70936e683f9798100696d0bebe6f65bb4";
-	//const char *NSSAHPRIVATE="66ef7bc2da43fda66106c941dffb57acf14a55200cde72d0658cd25fac400547";
-	const char *NSSAHPRIVATE="d69b5bc018aaa47ef370b8e169213a705833ee21fe68ebabf08da0f5acb15b54";
+	if (esnikeys->private_str==NULL) {
+        ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
+        goto err;
+	}
 
 	unsigned char binpriv[64];
 	size_t bp_len=32;
 	for (int i=0;i!=32;i++) {
-		binpriv[i]=AH2B(NSSAHPRIVATE[2*i])*16+AH2B(NSSAHPRIVATE[(2*i)+1]);
+		binpriv[i]=AH2B(esnikeys->private_str[2*i])*16+AH2B(esnikeys->private_str[(2*i)+1]);
 	}
-	printf("Testy private(str): %s\n",NSSAHPRIVATE);
-	so_esni_pbuf("Testy private(buf)",binpriv,bp_len,0);
+	so_esni_pbuf("CRYPTO_INTEROP  private",binpriv,bp_len,0);
 
     // const SSL_CIPHER *tsc=cesni->ciphersuite;
     int foo=EVP_PKEY_X25519;
@@ -1327,6 +1311,14 @@ int SSL_ESNI_get_esni(SSL *s, SSL_ESNI **esni)
     }
     *esni=s->esni;
     return 1;
+}
+
+int SSL_ESNI_set_private(SSL_ESNI *esni, char *private)
+{
+#ifdef CRYPT_INTEROP
+	esni->private_str=private;
+#endif
+	return 1;
 }
 
 #endif

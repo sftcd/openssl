@@ -3,7 +3,7 @@
 LDIR=/home/stephen/code/dist/Debug/
 RDIR=/home/stephen/code/openssl/esnistuff
 
-ESNI=`dig +short txt _esni.www.cloudflare.com`
+ESNI=`dig +short txt _esni.www.cloudflare.com | sed -e 's/"//g'`
 
 export LD_LIBRARY_PATH=$LDIR/lib
 export SSLKEYLOGFILE=$RDIR/nss.premaster.txt

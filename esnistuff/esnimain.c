@@ -21,6 +21,8 @@
 #include <openssl/kdf.h>
 #include <openssl/esni.h>
 #include <openssl/esnierr.h>
+// for getopt()
+#include <getopt.h>
 
 
 /*
@@ -29,98 +31,140 @@
 #define TESTMAIN
 
 #ifdef TESTMAIN
+
+void usage(char *prog) 
+{
+    /*
+     * TODO: moar text
+     */
+    printf("%s -e ESNI [-p priv] [-r client_random] [-s encservername] [-f frontname] [-k h/s key_share] \n",prog);
+    exit(1);
+}
+
 // code within here need not be openssl-style, but we'll migrate there:-)
 int main(int argc, char **argv)
 {
-	int rv;
-	// s_client gets stuff otherwise but for now...
-	// usage: esni frontname esniname
-	if (argc!=3 && argc!=4) {
-		printf("usage: esni frontname esniname [esnikeys]\n");
-		exit(1);
+    // default for names
+    const char *defname="www.cloudflare.com";
+    char *encservername=NULL; // the one we'll encrypt
+    char *frontname=NULL; // the one we'll (optionally) leave visible 
+    char *esni_str=NULL; // esni b64 string from DNS
+    // for debugging purposes
+    char *private_str=NULL; // input ECDH private
+    char *client_random_str=NULL;
+    char *hs_key_share_str=NULL;
+    int rv;
+    // s_client gets stuff otherwise but for now...
+    // usage: esni frontname esniname
+
+    // getopt vars
+    int opt;
+    
+    // check inputs with getopt
+    while((opt = getopt(argc, argv, "?hs:e:p:r:k:f:")) != -1) {
+        switch(opt) {
+            case 'h':
+            case '?':
+                usage(argv[0]);
+                break;
+            case 'r':
+                client_random_str=optarg;
+                break;
+            case 'p':
+                private_str=optarg;
+                break;
+            case 'e':
+                esni_str=optarg;
+                break;
+            case 'k':
+                hs_key_share_str=optarg;
+                break;
+            case 's':
+                encservername=optarg;
+                break;
+            case 'f':
+                frontname=optarg;
+                break;
+            default:
+                fprintf(stderr, "Error - No such option: `%c'\n\n", optopt);
+                usage(argv[0]);
+        }
+    }
+    
+    if (!ERR_load_ESNI_strings()) {
+        printf("Can't init error strings - exiting\n");
+        exit(1);
+    }
+    // init ciphers
+    if (!ssl_load_ciphers()) {
+        printf("Can't init ciphers - exiting\n");
+        exit(1);
+    }
+    if (!RAND_set_rand_method(NULL)) {
+        printf("Can't init (P)RNG - exiting\n");
+        exit(1);
+    }
+
+    FILE *fp=NULL;
+    BIO *out=NULL;
+    SSL_ESNI *esnikeys=NULL;
+    CLIENT_ESNI *the_esni=NULL;
+    /* 
+     * fake client random
+     */
+    size_t cr_len=SSL3_RANDOM_SIZE;
+    unsigned char client_random[SSL3_RANDOM_SIZE];
+    RAND_bytes(client_random,cr_len);
+
+    /*
+     * fake client keyshare
+     */
+    size_t ckl=32;
+    unsigned char ck[32];
+    //RAND_bytes(ck,32);
+    memset(ck,0xA5,32);
+
+
+    if (!(rv=esni_checknames(encservername,frontname))) {
+        printf("Bad names! %d\n",rv);
+        goto end;
+    }
+
+    esnikeys=SSL_ESNI_new_from_base64(esni_str);
+    if (esnikeys == NULL) {
+        printf("Can't create SSL_ESNI from b64!\n");
+        goto end;
+    }
+
+	if (private_str!=NULL) {
+		SSL_ESNI_set_private(esnikeys,private_str);
 	}
-	if (!ERR_load_ESNI_strings()) {
-		printf("Can't init error strings - exiting\n");
-		exit(1);
-	}
-	// init ciphers
-	if (!ssl_load_ciphers()) {
-		printf("Can't init ciphers - exiting\n");
-		exit(1);
-	}
-	if (!RAND_set_rand_method(NULL)) {
-		printf("Can't init (P)RNG - exiting\n");
-		exit(1);
-	}
-	char *encservername=OPENSSL_strdup(argv[1]);
-	char *frontname=OPENSSL_strdup(argv[2]);
-	char *esnikeys_b64=NULL;
-	char *deffront="cloudflare.net";
-	FILE *fp=NULL;
-	BIO *out=NULL;
-	SSL_ESNI *esnikeys=NULL;
-	CLIENT_ESNI *the_esni=NULL;
-	/* 
-	 * fake client random
-	 */
-	size_t cr_len=SSL3_RANDOM_SIZE;
-	unsigned char client_random[SSL3_RANDOM_SIZE];
-	RAND_bytes(client_random,cr_len);
 
-	/*
-	 * fake client keyshare
-	 */
-	size_t ckl=32;
-	unsigned char ck[32];
-	//RAND_bytes(ck,32);
-	memset(ck,0xA5,32);
+    fp=fopen("/dev/stdout","w");
+    if (fp==NULL)
+        goto end;
 
+    out=BIO_new_fp(fp,BIO_CLOSE|BIO_FP_TEXT);
+    if (out == NULL)
+        goto end;
 
-	if (argc==4) 
-		esnikeys_b64=OPENSSL_strdup(argv[3]);
-	else
-		esnikeys_b64=deffront;
+    if (!SSL_ESNI_enc(esnikeys,encservername,frontname,cr_len,client_random,ckl,ck,&the_esni)) {
+        printf("Can't encrypt SSL_ESNI!\n");
+        goto end;
+    }
 
-	if (!(rv=esni_checknames(encservername,frontname))) {
-		printf("Bad names! %d\n",rv);
-		goto end;
-	}
-
-	esnikeys=SSL_ESNI_new_from_base64(esnikeys_b64);
-	if (esnikeys == NULL) {
-		printf("Can't create SSL_ESNI from b64!\n");
-		goto end;
-	}
-
-	fp=fopen("/dev/stdout","w");
-	if (fp==NULL)
-		goto end;
-
-	out=BIO_new_fp(fp,BIO_CLOSE|BIO_FP_TEXT);
-	if (out == NULL)
-		goto end;
-
-	if (!SSL_ESNI_enc(esnikeys,encservername,frontname,cr_len,client_random,ckl,ck,&the_esni)) {
-		printf("Can't encrypt SSL_ESNI!\n");
-		goto end;
-	}
-
-	if (!SSL_ESNI_print(out,esnikeys)) {
-		printf("Can't print SSL_ESNI!\n");
-		goto end;
-	}
+    if (!SSL_ESNI_print(out,esnikeys)) {
+        printf("Can't print SSL_ESNI!\n");
+        goto end;
+    }
 
 end:
-	BIO_free_all(out);
-	OPENSSL_free(encservername);
-	OPENSSL_free(frontname);
-	if (argc==4) 
-		OPENSSL_free(esnikeys_b64);
-	if (esnikeys!=NULL) {
-		SSL_ESNI_free(esnikeys);
-		OPENSSL_free(esnikeys);
-	}
-	return(0);
+    BIO_free_all(out);
+    if (esnikeys!=NULL) {
+        SSL_ESNI_free(esnikeys);
+        OPENSSL_free(esnikeys);
+    }
+    return(0);
 }
 #endif
 
