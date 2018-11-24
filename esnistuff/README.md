@@ -37,6 +37,11 @@ but it's still to fully work out...
 
 Most recent first...
 
+- Feeding same private, h/s key share and client_random and ESNIKeys
+  values to both NSS and OpenSSL, I get the same public, Z and Zx
+  and hashes and AAD. But I end up with different symm K and IV.
+  Still... progress!
+
 - Slow progress matching keys with NSS - finally got the NSS
   private (exported via logging - see [nssdoit.sh](./nssdoit.sh))
   to work when imported to OpenSSL. We now have the same 
