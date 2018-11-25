@@ -37,7 +37,7 @@ void usage(char *prog)
     /*
      * TODO: moar text
      */
-    printf("%s -e ESNI [-p priv] [-r client_random] [-s encservername] [-f frontname] [-k h/s key_share] \n",prog);
+    printf("%s -e ESNI [-p priv] [-r client_random] [-s encservername] [-f frontname] [-k h/s key_share] [-n nonce]\n",prog);
     exit(1);
 }
 
@@ -53,15 +53,15 @@ int main(int argc, char **argv)
     char *private_str=NULL; // input ECDH private
     char *client_random_str=NULL;
     char *hs_key_share_str=NULL;
+	char *nonce_str=NULL;
     int rv;
-    // s_client gets stuff otherwise but for now...
-    // usage: esni frontname esniname
+	unsigned char *nbuf=NULL;
 
     // getopt vars
     int opt;
     
     // check inputs with getopt
-    while((opt = getopt(argc, argv, "?hs:e:p:r:k:f:")) != -1) {
+    while((opt = getopt(argc, argv, "?hs:e:p:r:k:f:n:")) != -1) {
         switch(opt) {
             case 'h':
             case '?':
@@ -81,6 +81,9 @@ int main(int argc, char **argv)
                 break;
             case 's':
                 encservername=optarg;
+                break;
+            case 'n':
+                nonce_str=optarg;
                 break;
             case 'f':
                 frontname=optarg;
@@ -118,6 +121,7 @@ int main(int argc, char **argv)
 	}
     size_t cr_len=SSL3_RANDOM_SIZE;
     unsigned char client_random[SSL3_RANDOM_SIZE];
+#ifdef CRYPT_INTEROP
 	if (client_random_str==NULL) {
     	RAND_bytes(client_random,cr_len);
 	} else {
@@ -125,6 +129,9 @@ int main(int argc, char **argv)
 			client_random[i]=AH2B(client_random_str[2*i])*16+AH2B(client_random_str[(2*i)+1]);
 		}
 	}
+#else
+	RAND_bytes(client_random,cr_len);
+#endif
 
     /*
      * fake client keyshare
@@ -135,14 +142,18 @@ int main(int argc, char **argv)
 	}
     size_t ckl=32;
     unsigned char ck[32];
+#ifdef CRYPT_INTEROP
 	if (hs_key_share_str==NULL) {
-    	RAND_bytes(ck,32);
+    	// RAND_bytes(ck,32);
     	memset(ck,0xA5,32);
 	} else {
 		for (int i=0;i!=32;i++) {
 			ck[i]=AH2B(hs_key_share_str[2*i])*16+AH2B(hs_key_share_str[(2*i)+1]);
 		}
 	}
+#else
+    memset(ck,0xA5,32);
+#endif
 
 
     if (!(rv=esni_checknames(encservername,frontname))) {
@@ -156,9 +167,22 @@ int main(int argc, char **argv)
         goto end;
     }
 
+#ifdef CRYPT_INTEROP
 	if (private_str!=NULL) {
 		SSL_ESNI_set_private(esnikeys,private_str);
 	}
+	if (nonce_str!=NULL) {
+		nbuf=OPENSSL_malloc(strlen(nonce_str)/2+1);
+		if (nbuf==NULL) {
+			goto end;
+		}
+		size_t nlen=strlen(nonce_str)/2;
+		for (int i=0;i!=nlen;i++) {
+			nbuf[i]=AH2B(nonce_str[2*i])*16+AH2B(nonce_str[(2*i)+1]);
+		}
+		SSL_ESNI_set_nonce(esnikeys,nbuf,nlen);
+	}
+#endif
 
     fp=fopen("/dev/stdout","w");
     if (fp==NULL)
@@ -184,6 +208,7 @@ end:
         SSL_ESNI_free(esnikeys);
         OPENSSL_free(esnikeys);
     }
+	OPENSSL_free(nbuf);
     return(0);
 }
 #endif
