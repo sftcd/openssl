@@ -1213,27 +1213,21 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys,
 
     /*
      * Copy the ClientHello.KeyShareClientHello in here as aad. 
+     * TODO: find a better API that does that for me.
      */
-    cv->aad_len=client_keyshare_len+8+6;
+    cv->aad_len=client_keyshare_len+6;
     cv->aad=OPENSSL_zalloc(cv->aad_len); 
     if (!cv->aad) {
         ESNIerr(ESNI_F_ENC, ERR_R_MALLOC_FAILURE);
         goto err;
     }
-    /*
-     * The NSS code prepends 0 zero bytes to the encoded key share, so let's try that too...
-     * And they include the length before the actual key share
-     * Note that that initial length (0x0024 below) is not included elsewhere, sigh
-     * TODO: find a better API that does that for me.
-     */
-    memset(cv->aad,0,8);
-    cv->aad[8]=0x00;
-    cv->aad[9]=0x24;
-    cv->aad[10]=0x00;
-    cv->aad[11]=0x1d;
-    cv->aad[12]=0x00;
-    cv->aad[13]=0x20;
-    memcpy(cv->aad+14,client_keyshare,client_keyshare_len);
+    cv->aad[0]=0x00;
+    cv->aad[1]=0x24;
+    cv->aad[2]=0x00;
+    cv->aad[3]=0x1d;
+    cv->aad[4]=0x00;
+    cv->aad[5]=0x20;
+    memcpy(cv->aad+6,client_keyshare,client_keyshare_len);
 
     /*
      * Tag is in ciphertext anyway, but sure may as well keep it
