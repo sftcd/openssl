@@ -29,6 +29,14 @@
 #ifndef OPENSSL_NO_ESNI
 
 /*
+ * Purely debug
+ */
+#ifdef CRYPT_INTEROP
+unsigned char *lg_nonce=NULL;
+size_t lg_nonce_len=0;
+#endif
+
+/*
  * Utility functions
  */
 
@@ -278,7 +286,7 @@ SSL_ESNI* SSL_ESNI_new_from_base64(const char *esnikeys)
         ESNIerr(ESNI_F_NEW_FROM_BASE64, ERR_R_MALLOC_FAILURE);
         goto err;
     }
-	memset(newesni,0,sizeof(SSL_ESNI));
+    memset(newesni,0,sizeof(SSL_ESNI));
 
     /* sanity check: version + checksum + KeyShareEntry have to be there - min len >= 10 */
     if (declen < 10) {
@@ -467,6 +475,7 @@ static void esni_pbuf(BIO *out,char *msg,unsigned char *buf,size_t blen,int inde
     return;
 }
 
+#ifdef CRYPT_INTEROP
 /*
  * stdout version of the above - just for odd/occasional debugging
  */
@@ -486,6 +495,7 @@ static void so_esni_pbuf(char *msg,unsigned char *buf,size_t blen,int indent)
     printf("\n");
     return;
 }
+#endif
 
 /*
  * Print out the DNS RR value(s)
@@ -588,9 +598,23 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esni)
  */
 static unsigned char *esni_nonce(size_t nl)
 {
+#ifdef CRYPT_INTEROP
+    if (lg_nonce_len==0) {
+        unsigned char *ln=OPENSSL_malloc(nl);
+        RAND_bytes(ln,nl);
+        return ln;
+    } else {
+        // hope nl <= lg_nonce_len :-)
+        unsigned char *ln=OPENSSL_malloc(nl);
+        memset(ln,0,nl);
+        memcpy(ln,lg_nonce,lg_nonce_len);
+        return ln;
+    }
+#else
     unsigned char *ln=OPENSSL_malloc(nl);
     RAND_bytes(ln,nl);
     return ln;
+#endif
 }
 
 /*
@@ -707,6 +731,19 @@ static unsigned char *esni_hkdf_expand_label(
             size_t *expanded_len,
             const EVP_MD *md)
 {
+
+#ifndef NOTDEF
+    SSL s;
+    unsigned char *out=OPENSSL_malloc(32);
+    int rv=tls13_hkdf_expand(&s, md, Zx, 
+                            (const unsigned char*)label, strlen(label),
+                            hash, hash_len,
+                            out, *expanded_len);
+    if (rv!=1) {
+        return NULL;
+    }
+    return out;
+#else
     int ret=1;
     EVP_PKEY_CTX *pctx = EVP_PKEY_CTX_new_id(EVP_PKEY_HKDF, NULL);
     if (pctx==NULL) {
@@ -720,8 +757,7 @@ static unsigned char *esni_hkdf_expand_label(
     }
 
     ret = EVP_PKEY_derive_init(pctx) <= 0
-            || EVP_PKEY_CTX_hkdf_mode(pctx, EVP_PKEY_HKDEF_MODE_EXPAND_ONLY)
-               <= 0
+            || EVP_PKEY_CTX_hkdf_mode(pctx, EVP_PKEY_HKDEF_MODE_EXPAND_ONLY) <= 0
             || EVP_PKEY_CTX_set_hkdf_md(pctx, md) <= 0
             || EVP_PKEY_CTX_set1_hkdf_key(pctx, Zx, Zx_len) <= 0
             || EVP_PKEY_CTX_add1_hkdf_info(pctx, label, strlen(label)) <= 0
@@ -733,6 +769,7 @@ static unsigned char *esni_hkdf_expand_label(
         return NULL;
     }
     return out;
+#endif
 }
 
 static unsigned char *esni_aead_enc(
@@ -753,6 +790,9 @@ static unsigned char *esni_aead_enc(
     size_t ciphertext_len;
     unsigned char *ciphertext=NULL;
 
+    /*
+     * TODO: figure out correct expansion based on ciphersuite
+     */
     ciphertext=OPENSSL_malloc(plain_len+16);
     if (ciphertext==NULL) {
         ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
@@ -825,7 +865,7 @@ static unsigned char *esni_aead_enc(
         ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
     }
-    memcpy(ciphertext+plain_len,tag,tag_len);
+    memcpy(ciphertext+ciphertext_len,tag,tag_len);
     ciphertext_len += tag_len;
 
     /* Clean up */
@@ -850,13 +890,13 @@ static int esni_make_rd(ESNI_RECORD *er,ESNIContents *ec)
         ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
     }
-	/*
-	 * It seems that NSS uses the entire buffer, incl. the version, let's try
-	 * that. (Opened issue: https://github.com/tlswg/draft-ietf-tls-esni/issues/119)
-	 * Oddly - the ISSUE119YES branch seems to work worse!
-	 * That may be because CF handle the errors differently I guess.
-	 * TODO: find answer!
-	 */
+    /*
+     * It seems that NSS uses the entire buffer, incl. the version, let's try
+     * that. (Opened issue: https://github.com/tlswg/draft-ietf-tls-esni/issues/119)
+     * Oddly - the ISSUE119YES branch seems to work worse!
+     * That may be because CF handle the errors differently I guess.
+     * TODO: find answer!
+     */
 #define ISSUE119YES
 #ifdef ISSUE119NO
     unsigned char *hip=er->encoded+2;
@@ -972,27 +1012,30 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys,
 
 #ifdef CRYPT_INTEROP
 
-	if (esnikeys->private_str==NULL) {
-        ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
-        goto err;
-	}
-
-	unsigned char binpriv[64];
-	size_t bp_len=32;
-	for (int i=0;i!=32;i++) {
-		binpriv[i]=AH2B(esnikeys->private_str[2*i])*16+AH2B(esnikeys->private_str[(2*i)+1]);
-	}
-	so_esni_pbuf("CRYPTO_INTEROP  private",binpriv,bp_len,0);
-
-    // const SSL_CIPHER *tsc=cesni->ciphersuite;
-    int foo=EVP_PKEY_X25519;
-	cesni->cvars.keyshare=EVP_PKEY_new_raw_private_key(foo,NULL,binpriv,bp_len);
-    if (cesni->cvars.keyshare == NULL) {
-        ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
-        goto err;
+    if (esnikeys->private_str==NULL) {
+        cesni->cvars.keyshare = ssl_generate_pkey(skey);
+        if (cesni->cvars.keyshare == NULL) {
+            ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
+            goto err;
+        }
+    } else {
+        unsigned char binpriv[64];
+        size_t bp_len=32;
+        for (int i=0;i!=32;i++) {
+            binpriv[i]=AH2B(esnikeys->private_str[2*i])*16+AH2B(esnikeys->private_str[(2*i)+1]);
+        }
+        so_esni_pbuf("CRYPTO_INTEROP  private",binpriv,bp_len,0);
+    
+        // const SSL_CIPHER *tsc=cesni->ciphersuite;
+        int foo=EVP_PKEY_X25519;
+        cesni->cvars.keyshare=EVP_PKEY_new_raw_private_key(foo,NULL,binpriv,bp_len);
+        if (cesni->cvars.keyshare == NULL) {
+            ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
+            goto err;
+        }
     }
 #else
-	// random new private
+    // random new private
     cesni->cvars.keyshare = ssl_generate_pkey(skey);
     if (cesni->cvars.keyshare == NULL) {
         ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
@@ -1012,9 +1055,9 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys,
         ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
     }
-	int rv;
+    int rv;
     if ((rv=EVP_PKEY_derive(pctx, NULL, &cesni->cvars.shared_len)) <= 0) {
-		printf("RV=%d\n",rv);
+        printf("RV=%d\n",rv);
         ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
     }
@@ -1145,9 +1188,9 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys,
         goto err;
     }
 
-	/* 
-	 * TODO: use proper API to derive key and IV lengths from suite
-	 */
+    /* 
+     * TODO: use proper API to derive key and IV lengths from suite
+     */
     cv->key_len=16;
     cv->key=esni_hkdf_expand_label(cv->Zx,cv->Zx_len,"esni key",
                     cv->hash,cv->hash_len,&cv->key_len,md);
@@ -1177,13 +1220,13 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys,
         ESNIerr(ESNI_F_ENC, ERR_R_MALLOC_FAILURE);
         goto err;
     }
-	/*
-	 * The NSS code prepends 0 zero bytes to the encoded key share, so let's try that too...
-	 * And they include the length before the actual key share
-	 * Note that that initial length (0x0024 below) is not included elsewhere, sigh
+    /*
+     * The NSS code prepends 0 zero bytes to the encoded key share, so let's try that too...
+     * And they include the length before the actual key share
+     * Note that that initial length (0x0024 below) is not included elsewhere, sigh
      * TODO: find a better API that does that for me.
-	 */
-	memset(cv->aad,0,8);
+     */
+    memset(cv->aad,0,8);
     cv->aad[8]=0x00;
     cv->aad[9]=0x24;
     cv->aad[10]=0x00;
@@ -1231,6 +1274,7 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys,
     ret = 1;
     return(ret);
  err:
+    OPENSSL_free(tmp);
     if (pctx!=NULL) EVP_PKEY_CTX_free(pctx);
     if (cesni!=NULL) {
         CLIENT_ESNI_free(cesni);
@@ -1312,9 +1356,18 @@ int SSL_ESNI_get_esni(SSL *s, SSL_ESNI **esni)
 int SSL_ESNI_set_private(SSL_ESNI *esni, char *private)
 {
 #ifdef CRYPT_INTEROP
-	esni->private_str=private;
+    esni->private_str=private;
 #endif
-	return 1;
+    return 1;
+}
+
+int SSL_ESNI_set_nonce(SSL_ESNI *esni, unsigned char *nonce, size_t nlen)
+{
+#ifdef CRYPT_INTEROP
+    lg_nonce=nonce;
+    lg_nonce_len=nlen;
+#endif
+    return 1;
 }
 
 #endif

@@ -13,7 +13,8 @@
 
 # this is one I downloaded manually via dig +short TXT _esni.www.cloudflare.com on 20181121
 #ESNI="/wEU528gACQAHQAguwSAYz57kzOUzDXCAZ7aBJLWPrQwvSuNsRZbi7JzqkYAAhMBAQQAAAAAW/E4IAAAAABb+SEgAAA="
-ESNI=`dig +short txt _esni.www.cloudflare.com | sed -e 's/"//g'`
+#ESNI=`dig +short txt _esni.www.cloudflare.com | sed -e 's/"//g'`
+ESNI="/wEhoY5aACQAHQAgHqTcPWLSyVnFusv84efGXK4JIC/oPRSs/va4mI661QUAAhMBAQQAAAAAW/XVYAAAAABb/b5gAAA="
 HIDDEN="www.cloudflare.com"
 COVER="www.cloudflare.com"
 
@@ -21,13 +22,16 @@ COVER="www.cloudflare.com"
 # good until CF change they public key share
 
 # ASCII Hex of 1st private key in nss.ssl.debug, eliminate spaces etc.
-PRIV="b24dc635cdaf48b449c928e6eaa2f2d9486546a8d6c63d7854638aba14305a3d"
+PRIV="29ab54e6258de21b4178a6270db88ad411809199c267a6317646728966fdca02"
 
 # H/S key share - from AAD in nss.out
-HSKS="fd7db46fbe19d12bac868bbed3ccf320c25667c052400d7c885cf9425656005e"
+HSKS="a8cc84eed13d54f62e69d269988d79ef0514f6a8e64dcb774369f2eff560b12b"
 
 # Client_random
-CRND="707800343affcdeda3ff0a0090eb4929e19e2efc0d68f3cc0fe97216097509b4"
+CRND="62ea83d6f9f946248fa41b29f0127e72a0aeadce44262bed399f2fc4a8365e0b"
+
+# Nonce
+NONCE="45a61b547439b11dac1274e301145084"
 
 VG="yes"
 
@@ -46,5 +50,5 @@ if [[ "$VG" == "no" ]]
 then
 	./esni $HIDDEN $COVER $ESNI
 else
-	valgrind --leak-check=full ./esni -s $HIDDEN -f $COVER -e $ESNI -p $PRIV -r $CRND -k $HSKS
+	valgrind --leak-check=full ./esni -s $HIDDEN -f $COVER -e $ESNI -p $PRIV -r $CRND -k $HSKS -n $NONCE
 fi
