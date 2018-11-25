@@ -21,7 +21,7 @@
  * partocular the existing NSS code
  * TODO: use this to protect the cryptovars are only needed for tracing
  */
-#define CRYPT_INTEROP
+#undef CRYPT_INTEROP
 
 #ifdef CRYPT_INTEROP
 	/*
