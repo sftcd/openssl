@@ -221,6 +221,7 @@ int SSL_esni_enable(SSL *s, const char *hidden, const char *cover, SSL_ESNI *esn
 int SSL_ESNI_get_esni(SSL *s, SSL_ESNI **esni);
 #ifdef CRYPT_INTEROP
 int SSL_ESNI_set_private(SSL_ESNI *esni, char *private_str);
+int SSL_ESNI_set_nonce(SSL_ESNI *esni, unsigned char *nonce, size_t nlen);
 #endif
 
 #endif
