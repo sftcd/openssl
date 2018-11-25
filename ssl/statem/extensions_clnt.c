@@ -2077,7 +2077,46 @@ EXT_RETURN tls_construct_ctos_esni(SSL *s, WPACKET *pkt, unsigned int context,
 int tls_parse_stoc_esni(SSL *s, PACKET *pkt, unsigned int context,
                                X509 *x, size_t chainidx)
 {
+	/*
+	 * If the nonce presented is as sent in the CH then we're
+	 * good. If not, bail out.
+	 */
 	printf("tls_parse_stoc_esni called!!\n");
-	return 0;
+	if (s->esni == NULL ||
+		s->esni->client == NULL ||
+		s->esni->client->inner.nonce == NULL ||
+		s->esni->client->inner.nonce_len == 0 ) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PARSE_STOC_ESNI, ERR_R_INTERNAL_ERROR);
+		return 0;
+	}
+
+	if (s->esni->client->inner.nonce_len > 64 ) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PARSE_STOC_ESNI, ERR_R_INTERNAL_ERROR);
+		return 0;
+	}
+	unsigned char buf[64];
+
+    /* nonce decode */
+    if (!PACKET_copy_bytes(pkt,buf,s->esni->client->inner.nonce_len)) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PARSE_STOC_ESNI, ERR_R_INTERNAL_ERROR);
+        return 0;
+    }
+
+	if (memcmp(buf,s->esni->client->inner.nonce,s->esni->client->inner.nonce_len)) {
+		/* bummer - different nonce, we're no good */
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PARSE_STOC_ESNI, ERR_R_INTERNAL_ERROR);
+        return 0;
+	}
+	
+	/*
+	 * We also need *all* nonce bytes correct, so make sure there's no more
+	 */
+    if (PACKET_remaining(pkt) > 0) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PARSE_STOC_ESNI, ERR_R_INTERNAL_ERROR);
+        return 0;
+	}
+
+	/* yay - same nonce, we're good */
+	return 1;
 }
 #endif

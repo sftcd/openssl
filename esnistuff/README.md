@@ -37,6 +37,13 @@ but it's still to fully work out...
 
 Most recent first...
 
+- Yay! finally got it right (had to take back some of my copying
+  stuff NSS do - they prepend AAD with 8 0x00's but copying that
+  wasn't a good plan:-) Have now added the code to check the
+  returned nonce in the EE, and that seems to work. Next up
+  should be a range of tidy-up stuff, then maybe ask some OpenSSL
+  folks how bad they think the code is...
+
 - Feeding same private, h/s key share and client_random and ESNIKeys
   values to both NSS and OpenSSL, I get the same public, Z and Zx
   and hashes and AAD. But I end up with different symm K and IV.

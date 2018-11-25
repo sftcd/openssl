@@ -447,6 +447,7 @@ int ERR_load_SSL_strings(void);
 # define SSL_F_WRITE_STATE_MACHINE                        586
 #ifndef OPENSSL_NO_ESNI
 # define SSL_F_TLS_CONSTRUCT_CTOS_ESNI                    666
+# define SSL_F_TLS_PARSE_STOC_ESNI                        667
 #endif
 
 /*
