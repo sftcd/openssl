@@ -2081,7 +2081,6 @@ int tls_parse_stoc_esni(SSL *s, PACKET *pkt, unsigned int context,
 	 * If the nonce presented is as sent in the CH then we're
 	 * good. If not, bail out.
 	 */
-	printf("tls_parse_stoc_esni called!!\n");
 	if (s->esni == NULL ||
 		s->esni->client == NULL ||
 		s->esni->client->inner.nonce == NULL ||
