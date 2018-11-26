@@ -789,11 +789,13 @@ static unsigned char *esni_aead_enc(
     int len;
     size_t ciphertext_len;
     unsigned char *ciphertext=NULL;
+	/*
+	 * We'll allocate this much extra for ciphertext and check the AEAD doesn't require more later
+	 * If it does, we'll fail.
+	 */
+	size_t alloced_oh=64;
 
-    /*
-     * TODO: figure out correct expansion based on ciphersuite
-     */
-    ciphertext=OPENSSL_malloc(plain_len+16);
+    ciphertext=OPENSSL_malloc(plain_len+alloced_oh);
     if (ciphertext==NULL) {
         ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
@@ -865,6 +867,10 @@ static unsigned char *esni_aead_enc(
         ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
     }
+	if (tag_len > alloced_oh) {
+        ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
+        goto err;
+	}
     memcpy(ciphertext+ciphertext_len,tag,tag_len);
     ciphertext_len += tag_len;
 
@@ -1071,9 +1077,11 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys,
     }
 
     /* 
-     * Generate encoding of client key 
+     * Generate encoding of client esni keyshare 
+	 * note this is not the client_keyshare which is the TLS h/s equivalent
      * Gotta prepend the NamedGroup and overall length to that
      * TODO: find a better API that does that for me.
+	 * maybe it'll be SSL_CIPHER_get_kx_nid(SSL_CIPHER*)
      */
     unsigned char *tmp=NULL;
     size_t tlen=0;
@@ -1088,6 +1096,7 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys,
     cesni->encoded_keyshare[1]=0x1d;
     cesni->encoded_keyshare[2]=0x00;
     cesni->encoded_keyshare[3]=0x20;
+	//printf("The kx NID is %x\n",SSL_CIPHER_get_kx_nid(cesni->ciphersuite));
     memcpy(cesni->encoded_keyshare+4,tmp,tlen);
     OPENSSL_free(tmp);
 
