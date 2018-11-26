@@ -50,7 +50,7 @@ typedef struct esni_record_st {
     unsigned int version;
     unsigned char checksum[4];
     unsigned int nkeys;
-    unsigned int *group_ids;
+    uint16_t *group_ids;
     EVP_PKEY **keys;
     STACK_OF(SSL_CIPHER) *ciphersuites;
     unsigned int padded_length;
@@ -124,6 +124,7 @@ typedef struct esni_contents_st {
  * tag: AEAD tag (exposed by OpenSSL api?)
  */
 typedef struct esni_crypto_vars_st {
+	uint16_t group_id; 
     EVP_PKEY *keyshare;
     size_t shared_len;
     unsigned char *shared; /* shared secret */
@@ -214,6 +215,7 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys,
                 char *frontname, 
                 size_t  client_random_len,
                 unsigned char *client_random,
+				uint16_t curve_id,
 				size_t  client_keyshare_len,
 				unsigned char *client_keyshare,
                 CLIENT_ESNI **the_esni);

@@ -140,6 +140,7 @@ int main(int argc, char **argv)
         printf("Weird hs_key_share length - exiting\n");
         exit(1);
 	}
+	uint16_t cid=0x001d;
     size_t ckl=32;
     unsigned char ck[32];
 #ifdef CRYPT_INTEROP
@@ -192,7 +193,7 @@ int main(int argc, char **argv)
     if (out == NULL)
         goto end;
 
-    if (!SSL_ESNI_enc(esnikeys,encservername,frontname,cr_len,client_random,ckl,ck,&the_esni)) {
+    if (!SSL_ESNI_enc(esnikeys,encservername,frontname,cr_len,client_random,cid,ckl,ck,&the_esni)) {
         printf("Can't encrypt SSL_ESNI!\n");
         goto end;
     }
