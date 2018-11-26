@@ -899,9 +899,10 @@ static int esni_make_rd(ESNI_RECORD *er,ESNIContents *ec)
     /*
      * It seems that NSS uses the entire buffer, incl. the version, let's try
      * that. (Opened issue: https://github.com/tlswg/draft-ietf-tls-esni/issues/119)
-     * Oddly - the ISSUE119YES branch seems to work worse!
-     * That may be because CF handle the errors differently I guess.
-     * TODO: find answer!
+	 * We'll do the ISSUE119YES branch as that interops with others
+	 * In contrast the -02 I-D says to use the ISSUE119NO branch, which we'll
+	 * leave here for now, in case there's a reason why, and everyone goes
+	 * back to the -02 I-D variant that excludes the ESNIKeys.version
      */
 #define ISSUE119YES
 #ifdef ISSUE119NO
@@ -1119,8 +1120,7 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys,
     /*
      * encode into our plaintext
      */
-    int oh=0; // TODO: check if it works - try remove these two bytes
-    cv->plain_len=oh+inner->nonce_len+inner->realSNI_len;
+    cv->plain_len=inner->nonce_len+inner->realSNI_len;
     cv->plain=OPENSSL_malloc(cv->plain_len);
     if (cv->plain == NULL) {
         ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
@@ -1128,8 +1128,6 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys,
     }
     unsigned char *pip=cv->plain;
     memcpy(pip,inner->nonce,inner->nonce_len); pip+=inner->nonce_len;
-    // *pip++=inner->realSNI_len/256;
-    // *pip++=inner->realSNI_len%256;
     memcpy(pip,inner->realSNI,inner->realSNI_len); pip+=inner->realSNI_len;
 
     /* 
@@ -1197,16 +1195,23 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys,
     }
 
     /* 
-     * TODO: use proper API to derive key and IV lengths from suite
+     * TODO: use proper API to derive key length from suite
      */
-    cv->key_len=16;
+	int cipher_nid = SSL_CIPHER_get_cipher_nid(cesni->ciphersuite);
+	const EVP_CIPHER *e_ciph = EVP_get_cipherbynid(cipher_nid);
+	if (e_ciph==NULL) {
+        ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+
+	cv->key_len=EVP_CIPHER_key_length(e_ciph);
     cv->key=esni_hkdf_expand_label(cv->Zx,cv->Zx_len,"esni key",
                     cv->hash,cv->hash_len,&cv->key_len,md);
     if (cv->key==NULL) {
         ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
     }
-    cv->iv_len=12;
+	cv->iv_len=EVP_CIPHER_iv_length(e_ciph);
     cv->iv=esni_hkdf_expand_label(cv->Zx,cv->Zx_len,"esni iv",
                     cv->hash,cv->hash_len,&cv->iv_len,md);
     if (cv->iv==NULL) {
