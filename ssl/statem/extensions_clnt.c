@@ -2026,7 +2026,8 @@ EXT_RETURN tls_construct_ctos_esni(SSL *s, WPACKET *pkt, unsigned int context,
 		return EXT_RETURN_NOT_SENT;
 	}
 
-	if (!SSL_ESNI_enc(s->esni,s->ext.enchostname,s->ext.hostname,rd_len,rd,ks_len,ks,&s->esni->client)) {
+    uint16_t curve_id = s->s3->group_id;
+	if (!SSL_ESNI_enc(s->esni,s->ext.enchostname,s->ext.hostname,rd_len,rd,curve_id,ks_len,ks,&s->esni->client)) {
 		return 0;
 	}
     OPENSSL_free(ks);
