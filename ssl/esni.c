@@ -1057,7 +1057,6 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys,
     }
     int rv;
     if ((rv=EVP_PKEY_derive(pctx, NULL, &cesni->cvars.shared_len)) <= 0) {
-        printf("RV=%d\n",rv);
         ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
     }

@@ -942,22 +942,35 @@ static int init_server_name(SSL *s, unsigned int context)
 }
 
 #ifndef OPENSSL_NO_ESNI
+
 static int init_esni(SSL *s, unsigned int context)
 {
     if (s->server) {
+		/*
+		 * This isn't currently used. TODO: think about it.
+		 */
         s->esni_done = 0;
 
+		/*
+		 * Scrub value just in case we got given different ones twice
+		 * for some perniscious UI reason:-)
+		 */
         OPENSSL_free(s->ext.enchostname);
         s->ext.enchostname = NULL;
     }
-
     return 1;
 }
+
 static int final_esni(SSL *s, unsigned int context, int sent)
 {
-	printf("final_esni called.\n");
+	/*
+	 * Nothing for now. TODO: figure out what:-)
+	 * Could be that cleaning up would be good, and/or 
+	 * whatever's needed for handling tickets etc. etc.
+	 */
 	return 1;
 }
+
 #endif
 
 static int final_server_name(SSL *s, unsigned int context, int sent)
