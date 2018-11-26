@@ -37,6 +37,9 @@ but it's still to fully work out...
 
 Most recent first...
 
+- Started tidying up some todo's - got rid of hardcoding of key
+  and iv lengths and 0x001d for curve ids. still more tbd
+
 - Yay! finally got it right (had to take back some of my copying
   stuff NSS do - they prepend AAD with 8 0x00's but copying that
   wasn't a good plan:-) Have now added the code to check the
