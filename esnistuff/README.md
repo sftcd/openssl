@@ -32,9 +32,28 @@ and haven't done any significant testing.
   That should maybe be agreed upon, anything can work, but no harm
   to pick one behaviour I reckon.
 
+- Things to test (later, when writing test code:-):
+	- DNS: dns query/answer failure(s) - affects script not code so far...
+	- API: No ESNI but Encservername (and vice versa)
+	- checksum fail in ESNIKeys
+	- decode fail(s) in ENSIKeys
+	- unknown version, group, suite in ESNIKeys
+	- bad times (but I disklike the whole inclusion of not_before/after!)
+	- some (bogus) extension  
+	- bad nonce returned by server
+	- no nonce returned by server
+	- fuzzing (need to check how that's generally done for openssl)
+	- malloc fails
+	- triggered internal fails
+
 # State-of-play...
 
 Most recent first...
+
+- Tidied up the ``s_client`` display a bit so it says how things went,
+  and added ``SSL_ESNI_get_status()`` API for that. Also tweaked the 
+  testit.sh script a good bit so hidden, cover and server are handled 
+  consistently (see the [script](./testit.sh) for details).
 
 - Re-factored the data structures and got that working again. Next
   step will be to get rid of some more TODOs and try leave this in

@@ -1583,9 +1583,9 @@ int s_client_main(int argc, char **argv)
                        prog);
             goto opthelp;
         } 
-		if (c_msg>0) {
-			SSL_ESNI_print(bio_err,esnikeys);
-		}
+        if (c_msg>0) {
+            SSL_ESNI_print(bio_err,esnikeys);
+        }
 
     }
 #endif
@@ -2069,13 +2069,13 @@ int s_client_main(int argc, char **argv)
     }
 
 #ifndef OPENSSL_NO_ESNI
-	if (encservername != NULL ) {
-		if (SSL_esni_enable(con,encservername,servername,esnikeys)!=1) {
+    if (encservername != NULL ) {
+        if (SSL_esni_enable(con,encservername,servername,esnikeys)!=1) {
             BIO_printf(bio_err, "%s: ESNI enabling failed.\n", prog);
             ERR_print_errors(bio_err);
             goto end;
-		}
-	}
+        }
+    }
 #endif
 
     if (dane_tlsa_domain != NULL) {
@@ -2212,9 +2212,9 @@ int s_client_main(int argc, char **argv)
 #endif
 
 #ifndef OPENSSL_NO_ESNI
-	if (c_msg) {
-		SSL_set_esni_callback(con, esni_cb);
-	}
+    if (c_msg) {
+        SSL_set_esni_callback(con, esni_cb);
+    }
 #endif
 
     SSL_set_bio(con, sbio, sbio);
@@ -3453,6 +3453,26 @@ static void print_stuff(BIO *bio, SSL *s, int full)
         verify_result = SSL_get_verify_result(s);
         BIO_printf(bio, "Verify return code: %ld (%s)\n", verify_result,
                    X509_verify_cert_error_string(verify_result));
+
+#ifndef OPENSSL_NO_ESNI
+        char *front=NULL;
+        char *hidden=NULL;
+        switch (SSL_get_esni_status(s,&front,&hidden)) {
+        case SSL_ESNI_STATUS_NOT_TRIED: 
+            break;
+        case SSL_ESNI_STATUS_FAILED: 
+            BIO_printf(bio,"ESNI: tried but failed\n");
+            break;
+        case SSL_ESNI_STATUS_SUCCESS:
+            BIO_printf(bio,"ESNI: success: front: %s, hidden: %s\n",
+                            (front==NULL?"none":front),
+                            (hidden==NULL?"none":hidden));
+            break;
+        default:
+            BIO_printf(bio,"ESNI: Error trying ESNI\n");
+            break;
+        }
+#endif
     } else {
         /* In TLSv1.3 we do this on arrival of a NewSessionTicket */
         SSL_SESSION_print(bio, SSL_get_session(s));
@@ -3486,13 +3506,13 @@ static void print_stuff(BIO *bio, SSL *s, int full)
 #ifndef OPENSSL_NO_ESNI
 static unsigned int esni_cb(SSL *s)
 {
-	BIO_printf(bio_c_out,"esni_cb called\n");
-	SSL_ESNI *esnistuff=NULL;
-	int rv=SSL_ESNI_get_esni(s,&esnistuff);
-	if (rv == 1 && esnistuff!=NULL) {
-		SSL_ESNI_print(bio_c_out,esnistuff);
-	}
-	return 1;
+    BIO_printf(bio_c_out,"esni_cb called\n");
+    SSL_ESNI *esnistuff=NULL;
+    int rv=SSL_ESNI_get_esni(s,&esnistuff);
+    if (rv == 1 && esnistuff!=NULL) {
+        SSL_ESNI_print(bio_c_out,esnistuff);
+    }
+    return 1;
 }
 #endif
 

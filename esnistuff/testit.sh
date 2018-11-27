@@ -6,14 +6,9 @@
 TOP=$HOME/code/openssl
 export LD_LIBRARY_PATH=$TOP
 
+# An old value...
 #ESNI="/wHHBBOoACQAHQAg4YSfjSyJPNr1z3F8KqzBNBnMejim0mJZaPmria3XsicAAhMBAQQAAAAAW9pQEAAAAABb4jkQAAA="
-#HIDDEN="encryptedsni.com"
-#COVER="www.cloudflare.com"
 
-# Seems like the ESNI value is rotated often
-ESNI=`dig +short txt _esni.www.cloudflare.com | sed -e 's/"//g'`
-HIDDEN="www.cloudflare.com"
-COVER="www.cloudflare.com"
 
 # variables/settings
 VG="no"
@@ -21,12 +16,34 @@ STALE="no"
 NOESNI="no"
 DEBUG="no"
 PORT="443"
-SUPPLIEDSERVER=""
-SUPPLIEDHIDDEN=""
-SUPPLIEDCOVER=""
 SUPPLIEDPORT=""
 HTTPPATH="/cdn-cgi/trace"
 
+# Explaining this to myself... :-)
+#
+# You can indpendendtly set the 
+# hidden - the name used in the ESNI
+#      that defaults to encryptedsni.com
+# cover - the name used in (clear) SNI
+# server - we'll connect to that IP or the A/AAAA for that name
+# if server isn't set, it defaults to cover
+# if cover isn't set it defaults to www.cloudflare.com
+# if cover is "NONE" we send no (clear) SNI at all and 
+#      server falls back to wwww.cloudflare.com
+
+# DNS lookups
+# _esni.$hidden is checked first, if nothing there then
+# we check _esni.$cover and finally _esni.$server
+
+# Using an IP address instead of a name may work sometimes but
+# not always
+
+
+SUPPLIEDSERVER=""
+SUPPLIEDHIDDEN=""
+SUPPLIEDCOVER=""
+HIDDEN="encryptedsni.com"
+COVER="www.cloudflare.com"
 
 function whenisitagain()
 {
@@ -45,7 +62,8 @@ function usage()
     echo "  -v means run with valgrind"
     echo "  -l means use stale ESNIKeys"
     echo "  -n means don't trigger esni at all"
-    echo "  -s [name] specifices a servername ('NONE' is special)"
+    echo "  -s [name] specifices a server to which I'll connect"
+	echo "  -c [name] specifices a covername that I'll send as a clear SNI (NONE is special)"
     echo "  -p [port] specifices a port (default: 442)"
 
 	echo ""
@@ -55,7 +73,7 @@ function usage()
 }
 
 # options may be followed by one colon to indicate they have a required argument
-if ! options=$(/usr/bin/getopt -s bash -o c:H:p:s:dfvnh -l cover:,hidden:,port:,servername:,debug,stale,valgrind,noesni,help -- "$@")
+if ! options=$(/usr/bin/getopt -s bash -o c:H:p:s:dfvnh -l cover:,hidden:,port:,server:,debug,stale,valgrind,noesni,help -- "$@")
 then
     # something went wrong, getopt will put out an error message for us
     exit 1
@@ -71,7 +89,7 @@ do
         -v|--valgrind) VG="yes" ;;
         -n|--noesni) NOESNI="yes" ;;
         -c|--cover) SUPPLIEDCOVER=$2; shift;;
-        -s|--servername) SUPPLIEDSERVER=$2; shift;;
+        -s|--server) SUPPLIEDSERVER=$2; shift;;
         -H|--hidden) SUPPLIEDHIDDEN=$2; shift;;
         -p|--port) SUPPLIEDPORT=$2; shift;;
         (--) shift; break;;
@@ -93,14 +111,7 @@ then
 	hidden=$SUPPLIEDHIDDEN
 fi
 
-esnistr="-esni $hidden -esnirr $ESNI "
-if [[ "$NOESNI" == "yes" ]]
-then
-    echo "Not connecting"
-    esnistr=""
-fi
-
-dbgstr=""
+dbgstr=" -verify_quiet"
 if [[ "$DEBUG" == "yes" ]]
 then
     #dbgstr="-msg -debug -security_debug_verbose -state -tlsextdebug"
@@ -118,23 +129,54 @@ then
     PORT=$SUPPLIEDPORT
 fi
 
-servername=$COVER
-snicmd="-servername $servername "
-if [[ "$SUPPLIEDSERVER" != "" ]]
+# Set SNI
+cover=$COVER
+snicmd="-servername $cover"
+if [[ "$SUPPLIEDCOVER" != "" ]]
 then
-    if [[ "$SUPPLIEDSERVER" == "NONE" ]]
+    if [[ "$SUPPLIEDCOVER" == "NONE" ]]
     then
         snicmd="-noservername "
     else
-        snicmd="-servername $SUPPLIEDSERVER "
-        target=" -connect $SUPPLIEDSERVER:$PORT"
+        snicmd=" -servername $SUPPLIEDCOVER "
     fi
 fi
 
+# Set address of target 
 target=" -connect $COVER:$PORT "
-if [[ "$SUPPLIEDCOVER" != "" ]]
+if [[ "$SUPPLIEDSERVER" != "" ]]
 then
-	taqget=" -connect:$SUPPLIEDCOVER:$PORT"
+	target=" -connect:$SUPPLIEDSERVER:$PORT"
+fi
+
+# Seems like the ESNI value is rotated often
+# 
+# Sometimes this fails on me, not sure if that's stubby (which I use locally),
+# or generic DNS weirdness or IPv6 or some other CF issue but ignoring for now
+# and maybe check later
+if [[ "$NOESNI" != "yes" ]]
+then
+	ESNI=`dig +short txt _esni.$hidden | sed -e 's/"//g'`
+	if [[ "$ESNI" == "" ]]
+	then
+		ESNI=`dig +short txt _esni.$cover | sed -e 's/"//g'`
+		if [[ "$ESNI" == "" ]]
+		then
+			ESNI=`dig +short txt _esni.$server | sed -e 's/"//g'`
+			if [[ "$ESNI" == "" ]]
+			then
+				echo "Not trying - no sign of ESNIKeys TXT RR at _esni.$hidden nor _esni.$cover nor _esni.$server"
+				exit 100
+			fi
+		fi
+	fi
+fi
+
+esnistr="-esni $hidden -esnirr $ESNI "
+if [[ "$NOESNI" == "yes" ]]
+then
+    echo "Not trying ESNI"
+    esnistr=""
 fi
 
 httpreq="GET $HTTPPATH\\r\\n\\r\\n"
@@ -144,3 +186,4 @@ force13="-cipher TLS13-AES-128-GCM-SHA256 -no_ssl3 -no_tls1 -no_tls1_1 -no_tls1_
 #force13="-tls1_3 -cipher TLS13-AES-128-GCM-SHA256 "
 
 echo "$httpreq" | $vgcmd $TOP/apps/openssl s_client $dbgstr $force13 $target $esnistr $snicmd
+

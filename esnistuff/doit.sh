@@ -12,7 +12,7 @@
 # as per below.
 
 ESNI="/wEhoY5aACQAHQAgHqTcPWLSyVnFusv84efGXK4JIC/oPRSs/va4mI661QUAAhMBAQQAAAAAW/XVYAAAAABb/b5gAAA="
-HIDDEN="www.cloudflare.com"
+HIDDEN="encryptedsni.com"
 COVER="www.cloudflare.com"
 
 # ASCII Hex of 1st private key in nss.ssl.debug, eliminate spaces etc.
