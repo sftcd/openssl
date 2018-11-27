@@ -146,24 +146,24 @@ err:
  */
 void ESNI_RECORD_free(ESNI_RECORD *er)
 {
-	/* 
-	 * Don't free ciphersuites- they're copied over to SSL_ESNI and freed there
-	 */
-	if (er==NULL) return;
-	if (er->group_ids!=NULL) OPENSSL_free(er->group_ids);
-	for (int i=0;i!=er->nkeys;i++) {
-		EVP_PKEY *pk=er->keys[i];
-		EVP_PKEY_free(pk);
-		if (er->encoded_keys[i]!=NULL) OPENSSL_free(er->encoded_keys[i]);
+    /* 
+     * Don't free ciphersuites- they're copied over to SSL_ESNI and freed there
+     */
+    if (er==NULL) return;
+    if (er->group_ids!=NULL) OPENSSL_free(er->group_ids);
+    for (int i=0;i!=er->nkeys;i++) {
+        EVP_PKEY *pk=er->keys[i];
+        EVP_PKEY_free(pk);
+        if (er->encoded_keys[i]!=NULL) OPENSSL_free(er->encoded_keys[i]);
     }
-	if (er->keys!=NULL) OPENSSL_free(er->keys);
-	for (int i=0;i!=er->nexts;i++) {
-		if (er->exts[i]!=NULL) OPENSSL_free(er->exts[i]);
-	}
-	if (er->encoded_lens!=NULL) OPENSSL_free(er->encoded_lens);
-	if (er->encoded_keys!=NULL) OPENSSL_free(er->encoded_keys);
-	if (er->exts!=NULL) OPENSSL_free(er->exts);
-	return;
+    if (er->keys!=NULL) OPENSSL_free(er->keys);
+    for (int i=0;i!=er->nexts;i++) {
+        if (er->exts[i]!=NULL) OPENSSL_free(er->exts[i]);
+    }
+    if (er->encoded_lens!=NULL) OPENSSL_free(er->encoded_lens);
+    if (er->encoded_keys!=NULL) OPENSSL_free(er->encoded_keys);
+    if (er->exts!=NULL) OPENSSL_free(er->exts);
+    return;
 }
 
 
@@ -173,44 +173,44 @@ void ESNI_RECORD_free(ESNI_RECORD *er)
  */
 void SSL_ESNI_free(SSL_ESNI *esni)
 {
-	if (esni==NULL) return;
+    if (esni==NULL) return;
     if (esni->encservername!=NULL) OPENSSL_free(esni->encservername);
     if (esni->frontname!=NULL) OPENSSL_free(esni->frontname);
-	if (esni->encoded_rr!=NULL) OPENSSL_free(esni->encoded_rr);
-	if (esni->rd!=NULL) OPENSSL_free(esni->rd);
-	if (esni->ciphersuite!=NULL) {
-		/*
-		 * Weirdly, I know how to free a stack of these, but not just one
-		 * So, we copied the stack from ESNI_RECORD
-		 */
+    if (esni->encoded_rr!=NULL) OPENSSL_free(esni->encoded_rr);
+    if (esni->rd!=NULL) OPENSSL_free(esni->rd);
+    if (esni->ciphersuite!=NULL) {
+        /*
+         * Weirdly, I know how to free a stack of these, but not just one
+         * So, we copied the stack from ESNI_RECORD
+         */
         STACK_OF(SSL_CIPHER) *sk=esni->ciphersuites;
         sk_SSL_CIPHER_free(sk);
-		esni->ciphersuite=NULL;
-		esni->ciphersuites=NULL;
-	}
+        esni->ciphersuite=NULL;
+        esni->ciphersuites=NULL;
+    }
     if (esni->esni_server_keyshare!=NULL) OPENSSL_free(esni->esni_server_keyshare);
     if (esni->esni_server_pkey!=NULL) EVP_PKEY_free(esni->esni_server_pkey);
     if (esni->nonce!=NULL) OPENSSL_free(esni->nonce);
-	if (esni->hs_cr!=NULL) OPENSSL_free(esni->hs_cr);
-	if (esni->hs_kse!=NULL) OPENSSL_free(esni->hs_kse);
-	if (esni->keyshare) EVP_PKEY_free(esni->keyshare);
-	if (esni->encoded_keyshare) OPENSSL_free(esni->encoded_keyshare);
-	if (esni->hi!=NULL) OPENSSL_free(esni->hi);
-	if (esni->hash!=NULL) OPENSSL_free(esni->hash);
-	if (esni->Z!=NULL) OPENSSL_free(esni->Z);
-	if (esni->Zx!=NULL) OPENSSL_free(esni->Zx);
-	if (esni->key!=NULL) OPENSSL_free(esni->key);
-	if (esni->iv!=NULL) OPENSSL_free(esni->iv);
-	if (esni->aad!=NULL) OPENSSL_free(esni->aad);
-	if (esni->plain!=NULL) OPENSSL_free(esni->plain);
-	if (esni->cipher!=NULL) OPENSSL_free(esni->cipher);
-	if (esni->tag!=NULL) OPENSSL_free(esni->tag);
-	if (esni->realSNI!=NULL) OPENSSL_free(esni->realSNI);
+    if (esni->hs_cr!=NULL) OPENSSL_free(esni->hs_cr);
+    if (esni->hs_kse!=NULL) OPENSSL_free(esni->hs_kse);
+    if (esni->keyshare) EVP_PKEY_free(esni->keyshare);
+    if (esni->encoded_keyshare) OPENSSL_free(esni->encoded_keyshare);
+    if (esni->hi!=NULL) OPENSSL_free(esni->hi);
+    if (esni->hash!=NULL) OPENSSL_free(esni->hash);
+    if (esni->Z!=NULL) OPENSSL_free(esni->Z);
+    if (esni->Zx!=NULL) OPENSSL_free(esni->Zx);
+    if (esni->key!=NULL) OPENSSL_free(esni->key);
+    if (esni->iv!=NULL) OPENSSL_free(esni->iv);
+    if (esni->aad!=NULL) OPENSSL_free(esni->aad);
+    if (esni->plain!=NULL) OPENSSL_free(esni->plain);
+    if (esni->cipher!=NULL) OPENSSL_free(esni->cipher);
+    if (esni->tag!=NULL) OPENSSL_free(esni->tag);
+    if (esni->realSNI!=NULL) OPENSSL_free(esni->realSNI);
 #ifdef ESNI_CRYPT_INTEROP
-	if (esni->private_str!=NULL) OPENSSL_free(esni->private_str);
+    if (esni->private_str!=NULL) OPENSSL_free(esni->private_str);
 #endif
-	if (esni->the_esni!=NULL) OPENSSL_free(esni->the_esni); 
-	return;
+    if (esni->the_esni!=NULL) OPENSSL_free(esni->the_esni); 
+    return;
 }
 
 static int esni_checksum_check(unsigned char *buf, size_t buf_len)
@@ -281,7 +281,7 @@ static unsigned char *esni_make_rd(const unsigned char *buf,const size_t blen, c
         goto err;
     }
     EVP_MD_CTX_free(mctx);
-	*rd_len=lc_rd_len;
+    *rd_len=lc_rd_len;
     return rd;
 err:
     return NULL;
@@ -295,31 +295,31 @@ err:
  * on curve 25519 as used in X25519.
  */
 static unsigned char *wrap_keyshare(
-				const unsigned char *keyshare,
-				const size_t keyshare_len,
-				const uint16_t curve_id,
-				size_t *outlen)
+                const unsigned char *keyshare,
+                const size_t keyshare_len,
+                const uint16_t curve_id,
+                size_t *outlen)
 {
-	if (outlen==NULL) {
+    if (outlen==NULL) {
         ESNIerr(ESNI_F_ENC, ERR_R_MALLOC_FAILURE);
         return NULL;
     }
-	unsigned char *dest=NULL;
-	size_t destlen=keyshare_len+6;
+    unsigned char *dest=NULL;
+    size_t destlen=keyshare_len+6;
     dest=OPENSSL_zalloc(destlen);
     if (dest==NULL) {
         ESNIerr(ESNI_F_ENC, ERR_R_MALLOC_FAILURE);
         return NULL;
     }
-	dest[0]=(keyshare_len+4)/256;;
+    dest[0]=(keyshare_len+4)/256;;
     dest[1]=(keyshare_len+4)%256;;
     dest[2]=curve_id/256;
     dest[3]=curve_id%256;
-	dest[4]=keyshare_len/256;;
+    dest[4]=keyshare_len/256;;
     dest[5]=keyshare_len%256;;
     memcpy(dest+6,keyshare,keyshare_len);
-	*outlen=destlen;
-	return dest;
+    *outlen=destlen;
+    return dest;
 }
 
 /*
@@ -333,12 +333,12 @@ SSL_ESNI* SSL_ESNI_new_from_base64(const char *esnikeys)
 {
     if (esnikeys==NULL) {
         return(NULL);
-	}
-	ESNI_RECORD er;
+    }
+    ESNI_RECORD er;
     unsigned char *outbuf = NULL; /* binary representation of ESNIKeys */
     int declen; /* length of binary representation of ESNIKeys */
     SSL_ESNI *newesni=NULL; 
-	memset(&er,0,sizeof(ESNI_RECORD));
+    memset(&er,0,sizeof(ESNI_RECORD));
 
     declen = esni_base64_decode(esnikeys, &outbuf);
     if (declen < 0) {
@@ -396,37 +396,37 @@ SSL_ESNI* SSL_ESNI_new_from_base64(const char *esnikeys)
     int nkeys=0;
     uint16_t *group_ids=NULL;
     EVP_PKEY **keys=NULL;
-	unsigned char **encoded_keys=NULL;
-	size_t *encoded_lens=NULL;
+    unsigned char **encoded_keys=NULL;
+    size_t *encoded_lens=NULL;
 
     while (PACKET_remaining(&key_share_list) > 0) {
-		unsigned int tmp;
+        unsigned int tmp;
         if (!PACKET_get_net_2(&key_share_list, &tmp)
                 || !PACKET_get_length_prefixed_2(&key_share_list, &encoded_pt)
                 || PACKET_remaining(&encoded_pt) == 0) {
             ESNIerr(ESNI_F_NEW_FROM_BASE64, ESNI_R_RR_DECODE_ERROR);
             goto err;
         }
-		if (tmp>0xffff) {
+        if (tmp>0xffff) {
             ESNIerr(ESNI_F_NEW_FROM_BASE64, ESNI_R_RR_DECODE_ERROR);
             goto err;
-		}
-		group_id=(uint16_t)tmp;
+        }
+        group_id=(uint16_t)tmp;
 
         EVP_PKEY *kn=ssl_generate_param_group(group_id);
         if (kn==NULL) {
             ESNIerr(ESNI_F_NEW_FROM_BASE64, ESNI_R_RR_DECODE_ERROR);
             goto err;
         }
-		/* stash encoded public value for later */
-		size_t thislen=PACKET_remaining(&encoded_pt);
-		unsigned char *thisencoded=NULL;
-		thisencoded=OPENSSL_malloc(PACKET_remaining(&encoded_pt));
-		if (thisencoded==NULL) {
+        /* stash encoded public value for later */
+        size_t thislen=PACKET_remaining(&encoded_pt);
+        unsigned char *thisencoded=NULL;
+        thisencoded=OPENSSL_malloc(PACKET_remaining(&encoded_pt));
+        if (thisencoded==NULL) {
             ESNIerr(ESNI_F_NEW_FROM_BASE64, ESNI_R_RR_DECODE_ERROR);
             goto err;
-		}
-		memcpy(thisencoded,PACKET_data(&encoded_pt),thislen);
+        }
+        memcpy(thisencoded,PACKET_data(&encoded_pt),thislen);
         if (!EVP_PKEY_set1_tls_encodedpoint(kn,thisencoded,thislen)) {
             ESNIerr(ESNI_F_NEW_FROM_BASE64, ESNI_R_RR_DECODE_ERROR);
             goto err;
@@ -444,26 +444,26 @@ SSL_ESNI* SSL_ESNI_new_from_base64(const char *esnikeys)
             ESNIerr(ESNI_F_NEW_FROM_BASE64, ESNI_R_RR_DECODE_ERROR);
             goto err;
         }
-		group_ids[nkeys-1]=group_id;
-		encoded_lens=(size_t*)OPENSSL_realloc(encoded_lens,nkeys*sizeof(size_t));
-		if (encoded_lens == NULL ) {
+        group_ids[nkeys-1]=group_id;
+        encoded_lens=(size_t*)OPENSSL_realloc(encoded_lens,nkeys*sizeof(size_t));
+        if (encoded_lens == NULL ) {
             ESNIerr(ESNI_F_NEW_FROM_BASE64, ESNI_R_RR_DECODE_ERROR);
             goto err;
-		}
-		encoded_lens[nkeys-1]=thislen;
-		encoded_keys=(unsigned char **)OPENSSL_realloc(encoded_keys,nkeys*sizeof(unsigned char **));
-		if (encoded_keys==NULL) {
+        }
+        encoded_lens[nkeys-1]=thislen;
+        encoded_keys=(unsigned char **)OPENSSL_realloc(encoded_keys,nkeys*sizeof(unsigned char **));
+        if (encoded_keys==NULL) {
             ESNIerr(ESNI_F_NEW_FROM_BASE64, ESNI_R_RR_DECODE_ERROR);
             goto err;
-		}
-		encoded_keys[nkeys-1]=thisencoded;
+        }
+        encoded_keys[nkeys-1]=thisencoded;
 
     }
     er.nkeys=nkeys;
     er.keys=keys;
     er.group_ids=group_ids;
-	er.encoded_lens=encoded_lens;
-	er.encoded_keys=encoded_keys;
+    er.encoded_lens=encoded_lens;
+    er.encoded_keys=encoded_keys;
 
     /*
      * List of ciphersuites - 2 byte len + 2 bytes per ciphersuite
@@ -541,27 +541,27 @@ SSL_ESNI* SSL_ESNI_new_from_base64(const char *esnikeys)
         goto err;
     }
 
-	/*
-	 * Fixed bits of RR to use
-	 */
-	newesni->not_before=er.not_before;
-	newesni->not_after=er.not_after;
-	newesni->padded_length=er.padded_length;
-	/* 
-	 * now decide which bits of er we like and remember those 
-	 * pick the 1st key/group/ciphersutie that works
-	 * TODO: more sophisticated selection:-)
-	 */
-	int rec2pick=0;
-	newesni->ciphersuite=sk_SSL_CIPHER_value(er.ciphersuites,rec2pick);
-	newesni->ciphersuites=er.ciphersuites;
-	newesni->group_id=er.group_ids[rec2pick];
+    /*
+     * Fixed bits of RR to use
+     */
+    newesni->not_before=er.not_before;
+    newesni->not_after=er.not_after;
+    newesni->padded_length=er.padded_length;
+    /* 
+     * now decide which bits of er we like and remember those 
+     * pick the 1st key/group/ciphersutie that works
+     * TODO: more sophisticated selection:-)
+     */
+    int rec2pick=0;
+    newesni->ciphersuite=sk_SSL_CIPHER_value(er.ciphersuites,rec2pick);
+    newesni->ciphersuites=er.ciphersuites;
+    newesni->group_id=er.group_ids[rec2pick];
 
     unsigned char *tmp=NULL;
     size_t tlen=0;
 
-	newesni->esni_server_pkey=ssl_generate_param_group(newesni->group_id);
-	if (newesni->esni_server_pkey==NULL) {
+    newesni->esni_server_pkey=ssl_generate_param_group(newesni->group_id);
+    if (newesni->esni_server_pkey==NULL) {
         ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
     }
@@ -575,28 +575,28 @@ SSL_ESNI* SSL_ESNI_new_from_base64(const char *esnikeys)
         ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
     }
-	newesni->esni_server_keyshare=wrap_keyshare(tmp,tlen,newesni->group_id,&newesni->esni_server_keyshare_len);
-	if (newesni->esni_server_keyshare==NULL) {
+    newesni->esni_server_keyshare=wrap_keyshare(tmp,tlen,newesni->group_id,&newesni->esni_server_keyshare_len);
+    if (newesni->esni_server_keyshare==NULL) {
         ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
-	}
+    }
     OPENSSL_free(tmp);
 
     const SSL_CIPHER *sc=newesni->ciphersuite;
     const EVP_MD *md=ssl_md(sc->algorithm2);
-	newesni->rd=esni_make_rd(outbuf,declen,md,&newesni->rd_len);
-	if (newesni->rd==NULL) {
+    newesni->rd=esni_make_rd(outbuf,declen,md,&newesni->rd_len);
+    if (newesni->rd==NULL) {
         ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
-	}
-	/*
-	 * Free up unwanted stuff
-	 */
-	ESNI_RECORD_free(&er);
+    }
+    /*
+     * Free up unwanted stuff
+     */
+    ESNI_RECORD_free(&er);
 
     return(newesni);
 err:
-	ESNI_RECORD_free(&er);
+    ESNI_RECORD_free(&er);
     if (newesni!=NULL) {
         SSL_ESNI_free(newesni);
         OPENSSL_free(newesni);
@@ -658,37 +658,37 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esni)
     }
     if (esni->encoded_rr==NULL) {
         BIO_printf(out,"ESNI has no RRs!\n");
-		return 0;
+        return 0;
     } 
     esni_pbuf(out,"ESNI Encoded RR",esni->encoded_rr,esni->encoded_rr_len,indent);
     esni_pbuf(out,"ESNI DNS record_digest", esni->rd,esni->rd_len,indent);
-	esni_pbuf(out,"ESNI Server KeyShare from DNS:",esni->esni_server_keyshare,esni->esni_server_keyshare_len,indent);
-	BIO_printf(out,"ESNI Server groupd Id: %04x\n",esni->group_id);
-	if (esni->ciphersuite!=NULL) {
-		BIO_printf(out,"ESNI Server Ciphersuite is %s\n",esni->ciphersuite->name);
-	} else {
-		BIO_printf(out,"ENSI Server Ciphersuite is NULL\n");
-	}
+    esni_pbuf(out,"ESNI Server KeyShare from DNS:",esni->esni_server_keyshare,esni->esni_server_keyshare_len,indent);
+    BIO_printf(out,"ESNI Server groupd Id: %04x\n",esni->group_id);
+    if (esni->ciphersuite!=NULL) {
+        BIO_printf(out,"ESNI Server Ciphersuite is %s\n",esni->ciphersuite->name);
+    } else {
+        BIO_printf(out,"ENSI Server Ciphersuite is NULL\n");
+    }
     BIO_printf(out,"ESNI Server padded_length: %zd\n",esni->padded_length);
     BIO_printf(out,"ESNI Server not_before: %ju\n",esni->not_before);
     BIO_printf(out,"ESNI Server not_after: %ju\n",esni->not_after);
     BIO_printf(out,"ESNI Server number of extensions: %d\n",esni->nexts);
-	if (esni->nexts!=0) {
-		BIO_printf(out,"\tOops - I don't support extensions but you have some. Bummer.\n");
-	}
+    if (esni->nexts!=0) {
+        BIO_printf(out,"\tOops - I don't support extensions but you have some. Bummer.\n");
+    }
     esni_pbuf(out,"ESNI Nonce",esni->nonce,esni->nonce_len,indent);
     esni_pbuf(out,"ESNI H/S Client Random",esni->hs_cr,esni->hs_cr_len,indent);
     esni_pbuf(out,"ESNI H/S Client KeyShare",esni->hs_kse,esni->hs_kse_len,indent);
-	if (esni->keyshare!=NULL) {
-		BIO_printf(out,"ESNI Client ESNI KeyShare: ");
-		EVP_PKEY_print_public(out, esni->keyshare, indent, NULL);
-	} else {
-		BIO_printf(out,"ESNI Client ESNI KeyShare is NULL ");
-	}
+    if (esni->keyshare!=NULL) {
+        BIO_printf(out,"ESNI Client ESNI KeyShare: ");
+        EVP_PKEY_print_public(out, esni->keyshare, indent, NULL);
+    } else {
+        BIO_printf(out,"ESNI Client ESNI KeyShare is NULL ");
+    }
     esni_pbuf(out,"ESNI Encoded ESNIContents (hash input)",esni->hi,esni->hi_len,indent);
     esni_pbuf(out,"ESNI Encoded ESNIContents (hash output)",esni->hash,esni->hash_len,indent);
     esni_pbuf(out,"ESNI Padded SNI",esni->realSNI, esni->realSNI_len, indent);
-	BIO_printf(out,"ESNI Cryptovars group id: %04x\n",esni->group_id);
+    BIO_printf(out,"ESNI Cryptovars group id: %04x\n",esni->group_id);
     esni_pbuf(out,"ESNI Cryptovars Z",esni->Z,esni->Z_len,indent);
     esni_pbuf(out,"ESNI Cryptovars Zx",esni->Zx,esni->Zx_len,indent);
     esni_pbuf(out,"ESNI Cryptovars key",esni->key,esni->key_len,indent);
@@ -794,11 +794,11 @@ static unsigned char *esni_hkdf_expand_label(
             size_t *expanded_len,
             const EVP_MD *md)
 {
-	/*
-	 * This is a "dummy" SSL structure - the implementation of
-	 * tls13_hkdf_expand doesn't even refer to s except for an
-	 * error
-	 */
+    /*
+     * This is a "dummy" SSL structure - the implementation of
+     * tls13_hkdf_expand doesn't even refer to s except for an
+     * error
+     */
     SSL s;
     unsigned char *out=OPENSSL_malloc(*expanded_len);
     int rv=tls13_hkdf_expand(&s, md, Zx, 
@@ -828,15 +828,15 @@ static unsigned char *esni_aead_enc(
     size_t ciphertext_len;
     unsigned char *ciphertext=NULL;
 
-	if (SSL_CIPHER_is_aead(ciph)!=1) {
+    if (SSL_CIPHER_is_aead(ciph)!=1) {
         ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
-	}
-	/*
-	 * We'll allocate this much extra for ciphertext and check the AEAD doesn't require more later
-	 * If it does, we'll fail.
-	 */
-	size_t alloced_oh=64;
+    }
+    /*
+     * We'll allocate this much extra for ciphertext and check the AEAD doesn't require more later
+     * If it does, we'll fail.
+     */
+    size_t alloced_oh=64;
 
     ciphertext=OPENSSL_malloc(plain_len+alloced_oh);
     if (ciphertext==NULL) {
@@ -910,10 +910,10 @@ static unsigned char *esni_aead_enc(
         ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
     }
-	if (tag_len > alloced_oh) {
+    if (tag_len > alloced_oh) {
         ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
-	}
+    }
     memcpy(ciphertext+ciphertext_len,tag,tag_len);
     ciphertext_len += tag_len;
 
@@ -939,55 +939,55 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys,
                 char *frontname, 
                 size_t  client_random_len,
                 unsigned char *client_random,
-				uint16_t curve_id,
+                uint16_t curve_id,
                 size_t  client_keyshare_len,
                 unsigned char *client_keyshare,
                 CLIENT_ESNI **the_esni)
 {
     int ret = 0;
-	unsigned char *tmp=NULL;
+    unsigned char *tmp=NULL;
     EVP_PKEY_CTX *pctx=NULL;
 
-	/*
-	 * checking and copying
-	 */
+    /*
+     * checking and copying
+     */
 
-	if (esnikeys->esni_server_pkey==NULL) {
-    	ESNIerr(ESNI_F_ENC, ERR_R_MALLOC_FAILURE);
+    if (esnikeys->esni_server_pkey==NULL) {
+        ESNIerr(ESNI_F_ENC, ERR_R_MALLOC_FAILURE);
         goto err;
-	}
-	if (esnikeys->hs_cr==NULL) {
-    	esnikeys->hs_cr_len=client_random_len;
-    	esnikeys->hs_cr=OPENSSL_malloc(esnikeys->hs_cr_len);
-    	if (esnikeys->hs_cr == NULL ) {
-        	ESNIerr(ESNI_F_ENC, ERR_R_MALLOC_FAILURE);
-        	goto err;
-    	}
-    	memcpy(esnikeys->hs_cr,client_random,esnikeys->hs_cr_len);
-	}
-	if (esnikeys->encservername==NULL) {
-		esnikeys->encservername=OPENSSL_strdup(protectedserver);
-		if (esnikeys->encservername==NULL) {
-        	ESNIerr(ESNI_F_ENC, ERR_R_MALLOC_FAILURE);
-        	goto err;
-		}
-	}
-	if (esnikeys->frontname==NULL && frontname!=NULL) {
-		esnikeys->frontname=OPENSSL_strdup(frontname);
-		if (esnikeys->frontname==NULL) {
-        	ESNIerr(ESNI_F_ENC, ERR_R_MALLOC_FAILURE);
-        	goto err;
-		}
-	}
-	if (esnikeys->hs_kse==NULL) {
-		esnikeys->hs_kse=OPENSSL_malloc(client_keyshare_len);
-		if (esnikeys->hs_kse==NULL) {
-        	ESNIerr(ESNI_F_ENC, ERR_R_MALLOC_FAILURE);
-        	goto err;
-		}
-		memcpy(esnikeys->hs_kse,client_keyshare,client_keyshare_len);
-		esnikeys->hs_kse_len=client_keyshare_len;
-	}
+    }
+    if (esnikeys->hs_cr==NULL) {
+        esnikeys->hs_cr_len=client_random_len;
+        esnikeys->hs_cr=OPENSSL_malloc(esnikeys->hs_cr_len);
+        if (esnikeys->hs_cr == NULL ) {
+            ESNIerr(ESNI_F_ENC, ERR_R_MALLOC_FAILURE);
+            goto err;
+        }
+        memcpy(esnikeys->hs_cr,client_random,esnikeys->hs_cr_len);
+    }
+    if (esnikeys->encservername==NULL) {
+        esnikeys->encservername=OPENSSL_strdup(protectedserver);
+        if (esnikeys->encservername==NULL) {
+            ESNIerr(ESNI_F_ENC, ERR_R_MALLOC_FAILURE);
+            goto err;
+        }
+    }
+    if (esnikeys->frontname==NULL && frontname!=NULL) {
+        esnikeys->frontname=OPENSSL_strdup(frontname);
+        if (esnikeys->frontname==NULL) {
+            ESNIerr(ESNI_F_ENC, ERR_R_MALLOC_FAILURE);
+            goto err;
+        }
+    }
+    if (esnikeys->hs_kse==NULL) {
+        esnikeys->hs_kse=OPENSSL_malloc(client_keyshare_len);
+        if (esnikeys->hs_kse==NULL) {
+            ESNIerr(ESNI_F_ENC, ERR_R_MALLOC_FAILURE);
+            goto err;
+        }
+        memcpy(esnikeys->hs_kse,client_keyshare,client_keyshare_len);
+        esnikeys->hs_kse_len=client_keyshare_len;
+    }
 
     /*
      * - make my private key
@@ -996,10 +996,10 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys,
      * - encode packet and return
      */
 
-	/* prepare nid and EVP versions for later checks */
-	int cipher_nid = SSL_CIPHER_get_cipher_nid(esnikeys->ciphersuite);
-	const EVP_CIPHER *e_ciph = EVP_get_cipherbynid(cipher_nid);
-	if (e_ciph==NULL) {
+    /* prepare nid and EVP versions for later checks */
+    int cipher_nid = SSL_CIPHER_get_cipher_nid(esnikeys->ciphersuite);
+    const EVP_CIPHER *e_ciph = EVP_get_cipherbynid(cipher_nid);
+    if (e_ciph==NULL) {
         ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
     }
@@ -1013,9 +1013,9 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys,
             goto err;
         }
     } else {
-		/*
-		 * fixed sizes are ok here - it's just for NSS interop
-		 */
+        /*
+         * fixed sizes are ok here - it's just for NSS interop
+         */
         unsigned char binpriv[64];
         size_t bp_len=32;
         for (int i=0;i!=32;i++) {
@@ -1064,7 +1064,7 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys,
     }
 
     /* 
-	 * encode up my own keyshare for inclusion in ESNIContents
+     * encode up my own keyshare for inclusion in ESNIContents
      */
     size_t tlen=0;
     tlen = EVP_PKEY_get1_tls_encodedpoint(esnikeys->keyshare,&tmp); 
@@ -1072,27 +1072,27 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys,
         ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
     }
-	esnikeys->encoded_keyshare=wrap_keyshare(tmp,tlen,esnikeys->group_id,&esnikeys->encoded_keyshare_len);
-	if (esnikeys->encoded_keyshare==NULL) {
-    	OPENSSL_free(tmp);
+    esnikeys->encoded_keyshare=wrap_keyshare(tmp,tlen,esnikeys->group_id,&esnikeys->encoded_keyshare_len);
+    if (esnikeys->encoded_keyshare==NULL) {
+        OPENSSL_free(tmp);
         ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
-	}
+    }
     OPENSSL_free(tmp);
 
-	// drop top two bytes from this version of encoded_keyshare (sigh!)
-	esnikeys->hi_len=2+esnikeys->rd_len+esnikeys->encoded_keyshare_len-2+esnikeys->hs_cr_len;
-	esnikeys->hi=OPENSSL_malloc(esnikeys->hi_len);
-	if (esnikeys->hi==NULL) {
+    // drop top two bytes from this version of encoded_keyshare (sigh!)
+    esnikeys->hi_len=2+esnikeys->rd_len+esnikeys->encoded_keyshare_len-2+esnikeys->hs_cr_len;
+    esnikeys->hi=OPENSSL_malloc(esnikeys->hi_len);
+    if (esnikeys->hi==NULL) {
         ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
-	}
-	unsigned char *ecp=esnikeys->hi;
-	*ecp++=esnikeys->rd_len/256;
-	*ecp++=esnikeys->rd_len%256;
-	memcpy(ecp,esnikeys->rd,esnikeys->rd_len);ecp+=esnikeys->rd_len;
-	memcpy(ecp,esnikeys->encoded_keyshare+2,esnikeys->encoded_keyshare_len-2);ecp+=esnikeys->encoded_keyshare_len-2;
-	memcpy(ecp,esnikeys->hs_cr,esnikeys->hs_cr_len);ecp+=esnikeys->hs_cr_len;
+    }
+    unsigned char *ecp=esnikeys->hi;
+    *ecp++=esnikeys->rd_len/256;
+    *ecp++=esnikeys->rd_len%256;
+    memcpy(ecp,esnikeys->rd,esnikeys->rd_len);ecp+=esnikeys->rd_len;
+    memcpy(ecp,esnikeys->encoded_keyshare+2,esnikeys->encoded_keyshare_len-2);ecp+=esnikeys->encoded_keyshare_len-2;
+    memcpy(ecp,esnikeys->hs_cr,esnikeys->hs_cr_len);ecp+=esnikeys->hs_cr_len;
 
     /*
      * Form up the inner SNI stuff
@@ -1181,14 +1181,14 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys,
      * derive key and iv length from suite
      */
 
-	esnikeys->key_len=EVP_CIPHER_key_length(e_ciph);
+    esnikeys->key_len=EVP_CIPHER_key_length(e_ciph);
     esnikeys->key=esni_hkdf_expand_label(esnikeys->Zx,esnikeys->Zx_len,"esni key",
                     esnikeys->hash,esnikeys->hash_len,&esnikeys->key_len,md);
     if (esnikeys->key==NULL) {
         ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
     }
-	esnikeys->iv_len=EVP_CIPHER_iv_length(e_ciph);
+    esnikeys->iv_len=EVP_CIPHER_iv_length(e_ciph);
     esnikeys->iv=esni_hkdf_expand_label(esnikeys->Zx,esnikeys->Zx_len,"esni iv",
                     esnikeys->hash,esnikeys->hash_len,&esnikeys->iv_len,md);
     if (esnikeys->iv==NULL) {
@@ -1201,14 +1201,14 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys,
      *     encrypted_sni = AEAD-Encrypt(key, iv, ClientHello.KeyShareClientHello, ClientESNIInner)
      */
 
-	/*
-	 * Put a few encoding bytes around the TLS h/s key share
-	 */
-	esnikeys->aad=wrap_keyshare(esnikeys->hs_kse,esnikeys->hs_kse_len,curve_id,&esnikeys->aad_len);
-	if (esnikeys->aad==NULL) {
+    /*
+     * Put a few encoding bytes around the TLS h/s key share
+     */
+    esnikeys->aad=wrap_keyshare(esnikeys->hs_kse,esnikeys->hs_kse_len,curve_id,&esnikeys->aad_len);
+    if (esnikeys->aad==NULL) {
         ESNIerr(ESNI_F_ENC, ERR_R_MALLOC_FAILURE);
         goto err;
-	}
+    }
 
     /*
      * Tag is in ciphertext anyway, but sure may as well keep it
@@ -1242,20 +1242,20 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys,
      * finish up
      */
 
-	CLIENT_ESNI *tc=OPENSSL_malloc(sizeof(CLIENT_ESNI));
-	if (tc==NULL) {
+    CLIENT_ESNI *tc=OPENSSL_malloc(sizeof(CLIENT_ESNI));
+    if (tc==NULL) {
         ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
-	}
+    }
     tc->ciphersuite=esnikeys->ciphersuite;
-	tc->encoded_keyshare=esnikeys->encoded_keyshare;
-	tc->encoded_keyshare_len=esnikeys->encoded_keyshare_len;
-	tc->record_digest=esnikeys->rd;
-	tc->record_digest_len=esnikeys->rd_len;
-	tc->encrypted_sni=esnikeys->cipher;
-	tc->encrypted_sni_len=esnikeys->cipher_len;
-	*the_esni=tc;
-	esnikeys->the_esni=tc;
+    tc->encoded_keyshare=esnikeys->encoded_keyshare;
+    tc->encoded_keyshare_len=esnikeys->encoded_keyshare_len;
+    tc->record_digest=esnikeys->rd;
+    tc->record_digest_len=esnikeys->rd_len;
+    tc->encrypted_sni=esnikeys->cipher;
+    tc->encrypted_sni_len=esnikeys->cipher_len;
+    *the_esni=tc;
+    esnikeys->the_esni=tc;
 
     ret = 1;
     return(ret);
