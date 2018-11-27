@@ -37,6 +37,10 @@ but it's still to fully work out...
 
 Most recent first...
 
+- Re-factored the data structures and got that working again. Next
+  step will be to get rid of some more TODOs and try leave this in
+  good shape for the student project to start.
+
 - Started tidying up some todo's - got rid of hardcoding of key
   and iv lengths and 0x001d for curve ids. still more tbd
 
