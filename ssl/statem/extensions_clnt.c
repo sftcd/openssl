@@ -1996,103 +1996,103 @@ EXT_RETURN tls_construct_ctos_esni(SSL *s, WPACKET *pkt, unsigned int context,
 {
     if (s->session->ssl_version != TLS1_3_VERSION) {
         return EXT_RETURN_NOT_SENT;
-	}
+    }
 
     if (s->ext.enchostname == NULL) {
         return EXT_RETURN_NOT_SENT;
-	}
-	
-	/*
-	 * client_random from CH
-	 */
-	unsigned char rd[1024];
-	size_t rd_len=SSL_get_client_random(s,rd,1024);
+    }
+    
+    /*
+     * client_random from CH
+     */
+    unsigned char rd[1024];
+    size_t rd_len=SSL_get_client_random(s,rd,1024);
 
-	/*
-	 * keyshare from CH
-	 */
-	size_t ks_len=0;
-	unsigned char *ks=NULL;
+    /*
+     * keyshare from CH
+     */
+    size_t ks_len=0;
+    unsigned char *ks=NULL;
     if (s->s3->tmp.pkey != NULL) {
-    	/* Encode the public key. */
-    	ks_len = EVP_PKEY_get1_tls_encodedpoint(s->s3->tmp.pkey, &ks);
-    	if (ks_len == 0) {
-			return EXT_RETURN_NOT_SENT;
-    	}
-	} else {
-		/* 
-		 * fail, bummer
-		 */
-		return EXT_RETURN_NOT_SENT;
-	}
+        /* Encode the public key. */
+        ks_len = EVP_PKEY_get1_tls_encodedpoint(s->s3->tmp.pkey, &ks);
+        if (ks_len == 0) {
+            return EXT_RETURN_NOT_SENT;
+        }
+    } else {
+        /* 
+         * fail, bummer
+         */
+        return EXT_RETURN_NOT_SENT;
+    }
 
     uint16_t curve_id = s->s3->group_id;
-	CLIENT_ESNI *c=NULL;
-	if (!SSL_ESNI_enc(s->esni,s->ext.enchostname,s->ext.hostname,rd_len,rd,curve_id,ks_len,ks,&c)) {
-		return 0;
-	}
+    CLIENT_ESNI *c=NULL;
+    if (!SSL_ESNI_enc(s->esni,s->ext.enchostname,s->ext.hostname,rd_len,rd,curve_id,ks_len,ks,&c)) {
+        return 0;
+    }
     OPENSSL_free(ks);
 
-	/*
-	 * Now encode the ESNI stuff 
-	 * struct {
+    /*
+     * Now encode the ESNI stuff 
+     * struct {
      *    CipherSuite suite; from c->ciphersuite (SSL_CIPHER)
      *    KeyShareEntry key_share; from c->encoded_keshare (buffer)
      *    opaque record_digest<0..2^16-1>; from c->record_digest (buffer)
      *    opaque encrypted_sni<0..2^16-1>; from c->encrypted_sni (buffer)
      * } ClientEncryptedSNI;
-	 */
-	size_t len; 
+     */
+    size_t len; 
     /* Add TLS extension encrypted servername to the Client Hello message */
     if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_esni)
                /* Sub-packet for esni extension */
             || !WPACKET_start_sub_packet_u16(pkt)
             || !s->method->put_cipher_by_char(c->ciphersuite, pkt, &len)
-			/*
-			 * TODO: don't force self to remove leading two length bytes here
-			 * Needs fluting about as sometimes they're in, sometimes not
-			 */
+            /*
+             * TODO: don't force self to remove leading two length bytes here
+             * Needs fluting about as sometimes they're in, sometimes not
+             */
             || !WPACKET_memcpy(pkt, c->encoded_keyshare+2, c->encoded_keyshare_len-2)
             || !WPACKET_sub_memcpy_u16(pkt, c->record_digest, c->record_digest_len)
             || !WPACKET_sub_memcpy_u16(pkt, c->encrypted_sni, c->encrypted_sni_len)
             || !WPACKET_close(pkt)
-				) {
+                ) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ESNI,
                  ERR_R_INTERNAL_ERROR);
         return EXT_RETURN_FAIL;
     }
-	if (s->esni_cb != NULL) {
-		unsigned int cbrv=s->esni_cb(s);
-		if (cbrv != 1) {
-        	return EXT_RETURN_FAIL;
-		}
-	}
-	/*
-	 * Note: 'c' is free'd in SSL_ESNI_free - not great TODO: fix
-	 */
+    if (s->esni_cb != NULL) {
+        unsigned int cbrv=s->esni_cb(s);
+        if (cbrv != 1) {
+            return EXT_RETURN_FAIL;
+        }
+    }
+    /*
+     * Note: 'c' is free'd in SSL_ESNI_free - not great TODO: fix
+     */
 
-	return EXT_RETURN_SENT;
+    return EXT_RETURN_SENT;
 }
 
 int tls_parse_stoc_esni(SSL *s, PACKET *pkt, unsigned int context,
                                X509 *x, size_t chainidx)
 {
-	/*
-	 * If the nonce presented is as sent in the CH then we're
-	 * good. If not, bail out.
-	 */
-	if (s->esni == NULL ||
-		s->esni->nonce == NULL ||
-		s->esni->nonce_len == 0 ) {
+    /*
+     * If the nonce presented is as sent in the CH then we're
+     * good. If not, bail out.
+     */
+    if (s->esni == NULL ||
+        s->esni->nonce == NULL ||
+        s->esni->nonce_len == 0 ) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PARSE_STOC_ESNI, ERR_R_INTERNAL_ERROR);
-		return 0;
-	}
+        return 0;
+    }
 
-	if (s->esni->nonce_len > 64 ) {
+    if (s->esni->nonce_len > 64 ) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PARSE_STOC_ESNI, ERR_R_INTERNAL_ERROR);
-		return 0;
-	}
-	unsigned char buf[64];
+        return 0;
+    }
+    unsigned char buf[64];
 
     /* nonce decode */
     if (!PACKET_copy_bytes(pkt,buf,s->esni->nonce_len)) {
@@ -2100,21 +2100,22 @@ int tls_parse_stoc_esni(SSL *s, PACKET *pkt, unsigned int context,
         return 0;
     }
 
-	if (memcmp(buf,s->esni->nonce,s->esni->nonce_len)) {
-		/* bummer - different nonce, we're no good */
+    if (memcmp(buf,s->esni->nonce,s->esni->nonce_len)) {
+        /* bummer - different nonce, we're no good */
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PARSE_STOC_ESNI, ERR_R_INTERNAL_ERROR);
         return 0;
-	}
-	
-	/*
-	 * We also need *all* nonce bytes correct, so make sure there's no more
-	 */
+    }
+    
+    /*
+     * We also need *all* nonce bytes correct, so make sure there's no more
+     */
     if (PACKET_remaining(pkt) > 0) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PARSE_STOC_ESNI, ERR_R_INTERNAL_ERROR);
         return 0;
-	}
+    }
 
-	/* yay - same nonce, we're good */
-	return 1;
+    /* yay - same nonce, we're good */
+    s->esni_done=1;
+    return 1;
 }
 #endif

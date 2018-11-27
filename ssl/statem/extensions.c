@@ -368,9 +368,9 @@ static const EXTENSION_DEFINITION ext_defs[] = {
         final_early_data
     },
 #ifndef OPENSSL_NO_ESNI
-	/* 
-	 * Must be in this list after key_share as that input is needed for ESNI
-	 */
+    /* 
+     * Must be in this list after key_share as that input is needed for ESNI
+     */
     {
         TLSEXT_TYPE_esni,
         SSL_EXT_CLIENT_HELLO | SSL_EXT_TLS1_3_ONLY | SSL_EXT_TLS1_3_ENCRYPTED_EXTENSIONS,
@@ -380,7 +380,7 @@ static const EXTENSION_DEFINITION ext_defs[] = {
         final_esni
     },
 #else
-	INVALID_EXTENSION,
+    INVALID_EXTENSION,
 #endif
     {
         TLSEXT_TYPE_certificate_authorities,
@@ -939,15 +939,15 @@ static int init_server_name(SSL *s, unsigned int context)
 static int init_esni(SSL *s, unsigned int context)
 {
     if (s->server) {
-		/*
-		 * This isn't currently used. TODO: think about it.
-		 */
+        /*
+         * This isn't currently used. TODO: think about it.
+         */
         s->esni_done = 0;
 
-		/*
-		 * Scrub value just in case we got given different ones twice
-		 * for some perniscious UI reason:-)
-		 */
+        /*
+         * Scrub value just in case we got given different ones twice
+         * for some perniscious UI reason:-)
+         */
         OPENSSL_free(s->ext.enchostname);
         s->ext.enchostname = NULL;
     }
@@ -956,12 +956,17 @@ static int init_esni(SSL *s, unsigned int context)
 
 static int final_esni(SSL *s, unsigned int context, int sent)
 {
-	/*
-	 * Nothing for now. TODO: figure out what:-)
-	 * Could be that cleaning up would be good, and/or 
-	 * whatever's needed for handling tickets etc. etc.
-	 */
-	return 1;
+    /*
+     * Nothing for now. TODO: figure out what:-)
+     * Could be that cleaning up would be good, and/or 
+     * whatever's needed for handling tickets etc. etc.
+     */
+    if (s->esni_done!=1) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_FINAL_ESNI,
+                 SSL_R_CALLBACK_FAILED);
+        return 0;
+    }
+    return 1;
 }
 
 #endif

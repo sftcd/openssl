@@ -979,6 +979,30 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys,
             goto err;
         }
     }
+    /*
+     * We better have the right name set to do anything
+     */
+    if (esnikeys->encservername==NULL) {
+        ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+    /*
+     * There is no point in doing this is SNI and ESNI payloads
+     * are the same!!!
+     */
+    if (esnikeys->frontname!=NULL && esnikeys->encservername!=NULL) {
+        if (OPENSSL_strnlen(esnikeys->frontname,TLSEXT_MAXLEN_host_name)==
+            OPENSSL_strnlen(esnikeys->encservername,TLSEXT_MAXLEN_host_name)) {
+            if (CRYPTO_memcmp(esnikeys->frontname,esnikeys->encservername,
+                OPENSSL_strnlen(esnikeys->frontname,TLSEXT_MAXLEN_host_name))) {
+                /*
+                 * Shit - same names, that's silly
+                 */
+                ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
+                goto err;
+            }
+        }
+    }
     if (esnikeys->hs_kse==NULL) {
         esnikeys->hs_kse=OPENSSL_malloc(client_keyshare_len);
         if (esnikeys->hs_kse==NULL) {
@@ -1270,10 +1294,30 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys,
 */
 int esni_checknames(const char *encservername, const char *frontname)
 {
-    if (encservername != NULL && OPENSSL_strnlen(encservername,TLSEXT_MAXLEN_host_name)>TLSEXT_MAXLEN_host_name) 
+    int elen=0;
+    int flen=0;
+    if (encservername==NULL) {
+        /*
+         * Makes no sense
+         */
+        return 0;
+    }
+    elen=strlen(encservername);
+    if (frontname!=NULL) {
+        flen=strlen(frontname);
+    }
+    if (elen >= TLSEXT_MAXLEN_host_name) {
         return(0);
-    if (frontname != NULL && OPENSSL_strnlen(frontname,TLSEXT_MAXLEN_host_name)>TLSEXT_MAXLEN_host_name) 
+    }
+    if (flen >= TLSEXT_MAXLEN_host_name) {
         return(0);
+    }
+    if (elen==flen && !strncmp(encservername,frontname,elen)) {
+        /*
+         * Silly!
+         */
+        return(0);
+    }
     /*
      * Possible checks:
      * - If no covername, then send no (clear) SNI, so allow that
@@ -1312,7 +1356,35 @@ int SSL_esni_enable(SSL *s, const char *hidden, const char *cover, SSL_ESNI *esn
     if (esni!=NULL) {
         s->esni=esni;
     }
+    /*
+     * Set to 1 when nonce returned
+     * Checked for 0 when final_esni called
+     */
+    s->esni_done=0;
     return 1;
+}
+
+
+/*
+ * API t allow calling code know ESNI outcome, post-handshake
+ */
+int SSL_get_esni_status(SSL *s, char **cover, char **hidden)
+{
+    if (cover==NULL || hidden==NULL) {
+        return SSL_ESNI_BAD_STATUS_CALL;
+    }
+    *cover=NULL;
+    *hidden=NULL;
+    if (s->esni!=NULL) {
+        *hidden=s->esni->encservername;
+        *cover=s->esni->frontname;
+        if (s->esni_done==1) {
+            return SSL_ESNI_STATUS_SUCCESS;
+        } else {
+            return SSL_ESNI_STATUS_FAILED;
+        }
+    } 
+    return SSL_ESNI_STATUS_NOT_TRIED;
 }
 
 /*

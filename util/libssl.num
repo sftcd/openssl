@@ -506,4 +506,5 @@ SSL_ESNI_enc                            506	1_1_1a	EXIST::FUNCTION:
 SSL_esni_enable                         507	1_1_1a	EXIST::FUNCTION:
 SSL_set_esni_callback                   508	1_1_11a	EXIST::FUNCTION:
 SSL_ESNI_get_esni                       509	1_1_11a	EXIST::FUNCTION:
+SSL_get_esni_status                     510	1_1_11a	EXIST::FUNCTION:
 
