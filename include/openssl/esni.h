@@ -231,12 +231,26 @@ void CLIENT_ESNI_free(CLIENT_ESNI *c);
  */
 int SSL_ESNI_print(BIO* out, SSL_ESNI *esni);
 
+/* 
+ * Possible return codes from SSL_ESNI_get_status
+ */
+#define SSL_ESNI_STATUS_SUCCESS                 1
+#define SSL_ESNI_STATUS_FAILED                  0
+#define SSL_ESNI_BAD_STATUS_CALL             -100
+#define SSL_ESNI_STATUS_NOT_TRIED            -101
+
 /*
  * SSL_ESNI_print calls a callback function that uses this
  * to get the SSL_ESNI structure from the external view of
  * the TLS session.
  */
 int SSL_ESNI_get_esni(SSL *s, SSL_ESNI **esni);
+
+
+/*
+ * API t allow calling code know ESNI outcome, post-handshake
+ */
+int SSL_get_esni_status(SSL *s, char **cover, char **hidden);
 
 #ifdef ESNI_CRYPT_INTEROP
 /*
