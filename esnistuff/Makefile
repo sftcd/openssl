@@ -24,7 +24,7 @@ esni: esnimain.o libssl.a libcrypto.a
 	${CC} -g -pthread -Wall -o $@ esnimain.o -L. -lssl -lcrypto -ldl 
 
 test:
-	./doit.sh
+	./doit.sh fresh
 
 clean:
 	- rm -f esni esnimain.o libssl.a libcrypto.a *.tmp
