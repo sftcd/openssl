@@ -10,6 +10,7 @@ framework.
 
 For now [esni.c](../ssl/esni.c) has (what I think is;-) good(ish) OPENSSL-style code
 do the [-02 Internet-draft](https://tools.ietf.org/html/draft-ietf-tls-esni-02).
+The main header file is [esni.h](../include/openssl/esni.h).
 
 This builds ok on both 64 and 32 bit Ubuntus and (nominally) doesn't leak
 according to valgrind. It works e.g. when talking to www.cloudflare.com
@@ -59,7 +60,7 @@ Most recent first...
   to work when imported to OpenSSL. We now have the same 
   key share derived on both. (Note: CF public share changes
   often, so a new build of OpenSSL will be needed - check out
-  code protected via ``#ifdef TESTY`` in ssl/esni.c for
+  code protected via ``#ifdef ESNI_CRYPT_INTEROP`` in ssl/esni.c for
   details 
 
 - Made a bunch of changes to be more like what the instrumented
