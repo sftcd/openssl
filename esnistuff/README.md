@@ -8,12 +8,12 @@ be to delete all this before submitting any PR to the openssl folks. Over time,
 I'll likely move any documentation, test code etc into the proper openssl test
 framework.
 
-For now [esni.c](../ssl/esni.c) has (what I think is;-) good OPENSSL-style code
-to decode and print the content of the TXT RR as described by the -02 I-D and
-to calculate the values for the encrypted SNI CH extension.
+For now [esni.c](../ssl/esni.c) has (what I think is;-) good(ish) OPENSSL-style code
+do the [-02 Internet-draft](https://tools.ietf.org/html/draft-ietf-tls-esni-02).
 
-This seems to build ok on both 64 and 32 bit Ubuntus and not leak
-according to valgrind. It's doesn't fully work yet.
+This builds ok on both 64 and 32 bit Ubuntus and (nominally) doesn't leak
+according to valgrind. It works e.g. when talking to www.cloudflare.com
+with e.g. ietf.org as the value inside the encrypted SNI.
 
 - [testit.sh](./testit.sh) calls that via a locally modified ``openssl s_client``.. 
 - There's an [esnimain.c](./esnimain.c) that can be run locally that 
@@ -22,10 +22,8 @@ according to valgrind. It's doesn't fully work yet.
   build - I made such a build and am using it help me develop my code
 
 In terms of integrating with openssl, I've added most of the client-side
-code, but nothing on the server-side yet.
-The esni ctos (client-to-server) function is done and is called when a
-connection is attempted.  The ClientHello is then sent including that value, 
-but it's still to fully work out...
+code for a basic use of ``s_client``, but nothing on the server-side yet
+and haven't done any significant testing.
 
 # Random notes
 
