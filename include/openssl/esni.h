@@ -56,8 +56,8 @@ typedef struct esni_record_st {
     unsigned int nkeys;
     uint16_t *group_ids;
     EVP_PKEY **keys;
-	size_t *encoded_lens;
-	unsigned char **encoded_keys;
+    size_t *encoded_lens;
+    unsigned char **encoded_keys;
     STACK_OF(SSL_CIPHER) *ciphersuites;
     unsigned int padded_length;
     uint64_t not_before;
@@ -84,7 +84,7 @@ typedef struct esni_record_st {
 typedef struct client_esni_st {
     /*
      * Fields encoded in extension, these are copies, (not malloc'd)
-	 * of pointers elsewhere in SSL_ESNI
+     * of pointers elsewhere in SSL_ESNI
      */
     const SSL_CIPHER *ciphersuite;
     size_t encoded_keyshare_len; /* my encoded key share */
@@ -96,92 +96,73 @@ typedef struct client_esni_st {
 } CLIENT_ESNI;
 
 /*
- * Per connection ESNI state (inspired by include/internal/dane.h) 
- * Has DNS RR values and some more
- */
-typedef struct old_ssl_esni_st {
-    int nerecs; /* number of DNS RRs in RRset */
-    ESNI_RECORD *erecs; /* array of these */
-    ESNI_RECORD *mesni;      /* Matching esni record */
-    CLIENT_ESNI *client;
-    const char *encservername;
-    const char *frontname;
-    uint64_t ttl;
-    uint64_t lastread;
-#ifdef ESNI_CRYPT_INTEROP
-	char *private_str; /* for debug purposes, requires special build */
-#endif
-} oldSSL_ESNI;
-
-/*
- * New, 20181126, flat structure
  * The ESNI data structure that's part of the SSL structure 
  * (Client-only for now really. Server is TBD.)
  */
 typedef struct ssl_esni_st {
-	/* 
-	 * Fields from API
-	 */
+    /* 
+     * Fields from API
+     */
     char *encservername;
     char *frontname;
-	/*
-	 * Binary (base64 decoded) RR value
-	 */
-	size_t encoded_rr_len;
-	unsigned char *encoded_rr;
-	/*
-	 * Hash of the above (record_digest), using the relevant hash from the ciphersuite
-	 */
+    /*
+     * Binary (base64 decoded) RR value
+     */
+    size_t encoded_rr_len;
+    unsigned char *encoded_rr;
+    /*
+     * Hash of the above (record_digest), using the relevant hash from the ciphersuite
+     */
     size_t rd_len;
     unsigned char *rd;
-	/*
-	 * Fields direct from ESNIKeys, after matching vs. local preference
-	 */
+    /*
+     * Fields direct from ESNIKeys, after matching vs. local preference
+     */
     const SSL_CIPHER *ciphersuite; 
-	/*
-	 * TODO: figure out how to free one SSL_CIPHER, for now copy full set and free that
-	 */
+    /*
+     * TODO: figure out how to free one SSL_CIPHER, for now copy full set and free that
+     */
     STACK_OF(SSL_CIPHER) *ciphersuites; 
 
-	uint16_t group_id; 
+    uint16_t group_id; 
     size_t esni_server_keyshare_len; 
     unsigned char *esni_server_keyshare;
-	EVP_PKEY *esni_server_pkey;
+    EVP_PKEY *esni_server_pkey;
     size_t padded_length;
     uint64_t not_before;
     uint64_t not_after;
-	int nexts; // not yet supported >0 => fail
-	void **exts;
-	/*
-	 * Nonce we challenge server to respond with
-	 */
+    int nexts; // not yet supported >0 => fail
+    void **exts;
+    /*
+     * Nonce we challenge server to respond with
+     */
     size_t nonce_len;
     unsigned char *nonce;
-	/*
-	 * Client random and key share from TLS h/s
-	 */
-	size_t hs_cr_len; 
-	unsigned char *hs_cr;
+    /*
+     * Client random and key share from TLS h/s
+     */
+    size_t hs_cr_len; 
+    unsigned char *hs_cr;
     size_t hs_kse_len;
     unsigned char *hs_kse;
     /* 
-	 * Crypto Vars - not all are really needed in the struct
-	 * (though tickets/resumption need a quick thought)
-	 * But all are handy for interop testing
-	 */
+     * Crypto Vars - not all are really needed in the struct
+     * (though tickets/resumption need a quick thought)
+     * But all are handy for interop testing
+     */
     EVP_PKEY *keyshare; /* my own private keyshare to use with  server's ESNI share */
-	size_t encoded_keyshare_len;
-	unsigned char *encoded_keyshare;
-	/*
-	 * ESNIContent encoded and hash thereof
-	 */
+    size_t encoded_keyshare_len;
+    unsigned char *encoded_keyshare;
+    /*
+     * ESNIContent encoded and hash thereof
+     */
     size_t hi_len; 
     unsigned char *hi;
     size_t hash_len;
     unsigned char *hash; 
-	/* 
-	 * Derived crypto vars
-	 */
+    /* 
+     * Derived crypto vars
+     */
     size_t Z_len;
     unsigned char *Z; /* shared secret */
     size_t Zx_len;
@@ -201,9 +182,9 @@ typedef struct ssl_esni_st {
     size_t realSNI_len; /* padded SNI */
     unsigned char *realSNI;
 #ifdef ESNI_CRYPT_INTEROP
-	char *private_str; /* for debug purposes, requires special build */
+    char *private_str; /* for debug purposes, requires special build */
 #endif
-	CLIENT_ESNI *the_esni; /* the final outputs for the caller */
+    CLIENT_ESNI *the_esni; /* the final outputs for the caller */
 } SSL_ESNI;
 
 /*
@@ -233,9 +214,9 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys,
                 char *frontname, 
                 size_t  client_random_len,
                 unsigned char *client_random,
-				uint16_t curve_id,
-				size_t  client_keyshare_len,
-				unsigned char *client_keyshare,
+                uint16_t curve_id,
+                size_t  client_keyshare_len,
+                unsigned char *client_keyshare,
                 CLIENT_ESNI **the_esni);
 
 /*
