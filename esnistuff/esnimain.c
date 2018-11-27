@@ -121,7 +121,7 @@ int main(int argc, char **argv)
 	}
     size_t cr_len=SSL3_RANDOM_SIZE;
     unsigned char client_random[SSL3_RANDOM_SIZE];
-#ifdef CRYPT_INTEROP
+#ifdef ESNI_CRYPT_INTEROP
 	if (client_random_str==NULL) {
     	RAND_bytes(client_random,cr_len);
 	} else {
@@ -143,7 +143,7 @@ int main(int argc, char **argv)
 	uint16_t cid=0x001d;
     size_t ckl=32;
     unsigned char ck[32];
-#ifdef CRYPT_INTEROP
+#ifdef ESNI_CRYPT_INTEROP
 	if (hs_key_share_str==NULL) {
     	// RAND_bytes(ck,32);
     	memset(ck,0xA5,32);
@@ -168,7 +168,7 @@ int main(int argc, char **argv)
         goto end;
     }
 
-#ifdef CRYPT_INTEROP
+#ifdef ESNI_CRYPT_INTEROP
 	if (private_str!=NULL) {
 		SSL_ESNI_set_private(esnikeys,private_str);
 	}

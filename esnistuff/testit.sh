@@ -22,6 +22,8 @@ NOESNI="no"
 DEBUG="no"
 PORT="443"
 SUPPLIEDSERVER=""
+SUPPLIEDHIDDEN=""
+SUPPLIEDCOVER=""
 SUPPLIEDPORT=""
 HTTPPATH="/cdn-cgi/trace"
 
@@ -38,17 +40,22 @@ function usage()
 {
     echo "$0 [-dnfvh] - try out encrypted SNI via openssl s_client"
     echo "  -h means print this"
+    echo "  -H means try connect to that hidden server"
     echo "  -d means run s_client in verbose mode"
     echo "  -v means run with valgrind"
     echo "  -l means use stale ESNIKeys"
     echo "  -n means don't trigger esni at all"
     echo "  -s [name] specifices a servername ('NONE' is special)"
     echo "  -p [port] specifices a port (default: 442)"
+
+	echo ""
+	echo "The following should work:"
+	echo "    $0 -c www.cloudflare.com -s NONE -H ietf.org"
     exit 99
 }
 
 # options may be followed by one colon to indicate they have a required argument
-if ! options=$(/usr/bin/getopt -s bash -o p:s:dfvnh -l port:,servername:,debug,stale,valgrind,noesni,help -- "$@")
+if ! options=$(/usr/bin/getopt -s bash -o c:H:p:s:dfvnh -l cover:,hidden:,port:,servername:,debug,stale,valgrind,noesni,help -- "$@")
 then
     # something went wrong, getopt will put out an error message for us
     exit 1
@@ -63,7 +70,9 @@ do
         -l|--stale) STALE="yes" ;;
         -v|--valgrind) VG="yes" ;;
         -n|--noesni) NOESNI="yes" ;;
+        -c|--cover) SUPPLIEDCOVER=$2; shift;;
         -s|--servername) SUPPLIEDSERVER=$2; shift;;
+        -H|--hidden) SUPPLIEDHIDDEN=$2; shift;;
         -p|--port) SUPPLIEDPORT=$2; shift;;
         (--) shift; break;;
         (-*) echo "$0: error - unrecognized option $1" 1>&2; exit 1;;
@@ -78,7 +87,13 @@ then
     echo "Using stale ESNI value: $ESNI" 
 fi    
 
-esnistr="-esni $HIDDEN -esnirr $ESNI "
+hidden=$HIDDEN
+if [[ "$SUPPLIEDHIDDEN" != "" ]]
+then
+	hidden=$SUPPLIEDHIDDEN
+fi
+
+esnistr="-esni $hidden -esnirr $ESNI "
 if [[ "$NOESNI" == "yes" ]]
 then
     echo "Not connecting"
@@ -105,7 +120,6 @@ fi
 
 servername=$COVER
 snicmd="-servername $servername "
-target=" -connect $COVER:$PORT "
 if [[ "$SUPPLIEDSERVER" != "" ]]
 then
     if [[ "$SUPPLIEDSERVER" == "NONE" ]]
@@ -115,6 +129,12 @@ then
         snicmd="-servername $SUPPLIEDSERVER "
         target=" -connect $SUPPLIEDSERVER:$PORT"
     fi
+fi
+
+target=" -connect $COVER:$PORT "
+if [[ "$SUPPLIEDCOVER" != "" ]]
+then
+	taqget=" -connect:$SUPPLIEDCOVER:$PORT"
 fi
 
 httpreq="GET $HTTPPATH\\r\\n\\r\\n"

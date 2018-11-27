@@ -2027,18 +2027,11 @@ EXT_RETURN tls_construct_ctos_esni(SSL *s, WPACKET *pkt, unsigned int context,
 	}
 
     uint16_t curve_id = s->s3->group_id;
-	if (!SSL_ESNI_enc(s->esni,s->ext.enchostname,s->ext.hostname,rd_len,rd,curve_id,ks_len,ks,&s->esni->client)) {
+	CLIENT_ESNI *c=NULL;
+	if (!SSL_ESNI_enc(s->esni,s->ext.enchostname,s->ext.hostname,rd_len,rd,curve_id,ks_len,ks,&c)) {
 		return 0;
 	}
     OPENSSL_free(ks);
-
-#ifdef NOTDEF
-	FILE *fp=NULL;
-	BIO *out=NULL;
-	fp=fopen("/dev/stderr","w");
-	out=BIO_new_fp(fp,BIO_CLOSE|BIO_FP_TEXT);
-	SSL_ESNI_print(out,s->esni);
-#endif
 
 	/*
 	 * Now encode the ESNI stuff 
@@ -2049,14 +2042,17 @@ EXT_RETURN tls_construct_ctos_esni(SSL *s, WPACKET *pkt, unsigned int context,
      *    opaque encrypted_sni<0..2^16-1>; from c->encrypted_sni (buffer)
      * } ClientEncryptedSNI;
 	 */
-	CLIENT_ESNI *c=s->esni->client;
 	size_t len; 
     /* Add TLS extension encrypted servername to the Client Hello message */
     if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_esni)
                /* Sub-packet for esni extension */
             || !WPACKET_start_sub_packet_u16(pkt)
             || !s->method->put_cipher_by_char(c->ciphersuite, pkt, &len)
-            || !WPACKET_memcpy(pkt, c->encoded_keyshare, c->encoded_keyshare_len)
+			/*
+			 * TODO: don't force self to remove leading two length bytes here
+			 * Needs fluting about as sometimes they're in, sometimes not
+			 */
+            || !WPACKET_memcpy(pkt, c->encoded_keyshare+2, c->encoded_keyshare_len-2)
             || !WPACKET_sub_memcpy_u16(pkt, c->record_digest, c->record_digest_len)
             || !WPACKET_sub_memcpy_u16(pkt, c->encrypted_sni, c->encrypted_sni_len)
             || !WPACKET_close(pkt)
@@ -2071,6 +2067,9 @@ EXT_RETURN tls_construct_ctos_esni(SSL *s, WPACKET *pkt, unsigned int context,
         	return EXT_RETURN_FAIL;
 		}
 	}
+	/*
+	 * Note: 'c' is free'd in SSL_ESNI_free - not great TODO: fix
+	 */
 
 	return EXT_RETURN_SENT;
 }
@@ -2083,26 +2082,25 @@ int tls_parse_stoc_esni(SSL *s, PACKET *pkt, unsigned int context,
 	 * good. If not, bail out.
 	 */
 	if (s->esni == NULL ||
-		s->esni->client == NULL ||
-		s->esni->client->inner.nonce == NULL ||
-		s->esni->client->inner.nonce_len == 0 ) {
+		s->esni->nonce == NULL ||
+		s->esni->nonce_len == 0 ) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PARSE_STOC_ESNI, ERR_R_INTERNAL_ERROR);
 		return 0;
 	}
 
-	if (s->esni->client->inner.nonce_len > 64 ) {
+	if (s->esni->nonce_len > 64 ) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PARSE_STOC_ESNI, ERR_R_INTERNAL_ERROR);
 		return 0;
 	}
 	unsigned char buf[64];
 
     /* nonce decode */
-    if (!PACKET_copy_bytes(pkt,buf,s->esni->client->inner.nonce_len)) {
+    if (!PACKET_copy_bytes(pkt,buf,s->esni->nonce_len)) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PARSE_STOC_ESNI, ERR_R_INTERNAL_ERROR);
         return 0;
     }
 
-	if (memcmp(buf,s->esni->client->inner.nonce,s->esni->client->inner.nonce_len)) {
+	if (memcmp(buf,s->esni->nonce,s->esni->nonce_len)) {
 		/* bummer - different nonce, we're no good */
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PARSE_STOC_ESNI, ERR_R_INTERNAL_ERROR);
         return 0;
