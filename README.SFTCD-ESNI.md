@@ -18,6 +18,9 @@ TODO: If this goes anywhere, do the CLA thing, and get the student to do likewis
 - My [fork](https://github.com/sftcd/openssl)
 	- This file is in there as [README.SFTCD-ESNI.md](./README.SFTCD-ESNI.md)
 
+More up to date README text is [here](./esnistuff/README.md(). I'll
+update this in a bit. Meanwhile, ignore what's below:-)
+
 ## Initially - poking about the code ...
 
 It seems that:
