@@ -3464,7 +3464,7 @@ static void print_stuff(BIO *bio, SSL *s, int full)
             BIO_printf(bio,"ESNI: tried but failed\n");
             break;
         case SSL_ESNI_STATUS_SUCCESS:
-            BIO_printf(bio,"ESNI: success: front: %s, hidden: %s\n",
+            BIO_printf(bio,"ESNI: success: cover: %s, hidden: %s\n",
                             (front==NULL?"none":front),
                             (hidden==NULL?"none":hidden));
             break;
