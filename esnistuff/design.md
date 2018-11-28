@@ -26,8 +26,10 @@ name.
 - Amuse Stephen
 - Do the above in a way that's helpful to the OpenSSL project
 - Help the standardisation process in the IETF
+- Allow other folks to play with ESNI
 - Help make ESNI more widely available/usable 
 - Ultimately - maybe some of this code might end up part of a release
+when there's an ESNI RFC
 
 ## Status
 
