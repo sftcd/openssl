@@ -167,7 +167,8 @@ structure or the ``SSL_CTX`` structure - guess is that server side code will
 force us to do the right thing, if the current one's wrong.
 - There's another test script [doit.sh](https://github.com/sftcd/openssl/blob/master/esnistuff/doit.sh)
 that runs a standalone test application ([esnimain.c](https://github.com/sftcd/openssl/blob/master/esnistuff/esnimain.c))
-which just tests the ESNI APIs directly.
+which just tests the ESNI APIs directly. That should become some kind of unit test in the main
+build, and needs error cases added.
 
 ## APIs
 
