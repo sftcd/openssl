@@ -126,7 +126,7 @@ The [``apps/s_client.c``](https://github.com/sftcd/openssl/blob/master/apps/s_cl
 has two new comnand line arguments:
 
 - ``esni`` allows one to specifiy the HIDDEN service
-- ``esnirr`` allows one to provide the TXT RR as per the spec.
+- ``esnirr`` allows one to provide the (base64 encoded) TXT RR as per the spec.
 
 There is new debugging output showing the ESNI intemediate values
 if TLS message-level debugging is turned on via ``-msg`` 
@@ -143,16 +143,16 @@ succeeded, as shown in the 2nd last line below:
 			No ALPN negotiated
 			Early data was not sent
 			Verify return code: 20 (unable to get local issuer certificate)
-			ESNI: success: front: www.cloudflare.com, hidden: www.ietf.org
+			ESNI: success: cover: www.cloudflare.com, hidden: www.ietf.org
 			---
 
 When the new command line arguments are set, the following APIs are
-called, in this order:
+called, nominally in this order:
 
 - ``esni_checknames``: do a basic check on HIDDEN/COVER (e.g. not the same:-)
 - ``SSL_ESNI_new_from_base64``: decode the TXT RR value and return an ``SSL_ESNI`` structure
 - ``SSL_ESNI_print``: if ``-msg`` set, print the (initial) ``SSL_ESNI`` contents based on decoding 
-- ``SSL_esni_enable``: modify the ``SSL *con`` structure to ask the ESNI be run
+- ``SSL_esni_enable``: modify the ``SSL *con`` structure to ask that ESNI be run
 - ``SSL_set_esni_callback``: if ``-msg`` set, register callback so (final) ``SSL_ESNI`` values are printed
 - ``esni_cb``: is the call-back function, it retrives and prints the ``SSL_ESNI`` structure
 - ``SSL_ESNI_get_esni``: is used in ``esni_cb`` to get the ``SSL_ESNI`` structure which is printed via ``SSL_ESNI_print``
