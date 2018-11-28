@@ -55,8 +55,7 @@ echo "Running $0 at $NOW"
 
 function usage()
 {
-    echo "$0 [-dnfvh] - try out encrypted SNI via openssl s_client"
-    echo "  -h means print this"
+    echo "$0 [-cHpsdnfvh] - try out encrypted SNI via openssl s_client"
     echo "  -H means try connect to that hidden server"
     echo "  -d means run s_client in verbose mode"
     echo "  -v means run with valgrind"
@@ -65,6 +64,7 @@ function usage()
     echo "  -s [name] specifices a server to which I'll connect"
 	echo "  -c [name] specifices a covername that I'll send as a clear SNI (NONE is special)"
     echo "  -p [port] specifices a port (default: 442)"
+    echo "  -h means print this"
 
 	echo ""
 	echo "The following should work:"
@@ -185,5 +185,6 @@ httpreq="GET $HTTPPATH\\r\\n\\r\\n"
 force13="-cipher TLS13-AES-128-GCM-SHA256 -no_ssl3 -no_tls1 -no_tls1_1 -no_tls1_2"
 #force13="-tls1_3 -cipher TLS13-AES-128-GCM-SHA256 "
 
+set -x
 echo "$httpreq" | $vgcmd $TOP/apps/openssl s_client $dbgstr $force13 $target $esnistr $snicmd
 
