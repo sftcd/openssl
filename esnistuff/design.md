@@ -60,11 +60,11 @@ values are stored in the ``SSL_ESNI`` structure that should allow us to more eas
 out interop issues, which has been useful esp. vs. the [NSS ESNI implementation](https://hg.mozilla.org/projects/nss/file/tip/lib/ssl/tls13esni.c).
 As the spec matures, a lot of those values won't be needed, and some of
 the related code wouldn't be part of a release. (Such code will
-be protected via  ``#ifdef ESNI_CRYPTO_INTEROP`` macros - that's not
+be protected via  ``#ifdef ESNI_CRYPTO_INTEROP`` - that's not
 yet well-done.)
 - Currently notes, test scripts and a few other things are in an [esnistuff](https://github.com/sftcd/openssl/esnistuff/)
 directory - that should disappear over time as we better integrate the
-code following good prooject practice.
+code following good project practice.
 
 ## Plans
 
@@ -88,7 +88,7 @@ We have a simple [test script](#test-script) that exercises various ``s_client``
 
 We'll describe those in reverse order, and then consider [testing](#testing).
 
-## Test script
+### Test script
 
 The ``usage()`` function for the [testit.sh](https://gitbub.com/sftcd/openssl/esnistuff/testit.sh) 
 produces this:
@@ -123,7 +123,7 @@ Other notes:
 - ``-v`` runs under valgrind and currently has no complaints (in the 
   nominal case)
 
-## ``s_client`` modifications
+### ``s_client`` modifications
 
 Here and elsewhere, almost all of our code changes are enclosed with ``#ifndef OPENSSL_NO_ESNI``
 
@@ -172,7 +172,7 @@ that runs a standalone test application ([esnimain.c](https://github.com/sftcd/o
 which just tests the ESNI APIs directly. That should become some kind of unit test in the main
 build, and needs error cases added.
 
-## APIs
+### APIs
 
 The main ESNI header file [esni.h](https://github.com/sftcd/openssl/blob/master/include/openssl/esni.h)
 includes the following prototypes:
@@ -257,11 +257,11 @@ Notes:
   was run from a standalone test application, but we'll make such changes
   soon.)
 
-## Data structures
+### Data structures
 
 TBD
 
-## Testing
+### Testing
 
 TBD
 
