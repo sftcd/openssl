@@ -28,6 +28,12 @@ and haven't done any significant testing.
 
 # Random notes
 
+- TODO: Follow advice from an openssl maintainer: add a design document to be
+shared with project folks. 
+
+- TODO: I could have the s_client app do the ESNIKeys DNS lookup. Maybe add
+that to handle cases where the RR value isn't supplied on the command line.
+
 - From NSS code: /* If we're not sending SNI, don't send ESNI. */
   That should maybe be agreed upon, anything can work, but no harm
   to pick one behaviour I reckon.
