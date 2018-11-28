@@ -90,7 +90,7 @@ produces this:
 
 			$ ./testit.sh -h
 			Running ./testit.sh at 20181128-125116
-			./testit.sh [-cHpsdnfvh] - try out encrypted SNI via openssl s_client
+			./testit.sh [-cHpsdnlvh] - try out encrypted SNI via openssl s_client
 			  -H means try connect to that hidden server
 			  -d means run s_client in verbose mode
 			  -v means run with valgrind

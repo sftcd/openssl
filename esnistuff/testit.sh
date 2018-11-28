@@ -55,7 +55,7 @@ echo "Running $0 at $NOW"
 
 function usage()
 {
-    echo "$0 [-cHpsdnfvh] - try out encrypted SNI via openssl s_client"
+    echo "$0 [-cHpsdnlvh] - try out encrypted SNI via openssl s_client"
     echo "  -H means try connect to that hidden server"
     echo "  -d means run s_client in verbose mode"
     echo "  -v means run with valgrind"
@@ -73,7 +73,7 @@ function usage()
 }
 
 # options may be followed by one colon to indicate they have a required argument
-if ! options=$(/usr/bin/getopt -s bash -o c:H:p:s:dfvnh -l cover:,hidden:,port:,server:,debug,stale,valgrind,noesni,help -- "$@")
+if ! options=$(/usr/bin/getopt -s bash -o c:H:p:s:dlvnh -l cover:,hidden:,port:,server:,debug,stale,valgrind,noesni,help -- "$@")
 then
     # something went wrong, getopt will put out an error message for us
     exit 1
@@ -98,12 +98,6 @@ do
     esac
     shift
 done
-
-if [[ "$STALE" == "yes" ]]
-then
-	ESNI="/wHHBBOoACQAHQAg4YSfjSyJPNr1z3F8KqzBNBnMejim0mJZaPmria3XsicAAhMBAQQAAAAAW9pQEAAAAABb4jkQAAA="
-    echo "Using stale ESNI value: $ESNI" 
-fi    
 
 hidden=$HIDDEN
 if [[ "$SUPPLIEDHIDDEN" != "" ]]
@@ -170,6 +164,11 @@ then
 			fi
 		fi
 	fi
+	if [[ "$STALE" == "yes" ]]
+	then
+		ESNI="/wHHBBOoACQAHQAg4YSfjSyJPNr1z3F8KqzBNBnMejim0mJZaPmria3XsicAAhMBAQQAAAAAW9pQEAAAAABb4jkQAAA="
+    	echo "Using stale ESNI value: $ESNI" 
+	fi    
 fi
 
 esnistr="-esni $hidden -esnirr $ESNI "

@@ -28,6 +28,8 @@ and haven't done any significant testing.
 
 # Random notes
 
+- TODO: consistent function names, e.g. esni_checknames -> SSL_ESNI_checknames etc.
+
 - Raise this on the list or in GH: both client_random and the TLS h/s key_share
   extension value are mixed in the ESNI calculation. The latter makes the
 openssl implementation a little harder as it imposes ordering constraints on
