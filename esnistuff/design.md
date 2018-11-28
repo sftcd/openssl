@@ -34,9 +34,9 @@ name.
 Our build works against the www.cloudflare.com service
 (see [here](https://www.cloudflare.com/ssl/encrypted-sni/)
 for details of what CloudFlare have deployed)
-and e.g. allows passing ietf.org as the value in the ESNI extension.
+and e.g. allows passing www.ietf.org as the value in the ESNI extension.
 
-			openssl s_client -cipher TLS13-AES-128-GCM-SHA256 -connect www.cloudflare.com:443 -esni ietf.org -esnirr /wEvuMKuACQAHQAgepo8PLvXxcAjcN4T3dQDxANhwPjVbNHqEEE3lbjDrjoAAhMBAQQAAAAAW/qOwAAAAABcAnfAAAA= 
+			openssl s_client -cipher TLS13-AES-128-GCM-SHA256 -connect www.cloudflare.com:443 -esni www.ietf.org -esnirr /wEvuMKuACQAHQAgepo8PLvXxcAjcN4T3dQDxANhwPjVbNHqEEE3lbjDrjoAAhMBAQQAAAAAW/qOwAAAAABcAnfAAAA= 
 
 You need to set the ``LD_LIBRARY_PATH`` to use the shared
 object in our build and the 
@@ -46,16 +46,16 @@ esnirr value above is time-dependent so won't work, to get a fresh value:
 			/wEvuMKuACQAHQAgepo8PLvXxcAjcN4T3dQDxANhwPjVbNHqEEE3lbjDrjoAAhMBAQQAAAAAW/qOwAAAAABcAnfAAAA=
 
 
-## Design Notes
+## Design/Implementation Notes
 
 - Our implementation so far is just a client-side proof-of-concept.
-- There is no server-side code at all (other than a couple of stubs).
+There is no server-side code at all (other than a couple of stubs).
 - We don't do any DNS queries from within the OpenSSL library. We just take the
   required inputs and run the protocol.
-- Our code is designed to enable us to evolve the code as the
+- We want to be relatively easily able to evolve the code as the
   standardisation process continues, so many intermediate cryptographic
-values are stored in the ``SSL_ESNI`` structure that allow us to more easily figure
-out interop issues, which has been useful esp. vs. the NSS implementation.
+values are stored in the ``SSL_ESNI`` structure that should allow us to more easily figure
+out interop issues, which has been useful esp. vs. the [NSS ESNI implementation](https://hg.mozilla.org/projects/nss/file/tip/lib/ssl/tls13esni.c).
 As the spec matures, a lot of those values won't be needed, and some of
 the related code wouldn't be part of a release. (Such code will
 be protected via  ``#ifdef ESNI_CRYPTO_INTEROP`` macros - that's not
@@ -102,7 +102,7 @@ produces this:
 			  -h means print this
 
 			The following should work:
-    		./testit.sh -c www.cloudflare.com -s NONE -H ietf.org
+    		./testit.sh -c www.cloudflare.com -s NONE -H www.ietf.org
 
 The only really interesting concept embodied there is the idea of the
 HIDDEN (e.g. ietf.org) service, the COVER (e.g. www.cloudflare.com) service 
@@ -112,7 +112,7 @@ separately provided. (There're comments in the script about that.)
 Other notes:
 
 - If ``-c NONE`` is specifed, then no cleartext SNI is sent at all.
-- COVER and SERVER default to being the same thing
+- COVER and SERVER default to being the same thing which is www.cloudflare.com
 - ``-d`` runs with various debug tracing (including new
   ESNI specific tracing of cryptographic intermediate values)
 - ``-v`` runs under valgrind and currently has no complaints (in the 
@@ -120,7 +120,31 @@ Other notes:
 
 ## ``s_client`` modifications
 
-TBD
+Here and elsewhere, almost all of our code changes are enclosed with ``#ifndef OPENSSL_NO_ESNI``
+
+The [``apps/s_client.c``](https://github.com/sftcd/openssl/blob/master/apps/s_client.c)
+has two new comnand line arguments:
+
+- ``esni`` allows one to specifiy the HIDDEN service
+- ``esnirr`` allows one to provide the TXT RR as per the spec.
+
+There is new debugging output showing the ESNI intemediate values
+if TLS message-level debugging is turned on via ``-msg`` 
+
+There is a new output line that shows if the ESNI protocol 
+succeeded, as shown in the 2nd last line below:
+
+			---
+			New, TLSv1.3, Cipher is TLS_AES_256_GCM_SHA384
+			Server public key is 2048 bit
+			Secure Renegotiation IS NOT supported
+			Compression: NONE
+			Expansion: NONE
+			No ALPN negotiated
+			Early data was not sent
+			Verify return code: 20 (unable to get local issuer certificate)
+			ESNI: success: front: www.cloudflare.com, hidden: www.ietf.org
+			---
 
 ## APIs
 
