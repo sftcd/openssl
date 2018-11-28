@@ -105,7 +105,7 @@ produces this:
     		./testit.sh -c www.cloudflare.com -s NONE -H www.ietf.org
 
 The only really interesting concept embodied there is the idea of the
-HIDDEN (e.g. ietf.org) service, the COVER (e.g. www.cloudflare.com) service 
+HIDDEN (e.g. www.ietf.org) service, the COVER (e.g. www.cloudflare.com) service 
 and the SERVER (e.g. www.cloudflare.com) to which one connects can be
 separately provided. (There're comments in the script about that.)
 
@@ -154,13 +154,94 @@ called, nominally in this order:
 - ``SSL_ESNI_print``: if ``-msg`` set, print the (initial) ``SSL_ESNI`` contents based on decoding 
 - ``SSL_esni_enable``: modify the ``SSL *con`` structure to ask that ESNI be run
 - ``SSL_set_esni_callback``: if ``-msg`` set, register callback so (final) ``SSL_ESNI`` values are printed
-- ``esni_cb``: is the call-back function, it retrives and prints the ``SSL_ESNI`` structure
+- ``esni_cb``: is a local call-back function, it retrives and prints the ``SSL_ESNI`` structure
 - ``SSL_ESNI_get_esni``: is used in ``esni_cb`` to get the ``SSL_ESNI`` structure which is printed via ``SSL_ESNI_print``
 - ``SSL_get_esni_status``: check if ESNI worked or failed and print a status line
 
+Notes:
+- We're not clear if the ``SSL_ESNI`` information ought be part of the ``SSL``
+structure or the ``SSL_CTX`` structure - guess is that server side code will
+force us to do the right thing, if the current one's wrong.
+
 ## APIs
 
-TBD
+The main ESNI header file [esni.h](https://github.com/sftcd/openssl/blob/master/include/openssl/esni.h)
+includes the following prototypes:
+
+			/*
+			 * Make a basic check of names from CLI or API
+			 */
+			int esni_checknames(const char *encservername, const char *frontname);
+			
+			/*
+			 * Decode and check the value retieved from DNS (currently base64 encoded)
+			 */
+			SSL_ESNI* SSL_ESNI_new_from_base64(const char *esnikeys);
+			
+			/*
+			 * Turn on SNI encryption for this TLS (upcoming) session
+			 */
+			int SSL_esni_enable(SSL *s, const char *hidden, const char *cover, SSL_ESNI *esni);
+			
+			/*
+			 * Do the client-side SNI encryption during a TLS handshake
+			 */
+			int SSL_ESNI_enc(SSL_ESNI *esnikeys, 
+			                char *protectedserver, 
+			                char *frontname, 
+			                size_t  client_random_len,
+			                unsigned char *client_random,
+			                uint16_t curve_id,
+			                size_t  client_keyshare_len,
+			                unsigned char *client_keyshare,
+			                CLIENT_ESNI **the_esni);
+			
+			/*
+			 * Memory management
+			 */
+			void SSL_ESNI_free(SSL_ESNI *esnikeys);
+			void CLIENT_ESNI_free(CLIENT_ESNI *c);
+			
+			/*
+			 * Debugging - note - can include sensitive values!
+			 * (Depends on compile time options)
+			 */
+			int SSL_ESNI_print(BIO* out, SSL_ESNI *esni);
+			
+			/* 
+			 * Possible return codes from SSL_ESNI_get_status
+			 */
+			#define SSL_ESNI_STATUS_SUCCESS                 1
+			#define SSL_ESNI_STATUS_FAILED                  0
+			#define SSL_ESNI_BAD_STATUS_CALL             -100
+			#define SSL_ESNI_STATUS_NOT_TRIED            -101
+			
+			/*
+			 * SSL_ESNI_print calls a callback function that uses this
+			 * to get the SSL_ESNI structure from the external view of
+			 * the TLS session.
+			 */
+			int SSL_ESNI_get_esni(SSL *s, SSL_ESNI **esni);
+			
+			
+			/*
+			 * API to allow calling code know ESNI outcome, post-handshake
+			 */
+			int SSL_get_esni_status(SSL *s, char **cover, char **hidden);
+			
+			#ifdef ESNI_CRYPT_INTEROP
+			/*
+			 * Crypto detailed debugging functions to allow comparison of intermediate
+			 * values with other code bases (in particular NSS) - these allow one to
+			 * set values that were generated in another code base's TLS handshake and
+			 * see if the same derived values are calculated.
+			 */
+			int SSL_ESNI_set_private(SSL_ESNI *esni, char *private_str);
+			int SSL_ESNI_set_nonce(SSL_ESNI *esni, unsigned char *nonce, size_t nlen);
+			#endif
+			
+Notes:
+- Need to figure out a doxygen-equivalent way to produce the above
 
 ## Data structures
 
