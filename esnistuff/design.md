@@ -251,6 +251,8 @@ includes the following prototypes:
 			
 Notes:
 - Need to figure out a doxygen-equivalent way to produce the above
+  Will add pseudo-code or similar descriptions of non-obvious things.
+- The above are only externally visible, internal functions below.
 - Various functions (but mostly ``SSL_ESNI_enc``) should be modified to be
   more consistent with other internal APIs, e.g. to have as their main
   context an ``SSL *s`` input. (Didn't do that yet, as our initial code
@@ -264,4 +266,46 @@ TBD
 ### Testing
 
 TBD
+
+### Internal functions
+
+TBD
+
+
+### New files
+
+All path names are below your clone of openssl, for me that's
+usually in ``$HOME/code/openssl``.
+
+- ssl/esni.c - main esni-specific functions
+- include/openssl/esni.h - data structures are commented some
+- include/openssl/esnierr.h - boring
+
+- esnistuff/esnimain.c - a tester
+- esnistuff/doit.sh - calls esnimain
+- esnistuff/testit.sh - calls ``openssl s_client`` (still evolving!)
+
+### Existing Files modified 
+
+- ssl/build.info - need to add new source files here (just esni.c for now)
+- utils/libssl.num - seem to need to add exported stuff here manually?
+- include/openssl/err.h
+- include/openssl/ssl.h
+- include/openssl/sslerr.h
+- include/openssl/tls1.h
+- apps/s_client.c
+- ssl/ssl-locl.h - TLSEXT_IDX_esni isn't #ifndef protected for some reason, maybe because it's an enum?
+- ssl/ssl-lib.c
+- ssl/s3_lib.c
+- ssl/t1_trce.c
+- ssl/statem/extensions.c - lots of new code, mainly copied from server_name handling
+- ssl/statem/statem_locl.h
+- ssl/statem/extensions_clnt.c
+- ssl/statem/extensions_srvr.c 
+
+### Files still to figure out/check
+
+- ssl/ssl_asn1.c - might be a challenge, not sure if I need to go there
+	- a comment in ssl/ssl_locl.h implies I might, perhaps for state mgmt, not
+	  sure
 
