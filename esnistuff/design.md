@@ -29,9 +29,19 @@ name.
 - Help make ESNI more widely available/usable 
 - Ultimately - maybe some of this code might end up part of a release
 
+## Status
+
+Our build works against the www.cloudflare.com service
+and e.g. allows passing ietf.org in the ESNI extension.
+
+			openssl s_client -cipher TLS13-AES-128-GCM-SHA256 -connect www.cloudflare.com:443 -esni ietf.org -esnirr /wEvuMKuACQAHQAgepo8PLvXxcAjcN4T3dQDxANhwPjVbNHqEEE3lbjDrjoAAhMBAQQAAAAAW/qOwAAAAABcAnfAAAA= 
+
+(The esnirr value above is time-dependent so won't work now.)
+
+
 ## Design Notes
 
-- Our implementation so far is just a proof-of-concept.
+- Our implementation so far is just a client-side proof-of-concept.
 - There is no server-side code at all (other than a couple of stubs).
 - We don't do any DNS queries from within the OpenSSL library. We just take the
   required inputs and run the protocol.
@@ -43,6 +53,18 @@ As the spec matures, a lot of those values won't be needed, and some of
 the related code wouldn't be part of a release. (Such code will
 be protected via  ``#ifdef ESNI_CRYPTO_INTEROP`` macros - that's not
 yet well-done.)
+
+## Plans
+
+- We do plan to add a server-side implementation
+- We may try integrate the server-side with some web server (apache/nginx)
+- We may try integrate the client-side with some web client application such
+  as wget or curl.
+
+The timeline for our work is that Calum needs to be finished his project
+by approx. end March 2019. Stephen will continue work on this thereafter.
+
+## Design details
 
 We provide [data structures](#data-structures) and [APIs](#apis) that allow (client) applications to include
 ESNI in handshakes.
@@ -56,7 +78,38 @@ We'll describe those in reverse order, and then consider [testing](#testing).
 
 ## Test script
 
-[testit.sh](https://gitbub.com/sftcd/openssl/esnistuff/testit.sh) 
+The ``usage()`` function for the [testit.sh](https://gitbub.com/sftcd/openssl/esnistuff/testit.sh) 
+produces this:
+
+			$ ./testit.sh -h
+			Running ./testit.sh at 20181128-125116
+			./testit.sh [-cHpsdnfvh] - try out encrypted SNI via openssl s_client
+			  -H means try connect to that hidden server
+			  -d means run s_client in verbose mode
+			  -v means run with valgrind
+			  -l means use stale ESNIKeys
+			  -n means don't trigger esni at all
+			  -s [name] specifices a server to which I'll connect
+			  -c [name] specifices a covername that I'll send as a clear SNI (NONE is special)
+			  -p [port] specifices a port (default: 442)
+			  -h means print this
+
+			The following should work:
+    		./testit.sh -c www.cloudflare.com -s NONE -H ietf.org
+
+The only really interesting concept embodied there is the idea of the
+HIDDEN (e.g. ietf.org) service, the COVER (e.g. www.cloudflare.com) service 
+and the SERVER (e.g. www.cloudflare.com) to which one connects can be
+separately provided. (There're comments in the script about that.)
+
+Other notes:
+
+- If ``-c NONE`` is specifed, then no cleartext SNI is sent at all.
+- COVER and SERVER default to being the same thing
+- ``-d`` runs with various debug tracing (including new
+  ESNI specific tracing of cryptographic intermediate values)
+- ``-v`` runs under valgrind and currently has no complaints (in the 
+  nominal case)
 
 ## ``s_client`` modifications
 
