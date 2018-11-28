@@ -28,6 +28,24 @@ and haven't done any significant testing.
 
 # Random notes
 
+- Raise this on the list or in GH: both client_random and the TLS h/s key_share
+  extension value are mixed in the ESNI calculation. The latter makes the
+openssl implementation a little harder as it imposes ordering constraints on
+the client code (TLS h/s key_share has to be done first). The TLS h/s key_share
+is also a little confusing as using that means there are 3 key_shares involved
+in the overall story, and they're not quite encoded the same way, which is a
+bit ickky. I guess some code might also confuse this if the TLS h/s contains >1
+key share, as FF seems to do, at least in some cases. (One is 25519 one p256.)
+It's not clear to me that both ways of binding the ESNI to this h/s are needed.
+Maybe move to just using the client_random for binding? TODO: check if this
+was already raised as a GH issue.
+
+- Providing ``-H nonexistent`` as input to ``testit.sh`` claims success and
+the h/s does end successfully. Behaviour differs if a cleartext SNI was
+sent or not. TODO: ponder if we need the client to validate
+the selected cert from the h/s matches the HIDDEN value? Probably should.
+Might need to ask CF how they interpret such things too.
+
 - TODO: Follow advice from an openssl maintainer: add a design document to be
 shared with project folks. 
 
