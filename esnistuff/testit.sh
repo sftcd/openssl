@@ -105,7 +105,8 @@ then
 	hidden=$SUPPLIEDHIDDEN
 fi
 
-dbgstr=" -verify_quiet"
+#dbgstr=" -verify_quiet"
+dbgstr=" -quiet"
 if [[ "$DEBUG" == "yes" ]]
 then
     #dbgstr="-msg -debug -security_debug_verbose -state -tlsextdebug"
@@ -178,12 +179,32 @@ then
     esnistr=""
 fi
 
-httpreq="GET $HTTPPATH\\r\\n\\r\\n"
+#httpreq="GET $HTTPPATH\\r\\n\\r\\n"
+httpreq="GET / HTTP/1.1\r\nConnection: close\r\nHost: $hidden\r\n\r\n"
 
 # force tls13
 force13="-cipher TLS13-AES-128-GCM-SHA256 -no_ssl3 -no_tls1 -no_tls1_1 -no_tls1_2"
 #force13="-tls1_3 -cipher TLS13-AES-128-GCM-SHA256 "
 
-set -x
-echo "$httpreq" | $vgcmd $TOP/apps/openssl s_client $dbgstr $force13 $target $esnistr $snicmd
+#set -x
+TMPF=`mktemp /tmp/esnitestXXXX`
+echo -e "$httpreq" | $vgcmd $TOP/apps/openssl s_client $dbgstr $force13 $target $esnistr $snicmd >$TMPF 2>&1
+c200=`grep -c "200 OK" $TMPF`
+c4xx=`grep -ce "^HTTP/1.1 4[0-9][0-9] " $TMPF`
+if [[ "$DEBUG" == "yes" ]]
+then
+	noncestr=`grep -A1 "ESNI Nonce" $TMPF`
+	eestr=`grep -A2 EncryptedExtensions $TMPF`
+	echo "Nonce sent: $noncestr"
+	echo "Nonce Back: $eestr"
+	grep -e "^ESNI: " $TMPF
+fi
+echo "Looks like $c200 ok's and $c4xx bad's."
+echo ""
+if [[ "$VG" == "yes" ]]
+then
+	echo "Valgrind..." 
+	grep -e "^==" $TMPF
+fi
+#rm -f $TMPF
 
