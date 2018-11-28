@@ -609,7 +609,7 @@ err:
  */
 static void esni_pbuf(BIO *out,char *msg,unsigned char *buf,size_t blen,int indent)
 {
-    if (buf==NULL) {
+    if (buf==NULL || blen==0) {
         BIO_printf(out,"OPENSSL: %s is NULL\n",msg);
         return;
     }
