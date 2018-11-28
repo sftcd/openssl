@@ -60,6 +60,9 @@ As the spec matures, a lot of those values won't be needed, and some of
 the related code wouldn't be part of a release. (Such code will
 be protected via  ``#ifdef ESNI_CRYPTO_INTEROP`` macros - that's not
 yet well-done.)
+- Currently notes, test scripts and a few other things are in an [esnistuff](https://github.com/sftcd/openssl/esnistuff/)
+directory - that should disappear over time as we better integrate the
+code following good prooject practice.
 
 ## Plans
 
@@ -162,6 +165,9 @@ Notes:
 - We're not clear if the ``SSL_ESNI`` information ought be part of the ``SSL``
 structure or the ``SSL_CTX`` structure - guess is that server side code will
 force us to do the right thing, if the current one's wrong.
+- There's another test script [doit.sh](https://github.com/sftcd/openssl/blob/master/esnistuff/doit.sh)
+that runs a standalone test application ([esnimain.c](https://github.com/sftcd/openssl/blob/master/esnistuff/esnimain.c))
+which just tests the ESNI APIs directly.
 
 ## APIs
 
