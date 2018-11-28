@@ -10,7 +10,7 @@ openssl implementation of encrypted SNI.
   client side of the ESNI Internet-draft
 [draft-ietf-tls-esni-02](https://tools.ietf.org/html/draft-ietf-tls-esni-02)
 spec.
-- This is the most up to date
+- The most up to date
   [README.md](https://github.com/sftcd/openssl/tree/master/esnistuff) for that
 code.
 
