@@ -32,13 +32,15 @@ name.
 ## Status
 
 Our build works against the www.cloudflare.com service
-and e.g. allows passing ietf.org in the ESNI extension.
-(You need to set the ``LD_LIBRARY_PATH`` to use the shared
-object in our build.)
+(see [here](https://www.cloudflare.com/ssl/encrypted-sni/)
+for details of what CloudFlare have deployed)
+and e.g. allows passing ietf.org as the value in the ESNI extension.
 
 			openssl s_client -cipher TLS13-AES-128-GCM-SHA256 -connect www.cloudflare.com:443 -esni ietf.org -esnirr /wEvuMKuACQAHQAgepo8PLvXxcAjcN4T3dQDxANhwPjVbNHqEEE3lbjDrjoAAhMBAQQAAAAAW/qOwAAAAABcAnfAAAA= 
 
-The esnirr value above is time-dependent so won't work, to get a fresh value:
+You need to set the ``LD_LIBRARY_PATH`` to use the shared
+object in our build and the 
+esnirr value above is time-dependent so won't work, to get a fresh value:
 
 			dig +short txt _esni.www.cloudflare.com | sed -e 's/"//g'
 			/wEvuMKuACQAHQAgepo8PLvXxcAjcN4T3dQDxANhwPjVbNHqEEE3lbjDrjoAAhMBAQQAAAAAW/qOwAAAAABcAnfAAAA=
