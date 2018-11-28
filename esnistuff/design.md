@@ -242,6 +242,11 @@ includes the following prototypes:
 			
 Notes:
 - Need to figure out a doxygen-equivalent way to produce the above
+- Various functions (but mostly ``SSL_ESNI_enc``) should be modified to be
+  more consistent with other internal APIs, e.g. to have as their main
+  context an ``SSL *s`` input. (Didn't do that yet, as our initial code
+  was run from a standalone test application, but we'll make such changes
+  soon.)
 
 ## Data structures
 
