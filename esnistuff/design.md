@@ -146,6 +146,18 @@ succeeded, as shown in the 2nd last line below:
 			ESNI: success: front: www.cloudflare.com, hidden: www.ietf.org
 			---
 
+When the new command line arguments are set, the following APIs are
+called, in this order:
+
+- ``esni_checknames``: do a basic check on HIDDEN/COVER (e.g. not the same:-)
+- ``SSL_ESNI_new_from_base64``: decode the TXT RR value and return an ``SSL_ESNI`` structure
+- ``SSL_ESNI_print``: if ``-msg`` set, print the (initial) ``SSL_ESNI`` contents based on decoding 
+- ``SSL_esni_enable``: modify the ``SSL *con`` structure to ask the ESNI be run
+- ``SSL_set_esni_callback``: if ``-msg`` set, register callback so (final) ``SSL_ESNI`` values are printed
+- ``esni_cb``: is the call-back function, it retrives and prints the ``SSL_ESNI`` structure
+- ``SSL_ESNI_get_esni``: is used in ``esni_cb`` to get the ``SSL_ESNI`` structure which is printed via ``SSL_ESNI_print``
+- ``SSL_get_esni_status``: check if ESNI worked or failed and print a status line
+
 ## APIs
 
 TBD
