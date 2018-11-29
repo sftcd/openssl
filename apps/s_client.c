@@ -1569,7 +1569,7 @@ int s_client_main(int argc, char **argv)
         /*
          * tee up encrypted SNI
          */
-        if (esni_checknames(encservername,servername)!=1) {
+        if (SSL_esni_checknames(encservername,servername)!=1) {
             BIO_printf(bio_err,
                        "%s: ESNI name check failed.\n",
                        prog);

@@ -194,7 +194,7 @@ typedef struct ssl_esni_st {
 /*
  * Make a basic check of names from CLI or API
  */
-int esni_checknames(const char *encservername, const char *covername);
+int SSL_esni_checknames(const char *encservername, const char *covername);
 
 /*
  * Decode and check the value retieved from DNS (currently base64 encoded)
