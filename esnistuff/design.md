@@ -33,20 +33,30 @@ when there's an ESNI RFC
 
 ## Status
 
-Our build works against the www.cloudflare.com service
-(see [here](https://www.cloudflare.com/ssl/encrypted-sni/)
-for details of what CloudFlare have deployed)
-and e.g. allows passing www.ietf.org as the value in the ESNI extension.
+Our build works against the www.cloudflare.com service (see
+[here](https://www.cloudflare.com/ssl/encrypted-sni/) for details of what
+CloudFlare have deployed) and e.g. allows passing www.ietf.org as the value in
+the ESNI extension.  First you need to set ``LD_LIBRARY_PATH`` and get a fresh
+public key from DNS, then you can pass that and your preferred hidden server
+name on the command line as follows:
 
-			openssl s_client -cipher TLS13-AES-128-GCM-SHA256 -connect www.cloudflare.com:443 -esni www.ietf.org -esnirr /wEvuMKuACQAHQAgepo8PLvXxcAjcN4T3dQDxANhwPjVbNHqEEE3lbjDrjoAAhMBAQQAAAAAW/qOwAAAAABcAnfAAAA= 
+			$ export LD_LIBRARY_PATH=/path/to/your/libssl.so
+			$ RRVAL=`dig +short txt _esni.www.cloudflare.com | sed -e 's/"//g'`
+			$ openssl s_client -connect www.cloudflare.com:443 -esni www.ietf.org -esnirr $RRVAL
+			...usual s_client output...
+			ESNI: success: cover: www.cloudflare.com, hidden: www.ietf.org
+			...usual s_client output...
+			read R BLOCK
+			^D DONE
+			$
 
-You need to set the ``LD_LIBRARY_PATH`` to use the shared
-object in our build and the 
-esnirr value above is time-dependent so won't work, to get a fresh value:
+The ``esnirr`` value above is time-dependent so won't work for that long.
+(Perhaps an hour or so, not sure - the DNS TTL seems to be set to 3600 anyway).
+With the above command, you need to hit CTRL-D (the "^D" shown above) to exit
+as is usual with ``s_client``.
 
-			dig +short txt _esni.www.cloudflare.com | sed -e 's/"//g'
-			/wEvuMKuACQAHQAgepo8PLvXxcAjcN4T3dQDxANhwPjVbNHqEEE3lbjDrjoAAhMBAQQAAAAAW/qOwAAAAABcAnfAAAA=
-
+This is not well-tested code at this point, it's just an initial proof-of-concept,
+so **don't depend on this for anything**.
 
 ## Design/Implementation Notes
 
@@ -56,13 +66,14 @@ There is no server-side code at all (other than a couple of stubs).
   required inputs and run the protocol.
 - We want to be relatively easily able to evolve the code as the
   standardisation process continues, so many intermediate cryptographic
-values are stored in the ``SSL_ESNI`` structure that should allow us to more easily figure
-out interop issues, which has been useful esp. vs. the [NSS ESNI implementation](https://hg.mozilla.org/projects/nss/file/tip/lib/ssl/tls13esni.c).
+values are stored in the ``SSL_ESNI`` structure to help  us more easily figure
+out interop issues. That has been v. useful esp. vs. the [NSS ESNI implementation](https://hg.mozilla.org/projects/nss/file/tip/lib/ssl/tls13esni.c)
+which we used during development.
 As the spec matures, a lot of those values won't be needed, and some of
 the related code wouldn't be part of a release. (Such code will
 be protected via  ``#ifdef ESNI_CRYPTO_INTEROP`` - that's not
 yet well-done.)
-- Currently notes, test scripts and a few other things are in an [esnistuff](https://github.com/sftcd/openssl/esnistuff/)
+- Currently notes, (including this one), test scripts and a few other things are in an [esnistuff](https://github.com/sftcd/openssl/esnistuff/)
 directory - that should disappear over time as we better integrate the
 code following good project practice.
 
@@ -180,7 +191,7 @@ includes the following prototypes:
 			/*
 			 * Make a basic check of names from CLI or API
 			 */
-			int esni_checknames(const char *encservername, const char *frontname);
+			int esni_checknames(const char *encservername, const char *covername);
 			
 			/*
 			 * Decode and check the value retieved from DNS (currently base64 encoded)
@@ -196,8 +207,8 @@ includes the following prototypes:
 			 * Do the client-side SNI encryption during a TLS handshake
 			 */
 			int SSL_ESNI_enc(SSL_ESNI *esnikeys, 
-			                char *protectedserver, 
-			                char *frontname, 
+			                char *encservername, 
+			                char *covername, 
 			                size_t  client_random_len,
 			                unsigned char *client_random,
 			                uint16_t curve_id,

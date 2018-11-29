@@ -1223,8 +1223,11 @@ void SSL_free(SSL *s)
 		SSL_ESNI_free(s->esni);
 		OPENSSL_free(s->esni);
 	}
-	if (s->ext.enchostname!=NULL) {
-		OPENSSL_free(s->ext.enchostname);
+	if (s->ext.encservername!=NULL) {
+		OPENSSL_free(s->ext.encservername);
+	}
+	if (s->ext.covername!=NULL) {
+		OPENSSL_free(s->ext.covername);
 	}
 #endif
 

@@ -104,7 +104,7 @@ typedef struct ssl_esni_st {
      * Fields from API
      */
     char *encservername;
-    char *frontname;
+    char *covername;
     /*
      * Binary (base64 decoded) RR value
      */
@@ -194,7 +194,7 @@ typedef struct ssl_esni_st {
 /*
  * Make a basic check of names from CLI or API
  */
-int esni_checknames(const char *encservername, const char *frontname);
+int esni_checknames(const char *encservername, const char *covername);
 
 /*
  * Decode and check the value retieved from DNS (currently base64 encoded)
@@ -210,8 +210,8 @@ int SSL_esni_enable(SSL *s, const char *hidden, const char *cover, SSL_ESNI *esn
  * Do the client-side SNI encryption during a TLS handshake
  */
 int SSL_ESNI_enc(SSL_ESNI *esnikeys, 
-                char *protectedserver, 
-                char *frontname, 
+                char *encservername, 
+                char *covername, 
                 size_t  client_random_len,
                 unsigned char *client_random,
                 uint16_t curve_id,

@@ -34,7 +34,11 @@ Here's the beginnings of a [design doc](./design.md).
 
 - Providing ``-H nonexistent`` as input to ``testit.sh`` claims success and
 the h/s does end successfully. Behaviour differs if a cleartext SNI was
-sent or not. TODO: ponder if we need the client to validate
+sent or not. Surprisingly (for me:-) this also works:
+
+			$ 
+ 
+TODO: ponder if we need the client to validate
 the selected cert from the h/s matches the HIDDEN value? Probably should.
 Might need to ask CF how they interpret such things too.
 
@@ -62,6 +66,9 @@ that to handle cases where the RR value isn't supplied on the command line.
 # State-of-play...
 
 Most recent first...
+
+- Consistency: got rid of "frontname" everywhere -> "covername" and
+  use encservername everywhere (and never enchostname;-)
 
 - Tidied up the ``s_client`` display a bit so it says how things went,
   and added ``SSL_ESNI_get_status()`` API for that. Also tweaked the 
