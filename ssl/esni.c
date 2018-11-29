@@ -1292,7 +1292,7 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys,
 /*
 * Check names for length, maybe add more checks later before starting...
 */
-int esni_checknames(const char *encservername, const char *covername)
+int SSL_esni_checknames(const char *encservername, const char *covername)
 {
     int elen=0;
     int flen=0;
