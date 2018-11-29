@@ -36,9 +36,13 @@ Here's the beginnings of a [design doc](./design.md).
 the h/s does end successfully. Behaviour differs if a cleartext SNI was
 sent or not. Surprisingly (for me:-) this also works:
 
-			$ 
+			$ ./testit.sh -H ietf.org -c jell.ie 
+
+	by connecting to www.cloudflare.com with a SNI they don't serve and
+ 	an ESNI they do. Not sure what'd be right there TBH but think more 
+	about it later.
  
-TODO: ponder if we need the client to validate
+- TODO: ponder if we need the client to validate
 the selected cert from the h/s matches the HIDDEN value? Probably should.
 Might need to ask CF how they interpret such things too.
 
