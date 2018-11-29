@@ -46,8 +46,10 @@ sent or not. Surprisingly (for me:-) this also works:
 the selected cert from the h/s matches the HIDDEN value? Probably should.
 Might need to ask CF how they interpret such things too.
 
-- TODO: I could have the s_client app do the ESNIKeys DNS lookup. Maybe add
+- I could have the ``s_client`` app do the ESNIKeys DNS lookup. Maybe add
 that to handle cases where the RR value isn't supplied on the command line.
+OTOH, maybe not - would require picking a DNS library which Viktor 
+seemed unkeen on.
 
 - From NSS code: /* If we're not sending SNI, don't send ESNI. */
   That should maybe be agreed upon, anything can work, but no harm
@@ -72,7 +74,7 @@ that to handle cases where the RR value isn't supplied on the command line.
 Most recent first...
 
 - Consistency: got rid of "frontname" everywhere -> "covername" and
-  use encservername everywhere (and never enchostname;-)
+  use encservername everywhere (and never enchostname;-) 
 
 - Tidied up the ``s_client`` display a bit so it says how things went,
   and added ``SSL_ESNI_get_status()`` API for that. Also tweaked the 
