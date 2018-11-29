@@ -175,6 +175,9 @@ called, nominally in this order:
 - ``SSL_get_esni_status``: check if ESNI worked or failed and print a status line
 
 Notes:
+- The functions names above that contain the string ``SNI_ESNI`` either return
+or take as a parameter a value of that type. Function names with a lowercase
+esni substring do not. (This seems to be an OpenSSL convention.)
 - We're not clear if the ``SSL_ESNI`` information ought be part of the ``SSL``
 structure or the ``SSL_CTX`` structure - guess is that server side code will
 force us to do the right thing, if the current one's wrong.
@@ -192,7 +195,7 @@ includes the following prototypes:
 			 * Make a basic check of names from CLI or API
 			 */
 			int SSL_esni_checknames(const char *encservername, const char *covername);
-			
+
 			/*
 			 * Decode and check the value retieved from DNS (currently base64 encoded)
 			 */
@@ -274,14 +277,25 @@ Notes:
 
 TBD
 
-### Testing
-
-TBD
-
 ### Internal functions
 
 TBD
 
+### Testing
+
+- Things to test (later, when writing test code:-):
+	- DNS: dns query/answer failure(s) - affects script not code so far...
+	- API: No ESNI but Encservername (and vice versa)
+	- checksum fail in ESNIKeys
+	- decode fail(s) in ENSIKeys
+	- unknown version, group, suite in ESNIKeys
+	- bad times (but I disklike the whole inclusion of not_before/after!)
+	- some (bogus) extension  
+	- bad nonce returned by server
+	- no nonce returned by server
+	- fuzzing (need to check how that's generally done for openssl)
+	- malloc fails
+	- triggered internal fails
 
 ### New files
 

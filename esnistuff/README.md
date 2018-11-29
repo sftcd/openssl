@@ -55,20 +55,6 @@ seemed unkeen on.
   That should maybe be agreed upon, anything can work, but no harm
   to pick one behaviour I reckon.
 
-- Things to test (later, when writing test code:-):
-	- DNS: dns query/answer failure(s) - affects script not code so far...
-	- API: No ESNI but Encservername (and vice versa)
-	- checksum fail in ESNIKeys
-	- decode fail(s) in ENSIKeys
-	- unknown version, group, suite in ESNIKeys
-	- bad times (but I disklike the whole inclusion of not_before/after!)
-	- some (bogus) extension  
-	- bad nonce returned by server
-	- no nonce returned by server
-	- fuzzing (need to check how that's generally done for openssl)
-	- malloc fails
-	- triggered internal fails
-
 # State-of-play...
 
 Most recent first...
