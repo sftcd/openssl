@@ -1283,7 +1283,8 @@ struct ssl_st {
         void *debug_arg;
         char *hostname;
 #ifndef OPENSSL_NO_ESNI
-		char *enchostname;
+		char *encservername;
+		char *covername;
 #endif
         /* certificate status request info */
         /* Status type or -1 if no status type */
