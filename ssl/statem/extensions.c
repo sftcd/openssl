@@ -950,14 +950,16 @@ static int init_esni(SSL *s, unsigned int context)
          * This isn't currently used. TODO: think about it.
          */
         s->esni_done = 0;
-
-        /*
-         * Scrub value just in case we got given different ones twice
-         * for some perniscious UI reason:-)
-         */
-        OPENSSL_free(s->ext.enchostname);
-        s->ext.enchostname = NULL;
     }
+
+    /*
+     * Scrub value just in case we got given different ones twice
+     * for some perniscious UI reason:-)
+    */
+    OPENSSL_free(s->ext.encservername);
+    s->ext.encservername = NULL;
+    OPENSSL_free(s->ext.covername);
+    s->ext.covername = NULL;
     return 1;
 }
 

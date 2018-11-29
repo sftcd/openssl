@@ -141,7 +141,7 @@ fi
 target=" -connect $COVER:$PORT "
 if [[ "$SUPPLIEDSERVER" != "" ]]
 then
-	target=" -connect:$SUPPLIEDSERVER:$PORT"
+	target=" -connect $SUPPLIEDSERVER:$PORT"
 fi
 
 # Seems like the ESNI value is rotated often
@@ -189,8 +189,24 @@ force13="-cipher TLS13-AES-128-GCM-SHA256 -no_ssl3 -no_tls1 -no_tls1_1 -no_tls1_
 #set -x
 TMPF=`mktemp /tmp/esnitestXXXX`
 echo -e "$httpreq" | $vgcmd $TOP/apps/openssl s_client $dbgstr $force13 $target $esnistr $snicmd >$TMPF 2>&1
+
 c200=`grep -c "200 OK" $TMPF`
 c4xx=`grep -ce "^HTTP/1.1 4[0-9][0-9] " $TMPF`
+
+if [[ "$DEBUG" == "yes" ]]
+then
+	echo "$0 All output" 
+	cat $TMPF
+	echo ""
+fi
+if [[ "$VG" == "yes" ]]
+then
+	vgout=`grep -e "^==" $TMPF`
+	echo "$0 Valgrind" 
+	echo "$vgout"
+	echo ""
+fi
+echo "$0 Summary: "
 if [[ "$DEBUG" == "yes" ]]
 then
 	noncestr=`grep -A1 "ESNI Nonce" $TMPF`
@@ -198,13 +214,9 @@ then
 	echo "Nonce sent: $noncestr"
 	echo "Nonce Back: $eestr"
 	grep -e "^ESNI: " $TMPF
+else
+	echo "Looks like $c200 ok's and $c4xx bad's."
 fi
-echo "Looks like $c200 ok's and $c4xx bad's."
 echo ""
-if [[ "$VG" == "yes" ]]
-then
-	echo "Valgrind..." 
-	grep -e "^==" $TMPF
-fi
-#rm -f $TMPF
+rm -f $TMPF
 

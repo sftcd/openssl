@@ -3303,7 +3303,8 @@ int ssl3_new(SSL *s)
 #endif
 
 #ifndef OPENSSL_NO_ESNI
-	s->ext.enchostname=NULL;
+	s->ext.encservername=NULL;
+	s->ext.covername=NULL;
 	s->esni=NULL;
 #endif
 
@@ -3347,9 +3348,13 @@ void ssl3_free(SSL *s)
 	SSL_ESNI_free(s->esni);
 	OPENSSL_free(s->esni);
 	s->esni=NULL;
-	if (s->ext.enchostname) {
-		OPENSSL_free(s->ext.enchostname);
-		s->ext.enchostname=NULL;
+	if (s->ext.covername) {
+		OPENSSL_free(s->ext.covername);
+		s->ext.covername=NULL;
+	}
+	if (s->ext.encservername) {
+		OPENSSL_free(s->ext.encservername);
+		s->ext.encservername=NULL;
 	}
 	if (s->ext.hostname) {
 		OPENSSL_free(s->ext.hostname);
