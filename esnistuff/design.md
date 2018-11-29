@@ -165,7 +165,7 @@ succeeded, as shown in the 2nd last line below:
 When the new command line arguments are set, the following APIs are
 called, nominally in this order:
 
-- ``esni_checknames``: do a basic check on HIDDEN/COVER (e.g. not the same:-)
+- ``SSL_esni_checknames``: do a basic check on HIDDEN/COVER (e.g. not the same:-)
 - ``SSL_ESNI_new_from_base64``: decode the TXT RR value and return an ``SSL_ESNI`` structure
 - ``SSL_ESNI_print``: if ``-msg`` set, print the (initial) ``SSL_ESNI`` contents based on decoding 
 - ``SSL_esni_enable``: modify the ``SSL *con`` structure to ask that ESNI be run
@@ -191,7 +191,7 @@ includes the following prototypes:
 			/*
 			 * Make a basic check of names from CLI or API
 			 */
-			int esni_checknames(const char *encservername, const char *covername);
+			int SSL_esni_checknames(const char *encservername, const char *covername);
 			
 			/*
 			 * Decode and check the value retieved from DNS (currently base64 encoded)

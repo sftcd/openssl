@@ -157,7 +157,7 @@ int main(int argc, char **argv)
 #endif
 
 
-    if (!(rv=esni_checknames(encservername,frontname))) {
+    if (!(rv=SSL_esni_checknames(encservername,frontname))) {
         printf("Bad names! %d\n",rv);
         goto end;
     }
