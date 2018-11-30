@@ -40,10 +40,6 @@ sent or not. Surprisingly (for me:-) this also works:
  	an ESNI they do. Not sure what'd be right there TBH but think more 
 	about it later.
  
-- TODO: ponder if we need the client to validate
-the selected cert from the h/s matches the HIDDEN value? Probably should.
-Might need to ask CF how they interpret such things too.
-
 - From NSS code: /* If we're not sending SNI, don't send ESNI. */
   That should maybe be agreed upon, anything can work, but no harm
   to pick one behaviour I reckon.
@@ -51,6 +47,15 @@ Might need to ask CF how they interpret such things too.
 # State-of-play...
 
 Most recent first...
+
+- Added hostname validation as an option to ``SSL_esni_enable`` - if requested 
+  and we don't get the
+  hidden name matching the server cert then ``SSL_esni_get_status``
+  returns a "bad name" error code.
+  Not quite sure this is the right thing to do (TM:-) and we're 
+  ignoring the covername when doing it, but it seems kinda sensible
+  so we'll go for it for now. ``s_client`` hardcodes this to be
+  requested for now, could be added to command line later.
 
 - Got rid of duplication of encservername/covername from ``SSL s.ext``
   and ``SSL_ESNI`` and from the ``SSL_ESNI_enc`` API

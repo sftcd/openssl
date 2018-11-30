@@ -1318,7 +1318,7 @@ int SSL_esni_checknames(const char *encservername, const char *covername)
 /*
  * API so application (e.g. s_client) can deposit stuff it got from CLI
  */
-int SSL_esni_enable(SSL *s, const char *hidden, const char *cover, SSL_ESNI *esni)
+int SSL_esni_enable(SSL *s, const char *hidden, const char *cover, SSL_ESNI *esni, int require_hidden_match)
 {
     if (s==NULL || esni==NULL || hidden==NULL) {
         return 0;
@@ -1329,6 +1329,7 @@ int SSL_esni_enable(SSL *s, const char *hidden, const char *cover, SSL_ESNI *esn
     if (esni!=NULL) {
         s->esni=esni;
     }
+	s->esni->require_hidden_match=require_hidden_match;
 	s->esni->encservername=OPENSSL_strndup(hidden,TLSEXT_MAXLEN_host_name);
 	s->esni->covername=NULL;
 	if (cover != NULL) {
@@ -1344,6 +1345,15 @@ int SSL_esni_enable(SSL *s, const char *hidden, const char *cover, SSL_ESNI *esn
      * Checked for 0 when final_esni called
      */
     s->esni_done=0;
+	/*
+	 * Try enable hostname checking see what happens
+	 * TODO: figure out host s.ext.hostname plays into this...
+	 */
+	if (require_hidden_match==1) {
+		if (SSL_set1_host(s,hidden)!=1) {
+			return 0;
+		}
+	}
     return 1;
 }
 
@@ -1351,7 +1361,7 @@ int SSL_esni_enable(SSL *s, const char *hidden, const char *cover, SSL_ESNI *esn
 /*
  * API t allow calling code know ESNI outcome, post-handshake
  */
-int SSL_get_esni_status(SSL *s, char **cover, char **hidden)
+int SSL_get_esni_status(SSL *s, char **hidden, char **cover)
 {
     if (cover==NULL || hidden==NULL) {
         return SSL_ESNI_BAD_STATUS_CALL;
@@ -1359,10 +1369,18 @@ int SSL_get_esni_status(SSL *s, char **cover, char **hidden)
     *cover=NULL;
     *hidden=NULL;
     if (s->esni!=NULL) {
+		long vr=X509_V_OK;
+		if (s->esni->require_hidden_match) {
+			vr=SSL_get_verify_result(s);
+		}
         *hidden=s->esni->encservername;
         *cover=s->esni->covername;
         if (s->esni_done==1) {
-            return SSL_ESNI_STATUS_SUCCESS;
+			if (vr == X509_V_OK ) {
+            	return SSL_ESNI_STATUS_SUCCESS;
+			} else {
+            	return SSL_ESNI_STATUS_BAD_NAME;
+			}
         } else {
             return SSL_ESNI_STATUS_FAILED;
         }

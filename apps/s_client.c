@@ -2070,7 +2070,14 @@ int s_client_main(int argc, char **argv)
 
 #ifndef OPENSSL_NO_ESNI
     if (encservername != NULL ) {
-        if (SSL_esni_enable(con,encservername,servername,esnikeys)!=1) {
+		/*
+		 * Tell the ESNI code we do want SSL_get_esni_status to barf
+		 * if the hidden name doesn't match the server-cert used for the 
+		 * TLS session.
+		 * This could be made a command line argument, but I've not (yet)
+		 */
+		int require_hidden_match=1;
+        if (SSL_esni_enable(con,encservername,servername,esnikeys,require_hidden_match)!=1) {
             BIO_printf(bio_err, "%s: ESNI enabling failed.\n", prog);
             ERR_print_errors(bio_err);
             goto end;
@@ -3455,17 +3462,20 @@ static void print_stuff(BIO *bio, SSL *s, int full)
                    X509_verify_cert_error_string(verify_result));
 
 #ifndef OPENSSL_NO_ESNI
-        char *front=NULL;
         char *hidden=NULL;
-        switch (SSL_get_esni_status(s,&front,&hidden)) {
+        char *cover=NULL;
+        switch (SSL_get_esni_status(s,&hidden,&cover)) {
         case SSL_ESNI_STATUS_NOT_TRIED: 
             break;
         case SSL_ESNI_STATUS_FAILED: 
             BIO_printf(bio,"ESNI: tried but failed\n");
             break;
+        case SSL_ESNI_STATUS_BAD_NAME: 
+            BIO_printf(bio,"ESNI: worked but bad name\n");
+            break;
         case SSL_ESNI_STATUS_SUCCESS:
             BIO_printf(bio,"ESNI: success: cover: %s, hidden: %s\n",
-                            (front==NULL?"none":front),
+                            (cover==NULL?"none":cover),
                             (hidden==NULL?"none":hidden));
             break;
         default:
