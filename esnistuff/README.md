@@ -30,19 +30,14 @@ Here's the beginnings of a [design doc](./design.md).
 
 # Random notes
 
-- Providing ``-H nonexistent`` as input to ``testit.sh`` claims success and
-the h/s does end successfully. Behaviour differs if a cleartext SNI was
-sent or not. Surprisingly (for me:-) this also works:
+- Surprisingly (for me:-) this works: 
 
-			$ ./testit.sh -H ietf.org -c jell.ie 
+			$ ./testit.sh -H ietf.org -c toolongtobeadomainnamesystemlabelifikeepadding00000000000000000000000000000000000
 
-	by connecting to www.cloudflare.com with a SNI they don't serve and
- 	an ESNI they do. Not sure what'd be right there TBH but think more 
-	about it later.
- 
-- From NSS code: /* If we're not sending SNI, don't send ESNI. */
-  That should maybe be agreed upon, anything can work, but no harm
-  to pick one behaviour I reckon.
+	i.e., connecting to www.cloudflare.com with an SNI they don't serve and
+ 	an ESNI that they do... is fine. The SNI value doesn't have to be a real or even
+    a valid DNS name (I think!). Not sure what'd be right there TBH.
+	Probably wanna as CF about that.
 
 # State-of-play...
 
@@ -56,6 +51,12 @@ Most recent first...
   ignoring the covername when doing it, but it seems kinda sensible
   so we'll go for it for now. ``s_client`` hardcodes this to be
   requested for now, could be added to command line later.
+
+- From NSS code: ``/* If we're not sending SNI, don't send ESNI. */``
+  That should maybe be agreed upon, anything can work, but no harm
+  to pick one (default?) behaviour I reckon. For now, I don't couple 
+  things so tightly, maybe ``s_client`` is different enough from
+  a browser that that's correct.
 
 - Got rid of duplication of encservername/covername from ``SSL s.ext``
   and ``SSL_ESNI`` and from the ``SSL_ESNI_enc`` API
