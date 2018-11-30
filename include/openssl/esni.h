@@ -105,6 +105,11 @@ typedef struct ssl_esni_st {
      */
     char *encservername;
     char *covername;
+	/*
+	 * If 1 then SSL_esni_get_status will barf if hidden name doesn't
+	 * match TLS server cert. If 0, don't care.
+	 */
+	int require_hidden_match;
     /*
      * Binary (base64 decoded) RR value
      */
@@ -204,7 +209,7 @@ SSL_ESNI* SSL_ESNI_new_from_base64(const char *esnikeys);
 /*
  * Turn on SNI encryption for this TLS (upcoming) session
  */
-int SSL_esni_enable(SSL *s, const char *hidden, const char *cover, SSL_ESNI *esni);
+int SSL_esni_enable(SSL *s, const char *hidden, const char *cover, SSL_ESNI *esni, int require_hidden_match);
 
 /*
  * Do the client-side SNI encryption during a TLS handshake
@@ -229,14 +234,6 @@ void CLIENT_ESNI_free(CLIENT_ESNI *c);
  */
 int SSL_ESNI_print(BIO* out, SSL_ESNI *esni);
 
-/* 
- * Possible return codes from SSL_ESNI_get_status
- */
-#define SSL_ESNI_STATUS_SUCCESS                 1
-#define SSL_ESNI_STATUS_FAILED                  0
-#define SSL_ESNI_BAD_STATUS_CALL             -100
-#define SSL_ESNI_STATUS_NOT_TRIED            -101
-
 /*
  * SSL_ESNI_print calls a callback function that uses this
  * to get the SSL_ESNI structure from the external view of
@@ -244,11 +241,20 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esni);
  */
 int SSL_ESNI_get_esni(SSL *s, SSL_ESNI **esni);
 
+/* 
+ * Possible return codes from SSL_ESNI_get_status
+ */
+#define SSL_ESNI_STATUS_SUCCESS                 1
+#define SSL_ESNI_STATUS_FAILED                  0
+#define SSL_ESNI_BAD_STATUS_CALL             -100
+#define SSL_ESNI_STATUS_NOT_TRIED            -101
+#define SSL_ESNI_STATUS_BAD_NAME             -102
+
 
 /*
  * API t allow calling code know ESNI outcome, post-handshake
  */
-int SSL_get_esni_status(SSL *s, char **cover, char **hidden);
+int SSL_get_esni_status(SSL *s, char **hidden, char **cover);
 
 #ifdef ESNI_CRYPT_INTEROP
 /*
