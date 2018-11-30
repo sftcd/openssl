@@ -37,7 +37,7 @@ Here's the beginnings of a [design doc](./design.md).
 	i.e., connecting to www.cloudflare.com with an SNI they don't serve and
  	an ESNI that they do... is fine. The SNI value doesn't have to be a real or even
     a valid DNS name (I think!). Not sure what'd be right there TBH.
-	Probably wanna as CF about that.
+	Probably wanna ask CF about that.
 
 # State-of-play...
 
