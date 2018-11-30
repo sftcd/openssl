@@ -43,8 +43,8 @@ EXT_RETURN tls_construct_ctos_server_name(SSL *s, WPACKET *pkt,
 #ifndef OPENSSL_NO_ESNI
 	if (s->esni != NULL ) {
 		/*
-		 * Check that s.ext.hostname == s.ext.esni.covername
-		 * and s.ext.covername != s.ext.encserername (which
+		 * Check if s.ext.hostname == s.esni.covername
+		 * and s.esni.covername != s.esni.encservername (which
 		 * shouldn't happen ever but who knows...)
 		 * If either test fails don't send server_naeme. 
 		 * That is, if we want to send ESNI, then we only
@@ -53,21 +53,21 @@ EXT_RETURN tls_construct_ctos_server_name(SSL *s, WPACKET *pkt,
 		 * via some weirdo application API that we couldn't
 		 * change when ESNI enabling perhaps)
 		 */
-    	if (s->ext.encservername == NULL) { /* ouch, also shouldn't happen */
+    	if (s->esni->encservername == NULL) { /* ouch, also shouldn't happen */
         	SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_SERVER_NAME,
                  ERR_R_INTERNAL_ERROR);
         	return EXT_RETURN_FAIL;
 		}
-		if (s->ext.covername==NULL) {
+		if (s->esni->covername==NULL) {
         	return EXT_RETURN_NOT_SENT;
 		}
-		size_t fn_len=OPENSSL_strnlen(s->ext.covername,TLSEXT_MAXLEN_host_name);
+		size_t cn_len=OPENSSL_strnlen(s->esni->covername,TLSEXT_MAXLEN_host_name);
 		size_t hn_len=OPENSSL_strnlen(s->ext.hostname,TLSEXT_MAXLEN_host_name);
-		size_t en_len=OPENSSL_strnlen(s->ext.encservername,TLSEXT_MAXLEN_host_name);
-		if (fn_len!=hn_len || !CRYPTO_memcmp(s->ext.hostname,s->ext.covername,fn_len)) {
+		size_t en_len=OPENSSL_strnlen(s->esni->encservername,TLSEXT_MAXLEN_host_name);
+		if (cn_len!=hn_len || !CRYPTO_memcmp(s->ext.hostname,s->esni->covername,cn_len)) {
         	return EXT_RETURN_NOT_SENT;
 		}
-		if (en_len!=fn_len || !CRYPTO_memcmp(s->ext.encservername,s->ext.covername,fn_len)) {
+		if (en_len!=cn_len || !CRYPTO_memcmp(s->esni->encservername,s->esni->covername,cn_len)) {
         	SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_SERVER_NAME,
                  ERR_R_INTERNAL_ERROR);
         	return EXT_RETURN_FAIL;
@@ -2033,7 +2033,7 @@ EXT_RETURN tls_construct_ctos_esni(SSL *s, WPACKET *pkt, unsigned int context,
         return EXT_RETURN_NOT_SENT;
     }
 
-    if (s->ext.encservername == NULL) {
+    if (s->esni==NULL || s->esni->encservername == NULL) {
         return EXT_RETURN_NOT_SENT;
     }
     
@@ -2063,7 +2063,7 @@ EXT_RETURN tls_construct_ctos_esni(SSL *s, WPACKET *pkt, unsigned int context,
 
     uint16_t curve_id = s->s3->group_id;
     CLIENT_ESNI *c=NULL;
-    if (!SSL_ESNI_enc(s->esni,s->ext.encservername,s->ext.covername,rd_len,rd,curve_id,ks_len,ks,&c)) {
+    if (!SSL_ESNI_enc(s->esni,rd_len,rd,curve_id,ks_len,ks,&c)) {
         return 0;
     }
     OPENSSL_free(ks);

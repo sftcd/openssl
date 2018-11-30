@@ -30,8 +30,6 @@ Here's the beginnings of a [design doc](./design.md).
 
 # Random notes
 
-- TODO: consistent function names, e.g. esni_checknames -> SSL_ESNI_checknames etc.
-
 - Providing ``-H nonexistent`` as input to ``testit.sh`` claims success and
 the h/s does end successfully. Behaviour differs if a cleartext SNI was
 sent or not. Surprisingly (for me:-) this also works:
@@ -46,11 +44,6 @@ sent or not. Surprisingly (for me:-) this also works:
 the selected cert from the h/s matches the HIDDEN value? Probably should.
 Might need to ask CF how they interpret such things too.
 
-- I could have the ``s_client`` app do the ESNIKeys DNS lookup. Maybe add
-that to handle cases where the RR value isn't supplied on the command line.
-OTOH, maybe not - would require picking a DNS library which Viktor 
-seemed unkeen on.
-
 - From NSS code: /* If we're not sending SNI, don't send ESNI. */
   That should maybe be agreed upon, anything can work, but no harm
   to pick one behaviour I reckon.
@@ -58,6 +51,14 @@ seemed unkeen on.
 # State-of-play...
 
 Most recent first...
+
+- Got rid of duplication of encservername/covername from ``SSL s.ext``
+  and ``SSL_ESNI`` and from the ``SSL_ESNI_enc`` API
+
+- I could have had the ``s_client`` app do the ESNIKeys DNS lookup. Maybe add
+that to handle cases where the RR value isn't supplied on the command line.
+OTOH, maybe not - would require picking a DNS library which Viktor 
+seemed unkeen on. Decided to not bother with that.
 
 - Consistency: got rid of "frontname" everywhere -> "covername" and
   use encservername everywhere (and never enchostname;-) 

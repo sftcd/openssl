@@ -945,21 +945,7 @@ static int init_server_name(SSL *s, unsigned int context)
 
 static int init_esni(SSL *s, unsigned int context)
 {
-    if (s->server) {
-        /*
-         * This isn't currently used. TODO: think about it.
-         */
-        s->esni_done = 0;
-    }
-
-    /*
-     * Scrub value just in case we got given different ones twice
-     * for some perniscious UI reason:-)
-    */
-    OPENSSL_free(s->ext.encservername);
-    s->ext.encservername = NULL;
-    OPENSSL_free(s->ext.covername);
-    s->ext.covername = NULL;
+    s->esni_done = 0;
     return 1;
 }
 
