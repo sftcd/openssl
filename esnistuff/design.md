@@ -64,6 +64,10 @@ so **don't depend on this for anything**.
 There is no server-side code at all (other than a couple of stubs).
 - We don't do any DNS queries from within the OpenSSL library. We just take the
   required inputs and run the protocol.
+- ``s_client`` currently tells the OpenSSL library to check if the TLS server cert matches the
+name from the ESNI payload. That could be configurable later, but for now, if 
+they don't match, the ``SSL_ensi_get_status`` call at the end of 
+``s_client`` will report an error.
 - We want to be relatively easily able to evolve the code as the
   standardisation process continues, so many intermediate cryptographic
 values are stored in the ``SSL_ESNI`` structure to help  us more easily figure
@@ -303,7 +307,6 @@ usually in ``$HOME/code/openssl``.
 - ssl/esni.c - main esni-specific functions
 - include/openssl/esni.h - data structures are commented some
 - include/openssl/esnierr.h - boring
-
 - esnistuff/esnimain.c - a tester
 - esnistuff/doit.sh - calls esnimain
 - esnistuff/testit.sh - calls ``openssl s_client`` (still evolving!)
