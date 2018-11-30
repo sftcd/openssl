@@ -22,17 +22,17 @@
  * These may need to be >100 (or might be convention)
  */
 #define ESNI_F_BASE64_DECODE                            101
-#define ESNI_F_NEW_FROM_BASE64                            102
-#define ESNI_F_ENC                                        103
-#define ESNI_F_CHECKSUM_CHECK                            104
+#define ESNI_F_NEW_FROM_BASE64                          102
+#define ESNI_F_ENC                                      103
+#define ESNI_F_CHECKSUM_CHECK                           104
 
 /*
  * ESNI reason codes for ESNIerr
  * These should be >100
  */
-#define ESNI_R_BASE64_DECODE_ERROR                        110
-#define ESNI_R_RR_DECODE_ERROR                            111
-#define ESNI_R_NOT_IMPL                                    112
+#define ESNI_R_BASE64_DECODE_ERROR                      110
+#define ESNI_R_RR_DECODE_ERROR                          111
+#define ESNI_R_NOT_IMPL                                 112
 
 
 /*
