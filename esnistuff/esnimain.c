@@ -37,7 +37,7 @@ void usage(char *prog)
     /*
      * TODO: moar text
      */
-    printf("%s -e ESNI [-p priv] [-r client_random] [-s encservername] [-f frontname] [-k h/s key_share] [-n nonce]\n",prog);
+    printf("%s -e ESNI [-p priv] [-r client_random] [-s encservername] [-f covername] [-k h/s key_share] [-n nonce]\n",prog);
     exit(1);
 }
 
@@ -47,7 +47,7 @@ int main(int argc, char **argv)
     // default for names
     const char *defname="www.cloudflare.com";
     char *encservername=NULL; // the one we'll encrypt
-    char *frontname=NULL; // the one we'll (optionally) leave visible 
+    char *covername=NULL; // the one we'll (optionally) leave visible 
     char *esni_str=NULL; // esni b64 string from DNS
     // for debugging purposes
     char *private_str=NULL; // input ECDH private
@@ -86,7 +86,7 @@ int main(int argc, char **argv)
                 nonce_str=optarg;
                 break;
             case 'f':
-                frontname=optarg;
+                covername=optarg;
                 break;
             default:
                 fprintf(stderr, "Error - No such option: `%c'\n\n", optopt);
@@ -157,7 +157,7 @@ int main(int argc, char **argv)
 #endif
 
 
-    if (!(rv=SSL_esni_checknames(encservername,frontname))) {
+    if (!(rv=SSL_esni_checknames(encservername,covername))) {
         printf("Bad names! %d\n",rv);
         goto end;
     }
@@ -193,7 +193,18 @@ int main(int argc, char **argv)
     if (out == NULL)
         goto end;
 
-    if (!SSL_ESNI_enc(esnikeys,encservername,frontname,cr_len,client_random,cid,ckl,ck,&the_esni)) {
+	esnikeys->encservername=OPENSSL_strndup(encservername,TLSEXT_MAXLEN_host_name);
+	if (esnikeys->encservername==NULL)
+		goto end;
+	if (covername!=NULL) {
+		esnikeys->covername=OPENSSL_strndup(covername,TLSEXT_MAXLEN_host_name);
+		if (esnikeys->covername==NULL)
+			goto end;
+	} else {
+		esnikeys->covername=NULL;
+	}
+
+    if (!SSL_ESNI_enc(esnikeys,cr_len,client_random,cid,ckl,ck,&the_esni)) {
         printf("Can't encrypt SSL_ESNI!\n");
         goto end;
     }

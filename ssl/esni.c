@@ -935,8 +935,6 @@ err:
  * Produce the encrypted SNI value for the CH
  */
 int SSL_ESNI_enc(SSL_ESNI *esnikeys, 
-                char *encservername, 
-                char *covername, 
                 size_t  client_random_len,
                 unsigned char *client_random,
                 uint16_t curve_id,
@@ -952,8 +950,8 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys,
      * checking and copying
      */
 
-    if (esnikeys->esni_server_pkey==NULL) {
-        ESNIerr(ESNI_F_ENC, ERR_R_MALLOC_FAILURE);
+    if (esnikeys==NULL || esnikeys->esni_server_pkey==NULL) {
+        ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
     }
     if (esnikeys->hs_cr==NULL) {
@@ -966,28 +964,11 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys,
         memcpy(esnikeys->hs_cr,client_random,esnikeys->hs_cr_len);
     }
     if (esnikeys->encservername==NULL) {
-        esnikeys->encservername=OPENSSL_strdup(encservername);
-        if (esnikeys->encservername==NULL) {
-            ESNIerr(ESNI_F_ENC, ERR_R_MALLOC_FAILURE);
-            goto err;
-        }
-    }
-    if (esnikeys->covername==NULL && covername!=NULL) {
-        esnikeys->covername=OPENSSL_strdup(covername);
-        if (esnikeys->covername==NULL) {
-            ESNIerr(ESNI_F_ENC, ERR_R_MALLOC_FAILURE);
-            goto err;
-        }
-    }
-    /*
-     * We better have the right name set to do anything
-     */
-    if (esnikeys->encservername==NULL) {
         ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
-        goto err;
+		goto err;
     }
     /*
-     * There is no point in doing this is SNI and ESNI payloads
+     * There is no point in doing this if SNI and ESNI payloads
      * are the same!!!
      */
     if (esnikeys->covername!=NULL && esnikeys->encservername!=NULL) {
@@ -1284,6 +1265,10 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys,
     ret = 1;
     return(ret);
  err:
+	/*
+	 * Everything else should be pointed to via esnikeys, and should
+	 * be freed elsewhen, so this is all we need to explictly handle
+	 */
     if (tmp!=NULL) OPENSSL_free(tmp);
     if (pctx!=NULL) EVP_PKEY_CTX_free(pctx);
     return ret;
@@ -1312,7 +1297,7 @@ int SSL_esni_checknames(const char *encservername, const char *covername)
     if (flen >= TLSEXT_MAXLEN_host_name) {
         return(0);
     }
-    if (elen==flen && !strncmp(encservername,covername,elen)) {
+    if (elen==flen && !CRYPTO_memcmp(encservername,covername,elen)) {
         /*
          * Silly!
          */
@@ -1335,27 +1320,8 @@ int SSL_esni_checknames(const char *encservername, const char *covername)
  */
 int SSL_esni_enable(SSL *s, const char *hidden, const char *cover, SSL_ESNI *esni)
 {
-    if (s==NULL) {
+    if (s==NULL || esni==NULL || hidden==NULL) {
         return 0;
-    }
-    if (s->ext.encservername!=NULL) {
-        OPENSSL_free(s->ext.encservername);
-		s->ext.encservername=NULL;
-    }
-    if (hidden!=NULL ) {
-        s->ext.encservername=OPENSSL_strndup(hidden,TLSEXT_MAXLEN_host_name);
-    }
-    if (s->ext.hostname!=NULL) {
-        OPENSSL_free(s->ext.hostname);
-		s->ext.hostname=NULL;
-    }
-    if (cover != NULL && s->ext.covername!=NULL) {
-        OPENSSL_free(s->ext.covername);
-		s->ext.covername=NULL;
-    }
-    if (cover != NULL) {
-        s->ext.hostname=OPENSSL_strndup(cover,TLSEXT_MAXLEN_host_name);
-        s->ext.covername=OPENSSL_strndup(cover,TLSEXT_MAXLEN_host_name);
     }
     if (s->esni!=NULL) {
         SSL_ESNI_free(s->esni);
@@ -1363,6 +1329,16 @@ int SSL_esni_enable(SSL *s, const char *hidden, const char *cover, SSL_ESNI *esn
     if (esni!=NULL) {
         s->esni=esni;
     }
+	s->esni->encservername=OPENSSL_strndup(hidden,TLSEXT_MAXLEN_host_name);
+	s->esni->covername=NULL;
+	if (cover != NULL) {
+		s->esni->covername=OPENSSL_strndup(cover,TLSEXT_MAXLEN_host_name);
+		if (s->ext.hostname!=NULL) {
+        	OPENSSL_free(s->ext.hostname);
+			s->ext.hostname=OPENSSL_strndup(cover,TLSEXT_MAXLEN_host_name);
+		}
+
+	}
     /*
      * Set to 1 when nonce returned
      * Checked for 0 when final_esni called

@@ -210,8 +210,6 @@ int SSL_esni_enable(SSL *s, const char *hidden, const char *cover, SSL_ESNI *esn
  * Do the client-side SNI encryption during a TLS handshake
  */
 int SSL_ESNI_enc(SSL_ESNI *esnikeys, 
-                char *encservername, 
-                char *covername, 
                 size_t  client_random_len,
                 unsigned char *client_random,
                 uint16_t curve_id,
