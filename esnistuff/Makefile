@@ -14,7 +14,7 @@ esnimain.o: esnimain.c ../include/openssl/esni.h ../include/openssl/esnierr.h
 
 doc: 
 	- doxygen esni.doxy
-	- moxygen doxy/xml
+	- moxygen -a doxy/xml
 
 # for some reason a symbol we need is not public in libssl.so but is in libssl.a
 # so we'll just copy stuff down here for the moment - should be ok in the end as
