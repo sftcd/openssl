@@ -73,10 +73,10 @@ int ERR_load_ESNI_strings(void)
     return 1;
 }
 
-/*
+/**
  * @brief map 8 bytes in n/w byte order from PACKET to a 64-bit time value
  *
- * TODO: there must be code for this somewhere - find it
+ * @todo TODO: there must be code for this somewhere - find it
  * 
  * @param buf is a bit of the PACKET with the 8 octets of interest
  * @return is the 64 bit value from those 8 octets
@@ -95,8 +95,10 @@ static uint64_t uint64_from_bytes(unsigned char *buf)
     return(rv);
 }
 
-/*
- * Decode from TXT RR to binary buffer, this is the
+/**
+ * Decode from TXT RR to binary buffer
+ *
+ * This is the
  * exact same as ct_base64_decode from crypto/ct/ct_b64.c
  * which function is declared static but could otherwise
  * be re-used. Returns -1 for error or length of decoded
@@ -107,6 +109,9 @@ static uint64_t uint64_from_bytes(unsigned char *buf)
  * Decodes the base64 string |in| into |out|.
  * A new string will be malloc'd and assigned to |out|. This will be owned by
  * the caller. Do not provide a pre-allocated string in |out|.
+ * @param in is the base64 encoded string
+ * @param out is the binary equivalent
+ * @return is the number of octets in |out| if successful, <=0 for failure
  */
 static int esni_base64_decode(const char *in, unsigned char **out)
 {
@@ -1352,8 +1357,7 @@ int SSL_esni_enable(SSL *s, const char *hidden, const char *cover, SSL_ESNI *esn
      */
     s->esni_done=0;
 	/*
-	 * Try enable hostname checking see what happens
-	 * TODO: figure out host s.ext.hostname plays into this...
+	 * Optionally enable hostname checking 
 	 */
 	if (require_hidden_match==1) {
 		if (SSL_set1_host(s,hidden)!=1) {
