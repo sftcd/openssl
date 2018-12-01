@@ -51,7 +51,7 @@ extern "C"
 /**
  * Load strings into tables.
  *
- * Who the hell calls this?
+ * @return 1 for success, not 1 otherwise
  */
 int ERR_load_ESNI_strings(void);
 

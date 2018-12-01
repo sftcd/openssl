@@ -26,12 +26,11 @@
 `public int `[`SSL_ESNI_set_private`](#esni_8h_1a8df1af022d25fc0f7e72683b0bd4667f)`(`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * esni,char * private_str)`            | Allows caller to set the ECDH private value for ESNI.
 `public int `[`SSL_ESNI_set_nonce`](#esni_8h_1a0f48da79909334acee7b24dec440eb4c)`(`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * esni,unsigned char * nonce,size_t nlen)`            | Allows caller to set the nonce value for ESNI.
 `public int `[`ERR_load_ESNI_strings`](#esnierr_8h_1ab6db8c60b35aacaa03550e6d9d9c2099)`(void)`            | Load strings into tables.
-`public int `[`ERR_load_ESNI_strings`](#esni_8c_1ab6db8c60b35aacaa03550e6d9d9c2099)`(void)`            | Load strings into tables.
 `public static uint64_t `[`uint64_from_bytes`](#esni_8c_1a83d195ea944e970d225ac1554c88c3d4)`(unsigned char * buf)`            | map 8 bytes in n/w byte order from PACKET to a 64-bit time value
 `public static int `[`esni_base64_decode`](#esni_8c_1a64c9d65c28e852557b2ac325335c6a83)`(const char * in,unsigned char ** out)`            | Decode from TXT RR to binary buffer.
-`public void `[`ESNI_RECORD_free`](#esni_8c_1a2af97ba7f8ebc58e04391bc845f21811)`(`[`ESNI_RECORD`](#esni_8h_1ab29e08d24d0eac604e0d6783dfbf1758)` * er)`            | 
-`public void `[`SSL_ESNI_free`](#esni_8c_1a3a532dc18d8ea55c30b74529946f66c7)`(`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * esnikeys)`            | Memory management - free an SSL_ESNI.
-`public static int `[`esni_checksum_check`](#esni_8c_1a4c8d42c0081cae34740804bb9c4fc88b)`(unsigned char * buf,size_t buf_len)`            | 
+`public void `[`ESNI_RECORD_free`](#esni_8c_1a2af97ba7f8ebc58e04391bc845f21811)`(`[`ESNI_RECORD`](#esni_8h_1ab29e08d24d0eac604e0d6783dfbf1758)` * er)`            | Free up an ENSI_RECORD.
+`public void `[`SSL_ESNI_free`](#esni_8c_1a3a532dc18d8ea55c30b74529946f66c7)`(`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * esni)`            | Free up an SSL_ESNI structure.
+`public static int `[`esni_checksum_check`](#esni_8c_1a4c8d42c0081cae34740804bb9c4fc88b)`(unsigned char * buf,size_t buf_len)`            | Verify the SHA256 checksum that should be in the DNS record.
 `public static unsigned char * `[`esni_make_rd`](#esni_8c_1a1a6df9cdee70887ac4c2492164155e83)`(const unsigned char * buf,const size_t blen,const EVP_MD * md,size_t * rd_len)`            | 
 `public static unsigned char * `[`wrap_keyshare`](#esni_8c_1ade5f0e5d16fd7f3dc7e3852f2960804e)`(const unsigned char * keyshare,const size_t keyshare_len,const uint16_t curve_id,size_t * outlen)`            | 
 `public `[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * `[`SSL_ESNI_new_from_base64`](#esni_8c_1a672460fc59e13e81482f66c701d4bca7)`(const char * esnikeys)`            | Decode and check the value retieved from DNS (currently base64 encoded)
@@ -158,6 +157,13 @@ Free everything within an SSL_ESNI. Note that the caller has to free the top lev
 #### Parameters
 * `esnikeys` is an SSL_ESNI structure
 
+Memory management - free an SSL_ESNI.
+
+Note that we don't free the top level, caller should do that
+
+#### Parameters
+* `an` SSL_ESNI str
+
 #### `public void `[`CLIENT_ESNI_free`](#esni_8h_1a1a84158d3b21a24a5db6bac434a718dc)`(`[`CLIENT_ESNI`](#esni_8h_1add3c7579c9f0d7bd5959b37f9c017461)` * c)` {#esni_8h_1a1a84158d3b21a24a5db6bac434a718dc}
 
 Memory management - free a CLIENT_ESNI.
@@ -257,13 +263,8 @@ This is intended to only be used for interop testing - what was useful was to gr
 
 Load strings into tables.
 
-Who the hell calls this?
-
-#### `public int `[`ERR_load_ESNI_strings`](#esni_8c_1ab6db8c60b35aacaa03550e6d9d9c2099)`(void)` {#esni_8c_1ab6db8c60b35aacaa03550e6d9d9c2099}
-
-Load strings into tables.
-
-Who the hell calls this?
+#### Returns
+1 for success, not 1 otherwise
 
 #### `public static uint64_t `[`uint64_from_bytes`](#esni_8c_1a83d195ea944e970d225ac1554c88c3d4)`(unsigned char * buf)` {#esni_8c_1a83d195ea944e970d225ac1554c88c3d4}
 
@@ -294,16 +295,36 @@ is the number of octets in |out| if successful, <=0 for failure
 
 #### `public void `[`ESNI_RECORD_free`](#esni_8c_1a2af97ba7f8ebc58e04391bc845f21811)`(`[`ESNI_RECORD`](#esni_8h_1ab29e08d24d0eac604e0d6783dfbf1758)` * er)` {#esni_8c_1a2af97ba7f8ebc58e04391bc845f21811}
 
-#### `public void `[`SSL_ESNI_free`](#esni_8c_1a3a532dc18d8ea55c30b74529946f66c7)`(`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * esnikeys)` {#esni_8c_1a3a532dc18d8ea55c30b74529946f66c7}
+Free up an ENSI_RECORD.
+
+ESNI_RECORD is our struct for what's in the DNS
+
+ENSI_RECORD
+
+#### `public void `[`SSL_ESNI_free`](#esni_8c_1a3a532dc18d8ea55c30b74529946f66c7)`(`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * esni)` {#esni_8c_1a3a532dc18d8ea55c30b74529946f66c7}
+
+Free up an SSL_ESNI structure.
 
 Memory management - free an SSL_ESNI.
 
-Free everything within an SSL_ESNI. Note that the caller has to free the top level SSL_ESNI, IOW the pattern here is: SSL_ESNI_free(esnikeys); OPENSSL_free(esnikeys);
+Note that we don't free the top level, caller should do that
 
 #### Parameters
-* `esnikeys` is an SSL_ESNI structure
+* `an` SSL_ESNI str
 
 #### `public static int `[`esni_checksum_check`](#esni_8c_1a4c8d42c0081cae34740804bb9c4fc88b)`(unsigned char * buf,size_t buf_len)` {#esni_8c_1a4c8d42c0081cae34740804bb9c4fc88b}
+
+Verify the SHA256 checksum that should be in the DNS record.
+
+Fixed SHA256 hash in this case, we work on the offset here, (bytes 2 bytes then 4 checksum bytes then rest) with no other knowledge of the encoding.
+
+#### Parameters
+* `buf` is the buffer 
+
+* `buf_len` is obvous 
+
+#### Returns
+1 for success, not 1 otherwise
 
 #### `public static unsigned char * `[`esni_make_rd`](#esni_8c_1a1a6df9cdee70887ac4c2492164155e83)`(const unsigned char * buf,const size_t blen,const EVP_MD * md,size_t * rd_len)` {#esni_8c_1a1a6df9cdee70887ac4c2492164155e83}
 
