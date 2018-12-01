@@ -308,15 +308,17 @@ usually in ``$HOME/code/openssl``.
 
 - ssl/esni.c - main esni-specific functions
 - include/openssl/esni.h - data structures are commented some
-- include/openssl/esnierr.h - boring
+- include/openssl/esnierr.h - boring errors
+- crypto/esnierr.c - load boring strings (need to check if this is right)
 - esnistuff/esnimain.c - a tester
 - esnistuff/doit.sh - calls esnimain
 - esnistuff/testit.sh - calls ``openssl s_client`` (still evolving!)
 
 ### Existing Files modified 
 
-- ssl/build.info - need to add new source files here (just esni.c for now)
+- ssl/build.info - need to add new libssl source files here (just esni.c for now)
 - utils/libssl.num - seem to need to add exported stuff here manually?
+- utils/libcrypto.num - seem to need to add exported stuff here manually?
 - include/openssl/err.h
 - include/openssl/ssl.h
 - include/openssl/sslerr.h
@@ -330,6 +332,7 @@ usually in ``$HOME/code/openssl``.
 - ssl/statem/statem_locl.h
 - ssl/statem/extensions_clnt.c
 - ssl/statem/extensions_srvr.c 
+- crypto/err/err_all.c - loads ESNI strings
 
 ### Files still to figure out/check
 
