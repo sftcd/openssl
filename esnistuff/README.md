@@ -43,6 +43,13 @@ Here's the beginnings of a [design doc](./design.md).
 
 Most recent first...
 
+- Started to add javadoc text and doxygen-generated output. Will
+  see if I can turn that into .md. Gonna start by trying [this](https://github.com/sourcey/moxygen)
+  (but that had some npm issues, followed [this](https://linuxize.com/post/how-to-install-node-js-on-ubuntu-18.04/)
+  process to get npm installed after apt failed due to a conflict - presumably that's
+  down to my 18.10 upgrade zapping the previously installed repos).
+  Ressulf of that is [here](./api.md). We'll see if it's any good.
+
 - Added hostname validation as an option to ``SSL_esni_enable`` - if requested 
   and we don't get the
   hidden name matching the server cert then ``SSL_esni_get_status``
