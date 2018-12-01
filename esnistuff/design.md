@@ -192,6 +192,8 @@ build, and needs error cases added.
 
 ### APIs
 
+[Here's](./api.md) what moxygen produces from what doxygen produces.
+
 The main ESNI header file [esni.h](https://github.com/sftcd/openssl/blob/master/include/openssl/esni.h)
 includes the following prototypes:
 
