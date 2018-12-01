@@ -57,6 +57,11 @@ static const ERR_STRING_DATA ESNI_str_reasons[] = {
     {0, NULL}
 };
 
+/**
+ * Load strings into tables.
+ *
+ * Who the hell calls this?
+ */
 int ERR_load_ESNI_strings(void)
 {
 #ifndef OPENSSL_NO_ESNI
@@ -69,8 +74,12 @@ int ERR_load_ESNI_strings(void)
 }
 
 /*
- * map 8 bytes in n/w byte order from PACKET to a 64-bit time value
+ * @brief map 8 bytes in n/w byte order from PACKET to a 64-bit time value
+ *
  * TODO: there must be code for this somewhere - find it
+ * 
+ * @param buf is a bit of the PACKET with the 8 octets of interest
+ * @return is the 64 bit value from those 8 octets
  */
 static uint64_t uint64_from_bytes(unsigned char *buf)
 {
@@ -931,9 +940,6 @@ err:
 }
 
 
-/*
- * Produce the encrypted SNI value for the CH
- */
 int SSL_ESNI_enc(SSL_ESNI *esnikeys, 
                 size_t  client_random_len,
                 unsigned char *client_random,
@@ -1357,14 +1363,10 @@ int SSL_esni_enable(SSL *s, const char *hidden, const char *cover, SSL_ESNI *esn
     return 1;
 }
 
-
-/*
- * API t allow calling code know ESNI outcome, post-handshake
- */
 int SSL_get_esni_status(SSL *s, char **hidden, char **cover)
 {
     if (cover==NULL || hidden==NULL) {
-        return SSL_ESNI_BAD_STATUS_CALL;
+        return SSL_ESNI_STATUS_BAD_CALL;
     }
     *cover=NULL;
     *hidden=NULL;
@@ -1408,10 +1410,10 @@ int SSL_ESNI_get_esni(SSL *s, SSL_ESNI **esni)
     return 1;
 }
 
-int SSL_ESNI_set_private(SSL_ESNI *esni, char *private)
+int SSL_ESNI_set_private(SSL_ESNI *esni, char *private_str)
 {
 #ifdef ESNI_CRYPT_INTEROP
-    esni->private_str=private;
+    esni->private_str=private_str;
 #endif
     return 1;
 }
