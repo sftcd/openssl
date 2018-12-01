@@ -12,6 +12,9 @@ libcrypto.a: ../libcrypto.a
 esnimain.o: esnimain.c ../include/openssl/esni.h ../include/openssl/esnierr.h
 	$(CC) -g -I../apps -I. -I..  -I../include -I../ssl $(BIN_CFLAGS) $(BIN_CPPFLAGS) -MMD -MF $<.d.tmp -MT $@ -c -o $@ $< 
 
+doc: 
+	- doxygen esni.doxy
+
 # for some reason a symbol we need is not public in libssl.so but is in libssl.a
 # so we'll just copy stuff down here for the moment - should be ok in the end as
 # our final code won't be doing the direct call (I hope)

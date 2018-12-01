@@ -7,6 +7,11 @@
  * https://www.openssl.org/source/license.html
  */
 
+/** 
+ * @file
+ * Error strings for ESNI
+ */
+
 /*
  * code within here should be openssl-style
  */
@@ -42,6 +47,12 @@
 #  ifdef  __cplusplus
 extern "C"
 #  endif
+
+/**
+ * Load strings into tables.
+ *
+ * Who the hell calls this?
+ */
 int ERR_load_ESNI_strings(void);
 
  #endif

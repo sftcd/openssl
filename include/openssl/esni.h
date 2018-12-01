@@ -7,6 +7,12 @@
  * https://www.openssl.org/source/license.html
  */
 
+/**
+ * @file 
+ * This has the data structures and prototypes (both internal and external)
+ * for the ESNI proof-of-concept
+ */
+
 #ifndef OPENSSL_NO_ESNI
 
 #ifndef HEADER_ESNI_H
@@ -15,23 +21,28 @@
 # include <openssl/ssl.h>
 
 
-/*
+#undef ESNI_CRYPT_INTEROP
+
+/**
  * If defined, this provides enough API, internals and tracing so we can 
  * ensure/check we're generating keys the same way as other code, in 
  * partocular the existing NSS code
+ *
  * TODO: use this to protect the cryptovars are only needed for tracing
  */
-#undef ESNI_CRYPT_INTEROP
-
 #ifdef ESNI_CRYPT_INTEROP
-/*
+
+/**
 * map an (ascii hex) value to a nibble
 */
 #define AH2B(x) ((x>='a' && x<='f') ? (10+x-'a'): (x-'0') )
+
 #endif
 
-/* 
- * From the -02 I-D, what we find in DNS:
+/** 
+ * @brief representation of what goes in DNS
+ *
+ * This is from the -02 I-D, what we find in DNS:
  *     struct {
  *         uint16 version;
  *         uint8 checksum[4];
@@ -67,18 +78,16 @@ typedef struct esni_record_st {
     void **exts;
 } ESNI_RECORD;
 
-/*
+/**
  * What we send in the esni CH extension:
  *
+ * The TLS presentation language version is:
  *    struct {
  *        CipherSuite suite;
  *        KeyShareEntry key_share;
  *        opaque record_digest<0..2^16-1>;
  *        opaque encrypted_sni<0..2^16-1>;
  *    } ClientEncryptedSNI;
- *
- * We include some related non-transmitted 
- * e.g. key structures too
  *
  */
 typedef struct client_esni_st {
@@ -95,7 +104,7 @@ typedef struct client_esni_st {
     unsigned char *encrypted_sni;
 } CLIENT_ESNI;
 
-/*
+/**
  * The ESNI data structure that's part of the SSL structure 
  * (Client-only for now really. Server is TBD.)
  */
@@ -196,23 +205,52 @@ typedef struct ssl_esni_st {
  * Prototypes
  */
 
-/*
+/**
  * Make a basic check of names from CLI or API
+ *
+ * Note: This may disappear as all the checks currently done would
+ * result in errors anyway. However, that could change, so we'll
+ * keep it for now.
+ *
+ * @param encservername the hidden servie
+ * @param convername the cleartext SNI to send (can be NULL if we don't want any)
+ * @return 1 for success, other otherwise
  */
 int SSL_esni_checknames(const char *encservername, const char *covername);
 
-/*
+/**
  * Decode and check the value retieved from DNS (currently base64 encoded)
+ *
+ * @param esnikeys is the base64 encoded value from DNS
+ * @return is an SSL_ESNI structure
  */
 SSL_ESNI* SSL_ESNI_new_from_base64(const char *esnikeys);
 
-/*
- * Turn on SNI encryption for this TLS (upcoming) session
+/**
+ * Turn on SNI encryption for an TLS (upcoming) session
+ * 
+ * @param s is the SSL context
+ * @param hidde is the hidden service name
+ * @param cover is the cleartext SNI name to use
+ * @param esni is the SSL_ESNI structure
+ * @param require_hidden_match say whether to require (==1) the TLS server cert matches the hidden name
+ * @return 1 for success, other otherwise
+ * 
  */
 int SSL_esni_enable(SSL *s, const char *hidden, const char *cover, SSL_ESNI *esni, int require_hidden_match);
 
-/*
+/**
  * Do the client-side SNI encryption during a TLS handshake
+ *
+ * This is an internal API called as part of the state machine
+ * dealing with this extension.
+ *
+ * @param esnikeys is the SSL_ESNI structure
+ * @param client_random_len is the number of bytes of
+ * @client_random being the TLS h/s client random
+ * @param curve_id is the curve_id of the client keyshare
+ * @param client_keyshare_len is the number of bytes of
+ * @param client_keyshare is the h/s client keyshare
  */
 int SSL_ESNI_enc(SSL_ESNI *esnikeys, 
                 size_t  client_random_len,
@@ -222,50 +260,117 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys,
                 unsigned char *client_keyshare,
                 CLIENT_ESNI **the_esni);
 
-/*
- * Memory management
+/**
+ * Memory management - free an SSL_ESNI
+ *
+ * Free everything within an SSL_ESNI. Note that the
+ * caller has to free the top level SSL_ESNI, IOW the
+ * pattern here is: 
+ *      SSL_ESNI_free(esnikeys);
+ *      OPENSSL_free(esnikeys);
+ *
+ * @param esnikeys is an SSL_ESNI structure
  */
 void SSL_ESNI_free(SSL_ESNI *esnikeys);
+
+/**
+ * Memory management - free a CLIENT_ESNI
+ *
+ * This is called from within SSL_ESNI_free so isn't
+ * really needed externally at all.
+ *
+ * @param c is a CLIENT_ESNI structure
+ */
 void CLIENT_ESNI_free(CLIENT_ESNI *c);
 
-/*
- * Debugging - note - can include sensitive values!
- * (Depends on compile time options)
+/**
+ * Debugging - print an SSL_ESNI structure note - can include sensitive values!
+ *
+ * @param out is a BIO for printing
+ * @param esni is an SSL_ESNI structure
+ * @return 1 for success, anything else for failure
+ */
+int SSL_ESNI_get_esni(SSL *s, SSL_ESNI **esni);
+
+/** 
+ * Print the content of an SSL_ESNI
+ *
+ * @param out is the BIO to use (e.g. stdout/whatever)
+ * @esni is an SSL_ESNI strucutre
+ * @return 1 for success, anything else for failure
  */
 int SSL_ESNI_print(BIO* out, SSL_ESNI *esni);
 
-/*
- * SSL_ESNI_print calls a callback function that uses this
- * to get the SSL_ESNI structure from the external view of
- * the TLS session.
+/**
+ * Get access to the ESNI data from an SSL context (if that's
+ * the right term:-)
+ *
+ * @param s the SSL context
+ * @param esni the (ptr to) output SSL_ESNI structure
+ * @return 1 for success, anything else for failure
  */
 int SSL_ESNI_get_esni(SSL *s, SSL_ESNI **esni);
 
 /* 
  * Possible return codes from SSL_ESNI_get_status
  */
-#define SSL_ESNI_STATUS_SUCCESS                 1
-#define SSL_ESNI_STATUS_FAILED                  0
-#define SSL_ESNI_BAD_STATUS_CALL             -100
-#define SSL_ESNI_STATUS_NOT_TRIED            -101
-#define SSL_ESNI_STATUS_BAD_NAME             -102
 
+#define SSL_ESNI_STATUS_SUCCESS                 1 ///< Success
+#define SSL_ESNI_STATUS_FAILED                  0 ///< Some internal error
+#define SSL_ESNI_STATUS_BAD_CALL             -100 ///< Required in/out arguments were NULL
+#define SSL_ESNI_STATUS_NOT_TRIED            -101 ///< ESNI wasn't attempted 
+#define SSL_ESNI_STATUS_BAD_NAME             -102 ///< ESNI succeeded but the TLS server cert used didn't match the hidden service name
 
-/*
- * API t allow calling code know ESNI outcome, post-handshake
+/**
+ * @brief API to allow calling code know ESNI outcome, post-handshake
+ *
+ * This is intended to be called by applications after the TLS handshake
+ * is complete.
+ *
+ * @param s The SSL context (if that's the right term)
+ * @param hidden will be set to the address of the hidden service
+ * @param cover will be set to the address of the hidden service
+ * @return 1 for success, other otherwise
  */
 int SSL_get_esni_status(SSL *s, char **hidden, char **cover);
 
-#ifdef ESNI_CRYPT_INTEROP
 /*
  * Crypto detailed debugging functions to allow comparison of intermediate
  * values with other code bases (in particular NSS) - these allow one to
  * set values that were generated in another code base's TLS handshake and
  * see if the same derived values are calculated.
  */
+
+/**
+ * Allows caller to set the ECDH private value for ESNI. 
+ *
+ * This is intended to only be used for interop testing - what was
+ * useful was to grab the value from the NSS implemtation, force
+ * it into mine and see which of the derived values end up the same.
+ *
+ * @param esni is the SSL_ESNI struture
+ * @param private_str is an ASCII-hex encoded X25519 point (essentially
+ * a random 32 octet value:-) 
+ * @return 1 for success, other otherwise
+ *
+ */
 int SSL_ESNI_set_private(SSL_ESNI *esni, char *private_str);
+
+/**
+ * Allows caller to set the nonce value for ESNI. 
+ *
+ * This is intended to only be used for interop testing - what was
+ * useful was to grab the value from the NSS implemtation, force
+ * it into mine and see which of the derived values end up the same.
+ *
+ * @param esni is the SSL_ESNI struture
+ * @param nonce points to a buffer with the network byte order value
+ * @oaram nlen is the size of the nonce buffer
+ * @return 1 for success, other otherwise
+ *
+ */
 int SSL_ESNI_set_nonce(SSL_ESNI *esni, unsigned char *nonce, size_t nlen);
-#endif
+
 
 #endif
 #endif
