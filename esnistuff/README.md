@@ -43,6 +43,11 @@ Here's the beginnings of a [design doc](./design.md).
 
 Most recent first...
 
+- Moved error strings into libcrypto.so which required modifying a 
+  few more things. Not sure this is correct but seems like what
+  is done in other cases. Good enough anyway, though it seems odd
+  to make libcrypto depend on esni, but whatever.
+
 - Started to add javadoc text and doxygen-generated output. Will
   see if I can turn that into .md. Gonna start by trying [this](https://github.com/sourcey/moxygen)
   (but that had some npm issues, followed [this](https://linuxize.com/post/how-to-install-node-js-on-ubuntu-18.04/)
