@@ -40,39 +40,6 @@ size_t lg_nonce_len=0;
  * Utility functions
  */
 
-/* 
- * ESNI error strings - inspired by crypto/ct/cterr.c
- */
-static const ERR_STRING_DATA ESNI_str_functs[] = {
-    {ERR_PACK(ERR_LIB_ESNI, ESNI_F_BASE64_DECODE, 0), "base64 decode"},
-    {ERR_PACK(ERR_LIB_ESNI, ESNI_F_NEW_FROM_BASE64, 0), "read from RR"},
-    {ERR_PACK(ERR_LIB_ESNI, ESNI_F_ENC, 0), "encrypt SNI details"},
-    {0, NULL}
-};
-
-static const ERR_STRING_DATA ESNI_str_reasons[] = {
-    {ERR_PACK(ERR_LIB_ESNI, 0, ESNI_R_BASE64_DECODE_ERROR), "base64 decode error"},
-    {ERR_PACK(ERR_LIB_ESNI, 0, ESNI_R_RR_DECODE_ERROR), "DNS resources record decode error"},
-    {ERR_PACK(ERR_LIB_ESNI, 0, ESNI_R_NOT_IMPL), "feature not implemented"},
-    {0, NULL}
-};
-
-/**
- * Load strings into tables.
- *
- * Who the hell calls this?
- */
-int ERR_load_ESNI_strings(void)
-{
-#ifndef OPENSSL_NO_ESNI
-    if (ERR_func_error_string(ESNI_str_functs[0].error) == NULL) {
-        ERR_load_strings_const(ESNI_str_functs);
-        ERR_load_strings_const(ESNI_str_reasons);
-    }
-#endif
-    return 1;
-}
-
 /**
  * @brief map 8 bytes in n/w byte order from PACKET to a 64-bit time value
  *
@@ -155,8 +122,12 @@ err:
     return -1;
 }
 
-/*
- * Free up an ENSI_RECORD
+/**
+ * Free up an ENSI_RECORD 
+ *
+ * ESNI_RECORD is our struct for what's in the DNS
+ * 
+ * @wparam ENSI_RECORD 
  */
 void ESNI_RECORD_free(ESNI_RECORD *er)
 {
@@ -181,9 +152,12 @@ void ESNI_RECORD_free(ESNI_RECORD *er)
 }
 
 
-/*
- * Free up an SSL_ESNI structure - note that we don't
- * free the top level
+/**
+ * Free up an SSL_ESNI structure 
+ *
+ * Note that we don't free the top level, caller should do that
+ *
+ * @param an SSL_ESNI str
  */
 void SSL_ESNI_free(SSL_ESNI *esni)
 {
@@ -227,6 +201,17 @@ void SSL_ESNI_free(SSL_ESNI *esni)
     return;
 }
 
+/**
+ * Verify the SHA256 checksum that should be in the DNS record
+ *
+ * Fixed SHA256 hash in this case, we work on the offset here,
+ * (bytes 2 bytes then 4 checksum bytes then rest) with no other 
+ * knowledge of the encoding.
+ *
+ * @param buf is the buffer
+ * @param buf_len is obvous
+ * @return 1 for success, not 1 otherwise
+ */
 static int esni_checksum_check(unsigned char *buf, size_t buf_len)
 {
     /* 

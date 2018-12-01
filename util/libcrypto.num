@@ -4603,3 +4603,4 @@ SRP_user_pwd_new                        4556	1_1_2	EXIST::FUNCTION:SRP
 SRP_user_pwd_set_gN                     4557	1_1_2	EXIST::FUNCTION:SRP
 SRP_user_pwd_set1_ids                   4558	1_1_2	EXIST::FUNCTION:SRP
 SRP_user_pwd_set0_sv                    4559	1_1_2	EXIST::FUNCTION:SRP
+ERR_load_ESNI_strings                   4560	1_1_11a	EXIST::FUNCTION:
