@@ -56,7 +56,7 @@
 ## Members
 
 #### `define `[`SSL_ESNI_STATUS_SUCCESS`](#esni_8h_1a6a4d94b18577a453e7ca65273c75b110) 
-<p id="esni_8h_1a6a4d94b18577a453e7ca65273c75b110"/>
+<p id="esni_8h_1a6a4d94b18577a453e7ca65273c75b110">foo</p>
 
 Success.
 
