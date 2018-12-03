@@ -309,7 +309,7 @@ The main data structures are:
 
 - [ESNI_RECORD](./api.md#structesni__record__st) representing the DNS RR value
 - [CLIENT_ESNI](./api.md#structclient__esni__st) representing the extension value for a ClientHello
-- [SSL_ESNI](./api.md#tructssl__esni__st) the internal state structure with the above plus gory crypto details
+- [SSL_ESNI](./api.md#structssl__esni__st) the internal state structure with the above plus gory crypto details
 
 ### Internal functions
 
