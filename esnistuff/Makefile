@@ -15,8 +15,9 @@ esnimain.o: esnimain.c ../include/openssl/esni.h ../include/openssl/esnierr.h
 doc: 
 	- doxygen esni.doxy
 	- moxygen -a doxy/xml
-	- cat api.md | sed -e 's/{#\(.*\)}/\n<p id="\1"\/>/' >api2.md
+	- cat api.md | sed -e 's/\(.*{#\)\(.*\)}/<p id="\2"><hr><\/p>\n\1/' | sed -e 's/{#//' >api2.md
 	- mv api2.md api.md
+	- multimarkdown api.md >api.html
 
 # for some reason a symbol we need is not public in libssl.so but is in libssl.a
 # so we'll just copy stuff down here for the moment - should be ok in the end as
