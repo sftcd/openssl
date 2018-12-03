@@ -80,6 +80,9 @@ yet well-done.)
 - Currently notes, (including this one), test scripts and a few other things are in an [esnistuff](https://github.com/sftcd/openssl/esnistuff/)
 directory - that should disappear over time as we better integrate the
 code following good project practice.
+- For now, I'm using doxygen and moxygen to generate API and data structure
+documentation. That'd probably be pruned when/if submitting a PR to the main
+project, but should be helpful for now.
 
 ## Plans
 
@@ -271,7 +274,7 @@ includes the following prototypes:
 			#endif
 			
 Notes:
-- The above are only externally visible, internal functions below.
+- The above are externally visible, internal functions below. 
 - Various functions (but mostly ``SSL_ESNI_enc``) should be modified to be
   more consistent with other internal APIs, e.g. to have as their main
   context an ``SSL *s`` input. (Didn't do that yet, as our initial code
@@ -280,13 +283,23 @@ Notes:
 
 ### Extension Handling
 
-The ESNI extension is handled using the ```statem``` code, in the same
+The ESNI extension is handled using ```statem``` code, in the same
 way as other extensions.
 
-Code blocks that are documented in the [api](./api.md) are filtered 
-out using the [NOESNI_filter.sh](./NOESNI_filter.sh) script. Basically
+Code blocks in those files that are documented in the [api](./api.md) are filtered 
+out (using the [NOESNI_filter.sh](./NOESNI_filter.sh)) script. Basically
 such blocks start with ```// ESNI_DOXY_START``` and
 end with ```// ESNI_DOXY_END```.
+
+The main extension handling function is [tls_construct_ctos_esni](./api.md#extensions__clnt_8c_1afca936de2d3ae315b5e8b8b200d17462)
+which uses the above APIs to generate the extension value and puts that in the ClientHello. 
+The [tls_parse_ctos_esni](./api.md#extensions__clnt_8c_1ac388d56d20b4d3b507e56203f1c08303)
+function is rather simple and just checks that the EncryptedExtensions contains the right
+nonce that was sent (encrypted) in the ESNI.
+We do also have to tweak the (cleartext) SNI extension handling too to make
+sure we don't send the same value encrypted and in clear. That's done using
+the [esni_server_name_fixup](./api.md#extensions__clnt_8c_1a2454a14e823689509154ca3bfb4cdaea)
+function.
 
 ### Data structures
 
