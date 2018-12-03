@@ -17,7 +17,7 @@
 `public int `[`ERR_load_ESNI_strings`](#esnierr_8c_1ab6db8c60b35aacaa03550e6d9d9c2099)`(void)`            | Load strings into tables.
 `public int `[`SSL_esni_checknames`](#esni_8h_1a55aedc0e921fd36dcc3327124f07da10)`(const char * encservername,const char * covername)`            | Make a basic check of names from CLI or API.
 `public `[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * `[`SSL_ESNI_new_from_base64`](#esni_8h_1a672460fc59e13e81482f66c701d4bca7)`(const char * esnikeys)`            | Decode and check the value retieved from DNS (currently base64 encoded)
-`public int `[`SSL_esni_enable`](#esni_8h_1a0ca4d48103270d6779cb2f6a608ba52a)`(SSL * s,const char * hidden,const char * cover,`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * esni,int require_hidden_match)`            | Turn on SNI encryption for an TLS (upcoming) session.
+`public int `[`SSL_esni_enable`](#esni_8h_1a0ca4d48103270d6779cb2f6a608ba52a)`(SSL * s,const char * hidden,const char * cover,`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * esni,int require_hidden_match)`            | Turn on SNI encryption for an (upcoming) TLS session.
 `public int `[`SSL_ESNI_enc`](#esni_8h_1a1059808bc7c121128c470de41e2dc304)`(`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * esnikeys,size_t client_random_len,unsigned char * client_random,uint16_t curve_id,size_t client_keyshare_len,unsigned char * client_keyshare,`[`CLIENT_ESNI`](#esni_8h_1add3c7579c9f0d7bd5959b37f9c017461)` ** the_esni)`            | Do the client-side SNI encryption during a TLS handshake.
 `public void `[`SSL_ESNI_free`](#esni_8h_1a6d6ea1b22339efdc370e6cbf251b277d)`(`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * esnikeys)`            | Memory management - free an SSL_ESNI.
 `public void `[`CLIENT_ESNI_free`](#esni_8h_1a1a84158d3b21a24a5db6bac434a718dc)`(`[`CLIENT_ESNI`](#esni_8h_1add3c7579c9f0d7bd5959b37f9c017461)` * c)`            | Memory management - free a CLIENT_ESNI.
@@ -44,7 +44,7 @@
 `public static unsigned char * `[`esni_aead_enc`](#esni_8c_1a5a36ed03fd4e8a351ed10b1296f3857b)`(unsigned char * key,size_t key_len,unsigned char * iv,size_t iv_len,unsigned char * aad,size_t aad_len,unsigned char * plain,size_t plain_len,unsigned char * tag,size_t tag_len,size_t * cipher_len,const SSL_CIPHER * ciph)`            | do the AEAD encryption as per the I-D
 `public int `[`SSL_ESNI_enc`](#esni_8c_1a1059808bc7c121128c470de41e2dc304)`(`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * esnikeys,size_t client_random_len,unsigned char * client_random,uint16_t curve_id,size_t client_keyshare_len,unsigned char * client_keyshare,`[`CLIENT_ESNI`](#esni_8h_1add3c7579c9f0d7bd5959b37f9c017461)` ** the_esni)`            | Do the client-side SNI encryption during a TLS handshake.
 `public int `[`SSL_esni_checknames`](#esni_8c_1a55aedc0e921fd36dcc3327124f07da10)`(const char * encservername,const char * covername)`            | Make a basic check of names from CLI or API.
-`public int `[`SSL_esni_enable`](#esni_8c_1a0ca4d48103270d6779cb2f6a608ba52a)`(SSL * s,const char * hidden,const char * cover,`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * esni,int require_hidden_match)`            | Turn on SNI encryption for an TLS (upcoming) session.
+`public int `[`SSL_esni_enable`](#esni_8c_1a0ca4d48103270d6779cb2f6a608ba52a)`(SSL * s,const char * hidden,const char * cover,`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * esni,int require_hidden_match)`            | Turn on SNI encryption for an (upcoming) TLS session.
 `public int `[`SSL_get_esni_status`](#esni_8c_1abc2468ba57b69ddaca0344481027d7a1)`(SSL * s,char ** hidden,char ** cover)`            | API to allow calling code know ESNI outcome, post-handshake.
 `public void `[`SSL_set_esni_callback`](#esni_8c_1ac4fbad870f00b5b6cb84629c4995be02)`(SSL * s,SSL_esni_client_cb_func f)`            | 
 `public int `[`SSL_ESNI_get_esni`](#esni_8c_1ac214a7933d6e5fa9e2be5218b9537a63)`(SSL * s,`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` ** esni)`            | Get access to the ESNI data from an SSL context (if that's the right term:-)
@@ -55,8 +55,8 @@
 `public static EXT_RETURN `[`esni_server_name_fixup`](#extensions__clnt_8c_1a2454a14e823689509154ca3bfb4cdaea)`(SSL * s,WPACKET * pkt,unsigned int context,X509 * x,size_t chainidx)`            | Possibly do/don't send SNI if doing ESNI.
 `public EXT_RETURN `[`tls_construct_ctos_esni`](#extensions__clnt_8c_1afca936de2d3ae315b5e8b8b200d17462)`(SSL * s,WPACKET * pkt,unsigned int context,X509 * x,size_t chainidx)`            | Create the ESNI extension for the ClientHello.
 `public int `[`tls_parse_stoc_esni`](#extensions__clnt_8c_1ac388d56d20b4d3b507e56203f1c08303)`(SSL * s,PACKET * pkt,unsigned int context,X509 * x,size_t chainidx)`            | Parse and check the ESNI value returned in the EncryptedExtensions to make sure it has the nonce we sent in the ClientHello.
-`public int `[`tls_parse_ctos_esni`](#extensions__srvr_8c_1a4a75b5940e39e1b5da10aefc8ed0ac69)`(SSL * s,PACKET * pkt,unsigned int context,X509 * x,size_t chainidx)`            | 
-`public EXT_RETURN `[`tls_construct_stoc_esni`](#extensions__srvr_8c_1ae56ce4660abc014b273c5f743bc3eb63)`(SSL * s,WPACKET * pkt,unsigned int context,X509 * x,size_t chainidx)`            | 
+`public int `[`tls_parse_ctos_esni`](#extensions__srvr_8c_1a4a75b5940e39e1b5da10aefc8ed0ac69)`(SSL * s,PACKET * pkt,unsigned int context,X509 * x,size_t chainidx)`            | Just a stub for now, 'till we do the server side.
+`public EXT_RETURN `[`tls_construct_stoc_esni`](#extensions__srvr_8c_1ae56ce4660abc014b273c5f743bc3eb63)`(SSL * s,WPACKET * pkt,unsigned int context,X509 * x,size_t chainidx)`            | Just a stub for now, 'till we do the server side.
 `struct `[`client_esni_st`](#structclient__esni__st) | What we send in the esni CH extension:
 `struct `[`esni_record_st`](#structesni__record__st) | Representation of what goes in DNS.
 `struct `[`ssl_esni_st`](#structssl__esni__st) | The ESNI data structure that's part of the SSL structure.
@@ -167,7 +167,7 @@ This is inspired by, but not the same as, SCT_new_from_base64 from crypto/ct/ct_
 
 #### `public int `[`SSL_esni_enable`](#esni_8h_1a0ca4d48103270d6779cb2f6a608ba52a)`(SSL * s,const char * hidden,const char * cover,`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * esni,int require_hidden_match)` 
 
-Turn on SNI encryption for an TLS (upcoming) session.
+Turn on SNI encryption for an (upcoming) TLS session.
 
 #### Parameters
 * `s` is the SSL context 
@@ -540,7 +540,7 @@ Note: This may disappear as all the checks currently done would result in errors
 
 #### `public int `[`SSL_esni_enable`](#esni_8c_1a0ca4d48103270d6779cb2f6a608ba52a)`(SSL * s,const char * hidden,const char * cover,`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * esni,int require_hidden_match)` 
 
-Turn on SNI encryption for an TLS (upcoming) session.
+Turn on SNI encryption for an (upcoming) TLS session.
 
 #### Parameters
 * `s` is the SSL context 
@@ -666,9 +666,13 @@ This is mostly checking the nonce.
 
 #### `public int `[`tls_parse_ctos_esni`](#extensions__srvr_8c_1a4a75b5940e39e1b5da10aefc8ed0ac69)`(SSL * s,PACKET * pkt,unsigned int context,X509 * x,size_t chainidx)` 
 
+Just a stub for now, 'till we do the server side.
+
 <p id="extensions__srvr_8c_1ae56ce4660abc014b273c5f743bc3eb63"><hr></p>
 
 #### `public EXT_RETURN `[`tls_construct_stoc_esni`](#extensions__srvr_8c_1ae56ce4660abc014b273c5f743bc3eb63)`(SSL * s,WPACKET * pkt,unsigned int context,X509 * x,size_t chainidx)` 
+
+Just a stub for now, 'till we do the server side.
 
 <p id="structclient__esni__st"><hr></p>
 

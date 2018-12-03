@@ -1,6 +1,14 @@
 # The main targets ###################################################
 #
 
+# While futzing with documentation/doxygen stuff this is handy
+thelot:
+	- (cd ..;make)
+	- make esni
+	- make test
+	- make doc	
+	- ./testit.sh -H ietf.org
+
 all: esni
 
 libssl.a: ../libssl.a
