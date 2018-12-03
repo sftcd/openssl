@@ -292,6 +292,12 @@ end with ```// ESNI_DOXY_END```.
 
 See the [api](./api.md)
 
+The main data structures are:
+
+- [ESNI_RECORD](./api.md#structesni__record__st) representing the DNS RR value
+- [CLIENT_ESNI](./api.md#structclient__esni__st) representing the extension value for a ClientHello
+- [SSL_ESNI](./api.md#tructssl__esni__st) the internal state structure with the above plus gory crypto details
+
 ### Internal functions
 
 See the [api](./api.md)
