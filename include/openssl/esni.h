@@ -210,7 +210,7 @@ int SSL_esni_checknames(const char *encservername, const char *covername);
 SSL_ESNI* SSL_ESNI_new_from_base64(const char *esnikeys);
 
 /**
- * Turn on SNI encryption for an TLS (upcoming) session
+ * Turn on SNI encryption for an (upcoming) TLS session
  * 
  * @param s is the SSL context
  * @param hidde is the hidden service name

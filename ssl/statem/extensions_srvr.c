@@ -1960,11 +1960,18 @@ EXT_RETURN tls_construct_stoc_psk(SSL *s, WPACKET *pkt, unsigned int context,
 
 // ESNI_DOXY_START
 #ifndef OPENSSL_NO_ESNI
+/**
+ * @brief Just a stub for now, 'till we do the server side.
+ */
 int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
                                X509 *x, size_t chainidx)
 {
 	return 1;
 }
+
+/**
+ * @brief Just a stub for now, 'till we do the server side.
+ */
 EXT_RETURN tls_construct_stoc_esni(SSL *s, WPACKET *pkt,
                                           unsigned int context, X509 *x,
                                           size_t chainidx)

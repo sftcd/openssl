@@ -72,7 +72,7 @@
 </tr>
 <tr>
 	<td><code>public int</code><a href="#esni_8h_1a0ca4d48103270d6779cb2f6a608ba52a"><code>SSL_esni_enable</code></a><code>(SSL * s,const char * hidden,const char * cover,</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>* esni,int require_hidden_match)</code></td>
-	<td>Turn on SNI encryption for an TLS (upcoming) session.</td>
+	<td>Turn on SNI encryption for an (upcoming) TLS session.</td>
 </tr>
 <tr>
 	<td><code>public int</code><a href="#esni_8h_1a1059808bc7c121128c470de41e2dc304"><code>SSL_ESNI_enc</code></a><code>(</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>* esnikeys,size_t client_random_len,unsigned char * client_random,uint16_t curve_id,size_t client_keyshare_len,unsigned char * client_keyshare,</code><a href="#esni_8h_1add3c7579c9f0d7bd5959b37f9c017461"><code>CLIENT_ESNI</code></a><code>** the_esni)</code></td>
@@ -180,7 +180,7 @@
 </tr>
 <tr>
 	<td><code>public int</code><a href="#esni_8c_1a0ca4d48103270d6779cb2f6a608ba52a"><code>SSL_esni_enable</code></a><code>(SSL * s,const char * hidden,const char * cover,</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>* esni,int require_hidden_match)</code></td>
-	<td>Turn on SNI encryption for an TLS (upcoming) session.</td>
+	<td>Turn on SNI encryption for an (upcoming) TLS session.</td>
 </tr>
 <tr>
 	<td><code>public int</code><a href="#esni_8c_1abc2468ba57b69ddaca0344481027d7a1"><code>SSL_get_esni_status</code></a><code>(SSL * s,char ** hidden,char ** cover)</code></td>
@@ -224,11 +224,11 @@
 </tr>
 <tr>
 	<td><code>public int</code><a href="#extensions__srvr_8c_1a4a75b5940e39e1b5da10aefc8ed0ac69"><code>tls_parse_ctos_esni</code></a><code>(SSL * s,PACKET * pkt,unsigned int context,X509 * x,size_t chainidx)</code></td>
-	<td> </td>
+	<td>Just a stub for now, 'till we do the server side.</td>
 </tr>
 <tr>
 	<td><code>public EXT_RETURN</code><a href="#extensions__srvr_8c_1ae56ce4660abc014b273c5f743bc3eb63"><code>tls_construct_stoc_esni</code></a><code>(SSL * s,WPACKET * pkt,unsigned int context,X509 * x,size_t chainidx)</code></td>
-	<td> </td>
+	<td>Just a stub for now, 'till we do the server side.</td>
 </tr>
 <tr>
 	<td><code>struct</code><a href="#structclient__esni__st"><code>client_esni_st</code></a></td>
@@ -362,7 +362,7 @@
 
 <h4 id="publicintssl_esni_enableesni_8h_1a0ca4d48103270d6779cb2f6a608ba52asslsconstcharhiddenconstcharcoverssl_esniesni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7fesniintrequire_hidden_match"><code>public int</code><a href="#esni_8h_1a0ca4d48103270d6779cb2f6a608ba52a"><code>SSL_esni_enable</code></a><code>(SSL * s,const char * hidden,const char * cover,</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>* esni,int require_hidden_match)</code></h4>
 
-<p>Turn on SNI encryption for an TLS (upcoming) session.</p>
+<p>Turn on SNI encryption for an (upcoming) TLS session.</p>
 
 <h4 id="parameters">Parameters</h4>
 
@@ -789,7 +789,7 @@
 
 <h4 id="publicintssl_esni_enableesni_8c_1a0ca4d48103270d6779cb2f6a608ba52asslsconstcharhiddenconstcharcoverssl_esniesni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7fesniintrequire_hidden_match"><code>public int</code><a href="#esni_8c_1a0ca4d48103270d6779cb2f6a608ba52a"><code>SSL_esni_enable</code></a><code>(SSL * s,const char * hidden,const char * cover,</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>* esni,int require_hidden_match)</code></h4>
 
-<p>Turn on SNI encryption for an TLS (upcoming) session.</p>
+<p>Turn on SNI encryption for an (upcoming) TLS session.</p>
 
 <h4 id="parameters">Parameters</h4>
 
@@ -926,9 +926,13 @@
 
 <h4 id="publicinttls_parse_ctos_esniextensions__srvr_8c_1a4a75b5940e39e1b5da10aefc8ed0ac69sslspacketpktunsignedintcontextx509xsize_tchainidx"><code>public int</code><a href="#extensions__srvr_8c_1a4a75b5940e39e1b5da10aefc8ed0ac69"><code>tls_parse_ctos_esni</code></a><code>(SSL * s,PACKET * pkt,unsigned int context,X509 * x,size_t chainidx)</code></h4>
 
+<p>Just a stub for now, 'till we do the server side.</p>
+
 <p id="extensions__srvr_8c_1ae56ce4660abc014b273c5f743bc3eb63"><hr></p>
 
 <h4 id="publicext_returntls_construct_stoc_esniextensions__srvr_8c_1ae56ce4660abc014b273c5f743bc3eb63sslswpacketpktunsignedintcontextx509xsize_tchainidx"><code>public EXT_RETURN</code><a href="#extensions__srvr_8c_1ae56ce4660abc014b273c5f743bc3eb63"><code>tls_construct_stoc_esni</code></a><code>(SSL * s,WPACKET * pkt,unsigned int context,X509 * x,size_t chainidx)</code></h4>
+
+<p>Just a stub for now, 'till we do the server side.</p>
 
 <p id="structclient__esni__st"><hr></p>
 
