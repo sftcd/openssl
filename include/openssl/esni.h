@@ -23,6 +23,7 @@
 
 #undef ESNI_CRYPT_INTEROP
 
+#ifdef ESNI_CRYPT_INTEROP
 /**
  * If defined, this provides enough API, internals and tracing so we can 
  * ensure/check we're generating keys the same way as other code, in 
@@ -30,7 +31,6 @@
  *
  * TODO: use this to protect the cryptovars are only needed for tracing
  */
-#ifdef ESNI_CRYPT_INTEROP
 
 /**
 * map an (ascii hex) value to a nibble
@@ -40,9 +40,11 @@
 #endif
 
 /** 
- * @brief representation of what goes in DNS
+ * @brief Representation of what goes in DNS
  *
- * This is from the -02 I-D, what we find in DNS:
+ * This is from the -02 I-D, in TLS presentation language:
+ *
+ * <pre>
  *     struct {
  *         uint16 version;
  *         uint8 checksum[4];
@@ -53,6 +55,7 @@
  *         uint64 not_after;
  *         Extension extensions<0..2^16-1>;
  *     } ESNIKeys;
+ * </pre>
  * 
  * Note that I don't like the above, but it's what we have to
  * work with at the moment.
@@ -82,21 +85,25 @@ typedef struct esni_record_st {
  * What we send in the esni CH extension:
  *
  * The TLS presentation language version is:
- *    struct {
- *        CipherSuite suite;
- *        KeyShareEntry key_share;
- *        opaque record_digest<0..2^16-1>;
- *        opaque encrypted_sni<0..2^16-1>;
- *    } ClientEncryptedSNI;
+ *
+ * <pre>
+ *     struct {
+ *         CipherSuite suite;
+ *         KeyShareEntry key_share;
+ *         opaque record_digest<0..2^16-1>;
+ *         opaque encrypted_sni<0..2^16-1>;
+ *     } ClientEncryptedSNI;
+ * </pre>
+ *
+ * Fields encoded in extension, these are copies, (not malloc'd)
+ * of pointers elsewhere in SSL_ESNI. One of these is returned
+ * from SSL_ESNI_enc, and is also pointed to from the SSL_ESNI
+ * structure.
  *
  */
 typedef struct client_esni_st {
-    /*
-     * Fields encoded in extension, these are copies, (not malloc'd)
-     * of pointers elsewhere in SSL_ESNI
-     */
     const SSL_CIPHER *ciphersuite;
-    size_t encoded_keyshare_len; /* my encoded key share */
+    size_t encoded_keyshare_len; 
     unsigned char *encoded_keyshare;
     size_t record_digest_len;
     unsigned char *record_digest;
@@ -105,100 +112,76 @@ typedef struct client_esni_st {
 } CLIENT_ESNI;
 
 /**
- * The ESNI data structure that's part of the SSL structure 
+ * @brief The ESNI data structure that's part of the SSL structure 
+ *
  * (Client-only for now really. Server is TBD.)
  */
 typedef struct ssl_esni_st {
-    /* 
-     * Fields from API
-     */
-    char *encservername;
-    char *covername;
-	/*
-	 * If 1 then SSL_esni_get_status will barf if hidden name doesn't
-	 * match TLS server cert. If 0, don't care.
-	 */
-	int require_hidden_match;
-    /*
-     * Binary (base64 decoded) RR value
-     */
+    char *encservername; ///< hidden server name
+    char *covername; ///< cleartext SNI (can be NULL)
+    int require_hidden_match; ///< If 1 then SSL_esni_get_status will barf if hidden name doesn't match TLS server cert. If 0, don't care.
     size_t encoded_rr_len;
-    unsigned char *encoded_rr;
-    /*
-     * Hash of the above (record_digest), using the relevant hash from the ciphersuite
-     */
+    unsigned char *encoded_rr; ///< Binary (base64 decoded) RR value
     size_t rd_len;
-    unsigned char *rd;
-    /*
-     * Fields direct from ESNIKeys, after matching vs. local preference
-     */
-    const SSL_CIPHER *ciphersuite; 
+    unsigned char *rd; ///< Hash of the above (record_digest), using the relevant hash from the ciphersuite
+    const SSL_CIPHER *ciphersuite;  ///< from ESNIKeys after selection of local preference
     /*
      * TODO: figure out how to free one SSL_CIPHER, for now copy full set and free that
      */
-    STACK_OF(SSL_CIPHER) *ciphersuites; 
+    STACK_OF(SSL_CIPHER) *ciphersuites;  ///< needed for graceful memory management (free) for now
 
-    uint16_t group_id; 
-    size_t esni_server_keyshare_len; 
-    unsigned char *esni_server_keyshare;
-    EVP_PKEY *esni_server_pkey;
-    size_t padded_length;
-    uint64_t not_before;
-    uint64_t not_after;
-    int nexts; // not yet supported >0 => fail
-    void **exts;
-    /*
-     * Nonce we challenge server to respond with
-     */
-    size_t nonce_len;
-    unsigned char *nonce;
-    /*
-     * Client random and key share from TLS h/s
-     */
+    uint16_t group_id;  ///< our chosen group e.g. X25519
+    size_t esni_server_keyshare_len;  
+    unsigned char *esni_server_keyshare; ///< the encoded server public
+    EVP_PKEY *esni_server_pkey; ///< the server public as a key
+    size_t padded_length; ///< from ESNIKeys
+    uint64_t not_before; ///< from ESNIKeys (not currently used)
+    uint64_t not_after; ///< from ESNIKeys (not currently used)
+    int nexts; ///< number of extensions (not yet supported so >0 => fail)
+    void **exts; ///< extensions
+    size_t nonce_len; 
+    unsigned char *nonce; ///< Nonce we challenge server to respond with
     size_t hs_cr_len; 
-    unsigned char *hs_cr;
+    unsigned char *hs_cr; ///< Client random from TLS h/s
     size_t hs_kse_len;
-    unsigned char *hs_kse;
+    unsigned char *hs_kse;///< Client key share from TLS h/s
     /* 
      * Crypto Vars - not all are really needed in the struct
      * (though tickets/resumption need a quick thought)
      * But all are handy for interop testing
      */
-    EVP_PKEY *keyshare; /* my own private keyshare to use with  server's ESNI share */
-    size_t encoded_keyshare_len;
-    unsigned char *encoded_keyshare;
-    /*
-     * ESNIContent encoded and hash thereof
-     */
+    EVP_PKEY *keyshare; ///< my own private keyshare to use with  server's ESNI share 
+    size_t encoded_keyshare_len; 
+    unsigned char *encoded_keyshare; ///< my own public key share
     size_t hi_len; 
-    unsigned char *hi;
+    unsigned char *hi; ///< ESNIContent encoded (hash input)
     size_t hash_len;
-    unsigned char *hash; 
+    unsigned char *hash;  ///< hash of hi (encoded ESNIContent)
+    size_t realSNI_len; 
+    unsigned char *realSNI; ///< padded ESNI
     /* 
      * Derived crypto vars
      */
     size_t Z_len;
-    unsigned char *Z; /* shared secret */
+    unsigned char *Z; ///< ECDH shared secret 
     size_t Zx_len;
-    unsigned char *Zx;
+    unsigned char *Zx; ///< derived from Z as per I-D
     size_t key_len;
-    unsigned char *key;
+    unsigned char *key; ///< derived key
     size_t iv_len;
-    unsigned char *iv;
+    unsigned char *iv; ///< derived iv
     size_t aad_len; 
-    unsigned char *aad;
+    unsigned char *aad; ///< derived aad
     size_t plain_len;
-    unsigned char *plain;
+    unsigned char *plain; ///< plaintext value for ESNI
     size_t cipher_len;
-    unsigned char *cipher;
+    unsigned char *cipher; ///< ciphetext value of ESNI
     size_t tag_len;
-    unsigned char *tag;
-    size_t realSNI_len; /* padded SNI */
-    unsigned char *realSNI;
+    unsigned char *tag; ///< GCM tag (already also in ciphertext)
 #ifdef ESNI_CRYPT_INTEROP
-    char *private_str; /* for debug purposes, requires special build */
+    char *private_str; ///< for debug purposes, requires special build
 #endif
-    CLIENT_ESNI *the_esni; /* the final outputs for the caller */
+    CLIENT_ESNI *the_esni; ///< the final outputs for the caller (note: not separately alloc'd)
 } SSL_ESNI;
 
 /*
