@@ -192,7 +192,10 @@ build, and needs error cases added.
 
 ### APIs
 
-[Here's](./api.md) what moxygen produces from what doxygen produces.
+[Here's](./api.md) what moxygen produces from what doxygen produces (with a bit of sed
+scrpting - see the [Makefile](./Makefile) ```make doc``` target. Since that's a build
+target, it may be more up to date that this text (but I'll try keep the stuff here
+correct and brief).
 
 The main ESNI header file [esni.h](https://github.com/sftcd/openssl/blob/master/include/openssl/esni.h)
 includes the following prototypes:
@@ -268,8 +271,6 @@ includes the following prototypes:
 			#endif
 			
 Notes:
-- Need to figure out a doxygen-equivalent way to produce the above
-  Will add pseudo-code or similar descriptions of non-obvious things.
 - The above are only externally visible, internal functions below.
 - Various functions (but mostly ``SSL_ESNI_enc``) should be modified to be
   more consistent with other internal APIs, e.g. to have as their main
@@ -277,13 +278,23 @@ Notes:
   was run from a standalone test application, but we'll make such changes
   soon.)
 
+### Extension Handling
+
+The ESNI extension is handled using the ```statem``` code, in the same
+way as other extensions.
+
+Code blocks that are documented in the [api](./api.md) are filtered 
+out using the [NOESNI_filter.sh](./NOESNI_filter.sh) script. Basically
+such blocks start with ```// ESNI_DOXY_START``` and
+end with ```// ESNI_DOXY_END```.
+
 ### Data structures
 
-TBD
+See the [api](./api.md)
 
 ### Internal functions
 
-TBD
+See the [api](./api.md)
 
 ### Testing
 
