@@ -15,7 +15,7 @@ esnimain.o: esnimain.c ../include/openssl/esni.h ../include/openssl/esnierr.h
 doc: 
 	- doxygen esni.doxy
 	- moxygen -a doxy/xml
-	- cat api.md | sed -e 's/\(.*{#\)\(.*\)}/<p id="\2"><hr><\/p>\n\1/' | sed -e 's/{#//' >api2.md
+	- cat api.md | sed -e 's/\(.*{#\)\(.*\)}/<p id="\2"><hr><\/p>\n\n\1/' | sed -e 's/{#//' >api2.md
 	- mv api2.md api.md
 	- multimarkdown api.md >api.html
 
