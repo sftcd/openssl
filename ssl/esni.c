@@ -63,7 +63,7 @@ static uint64_t uint64_from_bytes(unsigned char *buf)
 }
 
 /**
- * Decode from TXT RR to binary buffer
+ * @brief Decode from TXT RR to binary buffer
  *
  * This is the
  * exact same as ct_base64_decode from crypto/ct/ct_b64.c
@@ -123,11 +123,11 @@ err:
 }
 
 /**
- * Free up an ENSI_RECORD 
+ * @brief Free up an ENSI_RECORD 
  *
  * ESNI_RECORD is our struct for what's in the DNS
  * 
- * @wparam ENSI_RECORD 
+ * @wparam er is a pointer to the record
  */
 void ESNI_RECORD_free(ESNI_RECORD *er)
 {
@@ -156,8 +156,9 @@ void ESNI_RECORD_free(ESNI_RECORD *er)
  * Free up an SSL_ESNI structure 
  *
  * Note that we don't free the top level, caller should do that
+ * This will free the CLIENT_ESNI structure contained in here.
  *
- * @param an SSL_ESNI str
+ * @param esni a ptr to an SSL_ESNI str
  */
 void SSL_ESNI_free(SSL_ESNI *esni)
 {
@@ -202,7 +203,7 @@ void SSL_ESNI_free(SSL_ESNI *esni)
 }
 
 /**
- * Verify the SHA256 checksum that should be in the DNS record
+ * @brief Verify the SHA256 checksum that should be in the DNS record
  *
  * Fixed SHA256 hash in this case, we work on the offset here,
  * (bytes 2 bytes then 4 checksum bytes then rest) with no other 
@@ -256,14 +257,22 @@ err:
     return 0;
 }
 
-/*
- * Hash the DNS RR as per the ciphersuite specified therein
+/**
+ * @brief Hash the buffer as per the ciphersuite specified therein
+ *
+ * Note that this isn't quite what the I-D says - It seems that NSS uses the 
+ * entire buffer, incl. the version, so I've also done that as it works!
+ * Opened issue: https://github.com/tlswg/draft-ietf-tls-esni/issues/119
+ *
+ * @param buf is the input buffer
+ * @param blen is the input buffer length
+ * @param md is the hash function
+ * @param rd_len is (a ptr to) the output hash length
+ * @return a pointer to the hash buffer allocated within the function or NULL on error
  */
 static unsigned char *esni_make_rd(const unsigned char *buf,const size_t blen, const EVP_MD *md, size_t *rd_len)
 {
     /*
-     * It seems that NSS uses the entire buffer, incl. the version, let's try
-     * that. (Opened issue: https://github.com/tlswg/draft-ietf-tls-esni/issues/119)
      */
     EVP_MD_CTX *mctx = NULL;
     mctx = EVP_MD_CTX_new();
@@ -286,7 +295,9 @@ err:
     return NULL;
 }
 
-/*
+/**
+ * @brief wrap a "raw" key share in the relevant TLS presentation layer encoding
+ *
  * Put the outer length and curve ID around a key share.
  * This just exists because we do it twice: for the ESNI
  * client keyshare and for handshake client keyshare.
@@ -321,11 +332,12 @@ static unsigned char *wrap_keyshare(
     return dest;
 }
 
-/*
- * Decode from TXT RR to SSL_ESNI
- * This time inspired by, but not the same as,
+/**
+ * @brief Decode from TXT RR to SSL_ESNI
+ *
+ * This is inspired by, but not the same as,
  * SCT_new_from_base64 from crypto/ct/ct_b64.c
- * TODO: handle >1 of the many things that can 
+ * @todo TODO: handle >1 of the many things that can 
  * have >1 instance (maybe at a higher layer)
  */
 SSL_ESNI* SSL_ESNI_new_from_base64(const char *esnikeys)
@@ -603,8 +615,10 @@ err:
     return(NULL);
 }
 
-/*
- * print a buffer nicely
+/**
+ * @brief print a buffer nicely
+ *
+ * This is used in SSL_ESNI_print
  */
 static void esni_pbuf(BIO *out,char *msg,unsigned char *buf,size_t blen,int indent)
 {
@@ -624,8 +638,9 @@ static void esni_pbuf(BIO *out,char *msg,unsigned char *buf,size_t blen,int inde
 }
 
 #ifdef ESNI_CRYPT_INTEROP
-/*
- * stdout version of the above - just for odd/occasional debugging
+
+/**
+ * @brief stdout version of esni_pbuf - just for odd/occasional debugging
  */
 static void so_esni_pbuf(char *msg,unsigned char *buf,size_t blen,int indent)
 {
@@ -645,8 +660,10 @@ static void so_esni_pbuf(char *msg,unsigned char *buf,size_t blen,int indent)
 }
 #endif
 
-/*
- * Print out the DNS RR value(s)
+/**
+ * @brief Print out the DNS RR value(s)
+ *
+ * This is called via callback
  */
 int SSL_ESNI_print(BIO* out, SSL_ESNI *esni)
 {
@@ -699,8 +716,8 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esni)
     return(1);
 }
 
-/*
- * Make a 16 octet nonce for ESNI
+/**
+ * @brief Make a 16 octet nonce for ESNI
  */
 static unsigned char *esni_nonce(size_t nl)
 {
@@ -723,8 +740,8 @@ static unsigned char *esni_nonce(size_t nl)
 #endif
 }
 
-/*
- * Pad an SNI before encryption
+/**
+ * @brief Pad an SNI before encryption with zeros on the right to the required length
  */
 static unsigned char *esni_pad(char *name, unsigned int padded_len)
 {
@@ -746,9 +763,9 @@ static unsigned char *esni_pad(char *name, unsigned int padded_len)
     return buf;
 }
 
-/*
- * Local wrapper for HKDF-Extract(salt,IVM)=HMAC-Hash(salt,IKM) according
- * to RFC5689
+/**
+ * @brief Local wrapper for HKDF-Extract(salt,IVM)=HMAC-Hash(salt,IKM) according to RFC5689
+ *
  */
 static unsigned char *esni_hkdf_extract(unsigned char *secret,size_t slen,size_t *olen, const EVP_MD *md)
 {
@@ -786,6 +803,13 @@ static unsigned char *esni_hkdf_extract(unsigned char *secret,size_t slen,size_t
 }
 
 
+/**
+ * @brief expand a label as per the I-D
+ *
+ * @todo TODO: this and esni_hkdf_extract should be better integrated
+ * There are functions that can do this that require an ```SSL *s```
+ * input and we should move to use those.
+ */
 static unsigned char *esni_hkdf_expand_label(
             unsigned char *Zx, size_t Zx_len,
             const char *label,
@@ -810,6 +834,12 @@ static unsigned char *esni_hkdf_expand_label(
     return out;
 }
 
+/**
+ * @brief do the AEAD encryption as per the I-D
+ *
+ * Note: The tag output isn't really needed but was useful when I got
+ * the aad wrong at one stage to keep it for now.
+ */
 static unsigned char *esni_aead_enc(
             unsigned char *key, size_t key_len,
             unsigned char *iv, size_t iv_len,
@@ -1270,9 +1300,6 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys,
     return ret;
 }
 
-/*
-* Check names for length, maybe add more checks later before starting...
-*/
 int SSL_esni_checknames(const char *encservername, const char *covername)
 {
     int elen=0;
@@ -1311,9 +1338,6 @@ int SSL_esni_checknames(const char *encservername, const char *covername)
     return(1);
 }
 
-/*
- * API so application (e.g. s_client) can deposit stuff it got from CLI
- */
 int SSL_esni_enable(SSL *s, const char *hidden, const char *cover, SSL_ESNI *esni, int require_hidden_match)
 {
     if (s==NULL || esni==NULL || hidden==NULL) {
@@ -1379,17 +1403,11 @@ int SSL_get_esni_status(SSL *s, char **hidden, char **cover)
     return SSL_ESNI_STATUS_NOT_TRIED;
 }
 
-/*
- * API for e.g. allowing s_client to print ESNI stuff
- */
 void SSL_set_esni_callback(SSL *s, SSL_esni_client_cb_func f)
 {
     s->esni_cb=f;
 }
 
-/*
- * API for access to esnistuff
- */
 int SSL_ESNI_get_esni(SSL *s, SSL_ESNI **esni)
 {
     if (s==NULL || esni==NULL) {
