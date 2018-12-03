@@ -904,7 +904,7 @@
 
 <p>Possibly do/don't send SNI if doing ESNI.</p>
 
-<p>Check if s.ext.hostname == s.esni.covername and s.esni.covername != s.esni.encservername (which shouldn't happen ever but who knows...) If either test fails don't send server_naeme. That is, if we want to send ESNI, then we only send SNI if the covername was explicitly set and is the same as the SNI (that maybe got set via some weirdo application API that we couldn't change when ESNI enabling perhaps)</p>
+<p>Check if s.ext.hostname == s.esni.covername and s.esni.covername != s.esni.encservername (which shouldn't happen ever but who knows...) If either test fails don't send server_name. That is, if we want to send ESNI, then we only send SNI if the covername was explicitly set and is the same as the SNI (that maybe got set via some weirdo application API that we couldn't change when ESNI enabling perhaps)</p>
 
 <p id="extensions__clnt_8c_1afca936de2d3ae315b5e8b8b200d17462"><hr></p>
 
@@ -920,7 +920,11 @@
 
 <p>Parse and check the ESNI value returned in the EncryptedExtensions to make sure it has the nonce we sent in the ClientHello.</p>
 
-<p>This is mostly checking the nonce.</p>
+<p>This is mostly checking the nonce. </p>
+
+<blockquote>
+  <p>Todo: TODO: we should make sure this came as an EncryptedExtension, not sure how to do that yet.</p>
+</blockquote>
 
 <p id="extensions__srvr_8c_1a4a75b5940e39e1b5da10aefc8ed0ac69"><hr></p>
 

@@ -41,7 +41,7 @@ EXT_RETURN tls_construct_ctos_renegotiate(SSL *s, WPACKET *pkt,
  * Check if s.ext.hostname == s.esni.covername
  * and s.esni.covername != s.esni.encservername (which
  * shouldn't happen ever but who knows...)
- * If either test fails don't send server_naeme. 
+ * If either test fails don't send server_name. 
  * That is, if we want to send ESNI, then we only
  * send SNI if the covername was explicitly set 
  * and is the same as the SNI (that maybe got set
@@ -2140,6 +2140,8 @@ EXT_RETURN tls_construct_ctos_esni(SSL *s, WPACKET *pkt, unsigned int context,
  * to make sure it has the nonce we sent in the ClientHello
  *
  * This is mostly checking the nonce.
+ * @todo TODO: we should make sure this came as an EncryptedExtension, not
+ * sure how to do that yet.
  */
 int tls_parse_stoc_esni(SSL *s, PACKET *pkt, unsigned int context,
                                X509 *x, size_t chainidx)
