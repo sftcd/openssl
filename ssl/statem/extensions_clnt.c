@@ -33,6 +33,52 @@ EXT_RETURN tls_construct_ctos_renegotiate(SSL *s, WPACKET *pkt,
     return EXT_RETURN_SENT;
 }
 
+// ESNI_DOXY_START
+#ifndef OPENSSL_NO_ESNI
+/**
+ * @brief Possibly do/don't send SNI if doing ESNI
+ *
+ * Check if s.ext.hostname == s.esni.covername
+ * and s.esni.covername != s.esni.encservername (which
+ * shouldn't happen ever but who knows...)
+ * If either test fails don't send server_naeme. 
+ * That is, if we want to send ESNI, then we only
+ * send SNI if the covername was explicitly set 
+ * and is the same as the SNI (that maybe got set
+ * via some weirdo application API that we couldn't
+ * change when ESNI enabling perhaps)
+ */
+static EXT_RETURN esni_server_name_fixup(SSL *s, WPACKET *pkt,
+                                          unsigned int context, X509 *x,
+                                          size_t chainidx) 
+{
+    if (s->esni != NULL ) {
+
+        if (s->esni->encservername == NULL) { /* ouch, also shouldn't happen */
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_SERVER_NAME,
+                 ERR_R_INTERNAL_ERROR);
+            return EXT_RETURN_FAIL;
+        }
+        if (s->esni->covername==NULL) {
+            return EXT_RETURN_NOT_SENT;
+        }
+        size_t cn_len=OPENSSL_strnlen(s->esni->covername,TLSEXT_MAXLEN_host_name);
+        size_t hn_len=OPENSSL_strnlen(s->ext.hostname,TLSEXT_MAXLEN_host_name);
+        size_t en_len=OPENSSL_strnlen(s->esni->encservername,TLSEXT_MAXLEN_host_name);
+        if (cn_len!=hn_len || !CRYPTO_memcmp(s->ext.hostname,s->esni->covername,cn_len)) {
+            return EXT_RETURN_NOT_SENT;
+        }
+        if (en_len!=cn_len || !CRYPTO_memcmp(s->esni->encservername,s->esni->covername,cn_len)) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_SERVER_NAME,
+                 ERR_R_INTERNAL_ERROR);
+            return EXT_RETURN_FAIL;
+        }
+    }
+    return EXT_RETURN_SENT;
+}
+#endif // END_OPENSSL_NO_ESNI
+// ESNI_DOXY_END
+
 EXT_RETURN tls_construct_ctos_server_name(SSL *s, WPACKET *pkt,
                                           unsigned int context, X509 *x,
                                           size_t chainidx)
@@ -41,39 +87,10 @@ EXT_RETURN tls_construct_ctos_server_name(SSL *s, WPACKET *pkt,
         return EXT_RETURN_NOT_SENT;
 
 #ifndef OPENSSL_NO_ESNI
-	if (s->esni != NULL ) {
-		/*
-		 * Check if s.ext.hostname == s.esni.covername
-		 * and s.esni.covername != s.esni.encservername (which
-		 * shouldn't happen ever but who knows...)
-		 * If either test fails don't send server_naeme. 
-		 * That is, if we want to send ESNI, then we only
-		 * send SNI if the covername was explicitly set 
-		 * and is the same as the SNI (that maybe got set
-		 * via some weirdo application API that we couldn't
-		 * change when ESNI enabling perhaps)
-		 */
-    	if (s->esni->encservername == NULL) { /* ouch, also shouldn't happen */
-        	SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_SERVER_NAME,
-                 ERR_R_INTERNAL_ERROR);
-        	return EXT_RETURN_FAIL;
-		}
-		if (s->esni->covername==NULL) {
-        	return EXT_RETURN_NOT_SENT;
-		}
-		size_t cn_len=OPENSSL_strnlen(s->esni->covername,TLSEXT_MAXLEN_host_name);
-		size_t hn_len=OPENSSL_strnlen(s->ext.hostname,TLSEXT_MAXLEN_host_name);
-		size_t en_len=OPENSSL_strnlen(s->esni->encservername,TLSEXT_MAXLEN_host_name);
-		if (cn_len!=hn_len || !CRYPTO_memcmp(s->ext.hostname,s->esni->covername,cn_len)) {
-        	return EXT_RETURN_NOT_SENT;
-		}
-		if (en_len!=cn_len || !CRYPTO_memcmp(s->esni->encservername,s->esni->covername,cn_len)) {
-        	SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_SERVER_NAME,
-                 ERR_R_INTERNAL_ERROR);
-        	return EXT_RETURN_FAIL;
-		}
-	}
-#endif
+    int esnirv=esni_server_name_fixup(s,pkt,context,x,chainidx);
+    if (esnirv!=EXT_RETURN_SENT)
+        return esnirv;
+#endif // END_OPENSSL_NO_ESNI
 
     /* Add TLS extension servername to the Client Hello message */
     if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_server_name)
@@ -2025,7 +2042,16 @@ int tls_parse_stoc_psk(SSL *s, PACKET *pkt, unsigned int context, X509 *x,
     return 1;
 }
 
+// ESNI_DOXY_START
 #ifndef OPENSSL_NO_ESNI
+
+/**
+ * @brief Create the ESNI extension for the ClientHello
+ *
+ * This gets the TLS h/w values needed (client_random, curve_id and TLS h/s key_share)
+ * and then calls SSL_ESNI_enc and encodes the resulting CLIENT_ESNI into
+ * the ClientHello.
+ */
 EXT_RETURN tls_construct_ctos_esni(SSL *s, WPACKET *pkt, unsigned int context,
                                    X509 *x, size_t chainidx)
 {
@@ -2109,6 +2135,12 @@ EXT_RETURN tls_construct_ctos_esni(SSL *s, WPACKET *pkt, unsigned int context,
     return EXT_RETURN_SENT;
 }
 
+/**
+ * @brief Parse and check the ESNI value returned in the EncryptedExtensions
+ * to make sure it has the nonce we sent in the ClientHello
+ *
+ * This is mostly checking the nonce.
+ */
 int tls_parse_stoc_esni(SSL *s, PACKET *pkt, unsigned int context,
                                X509 *x, size_t chainidx)
 {
@@ -2153,4 +2185,5 @@ int tls_parse_stoc_esni(SSL *s, PACKET *pkt, unsigned int context,
     s->esni_done=1;
     return 1;
 }
-#endif
+#endif // END_OPENSSL_NO_ESNI
+// ESNI_DOXY_END

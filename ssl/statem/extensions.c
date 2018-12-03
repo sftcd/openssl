@@ -60,7 +60,7 @@ static int init_post_handshake_auth(SSL *s, unsigned int context);
 #ifndef OPENSSL_NO_ESNI
 static int init_esni(SSL *s, unsigned int context);
 static int final_esni(SSL *s, unsigned int context, int sent);
-#endif
+#endif // END_OPENSSL_NO_ESNI
 
 /* Structure to define a built-in extension */
 typedef struct extensions_definition_st {
@@ -379,9 +379,9 @@ static const EXTENSION_DEFINITION ext_defs[] = {
         tls_construct_stoc_esni, tls_construct_ctos_esni,
         final_esni
     },
-#else
+#else // OPENSSL_NO_ESNI
     INVALID_EXTENSION,
-#endif
+#endif // END_OPENSSL_NO_ESNI
     {
         TLSEXT_TYPE_certificate_authorities,
         SSL_EXT_CLIENT_HELLO | SSL_EXT_TLS1_3_CERTIFICATE_REQUEST
@@ -934,14 +934,21 @@ static int init_server_name(SSL *s, unsigned int context)
     return 1;
 }
 
+// ESNI_DOXY_START
 #ifndef OPENSSL_NO_ESNI
 
+/**
+ * @brief Just note that esni is not yet done
+ */
 static int init_esni(SSL *s, unsigned int context)
 {
     s->esni_done = 0;
     return 1;
 }
 
+/**
+ * @brief check result of esni and return error or ok
+ */
 static int final_esni(SSL *s, unsigned int context, int sent)
 {
     /*
@@ -957,7 +964,8 @@ static int final_esni(SSL *s, unsigned int context, int sent)
     return 1;
 }
 
-#endif
+#endif // END_OPENSSL_NO_ESNI
+// ESNI_DOXY_END
 
 static int final_server_name(SSL *s, unsigned int context, int sent)
 {
