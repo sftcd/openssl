@@ -98,10 +98,10 @@ void usage(char *prog)
     printf("where:\n");
     printf("-o specifies the output file name for the binary-encoded ESNIKeys (default: ./esnikeys.pub)\n");
     printf("-p specifies the output file name for the corresponding private key (default: ./esnikeys.priv)\n");
-    printf("-d duration, specifies the duration in seconds from now, for which the public should be valid (default: 1 week)\n");
+    printf("-d duration, specifies the duration in seconds from, now, for which the public should be valid (default: 1 week)\n");
     printf("\n");
     printf("If <privfname> exists already and contains an appropriate value, then that key will be used without change.\n");
-    printf("There is no support for options - we just support TLS_AES_128_GCM_SHA256, X5519 and no extensions.\n");
+    printf("There is no support for options - we just support TLS_AES_128_GCM_SHA256, X25519 and no extensions.\n");
     printf("Fix that if you like:-)\n");
     exit(1);
 }
@@ -164,7 +164,23 @@ static int mk_esnikeys(int argc, char **argv)
     EVP_PKEY *pkey = NULL;
     FILE *privfp=fopen(privfname,"rb");
     if (privfp!=NULL) {
-        // read contents
+        /*
+		 * read contents and re-use key if it's a good key
+		 *
+		 * The justification here is that we might need to handle public
+		 * values that overlap, e.g. due to TTLs being set differently
+		 * by different hidden domains or some such. (I.e. I don't know
+		 * yet if that's really needed or not.)
+		 *
+		 * Note though that re-using private keys like this could end
+		 * up being DANGEROUS, in terms of damaging forward secrecy
+		 * for hidden service names. Not sure if there're other possible
+		 * bad effects, but certainly likely safer operationally to 
+		 * use a new key pair every time. (Which is also supported of
+		 * course.)
+		 *
+		 * @todo TODO: Decide if supporting private key re-use is even needed.
+		 */
         if (!PEM_read_PrivateKey(privfp,&pkey,NULL,NULL)) {
             fprintf(stderr,"Can't read private key - exiting\n");
             fclose(privfp);
