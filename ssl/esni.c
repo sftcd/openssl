@@ -327,62 +327,37 @@ static unsigned char *wrap_keyshare(
 }
 
 /**
- * @brief Decode from TXT RR to SSL_ESNI
+ * @brief Decod from binary to ESNI_RECORD
  *
- * This is inspired by, but not the same as,
- * SCT_new_from_base64 from crypto/ct/ct_b64.c
- * @todo TODO: handle >1 of the many things that can 
- * have >1 instance (maybe at a higher layer)
  */
-SSL_ESNI* SSL_ESNI_new_from_base64(const char *esnikeys)
+ESNI_RECORD *SSL_ESNI_RECORD_new_from_binary(unsigned char *binbuf, size_t binblen)
 {
-    if (esnikeys==NULL) {
-        return(NULL);
-    }
-    ESNI_RECORD er;
-    unsigned char *outbuf = NULL; /* binary representation of ESNIKeys */
-    int declen; /* length of binary representation of ESNIKeys */
-    SSL_ESNI *newesni=NULL; 
-    memset(&er,0,sizeof(ESNI_RECORD));
+	ESNI_RECORD *er=NULL;
 
-    declen = esni_base64_decode(esnikeys, &outbuf);
-    if (declen < 0) {
-        ESNIerr(ESNI_F_NEW_FROM_BASE64, ESNI_R_BASE64_DECODE_ERROR);
+	er=(ESNI_RECORD*)OPENSSL_malloc(sizeof(ESNI_RECORD));
+	if (er==NULL) {
+        ESNIerr(ESNI_F_NEW_FROM_BASE64, ERR_R_INTERNAL_ERROR);
         goto err;
-    }
-
-    int cksum_ok=esni_checksum_check(outbuf,declen);
+	}
+    memset(er,0,sizeof(ESNI_RECORD));
+    int cksum_ok=esni_checksum_check(binbuf,binblen);
     if (cksum_ok!=1) {
         ESNIerr(ESNI_F_NEW_FROM_BASE64, ERR_R_INTERNAL_ERROR);
         goto err;
     }
-
-    PACKET pkt={outbuf,declen};
-
-    newesni=OPENSSL_malloc(sizeof(SSL_ESNI));
-    if (newesni==NULL) {
-        ESNIerr(ESNI_F_NEW_FROM_BASE64, ERR_R_MALLOC_FAILURE);
-        goto err;
-    }
-    memset(newesni,0,sizeof(SSL_ESNI));
-
+    PACKET pkt={binbuf,binblen};
     /* sanity check: version + checksum + KeyShareEntry have to be there - min len >= 10 */
-    if (declen < 10) {
+    if (binblen < 10) {
         ESNIerr(ESNI_F_NEW_FROM_BASE64, ESNI_R_BASE64_DECODE_ERROR);
         goto err;
     }
-
-    newesni->encoded_rr_len=declen;
-    newesni->encoded_rr=outbuf;
-
     /* version */
-    if (!PACKET_get_net_2(&pkt,&er.version)) {
+    if (!PACKET_get_net_2(&pkt,&er->version)) {
         ESNIerr(ESNI_F_NEW_FROM_BASE64, ESNI_R_RR_DECODE_ERROR);
         goto err;
     }
-
     /* checksum decode */
-    if (!PACKET_copy_bytes(&pkt,er.checksum,4)) {
+    if (!PACKET_copy_bytes(&pkt,er->checksum,4)) {
         ESNIerr(ESNI_F_NEW_FROM_BASE64, ESNI_R_RR_DECODE_ERROR);
         goto err;
     }
@@ -395,7 +370,6 @@ SSL_ESNI* SSL_ESNI_new_from_base64(const char *esnikeys)
         ESNIerr(ESNI_F_NEW_FROM_BASE64, ESNI_R_RR_DECODE_ERROR);
         goto err;
     }
-
     uint16_t group_id;
     PACKET encoded_pt;
     int nkeys=0;
@@ -403,7 +377,6 @@ SSL_ESNI* SSL_ESNI_new_from_base64(const char *esnikeys)
     EVP_PKEY **keys=NULL;
     unsigned char **encoded_keys=NULL;
     size_t *encoded_lens=NULL;
-
     while (PACKET_remaining(&key_share_list) > 0) {
         unsigned int tmp;
         if (!PACKET_get_net_2(&key_share_list, &tmp)
@@ -417,7 +390,6 @@ SSL_ESNI* SSL_ESNI_new_from_base64(const char *esnikeys)
             goto err;
         }
         group_id=(uint16_t)tmp;
-
         EVP_PKEY *kn=ssl_generate_param_group(group_id);
         if (kn==NULL) {
             ESNIerr(ESNI_F_NEW_FROM_BASE64, ESNI_R_RR_DECODE_ERROR);
@@ -462,14 +434,12 @@ SSL_ESNI* SSL_ESNI_new_from_base64(const char *esnikeys)
             goto err;
         }
         encoded_keys[nkeys-1]=thisencoded;
-
     }
-    er.nkeys=nkeys;
-    er.keys=keys;
-    er.group_ids=group_ids;
-    er.encoded_lens=encoded_lens;
-    er.encoded_keys=encoded_keys;
-
+    er->nkeys=nkeys;
+    er->keys=keys;
+    er->group_ids=group_ids;
+    er->encoded_lens=encoded_lens;
+    er->encoded_keys=encoded_keys;
     /*
      * List of ciphersuites - 2 byte len + 2 bytes per ciphersuite
      * Code here inspired by ssl/ssl_lib.c:bytes_to_cipher_list
@@ -507,9 +477,8 @@ SSL_ESNI* SSL_ESNI_new_from_base64(const char *esnikeys)
         ESNIerr(ESNI_F_NEW_FROM_BASE64, ESNI_R_RR_DECODE_ERROR);
         goto err;
     }
-    er.ciphersuites=sk;
-
-    if (!PACKET_get_net_2(&pkt,&er.padded_length)) {
+    er->ciphersuites=sk;
+    if (!PACKET_get_net_2(&pkt,&er->padded_length)) {
         ESNIerr(ESNI_F_NEW_FROM_BASE64, ESNI_R_RR_DECODE_ERROR);
         goto err;
     }
@@ -521,46 +490,93 @@ SSL_ESNI* SSL_ESNI_new_from_base64(const char *esnikeys)
         ESNIerr(ESNI_F_NEW_FROM_BASE64, ESNI_R_RR_DECODE_ERROR);
         goto err;
     }
-    er.not_before=uint64_from_bytes(nbs);
+    er->not_before=uint64_from_bytes(nbs);
     if (!PACKET_copy_bytes(&pkt,nbs,8)) {
         ESNIerr(ESNI_F_NEW_FROM_BASE64, ESNI_R_RR_DECODE_ERROR);
         goto err;
     }
-    er.not_after=uint64_from_bytes(nbs);
+    er->not_after=uint64_from_bytes(nbs);
     /*
      * Extensions: we don't yet support any (does anyone?)
      * TODO: add extensions support at some level 
      */
-    if (!PACKET_get_net_2(&pkt,&er.nexts)) {
+    if (!PACKET_get_net_2(&pkt,&er->nexts)) {
         ESNIerr(ESNI_F_NEW_FROM_BASE64, ESNI_R_RR_DECODE_ERROR);
         goto err;
     }
-    if (er.nexts != 0 ) {
+    if (er->nexts != 0 ) {
         ESNIerr(ESNI_F_NEW_FROM_BASE64, ESNI_R_RR_DECODE_ERROR);
         goto err;
-
     }
     int leftover=PACKET_remaining(&pkt);
     if (leftover!=0) {
         ESNIerr(ESNI_F_NEW_FROM_BASE64, ESNI_R_RR_DECODE_ERROR);
         goto err;
     }
+	return er;
+
+err:
+	if (er!=NULL) {
+		ESNI_RECORD_free(er);
+		OPENSSL_free(er);
+	}
+	return NULL;
+}
+
+/**
+ * @brief Decode from base64 TXT RR to SSL_ESNI
+ *
+ * This is inspired by, but not the same as,
+ * SCT_new_from_base64 from crypto/ct/ct_b64.c
+ * @todo TODO: handle >1 of the many things that can 
+ * have >1 instance (maybe at a higher layer)
+ */
+SSL_ESNI* SSL_ESNI_new_from_base64(const char *esnikeys)
+{
+    if (esnikeys==NULL) {
+        return(NULL);
+    }
+    ESNI_RECORD *er=NULL;
+    unsigned char *outbuf = NULL; /* binary representation of ESNIKeys */
+    int declen; /* length of binary representation of ESNIKeys */
+    SSL_ESNI *newesni=NULL; 
+
+    declen = esni_base64_decode(esnikeys, &outbuf);
+    if (declen < 0) {
+        ESNIerr(ESNI_F_NEW_FROM_BASE64, ESNI_R_BASE64_DECODE_ERROR);
+        goto err;
+    }
+
+    newesni=OPENSSL_malloc(sizeof(SSL_ESNI));
+    if (newesni==NULL) {
+        ESNIerr(ESNI_F_NEW_FROM_BASE64, ERR_R_MALLOC_FAILURE);
+        goto err;
+    }
+    memset(newesni,0,sizeof(SSL_ESNI));
+    newesni->encoded_rr_len=declen;
+    newesni->encoded_rr=outbuf;
+
+	er=SSL_ESNI_RECORD_new_from_binary(outbuf,declen);
+	if (er==NULL) {
+        ESNIerr(ESNI_F_NEW_FROM_BASE64, ERR_R_INTERNAL_ERROR);
+        goto err;
+	}
 
     /*
      * Fixed bits of RR to use
      */
-    newesni->not_before=er.not_before;
-    newesni->not_after=er.not_after;
-    newesni->padded_length=er.padded_length;
+    newesni->not_before=er->not_before;
+    newesni->not_after=er->not_after;
+    newesni->padded_length=er->padded_length;
     /* 
      * now decide which bits of er we like and remember those 
      * pick the 1st key/group/ciphersutie that works
      * TODO: more sophisticated selection:-)
      */
     int rec2pick=0;
-    newesni->ciphersuite=sk_SSL_CIPHER_value(er.ciphersuites,rec2pick);
-    newesni->ciphersuites=er.ciphersuites;
-    newesni->group_id=er.group_ids[rec2pick];
+    newesni->ciphersuite=sk_SSL_CIPHER_value(er->ciphersuites,rec2pick);
+    newesni->ciphersuites=er->ciphersuites;
+    newesni->group_id=er->group_ids[rec2pick];
 
     unsigned char *tmp=NULL;
     size_t tlen=0;
@@ -571,10 +587,12 @@ SSL_ESNI* SSL_ESNI_new_from_base64(const char *esnikeys)
         goto err;
     }
     if (!EVP_PKEY_set1_tls_encodedpoint(newesni->esni_server_pkey,
-                er.encoded_keys[rec2pick],er.encoded_lens[rec2pick])) {
+                er->encoded_keys[rec2pick],er->encoded_lens[rec2pick])) {
             ESNIerr(ESNI_F_NEW_FROM_BASE64, ESNI_R_RR_DECODE_ERROR);
             goto err;
     }
+
+
     tlen = EVP_PKEY_get1_tls_encodedpoint(newesni->esni_server_pkey,&tmp); 
     if (tlen == 0) {
         ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
@@ -597,11 +615,15 @@ SSL_ESNI* SSL_ESNI_new_from_base64(const char *esnikeys)
     /*
      * Free up unwanted stuff
      */
-    ESNI_RECORD_free(&er);
+    ESNI_RECORD_free(er);
+	OPENSSL_free(er);
 
     return(newesni);
 err:
-    ESNI_RECORD_free(&er);
+	if (er!=NULL) {
+    	ESNI_RECORD_free(er);
+		OPENSSL_free(er);
+	}
     if (newesni!=NULL) {
         SSL_ESNI_free(newesni);
         OPENSSL_free(newesni);
@@ -1370,6 +1392,13 @@ int SSL_esni_enable(SSL *s, const char *hidden, const char *cover, SSL_ESNI *esn
 	}
     return 1;
 }
+
+int SSL_esni_server_enable(SSL_CTX *s, const char *esnikeyfile, const char *esnipubfile)
+{
+	// todo: write code:-)
+	printf("SSL_esni_server_enable called with %s and %s\n",esnikeyfile,esnipubfile);
+	return 1;
+};
 
 int SSL_get_esni_status(SSL *s, char **hidden, char **cover)
 {

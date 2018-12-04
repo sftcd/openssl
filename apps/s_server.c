@@ -21,6 +21,9 @@
 #include <openssl/e_os2.h>
 #include <openssl/async.h>
 #include <openssl/ssl.h>
+#ifndef OPENSSL_NO_ESNI
+#include <openssl/esni.h>
+#endif
 
 #ifndef OPENSSL_NO_SOCK
 
@@ -1899,6 +1902,29 @@ int s_server_main(int argc, char *argv[])
         goto end;
     }
 
+#ifndef OPENSSL_NO_ESNI
+	/*
+	 * TODO: figure this out: I think(!) I need to set this context before ctx2 is "spun off" not sure
+	 */
+	if (esnikeyfile!= NULL || esnipubfile!=NULL) {
+		/*
+		 * need both set to go ahead
+		 */
+		if (esnikeyfile==NULL) {
+            BIO_printf(bio_err, "Need -esnipub set as well as -esnikey\n" );
+            goto end;
+		}
+		if (esnipubfile==NULL) {
+            BIO_printf(bio_err, "Need -esnikey set as well as -esnipub\n" );
+            goto end;
+		}
+		if (SSL_esni_server_enable(ctx,esnikeyfile,esnipubfile)!=1) {
+            BIO_printf(bio_err, "Failure establishing ESNI parameters\n" );
+            goto end;
+		}
+	}
+#endif
+
     if (s_cert2) {
         ctx2 = SSL_CTX_new(meth);
         if (ctx2 == NULL) {
@@ -2159,21 +2185,7 @@ int s_server_main(int argc, char *argv[])
         && unlink_unix_path)
         unlink(host);
 #endif
-#ifndef OPENSSL_NO_ESNI
-	if (esnikeyfile!= NULL || esnipubfile!=NULL) {
-		/*
-		 * need both set to go ahead
-		 */
-		if (esnikeyfile==NULL) {
-            BIO_printf(bio_err, "Need -esnipub set as well as -esnikey\n" );
-            goto end;
-		}
-		if (esnipubfile==NULL) {
-            BIO_printf(bio_err, "Need -esnikey set as well as -esnipub\n" );
-            goto end;
-		}
-	}
-#endif
+
     do_server(&accept_socket, host, port, socket_family, socket_type, protocol,
               server_cb, context, naccept, bio_s_out);
     print_stats(bio_s_out, ctx);

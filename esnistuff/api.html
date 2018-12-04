@@ -107,6 +107,10 @@
 	<td>Turn on SNI encryption for an (upcoming) TLS session.</td>
 </tr>
 <tr>
+	<td><code>public int</code><a href="#esni_8h_1a0589fa7d65bf2263c361258876e0e67a"><code>SSL_esni_server_enable</code></a><code>(SSL_CTX * s,const char * esnikeyfile,const char * esnipubfile)</code></td>
+	<td>Turn on SNI Encryption, server-side.</td>
+</tr>
+<tr>
 	<td><code>public int</code><a href="#esni_8h_1a1059808bc7c121128c470de41e2dc304"><code>SSL_ESNI_enc</code></a><code>(</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>* esnikeys,size_t client_random_len,unsigned char * client_random,uint16_t curve_id,size_t client_keyshare_len,unsigned char * client_keyshare,</code><a href="#esni_8h_1add3c7579c9f0d7bd5959b37f9c017461"><code>CLIENT_ESNI</code></a><code>** the_esni)</code></td>
 	<td>Do the client-side SNI encryption during a TLS handshake.</td>
 </tr>
@@ -171,8 +175,12 @@
 	<td>wrap a "raw" key share in the relevant TLS presentation layer encoding</td>
 </tr>
 <tr>
+	<td><code>public</code><a href="#esni_8h_1ab29e08d24d0eac604e0d6783dfbf1758"><code>ESNI_RECORD</code></a><code>*</code><a href="#esni_8c_1a013c3c4172d63a489aa314d4c3d4542d"><code>SSL_ESNI_RECORD_new_from_binary</code></a><code>(unsigned char * binbuf,size_t binblen)</code></td>
+	<td>Decod from binary to ESNI_RECORD.</td>
+</tr>
+<tr>
 	<td><code>public</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>*</code><a href="#esni_8c_1a672460fc59e13e81482f66c701d4bca7"><code>SSL_ESNI_new_from_base64</code></a><code>(const char * esnikeys)</code></td>
-	<td>Decode from TXT RR to SSL_ESNI.</td>
+	<td>Decode from base64 TXT RR to SSL_ESNI.</td>
 </tr>
 <tr>
 	<td><code>public static void</code><a href="#esni_8c_1ad619d10af828adf65d47682bdab514d1"><code>esni_pbuf</code></a><code>(BIO * out,char * msg,unsigned char * buf,size_t blen,int indent)</code></td>
@@ -213,6 +221,10 @@
 <tr>
 	<td><code>public int</code><a href="#esni_8c_1a0ca4d48103270d6779cb2f6a608ba52a"><code>SSL_esni_enable</code></a><code>(SSL * s,const char * hidden,const char * cover,</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>* esni,int require_hidden_match)</code></td>
 	<td>Turn on SNI encryption for an (upcoming) TLS session.</td>
+</tr>
+<tr>
+	<td><code>public int</code><a href="#esni_8c_1a0589fa7d65bf2263c361258876e0e67a"><code>SSL_esni_server_enable</code></a><code>(SSL_CTX * s,const char * esnikeyfile,const char * esnipubfile)</code></td>
+	<td>Turn on SNI Encryption, server-side.</td>
 </tr>
 <tr>
 	<td><code>public int</code><a href="#esni_8c_1abc2468ba57b69ddaca0344481027d7a1"><code>SSL_get_esni_status</code></a><code>(SSL * s,char ** hidden,char ** cover)</code></td>
@@ -467,6 +479,30 @@
 <li><p><code>cover</code> is the cleartext SNI name to use </p></li>
 <li><p><code>esni</code> is the SSL_ESNI structure </p></li>
 <li><p><code>require_hidden_match</code> say whether to require (==1) the TLS server cert matches the hidden name </p></li>
+</ul>
+
+<h4 id="returns">Returns</h4>
+
+<p>1 for success, other otherwise</p>
+
+<p id="esni_8h_1a0589fa7d65bf2263c361258876e0e67a"><hr></p>
+
+<h4 id="publicintssl_esni_server_enableesni_8h_1a0589fa7d65bf2263c361258876e0e67assl_ctxsconstcharesnikeyfileconstcharesnipubfile"><code>public int</code><a href="#esni_8h_1a0589fa7d65bf2263c361258876e0e67a"><code>SSL_esni_server_enable</code></a><code>(SSL_CTX * s,const char * esnikeyfile,const char * esnipubfile)</code></h4>
+
+<p>Turn on SNI Encryption, server-side.</p>
+
+<p>When this works, the server will decrypt any ESNI seen in ClientHellos and subsequently treat those as if they had been send in cleartext SNI.</p>
+
+<blockquote>
+  <p>Todo: : TODO: consider what to do if this is called more than once. We may want a server to support that if there is >1 hidden service.</p>
+</blockquote>
+
+<h4 id="parameters">Parameters</h4>
+
+<ul>
+<li><p><code>s</code> is the SSL server context </p></li>
+<li><p><code>esnikeyfile</code> has the relevant (X25519) private key in PEM format </p></li>
+<li><p><code>esnipubfile</code> has the relevant (binary encoded, not base64) ESNIKeys structure </p></li>
 </ul>
 
 <h4 id="returns">Returns</h4>
@@ -775,11 +811,17 @@
 
 <p>Put the outer length and curve ID around a key share. This just exists because we do it twice: for the ESNI client keyshare and for handshake client keyshare. The input keyshare is the e.g. 32 octets of a point on curve 25519 as used in X25519.</p>
 
+<p id="esni_8c_1a013c3c4172d63a489aa314d4c3d4542d"><hr></p>
+
+<h4 id="publicesni_recordesni_8h_1ab29e08d24d0eac604e0d6783dfbf1758ssl_esni_record_new_from_binaryesni_8c_1a013c3c4172d63a489aa314d4c3d4542dunsignedcharbinbufsize_tbinblen"><code>public</code><a href="#esni_8h_1ab29e08d24d0eac604e0d6783dfbf1758"><code>ESNI_RECORD</code></a><code>*</code><a href="#esni_8c_1a013c3c4172d63a489aa314d4c3d4542d"><code>SSL_ESNI_RECORD_new_from_binary</code></a><code>(unsigned char * binbuf,size_t binblen)</code></h4>
+
+<p>Decod from binary to ESNI_RECORD.</p>
+
 <p id="esni_8c_1a672460fc59e13e81482f66c701d4bca7"><hr></p>
 
 <h4 id="publicssl_esniesni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7fssl_esni_new_from_base64esni_8c_1a672460fc59e13e81482f66c701d4bca7constcharesnikeys"><code>public</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>*</code><a href="#esni_8c_1a672460fc59e13e81482f66c701d4bca7"><code>SSL_ESNI_new_from_base64</code></a><code>(const char * esnikeys)</code></h4>
 
-<p>Decode from TXT RR to SSL_ESNI.</p>
+<p>Decode from base64 TXT RR to SSL_ESNI.</p>
 
 <p>Decode and check the value retieved from DNS (currently base64 encoded)</p>
 
@@ -894,6 +936,30 @@
 <li><p><code>cover</code> is the cleartext SNI name to use </p></li>
 <li><p><code>esni</code> is the SSL_ESNI structure </p></li>
 <li><p><code>require_hidden_match</code> say whether to require (==1) the TLS server cert matches the hidden name </p></li>
+</ul>
+
+<h4 id="returns">Returns</h4>
+
+<p>1 for success, other otherwise</p>
+
+<p id="esni_8c_1a0589fa7d65bf2263c361258876e0e67a"><hr></p>
+
+<h4 id="publicintssl_esni_server_enableesni_8c_1a0589fa7d65bf2263c361258876e0e67assl_ctxsconstcharesnikeyfileconstcharesnipubfile"><code>public int</code><a href="#esni_8c_1a0589fa7d65bf2263c361258876e0e67a"><code>SSL_esni_server_enable</code></a><code>(SSL_CTX * s,const char * esnikeyfile,const char * esnipubfile)</code></h4>
+
+<p>Turn on SNI Encryption, server-side.</p>
+
+<p>When this works, the server will decrypt any ESNI seen in ClientHellos and subsequently treat those as if they had been send in cleartext SNI.</p>
+
+<blockquote>
+  <p>Todo: : TODO: consider what to do if this is called more than once. We may want a server to support that if there is >1 hidden service.</p>
+</blockquote>
+
+<h4 id="parameters">Parameters</h4>
+
+<ul>
+<li><p><code>s</code> is the SSL server context </p></li>
+<li><p><code>esnikeyfile</code> has the relevant (X25519) private key in PEM format </p></li>
+<li><p><code>esnipubfile</code> has the relevant (binary encoded, not base64) ESNIKeys structure </p></li>
 </ul>
 
 <h4 id="returns">Returns</h4>

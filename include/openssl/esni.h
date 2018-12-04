@@ -224,6 +224,22 @@ SSL_ESNI* SSL_ESNI_new_from_base64(const char *esnikeys);
 int SSL_esni_enable(SSL *s, const char *hidden, const char *cover, SSL_ESNI *esni, int require_hidden_match);
 
 /**
+ * Turn on SNI Encryption, server-side
+ *
+ * When this works, the server will decrypt any ESNI seen in ClientHellos and
+ * subsequently treat those as if they had been send in cleartext SNI.
+ *
+ * @todo: TODO: consider what to do if this is called more than once. We may
+ * want a server to support that if there is >1 hidden service.
+ *
+ * @param s is the SSL server context
+ * @param esnikeyfile has the relevant (X25519) private key in PEM format
+ * @param esnipubfile has the relevant (binary encoded, not base64) ESNIKeys structure
+ * @return 1 for success, other otherwise
+ */
+int SSL_esni_server_enable(SSL_CTX *s, const char *esnikeyfile, const char *esnipubfile);
+
+/**
  * Do the client-side SNI encryption during a TLS handshake
  *
  * This is an internal API called as part of the state machine

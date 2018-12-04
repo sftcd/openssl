@@ -267,7 +267,9 @@ I added new command line arguments as follows:
 - ``esnikey`` the private key filename for ESNI
 - ``esnipub`` the name of the file containing the binary form of the corresponding ESNIKeys 
 
-TBD
+When those are set, the following API calls ensue:
+
+- ``SSL_esni_server_enable`` - setup ESNI for the server context
 
 ### APIs
 
@@ -293,6 +295,11 @@ includes the following prototypes:
 			 * Turn on SNI encryption for this TLS (upcoming) session
 			 */
 			int SSL_esni_enable(SSL *s, const char *hidden, const char *cover, SSL_ESNI *esni, int require_hidden_match);
+
+			/*
+ 			* Turn on SNI Encryption, server-side
+ 			*/
+			int SSL_esni_server_enable(SSL_CTX *s, const char *esnikeyfile, const char *esnipubfile);
 			
 			/*
 			 * Do the client-side SNI encryption during a TLS handshake
