@@ -790,7 +790,8 @@ WARN_LOGFILE           =
 # spaces. See also FILE_PATTERNS and EXTENSION_MAPPING
 # Note: If this tag is empty the current directory is searched.
 
-INPUT                  = ../ssl/esni.c 
+INPUT                  = ./mk_esnikeys.c
+INPUT                  += ../ssl/esni.c 
 INPUT 				   += ../include/openssl/esni.h 
 INPUT 				   += ../include/openssl/esnierr.h 
 INPUT 				   += ../crypto/esnierr.c

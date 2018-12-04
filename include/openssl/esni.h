@@ -21,7 +21,8 @@
 # include <openssl/ssl.h>
 
 
-#undef ESNI_CRYPT_INTEROP
+//#undef ESNI_CRYPT_INTEROP
+#define ESNI_CRYPT_INTEROP
 
 #ifdef ESNI_CRYPT_INTEROP
 /**
@@ -340,7 +341,7 @@ int SSL_get_esni_status(SSL *s, char **hidden, char **cover);
 int SSL_ESNI_set_private(SSL_ESNI *esni, char *private_str);
 
 /**
- * Allows caller to set the nonce value for ESNI. 
+ * @brief Allows caller to set the nonce value for ESNI. 
  *
  * This is intended to only be used for interop testing - what was
  * useful was to grab the value from the NSS implemtation, force
@@ -353,7 +354,6 @@ int SSL_ESNI_set_private(SSL_ESNI *esni, char *private_str);
  *
  */
 int SSL_ESNI_set_nonce(SSL_ESNI *esni, unsigned char *nonce, size_t nlen);
-
 
 #endif
 #endif

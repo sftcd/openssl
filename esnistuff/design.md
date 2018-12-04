@@ -1,7 +1,7 @@
 
 # OpenSSL Encrypted SNI Design
 
-stephen.farrell@cs.tcd.ie, 20181126
+stephen.farrell@cs.tcd.ie, 20181203
 
 This file describes the current design for our proof-of-concept 
 openssl implementation of encrypted SNI.

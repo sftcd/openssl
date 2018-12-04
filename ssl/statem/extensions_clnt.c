@@ -2139,17 +2139,11 @@ EXT_RETURN tls_construct_ctos_esni(SSL *s, WPACKET *pkt, unsigned int context,
  * @brief Parse and check the ESNI value returned in the EncryptedExtensions
  * to make sure it has the nonce we sent in the ClientHello
  *
- * This is mostly checking the nonce.
- * @todo TODO: we should make sure this came as an EncryptedExtension, not
- * sure how to do that yet.
+ * This is just checking the nonce.
  */
 int tls_parse_stoc_esni(SSL *s, PACKET *pkt, unsigned int context,
                                X509 *x, size_t chainidx)
 {
-    /*
-     * If the nonce presented is as sent in the CH then we're
-     * good. If not, bail out.
-     */
     if (s->esni == NULL ||
         s->esni->nonce == NULL ||
         s->esni->nonce_len == 0 ) {
