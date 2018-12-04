@@ -96,7 +96,7 @@ void usage(char *prog)
     printf("Usage: \n");
     printf("\t%s [-o <fname>] [-p <privfname>] [-d duration]\n",prog);
     printf("where:\n");
-    printf("-o specifies the output file name for the base64-encoded ESNIKeys (default: ./esnikeys.pub)\n");
+    printf("-o specifies the output file name for the binary-encoded ESNIKeys (default: ./esnikeys.pub)\n");
     printf("-p specifies the output file name for the corresponding private key (default: ./esnikeys.priv)\n");
     printf("-d duration, specifies the duration in seconds from now, for which the public should be valid (default: 1 week)\n");
     printf("\n");

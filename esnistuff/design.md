@@ -205,7 +205,7 @@ it:
 			Usage: 
 				./mk_esnikeys [-o <fname>] [-p <privfname>] [-d duration]
 			where:
-			-o specifies the output file name for the base64-encoded ESNIKeys (default: ./esnikeys.pub)
+			-o specifies the output file name for the binary-encoded ESNIKeys (default: ./esnikeys.pub)
 			-p specifies the output file name for the corresponding private key (default: ./esnikeys.priv)
 			-d duration, specifies the duration in seconds from now, for which the public should be valid (default: 1 week)
 			
