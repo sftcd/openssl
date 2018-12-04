@@ -658,6 +658,7 @@ static void so_esni_pbuf(char *msg,unsigned char *buf,size_t blen,int indent)
     printf("\n");
     return;
 }
+
 #endif
 
 /**

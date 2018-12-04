@@ -1,6 +1,8 @@
 # The main targets ###################################################
 #
 
+all: esni mk_esnikeys
+
 # While futzing with documentation/doxygen stuff this is handy
 thelot:
 	- (cd ..;make)
@@ -9,16 +11,11 @@ thelot:
 	- make doc	
 	- ./testit.sh -H ietf.org
 
-all: esni
-
 libssl.a: ../libssl.a
 	cp ../libssl.a .
 
 libcrypto.a: ../libcrypto.a
 	cp ../libcrypto.a .
-
-esnimain.o: esnimain.c ../include/openssl/esni.h ../include/openssl/esnierr.h
-	$(CC) -g -I../apps -I. -I..  -I../include -I../ssl $(BIN_CFLAGS) $(BIN_CPPFLAGS) -MMD -MF $<.d.tmp -MT $@ -c -o $@ $< 
 
 doc: 
 	- doxygen esni.doxy
@@ -35,11 +32,24 @@ doc:
 # change back to the line below when done debugging maybe
 #${CC} -g -pthread -Wa,--noexecstack -Wall -O3 -o $@ $< -L. -lssl -lcrypto -ldl 
 
+esnimain.o: esnimain.c ../include/openssl/esni.h ../include/openssl/esnierr.h
+	$(CC) -g -I../apps -I. -I..  -I../include -I../ssl $(BIN_CFLAGS) $(BIN_CPPFLAGS) -MMD -MF $<.d.tmp -MT $@ -c -o $@ $< 
+
 esni: esnimain.o libssl.a libcrypto.a
 	${CC} -g -pthread -Wall -o $@ esnimain.o -L. -lssl -lcrypto -ldl 
 
 test:
 	./doit.sh fresh
 
+mk_esnikeys: mk_esnikeys.o
+
+mk_esnikeys.o: mk_esnikeys.c ../include/openssl/esni.h 
+	$(CC) -g -I../apps -I. -I..  -I../include -I../ssl $(BIN_CFLAGS) $(BIN_CPPFLAGS) -MMD -MF $<.d.tmp -MT $@ -c -o $@ $< 
+
+mk_esnikeys: mk_esnikeys.o libssl.a libcrypto.a
+	${CC} -g -pthread -Wall -o $@ mk_esnikeys.o -L. -lssl -lcrypto -ldl 
+
 clean:
-	- rm -f esni esnimain.o libssl.a libcrypto.a *.tmp
+	- rm -f esni esnimain.o libssl.a libcrypto.a *.tmp 
+	- rm -f mk_esnikeys.o mk_esnikeys esnikeys.pub esnikeys.priv
+

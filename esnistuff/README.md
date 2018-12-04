@@ -1,7 +1,7 @@
 
 # This is a temporary place for ESNI content ...
 
-Stephen Farrell, stephen.farrell@cs.tcd.ie
+Stephen Farrell, stephen.farrell@cs.tcd.ie, 20181203
 
 I'll put stuff here that'll likely disappear if this matures. So the plan would
 be to delete all this before submitting any PR to the openssl folks. Over time,
@@ -42,6 +42,11 @@ Here's the beginnings of a [design doc](./design.md).
 # State-of-play...
 
 Most recent first...
+
+- Added [mk_esnikeys.c](./mk_esnikeys.c), as (the start of) a command 
+  line tool to make an ESNIKeys structure and private key. I guess this 
+  is a start (of sorts:-) to server-side coding. Seems to generate a
+  key pair and dump out files that appear well-formatted. 
 
 - Moved error strings into libcrypto.so which required modifying a 
   few more things. Not sure this is correct but seems like what

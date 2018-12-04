@@ -2,6 +2,9 @@
 
  Members                        | Descriptions                                
 --------------------------------|---------------------------------------------
+`define `[`BUFLEN`](#mk__esnikeys_8c_1ad974fe981249f5e84fbf1683b012c9f8)            | just for laughs, won't be that long
+`define `[`ESNI_CRYPT_INTEROP`](#esni_8h_1ac1aec0191ca183eb5a034a8b892203ba)            | 
+`define `[`AH2B`](#esni_8h_1a4ba879ccd5d88036df08420dea487ff8)            | If defined, this provides enough API, internals and tracing so we can ensure/check we're generating keys the same way as other code, in partocular the existing NSS code.
 `define `[`SSL_ESNI_STATUS_SUCCESS`](#esni_8h_1a6a4d94b18577a453e7ca65273c75b110)            | Success.
 `define `[`SSL_ESNI_STATUS_FAILED`](#esni_8h_1aff48e6059acca5bd4a3f9f2a926e9ffd)            | Some internal error.
 `define `[`SSL_ESNI_STATUS_BAD_CALL`](#esni_8h_1a182a797bad43060760194c701c882fd0)            | Required in/out arguments were NULL.
@@ -15,6 +18,10 @@
 `define `[`ESNI_R_RR_DECODE_ERROR`](#esnierr_8h_1acc748e3e2af6dc12fead035b479c221f)            | 
 `define `[`ESNI_R_NOT_IMPL`](#esnierr_8h_1aeb72e4451595e51885c8192c3c06e870)            | 
 `public int `[`ERR_load_ESNI_strings`](#esnierr_8c_1ab6db8c60b35aacaa03550e6d9d9c2099)`(void)`            | Load strings into tables.
+`public static void `[`so_esni_pbuf`](#mk__esnikeys_8c_1ae1bab08e2b36301f0c81f27d7ffb006b)`(char * msg,unsigned char * buf,size_t blen,int indent)`            | 
+`public void `[`usage`](#mk__esnikeys_8c_1aa4817482b1728bf62acf8030cab9842c)`(char * prog)`            | 
+`public static int `[`mk_esnikeys`](#mk__esnikeys_8c_1a9d11ac25babd35d36598edd0beab07c9)`(int argc,char ** argv)`            | Make an X25519 key pair and ESNIKeys structure for the public.
+`public int `[`main`](#mk__esnikeys_8c_1a3c04138a5bfe5d72780bb7e82a18e627)`(int argc,char ** argv)`            | 
 `public int `[`SSL_esni_checknames`](#esni_8h_1a55aedc0e921fd36dcc3327124f07da10)`(const char * encservername,const char * covername)`            | Make a basic check of names from CLI or API.
 `public `[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * `[`SSL_ESNI_new_from_base64`](#esni_8h_1a672460fc59e13e81482f66c701d4bca7)`(const char * esnikeys)`            | Decode and check the value retieved from DNS (currently base64 encoded)
 `public int `[`SSL_esni_enable`](#esni_8h_1a0ca4d48103270d6779cb2f6a608ba52a)`(SSL * s,const char * hidden,const char * cover,`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * esni,int require_hidden_match)`            | Turn on SNI encryption for an (upcoming) TLS session.
@@ -62,6 +69,24 @@
 `struct `[`ssl_esni_st`](#structssl__esni__st) | The ESNI data structure that's part of the SSL structure.
 
 ## Members
+
+<p id="mk__esnikeys_8c_1ad974fe981249f5e84fbf1683b012c9f8"><hr></p>
+
+#### `define `[`BUFLEN`](#mk__esnikeys_8c_1ad974fe981249f5e84fbf1683b012c9f8) 
+
+just for laughs, won't be that long
+
+<p id="esni_8h_1ac1aec0191ca183eb5a034a8b892203ba"><hr></p>
+
+#### `define `[`ESNI_CRYPT_INTEROP`](#esni_8h_1ac1aec0191ca183eb5a034a8b892203ba) 
+
+<p id="esni_8h_1a4ba879ccd5d88036df08420dea487ff8"><hr></p>
+
+#### `define `[`AH2B`](#esni_8h_1a4ba879ccd5d88036df08420dea487ff8) 
+
+If defined, this provides enough API, internals and tracing so we can ensure/check we're generating keys the same way as other code, in partocular the existing NSS code.
+
+TODO: use this to protect the cryptovars are only needed for tracing map an (ascii hex) value to a nibble
 
 <p id="esni_8h_1a6a4d94b18577a453e7ca65273c75b110"><hr></p>
 
@@ -129,6 +154,30 @@ Load strings into tables.
 
 #### Returns
 1 for success, not 1 otherwise
+
+<p id="mk__esnikeys_8c_1ae1bab08e2b36301f0c81f27d7ffb006b"><hr></p>
+
+#### `public static void `[`so_esni_pbuf`](#mk__esnikeys_8c_1ae1bab08e2b36301f0c81f27d7ffb006b)`(char * msg,unsigned char * buf,size_t blen,int indent)` 
+
+<p id="mk__esnikeys_8c_1aa4817482b1728bf62acf8030cab9842c"><hr></p>
+
+#### `public void `[`usage`](#mk__esnikeys_8c_1aa4817482b1728bf62acf8030cab9842c)`(char * prog)` 
+
+<p id="mk__esnikeys_8c_1a9d11ac25babd35d36598edd0beab07c9"><hr></p>
+
+#### `public static int `[`mk_esnikeys`](#mk__esnikeys_8c_1a9d11ac25babd35d36598edd0beab07c9)`(int argc,char ** argv)` 
+
+Make an X25519 key pair and ESNIKeys structure for the public.
+
+> Todo: TODO: read private key file if it exists and re-use that key pair 
+
+TODO: write base 64 version of public as well 
+
+TODO: check out NSS code to see if I can make same format private
+
+<p id="mk__esnikeys_8c_1a3c04138a5bfe5d72780bb7e82a18e627"><hr></p>
+
+#### `public int `[`main`](#mk__esnikeys_8c_1a3c04138a5bfe5d72780bb7e82a18e627)`(int argc,char ** argv)` 
 
 <p id="esni_8h_1a55aedc0e921fd36dcc3327124f07da10"><hr></p>
 
@@ -660,8 +709,7 @@ This gets the TLS h/w values needed (client_random, curve_id and TLS h/s key_sha
 
 Parse and check the ESNI value returned in the EncryptedExtensions to make sure it has the nonce we sent in the ClientHello.
 
-This is mostly checking the nonce. 
-> Todo: TODO: we should make sure this came as an EncryptedExtension, not sure how to do that yet.
+This is just checking the nonce.
 
 <p id="extensions__srvr_8c_1a4a75b5940e39e1b5da10aefc8ed0ac69"><hr></p>
 
@@ -894,6 +942,7 @@ The ESNI data structure that's part of the SSL structure.
 `public unsigned char * `[`cipher`](#structssl__esni__st_1a19d1bfe34738bd14d62c5f98d25ed9d8) | ciphetext value of ESNI
 `public size_t `[`tag_len`](#structssl__esni__st_1a422257e7b151614e7873443572e380af) | 
 `public unsigned char * `[`tag`](#structssl__esni__st_1ae12ddfc5fb31d43b68c9febca9730e94) | GCM tag (already also in ciphertext)
+`public char * `[`private_str`](#structssl__esni__st_1ab623dc6359f2c62ade27719be580c438) | for debug purposes, requires special build
 `public `[`CLIENT_ESNI`](#esni_8h_1add3c7579c9f0d7bd5959b37f9c017461)` * `[`the_esni`](#structssl__esni__st_1acc1e4d390a3f6fc96c52a10cac4fd6c1) | the final outputs for the caller (note: not separately alloc'd)
 `public  `[`STACK_OF`](#structssl__esni__st_1a50e1e3bc7a1318ab8624021ea50374cb)`(SSL_CIPHER)` | needed for graceful memory management (free) for now
 
@@ -1150,6 +1199,12 @@ ciphetext value of ESNI
 #### `public unsigned char * `[`tag`](#structssl__esni__st_1ae12ddfc5fb31d43b68c9febca9730e94) 
 
 GCM tag (already also in ciphertext)
+
+<p id="structssl__esni__st_1ab623dc6359f2c62ade27719be580c438"><hr></p>
+
+#### `public char * `[`private_str`](#structssl__esni__st_1ab623dc6359f2c62ade27719be580c438) 
+
+for debug purposes, requires special build
 
 <p id="structssl__esni__st_1acc1e4d390a3f6fc96c52a10cac4fd6c1"><hr></p>
 
