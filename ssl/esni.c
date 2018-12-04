@@ -36,6 +36,10 @@ unsigned char *lg_nonce=NULL;
 size_t lg_nonce_len=0;
 #endif
 
+#ifdef ESNI_CRYPT_INTEROP
+static void so_esni_pbuf(char *msg,unsigned char *buf,size_t blen,int indent);
+#endif
+
 /*
  * Utility functions
  */
@@ -1393,11 +1397,117 @@ int SSL_esni_enable(SSL *s, const char *hidden, const char *cover, SSL_ESNI *esn
     return 1;
 }
 
-int SSL_esni_server_enable(SSL_CTX *s, const char *esnikeyfile, const char *esnipubfile)
+int SSL_esni_server_enable(SSL_CTX *ctx, const char *esnikeyfile, const char *esnipubfile)
 {
-	// todo: write code:-)
-	printf("SSL_esni_server_enable called with %s and %s\n",esnikeyfile,esnipubfile);
+	/*
+	 * open and parse files (private key is PEM, public is binary/ESNIKeys)
+	 * and store in context
+	 */
+	BIO *priv_in=NULL;
+	BIO *pub_in=NULL;
+	EVP_PKEY *pkey=NULL;
+	ESNI_RECORD *er=NULL;
+	SSL_ESNI *the_esni=NULL;
+	unsigned char *inbuf=NULL;
+	if (ctx==NULL || esnikeyfile==NULL || esnipubfile==NULL) {
+        ESNIerr(ESNI_F_SERVER_ENABLE, ERR_R_INTERNAL_ERROR);
+		goto err;
+	}
+	priv_in = BIO_new(BIO_s_file());
+	if (priv_in==NULL) {
+        ESNIerr(ESNI_F_SERVER_ENABLE, ERR_R_INTERNAL_ERROR);
+		goto err;
+	}
+	if (BIO_read_filename(priv_in,esnikeyfile)<=0) {
+        ESNIerr(ESNI_F_SERVER_ENABLE, ERR_R_INTERNAL_ERROR);
+		goto err;
+	}
+	if (!PEM_read_bio_PrivateKey(priv_in,&pkey,NULL,NULL)) {
+        ESNIerr(ESNI_F_SERVER_ENABLE, ERR_R_INTERNAL_ERROR);
+		goto err;
+	}
+	BIO_free(priv_in);
+
+	pub_in = BIO_new(BIO_s_file());
+	if (pub_in==NULL) {
+        ESNIerr(ESNI_F_SERVER_ENABLE, ERR_R_INTERNAL_ERROR);
+		goto err;
+	}
+	if (BIO_read_filename(pub_in,esnipubfile)<=0) {
+        ESNIerr(ESNI_F_SERVER_ENABLE, ERR_R_INTERNAL_ERROR);
+		goto err;
+	}
+	/*
+	 * 1024 should be plenty for an ESNIKeys file - barf if more 
+	 */
+	inbuf=OPENSSL_malloc(1024);
+	if (inbuf==NULL) {
+        ESNIerr(ESNI_F_SERVER_ENABLE, ERR_R_INTERNAL_ERROR);
+		goto err;
+	}
+	size_t inblen=0;
+	inblen=BIO_read(pub_in,inbuf,1024);
+	if (inblen<=0) {
+        ESNIerr(ESNI_F_SERVER_ENABLE, ERR_R_INTERNAL_ERROR);
+		goto err;
+	}
+	BIO_free(pub_in);
+	er=SSL_ESNI_RECORD_new_from_binary(inbuf,inblen);
+	if (er==NULL) {
+        ESNIerr(ESNI_F_SERVER_ENABLE, ERR_R_INTERNAL_ERROR);
+		goto err;
+	}
+
+	/*
+	 * store in context
+	 */
+	if (ctx->ext.esnipriv!=NULL) {
+		EVP_PKEY_free(ctx->ext.esnipriv);
+	}
+	ctx->ext.esnipriv=pkey;
+	if (ctx->ext.esni!=NULL) {
+		SSL_ESNI_free(ctx->ext.esni);
+	}
+	the_esni=(SSL_ESNI*)OPENSSL_malloc(sizeof(SSL_ESNI));
+	if (the_esni==NULL) {
+        ESNIerr(ESNI_F_SERVER_ENABLE, ERR_R_INTERNAL_ERROR);
+		goto err;
+	}
+	/*
+	 * TODO: NEXT: Fill in other SSL_ESNI fields
+	 */
+	the_esni->encoded_rr=inbuf;
+	the_esni->encoded_rr_len=inblen;
+	the_esni->ciphersuites=er->ciphersuites;
+	ctx->ext.esni=the_esni;
+	ESNI_RECORD_free(er);
+	OPENSSL_free(er);
 	return 1;
+
+err:
+	if (inbuf!=NULL) {
+		OPENSSL_free(inbuf);
+		if (the_esni!=NULL && the_esni->encoded_rr==inbuf) {
+			/*
+			 * don't double free
+			 */
+			the_esni->encoded_rr=NULL;
+		}
+	}
+	if (the_esni!=NULL) {
+		SSL_ESNI_free(the_esni);
+		OPENSSL_free(the_esni);
+	}
+	if (er!=NULL) {
+		ESNI_RECORD_free(er);
+		OPENSSL_free(er);
+	}
+	if (pkey!=NULL) {
+		EVP_PKEY_free(pkey);
+	}
+	BIO_free(priv_in);
+	BIO_free(pub_in);
+	return 0;
 };
 
 int SSL_get_esni_status(SSL *s, char **hidden, char **cover)
