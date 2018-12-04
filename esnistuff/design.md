@@ -200,7 +200,7 @@ line tool to generate a key pair and store the public in ESNIKeys format as
 per I-D -02. That's pretty limited (by design), it's usage explains most of
 it:
 
-			$ ./mk_esnikeys
+			$ ./mk_esnikeys -h
 			Create an ESNIKeys data structure as per draft-ietf-tls-esni-02
 			Usage: 
 				./mk_esnikeys [-o <fname>] [-p <privfname>] [-d duration]
@@ -218,7 +218,9 @@ X25519 but hopefully it's portable, I've a TODO: to check.) For now the
 public key is the binary form of ESNIKeys so needs to be base64 encoded
 before being put in a zone file. I've yet to test that these are good
 keys - have just generated and formatted 'em so far. This should likely
-go into some tools or utils directory, not sure yet.
+go into some tools or utils directory, not sure yet. Lastly, this does
+allow private key re-use, just in case that may be needed, but we should 
+decide if that could be removed, which seems safer in general.
 
 ### APIs
 

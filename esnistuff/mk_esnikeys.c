@@ -111,6 +111,7 @@ void usage(char *prog)
  *
  * @todo TODO: write base 64 version of public as well 
  * @todo TODO: check out NSS code to see if I can make same format private
+ * @todo TODO: Decide if supporting private key re-use is even needed.
  */
 static int mk_esnikeys(int argc, char **argv)
 {
@@ -179,7 +180,6 @@ static int mk_esnikeys(int argc, char **argv)
 		 * use a new key pair every time. (Which is also supported of
 		 * course.)
 		 *
-		 * @todo TODO: Decide if supporting private key re-use is even needed.
 		 */
         if (!PEM_read_PrivateKey(privfp,&pkey,NULL,NULL)) {
             fprintf(stderr,"Can't read private key - exiting\n");
