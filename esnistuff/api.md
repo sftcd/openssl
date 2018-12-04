@@ -188,7 +188,9 @@ Make an X25519 key pair and ESNIKeys structure for the public.
 
 > Todo: TODO: write base 64 version of public as well 
 
-TODO: check out NSS code to see if I can make same format private
+TODO: check out NSS code to see if I can make same format private 
+
+TODO: Decide if supporting private key re-use is even needed.
 
 <p id="mk__esnikeys_8c_1a3c04138a5bfe5d72780bb7e82a18e627"><hr></p>
 
