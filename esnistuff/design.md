@@ -119,12 +119,12 @@ We'll describe those in reverse order, and then consider [testing](#testing).
 
 #### Test script
 
-The ``usage()`` function for the [testit.sh](https://gitbub.com/sftcd/openssl/esnistuff/testit.sh) 
+The ``usage()`` function for the [testclient.sh](https://gitbub.com/sftcd/openssl/esnistuff/testit.sh) 
 produces this:
 
-			$ ./testit.sh -h
-			Running ./testit.sh at 20181128-125116
-			./testit.sh [-cHpsdnlvh] - try out encrypted SNI via openssl s_client
+			$ ./testclient.sh -h
+			Running ./testclient.sh at 20181128-125116
+			./testclient.sh [-cHpsdnlvh] - try out encrypted SNI via openssl s_client
 			  -H means try connect to that hidden server
 			  -d means run s_client in verbose mode
 			  -v means run with valgrind
@@ -136,7 +136,7 @@ produces this:
 			  -h means print this
 
 			The following should work:
-    		./testit.sh -c www.cloudflare.com -s NONE -H www.ietf.org
+    		./testclient.sh -c www.cloudflare.com -s NONE -H www.ietf.org
 
 The only really interesting concept embodied there is the idea of the
 HIDDEN (e.g. www.ietf.org) service, the COVER (e.g. www.cloudflare.com) service 
@@ -270,6 +270,7 @@ I added new command line arguments as follows:
 When those are set, the following API calls ensue:
 
 - ``SSL_esni_server_enable`` - setup ESNI for the server context
+- ``SSL_ESNI_get_esni_ctx``: is used to get the ``SSL_ESNI`` structure which is printed via ``SSL_ESNI_print``
 
 ### APIs
 
@@ -330,6 +331,13 @@ includes the following prototypes:
 			 * the TLS session.
 			 */
 			int SSL_ESNI_get_esni(SSL *s, SSL_ESNI **esni);
+			
+			/*
+			 * SSL_ESNI_print calls a callback function that uses this
+			 * to get the SSL_ESNI structure from the external view of
+			 * the TLS session.
+			 */
+			int SSL_ESNI_get_esni_ctx(SSL_CTX *s, SSL_ESNI **esni);
 			
 			/* 
 			 * Possible return codes from SSL_ESNI_get_status
@@ -425,7 +433,7 @@ usually in ``$HOME/code/openssl``.
 - crypto/esnierr.c - load boring strings (need to check if this is right)
 - esnistuff/esnimain.c - a tester
 - esnistuff/doit.sh - calls esnimain
-- esnistuff/testit.sh - calls ``openssl s_client`` 
+- esnistuff/testclient.sh - calls ``openssl s_client`` 
 - esnistuff/testserver.sh - calls ``openssl s_server`` (still evolving!)
 - esnistuff/mk_esnikeys.c - generates private key and ESNIKeys binary files
 

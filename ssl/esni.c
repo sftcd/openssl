@@ -7,11 +7,10 @@
  * https://www.openssl.org/source/license.html
  */
 
-/*
- * This is a temporary library and main file to start in on esni
- * in OpenSSL style, as per https://tools.ietf.org/html/draft-ietf-tls-esni-02
+/**
+ * File: esni.c - the core implementation of drat-ietf-tls-esni-02
  * Author: stephen.farrell@cs.tcd.ie
- * Date: 20181103
+ * Date: 2018 December-ish
  */
 
 #include "ssl_locl.h"
@@ -181,7 +180,7 @@ void SSL_ESNI_free(SSL_ESNI *esni)
         esni->ciphersuite=NULL;
         esni->ciphersuites=NULL;
     }
-    if (esni->esni_server_keyshare!=NULL) OPENSSL_free(esni->esni_server_keyshare);
+    if (esni->esni_peer_keyshare!=NULL) OPENSSL_free(esni->esni_peer_keyshare);
     if (esni->esni_server_pkey!=NULL) EVP_PKEY_free(esni->esni_server_pkey);
     if (esni->nonce!=NULL) OPENSSL_free(esni->nonce);
     if (esni->hs_cr!=NULL) OPENSSL_free(esni->hs_cr);
@@ -528,6 +527,82 @@ err:
 }
 
 /**
+ * @brief populate an SSL_ESNI from an ESNI_RECORD
+ *
+ * This is used by both client and server in (almost) identical ways.
+ * Note that se->encoded_rr and se->encodded_rr_len must be set before
+ * calling this, but that's usually fine.
+ *
+ * @param er is the ESNI_RECORD
+ * @param se is the SSL_ESNI
+ * @param server is 1 if we're a TLS server, 0 otherwise, (just in case there's a difference)
+ * @return 1 for success, not 1 otherwise
+ */
+static int esni_make_se_from_er(ESNI_RECORD* er, SSL_ESNI *se, int server)
+{
+    unsigned char *tmp=NULL;
+    size_t tlen=0;
+    /*
+     * Fixed bits of RR to use
+     */
+    se->not_before=er->not_before;
+    se->not_after=er->not_after;
+    se->padded_length=er->padded_length;
+    /* 
+     * now decide which bits of er we like and remember those 
+     * pick the 1st key/group/ciphersutie that works
+     * TODO: more sophisticated selection:-)
+     */
+    int rec2pick=0;
+    se->ciphersuite=sk_SSL_CIPHER_value(er->ciphersuites,rec2pick);
+    se->ciphersuites=er->ciphersuites;
+    se->group_id=er->group_ids[rec2pick];
+    se->esni_server_pkey=ssl_generate_param_group(se->group_id);
+    if (se->esni_server_pkey==NULL) {
+        ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+    if (!EVP_PKEY_set1_tls_encodedpoint(se->esni_server_pkey,
+                er->encoded_keys[rec2pick],er->encoded_lens[rec2pick])) {
+            ESNIerr(ESNI_F_NEW_FROM_BASE64, ESNI_R_RR_DECODE_ERROR);
+            goto err;
+    }
+    tlen = EVP_PKEY_get1_tls_encodedpoint(se->esni_server_pkey,&tmp); 
+    if (tlen == 0) {
+        ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+	/* the public value goes in different places for client and server */
+	if (server) {
+    	se->encoded_keyshare=wrap_keyshare(tmp,tlen,se->group_id,&se->encoded_keyshare_len);
+    	if (se->encoded_keyshare==NULL) {
+        	ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
+        	goto err;
+    	}
+	} else {
+    	se->esni_peer_keyshare=wrap_keyshare(tmp,tlen,se->group_id,&se->esni_peer_keyshare_len);
+    	if (se->esni_peer_keyshare==NULL) {
+        	ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
+        	goto err;
+    	}
+	}
+	OPENSSL_free(tmp);
+    const SSL_CIPHER *sc=se->ciphersuite;
+    const EVP_MD *md=ssl_md(sc->algorithm2);
+    se->rd=esni_make_rd(se->encoded_rr,se->encoded_rr_len,md,&se->rd_len);
+    if (se->rd==NULL) {
+        ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+	return 1;
+err:
+	if (tmp!=NULL) {
+		OPENSSL_free(tmp);
+	}
+	return 0;
+}
+
+/**
  * @brief Decode from base64 TXT RR to SSL_ESNI
  *
  * This is inspired by, but not the same as,
@@ -557,6 +632,7 @@ SSL_ESNI* SSL_ESNI_new_from_base64(const char *esnikeys)
         goto err;
     }
     memset(newesni,0,sizeof(SSL_ESNI));
+
     newesni->encoded_rr_len=declen;
     newesni->encoded_rr=outbuf;
 
@@ -566,56 +642,11 @@ SSL_ESNI* SSL_ESNI_new_from_base64(const char *esnikeys)
         goto err;
 	}
 
-    /*
-     * Fixed bits of RR to use
-     */
-    newesni->not_before=er->not_before;
-    newesni->not_after=er->not_after;
-    newesni->padded_length=er->padded_length;
-    /* 
-     * now decide which bits of er we like and remember those 
-     * pick the 1st key/group/ciphersutie that works
-     * TODO: more sophisticated selection:-)
-     */
-    int rec2pick=0;
-    newesni->ciphersuite=sk_SSL_CIPHER_value(er->ciphersuites,rec2pick);
-    newesni->ciphersuites=er->ciphersuites;
-    newesni->group_id=er->group_ids[rec2pick];
-
-    unsigned char *tmp=NULL;
-    size_t tlen=0;
-
-    newesni->esni_server_pkey=ssl_generate_param_group(newesni->group_id);
-    if (newesni->esni_server_pkey==NULL) {
-        ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
+	if (esni_make_se_from_er(er,newesni,0)!=1) {
+        ESNIerr(ESNI_F_NEW_FROM_BASE64, ERR_R_INTERNAL_ERROR);
         goto err;
-    }
-    if (!EVP_PKEY_set1_tls_encodedpoint(newesni->esni_server_pkey,
-                er->encoded_keys[rec2pick],er->encoded_lens[rec2pick])) {
-            ESNIerr(ESNI_F_NEW_FROM_BASE64, ESNI_R_RR_DECODE_ERROR);
-            goto err;
-    }
+	}
 
-
-    tlen = EVP_PKEY_get1_tls_encodedpoint(newesni->esni_server_pkey,&tmp); 
-    if (tlen == 0) {
-        ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
-        goto err;
-    }
-    newesni->esni_server_keyshare=wrap_keyshare(tmp,tlen,newesni->group_id,&newesni->esni_server_keyshare_len);
-    if (newesni->esni_server_keyshare==NULL) {
-        ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
-        goto err;
-    }
-    OPENSSL_free(tmp);
-
-    const SSL_CIPHER *sc=newesni->ciphersuite;
-    const EVP_MD *md=ssl_md(sc->algorithm2);
-    newesni->rd=esni_make_rd(outbuf,declen,md,&newesni->rd_len);
-    if (newesni->rd==NULL) {
-        ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
-        goto err;
-    }
     /*
      * Free up unwanted stuff
      */
@@ -699,7 +730,7 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esni)
     } 
     esni_pbuf(out,"ESNI Encoded RR",esni->encoded_rr,esni->encoded_rr_len,indent);
     esni_pbuf(out,"ESNI DNS record_digest", esni->rd,esni->rd_len,indent);
-    esni_pbuf(out,"ESNI Server KeyShare from DNS:",esni->esni_server_keyshare,esni->esni_server_keyshare_len,indent);
+    esni_pbuf(out,"ESNI Peer KeyShare:",esni->esni_peer_keyshare,esni->esni_peer_keyshare_len,indent);
     BIO_printf(out,"ESNI Server groupd Id: %04x\n",esni->group_id);
     if (esni->ciphersuite!=NULL) {
         BIO_printf(out,"ESNI Server Ciphersuite is %s\n",esni->ciphersuite->name);
@@ -1461,10 +1492,6 @@ int SSL_esni_server_enable(SSL_CTX *ctx, const char *esnikeyfile, const char *es
 	/*
 	 * store in context
 	 */
-	if (ctx->ext.esnipriv!=NULL) {
-		EVP_PKEY_free(ctx->ext.esnipriv);
-	}
-	ctx->ext.esnipriv=pkey;
 	if (ctx->ext.esni!=NULL) {
 		SSL_ESNI_free(ctx->ext.esni);
 	}
@@ -1473,13 +1500,23 @@ int SSL_esni_server_enable(SSL_CTX *ctx, const char *esnikeyfile, const char *es
         ESNIerr(ESNI_F_SERVER_ENABLE, ERR_R_INTERNAL_ERROR);
 		goto err;
 	}
-	/*
-	 * TODO: NEXT: Fill in other SSL_ESNI fields
-	 */
+	memset(the_esni,0,sizeof(SSL_ESNI));
 	the_esni->encoded_rr=inbuf;
 	the_esni->encoded_rr_len=inblen;
-	the_esni->ciphersuites=er->ciphersuites;
+	if (esni_make_se_from_er(er,the_esni,1)!=1) {
+        ESNIerr(ESNI_F_SERVER_ENABLE, ERR_R_INTERNAL_ERROR);
+        goto err;
+	}
+	// add my private key in there, the public was handled above
+	the_esni->keyshare=pkey;
 	ctx->ext.esni=the_esni;
+	/*
+	 * Temp printing
+	BIO *bio=NULL;
+	BIO_set_fp(bio,stdout,BIO_NOCLOSE);
+	SSL_ESNI_print(bio,the_esni);
+	BIO_free(bio);
+	 */
 	ESNI_RECORD_free(er);
 	OPENSSL_free(er);
 	return 1;
@@ -1548,6 +1585,14 @@ int SSL_ESNI_get_esni(SSL *s, SSL_ESNI **esni)
         return 0;
     }
     *esni=s->esni;
+    return 1;
+}
+ 
+int SSL_ESNI_get_esni_ctx(SSL_CTX *s, SSL_ESNI **esni){
+    if (s==NULL || esni==NULL) {
+        return 0;
+    }
+    *esni=s->ext.esni;
     return 1;
 }
 

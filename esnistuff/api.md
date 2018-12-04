@@ -32,12 +32,13 @@
 `public void `[`SSL_ESNI_free`](#esni_8h_1a6d6ea1b22339efdc370e6cbf251b277d)`(`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * esnikeys)`            | Memory management - free an SSL_ESNI.
 `public void `[`CLIENT_ESNI_free`](#esni_8h_1a1a84158d3b21a24a5db6bac434a718dc)`(`[`CLIENT_ESNI`](#esni_8h_1add3c7579c9f0d7bd5959b37f9c017461)` * c)`            | Memory management - free a CLIENT_ESNI.
 `public int `[`SSL_ESNI_get_esni`](#esni_8h_1ac214a7933d6e5fa9e2be5218b9537a63)`(SSL * s,`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` ** esni)`            | Debugging - print an SSL_ESNI structure note - can include sensitive values!
+`public int `[`SSL_ESNI_get_esni_ctx`](#esni_8h_1acd373a6c0dddd76f399e103e80f538cc)`(SSL_CTX * s,`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` ** esni)`            | Debugging - print an SSL_ESNI structure note - can include sensitive values!
 `public int `[`SSL_ESNI_print`](#esni_8h_1acf8aa08880982952d1faee2fedd1bc67)`(BIO * out,`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * esni)`            | Print the content of an SSL_ESNI.
 `public int `[`SSL_get_esni_status`](#esni_8h_1abc2468ba57b69ddaca0344481027d7a1)`(SSL * s,char ** hidden,char ** cover)`            | API to allow calling code know ESNI outcome, post-handshake.
 `public int `[`SSL_ESNI_set_private`](#esni_8h_1a8df1af022d25fc0f7e72683b0bd4667f)`(`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * esni,char * private_str)`            | Allows caller to set the ECDH private value for ESNI.
 `public int `[`SSL_ESNI_set_nonce`](#esni_8h_1a0f48da79909334acee7b24dec440eb4c)`(`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * esni,unsigned char * nonce,size_t nlen)`            | Allows caller to set the nonce value for ESNI.
 `public int `[`ERR_load_ESNI_strings`](#esnierr_8h_1ab6db8c60b35aacaa03550e6d9d9c2099)`(void)`            | Load strings into tables.
-`public static uint64_t `[`uint64_from_bytes`](#esni_8c_1a83d195ea944e970d225ac1554c88c3d4)`(unsigned char * buf)`            | map 8 bytes in n/w byte order from PACKET to a 64-bit time value
+`public static uint64_t `[`uint64_from_bytes`](#esni_8c_1a83d195ea944e970d225ac1554c88c3d4)`(unsigned char * buf)`            | File: esni.c - the core implementation of drat-ietf-tls-esni-02 Author: [stephen.farrell@cs.tcd.ie](mailto:stephen.farrell@cs.tcd.ie) Date: 2018 December-ish.
 `public static int `[`esni_base64_decode`](#esni_8c_1a64c9d65c28e852557b2ac325335c6a83)`(const char * in,unsigned char ** out)`            | Decode from TXT RR to binary buffer.
 `public void `[`ESNI_RECORD_free`](#esni_8c_1a2af97ba7f8ebc58e04391bc845f21811)`(`[`ESNI_RECORD`](#esni_8h_1ab29e08d24d0eac604e0d6783dfbf1758)` * er)`            | Free up an ENSI_RECORD.
 `public void `[`SSL_ESNI_free`](#esni_8c_1a3a532dc18d8ea55c30b74529946f66c7)`(`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * esni)`            | Free up an SSL_ESNI structure.
@@ -45,6 +46,7 @@
 `public static unsigned char * `[`esni_make_rd`](#esni_8c_1a1a6df9cdee70887ac4c2492164155e83)`(const unsigned char * buf,const size_t blen,const EVP_MD * md,size_t * rd_len)`            | Hash the buffer as per the ciphersuite specified therein.
 `public static unsigned char * `[`wrap_keyshare`](#esni_8c_1ade5f0e5d16fd7f3dc7e3852f2960804e)`(const unsigned char * keyshare,const size_t keyshare_len,const uint16_t curve_id,size_t * outlen)`            | wrap a "raw" key share in the relevant TLS presentation layer encoding
 `public `[`ESNI_RECORD`](#esni_8h_1ab29e08d24d0eac604e0d6783dfbf1758)` * `[`SSL_ESNI_RECORD_new_from_binary`](#esni_8c_1a013c3c4172d63a489aa314d4c3d4542d)`(unsigned char * binbuf,size_t binblen)`            | Decod from binary to ESNI_RECORD.
+`public static int `[`esni_make_se_from_er`](#esni_8c_1a1332a08e3b77da97cc9aef2efd50f904)`(`[`ESNI_RECORD`](#esni_8h_1ab29e08d24d0eac604e0d6783dfbf1758)` * er,`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * se,int server)`            | populate an SSL_ESNI from an ESNI_RECORD
 `public `[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * `[`SSL_ESNI_new_from_base64`](#esni_8c_1a672460fc59e13e81482f66c701d4bca7)`(const char * esnikeys)`            | Decode from base64 TXT RR to SSL_ESNI.
 `public static void `[`esni_pbuf`](#esni_8c_1ad619d10af828adf65d47682bdab514d1)`(BIO * out,char * msg,unsigned char * buf,size_t blen,int indent)`            | print a buffer nicely
 `public int `[`SSL_ESNI_print`](#esni_8c_1acf8aa08880982952d1faee2fedd1bc67)`(BIO * out,`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * esni)`            | Print out the DNS RR value(s)
@@ -60,6 +62,7 @@
 `public int `[`SSL_get_esni_status`](#esni_8c_1abc2468ba57b69ddaca0344481027d7a1)`(SSL * s,char ** hidden,char ** cover)`            | API to allow calling code know ESNI outcome, post-handshake.
 `public void `[`SSL_set_esni_callback`](#esni_8c_1ac4fbad870f00b5b6cb84629c4995be02)`(SSL * s,SSL_esni_client_cb_func f)`            | 
 `public int `[`SSL_ESNI_get_esni`](#esni_8c_1ac214a7933d6e5fa9e2be5218b9537a63)`(SSL * s,`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` ** esni)`            | Get access to the ESNI data from an SSL context (if that's the right term:-)
+`public int `[`SSL_ESNI_get_esni_ctx`](#esni_8c_1acd373a6c0dddd76f399e103e80f538cc)`(SSL_CTX * s,`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` ** esni)`            | Debugging - print an SSL_ESNI structure note - can include sensitive values!
 `public int `[`SSL_ESNI_set_private`](#esni_8c_1a8df1af022d25fc0f7e72683b0bd4667f)`(`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * esni,char * private_str)`            | Allows caller to set the ECDH private value for ESNI.
 `public int `[`SSL_ESNI_set_nonce`](#esni_8c_1a0f48da79909334acee7b24dec440eb4c)`(`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * esni,unsigned char * nonce,size_t nlen)`            | Allows caller to set the nonce value for ESNI.
 `public static int `[`init_esni`](#extensions_8c_1a07941fe88fcdb65271ad678cd41e7d57)`(SSL * s,unsigned int context)`            | Just note that esni is not yet done.
@@ -336,7 +339,7 @@ Debugging - print an SSL_ESNI structure note - can include sensitive values!
 Get access to the ESNI data from an SSL context (if that's the right term:-)
 
 #### Parameters
-* `out` is a BIO for printing 
+* `s` is a an SSL structure, as used on TLS client 
 
 * `esni` is an SSL_ESNI structure 
 
@@ -357,6 +360,20 @@ Debugging - print an SSL_ESNI structure note - can include sensitive values!
 * `s` the SSL context 
 
 * `esni` the (ptr to) output SSL_ESNI structure 
+
+#### Returns
+1 for success, anything else for failure
+
+<p id="esni_8h_1acd373a6c0dddd76f399e103e80f538cc"><hr></p>
+
+#### `public int `[`SSL_ESNI_get_esni_ctx`](#esni_8h_1acd373a6c0dddd76f399e103e80f538cc)`(SSL_CTX * s,`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` ** esni)` 
+
+Debugging - print an SSL_ESNI structure note - can include sensitive values!
+
+#### Parameters
+* `s` is a an SSL_CTX structure, as used on TLS server 
+
+* `esni` is an SSL_ESNI structure 
 
 #### Returns
 1 for success, anything else for failure
@@ -439,6 +456,8 @@ Load strings into tables.
 <p id="esni_8c_1a83d195ea944e970d225ac1554c88c3d4"><hr></p>
 
 #### `public static uint64_t `[`uint64_from_bytes`](#esni_8c_1a83d195ea944e970d225ac1554c88c3d4)`(unsigned char * buf)` 
+
+File: esni.c - the core implementation of drat-ietf-tls-esni-02 Author: [stephen.farrell@cs.tcd.ie](mailto:stephen.farrell@cs.tcd.ie) Date: 2018 December-ish.
 
 map 8 bytes in n/w byte order from PACKET to a 64-bit time value
 
@@ -539,6 +558,24 @@ Put the outer length and curve ID around a key share. This just exists because w
 #### `public `[`ESNI_RECORD`](#esni_8h_1ab29e08d24d0eac604e0d6783dfbf1758)` * `[`SSL_ESNI_RECORD_new_from_binary`](#esni_8c_1a013c3c4172d63a489aa314d4c3d4542d)`(unsigned char * binbuf,size_t binblen)` 
 
 Decod from binary to ESNI_RECORD.
+
+<p id="esni_8c_1a1332a08e3b77da97cc9aef2efd50f904"><hr></p>
+
+#### `public static int `[`esni_make_se_from_er`](#esni_8c_1a1332a08e3b77da97cc9aef2efd50f904)`(`[`ESNI_RECORD`](#esni_8h_1ab29e08d24d0eac604e0d6783dfbf1758)` * er,`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * se,int server)` 
+
+populate an SSL_ESNI from an ESNI_RECORD
+
+This is used by both client and server in (almost) identical ways. Note that se->encoded_rr and se->encodded_rr_len must be set before calling this, but that's usually fine.
+
+#### Parameters
+* `er` is the ESNI_RECORD 
+
+* `se` is the SSL_ESNI 
+
+* `server` is 1 if we're a TLS server, 0 otherwise, (just in case there's a difference) 
+
+#### Returns
+1 for success, not 1 otherwise
 
 <p id="esni_8c_1a672460fc59e13e81482f66c701d4bca7"><hr></p>
 
@@ -714,6 +751,20 @@ Debugging - print an SSL_ESNI structure note - can include sensitive values!
 * `s` the SSL context 
 
 * `esni` the (ptr to) output SSL_ESNI structure 
+
+#### Returns
+1 for success, anything else for failure
+
+<p id="esni_8c_1acd373a6c0dddd76f399e103e80f538cc"><hr></p>
+
+#### `public int `[`SSL_ESNI_get_esni_ctx`](#esni_8c_1acd373a6c0dddd76f399e103e80f538cc)`(SSL_CTX * s,`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` ** esni)` 
+
+Debugging - print an SSL_ESNI structure note - can include sensitive values!
+
+#### Parameters
+* `s` is a an SSL_CTX structure, as used on TLS server 
+
+* `esni` is an SSL_ESNI structure 
 
 #### Returns
 1 for success, anything else for failure
@@ -978,8 +1029,8 @@ The ESNI data structure that's part of the SSL structure.
 `public unsigned char * `[`rd`](#structssl__esni__st_1a40750765b83b53e6b12c24d580dc6894) | Hash of the above (record_digest), using the relevant hash from the ciphersuite.
 `public const SSL_CIPHER * `[`ciphersuite`](#structssl__esni__st_1a70181a0186aecc742d224c04c3070f39) | from ESNIKeys after selection of local preference
 `public uint16_t `[`group_id`](#structssl__esni__st_1ac47e519775c29bd9129eba95cbed25f9) | our chosen group e.g. X25519
-`public size_t `[`esni_server_keyshare_len`](#structssl__esni__st_1acaf7fdcb02985218a99cfe942b429f93) | 
-`public unsigned char * `[`esni_server_keyshare`](#structssl__esni__st_1a01d28bcfc48b5652fc6ccc31f5cf2981) | the encoded server public
+`public size_t `[`esni_peer_keyshare_len`](#structssl__esni__st_1a45018bd6c55f58e594463ce17e6e96bb) | 
+`public unsigned char * `[`esni_peer_keyshare`](#structssl__esni__st_1a45058e28bb36447e277246e7d382e8cd) | the encoded peer's public value
 `public EVP_PKEY * `[`esni_server_pkey`](#structssl__esni__st_1a10402a2307b7dd624e7b2984c78ad8d3) | the server public as a key
 `public size_t `[`padded_length`](#structssl__esni__st_1adf84b36cfa57d84629cac876c5330ba8) | from ESNIKeys
 `public uint64_t `[`not_before`](#structssl__esni__st_1a4cb0d34f50b80a38964af87c544f7ce9) | from ESNIKeys (not currently used)
@@ -1073,15 +1124,15 @@ from ESNIKeys after selection of local preference
 
 our chosen group e.g. X25519
 
-<p id="structssl__esni__st_1acaf7fdcb02985218a99cfe942b429f93"><hr></p>
+<p id="structssl__esni__st_1a45018bd6c55f58e594463ce17e6e96bb"><hr></p>
 
-#### `public size_t `[`esni_server_keyshare_len`](#structssl__esni__st_1acaf7fdcb02985218a99cfe942b429f93) 
+#### `public size_t `[`esni_peer_keyshare_len`](#structssl__esni__st_1a45018bd6c55f58e594463ce17e6e96bb) 
 
-<p id="structssl__esni__st_1a01d28bcfc48b5652fc6ccc31f5cf2981"><hr></p>
+<p id="structssl__esni__st_1a45058e28bb36447e277246e7d382e8cd"><hr></p>
 
-#### `public unsigned char * `[`esni_server_keyshare`](#structssl__esni__st_1a01d28bcfc48b5652fc6ccc31f5cf2981) 
+#### `public unsigned char * `[`esni_peer_keyshare`](#structssl__esni__st_1a45058e28bb36447e277246e7d382e8cd) 
 
-the encoded server public
+the encoded peer's public value
 
 <p id="structssl__esni__st_1a10402a2307b7dd624e7b2984c78ad8d3"><hr></p>
 
