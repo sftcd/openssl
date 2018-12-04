@@ -193,6 +193,33 @@ that runs a standalone test application ([esnimain.c](https://github.com/sftcd/o
 which just tests the ESNI APIs directly. That should become some kind of unit test in the main
 build, and needs error cases added.
 
+### Server-side code
+
+For now, all that exists is [mk_esnikeys.c](./mk_esnikeys.c), a simple command
+line tool to generate a key pair and store the public in ESNIKeys format as 
+per I-D -02. That's pretty limited (by design), it's usage explains most of
+it:
+
+			$ ./mk_esnikeys
+			Create an ESNIKeys data structure as per draft-ietf-tls-esni-02
+			Usage: 
+				./mk_esnikeys [-o <fname>] [-p <privfname>] [-d duration]
+			where:
+			-o specifies the output file name for the base64-encoded ESNIKeys (default: ./esnikeys.pub)
+			-p specifies the output file name for the corresponding private key (default: ./esnikeys.priv)
+			-d duration, specifies the duration in seconds from now, for which the public should be valid (default: 1 week)
+			
+			If <privfname> exists already and contains an appropriate value, then that key will be used without change.
+			There is no support for options - we just support TLS_AES_128_GCM_SHA256, X5519 and no extensions.
+			Fix that if you like:-)
+			
+The private key is in PEM format. (I'm not v. familiar with PEM format for
+X25519 but hopefully it's portable, I've a TODO: to check.) For now the 
+public key is the binary form of ESNIKeys so needs to be base64 encoded
+before being put in a zone file. I've yet to test that these are good
+keys - have just generated and formatted 'em so far. This should likely
+go into some tools or utils directory, not sure yet.
+
 ### APIs
 
 [Here's](./api.md) what moxygen produces from what doxygen produces (with a bit of sed
