@@ -43,7 +43,12 @@ Here's the beginnings of a [design doc](./design.md).
 
 Most recent first...
 
-- Working on ``SSL_esni_server_enable`` - partly done.
+- Renamed testit.sh -> [testclient.sh](./testclient.sh) for obvious
+  reasons.
+
+- Working on ``SSL_esni_server_enable`` - partly done. The ``SSL_ESNI``
+  structure for the server (i.e. with no client input) is populated
+  and all seems well. (If untested;-)
 
 - Added [testserver.sh](./testserver.sh) to use ``s_server`` for
   testing. For now that can generate server cert keys and start

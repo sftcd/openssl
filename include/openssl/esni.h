@@ -132,8 +132,8 @@ typedef struct ssl_esni_st {
     STACK_OF(SSL_CIPHER) *ciphersuites;  ///< needed for graceful memory management (free) for now
 
     uint16_t group_id;  ///< our chosen group e.g. X25519
-    size_t esni_server_keyshare_len;  
-    unsigned char *esni_server_keyshare; ///< the encoded server public
+    size_t esni_peer_keyshare_len;  
+    unsigned char *esni_peer_keyshare; ///< the encoded peer's public value
     EVP_PKEY *esni_server_pkey; ///< the server public as a key
     size_t padded_length; ///< from ESNIKeys
     uint64_t not_before; ///< from ESNIKeys (not currently used)
@@ -290,11 +290,20 @@ void CLIENT_ESNI_free(CLIENT_ESNI *c);
 /**
  * Debugging - print an SSL_ESNI structure note - can include sensitive values!
  *
- * @param out is a BIO for printing
+ * @param s is a an SSL structure, as used on TLS client
  * @param esni is an SSL_ESNI structure
  * @return 1 for success, anything else for failure
  */
 int SSL_ESNI_get_esni(SSL *s, SSL_ESNI **esni);
+
+/**
+ * Debugging - print an SSL_ESNI structure note - can include sensitive values!
+ *
+ * @param s is a an SSL_CTX structure, as used on TLS server
+ * @param esni is an SSL_ESNI structure
+ * @return 1 for success, anything else for failure
+ */
+int SSL_ESNI_get_esni_ctx(SSL_CTX *s, SSL_ESNI **esni);
 
 /** 
  * Print the content of an SSL_ESNI

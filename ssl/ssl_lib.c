@@ -3072,7 +3072,6 @@ SSL_CTX *SSL_CTX_new(const SSL_METHOD *meth)
 
 #ifndef OPENSSL_NO_ESNI
 	ret->ext.esni=NULL;
-	ret->ext.esnipriv=NULL;
 #endif
 
     return ret;
@@ -3160,10 +3159,6 @@ void SSL_CTX_free(SSL_CTX *a)
 		SSL_ESNI_free(a->ext.esni);
 		OPENSSL_free(a->ext.esni);
 		a->ext.esni=NULL;
-	}
-	if (a->ext.esnipriv==NULL) {
-		EVP_PKEY_free(a->ext.esnipriv);
-		a->ext.esnipriv=NULL;
 	}
 #endif
 
