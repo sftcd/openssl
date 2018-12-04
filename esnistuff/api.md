@@ -14,6 +14,7 @@
 `define `[`ESNI_F_NEW_FROM_BASE64`](#esnierr_8h_1a2292c05f5c24b23849789eb87f20bb0c)            | 
 `define `[`ESNI_F_ENC`](#esnierr_8h_1a5e1e464c2d05b71de95e455a341f477f)            | 
 `define `[`ESNI_F_CHECKSUM_CHECK`](#esnierr_8h_1ac8cec6cf839fa6b361bc6f9abc001201)            | 
+`define `[`ESNI_F_SERVER_ENABLE`](#esnierr_8h_1acad1a58b5647c362ed60ff908c36d5f6)            | 
 `define `[`ESNI_R_BASE64_DECODE_ERROR`](#esnierr_8h_1a1c13aa91c93bd84f1f92101ddb9bc9eb)            | 
 `define `[`ESNI_R_RR_DECODE_ERROR`](#esnierr_8h_1acc748e3e2af6dc12fead035b479c221f)            | 
 `define `[`ESNI_R_NOT_IMPL`](#esnierr_8h_1aeb72e4451595e51885c8192c3c06e870)            | 
@@ -55,7 +56,7 @@
 `public int `[`SSL_ESNI_enc`](#esni_8c_1a1059808bc7c121128c470de41e2dc304)`(`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * esnikeys,size_t client_random_len,unsigned char * client_random,uint16_t curve_id,size_t client_keyshare_len,unsigned char * client_keyshare,`[`CLIENT_ESNI`](#esni_8h_1add3c7579c9f0d7bd5959b37f9c017461)` ** the_esni)`            | Do the client-side SNI encryption during a TLS handshake.
 `public int `[`SSL_esni_checknames`](#esni_8c_1a55aedc0e921fd36dcc3327124f07da10)`(const char * encservername,const char * covername)`            | Make a basic check of names from CLI or API.
 `public int `[`SSL_esni_enable`](#esni_8c_1a0ca4d48103270d6779cb2f6a608ba52a)`(SSL * s,const char * hidden,const char * cover,`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * esni,int require_hidden_match)`            | Turn on SNI encryption for an (upcoming) TLS session.
-`public int `[`SSL_esni_server_enable`](#esni_8c_1a0589fa7d65bf2263c361258876e0e67a)`(SSL_CTX * s,const char * esnikeyfile,const char * esnipubfile)`            | Turn on SNI Encryption, server-side.
+`public int `[`SSL_esni_server_enable`](#esni_8c_1aeef3e81451e59142e5cdec4f26c09fff)`(SSL_CTX * s,const char * esnikeyfile,const char * esnipubfile)`            | Turn on SNI Encryption, server-side.
 `public int `[`SSL_get_esni_status`](#esni_8c_1abc2468ba57b69ddaca0344481027d7a1)`(SSL * s,char ** hidden,char ** cover)`            | API to allow calling code know ESNI outcome, post-handshake.
 `public void `[`SSL_set_esni_callback`](#esni_8c_1ac4fbad870f00b5b6cb84629c4995be02)`(SSL * s,SSL_esni_client_cb_func f)`            | 
 `public int `[`SSL_ESNI_get_esni`](#esni_8c_1ac214a7933d6e5fa9e2be5218b9537a63)`(SSL * s,`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` ** esni)`            | Get access to the ESNI data from an SSL context (if that's the right term:-)
@@ -137,6 +138,10 @@ ESNI succeeded but the TLS server cert used didn't match the hidden service name
 <p id="esnierr_8h_1ac8cec6cf839fa6b361bc6f9abc001201"><hr></p>
 
 #### `define `[`ESNI_F_CHECKSUM_CHECK`](#esnierr_8h_1ac8cec6cf839fa6b361bc6f9abc001201) 
+
+<p id="esnierr_8h_1acad1a58b5647c362ed60ff908c36d5f6"><hr></p>
+
+#### `define `[`ESNI_F_SERVER_ENABLE`](#esnierr_8h_1acad1a58b5647c362ed60ff908c36d5f6) 
 
 <p id="esnierr_8h_1a1c13aa91c93bd84f1f92101ddb9bc9eb"><hr></p>
 
@@ -260,7 +265,9 @@ Turn on SNI Encryption, server-side.
 
 When this works, the server will decrypt any ESNI seen in ClientHellos and subsequently treat those as if they had been send in cleartext SNI.
 
-> Todo: : TODO: consider what to do if this is called more than once. We may want a server to support that if there is >1 hidden service.
+> Todo: TODO: on the server side we likely do need to support multiple keys if those are in the ESNIKeys structure, but this code doesn't do that yet. Probably as well to wait and see how the DNS RR structure changes before attempting that, as it might get tricky. 
+
+TODO: consider what to do if this is called more than once. We may want a server to support that if there is >1 hidden service private key.
 
 #### Parameters
 * `s` is the SSL server context 
@@ -651,15 +658,17 @@ Turn on SNI encryption for an (upcoming) TLS session.
 #### Returns
 1 for success, other otherwise
 
-<p id="esni_8c_1a0589fa7d65bf2263c361258876e0e67a"><hr></p>
+<p id="esni_8c_1aeef3e81451e59142e5cdec4f26c09fff"><hr></p>
 
-#### `public int `[`SSL_esni_server_enable`](#esni_8c_1a0589fa7d65bf2263c361258876e0e67a)`(SSL_CTX * s,const char * esnikeyfile,const char * esnipubfile)` 
+#### `public int `[`SSL_esni_server_enable`](#esni_8c_1aeef3e81451e59142e5cdec4f26c09fff)`(SSL_CTX * s,const char * esnikeyfile,const char * esnipubfile)` 
 
 Turn on SNI Encryption, server-side.
 
 When this works, the server will decrypt any ESNI seen in ClientHellos and subsequently treat those as if they had been send in cleartext SNI.
 
-> Todo: : TODO: consider what to do if this is called more than once. We may want a server to support that if there is >1 hidden service.
+> Todo: TODO: on the server side we likely do need to support multiple keys if those are in the ESNIKeys structure, but this code doesn't do that yet. Probably as well to wait and see how the DNS RR structure changes before attempting that, as it might get tricky. 
+
+TODO: consider what to do if this is called more than once. We may want a server to support that if there is >1 hidden service private key.
 
 #### Parameters
 * `s` is the SSL server context 
