@@ -11,6 +11,18 @@
 </thead>
 <tbody>
 <tr>
+	<td><code>define</code><a href="#mk__esnikeys_8c_1ad974fe981249f5e84fbf1683b012c9f8"><code>BUFLEN</code></a></td>
+	<td>just for laughs, won't be that long</td>
+</tr>
+<tr>
+	<td><code>define</code><a href="#esni_8h_1ac1aec0191ca183eb5a034a8b892203ba"><code>ESNI_CRYPT_INTEROP</code></a></td>
+	<td> </td>
+</tr>
+<tr>
+	<td><code>define</code><a href="#esni_8h_1a4ba879ccd5d88036df08420dea487ff8"><code>AH2B</code></a></td>
+	<td>If defined, this provides enough API, internals and tracing so we can ensure/check we're generating keys the same way as other code, in partocular the existing NSS code.</td>
+</tr>
+<tr>
 	<td><code>define</code><a href="#esni_8h_1a6a4d94b18577a453e7ca65273c75b110"><code>SSL_ESNI_STATUS_SUCCESS</code></a></td>
 	<td>Success.</td>
 </tr>
@@ -61,6 +73,22 @@
 <tr>
 	<td><code>public int</code><a href="#esnierr_8c_1ab6db8c60b35aacaa03550e6d9d9c2099"><code>ERR_load_ESNI_strings</code></a><code>(void)</code></td>
 	<td>Load strings into tables.</td>
+</tr>
+<tr>
+	<td><code>public static void</code><a href="#mk__esnikeys_8c_1ae1bab08e2b36301f0c81f27d7ffb006b"><code>so_esni_pbuf</code></a><code>(char * msg,unsigned char * buf,size_t blen,int indent)</code></td>
+	<td> </td>
+</tr>
+<tr>
+	<td><code>public void</code><a href="#mk__esnikeys_8c_1aa4817482b1728bf62acf8030cab9842c"><code>usage</code></a><code>(char * prog)</code></td>
+	<td> </td>
+</tr>
+<tr>
+	<td><code>public static int</code><a href="#mk__esnikeys_8c_1a9d11ac25babd35d36598edd0beab07c9"><code>mk_esnikeys</code></a><code>(int argc,char ** argv)</code></td>
+	<td>Make an X25519 key pair and ESNIKeys structure for the public.</td>
+</tr>
+<tr>
+	<td><code>public int</code><a href="#mk__esnikeys_8c_1a3c04138a5bfe5d72780bb7e82a18e627"><code>main</code></a><code>(int argc,char ** argv)</code></td>
+	<td> </td>
 </tr>
 <tr>
 	<td><code>public int</code><a href="#esni_8h_1a55aedc0e921fd36dcc3327124f07da10"><code>SSL_esni_checknames</code></a><code>(const char * encservername,const char * covername)</code></td>
@@ -247,6 +275,24 @@
 
 <h2 id="members">Members</h2>
 
+<p id="mk__esnikeys_8c_1ad974fe981249f5e84fbf1683b012c9f8"><hr></p>
+
+<h4 id="definebuflenmk__esnikeys_8c_1ad974fe981249f5e84fbf1683b012c9f8"><code>define</code><a href="#mk__esnikeys_8c_1ad974fe981249f5e84fbf1683b012c9f8"><code>BUFLEN</code></a></h4>
+
+<p>just for laughs, won't be that long</p>
+
+<p id="esni_8h_1ac1aec0191ca183eb5a034a8b892203ba"><hr></p>
+
+<h4 id="defineesni_crypt_interopesni_8h_1ac1aec0191ca183eb5a034a8b892203ba"><code>define</code><a href="#esni_8h_1ac1aec0191ca183eb5a034a8b892203ba"><code>ESNI_CRYPT_INTEROP</code></a></h4>
+
+<p id="esni_8h_1a4ba879ccd5d88036df08420dea487ff8"><hr></p>
+
+<h4 id="defineah2besni_8h_1a4ba879ccd5d88036df08420dea487ff8"><code>define</code><a href="#esni_8h_1a4ba879ccd5d88036df08420dea487ff8"><code>AH2B</code></a></h4>
+
+<p>If defined, this provides enough API, internals and tracing so we can ensure/check we're generating keys the same way as other code, in partocular the existing NSS code.</p>
+
+<p>TODO: use this to protect the cryptovars are only needed for tracing map an (ascii hex) value to a nibble</p>
+
 <p id="esni_8h_1a6a4d94b18577a453e7ca65273c75b110"><hr></p>
 
 <h4 id="definessl_esni_status_successesni_8h_1a6a4d94b18577a453e7ca65273c75b110"><code>define</code><a href="#esni_8h_1a6a4d94b18577a453e7ca65273c75b110"><code>SSL_ESNI_STATUS_SUCCESS</code></a></h4>
@@ -314,6 +360,32 @@
 <h4 id="returns">Returns</h4>
 
 <p>1 for success, not 1 otherwise</p>
+
+<p id="mk__esnikeys_8c_1ae1bab08e2b36301f0c81f27d7ffb006b"><hr></p>
+
+<h4 id="publicstaticvoidso_esni_pbufmk__esnikeys_8c_1ae1bab08e2b36301f0c81f27d7ffb006bcharmsgunsignedcharbufsize_tblenintindent"><code>public static void</code><a href="#mk__esnikeys_8c_1ae1bab08e2b36301f0c81f27d7ffb006b"><code>so_esni_pbuf</code></a><code>(char * msg,unsigned char * buf,size_t blen,int indent)</code></h4>
+
+<p id="mk__esnikeys_8c_1aa4817482b1728bf62acf8030cab9842c"><hr></p>
+
+<h4 id="publicvoidusagemk__esnikeys_8c_1aa4817482b1728bf62acf8030cab9842ccharprog"><code>public void</code><a href="#mk__esnikeys_8c_1aa4817482b1728bf62acf8030cab9842c"><code>usage</code></a><code>(char * prog)</code></h4>
+
+<p id="mk__esnikeys_8c_1a9d11ac25babd35d36598edd0beab07c9"><hr></p>
+
+<h4 id="publicstaticintmk_esnikeysmk__esnikeys_8c_1a9d11ac25babd35d36598edd0beab07c9intargccharargv"><code>public static int</code><a href="#mk__esnikeys_8c_1a9d11ac25babd35d36598edd0beab07c9"><code>mk_esnikeys</code></a><code>(int argc,char ** argv)</code></h4>
+
+<p>Make an X25519 key pair and ESNIKeys structure for the public.</p>
+
+<blockquote>
+  <p>Todo: TODO: read private key file if it exists and re-use that key pair </p>
+</blockquote>
+
+<p>TODO: write base 64 version of public as well </p>
+
+<p>TODO: check out NSS code to see if I can make same format private</p>
+
+<p id="mk__esnikeys_8c_1a3c04138a5bfe5d72780bb7e82a18e627"><hr></p>
+
+<h4 id="publicintmainmk__esnikeys_8c_1a3c04138a5bfe5d72780bb7e82a18e627intargccharargv"><code>public int</code><a href="#mk__esnikeys_8c_1a3c04138a5bfe5d72780bb7e82a18e627"><code>main</code></a><code>(int argc,char ** argv)</code></h4>
 
 <p id="esni_8h_1a55aedc0e921fd36dcc3327124f07da10"><hr></p>
 
@@ -920,11 +992,7 @@
 
 <p>Parse and check the ESNI value returned in the EncryptedExtensions to make sure it has the nonce we sent in the ClientHello.</p>
 
-<p>This is mostly checking the nonce. </p>
-
-<blockquote>
-  <p>Todo: TODO: we should make sure this came as an EncryptedExtension, not sure how to do that yet.</p>
-</blockquote>
+<p>This is just checking the nonce.</p>
 
 <p id="extensions__srvr_8c_1a4a75b5940e39e1b5da10aefc8ed0ac69"><hr></p>
 
@@ -1395,6 +1463,10 @@
 	<td>GCM tag (already also in ciphertext)</td>
 </tr>
 <tr>
+	<td><code>public char *</code><a href="#structssl__esni__st_1ab623dc6359f2c62ade27719be580c438"><code>private_str</code></a></td>
+	<td>for debug purposes, requires special build</td>
+</tr>
+<tr>
 	<td><code>public</code><a href="#esni_8h_1add3c7579c9f0d7bd5959b37f9c017461"><code>CLIENT_ESNI</code></a><code>*</code><a href="#structssl__esni__st_1acc1e4d390a3f6fc96c52a10cac4fd6c1"><code>the_esni</code></a></td>
 	<td>the final outputs for the caller (note: not separately alloc'd)</td>
 </tr>
@@ -1658,6 +1730,12 @@
 <h4 id="publicunsignedchartagstructssl__esni__st_1ae12ddfc5fb31d43b68c9febca9730e94"><code>public unsigned char *</code><a href="#structssl__esni__st_1ae12ddfc5fb31d43b68c9febca9730e94"><code>tag</code></a></h4>
 
 <p>GCM tag (already also in ciphertext)</p>
+
+<p id="structssl__esni__st_1ab623dc6359f2c62ade27719be580c438"><hr></p>
+
+<h4 id="publiccharprivate_strstructssl__esni__st_1ab623dc6359f2c62ade27719be580c438"><code>public char *</code><a href="#structssl__esni__st_1ab623dc6359f2c62ade27719be580c438"><code>private_str</code></a></h4>
+
+<p>for debug purposes, requires special build</p>
 
 <p id="structssl__esni__st_1acc1e4d390a3f6fc96c52a10cac4fd6c1"><hr></p>
 
