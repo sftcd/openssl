@@ -30,6 +30,7 @@
 #define ESNI_F_NEW_FROM_BASE64                          102
 #define ESNI_F_ENC                                      103
 #define ESNI_F_CHECKSUM_CHECK                           104
+#define ESNI_F_SERVER_ENABLE                            105
 
 /*
  * ESNI reason codes for ESNIerr

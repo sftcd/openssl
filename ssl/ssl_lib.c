@@ -3070,6 +3070,11 @@ SSL_CTX *SSL_CTX_new(const SSL_METHOD *meth)
 
     ssl_ctx_system_config(ret);
 
+#ifndef OPENSSL_NO_ESNI
+	ret->ext.esni=NULL;
+	ret->ext.esnipriv=NULL;
+#endif
+
     return ret;
  err:
     SSLerr(SSL_F_SSL_CTX_NEW, ERR_R_MALLOC_FAILURE);
@@ -3150,6 +3155,17 @@ void SSL_CTX_free(SSL_CTX *a)
     OPENSSL_secure_free(a->ext.secure);
 
     CRYPTO_THREAD_lock_free(a->lock);
+#ifndef OPENSSL_NO_ESNI
+	if (a->ext.esni!=NULL) {
+		SSL_ESNI_free(a->ext.esni);
+		OPENSSL_free(a->ext.esni);
+		a->ext.esni=NULL;
+	}
+	if (a->ext.esnipriv==NULL) {
+		EVP_PKEY_free(a->ext.esnipriv);
+		a->ext.esnipriv=NULL;
+	}
+#endif
 
     OPENSSL_free(a);
 }

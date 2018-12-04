@@ -43,6 +43,8 @@ Here's the beginnings of a [design doc](./design.md).
 
 Most recent first...
 
+- Working on ``SSL_esni_server_enable`` - partly done.
+
 - Added [testserver.sh](./testserver.sh) to use ``s_server`` for
   testing. For now that can generate server cert keys and start
   a server, but doesn't actually do any ESNI stuff.

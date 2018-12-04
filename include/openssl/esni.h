@@ -229,8 +229,12 @@ int SSL_esni_enable(SSL *s, const char *hidden, const char *cover, SSL_ESNI *esn
  * When this works, the server will decrypt any ESNI seen in ClientHellos and
  * subsequently treat those as if they had been send in cleartext SNI.
  *
- * @todo: TODO: consider what to do if this is called more than once. We may
- * want a server to support that if there is >1 hidden service.
+ * @todo TODO: on the server side we likely do need to support multiple keys
+ * if those are in the ESNIKeys structure, but this code doesn't do that yet.
+ * Probably as well to wait and see how the DNS RR structure changes before
+ * attempting that, as it might get tricky.
+ * @todo TODO: consider what to do if this is called more than once. We may
+ * want a server to support that if there is >1 hidden service private key.
  *
  * @param s is the SSL server context
  * @param esnikeyfile has the relevant (X25519) private key in PEM format
