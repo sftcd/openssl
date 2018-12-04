@@ -402,9 +402,12 @@ usually in ``$HOME/code/openssl``.
 - include/openssl/esni.h - data structures are commented some
 - include/openssl/esnierr.h - boring errors
 - crypto/esnierr.c - load boring strings (need to check if this is right)
+
 - esnistuff/esnimain.c - a tester
 - esnistuff/doit.sh - calls esnimain
-- esnistuff/testit.sh - calls ``openssl s_client`` (still evolving!)
+- esnistuff/testit.sh - calls ``openssl s_client`` 
+- esnistuff/testserver.sh - calls ``openssl s_server`` (still evolving!)
+- esnistuff/mk_esnikeys.c - generates private key and ESNIKeys binary files
 
 ### Existing Files modified 
 
