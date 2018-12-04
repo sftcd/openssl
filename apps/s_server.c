@@ -752,6 +752,9 @@ typedef enum OPTION_choice {
     OPT_SRTP_PROFILES, OPT_KEYMATEXPORT, OPT_KEYMATEXPORTLEN,
     OPT_KEYLOG_FILE, OPT_MAX_EARLY, OPT_RECV_MAX_EARLY, OPT_EARLY_DATA,
     OPT_S_NUM_TICKETS, OPT_ANTI_REPLAY, OPT_NO_ANTI_REPLAY,
+#ifndef OPENSSL_NO_ESNI
+    OPT_ESNIKEY, OPT_ESNIPUB,
+#endif
     OPT_R_ENUM,
     OPT_S_ENUM,
     OPT_V_ENUM,
@@ -965,6 +968,10 @@ const OPTIONS s_server_options[] = {
      "The number of TLSv1.3 session tickets that a server will automatically  issue" },
     {"anti_replay", OPT_ANTI_REPLAY, '-', "Switch on anti-replay protection (default)"},
     {"no_anti_replay", OPT_NO_ANTI_REPLAY, '-', "Switch off anti-replay protection"},
+#ifndef OPENSSL_NO_ESNI
+    {"esnikey", OPT_ESNIKEY, 's', "Load ESNI private key (and enable ESNI)"},
+    {"esnipub", OPT_ESNIPUB, 's', "Load ESNI public key"},
+#endif
     {NULL, OPT_EOF, 0, NULL}
 };
 
@@ -1047,6 +1054,10 @@ int s_server_main(int argc, char *argv[])
     const char *keylog_file = NULL;
     int max_early_data = -1, recv_max_early_data = -1;
     char *psksessf = NULL;
+#ifndef OPENSSL_NO_ESNI
+    char *esnikeyfile = NULL; 
+    char *esnipubfile = NULL;
+#endif
 
     /* Init of few remaining global variables */
     local_argc = argc;
@@ -1586,6 +1597,14 @@ int s_server_main(int argc, char *argv[])
             if (max_early_data == -1)
                 max_early_data = SSL3_RT_MAX_PLAIN_LENGTH;
             break;
+#ifndef OPENSSL_NO_ESNI
+        case OPT_ESNIKEY:
+            esnikeyfile=opt_arg();
+            break;
+        case OPT_ESNIPUB:
+            esnipubfile=opt_arg();
+            break;
+#endif
         }
     }
     argc = opt_num_rest();
@@ -2139,6 +2158,21 @@ int s_server_main(int argc, char *argv[])
     if (socket_family == AF_UNIX
         && unlink_unix_path)
         unlink(host);
+#endif
+#ifndef OPENSSL_NO_ESNI
+	if (esnikeyfile!= NULL || esnipubfile!=NULL) {
+		/*
+		 * need both set to go ahead
+		 */
+		if (esnikeyfile==NULL) {
+            BIO_printf(bio_err, "Need -esnipub set as well as -esnikey\n" );
+            goto end;
+		}
+		if (esnipubfile==NULL) {
+            BIO_printf(bio_err, "Need -esnikey set as well as -esnipub\n" );
+            goto end;
+		}
+	}
 #endif
     do_server(&accept_socket, host, port, socket_family, socket_type, protocol,
               server_cb, context, naccept, bio_s_out);

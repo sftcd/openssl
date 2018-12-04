@@ -136,7 +136,7 @@ then
 fi
 portstr=" -port $PORT "
 
-esnistr="-esni $hidden -esnipub $ESNIPUN -esnipriv $ESNIPRIV "
+esnistr=" -esnipub $ESNIPUB -esnikey $ESNIPRIV "
 if [[ "$NOESNI" == "yes" ]]
 then
     echo "Not trying ESNI"

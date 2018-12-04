@@ -58,6 +58,15 @@ as is usual with ``s_client``.
 This is not well-tested code at this point, it's just an initial proof-of-concept,
 so **don't depend on this for anything**.
 
+**SECURITY**: you'll notice that I use ``dig`` above. On my development
+machine, I have installed
+[stubby](https://dnsprivacy.org/wiki/display/DP/DNS+Privacy+Daemon+-+Stubby) so
+these DNS queries and answers are using
+[DoT](https://tools.ietf.org/html/rfc7858) and hence are encrypted. If you
+didn't do that, (or equivalently use [DoH](https://tools.ietf.org/html/rfc8484)
+as Firefox nightly does), there'd not be so much point in encrypting SNI unless
+you somehow otherwise trust your connection to your recursive resolver.
+
 ## Design/Implementation Notes
 
 - Our implementation so far is just a client-side proof-of-concept.
@@ -253,6 +262,11 @@ There's not yet any ESNI code there really. Coming soon though:-)
 
 #### ``s_server`` modifications
 
+I added new command line arguments as follows:
+
+- ``esnikey`` the private key filename for ESNI
+- ``esnipub`` the name of the file containing the binary form of the corresponding ESNIKeys 
+
 TBD
 
 ### APIs
@@ -402,7 +416,6 @@ usually in ``$HOME/code/openssl``.
 - include/openssl/esni.h - data structures are commented some
 - include/openssl/esnierr.h - boring errors
 - crypto/esnierr.c - load boring strings (need to check if this is right)
-
 - esnistuff/esnimain.c - a tester
 - esnistuff/doit.sh - calls esnimain
 - esnistuff/testit.sh - calls ``openssl s_client`` 
@@ -419,6 +432,7 @@ usually in ``$HOME/code/openssl``.
 - include/openssl/sslerr.h
 - include/openssl/tls1.h
 - apps/s_client.c
+- apps/s_server.c
 - ssl/ssl-locl.h - TLSEXT_IDX_esni isn't #ifndef protected for some reason, maybe because it's an enum?
 - ssl/ssl-lib.c
 - ssl/s3_lib.c
