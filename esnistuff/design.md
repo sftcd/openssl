@@ -106,7 +106,9 @@ We have a simple [test script](#test-script) that exercises various ``s_client``
 
 We'll describe those in reverse order, and then consider [testing](#testing).
 
-### Test script
+### Client Side
+
+#### Test script
 
 The ``usage()`` function for the [testit.sh](https://gitbub.com/sftcd/openssl/esnistuff/testit.sh) 
 produces this:
@@ -141,7 +143,7 @@ Other notes:
 - ``-v`` runs under valgrind and currently has no complaints (in the 
   nominal case)
 
-### ``s_client`` modifications
+#### ``s_client`` modifications
 
 Here and elsewhere, almost all of our code changes are enclosed with ``#ifndef OPENSSL_NO_ESNI``
 
@@ -193,7 +195,9 @@ that runs a standalone test application ([esnimain.c](https://github.com/sftcd/o
 which just tests the ESNI APIs directly. That should become some kind of unit test in the main
 build, and needs error cases added.
 
-### Server-side code
+### Server-side 
+
+#### Generating ESNIKeys
 
 For now, all that exists is [mk_esnikeys.c](./mk_esnikeys.c), a simple command
 line tool to generate a key pair and store the public in ESNIKeys format as 
@@ -221,6 +225,35 @@ keys - have just generated and formatted 'em so far. This should likely
 go into some tools or utils directory, not sure yet. Lastly, this does
 allow private key re-use, just in case that may be needed, but we should 
 decide if that could be removed, which seems safer in general.
+
+#### Server test script
+
+The [testserver.sh](./testserver.sh) script starts an ``openssl s_server``
+and listens for connections. 
+The ``usage()`` from that script is:
+
+			$ ./testserver -h
+			Running ./testserver.sh at 20181204-125134
+			./testserver.sh [-cHpsdnlvhK] - try out encrypted SNI via openssl s_server
+			  -H means serve that hidden server
+			  -d means run s_server in verbose mode
+			  -v means run with valgrind
+			  -n means don't trigger esni at all
+			  -c [name] specifices a covername that I'll accept as a clear SNI (NONE is special)
+			  -p [port] specifices a port (default: 443)
+			  -K to generate server keys 
+			  -h means print this
+			
+			The following should work:
+			    ./testserver.sh -c example.com -H foo.example.com
+			To generate keys, set -H/-c as required:
+			    ./testserver.sh -K
+
+There's not yet any ESNI code there really. Coming soon though:-)
+
+#### ``s_server`` modifications
+
+TBD
 
 ### APIs
 

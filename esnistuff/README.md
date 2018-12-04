@@ -43,6 +43,10 @@ Here's the beginnings of a [design doc](./design.md).
 
 Most recent first...
 
+- Added [testserver.sh](./testserver.sh) to use ``s_server`` for
+  testing. For now that can generate server cert keys and start
+  a server, but doesn't actually do any ESNI stuff.
+
 - Added [mk_esnikeys.c](./mk_esnikeys.c), as (the start of) a command 
   line tool to make an ESNIKeys structure and private key. I guess this 
   is a start (of sorts:-) to server-side coding. Seems to generate a

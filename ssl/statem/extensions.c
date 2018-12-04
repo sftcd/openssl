@@ -956,7 +956,7 @@ static int final_esni(SSL *s, unsigned int context, int sent)
      * Could be that cleaning up would be good, and/or 
      * whatever's needed for handling tickets etc. etc.
      */
-    if (s->esni_done!=1) {
+    if (!s->server && s->esni_done!=1) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_FINAL_ESNI,
                  SSL_R_CALLBACK_FAILED);
         return 0;
