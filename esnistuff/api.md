@@ -19,6 +19,7 @@
 `define `[`ESNI_R_NOT_IMPL`](#esnierr_8h_1aeb72e4451595e51885c8192c3c06e870)            | 
 `public int `[`ERR_load_ESNI_strings`](#esnierr_8c_1ab6db8c60b35aacaa03550e6d9d9c2099)`(void)`            | Load strings into tables.
 `public static void `[`so_esni_pbuf`](#mk__esnikeys_8c_1ae1bab08e2b36301f0c81f27d7ffb006b)`(char * msg,unsigned char * buf,size_t blen,int indent)`            | 
+`public static int `[`esni_checksum_gen`](#mk__esnikeys_8c_1a32ec581cbe2fef728eca2951e596d25f)`(unsigned char * buf,size_t buf_len,unsigned char cksum)`            | generate the SHA256 checksum that should be in the DNS record
 `public void `[`usage`](#mk__esnikeys_8c_1aa4817482b1728bf62acf8030cab9842c)`(char * prog)`            | 
 `public static int `[`mk_esnikeys`](#mk__esnikeys_8c_1a9d11ac25babd35d36598edd0beab07c9)`(int argc,char ** argv)`            | Make an X25519 key pair and ESNIKeys structure for the public.
 `public int `[`main`](#mk__esnikeys_8c_1a3c04138a5bfe5d72780bb7e82a18e627)`(int argc,char ** argv)`            | 
@@ -159,6 +160,22 @@ Load strings into tables.
 
 #### `public static void `[`so_esni_pbuf`](#mk__esnikeys_8c_1ae1bab08e2b36301f0c81f27d7ffb006b)`(char * msg,unsigned char * buf,size_t blen,int indent)` 
 
+<p id="mk__esnikeys_8c_1a32ec581cbe2fef728eca2951e596d25f"><hr></p>
+
+#### `public static int `[`esni_checksum_gen`](#mk__esnikeys_8c_1a32ec581cbe2fef728eca2951e596d25f)`(unsigned char * buf,size_t buf_len,unsigned char cksum)` 
+
+generate the SHA256 checksum that should be in the DNS record
+
+Fixed SHA256 hash in this case, we work on the offset here, (bytes 2 bytes then 4 checksum bytes then rest) with no other knowledge of the encoding.
+
+#### Parameters
+* `buf` is the buffer 
+
+* `buf_len` is obvous 
+
+#### Returns
+1 for success, not 1 otherwise
+
 <p id="mk__esnikeys_8c_1aa4817482b1728bf62acf8030cab9842c"><hr></p>
 
 #### `public void `[`usage`](#mk__esnikeys_8c_1aa4817482b1728bf62acf8030cab9842c)`(char * prog)` 
@@ -169,9 +186,7 @@ Load strings into tables.
 
 Make an X25519 key pair and ESNIKeys structure for the public.
 
-> Todo: TODO: read private key file if it exists and re-use that key pair 
-
-TODO: write base 64 version of public as well 
+> Todo: TODO: write base 64 version of public as well 
 
 TODO: check out NSS code to see if I can make same format private
 
