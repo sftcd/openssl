@@ -64,7 +64,7 @@ function usage()
     echo "  -n means don't trigger esni at all"
     echo "  -s [name] specifices a server to which I'll connect"
 	echo "  -c [name] specifices a covername that I'll send as a clear SNI (NONE is special)"
-    echo "  -p [port] specifices a port (default: 442)"
+    echo "  -p [port] specifices a port (default: 443)"
     echo "  -h means print this"
 
 	echo ""
