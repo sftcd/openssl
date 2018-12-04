@@ -1922,6 +1922,9 @@ int s_server_main(int argc, char *argv[])
             BIO_printf(bio_err, "Failure establishing ESNI parameters\n" );
             goto end;
 		}
+		SSL_ESNI *tp=NULL;
+		SSL_ESNI_get_esni_ctx(ctx,&tp);
+		SSL_ESNI_print(bio_err,tp);
 	}
 #endif
 

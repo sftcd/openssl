@@ -1020,7 +1020,6 @@ struct ssl_ctx_st {
 		 * @todo TODO: not really sure this belongs here but we'll try...
 		 */
 		SSL_ESNI *esni;
-		EVP_PKEY *esnipriv;
 #endif
 
         unsigned char cookie_hmac_key[SHA256_DIGEST_LENGTH];

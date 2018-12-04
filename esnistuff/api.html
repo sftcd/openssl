@@ -131,6 +131,10 @@
 	<td>Debugging - print an SSL_ESNI structure note - can include sensitive values!</td>
 </tr>
 <tr>
+	<td><code>public int</code><a href="#esni_8h_1acd373a6c0dddd76f399e103e80f538cc"><code>SSL_ESNI_get_esni_ctx</code></a><code>(SSL_CTX * s,</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>** esni)</code></td>
+	<td>Debugging - print an SSL_ESNI structure note - can include sensitive values!</td>
+</tr>
+<tr>
 	<td><code>public int</code><a href="#esni_8h_1acf8aa08880982952d1faee2fedd1bc67"><code>SSL_ESNI_print</code></a><code>(BIO * out,</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>* esni)</code></td>
 	<td>Print the content of an SSL_ESNI.</td>
 </tr>
@@ -152,7 +156,7 @@
 </tr>
 <tr>
 	<td><code>public static uint64_t</code><a href="#esni_8c_1a83d195ea944e970d225ac1554c88c3d4"><code>uint64_from_bytes</code></a><code>(unsigned char * buf)</code></td>
-	<td>map 8 bytes in n/w byte order from PACKET to a 64-bit time value</td>
+	<td>File: esni.c - the core implementation of drat-ietf-tls-esni-02 Author: <a href="mailto:stephen.farrell@cs.tcd.ie">stephen.farrell@cs.tcd.ie</a> Date: 2018 December-ish.</td>
 </tr>
 <tr>
 	<td><code>public static int</code><a href="#esni_8c_1a64c9d65c28e852557b2ac325335c6a83"><code>esni_base64_decode</code></a><code>(const char * in,unsigned char ** out)</code></td>
@@ -181,6 +185,10 @@
 <tr>
 	<td><code>public</code><a href="#esni_8h_1ab29e08d24d0eac604e0d6783dfbf1758"><code>ESNI_RECORD</code></a><code>*</code><a href="#esni_8c_1a013c3c4172d63a489aa314d4c3d4542d"><code>SSL_ESNI_RECORD_new_from_binary</code></a><code>(unsigned char * binbuf,size_t binblen)</code></td>
 	<td>Decod from binary to ESNI_RECORD.</td>
+</tr>
+<tr>
+	<td><code>public static int</code><a href="#esni_8c_1a1332a08e3b77da97cc9aef2efd50f904"><code>esni_make_se_from_er</code></a><code>(</code><a href="#esni_8h_1ab29e08d24d0eac604e0d6783dfbf1758"><code>ESNI_RECORD</code></a><code>* er,</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>* se,int server)</code></td>
+	<td>populate an SSL_ESNI from an ESNI_RECORD</td>
 </tr>
 <tr>
 	<td><code>public</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>*</code><a href="#esni_8c_1a672460fc59e13e81482f66c701d4bca7"><code>SSL_ESNI_new_from_base64</code></a><code>(const char * esnikeys)</code></td>
@@ -241,6 +249,10 @@
 <tr>
 	<td><code>public int</code><a href="#esni_8c_1ac214a7933d6e5fa9e2be5218b9537a63"><code>SSL_ESNI_get_esni</code></a><code>(SSL * s,</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>** esni)</code></td>
 	<td>Get access to the ESNI data from an SSL context (if that's the right term:-)</td>
+</tr>
+<tr>
+	<td><code>public int</code><a href="#esni_8c_1acd373a6c0dddd76f399e103e80f538cc"><code>SSL_ESNI_get_esni_ctx</code></a><code>(SSL_CTX * s,</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>** esni)</code></td>
+	<td>Debugging - print an SSL_ESNI structure note - can include sensitive values!</td>
 </tr>
 <tr>
 	<td><code>public int</code><a href="#esni_8c_1a8df1af022d25fc0f7e72683b0bd4667f"><code>SSL_ESNI_set_private</code></a><code>(</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>* esni,char * private_str)</code></td>
@@ -586,7 +598,7 @@
 <h4 id="parameters">Parameters</h4>
 
 <ul>
-<li><p><code>out</code> is a BIO for printing </p></li>
+<li><p><code>s</code> is a an SSL structure, as used on TLS client </p></li>
 <li><p><code>esni</code> is an SSL_ESNI structure </p></li>
 </ul>
 
@@ -612,6 +624,23 @@
 <ul>
 <li><p><code>s</code> the SSL context </p></li>
 <li><p><code>esni</code> the (ptr to) output SSL_ESNI structure </p></li>
+</ul>
+
+<h4 id="returns">Returns</h4>
+
+<p>1 for success, anything else for failure</p>
+
+<p id="esni_8h_1acd373a6c0dddd76f399e103e80f538cc"><hr></p>
+
+<h4 id="publicintssl_esni_get_esni_ctxesni_8h_1acd373a6c0dddd76f399e103e80f538ccssl_ctxsssl_esniesni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7fesni"><code>public int</code><a href="#esni_8h_1acd373a6c0dddd76f399e103e80f538cc"><code>SSL_ESNI_get_esni_ctx</code></a><code>(SSL_CTX * s,</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>** esni)</code></h4>
+
+<p>Debugging - print an SSL_ESNI structure note - can include sensitive values!</p>
+
+<h4 id="parameters">Parameters</h4>
+
+<ul>
+<li><p><code>s</code> is a an SSL_CTX structure, as used on TLS server </p></li>
+<li><p><code>esni</code> is an SSL_ESNI structure </p></li>
 </ul>
 
 <h4 id="returns">Returns</h4>
@@ -709,6 +738,8 @@
 <p id="esni_8c_1a83d195ea944e970d225ac1554c88c3d4"><hr></p>
 
 <h4 id="publicstaticuint64_tuint64_from_bytesesni_8c_1a83d195ea944e970d225ac1554c88c3d4unsignedcharbuf"><code>public static uint64_t</code><a href="#esni_8c_1a83d195ea944e970d225ac1554c88c3d4"><code>uint64_from_bytes</code></a><code>(unsigned char * buf)</code></h4>
+
+<p>File: esni.c - the core implementation of drat-ietf-tls-esni-02 Author: <a href="mailto:stephen.farrell@cs.tcd.ie">stephen.farrell@cs.tcd.ie</a> Date: 2018 December-ish.</p>
 
 <p>map 8 bytes in n/w byte order from PACKET to a 64-bit time value</p>
 
@@ -826,6 +857,26 @@
 <h4 id="publicesni_recordesni_8h_1ab29e08d24d0eac604e0d6783dfbf1758ssl_esni_record_new_from_binaryesni_8c_1a013c3c4172d63a489aa314d4c3d4542dunsignedcharbinbufsize_tbinblen"><code>public</code><a href="#esni_8h_1ab29e08d24d0eac604e0d6783dfbf1758"><code>ESNI_RECORD</code></a><code>*</code><a href="#esni_8c_1a013c3c4172d63a489aa314d4c3d4542d"><code>SSL_ESNI_RECORD_new_from_binary</code></a><code>(unsigned char * binbuf,size_t binblen)</code></h4>
 
 <p>Decod from binary to ESNI_RECORD.</p>
+
+<p id="esni_8c_1a1332a08e3b77da97cc9aef2efd50f904"><hr></p>
+
+<h4 id="publicstaticintesni_make_se_from_eresni_8c_1a1332a08e3b77da97cc9aef2efd50f904esni_recordesni_8h_1ab29e08d24d0eac604e0d6783dfbf1758erssl_esniesni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7fseintserver"><code>public static int</code><a href="#esni_8c_1a1332a08e3b77da97cc9aef2efd50f904"><code>esni_make_se_from_er</code></a><code>(</code><a href="#esni_8h_1ab29e08d24d0eac604e0d6783dfbf1758"><code>ESNI_RECORD</code></a><code>* er,</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>* se,int server)</code></h4>
+
+<p>populate an SSL_ESNI from an ESNI_RECORD</p>
+
+<p>This is used by both client and server in (almost) identical ways. Note that se->encoded_rr and se->encodded_rr_len must be set before calling this, but that's usually fine.</p>
+
+<h4 id="parameters">Parameters</h4>
+
+<ul>
+<li><p><code>er</code> is the ESNI_RECORD </p></li>
+<li><p><code>se</code> is the SSL_ESNI </p></li>
+<li><p><code>server</code> is 1 if we're a TLS server, 0 otherwise, (just in case there's a difference) </p></li>
+</ul>
+
+<h4 id="returns">Returns</h4>
+
+<p>1 for success, not 1 otherwise</p>
 
 <p id="esni_8c_1a672460fc59e13e81482f66c701d4bca7"><hr></p>
 
@@ -1015,6 +1066,23 @@
 <ul>
 <li><p><code>s</code> the SSL context </p></li>
 <li><p><code>esni</code> the (ptr to) output SSL_ESNI structure </p></li>
+</ul>
+
+<h4 id="returns">Returns</h4>
+
+<p>1 for success, anything else for failure</p>
+
+<p id="esni_8c_1acd373a6c0dddd76f399e103e80f538cc"><hr></p>
+
+<h4 id="publicintssl_esni_get_esni_ctxesni_8c_1acd373a6c0dddd76f399e103e80f538ccssl_ctxsssl_esniesni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7fesni"><code>public int</code><a href="#esni_8c_1acd373a6c0dddd76f399e103e80f538cc"><code>SSL_ESNI_get_esni_ctx</code></a><code>(SSL_CTX * s,</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>** esni)</code></h4>
+
+<p>Debugging - print an SSL_ESNI structure note - can include sensitive values!</p>
+
+<h4 id="parameters">Parameters</h4>
+
+<ul>
+<li><p><code>s</code> is a an SSL_CTX structure, as used on TLS server </p></li>
+<li><p><code>esni</code> is an SSL_ESNI structure </p></li>
 </ul>
 
 <h4 id="returns">Returns</h4>
@@ -1408,12 +1476,12 @@
 	<td>our chosen group e.g. X25519</td>
 </tr>
 <tr>
-	<td><code>public size_t</code><a href="#structssl__esni__st_1acaf7fdcb02985218a99cfe942b429f93"><code>esni_server_keyshare_len</code></a></td>
+	<td><code>public size_t</code><a href="#structssl__esni__st_1a45018bd6c55f58e594463ce17e6e96bb"><code>esni_peer_keyshare_len</code></a></td>
 	<td> </td>
 </tr>
 <tr>
-	<td><code>public unsigned char *</code><a href="#structssl__esni__st_1a01d28bcfc48b5652fc6ccc31f5cf2981"><code>esni_server_keyshare</code></a></td>
-	<td>the encoded server public</td>
+	<td><code>public unsigned char *</code><a href="#structssl__esni__st_1a45058e28bb36447e277246e7d382e8cd"><code>esni_peer_keyshare</code></a></td>
+	<td>the encoded peer's public value</td>
 </tr>
 <tr>
 	<td><code>public EVP_PKEY *</code><a href="#structssl__esni__st_1a10402a2307b7dd624e7b2984c78ad8d3"><code>esni_server_pkey</code></a></td>
@@ -1630,15 +1698,15 @@
 
 <p>our chosen group e.g. X25519</p>
 
-<p id="structssl__esni__st_1acaf7fdcb02985218a99cfe942b429f93"><hr></p>
+<p id="structssl__esni__st_1a45018bd6c55f58e594463ce17e6e96bb"><hr></p>
 
-<h4 id="publicsize_tesni_server_keyshare_lenstructssl__esni__st_1acaf7fdcb02985218a99cfe942b429f93"><code>public size_t</code><a href="#structssl__esni__st_1acaf7fdcb02985218a99cfe942b429f93"><code>esni_server_keyshare_len</code></a></h4>
+<h4 id="publicsize_tesni_peer_keyshare_lenstructssl__esni__st_1a45018bd6c55f58e594463ce17e6e96bb"><code>public size_t</code><a href="#structssl__esni__st_1a45018bd6c55f58e594463ce17e6e96bb"><code>esni_peer_keyshare_len</code></a></h4>
 
-<p id="structssl__esni__st_1a01d28bcfc48b5652fc6ccc31f5cf2981"><hr></p>
+<p id="structssl__esni__st_1a45058e28bb36447e277246e7d382e8cd"><hr></p>
 
-<h4 id="publicunsignedcharesni_server_keysharestructssl__esni__st_1a01d28bcfc48b5652fc6ccc31f5cf2981"><code>public unsigned char *</code><a href="#structssl__esni__st_1a01d28bcfc48b5652fc6ccc31f5cf2981"><code>esni_server_keyshare</code></a></h4>
+<h4 id="publicunsignedcharesni_peer_keysharestructssl__esni__st_1a45058e28bb36447e277246e7d382e8cd"><code>public unsigned char *</code><a href="#structssl__esni__st_1a45058e28bb36447e277246e7d382e8cd"><code>esni_peer_keyshare</code></a></h4>
 
-<p>the encoded server public</p>
+<p>the encoded peer's public value</p>
 
 <p id="structssl__esni__st_1a10402a2307b7dd624e7b2984c78ad8d3"><hr></p>
 
