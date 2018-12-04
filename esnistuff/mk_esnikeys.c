@@ -45,6 +45,51 @@ static void so_esni_pbuf(char *msg,unsigned char *buf,size_t blen,int indent)
     return;
 }
 
+/**
+ * @brief generate the SHA256 checksum that should be in the DNS record
+ *
+ * Fixed SHA256 hash in this case, we work on the offset here,
+ * (bytes 2 bytes then 4 checksum bytes then rest) with no other 
+ * knowledge of the encoding.
+ *
+ * @param buf is the buffer
+ * @param buf_len is obvous
+ * @return 1 for success, not 1 otherwise
+ */
+static int esni_checksum_gen(unsigned char *buf, size_t buf_len, unsigned char cksum[4])
+{
+    /* 
+     * copy input with zero'd checksum, do SHA256 hash, compare with checksum, tedious but easy enough
+     */
+    unsigned char *buf_zeros=OPENSSL_malloc(buf_len);
+    if (buf_zeros==NULL) {
+		fprintf(stderr,"Crypto error (line:%d)\n",__LINE__);
+        goto err;
+    }
+    memcpy(buf_zeros,buf,buf_len);
+    memset(buf_zeros+2,0,4);
+    unsigned char md[EVP_MAX_MD_SIZE];
+    SHA256_CTX context;
+    if(!SHA256_Init(&context)) {
+		fprintf(stderr,"Crypto error (line:%d)\n",__LINE__);
+        goto err;
+    }
+    if(!SHA256_Update(&context, buf_zeros, buf_len)) {
+		fprintf(stderr,"Crypto error (line:%d)\n",__LINE__);
+        goto err;
+    }
+    if(!SHA256_Final(md, &context)) {
+		fprintf(stderr,"Crypto error (line:%d)\n",__LINE__);
+        goto err;
+    }
+    OPENSSL_free(buf_zeros);
+	memcpy(cksum,md,4);
+    return 1;
+err:
+    if (buf_zeros!=NULL) OPENSSL_free(buf_zeros);
+    return 0;
+}
+
 void usage(char *prog) 
 {
     printf("Create an ESNIKeys data structure as per draft-ietf-tls-esni-02\n");
@@ -143,6 +188,7 @@ static int mk_esnikeys(int argc, char **argv)
             fprintf(stderr,"Crypto error (line:%d)\n",__LINE__);
             exit(3);
         }
+        EVP_PKEY_CTX_free(pctx);
 
     }
     unsigned char *public=NULL;
@@ -168,6 +214,8 @@ static int mk_esnikeys(int argc, char **argv)
     }
     fclose(privfp);
 
+	EVP_PKEY_free(pkey);
+
     time_t nb=time(0)-1;
     time_t na=nb+duration;
 
@@ -181,16 +229,16 @@ static int mk_esnikeys(int argc, char **argv)
      * 00000044
      *
      * And here's the TLS presentation syntax:
-      *     struct {
-      *         uint16 version;
-      *         uint8 checksum[4];
-      *         KeyShareEntry keys<4..2^16-1>;
-      *         CipherSuite cipher_suites<2..2^16-2>;
-      *         uint16 padded_length;
-      *         uint64 not_before;
-      *         uint64 not_after;
-      *         Extension extensions<0..2^16-1>;
-      *     } ESNIKeys;
+     *     struct {
+     *         uint16 version;
+     *         uint8 checksum[4];
+     *         KeyShareEntry keys<4..2^16-1>;
+     *         CipherSuite cipher_suites<2..2^16-2>;
+     *         uint16 padded_length;
+     *         uint64 not_before;
+     *         uint64 not_after;
+     *         Extension extensions<0..2^16-1>;
+     *     } ESNIKeys;
      *
      */
 
@@ -229,6 +277,14 @@ static int mk_esnikeys(int argc, char **argv)
 
     so_esni_pbuf("BP",bbuf,bblen,0);
 
+	unsigned char cksum[4];
+	if (esni_checksum_gen(bbuf,bblen,cksum)!=1) {
+        fprintf(stderr,"fopen error (line:%d)\n",__LINE__);
+        exit(7);
+	}
+	memcpy(bbuf+2,cksum,4);
+    so_esni_pbuf("BP+cksum",bbuf,bblen,0);
+
     if (pubfname==NULL) {
         pubfname="esnikeys.pub";
     }
@@ -242,6 +298,8 @@ static int mk_esnikeys(int argc, char **argv)
         exit(8);
     }
     fclose(pubfp);
+
+	OPENSSL_free(public);
 
     return(0);
 }

@@ -225,27 +225,21 @@ static int esni_checksum_check(unsigned char *buf, size_t buf_len)
     }
     memcpy(buf_zeros,buf,buf_len);
     memset(buf_zeros+2,0,4);
-
     unsigned char md[EVP_MAX_MD_SIZE];
-
     SHA256_CTX context;
     if(!SHA256_Init(&context)) {
         ESNIerr(ESNI_F_CHECKSUM_CHECK, ERR_R_INTERNAL_ERROR);
         goto err;
     }
-
     if(!SHA256_Update(&context, buf_zeros, buf_len)) {
         ESNIerr(ESNI_F_CHECKSUM_CHECK, ERR_R_INTERNAL_ERROR);
         goto err;
     }
-
     if(!SHA256_Final(md, &context)) {
         ESNIerr(ESNI_F_CHECKSUM_CHECK, ERR_R_INTERNAL_ERROR);
         goto err;
     }
-
     OPENSSL_free(buf_zeros);
-
     if (memcmp(buf+2,md,4)) {
         /* non match - bummer */
         return 0;
