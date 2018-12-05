@@ -839,6 +839,10 @@ SSL *SSL_new(SSL_CTX *ctx)
         goto err;
 #endif
 
+#ifndef OPENSSL_NO_ESNI
+	s->esni=ctx->ext.esni;
+#endif
+
     return s;
  err:
     SSL_free(s);
