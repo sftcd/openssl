@@ -1966,18 +1966,9 @@ EXT_RETURN tls_construct_stoc_psk(SSL *s, WPACKET *pkt, unsigned int context,
 int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
                                X509 *x, size_t chainidx)
 {
-	printf("Feck me, an ESNI!\n");
-	if (s->esni!=NULL) {
-		printf("s->esni isn't NULL\n");
-	} else {
-		printf("s->esni is NULL\n");
+	if (s->esni==NULL) {
+		return 1;
 	}
-    if (s->esni_cb != NULL) {
-        unsigned int cbrv=s->esni_cb(s);
-        if (cbrv != 1) {
-            return EXT_RETURN_FAIL;
-        }
-    }
 
     /*
      * Now read the ESNI stuff 
@@ -1988,8 +1979,160 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
      *    opaque encrypted_sni<0..2^16-1>; from c->encrypted_sni (buffer)
      * } ClientEncryptedSNI;
      */
+	CLIENT_ESNI *ce=NULL;
+
+	ce=OPENSSL_malloc(sizeof(CLIENT_ESNI));
+	if (ce==NULL) {
+		return 0;
+	}
+	memset(ce,0,sizeof(CLIENT_ESNI));
+
+    unsigned char cipher[TLS_CIPHER_LEN];
+	memset(&cipher,0,TLS_CIPHER_LEN);
+    if (!PACKET_copy_bytes(pkt, cipher, TLS_CIPHER_LEN)) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ESNI,
+                 SSL_R_BAD_EXTENSION);
+        goto err;
+	}
+    ce->ciphersuite = ssl3_get_cipher_by_char(cipher);
+    if (ce->ciphersuite != NULL) {
+        if (!ce->ciphersuite->valid) {
+        		SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ESNI,
+                 SSL_R_BAD_EXTENSION);
+        		goto err;
+        }
+    }
+	uint16_t group_id=0;
+	unsigned int tmp;
+	if (!PACKET_get_net_2(pkt, &tmp)) {
+		SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ESNI,
+		 SSL_R_BAD_EXTENSION);
+		goto err;
+	}
+	if (tmp>0xffff) {
+		SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ESNI,
+		 SSL_R_BAD_EXTENSION);
+		goto err;
+	}
+	group_id=(uint16_t)tmp;
+	/* key_share len - should be 0x20 */
+	if (!PACKET_get_net_2(pkt, &tmp)) {
+		SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ESNI,
+		 SSL_R_BAD_EXTENSION);
+		goto err;
+	}
+	/* sanity check */
+#define MAX_KEYSHARE_SIZE 65  // FIXME: TODO: find this somewhere
+	if (tmp > MAX_KEYSHARE_SIZE) {
+		SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ESNI,
+		 SSL_R_BAD_EXTENSION);
+		goto err;
+	}
+	if (tmp>PACKET_remaining(pkt)) {
+		SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ESNI,
+		 SSL_R_BAD_EXTENSION);
+		goto err;
+	}
+	ce->encoded_keyshare=OPENSSL_malloc(tmp+6);  //* group id goes there too - sigh as always
+	if (ce->encoded_keyshare==NULL) {
+		SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ESNI,
+		 SSL_R_BAD_EXTENSION);
+		goto err;
+	}
+	// TODO: use our wrap_keyshare thing maybe, figure it out later anyway
+	ce->encoded_keyshare[0]=(tmp+6)/256;
+	ce->encoded_keyshare[1]=(tmp+6)%256;
+	ce->encoded_keyshare[2]=group_id/256;
+	ce->encoded_keyshare[3]=group_id%256;
+	ce->encoded_keyshare[4]=tmp/256;
+	ce->encoded_keyshare[5]=tmp%256;
+	if (!PACKET_copy_bytes(pkt, ce->encoded_keyshare+6, tmp)) {
+		SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ESNI,
+		 SSL_R_BAD_EXTENSION);
+		goto err;
+	}
+	ce->encoded_keyshare_len=tmp+6;
+
+	/* record_digest len - should also be 0x20 */
+	if (!PACKET_get_net_2(pkt, &tmp)) {
+		SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ESNI,
+		 SSL_R_BAD_EXTENSION);
+		goto err;
+	}
+#define MAX_RD_SIZE 128  // FIXME: TODO: find this somewhere
+	if (tmp > MAX_RD_SIZE) {
+		SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ESNI,
+		 SSL_R_BAD_EXTENSION);
+		goto err;
+	}
+	if (tmp>PACKET_remaining(pkt)) {
+		SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ESNI,
+		 SSL_R_BAD_EXTENSION);
+		goto err;
+	}
+	ce->record_digest=OPENSSL_malloc(tmp);
+	if (ce->record_digest==NULL) {
+		SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ESNI,
+		 SSL_R_BAD_EXTENSION);
+		goto err;
+	}
+	if (!PACKET_copy_bytes(pkt, ce->record_digest, tmp)) {
+		SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ESNI,
+		 SSL_R_BAD_EXTENSION);
+		goto err;
+	}
+	ce->record_digest_len=tmp;
+
+	/* encrypted_sni len - should also be 0x20 */
+	if (!PACKET_get_net_2(pkt, &tmp)) {
+		SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ESNI,
+		 SSL_R_BAD_EXTENSION);
+		goto err;
+	}
+#define MAX_ESNI_CIPHER_SIZE 300  // FIXME: TODO: find this somewhere
+	if (tmp > MAX_ESNI_CIPHER_SIZE) {
+		SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ESNI,
+		 SSL_R_BAD_EXTENSION);
+		goto err;
+	}
+	if (tmp>PACKET_remaining(pkt)) {
+		SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ESNI,
+		 SSL_R_BAD_EXTENSION);
+		goto err;
+	}
+	ce->encrypted_sni=OPENSSL_malloc(tmp);
+	if (ce->encrypted_sni==NULL) {
+		SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ESNI,
+		 SSL_R_BAD_EXTENSION);
+		goto err;
+	}
+	if (!PACKET_copy_bytes(pkt, ce->encrypted_sni, tmp)) {
+		SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ESNI,
+		 SSL_R_BAD_EXTENSION);
+		goto err;
+	}
+	ce->encrypted_sni_len=tmp;
+
+	s->esni->the_esni=ce; 
+
+	// !s->method->get_cipher_by_char(ce->ciphersuite, pkt, &len)
+
+    if (s->esni_cb != NULL) {
+        unsigned int cbrv=s->esni_cb(s);
+        if (cbrv != 1) {
+            return EXT_RETURN_FAIL;
+        }
+    }
 
 	return 1;
+
+err:
+	// @todo TODO: more tidy up needed within ce for ciphersuite
+	if (ce->encoded_keyshare) OPENSSL_free(ce->encoded_keyshare);
+	if (ce->record_digest) OPENSSL_free(ce->record_digest);
+	if (ce->encrypted_sni) OPENSSL_free(ce->encrypted_sni);
+	OPENSSL_free(ce);
+	return 0;
 }
 
 /**

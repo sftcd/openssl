@@ -196,14 +196,7 @@ Notes:
 - The functions names above that contain the string ``SNI_ESNI`` either return
 or take as a parameter a value of that type. Function names with a lowercase
 esni substring do not. (This seems to be an OpenSSL convention.)
-- I wasn't clear if the ``SSL_ESNI`` information ought be part of the ``SSL``
-structure or the ``SSL_CTX`` structure - guess is that server side code will
-force us to do the right thing, if the current one's wrong. For the client side,
-there's not much difference, as suspected. But on the server side it appears
-that an instance of the ``SSL_CTX`` structure is used to create an ``SSL``
-structure - which I guess means that ``SSL_CTX`` is specific to the config
-and/or generic application API calls, whereas presumably the ``SSL`` type
-is specific to a particular connection.
+
 	- Playing with printing inside ``tls_parse_ctos_esni`` seems to confirm 
 that. Still need to figure memory management as I muck about there.
 - There's another test script [doit.sh](https://github.com/sftcd/openssl/blob/master/esnistuff/doit.sh)
@@ -398,6 +391,29 @@ We do also have to tweak the (cleartext) SNI extension handling too to make
 sure we don't send the same value encrypted and in clear. That's done using
 the [esni_server_name_fixup](./api.md#extensions__clnt_8c_1a2454a14e823689509154ca3bfb4cdaea)
 function.
+
+On the server-side, we've added inbound ESNI parsing to ``tls_parse_ctos_esni``.
+
+### ``SSL/SSL_CTX`` structure handlng
+
+TODO: Tidy this up as I grok more.
+
+I wasn't clear if the ``SSL_ESNI`` information ought be part of the ``SSL``
+structure or the ``SSL_CTX`` structure.
+
+For the client side,
+there's not much difference, as suspected. But on the server side it appears
+that an instance of the ``SSL_CTX`` structure is used to create an ``SSL``
+structure - which I guess means that ``SSL_CTX`` is specific to the config
+and/or generic application API calls, whereas presumably the ``SSL`` type
+is specific to a particular connection.
+
+There's also odd code that has two sort-of replica SSL_CTX structures 
+into which I currently have pointers to the SSL_ESNI structure.
+
+Basically I added an ``SSL_ESNI *esni`` pointer to all of these and
+replicated it as needed. There's also an ``esni_cb`` field as well
+that's used for debug printing.
 
 ### Data structures
 
