@@ -78,6 +78,9 @@ static void free_sessions(void);
 static DH *load_dh_param(const char *dhfile);
 #endif
 static void print_connection_info(SSL *con);
+#ifndef OPENSSL_NO_ESNI
+static unsigned int esni_cb(SSL *s);
+#endif
 
 static const int bufsize = 16 * 1024;
 static int accept_socket = -1;
@@ -449,6 +452,19 @@ static int ebcdic_puts(BIO *bp, const char *str)
     if (BIO_next(bp) == NULL)
         return 0;
     return ebcdic_write(bp, str, strlen(str));
+}
+#endif
+
+#ifndef OPENSSL_NO_ESNI
+static unsigned int esni_cb(SSL *s)
+{
+    BIO_printf(bio_s_out,"esni_cb called\n");
+    SSL_ESNI *esnistuff=NULL;
+    int rv=SSL_ESNI_get_esni(s,&esnistuff);
+    if (rv == 1 && esnistuff!=NULL) {
+        SSL_ESNI_print(bio_s_out,esnistuff);
+    }
+    return 1;
 }
 #endif
 
@@ -2133,6 +2149,13 @@ int s_server_main(int argc, char *argv[])
         SSL_CTX_set_tlsext_servername_arg(ctx2, &tlsextcbp);
         SSL_CTX_set_tlsext_servername_callback(ctx, ssl_servername_cb);
         SSL_CTX_set_tlsext_servername_arg(ctx, &tlsextcbp);
+#ifndef OPENSSL_NO_ESNI
+		/* 
+		 * Not sure here, just mimicing - see what happens
+		 */
+        SSL_set_esni_callback_ctx(ctx2, esni_cb);
+        SSL_set_esni_callback_ctx(ctx, esni_cb);
+#endif
     }
 
 #ifndef OPENSSL_NO_SRP

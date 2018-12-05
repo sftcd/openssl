@@ -841,6 +841,7 @@ SSL *SSL_new(SSL_CTX *ctx)
 
 #ifndef OPENSSL_NO_ESNI
 	s->esni=ctx->ext.esni;
+	s->esni_cb=ctx->ext.esni_cb;
 #endif
 
     return s;
