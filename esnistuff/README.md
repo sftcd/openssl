@@ -43,6 +43,10 @@ Here's the beginnings of a [design doc](./design.md).
 
 Most recent first...
 
+- Added ``SSL_set_esni_callback_ctx`` so I can ``SSL_ESNI_print``
+  from ``tls_parse_ctos_esni`` (along with a bit of copying
+  from ``SSL_CTX`` down to ``SSL`` instances.
+
 - Renamed testit.sh -> [testclient.sh](./testclient.sh) for obvious
   reasons.
 

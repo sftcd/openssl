@@ -61,6 +61,7 @@
 `public int `[`SSL_esni_server_enable`](#esni_8c_1aeef3e81451e59142e5cdec4f26c09fff)`(SSL_CTX * s,const char * esnikeyfile,const char * esnipubfile)`            | Turn on SNI Encryption, server-side.
 `public int `[`SSL_get_esni_status`](#esni_8c_1abc2468ba57b69ddaca0344481027d7a1)`(SSL * s,char ** hidden,char ** cover)`            | API to allow calling code know ESNI outcome, post-handshake.
 `public void `[`SSL_set_esni_callback`](#esni_8c_1ac4fbad870f00b5b6cb84629c4995be02)`(SSL * s,SSL_esni_client_cb_func f)`            | 
+`public void `[`SSL_set_esni_callback_ctx`](#esni_8c_1a67ce35919f89b9259bb873b7702227ac)`(SSL_CTX * s,SSL_esni_client_cb_func f)`            | 
 `public int `[`SSL_ESNI_get_esni`](#esni_8c_1ac214a7933d6e5fa9e2be5218b9537a63)`(SSL * s,`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` ** esni)`            | Get access to the ESNI data from an SSL context (if that's the right term:-)
 `public int `[`SSL_ESNI_get_esni_ctx`](#esni_8c_1acd373a6c0dddd76f399e103e80f538cc)`(SSL_CTX * s,`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` ** esni)`            | Debugging - print an SSL_ESNI structure note - can include sensitive values!
 `public int `[`SSL_ESNI_set_private`](#esni_8c_1a8df1af022d25fc0f7e72683b0bd4667f)`(`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * esni,char * private_str)`            | Allows caller to set the ECDH private value for ESNI.
@@ -738,6 +739,10 @@ This is intended to be called by applications after the TLS handshake is complet
 <p id="esni_8c_1ac4fbad870f00b5b6cb84629c4995be02"><hr></p>
 
 #### `public void `[`SSL_set_esni_callback`](#esni_8c_1ac4fbad870f00b5b6cb84629c4995be02)`(SSL * s,SSL_esni_client_cb_func f)` 
+
+<p id="esni_8c_1a67ce35919f89b9259bb873b7702227ac"><hr></p>
+
+#### `public void `[`SSL_set_esni_callback_ctx`](#esni_8c_1a67ce35919f89b9259bb873b7702227ac)`(SSL_CTX * s,SSL_esni_client_cb_func f)` 
 
 <p id="esni_8c_1ac214a7933d6e5fa9e2be5218b9537a63"><hr></p>
 

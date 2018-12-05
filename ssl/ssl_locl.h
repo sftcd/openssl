@@ -1025,6 +1025,7 @@ struct ssl_ctx_st {
 		 * @todo TODO: not really sure this belongs here but we'll try...
 		 */
 		SSL_ESNI *esni;
+    	SSL_esni_client_cb_func esni_cb;
 #endif
 
         unsigned char cookie_hmac_key[SHA256_DIGEST_LENGTH];
