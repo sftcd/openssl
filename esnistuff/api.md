@@ -18,6 +18,9 @@
 `define `[`ESNI_R_BASE64_DECODE_ERROR`](#esnierr_8h_1a1c13aa91c93bd84f1f92101ddb9bc9eb)            | 
 `define `[`ESNI_R_RR_DECODE_ERROR`](#esnierr_8h_1acc748e3e2af6dc12fead035b479c221f)            | 
 `define `[`ESNI_R_NOT_IMPL`](#esnierr_8h_1aeb72e4451595e51885c8192c3c06e870)            | 
+`define `[`MAX_KEYSHARE_SIZE`](#extensions__srvr_8c_1ae55e632f164637ae87ff10e16765171a)            | 
+`define `[`MAX_RD_SIZE`](#extensions__srvr_8c_1a0514cc7b999010748339490a7d883fb4)            | 
+`define `[`MAX_ESNI_CIPHER_SIZE`](#extensions__srvr_8c_1aa8586dd6b4a9082ddc8cd243c0cf030e)            | 
 `public int `[`ERR_load_ESNI_strings`](#esnierr_8c_1ab6db8c60b35aacaa03550e6d9d9c2099)`(void)`            | Load strings into tables.
 `public static void `[`so_esni_pbuf`](#mk__esnikeys_8c_1ae1bab08e2b36301f0c81f27d7ffb006b)`(char * msg,unsigned char * buf,size_t blen,int indent)`            | 
 `public static int `[`esni_checksum_gen`](#mk__esnikeys_8c_1a32ec581cbe2fef728eca2951e596d25f)`(unsigned char * buf,size_t buf_len,unsigned char cksum)`            | generate the SHA256 checksum that should be in the DNS record
@@ -158,6 +161,18 @@ ESNI succeeded but the TLS server cert used didn't match the hidden service name
 <p id="esnierr_8h_1aeb72e4451595e51885c8192c3c06e870"><hr></p>
 
 #### `define `[`ESNI_R_NOT_IMPL`](#esnierr_8h_1aeb72e4451595e51885c8192c3c06e870) 
+
+<p id="extensions__srvr_8c_1ae55e632f164637ae87ff10e16765171a"><hr></p>
+
+#### `define `[`MAX_KEYSHARE_SIZE`](#extensions__srvr_8c_1ae55e632f164637ae87ff10e16765171a) 
+
+<p id="extensions__srvr_8c_1a0514cc7b999010748339490a7d883fb4"><hr></p>
+
+#### `define `[`MAX_RD_SIZE`](#extensions__srvr_8c_1a0514cc7b999010748339490a7d883fb4) 
+
+<p id="extensions__srvr_8c_1aa8586dd6b4a9082ddc8cd243c0cf030e"><hr></p>
+
+#### `define `[`MAX_ESNI_CIPHER_SIZE`](#extensions__srvr_8c_1aa8586dd6b4a9082ddc8cd243c0cf030e) 
 
 <p id="esnierr_8c_1ab6db8c60b35aacaa03550e6d9d9c2099"><hr></p>
 

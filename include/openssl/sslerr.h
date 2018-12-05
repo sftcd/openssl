@@ -449,6 +449,7 @@ int ERR_load_SSL_strings(void);
 # define SSL_F_TLS_CONSTRUCT_CTOS_ESNI                    666
 # define SSL_F_TLS_PARSE_STOC_ESNI                        667
 # define SSL_F_FINAL_ESNI                                 668
+# define SSL_F_TLS_PARSE_CTOS_ESNI                        669
 #endif
 
 /*

@@ -165,6 +165,18 @@ void ESNI_RECORD_free(ESNI_RECORD *er)
  */
 void SSL_ESNI_free(SSL_ESNI *esni)
 {
+	/*
+	 * The CLIENT_ESNI structure (the_esni) doesn't have separately
+	 * allocated buffers on the client, but it does on the server.
+	 * So we check if they're pointers to other SSL_ESNI fields 
+	 * or need to be freed
+	 */
+	if (esni->the_esni) {
+		CLIENT_ESNI *ce=esni->the_esni;
+		if (ce->encoded_keyshare!= NULL && ce->encoded_keyshare!=esni->encoded_keyshare) OPENSSL_free(ce->encoded_keyshare);
+		if (ce->record_digest != NULL && ce->record_digest!=esni->rd) OPENSSL_free(ce->record_digest);
+		if (ce->encrypted_sni != NULL && ce->encrypted_sni!=esni->cipher) OPENSSL_free(ce->encrypted_sni);
+	}
     if (esni==NULL) return;
     if (esni->encservername!=NULL) OPENSSL_free(esni->encservername);
     if (esni->covername!=NULL) OPENSSL_free(esni->covername);
@@ -201,6 +213,7 @@ void SSL_ESNI_free(SSL_ESNI *esni)
 #ifdef ESNI_CRYPT_INTEROP
     if (esni->private_str!=NULL) OPENSSL_free(esni->private_str);
 #endif
+	/* the buffers below here were freed above if needed */
     if (esni->the_esni!=NULL) OPENSSL_free(esni->the_esni); 
     return;
 }
@@ -765,6 +778,15 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esni)
     esni_pbuf(out,"ESNI Cryptovars plain",esni->plain,esni->plain_len,indent);
     esni_pbuf(out,"ESNI Cryptovars tag",esni->tag,esni->tag_len,indent);
     esni_pbuf(out,"ESNI Cryptovars cipher",esni->cipher,esni->cipher_len,indent);
+	if (esni->the_esni) {
+		BIO_printf(out,"ESNI CLIENT_ESNI structue (repetitive):\n");
+        BIO_printf(out,"CLIENT_ESNI Ciphersuite is %s\n",esni->the_esni->ciphersuite->name);
+    	esni_pbuf(out,"CLIENT_ESNI encoded_keyshare",esni->the_esni->encoded_keyshare,esni->the_esni->encoded_keyshare_len,indent);
+    	esni_pbuf(out,"CLIENT_ESNI record_digest",esni->the_esni->record_digest,esni->the_esni->record_digest_len,indent);
+    	esni_pbuf(out,"CLIENT_ESNI encrypted_sni",esni->the_esni->encrypted_sni,esni->the_esni->encrypted_sni_len,indent);
+	} else {
+        BIO_printf(out,"ESNI CLIENT_ESNI is NULL\n");
+	}
     return(1);
 }
 
