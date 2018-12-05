@@ -2127,9 +2127,9 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
     unsigned char rd[1024];
     size_t rd_len=SSL_get_client_random(s,rd,1024);
     size_t ks_len=0;
-    if (s->s3->tmp.pkey != NULL) {
+    if (s->s3->peer_tmp != NULL) {
         /* Encode the public key. */
-        ks_len = EVP_PKEY_get1_tls_encodedpoint(s->s3->tmp.pkey, &ks);
+        ks_len = EVP_PKEY_get1_tls_encodedpoint(s->s3->peer_tmp, &ks);
         if (ks_len == 0) {
 			SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ESNI,
 		 	SSL_R_BAD_EXTENSION);
@@ -2147,14 +2147,18 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
 	unsigned char *encservername=NULL;
 	size_t encservername_len=0;
     encservername=SSL_ESNI_dec(s->esni,rd_len,rd,curve_id,ks_len,ks,&encservername_len);
+    if (s->esni_cb != NULL) {
+        unsigned int cbrv=s->esni_cb(s);
+        if (cbrv != 1) {
+            return EXT_RETURN_FAIL;
+        }
+    }
 	if (encservername==NULL) {
 		SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ESNI,
 	 	SSL_R_BAD_EXTENSION);
 		goto err;
     }
     OPENSSL_free(ks);
-
-	// !s->method->get_cipher_by_char(ce->ciphersuite, pkt, &len)
 
     if (s->esni_cb != NULL) {
         unsigned int cbrv=s->esni_cb(s);

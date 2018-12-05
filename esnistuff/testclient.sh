@@ -42,6 +42,7 @@ HTTPPATH="/cdn-cgi/trace"
 SUPPLIEDSERVER=""
 SUPPLIEDHIDDEN=""
 SUPPLIEDCOVER=""
+SUPPLIEDESNI=""
 HIDDEN="encryptedsni.com"
 COVER="www.cloudflare.com"
 CAPATH="/etc/ssl/certs/"
@@ -56,15 +57,16 @@ echo "Running $0 at $NOW"
 
 function usage()
 {
-    echo "$0 [-cHpsdnlvh] - try out encrypted SNI via openssl s_client"
+    echo "$0 [-cHPpsdnlvh] - try out encrypted SNI via openssl s_client"
+	echo "  -c [name] specifices a covername that I'll send as a clear SNI (NONE is special)"
     echo "  -H means try connect to that hidden server"
+	echo "  -P [filename] means read ESNIKeys public value from file and not DNS"
+    echo "  -s [name] specifices a server to which I'll connect"
+    echo "  -p [port] specifices a port (default: 443)"
     echo "  -d means run s_client in verbose mode"
     echo "  -v means run with valgrind"
     echo "  -l means use stale ESNIKeys"
     echo "  -n means don't trigger esni at all"
-    echo "  -s [name] specifices a server to which I'll connect"
-	echo "  -c [name] specifices a covername that I'll send as a clear SNI (NONE is special)"
-    echo "  -p [port] specifices a port (default: 443)"
     echo "  -h means print this"
 
 	echo ""
@@ -74,7 +76,7 @@ function usage()
 }
 
 # options may be followed by one colon to indicate they have a required argument
-if ! options=$(/usr/bin/getopt -s bash -o c:H:p:s:dlvnh -l cover:,hidden:,port:,server:,debug,stale,valgrind,noesni,help -- "$@")
+if ! options=$(/usr/bin/getopt -s bash -o c:P:H:p:s:dlvnh -l cover:,esnipub:,hidden:,port:,server:,debug,stale,valgrind,noesni,help -- "$@")
 then
     # something went wrong, getopt will put out an error message for us
     exit 1
@@ -92,6 +94,7 @@ do
         -c|--cover) SUPPLIEDCOVER=$2; shift;;
         -s|--server) SUPPLIEDSERVER=$2; shift;;
         -H|--hidden) SUPPLIEDHIDDEN=$2; shift;;
+		-P|--esnipub) SUPPLIEDESNI=$2; shift;;
         -p|--port) SUPPLIEDPORT=$2; shift;;
         (--) shift; break;;
         (-*) echo "$0: error - unrecognized option $1" 1>&2; exit 1;;
@@ -152,25 +155,49 @@ fi
 # and maybe check later
 if [[ "$NOESNI" != "yes" ]]
 then
-	ESNI=`dig +short txt _esni.$hidden | sed -e 's/"//g'`
-	if [[ "$ESNI" == "" ]]
+	if [[ "$SUPPLIEDESNI" != "" ]]
 	then
-		ESNI=`dig +short txt _esni.$cover | sed -e 's/"//g'`
+		if [ ! -f $SUPPLIEDESNI ]
+		then
+			echo "Can't open $SUPPLIEDESNI - exiting"
+			exit 9
+		fi
+		# check if file suffix is .pub or .bin (binary) or .b64 (base64 encoding) 
+		# and react accordingly, don't take any other file extensions
+		if [ `basename "$SUPPLIEDESNI" .b64` != "$SUPPLIEDESNI" ]
+		then
+			ESNI=`head -1 $SUPPLIEDESNI` 
+		elif [ `basename "$SUPPLIEDESNI" .pub` != "$SUPPLIEDESNI" ]
+		then
+			ESNI=`cat $SUPPLIEDESNI | base64 -w0`
+		elif [ `basename "$SUPPLIEDESNI" .bin` != "$SUPPLIEDESNI" ]
+		then
+			ESNI=`cat $SUPPLIEDESNI | base64 -w0`
+		else
+			echo "Not sure of file type of $SUPPLIEDESNI - try call it .pub/.bin or .b64 to give me a hint"
+			exit 8
+		fi
+	else
+		ESNI=`dig +short txt _esni.$hidden | sed -e 's/"//g'`
 		if [[ "$ESNI" == "" ]]
 		then
-			ESNI=`dig +short txt _esni.$server | sed -e 's/"//g'`
+			ESNI=`dig +short txt _esni.$cover | sed -e 's/"//g'`
 			if [[ "$ESNI" == "" ]]
 			then
-				echo "Not trying - no sign of ESNIKeys TXT RR at _esni.$hidden nor _esni.$cover nor _esni.$server"
-				exit 100
+				ESNI=`dig +short txt _esni.$server | sed -e 's/"//g'`
+				if [[ "$ESNI" == "" ]]
+				then
+					echo "Not trying - no sign of ESNIKeys TXT RR at _esni.$hidden nor _esni.$cover nor _esni.$server"
+					exit 100
+				fi
 			fi
 		fi
+		if [[ "$STALE" == "yes" ]]
+		then
+			ESNI="/wHHBBOoACQAHQAg4YSfjSyJPNr1z3F8KqzBNBnMejim0mJZaPmria3XsicAAhMBAQQAAAAAW9pQEAAAAABb4jkQAAA="
+    		echo "Using stale ESNI value: $ESNI" 
+		fi    
 	fi
-	if [[ "$STALE" == "yes" ]]
-	then
-		ESNI="/wHHBBOoACQAHQAg4YSfjSyJPNr1z3F8KqzBNBnMejim0mJZaPmria3XsicAAhMBAQQAAAAAW9pQEAAAAABb4jkQAAA="
-    	echo "Using stale ESNI value: $ESNI" 
-	fi    
 fi
 
 esnistr="-esni $hidden -esnirr $ESNI "
