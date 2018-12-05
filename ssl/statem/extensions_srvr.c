@@ -1972,10 +1972,12 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
 	} else {
 		printf("s->esni is NULL\n");
 	}
-	BIO *bio=NULL;
-	BIO_set_fp(bio,stdout,BIO_NOCLOSE);
-	SSL_ESNI_print(bio,s->esni);
-	BIO_free(bio);
+    if (s->esni_cb != NULL) {
+        unsigned int cbrv=s->esni_cb(s);
+        if (cbrv != 1) {
+            return EXT_RETURN_FAIL;
+        }
+    }
 
     /*
      * Now read the ESNI stuff 
