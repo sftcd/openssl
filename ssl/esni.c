@@ -193,7 +193,7 @@ void SSL_ESNI_free(SSL_ESNI *esni)
         esni->ciphersuites=NULL;
     }
     if (esni->esni_peer_keyshare!=NULL) OPENSSL_free(esni->esni_peer_keyshare);
-    if (esni->esni_server_pkey!=NULL) EVP_PKEY_free(esni->esni_server_pkey);
+    if (esni->esni_peer_pkey!=NULL) EVP_PKEY_free(esni->esni_peer_pkey);
     if (esni->nonce!=NULL) OPENSSL_free(esni->nonce);
     if (esni->hs_cr!=NULL) OPENSSL_free(esni->hs_cr);
     if (esni->hs_kse!=NULL) OPENSSL_free(esni->hs_kse);
@@ -256,7 +256,7 @@ static int esni_checksum_check(unsigned char *buf, size_t buf_len)
         goto err;
     }
     OPENSSL_free(buf_zeros);
-    if (memcmp(buf+2,md,4)) {
+    if (CRYPTO_memcmp(buf+2,md,4)) {
         /* non match - bummer */
         return 0;
     } else {
@@ -570,17 +570,17 @@ static int esni_make_se_from_er(ESNI_RECORD* er, SSL_ESNI *se, int server)
     se->ciphersuite=sk_SSL_CIPHER_value(er->ciphersuites,rec2pick);
     se->ciphersuites=er->ciphersuites;
     se->group_id=er->group_ids[rec2pick];
-    se->esni_server_pkey=ssl_generate_param_group(se->group_id);
-    if (se->esni_server_pkey==NULL) {
+    se->esni_peer_pkey=ssl_generate_param_group(se->group_id);
+    if (se->esni_peer_pkey==NULL) {
         ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
     }
-    if (!EVP_PKEY_set1_tls_encodedpoint(se->esni_server_pkey,
+    if (!EVP_PKEY_set1_tls_encodedpoint(se->esni_peer_pkey,
                 er->encoded_keys[rec2pick],er->encoded_lens[rec2pick])) {
             ESNIerr(ESNI_F_NEW_FROM_BASE64, ESNI_R_RR_DECODE_ERROR);
             goto err;
     }
-    tlen = EVP_PKEY_get1_tls_encodedpoint(se->esni_server_pkey,&tmp); 
+    tlen = EVP_PKEY_get1_tls_encodedpoint(se->esni_peer_pkey,&tmp); 
     if (tlen == 0) {
         ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
@@ -779,7 +779,7 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esni)
     esni_pbuf(out,"ESNI Cryptovars tag",esni->tag,esni->tag_len,indent);
     esni_pbuf(out,"ESNI Cryptovars cipher",esni->cipher,esni->cipher_len,indent);
 	if (esni->the_esni) {
-		BIO_printf(out,"ESNI CLIENT_ESNI structue (repetitive):\n");
+		BIO_printf(out,"ESNI CLIENT_ESNI structue (repetitive on client):\n");
         BIO_printf(out,"CLIENT_ESNI Ciphersuite is %s\n",esni->the_esni->ciphersuite->name);
     	esni_pbuf(out,"CLIENT_ESNI encoded_keyshare",esni->the_esni->encoded_keyshare,esni->the_esni->encoded_keyshare_len,indent);
     	esni_pbuf(out,"CLIENT_ESNI record_digest",esni->the_esni->record_digest,esni->the_esni->record_digest_len,indent);
@@ -1050,7 +1050,7 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys,
      * checking and copying
      */
 
-    if (esnikeys==NULL || esnikeys->esni_server_pkey==NULL) {
+    if (esnikeys==NULL || esnikeys->esni_peer_pkey==NULL) {
         ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
     }
@@ -1112,7 +1112,7 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys,
 #ifdef ESNI_CRYPT_INTEROP
 
     if (esnikeys->private_str==NULL) {
-        esnikeys->keyshare = ssl_generate_pkey(esnikeys->esni_server_pkey);
+        esnikeys->keyshare = ssl_generate_pkey(esnikeys->esni_peer_pkey);
         if (esnikeys->keyshare == NULL) {
             ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
             goto err;
@@ -1137,7 +1137,7 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys,
     }
 #else
     // random new private
-    esnikeys->keyshare = ssl_generate_pkey(esnikeys->esni_server_pkey);
+    esnikeys->keyshare = ssl_generate_pkey(esnikeys->esni_peer_pkey);
     if (esnikeys->keyshare == NULL) {
         ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
@@ -1149,7 +1149,7 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys,
         ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
     }
-    if (EVP_PKEY_derive_set_peer(pctx, esnikeys->esni_server_pkey) <= 0 ) {
+    if (EVP_PKEY_derive_set_peer(pctx, esnikeys->esni_peer_pkey) <= 0 ) {
         ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
     }
@@ -1400,7 +1400,27 @@ unsigned char *SSL_ESNI_dec(SSL_ESNI *esni,
 				unsigned char *client_keyshare,
 				size_t *encservername_len)
 {
-	const unsigned char *stupid=(const unsigned char*) "feck";
+    EVP_PKEY_CTX *pctx=NULL;
+	if (!esni) {
+        ESNIerr(ESNI_F_DEC, ERR_R_INTERNAL_ERROR);
+        goto err;
+	}
+	if (!esni->the_esni) {
+        ESNIerr(ESNI_F_DEC, ERR_R_INTERNAL_ERROR);
+        goto err;
+	}
+	if (!client_random || !client_random_len) {
+        ESNIerr(ESNI_F_DEC, ERR_R_INTERNAL_ERROR);
+        goto err;
+	}
+	if (!client_keyshare || !client_keyshare_len) {
+        ESNIerr(ESNI_F_DEC, ERR_R_INTERNAL_ERROR);
+        goto err;
+	}
+	if (!encservername_len) {
+        ESNIerr(ESNI_F_DEC, ERR_R_INTERNAL_ERROR);
+        goto err;
+	}
 
 	/*
 	 * The plan
@@ -1412,7 +1432,66 @@ unsigned char *SSL_ESNI_dec(SSL_ESNI *esni,
 	 * - compare what we can after crypto
 	 * - try extract and return SNI
 	 */
-	return stupid;
+	CLIENT_ESNI *er=esni->the_esni;
+	/*
+	 * Check record_digest
+	 */
+	if (esni->rd_len!=er->record_digest_len) {
+        ESNIerr(ESNI_F_DEC, ERR_R_INTERNAL_ERROR);
+        goto err;
+	}
+	if (CRYPTO_memcmp(esni->rd,er->record_digest,er->record_digest_len)) {
+        ESNIerr(ESNI_F_DEC, ERR_R_INTERNAL_ERROR);
+        goto err;
+	}
+	if (SSL_CIPHER_get_id(er->ciphersuite)!=SSL_CIPHER_get_id(esni->ciphersuite)) {
+        ESNIerr(ESNI_F_DEC, ERR_R_INTERNAL_ERROR);
+        goto err;
+	}
+	/*
+	 * Ok, let's go for Z
+	 */
+
+    pctx = EVP_PKEY_CTX_new(esni->keyshare,NULL);
+    if (EVP_PKEY_derive_init(pctx) <= 0 ) {
+        ESNIerr(ESNI_F_DEC, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+	/* mao er.encoded_keyshare to esni.esni_peer_pkey */
+    esni->esni_peer_pkey=ssl_generate_param_group(curve_id);
+    if (esni->esni_peer_pkey==NULL) {
+        ESNIerr(ESNI_F_DEC, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+    if (!EVP_PKEY_set1_tls_encodedpoint(esni->esni_peer_pkey,
+                er->encoded_keyshare+6,er->encoded_keyshare_len-6)) {
+            ESNIerr(ESNI_F_DEC, ESNI_R_RR_DECODE_ERROR);
+            goto err;
+    }
+    if (EVP_PKEY_derive_set_peer(pctx, esni->esni_peer_pkey) <= 0 ) {
+        ESNIerr(ESNI_F_DEC, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+    if (EVP_PKEY_derive(pctx, NULL, &esni->Z_len) <= 0) {
+        ESNIerr(ESNI_F_DEC, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+    esni->Z=OPENSSL_malloc(esni->Z_len);
+    if (esni->Z == NULL) {
+        ESNIerr(ESNI_F_DEC, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+    if (EVP_PKEY_derive(pctx, esni->Z, &esni->Z_len) <= 0) {
+        ESNIerr(ESNI_F_DEC, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+
+    if (pctx!=NULL) EVP_PKEY_CTX_free(pctx);
+	printf("At end of SSL_ESNI_dec\n");
+	return NULL;
+err:
+    if (pctx!=NULL) EVP_PKEY_CTX_free(pctx);
+	return NULL;
 }
 
 int SSL_esni_checknames(const char *encservername, const char *covername)

@@ -44,6 +44,14 @@ Here's the [design doc](./design.md).
 
 Most recent first...
 
+- Got (re-)calculation of Z (DH shared) the same on my server, 
+  yay!
+
+- Added ``-P <esnikeysfile>`` option to ``testclient.sh`` so I 
+  can test locally (which I'd forgotten, but which nicely 
+  means I've now tested the client using the wrong ESNIKeys
+  with my server code:-)
+
 - Added (stub) version of ``SSL_ESNI_dec`` that should have all
   the right inputs, next up will be the checks/decrypt in the
   body of that function.

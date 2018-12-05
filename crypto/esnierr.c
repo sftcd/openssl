@@ -24,7 +24,8 @@
 static const ERR_STRING_DATA ESNI_str_functs[] = {
     {ERR_PACK(ERR_LIB_ESNI, ESNI_F_BASE64_DECODE, 0), "base64 decode"},
     {ERR_PACK(ERR_LIB_ESNI, ESNI_F_NEW_FROM_BASE64, 0), "read from RR"},
-    {ERR_PACK(ERR_LIB_ESNI, ESNI_F_ENC, 0), "encrypt SNI details"},
+    {ERR_PACK(ERR_LIB_ESNI, ESNI_F_ENC, 0), "encrypt ESNI details"},
+    {ERR_PACK(ERR_LIB_ESNI, ESNI_F_DEC, 0), "decrypt ESNI details"},
     {ERR_PACK(ERR_LIB_ESNI, ESNI_F_SERVER_ENABLE, 0), "server enable"},
     {0, NULL}
 };

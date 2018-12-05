@@ -134,7 +134,7 @@ typedef struct ssl_esni_st {
     uint16_t group_id;  ///< our chosen group e.g. X25519
     size_t esni_peer_keyshare_len;  
     unsigned char *esni_peer_keyshare; ///< the encoded peer's public value
-    EVP_PKEY *esni_server_pkey; ///< the server public as a key
+    EVP_PKEY *esni_peer_pkey; ///< the peer public as a key
     size_t padded_length; ///< from ESNIKeys
     uint64_t not_before; ///< from ESNIKeys (not currently used)
     uint64_t not_after; ///< from ESNIKeys (not currently used)

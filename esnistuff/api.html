@@ -63,6 +63,10 @@
 	<td> </td>
 </tr>
 <tr>
+	<td><code>define</code><a href="#esnierr_8h_1abfce120a6f075e1028bed584590a1c5d"><code>ESNI_F_DEC</code></a></td>
+	<td> </td>
+</tr>
+<tr>
 	<td><code>define</code><a href="#esnierr_8h_1a1c13aa91c93bd84f1f92101ddb9bc9eb"><code>ESNI_R_BASE64_DECODE_ERROR</code></a></td>
 	<td> </td>
 </tr>
@@ -132,7 +136,7 @@
 </tr>
 <tr>
 	<td><code>public unsigned char *</code><a href="#esni_8h_1ae4af2d2173a5c3b1513a1dcd04e2e940"><code>SSL_ESNI_dec</code></a><code>(</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>* esni,size_t client_random_len,unsigned char * client_random,uint16_t curve_id,size_t client_keyshare_len,unsigned char * client_keyshare,size_t * encservername_len)</code></td>
-	<td>Attempt/do the serveri-side decryption during a TLS handshake.</td>
+	<td>Attempt/do the server-side decryption during a TLS handshake.</td>
 </tr>
 <tr>
 	<td><code>public void</code><a href="#esni_8h_1a6d6ea1b22339efdc370e6cbf251b277d"><code>SSL_ESNI_free</code></a><code>(</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>* esnikeys)</code></td>
@@ -399,6 +403,10 @@
 
 <h4 id="defineesni_f_server_enableesnierr_8h_1acad1a58b5647c362ed60ff908c36d5f6"><code>define</code><a href="#esnierr_8h_1acad1a58b5647c362ed60ff908c36d5f6"><code>ESNI_F_SERVER_ENABLE</code></a></h4>
 
+<p id="esnierr_8h_1abfce120a6f075e1028bed584590a1c5d"><hr></p>
+
+<h4 id="defineesni_f_decesnierr_8h_1abfce120a6f075e1028bed584590a1c5d"><code>define</code><a href="#esnierr_8h_1abfce120a6f075e1028bed584590a1c5d"><code>ESNI_F_DEC</code></a></h4>
+
 <p id="esnierr_8h_1a1c13aa91c93bd84f1f92101ddb9bc9eb"><hr></p>
 
 <h4 id="defineesni_r_base64_decode_erroresnierr_8h_1a1c13aa91c93bd84f1f92101ddb9bc9eb"><code>define</code><a href="#esnierr_8h_1a1c13aa91c93bd84f1f92101ddb9bc9eb"><code>ESNI_R_BASE64_DECODE_ERROR</code></a></h4>
@@ -594,7 +602,28 @@
 
 <h4 id="publicunsignedcharssl_esni_decesni_8h_1ae4af2d2173a5c3b1513a1dcd04e2e940ssl_esniesni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7fesnisize_tclient_random_lenunsignedcharclient_randomuint16_tcurve_idsize_tclient_keyshare_lenunsignedcharclient_keysharesize_tencservername_len"><code>public unsigned char *</code><a href="#esni_8h_1ae4af2d2173a5c3b1513a1dcd04e2e940"><code>SSL_ESNI_dec</code></a><code>(</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>* esni,size_t client_random_len,unsigned char * client_random,uint16_t curve_id,size_t client_keyshare_len,unsigned char * client_keyshare,size_t * encservername_len)</code></h4>
 
-<p>Attempt/do the serveri-side decryption during a TLS handshake.</p>
+<p>Attempt/do the server-side decryption during a TLS handshake.</p>
+
+<p>This is the internal API called as part of the state machine dealing with this extension.</p>
+
+<p>Note that the decrypted server name is just a set of octets - there is no guarantee it's a DNS name or printable etc. (Same as with SNI generally.)</p>
+
+<h4 id="parameters">Parameters</h4>
+
+<ul>
+<li><p><code>esni</code> is the SSL_ESNI structure </p></li>
+<li><p><code>client_random_len</code> is the number of bytes of </p></li>
+<li><p><code>client_random</code> being the TLS h/s client random </p></li>
+<li><p><code>curve_id</code> is the curve_id of the client keyshare </p></li>
+<li><p><code>client_keyshare_len</code> is the number of bytes of </p></li>
+<li><p><code>client_keyshare</code> is the h/s client keyshare </p></li>
+</ul>
+
+<h4 id="returns">Returns</h4>
+
+<p>NULL for error, or the decrypted servername when it works</p>
+
+<p>Attempt/do the server-side decryption during a TLS handshake.</p>
 
 <p>This is the internal API called as part of the state machine dealing with this extension.</p>
 
@@ -1040,6 +1069,8 @@
 <h4 id="publicunsignedcharssl_esni_decesni_8c_1ae4af2d2173a5c3b1513a1dcd04e2e940ssl_esniesni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7fesnisize_tclient_random_lenunsignedcharclient_randomuint16_tcurve_idsize_tclient_keyshare_lenunsignedcharclient_keysharesize_tencservername_len"><code>public unsigned char *</code><a href="#esni_8c_1ae4af2d2173a5c3b1513a1dcd04e2e940"><code>SSL_ESNI_dec</code></a><code>(</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>* esni,size_t client_random_len,unsigned char * client_random,uint16_t curve_id,size_t client_keyshare_len,unsigned char * client_keyshare,size_t * encservername_len)</code></h4>
 
 <p>Attempt/do the serveri-side decryption during a TLS handshake.</p>
+
+<p>Attempt/do the server-side decryption during a TLS handshake.</p>
 
 <p>This is the internal API called as part of the state machine dealing with this extension.</p>
 
@@ -1598,8 +1629,8 @@
 	<td>the encoded peer's public value</td>
 </tr>
 <tr>
-	<td><code>public EVP_PKEY *</code><a href="#structssl__esni__st_1a10402a2307b7dd624e7b2984c78ad8d3"><code>esni_server_pkey</code></a></td>
-	<td>the server public as a key</td>
+	<td><code>public EVP_PKEY *</code><a href="#structssl__esni__st_1ae309319de3d8979b8f650567511b5db9"><code>esni_peer_pkey</code></a></td>
+	<td>the peer public as a key</td>
 </tr>
 <tr>
 	<td><code>public size_t</code><a href="#structssl__esni__st_1adf84b36cfa57d84629cac876c5330ba8"><code>padded_length</code></a></td>
@@ -1822,11 +1853,11 @@
 
 <p>the encoded peer's public value</p>
 
-<p id="structssl__esni__st_1a10402a2307b7dd624e7b2984c78ad8d3"><hr></p>
+<p id="structssl__esni__st_1ae309319de3d8979b8f650567511b5db9"><hr></p>
 
-<h4 id="publicevp_pkeyesni_server_pkeystructssl__esni__st_1a10402a2307b7dd624e7b2984c78ad8d3"><code>public EVP_PKEY *</code><a href="#structssl__esni__st_1a10402a2307b7dd624e7b2984c78ad8d3"><code>esni_server_pkey</code></a></h4>
+<h4 id="publicevp_pkeyesni_peer_pkeystructssl__esni__st_1ae309319de3d8979b8f650567511b5db9"><code>public EVP_PKEY *</code><a href="#structssl__esni__st_1ae309319de3d8979b8f650567511b5db9"><code>esni_peer_pkey</code></a></h4>
 
-<p>the server public as a key</p>
+<p>the peer public as a key</p>
 
 <p id="structssl__esni__st_1adf84b36cfa57d84629cac876c5330ba8"><hr></p>
 
