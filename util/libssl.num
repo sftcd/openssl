@@ -510,4 +510,5 @@ SSL_get_esni_status                     510	1_1_11a	EXIST::FUNCTION:
 SSL_esni_server_enable                  511	1_1_11a	EXIST::FUNCTION:
 SSL_ESNI_get_esni_ctx                   512	1_1_11a	EXIST::FUNCTION:
 SSL_set_esni_callback_ctx               513	1_1_11a	EXIST::FUNCTION:
+SSL_ESNI_dec                            514	1_1_1a	EXIST::FUNCTION:
 

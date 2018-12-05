@@ -244,17 +244,18 @@ int SSL_esni_enable(SSL *s, const char *hidden, const char *cover, SSL_ESNI *esn
 int SSL_esni_server_enable(SSL_CTX *s, const char *esnikeyfile, const char *esnipubfile);
 
 /**
- * Do the client-side SNI encryption during a TLS handshake
+ * @brief Do the client-side SNI encryption during a TLS handshake
  *
  * This is an internal API called as part of the state machine
  * dealing with this extension.
  *
  * @param esnikeys is the SSL_ESNI structure
  * @param client_random_len is the number of bytes of
- * @client_random being the TLS h/s client random
+ * @param client_random being the TLS h/s client random
  * @param curve_id is the curve_id of the client keyshare
  * @param client_keyshare_len is the number of bytes of
  * @param client_keyshare is the h/s client keyshare
+ * @return 1 for success, other otherwise
  */
 int SSL_ESNI_enc(SSL_ESNI *esnikeys, 
                 size_t  client_random_len,
@@ -263,6 +264,32 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys,
                 size_t  client_keyshare_len,
                 unsigned char *client_keyshare,
                 CLIENT_ESNI **the_esni);
+
+/**
+ * @brief Attempt/do the server-side decryption during a TLS handshake
+ *
+ * This is the internal API called as part of the state machine
+ * dealing with this extension.
+ * 
+ * Note that the decrypted server name is just a set of octets - there
+ * is no guarantee it's a DNS name or printable etc. (Same as with
+ * SNI generally.)
+ *
+ * @param esni is the SSL_ESNI structure
+ * @param client_random_len is the number of bytes of
+ * @param client_random being the TLS h/s client random
+ * @param curve_id is the curve_id of the client keyshare
+ * @param client_keyshare_len is the number of bytes of
+ * @param client_keyshare is the h/s client keyshare
+ * @return NULL for error, or the decrypted servername when it works
+ */
+unsigned char *SSL_ESNI_dec(SSL_ESNI *esni,
+				size_t	client_random_len,
+				unsigned char *client_random,
+				uint16_t curve_id,
+				size_t	client_keyshare_len,
+				unsigned char *client_keyshare,
+				size_t *encservername_len);
 
 /**
  * Memory management - free an SSL_ESNI

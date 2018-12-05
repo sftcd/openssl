@@ -131,6 +131,10 @@
 	<td>Do the client-side SNI encryption during a TLS handshake.</td>
 </tr>
 <tr>
+	<td><code>public unsigned char *</code><a href="#esni_8h_1ae4af2d2173a5c3b1513a1dcd04e2e940"><code>SSL_ESNI_dec</code></a><code>(</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>* esni,size_t client_random_len,unsigned char * client_random,uint16_t curve_id,size_t client_keyshare_len,unsigned char * client_keyshare,size_t * encservername_len)</code></td>
+	<td>Attempt/do the serveri-side decryption during a TLS handshake.</td>
+</tr>
+<tr>
 	<td><code>public void</code><a href="#esni_8h_1a6d6ea1b22339efdc370e6cbf251b277d"><code>SSL_ESNI_free</code></a><code>(</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>* esnikeys)</code></td>
 	<td>Memory management - free an SSL_ESNI.</td>
 </tr>
@@ -239,6 +243,10 @@
 	<td>Do the client-side SNI encryption during a TLS handshake.</td>
 </tr>
 <tr>
+	<td><code>public unsigned char *</code><a href="#esni_8c_1ae4af2d2173a5c3b1513a1dcd04e2e940"><code>SSL_ESNI_dec</code></a><code>(</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>* esni,size_t client_random_len,unsigned char * client_random,uint16_t curve_id,size_t client_keyshare_len,unsigned char * client_keyshare,size_t * encservername_len)</code></td>
+	<td>Attempt/do the serveri-side decryption during a TLS handshake.</td>
+</tr>
+<tr>
 	<td><code>public int</code><a href="#esni_8c_1a55aedc0e921fd36dcc3327124f07da10"><code>SSL_esni_checknames</code></a><code>(const char * encservername,const char * covername)</code></td>
 	<td>Make a basic check of names from CLI or API.</td>
 </tr>
@@ -300,7 +308,7 @@
 </tr>
 <tr>
 	<td><code>public int</code><a href="#extensions__srvr_8c_1a4a75b5940e39e1b5da10aefc8ed0ac69"><code>tls_parse_ctos_esni</code></a><code>(SSL * s,PACKET * pkt,unsigned int context,X509 * x,size_t chainidx)</code></td>
-	<td>Just a stub for now, 'till we do the server side.</td>
+	<td>Decodes inbound ESNI extension into SSL_ESNI structure.</td>
 </tr>
 <tr>
 	<td><code>public EXT_RETURN</code><a href="#extensions__srvr_8c_1ae56ce4660abc014b273c5f743bc3eb63"><code>tls_construct_stoc_esni</code></a><code>(SSL * s,WPACKET * pkt,unsigned int context,X509 * x,size_t chainidx)</code></td>
@@ -571,11 +579,41 @@
 
 <ul>
 <li><p><code>esnikeys</code> is the SSL_ESNI structure </p></li>
-<li><p><code>client_random_len</code> is the number of bytes of  being the TLS h/s client random </p></li>
+<li><p><code>client_random_len</code> is the number of bytes of </p></li>
+<li><p><code>client_random</code> being the TLS h/s client random </p></li>
 <li><p><code>curve_id</code> is the curve_id of the client keyshare </p></li>
 <li><p><code>client_keyshare_len</code> is the number of bytes of </p></li>
-<li><p><code>client_keyshare</code> is the h/s client keyshare</p></li>
+<li><p><code>client_keyshare</code> is the h/s client keyshare </p></li>
 </ul>
+
+<h4 id="returns">Returns</h4>
+
+<p>1 for success, other otherwise</p>
+
+<p id="esni_8h_1ae4af2d2173a5c3b1513a1dcd04e2e940"><hr></p>
+
+<h4 id="publicunsignedcharssl_esni_decesni_8h_1ae4af2d2173a5c3b1513a1dcd04e2e940ssl_esniesni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7fesnisize_tclient_random_lenunsignedcharclient_randomuint16_tcurve_idsize_tclient_keyshare_lenunsignedcharclient_keysharesize_tencservername_len"><code>public unsigned char *</code><a href="#esni_8h_1ae4af2d2173a5c3b1513a1dcd04e2e940"><code>SSL_ESNI_dec</code></a><code>(</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>* esni,size_t client_random_len,unsigned char * client_random,uint16_t curve_id,size_t client_keyshare_len,unsigned char * client_keyshare,size_t * encservername_len)</code></h4>
+
+<p>Attempt/do the serveri-side decryption during a TLS handshake.</p>
+
+<p>This is the internal API called as part of the state machine dealing with this extension.</p>
+
+<p>Note that the decrypted server name is just a set of octets - there is no guarantee it's a DNS name or printable etc. (Same as with SNI generally.)</p>
+
+<h4 id="parameters">Parameters</h4>
+
+<ul>
+<li><p><code>esni</code> is the SSL_ESNI structure </p></li>
+<li><p><code>client_random_len</code> is the number of bytes of </p></li>
+<li><p><code>client_random</code> being the TLS h/s client random </p></li>
+<li><p><code>curve_id</code> is the curve_id of the client keyshare </p></li>
+<li><p><code>client_keyshare_len</code> is the number of bytes of </p></li>
+<li><p><code>client_keyshare</code> is the h/s client keyshare </p></li>
+</ul>
+
+<h4 id="returns">Returns</h4>
+
+<p>NULL for error, or the decrypted servername when it works</p>
 
 <p id="esni_8h_1a6d6ea1b22339efdc370e6cbf251b277d"><hr></p>
 
@@ -986,11 +1024,41 @@
 
 <ul>
 <li><p><code>esnikeys</code> is the SSL_ESNI structure </p></li>
-<li><p><code>client_random_len</code> is the number of bytes of  being the TLS h/s client random </p></li>
+<li><p><code>client_random_len</code> is the number of bytes of </p></li>
+<li><p><code>client_random</code> being the TLS h/s client random </p></li>
 <li><p><code>curve_id</code> is the curve_id of the client keyshare </p></li>
 <li><p><code>client_keyshare_len</code> is the number of bytes of </p></li>
-<li><p><code>client_keyshare</code> is the h/s client keyshare</p></li>
+<li><p><code>client_keyshare</code> is the h/s client keyshare </p></li>
 </ul>
+
+<h4 id="returns">Returns</h4>
+
+<p>1 for success, other otherwise</p>
+
+<p id="esni_8c_1ae4af2d2173a5c3b1513a1dcd04e2e940"><hr></p>
+
+<h4 id="publicunsignedcharssl_esni_decesni_8c_1ae4af2d2173a5c3b1513a1dcd04e2e940ssl_esniesni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7fesnisize_tclient_random_lenunsignedcharclient_randomuint16_tcurve_idsize_tclient_keyshare_lenunsignedcharclient_keysharesize_tencservername_len"><code>public unsigned char *</code><a href="#esni_8c_1ae4af2d2173a5c3b1513a1dcd04e2e940"><code>SSL_ESNI_dec</code></a><code>(</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>* esni,size_t client_random_len,unsigned char * client_random,uint16_t curve_id,size_t client_keyshare_len,unsigned char * client_keyshare,size_t * encservername_len)</code></h4>
+
+<p>Attempt/do the serveri-side decryption during a TLS handshake.</p>
+
+<p>This is the internal API called as part of the state machine dealing with this extension.</p>
+
+<p>Note that the decrypted server name is just a set of octets - there is no guarantee it's a DNS name or printable etc. (Same as with SNI generally.)</p>
+
+<h4 id="parameters">Parameters</h4>
+
+<ul>
+<li><p><code>esni</code> is the SSL_ESNI structure </p></li>
+<li><p><code>client_random_len</code> is the number of bytes of </p></li>
+<li><p><code>client_random</code> being the TLS h/s client random </p></li>
+<li><p><code>curve_id</code> is the curve_id of the client keyshare </p></li>
+<li><p><code>client_keyshare_len</code> is the number of bytes of </p></li>
+<li><p><code>client_keyshare</code> is the h/s client keyshare </p></li>
+</ul>
+
+<h4 id="returns">Returns</h4>
+
+<p>NULL for error, or the decrypted servername when it works</p>
 
 <p id="esni_8c_1a55aedc0e921fd36dcc3327124f07da10"><hr></p>
 
@@ -1199,7 +1267,21 @@
 
 <h4 id="publicinttls_parse_ctos_esniextensions__srvr_8c_1a4a75b5940e39e1b5da10aefc8ed0ac69sslspacketpktunsignedintcontextx509xsize_tchainidx"><code>public int</code><a href="#extensions__srvr_8c_1a4a75b5940e39e1b5da10aefc8ed0ac69"><code>tls_parse_ctos_esni</code></a><code>(SSL * s,PACKET * pkt,unsigned int context,X509 * x,size_t chainidx)</code></h4>
 
-<p>Just a stub for now, 'till we do the server side.</p>
+<p>Decodes inbound ESNI extension into SSL_ESNI structure.</p>
+
+<p>The ESNI stuff:</p>
+
+<pre><code>struct {
+   CipherSuite suite; from c-&gt;ciphersuite (SSL_CIPHER)
+   KeyShareEntry key_share; from c-&gt;encoded_keshare (buffer)
+   opaque record_digest&lt;0..2^16-1&gt;; from c-&gt;record_digest (buffer)
+   opaque encrypted_sni&lt;0..2^16-1&gt;; from c-&gt;encrypted_sni (buffer)
+} ClientEncryptedSNI;
+</code></pre>
+
+<blockquote>
+  <p>Todo: TODO: add the crypto bits</p>
+</blockquote>
 
 <p id="extensions__srvr_8c_1ae56ce4660abc014b273c5f743bc3eb63"><hr></p>
 
