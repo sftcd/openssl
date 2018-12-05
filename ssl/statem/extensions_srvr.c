@@ -1966,6 +1966,27 @@ EXT_RETURN tls_construct_stoc_psk(SSL *s, WPACKET *pkt, unsigned int context,
 int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
                                X509 *x, size_t chainidx)
 {
+	printf("Feck me, an ESNI!\n");
+	if (s->esni!=NULL) {
+		printf("s->esni isn't NULL\n");
+	} else {
+		printf("s->esni is NULL\n");
+	}
+	BIO *bio=NULL;
+	BIO_set_fp(bio,stdout,BIO_NOCLOSE);
+	SSL_ESNI_print(bio,s->esni);
+	BIO_free(bio);
+
+    /*
+     * Now read the ESNI stuff 
+     * struct {
+     *    CipherSuite suite; from c->ciphersuite (SSL_CIPHER)
+     *    KeyShareEntry key_share; from c->encoded_keshare (buffer)
+     *    opaque record_digest<0..2^16-1>; from c->record_digest (buffer)
+     *    opaque encrypted_sni<0..2^16-1>; from c->encrypted_sni (buffer)
+     * } ClientEncryptedSNI;
+     */
+
 	return 1;
 }
 

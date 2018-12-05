@@ -9,7 +9,7 @@ thelot:
 	- make esni
 	- make test
 	- make doc	
-	- ./testit.sh -H ietf.org
+	- ./testclient.sh -H ietf.org
 
 libssl.a: ../libssl.a
 	cp ../libssl.a .
