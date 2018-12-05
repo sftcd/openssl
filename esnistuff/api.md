@@ -15,6 +15,7 @@
 `define `[`ESNI_F_ENC`](#esnierr_8h_1a5e1e464c2d05b71de95e455a341f477f)            | 
 `define `[`ESNI_F_CHECKSUM_CHECK`](#esnierr_8h_1ac8cec6cf839fa6b361bc6f9abc001201)            | 
 `define `[`ESNI_F_SERVER_ENABLE`](#esnierr_8h_1acad1a58b5647c362ed60ff908c36d5f6)            | 
+`define `[`ESNI_F_DEC`](#esnierr_8h_1abfce120a6f075e1028bed584590a1c5d)            | 
 `define `[`ESNI_R_BASE64_DECODE_ERROR`](#esnierr_8h_1a1c13aa91c93bd84f1f92101ddb9bc9eb)            | 
 `define `[`ESNI_R_RR_DECODE_ERROR`](#esnierr_8h_1acc748e3e2af6dc12fead035b479c221f)            | 
 `define `[`ESNI_R_NOT_IMPL`](#esnierr_8h_1aeb72e4451595e51885c8192c3c06e870)            | 
@@ -32,7 +33,7 @@
 `public int `[`SSL_esni_enable`](#esni_8h_1a0ca4d48103270d6779cb2f6a608ba52a)`(SSL * s,const char * hidden,const char * cover,`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * esni,int require_hidden_match)`            | Turn on SNI encryption for an (upcoming) TLS session.
 `public int `[`SSL_esni_server_enable`](#esni_8h_1a0589fa7d65bf2263c361258876e0e67a)`(SSL_CTX * s,const char * esnikeyfile,const char * esnipubfile)`            | Turn on SNI Encryption, server-side.
 `public int `[`SSL_ESNI_enc`](#esni_8h_1a1059808bc7c121128c470de41e2dc304)`(`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * esnikeys,size_t client_random_len,unsigned char * client_random,uint16_t curve_id,size_t client_keyshare_len,unsigned char * client_keyshare,`[`CLIENT_ESNI`](#esni_8h_1add3c7579c9f0d7bd5959b37f9c017461)` ** the_esni)`            | Do the client-side SNI encryption during a TLS handshake.
-`public unsigned char * `[`SSL_ESNI_dec`](#esni_8h_1ae4af2d2173a5c3b1513a1dcd04e2e940)`(`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * esni,size_t client_random_len,unsigned char * client_random,uint16_t curve_id,size_t client_keyshare_len,unsigned char * client_keyshare,size_t * encservername_len)`            | Attempt/do the serveri-side decryption during a TLS handshake.
+`public unsigned char * `[`SSL_ESNI_dec`](#esni_8h_1ae4af2d2173a5c3b1513a1dcd04e2e940)`(`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * esni,size_t client_random_len,unsigned char * client_random,uint16_t curve_id,size_t client_keyshare_len,unsigned char * client_keyshare,size_t * encservername_len)`            | Attempt/do the server-side decryption during a TLS handshake.
 `public void `[`SSL_ESNI_free`](#esni_8h_1a6d6ea1b22339efdc370e6cbf251b277d)`(`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * esnikeys)`            | Memory management - free an SSL_ESNI.
 `public void `[`CLIENT_ESNI_free`](#esni_8h_1a1a84158d3b21a24a5db6bac434a718dc)`(`[`CLIENT_ESNI`](#esni_8h_1add3c7579c9f0d7bd5959b37f9c017461)` * c)`            | Memory management - free a CLIENT_ESNI.
 `public int `[`SSL_ESNI_get_esni`](#esni_8h_1ac214a7933d6e5fa9e2be5218b9537a63)`(SSL * s,`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` ** esni)`            | Debugging - print an SSL_ESNI structure note - can include sensitive values!
@@ -151,6 +152,10 @@ ESNI succeeded but the TLS server cert used didn't match the hidden service name
 <p id="esnierr_8h_1acad1a58b5647c362ed60ff908c36d5f6"><hr></p>
 
 #### `define `[`ESNI_F_SERVER_ENABLE`](#esnierr_8h_1acad1a58b5647c362ed60ff908c36d5f6) 
+
+<p id="esnierr_8h_1abfce120a6f075e1028bed584590a1c5d"><hr></p>
+
+#### `define `[`ESNI_F_DEC`](#esnierr_8h_1abfce120a6f075e1028bed584590a1c5d) 
 
 <p id="esnierr_8h_1a1c13aa91c93bd84f1f92101ddb9bc9eb"><hr></p>
 
@@ -328,7 +333,29 @@ This is an internal API called as part of the state machine dealing with this ex
 
 #### `public unsigned char * `[`SSL_ESNI_dec`](#esni_8h_1ae4af2d2173a5c3b1513a1dcd04e2e940)`(`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * esni,size_t client_random_len,unsigned char * client_random,uint16_t curve_id,size_t client_keyshare_len,unsigned char * client_keyshare,size_t * encservername_len)` 
 
-Attempt/do the serveri-side decryption during a TLS handshake.
+Attempt/do the server-side decryption during a TLS handshake.
+
+This is the internal API called as part of the state machine dealing with this extension.
+
+Note that the decrypted server name is just a set of octets - there is no guarantee it's a DNS name or printable etc. (Same as with SNI generally.)
+
+#### Parameters
+* `esni` is the SSL_ESNI structure 
+
+* `client_random_len` is the number of bytes of 
+
+* `client_random` being the TLS h/s client random 
+
+* `curve_id` is the curve_id of the client keyshare 
+
+* `client_keyshare_len` is the number of bytes of 
+
+* `client_keyshare` is the h/s client keyshare 
+
+#### Returns
+NULL for error, or the decrypted servername when it works
+
+Attempt/do the server-side decryption during a TLS handshake.
 
 This is the internal API called as part of the state machine dealing with this extension.
 
@@ -718,6 +745,8 @@ This is an internal API called as part of the state machine dealing with this ex
 #### `public unsigned char * `[`SSL_ESNI_dec`](#esni_8c_1ae4af2d2173a5c3b1513a1dcd04e2e940)`(`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * esni,size_t client_random_len,unsigned char * client_random,uint16_t curve_id,size_t client_keyshare_len,unsigned char * client_keyshare,size_t * encservername_len)` 
 
 Attempt/do the serveri-side decryption during a TLS handshake.
+
+Attempt/do the server-side decryption during a TLS handshake.
 
 This is the internal API called as part of the state machine dealing with this extension.
 
@@ -1126,7 +1155,7 @@ The ESNI data structure that's part of the SSL structure.
 `public uint16_t `[`group_id`](#structssl__esni__st_1ac47e519775c29bd9129eba95cbed25f9) | our chosen group e.g. X25519
 `public size_t `[`esni_peer_keyshare_len`](#structssl__esni__st_1a45018bd6c55f58e594463ce17e6e96bb) | 
 `public unsigned char * `[`esni_peer_keyshare`](#structssl__esni__st_1a45058e28bb36447e277246e7d382e8cd) | the encoded peer's public value
-`public EVP_PKEY * `[`esni_server_pkey`](#structssl__esni__st_1a10402a2307b7dd624e7b2984c78ad8d3) | the server public as a key
+`public EVP_PKEY * `[`esni_peer_pkey`](#structssl__esni__st_1ae309319de3d8979b8f650567511b5db9) | the peer public as a key
 `public size_t `[`padded_length`](#structssl__esni__st_1adf84b36cfa57d84629cac876c5330ba8) | from ESNIKeys
 `public uint64_t `[`not_before`](#structssl__esni__st_1a4cb0d34f50b80a38964af87c544f7ce9) | from ESNIKeys (not currently used)
 `public uint64_t `[`not_after`](#structssl__esni__st_1ac6d2a892f59c287cc6ee7aa35f23c593) | from ESNIKeys (not currently used)
@@ -1229,11 +1258,11 @@ our chosen group e.g. X25519
 
 the encoded peer's public value
 
-<p id="structssl__esni__st_1a10402a2307b7dd624e7b2984c78ad8d3"><hr></p>
+<p id="structssl__esni__st_1ae309319de3d8979b8f650567511b5db9"><hr></p>
 
-#### `public EVP_PKEY * `[`esni_server_pkey`](#structssl__esni__st_1a10402a2307b7dd624e7b2984c78ad8d3) 
+#### `public EVP_PKEY * `[`esni_peer_pkey`](#structssl__esni__st_1ae309319de3d8979b8f650567511b5db9) 
 
-the server public as a key
+the peer public as a key
 
 <p id="structssl__esni__st_1adf84b36cfa57d84629cac876c5330ba8"><hr></p>
 

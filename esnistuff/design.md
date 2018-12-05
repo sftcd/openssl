@@ -120,22 +120,23 @@ We'll describe those in reverse order, and then consider [testing](#testing).
 
 The ``usage()`` function for the [testclient.sh](https://gitbub.com/sftcd/openssl/esnistuff/testit.sh) 
 produces this:
-
+			
 			$ ./testclient.sh -h
-			Running ./testclient.sh at 20181128-125116
-			./testclient.sh [-cHpsdnlvh] - try out encrypted SNI via openssl s_client
+			Running ./testclient.sh at 20181205-224220
+			./testclient.sh [-cHPpsdnlvh] - try out encrypted SNI via openssl s_client
+			  -c [name] specifices a covername that I'll send as a clear SNI (NONE is special)
 			  -H means try connect to that hidden server
+			  -P [filename] means read ESNIKeys public value from file and not DNS
+			  -s [name] specifices a server to which I'll connect
+			  -p [port] specifices a port (default: 443)
 			  -d means run s_client in verbose mode
 			  -v means run with valgrind
 			  -l means use stale ESNIKeys
 			  -n means don't trigger esni at all
-			  -s [name] specifices a server to which I'll connect
-			  -c [name] specifices a covername that I'll send as a clear SNI (NONE is special)
-			  -p [port] specifices a port (default: 442)
 			  -h means print this
-
+			
 			The following should work:
-    		./testclient.sh -c www.cloudflare.com -s NONE -H www.ietf.org
+			    ./testclient.sh -c www.cloudflare.com -s NONE -H www.ietf.org
 
 The only really interesting concept embodied there is the idea of the
 HIDDEN (e.g. www.ietf.org) service, the COVER (e.g. www.cloudflare.com) service 
@@ -204,6 +205,15 @@ which just tests the ESNI APIs directly. That should become some kind of unit te
 build, and needs error cases added.
 
 ### Server-side 
+
+Some open questions:
+
+- Handling of >1 ESNIKeys: I guess we ought consider loading >1 ESNIKeys structure
+  (and private key) as a TODO
+- Policy: should server have a concept of "only visible via ESNI"? E.g. some server
+  certs might only ever be used when asked-for via ESNI.
+- Policy: Various combinations of existing/non-existing SNI/ESNI and how to handle
+  'em.
 
 #### Generating ESNIKeys
 
