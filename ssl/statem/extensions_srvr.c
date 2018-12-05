@@ -1961,7 +1961,20 @@ EXT_RETURN tls_construct_stoc_psk(SSL *s, WPACKET *pkt, unsigned int context,
 // ESNI_DOXY_START
 #ifndef OPENSSL_NO_ESNI
 /**
- * @brief Just a stub for now, 'till we do the server side.
+ * @brief Decodes inbound ESNI extension into SSL_ESNI structure
+ *
+ * The ESNI stuff:
+ *
+ * <pre>
+ *     struct {
+ *        CipherSuite suite; from c->ciphersuite (SSL_CIPHER)
+ *        KeyShareEntry key_share; from c->encoded_keshare (buffer)
+ *        opaque record_digest<0..2^16-1>; from c->record_digest (buffer)
+ *        opaque encrypted_sni<0..2^16-1>; from c->encrypted_sni (buffer)
+ *     } ClientEncryptedSNI;
+ * </pre>
+ * 
+ * @todo TODO: add the crypto bits
  */
 int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
                                X509 *x, size_t chainidx)
@@ -1970,16 +1983,8 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
 		return 1;
 	}
 
-    /*
-     * Now read the ESNI stuff 
-     * struct {
-     *    CipherSuite suite; from c->ciphersuite (SSL_CIPHER)
-     *    KeyShareEntry key_share; from c->encoded_keshare (buffer)
-     *    opaque record_digest<0..2^16-1>; from c->record_digest (buffer)
-     *    opaque encrypted_sni<0..2^16-1>; from c->encrypted_sni (buffer)
-     * } ClientEncryptedSNI;
-     */
 	CLIENT_ESNI *ce=NULL;
+    unsigned char *ks=NULL;
 
 	ce=OPENSSL_malloc(sizeof(CLIENT_ESNI));
 	if (ce==NULL) {
@@ -2115,6 +2120,40 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
 
 	s->esni->the_esni=ce; 
 
+	/*
+	 * We need the TLS h/s CH.random and key_share to do the 
+	 * decryption.
+	 */
+    unsigned char rd[1024];
+    size_t rd_len=SSL_get_client_random(s,rd,1024);
+    size_t ks_len=0;
+    if (s->s3->tmp.pkey != NULL) {
+        /* Encode the public key. */
+        ks_len = EVP_PKEY_get1_tls_encodedpoint(s->s3->tmp.pkey, &ks);
+        if (ks_len == 0) {
+			SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ESNI,
+		 	SSL_R_BAD_EXTENSION);
+			goto err;
+        }
+    } else {
+        /* 
+         * fail, bummer
+         */
+		SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ESNI,
+	 	SSL_R_BAD_EXTENSION);
+		goto err;
+    }
+    uint16_t curve_id = s->s3->group_id;
+	unsigned char *encservername=NULL;
+	size_t encservername_len=0;
+    encservername=SSL_ESNI_dec(s->esni,rd_len,rd,curve_id,ks_len,ks,&encservername_len);
+	if (encservername==NULL) {
+		SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ESNI,
+	 	SSL_R_BAD_EXTENSION);
+		goto err;
+    }
+    OPENSSL_free(ks);
+
 	// !s->method->get_cipher_by_char(ce->ciphersuite, pkt, &len)
 
     if (s->esni_cb != NULL) {
@@ -2128,10 +2167,12 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
 
 err:
 	// @todo TODO: more tidy up needed within ce for ciphersuite
+	if (ks) OPENSSL_free(ks);
 	if (ce->encoded_keyshare) OPENSSL_free(ce->encoded_keyshare);
 	if (ce->record_digest) OPENSSL_free(ce->record_digest);
 	if (ce->encrypted_sni) OPENSSL_free(ce->encrypted_sni);
 	OPENSSL_free(ce);
+	s->esni->the_esni=NULL;
 	return 0;
 }
 

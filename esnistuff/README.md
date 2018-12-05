@@ -16,23 +16,24 @@ This builds ok on both 64 and 32 bit Ubuntus and (nominally) doesn't leak
 according to valgrind. It works e.g. when talking to www.cloudflare.com
 with e.g. ietf.org as the value inside the encrypted SNI.
 
-- [testit.sh](./testit.sh) calls that via a locally modified ``openssl s_client``.. 
+- [testclient.sh](./testclient.sh) calls that via a locally modified ``openssl s_client``.. 
 - There's an [esnimain.c](./esnimain.c) that can be run locally that 
   just prints out the ESNI calculation values.
 - [nssdoit.sh](./nssdoit.sh) is a script for doing the same with an NSS
   build - I made such a build and am using it help me develop my code
 
-In terms of integrating with openssl, I've added most of the client-side
-code for a basic use of ``s_client``, but nothing on the server-side yet
-and haven't done any significant testing.
+In terms of integrating with openssl, we've added client-side
+code for basic use of ``s_client``, but the server-side code is
+just being done now 
+and we haven't done any significant testing.
 
-Here's the beginnings of a [design doc](./design.md).
+Here's the [design doc](./design.md).
 
 # Random notes
 
 - Surprisingly (for me:-) this works: 
 
-			$ ./testit.sh -H ietf.org -c toolongtobeadomainnamesystemlabelifikeepadding00000000000000000000000000000000000
+			$ ./testclient.sh -H ietf.org -c toolongtobeadomainnamesystemlabelifikeepadding00000000000000000000000000000000000
 
 	i.e., connecting to www.cloudflare.com with an SNI they don't serve and
  	an ESNI that they do... is fine. The SNI value doesn't have to be a real or even
@@ -42,6 +43,10 @@ Here's the beginnings of a [design doc](./design.md).
 # State-of-play...
 
 Most recent first...
+
+- Added (stub) version of ``SSL_ESNI_dec`` that should have all
+  the right inputs, next up will be the checks/decrypt in the
+  body of that function.
 
 - ``tls_parse_ctos_esni``: done with parsing, no crypto yet, lots
   of code tidying needed and TODOs
