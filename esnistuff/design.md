@@ -70,7 +70,7 @@ you somehow otherwise trust your connection to your recursive resolver.
 ## Design/Implementation Notes
 
 - Our implementation so far is just a client-side proof-of-concept.
-There is no server-side code at all (other than a couple of stubs).
+Server-side code is not yet complete, but is started.
 - We don't do any DNS queries from within the OpenSSL library. We just take the
   required inputs and run the protocol.
 - ``s_client`` currently tells the OpenSSL library to check if the TLS server cert matches the
@@ -95,7 +95,6 @@ project, but should be helpful for now.
 
 ## Plans
 
-- We do plan to add a server-side implementation
 - We may try integrate the server-side with some web server (apache/nginx)
 - We may try integrate the client-side with some web client application such
   as wget or curl.
@@ -313,6 +312,32 @@ includes the following prototypes:
 			                unsigned char *client_keyshare,
 			                CLIENT_ESNI **the_esni);
 			
+			/**
+			 * @brief Attempt/do the server-side decryption during a TLS handshake
+			 *
+			 * This is the internal API called as part of the state machine
+			 * dealing with this extension.
+			 * 
+			 * Note that the decrypted server name is just a set of octets - there
+			 * is no guarantee it's a DNS name or printable etc. (Same as with
+			 * SNI generally.)
+			 *
+			 * @param esni is the SSL_ESNI structure
+			 * @param client_random_len is the number of bytes of
+			 * @param client_random being the TLS h/s client random
+			 * @param curve_id is the curve_id of the client keyshare
+			 * @param client_keyshare_len is the number of bytes of
+			 * @param client_keyshare is the h/s client keyshare
+			 * @return NULL for error, or the decrypted servername when it works
+			 */
+			unsigned char *SSL_ESNI_dec(SSL_ESNI *esni,
+							size_t	client_random_len,
+							unsigned char *client_random,
+							uint16_t curve_id,
+							size_t	client_keyshare_len,
+							unsigned char *client_keyshare,
+							size_t *encservername_len);
+			
 			/*
 			 * Memory management
 			 */
@@ -382,17 +407,26 @@ out (using the [NOESNI_filter.sh](./NOESNI_filter.sh)) script. Basically
 such blocks start with ```// ESNI_DOXY_START``` and
 end with ```// ESNI_DOXY_END```.
 
+#### Client-side
+
 The main extension handling function is [tls_construct_ctos_esni](./api.md#extensions__clnt_8c_1afca936de2d3ae315b5e8b8b200d17462)
-which uses the above APIs to generate the extension value and puts that in the ClientHello. 
+which uses the above APIs (most substantively ``SSL_ESNI_enc``) to generate the extension value and puts that in the ClientHello. 
+
 The [tls_parse_ctos_esni](./api.md#extensions__clnt_8c_1ac388d56d20b4d3b507e56203f1c08303)
 function is rather simple and just checks that the EncryptedExtensions contains the right
 nonce that was sent (encrypted) in the ESNI.
+
 We do also have to tweak the (cleartext) SNI extension handling too to make
 sure we don't send the same value encrypted and in clear. That's done using
 the [esni_server_name_fixup](./api.md#extensions__clnt_8c_1a2454a14e823689509154ca3bfb4cdaea)
 function.
 
-On the server-side, we've added inbound ESNI parsing to ``tls_parse_ctos_esni``.
+#### Server-side
+
+On the server-side, the main extension handling function is
+``tls_parse_ctos_esni``.
+That parses out the octets received into an ``SSL_ESNI`` structure and then
+calls ``SSL_ESNI_dec`` (which is just being written now).
 
 ### ``SSL/SSL_CTX`` structure handlng
 

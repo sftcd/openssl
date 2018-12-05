@@ -1374,6 +1374,47 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys,
     return ret;
 }
 
+/**
+ * @brief Attempt/do the serveri-side decryption during a TLS handshake
+ *
+ * This is the internal API called as part of the state machine
+ * dealing with this extension.
+ * 
+ * Note that the decrypted server name is just a set of octets - there
+ * is no guarantee it's a DNS name or printable etc. (Same as with
+ * SNI generally.)
+ *
+ * @param esni is the SSL_ESNI structure
+ * @param client_random_len is the number of bytes of
+ * @param client_random being the TLS h/s client random
+ * @param curve_id is the curve_id of the client keyshare
+ * @param client_keyshare_len is the number of bytes of
+ * @param client_keyshare is the h/s client keyshare
+ * @return NULL for error, or the decrypted servername when it works
+ */
+unsigned char *SSL_ESNI_dec(SSL_ESNI *esni,
+				size_t	client_random_len,
+				unsigned char *client_random,
+				uint16_t curve_id,
+				size_t	client_keyshare_len,
+				unsigned char *client_keyshare,
+				size_t *encservername_len)
+{
+	const unsigned char *stupid=(const unsigned char*) "feck";
+
+	/*
+	 * The plan
+	 * - check what we can before doing crypto
+	 *   	- record_digest esni vs. ESNIKeys
+	 *   	- ciphersuite/curve IDs
+	 * - do key derivation
+	 * - try decrypt
+	 * - compare what we can after crypto
+	 * - try extract and return SNI
+	 */
+	return stupid;
+}
+
 int SSL_esni_checknames(const char *encservername, const char *covername)
 {
     int elen=0;
