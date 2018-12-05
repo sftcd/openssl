@@ -749,6 +749,15 @@ typedef struct ssl_ctx_ext_secure_st {
     unsigned char tick_aes_key[TLSEXT_TICK_KEY_LENGTH];
 } SSL_CTX_EXT_SECURE;
 
+#ifndef OPENSSL_NO_ESNI
+	/*
+	 * Nothing whatsoever to do with ESNI but now I figured out and got it
+	 * confirmed by someone who know more about openssl, I'm gonna record 
+	 * it: SSL_CTX is the factory and SSL is the per-connection thing.
+	 * For s_client that doesn't make much difference. For servers, it
+	 * does.
+	 */
+#endif
 struct ssl_ctx_st {
     const SSL_METHOD *method;
     STACK_OF(SSL_CIPHER) *cipher_list;

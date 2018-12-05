@@ -196,9 +196,16 @@ Notes:
 - The functions names above that contain the string ``SNI_ESNI`` either return
 or take as a parameter a value of that type. Function names with a lowercase
 esni substring do not. (This seems to be an OpenSSL convention.)
-- We're not clear if the ``SSL_ESNI`` information ought be part of the ``SSL``
+- I wasn't clear if the ``SSL_ESNI`` information ought be part of the ``SSL``
 structure or the ``SSL_CTX`` structure - guess is that server side code will
-force us to do the right thing, if the current one's wrong.
+force us to do the right thing, if the current one's wrong. For the client side,
+there's not much difference, as suspected. But on the server side it appears
+that an instance of the ``SSL_CTX`` structure is used to create an ``SSL``
+structure - which I guess means that ``SSL_CTX`` is specific to the config
+and/or generic application API calls, whereas presumably the ``SSL`` type
+is specific to a particular connection.
+	- Playing with printing inside ``tls_parse_ctos_esni`` seems to confirm 
+that. Still need to figure memory management as I muck about there.
 - There's another test script [doit.sh](https://github.com/sftcd/openssl/blob/master/esnistuff/doit.sh)
 that runs a standalone test application ([esnimain.c](https://github.com/sftcd/openssl/blob/master/esnistuff/esnimain.c))
 which just tests the ESNI APIs directly. That should become some kind of unit test in the main
