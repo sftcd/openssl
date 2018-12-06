@@ -171,6 +171,10 @@
 	<td>Allows caller to set the nonce value for ESNI.</td>
 </tr>
 <tr>
+	<td><code>public</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>*</code><a href="#esni_8h_1a3aaa50b61e714752405408a0a9554b47"><code>SSL_ESNI_dup</code></a><code>(</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>* orig)</code></td>
+	<td>duplicate the populated fields of an SSL_ESNI</td>
+</tr>
+<tr>
 	<td><code>public int</code><a href="#esnierr_8h_1ab6db8c60b35aacaa03550e6d9d9c2099"><code>ERR_load_ESNI_strings</code></a><code>(void)</code></td>
 	<td>Load strings into tables.</td>
 </tr>
@@ -181,6 +185,10 @@
 <tr>
 	<td><code>public static int</code><a href="#esni_8c_1a64c9d65c28e852557b2ac325335c6a83"><code>esni_base64_decode</code></a><code>(const char * in,unsigned char ** out)</code></td>
 	<td>Decode from TXT RR to binary buffer.</td>
+</tr>
+<tr>
+	<td><code>public static const SSL_CIPHER *</code><a href="#esni_8c_1a45c16ecbc68d6567bf9d4ef58bfdb46f"><code>cs2sc</code></a><code>(uint16_t ciphersuite)</code></td>
+	<td> </td>
 </tr>
 <tr>
 	<td><code>public void</code><a href="#esni_8c_1a2af97ba7f8ebc58e04391bc845f21811"><code>ESNI_RECORD_free</code></a><code>(</code><a href="#esni_8h_1ab29e08d24d0eac604e0d6783dfbf1758"><code>ESNI_RECORD</code></a><code>* er)</code></td>
@@ -239,11 +247,11 @@
 	<td>expand a label as per the I-D</td>
 </tr>
 <tr>
-	<td><code>public static unsigned char *</code><a href="#esni_8c_1a5a36ed03fd4e8a351ed10b1296f3857b"><code>esni_aead_enc</code></a><code>(unsigned char * key,size_t key_len,unsigned char * iv,size_t iv_len,unsigned char * aad,size_t aad_len,unsigned char * plain,size_t plain_len,unsigned char * tag,size_t tag_len,size_t * cipher_len,const SSL_CIPHER * ciph)</code></td>
+	<td><code>public static unsigned char *</code><a href="#esni_8c_1a7a9797b7a757306ed1035009fa7d0694"><code>esni_aead_enc</code></a><code>(unsigned char * key,size_t key_len,unsigned char * iv,size_t iv_len,unsigned char * aad,size_t aad_len,unsigned char * plain,size_t plain_len,unsigned char * tag,size_t tag_len,size_t * cipher_len,uint16_t ciph)</code></td>
 	<td>do the AEAD encryption as per the I-D</td>
 </tr>
 <tr>
-	<td><code>public static unsigned char *</code><a href="#esni_8c_1af3daf294b74d177ea97d94eb52d6982f"><code>esni_aead_dec</code></a><code>(unsigned char * key,size_t key_len,unsigned char * iv,size_t iv_len,unsigned char * aad,size_t aad_len,unsigned char * cipher,size_t cipher_len,size_t * plain_len,const SSL_CIPHER * ciph)</code></td>
+	<td><code>public static unsigned char *</code><a href="#esni_8c_1a870cb4460d44f015048426db48ad9446"><code>esni_aead_dec</code></a><code>(unsigned char * key,size_t key_len,unsigned char * iv,size_t iv_len,unsigned char * aad,size_t aad_len,unsigned char * cipher,size_t cipher_len,size_t * plain_len,uint16_t ciph)</code></td>
 	<td>do the AEAD decryption as per the I-D</td>
 </tr>
 <tr>
@@ -301,6 +309,10 @@
 <tr>
 	<td><code>public int</code><a href="#esni_8c_1a0f48da79909334acee7b24dec440eb4c"><code>SSL_ESNI_set_nonce</code></a><code>(</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>* esni,unsigned char * nonce,size_t nlen)</code></td>
 	<td>Allows caller to set the nonce value for ESNI.</td>
+</tr>
+<tr>
+	<td><code>public</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>*</code><a href="#esni_8c_1a3aaa50b61e714752405408a0a9554b47"><code>SSL_ESNI_dup</code></a><code>(</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>* orig)</code></td>
+	<td>duplicate the populated fields of an SSL_ESNI</td>
 </tr>
 <tr>
 	<td><code>public static int</code><a href="#extensions_8c_1a07941fe88fcdb65271ad678cd41e7d57"><code>init_esni</code></a><code>(SSL * s,unsigned int context)</code></td>
@@ -832,6 +844,26 @@
 
 <p>1 for success, other otherwise</p>
 
+<p id="esni_8h_1a3aaa50b61e714752405408a0a9554b47"><hr></p>
+
+<h4 id="publicssl_esniesni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7fssl_esni_dupesni_8h_1a3aaa50b61e714752405408a0a9554b47ssl_esniesni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7forig"><code>public</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>*</code><a href="#esni_8h_1a3aaa50b61e714752405408a0a9554b47"><code>SSL_ESNI_dup</code></a><code>(</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>* orig)</code></h4>
+
+<p>duplicate the populated fields of an SSL_ESNI</p>
+
+<p>This is needed to handle the SSL_CTX->SSL factory model. (Or else I'm about to waste a bunch of typing if it doesn't work;-)</p>
+
+<p>Note that in server mode, there aren't too many fields populated when this will be called - essentially just the ESNIKeys and the server private value. For the moment, we actually only deep-copy those.</p>
+
+<h4 id="parameters">Parameters</h4>
+
+<ul>
+<li><code>orig</code> is the input SSL_ESNI to be deep-copied </li>
+</ul>
+
+<h4 id="returns">Returns</h4>
+
+<p>a deep-copy or NULL if errors occur</p>
+
 <p id="esnierr_8h_1ab6db8c60b35aacaa03550e6d9d9c2099"><hr></p>
 
 <h4 id="publicinterr_load_esni_stringsesnierr_8h_1ab6db8c60b35aacaa03550e6d9d9c2099void"><code>public int</code><a href="#esnierr_8h_1ab6db8c60b35aacaa03550e6d9d9c2099"><code>ERR_load_ESNI_strings</code></a><code>(void)</code></h4>
@@ -884,6 +916,10 @@
 <h4 id="returns">Returns</h4>
 
 <p>is the number of octets in |out| if successful, &lt;=0 for failure</p>
+
+<p id="esni_8c_1a45c16ecbc68d6567bf9d4ef58bfdb46f"><hr></p>
+
+<h4 id="publicstaticconstssl_ciphercs2scesni_8c_1a45c16ecbc68d6567bf9d4ef58bfdb46fuint16_tciphersuite"><code>public static const SSL_CIPHER *</code><a href="#esni_8c_1a45c16ecbc68d6567bf9d4ef58bfdb46f"><code>cs2sc</code></a><code>(uint16_t ciphersuite)</code></h4>
 
 <p id="esni_8c_1a2af97ba7f8ebc58e04391bc845f21811"><hr></p>
 
@@ -1045,9 +1081,9 @@
   <p>Todo: TODO: this and esni_hkdf_extract should be better integrated There are functions that can do this that require an <code>SSL *s</code> input and we should move to use those.</p>
 </blockquote>
 
-<p id="esni_8c_1a5a36ed03fd4e8a351ed10b1296f3857b"><hr></p>
+<p id="esni_8c_1a7a9797b7a757306ed1035009fa7d0694"><hr></p>
 
-<h4 id="publicstaticunsignedcharesni_aead_encesni_8c_1a5a36ed03fd4e8a351ed10b1296f3857bunsignedcharkeysize_tkey_lenunsignedcharivsize_tiv_lenunsignedcharaadsize_taad_lenunsignedcharplainsize_tplain_lenunsignedchartagsize_ttag_lensize_tcipher_lenconstssl_cipherciph"><code>public static unsigned char *</code><a href="#esni_8c_1a5a36ed03fd4e8a351ed10b1296f3857b"><code>esni_aead_enc</code></a><code>(unsigned char * key,size_t key_len,unsigned char * iv,size_t iv_len,unsigned char * aad,size_t aad_len,unsigned char * plain,size_t plain_len,unsigned char * tag,size_t tag_len,size_t * cipher_len,const SSL_CIPHER * ciph)</code></h4>
+<h4 id="publicstaticunsignedcharesni_aead_encesni_8c_1a7a9797b7a757306ed1035009fa7d0694unsignedcharkeysize_tkey_lenunsignedcharivsize_tiv_lenunsignedcharaadsize_taad_lenunsignedcharplainsize_tplain_lenunsignedchartagsize_ttag_lensize_tcipher_lenuint16_tciph"><code>public static unsigned char *</code><a href="#esni_8c_1a7a9797b7a757306ed1035009fa7d0694"><code>esni_aead_enc</code></a><code>(unsigned char * key,size_t key_len,unsigned char * iv,size_t iv_len,unsigned char * aad,size_t aad_len,unsigned char * plain,size_t plain_len,unsigned char * tag,size_t tag_len,size_t * cipher_len,uint16_t ciph)</code></h4>
 
 <p>do the AEAD encryption as per the I-D</p>
 
@@ -1063,9 +1099,9 @@
 
 <p>NULL (on error) or pointer to alloced buffer for ciphertext</p>
 
-<p id="esni_8c_1af3daf294b74d177ea97d94eb52d6982f"><hr></p>
+<p id="esni_8c_1a870cb4460d44f015048426db48ad9446"><hr></p>
 
-<h4 id="publicstaticunsignedcharesni_aead_decesni_8c_1af3daf294b74d177ea97d94eb52d6982funsignedcharkeysize_tkey_lenunsignedcharivsize_tiv_lenunsignedcharaadsize_taad_lenunsignedcharciphersize_tcipher_lensize_tplain_lenconstssl_cipherciph"><code>public static unsigned char *</code><a href="#esni_8c_1af3daf294b74d177ea97d94eb52d6982f"><code>esni_aead_dec</code></a><code>(unsigned char * key,size_t key_len,unsigned char * iv,size_t iv_len,unsigned char * aad,size_t aad_len,unsigned char * cipher,size_t cipher_len,size_t * plain_len,const SSL_CIPHER * ciph)</code></h4>
+<h4 id="publicstaticunsignedcharesni_aead_decesni_8c_1a870cb4460d44f015048426db48ad9446unsignedcharkeysize_tkey_lenunsignedcharivsize_tiv_lenunsignedcharaadsize_taad_lenunsignedcharciphersize_tcipher_lensize_tplain_lenuint16_tciph"><code>public static unsigned char *</code><a href="#esni_8c_1a870cb4460d44f015048426db48ad9446"><code>esni_aead_dec</code></a><code>(unsigned char * key,size_t key_len,unsigned char * iv,size_t iv_len,unsigned char * aad,size_t aad_len,unsigned char * cipher,size_t cipher_len,size_t * plain_len,uint16_t ciph)</code></h4>
 
 <p>do the AEAD decryption as per the I-D</p>
 
@@ -1333,6 +1369,26 @@
 
 <p>1 for success, other otherwise</p>
 
+<p id="esni_8c_1a3aaa50b61e714752405408a0a9554b47"><hr></p>
+
+<h4 id="publicssl_esniesni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7fssl_esni_dupesni_8c_1a3aaa50b61e714752405408a0a9554b47ssl_esniesni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7forig"><code>public</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>*</code><a href="#esni_8c_1a3aaa50b61e714752405408a0a9554b47"><code>SSL_ESNI_dup</code></a><code>(</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>* orig)</code></h4>
+
+<p>duplicate the populated fields of an SSL_ESNI</p>
+
+<p>This is needed to handle the SSL_CTX->SSL factory model. (Or else I'm about to waste a bunch of typing if it doesn't work;-)</p>
+
+<p>Note that in server mode, there aren't too many fields populated when this will be called - essentially just the ESNIKeys and the server private value. For the moment, we actually only deep-copy those.</p>
+
+<h4 id="parameters">Parameters</h4>
+
+<ul>
+<li><code>orig</code> is the input SSL_ESNI to be deep-copied </li>
+</ul>
+
+<h4 id="returns">Returns</h4>
+
+<p>a deep-copy or NULL if errors occur</p>
+
 <p id="extensions_8c_1a07941fe88fcdb65271ad678cd41e7d57"><hr></p>
 
 <h4 id="publicstaticintinit_esniextensions_8c_1a07941fe88fcdb65271ad678cd41e7d57sslsunsignedintcontext"><code>public static int</code><a href="#extensions_8c_1a07941fe88fcdb65271ad678cd41e7d57"><code>init_esni</code></a><code>(SSL * s,unsigned int context)</code></h4>
@@ -1430,7 +1486,7 @@
 </thead>
 <tbody>
 <tr>
-	<td><code>public const SSL_CIPHER *</code><a href="#structclient__esni__st_1a7878b09e8518b555bc5de7e0cc0a680d"><code>ciphersuite</code></a></td>
+	<td><code>public uint16_t</code><a href="#structclient__esni__st_1a9e55dac79113ba355d329f86fbdb7f50"><code>ciphersuite</code></a></td>
 	<td> </td>
 </tr>
 <tr>
@@ -1462,9 +1518,9 @@
 
 <h2 id="members">Members</h2>
 
-<p id="structclient__esni__st_1a7878b09e8518b555bc5de7e0cc0a680d"><hr></p>
+<p id="structclient__esni__st_1a9e55dac79113ba355d329f86fbdb7f50"><hr></p>
 
-<h4 id="publicconstssl_cipherciphersuitestructclient__esni__st_1a7878b09e8518b555bc5de7e0cc0a680d"><code>public const SSL_CIPHER *</code><a href="#structclient__esni__st_1a7878b09e8518b555bc5de7e0cc0a680d"><code>ciphersuite</code></a></h4>
+<h4 id="publicuint16_tciphersuitestructclient__esni__st_1a9e55dac79113ba355d329f86fbdb7f50"><code>public uint16_t</code><a href="#structclient__esni__st_1a9e55dac79113ba355d329f86fbdb7f50"><code>ciphersuite</code></a></h4>
 
 <p id="structclient__esni__st_1a5647ef9466b0de060a8fdbadeab16ca9"><hr></p>
 
@@ -1555,6 +1611,14 @@
 	<td> </td>
 </tr>
 <tr>
+	<td><code>public size_t</code><a href="#structesni__record__st_1a221e917cb9ad6f6501a57330d13e5084"><code>nsuites</code></a></td>
+	<td> </td>
+</tr>
+<tr>
+	<td><code>public uint16_t *</code><a href="#structesni__record__st_1ae6845bbe19a868942f0125cc4007e48c"><code>ciphersuites</code></a></td>
+	<td> </td>
+</tr>
+<tr>
 	<td><code>public unsigned int</code><a href="#structesni__record__st_1a4fa1f10a8635d5dfed501815f928570d"><code>padded_length</code></a></td>
 	<td> </td>
 </tr>
@@ -1576,10 +1640,6 @@
 </tr>
 <tr>
 	<td><code>public void **</code><a href="#structesni__record__st_1af8d605ba06bf8043967269ac36aff7c8"><code>exts</code></a></td>
-	<td> </td>
-</tr>
-<tr>
-	<td><code>public</code><a href="#structesni__record__st_1ad903ec0a3fd758c79fd168f2ddf3bb41"><code>STACK_OF</code></a><code>(SSL_CIPHER)</code></td>
 	<td> </td>
 </tr>
 </tbody>
@@ -1615,6 +1675,14 @@
 
 <h4 id="publicunsignedcharencoded_keysstructesni__record__st_1abe59c6e8bf0ff07cb3e4f185fabe1b07"><code>public unsigned char **</code><a href="#structesni__record__st_1abe59c6e8bf0ff07cb3e4f185fabe1b07"><code>encoded_keys</code></a></h4>
 
+<p id="structesni__record__st_1a221e917cb9ad6f6501a57330d13e5084"><hr></p>
+
+<h4 id="publicsize_tnsuitesstructesni__record__st_1a221e917cb9ad6f6501a57330d13e5084"><code>public size_t</code><a href="#structesni__record__st_1a221e917cb9ad6f6501a57330d13e5084"><code>nsuites</code></a></h4>
+
+<p id="structesni__record__st_1ae6845bbe19a868942f0125cc4007e48c"><hr></p>
+
+<h4 id="publicuint16_tciphersuitesstructesni__record__st_1ae6845bbe19a868942f0125cc4007e48c"><code>public uint16_t *</code><a href="#structesni__record__st_1ae6845bbe19a868942f0125cc4007e48c"><code>ciphersuites</code></a></h4>
+
 <p id="structesni__record__st_1a4fa1f10a8635d5dfed501815f928570d"><hr></p>
 
 <h4 id="publicunsignedintpadded_lengthstructesni__record__st_1a4fa1f10a8635d5dfed501815f928570d"><code>public unsigned int</code><a href="#structesni__record__st_1a4fa1f10a8635d5dfed501815f928570d"><code>padded_length</code></a></h4>
@@ -1638,10 +1706,6 @@
 <p id="structesni__record__st_1af8d605ba06bf8043967269ac36aff7c8"><hr></p>
 
 <h4 id="publicvoidextsstructesni__record__st_1af8d605ba06bf8043967269ac36aff7c8"><code>public void **</code><a href="#structesni__record__st_1af8d605ba06bf8043967269ac36aff7c8"><code>exts</code></a></h4>
-
-<p id="structesni__record__st_1ad903ec0a3fd758c79fd168f2ddf3bb41"><hr></p>
-
-<h4 id="publicstack_ofstructesni__record__st_1ad903ec0a3fd758c79fd168f2ddf3bb41ssl_cipher"><code>public</code><a href="#structesni__record__st_1ad903ec0a3fd758c79fd168f2ddf3bb41"><code>STACK_OF</code></a><code>(SSL_CIPHER)</code></h4>
 
 <p id="structssl__esni__st"><hr></p>
 
@@ -1692,7 +1756,7 @@
 	<td>Hash of the above (record_digest), using the relevant hash from the ciphersuite.</td>
 </tr>
 <tr>
-	<td><code>public const SSL_CIPHER *</code><a href="#structssl__esni__st_1a70181a0186aecc742d224c04c3070f39"><code>ciphersuite</code></a></td>
+	<td><code>public uint16_t</code><a href="#structssl__esni__st_1abc06fe1b51acac92401d48fee0c97d1b"><code>ciphersuite</code></a></td>
 	<td>from ESNIKeys after selection of local preference</td>
 </tr>
 <tr>
@@ -1863,10 +1927,6 @@
 	<td><code>public</code><a href="#esni_8h_1add3c7579c9f0d7bd5959b37f9c017461"><code>CLIENT_ESNI</code></a><code>*</code><a href="#structssl__esni__st_1acc1e4d390a3f6fc96c52a10cac4fd6c1"><code>the_esni</code></a></td>
 	<td>the final outputs for the caller (note: not separately alloc'd)</td>
 </tr>
-<tr>
-	<td><code>public</code><a href="#structssl__esni__st_1a50e1e3bc7a1318ab8624021ea50374cb"><code>STACK_OF</code></a><code>(SSL_CIPHER)</code></td>
-	<td>needed for graceful memory management (free) for now</td>
-</tr>
 </tbody>
 </table>
 
@@ -1910,9 +1970,9 @@
 
 <p>Hash of the above (record_digest), using the relevant hash from the ciphersuite.</p>
 
-<p id="structssl__esni__st_1a70181a0186aecc742d224c04c3070f39"><hr></p>
+<p id="structssl__esni__st_1abc06fe1b51acac92401d48fee0c97d1b"><hr></p>
 
-<h4 id="publicconstssl_cipherciphersuitestructssl__esni__st_1a70181a0186aecc742d224c04c3070f39"><code>public const SSL_CIPHER *</code><a href="#structssl__esni__st_1a70181a0186aecc742d224c04c3070f39"><code>ciphersuite</code></a></h4>
+<h4 id="publicuint16_tciphersuitestructssl__esni__st_1abc06fe1b51acac92401d48fee0c97d1b"><code>public uint16_t</code><a href="#structssl__esni__st_1abc06fe1b51acac92401d48fee0c97d1b"><code>ciphersuite</code></a></h4>
 
 <p>from ESNIKeys after selection of local preference</p>
 
@@ -2135,11 +2195,5 @@
 <h4 id="publicclient_esniesni_8h_1add3c7579c9f0d7bd5959b37f9c017461the_esnistructssl__esni__st_1acc1e4d390a3f6fc96c52a10cac4fd6c1"><code>public</code><a href="#esni_8h_1add3c7579c9f0d7bd5959b37f9c017461"><code>CLIENT_ESNI</code></a><code>*</code><a href="#structssl__esni__st_1acc1e4d390a3f6fc96c52a10cac4fd6c1"><code>the_esni</code></a></h4>
 
 <p>the final outputs for the caller (note: not separately alloc'd)</p>
-
-<p id="structssl__esni__st_1a50e1e3bc7a1318ab8624021ea50374cb"><hr></p>
-
-<h4 id="publicstack_ofstructssl__esni__st_1a50e1e3bc7a1318ab8624021ea50374cbssl_cipher"><code>public</code><a href="#structssl__esni__st_1a50e1e3bc7a1318ab8624021ea50374cb"><code>STACK_OF</code></a><code>(SSL_CIPHER)</code></h4>
-
-<p>needed for graceful memory management (free) for now</p>
 
 <p>Generated by <a href="https://sourcey.com/moxygen">Moxygen</a></p>

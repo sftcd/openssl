@@ -42,9 +42,11 @@
 `public int `[`SSL_get_esni_status`](#esni_8h_1abc2468ba57b69ddaca0344481027d7a1)`(SSL * s,char ** hidden,char ** cover)`            | API to allow calling code know ESNI outcome, post-handshake.
 `public int `[`SSL_ESNI_set_private`](#esni_8h_1a8df1af022d25fc0f7e72683b0bd4667f)`(`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * esni,char * private_str)`            | Allows caller to set the ECDH private value for ESNI.
 `public int `[`SSL_ESNI_set_nonce`](#esni_8h_1a0f48da79909334acee7b24dec440eb4c)`(`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * esni,unsigned char * nonce,size_t nlen)`            | Allows caller to set the nonce value for ESNI.
+`public `[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * `[`SSL_ESNI_dup`](#esni_8h_1a3aaa50b61e714752405408a0a9554b47)`(`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * orig)`            | duplicate the populated fields of an SSL_ESNI
 `public int `[`ERR_load_ESNI_strings`](#esnierr_8h_1ab6db8c60b35aacaa03550e6d9d9c2099)`(void)`            | Load strings into tables.
 `public static uint64_t `[`uint64_from_bytes`](#esni_8c_1a83d195ea944e970d225ac1554c88c3d4)`(unsigned char * buf)`            | File: esni.c - the core implementation of drat-ietf-tls-esni-02 Author: [stephen.farrell@cs.tcd.ie](mailto:stephen.farrell@cs.tcd.ie) Date: 2018 December-ish.
 `public static int `[`esni_base64_decode`](#esni_8c_1a64c9d65c28e852557b2ac325335c6a83)`(const char * in,unsigned char ** out)`            | Decode from TXT RR to binary buffer.
+`public static const SSL_CIPHER * `[`cs2sc`](#esni_8c_1a45c16ecbc68d6567bf9d4ef58bfdb46f)`(uint16_t ciphersuite)`            | 
 `public void `[`ESNI_RECORD_free`](#esni_8c_1a2af97ba7f8ebc58e04391bc845f21811)`(`[`ESNI_RECORD`](#esni_8h_1ab29e08d24d0eac604e0d6783dfbf1758)` * er)`            | Free up an ENSI_RECORD.
 `public void `[`SSL_ESNI_free`](#esni_8c_1a3a532dc18d8ea55c30b74529946f66c7)`(`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * esni)`            | Free up an SSL_ESNI structure.
 `public static int `[`esni_checksum_check`](#esni_8c_1a4c8d42c0081cae34740804bb9c4fc88b)`(unsigned char * buf,size_t buf_len)`            | Verify the SHA256 checksum that should be in the DNS record.
@@ -59,8 +61,8 @@
 `public static unsigned char * `[`esni_pad`](#esni_8c_1a3e85b60a8ef53ff8670c54af6e376c40)`(char * name,unsigned int padded_len)`            | Pad an SNI before encryption with zeros on the right to the required length.
 `public static unsigned char * `[`esni_hkdf_extract`](#esni_8c_1a9f76caa6f579de747d413ee3e809650d)`(unsigned char * secret,size_t slen,size_t * olen,const EVP_MD * md)`            | Local wrapper for HKDF-Extract(salt,IVM)=HMAC-Hash(salt,IKM) according to RFC5689.
 `public static unsigned char * `[`esni_hkdf_expand_label`](#esni_8c_1a7dd32376e27d6c6aed533917093639e8)`(unsigned char * Zx,size_t Zx_len,const char * label,unsigned char * hash,size_t hash_len,size_t * expanded_len,const EVP_MD * md)`            | expand a label as per the I-D
-`public static unsigned char * `[`esni_aead_enc`](#esni_8c_1a5a36ed03fd4e8a351ed10b1296f3857b)`(unsigned char * key,size_t key_len,unsigned char * iv,size_t iv_len,unsigned char * aad,size_t aad_len,unsigned char * plain,size_t plain_len,unsigned char * tag,size_t tag_len,size_t * cipher_len,const SSL_CIPHER * ciph)`            | do the AEAD encryption as per the I-D
-`public static unsigned char * `[`esni_aead_dec`](#esni_8c_1af3daf294b74d177ea97d94eb52d6982f)`(unsigned char * key,size_t key_len,unsigned char * iv,size_t iv_len,unsigned char * aad,size_t aad_len,unsigned char * cipher,size_t cipher_len,size_t * plain_len,const SSL_CIPHER * ciph)`            | do the AEAD decryption as per the I-D
+`public static unsigned char * `[`esni_aead_enc`](#esni_8c_1a7a9797b7a757306ed1035009fa7d0694)`(unsigned char * key,size_t key_len,unsigned char * iv,size_t iv_len,unsigned char * aad,size_t aad_len,unsigned char * plain,size_t plain_len,unsigned char * tag,size_t tag_len,size_t * cipher_len,uint16_t ciph)`            | do the AEAD encryption as per the I-D
+`public static unsigned char * `[`esni_aead_dec`](#esni_8c_1a870cb4460d44f015048426db48ad9446)`(unsigned char * key,size_t key_len,unsigned char * iv,size_t iv_len,unsigned char * aad,size_t aad_len,unsigned char * cipher,size_t cipher_len,size_t * plain_len,uint16_t ciph)`            | do the AEAD decryption as per the I-D
 `public static int `[`makeesnicontenthash`](#esni_8c_1a52493599c778fa63f5254cd84e8ae464)`(`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * esnikeys,int server)`            | given an SSL_ESNI create ESNIContent and hash that
 `public static int `[`key_derivation`](#esni_8c_1a42f693ae84206906ae6ff8cd553434ac)`(`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * esnikeys)`            | from Zx and ESNIContent, derive key, iv and aad
 `public int `[`SSL_ESNI_enc`](#esni_8c_1a1059808bc7c121128c470de41e2dc304)`(`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * esnikeys,size_t client_random_len,unsigned char * client_random,uint16_t curve_id,size_t client_keyshare_len,unsigned char * client_keyshare,`[`CLIENT_ESNI`](#esni_8h_1add3c7579c9f0d7bd5959b37f9c017461)` ** the_esni)`            | Do the client-side SNI encryption during a TLS handshake.
@@ -75,6 +77,7 @@
 `public int `[`SSL_ESNI_get_esni_ctx`](#esni_8c_1acd373a6c0dddd76f399e103e80f538cc)`(SSL_CTX * s,`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` ** esni)`            | Debugging - print an SSL_ESNI structure note - can include sensitive values!
 `public int `[`SSL_ESNI_set_private`](#esni_8c_1a8df1af022d25fc0f7e72683b0bd4667f)`(`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * esni,char * private_str)`            | Allows caller to set the ECDH private value for ESNI.
 `public int `[`SSL_ESNI_set_nonce`](#esni_8c_1a0f48da79909334acee7b24dec440eb4c)`(`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * esni,unsigned char * nonce,size_t nlen)`            | Allows caller to set the nonce value for ESNI.
+`public `[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * `[`SSL_ESNI_dup`](#esni_8c_1a3aaa50b61e714752405408a0a9554b47)`(`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * orig)`            | duplicate the populated fields of an SSL_ESNI
 `public static int `[`init_esni`](#extensions_8c_1a07941fe88fcdb65271ad678cd41e7d57)`(SSL * s,unsigned int context)`            | Just note that esni is not yet done.
 `public static int `[`final_esni`](#extensions_8c_1a4027805482e89339fd2870f852db4b4e)`(SSL * s,unsigned int context,int sent)`            | check result of esni and return error or ok
 `public static EXT_RETURN `[`esni_server_name_fixup`](#extensions__clnt_8c_1a2454a14e823689509154ca3bfb4cdaea)`(SSL * s,WPACKET * pkt,unsigned int context,X509 * x,size_t chainidx)`            | Possibly do/don't send SNI if doing ESNI.
@@ -523,6 +526,22 @@ This is intended to only be used for interop testing - what was useful was to gr
 #### Returns
 1 for success, other otherwise
 
+<p id="esni_8h_1a3aaa50b61e714752405408a0a9554b47"><hr></p>
+
+#### `public `[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * `[`SSL_ESNI_dup`](#esni_8h_1a3aaa50b61e714752405408a0a9554b47)`(`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * orig)` 
+
+duplicate the populated fields of an SSL_ESNI
+
+This is needed to handle the SSL_CTX->SSL factory model. (Or else I'm about to waste a bunch of typing if it doesn't work;-)
+
+Note that in server mode, there aren't too many fields populated when this will be called - essentially just the ESNIKeys and the server private value. For the moment, we actually only deep-copy those.
+
+#### Parameters
+* `orig` is the input SSL_ESNI to be deep-copied 
+
+#### Returns
+a deep-copy or NULL if errors occur
+
 <p id="esnierr_8h_1ab6db8c60b35aacaa03550e6d9d9c2099"><hr></p>
 
 #### `public int `[`ERR_load_ESNI_strings`](#esnierr_8h_1ab6db8c60b35aacaa03550e6d9d9c2099)`(void)` 
@@ -564,6 +583,10 @@ Decodes the base64 string |in| into |out|. A new string will be malloc'd and ass
 
 #### Returns
 is the number of octets in |out| if successful, <=0 for failure
+
+<p id="esni_8c_1a45c16ecbc68d6567bf9d4ef58bfdb46f"><hr></p>
+
+#### `public static const SSL_CIPHER * `[`cs2sc`](#esni_8c_1a45c16ecbc68d6567bf9d4ef58bfdb46f)`(uint16_t ciphersuite)` 
 
 <p id="esni_8c_1a2af97ba7f8ebc58e04391bc845f21811"><hr></p>
 
@@ -711,9 +734,9 @@ expand a label as per the I-D
 
 > Todo: TODO: this and esni_hkdf_extract should be better integrated There are functions that can do this that require an `SSL *s` input and we should move to use those.
 
-<p id="esni_8c_1a5a36ed03fd4e8a351ed10b1296f3857b"><hr></p>
+<p id="esni_8c_1a7a9797b7a757306ed1035009fa7d0694"><hr></p>
 
-#### `public static unsigned char * `[`esni_aead_enc`](#esni_8c_1a5a36ed03fd4e8a351ed10b1296f3857b)`(unsigned char * key,size_t key_len,unsigned char * iv,size_t iv_len,unsigned char * aad,size_t aad_len,unsigned char * plain,size_t plain_len,unsigned char * tag,size_t tag_len,size_t * cipher_len,const SSL_CIPHER * ciph)` 
+#### `public static unsigned char * `[`esni_aead_enc`](#esni_8c_1a7a9797b7a757306ed1035009fa7d0694)`(unsigned char * key,size_t key_len,unsigned char * iv,size_t iv_len,unsigned char * aad,size_t aad_len,unsigned char * plain,size_t plain_len,unsigned char * tag,size_t tag_len,size_t * cipher_len,uint16_t ciph)` 
 
 do the AEAD encryption as per the I-D
 
@@ -725,9 +748,9 @@ Note: The tag output isn't really needed but was useful when I got the aad wrong
 #### Returns
 NULL (on error) or pointer to alloced buffer for ciphertext
 
-<p id="esni_8c_1af3daf294b74d177ea97d94eb52d6982f"><hr></p>
+<p id="esni_8c_1a870cb4460d44f015048426db48ad9446"><hr></p>
 
-#### `public static unsigned char * `[`esni_aead_dec`](#esni_8c_1af3daf294b74d177ea97d94eb52d6982f)`(unsigned char * key,size_t key_len,unsigned char * iv,size_t iv_len,unsigned char * aad,size_t aad_len,unsigned char * cipher,size_t cipher_len,size_t * plain_len,const SSL_CIPHER * ciph)` 
+#### `public static unsigned char * `[`esni_aead_dec`](#esni_8c_1a870cb4460d44f015048426db48ad9446)`(unsigned char * key,size_t key_len,unsigned char * iv,size_t iv_len,unsigned char * aad,size_t aad_len,unsigned char * cipher,size_t cipher_len,size_t * plain_len,uint16_t ciph)` 
 
 do the AEAD decryption as per the I-D
 
@@ -964,6 +987,22 @@ This is intended to only be used for interop testing - what was useful was to gr
 #### Returns
 1 for success, other otherwise
 
+<p id="esni_8c_1a3aaa50b61e714752405408a0a9554b47"><hr></p>
+
+#### `public `[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * `[`SSL_ESNI_dup`](#esni_8c_1a3aaa50b61e714752405408a0a9554b47)`(`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * orig)` 
+
+duplicate the populated fields of an SSL_ESNI
+
+This is needed to handle the SSL_CTX->SSL factory model. (Or else I'm about to waste a bunch of typing if it doesn't work;-)
+
+Note that in server mode, there aren't too many fields populated when this will be called - essentially just the ESNIKeys and the server private value. For the moment, we actually only deep-copy those.
+
+#### Parameters
+* `orig` is the input SSL_ESNI to be deep-copied 
+
+#### Returns
+a deep-copy or NULL if errors occur
+
 <p id="extensions_8c_1a07941fe88fcdb65271ad678cd41e7d57"><hr></p>
 
 #### `public static int `[`init_esni`](#extensions_8c_1a07941fe88fcdb65271ad678cd41e7d57)`(SSL * s,unsigned int context)` 
@@ -1047,7 +1086,7 @@ Fields encoded in extension, these are copies, (not malloc'd) of pointers elsewh
 
  Members                        | Descriptions                                
 --------------------------------|---------------------------------------------
-`public const SSL_CIPHER * `[`ciphersuite`](#structclient__esni__st_1a7878b09e8518b555bc5de7e0cc0a680d) | 
+`public uint16_t `[`ciphersuite`](#structclient__esni__st_1a9e55dac79113ba355d329f86fbdb7f50) | 
 `public size_t `[`encoded_keyshare_len`](#structclient__esni__st_1a5647ef9466b0de060a8fdbadeab16ca9) | 
 `public unsigned char * `[`encoded_keyshare`](#structclient__esni__st_1ada7c87c8765f080c25255c336c8f3dd8) | 
 `public size_t `[`record_digest_len`](#structclient__esni__st_1ab975fc71e1200e4e15462149377ea18c) | 
@@ -1057,9 +1096,9 @@ Fields encoded in extension, these are copies, (not malloc'd) of pointers elsewh
 
 ## Members
 
-<p id="structclient__esni__st_1a7878b09e8518b555bc5de7e0cc0a680d"><hr></p>
+<p id="structclient__esni__st_1a9e55dac79113ba355d329f86fbdb7f50"><hr></p>
 
-#### `public const SSL_CIPHER * `[`ciphersuite`](#structclient__esni__st_1a7878b09e8518b555bc5de7e0cc0a680d) 
+#### `public uint16_t `[`ciphersuite`](#structclient__esni__st_1a9e55dac79113ba355d329f86fbdb7f50) 
 
 <p id="structclient__esni__st_1a5647ef9466b0de060a8fdbadeab16ca9"><hr></p>
 
@@ -1119,13 +1158,14 @@ This structure is purely used when decoding the RR value and is then discarded (
 `public EVP_PKEY ** `[`keys`](#structesni__record__st_1abc46d13be54f79110778946df8defbc6) | 
 `public size_t * `[`encoded_lens`](#structesni__record__st_1ac6ab8f5ea17c69c4bd4bf51be55e30d3) | 
 `public unsigned char ** `[`encoded_keys`](#structesni__record__st_1abe59c6e8bf0ff07cb3e4f185fabe1b07) | 
+`public size_t `[`nsuites`](#structesni__record__st_1a221e917cb9ad6f6501a57330d13e5084) | 
+`public uint16_t * `[`ciphersuites`](#structesni__record__st_1ae6845bbe19a868942f0125cc4007e48c) | 
 `public unsigned int `[`padded_length`](#structesni__record__st_1a4fa1f10a8635d5dfed501815f928570d) | 
 `public uint64_t `[`not_before`](#structesni__record__st_1a4db76296d4da4dd2c202ced371859a29) | 
 `public uint64_t `[`not_after`](#structesni__record__st_1ae9ee01b4d38d36242d8f4300d98416e9) | 
 `public unsigned int `[`nexts`](#structesni__record__st_1ad0ae17a1a37af37fae9d8a70ea74a996) | 
 `public unsigned int * `[`exttypes`](#structesni__record__st_1a12b5bdb880a6b035a62a62e297809ad0) | 
 `public void ** `[`exts`](#structesni__record__st_1af8d605ba06bf8043967269ac36aff7c8) | 
-`public  `[`STACK_OF`](#structesni__record__st_1ad903ec0a3fd758c79fd168f2ddf3bb41)`(SSL_CIPHER)` | 
 
 ## Members
 
@@ -1157,6 +1197,14 @@ This structure is purely used when decoding the RR value and is then discarded (
 
 #### `public unsigned char ** `[`encoded_keys`](#structesni__record__st_1abe59c6e8bf0ff07cb3e4f185fabe1b07) 
 
+<p id="structesni__record__st_1a221e917cb9ad6f6501a57330d13e5084"><hr></p>
+
+#### `public size_t `[`nsuites`](#structesni__record__st_1a221e917cb9ad6f6501a57330d13e5084) 
+
+<p id="structesni__record__st_1ae6845bbe19a868942f0125cc4007e48c"><hr></p>
+
+#### `public uint16_t * `[`ciphersuites`](#structesni__record__st_1ae6845bbe19a868942f0125cc4007e48c) 
+
 <p id="structesni__record__st_1a4fa1f10a8635d5dfed501815f928570d"><hr></p>
 
 #### `public unsigned int `[`padded_length`](#structesni__record__st_1a4fa1f10a8635d5dfed501815f928570d) 
@@ -1181,10 +1229,6 @@ This structure is purely used when decoding the RR value and is then discarded (
 
 #### `public void ** `[`exts`](#structesni__record__st_1af8d605ba06bf8043967269ac36aff7c8) 
 
-<p id="structesni__record__st_1ad903ec0a3fd758c79fd168f2ddf3bb41"><hr></p>
-
-#### `public  `[`STACK_OF`](#structesni__record__st_1ad903ec0a3fd758c79fd168f2ddf3bb41)`(SSL_CIPHER)` 
-
 <p id="structssl__esni__st"><hr></p>
 
 # struct `ssl_esni_st` 
@@ -1204,7 +1248,7 @@ The ESNI data structure that's part of the SSL structure.
 `public unsigned char * `[`encoded_rr`](#structssl__esni__st_1a71c8c509c7d198e8a719c65f99137f42) | Binary (base64 decoded) RR value.
 `public size_t `[`rd_len`](#structssl__esni__st_1a14dda82e4a3ff57fe2dc856e67a2c971) | 
 `public unsigned char * `[`rd`](#structssl__esni__st_1a40750765b83b53e6b12c24d580dc6894) | Hash of the above (record_digest), using the relevant hash from the ciphersuite.
-`public const SSL_CIPHER * `[`ciphersuite`](#structssl__esni__st_1a70181a0186aecc742d224c04c3070f39) | from ESNIKeys after selection of local preference
+`public uint16_t `[`ciphersuite`](#structssl__esni__st_1abc06fe1b51acac92401d48fee0c97d1b) | from ESNIKeys after selection of local preference
 `public uint16_t `[`group_id`](#structssl__esni__st_1ac47e519775c29bd9129eba95cbed25f9) | our chosen group e.g. X25519
 `public size_t `[`esni_peer_keyshare_len`](#structssl__esni__st_1a45018bd6c55f58e594463ce17e6e96bb) | 
 `public unsigned char * `[`esni_peer_keyshare`](#structssl__esni__st_1a45058e28bb36447e277246e7d382e8cd) | the encoded peer's public value
@@ -1247,7 +1291,6 @@ The ESNI data structure that's part of the SSL structure.
 `public unsigned char * `[`tag`](#structssl__esni__st_1ae12ddfc5fb31d43b68c9febca9730e94) | GCM tag (already also in ciphertext)
 `public char * `[`private_str`](#structssl__esni__st_1ab623dc6359f2c62ade27719be580c438) | for debug purposes, requires special build
 `public `[`CLIENT_ESNI`](#esni_8h_1add3c7579c9f0d7bd5959b37f9c017461)` * `[`the_esni`](#structssl__esni__st_1acc1e4d390a3f6fc96c52a10cac4fd6c1) | the final outputs for the caller (note: not separately alloc'd)
-`public  `[`STACK_OF`](#structssl__esni__st_1a50e1e3bc7a1318ab8624021ea50374cb)`(SSL_CIPHER)` | needed for graceful memory management (free) for now
 
 ## Members
 
@@ -1289,9 +1332,9 @@ Binary (base64 decoded) RR value.
 
 Hash of the above (record_digest), using the relevant hash from the ciphersuite.
 
-<p id="structssl__esni__st_1a70181a0186aecc742d224c04c3070f39"><hr></p>
+<p id="structssl__esni__st_1abc06fe1b51acac92401d48fee0c97d1b"><hr></p>
 
-#### `public const SSL_CIPHER * `[`ciphersuite`](#structssl__esni__st_1a70181a0186aecc742d224c04c3070f39) 
+#### `public uint16_t `[`ciphersuite`](#structssl__esni__st_1abc06fe1b51acac92401d48fee0c97d1b) 
 
 from ESNIKeys after selection of local preference
 
@@ -1514,11 +1557,5 @@ for debug purposes, requires special build
 #### `public `[`CLIENT_ESNI`](#esni_8h_1add3c7579c9f0d7bd5959b37f9c017461)` * `[`the_esni`](#structssl__esni__st_1acc1e4d390a3f6fc96c52a10cac4fd6c1) 
 
 the final outputs for the caller (note: not separately alloc'd)
-
-<p id="structssl__esni__st_1a50e1e3bc7a1318ab8624021ea50374cb"><hr></p>
-
-#### `public  `[`STACK_OF`](#structssl__esni__st_1a50e1e3bc7a1318ab8624021ea50374cb)`(SSL_CIPHER)` 
-
-needed for graceful memory management (free) for now
 
 Generated by [Moxygen](https://sourcey.com/moxygen)
