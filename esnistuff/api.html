@@ -243,8 +243,16 @@
 	<td>do the AEAD encryption as per the I-D</td>
 </tr>
 <tr>
+	<td><code>public static unsigned char *</code><a href="#esni_8c_1af3daf294b74d177ea97d94eb52d6982f"><code>esni_aead_dec</code></a><code>(unsigned char * key,size_t key_len,unsigned char * iv,size_t iv_len,unsigned char * aad,size_t aad_len,unsigned char * cipher,size_t cipher_len,size_t * plain_len,const SSL_CIPHER * ciph)</code></td>
+	<td>do the AEAD decryption as per the I-D</td>
+</tr>
+<tr>
 	<td><code>public static int</code><a href="#esni_8c_1a52493599c778fa63f5254cd84e8ae464"><code>makeesnicontenthash</code></a><code>(</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>* esnikeys,int server)</code></td>
 	<td>given an SSL_ESNI create ESNIContent and hash that</td>
+</tr>
+<tr>
+	<td><code>public static int</code><a href="#esni_8c_1a42f693ae84206906ae6ff8cd553434ac"><code>key_derivation</code></a><code>(</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>* esnikeys)</code></td>
+	<td>from Zx and ESNIContent, derive key, iv and aad</td>
 </tr>
 <tr>
 	<td><code>public int</code><a href="#esni_8c_1a1059808bc7c121128c470de41e2dc304"><code>SSL_ESNI_enc</code></a><code>(</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>* esnikeys,size_t client_random_len,unsigned char * client_random,uint16_t curve_id,size_t client_keyshare_len,unsigned char * client_keyshare,</code><a href="#esni_8h_1add3c7579c9f0d7bd5959b37f9c017461"><code>CLIENT_ESNI</code></a><code>** the_esni)</code></td>
@@ -1043,7 +1051,35 @@
 
 <p>do the AEAD encryption as per the I-D</p>
 
-<p>Note: The tag output isn't really needed but was useful when I got the aad wrong at one stage to keep it for now.</p>
+<p>Note: The tag output isn't really needed but was useful when I got the aad wrong at one stage to keep it for now. Most parameters obvious but...</p>
+
+<h4 id="parameters">Parameters</h4>
+
+<ul>
+<li><code>cipher_Len</code> is an output </li>
+</ul>
+
+<h4 id="returns">Returns</h4>
+
+<p>NULL (on error) or pointer to alloced buffer for ciphertext</p>
+
+<p id="esni_8c_1af3daf294b74d177ea97d94eb52d6982f"><hr></p>
+
+<h4 id="publicstaticunsignedcharesni_aead_decesni_8c_1af3daf294b74d177ea97d94eb52d6982funsignedcharkeysize_tkey_lenunsignedcharivsize_tiv_lenunsignedcharaadsize_taad_lenunsignedcharciphersize_tcipher_lensize_tplain_lenconstssl_cipherciph"><code>public static unsigned char *</code><a href="#esni_8c_1af3daf294b74d177ea97d94eb52d6982f"><code>esni_aead_dec</code></a><code>(unsigned char * key,size_t key_len,unsigned char * iv,size_t iv_len,unsigned char * aad,size_t aad_len,unsigned char * cipher,size_t cipher_len,size_t * plain_len,const SSL_CIPHER * ciph)</code></h4>
+
+<p>do the AEAD decryption as per the I-D</p>
+
+<p>Note: The tag output isn't really needed but was useful when I got the aad wrong at one stage to keep it for now. </p>
+
+<h4 id="parameters">Parameters</h4>
+
+<ul>
+<li><code>cipher_Len</code> is an output </li>
+</ul>
+
+<h4 id="returns">Returns</h4>
+
+<p>NULL (on error) or pointer to alloced buffer for plaintext</p>
 
 <p id="esni_8c_1a52493599c778fa63f5254cd84e8ae464"><hr></p>
 
@@ -1058,6 +1094,22 @@
 <ul>
 <li><p><code>esni</code> is the SSL_ESNI structure </p></li>
 <li><p><code>server</code> is 1 if on the server, 0 for client </p></li>
+</ul>
+
+<h4 id="returns">Returns</h4>
+
+<p>1 for success, other otherwise</p>
+
+<p id="esni_8c_1a42f693ae84206906ae6ff8cd553434ac"><hr></p>
+
+<h4 id="publicstaticintkey_derivationesni_8c_1a42f693ae84206906ae6ff8cd553434acssl_esniesni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7fesnikeys"><code>public static int</code><a href="#esni_8c_1a42f693ae84206906ae6ff8cd553434ac"><code>key_derivation</code></a><code>(</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>* esnikeys)</code></h4>
+
+<p>from Zx and ESNIContent, derive key, iv and aad</p>
+
+<h4 id="parameters">Parameters</h4>
+
+<ul>
+<li><code>esni</code> is the SSL_ESNI structure </li>
 </ul>
 
 <h4 id="returns">Returns</h4>
