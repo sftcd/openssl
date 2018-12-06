@@ -33,7 +33,9 @@ when there's an ESNI RFC
 
 ## Status
 
-Our build works against the www.cloudflare.com service (see
+Our server-side code is a work-in-progress.
+
+Our client build works against the www.cloudflare.com service (see
 [here](https://www.cloudflare.com/ssl/encrypted-sni/) for details of what
 CloudFlare have deployed) and e.g. allows passing www.ietf.org as the value in
 the ESNI extension.  First you need to set ``LD_LIBRARY_PATH`` and get a fresh
@@ -67,10 +69,8 @@ didn't do that, (or equivalently use [DoH](https://tools.ietf.org/html/rfc8484)
 as Firefox nightly does), there'd not be so much point in encrypting SNI unless
 you somehow otherwise trust your connection to your recursive resolver.
 
-## Design/Implementation Notes
+## General Design/Implementation Notes
 
-- Our implementation so far is just a client-side proof-of-concept.
-Server-side code is not yet complete, but is started.
 - We don't do any DNS queries from within the OpenSSL library. We just take the
   required inputs and run the protocol.
 - ``s_client`` currently tells the OpenSSL library to check if the TLS server cert matches the
@@ -197,11 +197,9 @@ Notes:
 or take as a parameter a value of that type. Function names with a lowercase
 esni substring do not. (This seems to be an OpenSSL convention.)
 
-	- Playing with printing inside ``tls_parse_ctos_esni`` seems to confirm 
-that. Still need to figure memory management as I muck about there.
 - There's another test script [doit.sh](https://github.com/sftcd/openssl/blob/master/esnistuff/doit.sh)
 that runs a standalone test application ([esnimain.c](https://github.com/sftcd/openssl/blob/master/esnistuff/esnimain.c))
-which just tests the ESNI APIs directly. That should become some kind of unit test in the main
+which just tests the client-side ESNI APIs directly. That should become some kind of unit test in the main
 build, and needs error cases added.
 
 ### Server-side 
