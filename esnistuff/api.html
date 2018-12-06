@@ -328,7 +328,7 @@
 </tr>
 <tr>
 	<td><code>public EXT_RETURN</code><a href="#extensions__srvr_8c_1ae56ce4660abc014b273c5f743bc3eb63"><code>tls_construct_stoc_esni</code></a><code>(SSL * s,WPACKET * pkt,unsigned int context,X509 * x,size_t chainidx)</code></td>
-	<td>Just a stub for now, 'till we do the server side.</td>
+	<td>If ESNI all went well, and we have a nonce then send that back.</td>
 </tr>
 <tr>
 	<td><code>struct</code><a href="#structclient__esni__st"><code>client_esni_st</code></a></td>
@@ -1385,15 +1385,19 @@
 } ClientEncryptedSNI;
 </code></pre>
 
+<p>Parse, decrypt etc inbound ESNI extension. </p>
+
 <blockquote>
-  <p>Todo: TODO: add the crypto bits</p>
+  <p>Todo: TODO: plenty of tidying code</p>
 </blockquote>
 
 <p id="extensions__srvr_8c_1ae56ce4660abc014b273c5f743bc3eb63"><hr></p>
 
 <h4 id="publicext_returntls_construct_stoc_esniextensions__srvr_8c_1ae56ce4660abc014b273c5f743bc3eb63sslswpacketpktunsignedintcontextx509xsize_tchainidx"><code>public EXT_RETURN</code><a href="#extensions__srvr_8c_1ae56ce4660abc014b273c5f743bc3eb63"><code>tls_construct_stoc_esni</code></a><code>(SSL * s,WPACKET * pkt,unsigned int context,X509 * x,size_t chainidx)</code></h4>
 
-<p>Just a stub for now, 'till we do the server side.</p>
+<p>If ESNI all went well, and we have a nonce then send that back.</p>
+
+<p>Just do the biz... :-)</p>
 
 <p id="structclient__esni__st"><hr></p>
 

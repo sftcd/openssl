@@ -2031,5 +2031,70 @@ int SSL_ESNI_set_nonce(SSL_ESNI *esni, unsigned char *nonce, size_t nlen)
     return 1;
 }
 
+SSL_ESNI* SSL_ESNI_dup(SSL_ESNI* orig)
+{
+	SSL_ESNI *new=NULL;
+
+	if (orig==NULL) return NULL;
+	new=OPENSSL_malloc(sizeof(SSL_ESNI));
+	if (new==NULL) {
+        ESNIerr(ESNI_F_SERVER_ENABLE, ERR_R_INTERNAL_ERROR);
+        goto err;
+	}
+	memset(new,0,sizeof(SSL_ESNI));
+
+	if (orig->encoded_rr) {
+		new->encoded_rr_len=orig->encoded->rr_len;
+		new->encoded_rr=OPENSSL_malloc(new->encoded_rr_len);
+		if (new->encoded_rr==NULL) {
+        	ESNIerr(ESNI_F_SERVER_ENABLE, ERR_R_INTERNAL_ERROR);
+        	goto err;
+    	}
+		memcpy(new->encoded_rr,orig->encoded_rr,new->encoded_rr_len);
+	}
+
+	if (orig->rd) {
+		new->rd_len=orig->rd_len;
+		new->rd=OPENSSL_malloc(new->rd_len);
+		if (new->rd==NULL) {
+        	ESNIerr(ESNI_F_SERVER_ENABLE, ERR_R_INTERNAL_ERROR);
+        	goto err;
+    	}
+		memcpy(new->rd,orig->rd,new->rd_len);
+	}
+
+	if (orig->encoded_keyshare) {
+		new->encoded_keyshare_len=orig->encoded_keyshare_len;
+		new->encoded_keyshare=OPENSSL_malloc(new->encoded_keyshare_len);
+		if (new->encoded_keyshare==NULL) {
+        	ESNIerr(ESNI_F_SERVER_ENABLE, ERR_R_INTERNAL_ERROR);
+        	goto err;
+    	}
+		memcpy(new->encoded_keyshare,orig->encoded_keyshare,new->encoded_keyshare_len);
+	}
+
+	new->keyshare=orig->keyshare;
+	if (EVP_PKEY_up_ref(orig->keyshare)!=1) {
+       	ESNIerr(ESNI_F_SERVER_ENABLE, ERR_R_INTERNAL_ERROR);
+       	goto err;
+	}
+    /*
+     * TODO: figure out how to copy these 
+   	const SSL_CIPHER *ciphersuite;  ///< from ESNIKeys after selection of local preference
+    STACK_OF(SSL_CIPHER) *ciphersuites;  ///< needed for graceful memory management (free) for now
+     */
+	new->group_id=orig->group_id;
+	new->padded_length=orig->padded_length;
+	new->not_after=orig->not_after;
+	new->ciphersuites=OPENSSL_sk_deep_copy(orig->ciphersuites);
+	return new;
+err:
+	if (new!=NULL) {
+		SSL_ESNI_free(new);
+		OPENSSL_free(new);
+	}
+	return NULL;
+}
+
 #endif
 

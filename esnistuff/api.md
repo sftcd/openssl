@@ -81,7 +81,7 @@
 `public EXT_RETURN `[`tls_construct_ctos_esni`](#extensions__clnt_8c_1afca936de2d3ae315b5e8b8b200d17462)`(SSL * s,WPACKET * pkt,unsigned int context,X509 * x,size_t chainidx)`            | Create the ESNI extension for the ClientHello.
 `public int `[`tls_parse_stoc_esni`](#extensions__clnt_8c_1ac388d56d20b4d3b507e56203f1c08303)`(SSL * s,PACKET * pkt,unsigned int context,X509 * x,size_t chainidx)`            | Parse and check the ESNI value returned in the EncryptedExtensions to make sure it has the nonce we sent in the ClientHello.
 `public int `[`tls_parse_ctos_esni`](#extensions__srvr_8c_1a4a75b5940e39e1b5da10aefc8ed0ac69)`(SSL * s,PACKET * pkt,unsigned int context,X509 * x,size_t chainidx)`            | Decodes inbound ESNI extension into SSL_ESNI structure.
-`public EXT_RETURN `[`tls_construct_stoc_esni`](#extensions__srvr_8c_1ae56ce4660abc014b273c5f743bc3eb63)`(SSL * s,WPACKET * pkt,unsigned int context,X509 * x,size_t chainidx)`            | Just a stub for now, 'till we do the server side.
+`public EXT_RETURN `[`tls_construct_stoc_esni`](#extensions__srvr_8c_1ae56ce4660abc014b273c5f743bc3eb63)`(SSL * s,WPACKET * pkt,unsigned int context,X509 * x,size_t chainidx)`            | If ESNI all went well, and we have a nonce then send that back.
 `struct `[`client_esni_st`](#structclient__esni__st) | What we send in the esni CH extension:
 `struct `[`esni_record_st`](#structesni__record__st) | Representation of what goes in DNS.
 `struct `[`ssl_esni_st`](#structssl__esni__st) | The ESNI data structure that's part of the SSL structure.
@@ -1015,13 +1015,16 @@ The ESNI stuff:
        opaque encrypted_sni<0..2^16-1>; from c->encrypted_sni (buffer)
     } ClientEncryptedSNI;
 
-> Todo: TODO: add the crypto bits
+Parse, decrypt etc inbound ESNI extension. 
+> Todo: TODO: plenty of tidying code
 
 <p id="extensions__srvr_8c_1ae56ce4660abc014b273c5f743bc3eb63"><hr></p>
 
 #### `public EXT_RETURN `[`tls_construct_stoc_esni`](#extensions__srvr_8c_1ae56ce4660abc014b273c5f743bc3eb63)`(SSL * s,WPACKET * pkt,unsigned int context,X509 * x,size_t chainidx)` 
 
-Just a stub for now, 'till we do the server side.
+If ESNI all went well, and we have a nonce then send that back.
+
+Just do the biz... :-)
 
 <p id="structclient__esni__st"><hr></p>
 

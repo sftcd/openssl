@@ -1940,7 +1940,7 @@ int s_server_main(int argc, char *argv[])
 		}
 		SSL_ESNI *tp=NULL;
 		SSL_ESNI_get_esni_ctx(ctx,&tp);
-		SSL_ESNI_print(bio_err,tp);
+		//SSL_ESNI_print(bio_err,tp);
 	}
 #endif
 
