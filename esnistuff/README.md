@@ -45,7 +45,8 @@ Here's the [design doc](./design.md).
 Most recent first...
 
 - Got (re-)calculation of Z (DH shared) the same on my server, 
-  yay!
+  yay! Same for ESNIContent and hash thereof (with a bit of
+  re-factoring of client side code to make tha easier).
 
 - Added ``-P <esnikeysfile>`` option to ``testclient.sh`` so I 
   can test locally (which I'd forgotten, but which nicely 
