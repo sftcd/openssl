@@ -411,5 +411,22 @@ int SSL_ESNI_set_private(SSL_ESNI *esni, char *private_str);
  */
 int SSL_ESNI_set_nonce(SSL_ESNI *esni, unsigned char *nonce, size_t nlen);
 
+/**
+ * @brief duplicate the populated fields of an SSL_ESNI
+ *
+ * This is needed to handle the SSL_CTX->SSL factory model.
+ * (Or else I'm about to waste a bunch of typing if it
+ * doesn't work;-)
+ *
+ * Note that in server mode, there aren't too many fields populated
+ * when this will be called - essentially just the ESNIKeys and
+ * the server private value. For the moment, we actually only
+ * deep-copy those.
+ *
+ * @param orig is the input SSL_ESNI to be deep-copied
+ * @return a deep-copy or NULL if errors occur
+ */
+SSL_ESNI* SSL_ESNI_dup(SSL_ESNI* orig);
+
 #endif
 #endif
