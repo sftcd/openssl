@@ -243,6 +243,10 @@
 	<td>do the AEAD encryption as per the I-D</td>
 </tr>
 <tr>
+	<td><code>public static int</code><a href="#esni_8c_1a52493599c778fa63f5254cd84e8ae464"><code>makeesnicontenthash</code></a><code>(</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>* esnikeys,int server)</code></td>
+	<td>given an SSL_ESNI create ESNIContent and hash that</td>
+</tr>
+<tr>
 	<td><code>public int</code><a href="#esni_8c_1a1059808bc7c121128c470de41e2dc304"><code>SSL_ESNI_enc</code></a><code>(</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>* esnikeys,size_t client_random_len,unsigned char * client_random,uint16_t curve_id,size_t client_keyshare_len,unsigned char * client_keyshare,</code><a href="#esni_8h_1add3c7579c9f0d7bd5959b37f9c017461"><code>CLIENT_ESNI</code></a><code>** the_esni)</code></td>
 	<td>Do the client-side SNI encryption during a TLS handshake.</td>
 </tr>
@@ -1040,6 +1044,25 @@
 <p>do the AEAD encryption as per the I-D</p>
 
 <p>Note: The tag output isn't really needed but was useful when I got the aad wrong at one stage to keep it for now.</p>
+
+<p id="esni_8c_1a52493599c778fa63f5254cd84e8ae464"><hr></p>
+
+<h4 id="publicstaticintmakeesnicontenthashesni_8c_1a52493599c778fa63f5254cd84e8ae464ssl_esniesni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7fesnikeysintserver"><code>public static int</code><a href="#esni_8c_1a52493599c778fa63f5254cd84e8ae464"><code>makeesnicontenthash</code></a><code>(</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>* esnikeys,int server)</code></h4>
+
+<p>given an SSL_ESNI create ESNIContent and hash that</p>
+
+<p>encode up TLS client's ESNI public keyshare (in a different part of the SSL_ESNI for client and server) and other parts of ESNIContents, and hash those</p>
+
+<h4 id="parameters">Parameters</h4>
+
+<ul>
+<li><p><code>esni</code> is the SSL_ESNI structure </p></li>
+<li><p><code>server</code> is 1 if on the server, 0 for client </p></li>
+</ul>
+
+<h4 id="returns">Returns</h4>
+
+<p>1 for success, other otherwise</p>
 
 <p id="esni_8c_1a1059808bc7c121128c470de41e2dc304"><hr></p>
 
