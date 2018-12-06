@@ -44,8 +44,21 @@ Here's the [design doc](./design.md).
 
 Most recent first...
 
+- Server crashes on 2nd TLS connection though - something up with how I'm
+  calling ``SSL_ESNI_free`` I bet (and the ctx/ctx2 stuff;-) (Keep this
+  @ top of list 'till fixed.)
+
+- Fixed encoding of ESNI response, was missing extn type and length.
+  H/s working now, and nonce coming back ok, but getting name 
+  mismatch on client.
+
+- EncryptedExtensions with nonce being returned now, but no cert from
+  server being process on client (looks like a cert may be sent but, 
+  maybe client barfing on SH? ...)
+  I guess more work is needed than just setting s->ext.hostname;-(
+
 - ``SSL_ESNI_dec`` seems to be working, neat. Next up is to
-  go back to processing the returned ESNI.
+  go back to processing the returned ESNI. 
 
 - AEAD decryption success, next up to extract encservername
 

@@ -1974,7 +1974,8 @@ EXT_RETURN tls_construct_stoc_psk(SSL *s, WPACKET *pkt, unsigned int context,
  *     } ClientEncryptedSNI;
  * </pre>
  * 
- * @todo TODO: add the crypto bits
+ * Parse, decrypt etc inbound ESNI extension.
+ * @todo TODO: plenty of tidying code
  */
 int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
                                X509 *x, size_t chainidx)
@@ -2147,19 +2148,31 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
 	unsigned char *encservername=NULL;
 	size_t encservername_len=0;
     encservername=SSL_ESNI_dec(s->esni,rd_len,rd,curve_id,ks_len,ks,&encservername_len);
-    if (s->esni_cb != NULL) {
-        unsigned int cbrv=s->esni_cb(s);
-        if (cbrv != 1) {
-            return EXT_RETURN_FAIL;
-        }
-    }
 	if (encservername==NULL) {
 		SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ESNI,
-	 	SSL_R_BAD_EXTENSION);
+	 		SSL_R_BAD_EXTENSION);
 		goto err;
     }
     OPENSSL_free(ks);
 
+	// @todo TODO: check encservername has no zero bytes internally
+
+	/*
+	 * Now apply esni by swapping out hostname (we'll try anyway:-)
+	 * Might also need to muck with s->session.ext.hostname
+	 */
+	if (s->ext.hostname!=NULL && s->servername_done == 1) {
+		s->esni->covername=s->ext.hostname;
+		s->ext.hostname=OPENSSL_malloc(encservername_len+1);
+		if (s->ext.hostname==NULL) {
+			SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ESNI,
+	 			SSL_R_BAD_EXTENSION);
+			goto err;
+		}
+		memcpy(s->ext.hostname,s->esni->encservername,encservername_len);
+		s->ext.hostname[encservername_len]=0x00;
+	}
+
     if (s->esni_cb != NULL) {
         unsigned int cbrv=s->esni_cb(s);
         if (cbrv != 1) {
@@ -2167,10 +2180,12 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
         }
     }
 
+	s->esni_done=1;
+
 	return 1;
 
 err:
-	// @todo TODO: more tidy up needed within ce for ciphersuite
+	// @todo TODO: more tidy up needed 
 	if (ks) OPENSSL_free(ks);
 	if (ce->encoded_keyshare) OPENSSL_free(ce->encoded_keyshare);
 	if (ce->record_digest) OPENSSL_free(ce->record_digest);
@@ -2181,13 +2196,29 @@ err:
 }
 
 /**
- * @brief Just a stub for now, 'till we do the server side.
+ * @brief If ESNI all went well, and we have a nonce then send that back
+ *
+ * Just do the biz... :-)
  */
 EXT_RETURN tls_construct_stoc_esni(SSL *s, WPACKET *pkt,
                                           unsigned int context, X509 *x,
                                           size_t chainidx)
 {
-	return 1;
+	if (s->esni) {
+		if (s->esni_done==1) {
+			if  (s->esni->nonce==NULL || s->esni->nonce_len<=0) {
+				return EXT_RETURN_FAIL;
+			}
+			if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_esni)
+            	|| !WPACKET_put_bytes_u16(pkt, s->esni->nonce_len)
+    		    || !WPACKET_memcpy(pkt, s->esni->nonce, s->esni->nonce_len)) {
+				return EXT_RETURN_FAIL;
+			}
+    		return EXT_RETURN_SENT;
+		}
+    }
+	return EXT_RETURN_NOT_SENT;
+
 }
 #endif // END_OPENSSL_NO_ESNI
 // ESNI_DOXY_END

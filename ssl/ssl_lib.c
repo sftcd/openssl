@@ -840,7 +840,7 @@ SSL *SSL_new(SSL_CTX *ctx)
 #endif
 
 #ifndef OPENSSL_NO_ESNI
-	s->esni=ctx->ext.esni;
+	s->esni=SSL_ESNI_dup(ctx->ext.esni);
 	s->esni_cb=ctx->ext.esni_cb;
 #endif
 
@@ -1227,15 +1227,9 @@ void SSL_free(SSL *s)
 	if (s->esni!=NULL) {
 		SSL_ESNI_free(s->esni);
 		OPENSSL_free(s->esni);
+		s->esni=NULL;
+		s->esni_done=0;
 	}
-	/*
-	if (s->ext.encservername!=NULL) {
-		OPENSSL_free(s->ext.encservername);
-	}
-	if (s->ext.covername!=NULL) {
-		OPENSSL_free(s->ext.covername);
-	}
-	*/
 #endif
 
     CRYPTO_THREAD_lock_free(s->lock);
