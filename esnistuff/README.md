@@ -44,6 +44,11 @@ Here's the [design doc](./design.md).
 
 Most recent first...
 
+- ``SSL_ESNI_dec`` seems to be working, neat. Next up is to
+  go back to processing the returned ESNI.
+
+- AEAD decryption success, next up to extract encservername
+
 - Got (re-)calculation of Z (DH shared) the same on my server, 
   yay! Same for ESNIContent and hash thereof (with a bit of
   re-factoring of client side code to make tha easier).

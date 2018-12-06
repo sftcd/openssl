@@ -13,6 +13,7 @@
  * Date: 2018 December-ish
  */
 
+#include <ctype.h>
 #include "ssl_locl.h"
 #include <openssl/ssl.h>
 #include <openssl/rand.h>
@@ -741,6 +742,30 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esni)
         BIO_printf(out,"ESNI has no RRs!\n");
         return 0;
     } 
+	// carefully print these - might be attack content
+
+	if (esni->encservername==NULL) {
+        BIO_printf(out, "ESNI encservername is NULL\n");
+	} else {
+        BIO_printf(out, "ESNI encservername: \"");
+		const char *cp=esni->encservername;
+		unsigned char uc;
+        while ((uc = *cp++) != 0)
+            BIO_printf(out, isascii(uc) && isprint(uc) ? "%c" : "\\x%02x", uc);
+        BIO_printf(out, "\"\n");
+	}
+
+	if (esni->covername==NULL) {
+        BIO_printf(out, "ESNI covername is NULL\n");
+	} else {
+        BIO_printf(out, "ESNI covername: \"");
+		const char *cp=esni->covername;
+		unsigned char uc;
+        while ((uc = *cp++) != 0)
+            BIO_printf(out, isascii(uc) && isprint(uc) ? "%c" : "\\x%02x", uc);
+        BIO_printf(out, "\"\n");
+	}
+
     esni_pbuf(out,"ESNI Encoded RR",esni->encoded_rr,esni->encoded_rr_len,indent);
     esni_pbuf(out,"ESNI DNS record_digest", esni->rd,esni->rd_len,indent);
     esni_pbuf(out,"ESNI Peer KeyShare:",esni->esni_peer_keyshare,esni->esni_peer_keyshare_len,indent);
@@ -779,7 +804,7 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esni)
     esni_pbuf(out,"ESNI Cryptovars tag",esni->tag,esni->tag_len,indent);
     esni_pbuf(out,"ESNI Cryptovars cipher",esni->cipher,esni->cipher_len,indent);
     if (esni->the_esni) {
-        BIO_printf(out,"ESNI CLIENT_ESNI structue (repetitive on client):\n");
+        BIO_printf(out,"ESNI CLIENT_ESNI structure (repetitive on client):\n");
         BIO_printf(out,"CLIENT_ESNI Ciphersuite is %s\n",esni->the_esni->ciphersuite->name);
         esni_pbuf(out,"CLIENT_ESNI encoded_keyshare",esni->the_esni->encoded_keyshare,esni->the_esni->encoded_keyshare_len,indent);
         esni_pbuf(out,"CLIENT_ESNI record_digest",esni->the_esni->record_digest,esni->the_esni->record_digest_len,indent);
@@ -913,6 +938,10 @@ static unsigned char *esni_hkdf_expand_label(
  *
  * Note: The tag output isn't really needed but was useful when I got
  * the aad wrong at one stage to keep it for now.
+ * Most parameters obvious but...
+ *
+ * @param cipher_Len is an output
+ * @returns NULL (on error) or pointer to alloced buffer for ciphertext
  */
 static unsigned char *esni_aead_enc(
             unsigned char *key, size_t key_len,
@@ -1034,6 +1063,109 @@ err:
 }
 
 /**
+ * @brief do the AEAD decryption as per the I-D
+ *
+ * Note: The tag output isn't really needed but was useful when I got
+ * the aad wrong at one stage to keep it for now.
+ * @param cipher_Len is an output
+ * @returns NULL (on error) or pointer to alloced buffer for plaintext
+ */
+static unsigned char *esni_aead_dec(
+            unsigned char *key, size_t key_len,
+            unsigned char *iv, size_t iv_len,
+            unsigned char *aad, size_t aad_len,
+            unsigned char *cipher, size_t cipher_len,
+            size_t *plain_len,
+            const SSL_CIPHER *ciph)
+{
+    /*
+     * From https://wiki.openssl.org/index.php/EVP_Authenticated_Encryption_and_Decryption
+     */
+    EVP_CIPHER_CTX *ctx=NULL;
+    int len;
+    size_t plaintext_len=0;
+    unsigned char *plaintext=NULL;
+    if (SSL_CIPHER_is_aead(ciph)!=1) {
+        ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+    /*
+     * We'll allocate this much extra for plaintext and check the AEAD doesn't require more later
+     * If it does, we'll fail.
+     */
+    size_t alloced_oh=64;
+    plaintext=OPENSSL_malloc(cipher_len+alloced_oh);
+    if (plaintext==NULL) {
+        ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+    /* Create and initialise the context */
+    if(!(ctx = EVP_CIPHER_CTX_new())) {
+        ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+    /* Initialise the encryption operation. */
+    const EVP_CIPHER *enc=EVP_get_cipherbynid(SSL_CIPHER_get_cipher_nid(ciph));
+    if (enc == NULL) {
+        ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+    if(1 != EVP_DecryptInit_ex(ctx, enc, NULL, NULL, NULL)) {
+        ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+    /* Set IV length if default 12 bytes (96 bits) is not appropriate */
+    if(1 != EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_IVLEN, iv_len, NULL)) {
+        ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+    /* Initialise key and IV */
+    if(1 != EVP_DecryptInit_ex(ctx, NULL, NULL, key, iv))  {
+        ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+    /* Provide any AAD data. This can be called zero or more times as
+     * required
+     */
+    if(1 != EVP_DecryptUpdate(ctx, NULL, &len, aad, aad_len)) {
+        ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+    /* Provide the message to be encrypted, and obtain the encrypted output.
+     * EVP_EncryptUpdate can be called multiple times if necessary
+     */
+    if(1 != EVP_DecryptUpdate(ctx, plaintext, &len, cipher, cipher_len-16)) {
+        ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+    plaintext_len = len;
+
+	/* Set expected tag value. Works in OpenSSL 1.0.1d and later */
+	if(!EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_TAG, 16, cipher+cipher_len-16)) {
+        ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+
+    /* 
+	 * Finalise the decryption. 
+     */
+	int decrypt_res=EVP_DecryptFinal_ex(ctx, plaintext + len, &len);
+    if(decrypt_res<=0)  {
+        ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+
+    /* Clean up */
+    EVP_CIPHER_CTX_free(ctx);
+    *plain_len=plaintext_len;
+    return plaintext;
+err:
+    EVP_CIPHER_CTX_free(ctx);
+    if (plaintext!=NULL) OPENSSL_free(plaintext);
+    return NULL;
+}
+
+/**
  * @brief given an SSL_ESNI create ESNIContent and hash that
  *
  * encode up TLS client's ESNI public keyshare (in a different
@@ -1061,12 +1193,12 @@ static int makeesnicontenthash(SSL_ESNI *esnikeys,
         goto err;
     }
 
-    tlen = EVP_PKEY_get1_tls_encodedpoint(esnikeys->keyshare,&tmp); 
-    if (tlen == 0) {
-        ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
-        goto err;
-    }
 	if (!server) {
+    	tlen = EVP_PKEY_get1_tls_encodedpoint(esnikeys->keyshare,&tmp); 
+    	if (tlen == 0) {
+        	ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
+        	goto err;
+    	}
     	esnikeys->encoded_keyshare=wrap_keyshare(tmp,tlen,esnikeys->group_id,&esnikeys->encoded_keyshare_len);
     	if (esnikeys->encoded_keyshare==NULL) {
         	ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
@@ -1105,6 +1237,7 @@ static int makeesnicontenthash(SSL_ESNI *esnikeys,
     esnikeys->hash_len = EVP_MD_size(md);
     esnikeys->hash=OPENSSL_malloc(esnikeys->hash_len);
     if (esnikeys->hash==NULL) {
+        ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
     }
     if (mctx == NULL
@@ -1119,6 +1252,51 @@ static int makeesnicontenthash(SSL_ESNI *esnikeys,
 err:
     if (mctx!=NULL) EVP_MD_CTX_free(mctx);
     if (tmp!=NULL) OPENSSL_free(tmp);
+	return 0;
+}
+
+/**
+ * @brief from Zx and ESNIContent, derive key, iv and aad
+ * 
+ * @param esni is the SSL_ESNI structure
+ * @return 1 for success, other otherwise
+ */
+static int key_derivation(SSL_ESNI *esnikeys)
+{
+    const SSL_CIPHER *sc=esnikeys->ciphersuite;
+    const EVP_MD *md=ssl_md(sc->algorithm2);
+
+    /* prepare nid and EVP versions for later checks */
+    int cipher_nid = SSL_CIPHER_get_cipher_nid(esnikeys->ciphersuite);
+    const EVP_CIPHER *e_ciph = EVP_get_cipherbynid(cipher_nid);
+    if (e_ciph==NULL) {
+        ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+    esnikeys->key_len=EVP_CIPHER_key_length(e_ciph);
+    esnikeys->key=esni_hkdf_expand_label(esnikeys->Zx,esnikeys->Zx_len,"esni key",
+                    esnikeys->hash,esnikeys->hash_len,&esnikeys->key_len,md);
+    if (esnikeys->key==NULL) {
+        ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+    esnikeys->iv_len=EVP_CIPHER_iv_length(e_ciph);
+    esnikeys->iv=esni_hkdf_expand_label(esnikeys->Zx,esnikeys->Zx_len,"esni iv",
+                    esnikeys->hash,esnikeys->hash_len,&esnikeys->iv_len,md);
+    if (esnikeys->iv==NULL) {
+        ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+    /*
+     * Put a few encoding bytes around the TLS h/s key share
+     */
+    esnikeys->aad=wrap_keyshare(esnikeys->hs_kse,esnikeys->hs_kse_len,esnikeys->group_id,&esnikeys->aad_len);
+    if (esnikeys->aad==NULL) {
+        ESNIerr(ESNI_F_ENC, ERR_R_MALLOC_FAILURE);
+        goto err;
+    }
+	return 1;
+err:
 	return 0;
 }
 
@@ -1187,14 +1365,6 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys,
      * - encrypt encservername
      * - encode packet and return
      */
-
-    /* prepare nid and EVP versions for later checks */
-    int cipher_nid = SSL_CIPHER_get_cipher_nid(esnikeys->ciphersuite);
-    const EVP_CIPHER *e_ciph = EVP_get_cipherbynid(cipher_nid);
-    if (e_ciph==NULL) {
-        ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
-        goto err;
-    }
 
 #ifdef ESNI_CRYPT_INTEROP
 
@@ -1326,35 +1496,15 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys,
     /* 
      * derive key and iv length from suite
      */
-
-    esnikeys->key_len=EVP_CIPHER_key_length(e_ciph);
-    esnikeys->key=esni_hkdf_expand_label(esnikeys->Zx,esnikeys->Zx_len,"esni key",
-                    esnikeys->hash,esnikeys->hash_len,&esnikeys->key_len,md);
-    if (esnikeys->key==NULL) {
+	if (key_derivation(esnikeys)!=1) {
         ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
-    }
-    esnikeys->iv_len=EVP_CIPHER_iv_length(e_ciph);
-    esnikeys->iv=esni_hkdf_expand_label(esnikeys->Zx,esnikeys->Zx_len,"esni iv",
-                    esnikeys->hash,esnikeys->hash_len,&esnikeys->iv_len,md);
-    if (esnikeys->iv==NULL) {
-        ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
-        goto err;
-    }
+	}
 
     /*
      * The actual encryption... from the I-D:
      *     encrypted_sni = AEAD-Encrypt(key, iv, ClientHello.KeyShareClientHello, ClientESNIInner)
      */
-
-    /*
-     * Put a few encoding bytes around the TLS h/s key share
-     */
-    esnikeys->aad=wrap_keyshare(esnikeys->hs_kse,esnikeys->hs_kse_len,curve_id,&esnikeys->aad_len);
-    if (esnikeys->aad==NULL) {
-        ESNIerr(ESNI_F_ENC, ERR_R_MALLOC_FAILURE);
-        goto err;
-    }
 
     /*
      * Tag is in ciphertext anyway, but sure may as well keep it
@@ -1506,6 +1656,14 @@ unsigned char *SSL_ESNI_dec(SSL_ESNI *esni,
 	}
 	memcpy(esni->hs_kse,client_keyshare,esni->hs_kse_len);
 
+	esni->cipher_len=esni->the_esni->encrypted_sni_len;
+	esni->cipher=OPENSSL_malloc(esni->cipher_len);
+	if (esni->cipher==NULL) {
+        ESNIerr(ESNI_F_DEC, ERR_R_INTERNAL_ERROR);
+        goto err;
+	}
+	memcpy(esni->cipher,esni->the_esni->encrypted_sni,esni->cipher_len);
+
     /*
      * Ok, let's go for Z
      */
@@ -1562,9 +1720,52 @@ unsigned char *SSL_ESNI_dec(SSL_ESNI *esni,
         goto err;
 	}
 
+    /* 
+     * derive key and iv length from suite
+     */
+	if (key_derivation(esni)!=1) {
+        ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
+        goto err;
+	}
+
+    esni->plain=esni_aead_dec(esni->key, esni->key_len,
+            esni->iv, esni->iv_len,
+            esni->aad, esni->aad_len,
+            esni->cipher, esni->cipher_len,
+            &esni->plain_len,
+            esni->ciphersuite);
+    if (esni->plain==NULL) {
+        ESNIerr(ESNI_F_DEC, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+
+	/* yay! */
+	esni->nonce_len=16;
+	esni->nonce=OPENSSL_malloc(esni->nonce_len);
+	if (esni->nonce==NULL) {
+        ESNIerr(ESNI_F_DEC, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+	memcpy(esni->nonce,esni->plain,esni->nonce_len);
+
+	size_t outer_es_len=esni->plain[16]*256+esni->plain[17];
+	size_t inner_es_len=outer_es_len-3;
+	if (inner_es_len+21>esni->plain_len) {
+        ESNIerr(ESNI_F_DEC, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+	unsigned char *result=OPENSSL_malloc(inner_es_len+1);
+	if (result==NULL) {
+        ESNIerr(ESNI_F_DEC, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+	memcpy(result,esni->plain+21,inner_es_len);
+	result[inner_es_len]=0x00; /* make it a safe-ish string */
+	esni->encservername=(char*)result;
+
     if (pctx!=NULL) EVP_PKEY_CTX_free(pctx);
-    printf("At end of SSL_ESNI_dec\n");
-    return NULL;
+	*encservername_len=inner_es_len;
+    return result;
 err:
     if (pctx!=NULL) EVP_PKEY_CTX_free(pctx);
     return NULL;

@@ -60,7 +60,9 @@
 `public static unsigned char * `[`esni_hkdf_extract`](#esni_8c_1a9f76caa6f579de747d413ee3e809650d)`(unsigned char * secret,size_t slen,size_t * olen,const EVP_MD * md)`            | Local wrapper for HKDF-Extract(salt,IVM)=HMAC-Hash(salt,IKM) according to RFC5689.
 `public static unsigned char * `[`esni_hkdf_expand_label`](#esni_8c_1a7dd32376e27d6c6aed533917093639e8)`(unsigned char * Zx,size_t Zx_len,const char * label,unsigned char * hash,size_t hash_len,size_t * expanded_len,const EVP_MD * md)`            | expand a label as per the I-D
 `public static unsigned char * `[`esni_aead_enc`](#esni_8c_1a5a36ed03fd4e8a351ed10b1296f3857b)`(unsigned char * key,size_t key_len,unsigned char * iv,size_t iv_len,unsigned char * aad,size_t aad_len,unsigned char * plain,size_t plain_len,unsigned char * tag,size_t tag_len,size_t * cipher_len,const SSL_CIPHER * ciph)`            | do the AEAD encryption as per the I-D
+`public static unsigned char * `[`esni_aead_dec`](#esni_8c_1af3daf294b74d177ea97d94eb52d6982f)`(unsigned char * key,size_t key_len,unsigned char * iv,size_t iv_len,unsigned char * aad,size_t aad_len,unsigned char * cipher,size_t cipher_len,size_t * plain_len,const SSL_CIPHER * ciph)`            | do the AEAD decryption as per the I-D
 `public static int `[`makeesnicontenthash`](#esni_8c_1a52493599c778fa63f5254cd84e8ae464)`(`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * esnikeys,int server)`            | given an SSL_ESNI create ESNIContent and hash that
+`public static int `[`key_derivation`](#esni_8c_1a42f693ae84206906ae6ff8cd553434ac)`(`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * esnikeys)`            | from Zx and ESNIContent, derive key, iv and aad
 `public int `[`SSL_ESNI_enc`](#esni_8c_1a1059808bc7c121128c470de41e2dc304)`(`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * esnikeys,size_t client_random_len,unsigned char * client_random,uint16_t curve_id,size_t client_keyshare_len,unsigned char * client_keyshare,`[`CLIENT_ESNI`](#esni_8h_1add3c7579c9f0d7bd5959b37f9c017461)` ** the_esni)`            | Do the client-side SNI encryption during a TLS handshake.
 `public unsigned char * `[`SSL_ESNI_dec`](#esni_8c_1ae4af2d2173a5c3b1513a1dcd04e2e940)`(`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * esni,size_t client_random_len,unsigned char * client_random,uint16_t curve_id,size_t client_keyshare_len,unsigned char * client_keyshare,size_t * encservername_len)`            | Attempt/do the serveri-side decryption during a TLS handshake.
 `public int `[`SSL_esni_checknames`](#esni_8c_1a55aedc0e921fd36dcc3327124f07da10)`(const char * encservername,const char * covername)`            | Make a basic check of names from CLI or API.
@@ -715,7 +717,26 @@ expand a label as per the I-D
 
 do the AEAD encryption as per the I-D
 
-Note: The tag output isn't really needed but was useful when I got the aad wrong at one stage to keep it for now.
+Note: The tag output isn't really needed but was useful when I got the aad wrong at one stage to keep it for now. Most parameters obvious but...
+
+#### Parameters
+* `cipher_Len` is an output 
+
+#### Returns
+NULL (on error) or pointer to alloced buffer for ciphertext
+
+<p id="esni_8c_1af3daf294b74d177ea97d94eb52d6982f"><hr></p>
+
+#### `public static unsigned char * `[`esni_aead_dec`](#esni_8c_1af3daf294b74d177ea97d94eb52d6982f)`(unsigned char * key,size_t key_len,unsigned char * iv,size_t iv_len,unsigned char * aad,size_t aad_len,unsigned char * cipher,size_t cipher_len,size_t * plain_len,const SSL_CIPHER * ciph)` 
+
+do the AEAD decryption as per the I-D
+
+Note: The tag output isn't really needed but was useful when I got the aad wrong at one stage to keep it for now. 
+#### Parameters
+* `cipher_Len` is an output 
+
+#### Returns
+NULL (on error) or pointer to alloced buffer for plaintext
 
 <p id="esni_8c_1a52493599c778fa63f5254cd84e8ae464"><hr></p>
 
@@ -729,6 +750,18 @@ encode up TLS client's ESNI public keyshare (in a different part of the SSL_ESNI
 * `esni` is the SSL_ESNI structure 
 
 * `server` is 1 if on the server, 0 for client 
+
+#### Returns
+1 for success, other otherwise
+
+<p id="esni_8c_1a42f693ae84206906ae6ff8cd553434ac"><hr></p>
+
+#### `public static int `[`key_derivation`](#esni_8c_1a42f693ae84206906ae6ff8cd553434ac)`(`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * esnikeys)` 
+
+from Zx and ESNIContent, derive key, iv and aad
+
+#### Parameters
+* `esni` is the SSL_ESNI structure 
 
 #### Returns
 1 for success, other otherwise
