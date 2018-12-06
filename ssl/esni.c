@@ -126,6 +126,16 @@ err:
     return -1;
 }
 
+static const SSL_CIPHER *cs2sc(uint16_t ciphersuite)
+{
+	const SSL_CIPHER *new;
+	unsigned char encoding[2];
+	encoding[0]=ciphersuite/256;
+	encoding[1]=ciphersuite%256;
+	new=ssl3_get_cipher_by_char(encoding);
+	return new;
+}
+
 /**
  * @brief Free up an ENSI_RECORD 
  *
@@ -135,9 +145,6 @@ err:
  */
 void ESNI_RECORD_free(ESNI_RECORD *er)
 {
-    /* 
-     * Don't free ciphersuites- they're copied over to SSL_ESNI and freed there
-     */
     if (er==NULL) return;
     if (er->group_ids!=NULL) OPENSSL_free(er->group_ids);
     for (int i=0;i!=er->nkeys;i++) {
@@ -149,6 +156,7 @@ void ESNI_RECORD_free(ESNI_RECORD *er)
     for (int i=0;i!=er->nexts;i++) {
         if (er->exts[i]!=NULL) OPENSSL_free(er->exts[i]);
     }
+    if (er->ciphersuites!=NULL) OPENSSL_free(er->ciphersuites);
     if (er->encoded_lens!=NULL) OPENSSL_free(er->encoded_lens);
     if (er->encoded_keys!=NULL) OPENSSL_free(er->encoded_keys);
     if (er->exts!=NULL) OPENSSL_free(er->exts);
@@ -183,16 +191,6 @@ void SSL_ESNI_free(SSL_ESNI *esni)
     if (esni->covername!=NULL) OPENSSL_free(esni->covername);
     if (esni->encoded_rr!=NULL) OPENSSL_free(esni->encoded_rr);
     if (esni->rd!=NULL) OPENSSL_free(esni->rd);
-    if (esni->ciphersuite!=NULL) {
-        /*
-         * Weirdly, I know how to free a stack of these, but not just one
-         * So, we copied the stack from ESNI_RECORD
-         */
-        STACK_OF(SSL_CIPHER) *sk=esni->ciphersuites;
-        sk_SSL_CIPHER_free(sk);
-        esni->ciphersuite=NULL;
-        esni->ciphersuites=NULL;
-    }
     if (esni->esni_peer_keyshare!=NULL) OPENSSL_free(esni->esni_peer_keyshare);
     if (esni->esni_peer_pkey!=NULL) EVP_PKEY_free(esni->esni_peer_pkey);
     if (esni->nonce!=NULL) OPENSSL_free(esni->nonce);
@@ -467,34 +465,25 @@ ESNI_RECORD *SSL_ESNI_RECORD_new_from_binary(unsigned char *binbuf, size_t binbl
         goto err;
     }
     int nsuites=PACKET_remaining(&cipher_suites);
+	er->nsuites=nsuites/2; /* local var is #bytes */
+	er->ciphersuites=OPENSSL_malloc(er->nsuites*sizeof(uint16_t));
+	if (er->ciphersuites==NULL) {
+        ESNIerr(ESNI_F_NEW_FROM_BASE64, ESNI_R_RR_DECODE_ERROR);
+        goto err;
+	}
     if (!nsuites || (nsuites % 1)) {
         ESNIerr(ESNI_F_NEW_FROM_BASE64, ESNI_R_RR_DECODE_ERROR);
         goto err;
     }
-    const SSL_CIPHER *c;
-    STACK_OF(SSL_CIPHER) *sk = NULL;
-    int n;
     unsigned char cipher[TLS_CIPHER_LEN];
-    n = TLS_CIPHER_LEN;
-    sk = sk_SSL_CIPHER_new_null();
-    if (sk == NULL) {
-        ESNIerr(ESNI_F_NEW_FROM_BASE64, ESNI_R_RR_DECODE_ERROR);
-        goto err;
-    }
-    while (PACKET_copy_bytes(&cipher_suites, cipher, n)) {
-        c = ssl3_get_cipher_by_char(cipher);
-        if (c != NULL) {
-            if (c->valid && !sk_SSL_CIPHER_push(sk, c)) {
-                ESNIerr(ESNI_F_NEW_FROM_BASE64, ESNI_R_RR_DECODE_ERROR);
-                goto err;
-            }
-        }
+	int ci=0;
+    while (PACKET_copy_bytes(&cipher_suites, cipher, TLS_CIPHER_LEN)) {
+		er->ciphersuites[ci++]=cipher[0]*256+cipher[1];
     }
     if (PACKET_remaining(&cipher_suites) > 0) {
         ESNIerr(ESNI_F_NEW_FROM_BASE64, ESNI_R_RR_DECODE_ERROR);
         goto err;
     }
-    er->ciphersuites=sk;
     if (!PACKET_get_net_2(&pkt,&er->padded_length)) {
         ESNIerr(ESNI_F_NEW_FROM_BASE64, ESNI_R_RR_DECODE_ERROR);
         goto err;
@@ -568,8 +557,7 @@ static int esni_make_se_from_er(ESNI_RECORD* er, SSL_ESNI *se, int server)
      * TODO: more sophisticated selection:-)
      */
     int rec2pick=0;
-    se->ciphersuite=sk_SSL_CIPHER_value(er->ciphersuites,rec2pick);
-    se->ciphersuites=er->ciphersuites;
+    se->ciphersuite=er->ciphersuites[rec2pick];
     se->group_id=er->group_ids[rec2pick];
     se->esni_peer_pkey=ssl_generate_param_group(se->group_id);
     if (se->esni_peer_pkey==NULL) {
@@ -601,7 +589,7 @@ static int esni_make_se_from_er(ESNI_RECORD* er, SSL_ESNI *se, int server)
         }
     }
     OPENSSL_free(tmp);
-    const SSL_CIPHER *sc=se->ciphersuite;
+	const SSL_CIPHER *sc=cs2sc(se->ciphersuite);
     const EVP_MD *md=ssl_md(sc->algorithm2);
     se->rd=esni_make_rd(se->encoded_rr,se->encoded_rr_len,md,&se->rd_len);
     if (se->rd==NULL) {
@@ -770,11 +758,7 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esni)
     esni_pbuf(out,"ESNI DNS record_digest", esni->rd,esni->rd_len,indent);
     esni_pbuf(out,"ESNI Peer KeyShare:",esni->esni_peer_keyshare,esni->esni_peer_keyshare_len,indent);
     BIO_printf(out,"ESNI Server groupd Id: %04x\n",esni->group_id);
-    if (esni->ciphersuite!=NULL) {
-        BIO_printf(out,"ESNI Server Ciphersuite is %s\n",esni->ciphersuite->name);
-    } else {
-        BIO_printf(out,"ENSI Server Ciphersuite is NULL\n");
-    }
+    BIO_printf(out,"ENSI Server Ciphersuite is %04x\n",esni->ciphersuite);
     BIO_printf(out,"ESNI Server padded_length: %zd\n",esni->padded_length);
     BIO_printf(out,"ESNI Server not_before: %ju\n",esni->not_before);
     BIO_printf(out,"ESNI Server not_after: %ju\n",esni->not_after);
@@ -805,7 +789,7 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esni)
     esni_pbuf(out,"ESNI Cryptovars cipher",esni->cipher,esni->cipher_len,indent);
     if (esni->the_esni) {
         BIO_printf(out,"ESNI CLIENT_ESNI structure (repetitive on client):\n");
-        BIO_printf(out,"CLIENT_ESNI Ciphersuite is %s\n",esni->the_esni->ciphersuite->name);
+        BIO_printf(out,"CLIENT_ESNI Ciphersuite is %04x\n",esni->the_esni->ciphersuite);
         esni_pbuf(out,"CLIENT_ESNI encoded_keyshare",esni->the_esni->encoded_keyshare,esni->the_esni->encoded_keyshare_len,indent);
         esni_pbuf(out,"CLIENT_ESNI record_digest",esni->the_esni->record_digest,esni->the_esni->record_digest_len,indent);
         esni_pbuf(out,"CLIENT_ESNI encrypted_sni",esni->the_esni->encrypted_sni,esni->the_esni->encrypted_sni_len,indent);
@@ -950,7 +934,7 @@ static unsigned char *esni_aead_enc(
             unsigned char *plain, size_t plain_len,
             unsigned char *tag, size_t tag_len, 
             size_t *cipher_len,
-            const SSL_CIPHER *ciph)
+			uint16_t ciph)
 {
     /*
      * From https://wiki.openssl.org/index.php/EVP_Authenticated_Encryption_and_Decryption
@@ -960,7 +944,12 @@ static unsigned char *esni_aead_enc(
     size_t ciphertext_len;
     unsigned char *ciphertext=NULL;
 
-    if (SSL_CIPHER_is_aead(ciph)!=1) {
+    const SSL_CIPHER *sc=cs2sc(ciph);
+	if (sc==NULL) {
+        ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
+        goto err;
+	}
+    if (SSL_CIPHER_is_aead(sc)!=1) {
         ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
     }
@@ -983,7 +972,7 @@ static unsigned char *esni_aead_enc(
     }
 
     /* Initialise the encryption operation. */
-    const EVP_CIPHER *enc=EVP_get_cipherbynid(SSL_CIPHER_get_cipher_nid(ciph));
+    const EVP_CIPHER *enc=EVP_get_cipherbynid(SSL_CIPHER_get_cipher_nid(sc));
     if (enc == NULL) {
         ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
@@ -1076,7 +1065,7 @@ static unsigned char *esni_aead_dec(
             unsigned char *aad, size_t aad_len,
             unsigned char *cipher, size_t cipher_len,
             size_t *plain_len,
-            const SSL_CIPHER *ciph)
+			uint16_t ciph)
 {
     /*
      * From https://wiki.openssl.org/index.php/EVP_Authenticated_Encryption_and_Decryption
@@ -1085,7 +1074,8 @@ static unsigned char *esni_aead_dec(
     int len;
     size_t plaintext_len=0;
     unsigned char *plaintext=NULL;
-    if (SSL_CIPHER_is_aead(ciph)!=1) {
+    const SSL_CIPHER *sc=cs2sc(ciph);
+    if (SSL_CIPHER_is_aead(sc)!=1) {
         ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
     }
@@ -1105,7 +1095,7 @@ static unsigned char *esni_aead_dec(
         goto err;
     }
     /* Initialise the encryption operation. */
-    const EVP_CIPHER *enc=EVP_get_cipherbynid(SSL_CIPHER_get_cipher_nid(ciph));
+    const EVP_CIPHER *enc=EVP_get_cipherbynid(SSL_CIPHER_get_cipher_nid(sc));
     if (enc == NULL) {
         ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
@@ -1231,7 +1221,7 @@ static int makeesnicontenthash(SSL_ESNI *esnikeys,
     /*
      * now hash it
      */
-    const SSL_CIPHER *sc=esnikeys->ciphersuite;
+	const SSL_CIPHER *sc=cs2sc(esnikeys->ciphersuite);
     const EVP_MD *md=ssl_md(sc->algorithm2);
     mctx = EVP_MD_CTX_new();
     esnikeys->hash_len = EVP_MD_size(md);
@@ -1263,12 +1253,12 @@ err:
  */
 static int key_derivation(SSL_ESNI *esnikeys)
 {
-    const SSL_CIPHER *sc=esnikeys->ciphersuite;
-    const EVP_MD *md=ssl_md(sc->algorithm2);
 
     /* prepare nid and EVP versions for later checks */
-    int cipher_nid = SSL_CIPHER_get_cipher_nid(esnikeys->ciphersuite);
-    const EVP_CIPHER *e_ciph = EVP_get_cipherbynid(cipher_nid);
+    uint16_t cipher_nid = esnikeys->ciphersuite;
+	const SSL_CIPHER *sc=cs2sc(cipher_nid);
+    const EVP_MD *md=ssl_md(sc->algorithm2);
+    const EVP_CIPHER *e_ciph=EVP_get_cipherbynid(SSL_CIPHER_get_cipher_nid(sc));
     if (e_ciph==NULL) {
         ESNIerr(ESNI_F_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
@@ -1484,7 +1474,7 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys,
      *    key = HKDF-Expand-Label(Zx, "esni key", Hash(ESNIContents), key_length)
      *    iv = HKDF-Expand-Label(Zx, "esni iv", Hash(ESNIContents), iv_length)
      */
-    const SSL_CIPHER *sc=esnikeys->ciphersuite;
+	const SSL_CIPHER *sc=cs2sc(esnikeys->ciphersuite);
     const EVP_MD *md=ssl_md(sc->algorithm2);
     esnikeys->Zx_len=0;
     esnikeys->Zx=esni_hkdf_extract(esnikeys->Z,esnikeys->Z_len,&esnikeys->Zx_len,md);
@@ -1632,7 +1622,7 @@ unsigned char *SSL_ESNI_dec(SSL_ESNI *esni,
         ESNIerr(ESNI_F_DEC, ERR_R_INTERNAL_ERROR);
         goto err;
     }
-    if (SSL_CIPHER_get_id(er->ciphersuite)!=SSL_CIPHER_get_id(esni->ciphersuite)) {
+    if (er->ciphersuite!=esni->ciphersuite) {
         ESNIerr(ESNI_F_DEC, ERR_R_INTERNAL_ERROR);
         goto err;
     }
@@ -1706,7 +1696,7 @@ unsigned char *SSL_ESNI_dec(SSL_ESNI *esni,
         goto err;
     }
 
-    const SSL_CIPHER *sc=esni->ciphersuite;
+	const SSL_CIPHER *sc=cs2sc(esni->ciphersuite);
     const EVP_MD *md=ssl_md(sc->algorithm2);
     esni->Zx_len=0;
     esni->Zx=esni_hkdf_extract(esni->Z,esni->Z_len,&esni->Zx_len,md);
@@ -2044,7 +2034,7 @@ SSL_ESNI* SSL_ESNI_dup(SSL_ESNI* orig)
 	memset(new,0,sizeof(SSL_ESNI));
 
 	if (orig->encoded_rr) {
-		new->encoded_rr_len=orig->encoded->rr_len;
+		new->encoded_rr_len=orig->encoded_rr_len;
 		new->encoded_rr=OPENSSL_malloc(new->encoded_rr_len);
 		if (new->encoded_rr==NULL) {
         	ESNIerr(ESNI_F_SERVER_ENABLE, ERR_R_INTERNAL_ERROR);
@@ -2078,15 +2068,10 @@ SSL_ESNI* SSL_ESNI_dup(SSL_ESNI* orig)
        	ESNIerr(ESNI_F_SERVER_ENABLE, ERR_R_INTERNAL_ERROR);
        	goto err;
 	}
-    /*
-     * TODO: figure out how to copy these 
-   	const SSL_CIPHER *ciphersuite;  ///< from ESNIKeys after selection of local preference
-    STACK_OF(SSL_CIPHER) *ciphersuites;  ///< needed for graceful memory management (free) for now
-     */
 	new->group_id=orig->group_id;
 	new->padded_length=orig->padded_length;
 	new->not_after=orig->not_after;
-	new->ciphersuites=OPENSSL_sk_deep_copy(orig->ciphersuites);
+	new->ciphersuite=orig->ciphersuite;
 	return new;
 err:
 	if (new!=NULL) {
