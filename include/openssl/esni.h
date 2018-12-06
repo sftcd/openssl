@@ -73,7 +73,8 @@ typedef struct esni_record_st {
     EVP_PKEY **keys;
     size_t *encoded_lens;
     unsigned char **encoded_keys;
-    STACK_OF(SSL_CIPHER) *ciphersuites;
+	size_t nsuites;
+	uint16_t *ciphersuites;
     unsigned int padded_length;
     uint64_t not_before;
     uint64_t not_after;
@@ -103,7 +104,7 @@ typedef struct esni_record_st {
  *
  */
 typedef struct client_esni_st {
-    const SSL_CIPHER *ciphersuite;
+	uint16_t ciphersuite;
     size_t encoded_keyshare_len; 
     unsigned char *encoded_keyshare;
     size_t record_digest_len;
@@ -125,12 +126,7 @@ typedef struct ssl_esni_st {
     unsigned char *encoded_rr; ///< Binary (base64 decoded) RR value
     size_t rd_len;
     unsigned char *rd; ///< Hash of the above (record_digest), using the relevant hash from the ciphersuite
-    const SSL_CIPHER *ciphersuite;  ///< from ESNIKeys after selection of local preference
-    /*
-     * TODO: figure out how to free one SSL_CIPHER, for now copy full set and free that
-     */
-    STACK_OF(SSL_CIPHER) *ciphersuites;  ///< needed for graceful memory management (free) for now
-
+	uint16_t ciphersuite; ///< from ESNIKeys after selection of local preference
     uint16_t group_id;  ///< our chosen group e.g. X25519
     size_t esni_peer_keyshare_len;  
     unsigned char *esni_peer_keyshare; ///< the encoded peer's public value

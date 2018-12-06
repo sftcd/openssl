@@ -2103,12 +2103,11 @@ EXT_RETURN tls_construct_ctos_esni(SSL *s, WPACKET *pkt, unsigned int context,
      *    opaque encrypted_sni<0..2^16-1>; from c->encrypted_sni (buffer)
      * } ClientEncryptedSNI;
      */
-    size_t len; 
     /* Add TLS extension encrypted servername to the Client Hello message */
     if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_esni)
                /* Sub-packet for esni extension */
             || !WPACKET_start_sub_packet_u16(pkt)
-            || !s->method->put_cipher_by_char(c->ciphersuite, pkt, &len)
+    		|| !WPACKET_put_bytes_u16(pkt, c->ciphersuite)
             /*
              * TODO: don't force self to remove leading two length bytes here
              * Needs fluting about as sometimes they're in, sometimes not

@@ -2000,14 +2000,7 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
                  SSL_R_BAD_EXTENSION);
         goto err;
 	}
-    ce->ciphersuite = ssl3_get_cipher_by_char(cipher);
-    if (ce->ciphersuite != NULL) {
-        if (!ce->ciphersuite->valid) {
-        		SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ESNI,
-                 SSL_R_BAD_EXTENSION);
-        		goto err;
-        }
-    }
+    ce->ciphersuite = cipher[0]*256+cipher[1];
 	uint16_t group_id=0;
 	unsigned int tmp;
 	if (!PACKET_get_net_2(pkt, &tmp)) {
