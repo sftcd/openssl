@@ -44,9 +44,14 @@ Here's the [design doc](./design.md).
 
 Most recent first...
 
-- Server crashes on 2nd TLS connection though - something up with how I'm
+- Re-did how I handle ciphersuites in my data structures to use the 2byte
+  ciphersuite IDs off the wire and just map those to ``SSL_CIPHER`` or
+  ``EVP_xx`` later. Makes memory management easier:-) Seems to show that
+  the ``SSL_CIPHER`` "class" isn't really designed that much I guess.
+
+- (Now fixed) Server crashes on 2nd TLS connection though - something up with how I'm
   calling ``SSL_ESNI_free`` I bet (and the ctx/ctx2 stuff;-) (Keep this
-  @ top of list 'till fixed.)
+  @ top of list 'till fixed.) 
 
 - Fixed encoding of ESNI response, was missing extn type and length.
   H/s working now, and nonce coming back ok, but getting name 
