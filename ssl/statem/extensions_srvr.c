@@ -2156,15 +2156,16 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
 	 */
 	if (s->ext.hostname!=NULL && s->servername_done == 1) {
 		s->esni->covername=s->ext.hostname;
-		s->ext.hostname=OPENSSL_malloc(encservername_len+1);
-		if (s->ext.hostname==NULL) {
-			SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ESNI,
-	 			SSL_R_BAD_EXTENSION);
-			goto err;
-		}
-		memcpy(s->ext.hostname,s->esni->encservername,encservername_len);
-		s->ext.hostname[encservername_len]=0x00;
+		s->ext.hostname=NULL;
 	}
+	s->ext.hostname=OPENSSL_malloc(encservername_len+1);
+	if (s->ext.hostname==NULL) {
+		SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ESNI,
+	 		SSL_R_BAD_EXTENSION);
+		goto err;
+	}
+	memcpy(s->ext.hostname,encservername,encservername_len);
+	s->ext.hostname[encservername_len]=0x00;
 
     if (s->esni_cb != NULL) {
         unsigned int cbrv=s->esni_cb(s);
