@@ -236,8 +236,8 @@ it:
 The private key is in PEM format. (I'm not v. familiar with PEM format for
 X25519 but hopefully it's portable, I've a TODO: to check.) For now the 
 public key is the binary form of ESNIKeys so needs to be base64 encoded
-before being put in a zone file. I've yet to test that these are good
-keys - have just generated and formatted 'em so far. This should likely
+before being put in a zone file. 
+This should likely
 go into some tools or utils directory, not sure yet. Lastly, this does
 allow private key re-use, just in case that may be needed, but we should 
 decide if that could be removed, which seems safer in general.

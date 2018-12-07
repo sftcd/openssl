@@ -44,6 +44,10 @@ Here's the [design doc](./design.md).
 
 Most recent first...
 
+- Got the server to do the right thing for the 1st time, by skipping
+  a check (that I don't yet grok!) in ``ssl_servername_cb``. Plenty
+  more to be done though before I could claim it works. 
+
 - Re-did how I handle ciphersuites in my data structures to use the 2byte
   ciphersuite IDs off the wire and just map those to ``SSL_CIPHER`` or
   ``EVP_xx`` later. Makes memory management easier:-) Seems to show that
