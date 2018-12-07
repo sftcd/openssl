@@ -495,12 +495,19 @@ static int ssl_servername_cb(SSL *s, int *ad, void *arg)
         return SSL_TLSEXT_ERR_NOACK;
 
     if (servername != NULL) {
+#ifndef OPENSSL_NO_ESNI
+        if (ctx2 != NULL) {
+            BIO_printf(p->biodebug, "Switching server context because ESNI.\n");
+            SSL_set_SSL_CTX(s, ctx2);
+		}
+#else
         if (strcasecmp(servername, p->servername))
             return p->extension_error;
         if (ctx2 != NULL) {
             BIO_printf(p->biodebug, "Switching server context.\n");
             SSL_set_SSL_CTX(s, ctx2);
         }
+#endif
     }
     return SSL_TLSEXT_ERR_OK;
 }
@@ -1919,9 +1926,6 @@ int s_server_main(int argc, char *argv[])
     }
 
 #ifndef OPENSSL_NO_ESNI
-	/*
-	 * TODO: figure this out: I think(!) I need to set this context before ctx2 is "spun off" not sure
-	 */
 	if (esnikeyfile!= NULL || esnipubfile!=NULL) {
 		/*
 		 * need both set to go ahead
