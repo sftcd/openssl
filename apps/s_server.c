@@ -494,21 +494,34 @@ static int ssl_servername_cb(SSL *s, int *ad, void *arg)
     if (p->servername == NULL)
         return SSL_TLSEXT_ERR_NOACK;
 
-    if (servername != NULL) {
 #ifndef OPENSSL_NO_ESNI
+	/* think this just works for my test but is wrong! */
+    if (servername != NULL) {
         if (ctx2 != NULL) {
-            BIO_printf(p->biodebug, "Switching server context because ESNI.\n");
+			if (p->servername) {
+            	BIO_printf(p->biodebug, "Switching server context, ESNI covername: %s\n",p->servername);
+			} else {
+            	BIO_printf(p->biodebug, "Switching server context, ESNI covername is NULL\n");
+			}
             SSL_set_SSL_CTX(s, ctx2);
 		}
+    } else {
+		if (p->servername) {
+			BIO_printf(p->biodebug, "ESNI servername is NULL (oops), so is covername!\n");
+		} else {
+			BIO_printf(p->biodebug, "ESNI servername is NULL (oops), covername: %s\n",p->servername);
+		}
+	}
 #else
+    if (servername != NULL) {
         if (strcasecmp(servername, p->servername))
             return p->extension_error;
         if (ctx2 != NULL) {
             BIO_printf(p->biodebug, "Switching server context.\n");
             SSL_set_SSL_CTX(s, ctx2);
         }
-#endif
     }
+#endif
     return SSL_TLSEXT_ERR_OK;
 }
 

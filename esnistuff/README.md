@@ -40,9 +40,16 @@ Here's the [design doc](./design.md).
     a valid DNS name (I think!). Not sure what'd be right there TBH.
 	Probably wanna ask CF about that.
 
+	Ah - could be my fault, seems my s_client isn't actually sending cleartext SNI at all
+	at the moment!
+
 # State-of-play...
 
 Most recent first...
+
+- Oops - I messed up the ``esni_server_name_fixup`` function so that
+  the cleartext SNI wasn't ever being sent. That was further confusing
+  me in trying to test the server side, but it should be fixed now.
 
 - Got the server to do the right thing for the 1st time, by skipping
   a check (that I don't yet grok!) in ``ssl_servername_cb``. Plenty
