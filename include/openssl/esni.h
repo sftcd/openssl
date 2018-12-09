@@ -182,62 +182,32 @@ typedef struct ssl_esni_st {
 } SSL_ESNI;
 
 /*
- * Prototypes
+ * Non-external Prototypes
  */
 
 /**
- * Make a basic check of names from CLI or API
+ * @brief wrap a "raw" key share in the relevant TLS presentation layer encoding
  *
- * Note: This may disappear as all the checks currently done would
- * result in errors anyway. However, that could change, so we'll
- * keep it for now.
+ * Put the outer length and curve ID around a key share.
+ * This just exists because we do it twice: for the ESNI
+ * client keyshare and for handshake client keyshare.
+ * The input keyshare is the e.g. 32 octets of a point
+ * on curve 25519 as used in X25519.
+ * There's no magic here, it's just that this code recurs
+ * in handling ESNI. Theere might be some existing API to
+ * use that'd be better.
  *
- * @param encservername the hidden servie
- * @param convername the cleartext SNI to send (can be NULL if we don't want any)
- * @return 1 for success, other otherwise
+ * @param keyshare is the input keyshare which'd be 32 octets for x25519
+ * @param keyshare_len is the length of the above (0x20 for x25519)
+ * @param curve_id is the IANA registered value for the curve e.g. 0x1d for X25519
+ * @param outlen is the length of the encoded version of the above
+ * @return is NULL (on error) or a pointer to the encoded version buffer
  */
-int SSL_esni_checknames(const char *encservername, const char *covername);
-
-/**
- * Decode and check the value retieved from DNS (currently base64 encoded)
- *
- * @param esnikeys is the base64 encoded value from DNS
- * @return is an SSL_ESNI structure
- */
-SSL_ESNI* SSL_ESNI_new_from_base64(const char *esnikeys);
-
-/**
- * Turn on SNI encryption for an (upcoming) TLS session
- * 
- * @param s is the SSL context
- * @param hidde is the hidden service name
- * @param cover is the cleartext SNI name to use
- * @param esni is the SSL_ESNI structure
- * @param require_hidden_match say whether to require (==1) the TLS server cert matches the hidden name
- * @return 1 for success, other otherwise
- * 
- */
-int SSL_esni_enable(SSL *s, const char *hidden, const char *cover, SSL_ESNI *esni, int require_hidden_match);
-
-/**
- * Turn on SNI Encryption, server-side
- *
- * When this works, the server will decrypt any ESNI seen in ClientHellos and
- * subsequently treat those as if they had been send in cleartext SNI.
- *
- * @todo TODO: on the server side we likely do need to support multiple keys
- * if those are in the ESNIKeys structure, but this code doesn't do that yet.
- * Probably as well to wait and see how the DNS RR structure changes before
- * attempting that, as it might get tricky.
- * @todo TODO: consider what to do if this is called more than once. We may
- * want a server to support that if there is >1 hidden service private key.
- *
- * @param s is the SSL server context
- * @param esnikeyfile has the relevant (X25519) private key in PEM format
- * @param esnipubfile has the relevant (binary encoded, not base64) ESNIKeys structure
- * @return 1 for success, other otherwise
- */
-int SSL_esni_server_enable(SSL_CTX *s, const char *esnikeyfile, const char *esnipubfile);
+unsigned char *wrap_keyshare(
+                const unsigned char *keyshare,
+                const size_t keyshare_len,
+                const uint16_t curve_id,
+                size_t *outlen);
 
 /**
  * @brief Do the client-side SNI encryption during a TLS handshake
@@ -311,6 +281,81 @@ void SSL_ESNI_free(SSL_ESNI *esnikeys);
 void CLIENT_ESNI_free(CLIENT_ESNI *c);
 
 /**
+ * @brief duplicate the populated fields of an SSL_ESNI
+ *
+ * This is needed to handle the SSL_CTX->SSL factory model.
+ * (Or else I'm about to waste a bunch of typing if it
+ * doesn't work;-)
+ *
+ * Note that in server mode, there aren't too many fields populated
+ * when this will be called - essentially just the ESNIKeys and
+ * the server private value. For the moment, we actually only
+ * deep-copy those.
+ *
+ * @param orig is the input SSL_ESNI to be deep-copied
+ * @return a deep-copy or NULL if errors occur
+ */
+SSL_ESNI* SSL_ESNI_dup(SSL_ESNI* orig);
+
+/*
+ * Externally visible Prototypes
+ */
+
+/**
+ * Make a basic check of names from CLI or API
+ *
+ * Note: This may disappear as all the checks currently done would
+ * result in errors anyway. However, that could change, so we'll
+ * keep it for now.
+ *
+ * @param encservername the hidden servie
+ * @param convername the cleartext SNI to send (can be NULL if we don't want any)
+ * @return 1 for success, other otherwise
+ */
+int SSL_esni_checknames(const char *encservername, const char *covername);
+
+/**
+ * Decode and check the value retieved from DNS (currently base64 encoded)
+ *
+ * @param esnikeys is the base64 encoded value from DNS
+ * @return is an SSL_ESNI structure
+ */
+SSL_ESNI* SSL_ESNI_new_from_base64(const char *esnikeys);
+
+/**
+ * Turn on SNI encryption for an (upcoming) TLS session
+ * 
+ * @param s is the SSL context
+ * @param hidde is the hidden service name
+ * @param cover is the cleartext SNI name to use
+ * @param esni is the SSL_ESNI structure
+ * @param require_hidden_match say whether to require (==1) the TLS server cert matches the hidden name
+ * @return 1 for success, other otherwise
+ * 
+ */
+int SSL_esni_enable(SSL *s, const char *hidden, const char *cover, SSL_ESNI *esni, int require_hidden_match);
+
+/**
+ * Turn on SNI Encryption, server-side
+ *
+ * When this works, the server will decrypt any ESNI seen in ClientHellos and
+ * subsequently treat those as if they had been send in cleartext SNI.
+ *
+ * @todo TODO: on the server side we likely do need to support multiple keys
+ * if those are in the ESNIKeys structure, but this code doesn't do that yet.
+ * Probably as well to wait and see how the DNS RR structure changes before
+ * attempting that, as it might get tricky.
+ * @todo TODO: consider what to do if this is called more than once. We may
+ * want a server to support that if there is >1 hidden service private key.
+ *
+ * @param s is the SSL server context
+ * @param esnikeyfile has the relevant (X25519) private key in PEM format
+ * @param esnipubfile has the relevant (binary encoded, not base64) ESNIKeys structure
+ * @return 1 for success, other otherwise
+ */
+int SSL_esni_server_enable(SSL_CTX *s, const char *esnikeyfile, const char *esnipubfile);
+
+/**
  * Debugging - print an SSL_ESNI structure note - can include sensitive values!
  *
  * @param s is a an SSL structure, as used on TLS client
@@ -328,15 +373,6 @@ int SSL_ESNI_get_esni(SSL *s, SSL_ESNI **esni);
  */
 int SSL_ESNI_get_esni_ctx(SSL_CTX *s, SSL_ESNI **esni);
 
-/** 
- * Print the content of an SSL_ESNI
- *
- * @param out is the BIO to use (e.g. stdout/whatever)
- * @esni is an SSL_ESNI strucutre
- * @return 1 for success, anything else for failure
- */
-int SSL_ESNI_print(BIO* out, SSL_ESNI *esni);
-
 /**
  * Get access to the ESNI data from an SSL context (if that's
  * the right term:-)
@@ -346,6 +382,15 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esni);
  * @return 1 for success, anything else for failure
  */
 int SSL_ESNI_get_esni(SSL *s, SSL_ESNI **esni);
+
+/** 
+ * Print the content of an SSL_ESNI
+ *
+ * @param out is the BIO to use (e.g. stdout/whatever)
+ * @esni is an SSL_ESNI strucutre
+ * @return 1 for success, anything else for failure
+ */
+int SSL_ESNI_print(BIO* out, SSL_ESNI *esni);
 
 /* 
  * Possible return codes from SSL_ESNI_get_status
@@ -406,23 +451,6 @@ int SSL_ESNI_set_private(SSL_ESNI *esni, char *private_str);
  *
  */
 int SSL_ESNI_set_nonce(SSL_ESNI *esni, unsigned char *nonce, size_t nlen);
-
-/**
- * @brief duplicate the populated fields of an SSL_ESNI
- *
- * This is needed to handle the SSL_CTX->SSL factory model.
- * (Or else I'm about to waste a bunch of typing if it
- * doesn't work;-)
- *
- * Note that in server mode, there aren't too many fields populated
- * when this will be called - essentially just the ESNIKeys and
- * the server private value. For the moment, we actually only
- * deep-copy those.
- *
- * @param orig is the input SSL_ESNI to be deep-copied
- * @return a deep-copy or NULL if errors occur
- */
-SSL_ESNI* SSL_ESNI_dup(SSL_ESNI* orig);
 
 #endif
 #endif
