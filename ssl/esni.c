@@ -698,7 +698,7 @@ static void esni_pbuf(BIO *out,char *msg,unsigned char *buf,size_t blen,int inde
 static void so_esni_pbuf(char *msg,unsigned char *buf,size_t blen,int indent)
 {
     if (buf==NULL) {
-        printf("OPENSSL: %s is NULL",msg);
+        printf("OPENSSL: %s is NULL\n",msg);
         return;
     }
     printf("OPENSSL: %s (%zd):\n    ",msg,blen);
@@ -1299,6 +1299,20 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys,
                 unsigned char *client_keyshare,
                 CLIENT_ESNI **the_esni)
 {
+
+    /* 
+     * encrypt the actual SNI based on shared key, Z - the I-D says:
+     *    Zx = HKDF-Extract(0, Z)
+     *    key = HKDF-Expand-Label(Zx, "esni key", Hash(ESNIContents), key_length)
+     *    iv = HKDF-Expand-Label(Zx, "esni iv", Hash(ESNIContents), iv_length)
+     *
+     *    struct {
+     *        opaque record_digest<0..2^16-1>;
+     *        KeyShareEntry esni_key_share;
+     *        Random client_hello_random;
+     *    } ESNIContents;
+     *
+     */
     EVP_PKEY_CTX *pctx=NULL;
 
     /*
@@ -1329,7 +1343,7 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys,
     if (esnikeys->covername!=NULL && esnikeys->encservername!=NULL) {
         if (OPENSSL_strnlen(esnikeys->covername,TLSEXT_MAXLEN_host_name)==
             OPENSSL_strnlen(esnikeys->encservername,TLSEXT_MAXLEN_host_name)) {
-            if (CRYPTO_memcmp(esnikeys->covername,esnikeys->encservername,
+            if (!CRYPTO_memcmp(esnikeys->covername,esnikeys->encservername,
                 OPENSSL_strnlen(esnikeys->covername,TLSEXT_MAXLEN_host_name))) {
                 /*
                  * Shit - same names, that's silly
@@ -1448,25 +1462,6 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys,
     memcpy(pip,esnikeys->nonce,esnikeys->nonce_len); pip+=esnikeys->nonce_len;
     memcpy(pip,esnikeys->realSNI,esnikeys->realSNI_len); pip+=esnikeys->realSNI_len;
 
-    /* 
-     * encrypt the actual SNI based on shared key, Z - the I-D says:
-     *    Zx = HKDF-Extract(0, Z)
-     *    key = HKDF-Expand-Label(Zx, "esni key", Hash(ESNIContents), key_length)
-     *    iv = HKDF-Expand-Label(Zx, "esni iv", Hash(ESNIContents), iv_length)
-     *
-     *    struct {
-     *        opaque record_digest<0..2^16-1>;
-     *        KeyShareEntry esni_key_share;
-     *        Random client_hello_random;
-     *    } ESNIContents;
-     *
-     * The above implies we need the CH random as an input (or
-     * the SSL context, but not yet for that)
-     *
-     * client_random is unsigned char client_random[SSL3_RANDOM_SIZE];
-     * from ssl/ssl_locl.h
-     */
-
     /*
      * Derive key and encrypt
      * encrypt the actual SNI based on shared key, Z - the I-D says:
@@ -1523,6 +1518,7 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys,
         goto err;
     }
     EVP_PKEY_CTX_free(pctx);
+	pctx=NULL;
 
     /* 
      * finish up
