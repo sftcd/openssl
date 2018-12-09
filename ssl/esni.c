@@ -312,12 +312,22 @@ err:
  * client keyshare and for handshake client keyshare.
  * The input keyshare is the e.g. 32 octets of a point
  * on curve 25519 as used in X25519.
+ * There's no magic here, it's just that this code recurs
+ * in handling ESNI. Theere might be some existing API to
+ * use that'd be better.
+ *
+ * @param keyshare is the input keyshare which'd be 32 octets for x25519
+ * @param keyshare_len is the length of the above (0x20 for x25519)
+ * @param curve_id is the IANA registered value for the curve e.g. 0x1d for X25519
+ * @param outlen is the length of the encoded version of the above
+ * @return is NULL (on error) or a pointer to the encoded version buffer
  */
-static unsigned char *wrap_keyshare(
+unsigned char *wrap_keyshare(
                 const unsigned char *keyshare,
                 const size_t keyshare_len,
                 const uint16_t curve_id,
                 size_t *outlen)
+
 {
     if (outlen==NULL) {
         ESNIerr(ESNI_F_ENC, ERR_R_MALLOC_FAILURE);
