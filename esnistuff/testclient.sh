@@ -61,7 +61,7 @@ function usage()
 	echo "  -c [name] specifices a covername that I'll send as a clear SNI (NONE is special)"
     echo "  -H means try connect to that hidden server"
 	echo "  -P [filename] means read ESNIKeys public value from file and not DNS"
-    echo "  -s [name] specifices a server to which I'll connect"
+	echo "  -s [name] specifices a server to which I'll connect (localhost=>local certs)"
     echo "  -p [port] specifices a port (default: 443)"
     echo "  -d means run s_client in verbose mode"
     echo "  -v means run with valgrind"
@@ -142,10 +142,12 @@ then
 fi
 
 # Set address of target 
-target=" -connect $COVER:$PORT "
+target=" -connect $cover:$PORT "
+server=$cover
 if [[ "$SUPPLIEDSERVER" != "" ]]
 then
 	target=" -connect $SUPPLIEDSERVER:$PORT"
+	server=$SUPPLIEDSERVER
 fi
 
 # Seems like the ESNI value is rotated often
@@ -211,7 +213,12 @@ fi
 httpreq="GET / HTTP/1.1\r\nConnection: close\r\nHost: $hidden\r\n\r\n"
 
 # tell it where CA stuff is...
-certsdb=" -CApath $CAPATH"
+if [[ "$server" != "localhost" ]]
+then
+	certsdb=" -CApath $CAPATH"
+else
+	certsdb=" -CApath ."
+fi
 
 # force tls13
 force13="-cipher TLS13-AES-128-GCM-SHA256 -no_ssl3 -no_tls1 -no_tls1_1 -no_tls1_2"
