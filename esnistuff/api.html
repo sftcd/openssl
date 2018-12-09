@@ -79,18 +79,6 @@
 	<td> </td>
 </tr>
 <tr>
-	<td><code>define</code><a href="#extensions__srvr_8c_1ae55e632f164637ae87ff10e16765171a"><code>MAX_KEYSHARE_SIZE</code></a></td>
-	<td> </td>
-</tr>
-<tr>
-	<td><code>define</code><a href="#extensions__srvr_8c_1a0514cc7b999010748339490a7d883fb4"><code>MAX_RD_SIZE</code></a></td>
-	<td> </td>
-</tr>
-<tr>
-	<td><code>define</code><a href="#extensions__srvr_8c_1aa8586dd6b4a9082ddc8cd243c0cf030e"><code>MAX_ESNI_CIPHER_SIZE</code></a></td>
-	<td> </td>
-</tr>
-<tr>
 	<td><code>public int</code><a href="#esnierr_8c_1ab6db8c60b35aacaa03550e6d9d9c2099"><code>ERR_load_ESNI_strings</code></a><code>(void)</code></td>
 	<td>Load strings into tables.</td>
 </tr>
@@ -115,20 +103,8 @@
 	<td> </td>
 </tr>
 <tr>
-	<td><code>public int</code><a href="#esni_8h_1a55aedc0e921fd36dcc3327124f07da10"><code>SSL_esni_checknames</code></a><code>(const char * encservername,const char * covername)</code></td>
-	<td>Make a basic check of names from CLI or API.</td>
-</tr>
-<tr>
-	<td><code>public</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>*</code><a href="#esni_8h_1a672460fc59e13e81482f66c701d4bca7"><code>SSL_ESNI_new_from_base64</code></a><code>(const char * esnikeys)</code></td>
-	<td>Decode and check the value retieved from DNS (currently base64 encoded)</td>
-</tr>
-<tr>
-	<td><code>public int</code><a href="#esni_8h_1a0ca4d48103270d6779cb2f6a608ba52a"><code>SSL_esni_enable</code></a><code>(SSL * s,const char * hidden,const char * cover,</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>* esni,int require_hidden_match)</code></td>
-	<td>Turn on SNI encryption for an (upcoming) TLS session.</td>
-</tr>
-<tr>
-	<td><code>public int</code><a href="#esni_8h_1a0589fa7d65bf2263c361258876e0e67a"><code>SSL_esni_server_enable</code></a><code>(SSL_CTX * s,const char * esnikeyfile,const char * esnipubfile)</code></td>
-	<td>Turn on SNI Encryption, server-side.</td>
+	<td><code>public unsigned char *</code><a href="#esni_8h_1a3dccd979a035c9ccb3c0d4fe49eb3a00"><code>wrap_keyshare</code></a><code>(const unsigned char * keyshare,const size_t keyshare_len,const uint16_t curve_id,size_t * outlen)</code></td>
+	<td>wrap a "raw" key share in the relevant TLS presentation layer encoding</td>
 </tr>
 <tr>
 	<td><code>public int</code><a href="#esni_8h_1a1059808bc7c121128c470de41e2dc304"><code>SSL_ESNI_enc</code></a><code>(</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>* esnikeys,size_t client_random_len,unsigned char * client_random,uint16_t curve_id,size_t client_keyshare_len,unsigned char * client_keyshare,</code><a href="#esni_8h_1add3c7579c9f0d7bd5959b37f9c017461"><code>CLIENT_ESNI</code></a><code>** the_esni)</code></td>
@@ -145,6 +121,26 @@
 <tr>
 	<td><code>public void</code><a href="#esni_8h_1a1a84158d3b21a24a5db6bac434a718dc"><code>CLIENT_ESNI_free</code></a><code>(</code><a href="#esni_8h_1add3c7579c9f0d7bd5959b37f9c017461"><code>CLIENT_ESNI</code></a><code>* c)</code></td>
 	<td>Memory management - free a CLIENT_ESNI.</td>
+</tr>
+<tr>
+	<td><code>public</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>*</code><a href="#esni_8h_1a3aaa50b61e714752405408a0a9554b47"><code>SSL_ESNI_dup</code></a><code>(</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>* orig)</code></td>
+	<td>duplicate the populated fields of an SSL_ESNI</td>
+</tr>
+<tr>
+	<td><code>public int</code><a href="#esni_8h_1a55aedc0e921fd36dcc3327124f07da10"><code>SSL_esni_checknames</code></a><code>(const char * encservername,const char * covername)</code></td>
+	<td>Make a basic check of names from CLI or API.</td>
+</tr>
+<tr>
+	<td><code>public</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>*</code><a href="#esni_8h_1a672460fc59e13e81482f66c701d4bca7"><code>SSL_ESNI_new_from_base64</code></a><code>(const char * esnikeys)</code></td>
+	<td>Decode and check the value retieved from DNS (currently base64 encoded)</td>
+</tr>
+<tr>
+	<td><code>public int</code><a href="#esni_8h_1a0ca4d48103270d6779cb2f6a608ba52a"><code>SSL_esni_enable</code></a><code>(SSL * s,const char * hidden,const char * cover,</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>* esni,int require_hidden_match)</code></td>
+	<td>Turn on SNI encryption for an (upcoming) TLS session.</td>
+</tr>
+<tr>
+	<td><code>public int</code><a href="#esni_8h_1a0589fa7d65bf2263c361258876e0e67a"><code>SSL_esni_server_enable</code></a><code>(SSL_CTX * s,const char * esnikeyfile,const char * esnipubfile)</code></td>
+	<td>Turn on SNI Encryption, server-side.</td>
 </tr>
 <tr>
 	<td><code>public int</code><a href="#esni_8h_1ac214a7933d6e5fa9e2be5218b9537a63"><code>SSL_ESNI_get_esni</code></a><code>(SSL * s,</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>** esni)</code></td>
@@ -169,10 +165,6 @@
 <tr>
 	<td><code>public int</code><a href="#esni_8h_1a0f48da79909334acee7b24dec440eb4c"><code>SSL_ESNI_set_nonce</code></a><code>(</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>* esni,unsigned char * nonce,size_t nlen)</code></td>
 	<td>Allows caller to set the nonce value for ESNI.</td>
-</tr>
-<tr>
-	<td><code>public</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>*</code><a href="#esni_8h_1a3aaa50b61e714752405408a0a9554b47"><code>SSL_ESNI_dup</code></a><code>(</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>* orig)</code></td>
-	<td>duplicate the populated fields of an SSL_ESNI</td>
 </tr>
 <tr>
 	<td><code>public int</code><a href="#esnierr_8h_1ab6db8c60b35aacaa03550e6d9d9c2099"><code>ERR_load_ESNI_strings</code></a><code>(void)</code></td>
@@ -207,7 +199,7 @@
 	<td>Hash the buffer as per the ciphersuite specified therein.</td>
 </tr>
 <tr>
-	<td><code>public static unsigned char *</code><a href="#esni_8c_1ade5f0e5d16fd7f3dc7e3852f2960804e"><code>wrap_keyshare</code></a><code>(const unsigned char * keyshare,const size_t keyshare_len,const uint16_t curve_id,size_t * outlen)</code></td>
+	<td><code>public unsigned char *</code><a href="#esni_8c_1a3dccd979a035c9ccb3c0d4fe49eb3a00"><code>wrap_keyshare</code></a><code>(const unsigned char * keyshare,const size_t keyshare_len,const uint16_t curve_id,size_t * outlen)</code></td>
 	<td>wrap a "raw" key share in the relevant TLS presentation layer encoding</td>
 </tr>
 <tr>
@@ -443,18 +435,6 @@
 
 <h4 id="defineesni_r_not_implesnierr_8h_1aeb72e4451595e51885c8192c3c06e870"><code>define</code><a href="#esnierr_8h_1aeb72e4451595e51885c8192c3c06e870"><code>ESNI_R_NOT_IMPL</code></a></h4>
 
-<p id="extensions__srvr_8c_1ae55e632f164637ae87ff10e16765171a"><hr></p>
-
-<h4 id="definemax_keyshare_sizeextensions__srvr_8c_1ae55e632f164637ae87ff10e16765171a"><code>define</code><a href="#extensions__srvr_8c_1ae55e632f164637ae87ff10e16765171a"><code>MAX_KEYSHARE_SIZE</code></a></h4>
-
-<p id="extensions__srvr_8c_1a0514cc7b999010748339490a7d883fb4"><hr></p>
-
-<h4 id="definemax_rd_sizeextensions__srvr_8c_1a0514cc7b999010748339490a7d883fb4"><code>define</code><a href="#extensions__srvr_8c_1a0514cc7b999010748339490a7d883fb4"><code>MAX_RD_SIZE</code></a></h4>
-
-<p id="extensions__srvr_8c_1aa8586dd6b4a9082ddc8cd243c0cf030e"><hr></p>
-
-<h4 id="definemax_esni_cipher_sizeextensions__srvr_8c_1aa8586dd6b4a9082ddc8cd243c0cf030e"><code>define</code><a href="#extensions__srvr_8c_1aa8586dd6b4a9082ddc8cd243c0cf030e"><code>MAX_ESNI_CIPHER_SIZE</code></a></h4>
-
 <p id="esnierr_8c_1ab6db8c60b35aacaa03550e6d9d9c2099"><hr></p>
 
 <h4 id="publicinterr_load_esni_stringsesnierr_8c_1ab6db8c60b35aacaa03550e6d9d9c2099void"><code>public int</code><a href="#esnierr_8c_1ab6db8c60b35aacaa03550e6d9d9c2099"><code>ERR_load_ESNI_strings</code></a><code>(void)</code></h4>
@@ -510,94 +490,26 @@
 
 <h4 id="publicintmainmk__esnikeys_8c_1a3c04138a5bfe5d72780bb7e82a18e627intargccharargv"><code>public int</code><a href="#mk__esnikeys_8c_1a3c04138a5bfe5d72780bb7e82a18e627"><code>main</code></a><code>(int argc,char ** argv)</code></h4>
 
-<p id="esni_8h_1a55aedc0e921fd36dcc3327124f07da10"><hr></p>
+<p id="esni_8h_1a3dccd979a035c9ccb3c0d4fe49eb3a00"><hr></p>
 
-<h4 id="publicintssl_esni_checknamesesni_8h_1a55aedc0e921fd36dcc3327124f07da10constcharencservernameconstcharcovername"><code>public int</code><a href="#esni_8h_1a55aedc0e921fd36dcc3327124f07da10"><code>SSL_esni_checknames</code></a><code>(const char * encservername,const char * covername)</code></h4>
+<h4 id="publicunsignedcharwrap_keyshareesni_8h_1a3dccd979a035c9ccb3c0d4fe49eb3a00constunsignedcharkeyshareconstsize_tkeyshare_lenconstuint16_tcurve_idsize_toutlen"><code>public unsigned char *</code><a href="#esni_8h_1a3dccd979a035c9ccb3c0d4fe49eb3a00"><code>wrap_keyshare</code></a><code>(const unsigned char * keyshare,const size_t keyshare_len,const uint16_t curve_id,size_t * outlen)</code></h4>
 
-<p>Make a basic check of names from CLI or API.</p>
+<p>wrap a "raw" key share in the relevant TLS presentation layer encoding</p>
 
-<p>Note: This may disappear as all the checks currently done would result in errors anyway. However, that could change, so we'll keep it for now.</p>
-
-<h4 id="parameters">Parameters</h4>
-
-<ul>
-<li><p><code>encservername</code> the hidden servie </p></li>
-<li><p><code>convername</code> the cleartext SNI to send (can be NULL if we don't want any) </p></li>
-</ul>
-
-<h4 id="returns">Returns</h4>
-
-<p>1 for success, other otherwise</p>
-
-<p id="esni_8h_1a672460fc59e13e81482f66c701d4bca7"><hr></p>
-
-<h4 id="publicssl_esniesni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7fssl_esni_new_from_base64esni_8h_1a672460fc59e13e81482f66c701d4bca7constcharesnikeys"><code>public</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>*</code><a href="#esni_8h_1a672460fc59e13e81482f66c701d4bca7"><code>SSL_ESNI_new_from_base64</code></a><code>(const char * esnikeys)</code></h4>
-
-<p>Decode and check the value retieved from DNS (currently base64 encoded)</p>
+<p>Put the outer length and curve ID around a key share. This just exists because we do it twice: for the ESNI client keyshare and for handshake client keyshare. The input keyshare is the e.g. 32 octets of a point on curve 25519 as used in X25519. There's no magic here, it's just that this code recurs in handling ESNI. Theere might be some existing API to use that'd be better.</p>
 
 <h4 id="parameters">Parameters</h4>
 
 <ul>
-<li><code>esnikeys</code> is the base64 encoded value from DNS </li>
+<li><p><code>keyshare</code> is the input keyshare which'd be 32 octets for x25519 </p></li>
+<li><p><code>keyshare_len</code> is the length of the above (0x20 for x25519) </p></li>
+<li><p><code>curve_id</code> is the IANA registered value for the curve e.g. 0x1d for X25519 </p></li>
+<li><p><code>outlen</code> is the length of the encoded version of the above </p></li>
 </ul>
 
 <h4 id="returns">Returns</h4>
 
-<p>is an SSL_ESNI structure</p>
-
-<p>Decode and check the value retieved from DNS (currently base64 encoded)</p>
-
-<p>This is inspired by, but not the same as, SCT_new_from_base64 from crypto/ct/ct_b64.c </p>
-
-<blockquote>
-  <p>Todo: TODO: handle >1 of the many things that can have >1 instance (maybe at a higher layer)</p>
-</blockquote>
-
-<p id="esni_8h_1a0ca4d48103270d6779cb2f6a608ba52a"><hr></p>
-
-<h4 id="publicintssl_esni_enableesni_8h_1a0ca4d48103270d6779cb2f6a608ba52asslsconstcharhiddenconstcharcoverssl_esniesni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7fesniintrequire_hidden_match"><code>public int</code><a href="#esni_8h_1a0ca4d48103270d6779cb2f6a608ba52a"><code>SSL_esni_enable</code></a><code>(SSL * s,const char * hidden,const char * cover,</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>* esni,int require_hidden_match)</code></h4>
-
-<p>Turn on SNI encryption for an (upcoming) TLS session.</p>
-
-<h4 id="parameters">Parameters</h4>
-
-<ul>
-<li><p><code>s</code> is the SSL context </p></li>
-<li><p><code>hidde</code> is the hidden service name </p></li>
-<li><p><code>cover</code> is the cleartext SNI name to use </p></li>
-<li><p><code>esni</code> is the SSL_ESNI structure </p></li>
-<li><p><code>require_hidden_match</code> say whether to require (==1) the TLS server cert matches the hidden name </p></li>
-</ul>
-
-<h4 id="returns">Returns</h4>
-
-<p>1 for success, other otherwise</p>
-
-<p id="esni_8h_1a0589fa7d65bf2263c361258876e0e67a"><hr></p>
-
-<h4 id="publicintssl_esni_server_enableesni_8h_1a0589fa7d65bf2263c361258876e0e67assl_ctxsconstcharesnikeyfileconstcharesnipubfile"><code>public int</code><a href="#esni_8h_1a0589fa7d65bf2263c361258876e0e67a"><code>SSL_esni_server_enable</code></a><code>(SSL_CTX * s,const char * esnikeyfile,const char * esnipubfile)</code></h4>
-
-<p>Turn on SNI Encryption, server-side.</p>
-
-<p>When this works, the server will decrypt any ESNI seen in ClientHellos and subsequently treat those as if they had been send in cleartext SNI.</p>
-
-<blockquote>
-  <p>Todo: TODO: on the server side we likely do need to support multiple keys if those are in the ESNIKeys structure, but this code doesn't do that yet. Probably as well to wait and see how the DNS RR structure changes before attempting that, as it might get tricky. </p>
-</blockquote>
-
-<p>TODO: consider what to do if this is called more than once. We may want a server to support that if there is >1 hidden service private key.</p>
-
-<h4 id="parameters">Parameters</h4>
-
-<ul>
-<li><p><code>s</code> is the SSL server context </p></li>
-<li><p><code>esnikeyfile</code> has the relevant (X25519) private key in PEM format </p></li>
-<li><p><code>esnipubfile</code> has the relevant (binary encoded, not base64) ESNIKeys structure </p></li>
-</ul>
-
-<h4 id="returns">Returns</h4>
-
-<p>1 for success, other otherwise</p>
+<p>is NULL (on error) or a pointer to the encoded version buffer</p>
 
 <p id="esni_8h_1a1059808bc7c121128c470de41e2dc304"><hr></p>
 
@@ -705,6 +617,115 @@
 <ul>
 <li><code>c</code> is a CLIENT_ESNI structure</li>
 </ul>
+
+<p id="esni_8h_1a3aaa50b61e714752405408a0a9554b47"><hr></p>
+
+<h4 id="publicssl_esniesni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7fssl_esni_dupesni_8h_1a3aaa50b61e714752405408a0a9554b47ssl_esniesni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7forig"><code>public</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>*</code><a href="#esni_8h_1a3aaa50b61e714752405408a0a9554b47"><code>SSL_ESNI_dup</code></a><code>(</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>* orig)</code></h4>
+
+<p>duplicate the populated fields of an SSL_ESNI</p>
+
+<p>This is needed to handle the SSL_CTX->SSL factory model. (Or else I'm about to waste a bunch of typing if it doesn't work;-)</p>
+
+<p>Note that in server mode, there aren't too many fields populated when this will be called - essentially just the ESNIKeys and the server private value. For the moment, we actually only deep-copy those.</p>
+
+<h4 id="parameters">Parameters</h4>
+
+<ul>
+<li><code>orig</code> is the input SSL_ESNI to be deep-copied </li>
+</ul>
+
+<h4 id="returns">Returns</h4>
+
+<p>a deep-copy or NULL if errors occur</p>
+
+<p id="esni_8h_1a55aedc0e921fd36dcc3327124f07da10"><hr></p>
+
+<h4 id="publicintssl_esni_checknamesesni_8h_1a55aedc0e921fd36dcc3327124f07da10constcharencservernameconstcharcovername"><code>public int</code><a href="#esni_8h_1a55aedc0e921fd36dcc3327124f07da10"><code>SSL_esni_checknames</code></a><code>(const char * encservername,const char * covername)</code></h4>
+
+<p>Make a basic check of names from CLI or API.</p>
+
+<p>Note: This may disappear as all the checks currently done would result in errors anyway. However, that could change, so we'll keep it for now.</p>
+
+<h4 id="parameters">Parameters</h4>
+
+<ul>
+<li><p><code>encservername</code> the hidden servie </p></li>
+<li><p><code>convername</code> the cleartext SNI to send (can be NULL if we don't want any) </p></li>
+</ul>
+
+<h4 id="returns">Returns</h4>
+
+<p>1 for success, other otherwise</p>
+
+<p id="esni_8h_1a672460fc59e13e81482f66c701d4bca7"><hr></p>
+
+<h4 id="publicssl_esniesni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7fssl_esni_new_from_base64esni_8h_1a672460fc59e13e81482f66c701d4bca7constcharesnikeys"><code>public</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>*</code><a href="#esni_8h_1a672460fc59e13e81482f66c701d4bca7"><code>SSL_ESNI_new_from_base64</code></a><code>(const char * esnikeys)</code></h4>
+
+<p>Decode and check the value retieved from DNS (currently base64 encoded)</p>
+
+<h4 id="parameters">Parameters</h4>
+
+<ul>
+<li><code>esnikeys</code> is the base64 encoded value from DNS </li>
+</ul>
+
+<h4 id="returns">Returns</h4>
+
+<p>is an SSL_ESNI structure</p>
+
+<p>Decode and check the value retieved from DNS (currently base64 encoded)</p>
+
+<p>This is inspired by, but not the same as, SCT_new_from_base64 from crypto/ct/ct_b64.c </p>
+
+<blockquote>
+  <p>Todo: TODO: handle >1 of the many things that can have >1 instance (maybe at a higher layer)</p>
+</blockquote>
+
+<p id="esni_8h_1a0ca4d48103270d6779cb2f6a608ba52a"><hr></p>
+
+<h4 id="publicintssl_esni_enableesni_8h_1a0ca4d48103270d6779cb2f6a608ba52asslsconstcharhiddenconstcharcoverssl_esniesni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7fesniintrequire_hidden_match"><code>public int</code><a href="#esni_8h_1a0ca4d48103270d6779cb2f6a608ba52a"><code>SSL_esni_enable</code></a><code>(SSL * s,const char * hidden,const char * cover,</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>* esni,int require_hidden_match)</code></h4>
+
+<p>Turn on SNI encryption for an (upcoming) TLS session.</p>
+
+<h4 id="parameters">Parameters</h4>
+
+<ul>
+<li><p><code>s</code> is the SSL context </p></li>
+<li><p><code>hidde</code> is the hidden service name </p></li>
+<li><p><code>cover</code> is the cleartext SNI name to use </p></li>
+<li><p><code>esni</code> is the SSL_ESNI structure </p></li>
+<li><p><code>require_hidden_match</code> say whether to require (==1) the TLS server cert matches the hidden name </p></li>
+</ul>
+
+<h4 id="returns">Returns</h4>
+
+<p>1 for success, other otherwise</p>
+
+<p id="esni_8h_1a0589fa7d65bf2263c361258876e0e67a"><hr></p>
+
+<h4 id="publicintssl_esni_server_enableesni_8h_1a0589fa7d65bf2263c361258876e0e67assl_ctxsconstcharesnikeyfileconstcharesnipubfile"><code>public int</code><a href="#esni_8h_1a0589fa7d65bf2263c361258876e0e67a"><code>SSL_esni_server_enable</code></a><code>(SSL_CTX * s,const char * esnikeyfile,const char * esnipubfile)</code></h4>
+
+<p>Turn on SNI Encryption, server-side.</p>
+
+<p>When this works, the server will decrypt any ESNI seen in ClientHellos and subsequently treat those as if they had been send in cleartext SNI.</p>
+
+<blockquote>
+  <p>Todo: TODO: on the server side we likely do need to support multiple keys if those are in the ESNIKeys structure, but this code doesn't do that yet. Probably as well to wait and see how the DNS RR structure changes before attempting that, as it might get tricky. </p>
+</blockquote>
+
+<p>TODO: consider what to do if this is called more than once. We may want a server to support that if there is >1 hidden service private key.</p>
+
+<h4 id="parameters">Parameters</h4>
+
+<ul>
+<li><p><code>s</code> is the SSL server context </p></li>
+<li><p><code>esnikeyfile</code> has the relevant (X25519) private key in PEM format </p></li>
+<li><p><code>esnipubfile</code> has the relevant (binary encoded, not base64) ESNIKeys structure </p></li>
+</ul>
+
+<h4 id="returns">Returns</h4>
+
+<p>1 for success, other otherwise</p>
 
 <p id="esni_8h_1ac214a7933d6e5fa9e2be5218b9537a63"><hr></p>
 
@@ -844,26 +865,6 @@
 
 <p>1 for success, other otherwise</p>
 
-<p id="esni_8h_1a3aaa50b61e714752405408a0a9554b47"><hr></p>
-
-<h4 id="publicssl_esniesni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7fssl_esni_dupesni_8h_1a3aaa50b61e714752405408a0a9554b47ssl_esniesni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7forig"><code>public</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>*</code><a href="#esni_8h_1a3aaa50b61e714752405408a0a9554b47"><code>SSL_ESNI_dup</code></a><code>(</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>* orig)</code></h4>
-
-<p>duplicate the populated fields of an SSL_ESNI</p>
-
-<p>This is needed to handle the SSL_CTX->SSL factory model. (Or else I'm about to waste a bunch of typing if it doesn't work;-)</p>
-
-<p>Note that in server mode, there aren't too many fields populated when this will be called - essentially just the ESNIKeys and the server private value. For the moment, we actually only deep-copy those.</p>
-
-<h4 id="parameters">Parameters</h4>
-
-<ul>
-<li><code>orig</code> is the input SSL_ESNI to be deep-copied </li>
-</ul>
-
-<h4 id="returns">Returns</h4>
-
-<p>a deep-copy or NULL if errors occur</p>
-
 <p id="esnierr_8h_1ab6db8c60b35aacaa03550e6d9d9c2099"><hr></p>
 
 <h4 id="publicinterr_load_esni_stringsesnierr_8h_1ab6db8c60b35aacaa03550e6d9d9c2099void"><code>public int</code><a href="#esnierr_8h_1ab6db8c60b35aacaa03550e6d9d9c2099"><code>ERR_load_ESNI_strings</code></a><code>(void)</code></h4>
@@ -987,13 +988,26 @@
 
 <p>a pointer to the hash buffer allocated within the function or NULL on error</p>
 
-<p id="esni_8c_1ade5f0e5d16fd7f3dc7e3852f2960804e"><hr></p>
+<p id="esni_8c_1a3dccd979a035c9ccb3c0d4fe49eb3a00"><hr></p>
 
-<h4 id="publicstaticunsignedcharwrap_keyshareesni_8c_1ade5f0e5d16fd7f3dc7e3852f2960804econstunsignedcharkeyshareconstsize_tkeyshare_lenconstuint16_tcurve_idsize_toutlen"><code>public static unsigned char *</code><a href="#esni_8c_1ade5f0e5d16fd7f3dc7e3852f2960804e"><code>wrap_keyshare</code></a><code>(const unsigned char * keyshare,const size_t keyshare_len,const uint16_t curve_id,size_t * outlen)</code></h4>
+<h4 id="publicunsignedcharwrap_keyshareesni_8c_1a3dccd979a035c9ccb3c0d4fe49eb3a00constunsignedcharkeyshareconstsize_tkeyshare_lenconstuint16_tcurve_idsize_toutlen"><code>public unsigned char *</code><a href="#esni_8c_1a3dccd979a035c9ccb3c0d4fe49eb3a00"><code>wrap_keyshare</code></a><code>(const unsigned char * keyshare,const size_t keyshare_len,const uint16_t curve_id,size_t * outlen)</code></h4>
 
 <p>wrap a "raw" key share in the relevant TLS presentation layer encoding</p>
 
-<p>Put the outer length and curve ID around a key share. This just exists because we do it twice: for the ESNI client keyshare and for handshake client keyshare. The input keyshare is the e.g. 32 octets of a point on curve 25519 as used in X25519.</p>
+<p>Put the outer length and curve ID around a key share. This just exists because we do it twice: for the ESNI client keyshare and for handshake client keyshare. The input keyshare is the e.g. 32 octets of a point on curve 25519 as used in X25519. There's no magic here, it's just that this code recurs in handling ESNI. Theere might be some existing API to use that'd be better.</p>
+
+<h4 id="parameters">Parameters</h4>
+
+<ul>
+<li><p><code>keyshare</code> is the input keyshare which'd be 32 octets for x25519 </p></li>
+<li><p><code>keyshare_len</code> is the length of the above (0x20 for x25519) </p></li>
+<li><p><code>curve_id</code> is the IANA registered value for the curve e.g. 0x1d for X25519 </p></li>
+<li><p><code>outlen</code> is the length of the encoded version of the above </p></li>
+</ul>
+
+<h4 id="returns">Returns</h4>
+
+<p>is NULL (on error) or a pointer to the encoded version buffer</p>
 
 <p id="esni_8c_1a013c3c4172d63a489aa314d4c3d4542d"><hr></p>
 
@@ -1441,11 +1455,7 @@
 } ClientEncryptedSNI;
 </code></pre>
 
-<p>Parse, decrypt etc inbound ESNI extension. </p>
-
-<blockquote>
-  <p>Todo: TODO: plenty of tidying code</p>
-</blockquote>
+<p>Parse, decrypt etc inbound ESNI extension.</p>
 
 <p id="extensions__srvr_8c_1ae56ce4660abc014b273c5f743bc3eb63"><hr></p>
 
