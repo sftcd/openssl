@@ -841,6 +841,7 @@ SSL *SSL_new(SSL_CTX *ctx)
 
 #ifndef OPENSSL_NO_ESNI
 	s->esni=SSL_ESNI_dup(ctx->ext.esni);
+	s->nesni=ctx->ext.nesni;
 	s->esni_cb=ctx->ext.esni_cb;
 #endif
 
@@ -3180,9 +3181,12 @@ void SSL_CTX_free(SSL_CTX *a)
     CRYPTO_THREAD_lock_free(a->lock);
 #ifndef OPENSSL_NO_ESNI
 	if (a->ext.esni!=NULL) {
-		SSL_ESNI_free(a->ext.esni);
+		for (i=0;i!=a->ext.nesni;i++) {
+			SSL_ESNI_free(&a->ext.esni[i]);
+		}
 		OPENSSL_free(a->ext.esni);
 		a->ext.esni=NULL;
+		a->ext.nesni=0;
 	}
 #endif
 

@@ -1906,24 +1906,33 @@ int SSL_esni_server_enable(SSL_CTX *ctx, const char *esnikeyfile, const char *es
     /*
      * store in context
      */
-    if (ctx->ext.esni!=NULL) {
-        SSL_ESNI_free(ctx->ext.esni);
-    }
-    the_esni=(SSL_ESNI*)OPENSSL_malloc(sizeof(SSL_ESNI));
-    if (the_esni==NULL) {
-        ESNIerr(ESNI_F_SERVER_ENABLE, ERR_R_INTERNAL_ERROR);
-        goto err;
-    }
-    memset(the_esni,0,sizeof(SSL_ESNI));
-    the_esni->encoded_rr=inbuf;
-    the_esni->encoded_rr_len=inblen;
-    if (esni_make_se_from_er(er,the_esni,1)!=1) {
+    if (ctx->ext.esni==NULL) {
+    	the_esni=(SSL_ESNI*)OPENSSL_malloc(sizeof(SSL_ESNI));
+    	if (the_esni==NULL) {
+        	ESNIerr(ESNI_F_SERVER_ENABLE, ERR_R_INTERNAL_ERROR);
+        	goto err;
+    	}
+		ctx->ext.nesni=1;
+    } else {
+		ctx->ext.nesni+=1;
+    	the_esni=(SSL_ESNI*)OPENSSL_realloc(ctx->ext.esni,ctx->ext.nesni*sizeof(SSL_ESNI));
+    	if (the_esni==NULL) {
+        	ESNIerr(ESNI_F_SERVER_ENABLE, ERR_R_INTERNAL_ERROR);
+        	goto err;
+    	}
+	}
+    ctx->ext.esni=the_esni;
+
+	SSL_ESNI* latest_esni=&ctx->ext.esni[ctx->ext.nesni-1];
+    memset(latest_esni,0,sizeof(SSL_ESNI));
+    latest_esni->encoded_rr=inbuf;
+    latest_esni->encoded_rr_len=inblen;
+    if (esni_make_se_from_er(er,latest_esni,1)!=1) {
         ESNIerr(ESNI_F_SERVER_ENABLE, ERR_R_INTERNAL_ERROR);
         goto err;
     }
     // add my private key in there, the public was handled above
-    the_esni->keyshare=pkey;
-    ctx->ext.esni=the_esni;
+    latest_esni->keyshare=pkey;
 
     ESNI_RECORD_free(er);
     OPENSSL_free(er);
@@ -2006,7 +2015,7 @@ int SSL_ESNI_get_esni_ctx(SSL_CTX *s, SSL_ESNI **esni){
         return 0;
     }
     *esni=s->ext.esni;
-    return 1;
+    return s->ext.nesni;
 }
 
 int SSL_ESNI_set_private(SSL_ESNI *esni, char *private_str)
