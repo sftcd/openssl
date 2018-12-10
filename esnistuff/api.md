@@ -485,7 +485,7 @@ Debugging - print an SSL_ESNI structure note - can include sensitive values!
 * `esni` is an SSL_ESNI structure 
 
 #### Returns
-1 for success, anything else for failure
+0 for failure, non-zero is the number of SSL_ESNI in the array
 
 <p id="esni_8h_1acf8aa08880982952d1faee2fedd1bc67"><hr></p>
 
@@ -991,7 +991,7 @@ Debugging - print an SSL_ESNI structure note - can include sensitive values!
 * `esni` is an SSL_ESNI structure 
 
 #### Returns
-1 for success, anything else for failure
+0 for failure, non-zero is the number of SSL_ESNI in the array
 
 <p id="esni_8c_1a8df1af022d25fc0f7e72683b0bd4667f"><hr></p>
 
@@ -1272,7 +1272,7 @@ This structure is purely used when decoding the RR value and is then discarded (
 
 The ESNI data structure that's part of the SSL structure.
 
-(Client-only for now really. Server is TBD.)
+On the client-side, one of these is part of the SSL structure. On the server-side, an array of these is part of the SSL_CTX structure, and we match one of 'em to be part of the SSL structure when a handshake is in porgress. (Well, hopefully:-)
 
 ## Summary
 
