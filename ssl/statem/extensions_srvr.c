@@ -2056,24 +2056,6 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
          SSL_R_BAD_EXTENSION);
         goto err;
     }
-	/*
-    if (ce->encoded_keyshare==NULL) {
-        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ESNI,
-         SSL_R_BAD_EXTENSION);
-        goto err;
-    }
-    ce->encoded_keyshare[0]=(tmp+6)/256;
-    ce->encoded_keyshare[1]=(tmp+6)%256;
-    ce->encoded_keyshare[2]=group_id/256;
-    ce->encoded_keyshare[3]=group_id%256;
-    ce->encoded_keyshare[4]=tmp/256;
-    ce->encoded_keyshare[5]=tmp%256;
-    if (!PACKET_copy_bytes(pkt, ce->encoded_keyshare+6, tmp)) {
-        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ESNI,
-         SSL_R_BAD_EXTENSION);
-        goto err;
-    }
-	*/
     ce->encoded_keyshare=wrap_keyshare(tmpbuf,tmp,group_id,&ce->encoded_keyshare_len);
 	OPENSSL_free(tmpbuf);
 	if (ce->encoded_keyshare==NULL ){
@@ -2111,7 +2093,7 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
     }
     ce->record_digest_len=tmp;
 
-    /* encrypted_sni len - should also be 0x20 */
+    /* encrypted_sni len */
     if (!PACKET_get_net_2(pkt, &tmp)) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ESNI,
          SSL_R_BAD_EXTENSION);
@@ -2140,7 +2122,23 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
     }
     ce->encrypted_sni_len=tmp;
 
-    s->esni->the_esni=ce; 
+	/*
+	 * see which pub/private value matches record_digest 
+	 */
+	SSL_ESNI *match=NULL;
+	for (int i=0;i!=s->nesni;i++) {
+		if (s->esni[i].rd_len==ce->record_digest_len &&
+			!memcmp(s->esni[i].rd,ce->record_digest,ce->record_digest_len)) {
+			/* found it */
+			match=&s->esni[i];
+		}
+	}
+	if (match==NULL) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ESNI,
+         SSL_R_BAD_EXTENSION);
+        goto err;
+	}
+    match->the_esni=ce; 
 
     /*
      * We need the TLS h/s CH.random and key_share to do the 
@@ -2168,7 +2166,7 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
     uint16_t curve_id = s->s3->group_id;
     unsigned char *encservername=NULL;
     size_t encservername_len=0;
-    encservername=SSL_ESNI_dec(s->esni,rd_len,rd,curve_id,ks_len,ks,&encservername_len);
+    encservername=SSL_ESNI_dec(match,rd_len,rd,curve_id,ks_len,ks,&encservername_len);
     if (encservername==NULL) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ESNI,
              SSL_R_BAD_EXTENSION);

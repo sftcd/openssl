@@ -1025,9 +1025,11 @@ struct ssl_ctx_st {
 
 #ifndef OPENSSL_NO_ESNI
 		/* 
-		 * Encrypted SNI structure 
-		 * @todo TODO: not really sure this belongs here but we'll try...
+		 * Encrypted SNI structure(s), one per loaded key pair
+		 * will be reduced to (the matching) one when we derive an 
+		 * SSL structure from the SSL_CTX factory
 		 */
+		size_t	nesni; /* the number of elements in the esni array */
 		SSL_ESNI *esni;
     	SSL_esni_client_cb_func esni_cb;
 #endif
@@ -1407,6 +1409,7 @@ struct ssl_st {
     int servername_done;
 #ifndef OPENSSL_NO_ESNI
     int esni_done;
+	size_t	nesni; /* the number of elements in the esni array */
 	SSL_ESNI *esni;
     SSL_esni_client_cb_func esni_cb;
 #endif

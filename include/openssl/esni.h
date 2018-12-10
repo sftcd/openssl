@@ -116,7 +116,10 @@ typedef struct client_esni_st {
 /**
  * @brief The ESNI data structure that's part of the SSL structure 
  *
- * (Client-only for now really. Server is TBD.)
+ * On the client-side, one of these is part of the SSL structure.
+ * On the server-side, an array of these is part of the SSL_CTX
+ * structure, and we match one of 'em to be part of the SSL 
+ * structure when a handshake is in porgress. (Well, hopefully:-)
  */
 typedef struct ssl_esni_st {
     char *encservername; ///< hidden server name
@@ -369,7 +372,7 @@ int SSL_ESNI_get_esni(SSL *s, SSL_ESNI **esni);
  *
  * @param s is a an SSL_CTX structure, as used on TLS server
  * @param esni is an SSL_ESNI structure
- * @return 1 for success, anything else for failure
+ * @return 0 for failure, non-zero is the number of SSL_ESNI in the array
  */
 int SSL_ESNI_get_esni_ctx(SSL_CTX *s, SSL_ESNI **esni);
 

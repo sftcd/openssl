@@ -47,6 +47,10 @@ Here's the [design doc](./design.md).
 
 Most recent first...
 
+- Now accumulating supplied ESNI publics/keys and that works still
+  (to the extent it has) with first supplied public/key but not
+  yet for one found in ``esnidir`` - need to check more.
+
 - Added new ``esnidir`` command line arg to ``s_server`` - idea is
   to read the set of ESNIKeys/privates found in that dir. For now,
   the last one in is active, but will change to support >1 in 

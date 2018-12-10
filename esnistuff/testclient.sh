@@ -166,13 +166,14 @@ then
 		fi
 		# check if file suffix is .pub or .bin (binary) or .b64 (base64 encoding) 
 		# and react accordingly, don't take any other file extensions
-		if [ `basename "$SUPPLIEDESNI" .b64` != "$SUPPLIEDESNI" ]
+		ssfname=`basename $SUPPLIEDESNI`
+		if [ `basename "$ssfname" .b64` != "$ssfname" ]
 		then
 			ESNI=`head -1 $SUPPLIEDESNI` 
-		elif [ `basename "$SUPPLIEDESNI" .pub` != "$SUPPLIEDESNI" ]
+		elif [ `basename "$ssfname" .pub` != "$ssfname" ]
 		then
 			ESNI=`cat $SUPPLIEDESNI | base64 -w0`
-		elif [ `basename "$SUPPLIEDESNI" .bin` != "$SUPPLIEDESNI" ]
+		elif [ `basename "$ssfname" .bin` != "$ssfname" ]
 		then
 			ESNI=`cat $SUPPLIEDESNI | base64 -w0`
 		else
