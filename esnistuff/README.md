@@ -47,6 +47,12 @@ Here's the [design doc](./design.md).
 
 Most recent first...
 
+- Added new ``esnidir`` command line arg to ``s_server`` - idea is
+  to read the set of ESNIKeys/privates found in that dir. For now,
+  the last one in is active, but will change to support >1 in 
+  state shortly. Note that the code there likely needs changes to
+  be portable (to Windows probably, at least). There's a TODO.
+
 - Oops - I messed up the ``esni_server_name_fixup`` function so that
   the cleartext SNI wasn't ever being sent. That was further confusing
   me in trying to test the server side, but it should be fixed now.
