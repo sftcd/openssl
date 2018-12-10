@@ -2176,7 +2176,17 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
     }
     OPENSSL_free(ks);
 
-    // @todo TODO: check encservername has no zero bytes internally
+    /*
+	 * check encservername has no zero bytes internally
+	 * code here inspired by PACKET_contains_zero_byte but
+	 * decided not to create a new pseudo-PACKET to do 
+	 * that
+	 */
+    if (memchr(encservername, 0, encservername_len) != NULL) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ESNI,
+             SSL_R_BAD_EXTENSION);
+        goto err;
+	}
 
     /*
      * Now apply esni by swapping out hostname (we'll try anyway:-)

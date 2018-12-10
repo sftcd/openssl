@@ -675,11 +675,17 @@
 
 <p>Decode and check the value retieved from DNS (currently base64 encoded)</p>
 
-<p>This is inspired by, but not the same as, SCT_new_from_base64 from crypto/ct/ct_b64.c </p>
+<p>This is inspired by, but not the same as, SCT_new_from_base64 from crypto/ct/ct_b64.c</p>
 
-<blockquote>
-  <p>Todo: TODO: handle >1 of the many things that can have >1 instance (maybe at a higher layer)</p>
-</blockquote>
+<h4 id="parameters">Parameters</h4>
+
+<ul>
+<li><code>esnikeys</code> is the base64 encoded ESNIKeys object </li>
+</ul>
+
+<h4 id="returns">Returns</h4>
+
+<p>is NULL (on error) or an SSL_ESNI structure</p>
 
 <p id="esni_8h_1a0ca4d48103270d6779cb2f6a608ba52a"><hr></p>
 
@@ -1015,6 +1021,17 @@
 
 <p>Decod from binary to ESNI_RECORD.</p>
 
+<h4 id="parameters">Parameters</h4>
+
+<ul>
+<li><p><code>binbuf</code> is the buffer with the encoding </p></li>
+<li><p><code>binblen</code> is the length of binbunf </p></li>
+</ul>
+
+<h4 id="returns">Returns</h4>
+
+<p>NULL on error, or an ESNI_RECORD structure</p>
+
 <p id="esni_8c_1a1332a08e3b77da97cc9aef2efd50f904"><hr></p>
 
 <h4 id="publicstaticintesni_make_se_from_eresni_8c_1a1332a08e3b77da97cc9aef2efd50f904esni_recordesni_8h_1ab29e08d24d0eac604e0d6783dfbf1758erssl_esniesni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7fseintserver"><code>public static int</code><a href="#esni_8c_1a1332a08e3b77da97cc9aef2efd50f904"><code>esni_make_se_from_er</code></a><code>(</code><a href="#esni_8h_1ab29e08d24d0eac604e0d6783dfbf1758"><code>ESNI_RECORD</code></a><code>* er,</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>* se,int server)</code></h4>
@@ -1022,6 +1039,10 @@
 <p>populate an SSL_ESNI from an ESNI_RECORD</p>
 
 <p>This is used by both client and server in (almost) identical ways. Note that se->encoded_rr and se->encodded_rr_len must be set before calling this, but that's usually fine.</p>
+
+<blockquote>
+  <p>Todo: TODO: handle >1 of the many things that can have >1 instance (maybe at a higher layer)</p>
+</blockquote>
 
 <h4 id="parameters">Parameters</h4>
 
@@ -1043,11 +1064,17 @@
 
 <p>Decode and check the value retieved from DNS (currently base64 encoded)</p>
 
-<p>This is inspired by, but not the same as, SCT_new_from_base64 from crypto/ct/ct_b64.c </p>
+<p>This is inspired by, but not the same as, SCT_new_from_base64 from crypto/ct/ct_b64.c</p>
 
-<blockquote>
-  <p>Todo: TODO: handle >1 of the many things that can have >1 instance (maybe at a higher layer)</p>
-</blockquote>
+<h4 id="parameters">Parameters</h4>
+
+<ul>
+<li><code>esnikeys</code> is the base64 encoded ESNIKeys object </li>
+</ul>
+
+<h4 id="returns">Returns</h4>
+
+<p>is NULL (on error) or an SSL_ESNI structure</p>
 
 <p id="esni_8c_1ad619d10af828adf65d47682bdab514d1"><hr></p>
 
