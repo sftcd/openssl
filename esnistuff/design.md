@@ -252,6 +252,7 @@ The ``usage()`` from that script is:
 			Running ./testserver.sh at 20181204-125134
 			./testserver.sh [-cHpsdnlvhK] - try out encrypted SNI via openssl s_server
 			  -H means serve that hidden server
+			  -D means find esni private/public values in that directory
 			  -d means run s_server in verbose mode
 			  -v means run with valgrind
 			  -n means don't trigger esni at all
@@ -273,10 +274,16 @@ I added new command line arguments as follows:
 
 - ``esnikey`` the private key filename for ESNI
 - ``esnipub`` the name of the file containing the binary form of the corresponding ESNIKeys 
+- ``esnidir`` the name of a directory containing pairs of the above
+
+If ``esnikey`` and ``esnipub`` are set, we load those files.
+If (additionally, or instead) esnidir is set the we try load in
+all the pairs of matching ``<name>.priv`` and ``<name>.pub``
+files found in that directory.
 
 When those are set, the following API calls ensue:
 
-- ``SSL_esni_server_enable`` - setup ESNI for the server context
+- ``SSL_esni_server_enable`` - setup ESNI for the server context, can be called more than once
 - ``SSL_ESNI_get_esni_ctx``: is used to get the ``SSL_ESNI`` structure which is printed via ``SSL_ESNI_print``
 
 ### APIs

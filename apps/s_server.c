@@ -23,6 +23,7 @@
 #include <openssl/ssl.h>
 #ifndef OPENSSL_NO_ESNI
 #include <openssl/esni.h>
+#include <dirent.h> /* for esnidir handling */
 #endif
 
 #ifndef OPENSSL_NO_SOCK
@@ -792,7 +793,7 @@ typedef enum OPTION_choice {
     OPT_KEYLOG_FILE, OPT_MAX_EARLY, OPT_RECV_MAX_EARLY, OPT_EARLY_DATA,
     OPT_S_NUM_TICKETS, OPT_ANTI_REPLAY, OPT_NO_ANTI_REPLAY,
 #ifndef OPENSSL_NO_ESNI
-    OPT_ESNIKEY, OPT_ESNIPUB,
+    OPT_ESNIKEY, OPT_ESNIPUB, OPT_ESNIDIR,
 #endif
     OPT_R_ENUM,
     OPT_S_ENUM,
@@ -1010,6 +1011,7 @@ const OPTIONS s_server_options[] = {
 #ifndef OPENSSL_NO_ESNI
     {"esnikey", OPT_ESNIKEY, 's', "Load ESNI private key (and enable ESNI)"},
     {"esnipub", OPT_ESNIPUB, 's', "Load ESNI public key"},
+    {"esnidir", OPT_ESNIDIR, 's', "ESNI information directory"},
 #endif
     {NULL, OPT_EOF, 0, NULL}
 };
@@ -1096,6 +1098,7 @@ int s_server_main(int argc, char *argv[])
 #ifndef OPENSSL_NO_ESNI
     char *esnikeyfile = NULL; 
     char *esnipubfile = NULL;
+	char *esnidir=NULL;
 #endif
 
     /* Init of few remaining global variables */
@@ -1643,6 +1646,9 @@ int s_server_main(int argc, char *argv[])
         case OPT_ESNIPUB:
             esnipubfile=opt_arg();
             break;
+        case OPT_ESNIDIR:
+            esnidir=opt_arg();
+            break;
 #endif
         }
     }
@@ -1955,9 +1961,74 @@ int s_server_main(int argc, char *argv[])
             BIO_printf(bio_err, "Failure establishing ESNI parameters\n" );
             goto end;
 		}
+	}
+	if (esnidir != NULL ) {
+		/*
+		 * Try load any good looking public/private ESNI values found in files in that directory
+		 * TODO: Find a more OpenSSL-like way of reading a directory without all the massive
+		 * indirection involved in the CApath which seems to delve about 5 call deep to do
+		 * anything. The esnidir shouldn't be embedded in the library at all really, so
+		 * arguably handling it fully here in the app is better, though there may I guess
+		 * be issues with portability.
+		 */
+		size_t elen=strlen(esnidir);
+		if ((elen+7) >= PATH_MAX) {
+			/* too long, go away */
+            BIO_printf(bio_err, "'%s' is too long a directory name - exiting \r\n", esnidir);
+			goto end;
+		}
+        /* if not a directory, ignore it */
+        if (app_isdir(esnidir) <= 0) {
+            BIO_printf(bio_err, "'%s' is not a directory - exiting \r\n", esnidir);
+			goto end;
+        }
+		DIR *dp;
+		struct dirent *ep;
+		dp=opendir(esnidir);
+		if (dp==NULL) {
+            BIO_printf(bio_err, "Can't read directory '%s' - exiting \r\n", esnidir);
+			goto end;
+		}
+		while ((ep=readdir(dp))!=NULL) {
+			char privname[PATH_MAX];
+			char pubname[PATH_MAX];
+			/*
+			 * If the file name matches *.priv, then check for matching *.pub and try enable that pair
+			 */
+			size_t nlen=strlen(ep->d_name);
+			if (nlen>5) {
+				char *last5=ep->d_name+nlen-5;
+				if (strncmp(last5,".priv",5)) {
+					continue;
+				}
+				if ((elen+nlen)>=PATH_MAX) {
+					closedir(dp);
+					BIO_printf(bio_err,"name too long: %s/%s - exiting \r\n",esnidir,ep->d_name);
+					goto end;
+				}
+				snprintf(privname,PATH_MAX,"%s/%s",esnidir,ep->d_name);
+				snprintf(pubname,PATH_MAX,"%s/%s",esnidir,ep->d_name);
+				pubname[elen+1+nlen-3]='u';
+				pubname[elen+1+nlen-2]='b';
+				pubname[elen+1+nlen-1]=0x00;
+				struct stat thestat;
+				if (stat(pubname,&thestat)==0 && stat(privname,&thestat)==0) {
+					BIO_printf(bio_err,"try public: %s\r\n",pubname);
+					BIO_printf(bio_err,"try private: %s\r\n",privname);
+					if (SSL_esni_server_enable(ctx,privname,pubname)!=1) {
+						BIO_printf(bio_err, "Failure establishing ESNI parameters\n" );
+						goto end;
+					}
+				}
+			}
+		}
+		closedir(dp);
+
+	}
+	if ((esnidir!=NULL) || (esnikeyfile!= NULL && esnipubfile!=NULL)) {
 		SSL_ESNI *tp=NULL;
 		SSL_ESNI_get_esni_ctx(ctx,&tp);
-		//SSL_ESNI_print(bio_err,tp);
+		SSL_ESNI_print(bio_err,tp);
 	}
 #endif
 
