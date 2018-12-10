@@ -9,7 +9,9 @@ export LD_LIBRARY_PATH=$TOP
 ESNIPUB=$TOP/esnistuff/esnikeys.pub
 ESNIPRIV=$TOP/esnistuff/esnikeys.priv
 HIDDEN="foo.example.com"
+HIDDEN2="bar.example.com"
 COVER="example.com"
+ESNIDIR="$TOP/esnistuff/esnikeydir"
 
 SSLCFG="/etc/ssl/openssl.cnf"
 
@@ -24,6 +26,7 @@ SUPPLIEDPORT=""
 SUPPLIEDKEYFILE=""
 SUPPLIEDHIDDEN=""
 SUPPLIEDCOVER=""
+SUPPLIEDDIR=""
 CAPATH="/etc/ssl/certs/"
 
 function whenisitagain()
@@ -36,8 +39,9 @@ echo "Running $0 at $NOW"
 
 function usage()
 {
-    echo "$0 [-cHpsdnlvhK] - try out encrypted SNI via openssl s_server"
+    echo "$0 [-cHpDsdnlvhK] - try out encrypted SNI via openssl s_server"
     echo "  -H means serve that hidden server"
+    echo "  -D means find esni private/public values in that directory"
     echo "  -d means run s_server in verbose mode"
     echo "  -v means run with valgrind"
     echo "  -n means don't trigger esni at all"
@@ -55,7 +59,7 @@ function usage()
 }
 
 # options may be followed by one colon to indicate they have a required argument
-if ! options=$(/usr/bin/getopt -s bash -o c:H:p:Kdlvnh -l cover:,hidden:,port:,keygen,debug,stale,valgrind,noesni,help -- "$@")
+if ! options=$(/usr/bin/getopt -s bash -o c:D:H:p:Kdlvnh -l dir:,cover:,hidden:,port:,keygen,debug,stale,valgrind,noesni,help -- "$@")
 then
     # something went wrong, getopt will put out an error message for us
     exit 1
@@ -72,6 +76,7 @@ do
         -n|--noesni) NOESNI="yes" ;;
         -c|--cover) SUPPLIEDCOVER=$2; shift;;
         -H|--hidden) SUPPLIEDHIDDEN=$2; shift;;
+        -D|--dir) SUPPLIEDDIR=$2; shift;;
         -p|--port) SUPPLIEDPORT=$2; shift;;
         (--) shift; break;;
         (-*) echo "$0: error - unrecognized option $1" 1>&2; exit 1;;
@@ -104,17 +109,22 @@ KEYFILE1=$TOP/esnistuff/$cover.pem
 CERTFILE1=$TOP/esnistuff/$cover.crt
 KEYFILE2=$TOP/esnistuff/$hidden.pem
 CERTFILE2=$TOP/esnistuff/$hidden.crt
+KEYFILE3=$TOP/esnistuff/$HIDDEN2.pem
+CERTFILE3=$TOP/esnistuff/$HIDDEN2.crt
 
 if [[ "$KEYGEN" == "yes" ]]
 then
+	# TODO: Make a fake CA and certify these
 	echo "Generating kays and exiting..."
 	$TOP/apps/openssl req -x509 -config $SSLCFG -newkey rsa:2048 -keyout $KEYFILE1 -out $CERTFILE1 -days 365 -nodes -subj "/C=IE/CN=$cover"
 	$TOP/apps/openssl req -x509 -config $SSLCFG -newkey rsa:2048 -keyout $KEYFILE2 -out $CERTFILE2 -days 365 -nodes -subj "/C=IE/CN=$hidden"
+	$TOP/apps/openssl req -x509 -config $SSLCFG -newkey rsa:3048 -keyout $KEYFILE3 -out $CERTFILE3 -days 365 -nodes -subj "/C=IE/CN=$HIDDEN2"
 	exit
 fi
 
 keyfile1="-key $KEYFILE1 -cert $CERTFILE1"
 keyfile2="-key2 $KEYFILE2 -cert2 $CERTFILE2"
+keyfile3="-key2 $KEYFILE3 -cert2 $CERTFILE3"
 
 #dbgstr=" -verify_quiet"
 dbgstr=" -quiet"
@@ -136,7 +146,18 @@ then
 fi
 portstr=" -port $PORT "
 
-esnistr=" -esnipub $ESNIPUB -esnikey $ESNIPRIV "
+esnidir=$ESNIDIR
+if [[ "$SUPPLIEDDIR" != "" ]]
+then
+	esnidir=$SUPPLIEDDIR
+fi
+
+esnistr=" -esnipub $ESNIPUB -esnikey $ESNIPRIV -esnidir $esnidir"
+if [[ ! -f $ESNIPUB || ! -f $ESNIPRIV ]]
+then
+	esnistr=" -esnidir $esnidir"
+fi
+
 if [[ "$NOESNI" == "yes" ]]
 then
     echo "Not trying ESNI"
@@ -150,39 +171,6 @@ certsdb=" -CApath $CAPATH"
 force13="-cipher TLS13-AES-128-GCM-SHA256 -no_ssl3 -no_tls1 -no_tls1_1 -no_tls1_2"
 #force13="-tls1_3 -cipher TLS13-AES-128-GCM-SHA256 "
 
-set -x
-#TMPF=`mktemp /tmp/esnitestXXXX`
-#$vgcmd $TOP/apps/openssl s_server $dbgstr $keyfile1 $keyfile2 $certsdb $portstr $force13 $esnistr $snicmd >$TMPF 2>&1
-$vgcmd $TOP/apps/openssl s_server $dbgstr $keyfile1 $keyfile2 $certsdb $portstr $force13 $esnistr $snicmd 
-exit
+$vgcmd $TOP/apps/openssl s_server $dbgstr $keyfile1 $keyfile2 $keyfile3 $certsdb $portstr $force13 $esnistr $snicmd 
 
-c200=`grep -c "200 OK" $TMPF`
-c4xx=`grep -ce "^HTTP/1.1 4[0-9][0-9] " $TMPF`
-
-if [[ "$DEBUG" == "yes" ]]
-then
-	echo "$0 All output" 
-	cat $TMPF
-	echo ""
-fi
-if [[ "$VG" == "yes" ]]
-then
-	vgout=`grep -e "^==" $TMPF`
-	echo "$0 Valgrind" 
-	echo "$vgout"
-	echo ""
-fi
-echo "$0 Summary: "
-if [[ "$DEBUG" == "yes" ]]
-then
-	noncestr=`grep -A1 "ESNI Nonce" $TMPF`
-	eestr=`grep -A2 EncryptedExtensions $TMPF`
-	echo "Nonce sent: $noncestr"
-	echo "Nonce Back: $eestr"
-	grep -e "^ESNI: " $TMPF
-else
-	echo "Looks like $c200 ok's and $c4xx bad's."
-fi
-echo ""
-rm -f $TMPF
 
