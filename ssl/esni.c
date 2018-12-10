@@ -22,10 +22,6 @@
 #include <openssl/esni.h>
 #include <openssl/esnierr.h>
 
-
-/*
- * code within here should be openssl-style
- */
 #ifndef OPENSSL_NO_ESNI
 
 /*
@@ -34,9 +30,6 @@
 #ifdef ESNI_CRYPT_INTEROP
 unsigned char *lg_nonce=NULL;
 size_t lg_nonce_len=0;
-#endif
-
-#ifdef ESNI_CRYPT_INTEROP
 static void so_esni_pbuf(char *msg,unsigned char *buf,size_t blen,int indent);
 #endif
 
@@ -354,6 +347,9 @@ unsigned char *wrap_keyshare(
 /**
  * @brief Decod from binary to ESNI_RECORD
  *
+ * @param binbuf is the buffer with the encoding
+ * @param binblen is the length of binbunf
+ * @return NULL on error, or an ESNI_RECORD structure 
  */
 ESNI_RECORD *SSL_ESNI_RECORD_new_from_binary(unsigned char *binbuf, size_t binblen)
 {
@@ -546,6 +542,9 @@ err:
  * Note that se->encoded_rr and se->encodded_rr_len must be set before
  * calling this, but that's usually fine.
  *
+ * @todo TODO: handle >1 of the many things that can 
+ * have >1 instance (maybe at a higher layer)
+ *
  * @param er is the ESNI_RECORD
  * @param se is the SSL_ESNI
  * @param server is 1 if we're a TLS server, 0 otherwise, (just in case there's a difference)
@@ -564,7 +563,6 @@ static int esni_make_se_from_er(ESNI_RECORD* er, SSL_ESNI *se, int server)
     /* 
      * now decide which bits of er we like and remember those 
      * pick the 1st key/group/ciphersutie that works
-     * TODO: more sophisticated selection:-)
      */
     int rec2pick=0;
     se->ciphersuite=er->ciphersuites[rec2pick];
@@ -619,8 +617,9 @@ err:
  *
  * This is inspired by, but not the same as,
  * SCT_new_from_base64 from crypto/ct/ct_b64.c
- * @todo TODO: handle >1 of the many things that can 
- * have >1 instance (maybe at a higher layer)
+ *
+ * @param esnikeys is the base64 encoded ESNIKeys object
+ * @return is NULL (on error) or an SSL_ESNI structure
  */
 SSL_ESNI* SSL_ESNI_new_from_base64(const char *esnikeys)
 {

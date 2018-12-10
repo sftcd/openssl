@@ -389,8 +389,13 @@ is an SSL_ESNI structure
 
 Decode and check the value retieved from DNS (currently base64 encoded)
 
-This is inspired by, but not the same as, SCT_new_from_base64 from crypto/ct/ct_b64.c 
-> Todo: TODO: handle >1 of the many things that can have >1 instance (maybe at a higher layer)
+This is inspired by, but not the same as, SCT_new_from_base64 from crypto/ct/ct_b64.c
+
+#### Parameters
+* `esnikeys` is the base64 encoded ESNIKeys object 
+
+#### Returns
+is NULL (on error) or an SSL_ESNI structure
 
 <p id="esni_8h_1a0ca4d48103270d6779cb2f6a608ba52a"><hr></p>
 
@@ -679,6 +684,14 @@ is NULL (on error) or a pointer to the encoded version buffer
 
 Decod from binary to ESNI_RECORD.
 
+#### Parameters
+* `binbuf` is the buffer with the encoding 
+
+* `binblen` is the length of binbunf 
+
+#### Returns
+NULL on error, or an ESNI_RECORD structure
+
 <p id="esni_8c_1a1332a08e3b77da97cc9aef2efd50f904"><hr></p>
 
 #### `public static int `[`esni_make_se_from_er`](#esni_8c_1a1332a08e3b77da97cc9aef2efd50f904)`(`[`ESNI_RECORD`](#esni_8h_1ab29e08d24d0eac604e0d6783dfbf1758)` * er,`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * se,int server)` 
@@ -686,6 +699,8 @@ Decod from binary to ESNI_RECORD.
 populate an SSL_ESNI from an ESNI_RECORD
 
 This is used by both client and server in (almost) identical ways. Note that se->encoded_rr and se->encodded_rr_len must be set before calling this, but that's usually fine.
+
+> Todo: TODO: handle >1 of the many things that can have >1 instance (maybe at a higher layer)
 
 #### Parameters
 * `er` is the ESNI_RECORD 
@@ -705,8 +720,13 @@ Decode from base64 TXT RR to SSL_ESNI.
 
 Decode and check the value retieved from DNS (currently base64 encoded)
 
-This is inspired by, but not the same as, SCT_new_from_base64 from crypto/ct/ct_b64.c 
-> Todo: TODO: handle >1 of the many things that can have >1 instance (maybe at a higher layer)
+This is inspired by, but not the same as, SCT_new_from_base64 from crypto/ct/ct_b64.c
+
+#### Parameters
+* `esnikeys` is the base64 encoded ESNIKeys object 
+
+#### Returns
+is NULL (on error) or an SSL_ESNI structure
 
 <p id="esni_8c_1ad619d10af828adf65d47682bdab514d1"><hr></p>
 
