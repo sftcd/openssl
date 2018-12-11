@@ -2141,7 +2141,6 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
         goto err;
 	}
     match->the_esni=ce; 
-	match->index=matchind;
 
     /*
      * We need the TLS h/s CH.random and key_share to do the 

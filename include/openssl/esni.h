@@ -122,7 +122,6 @@ typedef struct client_esni_st {
  * structure when a handshake is in porgress. (Well, hopefully:-)
  */
 typedef struct ssl_esni_st {
-	int index; ///< specifies the index in this array that is the current child
     char *encservername; ///< hidden server name
     char *covername; ///< cleartext SNI (can be NULL)
     int require_hidden_match; ///< If 1 then SSL_esni_get_status will barf if hidden name doesn't match TLS server cert. If 0, don't care.
