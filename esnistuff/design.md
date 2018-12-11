@@ -116,16 +116,19 @@ allowing one to turn on ESNI.
 There's also a [server-side test script](#server-test-script) that can generate keys and run ``s_server``
 in various ways.
 
-We've documented our [data structures](#data-structures) and [APIs](#apis) that allow OpenSSL applications to support
+We've documented our data structures and [APIs](#apis) that allow OpenSSL applications to support
 ESNI.
+
+We've some notes on our [extension and ``SSL_CTX``](#extension-and-ssl_ctx-handling) handling.
+
 
 There're also a few notes about future [testing](#testing).
 
 Lastly, we note the [files](#file-changes) that are new, or modified.
 
-### Client Side
+## Client Side
 
-#### Test script
+### Test script
 
 The ``usage()`` function for the [testclient.sh](https://gitbub.com/sftcd/openssl/esnistuff/testit.sh) 
 produces this:
@@ -161,7 +164,7 @@ Other notes:
 - ``-v`` runs under valgrind and currently has no complaints (in the 
   nominal case)
 
-#### ``s_client`` modifications
+### ``s_client`` modifications
 
 Here and elsewhere, almost all of our code changes are enclosed with ``#ifndef OPENSSL_NO_ESNI``
 
@@ -211,7 +214,7 @@ that runs a standalone test application ([esnimain.c](https://github.com/sftcd/o
 which just tests the client-side ESNI APIs directly. That should become some kind of unit test in the main
 build, and needs error cases added.
 
-### Server-side 
+## Server-side 
 
 Some open questions:
 
@@ -220,7 +223,7 @@ Some open questions:
 - Policy: Various combinations of existing/non-existing SNI/ESNI and how to handle
   'em.
 
-#### Generating ESNIKeys
+### Generating ESNIKeys
 
 For now, all that exists is [mk_esnikeys.c](./mk_esnikeys.c), a simple command
 line tool to generate a key pair and store the public in ESNIKeys format as 
@@ -250,7 +253,7 @@ end up in some tools or utils directory, not sure yet. Lastly, this does
 allow private key re-use, just in case that may be needed, but we should 
 decide if that could be removed, which seems safer in general.
 
-#### Server test script
+### Server test script
 
 The [testserver.sh](./testserver.sh) script starts an ``openssl s_server``
 and listens for connections. 
@@ -279,21 +282,7 @@ The ``-K`` argument generates RSA key pairs for ``example.com''
 other inputs the script causes ``s_server`` to load those. Note that these are keys
 for the TLS server and are not ESNI public keys (generate those with ``mk_esnikeys``).
 
-#### Localhost testing
-
-I have a directory (``esnistuff/esnkkeydir``) that has some ESNI public/private pairs,
-and also have the default ESNI public/private pair in ``esnistuff``, so then usually
-testi on localhost as follows:
-
-			$ ./testserver.sh -p 4000 -D ./esnikeydir -vd
-			...lots of output...
-
-And in a 2nd window we fire up a client as follows:
-
-			$ ./testclient.sh -p 4000 -s localhost -H foo.example.com -P ./esnikeydir/e3.pub -c NONE -vd
-			...lots of output..
-
-#### ``s_server`` modifications
+### ``s_server`` modifications
 
 I added new command line arguments as follows:
 
@@ -312,7 +301,7 @@ When those are set, the following API calls ensue:
 - ``esni_cb``: is a local call-back function, it retrives and prints the ``SSL_ESNI`` structure
 - ``SSL_ESNI_get_esni_ctx``: is used to get the ``SSL_ESNI`` structure which is printed via ``SSL_ESNI_print``
 
-### APIs
+## APIs
 
 [Here's](./api.md) what moxygen produces from what doxygen produces (with a bit of sed
 scrpting - see the [Makefile](./Makefile) ```make doc``` target. Since that's a build
@@ -320,7 +309,13 @@ target, it may be more up to date that the text below (but I'll try keep the stu
 correct and brief).
 
 The main ESNI header file [esni.h](https://github.com/sftcd/openssl/blob/master/include/openssl/esni.h)
-includes the following prototypes:
+defines the structures listed below and includes the prototypes thereafter.
+
+The main data structures are:
+
+- [ESNI_RECORD](./api.md#structesni__record__st) representing the DNS RR value
+- [CLIENT_ESNI](./api.md#structclient__esni__st) representing the extension value for a ClientHello
+- [SSL_ESNI](./api.md#structssl__esni__st) the internal state structure with the above plus gory crypto details
 
 			
 			/*
@@ -600,7 +595,7 @@ Notes:
   was run from a standalone test application, but we'll make such changes
   sometime soon.)
 
-### Extension Handling
+## Extension and ``SSL_CTX`` Handling
 
 The ESNI extension is handled using ```statem``` code, in the same
 way as other extensions.
@@ -610,7 +605,7 @@ out (using the [NOESNI_filter.sh](./NOESNI_filter.sh)) script. Basically
 such blocks start with ```// ESNI_DOXY_START``` and
 end with ```// ESNI_DOXY_END```.
 
-#### Client-side
+### Client-side
 
 The main extension handling function is [tls_construct_ctos_esni](./api.md#extensions__clnt_8c_1afca936de2d3ae315b5e8b8b200d17462)
 which uses the above APIs (most substantively ``SSL_ESNI_enc``) to generate the extension value and puts that in the ClientHello. 
@@ -624,7 +619,7 @@ sure we don't send the same value encrypted and in clear. That's done using
 the [esni_server_name_fixup](./api.md#extensions__clnt_8c_1a2454a14e823689509154ca3bfb4cdaea)
 function.
 
-#### Server-side
+### Server-side
 
 On the server-side, the main extension handling functions are
 ``tls_parse_ctos_esni`` and ``tls_construct_stoc_esni``.
@@ -642,12 +637,10 @@ structure for each connection - which we guess means that ``SSL_CTX`` is specifi
 and/or generic application API calls, whereas presumably the ``SSL`` type
 is specific to a particular connection.
 
-There's also odd code that has two sort-of replica SSL_CTX structures 
-into which we currently have pointers to the SSL_ESNI structure.
-
 Basically we added the following fields to both ``SSL`` and ``SSL_CTX``
-- ``size_t nesni`` has a count of the number of ``SSL_ESNI`` structures in the ``esni`` array 
--  ``SSL_ESNI *esni`` pointer to all of the ``SSL_ESNI`` instances we've loaded
+- ``size_t nesni`` has a count of the number of ``SSL_ESNI`` structures in the ``esni`` array  (which
+is one per loaded public/private ESNI value)
+-  ``SSL_ESNI *esni`` pointer to an array of all of the ``SSL_ESNI`` instances we've loaded
 - ``int esni_done`` is 0 until we've finished the ESNI game successfully
 - ``esni_cb`` is a callback function only used to print the ``SSL_ESNI`` details for debug purposes
 
@@ -655,10 +648,10 @@ For ``s_client`` we'll have ``nesni==1`` as there's only the ESNIKeys value
 from DNS for the relevant HIDDEN service.
 
 For ``s_server`` the ``nesni`` value will reflect how many ESNIKeys public and
-private values were loaded. We replicate all of that from ``SSL_CTX`` to ``SSL``
+private values were loaded. We replicate all of that from ``SSL_CTX`` to the ``SSL``
 for each connection as we won't know ahead of time which public value was
 used. We select one to process via the ``record_digest`` value that's in
-the ESNI TLS extension and that's calculated from the loaded public value.
+the ESNI TLS extension and that's calculated on loading the ESNI public value.
 
 The ``SSL_ESNI`` structure could be rationalised more as the spec stabilises
 but for now, each elememnt of the ``esni`` array in an ``SSL`` or ``SSL_CTX``
@@ -670,6 +663,9 @@ connection-specific ``SSL`` structure (from the ``SSL_CTX`` factory). That
 function selectively deep-copies the generic parts (public/private key
 essentially.)
 
+The various new and free functions for ``SSL_CTX`` and ``SSL`` structures
+are modified to do the right thing with our new fields.
+
 Handling of cleartext SNI extension in OpenSSL is a bit messy - there's
 a second ``SSL_CTX`` value maintained by ``s_server`` (variables are
 ``ctx`` and ``ctx2``) which is used to keep the different server context.
@@ -677,23 +673,21 @@ Servers for different names might e.g. differ in the set of X.509 CAs
 they trust for client auth. For now, we just replicate the same ESNI
 information in both.
 
-### Data structures
+## Testing
 
-See the [api](./api.md)
+I have a directory (``esnistuff/esnkkeydir``) that has some ESNI public/private pairs,
+and also have the default ESNI public/private pair in ``esnistuff``, so then usually
+testi on localhost as follows:
 
-The main data structures are:
+			$ ./testserver.sh -p 4000 -D ./esnikeydir -vd
+			...lots of output...
 
-- [ESNI_RECORD](./api.md#structesni__record__st) representing the DNS RR value
-- [CLIENT_ESNI](./api.md#structclient__esni__st) representing the extension value for a ClientHello
-- [SSL_ESNI](./api.md#structssl__esni__st) the internal state structure with the above plus gory crypto details
+And in a 2nd window we fire up a client as follows:
 
-### Internal functions
+			$ ./testclient.sh -p 4000 -s localhost -H foo.example.com -P ./esnikeydir/e3.pub -c NONE -vd
+			...lots of output..
 
-See the [api](./api.md)
-
-### Testing
-
-- Things to test (later, when writing test code:-):
+- Future things to test (later, when writing test code:-):
 	- DNS: dns query/answer failure(s) - affects script not code so far...
 	- API: No ESNI but Encservername (and vice versa)
 	- checksum fail in ESNIKeys
