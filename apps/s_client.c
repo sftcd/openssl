@@ -79,7 +79,7 @@ static void print_stuff(BIO *berr, SSL *con, int full);
 static int ocsp_resp_cb(SSL *s, void *arg);
 #endif
 #ifndef OPENSSL_NO_ESNI
-static unsigned int esni_cb(SSL *s);
+static unsigned int esni_cb(SSL *s, int index);
 #endif
 static int ldap_ExtendedResponse_parse(const char *buf, long rem);
 static char *base64encode (const void *buf, size_t len);
@@ -3514,13 +3514,13 @@ static void print_stuff(BIO *bio, SSL *s, int full)
 }
 
 #ifndef OPENSSL_NO_ESNI
-static unsigned int esni_cb(SSL *s)
+static unsigned int esni_cb(SSL *s, int index)
 {
     BIO_printf(bio_c_out,"esni_cb called\n");
     SSL_ESNI *esnistuff=NULL;
     int rv=SSL_ESNI_get_esni(s,&esnistuff);
     if (rv == 1 && esnistuff!=NULL) {
-        SSL_ESNI_print(bio_c_out,esnistuff);
+        SSL_ESNI_print(bio_c_out,&esnistuff[index]);
     }
     return 1;
 }
