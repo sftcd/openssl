@@ -718,9 +718,12 @@ usually in ``$HOME/code/openssl``.
 - esnistuff/testserver.sh - calls ``openssl s_server`` (still evolving!)
 - esnistuff/mk_esnikeys.c - generates private key and ESNIKeys binary files
 
+Running tests as described above will result in some files being generated that hold
+public and private keys both for the TLS server and for ESNI.
+
 ### Existing Files modified 
 
-- ssl/build.info - need to add new libssl source files here (just esni.c for now)
+- ssl/build.info - need to add new libssl source files here 
 - utils/libssl.num - seem to need to add exported stuff here manually?
 - utils/libcrypto.num - seem to need to add exported stuff here manually?
 - include/openssl/err.h
