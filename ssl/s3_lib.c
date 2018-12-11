@@ -3303,7 +3303,10 @@ int ssl3_new(SSL *s)
 #endif
 
 #ifndef OPENSSL_NO_ESNI
+	s->esni_done=0;
 	s->esni=NULL;
+	s->nesni=0;
+	s->esni_cb=NULL;
 #endif
 
     if (!s->method->ssl_clear(s))
@@ -3345,7 +3348,10 @@ void ssl3_free(SSL *s)
 #ifdef OPENSSL_NO_ESNI
 	SSL_ESNI_free(s->esni);
 	OPENSSL_free(s->esni);
+	s->esni_done=0;
 	s->esni=NULL;
+	s->nesni=0;
+	s->esni_cb=NULL;
 	if (s->ext.hostname) {
 		OPENSSL_free(s->ext.hostname);
 		s->ext.hostname=NULL;
