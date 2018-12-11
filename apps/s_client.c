@@ -3266,6 +3266,12 @@ int s_client_main(int argc, char **argv)
     bio_c_out = NULL;
     BIO_free(bio_c_msg);
     bio_c_msg = NULL;
+#ifndef OPENSSL_NO_ESNI
+	if (esnikeys!=NULL) {
+		SSL_ESNI_free(esnikeys);
+		OPENSSL_free(esnikeys);
+	}
+#endif
     return ret;
 }
 

@@ -675,17 +675,48 @@ information in both.
 
 ## Testing
 
-I have a directory (``esnistuff/esnkkeydir``) that has some ESNI public/private pairs,
-and also have the default ESNI public/private pair in ``esnistuff``, so then usually
-testi on localhost as follows:
+1. Make TLS server certs/keys
+1. Make ESNI public/private values
+1. Run server
+1. Run client
+
+### Make TLS server certs/keys
+
+Easy-peasy:
+
+			$ ./testserver -K
+			...lots of output...
+
+That'll create a local ``cadir`` with loads of stuff you can ignore.
+It's ok to blow that away and start over anytime.
+
+### Make ESNI public/private values
+
+Also easy, but here's what I did, first create default public/private, 
+then make a directory with a few more:
+
+			$ ./mk_esnikeys
+			...output...
+			$ mkdir esnikeydir
+			$ cd esnikeydir
+			$ ../mk_esnikeys -o e2.pub -p e2.priv
+			...output...
+			$ ../mk_esnikeys -o e3.pub -p e3.priv
+			...output...
+
+### Run Server
 
 			$ ./testserver.sh -p 4000 -D ./esnikeydir -vd
 			...lots of output...
 
-And in a 2nd window we fire up a client as follows:
+### Run Client
 
-			$ ./testclient.sh -p 4000 -s localhost -H foo.example.com -P ./esnikeydir/e3.pub -c NONE -vd
+And finally in a 2nd window we fire up a client as follows:
+
+			$ ./testclient.sh -p 4000 -s localhost -H foo.example.com -P ./esnikeydir/e3.pub -c NONE -vd -C cadir
 			...lots of output..
+
+### Future testing
 
 - Future things to test (later, when writing test code:-):
 	- DNS: dns query/answer failure(s) - affects script not code so far...

@@ -43,9 +43,11 @@ SUPPLIEDSERVER=""
 SUPPLIEDHIDDEN=""
 SUPPLIEDCOVER=""
 SUPPLIEDESNI=""
+SUPPLIEDCADIR=""
 HIDDEN="encryptedsni.com"
 COVER="www.cloudflare.com"
 CAPATH="/etc/ssl/certs/"
+CAFILE="./cadir/oe.csr"
 
 function whenisitagain()
 {
@@ -203,6 +205,7 @@ then
 	fi
 fi
 
+
 esnistr="-esni $hidden -esnirr $ESNI "
 if [[ "$NOESNI" == "yes" ]]
 then
@@ -218,7 +221,7 @@ if [[ "$server" != "localhost" ]]
 then
 	certsdb=" -CApath $CAPATH"
 else
-	certsdb=" -CApath ."
+	certsdb=" -CAfile $CAFILE"
 fi
 
 # force tls13

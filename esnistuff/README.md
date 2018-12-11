@@ -1,51 +1,55 @@
 
 # This is a temporary place for ESNI content ...
 
-Stephen Farrell, stephen.farrell@cs.tcd.ie, 20181203
+Stephen Farrell, stephen.farrell@cs.tcd.ie, 20181211
 
 I'll put stuff here that'll likely disappear if this matures. So the plan would
 be to delete all this before submitting any PR to the openssl folks. Over time,
 I'll likely move any documentation, test code etc into the proper openssl test
 framework.
 
+This builds ok on both 64 and 32 bit Ubuntus and (nominally) doesn't leak
+according to valgrind. It works e.g. when talking to www.cloudflare.com
+with e.g. ietf.org as the value inside the encrypted SNI. Server-side
+stuf seems to work when talking to itself.
+
+- [testclient.sh](./testclient.sh) does ESNI via a locally modified ``openssl s_client``.. 
+- [testserver.sh](./testserver.sh) does ESNI via a locally modified ``openssl s_server``.. 
+- There's an [esnimain.c](./esnimain.c) that can be run locally that 
+  just prints out the ESNI calculation values.
+- [nssdoit.sh](./nssdoit.sh) is a script for doing the client side with an NSS
+  build - I made such a build and used it help me get the crypto arithmetic
+  right.
+
+**We haven't done any significant testing. Use at your own risk.**
+
+Here's our [design doc](./design.md) that'll hopefully explain more
+about how it works and what it does.
+
 For now [esni.c](../ssl/esni.c) has (what I think is;-) good(ish) OPENSSL-style code
 do the [-02 Internet-draft](https://tools.ietf.org/html/draft-ietf-tls-esni-02).
 The main header file is [esni.h](../include/openssl/esni.h).
-
-This builds ok on both 64 and 32 bit Ubuntus and (nominally) doesn't leak
-according to valgrind. It works e.g. when talking to www.cloudflare.com
-with e.g. ietf.org as the value inside the encrypted SNI.
-
-- [testclient.sh](./testclient.sh) calls that via a locally modified ``openssl s_client``.. 
-- There's an [esnimain.c](./esnimain.c) that can be run locally that 
-  just prints out the ESNI calculation values.
-- [nssdoit.sh](./nssdoit.sh) is a script for doing the same with an NSS
-  build - I made such a build and am using it help me develop my code
-
-In terms of integrating with openssl, we've added client-side
-code for basic use of ``s_client``, but the server-side code is
-just being done now 
-and we haven't done any significant testing.
-
-Here's the [design doc](./design.md).
 
 # Random notes
 
 - Surprisingly (for me:-) this works: 
 
-			$ ./testclient.sh -H ietf.org -c toolongtobeadomainnamesystemlabelifikeepadding00000000000000000000000000000000000
+			$ ./testclient.sh -H ietf.org -c 254systemlabelifikeepadding00000000000000000000000000000000000111111111111111111111111111111111122222222222222222222222222222222222244444444444444444444444444445666666666666666666666666666666666666666666666666666677777777777777777777777777777777777777776
 
 	i.e., connecting to www.cloudflare.com with an SNI they don't serve and
  	an ESNI that they do... is fine. The SNI value doesn't have to be a real or even
-    a valid DNS name (I think!). Not sure what'd be right there TBH.
+    a valid DNS name (I think!). The one above is 254 octets long. (255 or more
+	octets aren't accepted by the ``openssl s_client``) Not sure what'd be right there TBH.
 	Probably wanna ask CF about that.
-
-	Ah - could be my fault, seems my s_client isn't actually sending cleartext SNI at all
-	at the moment!
 
 # State-of-play...
 
 Most recent first...
+
+- Modified testserver stuff to make up a fake CA and issue required
+  certs etc. End result is
+  that localhost tests declare success! (Since the ``s_client``
+  can verify the name.) 
 
 - Works now for pub/priv from ``esnidir`` but a bit of leakage to
   fix. (Now fixed.)
