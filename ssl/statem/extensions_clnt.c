@@ -2124,7 +2124,7 @@ EXT_RETURN tls_construct_ctos_esni(SSL *s, WPACKET *pkt, unsigned int context,
         return EXT_RETURN_FAIL;
     }
     if (s->esni_cb != NULL) {
-        unsigned int cbrv=s->esni_cb(s);
+        unsigned int cbrv=s->esni_cb(s,0);
         if (cbrv != 1) {
             return EXT_RETURN_FAIL;
         }

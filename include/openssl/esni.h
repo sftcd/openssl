@@ -122,6 +122,7 @@ typedef struct client_esni_st {
  * structure when a handshake is in porgress. (Well, hopefully:-)
  */
 typedef struct ssl_esni_st {
+	int index; ///< specifies the index in this array that is the current child
     char *encservername; ///< hidden server name
     char *covername; ///< cleartext SNI (can be NULL)
     int require_hidden_match; ///< If 1 then SSL_esni_get_status will barf if hidden name doesn't match TLS server cert. If 0, don't care.
@@ -287,18 +288,17 @@ void CLIENT_ESNI_free(CLIENT_ESNI *c);
  * @brief duplicate the populated fields of an SSL_ESNI
  *
  * This is needed to handle the SSL_CTX->SSL factory model.
- * (Or else I'm about to waste a bunch of typing if it
- * doesn't work;-)
  *
  * Note that in server mode, there aren't too many fields populated
  * when this will be called - essentially just the ESNIKeys and
  * the server private value. For the moment, we actually only
  * deep-copy those.
  *
- * @param orig is the input SSL_ESNI to be deep-copied
- * @return a deep-copy or NULL if errors occur
+ * @param orig is the input array of SSL_ESNI to be partly deep-copied
+ * @param nesni is the number of elements in the array
+ * @return a partial deep-copy array or NULL if errors occur
  */
-SSL_ESNI* SSL_ESNI_dup(SSL_ESNI* orig);
+SSL_ESNI* SSL_ESNI_dup(SSL_ESNI* orig, size_t nesni);
 
 /*
  * Externally visible Prototypes
