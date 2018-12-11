@@ -1815,6 +1815,7 @@ int SSL_esni_enable(SSL *s, const char *hidden, const char *cover, SSL_ESNI *esn
     if (esni!=NULL) {
         s->esni=esni;
     }
+	s->nesni=1;
     s->esni->require_hidden_match=require_hidden_match;
     s->esni->encservername=OPENSSL_strndup(hidden,TLSEXT_MAXLEN_host_name);
     s->esni->covername=NULL;
