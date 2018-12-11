@@ -2141,6 +2141,7 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
         goto err;
 	}
     match->the_esni=ce; 
+	match->index=matchind;
 
     /*
      * We need the TLS h/s CH.random and key_share to do the 
@@ -2239,13 +2240,21 @@ EXT_RETURN tls_construct_stoc_esni(SSL *s, WPACKET *pkt,
 {
     if (s->esni) {
         if (s->esni_done==1) {
-            if  (s->esni->nonce==NULL || s->esni->nonce_len<=0) {
+			SSL_ESNI *match=NULL;
+			for (int i=0;i!=s->nesni;i++) {
+				if (s->esni[i].nonce!=NULL) {
+					match=&s->esni[i];
+				} 
+			}
+			if (match==NULL) {
+                return EXT_RETURN_FAIL;
+			}
+            if  (match->nonce==NULL || match->nonce_len<=0) {
                 return EXT_RETURN_FAIL;
             }
-			SSL_ESNI *spe=&s->esni[s->esni[0].index];
             if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_esni)
-                || !WPACKET_put_bytes_u16(pkt, spe->nonce_len)
-                || !WPACKET_memcpy(pkt, spe->nonce, spe->nonce_len)) {
+                || !WPACKET_put_bytes_u16(pkt, match->nonce_len)
+                || !WPACKET_memcpy(pkt, match->nonce, match->nonce_len)) {
                 return EXT_RETURN_FAIL;
             }
             return EXT_RETURN_SENT;
