@@ -167,7 +167,8 @@ void ESNI_RECORD_free(ESNI_RECORD *er)
  */
 void SSL_ESNI_free(SSL_ESNI *esni)
 {
-	fprintf(stderr,"Feck\n");
+	int nesni=sizeof(*esni)/sizeof(SSL_ESNI);
+	printf("Nesni in free is %d\n",nesni); fflush(stdout);
     /*
      * The CLIENT_ESNI structure (the_esni) doesn't have separately
      * allocated buffers on the client, but it does on the server.
