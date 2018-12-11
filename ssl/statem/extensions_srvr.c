@@ -2217,7 +2217,6 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
     return 1;
 
 err:
-    // @todo TODO: more tidy up needed 
     if (ks) OPENSSL_free(ks);
     if (ce->encoded_keyshare) OPENSSL_free(ce->encoded_keyshare);
     if (ce->record_digest) OPENSSL_free(ce->record_digest);
@@ -2243,11 +2242,10 @@ EXT_RETURN tls_construct_stoc_esni(SSL *s, WPACKET *pkt,
             if  (s->esni->nonce==NULL || s->esni->nonce_len<=0) {
                 return EXT_RETURN_FAIL;
             }
-			SSL_ESNI *spe=*&s->esni[s-index]
+			SSL_ESNI *spe=&s->esni[s->esni[0].index];
             if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_esni)
                 || !WPACKET_put_bytes_u16(pkt, spe->nonce_len)
-                || !WPACKET_memcpy(pkt, spe->nonce_e TLS?YAML, 
-						nonce_len)) {
+                || !WPACKET_memcpy(pkt, spe->nonce, spe->nonce_len)) {
                 return EXT_RETURN_FAIL;
             }
             return EXT_RETURN_SENT;
