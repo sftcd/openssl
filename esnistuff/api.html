@@ -123,7 +123,7 @@
 	<td>Memory management - free a CLIENT_ESNI.</td>
 </tr>
 <tr>
-	<td><code>public</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>*</code><a href="#esni_8h_1a3aaa50b61e714752405408a0a9554b47"><code>SSL_ESNI_dup</code></a><code>(</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>* orig)</code></td>
+	<td><code>public</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>*</code><a href="#esni_8h_1aff4a2acfe537bdf41b91eed11de4cc15"><code>SSL_ESNI_dup</code></a><code>(</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>* orig,size_t nesni)</code></td>
 	<td>duplicate the populated fields of an SSL_ESNI</td>
 </tr>
 <tr>
@@ -303,7 +303,7 @@
 	<td>Allows caller to set the nonce value for ESNI.</td>
 </tr>
 <tr>
-	<td><code>public</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>*</code><a href="#esni_8c_1a3aaa50b61e714752405408a0a9554b47"><code>SSL_ESNI_dup</code></a><code>(</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>* orig)</code></td>
+	<td><code>public</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>*</code><a href="#esni_8c_1aff4a2acfe537bdf41b91eed11de4cc15"><code>SSL_ESNI_dup</code></a><code>(</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>* orig,size_t nesni)</code></td>
 	<td>duplicate the populated fields of an SSL_ESNI</td>
 </tr>
 <tr>
@@ -618,25 +618,26 @@
 <li><code>c</code> is a CLIENT_ESNI structure</li>
 </ul>
 
-<p id="esni_8h_1a3aaa50b61e714752405408a0a9554b47"><hr></p>
+<p id="esni_8h_1aff4a2acfe537bdf41b91eed11de4cc15"><hr></p>
 
-<h4 id="publicssl_esniesni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7fssl_esni_dupesni_8h_1a3aaa50b61e714752405408a0a9554b47ssl_esniesni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7forig"><code>public</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>*</code><a href="#esni_8h_1a3aaa50b61e714752405408a0a9554b47"><code>SSL_ESNI_dup</code></a><code>(</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>* orig)</code></h4>
+<h4 id="publicssl_esniesni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7fssl_esni_dupesni_8h_1aff4a2acfe537bdf41b91eed11de4cc15ssl_esniesni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7forigsize_tnesni"><code>public</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>*</code><a href="#esni_8h_1aff4a2acfe537bdf41b91eed11de4cc15"><code>SSL_ESNI_dup</code></a><code>(</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>* orig,size_t nesni)</code></h4>
 
 <p>duplicate the populated fields of an SSL_ESNI</p>
 
-<p>This is needed to handle the SSL_CTX->SSL factory model. (Or else I'm about to waste a bunch of typing if it doesn't work;-)</p>
+<p>This is needed to handle the SSL_CTX->SSL factory model.</p>
 
 <p>Note that in server mode, there aren't too many fields populated when this will be called - essentially just the ESNIKeys and the server private value. For the moment, we actually only deep-copy those.</p>
 
 <h4 id="parameters">Parameters</h4>
 
 <ul>
-<li><code>orig</code> is the input SSL_ESNI to be deep-copied </li>
+<li><p><code>orig</code> is the input array of SSL_ESNI to be partly deep-copied </p></li>
+<li><p><code>nesni</code> is the number of elements in the array </p></li>
 </ul>
 
 <h4 id="returns">Returns</h4>
 
-<p>a deep-copy or NULL if errors occur</p>
+<p>a partial deep-copy array or NULL if errors occur</p>
 
 <p id="esni_8h_1a55aedc0e921fd36dcc3327124f07da10"><hr></p>
 
@@ -1410,25 +1411,26 @@
 
 <p>1 for success, other otherwise</p>
 
-<p id="esni_8c_1a3aaa50b61e714752405408a0a9554b47"><hr></p>
+<p id="esni_8c_1aff4a2acfe537bdf41b91eed11de4cc15"><hr></p>
 
-<h4 id="publicssl_esniesni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7fssl_esni_dupesni_8c_1a3aaa50b61e714752405408a0a9554b47ssl_esniesni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7forig"><code>public</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>*</code><a href="#esni_8c_1a3aaa50b61e714752405408a0a9554b47"><code>SSL_ESNI_dup</code></a><code>(</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>* orig)</code></h4>
+<h4 id="publicssl_esniesni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7fssl_esni_dupesni_8c_1aff4a2acfe537bdf41b91eed11de4cc15ssl_esniesni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7forigsize_tnesni"><code>public</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>*</code><a href="#esni_8c_1aff4a2acfe537bdf41b91eed11de4cc15"><code>SSL_ESNI_dup</code></a><code>(</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>* orig,size_t nesni)</code></h4>
 
 <p>duplicate the populated fields of an SSL_ESNI</p>
 
-<p>This is needed to handle the SSL_CTX->SSL factory model. (Or else I'm about to waste a bunch of typing if it doesn't work;-)</p>
+<p>This is needed to handle the SSL_CTX->SSL factory model.</p>
 
 <p>Note that in server mode, there aren't too many fields populated when this will be called - essentially just the ESNIKeys and the server private value. For the moment, we actually only deep-copy those.</p>
 
 <h4 id="parameters">Parameters</h4>
 
 <ul>
-<li><code>orig</code> is the input SSL_ESNI to be deep-copied </li>
+<li><p><code>orig</code> is the input array of SSL_ESNI to be partly deep-copied </p></li>
+<li><p><code>nesni</code> is the number of elements in the array </p></li>
 </ul>
 
 <h4 id="returns">Returns</h4>
 
-<p>a deep-copy or NULL if errors occur</p>
+<p>a partial deep-copy array or NULL if errors occur</p>
 
 <p id="extensions_8c_1a07941fe88fcdb65271ad678cd41e7d57"><hr></p>
 

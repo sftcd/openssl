@@ -80,7 +80,7 @@ static DH *load_dh_param(const char *dhfile);
 #endif
 static void print_connection_info(SSL *con);
 #ifndef OPENSSL_NO_ESNI
-static unsigned int esni_cb(SSL *s);
+static unsigned int esni_cb(SSL *s, int index);
 #endif
 
 static const int bufsize = 16 * 1024;
@@ -457,13 +457,13 @@ static int ebcdic_puts(BIO *bp, const char *str)
 #endif
 
 #ifndef OPENSSL_NO_ESNI
-static unsigned int esni_cb(SSL *s)
+static unsigned int esni_cb(SSL *s, int index)
 {
     BIO_printf(bio_s_out,"esni_cb called\n");
     SSL_ESNI *esnistuff=NULL;
     int rv=SSL_ESNI_get_esni(s,&esnistuff);
     if (rv == 1 && esnistuff!=NULL) {
-        SSL_ESNI_print(bio_s_out,esnistuff);
+        SSL_ESNI_print(bio_s_out,&esnistuff[index]);
     }
     return 1;
 }

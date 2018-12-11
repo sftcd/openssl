@@ -30,7 +30,7 @@
 `public unsigned char * `[`SSL_ESNI_dec`](#esni_8h_1ae4af2d2173a5c3b1513a1dcd04e2e940)`(`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * esni,size_t client_random_len,unsigned char * client_random,uint16_t curve_id,size_t client_keyshare_len,unsigned char * client_keyshare,size_t * encservername_len)`            | Attempt/do the server-side decryption during a TLS handshake.
 `public void `[`SSL_ESNI_free`](#esni_8h_1a6d6ea1b22339efdc370e6cbf251b277d)`(`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * esnikeys)`            | Memory management - free an SSL_ESNI.
 `public void `[`CLIENT_ESNI_free`](#esni_8h_1a1a84158d3b21a24a5db6bac434a718dc)`(`[`CLIENT_ESNI`](#esni_8h_1add3c7579c9f0d7bd5959b37f9c017461)` * c)`            | Memory management - free a CLIENT_ESNI.
-`public `[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * `[`SSL_ESNI_dup`](#esni_8h_1a3aaa50b61e714752405408a0a9554b47)`(`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * orig)`            | duplicate the populated fields of an SSL_ESNI
+`public `[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * `[`SSL_ESNI_dup`](#esni_8h_1aff4a2acfe537bdf41b91eed11de4cc15)`(`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * orig,size_t nesni)`            | duplicate the populated fields of an SSL_ESNI
 `public int `[`SSL_esni_checknames`](#esni_8h_1a55aedc0e921fd36dcc3327124f07da10)`(const char * encservername,const char * covername)`            | Make a basic check of names from CLI or API.
 `public `[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * `[`SSL_ESNI_new_from_base64`](#esni_8h_1a672460fc59e13e81482f66c701d4bca7)`(const char * esnikeys)`            | Decode and check the value retieved from DNS (currently base64 encoded)
 `public int `[`SSL_esni_enable`](#esni_8h_1a0ca4d48103270d6779cb2f6a608ba52a)`(SSL * s,const char * hidden,const char * cover,`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * esni,int require_hidden_match)`            | Turn on SNI encryption for an (upcoming) TLS session.
@@ -75,7 +75,7 @@
 `public int `[`SSL_ESNI_get_esni_ctx`](#esni_8c_1acd373a6c0dddd76f399e103e80f538cc)`(SSL_CTX * s,`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` ** esni)`            | Debugging - print an SSL_ESNI structure note - can include sensitive values!
 `public int `[`SSL_ESNI_set_private`](#esni_8c_1a8df1af022d25fc0f7e72683b0bd4667f)`(`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * esni,char * private_str)`            | Allows caller to set the ECDH private value for ESNI.
 `public int `[`SSL_ESNI_set_nonce`](#esni_8c_1a0f48da79909334acee7b24dec440eb4c)`(`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * esni,unsigned char * nonce,size_t nlen)`            | Allows caller to set the nonce value for ESNI.
-`public `[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * `[`SSL_ESNI_dup`](#esni_8c_1a3aaa50b61e714752405408a0a9554b47)`(`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * orig)`            | duplicate the populated fields of an SSL_ESNI
+`public `[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * `[`SSL_ESNI_dup`](#esni_8c_1aff4a2acfe537bdf41b91eed11de4cc15)`(`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * orig,size_t nesni)`            | duplicate the populated fields of an SSL_ESNI
 `public static int `[`init_esni`](#extensions_8c_1a07941fe88fcdb65271ad678cd41e7d57)`(SSL * s,unsigned int context)`            | Just note that esni is not yet done.
 `public static int `[`final_esni`](#extensions_8c_1a4027805482e89339fd2870f852db4b4e)`(SSL * s,unsigned int context,int sent)`            | check result of esni and return error or ok
 `public static EXT_RETURN `[`esni_server_name_fixup`](#extensions__clnt_8c_1a2454a14e823689509154ca3bfb4cdaea)`(SSL * s,WPACKET * pkt,unsigned int context,X509 * x,size_t chainidx)`            | Possibly do/don't send SNI if doing ESNI.
@@ -343,21 +343,23 @@ This is called from within SSL_ESNI_free so isn't really needed externally at al
 #### Parameters
 * `c` is a CLIENT_ESNI structure
 
-<p id="esni_8h_1a3aaa50b61e714752405408a0a9554b47"><hr></p>
+<p id="esni_8h_1aff4a2acfe537bdf41b91eed11de4cc15"><hr></p>
 
-#### `public `[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * `[`SSL_ESNI_dup`](#esni_8h_1a3aaa50b61e714752405408a0a9554b47)`(`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * orig)` 
+#### `public `[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * `[`SSL_ESNI_dup`](#esni_8h_1aff4a2acfe537bdf41b91eed11de4cc15)`(`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * orig,size_t nesni)` 
 
 duplicate the populated fields of an SSL_ESNI
 
-This is needed to handle the SSL_CTX->SSL factory model. (Or else I'm about to waste a bunch of typing if it doesn't work;-)
+This is needed to handle the SSL_CTX->SSL factory model.
 
 Note that in server mode, there aren't too many fields populated when this will be called - essentially just the ESNIKeys and the server private value. For the moment, we actually only deep-copy those.
 
 #### Parameters
-* `orig` is the input SSL_ESNI to be deep-copied 
+* `orig` is the input array of SSL_ESNI to be partly deep-copied 
+
+* `nesni` is the number of elements in the array 
 
 #### Returns
-a deep-copy or NULL if errors occur
+a partial deep-copy array or NULL if errors occur
 
 <p id="esni_8h_1a55aedc0e921fd36dcc3327124f07da10"><hr></p>
 
@@ -1025,21 +1027,23 @@ This is intended to only be used for interop testing - what was useful was to gr
 #### Returns
 1 for success, other otherwise
 
-<p id="esni_8c_1a3aaa50b61e714752405408a0a9554b47"><hr></p>
+<p id="esni_8c_1aff4a2acfe537bdf41b91eed11de4cc15"><hr></p>
 
-#### `public `[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * `[`SSL_ESNI_dup`](#esni_8c_1a3aaa50b61e714752405408a0a9554b47)`(`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * orig)` 
+#### `public `[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * `[`SSL_ESNI_dup`](#esni_8c_1aff4a2acfe537bdf41b91eed11de4cc15)`(`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * orig,size_t nesni)` 
 
 duplicate the populated fields of an SSL_ESNI
 
-This is needed to handle the SSL_CTX->SSL factory model. (Or else I'm about to waste a bunch of typing if it doesn't work;-)
+This is needed to handle the SSL_CTX->SSL factory model.
 
 Note that in server mode, there aren't too many fields populated when this will be called - essentially just the ESNIKeys and the server private value. For the moment, we actually only deep-copy those.
 
 #### Parameters
-* `orig` is the input SSL_ESNI to be deep-copied 
+* `orig` is the input array of SSL_ESNI to be partly deep-copied 
+
+* `nesni` is the number of elements in the array 
 
 #### Returns
-a deep-copy or NULL if errors occur
+a partial deep-copy array or NULL if errors occur
 
 <p id="extensions_8c_1a07941fe88fcdb65271ad678cd41e7d57"><hr></p>
 
