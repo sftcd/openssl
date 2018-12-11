@@ -1223,8 +1223,12 @@ void SSL_free(SSL *s)
 
 #ifndef OPENSSL_NO_ESNI
 	if (s->esni!=NULL) {
-		SSL_ESNI_free(s->esni);
+		for (int i=0;i!=s->nesni;i++) {
+			SSL_ESNI_free(&s->esni[i]);
+		}
 		OPENSSL_free(s->esni);
+		s->nesni=0;
+		s->esni_cb=NULL;
 		s->esni=NULL;
 		s->esni_done=0;
 	}
