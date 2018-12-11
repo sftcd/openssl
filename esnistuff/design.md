@@ -164,6 +164,11 @@ Other notes:
 - ``-v`` runs under valgrind and currently has no complaints (in the 
   nominal case)
 
+There's another more basic test script [doit.sh](https://github.com/sftcd/openssl/blob/master/esnistuff/doit.sh)
+that runs a standalone test application ([esnimain.c](https://github.com/sftcd/openssl/blob/master/esnistuff/esnimain.c))
+which just tests the client-side ESNI APIs directly. That should become some kind of unit test in the main
+build, and needs error cases added.
+
 ### ``s_client`` modifications
 
 Here and elsewhere, almost all of our code changes are enclosed with ``#ifndef OPENSSL_NO_ESNI``
@@ -205,14 +210,9 @@ called, nominally in this order:
 - ``SSL_get_esni_status``: check if ESNI worked or failed and print a status line
 
 Notes:
-- The functions names above that contain the string ``SNI_ESNI`` either return
+- The function names above that contain the string ``SNI_ESNI`` either return
 or take as a parameter a value of that type. Function names with a lowercase
 esni substring do not. (This seems to be an OpenSSL convention.)
-
-- There's another more basic test script [doit.sh](https://github.com/sftcd/openssl/blob/master/esnistuff/doit.sh)
-that runs a standalone test application ([esnimain.c](https://github.com/sftcd/openssl/blob/master/esnistuff/esnimain.c))
-which just tests the client-side ESNI APIs directly. That should become some kind of unit test in the main
-build, and needs error cases added.
 
 ## Server-side 
 
@@ -246,10 +246,25 @@ it:
 The private key is in PEM format. (I'm not v. familiar with PEM format for
 X25519 but hopefully it's portable, I've a TODO: to check.) For now the 
 public key is the binary form of ESNIKeys so needs to be base64 encoded
-before being put in a zone file. 
+before being put in a zone file.  To do that, you can use the ``base64 -w0``
+command as shown in the sequence below:
 
-This should likely
-end up in some tools or utils directory, not sure yet. Lastly, this does
+
+			$ hd esnikeys.pub
+			00000000  ff 01 e4 68 cb 8f 00 24  00 1d 00 20 7a e3 a1 b1  |...h...$... z...|
+			00000010  63 7f d2 fe 21 ea ef 6b  9c 1a 1b 55 23 70 72 a2  |c...!..k...U#pr.|
+			00000020  f4 29 4d 04 41 73 db fe  b5 c8 6f 07 00 02 13 01  |.)M.As....o.....|
+			00000030  01 04 00 00 00 00 5c 10  10 1b 00 00 00 00 5c 19  |......\.......\.|
+			00000040  4a 9b 00 00                                       |J...|
+			00000044
+			$ cat esnikeys.pub | base64 -w0 >esnikeys.b64
+			$ cat esnikeys.b64
+			/wHkaMuPACQAHQAgeuOhsWN/0v4h6u9rnBobVSNwcqL0KU0EQXPb/rXIbwcAAhMBAQQAAAAAXBAQGwAAAABcGUqbAAA= 
+
+``mk_esnikeys`` should likely
+end up in some tools or utils directory, but as the format will change we
+won't do that  yet as, with luck, we may end up only needing to publish
+much simpler values in DNS. Lastly, ``mk_esnikeys`` does currently
 allow private key re-use, just in case that may be needed, but we should 
 decide if that could be removed, which seems safer in general.
 
@@ -277,8 +292,12 @@ The ``usage()`` from that script is:
 			To generate keys, set -H/-c as required:
 			    ./testserver.sh -K
 
-The ``-K`` argument generates RSA key pairs for ``example.com'' 
-``foo.example.com`` which are the defaults for COVER and HIDDEN respectively. With
+The ``-K`` argument generates RSA key pairs (by calling ``make-example-ca.sh`` 
+script) for ``example.com``
+and ``foo.example.com`` which are the defaults for COVER and HIDDEN respectively. 
+It also generates a fake CA and certifies those public keys. (That CA is set
+to trusted by the ``testclient.sh`` script if the SERVER is ``localhost``.)
+With
 other inputs the script causes ``s_server`` to load those. Note that these are keys
 for the TLS server and are not ESNI public keys (generate those with ``mk_esnikeys``).
 
@@ -317,7 +336,6 @@ The main data structures are:
 - [CLIENT_ESNI](./api.md#structclient__esni__st) representing the extension value for a ClientHello
 - [SSL_ESNI](./api.md#structssl__esni__st) the internal state structure with the above plus gory crypto details
 
-			
 			/*
 			 * Non-external Prototypes
 			 */
@@ -326,13 +344,10 @@ The main data structures are:
 			 * @brief wrap a "raw" key share in the relevant TLS presentation layer encoding
 			 *
 			 * Put the outer length and curve ID around a key share.
-			 * This just exists because we do it twice: for the ESNI
+			 * This just exists because we do it a few times: for the ESNI
 			 * client keyshare and for handshake client keyshare.
 			 * The input keyshare is the e.g. 32 octets of a point
 			 * on curve 25519 as used in X25519.
-			 * There's no magic here, it's just that this code recurs
-			 * in handling ESNI. Theere might be some existing API to
-			 * use that'd be better.
 			 *
 			 * @param keyshare is the input keyshare which'd be 32 octets for x25519
 			 * @param keyshare_len is the length of the above (0x20 for x25519)
@@ -369,11 +384,10 @@ The main data structures are:
 			                CLIENT_ESNI **the_esni);
 			
 			/**
-			 * @brief Attempt/do the server-side decryption during a TLS handshake
+			 * @brief Server-side decryption during a TLS handshake
 			 *
 			 * This is the internal API called as part of the state machine
 			 * dealing with this extension.
-			 * 
 			 * Note that the decrypted server name is just a set of octets - there
 			 * is no guarantee it's a DNS name or printable etc. (Same as with
 			 * SNI generally.)
@@ -418,12 +432,11 @@ The main data structures are:
 			void CLIENT_ESNI_free(CLIENT_ESNI *c);
 			
 			/**
-			 * @brief duplicate the populated fields of an SSL_ESNI
+			 * @brief Duplicate the configuration related fields of an SSL_ESNI
 			 *
-			 * This is needed to handle the SSL_CTX->SSL factory model.
-			 *
-			 * Note that in server mode, there aren't too many fields populated
-			 * when this will be called - essentially just the ESNIKeys and
+			 * This is needed to handle the SSL_CTX->SSL factory model in the
+			 * server. Clients don't need this.  There aren't too many fields 
+			 * populated when this is called - essentially just the ESNIKeys and
 			 * the server private value. For the moment, we actually only
 			 * deep-copy those.
 			 *
@@ -477,13 +490,6 @@ The main data structures are:
 			 * When this works, the server will decrypt any ESNI seen in ClientHellos and
 			 * subsequently treat those as if they had been send in cleartext SNI.
 			 *
-			 * @todo TODO: on the server side we likely do need to support multiple keys
-			 * if those are in the ESNIKeys structure, but this code doesn't do that yet.
-			 * Probably as well to wait and see how the DNS RR structure changes before
-			 * attempting that, as it might get tricky.
-			 * @todo TODO: consider what to do if this is called more than once. We may
-			 * want a server to support that if there is >1 hidden service private key.
-			 *
 			 * @param s is the SSL server context
 			 * @param esnikeyfile has the relevant (X25519) private key in PEM format
 			 * @param esnipubfile has the relevant (binary encoded, not base64) ESNIKeys structure
@@ -492,7 +498,7 @@ The main data structures are:
 			int SSL_esni_server_enable(SSL_CTX *s, const char *esnikeyfile, const char *esnipubfile);
 			
 			/**
-			 * Debugging - print an SSL_ESNI structure note - can include sensitive values!
+			 * Access an SSL_ESNI structure note - can include sensitive values!
 			 *
 			 * @param s is a an SSL structure, as used on TLS client
 			 * @param esni is an SSL_ESNI structure
@@ -501,23 +507,13 @@ The main data structures are:
 			int SSL_ESNI_get_esni(SSL *s, SSL_ESNI **esni);
 			
 			/**
-			 * Debugging - print an SSL_ESNI structure note - can include sensitive values!
+			 * Access an SSL_ESNI structure note - can include sensitive values!
 			 *
 			 * @param s is a an SSL_CTX structure, as used on TLS server
 			 * @param esni is an SSL_ESNI structure
 			 * @return 0 for failure, non-zero is the number of SSL_ESNI in the array
 			 */
 			int SSL_ESNI_get_esni_ctx(SSL_CTX *s, SSL_ESNI **esni);
-			
-			/**
-			 * Get access to the ESNI data from an SSL context (if that's
-			 * the right term:-)
-			 *
-			 * @param s the SSL context
-			 * @param esni the (ptr to) output SSL_ESNI structure
-			 * @return 1 for success, anything else for failure
-			 */
-			int SSL_ESNI_get_esni(SSL *s, SSL_ESNI **esni);
 			
 			/** 
 			 * Print the content of an SSL_ESNI
@@ -531,7 +527,6 @@ The main data structures are:
 			/* 
 			 * Possible return codes from SSL_ESNI_get_status
 			 */
-			
 			#define SSL_ESNI_STATUS_SUCCESS                 1 ///< Success
 			#define SSL_ESNI_STATUS_FAILED                  0 ///< Some internal error
 			#define SSL_ESNI_STATUS_BAD_CALL             -100 ///< Required in/out arguments were NULL
@@ -587,7 +582,7 @@ The main data structures are:
 			 *
 			 */
 			int SSL_ESNI_set_nonce(SSL_ESNI *esni, unsigned char *nonce, size_t nlen);
-			
+
 Notes:
 - Various functions (but mostly ``SSL_ESNI_enc``) should be modified to be
   more consistent with other internal APIs, e.g. to have as their main

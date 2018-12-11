@@ -21,17 +21,14 @@
 # include <openssl/ssl.h>
 
 
-//#undef ESNI_CRYPT_INTEROP
-#define ESNI_CRYPT_INTEROP
-
 #ifdef ESNI_CRYPT_INTEROP
+//#undef ESNI_CRYPT_INTEROP
 /**
  * If defined, this provides enough API, internals and tracing so we can 
  * ensure/check we're generating keys the same way as other code, in 
  * partocular the existing NSS code
- *
- * TODO: use this to protect the cryptovars are only needed for tracing
  */
+#define ESNI_CRYPT_INTEROP
 
 /**
 * map an (ascii hex) value to a nibble
@@ -192,13 +189,10 @@ typedef struct ssl_esni_st {
  * @brief wrap a "raw" key share in the relevant TLS presentation layer encoding
  *
  * Put the outer length and curve ID around a key share.
- * This just exists because we do it twice: for the ESNI
+ * This just exists because we do it a few times: for the ESNI
  * client keyshare and for handshake client keyshare.
  * The input keyshare is the e.g. 32 octets of a point
  * on curve 25519 as used in X25519.
- * There's no magic here, it's just that this code recurs
- * in handling ESNI. Theere might be some existing API to
- * use that'd be better.
  *
  * @param keyshare is the input keyshare which'd be 32 octets for x25519
  * @param keyshare_len is the length of the above (0x20 for x25519)
@@ -235,11 +229,10 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys,
                 CLIENT_ESNI **the_esni);
 
 /**
- * @brief Attempt/do the server-side decryption during a TLS handshake
+ * @brief Server-side decryption during a TLS handshake
  *
  * This is the internal API called as part of the state machine
  * dealing with this extension.
- * 
  * Note that the decrypted server name is just a set of octets - there
  * is no guarantee it's a DNS name or printable etc. (Same as with
  * SNI generally.)
@@ -284,12 +277,11 @@ void SSL_ESNI_free(SSL_ESNI *esnikeys);
 void CLIENT_ESNI_free(CLIENT_ESNI *c);
 
 /**
- * @brief duplicate the populated fields of an SSL_ESNI
+ * @brief Duplicate the configuration related fields of an SSL_ESNI
  *
- * This is needed to handle the SSL_CTX->SSL factory model.
- *
- * Note that in server mode, there aren't too many fields populated
- * when this will be called - essentially just the ESNIKeys and
+ * This is needed to handle the SSL_CTX->SSL factory model in the
+ * server. Clients don't need this.  There aren't too many fields 
+ * populated when this is called - essentially just the ESNIKeys and
  * the server private value. For the moment, we actually only
  * deep-copy those.
  *
@@ -343,13 +335,6 @@ int SSL_esni_enable(SSL *s, const char *hidden, const char *cover, SSL_ESNI *esn
  * When this works, the server will decrypt any ESNI seen in ClientHellos and
  * subsequently treat those as if they had been send in cleartext SNI.
  *
- * @todo TODO: on the server side we likely do need to support multiple keys
- * if those are in the ESNIKeys structure, but this code doesn't do that yet.
- * Probably as well to wait and see how the DNS RR structure changes before
- * attempting that, as it might get tricky.
- * @todo TODO: consider what to do if this is called more than once. We may
- * want a server to support that if there is >1 hidden service private key.
- *
  * @param s is the SSL server context
  * @param esnikeyfile has the relevant (X25519) private key in PEM format
  * @param esnipubfile has the relevant (binary encoded, not base64) ESNIKeys structure
@@ -358,7 +343,7 @@ int SSL_esni_enable(SSL *s, const char *hidden, const char *cover, SSL_ESNI *esn
 int SSL_esni_server_enable(SSL_CTX *s, const char *esnikeyfile, const char *esnipubfile);
 
 /**
- * Debugging - print an SSL_ESNI structure note - can include sensitive values!
+ * Access an SSL_ESNI structure note - can include sensitive values!
  *
  * @param s is a an SSL structure, as used on TLS client
  * @param esni is an SSL_ESNI structure
@@ -367,23 +352,13 @@ int SSL_esni_server_enable(SSL_CTX *s, const char *esnikeyfile, const char *esni
 int SSL_ESNI_get_esni(SSL *s, SSL_ESNI **esni);
 
 /**
- * Debugging - print an SSL_ESNI structure note - can include sensitive values!
+ * Access an SSL_ESNI structure note - can include sensitive values!
  *
  * @param s is a an SSL_CTX structure, as used on TLS server
  * @param esni is an SSL_ESNI structure
  * @return 0 for failure, non-zero is the number of SSL_ESNI in the array
  */
 int SSL_ESNI_get_esni_ctx(SSL_CTX *s, SSL_ESNI **esni);
-
-/**
- * Get access to the ESNI data from an SSL context (if that's
- * the right term:-)
- *
- * @param s the SSL context
- * @param esni the (ptr to) output SSL_ESNI structure
- * @return 1 for success, anything else for failure
- */
-int SSL_ESNI_get_esni(SSL *s, SSL_ESNI **esni);
 
 /** 
  * Print the content of an SSL_ESNI

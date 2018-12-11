@@ -2058,6 +2058,17 @@ int s_client_main(int argc, char **argv)
         if (SSL_esni_enable(con,encservername,servername,esnikeys,require_hidden_match)!=1) {
             BIO_printf(bio_err, "%s: ESNI enabling failed.\n", prog);
             ERR_print_errors(bio_err);
+#ifndef OPENSSL_NO_ESNI
+			/*
+			 * Slight leak on error here otherwise
+			 * Normally esnikeys will be freed when the SSL context is, but
+			 * we don't yet have one of those, so...
+			 */
+			if (esnikeys!=NULL) {
+				SSL_ESNI_free(esnikeys);
+				OPENSSL_free(esnikeys);
+			}
+#endif
             goto end;
         }
     }
@@ -3214,12 +3225,6 @@ int s_client_main(int argc, char **argv)
     bio_c_out = NULL;
     BIO_free(bio_c_msg);
     bio_c_msg = NULL;
-#ifndef OPENSSL_NO_ESNI
-	if (esnikeys!=NULL) {
-		SSL_ESNI_free(esnikeys);
-		OPENSSL_free(esnikeys);
-	}
-#endif
     return ret;
 }
 
