@@ -1986,12 +1986,12 @@ EXT_RETURN tls_construct_stoc_psk(SSL *s, WPACKET *pkt, unsigned int context,
 int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
                                X509 *x, size_t chainidx)
 {
+    CLIENT_ESNI *ce=NULL;
+    unsigned char *ks=NULL;
+
     if (s->esni==NULL) {
         return 1;
     }
-
-    CLIENT_ESNI *ce=NULL;
-    unsigned char *ks=NULL;
 
     ce=OPENSSL_malloc(sizeof(CLIENT_ESNI));
     if (ce==NULL) {
@@ -2126,11 +2126,13 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
 	 * see which pub/private value matches record_digest 
 	 */
 	SSL_ESNI *match=NULL;
+	int matchind=-1;
 	for (int i=0;i!=s->nesni;i++) {
 		if (s->esni[i].rd_len==ce->record_digest_len &&
 			!memcmp(s->esni[i].rd,ce->record_digest,ce->record_digest_len)) {
 			/* found it */
 			match=&s->esni[i];
+			matchind=i;
 		}
 	}
 	if (match==NULL) {
@@ -2191,7 +2193,7 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
      * Might also need to muck with s->session.ext.hostname
      */
     if (s->ext.hostname!=NULL && s->servername_done == 1) {
-        s->esni->covername=s->ext.hostname;
+        match->covername=s->ext.hostname;
         s->ext.hostname=NULL;
     }
     s->ext.hostname=OPENSSL_malloc(encservername_len+1);
@@ -2204,7 +2206,7 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
     s->ext.hostname[encservername_len]=0x00;
 
     if (s->esni_cb != NULL) {
-        unsigned int cbrv=s->esni_cb(s);
+        unsigned int cbrv=s->esni_cb(s,matchind);
         if (cbrv != 1) {
             return EXT_RETURN_FAIL;
         }
@@ -2220,8 +2222,10 @@ err:
     if (ce->encoded_keyshare) OPENSSL_free(ce->encoded_keyshare);
     if (ce->record_digest) OPENSSL_free(ce->record_digest);
     if (ce->encrypted_sni) OPENSSL_free(ce->encrypted_sni);
-    OPENSSL_free(ce);
-    s->esni->the_esni=NULL;
+    if (ce) OPENSSL_free(ce);
+	if (s->esni && match) {
+    	match->the_esni=NULL;
+	}
     return 0;
 }
 
@@ -2239,9 +2243,11 @@ EXT_RETURN tls_construct_stoc_esni(SSL *s, WPACKET *pkt,
             if  (s->esni->nonce==NULL || s->esni->nonce_len<=0) {
                 return EXT_RETURN_FAIL;
             }
+			SSL_ESNI *spe=*&s->esni[s-index]
             if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_esni)
-                || !WPACKET_put_bytes_u16(pkt, s->esni->nonce_len)
-                || !WPACKET_memcpy(pkt, s->esni->nonce, s->esni->nonce_len)) {
+                || !WPACKET_put_bytes_u16(pkt, spe->nonce_len)
+                || !WPACKET_memcpy(pkt, spe->nonce_e TLS?YAML, 
+						nonce_len)) {
                 return EXT_RETURN_FAIL;
             }
             return EXT_RETURN_SENT;

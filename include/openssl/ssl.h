@@ -805,7 +805,7 @@ void SSL_get0_alpn_selected(const SSL *ssl, const unsigned char **data,
                             unsigned int *len);
 
 #ifndef OPENSSL_NO_ESNI
-typedef unsigned int (*SSL_esni_client_cb_func)(SSL *ssl);
+typedef unsigned int (*SSL_esni_client_cb_func)(SSL *ssl, int index);
 void SSL_set_esni_callback(SSL *s, SSL_esni_client_cb_func f);
 void SSL_set_esni_callback_ctx(SSL_CTX *s, SSL_esni_client_cb_func f);
 #endif
