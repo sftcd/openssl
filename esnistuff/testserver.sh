@@ -27,7 +27,8 @@ SUPPLIEDKEYFILE=""
 SUPPLIEDHIDDEN=""
 SUPPLIEDCOVER=""
 SUPPLIEDDIR=""
-CAPATH="/etc/ssl/certs/"
+#CAPATH="/etc/ssl/certs/"
+CAPATH="$TOP/esnistuff/cadir/"
 
 function whenisitagain()
 {
@@ -105,20 +106,17 @@ then
     fi
 fi
 
-KEYFILE1=$TOP/esnistuff/$cover.pem
-CERTFILE1=$TOP/esnistuff/$cover.crt
-KEYFILE2=$TOP/esnistuff/$hidden.pem
-CERTFILE2=$TOP/esnistuff/$hidden.crt
-KEYFILE3=$TOP/esnistuff/$HIDDEN2.pem
-CERTFILE3=$TOP/esnistuff/$HIDDEN2.crt
+KEYFILE1=$TOP/esnistuff/cadir/$cover.priv
+CERTFILE1=$TOP/esnistuff/cadir/$cover.crt
+KEYFILE2=$TOP/esnistuff/cadir/$hidden.priv
+CERTFILE2=$TOP/esnistuff/cadir/$hidden.crt
+KEYFILE3=$TOP/esnistuff/cadir/$HIDDEN2.priv
+CERTFILE3=$TOP/esnistuff/cadir/$HIDDEN2.crt
 
 if [[ "$KEYGEN" == "yes" ]]
 then
-	# TODO: Make a fake CA and certify these
 	echo "Generating kays and exiting..."
-	$TOP/apps/openssl req -x509 -config $SSLCFG -newkey rsa:2048 -keyout $KEYFILE1 -out $CERTFILE1 -days 365 -nodes -subj "/C=IE/CN=$cover"
-	$TOP/apps/openssl req -x509 -config $SSLCFG -newkey rsa:2048 -keyout $KEYFILE2 -out $CERTFILE2 -days 365 -nodes -subj "/C=IE/CN=$hidden"
-	$TOP/apps/openssl req -x509 -config $SSLCFG -newkey rsa:3048 -keyout $KEYFILE3 -out $CERTFILE3 -days 365 -nodes -subj "/C=IE/CN=$HIDDEN2"
+	./make-example-ca.sh
 	exit
 fi
 
