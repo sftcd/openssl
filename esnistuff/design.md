@@ -1,15 +1,18 @@
 
 # OpenSSL Encrypted SNI Design
 
-stephen.farrell@cs.tcd.ie, 20181203
+stephen.farrell@cs.tcd.ie, 20181211
 
 This file describes the current design for our proof-of-concept 
 openssl implementation of encrypted SNI.
 
-- The code in our [fork](https://gitbub.com/sftcd/openssl) imlpements the
-  client side of the ESNI Internet-draft
+- The code in our [fork](https://gitbub.com/sftcd/openssl) imlpements 
+  both client and server sides of the ESNI Internet-draft
 [draft-ietf-tls-esni-02](https://tools.ietf.org/html/draft-ietf-tls-esni-02)
 spec.
+- So far, there's no special session or state handling, so things seem to
+work ok for initial handshaks, but we've yet to look at tickets or 
+resumption at all.
 - The most up to date
   [README.md](https://github.com/sftcd/openssl/tree/master/esnistuff) for that
 code.
@@ -33,8 +36,6 @@ when there's an ESNI RFC
 
 ## Status
 
-Our server-side code is a work-in-progress.
-
 Our client build works against the www.cloudflare.com service (see
 [here](https://www.cloudflare.com/ssl/encrypted-sni/) for details of what
 CloudFlare have deployed) and e.g. allows passing www.ietf.org as the value in
@@ -56,6 +57,9 @@ The ``esnirr`` value above is time-dependent so won't work for that long.
 (Perhaps an hour or so, not sure - the DNS TTL seems to be set to 3600 anyway).
 With the above command, you need to hit CTRL-D (the "^D" shown above) to exit
 as is usual with ``s_client``.
+
+The server side code so far has only been tested on localhost against my client-side code
+and in a very limited manner.
 
 This is not well-tested code at this point, it's just an initial proof-of-concept,
 so **don't depend on this for anything**.
@@ -95,24 +99,29 @@ project, but should be helpful for now.
 
 ## Plans
 
-- We may try integrate the server-side with some web server (apache/nginx)
 - We may try integrate the client-side with some web client application such
   as wget or curl.
+- We may try integrate the server-side with some web server (apache/nginx)
 
 The timeline for our work is that Calum needs to be finished his project
 by approx. end March 2019. Stephen will continue work on this thereafter.
 
 ## Design details
 
-We provide [data structures](#data-structures) and [APIs](#apis) that allow (client) applications to include
-ESNI in handshakes.
+We have a simple client-side [test script](#test-script) that exercises various ``s_client`` options.
 
 We modified the [``s_client``](#s_client-modifications) application to provide command line arguments
 allowing one to turn on ESNI.
 
-We have a simple [test script](#test-script) that exercises various ``s_client`` options.
+There's also a [server-side test script](#server-test-script) that can generate keys and run ``s_server``
+in various ways.
 
-We'll describe those in reverse order, and then consider [testing](#testing).
+We've documented our [data structures](#data-structures) and [APIs](#apis) that allow OpenSSL applications to support
+ESNI.
+
+There're also a few notes about future [testing](#testing).
+
+Lastly, we note the [files](#file-changes) that are new, or modified.
 
 ### Client Side
 
@@ -197,7 +206,7 @@ Notes:
 or take as a parameter a value of that type. Function names with a lowercase
 esni substring do not. (This seems to be an OpenSSL convention.)
 
-- There's another test script [doit.sh](https://github.com/sftcd/openssl/blob/master/esnistuff/doit.sh)
+- There's another more basic test script [doit.sh](https://github.com/sftcd/openssl/blob/master/esnistuff/doit.sh)
 that runs a standalone test application ([esnimain.c](https://github.com/sftcd/openssl/blob/master/esnistuff/esnimain.c))
 which just tests the client-side ESNI APIs directly. That should become some kind of unit test in the main
 build, and needs error cases added.
@@ -206,8 +215,6 @@ build, and needs error cases added.
 
 Some open questions:
 
-- Handling of >1 ESNIKeys: I guess we ought consider loading >1 ESNIKeys structure
-  (and private key) as a TODO
 - Policy: should server have a concept of "only visible via ESNI"? E.g. some server
   certs might only ever be used when asked-for via ESNI.
 - Policy: Various combinations of existing/non-existing SNI/ESNI and how to handle
@@ -237,8 +244,9 @@ The private key is in PEM format. (I'm not v. familiar with PEM format for
 X25519 but hopefully it's portable, I've a TODO: to check.) For now the 
 public key is the binary form of ESNIKeys so needs to be base64 encoded
 before being put in a zone file. 
+
 This should likely
-go into some tools or utils directory, not sure yet. Lastly, this does
+end up in some tools or utils directory, not sure yet. Lastly, this does
 allow private key re-use, just in case that may be needed, but we should 
 decide if that could be removed, which seems safer in general.
 
@@ -266,8 +274,6 @@ The ``usage()`` from that script is:
 			To generate keys, set -H/-c as required:
 			    ./testserver.sh -K
 
-There's not yet any ESNI code there really. Coming soon though:-)
-
 #### ``s_server`` modifications
 
 I added new command line arguments as follows:
@@ -283,7 +289,7 @@ files found in that directory.
 
 When those are set, the following API calls ensue:
 
-- ``SSL_esni_server_enable`` - setup ESNI for the server context, can be called more than once
+- ``SSL_esni_server_enable`` - setup ESNI for the server context, can be called more than once, if >1 public/private value loaded
 - ``SSL_ESNI_get_esni_ctx``: is used to get the ``SSL_ESNI`` structure which is printed via ``SSL_ESNI_print``
 
 ### APIs
@@ -445,24 +451,46 @@ calls ``SSL_ESNI_dec`` (which is just being written now).
 
 ### ``SSL/SSL_CTX`` structure handlng
 
-TODO: Tidy this up as I grok more.
-
-I wasn't clear if the ``SSL_ESNI`` information ought be part of the ``SSL``
-structure or the ``SSL_CTX`` structure.
-
-For the client side,
-there's not much difference, as suspected. But on the server side it appears
-that an instance of the ``SSL_CTX`` structure is used to create an ``SSL``
-structure - which I guess means that ``SSL_CTX`` is specific to the config
+It appears
+that an instance of the ``SSL_CTX`` factory structure is used to create an ``SSL``
+structure for each connection - which I guess means that ``SSL_CTX`` is specific to the config
 and/or generic application API calls, whereas presumably the ``SSL`` type
 is specific to a particular connection.
 
 There's also odd code that has two sort-of replica SSL_CTX structures 
 into which I currently have pointers to the SSL_ESNI structure.
 
-Basically I added an ``SSL_ESNI *esni`` pointer to all of these and
-replicated it as needed. There's also an ``esni_cb`` field as well
-that's used for debug printing.
+Basically I added the following fields to both ``SSL`` and ``SSL_CTX``
+- ``size_t nesni`` has a count of the number of ``SSL_ESNI`` structures in the ``esni`` array 
+-  ``SSL_ESNI *esni`` pointer to all of the ``SSL_ESNI`` instances we've loaded
+- ``int esni_done`` is 0 until we've finished the ESNI game successfully
+- ``esni_cb`` is a callback function only used to print the ``SSL_ESNI`` details for debug purposes
+
+For ``s_client`` we'll have ``nesni==1`` as there's only the ESNIKeys value
+from DNS for the relevant HIDDEN service.
+
+For ``s_server`` the ``nesni`` value will reflect how many ESNIKeys public and
+private values were loaded. We replicate all of that from ``SSL_CTX`` to ``SSL``
+for each connection as we won't know ahead of time which public value was
+used. We select one to process via the ``record_digest`` value that's in
+the ESNI TLS extension and that's calculated from the loaded public value.
+
+The ``SSL_ESNI`` structure could be rationalised more as the spec stabilises
+but for now, each elememnt of the ``esni`` array in an ``SSL`` or ``SSL_CTX``
+has all fields, but only one will be fully populated when we receive a TLS
+ESNI extension on the server.
+
+The ``SSL_ESNI_dup`` function is used to produce the ``esni`` value in a
+connection-specific ``SSL`` structure (from the ``SSL_CTX`` factory). That
+function selectively deep-copies the generic parts (public/private key
+essentially.)
+
+Handling of cleartext SNI extension in OpenSSL is a bit messy - there's
+a second ``SSL_CTX`` value maintained by ``s_server`` (variables are
+``ctx`` and ``ctx2``) which is used to keep the different server context.
+Servers for different names might e.g. differ in the set of X.509 CAs
+they trust for client auth. For now, I just replicate the same ESNI
+information in both.
 
 ### Data structures
 
@@ -493,6 +521,8 @@ See the [api](./api.md)
 	- fuzzing (need to check how that's generally done for openssl)
 	- malloc fails
 	- triggered internal fails
+
+## File changes
 
 ### New files
 
