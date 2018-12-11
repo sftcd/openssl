@@ -48,7 +48,7 @@ Here's the [design doc](./design.md).
 Most recent first...
 
 - Works now for pub/priv from ``esnidir`` but a bit of leakage to
-  fix.
+  fix. (Now fixed.)
 
 - Now accumulating supplied ESNI publics/keys and that works still
   (to the extent it has) with first supplied public/key but not

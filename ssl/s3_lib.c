@@ -3346,7 +3346,9 @@ void ssl3_free(SSL *s)
 #endif
     OPENSSL_clear_free(s->s3, sizeof(*s->s3));
 #ifdef OPENSSL_NO_ESNI
-	SSL_ESNI_free(s->esni);
+	for (int i=0;i!=s->nesni;i++) {
+		SSL_ESNI_free(&s->esni[i]);
+	}
 	OPENSSL_free(s->esni);
 	s->esni_done=0;
 	s->esni=NULL;
