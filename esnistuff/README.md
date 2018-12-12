@@ -1,7 +1,7 @@
 
 # This is a temporary place for ESNI content ...
 
-Stephen Farrell, stephen.farrell@cs.tcd.ie, 20181211
+Stephen Farrell, stephen.farrell@cs.tcd.ie, 20181212
 
 I'll put stuff here that'll likely disappear if this matures. So the plan would
 be to delete all this before submitting any PR to the openssl folks. Over time,
@@ -45,6 +45,28 @@ The main header file is [esni.h](../include/openssl/esni.h).
 # State-of-play...
 
 Most recent first...
+
+- FIXME: There's a leak on exit in ``s_client`` in some error cases - if the ``SSL_ESNI``
+  structure is created but we exit on an error, then that isn't being freed in
+  all cases. It should be freed via the ``SSL_free`` for ``s_client``'s ``con``
+  variable but that doesn't seem to always happen. Just calling ``SSL_ESNI_free``
+  directly (on the ``esnikeys`` variable) can result in double-free's so need's
+  a bit of thought/work.
+
+- FIXME: Added session resumption to ``testclient.sh`` (I think!) via the ``s_client``
+  ``sess_out`` and ``sess_in`` command line argument. Nominal case seems
+  to work ok (where 2nd time you send no ESNI), **but** if you send a 
+  different ESNI when resuming, the server sends the cert for the original
+  ESNI (e.g. for foo.example.com), but the client thinks ESNI has succeeded for
+  the new ESNI (e.g. bar.example.com), which seems broken. 
+  That said, [RFC8446, section 4.2.11](https://tools.ietf.org/html/rfc8446#section-4.2.11)
+  isn't easy to parse on this, and considering ESNI in general. It seems
+  to be saying that SNI needs to be sent on resumptiona, but we of 
+  course won't send the real SNI in clear, so perhaps we should always
+  send ESNI (which works). Not clear that we should barf if the ESNI
+  in the resumed session CH differs from the server's idea of SNI but
+  that seems safer to me. (There's a related [issue](https://github.com/tlswg/draft-ietf-tls-esni/issues/121)
+  in the repo for the I-D.
 
 - Modified testserver stuff to make up a fake CA and issue required
   certs etc. End result is
