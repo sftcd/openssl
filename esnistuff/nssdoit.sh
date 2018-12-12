@@ -12,6 +12,12 @@ export SSLDEBUGFILE=$RDIR/nss.ssl.debug
 export SSLTRACE=99
 export SSLDEBUG=99
 
+if [ ! -f $LDIR/bin/tstclnt ]
+then
+	echo "You need an NSS build first - can't find  $LDIR/bin/tstclnt"
+	exit 1
+fi
+
 
 if [[ "$1" != "localhost" ]]
 then
