@@ -59,7 +59,7 @@ With the above command, you need to hit CTRL-D (the "^D" shown above) to exit
 as is usual with ``s_client``.
 
 The server side code so far has only been tested on localhost against my client-side code
-and in a very limited manner.
+and an NSS client, and in a very limited manner.
 
 This is not well-tested code at this point, it's just an initial proof-of-concept,
 so **don't depend on this for anything**.
@@ -75,6 +75,9 @@ you somehow otherwise trust your connection to your recursive resolver.
 
 ## General Design/Implementation Notes
 
+- If you want to dive right in to the main code: [esni.c](../ssl/esni.c) has (what I think is;-) good(ish) OPENSSL-style code
+do the [-02 Internet-draft](https://tools.ietf.org/html/draft-ietf-tls-esni-02),
+and the main header file is [esni.h](../include/openssl/esni.h).
 - We don't do any DNS queries from within the OpenSSL library. We just take the
   required inputs and run the protocol.
 - ``s_client`` currently tells the OpenSSL library to check if the TLS server cert matches the
@@ -675,6 +678,8 @@ information in both.
 
 ## Testing
 
+**We haven't done any significant testing. Use at your own risk.**
+
 1. Make TLS server certs/keys
 1. Make ESNI public/private values
 1. Run server
@@ -716,6 +721,17 @@ If you want to try session resumption, then use the ``-S`` option and there's no
 			$ ./testclient.sh -p 4000 -s localhost -n -c NONE -vd -C cadir -S sessionfile
 			...lots of output...
 
+# Test our client against www.cloudflare.com
+
+			$ ./testclient.sh -H ietf.org 
+			...a little output...
+
+# Test NSS's client against our server
+
+This is a bit basic (so read the script) but if you started our server as above
+and you have an NSS build in the expected location, then this should work:
+
+			$ ./nssdoit.sh localhost
 
 ### Future testing
 
