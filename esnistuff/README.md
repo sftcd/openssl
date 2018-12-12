@@ -57,10 +57,12 @@ The main header file is [esni.h](../include/openssl/esni.h).
 
 Most recent first...
 
-- Neat: got the NSS ``tstclnt`` to interop with my ``s_server`` - worked as far
-  as the NSS client not liking my fake CA, not sure how to convince it to do that
-  but the ESNI processing all seems good, and the NSS client gets the right nonce
-  back.
+- Neat: tried the NSS ``tstclnt`` to interop with my ``s_server`` - and it worked! 
+  The ESNI processing all seems good, and the NSS client gets the right nonce
+  back. I figured out how to make NSS like my fake CA - see the end of
+  ``make-example-ca.sh`` and ``nssdoit.sh``. (Note to self - you need to
+  do ``./nssdoit.sh localhost`` to talk to the local ``s_server`` on port
+  4000, if you omit the ``localhost`` it'll talk to ``www.cloudflare.com``.)
 
 - FIXME: There's a leak on exit in ``s_client`` in some error cases - if the ``SSL_ESNI``
   structure is created but we exit on an error, then that isn't being freed in

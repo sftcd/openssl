@@ -6,7 +6,6 @@
 set -x
 DSTR=`date -u --rfc-3339=s | sed -e 's/ /T/' | sed -e 's/:/-/g'`
 echo "Running $0 at $DSTR"
-#TESTING=y
 
 #
 # The keys we need are, done below. Figure it out:-)
@@ -92,4 +91,14 @@ do
 		-days 3650 -keyfile oe.priv -cert oe.csr \
 		-passin pass:$PASS -config openssl.cnf
 done
+
+# uncomment below to create an NSS DB for the fake root so we can 
+# use NSS' tstclnt etc. to talk to our server
+# values below need to sync with nssdoit.sh and with
+# your NSS code build
+#
+#mkdir -p nssca
+#LDIR=$HOME/code/dist/Debug/
+#export LD_LIBRARY_PATH=$LDIR/lib
+#$LDIR/bin/certutil -A -i oe.csr -n "oe" -t "CT,C,C" -d nssca/
 

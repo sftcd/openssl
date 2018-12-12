@@ -21,8 +21,8 @@ then
 		-N $ESNI
 else
 	ESNI=`cat $RDIR/esnikeydir/e2.pub | base64 -w0`
-	valgrind $LDIR/bin/tstclnt -h localhost -p 4000  \
+	valgrind $LDIR/bin/tstclnt -Q -h localhost -p 4000  \
 		-a foo.example.com \
-		-D \
+		-d cadir/nssca/ \
 		-N $ESNI
 fi
