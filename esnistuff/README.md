@@ -43,17 +43,9 @@ The main header file is [esni.h](../include/openssl/esni.h).
 	Probably wanna ask CF about that.
 
 
-# Some TODOs:
-
-- Cert padding in h/s would be good. Pad to longest cert maybe.
-- Server API for managing ESNI public/private values w/o restart.
-- Server-side policy: should server have a concept of "only visible via ESNI"? E.g. some server
-  certs might only ever be used when asked-for via ESNI.
-- Server-side policy: Various combinations of existing/non-existing SNI/ESNI and how to handle
-  'em.
-- Maybe move the above to issues in github.
-
 # State-of-play...
+
+There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
@@ -287,4 +279,24 @@ seemed unkeen on. Decided to not bother with that.
 - cloudflare.net gives "SSL alert number 70" in response to CH
 - tls13.crypto.mozilla.org gives "SSL alert number 40" in response to CH
 - 1.1.1.1:853 finishes the handshake, probably ignoring the esni
+
+# TODOs
+
+I'm sure there's more but some collected so far:
+
+- Figure out/test resumption cases.
+- Cert padding in h/s would be good. Pad to longest cert maybe.
+- Server API for managing ESNI public/private values w/o restart.
+- Server-side policy: should server have a concept of "only visible via ESNI"? E.g. some server
+  certs might only ever be used when asked-for via ESNI.
+- Server-side policy: Various combinations of existing/non-existing SNI/ESNI and how to handle 'em.
+- What do we want/need to do to support the split backend approach? (separate
+fronting server from hosting server)
+- Integration with apache/nginx/wget/curl
+- Do we (really;-) need to deal with notbefore and notafter dates? It's a horrible source
+of x.509 problems, so skipped in this code for now.
+- Adding/moving tests to the OpenSSL test suites
+- Continuous integration for these patches that aim to keep the patch series current against OpenSSL master as it evolves
+- Handling this on different platforms 
+- Maybe move the above to issues in github.
 
