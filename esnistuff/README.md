@@ -19,7 +19,7 @@ stuf seems to work when talking to itself.
   just prints out the ESNI calculation values.
 - [nssdoit.sh](./nssdoit.sh) is a script for doing the client side with an NSS
   build - I made such a build and used it help me get the crypto arithmetic
-  right.
+  right. Latest is that seems to interop with my server code which is nice.
 
 **We haven't done any significant testing. Use at your own risk.**
 
@@ -47,15 +47,20 @@ The main header file is [esni.h](../include/openssl/esni.h).
 
 - Cert padding in h/s would be good. Pad to longest cert maybe.
 - Server API for managing ESNI public/private values w/o restart.
-- Maybe move the above to issues in github.
 - Server-side policy: should server have a concept of "only visible via ESNI"? E.g. some server
   certs might only ever be used when asked-for via ESNI.
 - Server-side policy: Various combinations of existing/non-existing SNI/ESNI and how to handle
   'em.
+- Maybe move the above to issues in github.
 
 # State-of-play...
 
 Most recent first...
+
+- Neat: got the NSS ``tstclnt`` to interop with my ``s_server`` - worked as far
+  as the NSS client not liking my fake CA, not sure how to convince it to do that
+  but the ESNI processing all seems good, and the NSS client gets the right nonce
+  back.
 
 - FIXME: There's a leak on exit in ``s_client`` in some error cases - if the ``SSL_ESNI``
   structure is created but we exit on an error, then that isn't being freed in
