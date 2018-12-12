@@ -744,11 +744,19 @@ usually in ``$HOME/code/openssl``.
 - include/openssl/esni.h - data structures are commented some
 - include/openssl/esnierr.h - boring errors
 - crypto/esnierr.c - load boring strings (need to check if this is right)
-- esnistuff/esnimain.c - a tester
+
+Things in this temporary directory. Some will disappear over time, some
+will migrate into the normal openssl build.
+
+- esnistuff/Makefile - build/run/clean stuff here in this temp space
+- esnistuff/esnimain.c - a basic standalone tester
 - esnistuff/doit.sh - calls esnimain
 - esnistuff/testclient.sh - calls ``openssl s_client`` 
-- esnistuff/testserver.sh - calls ``openssl s_server`` (still evolving!)
+- esnistuff/testserver.sh - calls ``openssl s_server`` 
+- esnistuff/nssdoit.sh - calls NSS's ``tstclnt`` (if you have one)
 - esnistuff/mk_esnikeys.c - generates private key and ESNIKeys binary files
+- esnistuff/make-example-ca.sh - generates TLS server keys/certs and fake CA
+- esnistuff/make-esnikeys.sh - make ESNI public/private pairs (a few)
 
 Running tests as described above will result in some files being generated that hold
 public and private keys both for the TLS server and for ESNI.
