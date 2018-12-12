@@ -11,24 +11,12 @@ framework.
 This builds ok on both 64 and 32 bit Ubuntus and (nominally) doesn't leak
 according to valgrind. It works e.g. when talking to www.cloudflare.com
 with e.g. ietf.org as the value inside the encrypted SNI. Server-side
-stuf seems to work when talking to itself.
-
-- [testclient.sh](./testclient.sh) does ESNI via a locally modified ``openssl s_client``.. 
-- [testserver.sh](./testserver.sh) does ESNI via a locally modified ``openssl s_server``.. 
-- There's an [esnimain.c](./esnimain.c) that can be run locally that 
-  just prints out the ESNI calculation values.
-- [nssdoit.sh](./nssdoit.sh) is a script for doing the client side with an NSS
-  build - I made such a build and used it help me get the crypto arithmetic
-  right. Latest is that seems to interop with my server code which is nice.
+stuff seems to work when talking to itself, and an NSS client.
 
 **We haven't done any significant testing. Use at your own risk.**
 
 Here's our [design doc](./design.md) that'll hopefully explain more
 about how it works and what it does.
-
-For now [esni.c](../ssl/esni.c) has (what I think is;-) good(ish) OPENSSL-style code
-do the [-02 Internet-draft](https://tools.ietf.org/html/draft-ietf-tls-esni-02).
-The main header file is [esni.h](../include/openssl/esni.h).
 
 # Random notes
 
@@ -41,7 +29,6 @@ The main header file is [esni.h](../include/openssl/esni.h).
     a valid DNS name (I think!). The one above is 254 octets long. (255 or more
 	octets aren't accepted by the ``openssl s_client``) Not sure what'd be right there TBH.
 	Probably wanna ask CF about that.
-
 
 # State-of-play...
 
