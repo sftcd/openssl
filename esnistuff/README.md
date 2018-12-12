@@ -42,6 +42,17 @@ The main header file is [esni.h](../include/openssl/esni.h).
 	octets aren't accepted by the ``openssl s_client``) Not sure what'd be right there TBH.
 	Probably wanna ask CF about that.
 
+
+# Some TODOs:
+
+- Cert padding in h/s would be good. Pad to longest cert maybe.
+- Server API for managing ESNI public/private values w/o restart.
+- Maybe move the above to issues in github.
+- Server-side policy: should server have a concept of "only visible via ESNI"? E.g. some server
+  certs might only ever be used when asked-for via ESNI.
+- Server-side policy: Various combinations of existing/non-existing SNI/ESNI and how to handle
+  'em.
+
 # State-of-play...
 
 Most recent first...
@@ -55,18 +66,19 @@ Most recent first...
 
 - FIXME: Added session resumption to ``testclient.sh`` (I think!) via the ``s_client``
   ``sess_out`` and ``sess_in`` command line argument. Nominal case seems
-  to work ok (where 2nd time you send no ESNI), **but** if you send a 
+  to work ok (where 2nd time you send no ESNI, or play the ESNI game afresh
+  with the same HIDDEN), **but** if you send a 
   different ESNI when resuming, the server sends the cert for the original
   ESNI (e.g. for foo.example.com), but the client thinks ESNI has succeeded for
   the new ESNI (e.g. bar.example.com), which seems broken. 
   That said, [RFC8446, section 4.2.11](https://tools.ietf.org/html/rfc8446#section-4.2.11)
   isn't easy to parse on this, and considering ESNI in general. It seems
-  to be saying that SNI needs to be sent on resumptiona, but we of 
+  to be saying that SNI needs to be sent on resumption, but we of 
   course won't send the real SNI in clear, so perhaps we should always
   send ESNI (which works). Not clear that we should barf if the ESNI
   in the resumed session CH differs from the server's idea of SNI but
   that seems safer to me. (There's a related [issue](https://github.com/tlswg/draft-ietf-tls-esni/issues/121)
-  in the repo for the I-D.
+  in the repo for the I-D.)
 
 - Modified testserver stuff to make up a fake CA and issue required
   certs etc. End result is
@@ -84,7 +96,8 @@ Most recent first...
   to read the set of ESNIKeys/privates found in that dir. For now,
   the last one in is active, but will change to support >1 in 
   state shortly. Note that the code there likely needs changes to
-  be portable (to Windows probably, at least). There's a TODO.
+  be portable (to Windows probably, at least). There's a TODO in
+  the code I'll revisit later.
 
 - Oops - I messed up the ``esni_server_name_fixup`` function so that
   the cleartext SNI wasn't ever being sent. That was further confusing
