@@ -657,7 +657,7 @@ used. We select one to process via the ``record_digest`` value that's in
 the ESNI TLS extension and that's calculated on loading the ESNI public value.
 
 The ``SSL_ESNI`` structure could be rationalised more as the spec stabilises
-but for now, each elememnt of the ``esni`` array in an ``SSL`` or ``SSL_CTX``
+but for now, each element of the ``esni`` array in an ``SSL`` or ``SSL_CTX``
 has all fields, but only one will be fully populated when we receive a TLS
 ESNI extension on the server.
 
@@ -721,12 +721,12 @@ If you want to try session resumption, then use the ``-S`` option and there's no
 			$ ./testclient.sh -p 4000 -s localhost -n -c NONE -vd -C cadir -S sessionfile
 			...lots of output...
 
-# Test our client against www.cloudflare.com
+### Test our client against www.cloudflare.com
 
 			$ ./testclient.sh -H ietf.org 
 			...a little output...
 
-# Test NSS's client against our server
+### Test NSS's client against our server
 
 This is a bit basic (so read the script) but if you started our server as above
 and you have an NSS build in the expected location, then this should work:
