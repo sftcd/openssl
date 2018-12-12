@@ -1,9 +1,10 @@
 #!/bin/bash
 
+set -x
+
 LDIR=/home/stephen/code/dist/Debug/
 RDIR=/home/stephen/code/openssl/esnistuff
 
-ESNI=`dig +short txt _esni.www.cloudflare.com | sed -e 's/"//g'`
 
 export LD_LIBRARY_PATH=$LDIR/lib
 export SSLKEYLOGFILE=$RDIR/nss.premaster.txt
@@ -12,7 +13,16 @@ export SSLTRACE=99
 export SSLDEBUG=99
 
 
-
-valgrind $LDIR/bin/tstclnt -h www.cloudflare.com -p 443  \
-	-d ~/.mozilla/eclipse/ \
-	-N $ESNI
+if [[ "$1" != "localhost" ]]
+then
+	ESNI=`dig +short txt _esni.www.cloudflare.com | sed -e 's/"//g'`
+	valgrind $LDIR/bin/tstclnt -h www.cloudflare.com -p 443  \
+		-d ~/.mozilla/eclipse/ \
+		-N $ESNI
+else
+	ESNI=`cat $RDIR/esnikeydir/e2.pub | base64 -w0`
+	valgrind $LDIR/bin/tstclnt -h localhost -p 4000  \
+		-a foo.example.com \
+		-D \
+		-N $ESNI
+fi

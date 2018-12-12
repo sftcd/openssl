@@ -496,7 +496,7 @@ static int ssl_servername_cb(SSL *s, int *ad, void *arg)
         return SSL_TLSEXT_ERR_NOACK;
 
 #ifndef OPENSSL_NO_ESNI
-	/* think this just works for my test but is wrong! */
+	/* TODO: check - I think this just works for my test but is wrong! */
     if (servername != NULL) {
         if (ctx2 != NULL) {
 			if (p->servername) {
