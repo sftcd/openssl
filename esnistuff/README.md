@@ -57,6 +57,12 @@ The main header file is [esni.h](../include/openssl/esni.h).
 
 Most recent first...
 
+- Did some clean-up with Makefile to help with key generation/cleaning up 
+  etc. ``make; make keys`` should be a good start here **after** you've
+  done the main openssl build. Note that ``make keys`` will create a new
+  fake CA, server keys and ESNI keys so if you've put any of those keys
+  elsewhere, you need to consider that.
+
 - Neat: tried the NSS ``tstclnt`` to interop with my ``s_server`` - and it worked! 
   The ESNI processing all seems good, and the NSS client gets the right nonce
   back. I figured out how to make NSS like my fake CA - see the end of

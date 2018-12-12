@@ -682,27 +682,20 @@ information in both.
 
 ### Make TLS server certs/keys
 
-Easy-peasy:
+Easy-peasy (if it work:-) ...
 
-			$ ./testserver -K
-			...lots of output...
+			$ cd $HOME/code/openssl # or wherever you put this, but scripts assume here
+			$ ./config
+			$ make
+			$ cd esnistuff
+			$ make
+			$ make keys
 
-That'll create a local ``cadir`` with loads of stuff you can ignore.
-It's ok to blow that away and start over anytime.
+That'll create a local ``cadir`` and some others with stuff you can mostly ignore.
+It's ok to blow that away and start over anytime so long as you've
+not copied key material elsewhere.
 
-### Make ESNI public/private values
-
-Also easy, but here's what I did, first create default public/private, 
-then make a directory with a few more:
-
-			$ ./mk_esnikeys
-			...output...
-			$ mkdir esnikeydir
-			$ cd esnikeydir
-			$ ../mk_esnikeys -o e2.pub -p e2.priv
-			...output...
-			$ ../mk_esnikeys -o e3.pub -p e3.priv
-			...output...
+Each of the commands above produces lots of output of course.
 
 ### Run Server
 

@@ -3,7 +3,7 @@
 # Make key pairs for a fake local CA, example.com, foo.example.com
 # and bar.example.com
 
-set -x
+#set -x
 DSTR=`date -u --rfc-3339=s | sed -e 's/ /T/' | sed -e 's/:/-/g'`
 echo "Running $0 at $DSTR"
 
@@ -92,13 +92,16 @@ do
 		-passin pass:$PASS -config openssl.cnf
 done
 
-# uncomment below to create an NSS DB for the fake root so we can 
-# use NSS' tstclnt etc. to talk to our server
-# values below need to sync with nssdoit.sh and with
-# your NSS code build
-#
-#mkdir -p nssca
-#LDIR=$HOME/code/dist/Debug/
-#export LD_LIBRARY_PATH=$LDIR/lib
-#$LDIR/bin/certutil -A -i oe.csr -n "oe" -t "CT,C,C" -d nssca/
+# If we have an NSS build, create an NSS DB for our fake root so we can 
+# use NSS' tstclnt (via nssdoit.sh) to talk to our s_server.
+# Note: values below (LDIR and nssca dir) need to sync with nssdoit.sh 
+# content and with your NSS code build (and I suspect it needs to be a 
+# build as ESNI support in NSS isn't afaik released)
+LDIR=$HOME/code/dist/Debug/
+if [ -f $LDIR/bin/certutil ]
+then
+	mkdir -p nssca
+	export LD_LIBRARY_PATH=$LDIR/lib
+	$LDIR/bin/certutil -A -i oe.csr -n "oe" -t "CT,C,C" -d nssca/
+fi
 
