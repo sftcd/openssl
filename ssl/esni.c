@@ -1810,7 +1810,10 @@ int SSL_esni_enable(SSL *s, const char *hidden, const char *cover, SSL_ESNI *esn
         return 0;
     }
     if (s->esni!=NULL) {
-        SSL_ESNI_free(s->esni);
+		for (int i=0;i!=s->nesni;i++) {
+        	SSL_ESNI_free(&s->esni[i]);
+		}
+		OPENSSL_free(s->esni);
     }
     if (esni!=NULL) {
         s->esni=esni;

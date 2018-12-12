@@ -44,6 +44,7 @@ SUPPLIEDHIDDEN=""
 SUPPLIEDCOVER=""
 SUPPLIEDESNI=""
 SUPPLIEDCADIR=""
+SUPPLIEDSESSION=""
 HIDDEN="encryptedsni.com"
 COVER="www.cloudflare.com"
 CAPATH="/etc/ssl/certs/"
@@ -68,6 +69,7 @@ function usage()
     echo "  -d means run s_client in verbose mode"
     echo "  -v means run with valgrind"
     echo "  -l means use stale ESNIKeys"
+	echo "  -S [file] means save or resume session from <file>"
     echo "  -n means don't trigger esni at all"
     echo "  -h means print this"
 
@@ -78,7 +80,7 @@ function usage()
 }
 
 # options may be followed by one colon to indicate they have a required argument
-if ! options=$(/usr/bin/getopt -s bash -o c:P:H:p:s:dlvnh -l cover:,esnipub:,hidden:,port:,server:,debug,stale,valgrind,noesni,help -- "$@")
+if ! options=$(/usr/bin/getopt -s bash -o S:c:P:H:p:s:dlvnh -l session:,cover:,esnipub:,hidden:,port:,server:,debug,stale,valgrind,noesni,help -- "$@")
 then
     # something went wrong, getopt will put out an error message for us
     exit 1
@@ -96,6 +98,7 @@ do
         -c|--cover) SUPPLIEDCOVER=$2; shift;;
         -s|--server) SUPPLIEDSERVER=$2; shift;;
         -H|--hidden) SUPPLIEDHIDDEN=$2; shift;;
+        -S|--session) SUPPLIEDSESSION=$2; shift;;
 		-P|--esnipub) SUPPLIEDESNI=$2; shift;;
         -p|--port) SUPPLIEDPORT=$2; shift;;
         (--) shift; break;;
@@ -228,9 +231,22 @@ fi
 force13="-cipher TLS13-AES-128-GCM-SHA256 -no_ssl3 -no_tls1 -no_tls1_1 -no_tls1_2"
 #force13="-tls1_3 -cipher TLS13-AES-128-GCM-SHA256 "
 
-#set -x
+# session resumption
+session=""
+if [[ "$SUPPLIEDSESSION" != "" ]]
+then
+	if [ ! -f $SUPPLIEDSESSION ]
+	then
+		# resuming 
+		session=" -sess_out $SUPPLIEDSESSION"
+	else
+		# save so we can resum
+		session=" -sess_in $SUPPLIEDSESSION"
+	fi
+fi
+
 TMPF=`mktemp /tmp/esnitestXXXX`
-echo -e "$httpreq" | $vgcmd $TOP/apps/openssl s_client $dbgstr $certsdb $force13 $target $esnistr $snicmd >$TMPF 2>&1
+echo -e "$httpreq" | $vgcmd $TOP/apps/openssl s_client $dbgstr $certsdb $force13 $target $esnistr $snicmd $session >$TMPF 2>&1
 
 c200=`grep -c "200 OK" $TMPF`
 c4xx=`grep -ce "^HTTP/1.1 4[0-9][0-9] " $TMPF`

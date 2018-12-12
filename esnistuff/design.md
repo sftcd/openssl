@@ -1,7 +1,7 @@
 
 # OpenSSL Encrypted SNI Design
 
-stephen.farrell@cs.tcd.ie, 20181211
+stephen.farrell@cs.tcd.ie, 20181212
 
 This file describes the current design for our proof-of-concept 
 openssl implementation of encrypted SNI.
@@ -132,18 +132,19 @@ Lastly, we note the [files](#file-changes) that are new, or modified.
 
 The ``usage()`` function for the [testclient.sh](https://gitbub.com/sftcd/openssl/esnistuff/testit.sh) 
 produces this:
-			
+
 			$ ./testclient.sh -h
-			Running ./testclient.sh at 20181205-224220
+			Running ./testclient.sh at 20181212-120634
 			./testclient.sh [-cHPpsdnlvh] - try out encrypted SNI via openssl s_client
 			  -c [name] specifices a covername that I'll send as a clear SNI (NONE is special)
 			  -H means try connect to that hidden server
 			  -P [filename] means read ESNIKeys public value from file and not DNS
-			  -s [name] specifices a server to which I'll connect
+			  -s [name] specifices a server to which I'll connect (localhost=>local certs)
 			  -p [port] specifices a port (default: 443)
 			  -d means run s_client in verbose mode
 			  -v means run with valgrind
 			  -l means use stale ESNIKeys
+			  -S [file] means save or resume session from <file>
 			  -n means don't trigger esni at all
 			  -h means print this
 			
@@ -163,6 +164,10 @@ Other notes:
   ESNI specific tracing of cryptographic intermediate values)
 - ``-v`` runs under valgrind and currently has no complaints (in the 
   nominal case)
+- ``-S`` is to check session resumption (via TLS1.3 PSK). If the file
+exists then we assume that's a stored session (i.e. ``-sess_in`` is
+given to ``s_client``, if the file doesn't exist, we assume you want
+to save the session to the file, so give ``-sess_out`` to ``s_client``.
 
 There's another more basic test script [doit.sh](https://github.com/sftcd/openssl/blob/master/esnistuff/doit.sh)
 that runs a standalone test application ([esnimain.c](https://github.com/sftcd/openssl/blob/master/esnistuff/esnimain.c))
@@ -709,7 +714,15 @@ then make a directory with a few more:
 And finally in a 2nd window we fire up a client as follows:
 
 			$ ./testclient.sh -p 4000 -s localhost -H foo.example.com -P ./esnikeydir/e3.pub -c NONE -vd -C cadir
-			...lots of output..
+			...lots of output...
+
+If you want to try session resumption, then use the ``-S`` option and there's no need to do the ESNI game 2nd time:
+
+			$ ./testclient.sh -p 4000 -s localhost -H foo.example.com -P ./esnikeydir/e3.pub -c NONE -vd -C cadir -S sessionfile
+			...lots of output...
+			$ ./testclient.sh -p 4000 -s localhost -n -c NONE -vd -C cadir -S sessionfile
+			...lots of output...
+
 
 ### Future testing
 
