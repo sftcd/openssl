@@ -36,6 +36,12 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- Padding now turned on (within ``SSL_esni_server_enable`` on server) in a
+  fairly crude manner. See the design notes for more. 
+  Wireshark shows that padding is happening. Didn't test 
+  it enough though yet - ``s_server`` only supports 1 HIDDEN so 
+  it's a bit hard to test lots of differeng lengths for now.
+
 - Starting to think about padding cert, so modified ``make-example-ca.sh``
   to generate different length keys giving me ~1000bytes difference in 
   cert lengths, instead of just a few bytes based on the names.
@@ -276,7 +282,6 @@ seemed unkeen on. Decided to not bother with that.
 I'm sure there's more but some collected so far:
 
 - Figure out/test resumption cases.
-- Cert padding in h/s would be good. Pad to longest cert maybe.
 - Server API for managing ESNI public/private values w/o restart.
 - Server-side policy: should server have a concept of "only visible via ESNI"? E.g. some server certs might only ever be used when asked-for via ESNI.
 - Server-side policy: Various combinations of existing/non-existing SNI/ESNI and how to handle 'em.
