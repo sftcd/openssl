@@ -1937,6 +1937,19 @@ int SSL_esni_server_enable(SSL_CTX *ctx, const char *esnikeyfile, const char *es
     // add my private key in there, the public was handled above
     latest_esni->keyshare=pkey;
 
+    /*
+     * Handle padding - we need to pad the Certificate and CertificateVerify
+     * messages as those can expose the ESNI value due to differing sizes.
+     * We might want to make this cleverer, e.g. by checking the sizes of
+     * the certificates/public keys involved, but for now, we'll try to 
+     * use the standard record padding scheme via SSL_CTX_set_block_padding
+     * to set padding to 512 sized blocks and see what happens.
+     */
+    if (SSL_CTX_set_block_padding(ctx,512)!=1) {
+        ESNIerr(ESNI_F_SERVER_ENABLE, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+
     ESNI_RECORD_free(er);
     OPENSSL_free(er);
     return 1;
