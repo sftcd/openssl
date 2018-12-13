@@ -1851,8 +1851,11 @@ int SSL_esni_enable(SSL *s, const char *hidden, const char *cover, SSL_ESNI *esn
 	 * client side (at least to see what happens:-)
 	 * This could be over-ridden by the client appication if it
 	 * wants by setting a callback via SSL_set_record_padding_callback
+	 * We'll try set to 512 bytes, minus the 16 overhead so that
+	 * wireshark shows us nice round numbers and we're less
+	 * likely to go beyond an MTU (1550)
      */
-    if (SSL_set_block_padding(s,512)!=1) {
+    if (SSL_set_block_padding(s,496)!=1) {
         return 0;
     }
     return 1;
