@@ -99,6 +99,22 @@ code following good project practice.
 - For now, I'm using doxygen and [moxygen](https://github.com/sourcey/moxygen) to generate API and data structure
 documentation. That'd probably be pruned when/if submitting a PR to the main
 project, but should be helpful for now.
+- Some padding is needed to avoid exposing which ESNI is in-play dues to the
+  length of handshake messages.
+  Our subtle goal would be to pad to the longest cert length as described 
+  in the I-D. The cert-verify message however can also need padding if key lengths differ.
+  (Raise an issue with the draft for that.)
+  For now, Our super-crude padding scheme just calls the existing openssl padding ``SSL_CTX_set_block_padding``
+  with a size of 512 bytes, which should mask some lengths. That call is made
+  from ``SSL_esni_server_enable``. The effect of that
+  is to pad up all server record plaintexts to a multiple of 512 bytes, so
+  it's ineffecient and could expose some information if we're unlucky with
+  length boundaries. To do better an application could try use ``SSL_CTX_set_record_padding_callback``
+  which'd tells it if its dealing with a handshake, alert or application data but
+  which (I don't believe) will tell us which h/s message we're padding.
+  A server application could define such a callback itself, which'd override
+  the usual behaviour of ``SSL_esni_server_enable`` so maybe our crude
+  idea is actually ok for now.
 
 ## Plans
 
