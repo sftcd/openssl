@@ -1842,6 +1842,19 @@ int SSL_esni_enable(SSL *s, const char *hidden, const char *cover, SSL_ESNI *esn
             return 0;
         }
     }
+
+    /*
+     * Handle padding - the server needs to do padding in case the
+	 * certificate/key-size exposes the ESNI. But so can lots of 
+	 * the other application interactions, so to be at least a bit
+	 * cautious, we'll also pad the crap out of everything on the
+	 * client side (at least to see what happens:-)
+	 * This could be over-ridden by the client appication if it
+	 * wants by setting a callback via SSL_set_record_padding_callback
+     */
+    if (SSL_set_block_padding(s,512)!=1) {
+        return 0;
+    }
     return 1;
 }
 
@@ -1944,6 +1957,8 @@ int SSL_esni_server_enable(SSL_CTX *ctx, const char *esnikeyfile, const char *es
      * the certificates/public keys involved, but for now, we'll try to 
      * use the standard record padding scheme via SSL_CTX_set_block_padding
      * to set padding to 512 sized blocks and see what happens.
+	 * This could be over-ridden by the client appication if it
+	 * wants by setting a callback via SSL_CTX_set_record_padding_callback
      */
     if (SSL_CTX_set_block_padding(ctx,512)!=1) {
         ESNIerr(ESNI_F_SERVER_ENABLE, ERR_R_INTERNAL_ERROR);

@@ -36,6 +36,9 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- Added client-side padding as well. (Same 512 byte setup.) See design
+  notes again:-)
+
 - Padding now turned on (within ``SSL_esni_server_enable`` on server) in a
   fairly crude manner. See the design notes for more. 
   Wireshark shows that padding is happening. Didn't test 
