@@ -115,6 +115,10 @@ project, but should be helpful for now.
   A server application could define such a callback itself, which'd override
   the usual behaviour of ``SSL_esni_server_enable`` so maybe our crude
   idea is actually ok for now.
+- Just to see how it goes, I've also added the same 512-byte padding setup to
+  the client-side (via ``SSL_esni_enable``). That's pretty inefficient
+  really, but OTOH still likely to fit most stuff in 1 packet so maybe
+  not so bad. (And can be over-ridden by application again.)
 
 ## Plans
 
