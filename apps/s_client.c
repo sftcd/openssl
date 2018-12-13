@@ -2048,26 +2048,26 @@ int s_client_main(int argc, char **argv)
 
 #ifndef OPENSSL_NO_ESNI
     if (encservername != NULL ) {
-		/*
-		 * Tell the ESNI code we do want SSL_get_esni_status to barf
-		 * if the hidden name doesn't match the server-cert used for the 
-		 * TLS session.
-		 * This could be made a command line argument, but I've not (yet)
-		 */
-		int require_hidden_match=1;
+        /*
+         * Tell the ESNI code we do want SSL_get_esni_status to barf
+         * if the hidden name doesn't match the server-cert used for the 
+         * TLS session.
+         * This could be made a command line argument, but I've not (yet)
+         */
+        int require_hidden_match=1;
         if (SSL_esni_enable(con,encservername,servername,esnikeys,require_hidden_match)!=1) {
             BIO_printf(bio_err, "%s: ESNI enabling failed.\n", prog);
             ERR_print_errors(bio_err);
 #ifndef OPENSSL_NO_ESNI
-			/*
-			 * Slight leak on error here otherwise
-			 * Normally esnikeys will be freed when the SSL context is, but
-			 * we don't yet have one of those, so...
-			 */
-			if (esnikeys!=NULL) {
-				SSL_ESNI_free(esnikeys);
-				OPENSSL_free(esnikeys);
-			}
+            /*
+             * Slight leak on error here otherwise
+             * Normally esnikeys will be freed when the SSL context is, but
+             * we don't yet have one of those, so...
+             */
+            if (esnikeys!=NULL) {
+                SSL_ESNI_free(esnikeys);
+                OPENSSL_free(esnikeys);
+            }
 #endif
             goto end;
         }

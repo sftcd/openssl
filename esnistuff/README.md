@@ -36,6 +36,10 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- Starting to think about padding cert, so modified ``make-example-ca.sh``
+  to generate different length keys giving me ~1000bytes difference in 
+  cert lengths, instead of just a few bytes based on the names.
+
 - Did some clean-up with Makefile to help with key generation/cleaning up 
   etc. ``make; make keys`` should be a good start here **after** you've
   done the main openssl build. Note that ``make keys`` will create a new
