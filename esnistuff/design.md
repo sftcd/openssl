@@ -99,7 +99,7 @@ code following good project practice.
 - For now, I'm using doxygen and [moxygen](https://github.com/sourcey/moxygen) to generate API and data structure
 documentation. That'd probably be pruned when/if submitting a PR to the main
 project, but should be helpful for now.
-- Some padding is needed to avoid exposing which ESNI is in-play dues to the
+- Some padding is needed to avoid exposing which ESNI is in-play due to the
   length of handshake messages.
   Our subtle goal would be to pad to the longest cert length as described 
   in the I-D. The cert-verify message however can also need padding if key lengths differ.
@@ -119,6 +119,8 @@ project, but should be helpful for now.
   the client-side (via ``SSL_esni_enable``). That's pretty inefficient
   really, but OTOH still likely to fit most stuff in 1 packet so maybe
   not so bad. (And can be over-ridden by application again.)
+- Currently part-done on more specific padding option in ``s_server`` via
+  callback.
 
 ## Plans
 

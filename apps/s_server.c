@@ -457,6 +457,9 @@ static int ebcdic_puts(BIO *bp, const char *str)
 #endif
 
 #ifndef OPENSSL_NO_ESNI
+/**
+ * @brief print an ESNI structure
+ */
 static unsigned int esni_cb(SSL *s, int index)
 {
     BIO_printf(bio_s_out,"esni_cb called\n");
@@ -467,6 +470,56 @@ static unsigned int esni_cb(SSL *s, int index)
     }
     return 1;
 }
+
+/**
+ * Padding size info
+ */
+typedef struct {
+	size_t certpad;
+	size_t certverifypad;
+} esni_padding_sizes;
+
+static esni_padding_sizes esni_ps={2000,500}; /* hard coded for now */
+
+/**
+ * @brief set argument for h/s message padding
+ *
+ * Parms are TBD - will depend on cert and key sizes we're using
+ */
+static int set_esni_padding_sizes(SSL_CTX *ctx) {
+	SSL_CTX_set_record_padding_callback_arg(ctx,(void*)&esni_ps);
+	return 1;
+}
+
+/** 
+ * @ brief pad Certificate and CertificateVerify messages
+ *
+ * This is passed to SSL_CTX_set_record_padding_callback
+ * and pads the Certificate and CertificateVerify handshake
+ * messages to a size derived from the argument arg
+ *
+ * @param s is the SSL connection
+ * @param len is the plaintext length before padding
+ * @param arg is a pointer to an esni_padding_sizes struct
+ * @return is the number of bytes of padding to add to the plaintext
+ */
+static size_t esni_padding_cb(SSL *s, int type, size_t len, void *arg)
+{
+	/* hard coded for now*/
+	esni_padding_sizes *ps=(esni_padding_sizes*)arg;
+	int state=SSL_get_state(s);
+
+	if (state==TLS_ST_SW_CERT) {
+		printf("\n\n*****\n\nstate1: %d, cs: %zd, cvs: %zd\n",state,ps->certpad,ps->certverifypad);
+		return ps->certpad-len-16;
+	}
+	if (state==TLS_ST_SW_CERT_VRFY) {
+		printf("\n\n*****\n\nstate: %d, cs: %zd, cvs: %zd\n",state,ps->certpad,ps->certverifypad);
+		return ps->certverifypad-len-16;
+	}
+	return 0;
+}
+
 #endif
 
 /* This is a context that we pass to callbacks */
@@ -1961,6 +2014,14 @@ int s_server_main(int argc, char *argv[])
             BIO_printf(bio_err, "Failure establishing ESNI parameters\n" );
             goto end;
 		}
+		/* 
+		 * Set padding sizes 
+		 */
+		if (set_esni_padding_sizes(ctx)!=1) {
+            BIO_printf(bio_err, "Failure setting ESNI padding callback arg\n" );
+            goto end;
+		}
+		SSL_CTX_set_record_padding_callback(ctx,esni_padding_cb);
 	}
 	if (esnidir != NULL ) {
 		/*
