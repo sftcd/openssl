@@ -475,21 +475,14 @@ static unsigned int esni_cb(SSL *s, int index)
  * Padding size info
  */
 typedef struct {
-	size_t certpad;
-	size_t certverifypad;
+	size_t certpad; ///< Certificate messages to be a multiple of this size
+	size_t certverifypad; ///< CertificateVerify messages to be a multiple of this size
 } esni_padding_sizes;
 
-static esni_padding_sizes esni_ps={2000,500}; /* hard coded for now */
-
 /**
- * @brief set argument for h/s message padding
- *
- * Parms are TBD - will depend on cert and key sizes we're using
+ * passed as an argument to callback
  */
-static int set_esni_padding_sizes(SSL_CTX *ctx) {
-	SSL_CTX_set_record_padding_callback_arg(ctx,(void*)&esni_ps);
-	return 1;
-}
+esni_padding_sizes *esni_ps=NULL;
 
 /** 
  * @ brief pad Certificate and CertificateVerify messages
@@ -511,11 +504,13 @@ static size_t esni_padding_cb(SSL *s, int type, size_t len, void *arg)
 
 	if (state==TLS_ST_SW_CERT) {
 		printf("\n\n*****\n\nstate1: %d, cs: %zd, cvs: %zd\n",state,ps->certpad,ps->certverifypad);
-		return ps->certpad-len-16;
+		size_t newlen=ps->certpad-(len%ps->certpad)-16;
+		return (newlen>0?newlen:0);
 	}
 	if (state==TLS_ST_SW_CERT_VRFY) {
 		printf("\n\n*****\n\nstate: %d, cs: %zd, cvs: %zd\n",state,ps->certpad,ps->certverifypad);
-		return ps->certverifypad-len-16;
+		size_t newlen=ps->certverifypad-(len%ps->certverifypad)-16;
+		return (newlen>0?newlen:0);
 	}
 	return 0;
 }
@@ -846,7 +841,7 @@ typedef enum OPTION_choice {
     OPT_KEYLOG_FILE, OPT_MAX_EARLY, OPT_RECV_MAX_EARLY, OPT_EARLY_DATA,
     OPT_S_NUM_TICKETS, OPT_ANTI_REPLAY, OPT_NO_ANTI_REPLAY,
 #ifndef OPENSSL_NO_ESNI
-    OPT_ESNIKEY, OPT_ESNIPUB, OPT_ESNIDIR,
+    OPT_ESNIKEY, OPT_ESNIPUB, OPT_ESNIDIR, OPT_ESNINOPAD,
 #endif
     OPT_R_ENUM,
     OPT_S_ENUM,
@@ -1065,6 +1060,7 @@ const OPTIONS s_server_options[] = {
     {"esnikey", OPT_ESNIKEY, 's', "Load ESNI private key (and enable ESNI)"},
     {"esnipub", OPT_ESNIPUB, 's', "Load ESNI public key"},
     {"esnidir", OPT_ESNIDIR, 's', "ESNI information directory"},
+    {"noesnipad", OPT_ESNINOPAD, '-', "Do specific padding of Certificate/CertificateVerify (do general ESNI padding instead)"},
 #endif
     {NULL, OPT_EOF, 0, NULL}
 };
@@ -1152,6 +1148,7 @@ int s_server_main(int argc, char *argv[])
     char *esnikeyfile = NULL; 
     char *esnipubfile = NULL;
 	char *esnidir=NULL;
+	int noesnipad=0; ///< we default to generally padding to 512 octet multiples
 #endif
 
     /* Init of few remaining global variables */
@@ -1702,6 +1699,9 @@ int s_server_main(int argc, char *argv[])
         case OPT_ESNIDIR:
             esnidir=opt_arg();
             break;
+		case OPT_ESNINOPAD:
+			noesnipad=1;
+			break;
 #endif
         }
     }
@@ -2017,11 +2017,13 @@ int s_server_main(int argc, char *argv[])
 		/* 
 		 * Set padding sizes 
 		 */
-		if (set_esni_padding_sizes(ctx)!=1) {
-            BIO_printf(bio_err, "Failure setting ESNI padding callback arg\n" );
-            goto end;
+		if (noesnipad) {
+			esni_ps=OPENSSL_malloc(sizeof(esni_padding_sizes)); 
+			esni_ps->certpad=2000;
+			esni_ps->certverifypad=500;
+			SSL_CTX_set_record_padding_callback_arg(ctx,(void*)esni_ps);
+			SSL_CTX_set_record_padding_callback(ctx,esni_padding_cb);
 		}
-		SSL_CTX_set_record_padding_callback(ctx,esni_padding_cb);
 	}
 	if (esnidir != NULL ) {
 		/*
@@ -2373,6 +2375,9 @@ int s_server_main(int argc, char *argv[])
     print_stats(bio_s_out, ctx);
     ret = 0;
  end:
+#ifndef OPENSSL_NO_ESNI
+	if (esni_ps) OPENSSL_free(esni_ps);
+#endif
     SSL_CTX_free(ctx);
     SSL_SESSION_free(psksess);
     set_keylog_file(NULL, NULL);

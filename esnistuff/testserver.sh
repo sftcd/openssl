@@ -169,6 +169,9 @@ certsdb=" -CApath $CAPATH"
 force13="-cipher TLS13-AES-128-GCM-SHA256 -no_ssl3 -no_tls1 -no_tls1_1 -no_tls1_2"
 #force13="-tls1_3 -cipher TLS13-AES-128-GCM-SHA256 "
 
-$vgcmd $TOP/apps/openssl s_server $dbgstr $keyfile1 $keyfile2 $certsdb $portstr $force13 $esnistr $snicmd 
+# turn off esni general padding
+#nopad=" -noesnipad"
+
+$vgcmd $TOP/apps/openssl s_server $dbgstr $keyfile1 $keyfile2 $certsdb $portstr $force13 $esnistr $snicmd $nopad 
 
 
