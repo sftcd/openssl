@@ -23,7 +23,7 @@
 // for getopt()
 #include <getopt.h>
 
-#define BUFLEN 1024 ///< just for laughs, won't be that long
+#define MKESNIKEYS_BUFLEN 1024 ///< just for laughs, won't be that long
 
 /*
  * stdout version of esni_pbuf - just for odd/occasional debugging
@@ -258,9 +258,9 @@ static int mk_esnikeys(int argc, char **argv)
      *
      */
 
-    unsigned char bbuf[BUFLEN]; ///< binary buffer
+    unsigned char bbuf[MKESNIKEYS_BUFLEN]; ///< binary buffer
     unsigned char *bp=bbuf;
-    memset(bbuf,0,BUFLEN);
+    memset(bbuf,0,MKESNIKEYS_BUFLEN);
     *bp++=0xff; 
     *bp++=0x01;// version = 0xff01
     memset(bp,0,4); bp+=4; // space for checksum
