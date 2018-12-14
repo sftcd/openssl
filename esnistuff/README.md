@@ -36,6 +36,13 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- This is failing. It shouldn't :-)
+
+			$ ./testclient.sh -p 4000 -s localhost -n -c example.com -vd
+
+  I was being too strict in insisting on ``s->esni`` not being NULL.
+  Fixed.
+
 - Fixed ``s_server`` server-name call back some, so I can start to test
   resumption.
 
