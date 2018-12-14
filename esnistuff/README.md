@@ -36,6 +36,9 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- Fixed ``s_server`` server-name call back some, so I can start to test
+  resumption.
+
 - Adding ``s_server`` code to make padding more specific to h/s messages
   via callback. Callback part is done and seems to work. Added a command
   line arg.
@@ -290,14 +293,24 @@ I'm sure there's more but some collected so far:
 
 - Figure out/test resumption cases.
 - Server API for managing ESNI public/private values w/o restart.
-- Server-side policy: should server have a concept of "only visible via ESNI"? E.g. some server certs might only ever be used when asked-for via ESNI.
-- Server-side policy: Various combinations of existing/non-existing SNI/ESNI and how to handle 'em.
-- What do we want/need to do to support the split backend approach? (separate fronting server from hosting server)
+- Server-side policy: should server have a concept of "only visible via ESNI"?
+  E.g. some server certs might only ever be used when asked-for via ESNI.
+- Server-side policy: Various combinations of existing/non-existing SNI/ESNI
+  and how to handle 'em.
+- What do we want/need to do to support the split backend approach? (separate
+  fronting server from hosting server)
 - Integration with apache/nginx/wget/curl
-- Do we (really;-) need to deal with notbefore and notafter dates? It's a horrible source of x.509 problems, so skipped in this code for now.
+- Do we (really;-) need to deal with notbefore and notafter dates? It's a
+  horrible source of x.509 problems, so skipped in this code for now.
 - Adding/moving tests to the OpenSSL test suites
-- Continuous integration for these patches that aim to keep the patch series current against OpenSSL master as it evolves
-- Handling this on different platforms (my ``esnikeydir`` handling in ``s_server`` may be a bit non-portable)
-- AFAIK, nobody's tested different curves/algorithms/ciphersuites - code should be alg. agile but who knows.
+- Continuous integration for these patches that aim to keep the patch series
+  current against OpenSSL master as it evolves
+- Handling this on different platforms (my ``esnikeydir`` handling in
+  ``s_server`` may be a bit non-portable)
+- AFAIK, nobody's tested different curves/algorithms/ciphersuites - code should
+  be alg. agile but who knows.
+- Once we've integrated with some real client/server test the effect of our
+  crude padding scheme.
 - Maybe move the above to issues in github.
+
 
