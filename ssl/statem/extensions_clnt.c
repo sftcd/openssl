@@ -72,10 +72,7 @@ static EXT_RETURN esni_server_name_fixup(SSL *s, WPACKET *pkt,
                  ERR_R_INTERNAL_ERROR);
             return EXT_RETURN_FAIL;
         }
-    } else {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_SERVER_NAME,
-                 ERR_R_INTERNAL_ERROR);
-	}
+    } 
     return EXT_RETURN_SENT;
 }
 #endif // END_OPENSSL_NO_ESNI
