@@ -11,7 +11,7 @@
 </thead>
 <tbody>
 <tr>
-	<td><code>define</code><a href="#mk__esnikeys_8c_1ad974fe981249f5e84fbf1683b012c9f8"><code>BUFLEN</code></a></td>
+	<td><code>define</code><a href="#mk__esnikeys_8c_1a78e53e10a406675eace5e343d94db19f"><code>MKESNIKEYS_BUFLEN</code></a></td>
 	<td>just for laughs, won't be that long</td>
 </tr>
 <tr>
@@ -69,6 +69,22 @@
 <tr>
 	<td><code>define</code><a href="#esnierr_8h_1aeb72e4451595e51885c8192c3c06e870"><code>ESNI_R_NOT_IMPL</code></a></td>
 	<td> </td>
+</tr>
+<tr>
+	<td><code>define</code><a href="#esni_8c_1a706a8b9ec3b00f59d60711d623c90d74"><code>ESNI_DEFAULT_PADDED</code></a></td>
+	<td>File: esni.c - the core implementation of drat-ietf-tls-esni-02 Author: <a href="mailto:stephen.farrell@cs.tcd.ie">stephen.farrell@cs.tcd.ie</a> Date: 2018 December-ish.</td>
+</tr>
+<tr>
+	<td><code>public static unsigned int</code><a href="#s__client_8c_1ae008482292dac8e7973f123dcea9324e"><code>esni_cb</code></a><code>(SSL * s,int index)</code></td>
+	<td> </td>
+</tr>
+<tr>
+	<td><code>public static unsigned int</code><a href="#s__server_8c_1ae008482292dac8e7973f123dcea9324e"><code>esni_cb</code></a><code>(SSL * s,int index)</code></td>
+	<td>print an ESNI structure</td>
+</tr>
+<tr>
+	<td><code>public static size_t</code><a href="#s__server_8c_1a2deb1d25456628e166cb5fbaa8f11bbf"><code>esni_padding_cb</code></a><code>(SSL * s,int type,size_t len,void * arg)</code></td>
+	<td>@ brief pad Certificate and CertificateVerify messages</td>
 </tr>
 <tr>
 	<td><code>public int</code><a href="#esnierr_8c_1ab6db8c60b35aacaa03550e6d9d9c2099"><code>ERR_load_ESNI_strings</code></a><code>(void)</code></td>
@@ -164,7 +180,7 @@
 </tr>
 <tr>
 	<td><code>public static uint64_t</code><a href="#esni_8c_1a83d195ea944e970d225ac1554c88c3d4"><code>uint64_from_bytes</code></a><code>(unsigned char * buf)</code></td>
-	<td>File: esni.c - the core implementation of drat-ietf-tls-esni-02 Author: <a href="mailto:stephen.farrell@cs.tcd.ie">stephen.farrell@cs.tcd.ie</a> Date: 2018 December-ish.</td>
+	<td>map 8 bytes in n/w byte order from PACKET to a 64-bit time value</td>
 </tr>
 <tr>
 	<td><code>public static int</code><a href="#esni_8c_1a64c9d65c28e852557b2ac325335c6a83"><code>esni_base64_decode</code></a><code>(const char * in,unsigned char ** out)</code></td>
@@ -331,6 +347,10 @@
 	<td>What we send in the esni CH extension:</td>
 </tr>
 <tr>
+	<td><code>struct</code><a href="#structesni__padding__sizes"><code>esni_padding_sizes</code></a></td>
+	<td>Padding size info.</td>
+</tr>
+<tr>
 	<td><code>struct</code><a href="#structesni__record__st"><code>esni_record_st</code></a></td>
 	<td>Representation of what goes in DNS.</td>
 </tr>
@@ -343,9 +363,9 @@
 
 <h2 id="members">Members</h2>
 
-<p id="mk__esnikeys_8c_1ad974fe981249f5e84fbf1683b012c9f8"><hr></p>
+<p id="mk__esnikeys_8c_1a78e53e10a406675eace5e343d94db19f"><hr></p>
 
-<h4 id="definebuflenmk__esnikeys_8c_1ad974fe981249f5e84fbf1683b012c9f8"><code>define</code><a href="#mk__esnikeys_8c_1ad974fe981249f5e84fbf1683b012c9f8"><code>BUFLEN</code></a></h4>
+<h4 id="definemkesnikeys_buflenmk__esnikeys_8c_1a78e53e10a406675eace5e343d94db19f"><code>define</code><a href="#mk__esnikeys_8c_1a78e53e10a406675eace5e343d94db19f"><code>MKESNIKEYS_BUFLEN</code></a></h4>
 
 <p>just for laughs, won't be that long</p>
 
@@ -414,6 +434,44 @@
 <p id="esnierr_8h_1aeb72e4451595e51885c8192c3c06e870"><hr></p>
 
 <h4 id="defineesni_r_not_implesnierr_8h_1aeb72e4451595e51885c8192c3c06e870"><code>define</code><a href="#esnierr_8h_1aeb72e4451595e51885c8192c3c06e870"><code>ESNI_R_NOT_IMPL</code></a></h4>
+
+<p id="esni_8c_1a706a8b9ec3b00f59d60711d623c90d74"><hr></p>
+
+<h4 id="defineesni_default_paddedesni_8c_1a706a8b9ec3b00f59d60711d623c90d74"><code>define</code><a href="#esni_8c_1a706a8b9ec3b00f59d60711d623c90d74"><code>ESNI_DEFAULT_PADDED</code></a></h4>
+
+<p>File: esni.c - the core implementation of drat-ietf-tls-esni-02 Author: <a href="mailto:stephen.farrell@cs.tcd.ie">stephen.farrell@cs.tcd.ie</a> Date: 2018 December-ish.</p>
+
+<p>Handle padding - the server needs to do padding in case the certificate/key-size exposes the ESNI. But so can lots of the other application interactions, so to be at least a bit cautious, we'll also pad the crap out of everything on the client side (at least to see what happens:-) This could be over-ridden by the client appication if it wants by setting a callback via SSL_set_record_padding_callback We'll try set to 486 bytes, so that 3 plaintexts are likely to fit in a 1500 byte MTU. (That's a pretty arbitrary decision:-) TODO: test and see how this padding affects a real application as soon as we've integrated with oneWe'll pad all TLS plaintext to this size</p>
+
+<p id="s__client_8c_1ae008482292dac8e7973f123dcea9324e"><hr></p>
+
+<h4 id="publicstaticunsignedintesni_cbs__client_8c_1ae008482292dac8e7973f123dcea9324esslsintindex"><code>public static unsigned int</code><a href="#s__client_8c_1ae008482292dac8e7973f123dcea9324e"><code>esni_cb</code></a><code>(SSL * s,int index)</code></h4>
+
+<p id="s__server_8c_1ae008482292dac8e7973f123dcea9324e"><hr></p>
+
+<h4 id="publicstaticunsignedintesni_cbs__server_8c_1ae008482292dac8e7973f123dcea9324esslsintindex"><code>public static unsigned int</code><a href="#s__server_8c_1ae008482292dac8e7973f123dcea9324e"><code>esni_cb</code></a><code>(SSL * s,int index)</code></h4>
+
+<p>print an ESNI structure</p>
+
+<p id="s__server_8c_1a2deb1d25456628e166cb5fbaa8f11bbf"><hr></p>
+
+<h4 id="publicstaticsize_tesni_padding_cbs__server_8c_1a2deb1d25456628e166cb5fbaa8f11bbfsslsinttypesize_tlenvoidarg"><code>public static size_t</code><a href="#s__server_8c_1a2deb1d25456628e166cb5fbaa8f11bbf"><code>esni_padding_cb</code></a><code>(SSL * s,int type,size_t len,void * arg)</code></h4>
+
+<p>@ brief pad Certificate and CertificateVerify messages</p>
+
+<p>This is passed to SSL_CTX_set_record_padding_callback and pads the Certificate and CertificateVerify handshake messages to a size derived from the argument arg</p>
+
+<h4 id="parameters">Parameters</h4>
+
+<ul>
+<li><p><code>s</code> is the SSL connection </p></li>
+<li><p><code>len</code> is the plaintext length before padding </p></li>
+<li><p><code>arg</code> is a pointer to an <a href="#structesni__padding__sizes">esni_padding_sizes</a> struct </p></li>
+</ul>
+
+<h4 id="returns">Returns</h4>
+
+<p>is the number of bytes of padding to add to the plaintext</p>
 
 <p id="esnierr_8c_1ab6db8c60b35aacaa03550e6d9d9c2099"><hr></p>
 
@@ -844,8 +902,6 @@
 <p id="esni_8c_1a83d195ea944e970d225ac1554c88c3d4"><hr></p>
 
 <h4 id="publicstaticuint64_tuint64_from_bytesesni_8c_1a83d195ea944e970d225ac1554c88c3d4unsignedcharbuf"><code>public static uint64_t</code><a href="#esni_8c_1a83d195ea944e970d225ac1554c88c3d4"><code>uint64_from_bytes</code></a><code>(unsigned char * buf)</code></h4>
-
-<p>File: esni.c - the core implementation of drat-ietf-tls-esni-02 Author: <a href="mailto:stephen.farrell@cs.tcd.ie">stephen.farrell@cs.tcd.ie</a> Date: 2018 December-ish.</p>
 
 <p>map 8 bytes in n/w byte order from PACKET to a 64-bit time value</p>
 
@@ -1533,6 +1589,49 @@
 <p id="structclient__esni__st_1aafe13f76c23f8743e110c116eaaed174"><hr></p>
 
 <h4 id="publicunsignedcharencrypted_snistructclient__esni__st_1aafe13f76c23f8743e110c116eaaed174"><code>public unsigned char *</code><a href="#structclient__esni__st_1aafe13f76c23f8743e110c116eaaed174"><code>encrypted_sni</code></a></h4>
+
+<p id="structesni__padding__sizes"><hr></p>
+
+<h1 id="structesni_padding_sizes">struct <code>esni_padding_sizes</code></h1>
+
+<p>Padding size info.</p>
+
+<h2 id="summary">Summary</h2>
+
+<table>
+<col />
+<col />
+<thead>
+<tr>
+	<th>Members</th>
+	<th>Descriptions</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+	<td><code>public size_t</code><a href="#structesni__padding__sizes_1a8ea988832a757092b11f1b2d6acc8d98"><code>certpad</code></a></td>
+	<td>Certificate messages to be a multiple of this size.</td>
+</tr>
+<tr>
+	<td><code>public size_t</code><a href="#structesni__padding__sizes_1ae573edaa1c0c0f2fc7aea357d606b83a"><code>certverifypad</code></a></td>
+	<td>CertificateVerify messages to be a multiple of this size.</td>
+</tr>
+</tbody>
+</table>
+
+<h2 id="members">Members</h2>
+
+<p id="structesni__padding__sizes_1a8ea988832a757092b11f1b2d6acc8d98"><hr></p>
+
+<h4 id="publicsize_tcertpadstructesni__padding__sizes_1a8ea988832a757092b11f1b2d6acc8d98"><code>public size_t</code><a href="#structesni__padding__sizes_1a8ea988832a757092b11f1b2d6acc8d98"><code>certpad</code></a></h4>
+
+<p>Certificate messages to be a multiple of this size.</p>
+
+<p id="structesni__padding__sizes_1ae573edaa1c0c0f2fc7aea357d606b83a"><hr></p>
+
+<h4 id="publicsize_tcertverifypadstructesni__padding__sizes_1ae573edaa1c0c0f2fc7aea357d606b83a"><code>public size_t</code><a href="#structesni__padding__sizes_1ae573edaa1c0c0f2fc7aea357d606b83a"><code>certverifypad</code></a></h4>
+
+<p>CertificateVerify messages to be a multiple of this size.</p>
 
 <p id="structesni__record__st"><hr></p>
 

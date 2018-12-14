@@ -2,7 +2,7 @@
 
  Members                        | Descriptions                                
 --------------------------------|---------------------------------------------
-`define `[`BUFLEN`](#mk__esnikeys_8c_1ad974fe981249f5e84fbf1683b012c9f8)            | just for laughs, won't be that long
+`define `[`MKESNIKEYS_BUFLEN`](#mk__esnikeys_8c_1a78e53e10a406675eace5e343d94db19f)            | just for laughs, won't be that long
 `define `[`SSL_ESNI_STATUS_SUCCESS`](#esni_8h_1a6a4d94b18577a453e7ca65273c75b110)            | Success.
 `define `[`SSL_ESNI_STATUS_FAILED`](#esni_8h_1aff48e6059acca5bd4a3f9f2a926e9ffd)            | Some internal error.
 `define `[`SSL_ESNI_STATUS_BAD_CALL`](#esni_8h_1a182a797bad43060760194c701c882fd0)            | Required in/out arguments were NULL.
@@ -17,6 +17,10 @@
 `define `[`ESNI_R_BASE64_DECODE_ERROR`](#esnierr_8h_1a1c13aa91c93bd84f1f92101ddb9bc9eb)            | 
 `define `[`ESNI_R_RR_DECODE_ERROR`](#esnierr_8h_1acc748e3e2af6dc12fead035b479c221f)            | 
 `define `[`ESNI_R_NOT_IMPL`](#esnierr_8h_1aeb72e4451595e51885c8192c3c06e870)            | 
+`define `[`ESNI_DEFAULT_PADDED`](#esni_8c_1a706a8b9ec3b00f59d60711d623c90d74)            | File: esni.c - the core implementation of drat-ietf-tls-esni-02 Author: [stephen.farrell@cs.tcd.ie](mailto:stephen.farrell@cs.tcd.ie) Date: 2018 December-ish.
+`public static unsigned int `[`esni_cb`](#s__client_8c_1ae008482292dac8e7973f123dcea9324e)`(SSL * s,int index)`            | 
+`public static unsigned int `[`esni_cb`](#s__server_8c_1ae008482292dac8e7973f123dcea9324e)`(SSL * s,int index)`            | print an ESNI structure
+`public static size_t `[`esni_padding_cb`](#s__server_8c_1a2deb1d25456628e166cb5fbaa8f11bbf)`(SSL * s,int type,size_t len,void * arg)`            | @ brief pad Certificate and CertificateVerify messages
 `public int `[`ERR_load_ESNI_strings`](#esnierr_8c_1ab6db8c60b35aacaa03550e6d9d9c2099)`(void)`            | Load strings into tables.
 `public static void `[`so_esni_pbuf`](#mk__esnikeys_8c_1ae1bab08e2b36301f0c81f27d7ffb006b)`(char * msg,unsigned char * buf,size_t blen,int indent)`            | 
 `public static int `[`esni_checksum_gen`](#mk__esnikeys_8c_1a32ec581cbe2fef728eca2951e596d25f)`(unsigned char * buf,size_t buf_len,unsigned char cksum)`            | generate the SHA256 checksum that should be in the DNS record
@@ -40,7 +44,7 @@
 `public int `[`SSL_ESNI_set_private`](#esni_8h_1a8df1af022d25fc0f7e72683b0bd4667f)`(`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * esni,char * private_str)`            | Allows caller to set the ECDH private value for ESNI.
 `public int `[`SSL_ESNI_set_nonce`](#esni_8h_1a0f48da79909334acee7b24dec440eb4c)`(`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * esni,unsigned char * nonce,size_t nlen)`            | Allows caller to set the nonce value for ESNI.
 `public int `[`ERR_load_ESNI_strings`](#esnierr_8h_1ab6db8c60b35aacaa03550e6d9d9c2099)`(void)`            | Load strings into tables.
-`public static uint64_t `[`uint64_from_bytes`](#esni_8c_1a83d195ea944e970d225ac1554c88c3d4)`(unsigned char * buf)`            | File: esni.c - the core implementation of drat-ietf-tls-esni-02 Author: [stephen.farrell@cs.tcd.ie](mailto:stephen.farrell@cs.tcd.ie) Date: 2018 December-ish.
+`public static uint64_t `[`uint64_from_bytes`](#esni_8c_1a83d195ea944e970d225ac1554c88c3d4)`(unsigned char * buf)`            | map 8 bytes in n/w byte order from PACKET to a 64-bit time value
 `public static int `[`esni_base64_decode`](#esni_8c_1a64c9d65c28e852557b2ac325335c6a83)`(const char * in,unsigned char ** out)`            | Decode from TXT RR to binary buffer.
 `public static const SSL_CIPHER * `[`cs2sc`](#esni_8c_1a45c16ecbc68d6567bf9d4ef58bfdb46f)`(uint16_t ciphersuite)`            | 
 `public void `[`ESNI_RECORD_free`](#esni_8c_1a2af97ba7f8ebc58e04391bc845f21811)`(`[`ESNI_RECORD`](#esni_8h_1ab29e08d24d0eac604e0d6783dfbf1758)` * er)`            | Free up an ENSI_RECORD.
@@ -82,14 +86,15 @@
 `public int `[`tls_parse_ctos_esni`](#extensions__srvr_8c_1a4a75b5940e39e1b5da10aefc8ed0ac69)`(SSL * s,PACKET * pkt,unsigned int context,X509 * x,size_t chainidx)`            | Decodes inbound ESNI extension into SSL_ESNI structure.
 `public EXT_RETURN `[`tls_construct_stoc_esni`](#extensions__srvr_8c_1ae56ce4660abc014b273c5f743bc3eb63)`(SSL * s,WPACKET * pkt,unsigned int context,X509 * x,size_t chainidx)`            | If ESNI all went well, and we have a nonce then send that back.
 `struct `[`client_esni_st`](#structclient__esni__st) | What we send in the esni CH extension:
+`struct `[`esni_padding_sizes`](#structesni__padding__sizes) | Padding size info.
 `struct `[`esni_record_st`](#structesni__record__st) | Representation of what goes in DNS.
 `struct `[`ssl_esni_st`](#structssl__esni__st) | The ESNI data structure that's part of the SSL structure.
 
 ## Members
 
-<p id="mk__esnikeys_8c_1ad974fe981249f5e84fbf1683b012c9f8"><hr></p>
+<p id="mk__esnikeys_8c_1a78e53e10a406675eace5e343d94db19f"><hr></p>
 
-#### `define `[`BUFLEN`](#mk__esnikeys_8c_1ad974fe981249f5e84fbf1683b012c9f8) 
+#### `define `[`MKESNIKEYS_BUFLEN`](#mk__esnikeys_8c_1a78e53e10a406675eace5e343d94db19f) 
 
 just for laughs, won't be that long
 
@@ -158,6 +163,42 @@ ESNI succeeded but the TLS server cert used didn't match the hidden service name
 <p id="esnierr_8h_1aeb72e4451595e51885c8192c3c06e870"><hr></p>
 
 #### `define `[`ESNI_R_NOT_IMPL`](#esnierr_8h_1aeb72e4451595e51885c8192c3c06e870) 
+
+<p id="esni_8c_1a706a8b9ec3b00f59d60711d623c90d74"><hr></p>
+
+#### `define `[`ESNI_DEFAULT_PADDED`](#esni_8c_1a706a8b9ec3b00f59d60711d623c90d74) 
+
+File: esni.c - the core implementation of drat-ietf-tls-esni-02 Author: [stephen.farrell@cs.tcd.ie](mailto:stephen.farrell@cs.tcd.ie) Date: 2018 December-ish.
+
+Handle padding - the server needs to do padding in case the certificate/key-size exposes the ESNI. But so can lots of the other application interactions, so to be at least a bit cautious, we'll also pad the crap out of everything on the client side (at least to see what happens:-) This could be over-ridden by the client appication if it wants by setting a callback via SSL_set_record_padding_callback We'll try set to 486 bytes, so that 3 plaintexts are likely to fit in a 1500 byte MTU. (That's a pretty arbitrary decision:-) TODO: test and see how this padding affects a real application as soon as we've integrated with oneWe'll pad all TLS plaintext to this size
+
+<p id="s__client_8c_1ae008482292dac8e7973f123dcea9324e"><hr></p>
+
+#### `public static unsigned int `[`esni_cb`](#s__client_8c_1ae008482292dac8e7973f123dcea9324e)`(SSL * s,int index)` 
+
+<p id="s__server_8c_1ae008482292dac8e7973f123dcea9324e"><hr></p>
+
+#### `public static unsigned int `[`esni_cb`](#s__server_8c_1ae008482292dac8e7973f123dcea9324e)`(SSL * s,int index)` 
+
+print an ESNI structure
+
+<p id="s__server_8c_1a2deb1d25456628e166cb5fbaa8f11bbf"><hr></p>
+
+#### `public static size_t `[`esni_padding_cb`](#s__server_8c_1a2deb1d25456628e166cb5fbaa8f11bbf)`(SSL * s,int type,size_t len,void * arg)` 
+
+@ brief pad Certificate and CertificateVerify messages
+
+This is passed to SSL_CTX_set_record_padding_callback and pads the Certificate and CertificateVerify handshake messages to a size derived from the argument arg
+
+#### Parameters
+* `s` is the SSL connection 
+
+* `len` is the plaintext length before padding 
+
+* `arg` is a pointer to an [esni_padding_sizes](#structesni__padding__sizes) struct 
+
+#### Returns
+is the number of bytes of padding to add to the plaintext
 
 <p id="esnierr_8c_1ab6db8c60b35aacaa03550e6d9d9c2099"><hr></p>
 
@@ -539,8 +580,6 @@ Load strings into tables.
 <p id="esni_8c_1a83d195ea944e970d225ac1554c88c3d4"><hr></p>
 
 #### `public static uint64_t `[`uint64_from_bytes`](#esni_8c_1a83d195ea944e970d225ac1554c88c3d4)`(unsigned char * buf)` 
-
-File: esni.c - the core implementation of drat-ietf-tls-esni-02 Author: [stephen.farrell@cs.tcd.ie](mailto:stephen.farrell@cs.tcd.ie) Date: 2018 December-ish.
 
 map 8 bytes in n/w byte order from PACKET to a 64-bit time value
 
@@ -1128,6 +1167,33 @@ Fields encoded in extension, these are copies, (not malloc'd) of pointers elsewh
 <p id="structclient__esni__st_1aafe13f76c23f8743e110c116eaaed174"><hr></p>
 
 #### `public unsigned char * `[`encrypted_sni`](#structclient__esni__st_1aafe13f76c23f8743e110c116eaaed174) 
+
+<p id="structesni__padding__sizes"><hr></p>
+
+# struct `esni_padding_sizes` 
+
+Padding size info.
+
+## Summary
+
+ Members                        | Descriptions                                
+--------------------------------|---------------------------------------------
+`public size_t `[`certpad`](#structesni__padding__sizes_1a8ea988832a757092b11f1b2d6acc8d98) | Certificate messages to be a multiple of this size.
+`public size_t `[`certverifypad`](#structesni__padding__sizes_1ae573edaa1c0c0f2fc7aea357d606b83a) | CertificateVerify messages to be a multiple of this size.
+
+## Members
+
+<p id="structesni__padding__sizes_1a8ea988832a757092b11f1b2d6acc8d98"><hr></p>
+
+#### `public size_t `[`certpad`](#structesni__padding__sizes_1a8ea988832a757092b11f1b2d6acc8d98) 
+
+Certificate messages to be a multiple of this size.
+
+<p id="structesni__padding__sizes_1ae573edaa1c0c0f2fc7aea357d606b83a"><hr></p>
+
+#### `public size_t `[`certverifypad`](#structesni__padding__sizes_1ae573edaa1c0c0f2fc7aea357d606b83a) 
+
+CertificateVerify messages to be a multiple of this size.
 
 <p id="structesni__record__st"><hr></p>
 

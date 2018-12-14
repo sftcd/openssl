@@ -103,24 +103,16 @@ project, but should be helpful for now.
   length of handshake messages.
   Our subtle goal would be to pad to the longest cert length as described 
   in the I-D. The cert-verify message however can also need padding if key lengths differ.
-  (Raise an issue with the draft for that.)
-  For now, Our super-crude padding scheme just calls the existing openssl padding ``SSL_CTX_set_block_padding``
-  with a size of 512 bytes, which should mask some lengths. That call is made
-  from ``SSL_esni_server_enable``. The effect of that
-  is to pad up all server record plaintexts to a multiple of 512 bytes, so
+  For now, Our super-crude default padding scheme just calls the existing openssl padding ``SSL_CTX_set_block_padding``
+  with a size of 486 bytes, which should mask some lengths. Those calls are made
+  from ``SSL_esni_server_enable`` and ``SSL_esni_enable``. The effect of that
+  is to pad up all server record plaintexts to a multiple of 486 bytes, so
   it's ineffecient and could expose some information if we're unlucky with
-  length boundaries. To do better an application could try use ``SSL_CTX_set_record_padding_callback``
-  which'd tells it if its dealing with a handshake, alert or application data but
-  which (I don't believe) will tell us which h/s message we're padding.
-  A server application could define such a callback itself, which'd override
-  the usual behaviour of ``SSL_esni_server_enable`` so maybe our crude
-  idea is actually ok for now.
-- Just to see how it goes, I've also added the same 512-byte padding setup to
-  the client-side (via ``SSL_esni_enable``). That's pretty inefficient
-  really, but OTOH still likely to fit most stuff in 1 packet so maybe
-  not so bad. (And can be over-ridden by application again.)
-- Currently part-done on more specific padding option in ``s_server`` via
-  callback.
+  length boundaries. To do better ``s_server`` has a command line argument
+  (``esnispecificpad``) 
+  telling it to only pad Certificate and CertificateVerify messages. 
+  TODO: test how this affects a real application, once we have one
+  integrated.
 
 ## Plans
 
@@ -338,11 +330,16 @@ I added new command line arguments as follows:
 - ``esnikey`` the private key filename for ESNI
 - ``esnipub`` the name of the file containing the binary form of the corresponding ESNIKeys 
 - ``esnidir`` the name of a directory containing pairs of the above
+- ``esnispecificpad`` choose ESNI specific, and not general, padding
 
 If ``esnikey`` and ``esnipub`` are set, we load those files.
 If (additionally, or instead) ``esnidir`` is set the we try load in
 all the pairs of matching ``<name>.priv`` and ``<name>.pub``
 files found in that directory.
+
+If ``esnispecificpad`` is set only the Certificate and CertificateVerity
+messages are padded, to a multiple of 2000 and 500 bytes respectively.
+Without this, we use our current default padding.
 
 When those are set, the following API calls ensue:
 

@@ -456,13 +456,13 @@ static int ebcdic_puts(BIO *bp, const char *str)
 }
 #endif
 
+// ESNI_DOXY_START
 #ifndef OPENSSL_NO_ESNI
 /**
  * @brief print an ESNI structure
  */
 static unsigned int esni_cb(SSL *s, int index)
 {
-    BIO_printf(bio_s_out,"esni_cb called\n");
     SSL_ESNI *esnistuff=NULL;
     int rv=SSL_ESNI_get_esni(s,&esnistuff);
     if (rv == 1 && esnistuff!=NULL) {
@@ -503,12 +503,10 @@ static size_t esni_padding_cb(SSL *s, int type, size_t len, void *arg)
 	int state=SSL_get_state(s);
 
 	if (state==TLS_ST_SW_CERT) {
-		printf("\n\n*****\n\nstate1: %d, cs: %zd, cvs: %zd\n",state,ps->certpad,ps->certverifypad);
 		size_t newlen=ps->certpad-(len%ps->certpad)-16;
 		return (newlen>0?newlen:0);
 	}
 	if (state==TLS_ST_SW_CERT_VRFY) {
-		printf("\n\n*****\n\nstate: %d, cs: %zd, cvs: %zd\n",state,ps->certpad,ps->certverifypad);
 		size_t newlen=ps->certverifypad-(len%ps->certverifypad)-16;
 		return (newlen>0?newlen:0);
 	}
@@ -516,6 +514,7 @@ static size_t esni_padding_cb(SSL *s, int type, size_t len, void *arg)
 }
 
 #endif
+// ESNI_DOXY_END
 
 /* This is a context that we pass to callbacks */
 typedef struct tlsextctx_st {
@@ -841,7 +840,7 @@ typedef enum OPTION_choice {
     OPT_KEYLOG_FILE, OPT_MAX_EARLY, OPT_RECV_MAX_EARLY, OPT_EARLY_DATA,
     OPT_S_NUM_TICKETS, OPT_ANTI_REPLAY, OPT_NO_ANTI_REPLAY,
 #ifndef OPENSSL_NO_ESNI
-    OPT_ESNIKEY, OPT_ESNIPUB, OPT_ESNIDIR, OPT_ESNINOPAD,
+    OPT_ESNIKEY, OPT_ESNIPUB, OPT_ESNIDIR, OPT_ESNISPECIFICPAD,
 #endif
     OPT_R_ENUM,
     OPT_S_ENUM,
@@ -1060,7 +1059,7 @@ const OPTIONS s_server_options[] = {
     {"esnikey", OPT_ESNIKEY, 's', "Load ESNI private key (and enable ESNI)"},
     {"esnipub", OPT_ESNIPUB, 's', "Load ESNI public key"},
     {"esnidir", OPT_ESNIDIR, 's', "ESNI information directory"},
-    {"noesnipad", OPT_ESNINOPAD, '-', "Do specific padding of Certificate/CertificateVerify (do general ESNI padding instead)"},
+    {"esnispecificpad", OPT_ESNISPECIFICPAD, '-', "Do specific padding of Certificate/CertificateVerify (instead of general padding all)"},
 #endif
     {NULL, OPT_EOF, 0, NULL}
 };
@@ -1148,7 +1147,7 @@ int s_server_main(int argc, char *argv[])
     char *esnikeyfile = NULL; 
     char *esnipubfile = NULL;
 	char *esnidir=NULL;
-	int noesnipad=0; ///< we default to generally padding to 512 octet multiples
+	int esnispecificpad=0; ///< we default to generally padding to 512 octet multiples
 #endif
 
     /* Init of few remaining global variables */
@@ -1699,8 +1698,8 @@ int s_server_main(int argc, char *argv[])
         case OPT_ESNIDIR:
             esnidir=opt_arg();
             break;
-		case OPT_ESNINOPAD:
-			noesnipad=1;
+		case OPT_ESNISPECIFICPAD:
+			esnispecificpad=1;
 			break;
 #endif
         }
@@ -2017,7 +2016,7 @@ int s_server_main(int argc, char *argv[])
 		/* 
 		 * Set padding sizes 
 		 */
-		if (noesnipad) {
+		if (esnispecificpad) {
 			esni_ps=OPENSSL_malloc(sizeof(esni_padding_sizes)); 
 			esni_ps->certpad=2000;
 			esni_ps->certverifypad=500;
