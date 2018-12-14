@@ -87,6 +87,10 @@
 	<td>@ brief pad Certificate and CertificateVerify messages</td>
 </tr>
 <tr>
+	<td><code>public static int</code><a href="#s__server_8c_1a454eca00c708c0f47fccc73616408b67"><code>ssl_esni_servername_cb</code></a><code>(SSL * s,int * ad,void * arg)</code></td>
+	<td>a servername_cb that is ESNI aware</td>
+</tr>
+<tr>
 	<td><code>public int</code><a href="#esnierr_8c_1ab6db8c60b35aacaa03550e6d9d9c2099"><code>ERR_load_ESNI_strings</code></a><code>(void)</code></td>
 	<td>Load strings into tables.</td>
 </tr>
@@ -472,6 +476,26 @@
 <h4 id="returns">Returns</h4>
 
 <p>is the number of bytes of padding to add to the plaintext</p>
+
+<p id="s__server_8c_1a454eca00c708c0f47fccc73616408b67"><hr></p>
+
+<h4 id="publicstaticintssl_esni_servername_cbs__server_8c_1a454eca00c708c0f47fccc73616408b67sslsintadvoidarg"><code>public static int</code><a href="#s__server_8c_1a454eca00c708c0f47fccc73616408b67"><code>ssl_esni_servername_cb</code></a><code>(SSL * s,int * ad,void * arg)</code></h4>
+
+<p>a servername_cb that is ESNI aware</p>
+
+<p>The COVER is the command line -servername But our ESNI is just named in the cert for the 2nd context (ctx2) and not on the command line. So we need to check if the supplied (E)SNI matches either and serve whichever is appropriate. X509_check_host is the way to do that, given an X509* pointer.</p>
+
+<h4 id="parameters">Parameters</h4>
+
+<ul>
+<li><p><code>s</code> is the SSL connection </p></li>
+<li><p><code>ad</code> is dunno </p></li>
+<li><p><code>arg</code> is a pointer to a tlsext </p></li>
+</ul>
+
+<h4 id="returns">Returns</h4>
+
+<p>1 or error</p>
 
 <p id="esnierr_8c_1ab6db8c60b35aacaa03550e6d9d9c2099"><hr></p>
 

@@ -21,6 +21,7 @@
 `public static unsigned int `[`esni_cb`](#s__client_8c_1ae008482292dac8e7973f123dcea9324e)`(SSL * s,int index)`            | 
 `public static unsigned int `[`esni_cb`](#s__server_8c_1ae008482292dac8e7973f123dcea9324e)`(SSL * s,int index)`            | print an ESNI structure
 `public static size_t `[`esni_padding_cb`](#s__server_8c_1a2deb1d25456628e166cb5fbaa8f11bbf)`(SSL * s,int type,size_t len,void * arg)`            | @ brief pad Certificate and CertificateVerify messages
+`public static int `[`ssl_esni_servername_cb`](#s__server_8c_1a454eca00c708c0f47fccc73616408b67)`(SSL * s,int * ad,void * arg)`            | a servername_cb that is ESNI aware
 `public int `[`ERR_load_ESNI_strings`](#esnierr_8c_1ab6db8c60b35aacaa03550e6d9d9c2099)`(void)`            | Load strings into tables.
 `public static void `[`so_esni_pbuf`](#mk__esnikeys_8c_1ae1bab08e2b36301f0c81f27d7ffb006b)`(char * msg,unsigned char * buf,size_t blen,int indent)`            | 
 `public static int `[`esni_checksum_gen`](#mk__esnikeys_8c_1a32ec581cbe2fef728eca2951e596d25f)`(unsigned char * buf,size_t buf_len,unsigned char cksum)`            | generate the SHA256 checksum that should be in the DNS record
@@ -199,6 +200,24 @@ This is passed to SSL_CTX_set_record_padding_callback and pads the Certificate a
 
 #### Returns
 is the number of bytes of padding to add to the plaintext
+
+<p id="s__server_8c_1a454eca00c708c0f47fccc73616408b67"><hr></p>
+
+#### `public static int `[`ssl_esni_servername_cb`](#s__server_8c_1a454eca00c708c0f47fccc73616408b67)`(SSL * s,int * ad,void * arg)` 
+
+a servername_cb that is ESNI aware
+
+The COVER is the command line -servername But our ESNI is just named in the cert for the 2nd context (ctx2) and not on the command line. So we need to check if the supplied (E)SNI matches either and serve whichever is appropriate. X509_check_host is the way to do that, given an X509* pointer.
+
+#### Parameters
+* `s` is the SSL connection 
+
+* `ad` is dunno 
+
+* `arg` is a pointer to a tlsext 
+
+#### Returns
+1 or error
 
 <p id="esnierr_8c_1ab6db8c60b35aacaa03550e6d9d9c2099"><hr></p>
 

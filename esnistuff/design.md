@@ -103,7 +103,7 @@ project, but should be helpful for now.
   length of handshake messages.
   Our subtle goal would be to pad to the longest cert length as described 
   in the I-D. The cert-verify message however can also need padding if key lengths differ.
-  For now, Our super-crude default padding scheme just calls the existing openssl padding ``SSL_CTX_set_block_padding``
+  For now, our super-crude default padding scheme just calls the existing openssl padding ``SSL_CTX_set_block_padding``
   with a size of 486 bytes, which should mask some lengths. Those calls are made
   from ``SSL_esni_server_enable`` and ``SSL_esni_enable``. The effect of that
   is to pad up all server record plaintexts to a multiple of 486 bytes, so
@@ -139,7 +139,7 @@ ESNI.
 We've some notes on our [extension and ``SSL_CTX``](#extension-and-ssl_ctx-handling) handling.
 
 
-There're also a few notes about future [testing](#testing).
+There're also a few notes about [testing](#testing).
 
 Lastly, we note the [files](#file-changes) that are new, or modified.
 
@@ -706,7 +706,7 @@ information in both.
 
 ### Make TLS server certs/keys
 
-Easy-peasy (if it work:-) ...
+Easy-peasy (if it works:-) ...
 
 			$ cd $HOME/code/openssl # or wherever you put this, but scripts assume here
 			$ ./config

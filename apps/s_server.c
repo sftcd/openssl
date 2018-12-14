@@ -456,6 +456,16 @@ static int ebcdic_puts(BIO *bp, const char *str)
 }
 #endif
 
+/* This is a context that we pass to callbacks */
+typedef struct tlsextctx_st {
+    char *servername;
+    BIO *biodebug;
+    int extension_error;
+#ifndef OPENSSL_NO_ESNI
+    X509* scert;
+#endif
+} tlsextctx;
+
 // ESNI_DOXY_START
 #ifndef OPENSSL_NO_ESNI
 /**
@@ -475,8 +485,8 @@ static unsigned int esni_cb(SSL *s, int index)
  * Padding size info
  */
 typedef struct {
-	size_t certpad; ///< Certificate messages to be a multiple of this size
-	size_t certverifypad; ///< CertificateVerify messages to be a multiple of this size
+    size_t certpad; ///< Certificate messages to be a multiple of this size
+    size_t certverifypad; ///< CertificateVerify messages to be a multiple of this size
 } esni_padding_sizes;
 
 /**
@@ -498,31 +508,99 @@ esni_padding_sizes *esni_ps=NULL;
  */
 static size_t esni_padding_cb(SSL *s, int type, size_t len, void *arg)
 {
-	/* hard coded for now*/
-	esni_padding_sizes *ps=(esni_padding_sizes*)arg;
-	int state=SSL_get_state(s);
+    /* hard coded for now*/
+    esni_padding_sizes *ps=(esni_padding_sizes*)arg;
+    int state=SSL_get_state(s);
 
-	if (state==TLS_ST_SW_CERT) {
-		size_t newlen=ps->certpad-(len%ps->certpad)-16;
-		return (newlen>0?newlen:0);
-	}
-	if (state==TLS_ST_SW_CERT_VRFY) {
-		size_t newlen=ps->certverifypad-(len%ps->certverifypad)-16;
-		return (newlen>0?newlen:0);
-	}
-	return 0;
+    if (state==TLS_ST_SW_CERT) {
+        size_t newlen=ps->certpad-(len%ps->certpad)-16;
+        return (newlen>0?newlen:0);
+    }
+    if (state==TLS_ST_SW_CERT_VRFY) {
+        size_t newlen=ps->certverifypad-(len%ps->certverifypad)-16;
+        return (newlen>0?newlen:0);
+    }
+    return 0;
 }
 
+/**
+ * @brief a servername_cb that is ESNI aware
+ *
+ * The COVER is the command line -servername
+ * But our ESNI is just named in the cert for the 2nd context (ctx2) 
+ * and not on the command line.
+ * So we need to check if the supplied (E)SNI matches either and
+ * serve whichever is appropriate.
+ * X509_check_host is the way to do that, given an X509* pointer.
+ *
+ * @param s is the SSL connection
+ * @param ad is dunno
+ * @param arg is a pointer to a tlsext
+ * @return 1 or error
+ */
+static int ssl_esni_servername_cb(SSL *s, int *ad, void *arg)
+{
+    tlsextctx *p = (tlsextctx *) arg;
+    const char *servername = SSL_get_servername(s, TLSEXT_NAMETYPE_host_name);
+
+    if (servername != NULL && p->biodebug != NULL) {
+        const char *cp = servername;
+        unsigned char uc;
+
+        BIO_printf(p->biodebug, "Hostname in TLS extension: \"");
+        while ((uc = *cp++) != 0)
+            BIO_printf(p->biodebug,
+                       isascii(uc) && isprint(uc) ? "%c" : "\\x%02x", uc);
+        BIO_printf(p->biodebug, "\"\n");
+        if (p->servername!=NULL) {
+            BIO_printf(p->biodebug, "ESNI covername: %s\n",p->servername);
+        } else {
+            BIO_printf(p->biodebug, "ESNI covername is NULL\n");
+        }
+        if (p->scert == NULL ) {
+            BIO_printf(p->biodebug, "No 2nd cert! Things likely won't go well:-)\n");
+        }
+    }
+
+    if (p->servername == NULL)
+        return SSL_TLSEXT_ERR_NOACK;
+
+    if (p->scert == NULL )
+        return SSL_TLSEXT_ERR_NOACK;
+
+    if (servername != NULL) {
+        if (ctx2 != NULL) {
+            /*
+             * TODO: Check if strlen is really safe here - think it should be as
+             * SSL_ESNI_dec will have checked there are no embeded NUL bytes but
+             * make sure.
+             */
+            int mrv=X509_check_host(p->scert,servername,strlen(servername),0,NULL);
+            if (mrv==1) {
+                if (p->biodebug!=NULL) {
+                     BIO_printf(p->biodebug, "Switching context.\n");
+                }
+                SSL_set_SSL_CTX(s, ctx2);
+            } else {
+                if (p->biodebug!=NULL) {
+                     BIO_printf(p->biodebug, "Not switching context - no name match (%d).\n",mrv);
+                }
+            }
+        }
+    } 
+
+    return SSL_TLSEXT_ERR_OK;
+
+}
 #endif
 // ESNI_DOXY_END
 
-/* This is a context that we pass to callbacks */
-typedef struct tlsextctx_st {
-    char *servername;
-    BIO *biodebug;
-    int extension_error;
-} tlsextctx;
 
+#ifndef OPENSSL_NO_ESNI
+     /*
+     * Just to avoid a warning that the #else function here isn't used
+     */
+#else
 static int ssl_servername_cb(SSL *s, int *ad, void *arg)
 {
     tlsextctx *p = (tlsextctx *) arg;
@@ -542,36 +620,19 @@ static int ssl_servername_cb(SSL *s, int *ad, void *arg)
     if (p->servername == NULL)
         return SSL_TLSEXT_ERR_NOACK;
 
-#ifndef OPENSSL_NO_ESNI
-	/* TODO: check - I think this just works for my test but is wrong! */
-    if (servername != NULL) {
-        if (ctx2 != NULL) {
-			if (p->servername) {
-            	BIO_printf(p->biodebug, "Switching server context, ESNI covername: %s\n",p->servername);
-			} else {
-            	BIO_printf(p->biodebug, "Switching server context, ESNI covername is NULL\n");
-			}
-            SSL_set_SSL_CTX(s, ctx2);
-		}
-    } else {
-		if (p->servername) {
-			BIO_printf(p->biodebug, "ESNI servername is NULL (oops), so is covername!\n");
-		} else {
-			BIO_printf(p->biodebug, "ESNI servername is NULL (oops), covername: %s\n",p->servername);
-		}
-	}
-#else
     if (servername != NULL) {
         if (strcasecmp(servername, p->servername))
             return p->extension_error;
         if (ctx2 != NULL) {
-            BIO_printf(p->biodebug, "Switching server context.\n");
+            if (p->biodebug!=NULL) 
+                BIO_printf(p->biodebug, "Switching server context.\n");
             SSL_set_SSL_CTX(s, ctx2);
         }
     }
-#endif
+
     return SSL_TLSEXT_ERR_OK;
 }
+#endif
 
 /* Structure passed to cert status callback */
 typedef struct tlsextstatusctx_st {
@@ -1106,7 +1167,11 @@ int s_server_main(int argc, char *argv[])
     OPTION_CHOICE o;
     EVP_PKEY *s_key2 = NULL;
     X509 *s_cert2 = NULL;
+#ifndef OPENSSL_NO_ESNI
+    tlsextctx tlsextcbp = { NULL, NULL, SSL_TLSEXT_ERR_ALERT_WARNING, NULL };
+#else
     tlsextctx tlsextcbp = { NULL, NULL, SSL_TLSEXT_ERR_ALERT_WARNING };
+#endif
     const char *ssl_config = NULL;
     int read_buf_len = 0;
 #ifndef OPENSSL_NO_NEXTPROTONEG
@@ -1146,8 +1211,8 @@ int s_server_main(int argc, char *argv[])
 #ifndef OPENSSL_NO_ESNI
     char *esnikeyfile = NULL; 
     char *esnipubfile = NULL;
-	char *esnidir=NULL;
-	int esnispecificpad=0; ///< we default to generally padding to 512 octet multiples
+    char *esnidir=NULL;
+    int esnispecificpad=0; ///< we default to generally padding to 512 octet multiples
 #endif
 
     /* Init of few remaining global variables */
@@ -1698,9 +1763,9 @@ int s_server_main(int argc, char *argv[])
         case OPT_ESNIDIR:
             esnidir=opt_arg();
             break;
-		case OPT_ESNISPECIFICPAD:
-			esnispecificpad=1;
-			break;
+        case OPT_ESNISPECIFICPAD:
+            esnispecificpad=1;
+            break;
 #endif
         }
     }
@@ -1804,6 +1869,9 @@ int s_server_main(int argc, char *argv[])
                 ERR_print_errors(bio_err);
                 goto end;
             }
+#ifndef OPENSSL_NO_ESNI
+            tlsextcbp.scert=s_cert2;
+#endif
         }
     }
 #if !defined(OPENSSL_NO_NEXTPROTONEG)
@@ -1997,108 +2065,108 @@ int s_server_main(int argc, char *argv[])
     }
 
 #ifndef OPENSSL_NO_ESNI
-	if (esnikeyfile!= NULL || esnipubfile!=NULL) {
-		/*
-		 * need both set to go ahead
-		 */
-		if (esnikeyfile==NULL) {
+    if (esnikeyfile!= NULL || esnipubfile!=NULL) {
+        /*
+         * need both set to go ahead
+         */
+        if (esnikeyfile==NULL) {
             BIO_printf(bio_err, "Need -esnipub set as well as -esnikey\n" );
             goto end;
-		}
-		if (esnipubfile==NULL) {
+        }
+        if (esnipubfile==NULL) {
             BIO_printf(bio_err, "Need -esnikey set as well as -esnipub\n" );
             goto end;
-		}
-		if (SSL_esni_server_enable(ctx,esnikeyfile,esnipubfile)!=1) {
+        }
+        if (SSL_esni_server_enable(ctx,esnikeyfile,esnipubfile)!=1) {
             BIO_printf(bio_err, "Failure establishing ESNI parameters\n" );
             goto end;
-		}
-		/* 
-		 * Set padding sizes 
-		 */
-		if (esnispecificpad) {
-			esni_ps=OPENSSL_malloc(sizeof(esni_padding_sizes)); 
-			esni_ps->certpad=2000;
-			esni_ps->certverifypad=500;
-			SSL_CTX_set_record_padding_callback_arg(ctx,(void*)esni_ps);
-			SSL_CTX_set_record_padding_callback(ctx,esni_padding_cb);
-		}
-	}
-	if (esnidir != NULL ) {
-		/*
-		 * Try load any good looking public/private ESNI values found in files in that directory
-		 * TODO: Find a more OpenSSL-like way of reading a directory without all the massive
-		 * indirection involved in the CApath which seems to delve about 5 call deep to do
-		 * anything. The esnidir shouldn't be embedded in the library at all really, so
-		 * arguably handling it fully here in the app is better, though there may I guess
-		 * be issues with portability.
-		 */
-		size_t elen=strlen(esnidir);
-		if ((elen+7) >= PATH_MAX) {
-			/* too long, go away */
+        }
+        /* 
+         * Set padding sizes 
+         */
+        if (esnispecificpad) {
+            esni_ps=OPENSSL_malloc(sizeof(esni_padding_sizes)); 
+            esni_ps->certpad=2000;
+            esni_ps->certverifypad=500;
+            SSL_CTX_set_record_padding_callback_arg(ctx,(void*)esni_ps);
+            SSL_CTX_set_record_padding_callback(ctx,esni_padding_cb);
+        }
+    }
+    if (esnidir != NULL ) {
+        /*
+         * Try load any good looking public/private ESNI values found in files in that directory
+         * TODO: Find a more OpenSSL-like way of reading a directory without all the massive
+         * indirection involved in the CApath which seems to delve about 5 call deep to do
+         * anything. The esnidir shouldn't be embedded in the library at all really, so
+         * arguably handling it fully here in the app is better, though there may I guess
+         * be issues with portability.
+         */
+        size_t elen=strlen(esnidir);
+        if ((elen+7) >= PATH_MAX) {
+            /* too long, go away */
             BIO_printf(bio_err, "'%s' is too long a directory name - exiting \r\n", esnidir);
-			goto end;
-		}
+            goto end;
+        }
         /* if not a directory, ignore it */
         if (app_isdir(esnidir) <= 0) {
             BIO_printf(bio_err, "'%s' is not a directory - exiting \r\n", esnidir);
-			goto end;
+            goto end;
         }
-		DIR *dp;
-		struct dirent *ep;
-		dp=opendir(esnidir);
-		if (dp==NULL) {
+        DIR *dp;
+        struct dirent *ep;
+        dp=opendir(esnidir);
+        if (dp==NULL) {
             BIO_printf(bio_err, "Can't read directory '%s' - exiting \r\n", esnidir);
-			goto end;
-		}
-		while ((ep=readdir(dp))!=NULL) {
-			char privname[PATH_MAX];
-			char pubname[PATH_MAX];
-			/*
-			 * If the file name matches *.priv, then check for matching *.pub and try enable that pair
-			 */
-			size_t nlen=strlen(ep->d_name);
-			if (nlen>5) {
-				char *last5=ep->d_name+nlen-5;
-				if (strncmp(last5,".priv",5)) {
-					continue;
-				}
-				if ((elen+nlen)>=PATH_MAX) {
-					closedir(dp);
-					BIO_printf(bio_err,"name too long: %s/%s - exiting \r\n",esnidir,ep->d_name);
-					goto end;
-				}
-				snprintf(privname,PATH_MAX,"%s/%s",esnidir,ep->d_name);
-				snprintf(pubname,PATH_MAX,"%s/%s",esnidir,ep->d_name);
-				pubname[elen+1+nlen-3]='u';
-				pubname[elen+1+nlen-2]='b';
-				pubname[elen+1+nlen-1]=0x00;
-				struct stat thestat;
-				if (stat(pubname,&thestat)==0 && stat(privname,&thestat)==0) {
-					BIO_printf(bio_err,"try public: %s\r\n",pubname);
-					BIO_printf(bio_err,"try private: %s\r\n",privname);
-					if (SSL_esni_server_enable(ctx,privname,pubname)!=1) {
-						BIO_printf(bio_err, "Failure establishing ESNI parameters\n" );
-						goto end;
-					}
-				}
-			}
-		}
-		closedir(dp);
+            goto end;
+        }
+        while ((ep=readdir(dp))!=NULL) {
+            char privname[PATH_MAX];
+            char pubname[PATH_MAX];
+            /*
+             * If the file name matches *.priv, then check for matching *.pub and try enable that pair
+             */
+            size_t nlen=strlen(ep->d_name);
+            if (nlen>5) {
+                char *last5=ep->d_name+nlen-5;
+                if (strncmp(last5,".priv",5)) {
+                    continue;
+                }
+                if ((elen+nlen)>=PATH_MAX) {
+                    closedir(dp);
+                    BIO_printf(bio_err,"name too long: %s/%s - exiting \r\n",esnidir,ep->d_name);
+                    goto end;
+                }
+                snprintf(privname,PATH_MAX,"%s/%s",esnidir,ep->d_name);
+                snprintf(pubname,PATH_MAX,"%s/%s",esnidir,ep->d_name);
+                pubname[elen+1+nlen-3]='u';
+                pubname[elen+1+nlen-2]='b';
+                pubname[elen+1+nlen-1]=0x00;
+                struct stat thestat;
+                if (stat(pubname,&thestat)==0 && stat(privname,&thestat)==0) {
+                    BIO_printf(bio_err,"try public: %s\r\n",pubname);
+                    BIO_printf(bio_err,"try private: %s\r\n",privname);
+                    if (SSL_esni_server_enable(ctx,privname,pubname)!=1) {
+                        BIO_printf(bio_err, "Failure establishing ESNI parameters\n" );
+                        goto end;
+                    }
+                }
+            }
+        }
+        closedir(dp);
 
-	}
-	if ((esnidir!=NULL) || (esnikeyfile!= NULL && esnipubfile!=NULL)) {
-		SSL_ESNI *tp=NULL;
-		int nesni=SSL_ESNI_get_esni_ctx(ctx,&tp);
-		if (nesni==0) {
-			BIO_printf(bio_err, "Failure establishing ESNI parameters - can't print 'em\n" );
-			goto end;
-		} 
-		for (int i=0;i!=nesni;i++) {
-			BIO_printf(bio_err, "SSL_ESNI(%d of %d):\r\n",i+1,nesni);
-			SSL_ESNI_print(bio_err,&tp[i]);
-		}
-	}
+    }
+    if ((esnidir!=NULL) || (esnikeyfile!= NULL && esnipubfile!=NULL)) {
+        SSL_ESNI *tp=NULL;
+        int nesni=SSL_ESNI_get_esni_ctx(ctx,&tp);
+        if (nesni==0) {
+            BIO_printf(bio_err, "Failure establishing ESNI parameters - can't print 'em\n" );
+            goto end;
+        } 
+        for (int i=0;i!=nesni;i++) {
+            BIO_printf(bio_err, "SSL_ESNI(%d of %d):\r\n",i+1,nesni);
+            SSL_ESNI_print(bio_err,&tp[i]);
+        }
+    }
 #endif
 
     if (s_cert2) {
@@ -2302,16 +2370,18 @@ int s_server_main(int argc, char *argv[])
             goto end;
         }
         tlsextcbp.biodebug = bio_s_out;
+#ifndef OPENSSL_NO_ESNI
+        SSL_CTX_set_tlsext_servername_callback(ctx2, ssl_esni_servername_cb);
+        SSL_CTX_set_tlsext_servername_arg(ctx2, &tlsextcbp);
+        SSL_CTX_set_tlsext_servername_callback(ctx, ssl_esni_servername_cb);
+        SSL_CTX_set_tlsext_servername_arg(ctx, &tlsextcbp);
+        SSL_set_esni_callback_ctx(ctx2, esni_cb);
+        SSL_set_esni_callback_ctx(ctx, esni_cb);
+#else
         SSL_CTX_set_tlsext_servername_callback(ctx2, ssl_servername_cb);
         SSL_CTX_set_tlsext_servername_arg(ctx2, &tlsextcbp);
         SSL_CTX_set_tlsext_servername_callback(ctx, ssl_servername_cb);
         SSL_CTX_set_tlsext_servername_arg(ctx, &tlsextcbp);
-#ifndef OPENSSL_NO_ESNI
-		/* 
-		 * Not sure here, just mimicing - see what happens
-		 */
-        SSL_set_esni_callback_ctx(ctx2, esni_cb);
-        SSL_set_esni_callback_ctx(ctx, esni_cb);
 #endif
     }
 
@@ -2375,7 +2445,7 @@ int s_server_main(int argc, char *argv[])
     ret = 0;
  end:
 #ifndef OPENSSL_NO_ESNI
-	if (esni_ps) OPENSSL_free(esni_ps);
+    if (esni_ps) OPENSSL_free(esni_ps);
 #endif
     SSL_CTX_free(ctx);
     SSL_SESSION_free(psksess);
