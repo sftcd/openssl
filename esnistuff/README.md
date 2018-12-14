@@ -37,8 +37,8 @@ There's a [TODO list](#todos) at the end.
 Most recent first...
 
 - Adding ``s_server`` code to make padding more specific to h/s messages
-  via callback. Callback part is done and seems to work, still need to
-  figure out what lengths I actually want (near hard-coded for the moment.)
+  via callback. Callback part is done and seems to work. Added a command
+  line arg.
 
 - Added client-side padding as well. (Same 512 byte setup.) See design
   notes again:-)

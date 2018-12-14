@@ -33,6 +33,23 @@ size_t lg_nonce_len=0;
 static void so_esni_pbuf(char *msg,unsigned char *buf,size_t blen,int indent);
 #endif
 
+
+/**
+ * Handle padding - the server needs to do padding in case the
+ * certificate/key-size exposes the ESNI. But so can lots of 
+ * the other application interactions, so to be at least a bit
+ * cautious, we'll also pad the crap out of everything on the
+ * client side (at least to see what happens:-)
+ * This could be over-ridden by the client appication if it
+ * wants by setting a callback via SSL_set_record_padding_callback
+ * We'll try set to 486 bytes, so that 3 plaintexts are likely
+ * to fit in a 1500 byte MTU. (That's a pretty arbitrary
+ * decision:-)
+ * TODO: test and see how this padding affects a real application
+ * as soon as we've integrated with one
+*/
+#define ESNI_DEFAULT_PADDED 486  ///< We'll pad all TLS plaintext to this size
+
 /*
  * Utility functions
  */
@@ -1855,7 +1872,8 @@ int SSL_esni_enable(SSL *s, const char *hidden, const char *cover, SSL_ESNI *esn
 	 * wireshark shows us nice round numbers and we're less
 	 * likely to go beyond an MTU (1550)
      */
-    if (SSL_set_block_padding(s,496)!=1) {
+
+    if (SSL_set_block_padding(s,ESNI_DEFAULT_PADDED)!=1) {
         return 0;
     }
     return 1;
@@ -1963,7 +1981,7 @@ int SSL_esni_server_enable(SSL_CTX *ctx, const char *esnikeyfile, const char *es
 	 * This could be over-ridden by the client appication if it
 	 * wants by setting a callback via SSL_CTX_set_record_padding_callback
      */
-    if (SSL_CTX_set_block_padding(ctx,512)!=1) {
+    if (SSL_CTX_set_block_padding(ctx,ESNI_DEFAULT_PADDED)!=1) {
         ESNIerr(ESNI_F_SERVER_ENABLE, ERR_R_INTERNAL_ERROR);
         goto err;
     }

@@ -169,9 +169,11 @@ certsdb=" -CApath $CAPATH"
 force13="-cipher TLS13-AES-128-GCM-SHA256 -no_ssl3 -no_tls1 -no_tls1_1 -no_tls1_2"
 #force13="-tls1_3 -cipher TLS13-AES-128-GCM-SHA256 "
 
-# turn off esni general padding
-#nopad=" -noesnipad"
+# turn off esni general padding - if we set this only the Certificate
+# and CertificateVerify will be padded. Witout this, all plaintexts
+# are (currently) padded
+#padding=" -esnispecificpad"
 
-$vgcmd $TOP/apps/openssl s_server $dbgstr $keyfile1 $keyfile2 $certsdb $portstr $force13 $esnistr $snicmd $nopad 
+$vgcmd $TOP/apps/openssl s_server $dbgstr $keyfile1 $keyfile2 $certsdb $portstr $force13 $esnistr $snicmd $padding
 
 

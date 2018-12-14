@@ -3524,6 +3524,7 @@ static void print_stuff(BIO *bio, SSL *s, int full)
     (void)BIO_flush(bio);
 }
 
+// ESNI_DOXY_START
 #ifndef OPENSSL_NO_ESNI
 static unsigned int esni_cb(SSL *s, int index)
 {
@@ -3536,6 +3537,7 @@ static unsigned int esni_cb(SSL *s, int index)
     return 1;
 }
 #endif
+// ESNI_DOXY_END
 
 # ifndef OPENSSL_NO_OCSP
 static int ocsp_resp_cb(SSL *s, void *arg)
