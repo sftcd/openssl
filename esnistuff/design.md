@@ -347,6 +347,13 @@ When those are set, the following API calls ensue:
 - ``esni_cb``: is a local call-back function, it retrives and prints the ``SSL_ESNI`` structure
 - ``SSL_ESNI_get_esni_ctx``: is used to get the ``SSL_ESNI`` structure which is printed via ``SSL_ESNI_print``
 
+We also added a new server name callback handler (``ssl_esni_servername_cb``) that
+knows about ESNI. That treats the 2nd key/cert provided on the command line as a
+possible ESNI target - we do X509 name matching between the (E)SNI supplied and
+the certificate. (Standard ``s_server`` behaviour was to compare the SNI from
+the TLS extension only against the ``-servername`` command line argument.) 
+That should mean we get wildcard matching. TODO: test that!
+
 ## APIs
 
 [Here's](./api.md) what moxygen produces from what doxygen produces (with a bit of sed
