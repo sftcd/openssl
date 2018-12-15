@@ -3,6 +3,11 @@
 # Make key pairs for a fake local CA, example.com, foo.example.com
 # and bar.example.com
 
+TOP=$HOME/code/openssl
+
+export LD_LIBRARY_PATH=$TOP
+OBIN=$TOP/apps/openssl
+
 #set -x
 DSTR=`date -u --rfc-3339=s | sed -e 's/ /T/' | sed -e 's/:/-/g'`
 echo "Running $0 at $DSTR"
@@ -31,7 +36,7 @@ then
 	# this should probably be random and longer
 	# don't want it to be a fingerprint for this
 	# service
-	echo $RANDOM$RANDOM | openssl sha1 | awk '{print $2}' >serial
+	echo $RANDOM$RANDOM | $OBIN sha1 | awk '{print $2}' >serial
 	cp serial serial.1st
 fi
 
@@ -43,6 +48,7 @@ fi
 
 # dunno (or care) where these ought be so put 'em everywhere
 cp index.txt demoCA
+touch demoCA/index.txt.attr
 cp serial serial.1st demoCA
 cp index.txt demoCA/newcerts
 cp serial serial.1st demoCA/newcerts
@@ -61,6 +67,10 @@ then
 	echo "You need an openssl.cnf file sorry."
 	exit 1
 fi
+
+# make sure we blindly copy extensions (DANGER - don't do in any real uses!)
+sed -i '/^#.* copy_extensions /s/^# //' openssl.cnf
+
 
 
 # this isn't quite obfuscation, I think we'll delete the
@@ -86,7 +96,7 @@ LENGTHS=(2048 3072 4096)
 NLENGTHS=${#LENGTHS[*]}
 
 # make the root CA key pair
-openssl req -batch -new -x509 -days 3650 -extensions v3_ca \
+$OBIN req -batch -new -x509 -days 3650 -extensions v3_ca \
 	-newkey rsa:4096 -keyout oe.priv  -out oe.csr  \
 	-config openssl.cnf -passin pass:$PASS \
 	-subj "/C=IE/ST=Laighin/O=openssl-esni/CN=ca" \
@@ -99,10 +109,11 @@ do
 	length=${LENGTHS[((index%NLENGTHS))]}
 
 	echo "Doing name $index, at $length"
-	openssl req -new -newkey rsa:$length -days 3650 -keyout $host.priv \
-		-out tmp.csr -nodes -config openssl.cnf \
-		-subj "/C=IE/ST=Laighin/L=dublin/O=openssl-esni/CN=$host"
-	openssl ca -batch -in tmp.csr -out $host.crt \
+	$OBIN req -new -newkey rsa:$length -days 3650 -keyout $host.priv \
+		-out $host.csr -nodes -config openssl.cnf \
+		-subj "/C=IE/ST=Laighin/L=dublin/O=openssl-esni/CN=$host" \
+		-addext "subjectAltName = DNS:*.$host,DNS:$host"
+	$OBIN ca -batch -in $host.csr -out $host.crt \
 		-days 3650 -keyfile oe.priv -cert oe.csr \
 		-passin pass:$PASS -config openssl.cnf
 	((index++))
