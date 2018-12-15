@@ -11,8 +11,8 @@ openssl implementation of encrypted SNI.
 [draft-ietf-tls-esni-02](https://tools.ietf.org/html/draft-ietf-tls-esni-02)
 spec.
 - So far, there's no special session or state handling, so things seem to
-work ok for initial handshakes, but we've yet to look at tickets or 
-resumption at all.
+work fine for initial handshakes. Starting to think about [resumtion](resumption.md)
+now and it seems there's a bit of work to do. 
 - The most up to date
   [README.md](https://github.com/sftcd/openssl/tree/master/esnistuff) for that
 code.
@@ -320,7 +320,9 @@ and ``foo.example.com`` which are the defaults for COVER and HIDDEN respectively
 It also generates a fake CA and certifies those public keys. (That CA is set
 to trusted by the ``testclient.sh`` script if the SERVER is ``localhost``.)
 With
-other inputs the script causes ``s_server`` to load those. Note that these are keys
+other inputs the script causes ``s_server`` to load those. All of the TLS
+server certificates created are wildcard certs, e.g. for ``*.foo.example.com``.
+That's so you can use many different names as HIDDEN or COVER. Note that these are keys
 for the TLS server and are not ESNI public keys (generate those with ``mk_esnikeys``).
 
 ### ``s_server`` modifications
