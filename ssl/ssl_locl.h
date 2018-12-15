@@ -1306,12 +1306,6 @@ struct ssl_st {
                          const unsigned char *data, int len, void *arg);
         void *debug_arg;
         char *hostname;
-#ifndef OPENSSL_NO_ESNI
-		/*
-		char *encservername;
-		char *covername;
-		*/
-#endif
         /* certificate status request info */
         /* Status type or -1 if no status type */
         int status_type;

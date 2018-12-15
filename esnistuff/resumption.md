@@ -19,6 +19,11 @@ But if that's not current behaviour, it might break something.
 So I might also want to keep the no ESNI and no SNI behaviour the same
 as today, even if that's not quite the right idea.
 
+Aside from ESNI-aware servers/clients dealing with unaware peers, we
+also gotta worry about sessions that are stored and valid whilst the
+peer's code is updated. Not sure how to handle that, probably need to
+ask maintainers.
+
 ## Non-wildcard test cases:
 
 - t1: no esni to HIDDEN
