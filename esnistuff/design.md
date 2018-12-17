@@ -6,7 +6,7 @@ stephen.farrell@cs.tcd.ie, 20181212
 This file describes the current design for our proof-of-concept 
 openssl implementation of encrypted SNI.
 
-- The code in our [fork](https://gitbub.com/sftcd/openssl) imlpements 
+- The code in our [fork](https://gitbub.com/sftcd/openssl) implements 
   both client and server sides of the ESNI Internet-draft
 [draft-ietf-tls-esni-02](https://tools.ietf.org/html/draft-ietf-tls-esni-02)
 spec.
@@ -825,10 +825,6 @@ public and private keys both for the TLS server and for ESNI.
 - ssl/statem/extensions_clnt.c
 - ssl/statem/extensions_srvr.c 
 - crypto/err/err_all.c - loads ESNI strings
+- ssl/ssl_asn1.c - for state stuff
 
-### Files still to figure out/check
-
-- ssl/ssl_asn1.c - might be a challenge, not sure if I need to go there
-	- a comment in ssl/ssl_locl.h implies I might, perhaps for state mgmt, not
-	  sure
 
