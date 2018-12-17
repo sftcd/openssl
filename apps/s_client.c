@@ -72,6 +72,9 @@ static int keymatexportlen = 20;
 static BIO *bio_c_out = NULL;
 static int c_quiet = 0;
 static char *sess_out = NULL;
+#ifndef OPENSSL_NO_ENSI
+const char *encservername = NULL;
+#endif
 static SSL_SESSION *psksess = NULL;
 
 static void print_stuff(BIO *berr, SSL *con, int full);
@@ -869,6 +872,36 @@ static void freeandcopy(char **dest, const char *source)
 static int new_session_cb(SSL *s, SSL_SESSION *sess)
 {
 
+#ifndef OPENSSL_NO_ESNI
+	const char *hn=SSL_SESSION_get0_hostname(sess);
+	if (hn==NULL) {
+		BIO_printf(bio_c_out,"Session hostname is NULL\n");
+	} else {
+		BIO_printf(bio_c_out,"Session hostname is %s\n",hn);
+	}
+	if (encservername) {
+		/*
+		 * If doing ESNI then stuff that name into the session, so that 
+	 	 * it'll be remembereed later.
+	 	 * TODO: find the right place for this code, this likely isn't it:-)
+	 	*/
+		SSL_SESSION *sess=SSL_get0_session(s);
+		if (sess==NULL) {
+            BIO_printf(bio_err, "Can't get session to set ESNI in session...\n");
+            ERR_print_errors(bio_err);
+		} else {
+			int rv=SSL_SESSION_set1_hostname(sess,encservername);
+			if (rv!=1) {
+            	BIO_printf(bio_err, "Can't set ESNI in session...\n");
+            	ERR_print_errors(bio_err);
+			} else {
+            	BIO_printf(bio_err, "Set ESNI in session to %s\n",encservername);
+            	ERR_print_errors(bio_err);
+			}
+		}
+	}
+#endif
+
     if (sess_out != NULL) {
         BIO *stmp = BIO_new_file(sess_out, "w");
 
@@ -960,7 +993,6 @@ int s_client_main(int argc, char **argv)
 #endif
     const char *servername = NULL;
 #ifndef OPENSSL_NO_ESNI
-    const char *encservername = NULL;
     const char *b64esnikeys = NULL;
     SSL_ESNI *esnikeys=NULL;
 #endif
@@ -2047,10 +2079,33 @@ int s_client_main(int argc, char **argv)
             goto end;
         }
         if (!SSL_set_session(con, sess)) {
+#ifndef OPENSSL_NO_ESNI
+			/* 
+			 * Noting to do with ESNI, but a missing free here
+			 */
+        	SSL_SESSION_free(sess);
+#endif
             BIO_printf(bio_err, "Can't set session\n");
             ERR_print_errors(bio_err);
             goto end;
         }
+#ifndef OPENSSL_NO_ESNI
+		if (encservername!=NULL) {
+			const char *hn=SSL_SESSION_get0_hostname(sess);
+			if (hn==NULL) {
+        		SSL_SESSION_free(sess);
+            	BIO_printf(bio_err, "Stored session host is NULL, but encservername is %s - exiting\n",encservername);
+            	ERR_print_errors(bio_err);
+            	goto end;
+			} 
+			if (strcasecmp(encservername,hn)) { 
+        		SSL_SESSION_free(sess);
+            	BIO_printf(bio_err, "Stored session host (%s) != encservername (%s) - exiting\n",hn,encservername);
+            	ERR_print_errors(bio_err);
+            	goto end;
+			}
+		}
+#endif
 
         SSL_SESSION_free(sess);
     }
@@ -2080,7 +2135,6 @@ int s_client_main(int argc, char **argv)
         if (SSL_esni_enable(con,encservername,servername,esnikeys,require_hidden_match)!=1) {
             BIO_printf(bio_err, "%s: ESNI enabling failed.\n", prog);
             ERR_print_errors(bio_err);
-#ifndef OPENSSL_NO_ESNI
             /*
              * Slight leak on error here otherwise
              * Normally esnikeys will be freed when the SSL context is, but
@@ -2090,9 +2144,13 @@ int s_client_main(int argc, char **argv)
                 SSL_ESNI_free(esnikeys);
                 OPENSSL_free(esnikeys);
             }
-#endif
             goto end;
         }
+		/*
+		 * NULL this as we no longer need to free it
+		 */
+		esnikeys=NULL;
+
     }
 #endif
 
@@ -3244,6 +3302,11 @@ int s_client_main(int argc, char **argv)
             print_stuff(bio_c_out, con, 1);
         SSL_free(con);
     }
+	if (esnikeys!=NULL) {
+		SSL_ESNI_free(esnikeys);
+		OPENSSL_free(esnikeys);
+		esnikeys=NULL;
+	}
     SSL_SESSION_free(psksess);
 #if !defined(OPENSSL_NO_NEXTPROTONEG)
     OPENSSL_free(next_proto.data);

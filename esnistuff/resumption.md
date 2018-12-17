@@ -3,8 +3,6 @@
 This is a separate file for now, when done and conclusions reached, I'll
 summarise it in the design doc.
 
-Server stays running in all tests so far. Check server restart affects later. 
-
 The bottom line seems to be that there's a need to bind the HIDDEN to the
 session, and maybe also the COVER. That isn't quite the current behaviour,
 and it seems wrong that the server doesn't detect changes to HIDDEN, and 
@@ -13,9 +11,7 @@ to be the case based on the tests below.)
 
 So I think I want to add HIDDEN/COVER to sessions and to check that on
 resumption in the server and client.
-
 But if that's not current behaviour, it might break something.
-
 So I might also want to keep the no ESNI and no SNI behaviour the same
 as today, even if that's not quite the right idea.
 
@@ -24,7 +20,29 @@ also gotta worry about sessions that are stored and valid whilst the
 peer's code is updated. Not sure how to handle that, probably need to
 ask maintainers.
 
+## Modifications 
+
+We'll start on the client side.
+
+client:
+	- In order to not require a DNS library in the client library, we
+	  require the command line arguments to be supplied each time.
+	- The ESNIKeys stuff can change (due to timing/geography) but 
+	  we want the same HIDDEN value always.
+	- add encservername to session (partly done)
+	- add check of ``s_client`` args on resumption (done)
+
+server:
+	- add encservername to session
+	- add check on resumption
+	- add check on receipt of ESNI
+
+
 ## Non-wildcard test cases:
+
+These are some tests I did before starting to code up changes.
+
+Server stays running in all tests so far. Check server restart affects later. 
 
 - t1: no esni to HIDDEN
 	- client connects without ESNI and stores session 
@@ -113,4 +131,19 @@ ask maintainers.
 			$ ./testclient.sh -p 4000 -s localhost -H a.foo.example.com -c NONE -P esnikeys.pub -vd -S t9sess >t9log.first 2>&1
 			$ ./testclient.sh -p 4000 -s localhost -H b.foo.example.com -c NONE -P esnikeys.pub -vd -S t9sess >t9log.second 2>&1
 	- 2nd h/s abbreviated, no error deteceted (whcih seems wrong) 
+
+## Testing against cloudflare
+
+- t10: first request for ietf.org, 2nd for same, no COVER
+	- commands:
+			$ ./testclient.sh -H ietf.org -c NONE -vd -S t10sess >t10log.first 2>&1
+			$ ./testclient.sh -H ietf.org -c NONE -vd -S t10sess >t10log.second 2>&1
+	- 2nd h/s abbreviated, cert for ietf.org
+
+- t11: first request for ietf.org, 2nd for non-existent, no COVER
+	- commands:
+			$ ./testclient.sh -H ietf.org -c NONE -vd -S t11sess >t11log.first 2>&1
+			$ ./testclient.sh -H bollox  -c NONE -vd -S t11sess >t11log.second 2>&1
+	- ESNI worked, 2nd h/s abbreviated just as in t10, cert is for ietf.org
+	- ergh, as before:-)
 

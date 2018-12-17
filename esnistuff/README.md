@@ -36,6 +36,16 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- Started to modify client to include HIDDEN in saved session state.
+  Added a new esni field to ``SSL_SESSION`` struct and
+  associated ASN1 stuff. (Ick;-) **BUT** I'm temporarily abusing the
+  apparently otherwise unused ``SSL_SESSION.ext.hostname`` field
+  to hold that value. FIXME: properly use the new ``SSL_SESSION.ext.esni``
+  field instead of the hostname. (Needs a bunch of uninteresting
+  hacking about.)
+
+- Changed ``make-example-ca.sh`` to generate wildcard certs.
+
 - This is failing. It shouldn't :-)
 
 			$ ./testclient.sh -p 4000 -s localhost -n -c example.com -vd
@@ -76,14 +86,14 @@ Most recent first...
   do ``./nssdoit.sh localhost`` to talk to the local ``s_server`` on port
   4000, if you omit the ``localhost`` it'll talk to ``www.cloudflare.com``.)
 
-- FIXME: There's a leak on exit in ``s_client`` in some error cases - if the ``SSL_ESNI``
+- There's a leak on exit in ``s_client`` in some error cases - if the ``SSL_ESNI``
   structure is created but we exit on an error, then that isn't being freed in
   all cases. It should be freed via the ``SSL_free`` for ``s_client``'s ``con``
   variable but that doesn't seem to always happen. Just calling ``SSL_ESNI_free``
   directly (on the ``esnikeys`` variable) can result in double-free's so need's
-  a bit of thought/work.
+  a bit of thought/work. FIXED.
 
-- FIXME: Added session resumption to ``testclient.sh`` (I think!) via the ``s_client``
+- Added session resumption to ``testclient.sh`` (I think!) via the ``s_client``
   ``sess_out`` and ``sess_in`` command line argument. Nominal case seems
   to work ok (where 2nd time you send no ESNI, or play the ESNI game afresh
   with the same HIDDEN), **but** if you send a 
@@ -97,7 +107,7 @@ Most recent first...
   send ESNI (which works). Not clear that we should barf if the ESNI
   in the resumed session CH differs from the server's idea of SNI but
   that seems safer to me. (There's a related [issue](https://github.com/tlswg/draft-ietf-tls-esni/issues/121)
-  in the repo for the I-D.)
+  in the repo for the I-D.) In-work now - see [resumption.md](resumption.md).
 
 - Modified testserver stuff to make up a fake CA and issue required
   certs etc. End result is
@@ -299,6 +309,7 @@ seemed unkeen on. Decided to not bother with that.
 I'm sure there's more but some collected so far:
 
 - Figure out/test resumption cases.
+- Figure out/test HRR cases. [This issue](https://github.com/tlswg/draft-ietf-tls-esni/issues/121) calls for checks to be enforced.
 - Server API for managing ESNI public/private values w/o restart.
 - Server-side policy: should server have a concept of "only visible via ESNI"?
   E.g. some server certs might only ever be used when asked-for via ESNI.
