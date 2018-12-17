@@ -10,9 +10,9 @@ openssl implementation of encrypted SNI.
   both client and server sides of the ESNI Internet-draft
 [draft-ietf-tls-esni-02](https://tools.ietf.org/html/draft-ietf-tls-esni-02)
 spec.
-- So far, there's no special session or state handling, so things seem to
-work fine for initial handshakes. Starting to think about [resumtion](resumption.md)
-now and it seems there's a bit of work to do. 
+- There's no special session or state handling, but things seem to
+work fine for initial handshakes. Starting to fix up [resumption](resumption.md)
+now and there's a bit of work to do. 
 - The most up to date
   [README.md](https://github.com/sftcd/openssl/tree/master/esnistuff) for that
 code.
