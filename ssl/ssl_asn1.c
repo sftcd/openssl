@@ -28,6 +28,9 @@ typedef struct {
     ASN1_OCTET_STRING *session_id_context;
     int32_t verify_result;
     ASN1_OCTET_STRING *tlsext_hostname;
+#ifndef OPENSSL_NO_ESNI
+    ASN1_OCTET_STRING *tlsext_esni;
+#endif
     uint64_t tlsext_tick_lifetime_hint;
     uint32_t tlsext_tick_age_add;
     ASN1_OCTET_STRING *tlsext_tick;
@@ -58,6 +61,9 @@ ASN1_SEQUENCE(SSL_SESSION_ASN1) = {
     ASN1_EXP_OPT(SSL_SESSION_ASN1, session_id_context, ASN1_OCTET_STRING, 4),
     ASN1_EXP_OPT_EMBED(SSL_SESSION_ASN1, verify_result, ZINT32, 5),
     ASN1_EXP_OPT(SSL_SESSION_ASN1, tlsext_hostname, ASN1_OCTET_STRING, 6),
+#ifndef OPENSSL_NO_ESNI
+    ASN1_EXP_OPT(SSL_SESSION_ASN1, tlsext_esni, ASN1_OCTET_STRING, 6),
+#endif
 #ifndef OPENSSL_NO_PSK
     ASN1_EXP_OPT(SSL_SESSION_ASN1, psk_identity_hint, ASN1_OCTET_STRING, 7),
     ASN1_EXP_OPT(SSL_SESSION_ASN1, psk_identity, ASN1_OCTET_STRING, 8),
@@ -115,6 +121,9 @@ int i2d_SSL_SESSION(SSL_SESSION *in, unsigned char **pp)
     unsigned char comp_id_data;
 #endif
     ASN1_OCTET_STRING tlsext_hostname, tlsext_tick;
+#ifndef OPENSSL_NO_ESNI
+	ASN1_OCTET_STRING tlsext_esni;
+#endif
 #ifndef OPENSSL_NO_SRP
     ASN1_OCTET_STRING srp_username;
 #endif
@@ -167,6 +176,10 @@ int i2d_SSL_SESSION(SSL_SESSION *in, unsigned char **pp)
 
     ssl_session_sinit(&as.tlsext_hostname, &tlsext_hostname,
                       in->ext.hostname);
+#ifndef OPENSSL_NO_ESNI
+    ssl_session_sinit(&as.tlsext_esni, &tlsext_esni,
+                      in->ext.esni);
+#endif
     if (in->ext.tick) {
         ssl_session_oinit(&as.tlsext_tick, &tlsext_tick,
                           in->ext.tick, in->ext.ticklen);
@@ -318,6 +331,10 @@ SSL_SESSION *d2i_SSL_SESSION(SSL_SESSION **a, const unsigned char **pp,
 
     if (!ssl_session_strndup(&ret->ext.hostname, as->tlsext_hostname))
         goto err;
+#ifndef OPENSSL_NO_ESNI
+    if (!ssl_session_strndup(&ret->ext.esni, as->tlsext_esni))
+        goto err;
+#endif
 
 #ifndef OPENSSL_NO_PSK
     if (!ssl_session_strndup(&ret->psk_identity_hint, as->psk_identity_hint))

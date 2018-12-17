@@ -81,6 +81,16 @@ int SSL_SESSION_print(BIO *bp, const SSL_SESSION *x)
         if (BIO_printf(bp, "%02X", x->master_key[i]) <= 0)
             goto err;
     }
+#ifndef OPENSSL_NO_ESNI
+	/*
+	 * This is not ESNI related but let's see...
+	 */
+	if (x->ext.hostname!=NULL) {
+		BIO_printf(bp,"\n    SNI/Hostname: %s",x->ext.hostname);
+	} else {
+		BIO_printf(bp,"\n    SNI/Hostname is NULL");
+	}
+#endif
 #ifndef OPENSSL_NO_PSK
     if (BIO_puts(bp, "\n    PSK identity: ") <= 0)
         goto err;
