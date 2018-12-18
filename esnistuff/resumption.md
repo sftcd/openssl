@@ -30,7 +30,12 @@ client:
 	- The ESNIKeys stuff can change (due to timing/geography) but 
 	  we want the same HIDDEN value always.
 	- add encservername to session (partly done)
+		- to be undone!
+	- undo the above because we wanna check that the new SNI (ESNI or SNI)
+	  matches the peer cert in the session really - exact match is
+	  wrong. (not yet undone!)
 	- add check of ``s_client`` args on resumption (done)
+		- now checks via ``X509_check_host`` but needs to revisit code some
 
 server:
 	- add encservername to session
@@ -70,6 +75,10 @@ Server stays running in all tests so far. Check server restart affects later.
 			$ ./testclient.sh -p 4000 -s localhost -H foo.example.com -c NONE -vd -P esnikeys.pub -S t3sess >t3log.second 2>&1
 	- yay! worked as planned too, 2nd h/s shorter, correct cert
 	- rechecked
+	- as expected, re-using a ticket across a server restart gets a full h/w
+	- hmm, re-did this, on server start saw 2 full h/s before abbrev h/s kicked in with that ticket
+	- same behaviour a 2nd time with server re-start
+	- after server settled client asking for a.foo.example.com got abbrev h/s as desired
 
 - t4: nomimal ESNI, with cover
 	- client connects with ESNI and stores session 

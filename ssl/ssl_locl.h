@@ -569,7 +569,7 @@ struct ssl_session_st {
     struct {
         char *hostname;
 #ifndef OPENSSL_NO_ESNI
-		char *esni;
+		char *encservername;
 #endif
 # ifndef OPENSSL_NO_EC
         size_t ecpointformats_len;

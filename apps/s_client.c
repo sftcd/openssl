@@ -74,6 +74,7 @@ static int c_quiet = 0;
 static char *sess_out = NULL;
 #ifndef OPENSSL_NO_ENSI
 const char *encservername = NULL;
+const char *servername = NULL;
 #endif
 static SSL_SESSION *psksess = NULL;
 
@@ -879,8 +880,7 @@ static int new_session_cb(SSL *s, SSL_SESSION *sess)
 		/*
 		 * If doing ESNI then stuff that name into the session, so that 
 	 	 * it'll be remembereed later.
-	 	 * TODO: find the right place for this code, this likely isn't it:-)
-	 	*/
+	 	 */
 		SSL_SESSION *sess=SSL_get0_session(s);
 		if (sess==NULL) {
             BIO_printf(bio_err, "Can't get session to set ESNI in session...\n");
@@ -892,6 +892,25 @@ static int new_session_cb(SSL *s, SSL_SESSION *sess)
             	ERR_print_errors(bio_err);
 			} else {
             	BIO_printf(bio_err, "Set ESNI in session to %s\n",encservername);
+            	ERR_print_errors(bio_err);
+			}
+		}
+
+	} else if (servername) {
+		/*
+		 * If doing cleartext SNI then put that in session
+		 */
+		SSL_SESSION *sess=SSL_get0_session(s);
+		if (sess==NULL) {
+            BIO_printf(bio_err, "Can't get session to set ESNI in session...\n");
+            ERR_print_errors(bio_err);
+		} else {
+			int rv=SSL_SESSION_set1_hostname(sess,servername);
+			if (rv!=1) {
+            	BIO_printf(bio_err, "Can't set ESNI in session...\n");
+            	ERR_print_errors(bio_err);
+			} else {
+            	BIO_printf(bio_err, "Set ESNI in session to %s\n",servername);
             	ERR_print_errors(bio_err);
 			}
 		}
@@ -985,10 +1004,14 @@ int s_client_main(int argc, char **argv)
 #if defined(OPENSSL_SYS_WINDOWS) || defined(OPENSSL_SYS_MSDOS)
     struct timeval tv;
 #endif
-    const char *servername = NULL;
 #ifndef OPENSSL_NO_ESNI
     const char *b64esnikeys = NULL;
     SSL_ESNI *esnikeys=NULL;
+#else
+	/*
+	 * We make this global (yuk) if doing ESNI so we can stuff in session via cb
+	 */
+    const char *servername = NULL;
 #endif
     int noservername = 0;
     const char *alpn_in = NULL;
@@ -2076,9 +2099,29 @@ int s_client_main(int argc, char **argv)
             	ERR_print_errors(bio_err);
             	goto end;
 			} 
+			/*
+			 * TODO: RFC8446, 4.6.1
+			 * The check here should be that the cert in the session covers
+			 * the encservername (or servername if no ESNI)
+			 * FIXME: For now we just check equality
 			if (strcasecmp(encservername,hn)) { 
         		SSL_SESSION_free(sess);
             	BIO_printf(bio_err, "Stored session host (%s) != encservername (%s) - exiting\n",hn,encservername);
+            	ERR_print_errors(bio_err);
+            	goto end;
+			}
+			 */
+			X509 *peer=SSL_SESSION_get0_peer(sess);
+			if (peer==NULL) {
+        		SSL_SESSION_free(sess);
+            	BIO_printf(bio_err, "Stored session peer is NULL - exiting\n");
+            	ERR_print_errors(bio_err);
+            	goto end;
+			}
+			int rv=X509_check_host(peer,encservername,strlen(encservername),0,NULL);
+			if (rv!=1) {
+        		SSL_SESSION_free(sess);
+            	BIO_printf(bio_err, "Stored session peer doesn't match %s - exiting\n",encservername);
             	ERR_print_errors(bio_err);
             	goto end;
 			}
