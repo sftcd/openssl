@@ -178,7 +178,7 @@ int i2d_SSL_SESSION(SSL_SESSION *in, unsigned char **pp)
                       in->ext.hostname);
 #ifndef OPENSSL_NO_ESNI
     ssl_session_sinit(&as.tlsext_esni, &tlsext_esni,
-                      in->ext.esni);
+                      in->ext.encservername);
 #endif
     if (in->ext.tick) {
         ssl_session_oinit(&as.tlsext_tick, &tlsext_tick,
@@ -332,7 +332,7 @@ SSL_SESSION *d2i_SSL_SESSION(SSL_SESSION **a, const unsigned char **pp,
     if (!ssl_session_strndup(&ret->ext.hostname, as->tlsext_hostname))
         goto err;
 #ifndef OPENSSL_NO_ESNI
-    if (!ssl_session_strndup(&ret->ext.esni, as->tlsext_esni))
+    if (!ssl_session_strndup(&ret->ext.encservername, as->tlsext_esni))
         goto err;
 #endif
 

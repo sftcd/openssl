@@ -329,6 +329,9 @@ I'm sure there's more but some collected so far:
   be alg. agile but who knows.
 - Once we've integrated with some real client/server test the effect of our
   crude padding scheme.
+- Security review: identify which parts of the code e.g. need to be constant
+  time, which need to use special OpenSSL APIs, which need support for
+  crypto h/w (if any)
 - Maybe move the above to issues in github.
 
 
