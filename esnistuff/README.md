@@ -1,7 +1,7 @@
 
 # This is a temporary place for ESNI content ...
 
-Stephen Farrell, stephen.farrell@cs.tcd.ie, 20181212
+Stephen Farrell, stephen.farrell@cs.tcd.ie, 20181218
 
 I'll put stuff here that'll likely disappear if this matures. So the plan would
 be to delete all this before submitting any PR to the openssl folks. Over time,
@@ -35,6 +35,12 @@ about how it works and what it does.
 There's a [TODO list](#todos) at the end.
 
 Most recent first...
+
+- Changed resumption in ``s_client`` to check HIDDEN (or COVER, if
+  no HIDDEN) name vs. peer cert (subj/SAN) in stored session state
+  if resuming. 
+
+- Re-sync'd with upstream on 20181218.
 
 - Started to modify client to include HIDDEN in saved session state.
   Added a new esni field to ``SSL_SESSION`` struct and

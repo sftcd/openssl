@@ -883,7 +883,7 @@ static int new_session_cb(SSL *s, SSL_SESSION *sess)
 	if (encservername) {
 		/*
 		 * If doing ESNI then stuff that name into the session, so that 
-	 	 * it'll be remembereed later.
+	 	 * it'll be visible/remembered later.
 	 	 */
 		SSL_SESSION *sess=SSL_get0_session(s);
 		if (sess==NULL) {
@@ -902,7 +902,8 @@ static int new_session_cb(SSL *s, SSL_SESSION *sess)
 
 	} else if (servername) {
 		/*
-		 * If doing cleartext SNI then put that in session
+		 * If doing cleartext SNI then put that in session instead
+		 * This should probably be done regardless of SNI?
 		 */
 		SSL_SESSION *sess=SSL_get0_session(s);
 		if (sess==NULL) {
@@ -2113,25 +2114,25 @@ int s_client_main(int argc, char **argv)
             goto end;
         }
 #ifndef OPENSSL_NO_ESNI
+		const char *thisname=NULL;
 		if (encservername!=NULL) {
+			thisname=encservername;
+		} else if (servername!=NULL) {
+			thisname=servername;
+		}
+
+		if (thisname!=NULL) {
 			const char *hn=SSL_SESSION_get0_hostname(sess);
-			if (hn==NULL) {
-        		SSL_SESSION_free(sess);
-            	BIO_printf(bio_err, "Stored session host is NULL, but encservername is %s - exiting\n",encservername);
-            	ERR_print_errors(bio_err);
-            	goto end;
-			} 
-			/*
-			 * TODO: RFC8446, 4.6.1
-			 * The check here should be that the cert in the session covers
-			 * the encservername (or servername if no ESNI)
-			 * FIXME: For now we just check equality
-			if (strcasecmp(encservername,hn)) { 
-        		SSL_SESSION_free(sess);
-            	BIO_printf(bio_err, "Stored session host (%s) != encservername (%s) - exiting\n",hn,encservername);
-            	ERR_print_errors(bio_err);
-            	goto end;
+			if (hn!=NULL) {
+            	BIO_printf(bio_err, "Stored session host is %s, encservername (or servername) is %s\n",hn,thisname);
+			} else { 
+            	BIO_printf(bio_err, "Stored session host is missing, encservername (or servername) is %s\n",thisname);
 			}
+			/*
+			 * RFC8446, 4.6.1 check that the cert in the session covers
+			 * the encservername 
+			 * Maybe print the peer's subject name (and/or SANs) as well?
+			 * But likely too much info and 'openssl sess_id' can do it 
 			 */
 			X509 *peer=SSL_SESSION_get0_peer(sess);
 			if (peer==NULL) {
@@ -2140,7 +2141,7 @@ int s_client_main(int argc, char **argv)
             	ERR_print_errors(bio_err);
             	goto end;
 			}
-			int rv=X509_check_host(peer,encservername,strlen(encservername),0,NULL);
+			int rv=X509_check_host(peer,thisname,strlen(thisname),0,NULL);
 			if (rv!=1) {
         		SSL_SESSION_free(sess);
             	BIO_printf(bio_err, "Stored session peer doesn't match %s - exiting\n",encservername);
