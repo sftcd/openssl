@@ -3,7 +3,7 @@
  * Copyright (c) 2002, Oracle and/or its affiliates. All rights reserved
  * Copyright 2005 Nokia. All rights reserved.
  *
- * Licensed under the OpenSSL license (the "License").  You may not use
+ * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
  * in the file LICENSE in the source distribution or at
  * https://www.openssl.org/source/license.html
@@ -37,6 +37,7 @@
 #ifndef OPENSSL_NO_ESNI
 #include <openssl/esni.h>
 #endif
+# include "internal/bio.h"
 
 # ifdef OPENSSL_BUILD_SHLIBSSL
 #  undef OPENSSL_EXTERN
@@ -132,6 +133,9 @@
 # define l2n3(l,c)       (((c)[0]=(unsigned char)(((l)>>16)&0xff), \
                            (c)[1]=(unsigned char)(((l)>> 8)&0xff), \
                            (c)[2]=(unsigned char)(((l)    )&0xff)),(c)+=3)
+
+# define TLS_MAX_VERSION_INTERNAL TLS1_3_VERSION
+# define DTLS_MAX_VERSION_INTERNAL DTLS1_2_VERSION
 
 /*
  * DTLS version numbers are strange because they're inverted. Except for
@@ -2488,7 +2492,7 @@ __owur int tls13_hkdf_expand(SSL *s, const EVP_MD *md,
                              const unsigned char *secret,
                              const unsigned char *label, size_t labellen,
                              const unsigned char *data, size_t datalen,
-                             unsigned char *out, size_t outlen);
+                             unsigned char *out, size_t outlen, int fatal);
 __owur int tls13_derive_key(SSL *s, const EVP_MD *md,
                             const unsigned char *secret, unsigned char *key,
                             size_t keylen);

@@ -936,7 +936,7 @@ static unsigned char *esni_hkdf_expand_label(
     int rv=tls13_hkdf_expand(&s, md, Zx, 
                             (const unsigned char*)label, strlen(label),
                             hash, hash_len,
-                            out, *expanded_len);
+                            out, *expanded_len,0);
     if (rv!=1) {
         return NULL;
     }

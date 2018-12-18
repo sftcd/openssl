@@ -1,7 +1,7 @@
 /*
  * Copyright 1995-2018 The OpenSSL Project Authors. All Rights Reserved.
  *
- * Licensed under the OpenSSL license (the "License").  You may not use
+ * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
  * in the file LICENSE in the source distribution or at
  * https://www.openssl.org/source/license.html
@@ -121,7 +121,7 @@ int tls1_clear(SSL *s)
         return 0;
 
     if (s->method->version == TLS_ANY_VERSION)
-        s->version = TLS_MAX_VERSION;
+        s->version = TLS_MAX_VERSION_INTERNAL;
     else
         s->version = s->method->version;
 

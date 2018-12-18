@@ -250,6 +250,8 @@ echo -e "$httpreq" | $vgcmd $TOP/apps/openssl s_client $dbgstr $certsdb $force13
 
 c200=`grep -c "200 OK" $TMPF`
 c4xx=`grep -ce "^HTTP/1.1 4[0-9][0-9] " $TMPF`
+# handshake bytes - to see if full or abbreviated
+hsbs=`grep "SSL handshake has read" $TMPF`
 
 if [[ "$DEBUG" == "yes" ]]
 then
@@ -272,8 +274,10 @@ then
 	echo "Nonce sent: $noncestr"
 	echo "Nonce Back: $eestr"
 	grep -e "^ESNI: " $TMPF
+	echo "Handshake bytes: $hsbs"
 else
 	echo "Looks like $c200 ok's and $c4xx bad's."
+	echo "Handshake bytes: $hsbs"
 fi
 echo ""
 rm -f $TMPF

@@ -2,7 +2,7 @@
  * Copyright 1995-2018 The OpenSSL Project Authors. All Rights Reserved.
  * Copyright 2005 Nokia. All rights reserved.
  *
- * Licensed under the OpenSSL license (the "License").  You may not use
+ * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
  * in the file LICENSE in the source distribution or at
  * https://www.openssl.org/source/license.html
@@ -2732,12 +2732,16 @@ int s_client_main(int argc, char **argv)
             /* STARTTLS command requires CAPABILITIES... */
             BIO_printf(fbio, "CAPABILITIES\r\n");
             (void)BIO_flush(fbio);
-            /* wait for multi-line CAPABILITIES response */
-            do {
-                mbuf_len = BIO_gets(fbio, mbuf, BUFSIZZ);
-                if (strstr(mbuf, "STARTTLS"))
-                    foundit = 1;
-            } while (mbuf_len > 1 && mbuf[0] != '.');
+            BIO_gets(fbio, mbuf, BUFSIZZ);
+            /* no point in trying to parse the CAPABILITIES response if there is none */
+            if (strstr(mbuf, "101") != NULL) {
+                /* wait for multi-line CAPABILITIES response */
+                do {
+                    mbuf_len = BIO_gets(fbio, mbuf, BUFSIZZ);
+                    if (strstr(mbuf, "STARTTLS"))
+                        foundit = 1;
+                } while (mbuf_len > 1 && mbuf[0] != '.');
+            }
             (void)BIO_flush(fbio);
             BIO_pop(fbio);
             BIO_free(fbio);
@@ -3446,6 +3450,10 @@ static void print_stuff(BIO *bio, SSL *s, int full)
                comp ? SSL_COMP_get_name(comp) : "NONE");
     BIO_printf(bio, "Expansion: %s\n",
                expansion ? SSL_COMP_get_name(expansion) : "NONE");
+#endif
+#ifndef OPENSSL_NO_KTLS
+    if (BIO_get_ktls_send(SSL_get_wbio(s)))
+        BIO_printf(bio_err, "Using Kernel TLS for sending\n");
 #endif
 
 #ifdef SSL_DEBUG

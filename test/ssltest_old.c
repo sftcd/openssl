@@ -3,7 +3,7 @@
  * Copyright (c) 2002, Oracle and/or its affiliates. All rights reserved
  * Copyright 2005 Nokia. All rights reserved.
  *
- * Licensed under the OpenSSL license (the "License").  You may not use
+ * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
  * in the file LICENSE in the source distribution or at
  * https://www.openssl.org/source/license.html
@@ -1331,8 +1331,8 @@ int main(int argc, char *argv[])
         min_version = TLS1_2_VERSION;
         max_version = TLS1_2_VERSION;
     } else {
-        min_version = SSL3_VERSION;
-        max_version = TLS_MAX_VERSION;
+        min_version = 0;
+        max_version = 0;
     }
 #endif
 #ifndef OPENSSL_NO_DTLS
@@ -1345,8 +1345,8 @@ int main(int argc, char *argv[])
             min_version = DTLS1_2_VERSION;
             max_version = DTLS1_2_VERSION;
         } else {
-            min_version = DTLS_MIN_VERSION;
-            max_version = DTLS_MAX_VERSION;
+            min_version = 0;
+            max_version = 0;
         }
     }
 #endif

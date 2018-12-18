@@ -1,7 +1,7 @@
 /*
  * Copyright 2016-2018 The OpenSSL Project Authors. All Rights Reserved.
  *
- * Licensed under the OpenSSL license (the "License").  You may not use
+ * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
  * in the file LICENSE in the source distribution or at
  * https://www.openssl.org/source/license.html
@@ -63,7 +63,7 @@ static int test_dtls_unprocessed(int testidx)
 
     if (!TEST_true(create_ssl_ctx_pair(DTLS_server_method(),
                                        DTLS_client_method(),
-                                       DTLS1_VERSION, DTLS_MAX_VERSION,
+                                       DTLS1_VERSION, 0,
                                        &sctx, &cctx, cert, privkey)))
         return 0;
 
@@ -154,7 +154,7 @@ static int test_dtls_drop_records(int idx)
 
     if (!TEST_true(create_ssl_ctx_pair(DTLS_server_method(),
                                        DTLS_client_method(),
-                                       DTLS1_VERSION, DTLS_MAX_VERSION,
+                                       DTLS1_VERSION, 0,
                                        &sctx, &cctx, cert, privkey)))
         return 0;
 
@@ -265,7 +265,7 @@ static int test_cookie(void)
 
     if (!TEST_true(create_ssl_ctx_pair(DTLS_server_method(),
                                        DTLS_client_method(),
-                                       DTLS1_VERSION, DTLS_MAX_VERSION,
+                                       DTLS1_VERSION, 0,
                                        &sctx, &cctx, cert, privkey)))
         return 0;
 
@@ -297,7 +297,7 @@ static int test_dtls_duplicate_records(void)
 
     if (!TEST_true(create_ssl_ctx_pair(DTLS_server_method(),
                                        DTLS_client_method(),
-                                       DTLS1_VERSION, DTLS_MAX_VERSION,
+                                       DTLS1_VERSION, 0,
                                        &sctx, &cctx, cert, privkey)))
         return 0;
 

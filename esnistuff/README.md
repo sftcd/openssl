@@ -333,5 +333,11 @@ I'm sure there's more but some collected so far:
   time, which need to use special OpenSSL APIs, which need support for
   crypto h/w (if any)
 - Maybe move the above to issues in github.
+- Periodically resync with upstream:
+			$ git fetch upstream
+			$ git checkout master
+			$ git merge upstream/master
+	If there are conflicts then edit to fix:-)
+
 
 
