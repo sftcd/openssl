@@ -1,0 +1,25 @@
+
+debian_stretch:
+  image: debian:stretch
+  script:
+    - apt-get update
+    - apt-get -qy install --no-install-recommends build-essential
+    - ./config
+    - make
+
+android:
+  image: registry.gitlab.com/fdroid/ci-images-server:latest
+  script:
+    - apt-get update
+    - apt-get -qy install --no-install-recommends make
+    - ndk=android-ndk-r16b-linux-x86_64.zip
+    - wget --quiet http://dl.google.com/android/repository/${ndk}
+    - echo "bcdea4f5353773b2ffa85b5a9a2ae35544ce88ec5b507301d8cf6a76b765d901  ${ndk}" > ${ndk}.sha256
+    - sha256sum -c ${ndk}.sha256
+    - unzip -q $ndk
+    - export ANDROID_NDK_HOME=`pwd`/android-ndk-r16b
+    - export ANDROID_NDK=$ANDROID_NDK_HOME
+    - export PATH=$ANDROID_NDK/toolchains/arm-linux-androideabi-4.9/prebuilt/linux-x86_64/bin:$PATH
+    - echo y | $ANDROID_HOME/tools/bin/sdkmanager "platforms;android-14" > /dev/null
+    - ./Configure android-arm -D__ANDROID_API__=14
+    - make
