@@ -277,7 +277,6 @@ then
 	echo "Handshake bytes: $hsbs"
 else
 	echo "Looks like $c200 ok's and $c4xx bad's."
-	echo "Handshake bytes: $hsbs"
 fi
 echo ""
 rm -f $TMPF

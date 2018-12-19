@@ -155,15 +155,16 @@ static const SSL_CIPHER *cs2sc(uint16_t ciphersuite)
  */
 void ESNI_RECORD_free(ESNI_RECORD *er)
 {
+    int i; /* loop counter - android build doesn't like C99;-( */
     if (er==NULL) return;
     if (er->group_ids!=NULL) OPENSSL_free(er->group_ids);
-    for (int i=0;i!=er->nkeys;i++) {
+    for (i=0;i!=er->nkeys;i++) {
         EVP_PKEY *pk=er->keys[i];
         EVP_PKEY_free(pk);
         if (er->encoded_keys[i]!=NULL) OPENSSL_free(er->encoded_keys[i]);
     }
     if (er->keys!=NULL) OPENSSL_free(er->keys);
-    for (int i=0;i!=er->nexts;i++) {
+    for (i=0;i!=er->nexts;i++) {
         if (er->exts[i]!=NULL) OPENSSL_free(er->exts[i]);
     }
     if (er->ciphersuites!=NULL) OPENSSL_free(er->ciphersuites);
@@ -1408,9 +1409,10 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys,
         /*
          * fixed sizes are ok here - it's just for NSS interop
          */
+        int i; /* loop counter - android build doesn't like C99;-( */
         unsigned char binpriv[64];
         size_t bp_len=32;
-        for (int i=0;i!=32;i++) {
+        for (i=0;i!=32;i++) {
             binpriv[i]=AH2B(esnikeys->private_str[2*i])*16+AH2B(esnikeys->private_str[(2*i)+1]);
         }
         so_esni_pbuf("CRYPTO_INTEROP  private",binpriv,bp_len,0);
@@ -1827,7 +1829,8 @@ int SSL_esni_enable(SSL *s, const char *hidden, const char *cover, SSL_ESNI *esn
         return 0;
     }
     if (s->esni!=NULL) {
-        for (int i=0;i!=s->nesni;i++) {
+        int i; /* loop counter - android build doesn't like C99;-( */
+        for (i=0;i!=s->nesni;i++) {
             SSL_ESNI_free(&s->esni[i]);
         }
         OPENSSL_free(s->esni);
@@ -1862,15 +1865,15 @@ int SSL_esni_enable(SSL *s, const char *hidden, const char *cover, SSL_ESNI *esn
 
     /*
      * Handle padding - the server needs to do padding in case the
-	 * certificate/key-size exposes the ESNI. But so can lots of 
-	 * the other application interactions, so to be at least a bit
-	 * cautious, we'll also pad the crap out of everything on the
-	 * client side (at least to see what happens:-)
-	 * This could be over-ridden by the client appication if it
-	 * wants by setting a callback via SSL_set_record_padding_callback
-	 * We'll try set to 512 bytes, minus the 16 overhead so that
-	 * wireshark shows us nice round numbers and we're less
-	 * likely to go beyond an MTU (1550)
+     * certificate/key-size exposes the ESNI. But so can lots of 
+     * the other application interactions, so to be at least a bit
+     * cautious, we'll also pad the crap out of everything on the
+     * client side (at least to see what happens:-)
+     * This could be over-ridden by the client appication if it
+     * wants by setting a callback via SSL_set_record_padding_callback
+     * We'll try set to 512 bytes, minus the 16 overhead so that
+     * wireshark shows us nice round numbers and we're less
+     * likely to go beyond an MTU (1550)
      */
 
     if (SSL_set_block_padding(s,ESNI_DEFAULT_PADDED)!=1) {
@@ -1978,8 +1981,8 @@ int SSL_esni_server_enable(SSL_CTX *ctx, const char *esnikeyfile, const char *es
      * the certificates/public keys involved, but for now, we'll try to 
      * use the standard record padding scheme via SSL_CTX_set_block_padding
      * to set padding to 512 sized blocks and see what happens.
-	 * This could be over-ridden by the client appication if it
-	 * wants by setting a callback via SSL_CTX_set_record_padding_callback
+     * This could be over-ridden by the client appication if it
+     * wants by setting a callback via SSL_CTX_set_record_padding_callback
      */
     if (SSL_CTX_set_block_padding(ctx,ESNI_DEFAULT_PADDED)!=1) {
         ESNIerr(ESNI_F_SERVER_ENABLE, ERR_R_INTERNAL_ERROR);
@@ -2099,7 +2102,8 @@ SSL_ESNI* SSL_ESNI_dup(SSL_ESNI* orig, size_t nesni)
     }
     memset(new,0,nesni*sizeof(SSL_ESNI));
 
-    for (int i=0;i!=nesni;i++) {
+    int i; /* loop counter - android build doesn't like C99;-( */
+    for (i=0;i!=nesni;i++) {
 
         SSL_ESNI *origi=&orig[i];
         SSL_ESNI *newi=&new[i];
