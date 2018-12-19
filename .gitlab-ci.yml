@@ -6,6 +6,24 @@ debian_stretch:
     - apt-get -qy install --no-install-recommends build-essential
     - ./config
     - make
+    - make test
+
+doc-nits:
+  image: debian:stretch-slim
+  script:
+    - apt-get update
+    - apt-get -qy install --no-install-recommends make perl
+    - ./config
+    - make doc-nits
+
+make-update:
+  image: debian:stretch-slim
+  script:
+    - apt-get update
+    - apt-get -qy install --no-install-recommends build-essential git
+    - ./config
+    - make update
+    - git diff --exit-code
 
 .android-template: &android-template
   image: registry.gitlab.com/fdroid/ci-images-client
