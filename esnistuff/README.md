@@ -36,6 +36,8 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- Changed loop counters to not assume C99 (android, sheesh!).
+
 - Changed resumption in ``s_client`` to check HIDDEN (or COVER, if
   no HIDDEN) name vs. peer cert (subj/SAN) in stored session state
   if resuming. 

@@ -2158,11 +2158,12 @@ int s_server_main(int argc, char *argv[])
     if ((esnidir!=NULL) || (esnikeyfile!= NULL && esnipubfile!=NULL)) {
         SSL_ESNI *tp=NULL;
         int nesni=SSL_ESNI_get_esni_ctx(ctx,&tp);
+        int i; /* loop counter - android build doesn't like C99;-( */
         if (nesni==0) {
             BIO_printf(bio_err, "Failure establishing ESNI parameters - can't print 'em\n" );
             goto end;
         } 
-        for (int i=0;i!=nesni;i++) {
+        for (i=0;i!=nesni;i++) {
             BIO_printf(bio_err, "SSL_ESNI(%d of %d):\r\n",i+1,nesni);
             SSL_ESNI_print(bio_err,&tp[i]);
         }
