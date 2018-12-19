@@ -21,14 +21,14 @@
 # include <openssl/ssl.h>
 
 
-#ifdef ESNI_CRYPT_INTEROP
-//#undef ESNI_CRYPT_INTEROP
 /**
  * If defined, this provides enough API, internals and tracing so we can 
  * ensure/check we're generating keys the same way as other code, in 
  * partocular the existing NSS code
  */
 #define ESNI_CRYPT_INTEROP
+//#undef ESNI_CRYPT_INTEROP
+#ifdef ESNI_CRYPT_INTEROP
 
 /**
 * map an (ascii hex) value to a nibble
