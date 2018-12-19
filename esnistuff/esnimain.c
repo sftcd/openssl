@@ -53,9 +53,9 @@ int main(int argc, char **argv)
     char *private_str=NULL; // input ECDH private
     char *client_random_str=NULL;
     char *hs_key_share_str=NULL;
-	char *nonce_str=NULL;
+    char *nonce_str=NULL;
     int rv;
-	unsigned char *nbuf=NULL;
+    unsigned char *nbuf=NULL;
 
     // getopt vars
     int opt;
@@ -115,43 +115,44 @@ int main(int argc, char **argv)
     /* 
      * fake client random
      */
-	if (client_random_str!=NULL && strlen(client_random_str) != 64 ) {
+    if (client_random_str!=NULL && strlen(client_random_str) != 64 ) {
         printf("Weird client_random length - exiting\n");
         exit(1);
-	}
+    }
     size_t cr_len=SSL3_RANDOM_SIZE;
     unsigned char client_random[SSL3_RANDOM_SIZE];
 #ifdef ESNI_CRYPT_INTEROP
-	if (client_random_str==NULL) {
-    	RAND_bytes(client_random,cr_len);
-	} else {
-		for (int i=0;i!=32;i++) {
-			client_random[i]=AH2B(client_random_str[2*i])*16+AH2B(client_random_str[(2*i)+1]);
-		}
-	}
+    if (client_random_str==NULL) {
+        RAND_bytes(client_random,cr_len);
+    } else {
+        int i; /* loop counter - android build doesn't like C99;-( */
+        for (i=0;i!=32;i++) {
+            client_random[i]=AH2B(client_random_str[2*i])*16+AH2B(client_random_str[(2*i)+1]);
+        }
+    }
 #else
-	RAND_bytes(client_random,cr_len);
+    RAND_bytes(client_random,cr_len);
 #endif
 
     /*
      * fake client keyshare
      */
-	if (hs_key_share_str!=NULL && strlen(hs_key_share_str) != 64 ) {
+    if (hs_key_share_str!=NULL && strlen(hs_key_share_str) != 64 ) {
         printf("Weird hs_key_share length - exiting\n");
         exit(1);
-	}
-	uint16_t cid=0x001d;
+    }
+    uint16_t cid=0x001d;
     size_t ckl=32;
     unsigned char ck[32];
 #ifdef ESNI_CRYPT_INTEROP
-	if (hs_key_share_str==NULL) {
-    	// RAND_bytes(ck,32);
-    	memset(ck,0xA5,32);
-	} else {
-		for (int i=0;i!=32;i++) {
-			ck[i]=AH2B(hs_key_share_str[2*i])*16+AH2B(hs_key_share_str[(2*i)+1]);
-		}
-	}
+    if (hs_key_share_str==NULL) {
+        // RAND_bytes(ck,32);
+        memset(ck,0xA5,32);
+    } else {
+        for (int i=0;i!=32;i++) {
+            ck[i]=AH2B(hs_key_share_str[2*i])*16+AH2B(hs_key_share_str[(2*i)+1]);
+        }
+    }
 #else
     memset(ck,0xA5,32);
 #endif
@@ -169,20 +170,20 @@ int main(int argc, char **argv)
     }
 
 #ifdef ESNI_CRYPT_INTEROP
-	if (private_str!=NULL) {
-		SSL_ESNI_set_private(esnikeys,private_str);
-	}
-	if (nonce_str!=NULL) {
-		nbuf=OPENSSL_malloc(strlen(nonce_str)/2+1);
-		if (nbuf==NULL) {
-			goto end;
-		}
-		size_t nlen=strlen(nonce_str)/2;
-		for (int i=0;i!=nlen;i++) {
-			nbuf[i]=AH2B(nonce_str[2*i])*16+AH2B(nonce_str[(2*i)+1]);
-		}
-		SSL_ESNI_set_nonce(esnikeys,nbuf,nlen);
-	}
+    if (private_str!=NULL) {
+        SSL_ESNI_set_private(esnikeys,private_str);
+    }
+    if (nonce_str!=NULL) {
+        nbuf=OPENSSL_malloc(strlen(nonce_str)/2+1);
+        if (nbuf==NULL) {
+            goto end;
+        }
+        size_t nlen=strlen(nonce_str)/2;
+        for (int i=0;i!=nlen;i++) {
+            nbuf[i]=AH2B(nonce_str[2*i])*16+AH2B(nonce_str[(2*i)+1]);
+        }
+        SSL_ESNI_set_nonce(esnikeys,nbuf,nlen);
+    }
 #endif
 
     fp=fopen("/dev/stdout","w");
@@ -193,16 +194,16 @@ int main(int argc, char **argv)
     if (out == NULL)
         goto end;
 
-	esnikeys->encservername=OPENSSL_strndup(encservername,TLSEXT_MAXLEN_host_name);
-	if (esnikeys->encservername==NULL)
-		goto end;
-	if (covername!=NULL) {
-		esnikeys->covername=OPENSSL_strndup(covername,TLSEXT_MAXLEN_host_name);
-		if (esnikeys->covername==NULL)
-			goto end;
-	} else {
-		esnikeys->covername=NULL;
-	}
+    esnikeys->encservername=OPENSSL_strndup(encservername,TLSEXT_MAXLEN_host_name);
+    if (esnikeys->encservername==NULL)
+        goto end;
+    if (covername!=NULL) {
+        esnikeys->covername=OPENSSL_strndup(covername,TLSEXT_MAXLEN_host_name);
+        if (esnikeys->covername==NULL)
+            goto end;
+    } else {
+        esnikeys->covername=NULL;
+    }
 
     if (!SSL_ESNI_enc(esnikeys,cr_len,client_random,cid,ckl,ck,&the_esni)) {
         printf("Can't encrypt SSL_ESNI!\n");
@@ -220,7 +221,7 @@ end:
         SSL_ESNI_free(esnikeys);
         OPENSSL_free(esnikeys);
     }
-	OPENSSL_free(nbuf);
+    OPENSSL_free(nbuf);
     return(0);
 }
 #endif

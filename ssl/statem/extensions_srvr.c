@@ -1988,6 +1988,7 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
 {
     CLIENT_ESNI *ce=NULL;
     unsigned char *ks=NULL;
+    SSL_ESNI *match=NULL;
 
     if (s->esni==NULL) {
         return 1;
@@ -2045,24 +2046,24 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
          SSL_R_BAD_EXTENSION);
         goto err;
     }
-	unsigned char *tmpbuf=OPENSSL_malloc(tmp);  //* group id goes there too - sigh as always
-	if (tmpbuf==NULL) {
+    unsigned char *tmpbuf=OPENSSL_malloc(tmp);  //* group id goes there too - sigh as always
+    if (tmpbuf==NULL) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ESNI,
          SSL_R_BAD_EXTENSION);
         goto err;
-	}
+    }
     if (!PACKET_copy_bytes(pkt, tmpbuf, tmp)) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ESNI,
          SSL_R_BAD_EXTENSION);
         goto err;
     }
     ce->encoded_keyshare=wrap_keyshare(tmpbuf,tmp,group_id,&ce->encoded_keyshare_len);
-	OPENSSL_free(tmpbuf);
-	if (ce->encoded_keyshare==NULL ){
+    OPENSSL_free(tmpbuf);
+    if (ce->encoded_keyshare==NULL ){
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ESNI,
          SSL_R_BAD_EXTENSION);
         goto err;
-	}
+    }
 
     /* record_digest len - should also be 0x20 */
     if (!PACKET_get_net_2(pkt, &tmp)) {
@@ -2122,24 +2123,24 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
     }
     ce->encrypted_sni_len=tmp;
 
-	/*
-	 * see which pub/private value matches record_digest 
-	 */
-	SSL_ESNI *match=NULL;
-	int matchind=-1;
-	for (int i=0;i!=s->nesni;i++) {
-		if (s->esni[i].rd_len==ce->record_digest_len &&
-			!memcmp(s->esni[i].rd,ce->record_digest,ce->record_digest_len)) {
-			/* found it */
-			match=&s->esni[i];
-			matchind=i;
-		}
-	}
-	if (match==NULL) {
+    /*
+     * see which pub/private value matches record_digest 
+     */
+    int matchind=-1;
+    int i; /* loop counter - android build doesn't like C99;-( */
+    for (i=0;i!=s->nesni;i++) {
+        if (s->esni[i].rd_len==ce->record_digest_len &&
+            !memcmp(s->esni[i].rd,ce->record_digest,ce->record_digest_len)) {
+            /* found it */
+            match=&s->esni[i];
+            matchind=i;
+        }
+    }
+    if (match==NULL) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ESNI,
          SSL_R_BAD_EXTENSION);
         goto err;
-	}
+    }
     match->the_esni=ce; 
 
     /*
@@ -2177,16 +2178,16 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
     OPENSSL_free(ks);
 
     /*
-	 * check encservername has no zero bytes internally
-	 * code here inspired by PACKET_contains_zero_byte but
-	 * decided not to create a new pseudo-PACKET to do 
-	 * that
-	 */
+     * check encservername has no zero bytes internally
+     * code here inspired by PACKET_contains_zero_byte but
+     * decided not to create a new pseudo-PACKET to do 
+     * that
+     */
     if (memchr(encservername, 0, encservername_len) != NULL) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ESNI,
              SSL_R_BAD_EXTENSION);
         goto err;
-	}
+    }
 
     /*
      * Now apply esni by swapping out hostname (we'll try anyway:-)
@@ -2222,9 +2223,9 @@ err:
     if (ce->record_digest) OPENSSL_free(ce->record_digest);
     if (ce->encrypted_sni) OPENSSL_free(ce->encrypted_sni);
     if (ce) OPENSSL_free(ce);
-	if (s->esni && match) {
-    	match->the_esni=NULL;
-	}
+    if (s->esni && match!=NULL) {
+        match->the_esni=NULL;
+    }
     return 0;
 }
 
@@ -2239,15 +2240,16 @@ EXT_RETURN tls_construct_stoc_esni(SSL *s, WPACKET *pkt,
 {
     if (s->esni) {
         if (s->esni_done==1) {
-			SSL_ESNI *match=NULL;
-			for (int i=0;i!=s->nesni;i++) {
-				if (s->esni[i].nonce!=NULL) {
-					match=&s->esni[i];
-				} 
-			}
-			if (match==NULL) {
+            SSL_ESNI *match=NULL;
+            int i; /* loop counter - android build doesn't like C99;-( */
+            for (i=0;i!=s->nesni;i++) {
+                if (s->esni[i].nonce!=NULL) {
+                    match=&s->esni[i];
+                } 
+            }
+            if (match==NULL) {
                 return EXT_RETURN_FAIL;
-			}
+            }
             if  (match->nonce==NULL || match->nonce_len<=0) {
                 return EXT_RETURN_FAIL;
             }
