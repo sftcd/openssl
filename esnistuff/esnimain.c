@@ -44,16 +44,14 @@ void usage(char *prog)
 // code within here need not be openssl-style, but we'll migrate there:-)
 int main(int argc, char **argv)
 {
-    // default for names
-    const char *defname="www.cloudflare.com";
     char *encservername=NULL; // the one we'll encrypt
     char *covername=NULL; // the one we'll (optionally) leave visible 
     char *esni_str=NULL; // esni b64 string from DNS
     // for debugging purposes
-    char *private_str=NULL; // input ECDH private
     char *client_random_str=NULL;
     char *hs_key_share_str=NULL;
     char *nonce_str=NULL;
+    char *private_str=NULL; // input ECDH private
     int rv;
     unsigned char *nbuf=NULL;
 
@@ -183,6 +181,15 @@ int main(int argc, char **argv)
             nbuf[i]=AH2B(nonce_str[2*i])*16+AH2B(nonce_str[(2*i)+1]);
         }
         SSL_ESNI_set_nonce(esnikeys,nbuf,nlen);
+    }
+#else 
+    if (private_str!=NULL) {
+        printf("Can't use private_str if built without ESNI_CRYPT_INTEROP - exiting\n");
+        goto end;
+    }
+    if (nonce_str!=NULL) {
+        printf("Can't use nonce_str if built without ESNI_CRYPT_INTEROP - exiting\n");
+        goto end;
     }
 #endif
 
