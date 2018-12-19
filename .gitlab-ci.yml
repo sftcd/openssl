@@ -7,7 +7,7 @@ debian_stretch:
     - ./config
     - make
 
-android:
+.android-template: &android-template
   image: registry.gitlab.com/fdroid/ci-images-client
   artifacts:
     name: "${CI_PROJECT_PATH}_${CI_JOB_STAGE}_${CI_COMMIT_REF_NAME}_${CI_COMMIT_SHA}"
@@ -21,9 +21,13 @@ android:
     AVD_SDK: "24"
     AVD_TAG: "default"
     AVD_PACKAGE: "system-images;android-${AVD_SDK};${AVD_TAG};armeabi-v7a"
-  script:
+  before_script:
     - apt-get update
     - apt-get -qy install --no-install-recommends make
+
+android-ndk-r16b_gcc-4.9:
+  <<: *android-template
+  script:
     - ndk=android-ndk-r16b-linux-x86_64.zip
     - wget --quiet http://dl.google.com/android/repository/${ndk}
     - echo "bcdea4f5353773b2ffa85b5a9a2ae35544ce88ec5b507301d8cf6a76b765d901  ${ndk}" > ${ndk}.sha256
@@ -48,3 +52,18 @@ android:
     - emulator64-arm -avd avd$AVD_SDK -no-audio -no-window -no-snapstorage &
     - wait-for-emulator
     - adb shell input keyevent 82 &
+
+android-ndk-r17b_gcc-4.9:
+  <<: *android-template
+  script:
+    - ndk=android-ndk-r17b-linux-x86_64.zip
+    - wget --quiet http://dl.google.com/android/repository/${ndk}
+    - echo "5dfbbdc2d3ba859fed90d0e978af87c71a91a5be1f6e1c40ba697503d48ccecd  ${ndk}" > ${ndk}.sha256
+    - sha256sum -c ${ndk}.sha256
+    - unzip -q $ndk
+    - export ANDROID_NDK_HOME=`pwd`/android-ndk-r17b
+    - export ANDROID_NDK=$ANDROID_NDK_HOME
+    - export PATH=$ANDROID_NDK/toolchains/arm-linux-androideabi-4.9/prebuilt/linux-x86_64/bin:$PATH
+    - echo y | $ANDROID_HOME/tools/bin/sdkmanager "platforms;android-14" > /dev/null
+    - ./Configure android-arm -D__ANDROID_API__=14
+    - make
