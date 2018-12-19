@@ -8,6 +8,24 @@ debian_stretch:
     - make
     - make test
 
+mingw-w64:
+  image: debian:stretch-slim
+  script:
+    - export CROSS_COMPILE=x86_64-w64-mingw32-
+    - export CONFIG_OPTS="no-stdio"
+    - export EXE_SHELL=wine
+    - export WINEPREFIX=`pwd`
+    - dpkg --add-architecture i386
+    - apt-get update
+    - apt-get -qy install --no-install-recommends
+          binutils-mingw-w64
+          build-essential
+          gcc-mingw-w64
+          wine
+    - ./Configure mingw64 $CONFIG_OPTS -Wno-pedantic-ms-format;
+    - make
+    - make test
+
 doc-nits:
   image: debian:stretch-slim
   script:
