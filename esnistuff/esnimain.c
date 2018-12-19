@@ -147,7 +147,8 @@ int main(int argc, char **argv)
         // RAND_bytes(ck,32);
         memset(ck,0xA5,32);
     } else {
-        for (int i=0;i!=32;i++) {
+		int i; /* loop counter - android build doesn't like C99;-( */
+        for (i=0;i!=32;i++) {
             ck[i]=AH2B(hs_key_share_str[2*i])*16+AH2B(hs_key_share_str[(2*i)+1]);
         }
     }
@@ -177,7 +178,8 @@ int main(int argc, char **argv)
             goto end;
         }
         size_t nlen=strlen(nonce_str)/2;
-        for (int i=0;i!=nlen;i++) {
+		int i; /* loop counter - android build doesn't like C99;-( */
+        for (i=0;i!=nlen;i++) {
             nbuf[i]=AH2B(nonce_str[2*i])*16+AH2B(nonce_str[(2*i)+1]);
         }
         SSL_ESNI_set_nonce(esnikeys,nbuf,nlen);

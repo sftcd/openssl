@@ -36,7 +36,38 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
-- Changed loop counters to not assume C99 (android, sheesh!).
+- Android NDK build (with thanks to Michael Pöhn): Changed various loop
+  counters to not assume C99 (android, sheesh!). Got build working with android
+  NDK. Added ``esnistuff/Makefile.ndk`` hacked together to build the ``esni`` and
+  ``mk_esnikeys`` binaries (that's not produced by the openssl ``./Configure``
+  sorry, so you may need to edit to get it to work, not sure). Haven't yet tried
+  to run anything, just built it so who knows if it works. Here's what I did to
+  get that build: things:
+
+            $ mkdir $HOME/code/android
+            $ cd $HOME/code/android
+            $ mkdir NDK
+            $ cd NDK
+            $ wget https://dl.google.com/android/repository/android-ndk-r16b-linux-x86_64.zip
+            $ unzip android-ndk-r16b-linux-x86_64.zip
+            ...lots of output...
+            $ cd ..
+            $ git clone https://github.com/sftcd/openssl
+            ...some output...
+            $ cd openssl
+            $ . ./esnistuff/android_envvars.sh
+            $ ./Configure android-arm -D__ANDROID_API__=16
+            ...a bit of output...
+            $ make
+            ...an awful lot of output...
+            $ cd esnistuff
+            $ make -f Makefile.ndk
+            ...a little bit of output...
+
+  That should leave you with the ``esni`` and ``mk_esnikeys`` binaries
+  for Android/ARM. (Again, I've never run those, so who knows what'd happen.)
+  If you put things in some other place, you'll need to edit 
+  ``esnistuff/android_envvars.sh`` to match that.
 
 - Changed resumption in ``s_client`` to check HIDDEN (or COVER, if
   no HIDDEN) name vs. peer cert (subj/SAN) in stored session state
