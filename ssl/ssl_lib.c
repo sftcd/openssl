@@ -1227,7 +1227,8 @@ void SSL_free(SSL *s)
 
 #ifndef OPENSSL_NO_ESNI
 	if (s->esni!=NULL) {
-		for (int i=0;i!=s->nesni;i++) {
+		int i; /* loop counter - android build doesn't like C99;-( */
+		for (i=0;i!=s->nesni;i++) {
 			SSL_ESNI_free(&s->esni[i]);
 		}
 		OPENSSL_free(s->esni);

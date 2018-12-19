@@ -3346,7 +3346,8 @@ void ssl3_free(SSL *s)
 #endif
     OPENSSL_clear_free(s->s3, sizeof(*s->s3));
 #ifdef OPENSSL_NO_ESNI
-	for (int i=0;i!=s->nesni;i++) {
+	int i; /* loop counter - android build doesn't like C99;-( */
+	for (i=0;i!=s->nesni;i++) {
 		SSL_ESNI_free(&s->esni[i]);
 	}
 	OPENSSL_free(s->esni);
