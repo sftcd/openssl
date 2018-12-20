@@ -36,7 +36,9 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
-- Forgot to free ``ext.encservername`` in SSL_SESSION_free`` - fixed now.
+- Forgot to free ``ext.encservername`` in ``SSL_SESSION_free`` - fixed now.
+  Also fixed some issues with ``new_session_cb`` which was crashing for a
+  bit because I also forgot to fix up ``SSL_SESSION_dup``.
 
 - When testing resumption, I had to run ``testclient.sh`` without ``-d``
   to get the session tickets - seems like we're exiting too soon or
