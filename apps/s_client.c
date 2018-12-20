@@ -875,15 +875,15 @@ static int new_session_cb(SSL *s, SSL_SESSION *sess)
 
 #ifndef OPENSSL_NO_ESNI
 	const char *hn=SSL_SESSION_get0_hostname(sess);
-	if (hn==NULL) {
+	if (hn==NULL && c_debug) {
 		BIO_printf(bio_c_out,"Existing session hostname is NULL\n");
-	} else {
+	} else if (c_debug) {
 		BIO_printf(bio_c_out,"Existing session hostname is %s\n",hn);
     }
 	const char *ehn=SSL_SESSION_get0_enchostname(sess);
-	if (ehn==NULL) {
+	if (ehn==NULL && c_debug) {
 		BIO_printf(bio_c_out,"Existing session enchostname is NULL\n");
-	} else {
+	} else if (c_debug)  {
 		BIO_printf(bio_c_out,"Existing session enchostname is %s\n",ehn);
 	}
 	if (encservername) {
@@ -893,10 +893,12 @@ static int new_session_cb(SSL *s, SSL_SESSION *sess)
 	 	 */
         int rv=SSL_SESSION_set1_enchostname(sess,encservername);
         if (rv!=1) {
-            BIO_printf(bio_err, "Can't set ESNI in session...\n");
+            if (c_debug) 
+                BIO_printf(bio_err, "Can't set ESNI in session...\n");
             ERR_print_errors(bio_err);
         } else {
-            BIO_printf(bio_err, "Set ESNI in session to %s\n",encservername);
+            if (c_debug) 
+                BIO_printf(bio_err, "Set ESNI in session to %s\n",encservername);
             ERR_print_errors(bio_err);
         }
 
@@ -907,10 +909,12 @@ static int new_session_cb(SSL *s, SSL_SESSION *sess)
 		 */
         int rv=SSL_SESSION_set1_hostname(sess,servername);
         if (rv!=1) {
-            BIO_printf(bio_err, "Can't set ESNI in session...\n");
+            if (c_debug) 
+                BIO_printf(bio_err, "Can't set ESNI in session...\n");
             ERR_print_errors(bio_err);
         } else {
-            BIO_printf(bio_err, "Set ESNI in session to %s\n",servername);
+            if (c_debug) 
+                BIO_printf(bio_err, "Set ESNI in session to %s\n",servername);
             ERR_print_errors(bio_err);
         }
 	}
@@ -920,7 +924,8 @@ static int new_session_cb(SSL *s, SSL_SESSION *sess)
         BIO *stmp = BIO_new_file(sess_out, "w");
 
         if (stmp == NULL) {
-            BIO_printf(bio_err, "Error writing session file %s\n", sess_out);
+            if (c_debug) 
+                BIO_printf(bio_err, "Error writing session file %s\n", sess_out);
         } else {
             PEM_write_bio_SSL_SESSION(stmp, sess);
             BIO_free(stmp);
@@ -931,7 +936,7 @@ static int new_session_cb(SSL *s, SSL_SESSION *sess)
      * Session data gets dumped on connection for TLSv1.2 and below, and on
      * arrival of the NewSessionTicket for TLSv1.3.
      */
-    if (SSL_version(s) == TLS1_3_VERSION) {
+    if (SSL_version(s) == TLS1_3_VERSION && c_debug) {
         BIO_printf(bio_c_out,
                    "---\nPost-Handshake New Session Ticket arrived:\n");
         SSL_SESSION_print(bio_c_out, sess);

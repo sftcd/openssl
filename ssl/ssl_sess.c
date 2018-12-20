@@ -86,6 +86,11 @@ SSL_SESSION *SSL_SESSION_new(void)
         return NULL;
     }
 
+#ifdef OPENSSL_NO_ESNI
+    ss->ext.enchostname=NULL;
+    ss->ext.hostname=NULL;
+#endif
+
     if (!CRYPTO_new_ex_data(CRYPTO_EX_INDEX_SSL_SESSION, ss, &ss->ex_data)) {
         CRYPTO_THREAD_lock_free(ss->lock);
         OPENSSL_free(ss);
@@ -193,6 +198,14 @@ SSL_SESSION *ssl_session_dup(SSL_SESSION *src, int ticket)
             goto err;
         }
     }
+#ifndef OPENSSL_NO_ESNI
+    if (src->ext.encservername) {
+        dest->ext.encservername = OPENSSL_strdup(src->ext.encservername);
+        if (dest->ext.encservername == NULL) {
+            goto err;
+        }
+    }
+#endif
 #ifndef OPENSSL_NO_EC
     if (src->ext.ecpointformats) {
         dest->ext.ecpointformats =
@@ -927,7 +940,8 @@ const char *SSL_SESSION_get0_enchostname(const SSL_SESSION *s)
 
 int SSL_SESSION_set1_enchostname(SSL_SESSION *s, const char *hostname)
 {
-    OPENSSL_free(s->ext.encservername);
+    if (s->ext.encservername) 
+        OPENSSL_free(s->ext.encservername);
     if (hostname == NULL) {
         s->ext.encservername = NULL;
         return 1;
