@@ -1,7 +1,8 @@
 # ESNI and resumption notes
 
 This is a separate file for now, when done and conclusions reached, I'll
-summarise it in the design doc.
+summarise it in the design doc. Did that now, so this file will disappear
+later (keep for now for test cases below).
 
 The bottom line seems to be that there's a need to bind the HIDDEN to the
 session, and maybe also the COVER. That isn't quite the current behaviour,

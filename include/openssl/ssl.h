@@ -1621,6 +1621,10 @@ __owur long SSL_SESSION_set_timeout(SSL_SESSION *s, long t);
 __owur int SSL_SESSION_get_protocol_version(const SSL_SESSION *s);
 __owur int SSL_SESSION_set_protocol_version(SSL_SESSION *s, int version);
 
+#ifndef OPENSSL_NO_ESNI
+__owur int SSL_SESSION_set1_enchostname(SSL_SESSION *s, const char *hostname);
+__owur const char *SSL_SESSION_get0_enchostname(const SSL_SESSION *s);
+#endif
 __owur const char *SSL_SESSION_get0_hostname(const SSL_SESSION *s);
 __owur int SSL_SESSION_set1_hostname(SSL_SESSION *s, const char *hostname);
 void SSL_SESSION_get0_alpn_selected(const SSL_SESSION *s,
