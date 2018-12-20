@@ -1,7 +1,7 @@
 
 # OpenSSL Encrypted SNI Design
 
-stephen.farrell@cs.tcd.ie, 20181212
+stephen.farrell@cs.tcd.ie, 20181221ish
 
 This file describes the current design for our proof-of-concept 
 openssl implementation of encrypted SNI.
@@ -90,34 +90,38 @@ As the spec matures, a lot of those values won't be needed, and some of
 the related code wouldn't be part of a release. (Such code will
 be protected via  ``#ifdef ESNI_CRYPTO_INTEROP`` - that's not
 yet well-done.)
+- Some padding is needed to avoid exposing which ESNI value is in-play due to the
+  length of handshake messages.
+  Our (perhaps over-subtle) goal could be to pad to the longest cert length as described 
+  in the I-D. The cert-verify message however can also need padding if key lengths differ.
+  For now, our super-crude default padding scheme just calls the existing openssl padding ``SSL_CTX_set_block_padding``
+  with a size of 486 bytes, which should mask some lengths. Those calls are made
+  from ``SSL_esni_server_enable`` and ``SSL_esni_enable``. The effect of that
+  is to pad up all TLS plaintexts to a multiple of 486 bytes, so
+  it's ineffecient and could expose some information if we're unlucky with
+  length boundaries. To pad less and just cover ESNI-related materials, ``s_server`` has a command line argument
+  (``esnispecificpad``) 
+  telling it to only pad Certificate and CertificateVerify messages. 
+  486 bytes was chosen so as to allow 3 ciphertexts to fit within one MTU
+  whilst not being too long nor too short.
+  TODO: test how this affects a real application, once we have one
+  integrated, and justify our default padding length better based on 
+  that analysis.
+- Session resumption: within ``s_client`` I've added checks that the ESNI
+  value (or SNI value if ESNI isn't provided) matches the stored cert
+  in the session. I also added the ``encservername`` as a field to the
+  ``SSL_SESSION`` and populate that, as well as the existing ``hostname``
+  that wasn''t populated at all, both just for logging/debugging
+  purposes. Didn't do anything special server side, but testing 
+  seems to indicate that the expected abbreviated handshakes are
+  happening as planned. 
+
 - Currently notes, (including this one), test scripts and a few other things are in an [esnistuff](https://github.com/sftcd/openssl/esnistuff/)
 directory - that should disappear over time as we better integrate the
 code following good project practice.
 - For now, I'm using doxygen and [moxygen](https://github.com/sourcey/moxygen) to generate API and data structure
 documentation. That'd probably be pruned when/if submitting a PR to the main
 project, but should be helpful for now.
-- Some padding is needed to avoid exposing which ESNI is in-play due to the
-  length of handshake messages.
-  Our subtle goal would be to pad to the longest cert length as described 
-  in the I-D. The cert-verify message however can also need padding if key lengths differ.
-  For now, our super-crude default padding scheme just calls the existing openssl padding ``SSL_CTX_set_block_padding``
-  with a size of 486 bytes, which should mask some lengths. Those calls are made
-  from ``SSL_esni_server_enable`` and ``SSL_esni_enable``. The effect of that
-  is to pad up all server record plaintexts to a multiple of 486 bytes, so
-  it's ineffecient and could expose some information if we're unlucky with
-  length boundaries. To do better ``s_server`` has a command line argument
-  (``esnispecificpad``) 
-  telling it to only pad Certificate and CertificateVerify messages. 
-  TODO: test how this affects a real application, once we have one
-  integrated.
-- Session resumption: within ``s_client`` I've added checks that the ESNI
-  value (or SNI value if ESNI isn't provided) matches the stored cert
-  in the session. I also added the ``encservername`` as a field to the
-  ``SSL_SESSION`` and populate that, and the existing ``hostname``
-  that wasn''t populated at all, both just for logging/debugging
-  purposes. Didn't do anything special server side, but testing 
-  seems to indicate that the expected abbreviated handshakes are
-  happening as planned.
 
 ## Plans
 
