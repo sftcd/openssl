@@ -10,9 +10,6 @@ openssl implementation of encrypted SNI.
   both client and server sides of the ESNI Internet-draft
 [draft-ietf-tls-esni-02](https://tools.ietf.org/html/draft-ietf-tls-esni-02)
 spec.
-- There's no special session or state handling, but things seem to
-work fine for initial handshakes. Starting to fix up [resumption](resumption.md)
-now and there's a bit of work to do. 
 - The most up to date
   [README.md](https://github.com/sftcd/openssl/tree/master/esnistuff) for that
 code.
@@ -113,6 +110,14 @@ project, but should be helpful for now.
   telling it to only pad Certificate and CertificateVerify messages. 
   TODO: test how this affects a real application, once we have one
   integrated.
+- Session resumption: within ``s_client`` I've added checks that the ESNI
+  value (or SNI value if ESNI isn't provided) matches the stored cert
+  in the session. I also added the ``encservername`` as a field to the
+  ``SSL_SESSION`` and populate that, and the existing ``hostname``
+  that wasn''t populated at all, both just for logging/debugging
+  purposes. Didn't do anything special server side, but testing 
+  seems to indicate that the expected abbreviated handshakes are
+  happening as planned.
 
 ## Plans
 
@@ -792,7 +797,13 @@ usually in ``$HOME/code/openssl``.
 Things in this temporary directory. Some will disappear over time, some
 will migrate into the normal openssl build.
 
+- esnistuff/design.md - this file
+- esnistuff/README.md - README with notes on state of play
+- esnistuff/resumption.md - notes about resumption testing (will be deleted later)
+
 - esnistuff/Makefile - build/run/clean stuff here in this temp space
+- esnistuff/Makefile.ndk - build file for android NDK
+- esnistuff/android_envvars.sh - set env vars for an android build
 - esnistuff/esnimain.c - a basic standalone tester
 - esnistuff/doit.sh - calls esnimain
 - esnistuff/testclient.sh - calls ``openssl s_client`` 
@@ -816,8 +827,8 @@ public and private keys both for the TLS server and for ESNI.
 - include/openssl/tls1.h
 - apps/s_client.c
 - apps/s_server.c
-- ssl/ssl-locl.h - TLSEXT_IDX_esni isn't #ifndef protected for some reason, maybe because it's an enum?
-- ssl/ssl-lib.c
+- ssl/ssl_locl.h - TLSEXT_IDX_esni isn't #ifndef protected for some reason, maybe because it's an enum?
+- ssl/ssl_lib.c
 - ssl/s3_lib.c
 - ssl/t1_trce.c
 - ssl/statem/extensions.c - lots of new code, mainly copied from server_name handling
@@ -825,6 +836,7 @@ public and private keys both for the TLS server and for ESNI.
 - ssl/statem/extensions_clnt.c
 - ssl/statem/extensions_srvr.c 
 - crypto/err/err_all.c - loads ESNI strings
-- ssl/ssl_asn1.c - for state stuff
+- ssl/ssl_asn1.c - for ``SSL_SESSION`` state stuff
+- ssl/ssl_sess.c - for ``SSL_SESSION`` API stuff
 
 

@@ -36,6 +36,16 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- When testing resumption, I had to run ``testclient.sh`` without ``-d``
+  to get the session tickets - seems like we're exiting too soon or
+  something if we omit the ``-d`` (which seems counterintuitive but I
+  guess there's a reason). That seems true both against CF and against
+  my own server on localhost. TODO: check it out.
+
+- Fixed up client handling of ``SSL_SESSION`` to make use of
+  the encservername field (via new get0/set1 APIs), and making some use of
+  those in ``s_client``. 
+
 - Android NDK build (with thanks to Michael Pöhn): Changed various loop
   counters to not assume C99 (android, sheesh!). Got build working with android
   NDK. Added ``esnistuff/Makefile.ndk`` hacked together to build the ``esni`` and
