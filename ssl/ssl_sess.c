@@ -792,6 +792,9 @@ void SSL_SESSION_free(SSL_SESSION *ss)
     sk_X509_pop_free(ss->peer_chain, X509_free);
     sk_SSL_CIPHER_free(ss->ciphers);
     OPENSSL_free(ss->ext.hostname);
+#ifndef OPENSSL_NO_ESNI
+    OPENSSL_free(ss->ext.encservername);
+#endif
     OPENSSL_free(ss->ext.tick);
 #ifndef OPENSSL_NO_EC
     OPENSSL_free(ss->ext.ecpointformats);
