@@ -876,49 +876,43 @@ static int new_session_cb(SSL *s, SSL_SESSION *sess)
 #ifndef OPENSSL_NO_ESNI
 	const char *hn=SSL_SESSION_get0_hostname(sess);
 	if (hn==NULL) {
-		BIO_printf(bio_c_out,"Session hostname is NULL\n");
+		BIO_printf(bio_c_out,"Existing session hostname is NULL\n");
 	} else {
-		BIO_printf(bio_c_out,"Session hostname is %s\n",hn);
+		BIO_printf(bio_c_out,"Existing session hostname is %s\n",hn);
+    }
+	const char *ehn=SSL_SESSION_get0_enchostname(sess);
+	if (ehn==NULL) {
+		BIO_printf(bio_c_out,"Existing session enchostname is NULL\n");
+	} else {
+		BIO_printf(bio_c_out,"Existing session enchostname is %s\n",ehn);
 	}
 	if (encservername) {
 		/*
 		 * If doing ESNI then stuff that name into the session, so that 
 	 	 * it'll be visible/remembered later.
 	 	 */
-		SSL_SESSION *sess=SSL_get0_session(s);
-		if (sess==NULL) {
-            BIO_printf(bio_err, "Can't get session to set ESNI in session...\n");
+        int rv=SSL_SESSION_set1_enchostname(sess,encservername);
+        if (rv!=1) {
+            BIO_printf(bio_err, "Can't set ESNI in session...\n");
             ERR_print_errors(bio_err);
-		} else {
-			int rv=SSL_SESSION_set1_hostname(sess,encservername);
-			if (rv!=1) {
-            	BIO_printf(bio_err, "Can't set ESNI in session...\n");
-            	ERR_print_errors(bio_err);
-			} else {
-            	BIO_printf(bio_err, "Set ESNI in session to %s\n",encservername);
-            	ERR_print_errors(bio_err);
-			}
-		}
+        } else {
+            BIO_printf(bio_err, "Set ESNI in session to %s\n",encservername);
+            ERR_print_errors(bio_err);
+        }
 
-	} else if (servername) {
+	} 
+    if (servername) {
 		/*
-		 * If doing cleartext SNI then put that in session instead
-		 * This should probably be done regardless of SNI?
+		 * If doing cleartext SNI then put that in session 
 		 */
-		SSL_SESSION *sess=SSL_get0_session(s);
-		if (sess==NULL) {
-            BIO_printf(bio_err, "Can't get session to set ESNI in session...\n");
+        int rv=SSL_SESSION_set1_hostname(sess,servername);
+        if (rv!=1) {
+            BIO_printf(bio_err, "Can't set ESNI in session...\n");
             ERR_print_errors(bio_err);
-		} else {
-			int rv=SSL_SESSION_set1_hostname(sess,servername);
-			if (rv!=1) {
-            	BIO_printf(bio_err, "Can't set ESNI in session...\n");
-            	ERR_print_errors(bio_err);
-			} else {
-            	BIO_printf(bio_err, "Set ESNI in session to %s\n",servername);
-            	ERR_print_errors(bio_err);
-			}
-		}
+        } else {
+            BIO_printf(bio_err, "Set ESNI in session to %s\n",servername);
+            ERR_print_errors(bio_err);
+        }
 	}
 #endif
 
@@ -2114,26 +2108,45 @@ int s_client_main(int argc, char **argv)
             goto end;
         }
 #ifndef OPENSSL_NO_ESNI
+
+        /*
+         * As per RFC8446, 4.6.1 check that the cert in the session covers
+         * the server name we want (preferring encservername over 
+         * servername)
+         * At this point it doesn't really matter what the old names in
+         * the session were, those are just informative.
+         * Maybe print the peer's subject name (and/or SANs) as well?
+         * But likely too much info and 'openssl sess_id' can do it 
+         * We also print stuff, maybe a bit too much.
+         */
 		const char *thisname=NULL;
 		if (encservername!=NULL) {
 			thisname=encservername;
+            BIO_printf(bio_err, "Encservername is set to %s\n",encservername);
 		} else if (servername!=NULL) {
+            BIO_printf(bio_err, "Encservername is NULL\n");
 			thisname=servername;
 		}
+        if (servername==NULL) {
+            BIO_printf(bio_err, "Servername is NULL\n");
+        } else {
+            BIO_printf(bio_err, "Servername is set to %s\n",servername);
+        }
 
 		if (thisname!=NULL) {
 			const char *hn=SSL_SESSION_get0_hostname(sess);
 			if (hn!=NULL) {
-            	BIO_printf(bio_err, "Stored session host is %s, encservername (or servername) is %s\n",hn,thisname);
+            	BIO_printf(bio_err, "Stored session hostname is %s\n",hn);
 			} else { 
-            	BIO_printf(bio_err, "Stored session host is missing, encservername (or servername) is %s\n",thisname);
+            	BIO_printf(bio_err, "Stored session hostname is missing\n");
 			}
-			/*
-			 * RFC8446, 4.6.1 check that the cert in the session covers
-			 * the encservername 
-			 * Maybe print the peer's subject name (and/or SANs) as well?
-			 * But likely too much info and 'openssl sess_id' can do it 
-			 */
+			const char *ehn=SSL_SESSION_get0_enchostname(sess);
+			if (ehn!=NULL) {
+            	BIO_printf(bio_err, "Stored session encrypted hostname is %s\n",ehn);
+			} else { 
+            	BIO_printf(bio_err, "Stored session encrypted hostname is missing\n");
+			}
+
 			X509 *peer=SSL_SESSION_get0_peer(sess);
 			if (peer==NULL) {
         		SSL_SESSION_free(sess);
