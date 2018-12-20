@@ -36,6 +36,8 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- Forgot to free ``ext.encservername`` in SSL_SESSION_free`` - fixed now.
+
 - When testing resumption, I had to run ``testclient.sh`` without ``-d``
   to get the session tickets - seems like we're exiting too soon or
   something if we omit the ``-d`` (which seems counterintuitive but I
