@@ -870,6 +870,9 @@ static int new_session_cb(SSL *s, SSL_SESSION *sess)
 {
 
 #ifndef OPENSSL_NO_ESNI
+    if (c_debug) {
+        BIO_printf(bio_c_out,"new_session_cb called\n");
+    }
 	const char *hn=SSL_SESSION_get0_hostname(sess);
 	if (hn==NULL && c_debug) {
 		BIO_printf(bio_c_out,"Existing session hostname is NULL\n");
@@ -2052,6 +2055,7 @@ int s_client_main(int argc, char **argv)
      */
     SSL_CTX_set_session_cache_mode(ctx, SSL_SESS_CACHE_CLIENT
                                         | SSL_SESS_CACHE_NO_INTERNAL_STORE);
+    BIO_printf(bio_err,"Setting new_session_cb\n");
     SSL_CTX_sess_set_new_cb(ctx, new_session_cb);
 
     if (set_keylog_file(ctx, keylog_file))

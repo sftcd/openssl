@@ -36,15 +36,36 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- When testing resumption, I had to run ``testclient.sh`` without ``-d``
+  to get a session ticket - seems like we're exiting too soon or
+  something if we omit the ``-d`` (which seems counterintuitive but I
+  guess there's a reason). That seems true both against CF and against
+  my own server on localhost. E.g., this command doesn't result
+  in a session ticket being stored, nor received:
+
+            $ ./testclient.sh -H ietf.org -S sess -d
+
+  ...whereas this one reliably does:
+
+            $ ./testclient.sh -H ietf.org -S sess 
+
+  ...you'd imagine that's some fault of the script, but I can't
+  see it (yet).  What's odd is you'd expect ``-d`` (which maps
+  to ``-msg`` vs. ``-quiet``) would allow more time to get the
+  NewSessionTicket messages back. 
+  Breaking that out some more:
+
+            $ echo "get /" | LD_LIBRARY_PATH=.. /home/stephen/code/openssl/apps/openssl s_client -CApath /etc/ssl/certs/ -cipher TLS13-AES-128-GCM-SHA256 -no_ssl3 -no_tls1 -no_tls1_1 -no_tls1_2 -connect www.cloudflare.com:443 -esni ietf.org -esnirr /wECHcZnACQAHQAgeto9z+jn2BOrX31ZhlgBoatctfP2R3MkH/5MeLV3SG4AAhMBAQQAAAAAXBoWoAAAAABcIf+gAAA= -servername www.cloudflare.com -sess_out sess -msg
+            ... lots of output, no file for session (sess) created...
+            $ echo "get /" | LD_LIBRARY_PATH=.. /home/stephen/code/openssl/apps/openssl s_client -CApath /etc/ssl/certs/ -cipher TLS13-AES-128-GCM-SHA256 -no_ssl3 -no_tls1 -no_tls1_1 -no_tls1_2 -connect www.cloudflare.com:443 -esni ietf.org -esnirr /wECHcZnACQAHQAgeto9z+jn2BOrX31ZhlgBoatctfP2R3MkH/5MeLV3SG4AAhMBAQQAAAAAXBoWoAAAAABcIf+gAAA= -servername www.cloudflare.com -sess_out sess -quiet
+            ... teeny bit of output, session file (sess) created...
+
+    The only difference there is the ``-msg`` vs. ``-quiet`` command
+    line argument. Odd. But not my script's fault.
+
 - Forgot to free ``ext.encservername`` in ``SSL_SESSION_free`` - fixed now.
   Also fixed some issues with ``new_session_cb`` which was crashing for a
   bit because I also forgot to fix up ``SSL_SESSION_dup``.
-
-- When testing resumption, I had to run ``testclient.sh`` without ``-d``
-  to get the session tickets - seems like we're exiting too soon or
-  something if we omit the ``-d`` (which seems counterintuitive but I
-  guess there's a reason). That seems true both against CF and against
-  my own server on localhost. TODO: check it out.
 
 - Fixed up client handling of ``SSL_SESSION`` to make use of
   the encservername field (via new get0/set1 APIs), and making some use of
@@ -56,7 +77,7 @@ Most recent first...
   ``mk_esnikeys`` binaries (that's not produced by the openssl ``./Configure``
   sorry, so you may need to edit to get it to work, not sure). Haven't yet tried
   to run anything, just built it so who knows if it works. Here's what I did to
-  get that build: things:
+  get that build: 
 
             $ mkdir $HOME/code/android
             $ cd $HOME/code/android

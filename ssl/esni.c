@@ -702,6 +702,11 @@ err:
  */
 static void esni_pbuf(BIO *out,char *msg,unsigned char *buf,size_t blen,int indent)
 {
+    /*
+     * The "OPENSSL: " prefix helps as I instrumented an NSS build
+     * to preface the same variables with "NSS: ". That can however
+     * be removed once the ESNI spec's crypto is stable.
+     */
     if (buf==NULL || blen==0) {
         BIO_printf(out,"OPENSSL: %s is NULL\n",msg);
         return;
@@ -800,7 +805,7 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esni)
         BIO_printf(out,"ESNI Client ESNI KeyShare: ");
         EVP_PKEY_print_public(out, esni->keyshare, indent, NULL);
     } else {
-        BIO_printf(out,"ESNI Client ESNI KeyShare is NULL ");
+        BIO_printf(out,"ESNI Client ESNI KeyShare is NULL\n");
     }
     esni_pbuf(out,"ESNI Encoded ESNIContents (hash input)",esni->hi,esni->hi_len,indent);
     esni_pbuf(out,"ESNI Encoded ESNIContents (hash output)",esni->hash,esni->hash_len,indent);

@@ -90,6 +90,11 @@ int SSL_SESSION_print(BIO *bp, const SSL_SESSION *x)
 	} else {
 		BIO_printf(bp,"\n    SNI/Hostname is NULL");
 	}
+    if (x->ext.encservername!=NULL) {
+		BIO_printf(bp,"\n    ESNI/Hostname: %s",x->ext.encservername);
+	} else {
+		BIO_printf(bp,"\n    ESNI/Hostname is NULL");
+    }
 #endif
 #ifndef OPENSSL_NO_PSK
     if (BIO_puts(bp, "\n    PSK identity: ") <= 0)
