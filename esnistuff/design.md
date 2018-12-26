@@ -156,7 +156,7 @@ Lastly, we note the [files](#file-changes) that are new, or modified.
 
 ### Test script
 
-The ``usage()`` function for the [testclient.sh](https://gitbub.com/sftcd/openssl/esnistuff/testit.sh) 
+The ``usage()`` function for the [testclient.sh](https://github.com/sftcd/openssl/blob/master/esnistuff/testclient.sh) 
 produces this:
 
 			$ ./testclient.sh -h
