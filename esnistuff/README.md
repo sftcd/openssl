@@ -36,6 +36,8 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- Resync'd with upstream. Must figure how to automate that.
+
 - When testing resumption, I had to run ``testclient.sh`` without ``-d`` to get
   a session ticket - seems like we're exiting too soon or something if we omit
 the ``-d`` (which seems counterintuitive).  That seems true both against CF and
