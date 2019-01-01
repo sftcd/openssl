@@ -3335,6 +3335,20 @@ int s_client_main(int argc, char **argv)
  shut:
     if (in_init)
         print_stuff(bio_c_out, con, full_log);
+#ifndef OPENSSL_NO_ESNI
+    /*
+     * Debugging - not really ESNI related (I think) but the 
+     * callback for session tickets isn't firing in a slightly
+     * confusing manner so this is to rule out some possible
+     * causes.
+     */
+    if (sess_out) {
+        int snooze=10;
+        printf("Sleeping for %d\n",snooze);
+        sleep(snooze);
+        printf("Waking\n");
+    }
+#endif
     do_ssl_shutdown(con);
 
     /*

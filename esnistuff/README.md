@@ -1,7 +1,7 @@
 
 # This is a temporary place for ESNI content ...
 
-Stephen Farrell, stephen.farrell@cs.tcd.ie, 20181218
+Stephen Farrell, stephen.farrell@cs.tcd.ie, 20190101
 
 I'll put stuff here that'll likely disappear if this matures. So the plan would
 be to delete all this before submitting any PR to the openssl folks. Over time,
@@ -36,12 +36,11 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
-- When testing resumption, I had to run ``testclient.sh`` without ``-d``
-  to get a session ticket - seems like we're exiting too soon or
-  something if we omit the ``-d`` (which seems counterintuitive but I
-  guess there's a reason). That seems true both against CF and against
-  my own server on localhost. E.g., this command doesn't result
-  in a session ticket being stored, nor received:
+- When testing resumption, I had to run ``testclient.sh`` without ``-d`` to get
+  a session ticket - seems like we're exiting too soon or something if we omit
+the ``-d`` (which seems counterintuitive).  That seems true both against CF and
+against my own server on localhost. E.g., this command doesn't result in a
+session ticket being stored, nor received:
 
             $ ./testclient.sh -H ietf.org -S sess -d
 
@@ -49,11 +48,8 @@ Most recent first...
 
             $ ./testclient.sh -H ietf.org -S sess 
 
-  ...you'd imagine that's some fault of the script, but I can't
-  see it (yet).  What's odd is you'd expect ``-d`` (which maps
-  to ``-msg`` vs. ``-quiet``) would allow more time to get the
-  NewSessionTicket messages back. 
-  Breaking that out some more:
+  ...you'd imagine that's some fault of the script, but apparently not.  see it
+(yet).  Breaking that out some more:
 
             $ echo "get /" | LD_LIBRARY_PATH=.. /home/stephen/code/openssl/apps/openssl s_client -CApath /etc/ssl/certs/ -cipher TLS13-AES-128-GCM-SHA256 -no_ssl3 -no_tls1 -no_tls1_1 -no_tls1_2 -connect www.cloudflare.com:443 -esni ietf.org -esnirr /wECHcZnACQAHQAgeto9z+jn2BOrX31ZhlgBoatctfP2R3MkH/5MeLV3SG4AAhMBAQQAAAAAXBoWoAAAAABcIf+gAAA= -servername www.cloudflare.com -sess_out sess -msg
             ... lots of output, no file for session (sess) created...
@@ -61,7 +57,16 @@ Most recent first...
             ... teeny bit of output, session file (sess) created...
 
     The only difference there is the ``-msg`` vs. ``-quiet`` command
-    line argument. Odd. But not my script's fault.
+    line argument. Odd. So it's not the script's fault. (Note: you'll
+    need to use a fresh esnirr value to see the above.)
+    Not providing the ``echo "get /"`` input means ``s_client`` waits
+    for user input, in which case we do get the session tickets, so 
+    this issue could be down to timing - if for some reason 
+    ``-msg`` was that little quicker than ``-quiet`` causing 
+    the client to exit before receiving back the tickets. However, 
+    when I (temporarily) added a ``sleep(10)``
+    before the call to ``do_ssl_shutdown()`` in ``s_client'' we still didn't
+    get the session tickets, so it's not just timing.
 
 - Forgot to free ``ext.encservername`` in ``SSL_SESSION_free`` - fixed now.
   Also fixed some issues with ``new_session_cb`` which was crashing for a
@@ -382,7 +387,6 @@ seemed unkeen on. Decided to not bother with that.
 
 I'm sure there's more but some collected so far:
 
-- Figure out/test resumption cases.
 - Figure out/test HRR cases. [This issue](https://github.com/tlswg/draft-ietf-tls-esni/issues/121) calls for checks to be enforced.
 - Server API for managing ESNI public/private values w/o restart.
 - Server-side policy: should server have a concept of "only visible via ESNI"?
