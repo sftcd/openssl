@@ -3335,7 +3335,7 @@ int s_client_main(int argc, char **argv)
  shut:
     if (in_init)
         print_stuff(bio_c_out, con, full_log);
-#ifndef OPENSSL_NO_ESNI
+#ifdef NOT_OPENSSL_NO_ESNI_BUT_DEBUGGING
     /*
      * Debugging - not really ESNI related (I think) but the 
      * callback for session tickets isn't firing in a slightly
