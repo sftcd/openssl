@@ -36,6 +36,12 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- ``make test`` in the main openssl directory is reporting problems (thanks to Niall O'Reilly 
+  for spotting that). First fail can be reproduced with ``make test TESTS=test_sslmessages V=1``
+  and indicates that there's a problem with resuming a session. Since I did mess with that
+  code (I changed what's stored when ESNI is used), that's likely my fault. Will check, 
+  but gotta do other stuff first (hence this note:-) 
+
 - Resync'd with upstream. Must figure how to automate that.
 
 - When testing resumption, I had to run ``testclient.sh`` without ``-d`` to get
