@@ -41,6 +41,14 @@ Most recent first...
   and indicates that there's a problem with resuming a session. Since I did mess with that
   code (I changed what's stored when ESNI is used), that's likely my fault. Will check, 
   but gotta do other stuff first (hence this note:-) 
+    - Issue seems to be my callback is insisting that the name (whether clear or ESNI)
+    stored in the session matches the peer cert in the session, which is ok if that's
+    a "real" cert, as in my ESNI tests, but likely isn't the case in general where
+    we might be dealing with a self-signed cert.
+    - So I need to loosen up a bit and/or make the ``require_hidden_match`` input to
+    ``SSL_esni_enable`` be a command line argument that also controls this (and hence
+    has a slightly different semantic). Need to think a bit about that.
+    - There's a FIXME: for that in ``s_client.c`` around line 2149.
 
 - Resync'd with upstream. Must figure how to automate that.
 

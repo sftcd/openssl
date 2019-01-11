@@ -2163,10 +2163,15 @@ int s_client_main(int argc, char **argv)
             	ERR_print_errors(bio_err);
             	goto end;
 			}
+            /*
+             * FIXME: This causes a ``make test`` test case to fail
+             * when thisname is "localhost" and I guess it's a self-signed cert
+             * ...or maybe for all self-signed certs, which wouldn't be acceptable
+             */
 			int rv=X509_check_host(peer,thisname,strlen(thisname),0,NULL);
 			if (rv!=1) {
         		SSL_SESSION_free(sess);
-            	BIO_printf(bio_err, "Stored session peer doesn't match %s - exiting\n",encservername);
+            	BIO_printf(bio_err, "Stored session peer doesn't match %s - exiting\n",thisname);
             	ERR_print_errors(bio_err);
             	goto end;
 			}
