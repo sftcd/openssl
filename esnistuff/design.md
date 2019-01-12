@@ -209,6 +209,8 @@ has two new comnand line arguments:
 
 - ``esni`` allows one to specifiy the HIDDEN service
 - ``esnirr`` allows one to provide the (base64 encoded) TXT RR as per the spec.
+- ``esni_strict`` if set, then the ESNI value is compared to the TLS server cert
+  and an error is returned if they dont match (both for new and stored sessions)
 
 There is new debugging output showing the ESNI intemediate values
 if TLS message-level debugging is turned on via ``-msg`` 
@@ -523,11 +525,11 @@ The main data structures are:
 			 * @param hidde is the hidden service name
 			 * @param cover is the cleartext SNI name to use
 			 * @param esni is the SSL_ESNI structure
-			 * @param require_hidden_match say whether to require (==1) the TLS server cert matches the hidden name
+			 * @param esni_strict say whether to require (==1) the TLS server cert matches the hidden name
 			 * @return 1 for success, other otherwise
 			 * 
 			 */
-			int SSL_esni_enable(SSL *s, const char *hidden, const char *cover, SSL_ESNI *esni, int require_hidden_match);
+			int SSL_esni_enable(SSL *s, const char *hidden, const char *cover, SSL_ESNI *esni, int esni_strict);
 			
 			/**
 			 * Turn on SNI Encryption, server-side
