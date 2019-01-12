@@ -36,19 +36,30 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
-- ``make test`` in the main openssl directory is reporting problems (thanks to Niall O'Reilly 
-  for spotting that). First fail can be reproduced with ``make test TESTS=test_sslmessages V=1``
-  and indicates that there's a problem with resuming a session. Since I did mess with that
-  code (I changed what's stored when ESNI is used), that's likely my fault. Will check, 
-  but gotta do other stuff first (hence this note:-) 
-    - Issue seems to be my callback is insisting that the name (whether clear or ESNI)
-    stored in the session matches the peer cert in the session, which is ok if that's
-    a "real" cert, as in my ESNI tests, but likely isn't the case in general where
-    we might be dealing with a self-signed cert.
-    - So I need to loosen up a bit and/or make the ``require_hidden_match`` input to
-    ``SSL_esni_enable`` be a command line argument that also controls this (and hence
-    has a slightly different semantic). Need to think a bit about that.
-    - There's a FIXME: for that in ``s_client.c`` around line 2149.
+- ``make test`` in the main openssl directory is reporting problems (thanks to 
+  @niallor for spotting that). First fail can be reproduced with: 
+            make test TESTS=test_sslmessages V=1
+  and indicates that there's a problem with resuming a session. As I did mess with that
+  code (I changed what's stored when ESNI is used and what's checked when a session is
+  loaded for re-use), that's likely my fault. 
+    - Issue seems to be my ``s_client`` additions to the ``new_session_cb``
+      callback is insisting that the name (whether clear or ESNI) stored in the
+session matches the peer cert in the session, which is ok if that's a "real"
+cert, as in my ESNI tests, but likely isn't the case in general where we might
+be dealing with a self-signed cert.
+    - So I need to loosen up a bit and/or make the ``require_hidden_match``
+      input to ``SSL_esni_enable`` be a command line argument that also
+controls this (and hence has a slightly different semantic). Need to think a
+bit about that.
+    - situation:
+        - We have SNI or ESNI or neither supplied on the command line 
+        - If neither then we won't check any names
+        - If just ESNI or both then ESNI wins over SNI and we check that name
+        - If SNI then we check that
+        - The server cert is/isn't checked 
+    - I added an ``esni_strict`` CLA to ``s_client`` - if set then these
+    name checks are done, if not, they're not and that's enough to get
+    ``make test`` in the main directory to return a PASS.
 
 - Resync'd with upstream. Must figure how to automate that.
 

@@ -84,6 +84,7 @@ static int ocsp_resp_cb(SSL *s, void *arg);
 #endif
 #ifndef OPENSSL_NO_ESNI
 static unsigned int esni_cb(SSL *s, int index);
+int esni_strict=0;
 #endif
 static int ldap_ExtendedResponse_parse(const char *buf, long rem);
 static char *base64encode (const void *buf, size_t len);
@@ -613,6 +614,7 @@ typedef enum OPTION_choice {
 #ifndef OPENSSL_NO_ESNI
     OPT_ESNI,
     OPT_ESNI_RR,
+    OPT_ESNI_STRICT,
 #endif
     OPT_R_ENUM
 } OPTION_CHOICE;
@@ -723,6 +725,8 @@ const OPTIONS s_client_options[] = {
      "Set TLS extension encrypted servername (ESNI) in ClientHello, value is to-be-encrypted name"},
     {"esnirr", OPT_ESNI_RR, 's',
      "Set ESNI ESNIKeys, value is base64 encoded from TXT RR as per I-D -02"},
+    {"esni_strict",OPT_ESNI_STRICT,'-',
+     "Enforce strict matching between ESNI value and TLS server cert"},
 #endif
     {"noservername", OPT_NOSERVERNAME, '-',
      "Do not send the server name (SNI) extension in the ClientHello"},
@@ -1535,6 +1539,9 @@ int s_client_main(int argc, char **argv)
         case OPT_ESNI_RR:
             b64esnikeys = opt_arg();
             break;
+        case OPT_ESNI_STRICT:
+            esni_strict=1;
+            break;
 #endif
         case OPT_NOSERVERNAME:
             noservername = 1;
@@ -2142,7 +2149,7 @@ int s_client_main(int argc, char **argv)
             BIO_printf(bio_err, "Servername is set to %s\n",servername);
         }
 
-		if (thisname!=NULL) {
+		if (esni_strict && thisname!=NULL) {
 			const char *hn=SSL_SESSION_get0_hostname(sess);
 			if (hn!=NULL) {
             	BIO_printf(bio_err, "Stored session hostname is %s\n",hn);
@@ -2167,6 +2174,7 @@ int s_client_main(int argc, char **argv)
              * FIXME: This causes a ``make test`` test case to fail
              * when thisname is "localhost" and I guess it's a self-signed cert
              * ...or maybe for all self-signed certs, which wouldn't be acceptable
+			 * this used to be: int rv=X509_check_host(peer,thisname,strlen(thisname),0,NULL);
              */
 			int rv=X509_check_host(peer,thisname,strlen(thisname),0,NULL);
 			if (rv!=1) {
@@ -2196,14 +2204,7 @@ int s_client_main(int argc, char **argv)
 
 #ifndef OPENSSL_NO_ESNI
     if (encservername != NULL ) {
-        /*
-         * Tell the ESNI code we do want SSL_get_esni_status to barf
-         * if the hidden name doesn't match the server-cert used for the 
-         * TLS session.
-         * This could be made a command line argument, but I've not (yet)
-         */
-        int require_hidden_match=1;
-        if (SSL_esni_enable(con,encservername,servername,esnikeys,require_hidden_match)!=1) {
+        if (SSL_esni_enable(con,encservername,servername,esnikeys,esni_strict)!=1) {
             BIO_printf(bio_err, "%s: ESNI enabling failed.\n", prog);
             ERR_print_errors(bio_err);
             /*
