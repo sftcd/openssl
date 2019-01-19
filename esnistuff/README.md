@@ -36,6 +36,15 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- rebased my code as advised by @eighthave to make CI stuff easier/better (not
+  that I fully understand the mechanics here;-). That involved doing this:
+
+            $ git remote add upstream https://github.com/openssl/openssl.git
+            $ git fetch upstream
+            $ git rebase upstream/master
+            ...some mucking with merge fails...
+            $ git push -f origin master  
+
 - ``make test`` in the main openssl directory is reporting problems (thanks to 
   @niallor for spotting that). First fail can be reproduced with: 
             make test TESTS=test_sslmessages V=1
