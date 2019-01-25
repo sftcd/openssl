@@ -45,6 +45,7 @@ SUPPLIEDCOVER=""
 SUPPLIEDESNI=""
 SUPPLIEDCADIR=""
 SUPPLIEDSESSION=""
+BELAX=""
 HIDDEN="encryptedsni.com"
 COVER="www.cloudflare.com"
 CAPATH="/etc/ssl/certs/"
@@ -60,7 +61,7 @@ echo "Running $0 at $NOW"
 
 function usage()
 {
-    echo "$0 [-cHPpsdnlvh] - try out encrypted SNI via openssl s_client"
+    echo "$0 [-cHPpsdnlvhL] - try out encrypted SNI via openssl s_client"
 	echo "  -c [name] specifices a covername that I'll send as a clear SNI (NONE is special)"
     echo "  -H means try connect to that hidden server"
 	echo "  -P [filename] means read ESNIKeys public value from file and not DNS"
@@ -70,6 +71,7 @@ function usage()
     echo "  -v means run with valgrind"
     echo "  -l means use stale ESNIKeys"
 	echo "  -S [file] means save or resume session from <file>"
+    echo "  -L means to not set esni_strict on the command line (be lax)"
     echo "  -n means don't trigger esni at all"
     echo "  -h means print this"
 
@@ -80,7 +82,7 @@ function usage()
 }
 
 # options may be followed by one colon to indicate they have a required argument
-if ! options=$(/usr/bin/getopt -s bash -o S:c:P:H:p:s:dlvnh -l session:,cover:,esnipub:,hidden:,port:,server:,debug,stale,valgrind,noesni,help -- "$@")
+if ! options=$(/usr/bin/getopt -s bash -o S:c:P:H:p:s:dlvnhL -l session:,cover:,esnipub:,hidden:,port:,server:,debug,stale,valgrind,noesni,help,lax -- "$@")
 then
     # something went wrong, getopt will put out an error message for us
     exit 1
@@ -100,6 +102,7 @@ do
         -H|--hidden) SUPPLIEDHIDDEN=$2; shift;;
         -S|--session) SUPPLIEDSESSION=$2; shift;;
 		-P|--esnipub) SUPPLIEDESNI=$2; shift;;
+		-L|--lax) BELAX="yes";;
         -p|--port) SUPPLIEDPORT=$2; shift;;
         (--) shift; break;;
         (-*) echo "$0: error - unrecognized option $1" 1>&2; exit 1;;
@@ -209,7 +212,11 @@ then
 fi
 
 
-esnistr="-esni $hidden -esnirr $ESNI "
+esnistr="-esni $hidden -esnirr $ESNI -esni_strict "
+if [[ "$BELAX" == "yes" ]]
+then
+    esnistr="-esni $hidden -esnirr $ESNI "
+fi
 if [[ "$NOESNI" == "yes" ]]
 then
     echo "Not trying ESNI"

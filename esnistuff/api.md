@@ -3,6 +3,8 @@
  Members                        | Descriptions                                
 --------------------------------|---------------------------------------------
 `define `[`MKESNIKEYS_BUFLEN`](#mk__esnikeys_8c_1a78e53e10a406675eace5e343d94db19f)            | just for laughs, won't be that long
+`define `[`ESNI_CRYPT_INTEROP`](#esni_8h_1ac1aec0191ca183eb5a034a8b892203ba)            | If defined, this provides enough API, internals and tracing so we can ensure/check we're generating keys the same way as other code, in partocular the existing NSS code.
+`define `[`AH2B`](#esni_8h_1a4ba879ccd5d88036df08420dea487ff8)            | map an (ascii hex) value to a nibble
 `define `[`SSL_ESNI_STATUS_SUCCESS`](#esni_8h_1a6a4d94b18577a453e7ca65273c75b110)            | Success.
 `define `[`SSL_ESNI_STATUS_FAILED`](#esni_8h_1aff48e6059acca5bd4a3f9f2a926e9ffd)            | Some internal error.
 `define `[`SSL_ESNI_STATUS_BAD_CALL`](#esni_8h_1a182a797bad43060760194c701c882fd0)            | Required in/out arguments were NULL.
@@ -98,6 +100,18 @@
 #### `define `[`MKESNIKEYS_BUFLEN`](#mk__esnikeys_8c_1a78e53e10a406675eace5e343d94db19f) 
 
 just for laughs, won't be that long
+
+<p id="esni_8h_1ac1aec0191ca183eb5a034a8b892203ba"><hr></p>
+
+#### `define `[`ESNI_CRYPT_INTEROP`](#esni_8h_1ac1aec0191ca183eb5a034a8b892203ba) 
+
+If defined, this provides enough API, internals and tracing so we can ensure/check we're generating keys the same way as other code, in partocular the existing NSS code.
+
+<p id="esni_8h_1a4ba879ccd5d88036df08420dea487ff8"><hr></p>
+
+#### `define `[`AH2B`](#esni_8h_1a4ba879ccd5d88036df08420dea487ff8) 
+
+map an (ascii hex) value to a nibble
 
 <p id="esni_8h_1a6a4d94b18577a453e7ca65273c75b110"><hr></p>
 
@@ -207,7 +221,7 @@ is the number of bytes of padding to add to the plaintext
 
 a servername_cb that is ESNI aware
 
-The COVER is the command line -servername But our ESNI is just named in the cert for the 2nd context (ctx2) and not on the command line. So we need to check if the supplied (E)SNI matches either and serve whichever is appropriate. X509_check_host is the way to do that, given an X509* pointer.
+The server has possibly two names (from command line and config) basically in ctx and ctx2. So we need to check if the client-supplied (E)SNI matches either and serve whichever is appropriate. X509_check_host is the way to do that, given an X509* pointer. We default to the "main" ctx is the client-supplied (E)SNI does not match the ctx2 certificate. We don't fail if the client-supplied (E)SNI matches neither, but just continue with the "main" ctx. If the client-supplied (E)SNI matches both ctx and ctx2, then we'll switch to ctx2 anyway - we don't try for a "best" match in that case.
 
 #### Parameters
 * `s` is the SSL connection 
@@ -543,7 +557,7 @@ This is called via callback
 
 API to allow calling code know ESNI outcome, post-handshake.
 
-This is intended to be called by applications after the TLS handshake is complete.
+This is intended to be called by applications after the TLS handshake is complete. This works for both client and server. The caller does not have to (and shouldn't) free the hidden or cover strings. TODO: Those are pointers into the SSL struct though so maybe better to allocate fresh ones.
 
 #### Parameters
 * `s` The SSL context (if that's the right term) 
@@ -971,7 +985,7 @@ When this works, the server will decrypt any ESNI seen in ClientHellos and subse
 
 API to allow calling code know ESNI outcome, post-handshake.
 
-This is intended to be called by applications after the TLS handshake is complete.
+This is intended to be called by applications after the TLS handshake is complete. This works for both client and server. The caller does not have to (and shouldn't) free the hidden or cover strings. TODO: Those are pointers into the SSL struct though so maybe better to allocate fresh ones.
 
 #### Parameters
 * `s` The SSL context (if that's the right term) 
@@ -1379,6 +1393,7 @@ On the client-side, one of these is part of the SSL structure. On the server-sid
 `public unsigned char * `[`cipher`](#structssl__esni__st_1a19d1bfe34738bd14d62c5f98d25ed9d8) | ciphetext value of ESNI
 `public size_t `[`tag_len`](#structssl__esni__st_1a422257e7b151614e7873443572e380af) | 
 `public unsigned char * `[`tag`](#structssl__esni__st_1ae12ddfc5fb31d43b68c9febca9730e94) | GCM tag (already also in ciphertext)
+`public char * `[`private_str`](#structssl__esni__st_1ab623dc6359f2c62ade27719be580c438) | for debug purposes, requires special build
 `public `[`CLIENT_ESNI`](#esni_8h_1add3c7579c9f0d7bd5959b37f9c017461)` * `[`the_esni`](#structssl__esni__st_1acc1e4d390a3f6fc96c52a10cac4fd6c1) | the final outputs for the caller (note: not separately alloc'd)
 
 ## Members
@@ -1634,6 +1649,12 @@ ciphetext value of ESNI
 #### `public unsigned char * `[`tag`](#structssl__esni__st_1ae12ddfc5fb31d43b68c9febca9730e94) 
 
 GCM tag (already also in ciphertext)
+
+<p id="structssl__esni__st_1ab623dc6359f2c62ade27719be580c438"><hr></p>
+
+#### `public char * `[`private_str`](#structssl__esni__st_1ab623dc6359f2c62ade27719be580c438) 
+
+for debug purposes, requires special build
 
 <p id="structssl__esni__st_1acc1e4d390a3f6fc96c52a10cac4fd6c1"><hr></p>
 

@@ -526,12 +526,18 @@ static size_t esni_padding_cb(SSL *s, int type, size_t len, void *arg)
 /**
  * @brief a servername_cb that is ESNI aware
  *
- * The COVER is the command line -servername
- * But our ESNI is just named in the cert for the 2nd context (ctx2) 
- * and not on the command line.
- * So we need to check if the supplied (E)SNI matches either and
+ * The server has possibly two names (from command line and config) basically 
+ * in ctx and ctx2.
+ * So we need to check if the client-supplied (E)SNI matches either and
  * serve whichever is appropriate.
  * X509_check_host is the way to do that, given an X509* pointer.
+ * We default to the "main" ctx is the client-supplied (E)SNI does not
+ * match the ctx2 certificate.
+ * We don't fail if the client-supplied (E)SNI matches neither, but
+ * just continue with the "main" ctx.
+ * If the client-supplied (E)SNI matches both ctx and ctx2, then we'll
+ * switch to ctx2 anyway - we don't try for a "best" match in that
+ * case.
  *
  * @param s is the SSL connection
  * @param ad is dunno
@@ -541,24 +547,54 @@ static size_t esni_padding_cb(SSL *s, int type, size_t len, void *arg)
 static int ssl_esni_servername_cb(SSL *s, int *ad, void *arg)
 {
     tlsextctx *p = (tlsextctx *) arg;
+    /*
+     * Name that matches "main" ctx
+     */
     const char *servername = SSL_get_servername(s, TLSEXT_NAMETYPE_host_name);
+    if (p->biodebug != NULL ) {
+        /*
+        * Client supplied ESNI (hidden) and SNi (cover)
+        */
+        char *hidden=NULL; 
+        char *cover=NULL;
+        int esnirv=SSL_get_esni_status(s,&hidden,&cover);
+        switch (esnirv) {
+        case SSL_ESNI_STATUS_NOT_TRIED: 
+            BIO_printf(p->biodebug,"ssl_esni_servername_cb: not attempted\n");
+            break;
+        case SSL_ESNI_STATUS_FAILED: 
+            BIO_printf(p->biodebug,"ssl_esni_servername_cb: tried but failed\n");
+            break;
+        case SSL_ESNI_STATUS_BAD_NAME: 
+            BIO_printf(p->biodebug,"ssl_esni_servername_cb: worked but bad name\n");
+            break;
+        case SSL_ESNI_STATUS_SUCCESS:
+            BIO_printf(p->biodebug,"ssl_esni_servername_cb: success: cover: %s, hidden: %s\n",
+                            (cover==NULL?"none":cover),
+                            (hidden==NULL?"none":hidden));
+            break;
+        default:
+            BIO_printf(p->biodebug,"ssl_esni_servername_cb: Error getting ESNI status\n");
+            break;
+        }
+    }
 
     if (servername != NULL && p->biodebug != NULL) {
         const char *cp = servername;
         unsigned char uc;
 
-        BIO_printf(p->biodebug, "Hostname in TLS extension: \"");
+        BIO_printf(p->biodebug, "ssl_esni_servername_cb: Hostname in TLS extension: \"");
         while ((uc = *cp++) != 0)
             BIO_printf(p->biodebug,
                        isascii(uc) && isprint(uc) ? "%c" : "\\x%02x", uc);
         BIO_printf(p->biodebug, "\"\n");
         if (p->servername!=NULL) {
-            BIO_printf(p->biodebug, "ESNI covername: %s\n",p->servername);
+            BIO_printf(p->biodebug, "ssl_esni_servername_cb: ctx servername: %s\n",p->servername);
         } else {
-            BIO_printf(p->biodebug, "ESNI covername is NULL\n");
+            BIO_printf(p->biodebug, "ssl_esni_servername_cb: ctx servername covername is NULL\n");
         }
         if (p->scert == NULL ) {
-            BIO_printf(p->biodebug, "No 2nd cert! Things likely won't go well:-)\n");
+            BIO_printf(p->biodebug, "ssl_esni_servername_cb: No 2nd cert! Things likely won't go well:-)\n");
         }
     }
 
@@ -578,12 +614,12 @@ static int ssl_esni_servername_cb(SSL *s, int *ad, void *arg)
             int mrv=X509_check_host(p->scert,servername,strlen(servername),0,NULL);
             if (mrv==1) {
                 if (p->biodebug!=NULL) {
-                     BIO_printf(p->biodebug, "Switching context.\n");
+                     BIO_printf(p->biodebug, "ssl_esni_servername_cb: Switching context.\n");
                 }
                 SSL_set_SSL_CTX(s, ctx2);
             } else {
                 if (p->biodebug!=NULL) {
-                     BIO_printf(p->biodebug, "Not switching context - no name match (%d).\n",mrv);
+                     BIO_printf(p->biodebug, "ssl_esni_servername_cb: Not switching context - no name match (%d).\n",mrv);
                 }
             }
         }
@@ -598,7 +634,7 @@ static int ssl_esni_servername_cb(SSL *s, int *ad, void *arg)
 
 #ifndef OPENSSL_NO_ESNI
      /*
-     * Just to avoid a warning that the #else function here isn't used
+     * Just to avoid a warning 
      */
 #else
 static int ssl_servername_cb(SSL *s, int *ad, void *arg)
@@ -2143,8 +2179,10 @@ int s_server_main(int argc, char *argv[])
                 pubname[elen+1+nlen-1]=0x00;
                 struct stat thestat;
                 if (stat(pubname,&thestat)==0 && stat(privname,&thestat)==0) {
-                    BIO_printf(bio_err,"try public: %s\r\n",pubname);
-                    BIO_printf(bio_err,"try private: %s\r\n",privname);
+                    if (bio_s_out != NULL) {
+                        BIO_printf(bio_s_out,"try public: %s\r\n",pubname);
+                        BIO_printf(bio_s_out,"try private: %s\r\n",privname);
+                    }
                     if (SSL_esni_server_enable(ctx,privname,pubname)!=1) {
                         BIO_printf(bio_err, "Failure establishing ESNI parameters\n" );
                         goto end;
@@ -2163,9 +2201,11 @@ int s_server_main(int argc, char *argv[])
             BIO_printf(bio_err, "Failure establishing ESNI parameters - can't print 'em\n" );
             goto end;
         } 
-        for (i=0;i!=nesni;i++) {
-            BIO_printf(bio_err, "SSL_ESNI(%d of %d):\r\n",i+1,nesni);
-            SSL_ESNI_print(bio_err,&tp[i]);
+        if (bio_s_out != NULL) {
+            for (i=0;i!=nesni;i++) {
+                BIO_printf(bio_s_out, "SSL_ESNI(%d of %d):\r\n",i+1,nesni);
+                SSL_ESNI_print(bio_s_out,&tp[i]);
+            }
         }
     }
 #endif

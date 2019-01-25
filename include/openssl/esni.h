@@ -383,7 +383,10 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esni);
  * @brief API to allow calling code know ESNI outcome, post-handshake
  *
  * This is intended to be called by applications after the TLS handshake
- * is complete.
+ * is complete. This works for both client and server. The caller does
+ * not have to (and shouldn't) free the hidden or cover strings.
+ * TODO: Those are pointers into the SSL struct though so maybe better
+ * to allocate fresh ones.
  *
  * @param s The SSL context (if that's the right term)
  * @param hidden will be set to the address of the hidden service

@@ -161,7 +161,7 @@ produces this:
 
 			$ ./testclient.sh -h
 			Running ./testclient.sh at 20181212-120634
-			./testclient.sh [-cHPpsdnlvh] - try out encrypted SNI via openssl s_client
+			./testclient.sh [-cHPpsdnlvhL] - try out encrypted SNI via openssl s_client
 			  -c [name] specifices a covername that I'll send as a clear SNI (NONE is special)
 			  -H means try connect to that hidden server
 			  -P [filename] means read ESNIKeys public value from file and not DNS
@@ -171,6 +171,7 @@ produces this:
 			  -v means run with valgrind
 			  -l means use stale ESNIKeys
 			  -S [file] means save or resume session from <file>
+              -L means to not set esni_strict on the command line (be lax)
 			  -n means don't trigger esni at all
 			  -h means print this
 			
@@ -210,8 +211,12 @@ has two new comnand line arguments:
 - ``esni`` allows one to specifiy the HIDDEN service
 - ``esnirr`` allows one to provide the (base64 encoded) TXT RR as per the spec.
 - ``esni_strict`` if set, then the ESNI value is compared to the TLS server cert
-  and an error is returned if they dont match (both for new and stored sessions)
-
+  and an error is returned if they dont match (both for new and stored sessions).
+  At present this is off by default for ``s_client`` and the library, not quite
+  sure that's correct. TODO: maybe swap the default, but that needs a change
+  inside the main openssl ``make test`` which'd fail if we're strict on this
+  when resuming a session.
+  
 There is new debugging output showing the ESNI intemediate values
 if TLS message-level debugging is turned on via ``-msg`` 
 

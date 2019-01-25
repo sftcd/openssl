@@ -18,23 +18,29 @@ stuff seems to work when talking to itself, and an NSS client.
 Here's our [design doc](./design.md) that'll hopefully explain more
 about how it works and what it does.
 
-# Random notes
-
-- Surprisingly (for me:-) this works: 
-
-			$ ./testclient.sh -H ietf.org -c 254systemlabelifikeepadding00000000000000000000000000000000000111111111111111111111111111111111122222222222222222222222222222222222244444444444444444444444444445666666666666666666666666666666666666666666666666666677777777777777777777777777777777777777776
-
-	i.e., connecting to www.cloudflare.com with an SNI they don't serve and
- 	an ESNI that they do... is fine. The SNI value doesn't have to be a real or even
-    a valid DNS name (I think!). The one above is 254 octets long. (255 or more
-	octets aren't accepted by the ``openssl s_client``) Not sure what'd be right there TBH.
-	Probably wanna ask CF about that.
-
 # State-of-play...
 
 There's a [TODO list](#todos) at the end.
 
 Most recent first...
+
+- Added a call to ``SSL_esni_get_status`` to ``s_server.c`` callback for tracing
+  and cleaned up a bit of the over-verbosity of ``s_server`` generally. 
+
+- Added a `-L` command line option to ``testclient.sh`` to turn off ``esni_strict``
+  if desired (with ``esni_strict`` being on by default for the script but off by
+  default for ``s_client``).
+
+- Surprisingly (for me:-) this works: 
+
+			$ ./testclient.sh -H ietf.org -c 254systemlabelifikeepadding00000000000000000000000000000000000111111111111111111111111111111111122222222222222222222222222222222222244444444444444444444444444445666666666666666666666666666666666666666666666666666677777777777777777777777777777777777777776
+
+    i.e., connecting to www.cloudflare.com with an SNI they don't serve and an
+ESNI that they do... is fine. The SNI value doesn't have to be a real or even a
+valid DNS name (I think!). The one above is 254 octets long. (255 or more
+octets aren't accepted by the ``openssl s_client``) Not sure what'd be right
+there TBH.  Probably wanna ask CF about that. I did. They just ignore SNI if a
+good ESNI is present, which is reasonable, if a small surprise.
 
 - rebased my code as advised by @eighthave to make CI stuff easier/better (not
   that I fully understand the mechanics here;-). That involved doing this:

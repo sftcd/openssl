@@ -15,6 +15,14 @@
 	<td>just for laughs, won't be that long</td>
 </tr>
 <tr>
+	<td><code>define</code><a href="#esni_8h_1ac1aec0191ca183eb5a034a8b892203ba"><code>ESNI_CRYPT_INTEROP</code></a></td>
+	<td>If defined, this provides enough API, internals and tracing so we can ensure/check we're generating keys the same way as other code, in partocular the existing NSS code.</td>
+</tr>
+<tr>
+	<td><code>define</code><a href="#esni_8h_1a4ba879ccd5d88036df08420dea487ff8"><code>AH2B</code></a></td>
+	<td>map an (ascii hex) value to a nibble</td>
+</tr>
+<tr>
 	<td><code>define</code><a href="#esni_8h_1a6a4d94b18577a453e7ca65273c75b110"><code>SSL_ESNI_STATUS_SUCCESS</code></a></td>
 	<td>Success.</td>
 </tr>
@@ -373,6 +381,18 @@
 
 <p>just for laughs, won't be that long</p>
 
+<p id="esni_8h_1ac1aec0191ca183eb5a034a8b892203ba"><hr></p>
+
+<h4 id="defineesni_crypt_interopesni_8h_1ac1aec0191ca183eb5a034a8b892203ba"><code>define</code><a href="#esni_8h_1ac1aec0191ca183eb5a034a8b892203ba"><code>ESNI_CRYPT_INTEROP</code></a></h4>
+
+<p>If defined, this provides enough API, internals and tracing so we can ensure/check we're generating keys the same way as other code, in partocular the existing NSS code.</p>
+
+<p id="esni_8h_1a4ba879ccd5d88036df08420dea487ff8"><hr></p>
+
+<h4 id="defineah2besni_8h_1a4ba879ccd5d88036df08420dea487ff8"><code>define</code><a href="#esni_8h_1a4ba879ccd5d88036df08420dea487ff8"><code>AH2B</code></a></h4>
+
+<p>map an (ascii hex) value to a nibble</p>
+
 <p id="esni_8h_1a6a4d94b18577a453e7ca65273c75b110"><hr></p>
 
 <h4 id="definessl_esni_status_successesni_8h_1a6a4d94b18577a453e7ca65273c75b110"><code>define</code><a href="#esni_8h_1a6a4d94b18577a453e7ca65273c75b110"><code>SSL_ESNI_STATUS_SUCCESS</code></a></h4>
@@ -483,7 +503,7 @@
 
 <p>a servername_cb that is ESNI aware</p>
 
-<p>The COVER is the command line -servername But our ESNI is just named in the cert for the 2nd context (ctx2) and not on the command line. So we need to check if the supplied (E)SNI matches either and serve whichever is appropriate. X509_check_host is the way to do that, given an X509* pointer.</p>
+<p>The server has possibly two names (from command line and config) basically in ctx and ctx2. So we need to check if the client-supplied (E)SNI matches either and serve whichever is appropriate. X509_check_host is the way to do that, given an X509* pointer. We default to the "main" ctx is the client-supplied (E)SNI does not match the ctx2 certificate. We don't fail if the client-supplied (E)SNI matches neither, but just continue with the "main" ctx. If the client-supplied (E)SNI matches both ctx and ctx2, then we'll switch to ctx2 anyway - we don't try for a "best" match in that case.</p>
 
 <h4 id="parameters">Parameters</h4>
 
@@ -861,7 +881,7 @@
 
 <p>API to allow calling code know ESNI outcome, post-handshake.</p>
 
-<p>This is intended to be called by applications after the TLS handshake is complete.</p>
+<p>This is intended to be called by applications after the TLS handshake is complete. This works for both client and server. The caller does not have to (and shouldn't) free the hidden or cover strings. TODO: Those are pointers into the SSL struct though so maybe better to allocate fresh ones.</p>
 
 <h4 id="parameters">Parameters</h4>
 
@@ -1348,7 +1368,7 @@
 
 <p>API to allow calling code know ESNI outcome, post-handshake.</p>
 
-<p>This is intended to be called by applications after the TLS handshake is complete.</p>
+<p>This is intended to be called by applications after the TLS handshake is complete. This works for both client and server. The caller does not have to (and shouldn't) free the hidden or cover strings. TODO: Those are pointers into the SSL struct though so maybe better to allocate fresh ones.</p>
 
 <h4 id="parameters">Parameters</h4>
 
@@ -2031,6 +2051,10 @@
 	<td>GCM tag (already also in ciphertext)</td>
 </tr>
 <tr>
+	<td><code>public char *</code><a href="#structssl__esni__st_1ab623dc6359f2c62ade27719be580c438"><code>private_str</code></a></td>
+	<td>for debug purposes, requires special build</td>
+</tr>
+<tr>
 	<td><code>public</code><a href="#esni_8h_1add3c7579c9f0d7bd5959b37f9c017461"><code>CLIENT_ESNI</code></a><code>*</code><a href="#structssl__esni__st_1acc1e4d390a3f6fc96c52a10cac4fd6c1"><code>the_esni</code></a></td>
 	<td>the final outputs for the caller (note: not separately alloc'd)</td>
 </tr>
@@ -2290,6 +2314,12 @@
 <h4 id="publicunsignedchartagstructssl__esni__st_1ae12ddfc5fb31d43b68c9febca9730e94"><code>public unsigned char *</code><a href="#structssl__esni__st_1ae12ddfc5fb31d43b68c9febca9730e94"><code>tag</code></a></h4>
 
 <p>GCM tag (already also in ciphertext)</p>
+
+<p id="structssl__esni__st_1ab623dc6359f2c62ade27719be580c438"><hr></p>
+
+<h4 id="publiccharprivate_strstructssl__esni__st_1ab623dc6359f2c62ade27719be580c438"><code>public char *</code><a href="#structssl__esni__st_1ab623dc6359f2c62ade27719be580c438"><code>private_str</code></a></h4>
+
+<p>for debug purposes, requires special build</p>
 
 <p id="structssl__esni__st_1acc1e4d390a3f6fc96c52a10cac4fd6c1"><hr></p>
 
