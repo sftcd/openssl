@@ -11,30 +11,44 @@
 `define `[`SSL_ESNI_STATUS_NOT_TRIED`](#esni_8h_1ac754df41295244baf3b951e9cec0a1db)            | ESNI wasn't attempted.
 `define `[`SSL_ESNI_STATUS_BAD_NAME`](#esni_8h_1a4019c4a8f415a42a213cc0c657d9986b)            | ESNI succeeded but the TLS server cert used didn't match the hidden service name.
 `define `[`ESNI_F_BASE64_DECODE`](#esnierr_8h_1a9c57a1b191c8fc44f0c9d33e1fa63096)            | 
-`define `[`ESNI_F_NEW_FROM_BASE64`](#esnierr_8h_1a2292c05f5c24b23849789eb87f20bb0c)            | 
-`define `[`ESNI_F_ENC`](#esnierr_8h_1a5e1e464c2d05b71de95e455a341f477f)            | 
 `define `[`ESNI_F_CHECKSUM_CHECK`](#esnierr_8h_1ac8cec6cf839fa6b361bc6f9abc001201)            | 
-`define `[`ESNI_F_SERVER_ENABLE`](#esnierr_8h_1acad1a58b5647c362ed60ff908c36d5f6)            | 
 `define `[`ESNI_F_DEC`](#esnierr_8h_1abfce120a6f075e1028bed584590a1c5d)            | 
+`define `[`ESNI_F_ENC`](#esnierr_8h_1a5e1e464c2d05b71de95e455a341f477f)            | 
+`define `[`ESNI_F_ESNI_AEAD_DEC`](#esnierr_8h_1a571ccdae3631195b42c5ecdfe3212c62)            | 
+`define `[`ESNI_F_ESNI_AEAD_ENC`](#esnierr_8h_1a1859b752b238b95674cc017446061974)            | 
+`define `[`ESNI_F_ESNI_BASE64_DECODE`](#esnierr_8h_1a2543cd28665c7263ffe4615b6660ba10)            | 
+`define `[`ESNI_F_ESNI_CHECKSUM_CHECK`](#esnierr_8h_1a9f478c0f902d24881b962cfec67a0ac1)            | 
+`define `[`ESNI_F_ESNI_MAKE_RD`](#esnierr_8h_1a60229aec0de39210acad040463eecfdb)            | 
+`define `[`ESNI_F_ESNI_MAKE_SE_FROM_ER`](#esnierr_8h_1afe278864812870bca9fc98a4f261affc)            | 
+`define `[`ESNI_F_KEY_DERIVATION`](#esnierr_8h_1a59d22dd182fd9430a2207635df598f9b)            | 
+`define `[`ESNI_F_MAKEESNICONTENTHASH`](#esnierr_8h_1aa27cf276204a3be511e6ab7e865faa0b)            | 
+`define `[`ESNI_F_NEW_FROM_BASE64`](#esnierr_8h_1a2292c05f5c24b23849789eb87f20bb0c)            | 
+`define `[`ESNI_F_SERVER_ENABLE`](#esnierr_8h_1acad1a58b5647c362ed60ff908c36d5f6)            | 
+`define `[`ESNI_F_SSL_ESNI_DEC`](#esnierr_8h_1ac9a4f6e0b201b714d7fc826fb72cc0b9)            | 
+`define `[`ESNI_F_SSL_ESNI_DUP`](#esnierr_8h_1aec816c5e3c505967eed955abc47bd183)            | 
+`define `[`ESNI_F_SSL_ESNI_ENC`](#esnierr_8h_1a700d74c26efd12bff3173ee199564ad8)            | 
+`define `[`ESNI_F_SSL_ESNI_NEW_FROM_BASE64`](#esnierr_8h_1a8e769255bdcaf3fd6f82697804d1d862)            | 
+`define `[`ESNI_F_SSL_ESNI_RECORD_NEW_FROM_BINARY`](#esnierr_8h_1a5d28993dbae8bdf5b5126b0c853eaf3d)            | 
+`define `[`ESNI_F_SSL_ESNI_SERVER_ENABLE`](#esnierr_8h_1a41fef6b5fc372dad4fcc7008563eb32c)            | 
+`define `[`ESNI_F_SSL_ESNI_WRAP_KEYSHARE`](#esnierr_8h_1adbb1d0dcbf5f441fed68948b660840b7)            | 
 `define `[`ESNI_R_BASE64_DECODE_ERROR`](#esnierr_8h_1a1c13aa91c93bd84f1f92101ddb9bc9eb)            | 
-`define `[`ESNI_R_RR_DECODE_ERROR`](#esnierr_8h_1acc748e3e2af6dc12fead035b479c221f)            | 
 `define `[`ESNI_R_NOT_IMPL`](#esnierr_8h_1aeb72e4451595e51885c8192c3c06e870)            | 
+`define `[`ESNI_R_RR_DECODE_ERROR`](#esnierr_8h_1acc748e3e2af6dc12fead035b479c221f)            | 
 `define `[`ESNI_DEFAULT_PADDED`](#esni_8c_1a706a8b9ec3b00f59d60711d623c90d74)            | File: esni.c - the core implementation of drat-ietf-tls-esni-02 Author: [stephen.farrell@cs.tcd.ie](mailto:stephen.farrell@cs.tcd.ie) Date: 2018 December-ish.
 `public static unsigned int `[`esni_cb`](#s__client_8c_1ae008482292dac8e7973f123dcea9324e)`(SSL * s,int index)`            | 
 `public static unsigned int `[`esni_cb`](#s__server_8c_1ae008482292dac8e7973f123dcea9324e)`(SSL * s,int index)`            | print an ESNI structure
 `public static size_t `[`esni_padding_cb`](#s__server_8c_1a2deb1d25456628e166cb5fbaa8f11bbf)`(SSL * s,int type,size_t len,void * arg)`            | @ brief pad Certificate and CertificateVerify messages
 `public static int `[`ssl_esni_servername_cb`](#s__server_8c_1a454eca00c708c0f47fccc73616408b67)`(SSL * s,int * ad,void * arg)`            | a servername_cb that is ESNI aware
-`public int `[`ERR_load_ESNI_strings`](#esnierr_8c_1ab6db8c60b35aacaa03550e6d9d9c2099)`(void)`            | Load strings into tables.
+`public int `[`ERR_load_ESNI_strings`](#esnierr_8c_1ab6db8c60b35aacaa03550e6d9d9c2099)`(void)`            | 
 `public static void `[`so_esni_pbuf`](#mk__esnikeys_8c_1ae1bab08e2b36301f0c81f27d7ffb006b)`(char * msg,unsigned char * buf,size_t blen,int indent)`            | 
 `public static int `[`esni_checksum_gen`](#mk__esnikeys_8c_1a32ec581cbe2fef728eca2951e596d25f)`(unsigned char * buf,size_t buf_len,unsigned char cksum)`            | generate the SHA256 checksum that should be in the DNS record
 `public void `[`usage`](#mk__esnikeys_8c_1aa4817482b1728bf62acf8030cab9842c)`(char * prog)`            | 
 `public static int `[`mk_esnikeys`](#mk__esnikeys_8c_1a9d11ac25babd35d36598edd0beab07c9)`(int argc,char ** argv)`            | Make an X25519 key pair and ESNIKeys structure for the public.
 `public int `[`main`](#mk__esnikeys_8c_1a3c04138a5bfe5d72780bb7e82a18e627)`(int argc,char ** argv)`            | 
-`public unsigned char * `[`wrap_keyshare`](#esni_8h_1a3dccd979a035c9ccb3c0d4fe49eb3a00)`(const unsigned char * keyshare,const size_t keyshare_len,const uint16_t curve_id,size_t * outlen)`            | wrap a "raw" key share in the relevant TLS presentation layer encoding
+`public unsigned char * `[`SSL_ESNI_wrap_keyshare`](#esni_8h_1adcc8e3823bf93d20d67977dfeb29fa5d)`(const unsigned char * keyshare,const size_t keyshare_len,const uint16_t curve_id,size_t * outlen)`            | wrap a "raw" key share in the relevant TLS presentation layer encoding
 `public int `[`SSL_ESNI_enc`](#esni_8h_1a1059808bc7c121128c470de41e2dc304)`(`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * esnikeys,size_t client_random_len,unsigned char * client_random,uint16_t curve_id,size_t client_keyshare_len,unsigned char * client_keyshare,`[`CLIENT_ESNI`](#esni_8h_1add3c7579c9f0d7bd5959b37f9c017461)` ** the_esni)`            | Do the client-side SNI encryption during a TLS handshake.
 `public unsigned char * `[`SSL_ESNI_dec`](#esni_8h_1ae4af2d2173a5c3b1513a1dcd04e2e940)`(`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * esni,size_t client_random_len,unsigned char * client_random,uint16_t curve_id,size_t client_keyshare_len,unsigned char * client_keyshare,size_t * encservername_len)`            | Server-side decryption during a TLS handshake.
 `public void `[`SSL_ESNI_free`](#esni_8h_1a6d6ea1b22339efdc370e6cbf251b277d)`(`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * esnikeys)`            | Memory management - free an SSL_ESNI.
-`public void `[`CLIENT_ESNI_free`](#esni_8h_1a1a84158d3b21a24a5db6bac434a718dc)`(`[`CLIENT_ESNI`](#esni_8h_1add3c7579c9f0d7bd5959b37f9c017461)` * c)`            | Memory management - free a CLIENT_ESNI.
 `public `[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * `[`SSL_ESNI_dup`](#esni_8h_1aff4a2acfe537bdf41b91eed11de4cc15)`(`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * orig,size_t nesni)`            | Duplicate the configuration related fields of an SSL_ESNI.
 `public int `[`SSL_esni_checknames`](#esni_8h_1a55aedc0e921fd36dcc3327124f07da10)`(const char * encservername,const char * covername)`            | Make a basic check of names from CLI or API.
 `public `[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * `[`SSL_ESNI_new_from_base64`](#esni_8h_1a672460fc59e13e81482f66c701d4bca7)`(const char * esnikeys)`            | Decode and check the value retieved from DNS (currently base64 encoded)
@@ -46,7 +60,7 @@
 `public int `[`SSL_get_esni_status`](#esni_8h_1abc2468ba57b69ddaca0344481027d7a1)`(SSL * s,char ** hidden,char ** cover)`            | API to allow calling code know ESNI outcome, post-handshake.
 `public int `[`SSL_ESNI_set_private`](#esni_8h_1a8df1af022d25fc0f7e72683b0bd4667f)`(`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * esni,char * private_str)`            | Allows caller to set the ECDH private value for ESNI.
 `public int `[`SSL_ESNI_set_nonce`](#esni_8h_1a0f48da79909334acee7b24dec440eb4c)`(`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * esni,unsigned char * nonce,size_t nlen)`            | Allows caller to set the nonce value for ESNI.
-`public int `[`ERR_load_ESNI_strings`](#esnierr_8h_1ab6db8c60b35aacaa03550e6d9d9c2099)`(void)`            | Load strings into tables.
+`public int `[`ERR_load_ESNI_strings`](#esnierr_8h_1ab6db8c60b35aacaa03550e6d9d9c2099)`(void)`            | 
 `public static uint64_t `[`uint64_from_bytes`](#esni_8c_1a83d195ea944e970d225ac1554c88c3d4)`(unsigned char * buf)`            | map 8 bytes in n/w byte order from PACKET to a 64-bit time value
 `public static int `[`esni_base64_decode`](#esni_8c_1a64c9d65c28e852557b2ac325335c6a83)`(const char * in,unsigned char ** out)`            | Decode from TXT RR to binary buffer.
 `public static const SSL_CIPHER * `[`cs2sc`](#esni_8c_1a45c16ecbc68d6567bf9d4ef58bfdb46f)`(uint16_t ciphersuite)`            | 
@@ -54,7 +68,7 @@
 `public void `[`SSL_ESNI_free`](#esni_8c_1a3a532dc18d8ea55c30b74529946f66c7)`(`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * esni)`            | Free up an SSL_ESNI structure.
 `public static int `[`esni_checksum_check`](#esni_8c_1a4c8d42c0081cae34740804bb9c4fc88b)`(unsigned char * buf,size_t buf_len)`            | Verify the SHA256 checksum that should be in the DNS record.
 `public static unsigned char * `[`esni_make_rd`](#esni_8c_1a1a6df9cdee70887ac4c2492164155e83)`(const unsigned char * buf,const size_t blen,const EVP_MD * md,size_t * rd_len)`            | Hash the buffer as per the ciphersuite specified therein.
-`public unsigned char * `[`wrap_keyshare`](#esni_8c_1a3dccd979a035c9ccb3c0d4fe49eb3a00)`(const unsigned char * keyshare,const size_t keyshare_len,const uint16_t curve_id,size_t * outlen)`            | wrap a "raw" key share in the relevant TLS presentation layer encoding
+`public unsigned char * `[`SSL_ESNI_wrap_keyshare`](#esni_8c_1adcc8e3823bf93d20d67977dfeb29fa5d)`(const unsigned char * keyshare,const size_t keyshare_len,const uint16_t curve_id,size_t * outlen)`            | wrap a "raw" key share in the relevant TLS presentation layer encoding
 `public `[`ESNI_RECORD`](#esni_8h_1ab29e08d24d0eac604e0d6783dfbf1758)` * `[`SSL_ESNI_RECORD_new_from_binary`](#esni_8c_1a013c3c4172d63a489aa314d4c3d4542d)`(unsigned char * binbuf,size_t binblen)`            | Decod from binary to ESNI_RECORD.
 `public static int `[`esni_make_se_from_er`](#esni_8c_1a1332a08e3b77da97cc9aef2efd50f904)`(`[`ESNI_RECORD`](#esni_8h_1ab29e08d24d0eac604e0d6783dfbf1758)` * er,`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * se,int server)`            | populate an SSL_ESNI from an ESNI_RECORD
 `public `[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * `[`SSL_ESNI_new_from_base64`](#esni_8c_1a672460fc59e13e81482f66c701d4bca7)`(const char * esnikeys)`            | Decode from base64 TXT RR to SSL_ESNI.
@@ -147,37 +161,97 @@ ESNI succeeded but the TLS server cert used didn't match the hidden service name
 
 #### `define `[`ESNI_F_BASE64_DECODE`](#esnierr_8h_1a9c57a1b191c8fc44f0c9d33e1fa63096) 
 
-<p id="esnierr_8h_1a2292c05f5c24b23849789eb87f20bb0c"><hr></p>
-
-#### `define `[`ESNI_F_NEW_FROM_BASE64`](#esnierr_8h_1a2292c05f5c24b23849789eb87f20bb0c) 
-
-<p id="esnierr_8h_1a5e1e464c2d05b71de95e455a341f477f"><hr></p>
-
-#### `define `[`ESNI_F_ENC`](#esnierr_8h_1a5e1e464c2d05b71de95e455a341f477f) 
-
 <p id="esnierr_8h_1ac8cec6cf839fa6b361bc6f9abc001201"><hr></p>
 
 #### `define `[`ESNI_F_CHECKSUM_CHECK`](#esnierr_8h_1ac8cec6cf839fa6b361bc6f9abc001201) 
-
-<p id="esnierr_8h_1acad1a58b5647c362ed60ff908c36d5f6"><hr></p>
-
-#### `define `[`ESNI_F_SERVER_ENABLE`](#esnierr_8h_1acad1a58b5647c362ed60ff908c36d5f6) 
 
 <p id="esnierr_8h_1abfce120a6f075e1028bed584590a1c5d"><hr></p>
 
 #### `define `[`ESNI_F_DEC`](#esnierr_8h_1abfce120a6f075e1028bed584590a1c5d) 
 
+<p id="esnierr_8h_1a5e1e464c2d05b71de95e455a341f477f"><hr></p>
+
+#### `define `[`ESNI_F_ENC`](#esnierr_8h_1a5e1e464c2d05b71de95e455a341f477f) 
+
+<p id="esnierr_8h_1a571ccdae3631195b42c5ecdfe3212c62"><hr></p>
+
+#### `define `[`ESNI_F_ESNI_AEAD_DEC`](#esnierr_8h_1a571ccdae3631195b42c5ecdfe3212c62) 
+
+<p id="esnierr_8h_1a1859b752b238b95674cc017446061974"><hr></p>
+
+#### `define `[`ESNI_F_ESNI_AEAD_ENC`](#esnierr_8h_1a1859b752b238b95674cc017446061974) 
+
+<p id="esnierr_8h_1a2543cd28665c7263ffe4615b6660ba10"><hr></p>
+
+#### `define `[`ESNI_F_ESNI_BASE64_DECODE`](#esnierr_8h_1a2543cd28665c7263ffe4615b6660ba10) 
+
+<p id="esnierr_8h_1a9f478c0f902d24881b962cfec67a0ac1"><hr></p>
+
+#### `define `[`ESNI_F_ESNI_CHECKSUM_CHECK`](#esnierr_8h_1a9f478c0f902d24881b962cfec67a0ac1) 
+
+<p id="esnierr_8h_1a60229aec0de39210acad040463eecfdb"><hr></p>
+
+#### `define `[`ESNI_F_ESNI_MAKE_RD`](#esnierr_8h_1a60229aec0de39210acad040463eecfdb) 
+
+<p id="esnierr_8h_1afe278864812870bca9fc98a4f261affc"><hr></p>
+
+#### `define `[`ESNI_F_ESNI_MAKE_SE_FROM_ER`](#esnierr_8h_1afe278864812870bca9fc98a4f261affc) 
+
+<p id="esnierr_8h_1a59d22dd182fd9430a2207635df598f9b"><hr></p>
+
+#### `define `[`ESNI_F_KEY_DERIVATION`](#esnierr_8h_1a59d22dd182fd9430a2207635df598f9b) 
+
+<p id="esnierr_8h_1aa27cf276204a3be511e6ab7e865faa0b"><hr></p>
+
+#### `define `[`ESNI_F_MAKEESNICONTENTHASH`](#esnierr_8h_1aa27cf276204a3be511e6ab7e865faa0b) 
+
+<p id="esnierr_8h_1a2292c05f5c24b23849789eb87f20bb0c"><hr></p>
+
+#### `define `[`ESNI_F_NEW_FROM_BASE64`](#esnierr_8h_1a2292c05f5c24b23849789eb87f20bb0c) 
+
+<p id="esnierr_8h_1acad1a58b5647c362ed60ff908c36d5f6"><hr></p>
+
+#### `define `[`ESNI_F_SERVER_ENABLE`](#esnierr_8h_1acad1a58b5647c362ed60ff908c36d5f6) 
+
+<p id="esnierr_8h_1ac9a4f6e0b201b714d7fc826fb72cc0b9"><hr></p>
+
+#### `define `[`ESNI_F_SSL_ESNI_DEC`](#esnierr_8h_1ac9a4f6e0b201b714d7fc826fb72cc0b9) 
+
+<p id="esnierr_8h_1aec816c5e3c505967eed955abc47bd183"><hr></p>
+
+#### `define `[`ESNI_F_SSL_ESNI_DUP`](#esnierr_8h_1aec816c5e3c505967eed955abc47bd183) 
+
+<p id="esnierr_8h_1a700d74c26efd12bff3173ee199564ad8"><hr></p>
+
+#### `define `[`ESNI_F_SSL_ESNI_ENC`](#esnierr_8h_1a700d74c26efd12bff3173ee199564ad8) 
+
+<p id="esnierr_8h_1a8e769255bdcaf3fd6f82697804d1d862"><hr></p>
+
+#### `define `[`ESNI_F_SSL_ESNI_NEW_FROM_BASE64`](#esnierr_8h_1a8e769255bdcaf3fd6f82697804d1d862) 
+
+<p id="esnierr_8h_1a5d28993dbae8bdf5b5126b0c853eaf3d"><hr></p>
+
+#### `define `[`ESNI_F_SSL_ESNI_RECORD_NEW_FROM_BINARY`](#esnierr_8h_1a5d28993dbae8bdf5b5126b0c853eaf3d) 
+
+<p id="esnierr_8h_1a41fef6b5fc372dad4fcc7008563eb32c"><hr></p>
+
+#### `define `[`ESNI_F_SSL_ESNI_SERVER_ENABLE`](#esnierr_8h_1a41fef6b5fc372dad4fcc7008563eb32c) 
+
+<p id="esnierr_8h_1adbb1d0dcbf5f441fed68948b660840b7"><hr></p>
+
+#### `define `[`ESNI_F_SSL_ESNI_WRAP_KEYSHARE`](#esnierr_8h_1adbb1d0dcbf5f441fed68948b660840b7) 
+
 <p id="esnierr_8h_1a1c13aa91c93bd84f1f92101ddb9bc9eb"><hr></p>
 
 #### `define `[`ESNI_R_BASE64_DECODE_ERROR`](#esnierr_8h_1a1c13aa91c93bd84f1f92101ddb9bc9eb) 
 
-<p id="esnierr_8h_1acc748e3e2af6dc12fead035b479c221f"><hr></p>
-
-#### `define `[`ESNI_R_RR_DECODE_ERROR`](#esnierr_8h_1acc748e3e2af6dc12fead035b479c221f) 
-
 <p id="esnierr_8h_1aeb72e4451595e51885c8192c3c06e870"><hr></p>
 
 #### `define `[`ESNI_R_NOT_IMPL`](#esnierr_8h_1aeb72e4451595e51885c8192c3c06e870) 
+
+<p id="esnierr_8h_1acc748e3e2af6dc12fead035b479c221f"><hr></p>
+
+#### `define `[`ESNI_R_RR_DECODE_ERROR`](#esnierr_8h_1acc748e3e2af6dc12fead035b479c221f) 
 
 <p id="esni_8c_1a706a8b9ec3b00f59d60711d623c90d74"><hr></p>
 
@@ -237,11 +311,6 @@ The server has possibly two names (from command line and config) basically in ct
 
 #### `public int `[`ERR_load_ESNI_strings`](#esnierr_8c_1ab6db8c60b35aacaa03550e6d9d9c2099)`(void)` 
 
-Load strings into tables.
-
-#### Returns
-1 for success, not 1 otherwise
-
 <p id="mk__esnikeys_8c_1ae1bab08e2b36301f0c81f27d7ffb006b"><hr></p>
 
 #### `public static void `[`so_esni_pbuf`](#mk__esnikeys_8c_1ae1bab08e2b36301f0c81f27d7ffb006b)`(char * msg,unsigned char * buf,size_t blen,int indent)` 
@@ -282,9 +351,9 @@ TODO: Decide if supporting private key re-use is even needed.
 
 #### `public int `[`main`](#mk__esnikeys_8c_1a3c04138a5bfe5d72780bb7e82a18e627)`(int argc,char ** argv)` 
 
-<p id="esni_8h_1a3dccd979a035c9ccb3c0d4fe49eb3a00"><hr></p>
+<p id="esni_8h_1adcc8e3823bf93d20d67977dfeb29fa5d"><hr></p>
 
-#### `public unsigned char * `[`wrap_keyshare`](#esni_8h_1a3dccd979a035c9ccb3c0d4fe49eb3a00)`(const unsigned char * keyshare,const size_t keyshare_len,const uint16_t curve_id,size_t * outlen)` 
+#### `public unsigned char * `[`SSL_ESNI_wrap_keyshare`](#esni_8h_1adcc8e3823bf93d20d67977dfeb29fa5d)`(const unsigned char * keyshare,const size_t keyshare_len,const uint16_t curve_id,size_t * outlen)` 
 
 wrap a "raw" key share in the relevant TLS presentation layer encoding
 
@@ -403,17 +472,6 @@ Note that we don't free the top level, caller should do that This will free the 
 
 #### Parameters
 * `esni` a ptr to an SSL_ESNI str
-
-<p id="esni_8h_1a1a84158d3b21a24a5db6bac434a718dc"><hr></p>
-
-#### `public void `[`CLIENT_ESNI_free`](#esni_8h_1a1a84158d3b21a24a5db6bac434a718dc)`(`[`CLIENT_ESNI`](#esni_8h_1add3c7579c9f0d7bd5959b37f9c017461)` * c)` 
-
-Memory management - free a CLIENT_ESNI.
-
-This is called from within SSL_ESNI_free so isn't really needed externally at all.
-
-#### Parameters
-* `c` is a CLIENT_ESNI structure
 
 <p id="esni_8h_1aff4a2acfe537bdf41b91eed11de4cc15"><hr></p>
 
@@ -605,11 +663,6 @@ This is intended to only be used for interop testing - what was useful was to gr
 
 #### `public int `[`ERR_load_ESNI_strings`](#esnierr_8h_1ab6db8c60b35aacaa03550e6d9d9c2099)`(void)` 
 
-Load strings into tables.
-
-#### Returns
-1 for success, not 1 otherwise
-
 <p id="esni_8c_1a83d195ea944e970d225ac1554c88c3d4"><hr></p>
 
 #### `public static uint64_t `[`uint64_from_bytes`](#esni_8c_1a83d195ea944e970d225ac1554c88c3d4)`(unsigned char * buf)` 
@@ -704,9 +757,9 @@ Note that this isn't quite what the I-D says - It seems that NSS uses the entire
 #### Returns
 a pointer to the hash buffer allocated within the function or NULL on error
 
-<p id="esni_8c_1a3dccd979a035c9ccb3c0d4fe49eb3a00"><hr></p>
+<p id="esni_8c_1adcc8e3823bf93d20d67977dfeb29fa5d"><hr></p>
 
-#### `public unsigned char * `[`wrap_keyshare`](#esni_8c_1a3dccd979a035c9ccb3c0d4fe49eb3a00)`(const unsigned char * keyshare,const size_t keyshare_len,const uint16_t curve_id,size_t * outlen)` 
+#### `public unsigned char * `[`SSL_ESNI_wrap_keyshare`](#esni_8c_1adcc8e3823bf93d20d67977dfeb29fa5d)`(const unsigned char * keyshare,const size_t keyshare_len,const uint16_t curve_id,size_t * outlen)` 
 
 wrap a "raw" key share in the relevant TLS presentation layer encoding
 

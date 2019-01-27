@@ -58,17 +58,17 @@ static EXT_RETURN esni_server_name_fixup(SSL *s, WPACKET *pkt,
         size_t en_len=(s->esni->encservername==NULL?0:OPENSSL_strnlen(s->esni->encservername,TLSEXT_MAXLEN_host_name));
 
 		if (s->esni->encservername==NULL) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_SERVER_NAME,
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_ESNI_SERVER_NAME_FIXUP,
                  ERR_R_INTERNAL_ERROR);
             return EXT_RETURN_FAIL;
         }
         if (cn_len!=hn_len || CRYPTO_memcmp(s->ext.hostname,s->esni->covername,cn_len)) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_SERVER_NAME,
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_ESNI_SERVER_NAME_FIXUP,
                  ERR_R_INTERNAL_ERROR);
             return EXT_RETURN_NOT_SENT;
         }
         if (en_len==cn_len && !CRYPTO_memcmp(s->esni->encservername,s->esni->covername,cn_len)) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_SERVER_NAME,
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_ESNI_SERVER_NAME_FIXUP,
                  ERR_R_INTERNAL_ERROR);
             return EXT_RETURN_FAIL;
         }

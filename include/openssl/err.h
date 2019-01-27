@@ -139,7 +139,7 @@ typedef struct err_state_st {
 # define SM2err(f,r) ERR_PUT_error(ERR_LIB_SM2,(f),(r),OPENSSL_FILE,OPENSSL_LINE)
 
 #ifndef OPENSSL_NO_ESNI
-#define ESNIerr(f,r) fprintf(stderr,"Error in %d,%d, File: %s,Line: %d\n",(f),(r),OPENSSL_FILE,OPENSSL_LINE)
+#define ESNIerr(f,r) ERR_PUT_error(ERR_LIB_ESNI,(f),(r),OPENSSL_FILE,OPENSSL_LINE)
 #endif
 
 # define ERR_PACK(l,f,r) ( \

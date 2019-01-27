@@ -200,7 +200,7 @@ typedef struct ssl_esni_st {
  * @param outlen is the length of the encoded version of the above
  * @return is NULL (on error) or a pointer to the encoded version buffer
  */
-unsigned char *wrap_keyshare(
+unsigned char *SSL_ESNI_wrap_keyshare(
                 const unsigned char *keyshare,
                 const size_t keyshare_len,
                 const uint16_t curve_id,
@@ -265,16 +265,6 @@ unsigned char *SSL_ESNI_dec(SSL_ESNI *esni,
  * @param esnikeys is an SSL_ESNI structure
  */
 void SSL_ESNI_free(SSL_ESNI *esnikeys);
-
-/**
- * Memory management - free a CLIENT_ESNI
- *
- * This is called from within SSL_ESNI_free so isn't
- * really needed externally at all.
- *
- * @param c is a CLIENT_ESNI structure
- */
-void CLIENT_ESNI_free(CLIENT_ESNI *c);
 
 /**
  * @brief Duplicate the configuration related fields of an SSL_ESNI

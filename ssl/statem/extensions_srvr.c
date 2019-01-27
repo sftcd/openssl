@@ -2057,7 +2057,7 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
          SSL_R_BAD_EXTENSION);
         goto err;
     }
-    ce->encoded_keyshare=wrap_keyshare(tmpbuf,tmp,group_id,&ce->encoded_keyshare_len);
+    ce->encoded_keyshare=SSL_ESNI_wrap_keyshare(tmpbuf,tmp,group_id,&ce->encoded_keyshare_len);
     OPENSSL_free(tmpbuf);
     if (ce->encoded_keyshare==NULL ){
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ESNI,

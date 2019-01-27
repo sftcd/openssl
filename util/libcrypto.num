@@ -4622,4 +4622,4 @@ CRYPTO_siv128_cleanup                   4577	3_0_0	EXIST::FUNCTION:SIV
 CRYPTO_siv128_speed                     4578	3_0_0	EXIST::FUNCTION:SIV
 OPENSSL_INIT_set_config_filename        4579	3_0_0	EXIST::FUNCTION:STDIO
 OPENSSL_INIT_set_config_file_flags      4580	3_0_0	EXIST::FUNCTION:STDIO
-ERR_load_ESNI_strings                   5001	1_1_11a	EXIST::FUNCTION:
+ERR_load_ESNI_strings                   4582	3_0_0	EXIST::FUNCTION:

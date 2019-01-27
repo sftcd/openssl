@@ -1,4 +1,4 @@
-# Copyright 1999-2018 The OpenSSL Project Authors. All Rights Reserved.
+# Copyright 1999-2019 The OpenSSL Project Authors. All Rights Reserved.
 #
 # Licensed under the Apache License 2.0 (the "License").  You may not use
 # this file except in compliance with the License.  You can obtain a copy
@@ -709,6 +709,27 @@ ENGINE_F_INT_CTRL_HELPER:172:int_ctrl_helper
 ENGINE_F_INT_ENGINE_CONFIGURE:188:int_engine_configure
 ENGINE_F_INT_ENGINE_MODULE_INIT:187:int_engine_module_init
 ENGINE_F_OSSL_HMAC_INIT:200:ossl_hmac_init
+ESNI_F_BASE64_DECODE:101:esni_base64_decode
+ESNI_F_CHECKSUM_CHECK:104:esni_checksum_check
+ESNI_F_DEC:106:ESNI_dec
+ESNI_F_ENC:103:ESNI_enc
+ESNI_F_ESNI_AEAD_DEC:107:esni_aead_dec
+ESNI_F_ESNI_AEAD_ENC:108:esni_aead_enc
+ESNI_F_ESNI_BASE64_DECODE:109:esni_base64_decode
+ESNI_F_ESNI_CHECKSUM_CHECK:110:esni_checksum_check
+ESNI_F_ESNI_MAKE_RD:111:esni_make_rd
+ESNI_F_ESNI_MAKE_SE_FROM_ER:112:esni_make_se_from_er
+ESNI_F_KEY_DERIVATION:113:key_derivation
+ESNI_F_MAKEESNICONTENTHASH:114:makeesnicontenthash
+ESNI_F_NEW_FROM_BASE64:102:SSL_ESNI_RECORD_new_from_binary
+ESNI_F_SERVER_ENABLE:105:SSL_esni_server_enable
+ESNI_F_SSL_ESNI_DEC:115:SSL_ESNI_dec
+ESNI_F_SSL_ESNI_DUP:116:SSL_ESNI_dup
+ESNI_F_SSL_ESNI_ENC:117:SSL_ESNI_enc
+ESNI_F_SSL_ESNI_NEW_FROM_BASE64:118:SSL_ESNI_new_from_base64
+ESNI_F_SSL_ESNI_RECORD_NEW_FROM_BINARY:119:SSL_ESNI_RECORD_new_from_binary
+ESNI_F_SSL_ESNI_SERVER_ENABLE:120:SSL_esni_server_enable
+ESNI_F_SSL_ESNI_WRAP_KEYSHARE:121:SSL_ESNI_wrap_keyshare
 EVP_F_AESNI_INIT_KEY:165:aesni_init_key
 EVP_F_AES_GCM_CTRL:196:aes_gcm_ctrl
 EVP_F_AES_GCM_TLS_CIPHER:207:aes_gcm_tls_cipher
@@ -1153,9 +1174,11 @@ SSL_F_DTLS_PROCESS_HELLO_VERIFY:386:dtls_process_hello_verify
 SSL_F_DTLS_RECORD_LAYER_NEW:635:DTLS_RECORD_LAYER_new
 SSL_F_DTLS_WAIT_FOR_DRY:592:dtls_wait_for_dry
 SSL_F_EARLY_DATA_COUNT_OK:532:early_data_count_ok
+SSL_F_ESNI_SERVER_NAME_FIXUP:639:esni_server_name_fixup
 SSL_F_FINAL_EARLY_DATA:556:final_early_data
 SSL_F_FINAL_EC_PT_FORMATS:485:final_ec_pt_formats
 SSL_F_FINAL_EMS:486:final_ems
+SSL_F_FINAL_ESNI:640:final_esni
 SSL_F_FINAL_KEY_SHARE:503:final_key_share
 SSL_F_FINAL_MAXFRAGMENTLEN:557:final_maxfragmentlen
 SSL_F_FINAL_RENEGOTIATE:483:final_renegotiate
@@ -1408,6 +1431,7 @@ SSL_F_TLS_CONSTRUCT_CTOS_COOKIE:535:tls_construct_ctos_cookie
 SSL_F_TLS_CONSTRUCT_CTOS_EARLY_DATA:530:tls_construct_ctos_early_data
 SSL_F_TLS_CONSTRUCT_CTOS_EC_PT_FORMATS:467:tls_construct_ctos_ec_pt_formats
 SSL_F_TLS_CONSTRUCT_CTOS_EMS:468:tls_construct_ctos_ems
+SSL_F_TLS_CONSTRUCT_CTOS_ESNI:641:tls_construct_ctos_esni
 SSL_F_TLS_CONSTRUCT_CTOS_ETM:469:tls_construct_ctos_etm
 SSL_F_TLS_CONSTRUCT_CTOS_HELLO:356:*
 SSL_F_TLS_CONSTRUCT_CTOS_KEY_EXCHANGE:357:*
@@ -1483,6 +1507,7 @@ SSL_F_TLS_PARSE_CTOS_COOKIE:614:tls_parse_ctos_cookie
 SSL_F_TLS_PARSE_CTOS_EARLY_DATA:568:tls_parse_ctos_early_data
 SSL_F_TLS_PARSE_CTOS_EC_PT_FORMATS:569:tls_parse_ctos_ec_pt_formats
 SSL_F_TLS_PARSE_CTOS_EMS:570:tls_parse_ctos_ems
+SSL_F_TLS_PARSE_CTOS_ESNI:642:tls_parse_ctos_esni
 SSL_F_TLS_PARSE_CTOS_KEY_SHARE:463:tls_parse_ctos_key_share
 SSL_F_TLS_PARSE_CTOS_MAXFRAGMENTLEN:571:tls_parse_ctos_maxfragmentlen
 SSL_F_TLS_PARSE_CTOS_POST_HANDSHAKE_AUTH:620:tls_parse_ctos_post_handshake_auth
@@ -1502,6 +1527,7 @@ SSL_F_TLS_PARSE_STOC_COOKIE:534:tls_parse_stoc_cookie
 SSL_F_TLS_PARSE_STOC_EARLY_DATA:538:tls_parse_stoc_early_data
 SSL_F_TLS_PARSE_STOC_EARLY_DATA_INFO:528:*
 SSL_F_TLS_PARSE_STOC_EC_PT_FORMATS:580:tls_parse_stoc_ec_pt_formats
+SSL_F_TLS_PARSE_STOC_ESNI:643:tls_parse_stoc_esni
 SSL_F_TLS_PARSE_STOC_KEY_SHARE:445:tls_parse_stoc_key_share
 SSL_F_TLS_PARSE_STOC_MAXFRAGMENTLEN:581:tls_parse_stoc_maxfragmentlen
 SSL_F_TLS_PARSE_STOC_NPN:582:tls_parse_stoc_npn
@@ -2223,6 +2249,9 @@ ENGINE_R_UNIMPLEMENTED_CIPHER:146:unimplemented cipher
 ENGINE_R_UNIMPLEMENTED_DIGEST:147:unimplemented digest
 ENGINE_R_UNIMPLEMENTED_PUBLIC_KEY_METHOD:101:unimplemented public key method
 ENGINE_R_VERSION_INCOMPATIBILITY:145:version incompatibility
+ESNI_R_BASE64_DECODE_ERROR:110:base64 decode error
+ESNI_R_NOT_IMPL:112:not implemented
+ESNI_R_RR_DECODE_ERROR:111:can't decode DNS resource record
 EVP_R_AES_KEY_SETUP_FAILED:143:aes key setup failed
 EVP_R_ARIA_KEY_SETUP_FAILED:176:aria key setup failed
 EVP_R_BAD_DECRYPT:100:bad decrypt

@@ -24,6 +24,23 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- CI folks told me ``make update`` was failing, which it was. Seems there're
+  parts of the build I'd not played with before and where I previously 
+  did manual edits but should've been configuring tool stuff. 
+  Got the ``make ordinals`` sub-target to work,
+  which updates ``util/lib[ssl|crypto].num`` more or less (but not quite) the same as I'd 
+  previously done manually. The ``make errors`` bit took more work.
+  ``crypto/err/README`` turns out to have some advice when I stumbled
+  over that:-) So I had to make all the ``ESNIerr`` macro calls use a
+  first parameter/string derived from the actual function name, which
+  I guess is both good and a bit anal. After that with a whack load of messing
+  about (due to unwinding then re-winding previously manually done
+  changes), stuff eventually worked out. I don't rule out the possibility that
+  this still isn't quite right, and I do bet there'll be more work
+  to do when porting to e.g. windows, but hopefully these changes
+  will make that easier. (I am confident that if I have to figure out
+  those changes from scratch again, it'll be near as much a PITA;-()
+
 - Added a call to ``SSL_esni_get_status`` to ``s_server.c`` callback for tracing
   and cleaned up a bit of the over-verbosity of ``s_server`` generally. 
 

@@ -474,16 +474,6 @@ The main data structures are:
 			void SSL_ESNI_free(SSL_ESNI *esnikeys);
 			
 			/**
-			 * Memory management - free a CLIENT_ESNI
-			 *
-			 * This is called from within SSL_ESNI_free so isn't
-			 * really needed externally at all.
-			 *
-			 * @param c is a CLIENT_ESNI structure
-			 */
-			void CLIENT_ESNI_free(CLIENT_ESNI *c);
-			
-			/**
 			 * @brief Duplicate the configuration related fields of an SSL_ESNI
 			 *
 			 * This is needed to handle the SSL_CTX->SSL factory model in the
@@ -802,8 +792,12 @@ usually in ``$HOME/code/openssl``.
 
 - ssl/esni.c - main esni-specific functions
 - include/openssl/esni.h - data structures are commented some
-- include/openssl/esnierr.h - boring errors
-- crypto/esnierr.c - load boring strings (need to check if this is right)
+
+These two are produced as a result of tooling and some of the
+automation below.
+
+- include/openssl/esnierr.h 
+- crypto/esnierr.c 
 
 Things in this temporary directory. Some will disappear over time, some
 will migrate into the normal openssl build.
@@ -829,10 +823,14 @@ public and private keys both for the TLS server and for ESNI.
 
 ### Existing Files modified 
 
+- Configurations/unix-Makefile.tmpl - added esni.h to sslheaders and esnierr.h to cryptoheaders
 - ssl/build.info - need to add new libssl source files here 
-- utils/libssl.num - seem to need to add exported stuff here manually?
-- utils/libcrypto.num - seem to need to add exported stuff here manually?
-- include/openssl/err.h
+- utils/libssl.num - changes generated via ``make ordinals``
+- utils/libcrypto.num - changes generated via ``make ordinals``
+- crypto/err/openssl.ec - following advice in crypto/err/README
+- crypto/err/openssl.txt - automated, based on above
+- include/openssl/err.h - following advice in crypto/err/README
+- crypto/err/err.c - following advice in crypto/err/README
 - include/openssl/ssl.h
 - include/openssl/sslerr.h
 - include/openssl/tls1.h
@@ -849,5 +847,6 @@ public and private keys both for the TLS server and for ESNI.
 - crypto/err/err_all.c - loads ESNI strings
 - ssl/ssl_asn1.c - for ``SSL_SESSION`` state stuff
 - ssl/ssl_sess.c - for ``SSL_SESSION`` API stuff
+
 
 
