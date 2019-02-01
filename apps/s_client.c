@@ -616,6 +616,7 @@ typedef enum OPTION_choice {
     OPT_ESNI_RR,
     OPT_ESNI_STRICT,
 #endif
+    OPT_SCTP_LABEL_BUG,
     OPT_R_ENUM
 } OPTION_CHOICE;
 
@@ -780,6 +781,7 @@ const OPTIONS s_client_options[] = {
 #endif
 #ifndef OPENSSL_NO_SCTP
     {"sctp", OPT_SCTP, '-', "Use SCTP"},
+    {"sctp_label_bug", OPT_SCTP_LABEL_BUG, '-', "Enable SCTP label length bug"},
 #endif
 #ifndef OPENSSL_NO_SSL_TRACE
     {"trace", OPT_TRACE, '-', "Show trace output of protocol messages"},
@@ -1067,6 +1069,9 @@ int s_client_main(int argc, char **argv)
 #endif
     char *psksessf = NULL;
     int enable_pha = 0;
+#ifndef OPENSSL_NO_SCTP
+    int sctp_label_bug = 0;
+#endif
 
     FD_ZERO(&readfds);
     FD_ZERO(&writefds);
@@ -1418,6 +1423,11 @@ int s_client_main(int argc, char **argv)
         case OPT_SCTP:
 #ifndef OPENSSL_NO_SCTP
             protocol = IPPROTO_SCTP;
+#endif
+            break;
+        case OPT_SCTP_LABEL_BUG:
+#ifndef OPENSSL_NO_SCTP
+            sctp_label_bug = 1;
 #endif
             break;
         case OPT_TIMEOUT:
@@ -1855,6 +1865,11 @@ int s_client_main(int argc, char **argv)
             goto end;
         }
     }
+
+#ifndef OPENSSL_NO_SCTP
+    if (protocol == IPPROTO_SCTP && sctp_label_bug == 1)
+        SSL_CTX_set_mode(ctx, SSL_MODE_DTLS_SCTP_LABEL_LENGTH_BUG);
+#endif
 
     if (min_version != 0
         && SSL_CTX_set_min_proto_version(ctx, min_version) == 0)

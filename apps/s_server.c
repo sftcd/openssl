@@ -935,7 +935,7 @@ typedef enum OPTION_choice {
     OPT_CERT2, OPT_KEY2, OPT_NEXTPROTONEG, OPT_ALPN,
     OPT_SRTP_PROFILES, OPT_KEYMATEXPORT, OPT_KEYMATEXPORTLEN,
     OPT_KEYLOG_FILE, OPT_MAX_EARLY, OPT_RECV_MAX_EARLY, OPT_EARLY_DATA,
-    OPT_S_NUM_TICKETS, OPT_ANTI_REPLAY, OPT_NO_ANTI_REPLAY,
+    OPT_S_NUM_TICKETS, OPT_ANTI_REPLAY, OPT_NO_ANTI_REPLAY, OPT_SCTP_LABEL_BUG,
 #ifndef OPENSSL_NO_ESNI
     OPT_ESNIKEY, OPT_ESNIPUB, OPT_ESNIDIR, OPT_ESNISPECIFICPAD,
 #endif
@@ -1125,6 +1125,7 @@ const OPTIONS s_server_options[] = {
 #endif
 #ifndef OPENSSL_NO_SCTP
     {"sctp", OPT_SCTP, '-', "Use SCTP"},
+    {"sctp_label_bug", OPT_SCTP_LABEL_BUG, '-', "Enable SCTP label length bug"},
 #endif
 #ifndef OPENSSL_NO_DH
     {"no_dhe", OPT_NO_DHE, '-', "Disable ephemeral DH"},
@@ -1249,6 +1250,10 @@ int s_server_main(int argc, char *argv[])
     char *esnipubfile = NULL;
     char *esnidir=NULL;
     int esnispecificpad=0; ///< we default to generally padding to 512 octet multiples
+#endif
+
+#ifndef OPENSSL_NO_SCTP
+    int sctp_label_bug = 0;
 #endif
 
     /* Init of few remaining global variables */
@@ -1610,7 +1615,7 @@ int s_server_main(int argc, char *argv[])
             for (p = psk_key = opt_arg(); *p; p++) {
                 if (isxdigit(_UC(*p)))
                     continue;
-                BIO_printf(bio_err, "Not a hex number '%s'\n", *argv);
+                BIO_printf(bio_err, "Not a hex number '%s'\n", psk_key);
                 goto end;
             }
             break;
@@ -1691,6 +1696,11 @@ int s_server_main(int argc, char *argv[])
         case OPT_SCTP:
 #ifndef OPENSSL_NO_SCTP
             protocol = IPPROTO_SCTP;
+#endif
+            break;
+        case OPT_SCTP_LABEL_BUG:
+#ifndef OPENSSL_NO_SCTP
+            sctp_label_bug = 1;
 #endif
             break;
         case OPT_TIMEOUT:
@@ -2012,6 +2022,12 @@ int s_server_main(int argc, char *argv[])
             goto end;
         }
     }
+
+#ifndef OPENSSL_NO_SCTP
+    if (protocol == IPPROTO_SCTP && sctp_label_bug == 1)
+        SSL_CTX_set_mode(ctx, SSL_MODE_DTLS_SCTP_LABEL_LENGTH_BUG);
+#endif
+
     if (min_version != 0
         && SSL_CTX_set_min_proto_version(ctx, min_version) == 0)
         goto end;
