@@ -297,23 +297,26 @@ typedef int (*SSL_verify_cb)(int preverify_ok, X509_STORE_CTX *x509_ctx);
 typedef int (*SSL_async_callback_fn)(SSL *s, void *arg);
 
 /*
- * Some values are reserved until OpenSSL 1.2.0 because they were previously
+ * Some values are reserved until OpenSSL 3.0.0 because they were previously
  * included in SSL_OP_ALL in a 1.1.x release.
- *
- * Reserved value (until OpenSSL 1.2.0)                  0x00000001U
- * Reserved value (until OpenSSL 1.2.0)                  0x00000002U
  */
+
+/* Disable Extended master secret */
+# define SSL_OP_NO_EXTENDED_MASTER_SECRET                0x00000001U
+
+/* Reserved value (until OpenSSL 3.0.0)                  0x00000002U */
+
 /* Allow initial connection to servers that don't support RI */
 # define SSL_OP_LEGACY_SERVER_CONNECT                    0x00000004U
 
-/* Reserved value (until OpenSSL 1.2.0)                  0x00000008U */
+/* Reserved value (until OpenSSL 3.0.0)                  0x00000008U */
 # define SSL_OP_TLSEXT_PADDING                           0x00000010U
-/* Reserved value (until OpenSSL 1.2.0)                  0x00000020U */
+/* Reserved value (until OpenSSL 3.0.0)                  0x00000020U */
 # define SSL_OP_SAFARI_ECDHE_ECDSA_BUG                   0x00000040U
 /*
- * Reserved value (until OpenSSL 1.2.0)                  0x00000080U
- * Reserved value (until OpenSSL 1.2.0)                  0x00000100U
- * Reserved value (until OpenSSL 1.2.0)                  0x00000200U
+ * Reserved value (until OpenSSL 3.0.0)                  0x00000080U
+ * Reserved value (until OpenSSL 3.0.0)                  0x00000100U
+ * Reserved value (until OpenSSL 3.0.0)                  0x00000200U
  */
 
 /* In TLSv1.3 allow a non-(ec)dhe based kex_mode */
@@ -1941,17 +1944,17 @@ __owur STACK_OF(SSL_CIPHER) *SSL_get1_supported_ciphers(SSL *s);
 
 __owur int SSL_do_handshake(SSL *s);
 int SSL_key_update(SSL *s, int updatetype);
-int SSL_get_key_update_type(SSL *s);
+int SSL_get_key_update_type(const SSL *s);
 int SSL_renegotiate(SSL *s);
 int SSL_renegotiate_abbreviated(SSL *s);
-__owur int SSL_renegotiate_pending(SSL *s);
+__owur int SSL_renegotiate_pending(const SSL *s);
 int SSL_shutdown(SSL *s);
 __owur int SSL_verify_client_post_handshake(SSL *s);
 void SSL_CTX_set_post_handshake_auth(SSL_CTX *ctx, int val);
 void SSL_set_post_handshake_auth(SSL *s, int val);
 
-__owur const SSL_METHOD *SSL_CTX_get_ssl_method(SSL_CTX *ctx);
-__owur const SSL_METHOD *SSL_get_ssl_method(SSL *s);
+__owur const SSL_METHOD *SSL_CTX_get_ssl_method(const SSL_CTX *ctx);
+__owur const SSL_METHOD *SSL_get_ssl_method(const SSL *s);
 __owur int SSL_set_ssl_method(SSL *s, const SSL_METHOD *method);
 __owur const char *SSL_alert_type_string_long(int value);
 __owur const char *SSL_alert_type_string(int value);
@@ -2099,8 +2102,8 @@ void SSL_set_tmp_dh_callback(SSL *ssl,
                                         int keylength));
 # endif
 
-__owur const COMP_METHOD *SSL_get_current_compression(SSL *s);
-__owur const COMP_METHOD *SSL_get_current_expansion(SSL *s);
+__owur const COMP_METHOD *SSL_get_current_compression(const SSL *s);
+__owur const COMP_METHOD *SSL_get_current_expansion(const SSL *s);
 __owur const char *SSL_COMP_get_name(const COMP_METHOD *comp);
 __owur const char *SSL_COMP_get0_name(const SSL_COMP *comp);
 __owur int SSL_COMP_get_id(const SSL_COMP *comp);
@@ -2144,20 +2147,20 @@ void SSL_CTX_set_record_padding_callback(SSL_CTX *ctx,
                                          size_t (*cb) (SSL *ssl, int type,
                                                        size_t len, void *arg));
 void SSL_CTX_set_record_padding_callback_arg(SSL_CTX *ctx, void *arg);
-void *SSL_CTX_get_record_padding_callback_arg(SSL_CTX *ctx);
+void *SSL_CTX_get_record_padding_callback_arg(const SSL_CTX *ctx);
 int SSL_CTX_set_block_padding(SSL_CTX *ctx, size_t block_size);
 
 void SSL_set_record_padding_callback(SSL *ssl,
                                     size_t (*cb) (SSL *ssl, int type,
                                                   size_t len, void *arg));
 void SSL_set_record_padding_callback_arg(SSL *ssl, void *arg);
-void *SSL_get_record_padding_callback_arg(SSL *ssl);
+void *SSL_get_record_padding_callback_arg(const SSL *ssl);
 int SSL_set_block_padding(SSL *ssl, size_t block_size);
 
 int SSL_set_num_tickets(SSL *s, size_t num_tickets);
-size_t SSL_get_num_tickets(SSL *s);
+size_t SSL_get_num_tickets(const SSL *s);
 int SSL_CTX_set_num_tickets(SSL_CTX *ctx, size_t num_tickets);
-size_t SSL_CTX_get_num_tickets(SSL_CTX *ctx);
+size_t SSL_CTX_get_num_tickets(const SSL_CTX *ctx);
 
 # if !OPENSSL_API_1_1_0
 #  define SSL_cache_hit(s) SSL_session_reused(s)

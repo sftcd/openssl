@@ -31,12 +31,55 @@ setup('test_errstr');
 plan skip_all => 'This is unsupported for cross compiled configurations'
     if config('CROSS_COMPILE');
 
+# The same can be said when compiling OpenSSL with mingw configuration
+# on Windows when built with msys perl.  Similar problems are also observed
+# in MSVC builds, depending on the perl implementation used.
+plan skip_all => 'This is unsupported on MSYS/MinGW or MSWin32'
+    if $^O eq 'msys' or $^O eq 'MSWin32';
+
 plan skip_all => 'OpenSSL is configured "no-autoerrinit" or "no-err"'
     if disabled('autoerrinit') || disabled('err');
 
 # These are POSIX error names, which Errno implements as functions
 # (this is documented)
 my @posix_errors = @{$Errno::EXPORT_TAGS{POSIX}};
+
+if ($^O eq 'MSWin32') {
+    # On Windows, these errors have been observed to not always be loaded by
+    # apps/openssl, while they are in perl, which causes a difference that we
+    # consider a false alarm.  So we skip checking these errors.
+    # Because we can't know exactly what symbols exist in a perticular perl
+    # version, we resort to discovering them directly in the Errno package
+    # symbol table.
+    my @error_skiplist = qw(
+        ENETDOWN
+        ENETUNREACH
+        ENETRESET
+        ECONNABORTED
+        EISCONN
+        ENOTCONN
+        ESHUTDOWN
+        ETOOMANYREFS
+        ETIMEDOUT
+        EHOSTDOWN
+        EHOSTUNREACH
+        EALREADY
+        EINPROGRESS
+        ESTALE
+        EUCLEAN
+        ENOTNAM
+        ENAVAIL
+        ENOMEDIUM
+        ENOKEY
+    );
+    @posix_errors =
+        grep {
+            my $x = $_;
+            ! grep {
+                exists $Errno::{$_} && $x == $Errno::{$_}
+            } @error_skiplist
+        } @posix_errors;
+}
 
 plan tests => scalar @posix_errors
     +1                          # Checking that error 128 gives 'reason(128)'

@@ -974,6 +974,8 @@ static const ERR_STRING_DATA SSL_str_reasons[] = {
     {ERR_PACK(ERR_LIB_SSL, 0, SSL_R_MISSING_TMP_DH_KEY), "missing tmp dh key"},
     {ERR_PACK(ERR_LIB_SSL, 0, SSL_R_MISSING_TMP_ECDH_KEY),
     "missing tmp ecdh key"},
+    {ERR_PACK(ERR_LIB_SSL, 0, SSL_R_MIXED_HANDSHAKE_AND_NON_HANDSHAKE_DATA),
+    "mixed handshake and non handshake data"},
     {ERR_PACK(ERR_LIB_SSL, 0, SSL_R_NOT_ON_RECORD_BOUNDARY),
     "not on record boundary"},
     {ERR_PACK(ERR_LIB_SSL, 0, SSL_R_NOT_REPLACING_CERTIFICATE),

@@ -9,12 +9,39 @@
 
  Changes between 1.1.1 and 3.0.0 [xx XXX xxxx]
 
+  *) Added property based algorithm implementation selection framework to
+     the core.
+     [Paul Dale]
+
+  *) Added SCA hardening for modular field inversion in EC_GROUP through
+     a new dedicated field_inv() pointer in EC_METHOD.
+     This also addresses a leakage affecting conversions from projective
+     to affine coordinates.
+     [Billy Bob Brumley, Nicola Tuveri]
+
+  *) Added EVP_KDF, an EVP layer KDF API, to simplify adding KDF and PRF
+     implementations.  This includes an EVP_PKEY to EVP_KDF bridge for
+     those algorithms that were already supported through the EVP_PKEY API
+     (scrypt, TLS1 PRF and HKDF).  The low-level KDF functions for PBKDF2
+     and scrypt are now wrappers that call EVP_KDF.
+     [David Makepeace]
+
+  *) Build devcrypto engine as a dynamic engine.
+     [Eneas U de Queiroz]
+
+  *) Add keyed BLAKE2 to EVP_MAC.
+     [Antoine Salon]
+
   *) Fix a bug in the computation of the endpoint-pair shared secret used
      by DTLS over SCTP. This breaks interoperability with older versions
      of OpenSSL like OpenSSL 1.1.0 and OpenSSL 1.0.2. There is a runtime
      switch SSL_MODE_DTLS_SCTP_LABEL_LENGTH_BUG (off by default) enabling
      interoperability with such broken implementations. However, enabling
      this switch breaks interoperability with correct implementations.
+
+  *) Fix a use after free bug in d2i_X509_PUBKEY when overwriting a
+     re-used X509_PUBKEY object if the second PUBKEY is malformed.
+     [Bernd Edlinger]
 
   *) Move strictness check from EVP_PKEY_asn1_new() to EVP_PKEY_asn1_add0().
      [Richard Levitte]
@@ -70,7 +97,7 @@
      implementations.  This includes a generic EVP_PKEY to EVP_MAC bridge,
      to facilitate the continued use of MACs through raw private keys in
      functionality such as EVP_DigestSign* and EVP_DigestVerify*.
-     [Richard Levitte]     
+     [Richard Levitte]
 
   *) Deprecate ECDH_KDF_X9_62() and mark its replacement as internal. Users
      should use the EVP interface instead (EVP_PKEY_CTX_set_ecdh_kdf_type).
@@ -101,6 +128,19 @@
      improves application performance by removing data copies and providing
      applications with zero-copy system calls such as sendfile and splice.
      [Boris Pismenny]
+
+ Changes between 1.1.1a and 1.1.1b [xx XXX xxxx]
+
+  *) Change the info callback signals for the start and end of a post-handshake
+     message exchange in TLSv1.3. In 1.1.1/1.1.1a we used SSL_CB_HANDSHAKE_START
+     and SSL_CB_HANDSHAKE_DONE. Experience has shown that many applications get
+     confused by this and assume that a TLSv1.2 renegotiation has started. This
+     can break KeyUpdate handling. Instead we no longer signal the start and end
+     of a post handshake message exchange (although the messages themselves are
+     still signalled). This could break some applications that were expecting
+     the old signals. However without this KeyUpdate is not usable for many
+     applications.
+     [Matt Caswell]
 
  Changes between 1.1.1 and 1.1.1a [20 Nov 2018]
 

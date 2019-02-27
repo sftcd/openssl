@@ -99,6 +99,8 @@ typedef struct evp_pkey_asn1_method_st EVP_PKEY_ASN1_METHOD;
 typedef struct evp_pkey_method_st EVP_PKEY_METHOD;
 typedef struct evp_pkey_ctx_st EVP_PKEY_CTX;
 
+typedef struct evp_kdf_ctx_st EVP_KDF_CTX;
+
 typedef struct evp_Encode_Ctx_st EVP_ENCODE_CTX;
 
 typedef struct hmac_ctx_st HMAC_CTX;
@@ -176,6 +178,8 @@ typedef struct ct_policy_eval_ctx_st CT_POLICY_EVAL_CTX;
 
 typedef struct ossl_store_info_st OSSL_STORE_INFO;
 typedef struct ossl_store_search_st OSSL_STORE_SEARCH;
+
+typedef struct openssl_ctx_st OPENSSL_CTX;
 
 #if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 199901L && \
     defined(INTMAX_MAX) && defined(UINTMAX_MAX)

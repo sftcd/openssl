@@ -95,6 +95,7 @@ typedef struct err_state_st {
 # define ERR_LIB_KDF             52
 # define ERR_LIB_SM2             53
 # define ERR_LIB_ESS             54
+# define ERR_LIB_PROP            55
 
 # define ERR_LIB_USER            128
 
@@ -139,6 +140,7 @@ typedef struct err_state_st {
 # define KDFerr(f,r) ERR_PUT_error(ERR_LIB_KDF,(f),(r),OPENSSL_FILE,OPENSSL_LINE)
 # define SM2err(f,r) ERR_PUT_error(ERR_LIB_SM2,(f),(r),OPENSSL_FILE,OPENSSL_LINE)
 # define ESSerr(f,r) ERR_PUT_error(ERR_LIB_ESS,(f),(r),OPENSSL_FILE,OPENSSL_LINE)
+# define PROPerr(f,r) ERR_PUT_error(ERR_LIB_PROP,(f),(r),OPENSSL_FILE,OPENSSL_LINE)
 
 #ifndef OPENSSL_NO_ESNI
 #define ESNIerr(f,r) ERR_PUT_error(ERR_LIB_ESNI,(f),(r),OPENSSL_FILE,OPENSSL_LINE)
