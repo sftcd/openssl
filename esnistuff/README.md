@@ -24,6 +24,8 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- Starting to look at ESNI-enabling [wget](wget.md).
+
 - Caught up with upstream, had to tweak a few bits'n'pieces for build
   and ``testclient.sh`` but nothing that should affect a consumer of
   the library who can re-build. (Changes to ordinals I expect would
