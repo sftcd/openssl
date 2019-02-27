@@ -4631,9 +4631,6 @@ CMS_add1_signing_cert_v2                4586	3_0_0	EXIST::FUNCTION:CMS
 ESS_SIGNING_CERT_new_init               4587	3_0_0	EXIST::FUNCTION:
 ESS_SIGNING_CERT_V2_new_init            4588	3_0_0	EXIST::FUNCTION:
 ERR_load_ESS_strings                    4589	3_0_0	EXIST::FUNCTION:
-<<<<<<< HEAD
-ERR_load_ESNI_strings                   4590	3_0_0	EXIST::FUNCTION:
-=======
 EVP_KDF_CTX_new_id                      4590	3_0_0	EXIST::FUNCTION:
 EVP_KDF_CTX_free                        4591	3_0_0	EXIST::FUNCTION:
 EVP_KDF_reset                           4592	3_0_0	EXIST::FUNCTION:
@@ -4649,4 +4646,4 @@ OPENSSL_CTX_free                        4601	3_0_0	EXIST::FUNCTION:
 OPENSSL_LH_flush                        4602	3_0_0	EXIST::FUNCTION:
 BN_native2bn                            4603	3_0_0	EXIST::FUNCTION:
 BN_bn2nativepad                         4604	3_0_0	EXIST::FUNCTION:
->>>>>>> upstream/master
+ERR_load_ESNI_strings                   4605	3_0_0	EXIST::FUNCTION:

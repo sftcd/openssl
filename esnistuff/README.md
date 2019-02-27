@@ -24,6 +24,11 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- Caught up with upstream, had to tweak a few bits'n'pieces for build
+  and ``testclient.sh`` but nothing that should affect a consumer of
+  the library who can re-build. (Changes to ordinals I expect would
+  need that at least on some OSes, not sure.)
+
 - CI folks told me ``make update`` was failing, which it was. Seems there're
   parts of the build I'd not played with before and where I previously 
   did manual edits but should've been configuring tool stuff. 

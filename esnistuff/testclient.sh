@@ -235,7 +235,8 @@ else
 fi
 
 # force tls13
-force13="-cipher TLS13-AES-128-GCM-SHA256 -no_ssl3 -no_tls1 -no_tls1_1 -no_tls1_2"
+force13="-no_ssl3 -no_tls1 -no_tls1_1 -no_tls1_2"
+#force13="-cipher TLS13-AES-128-GCM-SHA256 -no_ssl3 -no_tls1 -no_tls1_1 -no_tls1_2"
 #force13="-tls1_3 -cipher TLS13-AES-128-GCM-SHA256 "
 
 # session resumption

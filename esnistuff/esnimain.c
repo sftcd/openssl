@@ -17,7 +17,7 @@
 #include <stdio.h>
 #include <ssl_locl.h>
 #include <../ssl/packet_locl.h>
-#include <../apps/apps.h>
+#include <openssl/rand.h>
 #include <openssl/kdf.h>
 #include <openssl/esni.h>
 #include <openssl/esnierr.h>
