@@ -24,7 +24,13 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
-- Starting to look at ESNI-enabling [wget](wget.md).
+- Starting to look at ESNI-enabling [curl](curl.md) 
+
+- I took a look a building [wget](wget.md) with this but it seems like
+  wget is a tad too far behind openssl upstream to make that easy and
+  so would be more work that warranted right now, esp as integrating
+  openssl with wget2 for TLS seems to be in-work at the moment. 
+  (Will likely revisit this later.)
 
 - Caught up with upstream, had to tweak a few bits'n'pieces for build
   and ``testclient.sh`` but nothing that should affect a consumer of
@@ -453,6 +459,8 @@ seemed unkeen on. Decided to not bother with that.
 
 I'm sure there's more but some collected so far:
 
+- Add support for >1 ESNIKeys on the cilent side. Could be some issues with TXT and
+  255 lengths and catenation, but base64 decoding should work.
 - Figure out/test HRR cases. [This issue](https://github.com/tlswg/draft-ietf-tls-esni/issues/121) calls for checks to be enforced.
 - Server API for managing ESNI public/private values w/o restart.
 - Server-side policy: should server have a concept of "only visible via ESNI"?

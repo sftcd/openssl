@@ -1,6 +1,8 @@
 
 # Integrating wget
 
+20190227
+
 I'm starting to play with integrating this openssl build into wget.
 I've not yet added any new stuff to wget, just building for now.
 
@@ -8,7 +10,11 @@ I've not yet added any new stuff to wget, just building for now.
 - wget has some concept of using c-ares for DNS lookups, which we'll
   need to get ESNIKeys value(s)
 
-## Preliminaries
+Before this goes much further we should create a fork just for
+our own version control. But first, we should check out [wget2](https://gitlab.com/gnuwget/wget2.git)
+as the wget-dev mailing list seems mostly about that.
+
+## wget Preliminaries
 
 - clone wget:
 
@@ -23,8 +29,9 @@ I've not yet added any new stuff to wget, just building for now.
 
             $ cd $HOME/code/wget
             $ ./bootstrap
-            $ export CPPFLAGS='-I $HOME/code/openssl/include' 
-            $ export LDFLAGS='-I $HOME/code/openssl/' 
+            ...much ado about gnulib...
+            $ export CPPFLAGS='-I $HOME/code/openssl/include'
+            $ export LDFLAGS='-L$HOME/code/openssl/' 
             $ ./configure --with-ssl=openssl --with-libssl-prefix=$HOME/code/openssl/ --with-cares
             $ make
 
@@ -42,9 +49,9 @@ I've not yet added any new stuff to wget, just building for now.
             DEPRECATEDIN_1_1_0(void OPENSSL_config(const char *config_name))
             ^
 
-    I added a ``#include <openssl/esni.h>`` to check if the build'll pick up
-    my changes, and it does (now, after messing about with many variations 
-    that weren't the above:-).
+    I added a ``#include <openssl/esni.h>`` to ``src/openssl.c`` to check if
+    the build'll pick up my changes, and it does (now, after messing about with
+    many variations that weren't the above:-).
 
     Incidentally, ``configure --help`` provides misleading guidance (see below). But
     it seems that while those are defined in the Makefiles, that doesn't get passed
@@ -58,4 +65,59 @@ I've not yet added any new stuff to wget, just building for now.
             OPENSSL_LIBS
               linker flags for OPENSSL, overriding pkg-config
 
+## wget2 Preliminaries
+
+Having done the above, I'll now try a similar build with wget2 and see what I see...
+
+- (for me:) install lzip:
+
+            $ sudo apt install lzip
+
+- clone wget2:
+
+            $ cd $HOME/code
+            $ git clone https://gitlab.com/gnuwget/wget2.git
+
+- get ready... and... build:
+
+    - ``configure --help`` seems similar to before so I'll immediately try what 
+    worked above...
+    - note that the build process is more finickity about spaces etc in the
+    CPPFLAGS and LDFLAGS values below
+      
+
+            $ cd wget2
+            $ ./bootstrap 
+            ...much ado about gnulib...
+            $ export CPPFLAGS="-I $HOME/code/openssl/include" 
+            $ export LDFLAGS="-L$HOME/code/openssl/" 
+            $ ./configure --with-openssl=yes --with-cares
+            
+
+    And that works.
+
+Ahh - seems gnutls is the only option for TLS so far - OpenSSL can still be
+used for librcrypto it seems but maybe nothing more, that appears to be
+[in-work](https://gitlab.com/gnuwget/wget2/issues/401) but so far not done, so
+that'll be all for wget2 for now.
+
+## Coding 
+
+All new ESNI code will be protected via ``#ifndef OPENSSL_NO_ESNI`` as
+done within the OpenSSL library. 
+
+## Command line arguments, and behaviour
+
+Most of this will be modelled on what we did for ``openssl s_client`` with
+the difference that ``wget`` has the ``c-ares`` DNS libarary so can try
+fetch ESNIKeys values internally.
+
+Our model here is that if ESNI is available, we'll use it. However, given
+that we may need to specify a specific cover hostname might be needed, 
+and that ESNI will be initially rare, we'll add a command line argument
+``--esni`` that can take an optional covername. 
+
+Since I was seeing problems with OpenSSL compatibility, I've parked this
+for the moment and will try see how things look with [curl](curl.md) for
+a bit...
 
