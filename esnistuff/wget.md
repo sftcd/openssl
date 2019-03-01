@@ -117,6 +117,8 @@ that we may need to specify a specific cover hostname might be needed,
 and that ESNI will be initially rare, we'll add a command line argument
 ``--esni`` that can take an optional covername. 
 
+## Status (== quiescent:-)
+
 Since I was seeing problems with OpenSSL compatibility, I've parked this
 for the moment and will try see how things look with [curl](curl.md) for
 a bit...
