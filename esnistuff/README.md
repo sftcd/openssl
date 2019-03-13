@@ -33,15 +33,15 @@ Most recent first...
            ascii-hex encoding of ESNIKeys but are just dummy values for now
 
                 $ dig +short -t TYPE65439 example.com
-                \\# 3 373839
-                \\# 6 313232343536
+                \# 3 373839
+                \# 6 313232343536
 
         - to publish such a thing in a zone file it'd look like:
 
 
                 ;;; ESNIKeys stuff
-                example.com. 300 IN \\# 3 373839
-                example.com. 300 IN \\# 6 313232343536
+                example.com. 300 IN \# 3 373839
+                example.com. 300 IN \# 6 313232343536
 
         - strangely enough, that all seems to just work when we tried it with
           dummy values in a zone-we-own:-)
