@@ -140,9 +140,52 @@ static unsigned short verstr2us(char *arg)
 }
 
 /**
+ * @brief Add an adderess to the list if it's not there already
+ * @param
+ * @return 0 if added, 1 if already present, <0 for error
+ */
+static int add2alist(char *ips[], int *nips_p, char *line)
+{
+    int nips=0;
+    int added=0;
+
+    if (!ips || !nips_p || !line) {
+        return -1;
+    }
+    nips=*nips_p;
+
+    if (nips==0) {
+        ips[0]=strdup(line);
+        nips=1;
+        added=1;
+    } else {
+        int found=0;
+        for (int i=0;i!=nips;i++) {
+            if (!strncmp(ips[i],line,strlen(line))) {
+                found=1;
+                return(1);
+            }
+        }
+        if (!found) {
+            if (nips==MAX_ESNI_ADDRS) {
+                fprintf(stderr,"Too many addresses found (max is %d) - exiting\n",MAX_ESNI_ADDRS);
+                exit(1);
+            }
+            ips[nips]=strdup(line);
+            nips++;
+            added=1;
+        }
+    }
+    if (added) {
+        *nips_p=nips;
+        return(0);
+    }
+    return(-2);
+}
+
+/**
  * @brief Make an X25519 key pair and ESNIKeys structure for the public
  *
- * @todo TODO: write base 64 version of public as well 
  * @todo TODO: check out NSS code to see if I can make same format private
  * @todo TODO: Decide if supporting private key re-use is even needed.
  */
@@ -266,25 +309,10 @@ static int mk_esnikeys(int argc, char **argv)
                     continue;
                 }
                 line[read-1]='\0'; /* zap newline */
-                if (nips==0) {
-                    ips[0]=strdup(line);
-                    nips=1;
-                } else {
-                    int found=0;
-                    for (int i=0;i!=nips;i++) {
-                        if (!strncmp(ips[i],line,strlen(line))) {
-                            found=1;
-                            break;
-                        }
-                    }
-                    if (!found) {
-                        if (nips==MAX_ESNI_ADDRS) {
-                            fprintf(stderr,"Too many addresses found (max is %d) - exiting\n",MAX_ESNI_ADDRS);
-                            exit(1);
-                        }
-                        ips[nips]=strdup(line);
-                        nips++;
-                    }
+                int rv=add2alist(ips,&nips,line);
+                if (rv<0) {
+                    fprintf(stderr,"add2alist failed (%d) - exiting\n",rv);
+                    exit(1);
                 }
             }
             if (line)
@@ -316,26 +344,10 @@ static int mk_esnikeys(int argc, char **argv)
                             &((struct sockaddr_in6 *)sa)->sin6_addr,
                             astr, sizeof astr);
                 }
-
-                if (nips==0) {
-                    ips[0]=strdup(astr);
-                    nips=1;
-                } else {
-                    int found=0;
-                    for (int i=0;i!=nips;i++) {
-                        if (!strncmp(ips[i],astr,strlen(astr))) {
-                            found=1;
-                            break;
-                        }
-                    }
-                    if (!found) {
-                        if (nips==MAX_ESNI_ADDRS) {
-                            fprintf(stderr,"Too many addresses found (max is %d) - exiting\n",MAX_ESNI_ADDRS);
-                            exit(1);
-                        }
-                        ips[nips]=strdup(astr);
-                        nips++;
-                    }
+                int rv=add2alist(ips,&nips,astr);
+                if (rv<0) {
+                    fprintf(stderr,"add2alist failed (%d) - exiting\n",rv);
+                    exit(1);
                 }
 
             }
@@ -404,7 +416,8 @@ static int mk_esnikeys(int argc, char **argv)
             memcpy(extvals+6,tmpebuf,nelen);
             extlen=nelen+6;
         } else {
-            fprintf(stderr,"Didn't do realloc code yet - exiting!\n");
+            /* we only support 1 extension for now so this won't happen */
+            fprintf(stderr,"Didn't implement realloc code yet - exiting!\n");
             exit(1);
         }
     }
@@ -486,7 +499,7 @@ static int mk_esnikeys(int argc, char **argv)
     time_t na=nb+duration;
 
     /*
-     * Here's a hexdump of one cloudflare value:
+     * Here's a hexdump of one draft-02 cloudflare value:
      * 00000000  ff 01 c7 04 13 a8 00 24  00 1d 00 20 e1 84 9f 8d  |.......$... ....|
      * 00000010  2c 89 3c da f5 cf 71 7c  2a ac c1 34 19 cc 7a 38  |,.<...q|*..4..z8|
      * 00000020  a6 d2 62 59 68 f9 ab 89  ad d7 b2 27 00 02 13 01  |..bYh......'....|
@@ -508,6 +521,21 @@ static int mk_esnikeys(int argc, char **argv)
      *
      * draft-03 adds this just after the checksum:
      *         opaque public_name<1..2^16-1>;
+     *
+     * I don't yet have anyone else's example of a -03/ff02 value but here's one
+     * of mine where this was called with "-P www.cloudflarecom -A":
+     *
+     * 00000000  ff 02 36 60 b9 a0 00 12  77 77 77 2e 63 6c 6f 75  |..6`....www.clou|
+     * 00000010  64 66 6c 61 72 65 2e 63  6f 6d 00 24 00 1d 00 20  |dflare.com.$... |
+     * 00000020  c7 e8 4b 92 59 d6 1c 58  36 6c eb 26 46 ec 9d 3d  |..K.Y..X6l.&F..=|
+     * 00000030  fb 3d ab de 9a 94 ac 34  7e bd 7c 2a c4 ae e3 60  |.=.....4~.|*...`|
+     * 00000040  00 02 13 01 01 04 00 00  00 00 5c 89 6e 0c 00 00  |..........\.n...|
+     * 00000050  00 00 5c 92 a8 8c 00 2f  10 01 00 2c 06 26 06 47  |..\..../...,.&.G|
+     * 00000060  00 00 00 00 00 00 00 00  00 c6 29 d6 a2 06 26 06  |..........)...&.|
+     * 00000070  47 00 00 00 00 00 00 00  00 00 c6 29 d7 a2 04 c6  |G..........)....|
+     * 00000080  29 d6 a2 04 c6 29 d7 a2                           |)....)..|
+     * 00000088
+     *
      */
 
     unsigned char bbuf[MAX_ESNIKEYS_BUFLEN]; ///< binary buffer
