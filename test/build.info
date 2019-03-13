@@ -6,6 +6,8 @@ SUBDIRS=ossl_shim
          my ($base, $files) = @_;
          return join(" ", map { "$base/$_" } split(/\s+/, $files));
      }
+     our $apps_aux_src =
+         join(' ', map { "../apps/$_" } split(/\s+/, $target{apps_aux_src}));
      ""
 -}
 IF[{- !$disabled{tests} -}]
@@ -14,7 +16,8 @@ IF[{- !$disabled{tests} -}]
           testutil/driver.c testutil/tests.c testutil/cb.c testutil/stanza.c \
           testutil/format_output.c testutil/tap_bio.c \
           testutil/test_cleanup.c testutil/main.c testutil/init.c \
-          testutil/options.c testutil/test_options.c ../apps/opt.c
+          testutil/options.c testutil/test_options.c \
+          testutil/apps_mem.c ../apps/opt.c {- $apps_aux_src; -}
   INCLUDE[libtestutil.a]=../include ../apps/include ..
   DEPEND[libtestutil.a]=../libcrypto
 
@@ -31,7 +34,7 @@ IF[{- !$disabled{tests} -}]
           bftest ssltest_old dsatest dsa_no_digest_size_test exptest rsa_test \
           evp_test evp_extra_test igetest v3nametest v3ext \
           crltest danetest bad_dtls_test lhash_test sparse_array_test \
-          conf_include_test \
+          conf_include_test params_api_test \
           constant_time_test verify_extra_test clienthellotest \
           packettest asynctest secmemtest srptest memleaktest stack_test \
           dtlsv1listentest ct_test threadstest afalgtest d2i_test \
@@ -47,7 +50,7 @@ IF[{- !$disabled{tests} -}]
           time_offset_test pemtest ssl_cert_table_internal_test ciphername_test \
           servername_test ocspapitest rsa_mp_test fatalerrtest tls13ccstest \
           sysdefaulttest errtest gosttest \
-          context_internal_test
+          context_internal_test aesgcmtest params_test
 
   SOURCE[versions]=versions.c
   INCLUDE[versions]=../include ../apps/include
@@ -304,6 +307,10 @@ IF[{- !$disabled{tests} -}]
   INCLUDE[bioprinttest]=../include ../apps/include
   DEPEND[bioprinttest]=../libcrypto libtestutil.a
 
+  SOURCE[params_api_test]=params_api_test.c
+  INCLUDE[params_api_test]=../include ../apps/include
+  DEPEND[params_api_test]=../libcrypto libtestutil.a
+
   SOURCE[sslapitest]=sslapitest.c ssltestlib.c
   INCLUDE[sslapitest]=../include ../apps/include ..
   DEPEND[sslapitest]=../libcrypto ../libssl libtestutil.a
@@ -442,7 +449,9 @@ IF[{- !$disabled{tests} -}]
   IF[1]
     PROGRAMS{noinst}=asn1_internal_test modes_internal_test x509_internal_test \
                      tls13encryptiontest wpackettest ctype_internal_test \
-                     rdrand_sanitytest property_test
+                     rdrand_sanitytest property_test \
+                     rsa_sp800_56b_test bn_internal_test
+
     IF[{- !$disabled{poly1305} -}]
       PROGRAMS{noinst}=poly1305_internal_test
     ENDIF
@@ -525,6 +534,14 @@ IF[{- !$disabled{tests} -}]
     SOURCE[rdrand_sanitytest]=rdrand_sanitytest.c
     INCLUDE[rdrand_sanitytest]=../include ../apps/include
     DEPEND[rdrand_sanitytest]=../libcrypto.a libtestutil.a
+
+    SOURCE[rsa_sp800_56b_test]=rsa_sp800_56b_test.c
+    INCLUDE[rsa_sp800_56b_test]=.. ../include ../crypto/include ../crypto/rsa ../apps/include
+    DEPEND[rsa_sp800_56b_test]=../libcrypto.a libtestutil.a
+
+    SOURCE[bn_internal_test]=bn_internal_test.c
+    INCLUDE[bn_internal_test]=.. ../include ../crypto/include ../crypto/bn ../apps/include
+    DEPEND[bn_internal_test]=../libcrypto.a libtestutil.a
   ENDIF
 
   IF[{- !$disabled{mdc2} -}]
@@ -567,10 +584,42 @@ IF[{- !$disabled{tests} -}]
   INCLUDE[gosttest]=../include ../apps/include ..
   DEPEND[gosttest]=../libcrypto ../libssl libtestutil.a
 
+  SOURCE[aesgcmtest]=aesgcmtest.c
+  INCLUDE[aesgcmtest]=../include ../apps/include ..
+  DEPEND[aesgcmtest]=../libcrypto libtestutil.a
+
   PROGRAMS{noinst}=context_internal_test
   SOURCE[context_internal_test]=context_internal_test.c
   INCLUDE[context_internal_test]=.. ../include ../apps/include
   DEPEND[context_internal_test]=../libcrypto.a libtestutil.a
+
+  PROGRAMS{noinst}=provider_internal_test
+  DEFINE[provider_internal_test]=PROVIDER_INIT_FUNCTION_NAME=p_test_init
+  SOURCE[provider_internal_test]=provider_internal_test.c p_test.c
+  INCLUDE[provider_internal_test]=../include ../apps/include
+  DEPEND[provider_internal_test]=../libcrypto.a libtestutil.a
+  PROGRAMS{noinst}=provider_test
+  DEFINE[provider_test]=PROVIDER_INIT_FUNCTION_NAME=p_test_init
+  SOURCE[provider_test]=provider_test.c p_test.c
+  INCLUDE[provider_test]=../include ../apps/include
+  DEPEND[provider_test]=../libcrypto.a libtestutil.a
+  IF[{- !$disabled{shared} -}]
+    MODULES{noinst}=p_test
+    SOURCE[p_test]=p_test.c
+    INCLUDE[p_test]=../include
+    IF[{- defined $target{shared_defflag} -}]
+      SOURCE[p_test]=p_test.ld
+      GENERATE[p_test.ld]=../util/providers.num
+    ENDIF
+  ELSE
+    DEFINE[provider_test]=OPENSSL_NO_SHARED
+    DEFINE[provider_internal_test]=OPENSSL_NO_SHARED
+  ENDIF
+
+  PROGRAMS{noinst}=params_test
+  SOURCE[params_test]=params_test.c
+  INCLUDE[params_test]=.. ../include ../apps/include
+  DEPEND[params_test]=../libcrypto.a libtestutil.a
 ENDIF
 
 {-
@@ -593,11 +642,19 @@ ENDIF
        next if grep { lc("$name.h") =~ m/$_/i } @nogo_headers_re;
        $OUT .= <<"_____";
 
-  PROGRAMS{noinst}=buildtest_$name
+  PROGRAMS{noinst}=buildtest_c_$name
+  SOURCE[buildtest_c_$name]=buildtest_$name.c
   GENERATE[buildtest_$name.c]=generate_buildtest.pl $name
-  SOURCE[buildtest_$name]=buildtest_$name.c
-  INCLUDE[buildtest_$name]=../include
-  DEPEND[buildtest_$name]=../libssl ../libcrypto
+  INCLUDE[buildtest_c_$name]=../include
+  DEPEND[buildtest_c_$name]=../libssl ../libcrypto
+_____
+       $OUT .= <<"_____" if $config{CXX} && !$disabled{"buildtest-c++"};
+
+  PROGRAMS{noinst}=buildtest_cc_$name
+  SOURCE[buildtest_cc_$name]=buildtest_$name.cc
+  GENERATE[buildtest_$name.cc]=generate_buildtest.pl $name
+  INCLUDE[buildtest_cc_$name]=../include
+  DEPEND[buildtest_cc_$name]=../libssl ../libcrypto
 _____
    }
 -}

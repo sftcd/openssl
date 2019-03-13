@@ -32,6 +32,8 @@ GEN_SESSION_CB                          datatype
 OPENSSL_Applink                         external
 OPENSSL_CTX                             datatype
 NAMING_AUTHORITY                        datatype
+OSSL_PARAM                              datatype
+OSSL_PROVIDER                           datatype
 OSSL_STORE_CTX                          datatype
 OSSL_STORE_INFO                         datatype
 OSSL_STORE_LOADER                       datatype
@@ -46,6 +48,7 @@ OSSL_STORE_error_fn                     datatype
 OSSL_STORE_load_fn                      datatype
 OSSL_STORE_open_fn                      datatype
 OSSL_STORE_post_process_info_fn         datatype
+OSSL_trace_cb                           datatype
 PROFESSION_INFO                         datatype
 PROFESSION_INFOS                        datatype
 RAND_DRBG_cleanup_entropy_fn            datatype
@@ -320,6 +323,21 @@ OpenSSL_add_all_algorithms              define deprecated 1.1.0
 OpenSSL_add_all_ciphers                 define deprecated 1.1.0
 OpenSSL_add_all_digests                 define deprecated 1.1.0
 OpenSSL_add_ssl_algorithms              define
+OSSL_PARAM_utf8_ptr                     define
+OSSL_PARAM_SIZED_BN                     define
+OSSL_PARAM_TYPE                         generic
+OSSL_PARAM_construct_TYPE               generic
+OSSL_PARAM_octet_string                 define
+OSSL_PARAM_SIZED_octet_ptr              define
+OSSL_PARAM_utf8_string                  define
+OSSL_PARAM_octet_ptr                    define
+OSSL_PARAM_SIZED_utf8_ptr               define
+OSSL_PARAM_SIZED_utf8_string            define
+OSSL_PARAM_SIZED_TYPE                   generic
+OSSL_PARAM_get_TYPE                     generic
+OSSL_PARAM_END                          define
+OSSL_PARAM_set_TYPE                     generic
+OSSL_PARAM_SIZED_octet_string           define
 PEM_FLAG_EAY_COMPATIBLE                 define
 PEM_FLAG_ONLY_B64                       define
 PEM_FLAG_SECURE                         define
