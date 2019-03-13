@@ -92,7 +92,7 @@ Most recent first...
 
 - Surprisingly (for me:-) this works: 
 
-			$ ./testclient.sh -H ietf.org -c 254systemlabelifikeepadding00000000000000000000000000000000000111111111111111111111111111111111122222222222222222222222222222222222244444444444444444444444444445666666666666666666666666666666666666666666666666666677777777777777777777777777777777777777776
+            $ ./testclient.sh -H ietf.org -c 254systemlabelifikeepadding00000000000000000000000000000000000111111111111111111111111111111111122222222222222222222222222222222222244444444444444444444444444445666666666666666666666666666666666666666666666666666677777777777777777777777777777777777777776
 
     i.e., connecting to www.cloudflare.com with an SNI they don't serve and an
 ESNI that they do... is fine. The SNI value doesn't have to be a real or even a
@@ -228,7 +228,7 @@ session ticket being stored, nor received:
 
 - This is failing. It shouldn't :-)
 
-			$ ./testclient.sh -p 4000 -s localhost -n -c example.com -vd
+            $ ./testclient.sh -p 4000 -s localhost -n -c example.com -vd
 
   I was being too strict in insisting on ``s->esni`` not being NULL.
   Fixed.
@@ -453,10 +453,10 @@ seemed unkeen on. Decided to not bother with that.
   include the ESNI, but doesn't without or for NSS's with ESNI
   included - guess it could be that so try eliminate that 
   first.
-	- reckon wireshark thing is spurious, it likely updates
-	  the protocol field for the CH after seeing answers
-	  (tested with different filter, and NSS also shows at
- 	  just TLSv1 if I only capture outbound packets)
+    - reckon wireshark thing is spurious, it likely updates
+      the protocol field for the CH after seeing answers
+      (tested with different filter, and NSS also shows at
+       just TLSv1 if I only capture outbound packets)
 
 - Started instrumenting NSS's tls13esni.c, more as we get it...
 
@@ -472,8 +472,8 @@ seemed unkeen on. Decided to not bother with that.
 - www.cloudflare.com finished the handshake but no sign of an
   esni in the EE so far (actually getting no EE from the
   server)
-	- I discovered I wasn't handling the client h/s key share at all (heh:-)
-	- need to check what FF gets when working - later
+    - I discovered I wasn't handling the client h/s key share at all (heh:-)
+    - need to check what FF gets when working - later
 
 - I've gotten FF nightly to work with CF, and am now sending
   the same structure. I did have 2 extra bytes in my
