@@ -28,7 +28,9 @@ Most recent first...
   from now (20190313), will try keep [draft-02](https://tools.ietf.org/html/draft-ietf-tls-esni-02) working
   as the default for now, but we'll see how that goes, and will switch defaults later, depending 
     - Played with DNS a bit as -03 has a new ESNI RRTYPE (value 0xffdf == 65439) instead of TXT
-        - to query for such a thing, published at example.com:
+        - to query for such a thing, published at example.com,
+           where the two values there are "789" and "123456" - that ought be the
+           ascii-hex encoding of ESNIKeys but are just dummy values for now
 
 ```
 $ dig +short -t TYPE65439 example.com
@@ -36,8 +38,6 @@ $ dig +short -t TYPE65439 example.com
 \# 6 313232343536
 ```
 
-           where the two values there are "789" and "123456" - that ought be the
-           ascii-hex encoding of ESNIKeys but are just dummy values for now
         - to publish such a thing in a zone file it'd look like:
 
 ```
