@@ -30,17 +30,21 @@ Most recent first...
     - Played with DNS a bit as -03 has a new ESNI RRTYPE (value 0xffdf == 65439) instead of TXT
         - to query for such a thing, published at example.com:
 
-            $ dig +short -t TYPE65439 example.com
-            \# 3 373839
-            \# 6 313232343536
+```
+$ dig +short -t TYPE65439 example.com
+\# 3 373839
+\# 6 313232343536
+```
 
            where the two values there are "789" and "123456" - that ought be the
            ascii-hex encoding of ESNIKeys but are just dummy values for now
         - to publish such a thing in a zone file it'd look like:
 
-            ;;; ESNIKeys stuff
-            example.com. 300 IN \# 3 373839
-            example.com. 300 IN \# 6 313232343536
+```
+;;; ESNIKeys stuff
+example.com. 300 IN \# 3 373839
+example.com. 300 IN \# 6 313232343536
+```
 
         - strangely enough, that all seems to just work when we tried it with
           dummy values in a zone-we-own:-)
