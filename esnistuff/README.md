@@ -1,7 +1,7 @@
 
 # This is a temporary place for ESNI content ...
 
-Stephen Farrell, stephen.farrell@cs.tcd.ie, 20190101
+Stephen Farrell, stephen.farrell@cs.tcd.ie, 20190313
 
 I'll put stuff here that'll likely disappear if this matures. So the plan would
 be to delete all this before submitting any PR to the openssl folks. Over time,
@@ -24,13 +24,36 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
-- Will start looking at coding up [draft-03](https://tools.ietf.org/html/draft-ietf-tls-esni-03)
-  now. Likely first step will be to kick off with [mk_esnikeys.c](./mk_esnikeys.c).
+- Starting to work on coding up [draft-03](https://tools.ietf.org/html/draft-ietf-tls-esni-03)
+  from now (20190313), will try keep [draft-02](https://tools.ietf.org/html/draft-ietf-tls-esni-02) working
+  as the default for now, but we'll see how that goes, and will switch defaults later, depending 
+    - Played with DNS a bit as -03 has a new ESNI RRTYPE (value 0xffdf == 65439) instead of TXT
+        - to query for such a thing, published at example.com:
+
+            $ dig +short -t TYPE65439 example.com
+            \# 3 373839
+            \# 6 313232343536
+
+           where the two values there are "789" and "123456" - that ought be the
+           ascii-hex encoding of ESNIKeys but are just dummy values for now
+        - to publish such a thing in a zone file it'd look like:
+
+            ;;; ESNIKeys stuff
+            example.com. 300 IN \# 3 373839
+            example.com. 300 IN \# 6 313232343536
+
+        - strangely enough, that all seems to just work when we tried it with
+          dummy values in a zone-we-own:-)
+    - First coding step is to kick off with the modest changes needed to [mk_esnikeys.c](./mk_esnikeys.c).
+        - added ``-V``,``-P`` and ``-A`` command lines arguments, it produces 
+        some output that could possibly be the the right encoding (but isn't
+        likely to be yet, as I've not tested that:-)
 
 - Re-merged with upstream. (20190313)
 
-- Starting to look at ESNI-enabling [curl](curl.md) Paused that for
-  a bit. 
+- Started to look at ESNI-enabling [curl](curl.md) Paused that for
+  a bit, now that draft-03 has landed (and someone else may be doing
+  work on that I can re-use later).
 
 - I took a look a building [wget](wget.md) with this but it seems like
   wget is a tad too far behind openssl upstream to make that easy and
@@ -465,6 +488,7 @@ seemed unkeen on. Decided to not bother with that.
 
 I'm sure there's more but some collected so far:
 
+- Code up support for [draft-03](https://tools.ietf.org/html/draft-ietf-tls-esni-03#section-8.3)
 - Add support for >1 ESNIKeys on the cilent side. Could be some issues with TXT and
   255 lengths and catenation, but base64 decoding should work.
 - Figure out/test HRR cases. [This issue](https://github.com/tlswg/draft-ietf-tls-esni/issues/121) calls for checks to be enforced.

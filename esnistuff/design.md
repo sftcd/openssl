@@ -1,7 +1,7 @@
 
 # OpenSSL Encrypted SNI Design
 
-stephen.farrell@cs.tcd.ie, 20181221ish
+stephen.farrell@cs.tcd.ie, 20190313ish
 
 This file describes the current design for our proof-of-concept 
 openssl implementation of encrypted SNI.
@@ -10,6 +10,9 @@ openssl implementation of encrypted SNI.
   both client and server sides of the ESNI Internet-draft
 [draft-ietf-tls-esni-02](https://tools.ietf.org/html/draft-ietf-tls-esni-02)
 spec.
+- I've started to code up the [draft-ietf-tls-esni-03](https://tools.ietf.org/html/draft-ietf-tls-esni-03)
+version, but so far have only done the ``mk_esnikeys`` command line tool (and that's
+not tested yet).
 - The most up to date
   [README.md](https://github.com/sftcd/openssl/tree/master/esnistuff) for that
 code.
@@ -265,21 +268,26 @@ Some open questions:
 
 For now, all that exists is [mk_esnikeys.c](./mk_esnikeys.c), a simple command
 line tool to generate a key pair and store the public in ESNIKeys format as 
-per I-D -02. That's pretty limited (by design), it's usage explains most of
+per I-D -02 or -03. That's pretty limited (by design), it's usage explains most of
 it:
 
 			$ ./mk_esnikeys -h
-			Create an ESNIKeys data structure as per draft-ietf-tls-esni-02
-			Usage: 
-				./mk_esnikeys [-o <fname>] [-p <privfname>] [-d duration]
-			where:
-			-o specifies the output file name for the binary-encoded ESNIKeys (default: ./esnikeys.pub)
-			-p specifies the output file name for the corresponding private key (default: ./esnikeys.priv)
-			-d duration, specifies the duration in seconds from now, for which the public should be valid (default: 1 week)
-			
-			If <privfname> exists already and contains an appropriate value, then that key will be used without change.
-			There is no support for options - we just support TLS_AES_128_GCM_SHA256, X5519 and no extensions.
-			Fix that if you like:-)
+            Create an ESNIKeys data structure as per draft-ietf-tls-esni-[02|03]
+            Usage: 
+	            ./mk_esnikeys [-V version] [-o <fname>] [-p <privfname>] [-d duration] [-P public-/cover-name] [-A [file-name]]
+            where:
+            -V specifies the ESNIKeys version to produce (default: 0xff01; 0xff02 allowed)
+            -A says to include an AddressSet extension
+            -o specifies the output file name for the binary-encoded ESNIKeys (default: ./esnikeys.pub)
+            -p specifies the output file name for the corresponding private key (default: ./esnikeys.priv)
+            -d duration, specifies the duration in seconds from, now, for which the public share should be valid (default: 1 week)
+            
+            If <privfname> exists already and contains an appropriate value, then that key will be used without change.
+            There is no support for options - we just support TLS_AES_128_GCM_SHA256, X25519 and no extensions.
+            Fix that if you like:-)
+            -P and -A are only supported for version 0xff02 and not 0xff01
+            If a filename ie given with -A then that should contain one IP address per line.
+            If no filename is given aith -A then we'll look up the A and AAAA for the cover-/public-name and use those.
 			
 The private key is in PEM format. (I'm not v. familiar with PEM format for
 X25519 but hopefully it's portable, I've a TODO: to check.) For now the 

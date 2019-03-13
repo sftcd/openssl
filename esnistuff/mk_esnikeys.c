@@ -1,5 +1,5 @@
 /*
- * Copyright 2018 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2018,2019 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the OpenSSL license (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -10,12 +10,14 @@
 /*
  * This is a standalone ESNIKeys Creator main file to start in on esni
  * in OpenSSL style, as per https://tools.ietf.org/html/draft-ietf-tls-esni-02
+ * and now also https://tools.ietf.org/html/draft-ietf-tls-esni-02
  * Author: stephen.farrell@cs.tcd.ie
- * Date: 20181203
+ * Date: 20190313
  */
 
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 #include <time.h>
 #include <openssl/rand.h>
 #include <openssl/evp.h>
@@ -23,7 +25,15 @@
 // for getopt()
 #include <getopt.h>
 
-#define MKESNIKEYS_BUFLEN 1024 ///< just for laughs, won't be that long
+// for getaddrinfo()
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netdb.h>
+#include <arpa/inet.h>
+
+#define MAX_ESNIKEYS_BUFLEN 1024 ///< just for laughs, won't be that long
+#define MAX_ESNI_COVER_NAME 254 ///< longer than this won't fit in SNI
+#define MAX_ESNI_ADDRS   16 ///< max addresses to include in AddressSet
 
 /*
  * stdout version of esni_pbuf - just for odd/occasional debugging
@@ -92,18 +102,38 @@ err:
 
 void usage(char *prog) 
 {
-    printf("Create an ESNIKeys data structure as per draft-ietf-tls-esni-02\n");
+    printf("Create an ESNIKeys data structure as per draft-ietf-tls-esni-[02|03]\n");
     printf("Usage: \n");
-    printf("\t%s [-o <fname>] [-p <privfname>] [-d duration]\n",prog);
+    printf("\t%s [-V version] [-o <fname>] [-p <privfname>] [-d duration] [-P public-/cover-name] [-A [file-name]]\n",prog);
     printf("where:\n");
+    printf("-V specifies the ESNIKeys version to produce (default: 0xff01; 0xff02 allowed)\n");
+    printf("-A says to include an AddressSet extension\n");
     printf("-o specifies the output file name for the binary-encoded ESNIKeys (default: ./esnikeys.pub)\n");
     printf("-p specifies the output file name for the corresponding private key (default: ./esnikeys.priv)\n");
-    printf("-d duration, specifies the duration in seconds from, now, for which the public should be valid (default: 1 week)\n");
+    printf("-d duration, specifies the duration in seconds from, now, for which the public share should be valid (default: 1 week)\n");
     printf("\n");
     printf("If <privfname> exists already and contains an appropriate value, then that key will be used without change.\n");
     printf("There is no support for options - we just support TLS_AES_128_GCM_SHA256, X25519 and no extensions.\n");
     printf("Fix that if you like:-)\n");
+    printf("-P and -A are only supported for version 0xff02 and not 0xff01\n");
+    printf("If a filename ie given with -A then that should contain one IP address per line.\n");
+    printf("If no filename is given aith -A then we'll look up the A and AAAA for the cover-/public-name and use those.\n");
     exit(1);
+}
+
+/**
+ * @brief map version string like 0xff01 to unsigned short
+ * @param arg is the version string, from command line
+ * @return is the unsigned short value (with zero for error cases)
+ */
+static unsigned short verstr2us(char *arg)
+{
+    long lv=strtol(arg,NULL,0);
+    unsigned short rv=0;
+    if (lv < 0xffff && lv > 0 ) {
+        rv=(unsigned short)lv;
+    }
+    return(rv);
 }
 
 /**
@@ -120,12 +150,20 @@ static int mk_esnikeys(int argc, char **argv)
 
     char *pubfname=NULL; ///< public key file name
     char *privfname=NULL; ///< private key file name
+    unsigned short ekversion=0xff01; ///< ESNIKeys version value (default is for draft esni -02)
+    char *cover_name=NULL; ///< ESNIKeys "public_name" field (here called cover name)
+    size_t cnlen=0; ///< length of cover_name
+    int includeaddrset=0; ///< whether or not to include an AddressSet extension
+    char *asetfname=NULL; ///< optional file name for AddressSet values
     int duration=60*60*24*7; ///< 1 week in seconds
     int maxduration=duration*52*10; ///< 10 years max - draft -02 will definitely be deprecated by then:-)
     int minduration=3600; ///< less than one hour seems unwise
 
+    int extlen=0; ///< length of overall ESNIKeys extension value (with all extensions included)
+    unsigned char *extvals=NULL; ///< buffer with all encoded ESNIKeys extensions
+
     // check inputs with getopt
-    while((opt = getopt(argc, argv, "?ho:p:d:")) != -1) {
+    while((opt = getopt(argc, argv, ":A:P:V:?ho:p:d:")) != -1) {
         switch(opt) {
             case 'h':
             case '?':
@@ -140,23 +178,232 @@ static int mk_esnikeys(int argc, char **argv)
             case 'd':
                 duration=atoi(optarg);
                 break;
+            case 'V':
+                ekversion=verstr2us(optarg);
+                break;
+            case 'P':
+                cover_name=optarg;
+                break;
+            case 'A':
+                includeaddrset=1;
+                asetfname=optarg;
+                break;
+            case ':':
+                switch (optopt) {
+                    case 'A':
+                        includeaddrset=1;
+                        break;
+                    default: 
+                        fprintf(stderr, "Error - No such option: `%c'\n\n", optopt);
+                        usage(argv[0]);
+                }
+                break;
             default:
                 fprintf(stderr, "Error - No such option: `%c'\n\n", optopt);
                 usage(argv[0]);
         }
     }
 
+    if (ekversion==0xff01 && cover_name != NULL) {
+        fprintf(stderr,"Version 0xff01 doesn't support Cover name - exiting\n\n");
+        usage(argv[0]);
+    }
+    if (ekversion==0xff01 && includeaddrset!=0) {
+        fprintf(stderr,"Version 0xff01 doesn't support AddressSet - exiting\n\n");
+        usage(argv[0]);
+    }
     if (duration <=0) {
-        fprintf(stderr,"Can't have negative duration (%d)\n",duration);
+        fprintf(stderr,"Can't have negative duration (%d)\n\n",duration);
         usage(argv[0]);
     }
     if (duration>=maxduration) {
-        fprintf(stderr,"Can't have >10 years duration (%d>%d)\n",duration,maxduration);
+        fprintf(stderr,"Can't have >10 years duration (%d>%d)\n\n",duration,maxduration);
         usage(argv[0]);
     }
     if (duration<minduration) {
-        fprintf(stderr,"Can't have <1 hour duration (%d<%d)\n",duration,minduration);
+        fprintf(stderr,"Can't have <1 hour duration (%d<%d)\n\n",duration,minduration);
         usage(argv[0]);
+    }
+    switch(ekversion) {
+        case 0xff01: /* esni draft -02 */
+            break;
+        case 0xff02: /* esni draft -03 */
+            if (cover_name==NULL) {
+                fprintf(stderr,"%x requires you to specify a cover/public-name - exiting\n\n",ekversion);
+                usage(argv[0]);
+            }
+            cnlen=strlen(cover_name);
+            if (cnlen > MAX_ESNI_COVER_NAME) {
+                fprintf(stderr,"Cover name too long (%ld), max is %d\n\n",cnlen,MAX_ESNI_COVER_NAME);
+                usage(argv[0]);
+            }
+            break;
+        default:
+            fprintf(stderr,"Bad version supplied: %x\n\n",ekversion);
+            usage(argv[0]);
+    }
+
+    /* handle AddressSet stuff */
+    if (ekversion==0xff02 && includeaddrset!=0) {
+        int nips=0;
+        char *ips[MAX_ESNI_ADDRS];
+        memset(ips,0,MAX_ESNI_ADDRS*sizeof(char*));
+        if (asetfname!=NULL) {
+            /* open file and read 1 IP per line */
+            FILE *fp=fopen(asetfname,"r");
+            if (!fp) {
+                fprintf(stderr,"Can't open address file (%s) - exiting\n",asetfname);
+                exit(1);
+            }
+            char * line = NULL;
+            size_t len = 0;
+            ssize_t read;
+            while ((read = getline(&line, &len, fp)) != -1) {
+                if (line[0]=='#') {
+                    continue;
+                }
+                line[read-1]='\0'; /* zap newline */
+                if (nips==0) {
+                    ips[0]=strdup(line);
+                    nips=1;
+                } else {
+                    int found=0;
+                    for (int i=0;i!=nips;i++) {
+                        if (!strncmp(ips[i],line,strlen(line))) {
+                            found=1;
+                            break;
+                        }
+                    }
+                    if (!found) {
+                        if (nips==MAX_ESNI_ADDRS) {
+                            fprintf(stderr,"Too many addresses found (max is %d) - exiting\n",MAX_ESNI_ADDRS);
+                            exit(1);
+                        }
+                        ips[nips]=strdup(line);
+                        nips++;
+                    }
+                }
+            }
+            if (line)
+                free(line);
+            fclose(fp);
+        } else {
+            if (cnlen==0) {
+                fprintf(stderr,"Can't get address as no public-/cover-name supplied.\n");
+                exit(1);
+            }
+            /* try getaddrinfo() */
+            struct addrinfo *ai,*rp=NULL;
+            int rv=getaddrinfo(cover_name,NULL,NULL,&ai);
+            if (rv!=-0) {
+                fprintf(stderr,"getaddrinfo failed (%d) for %s\n",rv,cover_name);
+                exit(1);
+            }
+            for (rp=ai;rp!=NULL;rp=rp->ai_next) {
+                // just print first
+                char astr[100];
+                astr[0]='\0';
+                struct sockaddr *sa=rp->ai_addr;
+                if (rp->ai_family==AF_INET) {
+                    inet_ntop(rp->ai_family, 
+                            &((struct sockaddr_in *)sa)->sin_addr,
+                            astr, sizeof astr);
+                } else if (rp->ai_family==AF_INET6) {
+                    inet_ntop(rp->ai_family, 
+                            &((struct sockaddr_in6 *)sa)->sin6_addr,
+                            astr, sizeof astr);
+                }
+
+                if (nips==0) {
+                    ips[0]=strdup(astr);
+                    nips=1;
+                } else {
+                    int found=0;
+                    for (int i=0;i!=nips;i++) {
+                        if (!strncmp(ips[i],astr,strlen(astr))) {
+                            found=1;
+                            break;
+                        }
+                    }
+                    if (!found) {
+                        if (nips==MAX_ESNI_ADDRS) {
+                            fprintf(stderr,"Too many addresses found (max is %d) - exiting\n",MAX_ESNI_ADDRS);
+                            exit(1);
+                        }
+                        ips[nips]=strdup(astr);
+                        nips++;
+                    }
+                }
+
+            }
+            freeaddrinfo(ai);
+        }
+        /* 
+         * put those into extension buffer
+         */
+        unsigned char tmpebuf[MAX_ESNIKEYS_BUFLEN]; 
+        unsigned char *tp=tmpebuf;
+        for (int i=0;i!=nips;i++) {
+            /* 
+             * it's IPv6 if it has a ':" otherwise IPv4
+             * we do this here and not based on getaddrinfo because they may
+             * have come from a file - could be better done later I guess
+             */
+            int rv=0;
+            if (strrchr(ips[i],':')) {
+                printf("IPv6 Address%d: %s\n",i,ips[i]);
+                *tp++=0x06;
+                rv=inet_pton(AF_INET6,ips[i],tp);
+                if (rv!=1) {
+                    fprintf(stderr,"Failed to convert string (%s) to IP address - exiting\n",ips[i]);
+                    exit(1);
+                }
+                tp+=16;
+            } else {
+                printf("IPv4 Address%d: %s\n",i,ips[i]);
+                *tp++=0x04;
+                rv=inet_pton(AF_INET,ips[i],tp);
+                if (rv!=1) {
+                    fprintf(stderr,"Failed to convert string (%s) to IP address - exiting\n",ips[i]);
+                    exit(1);
+                }
+                tp+=4;
+            }
+            if ((tp-tmpebuf)>(MAX_ESNIKEYS_BUFLEN-100)) {
+                fprintf(stderr,"Out of space converting string (%s) to IP address - exiting\n",ips[i]);
+                exit(1);
+            }
+        }
+        /*
+         * free strings
+         */
+        for (int i=0;i!=nips;i++) {
+            free(ips[i]);
+        }
+        int nelen=(tp-tmpebuf);
+        int exttype=0x1001;
+        if (nelen>0xffff) {
+            fprintf(stderr,"Encoded extensions too big (%d) - exiting\n",nelen);
+            exit(1);
+        }
+        if (extvals==NULL) {
+            extvals=(unsigned char*)malloc(6+nelen);
+            if (!extvals) {
+                fprintf(stderr,"Out of space converting string to IP address - exiting\n");
+                exit(1);
+            }
+            extvals[0]=((nelen+4)>>8)%256;
+            extvals[1]=(nelen+3)%256;
+            extvals[2]=(exttype>>8)%256;
+            extvals[3]=exttype%256;
+            extvals[4]=(nelen>>8)%256;
+            extvals[5]=nelen%256;
+            memcpy(extvals+6,tmpebuf,nelen);
+            extlen=nelen+6;
+        } else {
+            fprintf(stderr,"Didn't do realloc code yet - exiting!\n");
+            exit(1);
+        }
     }
 
     if (privfname==NULL) {
@@ -256,14 +503,22 @@ static int mk_esnikeys(int argc, char **argv)
      *         Extension extensions<0..2^16-1>;
      *     } ESNIKeys;
      *
+     * draft-03 adds this just after the checksum:
+     *         opaque public_name<1..2^16-1>;
      */
 
-    unsigned char bbuf[MKESNIKEYS_BUFLEN]; ///< binary buffer
+    unsigned char bbuf[MAX_ESNIKEYS_BUFLEN]; ///< binary buffer
     unsigned char *bp=bbuf;
-    memset(bbuf,0,MKESNIKEYS_BUFLEN);
-    *bp++=0xff; 
-    *bp++=0x01;// version = 0xff01
+    memset(bbuf,0,MAX_ESNIKEYS_BUFLEN);
+    *bp++=(ekversion>>8)%256; 
+    *bp++=(ekversion%256);// version = 0xff01 or 0xff02
     memset(bp,0,4); bp+=4; // space for checksum
+    if (ekversion==0xff02) {
+        /* draft -03 has public_name here, -02 hasn't got that at all */
+        *bp++=(cnlen>>8)%256;
+        *bp++=cnlen%256;
+        memcpy(bp,cover_name,cnlen); bp+=cnlen;
+    }
     *bp++=0x00;
     *bp++=0x24; // length=36
     *bp++=0x00;
@@ -287,8 +542,14 @@ static int mk_esnikeys(int argc, char **argv)
     *bp++=(na>>16)%256;
     *bp++=(na>>8)%256;
     *bp++=na%256;
-    *bp++=0x00;
-    *bp++=0x00; // no extensions
+    if (extlen==0) {
+        *bp++=0x00;
+        *bp++=0x00; // no extensions
+    } else {
+        memcpy(bp,extvals,extlen);
+        bp+=extlen;
+        free(extvals);
+    }
     size_t bblen=bp-bbuf;
 
     so_esni_pbuf("BP",bbuf,bblen,0);
