@@ -276,21 +276,24 @@ it:
             $ ./mk_esnikeys -h
             Create an ESNIKeys data structure as per draft-ietf-tls-esni-[02|03]
             Usage: 
-                ./mk_esnikeys [-V version] [-o <fname>] [-p <privfname>] [-d duration] [-P public-/cover-name] [-A [file-name]]
+                ./mk_esnikeys [-V version] [-o <fname>] [-p <privfname>] [-d duration] 
+                        [-P public-/cover-name] [-A [file-name]]
             where:
             -V specifies the ESNIKeys version to produce (default: 0xff01; 0xff02 allowed)
-            -A says to include an AddressSet extension
             -o specifies the output file name for the binary-encoded ESNIKeys (default: ./esnikeys.pub)
             -p specifies the output file name for the corresponding private key (default: ./esnikeys.priv)
             -d duration, specifies the duration in seconds from, now, for which the public share should be valid (default: 1 week)
-            
             If <privfname> exists already and contains an appropriate value, then that key will be used without change.
-            There is no support for options - we just support TLS_AES_128_GCM_SHA256, X25519 and no extensions.
+            There is no support for crypto options - we only support TLS_AES_128_GCM_SHA256, X25519 and no extensions.
             Fix that if you like:-)
+            The following are only valid with -V 0xff02:
+            -P specifies the public-/cover-name value
+            -A says to include an AddressSet extension
             -P and -A are only supported for version 0xff02 and not 0xff01
             If a filename ie given with -A then that should contain one IP address per line.
             If no filename is given aith -A then we'll look up the A and AAAA for the cover-/public-name and use those.
             
+
 The private key is in PEM format. (I'm not v. familiar with PEM format for
 X25519 but hopefully it's portable, I've a TODO: to check.) For now the 
 public key is the binary form of ESNIKeys so needs to be base64 encoded

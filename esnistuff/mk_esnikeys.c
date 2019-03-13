@@ -104,17 +104,20 @@ void usage(char *prog)
 {
     printf("Create an ESNIKeys data structure as per draft-ietf-tls-esni-[02|03]\n");
     printf("Usage: \n");
-    printf("\t%s [-V version] [-o <fname>] [-p <privfname>] [-d duration] [-P public-/cover-name] [-A [file-name]]\n",prog);
+    printf("\t%s [-V version] [-o <fname>] [-p <privfname>] [-d duration] \n",prog);
+    printf("\t\t\t[-P public-/cover-name] [-A [file-name]]\n");
     printf("where:\n");
     printf("-V specifies the ESNIKeys version to produce (default: 0xff01; 0xff02 allowed)\n");
-    printf("-A says to include an AddressSet extension\n");
     printf("-o specifies the output file name for the binary-encoded ESNIKeys (default: ./esnikeys.pub)\n");
     printf("-p specifies the output file name for the corresponding private key (default: ./esnikeys.priv)\n");
     printf("-d duration, specifies the duration in seconds from, now, for which the public share should be valid (default: 1 week)\n");
-    printf("\n");
     printf("If <privfname> exists already and contains an appropriate value, then that key will be used without change.\n");
-    printf("There is no support for options - we just support TLS_AES_128_GCM_SHA256, X25519 and no extensions.\n");
+    printf("There is no support for crypto options - we only support TLS_AES_128_GCM_SHA256, X25519 and no extensions.\n");
     printf("Fix that if you like:-)\n");
+    printf("The following are only valid with -V 0xff02:\n");
+    printf("-P specifies the public-/cover-name value\n");
+    printf("-A says to include an AddressSet extension\n");
+    printf("\n");
     printf("-P and -A are only supported for version 0xff02 and not 0xff01\n");
     printf("If a filename ie given with -A then that should contain one IP address per line.\n");
     printf("If no filename is given aith -A then we'll look up the A and AAAA for the cover-/public-name and use those.\n");
