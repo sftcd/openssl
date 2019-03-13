@@ -24,7 +24,13 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
-- Starting to look at ESNI-enabling [curl](curl.md) 
+- Will start looking at coding up [draft-03](https://tools.ietf.org/html/draft-ietf-tls-esni-03)
+  now. Likely first step will be to kick off with [mk_esnikeys.c](./mk_esnikeys.c).
+
+- Re-merged with upstream. (20190313)
+
+- Starting to look at ESNI-enabling [curl](curl.md) Paused that for
+  a bit. 
 
 - I took a look a building [wget](wget.md) with this but it seems like
   wget is a tad too far behind openssl upstream to make that easy and
