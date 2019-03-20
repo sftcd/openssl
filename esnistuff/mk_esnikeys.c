@@ -34,6 +34,7 @@
 #define MAX_ESNIKEYS_BUFLEN 1024 ///< just for laughs, won't be that long
 #define MAX_ESNI_COVER_NAME 254 ///< longer than this won't fit in SNI
 #define MAX_ESNI_ADDRS   16 ///< max addresses to include in AddressSet
+#define MAX_PADDING 40 ///< max padding to use when folding DNS records
 
 /*
  * stdout version of esni_pbuf - just for odd/occasional debugging
@@ -99,16 +100,24 @@ static void so_esni_prr(char *msg,         /* message string */
   return;
 }
 
-/*
- * write zone fragment to file
+/**
+ * @brief write zone fragment to file
+ *
+ * @param fp handle on already-opened FILE
+ * @param msg not used, kept for compatibility with debugging function
+ * @param buf binary public key data
+ * @param blen lenght of buf
+ * @param indent not used, kept for compatibility with debugging function
+ * @param typecode DNS TYPE code to use 
+ * @param owner_name fully-qualified DNS owner, without trailing dot
  */
-static void fp_esni_prr(FILE *fp,         /* pointer to open file */
-            char *msg,         /* message string */
-            unsigned char *buf,     /* binary RDATA */
-            size_t blen,         /* length of RDATA */
-            int indent,         /* unused ? */
-            unsigned short typecode, /* numeric RRTYPE */
-            char *owner_name)     /* domain name to use */
+static void fp_esni_prr(FILE *fp
+                        char *msg,
+                        unsigned char *buf,
+                        size_t blen,
+                        int indent,
+                        unsigned short typecode,
+                        char *owner_name)
 {
   if (buf==NULL) {
     fprintf(stderr,"OPENSSL: %s is NULL",msg);
