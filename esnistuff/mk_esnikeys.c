@@ -58,19 +58,19 @@ static void so_esni_pbuf(char *msg,unsigned char *buf,size_t blen,int indent)
 /*
  * stdout version of fp_esni_prr - also for debugging
  */
-static void so_esni_prr(char *msg,		 /* message string */
-			unsigned char *buf,	 /* binary RDATA */
-			size_t blen,		 /* length of RDATA */
-			int indent,		 /* unused ? */
-			unsigned short typecode, /* numeric RRTYPE */
-			char *owner_name)	 /* domain name to use */
+static void so_esni_prr(char *msg,         /* message string */
+            unsigned char *buf,     /* binary RDATA */
+            size_t blen,         /* length of RDATA */
+            int indent,         /* unused ? */
+            unsigned short typecode, /* numeric RRTYPE */
+            char *owner_name)     /* domain name to use */
 {
   if (buf==NULL) {
     printf("OPENSSL: %s is NULL",msg);
     return;
   }
   printf("OPENSSL: %s (%zd):\n",msg,blen);
-  if (blen>16) {		/* need to fold RDATA */
+  if (blen>16) {        /* need to fold RDATA */
     char padding[1+MAX_ESNI_COVER_NAME];
     int i;
     for (i=0; i!=strlen(owner_name); i++) {
@@ -81,14 +81,14 @@ static void so_esni_prr(char *msg,		 /* message string */
     printf("%s. IN TYPE%d \\# %ld (", owner_name, typecode, blen);
     for (i=0;i!=blen;i++) {
       if (i%16==0)
-	printf("\n%s                  ", padding);
+    printf("\n%s                  ", padding);
       else if (i%2==0)
-	printf(" ");
+    printf(" ");
       printf("%02x",buf[i]);
     }
     printf(" )\n");
   }
-  else {			/* no need for folding */
+  else {            /* no need for folding */
     printf("%s. IN TYPE%d \\# %ld ", owner_name, typecode, blen);
     int i;
     for (i=0;i!=blen;i++) {
@@ -102,19 +102,19 @@ static void so_esni_prr(char *msg,		 /* message string */
 /*
  * write zone fragment to file
  */
-static void fp_esni_prr(FILE *fp,		 /* pointer to open file */
-			char *msg,		 /* message string */
-			unsigned char *buf,	 /* binary RDATA */
-			size_t blen,		 /* length of RDATA */
-			int indent,		 /* unused ? */
-			unsigned short typecode, /* numeric RRTYPE */
-			char *owner_name)	 /* domain name to use */
+static void fp_esni_prr(FILE *fp,         /* pointer to open file */
+            char *msg,         /* message string */
+            unsigned char *buf,     /* binary RDATA */
+            size_t blen,         /* length of RDATA */
+            int indent,         /* unused ? */
+            unsigned short typecode, /* numeric RRTYPE */
+            char *owner_name)     /* domain name to use */
 {
   if (buf==NULL) {
     fprintf(stderr,"OPENSSL: %s is NULL",msg);
     exit(9);
   }
-  if (blen>16) {		/* need to fold RDATA */
+  if (blen>16) {        /* need to fold RDATA */
     char padding[1+MAX_ESNI_COVER_NAME];
     int i;
     for (i=0; i!=strlen(owner_name); i++) {
@@ -125,14 +125,14 @@ static void fp_esni_prr(FILE *fp,		 /* pointer to open file */
     fprintf(fp, "%s. IN TYPE%d \\# %ld (", owner_name, typecode, blen);
     for (i=0;i!=blen;i++) {
       if (i%16==0)
-	fprintf(fp, "\n%s                  ", padding);
+    fprintf(fp, "\n%s                  ", padding);
       else if (i%2==0)
-	fprintf(fp, " ");
+    fprintf(fp, " ");
       fprintf(fp, "%02x",buf[i]);
     }
     fprintf(fp, " )\n");
   }
-  else {			/* no need for folding */
+  else {            /* no need for folding */
     fprintf(fp, "%s. IN TYPE%d \\# %ld ", owner_name, typecode, blen);
     int i;
     for (i=0;i!=blen;i++) {
@@ -161,7 +161,7 @@ static int esni_checksum_gen(unsigned char *buf, size_t buf_len, unsigned char c
      */
     unsigned char *buf_zeros=OPENSSL_malloc(buf_len);
     if (buf_zeros==NULL) {
-		fprintf(stderr,"Crypto error (line:%d)\n",__LINE__);
+        fprintf(stderr,"Crypto error (line:%d)\n",__LINE__);
         goto err;
     }
     memcpy(buf_zeros,buf,buf_len);
@@ -169,19 +169,19 @@ static int esni_checksum_gen(unsigned char *buf, size_t buf_len, unsigned char c
     unsigned char md[EVP_MAX_MD_SIZE];
     SHA256_CTX context;
     if(!SHA256_Init(&context)) {
-		fprintf(stderr,"Crypto error (line:%d)\n",__LINE__);
+        fprintf(stderr,"Crypto error (line:%d)\n",__LINE__);
         goto err;
     }
     if(!SHA256_Update(&context, buf_zeros, buf_len)) {
-		fprintf(stderr,"Crypto error (line:%d)\n",__LINE__);
+        fprintf(stderr,"Crypto error (line:%d)\n",__LINE__);
         goto err;
     }
     if(!SHA256_Final(md, &context)) {
-		fprintf(stderr,"Crypto error (line:%d)\n",__LINE__);
+        fprintf(stderr,"Crypto error (line:%d)\n",__LINE__);
         goto err;
     }
     OPENSSL_free(buf_zeros);
-	memcpy(cksum,md,4);
+    memcpy(cksum,md,4);
     return 1;
 err:
     if (buf_zeros!=NULL) OPENSSL_free(buf_zeros);
@@ -193,7 +193,7 @@ void usage(char *prog)
     printf("Create an ESNIKeys data structure as per draft-ietf-tls-esni-[02|03]\n");
     printf("Usage: \n");
     printf("\t%s [-V version] [-o <fname>] [-p <privfname>] [-d duration] \n",prog);
-    printf("\t\t\t[-P public-/cover-name] [-A [file-name]]\n");
+    printf("\t\t\t[-P public-/cover-name] [-A [file-name]] [-z zonefrag-file]\n");
     printf("where:\n");
     printf("-V specifies the ESNIKeys version to produce (default: 0xff01; 0xff02 allowed)\n");
     printf("-o specifies the output file name for the binary-encoded ESNIKeys (default: ./esnikeys.pub)\n");
@@ -205,10 +205,12 @@ void usage(char *prog)
     printf("The following are only valid with -V 0xff02:\n");
     printf("-P specifies the public-/cover-name value\n");
     printf("-A says to include an AddressSet extension\n");
+    printf("-z says to output the zonefile fragment to the specified file\n");
     printf("\n");
-    printf("-P and -A are only supported for version 0xff02 and not 0xff01\n");
+    printf("-P, -A and -z are only supported for version 0xff02 and not 0xff01\n");
     printf("If a filename ie given with -A then that should contain one IP address per line.\n");
-    printf("If no filename is given aith -A then we'll look up the A and AAAA for the cover-/public-name and use those.\n");
+    printf("If no filename is given with -A then we'll look up the A and AAAA for the cover-/public-name and use those.\n");
+    printf("If no zonefrag-file is provided a default zonedata.fragment file will be created\n");
     exit(1);
 }
 
@@ -298,7 +300,7 @@ static int mk_esnikeys(int argc, char **argv)
     unsigned char *extvals=NULL; ///< buffer with all encoded ESNIKeys extensions
 
     // check inputs with getopt
-    while((opt = getopt(argc, argv, ":A:P:V:?ho:p:d:")) != -1) {
+    while((opt = getopt(argc, argv, ":A:P:V:?ho:p:d:z:")) != -1) {
         switch(opt) {
             case 'h':
             case '?':
@@ -375,9 +377,9 @@ static int mk_esnikeys(int argc, char **argv)
                 fprintf(stderr,"Cover name too long (%ld), max is %d\n\n",cnlen,MAX_ESNI_COVER_NAME);
                 usage(argv[0]);
             }
-	    if (cover_name[cnlen-1]=='.') {
-	      cover_name[cnlen-1] = 0; /* strip trailing dot to canonicalize */
-	    }
+        if (cover_name[cnlen-1]=='.') {
+          cover_name[cnlen-1] = 0; /* strip trailing dot to canonicalize */
+        }
             break;
         default:
             fprintf(stderr,"Bad version supplied: %x\n\n",ekversion);
@@ -524,21 +526,21 @@ static int mk_esnikeys(int argc, char **argv)
     FILE *privfp=fopen(privfname,"rb");
     if (privfp!=NULL) {
         /*
-		 * read contents and re-use key if it's a good key
-		 *
-		 * The justification here is that we might need to handle public
-		 * values that overlap, e.g. due to TTLs being set differently
-		 * by different hidden domains or some such. (I.e. I don't know
-		 * yet if that's really needed or not.)
-		 *
-		 * Note though that re-using private keys like this could end
-		 * up being DANGEROUS, in terms of damaging forward secrecy
-		 * for hidden service names. Not sure if there're other possible
-		 * bad effects, but certainly likely safer operationally to 
-		 * use a new key pair every time. (Which is also supported of
-		 * course.)
-		 *
-		 */
+         * read contents and re-use key if it's a good key
+         *
+         * The justification here is that we might need to handle public
+         * values that overlap, e.g. due to TTLs being set differently
+         * by different hidden domains or some such. (I.e. I don't know
+         * yet if that's really needed or not.)
+         *
+         * Note though that re-using private keys like this could end
+         * up being DANGEROUS, in terms of damaging forward secrecy
+         * for hidden service names. Not sure if there're other possible
+         * bad effects, but certainly likely safer operationally to 
+         * use a new key pair every time. (Which is also supported of
+         * course.)
+         *
+         */
         if (!PEM_read_PrivateKey(privfp,&pkey,NULL,NULL)) {
             fprintf(stderr,"Can't read private key - exiting\n");
             fclose(privfp);
@@ -588,7 +590,7 @@ static int mk_esnikeys(int argc, char **argv)
     }
     fclose(privfp);
 
-	EVP_PKEY_free(pkey);
+    EVP_PKEY_free(pkey);
 
     time_t nb=time(0)-1;
     time_t na=nb+duration;
@@ -680,12 +682,12 @@ static int mk_esnikeys(int argc, char **argv)
 
     so_esni_pbuf("BP",bbuf,bblen,0);
 
-	unsigned char cksum[4];
-	if (esni_checksum_gen(bbuf,bblen,cksum)!=1) {
+    unsigned char cksum[4];
+    if (esni_checksum_gen(bbuf,bblen,cksum)!=1) {
         fprintf(stderr,"fopen error (line:%d)\n",__LINE__);
         exit(7);
-	}
-	memcpy(bbuf+2,cksum,4);
+    }
+    memcpy(bbuf+2,cksum,4);
     so_esni_pbuf("BP+cksum",bbuf,bblen,0);
 
     if (pubfname==NULL) {
@@ -703,20 +705,21 @@ static int mk_esnikeys(int argc, char **argv)
     fclose(pubfp);
 
     if (ekversion==0xff02) {
-      so_esni_prr("BP+cksum as DNS RR",bbuf,bblen,0,ekversion,cover_name);
+        so_esni_prr("BP+cksum as DNS RR",bbuf,bblen,0,ekversion,cover_name);
 
-      if (fragfname==NULL)
-	fragfname="zonedata.fragment";
-      FILE *fragfp=fopen(fragfname,"w");
-      if (fragfp==NULL) {
-        fprintf(stderr,"fopen error (line:%d)\n",__LINE__);
-	exit(7);
-      }
-      fp_esni_prr(fragfp, "BP+cksum as DNS RR",bbuf,bblen,0,ekversion,cover_name);
-      fclose(fragfp);
+        if (fragfname==NULL) {
+            fragfname="zonedata.fragment";
+        }
+        FILE *fragfp=fopen(fragfname,"w");
+        if (fragfp==NULL) {
+            fprintf(stderr,"fopen error (line:%d)\n",__LINE__);
+            exit(7);
+        }
+        fp_esni_prr(fragfp, "BP+cksum as DNS RR",bbuf,bblen,0,ekversion,cover_name);
+        fclose(fragfp);
     }
 
-	OPENSSL_free(public);
+    OPENSSL_free(public);
 
     return(0);
 }
