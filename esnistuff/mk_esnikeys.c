@@ -111,7 +111,7 @@ static void so_esni_prr(char *msg,         /* message string */
  * @param typecode DNS TYPE code to use 
  * @param owner_name fully-qualified DNS owner, without trailing dot
  */
-static void fp_esni_prr(FILE *fp
+static void fp_esni_prr(FILE *fp,
                         char *msg,
                         unsigned char *buf,
                         size_t blen,
