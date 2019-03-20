@@ -55,6 +55,94 @@ static void so_esni_pbuf(char *msg,unsigned char *buf,size_t blen,int indent)
     return;
 }
 
+/*
+ * stdout version of fp_esni_prr - also for debugging
+ */
+static void so_esni_prr(char *msg,		 /* message string */
+			unsigned char *buf,	 /* binary RDATA */
+			size_t blen,		 /* length of RDATA */
+			int indent,		 /* unused ? */
+			unsigned short typecode, /* numeric RRTYPE */
+			char *owner_name)	 /* domain name to use */
+{
+  if (buf==NULL) {
+    printf("OPENSSL: %s is NULL",msg);
+    return;
+  }
+  printf("OPENSSL: %s (%zd):\n",msg,blen);
+  if (blen>16) {		/* need to fold RDATA */
+    char padding[1+MAX_ESNI_COVER_NAME];
+    int i;
+    for (i=0; i!=strlen(owner_name); i++) {
+      padding[i]=' ';
+    }
+    padding[i]=0;
+    
+    printf("%s. IN TYPE%d \\# %ld (", owner_name, typecode, blen);
+    for (i=0;i!=blen;i++) {
+      if (i%16==0)
+	printf("\n%s                  ", padding);
+      else if (i%2==0)
+	printf(" ");
+      printf("%02x",buf[i]);
+    }
+    printf(" )\n");
+  }
+  else {			/* no need for folding */
+    printf("%s. IN TYPE%d \\# %ld ", owner_name, typecode, blen);
+    int i;
+    for (i=0;i!=blen;i++) {
+      printf("%02x",buf[i]);
+    }
+    printf("\n");
+  }
+  return;
+}
+
+/*
+ * write zone fragment to file
+ */
+static void fp_esni_prr(FILE *fp,		 /* pointer to open file */
+			char *msg,		 /* message string */
+			unsigned char *buf,	 /* binary RDATA */
+			size_t blen,		 /* length of RDATA */
+			int indent,		 /* unused ? */
+			unsigned short typecode, /* numeric RRTYPE */
+			char *owner_name)	 /* domain name to use */
+{
+  if (buf==NULL) {
+    fprintf(stderr,"OPENSSL: %s is NULL",msg);
+    exit(9);
+  }
+  if (blen>16) {		/* need to fold RDATA */
+    char padding[1+MAX_ESNI_COVER_NAME];
+    int i;
+    for (i=0; i!=strlen(owner_name); i++) {
+      padding[i]=' ';
+    }
+    padding[i]=0;
+    
+    fprintf(fp, "%s. IN TYPE%d \\# %ld (", owner_name, typecode, blen);
+    for (i=0;i!=blen;i++) {
+      if (i%16==0)
+	fprintf(fp, "\n%s                  ", padding);
+      else if (i%2==0)
+	fprintf(fp, " ");
+      fprintf(fp, "%02x",buf[i]);
+    }
+    fprintf(fp, " )\n");
+  }
+  else {			/* no need for folding */
+    fprintf(fp, "%s. IN TYPE%d \\# %ld ", owner_name, typecode, blen);
+    int i;
+    for (i=0;i!=blen;i++) {
+      fprintf(fp, "%02x",buf[i]);
+    }
+    fprintf(fp, "\n");
+  }
+  return;
+}
+
 /**
  * @brief generate the SHA256 checksum that should be in the DNS record
  *
@@ -196,6 +284,7 @@ static int mk_esnikeys(int argc, char **argv)
 
     char *pubfname=NULL; ///< public key file name
     char *privfname=NULL; ///< private key file name
+    char *fragfname=NULL; ///< zone fragment file name
     unsigned short ekversion=0xff01; ///< ESNIKeys version value (default is for draft esni -02)
     char *cover_name=NULL; ///< ESNIKeys "public_name" field (here called cover name)
     size_t cnlen=0; ///< length of cover_name
@@ -220,6 +309,9 @@ static int mk_esnikeys(int argc, char **argv)
                 break;
             case 'p':
                 privfname=optarg;
+                break;
+            case 'z':
+                fragfname=optarg;
                 break;
             case 'd':
                 duration=atoi(optarg);
@@ -283,6 +375,9 @@ static int mk_esnikeys(int argc, char **argv)
                 fprintf(stderr,"Cover name too long (%ld), max is %d\n\n",cnlen,MAX_ESNI_COVER_NAME);
                 usage(argv[0]);
             }
+	    if (cover_name[cnlen-1]=='.') {
+	      cover_name[cnlen-1] = 0; /* strip trailing dot to canonicalize */
+	    }
             break;
         default:
             fprintf(stderr,"Bad version supplied: %x\n\n",ekversion);
@@ -602,10 +697,24 @@ static int mk_esnikeys(int argc, char **argv)
         exit(7);
     }
     if (fwrite(bbuf,1,bblen,pubfp)!=bblen) {
-        fprintf(stderr,"fopen error (line:%d)\n",__LINE__);
+        fprintf(stderr,"fwrite error (line:%d)\n",__LINE__);
         exit(8);
     }
     fclose(pubfp);
+
+    if (ekversion==0xff02) {
+      so_esni_prr("BP+cksum as DNS RR",bbuf,bblen,0,ekversion,cover_name);
+
+      if (fragfname==NULL)
+	fragfname="zonedata.fragment";
+      FILE *fragfp=fopen(fragfname,"w");
+      if (fragfp==NULL) {
+        fprintf(stderr,"fopen error (line:%d)\n",__LINE__);
+	exit(7);
+      }
+      fp_esni_prr(fragfp, "BP+cksum as DNS RR",bbuf,bblen,0,ekversion,cover_name);
+      fclose(fragfp);
+    }
 
 	OPENSSL_free(public);
 
