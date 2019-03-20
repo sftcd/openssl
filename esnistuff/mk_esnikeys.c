@@ -60,44 +60,44 @@ static void so_esni_pbuf(char *msg,unsigned char *buf,size_t blen,int indent)
  * stdout version of fp_esni_prr - also for debugging
  */
 static void so_esni_prr(char *msg,         /* message string */
-            unsigned char *buf,     /* binary RDATA */
-            size_t blen,         /* length of RDATA */
-            int indent,         /* unused ? */
-            unsigned short typecode, /* numeric RRTYPE */
-            char *owner_name)     /* domain name to use */
+                        unsigned char *buf,     /* binary RDATA */
+                        size_t blen,         /* length of RDATA */
+                        int indent,         /* unused ? */
+                        unsigned short typecode, /* numeric RRTYPE */
+                        char *owner_name)     /* domain name to use */
 {
-  if (buf==NULL) {
-    printf("OPENSSL: %s is NULL",msg);
-    return;
-  }
-  printf("OPENSSL: %s (%zd):\n",msg,blen);
-  if (blen>16) {        /* need to fold RDATA */
-    char padding[1+MAX_ESNI_COVER_NAME];
-    int i;
-    for (i=0; i!=strlen(owner_name); i++) {
-      padding[i]=' ';
+    if (buf==NULL) {
+        printf("OPENSSL: %s is NULL",msg);
+        return;
     }
-    padding[i]=0;
+    printf("OPENSSL: %s (%zd):\n",msg,blen);
+    if (blen>16) {        /* need to fold RDATA */
+        char padding[1+MAX_ESNI_COVER_NAME];
+        int i;
+        for (i=0; i!=strlen(owner_name); i++) {
+            padding[i]=' ';
+        }
+        padding[i]=0;
     
-    printf("%s. IN TYPE%d \\# %ld (", owner_name, typecode, blen);
-    for (i=0;i!=blen;i++) {
-      if (i%16==0)
-    printf("\n%s                  ", padding);
-      else if (i%2==0)
-    printf(" ");
-      printf("%02x",buf[i]);
+        printf("%s. IN TYPE%d \\# %ld (", owner_name, typecode, blen);
+        for (i=0;i!=blen;i++) {
+            if (i%16==0)
+                printf("\n%s                  ", padding);
+            else if (i%2==0)
+                printf(" ");
+            printf("%02x",buf[i]);
+        }
+        printf(" )\n");
     }
-    printf(" )\n");
-  }
-  else {            /* no need for folding */
-    printf("%s. IN TYPE%d \\# %ld ", owner_name, typecode, blen);
-    int i;
-    for (i=0;i!=blen;i++) {
-      printf("%02x",buf[i]);
+    else {            /* no need for folding */
+        printf("%s. IN TYPE%d \\# %ld ", owner_name, typecode, blen);
+        int i;
+        for (i=0;i!=blen;i++) {
+            printf("%02x",buf[i]);
+        }
+        printf("\n");
     }
-    printf("\n");
-  }
-  return;
+    return;
 }
 
 /**
@@ -119,37 +119,37 @@ static void fp_esni_prr(FILE *fp
                         unsigned short typecode,
                         char *owner_name)
 {
-  if (buf==NULL) {
-    fprintf(stderr,"OPENSSL: %s is NULL",msg);
-    exit(9);
-  }
-  if (blen>16) {        /* need to fold RDATA */
-    char padding[1+MAX_ESNI_COVER_NAME];
-    int i;
-    for (i=0; i!=strlen(owner_name); i++) {
-      padding[i]=' ';
+    if (buf==NULL) {
+        fprintf(stderr,"OPENSSL: %s is NULL",msg);
+        exit(9);
     }
-    padding[i]=0;
+    if (blen>16) {        /* need to fold RDATA */
+        char padding[1+MAX_ESNI_COVER_NAME];
+        int i;
+        for (i=0; i!=strlen(owner_name); i++) {
+            padding[i]=' ';
+        }
+        padding[i]=0;
     
-    fprintf(fp, "%s. IN TYPE%d \\# %ld (", owner_name, typecode, blen);
-    for (i=0;i!=blen;i++) {
-      if (i%16==0)
-    fprintf(fp, "\n%s                  ", padding);
-      else if (i%2==0)
-    fprintf(fp, " ");
-      fprintf(fp, "%02x",buf[i]);
+        fprintf(fp, "%s. IN TYPE%d \\# %ld (", owner_name, typecode, blen);
+        for (i=0;i!=blen;i++) {
+            if (i%16==0)
+                fprintf(fp, "\n%s                  ", padding);
+            else if (i%2==0)
+                fprintf(fp, " ");
+            fprintf(fp, "%02x",buf[i]);
+        }
+        fprintf(fp, " )\n");
     }
-    fprintf(fp, " )\n");
-  }
-  else {            /* no need for folding */
-    fprintf(fp, "%s. IN TYPE%d \\# %ld ", owner_name, typecode, blen);
-    int i;
-    for (i=0;i!=blen;i++) {
-      fprintf(fp, "%02x",buf[i]);
+    else {            /* no need for folding */
+        fprintf(fp, "%s. IN TYPE%d \\# %ld ", owner_name, typecode, blen);
+        int i;
+        for (i=0;i!=blen;i++) {
+            fprintf(fp, "%02x",buf[i]);
+        }
+        fprintf(fp, "\n");
     }
-    fprintf(fp, "\n");
-  }
-  return;
+    return;
 }
 
 /**
@@ -166,7 +166,8 @@ static void fp_esni_prr(FILE *fp
 static int esni_checksum_gen(unsigned char *buf, size_t buf_len, unsigned char cksum[4])
 {
     /* 
-     * copy input with zero'd checksum, do SHA256 hash, compare with checksum, tedious but easy enough
+     * copy input with zero'd checksum, do SHA256 hash, compare with
+     * checksum, tedious but easy enough
      */
     unsigned char *buf_zeros=OPENSSL_malloc(buf_len);
     if (buf_zeros==NULL) {
@@ -192,7 +193,7 @@ static int esni_checksum_gen(unsigned char *buf, size_t buf_len, unsigned char c
     OPENSSL_free(buf_zeros);
     memcpy(cksum,md,4);
     return 1;
-err:
+ err:
     if (buf_zeros!=NULL) OPENSSL_free(buf_zeros);
     return 0;
 }
@@ -311,45 +312,45 @@ static int mk_esnikeys(int argc, char **argv)
     // check inputs with getopt
     while((opt = getopt(argc, argv, ":A:P:V:?ho:p:d:z:")) != -1) {
         switch(opt) {
-            case 'h':
-            case '?':
-                usage(argv[0]);
-                break;
-            case 'o':
-                pubfname=optarg;
-                break;
-            case 'p':
-                privfname=optarg;
-                break;
-            case 'z':
-                fragfname=optarg;
-                break;
-            case 'd':
-                duration=atoi(optarg);
-                break;
-            case 'V':
-                ekversion=verstr2us(optarg);
-                break;
-            case 'P':
-                cover_name=optarg;
-                break;
+        case 'h':
+        case '?':
+            usage(argv[0]);
+            break;
+        case 'o':
+            pubfname=optarg;
+            break;
+        case 'p':
+            privfname=optarg;
+            break;
+        case 'z':
+            fragfname=optarg;
+            break;
+        case 'd':
+            duration=atoi(optarg);
+            break;
+        case 'V':
+            ekversion=verstr2us(optarg);
+            break;
+        case 'P':
+            cover_name=optarg;
+            break;
+        case 'A':
+            includeaddrset=1;
+            asetfname=optarg;
+            break;
+        case ':':
+            switch (optopt) {
             case 'A':
                 includeaddrset=1;
-                asetfname=optarg;
                 break;
-            case ':':
-                switch (optopt) {
-                    case 'A':
-                        includeaddrset=1;
-                        break;
-                    default: 
-                        fprintf(stderr, "Error - No such option: `%c'\n\n", optopt);
-                        usage(argv[0]);
-                }
-                break;
-            default:
+            default: 
                 fprintf(stderr, "Error - No such option: `%c'\n\n", optopt);
                 usage(argv[0]);
+            }
+            break;
+        default:
+            fprintf(stderr, "Error - No such option: `%c'\n\n", optopt);
+            usage(argv[0]);
         }
     }
 
@@ -374,25 +375,25 @@ static int mk_esnikeys(int argc, char **argv)
         usage(argv[0]);
     }
     switch(ekversion) {
-        case 0xff01: /* esni draft -02 */
-            break;
-        case 0xff02: /* esni draft -03 */
-            if (cover_name==NULL) {
-                fprintf(stderr,"%x requires you to specify a cover/public-name - exiting\n\n",ekversion);
-                usage(argv[0]);
-            }
-            cnlen=strlen(cover_name);
-            if (cnlen > MAX_ESNI_COVER_NAME) {
-                fprintf(stderr,"Cover name too long (%ld), max is %d\n\n",cnlen,MAX_ESNI_COVER_NAME);
-                usage(argv[0]);
-            }
-        if (cover_name[cnlen-1]=='.') {
-          cover_name[cnlen-1] = 0; /* strip trailing dot to canonicalize */
-        }
-            break;
-        default:
-            fprintf(stderr,"Bad version supplied: %x\n\n",ekversion);
+    case 0xff01: /* esni draft -02 */
+        break;
+    case 0xff02: /* esni draft -03 */
+        if (cover_name==NULL) {
+            fprintf(stderr,"%x requires you to specify a cover/public-name - exiting\n\n",ekversion);
             usage(argv[0]);
+        }
+        cnlen=strlen(cover_name);
+        if (cnlen > MAX_ESNI_COVER_NAME) {
+            fprintf(stderr,"Cover name too long (%ld), max is %d\n\n",cnlen,MAX_ESNI_COVER_NAME);
+            usage(argv[0]);
+        }
+        if (cover_name[cnlen-1]=='.') {
+            cover_name[cnlen-1] = 0; /* strip trailing dot to canonicalize */
+        }
+        break;
+    default:
+        fprintf(stderr,"Bad version supplied: %x\n\n",ekversion);
+        usage(argv[0]);
     }
 
     /* handle AddressSet stuff */
@@ -443,12 +444,12 @@ static int mk_esnikeys(int argc, char **argv)
                 struct sockaddr *sa=rp->ai_addr;
                 if (rp->ai_family==AF_INET) {
                     inet_ntop(rp->ai_family, 
-                            &((struct sockaddr_in *)sa)->sin_addr,
-                            astr, sizeof astr);
+                              &((struct sockaddr_in *)sa)->sin_addr,
+                              astr, sizeof astr);
                 } else if (rp->ai_family==AF_INET6) {
                     inet_ntop(rp->ai_family, 
-                            &((struct sockaddr_in6 *)sa)->sin6_addr,
-                            astr, sizeof astr);
+                              &((struct sockaddr_in6 *)sa)->sin6_addr,
+                              astr, sizeof astr);
                 }
                 int rv=add2alist(ips,&nips,astr);
                 if (rv<0) {
@@ -738,3 +739,8 @@ int main(int argc, char **argv)
 {
     return mk_esnikeys(argc, argv);
 }
+
+// -*- Local Variables:
+// -*- c-basic-offset: 4
+// -*- indent-tabs-mode: nil
+// -*- End:
