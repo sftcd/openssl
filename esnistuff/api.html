@@ -247,8 +247,8 @@
 	<td>Make a basic check of names from CLI or API.</td>
 </tr>
 <tr>
-	<td><code>public</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>*</code><a href="#esni_8h_1ab13122d3380827f55820c812bc717960"><code>SSL_ESNI_new_from_string</code></a><code>(const char * esnikeys)</code></td>
-	<td>Decode and check the value retieved from DNS (base64 or ascii-hex encoded)</td>
+	<td><code>public</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>*</code><a href="#esni_8h_1a0ca5e1a195299572948a14618fd2548f"><code>SSL_ESNI_new_from_buffer</code></a><code>(const size_t eklen,const char * esnikeys)</code></td>
+	<td>Decode and check the value retieved from DNS (binary, base64 or ascii-hex encoded)</td>
 </tr>
 <tr>
 	<td><code>public int</code><a href="#esni_8h_1a0ca4d48103270d6779cb2f6a608ba52a"><code>SSL_esni_enable</code></a><code>(SSL * s,const char * hidden,const char * cover,</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>* esni,int require_hidden_match)</code></td>
@@ -331,8 +331,8 @@
 	<td>populate an SSL_ESNI from an ESNI_RECORD</td>
 </tr>
 <tr>
-	<td><code>public</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>*</code><a href="#esni_8c_1ab13122d3380827f55820c812bc717960"><code>SSL_ESNI_new_from_string</code></a><code>(const char * esnikeys)</code></td>
-	<td>Decode and check the value retieved from DNS (base64 or ascii-hex encoded)</td>
+	<td><code>public</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>*</code><a href="#esni_8c_1a0ca5e1a195299572948a14618fd2548f"><code>SSL_ESNI_new_from_buffer</code></a><code>(const size_t eklen,const char * esnikeys)</code></td>
+	<td>Decode and check the value retieved from DNS (binary, base64 or ascii-hex encoded)</td>
 </tr>
 <tr>
 	<td><code>public static void</code><a href="#esni_8c_1ad619d10af828adf65d47682bdab514d1"><code>esni_pbuf</code></a><code>(BIO * out,char * msg,unsigned char * buf,size_t blen,int indent)</code></td>
@@ -969,16 +969,17 @@
 
 <p>1 for success, other otherwise</p>
 
-<p id="esni_8h_1ab13122d3380827f55820c812bc717960"><hr></p>
+<p id="esni_8h_1a0ca5e1a195299572948a14618fd2548f"><hr></p>
 
-<h4 id="publicssl_esniesni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7fssl_esni_new_from_stringesni_8h_1ab13122d3380827f55820c812bc717960constcharesnikeys"><code>public</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>*</code><a href="#esni_8h_1ab13122d3380827f55820c812bc717960"><code>SSL_ESNI_new_from_string</code></a><code>(const char * esnikeys)</code></h4>
+<h4 id="publicssl_esniesni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7fssl_esni_new_from_bufferesni_8h_1a0ca5e1a195299572948a14618fd2548fconstsize_teklenconstcharesnikeys"><code>public</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>*</code><a href="#esni_8h_1a0ca5e1a195299572948a14618fd2548f"><code>SSL_ESNI_new_from_buffer</code></a><code>(const size_t eklen,const char * esnikeys)</code></h4>
 
-<p>Decode and check the value retieved from DNS (base64 or ascii-hex encoded)</p>
+<p>Decode and check the value retieved from DNS (binary, base64 or ascii-hex encoded)</p>
 
 <h4 id="parameters">Parameters</h4>
 
 <ul>
-<li><code>esnikeys</code> is the base64 or ascii-hex encoded value from DNS </li>
+<li><p><code>eklen</code> is the length of the binary, base64 or ascii-hex encoded value from DNS </p></li>
+<li><p><code>esnikeys</code> is the binary, base64 or ascii-hex encoded value from DNS </p></li>
 </ul>
 
 <h4 id="returns">Returns</h4>
@@ -1337,16 +1338,17 @@
 
 <p>1 for success, not 1 otherwise</p>
 
-<p id="esni_8c_1ab13122d3380827f55820c812bc717960"><hr></p>
+<p id="esni_8c_1a0ca5e1a195299572948a14618fd2548f"><hr></p>
 
-<h4 id="publicssl_esniesni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7fssl_esni_new_from_stringesni_8c_1ab13122d3380827f55820c812bc717960constcharesnikeys"><code>public</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>*</code><a href="#esni_8c_1ab13122d3380827f55820c812bc717960"><code>SSL_ESNI_new_from_string</code></a><code>(const char * esnikeys)</code></h4>
+<h4 id="publicssl_esniesni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7fssl_esni_new_from_bufferesni_8c_1a0ca5e1a195299572948a14618fd2548fconstsize_teklenconstcharesnikeys"><code>public</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>*</code><a href="#esni_8c_1a0ca5e1a195299572948a14618fd2548f"><code>SSL_ESNI_new_from_buffer</code></a><code>(const size_t eklen,const char * esnikeys)</code></h4>
 
-<p>Decode and check the value retieved from DNS (base64 or ascii-hex encoded)</p>
+<p>Decode and check the value retieved from DNS (binary, base64 or ascii-hex encoded)</p>
 
 <h4 id="parameters">Parameters</h4>
 
 <ul>
-<li><code>esnikeys</code> is the base64 or ascii-hex encoded value from DNS </li>
+<li><p><code>eklen</code> is the length of the binary, base64 or ascii-hex encoded value from DNS </p></li>
+<li><p><code>esnikeys</code> is the binary, base64 or ascii-hex encoded value from DNS </p></li>
 </ul>
 
 <h4 id="returns">Returns</h4>

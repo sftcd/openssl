@@ -317,12 +317,13 @@ SSL_ESNI* SSL_ESNI_dup(SSL_ESNI* orig, size_t nesni);
 int SSL_esni_checknames(const char *encservername, const char *covername);
 
 /**
- * Decode and check the value retieved from DNS (base64 or ascii-hex encoded)
+ * Decode and check the value retieved from DNS (binary, base64 or ascii-hex encoded)
  *
- * @param esnikeys is the base64 or ascii-hex encoded value from DNS
+ * @param eklen is the length of the binary, base64 or ascii-hex encoded value from DNS
+ * @param esnikeys is the binary, base64 or ascii-hex encoded value from DNS
  * @return is an SSL_ESNI structure
  */
-SSL_ESNI* SSL_ESNI_new_from_string(const char *esnikeys);
+SSL_ESNI* SSL_ESNI_new_from_buffer(const size_t eklen, const char *esnikeys);
 
 /**
  * Turn on SNI encryption for an (upcoming) TLS session

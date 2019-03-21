@@ -440,7 +440,6 @@ ESNI_RECORD *SSL_ESNI_RECORD_new_from_binary(unsigned char *binbuf, size_t binbl
      */
     switch (er->version) {
         case ESNI_DRAFT_02_VERSION:
-            printf("Draft-02 code: break a leg!\n");
             break;
         case ESNI_DRAFT_03_VERSION:
             printf("Draft-03 code is a work-in-progress...\n");
@@ -684,24 +683,22 @@ err:
     return 0;
 }
 
-
 /**
- * Decode and check the value retieved from DNS (base64 or ascii-hex encoded)
+ * Decode and check the value retieved from DNS (binary, base64 or ascii-hex encoded)
  *
- * @param esnikeys is the base64 or ascii-hex encoded value from DNS
+ * @param eklen is the length of the binary, base64 or ascii-hex encoded value from DNS
+ * @param esnikeys is the binary, base64 or ascii-hex encoded value from DNS
  * @return is an SSL_ESNI structure
  */
-SSL_ESNI* SSL_ESNI_new_from_string(const char *esnikeys)
+SSL_ESNI* SSL_ESNI_new_from_buffer(const size_t eklen, const char *esnikeys)
 {
     const char *AH_alphabet="0123456789ABCDEFabcdef";
     const char *B64_alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";
-    if (esnikeys==NULL) {
+    if (eklen==0 || esnikeys==NULL) {
         return(NULL);
     }
     ESNI_RECORD *er=NULL;
     SSL_ESNI *newesni=NULL; 
-
-    size_t eklen=strlen(esnikeys);
     unsigned char *outbuf = NULL; /* binary representation of ESNIKeys */
     size_t declen=0; /* length of binary representation of ESNIKeys */
 
@@ -719,6 +716,15 @@ SSL_ESNI* SSL_ESNI_new_from_string(const char *esnikeys)
                 ESNIerr(ESNI_F_SSL_ESNI_NEW_FROM_BASE64, ESNI_R_BASE64_DECODE_ERROR);
                 goto err;
             }
+        } else {
+            /* try binary - just copy over the input to where we'd expect it */
+            declen=eklen;
+            outbuf=OPENSSL_malloc(declen);
+            if (outbuf==NULL){
+                ESNIerr(ESNI_F_SSL_ESNI_NEW_FROM_BASE64, ESNI_R_BASE64_DECODE_ERROR);
+                goto err;
+            }
+            memcpy(outbuf,esnikeys,declen);
         } 
     }
 

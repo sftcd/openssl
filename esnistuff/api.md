@@ -61,7 +61,7 @@
 `public void `[`SSL_ESNI_free`](#esni_8h_1a6d6ea1b22339efdc370e6cbf251b277d)`(`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * esnikeys)`            | Memory management - free an SSL_ESNI.
 `public `[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * `[`SSL_ESNI_dup`](#esni_8h_1aff4a2acfe537bdf41b91eed11de4cc15)`(`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * orig,size_t nesni)`            | Duplicate the configuration related fields of an SSL_ESNI.
 `public int `[`SSL_esni_checknames`](#esni_8h_1a55aedc0e921fd36dcc3327124f07da10)`(const char * encservername,const char * covername)`            | Make a basic check of names from CLI or API.
-`public `[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * `[`SSL_ESNI_new_from_string`](#esni_8h_1ab13122d3380827f55820c812bc717960)`(const char * esnikeys)`            | Decode and check the value retieved from DNS (base64 or ascii-hex encoded)
+`public `[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * `[`SSL_ESNI_new_from_buffer`](#esni_8h_1a0ca5e1a195299572948a14618fd2548f)`(const size_t eklen,const char * esnikeys)`            | Decode and check the value retieved from DNS (binary, base64 or ascii-hex encoded)
 `public int `[`SSL_esni_enable`](#esni_8h_1a0ca4d48103270d6779cb2f6a608ba52a)`(SSL * s,const char * hidden,const char * cover,`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * esni,int require_hidden_match)`            | Turn on SNI encryption for an (upcoming) TLS session.
 `public int `[`SSL_esni_server_enable`](#esni_8h_1a0589fa7d65bf2263c361258876e0e67a)`(SSL_CTX * s,const char * esnikeyfile,const char * esnipubfile)`            | Turn on SNI Encryption, server-side.
 `public int `[`SSL_ESNI_get_esni`](#esni_8h_1ac214a7933d6e5fa9e2be5218b9537a63)`(SSL * s,`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` ** esni)`            | Access an SSL_ESNI structure note - can include sensitive values!
@@ -82,7 +82,7 @@
 `public unsigned char * `[`SSL_ESNI_wrap_keyshare`](#esni_8c_1adcc8e3823bf93d20d67977dfeb29fa5d)`(const unsigned char * keyshare,const size_t keyshare_len,const uint16_t curve_id,size_t * outlen)`            | wrap a "raw" key share in the relevant TLS presentation layer encoding
 `public `[`ESNI_RECORD`](#esni_8h_1ab29e08d24d0eac604e0d6783dfbf1758)` * `[`SSL_ESNI_RECORD_new_from_binary`](#esni_8c_1a013c3c4172d63a489aa314d4c3d4542d)`(unsigned char * binbuf,size_t binblen)`            | Decode from binary to ESNI_RECORD.
 `public static int `[`esni_make_se_from_er`](#esni_8c_1a1332a08e3b77da97cc9aef2efd50f904)`(`[`ESNI_RECORD`](#esni_8h_1ab29e08d24d0eac604e0d6783dfbf1758)` * er,`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * se,int server)`            | populate an SSL_ESNI from an ESNI_RECORD
-`public `[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * `[`SSL_ESNI_new_from_string`](#esni_8c_1ab13122d3380827f55820c812bc717960)`(const char * esnikeys)`            | Decode and check the value retieved from DNS (base64 or ascii-hex encoded)
+`public `[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * `[`SSL_ESNI_new_from_buffer`](#esni_8c_1a0ca5e1a195299572948a14618fd2548f)`(const size_t eklen,const char * esnikeys)`            | Decode and check the value retieved from DNS (binary, base64 or ascii-hex encoded)
 `public static void `[`esni_pbuf`](#esni_8c_1ad619d10af828adf65d47682bdab514d1)`(BIO * out,char * msg,unsigned char * buf,size_t blen,int indent)`            | print a buffer nicely
 `public int `[`SSL_ESNI_print`](#esni_8c_1acf8aa08880982952d1faee2fedd1bc67)`(BIO * out,`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * esni)`            | Print out the DNS RR value(s)
 `public static unsigned char * `[`esni_nonce`](#esni_8c_1a50f8ca970c2ceb308dbf23fd0410ee3b)`(size_t nl)`            | Make a 16 octet nonce for ESNI.
@@ -592,14 +592,16 @@ Note: This may disappear as all the checks currently done would result in errors
 #### Returns
 1 for success, other otherwise
 
-<p id="esni_8h_1ab13122d3380827f55820c812bc717960"><hr></p>
+<p id="esni_8h_1a0ca5e1a195299572948a14618fd2548f"><hr></p>
 
-#### `public `[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * `[`SSL_ESNI_new_from_string`](#esni_8h_1ab13122d3380827f55820c812bc717960)`(const char * esnikeys)` 
+#### `public `[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * `[`SSL_ESNI_new_from_buffer`](#esni_8h_1a0ca5e1a195299572948a14618fd2548f)`(const size_t eklen,const char * esnikeys)` 
 
-Decode and check the value retieved from DNS (base64 or ascii-hex encoded)
+Decode and check the value retieved from DNS (binary, base64 or ascii-hex encoded)
 
 #### Parameters
-* `esnikeys` is the base64 or ascii-hex encoded value from DNS 
+* `eklen` is the length of the binary, base64 or ascii-hex encoded value from DNS 
+
+* `esnikeys` is the binary, base64 or ascii-hex encoded value from DNS 
 
 #### Returns
 is an SSL_ESNI structure
@@ -908,14 +910,16 @@ This is used by both client and server in (almost) identical ways. Note that se-
 #### Returns
 1 for success, not 1 otherwise
 
-<p id="esni_8c_1ab13122d3380827f55820c812bc717960"><hr></p>
+<p id="esni_8c_1a0ca5e1a195299572948a14618fd2548f"><hr></p>
 
-#### `public `[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * `[`SSL_ESNI_new_from_string`](#esni_8c_1ab13122d3380827f55820c812bc717960)`(const char * esnikeys)` 
+#### `public `[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * `[`SSL_ESNI_new_from_buffer`](#esni_8c_1a0ca5e1a195299572948a14618fd2548f)`(const size_t eklen,const char * esnikeys)` 
 
-Decode and check the value retieved from DNS (base64 or ascii-hex encoded)
+Decode and check the value retieved from DNS (binary, base64 or ascii-hex encoded)
 
 #### Parameters
-* `esnikeys` is the base64 or ascii-hex encoded value from DNS 
+* `eklen` is the length of the binary, base64 or ascii-hex encoded value from DNS 
+
+* `esnikeys` is the binary, base64 or ascii-hex encoded value from DNS 
 
 #### Returns
 is an SSL_ESNI structure

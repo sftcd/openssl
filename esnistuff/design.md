@@ -244,7 +244,7 @@ When the new command line arguments are set, the following APIs are
 called, nominally in this order:
 
 - ``SSL_esni_checknames``: do a basic check on HIDDEN/COVER (e.g. not the same:-)
-- ``SSL_ESNI_new_from_string``: decode the RR value and return an ``SSL_ESNI`` structure
+- ``SSL_ESNI_new_from_buffer``: decode the RR value and return an ``SSL_ESNI`` structure
 - ``SSL_ESNI_print``: if ``-msg`` set, print the (initial) ``SSL_ESNI`` contents based on decoding 
 - ``SSL_esni_enable``: modify the ``SSL *con`` structure to ask that ESNI be run
 - ``SSL_set_esni_callback``: if ``-msg`` set, register callback so (final) ``SSL_ESNI`` values are printed
@@ -518,14 +518,14 @@ The main data structures are:
              */
             int SSL_esni_checknames(const char *encservername, const char *covername);
             
-
             /**
-            * Decode and check the value retieved from DNS (base64 or ascii-hex encoded)
-            *
-            * @param esnikeys is the base64 or ascii-hex encoded value from DNS
-            * @return is an SSL_ESNI structure
-            */
-            SSL_ESNI* SSL_ESNI_new_from_string(const char *esnikeys);
+             * Decode and check the value retieved from DNS (binary, base64 or ascii-hex encoded)
+             *
+             * @param eklen is the length of the binary, base64 or ascii-hex encoded value from DNS
+             * @param esnikeys is the binary, base64 or ascii-hex encoded value from DNS
+             * @return is an SSL_ESNI structure
+             */
+            SSL_ESNI* SSL_ESNI_new_from_buffer(const size_t eklen, const char *esnikeys);
             
             /**
              * Turn on SNI encryption for an (upcoming) TLS session
