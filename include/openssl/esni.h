@@ -30,8 +30,10 @@
 //#undef ESNI_CRYPT_INTEROP
 #ifdef ESNI_CRYPT_INTEROP
 
-#define ESNI_DRAFT_02_VERSION 0xff01
-#define ESNI_DRAFT_03_VERSION 0xff02
+#define ESNI_DRAFT_02_VERSION 0xff01 ///< ESNIKeys version from draft-02
+#define ESNI_DRAFT_03_VERSION 0xff02 ///< ESNIKeys version from draft-03
+
+#define ESNI_RRTYPE 65439 ///< experimental (as per draft-03) ESNI RRTYPE
 
 /**
 * map an (ascii hex) value to a nibble

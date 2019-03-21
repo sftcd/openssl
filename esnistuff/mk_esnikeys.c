@@ -715,7 +715,7 @@ static int mk_esnikeys(int argc, char **argv)
     fclose(pubfp);
 
     if (ekversion==0xff02) {
-        so_esni_prr("BP+cksum as DNS RR",bbuf,bblen,0,ekversion,cover_name);
+        so_esni_prr("BP+cksum as DNS RR",bbuf,bblen,0,ESNI_RRTYPE,cover_name);
 
         if (fragfname==NULL) {
             fragfname="zonedata.fragment";
@@ -725,7 +725,7 @@ static int mk_esnikeys(int argc, char **argv)
             fprintf(stderr,"fopen error (line:%d)\n",__LINE__);
             exit(7);
         }
-        fp_esni_prr(fragfp, "BP+cksum as DNS RR",bbuf,bblen,0,ekversion,cover_name);
+        fp_esni_prr(fragfp, "BP+cksum as DNS RR",bbuf,bblen,0,ESNI_RRTYPE,cover_name);
         fclose(fragfp);
     }
 

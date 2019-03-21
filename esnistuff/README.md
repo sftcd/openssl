@@ -24,24 +24,29 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- Generalised a bit from base64 encoded ESNIKeys inputs (not tested ascii-hex nor binary
+  input options yet but will as we go)
+
 - Starting to work on coding up [draft-03](https://tools.ietf.org/html/draft-ietf-tls-esni-03)
-  from now (20190313), will try keep [draft-02](https://tools.ietf.org/html/draft-ietf-tls-esni-02) working
+  from now,  will try keep [draft-02](https://tools.ietf.org/html/draft-ietf-tls-esni-02) working
   as the default for now, but we'll see how that goes, and will switch defaults later, depending 
     - Played with DNS a bit as -03 has a new ESNI RRTYPE (value 0xffdf == 65439) instead of TXT
         - to query for such a thing, published at example.com,
-           where the two values there are "789" and "123456" - that ought be the
-           ascii-hex encoding of ESNIKeys but are just dummy values for now
 
                 $ dig +short -t TYPE65439 example.com
-                \# 3 373839
-                \# 6 313232343536
+                \# 81 FF02FF93090D000B6578616D706C652E636F6D0024001D00202857EF 701013510D270E531232C40A09226A83391919F4ED3F6B3D08547A7F 68000213010104000000005C93BA56000000005C9CF4D60000
 
         - to publish such a thing in a zone file it'd look like:
 
 
                 ;;; ESNIKeys stuff
-                example.com. 300 IN \# 3 373839
-                example.com. 300 IN \# 6 313232343536
+                example.com. IN TYPE65439 \# 81 (
+                             ff02 ff93 090d 000b 6578 616d 706c 652e
+                             636f 6d00 2400 1d00 2028 57ef 7010 1351
+                             0d27 0e53 1232 c40a 0922 6a83 3919 19f4
+                             ed3f 6b3d 0854 7a7f 6800 0213 0101 0400
+                             0000 005c 93ba 5600 0000 005c 9cf4 d600
+                             00 )
 
         - strangely enough, that all seems to just work when we tried it with
           dummy values in a zone-we-own:-)
