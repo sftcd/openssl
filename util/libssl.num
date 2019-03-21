@@ -509,7 +509,7 @@ SSL_ESNI_dec                            509	3_0_0	EXIST::FUNCTION:
 SSL_ESNI_free                           510	3_0_0	EXIST::FUNCTION:
 SSL_ESNI_dup                            511	3_0_0	EXIST::FUNCTION:
 SSL_esni_checknames                     512	3_0_0	EXIST::FUNCTION:
-SSL_ESNI_new_from_base64                513	3_0_0	EXIST::FUNCTION:
+SSL_ESNI_new_from_string                513	3_0_0	EXIST::FUNCTION:
 SSL_esni_enable                         514	3_0_0	EXIST::FUNCTION:
 SSL_esni_server_enable                  515	3_0_0	EXIST::FUNCTION:
 SSL_ESNI_get_esni                       516	3_0_0	EXIST::FUNCTION:

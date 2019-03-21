@@ -30,6 +30,9 @@
 //#undef ESNI_CRYPT_INTEROP
 #ifdef ESNI_CRYPT_INTEROP
 
+#define ESNI_DRAFT_02_VERSION 0xff01
+#define ESNI_DRAFT_03_VERSION 0xff02
+
 /**
 * map an (ascii hex) value to a nibble
 */
@@ -61,6 +64,21 @@
  * This structure is purely used when decoding the RR value
  * and is then discarded (selected values mapped into the
  * SSL_ESNI structure).
+ *
+ * draft-03 changed this some ...
+ * <pre>
+ *  struct {
+ *         uint16 version;
+ *         uint8 checksum[4];
+ *         opaque public_name<1..2^16-1>;
+ *         KeyShareEntry keys<4..2^16-1>;
+ *         CipherSuite cipher_suites<2..2^16-2>;
+ *         uint16 padded_length;
+ *         uint64 not_before;
+ *         uint64 not_after;
+ *         Extension extensions<0..2^16-1>;
+ *     } ESNIKeys;
+ * </pre>
  */
 typedef struct esni_record_st {
     unsigned int version;
@@ -299,12 +317,12 @@ SSL_ESNI* SSL_ESNI_dup(SSL_ESNI* orig, size_t nesni);
 int SSL_esni_checknames(const char *encservername, const char *covername);
 
 /**
- * Decode and check the value retieved from DNS (currently base64 encoded)
+ * Decode and check the value retieved from DNS (base64 or ascii-hex encoded)
  *
- * @param esnikeys is the base64 encoded value from DNS
+ * @param esnikeys is the base64 or ascii-hex encoded value from DNS
  * @return is an SSL_ESNI structure
  */
-SSL_ESNI* SSL_ESNI_new_from_base64(const char *esnikeys);
+SSL_ESNI* SSL_ESNI_new_from_string(const char *esnikeys);
 
 /**
  * Turn on SNI encryption for an (upcoming) TLS session
