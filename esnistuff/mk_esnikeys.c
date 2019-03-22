@@ -35,6 +35,8 @@
 #define MAX_ESNI_COVER_NAME 254 ///< longer than this won't fit in SNI
 #define MAX_ESNI_ADDRS   16 ///< max addresses to include in AddressSet
 #define MAX_PADDING 40 ///< max padding to use when folding DNS records
+#define MAX_FMT_LEN 16 ///< max length to allow for generated format strings
+#define MAX_ZONEDATA_BUFLEN 2*MAX_ESNI_COVER_NAME+10*MAX_ESNIKEYS_BUFLEN
 
 /*
  * stdout version of esni_pbuf - just for odd/occasional debugging
@@ -56,99 +58,97 @@ static void so_esni_pbuf(char *msg,unsigned char *buf,size_t blen,int indent)
     return;
 }
 
-/*
- * stdout version of fp_esni_prr - also for debugging
- */
-static void so_esni_prr(char *msg,         /* message string */
-                        unsigned char *buf,     /* binary RDATA */
-                        size_t blen,         /* length of RDATA */
-                        int indent,         /* unused ? */
-                        unsigned short typecode, /* numeric RRTYPE */
-                        char *owner_name)     /* domain name to use */
-{
-    if (buf==NULL) {
-        printf("OPENSSL: %s is NULL",msg);
-        return;
-    }
-    printf("OPENSSL: %s (%zd):\n",msg,blen);
-    if (blen>16) {        /* need to fold RDATA */
-        char padding[1+MAX_ESNI_COVER_NAME];
-        int i;
-        for (i=0; i!=strlen(owner_name); i++) {
-            padding[i]=' ';
-        }
-        padding[i]=0;
-    
-        printf("%s. IN TYPE%d \\# %ld (", owner_name, typecode, blen);
-        for (i=0;i!=blen;i++) {
-            if (i%16==0)
-                printf("\n%s                  ", padding);
-            else if (i%2==0)
-                printf(" ");
-            printf("%02x",buf[i]);
-        }
-        printf(" )\n");
-    }
-    else {            /* no need for folding */
-        printf("%s. IN TYPE%d \\# %ld ", owner_name, typecode, blen);
-        int i;
-        for (i=0;i!=blen;i++) {
-            printf("%02x",buf[i]);
-        }
-        printf("\n");
-    }
-    return;
-}
-
 /**
- * @brief write zone fragment to file
+ * @brief write zone fragment to buffer for display or writing to file
  *
- * @param fp handle on already-opened FILE
- * @param msg not used, kept for compatibility with debugging function
+ * @param sbuf where zone fragment will be written
+ * @param slen length of sbuf
  * @param buf binary public key data
- * @param blen lenght of buf
- * @param indent not used, kept for compatibility with debugging function
- * @param typecode DNS TYPE code to use 
+ * @param blen length of buf
+ * @param typecode DNS TYPE code to use
  * @param owner_name fully-qualified DNS owner, without trailing dot
+ *
  */
-static void fp_esni_prr(FILE *fp
-                        char *msg,
+static void sp_esni_prr(unsigned char *sbuf,
+                        size_t slen,
                         unsigned char *buf,
                         size_t blen,
-                        int indent,
                         unsigned short typecode,
                         char *owner_name)
 {
+    unsigned char *sp=sbuf;
+    memset(sbuf,0,slen);          /* clear buffer for zone data */
+
     if (buf==NULL) {
-        fprintf(stderr,"OPENSSL: %s is NULL",msg);
-        exit(9);
+        return;
     }
-    if (blen>16) {        /* need to fold RDATA */
-        char padding[1+MAX_ESNI_COVER_NAME];
-        int i;
-        for (i=0; i!=strlen(owner_name); i++) {
-            padding[i]=' ';
-        }
-        padding[i]=0;
+
+    char fold_fmt[MAX_FMT_LEN];
+    int padwidth;
+    int available=MAX_ZONEDATA_BUFLEN;
+    int chunk=0;
     
-        fprintf(fp, "%s. IN TYPE%d \\# %ld (", owner_name, typecode, blen);
-        for (i=0;i!=blen;i++) {
-            if (i%16==0)
-                fprintf(fp, "\n%s                  ", padding);
-            else if (i%2==0)
-                fprintf(fp, " ");
-            fprintf(fp, "%02x",buf[i]);
+    int i;
+    for (i=0; (i!=blen) && (chunk < available); i++) {
+        if (i==0) {
+            /* Process prolog */
+            chunk = snprintf(sp, available,
+                             "%s. IN TYPE%d \\# ",
+                             owner_name, typecode);
+
+            if (chunk < available) {
+                padwidth = (chunk<MAX_PADDING) ? chunk : MAX_PADDING;
+                if (snprintf(fold_fmt,MAX_FMT_LEN,"\n%%%ds",padwidth)
+                    >= MAX_FMT_LEN) {
+                    memset(sbuf,0,chunk); /* reset buffer */
+                    return;
+                }
+            }
+
+            if (chunk < available) {
+                available -= chunk; sp += chunk;
+                chunk = snprintf(sp, available, "%ld (",blen);
+            }
         }
-        fprintf(fp, " )\n");
-    }
-    else {            /* no need for folding */
-        fprintf(fp, "%s. IN TYPE%d \\# %ld ", owner_name, typecode, blen);
-        int i;
-        for (i=0;i!=blen;i++) {
-            fprintf(fp, "%02x",buf[i]);
+
+        /* Process each octet in buffer */
+        if (chunk < available) {
+            available -= chunk; sp += chunk;
+            if (i%16==0) {
+                chunk = snprintf(sp, available, fold_fmt,"");
+            }
+            else if (i%2==0) {
+                chunk = snprintf(sp, available, " ");
+            }
+            else {
+                chunk = 0;
+            }
         }
-        fprintf(fp, "\n");
+        if (chunk < available) {
+            available -= chunk; sp += chunk;
+            chunk = snprintf(sp, available, "%02x",buf[i]);
+        }
     }
+
+    /* Process epilog: line-fold or space */
+    if (chunk < available) { 
+        available -= chunk; sp += chunk;
+        if (i%16==0)
+            chunk = snprintf(sp, available, fold_fmt,"");
+        else
+            chunk = snprintf(sp, available, " ");
+    }
+    
+    /* Process epilog: closing paren */
+    if (chunk < available) {
+        available -= chunk; sp += chunk;
+        chunk = snprintf(sp, available, ")\n");
+    }
+
+    if (chunk >= available) {
+        memset(sbuf,0,slen-available); /* reset buffer */
+    }
+
     return;
 }
 
@@ -715,8 +715,21 @@ static int mk_esnikeys(int argc, char **argv)
     fclose(pubfp);
 
     if (ekversion==0xff02) {
-        so_esni_prr("BP+cksum as DNS RR",bbuf,bblen,0,ekversion,cover_name);
+        unsigned char zbuf[MAX_ZONEDATA_BUFLEN];
 
+        /* Prepare zone fragment in buffer */
+        sp_esni_prr(zbuf,MAX_ZONEDATA_BUFLEN,bbuf,bblen,0xff9f,cover_name);
+        int zblen=strlen(zbuf);
+
+        if (zblen==0) {
+            fprintf(stderr,"zone fragment error (line:%d)\n",__LINE__);
+            exit(9);
+        }
+
+        puts("OPENSSL: zone fragment:");
+        printf("%s", zbuf);     /* Display zone fragment on stdout */
+
+        /* Ready file where zone fragment will be written */
         if (fragfname==NULL) {
             fragfname="zonedata.fragment";
         }
@@ -725,7 +738,13 @@ static int mk_esnikeys(int argc, char **argv)
             fprintf(stderr,"fopen error (line:%d)\n",__LINE__);
             exit(7);
         }
-        fp_esni_prr(fragfp, "BP+cksum as DNS RR",bbuf,bblen,0,ekversion,cover_name);
+
+        /* Write zone fragment to file */
+        if (fwrite(zbuf,1,zblen,fragfp)!=zblen) {
+            fprintf(stderr,"fwrite error (line:%d)\n",__LINE__);
+            exit(8);
+        }
+
         fclose(fragfp);
     }
 
@@ -740,6 +759,7 @@ int main(int argc, char **argv)
     return mk_esnikeys(argc, argv);
 }
 
+// -*- Make Emacs behave
 // -*- Local Variables:
 // -*- c-basic-offset: 4
 // -*- indent-tabs-mode: nil
