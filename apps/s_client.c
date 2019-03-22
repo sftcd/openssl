@@ -1022,7 +1022,7 @@ int s_client_main(int argc, char **argv)
     struct timeval tv;
 #endif
 #ifndef OPENSSL_NO_ESNI
-    const char *b64esnikeys = NULL;
+    const char *esnikeys_asciirr = NULL;
     SSL_ESNI *esnikeys=NULL;
 #else
 	/*
@@ -1550,7 +1550,8 @@ int s_client_main(int argc, char **argv)
             encservername = opt_arg();
             break;
         case OPT_ESNI_RR:
-            b64esnikeys = opt_arg();
+            esnikeys_asciirr = opt_arg();
+            printf("EK:|%s|\n",esnikeys_asciirr);
             break;
         case OPT_ESNI_STRICT:
             esni_strict=1;
@@ -1639,7 +1640,7 @@ int s_client_main(int argc, char **argv)
     }
 #ifndef OPENSSL_NO_ESNI
     if (encservername != NULL) {
-        if (b64esnikeys == NULL) {
+        if (esnikeys_asciirr == NULL) {
             BIO_printf(bio_err,
                        "%s: Can't use -esni without -esnirr \n",
                        prog);
@@ -1655,7 +1656,7 @@ int s_client_main(int argc, char **argv)
             goto opthelp;
         } 
 
-        esnikeys=SSL_ESNI_new_from_buffer(strlen(b64esnikeys),b64esnikeys);
+        esnikeys=SSL_ESNI_new_from_buffer(strlen(esnikeys_asciirr),esnikeys_asciirr);
         if (esnikeys == NULL) {
             BIO_printf(bio_err,
                        "%s: ESNI base64 decode failed.\n",

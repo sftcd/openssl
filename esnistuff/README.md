@@ -24,6 +24,12 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- Modified [testclient.sh](./testclient.sh) script to first check the draft-03 RRTYPE
+  before checking the draft-02 TXT RR. That needed a bit of mucking about within the
+  script to provide one command line arg that's just ascii-hex. (Other things could
+  be possible, I chose that:-). Need to check shortly what happens with a multi-valued
+  case.
+
 - Generalised a bit from base64 encoded ESNIKeys inputs (not tested ascii-hex nor binary
   input options yet but will as we go)
 

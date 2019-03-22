@@ -692,6 +692,7 @@ err:
  */
 SSL_ESNI* SSL_ESNI_new_from_buffer(const size_t eklen, const char *esnikeys)
 {
+    printf("Eklen: %d, EK:|%s|\n",eklen,esnikeys);
     const char *AH_alphabet="0123456789ABCDEFabcdef";
     const char *B64_alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";
     if (eklen==0 || esnikeys==NULL) {
