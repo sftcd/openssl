@@ -190,22 +190,20 @@ then
 		fi
 	else
         # try draft-03 first  - we need to drop the initial \# and length and
-        # kill the spaces 
-        # TODO: that needs to be documented and checked for what happens for
-        # multi-valued RRs
-		ESNI=`dig +short -t TYPE65439 $hidden | cut -f 3- -d' ' | sed -e 's/ //g'`
+        # kill the spaces and joing the lines if multi-valued seen 
+		ESNI=`dig +short -t TYPE65439 $hidden | cut -f 3- -d' ' | sed -e 's/ //g' | sed -e 'N;s/\n//'`
         if [[ "$ESNI" == "" ]]
         then
             # try draft -02
-		    ESNI=`dig +short txt _esni.$hidden | sed -e 's/"//g'`
+		    ESNI=`dig +short txt _esni.$hidden | sed -e 's/"//g' | sed -e 'N;s/\n//'`
 		    if [[ "$ESNI" == "" ]]
 		    then
                 # try draft-02 via cover
-			    ESNI=`dig +short txt _esni.$cover | sed -e 's/"//g'`
+			    ESNI=`dig +short txt _esni.$cover | sed -e 's/"//g' | sed -e 'N;s/\n//'`
 			    if [[ "$ESNI" == "" ]]
 			    then
                     # try draft-02 via server
-				    ESNI=`dig +short txt _esni.$server | sed -e 's/"//g'`
+				    ESNI=`dig +short txt _esni.$server | sed -e 's/"//g' | sed -e 'N;s/\n//'`
 				    if [[ "$ESNI" == "" ]]
 				    then
 					    echo "Not trying - no sign of ESNIKeys ESNI RRTYPE at $hidder nor TXT RR at _esni.$hidden nor _esni.$cover nor _esni.$server"

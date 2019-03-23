@@ -686,13 +686,17 @@ err:
 /**
  * Decode and check the value retieved from DNS (binary, base64 or ascii-hex encoded)
  *
+ * The esnnikeys value here may be the catenation of multiple encoded ESNIKeys RR values 
+ * (or TXT values for draft-02), we'll internally try decode and handle those and (later)
+ * use whichever is relevant/best.
+ *
  * @param eklen is the length of the binary, base64 or ascii-hex encoded value from DNS
  * @param esnikeys is the binary, base64 or ascii-hex encoded value from DNS
  * @return is an SSL_ESNI structure
  */
 SSL_ESNI* SSL_ESNI_new_from_buffer(const size_t eklen, const char *esnikeys)
 {
-    printf("Eklen: %d, EK:|%s|\n",eklen,esnikeys);
+    printf("Eklen: %ld, EK:|%s|\n",eklen,esnikeys);
     const char *AH_alphabet="0123456789ABCDEFabcdef";
     const char *B64_alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";
     if (eklen==0 || esnikeys==NULL) {
