@@ -407,11 +407,17 @@ unsigned char *SSL_ESNI_wrap_keyshare(
  *
  * @param binbuf is the buffer with the encoding
  * @param binblen is the length of binbunf
+ * @param leftover is the number of unused octets from the input
  * @return NULL on error, or an ESNI_RECORD structure 
  */
-ESNI_RECORD *SSL_ESNI_RECORD_new_from_binary(unsigned char *binbuf, size_t binblen)
+static ESNI_RECORD *SSL_ESNI_RECORD_new_from_binary(unsigned char *binbuf, size_t binblen, size_t *leftover)
 {
     ESNI_RECORD *er=NULL;
+
+    if (leftover==NULL) {
+        ESNIerr(ESNI_F_SSL_ESNI_RECORD_NEW_FROM_BINARY, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
 
     er=(ESNI_RECORD*)OPENSSL_malloc(sizeof(ESNI_RECORD));
     if (er==NULL) {
@@ -419,6 +425,7 @@ ESNI_RECORD *SSL_ESNI_RECORD_new_from_binary(unsigned char *binbuf, size_t binbl
         goto err;
     }
     memset(er,0,sizeof(ESNI_RECORD));
+    /* TODO: move this to end to handle case where input is >1 value */
     int cksum_ok=esni_checksum_check(binbuf,binblen);
     if (cksum_ok!=1) {
         ESNIerr(ESNI_F_SSL_ESNI_RECORD_NEW_FROM_BINARY, ERR_R_INTERNAL_ERROR);
@@ -591,11 +598,7 @@ ESNI_RECORD *SSL_ESNI_RECORD_new_from_binary(unsigned char *binbuf, size_t binbl
         ESNIerr(ESNI_F_SSL_ESNI_RECORD_NEW_FROM_BINARY, ESNI_R_RR_DECODE_ERROR);
         goto err;
     }
-    int leftover=PACKET_remaining(&pkt);
-    if (leftover!=0) {
-        ESNIerr(ESNI_F_SSL_ESNI_RECORD_NEW_FROM_BINARY, ESNI_R_RR_DECODE_ERROR);
-        goto err;
-    }
+    *leftover=PACKET_remaining(&pkt);
     return er;
 
 err:
@@ -684,83 +687,155 @@ err:
 }
 
 /**
+ * Try figure out ESNIKeys encodng
+ *
+ * @param eklen is the length of esnikeys
+ * @param esnikeys is encoded ESNIKeys structure
+ * @param guessedfmt is our returned guess at the format
+ * @return 1 for success, 0 for error
+ */
+static int esni_guess_fmt(const size_t eklen, 
+                    const char *esnikeys,
+                    short *guessedfmt)
+{
+    if (!guessedfmt || eklen <=0 || !esnikeys) {
+        return(0);
+    }
+    const char *AH_alphabet="0123456789ABCDEFabcdef";
+    const char *B64_alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";
+    /*
+     * Try from most constrained to least in that order
+     */
+    /* TODO: first check dig output fmt */
+    if (eklen<=strspn(esnikeys,AH_alphabet)) {
+        *guessedfmt=ESNI_RRFMT_ASCIIHEX;
+    } else if (eklen<=strspn(esnikeys,B64_alphabet)) {
+        *guessedfmt=ESNI_RRFMT_B64TXT;
+    } else {
+        // fallback - guess binary
+        *guessedfmt=ESNI_RRFMT_BIN;
+    }
+    return(1);
+} 
+
+/**
  * Decode and check the value retieved from DNS (binary, base64 or ascii-hex encoded)
  *
  * The esnnikeys value here may be the catenation of multiple encoded ESNIKeys RR values 
  * (or TXT values for draft-02), we'll internally try decode and handle those and (later)
- * use whichever is relevant/best.
+ * use whichever is relevant/best. The fmt parameter can be e.g. ESNI_RRFMT_ASCII_HEX
  *
+ * @param ekfmt specifies the format of the input text string
  * @param eklen is the length of the binary, base64 or ascii-hex encoded value from DNS
  * @param esnikeys is the binary, base64 or ascii-hex encoded value from DNS
  * @return is an SSL_ESNI structure
  */
-SSL_ESNI* SSL_ESNI_new_from_buffer(const size_t eklen, const char *esnikeys)
+SSL_ESNI* SSL_ESNI_new_from_buffer(const short ekfmt, const size_t eklen, const char *esnikeys)
 {
-    printf("Eklen: %ld, EK:|%s|\n",eklen,esnikeys);
-    const char *AH_alphabet="0123456789ABCDEFabcdef";
-    const char *B64_alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";
+    short detfmt=ESNI_RRFMT_GUESS;
+
+    switch (ekfmt) {
+        case ESNI_RRFMT_GUESS:
+            break;
+        case ESNI_RRFMT_ASCIIHEX:
+        case ESNI_RRFMT_DIGOUT:
+        case ESNI_RRFMT_B64TXT:
+            detfmt=ekfmt;
+            break;
+        default:
+            return(NULL);
+    }
+
     if (eklen==0 || esnikeys==NULL) {
         return(NULL);
     }
-    ESNI_RECORD *er=NULL;
-    SSL_ESNI *newesni=NULL; 
-    unsigned char *outbuf = NULL; /* binary representation of ESNIKeys */
-    size_t declen=0; /* length of binary representation of ESNIKeys */
-
-    if (eklen<=strspn(esnikeys,B64_alphabet)) {
-        declen = esni_base64_decode(esnikeys, &outbuf);
-        if (declen < 0) {
-            ESNIerr(ESNI_F_SSL_ESNI_NEW_FROM_BASE64, ESNI_R_BASE64_DECODE_ERROR);
-            goto err;
-        }
-    } else {
-        if (eklen<=strspn(esnikeys,AH_alphabet)) {
-            /* Yay AH */
-            int adr=ah_decode(eklen,esnikeys,&declen,&outbuf);
-            if (adr==0) {
-                ESNIerr(ESNI_F_SSL_ESNI_NEW_FROM_BASE64, ESNI_R_BASE64_DECODE_ERROR);
-                goto err;
-            }
-        } else {
-            /* try binary - just copy over the input to where we'd expect it */
-            declen=eklen;
-            outbuf=OPENSSL_malloc(declen);
-            if (outbuf==NULL){
-                ESNIerr(ESNI_F_SSL_ESNI_NEW_FROM_BASE64, ESNI_R_BASE64_DECODE_ERROR);
-                goto err;
-            }
-            memcpy(outbuf,esnikeys,declen);
-        } 
-    }
-
-    newesni=OPENSSL_malloc(sizeof(SSL_ESNI));
-    if (newesni==NULL) {
-        ESNIerr(ESNI_F_SSL_ESNI_NEW_FROM_BASE64, ERR_R_MALLOC_FAILURE);
-        goto err;
-    }
-    memset(newesni,0,sizeof(SSL_ESNI));
-
-    newesni->encoded_rr_len=declen;
-    newesni->encoded_rr=outbuf;
-
-    er=SSL_ESNI_RECORD_new_from_binary(outbuf,declen);
-    if (er==NULL) {
-        ESNIerr(ESNI_F_SSL_ESNI_NEW_FROM_BASE64, ERR_R_INTERNAL_ERROR);
-        goto err;
-    }
-
-    if (esni_make_se_from_er(er,newesni,0)!=1) {
-        ESNIerr(ESNI_F_SSL_ESNI_NEW_FROM_BASE64, ERR_R_INTERNAL_ERROR);
-        goto err;
-    }
 
     /*
-     * Free up unwanted stuff
+     * try decode to binary form
      */
-    ESNI_RECORD_free(er);
-    OPENSSL_free(er);
+    if (detfmt==ESNI_RRFMT_GUESS) {
+        int rv=esni_guess_fmt(eklen,esnikeys,&detfmt);
+        if (rv!=1) {
+            ESNIerr(ESNI_F_SSL_ESNI_NEW_FROM_BUFFER, ESNI_R_BASE64_DECODE_ERROR);
+            goto err;
+        }
+    }
 
-    return(newesni);
+    unsigned char *outbuf = NULL;   /* a binary representation of an ESNIKeys */
+    size_t declen=0;                /* a length of binary representation of an ESNIKeys */
+    if (detfmt==ESNI_RRFMT_B64TXT) {
+        declen = esni_base64_decode(esnikeys, &outbuf);
+        if (declen < 0) {
+            ESNIerr(ESNI_F_SSL_ESNI_NEW_FROM_BUFFER, ESNI_R_BASE64_DECODE_ERROR);
+            goto err;
+        }
+    } 
+    
+    if (detfmt==ESNI_RRFMT_ASCIIHEX) {
+        /* Yay AH */
+        int adr=ah_decode(eklen,esnikeys,&declen,&outbuf);
+        if (adr==0) {
+            ESNIerr(ESNI_F_SSL_ESNI_NEW_FROM_BUFFER, ESNI_R_BASE64_DECODE_ERROR);
+            goto err;
+        }
+    }
+
+    if (detfmt==ESNI_RRFMT_BIN) {
+        /* just copy over the input to where we'd expect it */
+        declen=eklen;
+        outbuf=OPENSSL_malloc(declen);
+        if (outbuf==NULL){
+            ESNIerr(ESNI_F_SSL_ESNI_NEW_FROM_BUFFER, ESNI_R_BASE64_DECODE_ERROR);
+            goto err;
+        }
+        memcpy(outbuf,esnikeys,declen);
+     }
+
+    /*
+     * Now try decode each binary encoding if we can
+     */
+
+    SSL_ESNI *retesnis=NULL;        ///< output array
+    ESNI_RECORD *er=NULL;           ///< individual public value structure (initial decoding)
+    SSL_ESNI *newesni=NULL;         ///< individual public value structure (after more decoding)
+
+    int nlens=0;                    /* number of values supplied */
+    int done=0;
+    while (!done) {
+        nlens+=1;
+        SSL_ESNI *ts=OPENSSL_realloc(retesnis,nlens*sizeof(SSL_ESNI));
+        if (!ts) {
+            ESNIerr(ESNI_F_SSL_ESNI_NEW_FROM_BUFFER, ERR_R_MALLOC_FAILURE);
+            goto err;
+        }
+        retesnis=ts;
+
+        newesni=&retesnis[nlens-1];
+        memset(newesni,0,sizeof(SSL_ESNI));
+    
+        newesni->encoded_rr_len=declen;
+        newesni->encoded_rr=outbuf;
+        newesni->num_esnis=nlens;
+    
+        size_t leftover=0;
+        er=SSL_ESNI_RECORD_new_from_binary(outbuf,declen,&leftover);
+        if (er==NULL) {
+            ESNIerr(ESNI_F_SSL_ESNI_NEW_FROM_BUFFER, ERR_R_INTERNAL_ERROR);
+            goto err;
+        }
+        if (leftover<=0) {
+           done=1;
+        }
+
+        if (esni_make_se_from_er(er,newesni,0)!=1) {
+            ESNIerr(ESNI_F_SSL_ESNI_NEW_FROM_BUFFER, ERR_R_INTERNAL_ERROR);
+            goto err;
+        }
+        ESNI_RECORD_free(er);
+        OPENSSL_free(er);
+    }
+
+    return(retesnis);
 err:
     if (er!=NULL) {
         ESNI_RECORD_free(er);
@@ -2020,7 +2095,8 @@ int SSL_esni_server_enable(SSL_CTX *ctx, const char *esnikeyfile, const char *es
         goto err;
     }
     BIO_free(pub_in);
-    er=SSL_ESNI_RECORD_new_from_binary(inbuf,inblen);
+    size_t leftover=0;
+    er=SSL_ESNI_RECORD_new_from_binary(inbuf,inblen,&leftover);
     if (er==NULL) {
         ESNIerr(ESNI_F_SSL_ESNI_SERVER_ENABLE, ERR_R_INTERNAL_ERROR);
         goto err;

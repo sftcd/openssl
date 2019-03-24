@@ -44,6 +44,9 @@ esni: esnimain.o libssl.a libcrypto.a
 test:
 	./doit.sh fresh
 
+staletest:
+	./doit.sh
+
 mk_esnikeys: mk_esnikeys.o
 
 mk_esnikeys.o: mk_esnikeys.c ../include/openssl/esni.h 

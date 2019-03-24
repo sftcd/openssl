@@ -11,6 +11,10 @@
 #ifndef HEADER_ESNIERR_H
 # define HEADER_ESNIERR_H
 
+# ifndef HEADER_SYMHACKS_H
+#  include <openssl/symhacks.h>
+# endif
+
 # ifdef  __cplusplus
 extern "C"
 # endif
@@ -37,6 +41,7 @@ int ERR_load_ESNI_strings(void);
 # define ESNI_F_SSL_ESNI_DUP                              116
 # define ESNI_F_SSL_ESNI_ENC                              117
 # define ESNI_F_SSL_ESNI_NEW_FROM_BASE64                  118
+# define ESNI_F_SSL_ESNI_NEW_FROM_BUFFER                  122
 # define ESNI_F_SSL_ESNI_RECORD_NEW_FROM_BINARY           119
 # define ESNI_F_SSL_ESNI_SERVER_ENABLE                    120
 # define ESNI_F_SSL_ESNI_WRAP_KEYSHARE                    121

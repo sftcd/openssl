@@ -24,6 +24,13 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- Added a ``ekfmt`` input to ``SSL_ESNI_new_from_buffer()`` with possible values as below:
+
+                #define ESNI_RRFMT_GUESS     0  ///< try guess which it is
+                #define ESNI_RRFMT_ASCIIHEX  1  ///< draft-03 ascii hex value(s catenated)
+                #define ESNI_RRFMT_DIGOUT    2  ///< draft-03 possibly multi-line dig output
+                #define ESNI_RRFMT_B64TXT    3  ///< draft-02 (legacy) base64 encoded TXT
+
 - Modified [testclient.sh](./testclient.sh) script to first check the draft-03 RRTYPE
   before checking the draft-02 TXT RR. That needed a bit of mucking about within the
   script to provide one command line arg that's just ascii-hex to ``s_client``. (Other 

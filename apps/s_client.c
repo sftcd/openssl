@@ -1656,7 +1656,7 @@ int s_client_main(int argc, char **argv)
             goto opthelp;
         } 
 
-        esnikeys=SSL_ESNI_new_from_buffer(strlen(esnikeys_asciirr),esnikeys_asciirr);
+        esnikeys=SSL_ESNI_new_from_buffer(ESNI_RRFMT_GUESS,strlen(esnikeys_asciirr),esnikeys_asciirr);
         if (esnikeys == NULL) {
             BIO_printf(bio_err,
                        "%s: ESNI base64 decode failed.\n",
