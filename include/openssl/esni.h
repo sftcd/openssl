@@ -20,6 +20,17 @@
 
 # include <openssl/ssl.h>
 
+/*
+ * Known text input formats for ESNIKeys RR values
+ * - can be TXT containing base64 encoded value (draft-02)
+ * - can be TYPE65439 containing ascii-hex string(s)
+ * - can be TYPE65439 formatted as output from dig +short (multi-line)
+ */
+#define ESNI_RRFMT_GUESS     0  ///< try guess which it is
+#define ESNI_RRFMT_BIN       1  ///< binary encoded
+#define ESNI_RRFMT_ASCIIHEX  2  ///< draft-03 ascii hex value(s catenated)
+#define ESNI_RRFMT_DIGOUT    3  ///< draft-03 possibly multi-line dig output
+#define ESNI_RRFMT_B64TXT    4  ///< draft-02 (legacy) base64 encoded TXT
 
 /**
  * If defined, this provides enough API, internals and tracing so we can 
@@ -29,6 +40,11 @@
 #define ESNI_CRYPT_INTEROP
 //#undef ESNI_CRYPT_INTEROP
 #ifdef ESNI_CRYPT_INTEROP
+
+#define ESNI_DRAFT_02_VERSION 0xff01 ///< ESNIKeys version from draft-02
+#define ESNI_DRAFT_03_VERSION 0xff02 ///< ESNIKeys version from draft-03
+
+#define ESNI_RRTYPE 65439 ///< experimental (as per draft-03) ESNI RRTYPE
 
 /**
 * map an (ascii hex) value to a nibble
@@ -61,6 +77,21 @@
  * This structure is purely used when decoding the RR value
  * and is then discarded (selected values mapped into the
  * SSL_ESNI structure).
+ *
+ * draft-03 changed this some ...
+ * <pre>
+ *  struct {
+ *         uint16 version;
+ *         uint8 checksum[4];
+ *         opaque public_name<1..2^16-1>;
+ *         KeyShareEntry keys<4..2^16-1>;
+ *         CipherSuite cipher_suites<2..2^16-2>;
+ *         uint16 padded_length;
+ *         uint64 not_before;
+ *         uint64 not_after;
+ *         Extension extensions<0..2^16-1>;
+ *     } ESNIKeys;
+ * </pre>
  */
 typedef struct esni_record_st {
     unsigned int version;
@@ -122,6 +153,7 @@ typedef struct ssl_esni_st {
     char *encservername; ///< hidden server name
     char *covername; ///< cleartext SNI (can be NULL)
     int require_hidden_match; ///< If 1 then SSL_esni_get_status will barf if hidden name doesn't match TLS server cert. If 0, don't care.
+    int num_esnis; ///< the number of ESNIKeys structures in this array
     size_t encoded_rr_len;
     unsigned char *encoded_rr; ///< Binary (base64 decoded) RR value
     size_t rd_len;
@@ -299,12 +331,18 @@ SSL_ESNI* SSL_ESNI_dup(SSL_ESNI* orig, size_t nesni);
 int SSL_esni_checknames(const char *encservername, const char *covername);
 
 /**
- * Decode and check the value retieved from DNS (currently base64 encoded)
+ * Decode and check the value retieved from DNS (binary, base64 or ascii-hex encoded)
  *
- * @param esnikeys is the base64 encoded value from DNS
+ * The esnnikeys value here may be the catenation of multiple encoded ESNIKeys RR values 
+ * (or TXT values for draft-02), we'll internally try decode and handle those and (later)
+ * use whichever is relevant/best. The fmt parameter can be e.g. ESNI_RRFMT_ASCII_HEX
+ *
+ * @param ekfmt specifies the format of the input text string
+ * @param eklen is the length of the binary, base64 or ascii-hex encoded value from DNS
+ * @param esnikeys is the binary, base64 or ascii-hex encoded value from DNS
  * @return is an SSL_ESNI structure
  */
-SSL_ESNI* SSL_ESNI_new_from_base64(const char *esnikeys);
+SSL_ESNI* SSL_ESNI_new_from_buffer(const short ekfmt, const size_t eklen, const char *esnikeys);
 
 /**
  * Turn on SNI encryption for an (upcoming) TLS session

@@ -1,0 +1,105 @@
+
+debian_stretch:
+  image: debian:stretch
+  script:
+    - apt-get update
+    - apt-get -qy install --no-install-recommends build-essential
+    - ./config
+    - make
+    - make test
+
+mingw-w64:
+  image: debian:stretch-slim
+  script:
+    - export CROSS_COMPILE=x86_64-w64-mingw32-
+    - export CONFIG_OPTS="no-stdio"
+    - export EXE_SHELL=wine
+    - export WINEPREFIX=`pwd`
+    - dpkg --add-architecture i386
+    - apt-get update
+    - apt-get -qy install --no-install-recommends
+          binutils-mingw-w64
+          build-essential
+          gcc-mingw-w64
+          wine
+    - ./Configure mingw64 $CONFIG_OPTS -Wno-pedantic-ms-format;
+    - make
+    - make test
+
+doc-nits:
+  image: debian:stretch-slim
+  script:
+    - apt-get update
+    - apt-get -qy install --no-install-recommends make perl
+    - ./config
+    - make doc-nits
+
+make-update:
+  image: debian:stretch-slim
+  script:
+    - apt-get update
+    - apt-get -qy install --no-install-recommends build-essential git
+    - ./config
+    - make update
+    - git diff --exit-code
+
+.android-template: &android-template
+  image: registry.gitlab.com/fdroid/ci-images-client
+  artifacts:
+    name: "${CI_PROJECT_PATH}_${CI_JOB_STAGE}_${CI_COMMIT_REF_NAME}_${CI_COMMIT_SHA}"
+    paths:
+      - "*.so*"
+      - "*.a"
+    when:
+      always
+    expire_in: 1 week
+  variables:
+    AVD_SDK: "24"
+    AVD_TAG: "default"
+    AVD_PACKAGE: "system-images;android-${AVD_SDK};${AVD_TAG};armeabi-v7a"
+  before_script:
+    - apt-get update
+    - apt-get -qy install --no-install-recommends make
+
+android-ndk-r16b_gcc-4.9:
+  <<: *android-template
+  script:
+    - ndk=android-ndk-r16b-linux-x86_64.zip
+    - wget --quiet http://dl.google.com/android/repository/${ndk}
+    - echo "bcdea4f5353773b2ffa85b5a9a2ae35544ce88ec5b507301d8cf6a76b765d901  ${ndk}" > ${ndk}.sha256
+    - sha256sum -c ${ndk}.sha256
+    - unzip -q $ndk
+    - export ANDROID_NDK_HOME=`pwd`/android-ndk-r16b
+    - export ANDROID_NDK=$ANDROID_NDK_HOME
+    - export PATH=$ANDROID_NDK/toolchains/arm-linux-androideabi-4.9/prebuilt/linux-x86_64/bin:$PATH
+    - echo y | $ANDROID_HOME/tools/bin/sdkmanager "platforms;android-14" > /dev/null
+    - ./Configure android-arm -D__ANDROID_API__=14
+    - make
+    - echo y | sdkmanager "platforms;android-$AVD_SDK" > /dev/null
+    - if ! avdmanager list avd | grep "Name. avd$AVD_SDK$"; then
+          rm -rf ~/.android/avd  $ANDROID_HOME/system-images;
+          echo y | sdkmanager "$AVD_PACKAGE" > /dev/null;
+          echo no | avdmanager create avd --name avd$AVD_SDK --tag "$AVD_TAG" --package "$AVD_PACKAGE" --sdcard 64M --device "Nexus 5";
+          export RAMSIZE="$((`sed -n 's,^MemAvailable:[^0-9]*\([0-9][0-9]*\)[^0-9]*$,\1,p' /proc/meminfo` * 3 / 4 / 1024))";
+          sed -i '/^hw\.ramSize\s*=.*/d' ~/.android/avd/*.avd/config.ini;
+          echo "hw.ramSize=$RAMSIZE" >> ~/.android/avd/*.avd/config.ini;
+          avdmanager list avd;
+      fi
+    - emulator64-arm -avd avd$AVD_SDK -no-audio -no-window -no-snapstorage &
+    - wait-for-emulator
+    - adb shell input keyevent 82 &
+
+android-ndk-r17b_gcc-4.9:
+  <<: *android-template
+  script:
+    - ndk=android-ndk-r17b-linux-x86_64.zip
+    - wget --quiet http://dl.google.com/android/repository/${ndk}
+    - echo "5dfbbdc2d3ba859fed90d0e978af87c71a91a5be1f6e1c40ba697503d48ccecd  ${ndk}" > ${ndk}.sha256
+    - sha256sum -c ${ndk}.sha256
+    - unzip -q $ndk
+    - export ANDROID_NDK_HOME=`pwd`/android-ndk-r17b
+    - export ANDROID_NDK=$ANDROID_NDK_HOME
+    - export PATH=$ANDROID_NDK/toolchains/arm-linux-androideabi-4.9/prebuilt/linux-x86_64/bin:$PATH
+    - echo y | $ANDROID_HOME/tools/bin/sdkmanager "platforms;android-14" > /dev/null
+    - ./Configure android-arm -D__ANDROID_API__=14
+    - make

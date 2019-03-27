@@ -24,28 +24,54 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- Added a ``ekfmt`` input to ``SSL_ESNI_new_from_buffer()`` with possible values as below:
+
+                #define ESNI_RRFMT_GUESS     0  ///< try guess which it is
+                #define ESNI_RRFMT_ASCIIHEX  1  ///< draft-03 ascii hex value(s catenated)
+                #define ESNI_RRFMT_DIGOUT    2  ///< draft-03 possibly multi-line dig output
+                #define ESNI_RRFMT_B64TXT    3  ///< draft-02 (legacy) base64 encoded TXT
+
+- Modified [testclient.sh](./testclient.sh) script to first check the draft-03 RRTYPE
+  before checking the draft-02 TXT RR. That needed a bit of mucking about within the
+  script to provide one command line arg that's just ascii-hex to ``s_client``. (Other 
+  things could be possible, I chose that:-). Seems to work with multi-valued cases
+  now too. 
+
+- Generalised a bit from base64 encoded ESNIKeys inputs (not tested ascii-hex nor binary
+  input options yet but will as we go)
+
 - Starting to work on coding up [draft-03](https://tools.ietf.org/html/draft-ietf-tls-esni-03)
-  from now (20190313), will try keep [draft-02](https://tools.ietf.org/html/draft-ietf-tls-esni-02) working
+  from now,  will try keep [draft-02](https://tools.ietf.org/html/draft-ietf-tls-esni-02) working
   as the default for now, but we'll see how that goes, and will switch defaults later, depending 
     - Played with DNS a bit as -03 has a new ESNI RRTYPE (value 0xffdf == 65439) instead of TXT
-        - to query for such a thing, published at example.com,
-           where the two values there are "789" and "123456" - that ought be the
-           ascii-hex encoding of ESNIKeys but are just dummy values for now
+        - to query for such a thing, published at example.com, who turn out to have two ESNIKeys RRs:
 
                 $ dig +short -t TYPE65439 example.com
-                \# 3 373839
-                \# 6 313232343536
+                \# 81 FF027CE3FD9C000B6578616D706C652E6E65740024001D00208C48CF 4B00BAAF1191C8B882CFA43DC7F45796C7A0ADC9EB6329BE25B94642 35000213010104000000005C9588C7000000005C9EC3470000
+                \# 81 FF02FF93090D000B6578616D706C652E636F6D0024001D00202857EF 701013510D270E531232C40A09226A83391919F4ED3F6B3D08547A7F 68000213010104000000005C93BA56000000005C9CF4D60000
 
-        - to publish such a thing in a zone file it'd look like:
+        - to publish such a thing in example.com's zone file it'd look like:
 
-
-                ;;; ESNIKeys stuff
-                example.com. 300 IN \# 3 373839
-                example.com. 300 IN \# 6 313232343536
+                ;;; ESNIKeys stuff, 
+                example.com. IN TYPE65439 \# 81 (
+                             ff02 ff93 090d 000b 6578 616d 706c 652e
+                             636f 6d00 2400 1d00 2028 57ef 7010 1351
+                             0d27 0e53 1232 c40a 0922 6a83 3919 19f4
+                             ed3f 6b3d 0854 7a7f 6800 0213 0101 0400
+                             0000 005c 93ba 5600 0000 005c 9cf4 d600
+                             00 )
+                example.com. IN TYPE65439 \# 81 (
+                             ff02 7ce3 fd9c 000b 6578 616d 706c 652e
+                             6e65 7400 2400 1d00 208c 48cf 4b00 baaf
+                             1191 c8b8 82cf a43d c7f4 5796 c7a0 adc9
+                             eb63 29be 25b9 4642 3500 0213 0101 0400
+                             0000 005c 9588 c700 0000 005c 9ec3 4700
+                             00 )
 
         - strangely enough, that all seems to just work when we tried it with
           dummy values in a zone-we-own:-)
-    - First coding step is to kick off with the modest changes needed to [mk_esnikeys.c](./mk_esnikeys.c).
+
+- First coding step is to kick off with the modest changes needed to [mk_esnikeys.c](./mk_esnikeys.c).
         - added ``-V``,``-P`` and ``-A`` command lines arguments, it produces 
         some output that could possibly be the the right encoding (but isn't
         likely to be yet, as I've not tested that:-)

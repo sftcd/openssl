@@ -162,7 +162,7 @@ int main(int argc, char **argv)
         goto end;
     }
 
-    esnikeys=SSL_ESNI_new_from_base64(esni_str);
+    esnikeys=SSL_ESNI_new_from_buffer(ESNI_RRFMT_GUESS,strlen(esni_str),esni_str);
     if (esnikeys == NULL) {
         printf("Can't create SSL_ESNI from b64!\n");
         goto end;
