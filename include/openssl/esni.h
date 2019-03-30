@@ -20,6 +20,14 @@
 
 # include <openssl/ssl.h>
 
+#define ESNI_MAX_RRVALUE_LEN 2000 ///< Max size of a collection of ESNI RR values
+
+/* TODO: find another implemenation of this, there's gotta be one */
+#define A2B(__c__) (__c__>='0'&&__c__<='9'?(__c__-'0'):\
+                        (__c__>='A'&&__c__<='Z'?(__c__-'A'):\
+                            (__c__>='a'&&__c__<='z'?(__c__-'a'):0)))
+
+
 /*
  * Known text input formats for ESNIKeys RR values
  * - can be TXT containing base64 encoded value (draft-02)
@@ -45,11 +53,6 @@
 #define ESNI_DRAFT_03_VERSION 0xff02 ///< ESNIKeys version from draft-03
 
 #define ESNI_RRTYPE 65439 ///< experimental (as per draft-03) ESNI RRTYPE
-
-/**
-* map an (ascii hex) value to a nibble
-*/
-#define AH2B(x) ((x>='a' && x<='f') ? (10+x-'a'): (x-'0') )
 
 #endif
 

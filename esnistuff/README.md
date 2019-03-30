@@ -24,12 +24,19 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- Added support for multi-valued RR inputs. For b64, that's comma-separated. For binary,
+  or ascii-hex just a catentation is enough. (That's down to b64 padding being harder 
+  to find in the middle of a catenated input;-) Still gotta add/test the dig format.
+  This has only been tested via the [``doit2.sh``](doit2.sh) script.
+
 - Added a ``ekfmt`` input to ``SSL_ESNI_new_from_buffer()`` with possible values as below:
 
                 #define ESNI_RRFMT_GUESS     0  ///< try guess which it is
                 #define ESNI_RRFMT_ASCIIHEX  1  ///< draft-03 ascii hex value(s catenated)
                 #define ESNI_RRFMT_DIGOUT    2  ///< draft-03 possibly multi-line dig output
                 #define ESNI_RRFMT_B64TXT    3  ///< draft-02 (legacy) base64 encoded TXT
+
+    The dig output variant isn't yet done, and more testing is needed.
 
 - Modified [testclient.sh](./testclient.sh) script to first check the draft-03 RRTYPE
   before checking the draft-02 TXT RR. That needed a bit of mucking about within the
