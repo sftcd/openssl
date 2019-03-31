@@ -50,7 +50,8 @@ int ERR_load_ESNI_strings(void);
  * ESNI reason codes.
  */
 # define ESNI_R_BASE64_DECODE_ERROR                       110
-# define ESNI_R_NOT_IMPL                                  112
 # define ESNI_R_RR_DECODE_ERROR                           111
+# define ESNI_R_NOT_IMPL                                  112
+# define ESNI_R_ASCIIHEX_DECODE_ERROR                     113
 
 #endif

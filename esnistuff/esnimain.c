@@ -164,7 +164,7 @@ int main(int argc, char **argv)
 
     esnikeys=SSL_ESNI_new_from_buffer(ESNI_RRFMT_GUESS,strlen(esni_str),esni_str);
     if (esnikeys == NULL) {
-        printf("Can't create SSL_ESNI from b64!\n");
+        printf("Can't create SSL_ESNI from RR value!\n");
         goto end;
     }
 

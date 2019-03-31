@@ -24,8 +24,8 @@
 
 /* TODO: find another implemenation of this, there's gotta be one */
 #define A2B(__c__) (__c__>='0'&&__c__<='9'?(__c__-'0'):\
-                        (__c__>='A'&&__c__<='Z'?(__c__-'A'):\
-                            (__c__>='a'&&__c__<='z'?(__c__-'a'):0)))
+                        (__c__>='A'&&__c__<='F'?(__c__-'A'+10):\
+                            (__c__>='a'&&__c__<='f'?(__c__-'a'+10):0)))
 
 
 /*
@@ -99,6 +99,8 @@
 typedef struct esni_record_st {
     unsigned int version;
     unsigned char checksum[4];
+    int public_name_len;
+    unsigned char *public_name;
     unsigned int nkeys;
     uint16_t *group_ids;
     EVP_PKEY **keys;
@@ -155,6 +157,7 @@ typedef struct client_esni_st {
 typedef struct ssl_esni_st {
     char *encservername; ///< hidden server name
     char *covername; ///< cleartext SNI (can be NULL)
+    char *public_name;  ///< public_name from ESNIKeys
     int require_hidden_match; ///< If 1 then SSL_esni_get_status will barf if hidden name doesn't match TLS server cert. If 0, don't care.
     int num_esnis; ///< the number of ESNIKeys structures in this array
     size_t encoded_rr_len;

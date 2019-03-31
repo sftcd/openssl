@@ -24,6 +24,12 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- Added reading of new (in -03) ``public_name`` ESNIKeys field. When present, that
+  currently takes precedence over a locally supplied covername for including in the 
+  cleartext SNI extension. TODO: Re-consider that, maybe move to the opposite if
+  covername is locally supplied, not sure which'd be better. If we do swtich that,
+  then should take out use of covername as a default in test scripts.
+
 - Added support for multi-valued RR inputs. For b64, that's comma-separated. For binary,
   or ascii-hex just a catentation is enough. (That's down to b64 padding being harder 
   to find in the middle of a catenated input;-) Still gotta add/test the dig format.

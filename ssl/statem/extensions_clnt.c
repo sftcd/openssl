@@ -47,12 +47,24 @@ EXT_RETURN tls_construct_ctos_renegotiate(SSL *s, WPACKET *pkt,
  * and is the same as the SNI (that maybe got set
  * via some weirdo application API that we couldn't
  * change when ESNI enabling perhaps)
+ *
+ * Draft-03 update: public_name can be set in the
+ * ESNIKeys RR and if so, that overrides the locally
+ * supplied covername. TODO: Maybe re-consider that.
+ *
+ * @param s is the SSL context
+ * @param pkt is seemingly unused here
+ * @param context is unused here
+ * @param x is the certificate associated with the session
+ * @param chainidx is unused here
+ * @return "send-it" (EXT_RETURN_SENT) or not
  */
 static EXT_RETURN esni_server_name_fixup(SSL *s, WPACKET *pkt,
                                           unsigned int context, X509 *x,
                                           size_t chainidx) 
 {
     if (s->esni != NULL ) {
+        size_t pn_len=(s->esni->public_name==NULL?0:OPENSSL_strnlen(s->esni->public_name,TLSEXT_MAXLEN_host_name));
         size_t cn_len=(s->esni->covername==NULL?0:OPENSSL_strnlen(s->esni->covername,TLSEXT_MAXLEN_host_name));
         size_t hn_len=(s->ext.hostname==NULL?0:OPENSSL_strnlen(s->ext.hostname,TLSEXT_MAXLEN_host_name));
         size_t en_len=(s->esni->encservername==NULL?0:OPENSSL_strnlen(s->esni->encservername,TLSEXT_MAXLEN_host_name));
@@ -62,10 +74,20 @@ static EXT_RETURN esni_server_name_fixup(SSL *s, WPACKET *pkt,
                  ERR_R_INTERNAL_ERROR);
             return EXT_RETURN_FAIL;
         }
-        if (cn_len!=hn_len || CRYPTO_memcmp(s->ext.hostname,s->esni->covername,cn_len)) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_ESNI_SERVER_NAME_FIXUP,
-                 ERR_R_INTERNAL_ERROR);
-            return EXT_RETURN_NOT_SENT;
+        if (pn_len!=0) {
+            /* if public_name set, ignore covername */
+            if (pn_len!=hn_len || CRYPTO_memcmp(s->ext.hostname,s->esni->public_name,pn_len)) {
+                SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_ESNI_SERVER_NAME_FIXUP,
+                    ERR_R_INTERNAL_ERROR);
+                return EXT_RETURN_NOT_SENT;
+            }
+        } else {
+            /* if public_name not set, check covername */
+            if (cn_len!=hn_len || CRYPTO_memcmp(s->ext.hostname,s->esni->covername,cn_len)) {
+                SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_ESNI_SERVER_NAME_FIXUP,
+                    ERR_R_INTERNAL_ERROR);
+                return EXT_RETURN_NOT_SENT;
+            }
         }
         if (en_len==cn_len && !CRYPTO_memcmp(s->esni->encservername,s->esni->covername,cn_len)) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_ESNI_SERVER_NAME_FIXUP,

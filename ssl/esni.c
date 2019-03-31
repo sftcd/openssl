@@ -221,6 +221,7 @@ void ESNI_RECORD_free(ESNI_RECORD *er)
     int i; /* loop counter - android build doesn't like C99;-( */
     if (er==NULL) return;
     if (er->group_ids!=NULL) OPENSSL_free(er->group_ids);
+    if (er->public_name!=NULL) OPENSSL_free(er->public_name);
     for (i=0;i!=er->nkeys;i++) {
         EVP_PKEY *pk=er->keys[i];
         EVP_PKEY_free(pk);
@@ -265,6 +266,7 @@ void SSL_ESNI_free(SSL_ESNI *deadesni)
         if (esni==NULL) return;
         if (esni->encservername!=NULL) OPENSSL_free(esni->encservername);
         if (esni->covername!=NULL) OPENSSL_free(esni->covername);
+        if (esni->public_name!=NULL) OPENSSL_free(esni->public_name);
         if (esni->encoded_rr!=NULL) OPENSSL_free(esni->encoded_rr);
         if (esni->rd!=NULL) OPENSSL_free(esni->rd);
         if (esni->esni_peer_keyshare!=NULL) OPENSSL_free(esni->esni_peer_keyshare);
@@ -489,6 +491,28 @@ static ESNI_RECORD *SSL_ESNI_RECORD_new_from_binary(unsigned char *binbuf, size_
         ESNIerr(ESNI_F_SSL_ESNI_RECORD_NEW_FROM_BINARY, ESNI_R_RR_DECODE_ERROR);
         goto err;
     }
+    if (er->version==ESNI_DRAFT_03_VERSION) {
+        /* 
+         * read public_name 
+         */
+        PACKET public_name_pkt;
+        if (!PACKET_get_length_prefixed_2(&pkt, &public_name_pkt)) {
+            ESNIerr(ESNI_F_SSL_ESNI_RECORD_NEW_FROM_BINARY, ESNI_R_RR_DECODE_ERROR);
+            goto err;
+        }
+        er->public_name_len=PACKET_remaining(&public_name_pkt);
+        if (er->public_name_len<=4||er->public_name_len>TLSEXT_MAXLEN_host_name) {
+            ESNIerr(ESNI_F_SSL_ESNI_RECORD_NEW_FROM_BINARY, ESNI_R_RR_DECODE_ERROR);
+            goto err;
+        }
+        er->public_name=OPENSSL_malloc(er->public_name_len+1);
+        if (er->public_name==NULL) {
+            ESNIerr(ESNI_F_SSL_ESNI_RECORD_NEW_FROM_BINARY, ESNI_R_RR_DECODE_ERROR);
+            goto err;
+        }
+        PACKET_copy_bytes(&public_name_pkt,er->public_name,er->public_name_len);
+        er->public_name[er->public_name_len]='\0';
+    }
     /* 
      * list of KeyShareEntry elements - 
      * inspiration: ssl/statem/extensions_srvr.c:tls_parse_ctos_key_share 
@@ -673,6 +697,15 @@ static int esni_make_se_from_er(ESNI_RECORD* er, SSL_ESNI *se, int server)
     se->not_before=er->not_before;
     se->not_after=er->not_after;
     se->padded_length=er->padded_length;
+    if (er->public_name && er->public_name_len>0) {
+        se->public_name=OPENSSL_malloc(er->public_name_len+1);
+        if (se->public_name==NULL) {
+            ESNIerr(ESNI_F_ESNI_MAKE_SE_FROM_ER, ERR_R_INTERNAL_ERROR);
+            goto err;
+        }
+        memcpy(se->public_name,er->public_name,er->public_name_len);
+        se->public_name[er->public_name_len]='\0';
+    }
     /* 
      * now decide which bits of er we like and remember those 
      * pick the 1st key/group/ciphersutie that works
@@ -825,7 +858,7 @@ SSL_ESNI* SSL_ESNI_new_from_buffer(const short ekfmt, const size_t eklen, const 
         /* Yay AH */
         int adr=ah_decode(eklen,ekcpy,&declen,&outbuf);
         if (adr==0) {
-            ESNIerr(ESNI_F_SSL_ESNI_NEW_FROM_BUFFER, ESNI_R_BASE64_DECODE_ERROR);
+            ESNIerr(ESNI_F_SSL_ESNI_NEW_FROM_BUFFER, ESNI_R_ASCIIHEX_DECODE_ERROR);
             goto err;
         }
         OPENSSL_free(ekcpy);
@@ -866,10 +899,11 @@ SSL_ESNI* SSL_ESNI_new_from_buffer(const short ekfmt, const size_t eklen, const 
         newesni=&retesnis[nlens-1];
         memset(newesni,0,sizeof(SSL_ESNI));
     
-        //so_esni_pbuf("BINBUF:",outp,oleftover,0);
         int leftover=oleftover;
         er=SSL_ESNI_RECORD_new_from_binary(outp,oleftover,&leftover);
+        //so_esni_pbuf("BINBUF:",outp,oleftover,0);
         if (er==NULL) {
+            printf("Crap\n");
             ESNIerr(ESNI_F_SSL_ESNI_NEW_FROM_BUFFER, ERR_R_INTERNAL_ERROR);
             goto err;
         }
@@ -1008,6 +1042,17 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esni)
     } else {
         BIO_printf(out, "ESNI covername: \"");
         const char *cp=esni->covername;
+        unsigned char uc;
+        while ((uc = *cp++) != 0)
+            BIO_printf(out, isascii(uc) && isprint(uc) ? "%c" : "\\x%02x", uc);
+        BIO_printf(out, "\"\n");
+    }
+
+    if (esni->public_name==NULL) {
+        BIO_printf(out, "ESNI public_name is NULL\n");
+    } else {
+        BIO_printf(out, "ESNI public_name: \"");
+        const char *cp=esni->public_name;
         unsigned char uc;
         while ((uc = *cp++) != 0)
             BIO_printf(out, isascii(uc) && isprint(uc) ? "%c" : "\\x%02x", uc);
@@ -1613,6 +1658,20 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys,
             }
         }
     }
+    if (esnikeys->public_name!=NULL && esnikeys->encservername!=NULL) {
+        if (OPENSSL_strnlen(esnikeys->public_name,TLSEXT_MAXLEN_host_name)==
+            OPENSSL_strnlen(esnikeys->encservername,TLSEXT_MAXLEN_host_name)) {
+            if (!CRYPTO_memcmp(esnikeys->public_name,esnikeys->encservername,
+                OPENSSL_strnlen(esnikeys->public_name,TLSEXT_MAXLEN_host_name))) {
+                /*
+                 * Shit - same names, that's silly
+                 */
+                ESNIerr(ESNI_F_SSL_ESNI_ENC, ERR_R_INTERNAL_ERROR);
+                goto err;
+            }
+        }
+    }
+
     if (esnikeys->hs_kse==NULL) {
         esnikeys->hs_kse=OPENSSL_malloc(client_keyshare_len);
         if (esnikeys->hs_kse==NULL) {
@@ -2076,12 +2135,23 @@ int SSL_esni_enable(SSL *s, const char *hidden, const char *cover, SSL_ESNI *esn
     s->esni->covername=NULL;
     if (cover != NULL) {
         s->esni->covername=OPENSSL_strndup(cover,TLSEXT_MAXLEN_host_name);
-        if (s->ext.hostname!=NULL) {
-            OPENSSL_free(s->ext.hostname);
+    }
+    if (s->ext.hostname!=NULL) {
+        OPENSSL_free(s->ext.hostname);
+        s->ext.hostname=NULL;
+    }
+    /* 
+     * We prefer Draft-03 public_name over locally supplied 
+     * covername. TODO: possibly re-consider that.
+     */
+    if (s->esni->public_name!=NULL) {
+        s->ext.hostname=OPENSSL_strndup(s->esni->public_name,TLSEXT_MAXLEN_host_name);
+    } else {
+        if (cover!=NULL) {
             s->ext.hostname=OPENSSL_strndup(cover,TLSEXT_MAXLEN_host_name);
         }
-
     }
+
     /*
      * Set to 1 when nonce returned
      * Checked for 0 when final_esni called
@@ -2266,7 +2336,15 @@ int SSL_get_esni_status(SSL *s, char **hidden, char **cover)
             vr=SSL_get_verify_result(s);
         }
         *hidden=s->esni->encservername;
-        *cover=s->esni->covername;
+        /*
+         * Prefer draft-03 public_name to locally supplied covername
+         * TODO: consider whether or not that's a good plan
+         */
+        if (s->esni->public_name) {
+            *cover=s->esni->public_name;
+        } else {
+            *cover=s->esni->covername;
+        }
         if (s->esni_done==1) {
             if (vr == X509_V_OK ) {
                 return SSL_ESNI_STATUS_SUCCESS;
