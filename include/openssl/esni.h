@@ -159,7 +159,7 @@ typedef struct ssl_esni_st {
     char *covername; ///< cleartext SNI (can be NULL)
     char *public_name;  ///< public_name from ESNIKeys
     int require_hidden_match; ///< If 1 then SSL_esni_get_status will barf if hidden name doesn't match TLS server cert. If 0, don't care.
-    int num_esnis; ///< the number of ESNIKeys structures in this array
+    int num_esni_rrs; ///< the number of ESNIKeys structures in this array
     size_t encoded_rr_len;
     unsigned char *encoded_rr; ///< Binary (base64 decoded) RR value
     size_t rd_len;
@@ -337,7 +337,7 @@ SSL_ESNI* SSL_ESNI_dup(SSL_ESNI* orig, size_t nesni);
 int SSL_esni_checknames(const char *encservername, const char *covername);
 
 /**
- * Decode and check the value retieved from DNS (binary, base64 or ascii-hex encoded)
+ * @brief Decode and check the value retieved from DNS (binary, base64 or ascii-hex encoded)
  *
  * The esnnikeys value here may be the catenation of multiple encoded ESNIKeys RR values 
  * (or TXT values for draft-02), we'll internally try decode and handle those and (later)
@@ -346,22 +346,24 @@ int SSL_esni_checknames(const char *encservername, const char *covername);
  * @param ekfmt specifies the format of the input text string
  * @param eklen is the length of the binary, base64 or ascii-hex encoded value from DNS
  * @param esnikeys is the binary, base64 or ascii-hex encoded value from DNS
+ * @param num_esnis says how many SSL_ESNI structures are in the returned array
  * @return is an SSL_ESNI structure
  */
-SSL_ESNI* SSL_ESNI_new_from_buffer(const short ekfmt, const size_t eklen, const char *esnikeys);
+SSL_ESNI* SSL_ESNI_new_from_buffer(const short ekfmt, const size_t eklen, const char *esnikeys, int *num_esnis);
 
 /**
- * Turn on SNI encryption for an (upcoming) TLS session
+ * @brief Turn on SNI encryption for an (upcoming) TLS session
  * 
  * @param s is the SSL context
  * @param hidde is the hidden service name
  * @param cover is the cleartext SNI name to use
- * @param esni is the SSL_ESNI structure
+ * @param esni is an array of SSL_ESNI structures
+ * @param nesnis says how many structures are in the esni array
  * @param require_hidden_match say whether to require (==1) the TLS server cert matches the hidden name
  * @return 1 for success, other otherwise
  * 
  */
-int SSL_esni_enable(SSL *s, const char *hidden, const char *cover, SSL_ESNI *esni, int require_hidden_match);
+int SSL_esni_enable(SSL *s, const char *hidden, const char *cover, SSL_ESNI *esni, int nesnis, int require_hidden_match);
 
 /**
  * Turn on SNI Encryption, server-side

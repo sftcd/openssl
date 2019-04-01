@@ -162,8 +162,9 @@ int main(int argc, char **argv)
         goto end;
     }
 
-    esnikeys=SSL_ESNI_new_from_buffer(ESNI_RRFMT_GUESS,strlen(esni_str),esni_str);
-    if (esnikeys == NULL) {
+    int nesnis=0;
+    esnikeys=SSL_ESNI_new_from_buffer(ESNI_RRFMT_GUESS,strlen(esni_str),esni_str,&nesnis);
+    if (nesnis==0 || esnikeys == NULL) {
         printf("Can't create SSL_ESNI from RR value!\n");
         goto end;
     }
@@ -203,20 +204,24 @@ int main(int argc, char **argv)
     if (out == NULL)
         goto end;
 
-    esnikeys->encservername=OPENSSL_strndup(encservername,TLSEXT_MAXLEN_host_name);
-    if (esnikeys->encservername==NULL)
-        goto end;
-    if (covername!=NULL) {
-        esnikeys->covername=OPENSSL_strndup(covername,TLSEXT_MAXLEN_host_name);
-        if (esnikeys->covername==NULL)
-            goto end;
-    } else {
-        esnikeys->covername=NULL;
-    }
+    for (int i=0;i!=nesnis;i++) {
 
-    if (!SSL_ESNI_enc(esnikeys,cr_len,client_random,cid,ckl,ck,&the_esni)) {
-        printf("Can't encrypt SSL_ESNI!\n");
-        goto end;
+        esnikeys[i].encservername=OPENSSL_strndup(encservername,TLSEXT_MAXLEN_host_name);
+        if (esnikeys[i].encservername==NULL)
+            goto end;
+        if (covername!=NULL) {
+            esnikeys[i].covername=OPENSSL_strndup(covername,TLSEXT_MAXLEN_host_name);
+            if (esnikeys[i].covername==NULL)
+                goto end;
+        } else {
+            esnikeys[i].covername=NULL;
+        }
+
+        if (!SSL_ESNI_enc(&esnikeys[i],cr_len,client_random,cid,ckl,ck,&the_esni)) {
+            printf("Can't encrypt SSL_ESNI!\n");
+            goto end;
+        }
+
     }
 
     if (!SSL_ESNI_print(out,esnikeys)) {

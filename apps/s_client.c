@@ -1022,6 +1022,7 @@ int s_client_main(int argc, char **argv)
     struct timeval tv;
 #endif
 #ifndef OPENSSL_NO_ESNI
+    int nesnis=0;
     const char *esnikeys_asciirr = NULL;
     SSL_ESNI *esnikeys=NULL;
 #else
@@ -1656,8 +1657,8 @@ int s_client_main(int argc, char **argv)
             goto opthelp;
         } 
 
-        esnikeys=SSL_ESNI_new_from_buffer(ESNI_RRFMT_GUESS,strlen(esnikeys_asciirr),esnikeys_asciirr);
-        if (esnikeys == NULL) {
+        esnikeys=SSL_ESNI_new_from_buffer(ESNI_RRFMT_GUESS,strlen(esnikeys_asciirr),esnikeys_asciirr,&nesnis);
+        if (nesnis==0 || esnikeys == NULL) {
             BIO_printf(bio_err,
                        "%s: ESNI decode failed.\n",
                        prog);
@@ -2226,7 +2227,7 @@ int s_client_main(int argc, char **argv)
 
 #ifndef OPENSSL_NO_ESNI
     if (encservername != NULL ) {
-        if (SSL_esni_enable(con,encservername,servername,esnikeys,esni_strict)!=1) {
+        if (SSL_esni_enable(con,encservername,servername,esnikeys,nesnis,esni_strict)!=1) {
             BIO_printf(bio_err, "%s: ESNI enabling failed.\n", prog);
             ERR_print_errors(bio_err);
             /*
@@ -3410,11 +3411,13 @@ int s_client_main(int argc, char **argv)
             print_stuff(bio_c_out, con, 1);
         SSL_free(con);
     }
+#ifndef OPENSSL_NO_ESNI
 	if (esnikeys!=NULL) {
 		SSL_ESNI_free(esnikeys);
 		OPENSSL_free(esnikeys);
 		esnikeys=NULL;
 	}
+#endif
     SSL_SESSION_free(psksess);
 #if !defined(OPENSSL_NO_NEXTPROTONEG)
     OPENSSL_free(next_proto.data);

@@ -24,10 +24,14 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- Better multi-valued RR support now, seems to be working okish. Some changes to
+  API for that, that are not yet reflected in the [design](design.md) document.
+  TODO: update design document when the -03 draft is more done.
+
 - Added reading of new (in -03) ``public_name`` ESNIKeys field. When present, that
   currently takes precedence over a locally supplied covername for including in the 
   cleartext SNI extension. TODO: Re-consider that, maybe move to the opposite if
-  covername is locally supplied, not sure which'd be better. If we do swtich that,
+  covername is locally supplied, not sure which'd be better. If we do switch that,
   then should take out use of covername as a default in test scripts.
 
 - Added support for multi-valued RR inputs. For b64, that's comma-separated. For binary,

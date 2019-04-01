@@ -12,7 +12,10 @@ openssl implementation of encrypted SNI.
 spec.
 - I've started to code up the [draft-ietf-tls-esni-03](https://tools.ietf.org/html/draft-ietf-tls-esni-03)
 version, but so far have only done the ``mk_esnikeys`` command line tool (and that's
-not tested yet). Everything to do with draft -03 is either non-existent or
+not very tested yet) and have also added handling of multivalued ESNIKeys RRs for
+both -02 and -03 versions of ESNIKeys.
+(API changes for that are not yet reflected below but are in the code.) 
+Everything else to do with draft -03 is either non-existent or
 untested as of now. And AFAIK there's nowhere to do interop testing just
 yet, but that may change in a week or two.
 - The most up to date
@@ -25,11 +28,12 @@ extension. That RR contains a public key usable to encrypt the name as a TLS
 ClientHello extension when connecting to the IP address that goes with the
 name.
 
+The -03 draft changes the ESNIKeys RR to use a new RRTYPE and adds some
+IP address handling.
+
 ## Our Goals
 
-- Provide Callum with a cool final year project:-)
-- Amuse Stephen
-- Do the above in a way that's helpful to the OpenSSL project
+- Implement ESNI in a way that's helpful to the OpenSSL project
 - Help the standardisation process in the IETF
 - Allow other folks to play with ESNI
 - Help make ESNI more widely available/usable 
