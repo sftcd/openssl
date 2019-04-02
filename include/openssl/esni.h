@@ -37,8 +37,7 @@
 #define ESNI_RRFMT_GUESS     0  ///< try guess which it is
 #define ESNI_RRFMT_BIN       1  ///< binary encoded
 #define ESNI_RRFMT_ASCIIHEX  2  ///< draft-03 ascii hex value(s catenated)
-#define ESNI_RRFMT_DIGOUT    3  ///< draft-03 possibly multi-line dig output
-#define ESNI_RRFMT_B64TXT    4  ///< draft-02 (legacy) base64 encoded TXT
+#define ESNI_RRFMT_B64TXT    3  ///< draft-02 (legacy) base64 encoded TXT
 
 /**
  * If defined, this provides enough API, internals and tracing so we can 

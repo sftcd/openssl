@@ -778,19 +778,19 @@ static int esni_guess_fmt(const size_t eklen,
     if (!guessedfmt || eklen <=0 || !esnikeys) {
         return(0);
     }
+    /* asci hex is easy:-) either case allowed*/
     const char *AH_alphabet="0123456789ABCDEFabcdef";
     /* we actually add a semi-colon here as we accept multiple semi-colon separated values */
     const char *B64_alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=;";
     /*
      * Try from most constrained to least in that order
      */
-    /* TODO: first check dig output fmt */
     if (eklen<=strspn(esnikeys,AH_alphabet)) {
         *guessedfmt=ESNI_RRFMT_ASCIIHEX;
     } else if (eklen<=strspn(esnikeys,B64_alphabet)) {
         *guessedfmt=ESNI_RRFMT_B64TXT;
     } else {
-        // fallback - guess binary
+        // fallback - try binary
         *guessedfmt=ESNI_RRFMT_BIN;
     }
     return(1);
@@ -818,7 +818,6 @@ SSL_ESNI* SSL_ESNI_new_from_buffer(const short ekfmt, const size_t eklen, const 
         case ESNI_RRFMT_GUESS:
             break;
         case ESNI_RRFMT_ASCIIHEX:
-        case ESNI_RRFMT_DIGOUT:
         case ESNI_RRFMT_B64TXT:
             detfmt=ekfmt;
             break;

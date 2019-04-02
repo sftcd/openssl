@@ -24,6 +24,8 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- Ditched the idea of parsing dig output within library - 'twas a silly idea:-)
+
 - Better multi-valued RR support now, seems to be working okish. Some changes to
   API for that, that are not yet reflected in the [design](design.md) document.
   TODO: update design document when the -03 draft is more done.
@@ -36,14 +38,14 @@ Most recent first...
 
 - Added support for multi-valued RR inputs. For b64, that's comma-separated. For binary,
   or ascii-hex just a catentation is enough. (That's down to b64 padding being harder 
-  to find in the middle of a catenated input;-) Still gotta add/test the dig format.
+  to find in the middle of a catenated input;-) 
   This has only been tested via the [``doit2.sh``](doit2.sh) script.
 
 - Added a ``ekfmt`` input to ``SSL_ESNI_new_from_buffer()`` with possible values as below:
 
                 #define ESNI_RRFMT_GUESS     0  ///< try guess which it is
-                #define ESNI_RRFMT_ASCIIHEX  1  ///< draft-03 ascii hex value(s catenated)
-                #define ESNI_RRFMT_DIGOUT    2  ///< draft-03 possibly multi-line dig output
+                #define ESNI_RRFMT_BIN       1  ///< binary encoded
+                #define ESNI_RRFMT_ASCIIHEX  2  ///< draft-03 ascii hex value(s catenated)
                 #define ESNI_RRFMT_B64TXT    3  ///< draft-02 (legacy) base64 encoded TXT
 
     The dig output variant isn't yet done, and more testing is needed.
