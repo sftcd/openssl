@@ -65,7 +65,7 @@ static int trace_write(BIO *channel,
                        const char *buf, size_t num, size_t *written)
 {
     struct trace_data_st *ctx = BIO_get_data(channel);
-    size_t cnt = ctx->callback(buf, num, ctx->category, OSSL_TRACE_CTRL_DURING,
+    size_t cnt = ctx->callback(buf, num, ctx->category, OSSL_TRACE_CTRL_WRITE,
                                ctx->data);
 
     *written = cnt;
@@ -119,7 +119,7 @@ struct trace_category_st {
 #define TRACE_CATEGORY_(name)       { #name, OSSL_TRACE_CATEGORY_##name }
 
 static const struct trace_category_st trace_categories[] = {
-    TRACE_CATEGORY_(ANY),
+    TRACE_CATEGORY_(ALL),
     TRACE_CATEGORY_(TRACE),
     TRACE_CATEGORY_(INIT),
     TRACE_CATEGORY_(TLS),
@@ -158,7 +158,7 @@ int OSSL_trace_get_category_num(const char *name)
 
 /* We use one trace channel for each trace category */
 static struct {
-    enum { t_channel, t_callback } type;
+    enum { SIMPLE_CHANNEL, CALLBACK_CHANNEL } type;
     BIO *bio;
     char *prefix;
     char *suffix;
@@ -169,18 +169,25 @@ static struct {
 #endif
 
 #ifndef OPENSSL_NO_TRACE
+
+enum {
+    CHANNEL,
+    PREFIX,
+    SUFFIX
+};
+
 static int trace_attach_cb(int category, int type, const void *data)
 {
     switch (type) {
-    case 0:                      /* Channel */
+    case CHANNEL:
         OSSL_TRACE2(TRACE, "Attach channel %p to category '%s'\n",
                     data, trace_categories[category].name);
         break;
-    case 1:                      /* Prefix */
+    case PREFIX:
         OSSL_TRACE2(TRACE, "Attach prefix \"%s\" to category '%s'\n",
                     (const char *)data, trace_categories[category].name);
         break;
-    case 2:                      /* Suffix */
+    case SUFFIX:
         OSSL_TRACE2(TRACE, "Attach suffix \"%s\" to category '%s'\n",
                     (const char *)data, trace_categories[category].name);
         break;
@@ -193,15 +200,15 @@ static int trace_attach_cb(int category, int type, const void *data)
 static int trace_detach_cb(int category, int type, const void *data)
 {
     switch (type) {
-    case 0:                      /* Channel */
+    case CHANNEL:
         OSSL_TRACE2(TRACE, "Detach channel %p from category '%s'\n",
                     data, trace_categories[category].name);
         break;
-    case 1:                      /* Prefix */
+    case PREFIX:
         OSSL_TRACE2(TRACE, "Detach prefix \"%s\" from category '%s'\n",
                     (const char *)data, trace_categories[category].name);
         break;
-    case 2:                      /* Suffix */
+    case SUFFIX:
         OSSL_TRACE2(TRACE, "Detach suffix \"%s\" from category '%s'\n",
                     (const char *)data, trace_categories[category].name);
         break;
@@ -211,7 +218,7 @@ static int trace_detach_cb(int category, int type, const void *data)
     return 1;
 }
 
-static int set_trace_data(int category, BIO **channel,
+static int set_trace_data(int category, int type, BIO **channel,
                           const char **prefix, const char **suffix,
                           int (*attach_cb)(int, int, const void *),
                           int (*detach_cb)(int, int, const void *))
@@ -222,15 +229,15 @@ static int set_trace_data(int category, BIO **channel,
 
     /* Make sure to run the detach callback first on all data */
     if (prefix != NULL && curr_prefix != NULL) {
-        detach_cb(category, 1, curr_prefix);
+        detach_cb(category, PREFIX, curr_prefix);
     }
 
     if (suffix != NULL && curr_suffix != NULL) {
-        detach_cb(category, 2, curr_suffix);
+        detach_cb(category, SUFFIX, curr_suffix);
     }
 
     if (channel != NULL && curr_channel != NULL) {
-        detach_cb(category, 0, curr_channel);
+        detach_cb(category, CHANNEL, curr_channel);
     }
 
     /* After detach callbacks are done, clear data where appropriate */
@@ -246,11 +253,13 @@ static int set_trace_data(int category, BIO **channel,
 
     if (channel != NULL && curr_channel != NULL) {
         BIO_free(curr_channel);
+        trace_channels[category].type = 0;
         trace_channels[category].bio = NULL;
     }
 
     /* Before running callbacks are done, set new data where appropriate */
     if (channel != NULL && *channel != NULL) {
+        trace_channels[category].type = type;
         trace_channels[category].bio = *channel;
     }
 
@@ -268,15 +277,15 @@ static int set_trace_data(int category, BIO **channel,
 
     /* Finally, run the attach callback on the new data */
     if (channel != NULL && *channel != NULL) {
-        attach_cb(category, 0, *channel);
+        attach_cb(category, CHANNEL, *channel);
     }
 
     if (prefix != NULL && *prefix != NULL) {
-        attach_cb(category, 1, *prefix);
+        attach_cb(category, PREFIX, *prefix);
     }
 
     if (suffix != NULL && *suffix != NULL) {
-        attach_cb(category, 2, *suffix);
+        attach_cb(category, SUFFIX, *suffix);
     }
 
     return 1;
@@ -287,11 +296,11 @@ int ossl_trace_init(void)
 {
 #ifndef OPENSSL_NO_TRACE
     trace_lock = CRYPTO_THREAD_lock_new();
-    if (trace_lock != NULL)
-        return 1;
+    if (trace_lock == NULL)
+        return 0;
 #endif
 
-    return 0;
+    return 1;
 }
 
 void ossl_trace_cleanup(void)
@@ -306,10 +315,11 @@ void ossl_trace_cleanup(void)
         /* We force the TRACE category to be treated last */
         if (category == OSSL_TRACE_CATEGORY_TRACE)
             continue;
-        set_trace_data(category, &channel, &prefix, &suffix,
+        set_trace_data(category, 0, &channel, &prefix, &suffix,
                        trace_attach_cb, trace_detach_cb);
     }
-    set_trace_data(OSSL_TRACE_CATEGORY_TRACE, &channel, &prefix, &suffix,
+    set_trace_data(OSSL_TRACE_CATEGORY_TRACE, 0, &channel,
+                   &prefix, &suffix,
                    trace_attach_cb, trace_detach_cb);
     CRYPTO_THREAD_lock_free(trace_lock);
 #endif
@@ -318,17 +328,10 @@ void ossl_trace_cleanup(void)
 int OSSL_trace_set_channel(int category, BIO *channel)
 {
 #ifndef OPENSSL_NO_TRACE
-    if (category < 0 || category >= OSSL_TRACE_CATEGORY_NUM
-        || !set_trace_data(category, &channel, NULL, NULL,
-                           trace_attach_cb, trace_detach_cb))
-        goto err;
-
-    trace_channels[category].type = t_channel;
-    return 1;
-
- err:
+    if (category >= 0 && category < OSSL_TRACE_CATEGORY_NUM)
+        return set_trace_data(category, SIMPLE_CHANNEL, &channel, NULL, NULL,
+                              trace_attach_cb, trace_detach_cb);
 #endif
-
     return 0;
 }
 
@@ -336,16 +339,16 @@ int OSSL_trace_set_channel(int category, BIO *channel)
 static int trace_attach_w_callback_cb(int category, int type, const void *data)
 {
     switch (type) {
-    case 0:                      /* Channel */
+    case CHANNEL:
         OSSL_TRACE2(TRACE,
                     "Attach channel %p to category '%s' (with callback)\n",
                     data, trace_categories[category].name);
         break;
-    case 1:                      /* Prefix */
+    case PREFIX:
         OSSL_TRACE2(TRACE, "Attach prefix \"%s\" to category '%s'\n",
                     (const char *)data, trace_categories[category].name);
         break;
-    case 2:                      /* Suffix */
+    case SUFFIX:
         OSSL_TRACE2(TRACE, "Attach suffix \"%s\" to category '%s'\n",
                     (const char *)data, trace_categories[category].name);
         break;
@@ -363,7 +366,7 @@ int OSSL_trace_set_callback(int category, OSSL_trace_cb callback, void *data)
     struct trace_data_st *trace_data = NULL;
 
     if (category < 0 || category >= OSSL_TRACE_CATEGORY_NUM)
-        goto err;
+        return 0;
 
     if (callback != NULL) {
         if ((channel = BIO_new(&trace_method)) == NULL
@@ -378,11 +381,10 @@ int OSSL_trace_set_callback(int category, OSSL_trace_cb callback, void *data)
         BIO_set_data(channel, trace_data);
     }
 
-    if (!set_trace_data(category, &channel, NULL, NULL,
+    if (!set_trace_data(category, CALLBACK_CHANNEL, &channel, NULL, NULL,
                         trace_attach_w_callback_cb, trace_detach_cb))
         goto err;
 
-    trace_channels[category].type = t_callback;
     return 1;
 
  err:
@@ -396,22 +398,20 @@ int OSSL_trace_set_callback(int category, OSSL_trace_cb callback, void *data)
 int OSSL_trace_set_prefix(int category, const char *prefix)
 {
 #ifndef OPENSSL_NO_TRACE
-    if (category >= 0 || category < OSSL_TRACE_CATEGORY_NUM)
-        return set_trace_data(category, NULL, &prefix, NULL,
+    if (category >= 0 && category < OSSL_TRACE_CATEGORY_NUM)
+        return set_trace_data(category, 0, NULL, &prefix, NULL,
                               trace_attach_cb, trace_detach_cb);
 #endif
-
     return 0;
 }
 
 int OSSL_trace_set_suffix(int category, const char *suffix)
 {
 #ifndef OPENSSL_NO_TRACE
-    if (category >= 0 || category < OSSL_TRACE_CATEGORY_NUM)
-        return set_trace_data(category, NULL, NULL, &suffix,
+    if (category >= 0 && category < OSSL_TRACE_CATEGORY_NUM)
+        return set_trace_data(category, 0, NULL, NULL, &suffix,
                               trace_attach_cb, trace_detach_cb);
 #endif
-
     return 0;
 }
 
@@ -422,7 +422,7 @@ static int ossl_trace_get_category(int category)
         return -1;
     if (trace_channels[category].bio != NULL)
         return category;
-    return OSSL_TRACE_CATEGORY_ANY;
+    return OSSL_TRACE_CATEGORY_ALL;
 }
 #endif
 
@@ -431,7 +431,8 @@ int OSSL_trace_enabled(int category)
     int ret = 0;
 #ifndef OPENSSL_NO_TRACE
     category = ossl_trace_get_category(category);
-    ret = trace_channels[category].bio != NULL;
+    if (category >= 0)
+        ret = trace_channels[category].bio != NULL;
 #endif
     return ret;
 }
@@ -443,6 +444,9 @@ BIO *OSSL_trace_begin(int category)
     char *prefix = NULL;
 
     category = ossl_trace_get_category(category);
+    if (category < 0)
+        return NULL;
+
     channel = trace_channels[category].bio;
     prefix = trace_channels[category].prefix;
 
@@ -450,13 +454,13 @@ BIO *OSSL_trace_begin(int category)
         CRYPTO_THREAD_write_lock(trace_lock);
         current_channel = channel;
         switch (trace_channels[category].type) {
-        case t_channel:
+        case SIMPLE_CHANNEL:
             if (prefix != NULL) {
                 (void)BIO_puts(channel, prefix);
                 (void)BIO_puts(channel, "\n");
             }
             break;
-        case t_callback:
+        case CALLBACK_CHANNEL:
             (void)BIO_ctrl(channel, OSSL_TRACE_CTRL_BEGIN,
                            prefix == NULL ? 0 : strlen(prefix), prefix);
             break;
@@ -477,13 +481,13 @@ void OSSL_trace_end(int category, BIO * channel)
         && ossl_assert(channel == current_channel)) {
         (void)BIO_flush(channel);
         switch (trace_channels[category].type) {
-        case t_channel:
+        case SIMPLE_CHANNEL:
             if (suffix != NULL) {
                 (void)BIO_puts(channel, suffix);
                 (void)BIO_puts(channel, "\n");
             }
             break;
-        case t_callback:
+        case CALLBACK_CHANNEL:
             (void)BIO_ctrl(channel, OSSL_TRACE_CTRL_END,
                            suffix == NULL ? 0 : strlen(suffix), suffix);
             break;

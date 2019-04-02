@@ -148,7 +148,7 @@ OPENSSLDIR_dev={- #
 OPENSSLDIR_dir={- canonpath($openssldir_dir) -}
 LIBDIR={- our $libdir = $config{libdir} || "lib";
           file_name_is_absolute($libdir) ? "" : $libdir -}
-MODULESDIR_dev={- use File::Spec::Functions qw(:DEFAULT splitpath);
+MODULESDIR_dev={- use File::Spec::Functions qw(:DEFAULT splitpath catpath);
                   our $modulesprefix = catdir($prefix,$libdir);
                   our ($modulesprefix_dev, $modulesprefix_dir,
                        $modulesprefix_file) =
@@ -158,7 +158,7 @@ MODULESDIR_dev={- use File::Spec::Functions qw(:DEFAULT splitpath);
                       catdir($modulesprefix_dir, "ossl-modules");
                   our $modulesdir = catpath($modulesdir_dev, $modulesdir_dir);
                   our $enginesdir_dev = $modulesprefix_dev;
-                  out $enginesdir_dir =
+                  our $enginesdir_dir =
                       catdir($modulesprefix_dir, "engines-$sover_dirname");
                   our $enginesdir = catpath($enginesdir_dev, $enginesdir_dir);
                   $modulesdir_dev -}
@@ -601,8 +601,13 @@ EOF
   }
 
  sub src2obj {
+     my $asmext = platform->asmext();
      my %args = @_;
-     my @srcs = map { (my $x = $_) =~ s/\.s$/.asm/; $x } ( @{$args{srcs}} );
+     my @srcs =
+         map { my $x = $_;
+               (platform->isasm($x) && grep { $x eq $_ } @generated)
+               ? platform->asm($x) : $x }
+         ( @{$args{srcs}} );
      my $srcs = '"'.join('" "',  @srcs).'"';
      my $deps = '"'.join('" "', @srcs, @{$args{deps}}).'"';
      my $incs = join("", map { ' /I "'.$_.'"' } @{$args{incs}});
@@ -630,7 +635,7 @@ EOF
      }
      my $obj = platform->obj($args{obj});
      my $dep = platform->dep($args{obj});
-     if ($srcs[0] =~ /\.asm$/) {
+     if ($srcs[0] =~ /\Q${asmext}\E$/) {
          return <<"EOF";
 $obj: $deps
 	\$(AS) $asflags \$(ASOUTFLAG)\$\@ $srcs

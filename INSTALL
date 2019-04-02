@@ -353,9 +353,6 @@
                    on BSD implementations, in which case it can be disabled with
                    no-devcryptoeng.
 
-  no-dso
-                   Don't build support for loading Dynamic Shared Objects.
-
   no-dynamic-engine
                    Don't build the dynamically loaded engines. This only has an
                    effect in a "shared" build
@@ -522,6 +519,10 @@
                    platform where this is not the case then this will usually
                    require additional system-dependent options! See "Note on
                    multi-threading" below.
+
+  enable-trace
+                   Build with support for the integrated tracing api. See manual pages
+                   OSSL_trace_set_channel(3) and OSSL_trace_enabled(3) for details.
 
   no-ts
                    Don't build Time Stamping Authority support.

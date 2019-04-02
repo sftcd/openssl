@@ -24,6 +24,8 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- Re-merged with upstream. (20190402)
+
 - Ditched the idea of parsing dig output within library - 'twas a silly idea:-)
 
 - Better multi-valued RR support now, seems to be working okish. Some changes to
@@ -152,7 +154,7 @@ good ESNI is present, which is reasonable, if a small surprise.
 
             $ git remote add upstream https://github.com/openssl/openssl.git
             $ git fetch upstream
-            $ git rebase upstream/master
+            $ git merge upstream/master
             ...some mucking with merge fails...
             $ git push -f origin master  
 

@@ -9,9 +9,28 @@
 
  Changes between 1.1.1 and 3.0.0 [xx XXX xxxx]
 
-  *) Added support for enabling instrumentation through trace output.
-     This is left to application control, by allowing it to register BIOs as
-     channels for a number of tracing and debugging categories.
+  *) Added newline escaping functionality to a filename when using openssl dgst.
+     This output format is to replicate the output format found in the '*sum'
+     checksum programs. This aims to preserve backward compatibility.
+     [Matt Eaton, Richard Levitte, and Paul Dale]
+
+  *) Removed the heartbeat message in DTLS feature, as it has very
+     little usage and doesn't seem to fulfill a valuable purpose.
+     The configuration option is now deprecated.
+     [Richard Levitte]
+
+  *) Changed the output of 'openssl {digestname} < file' to display the
+     digest name in its output.
+     [Richard Levitte]
+
+  *) Added a new generic trace API which provides support for enabling
+     instrumentation through trace output. This feature is mainly intended
+     as an aid for developers and is disabled by default. To utilize it,
+     OpenSSL needs to be configured with the `enable-trace` option.
+
+     If the tracing API is enabled, the application can activate trace output
+     by registering BIOs as trace channels for a number of tracing and debugging
+     categories.
 
      The 'openssl' application has been expanded to enable any of the types
      available via environment variables defined by the user, and serves as
@@ -25,6 +44,12 @@
      This test isn't enabled by default.  It can be enabled with the option
      'enable-buildtest-c++'.
      [Richard Levitte]
+
+  *) Add Single Step KDF (EVP_KDF_SS) to EVP_KDF.
+     [Shane Lontis]
+
+  *) Add KMAC to EVP_MAC.
+     [Shane Lontis]
 
   *) Added property based algorithm implementation selection framework to
      the core.

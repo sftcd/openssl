@@ -387,7 +387,7 @@ static const OSSL_PARAM static_api_params[] = {
  * The same array again, but constructed at run-time
  * This exercises the OSSL_PARAM constructor functions
  */
-OSSL_PARAM *construct_api_params(void)
+static OSSL_PARAM *construct_api_params(void)
 {
     size_t n = 0;
     static OSSL_PARAM params[10];
@@ -414,11 +414,11 @@ struct param_owner_st {
     OSSL_PARAM *(*constructed_params)(void);
 };
 
-struct param_owner_st raw_params = {
+static const struct param_owner_st raw_params = {
     static_raw_params, NULL
 };
 
-struct param_owner_st api_params = {
+static const struct param_owner_st api_params = {
     static_api_params, construct_api_params
 };
 
@@ -469,7 +469,7 @@ static int test_case_variant(const OSSL_PARAM *params,
 
     if (!TEST_true(prov->get_params(obj, params))
         || !TEST_int_eq(app_p1, p1_init)        /* "provider" value */
-        || !TEST_ulong_eq(app_p2, app_p2_init)  /* Should remain untouched */
+        || !TEST_double_eq(app_p2, app_p2_init) /* Should remain untouched */
         || !TEST_ptr(BN_native2bn(bignumbin, bignumbin_l, app_p3))
         || !TEST_BN_eq(app_p3, verify_p3)       /* "provider" value */
         || !TEST_str_eq(app_p4, p4_init)        /* "provider" value */
@@ -491,7 +491,7 @@ static int test_case_variant(const OSSL_PARAM *params,
         struct object_st *sneakpeek = obj;
 
         if (!TEST_int_eq(sneakpeek->p1, app_p1)         /* app value set */
-            || !TEST_ulong_eq(sneakpeek->p2, p2_init) /* Should remain untouched */
+            || !TEST_double_eq(sneakpeek->p2, p2_init)  /* Should remain untouched */
             || !TEST_BN_eq(sneakpeek->p3, app_p3)       /* app value set */
             || !TEST_str_eq(sneakpeek->p4, app_p4)      /* app value set */
             || !TEST_str_eq(sneakpeek->p5, app_p5))     /* app value set */
@@ -512,7 +512,7 @@ static int test_case_variant(const OSSL_PARAM *params,
 
     if (!TEST_true(prov->get_params(obj, params))
         || !TEST_int_eq(app_p1, app_p1_init)    /* app value */
-        || !TEST_ulong_eq(app_p2, app_p2_init)  /* Should remain untouched */
+        || !TEST_double_eq(app_p2, app_p2_init) /* Should remain untouched */
         || !TEST_ptr(BN_native2bn(bignumbin, bignumbin_l, app_p3))
         || !TEST_BN_eq(app_p3, verify_p3)       /* app value */
         || !TEST_str_eq(app_p4, app_p4_init)    /* app value */

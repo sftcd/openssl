@@ -30,9 +30,13 @@ extern "C" {
  * BIO which sends all trace output it receives to the registered application
  * callback.
  *
- * The ANY category is used as a fallback category.
+ * The ALL category can be used as a fallback category to register a single
+ * channel which receives the output from all categories. However, if the
+ * application intends to print the trace channel name in the line prefix,
+ * it is better to register channels for all categories separately.
+ * (This is how the openssl application does it.)
  */
-# define OSSL_TRACE_CATEGORY_ANY                 0 /* The fallback */
+# define OSSL_TRACE_CATEGORY_ALL                 0 /* The fallback */
 # define OSSL_TRACE_CATEGORY_TRACE               1
 # define OSSL_TRACE_CATEGORY_INIT                2
 # define OSSL_TRACE_CATEGORY_TLS                 3
@@ -95,7 +99,7 @@ typedef size_t (*OSSL_trace_cb)(const char *buffer, size_t count,
  * Possible |cmd| numbers.
  */
 # define OSSL_TRACE_CTRL_BEGIN  0
-# define OSSL_TRACE_CTRL_DURING 1
+# define OSSL_TRACE_CTRL_WRITE  1
 # define OSSL_TRACE_CTRL_END    2
 
 /*

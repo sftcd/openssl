@@ -118,6 +118,8 @@ static char *make_config_name(void)
     return p;
 }
 
+
+#ifndef OPENSSL_NO_TRACE
 typedef struct tracedata_st {
     BIO *bio;
     unsigned int ingroup:1;
@@ -126,30 +128,19 @@ typedef struct tracedata_st {
 static size_t internal_trace_cb(const char *buf, size_t cnt,
                                 int category, int cmd, void *vdata)
 {
-    int ret;
+    int ret = 0;
     tracedata *trace_data = vdata;
-    int set_prefix = 0;
+    union {
+        CRYPTO_THREAD_ID tid;
+        unsigned long ltid;
+    } tid;
+    char buffer[256];
 
     switch (cmd) {
     case OSSL_TRACE_CTRL_BEGIN:
+        if (!ossl_assert(!trace_data->ingroup))
+            return 0;
         trace_data->ingroup = 1;
-        set_prefix = 1;
-        break;
-    case OSSL_TRACE_CTRL_DURING:
-        if (!trace_data->ingroup)
-            set_prefix = 1;
-        break;
-    case OSSL_TRACE_CTRL_END:
-        trace_data->ingroup = 0;
-        break;
-    }
-
-    if (set_prefix) {
-        union {
-            CRYPTO_THREAD_ID tid;
-            unsigned long ltid;
-        } tid;
-        char buffer[256];
 
         tid.ltid = 0;
         tid.tid = CRYPTO_THREAD_get_current_id();
@@ -158,8 +149,22 @@ static size_t internal_trace_cb(const char *buf, size_t cnt,
                      OSSL_trace_get_category_name(category));
         BIO_ctrl(trace_data->bio, PREFIX_CTRL_SET_PREFIX,
                  strlen(buffer), buffer);
+        break;
+    case OSSL_TRACE_CTRL_WRITE:
+        if (!ossl_assert(trace_data->ingroup))
+            return 0;
+
+        ret = BIO_write(trace_data->bio, buf, cnt);
+        break;
+    case OSSL_TRACE_CTRL_END:
+        if (!ossl_assert(trace_data->ingroup))
+            return 0;
+        trace_data->ingroup = 0;
+
+        BIO_ctrl(trace_data->bio, PREFIX_CTRL_SET_PREFIX, 0, NULL);
+
+        break;
     }
-    ret = BIO_write(trace_data->bio, buf, cnt);
 
     return ret < 0 ? 0 : ret;
 }
@@ -180,6 +185,33 @@ static void cleanup_trace(void)
     sk_tracedata_pop_free(trace_data_stack, tracedata_free);
 }
 
+static void setup_trace_category(int category)
+{
+    BIO *channel;
+    tracedata *trace_data;
+
+    if (OSSL_trace_enabled(category))
+        return;
+
+    channel = BIO_push(BIO_new(apps_bf_prefix()),
+                       dup_bio_err(FORMAT_TEXT));
+    trace_data = OPENSSL_zalloc(sizeof(*trace_data));
+
+    if (trace_data == NULL
+        || (trace_data->bio = channel) == NULL
+        || OSSL_trace_set_callback(category, internal_trace_cb,
+                                   trace_data) == 0
+        || sk_tracedata_push(trace_data_stack, trace_data) == 0) {
+
+        fprintf(stderr,
+                "warning: unable to setup trace callback for category '%s'.\n",
+                OSSL_trace_get_category_name(category));
+
+        OSSL_trace_set_callback(category, NULL, NULL);
+        BIO_free_all(channel);
+    }
+}
+
 static void setup_trace(const char *str)
 {
     char *val;
@@ -194,26 +226,15 @@ static void setup_trace(const char *str)
         for (valp = val; (item = strtok(valp, ",")) != NULL; valp = NULL) {
             int category = OSSL_trace_get_category_num(item);
 
-            if (category >= 0) {
-                BIO *channel = BIO_push(BIO_new(apps_bf_prefix()),
-                                        dup_bio_err(FORMAT_TEXT));
-                tracedata *trace_data = OPENSSL_zalloc(sizeof(*trace_data));
-
-                if (trace_data == NULL
-                    || (trace_data->bio = channel) == NULL
-                    || OSSL_trace_set_callback(category, internal_trace_cb,
-                                               trace_data) == 0
-                    || sk_tracedata_push(trace_data_stack, trace_data) == 0) {
-                    OSSL_trace_set_callback(category, NULL, NULL);
-                    BIO_free_all(channel);
-                    fprintf(stderr,
-                            "warning: unable to setup trace callback for category '%s'.\n",
-                            item);
-                }
+            if (category == OSSL_TRACE_CATEGORY_ALL) {
+                while (++category < OSSL_TRACE_CATEGORY_NUM)
+                    setup_trace_category(category);
+                break;
+            } else if (category > 0) {
+                setup_trace_category(category);
             } else {
                 fprintf(stderr,
-                        "warning: unknown trace category: '%s'.\n",
-                        item);
+                        "warning: unknown trace category: '%s'.\n", item);
             }
         }
     }
@@ -221,6 +242,7 @@ static void setup_trace(const char *str)
     OPENSSL_free(val);
     atexit(cleanup_trace);
 }
+#endif /* OPENSSL_NO_TRACE */
 
 int main(int argc, char *argv[])
 {
@@ -257,7 +279,9 @@ int main(int argc, char *argv[])
      */
     atexit(destroy_prefix_method);
 
+#ifndef OPENSSL_NO_TRACE
     setup_trace(getenv("OPENSSL_TRACE"));
+#endif
 
     p = getenv("OPENSSL_DEBUG_MEMORY");
     if (p != NULL && strcmp(p, "on") == 0)
@@ -712,8 +736,9 @@ static void list_type(FUNC_TYPE ft, int one)
 {
     FUNCTION *fp;
     int i = 0;
-    DISPLAY_COLUMNS dc = {0};
+    DISPLAY_COLUMNS dc;
 
+    memset(&dc, 0, sizeof(dc));
     if (!one)
         calculate_columns(&dc);
 
@@ -918,9 +943,6 @@ static void list_disabled(void)
 #endif
 #ifdef OPENSSL_NO_GOST
     BIO_puts(bio_out, "GOST\n");
-#endif
-#ifdef OPENSSL_NO_HEARTBEATS
-    BIO_puts(bio_out, "HEARTBEATS\n");
 #endif
 #ifdef OPENSSL_NO_IDEA
     BIO_puts(bio_out, "IDEA\n");
