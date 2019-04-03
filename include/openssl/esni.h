@@ -112,7 +112,8 @@ typedef struct esni_record_st {
     uint64_t not_after;
     unsigned int nexts;
     unsigned int *exttypes;
-    void **exts;
+    size_t *extlens;
+    unsigned char **exts;
 } ESNI_RECORD;
 
 /**
@@ -154,6 +155,7 @@ typedef struct client_esni_st {
  * structure when a handshake is in porgress. (Well, hopefully:-)
  */
 typedef struct ssl_esni_st {
+    unsigned int version; ///< version from underlying ESNI_RECORD/ESNIKeys
     char *encservername; ///< hidden server name
     char *covername; ///< cleartext SNI (can be NULL)
     char *public_name;  ///< public_name from ESNIKeys
@@ -172,7 +174,11 @@ typedef struct ssl_esni_st {
     uint64_t not_before; ///< from ESNIKeys (not currently used)
     uint64_t not_after; ///< from ESNIKeys (not currently used)
     int nexts; ///< number of extensions (not yet supported so >0 => fail)
-    void **exts; ///< extensions
+    unsigned int *exttypes; ///< array of extension types
+    size_t *extlens; ///< lengths of encoded extension octets
+    unsigned char **exts; ///< encoded extension octets
+    int naddrs; ///< decoded AddressSet cardinality
+    BIO_ADDR **addrs; ///< decoded AddressSet values (v4 or v6)
     size_t nonce_len; 
     unsigned char *nonce; ///< Nonce we challenge server to respond with
     size_t hs_cr_len; 

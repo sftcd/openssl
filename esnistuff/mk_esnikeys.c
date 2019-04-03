@@ -504,7 +504,7 @@ static int mk_esnikeys(int argc, char **argv)
         }
         int nelen=(tp-tmpebuf);
         int exttype=0x1001;
-        if (nelen>0xffff) {
+        if (nelen>ESNI_MAX_RRVALUE_LEN) {
             fprintf(stderr,"Encoded extensions too big (%d) - exiting\n",nelen);
             exit(1);
         }
@@ -515,7 +515,7 @@ static int mk_esnikeys(int argc, char **argv)
                 exit(1);
             }
             extvals[0]=((nelen+4)>>8)%256;
-            extvals[1]=(nelen+3)%256;
+            extvals[1]=(nelen+4)%256;
             extvals[2]=(exttype>>8)%256;
             extvals[3]=exttype%256;
             extvals[4]=(nelen>>8)%256;

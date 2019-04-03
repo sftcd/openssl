@@ -228,13 +228,22 @@ void ESNI_RECORD_free(ESNI_RECORD *er)
         if (er->encoded_keys[i]!=NULL) OPENSSL_free(er->encoded_keys[i]);
     }
     if (er->keys!=NULL) OPENSSL_free(er->keys);
+
+#ifdef DEEP_COPY_EXTS
+    /*
+     * Extension-related values were shallow copied to above so don't free here
+     */
     for (i=0;i!=er->nexts;i++) {
-        if (er->exts[i]!=NULL) OPENSSL_free(er->exts[i]);
+        if (er->exts && er->exts[i]!=NULL) OPENSSL_free(er->exts[i]);
     }
+    if (er->exts!=NULL) OPENSSL_free(er->exts);
+    if (er->exttypes!=NULL) OPENSSL_free(er->exttypes);
+    if (er->extlens!=NULL) OPENSSL_free(er->extlens);
+#endif
+
     if (er->ciphersuites!=NULL) OPENSSL_free(er->ciphersuites);
     if (er->encoded_lens!=NULL) OPENSSL_free(er->encoded_lens);
     if (er->encoded_keys!=NULL) OPENSSL_free(er->encoded_keys);
-    if (er->exts!=NULL) OPENSSL_free(er->exts);
     return;
 }
 
@@ -249,21 +258,21 @@ void ESNI_RECORD_free(ESNI_RECORD *er)
  */
 void SSL_ESNI_free(SSL_ESNI *deadesni)
 {
-    /*
-     * The CLIENT_ESNI structure (the_esni) doesn't have separately
-     * allocated buffers on the client, but it does on the server.
-     * So we check if they're pointers to other SSL_ESNI fields 
-     * or need to be freed
-     */
     for (int i=0;i!=deadesni->num_esni_rrs;i++) {
         SSL_ESNI *esni=&deadesni[i];
+        if (esni==NULL) return;
         if (esni->the_esni) {
+            /*
+             * The CLIENT_ESNI structure (the_esni) doesn't have separately
+             * allocated buffers on the client, but it does on the server.
+             * So we check if they're pointers to other SSL_ESNI fields 
+             * or need to be freed
+             */
             CLIENT_ESNI *ce=esni->the_esni;
             if (ce->encoded_keyshare!= NULL && ce->encoded_keyshare!=esni->encoded_keyshare) OPENSSL_free(ce->encoded_keyshare);
             if (ce->record_digest != NULL && ce->record_digest!=esni->rd) OPENSSL_free(ce->record_digest);
             if (ce->encrypted_sni != NULL && ce->encrypted_sni!=esni->cipher) OPENSSL_free(ce->encrypted_sni);
         }
-        if (esni==NULL) return;
         if (esni->encservername!=NULL) OPENSSL_free(esni->encservername);
         if (esni->covername!=NULL) OPENSSL_free(esni->covername);
         if (esni->public_name!=NULL) OPENSSL_free(esni->public_name);
@@ -292,6 +301,15 @@ void SSL_ESNI_free(SSL_ESNI *deadesni)
 #endif
         /* the buffers below here were freed above if needed */
         if (esni->the_esni!=NULL) OPENSSL_free(esni->the_esni); 
+        if (esni->nexts!=0) {
+            int j=0;
+            for (j=0;j!=esni->nexts;j++) {
+                if (esni->exts && esni->exts[j]!=NULL) OPENSSL_free(esni->exts[j]);
+            }
+            if (esni->exts!=NULL) OPENSSL_free(esni->exts);
+            if (esni->exttypes!=NULL) OPENSSL_free(esni->exttypes);
+            if (esni->extlens!=NULL) OPENSSL_free(esni->extlens);
+        }
     }
     return;
 }
@@ -537,7 +555,7 @@ static ESNI_RECORD *SSL_ESNI_RECORD_new_from_binary(unsigned char *binbuf, size_
             ESNIerr(ESNI_F_SSL_ESNI_RECORD_NEW_FROM_BINARY, ESNI_R_RR_DECODE_ERROR);
             goto err;
         }
-        if (tmp>0xffff) {
+        if (tmp>ESNI_MAX_RRVALUE_LEN) {
             ESNIerr(ESNI_F_SSL_ESNI_RECORD_NEW_FROM_BINARY, ESNI_R_RR_DECODE_ERROR);
             goto err;
         }
@@ -640,16 +658,76 @@ static ESNI_RECORD *SSL_ESNI_RECORD_new_from_binary(unsigned char *binbuf, size_
     }
     er->not_after=uint64_from_bytes(nbs);
     /*
-     * Extensions: we don't yet support any (does anyone?)
-     * TODO: add extensions support at some level 
+     * Extensions: we'll just store 'em for now and try parse any
+     * we understand a little later
      */
-    if (!PACKET_get_net_2(&pkt,&er->nexts)) {
+    PACKET exts;
+    if (!PACKET_get_length_prefixed_2(&pkt, &exts)) {
         ESNIerr(ESNI_F_SSL_ESNI_RECORD_NEW_FROM_BINARY, ESNI_R_RR_DECODE_ERROR);
         goto err;
     }
-    if (er->nexts != 0 ) {
-        ESNIerr(ESNI_F_SSL_ESNI_RECORD_NEW_FROM_BINARY, ESNI_R_RR_DECODE_ERROR);
-        goto err;
+    while (PACKET_remaining(&exts) > 0) {
+        er->nexts=+1;
+        /*
+         * a two-octet length prefixed list of:
+         * two octet extension type
+         * two octet extension length
+         * length octets
+         */
+        unsigned int exttype=0;
+        if (!PACKET_get_net_2(&exts,&exttype)) {
+            ESNIerr(ESNI_F_SSL_ESNI_RECORD_NEW_FROM_BINARY, ESNI_R_RR_DECODE_ERROR);
+            goto err;
+        }
+        unsigned int extlen=0;
+        if (extlen>=ESNI_MAX_RRVALUE_LEN) {
+            ESNIerr(ESNI_F_SSL_ESNI_RECORD_NEW_FROM_BINARY, ESNI_R_RR_DECODE_ERROR);
+            goto err;
+        }
+        if (!PACKET_get_net_2(&exts,&extlen)) {
+            ESNIerr(ESNI_F_SSL_ESNI_RECORD_NEW_FROM_BINARY, ESNI_R_RR_DECODE_ERROR);
+            goto err;
+        }
+        unsigned char *extval=NULL;
+        extval=(unsigned char*)OPENSSL_malloc(extlen);
+        if (extval==NULL) {
+            ESNIerr(ESNI_F_SSL_ESNI_RECORD_NEW_FROM_BINARY, ESNI_R_RR_DECODE_ERROR);
+            goto err;
+        }
+        if (!PACKET_copy_bytes(&exts,extval,extlen)) {
+            OPENSSL_free(extval);
+            ESNIerr(ESNI_F_SSL_ESNI_RECORD_NEW_FROM_BINARY, ESNI_R_RR_DECODE_ERROR);
+            goto err;
+        }
+
+        /* assign fields to lists, have to realloc */
+        unsigned int *tip=(unsigned int*)OPENSSL_realloc(er->exttypes,er->nexts*sizeof(er->exttypes[0]));
+        if (tip==NULL) {
+            OPENSSL_free(extval);
+            ESNIerr(ESNI_F_SSL_ESNI_RECORD_NEW_FROM_BINARY, ESNI_R_RR_DECODE_ERROR);
+            goto err;
+        }
+        er->exttypes=tip;
+        er->exttypes[er->nexts-1]=exttype;
+
+        size_t *lip=(size_t*)OPENSSL_realloc(er->extlens,er->nexts*sizeof(er->extlens[0]));
+        if (lip==NULL) {
+            OPENSSL_free(extval);
+            ESNIerr(ESNI_F_SSL_ESNI_RECORD_NEW_FROM_BINARY, ESNI_R_RR_DECODE_ERROR);
+            goto err;
+        }
+        er->extlens=lip;
+        er->extlens[er->nexts-1]=extlen;
+
+        unsigned char **vip=(unsigned char**)OPENSSL_realloc(er->exts,er->nexts*sizeof(unsigned char*));
+        if (vip==NULL) {
+            OPENSSL_free(extval);
+            ESNIerr(ESNI_F_SSL_ESNI_RECORD_NEW_FROM_BINARY, ESNI_R_RR_DECODE_ERROR);
+            goto err;
+        }
+        er->exts=vip;
+        er->exts[er->nexts-1]=extval;
+
     }
     int lleftover=PACKET_remaining(&pkt);
     if (lleftover<0 || lleftover>binblen) {
@@ -699,6 +777,7 @@ static int esni_make_se_from_er(ESNI_RECORD* er, SSL_ESNI *se, int server)
     /*
      * Fixed bits of RR to use
      */
+    se->version=er->version;
     se->not_before=er->not_before;
     se->not_after=er->not_after;
     se->padded_length=er->padded_length;
@@ -754,6 +833,16 @@ static int esni_make_se_from_er(ESNI_RECORD* er, SSL_ESNI *se, int server)
     if (se->rd==NULL) {
         ESNIerr(ESNI_F_ESNI_MAKE_SE_FROM_ER, ERR_R_INTERNAL_ERROR);
         goto err;
+    }
+    /*
+     * Handle extensions. Initially shallow copy, maybe deeper later
+     * Then when copied, parse known extensions.
+     */
+    if (er->nexts>0) {
+        se->nexts=er->nexts;
+        se->exttypes=er->exttypes;
+        se->extlens=er->extlens;
+        se->exts=er->exts;
     }
     return 1;
 err:
@@ -813,6 +902,7 @@ static int esni_guess_fmt(const size_t eklen,
 SSL_ESNI* SSL_ESNI_new_from_buffer(const short ekfmt, const size_t eklen, const char *esnikeys, int *num_esnis)
 {
     short detfmt=ESNI_RRFMT_GUESS;
+    int nlens=0;                    /* number of values detected */
 
     switch (ekfmt) {
         case ESNI_RRFMT_GUESS:
@@ -893,7 +983,6 @@ SSL_ESNI* SSL_ESNI_new_from_buffer(const short ekfmt, const size_t eklen, const 
     ESNI_RECORD *er=NULL;           ///< individual public value structure (initial decoding)
     SSL_ESNI *newesni=NULL;         ///< individual public value structure (after more decoding)
 
-    int nlens=0;                    /* number of values supplied */
     int done=0;
     unsigned char *outp=outbuf;
     int oleftover=declen;
@@ -931,6 +1020,7 @@ SSL_ESNI* SSL_ESNI_new_from_buffer(const short ekfmt, const size_t eklen, const 
         }
         memcpy(newesni->encoded_rr,outp,newesni->encoded_rr_len);
         oleftover=leftover;
+        outp+=newesni->encoded_rr_len;
 
         if (esni_make_se_from_er(er,newesni,0)!=1) {
             ESNIerr(ESNI_F_SSL_ESNI_NEW_FROM_BUFFER, ERR_R_INTERNAL_ERROR);
@@ -938,6 +1028,7 @@ SSL_ESNI* SSL_ESNI_new_from_buffer(const short ekfmt, const size_t eklen, const 
         }
         ESNI_RECORD_free(er);
         OPENSSL_free(er);
+        er=NULL;
     }
     for (int i=0;i!=nlens;i++) {
         retesnis[i].num_esni_rrs=nlens;
@@ -951,6 +1042,12 @@ SSL_ESNI* SSL_ESNI_new_from_buffer(const short ekfmt, const size_t eklen, const 
 
     return(retesnis);
 err:
+    /*
+     * May need to fix up nlens if error happened before we normally do that
+     */
+    for (int i=0;i!=nlens;i++) {
+        retesnis[i].num_esni_rrs=nlens;
+    }
     if (ekcpy!=NULL) {
         OPENSSL_free(ekcpy);
     }
@@ -1043,6 +1140,7 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esniarr)
         esni=&esniarr[i];
 
         BIO_printf(out,"Printing SSL_ESNI structure number %d\n",i);
+        BIO_printf(out,"ESNI Version: %x\n",esni->version);
 	
 	    if (esni->encoded_rr==NULL) {
 	        BIO_printf(out,"ESNI has no RRs!\n");
@@ -1089,8 +1187,16 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esniarr)
 	    BIO_printf(out,"ESNI Server not_after: %ju\n",esni->not_after);
 	    BIO_printf(out,"ESNI Server number of extensions: %d\n",esni->nexts);
 	    if (esni->nexts!=0) {
-	        BIO_printf(out,"\tOops - I don't support extensions but you have some. Bummer.\n");
-	    }
+            for (int i=0;i!=esni->nexts;i++) {
+                BIO_printf(out,"ESNI Extension type %d\n",esni->exttypes[i]);
+	            esni_pbuf(out,"ESNI Extension value",esni->exts[i],esni->extlens[i],indent+4);
+            }
+	    } else {
+	        BIO_printf(out,"ESNI no extensions\n");
+        }
+        if (esni->naddrs!=0) {
+            BIO_printf(out,"\tOops - I need to print addresses!\n");
+        }
 	    esni_pbuf(out,"ESNI Nonce",esni->nonce,esni->nonce_len,indent);
 	    esni_pbuf(out,"ESNI H/S Client Random",esni->hs_cr,esni->hs_cr_len,indent);
 	    esni_pbuf(out,"ESNI H/S Client KeyShare",esni->hs_kse,esni->hs_kse_len,indent);

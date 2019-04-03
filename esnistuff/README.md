@@ -24,6 +24,10 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- Adding initial code for parsing of AddressSet extension for ESNIKeys version
+  0xff02 (draft-03). Seem to be creating and parsing that ok now. Not acting
+  on it yet, nor handling >1 extension.
+
 - Re-merged with upstream. (20190402)
 
 - Ditched the idea of parsing dig output within library - 'twas a silly idea:-)
