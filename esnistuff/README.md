@@ -1,7 +1,7 @@
 
 # This is a temporary place for ESNI content ...
 
-Stephen Farrell, stephen.farrell@cs.tcd.ie, 20190313
+Stephen Farrell, stephen.farrell@cs.tcd.ie, 20190403-ish
 
 I'll put stuff here that'll likely disappear if this matures. So the plan would
 be to delete all this before submitting any PR to the openssl folks. Over time,
@@ -16,13 +16,22 @@ stuff seems to work when talking to itself, and an NSS client.
 **We haven't done any significant testing. Use at your own risk.**
 
 Here's our [design doc](./design.md) that'll hopefully explain more
-about how it works and what it does.
+about how it works and what it does. (That's not yet updated for
+draft-03 stuff really.)
 
 # State-of-play...
 
 There's a [TODO list](#todos) at the end.
 
 Most recent first...
+
+- Added parsing of AddressSet extension into ``BIO_ADDR`` structure, with
+  a view to providing a new API that allows the application to see which
+  ``public_name`` and IP address combinations exist and to then allow the
+  appliction to select amongst those. (Those two new APIs aren't defined
+  yet but are reasonably obvious.) A reason for this design (that we really
+  ought note in the design document is that it avoids the library doing
+  anything like happy eyeballs or similar which a library cannot do.)
 
 - Added a greasy option to ``mk_esnikeys`` (``-g`` funnily enough:-) to add
   some greasy/nonsense extension values to the ESNIKeys RR value. It adds

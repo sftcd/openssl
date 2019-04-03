@@ -14,6 +14,7 @@
  */
 
 #include <ctype.h>
+#include <crypto/bio/bio_lcl.h>
 #include "ssl_locl.h"
 #include <openssl/ssl.h>
 #include <openssl/rand.h>
@@ -258,7 +259,9 @@ void ESNI_RECORD_free(ESNI_RECORD *er)
  */
 void SSL_ESNI_free(SSL_ESNI *deadesni)
 {
-    for (int i=0;i!=deadesni->num_esni_rrs;i++) {
+    int j=0;
+    int i=0;
+    for (i=0;i!=deadesni->num_esni_rrs;i++) {
         SSL_ESNI *esni=&deadesni[i];
         if (esni==NULL) return;
         if (esni->the_esni) {
@@ -302,13 +305,18 @@ void SSL_ESNI_free(SSL_ESNI *deadesni)
         /* the buffers below here were freed above if needed */
         if (esni->the_esni!=NULL) OPENSSL_free(esni->the_esni); 
         if (esni->nexts!=0) {
-            int j=0;
             for (j=0;j!=esni->nexts;j++) {
                 if (esni->exts && esni->exts[j]!=NULL) OPENSSL_free(esni->exts[j]);
             }
             if (esni->exts!=NULL) OPENSSL_free(esni->exts);
             if (esni->exttypes!=NULL) OPENSSL_free(esni->exttypes);
             if (esni->extlens!=NULL) OPENSSL_free(esni->extlens);
+        }
+        if (esni->naddrs!=0) {
+            /*
+             * Oddly, one free call here works
+             */
+            BIO_ADDR_free(esni->addrs);
         }
     }
     return;
@@ -753,6 +761,71 @@ err:
 }
 
 /**
+ * @brief parse an AddressSet extension value into an SSL_ESNI structure
+ *
+ * @param evl is the length of the encoded extension
+ * @param ev is the encoded extension value
+ * @param se is the SSL_ESNI structure
+ * @return 1 for ok, otherwise error
+ */
+static int esni_parse_address_set(size_t evl, unsigned char *ev, SSL_ESNI *se)
+{
+    if (evl<=4 || ev==NULL) {
+        /* 
+         * note this could happen as we've only done generic extension decoding so far
+         */
+        return(0);
+    }
+
+    int nips=0;
+    BIO_ADDR *ips=NULL;
+    int rv=0;
+    unsigned char *evp=ev;
+    while (evl>(evp-ev)) {
+        /*
+         * The switch statement is a bit tricksy here
+         */
+        int fam=AF_INET;
+        int alen=4;
+        switch (*evp) {
+            case 0x06:
+                fam=AF_INET6;
+                alen=16;
+            case 0x04:
+                if ((evl-(evp-ev))<(alen+1)) {
+                    return(0);
+                }
+                nips++;
+                BIO_ADDR *tips=(BIO_ADDR*)OPENSSL_realloc(ips,nips*sizeof(BIO_ADDR));
+                if (tips==NULL) {
+                    return(0);
+                }
+                ips=tips;
+                rv=BIO_ADDR_rawmake(&ips[nips-1],fam,evp+1,alen,0);
+                if (rv!=1) {
+                    return(0);
+                }
+                evp+=alen+1;
+                break;
+
+            default:
+                return(0);
+        }
+    }
+
+    /*
+     * Zap any previous addrs in se
+     */
+    BIO_ADDR_free(se->addrs);
+    /*
+     * Value is a list of [0x04+4-octets|0x06+16-octets]
+     */
+    se->naddrs=nips;
+    se->addrs=ips;
+    return(1);
+}
+
+/**
  * @brief populate an SSL_ESNI from an ESNI_RECORD
  *
  * This is used by both client and server in (almost) identical ways.
@@ -828,7 +901,7 @@ static int esni_make_se_from_er(ESNI_RECORD* er, SSL_ESNI *se, int server)
             goto err;
         }
     }
-    OPENSSL_free(tmp);
+    OPENSSL_free(tmp); tmp=NULL;
     const SSL_CIPHER *sc=cs2sc(se->ciphersuite);
     const EVP_MD *md=ssl_md(sc->algorithm2);
     se->rd=esni_make_rd(se->encoded_rr,se->encoded_rr_len,md,&se->rd_len);
@@ -845,6 +918,21 @@ static int esni_make_se_from_er(ESNI_RECORD* er, SSL_ESNI *se, int server)
         se->exttypes=er->exttypes;
         se->extlens=er->extlens;
         se->exts=er->exts;
+
+        /*
+         * try parse extensions we know about
+         */
+        int en=0;
+        for (en=0;en!=se->nexts;en++) {
+            if (se->exttypes[en]==ESNI_ADDRESS_SET_EXT) {
+                int rv=0;
+                rv=esni_parse_address_set(se->extlens[en],se->exts[en],se);
+                if (rv!=1) {
+                    ESNIerr(ESNI_F_ESNI_MAKE_SE_FROM_ER, ERR_R_INTERNAL_ERROR);
+                    goto err;
+                }
+            }
+        }
     }
     return 1;
 err:
@@ -1197,7 +1285,14 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esniarr)
 	        BIO_printf(out,"ESNI no extensions\n");
         }
         if (esni->naddrs!=0) {
-            BIO_printf(out,"\tOops - I need to print addresses!\n");
+            BIO_printf(out,"ESNI Addresses\n");
+            for (int i=0;i!=esni->naddrs;i++) {
+                char *foo= BIO_ADDR_hostname_string(&esni->addrs[i], 1);
+                BIO_printf(out,"\tAddress(%d): %s\n",i,foo);
+                OPENSSL_free(foo);
+            }
+        } else {
+            BIO_printf(out,"ESNI no addresses\n");
         }
 	    esni_pbuf(out,"ESNI Nonce",esni->nonce,esni->nonce_len,indent);
 	    esni_pbuf(out,"ESNI H/S Client Random",esni->hs_cr,esni->hs_cr_len,indent);

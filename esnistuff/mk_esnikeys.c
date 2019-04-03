@@ -406,7 +406,7 @@ static int mk_aset(char *asetfname, char *cover_name, size_t *elen, unsigned cha
     }
 
     int nelen=(tp-tmpebuf);
-    int exttype=0x1001;
+    int exttype=ESNI_ADDRESS_SET_EXT;
     if (nelen>ESNI_MAX_RRVALUE_LEN) {
         fprintf(stderr,"Encoded extensions too big (%d)\n",nelen);
         return(0);

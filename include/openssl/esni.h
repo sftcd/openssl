@@ -22,6 +22,12 @@
 
 #define ESNI_MAX_RRVALUE_LEN 2000 ///< Max size of a collection of ESNI RR values
 
+
+/*
+ * ESNIKeys Extensions we know about...
+ */
+#define ESNI_ADDRESS_SET_EXT 0x1001 ///< AddressSet as per draft-03
+
 /* TODO: find another implemenation of this, there's gotta be one */
 #define A2B(__c__) (__c__>='0'&&__c__<='9'?(__c__-'0'):\
                         (__c__>='A'&&__c__<='F'?(__c__-'A'+10):\
@@ -178,7 +184,7 @@ typedef struct ssl_esni_st {
     size_t *extlens; ///< lengths of encoded extension octets
     unsigned char **exts; ///< encoded extension octets
     int naddrs; ///< decoded AddressSet cardinality
-    BIO_ADDR **addrs; ///< decoded AddressSet values (v4 or v6)
+    BIO_ADDR *addrs; ///< decoded AddressSet values (v4 or v6)
     size_t nonce_len; 
     unsigned char *nonce; ///< Nonce we challenge server to respond with
     size_t hs_cr_len; 
