@@ -203,12 +203,13 @@ void usage(char *prog)
     printf("Create an ESNIKeys data structure as per draft-ietf-tls-esni-[02|03]\n");
     printf("Usage: \n");
     printf("\t%s [-V version] [-o <fname>] [-p <privfname>] [-d duration] \n",prog);
-    printf("\t\t\t[-P public-/cover-name] [-A [file-name]] [-z zonefrag-file]\n");
+    printf("\t\t\t[-P public-/cover-name] [-A [file-name]] [-z zonefrag-file] [-g]\n");
     printf("where:\n");
     printf("-V specifies the ESNIKeys version to produce (default: 0xff01; 0xff02 allowed)\n");
     printf("-o specifies the output file name for the binary-encoded ESNIKeys (default: ./esnikeys.pub)\n");
     printf("-p specifies the output file name for the corresponding private key (default: ./esnikeys.priv)\n");
     printf("-d duration, specifies the duration in seconds from, now, for which the public share should be valid (default: 1 week)\n");
+    printf("-g grease - adds a couple of nonsense extensions to ESNIKeys for testing purposes.\n");
     printf("If <privfname> exists already and contains an appropriate value, then that key will be used without change.\n");
     printf("There is no support for crypto options - we only support TLS_AES_128_GCM_SHA256, X25519 and no extensions.\n");
     printf("Fix that if you like:-)\n");
@@ -284,6 +285,185 @@ static int add2alist(char *ips[], int *nips_p, char *line)
 }
 
 /**
+ * @brief make up AddressSet extension
+ *
+ * @param asetfname names a file with one IPv4 or IPv6 address per line
+ * @param cover_name names the cover site
+ * @param elen returns the length of the AddressSet extension encoding
+ * @param eval returns the AddressSet extension encoding (including the type)
+ * @return 1 for success, 0 for error
+ */
+static int mk_aset(char *asetfname, char *cover_name, size_t *elen, unsigned char **eval)
+{
+    if (elen==NULL || eval==NULL) {
+        return(0);
+    }
+    int nips=0;
+    char *ips[MAX_ESNI_ADDRS];
+    memset(ips,0,MAX_ESNI_ADDRS*sizeof(char*));
+    if (asetfname!=NULL) {
+        /* open file and read 1 IP per line */
+        FILE *fp=fopen(asetfname,"r");
+        if (!fp) {
+            fprintf(stderr,"Can't open address file (%s)\n",asetfname);
+            return(0);
+        }
+        char * line = NULL;
+        size_t len = 0;
+        ssize_t read;
+        while ((read = getline(&line, &len, fp)) != -1) {
+            if (line[0]=='#') {
+                continue;
+            }
+            line[read-1]='\0'; /* zap newline */
+            int rv=add2alist(ips,&nips,line);
+            if (rv<0) {
+                fprintf(stderr,"add2alist failed (%d)\n",rv);
+                return(0);
+            }
+        }
+        if (line)
+            free(line);
+        fclose(fp);
+    } else {
+        size_t cnlen=strlen(cover_name);
+        if (cnlen==0) {
+            fprintf(stderr,"Can't get address as no public-/cover-name supplied.\n");
+            return(0);
+        }
+        /* try getaddrinfo() */
+        struct addrinfo *ai,*rp=NULL;
+        int rv=getaddrinfo(cover_name,NULL,NULL,&ai);
+        if (rv!=-0) {
+            fprintf(stderr,"getaddrinfo failed (%d) for %s\n",rv,cover_name);
+            return(0);
+        }
+        for (rp=ai;rp!=NULL;rp=rp->ai_next) {
+            // just print first
+            char astr[100];
+            astr[0]='\0';
+            struct sockaddr *sa=rp->ai_addr;
+            if (rp->ai_family==AF_INET) {
+                inet_ntop(rp->ai_family, 
+                          &((struct sockaddr_in *)sa)->sin_addr,
+                          astr, sizeof astr);
+            } else if (rp->ai_family==AF_INET6) {
+                inet_ntop(rp->ai_family, 
+                          &((struct sockaddr_in6 *)sa)->sin6_addr,
+                          astr, sizeof astr);
+            }
+            int rv=add2alist(ips,&nips,astr);
+            if (rv<0) {
+                fprintf(stderr,"add2alist failed (%d)\n",rv);
+                return(0);
+            }
+        }
+        freeaddrinfo(ai);
+    }
+
+    /* 
+     * put those into extension buffer
+     */
+    unsigned char tmpebuf[MAX_ESNIKEYS_BUFLEN]; 
+    unsigned char *tp=tmpebuf;
+    for (int i=0;i!=nips;i++) {
+        /* 
+         * it's IPv6 if it has a ':" otherwise IPv4
+         * we do this here and not based on getaddrinfo because they may
+         * have come from a file - could be better done later I guess
+         */
+        int rv=0;
+        if (strrchr(ips[i],':')) {
+            printf("IPv6 Address%d: %s\n",i,ips[i]);
+            *tp++=0x06;
+            rv=inet_pton(AF_INET6,ips[i],tp);
+            if (rv!=1) {
+                fprintf(stderr,"Failed to convert string (%s) to IP address\n",ips[i]);
+                return(0);
+            }
+            tp+=16;
+        } else {
+            printf("IPv4 Address%d: %s\n",i,ips[i]);
+            *tp++=0x04;
+            rv=inet_pton(AF_INET,ips[i],tp);
+            if (rv!=1) {
+                fprintf(stderr,"Failed to convert string (%s) to IP address\n",ips[i]);
+                return(0);
+            }
+            tp+=4;
+        }
+        if ((tp-tmpebuf)>(MAX_ESNIKEYS_BUFLEN-100)) {
+            fprintf(stderr,"Out of space converting string (%s) to IP address\n",ips[i]);
+            return(0);
+        }
+    }
+
+    /*
+     * free strings
+     */
+    for (int i=0;i!=nips;i++) {
+        free(ips[i]);
+    }
+
+    int nelen=(tp-tmpebuf);
+    int exttype=0x1001;
+    if (nelen>ESNI_MAX_RRVALUE_LEN) {
+        fprintf(stderr,"Encoded extensions too big (%d)\n",nelen);
+        return(0);
+    }
+    unsigned char *extvals=NULL;
+    extvals=(unsigned char*)malloc(4+nelen);
+    if (!extvals) {
+        fprintf(stderr,"Out of space converting string to IP address\n");
+        return(0);
+    }
+    extvals[0]=(exttype>>8)%256;
+    extvals[1]=exttype%256;
+    extvals[2]=(nelen>>8)%256;
+    extvals[3]=nelen%256;
+    memcpy(extvals+4,tmpebuf,nelen);
+
+    *elen=nelen+4;
+    *eval=extvals;
+
+    return(1);
+}
+
+/**
+ * @brief return a greasy extension value
+ *
+ * @param type - the extension type to use
+ * @param elen - returns the extension length
+ * @param eval - the octets of the extension encoding
+ * @return 1 for good, 0 for error
+ */
+static int mk_grease_ext(int type, size_t *elen, unsigned char **eval)
+{
+    unsigned char blen=0x00;
+    RAND_bytes(&blen,1);
+    unsigned char *extvals=NULL;
+    extvals=OPENSSL_malloc(blen+8);
+    size_t evoffset=0;
+    /*
+     * if generated length is even then add an emptyvalued extension before 
+     */
+    if (blen%2) {
+        printf("Adding empty grease\n");
+        const unsigned char emptygreaseext[]={0xff,0xf3,0x00,0x00};
+        memcpy(extvals,emptygreaseext,sizeof(emptygreaseext));
+        evoffset+=4;
+    }
+    extvals[evoffset++]=(type>>8)%256;
+    extvals[evoffset++]=type%256;
+    extvals[evoffset++]=(blen>>8)%256;
+    extvals[evoffset++]=blen%256;
+    RAND_bytes(extvals+evoffset,blen);
+    *elen=blen+evoffset;
+    *eval=extvals;
+    return(1);
+}
+
+/**
  * @brief Make an X25519 key pair and ESNIKeys structure for the public
  *
  * @todo TODO: check out NSS code to see if I can make same format private
@@ -305,12 +485,23 @@ static int mk_esnikeys(int argc, char **argv)
     int duration=60*60*24*7; ///< 1 week in seconds
     int maxduration=duration*52*10; ///< 10 years max - draft -02 will definitely be deprecated by then:-)
     int minduration=3600; ///< less than one hour seems unwise
+    int grease=0; ///< if set, we add a couple of nonsense extensions
+    size_t gel1=0; ///< length of 1st grease extension buffer
+    unsigned char *geb1=NULL;  ///< 1st grease buffer
+    size_t gel2=0; ///< length of 1st grease extension buffer
+    unsigned char *geb2=NULL;  ///< 1st grease buffer
 
     int extlen=0; ///< length of overall ESNIKeys extension value (with all extensions included)
     unsigned char *extvals=NULL; ///< buffer with all encoded ESNIKeys extensions
 
+    /*
+     * AddressSet 
+     */
+    size_t asetlen=0;
+    unsigned char *asetval=NULL;
+
     // check inputs with getopt
-    while((opt = getopt(argc, argv, ":A:P:V:?ho:p:d:z:")) != -1) {
+    while((opt = getopt(argc, argv, ":A:P:V:?ho:p:d:z:g")) != -1) {
         switch(opt) {
         case 'h':
         case '?':
@@ -327,6 +518,9 @@ static int mk_esnikeys(int argc, char **argv)
             break;
         case 'd':
             duration=atoi(optarg);
+            break;
+        case 'g':
+            grease=1;
             break;
         case 'V':
             ekversion=verstr2us(optarg);
@@ -398,135 +592,57 @@ static int mk_esnikeys(int argc, char **argv)
 
     /* handle AddressSet stuff */
     if (ekversion==0xff02 && includeaddrset!=0) {
-        int nips=0;
-        char *ips[MAX_ESNI_ADDRS];
-        memset(ips,0,MAX_ESNI_ADDRS*sizeof(char*));
-        if (asetfname!=NULL) {
-            /* open file and read 1 IP per line */
-            FILE *fp=fopen(asetfname,"r");
-            if (!fp) {
-                fprintf(stderr,"Can't open address file (%s) - exiting\n",asetfname);
-                exit(1);
-            }
-            char * line = NULL;
-            size_t len = 0;
-            ssize_t read;
-            while ((read = getline(&line, &len, fp)) != -1) {
-                if (line[0]=='#') {
-                    continue;
-                }
-                line[read-1]='\0'; /* zap newline */
-                int rv=add2alist(ips,&nips,line);
-                if (rv<0) {
-                    fprintf(stderr,"add2alist failed (%d) - exiting\n",rv);
-                    exit(1);
-                }
-            }
-            if (line)
-                free(line);
-            fclose(fp);
-        } else {
-            if (cnlen==0) {
-                fprintf(stderr,"Can't get address as no public-/cover-name supplied.\n");
-                exit(1);
-            }
-            /* try getaddrinfo() */
-            struct addrinfo *ai,*rp=NULL;
-            int rv=getaddrinfo(cover_name,NULL,NULL,&ai);
-            if (rv!=-0) {
-                fprintf(stderr,"getaddrinfo failed (%d) for %s\n",rv,cover_name);
-                exit(1);
-            }
-            for (rp=ai;rp!=NULL;rp=rp->ai_next) {
-                // just print first
-                char astr[100];
-                astr[0]='\0';
-                struct sockaddr *sa=rp->ai_addr;
-                if (rp->ai_family==AF_INET) {
-                    inet_ntop(rp->ai_family, 
-                              &((struct sockaddr_in *)sa)->sin_addr,
-                              astr, sizeof astr);
-                } else if (rp->ai_family==AF_INET6) {
-                    inet_ntop(rp->ai_family, 
-                              &((struct sockaddr_in6 *)sa)->sin6_addr,
-                              astr, sizeof astr);
-                }
-                int rv=add2alist(ips,&nips,astr);
-                if (rv<0) {
-                    fprintf(stderr,"add2alist failed (%d) - exiting\n",rv);
-                    exit(1);
-                }
+        int rv=mk_aset(asetfname,cover_name,&asetlen,&asetval);
+        if (rv!=1) {
+            fprintf(stderr,"mk_aset failed - exiting\n");
+            exit(1);
+        }
+    }
 
-            }
-            freeaddrinfo(ai);
-        }
-        /* 
-         * put those into extension buffer
-         */
-        unsigned char tmpebuf[MAX_ESNIKEYS_BUFLEN]; 
-        unsigned char *tp=tmpebuf;
-        for (int i=0;i!=nips;i++) {
-            /* 
-             * it's IPv6 if it has a ':" otherwise IPv4
-             * we do this here and not based on getaddrinfo because they may
-             * have come from a file - could be better done later I guess
-             */
-            int rv=0;
-            if (strrchr(ips[i],':')) {
-                printf("IPv6 Address%d: %s\n",i,ips[i]);
-                *tp++=0x06;
-                rv=inet_pton(AF_INET6,ips[i],tp);
-                if (rv!=1) {
-                    fprintf(stderr,"Failed to convert string (%s) to IP address - exiting\n",ips[i]);
-                    exit(1);
-                }
-                tp+=16;
-            } else {
-                printf("IPv4 Address%d: %s\n",i,ips[i]);
-                *tp++=0x04;
-                rv=inet_pton(AF_INET,ips[i],tp);
-                if (rv!=1) {
-                    fprintf(stderr,"Failed to convert string (%s) to IP address - exiting\n",ips[i]);
-                    exit(1);
-                }
-                tp+=4;
-            }
-            if ((tp-tmpebuf)>(MAX_ESNIKEYS_BUFLEN-100)) {
-                fprintf(stderr,"Out of space converting string (%s) to IP address - exiting\n",ips[i]);
-                exit(1);
-            }
-        }
-        /*
-         * free strings
-         */
-        for (int i=0;i!=nips;i++) {
-            free(ips[i]);
-        }
-        int nelen=(tp-tmpebuf);
-        int exttype=0x1001;
-        if (nelen>ESNI_MAX_RRVALUE_LEN) {
-            fprintf(stderr,"Encoded extensions too big (%d) - exiting\n",nelen);
+    if (grease==1) {
+        int rv=mk_grease_ext(0xfff1,&gel1,&geb1);
+        if (rv!=1) {
+            fprintf(stderr,"mk_grease_ext failed - exiting\n");
             exit(1);
         }
+        rv=mk_grease_ext(0xfff2,&gel2,&geb2);
+        if (rv!=1) {
+            fprintf(stderr,"mk_grease_ext failed - exiting\n");
+            exit(1);
+        }
+    }
+
+    /*
+     * Package up (for now, one) extensions as needed
+     */
+    if (asetlen>0 || gel1 >0 || gel2 >0) {
+        extlen=asetlen+gel1+gel2;
+        extvals=OPENSSL_malloc(extlen+2);
         if (extvals==NULL) {
-            extvals=(unsigned char*)malloc(6+nelen);
-            if (!extvals) {
-                fprintf(stderr,"Out of space converting string to IP address - exiting\n");
-                exit(1);
-            }
-            extvals[0]=((nelen+4)>>8)%256;
-            extvals[1]=(nelen+4)%256;
-            extvals[2]=(exttype>>8)%256;
-            extvals[3]=exttype%256;
-            extvals[4]=(nelen>>8)%256;
-            extvals[5]=nelen%256;
-            memcpy(extvals+6,tmpebuf,nelen);
-            extlen=nelen+6;
-        } else {
-            /* we only support 1 extension for now so this won't happen */
-            fprintf(stderr,"Didn't implement realloc code yet - exiting!\n");
+            fprintf(stderr,"can't make space for extvals - exiting\n");
             exit(1);
         }
+
+        extvals[0]=(extlen/256);
+        extvals[1]=(extlen%256);
+        unsigned char *evp=extvals+2;
+        if (gel1>0) {
+            memcpy(evp,geb1,gel1);
+            evp+=gel1;
+            OPENSSL_free(geb1);
+        }
+        if (asetlen>0){
+            memcpy(evp,asetval,asetlen);
+            evp+=asetlen;
+            OPENSSL_free(asetval);
+        }
+        if (gel2>0) {
+            memcpy(evp,geb2,gel2);
+            evp+=gel2;
+            OPENSSL_free(geb2);
+        }
+        extlen+=2;
+
     }
 
     if (privfname==NULL) {

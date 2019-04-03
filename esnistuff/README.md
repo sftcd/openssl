@@ -24,6 +24,13 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- Added a greasy option to ``mk_esnikeys`` (``-g`` funnily enough:-) to add
+  some greasy/nonsense extension values to the ESNIKeys RR value. It adds
+  one random length extension before and one after the AddressSet extension.
+  If either of those random lengths are even numbers, then it also adds an
+  extension with no value as well. So we can get a max of 5 extensions for
+  the moment.
+
 - Adding initial code for parsing of AddressSet extension for ESNIKeys version
   0xff02 (draft-03). Seem to be creating and parsing that ok now. Not acting
   on it yet, nor handling >1 extension.

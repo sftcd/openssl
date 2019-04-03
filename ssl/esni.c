@@ -667,7 +667,7 @@ static ESNI_RECORD *SSL_ESNI_RECORD_new_from_binary(unsigned char *binbuf, size_
         goto err;
     }
     while (PACKET_remaining(&exts) > 0) {
-        er->nexts=+1;
+        er->nexts+=1;
         /*
          * a two-octet length prefixed list of:
          * two octet extension type
@@ -689,15 +689,17 @@ static ESNI_RECORD *SSL_ESNI_RECORD_new_from_binary(unsigned char *binbuf, size_
             goto err;
         }
         unsigned char *extval=NULL;
-        extval=(unsigned char*)OPENSSL_malloc(extlen);
-        if (extval==NULL) {
-            ESNIerr(ESNI_F_SSL_ESNI_RECORD_NEW_FROM_BINARY, ESNI_R_RR_DECODE_ERROR);
-            goto err;
-        }
-        if (!PACKET_copy_bytes(&exts,extval,extlen)) {
-            OPENSSL_free(extval);
-            ESNIerr(ESNI_F_SSL_ESNI_RECORD_NEW_FROM_BINARY, ESNI_R_RR_DECODE_ERROR);
-            goto err;
+        if (extlen != 0 ) {
+            extval=(unsigned char*)OPENSSL_malloc(extlen);
+            if (extval==NULL) {
+                ESNIerr(ESNI_F_SSL_ESNI_RECORD_NEW_FROM_BINARY, ESNI_R_RR_DECODE_ERROR);
+                goto err;
+            }
+            if (!PACKET_copy_bytes(&exts,extval,extlen)) {
+                OPENSSL_free(extval);
+                ESNIerr(ESNI_F_SSL_ESNI_RECORD_NEW_FROM_BINARY, ESNI_R_RR_DECODE_ERROR);
+                goto err;
+            }
         }
 
         /* assign fields to lists, have to realloc */
