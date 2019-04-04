@@ -2701,8 +2701,9 @@ SSL_ESNI* SSL_ESNI_dup(SSL_ESNI* orig, size_t nesni, int selector)
             ESNIerr(ESNI_F_SSL_ESNI_DUP, ERR_R_INTERNAL_ERROR);
             goto err;
         }
-    } else {
         num_selected=1;
+    } else {
+        num_selected=nesni;
     }
 
     if (orig==NULL) return NULL;

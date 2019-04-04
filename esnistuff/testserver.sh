@@ -20,7 +20,7 @@ VG="no"
 NOESNI="no"
 DEBUG="no"
 KEYGEN="no"
-PORT="443"
+PORT="8443"
 SUPPLIEDPORT=""
 
 SUPPLIEDKEYFILE=""
@@ -166,7 +166,8 @@ fi
 certsdb=" -CApath $CAPATH"
 
 # force tls13
-force13="-cipher TLS13-AES-128-GCM-SHA256 -no_ssl3 -no_tls1 -no_tls1_1 -no_tls1_2"
+force13="-no_ssl3 -no_tls1 -no_tls1_1 -no_tls1_2"
+#force13="-cipher TLS13-AES-128-GCM-SHA256 -no_ssl3 -no_tls1 -no_tls1_1 -no_tls1_2"
 #force13="-tls1_3 -cipher TLS13-AES-128-GCM-SHA256 "
 
 # turn off esni general padding - if we set this only the Certificate

@@ -571,8 +571,6 @@ seemed unkeen on. Decided to not bother with that.
 I'm sure there's more but some collected so far:
 
 - Code up support for [draft-03](https://tools.ietf.org/html/draft-ietf-tls-esni-03#section-8.3)
-- Add support for >1 ESNIKeys on the cilent side. Could be some issues with TXT and
-  255 lengths and catenation, but base64 decoding should work.
 - Figure out/test HRR cases. [This issue](https://github.com/tlswg/draft-ietf-tls-esni/issues/121) calls for checks to be enforced.
 - Server API for managing ESNI public/private values w/o restart.
 - Server-side policy: should server have a concept of "only visible via ESNI"?
