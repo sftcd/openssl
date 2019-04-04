@@ -713,7 +713,7 @@ static ESNI_RECORD *SSL_ESNI_RECORD_new_from_binary(unsigned char *binbuf, size_
         /* assign fields to lists, have to realloc */
         unsigned int *tip=(unsigned int*)OPENSSL_realloc(er->exttypes,er->nexts*sizeof(er->exttypes[0]));
         if (tip==NULL) {
-            OPENSSL_free(extval);
+            if (extval!=NULL) OPENSSL_free(extval);
             ESNIerr(ESNI_F_SSL_ESNI_RECORD_NEW_FROM_BINARY, ESNI_R_RR_DECODE_ERROR);
             goto err;
         }
@@ -722,7 +722,7 @@ static ESNI_RECORD *SSL_ESNI_RECORD_new_from_binary(unsigned char *binbuf, size_
 
         size_t *lip=(size_t*)OPENSSL_realloc(er->extlens,er->nexts*sizeof(er->extlens[0]));
         if (lip==NULL) {
-            OPENSSL_free(extval);
+            if (extval!=NULL) OPENSSL_free(extval);
             ESNIerr(ESNI_F_SSL_ESNI_RECORD_NEW_FROM_BINARY, ESNI_R_RR_DECODE_ERROR);
             goto err;
         }
@@ -731,14 +731,14 @@ static ESNI_RECORD *SSL_ESNI_RECORD_new_from_binary(unsigned char *binbuf, size_
 
         unsigned char **vip=(unsigned char**)OPENSSL_realloc(er->exts,er->nexts*sizeof(unsigned char*));
         if (vip==NULL) {
-            OPENSSL_free(extval);
+            if (extval!=NULL) OPENSSL_free(extval);
             ESNIerr(ESNI_F_SSL_ESNI_RECORD_NEW_FROM_BINARY, ESNI_R_RR_DECODE_ERROR);
             goto err;
         }
         er->exts=vip;
         er->exts[er->nexts-1]=extval;
-
     }
+
     int lleftover=PACKET_remaining(&pkt);
     if (lleftover<0 || lleftover>binblen) {
         ESNIerr(ESNI_F_SSL_ESNI_RECORD_NEW_FROM_BINARY, ERR_R_INTERNAL_ERROR);
@@ -2673,62 +2673,194 @@ int SSL_ESNI_set_nonce(SSL_ESNI *esni, unsigned char *nonce, size_t nlen)
     return 1;
 }
 
-SSL_ESNI* SSL_ESNI_dup(SSL_ESNI* orig, size_t nesni)
+/*
+ * Macro for more terse copying below
+ */
+#define SSL_ESNI_dup_one(FIELD,len_FIELD) \
+        newi->len_FIELD=origi->len_FIELD; \
+        if (origi->FIELD) { \
+            newi->FIELD=OPENSSL_malloc(newi->len_FIELD); \
+            if (newi->FIELD==NULL) { \
+                ESNIerr(ESNI_F_SSL_ESNI_DUP, ERR_R_INTERNAL_ERROR); \
+                goto err; \
+            } \
+            memcpy(newi->FIELD,origi->FIELD,newi->len_FIELD); \
+        } \
+
+SSL_ESNI* SSL_ESNI_dup(SSL_ESNI* orig, size_t nesni, int selector)
 {
     SSL_ESNI *new=NULL;
 
+    int num_selected=nesni;
+
+    /*
+     * Check selector is reasonable
+     */
+    if (selector!=ESNI_SELECT_ALL) {
+        if (selector < 0 || selector >nesni) {
+            ESNIerr(ESNI_F_SSL_ESNI_DUP, ERR_R_INTERNAL_ERROR);
+            goto err;
+        }
+    } else {
+        num_selected=1;
+    }
+
     if (orig==NULL) return NULL;
-    new=OPENSSL_malloc(nesni*sizeof(SSL_ESNI));
+    new=OPENSSL_malloc(num_selected*sizeof(SSL_ESNI));
     if (new==NULL) {
         ESNIerr(ESNI_F_SSL_ESNI_DUP, ERR_R_INTERNAL_ERROR);
         goto err;
     }
-    memset(new,0,nesni*sizeof(SSL_ESNI));
+    memset(new,0,num_selected*sizeof(SSL_ESNI));
 
     int i; /* loop counter - android build doesn't like C99;-( */
     for (i=0;i!=nesni;i++) {
 
         SSL_ESNI *origi=&orig[i];
-        SSL_ESNI *newi=&new[i];
+        SSL_ESNI *newi=NULL;
 
-        if (origi->encoded_rr) {
-            newi->encoded_rr_len=origi->encoded_rr_len;
-            newi->encoded_rr=OPENSSL_malloc(newi->encoded_rr_len);
-            if (newi->encoded_rr==NULL) {
-                ESNIerr(ESNI_F_SSL_ESNI_DUP, ERR_R_INTERNAL_ERROR);
-                goto err;
-            }
-            memcpy(newi->encoded_rr,origi->encoded_rr,newi->encoded_rr_len);
+        if (selector!=ESNI_SELECT_ALL && i!=selector) {
+            continue;
+        } else if (selector!=ESNI_SELECT_ALL && i==selector) {
+            newi=new;
+        } else if (selector==ESNI_SELECT_ALL) {
+            newi=&new[i];
+        } else {
+            /* shouldn't happen, but who knows... */
+            ESNIerr(ESNI_F_SSL_ESNI_DUP, ERR_R_INTERNAL_ERROR);
+            goto err;
         }
-    
-        if (origi->rd) {
-            newi->rd_len=origi->rd_len;
-            newi->rd=OPENSSL_malloc(newi->rd_len);
-            if (newi->rd==NULL) {
-                ESNIerr(ESNI_F_SSL_ESNI_DUP, ERR_R_INTERNAL_ERROR);
-                goto err;
-            }
-            memcpy(newi->rd,origi->rd,newi->rd_len);
+
+
+        /*
+         * Copying field by field allowing for NULLs etc.
+         * These are in the order presented in ../include/openssl/esni.h
+         * Try keep that the same if new fields are added, otherwise it
+         * may get hard to track what's what.
+         */
+        newi->version=origi->version;
+        if (origi->encservername!=NULL) newi->encservername=OPENSSL_strdup(origi->encservername);
+        if (origi->covername!=NULL) newi->covername=OPENSSL_strdup(origi->covername);
+        if (origi->public_name!=NULL) newi->public_name=OPENSSL_strdup(origi->public_name);
+        newi->require_hidden_match=origi->require_hidden_match;
+        if (selector==ESNI_SELECT_ALL) {
+            newi->num_esni_rrs=origi->num_esni_rrs;
+        } else {
+            newi->num_esni_rrs=1;
         }
-        if (origi->encoded_keyshare) {
-            newi->encoded_keyshare_len=origi->encoded_keyshare_len;
-            newi->encoded_keyshare=OPENSSL_malloc(newi->encoded_keyshare_len);
-            if (newi->encoded_keyshare==NULL) {
-                ESNIerr(ESNI_F_SSL_ESNI_DUP, ERR_R_INTERNAL_ERROR);
-                goto err;
-            }
-            memcpy(newi->encoded_keyshare,origi->encoded_keyshare,newi->encoded_keyshare_len);
-        }
-        newi->keyshare=origi->keyshare;
-        if (EVP_PKEY_up_ref(origi->keyshare)!=1) {
-               ESNIerr(ESNI_F_SSL_ESNI_DUP, ERR_R_INTERNAL_ERROR);
-               goto err;
-        }
+
+        SSL_ESNI_dup_one(encoded_rr,encoded_rr_len)
+        SSL_ESNI_dup_one(rd,rd_len)
+
+        newi->ciphersuite=origi->ciphersuite;
         newi->group_id=origi->group_id;
+
+        SSL_ESNI_dup_one(esni_peer_keyshare,esni_peer_keyshare_len)
+
+        newi->esni_peer_pkey=origi->esni_peer_pkey;
+        if (origi->esni_peer_pkey!=NULL) {
+            if (EVP_PKEY_up_ref(origi->esni_peer_pkey)!=1) {
+                ESNIerr(ESNI_F_SSL_ESNI_DUP, ERR_R_INTERNAL_ERROR);
+                goto err;
+            }
+        }
         newi->padded_length=origi->padded_length;
         newi->not_before=origi->not_before;
         newi->not_after=origi->not_after;
-        newi->ciphersuite=origi->ciphersuite;
+
+        newi->nexts=origi->nexts;
+
+        if (origi->exttypes) {
+            newi->exttypes=OPENSSL_malloc(newi->nexts*sizeof(unsigned int));
+            if (newi->exttypes==NULL) {
+                ESNIerr(ESNI_F_SSL_ESNI_DUP, ERR_R_INTERNAL_ERROR);
+                goto err;
+            }
+            memcpy(newi->exttypes,origi->exttypes,newi->nexts*sizeof(unsigned int));
+        }
+
+        if (origi->extlens) {
+            newi->extlens=OPENSSL_malloc(newi->nexts*sizeof(size_t));
+            if (newi->extlens==NULL) {
+                ESNIerr(ESNI_F_SSL_ESNI_DUP, ERR_R_INTERNAL_ERROR);
+                goto err;
+            }
+            memcpy(newi->extlens,origi->extlens,newi->nexts*sizeof(size_t));
+        }
+
+        if (origi->exts) {
+            newi->exts=OPENSSL_malloc(newi->nexts*sizeof(unsigned char*));
+            if (newi->exts==NULL) {
+                ESNIerr(ESNI_F_SSL_ESNI_DUP, ERR_R_INTERNAL_ERROR);
+                goto err;
+            }
+            int j;
+            for (j=0;j!=newi->nexts;j++) {
+                newi->exts[j]=OPENSSL_malloc(newi->extlens[j]);
+                if (newi->exts[j]==NULL) {
+                    ESNIerr(ESNI_F_SSL_ESNI_DUP, ERR_R_INTERNAL_ERROR);
+                    goto err;
+                }
+                memcpy(newi->exts[j],origi->exts[j],newi->extlens[j]);
+            }
+        }
+
+        newi->naddrs=origi->naddrs;
+        
+        if (origi->addrs) {
+            newi->addrs=OPENSSL_malloc(newi->naddrs*sizeof(BIO_ADDR));
+            if (newi->addrs==NULL) {
+                ESNIerr(ESNI_F_SSL_ESNI_DUP, ERR_R_INTERNAL_ERROR);
+                goto err;
+            }
+            memcpy(newi->addrs,origi->addrs,newi->naddrs*sizeof(BIO_ADDR));
+        }
+
+        SSL_ESNI_dup_one(nonce,nonce_len)
+        SSL_ESNI_dup_one(hs_cr,hs_cr_len)
+        SSL_ESNI_dup_one(hs_kse,hs_kse_len)
+
+        newi->keyshare=origi->keyshare;
+        if (origi->keyshare!=NULL) {
+            if (EVP_PKEY_up_ref(origi->keyshare)!=1) {
+                ESNIerr(ESNI_F_SSL_ESNI_DUP, ERR_R_INTERNAL_ERROR);
+                goto err;
+            }
+        }
+        SSL_ESNI_dup_one(encoded_keyshare,encoded_keyshare_len)
+        SSL_ESNI_dup_one(hi,hi_len)
+        SSL_ESNI_dup_one(hash,hash_len)
+        SSL_ESNI_dup_one(realSNI,realSNI_len)
+        SSL_ESNI_dup_one(Z,Z_len)
+        SSL_ESNI_dup_one(Zx,Zx_len)
+        SSL_ESNI_dup_one(key,key_len)
+        SSL_ESNI_dup_one(iv,iv_len)
+        SSL_ESNI_dup_one(aad,aad_len)
+        SSL_ESNI_dup_one(plain,plain_len)
+        SSL_ESNI_dup_one(cipher,cipher_len)
+        SSL_ESNI_dup_one(tag,tag_len)
+#ifdef ESNI_CRYPT_INTEROP
+        if (origi->private_str) newi->private_str=OPENSSL_strdup(origi->private_str);
+#endif
+
+        /*
+         * Special case - pointers here are shallow to ones above
+         */
+        if (origi->the_esni) {
+            newi->the_esni=OPENSSL_malloc(sizeof(CLIENT_ESNI));
+            if (newi->the_esni==NULL) {
+                ESNIerr(ESNI_F_SSL_ESNI_DUP, ERR_R_INTERNAL_ERROR);
+                goto err;
+            }
+            newi->the_esni->ciphersuite=origi->the_esni->ciphersuite;
+            newi->the_esni->encoded_keyshare_len=origi->the_esni->encoded_keyshare_len;
+            newi->the_esni->encoded_keyshare=newi->encoded_keyshare;
+            newi->the_esni->record_digest_len=origi->the_esni->record_digest_len;
+            newi->the_esni->record_digest=newi->rd;
+            newi->the_esni->encrypted_sni_len=origi->the_esni->encrypted_sni_len;
+            newi->the_esni->encrypted_sni=newi->cipher;
+        }
+
     }
 
     return new;
@@ -2739,6 +2871,152 @@ err:
     }
     return NULL;
 }
+
+/* 
+ * Optional functions for applications to use below here
+ */
+
+/**
+ * @brief query the content of an SSL_ESNI structure
+ *
+ * This function allows the application to examine some internals
+ * of an SSL_ESNI structure so that it can then down-select some
+ * options. In particular, the caller can see the public_name and
+ * IP address related information associated with each ESNIKeys
+ * RR value (after decoding and initial checking within the
+ * library), and can then choose which of the RR value options
+ * the application would prefer to use.
+ *
+ * @param in is the internal form of SSL_ESNI structure
+ * @param out is the returned externally array of visible detailed forms of the SSL_ESNI structure
+ * @param nindices is an output saying how many indices are in the SSL_ESNI_ext structure 
+ * @return 1 for success, error otherwise
+ */
+int SSL_esni_query(SSL_ESNI *in, SSL_ESNI_ext **out, int *nindices)
+{
+    if (in==NULL || out==NULL || nindices==NULL) {
+        return(0);
+    }
+    SSL_ESNI_ext *se=NULL;
+    int i=0;
+    for (i=0;i!=in->num_esni_rrs;i++) {
+        SSL_ESNI_ext *tse=OPENSSL_realloc(se,(i+1)*sizeof(SSL_ESNI_ext));
+        if (tse==NULL) {
+            /* 
+             * TODO: Add OPENSSL error stuff here and elsewhere, i.e. like...
+             * ESNIerr(ESNI_F_SSL_ESNI_DUP, ERR_R_INTERNAL_ERROR);
+             */
+            goto err;
+        }
+        se=tse;
+        memset(&se[i],0,sizeof(SSL_ESNI_ext));
+        se[i].index=i;
+        if (in[i].public_name!=NULL) se[i].public_name= OPENSSL_strdup(in[i].public_name);
+        if (in[i].naddrs>0) {
+            int j;
+            char *prefstr=NULL;
+            size_t plen=0;
+            for (j=0;j!=in[i].naddrs;j++) {
+                char *foo=BIO_ADDR_hostname_string(&in[i].addrs[j], 1);
+                size_t newlen=plen+1+strlen(foo)+1;
+                char *bar=OPENSSL_malloc(newlen);
+                if (bar==NULL) {
+                    /* TODO: ESNIerr... */
+                    goto err;
+                }
+                if (prefstr==NULL) {
+                    snprintf(bar,newlen,"%s",foo);
+                } else {
+                    snprintf(bar,newlen,"%s;%s",prefstr,foo);
+                }
+                OPENSSL_free(prefstr);
+                OPENSSL_free(foo);
+                prefstr=bar;
+                plen=strlen(prefstr);
+            }
+            se[i].prefixes=prefstr;
+        }
+    }
+    *out=se;
+    *nindices=in->num_esni_rrs;
+    return(1);
+err:
+    if (se!=NULL) {
+       SSL_ESNI_ext_free(se,i);
+       OPENSSL_free(se);
+    }
+    return(0);
+}
+
+/** 
+ * @brief free up memory for an SSL_ESNI_ext
+ *
+ * @param in is the structure to free up
+ * @param size says how many indices are in in
+ */
+void SSL_ESNI_ext_free(SSL_ESNI_ext *in, int size)
+{
+    if (in==NULL) return;
+    for (int i=0;i!=size;i++)  {
+        if (in[i].public_name!=NULL) OPENSSL_free(in[i].public_name);
+        if (in[i].prefixes!=NULL) OPENSSL_free(in[i].prefixes);
+    }
+    return;
+}
+
+/**
+ * @brief down-select to use of one option with an SSL_ESNI
+ *
+ * This allows the caller to select one of the RR values 
+ * within an SSL_ESNI for later use.
+ *
+ * @param in is an SSL_ESNI structure with possibly multiple RR values
+ * @param index is the index value from an SSL_ESNI_ext produced from the 'in'
+ * @param out is a returned SSL_ESNI containing only that indexed RR value 
+ * @return 1 for success, error otherwise
+ */
+int SSL_esni_reduce(SSL_ESNI *in, int index, SSL_ESNI **out)
+{
+    SSL_ESNI *newone=NULL;
+    if (in==NULL || out==NULL || index >= in->num_esni_rrs) {
+        return(0);
+    }
+    newone=SSL_ESNI_dup(in,in->num_esni_rrs,index);
+    if (newone!=NULL) {
+        *out=newone;
+    }
+    return(1);
+}
+
+/**
+ * @brief utility fnc for application that wants to print an SSL_ESNI_ext
+ *
+ * @param out is the BIO to use (e.g. stdout/whatever)
+ * @param se is a pointer to an SSL_ESNI_ext struture
+ * @param count is the number of elements in se
+ * @return 1 for success, error othewise
+ */
+int SSL_ESNI_ext_print(BIO* out, SSL_ESNI_ext *se,int count)
+{
+    int i=0;
+    if (se==NULL) return(0);
+    BIO_printf(out,"SSL_ESNI_ext:\n");
+    for (i=0;i!=count;i++) {
+        BIO_printf(out,"Element %d\n",i);
+        if (se[i].public_name==NULL) {
+            BIO_printf(out,"\tNo Public name\n");
+        } else {
+            BIO_printf(out,"\tPublic name: %s\n",se[i].public_name);
+        }
+        if (se[i].prefixes==NULL) {
+            BIO_printf(out,"\tNo Prefixes\n");
+        } else {
+            BIO_printf(out,"\tPrefixes: %s\n",se[i].prefixes);
+        }
+    }
+    return(1);
+}
+
 
 #endif
 

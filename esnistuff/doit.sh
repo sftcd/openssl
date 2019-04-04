@@ -42,4 +42,4 @@ fi
 #valgrind --leak-check=full ./esni -s $HIDDEN -f $COVER -e $ESNI -p $PRIV -r $CRND -k $HSKS -n $NONCE
 
 # "normal" version - doesn't take other folks' internal crypto inputs
-valgrind --leak-check=full ./esni -s $HIDDEN -f $COVER -e $ESNI 
+valgrind --leak-check=full ./esni -s $HIDDEN -f $COVER -e $ESNI $*

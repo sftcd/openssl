@@ -42,7 +42,7 @@ esni: esnimain.o libssl.a libcrypto.a
 	${CC} -g -pthread -Wall -o $@ esnimain.o -L. -lssl -lcrypto -ldl 
 
 test:
-	./doit.sh fresh
+	./doit.sh fresh -v
 
 staletest:
 	./doit.sh

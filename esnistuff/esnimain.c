@@ -37,7 +37,7 @@ void usage(char *prog)
     /*
      * TODO: moar text
      */
-    printf("%s -e ESNI [-p priv] [-r client_random] [-s encservername] [-f covername] [-k h/s key_share] [-n nonce]\n",prog);
+    printf("%s -e ESNI [-p priv] [-r client_random] [-s encservername] [-f covername] [-k h/s key_share] [-n nonce] [-R] [-v]\n",prog);
     exit(1);
 }
 
@@ -54,12 +54,16 @@ int main(int argc, char **argv)
     char *private_str=NULL; // input ECDH private
     int rv;
     unsigned char *nbuf=NULL;
+    SSL_ESNI_ext *se=NULL;
+    int nses=0;
+    int reduce=0;
+    int verbose=0;
 
     // getopt vars
     int opt;
     
     // check inputs with getopt
-    while((opt = getopt(argc, argv, "?hs:e:p:r:k:f:n:")) != -1) {
+    while((opt = getopt(argc, argv, "?hs:e:p:r:k:f:n:Rv")) != -1) {
         switch(opt) {
             case 'h':
             case '?':
@@ -85,6 +89,12 @@ int main(int argc, char **argv)
                 break;
             case 'f':
                 covername=optarg;
+                break;
+            case 'R':
+                reduce=1;
+                break;
+            case 'v':
+                verbose=1;
                 break;
             default:
                 fprintf(stderr, "Error - No such option: `%c'\n\n", optopt);
@@ -169,6 +179,47 @@ int main(int argc, char **argv)
         goto end;
     }
 
+    rv=SSL_esni_query(esnikeys,&se,&nses);
+    if (rv!=1) {
+        printf("Can't query SSL_ESNI from RR value!\n");
+        goto end;
+    }
+
+    fp=fopen("/dev/stdout","w");
+    if (fp==NULL)
+        goto end;
+
+    out=BIO_new_fp(fp,BIO_CLOSE|BIO_FP_TEXT);
+    if (out == NULL)
+        goto end;
+
+    if (reduce==1 && nses>1) {
+        /*
+         * Arbitrarily pick 2nd one
+         */
+        SSL_ESNI *newesnikeys=NULL;
+        rv=SSL_esni_reduce(esnikeys,1,&newesnikeys);
+        if (rv!=1) {
+            printf("Can't reduce SSL_ESNI!\n");
+            goto end;
+        }
+        SSL_ESNI_free(esnikeys);
+        OPENSSL_free(esnikeys);
+        esnikeys=newesnikeys;
+        nesnis=1;
+    }
+
+    rv=SSL_ESNI_ext_print(out,se,nses);
+    if (rv!=1) {
+        printf("Can't print SSL_ESNI_ext!\n");
+        goto end;
+    }
+
+    SSL_ESNI_ext_free(se,nses);
+    OPENSSL_free(se);
+    se=NULL;
+    nses=0;
+
 #ifdef ESNI_CRYPT_INTEROP
     if (private_str!=NULL) {
         SSL_ESNI_set_private(esnikeys,private_str);
@@ -196,14 +247,6 @@ int main(int argc, char **argv)
     }
 #endif
 
-    fp=fopen("/dev/stdout","w");
-    if (fp==NULL)
-        goto end;
-
-    out=BIO_new_fp(fp,BIO_CLOSE|BIO_FP_TEXT);
-    if (out == NULL)
-        goto end;
-
     for (int i=0;i!=nesnis;i++) {
 
         esnikeys[i].encservername=OPENSSL_strndup(encservername,TLSEXT_MAXLEN_host_name);
@@ -224,18 +267,24 @@ int main(int argc, char **argv)
 
     }
 
-    if (!SSL_ESNI_print(out,esnikeys)) {
+    if (verbose==1 && !SSL_ESNI_print(out,esnikeys)) {
         printf("Can't print SSL_ESNI!\n");
         goto end;
     }
 
 end:
     BIO_free_all(out);
+    if (se!=NULL) {
+        SSL_ESNI_ext_free(se,nses);
+        OPENSSL_free(se);
+    }
     if (esnikeys!=NULL) {
         SSL_ESNI_free(esnikeys);
         OPENSSL_free(esnikeys);
     }
-    OPENSSL_free(nbuf);
+    if (nbuf!=NULL) {
+        OPENSSL_free(nbuf);
+    }
     return(0);
 }
 #endif

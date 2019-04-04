@@ -22,6 +22,8 @@
 
 #define ESNI_MAX_RRVALUE_LEN 2000 ///< Max size of a collection of ESNI RR values
 
+#define ESNI_SELECT_ALL -1 ///< used to duplicate all RRs in SSL_ESNI_dup
+
 
 /*
  * ESNIKeys Extensions we know about...
@@ -159,6 +161,10 @@ typedef struct client_esni_st {
  * On the server-side, an array of these is part of the SSL_CTX
  * structure, and we match one of 'em to be part of the SSL 
  * structure when a handshake is in porgress. (Well, hopefully:-)
+ *
+ * Note that SSL_ESNI_dup copies all these fields (when values are
+ * set), so if you add, change or remove a field here, you'll also
+ * need to modify that (in ssl/esni.c)
  */
 typedef struct ssl_esni_st {
     unsigned int version; ///< version from underlying ESNI_RECORD/ESNIKeys
@@ -229,6 +235,15 @@ typedef struct ssl_esni_st {
 #endif
     CLIENT_ESNI *the_esni; ///< the final outputs for the caller (note: not separately alloc'd)
 } SSL_ESNI;
+
+/*
+ * Exterally visible form of an ESNIKeys RR value
+ */
+typedef struct ssl_esni_ext_st {
+    int index; ///< externally re-usable reference to this RR value
+    char *public_name; ///< public_name from ESNIKeys
+    char *prefixes;  ///< comman seperated list of IP address prefixes, in CIDR form
+} SSL_ESNI_ext; 
 
 /*
  * Non-external Prototypes
@@ -326,9 +341,10 @@ void SSL_ESNI_free(SSL_ESNI *esnikeys);
  *
  * @param orig is the input array of SSL_ESNI to be partly deep-copied
  * @param nesni is the number of elements in the array
+ * @param selector allows for picking all (ESNI_SELECT_ALL==-1) or just one of the RR values in orig
  * @return a partial deep-copy array or NULL if errors occur
  */
-SSL_ESNI* SSL_ESNI_dup(SSL_ESNI* orig, size_t nesni);
+SSL_ESNI* SSL_ESNI_dup(SSL_ESNI* orig, size_t nesni, int selector);
 
 /*
  * Externally visible Prototypes
@@ -371,10 +387,59 @@ SSL_ESNI* SSL_ESNI_new_from_buffer(const short ekfmt, const size_t eklen, const 
  * @param esni is an array of SSL_ESNI structures
  * @param nesnis says how many structures are in the esni array
  * @param require_hidden_match say whether to require (==1) the TLS server cert matches the hidden name
- * @return 1 for success, other otherwise
+ * @return 1 for success, error otherwise
  * 
  */
 int SSL_esni_enable(SSL *s, const char *hidden, const char *cover, SSL_ESNI *esni, int nesnis, int require_hidden_match);
+
+/**
+ * @brief query the content of an SSL_ESNI structure
+ *
+ * This function allows the application to examine some internals
+ * of an SSL_ESNI structure so that it can then down-select some
+ * options. In particular, the caller can see the public_name and
+ * IP address related information associated with each ESNIKeys
+ * RR value (after decoding and initial checking within the
+ * library), and can then choose which of the RR value options
+ * the application would prefer to use.
+ *
+ * @param in is the internal form of SSL_ESNI structure
+ * @param out is the returned externally visible detailed form of the SSL_ESNI structure
+ * @param nindices is an output saying how many indices are in the SSL_ESNI_ext structure 
+ * @return 1 for success, error otherwise
+ */
+int SSL_esni_query(SSL_ESNI *in, SSL_ESNI_ext **out,int *nindices);
+
+/** 
+ * @brief free up memory for an SSL_ESNI_ext
+ *
+ * @param in is the structure to free up
+ * @param size says how many indices are in in
+ */
+void SSL_ESNI_ext_free(SSL_ESNI_ext *in,int size);
+
+/**
+ * @brief utility fnc for application that wants to print an SSL_ESNI_ext
+ *
+ * @param out is the BIO to use (e.g. stdout/whatever)
+ * @param se is a pointer to an SSL_ESNI_ext struture
+ * @param count is the number of elements in se
+ * @return 1 for success, error othewise
+ */
+int SSL_ESNI_ext_print(BIO* out, SSL_ESNI_ext *se,int count);
+
+/**
+ * @brief down-select to use of one option with an SSL_ESNI
+ *
+ * This allows the caller to select one of the RR values 
+ * within an SSL_ESNI for later use.
+ *
+ * @param in is an SSL_ESNI structure with possibly multiple RR values
+ * @param index is the index value from an SSL_ESNI_ext produced from the 'in'
+ * @param out is a returned SSL_ESNI containing only that indexed RR value 
+ * @return 1 for success, error otherwise
+ */
+int SSL_esni_reduce(SSL_ESNI *in, int index, SSL_ESNI **out);
 
 /**
  * Turn on SNI Encryption, server-side
@@ -411,7 +476,7 @@ int SSL_ESNI_get_esni_ctx(SSL_CTX *s, SSL_ESNI **esni);
  * Print the content of an SSL_ESNI
  *
  * @param out is the BIO to use (e.g. stdout/whatever)
- * @esni is an SSL_ESNI strucutre
+ * @param esni is an SSL_ESNI strucutre
  * @return 1 for success, anything else for failure
  */
 int SSL_ESNI_print(BIO* out, SSL_ESNI *esni);

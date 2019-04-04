@@ -25,6 +25,20 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- Added new APIs for allowing application to access some (new) internals of
+  ESNIKeys RR. Not yet documented in design.md, and still need to add the
+  proper OpenSSL error string handling, but those are:
+
+    - ``SSL_esni_query`` to extract more easily understood bits
+    of ESNIKeys RR (public_name and addresses)
+    - ``SSL_esni_reduce`` to allow application to downselect
+    to the stuff from one RR based on output of the above
+    - ``SSL_ESNI_ext_free`` to allow application to free the
+    "nicer" format info from ``SSL_esni_query``
+    - ``SSL_ESNI_ext_print`` to whack that to stdout etc.
+
+  See the next point down for why...
+
 - Added parsing of AddressSet extension into ``BIO_ADDR`` structure, with
   a view to providing a new API that allows the application to see which
   ``public_name`` and IP address combinations exist and to then allow the
