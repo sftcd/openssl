@@ -1552,7 +1552,6 @@ int s_client_main(int argc, char **argv)
             break;
         case OPT_ESNI_RR:
             esnikeys_asciirr = opt_arg();
-            printf("EK:|%s|\n",esnikeys_asciirr);
             break;
         case OPT_ESNI_STRICT:
             esni_strict=1;

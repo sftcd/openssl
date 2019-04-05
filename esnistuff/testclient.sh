@@ -118,7 +118,8 @@ then
 fi
 
 #dbgstr=" -verify_quiet"
-dbgstr=" -quiet"
+dbgstr=" "
+#dbgstr=" "
 if [[ "$DEBUG" == "yes" ]]
 then
     #dbgstr="-msg -debug -security_debug_verbose -state -tlsextdebug"
@@ -266,6 +267,7 @@ TMPF=`mktemp /tmp/esnitestXXXX`
 echo -e "$httpreq" | $vgcmd $TOP/apps/openssl s_client $dbgstr $certsdb $force13 $target $esnistr $snicmd $session >$TMPF 2>&1
 
 c200=`grep -c "200 OK" $TMPF`
+csucc=`grep -c "ESNI: success" $TMPF`
 c4xx=`grep -ce "^HTTP/1.1 4[0-9][0-9] " $TMPF`
 
 if [[ "$DEBUG" == "yes" ]]
@@ -290,7 +292,9 @@ then
 	echo "Nonce Back: $eestr"
 	grep -e "^ESNI: " $TMPF
 else
-	echo "Looks like $c200 ok's and $c4xx bad's."
+
+    ctot=$((csucc||c200))
+	echo "Looks like $ctot ok's and $c4xx bad's."
 fi
 echo ""
 rm -f $TMPF
