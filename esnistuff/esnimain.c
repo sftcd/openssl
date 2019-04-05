@@ -260,16 +260,22 @@ int main(int argc, char **argv)
             esnikeys[i].covername=NULL;
         }
 
-        if (!SSL_ESNI_enc(&esnikeys[i],cr_len,client_random,cid,ckl,ck,&the_esni)) {
+        SSL_ESNI *one=SSL_ESNI_dup(esnikeys,nesnis,i);
+
+        //if (!SSL_ESNI_enc(&esnikeys[i],cr_len,client_random,cid,ckl,ck,&the_esni)) {
+        if (!SSL_ESNI_enc(one,cr_len,client_random,cid,ckl,ck,&the_esni)) {
             printf("Can't encrypt SSL_ESNI!\n");
             goto end;
         }
 
-    }
+        if (verbose==1 && !SSL_ESNI_print(out,one)) {
+            printf("Can't print SSL_ESNI!\n");
+            goto end;
+        }
+        SSL_ESNI_free(one);
+        OPENSSL_free(one);
+        one=NULL;
 
-    if (verbose==1 && !SSL_ESNI_print(out,esnikeys)) {
-        printf("Can't print SSL_ESNI!\n");
-        goto end;
     }
 
 end:

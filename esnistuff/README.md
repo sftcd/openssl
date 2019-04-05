@@ -25,6 +25,11 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- Changed ``SSL_ESNI_enc`` to do the "pick longest lived" RR value
+  scheme described below. Similar change to check the returned 
+  nonce vs. all RR value structures in EncryptedExtensions (a
+  change in the ``ssl/statem/extensions_clnt.c`` file).
+
 - Added ``not_before`` and ``not_after`` fields to ``SSL_ESNI_ext`` 
   structure. Might be that gives me a nice out that let's me avoid
   adding an X.509-like notAfter bug to the library! Logic is that

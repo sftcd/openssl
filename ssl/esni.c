@@ -1229,7 +1229,7 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esniarr)
 
         esni=&esniarr[i];
 
-        BIO_printf(out,"Printing SSL_ESNI structure number %d\n",i);
+        BIO_printf(out,"\nPrinting SSL_ESNI structure number %d\n",i);
         BIO_printf(out,"ESNI Version: %x\n",esni->version);
 	
 	    if (esni->encoded_rr==NULL) {
@@ -1275,8 +1275,8 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esniarr)
 	    BIO_printf(out,"ESNI Server padded_length: %zd\n",esni->padded_length);
 	    BIO_printf(out,"ESNI Server not_before: %ju\n",esni->not_before);
 	    BIO_printf(out,"ESNI Server not_after: %ju\n",esni->not_after);
-	    BIO_printf(out,"ESNI Server number of extensions: %d\n",esni->nexts);
 	    if (esni->nexts!=0) {
+	        BIO_printf(out,"ESNI Server number of extensions: %d\n",esni->nexts);
             for (int i=0;i!=esni->nexts;i++) {
                 BIO_printf(out,"ESNI Extension type %d\n",esni->exttypes[i]);
 	            esni_pbuf(out,"ESNI Extension value",esni->exts[i],esni->extlens[i],indent+4);
@@ -1826,7 +1826,7 @@ err:
  * This is an internal API called as part of the state machine
  * dealing with this extension.
  *
- * @param esnikeys is the SSL_ESNI structure
+ * @param esnikeys_in is an array of SSL_ESNI structures:w
  * @param client_random_len is the number of bytes of
  * @param client_random being the TLS h/s client random
  * @param curve_id is the curve_id of the client keyshare
@@ -1834,7 +1834,7 @@ err:
  * @param client_keyshare is the h/s client keyshare
  * @return 1 for success, other otherwise
  */
-int SSL_ESNI_enc(SSL_ESNI *esnikeys, 
+int SSL_ESNI_enc(SSL_ESNI *esnikeys_in, 
                 size_t  client_random_len,
                 unsigned char *client_random,
                 uint16_t curve_id,
@@ -1842,6 +1842,25 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys,
                 unsigned char *client_keyshare,
                 CLIENT_ESNI **the_esni)
 {
+
+    /* 
+     * First, we'll pick which public key to use
+     *
+     * First cut - just pick the one with the latest not_after time,
+     * defaulting to first one seen in case of a draw
+     * We might add more criteria later, but since the application
+     * can do what it wants (via query/reduce), we're happy to be
+     * quite simple here.
+     */
+    int i;
+    int latestindex=0;
+    for (i=0;i!=esnikeys_in->num_esni_rrs;i++) {
+        if (esnikeys_in[i].not_after > esnikeys_in[latestindex].not_after) {
+            latestindex=i;
+        }
+    }
+
+    SSL_ESNI *esnikeys=&esnikeys_in[latestindex];
 
     /* 
      * encrypt the actual SNI based on shared key, Z - the I-D says:
@@ -2803,12 +2822,16 @@ SSL_ESNI* SSL_ESNI_dup(SSL_ESNI* orig, size_t nesni, int selector)
             }
             int j;
             for (j=0;j!=newi->nexts;j++) {
-                newi->exts[j]=OPENSSL_malloc(newi->extlens[j]);
-                if (newi->exts[j]==NULL) {
-                    ESNIerr(ESNI_F_SSL_ESNI_DUP, ERR_R_INTERNAL_ERROR);
-                    goto err;
+                if (newi->extlens[j]==0) {
+                    newi->exts[j]=NULL;
+                } else {
+                    newi->exts[j]=OPENSSL_malloc(newi->extlens[j]);
+                    if (newi->exts[j]==NULL) {
+                        ESNIerr(ESNI_F_SSL_ESNI_DUP, ERR_R_INTERNAL_ERROR);
+                        goto err;
+                    }
+                    memcpy(newi->exts[j],origi->exts[j],newi->extlens[j]);
                 }
-                memcpy(newi->exts[j],origi->exts[j],newi->extlens[j]);
             }
         }
 

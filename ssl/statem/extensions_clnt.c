@@ -2179,31 +2179,18 @@ EXT_RETURN tls_construct_ctos_esni(SSL *s, WPACKET *pkt, unsigned int context,
 int tls_parse_stoc_esni(SSL *s, PACKET *pkt, unsigned int context,
                                X509 *x, size_t chainidx)
 {
-    if (s->esni == NULL ||
-        s->esni->nonce == NULL ||
-        s->esni->nonce_len == 0 ) {
+    if (s->esni == NULL ) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PARSE_STOC_ESNI, ERR_R_INTERNAL_ERROR);
         return 0;
     }
 
-    if (s->esni->nonce_len > 64 ) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PARSE_STOC_ESNI, ERR_R_INTERNAL_ERROR);
-        return 0;
-    }
     unsigned char buf[64];
-
     /* nonce decode */
     if (!PACKET_copy_bytes(pkt,buf,s->esni->nonce_len)) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PARSE_STOC_ESNI, ERR_R_INTERNAL_ERROR);
         return 0;
     }
 
-    if (memcmp(buf,s->esni->nonce,s->esni->nonce_len)) {
-        /* bummer - different nonce, we're no good */
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PARSE_STOC_ESNI, ERR_R_INTERNAL_ERROR);
-        return 0;
-    }
-    
     /*
      * We also need *all* nonce bytes correct, so make sure there's no more
      */
@@ -2212,8 +2199,30 @@ int tls_parse_stoc_esni(SSL *s, PACKET *pkt, unsigned int context,
         return 0;
     }
 
-    /* yay - same nonce, we're good */
-    s->esni_done=1;
+    /*
+     * Now check if that's one we sent
+     */
+
+    int found=0;
+    int i=0;
+    for (i=0;!found && i!=s->esni->num_esni_rrs;i++) {
+
+        if (s->esni->nonce != NULL ||
+            s->esni->nonce_len == 64 ) {
+            if (!memcmp(buf,s->esni->nonce,s->esni->nonce_len)) {
+                /* yay - same nonce, we're good */
+                found=1;
+                s->esni_done=1;
+            }
+        }
+    }
+
+    if (!found) {
+        /* bummer - different nonce, we're no good */
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PARSE_STOC_ESNI, ERR_R_INTERNAL_ERROR);
+        return 0;
+    }
+    
     return 1;
 }
 #endif // END_OPENSSL_NO_ESNI
