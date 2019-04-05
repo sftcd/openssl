@@ -522,3 +522,7 @@ SSL_set_esni_callback                   522	3_0_0	EXIST::FUNCTION:ESNI
 SSL_set_esni_callback_ctx               523	3_0_0	EXIST::FUNCTION:ESNI
 SSL_SESSION_set1_enchostname            524	3_0_0	EXIST::FUNCTION:ESNI
 SSL_SESSION_get0_enchostname            525	3_0_0	EXIST::FUNCTION:ESNI
+SSL_esni_query                          526	3_0_0	EXIST::FUNCTION:
+SSL_ESNI_ext_free                       527	3_0_0	EXIST::FUNCTION:
+SSL_ESNI_ext_print                      528	3_0_0	EXIST::FUNCTION:
+SSL_esni_reduce                         529	3_0_0	EXIST::FUNCTION:

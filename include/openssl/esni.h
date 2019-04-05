@@ -236,13 +236,15 @@ typedef struct ssl_esni_st {
     CLIENT_ESNI *the_esni; ///< the final outputs for the caller (note: not separately alloc'd)
 } SSL_ESNI;
 
-/*
+/**
  * Exterally visible form of an ESNIKeys RR value
  */
 typedef struct ssl_esni_ext_st {
     int index; ///< externally re-usable reference to this RR value
     char *public_name; ///< public_name from ESNIKeys
     char *prefixes;  ///< comman seperated list of IP address prefixes, in CIDR form
+    uint64_t not_before; ///< from ESNIKeys (not currently used)
+    uint64_t not_after; ///< from ESNIKeys (not currently used)
 } SSL_ESNI_ext; 
 
 /*

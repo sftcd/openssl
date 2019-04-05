@@ -25,6 +25,18 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- Added ``not_before`` and ``not_after`` fields to ``SSL_ESNI_ext`` 
+  structure. Might be that gives me a nice out that let's me avoid
+  adding an X.509-like notAfter bug to the library! Logic is that
+  library code can pick the pubblic key that'll be valid longest 
+  (latest ``not_after``) as a default but that anything more (incl. 
+  comparing to wall-clock time!) is up to the application. Next 
+  up will be to add selection of one from many RR values in the
+  encryption process.
+
+- Fixed ``make update`` target and added proper error string 
+  handling to new APIs.
+
 - Added new APIs for allowing application to access some (new) internals of
   ESNIKeys RR. Not yet documented in design.md, and still need to add the
   proper OpenSSL error string handling, but those are:

@@ -2673,8 +2673,16 @@ int SSL_ESNI_set_nonce(SSL_ESNI *esni, unsigned char *nonce, size_t nlen)
     return 1;
 }
 
+SSL_ESNI* SSL_ESNI_dup(SSL_ESNI* orig, size_t nesni, int selector)
+{
+
 /*
- * Macro for more terse copying below
+ * Macro for more terse copying below. Only odd thing
+ * here is that this has to be defined inside this 
+ * function's scope as there's a "make update" target
+ * that, among other things, checks that the ESNI_F_SSL_ESNI_DUP
+ * string only occurs within the scope of this function.
+ * I'm not sure why that's useful but whatever...
  */
 #define SSL_ESNI_dup_one(FIELD,len_FIELD) \
         newi->len_FIELD=origi->len_FIELD; \
@@ -2685,10 +2693,8 @@ int SSL_ESNI_set_nonce(SSL_ESNI *esni, unsigned char *nonce, size_t nlen)
                 goto err; \
             } \
             memcpy(newi->FIELD,origi->FIELD,newi->len_FIELD); \
-        } \
+        }
 
-SSL_ESNI* SSL_ESNI_dup(SSL_ESNI* orig, size_t nesni, int selector)
-{
     SSL_ESNI *new=NULL;
 
     int num_selected=nesni;
@@ -2903,15 +2909,14 @@ int SSL_esni_query(SSL_ESNI *in, SSL_ESNI_ext **out, int *nindices)
     for (i=0;i!=in->num_esni_rrs;i++) {
         SSL_ESNI_ext *tse=OPENSSL_realloc(se,(i+1)*sizeof(SSL_ESNI_ext));
         if (tse==NULL) {
-            /* 
-             * TODO: Add OPENSSL error stuff here and elsewhere, i.e. like...
-             * ESNIerr(ESNI_F_SSL_ESNI_DUP, ERR_R_INTERNAL_ERROR);
-             */
+            ESNIerr(ESNI_F_SSL_ESNI_QUERY, ERR_R_INTERNAL_ERROR);
             goto err;
         }
         se=tse;
         memset(&se[i],0,sizeof(SSL_ESNI_ext));
         se[i].index=i;
+        se[i].not_before=in[i].not_before;
+        se[i].not_after=in[i].not_after;
         if (in[i].public_name!=NULL) se[i].public_name= OPENSSL_strdup(in[i].public_name);
         if (in[i].naddrs>0) {
             int j;
@@ -2922,7 +2927,7 @@ int SSL_esni_query(SSL_ESNI *in, SSL_ESNI_ext **out, int *nindices)
                 size_t newlen=plen+1+strlen(foo)+1;
                 char *bar=OPENSSL_malloc(newlen);
                 if (bar==NULL) {
-                    /* TODO: ESNIerr... */
+                    ESNIerr(ESNI_F_SSL_ESNI_QUERY, ERR_R_INTERNAL_ERROR);
                     goto err;
                 }
                 if (prefstr==NULL) {
@@ -2980,13 +2985,17 @@ int SSL_esni_reduce(SSL_ESNI *in, int index, SSL_ESNI **out)
 {
     SSL_ESNI *newone=NULL;
     if (in==NULL || out==NULL || index >= in->num_esni_rrs) {
+        ESNIerr(ESNI_F_SSL_ESNI_REDUCE, ERR_R_INTERNAL_ERROR);
         return(0);
     }
     newone=SSL_ESNI_dup(in,in->num_esni_rrs,index);
     if (newone!=NULL) {
         *out=newone;
-    }
-    return(1);
+        return(1);
+    } else {
+        ESNIerr(ESNI_F_SSL_ESNI_REDUCE, ERR_R_INTERNAL_ERROR);
+        return(0);
+   }
 }
 
 /**
@@ -3014,6 +3023,10 @@ int SSL_ESNI_ext_print(BIO* out, SSL_ESNI_ext *se,int count)
         } else {
             BIO_printf(out,"\tPrefixes: %s\n",se[i].prefixes);
         }
+        time_t tt=se[i].not_before;
+        BIO_printf(out,"\tNot before: (%ju) %s", se[i].not_before, asctime(gmtime(&tt)));
+        tt=se[i].not_after;
+        BIO_printf(out,"\tNot after: (%ju) %s", se[i].not_after, asctime(gmtime(&tt)));
     }
     return(1);
 }
