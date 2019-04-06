@@ -22,13 +22,21 @@ then
 	exit 1
 fi
 
-$MKBIN -o esnikeys.pub -p esnikeys.priv
 
 # this is where all the various files live
 ESNIKEYDIR=esnikeydir
 
 mkdir -p $ESNIKEYDIR
 cd $ESNIKEYDIR
-$MKBIN -o e2.pub -p e2.priv
-$MKBIN -o e3.pub -p e3.priv
-
+# may as well name files based on addresses:-)
+for fname in 127.0.0.99 127.0.0.100 127.0.0.101
+do
+    if [ ! -f $fname ]
+    then
+        echo "$fname" >$fname
+    fi
+done
+$MKBIN -V 0xff02 -o e2.pub -p e2.priv -P foo.example.net -A 127.0.0.100
+$MKBIN -V 0xff02 -o e3.pub -p e3.priv -P bar.example.net -A 127.0.0.101
+cd ..
+$MKBIN -V 0xff02 -o esnikeys.pub -p esnikeys.priv -P example.net -A esnikeydir/127.0.0.99

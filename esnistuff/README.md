@@ -25,6 +25,9 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- Updated ``make-esnikeys.sh`` script to use version 0xff02 (draft-03).
+  All seems fine.
+
 - Changed ``SSL_ESNI_enc`` to do the "pick longest lived" RR value
   scheme described below. Similar change to check the returned 
   nonce vs. all RR value structures in EncryptedExtensions (a
