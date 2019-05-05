@@ -9,6 +9,7 @@
 
 #include <openssl/core.h>
 #include <openssl/core_numbers.h>
+#include <openssl/params.h>
 #include <openssl/opensslv.h>
 #include "internal/cryptlib.h"
 #include "internal/nelem.h"
@@ -25,6 +26,12 @@ static OSSL_PROVIDER *provider_new(const char *name,
  * =========================
  */
 
+typedef struct {
+    char *name;
+    char *value;
+} INFOPAIR;
+DEFINE_STACK_OF(INFOPAIR)
+
 struct provider_store_st;        /* Forward declaration */
 
 struct ossl_provider_st {
@@ -36,8 +43,10 @@ struct ossl_provider_st {
     CRYPTO_REF_COUNT refcnt;
     CRYPTO_RWLOCK *refcnt_lock;  /* For the ref counter */
     char *name;
+    char *path;
     DSO *module;
     OSSL_provider_init_fn *init_function;
+    STACK_OF(INFOPAIR) *parameters;
     struct provider_store_st *store; /* The store this instance belongs to */
 
     /* Provider side functions */
@@ -45,6 +54,9 @@ struct ossl_provider_st {
     OSSL_provider_get_param_types_fn *get_param_types;
     OSSL_provider_get_params_fn *get_params;
     OSSL_provider_query_operation_fn *query_operation;
+
+    /* Provider side data */
+    void *provctx;
 };
 DEFINE_STACK_OF(OSSL_PROVIDER)
 
@@ -67,7 +79,6 @@ struct provider_store_st {
     CRYPTO_RWLOCK *lock;
     unsigned int use_fallbacks:1;
 };
-static int provider_store_index = -1;
 
 static void provider_store_free(void *vstore)
 {
@@ -80,7 +91,7 @@ static void provider_store_free(void *vstore)
     OPENSSL_free(store);
 }
 
-static void *provider_store_new(void)
+static void *provider_store_new(OPENSSL_CTX *ctx)
 {
     struct provider_store_st *store = OPENSSL_zalloc(sizeof(*store));
     const struct predefined_providers_st *p = NULL;
@@ -122,23 +133,12 @@ static const OPENSSL_CTX_METHOD provider_store_method = {
     provider_store_free,
 };
 
-static CRYPTO_ONCE provider_store_init_flag = CRYPTO_ONCE_STATIC_INIT;
-DEFINE_RUN_ONCE_STATIC(do_provider_store_init)
-{
-    return OPENSSL_init_crypto(0, NULL)
-        && (provider_store_index =
-            openssl_ctx_new_index(&provider_store_method)) != -1;
-}
-
-
 static struct provider_store_st *get_provider_store(OPENSSL_CTX *libctx)
 {
     struct provider_store_st *store = NULL;
 
-    if (!RUN_ONCE(&provider_store_init_flag, do_provider_store_init))
-        return NULL;
-
-    store = openssl_ctx_get_data(libctx, provider_store_index);
+    store = openssl_ctx_get_data(libctx, OPENSSL_CTX_PROVIDER_STORE_INDEX,
+                                 &provider_store_method);
     if (store == NULL)
         CRYPTOerr(CRYPTO_F_GET_PROVIDER_STORE, ERR_R_INTERNAL_ERROR);
     return store;
@@ -243,6 +243,13 @@ OSSL_PROVIDER *ossl_provider_new(OPENSSL_CTX *libctx, const char *name,
     return prov;
 }
 
+static void free_infopair(INFOPAIR *pair)
+{
+    OPENSSL_free(pair->name);
+    OPENSSL_free(pair->value);
+    OPENSSL_free(pair);
+}
+
 void ossl_provider_free(OSSL_PROVIDER *prov)
 {
     if (prov != NULL) {
@@ -259,7 +266,7 @@ void ossl_provider_free(OSSL_PROVIDER *prov)
          */
         if (ref < 2 && prov->flag_initialized) {
             if (prov->teardown != NULL)
-                prov->teardown();
+                prov->teardown(prov->provctx);
             prov->flag_initialized = 0;
         }
 
@@ -270,12 +277,48 @@ void ossl_provider_free(OSSL_PROVIDER *prov)
         if (ref == 0) {
             DSO_free(prov->module);
             OPENSSL_free(prov->name);
+            OPENSSL_free(prov->path);
+            sk_INFOPAIR_pop_free(prov->parameters, free_infopair);
 #ifndef HAVE_ATOMICS
             CRYPTO_THREAD_lock_free(prov->refcnt_lock);
 #endif
             OPENSSL_free(prov);
         }
     }
+}
+
+/* Setters */
+int ossl_provider_set_module_path(OSSL_PROVIDER *prov, const char *module_path)
+{
+    OPENSSL_free(prov->path);
+    if (module_path == NULL)
+        return 1;
+    if ((prov->path = OPENSSL_strdup(module_path)) != NULL)
+        return 1;
+    CRYPTOerr(CRYPTO_F_OSSL_PROVIDER_SET_MODULE_PATH, ERR_R_MALLOC_FAILURE);
+    return 0;
+}
+
+int ossl_provider_add_parameter(OSSL_PROVIDER *prov,
+                                const char *name, const char *value)
+{
+    INFOPAIR *pair = NULL;
+
+    if ((pair = OPENSSL_zalloc(sizeof(*pair))) != NULL
+        && (prov->parameters != NULL
+            || (prov->parameters = sk_INFOPAIR_new_null()) != NULL)
+        && (pair->name = OPENSSL_strdup(name)) != NULL
+        && (pair->value = OPENSSL_strdup(value)) != NULL
+        && sk_INFOPAIR_push(prov->parameters, pair) > 0)
+        return 1;
+
+    if (pair != NULL) {
+        OPENSSL_free(pair->name);
+        OPENSSL_free(pair->value);
+        OPENSSL_free(pair);
+    }
+    CRYPTOerr(CRYPTO_F_OSSL_PROVIDER_ADD_PARAMETER, ERR_R_MALLOC_FAILURE);
+    return 0;
 }
 
 /*
@@ -310,8 +353,9 @@ static int provider_activate(OSSL_PROVIDER *prov)
      */
     if (prov->init_function == NULL) {
         if (prov->module == NULL) {
-            char *platform_module_name = NULL;
-            char *module_path = NULL;
+            char *allocated_path = NULL;
+            const char *module_path = NULL;
+            char *merged_path = NULL;
             const char *load_dir = ossl_safe_getenv("OPENSSL_MODULES");
 
             if ((prov->module = DSO_new()) == NULL) {
@@ -324,19 +368,22 @@ static int provider_activate(OSSL_PROVIDER *prov)
 
             DSO_ctrl(prov->module, DSO_CTRL_SET_FLAGS,
                      DSO_FLAG_NAME_TRANSLATION_EXT_ONLY, NULL);
-            if ((platform_module_name =
-                 DSO_convert_filename(prov->module, prov->name)) == NULL
-                || (module_path =
-                    DSO_merge(prov->module, platform_module_name,
-                              load_dir)) == NULL
-                || DSO_load(prov->module, module_path, NULL,
-                            DSO_FLAG_NAME_TRANSLATION_EXT_ONLY) == NULL) {
+
+            module_path = prov->path;
+            if (module_path == NULL)
+                module_path = allocated_path =
+                    DSO_convert_filename(prov->module, prov->name);
+            if (module_path != NULL)
+                merged_path = DSO_merge(prov->module, module_path, load_dir);
+
+            if (merged_path == NULL
+                || (DSO_load(prov->module, merged_path, NULL, 0)) == NULL) {
                 DSO_free(prov->module);
                 prov->module = NULL;
             }
 
-            OPENSSL_free(platform_module_name);
-            OPENSSL_free(module_path);
+            OPENSSL_free(merged_path);
+            OPENSSL_free(allocated_path);
         }
 
         if (prov->module != NULL)
@@ -345,7 +392,8 @@ static int provider_activate(OSSL_PROVIDER *prov)
     }
 
     if (prov->init_function == NULL
-        || !prov->init_function(prov, core_dispatch, &provider_dispatch)) {
+        || !prov->init_function(prov, core_dispatch, &provider_dispatch,
+                                &prov->provctx)) {
         CRYPTOerr(CRYPTO_F_PROVIDER_ACTIVATE, ERR_R_INIT_FAIL);
         ERR_add_error_data(2, "name=", prov->name);
         DSO_free(prov->module);
@@ -390,6 +438,11 @@ int ossl_provider_activate(OSSL_PROVIDER *prov)
     }
 
     return 0;
+}
+
+void *ossl_provider_ctx(const OSSL_PROVIDER *prov)
+{
+    return prov->provctx;
 }
 
 
@@ -517,18 +570,20 @@ const char *ossl_provider_module_path(OSSL_PROVIDER *prov)
 void ossl_provider_teardown(const OSSL_PROVIDER *prov)
 {
     if (prov->teardown != NULL)
-        prov->teardown();
+        prov->teardown(prov->provctx);
 }
 
 const OSSL_ITEM *ossl_provider_get_param_types(const OSSL_PROVIDER *prov)
 {
-    return prov->get_param_types == NULL ? NULL : prov->get_param_types(prov);
+    return prov->get_param_types == NULL
+        ? NULL : prov->get_param_types(prov->provctx);
 }
 
 int ossl_provider_get_params(const OSSL_PROVIDER *prov,
                              const OSSL_PARAM params[])
 {
-    return prov->get_params == NULL ? 0 : prov->get_params(prov, params);
+    return prov->get_params == NULL
+        ? 0 : prov->get_params(prov->provctx, params);
 }
 
 
@@ -536,7 +591,7 @@ const OSSL_ALGORITHM *ossl_provider_query_operation(const OSSL_PROVIDER *prov,
                                                     int operation_id,
                                                     int *no_cache)
 {
-    return prov->query_operation(prov, operation_id, no_cache);
+    return prov->query_operation(prov->provctx, operation_id, no_cache);
 }
 
 /*-
@@ -565,17 +620,21 @@ static const OSSL_ITEM *core_get_param_types(const OSSL_PROVIDER *prov)
 static int core_get_params(const OSSL_PROVIDER *prov, const OSSL_PARAM params[])
 {
     int i;
+    const OSSL_PARAM *p;
 
-    for (i = 0; params[i].key != NULL; i++) {
-        if (strcmp(params[i].key, "openssl-version") == 0) {
-            *(void **)params[i].data = OPENSSL_VERSION_STR;
-            if (params[i].return_size)
-                *params[i].return_size = sizeof(OPENSSL_VERSION_STR);
-        } else if (strcmp(params[i].key, "provider-name") == 0) {
-            *(void **)params[i].data = prov->name;
-            if (params[i].return_size)
-                *params[i].return_size = strlen(prov->name) + 1;
-        }
+    if ((p = OSSL_PARAM_locate(params, "openssl-version")) != NULL)
+        OSSL_PARAM_set_utf8_ptr(p, OPENSSL_VERSION_STR);
+    if ((p = OSSL_PARAM_locate(params, "provider-name")) != NULL)
+        OSSL_PARAM_set_utf8_ptr(p, prov->name);
+
+    if (prov->parameters == NULL)
+        return 1;
+
+    for (i = 0; i < sk_INFOPAIR_num(prov->parameters); i++) {
+        INFOPAIR *pair = sk_INFOPAIR_value(prov->parameters, i);
+
+        if ((p = OSSL_PARAM_locate(params, pair->name)) != NULL)
+            OSSL_PARAM_set_utf8_ptr(p, pair->value);
     }
 
     return 1;

@@ -573,8 +573,7 @@ seemed unkeen on. Decided to not bother with that.
 
 - www.cloudflare.com finished the handshake but no sign of an
   esni in the EE so far (actually getting no EE from the
-  server)
-    - I discovered I wasn't handling the client h/s key share at all (heh:-)
+  server) - I discovered I wasn't handling the client h/s key share at all (heh:-)
     - need to check what FF gets when working - later
 
 - I've gotten FF nightly to work with CF, and am now sending
@@ -590,6 +589,11 @@ seemed unkeen on. Decided to not bother with that.
 
 I'm sure there's more but some collected so far:
 
+- Had a look at how [lightttpd](https://github.com/lighttpd/lighttpd1.4/blob/master/src/mod_openssl.c) 
+  integrates OpenSSL and that might be a nicely viable build into which to
+  integrate our ESNI without too much effort. (Seems like latest OpenSSL and TLS1.3
+  have been integrated/working since 1.4.51-1 from Oct 2018 when someone 
+  fixed a [bug](https://bugs.archlinux.org/task/60294) caused by TLS1.3.)
 - Code up support for [draft-03](https://tools.ietf.org/html/draft-ietf-tls-esni-03#section-8.3)
 - Figure out/test HRR cases. [This issue](https://github.com/tlswg/draft-ietf-tls-esni/issues/121) calls for checks to be enforced.
 - Server API for managing ESNI public/private values w/o restart.

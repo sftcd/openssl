@@ -104,9 +104,12 @@ typedef struct drbg_selftest_data_st {
     make_drbg_test_data(nid, 0, pr, p)
 
 static DRBG_SELFTEST_DATA drbg_test[] = {
+#ifndef FIPS_MODE
+    /* FIPS mode doesn't support CTR DRBG without a derivation function */
     make_drbg_test_data_no_df (NID_aes_128_ctr, aes_128_no_df,  0),
     make_drbg_test_data_no_df (NID_aes_192_ctr, aes_192_no_df,  0),
     make_drbg_test_data_no_df (NID_aes_256_ctr, aes_256_no_df,  1),
+#endif
     make_drbg_test_data_use_df(NID_aes_128_ctr, aes_128_use_df, 0),
     make_drbg_test_data_use_df(NID_aes_192_ctr, aes_192_use_df, 0),
     make_drbg_test_data_use_df(NID_aes_256_ctr, aes_256_use_df, 1),
@@ -1009,6 +1012,83 @@ static int test_rand_add(void)
     return 1;
 }
 
+static int test_rand_drbg_prediction_resistance(void)
+{
+    RAND_DRBG *m = NULL, *i = NULL, *s = NULL;
+    unsigned char buf1[51], buf2[sizeof(buf1)];
+    int ret = 0, mreseed, ireseed, sreseed;
+
+    /* Initialise a three long DRBG chain */
+    if (!TEST_ptr(m = RAND_DRBG_new(0, 0, NULL))
+        || !TEST_true(disable_crngt(m))
+        || !TEST_true(RAND_DRBG_instantiate(m, NULL, 0))
+        || !TEST_ptr(i = RAND_DRBG_new(0, 0, m))
+        || !TEST_true(RAND_DRBG_instantiate(i, NULL, 0))
+        || !TEST_ptr(s = RAND_DRBG_new(0, 0, i))
+        || !TEST_true(RAND_DRBG_instantiate(s, NULL, 0)))
+        goto err;
+
+    /* During a normal reseed, only the slave DRBG should be reseed */
+    mreseed = ++m->reseed_prop_counter;
+    ireseed = ++i->reseed_prop_counter;
+    sreseed = s->reseed_prop_counter;
+    if (!TEST_true(RAND_DRBG_reseed(s, NULL, 0, 0))
+        || !TEST_int_eq(m->reseed_prop_counter, mreseed)
+        || !TEST_int_eq(i->reseed_prop_counter, ireseed)
+        || !TEST_int_gt(s->reseed_prop_counter, sreseed))
+        goto err;
+
+    /*
+     * When prediction resistance is requested, the request should be
+     * propagated to the master, so that the entire DRBG chain reseeds.
+     */
+    sreseed = s->reseed_prop_counter;
+    if (!TEST_true(RAND_DRBG_reseed(s, NULL, 0, 1))
+        || !TEST_int_gt(m->reseed_prop_counter, mreseed)
+        || !TEST_int_gt(i->reseed_prop_counter, ireseed)
+        || !TEST_int_gt(s->reseed_prop_counter, sreseed))
+        goto err;
+
+    /* During a normal generate, only the slave DRBG should be reseed */
+    mreseed = ++m->reseed_prop_counter;
+    ireseed = ++i->reseed_prop_counter;
+    sreseed = s->reseed_prop_counter;
+    if (!TEST_true(RAND_DRBG_generate(s, buf1, sizeof(buf1), 0, NULL, 0))
+        || !TEST_int_eq(m->reseed_prop_counter, mreseed)
+        || !TEST_int_eq(i->reseed_prop_counter, ireseed)
+        || !TEST_int_gt(s->reseed_prop_counter, sreseed))
+        goto err;
+
+    /*
+     * When a prediction resistant generate is requested, the request
+     * should be propagated to the master, reseeding the entire DRBG chain.
+     */
+    sreseed = s->reseed_prop_counter;
+    if (!TEST_true(RAND_DRBG_generate(s, buf2, sizeof(buf2), 1, NULL, 0))
+        || !TEST_int_gt(m->reseed_prop_counter, mreseed)
+        || !TEST_int_gt(i->reseed_prop_counter, ireseed)
+        || !TEST_int_gt(s->reseed_prop_counter, sreseed)
+        || !TEST_mem_ne(buf1, sizeof(buf1), buf2, sizeof(buf2)))
+        goto err;
+
+    /* Verify that a normal reseed still only reseeds the slave DRBG */
+    mreseed = ++m->reseed_prop_counter;
+    ireseed = ++i->reseed_prop_counter;
+    sreseed = s->reseed_prop_counter;
+    if (!TEST_true(RAND_DRBG_reseed(s, NULL, 0, 0))
+        || !TEST_int_eq(m->reseed_prop_counter, mreseed)
+        || !TEST_int_eq(i->reseed_prop_counter, ireseed)
+        || !TEST_int_gt(s->reseed_prop_counter, sreseed))
+        goto err;
+
+    ret = 1;
+err:
+    RAND_DRBG_free(s);
+    RAND_DRBG_free(i);
+    RAND_DRBG_free(m);
+    return ret;
+}
+
 static int test_multi_set(void)
 {
     int rv = 0;
@@ -1107,14 +1187,16 @@ static int test_set_defaults(void)
            && TEST_int_eq(public->type, NID_sha256)
            && TEST_int_eq(public->flags, RAND_DRBG_FLAG_PUBLIC)
 
-           /* Change DRBG defaults and change master and check again */
+          /* FIPS mode doesn't support CTR DRBG without a derivation function */
+#ifndef FIPS_MODE
+          /* Change DRBG defaults and change master and check again */
            && TEST_true(RAND_DRBG_set_defaults(NID_aes_256_ctr,
                                                RAND_DRBG_FLAG_CTR_NO_DF))
            && TEST_true(RAND_DRBG_uninstantiate(master))
            && TEST_int_eq(master->type, NID_aes_256_ctr)
            && TEST_int_eq(master->flags,
                           RAND_DRBG_FLAG_MASTER|RAND_DRBG_FLAG_CTR_NO_DF)
-
+#endif
            /* Reset back to the standard defaults */
            && TEST_true(RAND_DRBG_set_defaults(RAND_DRBG_TYPE,
                                                RAND_DRBG_FLAGS
@@ -1167,7 +1249,8 @@ static const size_t crngt_num_cases = 6;
 
 static size_t crngt_case, crngt_idx;
 
-static int crngt_entropy_cb(unsigned char *buf)
+static int crngt_entropy_cb(unsigned char *buf, unsigned char *md,
+                            unsigned int *md_size)
 {
     size_t i, z;
 
@@ -1179,7 +1262,7 @@ static int crngt_entropy_cb(unsigned char *buf)
         z--;
     for (i = 0; i < CRNGT_BUFSIZ; i++)
         buf[i] = (unsigned char)(i + 'A' + z);
-    return 1;
+    return EVP_Digest(buf, CRNGT_BUFSIZ, md, md_size, EVP_sha256(), NULL);
 }
 
 static int test_crngt(int n)
@@ -1247,6 +1330,7 @@ int setup_tests(void)
     ADD_TEST(test_rand_drbg_reseed);
     ADD_TEST(test_rand_seed);
     ADD_TEST(test_rand_add);
+    ADD_TEST(test_rand_drbg_prediction_resistance);
     ADD_TEST(test_multi_set);
     ADD_TEST(test_set_defaults);
 #if defined(OPENSSL_THREADS)

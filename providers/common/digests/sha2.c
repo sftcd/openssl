@@ -10,18 +10,37 @@
 #include <openssl/sha.h>
 #include <openssl/crypto.h>
 #include <openssl/core_numbers.h>
+#include "internal/provider_algs.h"
 
-static int sha256_final(void *ctx, unsigned char *md, size_t *size)
+/*
+ * Forward declaration of everything implemented here.  This is not strictly
+ * necessary for the compiler, but provides an assurance that the signatures
+ * of the functions in the dispatch table are correct.
+ */
+static OSSL_OP_digest_newctx_fn sha256_newctx;
+#if 0                           /* Not defined here */
+static OSSL_OP_digest_init_fn sha256_init;
+static OSSL_OP_digest_update_fn sha256_update;
+#endif
+static OSSL_OP_digest_final_fn sha256_final;
+static OSSL_OP_digest_freectx_fn sha256_freectx;
+static OSSL_OP_digest_dupctx_fn sha256_dupctx;
+static OSSL_OP_digest_size_fn sha256_size;
+static OSSL_OP_digest_block_size_fn sha256_size;
+
+static int sha256_final(void *ctx,
+                        unsigned char *md, size_t *mdl, size_t mdsz)
 {
-    if (SHA256_Final(md, ctx)) {
-        *size = SHA256_DIGEST_LENGTH;
+    if (mdsz >= SHA256_DIGEST_LENGTH
+        && SHA256_Final(md, ctx)) {
+        *mdl = SHA256_DIGEST_LENGTH;
         return 1;
     }
 
     return 0;
 }
 
-static void *sha256_newctx(void)
+static void *sha256_newctx(void *provctx)
 {
     SHA256_CTX *ctx = OPENSSL_zalloc(sizeof(*ctx));
 
@@ -50,14 +69,19 @@ static size_t sha256_size(void)
     return SHA256_DIGEST_LENGTH;
 }
 
-extern const OSSL_DISPATCH sha256_functions[];
+static size_t sha256_block_size(void)
+{
+    return SHA256_CBLOCK;
+}
+
 const OSSL_DISPATCH sha256_functions[] = {
     { OSSL_FUNC_DIGEST_NEWCTX, (void (*)(void))sha256_newctx },
     { OSSL_FUNC_DIGEST_INIT, (void (*)(void))SHA256_Init },
-    { OSSL_FUNC_DIGEST_UPDDATE, (void (*)(void))SHA256_Update },
+    { OSSL_FUNC_DIGEST_UPDATE, (void (*)(void))SHA256_Update },
     { OSSL_FUNC_DIGEST_FINAL, (void (*)(void))sha256_final },
     { OSSL_FUNC_DIGEST_FREECTX, (void (*)(void))sha256_freectx },
     { OSSL_FUNC_DIGEST_DUPCTX, (void (*)(void))sha256_dupctx },
     { OSSL_FUNC_DIGEST_SIZE, (void (*)(void))sha256_size },
+    { OSSL_FUNC_DIGEST_BLOCK_SIZE, (void (*)(void))sha256_block_size },
     { 0, NULL }
 };

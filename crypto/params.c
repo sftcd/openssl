@@ -348,6 +348,13 @@ OSSL_PARAM OSSL_PARAM_construct_size_t(const char *key, size_t *buf,
     return ossl_param_construct(key, OSSL_PARAM_UNSIGNED_INTEGER, buf,
                                 sizeof(size_t), rsize); }
 
+#ifndef FIPS_MODE
+/*
+ * TODO(3.0): Make this available in FIPS mode.
+ *
+ * Temporarily we don't include these functions in FIPS mode to avoid pulling
+ * in the entire BN sub-library into the module at this point.
+ */
 int OSSL_PARAM_get_BN(const OSSL_PARAM *p, BIGNUM **val)
 {
     BIGNUM *b;
@@ -375,6 +382,10 @@ int OSSL_PARAM_set_BN(const OSSL_PARAM *p, const BIGNUM *val)
     if (val == NULL || p->data_type != OSSL_PARAM_UNSIGNED_INTEGER)
         return 0;
 
+    /* For the moment, only positive values are permitted */
+    if (BN_is_negative(val))
+        return 0;
+
     bytes = (size_t)BN_num_bytes(val);
     SET_RETURN_SIZE(p, bytes);
     return p->data_size >= bytes
@@ -387,6 +398,7 @@ OSSL_PARAM OSSL_PARAM_construct_BN(const char *key, unsigned char *buf,
     return ossl_param_construct(key, OSSL_PARAM_UNSIGNED_INTEGER,
                                 buf, bsize, rsize);
 }
+#endif
 
 int OSSL_PARAM_get_double(const OSSL_PARAM *p, double *val)
 {
@@ -568,13 +580,20 @@ int OSSL_PARAM_set_octet_ptr(const OSSL_PARAM *p, const void *val,
 }
 
 OSSL_PARAM OSSL_PARAM_construct_utf8_ptr(const char *key, char **buf,
-                                         size_t *rsize)
+                                         size_t bsize, size_t *rsize)
 {
-    return ossl_param_construct(key, OSSL_PARAM_UTF8_PTR, buf, 0, rsize);
+    return ossl_param_construct(key, OSSL_PARAM_UTF8_PTR, buf, bsize, rsize);
 }
 
 OSSL_PARAM OSSL_PARAM_construct_octet_ptr(const char *key, void **buf,
-                                          size_t *rsize)
+                                          size_t bsize, size_t *rsize)
 {
-    return ossl_param_construct(key, OSSL_PARAM_OCTET_PTR, buf, 0, rsize);
+    return ossl_param_construct(key, OSSL_PARAM_OCTET_PTR, buf, bsize, rsize);
+}
+
+OSSL_PARAM OSSL_PARAM_construct_end(void)
+{
+    OSSL_PARAM end = OSSL_PARAM_END;
+
+    return end;
 }

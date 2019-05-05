@@ -10,6 +10,7 @@
 /* EVP_MD_CTX related stuff */
 
 struct evp_md_ctx_st {
+    const EVP_MD *reqdigest;    /* The original requested digest */
     const EVP_MD *digest;
     ENGINE *engine;             /* functional reference if 'digest' is
                                  * ENGINE-provided */
@@ -43,6 +44,10 @@ struct evp_cipher_ctx_st {
     int final_used;
     int block_mask;
     unsigned char final[EVP_MAX_BLOCK_LENGTH]; /* possible final block */
+
+    /* Provider ctx */
+    void *provctx;
+    EVP_CIPHER *fetched_cipher;
 } /* EVP_CIPHER_CTX */ ;
 
 struct evp_mac_ctx_st {
@@ -51,7 +56,7 @@ struct evp_mac_ctx_st {
 } /* EVP_MAC_CTX */;
 
 struct evp_kdf_ctx_st {
-    const EVP_KDF_METHOD *kmeth;
+    const EVP_KDF *meth;         /* Method structure */
     EVP_KDF_IMPL *impl;          /* Algorithm-specific data */
 } /* EVP_KDF_CTX */ ;
 
@@ -89,4 +94,5 @@ void *evp_generic_fetch(OPENSSL_CTX *ctx, int operation_id,
                         void *(*new_method)(int nid, const OSSL_DISPATCH *fns,
                                             OSSL_PROVIDER *prov),
                         int (*upref_method)(void *),
-                        void (*free_method)(void *));
+                        void (*free_method)(void *),
+                        int (*nid_method)(void *));

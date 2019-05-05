@@ -44,6 +44,7 @@
 #endif
 #include <openssl/esserr.h>
 #include "internal/propertyerr.h"
+#include "internal/providercommonerr.h"
 
 int err_load_crypto_strings_int(void)
 {
@@ -108,7 +109,8 @@ int err_load_crypto_strings_int(void)
         ERR_load_ESNI_strings() == 0 ||
 #endif
         ERR_load_OSSL_STORE_strings() == 0 ||
-        ERR_load_PROP_strings() == 0)
+        ERR_load_PROP_strings() == 0 ||
+        ERR_load_PROV_strings() == 0)
         return 0;
 
     return 1;

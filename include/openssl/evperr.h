@@ -24,12 +24,16 @@ int ERR_load_EVP_strings(void);
  * EVP function codes.
  */
 # define EVP_F_AESNI_INIT_KEY                             165
+# define EVP_F_AESNI_XTS_INIT_KEY                         233
 # define EVP_F_AES_GCM_CTRL                               196
 # define EVP_F_AES_GCM_TLS_CIPHER                         207
 # define EVP_F_AES_INIT_KEY                               133
 # define EVP_F_AES_OCB_CIPHER                             169
 # define EVP_F_AES_T4_INIT_KEY                            178
+# define EVP_F_AES_T4_XTS_INIT_KEY                        234
 # define EVP_F_AES_WRAP_CIPHER                            170
+# define EVP_F_AES_XTS_CIPHER                             229
+# define EVP_F_AES_XTS_INIT_KEY                           235
 # define EVP_F_ALG_MODULE_INIT                            177
 # define EVP_F_ARIA_CCM_INIT_KEY                          175
 # define EVP_F_ARIA_GCM_CTRL                              197
@@ -51,6 +55,9 @@ int ERR_load_EVP_strings(void);
 # define EVP_F_EVP_CIPHER_CTX_COPY                        163
 # define EVP_F_EVP_CIPHER_CTX_CTRL                        124
 # define EVP_F_EVP_CIPHER_CTX_SET_KEY_LENGTH              122
+# define EVP_F_EVP_CIPHER_CTX_SET_PADDING                 237
+# define EVP_F_EVP_CIPHER_FROM_DISPATCH                   238
+# define EVP_F_EVP_CIPHER_MODE                            239
 # define EVP_F_EVP_CIPHER_PARAM_TO_ASN1                   205
 # define EVP_F_EVP_DECRYPTFINAL_EX                        101
 # define EVP_F_EVP_DECRYPTUPDATE                          166
@@ -63,12 +70,14 @@ int ERR_load_EVP_strings(void);
 # define EVP_F_EVP_ENCRYPTUPDATE                          167
 # define EVP_F_EVP_KDF_CTRL                               224
 # define EVP_F_EVP_KDF_CTRL_STR                           225
+# define EVP_F_EVP_KDF_CTX_NEW                            240
 # define EVP_F_EVP_KDF_CTX_NEW_ID                         226
 # define EVP_F_EVP_MAC_CTRL                               209
 # define EVP_F_EVP_MAC_CTRL_STR                           210
 # define EVP_F_EVP_MAC_CTX_COPY                           211
 # define EVP_F_EVP_MAC_CTX_NEW                            213
 # define EVP_F_EVP_MAC_INIT                               212
+# define EVP_F_EVP_MD_BLOCK_SIZE                          232
 # define EVP_F_EVP_MD_CTX_COPY_EX                         110
 # define EVP_F_EVP_MD_SIZE                                162
 # define EVP_F_EVP_OPENINIT                               102
@@ -123,6 +132,7 @@ int ERR_load_EVP_strings(void);
 # define EVP_F_EVP_PKEY_VERIFY_INIT                       143
 # define EVP_F_EVP_PKEY_VERIFY_RECOVER                    144
 # define EVP_F_EVP_PKEY_VERIFY_RECOVER_INIT               145
+# define EVP_F_EVP_SET_DEFAULT_PROPERTIES                 236
 # define EVP_F_EVP_SIGNFINAL                              107
 # define EVP_F_EVP_VERIFYFINAL                            108
 # define EVP_F_GMAC_CTRL                                  215
@@ -184,6 +194,7 @@ int ERR_load_EVP_strings(void);
 # define EVP_R_INVALID_KEY                                163
 # define EVP_R_INVALID_KEY_LENGTH                         130
 # define EVP_R_INVALID_OPERATION                          148
+# define EVP_R_INVALID_PROVIDER_FUNCTIONS                 193
 # define EVP_R_INVALID_SALT_LENGTH                        186
 # define EVP_R_KEYGEN_FAILURE                             120
 # define EVP_R_KEY_SETUP_FAILED                           180
@@ -225,5 +236,7 @@ int ERR_load_EVP_strings(void);
 # define EVP_R_UPDATE_ERROR                               189
 # define EVP_R_WRAP_MODE_NOT_ALLOWED                      170
 # define EVP_R_WRONG_FINAL_BLOCK_LENGTH                   109
+# define EVP_R_XTS_DATA_UNIT_IS_TOO_LARGE                 191
+# define EVP_R_XTS_DUPLICATED_KEYS                        192
 
 #endif

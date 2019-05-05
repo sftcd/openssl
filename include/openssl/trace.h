@@ -41,7 +41,7 @@ extern "C" {
 # define OSSL_TRACE_CATEGORY_INIT                2
 # define OSSL_TRACE_CATEGORY_TLS                 3
 # define OSSL_TRACE_CATEGORY_TLS_CIPHER          4
-# define OSSL_TRACE_CATEGORY_ENGINE_CONF         5
+# define OSSL_TRACE_CATEGORY_CONF                5
 # define OSSL_TRACE_CATEGORY_ENGINE_TABLE        6
 # define OSSL_TRACE_CATEGORY_ENGINE_REF_COUNT    7
 # define OSSL_TRACE_CATEGORY_PKCS5V2             8
