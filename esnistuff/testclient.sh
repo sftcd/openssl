@@ -77,7 +77,7 @@ function usage()
 
 	echo ""
 	echo "The following should work:"
-	echo "    $0 -c www.cloudflare.com -s NONE -H www.ietf.org"
+	echo "    $0 -s www.cloudflare.com -c NONE -H ietf.org"
     exit 99
 }
 

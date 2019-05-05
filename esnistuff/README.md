@@ -25,6 +25,8 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- Re-merged with upstream (20190505)
+
 - Updated ``make-esnikeys.sh`` script to use version 0xff02 (draft-03).
   All seems fine.
 
