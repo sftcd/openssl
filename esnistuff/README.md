@@ -25,6 +25,19 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- Made some changes to testclient.sh in preparation for setting up my
+  own test server (should be soonish;-). Part of that involved running
+  ``s_server`` with real certs instead of my locally generated fake
+  CA. As a result I needed the server to send the intermediate CA cert 
+  to the client, but in my testserver I'm using the ``s_server`` key2/cert2
+  command line arguments and it turns out that ``apps/s_server.c`` doesn't
+  actually associate the ``cert_chain`` command line argument's cert
+  bundle with key2/cert2/ctx2. I'll check it with the maintainers but
+  for the moment I just added the ``s_chain`` variable as an input
+  to the relevant call to ``set_cert_key_stuff`` instead of a NULL.
+  Left a FIXME there. It's on line 2354 of my current version of
+  ``s_server.c`` and on line 2029 on the same file in upstream.
+
 - Re-merged with upstream (20190505)
 
 - Updated ``make-esnikeys.sh`` script to use version 0xff02 (draft-03).

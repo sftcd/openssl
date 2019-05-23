@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -x
+#set -x
 
 # to pick up correct .so's - maybe note 
 TOP=$HOME/code/openssl
@@ -50,6 +50,7 @@ HIDDEN="encryptedsni.com"
 COVER="www.cloudflare.com"
 CAPATH="/etc/ssl/certs/"
 CAFILE="./cadir/oe.csr"
+REALCERT="no" # default to fake CA for localhost
 
 function whenisitagain()
 {
@@ -61,11 +62,12 @@ echo "Running $0 at $NOW"
 
 function usage()
 {
-    echo "$0 [-cHPpsdnlvhL] - try out encrypted SNI via openssl s_client"
+    echo "$0 [-cHPpsrdnlvhL] - try out encrypted SNI via openssl s_client"
 	echo "  -c [name] specifices a covername that I'll send as a clear SNI (NONE is special)"
     echo "  -H means try connect to that hidden server"
 	echo "  -P [filename] means read ESNIKeys public value from file and not DNS"
-	echo "  -s [name] specifices a server to which I'll connect (localhost=>local certs)"
+	echo "  -s [name] specifices a server to which I'll connect (localhost=>local certs, unless you also provide --realcert)"
+    echo "  -r (or --realcert) says to not use locally generated fake CA regardless"
     echo "  -p [port] specifices a port (default: 443)"
     echo "  -d means run s_client in verbose mode"
     echo "  -v means run with valgrind"
@@ -97,6 +99,7 @@ do
         -l|--stale) STALE="yes" ;;
         -v|--valgrind) VG="yes" ;;
         -n|--noesni) NOESNI="yes" ;;
+        -r|--realcert) REALCERT="yes" ;;
         -c|--cover) SUPPLIEDCOVER=$2; shift;;
         -s|--server) SUPPLIEDSERVER=$2; shift;;
         -H|--hidden) SUPPLIEDHIDDEN=$2; shift;;
@@ -241,7 +244,7 @@ if [[ "$server" != "localhost" ]]
 then
 	certsdb=" -CApath $CAPATH"
 else
-    if [ -f $CAFILE ]
+    if [[ "$REALCERTS" == "no" && -f $CAFILE ]]
     then
 	    certsdb=" -CAfile $CAFILE"
     else
@@ -269,6 +272,11 @@ then
 fi
 
 TMPF=`mktemp /tmp/esnitestXXXX`
+
+if [[ "$DEBUG" == "yes" ]]
+then
+    echo "Running: $TOP/apps/openssl s_client $dbgstr $certsdb $force13 $target $esnistr $snicmd $session"
+fi
 echo -e "$httpreq" | $vgcmd $TOP/apps/openssl s_client $dbgstr $certsdb $force13 $target $esnistr $snicmd $session >$TMPF 2>&1
 
 c200=`grep -c "200 OK" $TMPF`

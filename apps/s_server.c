@@ -2349,9 +2349,20 @@ int s_server_main(int argc, char *argv[])
         goto end;
     }
 
+#ifndef OPENSSL_NO_ESNI
+    /*
+     * FIXME: This is a hack just to test. See if giving the same chain to the 2nd key pair works
+     * Better workaround is to supply s_chain_file2 as a new CLA in case the paths are very different 
+     * but maybe wanna check with maintainers first
+     */
+    if (ctx2 != NULL
+        && !set_cert_key_stuff(ctx2, s_cert2, s_key2, s_chain, build_chain))
+        goto end;
+#else
     if (ctx2 != NULL
         && !set_cert_key_stuff(ctx2, s_cert2, s_key2, NULL, build_chain))
         goto end;
+#endif
 
     if (s_dcert != NULL) {
         if (!set_cert_key_stuff(ctx, s_dcert, s_dkey, s_dchain, build_chain))
