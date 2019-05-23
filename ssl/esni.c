@@ -993,6 +993,9 @@ SSL_ESNI* SSL_ESNI_new_from_buffer(const short ekfmt, const size_t eklen, const 
 {
     short detfmt=ESNI_RRFMT_GUESS;
     int nlens=0;                    /* number of values detected */
+    SSL_ESNI *retesnis=NULL;        ///< output array
+    ESNI_RECORD *er=NULL;           ///< individual public value structure (initial decoding)
+    SSL_ESNI *newesni=NULL;         ///< individual public value structure (after more decoding)
 
     switch (ekfmt) {
         case ESNI_RRFMT_GUESS:
@@ -1069,9 +1072,6 @@ SSL_ESNI* SSL_ESNI_new_from_buffer(const short ekfmt, const size_t eklen, const 
      * Now try decode each binary encoding if we can
      */
 
-    SSL_ESNI *retesnis=NULL;        ///< output array
-    ESNI_RECORD *er=NULL;           ///< individual public value structure (initial decoding)
-    SSL_ESNI *newesni=NULL;         ///< individual public value structure (after more decoding)
 
     int done=0;
     unsigned char *outp=outbuf;
@@ -2615,7 +2615,7 @@ err:
 
 int SSL_get_esni_status(SSL *s, char **hidden, char **cover)
 {
-    if (cover==NULL || hidden==NULL) {
+    if (s==NULL || cover==NULL || hidden==NULL) {
         return SSL_ESNI_STATUS_BAD_CALL;
     }
     *cover=NULL;
@@ -2624,7 +2624,7 @@ int SSL_get_esni_status(SSL *s, char **hidden, char **cover)
         long vr=X509_V_OK;
         if (s->esni->require_hidden_match) {
             vr=SSL_get_verify_result(s);
-        }
+        } 
         *hidden=s->esni->encservername;
         /*
          * Prefer draft-03 public_name to locally supplied covername

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#set -x
+set -x
 
 # to pick up correct .so's - maybe note 
 TOP=$HOME/code/openssl
@@ -241,7 +241,12 @@ if [[ "$server" != "localhost" ]]
 then
 	certsdb=" -CApath $CAPATH"
 else
-	certsdb=" -CAfile $CAFILE"
+    if [ -f $CAFILE ]
+    then
+	    certsdb=" -CAfile $CAFILE"
+    else
+	    certsdb=" -CApath $CAPATH"
+    fi
 fi
 
 # force tls13
