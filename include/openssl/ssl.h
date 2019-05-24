@@ -1635,6 +1635,8 @@ __owur int SSL_SESSION_set_protocol_version(SSL_SESSION *s, int version);
 
 #ifndef OPENSSL_NO_ESNI
 __owur int SSL_SESSION_set1_enchostname(SSL_SESSION *s, const char *hostname);
+__owur int SSL_SESSION_set1_covername(SSL_SESSION *s, const char *covername);
+__owur int SSL_SESSION_set1_public_name(SSL_SESSION *s, const char *public_name);
 __owur const char *SSL_SESSION_get0_enchostname(const SSL_SESSION *s);
 #endif
 __owur const char *SSL_SESSION_get0_hostname(const SSL_SESSION *s);

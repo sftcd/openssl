@@ -25,6 +25,19 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- I need to fix ``SSL_SESSION_print`` to handle ESNI better by adding covername
+  to ``SSL_SESSION.ext`` IIRC ext.hostname and ext.encservername are handled
+  differently on client and server at the moment. Simplest fix is probably to add
+  all the name fields and then have the print function figure out what to print based
+  on which of those are non-null. Maybe a better fix would be to try get rid of
+  that discrepency between client and server code. (Cause for which IIRC was that
+  I didn't really understand ``SSL_CTX`` vs. ``SSL_SESSION`` at first;-)
+  Not quite done with this yet. Also notices a leak on the server that I need
+  to track down.
+
+- Fixed a crash if some bad ESNI RR values supplied  - decoding bug due to 
+  signed error value treated as ``size_t``
+
 - Made some changes to testclient.sh in preparation for setting up my
   own test server (should be soonish;-). Part of that involved running
   ``s_server`` with real certs instead of my locally generated fake

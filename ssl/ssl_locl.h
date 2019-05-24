@@ -573,7 +573,28 @@ struct ssl_session_st {
     struct {
         char *hostname;
 #ifndef OPENSSL_NO_ESNI
+
+        /*
+         * the hostname will be set to the ESNI value, as appropriate
+         * invariants on hostname, encservername, covername should be:
+         * - all NULL: no SNI/ESNI
+         * - hostname!=NULL, others NULL: just standard SNI
+         * - encservername !=NULL || covername || public_name != NULL: ESNI is setup
+         *   in which case hostname should be the ESNI, other than
+         *   before the ESNI extension has been processed
+         * - hostname is the one used for keying
+         * - covername is the API-provided SNI or the SNI from an
+         *   SNI extension
+         * - public_name is the name provided from ESNIKeys and 
+         *   can override covername
+         * TODO: check invariants are ok and ensure client and server
+         * do the same (initially the don't, due to my ignorance of
+         * OpenSSL code when starting;-)
+         */
 		char *encservername;
+		char *covername;
+		char *public_name;
+
 #endif
 # ifndef OPENSSL_NO_EC
         size_t ecpointformats_len;
@@ -1478,6 +1499,28 @@ struct ssl_st {
                          const unsigned char *data, int len, void *arg);
         void *debug_arg;
         char *hostname;
+#ifndef OPENSSL_NO_ESNI
+        /*
+         * the hostname will be set to the ESNI value, as appropriate
+         * invariants on hostname, encservername, covername should be:
+         * - all NULL: no SNI/ESNI
+         * - hostname!=NULL, others NULL: just standard SNI
+         * - encservername !=NULL || covername || public_name != NULL: ESNI is setup
+         *   in which case hostname should be the ESNI, other than
+         *   before the ESNI extension has been processed
+         * - hostname is the one used for keying
+         * - covername is the API-provided SNI or the SNI from an
+         *   SNI extension
+         * - public_name is the name provided from ESNIKeys and 
+         *   can override covername
+         * TODO: check invariants are ok and ensure client and server
+         * do the same (initially the don't, due to my ignorance of
+         * OpenSSL code when starting;-)
+         */
+		char *encservername;
+		char *covername;
+		char *public_name;
+#endif
         /* certificate status request info */
         /* Status type or -1 if no status type */
         int status_type;

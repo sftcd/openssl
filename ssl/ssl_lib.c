@@ -1231,7 +1231,10 @@ void SSL_free(SSL *s)
 
 #ifndef OPENSSL_NO_ESNI
 	if (s->esni!=NULL) {
-		SSL_ESNI_free(s->esni);
+        int i;
+        for (i=0;i!=s->nesni;i++) {
+		    SSL_ESNI_free(&s->esni[i]);
+        }
 		OPENSSL_free(s->esni);
 		s->nesni=0;
 		s->esni_cb=NULL;
@@ -3245,6 +3248,7 @@ void SSL_CTX_free(SSL_CTX *a)
 #ifndef OPENSSL_NO_ESNI
 	if (a->ext.esni!=NULL) {
 		for (i=0;i!=a->ext.nesni;i++) {
+            printf("Freeing %d of %ld ESNIs\n",i,a->ext.nesni);
 			SSL_ESNI_free(&a->ext.esni[i]);
 		}
 		OPENSSL_free(a->ext.esni);

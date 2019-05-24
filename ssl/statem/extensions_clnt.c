@@ -52,6 +52,12 @@ EXT_RETURN tls_construct_ctos_renegotiate(SSL *s, WPACKET *pkt,
  * ESNIKeys RR and if so, that overrides the locally
  * supplied covername. TODO: Maybe re-consider that.
  *
+ * When the name is fixed up, we record the original
+ * encservername, covername and public_name in the 
+ * SSL_SESSION.ext so that later printing etc. can do 
+ * the right thing. The ext.hostname will be the one 
+ * used for keying as if it had been the SNI provided.
+ *
  * @param s is the SSL context
  * @param pkt is seemingly unused here
  * @param context is unused here
@@ -66,29 +72,58 @@ static EXT_RETURN esni_server_name_fixup(SSL *s, WPACKET *pkt,
     if (s->esni != NULL ) {
         size_t pn_len=(s->esni->public_name==NULL?0:OPENSSL_strnlen(s->esni->public_name,TLSEXT_MAXLEN_host_name));
         size_t cn_len=(s->esni->covername==NULL?0:OPENSSL_strnlen(s->esni->covername,TLSEXT_MAXLEN_host_name));
-        size_t hn_len=(s->ext.hostname==NULL?0:OPENSSL_strnlen(s->ext.hostname,TLSEXT_MAXLEN_host_name));
         size_t en_len=(s->esni->encservername==NULL?0:OPENSSL_strnlen(s->esni->encservername,TLSEXT_MAXLEN_host_name));
+        size_t ehn_len=(s->ext.hostname==NULL?0:OPENSSL_strnlen(s->ext.hostname,TLSEXT_MAXLEN_host_name));
+        size_t een_len=(s->ext.encservername==NULL?0:OPENSSL_strnlen(s->ext.encservername,TLSEXT_MAXLEN_host_name));
+        size_t epn_len=(s->ext.public_name==NULL?0:OPENSSL_strnlen(s->ext.public_name,TLSEXT_MAXLEN_host_name));
+        size_t ecn_len=(s->ext.covername==NULL?0:OPENSSL_strnlen(s->ext.covername,TLSEXT_MAXLEN_host_name));
 
+        /* check inputs make sense */
 		if (s->esni->encservername==NULL) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_ESNI_SERVER_NAME_FIXUP,
                  ERR_R_INTERNAL_ERROR);
             return EXT_RETURN_FAIL;
         }
+        /* record values for posterity/printing */
+        if (een_len!=0) {
+            OPENSSL_free(s->ext.encservername);
+            s->ext.encservername=NULL;
+        }
+        if (epn_len!=0) {
+            OPENSSL_free(s->ext.public_name);
+            s->ext.public_name=NULL;
+        }
+        if (ecn_len!=0) {
+            OPENSSL_free(s->ext.covername);
+            s->ext.covername=NULL;
+        }
+        if (pn_len!=0) {
+            s->ext.public_name=OPENSSL_strdup(s->esni->public_name);
+        }
+        if (en_len!=0) {
+            s->ext.encservername=OPENSSL_strdup(s->esni->encservername);
+        }
+        if (cn_len!=0) {
+            s->ext.covername=OPENSSL_strdup(s->esni->covername);
+        }
+
+        /* now do the checks */
         if (pn_len!=0) {
             /* if public_name set, ignore covername */
-            if (pn_len!=hn_len || CRYPTO_memcmp(s->ext.hostname,s->esni->public_name,pn_len)) {
+            if (pn_len!=ehn_len || CRYPTO_memcmp(s->ext.hostname,s->esni->public_name,pn_len)) {
                 SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_ESNI_SERVER_NAME_FIXUP,
                     ERR_R_INTERNAL_ERROR);
                 return EXT_RETURN_NOT_SENT;
             }
         } else {
             /* if public_name not set, check covername */
-            if (cn_len!=hn_len || CRYPTO_memcmp(s->ext.hostname,s->esni->covername,cn_len)) {
+            if (cn_len!=ehn_len || CRYPTO_memcmp(s->ext.hostname,s->esni->covername,cn_len)) {
                 SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_ESNI_SERVER_NAME_FIXUP,
                     ERR_R_INTERNAL_ERROR);
                 return EXT_RETURN_NOT_SENT;
             }
         }
+        /* barf if the covername and encservername are the same - makes no sense */
         if (en_len==cn_len && !CRYPTO_memcmp(s->esni->encservername,s->esni->covername,cn_len)) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_ESNI_SERVER_NAME_FIXUP,
                  ERR_R_INTERNAL_ERROR);
@@ -2100,7 +2135,8 @@ EXT_RETURN tls_construct_ctos_esni(SSL *s, WPACKET *pkt, unsigned int context,
     }
     
     /*
-     * client_random from CH
+     * client_random from CH - FIXME: literal 1024 seems dodgy, check the
+     * SSL_get_client_random code.
      */
     unsigned char rd[1024];
     size_t rd_len=SSL_get_client_random(s,rd,1024);

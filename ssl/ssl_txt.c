@@ -91,9 +91,19 @@ int SSL_SESSION_print(BIO *bp, const SSL_SESSION *x)
 		BIO_printf(bp,"\n    SNI/Hostname is NULL");
 	}
     if (x->ext.encservername!=NULL) {
-		BIO_printf(bp,"\n    ESNI/Hostname: %s",x->ext.encservername);
+		BIO_printf(bp,"\n    ESNI/encservername: %s",x->ext.encservername);
 	} else {
-		BIO_printf(bp,"\n    ESNI/Hostname is NULL");
+		BIO_printf(bp,"\n    ESNI/encservername is NULL");
+    }
+    if (x->ext.covername!=NULL) {
+		BIO_printf(bp,"\n    ESNI/covername: %s",x->ext.covername);
+	} else {
+		BIO_printf(bp,"\n    ESNI/covername is NULL");
+    }
+    if (x->ext.public_name!=NULL) {
+		BIO_printf(bp,"\n    ESNI/public_name: %s",x->ext.public_name);
+	} else {
+		BIO_printf(bp,"\n    ESNI/public_name is NULL");
     }
 #endif
 #ifndef OPENSSL_NO_PSK

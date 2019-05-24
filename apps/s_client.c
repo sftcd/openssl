@@ -76,6 +76,7 @@ static char *sess_out = NULL;
 #ifndef OPENSSL_NO_ENSI
 const char *encservername = NULL;
 const char *servername = NULL;
+const char *public_name = NULL;
 #endif
 static SSL_SESSION *psksess = NULL;
 
@@ -905,11 +906,11 @@ static int new_session_cb(SSL *s, SSL_SESSION *sess)
         int rv=SSL_SESSION_set1_enchostname(sess,encservername);
         if (rv!=1) {
             if (c_debug) 
-                BIO_printf(bio_err, "Can't set ESNI in session...\n");
+                BIO_printf(bio_err, "Can't set ESNI/enchostname in session...\n");
             ERR_print_errors(bio_err);
         } else {
             if (c_debug) 
-                BIO_printf(bio_err, "Set ESNI in session to %s\n",encservername);
+                BIO_printf(bio_err, "Set ESNI/enchostname in session to %s\n",encservername);
             ERR_print_errors(bio_err);
         }
 
@@ -921,14 +922,46 @@ static int new_session_cb(SSL *s, SSL_SESSION *sess)
         int rv=SSL_SESSION_set1_hostname(sess,servername);
         if (rv!=1) {
             if (c_debug) 
-                BIO_printf(bio_err, "Can't set ESNI in session...\n");
+                BIO_printf(bio_err, "Can't set ESNI/hostname in session...\n");
             ERR_print_errors(bio_err);
         } else {
             if (c_debug) 
-                BIO_printf(bio_err, "Set ESNI in session to %s\n",servername);
+                BIO_printf(bio_err, "Set ESNI/hostname in session to %s\n",servername);
             ERR_print_errors(bio_err);
         }
-	}
+        /* also stick that in covername */
+        rv=SSL_SESSION_set1_covername(sess,servername);
+        if (rv!=1) {
+            if (c_debug) 
+                BIO_printf(bio_err, "Can't set ESNI/covername in session...\n");
+            ERR_print_errors(bio_err);
+        } else {
+            if (c_debug) 
+                BIO_printf(bio_err, "Set ESNI/covername in session to %s\n",servername);
+            ERR_print_errors(bio_err);
+        }
+        /* 
+         * put public_name into session, public_name set from esni_cb
+         */
+        if (public_name!=NULL) {
+            rv=SSL_SESSION_set1_public_name(sess,public_name);
+            if (rv!=1) {
+                if (c_debug) 
+                    BIO_printf(bio_err, "Can't set ESNI/public_name in session...\n");
+                ERR_print_errors(bio_err);
+            } else {
+                if (c_debug) 
+                    BIO_printf(bio_err, "Set ESNI/public_name in session to %s\n",public_name);
+                ERR_print_errors(bio_err);
+            }
+        } else {
+            if (c_debug) 
+                BIO_printf(bio_err, "Can't set ESNI/public_name (none visible) in session...\n");
+            ERR_print_errors(bio_err);
+        }
+    }
+    BIO_printf(bio_c_out,"---\nESNI stuff so far:\n");
+    SSL_SESSION_print(bio_c_out, sess);
 #endif
 
     if (sess_out != NULL) {
@@ -3699,6 +3732,10 @@ static unsigned int esni_cb(SSL *s, int index)
     if (rv == 1 && esnistuff!=NULL) {
         SSL_ESNI_print(bio_c_out,&esnistuff[index]);
     }
+    /*
+     * Set public_name from ESNI value 
+     */
+    public_name=esnistuff->public_name;
     return 1;
 }
 #endif

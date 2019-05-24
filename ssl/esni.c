@@ -275,6 +275,7 @@ void SSL_ESNI_free(SSL_ESNI *deadesni)
             if (ce->encoded_keyshare!= NULL && ce->encoded_keyshare!=esni->encoded_keyshare) OPENSSL_free(ce->encoded_keyshare);
             if (ce->record_digest != NULL && ce->record_digest!=esni->rd) OPENSSL_free(ce->record_digest);
             if (ce->encrypted_sni != NULL && ce->encrypted_sni!=esni->cipher) OPENSSL_free(ce->encrypted_sni);
+            OPENSSL_free(esni->the_esni); 
         }
         if (esni->encservername!=NULL) OPENSSL_free(esni->encservername);
         if (esni->covername!=NULL) OPENSSL_free(esni->covername);
@@ -303,7 +304,6 @@ void SSL_ESNI_free(SSL_ESNI *deadesni)
         if (esni->private_str!=NULL) OPENSSL_free(esni->private_str);
 #endif
         /* the buffers below here were freed above if needed */
-        if (esni->the_esni!=NULL) OPENSSL_free(esni->the_esni); 
         if (esni->nexts!=0) {
             for (j=0;j!=esni->nexts;j++) {
                 if (esni->exts && esni->exts[j]!=NULL) OPENSSL_free(esni->exts[j]);
@@ -1038,11 +1038,13 @@ SSL_ESNI* SSL_ESNI_new_from_buffer(const short ekfmt, const size_t eklen, const 
     unsigned char *outbuf = NULL;   /* a binary representation of an ESNIKeys */
     size_t declen=0;                /* a length of binary representation of an ESNIKeys */
     if (detfmt==ESNI_RRFMT_B64TXT) {
-        declen = esni_base64_decode(ekcpy, &outbuf);
-        if (declen < 0) {
+        /* need an int to get -1 return for failure case */
+        int tdeclen = esni_base64_decode(ekcpy, &outbuf);
+        if (tdeclen < 0) {
             ESNIerr(ESNI_F_SSL_ESNI_NEW_FROM_BUFFER, ESNI_R_BASE64_DECODE_ERROR);
             goto err;
         }
+        declen=tdeclen;
         OPENSSL_free(ekcpy);
         ekcpy=NULL;
     }

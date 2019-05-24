@@ -2144,6 +2144,12 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
          SSL_R_BAD_EXTENSION);
         goto err;
     }
+    if (match->the_esni!=NULL) {
+        if(match->the_esni->encoded_keyshare) OPENSSL_free(match->the_esni->encoded_keyshare);
+        if(match->the_esni->record_digest) OPENSSL_free(match->the_esni->record_digest);
+        if(match->the_esni->encrypted_sni) OPENSSL_free(match->the_esni->encrypted_sni);
+        OPENSSL_free(match->the_esni); 
+    }
     match->the_esni=ce; 
 
     /*
@@ -2179,6 +2185,7 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
         goto err;
     }
     OPENSSL_free(ks);
+    ks=NULL;
 
     /*
      * check encservername has no zero bytes internally
@@ -2209,6 +2216,38 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
     memcpy(s->ext.hostname,encservername,encservername_len);
     s->ext.hostname[encservername_len]=0x00;
 
+    /* 
+     * now set the other name copies for posterity and printing
+     * s->ext.hostname is the business end though and the only
+     * one used for keying
+     */
+    if (s->ext.encservername!=NULL) {
+        OPENSSL_free(s->ext.encservername);
+        s->ext.encservername=NULL;
+    }
+    s->ext.encservername=OPENSSL_strdup(s->ext.hostname);
+    /* no covername in server */
+    if (s->ext.covername!=NULL) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ESNI,
+             SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+    s->ext.covername=OPENSSL_strdup(match->covername);
+    if (s->ext.covername==NULL) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ESNI,
+             SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+    /* copy the public_name */
+    if (s->ext.public_name!=NULL) {
+        OPENSSL_free(s->ext.public_name);
+        s->ext.public_name=NULL;
+    }
+    s->ext.public_name=OPENSSL_strdup(match->public_name);
+
+    /*
+     * set callback
+     */
     if (s->esni_cb != NULL) {
         unsigned int cbrv=s->esni_cb(s,matchind);
         if (cbrv != 1) {
@@ -2217,6 +2256,29 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
     }
 
     s->esni_done=1;
+
+    if (s->session!=NULL) {
+        /* 
+         * set hostname, public_name, covername, encservername in the session 
+         * Note that we set hostname to the ESNI value (if present) as that
+         * is what'd be needed for any access control. That's a bit bad as
+         * the client side doesn't do that (hostname there reflects the 
+         * cleartext-SNI/covername).
+         */
+        if (s->session->ext.encservername!=NULL) {
+            OPENSSL_free(s->session->ext.encservername);
+        }
+        s->session->ext.encservername=OPENSSL_strdup(s->ext.hostname);
+        if (s->session->ext.covername!=NULL) {
+            OPENSSL_free(s->session->ext.covername);
+        }
+        s->session->ext.covername=OPENSSL_strdup(s->ext.covername);
+        if (s->session->ext.public_name!=NULL) {
+            OPENSSL_free(s->session->ext.public_name);
+        }
+        s->session->ext.public_name=OPENSSL_strdup(s->ext.public_name);
+
+    }
 
     return 1;
 

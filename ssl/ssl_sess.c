@@ -89,6 +89,8 @@ SSL_SESSION *SSL_SESSION_new(void)
 #ifdef OPENSSL_NO_ESNI
     ss->ext.enchostname=NULL;
     ss->ext.hostname=NULL;
+    ss->ext.covername=NULL;
+    ss->ext.pubic_name=NULL;
 #endif
 
     if (!CRYPTO_new_ex_data(CRYPTO_EX_INDEX_SSL_SESSION, ss, &ss->ex_data)) {
@@ -202,6 +204,18 @@ SSL_SESSION *ssl_session_dup(const SSL_SESSION *src, int ticket)
     if (src->ext.encservername) {
         dest->ext.encservername = OPENSSL_strdup(src->ext.encservername);
         if (dest->ext.encservername == NULL) {
+            goto err;
+        }
+    }
+    if (src->ext.covername) {
+        dest->ext.covername = OPENSSL_strdup(src->ext.covername);
+        if (dest->ext.covername == NULL) {
+            goto err;
+        }
+    }
+    if (src->ext.public_name) {
+        dest->ext.public_name = OPENSSL_strdup(src->ext.public_name);
+        if (dest->ext.public_name == NULL) {
             goto err;
         }
     }
@@ -807,6 +821,8 @@ void SSL_SESSION_free(SSL_SESSION *ss)
     OPENSSL_free(ss->ext.hostname);
 #ifndef OPENSSL_NO_ESNI
     OPENSSL_free(ss->ext.encservername);
+    OPENSSL_free(ss->ext.covername);
+    OPENSSL_free(ss->ext.public_name);
 #endif
     OPENSSL_free(ss->ext.tick);
 #ifndef OPENSSL_NO_EC
@@ -947,8 +963,32 @@ int SSL_SESSION_set1_enchostname(SSL_SESSION *s, const char *hostname)
         return 1;
     }
     s->ext.encservername = OPENSSL_strdup(hostname);
-
     return s->ext.encservername != NULL;
+}
+
+int SSL_SESSION_set1_covername(SSL_SESSION *s, const char *covername)
+{
+    if (s->ext.covername) 
+        OPENSSL_free(s->ext.covername);
+    if (covername == NULL) {
+        s->ext.encservername = NULL;
+        return 1;
+    }
+    s->ext.covername = OPENSSL_strdup(covername);
+    return s->ext.covername != NULL;
+}
+ 
+
+int SSL_SESSION_set1_public_name(SSL_SESSION *s, const char *public_name)
+{
+    if (s->ext.public_name) 
+        OPENSSL_free(s->ext.public_name);
+    if (public_name == NULL) {
+        s->ext.public_name = NULL;
+        return 1;
+    }
+    s->ext.public_name = OPENSSL_strdup(public_name);
+    return s->ext.public_name != NULL;
 }
 
 #endif
