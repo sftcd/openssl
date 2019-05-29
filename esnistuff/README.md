@@ -25,6 +25,10 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- Trying FF nightly vs. my test server and getting a ESNI decode error, checking...
+  Looks like the ESNI decrypt is failing. I guess back to checking with the NSS
+  standalone tester is next.
+
 - I need to fix ``SSL_SESSION_print`` to handle ESNI better by adding covername
   to ``SSL_SESSION.ext`` IIRC ext.hostname and ext.encservername are handled
   differently on client and server at the moment. Simplest fix is probably to add
