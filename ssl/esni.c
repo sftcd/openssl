@@ -1227,6 +1227,10 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esniarr)
         return 0;
     }
     nesnis=esniarr->num_esni_rrs;
+    if (nesnis==0) {
+        BIO_printf(out,"ESNI Array has no RRs, assuming just one array element.\n");
+        nesnis=1;
+    }
     for (int i=0;i!=nesnis;i++) {
 
         esni=&esniarr[i];
@@ -2292,6 +2296,17 @@ unsigned char *SSL_ESNI_dec(SSL_ESNI *esni,
         ESNIerr(ESNI_F_SSL_ESNI_DEC, ERR_R_INTERNAL_ERROR);
         goto err;
     }
+
+    /* 
+     * Debugging FF nightly interop, currently failing here
+     * Print out the SSL_ESNI we have so far
+    BIO *bio_out;
+    bio_out = BIO_new(BIO_s_file());
+    BIO_set_fp(bio_out, stdout, BIO_NOCLOSE);
+    BIO_printf(bio_out, "Hello Nightly!\n");
+    SSL_ESNI_print(bio_out,esni);
+    BIO_printf(bio_out, "Bye-bye Nightly!\n");
+     */
 
     esni->plain=esni_aead_dec(esni->key, esni->key_len,
             esni->iv, esni->iv_len,

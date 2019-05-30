@@ -25,16 +25,29 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
-- Trying FF nightly vs. my test server and getting a ESNI decode error, checking...
-  Looks like the ESNI decrypt is failing. Back to checking with the NSS
-  standalone tester: After a bit of messing with NSS's ``tstclnt``
-  the standalone tester works ok now. (I had to add a ``-b`` command line
-  argument in ``nssdoit.sh``.) ``tstclnt`` btw adds a ``dummy.invalid``
-  cover name in the h/s which routes correctly for me to ``s_server`` as
-  I default my server to trying ESNI and ignoring the SNI (it's recorded
-  and displayed as covername but not used for keying.)
+- Trying FF nightly vs. my test server and getting an ESNI decrypt error.
+  After a bit of messing with NSS's ``tstclnt`` the standalone tester works ok
+again now. (I had to add a ``-b`` command line argument in ``nssdoit.sh``.)
+``tstclnt`` btw adds a ``dummy.invalid`` cover name in the h/s which routes
+correctly for me to ``s_server`` as I default my server to trying ESNI and
+ignoring the SNI (it's recorded and displayed as covername but not used for
+keying.) ``tstclnt`` only sends one key share value in the h/s key share
+extension, whereas FF nightly sends two. OpenSSL TLS1.3 code currently ignores
+key shares that it doesn't need for the h/s and I've just been taking the value
+selected for use in the h/s and encoding that as the AAD for ESNI en/decrypt.
+Looks like I ought be taking the encoded set of all key shares from the CH as
+the AAD instead, based on the text in the Internet draft.  Looking at the NSS
+code, (``lib/ssl/tls13esni.c:876``,) it seems like that's also what they're
+doing.  I'll need to muck about a bit to store the encoded key shares in the
+SSL session I guess as it's not previously been kept, and I can't put it into
+the ``SSL_ESNI`` structure because (on the server anyway) I don't yet know
+which ESNI key pair will be in play, nor even if ESNI is being tried (when I'm
+processing the h/s key share extension). That'll change the ``SSL_ESNI_dec``
+API a bit (though not the prototype, mostly the calling code and a bit of the
+implementation) so, a bit of work to do before I can make another useful FF
+nightly test...  
 
-- I need to fix ``SSL_SESSION_print`` to handle ESNI better by adding covername
+- I fixed ``SSL_SESSION_print`` to handle ESNI better by adding covername
   to ``SSL_SESSION.ext`` IIRC ext.hostname and ext.encservername are handled
   differently on client and server at the moment. Simplest fix is probably to add
   all the name fields and then have the print function figure out what to print based
