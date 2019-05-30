@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -x
+#set -x
 
 LDIR=/home/stephen/code/dist/Debug/
 RDIR=/home/stephen/code/openssl/esnistuff
@@ -19,16 +19,30 @@ then
 fi
 
 
-if [[ "$1" != "localhost" ]]
+NSSPARAMS=" -Q -b"
+
+if [[ "$1" == "localhost" ]]
 then
-	ESNI=`dig +short txt _esni.www.cloudflare.com | sed -e 's/"//g'`
-	valgrind $LDIR/bin/tstclnt -h www.cloudflare.com -p 443  \
+	ESNI=`cat $RDIR/esnikeydir/ff01.pub | base64 -w0`
+	valgrind $LDIR/bin/tstclnt $NSSPARAMS -h localhost -p 4000  \
+		-a foo.example.com \
+		-d cadir/nssca/ \
+		-N $ESNI
+elif [[ "$1" == "defo" ]]
+then
+    # draft -02 version
+	ESNI=`dig +short txt _esni.only.esni.defo.ie | sed -e 's/"//g'`
+    if [[ "$ESNI" == "" ]]
+    then
+        echo "No ESNI for defo - exiting"
+        exit 1
+    fi
+	valgrind $LDIR/bin/tstclnt $NSSPARAMS -h only.esni.defo.ie -p 443  \
 		-d ~/.mozilla/eclipse/ \
 		-N $ESNI
 else
-	ESNI=`cat $RDIR/esnikeydir/e2.pub | base64 -w0`
-	valgrind $LDIR/bin/tstclnt -Q -h localhost -p 4000  \
-		-a foo.example.com \
-		-d cadir/nssca/ \
+	ESNI=`dig +short txt _esni.www.cloudflare.com | sed -e 's/"//g'`
+	valgrind $LDIR/bin/tstclnt $NSSPARAMS -h www.cloudflare.com -p 443  \
+		-d ~/.mozilla/eclipse/ \
 		-N $ESNI
 fi

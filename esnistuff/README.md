@@ -26,8 +26,13 @@ There's a [TODO list](#todos) at the end.
 Most recent first...
 
 - Trying FF nightly vs. my test server and getting a ESNI decode error, checking...
-  Looks like the ESNI decrypt is failing. I guess back to checking with the NSS
-  standalone tester is next.
+  Looks like the ESNI decrypt is failing. Back to checking with the NSS
+  standalone tester: After a bit of messing with NSS's ``tstclnt``
+  the standalone tester works ok now. (I had to add a ``-b`` command line
+  argument in ``nssdoit.sh``.) ``tstclnt`` btw adds a ``dummy.invalid``
+  cover name in the h/s which routes correctly for me to ``s_server`` as
+  I default my server to trying ESNI and ignoring the SNI (it's recorded
+  and displayed as covername but not used for keying.)
 
 - I need to fix ``SSL_SESSION_print`` to handle ESNI better by adding covername
   to ``SSL_SESSION.ext`` IIRC ext.hostname and ext.encservername are handled
