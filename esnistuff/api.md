@@ -784,6 +784,8 @@ Turn on SNI encryption for an (upcoming) TLS session.
 
 Turn on SNI encryption for an (upcoming) TLS session.
 
+FIXME: Rationalise the handling of arrays of SSL_ESNI structs. As of now, we sometimes set the number of those as a parameter (as in this case), whereas other bits of code use the num_esni_rrs field inside the first array element to know how many we're dealing with.
+
 #### Parameters
 * `s` is the SSL context 
 
@@ -1407,6 +1409,8 @@ Note: This may disappear as all the checks currently done would result in errors
 
 Turn on SNI encryption for an (upcoming) TLS session.
 
+FIXME: Rationalise the handling of arrays of SSL_ESNI structs. As of now, we sometimes set the number of those as a parameter (as in this case), whereas other bits of code use the num_esni_rrs field inside the first array element to know how many we're dealing with.
+
 #### Parameters
 * `s` is the SSL context 
 
@@ -1629,6 +1633,8 @@ Possibly do/don't send SNI if doing ESNI.
 Check if s.ext.hostname == s.esni.covername and s.esni.covername != s.esni.encservername (which shouldn't happen ever but who knows...) If either test fails don't send server_name. That is, if we want to send ESNI, then we only send SNI if the covername was explicitly set and is the same as the SNI (that maybe got set via some weirdo application API that we couldn't change when ESNI enabling perhaps)
 
 Draft-03 update: public_name can be set in the ESNIKeys RR and if so, that overrides the locally supplied covername. TODO: Maybe re-consider that.
+
+When the name is fixed up, we record the original encservername, covername and public_name in the SSL_SESSION.ext so that later printing etc. can do the right thing. The ext.hostname will be the one used for keying as if it had been the SNI provided.
 
 #### Parameters
 * `s` is the SSL context 

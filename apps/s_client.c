@@ -728,7 +728,7 @@ const OPTIONS s_client_options[] = {
     {"esni", OPT_ESNI, 's',
      "Set TLS extension encrypted servername (ESNI) in ClientHello, value is to-be-encrypted name"},
     {"esnirr", OPT_ESNI_RR, 's',
-     "Set ESNI ESNIKeys, value is base64 encoded from TXT RR as per I-D -02"},
+     "Set ESNI ESNIKeys, value is base64 encoded from RR as per I-D -02 or -03"},
     {"esni_strict",OPT_ESNI_STRICT,'-',
      "Enforce strict matching between ESNI value and TLS server cert"},
 #endif
@@ -886,23 +886,23 @@ static int new_session_cb(SSL *s, SSL_SESSION *sess)
     if (c_debug) {
         BIO_printf(bio_c_out,"new_session_cb called\n");
     }
-	const char *hn=SSL_SESSION_get0_hostname(sess);
-	if (hn==NULL && c_debug) {
-		BIO_printf(bio_c_out,"Existing session hostname is NULL\n");
-	} else if (c_debug) {
-		BIO_printf(bio_c_out,"Existing session hostname is %s\n",hn);
+    const char *hn=SSL_SESSION_get0_hostname(sess);
+    if (hn==NULL && c_debug) {
+        BIO_printf(bio_c_out,"Existing session hostname is NULL\n");
+    } else if (c_debug) {
+        BIO_printf(bio_c_out,"Existing session hostname is %s\n",hn);
     }
-	const char *ehn=SSL_SESSION_get0_enchostname(sess);
-	if (ehn==NULL && c_debug) {
-		BIO_printf(bio_c_out,"Existing session enchostname is NULL\n");
-	} else if (c_debug)  {
-		BIO_printf(bio_c_out,"Existing session enchostname is %s\n",ehn);
-	}
-	if (encservername) {
-		/*
-		 * If doing ESNI then stuff that name into the session, so that 
-	 	 * it'll be visible/remembered later.
-	 	 */
+    const char *ehn=SSL_SESSION_get0_enchostname(sess);
+    if (ehn==NULL && c_debug) {
+        BIO_printf(bio_c_out,"Existing session enchostname is NULL\n");
+    } else if (c_debug)  {
+        BIO_printf(bio_c_out,"Existing session enchostname is %s\n",ehn);
+    }
+    if (encservername!=NULL) {
+        /*
+         * If doing ESNI then stuff that name into the session, so that 
+          * it'll be visible/remembered later.
+          */
         int rv=SSL_SESSION_set1_enchostname(sess,encservername);
         if (rv!=1) {
             if (c_debug) 
@@ -914,11 +914,11 @@ static int new_session_cb(SSL *s, SSL_SESSION *sess)
             ERR_print_errors(bio_err);
         }
 
-	} 
-    if (servername) {
-		/*
-		 * If doing cleartext SNI then put that in session 
-		 */
+    } 
+    if (servername!=NULL) {
+        /*
+         * If doing cleartext SNI then put that in session 
+         */
         int rv=SSL_SESSION_set1_hostname(sess,servername);
         if (rv!=1) {
             if (c_debug) 
@@ -1059,9 +1059,9 @@ int s_client_main(int argc, char **argv)
     const char *esnikeys_asciirr = NULL;
     SSL_ESNI *esnikeys=NULL;
 #else
-	/*
-	 * We make this global (yuk) if doing ESNI so we can stuff in session via cb
-	 */
+    /*
+     * We make this global (yuk) if doing ESNI so we can stuff in session via cb
+     */
     const char *servername = NULL;
 #endif
     int noservername = 0;
@@ -2167,10 +2167,10 @@ int s_client_main(int argc, char **argv)
         }
         if (!SSL_set_session(con, sess)) {
 #ifndef OPENSSL_NO_ESNI
-			/* 
-			 * Noting to do with ESNI, but a missing free here
-			 */
-        	SSL_SESSION_free(sess);
+            /* 
+             * Nothing to do with ESNI, but a missing free here
+             */
+            SSL_SESSION_free(sess);
 #endif
             BIO_printf(bio_err, "Can't set session\n");
             ERR_print_errors(bio_err);
@@ -2188,55 +2188,55 @@ int s_client_main(int argc, char **argv)
          * But likely too much info and 'openssl sess_id' can do it 
          * We also print stuff, maybe a bit too much.
          */
-		const char *thisname=NULL;
-		if (encservername!=NULL) {
-			thisname=encservername;
+        const char *thisname=NULL;
+        if (encservername!=NULL) {
+            thisname=encservername;
             BIO_printf(bio_err, "Encservername is set to %s\n",encservername);
-		} else if (servername!=NULL) {
+        } else if (servername!=NULL) {
             BIO_printf(bio_err, "Encservername is NULL\n");
-			thisname=servername;
-		}
+            thisname=servername;
+        }
         if (servername==NULL) {
             BIO_printf(bio_err, "Servername is NULL\n");
         } else {
             BIO_printf(bio_err, "Servername is set to %s\n",servername);
         }
 
-		if (esni_strict && thisname!=NULL) {
-			const char *hn=SSL_SESSION_get0_hostname(sess);
-			if (hn!=NULL) {
-            	BIO_printf(bio_err, "Stored session hostname is %s\n",hn);
-			} else { 
-            	BIO_printf(bio_err, "Stored session hostname is missing\n");
-			}
-			const char *ehn=SSL_SESSION_get0_enchostname(sess);
-			if (ehn!=NULL) {
-            	BIO_printf(bio_err, "Stored session encrypted hostname is %s\n",ehn);
-			} else { 
-            	BIO_printf(bio_err, "Stored session encrypted hostname is missing\n");
-			}
+        if (esni_strict && thisname!=NULL) {
+            const char *hn=SSL_SESSION_get0_hostname(sess);
+            if (hn!=NULL) {
+                BIO_printf(bio_err, "Stored session hostname is %s\n",hn);
+            } else { 
+                BIO_printf(bio_err, "Stored session hostname is missing\n");
+            }
+            const char *ehn=SSL_SESSION_get0_enchostname(sess);
+            if (ehn!=NULL) {
+                BIO_printf(bio_err, "Stored session encrypted hostname is %s\n",ehn);
+            } else { 
+                BIO_printf(bio_err, "Stored session encrypted hostname is missing\n");
+            }
 
-			X509 *peer=SSL_SESSION_get0_peer(sess);
-			if (peer==NULL) {
-        		SSL_SESSION_free(sess);
-            	BIO_printf(bio_err, "Stored session peer is NULL - exiting\n");
-            	ERR_print_errors(bio_err);
-            	goto end;
-			}
+            X509 *peer=SSL_SESSION_get0_peer(sess);
+            if (peer==NULL) {
+                SSL_SESSION_free(sess);
+                BIO_printf(bio_err, "Stored session peer is NULL - exiting\n");
+                ERR_print_errors(bio_err);
+                goto end;
+            }
             /*
              * FIXME: This causes a ``make test`` test case to fail
              * when thisname is "localhost" and I guess it's a self-signed cert
              * ...or maybe for all self-signed certs, which wouldn't be acceptable
-			 * this used to be: int rv=X509_check_host(peer,thisname,strlen(thisname),0,NULL);
+             * this used to be: int rv=X509_check_host(peer,thisname,strlen(thisname),0,NULL);
              */
-			int rv=X509_check_host(peer,thisname,strlen(thisname),0,NULL);
-			if (rv!=1) {
-        		SSL_SESSION_free(sess);
-            	BIO_printf(bio_err, "Stored session peer doesn't match %s - exiting\n",thisname);
-            	ERR_print_errors(bio_err);
-            	goto end;
-			}
-		}
+            int rv=X509_check_host(peer,thisname,strlen(thisname),0,NULL);
+            if (rv!=1) {
+                SSL_SESSION_free(sess);
+                BIO_printf(bio_err, "Stored session peer doesn't match %s - exiting\n",thisname);
+                ERR_print_errors(bio_err);
+                goto end;
+            }
+        }
 #endif
 
         SSL_SESSION_free(sess);
@@ -2273,10 +2273,10 @@ int s_client_main(int argc, char **argv)
             }
             goto end;
         }
-		/*
-		 * NULL this as we no longer need to free it
-		 */
-		esnikeys=NULL;
+        /*
+         * NULL this as we no longer need to free it
+         */
+        esnikeys=NULL;
 
     }
 #endif
@@ -3364,7 +3364,7 @@ int s_client_main(int argc, char **argv)
                 BIO_printf(bio_err, "RENEGOTIATING\n");
                 SSL_renegotiate(con);
                 cbuf_len = 0;
-	    } else if (!c_ign_eof && (cbuf[0] == 'K' || cbuf[0] == 'k' )
+        } else if (!c_ign_eof && (cbuf[0] == 'K' || cbuf[0] == 'k' )
                     && cmdletters) {
                 BIO_printf(bio_err, "KEYUPDATE\n");
                 SSL_key_update(con,
@@ -3436,11 +3436,11 @@ int s_client_main(int argc, char **argv)
         SSL_free(con);
     }
 #ifndef OPENSSL_NO_ESNI
-	if (esnikeys!=NULL) {
-		SSL_ESNI_free(esnikeys);
-		OPENSSL_free(esnikeys);
-		esnikeys=NULL;
-	}
+    if (esnikeys!=NULL) {
+        SSL_ESNI_free(esnikeys);
+        OPENSSL_free(esnikeys);
+        esnikeys=NULL;
+    }
 #endif
     SSL_SESSION_free(psksess);
 #if !defined(OPENSSL_NO_NEXTPROTONEG)
