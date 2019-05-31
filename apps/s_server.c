@@ -3459,8 +3459,17 @@ static int www_body(int s, int stype, int prot, unsigned char *context)
             BIO_puts(io,
                      "HTTP/1.0 200 ok\r\nContent-type: text/html\r\n\r\n");
             BIO_puts(io, "<HTML><BODY BGCOLOR=\"#ffffff\">\n");
-            BIO_puts(io, "<pre>\n");
             /* BIO_puts(io, OpenSSL_version(OPENSSL_VERSION)); */
+#ifndef OPENSSL_NO_ESNI
+            /*
+             * Customise output a bit to show ESNI info at top
+             * Note: unlikely to want to integrate this upstream
+             */
+            BIO_puts(io, "<h1>OpenSSL with ESNI</h1>\n");
+            BIO_puts(io, "<pre>\n");
+            SSL_SESSION_print(io, SSL_get_session(con));
+#else
+            BIO_puts(io, "<pre>\n");
             BIO_puts(io, "\n");
             for (i = 0; i < local_argc; i++) {
                 const char *myp;
@@ -3482,6 +3491,7 @@ static int www_body(int s, int stype, int prot, unsigned char *context)
                 BIO_write(io, " ", 1);
             }
             BIO_puts(io, "\n");
+#endif
 
             BIO_printf(io,
                        "Secure Renegotiation IS%s supported\n",
