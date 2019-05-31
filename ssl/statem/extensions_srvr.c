@@ -2247,18 +2247,23 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
              SSL_R_BAD_EXTENSION);
         goto err;
     }
-    s->ext.covername=OPENSSL_strdup(match->covername);
-    if (s->ext.covername==NULL) {
-        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ESNI,
-             SSL_R_BAD_EXTENSION);
-        goto err;
-    }
+	s->ext.covername=OPENSSL_strdup(match->covername);
+	if (match->covername!=NULL && s->ext.covername==NULL) {
+		SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ESNI,
+			SSL_R_BAD_EXTENSION);
+		goto err;
+	}
     /* copy the public_name */
     if (s->ext.public_name!=NULL) {
         OPENSSL_free(s->ext.public_name);
         s->ext.public_name=NULL;
     }
     s->ext.public_name=OPENSSL_strdup(match->public_name);
+	if (match->public_name!=NULL && s->ext.public_name==NULL) {
+		SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ESNI,
+			SSL_R_BAD_EXTENSION);
+		goto err;
+	}
 
     /*
      * set callback

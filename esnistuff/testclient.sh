@@ -244,7 +244,7 @@ if [[ "$server" != "localhost" ]]
 then
 	certsdb=" -CApath $CAPATH"
 else
-    if [[ "$REALCERTS" == "no" && -f $CAFILE ]]
+    if [[ "$REALCERT" == "no" && -f $CAFILE ]]
     then
 	    certsdb=" -CAfile $CAFILE"
     else
