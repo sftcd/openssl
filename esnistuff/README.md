@@ -25,6 +25,15 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- Now that I've gotten FF nightly interop done, have tweaked the output
+from ``s-server -www`` a bit. Also changed how the ``SSL_SESSION.ext.hostname``
+is set when we do get an ESNI. Not sure yet if I've got that right. Left a
+TODO in ``ssl/statem/extensions_srvr.c`` in the ctos handler. For now, 
+that results in a correct-looking display in FF nightly, but need to
+figure out how it might play with use of SessionTickets/resumption
+and early data. (Probably gotta go back to the spec to see what it
+says on that.)
+
 - Trying FF nightly vs. my test server and getting an ESNI decrypt error.
   After a bit of messing with NSS's ``tstclnt`` the standalone tester works ok
 again now. (I had to add a ``-b`` command line argument in ``nssdoit.sh``.)

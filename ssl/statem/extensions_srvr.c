@@ -2215,21 +2215,46 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
     }
 
     /*
-     * Now apply esni by swapping out hostname (we'll try anyway:-)
-     * Might also need to muck with s->session.ext.hostname
+     * Now apply esni by swapping out hostname  (all that work just for this:-)
      */
-    if (s->ext.hostname!=NULL && s->servername_done == 1) {
-        match->covername=s->ext.hostname;
-        s->ext.hostname=NULL;
+    if (s->ext.hostname != NULL && match->covername!=NULL) {
+        OPENSSL_free(match->covername);
     }
-    s->ext.hostname=OPENSSL_malloc(encservername_len+1);
+    match->covername=s->ext.hostname;
+    s->ext.hostname=OPENSSL_strdup((char*)encservername);
     if (s->ext.hostname==NULL) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ESNI,
-             SSL_R_BAD_EXTENSION);
+            SSL_R_BAD_EXTENSION);
         goto err;
     }
-    memcpy(s->ext.hostname,encservername,encservername_len);
-    s->ext.hostname[encservername_len]=0x00;
+
+    /*
+     * mimic the checks made earlier for plaintext ENI 
+     * TBH, I'm not sure of the impact of these, but I
+     * think the effect is the same.
+     */
+    if (s->hit) {
+        s->servername_done = 1;
+    } else {
+        s->servername_done = (s->session->ext.hostname != NULL)
+            && !strncasecmp(s->ext.hostname, s->session->ext.hostname,
+                            strlen(s->session->ext.hostname));
+
+        if (!s->servername_done && s->session->ext.hostname != NULL)
+            s->ext.early_data_ok = 0;
+    }
+    
+    /*
+     * TODO: Check if this is dodgy - it could be!
+     */
+    if (s->session->ext.hostname==NULL) {
+        s->session->ext.hostname=OPENSSL_strdup((char*)encservername);
+        if (s->session->ext.hostname==NULL) {
+            SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ESNI,
+                SSL_R_BAD_EXTENSION);
+            goto err;
+        }
+    }
 
     /* 
      * now set the other name copies for posterity and printing
