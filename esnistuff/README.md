@@ -47,6 +47,12 @@ API a bit (though not the prototype, mostly the calling code and a bit of the
 implementation) so, a bit of work to do before I can make another useful FF
 nightly test...  
 
+- While doing the above, I found a leak on the server side (about 2k/session).
+I've fixed that now but need to go back an re-visit how I handle the 
+array of ``SSL_ESNI`` stuff in general - there are two levels of it,
+which is one too many:-) There's a FIXME in ssl/esni.c in the comment
+before ``SSL_esni_enable``.
+
 - I fixed ``SSL_SESSION_print`` to handle ESNI better by adding covername
   to ``SSL_SESSION.ext`` IIRC ext.hostname and ext.encservername are handled
   differently on client and server at the moment. Simplest fix is probably to add

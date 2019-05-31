@@ -47,7 +47,7 @@ function usage()
     echo "  -v means run with valgrind"
     echo "  -n means don't trigger esni at all"
 	echo "  -c [name] specifices a covername that I'll accept as a clear SNI (NONE is special)"
-    echo "  -p [port] specifices a port (default: 443)"
+    echo "  -p [port] specifices a port (default: 8443)"
 	echo "  -K to generate server keys "
     echo "  -h means print this"
 

@@ -844,10 +844,22 @@ SSL *SSL_new(SSL_CTX *ctx)
 #endif
 
 #ifndef OPENSSL_NO_ESNI
-	s->esni=SSL_ESNI_dup(ctx->ext.esni,ctx->ext.nesni,ESNI_SELECT_ALL);
-	s->nesni=ctx->ext.nesni;
-	s->esni_cb=ctx->ext.esni_cb;
-	s->esni_done=0;
+    if (ctx->ext.esni!=NULL) {
+	    s->esni=SSL_ESNI_dup(ctx->ext.esni,ctx->ext.nesni,ESNI_SELECT_ALL);
+        if (s->esni==NULL) {
+            //printf("Bugger bad dup 1\n");
+            goto err;
+        }
+	    s->nesni=ctx->ext.nesni;
+	    s->esni_cb=ctx->ext.esni_cb;
+	    s->esni_done=0;
+        if (s->esni->num_esni_rrs==0) {
+            // printf("Bugger bad dup 2\n");
+            goto err;
+        }
+    } else if (ctx->ext.nesni!=0) {
+        goto err;
+    } 
 #endif
 
     return s;
@@ -1231,16 +1243,27 @@ void SSL_free(SSL *s)
 
 #ifndef OPENSSL_NO_ESNI
 	if (s->esni!=NULL) {
-        int i;
+        /*
+         * int i;
         for (i=0;i!=s->nesni;i++) {
 		    SSL_ESNI_free(&s->esni[i]);
         }
+        */
+        SSL_ESNI_free(s->esni);
 		OPENSSL_free(s->esni);
 		s->nesni=0;
 		s->esni_cb=NULL;
 		s->esni=NULL;
 		s->esni_done=0;
 	}
+    if (s->ext.kse!=NULL) {
+        OPENSSL_free(s->ext.kse);
+        s->ext.kse=NULL;
+        s->ext.kse_len=0;
+    }
+    OPENSSL_free(s->ext.encservername);
+    OPENSSL_free(s->ext.covername);
+    OPENSSL_free(s->ext.public_name);
 #endif
 
     CRYPTO_THREAD_lock_free(s->lock);
@@ -3247,10 +3270,13 @@ void SSL_CTX_free(SSL_CTX *a)
     CRYPTO_THREAD_lock_free(a->lock);
 #ifndef OPENSSL_NO_ESNI
 	if (a->ext.esni!=NULL) {
+        /*
 		for (i=0;i!=a->ext.nesni;i++) {
             printf("Freeing %d of %ld ESNIs\n",i,a->ext.nesni);
 			SSL_ESNI_free(&a->ext.esni[i]);
 		}
+        */
+        SSL_ESNI_free(a->ext.esni);
 		OPENSSL_free(a->ext.esni);
 		a->ext.esni=NULL;
 		a->ext.nesni=0;

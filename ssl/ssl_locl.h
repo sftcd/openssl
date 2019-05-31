@@ -590,10 +590,17 @@ struct ssl_session_st {
          * TODO: check invariants are ok and ensure client and server
          * do the same (initially the don't, due to my ignorance of
          * OpenSSL code when starting;-)
+         *
          */
 		char *encservername;
 		char *covername;
 		char *public_name;
+        /*
+         * Additionally we record the encoded key share extension
+         * value from the ClientHello for use as the AAD in ENSI
+         */
+        size_t kse_len;
+        unsigned char *kse;
 
 #endif
 # ifndef OPENSSL_NO_EC
@@ -1520,6 +1527,12 @@ struct ssl_st {
 		char *encservername;
 		char *covername;
 		char *public_name;
+        /*
+         * Additionally we record the encoded key share extension
+         * value from the ClientHello for use as the AAD in ENSI
+         */
+        size_t kse_len;
+        unsigned char *kse;
 #endif
         /* certificate status request info */
         /* Status type or -1 if no status type */

@@ -634,6 +634,28 @@ int tls_parse_ctos_key_share(SSL *s, PACKET *pkt, unsigned int context, X509 *x,
         return 0;
     }
 
+#ifndef OPENSSL_NO_ESNI
+    /*
+     * We want to recored the encoded key share(s) for later use
+     * as AAD in ESNI
+     */
+    const unsigned char *kse=PACKET_data(pkt);
+    const size_t kse_len=PACKET_remaining(pkt);
+    if (s->ext.kse!=NULL) {
+        OPENSSL_free(s->ext.kse);
+        s->ext.kse=NULL;
+        s->ext.kse_len=0;
+    }
+    s->ext.kse=OPENSSL_malloc(kse_len);
+    if (s->ext.kse==NULL) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_KEY_SHARE,
+                 SSL_R_LENGTH_MISMATCH);
+        return 0;
+    }
+    s->ext.kse_len=kse_len;
+    memcpy(s->ext.kse,kse,kse_len);
+#endif
+
     if (!PACKET_as_length_prefixed_2(pkt, &key_share_list)) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_KEY_SHARE,
                  SSL_R_LENGTH_MISMATCH);
@@ -1990,15 +2012,27 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
                                X509 *x, size_t chainidx)
 {
     CLIENT_ESNI *ce=NULL;
-    unsigned char *ks=NULL;
     SSL_ESNI *match=NULL;
 
     if (s->esni==NULL) {
         return 1;
     }
 
+    /*
+     * We need the encoded key share from the h/s to be set or else
+     * ESNI won't work (the encoded key share is used as the AAD
+     * when decrypting)
+     */
+    if (s->ext.kse_len==0 || s->ext.kse==NULL) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ESNI,
+                 SSL_R_BAD_EXTENSION);
+        return 0;
+    }
+
     ce=OPENSSL_malloc(sizeof(CLIENT_ESNI));
     if (ce==NULL) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ESNI,
+                 SSL_R_BAD_EXTENSION);
         return 0;
     }
     memset(ce,0,sizeof(CLIENT_ESNI));
@@ -2158,34 +2192,15 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
      */
     unsigned char rd[1024];
     size_t rd_len=SSL_get_client_random(s,rd,1024);
-    size_t ks_len=0;
-    if (s->s3.peer_tmp != NULL) {
-        /* Encode the public key. */
-        ks_len = EVP_PKEY_get1_tls_encodedpoint(s->s3.peer_tmp, &ks);
-        if (ks_len == 0) {
-            SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ESNI,
-             SSL_R_BAD_EXTENSION);
-            goto err;
-        }
-    } else {
-        /* 
-         * fail, bummer
-         */
-        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ESNI,
-         SSL_R_BAD_EXTENSION);
-        goto err;
-    }
     uint16_t curve_id = s->s3.group_id;
     unsigned char *encservername=NULL;
     size_t encservername_len=0;
-    encservername=SSL_ESNI_dec(match,rd_len,rd,curve_id,ks_len,ks,&encservername_len);
+    encservername=SSL_ESNI_dec(match,rd_len,rd,curve_id,s->ext.kse_len,s->ext.kse,&encservername_len);
     if (encservername==NULL) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ESNI,
              SSL_R_BAD_EXTENSION);
         goto err;
     }
-    OPENSSL_free(ks);
-    ks=NULL;
 
     /*
      * check encservername has no zero bytes internally
@@ -2283,7 +2298,6 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
     return 1;
 
 err:
-    if (ks) OPENSSL_free(ks);
     if (ce->encoded_keyshare) OPENSSL_free(ce->encoded_keyshare);
     if (ce->record_digest) OPENSSL_free(ce->record_digest);
     if (ce->encrypted_sni) OPENSSL_free(ce->encrypted_sni);

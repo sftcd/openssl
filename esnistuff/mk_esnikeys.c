@@ -107,7 +107,7 @@ static void sp_esni_prr(unsigned char *sbuf,
 
             if (chunk < available) {
                 available -= chunk; sp += chunk;
-                chunk = snprintf(sp, available, "%ld (",blen);
+                chunk = snprintf(sp, available, "%zd (",blen);
             }
         }
 

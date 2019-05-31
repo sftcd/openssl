@@ -73,7 +73,7 @@ static int keymatexportlen = 20;
 static BIO *bio_c_out = NULL;
 static int c_quiet = 0;
 static char *sess_out = NULL;
-#ifndef OPENSSL_NO_ENSI
+#ifndef OPENSSL_NO_ESNI
 const char *encservername = NULL;
 const char *servername = NULL;
 const char *public_name = NULL;

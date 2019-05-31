@@ -261,10 +261,14 @@ void SSL_ESNI_free(SSL_ESNI *deadesni)
 {
     int j=0;
     int i=0;
-    for (i=0;i!=deadesni->num_esni_rrs;i++) {
+    if (deadesni==NULL) return;
+    int tofree=deadesni->num_esni_rrs;
+    //printf("Freeing %d SSL_ESNI's here\n",tofree);
+    for (i=0;i!=tofree;i++) {
+        //printf("\tFreeing the %d-th of %d\n",i,tofree);
         SSL_ESNI *esni=&deadesni[i];
         if (esni==NULL) return;
-        if (esni->the_esni) {
+        if (esni->the_esni != NULL) {
             /*
              * The CLIENT_ESNI structure (the_esni) doesn't have separately
              * allocated buffers on the client, but it does on the server.
@@ -318,6 +322,8 @@ void SSL_ESNI_free(SSL_ESNI *deadesni)
              */
             BIO_ADDR_free(esni->addrs);
         }
+        // zap all of that to zero 
+        memset(esni,0,sizeof(SSL_ESNI));
     }
     return;
 }
@@ -934,6 +940,7 @@ static int esni_make_se_from_er(ESNI_RECORD* er, SSL_ESNI *se, int server)
             }
         }
     }
+    //se->num_esni_rrs=1;
     return 1;
 err:
     if (tmp!=NULL) {
@@ -1230,12 +1237,14 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esniarr)
     if (nesnis==0) {
         BIO_printf(out,"ESNI Array has no RRs, assuming just one array element.\n");
         nesnis=1;
+    } else {
+        BIO_printf(out,"ESNI Array has %d RRs.\n",nesnis);
     }
     for (int i=0;i!=nesnis;i++) {
 
         esni=&esniarr[i];
 
-        BIO_printf(out,"\nPrinting SSL_ESNI structure number %d\n",i);
+        BIO_printf(out,"\nPrinting SSL_ESNI structure number %d of %d\n",i,nesnis);
         BIO_printf(out,"ESNI Version: %x\n",esni->version);
 	
 	    if (esni->encoded_rr==NULL) {
@@ -1813,14 +1822,13 @@ static int key_derivation(SSL_ESNI *esnikeys)
         ESNIerr(ESNI_F_KEY_DERIVATION, ERR_R_INTERNAL_ERROR);
         goto err;
     }
-    /*
-     * Put a few encoding bytes around the TLS h/s key share
-     */
-    esnikeys->aad=SSL_ESNI_wrap_keyshare(esnikeys->hs_kse,esnikeys->hs_kse_len,esnikeys->group_id,&esnikeys->aad_len);
-    if (esnikeys->aad==NULL) {
+    esnikeys->aad=OPENSSL_malloc(esnikeys->hs_kse_len);
+    if (esnikeys->aad == NULL) {
         ESNIerr(ESNI_F_KEY_DERIVATION, ERR_R_MALLOC_FAILURE);
         goto err;
     }
+    memcpy(esnikeys->aad,esnikeys->hs_kse,esnikeys->hs_kse_len);
+    esnikeys->aad_len=esnikeys->hs_kse_len;
     return 1;
 err:
     return 0;
@@ -2392,6 +2400,11 @@ int SSL_esni_checknames(const char *encservername, const char *covername)
 
 /**
  * @brief: Turn on SNI encryption for an (upcoming) TLS session
+ *
+ * FIXME: Rationalise the handling of arrays of SSL_ESNI structs. As
+ * of now, we sometimes set the number of those as a parameter (as
+ * in this case), whereas other bits of code use the num_esni_rrs field 
+ * inside the first array element to know how many we're dealing with.
  * 
  * @param s is the SSL context
  * @param hidde is the hidden service name
@@ -2437,6 +2450,11 @@ int SSL_esni_enable(SSL *s, const char *hidden, const char *cover, SSL_ESNI *esn
     if (s->ext.hostname!=NULL) {
         OPENSSL_free(s->ext.hostname);
         s->ext.hostname=NULL;
+    }
+    if (s->ext.kse!=NULL) {
+        OPENSSL_free(s->ext.kse);
+        s->ext.kse=NULL;
+        s->ext.kse_len=0;
     }
     /*
      * the chosen index into the set of ESNIKeys in this SSL_ESNI
@@ -2731,15 +2749,16 @@ SSL_ESNI* SSL_ESNI_dup(SSL_ESNI* orig, size_t nesni, int selector)
             memcpy(newi->FIELD,origi->FIELD,newi->len_FIELD); \
         }
 
-    SSL_ESNI *new=NULL;
+    if (orig==NULL) return NULL;
 
+    SSL_ESNI *new=NULL;
     int num_selected=nesni;
 
     /*
      * Check selector is reasonable
      */
     if (selector!=ESNI_SELECT_ALL) {
-        if (selector < 0 || selector >nesni) {
+        if (selector < 0 || selector >=nesni) {
             ESNIerr(ESNI_F_SSL_ESNI_DUP, ERR_R_INTERNAL_ERROR);
             goto err;
         }
@@ -2748,7 +2767,6 @@ SSL_ESNI* SSL_ESNI_dup(SSL_ESNI* orig, size_t nesni, int selector)
         num_selected=nesni;
     }
 
-    if (orig==NULL) return NULL;
     new=OPENSSL_malloc(num_selected*sizeof(SSL_ESNI));
     if (new==NULL) {
         ESNIerr(ESNI_F_SSL_ESNI_DUP, ERR_R_INTERNAL_ERROR);
@@ -2787,7 +2805,8 @@ SSL_ESNI* SSL_ESNI_dup(SSL_ESNI* orig, size_t nesni, int selector)
         if (origi->public_name!=NULL) newi->public_name=OPENSSL_strdup(origi->public_name);
         newi->require_hidden_match=origi->require_hidden_match;
         if (selector==ESNI_SELECT_ALL) {
-            newi->num_esni_rrs=origi->num_esni_rrs;
+            //newi->num_esni_rrs=origi->num_esni_rrs;
+            newi->num_esni_rrs=nesni;
         } else {
             newi->num_esni_rrs=1;
         }

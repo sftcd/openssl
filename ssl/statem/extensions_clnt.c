@@ -771,6 +771,18 @@ EXT_RETURN tls_construct_ctos_key_share(SSL *s, WPACKET *pkt,
         return EXT_RETURN_FAIL;
     }
 
+#ifndef OPENSSL_NO_ESNI
+    /*
+     * remember where we started that sub-packet from
+     * because we want to store the full set of encoded
+     * key shares for later use as AAD in ESNI
+     * Even though the add_key_share below just adds
+     * one for now, I'll try make the ESNI code work
+     * even if >1 were added
+     */
+    unsigned char *kse=WPACKET_get_curr(pkt);
+#endif
+
     tls1_get_supported_groups(s, &pgroups, &num_groups);
 
     /*
@@ -801,11 +813,49 @@ EXT_RETURN tls_construct_ctos_key_share(SSL *s, WPACKET *pkt,
         return EXT_RETURN_FAIL;
     }
 
+#ifndef OPENSSL_NO_ESNI
+    /*
+     * Record encoded key share for possible use as AAD in ESNI
+     * The encoding of the key share is the final packet minus the
+     * first 4 octets
+     */
+    if (s->ext.kse_len!=0 && s->ext.kse!=NULL)  {
+        OPENSSL_free(s->ext.kse);
+        s->ext.kse=NULL;
+        s->ext.kse_len=0;
+    } 
+    size_t kse_len;
+    if (WPACKET_get_length(pkt,&kse_len)!=1) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_KEY_SHARE,
+                 ERR_R_INTERNAL_ERROR);
+        return EXT_RETURN_FAIL;
+    }
+    if (kse_len<=4) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_KEY_SHARE,
+                 ERR_R_INTERNAL_ERROR);
+        return EXT_RETURN_FAIL;
+    }
+    /*
+     * We gotta add on the encoded length too
+     */
+    s->ext.kse=OPENSSL_malloc(kse_len+2);
+    if (s->ext.kse==NULL) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_KEY_SHARE,
+                 ERR_R_INTERNAL_ERROR);
+        return EXT_RETURN_FAIL;
+    }
+    s->ext.kse_len=kse_len+2;
+    s->ext.kse[0]=(kse_len/256)%0xff;
+    s->ext.kse[1]=kse_len%256;
+    memcpy(s->ext.kse+2,kse,kse_len);
+#endif
+
     if (!WPACKET_close(pkt) || !WPACKET_close(pkt)) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_KEY_SHARE,
                  ERR_R_INTERNAL_ERROR);
         return EXT_RETURN_FAIL;
     }
+
     return EXT_RETURN_SENT;
 #else
     return EXT_RETURN_NOT_SENT;
@@ -2141,30 +2191,11 @@ EXT_RETURN tls_construct_ctos_esni(SSL *s, WPACKET *pkt, unsigned int context,
     unsigned char rd[1024];
     size_t rd_len=SSL_get_client_random(s,rd,1024);
 
-    /*
-     * keyshare from CH
-     */
-    size_t ks_len=0;
-    unsigned char *ks=NULL;
-    if (s->s3.tmp.pkey != NULL) {
-        /* Encode the public key. */
-        ks_len = EVP_PKEY_get1_tls_encodedpoint(s->s3.tmp.pkey, &ks);
-        if (ks_len == 0) {
-            return EXT_RETURN_NOT_SENT;
-        }
-    } else {
-        /* 
-         * fail, bummer
-         */
-        return EXT_RETURN_NOT_SENT;
-    }
-
     uint16_t curve_id = s->s3.group_id;
     CLIENT_ESNI *c=NULL;
-    if (!SSL_ESNI_enc(s->esni,rd_len,rd,curve_id,ks_len,ks,&c)) {
+    if (!SSL_ESNI_enc(s->esni,rd_len,rd,curve_id,s->ext.kse_len,s->ext.kse,&c)) {
         return 0;
     }
-    OPENSSL_free(ks);
 
     /*
      * Now encode the ESNI stuff 

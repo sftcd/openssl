@@ -91,6 +91,8 @@ SSL_SESSION *SSL_SESSION_new(void)
     ss->ext.hostname=NULL;
     ss->ext.covername=NULL;
     ss->ext.pubic_name=NULL;
+    ss->ext.kse_len=0;
+    ss->ext.kse=NULL;
 #endif
 
     if (!CRYPTO_new_ex_data(CRYPTO_EX_INDEX_SSL_SESSION, ss, &ss->ex_data)) {
@@ -218,6 +220,14 @@ SSL_SESSION *ssl_session_dup(const SSL_SESSION *src, int ticket)
         if (dest->ext.public_name == NULL) {
             goto err;
         }
+    }
+    if (src->ext.kse_len!=0 && src->ext.kse != NULL) {
+        dest->ext.kse = OPENSSL_malloc(src->ext.kse_len);
+        if (dest->ext.kse == NULL) {
+            goto err;
+        }
+        memcpy(dest->ext.kse,src->ext.kse,src->ext.kse_len);
+        dest->ext.kse_len=src->ext.kse_len;
     }
 #endif
 #ifndef OPENSSL_NO_EC
@@ -823,6 +833,8 @@ void SSL_SESSION_free(SSL_SESSION *ss)
     OPENSSL_free(ss->ext.encservername);
     OPENSSL_free(ss->ext.covername);
     OPENSSL_free(ss->ext.public_name);
+    OPENSSL_free(ss->ext.kse);
+    ss->ext.kse_len=0;
 #endif
     OPENSSL_free(ss->ext.tick);
 #ifndef OPENSSL_NO_EC

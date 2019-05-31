@@ -150,20 +150,26 @@ int main(int argc, char **argv)
         exit(1);
     }
     uint16_t cid=0x001d;
-    size_t ckl=32;
-    unsigned char ck[32];
+    size_t ckl=38;
+    unsigned char ck[38];
+    ck[0]=0x00;
+    ck[1]=0x24;
+    ck[2]=0x00;
+    ck[3]=0x1d;
+    ck[4]=0x00;
+    ck[5]=0x20;
 #ifdef ESNI_CRYPT_INTEROP
     if (hs_key_share_str==NULL) {
         // RAND_bytes(ck,32);
-        memset(ck,0xA5,32);
+        memset(ck+6,0xA5,32);
     } else {
 		int i; /* loop counter - android build doesn't like C99;-( */
         for (i=0;i!=32;i++) {
-            ck[i]=A2B(hs_key_share_str[2*i])*16+A2B(hs_key_share_str[(2*i)+1]);
+            ck[i+6]=A2B(hs_key_share_str[2*i])*16+A2B(hs_key_share_str[(2*i)+1]);
         }
     }
 #else
-    memset(ck,0xA5,32);
+    memset(ck+6,0xA5,32);
 #endif
 
 
@@ -262,7 +268,6 @@ int main(int argc, char **argv)
 
         SSL_ESNI *one=SSL_ESNI_dup(esnikeys,nesnis,i);
 
-        //if (!SSL_ESNI_enc(&esnikeys[i],cr_len,client_random,cid,ckl,ck,&the_esni)) {
         if (!SSL_ESNI_enc(one,cr_len,client_random,cid,ckl,ck,&the_esni)) {
             printf("Can't encrypt SSL_ESNI!\n");
             goto end;
