@@ -46,6 +46,7 @@ processing the h/s key share extension). That'll change the ``SSL_ESNI_dec``
 API a bit (though not the prototype, mostly the calling code and a bit of the
 implementation) so, a bit of work to do before I can make another useful FF
 nightly test...  
+    - Yay! That worked, got FF nightly interop
 
 - While doing the above, I found a leak on the server side (about 2k/session).
 I've fixed that now but need to go back an re-visit how I handle the 
