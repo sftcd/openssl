@@ -78,9 +78,16 @@ static void sp_esni_prr(unsigned char *sbuf,
 {
     unsigned char *sp=sbuf;
     memset(sbuf,0,slen);          /* clear buffer for zone data */
+    char *owner_string=NULL;
 
     if (buf==NULL) {
         return;
+    }
+
+    if (owner_name==NULL) {
+        owner_string="invalid.example";
+    } else {
+        owner_string=owner_name;
     }
 
     char fold_fmt[MAX_FMT_LEN];
@@ -93,8 +100,8 @@ static void sp_esni_prr(unsigned char *sbuf,
         if (i==0) {
             /* Process prolog */
             chunk = snprintf(sp, available,
-                             "%s. IN TYPE%d \\# ",
-                             owner_name, typecode);
+                             "%s. IN TYPE%d 3600 \\# ",
+                             owner_string, typecode);
 
             if (chunk < available) {
                 padwidth = (chunk<MAX_PADDING) ? chunk : MAX_PADDING;
@@ -298,6 +305,7 @@ static int mk_aset(char *asetfname, char *cover_name, size_t *elen, unsigned cha
     if (elen==NULL || eval==NULL) {
         return(0);
     }
+    size_t cnlen=(cover_name==NULL?0:strlen(cover_name));
     int nips=0;
     char *ips[MAX_ESNI_ADDRS];
     memset(ips,0,MAX_ESNI_ADDRS*sizeof(char*));
@@ -325,12 +333,7 @@ static int mk_aset(char *asetfname, char *cover_name, size_t *elen, unsigned cha
         if (line)
             free(line);
         fclose(fp);
-    } else {
-        size_t cnlen=strlen(cover_name);
-        if (cnlen==0) {
-            fprintf(stderr,"Can't get address as no public-/cover-name supplied.\n");
-            return(0);
-        }
+    } else if (cnlen!=0) {
         /* try getaddrinfo() */
         struct addrinfo *ai,*rp=NULL;
         int rv=getaddrinfo(cover_name,NULL,NULL,&ai);
@@ -572,16 +575,12 @@ static int mk_esnikeys(int argc, char **argv)
     case 0xff01: /* esni draft -02 */
         break;
     case 0xff02: /* esni draft -03 */
-        if (cover_name==NULL) {
-            fprintf(stderr,"%x requires you to specify a cover/public-name - exiting\n\n",ekversion);
-            usage(argv[0]);
-        }
-        cnlen=strlen(cover_name);
+        cnlen=(cover_name==NULL?0:strlen(cover_name));
         if (cnlen > MAX_ESNI_COVER_NAME) {
             fprintf(stderr,"Cover name too long (%ld), max is %d\n\n",cnlen,MAX_ESNI_COVER_NAME);
             usage(argv[0]);
         }
-        if (cover_name[cnlen-1]=='.') {
+        if (cnlen > 0 && cover_name[cnlen-1]=='.') {
             cover_name[cnlen-1] = 0; /* strip trailing dot to canonicalize */
         }
         break;
@@ -767,7 +766,7 @@ static int mk_esnikeys(int argc, char **argv)
     *bp++=(ekversion>>8)%256; 
     *bp++=(ekversion%256);// version = 0xff01 or 0xff02
     memset(bp,0,4); bp+=4; // space for checksum
-    if (ekversion==0xff02) {
+    if (cnlen > 0 && ekversion==0xff02) {
         /* draft -03 has public_name here, -02 hasn't got that at all */
         *bp++=(cnlen>>8)%256;
         *bp++=cnlen%256;
