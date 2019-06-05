@@ -25,6 +25,9 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- Tweaked ``testclient.sh`` to also take ESNI RR value from command
+line (as well as filename for that).
+
 - Now that I've gotten FF nightly interop done, have tweaked the output
 from ``s-server -www`` a bit. Also changed how the ``SSL_SESSION.ext.hostname``
 is set when we do get an ESNI. Not sure yet if I've got that right. Left a

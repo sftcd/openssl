@@ -173,24 +173,25 @@ then
 	then
 		if [ ! -f $SUPPLIEDESNI ]
 		then
-			echo "Can't open $SUPPLIEDESNI - exiting"
-			exit 9
-		fi
-		# check if file suffix is .pub or .bin (binary) or .b64 (base64 encoding) 
-		# and react accordingly, don't take any other file extensions
-		ssfname=`basename $SUPPLIEDESNI`
-		if [ `basename "$ssfname" .b64` != "$ssfname" ]
-		then
-			ESNI=`head -1 $SUPPLIEDESNI` 
-		elif [ `basename "$ssfname" .pub` != "$ssfname" ]
-		then
-			ESNI=`cat $SUPPLIEDESNI | base64 -w0`
-		elif [ `basename "$ssfname" .bin` != "$ssfname" ]
-		then
-			ESNI=`cat $SUPPLIEDESNI | base64 -w0`
-		else
-			echo "Not sure of file type of $SUPPLIEDESNI - try call it .pub/.bin or .b64 to give me a hint"
-			exit 8
+			echo "Assuming supplied ESNI is RR value"
+			ESNI="$SUPPLIEDESNI"
+        else
+		    # check if file suffix is .pub or .bin (binary) or .b64 (base64 encoding) 
+		    # and react accordingly, don't take any other file extensions
+		    ssfname=`basename $SUPPLIEDESNI`
+		    if [ `basename "$ssfname" .b64` != "$ssfname" ]
+		    then
+			    ESNI=`head -1 $SUPPLIEDESNI` 
+		    elif [ `basename "$ssfname" .pub` != "$ssfname" ]
+		    then
+			    ESNI=`cat $SUPPLIEDESNI | base64 -w0`
+		    elif [ `basename "$ssfname" .bin` != "$ssfname" ]
+		    then
+			    ESNI=`cat $SUPPLIEDESNI | base64 -w0`
+		    else
+			    echo "Not sure of file type of $SUPPLIEDESNI - try call it .pub/.bin or .b64 to give me a hint"
+			    exit 8
+		    fi
 		fi
 	else
         # try draft-03 first  - we need to drop the initial \# and length and
@@ -305,10 +306,16 @@ then
 	echo "Nonce Back: $eestr"
 	grep -e "^ESNI: " $TMPF
 else
-
     ctot=$((csucc||c200))
 	echo "Looks like $ctot ok's and $c4xx bad's."
 fi
 echo ""
 rm -f $TMPF
-
+# exit with something useful
+if [[ "$ctot" == "1" && "$c4xx" == "0" ]]
+then
+    exit 0
+else
+    exit 44
+fi 
+exit 66
