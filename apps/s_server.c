@@ -473,12 +473,19 @@ typedef struct tlsextctx_st {
  */
 static unsigned int esni_cb(SSL *s, int index)
 {
+#ifdef FIGUREDOUTTHREADS
+    /*
+     * This seems to cause a crash, likely due to threading or
+     * something I need to figure out, so let's see if that's
+     * the case.
+     */
     SSL_ESNI *esnistuff=NULL;
     int rv=SSL_ESNI_get_esni(s,&esnistuff);
     BIO_printf(bio_s_out,"Dumping ESNI from esni_cb\n");
     if (rv == 1 && esnistuff!=NULL) {
         SSL_ESNI_print(bio_s_out,&esnistuff[index]);
     }
+#endif
     return 1;
 }
 

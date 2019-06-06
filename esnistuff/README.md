@@ -25,6 +25,11 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- Looks like there's a thread issue in ``esni_cb`` in ``s_server`` that causes
+  eventual (but fairly speedy) crashes of ``s_server`` when dumping out the
+``SSL_ESNI`` content. Commented out the dump of the ESNI state for now as I
+figure that out.
+
 - Tweaked ``testclient.sh`` to also take ESNI RR value from command
 line (as well as filename for that).
 
