@@ -66,6 +66,7 @@ static void so_esni_pbuf(char *msg,unsigned char *buf,size_t blen,int indent)
  * @param buf binary public key data
  * @param blen length of buf
  * @param typecode DNS TYPE code to use
+ * @param ttl is the TTL to use
  * @param owner_name fully-qualified DNS owner, without trailing dot
  *
  */
@@ -74,6 +75,7 @@ static void sp_esni_prr(unsigned char *sbuf,
                         unsigned char *buf,
                         size_t blen,
                         unsigned short typecode,
+                        int ttl,
                         char *owner_name)
 {
     unsigned char *sp=sbuf;
@@ -100,8 +102,8 @@ static void sp_esni_prr(unsigned char *sbuf,
         if (i==0) {
             /* Process prolog */
             chunk = snprintf(sp, available,
-                             "%s. IN TYPE%d 3600 \\# ",
-                             owner_string, typecode);
+                             "%s. IN TYPE%d %d \\# ",
+                             owner_string, typecode, ttl);
 
             if (chunk < available) {
                 padwidth = (chunk<MAX_PADDING) ? chunk : MAX_PADDING;
@@ -833,7 +835,7 @@ static int mk_esnikeys(int argc, char **argv)
         unsigned char zbuf[MAX_ZONEDATA_BUFLEN];
 
         /* Prepare zone fragment in buffer */
-        sp_esni_prr(zbuf,MAX_ZONEDATA_BUFLEN,bbuf,bblen,0xff9f,cover_name);
+        sp_esni_prr(zbuf,MAX_ZONEDATA_BUFLEN,bbuf,bblen,0xff9f,duration,cover_name);
         int zblen=strlen(zbuf);
 
         if (zblen==0) {
