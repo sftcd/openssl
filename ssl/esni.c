@@ -1224,7 +1224,7 @@ static void so_esni_pbuf(char *msg,unsigned char *buf,size_t blen,int indent)
  * @param esniarr is an array of SSL_ESNI structures
  * @return 1 is good
  */
-int SSL_ESNI_print(BIO* out, SSL_ESNI *esniarr)
+int SSL_ESNI_print(BIO* out, SSL_ESNI *esniarr, int selector)
 {
     SSL_ESNI *esni=NULL;
     int nesnis=0;
@@ -1233,14 +1233,32 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esniarr)
         BIO_printf(out,"ESNI is NULL!\n");
         return 0;
     }
+
+    /*
+     * Check selector is reasonable
+     */
     nesnis=esniarr->num_esni_rrs;
     if (nesnis==0) {
         BIO_printf(out,"ESNI Array has no RRs, assuming just one array element.\n");
         nesnis=1;
     } else {
-        BIO_printf(out,"ESNI Array has %d RRs.\n",nesnis);
+        if (selector!=ESNI_SELECT_ALL) {
+            BIO_printf(out,"ESNI Array has %d RRs, printing the %d-th.\n",nesnis,selector);
+        } else {
+            BIO_printf(out,"ESNI Array has %d RRs, printing all of 'em.\n",nesnis);
+        }
+    }
+    if (selector!=ESNI_SELECT_ALL) {
+        if (selector < 0 || selector >=nesnis) {
+            BIO_printf(out,"SSL_ESNI_print error- selector (%d) out of range (%d)\n",selector,nesnis);
+            return 0;
+        }
     }
     for (int i=0;i!=nesnis;i++) {
+
+        if (selector!=ESNI_SELECT_ALL && selector != i) {
+            continue;
+        }
 
         esni=&esniarr[i];
 

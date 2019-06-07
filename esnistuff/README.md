@@ -25,10 +25,15 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
-- Looks like there's a thread issue in ``esni_cb`` in ``s_server`` that causes
+- There was an, I guess, thread-related issue in ``esni_cb`` in ``s_server`` causing
   eventual (but fairly speedy) crashes of ``s_server`` when dumping out the
-``SSL_ESNI`` content. Commented out the dump of the ESNI state for now as I
-figure that out.
+``SSL_ESNI`` content. I changed the callback prototype so that the
+output string to print is returned from the library to the application
+via the callback rather than having the application access a pointer to the ``SSL_ESNI``
+structure with the ``SSL`` structure for the session. The proble with the
+latter was that the ``SSL_ESNI`` will be modified by each new connection.
+(Recall we're storing and printing out much more now than we eventually
+will, so were this to remain a problem we'd have a few ways to handle it.)
 
 - Tweaked ``testclient.sh`` to also take ESNI RR value from command
 line (as well as filename for that).

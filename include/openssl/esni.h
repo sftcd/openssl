@@ -479,9 +479,10 @@ int SSL_ESNI_get_esni_ctx(SSL_CTX *s, SSL_ESNI **esni);
  *
  * @param out is the BIO to use (e.g. stdout/whatever)
  * @param esni is an SSL_ESNI strucutre
+ * @param selector allows for picking all (ESNI_SELECT_ALL==-1) or just one of the RR values in orig
  * @return 1 for success, anything else for failure
  */
-int SSL_ESNI_print(BIO* out, SSL_ESNI *esni);
+int SSL_ESNI_print(BIO* out, SSL_ESNI *esni,int selector);
 
 /* 
  * Possible return codes from SSL_ESNI_get_status

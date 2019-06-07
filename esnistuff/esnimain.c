@@ -273,7 +273,7 @@ int main(int argc, char **argv)
             goto end;
         }
 
-        if (verbose==1 && !SSL_ESNI_print(out,one)) {
+        if (verbose==1 && !SSL_ESNI_print(out,one,ESNI_SELECT_ALL)) {
             printf("Can't print SSL_ESNI!\n");
             goto end;
         }

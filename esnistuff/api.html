@@ -223,12 +223,12 @@
 	<td> </td>
 </tr>
 <tr>
-	<td><code>public static unsigned int</code><a href="#s__client_8c_1ae008482292dac8e7973f123dcea9324e"><code>esni_cb</code></a><code>(SSL * s,int index)</code></td>
-	<td> </td>
+	<td><code>public static unsigned int</code><a href="#s__client_8c_1ad7caf3d16900b8c136462917f264cf13"><code>esni_print_cb</code></a><code>(SSL * s,char * str)</code></td>
+	<td>print an ESNI structure, this time thread safely;-)</td>
 </tr>
 <tr>
-	<td><code>public static unsigned int</code><a href="#s__server_8c_1ae008482292dac8e7973f123dcea9324e"><code>esni_cb</code></a><code>(SSL * s,int index)</code></td>
-	<td>print an ESNI structure</td>
+	<td><code>public static unsigned int</code><a href="#s__server_8c_1ad7caf3d16900b8c136462917f264cf13"><code>esni_print_cb</code></a><code>(SSL * s,char * str)</code></td>
+	<td>print an ESNI structure, this time thread safely;-)</td>
 </tr>
 <tr>
 	<td><code>public static size_t</code><a href="#s__server_8c_1a2deb1d25456628e166cb5fbaa8f11bbf"><code>esni_padding_cb</code></a><code>(SSL * s,int type,size_t len,void * arg)</code></td>
@@ -343,7 +343,7 @@
 	<td>Access an SSL_ESNI structure note - can include sensitive values!</td>
 </tr>
 <tr>
-	<td><code>public int</code><a href="#esni_8h_1acf8aa08880982952d1faee2fedd1bc67"><code>SSL_ESNI_print</code></a><code>(BIO * out,</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>* esni)</code></td>
+	<td><code>public int</code><a href="#esni_8h_1ac953373e8ce69f0ee18f451d1f17df48"><code>SSL_ESNI_print</code></a><code>(BIO * out,</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>* esni,int selector)</code></td>
 	<td>Print the content of an SSL_ESNI.</td>
 </tr>
 <tr>
@@ -423,7 +423,7 @@
 	<td>print a buffer nicely</td>
 </tr>
 <tr>
-	<td><code>public int</code><a href="#esni_8c_1ad6dd25568456088a88d08668af6b7733"><code>SSL_ESNI_print</code></a><code>(BIO * out,</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>* esniarr)</code></td>
+	<td><code>public int</code><a href="#esni_8c_1afebef7970cbb431fbac3df60397fabf9"><code>SSL_ESNI_print</code></a><code>(BIO * out,</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>* esniarr,int selector)</code></td>
 	<td>Print out an array of SSL_ESNI structures.</td>
 </tr>
 <tr>
@@ -837,15 +837,17 @@
 
 <h4 id="definessl_esni_dup_oneesni_8c_1a264331e3021c14c1d3e1403c5923fd93"><code>define</code><a href="#esni_8c_1a264331e3021c14c1d3e1403c5923fd93"><code>SSL_ESNI_dup_one</code></a></h4>
 
-<p id="s__client_8c_1ae008482292dac8e7973f123dcea9324e"><hr></p>
+<p id="s__client_8c_1ad7caf3d16900b8c136462917f264cf13"><hr></p>
 
-<h4 id="publicstaticunsignedintesni_cbs__client_8c_1ae008482292dac8e7973f123dcea9324esslsintindex"><code>public static unsigned int</code><a href="#s__client_8c_1ae008482292dac8e7973f123dcea9324e"><code>esni_cb</code></a><code>(SSL * s,int index)</code></h4>
+<h4 id="publicstaticunsignedintesni_print_cbs__client_8c_1ad7caf3d16900b8c136462917f264cf13sslscharstr"><code>public static unsigned int</code><a href="#s__client_8c_1ad7caf3d16900b8c136462917f264cf13"><code>esni_print_cb</code></a><code>(SSL * s,char * str)</code></h4>
 
-<p id="s__server_8c_1ae008482292dac8e7973f123dcea9324e"><hr></p>
+<p>print an ESNI structure, this time thread safely;-)</p>
 
-<h4 id="publicstaticunsignedintesni_cbs__server_8c_1ae008482292dac8e7973f123dcea9324esslsintindex"><code>public static unsigned int</code><a href="#s__server_8c_1ae008482292dac8e7973f123dcea9324e"><code>esni_cb</code></a><code>(SSL * s,int index)</code></h4>
+<p id="s__server_8c_1ad7caf3d16900b8c136462917f264cf13"><hr></p>
 
-<p>print an ESNI structure</p>
+<h4 id="publicstaticunsignedintesni_print_cbs__server_8c_1ad7caf3d16900b8c136462917f264cf13sslscharstr"><code>public static unsigned int</code><a href="#s__server_8c_1ad7caf3d16900b8c136462917f264cf13"><code>esni_print_cb</code></a><code>(SSL * s,char * str)</code></h4>
+
+<p>print an ESNI structure, this time thread safely;-)</p>
 
 <p id="s__server_8c_1a2deb1d25456628e166cb5fbaa8f11bbf"><hr></p>
 
@@ -1397,9 +1399,9 @@
 
 <p>0 for failure, non-zero is the number of SSL_ESNI in the array</p>
 
-<p id="esni_8h_1acf8aa08880982952d1faee2fedd1bc67"><hr></p>
+<p id="esni_8h_1ac953373e8ce69f0ee18f451d1f17df48"><hr></p>
 
-<h4 id="publicintssl_esni_printesni_8h_1acf8aa08880982952d1faee2fedd1bc67biooutssl_esniesni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7fesni"><code>public int</code><a href="#esni_8h_1acf8aa08880982952d1faee2fedd1bc67"><code>SSL_ESNI_print</code></a><code>(BIO * out,</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>* esni)</code></h4>
+<h4 id="publicintssl_esni_printesni_8h_1ac953373e8ce69f0ee18f451d1f17df48biooutssl_esniesni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7fesniintselector"><code>public int</code><a href="#esni_8h_1ac953373e8ce69f0ee18f451d1f17df48"><code>SSL_ESNI_print</code></a><code>(BIO * out,</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>* esni,int selector)</code></h4>
 
 <p>Print the content of an SSL_ESNI.</p>
 
@@ -1408,6 +1410,7 @@
 <ul>
 <li><p><code>out</code> is the BIO to use (e.g. stdout/whatever) </p></li>
 <li><p><code>esni</code> is an SSL_ESNI strucutre </p></li>
+<li><p><code>selector</code> allows for picking all (ESNI_SELECT_ALL==-1) or just one of the RR values in orig </p></li>
 </ul>
 
 <h4 id="returns">Returns</h4>
@@ -1753,9 +1756,9 @@
 
 <p>This is used in SSL_ESNI_print</p>
 
-<p id="esni_8c_1ad6dd25568456088a88d08668af6b7733"><hr></p>
+<p id="esni_8c_1afebef7970cbb431fbac3df60397fabf9"><hr></p>
 
-<h4 id="publicintssl_esni_printesni_8c_1ad6dd25568456088a88d08668af6b7733biooutssl_esniesni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7fesniarr"><code>public int</code><a href="#esni_8c_1ad6dd25568456088a88d08668af6b7733"><code>SSL_ESNI_print</code></a><code>(BIO * out,</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>* esniarr)</code></h4>
+<h4 id="publicintssl_esni_printesni_8c_1afebef7970cbb431fbac3df60397fabf9biooutssl_esniesni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7fesniarrintselector"><code>public int</code><a href="#esni_8c_1afebef7970cbb431fbac3df60397fabf9"><code>SSL_ESNI_print</code></a><code>(BIO * out,</code><a href="#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f"><code>SSL_ESNI</code></a><code>* esniarr,int selector)</code></h4>
 
 <p>Print out an array of SSL_ESNI structures.</p>
 

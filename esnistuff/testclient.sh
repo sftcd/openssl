@@ -169,7 +169,11 @@ fi
 # and maybe check later
 if [[ "$NOESNI" != "yes" ]]
 then
-	if [[ "$SUPPLIEDESNI" != "" ]]
+    if [[ "$STALE" == "yes" ]]
+    then
+        ESNI="/wHHBBOoACQAHQAg4YSfjSyJPNr1z3F8KqzBNBnMejim0mJZaPmria3XsicAAhMBAQQAAAAAW9pQEAAAAABb4jkQAAA="
+        echo "Using stale ESNI value: $ESNI" 
+	elif [[ "$SUPPLIEDESNI" != "" ]]
 	then
 		if [ ! -f $SUPPLIEDESNI ]
 		then
@@ -217,11 +221,6 @@ then
 			    fi
 		    fi
         fi
-		if [[ "$STALE" == "yes" ]]
-		then
-			ESNI="/wHHBBOoACQAHQAg4YSfjSyJPNr1z3F8KqzBNBnMejim0mJZaPmria3XsicAAhMBAQQAAAAAW9pQEAAAAABb4jkQAAA="
-    		echo "Using stale ESNI value: $ESNI" 
-		fi    
 	fi
 fi
 

@@ -80,7 +80,7 @@ static DH *load_dh_param(const char *dhfile);
 #endif
 static void print_connection_info(SSL *con);
 #ifndef OPENSSL_NO_ESNI
-static unsigned int esni_cb(SSL *s, int index);
+static unsigned int esni_print_cb(SSL *s, char *str);
 #endif
 
 static const int bufsize = 16 * 1024;
@@ -468,24 +468,15 @@ typedef struct tlsextctx_st {
 
 // ESNI_DOXY_START
 #ifndef OPENSSL_NO_ESNI
+
 /**
- * @brief print an ESNI structure
+ * @brief print an ESNI structure, this time thread safely;-)
  */
-static unsigned int esni_cb(SSL *s, int index)
+static unsigned int esni_print_cb(SSL *s, char *str)
 {
-#ifdef FIGUREDOUTTHREADS
-    /*
-     * This seems to cause a crash, likely due to threading or
-     * something I need to figure out, so let's see if that's
-     * the case.
-     */
-    SSL_ESNI *esnistuff=NULL;
-    int rv=SSL_ESNI_get_esni(s,&esnistuff);
-    BIO_printf(bio_s_out,"Dumping ESNI from esni_cb\n");
-    if (rv == 1 && esnistuff!=NULL) {
-        SSL_ESNI_print(bio_s_out,&esnistuff[index]);
+    if (str!=NULL) {
+        BIO_printf(bio_s_out,"ESNI Server callback printing: %s\n",str);
     }
-#endif
     return 1;
 }
 
@@ -2220,16 +2211,12 @@ int s_server_main(int argc, char *argv[])
     if ((esnidir!=NULL) || (esnikeyfile!= NULL && esnipubfile!=NULL)) {
         SSL_ESNI *tp=NULL;
         int nesni=SSL_ESNI_get_esni_ctx(ctx,&tp);
-        int i; /* loop counter - android build doesn't like C99;-( */
         if (nesni==0) {
             BIO_printf(bio_err, "Failure establishing ESNI parameters - can't print 'em\n" );
             goto end;
         } 
         if (bio_s_out != NULL) {
-            for (i=0;i!=nesni;i++) {
-                BIO_printf(bio_s_out, "SSL_ESNI(%d of %d):\r\n",i+1,nesni);
-                SSL_ESNI_print(bio_s_out,&tp[i]);
-            }
+            SSL_ESNI_print(bio_s_out,tp,ESNI_SELECT_ALL);
         }
     }
 #endif
@@ -2451,8 +2438,8 @@ int s_server_main(int argc, char *argv[])
         SSL_CTX_set_tlsext_servername_arg(ctx2, &tlsextcbp);
         SSL_CTX_set_tlsext_servername_callback(ctx, ssl_esni_servername_cb);
         SSL_CTX_set_tlsext_servername_arg(ctx, &tlsextcbp);
-        SSL_set_esni_callback_ctx(ctx2, esni_cb);
-        SSL_set_esni_callback_ctx(ctx, esni_cb);
+        SSL_set_esni_callback_ctx(ctx2, esni_print_cb);
+        SSL_set_esni_callback_ctx(ctx, esni_print_cb);
 #else
         SSL_CTX_set_tlsext_servername_callback(ctx2, ssl_servername_cb);
         SSL_CTX_set_tlsext_servername_arg(ctx2, &tlsextcbp);

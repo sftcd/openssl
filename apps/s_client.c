@@ -85,7 +85,7 @@ static void print_stuff(BIO *berr, SSL *con, int full);
 static int ocsp_resp_cb(SSL *s, void *arg);
 #endif
 #ifndef OPENSSL_NO_ESNI
-static unsigned int esni_cb(SSL *s, int index);
+static unsigned int esni_print_cb(SSL *s, char *str);
 int esni_strict=0;
 #endif
 static int ldap_ExtendedResponse_parse(const char *buf, long rem);
@@ -941,7 +941,7 @@ static int new_session_cb(SSL *s, SSL_SESSION *sess)
             ERR_print_errors(bio_err);
         }
         /* 
-         * put public_name into session, public_name set from esni_cb
+         * put public_name into session, public_name set from callback
          */
         if (public_name!=NULL) {
             rv=SSL_SESSION_set1_public_name(sess,public_name);
@@ -1697,7 +1697,7 @@ int s_client_main(int argc, char **argv)
             goto opthelp;
         } 
         if (c_msg>0) {
-            SSL_ESNI_print(bio_err,esnikeys);
+            SSL_ESNI_print(bio_err,esnikeys,ESNI_SELECT_ALL);
         }
 
     }
@@ -2416,7 +2416,7 @@ int s_client_main(int argc, char **argv)
 
 #ifndef OPENSSL_NO_ESNI
     if (c_msg) {
-        SSL_set_esni_callback(con, esni_cb);
+        SSL_set_esni_callback(con, esni_print_cb);
     }
 #endif
 
@@ -3724,18 +3724,13 @@ static void print_stuff(BIO *bio, SSL *s, int full)
 
 // ESNI_DOXY_START
 #ifndef OPENSSL_NO_ESNI
-static unsigned int esni_cb(SSL *s, int index)
+
+/**
+ * @brief print an ESNI structure, this time thread safely;-)
+ */
+static unsigned int esni_print_cb(SSL *s, char *str)
 {
-    BIO_printf(bio_c_out,"esni_cb called\n");
-    SSL_ESNI *esnistuff=NULL;
-    int rv=SSL_ESNI_get_esni(s,&esnistuff);
-    if (rv == 1 && esnistuff!=NULL) {
-        SSL_ESNI_print(bio_c_out,&esnistuff[index]);
-    }
-    /*
-     * Set public_name from ESNI value 
-     */
-    public_name=esnistuff->public_name;
+    BIO_printf(bio_c_out,"ESNI Client callback printing: %s\n",str);
     return 1;
 }
 #endif
