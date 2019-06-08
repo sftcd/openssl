@@ -2014,6 +2014,10 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
     CLIENT_ESNI *ce=NULL;
     SSL_ESNI *match=NULL;
 
+    /*
+     * We'll ignore a received ESNI extension if we're not configured
+     * for ESNI
+     */
     if (s->esni==NULL) {
         return 1;
     }
@@ -2090,6 +2094,7 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
         goto err;
     }
     if (!PACKET_copy_bytes(pkt, tmpbuf, tmp)) {
+        OPENSSL_free(tmpbuf);
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ESNI,
          SSL_R_BAD_EXTENSION);
         goto err;
@@ -2164,8 +2169,9 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
      * see which pub/private value matches record_digest 
      */
     int matchind=-1;
+    match=NULL; // more as a reminder to self:-)
     int i; /* loop counter - android build doesn't like C99;-( */
-    for (i=0;i!=s->nesni;i++) {
+    for (i=0;i!=s->nesni && matchind==-1;i++) {
         if (s->esni[i].rd_len==ce->record_digest_len &&
             !memcmp(s->esni[i].rd,ce->record_digest,ce->record_digest_len)) {
             /* found it */

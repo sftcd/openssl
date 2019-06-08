@@ -1252,7 +1252,17 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esniarr, int selector)
         if (selector < 0 || selector >=nesnis) {
             BIO_printf(out,"SSL_ESNI_print error- selector (%d) out of range (%d)\n",selector,nesnis);
             return 0;
+        } else {
+            BIO_printf(out,"ESNI Array has %d RRs, printing the %d-th.\n",nesnis,selector);
         }
+    }
+    int bf=BIO_flush(out);
+    if (bf!=1) {
+        /*
+         * not much point trying to write out an error I guess, could make things
+         * worse.
+         */
+        return bf;
     }
     for (int i=0;i!=nesnis;i++) {
 
