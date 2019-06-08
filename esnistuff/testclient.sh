@@ -126,7 +126,7 @@ dbgstr=" "
 if [[ "$DEBUG" == "yes" ]]
 then
     #dbgstr="-msg -debug -security_debug_verbose -state -tlsextdebug"
-    dbgstr="-msg "
+    dbgstr="-msg -debug"
 fi
 
 vgcmd=""
@@ -204,7 +204,7 @@ then
         if [[ "$ESNI" == "" ]]
         then
             # try draft -02
-		    ESNI=`dig +short txt _esni.$hidden | sed -e 's/"//g' | sed -e 'N;s/\n//'`
+		    ESNI=`dig +short txt _esni.$hidden | sed -e 's/"//g' | sed -e 'N;s/\n/;/'`
 		    if [[ "$ESNI" == "" ]]
 		    then
                 # try draft-02 via cover

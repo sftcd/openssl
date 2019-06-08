@@ -2179,15 +2179,15 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
             matchind=i;
         }
     }
-    if (match==NULL) {
+    if (matchind==-1 || match==NULL) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ESNI,
          SSL_R_BAD_EXTENSION);
         goto err;
     }
     if (match->the_esni!=NULL) {
-        if(match->the_esni->encoded_keyshare) OPENSSL_free(match->the_esni->encoded_keyshare);
-        if(match->the_esni->record_digest) OPENSSL_free(match->the_esni->record_digest);
-        if(match->the_esni->encrypted_sni) OPENSSL_free(match->the_esni->encrypted_sni);
+        if(match->the_esni->encoded_keyshare!=NULL) OPENSSL_free(match->the_esni->encoded_keyshare);
+        if(match->the_esni->record_digest!=NULL) OPENSSL_free(match->the_esni->record_digest);
+        if(match->the_esni->encrypted_sni!=NULL) OPENSSL_free(match->the_esni->encrypted_sni);
         OPENSSL_free(match->the_esni); 
     }
     match->the_esni=ce; 

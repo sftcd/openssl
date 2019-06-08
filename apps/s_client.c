@@ -3730,7 +3730,11 @@ static void print_stuff(BIO *bio, SSL *s, int full)
  */
 static unsigned int esni_print_cb(SSL *s, char *str)
 {
-    BIO_printf(bio_c_out,"ESNI Client callback printing: %s\n",str);
+    if (c_debug && str!=NULL) {
+        BIO_printf(bio_c_out,"ESNI Client callback printing: %s\n",str);
+    } else if (c_debug && str==NULL) {
+        BIO_printf(bio_c_out,"ESNI Client callback not printing 'cause str is NULL\n");
+    }
     return 1;
 }
 #endif
