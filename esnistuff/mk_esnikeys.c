@@ -102,8 +102,8 @@ static void sp_esni_prr(unsigned char *sbuf,
         if (i==0) {
             /* Process prolog */
             chunk = snprintf(sp, available,
-                             "%s. IN TYPE%d %d \\# ",
-                             owner_string, typecode, ttl);
+                             "%s. %d IN TYPE%d \\# ",
+                             owner_string, ttl, typecode);
 
             if (chunk < available) {
                 padwidth = (chunk<MAX_PADDING) ? chunk : MAX_PADDING;

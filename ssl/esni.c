@@ -2621,6 +2621,12 @@ int SSL_esni_server_enable(SSL_CTX *ctx, const char *esnikeyfile, const char *es
     // add my private key in there, the public was handled above
     latest_esni->keyshare=pkey;
 
+    // update the numbers in the array (FIXME: this array handling is a bit dim)
+    int i=0;
+    for (i=0;i!=ctx->ext.nesni;i++) {
+        ctx->ext.esni[i].num_esni_rrs=ctx->ext.nesni;
+    }
+
     /*
      * Handle padding - we need to pad the Certificate and CertificateVerify
      * messages as those can expose the ESNI value due to differing sizes.
