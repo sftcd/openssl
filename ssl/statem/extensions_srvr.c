@@ -2177,6 +2177,7 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
             /* found it */
             match=&s->esni[i];
             matchind=i;
+            break;
         }
     }
     if (matchind==-1 || match==NULL) {

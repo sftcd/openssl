@@ -191,6 +191,10 @@ int main(int argc, char **argv)
         goto end;
     }
 
+#define TRYMEMBIO
+#ifdef TRYMEMBIO
+    out=BIO_new(BIO_s_mem());
+#else
     fp=fopen("/dev/stdout","w");
     if (fp==NULL)
         goto end;
@@ -198,6 +202,7 @@ int main(int argc, char **argv)
     out=BIO_new_fp(fp,BIO_CLOSE|BIO_FP_TEXT);
     if (out == NULL)
         goto end;
+#endif
 
     if (reduce==1 && nses>1) {
         /*
@@ -282,6 +287,14 @@ int main(int argc, char **argv)
         one=NULL;
 
     }
+
+#ifdef TRYMEMBIO
+#define PSIZ 80000
+    char pstr[PSIZ+1];
+    memset(pstr,0,PSIZ+1);
+    BIO_read(out,pstr,PSIZ);
+    printf("%s\n",pstr);
+#endif
 
 end:
     BIO_free_all(out);

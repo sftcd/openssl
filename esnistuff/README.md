@@ -25,7 +25,7 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
-- (Not sure this is fixed yet, more testing needed.) There was an, I guess,
+- (Not fixed yet, still testing.) There was an, I guess,
   thread-related issue in ``esni_cb`` in ``s_server`` causing eventual (but
 fairly speedy) crashes of ``s_server`` when dumping out the ``SSL_ESNI``
 content. I changed the callback prototype so that the output string to print is

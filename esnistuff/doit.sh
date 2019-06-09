@@ -38,6 +38,15 @@ then
 	echo "Fresh ESNI value: $ESNI"
 fi	
 
+if [[ "$1" == "defo" ]]
+then
+    HIDDEN="only.esni.defo.ie"
+	echo "Checking for fresh ESNI value from $HIDDEN"
+    ESNI=`dig +short txt _esni.$HIDDEN | sed -e 's/"//g' | sed -e 'N;s/\n/;/'`
+    COVER="cover.defo.ie"
+	echo "Fresh ESNI value: $ESNI"
+fi
+
 # CRYPT_INTEROP Version
 #valgrind --leak-check=full ./esni -s $HIDDEN -f $COVER -e $ESNI -p $PRIV -r $CRND -k $HSKS -n $NONCE
 
