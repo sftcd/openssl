@@ -10,6 +10,7 @@
 `define `[`MAX_ZONEDATA_BUFLEN`](#mk__esnikeys_8c_1a340659980efeb5f7dddff621c9378174)            | 
 `define `[`ESNI_MAX_RRVALUE_LEN`](#esni_8h_1a1a51d2e5c90478d2ca90cbf1bd2d2c29)            | Max size of a collection of ESNI RR values.
 `define `[`ESNI_SELECT_ALL`](#esni_8h_1a6775465f75ad8bf586bc5468ab3d8f5e)            | used to duplicate all RRs in SSL_ESNI_dup
+`define `[`ESNI_PBUF_SIZE`](#esni_8h_1ae0df91ca64c9f2d82de06f1ee80d4ea3)            | 8K buffer used for print string sent to application via esni_print_cb
 `define `[`ESNI_ADDRESS_SET_EXT`](#esni_8h_1ad732752bab7540fb16bf7f27ac242337)            | AddressSet as per draft-03.
 `define `[`A2B`](#esni_8h_1a5b8b06ed943bce760b10302ff7bb519f)            | 
 `define `[`ESNI_RRFMT_GUESS`](#esni_8h_1a1c2606670454ecb64a7e07f6106b34d2)            | try guess which it is
@@ -61,7 +62,7 @@
 `public static int `[`ssl_esni_servername_cb`](#s__server_8c_1a454eca00c708c0f47fccc73616408b67)`(SSL * s,int * ad,void * arg)`            | a servername_cb that is ESNI aware
 `public int `[`ERR_load_ESNI_strings`](#esnierr_8c_1ab6db8c60b35aacaa03550e6d9d9c2099)`(void)`            | 
 `public static void `[`so_esni_pbuf`](#mk__esnikeys_8c_1ae1bab08e2b36301f0c81f27d7ffb006b)`(char * msg,unsigned char * buf,size_t blen,int indent)`            | 
-`public static void `[`sp_esni_prr`](#mk__esnikeys_8c_1af4f5a6ea25ea8a8e360c32ebbaa12f35)`(unsigned char * sbuf,size_t slen,unsigned char * buf,size_t blen,unsigned short typecode,char * owner_name)`            | write zone fragment to buffer for display or writing to file
+`public static void `[`sp_esni_prr`](#mk__esnikeys_8c_1ac9aa090d4d174faf6bfc215e81fea637)`(unsigned char * sbuf,size_t slen,unsigned char * buf,size_t blen,unsigned short typecode,int ttl,char * owner_name)`            | write zone fragment to buffer for display or writing to file
 `public static int `[`esni_checksum_gen`](#mk__esnikeys_8c_1a32ec581cbe2fef728eca2951e596d25f)`(unsigned char * buf,size_t buf_len,unsigned char cksum)`            | generate the SHA256 checksum that should be in the DNS record
 `public void `[`usage`](#mk__esnikeys_8c_1aa4817482b1728bf62acf8030cab9842c)`(char * prog)`            | 
 `public static unsigned short `[`verstr2us`](#mk__esnikeys_8c_1a72a0b47dc43ca86d6b01cc02529e5e59)`(char * arg)`            | map version string like 0xff01 to unsigned short
@@ -191,6 +192,12 @@ Max size of a collection of ESNI RR values.
 #### `define `[`ESNI_SELECT_ALL`](#esni_8h_1a6775465f75ad8bf586bc5468ab3d8f5e) 
 
 used to duplicate all RRs in SSL_ESNI_dup
+
+<p id="esni_8h_1ae0df91ca64c9f2d82de06f1ee80d4ea3"><hr></p>
+
+#### `define `[`ESNI_PBUF_SIZE`](#esni_8h_1ae0df91ca64c9f2d82de06f1ee80d4ea3) 
+
+8K buffer used for print string sent to application via esni_print_cb
 
 <p id="esni_8h_1ad732752bab7540fb16bf7f27ac242337"><hr></p>
 
@@ -460,9 +467,9 @@ The server has possibly two names (from command line and config) basically in ct
 
 #### `public static void `[`so_esni_pbuf`](#mk__esnikeys_8c_1ae1bab08e2b36301f0c81f27d7ffb006b)`(char * msg,unsigned char * buf,size_t blen,int indent)` 
 
-<p id="mk__esnikeys_8c_1af4f5a6ea25ea8a8e360c32ebbaa12f35"><hr></p>
+<p id="mk__esnikeys_8c_1ac9aa090d4d174faf6bfc215e81fea637"><hr></p>
 
-#### `public static void `[`sp_esni_prr`](#mk__esnikeys_8c_1af4f5a6ea25ea8a8e360c32ebbaa12f35)`(unsigned char * sbuf,size_t slen,unsigned char * buf,size_t blen,unsigned short typecode,char * owner_name)` 
+#### `public static void `[`sp_esni_prr`](#mk__esnikeys_8c_1ac9aa090d4d174faf6bfc215e81fea637)`(unsigned char * sbuf,size_t slen,unsigned char * buf,size_t blen,unsigned short typecode,int ttl,char * owner_name)` 
 
 write zone fragment to buffer for display or writing to file
 
@@ -476,6 +483,8 @@ write zone fragment to buffer for display or writing to file
 * `blen` length of buf 
 
 * `typecode` DNS TYPE code to use 
+
+* `ttl` is the TTL to use 
 
 * `owner_name` fully-qualified DNS owner, without trailing dot
 
@@ -940,6 +949,8 @@ Print the content of an SSL_ESNI.
 
 #### Returns
 1 for success, anything else for failure
+
+The esni pointer must point at the full array, and not at the element you want to select using the selector. That is, the implementation here will try access esni[2] if you provide selector value 2.
 
 Print the content of an SSL_ESNI.
 

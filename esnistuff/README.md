@@ -25,11 +25,14 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- Tidied up ``SSL_ESNI_print`` API documentation.
+
 - Seems like FF nightly may have an issue if I publish >1 TXT RR with
 an ESNIKeys value. Behaviour seems to be that ESNI isn't attempted. 
 Need to check the code but guess (TBC) is that it doesn't like the two
 RR values. Likely I'll need to change to publish just one RR for the
-draft-02 key at a time, instead of two. 
+draft-02 key at a time, instead of two. That appears to have worked,
+so just one TXT RR at a time so;-) 
 
 - My test client was failing sometimes - it thought the returned nonce 
 length wasn't right, even though it seems to be correct from dumped values.

@@ -43,6 +43,10 @@
 	<td>used to duplicate all RRs in SSL_ESNI_dup</td>
 </tr>
 <tr>
+	<td><code>define</code><a href="#esni_8h_1ae0df91ca64c9f2d82de06f1ee80d4ea3"><code>ESNI_PBUF_SIZE</code></a></td>
+	<td>8K buffer used for print string sent to application via esni_print_cb</td>
+</tr>
+<tr>
 	<td><code>define</code><a href="#esni_8h_1ad732752bab7540fb16bf7f27ac242337"><code>ESNI_ADDRESS_SET_EXT</code></a></td>
 	<td>AddressSet as per draft-03.</td>
 </tr>
@@ -247,7 +251,7 @@
 	<td> </td>
 </tr>
 <tr>
-	<td><code>public static void</code><a href="#mk__esnikeys_8c_1af4f5a6ea25ea8a8e360c32ebbaa12f35"><code>sp_esni_prr</code></a><code>(unsigned char * sbuf,size_t slen,unsigned char * buf,size_t blen,unsigned short typecode,char * owner_name)</code></td>
+	<td><code>public static void</code><a href="#mk__esnikeys_8c_1ac9aa090d4d174faf6bfc215e81fea637"><code>sp_esni_prr</code></a><code>(unsigned char * sbuf,size_t slen,unsigned char * buf,size_t blen,unsigned short typecode,int ttl,char * owner_name)</code></td>
 	<td>write zone fragment to buffer for display or writing to file</td>
 </tr>
 <tr>
@@ -625,6 +629,12 @@
 
 <p>used to duplicate all RRs in SSL_ESNI_dup</p>
 
+<p id="esni_8h_1ae0df91ca64c9f2d82de06f1ee80d4ea3"><hr></p>
+
+<h4 id="defineesni_pbuf_sizeesni_8h_1ae0df91ca64c9f2d82de06f1ee80d4ea3"><code>define</code><a href="#esni_8h_1ae0df91ca64c9f2d82de06f1ee80d4ea3"><code>ESNI_PBUF_SIZE</code></a></h4>
+
+<p>8K buffer used for print string sent to application via esni_print_cb</p>
+
 <p id="esni_8h_1ad732752bab7540fb16bf7f27ac242337"><hr></p>
 
 <h4 id="defineesni_address_set_extesni_8h_1ad732752bab7540fb16bf7f27ac242337"><code>define</code><a href="#esni_8h_1ad732752bab7540fb16bf7f27ac242337"><code>ESNI_ADDRESS_SET_EXT</code></a></h4>
@@ -897,9 +907,9 @@
 
 <h4 id="publicstaticvoidso_esni_pbufmk__esnikeys_8c_1ae1bab08e2b36301f0c81f27d7ffb006bcharmsgunsignedcharbufsize_tblenintindent"><code>public static void</code><a href="#mk__esnikeys_8c_1ae1bab08e2b36301f0c81f27d7ffb006b"><code>so_esni_pbuf</code></a><code>(char * msg,unsigned char * buf,size_t blen,int indent)</code></h4>
 
-<p id="mk__esnikeys_8c_1af4f5a6ea25ea8a8e360c32ebbaa12f35"><hr></p>
+<p id="mk__esnikeys_8c_1ac9aa090d4d174faf6bfc215e81fea637"><hr></p>
 
-<h4 id="publicstaticvoidsp_esni_prrmk__esnikeys_8c_1af4f5a6ea25ea8a8e360c32ebbaa12f35unsignedcharsbufsize_tslenunsignedcharbufsize_tblenunsignedshorttypecodecharowner_name"><code>public static void</code><a href="#mk__esnikeys_8c_1af4f5a6ea25ea8a8e360c32ebbaa12f35"><code>sp_esni_prr</code></a><code>(unsigned char * sbuf,size_t slen,unsigned char * buf,size_t blen,unsigned short typecode,char * owner_name)</code></h4>
+<h4 id="publicstaticvoidsp_esni_prrmk__esnikeys_8c_1ac9aa090d4d174faf6bfc215e81fea637unsignedcharsbufsize_tslenunsignedcharbufsize_tblenunsignedshorttypecodeintttlcharowner_name"><code>public static void</code><a href="#mk__esnikeys_8c_1ac9aa090d4d174faf6bfc215e81fea637"><code>sp_esni_prr</code></a><code>(unsigned char * sbuf,size_t slen,unsigned char * buf,size_t blen,unsigned short typecode,int ttl,char * owner_name)</code></h4>
 
 <p>write zone fragment to buffer for display or writing to file</p>
 
@@ -911,6 +921,7 @@
 <li><p><code>buf</code> binary public key data </p></li>
 <li><p><code>blen</code> length of buf </p></li>
 <li><p><code>typecode</code> DNS TYPE code to use </p></li>
+<li><p><code>ttl</code> is the TTL to use </p></li>
 <li><p><code>owner_name</code> fully-qualified DNS owner, without trailing dot</p></li>
 </ul>
 
@@ -1416,6 +1427,8 @@
 <h4 id="returns">Returns</h4>
 
 <p>1 for success, anything else for failure</p>
+
+<p>The esni pointer must point at the full array, and not at the element you want to select using the selector. That is, the implementation here will try access esni[2] if you provide selector value 2.</p>
 
 <p>Print the content of an SSL_ESNI.</p>
 

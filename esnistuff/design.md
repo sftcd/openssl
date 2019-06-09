@@ -852,14 +852,20 @@ is below...
 			 */
 			int SSL_ESNI_get_esni_ctx(SSL_CTX *s, SSL_ESNI **esni);
 			
-			/** 
-			 * Print the content of an SSL_ESNI
-			 *
-			 * @param out is the BIO to use (e.g. stdout/whatever)
-			 * @param esni is an SSL_ESNI strucutre
-			 * @return 1 for success, anything else for failure
-			 */
-			int SSL_ESNI_print(BIO* out, SSL_ESNI *esni);
+            /** 
+             * Print the content of an SSL_ESNI
+             *
+             * @param out is the BIO to use (e.g. stdout/whatever)
+             * @param esni is an SSL_ESNI strucutre
+             * @param selector allows for picking all (ESNI_SELECT_ALL==-1) or just one of the RR values in orig
+             * @return 1 for success, anything else for failure
+             * 
+             * The esni pointer must point at the full array, and not at
+             * the element you want to select using the selector. That is,
+             * the implementation here will try access esni[2] if you
+             * provide selector value 2.
+             */
+            int SSL_ESNI_print(BIO* out, SSL_ESNI *esni,int selector);
 			
 			/* 
 			 * Possible return codes from SSL_ESNI_get_status

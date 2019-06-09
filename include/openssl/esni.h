@@ -24,6 +24,8 @@
 
 #define ESNI_SELECT_ALL -1 ///< used to duplicate all RRs in SSL_ESNI_dup
 
+#define ESNI_PBUF_SIZE 8*1024 ///<  8K buffer used for print string sent to application via esni_print_cb
+
 
 /*
  * ESNIKeys Extensions we know about...
@@ -481,6 +483,11 @@ int SSL_ESNI_get_esni_ctx(SSL_CTX *s, SSL_ESNI **esni);
  * @param esni is an SSL_ESNI strucutre
  * @param selector allows for picking all (ESNI_SELECT_ALL==-1) or just one of the RR values in orig
  * @return 1 for success, anything else for failure
+ * 
+ * The esni pointer must point at the full array, and not at
+ * the element you want to select using the selector. That is,
+ * the implementation here will try access esni[2] if you
+ * provide selector value 2.
  */
 int SSL_ESNI_print(BIO* out, SSL_ESNI *esni,int selector);
 
