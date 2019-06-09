@@ -2304,7 +2304,7 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
         char pstr[8001];
         memset(pstr,0,8001);
         BIO *biom = BIO_new(BIO_s_mem());
-        SSL_ESNI_print(biom,match,matchind);
+        SSL_ESNI_print(biom,s->esni,matchind);
         BIO_read(biom,pstr,8000);
         unsigned int cbrv=s->esni_cb(s,pstr);
         BIO_free(biom);
