@@ -2254,17 +2254,45 @@ int tls_parse_stoc_esni(SSL *s, PACKET *pkt, unsigned int context,
         return 0;
     }
 
+    /*
+     * Figure out what nonce length we want. On a client (as here) 
+     * there should be exactly one non-zero nonce length in our 
+     * array of ESNIs
+     */
+    unsigned int nlen=0;
+    int ind=0;
+    int matchind=-1;
+    while (ind < s->esni->num_esni_rrs) {
+        if (s->esni[ind].nonce_len>0) {
+            if (nlen==0) {
+                nlen=s->esni[ind].nonce_len;
+                matchind=ind;
+            } else if (s->esni[ind].nonce_len!=nlen) {
+                /*
+                 * TODO: ponder how we'd wanna support something other than...
+                 * Error, can't think of a valid reason for now - I guess
+                 * some odd client might want to do ESNI with >1 place in
+                 * future and use different nonce_lengths for each. 
+                 */
+                SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PARSE_STOC_ESNI, ERR_R_INTERNAL_ERROR);
+                return 0;
+            }
+        } 
+        ind++;
+    }
+
     unsigned char buf[64];
     /* nonce decode */
-    if (!PACKET_copy_bytes(pkt,buf,s->esni->nonce_len)) {
+    if (!PACKET_copy_bytes(pkt,buf,nlen)) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PARSE_STOC_ESNI, ERR_R_INTERNAL_ERROR);
         return 0;
     }
 
     /*
-     * We also need *all* nonce bytes correct, so make sure there's no more
+     * We also need *all* nonce bytes correct, so make sure there's no more left over
      */
-    if (PACKET_remaining(pkt) > 0) {
+    int prem=PACKET_remaining(pkt);
+    if (prem > 0) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PARSE_STOC_ESNI, ERR_R_INTERNAL_ERROR);
         return 0;
     }
@@ -2272,22 +2300,15 @@ int tls_parse_stoc_esni(SSL *s, PACKET *pkt, unsigned int context,
     /*
      * Now check if that's one we sent
      */
-
-    int found=0;
-    int i=0;
-    for (i=0;!found && i!=s->esni->num_esni_rrs;i++) {
-
-        if (s->esni->nonce != NULL ||
-            s->esni->nonce_len == 64 ) {
-            if (!memcmp(buf,s->esni->nonce,s->esni->nonce_len)) {
-                /* yay - same nonce, we're good */
-                found=1;
-                s->esni_done=1;
-            }
-        }
+    if (s->esni[matchind].nonce==NULL) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PARSE_STOC_ESNI, ERR_R_INTERNAL_ERROR);
+        return 0;
     }
 
-    if (!found) {
+    if (!memcmp(buf,s->esni[matchind].nonce,nlen)) {
+        /* yay - same nonce, we're good */
+        s->esni_done=1;
+    } else {
         /* bummer - different nonce, we're no good */
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PARSE_STOC_ESNI, ERR_R_INTERNAL_ERROR);
         return 0;

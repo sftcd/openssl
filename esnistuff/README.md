@@ -25,16 +25,28 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
-- (Not fixed yet, still testing.) There was an, I guess,
+- Seems like FF nightly may have an issue if I publish >1 TXT RR with
+an ESNIKeys value. Behaviour seems to be that ESNI isn't attempted. 
+Need to check the code but guess (TBC) is that it doesn't like the two
+RR values. Likely I'll need to change to publish just one RR for the
+draft-02 key at a time, instead of two. 
+
+- My test client was failing sometimes - it thought the returned nonce 
+length wasn't right, even though it seems to be correct from dumped values.
+Issue was having >1 ESNI RR value in client and not picking the right
+array element against which to compare. Seems fixed now.
+
+- There was an, I guess,
   thread-related issue in ``esni_cb`` in ``s_server`` causing eventual (but
 fairly speedy) crashes of ``s_server`` when dumping out the ``SSL_ESNI``
 content. I changed the callback prototype so that the output string to print is
 returned from the library to the application via the callback rather than
 having the application access a pointer to the ``SSL_ESNI`` structure with the
-``SSL`` structure for the session. The proble with the latter was that the
+``SSL`` structure for the session. The problem with the latter was that the
 ``SSL_ESNI`` will be modified by each new connection.  (Recall we're storing
 and printing out much more now than we eventually will, so were this to remain
-a problem we'd have a few ways to handle it.)
+a problem we'd have a few ways to handle it.) After various tests, seems 
+to be ok now, but more testing may show up problems still.
 
 - Tweaked ``testclient.sh`` to also take ESNI RR value from command
 line (as well as filename for that).
