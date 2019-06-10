@@ -25,6 +25,9 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- Changed ``mk_esnikeys.c`` so that DNS TTL is duration/2 and
+actual key lifetime is 1.5 times specified "main" duration.
+
 - Added a ``-V`` input to ``testclient.sh`` so caller can pick to try 
 different draft versions.
 

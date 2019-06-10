@@ -217,7 +217,7 @@ void usage(char *prog)
     printf("-V specifies the ESNIKeys version to produce (default: 0xff01; 0xff02 allowed)\n");
     printf("-o specifies the output file name for the binary-encoded ESNIKeys (default: ./esnikeys.pub)\n");
     printf("-p specifies the output file name for the corresponding private key (default: ./esnikeys.priv)\n");
-    printf("-d duration, specifies the duration in seconds from, now, for which the public share should be valid (default: 1 week)\n");
+    printf("-d duration, specifies the duration in seconds from, now, for which the public share should be valid (default: 1 week), The DNS TTL is set to half of this value.\n");
     printf("-g grease - adds a couple of nonsense extensions to ESNIKeys for testing purposes.\n");
     printf("If <privfname> exists already and contains an appropriate value, then that key will be used without change.\n");
     printf("There is no support for crypto options - we only support TLS_AES_128_GCM_SHA256, X25519 and no extensions.\n");
@@ -720,7 +720,7 @@ static int mk_esnikeys(int argc, char **argv)
     EVP_PKEY_free(pkey);
 
     time_t nb=time(0)-1;
-    time_t na=nb+duration;
+    time_t na=nb+1.5*duration;
 
     /*
      * Here's a hexdump of one draft-02 cloudflare value:
@@ -835,7 +835,7 @@ static int mk_esnikeys(int argc, char **argv)
         unsigned char zbuf[MAX_ZONEDATA_BUFLEN];
 
         /* Prepare zone fragment in buffer */
-        sp_esni_prr(zbuf,MAX_ZONEDATA_BUFLEN,bbuf,bblen,0xff9f,duration,cover_name);
+        sp_esni_prr(zbuf,MAX_ZONEDATA_BUFLEN,bbuf,bblen,0xff9f,duration/2,cover_name);
         int zblen=strlen(zbuf);
 
         if (zblen==0) {
