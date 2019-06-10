@@ -19,6 +19,12 @@ PORT="443"
 SUPPLIEDPORT=""
 HTTPPATH="/cdn-cgi/trace"
 
+# which draft version we wanna go for 
+# DVERSION="02" => TXT RR from draft-02
+# DVERSION="03" => NEW RRTYPE from draft-02
+# DVERSION="anY" => try and see what works
+DVERSION="any"
+
 # Explaining this to myself... :-)
 #
 # You can indpendendtly set the 
@@ -45,6 +51,7 @@ SUPPLIEDCOVER=""
 SUPPLIEDESNI=""
 SUPPLIEDCADIR=""
 SUPPLIEDSESSION=""
+SUPPLIEDVERSION=""
 BELAX=""
 HIDDEN="encryptedsni.com"
 COVER="www.cloudflare.com"
@@ -62,7 +69,7 @@ echo "Running $0 at $NOW"
 
 function usage()
 {
-    echo "$0 [-cHPpsrdnlvhL] - try out encrypted SNI via openssl s_client"
+    echo "$0 [-cHPpsrdnlvhLV] - try out encrypted SNI via openssl s_client"
 	echo "  -c [name] specifices a covername that I'll send as a clear SNI (NONE is special)"
     echo "  -H means try connect to that hidden server"
 	echo "  -P [filename] means read ESNIKeys public value from file and not DNS"
@@ -76,6 +83,7 @@ function usage()
     echo "  -L means to not set esni_strict on the command line (be lax)"
     echo "  -n means don't trigger esni at all"
     echo "  -h means print this"
+    echo "  -V allows to specify which draft version to try (values: 02, 03, any; default: any)"
 
 	echo ""
 	echo "The following should work:"
@@ -84,7 +92,7 @@ function usage()
 }
 
 # options may be followed by one colon to indicate they have a required argument
-if ! options=$(/usr/bin/getopt -s bash -o S:c:P:H:p:s:dlvnhL -l session:,cover:,esnipub:,hidden:,port:,server:,debug,stale,valgrind,noesni,help,lax -- "$@")
+if ! options=$(/usr/bin/getopt -s bash -o S:c:P:H:p:s:dlvnhLV: -l session:,cover:,esnipub:,hidden:,port:,server:,debug,stale,valgrind,noesni,help,lax,version: -- "$@")
 then
     # something went wrong, getopt will put out an error message for us
     exit 1
@@ -107,12 +115,21 @@ do
 		-P|--esnipub) SUPPLIEDESNI=$2; shift;;
 		-L|--lax) BELAX="yes";;
         -p|--port) SUPPLIEDPORT=$2; shift;;
+        -V|--version) SUPPLIEDVERSION=$2; shift;;
         (--) shift; break;;
         (-*) echo "$0: error - unrecognized option $1" 1>&2; exit 1;;
         (*)  break;;
     esac
     shift
 done
+
+case "$SUPPLIEDVERSION" in
+    "02") DVERSION="02";;
+    "03") DVERSION="03";;
+    "any") DVERSION="any";;
+    "") ;;
+    *) usage;;
+esac
 
 hidden=$HIDDEN
 if [[ "$SUPPLIEDHIDDEN" != "" ]]
@@ -198,30 +215,43 @@ then
 		    fi
 		fi
 	else
-        # try draft-03 first  - we need to drop the initial \# and length and
-        # kill the spaces and joing the lines if multi-valued seen 
-		ESNI=`dig +short -t TYPE65439 $hidden | cut -f 3- -d' ' | sed -e 's/ //g' | sed -e 'N;s/\n//'`
-        if [[ "$ESNI" == "" ]]
+        if [[ "$DVERSION" == "any" ]]
         then
-            # try draft -02
-		    ESNI=`dig +short txt _esni.$hidden | sed -e 's/"//g' | sed -e 'N;s/\n/;/'`
-		    if [[ "$ESNI" == "" ]]
-		    then
-                # try draft-02 via cover
-			    ESNI=`dig +short txt _esni.$cover | sed -e 's/"//g' | sed -e 'N;s/\n//'`
-			    if [[ "$ESNI" == "" ]]
-			    then
-                    # try draft-02 via server
-				    ESNI=`dig +short txt _esni.$server | sed -e 's/"//g' | sed -e 'N;s/\n//'`
-				    if [[ "$ESNI" == "" ]]
-				    then
-					    echo "Not trying - no sign of ESNIKeys ESNI RRTYPE at $hidder nor TXT RR at _esni.$hidden nor _esni.$cover nor _esni.$server"
-					    exit 100
-				    fi
-			    fi
-		    fi
+            # try draft-03 first  - we need to drop the initial \# and length and
+            # kill the spaces and joing the lines if multi-valued seen 
+		    ESNI=`dig +short -t TYPE65439 $hidden | cut -f 3- -d' ' | sed -e 's/ //g' | sed -e 'N;s/\n//'`
+            if [[ "$ESNI" == "" ]]
+            then
+                # try draft -02
+		        ESNI=`dig +short txt _esni.$hidden | sed -e 's/"//g' | sed -e 'N;s/\n/;/'`
+		        if [[ "$ESNI" == "" ]]
+		        then
+                    # try draft-02 via cover
+			        ESNI=`dig +short txt _esni.$cover | sed -e 's/"//g' | sed -e 'N;s/\n//'`
+			        if [[ "$ESNI" == "" ]]
+			        then
+                        # try draft-02 via server
+				        ESNI=`dig +short txt _esni.$server | sed -e 's/"//g' | sed -e 'N;s/\n//'`
+
+			        fi
+		        fi
+            fi
+        elif [[ "$DVERSION" == "02" ]]
+        then
+            echo "Trying $DVERSION"
+            ESNI=`dig +short txt _esni.$hidden | sed -e 's/"//g' | sed -e 'N;s/\n/;/'`
+        elif [[ "$DVERSION" == "03" ]]
+        then
+            echo "Trying $DVERSION"
+		    ESNI=`dig +short -t TYPE65439 $hidden | cut -f 3- -d' ' | sed -e 's/ //g' | sed -e 'N;s/\n//'`
         fi
 	fi
+fi
+
+if [[ "$ESNI" == "" ]]
+then
+    echo "Not trying - no sign of ESNIKeys ESNI "
+    exit 100
 fi
 
 

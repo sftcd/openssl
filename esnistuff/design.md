@@ -1,7 +1,7 @@
 
 # OpenSSL Encrypted SNI Design
 
-stephen.farrell@cs.tcd.ie, 20190313ish
+stephen.farrell@cs.tcd.ie, 20190610ish
 
 This file describes the current design for our proof-of-concept 
 openssl implementation of encrypted SNI.
@@ -169,12 +169,13 @@ The ``usage()`` function for the [testclient.sh](https://github.com/sftcd/openss
 produces this:
 
             $ ./testclient.sh -h
-            Running ./testclient.sh at 20190505-192046
-            ./testclient.sh [-cHPpsdnlvhL] - try out encrypted SNI via openssl s_client
+            Running ./testclient.sh at 20190610-135659
+            ./testclient.sh [-cHPpsrdnlvhLV] - try out encrypted SNI via openssl s_client
             -c [name] specifices a covername that I'll send as a clear SNI (NONE is special)
             -H means try connect to that hidden server
             -P [filename] means read ESNIKeys public value from file and not DNS
-            -s [name] specifices a server to which I'll connect (localhost=>local certs)
+            -s [name] specifices a server to which I'll connect (localhost=>local certs, unless you also provide --realcert)
+            -r (or --realcert) says to not use locally generated fake CA regardless
             -p [port] specifices a port (default: 443)
             -d means run s_client in verbose mode
             -v means run with valgrind
@@ -183,9 +184,10 @@ produces this:
             -L means to not set esni_strict on the command line (be lax)
             -n means don't trigger esni at all
             -h means print this
+            -V allows to specify which draft version to try (values: 02, 03, any; default: any)
             
             The following should work:
-                ./testclient.sh -s www.cloudflare.com -c NONE -H www.ietf.org
+                ./testclient.sh -s www.cloudflare.com -c NONE -H ietf.org
 
 The only really interesting concept embodied there is the idea of the
 HIDDEN (e.g. www.ietf.org) service, the COVER (e.g. www.cloudflare.com) service 

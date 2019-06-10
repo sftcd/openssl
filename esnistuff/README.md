@@ -25,6 +25,9 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- Added a ``-V`` input to ``testclient.sh`` so caller can pick to try 
+different draft versions.
+
 - Fixed issue with ``SSL_ESNI_get_status`` where it (yet again) wasn't
 picking the right array element to report on. Did that by just checking
 that there's exactly one array element with a nonce set (only happens
