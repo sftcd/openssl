@@ -500,6 +500,7 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esni,int selector);
 #define SSL_ESNI_STATUS_BAD_CALL             -100 ///< Required in/out arguments were NULL
 #define SSL_ESNI_STATUS_NOT_TRIED            -101 ///< ESNI wasn't attempted 
 #define SSL_ESNI_STATUS_BAD_NAME             -102 ///< ESNI succeeded but the TLS server cert used didn't match the hidden service name
+#define SSL_ESNI_STATUS_TOOMANY              -103 ///< ESNI succeeded can't figure out which one!
 
 /**
  * @brief API to allow calling code know ESNI outcome, post-handshake

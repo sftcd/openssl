@@ -552,7 +552,7 @@ static int ssl_esni_servername_cb(SSL *s, int *ad, void *arg)
     const char *servername = SSL_get_servername(s, TLSEXT_NAMETYPE_host_name);
     if (p->biodebug != NULL ) {
         /*
-        * Client supplied ESNI (hidden) and SNi (cover)
+        * Client supplied ESNI (hidden) and SNI (cover)
         */
         char *hidden=NULL; 
         char *cover=NULL;
@@ -607,7 +607,7 @@ static int ssl_esni_servername_cb(SSL *s, int *ad, void *arg)
         if (ctx2 != NULL) {
             /*
              * TODO: Check if strlen is really safe here - think it should be as
-             * SSL_ESNI_dec will have checked there are no embeded NUL bytes but
+             * SSL_ESNI_dec will have checked there are no embedded NUL bytes but
              * make sure.
              */
             int mrv=X509_check_host(p->scert,servername,strlen(servername),0,NULL);

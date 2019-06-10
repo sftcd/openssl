@@ -25,6 +25,14 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- Fixed issue with ``SSL_ESNI_get_status`` where it (yet again) wasn't
+picking the right array element to report on. Did that by just checking
+that there's exactly one array element with a nonce set (only happens
+after successful decrypt or encrypt). There's TODO's in the code - I 
+need to go back and change all this so the array handling is better.
+(Maybe change so only one ``SSL_ESNI`` structure is passed from the
+``SSL_CTX`` factory to the ``SSL`` session-specific structure?)
+
 - Tidied up ``SSL_ESNI_print`` API documentation.
 
 - Seems like FF nightly may have an issue if I publish >1 TXT RR with

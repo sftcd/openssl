@@ -2019,7 +2019,16 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
      * for ESNI
      */
     if (s->esni==NULL) {
-        return 1;
+        /*
+         * Maybe this ought be a warning message?
+         * We used return 1 here, and probabily will revert to that
+         * but want to check if this is why some FF nightly reloads
+         * fail to set the encservername but succeed in loading the
+         * page.
+         */
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ESNI,
+                 SSL_R_BAD_EXTENSION);
+        return 0;
     }
 
     /*
@@ -2309,7 +2318,7 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
         unsigned int cbrv=s->esni_cb(s,pstr);
         BIO_free(biom);
         if (cbrv != 1) {
-            return EXT_RETURN_FAIL;
+            return 0;
         }
     }
 

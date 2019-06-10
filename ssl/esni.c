@@ -2690,19 +2690,44 @@ int SSL_get_esni_status(SSL *s, char **hidden, char **cover)
     *cover=NULL;
     *hidden=NULL;
     if (s->esni!=NULL) {
+        /*
+         * Need to pick correct array element (again - TODO: fix that!)
+         * For now we'll do that based on matching the session vs. esni
+         */
+        int matchind=-1;
+        int ind=0;
+        int nesnis=s->esni->num_esni_rrs;
+        for (ind=0;ind!=nesnis;ind++) {
+            if (s->esni[ind].nonce!=NULL) {
+                /*
+                 * this one's active 
+                 */
+                if (matchind==-1) {
+                    /*
+                     * found it
+                     */
+                    matchind=ind;
+                } else {
+                    /*
+                     * crap - >1 active, error out for now
+                     */
+                    return SSL_ESNI_STATUS_TOOMANY;
+                }
+            }
+        }
         long vr=X509_V_OK;
-        if (s->esni->require_hidden_match) {
+        if (s->esni[matchind].require_hidden_match) {
             vr=SSL_get_verify_result(s);
         } 
-        *hidden=s->esni->encservername;
+        *hidden=s->esni[matchind].encservername;
         /*
          * Prefer draft-03 public_name to locally supplied covername
          * TODO: consider whether or not that's a good plan
          */
-        if (s->esni->public_name) {
-            *cover=s->esni->public_name;
+        if (s->esni[matchind].public_name) {
+            *cover=s->esni[matchind].public_name;
         } else {
-            *cover=s->esni->covername;
+            *cover=s->esni[matchind].covername;
         }
         if (s->esni_done==1) {
             if (vr == X509_V_OK ) {
