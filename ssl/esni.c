@@ -2715,6 +2715,9 @@ int SSL_get_esni_status(SSL *s, char **hidden, char **cover)
                 }
             }
         }
+        if (matchind==-1) {
+            return SSL_ESNI_STATUS_FAILED;
+        }
         long vr=X509_V_OK;
         if (s->esni[matchind].require_hidden_match) {
             vr=SSL_get_verify_result(s);
