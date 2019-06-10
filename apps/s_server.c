@@ -3461,6 +3461,10 @@ static int www_body(int s, int stype, int prot, unsigned char *context)
             BIO_puts(io, "<h1>OpenSSL with ESNI</h1>\n");
             BIO_puts(io, "<pre>\n");
             SSL_SESSION_print(io, SSL_get_session(con));
+            /*
+             * Also dump that for debugging
+             */
+            SSL_SESSION_print(bio_s_out, SSL_get_session(con));
 #else
             BIO_puts(io, "<pre>\n");
             BIO_puts(io, "\n");
