@@ -173,7 +173,7 @@ typedef struct ssl_esni_st {
     char *encservername; ///< hidden server name
     char *covername; ///< cleartext SNI (can be NULL)
     char *public_name;  ///< public_name from ESNIKeys
-    int require_hidden_match; ///< If 1 then SSL_esni_get_status will barf if hidden name doesn't match TLS server cert. If 0, don't care.
+    int require_hidden_match; ///< If 1 then SSL_get_esni_status will barf if hidden name doesn't match TLS server cert. If 0, don't care.
     int num_esni_rrs; ///< the number of ESNIKeys structures in this array
     size_t encoded_rr_len;
     unsigned char *encoded_rr; ///< Binary (base64 decoded) RR value
@@ -492,7 +492,7 @@ int SSL_ESNI_get_esni_ctx(SSL_CTX *s, SSL_ESNI **esni);
 int SSL_ESNI_print(BIO* out, SSL_ESNI *esni,int selector);
 
 /* 
- * Possible return codes from SSL_ESNI_get_status
+ * Possible return codes from SSL_get_esni_status
  */
 
 #define SSL_ESNI_STATUS_SUCCESS                 1 ///< Success
@@ -510,6 +510,11 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esni,int selector);
  * not have to (and shouldn't) free the hidden or cover strings.
  * TODO: Those are pointers into the SSL struct though so maybe better
  * to allocate fresh ones.
+ *
+ * Note that the PR we sent to curl will include a check that this
+ * function exists (something like "AC_CHECK_FUNCS( SSL_get_esni_status )"
+ * so don't change this name without co-ordinating with that.
+ * The curl PR: https://github.com/curl/curl/pull/4011
  *
  * @param s The SSL context (if that's the right term)
  * @param hidden will be set to the address of the hidden service

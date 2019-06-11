@@ -107,6 +107,10 @@
 	<td>ESNI succeeded but the TLS server cert used didn't match the hidden service name.</td>
 </tr>
 <tr>
+	<td><code>define</code><a href="#esni_8h_1ac5475161def14c76f3839bc4c64aaff3"><code>SSL_ESNI_STATUS_TOOMANY</code></a></td>
+	<td>ESNI succeeded can't figure out which one!</td>
+</tr>
+<tr>
 	<td><code>define</code><a href="#esnierr_8h_1a9c57a1b191c8fc44f0c9d33e1fa63096"><code>ESNI_F_BASE64_DECODE</code></a></td>
 	<td> </td>
 </tr>
@@ -722,6 +726,12 @@
 <h4 id="definessl_esni_status_bad_nameesni_8h_1a4019c4a8f415a42a213cc0c657d9986b"><code>define</code><a href="#esni_8h_1a4019c4a8f415a42a213cc0c657d9986b"><code>SSL_ESNI_STATUS_BAD_NAME</code></a></h4>
 
 <p>ESNI succeeded but the TLS server cert used didn't match the hidden service name.</p>
+
+<p id="esni_8h_1ac5475161def14c76f3839bc4c64aaff3"><hr></p>
+
+<h4 id="definessl_esni_status_toomanyesni_8h_1ac5475161def14c76f3839bc4c64aaff3"><code>define</code><a href="#esni_8h_1ac5475161def14c76f3839bc4c64aaff3"><code>SSL_ESNI_STATUS_TOOMANY</code></a></h4>
+
+<p>ESNI succeeded can't figure out which one!</p>
 
 <p id="esnierr_8h_1a9c57a1b191c8fc44f0c9d33e1fa63096"><hr></p>
 
@@ -1453,6 +1463,8 @@
 
 <p>This is intended to be called by applications after the TLS handshake is complete. This works for both client and server. The caller does not have to (and shouldn't) free the hidden or cover strings. TODO: Those are pointers into the SSL struct though so maybe better to allocate fresh ones.</p>
 
+<p>Note that the PR we sent to curl will include a check that this function exists (something like "AC_CHECK_FUNCS( SSL_get_esni_status )" so don't change this name without co-ordinating with that. The curl PR: <a href="https://github.com/curl/curl/pull/4011">https://github.com/curl/curl/pull/4011</a></p>
+
 <h4 id="parameters">Parameters</h4>
 
 <ul>
@@ -2014,6 +2026,8 @@ Turn on SNI encryption for an (upcoming) TLS session
 <p>API to allow calling code know ESNI outcome, post-handshake.</p>
 
 <p>This is intended to be called by applications after the TLS handshake is complete. This works for both client and server. The caller does not have to (and shouldn't) free the hidden or cover strings. TODO: Those are pointers into the SSL struct though so maybe better to allocate fresh ones.</p>
+
+<p>Note that the PR we sent to curl will include a check that this function exists (something like "AC_CHECK_FUNCS( SSL_get_esni_status )" so don't change this name without co-ordinating with that. The curl PR: <a href="https://github.com/curl/curl/pull/4011">https://github.com/curl/curl/pull/4011</a></p>
 
 <h4 id="parameters">Parameters</h4>
 
@@ -2723,7 +2737,7 @@ Turn on SNI encryption for an (upcoming) TLS session
 </tr>
 <tr>
 	<td><code>public int</code><a href="#structssl__esni__st_1a37524b2d52a46fa9df7193a2efcae39c"><code>require_hidden_match</code></a></td>
-	<td>If 1 then SSL_esni_get_status will barf if hidden name doesn't match TLS server cert. If 0, don't care.</td>
+	<td>If 1 then SSL_get_esni_status will barf if hidden name doesn't match TLS server cert. If 0, don't care.</td>
 </tr>
 <tr>
 	<td><code>public int</code><a href="#structssl__esni__st_1ab35546dfbb3ae44803e148bfef39c9d0"><code>num_esni_rrs</code></a></td>
@@ -2966,7 +2980,7 @@ Turn on SNI encryption for an (upcoming) TLS session
 
 <h4 id="publicintrequire_hidden_matchstructssl__esni__st_1a37524b2d52a46fa9df7193a2efcae39c"><code>public int</code><a href="#structssl__esni__st_1a37524b2d52a46fa9df7193a2efcae39c"><code>require_hidden_match</code></a></h4>
 
-<p>If 1 then SSL_esni_get_status will barf if hidden name doesn't match TLS server cert. If 0, don't care.</p>
+<p>If 1 then SSL_get_esni_status will barf if hidden name doesn't match TLS server cert. If 0, don't care.</p>
 
 <p id="structssl__esni__st_1ab35546dfbb3ae44803e148bfef39c9d0"><hr></p>
 

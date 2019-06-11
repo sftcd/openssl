@@ -25,6 +25,8 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- Minor oops, fixed misleading comments as to the name of ``SSL_get_esni_status``
+
 - Changed ``mk_esnikeys.c`` so that DNS TTL is duration/2 and
 actual key lifetime is 1.5 times specified "main" duration.
 

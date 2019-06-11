@@ -26,6 +26,7 @@
 `define `[`SSL_ESNI_STATUS_BAD_CALL`](#esni_8h_1a182a797bad43060760194c701c882fd0)            | Required in/out arguments were NULL.
 `define `[`SSL_ESNI_STATUS_NOT_TRIED`](#esni_8h_1ac754df41295244baf3b951e9cec0a1db)            | ESNI wasn't attempted.
 `define `[`SSL_ESNI_STATUS_BAD_NAME`](#esni_8h_1a4019c4a8f415a42a213cc0c657d9986b)            | ESNI succeeded but the TLS server cert used didn't match the hidden service name.
+`define `[`SSL_ESNI_STATUS_TOOMANY`](#esni_8h_1ac5475161def14c76f3839bc4c64aaff3)            | ESNI succeeded can't figure out which one!
 `define `[`ESNI_F_BASE64_DECODE`](#esnierr_8h_1a9c57a1b191c8fc44f0c9d33e1fa63096)            | 
 `define `[`ESNI_F_CHECKSUM_CHECK`](#esnierr_8h_1ac8cec6cf839fa6b361bc6f9abc001201)            | 
 `define `[`ESNI_F_DEC`](#esnierr_8h_1abfce120a6f075e1028bed584590a1c5d)            | 
@@ -286,6 +287,12 @@ ESNI wasn't attempted.
 #### `define `[`SSL_ESNI_STATUS_BAD_NAME`](#esni_8h_1a4019c4a8f415a42a213cc0c657d9986b) 
 
 ESNI succeeded but the TLS server cert used didn't match the hidden service name.
+
+<p id="esni_8h_1ac5475161def14c76f3839bc4c64aaff3"><hr></p>
+
+#### `define `[`SSL_ESNI_STATUS_TOOMANY`](#esni_8h_1ac5475161def14c76f3839bc4c64aaff3) 
+
+ESNI succeeded can't figure out which one!
 
 <p id="esnierr_8h_1a9c57a1b191c8fc44f0c9d33e1fa63096"><hr></p>
 
@@ -972,6 +979,8 @@ API to allow calling code know ESNI outcome, post-handshake.
 
 This is intended to be called by applications after the TLS handshake is complete. This works for both client and server. The caller does not have to (and shouldn't) free the hidden or cover strings. TODO: Those are pointers into the SSL struct though so maybe better to allocate fresh ones.
 
+Note that the PR we sent to curl will include a check that this function exists (something like "AC_CHECK_FUNCS( SSL_get_esni_status )" so don't change this name without co-ordinating with that. The curl PR: [https://github.com/curl/curl/pull/4011](https://github.com/curl/curl/pull/4011)
+
 #### Parameters
 * `s` The SSL context (if that's the right term) 
 
@@ -1467,6 +1476,8 @@ When this works, the server will decrypt any ESNI seen in ClientHellos and subse
 API to allow calling code know ESNI outcome, post-handshake.
 
 This is intended to be called by applications after the TLS handshake is complete. This works for both client and server. The caller does not have to (and shouldn't) free the hidden or cover strings. TODO: Those are pointers into the SSL struct though so maybe better to allocate fresh ones.
+
+Note that the PR we sent to curl will include a check that this function exists (something like "AC_CHECK_FUNCS( SSL_get_esni_status )" so don't change this name without co-ordinating with that. The curl PR: [https://github.com/curl/curl/pull/4011](https://github.com/curl/curl/pull/4011)
 
 #### Parameters
 * `s` The SSL context (if that's the right term) 
@@ -1991,7 +2002,7 @@ Note that SSL_ESNI_dup copies all these fields (when values are set), so if you 
 `public char * `[`encservername`](#structssl__esni__st_1a2468815c9c565e18fd3c3bbe8deb5ac9) | hidden server name
 `public char * `[`covername`](#structssl__esni__st_1a97b71311959fbdb7cd424106c9e2afab) | cleartext SNI (can be NULL)
 `public char * `[`public_name`](#structssl__esni__st_1ae390b90be4f317d868c79663ff47fb32) | public_name from ESNIKeys
-`public int `[`require_hidden_match`](#structssl__esni__st_1a37524b2d52a46fa9df7193a2efcae39c) | If 1 then SSL_esni_get_status will barf if hidden name doesn't match TLS server cert. If 0, don't care.
+`public int `[`require_hidden_match`](#structssl__esni__st_1a37524b2d52a46fa9df7193a2efcae39c) | If 1 then SSL_get_esni_status will barf if hidden name doesn't match TLS server cert. If 0, don't care.
 `public int `[`num_esni_rrs`](#structssl__esni__st_1ab35546dfbb3ae44803e148bfef39c9d0) | the number of ESNIKeys structures in this array
 `public size_t `[`encoded_rr_len`](#structssl__esni__st_1a27ada5b21000aeb74ca5ed8e76bca329) | 
 `public unsigned char * `[`encoded_rr`](#structssl__esni__st_1a71c8c509c7d198e8a719c65f99137f42) | Binary (base64 decoded) RR value.
@@ -2075,7 +2086,7 @@ public_name from ESNIKeys
 
 #### `public int `[`require_hidden_match`](#structssl__esni__st_1a37524b2d52a46fa9df7193a2efcae39c) 
 
-If 1 then SSL_esni_get_status will barf if hidden name doesn't match TLS server cert. If 0, don't care.
+If 1 then SSL_get_esni_status will barf if hidden name doesn't match TLS server cert. If 0, don't care.
 
 <p id="structssl__esni__st_1ab35546dfbb3ae44803e148bfef39c9d0"><hr></p>
 
