@@ -25,6 +25,14 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- Added zone file fragment production for draft-02 TXT RRs to 
+  ``mk_esnikeys`` and a JSON format output option
+  from which e.g. a ZSK holder can build the DNS
+  zone file stanza(s) - we'll be using that internally
+  as a format to use when communicating between the
+  cover/hidden web server and the DNS zone-file factory,
+  which aren't co-located, at least in our test deployment.
+
 - Minor oops, fixed misleading comments as to the name of ``SSL_get_esni_status``
 
 - Changed ``mk_esnikeys.c`` so that DNS TTL is duration/2 and

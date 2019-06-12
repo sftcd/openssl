@@ -36,7 +36,7 @@
 #define MAX_ESNI_ADDRS   16 ///< max addresses to include in AddressSet
 #define MAX_PADDING 40 ///< max padding to use when folding DNS records
 #define MAX_FMT_LEN 16 ///< max length to allow for generated format strings
-#define MAX_ZONEDATA_BUFLEN 2*MAX_ESNI_COVER_NAME+10*MAX_ESNIKEYS_BUFLEN
+#define MAX_ZONEDATA_BUFLEN 2*MAX_ESNI_COVER_NAME+10*MAX_ESNIKEYS_BUFLEN+24*MAX_ESNI_ADDRS
 
 /*
  * stdout version of esni_pbuf - just for odd/occasional debugging
@@ -56,6 +56,57 @@ static void so_esni_pbuf(char *msg,unsigned char *buf,size_t blen,int indent)
     }
     printf("\n");
     return;
+}
+
+/**
+ * @brief write draft-02 TXT zone fragment to buffer for display or writing to file
+ *
+ * @param sbuf where zone fragment will be written
+ * @param slen length of sbuf
+ * @param buf binary public key data
+ * @param blen length of buf
+ * @param ttl is the TTL to use
+ * @param owner_name fully-qualified DNS owner, without trailing dot
+ *
+ */
+static void sp_esni_txtrr(unsigned char *sbuf,
+                        size_t slen,
+                        unsigned char *buf,
+                        size_t blen,
+                        int ttl,
+                        char *owner_name)
+{
+    unsigned char *sp=sbuf;
+    char *owner_string=NULL;
+
+    if (sbuf==NULL) {
+        return;
+    }
+    memset(sbuf,0,slen);          /* clear buffer for zone data */
+    if (buf==NULL) {
+        return;
+    }
+    if (owner_name==NULL) {
+        owner_string="invalid.example";
+    } else {
+        owner_string=owner_name;
+    }
+
+    char *outp=malloc(blen);
+    if (outp==NULL) {
+        return;
+    }
+    int toolong=slen-(strlen(owner_string)+20);
+    int b64len = EVP_EncodeBlock(outp, (unsigned char *)buf, blen);
+    if (b64len>toolong) {
+        return;
+    }
+    outp[b64len]='\0';
+
+    snprintf(sbuf,slen,"%s. %d IN TXT \"%s\"\n",owner_string,ttl,outp); 
+
+    return;
+
 }
 
 /**
@@ -79,13 +130,15 @@ static void sp_esni_prr(unsigned char *sbuf,
                         char *owner_name)
 {
     unsigned char *sp=sbuf;
-    memset(sbuf,0,slen);          /* clear buffer for zone data */
     char *owner_string=NULL;
 
+    if (sbuf==NULL) {
+        return;
+    }
+    memset(sbuf,0,slen);          /* clear buffer for zone data */
     if (buf==NULL) {
         return;
     }
-
     if (owner_name==NULL) {
         owner_string="invalid.example";
     } else {
@@ -212,24 +265,25 @@ void usage(char *prog)
     printf("Create an ESNIKeys data structure as per draft-ietf-tls-esni-[02|03]\n");
     printf("Usage: \n");
     printf("\t%s [-V version] [-o <fname>] [-p <privfname>] [-d duration] \n",prog);
-    printf("\t\t\t[-P public-/cover-name] [-A [file-name]] [-z zonefrag-file] [-g]\n");
+    printf("\t\t\t[-P public-/cover-name] [-z zonefrag-file] [-g] [-J [file-name]] [-A [file-name]]\n"); 
     printf("where:\n");
     printf("-V specifies the ESNIKeys version to produce (default: 0xff01; 0xff02 allowed)\n");
     printf("-o specifies the output file name for the binary-encoded ESNIKeys (default: ./esnikeys.pub)\n");
     printf("-p specifies the output file name for the corresponding private key (default: ./esnikeys.priv)\n");
     printf("-d duration, specifies the duration in seconds from, now, for which the public share should be valid (default: 1 week), The DNS TTL is set to half of this value.\n");
     printf("-g grease - adds a couple of nonsense extensions to ESNIKeys for testing purposes.\n");
-    printf("If <privfname> exists already and contains an appropriate value, then that key will be used without change.\n");
-    printf("There is no support for crypto options - we only support TLS_AES_128_GCM_SHA256, X25519 and no extensions.\n");
-    printf("Fix that if you like:-)\n");
-    printf("The following are only valid with -V 0xff02:\n");
     printf("-P specifies the public-/cover-name value\n");
-    printf("-A says to include an AddressSet extension\n");
     printf("-z says to output the zonefile fragment to the specified file\n");
+    printf("-J specifies the name of a JSON output file\n");
+    printf("If <privfname> exists already and contains an appropriate value, then that key will be used without change.\n");
+    printf("There is no support for crypto options - we only support TLS_AES_128_GCM_SHA256 and X25519.\n");
+    printf("Fix that if you like:-)\n");
+    printf("-A is only supported for version 0xff02 and not 0xff01\n");
+    printf("-A says to include an AddressSet extension\n");
     printf("\n");
-    printf("-P, -A and -z are only supported for version 0xff02 and not 0xff01\n");
     printf("If a filename ie given with -A then that should contain one IP address per line.\n");
     printf("If no filename is given with -A then we'll look up the A and AAAA for the cover-/public-name and use those.\n");
+    printf("   and make that -A the last argument provided or we'll mess up!\n");
     printf("If no zonefrag-file is provided a default zonedata.fragment file will be created\n");
     exit(1);
 }
@@ -499,6 +553,12 @@ static int mk_esnikeys(int argc, char **argv)
     int extlen=0; ///< length of overall ESNIKeys extension value (with all extensions included)
     unsigned char *extvals=NULL; ///< buffer with all encoded ESNIKeys extensions
 
+    int zblen=0; ///< length of output zone fragment (if any)
+    unsigned char zbuf[MAX_ZONEDATA_BUFLEN]; //< buffer for zone fragment (if any)
+
+    int jsonout=0; ///< whether or not we want a JSON output file
+    char *jsonfname=NULL; ///< json output file
+
     /*
      * AddressSet 
      */
@@ -506,7 +566,7 @@ static int mk_esnikeys(int argc, char **argv)
     unsigned char *asetval=NULL;
 
     // check inputs with getopt
-    while((opt = getopt(argc, argv, ":A:P:V:?ho:p:d:z:g")) != -1) {
+    while((opt = getopt(argc, argv, ":J:A:P:V:?ho:p:d:z:g")) != -1) {
         switch(opt) {
         case 'h':
         case '?':
@@ -537,10 +597,17 @@ static int mk_esnikeys(int argc, char **argv)
             includeaddrset=1;
             asetfname=optarg;
             break;
+        case 'J':
+            jsonout=1;
+            jsonfname=optarg;
+            break;
         case ':':
             switch (optopt) {
             case 'A':
                 includeaddrset=1;
+                break;
+            case 'J':
+                jsonout=1;
                 break;
             default: 
                 fprintf(stderr, "Error - No such option: `%c'\n\n", optopt);
@@ -553,10 +620,6 @@ static int mk_esnikeys(int argc, char **argv)
         }
     }
 
-    if (ekversion==0xff01 && cover_name != NULL) {
-        fprintf(stderr,"Version 0xff01 doesn't support Cover name - exiting\n\n");
-        usage(argv[0]);
-    }
     if (ekversion==0xff01 && includeaddrset!=0) {
         fprintf(stderr,"Version 0xff01 doesn't support AddressSet - exiting\n\n");
         usage(argv[0]);
@@ -575,7 +638,6 @@ static int mk_esnikeys(int argc, char **argv)
     }
     switch(ekversion) {
     case 0xff01: /* esni draft -02 */
-        break;
     case 0xff02: /* esni draft -03 */
         cnlen=(cover_name==NULL?0:strlen(cover_name));
         if (cnlen > MAX_ESNI_COVER_NAME) {
@@ -831,18 +893,30 @@ static int mk_esnikeys(int argc, char **argv)
     }
     fclose(pubfp);
 
+    if (ekversion==0xff01) {
+
+        /* Prepare zone fragment in buffer */
+        sp_esni_txtrr(zbuf,MAX_ZONEDATA_BUFLEN,bbuf,bblen,duration/2,cover_name);
+        zblen=strlen(zbuf);
+        if (zblen==0) {
+            fprintf(stderr,"zone fragment error (line:%d)\n",__LINE__);
+            exit(19);
+        }
+    }
+
     if (ekversion==0xff02) {
-        unsigned char zbuf[MAX_ZONEDATA_BUFLEN];
 
         /* Prepare zone fragment in buffer */
         sp_esni_prr(zbuf,MAX_ZONEDATA_BUFLEN,bbuf,bblen,0xff9f,duration/2,cover_name);
-        int zblen=strlen(zbuf);
-
+        zblen=strlen(zbuf);
         if (zblen==0) {
             fprintf(stderr,"zone fragment error (line:%d)\n",__LINE__);
             exit(9);
         }
+   }
 
+   if (zblen>0) {
+   
         puts("OPENSSL: zone fragment:");
         printf("%s", zbuf);     /* Display zone fragment on stdout */
 
@@ -863,6 +937,58 @@ static int mk_esnikeys(int argc, char **argv)
         }
 
         fclose(fragfp);
+    }
+
+    if (jsonout==1) {
+        /*
+         * write out a JSON file
+         */
+        char jsonstr[MAX_ZONEDATA_BUFLEN];
+        memset(jsonstr,0,MAX_ZONEDATA_BUFLEN);
+        char esnistr[MAX_ZONEDATA_BUFLEN/2];
+        memset(esnistr,0,MAX_ZONEDATA_BUFLEN/2);
+
+        /*
+         * Make up JSON string
+         */
+        if (ekversion==0xff01) {
+            int b64len = EVP_EncodeBlock(esnistr, (unsigned char *)bbuf, bblen);
+            esnistr[b64len]='\0';
+        }
+        if (ekversion==0xff02) {
+            /* binary -> ascii hex */
+            char ch3[3];
+            for (int i=0;i<(MAX_ZONEDATA_BUFLEN/4) && i!=bblen;i++) {
+                snprintf(ch3,3, "%02X",bbuf[i]);
+                esnistr[2*i]=ch3[0];
+                esnistr[2*i+1]=ch3[1];
+
+            }
+        }
+
+        snprintf(jsonstr,MAX_ZONEDATA_BUFLEN,
+                "{\n   \"ESNIKeys.version\": 0x%4x,\n   \"desired-ttl\": %d,\n   \"ESNIKeys\": \"%s\"\n}\n", 
+                ekversion, duration/2, esnistr);
+
+        size_t jlen=strlen(jsonstr);
+
+        /* Ready file where zone fragment will be written */
+        if (jsonfname==NULL) {
+            jsonfname="zonedata.json";
+        }
+        FILE *jsonfp=fopen(jsonfname,"w");
+        if (jsonfp==NULL) {
+            fprintf(stderr,"fopen error (line:%d)\n",__LINE__);
+            exit(17);
+        }
+
+        /* Write zone fragment to file */
+        if (fwrite(jsonstr,1,jlen,jsonfp)!=jlen) {
+            fprintf(stderr,"fwrite error (line:%d)\n",__LINE__);
+            exit(18);
+        }
+
+        fclose(jsonfp);
     }
 
     OPENSSL_free(public);
