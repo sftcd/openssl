@@ -708,6 +708,13 @@ seemed unkeen on. Decided to not bother with that.
 
 I'm sure there's more but some collected so far:
 
+
+- If we do end up with >1 ESNIKeys version that needs to be supported, 
+  consider some kind of local "any" version value that a 
+  server can use to force use of a public share regardless of the
+  the ESNIKeys.version used by the client. That more easily allows
+  multiple $hidden sites to hide behind one key pair belonging to
+  some operator.
 - Had a look at how [lightttpd](https://github.com/lighttpd/lighttpd1.4/blob/master/src/mod_openssl.c) 
   integrates OpenSSL and that might be a nicely viable build into which to
   integrate our ESNI without too much effort. (Seems like latest OpenSSL and TLS1.3
