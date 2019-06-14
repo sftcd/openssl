@@ -554,6 +554,7 @@ static int ssl_esni_servername_cb(SSL *s, int *ad, void *arg)
         /*
         * Client supplied ESNI (hidden) and SNI (cover)
         */
+
         char *hidden=NULL; 
         char *cover=NULL;
         int esnirv=SSL_get_esni_status(s,&hidden,&cover);
@@ -576,6 +577,7 @@ static int ssl_esni_servername_cb(SSL *s, int *ad, void *arg)
             BIO_printf(p->biodebug,"ssl_esni_servername_cb: Error getting ESNI status\n");
             break;
         }
+
     }
 
     if (servername != NULL && p->biodebug != NULL) {
@@ -3459,10 +3461,34 @@ static int www_body(int s, int stype, int prot, unsigned char *context)
              * Note: unlikely to want to integrate this upstream
              */
             BIO_puts(io, "<h1>OpenSSL with ESNI</h1>\n");
+            char *hidden=NULL; 
+            char *cover=NULL;
+            int esnirv=SSL_get_esni_status(con,&hidden,&cover);
+            BIO_puts(io, "<h2>\n");
+            switch (esnirv) {
+            case SSL_ESNI_STATUS_NOT_TRIED: 
+                BIO_puts(io,"ESNI not attempted\n");
+                break;
+            case SSL_ESNI_STATUS_FAILED: 
+                BIO_puts(io,"ESNI tried but failed\n");
+                break;
+            case SSL_ESNI_STATUS_BAD_NAME: 
+                BIO_puts(io,"ESNI worked but bad name\n");
+                break;
+            case SSL_ESNI_STATUS_SUCCESS:
+                BIO_printf(io,"ESNI success: cover: %s, hidden: %s\n",
+                                (cover==NULL?"none":cover),
+                            (hidden==NULL?"none":hidden));
+                break;
+            default:
+                BIO_printf(io," Error getting ESNI status\n");
+                break;
+            }
+            BIO_puts(io, "</h2>\n");
+            BIO_puts(io, "<h2>TLS Session details</h2>\n");
             BIO_puts(io, "<pre>\n");
-            SSL_SESSION_print(io, SSL_get_session(con));
             /*
-             * Also dump that for debugging
+             * also dump session info to server stdout for debugging
              */
             SSL_SESSION_print(bio_s_out, SSL_get_session(con));
 #else

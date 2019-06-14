@@ -2020,15 +2020,12 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
      */
     if (s->esni==NULL) {
         /*
-         * Maybe this ought be a warning message?
-         * We used return 1 here, and probabily will revert to that
-         * but want to check if this is why some FF nightly reloads
-         * fail to set the encservername but succeed in loading the
-         * page.
+         * No ESNIKeys loaded so we'll ignore the crap out
+         * of whatever the client asked for
+         * TODO: consider if that's right, or if it ought
+         * be configurable
          */
-        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ESNI,
-                 SSL_R_BAD_EXTENSION);
-        return 0;
+        return 1;
     }
 
     /*

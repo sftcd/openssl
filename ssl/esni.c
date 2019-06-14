@@ -2698,7 +2698,7 @@ int SSL_get_esni_status(SSL *s, char **hidden, char **cover)
         int ind=0;
         int nesnis=s->esni->num_esni_rrs;
         for (ind=0;ind!=nesnis;ind++) {
-            if (s->esni[ind].nonce!=NULL) {
+            if (s->esni[ind].the_esni!=NULL) {
                 /*
                  * this one's active 
                  */
@@ -2716,6 +2716,9 @@ int SSL_get_esni_status(SSL *s, char **hidden, char **cover)
             }
         }
         if (matchind==-1) {
+            return SSL_ESNI_STATUS_NOT_TRIED;
+        }
+        if (matchind!=-1 && s->esni[matchind].nonce==NULL) {
             return SSL_ESNI_STATUS_FAILED;
         }
         long vr=X509_V_OK;
