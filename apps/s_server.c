@@ -3417,7 +3417,18 @@ static int www_body(int s, int stype, int prot, unsigned char *context)
             STACK_OF(SSL_CIPHER) *sk;
             static const char *space = "                          ";
 
+#ifndef OPENSSL_NO_ESNI
+            /*
+             * This isn't an ESNI related change really. Seems like
+             * s_server hangs in some way if we get to this code
+             * with www=1, so maybe only do it if renego is 
+             * actually supported. Try it anyway
+             */
+            if (www == 1 && SSL_get_secure_renegotiation_support(con)
+                    && strncmp("GET /reneg", buf, 10) == 0) {
+#else
             if (www == 1 && strncmp("GET /reneg", buf, 10) == 0) {
+#endif
                 if (strncmp("GET /renegcert", buf, 14) == 0)
                     SSL_set_verify(con,
                                    SSL_VERIFY_PEER | SSL_VERIFY_CLIENT_ONCE,
@@ -3463,8 +3474,8 @@ static int www_body(int s, int stype, int prot, unsigned char *context)
             BIO_puts(io, "<h1>OpenSSL with ESNI</h1>\n");
             char *hidden=NULL; 
             char *cover=NULL;
-            int esnirv=SSL_get_esni_status(con,&hidden,&cover);
             BIO_puts(io, "<h2>\n");
+            int esnirv=SSL_get_esni_status(con,&hidden,&cover);
             switch (esnirv) {
             case SSL_ESNI_STATUS_NOT_TRIED: 
                 BIO_puts(io,"ESNI not attempted\n");

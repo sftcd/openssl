@@ -25,6 +25,12 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- Fixed what looks like a case where ``s_server`` just hangs
+  when started with ``-www`` and where renegotiation is
+  not supported and where the URL's pathname starts with "/reneg" 
+  That's not really an ESNI related change but likely needs
+  an indepndent fix.
+
 - Added zone file fragment production for draft-02 TXT RRs to 
   ``mk_esnikeys`` and a JSON format output option
   from which e.g. a ZSK holder can build the DNS
