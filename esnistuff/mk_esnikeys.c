@@ -641,7 +641,7 @@ static int mk_esnikeys(int argc, char **argv)
     case 0xff02: /* esni draft -03 */
         cnlen=(cover_name==NULL?0:strlen(cover_name));
         if (cnlen > MAX_ESNI_COVER_NAME) {
-            fprintf(stderr,"Cover name too long (%ld), max is %d\n\n",cnlen,MAX_ESNI_COVER_NAME);
+            fprintf(stderr,"Cover name too long (%zd), max is %d\n\n",cnlen,MAX_ESNI_COVER_NAME);
             usage(argv[0]);
         }
         if (cnlen > 0 && cover_name[cnlen-1]=='.') {
