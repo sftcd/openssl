@@ -28,8 +28,12 @@ Most recent first...
 - Fixed what looks like a case where ``s_server`` just hangs
   when started with ``-www`` and where renegotiation is
   not supported and where the URL's pathname starts with "/reneg" 
-  That's not really an ESNI related change but likely needs
-  an indepndent fix.
+  Also made the ``-WWW`` mode (where it acts as a teeny
+  web server for files) a little better.
+  None of these are really ESNI-related changes but could
+  be suggested as indepndent improvements/fixes. Not sure
+  if anyone cares enough, but maybe when/if I make a PR for
+  ``cert_chain2`` I'll include these too.
 
 - Added zone file fragment production for draft-02 TXT RRs to 
   ``mk_esnikeys`` and a JSON format output option

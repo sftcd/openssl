@@ -3649,13 +3649,42 @@ static int www_body(int s, int stype, int prot, unsigned char *context)
                 break;
             }
 
-            if ((file = BIO_new_file(p, "r")) == NULL) {
+#ifndef OPENSSL_NO_ESNI
+            /*
+             * Again, not really an ESNI change but server up index.html
+             * (if one exists) as a default pathname if none was provided
+             */
+            if (*p=='\0') {
+                if ((file = BIO_new_file("index.html", "r")) == NULL) {
+                    BIO_puts(io, text);
+                    BIO_printf(io, "Error opening defaulted index.html\r\n");
+                    ERR_print_errors(io);
+                    break;
+                }
+            }
+
+            if (*p!='\0' && (file = BIO_new_file(p, "r")) == NULL) {
                 BIO_puts(io, text);
                 BIO_printf(io, "Error opening '%s'\r\n", p);
                 ERR_print_errors(io);
                 break;
             }
 
+            if (file==NULL) {
+                BIO_puts(io, text);
+                BIO_printf(io, "Weird - shouldn't get here '%s'\r\n", p);
+                ERR_print_errors(io);
+                break;
+            }
+
+#else
+            if ((file = BIO_new_file(p, "r")) == NULL) {
+                BIO_puts(io, text);
+                BIO_printf(io, "Error opening '%s'\r\n", p);
+                ERR_print_errors(io);
+                break;
+            }
+#endif
             if (!s_quiet)
                 BIO_printf(bio_err, "FILE:%s\n", p);
 
@@ -3666,6 +3695,17 @@ static int www_body(int s, int stype, int prot, unsigned char *context)
                     ((i > 4) && (strcmp(&(p[i - 4]), ".htm") == 0)))
                     BIO_puts(io,
                              "HTTP/1.0 200 ok\r\nContent-type: text/html\r\n\r\n");
+#ifndef OPENSLL_NO_ESNI
+                /* 
+                 * same comment as last time
+                 */
+                else if (i==0 && file != NULL) {
+                    /*
+                     * Do this if we defaulted to index.html and opening that worked
+                     */
+                    BIO_puts(io, "HTTP/1.0 200 ok\r\nContent-type: text/html\r\n\r\n");
+                }
+#endif
                 else
                     BIO_puts(io,
                              "HTTP/1.0 200 ok\r\nContent-type: text/plain\r\n\r\n");
