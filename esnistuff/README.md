@@ -1,7 +1,7 @@
 
 # This is a temporary place for ESNI content ...
 
-Stephen Farrell, stephen.farrell@cs.tcd.ie, 20190403-ish
+Stephen Farrell, stephen.farrell@cs.tcd.ie, 20190714-ish
 
 I'll put stuff here that'll likely disappear if this matures. So the plan would
 be to delete all this before submitting any PR to the openssl folks. Over time,
@@ -24,6 +24,11 @@ draft-03 stuff really.)
 There's a [TODO list](#todos) at the end.
 
 Most recent first...
+
+- Starting re-merge with upstream (20190714) prior to starting in on -04 code
+
+- draft-04 has been published (20190708), some good, some more-iffy, changes
+    - initial [notes](./03-04.md) on the changes therein
 
 - Fixed what looks like a case where ``s_server`` just hangs
   when started with ``-www`` and where renegotiation is
