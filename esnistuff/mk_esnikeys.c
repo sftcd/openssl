@@ -267,7 +267,7 @@ void usage(char *prog)
     printf("\t%s [-V version] [-o <fname>] [-p <privfname>] [-d duration] \n",prog);
     printf("\t\t\t[-P public-/cover-name] [-z zonefrag-file] [-g] [-J [file-name]] [-A [file-name]]\n"); 
     printf("where:\n");
-    printf("-V specifies the ESNIKeys version to produce (default: 0xff01; 0xff02 allowed)\n");
+    printf("-V specifies the ESNIKeys version to produce (default: 0xff01; 0xff02, 0xff03 allowed)\n");
     printf("-o specifies the output file name for the binary-encoded ESNIKeys (default: ./esnikeys.pub)\n");
     printf("-p specifies the output file name for the corresponding private key (default: ./esnikeys.priv)\n");
     printf("-d duration, specifies the duration in seconds from, now, for which the public share should be valid (default: 1 week), The DNS TTL is set to half of this value.\n");
@@ -278,7 +278,7 @@ void usage(char *prog)
     printf("If <privfname> exists already and contains an appropriate value, then that key will be used without change.\n");
     printf("There is no support for crypto options - we only support TLS_AES_128_GCM_SHA256 and X25519.\n");
     printf("Fix that if you like:-)\n");
-    printf("-A is only supported for version 0xff02 and not 0xff01\n");
+    printf("-A is only supported for versions 0xff02,0xff03 and not 0xff01\n");
     printf("-A says to include an AddressSet extension\n");
     printf("\n");
     printf("If a filename ie given with -A then that should contain one IP address per line.\n");
@@ -553,6 +553,9 @@ static int mk_esnikeys(int argc, char **argv)
     int extlen=0; ///< length of overall ESNIKeys extension value (with all extensions included)
     unsigned char *extvals=NULL; ///< buffer with all encoded ESNIKeys extensions
 
+    int dnsextlen=0; ///< length of overall dns_extension value (with all extensions included)
+    unsigned char *dnsextvals=NULL; ///< buffer with encoded dns_extension values
+
     int zblen=0; ///< length of output zone fragment (if any)
     unsigned char zbuf[MAX_ZONEDATA_BUFLEN]; //< buffer for zone fragment (if any)
 
@@ -638,7 +641,9 @@ static int mk_esnikeys(int argc, char **argv)
     }
     switch(ekversion) {
     case 0xff01: /* esni draft -02 */
+        break;
     case 0xff02: /* esni draft -03 */
+    case 0xff03: /* esni draft -04 */
         cnlen=(cover_name==NULL?0:strlen(cover_name));
         if (cnlen > MAX_ESNI_COVER_NAME) {
             fprintf(stderr,"Cover name too long (%zd), max is %d\n\n",cnlen,MAX_ESNI_COVER_NAME);
@@ -654,7 +659,7 @@ static int mk_esnikeys(int argc, char **argv)
     }
 
     /* handle AddressSet stuff */
-    if (ekversion==0xff02 && includeaddrset!=0) {
+    if ((ekversion==0xff02 || ekversion==0xff03) && includeaddrset!=0) {
         int rv=mk_aset(asetfname,cover_name,&asetlen,&asetval);
         if (rv!=1) {
             fprintf(stderr,"mk_aset failed - exiting\n");
@@ -705,6 +710,18 @@ static int mk_esnikeys(int argc, char **argv)
             OPENSSL_free(geb2);
         }
         extlen+=2;
+
+        /*
+         * Bit of a hack - we'll fixate on no extensions at all for 
+         * version 0xff03 and just swap those out to dns_extensions
+         * Can revisit later and grease internally if that's useful
+         */
+        if (ekversion==0xff03) {
+            dnsextlen=extlen;
+            dnsextvals=extvals;
+            extlen=0;
+            extvals=NULL;
+        }
 
     }
 
@@ -822,6 +839,23 @@ static int mk_esnikeys(int argc, char **argv)
      * 00000080  29 d6 a2 04 c6 29 d7 a2                           |)....)..|
      * 00000088
      *
+     * draft-04 swaps about some bits and eliminates others, so we end up with
+     * this TLS presentation language:
+     *  struct {
+     *      uint16 version;
+     *      opaque public_name<1..2^16-1>;
+     *      KeyShareEntry keys<4..2^16-1>;
+     *      CipherSuite cipher_suites<2..2^16-2>;
+     *      uint16 padded_length;
+     *      Extension extensions<0..2^16-1>;
+     *  } ESNIKeys;
+     *  struct {
+     *      ESNIKeys esni_keys;
+     *      Extension dns_extensions<0..2^16-1>;
+     *  } ESNIRecord;
+     *
+     * The new thing with draft-04 is the ESNIRecord outer wrapper
+     *
      */
 
     unsigned char bbuf[MAX_ESNIKEYS_BUFLEN]; ///< binary buffer
@@ -829,13 +863,16 @@ static int mk_esnikeys(int argc, char **argv)
     memset(bbuf,0,MAX_ESNIKEYS_BUFLEN);
     *bp++=(ekversion>>8)%256; 
     *bp++=(ekversion%256);// version = 0xff01 or 0xff02
-    memset(bp,0,4); bp+=4; // space for checksum
-    if (cnlen > 0 && ekversion==0xff02) {
-        /* draft -03 has public_name here, -02 hasn't got that at all */
+    if (ekversion==0xff01 || ekversion==0xff02) {
+        memset(bp,0,4); bp+=4; // space for checksum
+    }
+    if (cnlen > 0 && (ekversion==0xff02 || ekversion == 0xff03)) {
+        /* draft -03 and -04 have public_name here, -02 hasn't got that at all */
         *bp++=(cnlen>>8)%256;
         *bp++=cnlen%256;
         memcpy(bp,cover_name,cnlen); bp+=cnlen;
     }
+    /* keys */
     *bp++=0x00;
     *bp++=0x24; // length=36
     *bp++=0x00;
@@ -843,22 +880,26 @@ static int mk_esnikeys(int argc, char **argv)
     *bp++=0x00;
     *bp++=0x20; // length=32
     memcpy(bp,public,32); bp+=32;
+    /* cipher_suites */
     *bp++=0x00;
     *bp++=0x02; // length=2
     *bp++=0x13;
     *bp++=0x01; // ciphersuite TLS_AES_128_GCM_SHA256
+    /* padded_length */
     *bp++=0x01;
     *bp++=0x04; // 2 bytes padded length - 260, same as CF for now
-    memset(bp,0,4); bp+=4; // top zero 4 octets of time
-    *bp++=(nb>>24)%256;
-    *bp++=(nb>>16)%256;
-    *bp++=(nb>>8)%256;
-    *bp++=nb%256;
-    memset(bp,0,4); bp+=4; // top zero 4 octets of time
-    *bp++=(na>>24)%256;
-    *bp++=(na>>16)%256;
-    *bp++=(na>>8)%256;
-    *bp++=na%256;
+    if (ekversion==0xff01 || ekversion==0xff02) {
+        memset(bp,0,4); bp+=4; // top zero 4 octets of time
+        *bp++=(nb>>24)%256;
+        *bp++=(nb>>16)%256;
+        *bp++=(nb>>8)%256;
+        *bp++=nb%256;
+        memset(bp,0,4); bp+=4; // top zero 4 octets of time
+        *bp++=(na>>24)%256;
+        *bp++=(na>>16)%256;
+         *bp++=(na>>8)%256;
+        *bp++=na%256;
+    }
     if (extlen==0) {
         *bp++=0x00;
         *bp++=0x00; // no extensions
@@ -867,17 +908,24 @@ static int mk_esnikeys(int argc, char **argv)
         bp+=extlen;
         free(extvals);
     }
+    if (ekversion==0xff03 && dnsextlen>0) {
+        memcpy(bp,dnsextvals,dnsextlen);
+        bp+=dnsextlen;
+        free(dnsextvals);
+    }
     size_t bblen=bp-bbuf;
 
     so_esni_pbuf("BP",bbuf,bblen,0);
 
-    unsigned char cksum[4];
-    if (esni_checksum_gen(bbuf,bblen,cksum)!=1) {
-        fprintf(stderr,"fopen error (line:%d)\n",__LINE__);
-        exit(7);
+    if (ekversion==0xff01 || ekversion==0xff02) {
+        unsigned char cksum[4];
+        if (esni_checksum_gen(bbuf,bblen,cksum)!=1) {
+            fprintf(stderr,"fopen error (line:%d)\n",__LINE__);
+            exit(7);
+        }
+        memcpy(bbuf+2,cksum,4);
+        so_esni_pbuf("BP+cksum",bbuf,bblen,0);
     }
-    memcpy(bbuf+2,cksum,4);
-    so_esni_pbuf("BP+cksum",bbuf,bblen,0);
 
     if (pubfname==NULL) {
         pubfname="esnikeys.pub";
@@ -904,7 +952,7 @@ static int mk_esnikeys(int argc, char **argv)
         }
     }
 
-    if (ekversion==0xff02) {
+    if (ekversion==0xff02 || ekversion==0xff03) {
 
         /* Prepare zone fragment in buffer */
         sp_esni_prr(zbuf,MAX_ZONEDATA_BUFLEN,bbuf,bblen,0xff9f,duration/2,cover_name);
