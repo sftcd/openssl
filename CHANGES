@@ -9,10 +9,58 @@
 
  Changes between 1.1.1 and 3.0.0 [xx XXX xxxx]
 
+  *) Removed NextStep support and the macro OPENSSL_UNISTD
+     [Rich Salz]
+
+  *) Removed DES_check_key.  Also removed OPENSSL_IMPLEMENT_GLOBAL,
+     OPENSSL_GLOBAL_REF, OPENSSL_DECLARE_GLOBAL.
+     Also removed "export var as function" capability; we do not export
+     variables, only functions.
+     [Rich Salz]
+
+  *) RC5_32_set_key has been changed to return an int type, with 0 indicating
+     an error and 1 indicating success. In previous versions of OpenSSL this
+     was a void type. If a key was set longer than the maximum possible this
+     would crash.
+     [Matt Caswell]
+
+  *) Support SM2 signing and verification schemes with X509 certificate.
+     [Paul Yang]
+
+  *) Use SHA256 as the default digest for TS query in the ts app.
+     [Tomas Mraz]
+
+  *) Change PBKDF2 to conform to SP800-132 instead of the older PKCS5 RFC2898.
+     This checks that the salt length is at least 128 bits, the derived key
+     length is at least 112 bits, and that the iteration count is at least 1000.
+     For backwards compatibility these checks are disabled by default in the
+     default provider, but are enabled by default in the fips provider.
+     To enable or disable these checks use the control
+     EVP_KDF_CTRL_SET_PBKDF2_PKCS5_MODE.
+     [Shane Lontis]
+
+  *) Default cipher lists/suites are now available via a function, the
+     #defines are deprecated.
+     [Todd Short]
+
+  *) Add target VC-WIN32-UWP, VC-WIN64A-UWP, VC-WIN32-ARM-UWP and
+     VC-WIN64-ARM-UWP in Windows OneCore target for making building libraries
+     for Windows Store apps easier. Also, the "no-uplink" option has been added.
+     [Kenji Mouri]
+
+  *) Join the directories crypto/x509 and crypto/x509v3
+     [Richard Levitte]
+
+  *) Change the default RSA, DSA and DH size to 2048 bit instead of 1024.
+     This changes the size when using the genpkey app when no size is given. It
+     fixes an omission in earlier changes that changed all RSA, DSA and DH
+     generation apps to use 2048 bits by default.
+     [Kurt Roeckx]
+
   *) Added command 'openssl kdf' that uses the EVP_KDF API.
      [Shane Lontis]
 
-   *) Added command 'openssl mac' that uses the EVP_MAC API.
+  *) Added command 'openssl mac' that uses the EVP_MAC API.
      [Shane Lontis]
 
   *) Added OPENSSL_info() to get diverse built-in OpenSSL data, such
@@ -414,7 +462,7 @@
         SSL_set_ciphersuites()
      [Matt Caswell]
 
-  *) Memory allocation failures consistenly add an error to the error
+  *) Memory allocation failures consistently add an error to the error
      stack.
      [Rich Salz]
 
@@ -6952,7 +7000,7 @@
      reason texts, thereby removing some of the footprint that may not
      be interesting if those errors aren't displayed anyway.
 
-     NOTE: it's still possible for any application or module to have it's
+     NOTE: it's still possible for any application or module to have its
      own set of error texts inserted.  The routines are there, just not
      used by default when no-err is given.
      [Richard Levitte]
@@ -8918,7 +8966,7 @@ des-cbc           3624.96k     5258.21k     5530.91k     5624.30k     5628.26k
  Changes between 0.9.6g and 0.9.6h  [5 Dec 2002]
 
   *) New function OPENSSL_cleanse(), which is used to cleanse a section of
-     memory from it's contents.  This is done with a counter that will
+     memory from its contents.  This is done with a counter that will
      place alternating values in each byte.  This can be used to solve
      two issues: 1) the removal of calls to memset() by highly optimizing
      compilers, and 2) cleansing with other values than 0, since those can

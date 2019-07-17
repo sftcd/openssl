@@ -32,10 +32,9 @@ static const OSSL_ITEM *deflt_get_param_types(const OSSL_PROVIDER *prov)
     return deflt_param_types;
 }
 
-static int deflt_get_params(const OSSL_PROVIDER *prov,
-                            const OSSL_PARAM params[])
+static int deflt_get_params(const OSSL_PROVIDER *prov, OSSL_PARAM params[])
 {
-    const OSSL_PARAM *p;
+    OSSL_PARAM *p;
 
     p = OSSL_PARAM_locate(params, OSSL_PROV_PARAM_NAME);
     if (p != NULL && !OSSL_PARAM_set_utf8_ptr(p, "OpenSSL Default Provider"))
@@ -51,7 +50,42 @@ static int deflt_get_params(const OSSL_PROVIDER *prov,
 }
 
 static const OSSL_ALGORITHM deflt_digests[] = {
+    { "SHA1", "default=yes", sha1_functions },
+
+    { "SHA224", "default=yes", sha224_functions },
     { "SHA256", "default=yes", sha256_functions },
+    { "SHA384", "default=yes", sha384_functions },
+    { "SHA512", "default=yes", sha512_functions },
+    { "SHA512-224", "default=yes", sha512_224_functions },
+    { "SHA512-256", "default=yes", sha512_256_functions },
+
+    { "SHA3-224", "default=yes", sha3_224_functions },
+    { "SHA3-256", "default=yes", sha3_256_functions },
+    { "SHA3-384", "default=yes", sha3_384_functions },
+    { "SHA3-512", "default=yes", sha3_512_functions },
+
+    { "KMAC128", "default=yes", keccak_kmac_128_functions },
+    { "KMAC256", "default=yes", keccak_kmac_256_functions },
+
+    { "SHAKE128", "default=yes", shake_128_functions },
+    { "SHAKE256", "default=yes", shake_256_functions },
+
+#ifndef OPENSSL_NO_BLAKE2
+    { "BLAKE2s256", "default=yes", blake2s256_functions },
+    { "BLAKE2b512", "default=yes", blake2b512_functions },
+#endif /* OPENSSL_NO_BLAKE2 */
+
+#ifndef OPENSSL_NO_SM3
+    { "SM3", "default=yes", sm3_functions },
+#endif /* OPENSSL_NO_SM3 */
+
+#ifndef OPENSSL_NO_MD5
+    { "MD5", "default=yes", md5_functions },
+    { "MD5-SHA1", "default=yes", md5_sha1_functions },
+#endif /* OPENSSL_NO_MD5 */
+
+    /*{ "UNDEF", "default=yes", nullmd_functions }, */
+
     { NULL, NULL, NULL }
 };
 
@@ -109,6 +143,8 @@ int ossl_default_provider_init(const OSSL_PROVIDER *provider,
                                const OSSL_DISPATCH **out,
                                void **provctx)
 {
+    OSSL_core_get_library_context_fn *c_get_libctx = NULL;
+
     for (; in->function_id != 0; in++) {
         switch (in->function_id) {
         case OSSL_FUNC_CORE_GET_PARAM_TYPES:
@@ -117,12 +153,25 @@ int ossl_default_provider_init(const OSSL_PROVIDER *provider,
         case OSSL_FUNC_CORE_GET_PARAMS:
             c_get_params = OSSL_get_core_get_params(in);
             break;
+        case OSSL_FUNC_CORE_GET_LIBRARY_CONTEXT:
+            c_get_libctx = OSSL_get_core_get_library_context(in);
+            break;
         default:
             /* Just ignore anything we don't understand */
             break;
         }
     }
 
+    if (c_get_libctx == NULL)
+        return 0;
+
     *out = deflt_dispatch_table;
+
+    /*
+     * We want to make sure that all calls from this provider that requires
+     * a library context use the same context as the one used to call our
+     * functions.  We do that by passing it along as the provider context.
+     */
+    *provctx = c_get_libctx(provider);
     return 1;
 }

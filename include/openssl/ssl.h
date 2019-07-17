@@ -169,17 +169,25 @@ extern "C" {
  * The following cipher list is used by default. It also is substituted when
  * an application-defined cipher list string starts with 'DEFAULT'.
  * This applies to ciphersuites for TLSv1.2 and below.
+ * DEPRECATED IN 3.0.0, in favor of OSSL_default_cipher_list()
+ * Update both macro and function simultaneously
  */
-# define SSL_DEFAULT_CIPHER_LIST "ALL:!COMPLEMENTOFDEFAULT:!eNULL"
-/* This is the default set of TLSv1.3 ciphersuites */
-# if !defined(OPENSSL_NO_CHACHA) && !defined(OPENSSL_NO_POLY1305)
-#  define TLS_DEFAULT_CIPHERSUITES "TLS_AES_256_GCM_SHA384:" \
-                                   "TLS_CHACHA20_POLY1305_SHA256:" \
+# if !OPENSSL_API_3
+#  define SSL_DEFAULT_CIPHER_LIST "ALL:!COMPLEMENTOFDEFAULT:!eNULL"
+/*
+ * This is the default set of TLSv1.3 ciphersuites
+ * DEPRECATED IN 3.0.0, in favor of OSSL_default_ciphersuites()
+ * Update both macro and function simultaneously
+ */
+#  if !defined(OPENSSL_NO_CHACHA) && !defined(OPENSSL_NO_POLY1305)
+#   define TLS_DEFAULT_CIPHERSUITES "TLS_AES_256_GCM_SHA384:" \
+                                    "TLS_CHACHA20_POLY1305_SHA256:" \
+                                    "TLS_AES_128_GCM_SHA256"
+#  else
+#   define TLS_DEFAULT_CIPHERSUITES "TLS_AES_256_GCM_SHA384:" \
                                    "TLS_AES_128_GCM_SHA256"
-# else
-#  define TLS_DEFAULT_CIPHERSUITES "TLS_AES_256_GCM_SHA384:" \
-                                   "TLS_AES_128_GCM_SHA256"
-#endif
+#  endif
+# endif
 /*
  * As of OpenSSL 1.0.0, ssl_create_cipher_list() in ssl/ssl_ciph.c always
  * starts with a reasonable order, and all we have to do for DEFAULT is
@@ -1375,24 +1383,24 @@ DECLARE_PEM_rw(SSL_SESSION, SSL_SESSION)
         SSL_CTX_ctrl(ctx,SSL_CTRL_SET_CHAIN_CERT_STORE,0,(char *)(st))
 # define SSL_CTX_set1_chain_cert_store(ctx,st) \
         SSL_CTX_ctrl(ctx,SSL_CTRL_SET_CHAIN_CERT_STORE,1,(char *)(st))
-# define SSL_set0_chain(ctx,sk) \
-        SSL_ctrl(ctx,SSL_CTRL_CHAIN,0,(char *)(sk))
-# define SSL_set1_chain(ctx,sk) \
-        SSL_ctrl(ctx,SSL_CTRL_CHAIN,1,(char *)(sk))
-# define SSL_add0_chain_cert(ctx,x509) \
-        SSL_ctrl(ctx,SSL_CTRL_CHAIN_CERT,0,(char *)(x509))
-# define SSL_add1_chain_cert(ctx,x509) \
-        SSL_ctrl(ctx,SSL_CTRL_CHAIN_CERT,1,(char *)(x509))
-# define SSL_get0_chain_certs(ctx,px509) \
-        SSL_ctrl(ctx,SSL_CTRL_GET_CHAIN_CERTS,0,px509)
-# define SSL_clear_chain_certs(ctx) \
-        SSL_set0_chain(ctx,NULL)
+# define SSL_set0_chain(s,sk) \
+        SSL_ctrl(s,SSL_CTRL_CHAIN,0,(char *)(sk))
+# define SSL_set1_chain(s,sk) \
+        SSL_ctrl(s,SSL_CTRL_CHAIN,1,(char *)(sk))
+# define SSL_add0_chain_cert(s,x509) \
+        SSL_ctrl(s,SSL_CTRL_CHAIN_CERT,0,(char *)(x509))
+# define SSL_add1_chain_cert(s,x509) \
+        SSL_ctrl(s,SSL_CTRL_CHAIN_CERT,1,(char *)(x509))
+# define SSL_get0_chain_certs(s,px509) \
+        SSL_ctrl(s,SSL_CTRL_GET_CHAIN_CERTS,0,px509)
+# define SSL_clear_chain_certs(s) \
+        SSL_set0_chain(s,NULL)
 # define SSL_build_cert_chain(s, flags) \
         SSL_ctrl(s,SSL_CTRL_BUILD_CERT_CHAIN, flags, NULL)
-# define SSL_select_current_cert(ctx,x509) \
-        SSL_ctrl(ctx,SSL_CTRL_SELECT_CURRENT_CERT,0,(char *)(x509))
-# define SSL_set_current_cert(ctx,op) \
-        SSL_ctrl(ctx,SSL_CTRL_SET_CURRENT_CERT, op, NULL)
+# define SSL_select_current_cert(s,x509) \
+        SSL_ctrl(s,SSL_CTRL_SELECT_CURRENT_CERT,0,(char *)(x509))
+# define SSL_set_current_cert(s,op) \
+        SSL_ctrl(s,SSL_CTRL_SET_CURRENT_CERT, op, NULL)
 # define SSL_set0_verify_cert_store(s,st) \
         SSL_ctrl(s,SSL_CTRL_SET_VERIFY_CERT_STORE,0,(char *)(st))
 # define SSL_set1_verify_cert_store(s,st) \
@@ -1401,34 +1409,34 @@ DECLARE_PEM_rw(SSL_SESSION, SSL_SESSION)
         SSL_ctrl(s,SSL_CTRL_SET_CHAIN_CERT_STORE,0,(char *)(st))
 # define SSL_set1_chain_cert_store(s,st) \
         SSL_ctrl(s,SSL_CTRL_SET_CHAIN_CERT_STORE,1,(char *)(st))
-# define SSL_get1_groups(ctx, s) \
-        SSL_ctrl(ctx,SSL_CTRL_GET_GROUPS,0,(char *)(s))
+# define SSL_get1_groups(s, glist) \
+        SSL_ctrl(s,SSL_CTRL_GET_GROUPS,0,(int*)(glist))
 # define SSL_CTX_set1_groups(ctx, glist, glistlen) \
         SSL_CTX_ctrl(ctx,SSL_CTRL_SET_GROUPS,glistlen,(char *)(glist))
 # define SSL_CTX_set1_groups_list(ctx, s) \
         SSL_CTX_ctrl(ctx,SSL_CTRL_SET_GROUPS_LIST,0,(char *)(s))
-# define SSL_set1_groups(ctx, glist, glistlen) \
-        SSL_ctrl(ctx,SSL_CTRL_SET_GROUPS,glistlen,(char *)(glist))
-# define SSL_set1_groups_list(ctx, s) \
-        SSL_ctrl(ctx,SSL_CTRL_SET_GROUPS_LIST,0,(char *)(s))
+# define SSL_set1_groups(s, glist, glistlen) \
+        SSL_ctrl(s,SSL_CTRL_SET_GROUPS,glistlen,(char *)(glist))
+# define SSL_set1_groups_list(s, str) \
+        SSL_ctrl(s,SSL_CTRL_SET_GROUPS_LIST,0,(char *)(str))
 # define SSL_get_shared_group(s, n) \
         SSL_ctrl(s,SSL_CTRL_GET_SHARED_GROUP,n,NULL)
 # define SSL_CTX_set1_sigalgs(ctx, slist, slistlen) \
         SSL_CTX_ctrl(ctx,SSL_CTRL_SET_SIGALGS,slistlen,(int *)(slist))
 # define SSL_CTX_set1_sigalgs_list(ctx, s) \
         SSL_CTX_ctrl(ctx,SSL_CTRL_SET_SIGALGS_LIST,0,(char *)(s))
-# define SSL_set1_sigalgs(ctx, slist, slistlen) \
-        SSL_ctrl(ctx,SSL_CTRL_SET_SIGALGS,slistlen,(int *)(slist))
-# define SSL_set1_sigalgs_list(ctx, s) \
-        SSL_ctrl(ctx,SSL_CTRL_SET_SIGALGS_LIST,0,(char *)(s))
+# define SSL_set1_sigalgs(s, slist, slistlen) \
+        SSL_ctrl(s,SSL_CTRL_SET_SIGALGS,slistlen,(int *)(slist))
+# define SSL_set1_sigalgs_list(s, str) \
+        SSL_ctrl(s,SSL_CTRL_SET_SIGALGS_LIST,0,(char *)(str))
 # define SSL_CTX_set1_client_sigalgs(ctx, slist, slistlen) \
         SSL_CTX_ctrl(ctx,SSL_CTRL_SET_CLIENT_SIGALGS,slistlen,(int *)(slist))
 # define SSL_CTX_set1_client_sigalgs_list(ctx, s) \
         SSL_CTX_ctrl(ctx,SSL_CTRL_SET_CLIENT_SIGALGS_LIST,0,(char *)(s))
-# define SSL_set1_client_sigalgs(ctx, slist, slistlen) \
-        SSL_ctrl(ctx,SSL_CTRL_SET_CLIENT_SIGALGS,clistlen,(int *)(slist))
-# define SSL_set1_client_sigalgs_list(ctx, s) \
-        SSL_ctrl(ctx,SSL_CTRL_SET_CLIENT_SIGALGS_LIST,0,(char *)(s))
+# define SSL_set1_client_sigalgs(s, slist, slistlen) \
+        SSL_ctrl(s,SSL_CTRL_SET_CLIENT_SIGALGS,slistlen,(int *)(slist))
+# define SSL_set1_client_sigalgs_list(s, str) \
+        SSL_ctrl(s,SSL_CTRL_SET_CLIENT_SIGALGS_LIST,0,(char *)(str))
 # define SSL_get0_certificate_types(s, clist) \
         SSL_ctrl(s, SSL_CTRL_GET_CLIENT_CERT_TYPES, 0, (char *)(clist))
 # define SSL_CTX_set1_client_certificate_types(ctx, clist, clistlen) \
@@ -1860,6 +1868,8 @@ __owur int SSL_read_early_data(SSL *s, void *buf, size_t num,
                                size_t *readbytes);
 __owur int SSL_peek(SSL *ssl, void *buf, int num);
 __owur int SSL_peek_ex(SSL *ssl, void *buf, size_t num, size_t *readbytes);
+__owur ossl_ssize_t SSL_sendfile(SSL *s, int fd, off_t offset, size_t size,
+                                 int flags);
 __owur int SSL_write(SSL *ssl, const void *buf, int num);
 __owur int SSL_write_ex(SSL *s, const void *buf, size_t num, size_t *written);
 __owur int SSL_write_early_data(SSL *s, const void *buf, size_t num,
@@ -2162,7 +2172,7 @@ size_t SSL_CTX_get_num_tickets(const SSL_CTX *ctx);
 #  define SSL_cache_hit(s) SSL_session_reused(s)
 # endif
 
-__owur int SSL_session_reused(SSL *s);
+__owur int SSL_session_reused(const SSL *s);
 __owur int SSL_is_server(const SSL *s);
 
 __owur __owur SSL_CONF_CTX *SSL_CONF_CTX_new(void);
@@ -2456,6 +2466,10 @@ void SSL_set_allow_early_data_cb(SSL *s,
 #define SSL_MAX_SSL_RECORD_DIGEST_LENGTH 255 
 #define SSL_MAX_SSL_ENCRYPTED_SNI_LENGTH 1024
 #endif
+
+/* store the default cipher strings inside the library */
+const char *OSSL_default_cipher_list(void);
+const char *OSSL_default_ciphersuites(void);
 
 # ifdef  __cplusplus
 }

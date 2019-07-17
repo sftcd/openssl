@@ -25,7 +25,11 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
-- Starting re-merge with upstream (20190714) prior to starting in on -04 code
+- Re-merged with upstream (20190714) prior to starting in on -04 code
+    - Well, that took a while. I had to move esnierr.c within crypto/build.info
+      as with the latest Configure script it was somehow being added into a FIPS
+      target and hence not building. The wonders of perl mean that I dunno why
+      that was happening;-)
 
 - draft-04 has been published (20190708), some good, some more-iffy, changes
     - initial [notes](./03-04.md) on the changes therein

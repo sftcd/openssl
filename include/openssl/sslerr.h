@@ -64,7 +64,7 @@ int ERR_load_SSL_strings(void);
 # define SSL_F_DTLS_RECORD_LAYER_NEW                      635
 # define SSL_F_DTLS_WAIT_FOR_DRY                          592
 # define SSL_F_EARLY_DATA_COUNT_OK                        532
-# define SSL_F_ESNI_SERVER_NAME_FIXUP                     639
+# define SSL_F_ESNI_SERVER_NAME_FIXUP                     689
 # define SSL_F_FINAL_EARLY_DATA                           556
 # define SSL_F_FINAL_EC_PT_FORMATS                        485
 # define SSL_F_FINAL_EMS                                  486
@@ -219,6 +219,7 @@ int ERR_load_SSL_strings(void);
 # define SSL_F_SSL_RENEGOTIATE_ABBREVIATED                546
 # define SSL_F_SSL_SCAN_CLIENTHELLO_TLSEXT                320
 # define SSL_F_SSL_SCAN_SERVERHELLO_TLSEXT                321
+# define SSL_F_SSL_SENDFILE                               639
 # define SSL_F_SSL_SESSION_DUP                            348
 # define SSL_F_SSL_SESSION_NEW                            189
 # define SSL_F_SSL_SESSION_PRINT_FP                       190

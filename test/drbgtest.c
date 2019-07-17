@@ -332,7 +332,7 @@ static int error_check(DRBG_SELFTEST_DATA *td)
      * Personalisation string tests
      */
 
-    /* Test detection of too large personlisation string */
+    /* Test detection of too large personalisation string */
     if (!init(drbg, td, &t)
             || RAND_DRBG_instantiate(drbg, td->pers, drbg->max_perslen + 1) > 0)
         goto err;
@@ -802,6 +802,7 @@ static int test_rand_drbg_reseed(void)
     /* fill 'randomness' buffer with some arbitrary data */
     memset(rand_add_buf, 'r', sizeof(rand_add_buf));
 
+#ifndef FIPS_MODE
     /*
      * Test whether all three DRBGs are reseeded by RAND_add().
      * The before_reseed time has to be measured here and passed into the
@@ -827,6 +828,20 @@ static int test_rand_drbg_reseed(void)
     if (!TEST_true(test_drbg_reseed(0, master, public, private, 0, 0, 0, 0)))
         goto error;
     reset_drbg_hook_ctx();
+#else /* FIPS_MODE */
+    /*
+     * In FIPS mode, random data provided by the application via RAND_add()
+     * is not considered a trusted entropy source. It is only treated as
+     * additional_data and no reseeding is forced. This test assures that
+     * no reseeding occurs.
+     */
+    before_reseed = time(NULL);
+    RAND_add(rand_add_buf, sizeof(rand_add_buf), sizeof(rand_add_buf));
+    if (!TEST_true(test_drbg_reseed(1, master, public, private, 0, 0, 0,
+                                    before_reseed)))
+        goto error;
+    reset_drbg_hook_ctx();
+#endif
 
     rv = 1;
 
@@ -1249,7 +1264,8 @@ static const size_t crngt_num_cases = 6;
 
 static size_t crngt_case, crngt_idx;
 
-static int crngt_entropy_cb(unsigned char *buf, unsigned char *md,
+static int crngt_entropy_cb(OPENSSL_CTX *ctx, RAND_POOL *pool,
+                            unsigned char *buf, unsigned char *md,
                             unsigned int *md_size)
 {
     size_t i, z;
@@ -1273,19 +1289,16 @@ static int test_crngt(int n)
     size_t ent;
     int res = 0;
     int expect;
+    OPENSSL_CTX *ctx = OPENSSL_CTX_new();
 
-    if (!TEST_true(rand_crngt_single_init()))
+    if (!TEST_ptr(ctx))
         return 0;
-    rand_crngt_cleanup();
-
-    if (!TEST_ptr(drbg = RAND_DRBG_new(dt->nid, dt->flags, NULL)))
-        return 0;
+    if (!TEST_ptr(drbg = RAND_DRBG_new_ex(ctx, dt->nid, dt->flags, NULL)))
+        goto err;
     ent = (drbg->min_entropylen + CRNGT_BUFSIZ - 1) / CRNGT_BUFSIZ;
     crngt_case = n % crngt_num_cases;
     crngt_idx = 0;
     crngt_get_entropy = &crngt_entropy_cb;
-    if (!TEST_true(rand_crngt_init()))
-        goto err;
 #ifndef FIPS_MODE
     if (!TEST_true(RAND_DRBG_set_callbacks(drbg, &rand_crngt_get_entropy,
                                            &rand_crngt_cleanup_entropy,
@@ -1318,6 +1331,7 @@ err:
     uninstantiate(drbg);
     RAND_DRBG_free(drbg);
     crngt_get_entropy = &rand_crngt_get_entropy_cb;
+    OPENSSL_CTX_free(ctx);
     return res;
 }
 

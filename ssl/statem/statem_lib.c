@@ -286,9 +286,13 @@ int tls_construct_cert_verify(SSL *s, WPACKET *pkt)
     }
     if (s->version == SSL3_VERSION) {
         if (EVP_DigestSignUpdate(mctx, hdata, hdatalen) <= 0
-            || !EVP_MD_CTX_ctrl(mctx, EVP_CTRL_SSL3_MASTER_SECRET,
-                                (int)s->session->master_key_length,
-                                s->session->master_key)
+            /*
+             * TODO(3.0) Replace this when EVP_MD_CTX_ctrl() is deprecated
+             * with a call to ssl3_digest_master_key_set_params()
+             */
+            || EVP_MD_CTX_ctrl(mctx, EVP_CTRL_SSL3_MASTER_SECRET,
+                               (int)s->session->master_key_length,
+                               s->session->master_key) <= 0
             || EVP_DigestSignFinal(mctx, sig, &siglen) <= 0) {
 
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CERT_VERIFY,
@@ -473,10 +477,14 @@ MSG_PROCESS_RETURN tls_process_cert_verify(SSL *s, PACKET *pkt)
         }
     }
     if (s->version == SSL3_VERSION) {
+        /*
+         * TODO(3.0) Replace this when EVP_MD_CTX_ctrl() is deprecated
+         * with a call to ssl3_digest_master_key_set_params()
+         */
         if (EVP_DigestVerifyUpdate(mctx, hdata, hdatalen) <= 0
-                || !EVP_MD_CTX_ctrl(mctx, EVP_CTRL_SSL3_MASTER_SECRET,
-                                    (int)s->session->master_key_length,
-                                    s->session->master_key)) {
+                || EVP_MD_CTX_ctrl(mctx, EVP_CTRL_SSL3_MASTER_SECRET,
+                                   (int)s->session->master_key_length,
+                                    s->session->master_key) <= 0) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PROCESS_CERT_VERIFY,
                      ERR_R_EVP_LIB);
             goto err;
@@ -643,12 +651,9 @@ MSG_PROCESS_RETURN tls_process_key_update(SSL *s, PACKET *pkt)
     /*
      * If we get a request for us to update our sending keys too then, we need
      * to additionally send a KeyUpdate message. However that message should
-     * not also request an update (otherwise we get into an infinite loop). We
-     * ignore a request for us to update our sending keys too if we already
-     * sent close_notify.
+     * not also request an update (otherwise we get into an infinite loop).
      */
-    if (updatetype == SSL_KEY_UPDATE_REQUESTED
-            && (s->shutdown & SSL_SENT_SHUTDOWN) == 0)
+    if (updatetype == SSL_KEY_UPDATE_REQUESTED)
         s->key_update = SSL_KEY_UPDATE_NOT_REQUESTED;
 
     if (!tls13_update_key(s, 0)) {
@@ -2132,7 +2137,6 @@ int ssl_set_client_hello_version(SSL *s)
  * used. Returns 1 if the group is in the list (and allowed if |checkallow| is
  * 1) or 0 otherwise.
  */
-#ifndef OPENSSL_NO_EC
 int check_in_list(SSL *s, uint16_t group_id, const uint16_t *groups,
                   size_t num_groups, int checkallow)
 {
@@ -2146,14 +2150,13 @@ int check_in_list(SSL *s, uint16_t group_id, const uint16_t *groups,
 
         if (group_id == group
                 && (!checkallow
-                    || tls_curve_allowed(s, group, SSL_SECOP_CURVE_CHECK))) {
+                    || tls_group_allowed(s, group, SSL_SECOP_CURVE_CHECK))) {
             return 1;
         }
     }
 
     return 0;
 }
-#endif
 
 /* Replace ClientHello1 in the transcript hash with a synthetic message */
 int create_synthetic_message_hash(SSL *s, const unsigned char *hashval,

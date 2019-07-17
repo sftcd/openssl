@@ -77,7 +77,7 @@ struct ossl_param_st {
     unsigned int data_type;      /* declare what kind of content is in buffer */
     void *data;                  /* value being passed in or out */
     size_t data_size;            /* data size */
-    size_t *return_size;         /* OPTIONAL: address to content size */
+    size_t return_size;          /* returned content size */
 };
 
 /* Currently supported OSSL_PARAM data types */
@@ -142,6 +142,19 @@ struct ossl_param_st {
  * data and its location are constant.
  */
 # define OSSL_PARAM_OCTET_PTR            7
+
+/*
+ * Typedef for the thread stop handling callback. Used both internally and by
+ * providers.
+ * 
+ * Providers may register for notifications about threads stopping by
+ * registering a callback to hear about such events. Providers register the
+ * callback using the OSSL_FUNC_CORE_THREAD_START function in the |in| dispatch
+ * table passed to OSSL_provider_init(). The arg passed back to a provider will
+ * be the provider side context object.
+ */
+typedef void (*OSSL_thread_stop_handler_fn)(void *arg);
+
 
 /*-
  * Provider entry point

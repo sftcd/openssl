@@ -21,7 +21,7 @@
 #if defined(__linux)
 # include <asm/unistd.h>
 #endif
-#if defined(__FreeBSD__)
+#if defined(__FreeBSD__) && !defined(OPENSSL_SYS_UEFI)
 # include <sys/types.h>
 # include <sys/sysctl.h>
 # include <sys/param.h>
@@ -285,7 +285,7 @@ static ssize_t syscall_random(void *buf, size_t buflen)
 
     if (getentropy != NULL)
         return getentropy(buf, buflen) == 0 ? (ssize_t)buflen : -1;
-#  else
+#  elif !defined(FIPS_MODE)
     union {
         void *p;
         int (*f)(void *buffer, size_t length);
@@ -489,29 +489,6 @@ size_t rand_pool_acquire_entropy(RAND_POOL *pool)
     bytes_needed = rand_pool_bytes_needed(pool, 1 /*entropy_factor*/);
     {
         size_t i;
-#ifdef DEVRANDOM_WAIT
-        static int wait_done = 0;
-
-        /*
-         * On some implementations reading from /dev/urandom is possible
-         * before it is initialized. Therefore we wait for /dev/random
-         * to be readable to make sure /dev/urandom is initialized.
-         */
-        if (!wait_done && bytes_needed > 0) {
-             int f = open(DEVRANDOM_WAIT, O_RDONLY);
-
-             if (f >= 0) {
-                 fd_set fds;
-
-                 FD_ZERO(&fds);
-                 FD_SET(f, &fds);
-                 while (select(f+1, &fds, NULL, NULL, NULL) < 0
-                        && errno == EINTR);
-                 close(f);
-             }
-             wait_done = 1;
-        }
-#endif
 
         for (i = 0; bytes_needed > 0 && i < OSSL_NELEM(random_device_paths); i++) {
             ssize_t bytes = 0;

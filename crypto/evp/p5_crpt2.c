@@ -1,5 +1,5 @@
 /*
- * Copyright 1999-2018 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 1999-2019 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -40,6 +40,7 @@ int PKCS5_PBKDF2_HMAC(const char *pass, int passlen,
     if (kctx == NULL)
         return 0;
     if (EVP_KDF_ctrl(kctx, EVP_KDF_CTRL_SET_PASS, pass, (size_t)passlen) != 1
+            || EVP_KDF_ctrl(kctx, EVP_KDF_CTRL_SET_PBKDF2_PKCS5_MODE, 1) != 1
             || EVP_KDF_ctrl(kctx, EVP_KDF_CTRL_SET_SALT,
                             salt, (size_t)saltlen) != 1
             || EVP_KDF_ctrl(kctx, EVP_KDF_CTRL_SET_ITER, iter) != 1
@@ -134,7 +135,7 @@ int PKCS5_v2_PBKDF2_keyivgen(EVP_CIPHER_CTX *ctx, const char *pass,
                              const EVP_CIPHER *c, const EVP_MD *md, int en_de)
 {
     unsigned char *salt, key[EVP_MAX_KEY_LENGTH];
-    int saltlen, iter;
+    int saltlen, iter, t;
     int rv = 0;
     unsigned int keylen = 0;
     int prf_nid, hmac_md_nid;
@@ -157,7 +158,12 @@ int PKCS5_v2_PBKDF2_keyivgen(EVP_CIPHER_CTX *ctx, const char *pass,
         goto err;
     }
 
-    keylen = EVP_CIPHER_CTX_key_length(ctx);
+    t = EVP_CIPHER_CTX_key_length(ctx);
+    if (t < 0) {
+        EVPerr(EVP_F_PKCS5_V2_PBKDF2_KEYIVGEN, EVP_R_INVALID_KEY_LENGTH);
+        goto err;
+    }
+    keylen = t;
 
     /* Now check the parameters of the kdf */
 

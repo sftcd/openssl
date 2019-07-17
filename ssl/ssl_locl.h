@@ -562,7 +562,6 @@ struct ssl_session_st {
     const SSL_CIPHER *cipher;
     unsigned long cipher_id;    /* when ASN.1 loaded, this needs to be used to
                                  * load the 'cipher' structure */
-    STACK_OF(SSL_CIPHER) *ciphers; /* ciphers offered by the client */
     CRYPTO_EX_DATA ex_data;     /* application specific data */
     /*
      * These are used to make removal of session-ids more efficient and to
@@ -572,6 +571,7 @@ struct ssl_session_st {
 
     struct {
         char *hostname;
+
 #ifndef OPENSSL_NO_ESNI
 
         /*
@@ -609,7 +609,7 @@ struct ssl_session_st {
 # endif                         /* OPENSSL_NO_EC */
         size_t supportedgroups_len;
         uint16_t *supportedgroups; /* peer's list */
-    /* RFC4507 info */
+        /* RFC4507 info */
         unsigned char *tick; /* Session ticket */
         size_t ticklen;      /* Session ticket length */
         /* Session lifetime hint in seconds */
@@ -997,9 +997,10 @@ struct ssl_ctx_st {
         /* EC extension values inherited by SSL structure */
         size_t ecpointformats_len;
         unsigned char *ecpointformats;
+# endif                         /* OPENSSL_NO_EC */
+
         size_t supportedgroups_len;
         uint16_t *supportedgroups;
-# endif                         /* OPENSSL_NO_EC */
 
         /*
          * ALPN information (we are in the process of transitioning from NPN to
@@ -1368,6 +1369,7 @@ struct ssl_st {
     /* Per connection DANE state */
     SSL_DANE dane;
     /* crypto */
+    STACK_OF(SSL_CIPHER) *peer_ciphers;
     STACK_OF(SSL_CIPHER) *cipher_list;
     STACK_OF(SSL_CIPHER) *cipher_list_by_id;
     /* TLSv1.3 specific ciphersuites */
@@ -1559,10 +1561,19 @@ struct ssl_st {
         size_t ecpointformats_len;
         /* our list */
         unsigned char *ecpointformats;
+
+        size_t peer_ecpointformats_len;
+        /* peer's list */
+        unsigned char *peer_ecpointformats;
 # endif                         /* OPENSSL_NO_EC */
         size_t supportedgroups_len;
         /* our list */
         uint16_t *supportedgroups;
+
+        size_t peer_supportedgroups_len;
+         /* peer's list */
+        uint16_t *peer_supportedgroups;
+
         /* TLS Session Ticket extension override */
         TLS_SESSION_TICKET_EXT *session_ticket;
         /* TLS Session Ticket extension callback */
@@ -1740,6 +1751,13 @@ struct ssl_st {
     /* Callback for SSL async handling */
     SSL_async_callback_fn async_cb;
     void *async_cb_arg;
+
+    /*
+     * Signature algorithms shared by client and server: cached because these
+     * are used most often.
+     */
+    const struct sigalg_lookup_st **shared_sigalgs;
+    size_t shared_sigalgslen;
 };
 
 /*
@@ -1768,14 +1786,19 @@ typedef struct sigalg_lookup_st {
 typedef struct tls_group_info_st {
     int nid;                    /* Curve NID */
     int secbits;                /* Bits of security (from SP800-57) */
-    uint16_t flags;             /* Flags: currently just group type */
+    uint32_t flags;             /* For group type and applicable TLS versions */
+    uint16_t group_id;          /* Group ID */
 } TLS_GROUP_INFO;
 
 /* flags values */
-# define TLS_CURVE_TYPE          0x3 /* Mask for group type */
-# define TLS_CURVE_PRIME         0x0
-# define TLS_CURVE_CHAR2         0x1
-# define TLS_CURVE_CUSTOM        0x2
+# define TLS_GROUP_TYPE             0x0000000FU /* Mask for group type */
+# define TLS_GROUP_CURVE_PRIME      0x00000001U
+# define TLS_GROUP_CURVE_CHAR2      0x00000002U
+# define TLS_GROUP_CURVE_CUSTOM     0x00000004U
+# define TLS_GROUP_FFDHE            0x00000008U
+# define TLS_GROUP_ONLY_FOR_TLS1_3  0x00000010U
+
+# define TLS_GROUP_FFDHE_FOR_TLS1_3 (TLS_GROUP_FFDHE|TLS_GROUP_ONLY_FOR_TLS1_3)
 
 /*
  * Structure containing table entry of certificate info corresponding to
@@ -1999,12 +2022,6 @@ typedef struct cert_st {
     uint16_t *client_sigalgs;
     /* Size of above array */
     size_t client_sigalgslen;
-    /*
-     * Signature algorithms shared by client and server: cached because these
-     * are used most often.
-     */
-    const SIGALG_LOOKUP **shared_sigalgs;
-    size_t shared_sigalgslen;
     /*
      * Certificate setup callback: if set is called whenever a certificate
      * may be required (client or server). the callback can then examine any
@@ -2335,8 +2352,8 @@ static ossl_inline int ssl_has_cert(const SSL *s, int idx)
 static ossl_inline void tls1_get_peer_groups(SSL *s, const uint16_t **pgroups,
                                              size_t *pgroupslen)
 {
-    *pgroups = s->session->ext.supportedgroups;
-    *pgroupslen = s->session->ext.supportedgroups_len;
+    *pgroups = s->ext.peer_supportedgroups;
+    *pgroupslen = s->ext.peer_supportedgroups_len;
 }
 
 # ifndef OPENSSL_UNIT_TEST
@@ -2445,6 +2462,8 @@ __owur int ssl3_num_ciphers(void);
 __owur const SSL_CIPHER *ssl3_get_cipher(unsigned int u);
 int ssl3_renegotiate(SSL *ssl);
 int ssl3_renegotiate_check(SSL *ssl, int initok);
+void ssl3_digest_master_key_set_params(const SSL_SESSION *session,
+                                       OSSL_PARAM params[]);
 __owur int ssl3_dispatch_alert(SSL *s);
 __owur size_t ssl3_final_finish_mac(SSL *s, const char *sender, size_t slen,
                                     unsigned char *p);
@@ -2601,8 +2620,6 @@ __owur int ssl_check_srvr_ecc_cert_and_alg(X509 *x, SSL *s);
 
 SSL_COMP *ssl3_comp_find(STACK_OF(SSL_COMP) *sk, int n);
 
-#  ifndef OPENSSL_NO_EC
-
 __owur const TLS_GROUP_INFO *tls1_group_id_lookup(uint16_t curve_id);
 __owur int tls1_check_group_id(SSL *s, uint16_t group_id, int check_own_curves);
 __owur uint16_t tls1_shared_group(SSL *s, int nmatch);
@@ -2610,14 +2627,16 @@ __owur int tls1_set_groups(uint16_t **pext, size_t *pextlen,
                            int *curves, size_t ncurves);
 __owur int tls1_set_groups_list(uint16_t **pext, size_t *pextlen,
                                 const char *str);
+__owur EVP_PKEY *ssl_generate_pkey_group(SSL *s, uint16_t id);
+__owur int tls_valid_group(SSL *s, uint16_t group_id, int version);
+__owur EVP_PKEY *ssl_generate_param_group(uint16_t id);
+#  ifndef OPENSSL_NO_EC
 void tls1_get_formatlist(SSL *s, const unsigned char **pformats,
                          size_t *num_formats);
 __owur int tls1_check_ec_tmp_key(SSL *s, unsigned long id);
-__owur EVP_PKEY *ssl_generate_pkey_group(SSL *s, uint16_t id);
-__owur EVP_PKEY *ssl_generate_param_group(uint16_t id);
 #  endif                        /* OPENSSL_NO_EC */
 
-__owur int tls_curve_allowed(SSL *s, uint16_t curve, int op);
+__owur int tls_group_allowed(SSL *s, uint16_t curve, int op);
 void tls1_get_supported_groups(SSL *s, const uint16_t **pgroups,
                                size_t *pgroupslen);
 

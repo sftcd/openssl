@@ -59,6 +59,7 @@ static ERR_STRING_DATA ERR_str_libraries[] = {
     {ERR_PACK(ERR_LIB_FIPS, 0, 0), "FIPS routines"},
     {ERR_PACK(ERR_LIB_CMS, 0, 0), "CMS routines"},
     {ERR_PACK(ERR_LIB_CRMF, 0, 0), "CRMF routines"},
+    {ERR_PACK(ERR_LIB_CMP, 0, 0), "CMP routines"},
     {ERR_PACK(ERR_LIB_HMAC, 0, 0), "HMAC routines"},
     {ERR_PACK(ERR_LIB_CT, 0, 0), "CT routines"},
     {ERR_PACK(ERR_LIB_ASYNC, 0, 0), "ASYNC routines"},
@@ -188,8 +189,8 @@ static ERR_STRING_DATA *int_err_get_item(const ERR_STRING_DATA *d)
 }
 
 #ifndef OPENSSL_NO_ERR
-/* A measurement on Linux 2018-11-21 showed about 3.5kib */
-# define SPACE_SYS_STR_REASONS 4 * 1024
+/* 2019-05-21: Russian and Ukrainian locales on Linux require more than 6,5 kB */
+# define SPACE_SYS_STR_REASONS 8 * 1024
 # define NUM_SYS_STR_REASONS 127
 
 static ERR_STRING_DATA SYS_str_reasons[NUM_SYS_STR_REASONS + 1];
@@ -223,21 +224,23 @@ static void build_SYS_str_reasons(void)
         ERR_STRING_DATA *str = &SYS_str_reasons[i - 1];
 
         str->error = ERR_PACK(ERR_LIB_SYS, 0, i);
-        if (str->string == NULL) {
+        /*
+         * If we have used up all the space in strerror_pool,
+         * there's no point in calling openssl_strerror_r()
+         */
+        if (str->string == NULL && cnt < sizeof(strerror_pool)) {
             if (openssl_strerror_r(i, cur, sizeof(strerror_pool) - cnt)) {
                 size_t l = strlen(cur);
 
                 str->string = cur;
                 cnt += l;
-                if (cnt > sizeof(strerror_pool))
-                    cnt = sizeof(strerror_pool);
                 cur += l;
 
                 /*
                  * VMS has an unusual quirk of adding spaces at the end of
-                 * some (most? all?) messages.  Lets trim them off.
+                 * some (most? all?) messages. Lets trim them off.
                  */
-                while (ossl_isspace(cur[-1])) {
+                while (cur > strerror_pool && ossl_isspace(cur[-1])) {
                     cur--;
                     cnt--;
                 }
@@ -686,7 +689,8 @@ const char *ERR_reason_error_string(unsigned long e)
     return ((p == NULL) ? NULL : p->string);
 }
 
-void err_delete_thread_state(void)
+/* TODO(3.0): arg ignored for now */
+static void err_delete_thread_state(void *arg)
 {
     ERR_STATE *state = CRYPTO_THREAD_get_local(&err_thread_local);
     if (state == NULL)
@@ -738,7 +742,7 @@ ERR_STATE *ERR_get_state(void)
             return NULL;
         }
 
-        if (!ossl_init_thread_start(OPENSSL_INIT_THREAD_ERR_STATE)
+        if (!ossl_init_thread_start(NULL, NULL, err_delete_thread_state)
                 || !CRYPTO_THREAD_set_local(&err_thread_local, state)) {
             ERR_STATE_free(state);
             CRYPTO_THREAD_set_local(&err_thread_local, NULL);
@@ -847,32 +851,41 @@ void ERR_add_error_data(int num, ...)
 
 void ERR_add_error_vdata(int num, va_list args)
 {
-    int i, n, s;
-    char *str, *p, *a;
+    int i, len, size;
+    char *str, *p, *arg;
+    ERR_STATE *es;
 
-    s = 80;
-    if ((str = OPENSSL_malloc(s + 1)) == NULL) {
+    /* Get the current error data; if an allocated string get it. */
+    es = ERR_get_state();
+    if (es == NULL)
+        return;
+    i = es->top;
+    p = es->err_data_flags[i] == (ERR_TXT_MALLOCED | ERR_TXT_STRING)
+            ? es->err_data[i] : "";
+
+    /* Start with initial (or empty) string and allocate a new buffer */
+    size = 80 + strlen(p);
+    if ((str = OPENSSL_malloc(size + 1)) == NULL) {
         /* ERRerr(ERR_F_ERR_ADD_ERROR_VDATA, ERR_R_MALLOC_FAILURE); */
         return;
     }
-    str[0] = '\0';
+    strcpy(str, p);
 
-    n = 0;
-    for (i = 0; i < num; i++) {
-        a = va_arg(args, char *);
-        if (a == NULL)
-            a = "<NULL>";
-        n += strlen(a);
-        if (n > s) {
-            s = n + 20;
-            p = OPENSSL_realloc(str, s + 1);
+    for (len = 0; --num >= 0; ) {
+        arg = va_arg(args, char *);
+        if (arg == NULL)
+            arg = "<NULL>";
+        len += strlen(arg);
+        if (len > size) {
+            size = len + 20;
+            p = OPENSSL_realloc(str, size + 1);
             if (p == NULL) {
                 OPENSSL_free(str);
                 return;
             }
             str = p;
         }
-        OPENSSL_strlcat(str, a, (size_t)s + 1);
+        OPENSSL_strlcat(str, arg, (size_t)size + 1);
     }
     if (!err_set_error_data_int(str, ERR_TXT_MALLOCED | ERR_TXT_STRING))
         OPENSSL_free(str);

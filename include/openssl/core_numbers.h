@@ -10,6 +10,7 @@
 #ifndef OSSL_CORE_NUMBERS_H
 # define OSSL_CORE_NUMBERS_H
 
+# include <stdarg.h>
 # include <openssl/core.h>
 
 # ifdef __cplusplus
@@ -34,7 +35,12 @@ extern "C" {
  * - a function pointer extractor function with the name OSSL_'foo'
  */
 
-/* Helper macro to create the function signature typedef and the extractor */
+/*
+ * Helper macro to create the function signature typedef and the extractor
+ * |type| is the return-type of the function, |name| is the name of the
+ * function to fetch, and |args| is a parenthesized list of parameters
+ * for the function (that is, it is |name|'s function signature).
+ */
 #define OSSL_CORE_MAKE_FUNC(type,name,args)                             \
     typedef type (OSSL_##name##_fn)args;                                \
     static ossl_inline \
@@ -56,7 +62,71 @@ OSSL_CORE_MAKE_FUNC(const OSSL_ITEM *,
                     core_get_param_types,(const OSSL_PROVIDER *prov))
 # define OSSL_FUNC_CORE_GET_PARAMS             2
 OSSL_CORE_MAKE_FUNC(int,core_get_params,(const OSSL_PROVIDER *prov,
-                                         const OSSL_PARAM params[]))
+                                         OSSL_PARAM params[]))
+# define OSSL_FUNC_CORE_THREAD_START           3
+OSSL_CORE_MAKE_FUNC(int,core_thread_start,(const OSSL_PROVIDER *prov,
+                                           OSSL_thread_stop_handler_fn handfn))
+# define OSSL_FUNC_CORE_PUT_ERROR              4
+OSSL_CORE_MAKE_FUNC(void,core_put_error,
+                    (const OSSL_PROVIDER *prov,
+                     uint32_t reason, const char *file, int line))
+# define OSSL_FUNC_CORE_ADD_ERROR_VDATA        5
+OSSL_CORE_MAKE_FUNC(void,core_add_error_vdata,(const OSSL_PROVIDER *prov,
+                                               int num, va_list args))
+# define OSSL_FUNC_CORE_GET_LIBRARY_CONTEXT    6
+OSSL_CORE_MAKE_FUNC(OPENSSL_CTX *,core_get_library_context,
+                    (const OSSL_PROVIDER *prov))
+
+
+/* Memory allocation, freeing, clearing. */
+#define OSSL_FUNC_CRYPTO_MALLOC               10
+OSSL_CORE_MAKE_FUNC(void *,
+        CRYPTO_malloc, (size_t num, const char *file, int line))
+#define OSSL_FUNC_CRYPTO_ZALLOC               11
+OSSL_CORE_MAKE_FUNC(void *,
+        CRYPTO_zalloc, (size_t num, const char *file, int line))
+#define OSSL_FUNC_CRYPTO_MEMDUP               12
+OSSL_CORE_MAKE_FUNC(void *,
+        CRYPTO_memdup, (const void *str, size_t siz, const char *file, int line))
+#define OSSL_FUNC_CRYPTO_STRDUP               13
+OSSL_CORE_MAKE_FUNC(char *,
+        CRYPTO_strdup, (const char *str, const char *file, int line))
+#define OSSL_FUNC_CRYPTO_STRNDUP              14
+OSSL_CORE_MAKE_FUNC(char *,
+        CRYPTO_strndup, (const char *str, size_t s, const char *file, int line))
+#define OSSL_FUNC_CRYPTO_FREE                 15
+OSSL_CORE_MAKE_FUNC(void,
+        CRYPTO_free, (void *ptr, const char *file, int line))
+#define OSSL_FUNC_CRYPTO_CLEAR_FREE           16
+OSSL_CORE_MAKE_FUNC(void,
+        CRYPTO_clear_free, (void *ptr, size_t num, const char *file, int line))
+#define OSSL_FUNC_CRYPTO_REALLOC              17
+OSSL_CORE_MAKE_FUNC(void *,
+        CRYPTO_realloc, (void *addr, size_t num, const char *file, int line))
+#define OSSL_FUNC_CRYPTO_CLEAR_REALLOC        18
+OSSL_CORE_MAKE_FUNC(void *,
+        CRYPTO_clear_realloc, (void *addr, size_t old_num, size_t num, const char *file, int line))
+#define OSSL_FUNC_CRYPTO_SECURE_MALLOC        19
+OSSL_CORE_MAKE_FUNC(void *,
+        CRYPTO_secure_malloc, (size_t num, const char *file, int line))
+#define OSSL_FUNC_CRYPTO_SECURE_ZALLOC        20
+OSSL_CORE_MAKE_FUNC(void *,
+        CRYPTO_secure_zalloc, (size_t num, const char *file, int line))
+#define OSSL_FUNC_CRYPTO_SECURE_FREE          21
+OSSL_CORE_MAKE_FUNC(void,
+        CRYPTO_secure_free, (void *ptr, const char *file, int line))
+#define OSSL_FUNC_CRYPTO_SECURE_CLEAR_FREE    22
+OSSL_CORE_MAKE_FUNC(void,
+        CRYPTO_secure_clear_free, (void *ptr, size_t num, const char *file, int line))
+#define OSSL_FUNC_CRYPTO_SECURE_ALLOCATED     23
+OSSL_CORE_MAKE_FUNC(int,
+        CRYPTO_secure_allocated, (const void *ptr))
+#define OSSL_FUNC_OPENSSL_CLEANSE             24
+OSSL_CORE_MAKE_FUNC(void,
+        OPENSSL_cleanse, (void *ptr, size_t len))
+# define OSSL_FUNC_OPENSSL_HEXSTR2BUF         25
+OSSL_CORE_MAKE_FUNC(unsigned char *,
+        OPENSSL_hexstr2buf, (const char *str, long *len))
 
 /* Functions provided by the provider to the Core, reserved numbers 1024-1535 */
 # define OSSL_FUNC_PROVIDER_TEARDOWN         1024
@@ -66,10 +136,13 @@ OSSL_CORE_MAKE_FUNC(const OSSL_ITEM *,
                     provider_get_param_types,(void *provctx))
 # define OSSL_FUNC_PROVIDER_GET_PARAMS       1026
 OSSL_CORE_MAKE_FUNC(int,provider_get_params,(void *provctx,
-                                             const OSSL_PARAM params[]))
+                                             OSSL_PARAM params[]))
 # define OSSL_FUNC_PROVIDER_QUERY_OPERATION  1027
 OSSL_CORE_MAKE_FUNC(const OSSL_ALGORITHM *,provider_query_operation,
                     (void *provctx, int operation_id, const int *no_store))
+# define OSSL_FUNC_PROVIDER_GET_REASON_STRINGS 1028
+OSSL_CORE_MAKE_FUNC(const OSSL_ITEM *,provider_get_reason_strings,
+                    (void *provctx))
 
 /* Digests */
 
@@ -84,7 +157,8 @@ OSSL_CORE_MAKE_FUNC(const OSSL_ALGORITHM *,provider_query_operation,
 # define OSSL_FUNC_DIGEST_DUPCTX            7
 # define OSSL_FUNC_DIGEST_SIZE              8
 # define OSSL_FUNC_DIGEST_BLOCK_SIZE        9
-
+# define OSSL_FUNC_DIGEST_SET_PARAMS        10
+# define OSSL_FUNC_DIGEST_GET_PARAMS        11
 
 OSSL_CORE_MAKE_FUNC(void *, OP_digest_newctx, (void *provctx))
 OSSL_CORE_MAKE_FUNC(int, OP_digest_init, (void *dctx))
@@ -100,9 +174,13 @@ OSSL_CORE_MAKE_FUNC(int, OP_digest_digest,
 OSSL_CORE_MAKE_FUNC(void, OP_digest_cleanctx, (void *dctx))
 OSSL_CORE_MAKE_FUNC(void, OP_digest_freectx, (void *dctx))
 OSSL_CORE_MAKE_FUNC(void *, OP_digest_dupctx, (void *dctx))
+
 OSSL_CORE_MAKE_FUNC(size_t, OP_digest_size, (void))
 OSSL_CORE_MAKE_FUNC(size_t, OP_digest_block_size, (void))
-
+OSSL_CORE_MAKE_FUNC(int, OP_digest_set_params,
+                    (void *vctx, const OSSL_PARAM params[]))
+OSSL_CORE_MAKE_FUNC(int, OP_digest_get_params,
+                    (void *vctx, OSSL_PARAM params[]))
 
 /* Symmetric Ciphers */
 
@@ -116,12 +194,9 @@ OSSL_CORE_MAKE_FUNC(size_t, OP_digest_block_size, (void))
 # define OSSL_FUNC_CIPHER_CIPHER                     6
 # define OSSL_FUNC_CIPHER_FREECTX                    7
 # define OSSL_FUNC_CIPHER_DUPCTX                     8
-# define OSSL_FUNC_CIPHER_KEY_LENGTH                 9
-# define OSSL_FUNC_CIPHER_IV_LENGTH                 10
-# define OSSL_FUNC_CIPHER_BLOCK_SIZE                11
-# define OSSL_FUNC_CIPHER_GET_PARAMS                12
-# define OSSL_FUNC_CIPHER_CTX_GET_PARAMS            13
-# define OSSL_FUNC_CIPHER_CTX_SET_PARAMS            14
+# define OSSL_FUNC_CIPHER_GET_PARAMS                 9
+# define OSSL_FUNC_CIPHER_CTX_GET_PARAMS            10
+# define OSSL_FUNC_CIPHER_CTX_SET_PARAMS            11
 
 OSSL_CORE_MAKE_FUNC(void *, OP_cipher_newctx, (void *provctx))
 OSSL_CORE_MAKE_FUNC(int, OP_cipher_encrypt_init, (void *cctx,
@@ -147,15 +222,11 @@ OSSL_CORE_MAKE_FUNC(int, OP_cipher_cipher,
                      const unsigned char *in, size_t inl))
 OSSL_CORE_MAKE_FUNC(void, OP_cipher_freectx, (void *cctx))
 OSSL_CORE_MAKE_FUNC(void *, OP_cipher_dupctx, (void *cctx))
-OSSL_CORE_MAKE_FUNC(size_t, OP_cipher_key_length, (void))
-OSSL_CORE_MAKE_FUNC(size_t, OP_cipher_iv_length, (void))
-OSSL_CORE_MAKE_FUNC(size_t, OP_cipher_block_size, (void))
-OSSL_CORE_MAKE_FUNC(int, OP_cipher_get_params, (const OSSL_PARAM params[]))
+OSSL_CORE_MAKE_FUNC(int, OP_cipher_get_params, (OSSL_PARAM params[]))
 OSSL_CORE_MAKE_FUNC(int, OP_cipher_ctx_get_params, (void *cctx,
-                                                    const OSSL_PARAM params[]))
+                                                    OSSL_PARAM params[]))
 OSSL_CORE_MAKE_FUNC(int, OP_cipher_ctx_set_params, (void *cctx,
                                                     const OSSL_PARAM params[]))
-
 
 # ifdef __cplusplus
 }

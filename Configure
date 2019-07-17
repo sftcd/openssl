@@ -64,6 +64,7 @@ my $usage="Usage: Configure [no-<cipher> ...] [enable-<cipher> ...] [-Dxxx] [-lx
 # zlib-dynamic  Like "zlib", but the zlib library is expected to be a shared
 #               library and will be loaded in run-time by the OpenSSL library.
 # sctp          include SCTP support
+# no-uplink     Don't build support for UPLINK interface.
 # enable-weak-ssl-ciphers
 #               Enable weak ciphers that are disabled by default.
 # 386           generate 80386 code in assembly modules
@@ -88,9 +89,6 @@ my $usage="Usage: Configure [no-<cipher> ...] [enable-<cipher> ...] [-Dxxx] [-lx
 #               linked openssl executable has rather debugging value than
 #               production quality.
 #
-# DEBUG_SAFESTACK use type-safe stacks to enforce type-safety on stack items
-#               provided to stack calls. Generates unique stack functions for
-#               each possible stack type.
 # BN_LLONG      use the type 'long long' in crypto/bn/bn.h
 # RC4_CHAR      use 'char' instead of 'int' for RC4_INT in crypto/rc4/rc4.h
 # Following are set automatically by this script
@@ -102,8 +100,9 @@ my $usage="Usage: Configure [no-<cipher> ...] [enable-<cipher> ...] [-Dxxx] [-lx
 # SHA512_ASM    sha512_block is implemented in assembler
 # AES_ASM       AES_[en|de]crypt is implemented in assembler
 
-# Minimum warning options... any contributions to OpenSSL should at least get
-# past these.
+# Minimum warning options... any contributions to OpenSSL should at least
+# get past these.  Note that we only use these with C compilers, not with
+# C++ compilers.
 
 # DEBUG_UNUSED enables __owur (warn unused result) checks.
 # -DPEDANTIC complements -pedantic and is meant to mask code that
@@ -118,27 +117,23 @@ my $usage="Usage: Configure [no-<cipher> ...] [enable-<cipher> ...] [-Dxxx] [-lx
 # code, so we just tell compiler to be pedantic about everything
 # but 'long long' type.
 
-my %gcc_devteam_warn = ();
-{
-    my @common = qw( -DDEBUG_UNUSED
-                     -DPEDANTIC -pedantic -Wno-long-long
-                     -Wall
-                     -Wextra
-                     -Wno-unused-parameter
-                     -Wno-missing-field-initializers
-                     -Wswitch
-                     -Wsign-compare
-                     -Wshadow
-                     -Wformat
-                     -Wtype-limits
-                     -Wundef
-                     -Werror );
-    %gcc_devteam_warn = (
-        CFLAGS          => [ @common, qw( -Wmissing-prototypes
-                                          -Wstrict-prototypes ) ],
-        CXXFLAGS        => [ @common ]
-    );
-}
+my @gcc_devteam_warn = qw(
+    -DDEBUG_UNUSED
+    -DPEDANTIC -pedantic -Wno-long-long
+    -Wall
+    -Wextra
+    -Wno-unused-parameter
+    -Wno-missing-field-initializers
+    -Wswitch
+    -Wsign-compare
+    -Wshadow
+    -Wformat
+    -Wtype-limits
+    -Wundef
+    -Werror
+    -Wmissing-prototypes
+    -Wstrict-prototypes
+);
 
 # These are used in addition to $gcc_devteam_warn when the compiler is clang.
 # TODO(openssl-team): fix problems and investigate if (at least) the
@@ -148,20 +143,16 @@ my %gcc_devteam_warn = ();
 #       -Wlanguage-extension-token -- no, we use asm()
 #       -Wunused-macros -- no, too tricky for BN and _XOPEN_SOURCE etc
 #       -Wextended-offsetof -- no, needed in CMS ASN1 code
-my %clang_devteam_warn = ();
-{
-    my @common = qw( -Wswitch-default
-                     -Wno-parentheses-equality
-                     -Wno-language-extension-token
-                     -Wno-extended-offsetof
-                     -Wconditional-uninitialized
-                     -Wincompatible-pointer-types-discards-qualifiers
-                     -Wno-unknown-warning-option );
-    %clang_devteam_warn = (
-        CFLAGS          => [ @common, qw( -Wmissing-variable-declarations ) ],
-        CXXFLAGS        => [ @common ]
-    );
-}
+my @clang_devteam_warn = qw(
+    -Wswitch-default
+    -Wno-parentheses-equality
+    -Wno-language-extension-token
+    -Wno-extended-offsetof
+    -Wconditional-uninitialized
+    -Wincompatible-pointer-types-discards-qualifiers
+    -Wno-unknown-warning-option
+    -Wmissing-variable-declarations
+);
 
 # This adds backtrace information to the memory leak info.  Is only used
 # when crypto-mdebug-backtrace is enabled.
@@ -345,9 +336,9 @@ my @disablables = (
     "cast",
     "chacha",
     "cmac",
+    "cmp",
     "cms",
     "comp",
-    "crmf",
     "crypto-mdebug",
     "crypto-mdebug-backtrace",
     "ct",
@@ -422,6 +413,7 @@ my @disablables = (
     "ubsan",
     "ui-console",
     "unit-test",
+    "uplink",
     "whirlpool",
     "weak-ssl-ciphers",
     "zlib",
@@ -432,6 +424,14 @@ foreach my $proto ((@tls, @dtls))
         push(@disablables, $proto);
         push(@disablables, "$proto-method") unless $proto eq "tls1_3";
         }
+
+# Internal disablables, for aliasing purposes.  They serve no special
+# purpose here, but allow scripts to get to know them through configdata.pm,
+# where these are merged with @disablables.
+# The actual aliasing mechanism is done via %disable_cascades
+my @disablables_int = qw(
+    crmf
+    );
 
 my %deprecated_disablables = (
     "ssl2" => undef,
@@ -482,8 +482,9 @@ my @disable_cascades = (
     "ssl3-method"       => [ "ssl3" ],
     "zlib"              => [ "zlib-dynamic" ],
     "des"               => [ "mdc2" ],
-    "ec"                => [ "ecdsa", "ecdh" ],
-
+    "ec"                => [ "ecdsa", "ecdh", "sm2" ],
+    sub { $disabled{"ec"} && $disabled{"dh"} }
+                        => [ "tls1_3" ],
     "dgram"             => [ "dtls", "sctp" ],
     "sock"              => [ "dgram" ],
     "dtls"              => [ @dtls ],
@@ -506,7 +507,7 @@ my @disable_cascades = (
     # which cannot be guaranteed if shared libraries aren't present.
     # (note that even with shared libraries, both the app and dynamic engines
     # must be linked with the same library)
-    "shared"            => [ "dynamic-engine" ],
+    "shared"            => [ "dynamic-engine", "uplink" ],
     # Other modules don't necessarily have to link with libcrypto, so shared
     # libraries do not have to be a condition to produce those.
 
@@ -526,7 +527,6 @@ my @disable_cascades = (
     "apps"              => [ "tests" ],
     "tests"             => [ "external-tests" ],
     "comp"              => [ "zlib" ],
-    "ec"                => [ "tls1_3", "sm2" ],
     "sm3"               => [ "sm2" ],
     sub { !$disabled{"unit-test"} } => [ "heartbeats" ],
 
@@ -534,6 +534,8 @@ my @disable_cascades = (
 
     sub { $disabled{cmac}; } => [ "siv" ],
     "legacy"                 => [ "md2" ],
+
+    "cmp"               => [ "crmf" ],
     );
 
 # Avoid protocol support holes.  Also disable all versions below N, if version
@@ -790,7 +792,6 @@ while (@argvcopy)
                 # Pretend that our strict flags is a C flag, and replace it
                 # with the proper flags later on
                 push @{$useradd{CFLAGS}}, '--ossl-strict-warnings';
-                push @{$useradd{CXXFLAGS}}, '--ossl-strict-warnings';
                 $strict_warnings=1;
                 }
         elsif (/^--debug$/)
@@ -1134,6 +1135,12 @@ foreach my $feature (@{$target{enable}}) {
         delete $disabled{$feature};
     }
 }
+
+# If uplink_arch isn't defined, disable uplink
+$disabled{uplink} = 'no uplink_arch' unless (defined $target{uplink_arch});
+# If asm_arch isn't defined, disable asm
+$disabled{asm} = 'no asm_arch' unless (defined $target{asm_arch});
+
 disable();                      # Run a cascade now
 
 $target{CXXFLAGS}//=$target{CFLAGS} if $target{CXX};
@@ -1353,20 +1360,16 @@ if ($disabled{"dynamic-engine"}) {
 
 unless ($disabled{asan} || defined $detected_sanitizers{asan}) {
     push @{$config{cflags}}, "-fsanitize=address";
-    push @{$config{cxxflags}}, "-fsanitize=address" if $config{CXX};
 }
 
 unless ($disabled{ubsan} || defined $detected_sanitizers{ubsan}) {
     # -DPEDANTIC or -fnosanitize=alignment may also be required on some
     # platforms.
     push @{$config{cflags}}, "-fsanitize=undefined", "-fno-sanitize-recover=all";
-    push @{$config{cxxflags}}, "-fsanitize=undefined", "-fno-sanitize-recover=all"
-        if $config{CXX};
 }
 
 unless ($disabled{msan} || defined $detected_sanitizers{msan}) {
   push @{$config{cflags}}, "-fsanitize=memory";
-  push @{$config{cxxflags}}, "-fsanitize=memory" if $config{CXX};
 }
 
 unless ($disabled{"fuzz-libfuzzer"} && $disabled{"fuzz-afl"}
@@ -1401,71 +1404,6 @@ if ($target{sys_id} ne "")
         }
 
 unless ($disabled{asm}) {
-    $target{cpuid_asm_src}=$table{DEFAULTS}->{cpuid_asm_src} if ($config{processor} eq "386");
-    push @{$config{lib_defines}}, "OPENSSL_CPUID_OBJ" if ($target{cpuid_asm_src} ne "mem_clr.c");
-
-    $target{bn_asm_src} =~ s/\w+-gf2m.c// if (defined($disabled{ec2m}));
-
-    # bn-586 is the only one implementing bn_*_part_words
-    push @{$config{lib_defines}}, "OPENSSL_BN_ASM_PART_WORDS" if ($target{bn_asm_src} =~ /bn-586/);
-    push @{$config{lib_defines}}, "OPENSSL_IA32_SSE2" if (!$disabled{sse2} && $target{bn_asm_src} =~ /86/);
-
-    push @{$config{lib_defines}}, "OPENSSL_BN_ASM_MONT" if ($target{bn_asm_src} =~ /-mont/);
-    push @{$config{lib_defines}}, "OPENSSL_BN_ASM_MONT5" if ($target{bn_asm_src} =~ /-mont5/);
-    push @{$config{lib_defines}}, "OPENSSL_BN_ASM_GF2m" if ($target{bn_asm_src} =~ /-gf2m/);
-    push @{$config{lib_defines}}, "BN_DIV3W" if ($target{bn_asm_src} =~ /-div3w/);
-
-    if ($target{sha1_asm_src}) {
-        push @{$config{lib_defines}}, "SHA1_ASM"   if ($target{sha1_asm_src} =~ /sx86/ || $target{sha1_asm_src} =~ /sha1/);
-        push @{$config{lib_defines}}, "SHA256_ASM" if ($target{sha1_asm_src} =~ /sha256/);
-        push @{$config{lib_defines}}, "SHA512_ASM" if ($target{sha1_asm_src} =~ /sha512/);
-    }
-    if ($target{keccak1600_asm_src} ne $table{DEFAULTS}->{keccak1600_asm_src}) {
-        push @{$config{lib_defines}}, "KECCAK1600_ASM";
-    }
-    if ($target{rc4_asm_src} ne $table{DEFAULTS}->{rc4_asm_src}) {
-        push @{$config{lib_defines}}, "RC4_ASM";
-    }
-    if ($target{md5_asm_src}) {
-        push @{$config{lib_defines}}, "MD5_ASM";
-    }
-    $target{cast_asm_src}=$table{DEFAULTS}->{cast_asm_src} unless $disabled{pic}; # CAST assembler is not PIC
-    if ($target{rmd160_asm_src}) {
-        push @{$config{lib_defines}}, "RMD160_ASM";
-    }
-    if ($target{aes_asm_src}) {
-        push @{$config{lib_defines}}, "AES_ASM" if ($target{aes_asm_src} =~ m/\baes-/);;
-        # aes-ctr.fake is not a real file, only indication that assembler
-        # module implements AES_ctr32_encrypt...
-        push @{$config{lib_defines}}, "AES_CTR_ASM" if ($target{aes_asm_src} =~ s/\s*aes-ctr\.fake//);
-        # aes-xts.fake indicates presence of AES_xts_[en|de]crypt...
-        push @{$config{lib_defines}}, "AES_XTS_ASM" if ($target{aes_asm_src} =~ s/\s*aes-xts\.fake//);
-        $target{aes_asm_src} =~ s/\s*(vpaes|aesni)-x86\.s//g if ($disabled{sse2});
-        push @{$config{lib_defines}}, "VPAES_ASM" if ($target{aes_asm_src} =~ m/vpaes/);
-        push @{$config{lib_defines}}, "BSAES_ASM" if ($target{aes_asm_src} =~ m/bsaes/);
-    }
-    if ($target{wp_asm_src} =~ /mmx/) {
-        if ($config{processor} eq "386") {
-            $target{wp_asm_src}=$table{DEFAULTS}->{wp_asm_src};
-        } elsif (!$disabled{"whirlpool"}) {
-            push @{$config{lib_defines}}, "WHIRLPOOL_ASM";
-        }
-    }
-    if ($target{modes_asm_src} =~ /ghash-/) {
-        push @{$config{lib_defines}}, "GHASH_ASM";
-    }
-    if ($target{ec_asm_src} =~ /ecp_nistz256/) {
-        push @{$config{lib_defines}}, "ECP_NISTZ256_ASM";
-    }
-    if ($target{ec_asm_src} =~ /x25519/) {
-        push @{$config{lib_defines}}, "X25519_ASM";
-    }
-    if ($target{padlock_asm_src} ne $table{DEFAULTS}->{padlock_asm_src}) {
-        push @{$config{dso_defines}}, "PADLOCK_ASM";
-    }
-    if ($target{poly1305_asm_src} ne "") {
-        push @{$config{lib_defines}}, "POLY1305_ASM";
-    }
 }
 
 my %predefined_C = compiler_predefined($config{CROSS_COMPILE}.$config{CC});
@@ -1518,7 +1456,6 @@ if (!$disabled{asm} && !$predefined_C{__MACH__} && $^O ne 'VMS') {
 # Deal with bn_ops ###################################################
 
 $config{bn_ll}                  =0;
-$config{export_var_as_fn}       =0;
 my $def_int="unsigned int";
 $config{rc4_int}                =$def_int;
 ($config{b64l},$config{b64},$config{b32})=(0,0,1);
@@ -1526,7 +1463,6 @@ $config{rc4_int}                =$def_int;
 my $count = 0;
 foreach (sort split(/\s+/,$target{bn_ops})) {
     $count++ if /SIXTY_FOUR_BIT|SIXTY_FOUR_BIT_LONG|THIRTY_TWO_BIT/;
-    $config{export_var_as_fn}=1                 if $_ eq 'EXPORT_VAR_AS_FN';
     $config{bn_ll}=1                            if $_ eq 'BN_LLONG';
     $config{rc4_int}="unsigned char"            if $_ eq 'RC4_CHAR';
     ($config{b64l},$config{b64},$config{b32})
@@ -1553,41 +1489,27 @@ $config{openssl_api_defines} = [
     "OPENSSL_MIN_API=".($apitable->{$config{api} // ""} // -1)
 ];
 
-my %strict_warnings_collection=( CFLAGS => [], CXXFLAGS => []);
+my @strict_warnings_collection=();
 if ($strict_warnings)
         {
         my $wopt;
         my $gccver = $predefined_C{__GNUC__} // -1;
-        my $gxxver = $predefined_CXX{__GNUC__} // -1;
 
         warn "WARNING --strict-warnings requires gcc[>=4] or gcc-alike"
             unless $gccver >= 4;
-        warn "WARNING --strict-warnings requires g++[>=4] or g++-alike"
-            unless $gxxver >= 4;
-        foreach (qw(CFLAGS CXXFLAGS))
-                {
-                push @{$strict_warnings_collection{$_}},
-                        @{$gcc_devteam_warn{$_}};
-                }
-        push @{$strict_warnings_collection{CFLAGS}},
-                @{$clang_devteam_warn{CFLAGS}}
-                        if (defined($predefined_C{__clang__}));
-        push @{$strict_warnings_collection{CXXFLAGS}},
-                @{$clang_devteam_warn{CXXFLAGS}}
-                        if (defined($predefined_CXX{__clang__}));
+        push @strict_warnings_collection, @gcc_devteam_warn;
+        push @strict_warnings_collection, @clang_devteam_warn
+            if (defined($predefined_C{__clang__}));
         }
 
 if (grep { $_ eq '-static' } @{$config{LDFLAGS}}) {
     disable('static', 'pic', 'threads');
 }
 
-foreach my $idx (qw(CFLAGS CXXFLAGS))
-        {
-        $config{$idx} = [ map { $_ eq '--ossl-strict-warnings'
-                                    ? @{$strict_warnings_collection{$idx}}
-                                : ( $_ ) }
-                          @{$config{$idx}} ];
-        }
+$config{CFLAGS} = [ map { $_ eq '--ossl-strict-warnings'
+                              ? @strict_warnings_collection
+                              : ( $_ ) }
+                    @{$config{CFLAGS}} ];
 
 unless ($disabled{"crypto-mdebug-backtrace"})
         {
@@ -1595,9 +1517,6 @@ unless ($disabled{"crypto-mdebug-backtrace"})
                 {
                 push @{$config{cflags}}, $wopt
                         unless grep { $_ eq $wopt } @{$config{cflags}};
-                push @{$config{cxxflags}}, $wopt
-                        if ($config{CXX}
-                            && !grep { $_ eq $wopt } @{$config{cxxflags}});
                 }
         if ($target =~ /^BSD-/)
                 {
@@ -1810,6 +1729,24 @@ if ($builder eq "unified") {
         my %depends = ();
         my %generate = ();
 
+        # Support for $variablename in build.info files.
+        # Embedded perl code is the ultimate master, still.  If its output
+        # contains a dollar sign, it had better be escaped, or it will be
+        # taken for a variable name prefix.
+        my %variables = ();
+        my $variable_re = qr/\$([[:alpha:]][[:alnum:]_]*)/;
+        my $expand_variables = sub {
+            my $value = '';
+            my $value_rest = shift;
+
+            while ($value_rest =~ /(?<!\\)${variable_re}/) {
+                $value .= $`;
+                $value .= $variables{$1};
+                $value_rest = $';
+            }
+            return $value . $value_rest;
+        };
+
         # We want to detect configdata.pm in the source tree, so we
         # don't use it if the build tree is different.
         my $src_configdata = cleanfile($srcdir, "configdata.pm", $blddir);
@@ -1847,7 +1784,7 @@ if ($builder eq "unified") {
             qr/^\s*IF\[((?:\\.|[^\\\]])*)\]\s*$/
             => sub {
                 if (! @skip || $skip[$#skip] > 0) {
-                    push @skip, !! $1;
+                    push @skip, !! $expand_variables->($1);
                 } else {
                     push @skip, -1;
                 }
@@ -1856,7 +1793,7 @@ if ($builder eq "unified") {
             => sub { die "ELSIF out of scope" if ! @skip;
                      die "ELSIF following ELSE" if abs($skip[$#skip]) == 2;
                      $skip[$#skip] = -1 if $skip[$#skip] != 0;
-                     $skip[$#skip] = !! $1
+                     $skip[$#skip] = !! $expand_variables->($1)
                          if $skip[$#skip] == 0; },
             qr/^\s*ELSE\s*$/
             => sub { die "ELSE out of scope" if ! @skip;
@@ -1865,10 +1802,18 @@ if ($builder eq "unified") {
             qr/^\s*ENDIF\s*$/
             => sub { die "ENDIF out of scope" if ! @skip;
                      pop @skip; },
+            qr/^\s*${variable_re}\s*=\s*(.*?)\s*$/
+            => sub {
+                if (!@skip || $skip[$#skip] > 0) {
+                    my $n = $1;
+                    my $v = $2;
+                    $variables{$n} = $expand_variables->($v);
+                }
+            },
             qr/^\s*SUBDIRS\s*=\s*(.*)\s*$/
             => sub {
                 if (!@skip || $skip[$#skip] > 0) {
-                    foreach (tokenize($1)) {
+                    foreach (tokenize($expand_variables->($1))) {
                         push @build_dirs, [ @curd, splitdir($_, 1) ];
                     }
                 }
@@ -1877,7 +1822,7 @@ if ($builder eq "unified") {
             => sub {
                 if (!@skip || $skip[$#skip] > 0) {
                     my @a = tokenize($1, qr|\s*,\s*|);
-                    my @p = tokenize($2);
+                    my @p = tokenize($expand_variables->($2));
                     push @programs, @p;
                     foreach my $a (@a) {
                         my $ak = $a;
@@ -1896,7 +1841,7 @@ if ($builder eq "unified") {
             => sub {
                 if (!@skip || $skip[$#skip] > 0) {
                     my @a = tokenize($1, qr|\s*,\s*|);
-                    my @l = tokenize($2);
+                    my @l = tokenize($expand_variables->($2));
                     push @libraries, @l;
                     foreach my $a (@a) {
                         my $ak = $a;
@@ -1915,7 +1860,7 @@ if ($builder eq "unified") {
             => sub {
                 if (!@skip || $skip[$#skip] > 0) {
                     my @a = tokenize($1, qr|\s*,\s*|);
-                    my @m = tokenize($2);
+                    my @m = tokenize($expand_variables->($2));
                     push @modules, @m;
                     foreach my $a (@a) {
                         my $ak = $a;
@@ -1934,7 +1879,7 @@ if ($builder eq "unified") {
             => sub {
                 if (!@skip || $skip[$#skip] > 0) {
                     my @a = tokenize($1, qr|\s*,\s*|);
-                    my @s = tokenize($2);
+                    my @s = tokenize($expand_variables->($2));
                     push @scripts, @s;
                     foreach my $a (@a) {
                         my $ak = $a;
@@ -1951,22 +1896,23 @@ if ($builder eq "unified") {
             },
 
             qr/^\s*ORDINALS\[((?:\\.|[^\\\]])+)\]\s*=\s*(.*)\s*$/,
-            => sub { push @{$ordinals{$1}}, tokenize($2)
+            => sub { push @{$ordinals{$1}}, tokenize($expand_variables->($2))
                          if !@skip || $skip[$#skip] > 0 },
             qr/^\s*SOURCE\[((?:\\.|[^\\\]])+)\]\s*=\s*(.*)\s*$/
-            => sub { push @{$sources{$1}}, tokenize($2)
+            => sub { push @{$sources{$1}}, tokenize($expand_variables->($2))
                          if !@skip || $skip[$#skip] > 0 },
             qr/^\s*SHARED_SOURCE\[((?:\\.|[^\\\]])+)\]\s*=\s*(.*)\s*$/
-            => sub { push @{$shared_sources{$1}}, tokenize($2)
+            => sub { push @{$shared_sources{$1}},
+                         tokenize($expand_variables->($2))
                          if !@skip || $skip[$#skip] > 0 },
             qr/^\s*INCLUDE\[((?:\\.|[^\\\]])+)\]\s*=\s*(.*)\s*$/
-            => sub { push @{$includes{$1}}, tokenize($2)
+            => sub { push @{$includes{$1}}, tokenize($expand_variables->($2))
                          if !@skip || $skip[$#skip] > 0 },
             qr/^\s*DEFINE\[((?:\\.|[^\\\]])+)\]\s*=\s*(.*)\s*$/
-            => sub { push @{$defines{$1}}, tokenize($2)
+            => sub { push @{$defines{$1}}, tokenize($expand_variables->($2))
                          if !@skip || $skip[$#skip] > 0 },
             qr/^\s*DEPEND\[((?:\\.|[^\\\]])*)\]\s*=\s*(.*)\s*$/
-            => sub { push @{$depends{$1}}, tokenize($2)
+            => sub { push @{$depends{$1}}, tokenize($expand_variables->($2))
                          if !@skip || $skip[$#skip] > 0 },
             qr/^\s*GENERATE\[((?:\\.|[^\\\]])+)\]\s*=\s*(.*)\s*$/
             => sub { push @{$generate{$1}}, $2
@@ -2193,6 +2139,34 @@ They are ignored and should be replaced with a combination of GENERATE,
 DEPEND and SHARED_SOURCE.
 EOF
 
+
+    # Go through the sources of all libraries and check that the same basename
+    # doesn't appear more than once.  Some static library archivers depend on
+    # them being unique.
+    {
+        my $err = 0;
+        foreach my $prod (keys %{$unified_info{libraries}}) {
+            my @prod_sources =
+                map { keys %{$unified_info{sources}->{$_}} }
+                keys %{$unified_info{sources}->{$prod}};
+            my %srccnt = ();
+
+            # Count how many times a given each source basename
+            # appears for each product.
+            foreach my $src (@prod_sources) {
+                $srccnt{basename $src}++;
+            }
+
+            foreach my $src (keys %srccnt) {
+                if ((my $cnt = $srccnt{$src}) > 1) {
+                    print STDERR "$src appears $cnt times for the product $prod\n";
+                    $err++
+                }
+            }
+        }
+        die if $err > 0;
+    }
+
     # Massage the result
 
     # If we depend on a header file or a perl module, add an inclusion of
@@ -2303,6 +2277,7 @@ EOF
             }
         }
     }
+
     # At this point, we have a number of sources with the value -1.  They
     # aren't part of the local build and are probably meant for a different
     # platform, and can therefore be cleaned away.  That happens when making
@@ -2415,7 +2390,7 @@ use warnings;
 use Exporter;
 #use vars qw(\@ISA \@EXPORT);
 our \@ISA = qw(Exporter);
-our \@EXPORT = qw(\%config \%target \%disabled \%withargs \%unified_info \@disablables);
+our \@EXPORT = qw(\%config \%target \%disabled \%withargs \%unified_info \@disablables \@disablables_int);
 
 EOF
 print OUT "our %config = (\n";
@@ -2471,6 +2446,15 @@ print OUT <<"EOF";
 EOF
 print OUT "our \@disablables = (\n";
 foreach (@disablables) {
+    print OUT "  ", quotify("perl", $_), ",\n";
+}
+print OUT <<"EOF";
+);
+
+EOF
+print OUT "# The following come from Configure's @disablables_int\n";
+print OUT "our \@disablables_int = (\n";
+foreach (@disablables_int) {
     print OUT "  ", quotify("perl", $_), ",\n";
 }
 print OUT <<"EOF";
@@ -2908,18 +2892,6 @@ _____
 # Thus, whenever there's mention of a returned value, it's about that
 # intended value.
 
-# Helper function to implement conditional inheritance depending on the
-# value of $disabled{asm}.  Used in inherit_from values as follows:
-#
-#      inherit_from => [ "template", asm("asm_tmpl") ]
-#
-sub asm {
-    my @x = @_;
-    sub {
-        $disabled{asm} ? () : @x;
-    }
-}
-
 # Helper function to implement conditional value variants, with a default
 # plus additional values based on the value of $config{build_type}.
 # Arguments are given in hash table form:
@@ -3340,31 +3312,11 @@ sub print_table_entry
         "includes",
         "cc",
         "cflags",
-        "unistd",
         "ld",
         "lflags",
         "loutflag",
         "ex_libs",
         "bn_ops",
-        "apps_aux_src",
-        "cpuid_asm_src",
-        "uplink_aux_src",
-        "bn_asm_src",
-        "ec_asm_src",
-        "des_asm_src",
-        "aes_asm_src",
-        "bf_asm_src",
-        "md5_asm_src",
-        "cast_asm_src",
-        "sha1_asm_src",
-        "rc4_asm_src",
-        "rmd160_asm_src",
-        "rc5_asm_src",
-        "wp_asm_src",
-        "cmll_asm_src",
-        "modes_asm_src",
-        "padlock_asm_src",
-        "chacha_asm_src",
         "poly1035_asm_src",
         "thread_scheme",
         "perlasm_scheme",

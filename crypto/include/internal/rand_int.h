@@ -24,8 +24,6 @@
 typedef struct rand_pool_st RAND_POOL;
 
 void rand_cleanup_int(void);
-void rand_drbg_cleanup_int(void);
-void drbg_delete_thread_state(void);
 void rand_fork(void);
 
 /* Hardware-based seeding functions. */
@@ -138,5 +136,11 @@ void rand_pool_cleanup(void);
  * Control the random pool use of open file descriptors.
  */
 void rand_pool_keep_random_devices_open(int keep);
+
+/* Equivalent of RAND_priv_bytes() but additionally taking an OPENSSL_CTX */
+int rand_priv_bytes_ex(OPENSSL_CTX *ctx, unsigned char *buf, int num);
+
+/* Equivalent of RAND_bytes() but additionally taking an OPENSSL_CTX */
+int rand_bytes_ex(OPENSSL_CTX *ctx, unsigned char *buf, int num);
 
 #endif

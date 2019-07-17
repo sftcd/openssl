@@ -74,7 +74,7 @@ int ERR_load_EVP_strings(void);
 # define EVP_F_EVP_KDF_CTX_NEW_ID                         226
 # define EVP_F_EVP_MAC_CTRL                               209
 # define EVP_F_EVP_MAC_CTRL_STR                           210
-# define EVP_F_EVP_MAC_CTX_COPY                           211
+# define EVP_F_EVP_MAC_CTX_DUP                            211
 # define EVP_F_EVP_MAC_CTX_NEW                            213
 # define EVP_F_EVP_MAC_INIT                               212
 # define EVP_F_EVP_MD_BLOCK_SIZE                          232
@@ -145,11 +145,13 @@ int ERR_load_EVP_strings(void);
 # define EVP_F_PKCS5_V2_PBKDF2_KEYIVGEN                   164
 # define EVP_F_PKCS5_V2_SCRYPT_KEYIVGEN                   180
 # define EVP_F_PKEY_KDF_CTRL                              227
+# define EVP_F_PKEY_MAC_COPY                              241
 # define EVP_F_PKEY_MAC_INIT                              214
 # define EVP_F_PKEY_SET_TYPE                              158
 # define EVP_F_POLY1305_CTRL                              216
 # define EVP_F_RC2_MAGIC_TO_METH                          109
 # define EVP_F_RC5_CTRL                                   125
+# define EVP_F_R_32_12_16_INIT_KEY                        242
 # define EVP_F_S390X_AES_GCM_CTRL                         201
 # define EVP_F_S390X_AES_GCM_TLS_CIPHER                   208
 # define EVP_F_SCRYPT_ALG                                 228
@@ -161,6 +163,7 @@ int ERR_load_EVP_strings(void);
 # define EVP_R_AES_KEY_SETUP_FAILED                       143
 # define EVP_R_ARIA_KEY_SETUP_FAILED                      176
 # define EVP_R_BAD_DECRYPT                                100
+# define EVP_R_BAD_KEY_LENGTH                             195
 # define EVP_R_BUFFER_TOO_SMALL                           155
 # define EVP_R_CAMELLIA_KEY_SETUP_FAILED                  157
 # define EVP_R_CIPHER_NOT_GCM_MODE                        184
@@ -191,6 +194,7 @@ int ERR_load_EVP_strings(void);
 # define EVP_R_INVALID_CUSTOM_LENGTH                      185
 # define EVP_R_INVALID_DIGEST                             152
 # define EVP_R_INVALID_FIPS_MODE                          168
+# define EVP_R_INVALID_IV_LENGTH                          194
 # define EVP_R_INVALID_KEY                                163
 # define EVP_R_INVALID_KEY_LENGTH                         130
 # define EVP_R_INVALID_OPERATION                          148

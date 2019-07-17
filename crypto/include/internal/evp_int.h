@@ -118,7 +118,7 @@ typedef struct evp_mac_impl_st EVP_MAC_IMPL;
 struct evp_mac_st {
     int type;
     EVP_MAC_IMPL *(*new) (void);
-    int (*copy) (EVP_MAC_IMPL *macdst, EVP_MAC_IMPL *macsrc);
+    EVP_MAC_IMPL *(*dup) (const EVP_MAC_IMPL *macsrc);
     void (*free) (EVP_MAC_IMPL *macctx);
     size_t (*size) (EVP_MAC_IMPL *macctx);
     int (*init) (EVP_MAC_IMPL *macctx);
@@ -172,6 +172,8 @@ extern const EVP_KDF tls1_prf_kdf_meth;
 extern const EVP_KDF hkdf_kdf_meth;
 extern const EVP_KDF sshkdf_kdf_meth;
 extern const EVP_KDF ss_kdf_meth;
+extern const EVP_KDF x963_kdf_meth;
+extern const EVP_KDF x942_kdf_meth;
 
 struct evp_md_st {
     /* nid */
@@ -206,6 +208,8 @@ struct evp_md_st {
     OSSL_OP_digest_dupctx_fn *dupctx;
     OSSL_OP_digest_size_fn *size;
     OSSL_OP_digest_block_size_fn *dblock_size;
+    OSSL_OP_digest_set_params_fn *set_params;
+    OSSL_OP_digest_get_params_fn *get_params;
 
 } /* EVP_MD */ ;
 
@@ -253,9 +257,6 @@ struct evp_cipher_st {
     OSSL_OP_cipher_cipher_fn *ccipher;
     OSSL_OP_cipher_freectx_fn *freectx;
     OSSL_OP_cipher_dupctx_fn *dupctx;
-    OSSL_OP_cipher_key_length_fn *key_length;
-    OSSL_OP_cipher_iv_length_fn *iv_length;
-    OSSL_OP_cipher_block_size_fn *blocksize;
     OSSL_OP_cipher_get_params_fn *get_params;
     OSSL_OP_cipher_ctx_get_params_fn *ctx_get_params;
     OSSL_OP_cipher_ctx_set_params_fn *ctx_set_params;

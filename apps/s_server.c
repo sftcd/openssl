@@ -130,6 +130,8 @@ static SSL_SESSION *psksess = NULL;
 static char *psk_identity = "Client_identity";
 char *psk_key = NULL;           /* by default PSK is not used */
 
+static char http_server_binmode = 0; /* for now: 0/1 = default/binary */
+
 #ifndef OPENSSL_NO_PSK
 static unsigned int psk_server_cb(SSL *ssl, const char *identity,
                                   unsigned char *psk,
@@ -940,6 +942,7 @@ typedef enum OPTION_choice {
 #ifndef OPENSSL_NO_ESNI
     OPT_ESNIKEY, OPT_ESNIPUB, OPT_ESNIDIR, OPT_ESNISPECIFICPAD,
 #endif
+    OPT_HTTP_SERVER_BINMODE,
     OPT_R_ENUM,
     OPT_S_ENUM,
     OPT_V_ENUM,
@@ -1160,6 +1163,7 @@ const OPTIONS s_server_options[] = {
     {"esnidir", OPT_ESNIDIR, 's', "ESNI information directory"},
     {"esnispecificpad", OPT_ESNISPECIFICPAD, '-', "Do specific padding of Certificate/CertificateVerify (instead of general padding all)"},
 #endif
+    {"http_server_binmode", OPT_HTTP_SERVER_BINMODE, '-', "opening files in binary mode when acting as http server (-WWW and -HTTP)"},
     {NULL, OPT_EOF, 0, NULL}
 };
 
@@ -1814,6 +1818,9 @@ int s_server_main(int argc, char *argv[])
             esnispecificpad=1;
             break;
 #endif
+        case OPT_HTTP_SERVER_BINMODE:
+            http_server_binmode = 1;
+            break;
         }
     }
     argc = opt_num_rest();
@@ -3307,6 +3314,7 @@ static int www_body(int s, int stype, int prot, unsigned char *context)
 #endif
     int width;
     fd_set readfds;
+    const char *opmode;
 
     /* Set width for a select call if needed */
     width = s + 1;
@@ -3663,9 +3671,10 @@ static int www_body(int s, int stype, int prot, unsigned char *context)
                 }
             }
 
-            if (*p!='\0' && (file = BIO_new_file(p, "r")) == NULL) {
+            opmode = (http_server_binmode == 1) ? "rb" : "r";
+            if ((file = BIO_new_file(p, opmode)) == NULL) {
                 BIO_puts(io, text);
-                BIO_printf(io, "Error opening '%s'\r\n", p);
+                BIO_printf(io, "Error opening '%s' mode='%s'\r\n", p, opmode);
                 ERR_print_errors(io);
                 break;
             }
@@ -3678,9 +3687,18 @@ static int www_body(int s, int stype, int prot, unsigned char *context)
             }
 
 #else
-            if ((file = BIO_new_file(p, "r")) == NULL) {
+
+            opmode = (http_server_binmode == 1) ? "rb" : "r";
+            if ((file = BIO_new_file(p, opmode)) == NULL) {
                 BIO_puts(io, text);
-                BIO_printf(io, "Error opening '%s'\r\n", p);
+                BIO_printf(io, "Error opening '%s' mode='%s'\r\n", p, opmode);
+                ERR_print_errors(io);
+                break;
+            }
+
+            if (file==NULL) {
+                BIO_puts(io, text);
+                BIO_printf(io, "Weird - shouldn't get here '%s'\r\n", p);
                 ERR_print_errors(io);
                 break;
             }
@@ -3695,7 +3713,7 @@ static int www_body(int s, int stype, int prot, unsigned char *context)
                     ((i > 4) && (strcmp(&(p[i - 4]), ".htm") == 0)))
                     BIO_puts(io,
                              "HTTP/1.0 200 ok\r\nContent-type: text/html\r\n\r\n");
-#ifndef OPENSLL_NO_ESNI
+#ifndef OPENSSL_NO_ESNI
                 /* 
                  * same comment as last time
                  */

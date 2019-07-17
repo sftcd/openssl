@@ -45,14 +45,23 @@ static void hmac_free(EVP_MAC_IMPL *hctx)
     }
 }
 
-static int hmac_copy(EVP_MAC_IMPL *hdst, EVP_MAC_IMPL *hsrc)
+static EVP_MAC_IMPL *hmac_dup(const EVP_MAC_IMPL *hsrc)
 {
-    if (!HMAC_CTX_copy(hdst->ctx, hsrc->ctx))
-        return 0;
+    EVP_MAC_IMPL *hdst;
+
+    hdst = hmac_new();
+    if (hdst == NULL)
+        return NULL;
+
+    if (!HMAC_CTX_copy(hdst->ctx, hsrc->ctx)) {
+        hmac_free(hdst);
+        return NULL;
+    }
 
     hdst->tmpengine = hsrc->tmpengine;
     hdst->tmpmd = hsrc->tmpmd;
-    return 1;
+
+    return hdst;
 }
 
 static size_t hmac_size(EVP_MAC_IMPL *hctx)
@@ -143,6 +152,15 @@ static int hmac_ctrl_str(EVP_MAC_IMPL *hctx, const char *type,
 {
     if (!value)
         return 0;
+#ifndef FIPS_MODE
+    /*
+     * We don't have EVP_get_digestbyname() in FIPS_MODE. That function returns
+     * an EVP_MD without an associated provider implementation (i.e. it is
+     * using "implicit fetch"). We could replace it with an "explicit" fetch
+     * using EVP_MD_fetch(), but we'd then be required to free the returned
+     * EVP_MD somewhere. Probably the complexity isn't worth it as we are
+     * unlikely to need this ctrl in FIPS_MODE anyway.
+     */
     if (strcmp(type, "digest") == 0) {
         const EVP_MD *d = EVP_get_digestbyname(value);
 
@@ -150,6 +168,7 @@ static int hmac_ctrl_str(EVP_MAC_IMPL *hctx, const char *type,
             return 0;
         return hmac_ctrl_int(hctx, EVP_MAC_CTRL_SET_MD, d);
     }
+#endif
     if (strcmp(type, "key") == 0)
         return EVP_str2ctrl(hmac_ctrl_str_cb, hctx, EVP_MAC_CTRL_SET_KEY,
                             value);
@@ -162,7 +181,7 @@ static int hmac_ctrl_str(EVP_MAC_IMPL *hctx, const char *type,
 const EVP_MAC hmac_meth = {
     EVP_MAC_HMAC,
     hmac_new,
-    hmac_copy,
+    hmac_dup,
     hmac_free,
     hmac_size,
     hmac_init,

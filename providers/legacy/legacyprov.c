@@ -13,6 +13,7 @@
 #include <openssl/core_numbers.h>
 #include <openssl/core_names.h>
 #include <openssl/params.h>
+#include "internal/provider_algs.h"
 
 /* Functions provided by the core */
 static OSSL_core_get_param_types_fn *c_get_param_types = NULL;
@@ -31,10 +32,9 @@ static const OSSL_ITEM *legacy_get_param_types(const OSSL_PROVIDER *prov)
     return legacy_param_types;
 }
 
-static int legacy_get_params(const OSSL_PROVIDER *prov,
-                            const OSSL_PARAM params[])
+static int legacy_get_params(const OSSL_PROVIDER *prov, OSSL_PARAM params[])
 {
-    const OSSL_PARAM *p;
+    OSSL_PARAM *p;
 
     p = OSSL_PARAM_locate(params, OSSL_PROV_PARAM_NAME);
     if (p != NULL && !OSSL_PARAM_set_utf8_ptr(p, "OpenSSL Legacy Provider"))
@@ -49,12 +49,27 @@ static int legacy_get_params(const OSSL_PROVIDER *prov,
     return 1;
 }
 
-extern const OSSL_DISPATCH md2_functions[];
-
 static const OSSL_ALGORITHM legacy_digests[] = {
 #ifndef OPENSSL_NO_MD2
     { "MD2", "legacy=yes", md2_functions },
 #endif
+
+#ifndef OPENSSL_NO_MD4
+    { "MD4", "legacy=yes", md4_functions },
+#endif
+
+#ifndef OPENSSL_NO_MDC2
+    { "MDC2", "legacy=yes", mdc2_functions },
+#endif /* OPENSSL_NO_MDC2 */
+
+#ifndef OPENSSL_NO_WHIRLPOOL
+    { "whirlpool", "legacy=yes", wp_functions },
+#endif /* OPENSSL_NO_WHIRLPOOL */
+
+#ifndef OPENSSL_NO_RMD160
+    { "RIPEMD160", "legacy=yes", ripemd160_functions },
+#endif /* OPENSSL_NO_RMD160 */
+
     { NULL, NULL, NULL }
 };
 
@@ -83,6 +98,8 @@ int OSSL_provider_init(const OSSL_PROVIDER *provider,
                        const OSSL_DISPATCH **out,
                        void **provctx)
 {
+    OSSL_core_get_library_context_fn *c_get_libctx = NULL;
+
     for (; in->function_id != 0; in++) {
         switch (in->function_id) {
         case OSSL_FUNC_CORE_GET_PARAM_TYPES:
@@ -91,12 +108,25 @@ int OSSL_provider_init(const OSSL_PROVIDER *provider,
         case OSSL_FUNC_CORE_GET_PARAMS:
             c_get_params = OSSL_get_core_get_params(in);
             break;
+        case OSSL_FUNC_CORE_GET_LIBRARY_CONTEXT:
+            c_get_libctx = OSSL_get_core_get_library_context(in);
+            break;
         /* Just ignore anything we don't understand */
         default:
             break;
         }
     }
 
+    if (c_get_libctx == NULL)
+        return 0;
+
     *out = legacy_dispatch_table;
+
+    /*
+     * We want to make sure that all calls from this provider that requires
+     * a library context use the same context as the one used to call our
+     * functions.  We do that by passing it along as the provider context.
+     */
+    *provctx = c_get_libctx(provider);
     return 1;
 }

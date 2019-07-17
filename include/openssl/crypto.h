@@ -397,13 +397,11 @@ int CRYPTO_memcmp(const void * in_a, const void * in_b, size_t len);
 /* OPENSSL_INIT flag range 0x03f00000 reserved for OPENSSL_init_ssl() */
 # define OPENSSL_INIT_NO_ADD_ALL_MACS        0x04000000L
 # define OPENSSL_INIT_ADD_ALL_MACS           0x08000000L
-/* FREE: 0x10000000L */
-/* FREE: 0x20000000L */
+# define OPENSSL_INIT_NO_ADD_ALL_KDFS        0x10000000L
+# define OPENSSL_INIT_ADD_ALL_KDFS           0x20000000L
 /* FREE: 0x40000000L */
 /* FREE: 0x80000000L */
 /* Max OPENSSL_INIT flag value is 0x80000000 */
-# define OPENSSL_INIT_NO_ADD_ALL_KDFS        0x100000000L
-# define OPENSSL_INIT_ADD_ALL_KDFS           0x200000000L
 
 /* openssl and dasync not counted as builtin */
 # define OPENSSL_INIT_ENGINE_ALL_BUILTIN \
@@ -417,6 +415,7 @@ void OPENSSL_cleanup(void);
 int OPENSSL_init_crypto(uint64_t opts, const OPENSSL_INIT_SETTINGS *settings);
 int OPENSSL_atexit(void (*handler)(void));
 void OPENSSL_thread_stop(void);
+void OPENSSL_thread_stop_ex(OPENSSL_CTX *ctx);
 
 /* Low-level control of initialization */
 OPENSSL_INIT_SETTINGS *OPENSSL_INIT_new(void);

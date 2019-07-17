@@ -39,6 +39,18 @@ extern "C" {
 
 #define OSSL_CIPHER_PARAM_PADDING   "padding"
 #define OSSL_CIPHER_PARAM_MODE      "mode"
+#define OSSL_CIPHER_PARAM_BLOCK_SIZE "blocksize" /* OSSL_PARAM_INTEGER */
+#define OSSL_CIPHER_PARAM_FLAGS     "flags" /* OSSL_PARAM_UNSIGNED_INTEGER */
+#define OSSL_CIPHER_PARAM_KEYLEN    "keylen" /* OSSL_PARAM_INTEGER */
+#define OSSL_CIPHER_PARAM_IVLEN     "ivlen"  /* OSSL_PARAM_INTEGER */
+#define OSSL_CIPHER_PARAM_IV        "iv"  /* OSSL_PARAM_OCTET_PTR */
+#define OSSL_CIPHER_PARAM_NUM       "num" /* OSSL_PARAM_INTEGER */
+
+/* digest parameters */
+#define OSSL_DIGEST_PARAM_XOFLEN    "xoflen"
+#define OSSL_DIGEST_PARAM_SSL3_MS   "ssl3-ms"
+#define OSSL_DIGEST_PARAM_PAD_TYPE  "pad_type"
+#define OSSL_DIGEST_PARAM_MICALG    "micalg"
 
 # ifdef __cplusplus
 }

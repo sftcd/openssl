@@ -46,9 +46,7 @@ static int init_etm(SSL *s, unsigned int context);
 static int init_ems(SSL *s, unsigned int context);
 static int final_ems(SSL *s, unsigned int context, int sent);
 static int init_psk_kex_modes(SSL *s, unsigned int context);
-#ifndef OPENSSL_NO_EC
 static int final_key_share(SSL *s, unsigned int context, int sent);
-#endif
 #ifndef OPENSSL_NO_SRTP
 static int init_srtp(SSL *s, unsigned int context);
 #endif
@@ -167,6 +165,10 @@ static const EXTENSION_DEFINITION ext_defs[] = {
         tls_construct_stoc_ec_pt_formats, tls_construct_ctos_ec_pt_formats,
         final_ec_pt_formats
     },
+#else
+    INVALID_EXTENSION,
+#endif
+#if !defined(OPENSSL_NO_EC) || !defined(OPENSSL_NO_DH)
     {
         /*
          * "supported_groups" is spread across several specifications.
@@ -201,7 +203,6 @@ static const EXTENSION_DEFINITION ext_defs[] = {
         tls_construct_ctos_supported_groups, NULL
     },
 #else
-    INVALID_EXTENSION,
     INVALID_EXTENSION,
 #endif
     {
@@ -327,7 +328,6 @@ static const EXTENSION_DEFINITION ext_defs[] = {
         init_psk_kex_modes, tls_parse_ctos_psk_kex_modes, NULL, NULL,
         tls_construct_ctos_psk_kex_modes, NULL
     },
-#ifndef OPENSSL_NO_EC
     {
         /*
          * Must be in this list after supported_groups. We need that to have
@@ -341,7 +341,6 @@ static const EXTENSION_DEFINITION ext_defs[] = {
         tls_construct_stoc_key_share, tls_construct_ctos_key_share,
         final_key_share
     },
-#endif
     {
         /* Must be after key_share */
         TLSEXT_TYPE_cookie,
@@ -1093,18 +1092,18 @@ static int final_ec_pt_formats(SSL *s, unsigned int context, int sent)
      */
     if (s->ext.ecpointformats != NULL
             && s->ext.ecpointformats_len > 0
-            && s->session->ext.ecpointformats != NULL
-            && s->session->ext.ecpointformats_len > 0
+            && s->ext.peer_ecpointformats != NULL
+            && s->ext.peer_ecpointformats_len > 0
             && ((alg_k & SSL_kECDHE) || (alg_a & SSL_aECDSA))) {
         /* we are using an ECC cipher */
         size_t i;
-        unsigned char *list = s->session->ext.ecpointformats;
+        unsigned char *list = s->ext.peer_ecpointformats;
 
-        for (i = 0; i < s->session->ext.ecpointformats_len; i++) {
+        for (i = 0; i < s->ext.peer_ecpointformats_len; i++) {
             if (*list++ == TLSEXT_ECPOINTFORMAT_uncompressed)
                 break;
         }
-        if (i == s->session->ext.ecpointformats_len) {
+        if (i == s->ext.peer_ecpointformats_len) {
             SSLfatal(s, SSL_AD_ILLEGAL_PARAMETER, SSL_F_FINAL_EC_PT_FORMATS,
                      SSL_R_TLS_INVALID_ECPOINTFORMAT_LIST);
             return 0;
@@ -1319,9 +1318,9 @@ static int final_sig_algs(SSL *s, unsigned int context, int sent)
     return 1;
 }
 
-#ifndef OPENSSL_NO_EC
 static int final_key_share(SSL *s, unsigned int context, int sent)
 {
+#if !defined(OPENSSL_NO_TLS1_3)
     if (!SSL_IS_TLS13(s))
         return 1;
 
@@ -1479,10 +1478,9 @@ static int final_key_share(SSL *s, unsigned int context, int sent)
             return 0;
         }
     }
-
+#endif /* !defined(OPENSSL_NO_TLS1_3) */
     return 1;
 }
-#endif
 
 static int init_psk_kex_modes(SSL *s, unsigned int context)
 {

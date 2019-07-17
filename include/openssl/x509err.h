@@ -28,6 +28,7 @@ int ERR_load_X509_strings(void);
 # define X509_F_BY_FILE_CTRL                              101
 # define X509_F_CHECK_NAME_CONSTRAINTS                    149
 # define X509_F_CHECK_POLICY                              145
+# define X509_F_COMMON_VERIFY_SM2                         165
 # define X509_F_DANE_I2D                                  107
 # define X509_F_DIR_CTRL                                  102
 # define X509_F_GET_CERT_BY_SUBJECT                       103
@@ -71,6 +72,8 @@ int ERR_load_X509_strings(void);
 # define X509_F_X509_REQ_PRINT_EX                         121
 # define X509_F_X509_REQ_PRINT_FP                         122
 # define X509_F_X509_REQ_TO_X509                          123
+# define X509_F_X509_REQ_VERIFY                           163
+# define X509_F_X509_REQ_VERIFY_SM2                       164
 # define X509_F_X509_STORE_ADD_CERT                       124
 # define X509_F_X509_STORE_ADD_CRL                        125
 # define X509_F_X509_STORE_ADD_LOOKUP                     157
@@ -99,6 +102,7 @@ int ERR_load_X509_strings(void);
 # define X509_R_CRL_ALREADY_DELTA                         127
 # define X509_R_CRL_VERIFY_FAILURE                        131
 # define X509_R_IDP_MISMATCH                              128
+# define X509_R_INVALID_ATTRIBUTES                        138
 # define X509_R_INVALID_DIRECTORY                         113
 # define X509_R_INVALID_FIELD_NAME                        119
 # define X509_R_INVALID_TRUST                             123

@@ -17,7 +17,7 @@
  * Result(0) = empty bit string (i.e., the null string).
  * For i = 1 to reps, do the following:
  *   Increment counter by 1.
- *   Result(i) = Result(i – 1) || H(counter || Z || FixedInfo).
+ *   Result(i) = Result(i - 1) || H(counter || Z || FixedInfo).
  * DKM = LeftmostBits(Result(reps), L))
  *
  * NOTES:
@@ -66,10 +66,16 @@ static const unsigned char kmac_custom_str[] = { 0x4B, 0x44, 0x46 };
 /*
  * Refer to https://csrc.nist.gov/publications/detail/sp/800-56c/rev-1/final
  * Section 4. One-Step Key Derivation using H(x) = hash(x)
+ * Note: X9.63 also uses this code with the only difference being that the
+ * counter is appended to the secret 'z'.
+ * i.e.
+ *   result[i] = Hash(counter || z || info) for One Step OR
+ *   result[i] = Hash(z || counter || info) for X9.63.
  */
 static int SSKDF_hash_kdm(const EVP_MD *kdf_md,
                           const unsigned char *z, size_t z_len,
                           const unsigned char *info, size_t info_len,
+                          unsigned int append_ctr,
                           unsigned char *derived_key, size_t derived_key_len)
 {
     int ret = 0, hlen;
@@ -104,8 +110,9 @@ static int SSKDF_hash_kdm(const EVP_MD *kdf_md,
         c[3] = (unsigned char)(counter & 0xff);
 
         if (!(EVP_MD_CTX_copy_ex(ctx, ctx_init)
-                && EVP_DigestUpdate(ctx, c, sizeof(c))
+                && (append_ctr || EVP_DigestUpdate(ctx, c, sizeof(c)))
                 && EVP_DigestUpdate(ctx, z, z_len)
+                && (!append_ctr || EVP_DigestUpdate(ctx, c, sizeof(c)))
                 && EVP_DigestUpdate(ctx, info, info_len)))
             goto end;
         if (len >= out_len) {
@@ -195,9 +202,8 @@ static int SSKDF_mac_kdm(const EVP_MAC *kdf_mac, const EVP_MD *hmac_md,
             || derived_key_len == 0)
         return 0;
 
-    ctx = EVP_MAC_CTX_new(kdf_mac);
     ctx_init = EVP_MAC_CTX_new(kdf_mac);
-    if (ctx == NULL || ctx_init == NULL)
+    if (ctx_init == NULL)
         goto end;
     if (hmac_md != NULL &&
             EVP_MAC_ctrl(ctx_init, EVP_MAC_CTRL_SET_MD, hmac_md) <= 0)
@@ -226,7 +232,8 @@ static int SSKDF_mac_kdm(const EVP_MAC *kdf_mac, const EVP_MD *hmac_md,
         c[2] = (unsigned char)((counter >> 8) & 0xff);
         c[3] = (unsigned char)(counter & 0xff);
 
-        if (!(EVP_MAC_CTX_copy(ctx, ctx_init)
+        ctx = EVP_MAC_CTX_dup(ctx_init);
+        if (!(ctx != NULL
                 && EVP_MAC_update(ctx, c, sizeof(c))
                 && EVP_MAC_update(ctx, z, z_len)
                 && EVP_MAC_update(ctx, info, info_len)))
@@ -244,6 +251,8 @@ static int SSKDF_mac_kdm(const EVP_MAC *kdf_mac, const EVP_MD *hmac_md,
             memcpy(out, mac, len);
             break;
         }
+        EVP_MAC_CTX_free(ctx);
+        ctx = NULL;
     }
     ret = 1;
 end:
@@ -468,7 +477,28 @@ static int sskdf_derive(EVP_KDF_IMPL *impl, unsigned char *key, size_t keylen)
             return 0;
         }
         return SSKDF_hash_kdm(impl->md, impl->secret, impl->secret_len,
-                              impl->info, impl->info_len, key, keylen);
+                              impl->info, impl->info_len, 0, key, keylen);
+    }
+}
+
+static int x963kdf_derive(EVP_KDF_IMPL *impl, unsigned char *key, size_t keylen)
+{
+    if (impl->secret == NULL) {
+        KDFerr(KDF_F_X963KDF_DERIVE, KDF_R_MISSING_SECRET);
+        return 0;
+    }
+
+    if (impl->mac != NULL) {
+        KDFerr(KDF_F_X963KDF_DERIVE, KDF_R_NOT_SUPPORTED);
+        return 0;
+    } else {
+        /* H(x) = hash */
+        if (impl->md == NULL) {
+            KDFerr(KDF_F_X963KDF_DERIVE, KDF_R_MISSING_MESSAGE_DIGEST);
+            return 0;
+        }
+        return SSKDF_hash_kdm(impl->md, impl->secret, impl->secret_len,
+                              impl->info, impl->info_len, 1, key, keylen);
     }
 }
 
@@ -481,4 +511,15 @@ const EVP_KDF ss_kdf_meth = {
     sskdf_ctrl_str,
     sskdf_size,
     sskdf_derive
+};
+
+const EVP_KDF x963_kdf_meth = {
+    EVP_KDF_X963,
+    sskdf_new,
+    sskdf_free,
+    sskdf_reset,
+    sskdf_ctrl,
+    sskdf_ctrl_str,
+    sskdf_size,
+    x963kdf_derive
 };
