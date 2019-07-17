@@ -1273,10 +1273,8 @@ static const ERR_STRING_DATA SSL_str_reasons[] = {
 int ERR_load_SSL_strings(void)
 {
 #ifndef OPENSSL_NO_ERR
-    if (ERR_func_error_string(SSL_str_functs[0].error) == NULL) {
-        ERR_load_strings_const(SSL_str_functs);
+    if (ERR_func_error_string(SSL_str_reasons[0].error) == NULL)
         ERR_load_strings_const(SSL_str_reasons);
-    }
 #endif
     return 1;
 }

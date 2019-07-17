@@ -181,6 +181,7 @@ OSSL_CORE_MAKE_FUNC(int, OP_digest_set_params,
                     (void *vctx, const OSSL_PARAM params[]))
 OSSL_CORE_MAKE_FUNC(int, OP_digest_get_params,
                     (void *vctx, OSSL_PARAM params[]))
+OSSL_CORE_MAKE_FUNC(unsigned long, OP_cipher_get_flags, (void))
 
 /* Symmetric Ciphers */
 
@@ -227,6 +228,30 @@ OSSL_CORE_MAKE_FUNC(int, OP_cipher_ctx_get_params, (void *cctx,
                                                     OSSL_PARAM params[]))
 OSSL_CORE_MAKE_FUNC(int, OP_cipher_ctx_set_params, (void *cctx,
                                                     const OSSL_PARAM params[]))
+
+/* Key Exchange */
+
+# define OSSL_OP_KEYEXCH                               3
+
+# define OSSL_FUNC_KEYEXCH_NEWCTX                      1
+# define OSSL_FUNC_KEYEXCH_INIT                        2
+# define OSSL_FUNC_KEYEXCH_DERIVE                      3
+# define OSSL_FUNC_KEYEXCH_SET_PEER                    4
+# define OSSL_FUNC_KEYEXCH_FREECTX                     5
+# define OSSL_FUNC_KEYEXCH_DUPCTX                      6
+# define OSSL_FUNC_KEYEXCH_SET_PARAMS                  7
+
+OSSL_CORE_MAKE_FUNC(void *, OP_keyexch_newctx, (void *provctx))
+OSSL_CORE_MAKE_FUNC(int, OP_keyexch_init, (void *ctx,
+                                           OSSL_PARAM params[]))
+OSSL_CORE_MAKE_FUNC(int, OP_keyexch_derive, (void *ctx,  unsigned char *key,
+                                             size_t *keylen, size_t outlen))
+OSSL_CORE_MAKE_FUNC(int, OP_keyexch_set_peer, (void *ctx,
+                                               OSSL_PARAM params[]))
+OSSL_CORE_MAKE_FUNC(void, OP_keyexch_freectx, (void *ctx))
+OSSL_CORE_MAKE_FUNC(void *, OP_keyexch_dupctx, (void *ctx))
+OSSL_CORE_MAKE_FUNC(int, OP_keyexch_set_params, (void *ctx,
+                                                 OSSL_PARAM params[]))
 
 # ifdef __cplusplus
 }

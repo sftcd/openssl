@@ -1416,6 +1416,7 @@ EVP_PKEY_CTX *EVP_PKEY_CTX_new_id(int id, ENGINE *e);
 EVP_PKEY_CTX *EVP_PKEY_CTX_dup(const EVP_PKEY_CTX *ctx);
 void EVP_PKEY_CTX_free(EVP_PKEY_CTX *ctx);
 
+int EVP_PKEY_CTX_set_params(EVP_PKEY_CTX *ctx, OSSL_PARAM *params);
 int EVP_PKEY_CTX_ctrl(EVP_PKEY_CTX *ctx, int keytype, int optype,
                       int cmd, int p1, void *p2);
 int EVP_PKEY_CTX_ctrl_str(EVP_PKEY_CTX *ctx, const char *type,
@@ -1477,6 +1478,7 @@ int EVP_PKEY_decrypt(EVP_PKEY_CTX *ctx,
                      unsigned char *out, size_t *outlen,
                      const unsigned char *in, size_t inlen);
 
+int EVP_PKEY_derive_init_ex(EVP_PKEY_CTX *ctx, EVP_KEYEXCH *exchange);
 int EVP_PKEY_derive_init(EVP_PKEY_CTX *ctx);
 int EVP_PKEY_derive_set_peer(EVP_PKEY_CTX *ctx, EVP_PKEY *peer);
 int EVP_PKEY_derive(EVP_PKEY_CTX *ctx, unsigned char *key, size_t *keylen);
@@ -1705,6 +1707,12 @@ void EVP_PKEY_meth_get_param_check(const EVP_PKEY_METHOD *pmeth,
 void EVP_PKEY_meth_get_digest_custom(EVP_PKEY_METHOD *pmeth,
                                      int (**pdigest_custom) (EVP_PKEY_CTX *ctx,
                                                              EVP_MD_CTX *mctx));
+
+void EVP_KEYEXCH_free(EVP_KEYEXCH *exchange);
+int EVP_KEYEXCH_up_ref(EVP_KEYEXCH *exchange);
+EVP_KEYEXCH *EVP_KEYEXCH_fetch(OPENSSL_CTX *ctx, const char *algorithm,
+                               const char *properties);
+
 void EVP_add_alg_module(void);
 
 /*

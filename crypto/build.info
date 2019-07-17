@@ -68,7 +68,7 @@ SOURCE[../providers/fips]=$CORE_COMMON
 $UTIL_COMMON=\
         cryptlib.c params.c bsearch.c ex_data.c o_str.c \
         ctype.c threads_pthread.c threads_win.c threads_none.c initthread.c \
-        context.c sparse_array.c $CPUIDASM
+        context.c sparse_array.c param_build.c $CPUIDASM
 $UTIL_DEFINE=$CPUIDDEF
 
 SOURCE[../libcrypto]=$UTIL_COMMON \
@@ -76,11 +76,11 @@ SOURCE[../libcrypto]=$UTIL_COMMON \
         esnierr.c \
         cversion.c info.c cpt_err.c ebcdic.c uid.c o_time.c o_dir.c \
         o_fopen.c getenv.c o_init.c o_fips.c init.c trace.c provider.c \
-        $UPLINKSRC
+        asn1_dsa.c packet.c $UPLINKSRC
 DEFINE[../libcrypto]=$UTIL_DEFINE $UPLINKDEF
 SOURCE[../providers/fips]=$UTIL_COMMON
 DEFINE[../providers/fips]=$UTIL_DEFINE
-        
+
 DEPEND[cversion.o]=buildinf.h
 GENERATE[buildinf.h]=../util/mkbuildinf.pl "$(CC) $(LIB_CFLAGS) $(CPPFLAGS_Q)" "$(PLATFORM)"
 DEPEND[buildinf.h]=../configdata.pm

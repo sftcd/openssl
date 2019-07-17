@@ -30,7 +30,7 @@
 # include <openssl/ct.h>
 # include "record/record.h"
 # include "statem/statem.h"
-# include "packet_locl.h"
+# include "internal/packet.h"
 # include "internal/dane.h"
 # include "internal/refcount.h"
 # include "internal/tsan_assist.h"
@@ -1735,7 +1735,6 @@ struct ssl_st {
     size_t block_padding;
 
     CRYPTO_RWLOCK *lock;
-    RAND_DRBG *drbg;
 
     /* The number of TLS1.3 tickets to automatically send */
     size_t num_tickets;

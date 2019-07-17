@@ -25,6 +25,10 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- Re-merged with upstream again (20190717) since the last took a few days.
+    - Some more oddities there too, suspect my work-arounds will need to
+      be tweaked next time.
+
 - Re-merged with upstream (20190714) prior to starting in on -04 code
     - Well, that took a while. I had to move esnierr.c within crypto/build.info
       as with the latest Configure script it was somehow being added into a FIPS

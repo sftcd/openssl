@@ -3114,7 +3114,6 @@ int speed_main(int argc, char **argv)
                 if (error == ERR_peek_last_error() && /* oldest and latest errors match */
                     /* check that the error origin matches */
                     ERR_GET_LIB(error) == ERR_LIB_EVP &&
-                    ERR_GET_FUNC(error) == EVP_F_INT_CTX_NEW &&
                     ERR_GET_REASON(error) == EVP_R_UNSUPPORTED_ALGORITHM)
                     ERR_get_error(); /* pop error from queue */
                 if (ERR_peek_error()) {
@@ -3638,7 +3637,7 @@ static int do_multi(int multi, int size_num)
             close(fd[1]);
             mr = 1;
             usertime = 0;
-            free(fds);
+            OPENSSL_free(fds);
             return 0;
         }
         printf("Forked child %d\n", n);
@@ -3750,7 +3749,7 @@ static int do_multi(int multi, int size_num)
 
         fclose(f);
     }
-    free(fds);
+    OPENSSL_free(fds);
     return 1;
 }
 #endif
