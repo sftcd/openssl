@@ -60,8 +60,9 @@
 
 #define ESNI_DRAFT_02_VERSION 0xff01 ///< ESNIKeys version from draft-02
 #define ESNI_DRAFT_03_VERSION 0xff02 ///< ESNIKeys version from draft-03
+#define ESNI_DRAFT_04_VERSION 0xff03 ///< ESNIKeys version from draft-04
 
-#define ESNI_RRTYPE 65439 ///< experimental (as per draft-03) ESNI RRTYPE
+#define ESNI_RRTYPE 65439 ///< experimental (as per draft-03, and draft-04) ESNI RRTYPE
 
 #endif
 
@@ -104,6 +105,24 @@
  *         Extension extensions<0..2^16-1>;
  *     } ESNIKeys;
  * </pre>
+ *
+ * And draft-4 moves us along to:
+ * <pre>
+ *   struct {
+ *         uint16 version;
+ *         opaque public_name<1..2^16-1>;
+ *         KeyShareEntry keys<4..2^16-1>;
+ *         CipherSuite cipher_suites<2..2^16-2>;
+ *         uint16 padded_length;
+ *         Extension extensions<0..2^16-1>;
+ *     } ESNIKeys;
+ *
+ *     struct {
+ *         ESNIKeys esni_keys;
+ *         Extension dns_extensions<0..2^16-1>;
+ *     } ESNIRecord;
+ * </pre>
+ *
  */
 typedef struct esni_record_st {
     unsigned int version;
@@ -124,6 +143,10 @@ typedef struct esni_record_st {
     unsigned int *exttypes;
     size_t *extlens;
     unsigned char **exts;
+    unsigned int dnsnexts;
+    unsigned int *dnsexttypes;
+    size_t *dnsextlens;
+    unsigned char **dnsexts;
 } ESNI_RECORD;
 
 /**
@@ -187,10 +210,14 @@ typedef struct ssl_esni_st {
     size_t padded_length; ///< from ESNIKeys
     uint64_t not_before; ///< from ESNIKeys (not currently used)
     uint64_t not_after; ///< from ESNIKeys (not currently used)
-    int nexts; ///< number of extensions (not yet supported so >0 => fail)
+    int nexts; ///< number of extensions 
     unsigned int *exttypes; ///< array of extension types
     size_t *extlens; ///< lengths of encoded extension octets
     unsigned char **exts; ///< encoded extension octets
+    int dnsnexts; ///< number of dns extensions 
+    unsigned int *dnsexttypes; ///< array of dns extension types
+    size_t *dnsextlens; ///< lengths of encoded dns extension octets
+    unsigned char **dnsexts; ///< encoded dns extension octets
     int naddrs; ///< decoded AddressSet cardinality
     BIO_ADDR *addrs; ///< decoded AddressSet values (v4 or v6)
     size_t nonce_len; 

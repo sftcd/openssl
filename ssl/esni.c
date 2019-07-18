@@ -240,6 +240,12 @@ void ESNI_RECORD_free(ESNI_RECORD *er)
     if (er->exts!=NULL) OPENSSL_free(er->exts);
     if (er->exttypes!=NULL) OPENSSL_free(er->exttypes);
     if (er->extlens!=NULL) OPENSSL_free(er->extlens);
+    for (i=0;i!=er->dnsnexts;i++) {
+        if (er->dnsexts && er->dnsexts[i]!=NULL) OPENSSL_free(er->dnsexts[i]);
+    }
+    if (er->dnsexts!=NULL) OPENSSL_free(er->dnsexts);
+    if (er->dnsexttypes!=NULL) OPENSSL_free(er->dnsexttypes);
+    if (er->dnsextlens!=NULL) OPENSSL_free(er->dnsextlens);
 #endif
 
     if (er->ciphersuites!=NULL) OPENSSL_free(er->ciphersuites);
@@ -316,6 +322,15 @@ void SSL_ESNI_free(SSL_ESNI *deadesni)
             if (esni->exttypes!=NULL) OPENSSL_free(esni->exttypes);
             if (esni->extlens!=NULL) OPENSSL_free(esni->extlens);
         }
+        if (esni->dnsnexts!=0) {
+            for (j=0;j!=esni->dnsnexts;j++) {
+                if (esni->dnsexts && esni->dnsexts[j]!=NULL) OPENSSL_free(esni->dnsexts[j]);
+            }
+            if (esni->dnsexts!=NULL) OPENSSL_free(esni->dnsexts);
+            if (esni->dnsexttypes!=NULL) OPENSSL_free(esni->dnsexttypes);
+            if (esni->dnsextlens!=NULL) OPENSSL_free(esni->dnsextlens);
+        }
+
         if (esni->naddrs!=0) {
             /*
              * Oddly, one free call here works
@@ -514,16 +529,21 @@ static ESNI_RECORD *SSL_ESNI_RECORD_new_from_binary(unsigned char *binbuf, size_
         case ESNI_DRAFT_03_VERSION:
             printf("Draft-03 code is a work-in-progress...\n");
             break;
+        case ESNI_DRAFT_04_VERSION:
+            printf("Draft-04 code is a very much work-in-progress...\n");
+            break;
         default:
             ESNIerr(ESNI_F_SSL_ESNI_RECORD_NEW_FROM_BINARY, ESNI_R_RR_DECODE_ERROR);
             goto err;
     }
     /* checksum decode */
-    if (!PACKET_copy_bytes(&pkt,er->checksum,4)) {
-        ESNIerr(ESNI_F_SSL_ESNI_RECORD_NEW_FROM_BINARY, ESNI_R_RR_DECODE_ERROR);
-        goto err;
+    if (er->version!=ESNI_DRAFT_04_VERSION) {
+        if (!PACKET_copy_bytes(&pkt,er->checksum,4)) {
+            ESNIerr(ESNI_F_SSL_ESNI_RECORD_NEW_FROM_BINARY, ESNI_R_RR_DECODE_ERROR);
+            goto err;
+        }
     }
-    if (er->version==ESNI_DRAFT_03_VERSION) {
+    if (er->version!=ESNI_DRAFT_02_VERSION) {
         /* 
          * read public_name 
          */
@@ -657,20 +677,24 @@ static ESNI_RECORD *SSL_ESNI_RECORD_new_from_binary(unsigned char *binbuf, size_
         ESNIerr(ESNI_F_SSL_ESNI_RECORD_NEW_FROM_BINARY, ESNI_R_RR_DECODE_ERROR);
         goto err;
     }
-    /*
-     * note: not_before/not_after checking is done elsewhere/elsewhen
-     */
-    unsigned char nbs[8];
-    if (!PACKET_copy_bytes(&pkt,nbs,8)) {
-        ESNIerr(ESNI_F_SSL_ESNI_RECORD_NEW_FROM_BINARY, ESNI_R_RR_DECODE_ERROR);
-        goto err;
+
+    if (er->version!=ESNI_DRAFT_04_VERSION) {
+        /*
+        * note: not_before/not_after checking is done elsewhere/elsewhen
+        */
+        unsigned char nbs[8];
+        if (!PACKET_copy_bytes(&pkt,nbs,8)) {
+            ESNIerr(ESNI_F_SSL_ESNI_RECORD_NEW_FROM_BINARY, ESNI_R_RR_DECODE_ERROR);
+            goto err;
+        }
+        er->not_before=uint64_from_bytes(nbs);
+        if (!PACKET_copy_bytes(&pkt,nbs,8)) {
+            ESNIerr(ESNI_F_SSL_ESNI_RECORD_NEW_FROM_BINARY, ESNI_R_RR_DECODE_ERROR);
+            goto err;
+        }
+        er->not_after=uint64_from_bytes(nbs);
     }
-    er->not_before=uint64_from_bytes(nbs);
-    if (!PACKET_copy_bytes(&pkt,nbs,8)) {
-        ESNIerr(ESNI_F_SSL_ESNI_RECORD_NEW_FROM_BINARY, ESNI_R_RR_DECODE_ERROR);
-        goto err;
-    }
-    er->not_after=uint64_from_bytes(nbs);
+
     /*
      * Extensions: we'll just store 'em for now and try parse any
      * we understand a little later
@@ -715,7 +739,6 @@ static ESNI_RECORD *SSL_ESNI_RECORD_new_from_binary(unsigned char *binbuf, size_
                 goto err;
             }
         }
-
         /* assign fields to lists, have to realloc */
         unsigned int *tip=(unsigned int*)OPENSSL_realloc(er->exttypes,er->nexts*sizeof(er->exttypes[0]));
         if (tip==NULL) {
@@ -725,7 +748,6 @@ static ESNI_RECORD *SSL_ESNI_RECORD_new_from_binary(unsigned char *binbuf, size_
         }
         er->exttypes=tip;
         er->exttypes[er->nexts-1]=exttype;
-
         size_t *lip=(size_t*)OPENSSL_realloc(er->extlens,er->nexts*sizeof(er->extlens[0]));
         if (lip==NULL) {
             if (extval!=NULL) OPENSSL_free(extval);
@@ -734,7 +756,6 @@ static ESNI_RECORD *SSL_ESNI_RECORD_new_from_binary(unsigned char *binbuf, size_
         }
         er->extlens=lip;
         er->extlens[er->nexts-1]=extlen;
-
         unsigned char **vip=(unsigned char**)OPENSSL_realloc(er->exts,er->nexts*sizeof(unsigned char*));
         if (vip==NULL) {
             if (extval!=NULL) OPENSSL_free(extval);
@@ -745,16 +766,95 @@ static ESNI_RECORD *SSL_ESNI_RECORD_new_from_binary(unsigned char *binbuf, size_
         er->exts[er->nexts-1]=extval;
     }
 
+    /*
+     * DNS Extensions: same drill - we'll just store 'em for now and try parse any
+     * we understand a little later
+     */
+    if (er->version==ESNI_DRAFT_04_VERSION) {
+
+        PACKET dnsexts;
+        if (!PACKET_get_length_prefixed_2(&pkt, &dnsexts)) {
+            ESNIerr(ESNI_F_SSL_ESNI_RECORD_NEW_FROM_BINARY, ESNI_R_RR_DECODE_ERROR);
+            goto err;
+        }
+        while (PACKET_remaining(&dnsexts) > 0) {
+            er->dnsnexts+=1;
+            /*
+            * a two-octet length prefixed list of:
+            * two octet extension type
+            * two octet extension length
+            * length octets
+            */
+            unsigned int dnsexttype=0;
+            if (!PACKET_get_net_2(&dnsexts,&dnsexttype)) {
+                ESNIerr(ESNI_F_SSL_ESNI_RECORD_NEW_FROM_BINARY, ESNI_R_RR_DECODE_ERROR);
+                goto err;
+            }
+            unsigned int dnsextlen=0;
+            if (dnsextlen>=ESNI_MAX_RRVALUE_LEN) {
+                ESNIerr(ESNI_F_SSL_ESNI_RECORD_NEW_FROM_BINARY, ESNI_R_RR_DECODE_ERROR);
+                goto err;
+            }
+            if (!PACKET_get_net_2(&dnsexts,&dnsextlen)) {
+                ESNIerr(ESNI_F_SSL_ESNI_RECORD_NEW_FROM_BINARY, ESNI_R_RR_DECODE_ERROR);
+                goto err;
+            }
+            unsigned char *dnsextval=NULL;
+            if (dnsextlen != 0 ) {
+                dnsextval=(unsigned char*)OPENSSL_malloc(dnsextlen);
+                if (dnsextval==NULL) {
+                    ESNIerr(ESNI_F_SSL_ESNI_RECORD_NEW_FROM_BINARY, ESNI_R_RR_DECODE_ERROR);
+                    goto err;
+                }
+                if (!PACKET_copy_bytes(&dnsexts,dnsextval,dnsextlen)) {
+                    OPENSSL_free(dnsextval);
+                    ESNIerr(ESNI_F_SSL_ESNI_RECORD_NEW_FROM_BINARY, ESNI_R_RR_DECODE_ERROR);
+                    goto err;
+                }
+            }
+            /* assign fields to lists, have to realloc */
+            unsigned int *dnstip=(unsigned int*)OPENSSL_realloc(er->dnsexttypes,er->dnsnexts*sizeof(er->dnsexttypes[0]));
+            if (dnstip==NULL) {
+                if (dnsextval!=NULL) OPENSSL_free(dnsextval);
+                ESNIerr(ESNI_F_SSL_ESNI_RECORD_NEW_FROM_BINARY, ESNI_R_RR_DECODE_ERROR);
+                goto err;
+            }
+            er->dnsexttypes=dnstip;
+            er->dnsexttypes[er->dnsnexts-1]=dnsexttype;
+            size_t *dnslip=(size_t*)OPENSSL_realloc(er->dnsextlens,er->dnsnexts*sizeof(er->dnsextlens[0]));
+            if (dnslip==NULL) {
+                if (dnsextval!=NULL) OPENSSL_free(dnsextval);
+                ESNIerr(ESNI_F_SSL_ESNI_RECORD_NEW_FROM_BINARY, ESNI_R_RR_DECODE_ERROR);
+                goto err;
+            }
+            er->dnsextlens=dnslip;
+            er->dnsextlens[er->dnsnexts-1]=dnsextlen;
+            unsigned char **dnsvip=(unsigned char**)OPENSSL_realloc(er->dnsexts,er->dnsnexts*sizeof(unsigned char*));
+            if (dnsvip==NULL) {
+                if (dnsextval!=NULL) OPENSSL_free(dnsextval);
+                ESNIerr(ESNI_F_SSL_ESNI_RECORD_NEW_FROM_BINARY, ESNI_R_RR_DECODE_ERROR);
+                goto err;
+            }
+            er->dnsexts=dnsvip;
+            er->dnsexts[er->dnsnexts-1]=dnsextval;
+        }
+ 
+    } 
+
     int lleftover=PACKET_remaining(&pkt);
     if (lleftover<0 || lleftover>binblen) {
         ESNIerr(ESNI_F_SSL_ESNI_RECORD_NEW_FROM_BINARY, ERR_R_INTERNAL_ERROR);
         goto err;
     }
-    int cksum_ok=esni_checksum_check(binbuf,binblen-lleftover);
-    if (cksum_ok!=1) {
-        ESNIerr(ESNI_F_SSL_ESNI_RECORD_NEW_FROM_BINARY, ERR_R_INTERNAL_ERROR);
-        goto err;
+
+    if (er->version!=ESNI_DRAFT_04_VERSION) {
+        int cksum_ok=esni_checksum_check(binbuf,binblen-lleftover);
+        if (cksum_ok!=1) {
+            ESNIerr(ESNI_F_SSL_ESNI_RECORD_NEW_FROM_BINARY, ERR_R_INTERNAL_ERROR);
+             goto err;
+        }
     }
+
     *leftover=lleftover;
     return er;
 

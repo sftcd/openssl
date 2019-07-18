@@ -25,6 +25,10 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- Started coding up [draft-04](https://tools.ietf.org/html/draft-ietf-tls-esni-04),
+    - Did the ``mk_esnikeys.c`` changes first to produce a sample
+    - Added the RR value decoding into an ``SSL_ESNI`` changes (not really tested yet)
+
 - Re-merged with upstream again (20190717) since the last took a few days.
     - Some more oddities there too, suspect my work-arounds will need to
       be tweaked next time.

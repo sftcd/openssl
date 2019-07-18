@@ -826,7 +826,7 @@ static int mk_esnikeys(int argc, char **argv)
      *         opaque public_name<1..2^16-1>;
      *
      * I don't yet have anyone else's example of a -03/ff02 value but here's one
-     * of mine where this was called with "-P www.cloudflarecom -A":
+     * of mine where this was called with "-P www.cloudflare.com -A":
      *
      * 00000000  ff 02 36 60 b9 a0 00 12  77 77 77 2e 63 6c 6f 75  |..6`....www.clou|
      * 00000010  64 66 6c 61 72 65 2e 63  6f 6d 00 24 00 1d 00 20  |dflare.com.$... |
@@ -855,6 +855,27 @@ static int mk_esnikeys(int argc, char **argv)
      *  } ESNIRecord;
      *
      * The new thing with draft-04 is the ESNIRecord outer wrapper
+     * not sure I've gotten that right yet, but what I end up with,
+     * for "-V 0xff03 -P cover.defo.ie -A" is:
+     *
+     * 00000000  ff 03 00 0d 63 6f 76 65  72 2e 64 65 66 6f 2e 69  |....cover.defo.i|
+     * 00000010  65 00 24 00 1d 00 20 dc  41 6f a8 ec 0a d8 88 a5  |e.$... .Ao......|
+     * 00000020  ae 9a 42 59 4a c0 f6 b2  b9 7d 73 9f 0c 53 0f eb  |..BYJ....}s..S..|
+     * 00000030  b9 e9 f3 ed 83 a7 26 00  02 13 01 01 04 00 00 00  |......&.........|
+     * 00000040  1a 10 01 00 16 06 2a 04  2e 00 00 01 00 15 00 00  |......*.........|
+     * 00000050  00 00 00 00 00 0a 04 b9  18 e9 67                 |..........g|
+     * 0000005b
+     *
+     * And for "-V 0xff03 -P www.cloudflare.com -A" 
+     * 00000000  ff 03 00 12 77 77 77 2e  63 6c 6f 75 64 66 6c 61  |....www.cloudfla|
+     * 00000010  72 65 2e 63 6f 6d 00 24  00 1d 00 20 dc 41 6f a8  |re.com.$... .Ao.|
+     * 00000020  ec 0a d8 88 a5 ae 9a 42  59 4a c0 f6 b2 b9 7d 73  |.......BYJ....}s|
+     * 00000030  9f 0c 53 0f eb b9 e9 f3  ed 83 a7 26 00 02 13 01  |..S........&....|
+     * 00000040  01 04 00 00 00 30 10 01  00 2c 06 26 06 47 00 00  |.....0...,.&.G..|
+     * 00000050  00 00 00 00 00 00 00 68  11 d1 09 06 26 06 47 00  |.......h....&.G.|
+     * 00000060  00 00 00 00 00 00 00 00  68 11 d2 09 04 68 11 d1  |........h....h..|
+     * 00000070  09 04 68 11 d2 09                                 |..h...|
+     * 00000076
      *
      */
 

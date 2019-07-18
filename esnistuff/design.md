@@ -1,7 +1,7 @@
 
 # OpenSSL Encrypted SNI Design
 
-stephen.farrell@cs.tcd.ie, 20190610ish
+stephen.farrell@cs.tcd.ie, 20190718ish
 
 This file describes the current design for our proof-of-concept 
 openssl implementation of encrypted SNI.
@@ -10,14 +10,15 @@ openssl implementation of encrypted SNI.
   both client and server sides of the ESNI Internet-draft
 [draft-ietf-tls-esni-02](https://tools.ietf.org/html/draft-ietf-tls-esni-02)
 spec.
-- I've started to code up the [draft-ietf-tls-esni-03](https://tools.ietf.org/html/draft-ietf-tls-esni-03)
-version, but so far have only done the ``mk_esnikeys`` command line tool (and that's
-not very tested yet) and have also added handling of multivalued ESNIKeys RRs for
+
+- I've coded up the [draft-ietf-tls-esni-03](https://tools.ietf.org/html/draft-ietf-tls-esni-03)
+version, and have also added handling of multivalued ESNIKeys RRs for
 both -02 and -03 versions of ESNIKeys.
-(API changes for that are not yet reflected below but are in the code.) 
-Everything else to do with draft -03 is either non-existent or
-untested as of now. And AFAIK there's nowhere to do interop testing just
-yet, but that may change in a week or two.
+(API changes for that are not yet all reflected below but are in the code.) 
+There hasn't been any interop testing on that version (and might never be, because...)
+
+- I've started coding up [draft-ietf-tls-esni-04](https://tools.ietf.org/html/draft-ietf-tls-esni-04) 
+
 - The most up to date
   [README.md](https://github.com/sftcd/openssl/tree/master/esnistuff) for that
 code.
@@ -29,7 +30,8 @@ ClientHello extension when connecting to the IP address that goes with the
 name.
 
 The -03 draft changes the ESNIKeys RR to use a new RRTYPE and adds some
-IP address handling.
+IP address handling. Draft-04 makes some more changes along those lines
+(some notes [here](03-04.md)).
 
 ## Our Goals
 
@@ -65,7 +67,10 @@ With the above command, you need to hit CTRL-D (the "^D" shown above) to exit
 as is usual with ``s_client``.
 
 The server side code so far has only been tested on localhost against my client-side code
-and an NSS client, and in a very limited manner.
+and an NSS client, and Firefox nightly, but in a fairly limited manner.
+
+I've deployed an ``openssl s_server``-based server with this at [defo.ie](https://defo.ie),
+there are instructions there for how to use it with Firefox nightly.
 
 This is not well-tested code at this point, it's just an initial proof-of-concept,
 so **don't depend on this for anything**.

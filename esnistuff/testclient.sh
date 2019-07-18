@@ -21,8 +21,9 @@ HTTPPATH="/cdn-cgi/trace"
 
 # which draft version we wanna go for 
 # DVERSION="02" => TXT RR from draft-02
-# DVERSION="03" => NEW RRTYPE from draft-02
-# DVERSION="anY" => try and see what works
+# DVERSION="03" => NEW RRTYPE from draft-03
+# DVERSION="04" => NEW RRTYPE from draft-03 is same in draft-04
+# DVERSION="any" => try and see what works
 DVERSION="any"
 
 # Explaining this to myself... :-)
@@ -126,6 +127,7 @@ done
 case "$SUPPLIEDVERSION" in
     "02") DVERSION="02";;
     "03") DVERSION="03";;
+    "04") DVERSION="04";;
     "any") DVERSION="any";;
     "") ;;
     *) usage;;
@@ -217,7 +219,7 @@ then
 	else
         if [[ "$DVERSION" == "any" ]]
         then
-            # try draft-03 first  - we need to drop the initial \# and length and
+            # try draft-03 or later first  - we need to drop the initial \# and length and
             # kill the spaces and joing the lines if multi-valued seen 
 		    ESNI=`dig +short -t TYPE65439 $hidden | cut -f 3- -d' ' | sed -e 's/ //g' | sed -e 'N;s/\n//'`
             if [[ "$ESNI" == "" ]]
@@ -241,6 +243,10 @@ then
             echo "Trying $DVERSION"
             ESNI=`dig +short txt _esni.$hidden | sed -e 's/"//g' | sed -e 'N;s/\n/;/'`
         elif [[ "$DVERSION" == "03" ]]
+        then
+            echo "Trying $DVERSION"
+		    ESNI=`dig +short -t TYPE65439 $hidden | cut -f 3- -d' ' | sed -e 's/ //g' | sed -e 'N;s/\n//'`
+        elif [[ "$DVERSION" == "04" ]]
         then
             echo "Trying $DVERSION"
 		    ESNI=`dig +short -t TYPE65439 $hidden | cut -f 3- -d' ' | sed -e 's/ //g' | sed -e 'N;s/\n//'`
