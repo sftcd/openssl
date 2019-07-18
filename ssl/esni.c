@@ -1020,19 +1020,50 @@ static int esni_make_se_from_er(ESNI_RECORD* er, SSL_ESNI *se, int server)
      * Then when copied, parse known extensions.
      */
     if (er->nexts>0) {
+
         se->nexts=er->nexts;
         se->exttypes=er->exttypes;
         se->extlens=er->extlens;
         se->exts=er->exts;
+        /*
+         * try parse extensions we know about
+         */
+        if (er->version!=ESNI_DRAFT_04_VERSION) {
+            int en=0;
+            for (en=0;en!=se->nexts;en++) {
+                if (se->exttypes[en]==ESNI_ADDRESS_SET_EXT) {
+                    int rv=0;
+                    rv=esni_parse_address_set(se->extlens[en],se->exts[en],se);
+                    if (rv!=1) {
+                        ESNIerr(ESNI_F_ESNI_MAKE_SE_FROM_ER, ERR_R_INTERNAL_ERROR);
+                        goto err;
+                    }
+                }
+            }
+        }
 
+    }
+
+    /* 
+     * We only did the address parsing above for draft-02/draft-03
+     * and below for draft-04, so esni_parse_address_set is fine
+     * to write the addrs field as that'll only happen once. If
+     * someone ever wanted addresses in either place, we'd need to
+     * handle that as the current code would then be leaky
+     */
+    if (er->version==ESNI_DRAFT_04_VERSION) {
+        se->dnsnexts=er->dnsnexts;
+        se->dnsexttypes=er->dnsexttypes;
+        se->dnsextlens=er->dnsextlens;
+        se->dnsexts=er->dnsexts;
         /*
          * try parse extensions we know about
          */
         int en=0;
-        for (en=0;en!=se->nexts;en++) {
-            if (se->exttypes[en]==ESNI_ADDRESS_SET_EXT) {
+        for (en=0;en!=se->dnsnexts;en++) {
+            if (se->dnsexttypes[en]==ESNI_ADDRESS_SET_EXT) {
                 int rv=0;
-                rv=esni_parse_address_set(se->extlens[en],se->exts[en],se);
+                rv=esni_parse_address_set(se->dnsextlens[en],se->dnsexts[en],se);
                 if (rv!=1) {
                     ESNIerr(ESNI_F_ESNI_MAKE_SE_FROM_ER, ERR_R_INTERNAL_ERROR);
                     goto err;
@@ -1418,6 +1449,7 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esniarr, int selector)
 	    BIO_printf(out,"ESNI Server padded_length: %zd\n",esni->padded_length);
 	    BIO_printf(out,"ESNI Server not_before: %ju\n",esni->not_before);
 	    BIO_printf(out,"ESNI Server not_after: %ju\n",esni->not_after);
+
 	    if (esni->nexts!=0) {
 	        BIO_printf(out,"ESNI Server number of extensions: %d\n",esni->nexts);
             for (int i=0;i!=esni->nexts;i++) {
@@ -1427,6 +1459,17 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esniarr, int selector)
 	    } else {
 	        BIO_printf(out,"ESNI no extensions\n");
         }
+
+	    if (esni->dnsnexts!=0) {
+	        BIO_printf(out,"ESNI Server number of DNS extensions: %d\n",esni->dnsnexts);
+            for (int i=0;i!=esni->dnsnexts;i++) {
+                BIO_printf(out,"ESNI DNS Extension type %d\n",esni->dnsexttypes[i]);
+	            esni_pbuf(out,"ESNI DNS Extension value",esni->dnsexts[i],esni->dnsextlens[i],indent+4);
+            }
+	    } else {
+	        BIO_printf(out,"ESNI no DNS extensions\n");
+        }
+
         if (esni->naddrs!=0) {
             BIO_printf(out,"ESNI Addresses\n");
             for (int i=0;i!=esni->naddrs;i++) {
@@ -2996,7 +3039,6 @@ SSL_ESNI* SSL_ESNI_dup(SSL_ESNI* orig, size_t nesni, int selector)
         newi->not_after=origi->not_after;
 
         newi->nexts=origi->nexts;
-
         if (origi->exttypes) {
             newi->exttypes=OPENSSL_malloc(newi->nexts*sizeof(unsigned int));
             if (newi->exttypes==NULL) {
@@ -3005,7 +3047,6 @@ SSL_ESNI* SSL_ESNI_dup(SSL_ESNI* orig, size_t nesni, int selector)
             }
             memcpy(newi->exttypes,origi->exttypes,newi->nexts*sizeof(unsigned int));
         }
-
         if (origi->extlens) {
             newi->extlens=OPENSSL_malloc(newi->nexts*sizeof(size_t));
             if (newi->extlens==NULL) {
@@ -3014,7 +3055,6 @@ SSL_ESNI* SSL_ESNI_dup(SSL_ESNI* orig, size_t nesni, int selector)
             }
             memcpy(newi->extlens,origi->extlens,newi->nexts*sizeof(size_t));
         }
-
         if (origi->exts) {
             newi->exts=OPENSSL_malloc(newi->nexts*sizeof(unsigned char*));
             if (newi->exts==NULL) {
@@ -3032,6 +3072,44 @@ SSL_ESNI* SSL_ESNI_dup(SSL_ESNI* orig, size_t nesni, int selector)
                         goto err;
                     }
                     memcpy(newi->exts[j],origi->exts[j],newi->extlens[j]);
+                }
+            }
+        }
+
+        newi->dnsnexts=origi->dnsnexts;
+        if (origi->dnsexttypes) {
+            newi->dnsexttypes=OPENSSL_malloc(newi->dnsnexts*sizeof(unsigned int));
+            if (newi->dnsexttypes==NULL) {
+                ESNIerr(ESNI_F_SSL_ESNI_DUP, ERR_R_INTERNAL_ERROR);
+                goto err;
+            }
+            memcpy(newi->dnsexttypes,origi->dnsexttypes,newi->dnsnexts*sizeof(unsigned int));
+        }
+        if (origi->dnsextlens) {
+            newi->dnsextlens=OPENSSL_malloc(newi->dnsnexts*sizeof(size_t));
+            if (newi->dnsextlens==NULL) {
+                ESNIerr(ESNI_F_SSL_ESNI_DUP, ERR_R_INTERNAL_ERROR);
+                goto err;
+            }
+            memcpy(newi->dnsextlens,origi->dnsextlens,newi->dnsnexts*sizeof(size_t));
+        }
+        if (origi->dnsexts) {
+            newi->dnsexts=OPENSSL_malloc(newi->dnsnexts*sizeof(unsigned char*));
+            if (newi->dnsexts==NULL) {
+                ESNIerr(ESNI_F_SSL_ESNI_DUP, ERR_R_INTERNAL_ERROR);
+                goto err;
+            }
+            int j;
+            for (j=0;j!=newi->dnsnexts;j++) {
+                if (newi->dnsextlens[j]==0) {
+                    newi->dnsexts[j]=NULL;
+                } else {
+                    newi->dnsexts[j]=OPENSSL_malloc(newi->dnsextlens[j]);
+                    if (newi->dnsexts[j]==NULL) {
+                        ESNIerr(ESNI_F_SSL_ESNI_DUP, ERR_R_INTERNAL_ERROR);
+                        goto err;
+                    }
+                    memcpy(newi->dnsexts[j],origi->dnsexts[j],newi->dnsextlens[j]);
                 }
             }
         }
