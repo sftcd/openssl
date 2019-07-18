@@ -26,6 +26,16 @@
 
 #define ESNI_PBUF_SIZE 8*1024 ///<  8K buffer used for print string sent to application via esni_print_cb
 
+/*
+ * What value to use to indicate a bogus/missing time value, that might work on 
+ * all platforms? I thought about -1 but that might cause some errors if used
+ * with gmtime() or similar. Zero isn't distinguishable from a calloc'd buffer
+ * so didn't go for that. But a small value that's early in 1970 should be ok
+ * here as ESNI was invented more than 40 years later. For now, we'll go with
+ * one second into the time_t epoch, but will be happy to bikeshed on this
+ * later as needed.
+ */
+#define ESNI_NOTATIME 1 ///< value used to indicate that a now-defunct not_before/not_after field is bogus
 
 /*
  * ESNIKeys Extensions we know about...
@@ -143,6 +153,7 @@ typedef struct esni_record_st {
     unsigned int *exttypes;
     size_t *extlens;
     unsigned char **exts;
+    size_t dnsext_offset;
     unsigned int dnsnexts;
     unsigned int *dnsexttypes;
     size_t *dnsextlens;

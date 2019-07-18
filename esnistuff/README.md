@@ -26,9 +26,13 @@ There's a [TODO list](#todos) at the end.
 Most recent first...
 
 - Started coding up [draft-04](https://tools.ietf.org/html/draft-ietf-tls-esni-04),
+    - None of this should affect processing of earlier versions for now
     - Did the ``mk_esnikeys.c`` changes first to produce a sample
     - Added the RR value decoding into an ``SSL_ESNI`` changes (not really tested yet)
     - Fixed up structure changes in ``SSL_ESNI_print`` and ``SSL_ESNI_dup``
+    - Tidied up death of ``not_before``/``not_after``
+    - Changed input bytes for ``record_digest`` 
+    - Switched from ServerNameList to opaque for input to ``esni_pad``
 
 - Re-merged with upstream again (20190717) since the last took a few days.
     - Some more oddities there too, suspect my work-arounds will need to

@@ -406,6 +406,10 @@ err:
  * Note that this isn't quite what the I-D says - It seems that NSS uses the 
  * entire buffer, incl. the version, so I've also done that as it works!
  * Opened issue: https://github.com/tlswg/draft-ietf-tls-esni/issues/119
+ * That got resolved just fine.
+ * Draft-04 changed the input bytes here to exclude the dns_extensions
+ * from the hash calculation, but that change was implemented in the
+ * calling code.
  *
  * @param buf is the input buffer
  * @param blen is the input buffer length
@@ -693,6 +697,9 @@ static ESNI_RECORD *SSL_ESNI_RECORD_new_from_binary(unsigned char *binbuf, size_
             goto err;
         }
         er->not_after=uint64_from_bytes(nbs);
+    } else {
+        er->not_before=ESNI_NOTATIME;
+        er->not_after=ESNI_NOTATIME;
     }
 
     /*
@@ -765,6 +772,14 @@ static ESNI_RECORD *SSL_ESNI_RECORD_new_from_binary(unsigned char *binbuf, size_
         er->exts=vip;
         er->exts[er->nexts-1]=extval;
     }
+
+    /*
+     * Remember the offset of the start of the dns_extensions (if any)
+     * so we can calculate a record_digest later (don't do now, as hash
+     * alg could vary if >1 key/ciphersuite option existed here, for 
+     * some silly reason)
+     */
+    er->dnsext_offset=binblen-PACKET_remaining(&pkt);
 
     /*
      * DNS Extensions: same drill - we'll just store 'em for now and try parse any
@@ -1010,7 +1025,16 @@ static int esni_make_se_from_er(ESNI_RECORD* er, SSL_ESNI *se, int server)
     OPENSSL_free(tmp); tmp=NULL;
     const SSL_CIPHER *sc=cs2sc(se->ciphersuite);
     const EVP_MD *md=ssl_md(sc->algorithm2);
-    se->rd=esni_make_rd(se->encoded_rr,se->encoded_rr_len,md,&se->rd_len);
+    if (er->version==ESNI_DRAFT_04_VERSION) {
+        /*
+         * Draft-04 changed this to exclude the dns_extensions from the 
+         * hash calculation. Sadly we didn't have those in the er struct
+         * ... well, not until now:-)
+         */
+        se->rd=esni_make_rd(se->encoded_rr,er->dnsext_offset,md,&se->rd_len);
+    } else {
+        se->rd=esni_make_rd(se->encoded_rr,se->encoded_rr_len,md,&se->rd_len);
+    }
     if (se->rd==NULL) {
         ESNIerr(ESNI_F_ESNI_MAKE_SE_FROM_ER, ERR_R_INTERNAL_ERROR);
         goto err;
@@ -1441,14 +1465,22 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esniarr, int selector)
 	            BIO_printf(out, isascii(uc) && isprint(uc) ? "%c" : "\\x%02x", uc);
 	        BIO_printf(out, "\"\n");
 	    }
-	    esni_pbuf(out,"ESNI Encoded RR",esni->encoded_rr,esni->encoded_rr_len,indent);
-	    esni_pbuf(out,"ESNI DNS record_digest", esni->rd,esni->rd_len,indent);
+	    esni_pbuf(out,"ESNI Encoded ESNIRecord RR",esni->encoded_rr,esni->encoded_rr_len,indent);
+	    esni_pbuf(out,"ESNI ESNIKeys record_digest", esni->rd,esni->rd_len,indent);
 	    esni_pbuf(out,"ESNI Peer KeyShare:",esni->esni_peer_keyshare,esni->esni_peer_keyshare_len,indent);
 	    BIO_printf(out,"ESNI Server groupd Id: %04x\n",esni->group_id);
 	    BIO_printf(out,"ENSI Server Ciphersuite is %04x\n",esni->ciphersuite);
 	    BIO_printf(out,"ESNI Server padded_length: %zd\n",esni->padded_length);
-	    BIO_printf(out,"ESNI Server not_before: %ju\n",esni->not_before);
-	    BIO_printf(out,"ESNI Server not_after: %ju\n",esni->not_after);
+        if (esni->not_before==ESNI_NOTATIME) {
+	        BIO_printf(out,"ESNI Server not_before: unset\n");
+        } else {
+	        BIO_printf(out,"ESNI Server not_before: %ju\n",esni->not_before);
+        }
+        if (esni->not_after==ESNI_NOTATIME) {
+	        BIO_printf(out,"ESNI Server not_after: unset\n");
+        } else {
+	        BIO_printf(out,"ESNI Server not_after: %ju\n",esni->not_after);
+        }
 
 	    if (esni->nexts!=0) {
 	        BIO_printf(out,"ESNI Server number of extensions: %d\n",esni->nexts);
@@ -1542,23 +1574,32 @@ static unsigned char *esni_nonce(size_t nl)
 /**
  * @brief Pad an SNI before encryption with zeros on the right to the required length
  */
-static unsigned char *esni_pad(char *name, unsigned int padded_len)
+static unsigned char *esni_pad(char *name, unsigned int padded_len, int version)
 {
     /*
      * usual function is statem/extensions_clnt.c:tls_construct_ctos_server_name
      * encoding is 2 byte overall length, 0x00 for hostname, 2 byte length of name, name
      */
     size_t nl=OPENSSL_strnlen(name,padded_len);
-    size_t oh=3; /* encoding overhead */
+    size_t oh=5; /* total encoding overhead */
+    if (version==ESNI_DRAFT_04_VERSION) {
+        oh=2;
+    } 
     if ((nl+oh)>=padded_len) return(NULL);
     unsigned char *buf=OPENSSL_malloc(padded_len);
     memset(buf,0,padded_len);
-    buf[0]=((nl+oh)/256);
-    buf[1]=((nl+oh)%256);
-    buf[2]=0x00;
-    buf[3]=(nl/256);
-    buf[4]=(nl%256);
-    memcpy(buf+5,name,nl);
+    if (version!=ESNI_DRAFT_04_VERSION) {
+        buf[0]=((nl+oh-2)/256);
+        buf[1]=((nl+oh-2)%256);
+        buf[2]=0x00;
+        buf[3]=(nl/256);
+        buf[4]=(nl%256);
+        memcpy(buf+5,name,nl);
+    } else {
+        buf[0]=(nl/256);
+        buf[1]=(nl%256);
+        memcpy(buf+2,name,nl);
+    }
     return buf;
 }
 
@@ -1979,6 +2020,13 @@ static int key_derivation(SSL_ESNI *esnikeys)
         ESNIerr(ESNI_F_KEY_DERIVATION, ERR_R_INTERNAL_ERROR);
         goto err;
     }
+    /*
+     * TODO: implement label swapping when handling HRR - the 2nd time the
+     * labels should go from "esni key" to "hrr esni key" and "esni iv" to
+     * "hrr esni iv" - but not yet - I've still to do HRR processing at
+     * all, and I suspect this crypto primitive will switch to use of 
+     * whatever ends up from https://tools.ietf.org/html/draft-barnes-cfrg-hpke
+     */
     esnikeys->key_len=EVP_CIPHER_key_length(e_ciph);
     esnikeys->key=esni_hkdf_expand_label(esnikeys->Zx,esnikeys->Zx_len,"esni key",
                     esnikeys->hash,esnikeys->hash_len,&esnikeys->key_len,md);
@@ -2197,9 +2245,11 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys_in,
 
     /*
      * Form up the inner SNI stuff
+     * I don't think the draft-04 change from ServerNameList to opaque
+     * has any effect here as we only support one name anyway
      */
     esnikeys->realSNI_len=esnikeys->padded_length;
-    esnikeys->realSNI=esni_pad(esnikeys->encservername,esnikeys->realSNI_len);
+    esnikeys->realSNI=esni_pad(esnikeys->encservername,esnikeys->realSNI_len,esnikeys->version);
     if (esnikeys->realSNI==NULL) {
         ESNIerr(ESNI_F_SSL_ESNI_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
@@ -2370,7 +2420,7 @@ unsigned char *SSL_ESNI_dec(SSL_ESNI *esni,
      */
     CLIENT_ESNI *er=esni->the_esni;
     /*
-     * Check record_digest
+     * Check record_digest TODO: draft-04 changes
      */
     if (esni->rd_len!=er->record_digest_len) {
         ESNIerr(ESNI_F_SSL_ESNI_DEC, ERR_R_INTERNAL_ERROR);
@@ -2476,17 +2526,6 @@ unsigned char *SSL_ESNI_dec(SSL_ESNI *esni,
         goto err;
     }
 
-    /* 
-     * Debugging FF nightly interop, currently failing here
-     * Print out the SSL_ESNI we have so far
-    BIO *bio_out;
-    bio_out = BIO_new(BIO_s_file());
-    BIO_set_fp(bio_out, stdout, BIO_NOCLOSE);
-    BIO_printf(bio_out, "Hello Nightly!\n");
-    SSL_ESNI_print(bio_out,esni);
-    BIO_printf(bio_out, "Bye-bye Nightly!\n");
-     */
-
     esni->plain=esni_aead_dec(esni->key, esni->key_len,
             esni->iv, esni->iv_len,
             esni->aad, esni->aad_len,
@@ -2498,7 +2537,6 @@ unsigned char *SSL_ESNI_dec(SSL_ESNI *esni,
         goto err;
     }
 
-    /* yay! */
     esni->nonce_len=16;
     esni->nonce=OPENSSL_malloc(esni->nonce_len);
     if (esni->nonce==NULL) {
@@ -2509,7 +2547,15 @@ unsigned char *SSL_ESNI_dec(SSL_ESNI *esni,
 
     size_t outer_es_len=esni->plain[16]*256+esni->plain[17];
     size_t inner_es_len=outer_es_len-3;
-    if (inner_es_len+21>esni->plain_len) {
+    size_t overhead=21;
+    if (esni->version==ESNI_DRAFT_04_VERSION) {
+        /*
+         * switch from ServerNamList to opaque means less overhead
+         */
+        inner_es_len=outer_es_len;
+        overhead=18;
+    }
+    if ((inner_es_len+overhead)>esni->plain_len) {
         ESNIerr(ESNI_F_SSL_ESNI_DEC, ERR_R_INTERNAL_ERROR);
         goto err;
     }
@@ -2518,7 +2564,7 @@ unsigned char *SSL_ESNI_dec(SSL_ESNI *esni,
         ESNIerr(ESNI_F_SSL_ESNI_DEC, ERR_R_INTERNAL_ERROR);
         goto err;
     }
-    memcpy(result,esni->plain+21,inner_es_len);
+    memcpy(result,esni->plain+overhead,inner_es_len);
     result[inner_es_len]=0x00; /* make it a safe-ish string */
     esni->encservername=(char*)result;
 
@@ -2599,7 +2645,9 @@ int SSL_esni_enable(SSL *s, const char *hidden, const char *cover, SSL_ESNI *esn
      * structure to use at this point on the client side. Selection 
      * criteria are: 1) most recent ESNIKeys version first, 2) the
      * most recently created based on not_before. We do not care 
-     * about not_after (for now; TODO: care about that sometime).
+     * about not_after. Originally, I planned to care about that
+     * but now it's a gonner in draft-04, I'm happy to not bother
+     * and let the application handle it as it sees fit.
      */
     if (s->esni!=NULL) {
         for (i=0;i!=s->nesni;i++) {
@@ -2640,7 +2688,7 @@ int SSL_esni_enable(SSL *s, const char *hidden, const char *cover, SSL_ESNI *esn
     }
 
     /* 
-     * We prefer Draft-03 public_name over locally supplied 
+     * We prefer draft-03/draft-04 public_name over locally supplied 
      * covername. 
      */
     if (s->esni[keysind].public_name!=NULL) {
@@ -2870,7 +2918,7 @@ int SSL_get_esni_status(SSL *s, char **hidden, char **cover)
         } 
         *hidden=s->esni[matchind].encservername;
         /*
-         * Prefer draft-03 public_name to locally supplied covername
+         * Prefer draft-03/draft-04 public_name to locally supplied covername
          * TODO: consider whether or not that's a good plan
          */
         if (s->esni[matchind].public_name) {
@@ -3326,9 +3374,17 @@ int SSL_ESNI_ext_print(BIO* out, SSL_ESNI_ext *se,int count)
             BIO_printf(out,"\tPrefixes: %s\n",se[i].prefixes);
         }
         time_t tt=se[i].not_before;
-        BIO_printf(out,"\tNot before: (%ju) %s", se[i].not_before, asctime(gmtime(&tt)));
+        if (tt!=ESNI_NOTATIME) {
+            BIO_printf(out,"\tNot before: (%ju) %s", se[i].not_before, asctime(gmtime(&tt)));
+        } else {
+            BIO_printf(out,"\tNot before: unset\n");
+        }
         tt=se[i].not_after;
-        BIO_printf(out,"\tNot after: (%ju) %s", se[i].not_after, asctime(gmtime(&tt)));
+        if (tt!=ESNI_NOTATIME) {
+            BIO_printf(out,"\tNot after: (%ju) %s", se[i].not_after, asctime(gmtime(&tt)));
+        } else {
+            BIO_printf(out,"\tNot after: unset\n");
+        }
     }
     return(1);
 }
