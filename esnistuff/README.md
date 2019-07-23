@@ -25,8 +25,28 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
-- Started coding up [draft-04](https://tools.ietf.org/html/draft-ietf-tls-esni-04),
-    - None of this should affect processing of earlier versions for now
+- GREASE: close to done here, I hope...
+    - As an aside, I already have GREASE extensions in ``mk_esnikeys``:-)
+    - Added a version value of ``ESNI_GREASE_VERSION`` (0xffff) for use in 
+      the ``SSL_ESNI`` structure. 
+    - Added a function ``SSL_ESNI_grease_me`` to create the phoney value.
+      For the moment, that just hard codes x25519 and otherwise sets non-bogus 
+      looking (but actually bogus) random crap.
+    - Call out to the above on the client from ``tls_construct_ctos_esni``
+    - Added an ``SSL_OP_ESNI_GREASE`` for the client (taking a reserved
+      bit in a field, need to check if that's ok), and added a new CLA
+      to ``s_client``: ``--esni_grease`` if you want to do greasing (so
+      client is off by default). Need to figure out how that can be 
+      done via config file.
+    - Added an ``SSL_OP_ESNI_HARDFAIL`` server config (taking another
+      reserved bit in a field) that defaults to off. So we'll fall back
+      to the cleartext SNI by default and only hardfail on ESNI if
+      this is set. That enables GREASE. Need to figure out how that
+      can be done via config file.
+
+- Started coding up [draft-04](https://tools.ietf.org/html/draft-ietf-tls-esni-04).
+None of this should affect processing of earlier versions for now.  The list of 
+fairly minor changes is:
     - Did the ``mk_esnikeys.c`` changes first to produce a sample
     - Added the RR value decoding into an ``SSL_ESNI`` changes (not really tested yet)
     - Fixed up structure changes in ``SSL_ESNI_print`` and ``SSL_ESNI_dup``

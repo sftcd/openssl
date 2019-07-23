@@ -87,6 +87,7 @@ static int ocsp_resp_cb(SSL *s, void *arg);
 #ifndef OPENSSL_NO_ESNI
 static unsigned int esni_print_cb(SSL *s, char *str);
 int esni_strict=0;
+int esni_grease=0;
 #endif
 static int ldap_ExtendedResponse_parse(const char *buf, long rem);
 static char *base64encode (const void *buf, size_t len);
@@ -618,6 +619,7 @@ typedef enum OPTION_choice {
     OPT_ESNI,
     OPT_ESNI_RR,
     OPT_ESNI_STRICT,
+    OPT_ESNI_GREASE,
 #endif
     OPT_SCTP_LABEL_BUG,
     OPT_R_ENUM
@@ -731,6 +733,8 @@ const OPTIONS s_client_options[] = {
      "Set ESNI ESNIKeys, value is base64 encoded from RR as per I-D -02 or -03"},
     {"esni_strict",OPT_ESNI_STRICT,'-',
      "Enforce strict matching between ESNI value and TLS server cert"},
+    {"esni_grease",OPT_ESNI_GREASE,'-',
+     "Send GREASE values when not really using ESNI"},
 #endif
     {"noservername", OPT_NOSERVERNAME, '-',
      "Do not send the server name (SNI) extension in the ClientHello"},
@@ -1589,6 +1593,9 @@ int s_client_main(int argc, char **argv)
         case OPT_ESNI_STRICT:
             esni_strict=1;
             break;
+        case OPT_ESNI_GREASE:
+            esni_grease=1;
+            break;
 #endif
         case OPT_NOSERVERNAME:
             noservername = 1;
@@ -1652,6 +1659,7 @@ int s_client_main(int argc, char **argv)
             break;
         }
     }
+
 
     if (count4or6 >= 2) {
         BIO_printf(bio_err, "%s: Can't use both -4 and -6\n", prog);
@@ -1886,6 +1894,12 @@ int s_client_main(int argc, char **argv)
         ERR_print_errors(bio_err);
         goto end;
     }
+
+#ifndef OPENSSL_NO_ESNI
+    if (esni_grease!=0) {
+        SSL_CTX_set_options(ctx,SSL_OP_ESNI_GREASE);
+    }
+#endif
 
     SSL_CTX_clear_mode(ctx, SSL_MODE_AUTO_RETRY);
 
@@ -2237,6 +2251,7 @@ int s_client_main(int argc, char **argv)
                 goto end;
             }
         }
+
 #endif
 
         SSL_SESSION_free(sess);
@@ -2367,12 +2382,14 @@ int s_client_main(int argc, char **argv)
                 BIO_free(sbio);
                 goto shut;
             }
+
             SSL_set_options(con, SSL_OP_NO_QUERY_MTU);
             if (!DTLS_set_link_mtu(con, socket_mtu)) {
                 BIO_printf(bio_err, "Failed to set MTU\n");
                 BIO_free(sbio);
                 goto shut;
             }
+
         } else {
             /* want to do MTU discovery */
             BIO_ctrl(sbio, BIO_CTRL_DGRAM_MTU_DISCOVER, 0, NULL);
@@ -3681,6 +3698,9 @@ static void print_stuff(BIO *bio, SSL *s, int full)
             break;
         case SSL_ESNI_STATUS_BAD_NAME: 
             BIO_printf(bio,"ESNI: worked but bad name\n");
+            break;
+        case SSL_ESNI_STATUS_GREASE: 
+            BIO_printf(bio,"ESNI: Just did greasing\n");
             break;
         case SSL_ESNI_STATUS_SUCCESS:
             BIO_printf(bio,"ESNI: success: cover: %s, hidden: %s\n",

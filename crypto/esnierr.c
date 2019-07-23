@@ -48,6 +48,8 @@ static const ERR_STRING_DATA ESNI_str_functs[] = {
      "SSL_esni_server_enable"},
     {ERR_PACK(ERR_LIB_ESNI, ESNI_F_SSL_ESNI_WRAP_KEYSHARE, 0),
      "SSL_ESNI_wrap_keyshare"},
+    {ERR_PACK(ERR_LIB_ESNI, ESNI_F_GREASE_ME, 0),
+     "SSL_ESNI_grease_me"},
     {0, NULL}
 };
 

@@ -137,15 +137,6 @@ code following good project practice.
 documentation. That'd probably be pruned when/if submitting a PR to the main
 project, but should be helpful for now.
 
-## Plans
-
-- We may try integrate the client-side with some web client application such
-  as wget or curl.
-- We may try integrate the server-side with some web server (apache/nginx)
-
-The timeline for our work is that Calum needs to be finished his project
-by approx. end March 2019. Stephen will continue work on this thereafter.
-
 ## Design details
 
 We have a simple client-side [test script](#test-script) that exercises various ``s_client`` options.
@@ -160,7 +151,6 @@ We've documented our data structures and [APIs](#apis) that allow OpenSSL applic
 ESNI.
 
 We've some notes on our [extension and ``SSL_CTX``](#extension-and-ssl_ctx-handling) handling.
-
 
 There're also a few notes about [testing](#testing).
 
@@ -271,6 +261,33 @@ Notes:
 - The function names above that contain the string ``SNI_ESNI`` either return
 or take as a parameter a value of that type. Function names with a lowercase
 esni substring do not. (This seems to be an OpenSSL convention.)
+
+## GREASE
+
+TODO: Add notes here about GREASE when it's worked out/done. For now,
+just tracking where the function below is used and what it does should 
+help understand what's what. (More as I figure it out:-)
+
+            /**
+             * @brief Make up a GREASE/fake SSL_ESNI structure
+             *
+             * When doing GREASE (draft-ietf-tls-grease) we want to make up a
+             * phony encrypted SNI. This function will do that:-)
+             *
+             * If s->esni isn't NULL on input then we leave it alone
+             * If s->esni comes back NULL after this call, then we're not greasing
+             *
+             * TODO: arrange a flag that can be part of the openssl config
+             * file to turn greasing on/off globally or as part of normal setup 
+             * that allows greasing to be turned on/off per session. That'll
+             * default to off for now.
+             *
+             * @param s is the SSL context
+             * @param cp is a pointer to a possible greasy ESNI
+             * @return 1 for success, other otherwise
+             *
+             */
+            int SSL_ESNI_grease_me(SSL *s, CLIENT_ESNI **cp);
 
 ## Server-side 
 

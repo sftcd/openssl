@@ -68,6 +68,7 @@
 //#undef ESNI_CRYPT_INTEROP
 #ifdef ESNI_CRYPT_INTEROP
 
+#define ESNI_GREASE_VERSION 0xffff ///< Fake ESNIKeys version to indicate grease
 #define ESNI_DRAFT_02_VERSION 0xff01 ///< ESNIKeys version from draft-02
 #define ESNI_DRAFT_03_VERSION 0xff02 ///< ESNIKeys version from draft-03
 #define ESNI_DRAFT_04_VERSION 0xff03 ///< ESNIKeys version from draft-04
@@ -533,11 +534,12 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esni,int selector);
  * Possible return codes from SSL_get_esni_status
  */
 
+#define SSL_ESNI_STATUS_GREASE                  2 ///< ESNI GREASE happened (if you care:-)
 #define SSL_ESNI_STATUS_SUCCESS                 1 ///< Success
 #define SSL_ESNI_STATUS_FAILED                  0 ///< Some internal error
 #define SSL_ESNI_STATUS_BAD_CALL             -100 ///< Required in/out arguments were NULL
 #define SSL_ESNI_STATUS_NOT_TRIED            -101 ///< ESNI wasn't attempted 
-#define SSL_ESNI_STATUS_BAD_NAME             -102 ///< ESNI succeeded but the TLS server cert used didn't match the hidden service name
+#define SSL_ESNI_STATUS_BAD_NAME             -102 ///< ESNI succeeded but the server cert didn't match the hidden service name
 #define SSL_ESNI_STATUS_TOOMANY              -103 ///< ESNI succeeded can't figure out which one!
 
 /**
@@ -597,6 +599,27 @@ int SSL_ESNI_set_private(SSL_ESNI *esni, char *private_str);
  *
  */
 int SSL_ESNI_set_nonce(SSL_ESNI *esni, unsigned char *nonce, size_t nlen);
+
+/**
+ * @brief Make up a GREASE/fake SSL_ESNI structure
+ *
+ * When doing GREASE (draft-ietf-tls-grease) we want to make up a
+ * phony encrypted SNI. This function will do that:-)
+ *
+ * If s->esni isn't NULL on input then we leave it alone
+ * If s->esni comes back NULL after this call, then we're not greasing
+ *
+ * TODO: arrange a flag that can be part of the openssl config
+ * file to turn greasing on/off globally or as part of normal setup 
+ * that allows greasing to be turned on/off per session. That'll
+ * default to off for now.
+ *
+ * @param s is the SSL context
+ * @param cp is a pointer to a possible greasy ESNI
+ * @return 1 for success, other otherwise
+ *
+ */
+int SSL_ESNI_grease_me(SSL *s, CLIENT_ESNI **cp);
 
 #endif
 #endif

@@ -17,6 +17,7 @@ NOESNI="no"
 DEBUG="no"
 PORT="443"
 SUPPLIEDPORT=""
+GREASE="no"
 HTTPPATH="/cdn-cgi/trace"
 
 # which draft version we wanna go for 
@@ -80,6 +81,7 @@ function usage()
     echo "  -d means run s_client in verbose mode"
     echo "  -v means run with valgrind"
     echo "  -l means use stale ESNIKeys"
+    echo "  -g means GREASE (only applied with -n)"
 	echo "  -S [file] means save or resume session from <file>"
     echo "  -L means to not set esni_strict on the command line (be lax)"
     echo "  -n means don't trigger esni at all"
@@ -93,7 +95,7 @@ function usage()
 }
 
 # options may be followed by one colon to indicate they have a required argument
-if ! options=$(/usr/bin/getopt -s bash -o S:c:P:H:p:s:dlvnhLV: -l session:,cover:,esnipub:,hidden:,port:,server:,debug,stale,valgrind,noesni,help,lax,version: -- "$@")
+if ! options=$(/usr/bin/getopt -s bash -o gS:c:P:H:p:s:dlvnhLV: -l grease:,session:,cover:,esnipub:,hidden:,port:,server:,debug,stale,valgrind,noesni,help,lax,version: -- "$@")
 then
     # something went wrong, getopt will put out an error message for us
     exit 1
@@ -115,6 +117,7 @@ do
         -S|--session) SUPPLIEDSESSION=$2; shift;;
 		-P|--esnipub) SUPPLIEDESNI=$2; shift;;
 		-L|--lax) BELAX="yes";;
+		-g|--grease) GREASE="yes";;
         -p|--port) SUPPLIEDPORT=$2; shift;;
         -V|--version) SUPPLIEDVERSION=$2; shift;;
         (--) shift; break;;
@@ -167,8 +170,10 @@ then
     if [[ "$SUPPLIEDCOVER" == "NONE" ]]
     then
         snicmd="-noservername "
+        cover=""
     else
         snicmd=" -servername $SUPPLIEDCOVER "
+        cover=$SUPPLIEDCOVER
     fi
 fi
 
@@ -254,12 +259,11 @@ then
 	fi
 fi
 
-if [[ "$ESNI" == "" ]]
+if [[ "$NOESNI" != "yes" && "$ESNI" == "" ]]
 then
     echo "Not trying - no sign of ESNIKeys ESNI "
     exit 100
 fi
-
 
 esnistr="-esni $hidden -esnirr $ESNI -esni_strict "
 if [[ "$BELAX" == "yes" ]]
@@ -270,6 +274,12 @@ if [[ "$NOESNI" == "yes" ]]
 then
     echo "Not trying ESNI"
     esnistr=""
+    hidden=$cover
+    if [[ "$GREASE" == "yes" ]]
+    then
+        echo "Trying to GREASE though"
+        esnistr=" -esni_grease "
+    fi
 fi
 
 #httpreq="GET $HTTPPATH\\r\\n\\r\\n"

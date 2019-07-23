@@ -940,7 +940,7 @@ typedef enum OPTION_choice {
     OPT_KEYLOG_FILE, OPT_MAX_EARLY, OPT_RECV_MAX_EARLY, OPT_EARLY_DATA,
     OPT_S_NUM_TICKETS, OPT_ANTI_REPLAY, OPT_NO_ANTI_REPLAY, OPT_SCTP_LABEL_BUG,
 #ifndef OPENSSL_NO_ESNI
-    OPT_ESNIKEY, OPT_ESNIPUB, OPT_ESNIDIR, OPT_ESNISPECIFICPAD,
+    OPT_ESNIKEY, OPT_ESNIPUB, OPT_ESNIDIR, OPT_ESNISPECIFICPAD, OPT_ESNI_HARDFAIL,
 #endif
     OPT_HTTP_SERVER_BINMODE,
     OPT_R_ENUM,
@@ -1162,6 +1162,7 @@ const OPTIONS s_server_options[] = {
     {"esnipub", OPT_ESNIPUB, 's', "Load ESNI public key"},
     {"esnidir", OPT_ESNIDIR, 's', "ESNI information directory"},
     {"esnispecificpad", OPT_ESNISPECIFICPAD, '-', "Do specific padding of Certificate/CertificateVerify (instead of general padding all)"},
+    {"esnihardfail", OPT_ESNI_HARDFAIL, '-', "Fail connection if ESNI decryption fails (default is to serve SNI/COVER site if ESNI fails due to GREASE"},
 #endif
     {"http_server_binmode", OPT_HTTP_SERVER_BINMODE, '-', "opening files in binary mode when acting as http server (-WWW and -HTTP)"},
     {NULL, OPT_EOF, 0, NULL}
@@ -1255,6 +1256,7 @@ int s_server_main(int argc, char *argv[])
     char *esnipubfile = NULL;
     char *esnidir=NULL;
     int esnispecificpad=0; ///< we default to generally padding to 512 octet multiples
+    int esnihardfail=0; ///< whether we fail if ESNI does or fall back to trying to serve COVER
 #endif
 
 #ifndef OPENSSL_NO_SCTP
@@ -1817,6 +1819,9 @@ int s_server_main(int argc, char *argv[])
         case OPT_ESNISPECIFICPAD:
             esnispecificpad=1;
             break;
+        case OPT_ESNI_HARDFAIL:
+            esnihardfail=1;
+            break;
 #endif
         case OPT_HTTP_SERVER_BINMODE:
             http_server_binmode = 1;
@@ -2013,6 +2018,12 @@ int s_server_main(int argc, char *argv[])
         ERR_print_errors(bio_err);
         goto end;
     }
+
+#ifndef OPENSSL_NO_ESNI
+    if (esnihardfail!=0) {
+        SSL_CTX_set_options(ctx,SSL_OP_ESNI_HARDFAIL);
+    }
+#endif
 
     SSL_CTX_clear_mode(ctx, SSL_MODE_AUTO_RETRY);
 
@@ -2235,6 +2246,11 @@ int s_server_main(int argc, char *argv[])
             ERR_print_errors(bio_err);
             goto end;
         }
+#ifndef OPENSSL_NO_ESNI
+        if (esnihardfail!=0) {
+            SSL_CTX_set_options(ctx2,SSL_OP_ESNI_HARDFAIL);
+        }
+#endif
     }
 
     if (ctx2 != NULL) {

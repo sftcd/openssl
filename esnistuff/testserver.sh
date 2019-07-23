@@ -21,6 +21,7 @@ NOESNI="no"
 DEBUG="no"
 KEYGEN="no"
 PORT="8443"
+HARDFAIL="no"
 SUPPLIEDPORT=""
 
 SUPPLIEDKEYFILE=""
@@ -48,6 +49,7 @@ function usage()
     echo "  -n means don't trigger esni at all"
 	echo "  -c [name] specifices a covername that I'll accept as a clear SNI (NONE is special)"
     echo "  -p [port] specifices a port (default: 8443)"
+	echo "  -F says to hard fail if ESNI attempted but fails"
 	echo "  -K to generate server keys "
     echo "  -h means print this"
 
@@ -60,7 +62,7 @@ function usage()
 }
 
 # options may be followed by one colon to indicate they have a required argument
-if ! options=$(/usr/bin/getopt -s bash -o c:D:H:p:Kdlvnh -l dir:,cover:,hidden:,port:,keygen,debug,stale,valgrind,noesni,help -- "$@")
+if ! options=$(/usr/bin/getopt -s bash -o Fc:D:H:p:Kdlvnh -l hardfail,dir:,cover:,hidden:,port:,keygen,debug,stale,valgrind,noesni,help -- "$@")
 then
     # something went wrong, getopt will put out an error message for us
     exit 1
@@ -78,6 +80,7 @@ do
         -c|--cover) SUPPLIEDCOVER=$2; shift;;
         -H|--hidden) SUPPLIEDHIDDEN=$2; shift;;
         -D|--dir) SUPPLIEDDIR=$2; shift;;
+        -F|--hardfail) HARDFAIL="yes"; shift;;
         -p|--port) SUPPLIEDPORT=$2; shift;;
         (--) shift; break;;
         (-*) echo "$0: error - unrecognized option $1" 1>&2; exit 1;;
@@ -162,6 +165,12 @@ then
     esnistr=""
 fi
 
+hardfail=""
+if [[ "$HARDFAIL" == "yes" ]]
+then
+    hardfail=" -esnihardfail"
+fi
+
 # tell it where CA stuff is...
 certsdb=" -CApath $CAPATH"
 
@@ -175,6 +184,10 @@ force13="-no_ssl3 -no_tls1 -no_tls1_1 -no_tls1_2"
 # are (currently) padded
 #padding=" -esnispecificpad"
 
-$vgcmd $TOP/apps/openssl s_server $dbgstr $keyfile1 $keyfile2 $certsdb $portstr $force13 $esnistr $snicmd $padding
+if [[ "$DEBUG" == "yes" ]]
+then
+    echo "Running: $vgcmd $TOP/apps/openssl s_server $dbgstr $keyfile1 $keyfile2 $certsdb $portstr $force13 $esnistr $snicmd $padding $hardfail"
+fi
+$vgcmd $TOP/apps/openssl s_server $dbgstr $keyfile1 $keyfile2 $certsdb $portstr $force13 $esnistr $snicmd $padding $hardfail
 
 

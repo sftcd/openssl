@@ -49,14 +49,16 @@ EXT_RETURN tls_construct_ctos_renegotiate(SSL *s, WPACKET *pkt,
  * change when ESNI enabling perhaps)
  *
  * Draft-03 update: public_name can be set in the
- * ESNIKeys RR and if so, that overrides the locally
- * supplied covername. TODO: Maybe re-consider that.
+ * ESNIKeys RR and if so, that can be overriden by 
+ * the locally supplied covername. 
  *
  * When the name is fixed up, we record the original
  * encservername, covername and public_name in the 
  * SSL_SESSION.ext so that later printing etc. can do 
  * the right thing. The ext.hostname will be the one 
  * used for keying as if it had been the SNI provided.
+ *
+ * Note: the comment above is wrong, FIXME
  *
  * @param s is the SSL context
  * @param pkt is seemingly unused here
@@ -109,14 +111,14 @@ static EXT_RETURN esni_server_name_fixup(SSL *s, WPACKET *pkt,
 
         /* now do the checks */
         if (pn_len!=0) {
-            /* if public_name set, ignore covername */
+            /* if public_name set */
             if (pn_len!=ehn_len || CRYPTO_memcmp(s->ext.hostname,s->esni->public_name,pn_len)) {
                 SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_ESNI_SERVER_NAME_FIXUP,
                     ERR_R_INTERNAL_ERROR);
                 return EXT_RETURN_NOT_SENT;
             }
         } else {
-            /* if public_name not set, check covername */
+            /* maybe covername */
             if (cn_len!=ehn_len || CRYPTO_memcmp(s->ext.hostname,s->esni->covername,cn_len)) {
                 SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_ESNI_SERVER_NAME_FIXUP,
                     ERR_R_INTERNAL_ERROR);
@@ -2217,22 +2219,33 @@ EXT_RETURN tls_construct_ctos_esni(SSL *s, WPACKET *pkt, unsigned int context,
         return EXT_RETURN_NOT_SENT;
     }
 
-    if (s->esni==NULL || s->esni->encservername == NULL) {
-        return EXT_RETURN_NOT_SENT;
-    }
-    
-    /*
-     * client_random from CH - FIXME: literal 1024 seems dodgy, check the
-     * SSL_get_client_random code.
-     */
-    unsigned char rd[1024];
-    size_t rd_len=SSL_get_client_random(s,rd,1024);
-
-    uint16_t curve_id = s->s3.group_id;
     CLIENT_ESNI *c=NULL;
-    if (!SSL_ESNI_enc(s->esni,rd_len,rd,curve_id,s->ext.kse_len,s->ext.kse,&c)) {
-        return 0;
+    if (s->esni==NULL || s->esni->encservername == NULL || s->esni->version==ESNI_GREASE_VERSION) {
+        /*
+         * Check if we want to grease or are done...
+         */
+        int grv=SSL_ESNI_grease_me(s,&c);
+        if (grv==0 || s->esni==NULL || c==NULL) {
+            /*
+             * No grease for you today...
+             */
+            return EXT_RETURN_NOT_SENT;
+        }
     }
+
+    if (s->esni->version!=ESNI_GREASE_VERSION) {
+        /*
+        * client_random from CH - FIXME: literal 1024 seems dodgy, check the
+        * SSL_get_client_random code.
+        */
+        unsigned char rd[1024];
+        size_t rd_len=SSL_get_client_random(s,rd,1024);
+    
+        uint16_t curve_id = s->s3.group_id;
+        if (!SSL_ESNI_enc(s->esni,rd_len,rd,curve_id,s->ext.kse_len,s->ext.kse,&c)) {
+            return 0;
+        }
+    } 
 
     /*
      * Now encode the ESNI stuff 

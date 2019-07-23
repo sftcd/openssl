@@ -958,14 +958,21 @@ static int init_esni(SSL *s, unsigned int context)
 static int final_esni(SSL *s, unsigned int context, int sent)
 {
     /*
-     * Nothing for now. TODO: figure out what:-)
      * Could be that cleaning up would be good, and/or 
      * whatever's needed for handling tickets etc. etc.
      */
-    if (!s->server && s->esni && s->esni_done!=1) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_FINAL_ESNI,
+    if (!s->server && s->esni) {
+        if (s->esni->version==ESNI_GREASE_VERSION) {
+            /*
+             * If we greased, then it's ok that esni_done didn't get set
+             * TODO: figure if this is the right check to make
+             */
+            return 1;
+        } else if (s->esni_done!=1) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_FINAL_ESNI,
                  SSL_R_CALLBACK_FAILED);
-        return 0;
+            return 0;
+        }
     }
     return 1;
 }

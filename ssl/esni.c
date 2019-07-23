@@ -986,6 +986,7 @@ static int esni_make_se_from_er(ESNI_RECORD* er, SSL_ESNI *se, int server)
         memcpy(se->public_name,er->public_name,er->public_name_len);
         se->public_name[er->public_name_len]='\0';
     }
+
     /* 
      * now decide which bits of er we like and remember those 
      * pick the 1st key/group/ciphersutie that works
@@ -1428,11 +1429,14 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esniarr, int selector)
         esni=&esniarr[i];
 
         BIO_printf(out,"\nPrinting SSL_ESNI structure number %d of %d\n",i,nesnis);
-        BIO_printf(out,"ESNI Version: %x\n",esni->version);
+        if (esni->version==ESNI_GREASE_VERSION) {
+            BIO_printf(out,"ESNI Version is GREASE!: %x\n",esni->version);
+        } else {
+            BIO_printf(out,"ESNI Version: %x\n",esni->version);
+        }
 	
 	    if (esni->encoded_rr==NULL) {
 	        BIO_printf(out,"ESNI has no RRs!\n");
-	        return 0;
 	    } 
 	    // carefully print these - might be attack content
 	    if (esni->encservername==NULL) {
@@ -2624,7 +2628,7 @@ int SSL_esni_checknames(const char *encservername, const char *covername)
  * inside the first array element to know how many we're dealing with.
  * 
  * @param s is the SSL context
- * @param hidde is the hidden service name
+ * @param hidden is the hidden service name
  * @param cover is the cleartext SNI name to use
  * @param esni is an array of SSL_ESNI structures
  * @param nesnis says how many structures are in the esni array
@@ -2908,6 +2912,9 @@ int SSL_get_esni_status(SSL *s, char **hidden, char **cover)
         }
         if (matchind==-1) {
             return SSL_ESNI_STATUS_NOT_TRIED;
+        }
+        if (matchind!=-1 && s->esni[matchind].version==ESNI_GREASE_VERSION) {
+            return SSL_ESNI_STATUS_GREASE;
         }
         if (matchind!=-1 && s->esni[matchind].nonce==NULL) {
             return SSL_ESNI_STATUS_FAILED;
@@ -3389,6 +3396,130 @@ int SSL_ESNI_ext_print(BIO* out, SSL_ESNI_ext *se,int count)
     return(1);
 }
 
+
+/**
+ * @brief Make up a GREASE/fake SSL_ESNI structure
+ *
+ * When doing GREASE (draft-ietf-tls-grease) we want to make up a
+ * phony encrypted SNI. This function will do that:-)
+ *
+ * Applications can set a callback function (name TBD)
+ * that determines the probability of greasing. If that is set and we're not
+ * going to grease this time around, then the value of esnip will be NULL
+ * on return. The SNI value will be provided to that callback in case
+ * that helps decide matters.
+ *
+ * @param s is the SSL context
+ * @param cp is a pointer to a possible greasy ESNI
+ * @return 1 for success, other otherwise
+ *
+ */
+int SSL_ESNI_grease_me(SSL *s, CLIENT_ESNI **cp)
+{
+    /*
+     * decare these early so goto err works
+     */
+    size_t eklc=32; unsigned char *ekbc=NULL;
+    size_t esl=292; unsigned char *esb=NULL;
+    size_t rdl=32; unsigned char *rdb=NULL;
+    /*
+     * If there's already an SSL_ESNI, leave it alone
+     * But that wasn't a good call so return an error
+     */
+    if (s==NULL) {
+        ESNIerr(ESNI_F_GREASE_ME, ESNI_R_BAD_INPUT);
+        goto err;
+    }
+    if (cp==NULL) {
+        ESNIerr(ESNI_F_GREASE_ME, ESNI_R_BAD_INPUT);
+        goto err;
+    }
+    if (s->esni!=NULL) return 0;
+    /*
+     * Don't grease if told/configured not to grease
+     */
+    int client_grease=(s->options & SSL_OP_ESNI_GREASE); 
+    if (client_grease ==0) {
+        return 0;
+    }
+
+    /*
+     * We're gonna grease
+     */
+    SSL_ESNI *greasy=OPENSSL_malloc(sizeof(SSL_ESNI));
+    if (greasy==NULL) {
+        ESNIerr(ESNI_F_GREASE_ME, ERR_R_MALLOC_FAILURE);
+        goto err;
+    }
+    memset(greasy,0,sizeof(SSL_ESNI));
+    greasy->version=ESNI_GREASE_VERSION;
+
+#define ESNI_GREASE_RANDBUF(xxLen,xxPtr) \
+    { \
+        xxPtr=OPENSSL_malloc(xxLen); \
+        if (xxPtr==NULL) { \
+            ESNIerr(ESNI_F_GREASE_ME, ERR_R_MALLOC_FAILURE); \
+            goto err; \
+        } \
+        RAND_bytes(xxPtr,xxLen); \
+    }
+
+    /*
+     * Setup for success exit, or for goto err which should free correctly
+     */
+    CLIENT_ESNI *c=OPENSSL_malloc(sizeof(CLIENT_ESNI));
+    if (c==NULL) {
+        ESNIerr(ESNI_F_GREASE_ME, ERR_R_MALLOC_FAILURE);
+        goto err;
+    }
+    memset(c,0,sizeof(CLIENT_ESNI));
+    greasy->the_esni=c;
+    greasy->num_esni_rrs=1;
+    s->esni=greasy;
+    /*
+     * Prepare bogus values
+     * TODO: these are bogus but currently not per-spec, fix that
+     */
+    uint16_t cs=0x1301;
+    ESNI_GREASE_RANDBUF(eklc,ekbc);
+    size_t ekl=eklc+6;
+    unsigned char *ekb=OPENSSL_malloc(ekl);
+    if (ekb==NULL) {
+        ESNIerr(ESNI_F_GREASE_ME, ERR_R_MALLOC_FAILURE);
+        goto err;
+    }
+    ekb[0]=0x00;
+    ekb[1]=0x24;
+    ekb[2]=0x00;
+    ekb[3]=0x1d;
+    ekb[4]=0x00;
+    ekb[5]=0x20;
+    memcpy(ekb+6,ekbc,eklc);
+    OPENSSL_free(ekbc); ekbc=NULL;
+    ESNI_GREASE_RANDBUF(rdl,rdb);
+    ESNI_GREASE_RANDBUF(esl,esb);
+
+    /*
+     * Populate CLIENT_ESNI structure with bogosity
+     */
+    c->ciphersuite=cs;
+    c->encoded_keyshare=ekb;
+    c->encoded_keyshare_len=ekl;
+    c->record_digest=rdb;
+    c->record_digest_len=rdl;
+    c->encrypted_sni=esb;
+    c->encrypted_sni_len=esl;
+    *cp=c;
+    return 1;
+
+err:
+    if (ekbc!=NULL) OPENSSL_free(ekbc);
+    if (esb!=NULL) OPENSSL_free(esb);
+    if (rdb!=NULL) OPENSSL_free(rdb);
+    if (greasy!=NULL) SSL_ESNI_free(greasy);
+    OPENSSL_free(greasy);
+    return 0;
+}
 
 #endif
 

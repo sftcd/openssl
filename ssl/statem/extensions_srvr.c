@@ -2019,14 +2019,28 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
      * We'll ignore a received ESNI extension if we're not configured
      * for ESNI
      */
+
+    /* 
+     * Check if we've been configured to hard fail on ESNI failure
+     * (SHOULD be off by default, so that GREASE works)
+     */
+    int server_fail_grease=(s->options & SSL_OP_ESNI_HARDFAIL); 
     if (s->esni==NULL) {
         /*
          * No ESNIKeys loaded so we'll ignore the crap out
          * of whatever the client asked for
-         * TODO: consider if that's right, or if it ought
-         * be configurable
          */
-        return 1;
+        if (server_fail_grease==0) {
+            /*
+             * ignore the problem
+             */
+            return 1;
+        } else {
+            /*
+             * hardfail
+             */
+            return 0;
+        }
     }
 
     /*
@@ -2188,9 +2202,14 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
         }
     }
     if (matchind==-1 || match==NULL) {
-        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ESNI,
-         SSL_R_BAD_EXTENSION);
-        goto err;
+        if (server_fail_grease!=0) {
+            SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ESNI,
+            SSL_R_BAD_EXTENSION);
+            goto err;
+        } else {
+            /* softfail exit */
+            goto noerr;
+        }
     }
     if (match->the_esni!=NULL) {
         if(match->the_esni->encoded_keyshare!=NULL) OPENSSL_free(match->the_esni->encoded_keyshare);
@@ -2211,10 +2230,20 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
     size_t encservername_len=0;
     encservername=SSL_ESNI_dec(match,rd_len,rd,curve_id,s->ext.kse_len,s->ext.kse,&encservername_len);
     if (encservername==NULL) {
-        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ESNI,
+        if (server_fail_grease!=0) {
+            SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ESNI,
              SSL_R_BAD_EXTENSION);
-        goto err;
+            goto err;
+        } else {
+            /* softfail exit */
+            goto noerr;
+        }
     }
+    /*
+     * I think (gulp!) the above is the last softfail exit as we've now
+     * managed to decrypt the ESNI presented, so it's "real" - if we 
+     * now find crap inside that, then we hard fail
+     */
 
     /*
      * check encservername has no zero bytes internally
@@ -2345,6 +2374,16 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
 
     }
 
+    return 1;
+
+noerr:
+    if (ce->encoded_keyshare) OPENSSL_free(ce->encoded_keyshare);
+    if (ce->record_digest) OPENSSL_free(ce->record_digest);
+    if (ce->encrypted_sni) OPENSSL_free(ce->encrypted_sni);
+    if (ce) OPENSSL_free(ce);
+    if (s->esni && match!=NULL) {
+        match->the_esni=NULL;
+    }
     return 1;
 
 err:

@@ -11,6 +11,7 @@
 `define `[`ESNI_MAX_RRVALUE_LEN`](#esni_8h_1a1a51d2e5c90478d2ca90cbf1bd2d2c29)            | Max size of a collection of ESNI RR values.
 `define `[`ESNI_SELECT_ALL`](#esni_8h_1a6775465f75ad8bf586bc5468ab3d8f5e)            | used to duplicate all RRs in SSL_ESNI_dup
 `define `[`ESNI_PBUF_SIZE`](#esni_8h_1ae0df91ca64c9f2d82de06f1ee80d4ea3)            | 8K buffer used for print string sent to application via esni_print_cb
+`define `[`ESNI_NOTATIME`](#esni_8h_1a890af0eda58e4ef326be26097fbcb79c)            | value used to indicate that a now-defunct not_before/not_after field is bogus
 `define `[`ESNI_ADDRESS_SET_EXT`](#esni_8h_1ad732752bab7540fb16bf7f27ac242337)            | AddressSet as per draft-03.
 `define `[`A2B`](#esni_8h_1a5b8b06ed943bce760b10302ff7bb519f)            | 
 `define `[`ESNI_RRFMT_GUESS`](#esni_8h_1a1c2606670454ecb64a7e07f6106b34d2)            | try guess which it is
@@ -18,14 +19,17 @@
 `define `[`ESNI_RRFMT_ASCIIHEX`](#esni_8h_1adefe6934d973ab450e15d760bf9bd5df)            | draft-03 ascii hex value(s catenated)
 `define `[`ESNI_RRFMT_B64TXT`](#esni_8h_1a923e0ee958634a65f7a9e0cd7285e830)            | draft-02 (legacy) base64 encoded TXT
 `define `[`ESNI_CRYPT_INTEROP`](#esni_8h_1ac1aec0191ca183eb5a034a8b892203ba)            | If defined, this provides enough API, internals and tracing so we can ensure/check we're generating keys the same way as other code, in partocular the existing NSS code.
+`define `[`ESNI_GREASE_VERSION`](#esni_8h_1a18fb206ae144e03288be94f893aa7529)            | Fake ESNIKeys version to indicate grease.
 `define `[`ESNI_DRAFT_02_VERSION`](#esni_8h_1aab16ad9837022e87bad6a800c659faa8)            | ESNIKeys version from draft-02.
 `define `[`ESNI_DRAFT_03_VERSION`](#esni_8h_1a201ec5108d07793dc3a57dc85dfbcf60)            | ESNIKeys version from draft-03.
-`define `[`ESNI_RRTYPE`](#esni_8h_1aae21f7e7c2f68a344a0ea3de430cb7b6)            | experimental (as per draft-03) ESNI RRTYPE
+`define `[`ESNI_DRAFT_04_VERSION`](#esni_8h_1aca40b8958b3204da11059357bcce53ab)            | ESNIKeys version from draft-04.
+`define `[`ESNI_RRTYPE`](#esni_8h_1aae21f7e7c2f68a344a0ea3de430cb7b6)            | experimental (as per draft-03, and draft-04) ESNI RRTYPE
+`define `[`SSL_ESNI_STATUS_GREASE`](#esni_8h_1a87e69eaa1fb4c1636e24579583c53ba4)            | ESNI GREASE happened (if you care:-)
 `define `[`SSL_ESNI_STATUS_SUCCESS`](#esni_8h_1a6a4d94b18577a453e7ca65273c75b110)            | Success.
 `define `[`SSL_ESNI_STATUS_FAILED`](#esni_8h_1aff48e6059acca5bd4a3f9f2a926e9ffd)            | Some internal error.
 `define `[`SSL_ESNI_STATUS_BAD_CALL`](#esni_8h_1a182a797bad43060760194c701c882fd0)            | Required in/out arguments were NULL.
 `define `[`SSL_ESNI_STATUS_NOT_TRIED`](#esni_8h_1ac754df41295244baf3b951e9cec0a1db)            | ESNI wasn't attempted.
-`define `[`SSL_ESNI_STATUS_BAD_NAME`](#esni_8h_1a4019c4a8f415a42a213cc0c657d9986b)            | ESNI succeeded but the TLS server cert used didn't match the hidden service name.
+`define `[`SSL_ESNI_STATUS_BAD_NAME`](#esni_8h_1a4019c4a8f415a42a213cc0c657d9986b)            | ESNI succeeded but the server cert didn't match the hidden service name.
 `define `[`SSL_ESNI_STATUS_TOOMANY`](#esni_8h_1ac5475161def14c76f3839bc4c64aaff3)            | ESNI succeeded can't figure out which one!
 `define `[`ESNI_F_BASE64_DECODE`](#esnierr_8h_1a9c57a1b191c8fc44f0c9d33e1fa63096)            | 
 `define `[`ESNI_F_CHECKSUM_CHECK`](#esnierr_8h_1ac8cec6cf839fa6b361bc6f9abc001201)            | 
@@ -51,18 +55,22 @@
 `define `[`ESNI_F_SSL_ESNI_REDUCE`](#esnierr_8h_1aa5513cc756c763f5bd555fe2640b6dae)            | 
 `define `[`ESNI_F_SSL_ESNI_SERVER_ENABLE`](#esnierr_8h_1a41fef6b5fc372dad4fcc7008563eb32c)            | 
 `define `[`ESNI_F_SSL_ESNI_WRAP_KEYSHARE`](#esnierr_8h_1adbb1d0dcbf5f441fed68948b660840b7)            | 
+`define `[`ESNI_F_GREASE_ME`](#esnierr_8h_1ae34bd9584da035bcdf63c8f256ad2fad)            | 
 `define `[`ESNI_R_ASCIIHEX_DECODE_ERROR`](#esnierr_8h_1ab453885d2af021244097e10bd9da9a52)            | 
 `define `[`ESNI_R_BASE64_DECODE_ERROR`](#esnierr_8h_1a1c13aa91c93bd84f1f92101ddb9bc9eb)            | 
 `define `[`ESNI_R_NOT_IMPL`](#esnierr_8h_1aeb72e4451595e51885c8192c3c06e870)            | 
 `define `[`ESNI_R_RR_DECODE_ERROR`](#esnierr_8h_1acc748e3e2af6dc12fead035b479c221f)            | 
+`define `[`ESNI_R_BAD_INPUT`](#esnierr_8h_1ab5913f992db61a8da5fdc125d76fb70f)            | 
 `define `[`ESNI_DEFAULT_PADDED`](#esni_8c_1a706a8b9ec3b00f59d60711d623c90d74)            | File: esni.c - the core implementation of drat-ietf-tls-esni-02 Author: [stephen.farrell@cs.tcd.ie](mailto:stephen.farrell@cs.tcd.ie) Date: 2018 December-ish.
 `define `[`SSL_ESNI_dup_one`](#esni_8c_1a264331e3021c14c1d3e1403c5923fd93)            | 
+`define `[`ESNI_GREASE_RANDBUF`](#esni_8c_1abd9d3b7c4f18b8dc9dc2bb788ed401c3)            | 
 `public static unsigned int `[`esni_print_cb`](#s__client_8c_1ad7caf3d16900b8c136462917f264cf13)`(SSL * s,char * str)`            | print an ESNI structure, this time thread safely;-)
 `public static unsigned int `[`esni_print_cb`](#s__server_8c_1ad7caf3d16900b8c136462917f264cf13)`(SSL * s,char * str)`            | print an ESNI structure, this time thread safely;-)
 `public static size_t `[`esni_padding_cb`](#s__server_8c_1a2deb1d25456628e166cb5fbaa8f11bbf)`(SSL * s,int type,size_t len,void * arg)`            | @ brief pad Certificate and CertificateVerify messages
 `public static int `[`ssl_esni_servername_cb`](#s__server_8c_1a454eca00c708c0f47fccc73616408b67)`(SSL * s,int * ad,void * arg)`            | a servername_cb that is ESNI aware
 `public int `[`ERR_load_ESNI_strings`](#esnierr_8c_1ab6db8c60b35aacaa03550e6d9d9c2099)`(void)`            | 
 `public static void `[`so_esni_pbuf`](#mk__esnikeys_8c_1ae1bab08e2b36301f0c81f27d7ffb006b)`(char * msg,unsigned char * buf,size_t blen,int indent)`            | 
+`public static void `[`sp_esni_txtrr`](#mk__esnikeys_8c_1a3a5d7758f1f3e6f33c8e5d8c7b2c601e)`(unsigned char * sbuf,size_t slen,unsigned char * buf,size_t blen,int ttl,char * owner_name)`            | write draft-02 TXT zone fragment to buffer for display or writing to file
 `public static void `[`sp_esni_prr`](#mk__esnikeys_8c_1ac9aa090d4d174faf6bfc215e81fea637)`(unsigned char * sbuf,size_t slen,unsigned char * buf,size_t blen,unsigned short typecode,int ttl,char * owner_name)`            | write zone fragment to buffer for display or writing to file
 `public static int `[`esni_checksum_gen`](#mk__esnikeys_8c_1a32ec581cbe2fef728eca2951e596d25f)`(unsigned char * buf,size_t buf_len,unsigned char cksum)`            | generate the SHA256 checksum that should be in the DNS record
 `public void `[`usage`](#mk__esnikeys_8c_1aa4817482b1728bf62acf8030cab9842c)`(char * prog)`            | 
@@ -91,6 +99,7 @@
 `public int `[`SSL_get_esni_status`](#esni_8h_1abc2468ba57b69ddaca0344481027d7a1)`(SSL * s,char ** hidden,char ** cover)`            | API to allow calling code know ESNI outcome, post-handshake.
 `public int `[`SSL_ESNI_set_private`](#esni_8h_1a8df1af022d25fc0f7e72683b0bd4667f)`(`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * esni,char * private_str)`            | Allows caller to set the ECDH private value for ESNI.
 `public int `[`SSL_ESNI_set_nonce`](#esni_8h_1a0f48da79909334acee7b24dec440eb4c)`(`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * esni,unsigned char * nonce,size_t nlen)`            | Allows caller to set the nonce value for ESNI.
+`public int `[`SSL_ESNI_grease_me`](#esni_8h_1a8899d5f4e0d275a10eb595fe211e138a)`(SSL * s,`[`CLIENT_ESNI`](#esni_8h_1add3c7579c9f0d7bd5959b37f9c017461)` ** cp)`            | Make up a GREASE/fake SSL_ESNI structure.
 `public int `[`ERR_load_ESNI_strings`](#esnierr_8h_1ab6db8c60b35aacaa03550e6d9d9c2099)`(void)`            | 
 `public static uint64_t `[`uint64_from_bytes`](#esni_8c_1a83d195ea944e970d225ac1554c88c3d4)`(unsigned char * buf)`            | map 8 bytes in n/w byte order from PACKET to a 64-bit time value
 `public static int `[`ah_decode`](#esni_8c_1aa69325c71b10890e08f4a74cbb6f282e)`(size_t ahlen,const char * ah,size_t * blen,unsigned char ** buf)`            | decode ascii hex to a binary buffer
@@ -109,7 +118,7 @@
 `public static void `[`esni_pbuf`](#esni_8c_1ad619d10af828adf65d47682bdab514d1)`(BIO * out,char * msg,unsigned char * buf,size_t blen,int indent)`            | print a buffer nicely
 `public int `[`SSL_ESNI_print`](#esni_8c_1afebef7970cbb431fbac3df60397fabf9)`(BIO * out,`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * esniarr,int selector)`            | Print out an array of SSL_ESNI structures.
 `public static unsigned char * `[`esni_nonce`](#esni_8c_1a50f8ca970c2ceb308dbf23fd0410ee3b)`(size_t nl)`            | Make a 16 octet nonce for ESNI.
-`public static unsigned char * `[`esni_pad`](#esni_8c_1a3e85b60a8ef53ff8670c54af6e376c40)`(char * name,unsigned int padded_len)`            | Pad an SNI before encryption with zeros on the right to the required length.
+`public static unsigned char * `[`esni_pad`](#esni_8c_1a8e817de3b2aa8e7d0f9e5fe38ab9ecb9)`(char * name,unsigned int padded_len,int version)`            | Pad an SNI before encryption with zeros on the right to the required length.
 `public static unsigned char * `[`esni_hkdf_extract`](#esni_8c_1a9f76caa6f579de747d413ee3e809650d)`(unsigned char * secret,size_t slen,size_t * olen,const EVP_MD * md)`            | Local wrapper for HKDF-Extract(salt,IVM)=HMAC-Hash(salt,IKM) according to RFC5689.
 `public static unsigned char * `[`esni_hkdf_expand_label`](#esni_8c_1a7dd32376e27d6c6aed533917093639e8)`(unsigned char * Zx,size_t Zx_len,const char * label,unsigned char * hash,size_t hash_len,size_t * expanded_len,const EVP_MD * md)`            | expand a label as per the I-D
 `public static unsigned char * `[`esni_aead_enc`](#esni_8c_1a7a9797b7a757306ed1035009fa7d0694)`(unsigned char * key,size_t key_len,unsigned char * iv,size_t iv_len,unsigned char * aad,size_t aad_len,unsigned char * plain,size_t plain_len,unsigned char * tag,size_t tag_len,size_t * cipher_len,uint16_t ciph)`            | do the AEAD encryption as per the I-D
@@ -133,6 +142,7 @@
 `public void `[`SSL_ESNI_ext_free`](#esni_8c_1ad0558a0a329a96dcd5df41120692e08e)`(`[`SSL_ESNI_ext`](#esni_8h_1a816a3f63a46cc12e65a0b6ab0fbda411)` * in,int size)`            | free up memory for an SSL_ESNI_ext
 `public int `[`SSL_esni_reduce`](#esni_8c_1a5d34c8e2d50475b71c6b386ae27dab61)`(`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` * in,int index,`[`SSL_ESNI`](#esni_8h_1afeadfe79a7d92e7978789cc1c4ee3e7f)` ** out)`            | down-select to use of one option with an SSL_ESNI
 `public int `[`SSL_ESNI_ext_print`](#esni_8c_1ae9c0193105f5bffc743bfd8b9c29b561)`(BIO * out,`[`SSL_ESNI_ext`](#esni_8h_1a816a3f63a46cc12e65a0b6ab0fbda411)` * se,int count)`            | utility fnc for application that wants to print an SSL_ESNI_ext
+`public int `[`SSL_ESNI_grease_me`](#esni_8c_1a8899d5f4e0d275a10eb595fe211e138a)`(SSL * s,`[`CLIENT_ESNI`](#esni_8h_1add3c7579c9f0d7bd5959b37f9c017461)` ** cp)`            | Make up a GREASE/fake SSL_ESNI structure.
 `public static int `[`init_esni`](#extensions_8c_1a07941fe88fcdb65271ad678cd41e7d57)`(SSL * s,unsigned int context)`            | Just note that esni is not yet done.
 `public static int `[`final_esni`](#extensions_8c_1a4027805482e89339fd2870f852db4b4e)`(SSL * s,unsigned int context,int sent)`            | check result of esni and return error or ok
 `public static EXT_RETURN `[`esni_server_name_fixup`](#extensions__clnt_8c_1a2454a14e823689509154ca3bfb4cdaea)`(SSL * s,WPACKET * pkt,unsigned int context,X509 * x,size_t chainidx)`            | Possibly do/don't send SNI if doing ESNI.
@@ -200,6 +210,12 @@ used to duplicate all RRs in SSL_ESNI_dup
 
 8K buffer used for print string sent to application via esni_print_cb
 
+<p id="esni_8h_1a890af0eda58e4ef326be26097fbcb79c"><hr></p>
+
+#### `define `[`ESNI_NOTATIME`](#esni_8h_1a890af0eda58e4ef326be26097fbcb79c) 
+
+value used to indicate that a now-defunct not_before/not_after field is bogus
+
 <p id="esni_8h_1ad732752bab7540fb16bf7f27ac242337"><hr></p>
 
 #### `define `[`ESNI_ADDRESS_SET_EXT`](#esni_8h_1ad732752bab7540fb16bf7f27ac242337) 
@@ -240,6 +256,12 @@ draft-02 (legacy) base64 encoded TXT
 
 If defined, this provides enough API, internals and tracing so we can ensure/check we're generating keys the same way as other code, in partocular the existing NSS code.
 
+<p id="esni_8h_1a18fb206ae144e03288be94f893aa7529"><hr></p>
+
+#### `define `[`ESNI_GREASE_VERSION`](#esni_8h_1a18fb206ae144e03288be94f893aa7529) 
+
+Fake ESNIKeys version to indicate grease.
+
 <p id="esni_8h_1aab16ad9837022e87bad6a800c659faa8"><hr></p>
 
 #### `define `[`ESNI_DRAFT_02_VERSION`](#esni_8h_1aab16ad9837022e87bad6a800c659faa8) 
@@ -252,11 +274,23 @@ ESNIKeys version from draft-02.
 
 ESNIKeys version from draft-03.
 
+<p id="esni_8h_1aca40b8958b3204da11059357bcce53ab"><hr></p>
+
+#### `define `[`ESNI_DRAFT_04_VERSION`](#esni_8h_1aca40b8958b3204da11059357bcce53ab) 
+
+ESNIKeys version from draft-04.
+
 <p id="esni_8h_1aae21f7e7c2f68a344a0ea3de430cb7b6"><hr></p>
 
 #### `define `[`ESNI_RRTYPE`](#esni_8h_1aae21f7e7c2f68a344a0ea3de430cb7b6) 
 
-experimental (as per draft-03) ESNI RRTYPE
+experimental (as per draft-03, and draft-04) ESNI RRTYPE
+
+<p id="esni_8h_1a87e69eaa1fb4c1636e24579583c53ba4"><hr></p>
+
+#### `define `[`SSL_ESNI_STATUS_GREASE`](#esni_8h_1a87e69eaa1fb4c1636e24579583c53ba4) 
+
+ESNI GREASE happened (if you care:-)
 
 <p id="esni_8h_1a6a4d94b18577a453e7ca65273c75b110"><hr></p>
 
@@ -286,7 +320,7 @@ ESNI wasn't attempted.
 
 #### `define `[`SSL_ESNI_STATUS_BAD_NAME`](#esni_8h_1a4019c4a8f415a42a213cc0c657d9986b) 
 
-ESNI succeeded but the TLS server cert used didn't match the hidden service name.
+ESNI succeeded but the server cert didn't match the hidden service name.
 
 <p id="esni_8h_1ac5475161def14c76f3839bc4c64aaff3"><hr></p>
 
@@ -390,6 +424,10 @@ ESNI succeeded can't figure out which one!
 
 #### `define `[`ESNI_F_SSL_ESNI_WRAP_KEYSHARE`](#esnierr_8h_1adbb1d0dcbf5f441fed68948b660840b7) 
 
+<p id="esnierr_8h_1ae34bd9584da035bcdf63c8f256ad2fad"><hr></p>
+
+#### `define `[`ESNI_F_GREASE_ME`](#esnierr_8h_1ae34bd9584da035bcdf63c8f256ad2fad) 
+
 <p id="esnierr_8h_1ab453885d2af021244097e10bd9da9a52"><hr></p>
 
 #### `define `[`ESNI_R_ASCIIHEX_DECODE_ERROR`](#esnierr_8h_1ab453885d2af021244097e10bd9da9a52) 
@@ -406,6 +444,10 @@ ESNI succeeded can't figure out which one!
 
 #### `define `[`ESNI_R_RR_DECODE_ERROR`](#esnierr_8h_1acc748e3e2af6dc12fead035b479c221f) 
 
+<p id="esnierr_8h_1ab5913f992db61a8da5fdc125d76fb70f"><hr></p>
+
+#### `define `[`ESNI_R_BAD_INPUT`](#esnierr_8h_1ab5913f992db61a8da5fdc125d76fb70f) 
+
 <p id="esni_8c_1a706a8b9ec3b00f59d60711d623c90d74"><hr></p>
 
 #### `define `[`ESNI_DEFAULT_PADDED`](#esni_8c_1a706a8b9ec3b00f59d60711d623c90d74) 
@@ -417,6 +459,10 @@ Handle padding - the server needs to do padding in case the certificate/key-size
 <p id="esni_8c_1a264331e3021c14c1d3e1403c5923fd93"><hr></p>
 
 #### `define `[`SSL_ESNI_dup_one`](#esni_8c_1a264331e3021c14c1d3e1403c5923fd93) 
+
+<p id="esni_8c_1abd9d3b7c4f18b8dc9dc2bb788ed401c3"><hr></p>
+
+#### `define `[`ESNI_GREASE_RANDBUF`](#esni_8c_1abd9d3b7c4f18b8dc9dc2bb788ed401c3) 
 
 <p id="s__client_8c_1ad7caf3d16900b8c136462917f264cf13"><hr></p>
 
@@ -473,6 +519,25 @@ The server has possibly two names (from command line and config) basically in ct
 <p id="mk__esnikeys_8c_1ae1bab08e2b36301f0c81f27d7ffb006b"><hr></p>
 
 #### `public static void `[`so_esni_pbuf`](#mk__esnikeys_8c_1ae1bab08e2b36301f0c81f27d7ffb006b)`(char * msg,unsigned char * buf,size_t blen,int indent)` 
+
+<p id="mk__esnikeys_8c_1a3a5d7758f1f3e6f33c8e5d8c7b2c601e"><hr></p>
+
+#### `public static void `[`sp_esni_txtrr`](#mk__esnikeys_8c_1a3a5d7758f1f3e6f33c8e5d8c7b2c601e)`(unsigned char * sbuf,size_t slen,unsigned char * buf,size_t blen,int ttl,char * owner_name)` 
+
+write draft-02 TXT zone fragment to buffer for display or writing to file
+
+#### Parameters
+* `sbuf` where zone fragment will be written 
+
+* `slen` length of sbuf 
+
+* `buf` binary public key data 
+
+* `blen` length of buf 
+
+* `ttl` is the TTL to use 
+
+* `owner_name` fully-qualified DNS owner, without trailing dot
 
 <p id="mk__esnikeys_8c_1ac9aa090d4d174faf6bfc215e81fea637"><hr></p>
 
@@ -807,7 +872,7 @@ FIXME: Rationalise the handling of arrays of SSL_ESNI structs. As of now, we som
 #### Parameters
 * `s` is the SSL context 
 
-* `hidde` is the hidden service name 
+* `hidden` is the hidden service name 
 
 * `cover` is the cleartext SNI name to use 
 
@@ -1023,6 +1088,38 @@ This is intended to only be used for interop testing - what was useful was to gr
 #### Returns
 1 for success, other otherwise
 
+<p id="esni_8h_1a8899d5f4e0d275a10eb595fe211e138a"><hr></p>
+
+#### `public int `[`SSL_ESNI_grease_me`](#esni_8h_1a8899d5f4e0d275a10eb595fe211e138a)`(SSL * s,`[`CLIENT_ESNI`](#esni_8h_1add3c7579c9f0d7bd5959b37f9c017461)` ** cp)` 
+
+Make up a GREASE/fake SSL_ESNI structure.
+
+When doing GREASE (draft-ietf-tls-grease) we want to make up a phony encrypted SNI. This function will do that:-)
+
+If s->esni isn't NULL on input then we leave it alone If s->esni comes back NULL after this call, then we're not greasing
+
+TODO: arrange a flag that can be part of the openssl config file to turn greasing on/off globally or as part of normal setup that allows greasing to be turned on/off per session. That'll default to off for now.
+
+#### Parameters
+* `s` is the SSL context 
+
+* `cp` is a pointer to a possible greasy ESNI 
+
+#### Returns
+1 for success, other otherwise
+
+When doing GREASE (draft-ietf-tls-grease) we want to make up a phony encrypted SNI. This function will do that:-)
+
+Applications can set a callback function (name TBD) that determines the probability of greasing. If that is set and we're not going to grease this time around, then the value of esnip will be NULL on return. The SNI value will be provided to that callback in case that helps decide matters.
+
+#### Parameters
+* `s` is the SSL context 
+
+* `cp` is a pointer to a possible greasy ESNI 
+
+#### Returns
+1 for success, other otherwise
+
 <p id="esnierr_8h_1ab6db8c60b35aacaa03550e6d9d9c2099"><hr></p>
 
 #### `public int `[`ERR_load_ESNI_strings`](#esnierr_8h_1ab6db8c60b35aacaa03550e6d9d9c2099)`(void)` 
@@ -1128,7 +1225,7 @@ Fixed SHA256 hash in this case, we work on the offset here, (bytes 2 bytes then 
 
 Hash the buffer as per the ciphersuite specified therein.
 
-Note that this isn't quite what the I-D says - It seems that NSS uses the entire buffer, incl. the version, so I've also done that as it works! Opened issue: [https://github.com/tlswg/draft-ietf-tls-esni/issues/119](https://github.com/tlswg/draft-ietf-tls-esni/issues/119)
+Note that this isn't quite what the I-D says - It seems that NSS uses the entire buffer, incl. the version, so I've also done that as it works! Opened issue: [https://github.com/tlswg/draft-ietf-tls-esni/issues/119](https://github.com/tlswg/draft-ietf-tls-esni/issues/119) That got resolved just fine. Draft-04 changed the input bytes here to exclude the dns_extensions from the hash calculation, but that change was implemented in the calling code.
 
 #### Parameters
 * `buf` is the input buffer 
@@ -1282,9 +1379,9 @@ This is called via callback
 
 Make a 16 octet nonce for ESNI.
 
-<p id="esni_8c_1a3e85b60a8ef53ff8670c54af6e376c40"><hr></p>
+<p id="esni_8c_1a8e817de3b2aa8e7d0f9e5fe38ab9ecb9"><hr></p>
 
-#### `public static unsigned char * `[`esni_pad`](#esni_8c_1a3e85b60a8ef53ff8670c54af6e376c40)`(char * name,unsigned int padded_len)` 
+#### `public static unsigned char * `[`esni_pad`](#esni_8c_1a8e817de3b2aa8e7d0f9e5fe38ab9ecb9)`(char * name,unsigned int padded_len,int version)` 
 
 Pad an SNI before encryption with zeros on the right to the required length.
 
@@ -1438,7 +1535,7 @@ FIXME: Rationalise the handling of arrays of SSL_ESNI structs. As of now, we som
 #### Parameters
 * `s` is the SSL context 
 
-* `hidde` is the hidden service name 
+* `hidden` is the hidden service name 
 
 * `cover` is the cleartext SNI name to use 
 
@@ -1637,6 +1734,24 @@ utility fnc for application that wants to print an SSL_ESNI_ext
 
 #### Returns
 1 for success, error othewise
+
+<p id="esni_8c_1a8899d5f4e0d275a10eb595fe211e138a"><hr></p>
+
+#### `public int `[`SSL_ESNI_grease_me`](#esni_8c_1a8899d5f4e0d275a10eb595fe211e138a)`(SSL * s,`[`CLIENT_ESNI`](#esni_8h_1add3c7579c9f0d7bd5959b37f9c017461)` ** cp)` 
+
+Make up a GREASE/fake SSL_ESNI structure.
+
+When doing GREASE (draft-ietf-tls-grease) we want to make up a phony encrypted SNI. This function will do that:-)
+
+Applications can set a callback function (name TBD) that determines the probability of greasing. If that is set and we're not going to grease this time around, then the value of esnip will be NULL on return. The SNI value will be provided to that callback in case that helps decide matters.
+
+#### Parameters
+* `s` is the SSL context 
+
+* `cp` is a pointer to a possible greasy ESNI 
+
+#### Returns
+1 for success, other otherwise
 
 <p id="extensions_8c_1a07941fe88fcdb65271ad678cd41e7d57"><hr></p>
 
@@ -1839,6 +1954,21 @@ draft-03 changed this some ...
         Extension extensions<0..2^16-1>;
     } ESNIKeys;
 
+And draft-4 moves us along to: 
+  struct {
+        uint16 version;
+        opaque public_name<1..2^16-1>;
+        KeyShareEntry keys<4..2^16-1>;
+        CipherSuite cipher_suites<2..2^16-2>;
+        uint16 padded_length;
+        Extension extensions<0..2^16-1>;
+    } ESNIKeys;
+
+    struct {
+        ESNIKeys esni_keys;
+        Extension dns_extensions<0..2^16-1>;
+    } ESNIRecord;
+
 ## Summary
 
  Members                        | Descriptions                                
@@ -1861,6 +1991,11 @@ draft-03 changed this some ...
 `public unsigned int * `[`exttypes`](#structesni__record__st_1a12b5bdb880a6b035a62a62e297809ad0) | 
 `public size_t * `[`extlens`](#structesni__record__st_1a7f30a1ba6862cf5a7946a5d414b54cec) | 
 `public unsigned char ** `[`exts`](#structesni__record__st_1ae537bfe960ef7d7d16cfc6f04e468bc3) | 
+`public size_t `[`dnsext_offset`](#structesni__record__st_1a3f76325f5aa183b84da2b9dda87a830d) | 
+`public unsigned int `[`dnsnexts`](#structesni__record__st_1ab115b0fd4e7c3dbc9078217cf8a6f0bc) | 
+`public unsigned int * `[`dnsexttypes`](#structesni__record__st_1a7505b07f8f4cf33fda888344e6578453) | 
+`public size_t * `[`dnsextlens`](#structesni__record__st_1acbe3260d015e0ce4e47427066d7242f4) | 
+`public unsigned char ** `[`dnsexts`](#structesni__record__st_1aeb9584b5a99b4f59736ff067404ad510) | 
 
 ## Members
 
@@ -1935,6 +2070,26 @@ draft-03 changed this some ...
 <p id="structesni__record__st_1ae537bfe960ef7d7d16cfc6f04e468bc3"><hr></p>
 
 #### `public unsigned char ** `[`exts`](#structesni__record__st_1ae537bfe960ef7d7d16cfc6f04e468bc3) 
+
+<p id="structesni__record__st_1a3f76325f5aa183b84da2b9dda87a830d"><hr></p>
+
+#### `public size_t `[`dnsext_offset`](#structesni__record__st_1a3f76325f5aa183b84da2b9dda87a830d) 
+
+<p id="structesni__record__st_1ab115b0fd4e7c3dbc9078217cf8a6f0bc"><hr></p>
+
+#### `public unsigned int `[`dnsnexts`](#structesni__record__st_1ab115b0fd4e7c3dbc9078217cf8a6f0bc) 
+
+<p id="structesni__record__st_1a7505b07f8f4cf33fda888344e6578453"><hr></p>
+
+#### `public unsigned int * `[`dnsexttypes`](#structesni__record__st_1a7505b07f8f4cf33fda888344e6578453) 
+
+<p id="structesni__record__st_1acbe3260d015e0ce4e47427066d7242f4"><hr></p>
+
+#### `public size_t * `[`dnsextlens`](#structesni__record__st_1acbe3260d015e0ce4e47427066d7242f4) 
+
+<p id="structesni__record__st_1aeb9584b5a99b4f59736ff067404ad510"><hr></p>
+
+#### `public unsigned char ** `[`dnsexts`](#structesni__record__st_1aeb9584b5a99b4f59736ff067404ad510) 
 
 <p id="structssl__esni__ext__st"><hr></p>
 
@@ -2016,10 +2171,14 @@ Note that SSL_ESNI_dup copies all these fields (when values are set), so if you 
 `public size_t `[`padded_length`](#structssl__esni__st_1adf84b36cfa57d84629cac876c5330ba8) | from ESNIKeys
 `public uint64_t `[`not_before`](#structssl__esni__st_1a4cb0d34f50b80a38964af87c544f7ce9) | from ESNIKeys (not currently used)
 `public uint64_t `[`not_after`](#structssl__esni__st_1ac6d2a892f59c287cc6ee7aa35f23c593) | from ESNIKeys (not currently used)
-`public int `[`nexts`](#structssl__esni__st_1ad378e22df57746ad53996b3557ad8b84) | number of extensions (not yet supported so >0 => fail)
+`public int `[`nexts`](#structssl__esni__st_1ad378e22df57746ad53996b3557ad8b84) | number of extensions
 `public unsigned int * `[`exttypes`](#structssl__esni__st_1aed5ab577a0c090aecbd9571f712e8e86) | array of extension types
 `public size_t * `[`extlens`](#structssl__esni__st_1aea13d9bef126ae321be21787ecbe12ad) | lengths of encoded extension octets
 `public unsigned char ** `[`exts`](#structssl__esni__st_1aad3d2ead608e77f15fb27e98f1cdc2b7) | encoded extension octets
+`public int `[`dnsnexts`](#structssl__esni__st_1a8d6d14f0c06512280b8a28ecb2bb5054) | number of dns extensions
+`public unsigned int * `[`dnsexttypes`](#structssl__esni__st_1a65ddc7a2b710a17f15d3cc3413c259ec) | array of dns extension types
+`public size_t * `[`dnsextlens`](#structssl__esni__st_1a1ef792f0c10bb54a0efab78794d662c4) | lengths of encoded dns extension octets
+`public unsigned char ** `[`dnsexts`](#structssl__esni__st_1a87189bfe951143ef6621b355e412fa24) | encoded dns extension octets
 `public int `[`naddrs`](#structssl__esni__st_1a0325c20968f9cdb6599b8b5f82c9f4a2) | decoded AddressSet cardinality
 `public BIO_ADDR * `[`addrs`](#structssl__esni__st_1a18f970d19d72329586f86f7a87b999af) | decoded AddressSet values (v4 or v6)
 `public size_t `[`nonce_len`](#structssl__esni__st_1aa3e7c7adffc576490b12cb397398e9e4) | 
@@ -2164,7 +2323,7 @@ from ESNIKeys (not currently used)
 
 #### `public int `[`nexts`](#structssl__esni__st_1ad378e22df57746ad53996b3557ad8b84) 
 
-number of extensions (not yet supported so >0 => fail)
+number of extensions
 
 <p id="structssl__esni__st_1aed5ab577a0c090aecbd9571f712e8e86"><hr></p>
 
@@ -2183,6 +2342,30 @@ lengths of encoded extension octets
 #### `public unsigned char ** `[`exts`](#structssl__esni__st_1aad3d2ead608e77f15fb27e98f1cdc2b7) 
 
 encoded extension octets
+
+<p id="structssl__esni__st_1a8d6d14f0c06512280b8a28ecb2bb5054"><hr></p>
+
+#### `public int `[`dnsnexts`](#structssl__esni__st_1a8d6d14f0c06512280b8a28ecb2bb5054) 
+
+number of dns extensions
+
+<p id="structssl__esni__st_1a65ddc7a2b710a17f15d3cc3413c259ec"><hr></p>
+
+#### `public unsigned int * `[`dnsexttypes`](#structssl__esni__st_1a65ddc7a2b710a17f15d3cc3413c259ec) 
+
+array of dns extension types
+
+<p id="structssl__esni__st_1a1ef792f0c10bb54a0efab78794d662c4"><hr></p>
+
+#### `public size_t * `[`dnsextlens`](#structssl__esni__st_1a1ef792f0c10bb54a0efab78794d662c4) 
+
+lengths of encoded dns extension octets
+
+<p id="structssl__esni__st_1a87189bfe951143ef6621b355e412fa24"><hr></p>
+
+#### `public unsigned char ** `[`dnsexts`](#structssl__esni__st_1a87189bfe951143ef6621b355e412fa24) 
+
+encoded dns extension octets
 
 <p id="structssl__esni__st_1a0325c20968f9cdb6599b8b5f82c9f4a2"><hr></p>
 

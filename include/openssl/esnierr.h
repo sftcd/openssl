@@ -47,6 +47,7 @@ int ERR_load_ESNI_strings(void);
 # define ESNI_F_SSL_ESNI_REDUCE                           124
 # define ESNI_F_SSL_ESNI_SERVER_ENABLE                    120
 # define ESNI_F_SSL_ESNI_WRAP_KEYSHARE                    121
+# define ESNI_F_GREASE_ME                                 122
 
 /*
  * ESNI reason codes.
@@ -55,5 +56,6 @@ int ERR_load_ESNI_strings(void);
 # define ESNI_R_BASE64_DECODE_ERROR                       110
 # define ESNI_R_NOT_IMPL                                  112
 # define ESNI_R_RR_DECODE_ERROR                           111
+# define ESNI_R_BAD_INPUT                                 114
 
 #endif
