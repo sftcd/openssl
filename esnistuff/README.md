@@ -25,6 +25,10 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- Added some code to make GREASE more accurate, can now produce either
+ciphersuite 0x1301 (80% of the time), or 0x1303 with (I think) more
+accurate lengths and real key share values. 
+
 - Fixed GREASE error handling so that ``make update`` target works.
 
 - Finally switched around so that locally supplied covername wins over

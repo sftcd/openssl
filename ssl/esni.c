@@ -105,7 +105,7 @@ static int ah_decode(size_t ahlen, const char *ah, size_t *blen, unsigned char *
         return 0;
     }
     for (int i=0;i!=lblen;i++) {
-        lbuf[i]=A2B(ah[2*i])*16+A2B(ah[2*i+1]);
+        lbuf[i]=ESNI_A2B(ah[2*i])*16+ESNI_A2B(ah[2*i+1]);
     }
     *blen=lblen;
     *buf=lbuf;
@@ -2199,7 +2199,7 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys_in,
         unsigned char binpriv[64];
         size_t bp_len=32;
         for (i=0;i!=32;i++) {
-            binpriv[i]=A2B(esnikeys->private_str[2*i])*16+A2B(esnikeys->private_str[(2*i)+1]);
+            binpriv[i]=ESNI_A2B(esnikeys->private_str[2*i])*16+ESNI_A2B(esnikeys->private_str[(2*i)+1]);
         }
         so_esni_pbuf("CRYPTO_INTEROP  private",binpriv,bp_len,0);
     
@@ -3414,9 +3414,25 @@ int SSL_ESNI_ext_print(BIO* out, SSL_ESNI_ext *se,int count)
 int SSL_ESNI_grease_me(SSL *s, CLIENT_ESNI **cp)
 {
     /*
+     * Ciphersuite handling: we have an array of ciphersuite
+     * numbers, with duplicates allowed. We randomly pick an
+     * array element and use that value. So if e.g. you wanted
+     * to use ciphersuite 0x1301 75% of the time, make sure that
+     * 75% of the entries have that value.
+     * For now we only populate:
+     * TLS_AES_128_GCM_SHA256,0x1301 (@80%) and 
+     * TLS_CHACHA20_POLY1305_SHA256, 0x1303 (@20%)
+     */
+    uint16_t csarray[]={
+       0x1301,0x1301,0x1301,0x1301,
+       0x1303
+    };
+    /*
      * decare these early so goto err works
      */
-    size_t eklc=32; unsigned char *ekbc=NULL;
+
+    EVP_PKEY *pkey = NULL;
+    EVP_PKEY_CTX *pctx = NULL;
     size_t esl=292; unsigned char *esb=NULL;
     size_t rdl=32; unsigned char *rdb=NULL;
     /*
@@ -3432,6 +3448,10 @@ int SSL_ESNI_grease_me(SSL *s, CLIENT_ESNI **cp)
         goto err;
     }
     if (s->esni!=NULL) return 0;
+    if (!RAND_set_rand_method(NULL)) {
+        ESNIerr(ESNI_F_SSL_ESNI_GREASE_ME, ESNI_R_BAD_INPUT);
+        goto err;
+    }
     /*
      * Don't grease if told/configured not to grease
      */
@@ -3475,25 +3495,48 @@ int SSL_ESNI_grease_me(SSL *s, CLIENT_ESNI **cp)
     s->esni=greasy;
     /*
      * Prepare bogus values
-     * TODO: these are bogus but currently not per-spec, fix that
      */
-    uint16_t cs=0x1301;
-    ESNI_GREASE_RANDBUF(eklc,ekbc);
-    size_t ekl=eklc+6;
-    unsigned char *ekb=OPENSSL_malloc(ekl);
-    if (ekb==NULL) {
+    size_t randind=0;
+    int rv=RAND_bytes((unsigned char*)&randind,sizeof(randind));
+    if (rv!=1) {
         ESNIerr(ESNI_F_SSL_ESNI_GREASE_ME, ERR_R_MALLOC_FAILURE);
         goto err;
     }
-    ekb[0]=0x00;
-    ekb[1]=0x24;
-    ekb[2]=0x00;
-    ekb[3]=0x1d;
-    ekb[4]=0x00;
-    ekb[5]=0x20;
-    memcpy(ekb+6,ekbc,eklc);
-    OPENSSL_free(ekbc); ekbc=NULL;
+    int mc=sizeof(csarray)/sizeof(csarray[0]);
+    randind=randind%mc;
+    uint16_t cs=csarray[randind];
+
+    pctx=EVP_PKEY_CTX_new_id(NID_X25519, NULL);
+    if (pctx==NULL) {
+        ESNIerr(ESNI_F_SSL_ESNI_GREASE_ME, ERR_R_MALLOC_FAILURE);
+        goto err;
+    }
+    EVP_PKEY_keygen_init(pctx);
+    EVP_PKEY_keygen(pctx, &pkey);
+    if (pkey==NULL) {
+        ESNIerr(ESNI_F_SSL_ESNI_GREASE_ME, ERR_R_MALLOC_FAILURE);
+        goto err;
+    }
+    EVP_PKEY_CTX_free(pctx);pctx=NULL;
+    unsigned char *ekbc=NULL;
+    size_t eklc = EVP_PKEY_get1_tls_encodedpoint(pkey,&ekbc); 
+    if (eklc == 0) {
+        ESNIerr(ESNI_F_SSL_ESNI_GREASE_ME, ERR_R_MALLOC_FAILURE);
+        goto err;
+    }
+    EVP_PKEY_free(pkey);pkey=NULL;
+    unsigned char *ekb=NULL;
+    size_t ekl=0;
+    ekb=SSL_ESNI_wrap_keyshare(ekbc,eklc,NID_X25519,&ekl);
+    OPENSSL_free(ekbc);ekbc=NULL;
     ESNI_GREASE_RANDBUF(rdl,rdb);
+    /*
+     * I think (but am not sure, TODO: check) that a chacha20_poly1305
+     * ciphertext would be 4 octets shorter than an AES GCM one.
+     */
+    if (cs==0x1303) {
+        esl-=4;
+    }
     ESNI_GREASE_RANDBUF(esl,esb);
 
     /*
@@ -3511,8 +3554,10 @@ int SSL_ESNI_grease_me(SSL *s, CLIENT_ESNI **cp)
 
 err:
     if (ekbc!=NULL) OPENSSL_free(ekbc);
+    if (ekb!=NULL) OPENSSL_free(ekb);
     if (esb!=NULL) OPENSSL_free(esb);
     if (rdb!=NULL) OPENSSL_free(rdb);
+    if (pkey!=NULL) EVP_PKEY_free(pkey);
     if (greasy!=NULL) SSL_ESNI_free(greasy);
     OPENSSL_free(greasy);
     return 0;

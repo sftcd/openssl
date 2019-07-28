@@ -43,7 +43,7 @@
 #define ESNI_ADDRESS_SET_EXT 0x1001 ///< AddressSet as per draft-03
 
 /* TODO: find another implemenation of this, there's gotta be one */
-#define A2B(__c__) (__c__>='0'&&__c__<='9'?(__c__-'0'):\
+#define ESNI_A2B(__c__) (__c__>='0'&&__c__<='9'?(__c__-'0'):\
                         (__c__>='A'&&__c__<='F'?(__c__-'A'+10):\
                             (__c__>='a'&&__c__<='f'?(__c__-'a'+10):0)))
 
