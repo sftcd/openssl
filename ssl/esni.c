@@ -3424,11 +3424,11 @@ int SSL_ESNI_grease_me(SSL *s, CLIENT_ESNI **cp)
      * But that wasn't a good call so return an error
      */
     if (s==NULL) {
-        ESNIerr(ESNI_F_GREASE_ME, ESNI_R_BAD_INPUT);
+        ESNIerr(ESNI_F_SSL_ESNI_GREASE_ME, ESNI_R_BAD_INPUT);
         goto err;
     }
     if (cp==NULL) {
-        ESNIerr(ESNI_F_GREASE_ME, ESNI_R_BAD_INPUT);
+        ESNIerr(ESNI_F_SSL_ESNI_GREASE_ME, ESNI_R_BAD_INPUT);
         goto err;
     }
     if (s->esni!=NULL) return 0;
@@ -3445,7 +3445,7 @@ int SSL_ESNI_grease_me(SSL *s, CLIENT_ESNI **cp)
      */
     SSL_ESNI *greasy=OPENSSL_malloc(sizeof(SSL_ESNI));
     if (greasy==NULL) {
-        ESNIerr(ESNI_F_GREASE_ME, ERR_R_MALLOC_FAILURE);
+        ESNIerr(ESNI_F_SSL_ESNI_GREASE_ME, ERR_R_MALLOC_FAILURE);
         goto err;
     }
     memset(greasy,0,sizeof(SSL_ESNI));
@@ -3455,7 +3455,7 @@ int SSL_ESNI_grease_me(SSL *s, CLIENT_ESNI **cp)
     { \
         xxPtr=OPENSSL_malloc(xxLen); \
         if (xxPtr==NULL) { \
-            ESNIerr(ESNI_F_GREASE_ME, ERR_R_MALLOC_FAILURE); \
+            ESNIerr(ESNI_F_SSL_ESNI_GREASE_ME, ERR_R_MALLOC_FAILURE); \
             goto err; \
         } \
         RAND_bytes(xxPtr,xxLen); \
@@ -3466,7 +3466,7 @@ int SSL_ESNI_grease_me(SSL *s, CLIENT_ESNI **cp)
      */
     CLIENT_ESNI *c=OPENSSL_malloc(sizeof(CLIENT_ESNI));
     if (c==NULL) {
-        ESNIerr(ESNI_F_GREASE_ME, ERR_R_MALLOC_FAILURE);
+        ESNIerr(ESNI_F_SSL_ESNI_GREASE_ME, ERR_R_MALLOC_FAILURE);
         goto err;
     }
     memset(c,0,sizeof(CLIENT_ESNI));
@@ -3482,7 +3482,7 @@ int SSL_ESNI_grease_me(SSL *s, CLIENT_ESNI **cp)
     size_t ekl=eklc+6;
     unsigned char *ekb=OPENSSL_malloc(ekl);
     if (ekb==NULL) {
-        ESNIerr(ESNI_F_GREASE_ME, ERR_R_MALLOC_FAILURE);
+        ESNIerr(ESNI_F_SSL_ESNI_GREASE_ME, ERR_R_MALLOC_FAILURE);
         goto err;
     }
     ekb[0]=0x00;

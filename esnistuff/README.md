@@ -25,6 +25,8 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- Fixed GREASE error handling so that ``make update`` target works.
+
 - Finally switched around so that locally supplied covername wins over
   ``ESNIKeys.public_name``. The opposite never really made sense but I
   do do that sometimes;-)

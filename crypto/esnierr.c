@@ -13,49 +13,10 @@
 
 #ifndef OPENSSL_NO_ERR
 
-static const ERR_STRING_DATA ESNI_str_functs[] = {
-    {ERR_PACK(ERR_LIB_ESNI, ESNI_F_BASE64_DECODE, 0), "esni_base64_decode"},
-    {ERR_PACK(ERR_LIB_ESNI, ESNI_F_CHECKSUM_CHECK, 0), "esni_checksum_check"},
-    {ERR_PACK(ERR_LIB_ESNI, ESNI_F_DEC, 0), "ESNI_dec"},
-    {ERR_PACK(ERR_LIB_ESNI, ESNI_F_ENC, 0), "ESNI_enc"},
-    {ERR_PACK(ERR_LIB_ESNI, ESNI_F_ESNI_AEAD_DEC, 0), "esni_aead_dec"},
-    {ERR_PACK(ERR_LIB_ESNI, ESNI_F_ESNI_AEAD_ENC, 0), "esni_aead_enc"},
-    {ERR_PACK(ERR_LIB_ESNI, ESNI_F_ESNI_BASE64_DECODE, 0),
-     "esni_base64_decode"},
-    {ERR_PACK(ERR_LIB_ESNI, ESNI_F_ESNI_CHECKSUM_CHECK, 0),
-     "esni_checksum_check"},
-    {ERR_PACK(ERR_LIB_ESNI, ESNI_F_ESNI_MAKE_RD, 0), "esni_make_rd"},
-    {ERR_PACK(ERR_LIB_ESNI, ESNI_F_ESNI_MAKE_SE_FROM_ER, 0),
-     "esni_make_se_from_er"},
-    {ERR_PACK(ERR_LIB_ESNI, ESNI_F_KEY_DERIVATION, 0), "key_derivation"},
-    {ERR_PACK(ERR_LIB_ESNI, ESNI_F_MAKEESNICONTENTHASH, 0),
-     "makeesnicontenthash"},
-    {ERR_PACK(ERR_LIB_ESNI, ESNI_F_NEW_FROM_BASE64, 0),
-     "SSL_ESNI_RECORD_new_from_binary"},
-    {ERR_PACK(ERR_LIB_ESNI, ESNI_F_SERVER_ENABLE, 0), "SSL_esni_server_enable"},
-    {ERR_PACK(ERR_LIB_ESNI, ESNI_F_SSL_ESNI_DEC, 0), "SSL_ESNI_dec"},
-    {ERR_PACK(ERR_LIB_ESNI, ESNI_F_SSL_ESNI_DUP, 0), "SSL_ESNI_dup"},
-    {ERR_PACK(ERR_LIB_ESNI, ESNI_F_SSL_ESNI_ENC, 0), "SSL_ESNI_enc"},
-    {ERR_PACK(ERR_LIB_ESNI, ESNI_F_SSL_ESNI_NEW_FROM_BASE64, 0),
-     "SSL_ESNI_new_from_base64"},
-    {ERR_PACK(ERR_LIB_ESNI, ESNI_F_SSL_ESNI_NEW_FROM_BUFFER, 0),
-     "SSL_ESNI_new_from_buffer"},
-    {ERR_PACK(ERR_LIB_ESNI, ESNI_F_SSL_ESNI_QUERY, 0), "SSL_esni_query"},
-    {ERR_PACK(ERR_LIB_ESNI, ESNI_F_SSL_ESNI_RECORD_NEW_FROM_BINARY, 0),
-     "SSL_ESNI_RECORD_new_from_binary"},
-    {ERR_PACK(ERR_LIB_ESNI, ESNI_F_SSL_ESNI_REDUCE, 0), "SSL_esni_reduce"},
-    {ERR_PACK(ERR_LIB_ESNI, ESNI_F_SSL_ESNI_SERVER_ENABLE, 0),
-     "SSL_esni_server_enable"},
-    {ERR_PACK(ERR_LIB_ESNI, ESNI_F_SSL_ESNI_WRAP_KEYSHARE, 0),
-     "SSL_ESNI_wrap_keyshare"},
-    {ERR_PACK(ERR_LIB_ESNI, ESNI_F_GREASE_ME, 0),
-     "SSL_ESNI_grease_me"},
-    {0, NULL}
-};
-
 static const ERR_STRING_DATA ESNI_str_reasons[] = {
     {ERR_PACK(ERR_LIB_ESNI, 0, ESNI_R_ASCIIHEX_DECODE_ERROR),
     "asciihex decode error"},
+    {ERR_PACK(ERR_LIB_ESNI, 0, ESNI_R_BAD_INPUT), "bad input"},
     {ERR_PACK(ERR_LIB_ESNI, 0, ESNI_R_BASE64_DECODE_ERROR),
     "base64 decode error"},
     {ERR_PACK(ERR_LIB_ESNI, 0, ESNI_R_NOT_IMPL), "not implemented"},
@@ -69,10 +30,8 @@ static const ERR_STRING_DATA ESNI_str_reasons[] = {
 int ERR_load_ESNI_strings(void)
 {
 #ifndef OPENSSL_NO_ERR
-    if (ERR_func_error_string(ESNI_str_functs[0].error) == NULL) {
-        ERR_load_strings_const(ESNI_str_functs);
+    if (ERR_func_error_string(ESNI_str_reasons[0].error) == NULL)
         ERR_load_strings_const(ESNI_str_reasons);
-    }
 #endif
     return 1;
 }
