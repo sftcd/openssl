@@ -25,6 +25,10 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- Finally switched around so that locally supplied covername wins over
+  ``ESNIKeys.public_name``. The opposite never really made sense but I
+  do do that sometimes;-)
+
 - GREASE: close to done here, I hope...
     - As an aside, I already have GREASE extensions in ``mk_esnikeys``:-)
     - Added a version value of ``ESNI_GREASE_VERSION`` (0xffff) for use in 

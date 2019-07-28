@@ -2692,16 +2692,13 @@ int SSL_esni_enable(SSL *s, const char *hidden, const char *cover, SSL_ESNI *esn
     }
 
     /* 
-     * We prefer draft-03/draft-04 public_name over locally supplied 
-     * covername. 
+     * We prefer a supplied covername over the draft-03/draft-04 public_name 
      */
-    if (s->esni[keysind].public_name!=NULL) {
+    if (cover!=NULL) {
+        s->ext.hostname=OPENSSL_strndup(cover,TLSEXT_MAXLEN_host_name);
+    } else if (s->esni[keysind].public_name!=NULL) {
         s->ext.hostname=OPENSSL_strndup(s->esni[keysind].public_name,TLSEXT_MAXLEN_host_name);
-    } else {
-        if (cover!=NULL) {
-            s->ext.hostname=OPENSSL_strndup(cover,TLSEXT_MAXLEN_host_name);
-        }
-    }
+    } 
 
     /*
      * Set to 1 when nonce returned
