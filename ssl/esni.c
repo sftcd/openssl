@@ -3434,6 +3434,8 @@ int SSL_ESNI_grease_me(SSL *s, CLIENT_ESNI **cp)
     EVP_PKEY_CTX *pctx = NULL;
     size_t esl=292; unsigned char *esb=NULL;
     size_t rdl=32; unsigned char *rdb=NULL;
+    unsigned char *ekbc=NULL;
+    unsigned char *ekb=NULL;
     /*
      * If there's already an SSL_ESNI, leave it alone
      * But that wasn't a good call so return an error
@@ -3517,14 +3519,12 @@ int SSL_ESNI_grease_me(SSL *s, CLIENT_ESNI **cp)
         goto err;
     }
     EVP_PKEY_CTX_free(pctx);pctx=NULL;
-    unsigned char *ekbc=NULL;
     size_t eklc = EVP_PKEY_get1_tls_encodedpoint(pkey,&ekbc); 
     if (eklc == 0) {
         ESNIerr(ESNI_F_SSL_ESNI_GREASE_ME, ERR_R_MALLOC_FAILURE);
         goto err;
     }
     EVP_PKEY_free(pkey);pkey=NULL;
-    unsigned char *ekb=NULL;
     size_t ekl=0;
     ekb=SSL_ESNI_wrap_keyshare(ekbc,eklc,NID_X25519,&ekl);
     OPENSSL_free(ekbc);ekbc=NULL;
