@@ -3432,6 +3432,7 @@ int SSL_ESNI_grease_me(SSL *s, CLIENT_ESNI **cp)
 
     EVP_PKEY *pkey = NULL;
     EVP_PKEY_CTX *pctx = NULL;
+    SSL_ESNI *greasy=NULL;
     size_t esl=292; unsigned char *esb=NULL;
     size_t rdl=32; unsigned char *rdb=NULL;
     unsigned char *ekbc=NULL;
@@ -3464,7 +3465,7 @@ int SSL_ESNI_grease_me(SSL *s, CLIENT_ESNI **cp)
     /*
      * We're gonna grease
      */
-    SSL_ESNI *greasy=OPENSSL_malloc(sizeof(SSL_ESNI));
+    greasy=OPENSSL_malloc(sizeof(SSL_ESNI));
     if (greasy==NULL) {
         ESNIerr(ESNI_F_SSL_ESNI_GREASE_ME, ERR_R_MALLOC_FAILURE);
         goto err;
