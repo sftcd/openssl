@@ -21,7 +21,7 @@ I keep forgetting so, as this directory exists...
 
 - Run a client, doing ESNI
 
-            $ ./testclient.sh -p 8443 -s localhost -H foo.example.com -c example.com -P esnikeys.pub -vd
+            $ ./testclient.sh -p 8443 -s localhost -H foo.example.com -c example.net -P esnikeys.pub -vd
 
 
 

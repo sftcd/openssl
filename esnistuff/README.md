@@ -25,15 +25,26 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- In the process of adding code to handle ``esni_retry_requested`` and
+related. Look for "TODO(ESNI)" instances in ``ssl/statem/extensions_server.c``
+and ``ssl/statem/extensions_clnt.c`` that currently include:
+    DONE - Move to -03/-04 ``esni_accept`` containing struct in EncryptedExtensions 
+    - Server to consider that we've been greased and randomly send a nonce or fake esnikeys
+      if there're no ESNIKeys loaded
+    - If greased or failed and ESNIKeys loaded, send an ESNIKeys value that should work
+    - If I get an ESNIKeys post-grease or fail then do the re-try stuff (possibly much work)
+    - Add server-side trial decryption option, if so configured
+
 - Added some code to make GREASE more accurate, can now produce either
 ciphersuite 0x1301 (80% of the time), or 0x1303 with (I think) more
-accurate lengths and real key share values. 
+accurate lengths and real public share values. 
 
 - Fixed GREASE error handling so that ``make update`` target works.
 
 - Finally switched around so that locally supplied covername wins over
   ``ESNIKeys.public_name``. The opposite never really made sense but I
   do do that sometimes;-)
+    - Latterly, fixed up ``SSL_get_esni_status`` to also reflect that 
 
 - GREASE: close to done here, I hope...
     - As an aside, I already have GREASE extensions in ``mk_esnikeys``:-)

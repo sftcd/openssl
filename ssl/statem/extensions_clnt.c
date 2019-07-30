@@ -110,7 +110,7 @@ static EXT_RETURN esni_server_name_fixup(SSL *s, WPACKET *pkt,
         }
 
         /* now do the checks */
-        if (pn_len!=0) {
+        if (pn_len!=0 && cn_len==0) {
             /* if public_name set */
             if (pn_len!=ehn_len || CRYPTO_memcmp(s->ext.hostname,s->esni->public_name,pn_len)) {
                 SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_ESNI_SERVER_NAME_FIXUP,
@@ -2262,7 +2262,7 @@ EXT_RETURN tls_construct_ctos_esni(SSL *s, WPACKET *pkt, unsigned int context,
             || !WPACKET_start_sub_packet_u16(pkt)
     		|| !WPACKET_put_bytes_u16(pkt, c->ciphersuite)
             /*
-             * TODO: don't force self to remove leading two length bytes here
+             * TODO(ESNI): don't force self to remove leading two length bytes here
              * Needs fluting about as sometimes they're in, sometimes not
              */
             || !WPACKET_memcpy(pkt, c->encoded_keyshare+2, c->encoded_keyshare_len-2)
@@ -2318,7 +2318,7 @@ int tls_parse_stoc_esni(SSL *s, PACKET *pkt, unsigned int context,
                 matchind=ind;
             } else if (s->esni[ind].nonce_len!=nlen) {
                 /*
-                 * TODO: ponder how we'd wanna support something other than...
+                 * TODO(ESNI): ponder how we'd wanna support something other than...
                  * Error, can't think of a valid reason for now - I guess
                  * some odd client might want to do ESNI with >1 place in
                  * future and use different nonce_lengths for each. 
@@ -2328,6 +2328,38 @@ int tls_parse_stoc_esni(SSL *s, PACKET *pkt, unsigned int context,
             }
         } 
         ind++;
+    }
+
+    /*
+     * TODO(ESNI): If we greased then we won't have a match
+     */
+
+    /*
+     * TODO(ESNI): handle non -02 draft versions
+     */
+    if (s->esni[matchind].version!=ESNI_DRAFT_02_VERSION) {
+        /*
+         * Consume the enum
+         */
+        unsigned int response_type=-1;
+        if (!PACKET_get_1(pkt, &response_type)) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PARSE_STOC_ESNI, ERR_R_INTERNAL_ERROR);
+            return 0;
+        }
+        switch (response_type) {
+            case 0: // esni_accept 
+                break;
+            case 1: // esni_retry_request
+                /*
+                 * TODO(ESNI): handle new ESNIKeys provided...
+                 */
+                SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PARSE_STOC_ESNI, ERR_R_INTERNAL_ERROR);
+                return 0;
+                break;
+            default:
+                SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PARSE_STOC_ESNI, ERR_R_INTERNAL_ERROR);
+                return 0;
+        }
     }
 
     unsigned char buf[64];

@@ -2015,11 +2015,6 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
     CLIENT_ESNI *ce=NULL;
     SSL_ESNI *match=NULL;
 
-    /*
-     * We'll ignore a received ESNI extension if we're not configured
-     * for ESNI
-     */
-
     /* 
      * Check if we've been configured to hard fail on ESNI failure
      * (SHOULD be off by default, so that GREASE works)
@@ -2208,6 +2203,9 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
             goto err;
         } else {
             /* softfail exit */
+            /*
+             * TODO(ESNI): Add trial decryption option, if so configured
+             */
             goto noerr;
         }
     }
@@ -2288,7 +2286,7 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
     }
     
     /*
-     * TODO: Check if this is dodgy - it could be!
+     * TODO(ESNI): Check if this is dodgy - it could be!
      */
     if (s->session->ext.hostname==NULL) {
         s->session->ext.hostname=OPENSSL_strdup((char*)encservername);
@@ -2421,13 +2419,48 @@ EXT_RETURN tls_construct_stoc_esni(SSL *s, WPACKET *pkt,
             if  (match->nonce==NULL || match->nonce_len<=0) {
                 return EXT_RETURN_FAIL;
             }
-            if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_esni)
-                || !WPACKET_put_bytes_u16(pkt, match->nonce_len)
-                || !WPACKET_memcpy(pkt, match->nonce, match->nonce_len)) {
-                return EXT_RETURN_FAIL;
+            /*
+             * For draft-02 we only include the nonce in the 
+             * respose. For draft-03/04 there's more structure:
+             *  enum {
+             *      esni_accept(0),
+             *      esni_retry_request(1),
+             *  } ServerESNIResponseType;
+             * 
+             * struct {
+             *      ServerESNIResponseType response_type;
+             *      select (response_type) {
+             *          case esni_accept:        uint8 nonce[16];
+             *          case esni_retry_request: ESNIKeys retry_keys<1..2^16-1>;
+             *          }
+             * } ServerEncryptedSNI;
+             *
+             */
+            if (match->version==ESNI_DRAFT_02_VERSION) {
+                if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_esni)
+                    || !WPACKET_put_bytes_u16(pkt, match->nonce_len)
+                    || !WPACKET_memcpy(pkt, match->nonce, match->nonce_len)) {
+                    return EXT_RETURN_FAIL;
+                }
+                return EXT_RETURN_SENT;
+            } else { // for draft-03 or draft-04
+                if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_esni)
+                    || !WPACKET_put_bytes_u16(pkt, match->nonce_len+1)
+                    || !WPACKET_put_bytes_u8(pkt, 0) 
+                    || !WPACKET_memcpy(pkt, match->nonce, match->nonce_len)) {
+                    return EXT_RETURN_FAIL;
+                }
+                return EXT_RETURN_SENT;
             }
-            return EXT_RETURN_SENT;
+        } else {
+            /*
+             *  TODO(ESNI): cause sending an ESNIKeys value that should work with a re-try
+             */
         }
+    } else {
+        /*
+         * TODO(ESNI): Consider that we've been greased and randomly cause sending a nonce or fake esnikeys
+         */
     }
     return EXT_RETURN_NOT_SENT;
 

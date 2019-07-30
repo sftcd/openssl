@@ -267,6 +267,7 @@ esni substring do not. (This seems to be an OpenSSL convention.)
 TODO: Add notes here about GREASE when it's worked out/done. For now,
 just tracking where the function below is used and what it does should 
 help understand what's what. (More as I figure it out:-)
+See also [03-04.md](./03-04.md) and [esni-retry.md](./esni-retry.md).
 
             /**
              * @brief Make up a GREASE/fake SSL_ESNI structure

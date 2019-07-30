@@ -2922,13 +2922,12 @@ int SSL_get_esni_status(SSL *s, char **hidden, char **cover)
         } 
         *hidden=s->esni[matchind].encservername;
         /*
-         * Prefer draft-03/draft-04 public_name to locally supplied covername
-         * TODO: consider whether or not that's a good plan
+         * Prefer covername (if supplied) to draft-03/draft-04 public_name 
          */
-        if (s->esni[matchind].public_name) {
-            *cover=s->esni[matchind].public_name;
-        } else {
+        if (s->esni[matchind].covername) {
             *cover=s->esni[matchind].covername;
+        } else {
+            *cover=s->esni[matchind].public_name;
         }
         if (s->esni_done==1) {
             if (vr == X509_V_OK ) {
