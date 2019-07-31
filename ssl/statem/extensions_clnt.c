@@ -2298,6 +2298,13 @@ EXT_RETURN tls_construct_ctos_esni(SSL *s, WPACKET *pkt, unsigned int context,
 int tls_parse_stoc_esni(SSL *s, PACKET *pkt, unsigned int context,
                                X509 *x, size_t chainidx)
 {
+    int client_grease=(s->options & SSL_OP_ESNI_GREASE); 
+    if (client_grease) {
+        /*
+         * Just ignore whatever's there as we don't care.
+         */
+        return 1;
+    }
     if (s->esni == NULL ) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PARSE_STOC_ESNI, ERR_R_INTERNAL_ERROR);
         return 0;
@@ -2318,7 +2325,6 @@ int tls_parse_stoc_esni(SSL *s, PACKET *pkt, unsigned int context,
                 matchind=ind;
             } else if (s->esni[ind].nonce_len!=nlen) {
                 /*
-                 * TODO(ESNI): ponder how we'd wanna support something other than...
                  * Error, can't think of a valid reason for now - I guess
                  * some odd client might want to do ESNI with >1 place in
                  * future and use different nonce_lengths for each. 
@@ -2331,11 +2337,17 @@ int tls_parse_stoc_esni(SSL *s, PACKET *pkt, unsigned int context,
     }
 
     /*
-     * TODO(ESNI): If we greased then we won't have a match
+     * If we greased then we won't have a match
      */
+    if (client_grease && matchind==-1) {
+        /*
+         * Just ignore whatever's there as we don't care.
+         */
+        return 1;
+    }
 
     /*
-     * TODO(ESNI): handle non -02 draft versions
+     * handle non -02 draft versions
      */
     if (s->esni[matchind].version!=ESNI_DRAFT_02_VERSION) {
         /*
@@ -2362,7 +2374,7 @@ int tls_parse_stoc_esni(SSL *s, PACKET *pkt, unsigned int context,
         }
     }
 
-    unsigned char buf[64];
+    unsigned char buf[nlen];
     /* nonce decode */
     if (!PACKET_copy_bytes(pkt,buf,nlen)) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PARSE_STOC_ESNI, ERR_R_INTERNAL_ERROR);

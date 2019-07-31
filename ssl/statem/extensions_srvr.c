@@ -2454,8 +2454,27 @@ EXT_RETURN tls_construct_stoc_esni(SSL *s, WPACKET *pkt,
             }
         } else {
             /*
-             *  TODO(ESNI): cause sending an ESNIKeys value that should work with a re-try
+             * We've either been GREASEd or the client went wonky and decryption failed
+             * so cause sending first ESNIKeys value that may work if the client re-tries
              */
+            unsigned char *rrval=s->esni[0].encoded_rr;
+            size_t rrlen=s->esni[0].encoded_rr_len;
+            if (rrlen==0 || rrval==NULL) {
+                /*
+                 * bummer, shouldn't happen so fail hard
+                 */
+                return EXT_RETURN_FAIL;
+            } 
+            /*
+             * send the encoded RR value as the content of the EncryptedExtension
+             */
+            if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_esni)
+                    || !WPACKET_put_bytes_u16(pkt, rrlen+1)
+                    || !WPACKET_put_bytes_u8(pkt, 1) 
+                    || !WPACKET_memcpy(pkt, rrval, rrlen)) {
+                    return EXT_RETURN_FAIL;
+            }
+            return EXT_RETURN_SENT;
         }
     } else {
         /*
