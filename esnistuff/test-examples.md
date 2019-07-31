@@ -1,5 +1,17 @@
 
-# Command lines for local tests
+# ESNI test Command line examples
+
+All these assume you're in $HOME/code/openssl/esnistuff
+
+## Basic build confidence...
+
+Sometimes a build goes bad after a git pull (and you gotta do "./config;make clean;make"
+in $HOME/code/openssl). In such cases this basic test often demonstrates we're in that
+situation:
+
+            $ make test
+
+## Local tests
 
 I keep forgetting so, as this directory exists...
 
@@ -23,6 +35,16 @@ I keep forgetting so, as this directory exists...
 
             $ ./testclient.sh -p 8443 -s localhost -H foo.example.com -c example.net -P esnikeys.pub -vd
 
+## Non local tests 
 
+- Our basic bottom line test
 
+            $ ./testclient -H ietf.org
 
+- Nominal to defo.ie
+
+            $ ./testclient.sh -H only.esni.defo.ie -c cover.defo.ie -d
+
+- Grease to defo.ie
+
+            $ ./testclient.sh -c cover.defo.ie -ngd

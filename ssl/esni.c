@@ -1428,7 +1428,7 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esniarr, int selector)
 
         esni=&esniarr[i];
 
-        BIO_printf(out,"\nPrinting SSL_ESNI structure number %d of %d\n",i,nesnis);
+        BIO_printf(out,"\nPrinting SSL_ESNI structure number %d of %d\n",i+1,nesnis);
         if (esni->version==ESNI_GREASE_VERSION) {
             BIO_printf(out,"ESNI Version is GREASE!: %x\n",esni->version);
         } else {
