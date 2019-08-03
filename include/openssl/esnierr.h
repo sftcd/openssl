@@ -34,7 +34,7 @@ int ERR_load_ESNI_strings(void);
 #  define ESNI_F_ESNI_CHECKSUM_CHECK                       0
 #  define ESNI_F_ESNI_MAKE_RD                              0
 #  define ESNI_F_ESNI_MAKE_SE_FROM_ER                      0
-#  define ESNI_F_KEY_DERIVATION                            0
+#  define ESNI_F_ESNI_KEY_DERIVATION                       0
 #  define ESNI_F_MAKEESNICONTENTHASH                       0
 #  define ESNI_F_NEW_FROM_BASE64                           0
 #  define ESNI_F_SERVER_ENABLE                             0

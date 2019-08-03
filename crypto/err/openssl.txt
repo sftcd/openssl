@@ -776,7 +776,7 @@ ESNI_F_ESNI_BASE64_DECODE:109:esni_base64_decode
 ESNI_F_ESNI_CHECKSUM_CHECK:110:esni_checksum_check
 ESNI_F_ESNI_MAKE_RD:111:esni_make_rd
 ESNI_F_ESNI_MAKE_SE_FROM_ER:112:esni_make_se_from_er
-ESNI_F_KEY_DERIVATION:113:key_derivation
+ESNI_F_ESNI_KEY_DERIVATION:113:esni_key_derivation
 ESNI_F_MAKEESNICONTENTHASH:114:makeesnicontenthash
 ESNI_F_NEW_FROM_BASE64:102:SSL_ESNI_RECORD_new_from_binary
 ESNI_F_SERVER_ENABLE:105:SSL_esni_server_enable

@@ -2028,7 +2028,7 @@ static int esni_key_derivation(SSL_ESNI *esnikeys)
     const EVP_MD *md=ssl_md(sc->algorithm2);
     const EVP_CIPHER *e_ciph=EVP_get_cipherbynid(SSL_CIPHER_get_cipher_nid(sc));
     if (e_ciph==NULL) {
-        ESNIerr(ESNI_F_KEY_DERIVATION, ERR_R_INTERNAL_ERROR);
+        ESNIerr(ESNI_F_ESNI_KEY_DERIVATION, ERR_R_INTERNAL_ERROR);
         goto err;
     }
     /*
@@ -2043,7 +2043,7 @@ static int esni_key_derivation(SSL_ESNI *esnikeys)
     esnikeys->key=esni_hkdf_expand_label(esnikeys->Zx,esnikeys->Zx_len,"esni key",
                     esnikeys->hash,esnikeys->hash_len,&esnikeys->key_len,md);
     if (esnikeys->key==NULL) {
-        ESNIerr(ESNI_F_KEY_DERIVATION, ERR_R_INTERNAL_ERROR);
+        ESNIerr(ESNI_F_ESNI_KEY_DERIVATION, ERR_R_INTERNAL_ERROR);
         goto err;
     }
     esnikeys->iv_len=EVP_CIPHER_iv_length(e_ciph);
@@ -2051,13 +2051,13 @@ static int esni_key_derivation(SSL_ESNI *esnikeys)
     esnikeys->iv=esni_hkdf_expand_label(esnikeys->Zx,esnikeys->Zx_len,"esni iv",
                     esnikeys->hash,esnikeys->hash_len,&esnikeys->iv_len,md);
     if (esnikeys->iv==NULL) {
-        ESNIerr(ESNI_F_KEY_DERIVATION, ERR_R_INTERNAL_ERROR);
+        ESNIerr(ESNI_F_ESNI_KEY_DERIVATION, ERR_R_INTERNAL_ERROR);
         goto err;
     }
     if (esnikeys->aad!=NULL) OPENSSL_free(esnikeys->aad);
     esnikeys->aad=OPENSSL_malloc(esnikeys->hs_kse_len);
     if (esnikeys->aad == NULL) {
-        ESNIerr(ESNI_F_KEY_DERIVATION, ERR_R_MALLOC_FAILURE);
+        ESNIerr(ESNI_F_ESNI_KEY_DERIVATION, ERR_R_MALLOC_FAILURE);
         goto err;
     }
     memcpy(esnikeys->aad,esnikeys->hs_kse,esnikeys->hs_kse_len);
