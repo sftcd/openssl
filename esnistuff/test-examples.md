@@ -23,6 +23,14 @@ I keep forgetting so, as this directory exists...
 
             $ ./testserver.sh -c example.com -H foo.example.com -F
 
+- Run a server that does trial decryption if ESNI doesn't match - default is to not
+
+            $ ./testserver.sh -c example.com -H foo.example.com -T
+
+- Run a server that loads no keys but that'la react to grease 
+
+            $ ./testserver.sh -c example.com -n
+
 - Run a client, not really doing ESNI
 
             $ ./testclient.sh -p 8443 -s localhost -n -c example.com  -vd

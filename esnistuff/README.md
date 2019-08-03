@@ -25,15 +25,27 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
-- In the process of adding code to handle ``esni_retry_requested`` and
-related. Look for "TODO(ESNI)" instances in ``ssl/statem/extensions_server.c``
-and ``ssl/statem/extensions_clnt.c`` that currently include:
-    DONE - Move to -03/-04 ``esni_accept`` containing struct in EncryptedExtensions 
-    - Server to consider that we've been greased and randomly send a nonce or fake esnikeys
-      if there're no ESNIKeys loaded
-    - If greased or failed and ESNIKeys loaded, send an ESNIKeys value that should work
-    - If I get an ESNIKeys post-grease or fail then do the re-try stuff (possibly much work)
-    - Add server-side trial decryption option, if so configured
+- Next up will be to really do the re-try stuff if a client gets back a real ESNIKeys in-band.
+  But, I need to check out HRR a bit first I guess so see how that's handled as it has some
+  similarities.
+
+- Added code to handle changes in ESNI from server to client (``esni_retry_requested`` and
+related). Mostly in ``ssl/statem/extensions_server.c``
+and ``ssl/statem/extensions_clnt.c`` that currently includes:
+    - Move to -03/-04 ``esni_accept`` containing struct in EncryptedExtensions 
+    - If greased or failed and ESNIKeys loaded, return an ESNIKeys value that should work
+    - Server-side trial decryption option, if so configured 
+        - testserver.sh new ``-T`` option, ``SSL_OP_ESNI_TRIALDECRYPT`` added along with ``s_server`` command line option  
+        - added a ``#ifdef BREAK_RECORD_DIGEST`` compile time option to ``ssl/statem/extensions_clnt.c``
+          so I could test trial decryption - that really ought be part of the openssl ``make test`` setup and
+          I've left a TODO in the code to that effect
+    - If there're no ESNIKeys loaded, yet we receive an ESNI extension, then the
+      server randomly returns a random value that's randomly chosen as either a nonce length (16) or
+      roughly the length of an ESNIKeys. That code is in ``tls_construct_stoc_esni``.
+        - had to add an ``esni_attempted`` field to SSL struct to control this and so
+          that the ``make test`` target passes
+        - Note: This is not in the I-D, and is added by me so
+          it might disappear if/when the I-D addresses this topic.)
 
 - Added some code to make GREASE more accurate, can now produce either
 ciphersuite 0x1301 (80% of the time), or 0x1303 with (I think) more

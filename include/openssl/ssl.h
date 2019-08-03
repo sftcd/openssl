@@ -331,6 +331,12 @@ typedef int (*SSL_async_callback_fn)(SSL *s, void *arg);
 
 # define SSL_OP_TLSEXT_PADDING                           0x00000010U
 /* Reserved value (until OpenSSL 3.0.0)                  0x00000020U */
+#ifndef OPENSSL_NO_ESNI
+/* If this is set then the server side will attempt trial decryption */
+/* of ESNIs even if there is no matching record_digest. That's very  */
+/* inefficient, but more privacy friendly */
+#define SSL_OP_ESNI_TRIALDECRYPT                         0x00000020U
+#endif
 # define SSL_OP_SAFARI_ECDHE_ECDSA_BUG                   0x00000040U
 /*
  * Reserved value (until OpenSSL 3.0.0)                  0x00000080U

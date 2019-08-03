@@ -1649,6 +1649,7 @@ struct ssl_st {
     int servername_done;
 #ifndef OPENSSL_NO_ESNI
     int esni_done;
+    int esni_attempted;
 	size_t	nesni; /* the number of elements in the esni array */
 	SSL_ESNI *esni;
     SSL_esni_client_cb_func esni_cb;

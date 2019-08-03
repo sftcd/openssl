@@ -1902,7 +1902,12 @@ static unsigned char *esni_aead_dec(
      */
     int decrypt_res=EVP_DecryptFinal_ex(ctx, plaintext + len, &len);
     if(decrypt_res<=0)  {
-        ESNIerr(ESNI_F_ESNI_AEAD_DEC, ERR_R_INTERNAL_ERROR);
+        /*
+         * No longer print an error, as a) an attacker could cause
+         * that to be generated and b) now we're allowing trial 
+         * decryption, this could be v. common and hence misleading
+         * ESNIerr(ESNI_F_ESNI_AEAD_DEC, ERR_R_INTERNAL_ERROR);
+         */
         goto err;
     }
 
@@ -1962,6 +1967,7 @@ static int makeesnicontenthash(SSL_ESNI *esnikeys,
     }
     // drop top two bytes from this version of encoded_keyshare (sigh!)
     esnikeys->hi_len=2+esnikeys->rd_len+kslen-2+esnikeys->hs_cr_len;
+    if (esnikeys->hi!=NULL) OPENSSL_free(esnikeys->hi);
     esnikeys->hi=OPENSSL_malloc(esnikeys->hi_len);
     if (esnikeys->hi==NULL) {
         ESNIerr(ESNI_F_MAKEESNICONTENTHASH, ERR_R_INTERNAL_ERROR);
@@ -1986,6 +1992,7 @@ static int makeesnicontenthash(SSL_ESNI *esnikeys,
     const EVP_MD *md=ssl_md(sc->algorithm2);
     mctx = EVP_MD_CTX_new();
     esnikeys->hash_len = EVP_MD_size(md);
+    if (esnikeys->hash!=NULL) OPENSSL_free(esnikeys->hash);
     esnikeys->hash=OPENSSL_malloc(esnikeys->hash_len);
     if (esnikeys->hash==NULL) {
         ESNIerr(ESNI_F_MAKEESNICONTENTHASH, ERR_R_INTERNAL_ERROR);
@@ -2012,7 +2019,7 @@ err:
  * @param esni is the SSL_ESNI structure
  * @return 1 for success, other otherwise
  */
-static int key_derivation(SSL_ESNI *esnikeys)
+static int esni_key_derivation(SSL_ESNI *esnikeys)
 {
 
     /* prepare nid and EVP versions for later checks */
@@ -2025,13 +2032,14 @@ static int key_derivation(SSL_ESNI *esnikeys)
         goto err;
     }
     /*
-     * TODO: implement label swapping when handling HRR - the 2nd time the
+     * TODO(ESNI): implement label swapping when handling HRR - the 2nd time the
      * labels should go from "esni key" to "hrr esni key" and "esni iv" to
      * "hrr esni iv" - but not yet - I've still to do HRR processing at
      * all, and I suspect this crypto primitive will switch to use of 
      * whatever ends up from https://tools.ietf.org/html/draft-barnes-cfrg-hpke
      */
     esnikeys->key_len=EVP_CIPHER_key_length(e_ciph);
+    if (esnikeys->key!=NULL) OPENSSL_free(esnikeys->key);
     esnikeys->key=esni_hkdf_expand_label(esnikeys->Zx,esnikeys->Zx_len,"esni key",
                     esnikeys->hash,esnikeys->hash_len,&esnikeys->key_len,md);
     if (esnikeys->key==NULL) {
@@ -2039,12 +2047,14 @@ static int key_derivation(SSL_ESNI *esnikeys)
         goto err;
     }
     esnikeys->iv_len=EVP_CIPHER_iv_length(e_ciph);
+    if (esnikeys->iv!=NULL) OPENSSL_free(esnikeys->iv);
     esnikeys->iv=esni_hkdf_expand_label(esnikeys->Zx,esnikeys->Zx_len,"esni iv",
                     esnikeys->hash,esnikeys->hash_len,&esnikeys->iv_len,md);
     if (esnikeys->iv==NULL) {
         ESNIerr(ESNI_F_KEY_DERIVATION, ERR_R_INTERNAL_ERROR);
         goto err;
     }
+    if (esnikeys->aad!=NULL) OPENSSL_free(esnikeys->aad);
     esnikeys->aad=OPENSSL_malloc(esnikeys->hs_kse_len);
     if (esnikeys->aad == NULL) {
         ESNIerr(ESNI_F_KEY_DERIVATION, ERR_R_MALLOC_FAILURE);
@@ -2297,7 +2307,7 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys_in,
     /* 
      * derive key and iv length from suite
      */
-    if (key_derivation(esnikeys)!=1) {
+    if (esni_key_derivation(esnikeys)!=1) {
         ESNIerr(ESNI_F_SSL_ESNI_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
     }
@@ -2423,8 +2433,15 @@ unsigned char *SSL_ESNI_dec(SSL_ESNI *esni,
      * - try extract and return SNI
      */
     CLIENT_ESNI *er=esni->the_esni;
+
+#ifdef DONTCHECKRD
     /*
      * Check record_digest TODO: draft-04 changes
+     * Actually, this check is not needed really as it'd have
+     * been successfully done already if there's a match or
+     * else it'd have failed already in which case we only
+     * get here when trial decrypting, so it's ok in either
+     * case 
      */
     if (esni->rd_len!=er->record_digest_len) {
         ESNIerr(ESNI_F_SSL_ESNI_DEC, ERR_R_INTERNAL_ERROR);
@@ -2434,15 +2451,27 @@ unsigned char *SSL_ESNI_dec(SSL_ESNI *esni,
         ESNIerr(ESNI_F_SSL_ESNI_DEC, ERR_R_INTERNAL_ERROR);
         goto err;
     }
+#endif
+
     if (er->ciphersuite!=esni->ciphersuite) {
-        ESNIerr(ESNI_F_SSL_ESNI_DEC, ERR_R_INTERNAL_ERROR);
+        /*
+         * No longer print an error, as a) an attacker could cause
+         * that to be generated and b) now we're allowing trial 
+         * decryption, this could be v. common and hence misleading
+         * ESNIerr(ESNI_F_SSL_ESNI_DEC, ERR_R_INTERNAL_ERROR);
+         */
         goto err;
     }
 
     /*
-     * copy inputs to state
+     * copy inputs to state, if we're trial decrypting then we
+     * may need to free up previous values - TODO(ESNI) when 
+     * removing the overcomplex state (after final interop)
+     * be more careful about zapping any intermediate values
+     * due to trial decryption
      */
     esni->hs_cr_len=client_random_len;
+    if (esni->hs_cr!=NULL) OPENSSL_free(esni->hs_cr);
     esni->hs_cr=OPENSSL_malloc(esni->hs_cr_len);
     if (esni->hs_cr==NULL) {
         ESNIerr(ESNI_F_SSL_ESNI_DEC, ERR_R_INTERNAL_ERROR);
@@ -2451,6 +2480,7 @@ unsigned char *SSL_ESNI_dec(SSL_ESNI *esni,
     memcpy(esni->hs_cr,client_random,esni->hs_cr_len);
 
     esni->hs_kse_len=client_keyshare_len;
+    if (esni->hs_kse!=NULL) OPENSSL_free(esni->hs_kse);
     esni->hs_kse=OPENSSL_malloc(esni->hs_kse_len);
     if (esni->hs_kse==NULL) {
         ESNIerr(ESNI_F_SSL_ESNI_DEC, ERR_R_INTERNAL_ERROR);
@@ -2459,6 +2489,7 @@ unsigned char *SSL_ESNI_dec(SSL_ESNI *esni,
     memcpy(esni->hs_kse,client_keyshare,esni->hs_kse_len);
 
     esni->cipher_len=esni->the_esni->encrypted_sni_len;
+    if (esni->cipher!=NULL) OPENSSL_free(esni->cipher);
     esni->cipher=OPENSSL_malloc(esni->cipher_len);
     if (esni->cipher==NULL) {
         ESNIerr(ESNI_F_SSL_ESNI_DEC, ERR_R_INTERNAL_ERROR);
@@ -2498,6 +2529,7 @@ unsigned char *SSL_ESNI_dec(SSL_ESNI *esni,
         ESNIerr(ESNI_F_SSL_ESNI_DEC, ERR_R_INTERNAL_ERROR);
         goto err;
     }
+    if (esni->Z!=NULL) OPENSSL_free(esni->Z);
     esni->Z=OPENSSL_malloc(esni->Z_len);
     if (esni->Z == NULL) {
         ESNIerr(ESNI_F_SSL_ESNI_DEC, ERR_R_INTERNAL_ERROR);
@@ -2511,6 +2543,7 @@ unsigned char *SSL_ESNI_dec(SSL_ESNI *esni,
     const SSL_CIPHER *sc=cs2sc(esni->ciphersuite);
     const EVP_MD *md=ssl_md(sc->algorithm2);
     esni->Zx_len=0;
+    if (esni->Zx!=NULL) OPENSSL_free(esni->Zx);
     esni->Zx=esni_hkdf_extract(esni->Z,esni->Z_len,&esni->Zx_len,md);
     if (esni->Zx==NULL) {
         ESNIerr(ESNI_F_SSL_ESNI_DEC, ERR_R_INTERNAL_ERROR);
@@ -2525,11 +2558,12 @@ unsigned char *SSL_ESNI_dec(SSL_ESNI *esni,
     /* 
      * derive key and iv length from suite
      */
-    if (key_derivation(esni)!=1) {
+    if (esni_key_derivation(esni)!=1) {
         ESNIerr(ESNI_F_SSL_ESNI_DEC, ERR_R_INTERNAL_ERROR);
         goto err;
     }
 
+    if (esni->plain!=NULL) OPENSSL_free(esni->plain);
     esni->plain=esni_aead_dec(esni->key, esni->key_len,
             esni->iv, esni->iv_len,
             esni->aad, esni->aad_len,
@@ -2537,11 +2571,17 @@ unsigned char *SSL_ESNI_dec(SSL_ESNI *esni,
             &esni->plain_len,
             esni->ciphersuite);
     if (esni->plain==NULL) {
-        ESNIerr(ESNI_F_SSL_ESNI_DEC, ERR_R_INTERNAL_ERROR);
+        /*
+         * No longer print an error, as a) an attacker could cause
+         * that to be generated and b) now we're allowing trial 
+         * decryption, this could be v. common and hence misleading
+         * ESNIerr(ESNI_F_SSL_ESNI_DEC, ERR_R_INTERNAL_ERROR);
+         */
         goto err;
     }
 
     esni->nonce_len=16;
+    if (esni->nonce!=NULL) OPENSSL_free(esni->nonce);
     esni->nonce=OPENSSL_malloc(esni->nonce_len);
     if (esni->nonce==NULL) {
         ESNIerr(ESNI_F_SSL_ESNI_DEC, ERR_R_INTERNAL_ERROR);
@@ -2705,6 +2745,7 @@ int SSL_esni_enable(SSL *s, const char *hidden, const char *cover, SSL_ESNI *esn
      * Checked for 0 when final_esni called
      */
     s->esni_done=0;
+    s->esni_attempted=0;
     /*
      * Optionally enable hostname checking 
      */
@@ -2938,7 +2979,11 @@ int SSL_get_esni_status(SSL *s, char **hidden, char **cover)
         } else {
             return SSL_ESNI_STATUS_FAILED;
         }
-    } 
+    } else if (s->esni_attempted==1) {
+        return SSL_ESNI_STATUS_GREASE;
+    } else if (s->esni_attempted==0) {
+        return SSL_ESNI_STATUS_NOT_TRIED;
+    }
     return SSL_ESNI_STATUS_NOT_TRIED;
 }
 

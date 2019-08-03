@@ -11,6 +11,9 @@
 #include "../ssl_locl.h"
 #include "statem_locl.h"
 #include "internal/cryptlib.h"
+#ifndef OPENSSL_NO_ESNI
+#include <openssl/rand.h>
+#endif
 
 #define COOKIE_STATE_FORMAT_VERSION     0
 
@@ -2020,10 +2023,16 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
      * (SHOULD be off by default, so that GREASE works)
      */
     int server_fail_grease=(s->options & SSL_OP_ESNI_HARDFAIL); 
+    /*
+     * Note that someone tried
+     */
+    s->esni_attempted=1;
     if (s->esni==NULL) {
         /*
          * No ESNIKeys loaded so we'll ignore the crap out
-         * of whatever the client asked for
+         * of whatever the client asked for, other than noting
+         * it so's we can grease the answer (if we wanna)
+         * TODO(ESNI): add flag to SSL state for this case
          */
         if (server_fail_grease==0) {
             /*
@@ -2181,6 +2190,18 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
     }
     ce->encrypted_sni_len=tmp;
 
+
+    /*
+     * We need the TLS h/s CH.random and key_share to attempt 
+     * decryption. Set those up now in case we need to do
+     * trial decruptions if there's a fake record digest
+     */
+    unsigned char rd[1024];
+    size_t rd_len=SSL_get_client_random(s,rd,1024);
+    uint16_t curve_id = s->s3.group_id;
+    unsigned char *encservername=NULL;
+    size_t encservername_len=0;
+
     /*
      * see which pub/private value matches record_digest 
      */
@@ -2196,17 +2217,45 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
             break;
         }
     }
+
+    int trial_decryption_success=0;
+
     if (matchind==-1 || match==NULL) {
-        if (server_fail_grease!=0) {
-            SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ESNI,
-            SSL_R_BAD_EXTENSION);
-            goto err;
-        } else {
-            /* softfail exit */
-            /*
-             * TODO(ESNI): Add trial decryption option, if so configured
-             */
-            goto noerr;
+        /*
+         * Possible trial decryption if so-configured
+         */
+        int trial_decryption=(s->options & SSL_OP_ESNI_TRIALDECRYPT); 
+        if (trial_decryption!=0) {
+            matchind=-1;
+            match=NULL;
+            int i; /* loop counter - android build doesn't like C99;-( */
+            for (i=0;trial_decryption_success==0 && i!=s->nesni && matchind==-1;i++) {
+                /* add CLIENT_ESNI to the state temporarily */
+                s->esni[i].the_esni=ce; 
+                encservername=SSL_ESNI_dec(&s->esni[i],rd_len,rd,curve_id,s->ext.kse_len,s->ext.kse,&encservername_len);
+                if (encservername!=NULL) {
+                    /*
+                     * Yay! it worked
+                     */
+                    trial_decryption_success=1;
+                    match=&s->esni[i];
+                    /* zap CLIENT_ESNI from the state - will be put back in a sec if all good */
+                    match->the_esni=NULL; 
+                    matchind=i;
+                    break;
+                } 
+                /* zap CLIENT_ESNI from the state */
+                s->esni[i].the_esni=NULL; 
+            }
+        } 
+        if (trial_decryption_success==0) {
+            if (server_fail_grease!=0) {
+                SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ESNI,
+                SSL_R_BAD_EXTENSION);
+                goto err;
+            } else {
+                goto noerr;
+            }
         }
     }
     if (match->the_esni!=NULL) {
@@ -2217,26 +2266,24 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
     }
     match->the_esni=ce; 
 
-    /*
-     * We need the TLS h/s CH.random and key_share to do the 
-     * decryption.
-     */
-    unsigned char rd[1024];
-    size_t rd_len=SSL_get_client_random(s,rd,1024);
-    uint16_t curve_id = s->s3.group_id;
-    unsigned char *encservername=NULL;
-    size_t encservername_len=0;
-    encservername=SSL_ESNI_dec(match,rd_len,rd,curve_id,s->ext.kse_len,s->ext.kse,&encservername_len);
-    if (encservername==NULL) {
-        if (server_fail_grease!=0) {
-            SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ESNI,
-             SSL_R_BAD_EXTENSION);
-            goto err;
-        } else {
-            /* softfail exit */
-            goto noerr;
+    if (trial_decryption_success==0) {
+        /*
+         * This is where we matched the record_digest and didn't yet decrypt
+         * via trial decryption
+         */
+        encservername=SSL_ESNI_dec(match,rd_len,rd,curve_id,s->ext.kse_len,s->ext.kse,&encservername_len);
+        if (encservername==NULL) {
+            if (server_fail_grease!=0) {
+                SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ESNI,
+                SSL_R_BAD_EXTENSION);
+                goto err;
+            } else {
+                /* softfail exit */
+                goto noerr;
+            }
         }
     }
+
     /*
      * I think (gulp!) the above is the last softfail exit as we've now
      * managed to decrypt the ESNI presented, so it's "real" - if we 
@@ -2270,9 +2317,10 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
     }
 
     /*
-     * mimic the checks made earlier for plaintext ENI 
+     * mimic the checks made earlier for plaintext SNI 
      * TBH, I'm not sure of the impact of these, but I
-     * think the effect is the same.
+     * think the effect is the same. (But I've no clue
+     * what s->hit is for.)
      */
     if (s->hit) {
         s->servername_done = 1;
@@ -2286,7 +2334,7 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
     }
     
     /*
-     * TODO(ESNI): Check if this is dodgy - it could be!
+     * copy the name once more:-)
      */
     if (s->session->ext.hostname==NULL) {
         s->session->ext.hostname=OPENSSL_strdup((char*)encservername);
@@ -2476,10 +2524,43 @@ EXT_RETURN tls_construct_stoc_esni(SSL *s, WPACKET *pkt,
             }
             return EXT_RETURN_SENT;
         }
-    } else {
+    } else if (s->esni_attempted==1) {
         /*
-         * TODO(ESNI): Consider that we've been greased and randomly cause sending a nonce or fake esnikeys
+         * In this case, if we've been greased or mistakenly sent an ESNI
+         * but we have no ESNI keys loaded, so we'll randomly send a 
+         * fake nonce or fake esnikeys
          */
+        int randind=0;
+        int rv=RAND_bytes((unsigned char*)&randind,sizeof(randind));
+        if (rv!=1) {
+            return EXT_RETURN_FAIL;
+        }
+        /*
+         * we'll produce a fake nonce 2/3rds of the time
+         * when fakekeyRnonce is zero, adjust the proportions
+         * to taste - if you want fewer fake keys, then change
+         * the 3 below to something bigger
+         */
+        int fakekeyRnonce=(randind%3);
+        int fakelen=16;
+        if (fakekeyRnonce==0) { 
+            /*
+             * fake ESNIKeys length, we'll vary that a bit too
+             */
+            fakelen=80+(randind%32);
+        } 
+        unsigned char fakebuf[fakelen];
+        rv=RAND_bytes(fakebuf,fakelen);
+        if (rv!=1) {
+            return EXT_RETURN_FAIL;
+        }
+        if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_esni)
+                || !WPACKET_put_bytes_u16(pkt, fakelen+1)
+                || !WPACKET_put_bytes_u8(pkt, (fakekeyRnonce==0?1:0))
+                || !WPACKET_memcpy(pkt, fakebuf, fakelen)) {
+                return EXT_RETURN_FAIL;
+        }
+        return EXT_RETURN_SENT;
     }
     return EXT_RETURN_NOT_SENT;
 

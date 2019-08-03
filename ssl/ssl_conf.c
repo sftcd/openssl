@@ -384,6 +384,7 @@ static int cmd_Options(SSL_CONF_CTX *cctx, const char *value)
 #ifndef OPENSSL_NO_ESNI
         SSL_FLAG_TBL_INV("ESNIGrease", SSL_OP_ESNI_GREASE),
         SSL_FLAG_TBL_INV("ESNIHardFail", SSL_OP_ESNI_HARDFAIL),
+        SSL_FLAG_TBL_INV("ESNITrialDecrypt", SSL_OP_ESNI_TRIALDECRYPT),
 #endif
         SSL_FLAG_TBL_INV("ExtendedMasterSecret", SSL_OP_NO_EXTENDED_MASTER_SECRET)
     };

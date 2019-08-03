@@ -2257,6 +2257,46 @@ EXT_RETURN tls_construct_ctos_esni(SSL *s, WPACKET *pkt, unsigned int context,
      * } ClientEncryptedSNI;
      */
     /* Add TLS extension encrypted servername to the Client Hello message */
+
+#undef BREAK_RECORD_DIGEST
+#ifdef BREAK_RECORD_DIGEST
+
+    /*
+     * We want to change the record digest so that we can test the code
+     * path for trial decryption success on the server side.
+     * We'll rudely let the supposed user know!
+     * TODO(ESNI): This should really be part of the make test target for
+     * openssl.
+     */
+
+    printf("BUILT WITH BREAK_RECORD_DIGEST - did you *REALLY* want that?\n");
+    printf("BUILT WITH BREAK_RECORD_DIGEST - did you *REALLY* want that?\n");
+    printf("BUILT WITH BREAK_RECORD_DIGEST - did you *REALLY* want that?\n");
+    printf("BUILT WITH BREAK_RECORD_DIGEST - did you *REALLY* want that?\n");
+
+    /*
+     * We'll send all zeros for the record_digest
+     */
+    size_t borked_record_digest_len=c->record_digest_len;
+    unsigned char borked_record_digest[borked_record_digest_len];
+    memset(borked_record_digest,0xAA,borked_record_digest_len);
+
+    if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_esni)
+               /* Sub-packet for esni extension */
+            || !WPACKET_start_sub_packet_u16(pkt)
+    		|| !WPACKET_put_bytes_u16(pkt, c->ciphersuite)
+            || !WPACKET_memcpy(pkt, c->encoded_keyshare+2, c->encoded_keyshare_len-2)
+            || !WPACKET_sub_memcpy_u16(pkt, borked_record_digest, borked_record_digest_len)
+            || !WPACKET_sub_memcpy_u16(pkt, c->encrypted_sni, c->encrypted_sni_len)
+            || !WPACKET_close(pkt)
+                ) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ESNI,
+                 ERR_R_INTERNAL_ERROR);
+        return EXT_RETURN_FAIL;
+    }
+
+#else
+
     if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_esni)
                /* Sub-packet for esni extension */
             || !WPACKET_start_sub_packet_u16(pkt)
@@ -2274,6 +2314,8 @@ EXT_RETURN tls_construct_ctos_esni(SSL *s, WPACKET *pkt, unsigned int context,
                  ERR_R_INTERNAL_ERROR);
         return EXT_RETURN_FAIL;
     }
+#endif
+
     if (s->esni_cb != NULL) {
         BIO *biom = BIO_new(BIO_s_mem());
         SSL_ESNI_print(biom,s->esni,ESNI_SELECT_ALL);
@@ -2286,6 +2328,7 @@ EXT_RETURN tls_construct_ctos_esni(SSL *s, WPACKET *pkt, unsigned int context,
             return EXT_RETURN_FAIL;
         }
     }
+
     return EXT_RETURN_SENT;
 }
 
