@@ -373,10 +373,19 @@ static int mk_aset(char *asetfname, char *cover_name, size_t *elen, unsigned cha
             fprintf(stderr,"Can't open address file (%s)\n",asetfname);
             return(0);
         }
-        char * line = NULL;
-        size_t len = 0;
+#define MAXLINE 1024
+        char line[MAXLINE];
+        size_t len = MAXLINE;
         ssize_t read;
-        while ((read = getline(&line, &len, fp)) != -1) {
+        char *frv=NULL;
+        /*
+         * Changed from getline to fgets to get android build working
+         * Note: only android build, haven't tested that ever (yet)
+         */
+        //while ((read = getline(&line, &len, fp)) != -1) {
+        while ((frv = fgets(line, len, fp)) != NULL) {
+            //printf("Read: |%s|\n",line);
+            read=strlen(line);
             if (line[0]=='#') {
                 continue;
             }
@@ -387,8 +396,8 @@ static int mk_aset(char *asetfname, char *cover_name, size_t *elen, unsigned cha
                 return(0);
             }
         }
-        if (line)
-            free(line);
+        //if (line)
+            //free(line);
         fclose(fp);
     } else if (cnlen!=0) {
         /* try getaddrinfo() */
