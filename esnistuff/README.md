@@ -29,6 +29,39 @@ Most recent first...
   But, I need to check out HRR a bit first I guess so see how that's handled as it has some
   similarities.
 
+- Trying to address the CI armv4/android build error that's been happening for a while.
+  I made the change below to ``crypto/ec/asm/ecp_nistz256-armv4.pl`` as I was getting
+  the error described below. Note that this is untested and I have no clue as to its
+  potential effect so it'll need to be checked out sometime.
+
+            # OPENSSL_NO_ESNI
+            # I (sftcd) made this change so my CI builds for armv4 don't fail
+            # but I currently have no way to test that this works or not, it
+            # just builds with this change.
+            # without this change I get an error about .rodata
+            # that says:
+            # crypto/ec/ecp_nistz256-armv4.S:9: Error: unknown pseudo-op: `.rodata'
+            # See https://gitlab.com/sftcd/openssl/-/jobs/266946709/raw for an example
+            # OLD:
+            #
+            # $code.=<<___;
+            # .rodata
+            # .globl    ecp_nistz256_precomputed
+            # .type ecp_nistz256_precomputed,%object
+            # .align    12
+            # ecp_nistz256_precomputed:
+            # ___
+            #
+            # NEW:
+            ########################################################################
+            $code.=<<___;
+            .globl  ecp_nistz256_precomputed
+            .type   ecp_nistz256_precomputed,%object
+            .align  12
+            ecp_nistz256_precomputed:
+            ___
+            # OPENSSL_NO_ESNI
+
 - Added a placeholder ``doc/man3/SSL_esni_enable.pod`` to keep the ``make doc-nits`` target
   happy (the CI build was complaining about it). There's no actual content in that file yet,
   so it's just one big TODO for the moment;-) 

@@ -104,7 +104,8 @@ static int ah_decode(size_t ahlen, const char *ah, size_t *blen, unsigned char *
     if (lbuf==NULL) {
         return 0;
     }
-    for (int i=0;i!=lblen;i++) {
+    int i=0;
+    for (i=0;i!=lblen;i++) {
         lbuf[i]=ESNI_A2B(ah[2*i])*16+ESNI_A2B(ah[2*i+1]);
     }
     *blen=lblen;
@@ -1159,6 +1160,11 @@ SSL_ESNI* SSL_ESNI_new_from_buffer(const short ekfmt, const size_t eklen, const 
     SSL_ESNI *retesnis=NULL;        ///< output array
     ESNI_RECORD *er=NULL;           ///< individual public value structure (initial decoding)
     SSL_ESNI *newesni=NULL;         ///< individual public value structure (after more decoding)
+    /*
+     * To keep arm build happy
+     */
+    int j=0;
+    int i=0;
 
     switch (ekfmt) {
         case ESNI_RRFMT_GUESS:
@@ -1285,7 +1291,7 @@ SSL_ESNI* SSL_ESNI_new_from_buffer(const short ekfmt, const size_t eklen, const 
         OPENSSL_free(er);
         er=NULL;
     }
-    for (int i=0;i!=nlens;i++) {
+    for (i=0;i!=nlens;i++) {
         retesnis[i].num_esni_rrs=nlens;
     }
     
@@ -1300,8 +1306,8 @@ err:
     /*
      * May need to fix up nlens if error happened before we normally do that
      */
-    for (int i=0;i!=nlens;i++) {
-        retesnis[i].num_esni_rrs=nlens;
+    for (j=0;j!=nlens;j++) {
+        retesnis[j].num_esni_rrs=nlens;
     }
     if (ekcpy!=NULL) {
         OPENSSL_free(ekcpy);
@@ -1420,7 +1426,8 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esniarr, int selector)
          */
         return bf;
     }
-    for (int i=0;i!=nesnis;i++) {
+    int i=0;
+    for (i=0;i!=nesnis;i++) {
 
         if (selector!=ESNI_SELECT_ALL && selector != i) {
             continue;
@@ -1487,20 +1494,22 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esniarr, int selector)
         }
 
 	    if (esni->nexts!=0) {
+            int j=0;
 	        BIO_printf(out,"ESNI Server number of extensions: %d\n",esni->nexts);
-            for (int i=0;i!=esni->nexts;i++) {
-                BIO_printf(out,"ESNI Extension type %d\n",esni->exttypes[i]);
-	            esni_pbuf(out,"ESNI Extension value",esni->exts[i],esni->extlens[i],indent+4);
+            for (j=0;j!=esni->nexts;j++) {
+                BIO_printf(out,"ESNI Extension type %d\n",esni->exttypes[j]);
+	            esni_pbuf(out,"ESNI Extension value",esni->exts[j],esni->extlens[j],indent+4);
             }
 	    } else {
 	        BIO_printf(out,"ESNI no extensions\n");
         }
 
 	    if (esni->dnsnexts!=0) {
+            int j=0;
 	        BIO_printf(out,"ESNI Server number of DNS extensions: %d\n",esni->dnsnexts);
-            for (int i=0;i!=esni->dnsnexts;i++) {
-                BIO_printf(out,"ESNI DNS Extension type %d\n",esni->dnsexttypes[i]);
-	            esni_pbuf(out,"ESNI DNS Extension value",esni->dnsexts[i],esni->dnsextlens[i],indent+4);
+            for (j=0;j!=esni->dnsnexts;j++) {
+                BIO_printf(out,"ESNI DNS Extension type %d\n",esni->dnsexttypes[j]);
+	            esni_pbuf(out,"ESNI DNS Extension value",esni->dnsexts[j],esni->dnsextlens[j],indent+4);
             }
 	    } else {
 	        BIO_printf(out,"ESNI no DNS extensions\n");
@@ -3360,8 +3369,9 @@ err:
  */
 void SSL_ESNI_ext_free(SSL_ESNI_ext *in, int size)
 {
+    int i=0;
     if (in==NULL) return;
-    for (int i=0;i!=size;i++)  {
+    for (i=0;i!=size;i++)  {
         if (in[i].public_name!=NULL) OPENSSL_free(in[i].public_name);
         if (in[i].prefixes!=NULL) OPENSSL_free(in[i].prefixes);
     }

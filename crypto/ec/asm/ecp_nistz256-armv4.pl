@@ -78,13 +78,33 @@ close TABLE;
 # amount of elements.
 die "insane number of elements" if ($#arr != 64*16*37-1);
 
+# OPENSSL_NO_ESNI
+# I (sftcd) made this change so my CI builds for armv4 don't fail
+# but I currently have no way to test that this works or not, it
+# just builds with this change.
+# without this change I get an error about .rodata
+# that says:
+# crypto/ec/ecp_nistz256-armv4.S:9: Error: unknown pseudo-op: `.rodata'
+# See https://gitlab.com/sftcd/openssl/-/jobs/266946709/raw for an example
+# OLD:
+#
+# $code.=<<___;
+# .rodata
+# .globl    ecp_nistz256_precomputed
+# .type ecp_nistz256_precomputed,%object
+# .align    12
+# ecp_nistz256_precomputed:
+# ___
+#
+# NEW:
+########################################################################
 $code.=<<___;
-.rodata
-.globl	ecp_nistz256_precomputed
-.type	ecp_nistz256_precomputed,%object
-.align	12
+.globl  ecp_nistz256_precomputed
+.type   ecp_nistz256_precomputed,%object
+.align  12
 ecp_nistz256_precomputed:
 ___
+# OPENSSL_NO_ESNI
 ########################################################################
 # this conversion smashes P256_POINT_AFFINE by individual bytes with
 # 64 byte interval, similar to
