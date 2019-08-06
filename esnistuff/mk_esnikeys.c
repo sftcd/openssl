@@ -76,7 +76,7 @@ static void sp_esni_txtrr(unsigned char *sbuf,
                         int ttl,
                         char *owner_name)
 {
-    unsigned char *sp=sbuf;
+    //unsigned char *sp=sbuf;
     char *owner_string=NULL;
 
     if (sbuf==NULL) {
@@ -169,7 +169,7 @@ static void sp_esni_prr(unsigned char *sbuf,
 
             if (chunk < available) {
                 available -= chunk; sp += chunk;
-                chunk = snprintf(sp, available, "%zd (",blen);
+                chunk = snprintf((char*)sp, available, "%zd (",blen);
             }
         }
 
@@ -198,7 +198,7 @@ static void sp_esni_prr(unsigned char *sbuf,
         if (i%16==0)
             chunk = snprintf((char*)sp, available, fold_fmt,"");
         else
-            chunk = snprintf(sp, available, " ");
+            chunk = snprintf((char*)sp, available, " ");
     }
     
     /* Process epilog: closing paren */
