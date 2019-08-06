@@ -324,7 +324,8 @@ static int add2alist(char *ips[], int *nips_p, char *line)
         added=1;
     } else {
         int found=0;
-        for (int i=0;i!=nips;i++) {
+        int i=0;
+        for (i=0;i!=nips;i++) {
             if (!strncmp(ips[i],line,strlen(line))) {
                 found=1;
                 return(1);
@@ -425,7 +426,8 @@ static int mk_aset(char *asetfname, char *cover_name, size_t *elen, unsigned cha
      */
     unsigned char tmpebuf[MAX_ESNIKEYS_BUFLEN]; 
     unsigned char *tp=tmpebuf;
-    for (int i=0;i!=nips;i++) {
+    int i=0;
+    for (i=0;i!=nips;i++) {
         /* 
          * it's IPv6 if it has a ':" otherwise IPv4
          * we do this here and not based on getaddrinfo because they may
@@ -460,7 +462,7 @@ static int mk_aset(char *asetfname, char *cover_name, size_t *elen, unsigned cha
     /*
      * free strings
      */
-    for (int i=0;i!=nips;i++) {
+    for (i=0;i!=nips;i++) {
         free(ips[i]);
     }
 
@@ -1027,7 +1029,8 @@ static int mk_esnikeys(int argc, char **argv)
         if (ekversion==0xff02) {
             /* binary -> ascii hex */
             char ch3[3];
-            for (int i=0;i<(MAX_ZONEDATA_BUFLEN/4) && i!=bblen;i++) {
+            int i=0;
+            for (i=0;i<(MAX_ZONEDATA_BUFLEN/4) && i!=bblen;i++) {
                 snprintf(ch3,3, "%02X",bbuf[i]);
                 esnistr[2*i]=ch3[0];
                 esnistr[2*i+1]=ch3[1];
