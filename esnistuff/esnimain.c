@@ -115,7 +115,10 @@ int main(int argc, char **argv)
         exit(1);
     }
 
+#define TRYMEMBIO
+#ifndef TRYMEMBIO
     FILE *fp=NULL;
+#endif
     BIO *out=NULL;
     SSL_ESNI *esnikeys=NULL;
     CLIENT_ESNI *the_esni=NULL;
@@ -190,7 +193,6 @@ int main(int argc, char **argv)
         goto end;
     }
 
-#define TRYMEMBIO
 #ifdef TRYMEMBIO
     out=BIO_new(BIO_s_mem());
 #else
@@ -257,7 +259,8 @@ int main(int argc, char **argv)
     }
 #endif
 
-    for (int i=0;i!=nesnis;i++) {
+    int i; /* loop counter - android build doesn't like C99;-( */
+    for (i=0;i!=nesnis;i++) {
 
         esnikeys[i].encservername=OPENSSL_strndup(encservername,TLSEXT_MAXLEN_host_name);
         if (esnikeys[i].encservername==NULL)
