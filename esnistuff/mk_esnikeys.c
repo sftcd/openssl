@@ -92,7 +92,7 @@ static void sp_esni_txtrr(unsigned char *sbuf,
         owner_string=owner_name;
     }
 
-    char *outp=malloc(blen);
+    unsigned char *outp=malloc(blen);
     if (outp==NULL) {
         return;
     }
@@ -103,7 +103,7 @@ static void sp_esni_txtrr(unsigned char *sbuf,
     }
     outp[b64len]='\0';
 
-    snprintf(sbuf,slen,"%s. %d IN TXT \"%s\"\n",owner_string,ttl,outp); 
+    snprintf((char*)sbuf,slen,"%s. %d IN TXT \"%s\"\n",owner_string,ttl,outp); 
 
     return;
 
@@ -154,7 +154,7 @@ static void sp_esni_prr(unsigned char *sbuf,
     for (i=0; (i!=blen) && (chunk < available); i++) {
         if (i==0) {
             /* Process prolog */
-            chunk = snprintf(sp, available,
+            chunk = snprintf((char*)sp, available,
                              "%s. %d IN TYPE%d \\# ",
                              owner_string, ttl, typecode);
 
@@ -177,10 +177,10 @@ static void sp_esni_prr(unsigned char *sbuf,
         if (chunk < available) {
             available -= chunk; sp += chunk;
             if (i%16==0) {
-                chunk = snprintf(sp, available, fold_fmt,"");
+                chunk = snprintf((char*)sp, available, fold_fmt,"");
             }
             else if (i%2==0) {
-                chunk = snprintf(sp, available, " ");
+                chunk = snprintf((char*)sp, available, " ");
             }
             else {
                 chunk = 0;
@@ -188,7 +188,7 @@ static void sp_esni_prr(unsigned char *sbuf,
         }
         if (chunk < available) {
             available -= chunk; sp += chunk;
-            chunk = snprintf(sp, available, "%02x",buf[i]);
+            chunk = snprintf((char*)sp, available, "%02x",buf[i]);
         }
     }
 
@@ -196,7 +196,7 @@ static void sp_esni_prr(unsigned char *sbuf,
     if (chunk < available) { 
         available -= chunk; sp += chunk;
         if (i%16==0)
-            chunk = snprintf(sp, available, fold_fmt,"");
+            chunk = snprintf((char*)sp, available, fold_fmt,"");
         else
             chunk = snprintf(sp, available, " ");
     }
@@ -204,7 +204,7 @@ static void sp_esni_prr(unsigned char *sbuf,
     /* Process epilog: closing paren */
     if (chunk < available) {
         available -= chunk; sp += chunk;
-        chunk = snprintf(sp, available, ")\n");
+        chunk = snprintf((char*)sp, available, ")\n");
     }
 
     if (chunk >= available) {
@@ -968,7 +968,7 @@ static int mk_esnikeys(int argc, char **argv)
 
         /* Prepare zone fragment in buffer */
         sp_esni_txtrr(zbuf,MAX_ZONEDATA_BUFLEN,bbuf,bblen,duration/2,cover_name);
-        zblen=strlen(zbuf);
+        zblen=strlen((char*)zbuf);
         if (zblen==0) {
             fprintf(stderr,"zone fragment error (line:%d)\n",__LINE__);
             exit(19);
@@ -979,7 +979,7 @@ static int mk_esnikeys(int argc, char **argv)
 
         /* Prepare zone fragment in buffer */
         sp_esni_prr(zbuf,MAX_ZONEDATA_BUFLEN,bbuf,bblen,0xff9f,duration/2,cover_name);
-        zblen=strlen(zbuf);
+        zblen=strlen((char*)zbuf);
         if (zblen==0) {
             fprintf(stderr,"zone fragment error (line:%d)\n",__LINE__);
             exit(9);
@@ -989,7 +989,7 @@ static int mk_esnikeys(int argc, char **argv)
    if (zblen>0) {
    
         puts("OPENSSL: zone fragment:");
-        printf("%s", zbuf);     /* Display zone fragment on stdout */
+        printf("%s", (char*)zbuf);     /* Display zone fragment on stdout */
 
         /* Ready file where zone fragment will be written */
         if (fragfname==NULL) {
@@ -1023,7 +1023,7 @@ static int mk_esnikeys(int argc, char **argv)
          * Make up JSON string
          */
         if (ekversion==0xff01) {
-            int b64len = EVP_EncodeBlock(esnistr, (unsigned char *)bbuf, bblen);
+            int b64len = EVP_EncodeBlock((unsigned char*)esnistr, (unsigned char *)bbuf, bblen);
             esnistr[b64len]='\0';
         }
         if (ekversion==0xff02) {
