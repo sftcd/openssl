@@ -1516,10 +1516,11 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esniarr, int selector)
         }
 
         if (esni->naddrs!=0) {
+            int j=0;
             BIO_printf(out,"ESNI Addresses\n");
-            for (int i=0;i!=esni->naddrs;i++) {
-                char *foo= BIO_ADDR_hostname_string(&esni->addrs[i], 1);
-                BIO_printf(out,"\tAddress(%d): %s\n",i,foo);
+            for (j=0;j!=esni->naddrs;j++) {
+                char *foo= BIO_ADDR_hostname_string(&esni->addrs[j], 1);
+                BIO_printf(out,"\tAddress(%d): %s\n",j,foo);
                 OPENSSL_free(foo);
             }
         } else {
