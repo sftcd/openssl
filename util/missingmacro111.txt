@@ -62,6 +62,7 @@ CRYPTO_get_dynlock_lock_callback
 CRYPTO_get_dynlock_destroy_callback
 OpenSSLDie
 OPENSSL_assert
+ESNI_A2B
 EVP_PKEY_CTX_set_dh_paramgen_subprime_len
 EVP_PKEY_CTX_set_dh_paramgen_type
 EVP_PKEY_CTX_set_dh_rfc5114

@@ -29,6 +29,10 @@ Most recent first...
   But, I need to check out HRR a bit first I guess so see how that's handled as it has some
   similarities.
 
+- Added a placeholder ``doc/man3/SSL_esni_enable.pod`` to keep the ``make doc-nits`` target
+  happy (the CI build was complaining about it). There's no actual content in that file yet,
+  so it's just one big TODO for the moment;-) 
+
 - Added code to handle changes in ESNI from server to client (``esni_retry_requested`` and
 related). Mostly in ``ssl/statem/extensions_server.c``
 and ``ssl/statem/extensions_clnt.c`` that currently includes:

@@ -71,6 +71,7 @@ ENGINE_load_capi
 ENGINE_load_afalg
 ENGINE_load_cryptodev
 ENGINE_load_rdrand
+ESNI_A2B
 EVP_MD_nid
 EVP_MD_name
 EVP_CIPHER_name

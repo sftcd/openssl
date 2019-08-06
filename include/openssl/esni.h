@@ -451,7 +451,7 @@ int SSL_esni_enable(SSL *s, const char *hidden, const char *cover, SSL_ESNI *esn
  * @param nindices is an output saying how many indices are in the SSL_ESNI_ext structure 
  * @return 1 for success, error otherwise
  */
-int SSL_esni_query(SSL_ESNI *in, SSL_ESNI_ext **out,int *nindices);
+int SSL_esni_query(SSL_ESNI *in, SSL_ESNI_ext **out, int *nindices);
 
 /** 
  * @brief free up memory for an SSL_ESNI_ext
@@ -459,7 +459,7 @@ int SSL_esni_query(SSL_ESNI *in, SSL_ESNI_ext **out,int *nindices);
  * @param in is the structure to free up
  * @param size says how many indices are in in
  */
-void SSL_ESNI_ext_free(SSL_ESNI_ext *in,int size);
+void SSL_ESNI_ext_free(SSL_ESNI_ext *in, int size);
 
 /**
  * @brief utility fnc for application that wants to print an SSL_ESNI_ext
@@ -469,7 +469,7 @@ void SSL_ESNI_ext_free(SSL_ESNI_ext *in,int size);
  * @param count is the number of elements in se
  * @return 1 for success, error othewise
  */
-int SSL_ESNI_ext_print(BIO* out, SSL_ESNI_ext *se,int count);
+int SSL_ESNI_ext_print(BIO* out, SSL_ESNI_ext *se, int count);
 
 /**
  * @brief down-select to use of one option with an SSL_ESNI
@@ -528,7 +528,7 @@ int SSL_ESNI_get_esni_ctx(SSL_CTX *s, SSL_ESNI **esni);
  * the implementation here will try access esni[2] if you
  * provide selector value 2.
  */
-int SSL_ESNI_print(BIO* out, SSL_ESNI *esni,int selector);
+int SSL_ESNI_print(BIO* out, SSL_ESNI *esni, int selector);
 
 /* 
  * Possible return codes from SSL_get_esni_status

@@ -456,6 +456,7 @@ ERR_load_DSO_strings
 ERR_load_EC_strings
 ERR_load_ENGINE_strings
 ERR_load_ERR_strings
+ERR_load_ESNI_strings
 ERR_load_ESS_strings
 ERR_load_EVP_strings
 ERR_load_KDF_strings
