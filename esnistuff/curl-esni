@@ -1,0 +1,107 @@
+#!/bin/bash
+
+set -x
+
+mesg () { [ $1 -le ${MSG_LEVEL:-1} ] || return; echo "${0##*/}: $@" >&2; }
+warn () { mesg 1 "$@"; }
+fail () { mesg 0 "$@"; exit 3; }
+
+usage () {
+    cat <<EOF
+
+    Usage:
+        ${0##*/} URL
+
+    Supported URL schemes:
+        HTTPS
+
+    Example:
+        ESNI_PROFILE=none ${0##*/} https://only.esni.defo.ie/stats 
+
+EOF
+}
+
+if [ -z "$1" ]
+then
+    usage
+    exit 1
+fi
+
+scheme=${1%%://*}
+mesg 2 "parsed 'scheme'   ($scheme)"
+
+rest=${1#*://}
+# warn "parsed 'rest'     ($rest)"
+
+hostname=${rest%%/*}
+mesg 2 "parsed 'hostname' ($hostname)"
+
+if [ "$hostname" != "$rest" ]
+then
+    # "normal" case: '/' follows hostname
+    rest="/${rest#*/}"
+else
+    rest=''
+fi
+
+resource=${rest%%\?*}
+qstring=${rest#*\?}
+[ "$qstring" != "$resource" ] || qstring=''
+mesg 2 "parsed 'resource' ($resource)"
+mesg 2 "parsed 'qstring'  ($qstring)"
+
+: ${ESNI_SERVER:=$hostname}
+
+# check if ESNI_COVER is set - value can be empty string though
+if [ -n "${ESNI_COVER+set}" ]
+then
+    if [[ "x$ESNI_COVER" == "x" ]]
+    then
+        esnicover=' '
+    else
+        esnicover=" --esni-cover ${ESNI_COVER}"
+    fi
+else
+    # default to a known cover for defo.ie or cloudflare otherwise
+    case "${hostname,,[A-Z]}" in
+        *.esni.defo.ie)
+	    : ${ESNI_COVER:="cover.defo.ie"}
+	    ;;
+        *)
+	    : ${ESNI_COVER:="encryptedsni.com"}
+	    ;;
+    esac
+    esnicover=" --esni-cover ${ESNI_COVER}"
+fi
+
+enable_esni=''			# place-holder for `--no-esni`
+
+: ${ESNI_PROFILE:=DRAFT2}
+
+
+case "${ESNI_PROFILE^^[a-z]}" in
+    NONE)
+	# Allow opt-out for reference to behaviour without ESNI
+	enable_esni='--no-esni'
+	;;
+    DRAFT3|DRAFT-3)
+	: ${ESNI_KEYS:=`dig +short -t TYPE65439 $hostname | sed -e 's|^[^ ]* [^ ]* ||' -e 's| ||g'`}
+    ;;
+    *)
+	# Default: use DRAFT2
+	: ${ESNI_KEYS:=`dig +short -t txt _esni.$hostname | sed -e 's|^\(["]\)\(.*\)\1$|\2|'`}
+    ;;
+esac
+
+# TODO: condition PATH using `build push` instead of here
+export PATH="src:$PATH"
+
+curl \
+    ${CURL_OPTIONS:="--verbose"} \
+    $enable_esni \
+    --esni-server ${ESNI_SERVER} \
+    $esnicover \
+    --esni-load "${ESNI_KEYS}" \
+    $1
+
+exit $?
