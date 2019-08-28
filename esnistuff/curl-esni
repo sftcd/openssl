@@ -1,7 +1,5 @@
 #!/bin/bash
 
-set -x
-
 mesg () { [ $1 -le ${MSG_LEVEL:-1} ] || return; echo "${0##*/}: $@" >&2; }
 warn () { mesg 1 "$@"; }
 fail () { mesg 0 "$@"; exit 3; }
@@ -15,8 +13,38 @@ usage () {
     Supported URL schemes:
         HTTPS
 
-    Example:
-        ESNI_PROFILE=none ${0##*/} https://only.esni.defo.ie/stats 
+    Examples:
+        ESNI_PROFILE=NONE ${0##*/} https://only.esni.defo.ie/stats 
+
+    Environment:
+
+      ESNI_PROFILE 
+        is optional and case-insensitive. It may be specified as 
+        any of the following.
+
+        'none' -- disable ESNI;
+
+        'draft3' or 'draft-3' -- use ESNI according to Draft 3;
+
+        otherwise -- use ESNI according to Draft 2.
+
+      ESNI_COVER
+        is optional. It may be specified as any of the following.
+
+        '' (empty string) -- for Draft 3, set the ESNI covername
+          parameter from the published ESNI public_name, if any;
+          otherwise use ESNI without setting the ESNI covername 
+          parameter;
+
+        any whitespace-free string -- set the ESNI covername
+          parameter from this string;
+
+        omitted -- set the ESNI covername parameter heuristically.
+
+      DOH_URL
+        is optional. It specifies the URL of a DNS-over-HTTPS 
+        service which is to be used for address resolution and
+        (in future) fetching ESNI data.
 
 EOF
 }
@@ -52,32 +80,37 @@ mesg 2 "parsed 'qstring'  ($qstring)"
 
 : ${ESNI_SERVER:=$hostname}
 
-# check if ESNI_COVER is set - value can be empty string though
-if [ -n "${ESNI_COVER+set}" ]
+if [ "${ESNI_COVER+set}" ]
 then
-    if [[ "x$ESNI_COVER" == "x" ]]
+    warn "Found ESNI_COVER (${ESNI_COVER})"
+    esni_cover=''
+    if [ "${ESNI_COVER}" ]
     then
-        esnicover=' '
-    else
-        esnicover=" --esni-cover ${ESNI_COVER}"
+	esni_cover="--esni-cover ${ESNI_COVER}"
     fi
 else
-    # default to a known cover for defo.ie or cloudflare otherwise
+    # ESNI_COVER  not set: use default string
     case "${hostname,,[A-Z]}" in
-        *.esni.defo.ie)
-	    : ${ESNI_COVER:="cover.defo.ie"}
+	*.esni.defo.ie)
+	    : ${ESNI_COVER:="default-cover.defo.ie"}
 	    ;;
-        *)
+	*)
 	    : ${ESNI_COVER:="encryptedsni.com"}
 	    ;;
     esac
-    esnicover=" --esni-cover ${ESNI_COVER}"
+    esni_cover="--esni-cover ${ESNI_COVER}"
+fi
+
+if [ "$DOH_URL" ]
+then
+    enable_doh="--doh-url $DOH_URL"
+else
+   enable_doh=''
 fi
 
 enable_esni=''			# place-holder for `--no-esni`
 
 : ${ESNI_PROFILE:=DRAFT2}
-
 
 case "${ESNI_PROFILE^^[a-z]}" in
     NONE)
@@ -96,11 +129,14 @@ esac
 # TODO: condition PATH using `build push` instead of here
 export PATH="src:$PATH"
 
+set -x
+
 curl \
     ${CURL_OPTIONS:="--verbose"} \
+    $enable_doh \
     $enable_esni \
     --esni-server ${ESNI_SERVER} \
-    $esnicover \
+    $esni_cover \
     --esni-load "${ESNI_KEYS}" \
     $1
 
