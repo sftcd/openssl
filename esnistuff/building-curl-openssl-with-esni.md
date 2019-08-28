@@ -1,7 +1,7 @@
 
 # Notes on Building OpenSSl and curl with ESNI support
 
-20190821
+20190828
 
 These notes were produced as part of the OTF-funded [DEfO](https://defo.ie) project.
 Stephen Farrell (stephen.farrell@cs.tcd.ie) did the work on OpenSSL. 
@@ -16,14 +16,12 @@ info@defo.ie alias.
 Our OpenSSL fork with ESNI support is [here](https://github.cm/sftcd/openssl/).
 Our curl fork with ESNI support is [here](https://github.cm/niallor/curl/).
 
-For this build we've done initial testing with specific tagged versions 
-of those repos. Things should work ok if you build from the tip but we
-may break that from time to time, so you're better off taking these
-versions:
-
-    - Openssl: [https://github.com/sftcd/openssl-tag](https://github.com/sftcd/openssl-tag)
-    - curl: [https://github.com/niallor/curl-tag](https://github.com/niallor/curl-tag)
-
+For this build we've done initial testing with specific tagged versions of
+those repos. Things should work ok if you build from the tip but we may break
+that from time to time, so you're better off taking the tagged version
+(probably:-). The tag we're using for this initial cut of both OpenSSL and curl
+branches is "DEfO-HOWTO1" and is used in the ``git clone`` commands shown
+below.
 
 We assume below that you checkout all repos below ``$HOME/code``. If you
 use some other directory you'll need to adjust commands below, 
@@ -48,7 +46,7 @@ as you go.
 - clone repo:
 
             $ cd $HOME/code
-            $ git clone https://github.com/sftcd/openssl
+            $ git clone --branch DEfO-HOWTO1 https://github.com/sftcd/openssl
 
 - make config:
 
@@ -98,7 +96,7 @@ testclient.sh and testserver.sh scripts.
 - clone repo:
 
             $ cd $HOME/code
-            $ git clone https://github.com/niallor/curl.git curl-dev
+            $ git clone --branch DEfO-HOWTO1 https://github.com/niallor/curl.git curl-dev
 
 - checkout development branch
 
