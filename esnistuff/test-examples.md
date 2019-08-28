@@ -31,15 +31,15 @@ I keep forgetting so, as this directory exists...
 
             $ ./testserver.sh -c example.com -n
 
-- Run a client, not really doing ESNI
+- Run a client, not really doing ESNI, with valgrind
 
             $ ./testclient.sh -p 8443 -s localhost -n -c example.com  -vd
 
-- Run a client, not really doing ESNI, but greasing
+- Run a client, not really doing ESNI, but greasing, with valgrind
 
             $ ./testclient.sh -p 8443 -s localhost -n -c example.com -g -vd
 
-- Run a client, doing ESNI
+- Run a client, doing ESNI, with valgrind
 
             $ ./testclient.sh -p 8443 -s localhost -H foo.example.com -c example.net -P esnikeys.pub -vd
 
