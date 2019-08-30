@@ -8,7 +8,7 @@ set -x
 DSTR=`date -u --rfc-3339=s | sed -e 's/ /T/' | sed -e 's/:/-/g'`
 echo "Running $0 at $DSTR"
 
-TOP=$HOME/code/openssl
+: ${TOP=$HOME/code/openssl}
 MKBIN=$TOP/esnistuff/mk_esnikeys
 
 #

@@ -3,7 +3,7 @@
 # Make key pairs for a fake local CA, example.com, foo.example.com
 # and bar.example.com
 
-TOP=$HOME/code/openssl
+: ${TOP=$HOME/code/openssl}
 
 export LD_LIBRARY_PATH=$TOP
 OBIN=$TOP/apps/openssl
