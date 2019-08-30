@@ -26,8 +26,9 @@
 # set -x
 
 # use build version of openssl
-export LD_LIBRARY_PATH="$HOME/code/openssl"
-OBIN="$HOME/code/openssl/apps/openssl"
+: ${TOP=$HOME/code/openssl}
+export LD_LIBRARY_PATH="$TOP"
+OBIN="$TOP/apps/openssl"
 
 # Use openssl to dump a server cert 
 

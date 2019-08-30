@@ -1,15 +1,15 @@
 
 # Notes on Building OpenSSl and curl with ESNI support
 
-20190828
+August 30th 2019.
 
-These notes were produced as part of the OTF-funded [DEfO](https://defo.ie) project.
-Stephen Farrell (stephen.farrell@cs.tcd.ie) did the work on OpenSSL. 
+These notes were produced as part of the OTF-funded [DEfO](https://defo.ie)
+project.  Stephen Farrell (stephen.farrell@cs.tcd.ie) did the work on OpenSSL.
 Niall O'Reilly (niall.oreilly+github@ucd.ie) did the work on curl.
 
-If you find issues (and we expect you will) with this build, please feel
-free to contact either of us at the above email addresses or using the 
-info@defo.ie alias.
+If you find issues (and we expect you will) with this build, please feel free
+to contact either of us at the above email addresses or using the info@defo.ie
+alias.
 
 ## Repositories
 
@@ -20,33 +20,31 @@ For this build we've done initial testing with specific tagged versions of
 those repos. Things should work ok if you build from the tip but we may break
 that from time to time, so you're better off taking the tagged version
 (probably:-). The tag we're using for this initial cut of both OpenSSL and curl
-branches is "DEfO-HOWTO1" and is used in the ``git clone`` commands shown
+branches is "esni-2019-08-30" and is used in the ``git clone`` commands shown
 below.
 
-We assume below that you checkout all repos below ``$HOME/code``. If you
-use some other directory you'll need to adjust commands below, 
-and most of the test scripts (e.g. ``openssl/esnistuff/testclient.sh``) 
-whcich also assume that ``$HOME/code`` is the top directory.
+We assume below that you checkout all repos below ``$HOME/code``. If you use
+some other directory you'll need to adjust commands below, and most of the test
+scripts (e.g. ``openssl/esnistuff/testclient.sh``) which also assume that
+``$HOME/code`` is the top directory. 
 
-If you prefer to build some other way (e.g. with objects not in the
-source directory), you need to be aware that this is made easy and
-documented in the OpenSSL distribution, but not in the curl
-distribution.  Please consult the OpenSSL documentation for how to do
-that. (It's not complicated, but there's no need to duplicate the
-instructions here.)  For curl, you have to duplicate the entire repo
-tree (for example, using tar), so it's only useful if you strongly
+If you prefer to build some other way (e.g. with objects not in the source
+directory), you need to be aware that this is made easy and documented in the
+OpenSSL distribution, but not in the curl distribution.  Please consult the
+OpenSSL documentation for how to do that. (It's not complicated, but there's no
+need to duplicate the instructions here.)  For curl, you have to duplicate the
+entire repo tree (for example, using tar), so it's only useful if you strongly
 prefer to keep a really clean local copy of the repo.
 
-We also assume that you have a development machine that can build
-vanilla OpenSSL and curl - if not, you may need to install dependencies
-as you go.
+We also assume that you have a development machine that can build vanilla
+OpenSSL and curl - if not, you may need to install dependencies as you go.
 
 ## Building OpenSSL
 
 - clone repo:
 
             $ cd $HOME/code
-            $ git clone --branch DEfO-HOWTO1 https://github.com/sftcd/openssl
+            $ git clone --branch esni-2019-08-30 https://github.com/sftcd/openssl
 
 - make config:
 
@@ -61,6 +59,10 @@ as you go.
             $ make
 
 - test via a wrapper script...
+
+If you cloned OpenSSL somewhere other than ``$HOME/code``, you can export an
+environment variable ``TOP`` and that will be used instead of
+``$HOME/code/openssl``
 
 This tests that ESNI works against the cloudflare deployment...
 
@@ -96,15 +98,8 @@ testclient.sh and testserver.sh scripts.
 - clone repo:
 
             $ cd $HOME/code
-            $ git clone --branch DEfO-HOWTO1 https://github.com/niallor/curl.git curl-dev
-
-- checkout development branch
-
-            $ cd curl-dev
-            $ git checkout development
-
-- set ``LD_LIBRARY_PATH`` to pick up OpenSSL build
-
+            $ git clone --branch esni-2019-08-30 https://github.com/niallor/curl.git
+            $ cd curl
 
 - run buildconf (takes a short while)
 
@@ -117,12 +112,12 @@ built at this stage. (Note: The ``LD_LIBRARY_PATH`` setting will be need wheneve
 you use this build of curl, e.g. after a logout/login.)
 
             $ export LD_LIBRARY_PATH=$HOME/code/openssl
-            $ LDFLAGS="-L$HOME/code/openssl -L$HOME/code/openssl/lib" ./configure --with-ssl=$HOME/code/openssl --enable-esni --enable-debug
+            $ LDFLAGS="-L$HOME/code/openssl" ./configure --with-ssl=$HOME/code/openssl --enable-esni --enable-debug
             ...lots of output...
               WARNING: esni enabled but marked EXPERIMENTAL. Use with caution!
  
-  If you don't get that warning at the end then ESNI isn't enabled so go back some steps
-  and re-do whatever needs re-doing:-)
+If you don't get that warning at the end then ESNI isn't enabled so go back some steps
+and re-do whatever needs re-doing:-)
 
 - build it
 
@@ -134,3 +129,4 @@ you use this build of curl, e.g. after a logout/login.)
             $ cp $HOME/code/openssl/esnistuff/curl-esni .
             $ ESNI_COVER="" ESNI_PROFILE=DRAFT2 ./curl-esni https://only.esni.defo.ie/stats
 			
+
