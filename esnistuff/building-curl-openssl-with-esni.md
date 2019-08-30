@@ -20,7 +20,7 @@ For this build we've done initial testing with specific tagged versions of
 those repos. Things should work ok if you build from the tip but we may break
 that from time to time, so you're better off taking the tagged version
 (probably:-). The tag we're using for this initial cut of both OpenSSL and curl
-branches is "DEfO-HOWTO1" and is used in the ``git clone`` commands shown
+branches is "esni-2019-08-30" and is used in the ``git clone`` commands shown
 below.
 
 We assume below that you checkout all repos below ``$HOME/code``. If you
@@ -46,7 +46,7 @@ as you go.
 - clone repo:
 
             $ cd $HOME/code
-            $ git clone --branch DEfO-HOWTO1 https://github.com/sftcd/openssl
+            $ git clone --branch esni-2019-08-30 https://github.com/sftcd/openssl
 
 - make config:
 
@@ -96,7 +96,7 @@ testclient.sh and testserver.sh scripts.
 - clone repo:
 
             $ cd $HOME/code
-            $ git clone --branch DEfO-HOWTO1 https://github.com/niallor/curl.git curl-dev
+            $ git clone --branch esni-2019-08-30 https://github.com/niallor/curl.git curl-dev
 
 - checkout development branch
 
