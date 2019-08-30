@@ -92,7 +92,7 @@ else
     # ESNI_COVER  not set: use default string
     case "${hostname,,[A-Z]}" in
 	*.esni.defo.ie)
-	    : ${ESNI_COVER:="default-cover.defo.ie"}
+	    : ${ESNI_COVER:="cover.defo.ie"}
 	    ;;
 	*)
 	    : ${ESNI_COVER:="encryptedsni.com"}
@@ -129,7 +129,7 @@ esac
 # TODO: condition PATH using `build push` instead of here
 export PATH="src:$PATH"
 
-set -x
+#set -x
 
 curl \
     ${CURL_OPTIONS:="--verbose"} \
