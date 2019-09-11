@@ -191,6 +191,9 @@ static void drbg_ossl_ctx_free(void *vdgbl)
 {
     DRBG_GLOBAL *dgbl = vdgbl;
 
+    if (dgbl == NULL)
+        return;
+
     RAND_DRBG_free(dgbl->master_drbg);
     CRYPTO_THREAD_cleanup_local(&dgbl->private_drbg);
     CRYPTO_THREAD_cleanup_local(&dgbl->public_drbg);
@@ -230,6 +233,9 @@ static void drbg_nonce_ossl_ctx_free(void *vdngbl)
 {
     DRBG_NONCE_GLOBAL *dngbl = vdngbl;
 
+    if (dngbl == NULL)
+        return;
+
     CRYPTO_THREAD_lock_free(dngbl->rand_nonce_lock);
 
     OPENSSL_free(dngbl);
@@ -265,7 +271,7 @@ size_t rand_drbg_get_nonce(RAND_DRBG *drbg,
         return 0;
 
     memset(&data, 0, sizeof(data));
-    pool = rand_pool_new(0, min_len, max_len);
+    pool = rand_pool_new(0, 0, min_len, max_len);
     if (pool == NULL)
         return 0;
 
@@ -295,7 +301,7 @@ size_t rand_drbg_get_nonce(RAND_DRBG *drbg,
 void rand_drbg_cleanup_nonce(RAND_DRBG *drbg,
                              unsigned char *out, size_t outlen)
 {
-    OPENSSL_secure_clear_free(out, outlen);
+    OPENSSL_clear_free(out, outlen);
 }
 
 /*
@@ -409,7 +415,7 @@ static RAND_DRBG *rand_drbg_new(OPENSSL_CTX *ctx,
 
     drbg->libctx = ctx;
     drbg->secure = secure && CRYPTO_secure_allocated(drbg);
-    drbg->fork_count = rand_fork_count;
+    drbg->fork_id = openssl_get_fork_id();
     drbg->parent = parent;
 
     if (parent == NULL) {
@@ -823,6 +829,7 @@ int RAND_DRBG_generate(RAND_DRBG *drbg, unsigned char *out, size_t outlen,
                        int prediction_resistance,
                        const unsigned char *adin, size_t adinlen)
 {
+    int fork_id;
     int reseed_required = 0;
 
     if (drbg->state != DRBG_READY) {
@@ -848,8 +855,10 @@ int RAND_DRBG_generate(RAND_DRBG *drbg, unsigned char *out, size_t outlen,
         return 0;
     }
 
-    if (drbg->fork_count != rand_fork_count) {
-        drbg->fork_count = rand_fork_count;
+    fork_id = openssl_get_fork_id();
+
+    if (drbg->fork_id != fork_id) {
+        drbg->fork_id = fork_id;
         reseed_required = 1;
     }
 
@@ -909,7 +918,7 @@ int RAND_DRBG_bytes(RAND_DRBG *drbg, unsigned char *out, size_t outlen)
     if (drbg->adin_pool == NULL) {
         if (drbg->type == 0)
             goto err;
-        drbg->adin_pool = rand_pool_new(0, 0, drbg->max_adinlen);
+        drbg->adin_pool = rand_pool_new(0, 0, 0, drbg->max_adinlen);
         if (drbg->adin_pool == NULL)
             goto err;
     }

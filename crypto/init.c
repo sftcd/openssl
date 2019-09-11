@@ -44,8 +44,7 @@ static CRYPTO_ONCE base = CRYPTO_ONCE_STATIC_INIT;
 static int base_inited = 0;
 DEFINE_RUN_ONCE_STATIC(ossl_init_base)
 {
-    if (ossl_trace_init() == 0)
-        return 0;
+    /* no need to init trace */
 
     OSSL_TRACE(INIT, "ossl_init_base: setting up stop handlers\n");
 #ifndef OPENSSL_NO_CRYPTO_MDEBUG
@@ -221,46 +220,6 @@ DEFINE_RUN_ONCE_STATIC(ossl_init_add_all_digests)
 
 DEFINE_RUN_ONCE_STATIC_ALT(ossl_init_no_add_all_digests,
                            ossl_init_add_all_digests)
-{
-    /* Do nothing */
-    return 1;
-}
-
-static CRYPTO_ONCE add_all_macs = CRYPTO_ONCE_STATIC_INIT;
-DEFINE_RUN_ONCE_STATIC(ossl_init_add_all_macs)
-{
-    /*
-     * OPENSSL_NO_AUTOALGINIT is provided here to prevent at compile time
-     * pulling in all the macs during static linking
-     */
-#ifndef OPENSSL_NO_AUTOALGINIT
-    OSSL_TRACE(INIT, "openssl_add_all_macs_int()\n");
-    openssl_add_all_macs_int();
-#endif
-    return 1;
-}
-
-DEFINE_RUN_ONCE_STATIC_ALT(ossl_init_no_add_all_macs, ossl_init_add_all_macs)
-{
-    /* Do nothing */
-    return 1;
-}
-
-static CRYPTO_ONCE add_all_kdfs = CRYPTO_ONCE_STATIC_INIT;
-DEFINE_RUN_ONCE_STATIC(ossl_init_add_all_kdfs)
-{
-    /*
-     * OPENSSL_NO_AUTOALGINIT is provided here to prevent at compile time
-     * pulling in all the macs during static linking
-     */
-#ifndef OPENSSL_NO_AUTOALGINIT
-    OSSL_TRACE(INIT, "openssl_add_all_kdfs_int()\n");
-    openssl_add_all_kdfs_int();
-#endif
-    return 1;
-}
-
-DEFINE_RUN_ONCE_STATIC_ALT(ossl_init_no_add_all_kdfs, ossl_init_add_all_kdfs)
 {
     /* Do nothing */
     return 1;
@@ -558,24 +517,6 @@ int OPENSSL_init_crypto(uint64_t opts, const OPENSSL_INIT_SETTINGS *settings)
             && !RUN_ONCE(&add_all_digests, ossl_init_add_all_digests))
         return 0;
 
-    if ((opts & OPENSSL_INIT_NO_ADD_ALL_MACS)
-            && !RUN_ONCE_ALT(&add_all_macs, ossl_init_no_add_all_macs,
-                             ossl_init_add_all_macs))
-        return 0;
-
-    if ((opts & OPENSSL_INIT_ADD_ALL_MACS)
-            && !RUN_ONCE(&add_all_macs, ossl_init_add_all_macs))
-        return 0;
-
-    if ((opts & OPENSSL_INIT_NO_ADD_ALL_KDFS)
-            && !RUN_ONCE_ALT(&add_all_kdfs, ossl_init_no_add_all_kdfs,
-                             ossl_init_add_all_kdfs))
-        return 0;
-
-    if ((opts & OPENSSL_INIT_ADD_ALL_KDFS)
-            && !RUN_ONCE(&add_all_kdfs, ossl_init_add_all_kdfs))
-        return 0;
-
     if ((opts & OPENSSL_INIT_ATFORK)
             && !openssl_init_fork_handlers())
         return 0;
@@ -735,7 +676,6 @@ void OPENSSL_fork_parent(void)
 
 void OPENSSL_fork_child(void)
 {
-    rand_fork();
     /* TODO(3.0): Inform all providers about a fork event */
 }
 #endif

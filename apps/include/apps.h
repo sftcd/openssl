@@ -102,11 +102,9 @@ typedef struct args_st {
 int wrap_password_callback(char *buf, int bufsiz, int verify, void *cb_data);
 
 int chopup_args(ARGS *arg, char *buf);
-# ifdef HEADER_X509_H
 int dump_cert_text(BIO *out, X509 *x);
 void print_name(BIO *out, const char *title, X509_NAME *nm,
                 unsigned long lflags);
-# endif
 void print_bignum_var(BIO *, const BIGNUM *, const char*,
                       int, unsigned char *);
 void print_array(BIO *, const char *, int, const unsigned char *);
@@ -265,5 +263,9 @@ typedef struct verify_options_st {
 } VERIFY_CB_ARGS;
 
 extern VERIFY_CB_ARGS verify_args;
+
+OSSL_PARAM *app_params_new_from_opts(STACK_OF(OPENSSL_STRING) *opts,
+                                     const OSSL_PARAM *paramdefs);
+void app_params_free(OSSL_PARAM *params);
 
 #endif

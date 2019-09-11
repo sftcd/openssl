@@ -44,9 +44,40 @@ static int vdata_appends(void)
     return TEST_str_eq(data, "hello world");
 }
 
+static int raised_error(void)
+{
+    const char *f, *data;
+    int l;
+    unsigned long e;
+
+    /*
+     * When OPENSSL_NO_ERR or OPENSSL_NO_FILENAMES, no file name or line
+     * number is saved, so no point checking them.
+     */
+#if !defined(OPENSSL_NO_FILENAMES) && !defined(OPENSSL_NO_ERR)
+    const char *file;
+    int line;
+
+    file = __FILE__;
+    line = __LINE__ + 2; /* The error is generated on the ERR_raise_data line */
+#endif
+    ERR_raise_data(ERR_LIB_SYS, ERR_R_INTERNAL_ERROR,
+                   "calling exit()");
+    if (!TEST_ulong_ne(e = ERR_get_error_line_data(&f, &l, &data, NULL), 0)
+            || !TEST_int_eq(ERR_GET_REASON(e), ERR_R_INTERNAL_ERROR)
+#if !defined(OPENSSL_NO_FILENAMES) && !defined(OPENSSL_NO_ERR)
+            || !TEST_int_eq(l, line)
+            || !TEST_str_eq(f, file)
+#endif
+            || !TEST_str_eq(data, "calling exit()"))
+        return 0;
+    return 1;
+}
+
 int setup_tests(void)
 {
     ADD_TEST(preserves_system_error);
     ADD_TEST(vdata_appends);
+    ADD_TEST(raised_error);
     return 1;
 }

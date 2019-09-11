@@ -1,5 +1,7 @@
 LIBS=../../../libcrypto
-SOURCE[../../../libcrypto]=\
-        dh.c
+IF[{- !$disabled{dh} -}]
+  SOURCE[../../../libcrypto]=\
+          dh_exch.c
+ENDIF
 
 

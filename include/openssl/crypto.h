@@ -148,13 +148,17 @@ int CRYPTO_mem_ctrl(int mode);
 size_t OPENSSL_strlcpy(char *dst, const char *src, size_t siz);
 size_t OPENSSL_strlcat(char *dst, const char *src, size_t siz);
 size_t OPENSSL_strnlen(const char *str, size_t maxlen);
-char *OPENSSL_buf2hexstr(const unsigned char *buffer, long len);
-unsigned char *OPENSSL_hexstr2buf(const char *str, long *len);
+int OPENSSL_buf2hexstr_ex(char *str, size_t str_n, size_t *strlen,
+                          const unsigned char *buf, size_t buflen);
+char *OPENSSL_buf2hexstr(const unsigned char *buf, long buflen);
+int OPENSSL_hexstr2buf_ex(unsigned char *buf, size_t buf_n, size_t *buflen,
+                          const char *str);
+unsigned char *OPENSSL_hexstr2buf(const char *str, long *buflen);
 int OPENSSL_hexchar2int(unsigned char c);
 
 # define OPENSSL_MALLOC_MAX_NELEMS(type)  (((1U<<(sizeof(int)*8-1))-1)/sizeof(type))
 
-DEPRECATEDIN_3(unsigned long OpenSSL_version_num(void))
+unsigned long OpenSSL_version_num(void);
 const char *OpenSSL_version(int type);
 # define OPENSSL_VERSION                0
 # define OPENSSL_CFLAGS                 1
@@ -165,6 +169,7 @@ const char *OpenSSL_version(int type);
 # define OPENSSL_VERSION_STRING         6
 # define OPENSSL_FULL_VERSION_STRING    7
 # define OPENSSL_MODULES_DIR            8
+# define OPENSSL_CPU_INFO               9
 
 const char *OPENSSL_info(int type);
 /*
@@ -177,6 +182,8 @@ const char *OPENSSL_info(int type);
 # define OPENSSL_INFO_DSO_EXTENSION             1004
 # define OPENSSL_INFO_DIR_FILENAME_SEPARATOR    1005
 # define OPENSSL_INFO_LIST_SEPARATOR            1006
+# define OPENSSL_INFO_SEED_SOURCE               1007
+# define OPENSSL_INFO_CPU_SETTINGS              1008
 
 int OPENSSL_issetugid(void);
 
@@ -399,10 +406,10 @@ int CRYPTO_memcmp(const void * in_a, const void * in_b, size_t len);
 /* OPENSSL_INIT_BASE_ONLY                    0x00040000L */
 # define OPENSSL_INIT_NO_ATEXIT              0x00080000L
 /* OPENSSL_INIT flag range 0x03f00000 reserved for OPENSSL_init_ssl() */
-# define OPENSSL_INIT_NO_ADD_ALL_MACS        0x04000000L
-# define OPENSSL_INIT_ADD_ALL_MACS           0x08000000L
-# define OPENSSL_INIT_NO_ADD_ALL_KDFS        0x10000000L
-# define OPENSSL_INIT_ADD_ALL_KDFS           0x20000000L
+/* FREE: 0x04000000L */
+/* FREE: 0x08000000L */
+/* FREE: 0x10000000L */
+/* FREE: 0x20000000L */
 /* FREE: 0x40000000L */
 /* FREE: 0x80000000L */
 /* Max OPENSSL_INIT flag value is 0x80000000 */

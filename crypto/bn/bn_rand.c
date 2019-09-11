@@ -264,8 +264,7 @@ int BN_generate_dsa_nonce(BIGNUM *out, const BIGNUM *range,
         goto err;
 
     /* We copy |priv| into a local buffer to avoid exposing its length. */
-    todo = sizeof(priv->d[0]) * priv->top;
-    if (todo > sizeof(private_bytes)) {
+    if (BN_bn2binpad(priv, private_bytes, sizeof(private_bytes)) < 0) {
         /*
          * No reasonable DSA or ECDSA key should have a private key this
          * large and we don't handle this case in order to avoid leaking the
@@ -274,8 +273,6 @@ int BN_generate_dsa_nonce(BIGNUM *out, const BIGNUM *range,
         BNerr(BN_F_BN_GENERATE_DSA_NONCE, BN_R_PRIVATE_KEY_TOO_LARGE);
         goto err;
     }
-    memcpy(private_bytes, priv->d, todo);
-    memset(private_bytes + todo, 0, sizeof(private_bytes) - todo);
 
     md = EVP_MD_fetch(libctx, "SHA512", NULL);
     if (md == NULL) {
@@ -310,7 +307,7 @@ int BN_generate_dsa_nonce(BIGNUM *out, const BIGNUM *range,
 
  err:
     EVP_MD_CTX_free(mdctx);
-    EVP_MD_meth_free(md);
+    EVP_MD_free(md);
     OPENSSL_free(k_bytes);
     OPENSSL_cleanse(private_bytes, sizeof(private_bytes));
     return ret;

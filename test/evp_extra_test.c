@@ -19,6 +19,8 @@
 #include <openssl/pem.h>
 #include <openssl/kdf.h>
 #include <openssl/provider.h>
+#include <openssl/core_names.h>
+#include <openssl/dsa.h>
 #include "testutil.h"
 #include "internal/nelem.h"
 #include "internal/evp_int.h"
@@ -1154,8 +1156,8 @@ static int test_EVP_MD_fetch(int tst)
     if (!TEST_true(EVP_MD_up_ref(md)))
         goto err;
     /* Ref count should now be 2. Release both */
-    EVP_MD_meth_free(md);
-    EVP_MD_meth_free(md);
+    EVP_MD_free(md);
+    EVP_MD_free(md);
     md = NULL;
 
     /*
@@ -1174,7 +1176,7 @@ static int test_EVP_MD_fetch(int tst)
             goto err;
     }
 
-    EVP_MD_meth_free(md);
+    EVP_MD_free(md);
     md = NULL;
 
     /*
@@ -1195,7 +1197,7 @@ static int test_EVP_MD_fetch(int tst)
             goto err;
     }
 
-    EVP_MD_meth_free(md);
+    EVP_MD_free(md);
     md = NULL;
 
     /*
@@ -1217,7 +1219,7 @@ static int test_EVP_MD_fetch(int tst)
     ret = 1;
 
  err:
-    EVP_MD_meth_free(md);
+    EVP_MD_free(md);
     OSSL_PROVIDER_unload(defltprov);
     OSSL_PROVIDER_unload(fipsprov);
     /* Not normally needed, but we would like to test that
@@ -1226,6 +1228,284 @@ static int test_EVP_MD_fetch(int tst)
     if (ctx != NULL)
         OPENSSL_thread_stop_ex(ctx);
     OPENSSL_CTX_free(ctx);
+    return ret;
+}
+
+static int encrypt_decrypt(const EVP_CIPHER *cipher, const unsigned char *msg,
+                           size_t len)
+{
+    int ret = 0, ctlen, ptlen;
+    EVP_CIPHER_CTX *ctx = NULL;
+    unsigned char key[128 / 8];
+    unsigned char ct[64], pt[64];
+
+    memset(key, 0, sizeof(key));
+    if (!TEST_ptr(ctx = EVP_CIPHER_CTX_new())
+            || !TEST_int_eq(EVP_CIPHER_CTX_tag_length(ctx), 0)
+            || !TEST_true(EVP_CipherInit_ex(ctx, cipher, NULL, key, NULL, 1))
+            || !TEST_int_eq(EVP_CIPHER_CTX_tag_length(ctx), 0)
+            || !TEST_true(EVP_CipherUpdate(ctx, ct, &ctlen, msg, len))
+            || !TEST_true(EVP_CipherFinal_ex(ctx, ct, &ctlen))
+            || !TEST_true(EVP_CipherInit_ex(ctx, cipher, NULL, key, NULL, 0))
+            || !TEST_int_eq(EVP_CIPHER_CTX_tag_length(ctx), 0)
+            || !TEST_true(EVP_CipherUpdate(ctx, pt, &ptlen, ct, ctlen))
+            || !TEST_true(EVP_CipherFinal_ex(ctx, pt, &ptlen))
+            || !TEST_mem_eq(pt, ptlen, msg, len))
+        goto err;
+
+    ret = 1;
+ err:
+    EVP_CIPHER_CTX_free(ctx);
+    return ret;
+}
+
+static int get_num_params(const OSSL_PARAM *params)
+{
+    int i = 0;
+
+    if (params != NULL) {
+        while (params[i].key != NULL)
+            ++i;
+        ++i;
+    }
+    return i;
+}
+
+/*
+ * Test EVP_CIPHER_fetch()
+ *
+ * Test 0: Test with the default OPENSSL_CTX
+ * Test 1: Test with an explicit OPENSSL_CTX
+ * Test 2: Explicit OPENSSL_CTX with explicit load of default provider
+ * Test 3: Explicit OPENSSL_CTX with explicit load of default and fips provider
+ * Test 4: Explicit OPENSSL_CTX with explicit load of fips provider
+ */
+static int test_EVP_CIPHER_fetch(int tst)
+{
+    OPENSSL_CTX *ctx = NULL;
+    EVP_CIPHER *cipher = NULL;
+    OSSL_PROVIDER *defltprov = NULL, *fipsprov = NULL;
+    int ret = 0;
+    const unsigned char testmsg[] = "Hello world";
+    const OSSL_PARAM *params;
+
+    if (tst > 0) {
+        ctx = OPENSSL_CTX_new();
+        if (!TEST_ptr(ctx))
+            goto err;
+
+        if (tst == 2 || tst == 3) {
+            defltprov = OSSL_PROVIDER_load(ctx, "default");
+            if (!TEST_ptr(defltprov))
+                goto err;
+        }
+        if (tst == 3 || tst == 4) {
+            fipsprov = OSSL_PROVIDER_load(ctx, "fips");
+            if (!TEST_ptr(fipsprov))
+                goto err;
+        }
+    }
+
+    /* Implicit fetching of the cipher should produce the expected result */
+    if (!TEST_true(encrypt_decrypt(EVP_aes_128_cbc(), testmsg, sizeof(testmsg))))
+        goto err;
+
+    /*
+     * Test that without specifying any properties we can get a cipher from a
+     * provider.
+     */
+    if (!TEST_ptr(cipher = EVP_CIPHER_fetch(ctx, "AES-128-CBC", NULL))
+            || !TEST_true(encrypt_decrypt(cipher, testmsg, sizeof(testmsg))))
+        goto err;
+
+    /* Also test EVP_CIPHER_up_ref() while we're doing this */
+    if (!TEST_true(EVP_CIPHER_up_ref(cipher)))
+        goto err;
+    /* Ref count should now be 2. Release both */
+    EVP_CIPHER_free(cipher);
+    EVP_CIPHER_free(cipher);
+    cipher = NULL;
+
+    /*
+     * In tests 0 - 2 we've only loaded the default provider so explicitly
+     * asking for a non-default implementation should fail. In tests 3 and 4 we
+     * have the FIPS provider loaded so we should succeed in that case.
+     */
+    cipher = EVP_CIPHER_fetch(ctx, "AES-128-CBC", "default=no");
+    if (tst == 3 || tst == 4) {
+        if (!TEST_ptr(cipher)
+                || !TEST_true(encrypt_decrypt(cipher, testmsg, sizeof(testmsg))))
+            goto err;
+    } else  {
+        if (!TEST_ptr_null(cipher))
+            goto err;
+    }
+
+    EVP_CIPHER_free(cipher);
+    cipher = NULL;
+
+    /*
+     * Explicitly asking for the default implementation should succeed except
+     * in test 4 where the default provider is not loaded.
+     */
+    cipher = EVP_CIPHER_fetch(ctx, "AES-128-CBC", "default=yes");
+    if (tst != 4) {
+        if (!TEST_ptr(cipher)
+                || !TEST_int_eq(EVP_CIPHER_nid(cipher), NID_aes_128_cbc)
+                || !TEST_true(encrypt_decrypt(cipher, testmsg, sizeof(testmsg)))
+                || !TEST_int_eq(EVP_CIPHER_block_size(cipher), 128/8))
+            goto err;
+    } else {
+        if (!TEST_ptr_null(cipher))
+            goto err;
+    }
+
+    EVP_CIPHER_free(cipher);
+    cipher = NULL;
+
+    /*
+     * Explicitly asking for a fips implementation should succeed if we have
+     * the FIPS provider loaded and fail otherwise
+     */
+    cipher = EVP_CIPHER_fetch(ctx, "AES-128-CBC", "fips=yes");
+    if (tst == 3 || tst == 4) {
+        if (!TEST_ptr(cipher)
+                || !TEST_true(encrypt_decrypt(cipher, testmsg, sizeof(testmsg)))
+                || !TEST_ptr(params = cipher->gettable_params())
+                || !TEST_int_gt(get_num_params(params), 1)
+                || !TEST_ptr(params = cipher->gettable_ctx_params())
+                || !TEST_int_gt(get_num_params(params), 1)
+                || !TEST_ptr(params = cipher->settable_ctx_params())
+                || !TEST_int_gt(get_num_params(params), 1))
+            goto err;
+    } else  {
+        if (!TEST_ptr_null(cipher))
+            goto err;
+    }
+
+    ret = 1;
+
+ err:
+    EVP_CIPHER_free(cipher);
+    OSSL_PROVIDER_unload(defltprov);
+    OSSL_PROVIDER_unload(fipsprov);
+    /* Not normally needed, but we would like to test that
+     * OPENSSL_thread_stop_ex() behaves as expected.
+     */
+    if (ctx != NULL)
+        OPENSSL_thread_stop_ex(ctx);
+    OPENSSL_CTX_free(ctx);
+    return ret;
+}
+
+/* Test getting and setting parameters on an EVP_PKEY_CTX */
+static int test_EVP_PKEY_CTX_get_set_params(void)
+{
+    EVP_PKEY_CTX *ctx = NULL;
+    EVP_SIGNATURE *dsaimpl = NULL;
+    const OSSL_PARAM *params;
+    OSSL_PARAM ourparams[2], *param = ourparams;
+    DSA *dsa = NULL;
+    BIGNUM *p = NULL, *q = NULL, *g = NULL;
+    EVP_PKEY *pkey = NULL;
+    int ret = 0;
+    const EVP_MD *md;
+    size_t mdsize = SHA512_DIGEST_LENGTH;
+
+    /*
+     * Setup the parameters for our DSA object. For our purposes they don't have
+     * to actually be *valid* parameters. We just need to set something. We
+     * don't even need a pub_key/priv_key.
+     */
+    dsa = DSA_new();
+    p = BN_new();
+    q = BN_new();
+    g = BN_new();
+    if (!TEST_ptr(dsa)
+            || !TEST_ptr(p)
+            || !TEST_ptr(q)
+            || !TEST_ptr(g)
+            || !DSA_set0_pqg(dsa, p, q, g))
+        goto err;
+    p = q = g = NULL;
+
+    pkey = EVP_PKEY_new();
+    if (!TEST_ptr(pkey)
+            || !TEST_true(EVP_PKEY_assign_DSA(pkey, dsa)))
+        goto err;
+
+    dsa = NULL;
+
+    /* Initialise a sign operation */
+    ctx = EVP_PKEY_CTX_new(pkey, NULL);
+    dsaimpl = EVP_SIGNATURE_fetch(NULL, "DSA", NULL);
+    if (!TEST_ptr(ctx)
+            || !TEST_ptr(dsaimpl)
+            || !TEST_int_gt(EVP_PKEY_sign_init_ex(ctx, dsaimpl), 0))
+        goto err;
+
+    /*
+     * We should be able to query the parameters now. The default DSA
+     * implementation supports exactly one parameter - so we expect to see that
+     * returned and no more.
+     */
+    params = EVP_PKEY_CTX_settable_params(ctx);
+    if (!TEST_ptr(params)
+            || !TEST_int_eq(strcmp(params[0].key,
+                            OSSL_SIGNATURE_PARAM_DIGEST_SIZE), 0)
+            || !TEST_int_eq(strcmp(params[1].key, OSSL_SIGNATURE_PARAM_DIGEST),
+                            0)
+               /* The final key should be NULL */
+            || !TEST_ptr_null(params[2].key))
+        goto err;
+
+    /* Gettable params are the same as the settable ones */
+    params = EVP_PKEY_CTX_gettable_params(ctx);
+    if (!TEST_ptr(params)
+            || !TEST_int_eq(strcmp(params[0].key,
+                            OSSL_SIGNATURE_PARAM_DIGEST_SIZE), 0)
+            || !TEST_int_eq(strcmp(params[1].key, OSSL_SIGNATURE_PARAM_DIGEST),
+                            0)
+               /* The final key should be NULL */
+            || !TEST_ptr_null(params[2].key))
+        goto err;
+
+    /*
+     * Test getting and setting params via EVP_PKEY_CTX_set_params() and
+     * EVP_PKEY_CTX_get_params()
+     */
+    *param++ = OSSL_PARAM_construct_size_t(OSSL_SIGNATURE_PARAM_DIGEST_SIZE,
+                                           &mdsize);
+    *param++ = OSSL_PARAM_construct_end();
+
+    if (!TEST_true(EVP_PKEY_CTX_set_params(ctx, ourparams)))
+        goto err;
+
+    mdsize = 0;
+    if (!TEST_true(EVP_PKEY_CTX_get_params(ctx, ourparams))
+            || !TEST_size_t_eq(mdsize, SHA512_DIGEST_LENGTH))
+        goto err;
+
+    /*
+     * Test the TEST_PKEY_CTX_set_signature_md() and
+     * TEST_PKEY_CTX_get_signature_md() functions
+     */
+    if (!TEST_int_gt(EVP_PKEY_CTX_set_signature_md(ctx, EVP_sha256()), 0)
+            || !TEST_int_gt(EVP_PKEY_CTX_get_signature_md(ctx, &md), 0)
+            || !TEST_ptr_eq(md, EVP_sha256()))
+        goto err;
+
+    ret = 1;
+
+ err:
+    EVP_PKEY_CTX_free(ctx);
+    EVP_SIGNATURE_free(dsaimpl);
+    EVP_PKEY_free(pkey);
+    DSA_free(dsa);
+    BN_free(p);
+    BN_free(q);
+    BN_free(g);
+
     return ret;
 }
 
@@ -1260,8 +1540,11 @@ int setup_tests(void)
 #endif
 #ifdef NO_FIPS_MODULE
     ADD_ALL_TESTS(test_EVP_MD_fetch, 3);
+    ADD_ALL_TESTS(test_EVP_CIPHER_fetch, 3);
 #else
     ADD_ALL_TESTS(test_EVP_MD_fetch, 5);
+    ADD_ALL_TESTS(test_EVP_CIPHER_fetch, 5);
 #endif
+    ADD_TEST(test_EVP_PKEY_CTX_get_set_params);
     return 1;
 }

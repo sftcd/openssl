@@ -220,8 +220,6 @@ if ( ! $reindex && $statefile ) {
             }
             $rcodes{$name} = $code;
         } elsif ( $name =~ /^(?:OSSL_|OPENSSL_)?[A-Z0-9]{2,}_F_/ ) {
-            die "$lib function code $code collision at $name\n"
-                if $fassigned{$lib} =~ /:$code:/;
             $fassigned{$lib} .= "$code:";
             $fmax{$lib} = $code if $code > $fmax{$lib};
             $fcodes{$name} = $code;
@@ -394,10 +392,6 @@ foreach my $file ( @source ) {
                 $fnew{$2}++;
             }
             $ftrans{$3} = $func unless exists $ftrans{$3};
-            if ( uc($func) ne $3 ) {
-                print STDERR "ERROR: mismatch $file:$linenr $func:$3\n";
-                $errors++;
-            }
             print STDERR "  Function $1 = $fcodes{$1}\n"
               if $debug;
         }
@@ -654,7 +648,8 @@ ${st}void ERR_${lib}_error(int function, int reason, char *file, int line)
 {
     if (lib_code == 0)
         lib_code = ERR_get_next_error_library();
-    ERR_PUT_error(lib_code, function, reason, file, line);
+    ERR_raise(lib_code, reason);
+    ERR_set_debug(file, line, NULL);
 }
 EOF
 

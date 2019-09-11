@@ -352,6 +352,7 @@ test: tests
 	  PERL="$(PERL)" \
 	  EXE_EXT={- platform->binext() -} \
 	  OPENSSL_ENGINES=`cd ../$(BLDDIR)/engines 2>/dev/null && pwd` \
+	  OPENSSL_MODULES=`cd ../$(BLDDIR)/providers 2>/dev/null && pwd` \
 	  OPENSSL_DEBUG_MEMORY=on \
 	    $(PERL) ../$(SRCDIR)/test/run_tests.pl $(TESTS) )
 	@ : {- if ($disabled{tests}) { output_on(); } else { output_off(); } "" -}
@@ -391,13 +392,13 @@ libclean:
 clean: libclean
 	$(RM) $(PROGRAMS) $(TESTPROGS) $(MODULES) $(SCRIPTS)
 	$(RM) $(GENERATED_MANDATORY) $(GENERATED)
-	-$(RM) `find . -name .git -prune -o -name '*{- platform->depext() -}' -print`
-	-$(RM) `find . -name .git -prune -o -name '*{- platform->objext() -}' -print`
+	-$(RM) `find . -name '*{- platform->depext() -}' \! -name '.*' -print`
+	-$(RM) `find . -name '*{- platform->objext() -}' \! -name '.*' -print`
 	$(RM) core
 	$(RM) tags TAGS doc-nits
 	$(RM) -r test/test-runs
 	$(RM) openssl.pc libcrypto.pc libssl.pc
-	-$(RM) `find . -name .git -prune -o -type l -print`
+	-$(RM) `find . -type l \! -name '.*' -print`
 	$(RM) $(TARFILE)
 
 distclean: clean

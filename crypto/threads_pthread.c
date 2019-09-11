@@ -10,7 +10,16 @@
 #include <openssl/crypto.h>
 #include "internal/cryptlib.h"
 
+#if defined(__sun)
+# include <atomic.h>
+#endif
+
 #if defined(OPENSSL_THREADS) && !defined(CRYPTO_TDEBUG) && !defined(OPENSSL_SYS_WINDOWS)
+
+# if defined(OPENSSL_SYS_UNIX)
+#  include <sys/types.h>
+#  include <unistd.h>
+#endif
 
 # ifdef PTHREAD_RWLOCK_INITIALIZER
 #  define USE_RWLOCK
@@ -162,6 +171,12 @@ int CRYPTO_atomic_add(int *val, int amount, int *ret, CRYPTO_RWLOCK *lock)
         *ret = __atomic_add_fetch(val, amount, __ATOMIC_ACQ_REL);
         return 1;
     }
+# elif defined(__sun) && (defined(__SunOS_5_10) || defined(__SunOS_5_11))
+    /* This will work for all future Solaris versions. */
+    if (ret != NULL) {
+        *ret = atomic_add_int_nv((volatile unsigned int *)val, amount);
+        return 1;
+    }
 # endif
     if (!CRYPTO_THREAD_write_lock(lock))
         return 0;
@@ -197,4 +212,9 @@ int openssl_init_fork_handlers(void)
     return 0;
 }
 # endif /* FIPS_MODE */
+
+int openssl_get_fork_id(void)
+{
+    return getpid();
+}
 #endif

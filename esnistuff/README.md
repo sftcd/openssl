@@ -1,7 +1,7 @@
 
 # This is a temporary place for ESNI content ...
 
-Stephen Farrell, stephen.farrell@cs.tcd.ie, 20190714-ish
+Stephen Farrell, stephen.farrell@cs.tcd.ie, 20190911-ish
 
 I'll put stuff here that'll likely disappear if this matures. So the plan would
 be to delete all this before submitting any PR to the openssl folks. Over time,
@@ -24,6 +24,8 @@ draft-03 stuff really.)
 There's a [TODO list](#todos) at the end.
 
 Most recent first...
+
+- Re-merged with upstream again (20190911)
 
 - Added some thoughts as to how one might [configure a web server](web-server-config.md) for ESNI,
   for discussion before we start coding stuff up.

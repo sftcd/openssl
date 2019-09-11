@@ -79,8 +79,7 @@ sub name_synopsis()
     print "$id missing comma in NAME\n" if $tmp =~ /[^,] /;
 
     my $dirname = dirname($filename);
-    my $simplename = basename($filename);
-    $simplename =~ s/.pod$//;
+    my $simplename = basename(basename($filename, ".in"), ".pod");
     my $foundfilename = 0;
     my %foundfilenames = ();
     my %names;
@@ -92,9 +91,10 @@ sub name_synopsis()
         $names{$n} = 1;
         $foundfilename++ if $n eq $simplename;
         $foundfilenames{$n} = 1
-            if -f "$dirname/$n.pod" && $n ne $simplename;
+            if ((-f "$dirname/$n.pod.in" || -f "$dirname/$n.pod")
+                && $n ne $simplename);
     }
-    print "$id the following exist as other .pod files:\n",
+    print "$id the following exist as other .pod or .pod.in files:\n",
         join(" ", sort keys %foundfilenames), "\n"
         if %foundfilenames;
     print "$id $simplename (filename) missing from NAME section\n"
@@ -151,18 +151,50 @@ sub name_synopsis()
     }
 }
 
-# Check if SECTION is located before BEFORE
+# Check if SECTION ($3) is located before BEFORE ($4)
 sub check_section_location()
 {
-    my $filename = shift;
+    my $id = shift;
     my $contents = shift;
     my $section = shift;
     my $before = shift;
 
     return unless $contents =~ /=head1 $section/
         and $contents =~ /=head1 $before/;
-    print "$filename: $section should be placed before $before section\n"
+    print "$id $section should appear before $before section\n"
         if $contents =~ /=head1 $before.*=head1 $section/ms;
+}
+
+# Check if a =head1 is duplicated, or a =headX is duplicated within a
+# =head1.  Treats =head2 =head3 as equivalent -- it doesn't reset the head3
+# sets if it finds a =head2 -- but that is good enough for now. Also check
+# for proper capitalization, trailing periods, etc.
+sub check_head_style()
+{
+    my $id = shift;
+    my $contents = shift;
+    my %head1;
+    my %subheads;
+
+    foreach my $line ( split /\n+/, $contents ) {
+        next unless $line =~ /^=head/;
+        if ( $line =~ /head1/ ) {
+            print "$id duplicate section $line\n"
+                if defined $head1{$line};
+            $head1{$line} = 1;
+            %subheads = ();
+        } else {
+            print "$id duplicate subsection $line\n"
+                if defined $subheads{$line};
+            $subheads{$line} = 1;
+        }
+        print "$id period in =head\n"
+            if $line =~ /\.[^\w]/ or $line =~ /\.$/;
+        print "$id not all uppercase in =head1\n"
+            if $line =~ /head1.*[a-z]/;
+        print "$id all uppercase in subhead\n"
+            if $line =~ /head[234][ A-Z0-9]+$/;
+    }
 }
 
 sub check()
@@ -178,14 +210,15 @@ sub check()
         close POD;
     }
 
-    # Check if EXAMPLES is located after RETURN VALUES section.
-    &check_section_location($filename, $contents, "RETURN VALUES", "EXAMPLES") if $filename =~ m|man3/|;
-    # Check if HISTORY is located after SEE ALSO
-    &check_section_location($filename, $contents, "SEE ALSO", "HISTORY") if $filename =~ m|man3/|;
-    # Check if SEE ALSO is located after EXAMPLES
-    &check_section_location($filename, $contents, "EXAMPLES", "SEE ALSO") if $filename =~ m|man3/|;
-
     my $id = "${filename}:1:";
+    &check_head_style($id, $contents);
+
+    # Check ordering of some sections in man3
+    if ( $filename =~ m|man3/| ) {
+        &check_section_location($id, $contents, "RETURN VALUES", "EXAMPLES");
+        &check_section_location($id, $contents, "SEE ALSO", "HISTORY");
+        &check_section_location($id, $contents, "EXAMPLES", "SEE ALSO");
+    }
 
     &name_synopsis($id, $filename, $contents)
         unless $contents =~ /=for comment generic/
@@ -197,6 +230,10 @@ sub check()
         if $contents !~ /=cut\n$/;
     print "$id more than one cut line.\n"
         if $contents =~ /=cut.*=cut/ms;
+    print "$id EXAMPLE not EXAMPLES section.\n"
+        if $contents =~ /=head1 EXAMPLE[^S]/;
+    print "$id WARNING not WARNINGS section.\n"
+        if $contents =~ /=head1 WARNING[^S]/;
     print "$id missing copyright\n"
         if $contents !~ /Copyright .* The OpenSSL Project Authors/;
     print "$id copyright not last\n"
@@ -283,7 +320,7 @@ sub getdocced
     my $dir = shift;
     my %return;
 
-    foreach my $pod ( glob("$dir/*.pod") ) {
+    foreach my $pod ( glob("$dir/*.pod"), glob("$dir/*.pod.in") ) {
         my %podinfo = extract_pod_info($pod);
         foreach my $n ( @{$podinfo{names}} ) {
             $return{$n} = $pod;
@@ -394,7 +431,7 @@ sub collectnames {
     my $filename = shift;
     $filename =~ m|man(\d)/|;
     my $section = $1;
-    my $simplename = basename($filename, ".pod");
+    my $simplename = basename(basename($filename, ".in"), ".pod");
     my $id = "${filename}:1:";
 
     my $contents = '';
@@ -412,9 +449,12 @@ sub collectnames {
         return;
     }
     $tmp =~ tr/\n/ /;
-    $tmp =~ s/-.*//g;
+    $tmp =~ s/ -.*//g;
 
-    my @names = map { s/^\s+//g; s/\s+$//g; $_ } split(/,/, $tmp);
+    my @names =
+        map { s|/|-|g; $_ }              # Treat slash as dash
+        map { s/^\s+//g; s/\s+$//g; $_ } # Trim prefix and suffix blanks
+        split(/,/, $tmp);
     unless (grep { $simplename eq $_ } @names) {
         print "$id missing $simplename\n";
         push @names, $simplename;
@@ -427,8 +467,10 @@ sub collectnames {
         my $name_sec = "$name($section)";
         if (! exists $name_collection{$name_sec}) {
             $name_collection{$name_sec} = $filename;
-        } else { #elsif ($filename ne $name_collection{$name_sec}) {
-            print "$id $name_sec also in $name_collection{$name_sec}\n";
+        } elsif ($filename eq $name_collection{$name_sec}) {
+            print "$id $name_sec repeated in NAME section of $name_collection{$name_sec}\n"
+        } else {
+            print "$id $name_sec also in NAME section of $name_collection{$name_sec}\n";
         }
     }
 
@@ -491,6 +533,7 @@ my %skips = (
 
 sub checkflags() {
     my $cmd = shift;
+    my $doc = shift;
     my %cmdopts;
     my %docopts;
     my $ok = 1;
@@ -506,8 +549,8 @@ sub checkflags() {
     close CFH;
 
     # Get the list of flags from the synopsis
-    open CFH, "<doc/man1/$cmd.pod"
-        || die "Can't open $cmd.pod, $!";
+    open CFH, "<$doc"
+        || die "Can't open $doc, $!";
     while ( <CFH> ) {
         chop;
         last if /DESCRIPTION/;
@@ -575,13 +618,15 @@ if ( $opt_c ) {
     close FH;
 
     # See if each has a manpage.
-    foreach ( @commands ) {
-        next if $_ eq 'help' || $_ eq 'exit';
-        if ( ! -f "doc/man1/$_.pod" ) {
-            print "doc/man1/$_.pod does not exist\n";
+    foreach my $cmd ( @commands ) {
+        next if $cmd eq 'help' || $cmd eq 'exit';
+        my $doc = "doc/man1/$cmd.pod";
+        $doc = "doc/man1/openssl-$cmd.pod" if -f "doc/man1/openssl-$cmd.pod";
+        if ( ! -f "$doc" ) {
+            print "$doc does not exist\n";
             $ok = 0;
         } else {
-            $ok = 0 if not &checkflags($_);
+            $ok = 0 if not &checkflags($cmd, $doc);
         }
     }
 
@@ -600,7 +645,7 @@ if ( $opt_c ) {
 }
 
 if ( $opt_l ) {
-    foreach (@ARGV ? @ARGV : (glob('doc/*/*.pod'),
+    foreach (@ARGV ? @ARGV : (glob('doc/*/*.pod'), glob('doc/*/*.pod.in'),
                               glob('doc/internal/*/*.pod'))) {
         collectnames($_);
     }
@@ -609,7 +654,7 @@ if ( $opt_l ) {
 
 if ( $opt_n ) {
     &publicize() if $opt_p;
-    foreach (@ARGV ? @ARGV : glob('doc/*/*.pod')) {
+    foreach (@ARGV ? @ARGV : (glob('doc/*/*.pod'), glob('doc/*/*.pod.in'))) {
         &check($_);
     }
     {

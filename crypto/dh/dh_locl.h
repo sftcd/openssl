@@ -10,6 +10,8 @@
 #include <openssl/dh.h>
 #include "internal/refcount.h"
 
+#define DH_MIN_MODULUS_BITS     512
+
 struct dh_st {
     /*
      * This first argument is used to pick up errors when a DH is passed
@@ -35,6 +37,9 @@ struct dh_st {
     const DH_METHOD *meth;
     ENGINE *engine;
     CRYPTO_RWLOCK *lock;
+
+    /* Provider data */
+    size_t dirty_cnt; /* If any key material changes, increment this */
 };
 
 struct dh_method {

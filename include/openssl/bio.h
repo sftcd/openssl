@@ -142,7 +142,7 @@ extern "C" {
 # define BIO_CTRL_DGRAM_SET_PEEK_MODE      71
 
 /*
- * internal BIO see include/internal/bio.h:
+ * internal BIO:
  * # define BIO_CTRL_SET_KTLS_SEND                 72
  * # define BIO_CTRL_SET_KTLS_SEND_CTRL_MSG        74
  * # define BIO_CTRL_CLEAR_KTLS_CTRL_MSG           75
@@ -150,6 +150,9 @@ extern "C" {
 
 # define BIO_CTRL_GET_KTLS_SEND                 73
 # define BIO_CTRL_GET_KTLS_RECV                 76
+
+# define BIO_CTRL_DGRAM_SCTP_WAIT_FOR_DRY       77
+# define BIO_CTRL_DGRAM_SCTP_MSG_WAITING        78
 
 # ifndef OPENSSL_NO_KTLS
 #  define BIO_get_ktls_send(b)         \
@@ -279,6 +282,9 @@ DEFINE_STACK_OF(BIO)
 typedef int asn1_ps_func (BIO *b, unsigned char **pbuf, int *plen,
                           void *parg);
 
+typedef void (*BIO_dgram_sctp_notification_handler_fn) (BIO *b,
+                                                        void *context,
+                                                        void *buf);
 # ifndef OPENSSL_NO_SCTP
 /* SCTP parameter structs */
 struct bio_dgram_sctp_sndinfo {
@@ -629,10 +635,8 @@ const BIO_METHOD *BIO_s_datagram_sctp(void);
 BIO *BIO_new_dgram_sctp(int fd, int close_flag);
 int BIO_dgram_is_sctp(BIO *bio);
 int BIO_dgram_sctp_notification_cb(BIO *b,
-                                   void (*handle_notifications) (BIO *bio,
-                                                                 void *context,
-                                                                 void *buf),
-                                   void *context);
+                BIO_dgram_sctp_notification_handler_fn handle_notifications,
+                void *context);
 int BIO_dgram_sctp_wait_for_dry(BIO *b);
 int BIO_dgram_sctp_msg_waiting(BIO *b);
 #  endif

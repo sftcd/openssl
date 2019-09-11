@@ -207,7 +207,8 @@ static int addr_strings(const BIO_ADDR *ap, int numeric,
                                flags)) != 0) {
 # ifdef EAI_SYSTEM
             if (ret == EAI_SYSTEM) {
-                SYSerr(SYS_F_GETNAMEINFO, get_last_socket_error());
+                ERR_raise_data(ERR_LIB_SYS, get_last_socket_error(),
+                               "calling getnameinfo()");
                 BIOerr(BIO_F_ADDR_STRINGS, ERR_R_SYS_LIB);
             } else
 # endif
@@ -675,7 +676,7 @@ int BIO_lookup_ex(const char *host, const char *service, int lookup_type,
 
     if (1) {
 #ifdef AI_PASSIVE
-        int gai_ret = 0;
+        int gai_ret = 0, old_ret = 0;
         struct addrinfo hints;
 
         memset(&hints, 0, sizeof(hints));
@@ -683,12 +684,12 @@ int BIO_lookup_ex(const char *host, const char *service, int lookup_type,
         hints.ai_family = family;
         hints.ai_socktype = socktype;
         hints.ai_protocol = protocol;
-#ifdef AI_ADDRCONFIG
-#ifdef AF_UNSPEC
+# ifdef AI_ADDRCONFIG
+#  ifdef AF_UNSPEC
         if (family == AF_UNSPEC)
-#endif
+#  endif
             hints.ai_flags |= AI_ADDRCONFIG;
-#endif
+# endif
 
         if (lookup_type == BIO_LOOKUP_SERVER)
             hints.ai_flags |= AI_PASSIVE;
@@ -700,29 +701,30 @@ int BIO_lookup_ex(const char *host, const char *service, int lookup_type,
         switch ((gai_ret = getaddrinfo(host, service, &hints, res))) {
 # ifdef EAI_SYSTEM
         case EAI_SYSTEM:
-            SYSerr(SYS_F_GETADDRINFO, get_last_socket_error());
+            ERR_raise_data(ERR_LIB_SYS, get_last_socket_error(),
+                           "calling getaddrinfo()");
             BIOerr(BIO_F_BIO_LOOKUP_EX, ERR_R_SYS_LIB);
+            break;
+# endif
+# ifdef EAI_MEMORY
+        case EAI_MEMORY:
+            BIOerr(BIO_F_BIO_LOOKUP_EX, ERR_R_MALLOC_FAILURE);
             break;
 # endif
         case 0:
             ret = 1;             /* Success */
             break;
-# if (defined(EAI_FAMILY) || defined(EAI_ADDRFAMILY)) && defined(AI_ADDRCONFIG)
-#  ifdef EAI_FAMILY
-        case EAI_FAMILY:
-#  endif
-#  ifdef EAI_ADDRFAMILY
-        case EAI_ADDRFAMILY:
-#  endif
+        default:
+# if defined(AI_ADDRCONFIG) && defined(AI_NUMERICHOST)
             if (hints.ai_flags & AI_ADDRCONFIG) {
                 hints.ai_flags &= ~AI_ADDRCONFIG;
+                hints.ai_flags |= AI_NUMERICHOST;
+                old_ret = gai_ret;
                 goto retry;
             }
 # endif
-            /* fall through */
-        default:
             BIOerr(BIO_F_BIO_LOOKUP_EX, ERR_R_SYS_LIB);
-            ERR_add_error_data(1, gai_strerror(gai_ret));
+            ERR_add_error_data(1, gai_strerror(old_ret ? old_ret : gai_ret));
             break;
         }
     } else {
@@ -804,12 +806,15 @@ int BIO_lookup_ex(const char *host, const char *service, int lookup_type,
                  */
 # if defined(OPENSSL_SYS_VXWORKS)
                 /* h_errno doesn't exist on VxWorks */
-                SYSerr(SYS_F_GETHOSTBYNAME, 1000 );
+                ERR_raise_data(ERR_LIB_SYS, 1000,
+                               "calling gethostbyname()");
 # else
-                SYSerr(SYS_F_GETHOSTBYNAME, 1000 + h_errno);
+                ERR_raise_data(ERR_LIB_SYS, 1000 + h_errno,
+                               "calling gethostbyname()");
 # endif
 #else
-                SYSerr(SYS_F_GETHOSTBYNAME, WSAGetLastError());
+                ERR_raise_data(ERR_LIB_SYS, get_last_socket_error(),
+                               "calling gethostbyname()");
 #endif
                 ret = 0;
                 goto err;
@@ -855,11 +860,8 @@ int BIO_lookup_ex(const char *host, const char *service, int lookup_type,
                 se = getservbyname(service, proto);
 
                 if (se == NULL) {
-#ifndef OPENSSL_SYS_WINDOWS
-                    SYSerr(SYS_F_GETSERVBYNAME, errno);
-#else
-                    SYSerr(SYS_F_GETSERVBYNAME, WSAGetLastError());
-#endif
+                    ERR_raise_data(ERR_LIB_SYS, get_last_socket_error(),
+                                   "calling getservbyname()");
                     goto err;
                 }
             } else {

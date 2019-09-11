@@ -45,7 +45,7 @@ static void *rand_crng_ossl_ctx_new(OPENSSL_CTX *ctx)
         return NULL;
 
     if ((crngt_glob->crngt_pool
-         = rand_pool_new(0, CRNGT_BUFSIZ, CRNGT_BUFSIZ)) == NULL) {
+         = rand_pool_new(0, 1, CRNGT_BUFSIZ, CRNGT_BUFSIZ)) == NULL) {
         OPENSSL_free(crngt_glob);
         return NULL;
     }
@@ -87,7 +87,7 @@ int rand_crngt_get_entropy_cb(OPENSSL_CTX *ctx,
         if (r != 0)
             memcpy(buf, p, CRNGT_BUFSIZ);
         rand_pool_reattach(pool, p);
-        EVP_MD_meth_free(fmd);
+        EVP_MD_free(fmd);
         return r;
     }
     return 0;
@@ -110,7 +110,7 @@ size_t rand_crngt_get_entropy(RAND_DRBG *drbg,
     if (crngt_glob == NULL)
         return 0;
 
-    if ((pool = rand_pool_new(entropy, min_len, max_len)) == NULL)
+    if ((pool = rand_pool_new(entropy, 1, min_len, max_len)) == NULL)
         return 0;
 
     while ((q = rand_pool_bytes_needed(pool, 1)) > 0 && attempts-- > 0) {

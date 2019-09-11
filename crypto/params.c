@@ -11,6 +11,7 @@
 #include <string.h>
 #include <openssl/params.h>
 #include "internal/thread_once.h"
+#include "internal/numbers.h"
 
 OSSL_PARAM *OSSL_PARAM_locate(OSSL_PARAM *p, const char *key)
 {
@@ -685,7 +686,7 @@ int OSSL_PARAM_set_double(OSSL_PARAM *p, double val)
             return 1;
         }
     } else if (p->data_type == OSSL_PARAM_UNSIGNED_INTEGER
-               && val == (uintmax_t)val) {
+               && val == (ossl_uintmax_t)val) {
         p->return_size = sizeof(double);
         switch (p->data_size) {
         case sizeof(uint32_t):
@@ -702,7 +703,7 @@ int OSSL_PARAM_set_double(OSSL_PARAM *p, double val)
                 return 1;
             }
             break;            }
-    } else if (p->data_type == OSSL_PARAM_INTEGER && val == (intmax_t)val) {
+    } else if (p->data_type == OSSL_PARAM_INTEGER && val == (ossl_intmax_t)val) {
         p->return_size = sizeof(double);
         switch (p->data_size) {
         case sizeof(int32_t):
@@ -807,6 +808,8 @@ int OSSL_PARAM_set_octet_string(OSSL_PARAM *p, const void *val,
 OSSL_PARAM OSSL_PARAM_construct_utf8_string(const char *key, char *buf,
                                             size_t bsize)
 {
+    if (buf != NULL && bsize == 0)
+        bsize = strlen(buf) + 1;
     return ossl_param_construct(key, OSSL_PARAM_UTF8_STRING, buf, bsize);
 }
 

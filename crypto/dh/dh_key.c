@@ -1,5 +1,5 @@
 /*
- * Copyright 1995-2018 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 1995-2019 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -87,6 +87,11 @@ static int generate_key(DH *dh)
         return 0;
     }
 
+    if (BN_num_bits(dh->p) < DH_MIN_MODULUS_BITS) {
+        DHerr(DH_F_GENERATE_KEY, DH_R_MODULUS_TOO_SMALL);
+        return 0;
+    }
+
     ctx = BN_CTX_new();
     if (ctx == NULL)
         goto err;
@@ -125,6 +130,15 @@ static int generate_key(DH *dh)
             l = dh->length ? dh->length : BN_num_bits(dh->p) - 1;
             if (!BN_priv_rand(priv_key, l, BN_RAND_TOP_ONE, BN_RAND_BOTTOM_ANY))
                 goto err;
+            /*
+             * We handle just one known case where g is a quadratic non-residue:
+             * for g = 2: p % 8 == 3
+             */
+            if (BN_is_word(dh->g, DH_GENERATOR_2) && !BN_is_bit_set(dh->p, 2)) {
+                /* clear bit 0, since it won't be a secret anyway */
+                if (!BN_clear_bit(priv_key, 0))
+                    goto err;
+            }
         }
     }
 
@@ -136,15 +150,16 @@ static int generate_key(DH *dh)
         BN_with_flags(prk, priv_key, BN_FLG_CONSTTIME);
 
         if (!dh->meth->bn_mod_exp(dh, pub_key, dh->g, prk, dh->p, ctx, mont)) {
-            BN_free(prk);
+            BN_clear_free(prk);
             goto err;
         }
         /* We MUST free prk before any further use of priv_key */
-        BN_free(prk);
+        BN_clear_free(prk);
     }
 
     dh->pub_key = pub_key;
     dh->priv_key = priv_key;
+    dh->dirty_cnt++;
     ok = 1;
  err:
     if (ok != 1)
@@ -169,6 +184,11 @@ static int compute_key(unsigned char *key, const BIGNUM *pub_key, DH *dh)
     if (BN_num_bits(dh->p) > OPENSSL_DH_MAX_MODULUS_BITS) {
         DHerr(DH_F_COMPUTE_KEY, DH_R_MODULUS_TOO_LARGE);
         goto err;
+    }
+
+    if (BN_num_bits(dh->p) < DH_MIN_MODULUS_BITS) {
+        DHerr(DH_F_COMPUTE_KEY, DH_R_MODULUS_TOO_SMALL);
+        return 0;
     }
 
     ctx = BN_CTX_new();

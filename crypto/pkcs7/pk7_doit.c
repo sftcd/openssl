@@ -137,7 +137,8 @@ static int pkcs7_encode_rinfo(PKCS7_RECIP_INFO *ri,
 }
 
 static int pkcs7_decrypt_rinfo(unsigned char **pek, int *peklen,
-                               PKCS7_RECIP_INFO *ri, EVP_PKEY *pkey)
+                               PKCS7_RECIP_INFO *ri, EVP_PKEY *pkey,
+                               size_t fixlen)
 {
     EVP_PKEY_CTX *pctx = NULL;
     unsigned char *ek = NULL;
@@ -170,7 +171,9 @@ static int pkcs7_decrypt_rinfo(unsigned char **pek, int *peklen,
     }
 
     if (EVP_PKEY_decrypt(pctx, ek, &eklen,
-                         ri->enc_key->data, ri->enc_key->length) <= 0) {
+                         ri->enc_key->data, ri->enc_key->length) <= 0
+            || eklen == 0
+            || (fixlen != 0 && eklen != fixlen)) {
         ret = 0;
         PKCS7err(PKCS7_F_PKCS7_DECRYPT_RINFO, ERR_R_EVP_LIB);
         goto err;
@@ -499,13 +502,14 @@ BIO *PKCS7_dataDecode(PKCS7 *p7, EVP_PKEY *pkey, BIO *in_bio, X509 *pcert)
             for (i = 0; i < sk_PKCS7_RECIP_INFO_num(rsk); i++) {
                 ri = sk_PKCS7_RECIP_INFO_value(rsk, i);
 
-                if (pkcs7_decrypt_rinfo(&ek, &eklen, ri, pkey) < 0)
+                if (pkcs7_decrypt_rinfo(&ek, &eklen, ri, pkey,
+                        EVP_CIPHER_key_length(evp_cipher)) < 0)
                     goto err;
                 ERR_clear_error();
             }
         } else {
             /* Only exit on fatal errors, not decrypt failure */
-            if (pkcs7_decrypt_rinfo(&ek, &eklen, ri, pkey) < 0)
+            if (pkcs7_decrypt_rinfo(&ek, &eklen, ri, pkey, 0) < 0)
                 goto err;
             ERR_clear_error();
         }
@@ -834,11 +838,29 @@ int PKCS7_SIGNER_INFO_sign(PKCS7_SIGNER_INFO *si)
     if (EVP_DigestSignInit(mctx, &pctx, md, NULL, si->pkey) <= 0)
         goto err;
 
+    /*
+     * TODO(3.0): This causes problems when providers are in use, so disabled
+     * for now. Can we get rid of this completely? AFAICT this ctrl has never
+     * been used since it was first put in. All internal implementations just
+     * return 1 and ignore this ctrl and have always done so by the looks of
+     * things. To fix this we could convert this ctrl into a param, which would
+     * require us to send all the signer info data as a set of params...but that
+     * is non-trivial and since this isn't used by anything it may be better
+     * just to remove it. The original commit that added it had this
+     * justification in CHANGES:
+     *
+     * "During PKCS7 signing pass the PKCS7 SignerInfo structure to the
+     *  EVP_PKEY_METHOD before and after signing via the
+     *  EVP_PKEY_CTRL_PKCS7_SIGN ctrl. It can then customise the structure
+     *  before and/or after signing if necessary."
+     */
+#if 0
     if (EVP_PKEY_CTX_ctrl(pctx, -1, EVP_PKEY_OP_SIGN,
                           EVP_PKEY_CTRL_PKCS7_SIGN, 0, si) <= 0) {
         PKCS7err(PKCS7_F_PKCS7_SIGNER_INFO_SIGN, PKCS7_R_CTRL_ERROR);
         goto err;
     }
+#endif
 
     alen = ASN1_item_i2d((ASN1_VALUE *)si->auth_attr, &abuf,
                          ASN1_ITEM_rptr(PKCS7_ATTR_SIGN));
@@ -856,11 +878,29 @@ int PKCS7_SIGNER_INFO_sign(PKCS7_SIGNER_INFO *si)
     if (EVP_DigestSignFinal(mctx, abuf, &siglen) <= 0)
         goto err;
 
+    /*
+     * TODO(3.0): This causes problems when providers are in use, so disabled
+     * for now. Can we get rid of this completely? AFAICT this ctrl has never
+     * been used since it was first put in. All internal implementations just
+     * return 1 and ignore this ctrl and have always done so by the looks of
+     * things. To fix this we could convert this ctrl into a param, which would
+     * require us to send all the signer info data as a set of params...but that
+     * is non-trivial and since this isn't used by anything it may be better
+     * just to remove it. The original commit that added it had this
+     * justification in CHANGES:
+     *
+     * "During PKCS7 signing pass the PKCS7 SignerInfo structure to the
+     *  EVP_PKEY_METHOD before and after signing via the
+     *  EVP_PKEY_CTRL_PKCS7_SIGN ctrl. It can then customise the structure
+     *  before and/or after signing if necessary."
+     */
+#if 0
     if (EVP_PKEY_CTX_ctrl(pctx, -1, EVP_PKEY_OP_SIGN,
                           EVP_PKEY_CTRL_PKCS7_SIGN, 1, si) <= 0) {
         PKCS7err(PKCS7_F_PKCS7_SIGNER_INFO_SIGN, PKCS7_R_CTRL_ERROR);
         goto err;
     }
+#endif
 
     EVP_MD_CTX_free(mctx);
 

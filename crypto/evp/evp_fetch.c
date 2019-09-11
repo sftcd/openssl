@@ -40,7 +40,9 @@ struct method_data_st {
     OPENSSL_CTX *libctx;
     const char *name;
     OSSL_METHOD_CONSTRUCT_METHOD *mcm;
-    void *(*method_from_dispatch)(const OSSL_DISPATCH *, OSSL_PROVIDER *);
+    void *(*method_from_dispatch)(const char *, const OSSL_DISPATCH *,
+                                  OSSL_PROVIDER *, void *);
+    void *method_data;
     int (*refcnt_up_method)(void *method);
     void (*destruct_method)(void *method);
 };
@@ -113,9 +115,9 @@ static void *get_method_from_store(OPENSSL_CTX *libctx, void *store,
 }
 
 static int put_method_in_store(OPENSSL_CTX *libctx, void *store,
-                               void *method, int operation_id,
-                               const char *name, const char *propdef,
-                               void *data)
+                               void *method, const OSSL_PROVIDER *prov,
+                               int operation_id, const char *name,
+                               const char *propdef, void *data)
 {
     struct method_data_st *methdata = data;
     OSSL_NAMEMAP *namemap;
@@ -131,11 +133,9 @@ static int put_method_in_store(OPENSSL_CTX *libctx, void *store,
         && (store = get_default_method_store(libctx)) == NULL)
         return 0;
 
-    if (methdata->refcnt_up_method(method)
-        && ossl_method_store_add(store, methid, propdef, method,
-                                 methdata->destruct_method))
-        return 1;
-    return 0;
+    return ossl_method_store_add(store, prov, methid, propdef, method,
+                                 methdata->refcnt_up_method,
+                                 methdata->destruct_method);
 }
 
 static void *construct_method(const char *name, const OSSL_DISPATCH *fns,
@@ -143,7 +143,8 @@ static void *construct_method(const char *name, const OSSL_DISPATCH *fns,
 {
     struct method_data_st *methdata = data;
 
-    return methdata->method_from_dispatch(fns, prov);
+    return methdata->method_from_dispatch(name, fns, prov,
+                                          methdata->method_data);
 }
 
 static void destruct_method(void *method, void *data)
@@ -155,8 +156,11 @@ static void destruct_method(void *method, void *data)
 
 void *evp_generic_fetch(OPENSSL_CTX *libctx, int operation_id,
                         const char *name, const char *properties,
-                        void *(*new_method)(const OSSL_DISPATCH *fns,
-                                            OSSL_PROVIDER *prov),
+                        void *(*new_method)(const char *name,
+                                            const OSSL_DISPATCH *fns,
+                                            OSSL_PROVIDER *prov,
+                                            void *method_data),
+                        void *method_data,
                         int (*up_ref_method)(void *),
                         void (*free_method)(void *))
 {
@@ -205,6 +209,7 @@ void *evp_generic_fetch(OPENSSL_CTX *libctx, int operation_id,
         mcmdata.destruct_method = free_method;
         mcmdata.refcnt_up_method = up_ref_method;
         mcmdata.destruct_method = free_method;
+        mcmdata.method_data = method_data;
         if ((method = ossl_method_construct(libctx, operation_id, name,
                                             properties, 0 /* !force_cache */,
                                             &mcm, &mcmdata)) != NULL) {
@@ -233,4 +238,44 @@ int EVP_set_default_properties(OPENSSL_CTX *libctx, const char *propq)
         return ossl_method_store_set_global_properties(store, propq);
     EVPerr(EVP_F_EVP_SET_DEFAULT_PROPERTIES, ERR_R_INTERNAL_ERROR);
     return 0;
+}
+
+struct do_all_data_st {
+    void (*user_fn)(void *method, void *arg);
+    void *user_arg;
+    void *(*new_method)(const char *name, const OSSL_DISPATCH *fns,
+                        OSSL_PROVIDER *prov, void *method_data);
+    void (*free_method)(void *);
+};
+
+static void do_one(OSSL_PROVIDER *provider, const OSSL_ALGORITHM *algo,
+                   int no_store, void *vdata)
+{
+    struct do_all_data_st *data = vdata;
+    void *method = data->new_method(algo->algorithm_name,
+                                    algo->implementation, provider, NULL);
+
+    if (method != NULL) {
+        data->user_fn(method, data->user_arg);
+        data->free_method(method);
+    }
+}
+
+void evp_generic_do_all(OPENSSL_CTX *libctx, int operation_id,
+                        void (*user_fn)(void *method, void *arg),
+                        void *user_arg,
+                        void *(*new_method)(const char *name,
+                                            const OSSL_DISPATCH *fns,
+                                            OSSL_PROVIDER *prov,
+                                            void *method_data),
+                        void *method_data,
+                        void (*free_method)(void *))
+{
+    struct do_all_data_st data;
+
+    data.new_method = new_method;
+    data.free_method = free_method;
+    data.user_fn = user_fn;
+    data.user_arg = user_arg;
+    ossl_algorithm_do_all(libctx, operation_id, method_data, do_one, &data);
 }

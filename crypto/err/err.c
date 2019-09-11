@@ -22,6 +22,7 @@
 #include "internal/ctype.h"
 #include "internal/constant_time_locl.h"
 #include "e_os.h"
+#include "err_locl.h"
 
 static int err_load_strings(const ERR_STRING_DATA *str);
 
@@ -63,7 +64,6 @@ static ERR_STRING_DATA ERR_str_libraries[] = {
     {ERR_PACK(ERR_LIB_HMAC, 0, 0), "HMAC routines"},
     {ERR_PACK(ERR_LIB_CT, 0, 0), "CT routines"},
     {ERR_PACK(ERR_LIB_ASYNC, 0, 0), "ASYNC routines"},
-    {ERR_PACK(ERR_LIB_KDF, 0, 0), "KDF routines"},
     {ERR_PACK(ERR_LIB_OSSL_STORE, 0, 0), "STORE routines"},
     {ERR_PACK(ERR_LIB_SM2, 0, 0), "SM2 routines"},
     {ERR_PACK(ERR_LIB_ESNI, 0, 0), "ESNI routines"},
@@ -236,24 +236,6 @@ static void build_SYS_str_reasons(void)
 }
 #endif
 
-#define err_clear_data(p, i) \
-        do { \
-            if ((p)->err_data_flags[i] & ERR_TXT_MALLOCED) {\
-                OPENSSL_free((p)->err_data[i]); \
-                (p)->err_data[i] = NULL; \
-            } \
-            (p)->err_data_flags[i] = 0; \
-        } while (0)
-
-#define err_clear(p, i) \
-        do { \
-            err_clear_data(p, i); \
-            (p)->err_flags[i] = 0; \
-            (p)->err_buffer[i] = 0; \
-            (p)->err_file[i] = NULL; \
-            (p)->err_line[i] = -1; \
-        } while (0)
-
 static void ERR_STATE_free(ERR_STATE *s)
 {
     int i;
@@ -261,7 +243,7 @@ static void ERR_STATE_free(ERR_STATE *s)
     if (s == NULL)
         return;
     for (i = 0; i < ERR_NUM_ERRORS; i++) {
-        err_clear_data(s, i);
+        err_clear_data(s, i, 1);
     }
     OPENSSL_free(s);
 }
@@ -373,43 +355,6 @@ void err_free_strings_int(void)
 
 /********************************************************/
 
-void ERR_put_error(int lib, int func, int reason, const char *file, int line)
-{
-    ERR_STATE *es;
-
-#ifdef _OSD_POSIX
-    /*
-     * In the BS2000-OSD POSIX subsystem, the compiler generates path names
-     * in the form "*POSIX(/etc/passwd)". This dirty hack strips them to
-     * something sensible. @@@ We shouldn't modify a const string, though.
-     */
-    if (strncmp(file, "*POSIX(", sizeof("*POSIX(") - 1) == 0) {
-        char *end;
-
-        /* Skip the "*POSIX(" prefix */
-        file += sizeof("*POSIX(") - 1;
-        end = &file[strlen(file) - 1];
-        if (*end == ')')
-            *end = '\0';
-        /* Optional: use the basename of the path only. */
-        if ((end = strrchr(file, '/')) != NULL)
-            file = &end[1];
-    }
-#endif
-    es = ERR_get_state();
-    if (es == NULL)
-        return;
-
-    es->top = (es->top + 1) % ERR_NUM_ERRORS;
-    if (es->top == es->bottom)
-        es->bottom = (es->bottom + 1) % ERR_NUM_ERRORS;
-    es->err_flags[es->top] = 0;
-    es->err_buffer[es->top] = ERR_PACK(lib, func, reason);
-    es->err_file[es->top] = file;
-    es->err_line[es->top] = line;
-    err_clear_data(es, es->top);
-}
-
 void ERR_clear_error(void)
 {
     int i;
@@ -420,7 +365,7 @@ void ERR_clear_error(void)
         return;
 
     for (i = 0; i < ERR_NUM_ERRORS; i++) {
-        err_clear(es, i);
+        err_clear(es, i, 0);
     }
     es->top = es->bottom = 0;
 }
@@ -500,14 +445,14 @@ static unsigned long get_error_values(int inc, int top, const char **file,
 
     while (es->bottom != es->top) {
         if (es->err_flags[es->top] & ERR_FLAG_CLEAR) {
-            err_clear(es, es->top);
+            err_clear(es, es->top, 0);
             es->top = es->top > 0 ? es->top - 1 : ERR_NUM_ERRORS - 1;
             continue;
         }
         i = (es->bottom + 1) % ERR_NUM_ERRORS;
         if (es->err_flags[i] & ERR_FLAG_CLEAR) {
             es->bottom = i;
-            err_clear(es, es->bottom);
+            err_clear(es, es->bottom, 0);
             continue;
         }
         break;
@@ -539,7 +484,7 @@ static unsigned long get_error_values(int inc, int top, const char **file,
 
     if (data == NULL) {
         if (inc) {
-            err_clear_data(es, i);
+            err_clear_data(es, i, 0);
         }
     } else {
         if (es->err_data[i] == NULL) {
@@ -766,20 +711,17 @@ int ERR_get_next_error_library(void)
     return ret;
 }
 
-static int err_set_error_data_int(char *data, int flags)
+static int err_set_error_data_int(char *data, size_t size, int flags,
+                                  int deallocate)
 {
     ERR_STATE *es;
-    int i;
 
     es = ERR_get_state();
     if (es == NULL)
         return 0;
 
-    i = es->top;
-
-    err_clear_data(es, i);
-    es->err_data[i] = data;
-    es->err_data_flags[i] = flags;
+    err_clear_data(es, es->top, deallocate);
+    err_set_data(es, es->top, data, size, flags);
 
     return 1;
 }
@@ -789,8 +731,18 @@ void ERR_set_error_data(char *data, int flags)
     /*
      * This function is void so we cannot propagate the error return. Since it
      * is also in the public API we can't change the return type.
+     *
+     * We estimate the size of the data.  If it's not flagged as allocated,
+     * then this is safe, and if it is flagged as allocated, then our size
+     * may be smaller than the actual allocation, but that doesn't matter
+     * too much, the buffer will remain untouched or will eventually be
+     * reallocated to a new size.
+     *
+     * callers should be advised that this function takes over ownership of
+     * the allocated memory, i.e. they can't count on the pointer to remain
+     * valid.
      */
-    err_set_error_data_int(data, flags);
+    err_set_error_data_int(data, strlen(data) + 1, flags, 1);
 }
 
 void ERR_add_error_data(int num, ...)
@@ -804,7 +756,8 @@ void ERR_add_error_data(int num, ...)
 void ERR_add_error_vdata(int num, va_list args)
 {
     int i, len, size;
-    char *str, *p, *arg;
+    int flags = ERR_TXT_MALLOCED | ERR_TXT_STRING;
+    char *str, *arg;
     ERR_STATE *es;
 
     /* Get the current error data; if an allocated string get it. */
@@ -812,34 +765,50 @@ void ERR_add_error_vdata(int num, va_list args)
     if (es == NULL)
         return;
     i = es->top;
-    p = es->err_data_flags[i] == (ERR_TXT_MALLOCED | ERR_TXT_STRING)
-            ? es->err_data[i] : "";
 
-    /* Start with initial (or empty) string and allocate a new buffer */
-    size = 80 + strlen(p);
-    if ((str = OPENSSL_malloc(size + 1)) == NULL) {
-        /* ERRerr(ERR_F_ERR_ADD_ERROR_VDATA, ERR_R_MALLOC_FAILURE); */
+    /*
+     * If err_data is allocated already, re-use the space.
+     * Otherwise, allocate a small new buffer.
+     */
+    if ((es->err_data_flags[i] & flags) == flags) {
+        str = es->err_data[i];
+        size = es->err_data_size[i];
+
+        /*
+         * To protect the string we just grabbed from tampering by other
+         * functions we may call, or to protect them from freeing a pointer
+         * that may no longer be valid at that point, we clear away the
+         * data pointer and the flags.  We will set them again at the end
+         * of this function.
+         */
+        es->err_data[i] = NULL;
+        es->err_data_flags[i] = 0;
+    } else if ((str = OPENSSL_malloc(size = 81)) == NULL) {
         return;
+    } else {
+        str[0] = '\0';
     }
-    strcpy(str, p);
+    len = strlen(str);
 
-    for (len = 0; --num >= 0; ) {
+    while (--num >= 0) {
         arg = va_arg(args, char *);
         if (arg == NULL)
             arg = "<NULL>";
         len += strlen(arg);
-        if (len > size) {
+        if (len >= size) {
+            char *p;
+
             size = len + 20;
-            p = OPENSSL_realloc(str, size + 1);
+            p = OPENSSL_realloc(str, size);
             if (p == NULL) {
                 OPENSSL_free(str);
                 return;
             }
             str = p;
         }
-        OPENSSL_strlcat(str, arg, (size_t)size + 1);
+        OPENSSL_strlcat(str, arg, (size_t)size);
     }
-    if (!err_set_error_data_int(str, ERR_TXT_MALLOCED | ERR_TXT_STRING))
+    if (!err_set_error_data_int(str, size, flags, 0))
         OPENSSL_free(str);
 }
 
@@ -867,7 +836,7 @@ int ERR_pop_to_mark(void)
 
     while (es->bottom != es->top
            && (es->err_flags[es->top] & ERR_FLAG_MARK) == 0) {
-        err_clear(es, es->top);
+        err_clear(es, es->top, 0);
         es->top = es->top > 0 ? es->top - 1 : ERR_NUM_ERRORS - 1;
     }
 
