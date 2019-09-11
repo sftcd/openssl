@@ -277,11 +277,17 @@ int main(int argc, char **argv)
 
         if (!SSL_ESNI_enc(one,cr_len,client_random,cid,ckl,ck,&the_esni)) {
             printf("Can't encrypt SSL_ESNI!\n");
+            SSL_ESNI_free(one);
+            OPENSSL_free(one);
+            one=NULL;
             goto end;
         }
 
         if (verbose==1 && !SSL_ESNI_print(out,one,ESNI_SELECT_ALL)) {
             printf("Can't print SSL_ESNI!\n");
+            SSL_ESNI_free(one);
+            OPENSSL_free(one);
+            one=NULL;
             goto end;
         }
         SSL_ESNI_free(one);

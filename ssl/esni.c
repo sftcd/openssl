@@ -1625,34 +1625,40 @@ static unsigned char *esni_hkdf_extract(unsigned char *secret,size_t slen,size_t
 {
     int ret=1;
     unsigned char *outsecret=NULL;
+    size_t tmpolen=0;
     EVP_PKEY_CTX *pctx = EVP_PKEY_CTX_new_id(EVP_PKEY_HKDF, NULL);
     if (pctx==NULL) {
         return NULL;
     }
+    ret = EVP_PKEY_derive_init(pctx);
+    if (ret==1) 
+        ret=EVP_PKEY_CTX_hkdf_mode(pctx, EVP_PKEY_HKDEF_MODE_EXTRACT_ONLY);
+    if (ret==1) 
+        ret=EVP_PKEY_CTX_set_hkdf_md(pctx, md);
+    if (ret==1) 
+        ret=EVP_PKEY_CTX_set1_hkdf_key(pctx, secret, slen);
+    if (ret==1) 
+        ret=EVP_PKEY_CTX_set1_hkdf_salt(pctx, NULL, 0);
+    if (ret!=1)
+        return NULL;
 
-    outsecret=OPENSSL_zalloc(EVP_MAX_MD_SIZE);
+    tmpolen=32;
+    outsecret=OPENSSL_zalloc(2*tmpolen);
     if (outsecret==NULL) {
         EVP_PKEY_CTX_free(pctx);
         return NULL;
     }
 
-    /* 
-     * based on ssl/tls13_enc.c:tls13_generate_secret
-     */
-
-    ret = EVP_PKEY_derive_init(pctx) <= 0
-            || EVP_PKEY_CTX_hkdf_mode(pctx, EVP_PKEY_HKDEF_MODE_EXTRACT_ONLY) <= 0
-            || EVP_PKEY_CTX_set_hkdf_md(pctx, md) <= 0
-            || EVP_PKEY_CTX_set1_hkdf_key(pctx, secret, slen) <= 0
-            || EVP_PKEY_CTX_set1_hkdf_salt(pctx, NULL, 0) <= 0
-            || EVP_PKEY_derive(pctx, outsecret, olen) <= 0;
+    if (ret==1) 
+        ret=EVP_PKEY_derive(pctx, outsecret, &tmpolen);
 
     EVP_PKEY_CTX_free(pctx);
 
-    if (ret!=0) {
+    if (ret!=1) {
         OPENSSL_free(outsecret);
         return NULL;
     }
+    *olen=tmpolen;
     return outsecret;
 }
 
