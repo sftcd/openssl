@@ -25,6 +25,9 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- Added some thoughts as to how one might [configure a web server](web-server-config.md) for ESNI,
+  for discussion before we start coding stuff up.
+
 - Next up will be to really do the re-try stuff if a client gets back a real ESNIKeys in-band.
   But, I need to check out HRR a bit first I guess so see how that's handled as it has some
   similarities.
