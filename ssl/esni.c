@@ -1642,7 +1642,12 @@ static unsigned char *esni_hkdf_extract(unsigned char *secret,size_t slen,size_t
     if (ret!=1)
         return NULL;
 
-    tmpolen=32;
+    /*
+     * FIXME: The 32 here is not generally correct, and it needs to
+     * match the alg or the _derive funtion below barfs (why does it
+     * bother doing that?;-)
+     */
+    tmpolen=32; 
     outsecret=OPENSSL_zalloc(2*tmpolen);
     if (outsecret==NULL) {
         EVP_PKEY_CTX_free(pctx);
