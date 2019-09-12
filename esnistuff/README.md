@@ -27,6 +27,7 @@ Most recent first...
 
 - ``make test`` currently unhappy too.
     - `` make test TESTS=test_provider V=1`` gives details
+    - fixed via re-syncing with upstream again and a ``make update``
 
 - Currently have an "Invalid read" of 8 bytes that's annoying but apparently doesn't
   cause a crash. Somewhere in ``ssl/esni.c:esni_hkdf_extract`` - looks like there's
