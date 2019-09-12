@@ -25,12 +25,19 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- ``make test`` currently unhappy too.
+    - `` make test TESTS=test_provider V=1`` gives details
+
 - Currently have an "Invalid read" of 8 bytes that's annoying but apparently doesn't
   cause a crash. Somewhere in ``ssl/esni.c:esni_hkdf_extract`` - looks like there's
   been some internal change that causes my inputs to functions around ``EVP_PKEY_derive``
   no longer be appropriate. That's not a shocker though as I don't claim to be
   familiar with all the details there - I've mostly copied such code from other
   bits of TLS1.3 stuff;-) Maybe this'll force me to try understand it better.
+    - re-merged with upstream on 20190912 and this problem seems to have disappeared.
+    I may still need to change code in ``ssl/esni.c`` around line 1650 to 
+    handle the lengths better, but it seems to be back working cleanly now
+    (according to valgrind).
 
 - Re-merged with upstream again (20190911)
 

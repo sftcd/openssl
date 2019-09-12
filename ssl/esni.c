@@ -1643,12 +1643,11 @@ static unsigned char *esni_hkdf_extract(unsigned char *secret,size_t slen,size_t
         return NULL;
 
     /*
-     * FIXME: The 32 here is not generally correct, and it needs to
-     * match the alg or the _derive funtion below barfs (why does it
-     * bother doing that?;-)
+     * TODO: The EVP_MAX_MD_SIZE here may not be generally correct, 
+     * so could check what's better...
      */
-    tmpolen=32; 
-    outsecret=OPENSSL_zalloc(2*tmpolen);
+    tmpolen=EVP_MAX_MD_SIZE; 
+    outsecret=OPENSSL_zalloc(tmpolen);
     if (outsecret==NULL) {
         EVP_PKEY_CTX_free(pctx);
         return NULL;
