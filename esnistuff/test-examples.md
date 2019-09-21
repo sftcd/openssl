@@ -43,6 +43,10 @@ I keep forgetting so, as this directory exists...
 
             $ ./testclient.sh -p 8443 -s localhost -H foo.example.com -c example.net -P esnikeys.pub -vd
 
+- Run a client, doing ESNI, with a specific version of ESNIKeyso
+
+            $ ./testclient.sh -p 8443 -s localhost -H foo.example.com -c ff03.example.net -P esnikeydir/ff03.pub -vd
+
 ## Non local tests 
 
 - Our basic bottom line test

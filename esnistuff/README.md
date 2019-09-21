@@ -25,7 +25,10 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
-- ``make test`` currently unhappy too.
+- Added draft-04 (ESNIKeys.version==0xff03) keys and [test-examples](./test-examples.md) 
+  for standalone scripts. Seems to work fine locally.
+
+- ``make test`` was unhappy 
     - `` make test TESTS=test_provider V=1`` gives details
     - fixed via re-syncing with upstream again and a ``make update``
 

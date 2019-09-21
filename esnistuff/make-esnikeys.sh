@@ -38,5 +38,9 @@ do
 done
 $MKBIN -V 0xff02 -o e2.pub -p e2.priv -P foo.example.net -A 127.0.0.100
 $MKBIN -V 0xff02 -o e3.pub -p e3.priv -P bar.example.net -A 127.0.0.101
+# add in an ESNIKeys for draft-04, version 0xff03, might stick with this naming
+# convention in future too to allow testing specific versions locally with
+# the testserver.sh wrapper
+$MKBIN -V 0xff02 -o ff03.pub -p ff03.priv -P ff03.example.net -A 127.0.0.101
 cd ..
 $MKBIN -V 0xff02 -o esnikeys.pub -p esnikeys.priv -P example.net -A esnikeydir/127.0.0.99
