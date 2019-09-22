@@ -57,6 +57,11 @@ I keep forgetting so, as this directory exists...
 
             $ ./testclient.sh -H only.esni.defo.ie -c cover.defo.ie -d
 
+- Nominal to defo.ie, for draft-04 (replace 04 with 03 or 02 as desired) 
+
+            $ ./testclient.sh -V 04 -H only.esni.defo.ie -c cover.defo.ie -d
+
 - Grease to defo.ie
 
             $ ./testclient.sh -c cover.defo.ie -ngd
+

@@ -25,8 +25,11 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
-- Added draft-04 (ESNIKeys.version==0xff03) keys and [test-examples](./test-examples.md) 
-  for standalone scripts. Seems to work fine locally.
+- Added draft-04 (ESNIKeys.version==0xff03) keys to [defo.ie](https://defo.ie/) deployment 
+  and [test-examples](./test-examples.md) for local use. Had to tweak server side greasing
+  code (was greasing even if not asked:-) - seems ok now, but more testing of the various
+  combinations would be good. Had to modify [testclient.sh](./testclient.sh) to handle 
+  multi-valued RRs as drafts -03 and -04 use the same experimental RRTYPE.
 
 - ``make test`` was unhappy 
     - `` make test TESTS=test_provider V=1`` gives details
