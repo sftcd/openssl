@@ -86,7 +86,7 @@ function usage()
     echo "  -L means to not set esni_strict on the command line (be lax)"
     echo "  -n means don't trigger esni at all"
     echo "  -h means print this"
-    echo "  -V allows to specify which draft version to try (values: 02, 03, any; default: any)"
+    echo "  -V allows to specify which draft version to try (values: 02, 03, 04, any; default: any)"
 
 	echo ""
 	echo "The following should work:"
@@ -250,11 +250,11 @@ then
         elif [[ "$DVERSION" == "03" ]]
         then
             echo "Trying $DVERSION"
-		    ESNI=`dig +short -t TYPE65439 $hidden | cut -f 3- -d' ' | sed -e 's/ //g' | sed -e 'N;s/\n//'`
+		    ESNI=`dig +short -t TYPE65439 $hidden | cut -f 3- -d' ' | sed -e 's/ //g' | awk '/^FF02/' | sed -e 'N;s/\n//'`
         elif [[ "$DVERSION" == "04" ]]
         then
             echo "Trying $DVERSION"
-		    ESNI=`dig +short -t TYPE65439 $hidden | cut -f 3- -d' ' | sed -e 's/ //g' | sed -e 'N;s/\n//'`
+		    ESNI=`dig +short -t TYPE65439 $hidden | cut -f 3- -d' ' | sed -e 's/ //g' | awk '/^FF03/' | sed -e 'N;s/\n//'`
         fi
 	fi
 fi
