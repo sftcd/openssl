@@ -1035,7 +1035,7 @@ static int mk_esnikeys(int argc, char **argv)
             int b64len = EVP_EncodeBlock((unsigned char*)esnistr, (unsigned char *)bbuf, bblen);
             esnistr[b64len]='\0';
         }
-        if (ekversion==0xff02) {
+        if (ekversion==0xff02 || ekversion==0xff03) {
             /* binary -> ascii hex */
             char ch3[3];
             int i=0;
