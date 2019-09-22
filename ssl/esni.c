@@ -3465,12 +3465,6 @@ int SSL_ESNI_ext_print(BIO* out, SSL_ESNI_ext *se,int count)
  * When doing GREASE (draft-ietf-tls-grease) we want to make up a
  * phony encrypted SNI. This function will do that:-)
  *
- * Applications can set a callback function (name TBD)
- * that determines the probability of greasing. If that is set and we're not
- * going to grease this time around, then the value of esnip will be NULL
- * on return. The SNI value will be provided to that callback in case
- * that helps decide matters.
- *
  * @param s is the SSL context
  * @param cp is a pointer to a possible greasy ESNI
  * @return 1 for success, other otherwise

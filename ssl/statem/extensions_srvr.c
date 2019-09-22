@@ -2504,7 +2504,7 @@ EXT_RETURN tls_construct_stoc_esni(SSL *s, WPACKET *pkt,
                 }
                 return EXT_RETURN_SENT;
             }
-        } else {
+        } else if (s->esni_attempted == 1 ) {
             /*
              * We've either been GREASEd or the client went wonky and decryption failed
              * so cause sending first ESNIKeys value that may work if the client re-tries
@@ -2527,6 +2527,11 @@ EXT_RETURN tls_construct_stoc_esni(SSL *s, WPACKET *pkt,
                     return EXT_RETURN_FAIL;
             }
             return EXT_RETURN_SENT;
+        } else { 
+            /*
+             * We got a request with no ESNI at all, do nowt
+             */
+            return EXT_RETURN_NOT_SENT;
         }
     } else if (s->esni_attempted==1) {
         /*
