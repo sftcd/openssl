@@ -25,6 +25,11 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- Belatedly noting the existence of the instructions for 
+  [HOWTO build openssl and curl](./building-curl-openssl-with-esni.md).
+  (Was reminded to do this because I had to modify the [curl-esni](curl-esni)
+  shell script.
+
 - Added draft-04 (ESNIKeys.version==0xff03) keys to [defo.ie](https://defo.ie/) deployment 
   and [test-examples](./test-examples.md) for local use. Had to tweak server side greasing
   code (was greasing even if not asked:-) - seems ok now, but more testing of the various
@@ -420,9 +425,10 @@ before ``SSL_esni_enable``.
 
 - Re-merged with upstream. (20190313)
 
-- Started to look at ESNI-enabling [curl](curl.md) Paused that for
+- Started to look at ESNI-enabling curl. Paused that for
   a bit, now that draft-03 has landed (and someone else may be doing
-  work on that I can re-use later).
+  work on that I can re-use later). (Later: @20190923 I deleted
+  those curl notes as they're superseded.)
 
 - I took a look a building [wget](wget.md) with this but it seems like
   wget is a tad too far behind openssl upstream to make that easy and

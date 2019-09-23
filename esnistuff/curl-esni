@@ -26,6 +26,8 @@ usage () {
 
         'draft3' or 'draft-3' -- use ESNI according to Draft 3;
 
+        'draft4' or 'draft-4' -- use ESNI according to Draft 4;
+
         otherwise -- use ESNI according to Draft 2.
 
       ESNI_COVER
@@ -118,7 +120,10 @@ case "${ESNI_PROFILE^^[a-z]}" in
 	enable_esni='--no-esni'
 	;;
     DRAFT3|DRAFT-3)
-	: ${ESNI_KEYS:=`dig +short -t TYPE65439 $hostname | sed -e 's|^[^ ]* [^ ]* ||' -e 's| ||g'`}
+	: ${ESNI_KEYS:=`dig +short -t TYPE65439 $hostname | grep ' FF02' | sed -e 's|^[^ ]* [^ ]* ||' -e 's| ||g'`}
+    ;;
+    DRAFT4|DRAFT-4)
+	: ${ESNI_KEYS:=`dig +short -t TYPE65439 $hostname | grep ' FF03' | sed -e 's|^[^ ]* [^ ]* ||' -e 's| ||g'`}
     ;;
     *)
 	# Default: use DRAFT2
