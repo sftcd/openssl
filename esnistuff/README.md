@@ -28,7 +28,7 @@ Most recent first...
 - Belatedly noting the existence of the instructions for 
   [HOWTO build openssl and curl](./building-curl-openssl-with-esni.md).
   (Was reminded to do this because I had to modify the [curl-esni](curl-esni)
-  shell script.
+  shell script.)
 
 - Added draft-04 (ESNIKeys.version==0xff03) keys to [defo.ie](https://defo.ie/) deployment 
   and [test-examples](./test-examples.md) for local use. Had to tweak server side greasing
