@@ -5,7 +5,7 @@ Initial notes as I play with ESNI-enabling lighttpd-1.4.
 
 - I made a [fork](https://github.com/sftcd/lighttpd1.4)
 
-- Build:
+##  Build:
 
             $ ./autogen.sh 
             ... stuff ...
@@ -19,13 +19,13 @@ Initial notes as I play with ESNI-enabling lighttpd-1.4.
 
 The LDFLAGS seems to be needed to pick up the right .so's.
 
-- Test config:
+##  Test config:
 
 Idea is to copy over a basic lighttpd config that can re-use the
 keys (TLS and ESNI) otherwise used by ``testserver.sh`` so we'll
 put things below in ``esnistuff`` for now.
 
-That config is in ``esnistuff/lighttpdmin.conf``
+That config is in [``esnistuff/lighttpdmin.conf``](./esnistuff/lighttpdmin.conf)
 
 That basically has:
 
@@ -37,10 +37,10 @@ I modified the ``make-example-ca.sh`` script to produce the
 catenated private key + certificate files that lighttpd needs
 to match that configuration.
 
-- Test run:
+##  Test run:
 
-The script ``testlighttpd.sh`` sets environment vars and then
-runs lighttpd from the build, listening on ports 3000 and 3443:
+The script [``testlighttpd.sh``](./testlighttpd.sh) sets environment vars and
+then runs lighttpd from the build, listening on ports 3000 and 3443:
 
             $ ./testlighttpd.sh
 
@@ -63,7 +63,7 @@ Note that if you omit the "-n" above, then a real ESNI will be sent and cause an
 
 I guess that should be a useful pointer into the lighttpd ``mod_openssl`` code!
 
-- Next up:
+##  Next up:
 
 Try figure out how to turn on ESNI within the server!
 
