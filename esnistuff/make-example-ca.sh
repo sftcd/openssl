@@ -117,6 +117,9 @@ do
 		-days 3650 -keyfile oe.priv -cert oe.csr \
 		-passin pass:$PASS -config openssl.cnf
 	((index++))
+    # make a file with catenated private key and cert for use 
+    # with lighttpd
+    cat $host.priv $host.crt >$host.pem
 done
 
 # If we have an NSS build, create an NSS DB for our fake root so we can 

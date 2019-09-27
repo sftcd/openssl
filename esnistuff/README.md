@@ -25,6 +25,13 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- I made a fork of [lighttpd](https://github.com/sftcd/lighttpd1.4) and
+will (shortly) start to try integrate ESNI with that. The main reason
+is that it'll likely be simpler/quicker to get something working with
+that than apache or nginx and we'll likely learn better how to tackle
+the more popular web servers by first tackling a simpler one. 
+There's notes about that in [lighttpd.md](./lighttpd.md).
+
 - Belatedly noting the existence of the instructions for 
   [HOWTO build openssl and curl](./building-curl-openssl-with-esni.md).
   (Was reminded to do this because I had to modify the [curl-esni](curl-esni)

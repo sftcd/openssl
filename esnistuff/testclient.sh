@@ -18,7 +18,8 @@ DEBUG="no"
 PORT="443"
 SUPPLIEDPORT=""
 GREASE="no"
-HTTPPATH="/cdn-cgi/trace"
+# HTTPPATH="index.html"
+HTTPPATH=""
 
 # which draft version we wanna go for 
 # DVERSION="02" => TXT RR from draft-02
@@ -73,6 +74,7 @@ function usage()
 {
     echo "$0 [-cHPpsrdnlvhLV] - try out encrypted SNI via openssl s_client"
 	echo "  -c [name] specifices a covername that I'll send as a clear SNI (NONE is special)"
+    echo "  -f [pathname] specifies the file/pathname to request (default: '/')"
     echo "  -H means try connect to that hidden server"
 	echo "  -P [filename] means read ESNIKeys public value from file and not DNS"
 	echo "  -s [name] specifices a server to which I'll connect (localhost=>local certs, unless you also provide --realcert)"
@@ -95,7 +97,7 @@ function usage()
 }
 
 # options may be followed by one colon to indicate they have a required argument
-if ! options=$(/usr/bin/getopt -s bash -o gS:c:P:H:p:s:dlvnhLV: -l grease:,session:,cover:,esnipub:,hidden:,port:,server:,debug,stale,valgrind,noesni,help,lax,version: -- "$@")
+if ! options=$(/usr/bin/getopt -s bash -o f:gS:c:P:H:p:s:dlvnhLV: -l filepath:,grease:,session:,cover:,esnipub:,hidden:,port:,server:,debug,stale,valgrind,noesni,help,lax,version: -- "$@")
 then
     # something went wrong, getopt will put out an error message for us
     exit 1
@@ -105,20 +107,21 @@ eval set -- "$options"
 while [ $# -gt 0 ]
 do
     case "$1" in
-        -h|--help) usage;;
-        -d|--debug) DEBUG="yes" ;;
-        -l|--stale) STALE="yes" ;;
-        -v|--valgrind) VG="yes" ;;
-        -n|--noesni) NOESNI="yes" ;;
-        -r|--realcert) REALCERT="yes" ;;
         -c|--cover) SUPPLIEDCOVER=$2; shift;;
-        -s|--server) SUPPLIEDSERVER=$2; shift;;
-        -H|--hidden) SUPPLIEDHIDDEN=$2; shift;;
-        -S|--session) SUPPLIEDSESSION=$2; shift;;
-		-P|--esnipub) SUPPLIEDESNI=$2; shift;;
-		-L|--lax) BELAX="yes";;
+        -d|--debug) DEBUG="yes" ;;
+        -f|--filepath) HTTPPATH=$2; shift;;
 		-g|--grease) GREASE="yes";;
+        -h|--help) usage;;
+        -H|--hidden) SUPPLIEDHIDDEN=$2; shift;;
+        -l|--stale) STALE="yes" ;;
+		-L|--lax) BELAX="yes";;
+        -n|--noesni) NOESNI="yes" ;;
         -p|--port) SUPPLIEDPORT=$2; shift;;
+		-P|--esnipub) SUPPLIEDESNI=$2; shift;;
+        -r|--realcert) REALCERT="yes" ;;
+        -s|--server) SUPPLIEDSERVER=$2; shift;;
+        -S|--session) SUPPLIEDSESSION=$2; shift;;
+        -v|--valgrind) VG="yes" ;;
         -V|--version) SUPPLIEDVERSION=$2; shift;;
         (--) shift; break;;
         (-*) echo "$0: error - unrecognized option $1" 1>&2; exit 1;;
@@ -283,7 +286,7 @@ then
 fi
 
 #httpreq="GET $HTTPPATH\\r\\n\\r\\n"
-httpreq="GET / HTTP/1.1\r\nConnection: close\r\nHost: $hidden\r\n\r\n"
+httpreq="GET /$HTTPPATH HTTP/1.1\r\nConnection: close\r\nHost: $hidden\r\n\r\n"
 
 # tell it where CA stuff is...
 if [[ "$server" != "localhost" ]]
