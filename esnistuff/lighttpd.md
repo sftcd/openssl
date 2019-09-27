@@ -25,7 +25,7 @@ Idea is to copy over a basic lighttpd config that can re-use the
 keys (TLS and ESNI) otherwise used by ``testserver.sh`` so we'll
 put things below in ``esnistuff`` for now.
 
-That config is in [``esnistuff/lighttpdmin.conf``](./esnistuff/lighttpdmin.conf)
+That config is in [``lighttpdmin.conf``](./lighttpdmin.conf)
 
 That basically has:
 
