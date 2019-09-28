@@ -39,7 +39,7 @@ fi
 FOREGROUND="-D "
 
 # set to use valgrind, unset to not
-VALGRIND="valgrind "
-# VALGRIND=""
+# VALGRIND="valgrind "
+VALGRIND=""
 
 $VALGRIND $LIGHTY/src/lighttpd $FOREGROUND -f $OSSL/esnistuff/lighttpdmin.conf -m $LIGHTY/src/.libs

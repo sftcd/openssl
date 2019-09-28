@@ -484,6 +484,15 @@ int SSL_ESNI_ext_print(BIO* out, SSL_ESNI_ext *se, int count);
  */
 int SSL_esni_reduce(SSL_ESNI *in, int index, SSL_ESNI **out);
 
+
+/**
+ * Zap the set of stored ESNI Keys to allow a re-load without hogging memory
+ *
+ * @param s is the SSL server context
+ * @return 1 for success, other otherwise
+ */
+int SSL_esni_server_flush_keys(SSL_CTX *s);
+
 /**
  * Turn on SNI Encryption, server-side
  *

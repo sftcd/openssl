@@ -21,34 +21,35 @@ The LDFLAGS seems to be needed to pick up the right .so's.
 
 ##  Configuration
 
-Idea is to copy over a basic lighttpd config that can re-use the
-keys (TLS and ESNI) otherwise used by ``testserver.sh`` so we'll
+Idea is to have a minimal lighttpd config that can re-use the
+keys (TLS and ESNI) otherwise used by ``testserver.sh``  - so we'll
 put things below ``esnistuff`` in our openssl repo clone for now.
-
 I modified the ``make-example-ca.sh`` script to produce the 
 catenated private key + certificate files that lighttpd needs
-to match that configuration.
+to match our configuration.
 
 That config is in [``lighttpdmin.conf``](./lighttpdmin.conf)
 
-That basically has example.com and foo.example.com listening on port 3443.
+That basically has example.com and foo.example.com both listening 
+on port 3443.
 
-To ESNI-enable that I added two new lighttpd configuration settings:
+To ESNI-enable that I added three new lighttpd configuration settings:
 
-- ssl.esnimaxage - a time in seconds specifying how old an ESNI key pair can get
-   (0 => infinite age, and 0 is the default so this is optional)
 - ssl.esnikeydir - the name of a directory we scan for ESNI key files (as produced
-   by [``mk_esnikeys.c``](./mk_esnikeys.c) - we load all key pairs where we find
-   matching <foo>.priv and <foo>.pub files with the right content that are not
-   older than ssl.esnimaxage - this is basically how you enable ESNI
+  by [``mk_esnikeys.c``](./mk_esnikeys.c)) - we load all key pairs where we find
+  matching <foo>.priv and <foo>.pub files in that directory with the right content 
+  This allows for "outisde" key management as noted in our notes on 
+  [web server integration](./web-server-config.md).
+- ssl.esnirefresh - a time in seconds specifying how often the server
+  should try re-load the keys (default: 1800) 
+- ssl.esnitrialdecrypt - set to "disable" (exactly) to turn off trial decryption,
+  (it's is on by default).
 
-If you want the server to do trial decryption (off by default for now),
-then you need to add a configuration setting for that:
-
-- ssl.esnitrialdecrypt - set to "enable" (exactly) to enable trial decryption.
-  Trial decryption here means if an ESNI extension received from a client has
-no digest that matches a loaded ESNI key, then we go through them all and try
-decrypt anyway.
+Trial decryption here means if an ESNI extension received from a client has
+a digest that doesn't match any loaded ESNI key, then we go through all loaded
+ESNI keys and try use each to decrypt anyway, before we fail. For lighttpd,
+that seems to make sense as we're expecting servers to be small and not
+have many ESNI keys loaded.
 
 ##  Test runs
 
@@ -82,38 +83,44 @@ seems to just work, more-or-less first time. Who'da thunk! :-)
 To try that out:
 
             $ ./testlighttpd.sh 
-            2019-09-28 13:09:40: (mod_openssl.c.1088) SSL: loading esnikeydir  /home/stephen/code/openssl/esnistuff/esnikeydir for config item 0 
-            2019-09-28 13:09:40: (mod_openssl.c.809) load_esnikeys:   /home/stephen/code/openssl/esnistuff/esnikeydir maxage:  10800 
-            2019-09-28 13:09:40: (mod_openssl.c.857) load_esnikeys worked for  /home/stephen/code/openssl/esnistuff/esnikeydir/ff01.pub 
-            2019-09-28 13:09:40: (mod_openssl.c.857) load_esnikeys worked for  /home/stephen/code/openssl/esnistuff/esnikeydir/e3.pub 
-            2019-09-28 13:09:40: (mod_openssl.c.857) load_esnikeys worked for  /home/stephen/code/openssl/esnistuff/esnikeydir/ff03.pub 
-            2019-09-28 13:09:40: (mod_openssl.c.857) load_esnikeys worked for  /home/stephen/code/openssl/esnistuff/esnikeydir/e2.pub 
+            2019-09-28 16:37:12: (mod_openssl.c.862) load_esnikeys worked for  /home/stephen/code/openssl/esnistuff/esnikeydir/ff01.pub 
+            2019-09-28 16:37:12: (mod_openssl.c.862) load_esnikeys worked for  /home/stephen/code/openssl/esnistuff/esnikeydir/e3.pub 
+            2019-09-28 16:37:12: (mod_openssl.c.862) load_esnikeys worked for  /home/stephen/code/openssl/esnistuff/esnikeydir/ff03.pub 
+            2019-09-28 16:37:12: (mod_openssl.c.862) load_esnikeys worked for  /home/stephen/code/openssl/esnistuff/esnikeydir/e2.pub 
 
             ... then in another shell...
             $ ./testclient.sh -p 3443 -s localhost -H foo.example.com  -c example.com -d -f index.html  -P esnikeydir/ff03.pub 
             ...
-            ./testclient.sh Summary: 
-            Nonce sent: OPENSSL: ESNI Nonce is NULL
-            OPENSSL: ESNI H/S Client Random is NULL
-            --
             OPENSSL: ESNI Nonce (16):
-                f3:44:21:76:c2:c0:ac:61:ea:62:7d:c3:d9:3a:61:bc:
+                83:a5:0b:da:86:5a:f0:12:cd:28:e2:93:ea:56:f5:cb:
             Nonce Back: <<< TLS 1.3, Handshake [length 001b], EncryptedExtensions
-                08 00 00 17 00 15 ff ce 00 11 00 f3 44 21 76 c2
-                c0 ac 61 ea 62 7d c3 d9 3a 61 bc
+                08 00 00 17 00 15 ff ce 00 11 00 83 a5 0b da 86
+                5a f0 12 cd 28 e2 93 ea 56 f5 cb
             ESNI: success: cover: example.com, hidden: foo.example.com
 
 And the esnistuff/lighttpd/log/access.log file for ligtthpd said:
 
             ...
-            127.0.0.1 foo.example.com - [28/Sep/2019:13:03:26 +0100] "GET /index.html HTTP/1.1" 200 458 "-" "-"
+            127.0.0.1 foo.example.com - [28/Sep/2019:16:37:55 +0100] "GET /index.html HTTP/1.1" 200 458 "-" "-"
             ...
 
 Yay!
 
-## Next up...
+## Further improvement
 
-- Refuse to load keys that are too old (inside ``load_esnikeys``)
-- Figure out when/how to re-scan ESNI keys directory
-
-
+- The server will re-load all ESNI keys found inside the configured directory
+  once every refresh period. Before doing that it ditches all current ESNI keys
+though (via ``SSL_esni_server_flush_keys()``). It'd be better if the server
+could just keep calling ``SSL_esni_server_enable()`` and have the library
+internally figure out if the supplied key is new or old or not. Need to ponder
+how best to do that. Migth be most sensible to not make changes here until we
+see how those might work out in Apache or Nginx too.
+- At present, if the server tries but fails to re-load the ESNI keys and if
+  that fails (e.g. due to a disk error) then the server will stop doing ESNI.
+That could be more robust, and e.g. fall back to the last set of keys that did
+successfully load. We'd need to change the OpenSSL API for that though.
+- The check as to whether or not ESNI keys need to be re-loaded happens with
+  each new TLS connection. (Actually loading keys only happens when the refresh
+period has gone by.) There may well be a better way to trigger that check, e.g.
+there is some timing-based code in ``server.c`` but putting OpenSSL-specific
+code in there would seem wrong, so maybe come back to this later. 

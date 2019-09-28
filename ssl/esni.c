@@ -2794,6 +2794,34 @@ int SSL_esni_enable(SSL *s, const char *hidden, const char *cover, SSL_ESNI *esn
     return 1;
 }
 
+/**
+ * Zap the set of stored ESNI Keys to allow a re-load without hogging memory
+ *
+ * @param s is the SSL server context
+ * @return 1 for success, other otherwise
+ */
+int SSL_esni_server_flush_keys(SSL_CTX *s)
+{
+    if (s==NULL) return 0;
+    if (s->ext.esni==NULL) return 1;
+    SSL_ESNI_free(s->ext.esni);
+    OPENSSL_free(s->ext.esni);
+    s->ext.esni=NULL;
+    return 1;
+}
+
+
+/**
+ * Turn on SNI Encryption, server-side
+ *
+ * When this works, the server will decrypt any ESNI seen in ClientHellos and
+ * subsequently treat those as if they had been send in cleartext SNI.
+ *
+ * @param ctx is the SSL server context
+ * @param esnikeyfile has the relevant (X25519) private key in PEM format
+ * @param esnipubfile has the relevant (binary encoded, not base64) ESNIKeys structure
+ * @return 1 for success, other otherwise
+ */
 int SSL_esni_server_enable(SSL_CTX *ctx, const char *esnikeyfile, const char *esnipubfile)
 {
     /*

@@ -532,3 +532,5 @@ SSL_esni_reduce                         823	3_0_0	EXIST::FUNCTION:
 SSL_SESSION_set1_covername              824	3_0_0	EXIST::FUNCTION:ESNI
 SSL_SESSION_set1_public_name            825	3_0_0	EXIST::FUNCTION:ESNI
 SSL_ESNI_grease_me                      826	3_0_0	EXIST::FUNCTION:
+SSL_esni_serverf_flush_keys             827	3_0_0	NOEXIST::FUNCTION:
+SSL_esni_server_flush_keys              828	3_0_0	EXIST::FUNCTION:

@@ -25,6 +25,14 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- When adding code to the lighttpd server to reload ESNI keys periodically,
+I realised I needed a way to ensure we don't just keep growing
+the internal table of ESNI keys. Could likely be done better, but
+for now, I've just defined a new function ``SSL_esni_server_flush_keys()``
+that can be called before calling ``SSL_esni_server_enable()``.
+The latter function gets called once for each currently valid
+key.
+
 - I made a fork of [lighttpd](https://github.com/sftcd/lighttpd1.4) and
 have integrated ESNI with that. The main reason
 is that it'll likely be simpler/quicker to get something working with
