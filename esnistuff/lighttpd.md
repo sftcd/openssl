@@ -42,6 +42,14 @@ To ESNI-enable that I added two new lighttpd configuration settings:
    matching <foo>.priv and <foo>.pub files with the right content that are not
    older than ssl.esnimaxage - this is basically how you enable ESNI
 
+If you want the server to do trial decryption (off by default for now),
+then you need to add a configuration setting for that:
+
+- ssl.esnitrialdecrypt - set to "enable" (exactly) to enable trial decryption.
+  Trial decryption here means if an ESNI extension received from a client has
+no digest that matches a loaded ESNI key, then we go through them all and try
+decrypt anyway.
+
 ##  Test runs
 
 The script [``testlighttpd.sh``](./testlighttpd.sh) sets environment vars and
@@ -107,6 +115,5 @@ Yay!
 
 - Refuse to load keys that are too old (inside ``load_esnikeys``)
 - Figure out when/how to re-scan ESNI keys directory
-- Add control to enable trial decryption
 
 
