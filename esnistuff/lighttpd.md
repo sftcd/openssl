@@ -29,7 +29,6 @@ That config is in [``lighttpdmin.conf``](./lighttpdmin.conf)
 
 That basically has:
 
-- HTTP on port 3000
 - example.com and foo.example.com listening on port 3443
 - (ESNI enabling TBD)
 
@@ -63,8 +62,59 @@ Note that if you omit the "-n" above, then a real ESNI will be sent and cause an
 
 I guess that should be a useful pointer into the lighttpd ``mod_openssl`` code!
 
-##  Next up:
+## Configuring ESNI in lighttpd
 
-Try figure out how to turn on ESNI within the server!
+I added two new configuration settings:
+
+- ssl.esnimaxage - a time in seconds specifying how old an ESNI key pair can get
+   (0 => infinite age)
+- ssl.esnikeydir - the name of a directory we scan for ESNI key files (as produced
+   by [``mk_esnikeys.c``](./mk_esnikeys.c) - we load all key pairs where we find
+   matching <foo>.priv and <foo>.pub files with the right content that are not
+   older than ssl.esnimaxage
+
+## Run-time modification
+
+Based on those configurations (i.e. if esnikeydir is set) I wrote up a
+``load_esnikeys()`` function to call ``SSL_esni_server_enable()``, and that...
+seems to just work, more-or-less first time. Who'da thunk! :-)
+
+To try that out:
+
+            $ ./testlighttpd.sh 
+            2019-09-28 13:09:40: (mod_openssl.c.1088) SSL: loading esnikeydir  /home/stephen/code/openssl/esnistuff/esnikeydir for config item 0 
+            2019-09-28 13:09:40: (mod_openssl.c.809) load_esnikeys:   /home/stephen/code/openssl/esnistuff/esnikeydir maxage:  10800 
+            2019-09-28 13:09:40: (mod_openssl.c.857) load_esnikeys worked for  /home/stephen/code/openssl/esnistuff/esnikeydir/ff01.pub 
+            2019-09-28 13:09:40: (mod_openssl.c.857) load_esnikeys worked for  /home/stephen/code/openssl/esnistuff/esnikeydir/e3.pub 
+            2019-09-28 13:09:40: (mod_openssl.c.857) load_esnikeys worked for  /home/stephen/code/openssl/esnistuff/esnikeydir/ff03.pub 
+            2019-09-28 13:09:40: (mod_openssl.c.857) load_esnikeys worked for  /home/stephen/code/openssl/esnistuff/esnikeydir/e2.pub 
+
+            ... and in another shell...
+            $ ./testclient.sh -p 3443 -s localhost -H foo.example.com  -c example.com -d -f index.html  -P esnikeydir/ff03.pub 
+            ...
+            ./testclient.sh Summary: 
+            Nonce sent: OPENSSL: ESNI Nonce is NULL
+            OPENSSL: ESNI H/S Client Random is NULL
+            --
+            OPENSSL: ESNI Nonce (16):
+                f3:44:21:76:c2:c0:ac:61:ea:62:7d:c3:d9:3a:61:bc:
+            Nonce Back: <<< TLS 1.3, Handshake [length 001b], EncryptedExtensions
+                08 00 00 17 00 15 ff ce 00 11 00 f3 44 21 76 c2
+                c0 ac 61 ea 62 7d c3 d9 3a 61 bc
+            ESNI: success: cover: example.com, hidden: foo.example.com
+
+And the access.log file for ligtthpd said:
+
+            ...
+            127.0.0.1 foo.example.com - [28/Sep/2019:13:03:26 +0100] "GET /index.html HTTP/1.1" 200 458 "-" "-"
+            ...
+
+Yay!
+
+## Next up...
+
+- Refuse to load keys that are too old (inside ``load_esnikeys``)
+- Figure out when/how to re-scan ESNI keys directory
+- Add control trial decryption
 
 
