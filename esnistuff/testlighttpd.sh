@@ -5,7 +5,6 @@
 OSSL="$HOME/code/openssl"
 LIGHTY="$HOME/code/lighttpd1.4"
 
-#export LD_LIBRARY_PATH=$OSSL:$LIGHTY/src/.libs
 export LD_LIBRARY_PATH=$OSSL
 
 # make directories for lighttpd stuff if needed
@@ -39,4 +38,8 @@ fi
 # unset =>daemon
 FOREGROUND="-D "
 
-$LIGHTY/src/lighttpd $FOREGROUND -f $OSSL/esnistuff/lighttpdmin.conf -m $LIGHTY/src/.libs
+# set to use valgrind, unset to not
+VALGRIND="valgrind "
+# VALGRIND=""
+
+$VALGRIND $LIGHTY/src/lighttpd $FOREGROUND -f $OSSL/esnistuff/lighttpdmin.conf -m $LIGHTY/src/.libs
