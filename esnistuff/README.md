@@ -25,6 +25,9 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- Deployed lighttpd on defo.ie. Seems to work nicely, so we're out of
+the chewing gum and glue phase maybe:-)
+
 - When adding code to the lighttpd server to reload ESNI keys periodically,
 I realised I needed a way to ensure we don't just keep growing
 the internal table of ESNI keys. Could likely be done better, but
