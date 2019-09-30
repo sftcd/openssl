@@ -127,6 +127,75 @@ as designed and might be doing their own bits of TLS.
 
 With that done, FF nightly and my test scripts both seem ok with things:-)
 
+## Letting web site know ESNI was used
+
+I'll go for having a bit of PHP script inside index.html displaying
+a check mark or cross, depending whether ESNI was used to access the
+page or not. I'm following the relevant bits of these 
+[instructions](https://www.howtoforge.com/tutorial/installing-lighttpd-with-php7-php-fpm-and-mysql-on-ubuntu-16.04-lts/).
+
+- Install PHP if needed... (versions may be different, so 7.2 might be
+  something else everywhere)
+
+            $ sudo apt-get -y install php7.2-fpm php7.2
+
+- Edit ``/etc/php/7.2/fpm/php.ini`` to uncomment ``cgi.fix_pathinfo=1``
+
+- Edit your lighttpd config to include:
+
+            server.modules += ( "mod_fastcgi" )
+            fastcgi.server += ( ".php" =>
+                    ((
+                            "socket" => "/var/run/php/php7.2-fpm.sock",
+                            "broken-scriptfilename" => "enable"
+                    ))
+            )
+
+I then further modified the lighttpd server (in ``mod_openssl.c:esni_status2env``) 
+so that some ESNI related settings are placed into the environment. Those can be
+used by e.g. PHP scripts. 
+
+Those are:
+
+- ``SSL_ESNI_STATUS``: values can be: 
+    - "not attempted" - if the client didn't include the TLS ClientHello extension at all
+    - "success" - if it all worked (succesful ESNI decrypt)
+    - "tried but failed" - something went wrong during attempted decryption
+    - "worked but bad name" - this is a client-side error, if the TLS server cert didn't match the ESNI
+    - "error getting ESNI status" - if the call to ``SSL_esni_get_status`` failed
+- ``SSL_ESNI_HIDDEN``: will contain the actual ESNI used or "EMPTY" 
+- ``SSL_ESNI_COVER``: will contain the cleartext SNI seen or "EMPTY"
+
+Here's a PHP snippet that will display those:
+
+            <?php
+                function getRequestHeaders() {
+                    $headers = array();
+                    foreach($_SERVER as $key => $value) {
+                        if (substr($key, 0, 9) <> 'SSL_ESNI_') {
+                            continue;
+                        }
+                        $headers[$key] = $value;
+                     }
+                    return $headers;
+                }
+                
+                $headers = getRequestHeaders();
+                
+                foreach ($headers as $header => $value) {
+                    echo "$header: $value <br />\n";
+                }
+            ?>
+
+For now, similar information is also written to the lighttpd error.log for
+every request if logging is enabled. That has the result, the cover (if any)
+and the hidden (if any) and looks like: 
+
+            2019-09-30 16:18:02: (mod_openssl.c.462) esni_status:  success cover.defo.ie only.esni.defo.ie 
+            2019-09-30 16:29:18: (mod_openssl.c.462) esni_status:  not attempted NULL NULL 
+            2019-09-30 16:29:38: (mod_openssl.c.462) esni_status:  success NULL canbe.esni.defo.ie 
+
+
 ## Further improvement
 
 - The server will re-load all ESNI keys found inside the configured directory
@@ -146,5 +215,13 @@ though.
 period has gone by.) There may well be a better way to trigger that check, e.g.
 there is some timing-based code in ``server.c`` but putting OpenSSL-specific
 code in there would seem wrong, so maybe come back to this later. 
-- Add some ESNI tracing e.g. when ``debug.log-request-handling`` is enabled.
+- The interaction between "outside" key management and re-publication, coupled
+  with the way I'm reloading keys caused a problem - initially keys were being
+reloaded every 1200 seconds, but there was only 3 minutes between the time when
+the "outside" key manager job generated new keys and the time when the
+zonefactory (re-)publisher tested to see if they worked. So that test was
+failing, resulting in the new keys not being published and things getting out
+of whack. As a quick, temporary, fix, I'm reloading keys every 2 mins now, but
+this just highlights the need for a different interface, e.g. sending a signal
+that a reload is needed or something.
 
