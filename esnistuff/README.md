@@ -25,6 +25,10 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- Added "ESNI only" setup to lighttpd build. Just to see if it's worth it.
+  (Though it was a good bit more work than I thought to get it working as
+it happened.)
+
 - Deployed lighttpd on defo.ie. Seems to work nicely, so we're out of
 the chewing gum and glue phase maybe:-)
 

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# set -x
+set -x
 
 OSSL="$HOME/code/openssl"
 LIGHTY="$HOME/code/lighttpd1.4"
@@ -8,13 +8,14 @@ LIGHTY="$HOME/code/lighttpd1.4"
 export LD_LIBRARY_PATH=$OSSL
 
 # make directories for lighttpd stuff if needed
-mkdir -p $OSSL/lighttpd/logs
-mkdir -p $OSSL/lighttpd/www
+mkdir -p $OSSL/esnistuff/lighttpd/logs
+mkdir -p $OSSL/esnistuff/lighttpd/www
+mkdir -p $OSSL/esnistuff/lighttpd/baz
 
-# check for/make a home page
-if [ ! -f $OSSL/lighttpd/www/index.html ]
+# check for/make a home page for example.com and other virtual hosts
+if [ ! -f $OSSL/esnistuff/lighttpd/www/index.html ]
 then
-    cat >$OSSL/lighttpd/www/index.html <<EOF
+    cat >$OSSL/esnistuff/lighttpd/www/index.html <<EOF
 
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
     "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
@@ -34,12 +35,36 @@ vlink="#000080" alink="#FF0000">
 EOF
 fi
 
+# check for/make a slightly different home page for baz.example.com
+if [ ! -f $OSSL/esnistuff/lighttpd/baz/index.html ]
+then
+    cat >$OSSL/esnistuff/lighttpd/baz/index.html <<EOF
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<title>Lighttpd top page.</title>
+</head>
+<!-- Background white, links blue (unvisited), navy (visited), red
+(active) -->
+<body bgcolor="#FFFFFF" text="#000000" link="#0000FF"
+vlink="#000080" alink="#FF0000">
+<p>This is the pretty dumb top page for baz.example.com testing. </p>
+
+</body>
+</html>
+
+EOF
+fi
+
 # set to run in foreground or as daemon -D => foreground
 # unset =>daemon
 FOREGROUND="-D "
 
 # set to use valgrind, unset to not
-# VALGRIND="valgrind "
-VALGRIND=""
+VALGRIND="valgrind --leak-check=full"
+# VALGRIND=""
 
+echo "Executing: $VALGRIND $LIGHTY/src/lighttpd $FOREGROUND -f $OSSL/esnistuff/lighttpdmin.conf -m $LIGHTY/src/.libs"
 $VALGRIND $LIGHTY/src/lighttpd $FOREGROUND -f $OSSL/esnistuff/lighttpdmin.conf -m $LIGHTY/src/.libs
