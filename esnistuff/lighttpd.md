@@ -196,9 +196,17 @@ be fun to play and see if it turns out to be useful.
 To that end we've added an "ssl.esnionly" label that can be in a lighttpd configuration
 for a TLS listener. If that is present and if the relevant server.name is used in the
 cleartext SNI (with or without ESNI) then the TLS connection will fail.
-
 For example, in my [localhost test setup](lighttpdmin.conf) baz.example.com is
-now "ESNI only" 
+now maked "ESNI only" as is [only.esni.defo.ie](https://only.esni.defo.ie/) in
+our test deployment. 
+
+Failing this check is logged in the error log, e.g.:
+
+            2019-10-07 21:33:33: (mod_openssl.c.531) esni_status:  not attempted cover: NULL hidden: NULL 
+            2019-10-07 21:33:33: (mod_openssl.c.644) esnionly abuse for only.esni.defo.ie from 2001:DB8::bad
+            2019-10-07 21:33:33: (mod_openssl.c.2130) SSL: 1 error:140000EA:SSL routines::callback failed 
+
+That log line includes the requesting IP address for now.
 
 ## Further improvement
 
