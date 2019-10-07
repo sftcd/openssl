@@ -63,7 +63,8 @@ fi
 FOREGROUND="-D "
 
 # set to use valgrind, unset to not
-VALGRIND="valgrind --leak-check=full"
+#VALGRIND="valgrind --leak-check=full --show-leak-kinds=all"
+VALGRIND="valgrind --leak-check=full "
 # VALGRIND=""
 
 echo "Executing: $VALGRIND $LIGHTY/src/lighttpd $FOREGROUND -f $OSSL/esnistuff/lighttpdmin.conf -m $LIGHTY/src/.libs"

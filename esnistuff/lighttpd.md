@@ -193,68 +193,12 @@ VirtualHost as "ESNI only", i.e. to try deny it's existence if it's asked for vi
 cleartext SNI.  I'm very unsure if this is worthwhile but since it could be done, it may
 be fun to play and see if it turns out to be useful. 
 
-First, let's see what happens with some failure cases.
-
-1. Use of non-existent cleartext SNI - for lighttpd (at least with my config) that results in 
-accessing the default web site, with the default web site's certificate used.
-
-            $ ./testclient.sh -n -c notthere.com -s cover.defo.ie
-            ...
-            Not trying ESNI
-
-1. Use of actual ESNI value but wrong hidden name. We can do this via:
-
-            $ ./testclient.sh -H nobleedigidea.esni.defo.ie -c cover.defo.ie -f foo.php -d -P /wGorMkBACQAHQAgCqIz1Qdrhj/wdNXBYdrx6QrImbVCJfCcTGA7MO/R0xYAAhMBAQQAAAAAXZJhGAAAAABdknYwAAA=
-            ...
-            ESNI: worked but bad name
-
-    To do that use ``dig`` to get a current ESNI value. The upshot there is that the default SNI for the
-    server got used. (In our case, that's defo.ie.)
-
-1. Use of wrong ESNI public value with wrong hidden name. We can do this via:
-
-            $ ./testclient.sh -H nobleedigidea.esni.defo.ie -c cover.defo.ie -f foo.php -d -P /wFB3KqOACQAHQAgyo6cjHQHXfbwq9yKfcJq9PRuVC+vOOBnS8UzKhtVkXYAAhMBAQQAAAAAXY6GYAAAAABdlm9gAAA=
-            ...
-            ESNI: tried but failed
-
-    The "but failed" here may be because I've not yet implemented the re-try stuff from
-    the draft-04 spec. (I'm not sure it'll stay tbh). The "bad" ESNI public key there is
-    from Cloudflare as it happens.
-
-So from the above it seems the logic we want to implement is: if a VirtualHost
-is marked as "ESNI only" and if that ever name appears in the SNI, then don't
-serve the actual content but only serve the default web site. Bit odd but we
-can play with it...
-
 To that end we've added an "ssl.esnionly" label that can be in a lighttpd configuration
 for a TLS listener. If that is present and if the relevant server.name is used in the
-cleartext SNI (with or without ESNI) then the TLS server cert and document root for
-the default port 443 listener will be used for the TLS session instead. Similar 
-changes will be made in the access.log (i.e. the names used in responding will be
-in the access log, not those used in the request). There is error logging to 
-indicate that that name swap was made because of an "ESNI only" virtual host.
+cleartext SNI (with or without ESNI) then the TLS connection will fail.
 
 For example, in my [localhost test setup](lighttpdmin.conf) baz.example.com is
-now "ESNI only" but and the default 443 listener is for example.com, then we
-can see:
-
-            $ tail -f lighttpd/log/error.log lighttpd/log/access.log 
-            ==> lighttpd/log/error.log <==
-            2019-10-05 14:23:12: (mod_openssl.c.518) esni_status:  success cover: baz.example.com hidden: foo.example.com 
-            2019-10-05 14:23:12: (mod_openssl.c.615) esnionly name change from: foo.example.com to: example.com 
-            2019-10-05 14:23:12: (mod_openssl.c.2545) esnionly2 name change to: example.com /home/stephen/code/openssl/esnistuff/lighttpd/www 
-            
-            ==> lighttpd/log/access.log <==
-            127.0.0.1 example.com - [05/Oct/2019:14:23:12 +0100] "GET /index.html HTTP/1.1" 200 458 "-" "-"
-            
-            ==> lighttpd/log/error.log <==
-            2019-10-05 14:23:38: (mod_openssl.c.518) esni_status:  not attempted cover: NULL hidden: NULL 
-            2019-10-05 14:23:38: (mod_openssl.c.615) esnionly name change from: baz.example.com to: example.com 
-            2019-10-05 14:23:38: (mod_openssl.c.2545) esnionly2 name change to: example.com /home/stephen/code/openssl/esnistuff/lighttpd/www 
-            
-            ==> lighttpd/log/access.log <==
-            127.0.0.1 example.com - [05/Oct/2019:14:23:38 +0100] "GET /index.html HTTP/1.1" 200 458 "-" "curl/7.64.0"
-            
+now "ESNI only" 
 
 ## Further improvement
 
