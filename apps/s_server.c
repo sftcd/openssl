@@ -2211,7 +2211,7 @@ int s_server_main(int argc, char *argv[])
                 if (strncmp(last5,".priv",5)) {
                     continue;
                 }
-                if ((elen+nlen)>=PATH_MAX) {
+                if ((elen+nlen+1+1)>=PATH_MAX) { /* +1 for '/' and of NULL terminator */
                     closedir(dp);
                     BIO_printf(bio_err,"name too long: %s/%s - exiting \r\n",esnidir,ep->d_name);
                     goto end;
