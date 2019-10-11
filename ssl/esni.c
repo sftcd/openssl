@@ -2822,7 +2822,7 @@ int SSL_esni_enable(SSL *s, const char *hidden, const char *cover, SSL_ESNI *esn
  * @param numkeys returns the number currently loaded
  * @return 1 for success, other otherwise
  */
-int SSL_esni_server_key_status(SSL_CTX *s, int *numkeys)
+int SSL_CTX_esni_server_key_status(SSL_CTX *s, int *numkeys)
 {
     if (s==NULL) return 0;
     if (s->ext.esni==NULL) {
@@ -2843,7 +2843,7 @@ int SSL_esni_server_key_status(SSL_CTX *s, int *numkeys)
  * @param age don't flush keys loaded in the last age seconds
  * @return 1 for success, other otherwise
  */
-int SSL_esni_server_flush_keys(SSL_CTX *s, int age)
+int SSL_CTX_esni_server_flush_keys(SSL_CTX *s, int age)
 {
     if (s==NULL) return 0;
     if (s->ext.esni==NULL) return 1;
@@ -2947,7 +2947,7 @@ static int esni_check_filenames(SSL_CTX *ctx, const char *privfname,const char *
  * @param esnipubfile has the relevant (binary encoded, not base64) ESNIKeys structure
  * @return 1 for success, other otherwise
  */
-int SSL_esni_server_enable(SSL_CTX *ctx, const char *esnikeyfile, const char *esnipubfile)
+int SSL_CTX_esni_server_enable(SSL_CTX *ctx, const char *esnikeyfile, const char *esnipubfile)
 {
     /*
      * open and parse files (private key is PEM, public is binary/ESNIKeys)
@@ -2960,7 +2960,7 @@ int SSL_esni_server_enable(SSL_CTX *ctx, const char *esnikeyfile, const char *es
     SSL_ESNI *the_esni=NULL;
     unsigned char *inbuf=NULL;
     if (ctx==NULL || esnikeyfile==NULL || esnipubfile==NULL) {
-        ESNIerr(ESNI_F_SSL_ESNI_SERVER_ENABLE, ERR_R_INTERNAL_ERROR);
+        ESNIerr(ESNI_F_SSL_CTX_ESNI_SERVER_ENABLE, ERR_R_INTERNAL_ERROR);
         goto err;
     }
     /*
@@ -2972,7 +2972,7 @@ int SSL_esni_server_enable(SSL_CTX *ctx, const char *esnikeyfile, const char *es
     switch (fnamecheckrv) {
         case ESNI_KEYPAIR_UNMODIFIED:
             if (kpindex<0 || kpindex>=ctx->ext.nesni) {
-                ESNIerr(ESNI_F_SSL_ESNI_SERVER_ENABLE, ERR_R_INTERNAL_ERROR);
+                ESNIerr(ESNI_F_SSL_CTX_ESNI_SERVER_ENABLE, ERR_R_INTERNAL_ERROR);
                 goto err;
             } 
             /* update the loadtime to note it was refreshed now */
@@ -2981,7 +2981,7 @@ int SSL_esni_server_enable(SSL_CTX *ctx, const char *esnikeyfile, const char *es
             return 1;
         case ESNI_KEYPAIR_MODIFIED:
             if (kpindex<0 || kpindex>=ctx->ext.nesni) {
-                ESNIerr(ESNI_F_SSL_ESNI_SERVER_ENABLE, ERR_R_INTERNAL_ERROR);
+                ESNIerr(ESNI_F_SSL_CTX_ESNI_SERVER_ENABLE, ERR_R_INTERNAL_ERROR);
                 goto err;
             } 
             break; // hey, we coulda fallen through, but meh... :-)
@@ -2989,7 +2989,7 @@ int SSL_esni_server_enable(SSL_CTX *ctx, const char *esnikeyfile, const char *es
             break;
         case ESNI_KEYPAIR_ERROR:
         default:
-            ESNIerr(ESNI_F_SSL_ESNI_SERVER_ENABLE, ERR_R_INTERNAL_ERROR);
+            ESNIerr(ESNI_F_SSL_CTX_ESNI_SERVER_ENABLE, ERR_R_INTERNAL_ERROR);
             goto err;
     }
 
@@ -2998,15 +2998,15 @@ int SSL_esni_server_enable(SSL_CTX *ctx, const char *esnikeyfile, const char *es
      */
     priv_in = BIO_new(BIO_s_file());
     if (priv_in==NULL) {
-        ESNIerr(ESNI_F_SSL_ESNI_SERVER_ENABLE, ERR_R_INTERNAL_ERROR);
+        ESNIerr(ESNI_F_SSL_CTX_ESNI_SERVER_ENABLE, ERR_R_INTERNAL_ERROR);
         goto err;
     }
     if (BIO_read_filename(priv_in,esnikeyfile)<=0) {
-        ESNIerr(ESNI_F_SSL_ESNI_SERVER_ENABLE, ERR_R_INTERNAL_ERROR);
+        ESNIerr(ESNI_F_SSL_CTX_ESNI_SERVER_ENABLE, ERR_R_INTERNAL_ERROR);
         goto err;
     }
     if (!PEM_read_bio_PrivateKey(priv_in,&pkey,NULL,NULL)) {
-        ESNIerr(ESNI_F_SSL_ESNI_SERVER_ENABLE, ERR_R_INTERNAL_ERROR);
+        ESNIerr(ESNI_F_SSL_CTX_ESNI_SERVER_ENABLE, ERR_R_INTERNAL_ERROR);
         goto err;
     }
     BIO_free(priv_in);
@@ -3014,22 +3014,22 @@ int SSL_esni_server_enable(SSL_CTX *ctx, const char *esnikeyfile, const char *es
 
     pub_in = BIO_new(BIO_s_file());
     if (pub_in==NULL) {
-        ESNIerr(ESNI_F_SSL_ESNI_SERVER_ENABLE, ERR_R_INTERNAL_ERROR);
+        ESNIerr(ESNI_F_SSL_CTX_ESNI_SERVER_ENABLE, ERR_R_INTERNAL_ERROR);
         goto err;
     }
     if (BIO_read_filename(pub_in,esnipubfile)<=0) {
-        ESNIerr(ESNI_F_SSL_ESNI_SERVER_ENABLE, ERR_R_INTERNAL_ERROR);
+        ESNIerr(ESNI_F_SSL_CTX_ESNI_SERVER_ENABLE, ERR_R_INTERNAL_ERROR);
         goto err;
     }
     inbuf=OPENSSL_malloc(ESNI_MAX_RRVALUE_LEN);
     if (inbuf==NULL) {
-        ESNIerr(ESNI_F_SSL_ESNI_SERVER_ENABLE, ERR_R_INTERNAL_ERROR);
+        ESNIerr(ESNI_F_SSL_CTX_ESNI_SERVER_ENABLE, ERR_R_INTERNAL_ERROR);
         goto err;
     }
     size_t inblen=0;
     inblen=BIO_read(pub_in,inbuf,ESNI_MAX_RRVALUE_LEN);
     if (inblen<=0) {
-        ESNIerr(ESNI_F_SSL_ESNI_SERVER_ENABLE, ERR_R_INTERNAL_ERROR);
+        ESNIerr(ESNI_F_SSL_CTX_ESNI_SERVER_ENABLE, ERR_R_INTERNAL_ERROR);
         goto err;
     }
     BIO_free(pub_in);
@@ -3038,7 +3038,7 @@ int SSL_esni_server_enable(SSL_CTX *ctx, const char *esnikeyfile, const char *es
     int leftover=0;
     er=SSL_ESNI_RECORD_new_from_binary(inbuf,inblen,&leftover);
     if (er==NULL) {
-        ESNIerr(ESNI_F_SSL_ESNI_SERVER_ENABLE, ERR_R_INTERNAL_ERROR);
+        ESNIerr(ESNI_F_SSL_CTX_ESNI_SERVER_ENABLE, ERR_R_INTERNAL_ERROR);
         goto err;
     }
 
@@ -3050,7 +3050,7 @@ int SSL_esni_server_enable(SSL_CTX *ctx, const char *esnikeyfile, const char *es
         ctx->ext.nesni=1;
         the_esni=(SSL_ESNI*)OPENSSL_malloc(sizeof(SSL_ESNI));
         if (the_esni==NULL) {
-            ESNIerr(ESNI_F_SSL_ESNI_SERVER_ENABLE, ERR_R_INTERNAL_ERROR);
+            ESNIerr(ESNI_F_SSL_CTX_ESNI_SERVER_ENABLE, ERR_R_INTERNAL_ERROR);
             goto err;
         }
         ctx->ext.esni=the_esni;
@@ -3063,7 +3063,7 @@ int SSL_esni_server_enable(SSL_CTX *ctx, const char *esnikeyfile, const char *es
             ctx->ext.nesni+=1;
             the_esni=(SSL_ESNI*)OPENSSL_realloc(ctx->ext.esni,ctx->ext.nesni*sizeof(SSL_ESNI));
             if (the_esni==NULL) {
-                ESNIerr(ESNI_F_SSL_ESNI_SERVER_ENABLE, ERR_R_INTERNAL_ERROR);
+                ESNIerr(ESNI_F_SSL_CTX_ESNI_SERVER_ENABLE, ERR_R_INTERNAL_ERROR);
                 goto err;
             }
             ctx->ext.esni=the_esni;
@@ -3075,7 +3075,7 @@ int SSL_esni_server_enable(SSL_CTX *ctx, const char *esnikeyfile, const char *es
     latest_esni->encoded_rr=inbuf;
     latest_esni->encoded_rr_len=inblen;
     if (esni_make_se_from_er(er,latest_esni,1)!=1) {
-        ESNIerr(ESNI_F_SSL_ESNI_SERVER_ENABLE, ERR_R_INTERNAL_ERROR);
+        ESNIerr(ESNI_F_SSL_CTX_ESNI_SERVER_ENABLE, ERR_R_INTERNAL_ERROR);
         goto err;
     }
     // add my private key in there, the public was handled above
@@ -3084,12 +3084,12 @@ int SSL_esni_server_enable(SSL_CTX *ctx, const char *esnikeyfile, const char *es
     /* handle file names and indexing */
     latest_esni->privfname=OPENSSL_strndup(esnikeyfile,strlen(esnikeyfile));
     if (latest_esni->privfname==NULL) {
-        ESNIerr(ESNI_F_SSL_ESNI_SERVER_ENABLE, ERR_R_INTERNAL_ERROR);
+        ESNIerr(ESNI_F_SSL_CTX_ESNI_SERVER_ENABLE, ERR_R_INTERNAL_ERROR);
         goto err;
     }
     latest_esni->pubfname=OPENSSL_strndup(esnikeyfile,strlen(esnikeyfile));
     if (latest_esni->pubfname==NULL) {
-        ESNIerr(ESNI_F_SSL_ESNI_SERVER_ENABLE, ERR_R_INTERNAL_ERROR);
+        ESNIerr(ESNI_F_SSL_CTX_ESNI_SERVER_ENABLE, ERR_R_INTERNAL_ERROR);
         goto err;
     }
     latest_esni->loadtime=time(0);
@@ -3111,7 +3111,7 @@ int SSL_esni_server_enable(SSL_CTX *ctx, const char *esnikeyfile, const char *es
      * callback via SSL_CTX_set_record_padding_callback
      */
     if (SSL_CTX_set_block_padding(ctx,ESNI_DEFAULT_PADDED)!=1) {
-        ESNIerr(ESNI_F_SSL_ESNI_SERVER_ENABLE, ERR_R_INTERNAL_ERROR);
+        ESNIerr(ESNI_F_SSL_CTX_ESNI_SERVER_ENABLE, ERR_R_INTERNAL_ERROR);
         goto err;
     }
 
@@ -3241,7 +3241,7 @@ int SSL_ESNI_get_esni(SSL *s, SSL_ESNI **esni)
     return 1;
 }
  
-int SSL_ESNI_get_esni_ctx(SSL_CTX *s, SSL_ESNI **esni){
+int SSL_CTX_get_esni(SSL_CTX *s, SSL_ESNI **esni){
     if (s==NULL || esni==NULL) {
         return 0;
     }

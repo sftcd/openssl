@@ -4,7 +4,10 @@
 stephen.farrell@cs.tcd.ie, 20190718ish
 
 This file describes the current design for our proof-of-concept 
-openssl implementation of encrypted SNI.
+openssl implementation of encrypted SNI. (As of Oct 2019, this is
+getting a bit out of date - it's on my list to come to this and
+turn it into a set of openssl man pages, so most of the content
+of this file will likely disappear in the not too distant.)
 
 - The code in our [fork](https://gitbub.com/sftcd/openssl) implements 
   both client and server sides of the ESNI Internet-draft

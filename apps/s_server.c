@@ -2157,7 +2157,7 @@ int s_server_main(int argc, char *argv[])
             BIO_printf(bio_err, "Need -esnikey set as well as -esnipub\n" );
             goto end;
         }
-        if (SSL_esni_server_enable(ctx,esnikeyfile,esnipubfile)!=1) {
+        if (SSL_CTX_esni_server_enable(ctx,esnikeyfile,esnipubfile)!=1) {
             BIO_printf(bio_err, "Failure establishing ESNI parameters\n" );
             goto end;
         }
@@ -2226,7 +2226,7 @@ int s_server_main(int argc, char *argv[])
                     if (bio_s_out != NULL) {
                         BIO_printf(bio_s_out,"Adding ESNI key pair: %s,%s\n",pubname,privname);
                     }
-                    if (SSL_esni_server_enable(ctx,privname,pubname)!=1) {
+                    if (SSL_CTX_esni_server_enable(ctx,privname,pubname)!=1) {
                         BIO_printf(bio_err, "Failure establishing ESNI parameters for %s\n",pubname );
                         //goto end;
                     }
@@ -2238,7 +2238,7 @@ int s_server_main(int argc, char *argv[])
     }
     if ((esnidir!=NULL) || (esnikeyfile!= NULL && esnipubfile!=NULL)) {
         SSL_ESNI *tp=NULL;
-        int nesni=SSL_ESNI_get_esni_ctx(ctx,&tp);
+        int nesni=SSL_CTX_get_esni(ctx,&tp);
         if (nesni==0) {
             BIO_printf(bio_err, "Failure establishing ESNI parameters - can't print 'em\n" );
             goto end;

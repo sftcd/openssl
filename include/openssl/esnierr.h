@@ -32,12 +32,13 @@ int ERR_load_ESNI_strings(void);
 #  define ESNI_F_ESNI_AEAD_ENC                             0
 #  define ESNI_F_ESNI_BASE64_DECODE                        0
 #  define ESNI_F_ESNI_CHECKSUM_CHECK                       0
+#  define ESNI_F_ESNI_KEY_DERIVATION                       0
 #  define ESNI_F_ESNI_MAKE_RD                              0
 #  define ESNI_F_ESNI_MAKE_SE_FROM_ER                      0
-#  define ESNI_F_ESNI_KEY_DERIVATION                       0
 #  define ESNI_F_MAKEESNICONTENTHASH                       0
 #  define ESNI_F_NEW_FROM_BASE64                           0
 #  define ESNI_F_SERVER_ENABLE                             0
+#  define ESNI_F_SSL_CTX_ESNI_SERVER_ENABLE                0
 #  define ESNI_F_SSL_ESNI_DEC                              0
 #  define ESNI_F_SSL_ESNI_DUP                              0
 #  define ESNI_F_SSL_ESNI_ENC                              0

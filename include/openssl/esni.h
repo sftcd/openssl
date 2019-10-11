@@ -501,7 +501,7 @@ int SSL_esni_reduce(SSL_ESNI *in, int index, SSL_ESNI **out);
  * @param numkeys returns the number currently loaded
  * @return 1 for success, other otherwise
  */
-int SSL_esni_server_key_status(SSL_CTX *s, int *numkeys);
+int SSL_CTX_esni_server_key_status(SSL_CTX *s, int *numkeys);
 
 /**
  * Zap the set of stored ESNI Keys to allow a re-load without hogging memory
@@ -513,7 +513,7 @@ int SSL_esni_server_key_status(SSL_CTX *s, int *numkeys);
  * @param age don't flush keys loaded in the last age seconds
  * @return 1 for success, other otherwise
  */
-int SSL_esni_server_flush_keys(SSL_CTX *s, int age);
+int SSL_CTX_esni_server_flush_keys(SSL_CTX *s, int age);
 
 /**
  * Turn on SNI Encryption, server-side
@@ -526,7 +526,7 @@ int SSL_esni_server_flush_keys(SSL_CTX *s, int age);
  * @param esnipubfile has the relevant (binary encoded, not base64) ESNIKeys structure
  * @return 1 for success, other otherwise
  */
-int SSL_esni_server_enable(SSL_CTX *s, const char *esnikeyfile, const char *esnipubfile);
+int SSL_CTX_esni_server_enable(SSL_CTX *s, const char *esnikeyfile, const char *esnipubfile);
 
 /**
  * Access an SSL_ESNI structure note - can include sensitive values!
@@ -544,7 +544,7 @@ int SSL_ESNI_get_esni(SSL *s, SSL_ESNI **esni);
  * @param esni is an SSL_ESNI structure
  * @return 0 for failure, non-zero is the number of SSL_ESNI in the array
  */
-int SSL_ESNI_get_esni_ctx(SSL_CTX *s, SSL_ESNI **esni);
+int SSL_CTX_get_esni(SSL_CTX *s, SSL_ESNI **esni);
 
 /** 
  * Print the content of an SSL_ESNI
