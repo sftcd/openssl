@@ -26,6 +26,17 @@
 #ifndef OPENSSL_NO_ESNI
 
 /*
+ * Needed to use stat for file status below in esni_check_filenames
+ * TODO: figure out porting for that, it'll be work he predicts:-)
+ * See crypto/rand/randfile.c for other code using fstat
+ * that should help
+ */
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
+
+
+/*
  * Purely debug
  */
 #ifdef ESNI_CRYPT_INTEROP
@@ -270,9 +281,7 @@ void SSL_ESNI_free(SSL_ESNI *deadesni)
     int i=0;
     if (deadesni==NULL) return;
     int tofree=deadesni->num_esni_rrs;
-    //printf("Freeing %d SSL_ESNI's here\n",tofree);
     for (i=0;i!=tofree;i++) {
-        //printf("\tFreeing the %d-th of %d\n",i,tofree);
         SSL_ESNI *esni=&deadesni[i];
         if (esni==NULL) return;
         if (esni->the_esni != NULL) {
@@ -338,6 +347,12 @@ void SSL_ESNI_free(SSL_ESNI *deadesni)
              */
             BIO_ADDR_free(esni->addrs);
         }
+        if (esni->privfname!=NULL) {
+            OPENSSL_free(esni->privfname);
+        }
+        if (esni->pubfname!=NULL) OPENSSL_free(esni->pubfname);
+        esni->loadtime=0;
+
         // zap all of that to zero 
         memset(esni,0,sizeof(SSL_ESNI));
     }
@@ -530,12 +545,8 @@ static ESNI_RECORD *SSL_ESNI_RECORD_new_from_binary(unsigned char *binbuf, size_
      */
     switch (er->version) {
         case ESNI_DRAFT_02_VERSION:
-            break;
         case ESNI_DRAFT_03_VERSION:
-            printf("Draft-03 code is a work-in-progress...\n");
-            break;
         case ESNI_DRAFT_04_VERSION:
-            printf("Draft-04 code is a very much work-in-progress...\n");
             break;
         default:
             ESNIerr(ESNI_F_SSL_ESNI_RECORD_NEW_FROM_BINARY, ESNI_R_RR_DECODE_ERROR);
@@ -1556,7 +1567,17 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esniarr, int selector)
 	    } else {
 	        BIO_printf(out,"ESNI CLIENT_ESNI is NULL\n");
 	    }
-	
+        if (esni->privfname!=NULL) {
+            BIO_printf(out,"ESNI private key file name: %s\n",esni->privfname);
+        } else {
+            BIO_printf(out,"ESNI private key file not set\n");
+        }
+        if (esni->pubfname!=NULL) {
+            BIO_printf(out,"ESNI public key file name: %s\n",esni->pubfname);
+        } else {
+            BIO_printf(out,"ESNI public key file not set\n");
+        }
+        BIO_printf(out,"ESNI key pair load time: %ju\n",esni->loadtime);
     }
     return(1);
 }
@@ -2795,19 +2816,120 @@ int SSL_esni_enable(SSL *s, const char *hidden, const char *cover, SSL_ESNI *esn
 }
 
 /**
- * Zap the set of stored ESNI Keys to allow a re-load without hogging memory
+ * Report on the number of ESNI key RRs currently loaded
  *
  * @param s is the SSL server context
+ * @param numkeys returns the number currently loaded
  * @return 1 for success, other otherwise
  */
-int SSL_esni_server_flush_keys(SSL_CTX *s)
+int SSL_esni_server_key_status(SSL_CTX *s, int *numkeys)
+{
+    if (s==NULL) return 0;
+    if (s->ext.esni==NULL) {
+        *numkeys=0;
+        return 1;
+    }
+    *numkeys=s->ext.nesni;
+    return 1;
+}
+
+/**
+ * Zap the set of stored ESNI Keys to allow a re-load without hogging memory
+ *
+ * Supply a zero or negative age to delete all keys. Providing age=3600 will
+ * keep keys loaded in the last hour.
+ *
+ * @param s is the SSL server context
+ * @param age don't flush keys loaded in the last age seconds
+ * @return 1 for success, other otherwise
+ */
+int SSL_esni_server_flush_keys(SSL_CTX *s, int age)
 {
     if (s==NULL) return 0;
     if (s->ext.esni==NULL) return 1;
-    SSL_ESNI_free(s->ext.esni);
-    OPENSSL_free(s->ext.esni);
-    s->ext.esni=NULL;
+
+    if (age<=0) {
+        SSL_ESNI_free(s->ext.esni);
+        OPENSSL_free(s->ext.esni);
+        s->ext.esni=NULL;
+        return 1;
+    }
+    /*
+     * Otherwise go through them and delete as needed
+     */
+    time_t now=time(0);
+    int i=0;
+    int deleted=0; // number deleted
+    for (i=0;i!=s->ext.nesni;i++) {
+        SSL_ESNI *ep=&s->ext.esni[i];
+        if ((ep->loadtime + age) <= now ) {
+            SSL_ESNI_free(ep);
+            deleted++;
+            continue;
+        } 
+        s->ext.esni[i-deleted]=s->ext.esni[i]; // struct copy!
+    }
+    s->ext.nesni -= deleted;
     return 1;
+}
+ 
+#define ESNI_KEYPAIR_ERROR          0
+#define ESNI_KEYPAIR_NEW            1
+#define ESNI_KEYPAIR_UNMODIFIED     2
+#define ESNI_KEYPAIR_MODIFIED       3
+
+/**
+ * Check if key pair needs to be (re-)loaded or not
+ *
+ * We go through the keys we have and see what we find
+ *
+ * @param ctx is the SSL server context
+ * @param privfname is the private key filename
+ * @param pubfname is the public key filename
+ * @param index is the index if we find a match
+ * @return negative for error, otherwise one of: ESNI_KEYPAIR_UNMODIFIED ESNI_KEYPAIR_MODIFIED ESNI_KEYPAIR_NEW
+ */
+static int esni_check_filenames(SSL_CTX *ctx, const char *privfname,const char *pubfname,int *index)
+{
+    struct stat privstat,pubstat;
+
+    // if bad input, crap out
+    if (ctx==NULL || privfname==NULL || pubfname==NULL || index==NULL) return(ESNI_KEYPAIR_ERROR);
+
+    // if we have none, then it is new
+    if (ctx->ext.esni==NULL || ctx->ext.nesni==0) return(ESNI_KEYPAIR_NEW);
+
+    // if no file info, crap out
+    if (stat(privfname,&privstat) < 0) return(ESNI_KEYPAIR_ERROR);
+    if (stat(pubfname,&pubstat) < 0) return(ESNI_KEYPAIR_ERROR);
+
+    // check the time info - we're only gonna do 1s precision on purpose
+    time_t privmod=pubstat.st_mtim.tv_sec;
+    time_t pubmod=pubstat.st_mtim.tv_sec;
+    time_t rectime=(privmod>pubmod?privmod:pubmod);
+
+    // now search list of existing key pairs to see if we have that one already
+    int ind=0;
+    size_t privlen=strlen(privfname);
+    size_t publen=strlen(pubfname);
+    for(ind=0;ind!=ctx->ext.nesni;ind++) {
+        if (!strncmp(ctx->ext.esni[ind].privfname,privfname,privlen) &&
+            !strncmp(ctx->ext.esni[ind].pubfname,pubfname,publen)) {
+            // matching files!
+            if (ctx->ext.esni[ind].loadtime<rectime) {
+                // aha! load it up so
+                *index=ind;
+                return(ESNI_KEYPAIR_MODIFIED);
+            } else {
+                // tell caller no need to bother
+                *index=-1; // just in case:->
+                return(ESNI_KEYPAIR_UNMODIFIED);
+            }
+        }
+    }
+
+    *index=-1; // just in case:->
+    return ESNI_KEYPAIR_NEW;
 }
 
 
@@ -2816,6 +2938,9 @@ int SSL_esni_server_flush_keys(SSL_CTX *s)
  *
  * When this works, the server will decrypt any ESNI seen in ClientHellos and
  * subsequently treat those as if they had been send in cleartext SNI.
+ *
+ * TODO: proof this against bad inputs - we can't lose the current set of
+ * keys if handed crap!
  *
  * @param ctx is the SSL server context
  * @param esnikeyfile has the relevant (X25519) private key in PEM format
@@ -2838,6 +2963,39 @@ int SSL_esni_server_enable(SSL_CTX *ctx, const char *esnikeyfile, const char *es
         ESNIerr(ESNI_F_SSL_ESNI_SERVER_ENABLE, ERR_R_INTERNAL_ERROR);
         goto err;
     }
+    /*
+     * Check if we already have that key pair and if it needs to be 
+     * reloaded or not
+     */
+    int kpindex=0; /* will return with index of key to update, if relevant */
+    int fnamecheckrv=esni_check_filenames(ctx, esnikeyfile,esnipubfile,&kpindex);
+    switch (fnamecheckrv) {
+        case ESNI_KEYPAIR_UNMODIFIED:
+            if (kpindex<0 || kpindex>=ctx->ext.nesni) {
+                ESNIerr(ESNI_F_SSL_ESNI_SERVER_ENABLE, ERR_R_INTERNAL_ERROR);
+                goto err;
+            } 
+            /* update the loadtime to note it was refreshed now */
+            ctx->ext.esni[kpindex].loadtime=time(0);
+            /* and with that we're done reloading this key */
+            return 1;
+        case ESNI_KEYPAIR_MODIFIED:
+            if (kpindex<0 || kpindex>=ctx->ext.nesni) {
+                ESNIerr(ESNI_F_SSL_ESNI_SERVER_ENABLE, ERR_R_INTERNAL_ERROR);
+                goto err;
+            } 
+            break; // hey, we coulda fallen through, but meh... :-)
+        case ESNI_KEYPAIR_NEW:
+            break;
+        case ESNI_KEYPAIR_ERROR:
+        default:
+            ESNIerr(ESNI_F_SSL_ESNI_SERVER_ENABLE, ERR_R_INTERNAL_ERROR);
+            goto err;
+    }
+
+    /*
+     * Now check and parse inputs
+     */
     priv_in = BIO_new(BIO_s_file());
     if (priv_in==NULL) {
         ESNIerr(ESNI_F_SSL_ESNI_SERVER_ENABLE, ERR_R_INTERNAL_ERROR);
@@ -2852,6 +3010,7 @@ int SSL_esni_server_enable(SSL_CTX *ctx, const char *esnikeyfile, const char *es
         goto err;
     }
     BIO_free(priv_in);
+    priv_in=NULL;
 
     pub_in = BIO_new(BIO_s_file());
     if (pub_in==NULL) {
@@ -2874,6 +3033,8 @@ int SSL_esni_server_enable(SSL_CTX *ctx, const char *esnikeyfile, const char *es
         goto err;
     }
     BIO_free(pub_in);
+    pub_in=NULL;
+
     int leftover=0;
     er=SSL_ESNI_RECORD_new_from_binary(inbuf,inblen,&leftover);
     if (er==NULL) {
@@ -2882,8 +3043,9 @@ int SSL_esni_server_enable(SSL_CTX *ctx, const char *esnikeyfile, const char *es
     }
 
     /*
-     * store in context
+     * store in context 
      */
+    SSL_ESNI* latest_esni=NULL;
     if (ctx->ext.esni==NULL) {
         ctx->ext.nesni=1;
         the_esni=(SSL_ESNI*)OPENSSL_malloc(sizeof(SSL_ESNI));
@@ -2891,17 +3053,24 @@ int SSL_esni_server_enable(SSL_CTX *ctx, const char *esnikeyfile, const char *es
             ESNIerr(ESNI_F_SSL_ESNI_SERVER_ENABLE, ERR_R_INTERNAL_ERROR);
             goto err;
         }
+        ctx->ext.esni=the_esni;
+        latest_esni=&ctx->ext.esni[0];
     } else {
-        ctx->ext.nesni+=1;
-        the_esni=(SSL_ESNI*)OPENSSL_realloc(ctx->ext.esni,ctx->ext.nesni*sizeof(SSL_ESNI));
-        if (the_esni==NULL) {
-            ESNIerr(ESNI_F_SSL_ESNI_SERVER_ENABLE, ERR_R_INTERNAL_ERROR);
-            goto err;
+        if (fnamecheckrv==ESNI_KEYPAIR_MODIFIED) {
+            the_esni=&ctx->ext.esni[kpindex];
+            latest_esni=&ctx->ext.esni[kpindex];
+        } else if (fnamecheckrv==ESNI_KEYPAIR_NEW) {
+            ctx->ext.nesni+=1;
+            the_esni=(SSL_ESNI*)OPENSSL_realloc(ctx->ext.esni,ctx->ext.nesni*sizeof(SSL_ESNI));
+            if (the_esni==NULL) {
+                ESNIerr(ESNI_F_SSL_ESNI_SERVER_ENABLE, ERR_R_INTERNAL_ERROR);
+                goto err;
+            }
+            ctx->ext.esni=the_esni;
+            latest_esni=&ctx->ext.esni[ctx->ext.nesni-1];
         }
     }
-    ctx->ext.esni=the_esni;
 
-    SSL_ESNI* latest_esni=&ctx->ext.esni[ctx->ext.nesni-1];
     memset(latest_esni,0,sizeof(SSL_ESNI));
     latest_esni->encoded_rr=inbuf;
     latest_esni->encoded_rr_len=inblen;
@@ -2911,6 +3080,19 @@ int SSL_esni_server_enable(SSL_CTX *ctx, const char *esnikeyfile, const char *es
     }
     // add my private key in there, the public was handled above
     latest_esni->keyshare=pkey;
+
+    /* handle file names and indexing */
+    latest_esni->privfname=OPENSSL_strndup(esnikeyfile,strlen(esnikeyfile));
+    if (latest_esni->privfname==NULL) {
+        ESNIerr(ESNI_F_SSL_ESNI_SERVER_ENABLE, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+    latest_esni->pubfname=OPENSSL_strndup(esnikeyfile,strlen(esnikeyfile));
+    if (latest_esni->pubfname==NULL) {
+        ESNIerr(ESNI_F_SSL_ESNI_SERVER_ENABLE, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+    latest_esni->loadtime=time(0);
 
     // update the numbers in the array (FIXME: this array handling is a bit dim)
     int i=0;
@@ -2938,6 +3120,11 @@ int SSL_esni_server_enable(SSL_CTX *ctx, const char *esnikeyfile, const char *es
     return 1;
 
 err:
+    /*
+     * For these we want to clean up intermediate values but not
+     * affect the set of previously ok ESNI keys 
+     */
+
     if (inbuf!=NULL) {
         OPENSSL_free(inbuf);
         if (the_esni!=NULL && the_esni->encoded_rr==inbuf) {
@@ -2947,10 +3134,6 @@ err:
             the_esni->encoded_rr=NULL;
         }
     }
-    if (the_esni!=NULL) {
-        SSL_ESNI_free(the_esni);
-        OPENSSL_free(the_esni);
-    }
     if (er!=NULL) {
         ESNI_RECORD_free(er);
         OPENSSL_free(er);
@@ -2958,8 +3141,12 @@ err:
     if (pkey!=NULL) {
         EVP_PKEY_free(pkey);
     }
-    BIO_free(priv_in);
-    BIO_free(pub_in);
+    if (priv_in!=NULL) {
+        BIO_free(priv_in);
+    }
+    if (pub_in!=NULL) {
+        BIO_free(pub_in);
+    }
     return 0;
 };
 
@@ -3295,6 +3482,13 @@ SSL_ESNI* SSL_ESNI_dup(SSL_ESNI* orig, size_t nesni, int selector)
 #ifdef ESNI_CRYPT_INTEROP
         if (origi->private_str) newi->private_str=OPENSSL_strdup(origi->private_str);
 #endif
+
+        /* 
+         * Handle file names
+         */
+        if (origi->privfname!=NULL) newi->privfname=OPENSSL_strdup(origi->privfname);
+        if (origi->pubfname!=NULL) newi->pubfname=OPENSSL_strdup(origi->pubfname);
+        newi->loadtime=origi->loadtime;
 
         /*
          * Special case - pointers here are shallow to ones above

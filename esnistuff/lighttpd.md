@@ -46,6 +46,13 @@ ESNI keys and try use each to decrypt anyway, before we fail. For lighttpd,
 that seems to make sense as we're expecting servers to be small and not
 have many ESNI keys loaded.
 
+The server will re-load all ESNI keys found inside the configured directory
+once every refresh period using ``SSL_esni_server_enable`` which will reload
+the keys if the relevant files are new or were modified. Before doing that it
+flushes all the ESNI keys loaded more than a refresh period ago via
+``SSL_esni_server_flush_keys()``.  The upshot should be that the server
+reflects the set of keys on disk.
+
 ##  Test runs
 
 The script [``testlighttpd.sh``](./testlighttpd.sh) sets environment vars and
@@ -210,18 +217,6 @@ That log line includes the requesting IP address for now.
 
 ## Further improvement
 
-- The server will re-load all ESNI keys found inside the configured directory
-  once every refresh period. Before doing that it ditches all current ESNI keys
-though (via ``SSL_esni_server_flush_keys()``). It'd be better if the server
-could just keep calling ``SSL_esni_server_enable()`` and have the library
-internally figure out if the supplied key is new or old or not. Need to ponder
-how best to do that. Might be most sensible to not make changes here until we
-see how those might pan out in Apache or Nginx too, so leave this for now.
-- At present, if the server tries but fails to re-load the ESNI keys and if
-  that fails (e.g. due to a disk error) then the server will stop doing ESNI.
-That could also be made more robust, and e.g. fall back to the last set of keys
-that did successfully load. We'd need to change the OpenSSL API for that
-though.
 - The check as to whether or not ESNI keys need to be re-loaded happens with
   each new TLS connection. (Actually loading keys only happens when the refresh
 period has gone by.) There may well be a better way to trigger that check, e.g.

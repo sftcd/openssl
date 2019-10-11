@@ -32,6 +32,9 @@ SUPPLIEDDIR=""
 #CAPATH="/etc/ssl/certs/"
 CAPATH="$TOP/esnistuff/cadir/"
 
+# whether we feed a bad key pair to server for testing
+BADKEY="no"
+
 function whenisitagain()
 {
     /bin/date -u +%Y%m%d-%H%M%S
@@ -53,6 +56,7 @@ function usage()
 	echo "  -F says to hard fail if ESNI attempted but fails"
 	echo "  -T says to attempt trial decryption if necessary"
 	echo "  -K to generate server keys "
+    echo "  -B to input a bad key pair to server setup, for testing"
     echo "  -h means print this"
 
 	echo ""
@@ -64,7 +68,7 @@ function usage()
 }
 
 # options may be followed by one colon to indicate they have a required argument
-if ! options=$(/usr/bin/getopt -s bash -o TFc:D:H:p:Kdlvnh -l trialdecrypt,hardfail,dir:,cover:,hidden:,port:,keygen,debug,stale,valgrind,noesni,help -- "$@")
+if ! options=$(/usr/bin/getopt -s bash -o BTFc:D:H:p:Kdlvnh -l badkey,trialdecrypt,hardfail,dir:,cover:,hidden:,port:,keygen,debug,stale,valgrind,noesni,help -- "$@")
 then
     # something went wrong, getopt will put out an error message for us
     exit 1
@@ -80,6 +84,7 @@ do
         -v|--valgrind) VG="yes" ;;
         -n|--noesni) NOESNI="yes" ;;
         -c|--cover) SUPPLIEDCOVER=$2; shift;;
+        -B|--badkey) BADKEY="yes";;
         -H|--hidden) SUPPLIEDHIDDEN=$2; shift;;
         -D|--dir) SUPPLIEDDIR=$2; shift;;
         -F|--hardfail) HARDFAIL="yes"; shift;;
@@ -156,6 +161,19 @@ then
 	esnidir=$SUPPLIEDDIR
 fi
 
+if [[ "$BADKEY" == "yes" ]]
+then
+    if [[ "$esnidir" == "" ]]
+    then
+        echo "Can't feed bad key pair without setting esnikeydir"
+        exit 88
+    else
+        echo "Feeding bogus key pair to server for test"
+        echo "boguspub" >$esnidir/badkey.pub
+        echo "boguspriv" >$esnidir/badkey.priv
+    fi
+fi
+
 esnistr=" -esnipub $ESNIPUB -esnikey $ESNIPRIV -esnidir $esnidir"
 if [[ ! -f $ESNIPUB || ! -f $ESNIPRIV ]]
 then
@@ -191,6 +209,16 @@ force13="-no_ssl3 -no_tls1 -no_tls1_1 -no_tls1_2"
 # and CertificateVerify will be padded. Witout this, all plaintexts
 # are (currently) padded
 #padding=" -esnispecificpad"
+
+# catch the ctrl-C used to stop the server and do any clean up needed
+cleanup() {
+    echo "Cleaning up after ctrl-c"
+    if [[ "$BADKEY" == "yes" ]]
+    then
+        rm -f $esnidir/badkey.pub $esnidir/badkey.priv
+    fi
+}
+trap cleanup SIGINT
 
 if [[ "$DEBUG" == "yes" ]]
 then

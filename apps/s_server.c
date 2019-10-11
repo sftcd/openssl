@@ -2227,8 +2227,8 @@ int s_server_main(int argc, char *argv[])
                         BIO_printf(bio_s_out,"Adding ESNI key pair: %s,%s\n",pubname,privname);
                     }
                     if (SSL_esni_server_enable(ctx,privname,pubname)!=1) {
-                        BIO_printf(bio_err, "Failure establishing ESNI parameters\n" );
-                        goto end;
+                        BIO_printf(bio_err, "Failure establishing ESNI parameters for %s\n",pubname );
+                        //goto end;
                     }
                 }
             }

@@ -25,6 +25,36 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- Added an ``SSL_esni_server_key_status`` API so a server can check how many
+  keys are currently loaded. Server can then decide whether it can continue if
+e.g. it flushed all keys except those loaded in the last hour and then the
+server tried to load more keys but those all failed. In that case, if there are
+still ESNI keys loaded the server may want to continue, but if the server is
+configured to support ESNI and now has no keys is may be better to exit. (Well,
+that's what I've done for lightttpd for now.)
+
+- I made ``SSL_esni_server_enable`` safer even if given crap. Beforehand it
+  crapped on the key table before exiting on (some) errors. The
+``testserver.sh`` script now takes a ``-B`` input to cause that to happen on
+startup by giving it a files for a bogus key pair.
+
+- As part of the key loading work below, I added an ``age`` parameter (in
+  seconds) to ``SSL_esni_server_flush_keys`` to allow keeping keys younger than
+that.  And now when ``SSL_esni_server_enable`` is called, it checks if the
+filenames were already loaded, and if so, whether the files modification time
+is newer than when the contents were previously loaded. Between the two,
+servers can, every N seconds, flush keys older than N seconds ad then (re-)load
+their set of key files (e.g.  from a directory) without having to care about
+internals of file content.  (I made the corresponding change in ligtthpd too.) 
+
+- Improving server key pair loading. We now store the private and public key
+file names provided to ``SSL_esni_server_enable`` and the time at which those
+were loaded. If a subsequent call to the same function has the same file 
+names, then we'll ignore the call if the files have not been modified since
+we last loaded the key pair, but if the files have been modified since then,
+we'll overwrite the already loaded key. If either file name is new, we'll
+add a new key to the store.
+
 - Added "ESNI only" setup to lighttpd build. Just to see if it's worth it.
 It was a good bit more work than I thought to get it working as
 it happened as I was trying to provide some "nice" fallback for that case.
@@ -886,30 +916,16 @@ seemed unkeen on. Decided to not bother with that.
 
 I'm sure there's more but some collected so far:
 
-
 - If we do end up with >1 ESNIKeys version that needs to be supported, 
   consider some kind of local "any" version value that a 
   server can use to force use of a public share regardless of the
   the ESNIKeys.version used by the client. That more easily allows
   multiple $hidden sites to hide behind one key pair belonging to
   some operator.
-- Had a look at how [lightttpd](https://github.com/lighttpd/lighttpd1.4/blob/master/src/mod_openssl.c) 
-  integrates OpenSSL and that might be a nicely viable build into which to
-  integrate our ESNI without too much effort. (Seems like latest OpenSSL and TLS1.3
-  have been integrated/working since 1.4.51-1 from Oct 2018 when someone 
-  fixed a [bug](https://bugs.archlinux.org/task/60294) caused by TLS1.3.)
-- Code up support for [draft-03](https://tools.ietf.org/html/draft-ietf-tls-esni-03#section-8.3)
 - Figure out/test HRR cases. [This issue](https://github.com/tlswg/draft-ietf-tls-esni/issues/121) calls for checks to be enforced.
-- Server API for managing ESNI public/private values w/o restart.
-- Server-side policy: should server have a concept of "only visible via ESNI"?
-  E.g. some server certs might only ever be used when asked-for via ESNI.
-- Server-side policy: Various combinations of existing/non-existing SNI/ESNI
-  and how to handle 'em.
 - What do we want/need to do to support the split backend approach? (separate
   fronting server from hosting server)
-- Integration with apache/nginx/wget/curl
-- Do we (really;-) need to deal with notbefore and notafter dates? It's a
-  horrible source of x.509 problems, so skipped in this code for now.
+- Integration with apache/nginx/wget
 - Adding/moving tests to the OpenSSL test suites
 - Continuous integration for these patches that aim to keep the patch series
   current against OpenSSL master as it evolves

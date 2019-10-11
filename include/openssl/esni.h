@@ -275,6 +275,15 @@ typedef struct ssl_esni_st {
     char *private_str; ///< for debug purposes, requires special build
 #endif
     CLIENT_ESNI *the_esni; ///< the final outputs for the caller (note: not separately alloc'd)
+    /* 
+     * File load information servers - if identical filenames not modified since
+     * loadtime are added via SSL_esni_serve_enable then we'll ignore the new
+     * data. If identical file names that are more recently modified are loaded
+     * to a server we'll overwrite this entry.
+     */
+    char *privfname; ///< name of private key file from which this was loaded
+    char *pubfname;  ///< name of private key file from which this was loaded
+    time_t loadtime; ///< time public and private key were loaded from file
 } SSL_ESNI;
 
 /**
@@ -486,12 +495,25 @@ int SSL_esni_reduce(SSL_ESNI *in, int index, SSL_ESNI **out);
 
 
 /**
- * Zap the set of stored ESNI Keys to allow a re-load without hogging memory
+ * Report on the number of ESNI key RRs currently loaded
  *
  * @param s is the SSL server context
+ * @param numkeys returns the number currently loaded
  * @return 1 for success, other otherwise
  */
-int SSL_esni_server_flush_keys(SSL_CTX *s);
+int SSL_esni_server_key_status(SSL_CTX *s, int *numkeys);
+
+/**
+ * Zap the set of stored ESNI Keys to allow a re-load without hogging memory
+ *
+ * Supply a zero or negative age to delete all keys. Providing age=3600 will
+ * keep keys loaded in the last hour.
+ *
+ * @param s is the SSL server context
+ * @param age don't flush keys loaded in the last age seconds
+ * @return 1 for success, other otherwise
+ */
+int SSL_esni_server_flush_keys(SSL_CTX *s, int age);
 
 /**
  * Turn on SNI Encryption, server-side
