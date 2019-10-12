@@ -45,5 +45,11 @@ function that's pretty much as done for [lighttpd](./lighttpd), ESNI... just wor
 You can see that configuration setting, called ``ssl_esnikeydir`` in our
 test [nginxmin.confg](nginxmin.conf).
 
-
+            $ ./testnginx.sh
+            ... stuff ...
+            $ /testclient.sh -p 5443 -s localhost -H baz.example.com -c example.net -P esnikeydir/ff03.pub
+            Running ./testclient.sh at 20191012-125357
+            ./testclient.sh Summary: 
+            Looks like 1 ok's and 0 bad's.
+            
 
