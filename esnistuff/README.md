@@ -25,6 +25,8 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- I now have an apparently working ESNI-enabled nginx: see the [notes](./nginx.md). 
+
 - I was advised to change a couple of function names from ``SSL_esni_*``
 to ``SSL_CTX_esni_*`` which seems right, so I've done that. No functional
 changes afaik.
