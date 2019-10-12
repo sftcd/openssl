@@ -1,28 +1,57 @@
 
-# Playing about with nginx
+# ESNI-enabling Nginx
 
-## Clone, Build and Run
+I have a first version of Nginx with ESNI enabled working. Not really tested 
+and there's work TBD but it was pretty easy and seems to work.
+
+## Clone and Build 
 
 Note that PRs against the github repo aren't desired. But I didn't check out
 what they do desire yet:-)
 
-            $ cd code
+First, you need our OpenSSL clone:
+
+            $ cd $HOME/code
+            $ git clone https://github.com/sftcd/openssl.git
+            $ cd openssl
+            $ ./config --debug
+            ...stuff...
+            $ make
+            ...go for coffee...
+
+Then you need nginx:
+
+            $ cd $HOME/code
             $ git clone https://github.com/sftcd/nginx.git
             $ cd nginx
             $ ./auto/configure --with-debug --prefix=nginx --with-http_ssl_module --with-openssl=$HOME/code/openssl
             $ make
             ... go for coffee ...
 
-- That seems to re-build openssl (inc. a ``make config; make clean``) within
+- That seems to re-build openssl (incl. a ``make config; make clean``) within
   $HOME/code/openssl for some reason.
 - And that includes creating a new "$HOME/code/openssl/.openssl" directory
   where it puts files from $HOME/openssl/include, static libraries and an
   openssl command line binary.
 - And it doesn't detect if I change code e.g. $HOME/code/openssl/ssl/esni.c or
   $HOME/code/openssl/include/openssl/esni.h
-- Odd. 
+- Odd... but whatever, it works;-) 
 
-Other than that the "--prefix=nginx" setting there is to match our [testnginx.sh](testnginx.sh)
+## Generate TLS and ESNI keys
+
+We have a couple of key generation scripts:
+
+    - [make-example-ca.sh](make-example-ca.sh) that generates a fake CA and TLS 
+      server certs for example.com, foo.example.com and baz.example.com
+    - [make-esnikeys.sh](make-esnikeys.sh) that generates ESNI keys for local
+      testing
+
+(Note that I've not recently re-tested those, but bug me if there's a problem
+and I'll check/fix.)
+
+## Run nginx
+
+The "--prefix=nginx" setting in the nginx build is to match our [testnginx.sh](testnginx.sh)
 script.  The [nginxmin.conf](nginxmin.conf) file that uses has a minimal configuration to 
 match out localhost test setup.
 
@@ -35,12 +64,17 @@ match out localhost test setup.
                 "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
             <html xmlns="http://www.w3.org...
 
-## ESNI configuration
+## ESNI configuration in Nginx
 
 I added an ESNI key directory configuration setting that can be within the ``http``
-stanza (and maybe elsewhere too, I don't fully understand all that yet;-). Then,
+stanza (and maybe elsewhere too, I don't fully understand all that yet;-) in the
+nginx config file. Then,
 with a bit of generic parameter handling and the addition of a ``load_esnikeys()`` 
 function that's pretty much as done for [lighttpd](./lighttpd), ESNI... just worked!
+
+The ``load_esnikeys()`` function expects ENSI key files to be in the configured
+directory. It attempts to load all pairs of files with matching <foo>.priv and
+<foo>.pub file names. It should nicely skip any files that don't parse correctly.
 
 You can see that configuration setting, called ``ssl_esnikeydir`` in our
 test [nginxmin.confg](nginxmin.conf).
@@ -52,7 +86,7 @@ test [nginxmin.confg](nginxmin.conf).
             ./testclient.sh Summary: 
             Looks like 1 ok's and 0 bad's.
 
-The only ESNI-related logging is when keys are loaded or re-loaded which looks
+The only ESNI-related logging (so far) is when keys are loaded or re-loaded which looks
 like:
 
             2019/10/12 14:32:13 [notice] 16953#0: load_esnikeys, worked for: /home/stephen/code/openssl/esnistuff/esnikeydir/ff01.pub
@@ -62,7 +96,8 @@ like:
             2019/10/12 14:32:13 [notice] 16953#0: load_esnikeys, total keys loaded: 4
 
 Note that even though I see 3 occurrences of those log lines, we only end up
-with 4 keys loaded as the library function checks that the files are the same.
+with 4 keys loaded as the library function checks whether files have already
+been loaded. (Based on name and modification time, only - not the file content.)
 
 ## Reloading ESNI keys
 
@@ -77,10 +112,13 @@ remove key files, that all seems ok, I guess because nginx cleans up (worker)
 processses that have the keys in memory. (That's nicely a lot easier than with 
 lighttpd:-) 
 
-
-## Improvements...
+## TODO/Improvements...
 
 - Check with valgrind we're not leaking! 
+- Deploy on defo.ie, probably not on 443 at first, 'till we've tested some.
+- Add some more logging of ESNI successes and failures and likely a callback
+  to expose cover/hidden to nginx.
+- Add a way for CGI programs to access ESNI status, as we did for lighttpd.
 - Portability: there's an ``ngx_read_dir()`` wrapper for ``readdir()`` that
   really needs to be used.
 - It'd be better if the ``ssl_esnikeydir`` were a "global" setting probably (like
