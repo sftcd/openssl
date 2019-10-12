@@ -41,10 +41,10 @@ Then you need nginx:
 
 We have a couple of key generation scripts:
 
-    - [make-example-ca.sh](make-example-ca.sh) that generates a fake CA and TLS 
-      server certs for example.com, foo.example.com and baz.example.com
-    - [make-esnikeys.sh](make-esnikeys.sh) that generates ESNI keys for local
-      testing
+- [make-example-ca.sh](make-example-ca.sh) that generates a fake CA and TLS 
+  server certs for example.com, foo.example.com and baz.example.com
+- [make-esnikeys.sh](make-esnikeys.sh) that generates ESNI keys for local
+  testing
 
 (Note that I've not recently re-tested those, but bug me if there's a problem
 and I'll check/fix.)
@@ -53,7 +53,7 @@ and I'll check/fix.)
 
 The "--prefix=nginx" setting in the nginx build is to match our [testnginx.sh](testnginx.sh)
 script.  The [nginxmin.conf](nginxmin.conf) file that uses has a minimal configuration to 
-match out localhost test setup.
+match our localhost test setup.
 
             $ cd $HOME/code/openssl/esnistuff
             $ ./testnginx.sh
@@ -73,8 +73,8 @@ with a bit of generic parameter handling and the addition of a ``load_esnikeys()
 function that's pretty much as done for [lighttpd](./lighttpd), ESNI... just worked!
 
 The ``load_esnikeys()`` function expects ENSI key files to be in the configured
-directory. It attempts to load all pairs of files with matching <foo>.priv and
-<foo>.pub file names. It should nicely skip any files that don't parse correctly.
+directory. It attempts to load all pairs of files with matching ``<foo>.priv`` and
+``<foo>.pub`` file names. It should nicely skip any files that don't parse correctly.
 
 You can see that configuration setting, called ``ssl_esnikeydir`` in our
 test [nginxmin.confg](nginxmin.conf).
@@ -122,7 +122,7 @@ lighttpd:-)
 - Portability: there's an ``ngx_read_dir()`` wrapper for ``readdir()`` that
   really needs to be used.
 - It'd be better if the ``ssl_esnikeydir`` were a "global" setting probably (like
-  ``error_log``) but when I need to figure out how to get that to work still. For
+  ``error_log``) but I need to figure out how to get that to work still. For
   now it seems it has to be inside the ``http`` stanza, and one occurrence of 
   the setting causes ``load_esnikeys()`` to be called three times in our test
   setup which seems a little off. (It's ok though as we only really store keys
