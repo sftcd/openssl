@@ -51,5 +51,44 @@ test [nginxmin.confg](nginxmin.conf).
             Running ./testclient.sh at 20191012-125357
             ./testclient.sh Summary: 
             Looks like 1 ok's and 0 bad's.
-            
+
+The only ESNI-related logging is when keys are loaded or re-loaded which looks
+like:
+
+            2019/10/12 14:32:13 [notice] 16953#0: load_esnikeys, worked for: /home/stephen/code/openssl/esnistuff/esnikeydir/ff01.pub
+            2019/10/12 14:32:13 [notice] 16953#0: load_esnikeys, worked for: /home/stephen/code/openssl/esnistuff/esnikeydir/e3.pub
+            2019/10/12 14:32:13 [notice] 16953#0: load_esnikeys, worked for: /home/stephen/code/openssl/esnistuff/esnikeydir/ff03.pub
+            2019/10/12 14:32:13 [notice] 16953#0: load_esnikeys, worked for: /home/stephen/code/openssl/esnistuff/esnikeydir/e2.pub
+            2019/10/12 14:32:13 [notice] 16953#0: load_esnikeys, total keys loaded: 4
+
+Note that even though I see 3 occurrences of those log lines, we only end up
+with 4 keys loaded as the library function checks that the files are the same.
+
+## Reloading ESNI keys
+
+Nginx will reload its configuration if you send it a SIGHUP signal. That's easier
+to use than we saw with lighttp, so if you change the set of keys in the ESNI key
+directory then you can:
+
+            $ kill -SIGHUP `cat nginx/logs/nginx.pid`
+
+...and that does cause the ESNI key files to be reloaded nicely. If you add and
+remove key files, that all seems ok, I guess because nginx cleans up (worker)
+processses that have the keys in memory. (That's nicely a lot easier than with 
+lighttpd:-) 
+
+
+## Improvements...
+
+- Check with valgrind we're not leaking! 
+- Portability: there's an ``ngx_read_dir()`` wrapper for ``readdir()`` that
+  really needs to be used.
+- It'd be better if the ``ssl_esnikeydir`` were a "global" setting probably (like
+  ``error_log``) but when I need to figure out how to get that to work still. For
+  now it seems it has to be inside the ``http`` stanza, and one occurrence of 
+  the setting causes ``load_esnikeys()`` to be called three times in our test
+  setup which seems a little off. (It's ok though as we only really store keys
+  from different files.)
+
+
 
