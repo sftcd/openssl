@@ -63,7 +63,7 @@ EOF
 fi
 
 # set to use valgrind, unset to not
-#VALGRIND="valgrind --leak-check=full --show-leak-kinds=all"
+# VALGRIND="valgrind --leak-check=full --show-leak-kinds=all"
 # VALGRIND="valgrind --leak-check=full "
 VALGRIND=""
 

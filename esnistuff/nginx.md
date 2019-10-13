@@ -24,7 +24,7 @@ Then you need nginx:
             $ cd $HOME/code
             $ git clone https://github.com/sftcd/nginx.git
             $ cd nginx
-            $ ./auto/configure --with-debug --prefix=nginx --with-http_ssl_module --with-openssl=$HOME/code/openssl
+            $ ./auto/configure --with-debug --prefix=nginx --with-http_ssl_module --with-openssl=$HOME/code/openssl --with-openssl-opt="--debug"
             $ make
             ... go for coffee ...
 
@@ -63,6 +63,10 @@ match our localhost test setup.
             <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
                 "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
             <html xmlns="http://www.w3.org...
+
+Valgrind seems to be ok wrt leaks in various tests, though it's a little harder
+to tell given the master/worker process model. Nothing definitely leaked
+though. (And our tests are pretty basic so far.)
 
 ## ESNI configuration in Nginx
 
@@ -119,7 +123,6 @@ lighttpd:-)
 
 ## TODO/Improvements...
 
-- Check with valgrind we're not leaking! 
 - Deploy on defo.ie, probably not on 443 at first, 'till we've tested some.
 - Add a way for CGI programs to access ESNI status, as we did for lighttpd.
 - Portability: there's an ``ngx_read_dir()`` wrapper for ``readdir()`` that
