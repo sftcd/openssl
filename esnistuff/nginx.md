@@ -64,6 +64,9 @@ match our localhost test setup.
                 "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
             <html xmlns="http://www.w3.org...
 
+If you'd prefer the server to not daemoise, there's a "daemon off;" line in
+the config file you can uncomment. That's useful with valgrind or gdb.
+
 Valgrind seems to be ok wrt leaks in various tests, though it's a little harder
 to tell given the master/worker process model. Nothing definitely leaked
 though. (And our tests are pretty basic so far.)
