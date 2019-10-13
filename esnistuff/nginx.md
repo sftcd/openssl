@@ -86,8 +86,7 @@ test [nginxmin.confg](nginxmin.conf).
             ./testclient.sh Summary: 
             Looks like 1 ok's and 0 bad's.
 
-The only ESNI-related logging (so far) is when keys are loaded or re-loaded which looks
-like:
+We log when keys are loaded or re-loaded. That's in the error log and looks like:
 
             2019/10/12 14:32:13 [notice] 16953#0: load_esnikeys, worked for: /home/stephen/code/openssl/esnistuff/esnikeydir/ff01.pub
             2019/10/12 14:32:13 [notice] 16953#0: load_esnikeys, worked for: /home/stephen/code/openssl/esnistuff/esnikeydir/e3.pub
@@ -98,6 +97,12 @@ like:
 Note that even though I see 3 occurrences of those log lines, we only end up
 with 4 keys loaded as the library function checks whether files have already
 been loaded. (Based on name and modification time, only - not the file content.)
+
+We log when ESNI is attempted, and works or fails, or if it's not tried. The
+success case is at the NOTICE log level, whereas other events are just logged
+at the INFO level. That looks like:
+
+            2019/10/13 14:50:29 [notice] 9891#0: *10 ESNI success cover: example.net hidden: foo.example.com while SSL handshaking, client: 127.0.0.1, server: 0.0.0.0:5443
 
 ## Reloading ESNI keys
 
@@ -116,8 +121,6 @@ lighttpd:-)
 
 - Check with valgrind we're not leaking! 
 - Deploy on defo.ie, probably not on 443 at first, 'till we've tested some.
-- Add some more logging of ESNI successes and failures and likely a callback
-  to expose cover/hidden to nginx.
 - Add a way for CGI programs to access ESNI status, as we did for lighttpd.
 - Portability: there's an ``ngx_read_dir()`` wrapper for ``readdir()`` that
   really needs to be used.
