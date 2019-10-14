@@ -82,6 +82,8 @@ function that's pretty much as done for [lighttpd](./lighttpd), ESNI... just wor
 The ``load_esnikeys()`` function expects ENSI key files to be in the configured
 directory. It attempts to load all pairs of files with matching ``<foo>.priv`` and
 ``<foo>.pub`` file names. It should nicely skip any files that don't parse correctly.
+I *think* that may be implemented portably (I use ``ngx_read_dir`` now instead
+of ``readdir`` but more may be needed for it to work ok on win32, needs checking.)
 
 You can see that configuration setting, called ``ssl_esnikeydir`` in our
 test [nginxmin.confg](nginxmin.conf).
@@ -128,8 +130,6 @@ lighttpd:-)
 
 - Deploy on defo.ie, probably not on 443 at first, 'till we've tested some.
 - Add a way for CGI programs to access ESNI status, as we did for lighttpd.
-- Portability: there's an ``ngx_read_dir()`` wrapper for ``readdir()`` that
-  really needs to be used.
 - It'd be better if the ``ssl_esnikeydir`` were a "global" setting probably (like
   ``error_log``) but I need to figure out how to get that to work still. For
   now it seems it has to be inside the ``http`` stanza, and one occurrence of 
