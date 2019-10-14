@@ -217,6 +217,11 @@ That log line includes the requesting IP address for now.
 
 ## Further improvement
 
+- Test whether or not a client could assert the ``SSL_ESNI_STATUS`` by sending
+an HTTP header field, e.g.:
+
+            $ curl -H "SSL_ESNI_STATUS:brat" --connect-to foo.example.com:443:localhost:3443 https://foo.example.com/index.html --cacert cadir/oe.csr
+
 - The check as to whether or not ESNI keys need to be re-loaded happens with
   each new TLS connection. (Actually loading keys only happens when the refresh
 period has gone by.) There may well be a better way to trigger that check, e.g.

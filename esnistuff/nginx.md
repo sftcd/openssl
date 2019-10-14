@@ -12,8 +12,8 @@ what they do desire yet:-)
 First, you need our OpenSSL clone:
 
             $ cd $HOME/code
-            $ git clone https://github.com/sftcd/openssl.git
-            $ cd openssl
+            $ git clone https://github.com/sftcd/openssl.git openssl-for-nginx
+            $ cd openssl-for-nginx
             $ ./config --debug
             ...stuff...
             $ make
@@ -24,18 +24,22 @@ Then you need nginx:
             $ cd $HOME/code
             $ git clone https://github.com/sftcd/nginx.git
             $ cd nginx
-            $ ./auto/configure --with-debug --prefix=nginx --with-http_ssl_module --with-openssl=$HOME/code/openssl --with-openssl-opt="--debug"
+            $ ./auto/configure --with-debug --prefix=nginx --with-http_ssl_module --with-openssl=$HOME/code/openssl-for-nginx --with-openssl-opt="--debug"
             $ make
             ... go for coffee ...
 
 - That seems to re-build openssl (incl. a ``make config; make clean``) within
-  $HOME/code/openssl for some reason.
+  $HOME/code/openssl-for-nginx for some reason.
 - And that includes creating a new "$HOME/code/openssl/.openssl" directory
   where it puts files from $HOME/openssl/include, static libraries and an
   openssl command line binary.
 - And it doesn't detect if I change code e.g. $HOME/code/openssl/ssl/esni.c or
   $HOME/code/openssl/include/openssl/esni.h
-- Odd... but whatever, it works;-) 
+- That means you kinda need two clones of openssl if you want to build openssl
+  shared objects (e.g. for lighttpd) and staticly for nginx. I mucked up a
+  few times when using the same source tree for both. I'm sure that can be
+  improved, but I've not figured out how yet.
+- Odd... but whatever, it can work;-) 
 
 ## Generate TLS and ESNI keys
 
@@ -128,6 +132,7 @@ lighttpd:-)
 
 ## TODO/Improvements...
 
+- Figure out how to get nginx to use openssl as a shared object.
 - Deploy on defo.ie, probably not on 443 at first, 'till we've tested some.
 - Add a way for CGI programs to access ESNI status, as we did for lighttpd.
 - It'd be better if the ``ssl_esnikeydir`` were a "global" setting probably (like
