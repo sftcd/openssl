@@ -26,6 +26,7 @@ There's a [TODO list](#todos) at the end.
 Most recent first...
 
 - I now have an apparently working ESNI-enabled nginx: see the [notes](./nginx.md). 
+That is deployed on [defo.ie on port 5443](https://defo.ie:5443).
 
 - I was advised to change a couple of function names from ``SSL_esni_*``
 to ``SSL_CTX_esni_*`` which seems right, so I've done that. No functional

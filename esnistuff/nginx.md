@@ -130,11 +130,25 @@ remove key files, that all seems ok, I guess because nginx cleans up (worker)
 processses that have the keys in memory. (That's nicely a lot easier than with 
 lighttpd:-) 
 
+## PHP variables
+
+As with lighttpd I added the following variables that are now visible to
+PHP code:
+
+    - ``SSL_ENSI_STATUS`` - ``success`` means that others also mean what they say
+    - ``SSL_ESNI_HIDDEN`` - has value that was encrypted in ESNI (or ``NONE``)
+    - ``SSL_ESNI_COVER`` - has value that was seen in plaintext SNI (or ``NONE``)
+
+To see those using fastcgi you need to include the following in the relevant
+bits of nginx config:
+
+            fastcgi_param SSL_ESNI_STATUS $ssl_esni_status;
+            fastcgi_param SSL_ESNI_HIDDEN $ssl_esni_hidden;
+            fastcgi_param SSL_ESNI_COVER $ssl_esni_cover;
+
 ## TODO/Improvements...
 
 - Figure out how to get nginx to use openssl as a shared object.
-- Deploy on defo.ie, probably not on 443 at first, 'till we've tested some.
-- Add a way for CGI programs to access ESNI status, as we did for lighttpd.
 - It'd be better if the ``ssl_esnikeydir`` were a "global" setting probably (like
   ``error_log``) but I need to figure out how to get that to work still. For
   now it seems it has to be inside the ``http`` stanza, and one occurrence of 
