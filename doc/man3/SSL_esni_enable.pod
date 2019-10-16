@@ -2,79 +2,87 @@
 
 =head1 NAME
 
-SSL_esni_enable, SSL_esni_query,
+SSL_esni_enable, SSL_ESNI_new_from_buffer,
 SSL_esni_checknames, SSL_get_esni_status, 
-SSL_ESNI_dec, SSL_ESNI_dup, SSL_ESNI_enc, SSL_ESNI_ext_free,
-SSL_ESNI_ext_print, SSL_ESNI_free, SSL_ESNI_get_esni,
-SSL_ESNI_get_esni_ctx, SSL_ESNI_grease_me,
-SSL_ESNI_new_from_buffer, SSL_ESNI_print, SSL_ESNI_set_nonce,
-SSL_ESNI_set_private, SSL_ESNI_wrap_keyshare,
-SSL_esni_reduce, SSL_esni_server_enable, 
-SSL_set_esni_callback, SSL_set_esni_callback_ctx,
+SSL_ESNI_print, SSL_ESNI_free,
+SSL_set_esni_callback, 
 SSL_SESSION_set1_enchostname, SSL_SESSION_set1_covername,
 SSL_SESSION_set1_public_name, SSL_SESSION_get0_enchostname
-- Encrypted Server Name Indication (SNI) support
+- Encrypted Server Name Indication (ESNI) support - client and common functions 
 
 =head1 SYNOPSIS
 
  #include <openssl/esni.h>
+ int SSL_esni_enable(SSL *s, const char *hidden, const char *cover, SSL_ESNI *esni, int nesnis, int require_hidden_match);
+ SSL_ESNI* SSL_ESNI_new_from_buffer(const short ekfmt, const size_t eklen, const char *esnikeys, int *num_esnis);
+ int SSL_esni_checknames(const char *encservername, const char *covername);
+ int SSL_get_esni_status(SSL *s, char **hidden, char **cover);
+ int SSL_ESNI_print(BIO* out, SSL_ESNI *esni, int selector);
+ void SSL_ESNI_free(SSL_ESNI *esnikeys);
+ void SSL_set_esni_callback(SSL *s, SSL_esni_client_cb_func f);
  int SSL_SESSION_set1_enchostname(SSL_SESSION *s, const char *hostname);
  int SSL_SESSION_set1_covername(SSL_SESSION *s, const char *covername);
  int SSL_SESSION_set1_public_name(SSL_SESSION *s, const char *public_name);
  const char *SSL_SESSION_get0_enchostname(const SSL_SESSION *s);
- void SSL_set_esni_callback(SSL *s, SSL_esni_client_cb_func f);
- void SSL_set_esni_callback_ctx(SSL_CTX *s, SSL_esni_client_cb_func f);
- unsigned char *SSL_ESNI_wrap_keyshare(
-                 const unsigned char *keyshare,
-                 const size_t keyshare_len,
-                 const uint16_t curve_id,
-                 size_t *outlen);
- int SSL_ESNI_enc(SSL_ESNI *esnikeys, 
-                 size_t  client_random_len,
-                 unsigned char *client_random,
-                 uint16_t curve_id,
-                 size_t  client_keyshare_len,
-                 unsigned char *client_keyshare,
-                 CLIENT_ESNI **the_esni);
- unsigned char *SSL_ESNI_dec(SSL_ESNI *esni,
- 				size_t	client_random_len,
- 				unsigned char *client_random,
- 				uint16_t curve_id,
- 				size_t	client_keyshare_len,
- 				unsigned char *client_keyshare,
- 				size_t *encservername_len);
- void SSL_ESNI_free(SSL_ESNI *esnikeys);
- SSL_ESNI* SSL_ESNI_dup(SSL_ESNI* orig, size_t nesni, int selector);
- int SSL_esni_checknames(const char *encservername, const char *covername);
- SSL_ESNI* SSL_ESNI_new_from_buffer(const short ekfmt, const size_t eklen, const char *esnikeys, int *num_esnis);
- int SSL_esni_enable(SSL *s, const char *hidden, const char *cover, SSL_ESNI *esni, int nesnis, int require_hidden_match);
- int SSL_esni_query(SSL_ESNI *in, SSL_ESNI_ext **out, int *nindices);
- void SSL_ESNI_ext_free(SSL_ESNI_ext *in, int size);
- int SSL_ESNI_ext_print(BIO* out, SSL_ESNI_ext *se, int count);
- int SSL_esni_reduce(SSL_ESNI *in, int index, SSL_ESNI **out);
- int SSL_esni_server_enable(SSL_CTX *s, const char *esnikeyfile, const char *esnipubfile);
- int SSL_ESNI_get_esni(SSL *s, SSL_ESNI **esni);
- int SSL_ESNI_get_esni_ctx(SSL_CTX *s, SSL_ESNI **esni);
- int SSL_ESNI_print(BIO* out, SSL_ESNI *esni, int selector);
- int SSL_get_esni_status(SSL *s, char **hidden, char **cover);
- int SSL_ESNI_set_private(SSL_ESNI *esni, char *private_str);
- int SSL_ESNI_set_nonce(SSL_ESNI *esni, unsigned char *nonce, size_t nlen);
- int SSL_ESNI_grease_me(SSL *s, CLIENT_ESNI **cp);
 
 =head1 DESCRIPTION
 
-These functions handle encrypted SNI. TODO: Details:-) 
+These functions handle the client side of encrypted SNI. Some are also used on
+servers.
 
-I forget why I had to add these, but I guess I did...
-SSL_SESSION_set1_enchostname, SSL_SESSION_set1_covername,
-SSL_SESSION_set1_public_name, SSL_SESSION_get0_enchostname
+SSL_esni_enable() requests that ESNI be used for a TLS session, with the
+specified ``hidden`` name and an optional ``cover`` name that will be sent in
+the cleartext SNI. (If no cleartext SNI is desired, provide a NULL.) 
 
-I just added this because the CI build was complaining about the doc-nits
-Makefile target. But no harm to start I guess.
+SSL_esni_enable() also takes as input an array of SSL_ESNI structures that was
+output from SSL_ESNI_new_from_buffer(), the size of that array, and a flag
+determining if the hidden name needs to match the TLS server certificate used
+in the handshake or not. (That last may disappear.)
+
+SSL_ESNI_new_from_buffer() takes as input a buffer containing a set of encoded
+ESNIKeys, typically retrieved from DNS, checks and parses that buffer into an
+array of SSL_ESNI structures that can subsequently be used in
+SSL_esni_enable(). The size of that array is also returned in ``num_esnis``.
+
+SSL_ESNI_new_from_buffer() also takes a format type as input.  That can take
+the following values: 
+- ESNI_RRFMT_GUESS: the implementation will try guess the format
+- ESNI_RRFMT_BIN: the buffer contains binary encoded ESNIKeys
+- ESNI_RRFMT_ASCIIHEX: the buffer contains ascii hex ESNIKeys
+- ESNI_RRFMT_B64TXT: the buffer contains  base64 encoded ESNIKeys
+
+In each case, the buffer can contain a set of catenated ESNIKeys values. (For
+the base64 encoded option, those need to be separated by a semi-colon.)
+
+SSL_esni_checknames() currently only checks that the hidden and cover
+names are not the same, which would be undesirable. (This may 
+disappear.) 
+
+SSL_esni_get_status() will return the status of ESNI for an SSL session,
+post-handshake. If ESNI was used the ``hidden`` and ``cover`` values will be
+set appropriately. (If no cleartext SNI was used in the handshake, the
+``cover`` returned will be a NULL.) The return value can be one of:
+- SSL_ESNI_STATUS_GREASE - ESNI GREASE happened (if you care:-)
+- SSL_ESNI_STATUS_SUCCESS - Success
+- SSL_ESNI_STATUS_FAILED  - Some internal error
+- SSL_ESNI_STATUS_BAD_CALL  - Required in/out arguments were badly set
+- SSL_ESNI_STATUS_NOT_TRIED  - ESNI wasn't attempted 
+- SSL_ESNI_STATUS_BAD_NAME  - ESNI succeeded but the server cert didn't match
+                              the hidden service name
+- SSL_ESNI_STATUS_TOOMANY  - ESNI succeeded but we can't figure out which one!
+
+Still TBD:
+SSL_ESNI_print()
+SSL_ESNI_free()
+SSL_set_esni_callback()
+SSL_SESSION_set1_enchostname()
+SSL_SESSION_set1_covername()
+SSL_SESSION_set1_public_name()
+SSL_SESSION_get0_enchostname()
 
 =head1 RETURN VALUES
 
-Everyone returns 1 for success basically.
+Unless otherwise stated all functions return 1 for success.
 
 =head1 SEE ALSO
 

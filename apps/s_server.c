@@ -611,7 +611,7 @@ static int ssl_esni_servername_cb(SSL *s, int *ad, void *arg)
         if (ctx2 != NULL) {
             /*
              * TODO: Check if strlen is really safe here - think it should be as
-             * SSL_ESNI_dec will have checked there are no embedded NUL bytes but
+             * internally will have checked there are no embedded NUL bytes but
              * make sure.
              */
             int mrv=X509_check_host(p->scert,servername,strlen(servername),0,NULL);
