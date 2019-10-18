@@ -3349,12 +3349,6 @@ void SSL_CTX_free(SSL_CTX *a)
     CRYPTO_THREAD_lock_free(a->lock);
 #ifndef OPENSSL_NO_ESNI
 	if (a->ext.esni!=NULL) {
-        /*
-		for (i=0;i!=a->ext.nesni;i++) {
-            printf("Freeing %d of %ld ESNIs\n",i,a->ext.nesni);
-			SSL_ESNI_free(&a->ext.esni[i]);
-		}
-        */
         SSL_ESNI_free(a->ext.esni);
 		OPENSSL_free(a->ext.esni);
 		a->ext.esni=NULL;

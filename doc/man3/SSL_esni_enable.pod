@@ -5,7 +5,8 @@
 SSL_esni_enable, SSL_ESNI_new_from_buffer,
 SSL_esni_checknames, SSL_get_esni_status, 
 SSL_ESNI_print, SSL_ESNI_free,
-SSL_set_esni_callback, 
+SSL_esni_query, SSL_esni_reduce,
+SSL_set_esni_callback, SSL_set_esni_callback_ctx,
 SSL_SESSION_set1_enchostname, SSL_SESSION_set1_covername,
 SSL_SESSION_set1_public_name, SSL_SESSION_get0_enchostname
 - Encrypted Server Name Indication (ESNI) support - client and common functions 
@@ -18,8 +19,11 @@ SSL_SESSION_set1_public_name, SSL_SESSION_get0_enchostname
  int SSL_esni_checknames(const char *encservername, const char *covername);
  int SSL_get_esni_status(SSL *s, char **hidden, char **cover);
  int SSL_ESNI_print(BIO* out, SSL_ESNI *esni, int selector);
+ int SSL_esni_query(SSL_ESNI *in, SSL_ESNI_ext **out, int *nindices);
+ int SSL_esni_reduce(SSL_ESNI *in, int index, SSL_ESNI **out);
  void SSL_ESNI_free(SSL_ESNI *esnikeys);
  void SSL_set_esni_callback(SSL *s, SSL_esni_client_cb_func f);
+ void SSL_set_esni_callback_ctx(SSL_CTX *s, SSL_esni_client_cb_func f);
  int SSL_SESSION_set1_enchostname(SSL_SESSION *s, const char *hostname);
  int SSL_SESSION_set1_covername(SSL_SESSION *s, const char *covername);
  int SSL_SESSION_set1_public_name(SSL_SESSION *s, const char *public_name);
@@ -27,17 +31,20 @@ SSL_SESSION_set1_public_name, SSL_SESSION_get0_enchostname
 
 =head1 DESCRIPTION
 
-These functions handle the client side of encrypted SNI. Some are also used on
-servers.
+These functions handle the client side of encrypted SNI. Some are also useful
+on servers.
 
 SSL_esni_enable() requests that ESNI be used for a TLS session, with the
-specified ``hidden`` name and an optional ``cover`` name that will be sent in
-the cleartext SNI. (If no cleartext SNI is desired, provide a NULL.) 
+specified ESNI keys, ``hidden`` name and an optional ``cover`` name that will
+be sent in the cleartext SNI. If no cleartext SNI is desired, or to use the
+public_name from within the ESNIKeys structure used, provide a NULL as the
+cover input. If a non-NULL cover name is supplied that will be used instead of
+the public_name within the ESNIKeys structure.
 
 SSL_esni_enable() also takes as input an array of SSL_ESNI structures that was
-output from SSL_ESNI_new_from_buffer(), the size of that array, and a flag
-determining if the hidden name needs to match the TLS server certificate used
-in the handshake or not. (That last may disappear.)
+output from SSL_ESNI_new_from_buffer(), the number of elements in that array,
+and a flag determining if the hidden name needs to match the TLS server
+certificate used in the handshake or not. (That last may disappear.)
 
 SSL_ESNI_new_from_buffer() takes as input a buffer containing a set of encoded
 ESNIKeys, typically retrieved from DNS, checks and parses that buffer into an
@@ -48,15 +55,16 @@ SSL_ESNI_new_from_buffer() also takes a format type as input.  That can take
 the following values: 
 - ESNI_RRFMT_GUESS: the implementation will try guess the format
 - ESNI_RRFMT_BIN: the buffer contains binary encoded ESNIKeys
-- ESNI_RRFMT_ASCIIHEX: the buffer contains ascii hex ESNIKeys
-- ESNI_RRFMT_B64TXT: the buffer contains  base64 encoded ESNIKeys
+- ESNI_RRFMT_ASCIIHEX: the buffer contains ascii hex encoded ESNIKeys
+- ESNI_RRFMT_B64TXT: the buffer contains base64 encoded ESNIKeys
 
-In each case, the buffer can contain a set of catenated ESNIKeys values. (For
-the base64 encoded option, those need to be separated by a semi-colon.)
+In each case, the buffer can contain a set of catenated ESNIKeys values.  This
+allows applications to handle the situation where they find multiple RR values
+in the DNS.  (For the base64 encoded option, those need to be separated by a
+semi-colon.)
 
-SSL_esni_checknames() currently only checks that the hidden and cover
-names are not the same, which would be undesirable. (This may 
-disappear.) 
+SSL_esni_checknames() currently only checks that the hidden and cover names are
+not the same, which would be undesirable. (This function may disappear.) 
 
 SSL_esni_get_status() will return the status of ESNI for an SSL session,
 post-handshake. If ESNI was used the ``hidden`` and ``cover`` values will be
@@ -67,18 +75,55 @@ set appropriately. (If no cleartext SNI was used in the handshake, the
 - SSL_ESNI_STATUS_FAILED  - Some internal error
 - SSL_ESNI_STATUS_BAD_CALL  - Required in/out arguments were badly set
 - SSL_ESNI_STATUS_NOT_TRIED  - ESNI wasn't attempted 
-- SSL_ESNI_STATUS_BAD_NAME  - ESNI succeeded but the server cert didn't match
-                              the hidden service name
+- SSL_ESNI_STATUS_BAD_NAME  - ESNI succeeded but the server cert didn't match the hidden service name
 - SSL_ESNI_STATUS_TOOMANY  - ESNI succeeded but we can't figure out which one!
 
-Still TBD:
-SSL_ESNI_print()
-SSL_ESNI_free()
-SSL_set_esni_callback()
-SSL_SESSION_set1_enchostname()
-SSL_SESSION_set1_covername()
-SSL_SESSION_set1_public_name()
-SSL_SESSION_get0_enchostname()
+SSL_esni_query() provide a view of some of the (non-cryptorgraphic) content
+contained within a set of ESNI keys.  This allows a client wishes to select one
+of a set of ESNI keys via SSL_esni_reduce(). The structure returned by
+SSL_esni_query() is as shown below:
+
+            typedef struct ssl_esni_ext_st {
+                int index; ///< externally re-usable reference to this RR value
+                char *public_name; ///< public_name from ESNIKeys
+                char *prefixes;  ///< comman seperated list of IP address prefixes, in CIDR form
+                uint64_t not_before; ///< from ESNIKeys (not currently used)
+                uint64_t not_after; ///< from ESNIKeys (not currently used)
+            } SSL_ESNI_ext; 
+
+Note that this is likely to change, for example, the not_before field has been
+dropped from the ESNIKeys structure in draft-04 of the specification.
+
+SSL_ESNI_free() frees up the internal structures linked to a set of ESNI keys.
+The caller should subsequently free the SSL_ESNI array itself using
+OPENSSL_free().
+
+SSL_ESNI_print() provides a printable view of the internal SSL_ESNI
+information.  (This is mainly for development and interoperability testing and
+is not intended for logging.)
+
+SSL_set_esni_callback() allows the application to set a callback that will
+print ESNI information for debugging purposes. On clients, that is called when
+the ESNI extension is added to the ClientHello. On servers, this is called at
+the end of successful decryption of a received ESNI extension.
+
+SSL_set_esni_callback_ctx() sets the callback in the context, and that is
+copied into derived SSL sessions.
+
+SSL_SESSION_set1_enchostname(), SSL_SESSION_set1_covername(),
+SSL_SESSION_set1_public_name() and SSL_SESSION_get0_enchostname() allow for
+setting and getting ESNI related values in an SSL_SESSION so that session
+ticket handling continues to work as needed.
+
+Aside from the functions above we also define new options that can be
+set for SSL contexts:
+
+SSL_OP_ESNI_GREASE - turn on support for "greasing" ESNI
+SSL_OP_ESNI_HARDFAIL - set this to hard fail after attempted decryption
+instead of greasing
+SSL_OP_ESNI_TRIALDECRYPT - tell a server to attempt decryption using
+all avilable ESNI keys before failing
+
 
 =head1 RETURN VALUES
 

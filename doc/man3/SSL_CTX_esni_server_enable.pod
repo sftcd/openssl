@@ -5,7 +5,6 @@
 SSL_CTX_esni_server_enable,
 SSL_CTX_esni_server_key_status,
 SSL_CTX_esni_server_flush_keys,
-SSL_set_esni_callback_ctx,
 SSL_CTX_get_esni
 - Encrypted Server Name Indication (ESNI) server-side support
 
@@ -16,7 +15,6 @@ SSL_CTX_get_esni
  int SSL_CTX_esni_server_flush_keys(SSL_CTX *s, int age);
  int SSL_CTX_esni_server_key_status(SSL_CTX *s, int *numkeys);
  int SSL_CTX_get_esni(SSL_CTX *s, SSL_ESNI **esni);
- void SSL_set_esni_callback_ctx(SSL_CTX *s, SSL_esni_client_cb_func f);
 
 =head1 DESCRIPTION
 
