@@ -2958,7 +2958,7 @@ int SSL_CTX_esni_server_enable(SSL_CTX *ctx, const char *esnikeyfile, const char
     ESNI_RECORD *er=NULL;
     char *pname=NULL;
     char *pheader=NULL;
-    unsigned char *pdata;
+    unsigned char *pdata=NULL;
     long plen;
     if (ctx==NULL || esnikeyfile==NULL) {
         ESNIerr(ESNI_F_SSL_CTX_ESNI_SERVER_ENABLE, ERR_R_INTERNAL_ERROR);
