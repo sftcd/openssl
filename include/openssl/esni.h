@@ -522,8 +522,8 @@ int SSL_CTX_esni_server_flush_keys(SSL_CTX *s, int age);
  * subsequently treat those as if they had been send in cleartext SNI.
  *
  * @param s is the SSL server context
- * @param esnikeyfile has the relevant (X25519) private key in PEM format
- * @param esnipubfile has the relevant (binary encoded, not base64) ESNIKeys structure
+ * @param esnikeyfile has the relevant (X25519) private key in PEM format, or both keys
+ * @param esnipubfile has the relevant (binary encoded, not base64) ESNIKeys structure, or is NULL
  * @return 1 for success, other otherwise
  */
 int SSL_CTX_esni_server_enable(SSL_CTX *s, const char *esnikeyfile, const char *esnipubfile);

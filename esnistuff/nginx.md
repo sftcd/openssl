@@ -77,17 +77,29 @@ though. (And our tests are pretty basic so far.)
 
 ## ESNI configuration in Nginx
 
-I added an ESNI key directory configuration setting that can be within the ``http``
-stanza (and maybe elsewhere too, I don't fully understand all that yet;-) in the
-nginx config file. Then,
-with a bit of generic parameter handling and the addition of a ``load_esnikeys()`` 
-function that's pretty much as done for [lighttpd](./lighttpd), ESNI... just worked!
+For now, we've got two different ways to turn on ESNI - by configuring
+a directory that contains key files, or by configuring the names of
+key files. I did the directory based approach first, as I'd used that
+with ``openssl s_server`` and [lighttpd](lighttpd.md), but one of
+the upstream maintainers wasn't keen on that so I added the file name
+based approach as well. 
+
+At the moment, I'm still in the process of testing the 2nd option there.
+
+### Via ``ssl_esnikeydir``
+
+I added an ESNI key directory configuration setting that can be within the
+``http`` stanza (and maybe elsewhere too, I don't fully understand all that
+yet;-) in the nginx config file. Then, with a bit of generic parameter handling
+and the addition of a ``load_esnikeys()`` function that's pretty much as done
+for [lighttpd](./lighttpd), ESNI... just worked!
 
 The ``load_esnikeys()`` function expects ENSI key files to be in the configured
-directory. It attempts to load all pairs of files with matching ``<foo>.priv`` and
-``<foo>.pub`` file names. It should nicely skip any files that don't parse correctly.
-I *think* that may be implemented portably (I use ``ngx_read_dir`` now instead
-of ``readdir`` but more may be needed for it to work ok on win32, needs checking.)
+directory. It attempts to load all pairs of files with matching ``<foo>.priv``
+and ``<foo>.pub`` file names. It should nicely skip any files that don't parse
+correctly.  I *think* that may be implemented portably (I use ``ngx_read_dir``
+now instead of ``readdir`` but more may be needed for it to work ok on win32,
+needs checking.)
 
 You can see that configuration setting, called ``ssl_esnikeydir`` in our
 test [nginxmin.confg](nginxmin.conf).
@@ -116,6 +128,32 @@ success case is at the NOTICE log level, whereas other events are just logged
 at the INFO level. That looks like:
 
             2019/10/13 14:50:29 [notice] 9891#0: *10 ESNI success cover: example.net hidden: foo.example.com while SSL handshaking, client: 127.0.0.1, server: 0.0.0.0:5443
+
+### Via ``ssl_esnikeyfile``
+
+The second option for loading ESNI keys is to have both public and private key
+in one file and to load a bunch of those. This config setting can be
+in the same places as ``ssl_esnikeydir``, that is, within the http settings
+or below. (And I still don't grok all that stuff:-)
+
+            ssl_esnikeyfile     esnikeydir/ff01.key;
+            ssl_esnikeyfile     esnikeydir/ff03.key;
+
+Since the files here are a mixture of private and public keys, we need both
+to be PEM encoded. For no particularly good reason, the priavte key must be
+first in the file. An example of such a file might be:
+
+            -----BEGIN PRIVATE KEY-----
+            MC4CAQAwBQYDK2VuBCIEIEDyEDpfvLoFYQi4rNjAxAz7F/Dqydv5IFmcPpIyGNd8
+            -----END PRIVATE KEY-----
+            -----BEGIN ESNIKEY-----
+            /wG+49mkACQAHQAgB8SUB952QOphcyUR1sAvnRhY9NSSETVDuon9/CvoDVYAAhMBAQQAAAAAXYZC
+            TwAAAABdlBoPAAA=
+            -----END ESNIKEY-----
+
+I mailed the [TLS list](https://mailarchive.ietf.org/arch/msg/tls/hMOQpQ12IIzHfOHhQjSmjphKJ1g)
+suggesting we standardise this format as part of the work on ESNI. Nobody
+objected to doing that, could be in a separate document or not, we'll see.
 
 ## Reloading ESNI keys
 

@@ -940,7 +940,7 @@ typedef enum OPTION_choice {
     OPT_KEYLOG_FILE, OPT_MAX_EARLY, OPT_RECV_MAX_EARLY, OPT_EARLY_DATA,
     OPT_S_NUM_TICKETS, OPT_ANTI_REPLAY, OPT_NO_ANTI_REPLAY, OPT_SCTP_LABEL_BUG,
 #ifndef OPENSSL_NO_ESNI
-    OPT_ESNIKEY, OPT_ESNIPUB, OPT_ESNIDIR, OPT_ESNISPECIFICPAD, OPT_ESNI_HARDFAIL,
+    OPT_ESNIKEY, OPT_ESNIPRIV, OPT_ESNIPUB, OPT_ESNIDIR, OPT_ESNISPECIFICPAD, OPT_ESNI_HARDFAIL,
     OPT_ESNI_TRIALDECRYPT,
 #endif
     OPT_HTTP_SERVER_BINMODE,
@@ -1159,7 +1159,8 @@ const OPTIONS s_server_options[] = {
     {"anti_replay", OPT_ANTI_REPLAY, '-', "Switch on anti-replay protection (default)"},
     {"no_anti_replay", OPT_NO_ANTI_REPLAY, '-', "Switch off anti-replay protection"},
 #ifndef OPENSSL_NO_ESNI
-    {"esnikey", OPT_ESNIKEY, 's', "Load ESNI private key (and enable ESNI)"},
+    {"esnikey", OPT_ESNIKEY, 's', "Load ESNI key pair"},
+    {"esnipriv", OPT_ESNIPRIV, 's', "Load ESNI private key"},
     {"esnipub", OPT_ESNIPUB, 's', "Load ESNI public key"},
     {"esnidir", OPT_ESNIDIR, 's', "ESNI information directory"},
     {"esnispecificpad", OPT_ESNISPECIFICPAD, '-', "Do specific padding of Certificate/CertificateVerify (instead of general padding all)"},
@@ -1255,6 +1256,7 @@ int s_server_main(int argc, char *argv[])
     char *psksessf = NULL;
 #ifndef OPENSSL_NO_ESNI
     char *esnikeyfile = NULL; 
+    char *esniprivkeyfile = NULL; 
     char *esnipubfile = NULL;
     char *esnidir=NULL;
     int esnispecificpad=0; ///< we default to generally padding to 512 octet multiples
@@ -1813,6 +1815,9 @@ int s_server_main(int argc, char *argv[])
         case OPT_ESNIKEY:
             esnikeyfile=opt_arg();
             break;
+        case OPT_ESNIPRIV:
+            esniprivkeyfile=opt_arg();
+            break;
         case OPT_ESNIPUB:
             esnipubfile=opt_arg();
             break;
@@ -2145,11 +2150,20 @@ int s_server_main(int argc, char *argv[])
     }
 
 #ifndef OPENSSL_NO_ESNI
-    if (esnikeyfile!= NULL || esnipubfile!=NULL) {
+    if (esnikeyfile!= NULL) {
+        if (SSL_CTX_esni_server_enable(ctx,esnikeyfile,NULL)!=1) {
+            BIO_printf(bio_err,"Failed to add ESNI key pair from: %s\n",esnikeyfile);
+            goto end;
+        }
+        if (bio_s_out != NULL) {
+            BIO_printf(bio_s_out,"Added ESNI key pair from: %s\n",esnikeyfile);
+        }
+    }
+    if (esniprivkeyfile!= NULL || esnipubfile!=NULL) {
         /*
          * need both set to go ahead
          */
-        if (esnikeyfile==NULL) {
+        if (esniprivkeyfile==NULL) {
             BIO_printf(bio_err, "Need -esnipub set as well as -esnikey\n" );
             goto end;
         }
@@ -2157,9 +2171,12 @@ int s_server_main(int argc, char *argv[])
             BIO_printf(bio_err, "Need -esnikey set as well as -esnipub\n" );
             goto end;
         }
-        if (SSL_CTX_esni_server_enable(ctx,esnikeyfile,esnipubfile)!=1) {
+        if (SSL_CTX_esni_server_enable(ctx,esniprivkeyfile,esnipubfile)!=1) {
             BIO_printf(bio_err, "Failure establishing ESNI parameters\n" );
             goto end;
+        }
+        if (bio_s_out != NULL) {
+            BIO_printf(bio_s_out,"Added ESNI key pair: %s,%s\n",esniprivkeyfile,esnipubfile);
         }
         /* 
          * Set padding sizes 
@@ -2223,12 +2240,12 @@ int s_server_main(int argc, char *argv[])
                 pubname[elen+1+nlen-1]=0x00;
                 struct stat thestat;
                 if (stat(pubname,&thestat)==0 && stat(privname,&thestat)==0) {
-                    if (bio_s_out != NULL) {
-                        BIO_printf(bio_s_out,"Adding ESNI key pair: %s,%s\n",pubname,privname);
-                    }
                     if (SSL_CTX_esni_server_enable(ctx,privname,pubname)!=1) {
                         BIO_printf(bio_err, "Failure establishing ESNI parameters for %s\n",pubname );
                         //goto end;
+                    }
+                    if (bio_s_out != NULL) {
+                        BIO_printf(bio_s_out,"Added ESNI key pair: %s,%s\n",pubname,privname);
                     }
                 }
             }
@@ -2236,7 +2253,7 @@ int s_server_main(int argc, char *argv[])
         closedir(dp);
 
     }
-    if ((esnidir!=NULL) || (esnikeyfile!= NULL && esnipubfile!=NULL)) {
+    if (esnidir!=NULL || esniprivkeyfile!= NULL ) {
         SSL_ESNI *tp=NULL;
         int nesni=SSL_CTX_get_esni(ctx,&tp);
         if (nesni==0) {

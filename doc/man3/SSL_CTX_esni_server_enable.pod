@@ -2,7 +2,7 @@
 
 =head1 NAME
 
-SSL_CTX_esni_server_enable,
+SSL_CTX_esni_server_enable, 
 SSL_CTX_esni_server_key_status,
 SSL_CTX_esni_server_flush_keys,
 SSL_CTX_get_esni
@@ -21,10 +21,14 @@ SSL_CTX_get_esni
 These functions handle the server-side for encrypted SNI (ESNI). 
 
 SSL_CTX_esni_server_enable() enables ESNI for an SSL context. The inputs are
-the names of public and private key files. The private key file content must be
-in PEM format. The content of the public key file must be the binary form of an
-ESNIKeys RR value, as would be published in the DNS. Public keys can follow
-drafts -02, -03 or -04 of the specification.
+the names of private and public key files, or the name of a file that contains
+both keys. The private key file content must be in PEM format. The content of
+the public key file must be the binary form of an ESNIKeys RR value, as would
+be published in the DNS. Public keys can follow drafts -02, -03 or -04 of the
+specification.
+
+If both keys are provided in one file, then both private key and public key
+must be in PEM format. In that case the esnipubfile must be NULL. 
 
 If a server has multiple ESNI key pairs, SSL_CTX_esni_server_enable() can be
 called multiple times. Internally, a set of ESNI key pairs are associated with

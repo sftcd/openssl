@@ -1,7 +1,7 @@
 
 # This is a temporary place for ESNI content ...
 
-Stephen Farrell, stephen.farrell@cs.tcd.ie, 20190911-ish
+Stephen Farrell, stephen.farrell@cs.tcd.ie, 20191026-ish
 
 I'll put stuff here that'll likely disappear if this matures. So the plan would
 be to delete all this before submitting any PR to the openssl folks. Over time,
@@ -11,7 +11,8 @@ framework.
 This builds ok on both 64 and 32 bit Ubuntus and (nominally) doesn't leak
 according to valgrind. It works e.g. when talking to www.cloudflare.com
 with e.g. ietf.org as the value inside the encrypted SNI. Server-side
-stuff seems to work when talking to itself, and an NSS client.
+stuff seems to work when talking to itself, and an NSS client. We've integrated
+the server side into [lighttpd](./lighttpd.md) and [nginx](./nginx.md).
 
 **We haven't done any significant testing. Use at your own risk.**
 
@@ -24,6 +25,28 @@ draft-03 stuff really.)
 There's a [TODO list](#todos) at the end.
 
 Most recent first...
+
+- I modified ``SSL_CTX_esni_server_enable()`` so that you can also provide only
+  one input file that contains both the ESNI private key in PEM format and a
+PEM-encoded ESNIKeys. This is so I could configure such files in my
+[nginx](./nginx.md) fork, in a way that seems more acceptable to upstream.
+There are some corresponding changes to ``s_server`` as well to allow this to
+be used - basically some changes to the command line arguments (apologies if
+someone was depending on those not changing, but that'd have been a bad plan
+anyway:-). We still need to test that with nginx and lighttpd but it seems to
+work for my [testserver.sh](./testserver.sh).  In such a file, the private key
+must be first, and that should look something like this:
+
+            -----BEGIN PRIVATE KEY-----
+            MC4CAQAwBQYDK2VuBCIEIEDyEDpfvLoFYQi4rNjAxAz7F/Dqydv5IFmcPpIyGNd8
+            -----END PRIVATE KEY-----
+            -----BEGIN ESNIKEY-----
+            /wG+49mkACQAHQAgB8SUB952QOphcyUR1sAvnRhY9NSSETVDuon9/CvoDVYAAhMBAQQAAAAAXYZC
+            TwAAAABdlBoPAAA=
+            -----END ESNIKEY-----
+
+I started a thread on the [TLS list](https://mailarchive.ietf.org/arch/msg/tls/hMOQpQ12IIzHfOHhQjSmjphKJ1g)
+about that.
 
 - I now have an apparently working ESNI-enabled nginx: see the [notes](./nginx.md). 
 That is deployed on [defo.ie on port 5443](https://defo.ie:5443).

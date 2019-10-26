@@ -48,6 +48,9 @@ extern "C" {
 # define PEM_STRING_ECPRIVATEKEY "EC PRIVATE KEY"
 # define PEM_STRING_PARAMETERS   "PARAMETERS"
 # define PEM_STRING_CMS          "CMS"
+#ifndef OPENSSL_NO_ESNI
+#define PEM_STRING_ESNIKEY       "ESNIKEY"
+#endif
 
 # define PEM_TYPE_ENCRYPTED      10
 # define PEM_TYPE_MIC_ONLY       20

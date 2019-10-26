@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#set -x
+# set -x
 
 # to pick up correct .so's - maybe note 
 : ${TOP=$HOME/code/openssl}
@@ -8,6 +8,8 @@ export LD_LIBRARY_PATH=$TOP
 
 ESNIPUB=$TOP/esnistuff/esnikeys.pub
 ESNIPRIV=$TOP/esnistuff/esnikeys.priv
+ESNIKEYFILE=$TOP/esnistuff/esnipair.key
+
 HIDDEN="foo.example.com"
 HIDDEN2="bar.example.com"
 COVER="example.com"
@@ -56,6 +58,7 @@ function usage()
 	echo "  -F says to hard fail if ESNI attempted but fails"
 	echo "  -T says to attempt trial decryption if necessary"
 	echo "  -K to generate server keys "
+	echo "  -k provide ESNI Key pair PEM file"
     echo "  -B to input a bad key pair to server setup, for testing"
     echo "  -h means print this"
 
@@ -68,7 +71,7 @@ function usage()
 }
 
 # options may be followed by one colon to indicate they have a required argument
-if ! options=$(/usr/bin/getopt -s bash -o BTFc:D:H:p:Kdlvnh -l badkey,trialdecrypt,hardfail,dir:,cover:,hidden:,port:,keygen,debug,stale,valgrind,noesni,help -- "$@")
+if ! options=$(/usr/bin/getopt -s bash -o k:BTFc:D:H:p:Kdlvnh -l keyfile,badkey,trialdecrypt,hardfail,dir:,cover:,hidden:,port:,keygen,debug,stale,valgrind,noesni,help -- "$@")
 then
     # something went wrong, getopt will put out an error message for us
     exit 1
@@ -79,6 +82,7 @@ while [ $# -gt 0 ]
 do
     case "$1" in
         -h|--help) usage;;
+        -k|--keyfile) SUPPLIEDKEYFILE=$2; shift;;
         -K|--keygen) KEYGEN="yes" ;;
         -d|--debug) DEBUG="yes" ;;
         -v|--valgrind) VG="yes" ;;
@@ -174,10 +178,25 @@ then
     fi
 fi
 
-esnistr=" -esnipub $ESNIPUB -esnikey $ESNIPRIV -esnidir $esnidir"
-if [[ ! -f $ESNIPUB || ! -f $ESNIPRIV ]]
+esnistr=""
+if [[ "$SUPPLIEDKEYFILE" != "" ]]
 then
-	esnistr=" -esnidir $esnidir"
+    ESNIKEYFILE="$SUPPLIEDKEYFILE"
+fi
+if [ -f $ESNIKEYFILE ]
+then
+    echo "Using key pair from $ESNIKEYFILE"
+    esnistr="$esnistr -esnikey $ESNIKEYFILE "
+fi
+if [[ -f $ESNIPUB && ! -f $ESNIPRIV ]]
+then
+    echo "Using key pair from $ESNIPUB and $ESNIPRIV"
+    esnistr="$esnistr -esnipub $ESNIPUB -esnipriv $ESNIPRIV "
+fi
+if [ -d $esnidir ]
+then
+    echo "Using all key pairs found in $esnidir "
+	esnistr="$esnistr -esnidir $esnidir"
 fi
 
 if [[ "$NOESNI" == "yes" ]]

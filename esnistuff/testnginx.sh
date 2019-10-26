@@ -16,6 +16,10 @@ mkdir -p $OSSL/esnistuff/nginx/logs
 mkdir -p $OSSL/esnistuff/nginx/www
 mkdir -p $OSSL/esnistuff/nginx/baz
 
+# in case we wanna dumo core and get a backtrace, make a place for
+# that (dir name is also in nginxmin.conf)
+mkdir -p /tmp/cores
+
 # check for/make a home page for example.com and other virtual hosts
 if [ ! -f $OSSL/esnistuff/nginx/www/index.html ]
 then
