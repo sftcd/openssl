@@ -3038,6 +3038,7 @@ int SSL_CTX_esni_server_enable(SSL_CTX *ctx, const char *esnikeyfile, const char
         pub_in=NULL;
     } else {
         pub_in=priv_in;
+        priv_in=NULL;
         if (PEM_read_bio(pub_in,&pname,&pheader,&pdata,&plen)<=0) {
             ESNIerr(ESNI_F_SSL_CTX_ESNI_SERVER_ENABLE, ERR_R_INTERNAL_ERROR);
             goto err;
