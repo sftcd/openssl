@@ -24,6 +24,10 @@
 #ifndef OPENSSL_NO_ESNI
 #include <openssl/esni.h>
 #include <dirent.h> /* for esnidir handling */
+/* to use tracing, if configured and requested */
+#ifndef OPENSSL_NO_SSL_TRACE
+#include <openssl/trace.h>
+#endif
 #endif
 
 #ifndef OPENSSL_NO_SOCK
@@ -81,6 +85,8 @@ static DH *load_dh_param(const char *dhfile);
 static void print_connection_info(SSL *con);
 #ifndef OPENSSL_NO_ESNI
 static unsigned int esni_print_cb(SSL *s, char *str);
+static size_t esni_trace_cb(const char *buf, size_t cnt,
+                 int category, int cmd, void *vdata);
 #endif
 
 static const int bufsize = 16 * 1024;
@@ -631,6 +637,40 @@ static int ssl_esni_servername_cb(SSL *s, int *ad, void *arg)
     return SSL_TLSEXT_ERR_OK;
 
 }
+
+#ifndef OPENSSL_NO_SSL_TRACE
+/*
+ * ESNI Tracing callback 
+ */
+static size_t esni_trace_cb(const char *buf, size_t cnt,
+                 int category, int cmd, void *vdata)
+{
+     BIO *bio = vdata;
+     const char *label = NULL;
+
+     switch (cmd) {
+     case OSSL_TRACE_CTRL_BEGIN:
+         label = "ESNI TRACE BEGIN";
+         break;
+     case OSSL_TRACE_CTRL_END:
+         label = "ESNI TRACE END";
+         break;
+     }
+
+     if (label != NULL) {
+         union {
+             pthread_t tid;
+             unsigned long ltid;
+         } tid;
+
+         tid.tid = pthread_self();
+         BIO_printf(bio, "%s TRACE[%s]:%lx\n",
+                    label, OSSL_trace_get_category_name(category), tid.ltid);
+     }
+     return (size_t)BIO_puts(bio, buf);
+}
+#endif
+
 #endif
 // ESNI_DOXY_END
 
@@ -2493,6 +2533,11 @@ int s_server_main(int argc, char *argv[])
         SSL_CTX_set_tlsext_servername_arg(ctx, &tlsextcbp);
         SSL_set_esni_callback_ctx(ctx2, esni_print_cb);
         SSL_set_esni_callback_ctx(ctx, esni_print_cb);
+#ifndef OPENSSL_NO_SSL_TRACE
+        if (s_msg==2) {
+            OSSL_trace_set_callback(OSSL_TRACE_CATEGORY_TLS, esni_trace_cb, bio_s_out);
+        }
+#endif
 #else
         SSL_CTX_set_tlsext_servername_callback(ctx2, ssl_servername_cb);
         SSL_CTX_set_tlsext_servername_arg(ctx2, &tlsextcbp);

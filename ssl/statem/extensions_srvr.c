@@ -13,6 +13,7 @@
 #include "internal/cryptlib.h"
 #ifndef OPENSSL_NO_ESNI
 #include <openssl/rand.h>
+#include <openssl/trace.h>
 #endif
 
 #define COOKIE_STATE_FORMAT_VERSION     0
@@ -2030,6 +2031,10 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
     /*
      * Note that someone tried
      */
+    OSSL_TRACE_BEGIN(TLS) {
+        BIO_printf(trc_out,"Entered tls_parse_ctos_esni\n");
+    } OSSL_TRACE_END(TLS);
+
     s->esni_attempted=1;
     if (s->esni==NULL) {
         /*
@@ -2042,11 +2047,17 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
             /*
              * ignore the problem
              */
+            OSSL_TRACE_BEGIN(TLS) {
+                BIO_printf(trc_out,"Exiting tls_parse_ctos_esni at %d\n",__LINE__);
+            } OSSL_TRACE_END(TLS);
             return 1;
         } else {
             /*
              * hardfail
              */
+            OSSL_TRACE_BEGIN(TLS) {
+                BIO_printf(trc_out,"Exiting tls_parse_ctos_esni at %d\n",__LINE__);
+            } OSSL_TRACE_END(TLS);
             return 0;
         }
     }
@@ -2258,6 +2269,9 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
                 SSL_R_BAD_EXTENSION);
                 goto err;
             } else {
+                OSSL_TRACE_BEGIN(TLS) {
+                    BIO_printf(trc_out,"Exiting tls_parse_ctos_esni at %d\n",__LINE__);
+                } OSSL_TRACE_END(TLS);
                 goto noerr;
             }
         }
@@ -2283,6 +2297,9 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
                 goto err;
             } else {
                 /* softfail exit */
+                OSSL_TRACE_BEGIN(TLS) {
+                    BIO_printf(trc_out,"Exiting tls_parse_ctos_esni at %d\n",__LINE__);
+                } OSSL_TRACE_END(TLS);
                 goto noerr;
             }
         }
@@ -2395,6 +2412,9 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
         unsigned int cbrv=s->esni_cb(s,pstr);
         BIO_free(biom);
         if (cbrv != 1) {
+            OSSL_TRACE_BEGIN(TLS) {
+                BIO_printf(trc_out,"Exiting tls_parse_ctos_esni at %d\n",__LINE__);
+            } OSSL_TRACE_END(TLS);
             return 0;
         }
     }
@@ -2423,6 +2443,9 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
         s->session->ext.public_name=OPENSSL_strdup(s->ext.public_name);
 
     }
+    OSSL_TRACE_BEGIN(TLS) {
+        BIO_printf(trc_out,"Happy exit from tls_parse_ctos_esni at %d\n",__LINE__);
+    } OSSL_TRACE_END(TLS);
 
     return 1;
 
@@ -2434,6 +2457,9 @@ noerr:
     if (s->esni && match!=NULL) {
         match->the_esni=NULL;
     }
+    OSSL_TRACE_BEGIN(TLS) {
+        BIO_printf(trc_out,"Less happy exit from tls_parse_ctos_esni at %d\n",__LINE__);
+    } OSSL_TRACE_END(TLS);
     return 1;
 
 err:
@@ -2444,6 +2470,9 @@ err:
     if (s->esni && match!=NULL) {
         match->the_esni=NULL;
     }
+    OSSL_TRACE_BEGIN(TLS) {
+        BIO_printf(trc_out,"Unhappy exit from tls_parse_ctos_esni at %d\n",__LINE__);
+    } OSSL_TRACE_END(TLS);
     return 0;
 }
 

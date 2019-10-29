@@ -68,8 +68,8 @@ fi
 
 # set to use valgrind, unset to not
 # VALGRIND="valgrind --leak-check=full --show-leak-kinds=all"
-VALGRIND="valgrind --leak-check=full "
-# VALGRIND=""
+# VALGRIND="valgrind --leak-check=full "
+VALGRIND=""
 
 echo "Executing: $VALGRIND $NGINX/objs/nginx -c $OSSL/esnistuff/nginxmin.conf"
 # move over there to run code, so config file can have relative paths

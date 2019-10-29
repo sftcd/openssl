@@ -144,7 +144,7 @@ dbgstr=" -quiet"
 if [[ "$DEBUG" == "yes" ]]
 then
     #dbgstr="-msg -debug -security_debug_verbose -state -tlsextdebug"
-    dbgstr="-msg "
+    dbgstr="-msg -trace -tlsextdebug "
 fi
 
 vgcmd=""
