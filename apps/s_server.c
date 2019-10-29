@@ -85,8 +85,10 @@ static DH *load_dh_param(const char *dhfile);
 static void print_connection_info(SSL *con);
 #ifndef OPENSSL_NO_ESNI
 static unsigned int esni_print_cb(SSL *s, char *str);
+#ifndef OPENSSL_NO_SSL_TRACE
 static size_t esni_trace_cb(const char *buf, size_t cnt,
                  int category, int cmd, void *vdata);
+#endif
 #endif
 
 static const int bufsize = 16 * 1024;
