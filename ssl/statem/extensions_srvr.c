@@ -2043,7 +2043,6 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
         time_t now=time(0);
         struct tm *tnow=gmtime(&now);
         char *anow=asctime(tnow);
-
         int sockfd=0;
         int res=0;
         char clientip[INET6_ADDRSTRLEN]; 

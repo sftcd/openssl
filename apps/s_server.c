@@ -28,6 +28,13 @@
 #ifndef OPENSSL_NO_SSL_TRACE
 #include <openssl/trace.h>
 #endif
+/* for sockaddr stuff - not portable!!!  */
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
+#include <netdb.h>
+/* for timing in TRACE */
+#include <time.h>
 #endif
 
 #ifndef OPENSSL_NO_SOCK
@@ -556,6 +563,30 @@ static size_t esni_padding_cb(SSL *s, int type, size_t len, void *arg)
 static int ssl_esni_servername_cb(SSL *s, int *ad, void *arg)
 {
     tlsextctx *p = (tlsextctx *) arg;
+
+    /*
+     * Basic logging
+     */
+    time_t now=time(0);
+    struct tm *tnow=gmtime(&now);
+    char *anow=asctime(tnow);
+    int sockfd=0;
+    int res=0;
+    char clientip[INET6_ADDRSTRLEN]; 
+    memset(clientip,0,INET6_ADDRSTRLEN);
+    strncpy(clientip,"dunno",INET6_ADDRSTRLEN);
+    struct sockaddr_storage ss;
+    socklen_t salen = sizeof(ss);
+    struct sockaddr *sa;
+    memset(&ss,0,salen);
+    sa = (struct sockaddr *)&ss;
+    res=BIO_get_fd(SSL_get_wbio(s),&sockfd);
+    if (res!=-1) {
+        res = getpeername(sockfd,sa,&salen);
+        if (res==0) res=getnameinfo(sa,salen,clientip,INET6_ADDRSTRLEN, 0,0,NI_NUMERICHOST);
+        if (res!=0) strncpy(clientip,"dunno",INET6_ADDRSTRLEN);
+    }
+    BIO_printf(p->biodebug,"ssl_esni_servername_cb: connetion from %s at %s",clientip,anow);
     /*
      * Name that matches "main" ctx
      */
