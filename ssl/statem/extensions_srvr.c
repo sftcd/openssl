@@ -14,6 +14,10 @@
 #ifndef OPENSSL_NO_ESNI
 #include <openssl/rand.h>
 #include <openssl/trace.h>
+/* for sockaddr stuff - not portable!!!  */
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
 #endif
 
 #define COOKIE_STATE_FORMAT_VERSION     0
@@ -2032,7 +2036,30 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
      * Note that someone tried
      */
     OSSL_TRACE_BEGIN(TLS) {
+
         BIO_printf(trc_out,"Entered tls_parse_ctos_esni\n");
+
+        int sockfd=SSL_get_rfd(s);
+        struct sockaddr_in addr;
+        socklen_t addr_size = sizeof(struct sockaddr_in);
+        int res = getpeername(sockfd, (struct sockaddr *)&addr, &addr_size);
+        char clientip[200]; 
+        memset(clientip,0,200);
+        if (res==0) strncpy(clientip, inet_ntoa(addr.sin_addr), 200);
+        BIO_printf(trc_out,"rclientip=%s\n",clientip);
+
+        sockfd=SSL_get_wfd(s);
+        addr_size = sizeof(struct sockaddr_in);
+        res = getpeername(sockfd, (struct sockaddr *)&addr, &addr_size);
+        memset(clientip,0,200);
+        if (res==0) strncpy(clientip, inet_ntoa(addr.sin_addr), 200);
+        BIO_printf(trc_out,"wclientip=%s\n",clientip);
+
+        const char *pn=BIO_get_peer_name(s->wbio);
+        BIO_printf(trc_out,"wpn=%s\n",(pn?pn:"null"));
+        pn=BIO_get_peer_name(s->rbio);
+        BIO_printf(trc_out,"rpn=%s\n",(pn?pn:"null"));
+
     } OSSL_TRACE_END(TLS);
 
     s->esni_attempted=1;

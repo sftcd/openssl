@@ -1521,10 +1521,8 @@ struct ssl_st {
          * - covername is the API-provided SNI or the SNI from an
          *   SNI extension
          * - public_name is the name provided from ESNIKeys and 
-         *   can override covername
-         * TODO: check invariants are ok and ensure client and server
-         * do the same (initially the don't, due to my ignorance of
-         * OpenSSL code when starting;-)
+         *   can overridden (on the wire) by covername if the client
+         *   wishes
          */
 		char *encservername;
 		char *covername;

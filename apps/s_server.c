@@ -669,7 +669,9 @@ static size_t esni_trace_cb(const char *buf, size_t cnt,
          BIO_printf(bio, "%s TRACE[%s]:%lx\n",
                     label, OSSL_trace_get_category_name(category), tid.ltid);
      }
-     return (size_t)BIO_puts(bio, buf);
+     size_t brv=(size_t)BIO_puts(bio, buf);
+     (void)BIO_flush(bio);
+     return brv;
 }
 #endif
 

@@ -45,6 +45,7 @@ I added an ``esni_trace_cb`` callback function to ``s_server``
 that adds some tracing related to server processing  of a
 received ESNI extension. I also added tracing calls at all
 the exit points of ``tls_parse_ctos_esni``.
+(Still playing some with that...)
 
 - I modified ``SSL_CTX_esni_server_enable()`` so that you can also provide only
   one input file that contains both the ESNI private key in PEM format and a
