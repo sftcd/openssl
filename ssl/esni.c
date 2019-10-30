@@ -1577,7 +1577,7 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esniarr, int selector)
         } else {
             BIO_printf(out,"ESNI public key file not set\n");
         }
-        BIO_printf(out,"ESNI key pair load time: %ju\n",esni->loadtime);
+        BIO_printf(out,"ESNI key pair load time: %lu\n",esni->loadtime);
     }
     return(1);
 }

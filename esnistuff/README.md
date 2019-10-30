@@ -27,25 +27,21 @@ There's a [TODO list](#todos) at the end.
 Most recent first...
 
 - I wanted some more tracing to try help someone do interop against my server
-so spent (too much) time figuring out how to get additional tracing via the
+so spent (too much!) time figuring out how to get additional tracing via the
 OpenSSL trace API. Basically:
 
             $ cd $HOME/code/openssl
-            $ ./config --debug enable_ssl_trace enable_trace
+            $ ./config enable_ssl_trace enable_trace --debug
             ...
             $ make clean; make
-
-Then you have to set the environment variable ``OPENSSL_TRACE`` and
-run our testserver.sh wrapper for ``openssl s_server``:
-
             $ cd esnistuff
-            $ ./testserver -d
+            $ ./testserver.sh -d
+            ...lots and lots of output when a connection happens...
 
-I added an ``esni_trace_cb`` callback function to ``s_server``
-that adds some tracing related to server processing  of a
-received ESNI extension. I also added tracing calls at all
-the exit points of ``tls_parse_ctos_esni``.
-(Still playing some with that...)
+I added an ``esni_trace_cb`` callback function to ``s_server`` that 
+prints client IP, time, and lots of TLS details related to server processing
+of a received ESNI extension. I also added tracing calls at all the exit points
+of ``tls_parse_ctos_esni``.
 
 - I modified ``SSL_CTX_esni_server_enable()`` so that you can also provide only
   one input file that contains both the ESNI private key in PEM format and a
