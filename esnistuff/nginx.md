@@ -151,7 +151,8 @@ first in the file. An example of such a file might be:
 
 I mailed the [TLS list](https://mailarchive.ietf.org/arch/msg/tls/hMOQpQ12IIzHfOHhQjSmjphKJ1g)
 suggesting we standardise this format as part of the work on ESNI. Nobody
-objected to doing that, could be in a separate document or not, we'll see.
+objected to doing that, so, for now, I've documented that wee bit of formatting 
+in an [Internet-draft](https://tools.ietf.org/html/draft-farrell-tls-pemesni).
 
 ## Reloading ESNI keys
 
