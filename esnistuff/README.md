@@ -26,6 +26,9 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- Added output of key pair file from ``mk_esnikeys`` for nginx-friendlier
+  config. Use ``-k`` command line arg to pick name, default is "esnikeys.key"
+
 - I wanted some more tracing to try help someone do interop against my server
 so spent (too much!) time figuring out how to get additional tracing via the
 OpenSSL trace API. Basically:

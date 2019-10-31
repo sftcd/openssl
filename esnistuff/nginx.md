@@ -185,9 +185,6 @@ bits of nginx config:
 
 ## TODO/Improvements...
 
-- Change ``mk_esnikeys`` to be able to spit out files for ``ssl_esnikeyfile``
-  uses as well as separate public and private files. For now you need to make
-  those by hand, which isn't hard but is tedious;-)
 - Figure out how to get nginx to use openssl as a shared object.
 - It'd be better if the ``ssl_esnikeydir`` were a "global" setting probably
   (like ``error_log``) but I need to figure out how to get that to work still.

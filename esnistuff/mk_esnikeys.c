@@ -270,6 +270,7 @@ void usage(char *prog)
     printf("-V specifies the ESNIKeys version to produce (default: 0xff01; 0xff02, 0xff03 allowed)\n");
     printf("-o specifies the output file name for the binary-encoded ESNIKeys (default: ./esnikeys.pub)\n");
     printf("-p specifies the output file name for the corresponding private key (default: ./esnikeys.priv)\n");
+    printf("-k specifies the output file name for the corresponding key pair (default: ./esnikeys.key)\n");
     printf("-d duration, specifies the duration in seconds from, now, for which the public share should be valid (default: 1 week), The DNS TTL is set to half of this value.\n");
     printf("-g grease - adds a couple of nonsense extensions to ESNIKeys for testing purposes.\n");
     printf("-P specifies the public-/cover-name value\n");
@@ -546,6 +547,7 @@ static int mk_esnikeys(int argc, char **argv)
 
     char *pubfname=NULL; ///< public key file name
     char *privfname=NULL; ///< private key file name
+    char *pairfname=NULL; ///< key pair file name
     char *fragfname=NULL; ///< zone fragment file name
     unsigned short ekversion=0xff01; ///< ESNIKeys version value (default is for draft esni -02)
     char *cover_name=NULL; ///< ESNIKeys "public_name" field (here called cover name)
@@ -580,11 +582,14 @@ static int mk_esnikeys(int argc, char **argv)
     unsigned char *asetval=NULL;
 
     // check inputs with getopt
-    while((opt = getopt(argc, argv, ":J:A:P:V:?ho:p:d:z:g")) != -1) {
+    while((opt = getopt(argc, argv, ":J:A:P:V:?hk:o:p:d:z:g")) != -1) {
         switch(opt) {
         case 'h':
         case '?':
             usage(argv[0]);
+            break;
+        case 'k':
+            pairfname=optarg;
             break;
         case 'o':
             pubfname=optarg;
@@ -807,7 +812,6 @@ static int mk_esnikeys(int argc, char **argv)
     }
     fclose(privfp);
 
-    EVP_PKEY_free(pkey);
 
     time_t nb=time(0)-1;
     time_t na=nb+1.5*duration;
@@ -972,6 +976,46 @@ static int mk_esnikeys(int argc, char **argv)
         exit(8);
     }
     fclose(pubfp);
+
+    if (pairfname==NULL) {
+        pairfname="esnikeys.key";
+    }
+    FILE *pairfp=fopen(pairfname,"wb");
+    if (pairfp==NULL) {
+        fprintf(stderr,"fopen error (line:%d)\n",__LINE__);
+        exit(7);
+    }
+    /*
+     * Output private key PEM file and then ESNIKeys PEM format
+     * according to https://tools.ietf.org/html/draft-farrell-tls-pemesni-00
+     */
+    if (!PEM_write_PrivateKey(pairfp,pkey,NULL,NULL,0,NULL,NULL)) {
+        fclose(pairfp);
+        fprintf(stderr,"file write error (line:%d)\n",__LINE__);
+        exit(6);
+    }
+    EVP_PKEY_free(pkey);
+    char b64str[MAX_ZONEDATA_BUFLEN];
+    memset(b64str,0,MAX_ZONEDATA_BUFLEN);
+    int b64len = EVP_EncodeBlock((unsigned char*)b64str, (unsigned char *)bbuf, bblen);
+    if (b64len >=MAX_ZONEDATA_BUFLEN) {
+        fclose(pairfp);
+        fprintf(stderr,"file write error (line:%d)\n",__LINE__);
+        exit(6);
+    }
+    b64str[b64len]='\0';
+    fprintf(pairfp,"-----BEGIN ESNIKEY-----\n");
+    /* add LF every 72 chars via brute force:-) */
+    //fprintf(pairfp,"%s\n",b64str);
+    int count=0;
+    for (char *cp=b64str;*cp!='\0';cp++) {
+        if (count && !(count%72)) fprintf(pairfp,"\n");
+        count++;
+        fprintf(pairfp,"%c",*cp);
+    }
+    if (count%72) fprintf(pairfp,"\n");
+    fprintf(pairfp,"-----END ESNIKEY-----\n");
+    fclose(pairfp);
 
     if (ekversion==0xff01) {
 
