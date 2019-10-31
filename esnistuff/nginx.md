@@ -1,15 +1,12 @@
 
 # ESNI-enabling Nginx
 
-I have a first version of Nginx with ESNI enabled working. Not really tested 
-and there's work TBD but it was pretty easy and seems to work.
+I have a first version of Nginx with ESNI enabled working. Not much tested 
+and but it was pretty easy and seems to work.
 
 ## Clone and Build 
 
-Note that PRs against the github repo aren't desired. But I didn't check out
-what they do desire yet:-)
-
-First, you need our OpenSSL clone:
+First, you need our OpenSSL build:
 
             $ cd $HOME/code
             $ git clone https://github.com/sftcd/openssl.git openssl-for-nginx
@@ -28,32 +25,33 @@ Then you need nginx:
             $ make
             ... go for coffee ...
 
-- That seems to re-build openssl (incl. a ``make config; make clean``) within
-  $HOME/code/openssl-for-nginx for some reason.
-- And that includes creating a new "$HOME/code/openssl/.openssl" directory
-  where it puts files from $HOME/openssl/include, static libraries and an
-  openssl command line binary.
-- And it doesn't detect if I change code e.g. $HOME/code/openssl/ssl/esni.c or
-  $HOME/code/openssl/include/openssl/esni.h
-- That means you kinda need two clones of openssl if you want to build openssl
-  shared objects (e.g. for lighttpd) and staticly for nginx. I mucked up a
-  few times when using the same source tree for both. I'm sure that can be
-  improved, but I've not figured out how yet.
-- Odd... but whatever, it can work;-) 
+- That builds openssl afresh (incl. a ``make config; make clean``) and then
+  links static libraries from that build. Hence cloning the OpenSSL fork into
+``openssl-for-nginx`` - if you've another OpenSSL build (say for
+[lighttpd](./lighttpd.md) this build would mess that up. 
+- The static libraries for OpenSSL end up below
+  ``$HOME/code/openssl-for-nginx/.openssl``
+- A ``make`` in the nginx directory doesn't detect code changes within OpenSSL.
+  Bit brute-force but deleting that new ``.openssl`` directory gets you a
+re-build. 
+- End result is you need two clones of openssl if you want to build openssl
+  shared objects (e.g. for lighttpd) and staticly for nginx. I mucked up a few
+times when using the same source tree for both. I'm sure that can be improved,
+but I've not figured out how yet.
 
 ## Generate TLS and ESNI keys
 
 We have a couple of key generation scripts:
 
 - [make-example-ca.sh](make-example-ca.sh) that generates a fake CA and TLS 
-  server certs for example.com, foo.example.com and baz.example.com
-- [make-esnikeys.sh](make-esnikeys.sh) that generates ESNI keys for local
-  testing
+  server certs for example.com, foo.example.com and baz.example.com - that
+  can be used for testing on localhost.
+- [make-esnikeys.sh](make-esnikeys.sh) generates ESNI keys for local testing
 
 (Note that I've not recently re-tested those, but bug me if there's a problem
 and I'll check/fix.)
 
-## Run nginx
+## Run nginx for localhost testing 
 
 The "--prefix=nginx" setting in the nginx build is to match our [testnginx.sh](testnginx.sh)
 script.  The [nginxmin.conf](nginxmin.conf) file that uses has a minimal configuration to 
@@ -186,13 +184,16 @@ bits of nginx config:
 
 ## TODO/Improvements...
 
+- Change ``mk_esnikeys`` to be able to spit out files for ``ssl_esnikeyfile``
+  uses as well as separate public and private files. For now you need to make
+  those by hand, which isn't hard but is tedious;-)
 - Figure out how to get nginx to use openssl as a shared object.
-- It'd be better if the ``ssl_esnikeydir`` were a "global" setting probably (like
-  ``error_log``) but I need to figure out how to get that to work still. For
-  now it seems it has to be inside the ``http`` stanza, and one occurrence of 
-  the setting causes ``load_esnikeys()`` to be called three times in our test
-  setup which seems a little off. (It's ok though as we only really store keys
-  from different files.)
+- It'd be better if the ``ssl_esnikeydir`` were a "global" setting probably
+  (like ``error_log``) but I need to figure out how to get that to work still.
+For now it seems it has to be inside the ``http`` stanza, and one occurrence of
+the setting causes ``load_esnikeys()`` to be called three times in our test
+setup which seems a little off. (It's ok though as we only really store keys
+from different files.)
 
 
 
