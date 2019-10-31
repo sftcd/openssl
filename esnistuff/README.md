@@ -26,6 +26,12 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- Started to make changes due to internal review of man pages. Some of
+  those changes are just man page text, others change function names to
+  be more consistent, so I'll do commits one at a time. This first one
+  just changes ``SSL_set_esnicallback_ctx`` to the more proper 
+  ``SSL_CTX_set_esni_callback``.
+
 - Added output of key pair file from ``mk_esnikeys`` for nginx-friendlier
   config. Use ``-k`` command line arg to pick name, default is "esnikeys.key"
 

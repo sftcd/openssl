@@ -3262,7 +3262,7 @@ void SSL_set_esni_callback(SSL *s, SSL_esni_client_cb_func f)
     s->esni_cb=f;
 }
 
-void SSL_set_esni_callback_ctx(SSL_CTX *s, SSL_esni_client_cb_func f)
+void SSL_CTX_set_esni_callback(SSL_CTX *s, SSL_esni_client_cb_func f)
 {
     s->ext.esni_cb=f;
 }

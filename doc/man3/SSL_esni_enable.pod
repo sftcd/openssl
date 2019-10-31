@@ -6,7 +6,7 @@ SSL_esni_enable, SSL_ESNI_new_from_buffer,
 SSL_esni_checknames, SSL_get_esni_status, 
 SSL_ESNI_print, SSL_ESNI_free,
 SSL_esni_query, SSL_esni_reduce,
-SSL_set_esni_callback, SSL_set_esni_callback_ctx,
+SSL_set_esni_callback, SSL_CTX_set_esni_callback,
 SSL_SESSION_set1_enchostname, SSL_SESSION_set1_covername,
 SSL_SESSION_set1_public_name, SSL_SESSION_get0_enchostname
 - Encrypted Server Name Indication (ESNI) support - client and common functions 
@@ -23,7 +23,7 @@ SSL_SESSION_set1_public_name, SSL_SESSION_get0_enchostname
  int SSL_esni_reduce(SSL_ESNI *in, int index, SSL_ESNI **out);
  void SSL_ESNI_free(SSL_ESNI *esnikeys);
  void SSL_set_esni_callback(SSL *s, SSL_esni_client_cb_func f);
- void SSL_set_esni_callback_ctx(SSL_CTX *s, SSL_esni_client_cb_func f);
+ void SSL_CTX_set_esni_callback(SSL_CTX *s, SSL_esni_client_cb_func f);
  int SSL_SESSION_set1_enchostname(SSL_SESSION *s, const char *hostname);
  int SSL_SESSION_set1_covername(SSL_SESSION *s, const char *covername);
  int SSL_SESSION_set1_public_name(SSL_SESSION *s, const char *public_name);
@@ -107,7 +107,7 @@ print ESNI information for debugging purposes. On clients, that is called when
 the ESNI extension is added to the ClientHello. On servers, this is called at
 the end of successful decryption of a received ESNI extension.
 
-SSL_set_esni_callback_ctx() sets the callback in the context, and that is
+SSL_CTX_set_esni_callback() sets the callback in the context, and that is
 copied into derived SSL sessions.
 
 SSL_SESSION_set1_enchostname(), SSL_SESSION_set1_covername(),
