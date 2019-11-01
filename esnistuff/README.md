@@ -40,7 +40,8 @@ so spent (too much!) time figuring out how to get additional tracing via the
 OpenSSL trace API. Basically:
 
             $ cd $HOME/code/openssl
-            $ ./config enable_ssl_trace enable_trace --debug
+            $ ./config enable-ssl-trace enable-trace --debug
+            $ ./config --enable_ssl_trace --enable_trace --debug
             ...
             $ make clean; make
             $ cd esnistuff
@@ -50,7 +51,8 @@ OpenSSL trace API. Basically:
 I added an ``esni_trace_cb`` callback function to ``s_server`` that 
 prints client IP, time, and lots of TLS details related to server processing
 of a received ESNI extension. I also added tracing calls at all the exit points
-of ``tls_parse_ctos_esni``.
+of ``tls_parse_ctos_esni``. (Added even more of that, now inside ssl/esni.c,
+to see how far we're (not) getting.)
 
 - I modified ``SSL_CTX_esni_server_enable()`` so that you can also provide only
   one input file that contains both the ESNI private key in PEM format and a

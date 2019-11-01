@@ -22,6 +22,7 @@
 #include <openssl/evp.h>
 #include <openssl/esni.h>
 #include <openssl/esnierr.h>
+#include <openssl/trace.h>
 
 #ifndef OPENSSL_NO_ESNI
 
@@ -44,6 +45,13 @@ unsigned char *lg_nonce=NULL;
 size_t lg_nonce_len=0;
 static void so_esni_pbuf(char *msg,unsigned char *buf,size_t blen,int indent);
 #endif
+
+/*
+ * Do some OpenSSL tracing - you need a non-default build for
+ * this to do anything other than a complex NOOP
+ */
+#define EXIT_TRACE OSSL_TRACE_BEGIN(TLS) { BIO_printf(trc_out,"Exiting SSL_ESNI_dec at %d\n",__LINE__); } OSSL_TRACE_END(TLS);
+
 
 
 /**
@@ -1879,6 +1887,7 @@ static unsigned char *esni_aead_dec(
     const SSL_CIPHER *sc=cs2sc(ciph);
     if (SSL_CIPHER_is_aead(sc)!=1) {
         ESNIerr(ESNI_F_ESNI_AEAD_DEC, ERR_R_INTERNAL_ERROR);
+        EXIT_TRACE;
         goto err;
     }
     /*
@@ -1889,31 +1898,37 @@ static unsigned char *esni_aead_dec(
     plaintext=OPENSSL_malloc(cipher_len+alloced_oh);
     if (plaintext==NULL) {
         ESNIerr(ESNI_F_ESNI_AEAD_DEC, ERR_R_INTERNAL_ERROR);
+        EXIT_TRACE;
         goto err;
     }
     /* Create and initialise the context */
     if(!(ctx = EVP_CIPHER_CTX_new())) {
         ESNIerr(ESNI_F_ESNI_AEAD_DEC, ERR_R_INTERNAL_ERROR);
+        EXIT_TRACE;
         goto err;
     }
     /* Initialise the encryption operation. */
     const EVP_CIPHER *enc=EVP_get_cipherbynid(SSL_CIPHER_get_cipher_nid(sc));
     if (enc == NULL) {
         ESNIerr(ESNI_F_ESNI_AEAD_DEC, ERR_R_INTERNAL_ERROR);
+        EXIT_TRACE;
         goto err;
     }
     if(1 != EVP_DecryptInit_ex(ctx, enc, NULL, NULL, NULL)) {
         ESNIerr(ESNI_F_ESNI_AEAD_DEC, ERR_R_INTERNAL_ERROR);
+        EXIT_TRACE;
         goto err;
     }
     /* Set IV length if default 12 bytes (96 bits) is not appropriate */
     if(1 != EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_IVLEN, iv_len, NULL)) {
         ESNIerr(ESNI_F_ESNI_AEAD_DEC, ERR_R_INTERNAL_ERROR);
+        EXIT_TRACE;
         goto err;
     }
     /* Initialise key and IV */
     if(1 != EVP_DecryptInit_ex(ctx, NULL, NULL, key, iv))  {
         ESNIerr(ESNI_F_ESNI_AEAD_DEC, ERR_R_INTERNAL_ERROR);
+        EXIT_TRACE;
         goto err;
     }
     /* Provide any AAD data. This can be called zero or more times as
@@ -1921,6 +1936,7 @@ static unsigned char *esni_aead_dec(
      */
     if(1 != EVP_DecryptUpdate(ctx, NULL, &len, aad, aad_len)) {
         ESNIerr(ESNI_F_ESNI_AEAD_DEC, ERR_R_INTERNAL_ERROR);
+        EXIT_TRACE;
         goto err;
     }
     /* Provide the message to be encrypted, and obtain the encrypted output.
@@ -1928,6 +1944,7 @@ static unsigned char *esni_aead_dec(
      */
     if(1 != EVP_DecryptUpdate(ctx, plaintext, &len, cipher, cipher_len-16)) {
         ESNIerr(ESNI_F_ESNI_AEAD_DEC, ERR_R_INTERNAL_ERROR);
+        EXIT_TRACE;
         goto err;
     }
     plaintext_len = len;
@@ -1935,6 +1952,7 @@ static unsigned char *esni_aead_dec(
     /* Set expected tag value. Works in OpenSSL 1.0.1d and later */
     if(!EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_TAG, 16, cipher+cipher_len-16)) {
         ESNIerr(ESNI_F_ESNI_AEAD_DEC, ERR_R_INTERNAL_ERROR);
+        EXIT_TRACE;
         goto err;
     }
 
@@ -1949,16 +1967,19 @@ static unsigned char *esni_aead_dec(
          * decryption, this could be v. common and hence misleading
          * ESNIerr(ESNI_F_ESNI_AEAD_DEC, ERR_R_INTERNAL_ERROR);
          */
+        EXIT_TRACE;
         goto err;
     }
 
     /* Clean up */
     EVP_CIPHER_CTX_free(ctx);
     *plain_len=plaintext_len;
+    EXIT_TRACE;
     return plaintext;
 err:
     EVP_CIPHER_CTX_free(ctx);
     if (plaintext!=NULL) OPENSSL_free(plaintext);
+    EXIT_TRACE;
     return NULL;
 }
 
@@ -2444,22 +2465,27 @@ unsigned char *SSL_ESNI_dec(SSL_ESNI *esni,
     EVP_PKEY_CTX *pctx=NULL;
     if (!esni) {
         ESNIerr(ESNI_F_SSL_ESNI_DEC, ERR_R_INTERNAL_ERROR);
+        EXIT_TRACE;
         goto err;
     }
     if (!esni->the_esni) {
         ESNIerr(ESNI_F_SSL_ESNI_DEC, ERR_R_INTERNAL_ERROR);
+        EXIT_TRACE;
         goto err;
     }
     if (!client_random || !client_random_len) {
         ESNIerr(ESNI_F_SSL_ESNI_DEC, ERR_R_INTERNAL_ERROR);
+        EXIT_TRACE;
         goto err;
     }
     if (!client_keyshare || !client_keyshare_len) {
         ESNIerr(ESNI_F_SSL_ESNI_DEC, ERR_R_INTERNAL_ERROR);
+        EXIT_TRACE;
         goto err;
     }
     if (!encservername_len) {
         ESNIerr(ESNI_F_SSL_ESNI_DEC, ERR_R_INTERNAL_ERROR);
+        EXIT_TRACE;
         goto err;
     }
 
@@ -2486,10 +2512,12 @@ unsigned char *SSL_ESNI_dec(SSL_ESNI *esni,
      */
     if (esni->rd_len!=er->record_digest_len) {
         ESNIerr(ESNI_F_SSL_ESNI_DEC, ERR_R_INTERNAL_ERROR);
+        EXIT_TRACE;
         goto err;
     }
     if (CRYPTO_memcmp(esni->rd,er->record_digest,er->record_digest_len)) {
         ESNIerr(ESNI_F_SSL_ESNI_DEC, ERR_R_INTERNAL_ERROR);
+        EXIT_TRACE;
         goto err;
     }
 #endif
@@ -2501,6 +2529,7 @@ unsigned char *SSL_ESNI_dec(SSL_ESNI *esni,
          * decryption, this could be v. common and hence misleading
          * ESNIerr(ESNI_F_SSL_ESNI_DEC, ERR_R_INTERNAL_ERROR);
          */
+        EXIT_TRACE;
         goto err;
     }
 
@@ -2516,6 +2545,7 @@ unsigned char *SSL_ESNI_dec(SSL_ESNI *esni,
     esni->hs_cr=OPENSSL_malloc(esni->hs_cr_len);
     if (esni->hs_cr==NULL) {
         ESNIerr(ESNI_F_SSL_ESNI_DEC, ERR_R_INTERNAL_ERROR);
+        EXIT_TRACE;
         goto err;
     }
     memcpy(esni->hs_cr,client_random,esni->hs_cr_len);
@@ -2525,6 +2555,7 @@ unsigned char *SSL_ESNI_dec(SSL_ESNI *esni,
     esni->hs_kse=OPENSSL_malloc(esni->hs_kse_len);
     if (esni->hs_kse==NULL) {
         ESNIerr(ESNI_F_SSL_ESNI_DEC, ERR_R_INTERNAL_ERROR);
+        EXIT_TRACE;
         goto err;
     }
     memcpy(esni->hs_kse,client_keyshare,esni->hs_kse_len);
@@ -2534,6 +2565,7 @@ unsigned char *SSL_ESNI_dec(SSL_ESNI *esni,
     esni->cipher=OPENSSL_malloc(esni->cipher_len);
     if (esni->cipher==NULL) {
         ESNIerr(ESNI_F_SSL_ESNI_DEC, ERR_R_INTERNAL_ERROR);
+        EXIT_TRACE;
         goto err;
     }
     memcpy(esni->cipher,esni->the_esni->encrypted_sni,esni->cipher_len);
@@ -2545,6 +2577,7 @@ unsigned char *SSL_ESNI_dec(SSL_ESNI *esni,
     pctx = EVP_PKEY_CTX_new(esni->keyshare,NULL);
     if (EVP_PKEY_derive_init(pctx) <= 0 ) {
         ESNIerr(ESNI_F_SSL_ESNI_DEC, ERR_R_INTERNAL_ERROR);
+        EXIT_TRACE;
         goto err;
     }
     /* mao er.encoded_keyshare to esni.esni_peer_pkey */
@@ -2555,29 +2588,35 @@ unsigned char *SSL_ESNI_dec(SSL_ESNI *esni,
     esni->esni_peer_pkey=ssl_generate_param_group(curve_id);
     if (esni->esni_peer_pkey==NULL) {
         ESNIerr(ESNI_F_SSL_ESNI_DEC, ERR_R_INTERNAL_ERROR);
+        EXIT_TRACE;
         goto err;
     }
     if (!EVP_PKEY_set1_tls_encodedpoint(esni->esni_peer_pkey,
                 er->encoded_keyshare+6,er->encoded_keyshare_len-6)) {
-            ESNIerr(ESNI_F_SSL_ESNI_DEC, ESNI_R_RR_DECODE_ERROR);
-            goto err;
+        ESNIerr(ESNI_F_SSL_ESNI_DEC, ESNI_R_RR_DECODE_ERROR);
+        EXIT_TRACE;
+        goto err;
     }
     if (EVP_PKEY_derive_set_peer(pctx, esni->esni_peer_pkey) <= 0 ) {
         ESNIerr(ESNI_F_SSL_ESNI_DEC, ERR_R_INTERNAL_ERROR);
+        EXIT_TRACE;
         goto err;
     }
     if (EVP_PKEY_derive(pctx, NULL, &esni->Z_len) <= 0) {
         ESNIerr(ESNI_F_SSL_ESNI_DEC, ERR_R_INTERNAL_ERROR);
+        EXIT_TRACE;
         goto err;
     }
     if (esni->Z!=NULL) OPENSSL_free(esni->Z);
     esni->Z=OPENSSL_malloc(esni->Z_len);
     if (esni->Z == NULL) {
         ESNIerr(ESNI_F_SSL_ESNI_DEC, ERR_R_INTERNAL_ERROR);
+        EXIT_TRACE;
         goto err;
     }
     if (EVP_PKEY_derive(pctx, esni->Z, &esni->Z_len) <= 0) {
         ESNIerr(ESNI_F_SSL_ESNI_DEC, ERR_R_INTERNAL_ERROR);
+        EXIT_TRACE;
         goto err;
     }
 
@@ -2588,11 +2627,13 @@ unsigned char *SSL_ESNI_dec(SSL_ESNI *esni,
     esni->Zx=esni_hkdf_extract(esni->Z,esni->Z_len,&esni->Zx_len,md);
     if (esni->Zx==NULL) {
         ESNIerr(ESNI_F_SSL_ESNI_DEC, ERR_R_INTERNAL_ERROR);
+        EXIT_TRACE;
         goto err;
     }
 
     if (makeesnicontenthash(esni,1)!=1) {
         ESNIerr(ESNI_F_SSL_ESNI_DEC, ERR_R_INTERNAL_ERROR);
+        EXIT_TRACE;
         goto err;
     }
 
@@ -2601,6 +2642,7 @@ unsigned char *SSL_ESNI_dec(SSL_ESNI *esni,
      */
     if (esni_key_derivation(esni)!=1) {
         ESNIerr(ESNI_F_SSL_ESNI_DEC, ERR_R_INTERNAL_ERROR);
+        EXIT_TRACE;
         goto err;
     }
 
@@ -2618,6 +2660,7 @@ unsigned char *SSL_ESNI_dec(SSL_ESNI *esni,
          * decryption, this could be v. common and hence misleading
          * ESNIerr(ESNI_F_SSL_ESNI_DEC, ERR_R_INTERNAL_ERROR);
          */
+        EXIT_TRACE;
         goto err;
     }
 
@@ -2626,6 +2669,7 @@ unsigned char *SSL_ESNI_dec(SSL_ESNI *esni,
     esni->nonce=OPENSSL_malloc(esni->nonce_len);
     if (esni->nonce==NULL) {
         ESNIerr(ESNI_F_SSL_ESNI_DEC, ERR_R_INTERNAL_ERROR);
+        EXIT_TRACE;
         goto err;
     }
     memcpy(esni->nonce,esni->plain,esni->nonce_len);
@@ -2642,11 +2686,13 @@ unsigned char *SSL_ESNI_dec(SSL_ESNI *esni,
     }
     if ((inner_es_len+overhead)>esni->plain_len) {
         ESNIerr(ESNI_F_SSL_ESNI_DEC, ERR_R_INTERNAL_ERROR);
+        EXIT_TRACE;
         goto err;
     }
     unsigned char *result=OPENSSL_malloc(inner_es_len+1);
     if (result==NULL) {
         ESNIerr(ESNI_F_SSL_ESNI_DEC, ERR_R_INTERNAL_ERROR);
+        EXIT_TRACE;
         goto err;
     }
     memcpy(result,esni->plain+overhead,inner_es_len);
@@ -2655,9 +2701,11 @@ unsigned char *SSL_ESNI_dec(SSL_ESNI *esni,
 
     if (pctx!=NULL) EVP_PKEY_CTX_free(pctx);
     *encservername_len=inner_es_len;
+    EXIT_TRACE;
     return result;
 err:
     if (pctx!=NULL) EVP_PKEY_CTX_free(pctx);
+    EXIT_TRACE;
     return NULL;
 }
 

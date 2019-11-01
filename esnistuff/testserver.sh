@@ -139,12 +139,26 @@ keyfile1="-key $KEYFILE1 -cert $CERTFILE1"
 keyfile2="-key2 $KEYFILE2 -cert2 $CERTFILE2"
 keyfile3="-key2 $KEYFILE3 -cert2 $CERTFILE3"
 
+# figure out if we have tracing enabled within OpenSSL
+# there's probably an easier way but s_server -help
+# ought work
+set -x
+TRACING=""
+tmpf=`mktemp`
+$TOP/apps/openssl s_server -help >$tmpf 2>&1
+tcount=`grep -c 'trace protocol messages' $tmpf`
+if [[ "$tcount" == "1" ]]
+then
+    TRACING="-trace "
+fi
+rm -f $tmpf
+
 #dbgstr=" -verify_quiet"
 dbgstr=" -quiet"
 if [[ "$DEBUG" == "yes" ]]
 then
     #dbgstr="-msg -debug -security_debug_verbose -state -tlsextdebug"
-    dbgstr="-msg -trace -tlsextdebug "
+    dbgstr="-msg $TRACING -tlsextdebug "
 fi
 
 vgcmd=""

@@ -586,7 +586,7 @@ static int ssl_esni_servername_cb(SSL *s, int *ad, void *arg)
         if (res==0) res=getnameinfo(sa,salen,clientip,INET6_ADDRSTRLEN, 0,0,NI_NUMERICHOST);
         if (res!=0) strncpy(clientip,"dunno",INET6_ADDRSTRLEN);
     }
-    BIO_printf(p->biodebug,"ssl_esni_servername_cb: connetion from %s at %s",clientip,anow);
+    BIO_printf(p->biodebug,"ssl_esni_servername_cb: connection from %s at %s",clientip,anow);
     /*
      * Name that matches "main" ctx
      */
