@@ -2478,6 +2478,19 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
     return 1;
 
 noerr:
+
+    if (s->esni_cb != NULL && matchind!=-1) {
+        char pstr[ESNI_PBUF_SIZE+1];
+        memset(pstr,0,ESNI_PBUF_SIZE+10);
+#define NOERRLEADER "noerr: "
+        strncpy(pstr,NOERRLEADER,strlen(NOERRLEADER)+1);
+        BIO *biom = BIO_new(BIO_s_mem());
+        SSL_ESNI_print(biom,s->esni,matchind);
+        BIO_read(biom,pstr+strlen(NOERRLEADER),ESNI_PBUF_SIZE);
+        s->esni_cb(s,pstr);
+        BIO_free(biom);
+    }
+
     if (ce->encoded_keyshare) OPENSSL_free(ce->encoded_keyshare);
     if (ce->record_digest) OPENSSL_free(ce->record_digest);
     if (ce->encrypted_sni) OPENSSL_free(ce->encrypted_sni);
@@ -2491,6 +2504,19 @@ noerr:
     return 1;
 
 err:
+
+    if (s->esni_cb != NULL && matchind!=-1) {
+        char pstr[ESNI_PBUF_SIZE+1];
+        memset(pstr,0,ESNI_PBUF_SIZE+10);
+#define ERRLEADER "err: "
+        strncpy(pstr,ERRLEADER,strlen(ERRLEADER)+1);
+        BIO *biom = BIO_new(BIO_s_mem());
+        SSL_ESNI_print(biom,s->esni,matchind);
+        BIO_read(biom,pstr+strlen(ERRLEADER),ESNI_PBUF_SIZE);
+        s->esni_cb(s,pstr);
+        BIO_free(biom);
+    }
+
     if (ce->encoded_keyshare) OPENSSL_free(ce->encoded_keyshare);
     if (ce->record_digest) OPENSSL_free(ce->record_digest);
     if (ce->encrypted_sni) OPENSSL_free(ce->encrypted_sni);
@@ -2501,6 +2527,7 @@ err:
     OSSL_TRACE_BEGIN(TLS) {
         BIO_printf(trc_out,"Unhappy exit from tls_parse_ctos_esni at %d\n",__LINE__);
     } OSSL_TRACE_END(TLS);
+
     return 0;
 }
 

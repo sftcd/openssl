@@ -50,7 +50,8 @@ static void so_esni_pbuf(char *msg,unsigned char *buf,size_t blen,int indent);
  * Do some OpenSSL tracing - you need a non-default build for
  * this to do anything other than a complex NOOP
  */
-#define EXIT_TRACE OSSL_TRACE_BEGIN(TLS) { BIO_printf(trc_out,"Exiting SSL_ESNI_dec at %d\n",__LINE__); } OSSL_TRACE_END(TLS);
+#define ENTRY_TRACE OSSL_TRACE_BEGIN(TLS) { BIO_printf(trc_out,"Entering %s at %d\n",__FUNCTION__,__LINE__); } OSSL_TRACE_END(TLS);
+#define EXIT_TRACE OSSL_TRACE_BEGIN(TLS) { BIO_printf(trc_out,"Exiting %s at %d\n",__FUNCTION__,__LINE__); } OSSL_TRACE_END(TLS);
 
 
 
@@ -1877,6 +1878,7 @@ static unsigned char *esni_aead_dec(
             size_t *plain_len,
             uint16_t ciph)
 {
+    ENTRY_TRACE;
     /*
      * From https://wiki.openssl.org/index.php/EVP_Authenticated_Encryption_and_Decryption
      */
@@ -2462,6 +2464,7 @@ unsigned char *SSL_ESNI_dec(SSL_ESNI *esni,
                 unsigned char *client_keyshare,
                 size_t *encservername_len)
 {
+    ENTRY_TRACE;
     EVP_PKEY_CTX *pctx=NULL;
     if (!esni) {
         ESNIerr(ESNI_F_SSL_ESNI_DEC, ERR_R_INTERNAL_ERROR);

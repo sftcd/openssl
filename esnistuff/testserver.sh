@@ -142,7 +142,6 @@ keyfile3="-key2 $KEYFILE3 -cert2 $CERTFILE3"
 # figure out if we have tracing enabled within OpenSSL
 # there's probably an easier way but s_server -help
 # ought work
-set -x
 TRACING=""
 tmpf=`mktemp`
 $TOP/apps/openssl s_server -help >$tmpf 2>&1

@@ -41,7 +41,6 @@ OpenSSL trace API. Basically:
 
             $ cd $HOME/code/openssl
             $ ./config enable-ssl-trace enable-trace --debug
-            $ ./config --enable_ssl_trace --enable_trace --debug
             ...
             $ make clean; make
             $ cd esnistuff
