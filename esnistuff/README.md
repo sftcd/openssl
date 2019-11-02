@@ -29,10 +29,10 @@ Most recent first...
 - Started to make changes due to internal review of man pages. Some of
   those changes are just man page text, others change function names to
   be more consistent, so I'll do commits one at a time. 
-        - change ``SSL_set_esnicallback_ctx`` to the more
-          proper ``SSL_CTX_set_esni_callback``.
-        - change ``SSL_esni_reduce`` to ``SSL_ESNI_reduce``
-        - typo: "comman seperated" -> "comma separated"
+    - change ``SSL_set_esnicallback_ctx`` to the more
+      proper ``SSL_CTX_set_esni_callback``.
+    - change ``SSL_esni_reduce`` to ``SSL_ESNI_reduce``
+    - typo: "comman seperated" -> "comma separated"
     
 
 - Added output of key pair file from ``mk_esnikeys`` for nginx-friendlier
