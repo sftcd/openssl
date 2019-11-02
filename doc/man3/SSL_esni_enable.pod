@@ -54,19 +54,19 @@ SSL_esni_enable(). The size of that array is also returned in ``num_esnis``.
 SSL_ESNI_new_from_buffer() also takes a format type as input.  That can take
 the following values: 
 - ESNI_RRFMT_GUESS: the implementation will try guess the format
-- ESNI_RRFMT_BIN: the buffer contains binary encoded ESNIKeys
-- ESNI_RRFMT_ASCIIHEX: the buffer contains ascii hex encoded ESNIKeys
-- ESNI_RRFMT_B64TXT: the buffer contains base64 encoded ESNIKeys
+- ESNI_RRFMT_BIN: the buffer contains catenated binary encoded ESNIKeys
+- ESNI_RRFMT_ASCIIHEX: the buffer contains catenated ascii hex encoded ESNIKeys
+- ESNI_RRFMT_B64TXT: the buffer a semi-colon separated list of base64 encoded ESNIKeys
 
 In each case, the buffer can contain a set of catenated ESNIKeys values.  This
 allows applications to handle the situation where they find multiple RR values
-in the DNS.  (For the base64 encoded option, those need to be separated by a
+in the DNS.  (For the base64 encoded option, each needs to be separated by a
 semi-colon.)
 
 SSL_esni_checknames() currently only checks that the hidden and cover names are
 not the same, which would be undesirable. (This function may disappear.) 
 
-SSL_esni_get_status() will return the status of ESNI for an SSL session,
+SSL_get_esni_status() will return the status of ESNI for an SSL session,
 post-handshake. If ESNI was used the ``hidden`` and ``cover`` values will be
 set appropriately. (If no cleartext SNI was used in the handshake, the
 ``cover`` returned will be a NULL.) The return value can be one of:
@@ -75,13 +75,14 @@ set appropriately. (If no cleartext SNI was used in the handshake, the
 - SSL_ESNI_STATUS_FAILED  - Some internal error
 - SSL_ESNI_STATUS_BAD_CALL  - Required in/out arguments were badly set
 - SSL_ESNI_STATUS_NOT_TRIED  - ESNI wasn't attempted 
-- SSL_ESNI_STATUS_BAD_NAME  - ESNI succeeded but the server cert didn't match the hidden service name
+- SSL_ESNI_STATUS_BAD_NAME  - ESNI succeeded but the server cert didn't match the hidden name
 - SSL_ESNI_STATUS_TOOMANY  - ESNI succeeded but we can't figure out which one!
 
-SSL_esni_query() provide a view of some of the (non-cryptorgraphic) content
-contained within a set of ESNI keys.  This allows a client wishes to select one
-of a set of ESNI keys via SSL_ESNI_reduce(). The structure returned by
-SSL_esni_query() is as shown below:
+SSL_esni_query() provide a view of some of the (non-cryptographic) content
+associated within a set of ESNI keys.  This allows a client to select one
+of the set of ESNI keys via SSL_ESNI_reduce() by down-selecting to the
+index provided. 
+The structure returned by SSL_esni_query() is as shown below:
 
             typedef struct ssl_esni_ext_st {
                 int index; ///< externally re-usable reference to this RR value
