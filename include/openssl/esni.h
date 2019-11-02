@@ -491,7 +491,7 @@ int SSL_ESNI_ext_print(BIO* out, SSL_ESNI_ext *se, int count);
  * @param out is a returned SSL_ESNI containing only that indexed RR value 
  * @return 1 for success, error otherwise
  */
-int SSL_esni_reduce(SSL_ESNI *in, int index, SSL_ESNI **out);
+int SSL_ESNI_reduce(SSL_ESNI *in, int index, SSL_ESNI **out);
 
 
 /**

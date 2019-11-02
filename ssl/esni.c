@@ -3708,7 +3708,7 @@ void SSL_ESNI_ext_free(SSL_ESNI_ext *in, int size)
  * @param out is a returned SSL_ESNI containing only that indexed RR value 
  * @return 1 for success, error otherwise
  */
-int SSL_esni_reduce(SSL_ESNI *in, int index, SSL_ESNI **out)
+int SSL_ESNI_reduce(SSL_ESNI *in, int index, SSL_ESNI **out)
 {
     SSL_ESNI *newone=NULL;
     if (in==NULL || out==NULL || index >= in->num_esni_rrs) {

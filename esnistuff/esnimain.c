@@ -210,7 +210,7 @@ int main(int argc, char **argv)
          * Arbitrarily pick 2nd one
          */
         SSL_ESNI *newesnikeys=NULL;
-        rv=SSL_esni_reduce(esnikeys,1,&newesnikeys);
+        rv=SSL_ESNI_reduce(esnikeys,1,&newesnikeys);
         if (rv!=1) {
             printf("Can't reduce SSL_ESNI!\n");
             goto end;

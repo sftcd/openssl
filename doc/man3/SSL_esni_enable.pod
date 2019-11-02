@@ -5,7 +5,7 @@
 SSL_esni_enable, SSL_ESNI_new_from_buffer,
 SSL_esni_checknames, SSL_get_esni_status, 
 SSL_ESNI_print, SSL_ESNI_free,
-SSL_esni_query, SSL_esni_reduce,
+SSL_esni_query, SSL_ESNI_reduce,
 SSL_set_esni_callback, SSL_CTX_set_esni_callback,
 SSL_SESSION_set1_enchostname, SSL_SESSION_set1_covername,
 SSL_SESSION_set1_public_name, SSL_SESSION_get0_enchostname
@@ -20,7 +20,7 @@ SSL_SESSION_set1_public_name, SSL_SESSION_get0_enchostname
  int SSL_get_esni_status(SSL *s, char **hidden, char **cover);
  int SSL_ESNI_print(BIO* out, SSL_ESNI *esni, int selector);
  int SSL_esni_query(SSL_ESNI *in, SSL_ESNI_ext **out, int *nindices);
- int SSL_esni_reduce(SSL_ESNI *in, int index, SSL_ESNI **out);
+ int SSL_ESNI_reduce(SSL_ESNI *in, int index, SSL_ESNI **out);
  void SSL_ESNI_free(SSL_ESNI *esnikeys);
  void SSL_set_esni_callback(SSL *s, SSL_esni_client_cb_func f);
  void SSL_CTX_set_esni_callback(SSL_CTX *s, SSL_esni_client_cb_func f);
@@ -80,7 +80,7 @@ set appropriately. (If no cleartext SNI was used in the handshake, the
 
 SSL_esni_query() provide a view of some of the (non-cryptorgraphic) content
 contained within a set of ESNI keys.  This allows a client wishes to select one
-of a set of ESNI keys via SSL_esni_reduce(). The structure returned by
+of a set of ESNI keys via SSL_ESNI_reduce(). The structure returned by
 SSL_esni_query() is as shown below:
 
             typedef struct ssl_esni_ext_st {
