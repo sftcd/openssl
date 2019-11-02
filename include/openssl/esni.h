@@ -232,6 +232,10 @@ typedef struct ssl_esni_st {
     unsigned char **dnsexts; ///< encoded dns extension octets
     int naddrs; ///< decoded AddressSet cardinality
     BIO_ADDR *addrs; ///< decoded AddressSet values (v4 or v6)
+    /*
+     * Session specific stuff
+     */
+    int crypto_started; ///< set to one if someone tried to use this for real
     size_t nonce_len; 
     unsigned char *nonce; ///< Nonce we challenge server to respond with
     size_t hs_cr_len; 

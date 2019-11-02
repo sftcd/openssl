@@ -145,13 +145,26 @@ then
 	hidden=$SUPPLIEDHIDDEN
 fi
 
+# figure out if we have tracing enabled within OpenSSL
+# there's probably an easier way but s_server -help
+# ought work
+TRACING=""
+tmpf=`mktemp`
+$TOP/apps/openssl s_server -help >$tmpf 2>&1
+tcount=`grep -c 'trace protocol messages' $tmpf`
+if [[ "$tcount" == "1" ]]
+then
+    TRACING="-trace "
+fi
+rm -f $tmpf
+
 #dbgstr=" -verify_quiet"
 dbgstr=" "
 #dbgstr=" "
 if [[ "$DEBUG" == "yes" ]]
 then
     #dbgstr="-msg -debug -security_debug_verbose -state -tlsextdebug"
-    dbgstr="-msg -debug"
+    dbgstr="-msg -debug $TRACING"
 fi
 
 vgcmd=""

@@ -1382,7 +1382,6 @@ static void esni_pbuf(BIO *out,char *msg,unsigned char *buf,size_t blen,int inde
 }
 
 #ifdef ESNI_CRYPT_INTEROP
-
 /**
  * @brief stdout version of esni_pbuf - just for odd/occasional debugging
  */
@@ -1402,7 +1401,6 @@ static void so_esni_pbuf(char *msg,unsigned char *buf,size_t blen,int indent)
     printf("\n");
     return;
 }
-
 #endif
 
 /**
@@ -1450,9 +1448,9 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esniarr, int selector)
     if (bf!=1) {
         /*
          * not much point trying to write out an error I guess, could make things
-         * worse.
+         * worse, but we'll give it one more shot.
          */
-        return bf;
+        BIO_printf(out,"BIO_flush returned %d - things may get dodgy!\n",bf);
     }
     int i=0;
     for (i=0;i!=nesnis;i++) {
@@ -1553,6 +1551,11 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esniarr, int selector)
             }
         } else {
             BIO_printf(out,"ESNI no addresses\n");
+        }
+        if (esni->crypto_started==0) {
+	        BIO_printf(out,"ESNI crypto wasn't yet started\n");
+        } else {
+	        BIO_printf(out,"ESNI crypto was started (%d)\n",esni->crypto_started);
         }
 	    esni_pbuf(out,"ESNI Nonce",esni->nonce,esni->nonce_len,indent);
 	    esni_pbuf(out,"ESNI H/S Client Random",esni->hs_cr,esni->hs_cr_len,indent);
@@ -2181,6 +2184,11 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys_in,
 
     SSL_ESNI *esnikeys=&esnikeys_in[latestindex];
 
+    /*
+     * Now mark that one as having been touched
+     */
+    esnikeys->crypto_started=1;
+
     /* 
      * encrypt the actual SNI based on shared key, Z - the I-D says:
      *    Zx = HKDF-Extract(0, Z)
@@ -2543,6 +2551,11 @@ unsigned char *SSL_ESNI_dec(SSL_ESNI *esni,
         EXIT_TRACE;
         goto err;
     }
+
+    /*
+     * Stuff starts happening now, so mark it thusly
+     */
+    esni->crypto_started=1;
 
     /*
      * copy inputs to state, if we're trial decrypting then we
@@ -3260,7 +3273,7 @@ int SSL_get_esni_status(SSL *s, char **hidden, char **cover)
         int ind=0;
         int nesnis=s->esni->num_esni_rrs;
         for (ind=0;ind!=nesnis;ind++) {
-            if (s->esni[ind].the_esni!=NULL) {
+            if (s->esni[ind].crypto_started!=0) {
                 /*
                  * this one's active 
                  */

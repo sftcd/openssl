@@ -12,6 +12,12 @@
 #include "internal/cryptlib.h"
 #include "statem_locl.h"
 
+#ifndef OPENSSL_NO_ESNI
+#ifndef OPENSSL_NO_SSL_TRACE
+#include <openssl/trace.h>
+#endif
+#endif
+
 EXT_RETURN tls_construct_ctos_renegotiate(SSL *s, WPACKET *pkt,
                                           unsigned int context, X509 *x,
                                           size_t chainidx)
@@ -2245,6 +2251,34 @@ EXT_RETURN tls_construct_ctos_esni(SSL *s, WPACKET *pkt, unsigned int context,
         if (!SSL_ESNI_enc(s->esni,rd_len,rd,curve_id,s->ext.kse_len,s->ext.kse,&c)) {
             return 0;
         }
+
+#ifndef OPENSSL_NO_SSL_TRACE
+        /*
+        * If tracing is enabled at compile time then we allow for an
+        * environment variable that, if set, will result in sending
+        * borked ciphertext. This is solely to allow me to test the
+        * server-side tracing if a client is sending bad values
+        */
+        const char *buggerit=NULL;
+        buggerit = getenv("OPENSSL_BREAK_ESNI");
+        if (buggerit!=NULL) {
+            printf("BUILT WITH openssl-ssl-trace and OPENSSL_BREAK_ESNI set in environment - did you *REALLY* want that?\n");
+            printf("BUILT WITH openssl-ssl-trace and OPENSSL_BREAK_ESNI set in environment - did you *REALLY* want that?\n");
+            printf("BUILT WITH openssl-ssl-trace and OPENSSL_BREAK_ESNI set in environment - did you *REALLY* want that?\n");
+            printf("BUILT WITH openssl-ssl-trace and OPENSSL_BREAK_ESNI set in environment - did you *REALLY* want that?\n");
+            int buggerind=0;
+            for (buggerind=0;buggerind!=16;buggerind++) {
+                c->encrypted_sni[buggerind] = 0xaa;
+            }
+            OSSL_TRACE_BEGIN(TLS) { 
+                BIO_printf(trc_out,"Breaking ESNI due to OPENSSL_BREAK_ESNI being set in environment.\n");
+                /* 
+                * We break the ciphertext by setting a pattern in the first
+                * few octets (No idea why, but it'll do:-)
+                */
+            } OSSL_TRACE_END(TLS);
+        }
+#endif
         s->esni_attempted=1;
     } 
 

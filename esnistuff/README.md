@@ -26,6 +26,15 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- Added an option to cause client to produce borked ciphertext so I 
+could test my server's tracing in that scenario. To get the client
+to do that you first need to have tracing compiled in (see below)
+and set an environment variable called ``OPENSSL_BREAK_ESNI``
+to some value. If you do that, then the client will overwrite the
+first 16 octets of the ESNI ciphertext with 0xaa values. That
+also allowed me to fix some server-side tracing I couldn't otherwise
+easily exercise.
+
 - Started to make changes due to internal review of man pages. Some of
   those changes are just man page text, others change function names to
   be more consistent, so I'll do commits one at a time. 
@@ -34,7 +43,6 @@ Most recent first...
     - change ``SSL_esni_reduce`` to ``SSL_ESNI_reduce``
     - typo: "comman seperated" -> "comma separated"
     - various editorial changes to man pages
-    
 
 - Added output of key pair file from ``mk_esnikeys`` for nginx-friendlier
   config. Use ``-k`` command line arg to pick name, default is "esnikeys.key"
