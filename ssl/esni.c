@@ -3243,7 +3243,7 @@ int SSL_get_esni_status(SSL *s, char **hidden, char **cover)
     }
     *cover=NULL;
     *hidden=NULL;
-    if (s->esni!=NULL) {
+    if (s->esni!=NULL && s->esni_attempted) {
         /*
          * Need to pick correct array element (again - TODO: fix that!)
          * For now we'll do that based on matching the session vs. esni
@@ -3282,6 +3282,9 @@ int SSL_get_esni_status(SSL *s, char **hidden, char **cover)
         if (s->esni[matchind].require_hidden_match) {
             vr=SSL_get_verify_result(s);
         } 
+        /*
+         * *hidden may end up as NULL here, but that's correct (if ESNI failed)
+         */
         *hidden=s->esni[matchind].encservername;
         /*
          * Prefer covername (if supplied) to draft-03/draft-04 public_name 
@@ -3302,9 +3305,7 @@ int SSL_get_esni_status(SSL *s, char **hidden, char **cover)
         }
     } else if (s->esni_attempted==1) {
         return SSL_ESNI_STATUS_GREASE;
-    } else if (s->esni_attempted==0) {
-        return SSL_ESNI_STATUS_NOT_TRIED;
-    }
+    } 
     return SSL_ESNI_STATUS_NOT_TRIED;
 }
 
