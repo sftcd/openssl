@@ -2245,6 +2245,7 @@ EXT_RETURN tls_construct_ctos_esni(SSL *s, WPACKET *pkt, unsigned int context,
         if (!SSL_ESNI_enc(s->esni,rd_len,rd,curve_id,s->ext.kse_len,s->ext.kse,&c)) {
             return 0;
         }
+        s->esni_attempted=1;
     } 
 
     /*

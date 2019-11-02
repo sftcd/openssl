@@ -3253,7 +3253,7 @@ int SSL_get_esni_status(SSL *s, char **hidden, char **cover)
     *hidden=NULL;
     if (s->esni!=NULL && s->esni_attempted) {
         /*
-         * Need to pick correct array element (again - TODO: fix that!)
+         * Need to pick correct array element 
          * For now we'll do that based on matching the session vs. esni
          */
         int matchind=-1;
