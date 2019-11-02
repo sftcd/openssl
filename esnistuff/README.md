@@ -32,6 +32,7 @@ Most recent first...
         - change ``SSL_set_esnicallback_ctx`` to the more
           proper ``SSL_CTX_set_esni_callback``.
         - change ``SSL_esni_reduce`` to ``SSL_ESNI_reduce``
+        - typo: "comman seperated" -> "comma separated"
     
 
 - Added output of key pair file from ``mk_esnikeys`` for nginx-friendlier

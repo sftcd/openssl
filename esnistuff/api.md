@@ -2103,7 +2103,7 @@ Exterally visible form of an ESNIKeys RR value.
 --------------------------------|---------------------------------------------
 `public int `[`index`](#structssl__esni__ext__st_1a27accbaa2a709437a3b50d4902eca321) | externally re-usable reference to this RR value
 `public char * `[`public_name`](#structssl__esni__ext__st_1a57b914b05b49fab55294005ef5adc8b7) | public_name from ESNIKeys
-`public char * `[`prefixes`](#structssl__esni__ext__st_1a9b99b3bc8a79e6f408df79860d8a918f) | comman seperated list of IP address prefixes, in CIDR form
+`public char * `[`prefixes`](#structssl__esni__ext__st_1a9b99b3bc8a79e6f408df79860d8a918f) | comma separated list of IP address prefixes, in CIDR form
 `public uint64_t `[`not_before`](#structssl__esni__ext__st_1a8ee5d62612efe6b7a1ecb6df8ed4c389) | from ESNIKeys (not currently used)
 `public uint64_t `[`not_after`](#structssl__esni__ext__st_1a9c32fd4d4773626fa4e95f127922c2a3) | from ESNIKeys (not currently used)
 
@@ -2125,7 +2125,7 @@ public_name from ESNIKeys
 
 #### `public char * `[`prefixes`](#structssl__esni__ext__st_1a9b99b3bc8a79e6f408df79860d8a918f) 
 
-comman seperated list of IP address prefixes, in CIDR form
+comma separated list of IP address prefixes, in CIDR form
 
 <p id="structssl__esni__ext__st_1a8ee5d62612efe6b7a1ecb6df8ed4c389"><hr></p>
 
