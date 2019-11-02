@@ -22,7 +22,12 @@
 #include <openssl/evp.h>
 #include <openssl/esni.h>
 #include <openssl/esnierr.h>
+#ifndef OPENSSL_NO_SSL_TRACE
+/*
+ * Optional (at build time) tracing of TLS stuff
+ */
 #include <openssl/trace.h>
+#endif
 
 #ifndef OPENSSL_NO_ESNI
 
@@ -46,14 +51,17 @@ size_t lg_nonce_len=0;
 static void so_esni_pbuf(char *msg,unsigned char *buf,size_t blen,int indent);
 #endif
 
+#ifndef OPENSSL_NO_SSL_TRACE
 /*
  * Do some OpenSSL tracing - you need a non-default build for
  * this to do anything other than a complex NOOP
  */
 #define ENTRY_TRACE OSSL_TRACE_BEGIN(TLS) { BIO_printf(trc_out,"Entering %s at %d\n",__FUNCTION__,__LINE__); } OSSL_TRACE_END(TLS);
 #define EXIT_TRACE OSSL_TRACE_BEGIN(TLS) { BIO_printf(trc_out,"Exiting %s at %d\n",__FUNCTION__,__LINE__); } OSSL_TRACE_END(TLS);
-
-
+#else
+#define ENTRY_TRACE
+#define EXIT_TRACE
+#endif
 
 /**
  * Handle padding - the server needs to do padding in case the
