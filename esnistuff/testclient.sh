@@ -33,16 +33,16 @@ DVERSION="any"
 # You can indpendendtly set the 
 # hidden - the name used in the ESNI
 #      that defaults to encryptedsni.com
-# cover - the name used in (clear) SNI
+# clear_sni - the name used in (clear) SNI
 # server - we'll connect to that IP or the A/AAAA for that name
-# if server isn't set, it defaults to cover
-# if cover isn't set it defaults to www.cloudflare.com
-# if cover is "NONE" we send no (clear) SNI at all and 
+# if server isn't set, it defaults to clear_sni
+# if clear_sni isn't set it defaults to www.cloudflare.com
+# if clear_sni is "NONE" we send no (clear) SNI at all and 
 #      server falls back to wwww.cloudflare.com
 
 # DNS lookups
 # _esni.$hidden is checked first, if nothing there then
-# we check _esni.$cover and finally _esni.$server
+# we check _esni.$clear_sni and finally _esni.$server
 
 # Using an IP address instead of a name may work sometimes but
 # not always
@@ -50,14 +50,15 @@ DVERSION="any"
 
 SUPPLIEDSERVER=""
 SUPPLIEDHIDDEN=""
-SUPPLIEDCOVER=""
+# PNO is the public_name_override that'll be sent as clear_sni
+SUPPLIEDPNO=""
 SUPPLIEDESNI=""
 SUPPLIEDCADIR=""
 SUPPLIEDSESSION=""
 SUPPLIEDVERSION=""
 BELAX=""
 HIDDEN="encryptedsni.com"
-COVER="www.cloudflare.com"
+PNO="www.cloudflare.com"
 CAPATH="/etc/ssl/certs/"
 CAFILE="./cadir/oe.csr"
 REALCERT="no" # default to fake CA for localhost
@@ -73,7 +74,7 @@ echo "Running $0 at $NOW"
 function usage()
 {
     echo "$0 [-cHPpsrdnlvhLV] - try out encrypted SNI via openssl s_client"
-	echo "  -c [name] specifices a covername that I'll send as a clear SNI (NONE is special)"
+	echo "  -c [name] specifices a name that I'll send as a clear SNI (NONE is special)"
     echo "  -f [pathname] specifies the file/pathname to request (default: '/')"
     echo "  -H means try connect to that hidden server"
 	echo "  -P [filename] means read ESNIKeys public value from file and not DNS"
@@ -97,7 +98,7 @@ function usage()
 }
 
 # options may be followed by one colon to indicate they have a required argument
-if ! options=$(/usr/bin/getopt -s bash -o f:gS:c:P:H:p:s:dlvnhLV: -l filepath:,grease:,session:,cover:,esnipub:,hidden:,port:,server:,debug,stale,valgrind,noesni,help,lax,version: -- "$@")
+if ! options=$(/usr/bin/getopt -s bash -o f:gS:c:P:H:p:s:dlvnhLV: -l filepath:,grease:,session:,clear_sni:,esnipub:,hidden:,port:,server:,debug,stale,valgrind,noesni,help,lax,version: -- "$@")
 then
     # something went wrong, getopt will put out an error message for us
     exit 1
@@ -107,7 +108,7 @@ eval set -- "$options"
 while [ $# -gt 0 ]
 do
     case "$1" in
-        -c|--cover) SUPPLIEDCOVER=$2; shift;;
+        -c|--clear_sni) SUPPLIEDPNO=$2; shift;;
         -d|--debug) DEBUG="yes" ;;
         -f|--filepath) HTTPPATH=$2; shift;;
 		-g|--grease) GREASE="yes";;
@@ -179,23 +180,23 @@ then
 fi
 
 # Set SNI
-cover=$COVER
-snicmd="-servername $cover"
-if [[ "$SUPPLIEDCOVER" != "" ]]
+clear_sni=$PNO
+snicmd="-servername $clear_sni"
+if [[ "$SUPPLIEDPNO" != "" ]]
 then
-    if [[ "$SUPPLIEDCOVER" == "NONE" ]]
+    if [[ "$SUPPLIEDPNO" == "NONE" ]]
     then
         snicmd="-noservername "
-        cover=""
+        clear_sni=""
     else
-        snicmd=" -servername $SUPPLIEDCOVER "
-        cover=$SUPPLIEDCOVER
+        snicmd=" -servername $SUPPLIEDPNO "
+        clear_sni=$SUPPLIEDPNO
     fi
 fi
 
 # Set address of target 
-target=" -connect $cover:$PORT "
-server=$cover
+target=" -connect $clear_sni:$PORT "
+server=$clear_sni
 if [[ "$SUPPLIEDSERVER" != "" ]]
 then
 	target=" -connect $SUPPLIEDSERVER:$PORT"
@@ -249,8 +250,8 @@ then
 		        ESNI=`dig +short txt _esni.$hidden | sed -e 's/"//g' | sed -e 'N;s/\n/;/'`
 		        if [[ "$ESNI" == "" ]]
 		        then
-                    # try draft-02 via cover
-			        ESNI=`dig +short txt _esni.$cover | sed -e 's/"//g' | sed -e 'N;s/\n//'`
+                    # try draft-02 via clear_sni
+			        ESNI=`dig +short txt _esni.$clear_sni | sed -e 's/"//g' | sed -e 'N;s/\n//'`
 			        if [[ "$ESNI" == "" ]]
 			        then
                         # try draft-02 via server
@@ -290,7 +291,7 @@ if [[ "$NOESNI" == "yes" ]]
 then
     echo "Not trying ESNI"
     esnistr=""
-    hidden=$cover
+    hidden=$clear_sni
     if [[ "$GREASE" == "yes" ]]
     then
         echo "Trying to GREASE though"

@@ -730,7 +730,7 @@ const OPTIONS s_client_options[] = {
     {"esni", OPT_ESNI, 's',
      "Set TLS extension encrypted servername (ESNI) in ClientHello, value is to-be-encrypted name"},
     {"esnirr", OPT_ESNI_RR, 's',
-     "Set ESNI ESNIKeys, value is base64 encoded from RR as per I-D -02 or -03"},
+     "Set ESNI ESNIKeys, value is RR as per I-D -02,-03 or -04"},
     {"esni_strict",OPT_ESNI_STRICT,'-',
      "Enforce strict matching between ESNI value and TLS server cert"},
     {"esni_grease",OPT_ESNI_GREASE,'-',
@@ -933,15 +933,15 @@ static int new_session_cb(SSL *s, SSL_SESSION *sess)
                 BIO_printf(bio_err, "Set ESNI/hostname in session to %s\n",servername);
             ERR_print_errors(bio_err);
         }
-        /* also stick that in covername */
-        rv=SSL_SESSION_set1_covername(sess,servername);
+        /* also stick that in public_name_override */
+        rv=SSL_SESSION_set1_public_name_override(sess,servername);
         if (rv!=1) {
             if (c_debug) 
-                BIO_printf(bio_err, "Can't set ESNI/covername in session...\n");
+                BIO_printf(bio_err, "Can't set ESNI/public_name_override in session...\n");
             ERR_print_errors(bio_err);
         } else {
             if (c_debug) 
-                BIO_printf(bio_err, "Set ESNI/covername in session to %s\n",servername);
+                BIO_printf(bio_err, "Set ESNI/public_name_override in session to %s\n",servername);
             ERR_print_errors(bio_err);
         }
         /* 

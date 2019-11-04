@@ -528,7 +528,7 @@ SSL_esni_query                          820	3_0_0	EXIST::FUNCTION:
 SSL_ESNI_ext_free                       821	3_0_0	EXIST::FUNCTION:
 SSL_ESNI_ext_print                      822	3_0_0	EXIST::FUNCTION:
 SSL_ESNI_reduce                         823	3_0_0	EXIST::FUNCTION:
-SSL_SESSION_set1_covername              824	3_0_0	EXIST::FUNCTION:ESNI
+SSL_SESSION_set1_public_name_override   824	3_0_0	EXIST::FUNCTION:ESNI
 SSL_SESSION_set1_public_name            825	3_0_0	EXIST::FUNCTION:ESNI
 SSL_ESNI_grease_me                      826	3_0_0	EXIST::FUNCTION:
 SSL_CTX_esni_server_flush_keys          827	3_0_0	EXIST::FUNCTION:

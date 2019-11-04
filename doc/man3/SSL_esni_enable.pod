@@ -7,7 +7,7 @@ SSL_esni_checknames, SSL_get_esni_status,
 SSL_ESNI_print, SSL_ESNI_free,
 SSL_esni_query, SSL_ESNI_reduce,
 SSL_set_esni_print_callback, SSL_CTX_set_esni_print_callback,
-SSL_SESSION_set1_enchostname, SSL_SESSION_set1_covername,
+SSL_SESSION_set1_enchostname, SSL_SESSION_set1_public_name_override,
 SSL_SESSION_set1_public_name, SSL_SESSION_get0_enchostname
 - Encrypted Server Name Indication (ESNI) support - client and common functions 
 
@@ -16,7 +16,7 @@ SSL_SESSION_set1_public_name, SSL_SESSION_get0_enchostname
  #include <openssl/esni.h>
  int SSL_esni_enable(SSL *s, const char *hidden, const char *cover, SSL_ESNI *esni, int nesnis, int require_hidden_match);
  SSL_ESNI* SSL_ESNI_new_from_buffer(const short ekfmt, const size_t eklen, const char *esnikeys, int *num_esnis);
- int SSL_esni_checknames(const char *encservername, const char *covername);
+ int SSL_esni_checknames(const char *encservername, const char *public_name_override);
  int SSL_get_esni_status(SSL *s, char **hidden, char **cover);
  int SSL_ESNI_print(BIO* out, SSL_ESNI *esni, int selector);
  int SSL_esni_query(SSL_ESNI *in, SSL_ESNI_ext **out, int *nindices);
@@ -25,7 +25,7 @@ SSL_SESSION_set1_public_name, SSL_SESSION_get0_enchostname
  void SSL_set_esni_print_callback(SSL *s, SSL_esni_client_cb_func f);
  void SSL_CTX_set_esni_print_callback(SSL_CTX *s, SSL_esni_client_cb_func f);
  int SSL_SESSION_set1_enchostname(SSL_SESSION *s, const char *hostname);
- int SSL_SESSION_set1_covername(SSL_SESSION *s, const char *covername);
+ int SSL_SESSION_set1_public_name_override(SSL_SESSION *s, const char *servername);
  int SSL_SESSION_set1_public_name(SSL_SESSION *s, const char *public_name);
  const char *SSL_SESSION_get0_enchostname(const SSL_SESSION *s);
 
@@ -113,7 +113,7 @@ string returned (currently) includes many derived cryptographic variables
 intended to help with interop testing.  At present, these are only used by
 s_client and s_server, so may disappear in future.
 
-SSL_SESSION_set1_enchostname (), SSL_SESSION_set1_covername(),
+SSL_SESSION_set1_enchostname(), SSL_SESSION_set1_public_name_override(),
 SSL_SESSION_set1_public_name() and SSL_SESSION_get0_enchostname() allow for
 setting and getting ESNI related values in an SSL_SESSION so that session
 ticket handling continues to work as needed.

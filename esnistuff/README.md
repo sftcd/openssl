@@ -51,6 +51,13 @@ easily exercise.
         - esni_cb -> esni_print_cb (within SSL/SSL_CTX)
         - SSL_set_esni_callback -> SSL_set_esni_print_callback 
         - SSL_CTX_set_esni_callback -> SSL_CTX_set_esni_print_callback,
+    - "covername" (or derivitives) could be counter-productive in terms of
+      acceptance and adoption, maybe better to rename that, so we'll go with
+      public_name_override for a value that is client-chosen to go in cleartext SNI
+      (vs. public_name from ESNIKeys) and clear_sni on the server side for the value
+      received as cleartext SNI - that's a bit of a change as I was using covername
+      for both concepts, so I might bugger up teasing apart code changes from
+      covername to one of those two, we'll see...
 
 - Added output of key pair file from ``mk_esnikeys`` for nginx-friendlier
   config. Use ``-k`` command line arg to pick name, default is "esnikeys.key"

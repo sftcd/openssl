@@ -942,15 +942,15 @@ int SSL_SESSION_set1_enchostname(SSL_SESSION *s, const char *hostname)
     return s->ext.encservername != NULL;
 }
 
-int SSL_SESSION_set1_covername(SSL_SESSION *s, const char *covername)
+int SSL_SESSION_set1_public_name_override(SSL_SESSION *s, const char *servername)
 {
     if (s->ext.covername) 
         OPENSSL_free(s->ext.covername);
-    if (covername == NULL) {
-        s->ext.encservername = NULL;
+    if (servername == NULL) {
+        s->ext.covername = NULL;
         return 1;
     }
-    s->ext.covername = OPENSSL_strdup(covername);
+    s->ext.covername = OPENSSL_strdup(servername);
     return s->ext.covername != NULL;
 }
  
