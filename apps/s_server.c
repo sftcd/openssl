@@ -593,12 +593,12 @@ static int ssl_esni_servername_cb(SSL *s, int *ad, void *arg)
     const char *servername = SSL_get_servername(s, TLSEXT_NAMETYPE_host_name);
     if (p->biodebug != NULL ) {
         /*
-        * Client supplied ESNI (hidden) and SNI (cover)
+        * Client supplied ESNI (hidden) and SNI (clear_sni)
         */
 
         char *hidden=NULL; 
-        char *cover=NULL;
-        int esnirv=SSL_get_esni_status(s,&hidden,&cover);
+        char *clear_sni=NULL;
+        int esnirv=SSL_get_esni_status(s,&hidden,&clear_sni);
         switch (esnirv) {
         case SSL_ESNI_STATUS_NOT_TRIED: 
             BIO_printf(p->biodebug,"ssl_esni_servername_cb: not attempted\n");
@@ -610,8 +610,8 @@ static int ssl_esni_servername_cb(SSL *s, int *ad, void *arg)
             BIO_printf(p->biodebug,"ssl_esni_servername_cb: worked but bad name\n");
             break;
         case SSL_ESNI_STATUS_SUCCESS:
-            BIO_printf(p->biodebug,"ssl_esni_servername_cb: success: cover: %s, hidden: %s\n",
-                            (cover==NULL?"none":cover),
+            BIO_printf(p->biodebug,"ssl_esni_servername_cb: success: clear sni: %s, hidden: %s\n",
+                            (clear_sni==NULL?"none":clear_sni),
                             (hidden==NULL?"none":hidden));
             break;
         default:
@@ -633,7 +633,7 @@ static int ssl_esni_servername_cb(SSL *s, int *ad, void *arg)
         if (p->servername!=NULL) {
             BIO_printf(p->biodebug, "ssl_esni_servername_cb: ctx servername: %s\n",p->servername);
         } else {
-            BIO_printf(p->biodebug, "ssl_esni_servername_cb: ctx servername covername is NULL\n");
+            BIO_printf(p->biodebug, "ssl_esni_servername_cb: ctx servername is NULL\n");
         }
         if (p->scert == NULL ) {
             BIO_printf(p->biodebug, "ssl_esni_servername_cb: No 2nd cert! Things likely won't go well:-)\n");
@@ -3606,9 +3606,9 @@ static int www_body(int s, int stype, int prot, unsigned char *context)
              */
             BIO_puts(io, "<h1>OpenSSL with ESNI</h1>\n");
             char *hidden=NULL; 
-            char *cover=NULL;
+            char *clear_sni=NULL;
             BIO_puts(io, "<h2>\n");
-            int esnirv=SSL_get_esni_status(con,&hidden,&cover);
+            int esnirv=SSL_get_esni_status(con,&hidden,&clear_sni);
             switch (esnirv) {
             case SSL_ESNI_STATUS_NOT_TRIED: 
                 BIO_puts(io,"ESNI not attempted\n");
@@ -3620,8 +3620,8 @@ static int www_body(int s, int stype, int prot, unsigned char *context)
                 BIO_puts(io,"ESNI worked but bad name\n");
                 break;
             case SSL_ESNI_STATUS_SUCCESS:
-                BIO_printf(io,"ESNI success: cover: %s, hidden: %s\n",
-                                (cover==NULL?"none":cover),
+                BIO_printf(io,"ESNI success: clear sni: %s, hidden: %s\n",
+                                (clear_sni==NULL?"none":clear_sni),
                             (hidden==NULL?"none":hidden));
                 break;
             default:

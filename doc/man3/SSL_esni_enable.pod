@@ -14,10 +14,10 @@ SSL_SESSION_set1_public_name, SSL_SESSION_get0_enchostname
 =head1 SYNOPSIS
 
  #include <openssl/esni.h>
- int SSL_esni_enable(SSL *s, const char *hidden, const char *cover, SSL_ESNI *esni, int nesnis, int require_hidden_match);
+ int SSL_esni_enable(SSL *s, const char *hidden, const char *clear_sni, SSL_ESNI *esni, int nesnis, int require_hidden_match);
  SSL_ESNI* SSL_ESNI_new_from_buffer(const short ekfmt, const size_t eklen, const char *esnikeys, int *num_esnis);
  int SSL_esni_checknames(const char *encservername, const char *public_name_override);
- int SSL_get_esni_status(SSL *s, char **hidden, char **cover);
+ int SSL_get_esni_status(SSL *s, char **hidden, char **clear_sni);
  int SSL_ESNI_print(BIO* out, SSL_ESNI *esni, int selector);
  int SSL_esni_query(SSL_ESNI *in, SSL_ESNI_ext **out, int *nindices);
  int SSL_ESNI_reduce(SSL_ESNI *in, int index, SSL_ESNI **out);
@@ -35,10 +35,10 @@ These functions handle the client side of encrypted SNI. Some are also useful
 on servers.
 
 SSL_esni_enable() requests that ESNI be used for a TLS session, with the
-specified ESNI keys, ``hidden`` name and an optional ``cover`` name that will
+specified ESNI keys, ``hidden`` name and an optional ``clear_sni`` name that will
 be sent in the cleartext SNI. If no cleartext SNI is desired, or to use the
 public_name from within the ESNIKeys structure used, provide a NULL as the
-cover input. If a non-NULL cover name is supplied that will be used instead of
+clear_sni input. If a non-NULL clear_sni name is supplied that will be used instead of
 the public_name within the ESNIKeys structure.
 
 SSL_esni_enable() also takes as input an array of SSL_ESNI structures that was
@@ -63,13 +63,13 @@ allows applications to handle the situation where they find multiple RR values
 in the DNS.  (For the base64 encoded option, each needs to be separated by a
 semi-colon.)
 
-SSL_esni_checknames() currently only checks that the hidden and cover names are
+SSL_esni_checknames() currently only checks that the hidden and clear_sni names are
 not the same, which would be undesirable. (This function may disappear.) 
 
 SSL_get_esni_status() will return the status of ESNI for an SSL session,
-post-handshake. If ESNI was used the ``hidden`` and ``cover`` values will be
+post-handshake. If ESNI was used the ``hidden`` and ``clear_sni`` values will be
 set appropriately. (If no cleartext SNI was used in the handshake, the
-``cover`` returned will be a NULL.) The return value can be one of:
+``clear_sni`` returned will be a NULL.) The return value can be one of:
 - SSL_ESNI_STATUS_GREASE - ESNI GREASE happened (if you care:-)
 - SSL_ESNI_STATUS_SUCCESS - Success
 - SSL_ESNI_STATUS_FAILED  - Some internal error

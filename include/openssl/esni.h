@@ -206,7 +206,7 @@ typedef struct client_esni_st {
 typedef struct ssl_esni_st {
     unsigned int version; ///< version from underlying ESNI_RECORD/ESNIKeys
     char *encservername; ///< hidden server name
-    char *covername; ///< cleartext SNI (can be NULL)
+    char *clear_sni; ///< cleartext SNI (can be NULL)
     char *public_name;  ///< public_name from ESNIKeys
     int require_hidden_match; ///< If 1 then SSL_get_esni_status will barf if hidden name doesn't match TLS server cert. If 0, don't care.
     int num_esni_rrs; ///< the number of ESNIKeys structures in this array
@@ -417,7 +417,7 @@ SSL_ESNI* SSL_ESNI_dup(SSL_ESNI* orig, size_t nesni, int selector);
  * @param convername the cleartext SNI to send (can be NULL if we don't want any)
  * @return 1 for success, other otherwise
  */
-int SSL_esni_checknames(const char *encservername, const char *covername);
+int SSL_esni_checknames(const char *encservername, const char *clear_sni);
 
 /**
  * @brief Decode and check the value retieved from DNS (binary, base64 or ascii-hex encoded)
@@ -439,14 +439,14 @@ SSL_ESNI* SSL_ESNI_new_from_buffer(const short ekfmt, const size_t eklen, const 
  * 
  * @param s is the SSL context
  * @param hidde is the hidden service name
- * @param cover is the cleartext SNI name to use
+ * @param clear_sni is the cleartext SNI name to use
  * @param esni is an array of SSL_ESNI structures
  * @param nesnis says how many structures are in the esni array
  * @param require_hidden_match say whether to require (==1) the TLS server cert matches the hidden name
  * @return 1 for success, error otherwise
  * 
  */
-int SSL_esni_enable(SSL *s, const char *hidden, const char *cover, SSL_ESNI *esni, int nesnis, int require_hidden_match);
+int SSL_esni_enable(SSL *s, const char *hidden, const char *clear_sni, SSL_ESNI *esni, int nesnis, int require_hidden_match);
 
 /**
  * @brief query the content of an SSL_ESNI structure
@@ -582,7 +582,7 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esni, int selector);
  *
  * This is intended to be called by applications after the TLS handshake
  * is complete. This works for both client and server. The caller does
- * not have to (and shouldn't) free the hidden or cover strings.
+ * not have to (and shouldn't) free the hidden or clear_sni strings.
  * TODO: Those are pointers into the SSL struct though so maybe better
  * to allocate fresh ones.
  *
@@ -593,10 +593,10 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esni, int selector);
  *
  * @param s The SSL context (if that's the right term)
  * @param hidden will be set to the address of the hidden service
- * @param cover will be set to the address of the hidden service
+ * @param clear_sni will be set to the address of the hidden service
  * @return 1 for success, other otherwise
  */
-int SSL_get_esni_status(SSL *s, char **hidden, char **cover);
+int SSL_get_esni_status(SSL *s, char **hidden, char **clear_sni);
 
 /*
  * Crypto detailed debugging functions to allow comparison of intermediate

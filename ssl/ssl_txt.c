@@ -95,10 +95,10 @@ int SSL_SESSION_print(BIO *bp, const SSL_SESSION *x)
 	} else {
 		BIO_printf(bp,"\n    ESNI/encservername is NULL");
     }
-    if (x->ext.covername!=NULL) {
-		BIO_printf(bp,"\n    ESNI/covername: %s",x->ext.covername);
+    if (x->ext.clear_sni!=NULL) {
+		BIO_printf(bp,"\n    ESNI/clear_sni: %s",x->ext.clear_sni);
 	} else {
-		BIO_printf(bp,"\n    ESNI/covername is NULL");
+		BIO_printf(bp,"\n    ESNI/clear_sni is NULL");
     }
     if (x->ext.public_name!=NULL) {
 		BIO_printf(bp,"\n    ESNI/public_name: %s",x->ext.public_name);

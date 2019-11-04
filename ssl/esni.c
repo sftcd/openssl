@@ -315,7 +315,7 @@ void SSL_ESNI_free(SSL_ESNI *deadesni)
             OPENSSL_free(esni->the_esni); 
         }
         if (esni->encservername!=NULL) OPENSSL_free(esni->encservername);
-        if (esni->covername!=NULL) OPENSSL_free(esni->covername);
+        if (esni->clear_sni!=NULL) OPENSSL_free(esni->clear_sni);
         if (esni->public_name!=NULL) OPENSSL_free(esni->public_name);
         if (esni->encoded_rr!=NULL) OPENSSL_free(esni->encoded_rr);
         if (esni->rd!=NULL) OPENSSL_free(esni->rd);
@@ -1482,11 +1482,11 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esniarr, int selector)
 	            BIO_printf(out, isascii(uc) && isprint(uc) ? "%c" : "\\x%02x", uc);
 	        BIO_printf(out, "\"\n");
 	    }
-	    if (esni->covername==NULL) {
-	        BIO_printf(out, "ESNI covername is NULL\n");
+	    if (esni->clear_sni==NULL) {
+	        BIO_printf(out, "ESNI clear sni is NULL\n");
 	    } else {
-	        BIO_printf(out, "ESNI covername: \"");
-	        const char *cp=esni->covername;
+	        BIO_printf(out, "ESNI clear sni: \"");
+	        const char *cp=esni->clear_sni;
 	        unsigned char uc;
 	        while ((uc = *cp++) != 0)
 	            BIO_printf(out, isascii(uc) && isprint(uc) ? "%c" : "\\x%02x", uc);
@@ -2229,11 +2229,11 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys_in,
      * There is no point in doing this if SNI and ESNI payloads
      * are the same!!!
      */
-    if (esnikeys->covername!=NULL && esnikeys->encservername!=NULL) {
-        if (OPENSSL_strnlen(esnikeys->covername,TLSEXT_MAXLEN_host_name)==
+    if (esnikeys->clear_sni!=NULL && esnikeys->encservername!=NULL) {
+        if (OPENSSL_strnlen(esnikeys->clear_sni,TLSEXT_MAXLEN_host_name)==
             OPENSSL_strnlen(esnikeys->encservername,TLSEXT_MAXLEN_host_name)) {
-            if (!CRYPTO_memcmp(esnikeys->covername,esnikeys->encservername,
-                OPENSSL_strnlen(esnikeys->covername,TLSEXT_MAXLEN_host_name))) {
+            if (!CRYPTO_memcmp(esnikeys->clear_sni,esnikeys->encservername,
+                OPENSSL_strnlen(esnikeys->clear_sni,TLSEXT_MAXLEN_host_name))) {
                 /*
                  * Shit - same names, that's silly
                  */
@@ -2733,7 +2733,7 @@ err:
     return NULL;
 }
 
-int SSL_esni_checknames(const char *encservername, const char *covername)
+int SSL_esni_checknames(const char *encservername, const char *clear_sni)
 {
     int elen=0;
     int flen=0;
@@ -2744,8 +2744,8 @@ int SSL_esni_checknames(const char *encservername, const char *covername)
         return 0;
     }
     elen=strlen(encservername);
-    if (covername!=NULL) {
-        flen=strlen(covername);
+    if (clear_sni!=NULL) {
+        flen=strlen(clear_sni);
     }
     if (elen >= TLSEXT_MAXLEN_host_name) {
         return(0);
@@ -2753,7 +2753,7 @@ int SSL_esni_checknames(const char *encservername, const char *covername)
     if (flen >= TLSEXT_MAXLEN_host_name) {
         return(0);
     }
-    if (elen==flen && !CRYPTO_memcmp(encservername,covername,elen)) {
+    if (elen==flen && !CRYPTO_memcmp(encservername,clear_sni,elen)) {
         /*
          * Silly!
          */
@@ -2761,7 +2761,7 @@ int SSL_esni_checknames(const char *encservername, const char *covername)
     }
     /*
      * Possible checks:
-     * - If no covername, then send no (clear) SNI, so allow that
+     * - If no clear_sni, then send no (clear) SNI, so allow that
      * - Check same A/AAAA exists for both names, if we have both
      *       - could be a privacy leak though
      *       - even if using DoT/DoH (but how'd we know for sure?)
@@ -2782,14 +2782,14 @@ int SSL_esni_checknames(const char *encservername, const char *covername)
  * 
  * @param s is the SSL context
  * @param hidden is the hidden service name
- * @param cover is the cleartext SNI name to use
+ * @param clear_sni is the cleartext SNI name to use
  * @param esni is an array of SSL_ESNI structures
  * @param nesnis says how many structures are in the esni array
  * @param require_hidden_match say whether to require (==1) the TLS server cert matches the hidden name
  * @return 1 for success, other otherwise
  * 
  */
-int SSL_esni_enable(SSL *s, const char *hidden, const char *cover, SSL_ESNI *esni, int nesnis, int require_hidden_match)
+int SSL_esni_enable(SSL *s, const char *hidden, const char *clear_sni, SSL_ESNI *esni, int nesnis, int require_hidden_match)
 {
     int i; /* loop counter - android build doesn't like C99;-( */
     if (nesnis==0 || s==NULL || esni==NULL || hidden==NULL) {
@@ -2818,9 +2818,9 @@ int SSL_esni_enable(SSL *s, const char *hidden, const char *cover, SSL_ESNI *esn
     for (i=0;i!=nesnis;i++) {
         s->esni[i].require_hidden_match=require_hidden_match;
         s->esni[i].encservername=OPENSSL_strndup(hidden,TLSEXT_MAXLEN_host_name);
-        s->esni[i].covername=NULL;
-        if (cover != NULL) {
-            s->esni[i].covername=OPENSSL_strndup(cover,TLSEXT_MAXLEN_host_name);
+        s->esni[i].clear_sni=NULL;
+        if (clear_sni != NULL) {
+            s->esni[i].clear_sni=OPENSSL_strndup(clear_sni,TLSEXT_MAXLEN_host_name);
         }
     }
     if (s->ext.hostname!=NULL) {
@@ -2845,10 +2845,10 @@ int SSL_esni_enable(SSL *s, const char *hidden, const char *cover, SSL_ESNI *esn
     }
 
     /* 
-     * We prefer a supplied covername over the draft-03/draft-04 public_name 
+     * We prefer a supplied clear_sni over the draft-03/draft-04 public_name 
      */
-    if (cover!=NULL) {
-        s->ext.hostname=OPENSSL_strndup(cover,TLSEXT_MAXLEN_host_name);
+    if (clear_sni!=NULL) {
+        s->ext.hostname=OPENSSL_strndup(clear_sni,TLSEXT_MAXLEN_host_name);
     } else if (s->esni[keysind].public_name!=NULL) {
         s->ext.hostname=OPENSSL_strndup(s->esni[keysind].public_name,TLSEXT_MAXLEN_host_name);
     } 
@@ -3257,12 +3257,12 @@ err:
 
 };
 
-int SSL_get_esni_status(SSL *s, char **hidden, char **cover)
+int SSL_get_esni_status(SSL *s, char **hidden, char **clear_sni)
 {
-    if (s==NULL || cover==NULL || hidden==NULL) {
+    if (s==NULL || clear_sni==NULL || hidden==NULL) {
         return SSL_ESNI_STATUS_BAD_CALL;
     }
-    *cover=NULL;
+    *clear_sni=NULL;
     *hidden=NULL;
     if (s->esni!=NULL && s->esni_attempted) {
         /*
@@ -3308,12 +3308,12 @@ int SSL_get_esni_status(SSL *s, char **hidden, char **cover)
          */
         *hidden=s->esni[matchind].encservername;
         /*
-         * Prefer covername (if supplied) to draft-03/draft-04 public_name 
+         * Prefer clear_sni (if supplied) to draft-03/draft-04 public_name 
          */
-        if (s->esni[matchind].covername) {
-            *cover=s->esni[matchind].covername;
+        if (s->esni[matchind].clear_sni) {
+            *clear_sni=s->esni[matchind].clear_sni;
         } else {
-            *cover=s->esni[matchind].public_name;
+            *clear_sni=s->esni[matchind].public_name;
         }
         if (s->esni_done==1) {
             if (vr == X509_V_OK ) {
@@ -3448,7 +3448,7 @@ SSL_ESNI* SSL_ESNI_dup(SSL_ESNI* orig, size_t nesni, int selector)
          */
         newi->version=origi->version;
         if (origi->encservername!=NULL) newi->encservername=OPENSSL_strdup(origi->encservername);
-        if (origi->covername!=NULL) newi->covername=OPENSSL_strdup(origi->covername);
+        if (origi->clear_sni!=NULL) newi->clear_sni=OPENSSL_strdup(origi->clear_sni);
         if (origi->public_name!=NULL) newi->public_name=OPENSSL_strdup(origi->public_name);
         newi->require_hidden_match=origi->require_hidden_match;
         if (selector==ESNI_SELECT_ALL) {

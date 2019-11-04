@@ -3,37 +3,26 @@
 
 Stephen Farrell, stephen.farrell@cs.tcd.ie, 20191026-ish
 
-I'll put stuff here that'll likely disappear if this matures. So the plan would
-be to delete all this before submitting any PR to the openssl folks. Over time,
+I'll put stuff here that'll likely disappear as this matures. The plan is
+to delete all this before submitting PRs to the openssl folks. Over time,
 I'll likely move any documentation, test code etc into the proper openssl test
 framework.
 
 This builds ok on both 64 and 32 bit Ubuntus and (nominally) doesn't leak
 according to valgrind. It works e.g. when talking to www.cloudflare.com
 with e.g. ietf.org as the value inside the encrypted SNI. Server-side
-stuff seems to work when talking to itself, and an NSS client. We've integrated
-the server side into [lighttpd](./lighttpd.md) and [nginx](./nginx.md).
+stuff seems to work when talking to itself, an NSS client and 
+the server sides: [lighttpd](./lighttpd.md) and [nginx](./nginx.md).
 
-**We haven't done any significant testing. Use at your own risk.**
+There's some doxygen-generated documentation [here](api.html).
 
-Here's our [design doc](./design.md) that'll hopefully explain more
-about how it works and what it does. (That's not yet updated for
-draft-03 stuff really.)
+**We haven't done much testing. Use at your own risk.**
 
 # State-of-play...
 
 There's a [TODO list](#todos) at the end.
 
 Most recent first...
-
-- Added an option to cause client to produce borked ciphertext so I 
-could test my server's tracing in that scenario. To get the client
-to do that you first need to have tracing compiled in (see below)
-and set an environment variable called ``OPENSSL_BREAK_ESNI``
-to some value. If you do that, then the client will overwrite the
-first 16 octets of the ESNI ciphertext with 0xaa values. That
-also allowed me to fix some server-side tracing I couldn't otherwise
-easily exercise.
 
 - Started to make changes due to internal review of man pages. Some of
   those changes are just man page text, others change function names to
@@ -58,6 +47,21 @@ easily exercise.
       received as cleartext SNI - that's a bit of a change as I was using covername
       for both concepts, so I might bugger up teasing apart code changes from
       covername to one of those two, we'll see...
+        - There are some man page and test script changes that also get
+          rid of the word "cover"
+
+- The original 2018 [design doc](./design.md) is by now outmoded, so you should
+  probably ignore that. I'll keep it about for a while in case I
+  want to re-use some text from there. 
+
+- Added an option to cause client to produce borked ciphertext so I 
+could test my server's tracing in that scenario. To get the client
+to do that you first need to have tracing compiled in (see below)
+and set an environment variable called ``OPENSSL_BREAK_ESNI``
+to some value. If you do that, then the client will overwrite the
+first 16 octets of the ESNI ciphertext with 0xaa values. That
+also allowed me to fix some server-side tracing I couldn't otherwise
+easily exercise.
 
 - Added output of key pair file from ``mk_esnikeys`` for nginx-friendlier
   config. Use ``-k`` command line arg to pick name, default is "esnikeys.key"

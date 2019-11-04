@@ -2354,10 +2354,10 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
     /*
      * Now apply esni by swapping out hostname  (all that work just for this:-)
      */
-    if (s->ext.hostname != NULL && match->covername!=NULL) {
-        OPENSSL_free(match->covername);
+    if (s->ext.hostname != NULL && match->clear_sni!=NULL) {
+        OPENSSL_free(match->clear_sni);
     }
-    match->covername=s->ext.hostname;
+    match->clear_sni=s->ext.hostname;
     s->ext.hostname=OPENSSL_strdup((char*)encservername);
     if (s->ext.hostname==NULL) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ESNI,
@@ -2404,14 +2404,14 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
         s->ext.encservername=NULL;
     }
     s->ext.encservername=OPENSSL_strdup(s->ext.hostname);
-    /* no covername in server */
-    if (s->ext.covername!=NULL) {
+    /* no clear_sni in server */
+    if (s->ext.clear_sni!=NULL) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ESNI,
              SSL_R_BAD_EXTENSION);
         goto err;
     }
-	s->ext.covername=OPENSSL_strdup(match->covername);
-	if (match->covername!=NULL && s->ext.covername==NULL) {
+	s->ext.clear_sni=OPENSSL_strdup(match->clear_sni);
+	if (match->clear_sni!=NULL && s->ext.clear_sni==NULL) {
 		SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ESNI,
 			SSL_R_BAD_EXTENSION);
 		goto err;
@@ -2451,20 +2451,20 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
 
     if (s->session!=NULL) {
         /* 
-         * set hostname, public_name, covername, encservername in the session 
+         * set hostname, public_name, clear_sni, encservername in the session 
          * Note that we set hostname to the ESNI value (if present) as that
          * is what'd be needed for any access control. That's a bit bad as
          * the client side doesn't do that (hostname there reflects the 
-         * cleartext-SNI/covername).
+         * cleartext-SNI/clear_sni).
          */
         if (s->session->ext.encservername!=NULL) {
             OPENSSL_free(s->session->ext.encservername);
         }
         s->session->ext.encservername=OPENSSL_strdup(s->ext.hostname);
-        if (s->session->ext.covername!=NULL) {
-            OPENSSL_free(s->session->ext.covername);
+        if (s->session->ext.clear_sni!=NULL) {
+            OPENSSL_free(s->session->ext.clear_sni);
         }
-        s->session->ext.covername=OPENSSL_strdup(s->ext.covername);
+        s->session->ext.clear_sni=OPENSSL_strdup(s->ext.clear_sni);
         if (s->session->ext.public_name!=NULL) {
             OPENSSL_free(s->session->ext.public_name);
         }

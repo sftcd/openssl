@@ -1,13 +1,18 @@
 
 # OpenSSL Encrypted SNI Design
 
-stephen.farrell@cs.tcd.ie, 20190718ish
+This file describes an early iteration of the design for our 
+openssl implementation of encrypted SNI. It is no longer accurate.
+(But it's not utterly misleading either;-)
 
-This file describes the current design for our proof-of-concept 
-openssl implementation of encrypted SNI. (As of Oct 2019, this is
-getting a bit out of date - it's on my list to come to this and
-turn it into a set of openssl man pages, so most of the content
-of this file will likely disappear in the not too distant.)
+As of November 2019, your're probably better off starting with
+the man pages 
+    - [server-side](https://github.com/sftcd/openssl/blob/master/doc/man3/SSL_CTX_esni_server_enable.pod) 
+    - [client-side](https://github.com/sftcd/openssl/blob/master/doc/man3/SSL_ESNI_dec.pod)
+
+## The Legacy Design
+
+stephen.farrell@cs.tcd.ie, 20190718ish
 
 - The code in our [fork](https://gitbub.com/sftcd/openssl) implements 
   both client and server sides of the ESNI Internet-draft

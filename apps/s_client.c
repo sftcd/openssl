@@ -3689,8 +3689,8 @@ static void print_stuff(BIO *bio, SSL *s, int full)
 
 #ifndef OPENSSL_NO_ESNI
         char *hidden=NULL;
-        char *cover=NULL;
-        switch (SSL_get_esni_status(s,&hidden,&cover)) {
+        char *clear_sni=NULL;
+        switch (SSL_get_esni_status(s,&hidden,&clear_sni)) {
         case SSL_ESNI_STATUS_NOT_TRIED: 
             break;
         case SSL_ESNI_STATUS_FAILED: 
@@ -3703,8 +3703,8 @@ static void print_stuff(BIO *bio, SSL *s, int full)
             BIO_printf(bio,"ESNI: Just did greasing\n");
             break;
         case SSL_ESNI_STATUS_SUCCESS:
-            BIO_printf(bio,"ESNI: success: cover: %s, hidden: %s\n",
-                            (cover==NULL?"none":cover),
+            BIO_printf(bio,"ESNI: success: clear sni: %s, hidden: %s\n",
+                            (clear_sni==NULL?"none":clear_sni),
                             (hidden==NULL?"none":hidden));
             break;
         default:

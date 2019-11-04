@@ -14,7 +14,7 @@
 ESNI="FF027CE3FD9C000B6578616D706C652E6E65740024001D00208C48CF4B00BAAF1191C8B882CFA43DC7F45796C7A0ADC9EB6329BE25B9464235000213010104000000005C9588C7000000005C9EC3470000FF02FF93090D000B6578616D706C652E636F6D0024001D00202857EF701013510D270E531232C40A09226A83391919F4ED3F6B3D08547A7F68000213010104000000005C93BA56000000005C9CF4D60000"
 #ESNI="/wEhoY5aACQAHQAgHqTcPWLSyVnFusv84efGXK4JIC/oPRSs/va4mI661QUAAhMBAQQAAAAAW/XVYAAAAABb/b5gAAA="
 HIDDEN="encryptedsni.com"
-COVER="www.cloudflare.com"
+CLEAR_SNI="www.cloudflare.com"
 
 # ASCII Hex of 1st private key in nss.ssl.debug, eliminate spaces etc.
 PRIV="29ab54e6258de21b4178a6270db88ad411809199c267a6317646728966fdca02"
@@ -43,13 +43,13 @@ then
     HIDDEN="only.esni.defo.ie"
 	echo "Checking for fresh ESNI value from $HIDDEN"
     ESNI=`dig +short txt _esni.$HIDDEN | sed -e 's/"//g' | sed -e 'N;s/\n/;/'`
-    COVER="cover.defo.ie"
+    CLEAR_SNI="cover.defo.ie"
 	echo "Fresh ESNI value: $ESNI"
 fi
 
 # CRYPT_INTEROP Version
-#valgrind --leak-check=full ./esni -s $HIDDEN -f $COVER -e $ESNI -p $PRIV -r $CRND -k $HSKS -n $NONCE
+#valgrind --leak-check=full ./esni -s $HIDDEN -f $CLEAR_SNI -e $ESNI -p $PRIV -r $CRND -k $HSKS -n $NONCE
 
 # "normal" version - doesn't take other folks' internal crypto inputs
-echo "Running: valgrind --leak-check=full ./esni -s $HIDDEN -f $COVER -e $ESNI $*"
-valgrind --leak-check=full ./esni -s $HIDDEN -f $COVER -e $ESNI $*
+echo "Running: valgrind --leak-check=full ./esni -s $HIDDEN -f $CLEAR_SNI -e $ESNI $*"
+valgrind --leak-check=full ./esni -s $HIDDEN -f $CLEAR_SNI -e $ESNI $*

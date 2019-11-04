@@ -23,7 +23,7 @@
 # three ESNI's with some crap extensions (greased) incl. one that's got an empty value
 ESNI="ff023bc449be0006666f6f2e69650024001d0020c01e55e8801e772487553cf6d0fc80e9887a58a7cf8a5361de0a0aca28a8b874000213010104000000005ca4b35d000000005cadeddd0078fff30000fff10009c77963690088e3121a1001001604b918e977062a042e0000010014000000000000000afff30000fff20045a44ec709ebf763ba173374ba2fa41e26f58c5c39539975bba7d342d94bef9145cee7939ab87ec1c1d2010d537189cde0e8c7e598adb49330a72d065dd957ea293a726b52b2ff0228b94458000e726573706f6e7369626c652e69650024001d0020c01e55e8801e772487553cf6d0fc80e9887a58a7cf8a5361de0a0aca28a8b874000213010104000000005ca475a0000000005cadb020001a1001001604b918e9d3062a042e0000010067000000000000000aff0235b744110006666f6f2e69650024001d0020c01e55e8801e772487553cf6d0fc80e9887a58a7cf8a5361de0a0aca28a8b874000213010104000000005ca4762c000000005cadb0ac001a1001001604b918e977062a042e0000010014000000000000000a"
 HIDDEN="encryptedsni.com"
-COVER="www.cloudflare.com"
+CLEAR_SNI="www.cloudflare.com"
 
 # ASCII Hex of 1st private key in nss.ssl.debug, eliminate spaces etc.
 PRIV="29ab54e6258de21b4178a6270db88ad411809199c267a6317646728966fdca02"
@@ -48,7 +48,7 @@ then
 fi	
 
 # CRYPT_INTEROP Version
-#valgrind --leak-check=full ./esni -s $HIDDEN -f $COVER -e $ESNI -p $PRIV -r $CRND -k $HSKS -n $NONCE
+#valgrind --leak-check=full ./esni -s $HIDDEN -f $CLEAR_SNI -e $ESNI -p $PRIV -r $CRND -k $HSKS -n $NONCE
 
 # "normal" version - doesn't take other folks' internal crypto inputs
-valgrind --leak-check=full ./esni -s $HIDDEN -f $COVER -e "$ESNI" $*
+valgrind --leak-check=full ./esni -s $HIDDEN -f $CLEAR_SNI -e "$ESNI" $*

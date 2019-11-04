@@ -89,7 +89,7 @@ SSL_SESSION *SSL_SESSION_new(void)
 #ifdef OPENSSL_NO_ESNI
     ss->ext.enchostname=NULL;
     ss->ext.hostname=NULL;
-    ss->ext.covername=NULL;
+    ss->ext.clear_sni=NULL;
     ss->ext.pubic_name=NULL;
     ss->ext.kse_len=0;
     ss->ext.kse=NULL;
@@ -199,9 +199,9 @@ SSL_SESSION *ssl_session_dup(const SSL_SESSION *src, int ticket)
             goto err;
         }
     }
-    if (src->ext.covername) {
-        dest->ext.covername = OPENSSL_strdup(src->ext.covername);
-        if (dest->ext.covername == NULL) {
+    if (src->ext.clear_sni) {
+        dest->ext.clear_sni = OPENSSL_strdup(src->ext.clear_sni);
+        if (dest->ext.clear_sni == NULL) {
             goto err;
         }
     }
@@ -803,7 +803,7 @@ void SSL_SESSION_free(SSL_SESSION *ss)
     OPENSSL_free(ss->ext.hostname);
 #ifndef OPENSSL_NO_ESNI
     OPENSSL_free(ss->ext.encservername);
-    OPENSSL_free(ss->ext.covername);
+    OPENSSL_free(ss->ext.clear_sni);
     OPENSSL_free(ss->ext.public_name);
     OPENSSL_free(ss->ext.kse);
     ss->ext.kse_len=0;
@@ -944,14 +944,14 @@ int SSL_SESSION_set1_enchostname(SSL_SESSION *s, const char *hostname)
 
 int SSL_SESSION_set1_public_name_override(SSL_SESSION *s, const char *servername)
 {
-    if (s->ext.covername) 
-        OPENSSL_free(s->ext.covername);
+    if (s->ext.clear_sni) 
+        OPENSSL_free(s->ext.clear_sni);
     if (servername == NULL) {
-        s->ext.covername = NULL;
+        s->ext.clear_sni = NULL;
         return 1;
     }
-    s->ext.covername = OPENSSL_strdup(servername);
-    return s->ext.covername != NULL;
+    s->ext.clear_sni = OPENSSL_strdup(servername);
+    return s->ext.clear_sni != NULL;
 }
  
 

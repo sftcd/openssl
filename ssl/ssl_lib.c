@@ -1275,7 +1275,7 @@ void SSL_free(SSL *s)
         s->ext.kse_len=0;
     }
     OPENSSL_free(s->ext.encservername);
-    OPENSSL_free(s->ext.covername);
+    OPENSSL_free(s->ext.clear_sni);
     OPENSSL_free(s->ext.public_name);
 #endif
 

@@ -12,7 +12,7 @@ ESNIKEYFILE=$TOP/esnistuff/esnipair.key
 
 HIDDEN="foo.example.com"
 HIDDEN2="bar.example.com"
-COVER="example.com"
+CLEAR_SNI="example.com"
 ESNIDIR="$TOP/esnistuff/esnikeydir"
 
 SSLCFG="/etc/ssl/openssl.cnf"
@@ -29,7 +29,7 @@ SUPPLIEDPORT=""
 
 SUPPLIEDKEYFILE=""
 SUPPLIEDHIDDEN=""
-SUPPLIEDCOVER=""
+SUPPLIEDCLEAR_SNI=""
 SUPPLIEDDIR=""
 #CAPATH="/etc/ssl/certs/"
 CAPATH="$TOP/esnistuff/cadir/"
@@ -53,7 +53,7 @@ function usage()
     echo "  -d means run s_server in verbose mode"
     echo "  -v means run with valgrind"
     echo "  -n means don't trigger esni at all"
-	echo "  -c [name] specifices a covername that I'll accept as a clear SNI (NONE is special)"
+	echo "  -c [name] specifices a name that I'll accept as a cleartext SNI (NONE is special)"
     echo "  -p [port] specifices a port (default: 8443)"
 	echo "  -F says to hard fail if ESNI attempted but fails"
 	echo "  -T says to attempt trial decryption if necessary"
@@ -71,7 +71,7 @@ function usage()
 }
 
 # options may be followed by one colon to indicate they have a required argument
-if ! options=$(/usr/bin/getopt -s bash -o k:BTFc:D:H:p:Kdlvnh -l keyfile,badkey,trialdecrypt,hardfail,dir:,cover:,hidden:,port:,keygen,debug,stale,valgrind,noesni,help -- "$@")
+if ! options=$(/usr/bin/getopt -s bash -o k:BTFc:D:H:p:Kdlvnh -l keyfile,badkey,trialdecrypt,hardfail,dir:,clear_sni:,hidden:,port:,keygen,debug,stale,valgrind,noesni,help -- "$@")
 then
     # something went wrong, getopt will put out an error message for us
     exit 1
@@ -87,7 +87,7 @@ do
         -d|--debug) DEBUG="yes" ;;
         -v|--valgrind) VG="yes" ;;
         -n|--noesni) NOESNI="yes" ;;
-        -c|--cover) SUPPLIEDCOVER=$2; shift;;
+        -c|--clear_sni) SUPPLIEDCLEAR_SNI=$2; shift;;
         -B|--badkey) BADKEY="yes";;
         -H|--hidden) SUPPLIEDHIDDEN=$2; shift;;
         -D|--dir) SUPPLIEDDIR=$2; shift;;
@@ -108,21 +108,21 @@ then
 fi
 
 # Set SNI
-cover=$COVER
-snicmd="-servername $cover"
-if [[ "$SUPPLIEDCOVER" != "" ]]
+clear_sni=$CLEAR_SNI
+snicmd="-servername $clear_sni"
+if [[ "$SUPPLIEDCLEAR_SNI" != "" ]]
 then
-    if [[ "$SUPPLIEDCOVER" == "NONE" ]]
+    if [[ "$SUPPLIEDCLEAR_SNI" == "NONE" ]]
     then
         snicmd="-noservername "
     else
-		cover=$SUPPLIEDCOVER
-        snicmd=" -servername $cover "
+		clear_sni=$SUPPLIEDCLEAR_SNI
+        snicmd=" -servername $clear_sni "
     fi
 fi
 
-KEYFILE1=$TOP/esnistuff/cadir/$cover.priv
-CERTFILE1=$TOP/esnistuff/cadir/$cover.crt
+KEYFILE1=$TOP/esnistuff/cadir/$clear_sni.priv
+CERTFILE1=$TOP/esnistuff/cadir/$clear_sni.crt
 KEYFILE2=$TOP/esnistuff/cadir/$hidden.priv
 CERTFILE2=$TOP/esnistuff/cadir/$hidden.crt
 KEYFILE3=$TOP/esnistuff/cadir/$HIDDEN2.priv

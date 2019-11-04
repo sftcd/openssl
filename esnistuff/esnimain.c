@@ -36,7 +36,7 @@ void usage(char *prog)
     /*
      * TODO: moar text
      */
-    printf("%s -e ESNI [-p priv] [-r client_random] [-s encservername] [-f covername] [-k h/s key_share] [-n nonce] [-R] [-v]\n",prog);
+    printf("%s -e ESNI [-p priv] [-r client_random] [-s encservername] [-f clear_sni] [-k h/s key_share] [-n nonce] [-R] [-v]\n",prog);
     exit(1);
 }
 
@@ -44,7 +44,7 @@ void usage(char *prog)
 int main(int argc, char **argv)
 {
     char *encservername=NULL; // the one we'll encrypt
-    char *covername=NULL; // the one we'll (optionally) leave visible 
+    char *clear_sni=NULL; // the one we'll (optionally) leave visible 
     char *esni_str=NULL; // esni b64 string from DNS
     // for debugging purposes
     char *client_random_str=NULL;
@@ -87,7 +87,7 @@ int main(int argc, char **argv)
                 nonce_str=optarg;
                 break;
             case 'f':
-                covername=optarg;
+                clear_sni=optarg;
                 break;
             case 'R':
                 reduce=1;
@@ -175,7 +175,7 @@ int main(int argc, char **argv)
 #endif
 
 
-    if (!(rv=SSL_esni_checknames(encservername,covername))) {
+    if (!(rv=SSL_esni_checknames(encservername,clear_sni))) {
         printf("Bad names! %d\n",rv);
         goto end;
     }
@@ -265,12 +265,12 @@ int main(int argc, char **argv)
         esnikeys[i].encservername=OPENSSL_strndup(encservername,TLSEXT_MAXLEN_host_name);
         if (esnikeys[i].encservername==NULL)
             goto end;
-        if (covername!=NULL) {
-            esnikeys[i].covername=OPENSSL_strndup(covername,TLSEXT_MAXLEN_host_name);
-            if (esnikeys[i].covername==NULL)
+        if (clear_sni!=NULL) {
+            esnikeys[i].clear_sni=OPENSSL_strndup(clear_sni,TLSEXT_MAXLEN_host_name);
+            if (esnikeys[i].clear_sni==NULL)
                 goto end;
         } else {
-            esnikeys[i].covername=NULL;
+            esnikeys[i].clear_sni=NULL;
         }
 
         SSL_ESNI *one=SSL_ESNI_dup(esnikeys,nesnis,i);

@@ -44,22 +44,22 @@ EXT_RETURN tls_construct_ctos_renegotiate(SSL *s, WPACKET *pkt,
 /**
  * @brief Possibly do/don't send SNI if doing ESNI
  *
- * Check if s.ext.hostname == s.esni.covername
- * and s.esni.covername != s.esni.encservername (which
+ * Check if s.ext.hostname == s.esni.clear_sni
+ * and s.esni.clear_sni != s.esni.encservername (which
  * shouldn't happen ever but who knows...)
  * If either test fails don't send server_name. 
  * That is, if we want to send ESNI, then we only
- * send SNI if the covername was explicitly set 
+ * send SNI if the clear_sni was explicitly set 
  * and is the same as the SNI (that maybe got set
  * via some weirdo application API that we couldn't
  * change when ESNI enabling perhaps)
  *
  * Draft-03 update: public_name can be set in the
  * ESNIKeys RR and if so, that can be overriden by 
- * the locally supplied covername. 
+ * the locally supplied clear_sni. 
  *
  * When the name is fixed up, we record the original
- * encservername, covername and public_name in the 
+ * encservername, clear_sni and public_name in the 
  * SSL_SESSION.ext so that later printing etc. can do 
  * the right thing. The ext.hostname will be the one 
  * used for keying as if it had been the SNI provided.
@@ -79,12 +79,12 @@ static EXT_RETURN esni_server_name_fixup(SSL *s, WPACKET *pkt,
 {
     if (s->esni != NULL ) {
         size_t pn_len=(s->esni->public_name==NULL?0:OPENSSL_strnlen(s->esni->public_name,TLSEXT_MAXLEN_host_name));
-        size_t cn_len=(s->esni->covername==NULL?0:OPENSSL_strnlen(s->esni->covername,TLSEXT_MAXLEN_host_name));
+        size_t cn_len=(s->esni->clear_sni==NULL?0:OPENSSL_strnlen(s->esni->clear_sni,TLSEXT_MAXLEN_host_name));
         size_t en_len=(s->esni->encservername==NULL?0:OPENSSL_strnlen(s->esni->encservername,TLSEXT_MAXLEN_host_name));
         size_t ehn_len=(s->ext.hostname==NULL?0:OPENSSL_strnlen(s->ext.hostname,TLSEXT_MAXLEN_host_name));
         size_t een_len=(s->ext.encservername==NULL?0:OPENSSL_strnlen(s->ext.encservername,TLSEXT_MAXLEN_host_name));
         size_t epn_len=(s->ext.public_name==NULL?0:OPENSSL_strnlen(s->ext.public_name,TLSEXT_MAXLEN_host_name));
-        size_t ecn_len=(s->ext.covername==NULL?0:OPENSSL_strnlen(s->ext.covername,TLSEXT_MAXLEN_host_name));
+        size_t ecn_len=(s->ext.clear_sni==NULL?0:OPENSSL_strnlen(s->ext.clear_sni,TLSEXT_MAXLEN_host_name));
 
         /* check inputs make sense */
 		if (s->esni->encservername==NULL) {
@@ -102,8 +102,8 @@ static EXT_RETURN esni_server_name_fixup(SSL *s, WPACKET *pkt,
             s->ext.public_name=NULL;
         }
         if (ecn_len!=0) {
-            OPENSSL_free(s->ext.covername);
-            s->ext.covername=NULL;
+            OPENSSL_free(s->ext.clear_sni);
+            s->ext.clear_sni=NULL;
         }
         if (pn_len!=0) {
             s->ext.public_name=OPENSSL_strdup(s->esni->public_name);
@@ -112,7 +112,7 @@ static EXT_RETURN esni_server_name_fixup(SSL *s, WPACKET *pkt,
             s->ext.encservername=OPENSSL_strdup(s->esni->encservername);
         }
         if (cn_len!=0) {
-            s->ext.covername=OPENSSL_strdup(s->esni->covername);
+            s->ext.clear_sni=OPENSSL_strdup(s->esni->clear_sni);
         }
 
         /* now do the checks */
@@ -124,15 +124,15 @@ static EXT_RETURN esni_server_name_fixup(SSL *s, WPACKET *pkt,
                 return EXT_RETURN_NOT_SENT;
             }
         } else {
-            /* maybe covername */
-            if (cn_len!=ehn_len || CRYPTO_memcmp(s->ext.hostname,s->esni->covername,cn_len)) {
+            /* maybe clear_sni */
+            if (cn_len!=ehn_len || CRYPTO_memcmp(s->ext.hostname,s->esni->clear_sni,cn_len)) {
                 SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_ESNI_SERVER_NAME_FIXUP,
                     ERR_R_INTERNAL_ERROR);
                 return EXT_RETURN_NOT_SENT;
             }
         }
-        /* barf if the covername and encservername are the same - makes no sense */
-        if (en_len==cn_len && !CRYPTO_memcmp(s->esni->encservername,s->esni->covername,cn_len)) {
+        /* barf if the clear_sni and encservername are the same - makes no sense */
+        if (en_len==cn_len && !CRYPTO_memcmp(s->esni->encservername,s->esni->clear_sni,cn_len)) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_ESNI_SERVER_NAME_FIXUP,
                  ERR_R_INTERNAL_ERROR);
             return EXT_RETURN_FAIL;

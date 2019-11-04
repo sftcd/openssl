@@ -265,7 +265,7 @@ void usage(char *prog)
     printf("Create an ESNIKeys data structure as per draft-ietf-tls-esni-[02|03]\n");
     printf("Usage: \n");
     printf("\t%s [-V version] [-o <fname>] [-p <privfname>] [-d duration] \n",prog);
-    printf("\t\t\t[-P public-/cover-name] [-z zonefrag-file] [-g] [-J [file-name]] [-A [file-name]]\n"); 
+    printf("\t\t\t[-P public-/clear_sni-name] [-z zonefrag-file] [-g] [-J [file-name]] [-A [file-name]]\n"); 
     printf("where:\n");
     printf("-V specifies the ESNIKeys version to produce (default: 0xff01; 0xff02, 0xff03 allowed)\n");
     printf("-o specifies the output file name for the binary-encoded ESNIKeys (default: ./esnikeys.pub)\n");
@@ -273,7 +273,7 @@ void usage(char *prog)
     printf("-k specifies the output file name for the corresponding key pair (default: ./esnikeys.key)\n");
     printf("-d duration, specifies the duration in seconds from, now, for which the public share should be valid (default: 1 week), The DNS TTL is set to half of this value.\n");
     printf("-g grease - adds a couple of nonsense extensions to ESNIKeys for testing purposes.\n");
-    printf("-P specifies the public-/cover-name value\n");
+    printf("-P specifies the public-/clear_sni-name value\n");
     printf("-z says to output the zonefile fragment to the specified file\n");
     printf("-J specifies the name of a JSON output file\n");
     printf("If <privfname> exists already and contains an appropriate value, then that key will be used without change.\n");
@@ -283,7 +283,7 @@ void usage(char *prog)
     printf("-A says to include an AddressSet extension\n");
     printf("\n");
     printf("If a filename ie given with -A then that should contain one IP address per line.\n");
-    printf("If no filename is given with -A then we'll look up the A and AAAA for the cover-/public-name and use those.\n");
+    printf("If no filename is given with -A then we'll look up the A and AAAA for the clear_sni-/public-name and use those.\n");
     printf("   and make that -A the last argument provided or we'll mess up!\n");
     printf("If no zonefrag-file is provided a default zonedata.fragment file will be created\n");
     exit(1);
@@ -353,17 +353,17 @@ static int add2alist(char *ips[], int *nips_p, char *line)
  * @brief make up AddressSet extension
  *
  * @param asetfname names a file with one IPv4 or IPv6 address per line
- * @param cover_name names the cover site
+ * @param public_name is the value to use in that field
  * @param elen returns the length of the AddressSet extension encoding
  * @param eval returns the AddressSet extension encoding (including the type)
  * @return 1 for success, 0 for error
  */
-static int mk_aset(char *asetfname, char *cover_name, size_t *elen, unsigned char **eval)
+static int mk_aset(char *asetfname, char *public_name, size_t *elen, unsigned char **eval)
 {
     if (elen==NULL || eval==NULL) {
         return(0);
     }
-    size_t cnlen=(cover_name==NULL?0:strlen(cover_name));
+    size_t pnlen=(public_name==NULL?0:strlen(public_name));
     int nips=0;
     char *ips[MAX_ESNI_ADDRS];
     memset(ips,0,MAX_ESNI_ADDRS*sizeof(char*));
@@ -400,12 +400,12 @@ static int mk_aset(char *asetfname, char *cover_name, size_t *elen, unsigned cha
         //if (line)
             //free(line);
         fclose(fp);
-    } else if (cnlen!=0) {
+    } else if (pnlen!=0) {
         /* try getaddrinfo() */
         struct addrinfo *ai,*rp=NULL;
-        int rv=getaddrinfo(cover_name,NULL,NULL,&ai);
+        int rv=getaddrinfo(public_name,NULL,NULL,&ai);
         if (rv!=-0) {
-            fprintf(stderr,"getaddrinfo failed (%d) for %s\n",rv,cover_name);
+            fprintf(stderr,"getaddrinfo failed (%d) for %s\n",rv,public_name);
             return(0);
         }
         for (rp=ai;rp!=NULL;rp=rp->ai_next) {
@@ -550,8 +550,8 @@ static int mk_esnikeys(int argc, char **argv)
     char *pairfname=NULL; ///< key pair file name
     char *fragfname=NULL; ///< zone fragment file name
     unsigned short ekversion=0xff01; ///< ESNIKeys version value (default is for draft esni -02)
-    char *cover_name=NULL; ///< ESNIKeys "public_name" field (here called cover name)
-    size_t cnlen=0; ///< length of cover_name
+    char *public_name=NULL; ///< ESNIKeys "public_name" field
+    size_t pnlen=0; ///< length of public_name
     int includeaddrset=0; ///< whether or not to include an AddressSet extension
     char *asetfname=NULL; ///< optional file name for AddressSet values
     int duration=60*60*24*7; ///< 1 week in seconds
@@ -610,7 +610,7 @@ static int mk_esnikeys(int argc, char **argv)
             ekversion=verstr2us(optarg);
             break;
         case 'P':
-            cover_name=optarg;
+            public_name=optarg;
             break;
         case 'A':
             includeaddrset=1;
@@ -660,13 +660,13 @@ static int mk_esnikeys(int argc, char **argv)
         break;
     case 0xff02: /* esni draft -03 */
     case 0xff03: /* esni draft -04 */
-        cnlen=(cover_name==NULL?0:strlen(cover_name));
-        if (cnlen > MAX_ESNI_COVER_NAME) {
-            fprintf(stderr,"Cover name too long (%zd), max is %d\n\n",cnlen,MAX_ESNI_COVER_NAME);
+        pnlen=(public_name==NULL?0:strlen(public_name));
+        if (pnlen > MAX_ESNI_COVER_NAME) {
+            fprintf(stderr,"Cover name too long (%zd), max is %d\n\n",pnlen,MAX_ESNI_COVER_NAME);
             usage(argv[0]);
         }
-        if (cnlen > 0 && cover_name[cnlen-1]=='.') {
-            cover_name[cnlen-1] = 0; /* strip trailing dot to canonicalize */
+        if (pnlen > 0 && public_name[pnlen-1]=='.') {
+            public_name[pnlen-1] = 0; /* strip trailing dot to canonicalize */
         }
         break;
     default:
@@ -676,7 +676,7 @@ static int mk_esnikeys(int argc, char **argv)
 
     /* handle AddressSet stuff */
     if ((ekversion==0xff02 || ekversion==0xff03) && includeaddrset!=0) {
-        int rv=mk_aset(asetfname,cover_name,&asetlen,&asetval);
+        int rv=mk_aset(asetfname,public_name,&asetlen,&asetval);
         if (rv!=1) {
             fprintf(stderr,"mk_aset failed - exiting\n");
             exit(1);
@@ -902,11 +902,11 @@ static int mk_esnikeys(int argc, char **argv)
     if (ekversion==0xff01 || ekversion==0xff02) {
         memset(bp,0,4); bp+=4; // space for checksum
     }
-    if (cnlen > 0 && (ekversion==0xff02 || ekversion == 0xff03)) {
+    if (pnlen > 0 && (ekversion==0xff02 || ekversion == 0xff03)) {
         /* draft -03 and -04 have public_name here, -02 hasn't got that at all */
-        *bp++=(cnlen>>8)%256;
-        *bp++=cnlen%256;
-        memcpy(bp,cover_name,cnlen); bp+=cnlen;
+        *bp++=(pnlen>>8)%256;
+        *bp++=pnlen%256;
+        memcpy(bp,public_name,pnlen); bp+=pnlen;
     }
     /* keys */
     *bp++=0x00;
@@ -1020,7 +1020,7 @@ static int mk_esnikeys(int argc, char **argv)
     if (ekversion==0xff01) {
 
         /* Prepare zone fragment in buffer */
-        sp_esni_txtrr(zbuf,MAX_ZONEDATA_BUFLEN,bbuf,bblen,duration/2,cover_name);
+        sp_esni_txtrr(zbuf,MAX_ZONEDATA_BUFLEN,bbuf,bblen,duration/2,public_name);
         zblen=strlen((char*)zbuf);
         if (zblen==0) {
             fprintf(stderr,"zone fragment error (line:%d)\n",__LINE__);
@@ -1031,7 +1031,7 @@ static int mk_esnikeys(int argc, char **argv)
     if (ekversion==0xff02 || ekversion==0xff03) {
 
         /* Prepare zone fragment in buffer */
-        sp_esni_prr(zbuf,MAX_ZONEDATA_BUFLEN,bbuf,bblen,0xff9f,duration/2,cover_name);
+        sp_esni_prr(zbuf,MAX_ZONEDATA_BUFLEN,bbuf,bblen,0xff9f,duration/2,public_name);
         zblen=strlen((char*)zbuf);
         if (zblen==0) {
             fprintf(stderr,"zone fragment error (line:%d)\n",__LINE__);
