@@ -2351,14 +2351,14 @@ EXT_RETURN tls_construct_ctos_esni(SSL *s, WPACKET *pkt, unsigned int context,
     }
 #endif
 
-    if (s->esni_cb != NULL) {
+    if (s->esni_print_cb != NULL) {
         BIO *biom = BIO_new(BIO_s_mem());
         SSL_ESNI_print(biom,s->esni,ESNI_SELECT_ALL);
         char pstr[ESNI_PBUF_SIZE+1];
         memset(pstr,0,ESNI_PBUF_SIZE+1);
         BIO_read(biom,pstr,ESNI_PBUF_SIZE);
         BIO_free(biom);
-        unsigned int cbrv=s->esni_cb(s,pstr);
+        unsigned int cbrv=s->esni_print_cb(s,pstr);
         if (cbrv != 1) {
             return EXT_RETURN_FAIL;
         }

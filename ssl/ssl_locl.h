@@ -1056,7 +1056,7 @@ struct ssl_ctx_st {
 		 */
 		size_t	nesni; /* the number of elements in the esni array */
 		SSL_ESNI *esni;
-    	SSL_esni_client_cb_func esni_cb;
+        SSL_esni_print_cb_func esni_print_cb;
 #endif
 
         unsigned char cookie_hmac_key[SHA256_DIGEST_LENGTH];
@@ -1650,7 +1650,7 @@ struct ssl_st {
     int esni_attempted;
 	size_t	nesni; /* the number of elements in the esni array */
 	SSL_ESNI *esni;
-    SSL_esni_client_cb_func esni_cb;
+    SSL_esni_print_cb_func esni_print_cb;
 #endif
 # ifndef OPENSSL_NO_CT
     /*

@@ -2431,13 +2431,13 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
     /*
      * call callback
      */
-    if (s->esni_cb != NULL) {
+    if (s->esni_print_cb != NULL) {
         char pstr[ESNI_PBUF_SIZE+1];
         memset(pstr,0,ESNI_PBUF_SIZE+1);
         BIO *biom = BIO_new(BIO_s_mem());
         SSL_ESNI_print(biom,s->esni,matchind);
         BIO_read(biom,pstr,ESNI_PBUF_SIZE);
-        unsigned int cbrv=s->esni_cb(s,pstr);
+        unsigned int cbrv=s->esni_print_cb(s,pstr);
         BIO_free(biom);
         if (cbrv != 1) {
             OSSL_TRACE_BEGIN(TLS) {

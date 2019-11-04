@@ -858,7 +858,7 @@ SSL *SSL_new(SSL_CTX *ctx)
             goto err;
         }
 	    s->nesni=ctx->ext.nesni;
-	    s->esni_cb=ctx->ext.esni_cb;
+	    s->esni_print_cb=ctx->ext.esni_print_cb;
 	    s->esni_done=0;
 	    s->esni_attempted=0;
         if (s->esni->num_esni_rrs==0) {
@@ -1264,7 +1264,7 @@ void SSL_free(SSL *s)
         SSL_ESNI_free(s->esni);
 		OPENSSL_free(s->esni);
 		s->nesni=0;
-		s->esni_cb=NULL;
+		s->esni_print_cb=NULL;
 		s->esni=NULL;
 		s->esni_done=0;
 	    s->esni_attempted=0;

@@ -3302,7 +3302,7 @@ int ssl3_new(SSL *s)
 	s->esni_attempted=0;
 	s->esni=NULL;
 	s->nesni=0;
-	s->esni_cb=NULL;
+	s->esni_print_cb=NULL;
 #endif
 
     if (!s->method->ssl_clear(s))
@@ -3349,7 +3349,7 @@ void ssl3_free(SSL *s)
 	s->esni_attempted=0;
 	s->esni=NULL;
 	s->nesni=0;
-	s->esni_cb=NULL;
+	s->esni_print_cb=NULL;
 	if (s->ext.hostname) {
 		OPENSSL_free(s->ext.hostname);
 		s->ext.hostname=NULL;

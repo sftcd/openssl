@@ -43,6 +43,14 @@ easily exercise.
     - change ``SSL_esni_reduce`` to ``SSL_ESNI_reduce``
     - typo: "comman seperated" -> "comma separated"
     - various editorial changes to man pages
+    - the various ESNI callback things are really just for print/debug;
+      are only currently used by ``s_client`` and ``s_server`` and
+      probably aren't needed by real web servers or client, so I've 
+      renamed them to make that clear. That means:
+        - SSL_esni_client_cb_func -> SSL_esni_print_cb_func (typedef)
+        - esni_cb -> esni_print_cb (within SSL/SSL_CTX)
+        - SSL_set_esni_callback -> SSL_set_esni_print_callback 
+        - SSL_CTX_set_esni_callback -> SSL_CTX_set_esni_print_callback,
 
 - Added output of key pair file from ``mk_esnikeys`` for nginx-friendlier
   config. Use ``-k`` command line arg to pick name, default is "esnikeys.key"

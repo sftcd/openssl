@@ -2433,7 +2433,7 @@ int s_client_main(int argc, char **argv)
 
 #ifndef OPENSSL_NO_ESNI
     if (c_msg) {
-        SSL_set_esni_callback(con, esni_print_cb);
+        SSL_set_esni_print_callback(con, esni_print_cb);
     }
 #endif
 
