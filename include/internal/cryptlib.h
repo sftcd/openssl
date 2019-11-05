@@ -7,8 +7,8 @@
  * https://www.openssl.org/source/license.html
  */
 
-#ifndef HEADER_CRYPTLIB_H
-# define HEADER_CRYPTLIB_H
+#ifndef OSSL_INTERNAL_CRYPTLIB_H
+# define OSSL_INTERNAL_CRYPTLIB_H
 
 # include <stdlib.h>
 # include <string.h>
@@ -144,7 +144,7 @@ typedef struct ossl_ex_data_global_st {
 # define OPENSSL_CTX_METHOD_STORE_RUN_ONCE_INDEX            2
 # define OPENSSL_CTX_MAX_RUN_ONCE                           3
 
-# define OPENSSL_CTX_DEFAULT_METHOD_STORE_INDEX     0
+# define OPENSSL_CTX_EVP_METHOD_STORE_INDEX         0
 # define OPENSSL_CTX_PROVIDER_STORE_INDEX           1
 # define OPENSSL_CTX_PROPERTY_DEFN_INDEX            2
 # define OPENSSL_CTX_PROPERTY_STRING_INDEX          3

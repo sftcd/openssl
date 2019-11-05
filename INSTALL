@@ -364,6 +364,9 @@
                    Don't build support for datagram based BIOs. Selecting this
                    option will also force the disabling of DTLS.
 
+  no-dso
+                   Don't build support for loading Dynamic Shared Objects.
+
   enable-devcryptoeng
                    Build the /dev/crypto engine.  It is automatically selected
                    on BSD implementations, in which case it can be disabled with
@@ -638,10 +641,19 @@
                    Take note of the VAR=value documentation below and how
                    these flags interact with those variables.
 
-  -xxx, +xxx
+  -xxx, +xxx, /xxx
                    Additional options that are not otherwise recognised are
-                   passed through as they are to the compiler as well.  Again,
-                   consult your compiler documentation.
+                   passed through as they are to the compiler as well.
+                   Unix-style options beginning with a '-' or '+' and
+                   Windows-style options beginning with a '/' are recognized.
+                   Again, consult your compiler documentation.
+
+                   If the option contains arguments separated by spaces,
+                   then the URL-style notation %20 can be used for the space
+                   character in order to avoid having to quote the option.
+                   For example, -opt%20arg gets expanded to -opt arg.
+                   In fact, any ASCII character can be encoded as %xx using its
+                   hexadecimal encoding.
 
                    Take note of the VAR=value documentation below and how
                    these flags interact with those variables.
@@ -911,11 +923,17 @@
      malfunction with Perl).  You may want increased verbosity, that
      can be accomplished like this:
 
-       $ make VERBOSE=1 test                            # Unix
+     Verbosity on failure only (make macro VERBOSE_FAILURE or VF):
 
-       $ mms /macro=(VERBOSE=1) test                    ! OpenVMS
+       $ make VF=1 test                                 # Unix
+       $ mms /macro=(VF=1) test                         ! OpenVMS
+       $ nmake VF=1 test                                # Windows
 
-       $ nmake VERBOSE=1 test                           # Windows
+     Full verbosity (make macro VERBOSE or V):
+
+       $ make V=1 test                                  # Unix
+       $ mms /macro=(V=1) test                          ! OpenVMS
+       $ nmake V=1 test                                 # Windows
 
      If you want to run just one or a few specific tests, you can use
      the make variable TESTS to specify them, like this:
@@ -926,7 +944,7 @@
 
      And of course, you can combine (Unix example shown):
 
-       $ make VERBOSE=1 TESTS='test_rsa test_dsa' test
+       $ make VF=1 TESTS='test_rsa test_dsa' test
 
      You can find the list of available tests like this:
 

@@ -13,11 +13,11 @@
 #include <openssl/err.h>
 #include <openssl/core.h>
 #include <openssl/core_names.h>
-#include <openssl/ossl_typ.h>
+#include <openssl/types.h>
 #include "internal/nelem.h"
-#include "internal/evp_int.h"
+#include "crypto/evp.h"
 #include "internal/provider.h"
-#include "evp_locl.h"
+#include "evp_local.h"
 
 EVP_MAC_CTX *EVP_MAC_CTX_new(EVP_MAC *mac)
 {
@@ -156,4 +156,22 @@ int EVP_MAC_CTX_set_params(EVP_MAC_CTX *ctx, const OSSL_PARAM params[])
     if (ctx->meth->set_ctx_params != NULL)
         return ctx->meth->set_ctx_params(ctx->data, params);
     return 1;
+}
+
+int EVP_MAC_number(const EVP_MAC *mac)
+{
+    return mac->name_id;
+}
+
+int EVP_MAC_is_a(const EVP_MAC *mac, const char *name)
+{
+    return evp_is_a(mac->prov, mac->name_id, name);
+}
+
+void EVP_MAC_names_do_all(const EVP_MAC *mac,
+                          void (*fn)(const char *name, void *data),
+                          void *data)
+{
+    if (mac->prov != NULL)
+        evp_names_do_all(mac->prov, mac->name_id, fn, data);
 }

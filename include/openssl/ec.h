@@ -8,8 +8,14 @@
  * https://www.openssl.org/source/license.html
  */
 
-#ifndef HEADER_EC_H
-# define HEADER_EC_H
+#ifndef OPENSSL_EC_H
+# define OPENSSL_EC_H
+# pragma once
+
+# include <openssl/macros.h>
+# if !OPENSSL_API_3
+#  define HEADER_EC_H
+# endif
 
 # include <openssl/opensslconf.h>
 
@@ -125,7 +131,7 @@ void EC_GROUP_free(EC_GROUP *group);
 /** Clears and frees a EC_GROUP object
  *  \param  group  EC_GROUP object to be cleared and freed.
  */
-void EC_GROUP_clear_free(EC_GROUP *group);
+DEPRECATEDIN_3(void EC_GROUP_clear_free(EC_GROUP *group))
 
 /** Copies EC_GROUP objects. Note: both EC_GROUPs must use the same EC_METHOD.
  *  \param  dst  destination EC_GROUP object

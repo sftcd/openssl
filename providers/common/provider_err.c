@@ -9,7 +9,7 @@
  */
 
 #include <openssl/err.h>
-#include "internal/providercommonerr.h"
+#include "prov/providercommonerr.h"
 
 #ifndef OPENSSL_NO_ERR
 
@@ -32,6 +32,8 @@ static const ERR_STRING_DATA PROV_str_reasons[] = {
     {ERR_PACK(ERR_LIB_PROV, 0, PROV_R_INAVLID_UKM_LENGTH),
     "inavlid ukm length"},
     {ERR_PACK(ERR_LIB_PROV, 0, PROV_R_INVALID_AAD), "invalid aad"},
+    {ERR_PACK(ERR_LIB_PROV, 0, PROV_R_INVALID_CONSTANT_LENGTH),
+    "invalid constant length"},
     {ERR_PACK(ERR_LIB_PROV, 0, PROV_R_INVALID_CUSTOM_LENGTH),
     "invalid custom length"},
     {ERR_PACK(ERR_LIB_PROV, 0, PROV_R_INVALID_DATA), "invalid data"},
@@ -44,14 +46,20 @@ static const ERR_STRING_DATA PROV_str_reasons[] = {
     {ERR_PACK(ERR_LIB_PROV, 0, PROV_R_INVALID_KEY_LEN), "invalid key len"},
     {ERR_PACK(ERR_LIB_PROV, 0, PROV_R_INVALID_KEY_LENGTH),
     "invalid key length"},
+    {ERR_PACK(ERR_LIB_PROV, 0, PROV_R_INVALID_MAC), "invalid mac"},
     {ERR_PACK(ERR_LIB_PROV, 0, PROV_R_INVALID_MODE), "invalid mode"},
     {ERR_PACK(ERR_LIB_PROV, 0, PROV_R_INVALID_MODE_INT), "invalid mode int"},
     {ERR_PACK(ERR_LIB_PROV, 0, PROV_R_INVALID_SALT_LENGTH),
     "invalid salt length"},
+    {ERR_PACK(ERR_LIB_PROV, 0, PROV_R_INVALID_SEED_LENGTH),
+    "invalid seed length"},
     {ERR_PACK(ERR_LIB_PROV, 0, PROV_R_INVALID_TAG), "invalid tag"},
     {ERR_PACK(ERR_LIB_PROV, 0, PROV_R_INVALID_TAGLEN), "invalid taglen"},
     {ERR_PACK(ERR_LIB_PROV, 0, PROV_R_MISSING_CEK_ALG), "missing cek alg"},
+    {ERR_PACK(ERR_LIB_PROV, 0, PROV_R_MISSING_CIPHER), "missing cipher"},
+    {ERR_PACK(ERR_LIB_PROV, 0, PROV_R_MISSING_CONSTANT), "missing constant"},
     {ERR_PACK(ERR_LIB_PROV, 0, PROV_R_MISSING_KEY), "missing key"},
+    {ERR_PACK(ERR_LIB_PROV, 0, PROV_R_MISSING_MAC), "missing mac"},
     {ERR_PACK(ERR_LIB_PROV, 0, PROV_R_MISSING_MESSAGE_DIGEST),
     "missing message digest"},
     {ERR_PACK(ERR_LIB_PROV, 0, PROV_R_MISSING_PASS), "missing pass"},
@@ -76,13 +84,21 @@ static const ERR_STRING_DATA PROV_str_reasons[] = {
     "unable to load sha256"},
     {ERR_PACK(ERR_LIB_PROV, 0, PROV_R_UNSUPPORTED_CEK_ALG),
     "unsupported cek alg"},
+    {ERR_PACK(ERR_LIB_PROV, 0, PROV_R_UNSUPPORTED_KEY_SIZE),
+    "unsupported key size"},
     {ERR_PACK(ERR_LIB_PROV, 0, PROV_R_UNSUPPORTED_MAC_TYPE),
     "unsupported mac type"},
+    {ERR_PACK(ERR_LIB_PROV, 0, PROV_R_UNSUPPORTED_NUMBER_OF_ROUNDS),
+    "unsupported number of rounds"},
     {ERR_PACK(ERR_LIB_PROV, 0, PROV_R_VALUE_ERROR), "value error"},
     {ERR_PACK(ERR_LIB_PROV, 0, PROV_R_WRONG_FINAL_BLOCK_LENGTH),
     "wrong final block length"},
     {ERR_PACK(ERR_LIB_PROV, 0, PROV_R_WRONG_OUTPUT_BUFFER_SIZE),
     "wrong output buffer size"},
+    {ERR_PACK(ERR_LIB_PROV, 0, PROV_R_XTS_DATA_UNIT_IS_TOO_LARGE),
+    "xts data unit is too large"},
+    {ERR_PACK(ERR_LIB_PROV, 0, PROV_R_XTS_DUPLICATED_KEYS),
+    "xts duplicated keys"},
     {0, NULL}
 };
 
@@ -91,7 +107,7 @@ static const ERR_STRING_DATA PROV_str_reasons[] = {
 int ERR_load_PROV_strings(void)
 {
 #ifndef OPENSSL_NO_ERR
-    if (ERR_func_error_string(PROV_str_reasons[0].error) == NULL)
+    if (ERR_reason_error_string(PROV_str_reasons[0].error) == NULL)
         ERR_load_strings_const(PROV_str_reasons);
 #endif
     return 1;

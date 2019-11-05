@@ -9,8 +9,8 @@
  */
 
 #include <openssl/err.h>
-#include "internal/bn_int.h"
-#include "ec_lcl.h"
+#include "crypto/bn.h"
+#include "ec_local.h"
 
 EC_GROUP *EC_GROUP_new_curve_GFp(const BIGNUM *p, const BIGNUM *a,
                                  const BIGNUM *b, BN_CTX *ctx)
@@ -53,7 +53,7 @@ EC_GROUP *EC_GROUP_new_curve_GFp(const BIGNUM *p, const BIGNUM *a,
         return NULL;
 
     if (!EC_GROUP_set_curve(ret, p, a, b, ctx)) {
-        EC_GROUP_clear_free(ret);
+        EC_GROUP_free(ret);
         return NULL;
     }
 
@@ -74,7 +74,7 @@ EC_GROUP *EC_GROUP_new_curve_GF2m(const BIGNUM *p, const BIGNUM *a,
         return NULL;
 
     if (!EC_GROUP_set_curve(ret, p, a, b, ctx)) {
-        EC_GROUP_clear_free(ret);
+        EC_GROUP_free(ret);
         return NULL;
     }
 

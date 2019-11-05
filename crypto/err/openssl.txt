@@ -737,6 +737,12 @@ EC_F_PKEY_EC_KDF_DERIVE:283:pkey_ec_kdf_derive
 EC_F_PKEY_EC_KEYGEN:199:pkey_ec_keygen
 EC_F_PKEY_EC_PARAMGEN:219:pkey_ec_paramgen
 EC_F_PKEY_EC_SIGN:218:pkey_ec_sign
+EC_F_S390X_PKEY_ECD_DIGESTSIGN25519:303:s390x_pkey_ecd_digestsign25519
+EC_F_S390X_PKEY_ECD_DIGESTSIGN448:304:s390x_pkey_ecd_digestsign448
+EC_F_S390X_PKEY_ECD_KEYGEN25519:305:s390x_pkey_ecd_keygen25519
+EC_F_S390X_PKEY_ECD_KEYGEN448:306:s390x_pkey_ecd_keygen448
+EC_F_S390X_PKEY_ECX_KEYGEN25519:307:s390x_pkey_ecx_keygen25519
+EC_F_S390X_PKEY_ECX_KEYGEN448:308:s390x_pkey_ecx_keygen448
 EC_F_VALIDATE_ECX_DERIVE:278:validate_ecx_derive
 ENGINE_F_DIGEST_UPDATE:198:digest_update
 ENGINE_F_DYNAMIC_CTRL:180:dynamic_ctrl
@@ -1853,6 +1859,7 @@ X509_F_COMMON_VERIFY_SM2:165:common_verify_sm2
 X509_F_DANE_I2D:107:dane_i2d
 X509_F_DIR_CTRL:102:dir_ctrl
 X509_F_GET_CERT_BY_SUBJECT:103:get_cert_by_subject
+X509_F_CACHE_OBJECTS:163:cache_objects
 X509_F_I2D_X509_AUX:151:i2d_X509_AUX
 X509_F_LOOKUP_CERTS_SK:152:lookup_certs_sk
 X509_F_NETSCAPE_SPKI_B64_DECODE:129:NETSCAPE_SPKI_b64_decode
@@ -2088,6 +2095,13 @@ BN_R_PRIVATE_KEY_TOO_LARGE:117:private key too large
 BN_R_P_IS_NOT_PRIME:112:p is not prime
 BN_R_TOO_MANY_ITERATIONS:113:too many iterations
 BN_R_TOO_MANY_TEMPORARY_VARIABLES:109:too many temporary variables
+CMP_R_ERROR_PARSING_PKISTATUS:107:error parsing pkistatus
+CMP_R_FAILURE_OBTAINING_RANDOM:110:failure obtaining random
+CMP_R_INVALID_ARGS:100:invalid args
+CMP_R_MULTIPLE_SAN_SOURCES:102:multiple san sources
+CMP_R_MISSING_SENDER_IDENTIFICATION:111:missing sender identification
+CMP_R_NO_STDIO:194:no stdio
+CMP_R_NULL_ARGUMENT:103:null argument
 CMS_R_ADD_SIGNER_ERROR:99:add signer error
 CMS_R_ATTRIBUTE_ERROR:161:attribute error
 CMS_R_CERTIFICATE_ALREADY_PRESENT:175:certificate already present
@@ -2420,6 +2434,7 @@ ESS_R_ESS_SIGNING_CERT_ADD_ERROR:100:ess signing cert add error
 ESS_R_ESS_SIGNING_CERT_V2_ADD_ERROR:101:ess signing cert v2 add error
 EVP_R_AES_KEY_SETUP_FAILED:143:aes key setup failed
 EVP_R_ARIA_KEY_SETUP_FAILED:176:aria key setup failed
+EVP_R_BAD_ALGORITHM_NAME:200:bad algorithm name
 EVP_R_BAD_DECRYPT:100:bad decrypt
 EVP_R_BAD_KEY_LENGTH:195:bad key length
 EVP_R_BUFFER_TOO_SMALL:155:buffer too small
@@ -2429,6 +2444,7 @@ EVP_R_CANNOT_SET_PARAMETERS:198:cannot set parameters
 EVP_R_CIPHER_NOT_GCM_MODE:184:cipher not gcm mode
 EVP_R_CIPHER_PARAMETER_ERROR:122:cipher parameter error
 EVP_R_COMMAND_NOT_SUPPORTED:147:command not supported
+EVP_R_CONFLICTING_ALGORITHM_NAME:201:conflicting algorithm name
 EVP_R_COPY_ERROR:173:copy error
 EVP_R_CTRL_NOT_IMPLEMENTED:132:ctrl not implemented
 EVP_R_CTRL_OPERATION_NOT_IMPLEMENTED:133:ctrl operation not implemented
@@ -2705,6 +2721,7 @@ PROV_R_FAILED_TO_GET_PARAMETER:103:failed to get parameter
 PROV_R_FAILED_TO_SET_PARAMETER:104:failed to set parameter
 PROV_R_INAVLID_UKM_LENGTH:146:inavlid ukm length
 PROV_R_INVALID_AAD:108:invalid aad
+PROV_R_INVALID_CONSTANT_LENGTH:157:invalid constant length
 PROV_R_INVALID_CUSTOM_LENGTH:111:invalid custom length
 PROV_R_INVALID_DATA:115:invalid data
 PROV_R_INVALID_DIGEST:122:invalid digest
@@ -2714,13 +2731,18 @@ PROV_R_INVALID_IV_LENGTH:109:invalid iv length
 PROV_R_INVALID_KEYLEN:117:invalid keylen
 PROV_R_INVALID_KEY_LEN:124:invalid key len
 PROV_R_INVALID_KEY_LENGTH:105:invalid key length
+PROV_R_INVALID_MAC:151:invalid mac
 PROV_R_INVALID_MODE:125:invalid mode
 PROV_R_INVALID_MODE_INT:126:invalid mode int
 PROV_R_INVALID_SALT_LENGTH:112:invalid salt length
+PROV_R_INVALID_SEED_LENGTH:154:invalid seed length
 PROV_R_INVALID_TAG:110:invalid tag
 PROV_R_INVALID_TAGLEN:118:invalid taglen
 PROV_R_MISSING_CEK_ALG:144:missing cek alg
+PROV_R_MISSING_CIPHER:155:missing cipher
+PROV_R_MISSING_CONSTANT:156:missing constant
 PROV_R_MISSING_KEY:128:missing key
+PROV_R_MISSING_MAC:150:missing mac
 PROV_R_MISSING_MESSAGE_DIGEST:129:missing message digest
 PROV_R_MISSING_PASS:130:missing pass
 PROV_R_MISSING_SALT:131:missing salt
@@ -2738,10 +2760,14 @@ PROV_R_TAG_NOT_NEEDED:120:tag not needed
 PROV_R_UNABLE_TO_LOAD_SHA1:143:unable to load sha1
 PROV_R_UNABLE_TO_LOAD_SHA256:147:unable to load sha256
 PROV_R_UNSUPPORTED_CEK_ALG:145:unsupported cek alg
+PROV_R_UNSUPPORTED_KEY_SIZE:153:unsupported key size
 PROV_R_UNSUPPORTED_MAC_TYPE:137:unsupported mac type
+PROV_R_UNSUPPORTED_NUMBER_OF_ROUNDS:152:unsupported number of rounds
 PROV_R_VALUE_ERROR:138:value error
 PROV_R_WRONG_FINAL_BLOCK_LENGTH:107:wrong final block length
 PROV_R_WRONG_OUTPUT_BUFFER_SIZE:139:wrong output buffer size
+PROV_R_XTS_DATA_UNIT_IS_TOO_LARGE:148:xts data unit is too large
+PROV_R_XTS_DUPLICATED_KEYS:149:xts duplicated keys
 RAND_R_ADDITIONAL_INPUT_TOO_LONG:102:additional input too long
 RAND_R_ALREADY_INSTANTIATED:103:already instantiated
 RAND_R_ARGUMENT_OUT_OF_RANGE:105:argument out of range

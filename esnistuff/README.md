@@ -24,6 +24,8 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- Re-merged with upstream on 20191105
+
 - Started to make changes due to internal review of man pages. Some of
   those changes are just man page text, others change function names to
   be more consistent, so I'll do commits one at a time. 

@@ -15,7 +15,7 @@
  */
 
 #include <stdio.h>
-#include <ssl_locl.h>
+#include <ssl_local.h>
 #include <openssl/rand.h>
 #include <openssl/kdf.h>
 #include <openssl/esni.h>

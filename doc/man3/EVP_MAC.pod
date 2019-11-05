@@ -2,13 +2,14 @@
 
 =head1 NAME
 
-EVP_MAC, EVP_MAC_fetch, EVP_MAC_up_ref, EVP_MAC_free, EVP_MAC_name,
+EVP_MAC, EVP_MAC_fetch, EVP_MAC_up_ref, EVP_MAC_free,
+EVP_MAC_is_a, EVP_MAC_number, EVP_MAC_names_do_all,
 EVP_MAC_provider, EVP_MAC_get_params, EVP_MAC_gettable_params,
 EVP_MAC_CTX, EVP_MAC_CTX_new, EVP_MAC_CTX_free, EVP_MAC_CTX_dup,
 EVP_MAC_CTX_mac, EVP_MAC_CTX_get_params, EVP_MAC_CTX_set_params,
 EVP_MAC_size, EVP_MAC_init, EVP_MAC_update, EVP_MAC_final,
-EVP_MAC_CTX_gettable_params, EVP_MAC_CTX_settable_params,
-EVP_MAC_do_all_ex - EVP MAC routines
+EVP_MAC_gettable_ctx_params, EVP_MAC_settable_ctx_params,
+EVP_MAC_do_all_provided - EVP MAC routines
 
 =head1 SYNOPSIS
 
@@ -21,7 +22,11 @@ EVP_MAC_do_all_ex - EVP MAC routines
                         const char *properties);
  int EVP_MAC_up_ref(EVP_MAC *mac);
  void EVP_MAC_free(EVP_MAC *mac);
- const char *EVP_MAC_name(const EVP_MAC *mac);
+ int EVP_MAC_is_a(const EVP_MAC *mac, const char *name);
+ int EVP_MAC_number(const EVP_MAC *mac);
+ void EVP_MAC_names_do_all(const EVP_MAC *mac,
+                           void (*fn)(const char *name, void *data),
+                           void *data);
  const OSSL_PROVIDER *EVP_MAC_provider(const EVP_MAC *mac);
  int EVP_MAC_get_params(EVP_MAC *mac, OSSL_PARAM params[]);
 
@@ -39,12 +44,12 @@ EVP_MAC_do_all_ex - EVP MAC routines
                    unsigned char *out, size_t *outl, size_t outsize);
 
  const OSSL_PARAM *EVP_MAC_gettable_params(const EVP_MAC *mac);
- const OSSL_PARAM *EVP_MAC_CTX_gettable_params(const EVP_MAC *mac);
- const OSSL_PARAM *EVP_MAC_CTX_settable_params(const EVP_MAC *mac);
+ const OSSL_PARAM *EVP_MAC_gettable_ctx_params(const EVP_MAC *mac);
+ const OSSL_PARAM *EVP_MAC_settable_ctx_params(const EVP_MAC *mac);
 
- void EVP_MAC_do_all_ex(OPENSSL_CTX *libctx,
-                        void (*fn)(EVP_MAC *mac, void *arg),
-                        void *arg);
+ void EVP_MAC_do_all_provided(OPENSSL_CTX *libctx,
+                              void (*fn)(EVP_MAC *mac, void *arg),
+                              void *arg);
 
 =head1 DESCRIPTION
 
@@ -114,10 +119,10 @@ EVP_MAC_update() adds I<datalen> bytes from I<data> to the MAC input.
 EVP_MAC_final() does the final computation and stores the result in
 the memory pointed at by I<out> of size I<outsize>, and sets the number
 of bytes written in I<*outl> at.
-If I<out> is B<NULL> or I<outsize> is too small, then no computation
+If I<out> is NULL or I<outsize> is too small, then no computation
 is made.
 To figure out what the output length will be and allocate space for it
-dynamically, simply call with I<out> being B<NULL> and I<outl>
+dynamically, simply call with I<out> being NULL and I<outl>
 pointing at a valid location, then allocate space and make a second
 call with I<out> pointing at the allocated space.
 
@@ -144,8 +149,8 @@ simply ignored.
 Also, what happens when a needed parameter isn't passed down is
 defined by the implementation.
 
-EVP_MAC_gettable_params(), EVP_MAC_CTX_gettable_params() and
-EVP_MAC_CTX_settable_params() get a constant B<OSSL_PARAM> array that
+EVP_MAC_gettable_params(), EVP_MAC_gettable_ctx_params() and
+EVP_MAC_settable_ctx_params() get a constant B<OSSL_PARAM> array that
 decribes the retrievable and settable parameters, i.e. parameters that
 can be used with EVP_MAC_get_params(), EVP_MAC_CTX_get_params()
 and EVP_MAC_CTX_set_params(), respectively.
@@ -155,17 +160,24 @@ See L<OSSL_PARAM(3)> for the use of B<OSSL_PARAM> as parameter descriptor.
 
 EVP_MAC_size() returns the MAC output size for the given context.
 
-EVP_MAC_name() returns the name of the given MAC implementation.
+EVP_MAC_is_a() checks if the given I<mac> is an implementation of an
+algorithm that's identifiable with I<name>.
 
 EVP_MAC_provider() returns the provider that holds the implementation
 of the given I<mac>.
 
-EVP_MAC_do_all_ex() traverses all MAC implemented by all activated
+EVP_MAC_do_all_provided() traverses all MAC implemented by all activated
 providers in the given library context I<libctx>, and for each of the
 implementations, calls the given function I<fn> with the implementation method
 and the given I<arg> as argument.
 
-=head1 PARAMETER NAMES
+EVP_MAC_number() returns the internal dynamic number assigned to
+I<mac>.
+
+EVP_MAC_names_do_all() traverses all names for I<mac>, and calls
+I<fn> with each name and I<data>.
+
+=head1 PARAMETERS
 
 Parameters are identified by name as strings, and have an expected
 data type and maximum size.
@@ -178,63 +190,60 @@ The standard parameter names are:
 
 =over 4
 
-=item B<OSSL_MAC_PARAM_KEY> ("key") <octet string>
+=item "key" (B<OSSL_MAC_PARAM_KEY>) <octet string>
 
 Its value is the MAC key as an array of bytes.
 
 For MACs that use an underlying computation algorithm, the algorithm
 must be set first, see parameter names "algorithm" below.
 
-=item B<OSSL_MAC_PARAM_IV> ("iv") <octet string>
+=item "iv" (B<OSSL_MAC_PARAM_IV>) <octet string>
 
 Some MAC implementations require an IV, this parameter sets the IV.
 
-=item B<OSSL_MAC_PARAM_CUSTOM> ("custom") <octet string>
+=item "custom" (B<OSSL_MAC_PARAM_CUSTOM>) <octet string>
 
 Some MAC implementations (KMAC, BLAKE2) accept a Customization String,
 this parameter sets the Customization String. The default value is the
 empty string.
 
-=item B<OSSL_MAC_PARAM_SALT> ("salt") <octet string>
+=item "salt" (B<OSSL_MAC_PARAM_SALT>) <octet string>
 
 This option is used by BLAKE2 MAC.
 
-=item B<OSSL_MAC_PARAM_XOF> ("xof") <int>
+=item "xof" (B<OSSL_MAC_PARAM_XOF>) <integer>
 
 It's a simple flag, the value 0 or 1 are expected.
 
 This option is used by KMAC.
 
-=item B<OSSL_MAC_PARAM_FLAGS> ("flags") <int>
+=item "flags" (B<OSSL_MAC_PARAM_FLAGS>) <integer>
 
 These will set the MAC flags to the given numbers.
 Some MACs do not support this option.
 
-=item B<OSSL_MAC_PARAM_ENGINE> ("engine") <utf8string>
+=item "properties" (B<OSSL_MAC_PARAM_PROPERTIES>) <UTF8 string>
 
-=item B<OSSL_MAC_PARAM_PROPERTIES> ("properties") <utf8string>
+=item "digest" (B<OSSL_MAC_PARAM_DIGEST>) <UTF8 string>
 
-=item B<OSSL_MAC_PARAM_DIGEST> ("digest") <utf8string>
-
-=item B<OSSL_MAC_PARAM_CIPHER> ("cipher") <utf8string>
+=item "cipher" (B<OSSL_MAC_PARAM_CIPHER>) <UTF8 string>
 
 For MAC implementations that use an underlying computation cipher or
-digest, these parameters set what the algorithm should be, and the
-engine that implements the algorithm or the properties to fetch it
-by if needed.
+digest, these parameters set what the algorithm should be.
 
-The value is always the name of the intended engine, algorithm,
+The value is always the name of the intended algorithm,
 or the properties.
 
 Note that not all algorithms may support all digests.
 HMAC does not support variable output length digests such as SHAKE128
 or SHAKE256.
 
-=item B<OSSL_MAC_PARAM_SIZE> ("size") <unsigned int>
+=item "size" (B<OSSL_MAC_PARAM_SIZE>) <unsigned integer>
 
 For MAC implementations that support it, set the output size that
 EVP_MAC_final() should produce.
-The allowed sizes vary between MAC implementations.
+The allowed sizes vary between MAC implementations, but must never exceed
+what can be given with a B<size_t>.
 
 =back
 
@@ -252,8 +261,8 @@ EVP_MAC_up_ref() returns 1 on success, 0 on error.
 
 EVP_MAC_free() returns nothing at all.
 
-EVP_MAC_name() returns the name of the MAC, or NULL if NULL was
-passed.
+EVP_MAC_is_a() returns 1 if the given method can be identified with
+the given name, otherwise 0.
 
 EVP_MAC_provider() returns a pointer to the provider for the MAC, or
 NULL on error.
@@ -273,7 +282,7 @@ EVP_MAC_size() returns the expected output size, or 0 if it isn't
 set.
 If it isn't set, a call to EVP_MAC_init() should get it set.
 
-EVP_MAC_do_all_ex() returns nothing at all.
+EVP_MAC_do_all_provided() returns nothing at all.
 
 =head1 EXAMPLES
 

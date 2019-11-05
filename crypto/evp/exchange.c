@@ -11,10 +11,10 @@
 #include <openssl/evp.h>
 #include <openssl/err.h>
 #include "internal/refcount.h"
-#include "internal/evp_int.h"
+#include "crypto/evp.h"
 #include "internal/provider.h"
 #include "internal/numbers.h"   /* includes SIZE_MAX */
-#include "evp_locl.h"
+#include "evp_local.h"
 
 static EVP_KEYEXCH *evp_keyexch_new(OSSL_PROVIDER *prov)
 {
@@ -32,7 +32,7 @@ static EVP_KEYEXCH *evp_keyexch_new(OSSL_PROVIDER *prov)
     return exchange;
 }
 
-static void *evp_keyexch_from_dispatch(const char *name,
+static void *evp_keyexch_from_dispatch(int name_id,
                                        const OSSL_DISPATCH *fns,
                                        OSSL_PROVIDER *prov,
                                        void *vkeymgmt_data)
@@ -47,8 +47,9 @@ static void *evp_keyexch_from_dispatch(const char *name,
      * provider matches.
      */
     struct keymgmt_data_st *keymgmt_data = vkeymgmt_data;
-    EVP_KEYMGMT *keymgmt = EVP_KEYMGMT_fetch(keymgmt_data->ctx, name,
-                                             keymgmt_data->properties);
+    EVP_KEYMGMT *keymgmt =
+        evp_keymgmt_fetch_by_number(keymgmt_data->ctx, name_id,
+                                    keymgmt_data->properties);
     EVP_KEYEXCH *exchange = NULL;
     int fncnt = 0, paramfncnt = 0;
 
@@ -57,12 +58,12 @@ static void *evp_keyexch_from_dispatch(const char *name,
         goto err;
     }
 
-    if ((exchange = evp_keyexch_new(prov)) == NULL
-        || (exchange->name = OPENSSL_strdup(name)) == NULL) {
+    if ((exchange = evp_keyexch_new(prov)) == NULL) {
         ERR_raise(ERR_LIB_EVP, ERR_R_MALLOC_FAILURE);
         goto err;
     }
 
+    exchange->name_id = name_id;
     exchange->keymgmt = keymgmt;
     keymgmt = NULL;              /* avoid double free on failure below */
 
@@ -148,7 +149,6 @@ void EVP_KEYEXCH_free(EVP_KEYEXCH *exchange)
             return;
         EVP_KEYMGMT_free(exchange->keymgmt);
         ossl_provider_free(exchange->prov);
-        OPENSSL_free(exchange->name);
         CRYPTO_THREAD_lock_free(exchange->lock);
         OPENSSL_free(exchange);
     }
@@ -224,7 +224,8 @@ int EVP_PKEY_derive_init_ex(EVP_PKEY_CTX *ctx, EVP_KEYEXCH *exchange)
 
     ctx->op.kex.exchange = exchange;
     if (ctx->pkey != NULL) {
-        provkey = evp_keymgmt_export_to_provider(ctx->pkey, exchange->keymgmt);
+        provkey =
+            evp_keymgmt_export_to_provider(ctx->pkey, exchange->keymgmt, 0);
         if (provkey == NULL) {
             EVPerr(EVP_F_EVP_PKEY_DERIVE_INIT_EX, EVP_R_INITIALIZATION_ERROR);
             goto err;
@@ -283,8 +284,8 @@ int EVP_PKEY_derive_set_peer(EVP_PKEY_CTX *ctx, EVP_PKEY *peer)
         return -2;
     }
 
-    provkey = evp_keymgmt_export_to_provider(peer,
-                                             ctx->op.kex.exchange->keymgmt);
+    provkey =
+        evp_keymgmt_export_to_provider(peer, ctx->op.kex.exchange->keymgmt, 0);
     if (provkey == NULL) {
         EVPerr(EVP_F_EVP_PKEY_DERIVE_SET_PEER, ERR_R_INTERNAL_ERROR);
         return 0;
@@ -385,4 +386,36 @@ int EVP_PKEY_derive(EVP_PKEY_CTX *ctx, unsigned char *key, size_t *pkeylen)
 
     M_check_autoarg(ctx, key, pkeylen, EVP_F_EVP_PKEY_DERIVE)
         return ctx->pmeth->derive(ctx, key, pkeylen);
+}
+
+int EVP_KEYEXCH_number(const EVP_KEYEXCH *keyexch)
+{
+    return keyexch->name_id;
+}
+
+int EVP_KEYEXCH_is_a(const EVP_KEYEXCH *keyexch, const char *name)
+{
+    return evp_is_a(keyexch->prov, keyexch->name_id, name);
+}
+
+void EVP_KEYEXCH_do_all_provided(OPENSSL_CTX *libctx,
+                                 void (*fn)(EVP_KEYEXCH *keyexch, void *arg),
+                                 void *arg)
+{
+    struct keymgmt_data_st keymgmt_data;
+
+    keymgmt_data.ctx = libctx;
+    keymgmt_data.properties = NULL;
+    evp_generic_do_all(libctx, OSSL_OP_KEYEXCH,
+                       (void (*)(void *, void *))fn, arg,
+                       evp_keyexch_from_dispatch, &keymgmt_data,
+                       (void (*)(void *))EVP_KEYEXCH_free);
+}
+
+void EVP_KEYEXCH_names_do_all(const EVP_KEYEXCH *keyexch,
+                              void (*fn)(const char *name, void *data),
+                              void *data)
+{
+    if (keyexch->prov != NULL)
+        evp_names_do_all(keyexch->prov, keyexch->name_id, fn, data);
 }

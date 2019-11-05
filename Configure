@@ -19,6 +19,7 @@ use File::Spec::Functions qw/:DEFAULT abs2rel rel2abs splitdir/;
 use File::Path qw/mkpath/;
 use OpenSSL::fallback "$FindBin::Bin/external/perl/MODULES.txt";
 use OpenSSL::Glob;
+use OpenSSL::Template;
 
 # see INSTALL for instructions.
 
@@ -72,7 +73,15 @@ my $usage="Usage: Configure [no-<cipher> ...] [enable-<cipher> ...] [-Dxxx] [-lx
 # no-sse2       disables IA-32 SSE2 code in assembly modules, the above
 #               mentioned '386' option implies this one
 # no-<cipher>   build without specified algorithm (rsa, idea, rc5, ...)
-# -<xxx> +<xxx> compiler options are passed through
+# -<xxx> +<xxx> All options which are unknown to the 'Configure' script are
+# /<xxx>        passed through to the compiler. Unix-style options beginning
+#               with a '-' or '+' are recognized, as well as Windows-style
+#               options beginning with a '/'. If the option contains arguments
+#               separated by spaces, then the URL-style notation %20 can be
+#               used for the space character in order to avoid having to quote
+#               the option. For example, -opt%20arg gets expanded to -opt arg.
+#               In fact, any ASCII character can be encoded as %xx using its
+#               hexadecimal encoding.
 # -static       while -static is also a pass-through compiler option (and
 #               as such is limited to environments where it's actually
 #               meaningful), it triggers a number configuration options,
@@ -153,6 +162,10 @@ my @clang_devteam_warn = qw(
     -Wconditional-uninitialized
     -Wincompatible-pointer-types-discards-qualifiers
     -Wmissing-variable-declarations
+);
+
+my @cl_devteam_warn = qw(
+    /WX
 );
 
 # This adds backtrace information to the memory leak info.  Is only used
@@ -246,37 +259,38 @@ if (grep /^reconf(igure)?$/, @argvcopy) {
 $config{perlargv} = [ @argvcopy ];
 
 # Collect version numbers
-$config{major} = "unknown";
-$config{minor} = "unknown";
-$config{patch} = "unknown";
-$config{prerelease} = "";
-$config{build_metadata} = "";
-$config{shlib_version} = "unknown";
+my %version = ();
 
 collect_information(
-    collect_from_file(catfile($srcdir,'include/openssl/opensslv.h')),
-    qr/#\s+define\s+OPENSSL_VERSION_MAJOR\s+(\d+)/ =>
-        sub { $config{major} = $1; },
-    qr/#\s+define\s+OPENSSL_VERSION_MINOR\s+(\d+)/ =>
-        sub { $config{minor} = $1; },
-    qr/#\s+define\s+OPENSSL_VERSION_PATCH\s+(\d+)/ =>
-        sub { $config{patch} = $1; },
-    qr/#\s+define\s+OPENSSL_VERSION_PRE_RELEASE\s+"((?:\\.|[^"])*)"/ =>
-        sub { $config{prerelease} = $1; },
-    qr/#\s+define\s+OPENSSL_VERSION_BUILD_METADATA\s+"((?:\\.|[^"])*)"/ =>
-        sub { $config{build_metadata} = $1; },
-    qr/#\s+define\s+OPENSSL_SHLIB_VERSION\s+([\d\.]+)/ =>
-        sub { $config{shlib_version} = $1; },
+    collect_from_file(catfile($srcdir,'VERSION')),
+    qr/\s*(\w+)\s*=\s*(.*?)\s*$/ =>
+        sub {
+            # Only define it if there is a value at all
+            $version{uc $1} = $2 if $2 ne '';
+        },
+    "OTHERWISE" =>
+        sub { die "Something wrong with this line:\n$_\nin $srcdir/VERSION" },
     );
-die "erroneous version information in opensslv.h: ",
-    "$config{major}.$config{minor}.$config{patch}, $config{shlib_version}\n"
-    if ($config{major} eq "unknown"
-            || $config{minor} eq "unknown"
-            || $config{patch} eq "unknown"
-            || $config{shlib_version} eq "unknown");
+
+$config{major} = $version{MAJOR} // 'unknown';
+$config{minor} = $version{MINOR} // 'unknown';
+$config{patch} = $version{PATCH} // 'unknown';
+$config{prerelease} =
+    defined $version{PRE_RELEASE_TAG} ? "-$version{PRE_RELEASE_TAG}" : '';
+$config{build_metadata} =
+    defined $version{BUILD_METADATA} ? "+$version{BUILD_METADATA}" : '';
+$config{shlib_version} = $version{SHLIB_VERSION} // 'unknown';
+$config{release_date} = $version{RELEASE_DATE} // 'xx XXX xxxx';
 
 $config{version} = "$config{major}.$config{minor}.$config{patch}";
 $config{full_version} = "$config{version}$config{prerelease}$config{build_metadata}";
+
+die "erroneous version information in VERSION: ",
+    "$config{version}, $config{shlib_version}\n"
+    unless (defined $version{MAJOR}
+            && defined $version{MINOR}
+            && defined $version{PATCH}
+            && defined $version{SHLIB_VERSION});
 
 # Collect target configurations
 
@@ -349,6 +363,7 @@ my @disablables = (
     "dgram",
     "dh",
     "dsa",
+    "dso",
     "dtls",
     "dynamic-engine",
     "ec",
@@ -441,7 +456,6 @@ my %deprecated_disablables = (
     "hw-padlock" => "padlockeng",
     "ripemd" => "rmd160",
     "ui" => "ui-console",
-    "dso" => undef,
     "heartbeats" => undef,
     );
 
@@ -509,6 +523,7 @@ my @disable_cascades = (
     # (note that even with shared libraries, both the app and dynamic engines
     # must be linked with the same library)
     "shared"            => [ "dynamic-engine", "uplink" ],
+    "dso"               => [ "dynamic-engine", "module" ],
     # Other modules don't necessarily have to link with libcrypto, so shared
     # libraries do not have to be a condition to produce those.
 
@@ -516,7 +531,7 @@ my @disable_cascades = (
     # or modules.
     "pic"               => [ "shared", "module" ],
 
-    "module"            => [ "fips", "legacy" ],
+    "module"            => [ "fips" ],
 
     "engine"            => [ grep /eng$/, @disablables ],
     "hw"                => [ "padlockeng" ],
@@ -819,7 +834,7 @@ while (@argvcopy)
                 {
                 die "FIPS mode not supported\n";
                 }
-        elsif (/^[-+]/)
+        elsif (m|^[-+/]|)
                 {
                 if (/^--prefix=(.*)$/)
                         {
@@ -896,11 +911,11 @@ while (@argvcopy)
                         {
                         push @{$useradd{LDFLAGS}}, $_;
                         }
-                elsif (/^-D(.*)$/)
+                elsif (m|^[-/]D(.*)$|)
                         {
                         push @{$useradd{CPPDEFINES}}, $1;
                         }
-                elsif (/^-I(.*)$/)
+                elsif (m|^[-/]I(.*)$|)
                         {
                         push @{$useradd{CPPINCLUDES}}, $1;
                         }
@@ -910,10 +925,22 @@ while (@argvcopy)
                         }
                 else    # common if (/^[-+]/), just pass down...
                         {
+                        # Treat %xx as an ASCII code (e.g. replace %20 by a space character).
+                        # This provides a simple way to pass options with arguments separated
+                        # by spaces without quoting (e.g. -opt%20arg translates to -opt arg).
                         $_ =~ s/%([0-9a-f]{1,2})/chr(hex($1))/gei;
                         push @{$useradd{CFLAGS}}, $_;
                         push @{$useradd{CXXFLAGS}}, $_;
                         }
+                }
+        elsif (m|^/|)
+                {
+                # Treat %xx as an ASCII code (e.g. replace %20 by a space character).
+                # This provides a simple way to pass options with arguments separated
+                # by spaces without quoting (e.g. /opt%20arg translates to /opt arg).
+                $_ =~ s/%([0-9a-f]{1,2})/chr(hex($1))/gei;
+                push @{$useradd{CFLAGS}}, $_;
+                push @{$useradd{CXXFLAGS}}, $_;
                 }
         else
                 {
@@ -1211,7 +1238,7 @@ $config{build_file} = env('BUILDFILE') || $target{build_file} || "Makefile";
 # The actual processing of these entries is done in the build.info lookup
 # loop further down.
 #
-# The key is a Unix formated path in the source tree, the value is an index
+# The key is a Unix formatted path in the source tree, the value is an index
 # into %disabled_info, so any existing path gets added to a corresponding
 # 'skipped' entry in there with the list of skipped directories.
 my %skipdir = ();
@@ -1238,7 +1265,7 @@ foreach my $what (sort keys %disabled) {
 
         $skipdir{engines} = $what if $what eq 'engine';
         $skipdir{"crypto/$skipdir"} = $what
-            unless $what eq 'async' || $what eq 'err';
+            unless $what eq 'async' || $what eq 'err' || $what eq 'dso';
     }
 }
 
@@ -1496,11 +1523,20 @@ if ($strict_warnings)
         my $wopt;
         my $gccver = $predefined_C{__GNUC__} // -1;
 
-        warn "WARNING --strict-warnings requires gcc[>=4] or gcc-alike"
-            unless $gccver >= 4;
-        push @strict_warnings_collection, @gcc_devteam_warn;
-        push @strict_warnings_collection, @clang_devteam_warn
-            if (defined($predefined_C{__clang__}));
+        if ($gccver >= 4)
+                {
+                push @strict_warnings_collection, @gcc_devteam_warn;
+                push @strict_warnings_collection, @clang_devteam_warn
+                    if (defined($predefined_C{__clang__}));
+                }
+        elsif ($config{target} =~ /^VC-/)
+                {
+                push @strict_warnings_collection, @cl_devteam_warn;
+                }
+        else
+                {
+                warn "WARNING --strict-warnings requires gcc[>=4] or gcc-alike, or MSVC"
+                }
         }
 
 if (grep { $_ eq '-static' } @{$config{LDFLAGS}}) {
@@ -1563,8 +1599,14 @@ unless ($disabled{ktls}) {
         if ($verstr[2] < $minver) {
             disable('too-old-kernel', 'ktls');
         }
+    } elsif ($target =~ m/^BSD/) {
+        my $cc = $config{CROSS_COMPILE}.$config{CC};
+        system("printf '#include <sys/types.h>\n#include <sys/ktls.h>' | $cc -E - >/dev/null 2>&1");
+        if ($? != 0) {
+            disable('too-old-freebsd', 'ktls');
+        }
     } else {
-        disable('not-linux', 'ktls');
+        disable('not-linux-or-freebsd', 'ktls');
     }
 }
 
@@ -1722,7 +1764,6 @@ if ($builder eq "unified") {
         my @modules = ();
         my @scripts = ();
 
-        my %attributes = ();
         my %sources = ();
         my %shared_sources = ();
         my %includes = ();
@@ -1735,17 +1776,54 @@ if ($builder eq "unified") {
         # contains a dollar sign, it had better be escaped, or it will be
         # taken for a variable name prefix.
         my %variables = ();
-        my $variable_re = qr/\$([[:alpha:]][[:alnum:]_]*)/;
+        my $variable_re = qr/\$(?P<VARIABLE>[[:alpha:]][[:alnum:]_]*)/;
         my $expand_variables = sub {
             my $value = '';
             my $value_rest = shift;
 
+            if ($ENV{CONFIGURE_DEBUG_VARIABLE_EXPAND}) {
+                print STDERR
+                    "DEBUG[\$expand_variables] Parsed '$value_rest' into:\n"
+            }
             while ($value_rest =~ /(?<!\\)${variable_re}/) {
                 $value .= $`;
-                $value .= $variables{$1};
+                $value .= $variables{$+{VARIABLE}};
                 $value_rest = $';
             }
+            if ($ENV{CONFIGURE_DEBUG_VARIABLE_EXPAND}) {
+                print STDERR
+                    "DEBUG[\$expand_variables] ... '$value$value_rest'\n";
+            }
             return $value . $value_rest;
+        };
+
+        # Support for attributes in build.info files
+        my %attributes = ();
+        my $handle_attributes = sub {
+            my $attr_str = shift;
+            my $ref = shift;
+            my @goals = @_;
+
+            return unless defined $attr_str;
+
+            my @a = tokenize($attr_str, qr|\s*,\s*|);
+            foreach my $a (@a) {
+                my $ac = 1;
+                my $ak = $a;
+                my $av = 1;
+                if ($a =~ m|^(!)?(.*?)\s* = \s*(.*?)$|) {
+                    $ac = ! $1;
+                    $ak = $1;
+                    $av = $2;
+                }
+                foreach my $g (@goals) {
+                    if ($ac) {
+                        $$ref->{$g}->{$ak} = $av;
+                    } else {
+                        delete $$ref->{$g}->{$ak};
+                    }
+                }
+            }
         };
 
         # We want to detect configdata.pm in the source tree, so we
@@ -1777,148 +1855,129 @@ if ($builder eq "unified") {
         # 1 last was positive (don't skip lines until next ELSE, ELSIF or ENDIF)
         # 2 positive ELSE (following ELSIF should fail)
         my @skip = ();
+
+        # A few useful generic regexps
+        my $index_re = qr/\[\s*(?P<INDEX>(?:\\.|.)*?)\s*\]/;
+        my $cond_re = qr/\[\s*(?P<COND>(?:\\.|.)*?)\s*\]/;
+        my $attribs_re = qr/(?:\{\s*(?P<ATTRIBS>(?:\\.|.)*?)\s*\})?/;
+        my $value_re = qr/\s*(?P<VALUE>.*?)\s*/;
         collect_information(
             collect_from_array([ @text ],
                                qr/\\$/ => sub { my $l1 = shift; my $l2 = shift;
                                                 $l1 =~ s/\\$//; $l1.$l2 }),
             # Info we're looking for
-            qr/^\s*IF\[((?:\\.|[^\\\]])*)\]\s*$/
+            qr/^\s* IF ${cond_re} \s*$/x
             => sub {
                 if (! @skip || $skip[$#skip] > 0) {
-                    push @skip, !! $expand_variables->($1);
+                    push @skip, !! $expand_variables->($+{COND});
                 } else {
                     push @skip, -1;
                 }
             },
-            qr/^\s*ELSIF\[((?:\\.|[^\\\]])*)\]\s*$/
+            qr/^\s* ELSIF ${cond_re} \s*$/x
             => sub { die "ELSIF out of scope" if ! @skip;
                      die "ELSIF following ELSE" if abs($skip[$#skip]) == 2;
                      $skip[$#skip] = -1 if $skip[$#skip] != 0;
-                     $skip[$#skip] = !! $expand_variables->($1)
+                     $skip[$#skip] = !! $expand_variables->($+{COND})
                          if $skip[$#skip] == 0; },
-            qr/^\s*ELSE\s*$/
+            qr/^\s* ELSE \s*$/x
             => sub { die "ELSE out of scope" if ! @skip;
                      $skip[$#skip] = -2 if $skip[$#skip] != 0;
                      $skip[$#skip] = 2 if $skip[$#skip] == 0; },
-            qr/^\s*ENDIF\s*$/
+            qr/^\s* ENDIF \s*$/x
             => sub { die "ENDIF out of scope" if ! @skip;
                      pop @skip; },
-            qr/^\s*${variable_re}\s*=\s*(.*?)\s*$/
+            qr/^\s* ${variable_re} \s* = ${value_re} $/x
             => sub {
                 if (!@skip || $skip[$#skip] > 0) {
-                    my $n = $1;
-                    my $v = $2;
-                    $variables{$n} = $expand_variables->($v);
+                    $variables{$+{VARIABLE}} = $expand_variables->($+{VALUE});
                 }
             },
-            qr/^\s*SUBDIRS\s*=\s*(.*)\s*$/
+            qr/^\s* SUBDIRS \s* = ${value_re} $/x
             => sub {
                 if (!@skip || $skip[$#skip] > 0) {
-                    foreach (tokenize($expand_variables->($1))) {
+                    foreach (tokenize($expand_variables->($+{VALUE}))) {
                         push @build_dirs, [ @curd, splitdir($_, 1) ];
                     }
                 }
             },
-            qr/^\s*PROGRAMS(?:{([\w=]+(?:\s*,\s*[\w=]+)*)})?\s*=\s*(.*)\s*$/
+            qr/^\s* PROGRAMS ${attribs_re} \s* =  ${value_re} $/x
             => sub {
                 if (!@skip || $skip[$#skip] > 0) {
-                    my @a = tokenize($1, qr|\s*,\s*|);
-                    my @p = tokenize($expand_variables->($2));
+                    my @p = tokenize($expand_variables->($+{VALUE}));
                     push @programs, @p;
-                    foreach my $a (@a) {
-                        my $ak = $a;
-                        my $av = 1;
-                        if ($a =~ m|^(.*?)\s*=\s*(.*?)$|) {
-                            $ak = $1;
-                            $av = $2;
-                        }
-                        foreach my $p (@p) {
-                            $attributes{$p}->{$ak} = $av;
-                        }
-                    }
+                    $handle_attributes->($+{ATTRIBS},
+                                         \$attributes{programs},
+                                         @p);
                 }
             },
-            qr/^\s*LIBS(?:{([\w=]+(?:\s*,\s*[\w=]+)*)})?\s*=\s*(.*)\s*$/
+            qr/^\s* LIBS ${attribs_re} \s* =  ${value_re} $/x
             => sub {
                 if (!@skip || $skip[$#skip] > 0) {
-                    my @a = tokenize($1, qr|\s*,\s*|);
-                    my @l = tokenize($expand_variables->($2));
+                    my @l = tokenize($expand_variables->($+{VALUE}));
                     push @libraries, @l;
-                    foreach my $a (@a) {
-                        my $ak = $a;
-                        my $av = 1;
-                        if ($a =~ m|^(.*?)\s*=\s*(.*?)$|) {
-                            $ak = $1;
-                            $av = $2;
-                        }
-                        foreach my $l (@l) {
-                            $attributes{$l}->{$ak} = $av;
-                        }
-                    }
+                    $handle_attributes->($+{ATTRIBS},
+                                         \$attributes{libraries},
+                                         @l);
                 }
             },
-            qr/^\s*MODULES(?:{([\w=]+(?:\s*,\s*[\w=]+)*)})?\s*=\s*(.*)\s*$/
+            qr/^\s* MODULES ${attribs_re} \s* =  ${value_re} $/x
             => sub {
                 if (!@skip || $skip[$#skip] > 0) {
-                    my @a = tokenize($1, qr|\s*,\s*|);
-                    my @m = tokenize($expand_variables->($2));
+                    my @m = tokenize($expand_variables->($+{VALUE}));
                     push @modules, @m;
-                    foreach my $a (@a) {
-                        my $ak = $a;
-                        my $av = 1;
-                        if ($a =~ m|^(.*?)\s*=\s*(.*?)$|) {
-                            $ak = $1;
-                            $av = $2;
-                        }
-                        foreach my $m (@m) {
-                            $attributes{$m}->{$ak} = $av;
-                        }
-                    }
+                    $handle_attributes->($+{ATTRIBS},
+                                         \$attributes{modules},
+                                         @m);
                 }
             },
-            qr/^\s*SCRIPTS(?:{([\w=]+(?:\s*,\s*[\w=]+)*)})?\s*=\s*(.*)\s*$/
+            qr/^\s* SCRIPTS ${attribs_re} \s* =  ${value_re} $/x
             => sub {
                 if (!@skip || $skip[$#skip] > 0) {
-                    my @a = tokenize($1, qr|\s*,\s*|);
-                    my @s = tokenize($expand_variables->($2));
+                    my @s = tokenize($expand_variables->($+{VALUE}));
                     push @scripts, @s;
-                    foreach my $a (@a) {
-                        my $ak = $a;
-                        my $av = 1;
-                        if ($a =~ m|^(.*?)\s*=\s*(.*?)$|) {
-                            $ak = $1;
-                            $av = $2;
-                        }
-                        foreach my $s (@s) {
-                            $attributes{$s}->{$ak} = $av;
-                        }
-                    }
+                    $handle_attributes->($+{ATTRIBS},
+                                         \$attributes{scripts},
+                                         @s);
                 }
             },
 
-            qr/^\s*ORDINALS\[((?:\\.|[^\\\]])+)\]\s*=\s*(.*)\s*$/,
-            => sub { push @{$ordinals{$1}}, tokenize($expand_variables->($2))
+            qr/^\s* ORDINALS ${index_re} = ${value_re} $/x
+            => sub { push @{$ordinals{$expand_variables->($+{INDEX})}},
+                         tokenize($expand_variables->($+{VALUE}))
                          if !@skip || $skip[$#skip] > 0 },
-            qr/^\s*SOURCE\[((?:\\.|[^\\\]])+)\]\s*=\s*(.*)\s*$/
-            => sub { push @{$sources{$1}}, tokenize($expand_variables->($2))
+            qr/^\s* SOURCE ${index_re} = ${value_re} $/x
+            => sub { push @{$sources{$expand_variables->($+{INDEX})}},
+                         tokenize($expand_variables->($+{VALUE}))
                          if !@skip || $skip[$#skip] > 0 },
-            qr/^\s*SHARED_SOURCE\[((?:\\.|[^\\\]])+)\]\s*=\s*(.*)\s*$/
-            => sub { push @{$shared_sources{$1}},
-                         tokenize($expand_variables->($2))
+            qr/^\s* SHARED_SOURCE ${index_re} = ${value_re} $/x
+            => sub { push @{$shared_sources{$expand_variables->($+{INDEX})}},
+                         tokenize($expand_variables->($+{VALUE}))
                          if !@skip || $skip[$#skip] > 0 },
-            qr/^\s*INCLUDE\[((?:\\.|[^\\\]])+)\]\s*=\s*(.*)\s*$/
-            => sub { push @{$includes{$1}}, tokenize($expand_variables->($2))
+            qr/^\s* INCLUDE ${index_re} = ${value_re} $/x
+            => sub { push @{$includes{$expand_variables->($+{INDEX})}},
+                         tokenize($expand_variables->($+{VALUE}))
                          if !@skip || $skip[$#skip] > 0 },
-            qr/^\s*DEFINE\[((?:\\.|[^\\\]])*)\]\s*=\s*(.*)\s*$/
-            => sub { push @{$defines{$1}}, tokenize($expand_variables->($2))
+            qr/^\s* DEFINE ${index_re} = ${value_re} $/x
+            => sub { push @{$defines{$expand_variables->($+{INDEX})}},
+                         tokenize($expand_variables->($+{VALUE}))
                          if !@skip || $skip[$#skip] > 0 },
-            qr/^\s*DEPEND\[((?:\\.|[^\\\]])*)\]\s*=\s*(.*)\s*$/
-            => sub { push @{$depends{$1}}, tokenize($expand_variables->($2))
+            qr/^\s* DEPEND ${index_re} ${attribs_re} = ${value_re} $/x
+            => sub {
+                if (!@skip || $skip[$#skip] > 0) {
+                    my $i = $expand_variables->($+{INDEX});
+                    my @d = tokenize($expand_variables->($+{VALUE}));
+                    push @{$depends{$i}}, @d;
+                    $handle_attributes->($+{ATTRIBS},
+                                         \$attributes{depends}->{$i},
+                                         @d);
+                }
+            },
+            qr/^\s* GENERATE ${index_re} = ${value_re} $/x
+            => sub { push @{$generate{$expand_variables->($+{INDEX})}},
+                         $+{VALUE}
                          if !@skip || $skip[$#skip] > 0 },
-            qr/^\s*GENERATE\[((?:\\.|[^\\\]])+)\]\s*=\s*(.*)\s*$/
-            => sub { push @{$generate{$1}}, $2
-                         if !@skip || $skip[$#skip] > 0 },
-            qr/^\s*(?:#.*)?$/ => sub { },
+            qr/^\s* (?:\#.*)? $/x => sub { },
             "OTHERWISE" => sub { die "Something wrong with this line:\n$_\nat $sourced/$f" },
             "BEFORE" => sub {
                 if ($buildinfo_debug) {
@@ -1934,21 +1993,12 @@ if ($builder eq "unified") {
             );
         die "runaway IF?" if (@skip);
 
-        if (grep { defined $attributes{$_}->{engine} } keys %attributes
+        if (grep { defined $attributes{modules}->{$_}->{engine} } keys %attributes
                 and !$config{dynamic_engines}) {
             die <<"EOF"
 ENGINES can only be used if configured with 'dynamic-engine'.
 This is usually a fault in a build.info file.
 EOF
-        }
-
-        foreach (keys %attributes) {
-            my $dest = $_;
-            my $ddest = cleanfile($buildd, $_, $blddir);
-            foreach (keys %{$attributes{$dest} // {}}) {
-                $unified_info{attributes}->{$ddest}->{$_} =
-                    $attributes{$dest}->{$_};
-            }
         }
 
         {
@@ -1960,6 +2010,11 @@ EOF
                 foreach (@{$infos{$k}}) {
                     my $item = cleanfile($buildd, $_, $blddir);
                     $unified_info{$k}->{$item} = 1;
+
+                    # Fix up associated attributes
+                    $unified_info{attributes}->{$k}->{$item} =
+                        $attributes{$k}->{$_}
+                        if defined $attributes{$k}->{$_};
                 }
             }
         }
@@ -2088,6 +2143,11 @@ EOF
                 my $e = $1 // "";
                 $d = $`.$e;
                 $unified_info{depends}->{$ddest}->{$d} = 1;
+
+                # Fix up associated attributes
+                $unified_info{attributes}->{depends}->{$ddest}->{$d} =
+                    $attributes{depends}->{$dest}->{$_}
+                    if defined $attributes{depends}->{$dest}->{$_};
             }
         }
 
@@ -2387,452 +2447,50 @@ foreach (grep /_(asm|aux)_src$/, keys %target) {
 
 # Write down our configuration where it fits #########################
 
-print "Creating configdata.pm\n";
-open(OUT,">configdata.pm") || die "unable to create configdata.pm: $!\n";
-print OUT <<"EOF";
-#! $config{HASHBANGPERL}
-
-package configdata;
-
-use strict;
-use warnings;
-
-use Exporter;
-#use vars qw(\@ISA \@EXPORT);
-our \@ISA = qw(Exporter);
-our \@EXPORT = qw(\%config \%target \%disabled \%withargs \%unified_info \@disablables \@disablables_int);
-
-EOF
-print OUT "our %config = (\n";
-foreach (sort keys %config) {
-    if (ref($config{$_}) eq "ARRAY") {
-        print OUT "  ", $_, " => [ ", join(", ",
-                                           map { quotify("perl", $_) }
-                                           @{$config{$_}}), " ],\n";
-    } elsif (ref($config{$_}) eq "HASH") {
-        print OUT "  ", $_, " => {";
-        if (scalar keys %{$config{$_}} > 0) {
-            print OUT "\n";
-            foreach my $key (sort keys %{$config{$_}}) {
-                print OUT "      ",
-                    join(" => ",
-                         quotify("perl", $key),
-                         defined $config{$_}->{$key}
-                             ? quotify("perl", $config{$_}->{$key})
-                             : "undef");
-                print OUT ",\n";
-            }
-            print OUT "  ";
-        }
-        print OUT "},\n";
-    } else {
-        print OUT "  ", $_, " => ", quotify("perl", $config{$_}), ",\n"
-    }
-}
-print OUT <<"EOF";
+my %template_vars = (
+    config => \%config,
+    target => \%target,
+    disablables => \@disablables,
+    disablables_int => \@disablables_int,
+    disabled => \%disabled,
+    withargs => \%withargs,
+    unified_info => \%unified_info,
+    tls => \@tls,
+    dtls => \@dtls,
+    makevars => [ sort keys %user ],
+    disabled_info => \%disabled_info,
+    user_crossable => \@user_crossable,
 );
-
-EOF
-print OUT "our %target = (\n";
-foreach (sort keys %target) {
-    if (ref($target{$_}) eq "ARRAY") {
-        print OUT "  ", $_, " => [ ", join(", ",
-                                           map { quotify("perl", $_) }
-                                           @{$target{$_}}), " ],\n";
-    } else {
-        print OUT "  ", $_, " => ", quotify("perl", $target{$_}), ",\n"
-    }
-}
-print OUT <<"EOF";
-);
-
-EOF
-print OUT "our \%available_protocols = (\n";
-print OUT "  tls => [ ", join(", ", map { quotify("perl", $_) } @tls), " ],\n";
-print OUT "  dtls => [ ", join(", ", map { quotify("perl", $_) } @dtls), " ],\n";
-print OUT <<"EOF";
-);
-
-EOF
-print OUT "our \@disablables = (\n";
-foreach (@disablables) {
-    print OUT "  ", quotify("perl", $_), ",\n";
-}
-print OUT <<"EOF";
-);
-
-EOF
-print OUT "# The following come from Configure's @disablables_int\n";
-print OUT "our \@disablables_int = (\n";
-foreach (@disablables_int) {
-    print OUT "  ", quotify("perl", $_), ",\n";
-}
-print OUT <<"EOF";
-);
-
-EOF
-print OUT "our \%disabled = (\n";
-foreach (sort keys %disabled) {
-    print OUT "  ", quotify("perl", $_), " => ", quotify("perl", $disabled{$_}), ",\n";
-}
-print OUT <<"EOF";
-);
-
-EOF
-print OUT "our %withargs = (\n";
-foreach (sort keys %withargs) {
-    if (ref($withargs{$_}) eq "ARRAY") {
-        print OUT "  ", $_, " => [ ", join(", ",
-                                           map { quotify("perl", $_) }
-                                           @{$withargs{$_}}), " ],\n";
-    } else {
-        print OUT "  ", $_, " => ", quotify("perl", $withargs{$_}), ",\n"
-    }
-}
-print OUT <<"EOF";
-);
-
-EOF
-if ($builder eq "unified") {
-    my $recurse;
-    $recurse = sub {
-        my $indent = shift;
-        foreach (@_) {
-            if (ref $_ eq "ARRAY") {
-                print OUT " "x$indent, "[\n";
-                foreach (@$_) {
-                    $recurse->($indent + 4, $_);
-                }
-                print OUT " "x$indent, "],\n";
-            } elsif (ref $_ eq "HASH") {
-                my %h = %$_;
-                print OUT " "x$indent, "{\n";
-                foreach (sort keys %h) {
-                    if (ref $h{$_} eq "") {
-                        print OUT " "x($indent + 4), quotify("perl", $_), " => ", quotify("perl", $h{$_}), ",\n";
-                    } else {
-                        print OUT " "x($indent + 4), quotify("perl", $_), " =>\n";
-                        $recurse->($indent + 8, $h{$_});
-                    }
-                }
-                print OUT " "x$indent, "},\n";
-            } else {
-                print OUT " "x$indent, quotify("perl", $_), ",\n";
-            }
-        }
-    };
-    print OUT "our %unified_info = (\n";
-    foreach (sort keys %unified_info) {
-        if (ref $unified_info{$_} eq "") {
-            print OUT " "x4, quotify("perl", $_), " => ", quotify("perl", $unified_info{$_}), ",\n";
-        } else {
-            print OUT " "x4, quotify("perl", $_), " =>\n";
-            $recurse->(8, $unified_info{$_});
-        }
-    }
-    print OUT <<"EOF";
-);
-
-EOF
-}
-print OUT
-    "# The following data is only used when this files is use as a script\n";
-print OUT "my \@makevars = (\n";
-foreach (sort keys %user) {
-    print OUT "    '",$_,"',\n";
-}
-print OUT ");\n";
-print OUT "my \%disabled_info = (\n";
-foreach my $what (sort keys %disabled_info) {
-    print OUT "    '$what' => {\n";
-    foreach my $info (sort keys %{$disabled_info{$what}}) {
-        if (ref $disabled_info{$what}->{$info} eq 'ARRAY') {
-            print OUT "        $info => [ ",
-                join(', ', map { "'$_'" } @{$disabled_info{$what}->{$info}}),
-                " ],\n";
-        } else {
-            print OUT "        $info => '", $disabled_info{$what}->{$info},
-                "',\n";
-        }
-    }
-    print OUT "    },\n";
-}
-print OUT ");\n";
-print OUT 'my @user_crossable = qw( ', join (' ', @user_crossable), " );\n";
-print OUT << 'EOF';
-# If run directly, we can give some answers, and even reconfigure
-unless (caller) {
-    use Getopt::Long;
-    use File::Spec::Functions;
-    use File::Basename;
-    use Pod::Usage;
-
-    my $here = dirname($0);
-
-    my $dump = undef;
-    my $cmdline = undef;
-    my $options = undef;
-    my $target = undef;
-    my $envvars = undef;
-    my $makevars = undef;
-    my $buildparams = undef;
-    my $reconf = undef;
-    my $verbose = undef;
-    my $help = undef;
-    my $man = undef;
-    GetOptions('dump|d'                 => \$dump,
-               'command-line|c'         => \$cmdline,
-               'options|o'              => \$options,
-               'target|t'               => \$target,
-               'environment|e'          => \$envvars,
-               'make-variables|m'       => \$makevars,
-               'build-parameters|b'     => \$buildparams,
-               'reconfigure|reconf|r'   => \$reconf,
-               'verbose|v'              => \$verbose,
-               'help'                   => \$help,
-               'man'                    => \$man)
-        or die "Errors in command line arguments\n";
-
-    unless ($dump || $cmdline || $options || $target || $envvars || $makevars
-            || $buildparams || $reconf || $verbose || $help || $man) {
-        print STDERR <<"_____";
-You must give at least one option.
-For more information, do '$0 --help'
-_____
-        exit(2);
-    }
-
-    if ($help) {
-        pod2usage(-exitval => 0,
-                  -verbose => 1);
-    }
-    if ($man) {
-        pod2usage(-exitval => 0,
-                  -verbose => 2);
-    }
-    if ($dump || $cmdline) {
-        print "\nCommand line (with current working directory = $here):\n\n";
-        print '    ',join(' ',
-                          $config{PERL},
-                          catfile($config{sourcedir}, 'Configure'),
-                          @{$config{perlargv}}), "\n";
-        print "\nPerl information:\n\n";
-        print '    ',$config{perl_cmd},"\n";
-        print '    ',$config{perl_version},' for ',$config{perl_archname},"\n";
-    }
-    if ($dump || $options) {
-        my $longest = 0;
-        my $longest2 = 0;
-        foreach my $what (@disablables) {
-            $longest = length($what) if $longest < length($what);
-            $longest2 = length($disabled{$what})
-                if $disabled{$what} && $longest2 < length($disabled{$what});
-        }
-        print "\nEnabled features:\n\n";
-        foreach my $what (@disablables) {
-            print "    $what\n" unless $disabled{$what};
-        }
-        print "\nDisabled features:\n\n";
-        foreach my $what (@disablables) {
-            if ($disabled{$what}) {
-                print "    $what", ' ' x ($longest - length($what) + 1),
-                    "[$disabled{$what}]", ' ' x ($longest2 - length($disabled{$what}) + 1);
-                print $disabled_info{$what}->{macro}
-                    if $disabled_info{$what}->{macro};
-                print ' (skip ',
-                    join(', ', @{$disabled_info{$what}->{skipped}}),
-                    ')'
-                    if $disabled_info{$what}->{skipped};
-                print "\n";
-            }
-        }
-    }
-    if ($dump || $target) {
-        print "\nConfig target attributes:\n\n";
-        foreach (sort keys %target) {
-            next if $_ =~ m|^_| || $_ eq 'template';
-            my $quotify = sub {
-                map { (my $x = $_) =~ s|([\\\$\@"])|\\$1|g; "\"$x\""} @_;
-            };
-            print '    ', $_, ' => ';
-            if (ref($target{$_}) eq "ARRAY") {
-                print '[ ', join(', ', $quotify->(@{$target{$_}})), " ],\n";
-            } else {
-                print $quotify->($target{$_}), ",\n"
-            }
-        }
-    }
-    if ($dump || $envvars) {
-        print "\nRecorded environment:\n\n";
-        foreach (sort keys %{$config{perlenv}}) {
-            print '    ',$_,' = ',($config{perlenv}->{$_} || ''),"\n";
-        }
-    }
-    if ($dump || $makevars) {
-        print "\nMakevars:\n\n";
-        foreach my $var (@makevars) {
-            my $prefix = '';
-            $prefix = $config{CROSS_COMPILE}
-                if grep { $var eq $_ } @user_crossable;
-            $prefix //= '';
-            print '    ',$var,' ' x (16 - length $var),'= ',
-                (ref $config{$var} eq 'ARRAY'
-                 ? join(' ', @{$config{$var}})
-                 : $prefix.$config{$var}),
-                "\n"
-                if defined $config{$var};
-        }
-
-        my @buildfile = ($config{builddir}, $config{build_file});
-        unshift @buildfile, $here
-            unless file_name_is_absolute($config{builddir});
-        my $buildfile = canonpath(catdir(@buildfile));
-        print <<"_____";
-
-NOTE: These variables only represent the configuration view.  The build file
-template may have processed these variables further, please have a look at the
-build file for more exact data:
-    $buildfile
-_____
-    }
-    if ($dump || $buildparams) {
-        my @buildfile = ($config{builddir}, $config{build_file});
-        unshift @buildfile, $here
-            unless file_name_is_absolute($config{builddir});
-        print "\nbuild file:\n\n";
-        print "    ", canonpath(catfile(@buildfile)),"\n";
-
-        print "\nbuild file templates:\n\n";
-        foreach (@{$config{build_file_templates}}) {
-            my @tmpl = ($_);
-            unshift @tmpl, $here
-                unless file_name_is_absolute($config{sourcedir});
-            print '    ',canonpath(catfile(@tmpl)),"\n";
-        }
-    }
-    if ($reconf) {
-        if ($verbose) {
-            print 'Reconfiguring with: ', join(' ',@{$config{perlargv}}), "\n";
-            foreach (sort keys %{$config{perlenv}}) {
-                print '    ',$_,' = ',($config{perlenv}->{$_} || ""),"\n";
-            }
-        }
-
-        chdir $here;
-        exec $^X,catfile($config{sourcedir}, 'Configure'),'reconf';
-    }
-}
-
-1;
-
-__END__
-
-=head1 NAME
-
-configdata.pm - configuration data for OpenSSL builds
-
-=head1 SYNOPSIS
-
-Interactive:
-
-  perl configdata.pm [options]
-
-As data bank module:
-
-  use configdata;
-
-=head1 DESCRIPTION
-
-This module can be used in two modes, interactively and as a module containing
-all the data recorded by OpenSSL's Configure script.
-
-When used interactively, simply run it as any perl script, with at least one
-option, and you will get the information you ask for.  See L</OPTIONS> below.
-
-When loaded as a module, you get a few databanks with useful information to
-perform build related tasks.  The databanks are:
-
-    %config             Configured things.
-    %target             The OpenSSL config target with all inheritances
-                        resolved.
-    %disabled           The features that are disabled.
-    @disablables        The list of features that can be disabled.
-    %withargs           All data given through --with-THING options.
-    %unified_info       All information that was computed from the build.info
-                        files.
-
-=head1 OPTIONS
-
-=over 4
-
-=item B<--help>
-
-Print a brief help message and exit.
-
-=item B<--man>
-
-Print the manual page and exit.
-
-=item B<--dump> | B<-d>
-
-Print all relevant configuration data.  This is equivalent to B<--command-line>
-B<--options> B<--target> B<--environment> B<--make-variables>
-B<--build-parameters>.
-
-=item B<--command-line> | B<-c>
-
-Print the current configuration command line.
-
-=item B<--options> | B<-o>
-
-Print the features, both enabled and disabled, and display defined macro and
-skipped directories where applicable.
-
-=item B<--target> | B<-t>
-
-Print the config attributes for this config target.
-
-=item B<--environment> | B<-e>
-
-Print the environment variables and their values at the time of configuration.
-
-=item B<--make-variables> | B<-m>
-
-Print the main make variables generated in the current configuration
-
-=item B<--build-parameters> | B<-b>
-
-Print the build parameters, i.e. build file and build file templates.
-
-=item B<--reconfigure> | B<--reconf> | B<-r>
-
-Redo the configuration.
-
-=item B<--verbose> | B<-v>
-
-Verbose output.
-
-=back
-
-=cut
-
-EOF
-close(OUT);
+my $configdata_outname = 'configdata.pm';
+print "Creating $configdata_outname\n";
+open CONFIGDATA, ">$configdata_outname.new"
+            or die "Trying to create $configdata_outname.new: $!";
+my $configdata_tmplname = cleanfile($srcdir, "configdata.pm.in", $blddir);
+my $configdata_tmpl =
+    OpenSSL::Template->new(TYPE => 'FILE', SOURCE => $configdata_tmplname);
+$configdata_tmpl->fill_in(
+    FILENAME => $configdata_tmplname,
+    OUTPUT => \*CONFIGDATA,
+    HASH => { %template_vars,
+              autowarntext => [
+                  'WARNING: do not edit!',
+                  "Generated by Configure from $configdata_tmplname",
+              ] }
+) or die $Text::Template::ERROR;
+close CONFIGDATA;
+rename "$configdata_outname.new", $configdata_outname;
 if ($builder_platform eq 'unix') {
     my $mode = (0755 & ~umask);
     chmod $mode, 'configdata.pm'
         or warn sprintf("WARNING: Couldn't change mode for 'configdata.pm' to 0%03o: %s\n",$mode,$!);
 }
 
-my %builders = (
-    unified => sub {
-        print 'Creating ',$target{build_file},"\n";
-        run_dofile(catfile($blddir, $target{build_file}),
-                   @{$config{build_file_templates}});
-    },
-    );
-
-$builders{$builder}->($builder_platform, @builder_opts);
+print "Running $configdata_outname\n";
+my $perlcmd = (quotify("maybeshell", $config{PERL}))[0];
+my $cmd = "$perlcmd $configdata_outname";
+#print STDERR "DEBUG[run_dofile]: \$cmd = $cmd\n";
+system($cmd);
+exit 1 if $? != 0;
 
 $SIG{__DIE__} = $orig_death_handler;
 
@@ -3222,24 +2880,6 @@ sub usage
         print STDERR "\n\nNOTE: If in doubt, on Unix-ish systems use './config'.\n";
         exit(1);
         }
-
-sub run_dofile
-{
-    my $out = shift;
-    my @templates = @_;
-
-    unlink $out || warn "Can't remove $out, $!"
-        if -f $out;
-    foreach (@templates) {
-        die "Can't open $_, $!" unless -f $_;
-    }
-    my $perlcmd = (quotify("maybeshell", $config{PERL}))[0];
-    my $cmd = "$perlcmd \"-I.\" \"-Mconfigdata\" \"$dofile\" -o\"Configure\" \"".join("\" \"",@templates)."\" > \"$out.new\"";
-    #print STDERR "DEBUG[run_dofile]: \$cmd = $cmd\n";
-    system($cmd);
-    exit 1 if $? != 0;
-    rename("$out.new", $out) || die "Can't rename $out.new, $!";
-}
 
 sub compiler_predefined {
     state %predefined;

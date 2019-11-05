@@ -7,8 +7,14 @@
  * https://www.openssl.org/source/license.html
  */
 
-#ifndef HEADER_BIO_H
-# define HEADER_BIO_H
+#ifndef OPENSSL_BIO_H
+# define OPENSSL_BIO_H
+# pragma once
+
+# include <openssl/macros.h>
+# if !OPENSSL_API_3
+#  define HEADER_BIO_H
+# endif
 
 # include <openssl/e_os2.h>
 
@@ -156,11 +162,9 @@ extern "C" {
 
 # ifndef OPENSSL_NO_KTLS
 #  define BIO_get_ktls_send(b)         \
-     (BIO_method_type(b) == BIO_TYPE_SOCKET \
-      && BIO_ctrl(b, BIO_CTRL_GET_KTLS_SEND, 0, NULL))
+     BIO_ctrl(b, BIO_CTRL_GET_KTLS_SEND, 0, NULL)
 #  define BIO_get_ktls_recv(b)         \
-     (BIO_method_type(b) == BIO_TYPE_SOCKET \
-      && BIO_ctrl(b, BIO_CTRL_GET_KTLS_RECV, 0, NULL))
+     BIO_ctrl(b, BIO_CTRL_GET_KTLS_RECV, 0, NULL)
 # else
 #  define BIO_get_ktls_send(b)  (0)
 #  define BIO_get_ktls_recv(b)  (0)

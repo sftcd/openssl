@@ -38,7 +38,7 @@ IF[{- !$disabled{tests} -}]
           destest mdc2test \
           dhtest enginetest casttest \
           bftest ssltest_old dsatest dsa_no_digest_size_test exptest rsa_test \
-          evp_test evp_extra_test igetest v3nametest v3ext \
+          evp_test evp_extra_test evp_fetch_prov_test igetest v3nametest v3ext \
           crltest danetest bad_dtls_test lhash_test sparse_array_test \
           conf_include_test params_api_test params_conversion_test \
           constant_time_test verify_extra_test clienthellotest \
@@ -55,8 +55,9 @@ IF[{- !$disabled{tests} -}]
           recordlentest drbgtest drbg_cavs_test sslbuffertest \
           time_offset_test pemtest ssl_cert_table_internal_test ciphername_test \
           servername_test ocspapitest rsa_mp_test fatalerrtest tls13ccstest \
-          sysdefaulttest errtest gosttest \
-          context_internal_test aesgcmtest params_test evp_pkey_dparams_test
+          sysdefaulttest errtest ssl_ctx_test gosttest \
+          context_internal_test aesgcmtest params_test evp_pkey_dparams_test \
+          keymgmt_internal_test
 
   SOURCE[versions]=versions.c
   INCLUDE[versions]=../include ../apps/include
@@ -175,7 +176,7 @@ IF[{- !$disabled{tests} -}]
 
   SOURCE[rsa_mp_test]=rsa_mp_test.c
   INCLUDE[rsa_mp_test]=../include ../apps/include
-  DEPEND[rsa_mp_test]=../libcrypto libtestutil.a
+  DEPEND[rsa_mp_test]=../libcrypto.a libtestutil.a
 
   SOURCE[fatalerrtest]=fatalerrtest.c ssltestlib.c
   INCLUDE[fatalerrtest]=../include ../apps/include
@@ -195,6 +196,10 @@ IF[{- !$disabled{tests} -}]
   SOURCE[evp_extra_test]=evp_extra_test.c
   INCLUDE[evp_extra_test]=../include ../apps/include ../crypto/include
   DEPEND[evp_extra_test]=../libcrypto libtestutil.a
+
+  SOURCE[evp_fetch_prov_test]=evp_fetch_prov_test.c
+  INCLUDE[evp_fetch_prov_test]=../include ../apps/include ../crypto/include
+  DEPEND[evp_fetch_prov_test]=../libcrypto libtestutil.a
   IF[{- $disabled{fips} || !$target{dso_scheme} -}]
     DEFINE[evp_extra_test]=NO_FIPS_MODULE
   ENDIF
@@ -298,6 +303,7 @@ IF[{- !$disabled{tests} -}]
   INCLUDE[ssl_test_ctx.o]=../include
   INCLUDE[handshake_helper.o]=.. ../include
   INCLUDE[ssltestlib.o]=.. ../include
+  INCLUDE[cmp_testlib.o]=.. ../include ../apps/include
 
   SOURCE[x509aux]=x509aux.c
   INCLUDE[x509aux]=../include ../apps/include
@@ -464,6 +470,26 @@ IF[{- !$disabled{tests} -}]
   INCLUDE[conf_include_test]=../include ../apps/include
   DEPEND[conf_include_test]=../libcrypto libtestutil.a
 
+  IF[{- !$disabled{cmp} -}]
+    PROGRAMS{noinst}=cmp_asn_test cmp_ctx_test cmp_status_test cmp_hdr_test
+  ENDIF
+
+  SOURCE[cmp_asn_test]=cmp_asn_test.c cmp_testlib.c
+  INCLUDE[cmp_asn_test]=.. ../include ../apps/include
+  DEPEND[cmp_asn_test]=../libcrypto.a libtestutil.a
+
+  SOURCE[cmp_ctx_test]=cmp_ctx_test.c cmp_testlib.c
+  INCLUDE[cmp_ctx_test]=.. ../include ../apps/include
+  DEPEND[cmp_ctx_test]=../libcrypto.a libtestutil.a
+
+  SOURCE[cmp_hdr_test]=cmp_hdr_test.c cmp_testlib.c
+  INCLUDE[cmp_hdr_test]=.. ../include ../apps/include
+  DEPEND[cmp_hdr_test]=../libcrypto.a libtestutil.a
+
+  SOURCE[cmp_status_test]=cmp_status_test.c cmp_testlib.c
+  INCLUDE[cmp_status_test]=.. ../include ../apps/include
+  DEPEND[cmp_status_test]=../libcrypto.a libtestutil.a
+
   # Internal test programs.  These are essentially a collection of internal
   # test routines.  Some of them need to reach internal symbols that aren't
   # available through the shared library (at least on Linux, Solaris, Windows
@@ -529,7 +555,7 @@ IF[{- !$disabled{tests} -}]
     DEPEND[property_test]=../libcrypto.a libtestutil.a
 
     SOURCE[ctype_internal_test]=ctype_internal_test.c
-    INCLUDE[ctype_internal_test]=.. ../crypto/include ../include ../apps/include
+    INCLUDE[ctype_internal_test]=.. ../include ../apps/include
     DEPEND[ctype_internal_test]=../libcrypto.a libtestutil.a
 
     SOURCE[sparse_array_test]=sparse_array_test.c
@@ -561,16 +587,20 @@ IF[{- !$disabled{tests} -}]
     DEPEND[rdrand_sanitytest]=../libcrypto.a libtestutil.a
 
     SOURCE[rsa_sp800_56b_test]=rsa_sp800_56b_test.c
-    INCLUDE[rsa_sp800_56b_test]=.. ../include ../crypto/include ../crypto/rsa ../apps/include
+    INCLUDE[rsa_sp800_56b_test]=.. ../include ../crypto/rsa ../apps/include
     DEPEND[rsa_sp800_56b_test]=../libcrypto.a libtestutil.a
 
     SOURCE[bn_internal_test]=bn_internal_test.c
-    INCLUDE[bn_internal_test]=.. ../include ../crypto/include ../crypto/bn ../apps/include
+    INCLUDE[bn_internal_test]=.. ../include ../crypto/bn ../apps/include
     DEPEND[bn_internal_test]=../libcrypto.a libtestutil.a
 
     SOURCE[asn1_dsa_internal_test]=asn1_dsa_internal_test.c
     INCLUDE[asn1_dsa_internal_test]=.. ../include ../apps/include ../crypto/include
     DEPEND[asn1_dsa_internal_test]=../libcrypto.a libtestutil.a
+
+    SOURCE[keymgmt_internal_test]=keymgmt_internal_test.c
+    INCLUDE[keymgmt_internal_test]=.. ../include ../apps/include
+    DEPEND[keymgmt_internal_test]=../libcrypto.a libtestutil.a
   ENDIF
 
   IF[{- !$disabled{mdc2} -}]
@@ -658,6 +688,10 @@ IF[{- !$disabled{tests} -}]
   INCLUDE[namemap_internal_test]=.. ../include ../apps/include
   DEPEND[namemap_internal_test]=../libcrypto.a libtestutil.a
 ENDIF
+
+  SOURCE[ssl_ctx_test]=ssl_ctx_test.c
+  INCLUDE[ssl_ctx_test]=../include ../apps/include
+  DEPEND[ssl_ctx_test]=../libcrypto ../libssl libtestutil.a
 
 {-
    use File::Spec::Functions;

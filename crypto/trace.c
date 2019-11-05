@@ -16,7 +16,7 @@
 #include <openssl/trace.h>
 #include "internal/bio.h"
 #include "internal/nelem.h"
-#include "internal/cryptlib_int.h"
+#include "crypto/cryptlib.h"
 
 #include "e_os.h"                /* strcasecmp for Windows */
 
@@ -133,6 +133,7 @@ static const struct trace_category_st trace_categories[] = {
     TRACE_CATEGORY_(PKCS12_DECRYPT),
     TRACE_CATEGORY_(X509V3_POLICY),
     TRACE_CATEGORY_(BN_CTX),
+    TRACE_CATEGORY_(STORE),
 };
 
 const char *OSSL_trace_get_category_name(int num)

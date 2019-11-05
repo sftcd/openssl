@@ -8,8 +8,14 @@
  * https://www.openssl.org/source/license.html
  */
 
-#ifndef HEADER_RSAERR_H
-# define HEADER_RSAERR_H
+#ifndef OPENSSL_RSAERR_H
+# define OPENSSL_RSAERR_H
+# pragma once
+
+# include <openssl/macros.h>
+# if !OPENSSL_API_3
+#  define HEADER_RSAERR_H
+# endif
 
 # include <openssl/opensslconf.h>
 # include <openssl/symhacks.h>
@@ -142,8 +148,8 @@ int ERR_load_RSA_strings(void);
 # define RSA_R_KEY_PRIME_NUM_INVALID                      165
 # define RSA_R_KEY_SIZE_TOO_SMALL                         120
 # define RSA_R_LAST_OCTET_INVALID                         134
-# define RSA_R_MISSING_PRIVATE_KEY                        179
 # define RSA_R_MGF1_DIGEST_NOT_ALLOWED                    152
+# define RSA_R_MISSING_PRIVATE_KEY                        179
 # define RSA_R_MODULUS_TOO_LARGE                          105
 # define RSA_R_MP_COEFFICIENT_NOT_INVERSE_OF_R            168
 # define RSA_R_MP_EXPONENT_NOT_CONGRUENT_TO_D             169

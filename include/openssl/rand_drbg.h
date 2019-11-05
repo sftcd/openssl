@@ -7,11 +7,17 @@
  * https://www.openssl.org/source/license.html
  */
 
-#ifndef HEADER_DRBG_RAND_H
-# define HEADER_DRBG_RAND_H
+#ifndef OPENSSL_RAND_DRBG_H
+# define OPENSSL_RAND_DRBG_H
+# pragma once
+
+# include <openssl/macros.h>
+# if !OPENSSL_API_3
+#  define HEADER_DRBG_RAND_H
+# endif
 
 # include <time.h>
-# include <openssl/ossl_typ.h>
+# include <openssl/types.h>
 # include <openssl/obj_mac.h>
 
 /*
@@ -117,7 +123,7 @@ RAND_DRBG *RAND_DRBG_get0_private(void);
  * EXDATA
  */
 # define RAND_DRBG_get_ex_new_index(l, p, newf, dupf, freef) \
-    CRYPTO_get_ex_new_index(CRYPTO_EX_INDEX_DRBG, l, p, newf, dupf, freef)
+    CRYPTO_get_ex_new_index(CRYPTO_EX_INDEX_RAND_DRBG, l, p, newf, dupf, freef)
 int RAND_DRBG_set_ex_data(RAND_DRBG *drbg, int idx, void *arg);
 void *RAND_DRBG_get_ex_data(const RAND_DRBG *drbg, int idx);
 

@@ -485,7 +485,9 @@ typedef struct cipher_data_st {
     int aead;
     unsigned char *key;
     size_t key_len;
+    size_t key_bits; /* Used by RC2 */
     unsigned char *iv;
+    unsigned int rounds;
     size_t iv_len;
     unsigned char *plaintext;
     size_t plaintext_len;
@@ -559,12 +561,26 @@ static int cipher_test_parse(EVP_TEST *t, const char *keyword,
 
     if (strcmp(keyword, "Key") == 0)
         return parse_bin(value, &cdat->key, &cdat->key_len);
+    if (strcmp(keyword, "Rounds") == 0) {
+        i = atoi(value);
+        if (i < 0)
+            return -1;
+        cdat->rounds = (unsigned int)i;
+        return 1;
+    }
     if (strcmp(keyword, "IV") == 0)
         return parse_bin(value, &cdat->iv, &cdat->iv_len);
     if (strcmp(keyword, "Plaintext") == 0)
         return parse_bin(value, &cdat->plaintext, &cdat->plaintext_len);
     if (strcmp(keyword, "Ciphertext") == 0)
         return parse_bin(value, &cdat->ciphertext, &cdat->ciphertext_len);
+    if (strcmp(keyword, "KeyBits") == 0) {
+        i = atoi(value);
+        if (i < 0)
+            return -1;
+        cdat->key_bits = (size_t)i;
+        return 1;
+    }
     if (cdat->aead) {
         if (strcmp(keyword, "AAD") == 0) {
             for (i = 0; i < AAD_NUM; i++) {
@@ -683,14 +699,32 @@ static int cipher_test_enc(EVP_TEST *t, int enc,
         }
     }
 
+    if (expected->rounds > 0) {
+        int  rounds = (int)expected->rounds;
+
+        if (!EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_SET_RC5_ROUNDS, rounds, NULL)) {
+            t->err = "INVALID_ROUNDS";
+            goto err;
+        }
+    }
+
     if (!EVP_CIPHER_CTX_set_key_length(ctx, expected->key_len)) {
         t->err = "INVALID_KEY_LENGTH";
         goto err;
+    }
+    if (expected->key_bits > 0) {
+        int bits = (int)expected->key_bits;
+
+        if (!EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_SET_RC2_KEY_BITS, bits, NULL)) {
+            t->err = "INVALID KEY BITS";
+            goto err;
+        }
     }
     if (!EVP_CipherInit_ex(ctx, NULL, NULL, expected->key, expected->iv, -1)) {
         t->err = "KEY_SET_ERROR";
         goto err;
     }
+
     /* Check that we get the same IV back */
     if (expected->iv != NULL
         && (EVP_CIPHER_flags(expected->cipher) & EVP_CIPH_CUSTOM_IV) == 0
@@ -904,6 +938,7 @@ static const EVP_TEST_METHOD cipher_test_method = {
 
 typedef struct mac_data_st {
     /* MAC type in one form or another */
+    char *mac_name;
     EVP_MAC *mac;                /* for mac_test_run_mac */
     int type;                    /* for mac_test_run_pkey */
     /* Algorithm string for this MAC */
@@ -987,6 +1022,7 @@ static int mac_test_init(EVP_TEST *t, const char *alg)
 
     mdat = OPENSSL_zalloc(sizeof(*mdat));
     mdat->type = type;
+    mdat->mac_name = OPENSSL_strdup(alg);
     mdat->mac = mac;
     mdat->controls = sk_OPENSSL_STRING_new_null();
     t->data = mdat;
@@ -1004,6 +1040,7 @@ static void mac_test_cleanup(EVP_TEST *t)
     MAC_DATA *mdat = t->data;
 
     EVP_MAC_free(mdat->mac);
+    OPENSSL_free(mdat->mac_name);
     sk_OPENSSL_STRING_pop_free(mdat->controls, openssl_free);
     OPENSSL_free(mdat->alg);
     OPENSSL_free(mdat->key);
@@ -1161,13 +1198,13 @@ static int mac_test_run_mac(EVP_TEST *t)
     size_t params_n = 0;
     size_t params_n_allocstart = 0;
     const OSSL_PARAM *defined_params =
-        EVP_MAC_CTX_settable_params(expected->mac);
+        EVP_MAC_settable_ctx_params(expected->mac);
 
     if (expected->alg == NULL)
-        TEST_info("Trying the EVP_MAC %s test", EVP_MAC_name(expected->mac));
+        TEST_info("Trying the EVP_MAC %s test", expected->mac_name);
     else
         TEST_info("Trying the EVP_MAC %s test with %s",
-                  EVP_MAC_name(expected->mac), expected->alg);
+                  expected->mac_name, expected->alg);
 
 #ifdef OPENSSL_NO_DES
     if (expected->alg != NULL && strstr(expected->alg, "DES") != NULL) {
@@ -2054,7 +2091,7 @@ static int kdf_test_ctrl(EVP_TEST *t, EVP_KDF_CTX *kctx,
     KDF_DATA *kdata = t->data;
     int rv;
     char *p, *name;
-    const OSSL_PARAM *defs = EVP_KDF_CTX_settable_params(EVP_KDF_CTX_kdf(kctx));
+    const OSSL_PARAM *defs = EVP_KDF_settable_ctx_params(EVP_KDF_CTX_kdf(kctx));
 
     if (!TEST_ptr(name = OPENSSL_strdup(value)))
         return 0;
@@ -2077,6 +2114,15 @@ static int kdf_test_ctrl(EVP_TEST *t, EVP_KDF_CTX *kctx,
         if (nid == NID_undef)
              nid = OBJ_ln2nid(p);
         if (nid != NID_undef && EVP_get_digestbynid(nid) == NULL)
+            t->skip = 1;
+    }
+    if (p != NULL && strcmp(name, "cipher") == 0) {
+        /* If p has an OID and lookup fails assume disabled algorithm */
+        int nid = OBJ_sn2nid(p);
+
+        if (nid == NID_undef)
+             nid = OBJ_ln2nid(p);
+        if (nid != NID_undef && EVP_get_cipherbynid(nid) == NULL)
             t->skip = 1;
     }
     OPENSSL_free(name);
@@ -2799,7 +2845,6 @@ static void clear_test(EVP_TEST *t)
 static int check_test_error(EVP_TEST *t)
 {
     unsigned long err;
-    const char *func;
     const char *reason;
 
     if (t->err == NULL && t->expected_err == NULL)
@@ -2842,9 +2887,8 @@ static int check_test_error(EVP_TEST *t)
         return 0;
     }
 
-    func = ERR_func_error_string(err);
     reason = ERR_reason_error_string(err);
-    if (func == NULL && reason == NULL) {
+    if (reason == NULL) {
         TEST_info("%s:%d: Expected error \"%s\", no strings available."
                   " Assuming ok.",
                   t->s.test_file, t->s.start, t->reason);

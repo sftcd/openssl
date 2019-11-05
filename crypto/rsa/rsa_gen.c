@@ -17,7 +17,7 @@
 #include <time.h>
 #include "internal/cryptlib.h"
 #include <openssl/bn.h>
-#include "rsa_locl.h"
+#include "rsa_local.h"
 
 static int rsa_builtin_keygen(RSA *rsa, int bits, int primes, BIGNUM *e_value,
                               BN_GENCB *cb);
@@ -107,6 +107,8 @@ static int rsa_builtin_keygen(RSA *rsa, int bits, int primes, BIGNUM *e_value,
 
     for (i = 0; i < primes; i++)
         bitsr[i] = (i < rmd) ? quo + 1 : quo;
+
+    rsa->dirty_cnt++;
 
     /* We need the RSA components non-NULL */
     if (!rsa->n && ((rsa->n = BN_new()) == NULL))

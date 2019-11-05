@@ -8,9 +8,9 @@
  */
 
 #include <openssl/ocsp.h>
-#include "../ssl_locl.h"
+#include "../ssl_local.h"
 #include "internal/cryptlib.h"
-#include "statem_locl.h"
+#include "statem_local.h"
 
 #ifndef OPENSSL_NO_ESNI
 #ifndef OPENSSL_NO_SSL_TRACE

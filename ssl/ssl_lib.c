@@ -10,7 +10,7 @@
  */
 
 #include <stdio.h>
-#include "ssl_locl.h"
+#include "ssl_local.h"
 #include "e_os.h"
 #include <openssl/objects.h>
 #include <openssl/x509v3.h>
@@ -1215,9 +1215,9 @@ void SSL_free(SSL *s)
 #ifndef OPENSSL_NO_EC
     OPENSSL_free(s->ext.ecpointformats);
     OPENSSL_free(s->ext.peer_ecpointformats);
+#endif                          /* OPENSSL_NO_EC */
     OPENSSL_free(s->ext.supportedgroups);
     OPENSSL_free(s->ext.peer_supportedgroups);
-#endif                          /* OPENSSL_NO_EC */
     sk_X509_EXTENSION_pop_free(s->ext.ocsp.exts, X509_EXTENSION_free);
 #ifndef OPENSSL_NO_OCSP
     sk_OCSP_RESPID_pop_free(s->ext.ocsp.ids, OCSP_RESPID_free);
@@ -2107,11 +2107,11 @@ ossl_ssize_t SSL_sendfile(SSL *s, int fd, off_t offset, size_t size, int flags)
         return -1;
     }
 
-#ifndef OPENSSL_NO_KTLS
-    ret = ktls_sendfile(SSL_get_wfd(s), fd, offset, size, flags);
+#ifdef OPENSSL_NO_KTLS
+    ERR_raise_data(ERR_LIB_SYS, ERR_R_INTERNAL_ERROR, "calling sendfile()");
+    return -1;
 #else
-    ret = -1;
-#endif
+    ret = ktls_sendfile(SSL_get_wfd(s), fd, offset, size, flags);
     if (ret < 0) {
 #if defined(EAGAIN) && defined(EINTR) && defined(EBUSY)
         if ((get_last_sys_error() == EAGAIN) ||
@@ -2120,16 +2120,12 @@ ossl_ssize_t SSL_sendfile(SSL *s, int fd, off_t offset, size_t size, int flags)
             BIO_set_retry_write(s->wbio);
         else
 #endif
-#ifdef OPENSSL_NO_KTLS
-            ERR_raise_data(ERR_LIB_SYS, get_last_sys_error(),
-                          "calling sendfile()");
-#else
             SSLerr(SSL_F_SSL_SENDFILE, SSL_R_UNINITIALIZED);
-#endif
         return ret;
     }
     s->rwstate = SSL_NOTHING;
     return ret;
+#endif
 }
 
 int SSL_write(SSL *s, const void *buf, int num)
@@ -2903,7 +2899,7 @@ void SSL_get0_next_proto_negotiated(const SSL *s, const unsigned char **data,
                                     unsigned *len)
 {
     *data = s->ext.npn;
-    if (!*data) {
+    if (*data == NULL) {
         *len = 0;
     } else {
         *len = (unsigned int)s->ext.npn_len;
@@ -3341,8 +3337,8 @@ void SSL_CTX_free(SSL_CTX *a)
 
 #ifndef OPENSSL_NO_EC
     OPENSSL_free(a->ext.ecpointformats);
-    OPENSSL_free(a->ext.supportedgroups);
 #endif
+    OPENSSL_free(a->ext.supportedgroups);
     OPENSSL_free(a->ext.alpn);
     OPENSSL_secure_free(a->ext.secure);
 
@@ -4243,10 +4239,13 @@ int SSL_CTX_set_default_verify_dir(SSL_CTX *ctx)
     lookup = X509_STORE_add_lookup(ctx->cert_store, X509_LOOKUP_hash_dir());
     if (lookup == NULL)
         return 0;
+
+    /* We ignore errors, in case the directory doesn't exist */
+    ERR_set_mark();
+
     X509_LOOKUP_add_dir(lookup, NULL, X509_FILETYPE_DEFAULT);
 
-    /* Clear any errors if the default directory does not exist */
-    ERR_clear_error();
+    ERR_pop_to_mark();
 
     return 1;
 }
@@ -4259,19 +4258,62 @@ int SSL_CTX_set_default_verify_file(SSL_CTX *ctx)
     if (lookup == NULL)
         return 0;
 
+    /* We ignore errors, in case the directory doesn't exist */
+    ERR_set_mark();
+
     X509_LOOKUP_load_file(lookup, NULL, X509_FILETYPE_DEFAULT);
 
-    /* Clear any errors if the default file does not exist */
-    ERR_clear_error();
+    ERR_pop_to_mark();
 
     return 1;
 }
 
+int SSL_CTX_set_default_verify_store(SSL_CTX *ctx)
+{
+    X509_LOOKUP *lookup;
+
+    lookup = X509_STORE_add_lookup(ctx->cert_store, X509_LOOKUP_store());
+    if (lookup == NULL)
+        return 0;
+
+    /* We ignore errors, in case the directory doesn't exist */
+    ERR_set_mark();
+
+    X509_LOOKUP_add_store(lookup, NULL);
+
+    ERR_pop_to_mark();
+
+    return 1;
+}
+
+int SSL_CTX_load_verify_file(SSL_CTX *ctx, const char *CAfile)
+{
+    return X509_STORE_load_file(ctx->cert_store, CAfile);
+}
+
+int SSL_CTX_load_verify_dir(SSL_CTX *ctx, const char *CApath)
+{
+    return X509_STORE_load_path(ctx->cert_store, CApath);
+}
+
+int SSL_CTX_load_verify_store(SSL_CTX *ctx, const char *CAstore)
+{
+    return X509_STORE_load_store(ctx->cert_store, CAstore);
+}
+
+#if OPENSSL_API_LEVEL < 3
 int SSL_CTX_load_verify_locations(SSL_CTX *ctx, const char *CAfile,
                                   const char *CApath)
 {
-    return X509_STORE_load_locations(ctx->cert_store, CAfile, CApath);
+    if (CAfile == NULL && CApath == NULL)
+        return 0;
+    if (CAfile != NULL && !SSL_CTX_load_verify_file(ctx, CAfile))
+        return 0;
+    if (CApath != NULL && !SSL_CTX_load_verify_dir(ctx, CApath))
+        return 0;
+    return 1;
 }
+#endif
 
 void SSL_set_info_callback(SSL *ssl,
                            void (*cb) (const SSL *ssl, int type, int val))

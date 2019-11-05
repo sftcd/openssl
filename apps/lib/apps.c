@@ -85,7 +85,7 @@ int chopup_args(ARGS *arg, char *buf)
         /* Skip whitespace. */
         while (*p && isspace(_UC(*p)))
             p++;
-        if (!*p)
+        if (*p == '\0')
             break;
 
         /* The start of something good :-) */
@@ -125,18 +125,29 @@ int app_init(long mesgwin)
 }
 #endif
 
-int ctx_set_verify_locations(SSL_CTX *ctx, const char *CAfile,
-                             const char *CApath, int noCAfile, int noCApath)
+int ctx_set_verify_locations(SSL_CTX *ctx,
+                             const char *CAfile, int noCAfile,
+                             const char *CApath, int noCApath,
+                             const char *CAstore, int noCAstore)
 {
-    if (CAfile == NULL && CApath == NULL) {
+    if (CAfile == NULL && CApath == NULL && CAstore == NULL) {
         if (!noCAfile && SSL_CTX_set_default_verify_file(ctx) <= 0)
             return 0;
         if (!noCApath && SSL_CTX_set_default_verify_dir(ctx) <= 0)
             return 0;
+        if (!noCAstore && SSL_CTX_set_default_verify_store(ctx) <= 0)
+            return 0;
 
         return 1;
     }
-    return SSL_CTX_load_verify_locations(ctx, CAfile, CApath);
+
+    if (CAfile != NULL && !SSL_CTX_load_verify_file(ctx, CAfile))
+        return 0;
+    if (CApath != NULL && !SSL_CTX_load_verify_dir(ctx, CApath))
+        return 0;
+    if (CAstore != NULL && !SSL_CTX_load_verify_store(ctx, CAstore))
+        return 0;
+    return 1;
 }
 
 #ifndef OPENSSL_NO_CT
@@ -258,7 +269,7 @@ static char *app_get_pass(const char *arg, int keepbio)
 #endif
         } else if (strcmp(arg, "stdin") == 0) {
             pwdbio = dup_bio_in(FORMAT_TEXT);
-            if (!pwdbio) {
+            if (pwdbio == NULL) {
                 BIO_printf(bio_err, "Can't open BIO for stdin\n");
                 return NULL;
             }
@@ -407,7 +418,7 @@ static int load_pkcs12(BIO *in, const char *desc,
     if (PKCS12_verify_mac(p12, "", 0) || PKCS12_verify_mac(p12, NULL, 0)) {
         pass = "";
     } else {
-        if (!pem_cb)
+        if (pem_cb == NULL)
             pem_cb = (pem_password_cb *)password_callback;
         len = pem_cb(tpass, PEM_BUFSIZE, 0, cb_data);
         if (len < 0) {
@@ -1068,7 +1079,9 @@ void print_array(BIO *out, const char* title, int len, const unsigned char* d)
     BIO_printf(out, "\n};\n");
 }
 
-X509_STORE *setup_verify(const char *CAfile, const char *CApath, int noCAfile, int noCApath)
+X509_STORE *setup_verify(const char *CAfile, int noCAfile,
+                         const char *CApath, int noCApath,
+                         const char *CAstore, int noCAstore)
 {
     X509_STORE *store = X509_STORE_new();
     X509_LOOKUP *lookup;
@@ -1080,7 +1093,7 @@ X509_STORE *setup_verify(const char *CAfile, const char *CApath, int noCAfile, i
         lookup = X509_STORE_add_lookup(store, X509_LOOKUP_file());
         if (lookup == NULL)
             goto end;
-        if (CAfile) {
+        if (CAfile != NULL) {
             if (!X509_LOOKUP_load_file(lookup, CAfile, X509_FILETYPE_PEM)) {
                 BIO_printf(bio_err, "Error loading file %s\n", CAfile);
                 goto end;
@@ -1094,13 +1107,24 @@ X509_STORE *setup_verify(const char *CAfile, const char *CApath, int noCAfile, i
         lookup = X509_STORE_add_lookup(store, X509_LOOKUP_hash_dir());
         if (lookup == NULL)
             goto end;
-        if (CApath) {
+        if (CApath != NULL) {
             if (!X509_LOOKUP_add_dir(lookup, CApath, X509_FILETYPE_PEM)) {
                 BIO_printf(bio_err, "Error loading directory %s\n", CApath);
                 goto end;
             }
         } else {
             X509_LOOKUP_add_dir(lookup, NULL, X509_FILETYPE_DEFAULT);
+        }
+    }
+
+    if (CAstore != NULL || !noCAstore) {
+        lookup = X509_STORE_add_lookup(store, X509_LOOKUP_store());
+        if (lookup == NULL)
+            goto end;
+        if (!X509_LOOKUP_add_store(lookup, CAstore)) {
+            if (CAstore != NULL)
+                BIO_printf(bio_err, "Error loading store URI %s\n", CAstore);
+            goto end;
         }
     }
 
@@ -1809,26 +1833,46 @@ unsigned char *next_protos_parse(size_t *outlen, const char *in)
     size_t len;
     unsigned char *out;
     size_t i, start = 0;
+    size_t skipped = 0;
 
     len = strlen(in);
-    if (len >= 65535)
+    if (len == 0 || len >= 65535)
         return NULL;
 
-    out = app_malloc(strlen(in) + 1, "NPN buffer");
+    out = app_malloc(len + 1, "NPN buffer");
     for (i = 0; i <= len; ++i) {
         if (i == len || in[i] == ',') {
+            /*
+             * Zero-length ALPN elements are invalid on the wire, we could be
+             * strict and reject the entire string, but just ignoring extra
+             * commas seems harmless and more friendly.
+             *
+             * Every comma we skip in this way puts the input buffer another
+             * byte ahead of the output buffer, so all stores into the output
+             * buffer need to be decremented by the number commas skipped.
+             */
+            if (i == start) {
+                ++start;
+                ++skipped;
+                continue;
+            }
             if (i - start > 255) {
                 OPENSSL_free(out);
                 return NULL;
             }
-            out[start] = (unsigned char)(i - start);
+            out[start-skipped] = (unsigned char)(i - start);
             start = i + 1;
         } else {
-            out[i + 1] = in[i];
+            out[i + 1 - skipped] = in[i];
         }
     }
 
-    *outlen = len + 1;
+    if (len <= skipped) {
+        OPENSSL_free(out);
+        return NULL;
+    }
+
+    *outlen = len + 1 - skipped;
     return out;
 }
 

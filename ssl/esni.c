@@ -14,8 +14,8 @@
  */
 
 #include <ctype.h>
-#include <crypto/bio/bio_lcl.h>
-#include "ssl_locl.h"
+#include <crypto/bio/bio_local.h>
+#include "ssl_local.h"
 #include <openssl/ssl.h>
 #include <openssl/rand.h>
 #include <openssl/kdf.h>

@@ -8,12 +8,12 @@
  */
 
 #include <string.h>
-#include "ec_lcl.h"
+#include "ec_local.h"
 #include <openssl/err.h>
 #include <openssl/asn1t.h>
 #include <openssl/objects.h>
 #include "internal/nelem.h"
-#include "internal/asn1_dsa.h"
+#include "crypto/asn1_dsa.h"
 
 #ifndef FIPS_MODE
 
@@ -449,6 +449,7 @@ ECPARAMETERS *EC_GROUP_get_ecparameters(const EC_GROUP *group,
     unsigned char *buffer = NULL;
     const EC_POINT *point = NULL;
     point_conversion_form_t form;
+    ASN1_INTEGER *orig;
 
     if (params == NULL) {
         if ((ret = ECPARAMETERS_new()) == NULL) {
@@ -499,8 +500,9 @@ ECPARAMETERS *EC_GROUP_get_ecparameters(const EC_GROUP *group,
         ECerr(EC_F_EC_GROUP_GET_ECPARAMETERS, ERR_R_EC_LIB);
         goto err;
     }
-    ret->order = BN_to_ASN1_INTEGER(tmp, ret->order);
+    ret->order = BN_to_ASN1_INTEGER(tmp, orig = ret->order);
     if (ret->order == NULL) {
+        ret->order = orig;
         ECerr(EC_F_EC_GROUP_GET_ECPARAMETERS, ERR_R_ASN1_LIB);
         goto err;
     }
@@ -508,8 +510,9 @@ ECPARAMETERS *EC_GROUP_get_ecparameters(const EC_GROUP *group,
     /* set the cofactor (optional) */
     tmp = EC_GROUP_get0_cofactor(group);
     if (tmp != NULL) {
-        ret->cofactor = BN_to_ASN1_INTEGER(tmp, ret->cofactor);
+        ret->cofactor = BN_to_ASN1_INTEGER(tmp, orig = ret->cofactor);
         if (ret->cofactor == NULL) {
+            ret->cofactor = orig;
             ECerr(EC_F_EC_GROUP_GET_ECPARAMETERS, ERR_R_ASN1_LIB);
             goto err;
         }
@@ -578,8 +581,9 @@ EC_GROUP *EC_GROUP_new_from_ecparameters(const ECPARAMETERS *params)
     int curve_name = NID_undef;
     BN_CTX *ctx = NULL;
 
-    if (!params->fieldID || !params->fieldID->fieldType ||
-        !params->fieldID->p.ptr) {
+    if (params->fieldID == NULL
+            || params->fieldID->fieldType == NULL
+            || params->fieldID->p.ptr == NULL) {
         ECerr(EC_F_EC_GROUP_NEW_FROM_ECPARAMETERS, EC_R_ASN1_ERROR);
         goto err;
     }
@@ -590,9 +594,9 @@ EC_GROUP *EC_GROUP_new_from_ecparameters(const ECPARAMETERS *params)
      * encoded them incorrectly, so we must accept any length for backwards
      * compatibility.
      */
-    if (!params->curve || !params->curve->a ||
-        !params->curve->a->data || !params->curve->b ||
-        !params->curve->b->data) {
+    if (params->curve == NULL
+            || params->curve->a == NULL || params->curve->a->data == NULL
+            || params->curve->b == NULL || params->curve->b->data == NULL) {
         ECerr(EC_F_EC_GROUP_NEW_FROM_ECPARAMETERS, EC_R_ASN1_ERROR);
         goto err;
     }
@@ -662,7 +666,7 @@ EC_GROUP *EC_GROUP_new_from_ecparameters(const ECPARAMETERS *params)
             X9_62_PENTANOMIAL *penta;
 
             penta = char_two->p.ppBasis;
-            if (!penta) {
+            if (penta == NULL) {
                 ECerr(EC_F_EC_GROUP_NEW_FROM_ECPARAMETERS, EC_R_ASN1_ERROR);
                 goto err;
             }
@@ -702,7 +706,7 @@ EC_GROUP *EC_GROUP_new_from_ecparameters(const ECPARAMETERS *params)
     else if (tmp == NID_X9_62_prime_field) {
         /* we have a curve over a prime field */
         /* extract the prime number */
-        if (!params->fieldID->p.prime) {
+        if (params->fieldID->p.prime == NULL) {
             ECerr(EC_F_EC_GROUP_NEW_FROM_ECPARAMETERS, EC_R_ASN1_ERROR);
             goto err;
         }
@@ -747,7 +751,9 @@ EC_GROUP *EC_GROUP_new_from_ecparameters(const ECPARAMETERS *params)
         ret->seed_len = params->curve->seed->length;
     }
 
-    if (!params->order || !params->base || !params->base->data) {
+    if (params->order == NULL
+            || params->base == NULL
+            || params->base->data == NULL) {
         ECerr(EC_F_EC_GROUP_NEW_FROM_ECPARAMETERS, EC_R_ASN1_ERROR);
         goto err;
     }
@@ -849,6 +855,20 @@ EC_GROUP *EC_GROUP_new_from_ecparameters(const ECPARAMETERS *params)
          * serialized using explicit parameters by default.
          */
         EC_GROUP_set_asn1_flag(ret, OPENSSL_EC_EXPLICIT_CURVE);
+
+        /*
+         * If the input params do not contain the optional seed field we make
+         * sure it is not added to the returned group.
+         *
+         * The seed field is not really used inside libcrypto anyway, and
+         * adding it to parsed explicit parameter keys would alter their DER
+         * encoding output (because of the extra field) which could impact
+         * applications fingerprinting keys by their DER encoding.
+         */
+        if (params->curve->seed == NULL) {
+            if (EC_GROUP_set_seed(ret, NULL, 0) != 1)
+                goto err;
+        }
     }
 
     ok = 1;

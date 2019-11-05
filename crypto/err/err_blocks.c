@@ -7,15 +7,18 @@
  * https://www.openssl.org/source/license.html
  */
 
+/* TODO: When ERR_STATE becomes opaque, this musts be removed */
+#define OSSL_FORCE_ERR_STATE
+
 #include <string.h>
 #include <openssl/err.h>
-#include "err_locl.h"
+#include "err_local.h"
 
 void ERR_new(void)
 {
     ERR_STATE *es;
 
-    es = ERR_get_state();
+    es = err_get_state_int();
     if (es == NULL)
         return;
 
@@ -28,7 +31,7 @@ void ERR_set_debug(const char *file, int line, const char *func)
 {
     ERR_STATE *es;
 
-    es = ERR_get_state();
+    es = err_get_state_int();
     if (es == NULL)
         return;
 
@@ -52,7 +55,7 @@ void ERR_vset_error(int lib, int reason, const char *fmt, va_list args)
     unsigned long flags = 0;
     size_t i;
 
-    es = ERR_get_state();
+    es = err_get_state_int();
     if (es == NULL)
         return;
     i = es->top;

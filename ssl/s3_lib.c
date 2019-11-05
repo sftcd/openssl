@@ -12,7 +12,7 @@
 #include <stdio.h>
 #include <openssl/objects.h>
 #include "internal/nelem.h"
-#include "ssl_locl.h"
+#include "ssl_local.h"
 #include <openssl/md5.h>
 #include <openssl/dh.h>
 #include <openssl/rand.h>
@@ -3910,7 +3910,7 @@ long ssl3_ctx_ctrl(SSL_CTX *ctx, int cmd, long larg, void *parg)
             srp_password_from_info_cb;
         if (ctx->srp_ctx.info != NULL)
             OPENSSL_free(ctx->srp_ctx.info);
-        if ((ctx->srp_ctx.info = BUF_strdup((char *)parg)) == NULL) {
+        if ((ctx->srp_ctx.info = OPENSSL_strdup((char *)parg)) == NULL) {
             SSLerr(SSL_F_SSL3_CTX_CTRL, ERR_R_INTERNAL_ERROR);
             return 0;
         }

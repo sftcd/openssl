@@ -18,6 +18,7 @@ static const ERR_STRING_DATA EVP_str_reasons[] = {
     "aes key setup failed"},
     {ERR_PACK(ERR_LIB_EVP, 0, EVP_R_ARIA_KEY_SETUP_FAILED),
     "aria key setup failed"},
+    {ERR_PACK(ERR_LIB_EVP, 0, EVP_R_BAD_ALGORITHM_NAME), "bad algorithm name"},
     {ERR_PACK(ERR_LIB_EVP, 0, EVP_R_BAD_DECRYPT), "bad decrypt"},
     {ERR_PACK(ERR_LIB_EVP, 0, EVP_R_BAD_KEY_LENGTH), "bad key length"},
     {ERR_PACK(ERR_LIB_EVP, 0, EVP_R_BUFFER_TOO_SMALL), "buffer too small"},
@@ -33,6 +34,8 @@ static const ERR_STRING_DATA EVP_str_reasons[] = {
     "cipher parameter error"},
     {ERR_PACK(ERR_LIB_EVP, 0, EVP_R_COMMAND_NOT_SUPPORTED),
     "command not supported"},
+    {ERR_PACK(ERR_LIB_EVP, 0, EVP_R_CONFLICTING_ALGORITHM_NAME),
+    "conflicting algorithm name"},
     {ERR_PACK(ERR_LIB_EVP, 0, EVP_R_COPY_ERROR), "copy error"},
     {ERR_PACK(ERR_LIB_EVP, 0, EVP_R_CTRL_NOT_IMPLEMENTED),
     "ctrl not implemented"},
@@ -161,7 +164,7 @@ static const ERR_STRING_DATA EVP_str_reasons[] = {
 int ERR_load_EVP_strings(void)
 {
 #ifndef OPENSSL_NO_ERR
-    if (ERR_func_error_string(EVP_str_reasons[0].error) == NULL)
+    if (ERR_reason_error_string(EVP_str_reasons[0].error) == NULL)
         ERR_load_strings_const(EVP_str_reasons);
 #endif
     return 1;

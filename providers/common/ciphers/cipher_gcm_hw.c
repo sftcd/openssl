@@ -7,8 +7,8 @@
  * https://www.openssl.org/source/license.html
  */
 
-#include "cipher_locl.h"
-#include "internal/ciphers/cipher_gcm.h"
+#include "prov/ciphercommon.h"
+#include "prov/cipher_gcm.h"
 
 
 int gcm_setiv(PROV_GCM_CTX *ctx, const unsigned char *iv, size_t ivlen)
@@ -90,8 +90,7 @@ int gcm_cipher_final(PROV_GCM_CTX *ctx, unsigned char *tag)
         CRYPTO_gcm128_tag(&ctx->gcm, tag, GCM_TAG_MAX_SIZE);
         ctx->taglen = GCM_TAG_MAX_SIZE;
     } else {
-        if (ctx->taglen == UNINITIALISED_SIZET
-            || CRYPTO_gcm128_finish(&ctx->gcm, tag, ctx->taglen) != 0)
+        if (CRYPTO_gcm128_finish(&ctx->gcm, tag, ctx->taglen) != 0)
             return 0;
     }
     return 1;

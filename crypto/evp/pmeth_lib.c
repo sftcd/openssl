@@ -16,66 +16,73 @@
 #include <openssl/core_names.h>
 #include <openssl/dh.h>
 #include "internal/cryptlib.h"
-#include "internal/asn1_int.h"
-#include "internal/evp_int.h"
+#include "crypto/asn1.h"
+#include "crypto/evp.h"
 #include "internal/numbers.h"
 #include "internal/provider.h"
-#include "evp_locl.h"
+#include "evp_local.h"
 
+typedef const EVP_PKEY_METHOD *(*pmeth_fn)(void);
 typedef int sk_cmp_fn_type(const char *const *a, const char *const *b);
 
 static STACK_OF(EVP_PKEY_METHOD) *app_pkey_methods = NULL;
 
 /* This array needs to be in order of NIDs */
-static const EVP_PKEY_METHOD *standard_methods[] = {
+static pmeth_fn standard_methods[] = {
 #ifndef OPENSSL_NO_RSA
-    &rsa_pkey_meth,
+    rsa_pkey_method,
 #endif
 #ifndef OPENSSL_NO_DH
-    &dh_pkey_meth,
+    dh_pkey_method,
 #endif
 #ifndef OPENSSL_NO_DSA
-    &dsa_pkey_meth,
+    dsa_pkey_method,
 #endif
 #ifndef OPENSSL_NO_EC
-    &ec_pkey_meth,
+    ec_pkey_method,
 #endif
-    &hmac_pkey_meth,
+    hmac_pkey_method,
 #ifndef OPENSSL_NO_CMAC
-    &cmac_pkey_meth,
+    cmac_pkey_method,
 #endif
 #ifndef OPENSSL_NO_RSA
-    &rsa_pss_pkey_meth,
+    rsa_pss_pkey_method,
 #endif
 #ifndef OPENSSL_NO_DH
-    &dhx_pkey_meth,
+    dhx_pkey_method,
 #endif
 #ifndef OPENSSL_NO_SCRYPT
-    &scrypt_pkey_meth,
+    scrypt_pkey_method,
 #endif
-    &tls1_prf_pkey_meth,
+    tls1_prf_pkey_method,
 #ifndef OPENSSL_NO_EC
-    &ecx25519_pkey_meth,
-    &ecx448_pkey_meth,
+    ecx25519_pkey_method,
+    ecx448_pkey_method,
 #endif
-    &hkdf_pkey_meth,
+    hkdf_pkey_method,
 #ifndef OPENSSL_NO_POLY1305
-    &poly1305_pkey_meth,
+    poly1305_pkey_method,
 #endif
 #ifndef OPENSSL_NO_SIPHASH
-    &siphash_pkey_meth,
+    siphash_pkey_method,
 #endif
 #ifndef OPENSSL_NO_EC
-    &ed25519_pkey_meth,
-    &ed448_pkey_meth,
+    ed25519_pkey_method,
+    ed448_pkey_method,
 #endif
 #ifndef OPENSSL_NO_SM2
-    &sm2_pkey_meth,
+    sm2_pkey_method,
 #endif
 };
 
-DECLARE_OBJ_BSEARCH_CMP_FN(const EVP_PKEY_METHOD *, const EVP_PKEY_METHOD *,
-                           pmeth);
+DECLARE_OBJ_BSEARCH_CMP_FN(const EVP_PKEY_METHOD *, pmeth_fn, pmeth_func);
+
+static int pmeth_func_cmp(const EVP_PKEY_METHOD *const *a, pmeth_fn const *b)
+{
+    return ((*a)->pkey_id - ((**b)())->pkey_id);
+}
+
+IMPLEMENT_OBJ_BSEARCH_CMP_FN(const EVP_PKEY_METHOD *, pmeth_fn, pmeth_func);
 
 static int pmeth_cmp(const EVP_PKEY_METHOD *const *a,
                      const EVP_PKEY_METHOD *const *b)
@@ -83,13 +90,12 @@ static int pmeth_cmp(const EVP_PKEY_METHOD *const *a,
     return ((*a)->pkey_id - (*b)->pkey_id);
 }
 
-IMPLEMENT_OBJ_BSEARCH_CMP_FN(const EVP_PKEY_METHOD *, const EVP_PKEY_METHOD *,
-                             pmeth);
-
 const EVP_PKEY_METHOD *EVP_PKEY_meth_find(int type)
 {
+    pmeth_fn *ret;
     EVP_PKEY_METHOD tmp;
-    const EVP_PKEY_METHOD *t = &tmp, **ret;
+    const EVP_PKEY_METHOD *t = &tmp;
+
     tmp.pkey_id = type;
     if (app_pkey_methods) {
         int idx;
@@ -97,15 +103,18 @@ const EVP_PKEY_METHOD *EVP_PKEY_meth_find(int type)
         if (idx >= 0)
             return sk_EVP_PKEY_METHOD_value(app_pkey_methods, idx);
     }
-    ret = OBJ_bsearch_pmeth(&t, standard_methods,
-                            sizeof(standard_methods) /
-                            sizeof(EVP_PKEY_METHOD *));
-    if (!ret || !*ret)
+    ret = OBJ_bsearch_pmeth_func(&t, standard_methods,
+                                 sizeof(standard_methods) /
+                                 sizeof(pmeth_fn));
+    if (ret == NULL || *ret == NULL)
         return NULL;
-    return *ret;
+    return (**ret)();
 }
 
-static EVP_PKEY_CTX *int_ctx_new(EVP_PKEY *pkey, ENGINE *e, int id)
+static EVP_PKEY_CTX *int_ctx_new(OPENSSL_CTX *libctx,
+                                 EVP_PKEY *pkey, ENGINE *e,
+                                 const char *name, const char *propquery,
+                                 int id)
 {
     EVP_PKEY_CTX *ret;
     const EVP_PKEY_METHOD *pmeth = NULL;
@@ -124,6 +133,34 @@ static EVP_PKEY_CTX *int_ctx_new(EVP_PKEY *pkey, ENGINE *e, int id)
             return 0;
         id = pkey->type;
     }
+
+    /*
+     * Here, we extract what information we can for the purpose of
+     * supporting usage with implementations from providers, to make
+     * for a smooth transition from legacy stuff to provider based stuff.
+     *
+     * If an engine is given, this is entirely legacy, and we should not
+     * pretend anything else, so we only set the name when no engine is
+     * given.  If both are already given, someone made a mistake, and
+     * since that can only happen internally, it's safe to make an
+     * assertion.
+     */
+    if (!ossl_assert(e == NULL || name == NULL))
+        return NULL;
+    if (e == NULL)
+        name = OBJ_nid2sn(id);
+    propquery = NULL;
+    /*
+     * We were called using legacy data, or an EVP_PKEY, but an EVP_PKEY
+     * isn't tied to a specific library context, so we fall back to the
+     * default library context.
+     * TODO(v3.0): an EVP_PKEY that doesn't originate from a leagacy key
+     * structure only has the pkeys[] cache, where the first element is
+     * considered the "origin".  Investigate if that could be a suitable
+     * way to find a library context.
+     */
+    libctx = NULL;
+
 #ifndef OPENSSL_NO_ENGINE
     if (e == NULL && pkey != NULL)
         e = pkey->pmeth_engine != NULL ? pkey->pmeth_engine : pkey->engine;
@@ -165,6 +202,9 @@ static EVP_PKEY_CTX *int_ctx_new(EVP_PKEY *pkey, ENGINE *e, int id)
         EVPerr(EVP_F_INT_CTX_NEW, ERR_R_MALLOC_FAILURE);
         return NULL;
     }
+    ret->libctx = libctx;
+    ret->algorithm = name;
+    ret->propquery = propquery;
     ret->engine = e;
     ret->pmeth = pmeth;
     ret->operation = EVP_PKEY_OP_UNDEFINED;
@@ -189,10 +229,14 @@ void evp_pkey_ctx_free_old_ops(EVP_PKEY_CTX *ctx)
         if (ctx->op.kex.exchprovctx != NULL && ctx->op.kex.exchange != NULL)
             ctx->op.kex.exchange->freectx(ctx->op.kex.exchprovctx);
         EVP_KEYEXCH_free(ctx->op.kex.exchange);
+        ctx->op.kex.exchprovctx = NULL;
+        ctx->op.kex.exchange = NULL;
     } else if (EVP_PKEY_CTX_IS_SIGNATURE_OP(ctx)) {
         if (ctx->op.sig.sigprovctx != NULL && ctx->op.sig.signature != NULL)
             ctx->op.sig.signature->freectx(ctx->op.sig.sigprovctx);
         EVP_SIGNATURE_free(ctx->op.sig.signature);
+        ctx->op.sig.sigprovctx = NULL;
+        ctx->op.sig.signature = NULL;
     }
 }
 
@@ -271,12 +315,19 @@ void EVP_PKEY_meth_free(EVP_PKEY_METHOD *pmeth)
 
 EVP_PKEY_CTX *EVP_PKEY_CTX_new(EVP_PKEY *pkey, ENGINE *e)
 {
-    return int_ctx_new(pkey, e, -1);
+    return int_ctx_new(NULL, pkey, e, NULL, NULL, -1);
 }
 
 EVP_PKEY_CTX *EVP_PKEY_CTX_new_id(int id, ENGINE *e)
 {
-    return int_ctx_new(NULL, e, id);
+    return int_ctx_new(NULL, NULL, e, NULL, NULL, id);
+}
+
+EVP_PKEY_CTX *EVP_PKEY_CTX_new_provided(OPENSSL_CTX *libctx,
+                                        const char *name,
+                                        const char *propquery)
+{
+    return int_ctx_new(libctx, NULL, NULL, name, propquery, -1);
 }
 
 EVP_PKEY_CTX *EVP_PKEY_CTX_dup(const EVP_PKEY_CTX *pctx)
@@ -306,6 +357,9 @@ EVP_PKEY_CTX *EVP_PKEY_CTX_dup(const EVP_PKEY_CTX *pctx)
         EVP_PKEY_up_ref(pctx->pkey);
     rctx->pkey = pctx->pkey;
     rctx->operation = pctx->operation;
+    rctx->libctx = pctx->libctx;
+    rctx->algorithm = pctx->algorithm;
+    rctx->propquery = pctx->propquery;
 
     if (EVP_PKEY_CTX_IS_DERIVE_OP(pctx)) {
         if (pctx->op.kex.exchange != NULL) {
@@ -411,7 +465,7 @@ size_t EVP_PKEY_meth_get_count(void)
 const EVP_PKEY_METHOD *EVP_PKEY_meth_get0(size_t idx)
 {
     if (idx < OSSL_NELEM(standard_methods))
-        return standard_methods[idx];
+        return (standard_methods[idx])();
     if (app_pkey_methods == NULL)
         return NULL;
     idx -= OSSL_NELEM(standard_methods);
@@ -614,7 +668,7 @@ int EVP_PKEY_CTX_ctrl(EVP_PKEY_CTX *ctx, int keytype, int optype,
     }
 
     if ((EVP_PKEY_CTX_IS_DERIVE_OP(ctx) && ctx->op.kex.exchprovctx != NULL)
-            || (EVP_PKEY_CTX_IS_DERIVE_OP(ctx)
+            || (EVP_PKEY_CTX_IS_SIGNATURE_OP(ctx)
                 && ctx->op.sig.sigprovctx != NULL))
         return legacy_ctrl_to_param(ctx, keytype, optype, cmd, p1, p2);
 

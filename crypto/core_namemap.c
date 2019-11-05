@@ -10,7 +10,7 @@
 #include "e_os.h"                /* strcasecmp */
 #include "internal/namemap.h"
 #include <openssl/lhash.h>
-#include "internal/lhash.h"      /* openssl_lh_strcasehash */
+#include "crypto/lhash.h"      /* openssl_lh_strcasehash */
 
 /*-
  * The namenum entry
@@ -148,7 +148,8 @@ void ossl_namemap_doall_names(const OSSL_NAMEMAP *namemap, int number,
     CRYPTO_THREAD_unlock(namemap->lock);
 }
 
-int ossl_namemap_name2num(const OSSL_NAMEMAP *namemap, const char *name)
+int ossl_namemap_name2num_n(const OSSL_NAMEMAP *namemap,
+                            const char *name, size_t name_len)
 {
     NAMENUM_ENTRY *namenum_entry, namenum_tmpl;
     int number = 0;
@@ -161,7 +162,8 @@ int ossl_namemap_name2num(const OSSL_NAMEMAP *namemap, const char *name)
     if (namemap == NULL)
         return 0;
 
-    namenum_tmpl.name = (char *)name;
+    if ((namenum_tmpl.name = OPENSSL_strndup(name, name_len)) == NULL)
+        return 0;
     namenum_tmpl.number = 0;
     CRYPTO_THREAD_read_lock(namemap->lock);
     namenum_entry =
@@ -169,11 +171,47 @@ int ossl_namemap_name2num(const OSSL_NAMEMAP *namemap, const char *name)
     if (namenum_entry != NULL)
         number = namenum_entry->number;
     CRYPTO_THREAD_unlock(namemap->lock);
+    OPENSSL_free(namenum_tmpl.name);
 
     return number;
 }
 
-int ossl_namemap_add(OSSL_NAMEMAP *namemap, int number, const char *name)
+int ossl_namemap_name2num(const OSSL_NAMEMAP *namemap, const char *name)
+{
+    if (name == NULL)
+        return 0;
+
+    return ossl_namemap_name2num_n(namemap, name, strlen(name));
+}
+
+struct num2name_data_st {
+    size_t idx;                  /* Countdown */
+    const char *name;            /* Result */
+};
+
+static void do_num2name(const char *name, void *vdata)
+{
+    struct num2name_data_st *data = vdata;
+
+    if (data->idx > 0)
+        data->idx--;
+    else if (data->name == NULL)
+        data->name = name;
+}
+
+const char *ossl_namemap_num2name(const OSSL_NAMEMAP *namemap, int number,
+                                  size_t idx)
+{
+    struct num2name_data_st data;
+
+    data.idx = idx;
+    data.name = NULL;
+    ossl_namemap_doall_names(namemap, number, do_num2name, &data);
+    return data.name;
+}
+
+int ossl_namemap_add_n(OSSL_NAMEMAP *namemap, int number,
+                       const char *name, size_t name_len)
 {
     NAMENUM_ENTRY *namenum = NULL;
     int tmp_number;
@@ -183,16 +221,16 @@ int ossl_namemap_add(OSSL_NAMEMAP *namemap, int number, const char *name)
         namemap = ossl_namemap_stored(NULL);
 #endif
 
-    if (name == NULL || namemap == NULL)
+    if (name == NULL || name_len == 0 || namemap == NULL)
         return 0;
 
-    if ((tmp_number = ossl_namemap_name2num(namemap, name)) != 0)
+    if ((tmp_number = ossl_namemap_name2num_n(namemap, name, name_len)) != 0)
         return tmp_number;       /* Pretend success */
 
     CRYPTO_THREAD_write_lock(namemap->lock);
 
     if ((namenum = OPENSSL_zalloc(sizeof(*namenum))) == NULL
-        || (namenum->name = OPENSSL_strdup(name)) == NULL)
+        || (namenum->name = OPENSSL_strndup(name, name_len)) == NULL)
         goto err;
 
     namenum->number = tmp_number =
@@ -211,4 +249,12 @@ int ossl_namemap_add(OSSL_NAMEMAP *namemap, int number, const char *name)
 
     CRYPTO_THREAD_unlock(namemap->lock);
     return 0;
+}
+
+int ossl_namemap_add(OSSL_NAMEMAP *namemap, int number, const char *name)
+{
+    if (name == NULL)
+        return 0;
+
+    return ossl_namemap_add_n(namemap, number, name, strlen(name));
 }

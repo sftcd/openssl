@@ -12,9 +12,9 @@
 #include <openssl/objects.h>
 #include <openssl/evp.h>
 #include "internal/cryptlib.h"
-#include "internal/evp_int.h"
+#include "crypto/evp.h"
 #include "internal/provider.h"
-#include "evp_locl.h"
+#include "evp_local.h"
 
 static EVP_SIGNATURE *evp_signature_new(OSSL_PROVIDER *prov)
 {
@@ -32,7 +32,7 @@ static EVP_SIGNATURE *evp_signature_new(OSSL_PROVIDER *prov)
     return signature;
 }
 
-static void *evp_signature_from_dispatch(const char *name,
+static void *evp_signature_from_dispatch(int name_id,
                                          const OSSL_DISPATCH *fns,
                                          OSSL_PROVIDER *prov,
                                          void *vkeymgmt_data)
@@ -47,23 +47,25 @@ static void *evp_signature_from_dispatch(const char *name,
      * provider matches.
      */
     struct keymgmt_data_st *keymgmt_data = vkeymgmt_data;
-    EVP_KEYMGMT *keymgmt = EVP_KEYMGMT_fetch(keymgmt_data->ctx, name,
-                                             keymgmt_data->properties);
+    EVP_KEYMGMT *keymgmt =
+        evp_keymgmt_fetch_by_number(keymgmt_data->ctx, name_id,
+                                    keymgmt_data->properties);
     EVP_SIGNATURE *signature = NULL;
     int ctxfncnt = 0, signfncnt = 0, verifyfncnt = 0, verifyrecfncnt = 0;
-    int gparamfncnt = 0, sparamfncnt = 0;
+    int digsignfncnt = 0, digverifyfncnt = 0;
+    int gparamfncnt = 0, sparamfncnt = 0, gmdparamfncnt = 0, smdparamfncnt = 0;
 
     if (keymgmt == NULL || EVP_KEYMGMT_provider(keymgmt) != prov) {
         ERR_raise(ERR_LIB_EVP, EVP_R_NO_KEYMGMT_AVAILABLE);
         goto err;
     }
 
-    if ((signature = evp_signature_new(prov)) == NULL
-        || (signature->name = OPENSSL_strdup(name)) == NULL) {
+    if ((signature = evp_signature_new(prov)) == NULL) {
         ERR_raise(ERR_LIB_EVP, ERR_R_MALLOC_FAILURE);
         goto err;
     }
 
+    signature->name_id = name_id;
     signature->keymgmt = keymgmt;
     keymgmt = NULL;              /* avoid double free on failure below */
 
@@ -113,6 +115,48 @@ static void *evp_signature_from_dispatch(const char *name,
                 = OSSL_get_OP_signature_verify_recover(fns);
             verifyrecfncnt++;
             break;
+        case OSSL_FUNC_SIGNATURE_DIGEST_SIGN_INIT:
+            if (signature->digest_sign_init != NULL)
+                break;
+            signature->digest_sign_init
+                = OSSL_get_OP_signature_digest_sign_init(fns);
+            digsignfncnt++;
+            break;
+        case OSSL_FUNC_SIGNATURE_DIGEST_SIGN_UPDATE:
+            if (signature->digest_sign_update != NULL)
+                break;
+            signature->digest_sign_update
+                = OSSL_get_OP_signature_digest_sign_update(fns);
+            digsignfncnt++;
+            break;
+        case OSSL_FUNC_SIGNATURE_DIGEST_SIGN_FINAL:
+            if (signature->digest_sign_final != NULL)
+                break;
+            signature->digest_sign_final
+                = OSSL_get_OP_signature_digest_sign_final(fns);
+            digsignfncnt++;
+            break;
+        case OSSL_FUNC_SIGNATURE_DIGEST_VERIFY_INIT:
+            if (signature->digest_verify_init != NULL)
+                break;
+            signature->digest_verify_init
+                = OSSL_get_OP_signature_digest_verify_init(fns);
+            digverifyfncnt++;
+            break;
+        case OSSL_FUNC_SIGNATURE_DIGEST_VERIFY_UPDATE:
+            if (signature->digest_verify_update != NULL)
+                break;
+            signature->digest_verify_update
+                = OSSL_get_OP_signature_digest_verify_update(fns);
+            digverifyfncnt++;
+            break;
+        case OSSL_FUNC_SIGNATURE_DIGEST_VERIFY_FINAL:
+            if (signature->digest_verify_final != NULL)
+                break;
+            signature->digest_verify_final
+                = OSSL_get_OP_signature_digest_verify_final(fns);
+            digverifyfncnt++;
+            break;
         case OSSL_FUNC_SIGNATURE_FREECTX:
             if (signature->freectx != NULL)
                 break;
@@ -152,21 +196,65 @@ static void *evp_signature_from_dispatch(const char *name,
                 = OSSL_get_OP_signature_settable_ctx_params(fns);
             sparamfncnt++;
             break;
+        case OSSL_FUNC_SIGNATURE_GET_CTX_MD_PARAMS:
+            if (signature->get_ctx_md_params != NULL)
+                break;
+            signature->get_ctx_md_params
+                = OSSL_get_OP_signature_get_ctx_md_params(fns);
+            gmdparamfncnt++;
+            break;
+        case OSSL_FUNC_SIGNATURE_GETTABLE_CTX_MD_PARAMS:
+            if (signature->gettable_ctx_md_params != NULL)
+                break;
+            signature->gettable_ctx_md_params
+                = OSSL_get_OP_signature_gettable_ctx_md_params(fns);
+            gmdparamfncnt++;
+            break;
+        case OSSL_FUNC_SIGNATURE_SET_CTX_MD_PARAMS:
+            if (signature->set_ctx_md_params != NULL)
+                break;
+            signature->set_ctx_md_params
+                = OSSL_get_OP_signature_set_ctx_md_params(fns);
+            smdparamfncnt++;
+            break;
+        case OSSL_FUNC_SIGNATURE_SETTABLE_CTX_MD_PARAMS:
+            if (signature->settable_ctx_md_params != NULL)
+                break;
+            signature->settable_ctx_md_params
+                = OSSL_get_OP_signature_settable_ctx_md_params(fns);
+            smdparamfncnt++;
+            break;
         }
     }
     if (ctxfncnt != 2
-        || (signfncnt != 2 && verifyfncnt != 2 && verifyrecfncnt != 2)
+        || (signfncnt == 0
+            && verifyfncnt == 0
+            && verifyrecfncnt == 0
+            && digsignfncnt == 0
+            && digverifyfncnt == 0)
+        || (signfncnt != 0 && signfncnt != 2)
+        || (verifyfncnt != 0 && verifyfncnt != 2)
+        || (verifyrecfncnt != 0 && verifyrecfncnt != 2)
+        || (digsignfncnt != 0 && digsignfncnt != 3)
+        || (digverifyfncnt != 0 && digverifyfncnt != 3)
         || (gparamfncnt != 0 && gparamfncnt != 2)
-        || (sparamfncnt != 0 && sparamfncnt != 2)) {
+        || (sparamfncnt != 0 && sparamfncnt != 2)
+        || (gmdparamfncnt != 0 && gmdparamfncnt != 2)
+        || (smdparamfncnt != 0 && smdparamfncnt != 2)) {
         /*
          * In order to be a consistent set of functions we must have at least
-         * a set of context functions (newctx and freectx) as well as a pair of
-         * "signature" functions: (sign_init, sign) or (verify_init verify) or
-         * (verify_recover_init, verify_recover). set_ctx_params and
-         * settable_ctx_params are optional, but if one of them is present then
-         * the other one must also be present. The same applies to
-         * get_ctx_params and gettable_ctx_params. The dupctx function is
-         * optional.
+         * a set of context functions (newctx and freectx) as well as a set of
+         * "signature" functions:
+         *  (sign_init, sign) or
+         *  (verify_init verify) or
+         *  (verify_recover_init, verify_recover) or
+         *  (digest_sign_init, digest_sign_update, digest_sign_final) or
+         *  (digest_verify_init, digest_verify_update, digest_verify_final).
+         *
+         * set_ctx_params and settable_ctx_params are optional, but if one of
+         * them is present then the other one must also be present. The same
+         * applies to get_ctx_params and gettable_ctx_params. The same rules
+         * apply to the "md_params" functions. The dupctx function is optional.
          */
         ERR_raise(ERR_LIB_EVP, EVP_R_INVALID_PROVIDER_FUNCTIONS);
         goto err;
@@ -189,7 +277,6 @@ void EVP_SIGNATURE_free(EVP_SIGNATURE *signature)
             return;
         EVP_KEYMGMT_free(signature->keymgmt);
         ossl_provider_free(signature->prov);
-        OPENSSL_free(signature->name);
         CRYPTO_THREAD_lock_free(signature->lock);
         OPENSSL_free(signature);
     }
@@ -223,6 +310,40 @@ EVP_SIGNATURE *EVP_SIGNATURE_fetch(OPENSSL_CTX *ctx, const char *algorithm,
                              evp_signature_from_dispatch, &keymgmt_data,
                              (int (*)(void *))EVP_SIGNATURE_up_ref,
                              (void (*)(void *))EVP_SIGNATURE_free);
+}
+
+int EVP_SIGNATURE_is_a(const EVP_SIGNATURE *signature, const char *name)
+{
+    return evp_is_a(signature->prov, signature->name_id, name);
+}
+
+int EVP_SIGNATURE_number(const EVP_SIGNATURE *signature)
+{
+    return signature->name_id;
+}
+
+void EVP_SIGNATURE_do_all_provided(OPENSSL_CTX *libctx,
+                                   void (*fn)(EVP_SIGNATURE *signature,
+                                              void *arg),
+                                   void *arg)
+{
+    struct keymgmt_data_st keymgmt_data;
+
+    keymgmt_data.ctx = libctx;
+    keymgmt_data.properties = NULL;
+    evp_generic_do_all(libctx, OSSL_OP_SIGNATURE,
+                       (void (*)(void *, void *))fn, arg,
+                       evp_signature_from_dispatch, &keymgmt_data,
+                       (void (*)(void *))EVP_SIGNATURE_free);
+}
+
+
+void EVP_SIGNATURE_names_do_all(const EVP_SIGNATURE *signature,
+                                void (*fn)(const char *name, void *data),
+                                void *data)
+{
+    if (signature->prov != NULL)
+        evp_names_do_all(signature->prov, signature->name_id, fn, data);
 }
 
 static int evp_pkey_signature_init(EVP_PKEY_CTX *ctx, EVP_SIGNATURE *signature,
@@ -272,7 +393,8 @@ static int evp_pkey_signature_init(EVP_PKEY_CTX *ctx, EVP_SIGNATURE *signature,
 
     ctx->op.sig.signature = signature;
     if (ctx->pkey != NULL) {
-        provkey = evp_keymgmt_export_to_provider(ctx->pkey, signature->keymgmt);
+        provkey =
+            evp_keymgmt_export_to_provider(ctx->pkey, signature->keymgmt, 0);
         if (provkey == NULL) {
             EVPerr(0, EVP_R_INITIALIZATION_ERROR);
             goto err;

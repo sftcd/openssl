@@ -7,12 +7,18 @@
  * https://www.openssl.org/source/license.html
  */
 
-#ifndef HEADER_KDF_H
-# define HEADER_KDF_H
+#ifndef OPENSSL_KDF_H
+# define OPENSSL_KDF_H
+# pragma once
+
+# include <openssl/macros.h>
+# if !OPENSSL_API_3
+#  define HEADER_KDF_H
+# endif
 
 # include <stdarg.h>
 # include <stddef.h>
-# include <openssl/ossl_typ.h>
+# include <openssl/types.h>
 # include <openssl/core.h>
 
 # ifdef __cplusplus
@@ -27,7 +33,8 @@ EVP_KDF *EVP_KDF_fetch(OPENSSL_CTX *libctx, const char *algorithm,
 EVP_KDF_CTX *EVP_KDF_CTX_new(EVP_KDF *kdf);
 void EVP_KDF_CTX_free(EVP_KDF_CTX *ctx);
 EVP_KDF_CTX *EVP_KDF_CTX_dup(const EVP_KDF_CTX *src);
-const char *EVP_KDF_name(const EVP_KDF *kdf);
+int EVP_KDF_number(const EVP_KDF *kdf);
+int EVP_KDF_is_a(const EVP_KDF *kdf, const char *name);
 const OSSL_PROVIDER *EVP_KDF_provider(const EVP_KDF *kdf);
 const EVP_KDF *EVP_KDF_CTX_kdf(EVP_KDF_CTX *ctx);
 
@@ -38,12 +45,15 @@ int EVP_KDF_get_params(EVP_KDF *kdf, OSSL_PARAM params[]);
 int EVP_KDF_CTX_get_params(EVP_KDF_CTX *ctx, OSSL_PARAM params[]);
 int EVP_KDF_CTX_set_params(EVP_KDF_CTX *ctx, const OSSL_PARAM params[]);
 const OSSL_PARAM *EVP_KDF_gettable_params(const EVP_KDF *kdf);
-const OSSL_PARAM *EVP_KDF_CTX_gettable_params(const EVP_KDF *kdf);
-const OSSL_PARAM *EVP_KDF_CTX_settable_params(const EVP_KDF *kdf);
+const OSSL_PARAM *EVP_KDF_gettable_ctx_params(const EVP_KDF *kdf);
+const OSSL_PARAM *EVP_KDF_settable_ctx_params(const EVP_KDF *kdf);
 
-void EVP_KDF_do_all_ex(OPENSSL_CTX *libctx,
-                       void (*fn)(EVP_KDF *kdf, void *arg),
-                       void *arg);
+void EVP_KDF_do_all_provided(OPENSSL_CTX *libctx,
+                             void (*fn)(EVP_KDF *kdf, void *arg),
+                             void *arg);
+void EVP_KDF_names_do_all(const EVP_KDF *kdf,
+                          void (*fn)(const char *name, void *data),
+                          void *data);
 
 # define EVP_KDF_CTRL_SET_PASS               0x01 /* unsigned char *, size_t */
 # define EVP_KDF_CTRL_SET_SALT               0x02 /* unsigned char *, size_t */

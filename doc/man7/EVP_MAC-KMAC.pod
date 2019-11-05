@@ -25,21 +25,22 @@ properties, to be used with EVP_MAC_fetch():
 =head2 Supported parameters
 
 The general description of these parameters can be found in
-L<EVP_MAC(3)/PARAMETER NAMES>.
+L<EVP_MAC(3)/PARAMETERS>.
 
 All these parameters can be set with EVP_MAC_CTX_set_params().
 Furthermore, the "size" parameter can be retrieved with
 EVP_MAC_CTX_get_params(), or with EVP_MAC_size().
+The length of the "size" parameter should not exceed that of a B<size_t>.
 
 =over 4
 
-=item B<OSSL_MAC_PARAM_KEY> ("key") <octet string>
+=item "key" (B<OSSL_MAC_PARAM_KEY>) <octet string>
 
-=item B<OSSL_MAC_PARAM_CUSTOM> ("custom") <octet string>
+=item "custom" (B<OSSL_MAC_PARAM_CUSTOM>) <octet string>
 
-=item B<OSSL_MAC_PARAM_SIZE> ("size") <size_t>
+=item "size" (B<OSSL_MAC_PARAM_SIZE>) <unsigned integer>
 
-=item B<OSSL_MAC_PARAM_XOF>
+=item "xof" (B<OSSL_MAC_PARAM_XOF>) <integer>
 
 =back
 
@@ -50,7 +51,7 @@ the input stream is set to zero.
 =head1 SEE ALSO
 
 L<EVP_MAC_CTX_get_params(3)>, L<EVP_MAC_CTX_set_params(3)>,
-L<EVP_MAC(3)/PARAMETER NAMES>, L<OSSL_PARAM(3)>
+L<EVP_MAC(3)/PARAMETERS>, L<OSSL_PARAM(3)>
 
 =head1 COPYRIGHT
 

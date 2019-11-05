@@ -11,10 +11,10 @@
 #include "internal/cryptlib.h"
 #include <openssl/x509.h>
 #include <openssl/asn1.h>
-#include "dh_locl.h"
+#include "dh_local.h"
 #include <openssl/bn.h>
-#include "internal/asn1_int.h"
-#include "internal/evp_int.h"
+#include "crypto/asn1.h"
+#include "crypto/evp.h"
 #include <openssl/cms.h>
 #include <openssl/core_names.h>
 #include "internal/param_build.h"
@@ -120,7 +120,7 @@ static int dh_pub_encode(X509_PUBKEY *pk, const EVP_PKEY *pkey)
     ptype = V_ASN1_SEQUENCE;
 
     pub_key = BN_to_ASN1_INTEGER(dh->pub_key, NULL);
-    if (!pub_key)
+    if (pub_key == NULL)
         goto err;
 
     penclen = i2d_ASN1_INTEGER(pub_key, &penc);
@@ -158,7 +158,6 @@ static int dh_priv_decode(EVP_PKEY *pkey, const PKCS8_PRIV_KEY_INFO *p8)
     const ASN1_STRING *pstr;
     const X509_ALGOR *palg;
     ASN1_INTEGER *privkey = NULL;
-
     DH *dh = NULL;
 
     if (!PKCS8_pkey_get0(NULL, &p, &pklen, &palg, p8))
@@ -225,7 +224,7 @@ static int dh_priv_encode(PKCS8_PRIV_KEY_INFO *p8, const EVP_PKEY *pkey)
     /* Get private key into integer */
     prkey = BN_to_ASN1_INTEGER(pkey->pkey.dh->priv_key, NULL);
 
-    if (!prkey) {
+    if (prkey == NULL) {
         DHerr(DH_F_DH_PRIV_ENCODE, DH_R_BN_ERROR);
         goto err;
     }
@@ -549,7 +548,8 @@ static size_t dh_pkey_dirty_cnt(const EVP_PKEY *pkey)
     return pkey->pkey.dh->dirty_cnt;
 }
 
-static void *dh_pkey_export_to(const EVP_PKEY *pk, EVP_KEYMGMT *keymgmt)
+static void *dh_pkey_export_to(const EVP_PKEY *pk, EVP_KEYMGMT *keymgmt,
+                               int want_domainparams)
 {
     DH *dh = pk->pkey.dh;
     OSSL_PARAM_BLD tmpl;
@@ -557,7 +557,7 @@ static void *dh_pkey_export_to(const EVP_PKEY *pk, EVP_KEYMGMT *keymgmt)
     const BIGNUM *pub_key = DH_get0_pub_key(dh);
     const BIGNUM *priv_key = DH_get0_priv_key(dh);
     OSSL_PARAM *params;
-    void *provkey = NULL;
+    void *provdata = NULL;
 
     if (p == NULL || g == NULL)
         return NULL;
@@ -566,19 +566,15 @@ static void *dh_pkey_export_to(const EVP_PKEY *pk, EVP_KEYMGMT *keymgmt)
     if (!ossl_param_bld_push_BN(&tmpl, OSSL_PKEY_PARAM_FFC_P, p)
         || !ossl_param_bld_push_BN(&tmpl, OSSL_PKEY_PARAM_FFC_G, g))
         return NULL;
-
     if (q != NULL) {
         if (!ossl_param_bld_push_BN(&tmpl, OSSL_PKEY_PARAM_FFC_Q, q))
             return NULL;
     }
 
-    /*
-     * This may be used to pass domain parameters only without any key data -
-     * so "pub_key" is optional. We can never have a "priv_key" without a
-     * corresponding "pub_key" though.
-     */
-    if (pub_key != NULL) {
-        if (!ossl_param_bld_push_BN(&tmpl, OSSL_PKEY_PARAM_DH_PUB_KEY, pub_key))
+    if (!want_domainparams) {
+        /* A key must at least have a public part. */
+        if (!ossl_param_bld_push_BN(&tmpl, OSSL_PKEY_PARAM_DH_PUB_KEY,
+                                    pub_key))
             return NULL;
 
         if (priv_key != NULL) {
@@ -591,10 +587,12 @@ static void *dh_pkey_export_to(const EVP_PKEY *pk, EVP_KEYMGMT *keymgmt)
     params = ossl_param_bld_to_param(&tmpl);
 
     /* We export, the provider imports */
-    provkey = evp_keymgmt_importkey(keymgmt, params);
+    provdata = want_domainparams
+        ? evp_keymgmt_importdomparams(keymgmt, params)
+        : evp_keymgmt_importkey(keymgmt, params);
 
     ossl_param_bld_free(params);
-    return provkey;
+    return provdata;
 }
 
 const EVP_PKEY_ASN1_METHOD dh_asn1_meth = {
@@ -703,7 +701,7 @@ static int dh_cms_set_peerkey(EVP_PKEY_CTX *pctx,
         goto err;
 
     pk = EVP_PKEY_CTX_get0_pkey(pctx);
-    if (!pk)
+    if (pk == NULL)
         goto err;
     if (pk->type != EVP_PKEY_DHX)
         goto err;
@@ -712,7 +710,7 @@ static int dh_cms_set_peerkey(EVP_PKEY_CTX *pctx,
     /* We have parameters now set public key */
     plen = ASN1_STRING_length(pubkey);
     p = ASN1_STRING_get0_data(pubkey);
-    if (!p || !plen)
+    if (p == NULL || plen == 0)
         goto err;
 
     if ((public_key = d2i_ASN1_INTEGER(NULL, &p, plen)) == NULL) {
@@ -821,7 +819,8 @@ static int dh_cms_decrypt(CMS_RecipientInfo *ri)
 {
     EVP_PKEY_CTX *pctx;
     pctx = CMS_RecipientInfo_get0_pkey_ctx(ri);
-    if (!pctx)
+
+    if (pctx == NULL)
         return 0;
     /* See if we need to set peer key */
     if (!EVP_PKEY_CTX_get0_peerkey(pctx)) {
@@ -862,8 +861,9 @@ static int dh_cms_encrypt(CMS_RecipientInfo *ri)
     int rv = 0;
     int kdf_type, wrap_nid;
     const EVP_MD *kdf_md;
+
     pctx = CMS_RecipientInfo_get0_pkey_ctx(ri);
-    if (!pctx)
+    if (pctx == NULL)
         return 0;
     /* Get ephemeral key */
     pkey = EVP_PKEY_CTX_get0_pkey(pctx);
@@ -874,7 +874,8 @@ static int dh_cms_encrypt(CMS_RecipientInfo *ri)
     /* Is everything uninitialised? */
     if (aoid == OBJ_nid2obj(NID_undef)) {
         ASN1_INTEGER *pubk = BN_to_ASN1_INTEGER(pkey->pkey.dh->pub_key, NULL);
-        if (!pubk)
+
+        if (pubk == NULL)
             goto err;
         /* Set the key */
 
@@ -960,7 +961,7 @@ static int dh_cms_encrypt(CMS_RecipientInfo *ri)
      */
     penc = NULL;
     penclen = i2d_X509_ALGOR(wrap_alg, &penc);
-    if (!penc || !penclen)
+    if (penc == NULL || penclen == 0)
         goto err;
     wrap_str = ASN1_STRING_new();
     if (wrap_str == NULL)
@@ -975,6 +976,7 @@ static int dh_cms_encrypt(CMS_RecipientInfo *ri)
  err:
     OPENSSL_free(penc);
     X509_ALGOR_free(wrap_alg);
+    OPENSSL_free(dukm);
     return rv;
 }
 

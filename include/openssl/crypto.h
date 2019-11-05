@@ -8,8 +8,14 @@
  * https://www.openssl.org/source/license.html
  */
 
-#ifndef HEADER_CRYPTO_H
-# define HEADER_CRYPTO_H
+#ifndef OPENSSL_CRYPTO_H
+# define OPENSSL_CRYPTO_H
+# pragma once
+
+# include <openssl/macros.h>
+# if !OPENSSL_API_3
+#  define HEADER_CRYPTO_H
+# endif
 
 # include <stdlib.h>
 # include <time.h>
@@ -22,7 +28,7 @@
 
 # include <openssl/safestack.h>
 # include <openssl/opensslv.h>
-# include <openssl/ossl_typ.h>
+# include <openssl/types.h>
 # include <openssl/opensslconf.h>
 # include <openssl/cryptoerr.h>
 
@@ -107,7 +113,8 @@ DEFINE_STACK_OF(void)
 # define CRYPTO_EX_INDEX_BIO             12
 # define CRYPTO_EX_INDEX_APP             13
 # define CRYPTO_EX_INDEX_UI_METHOD       14
-# define CRYPTO_EX_INDEX_DRBG            15
+# define CRYPTO_EX_INDEX_RAND_DRBG       15
+# define CRYPTO_EX_INDEX_DRBG            CRYPTO_EX_INDEX_RAND_DRBG
 # define CRYPTO_EX_INDEX_OPENSSL_CTX     16
 # define CRYPTO_EX_INDEX__COUNT          17
 
@@ -157,6 +164,17 @@ unsigned char *OPENSSL_hexstr2buf(const char *str, long *buflen);
 int OPENSSL_hexchar2int(unsigned char c);
 
 # define OPENSSL_MALLOC_MAX_NELEMS(type)  (((1U<<(sizeof(int)*8-1))-1)/sizeof(type))
+
+/*
+ * These functions return the values of OPENSSL_VERSION_MAJOR,
+ * OPENSSL_VERSION_MINOR, OPENSSL_VERSION_PATCH, OPENSSL_VERSION_PRE_RELEASE
+ * and OPENSSL_VERSION_BUILD_METADATA, respectively.
+ */
+unsigned int OPENSSL_version_major(void);
+unsigned int OPENSSL_version_minor(void);
+unsigned int OPENSSL_version_patch(void);
+const char *OPENSSL_version_pre_release(void);
+const char *OPENSSL_version_build_metadata(void);
 
 unsigned long OpenSSL_version_num(void);
 const char *OpenSSL_version(int type);

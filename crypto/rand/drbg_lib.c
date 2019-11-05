@@ -11,10 +11,10 @@
 #include <openssl/crypto.h>
 #include <openssl/err.h>
 #include <openssl/rand.h>
-#include "rand_lcl.h"
+#include "rand_local.h"
 #include "internal/thread_once.h"
-#include "internal/rand_int.h"
-#include "internal/cryptlib_int.h"
+#include "crypto/rand.h"
+#include "crypto/cryptlib.h"
 
 /*
  * Support framework for NIST SP 800-90A DRBG
@@ -503,7 +503,7 @@ void RAND_DRBG_free(RAND_DRBG *drbg)
         drbg->meth->uninstantiate(drbg);
     rand_pool_free(drbg->adin_pool);
     CRYPTO_THREAD_lock_free(drbg->lock);
-    CRYPTO_free_ex_data(CRYPTO_EX_INDEX_DRBG, drbg, &drbg->ex_data);
+    CRYPTO_free_ex_data(CRYPTO_EX_INDEX_RAND_DRBG, drbg, &drbg->ex_data);
 
     if (drbg->secure)
         OPENSSL_secure_clear_free(drbg, sizeof(*drbg));
@@ -541,9 +541,10 @@ int RAND_DRBG_instantiate(RAND_DRBG *drbg,
     }
 
     if (drbg->state != DRBG_UNINITIALISED) {
-        RANDerr(RAND_F_RAND_DRBG_INSTANTIATE,
-                drbg->state == DRBG_ERROR ? RAND_R_IN_ERROR_STATE
-                                          : RAND_R_ALREADY_INSTANTIATED);
+        if (drbg->state == DRBG_ERROR)
+            RANDerr(RAND_F_RAND_DRBG_INSTANTIATE, RAND_R_IN_ERROR_STATE);
+        else
+            RANDerr(RAND_F_RAND_DRBG_INSTANTIATE, RAND_R_ALREADY_INSTANTIATED);
         goto end;
     }
 

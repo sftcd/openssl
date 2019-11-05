@@ -12,7 +12,7 @@
 #include <openssl/x509.h>
 #include <openssl/x509v3.h>
 
-#include "pcy_int.h"
+#include "pcy_local.h"
 
 static void expected_print(BIO *channel,
                            X509_POLICY_LEVEL *lev, X509_POLICY_NODE *node,
@@ -49,8 +49,8 @@ static void tree_print(BIO *channel,
         curr++;
 
     BIO_printf(channel, "Level print after %s\n", str);
-    BIO_printf(channel, "Printing Up to Level %zd\n",
-               curr - tree->levels);
+    BIO_printf(channel, "Printing Up to Level %ld\n",
+               (long)(curr - tree->levels));
     for (plev = tree->levels; plev != curr; plev++) {
         int i;
 

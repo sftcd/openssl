@@ -128,6 +128,7 @@ static int write_config_fips_section(BIO *out, const char *section,
     int ret = 0;
 
     if (!(BIO_printf(out, "[%s]\n", section) > 0
+          && BIO_printf(out, "activate = 1\n") > 0
           && BIO_printf(out, "%s = %s\n", OSSL_PROV_FIPS_PARAM_INSTALL_VERSION,
                         VERSION_VAL) > 0
           && print_mac(out, OSSL_PROV_FIPS_PARAM_MODULE_MAC, module_mac,
@@ -340,7 +341,7 @@ opthelp:
     if (opts != NULL) {
         int ok = 1;
         OSSL_PARAM *params =
-            app_params_new_from_opts(opts, EVP_MAC_CTX_settable_params(mac));
+            app_params_new_from_opts(opts, EVP_MAC_settable_ctx_params(mac));
 
         if (params == NULL)
             goto end;

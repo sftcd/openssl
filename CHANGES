@@ -9,6 +9,92 @@
 
  Changes between 1.1.1 and 3.0.0 [xx XXX xxxx]
 
+  *) Added the X509_LOOKUP_METHOD called X509_LOOKUP_store, to allow
+     access to certificate and CRL stores via URIs and OSSL_STORE
+     loaders.
+
+     This adds the following functions:
+
+     X509_LOOKUP_store()
+     X509_STORE_load_file()
+     X509_STORE_load_path()
+     X509_STORE_load_store()
+     SSL_add_store_cert_subjects_to_stack()
+     SSL_CTX_set_default_verify_store()
+     SSL_CTX_load_verify_file()
+     SSL_CTX_load_verify_dir()
+     SSL_CTX_load_verify_store()
+
+     Also, the following functions are now deprecated:
+
+     - X509_STORE_load_locations() (use X509_STORE_load_file(),
+       X509_STORE_load_path() or X509_STORE_load_store() instead)
+     - SSL_CTX_load_verify_locations() (use SSL_CTX_load_verify_file(),
+       SSL_CTX_load_verify_dir() or SSL_CTX_load_verify_store() instead)
+     [Richard Levitte]
+
+  *) Added a new method to gather entropy on VMS, based on SYS$GET_ENTROPY.
+     The presence of this system service is determined at run-time.
+     [Richard Levitte]
+
+  *) Added functionality to create an EVP_PKEY context based on data
+     for methods from providers.  This takes an algorithm name and a
+     property query string and simply stores them, with the intent
+     that any operation that uses this context will use those strings
+     to fetch the needed methods implicitly, thereby making the port
+     of application written for pre-3.0 OpenSSL easier.
+     [Richard Levitte]
+
+  *) The undocumented function NCONF_WIN32() has been deprecated; for
+     conversion details see the HISTORY section of doc/man5/config.pod
+     [Rich Salz]
+
+  *) Introduced the new functions EVP_DigestSignInit_ex() and
+     EVP_DigestVerifyInit_ex(). The macros EVP_DigestSignUpdate() and
+     EVP_DigestVerifyUpdate() have been converted to functions. See the man
+     pages for further details.
+     [Matt Caswell]
+
+  *) Over two thousand fixes were made to the documentation, including:
+     adding missing command flags, better style conformance, documentation
+     of internals, etc.
+     [Rich Salz, Richard Levitte]
+
+  *) s390x assembly pack: add hardware-support for P-256, P-384, P-521,
+     X25519, X448, Ed25519 and Ed448.
+     [Patrick Steuer]
+
+  *) Print all values for a PKCS#12 attribute with 'openssl pkcs12', not just
+     the first value.
+     [Jon Spillett]
+
+  *) Deprecated the public definition of ERR_STATE as well as the function
+     ERR_get_state().  This is done in preparation of making ERR_STATE an
+     opaque type.
+     [Richard Levitte]
+
+  *) Added ERR functionality to give callers access to the stored function
+     names that have replaced the older function code based functions.
+
+     New functions are ERR_get_error_func(), ERR_peek_error_func(),
+     ERR_peek_last_error_func(), ERR_get_error_data(), ERR_peek_error_data(),
+     ERR_peek_last_error_data(), ERR_get_error_all(), ERR_peek_error_all()
+     and ERR_peek_last_error_all().
+
+     These functions have become deprecated: ERR_get_error_line_data(),
+     ERR_peek_error_line_data(), ERR_peek_last_error_line_data() and
+     ERR_func_error_string().
+     [Richard Levitte]
+
+  *) Extended testing to be verbose for failing tests only.  The make variables
+     VERBOSE_FAILURE or VF can be used to enable this:
+
+     $ make VF=1 test                                   # Unix
+     $ mms /macro=(VF=1) test                           ! OpenVMS
+     $ nmake VF=1 test                                  # Windows
+
+     [Richard Levitte]
+
   *) For built-in EC curves, ensure an EC_GROUP built from the curve name is
      used even when parsing explicit parameters, when loading a serialized key
      or calling `EC_GROUP_new_from_ecpkparameters()`/

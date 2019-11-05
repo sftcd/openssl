@@ -15,8 +15,8 @@
 #include <openssl/obj_mac.h>
 #include <openssl/evp.h>
 #include <openssl/aes.h>
-#include "../crypto/rand/rand_lcl.h"
-#include "../crypto/include/internal/rand_int.h"
+#include "../crypto/rand/rand_local.h"
+#include "../include/crypto/rand.h"
 
 #if defined(_WIN32)
 # include <windows.h>
@@ -589,7 +589,7 @@ static void unhook_drbg(RAND_DRBG *drbg)
     HOOK_CTX *ctx = get_hook_ctx(drbg);
 
     drbg->get_entropy = ctx->get_entropy;
-    CRYPTO_free_ex_data(CRYPTO_EX_INDEX_DRBG, drbg, &drbg->ex_data);
+    CRYPTO_free_ex_data(CRYPTO_EX_INDEX_RAND_DRBG, drbg, &drbg->ex_data);
 }
 
 /* Resets the given hook context */
