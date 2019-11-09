@@ -64,8 +64,6 @@ EXT_RETURN tls_construct_ctos_renegotiate(SSL *s, WPACKET *pkt,
  * the right thing. The ext.hostname will be the one 
  * used for keying as if it had been the SNI provided.
  *
- * Note: the comment above is wrong, FIXME
- *
  * @param s is the SSL context
  * @param pkt is seemingly unused here
  * @param context is unused here
@@ -2248,6 +2246,7 @@ EXT_RETURN tls_construct_ctos_esni(SSL *s, WPACKET *pkt, unsigned int context,
         size_t rd_len=SSL_get_client_random(s,rd,1024);
     
         uint16_t curve_id = s->s3.group_id;
+        s->esni->hrr_swap=s->hello_retry_request;
         if (!SSL_ESNI_enc(s->esni,rd_len,rd,curve_id,s->ext.kse_len,s->ext.kse,&c)) {
             return 0;
         }
@@ -2445,7 +2444,6 @@ int tls_parse_stoc_esni(SSL *s, PACKET *pkt, unsigned int context,
                  */
                 SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PARSE_STOC_ESNI, ERR_R_INTERNAL_ERROR);
                 return 0;
-                break;
             default:
                 SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PARSE_STOC_ESNI, ERR_R_INTERNAL_ERROR);
                 return 0;
@@ -2476,11 +2474,31 @@ int tls_parse_stoc_esni(SSL *s, PACKET *pkt, unsigned int context,
         return 0;
     }
 
+
+    OSSL_TRACE_BEGIN(TLS) {
+        /*
+         * Print a fwe bytes of before matching stuff - the < 4 branch should never
+         * happen but who knows what the future holds? :-)
+         * Printing regardless just so we get down this code-path
+         */
+        if (nlen < 4 ) {
+            BIO_printf(trc_out,"Short nonce alert! (%d)\n",nlen);
+            BIO_printf(trc_out,"Short nonce alert! (%d)\n",nlen);
+            BIO_printf(trc_out,"Short nonce alert! (%d)\n",nlen);
+            BIO_printf(trc_out,"Short nonce alert! (%d)\n",nlen);
+        } else {
+            unsigned char *foo=s->esni[matchind].nonce;
+            BIO_printf(trc_out,"Nonce checking: %02x%2x%02x%02x ?= %02x%2x%02x%02x\n",
+                    buf[0],buf[1],buf[2],buf[3],
+                    foo[0],foo[1],foo[2],foo[3]);
+        }
+    } OSSL_TRACE_END(TLS);
     if (!memcmp(buf,s->esni[matchind].nonce,nlen)) {
         /* yay - same nonce, we're good */
         s->esni_done=1;
     } else {
         /* bummer - different nonce, we're no good */
+
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PARSE_STOC_ESNI, ERR_R_INTERNAL_ERROR);
         return 0;
     }

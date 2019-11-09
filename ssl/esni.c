@@ -1557,6 +1557,7 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esniarr, int selector)
         } else {
 	        BIO_printf(out,"ESNI crypto was started (%d)\n",esni->crypto_started);
         }
+        BIO_printf(out,"ESNI HRR or not (%d)\n",esni->hrr_swap);
 	    esni_pbuf(out,"ESNI Nonce",esni->nonce,esni->nonce_len,indent);
 	    esni_pbuf(out,"ESNI H/S Client Random",esni->hs_cr,esni->hs_cr_len,indent);
 	    esni_pbuf(out,"ESNI H/S Client KeyShare",esni->hs_kse,esni->hs_kse_len,indent);
@@ -1667,6 +1668,9 @@ static unsigned char *esni_hkdf_extract(unsigned char *secret,size_t slen,size_t
     int ret=1;
     unsigned char *outsecret=NULL;
     size_t tmpolen=0;
+    if (secret==NULL || olen == NULL || md==NULL ) {
+        return NULL;
+    }
     EVP_PKEY_CTX *pctx = EVP_PKEY_CTX_new_id(EVP_PKEY_HKDF, NULL);
     if (pctx==NULL) {
         return NULL;
@@ -2113,9 +2117,19 @@ static int esni_key_derivation(SSL_ESNI *esnikeys)
      * all, and I suspect this crypto primitive will switch to use of 
      * whatever ends up from https://tools.ietf.org/html/draft-barnes-cfrg-hpke
      */
+    const char *initkey="esni key";
+    const char *initiv="esni iv";
+    const char *hrrkey="hrr esni key";
+    const char *hrriv="hrr esni iv";
+    const char *ks2use=initkey;
+    const char *iv2use=initiv;
+    if (esnikeys->hrr_swap!=0 && esnikeys->version==ESNI_DRAFT_04_VERSION) {
+        ks2use=hrrkey;
+        iv2use=hrriv;
+    }
     esnikeys->key_len=EVP_CIPHER_key_length(e_ciph);
     if (esnikeys->key!=NULL) OPENSSL_free(esnikeys->key);
-    esnikeys->key=esni_hkdf_expand_label(esnikeys->Zx,esnikeys->Zx_len,"esni key",
+    esnikeys->key=esni_hkdf_expand_label(esnikeys->Zx,esnikeys->Zx_len,ks2use,
                     esnikeys->hash,esnikeys->hash_len,&esnikeys->key_len,md);
     if (esnikeys->key==NULL) {
         ESNIerr(ESNI_F_ESNI_KEY_DERIVATION, ERR_R_INTERNAL_ERROR);
@@ -2123,7 +2137,7 @@ static int esni_key_derivation(SSL_ESNI *esnikeys)
     }
     esnikeys->iv_len=EVP_CIPHER_iv_length(e_ciph);
     if (esnikeys->iv!=NULL) OPENSSL_free(esnikeys->iv);
-    esnikeys->iv=esni_hkdf_expand_label(esnikeys->Zx,esnikeys->Zx_len,"esni iv",
+    esnikeys->iv=esni_hkdf_expand_label(esnikeys->Zx,esnikeys->Zx_len,iv2use,
                     esnikeys->hash,esnikeys->hash_len,&esnikeys->iv_len,md);
     if (esnikeys->iv==NULL) {
         ESNIerr(ESNI_F_ESNI_KEY_DERIVATION, ERR_R_INTERNAL_ERROR);
@@ -2168,16 +2182,13 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys_in,
     /* 
      * First, we'll pick which public key to use
      *
-     * First cut - just pick the one with the latest not_after time,
-     * defaulting to first one seen in case of a draw
-     * We might add more criteria later, but since the application
-     * can do what it wants (via query/reduce), we're happy to be
-     * quite simple here.
+     * First cut - pick first one with hrr_swap set in case
+     * we're dealing with an HRR
      */
     int i;
     int latestindex=0;
     for (i=0;i!=esnikeys_in->num_esni_rrs;i++) {
-        if (esnikeys_in[i].not_after > esnikeys_in[latestindex].not_after) {
+        if (esnikeys_in[i].hrr_swap!=0) {
             latestindex=i;
         }
     }
@@ -2256,6 +2267,31 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys_in,
         }
     }
 
+#define FANDZ(x) { if (x) OPENSSL_free(x); x=NULL; x##_len=0; }
+
+    if (esnikeys->hrr_swap==1) {
+        /*
+         * Free up old stuff
+         */
+        if (esnikeys->keyshare) {
+            EVP_PKEY_free(esnikeys->keyshare);
+            esnikeys->keyshare=NULL;
+        }
+        FANDZ(esnikeys->encoded_keyshare);
+        FANDZ(esnikeys->hi);
+        FANDZ(esnikeys->hash);
+        FANDZ(esnikeys->realSNI);
+        FANDZ(esnikeys->hs_kse);
+        FANDZ(esnikeys->Z);
+        FANDZ(esnikeys->Zx);
+        FANDZ(esnikeys->key);
+        FANDZ(esnikeys->iv);
+        FANDZ(esnikeys->aad);
+        FANDZ(esnikeys->cipher);
+        FANDZ(esnikeys->plain);
+        FANDZ(esnikeys->tag);
+    }
+
     if (esnikeys->hs_kse==NULL) {
         esnikeys->hs_kse=OPENSSL_malloc(client_keyshare_len);
         if (esnikeys->hs_kse==NULL) {
@@ -2293,7 +2329,16 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys_in,
         }
         so_esni_pbuf("CRYPTO_INTEROP  private",binpriv,bp_len,0);
     
-        int foo=EVP_PKEY_X25519;
+        /*
+         * Group number is in 3rd & 4th octets kse
+         * int foo=EVP_PKEY_X25519;
+         */
+        if (client_keyshare_len < 3) {
+            ESNIerr(ESNI_F_SSL_ESNI_ENC, ERR_R_INTERNAL_ERROR);
+            goto err;
+        }
+        int foo=client_keyshare[3];
+        foo += ((client_keyshare[2]&0xff)<<8);
         esnikeys->keyshare=EVP_PKEY_new_raw_private_key(foo,NULL,binpriv,bp_len);
         if (esnikeys->keyshare == NULL) {
             ESNIerr(ESNI_F_SSL_ESNI_ENC, ERR_R_INTERNAL_ERROR);
@@ -2302,13 +2347,19 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys_in,
     }
 #else
     // random new private
-    esnikeys->keyshare = ssl_generate_pkey(esnikeys->esni_peer_pkey);
-    if (esnikeys->keyshare == NULL) {
+    if (esnikeys->hrr_swap==1 && esnikeys->keyshare==NULL) {
         ESNIerr(ESNI_F_SSL_ESNI_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
+    } else {
+        esnikeys->keyshare = ssl_generate_pkey(esnikeys->esni_peer_pkey);
+        if (esnikeys->keyshare == NULL) {
+            ESNIerr(ESNI_F_SSL_ESNI_ENC, ERR_R_INTERNAL_ERROR);
+            goto err;
+        }
     }
 #endif
 
+    /* generate new values */
     pctx = EVP_PKEY_CTX_new(esnikeys->keyshare,NULL);
     if (EVP_PKEY_derive_init(pctx) <= 0 ) {
         ESNIerr(ESNI_F_SSL_ESNI_ENC, ERR_R_INTERNAL_ERROR);
@@ -2348,11 +2399,13 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys_in,
         ESNIerr(ESNI_F_SSL_ESNI_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
     }
-    esnikeys->nonce_len=16;
-    esnikeys->nonce=esni_nonce(esnikeys->nonce_len);
-    if (!esnikeys->nonce) {
-        ESNIerr(ESNI_F_SSL_ESNI_ENC, ERR_R_INTERNAL_ERROR);
-        goto err;
+    if (esnikeys->nonce==NULL) {
+        esnikeys->nonce_len=16;
+        esnikeys->nonce=esni_nonce(esnikeys->nonce_len);
+        if (!esnikeys->nonce) {
+            ESNIerr(ESNI_F_SSL_ESNI_ENC, ERR_R_INTERNAL_ERROR);
+            goto err;
+        }
     }
 
     /*
@@ -2377,6 +2430,10 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys_in,
      */
     const SSL_CIPHER *sc=cs2sc(esnikeys->ciphersuite);
     const EVP_MD *md=ssl_md(sc->algorithm2);
+    if (md==NULL) {
+        ESNIerr(ESNI_F_SSL_ESNI_ENC, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
     esnikeys->Zx_len=0;
     esnikeys->Zx=esni_hkdf_extract(esnikeys->Z,esnikeys->Z_len,&esnikeys->Zx_len,md);
     if (esnikeys->Zx==NULL) {
@@ -2391,6 +2448,7 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys_in,
         ESNIerr(ESNI_F_SSL_ESNI_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
     }
+
 
     /*
      * The actual encryption... from the I-D:
@@ -2430,6 +2488,10 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys_in,
      * finish up
      */
 
+    if (esnikeys->hrr_swap!=0 && esnikeys->the_esni!=NULL) {
+        OPENSSL_free(esnikeys->the_esni);
+        esnikeys->the_esni=NULL;
+    }
     CLIENT_ESNI *tc=OPENSSL_malloc(sizeof(CLIENT_ESNI));
     if (tc==NULL) {
         ESNIerr(ESNI_F_SSL_ESNI_ENC, ERR_R_INTERNAL_ERROR);

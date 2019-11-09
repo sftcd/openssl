@@ -88,6 +88,10 @@ static int ocsp_resp_cb(SSL *s, void *arg);
 static unsigned int esni_print_cb(SSL *s, char *str);
 int esni_strict=0;
 int esni_grease=0;
+#ifndef OPENSSL_NO_SSL_TRACE
+static size_t esni_trace_cb(const char *buf, size_t cnt,
+                 int category, int cmd, void *vdata);
+#endif
 #endif
 static int ldap_ExtendedResponse_parse(const char *buf, long rem);
 static char *base64encode (const void *buf, size_t len);
@@ -2441,6 +2445,13 @@ int s_client_main(int argc, char **argv)
             SSL_set_msg_callback(con, msg_cb);
         SSL_set_msg_callback_arg(con, bio_c_msg ? bio_c_msg : bio_c_out);
     }
+#ifndef OPENSSL_NO_ESNI
+#ifndef OPENSSL_NO_SSL_TRACE
+        if (c_msg==2) {
+            OSSL_trace_set_callback(OSSL_TRACE_CATEGORY_TLS, esni_trace_cb, bio_c_out);
+        }
+#endif
+#endif
 
     if (c_tlsextdebug) {
         SSL_set_tlsext_debug_callback(con, tlsext_cb);
@@ -3726,7 +3737,7 @@ static void print_stuff(BIO *bio, SSL *s, int full)
             BIO_printf(bio,"ESNI: Just did greasing\n");
             break;
         case SSL_ESNI_STATUS_SUCCESS:
-            BIO_printf(bio,"ESNI: success: clear sni: %s, hidden: %s\n",
+            BIO_printf(bio,"ESNI: success: clear sni: '%s', hidden: '%s'\n",
                             (clear_sni==NULL?"none":clear_sni),
                             (hidden==NULL?"none":hidden));
             break;
@@ -3780,6 +3791,39 @@ static unsigned int esni_print_cb(SSL *s, char *str)
     }
     return 1;
 }
+
+#ifndef OPENSSL_NO_SSL_TRACE
+/*
+ * ESNI Tracing callback 
+ */
+static size_t esni_trace_cb(const char *buf, size_t cnt,
+                 int category, int cmd, void *vdata)
+{
+     BIO *bio = vdata;
+     const char *label = NULL;
+     switch (cmd) {
+     case OSSL_TRACE_CTRL_BEGIN:
+         label = "ESNI TRACE BEGIN";
+         break;
+     case OSSL_TRACE_CTRL_END:
+         label = "ESNI TRACE END";
+         break;
+     }
+     if (label != NULL) {
+         union {
+             pthread_t tid;
+             unsigned long ltid;
+         } tid;
+         tid.tid = pthread_self();
+         BIO_printf(bio, "%s TRACE[%s]:%lx\n",
+                    label, OSSL_trace_get_category_name(category), tid.ltid);
+     }
+     size_t brv=(size_t)BIO_puts(bio, buf);
+     (void)BIO_flush(bio);
+     return brv;
+}
+#endif
+
 #endif
 // ESNI_DOXY_END
 

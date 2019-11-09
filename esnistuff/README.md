@@ -24,7 +24,28 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- Doing interop testing with https://tls13.1d.pw/ - it worked
+  unless the server sent an HRR, (which it was doing about 50%
+  of the time) in which case my side failed, so time to fix that;-)
+    - That server also changes group with the HRR, so another
+      code path exercised!
+    - HRR handling seems to be as per draft-02, so haven't yet
+      tested the HRR iv/aad label switching really - it's coded
+      up but that path hasn't been run so far.
+    - TODO: Check how/if nginz/lighttpd handle HRR
+
+- Added an ``esni_trace_cb`` to ``s_client`` - basically the
+  same as for the server side, but was useful when debugging
+  HRR stuff (above).
+
+- Added a bit more error checking to ``SSL_ESNI_dec`` - looks like some
+  [people are playing](https://github.com/sftcd/openssl/issues/7) with 
+  that in some other context that hasn't been initialised in the same 
+  ways the ones I've tried. Apparently that was it as they closed the issue.
+
 - Re-merged with upstream on 20191105
+    - Got a compile error in CMP code when tracing on. Reported that 
+      to openssl-users. (No response so far.)
 
 - Started to make changes due to internal review of man pages. Some of
   those changes are just man page text, others change function names to
@@ -73,7 +94,7 @@ so spent (too much!) time figuring out how to get additional tracing via the
 OpenSSL trace API. Basically:
 
             $ cd $HOME/code/openssl
-            $ ./config enable-ssl-trace enable-trace --debug
+            $ ./config enable-ssl-trace enable-trace --debug -no-cmp
             ...
             $ make clean; make
             $ cd esnistuff

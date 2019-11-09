@@ -2275,6 +2275,7 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
             for (i=0;trial_decryption_success==0 && i!=s->nesni && matchind==-1;i++) {
                 /* add CLIENT_ESNI to the state temporarily */
                 s->esni[i].the_esni=ce; 
+                s->esni[i].hrr_swap=s->hello_retry_request;
                 encservername=SSL_ESNI_dec(&s->esni[i],rd_len,rd,curve_id,s->ext.kse_len,s->ext.kse,&encservername_len);
                 if (encservername!=NULL) {
                     /*
@@ -2317,6 +2318,7 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
          * This is where we matched the record_digest and didn't yet decrypt
          * via trial decryption
          */
+        match->hrr_swap=s->hello_retry_request;
         encservername=SSL_ESNI_dec(match,rd_len,rd,curve_id,s->ext.kse_len,s->ext.kse,&encservername_len);
         if (encservername==NULL) {
             if (server_fail_grease!=0) {

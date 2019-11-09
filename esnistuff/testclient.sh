@@ -151,8 +151,8 @@ fi
 # ought work
 TRACING=""
 tmpf=`mktemp`
-$TOP/apps/openssl s_server -help >$tmpf 2>&1
-tcount=`grep -c 'trace protocol messages' $tmpf`
+$TOP/apps/openssl s_client -help >$tmpf 2>&1
+tcount=`grep -c 'trace output of protocol messages' $tmpf`
 if [[ "$tcount" == "1" ]]
 then
     TRACING="-trace "
@@ -195,7 +195,14 @@ then
 fi
 
 # Set address of target 
-target=" -connect $clear_sni:$PORT "
+if [[ "$clear_sni" != "" ]]
+then
+    target=" -connect $clear_sni:$PORT "
+else
+    # I guess we better connect to hidden 
+    # Note that this could export via DNS again
+    target=" -connect $hidden:$PORT "
+fi
 server=$clear_sni
 if [[ "$SUPPLIEDSERVER" != "" ]]
 then
@@ -363,10 +370,10 @@ echo "$0 Summary: "
 if [[ "$DEBUG" == "yes" ]]
 then
 	noncestr=`grep -A1 "ESNI Nonce" $TMPF`
-	eestr=`grep -A2 EncryptedExtensions $TMPF`
+	eestr=`grep -A5 EncryptedExtensions $TMPF`
 	echo "Nonce sent: $noncestr"
 	echo "Nonce Back: $eestr"
-	grep -e "^ESNI: " $TMPF
+	grep -e "ESNI: " $TMPF
 else
     ctot=$((csucc||c200))
 	echo "Looks like $ctot ok's and $c4xx bad's."

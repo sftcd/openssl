@@ -677,7 +677,6 @@ static size_t esni_trace_cb(const char *buf, size_t cnt,
 {
      BIO *bio = vdata;
      const char *label = NULL;
-
      switch (cmd) {
      case OSSL_TRACE_CTRL_BEGIN:
          label = "ESNI TRACE BEGIN";
@@ -686,13 +685,11 @@ static size_t esni_trace_cb(const char *buf, size_t cnt,
          label = "ESNI TRACE END";
          break;
      }
-
      if (label != NULL) {
          union {
              pthread_t tid;
              unsigned long ltid;
          } tid;
-
          tid.tid = pthread_self();
          BIO_printf(bio, "%s TRACE[%s]:%lx\n",
                     label, OSSL_trace_get_category_name(category), tid.ltid);

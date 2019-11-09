@@ -72,6 +72,7 @@
 #define ESNI_DRAFT_02_VERSION 0xff01 ///< ESNIKeys version from draft-02
 #define ESNI_DRAFT_03_VERSION 0xff02 ///< ESNIKeys version from draft-03
 #define ESNI_DRAFT_04_VERSION 0xff03 ///< ESNIKeys version from draft-04
+#define ESNI_DRAFT_05_VERSION 0xff03 ///< ESNIConfig version from draft-05 (sigh - same version!)
 
 #define ESNI_RRTYPE 65439 ///< experimental (as per draft-03, and draft-04) ESNI RRTYPE
 
@@ -236,6 +237,7 @@ typedef struct ssl_esni_st {
      * Session specific stuff
      */
     int crypto_started; ///< set to one if someone tried to use this for real
+    int hrr_swap; ///< 0 if not a HRR, 1 if it is (and we use different IV for draft-04 on)
     size_t nonce_len; 
     unsigned char *nonce; ///< Nonce we challenge server to respond with
     size_t hs_cr_len; 
