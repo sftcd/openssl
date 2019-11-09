@@ -2269,6 +2269,7 @@ EXT_RETURN tls_construct_ctos_esni(SSL *s, WPACKET *pkt, unsigned int context,
             for (buggerind=0;buggerind!=16;buggerind++) {
                 c->encrypted_sni[buggerind] = 0xaa;
             }
+#ifndef OPENSSL_NO_SSL_TRACE
             OSSL_TRACE_BEGIN(TLS) { 
                 BIO_printf(trc_out,"Breaking ESNI due to OPENSSL_BREAK_ESNI being set in environment.\n");
                 /* 
@@ -2276,6 +2277,7 @@ EXT_RETURN tls_construct_ctos_esni(SSL *s, WPACKET *pkt, unsigned int context,
                 * few octets (No idea why, but it'll do:-)
                 */
             } OSSL_TRACE_END(TLS);
+#endif
         }
 #endif
         s->esni_attempted=1;
@@ -2475,6 +2477,7 @@ int tls_parse_stoc_esni(SSL *s, PACKET *pkt, unsigned int context,
     }
 
 
+#ifndef OPENSSL_NO_SSL_TRACE
     OSSL_TRACE_BEGIN(TLS) {
         /*
          * Print a fwe bytes of before matching stuff - the < 4 branch should never
@@ -2493,6 +2496,7 @@ int tls_parse_stoc_esni(SSL *s, PACKET *pkt, unsigned int context,
                     foo[0],foo[1],foo[2],foo[3]);
         }
     } OSSL_TRACE_END(TLS);
+#endif
     if (!memcmp(buf,s->esni[matchind].nonce,nlen)) {
         /* yay - same nonce, we're good */
         s->esni_done=1;
