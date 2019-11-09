@@ -24,6 +24,13 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+
+- On 20191109 I re-merged my nginx fork with upstream, and then built against the
+latest OpenSSL.  I had to fix up a couple of calls to now-deprecated OpenSSL
+functions. I think I found non-deprecated alternatives for both. Those were:
+    - ``SSL_CTX_load_verify_locations``
+    - ``ERR_peek_error_line_data``
+
 - Doing interop testing with https://tls13.1d.pw/ - it worked
   unless the server sent an HRR, (which it was doing about 50%
   of the time) in which case my side failed, so time to fix that;-)
@@ -1033,22 +1040,16 @@ I'm sure there's more but some collected so far:
   the ESNIKeys.version used by the client. That more easily allows
   multiple $hidden sites to hide behind one key pair belonging to
   some operator.
-- Figure out/test HRR cases. [This issue](https://github.com/tlswg/draft-ietf-tls-esni/issues/121) calls for checks to be enforced.
 - What do we want/need to do to support the split backend approach? (separate
   fronting server from hosting server)
-- Integration with apache/nginx/wget
+- Integration with apache/wget
 - Adding/moving tests to the OpenSSL test suites
 - Continuous integration for these patches that aim to keep the patch series
   current against OpenSSL master as it evolves
-- Handling this on different platforms (my ``esnikeydir`` handling in
-  ``s_server`` may be a bit non-portable)
-- AFAIK, nobody's tested different curves/algorithms/ciphersuites - code should
-  be alg. agile but who knows.
 - Once we've integrated with some real client/server test the effect of our
   crude padding scheme.
 - Security review: identify which parts of the code e.g. need to be constant
   time, which need to use special OpenSSL APIs, which need support for
   crypto h/w (if any)
-- Maybe move the above to issues in github.
 
 

@@ -183,6 +183,14 @@ bits of nginx config:
             fastcgi_param SSL_ESNI_HIDDEN $ssl_esni_hidden;
             fastcgi_param SSL_ESNI_COVER $ssl_esni_cover;
 
+## Some OpenSSL deprecations 
+
+On 20191109 I re-merged my nginx fork with upstream, and then built against the
+latest OpenSSL.  I had to fix up a couple of calls to now-deprecated OpenSSL
+functions. I think I found non-deprecated alternatives for both. Those were:
+    - ``SSL_CTX_load_verify_locations``
+    - ``ERR_peek_error_line_data``
+
 ## TODO/Improvements...
 
 - Figure out how to get nginx to use openssl as a shared object.
