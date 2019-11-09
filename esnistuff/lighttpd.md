@@ -215,6 +215,12 @@ Failing this check is logged in the error log, e.g.:
 
 That log line includes the requesting IP address for now.
 
+## Some OpenSSL deprecations 
+
+On 20191109 I re-merged my nginx fork with upstream, and then built against the
+latest OpenSSL.  I had to fix up a couple of calls to one now-deprecated OpenSSL
+function (``SSL_CTX_load_verify_locations``).
+
 ## Further improvement
 
 - The check as to whether or not ESNI keys need to be re-loaded happens with

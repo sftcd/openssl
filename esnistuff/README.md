@@ -25,6 +25,8 @@ There's a [TODO list](#todos) at the end.
 Most recent first...
 
 
+- Similar thing for lighttpd and ``SSL_CTX_load_verify_locations``
+
 - On 20191109 I re-merged my nginx fork with upstream, and then built against the
 latest OpenSSL.  I had to fix up a couple of calls to now-deprecated OpenSSL
 functions. I think I found non-deprecated alternatives for both. Those were:
