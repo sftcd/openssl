@@ -408,7 +408,7 @@ unsigned long ERR_get_error_all(const char **file, int *line,
     return get_error_values(EV_POP, file, line, func, data, flags);
 }
 
-#if !OPENSSL_API_3
+#ifndef OPENSSL_NO_DEPRECATED_3_0
 unsigned long ERR_get_error_line_data(const char **file, int *line,
                                       const char **data, int *flags)
 {
@@ -443,7 +443,7 @@ unsigned long ERR_peek_error_all(const char **file, int *line,
     return get_error_values(EV_PEEK, file, line, func, data, flags);
 }
 
-#if !OPENSSL_API_3
+#ifndef OPENSSL_NO_DEPRECATED_3_0
 unsigned long ERR_peek_error_line_data(const char **file, int *line,
                                        const char **data, int *flags)
 {
@@ -478,7 +478,7 @@ unsigned long ERR_peek_last_error_all(const char **file, int *line,
     return get_error_values(EV_PEEK_LAST, file, line, func, data, flags);
 }
 
-#if !OPENSSL_API_3
+#ifndef OPENSSL_NO_DEPRECATED_3_0
 unsigned long ERR_peek_last_error_line_data(const char **file, int *line,
                                             const char **data, int *flags)
 {
@@ -622,7 +622,7 @@ const char *ERR_lib_error_string(unsigned long e)
     return ((p == NULL) ? NULL : p->string);
 }
 
-#if !OPENSSL_API_3
+#ifndef OPENSSL_NO_DEPRECATED_3_0
 const char *ERR_func_error_string(unsigned long e)
 {
     return NULL;
@@ -660,13 +660,13 @@ static void err_delete_thread_state(void *arg)
     ERR_STATE_free(state);
 }
 
-#if !OPENSSL_API_1_1_0
+#ifndef OPENSSL_NO_DEPRECATED_1_1_0
 void ERR_remove_thread_state(void *dummy)
 {
 }
 #endif
 
-#if !OPENSSL_API_1_0_0
+#ifndef OPENSSL_NO_DEPRECATED_1_0_0
 void ERR_remove_state(unsigned long pid)
 {
 }
@@ -717,7 +717,7 @@ ERR_STATE *err_get_state_int(void)
     return state;
 }
 
-#if !OPENSSL_API_3
+#ifndef OPENSSL_NO_DEPRECATED_3_0
 ERR_STATE *ERR_get_state(void)
 {
     return err_get_state_int();

@@ -482,6 +482,7 @@ void EVP_PKEY_CTX_free(EVP_PKEY_CTX *ctx)
         ctx->pmeth->cleanup(ctx);
 
     evp_pkey_ctx_free_old_ops(ctx);
+    EVP_KEYMGMT_free(ctx->keymgmt);
 
     EVP_PKEY_free(ctx->pkey);
     EVP_PKEY_free(ctx->peerkey);
@@ -593,7 +594,7 @@ int EVP_PKEY_CTX_get_signature_md(EVP_PKEY_CTX *ctx, const EVP_MD **md)
     if (!EVP_PKEY_CTX_get_params(ctx, sig_md_params))
         return 0;
 
-    tmp = EVP_get_digestbyname(name);
+    tmp = evp_get_digestbyname_ex(ctx->libctx, name);
     if (tmp == NULL)
         return 0;
 

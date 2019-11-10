@@ -169,7 +169,7 @@ static int DES_ede3_cbc_encrypt_loop(void *args);
 static int AES_cbc_128_encrypt_loop(void *args);
 static int AES_cbc_192_encrypt_loop(void *args);
 static int AES_cbc_256_encrypt_loop(void *args);
-#if !OPENSSL_API_3
+#ifndef OPENSSL_NO_DEPRECATED_3_0
 static int AES_ige_128_encrypt_loop(void *args);
 static int AES_ige_192_encrypt_loop(void *args);
 static int AES_ige_256_encrypt_loop(void *args);
@@ -316,17 +316,9 @@ typedef enum OPTION_choice {
 
 const OPTIONS speed_options[] = {
     {OPT_HELP_STR, 1, '-', "Usage: %s [options] ciphers...\n"},
-    {OPT_HELP_STR, 1, '-', "Valid options are:\n"},
+
+    OPT_SECTION("General"),
     {"help", OPT_HELP, '-', "Display this summary"},
-    {"evp", OPT_EVP, 's', "Use EVP-named cipher or digest"},
-    {"hmac", OPT_HMAC, 's', "HMAC using EVP-named digest"},
-#ifndef OPENSSL_NO_CMAC
-    {"cmac", OPT_CMAC, 's', "CMAC using EVP-named cipher"},
-#endif
-    {"decrypt", OPT_DECRYPT, '-',
-     "Time decryption instead of encryption (only EVP)"},
-    {"aead", OPT_AEAD, '-',
-     "Benchmark EVP-named AEAD cipher in TLS-like sequence"},
     {"mb", OPT_MB, '-',
      "Enable (tls1>=1) multi-block mode on EVP-named cipher"},
     {"mr", OPT_MR, '-', "Produce machine readable output"},
@@ -337,19 +329,33 @@ const OPTIONS speed_options[] = {
     {"async_jobs", OPT_ASYNCJOBS, 'p',
      "Enable async mode and start specified number of jobs"},
 #endif
-    OPT_R_OPTIONS,
 #ifndef OPENSSL_NO_ENGINE
     {"engine", OPT_ENGINE, 's', "Use engine, possibly a hardware device"},
 #endif
+    {"primes", OPT_PRIMES, 'p', "Specify number of primes (for RSA only)"},
+
+    OPT_SECTION("Selection"),
+    {"evp", OPT_EVP, 's', "Use EVP-named cipher or digest"},
+    {"hmac", OPT_HMAC, 's', "HMAC using EVP-named digest"},
+#ifndef OPENSSL_NO_CMAC
+    {"cmac", OPT_CMAC, 's', "CMAC using EVP-named cipher"},
+#endif
+    {"decrypt", OPT_DECRYPT, '-',
+     "Time decryption instead of encryption (only EVP)"},
+    {"aead", OPT_AEAD, '-',
+     "Benchmark EVP-named AEAD cipher in TLS-like sequence"},
+
+    OPT_SECTION("Timing"),
     {"elapsed", OPT_ELAPSED, '-',
      "Use wall-clock time instead of CPU user time as divisor"},
-    {"primes", OPT_PRIMES, 'p', "Specify number of primes (for RSA only)"},
     {"seconds", OPT_SECONDS, 'p',
      "Run benchmarks for specified amount of seconds"},
     {"bytes", OPT_BYTES, 'p',
      "Run [non-PKI] benchmarks on custom-sized buffer"},
     {"misalign", OPT_MISALIGN, 'p',
      "Use specified offset to mis-align buffers"},
+
+    OPT_R_OPTIONS,
     {NULL}
 };
 
@@ -436,7 +442,7 @@ static const OPT_PAIR doit_choices[] = {
     {"aes-128-cbc", D_CBC_128_AES},
     {"aes-192-cbc", D_CBC_192_AES},
     {"aes-256-cbc", D_CBC_256_AES},
-#if !OPENSSL_API_3
+#ifndef OPENSSL_NO_DEPRECATED_3_0
     {"aes-128-ige", D_IGE_128_AES},
     {"aes-192-ige", D_IGE_192_AES},
     {"aes-256-ige", D_IGE_256_AES},
@@ -896,7 +902,7 @@ static int AES_cbc_256_encrypt_loop(void *args)
     return count;
 }
 
-#if !OPENSSL_API_3
+#ifndef OPENSSL_NO_DEPRECATED_3_0
 static int AES_ige_128_encrypt_loop(void *args)
 {
     loopargs_t *tempargs = *(loopargs_t **) args;
@@ -2565,7 +2571,7 @@ int speed_main(int argc, char **argv)
         }
     }
 
-#if !OPENSSL_API_3
+#ifndef OPENSSL_NO_DEPRECATED_3_0
     if (doit[D_IGE_128_AES]) {
         for (testnum = 0; testnum < size_num; testnum++) {
             print_message(names[D_IGE_128_AES], c[D_IGE_128_AES][testnum],

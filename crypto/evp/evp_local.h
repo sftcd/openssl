@@ -102,8 +102,6 @@ struct evp_keyexch_st {
     CRYPTO_REF_COUNT refcnt;
     CRYPTO_RWLOCK *lock;
 
-    EVP_KEYMGMT *keymgmt;
-
     OSSL_OP_keyexch_newctx_fn *newctx;
     OSSL_OP_keyexch_init_fn *init;
     OSSL_OP_keyexch_set_peer_fn *set_peer;
@@ -119,8 +117,6 @@ struct evp_signature_st {
     OSSL_PROVIDER *prov;
     CRYPTO_REF_COUNT refcnt;
     CRYPTO_RWLOCK *lock;
-
-    EVP_KEYMGMT *keymgmt;
 
     OSSL_OP_signature_newctx_fn *newctx;
     OSSL_OP_signature_sign_init_fn *sign_init;
@@ -180,18 +176,14 @@ void *evp_generic_fetch(OPENSSL_CTX *ctx, int operation_id,
                         const char *name, const char *properties,
                         void *(*new_method)(int name_id,
                                             const OSSL_DISPATCH *fns,
-                                            OSSL_PROVIDER *prov,
-                                            void *method_data),
-                        void *method_data,
+                                            OSSL_PROVIDER *prov),
                         int (*up_ref_method)(void *),
                         void (*free_method)(void *));
 void *evp_generic_fetch_by_number(OPENSSL_CTX *ctx, int operation_id,
                                   int name_id, const char *properties,
                                   void *(*new_method)(int name_id,
                                                       const OSSL_DISPATCH *fns,
-                                                      OSSL_PROVIDER *prov,
-                                                      void *method_data),
-                                  void *method_data,
+                                                      OSSL_PROVIDER *prov),
                                   int (*up_ref_method)(void *),
                                   void (*free_method)(void *));
 void evp_generic_do_all(OPENSSL_CTX *libctx, int operation_id,
@@ -199,9 +191,7 @@ void evp_generic_do_all(OPENSSL_CTX *libctx, int operation_id,
                         void *user_arg,
                         void *(*new_method)(int name_id,
                                             const OSSL_DISPATCH *fns,
-                                            OSSL_PROVIDER *prov,
-                                            void *method_data),
-                        void *method_data,
+                                            OSSL_PROVIDER *prov),
                         void (*free_method)(void *));
 
 /* Internal fetchers for method types that are to be combined with others */
