@@ -25,10 +25,10 @@ There's a [TODO list](#todos) at the end.
 Most recent first...
 
 
-- 20191110: Seeing some valgrind issues with non-debug build that disappear with
-  the debug build, but that don't seem to affect functionality or (so
-  far) cause a crash. Not clear that the code affected is mine so I'll
-  remerge with upstream to see if that fixes it.
+- 20191110: Seeing some valgrind issues with non-debug build that disappear
+with a debug build, that don't seem to affect functionality or (so far)
+cause a crash. Not clear what's up yet, so this commit is really to let
+me test this in a 32 bit build.
 
 - Similar thing for lighttpd and ``SSL_CTX_load_verify_locations``
 

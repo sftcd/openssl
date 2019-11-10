@@ -139,7 +139,7 @@
 typedef struct esni_record_st {
     unsigned int version;
     unsigned char checksum[4];
-    int public_name_len;
+    size_t public_name_len;
     unsigned char *public_name;
     unsigned int nkeys;
     uint16_t *group_ids;

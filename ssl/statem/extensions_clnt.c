@@ -2258,28 +2258,28 @@ EXT_RETURN tls_construct_ctos_esni(SSL *s, WPACKET *pkt, unsigned int context,
         * borked ciphertext. This is solely to allow me to test the
         * server-side tracing if a client is sending bad values
         */
-        const char *buggerit=NULL;
-        buggerit = getenv("OPENSSL_BREAK_ESNI");
-        if (buggerit!=NULL) {
-            printf("BUILT WITH openssl-ssl-trace and OPENSSL_BREAK_ESNI set in environment - did you *REALLY* want that?\n");
-            printf("BUILT WITH openssl-ssl-trace and OPENSSL_BREAK_ESNI set in environment - did you *REALLY* want that?\n");
-            printf("BUILT WITH openssl-ssl-trace and OPENSSL_BREAK_ESNI set in environment - did you *REALLY* want that?\n");
-            printf("BUILT WITH openssl-ssl-trace and OPENSSL_BREAK_ESNI set in environment - did you *REALLY* want that?\n");
-            int buggerind=0;
-            for (buggerind=0;buggerind!=16;buggerind++) {
-                c->encrypted_sni[buggerind] = 0xaa;
-            }
-#ifndef OPENSSL_NO_SSL_TRACE
-            OSSL_TRACE_BEGIN(TLS) { 
-                BIO_printf(trc_out,"Breaking ESNI due to OPENSSL_BREAK_ESNI being set in environment.\n");
+        OSSL_TRACE_BEGIN(TLS) { 
+            const char *buggerit=NULL;
+            buggerit = getenv("OPENSSL_BREAK_ESNI");
+            if (buggerit!=NULL) {
+                BIO_printf(trc_out,"BUILT WITH openssl-ssl-trace and OPENSSL_BREAK_ESNI set in environment - did you *REALLY* want that?\n");
+                BIO_printf(trc_out,"BUILT WITH openssl-ssl-trace and OPENSSL_BREAK_ESNI set in environment - did you *REALLY* want that?\n");
+                BIO_printf(trc_out,"BUILT WITH openssl-ssl-trace and OPENSSL_BREAK_ESNI set in environment - did you *REALLY* want that?\n");
+                printf("BUILT WITH openssl-ssl-trace and OPENSSL_BREAK_ESNI set in environment - did you *REALLY* want that?\n");
+                printf("BUILT WITH openssl-ssl-trace and OPENSSL_BREAK_ESNI set in environment - did you *REALLY* want that?\n");
+                printf("BUILT WITH openssl-ssl-trace and OPENSSL_BREAK_ESNI set in environment - did you *REALLY* want that?\n");
                 /* 
                 * We break the ciphertext by setting a pattern in the first
                 * few octets (No idea why, but it'll do:-)
                 */
-            } OSSL_TRACE_END(TLS);
+                int buggerind=0;
+                for (buggerind=0;buggerind!=16;buggerind++) {
+                    c->encrypted_sni[buggerind] = 0xaa;
+                }
+            }
+        } OSSL_TRACE_END(TLS);
 #endif
-        }
-#endif
+
         s->esni_attempted=1;
     } 
 
@@ -2354,6 +2354,9 @@ EXT_RETURN tls_construct_ctos_esni(SSL *s, WPACKET *pkt, unsigned int context,
 
     if (s->esni_print_cb != NULL) {
         BIO *biom = BIO_new(BIO_s_mem());
+        if (biom==NULL) {
+            return EXT_RETURN_FAIL;
+        }
         SSL_ESNI_print(biom,s->esni,ESNI_SELECT_ALL);
         char pstr[ESNI_PBUF_SIZE+1];
         memset(pstr,0,ESNI_PBUF_SIZE+1);

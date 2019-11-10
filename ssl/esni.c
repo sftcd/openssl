@@ -48,7 +48,7 @@
 #ifdef ESNI_CRYPT_INTEROP
 unsigned char *lg_nonce=NULL;
 size_t lg_nonce_len=0;
-static void so_esni_pbuf(char *msg,unsigned char *buf,size_t blen,int indent);
+static void so_esni_pbuf(char *msg,unsigned char *buf,size_t blen);
 #endif
 
 #ifndef OPENSSL_NO_SSL_TRACE
@@ -1184,7 +1184,7 @@ static int esni_guess_fmt(const size_t eklen,
 SSL_ESNI* SSL_ESNI_new_from_buffer(const short ekfmt, const size_t eklen, const char *esnikeys, int *num_esnis)
 {
     short detfmt=ESNI_RRFMT_GUESS;
-    int nlens=0;                    /* number of values detected */
+    int nlens=0;                    ///< number of values detected
     SSL_ESNI *retesnis=NULL;        ///< output array
     ESNI_RECORD *er=NULL;           ///< individual public value structure (initial decoding)
     SSL_ESNI *newesni=NULL;         ///< individual public value structure (after more decoding)
@@ -1283,13 +1283,12 @@ SSL_ESNI* SSL_ESNI_new_from_buffer(const short ekfmt, const size_t eklen, const 
             goto err;
         }
         retesnis=ts;
-
         newesni=&retesnis[nlens-1];
         memset(newesni,0,sizeof(SSL_ESNI));
     
         int leftover=oleftover;
         er=SSL_ESNI_RECORD_new_from_binary(outp,oleftover,&leftover);
-        //so_esni_pbuf("BINBUF:",outp,oleftover,0);
+        //so_esni_pbuf("BINBUF:",outp,oleftover);
         if (er==NULL) {
             ESNIerr(ESNI_F_SSL_ESNI_NEW_FROM_BUFFER, ERR_R_INTERNAL_ERROR);
             goto err;
@@ -1359,27 +1358,28 @@ err:
  *
  * This is used in SSL_ESNI_print
  */
-static void esni_pbuf(BIO *out,char *msg,unsigned char *buf,size_t blen,int indent)
+static void esni_pbuf(BIO *out,char *msg,unsigned char *buf,size_t blen)
 {
-    /*
-     * The "OPENSSL: " prefix helps as I instrumented an NSS build
-     * to preface the same variables with "NSS: ". That can however
-     * be removed once the ESNI spec's crypto is stable.
-     */
+    if (out==NULL) {
+        /*
+         * Can't do much here as nowhere to print to
+         */ 
+        return;
+    }
+    if (msg==NULL) {
+        BIO_printf(out,"msg is NULL\n");
+        return;
+    }
     if (buf==NULL || blen==0) {
-        BIO_printf(out,"OPENSSL: buf/blen is NULL\n");
+        BIO_printf(out,"%s: buf/blen is NULL/zero\n",msg);
         return;
     }
-    if (out==NULL || msg==NULL) {
-        BIO_printf(out,"OPENSSL: out or msg is NULL\n");
-        return;
-    }
-    BIO_printf(out,"OPENSSL: %s (%zd):\n    ",msg,blen);
+    BIO_printf(out,"%s (%zd):\n    ",msg,blen);
     int i;
     for (i=0;i!=blen;i++) {
         if ((i!=0) && (i%16==0))
             BIO_printf(out,"\n    ");
-        BIO_printf(out,"%02x:",buf[i]);
+        BIO_printf(out,"%02x:",(unsigned int) (buf[i]));
     }
     BIO_printf(out,"\n");
     return;
@@ -1389,13 +1389,13 @@ static void esni_pbuf(BIO *out,char *msg,unsigned char *buf,size_t blen,int inde
 /**
  * @brief stdout version of esni_pbuf - just for odd/occasional debugging
  */
-static void so_esni_pbuf(char *msg,unsigned char *buf,size_t blen,int indent)
+static void so_esni_pbuf(char *msg,unsigned char *buf,size_t blen) 
 {
     if (buf==NULL) {
-        printf("OPENSSL: %s is NULL\n",msg);
+        printf("so: %s is NULL\n",msg);
         return;
     }
-    printf("OPENSSL: %s (%zd):\n    ",msg,blen);
+    printf("so: %s (%zd):\n    ",msg,blen);
     int i;
     for (i=0;i!=blen;i++) {
         if ((i!=0) && (i%16==0))
@@ -1420,7 +1420,6 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esniarr, int selector)
 {
     SSL_ESNI *esni=NULL;
     int nesnis=0;
-    int indent=0;
     if (esniarr==NULL) {
         BIO_printf(out,"ESNI is NULL!\n");
         return 0;
@@ -1508,9 +1507,10 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esniarr, int selector)
 	            BIO_printf(out, isascii(uc) && isprint(uc) ? "%c" : "\\x%02x", uc);
 	        BIO_printf(out, "\"\n");
 	    }
-	    esni_pbuf(out,"ESNI Encoded ESNIRecord RR",esni->encoded_rr,esni->encoded_rr_len,indent);
-	    esni_pbuf(out,"ESNI ESNIKeys record_digest", esni->rd,esni->rd_len,indent);
-	    esni_pbuf(out,"ESNI Peer KeyShare:",esni->esni_peer_keyshare,esni->esni_peer_keyshare_len,indent);
+
+	    esni_pbuf(out,"ESNI Encoded ESNIRecord RR",esni->encoded_rr,esni->encoded_rr_len);
+	    esni_pbuf(out,"ESNI ESNIKeys record_digest", esni->rd,esni->rd_len);
+	    esni_pbuf(out,"ESNI Peer KeyShare:",esni->esni_peer_keyshare,esni->esni_peer_keyshare_len);
 	    BIO_printf(out,"ESNI Server groupd Id: %04x\n",esni->group_id);
 	    BIO_printf(out,"ENSI Server Ciphersuite is %04x\n",esni->ciphersuite);
 	    BIO_printf(out,"ESNI Server padded_length: %zd\n",esni->padded_length);
@@ -1530,7 +1530,7 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esniarr, int selector)
 	        BIO_printf(out,"ESNI Server number of extensions: %d\n",esni->nexts);
             for (j=0;j!=esni->nexts;j++) {
                 BIO_printf(out,"ESNI Extension type %d\n",esni->exttypes[j]);
-	            esni_pbuf(out,"ESNI Extension value",esni->exts[j],esni->extlens[j],indent+4);
+	            esni_pbuf(out,"ESNI Extension value",esni->exts[j],esni->extlens[j]);
             }
 	    } else {
 	        BIO_printf(out,"ESNI no extensions\n");
@@ -1541,7 +1541,7 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esniarr, int selector)
 	        BIO_printf(out,"ESNI Server number of DNS extensions: %d\n",esni->dnsnexts);
             for (j=0;j!=esni->dnsnexts;j++) {
                 BIO_printf(out,"ESNI DNS Extension type %d\n",esni->dnsexttypes[j]);
-	            esni_pbuf(out,"ESNI DNS Extension value",esni->dnsexts[j],esni->dnsextlens[j],indent+4);
+	            esni_pbuf(out,"ESNI DNS Extension value",esni->dnsexts[j],esni->dnsextlens[j]);
             }
 	    } else {
 	        BIO_printf(out,"ESNI no DNS extensions\n");
@@ -1564,33 +1564,33 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esniarr, int selector)
 	        BIO_printf(out,"ESNI crypto was started (%d)\n",esni->crypto_started);
         }
         BIO_printf(out,"ESNI HRR or not (%d)\n",esni->hrr_swap);
-	    esni_pbuf(out,"ESNI Nonce",esni->nonce,esni->nonce_len,indent);
-	    esni_pbuf(out,"ESNI H/S Client Random",esni->hs_cr,esni->hs_cr_len,indent);
-	    esni_pbuf(out,"ESNI H/S Client KeyShare",esni->hs_kse,esni->hs_kse_len,indent);
+	    esni_pbuf(out,"ESNI Nonce",esni->nonce,esni->nonce_len);
+	    esni_pbuf(out,"ESNI H/S Client Random",esni->hs_cr,esni->hs_cr_len);
+	    esni_pbuf(out,"ESNI H/S Client KeyShare",esni->hs_kse,esni->hs_kse_len);
 	    if (esni->keyshare!=NULL) {
 	        BIO_printf(out,"ESNI Client ESNI KeyShare: ");
-	        EVP_PKEY_print_public(out, esni->keyshare, indent, NULL);
+	        EVP_PKEY_print_public(out, esni->keyshare, 0, NULL);
 	    } else {
 	        BIO_printf(out,"ESNI Client ESNI KeyShare is NULL\n");
 	    }
-	    esni_pbuf(out,"ESNI Encoded ESNIContents (hash input)",esni->hi,esni->hi_len,indent);
-	    esni_pbuf(out,"ESNI Encoded ESNIContents (hash output)",esni->hash,esni->hash_len,indent);
-	    esni_pbuf(out,"ESNI Padded SNI",esni->realSNI, esni->realSNI_len, indent);
+	    esni_pbuf(out,"ESNI Encoded ESNIContents (hash input)",esni->hi,esni->hi_len);
+	    esni_pbuf(out,"ESNI Encoded ESNIContents (hash output)",esni->hash,esni->hash_len);
+	    esni_pbuf(out,"ESNI Padded SNI",esni->realSNI, esni->realSNI_len);
 	    BIO_printf(out,"ESNI Cryptovars group id: %04x\n",esni->group_id);
-	    esni_pbuf(out,"ESNI Cryptovars Z",esni->Z,esni->Z_len,indent);
-	    esni_pbuf(out,"ESNI Cryptovars Zx",esni->Zx,esni->Zx_len,indent);
-	    esni_pbuf(out,"ESNI Cryptovars key",esni->key,esni->key_len,indent);
-	    esni_pbuf(out,"ESNI Cryptovars iv",esni->iv,esni->iv_len,indent);
-	    esni_pbuf(out,"ESNI Cryptovars aad",esni->aad,esni->aad_len,indent);
-	    esni_pbuf(out,"ESNI Cryptovars plain",esni->plain,esni->plain_len,indent);
-	    esni_pbuf(out,"ESNI Cryptovars tag",esni->tag,esni->tag_len,indent);
-	    esni_pbuf(out,"ESNI Cryptovars cipher",esni->cipher,esni->cipher_len,indent);
+	    esni_pbuf(out,"ESNI Cryptovars Z",esni->Z,esni->Z_len);
+	    esni_pbuf(out,"ESNI Cryptovars Zx",esni->Zx,esni->Zx_len);
+	    esni_pbuf(out,"ESNI Cryptovars key",esni->key,esni->key_len);
+	    esni_pbuf(out,"ESNI Cryptovars iv",esni->iv,esni->iv_len);
+	    esni_pbuf(out,"ESNI Cryptovars aad",esni->aad,esni->aad_len);
+	    esni_pbuf(out,"ESNI Cryptovars plain",esni->plain,esni->plain_len);
+	    esni_pbuf(out,"ESNI Cryptovars tag",esni->tag,esni->tag_len);
+	    esni_pbuf(out,"ESNI Cryptovars cipher",esni->cipher,esni->cipher_len);
 	    if (esni->the_esni) {
 	        BIO_printf(out,"ESNI CLIENT_ESNI structure (repetitive on client):\n");
 	        BIO_printf(out,"CLIENT_ESNI Ciphersuite is %04x\n",esni->the_esni->ciphersuite);
-	        esni_pbuf(out,"CLIENT_ESNI encoded_keyshare",esni->the_esni->encoded_keyshare,esni->the_esni->encoded_keyshare_len,indent);
-	        esni_pbuf(out,"CLIENT_ESNI record_digest",esni->the_esni->record_digest,esni->the_esni->record_digest_len,indent);
-	        esni_pbuf(out,"CLIENT_ESNI encrypted_sni",esni->the_esni->encrypted_sni,esni->the_esni->encrypted_sni_len,indent);
+	        esni_pbuf(out,"CLIENT_ESNI encoded_keyshare",esni->the_esni->encoded_keyshare,esni->the_esni->encoded_keyshare_len);
+	        esni_pbuf(out,"CLIENT_ESNI record_digest",esni->the_esni->record_digest,esni->the_esni->record_digest_len);
+            esni_pbuf(out,"CLIENT_ESNI encrypted_sni",esni->the_esni->encrypted_sni,esni->the_esni->encrypted_sni_len);
 	    } else {
 	        BIO_printf(out,"ESNI CLIENT_ESNI is NULL\n");
 	    }
@@ -1605,6 +1605,15 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esniarr, int selector)
             BIO_printf(out,"ESNI public key file not set\n");
         }
         BIO_printf(out,"ESNI key pair load time: %lu\n",esni->loadtime);
+    }
+
+    bf=BIO_flush(out);
+    if (bf!=1) {
+        /*
+         * not much point trying to write out an error I guess, could make things
+         * worse, but we'll give it one more shot.
+         */
+        BIO_printf(out,"BIO_flush returned %d - things may get dodgy!\n",bf);
     }
     return(1);
 }
@@ -2273,7 +2282,7 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys_in,
         }
     }
 
-#define FANDZ(x) { if (x) OPENSSL_free(x); x=NULL; x##_len=0; }
+#define FANDZ(x) { if (x!=NULL) OPENSSL_free(x); x=NULL; x##_len=0; }
 
     if (esnikeys->hrr_swap==1) {
         /*
@@ -2333,7 +2342,7 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys_in,
         for (i=0;i!=32;i++) {
             binpriv[i]=ESNI_A2B(esnikeys->private_str[2*i])*16+ESNI_A2B(esnikeys->private_str[(2*i)+1]);
         }
-        so_esni_pbuf("CRYPTO_INTEROP  private",binpriv,bp_len,0);
+        so_esni_pbuf("CRYPTO_INTEROP  private",binpriv,bp_len);
     
         /*
          * Group number is in 3rd & 4th octets kse
@@ -2503,6 +2512,7 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys_in,
         ESNIerr(ESNI_F_SSL_ESNI_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
     }
+    memset(tc,0,sizeof(CLIENT_ESNI));
     tc->ciphersuite=esnikeys->ciphersuite;
     tc->encoded_keyshare=esnikeys->encoded_keyshare;
     tc->encoded_keyshare_len=esnikeys->encoded_keyshare_len;

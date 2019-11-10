@@ -989,8 +989,13 @@ static int new_session_cb(SSL *s, SSL_SESSION *sess)
             ERR_print_errors(bio_err);
         }
     }
-    BIO_printf(bio_c_out,"---\nESNI stuff so far:\n");
-    SSL_SESSION_print(bio_c_out, sess);
+    /*
+    if (c_debug) {
+        BIO_printf(bio_err,"---\nESNI stuff so far:\n");
+        SSL_SESSION_print(bio_err, sess);
+    }
+    */
+
 #endif
 
     if (sess_out != NULL) {
@@ -2458,7 +2463,6 @@ int s_client_main(int argc, char **argv)
 #endif
             SSL_set_msg_callback(con, msg_cb);
         SSL_set_msg_callback_arg(con, bio_c_msg ? bio_c_msg : bio_c_out);
-    }
 #ifndef OPENSSL_NO_ESNI
 #ifndef OPENSSL_NO_SSL_TRACE
         if (c_msg==2) {
@@ -2466,6 +2470,7 @@ int s_client_main(int argc, char **argv)
         }
 #endif
 #endif
+    }
 
     if (c_tlsextdebug) {
         SSL_set_tlsext_debug_callback(con, tlsext_cb);
