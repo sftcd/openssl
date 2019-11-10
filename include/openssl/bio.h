@@ -12,7 +12,7 @@
 # pragma once
 
 # include <openssl/macros.h>
-# if !OPENSSL_API_3
+# ifndef OPENSSL_NO_DEPRECATED_3_0
 #  define HEADER_BIO_H
 # endif
 
@@ -181,7 +181,7 @@ extern "C" {
 # define BIO_FLAGS_IO_SPECIAL    0x04
 # define BIO_FLAGS_RWS (BIO_FLAGS_READ|BIO_FLAGS_WRITE|BIO_FLAGS_IO_SPECIAL)
 # define BIO_FLAGS_SHOULD_RETRY  0x08
-# if !OPENSSL_API_3
+# ifndef OPENSSL_NO_DEPRECATED_3_0
 /* This #define was replaced by an internal constant and should not be used. */
 #  define BIO_FLAGS_UPLINK       0
 # endif
@@ -704,7 +704,7 @@ int BIO_sock_error(int sock);
 int BIO_socket_ioctl(int fd, long type, void *arg);
 int BIO_socket_nbio(int fd, int mode);
 int BIO_sock_init(void);
-# if !OPENSSL_API_1_1_0
+# ifndef OPENSSL_NO_DEPRECATED_1_1_0
 #  define BIO_sock_cleanup() while(0) continue
 # endif
 int BIO_set_tcp_ndelay(int sock, int turn_on);

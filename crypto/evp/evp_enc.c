@@ -171,6 +171,9 @@ int EVP_CipherInit_ex(EVP_CIPHER_CTX *ctx, const EVP_CIPHER *cipher,
         case NID_aes_256_gcm:
         case NID_aes_192_gcm:
         case NID_aes_128_gcm:
+        case NID_aes_256_siv:
+        case NID_aes_192_siv:
+        case NID_aes_128_siv:
         case NID_id_aes256_wrap:
         case NID_id_aes256_wrap_pad:
         case NID_id_aes192_wrap:
@@ -1124,6 +1127,12 @@ int EVP_CIPHER_CTX_ctrl(EVP_CIPHER_CTX *ctx, int type, int arg, void *ptr)
         i = (unsigned int)arg;
         params[0] = OSSL_PARAM_construct_uint(OSSL_CIPHER_PARAM_ROUNDS, &i);
         break;
+    case EVP_CTRL_SET_SPEED:
+        if (arg < 0)
+            return 0;
+        i = (unsigned int)arg;
+        params[0] = OSSL_PARAM_construct_uint(OSSL_CIPHER_PARAM_SPEED, &i);
+        break;
     case EVP_CTRL_AEAD_GET_TAG:
         set_params = 0; /* Fall thru */
     case EVP_CTRL_AEAD_SET_TAG:
@@ -1351,8 +1360,7 @@ static void set_legacy_nid(const char *name, void *vlegacy_nid)
 
 static void *evp_cipher_from_dispatch(const int name_id,
                                       const OSSL_DISPATCH *fns,
-                                      OSSL_PROVIDER *prov,
-                                      void *unused)
+                                      OSSL_PROVIDER *prov)
 {
     EVP_CIPHER *cipher = NULL;
     int fnciphcnt = 0, fnctxcnt = 0;
@@ -1492,7 +1500,7 @@ EVP_CIPHER *EVP_CIPHER_fetch(OPENSSL_CTX *ctx, const char *algorithm,
 {
     EVP_CIPHER *cipher =
         evp_generic_fetch(ctx, OSSL_OP_CIPHER, algorithm, properties,
-                          evp_cipher_from_dispatch, NULL, evp_cipher_up_ref,
+                          evp_cipher_from_dispatch, evp_cipher_up_ref,
                           evp_cipher_free);
 
     return cipher;
@@ -1527,5 +1535,5 @@ void EVP_CIPHER_do_all_provided(OPENSSL_CTX *libctx,
 {
     evp_generic_do_all(libctx, OSSL_OP_CIPHER,
                        (void (*)(void *, void *))fn, arg,
-                       evp_cipher_from_dispatch, NULL, evp_cipher_free);
+                       evp_cipher_from_dispatch, evp_cipher_free);
 }

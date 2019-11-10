@@ -12,7 +12,7 @@
 # pragma once
 
 # include <openssl/macros.h>
-# if !OPENSSL_API_3
+# ifndef OPENSSL_NO_DEPRECATED_3_0
 #  define HEADER_ASN1_H
 # endif
 
@@ -25,9 +25,7 @@
 # include <openssl/symhacks.h>
 
 # include <openssl/types.h>
-# if !OPENSSL_API_1_1_0
-#  include <openssl/bn.h>
-# endif
+# include <openssl/bn.h>
 
 # ifdef OPENSSL_BUILD_SHLIBCRYPTO
 #  undef OPENSSL_EXTERN

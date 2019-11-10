@@ -25,6 +25,11 @@ There's a [TODO list](#todos) at the end.
 Most recent first...
 
 
+- 20191110: Seeing some valgrind issues with non-debug build that disappear with
+  the debug build, but that don't seem to affect functionality or (so
+  far) cause a crash. Not clear that the code affected is mine so I'll
+  remerge with upstream to see if that fixes it.
+
 - Similar thing for lighttpd and ``SSL_CTX_load_verify_locations``
 
 - On 20191109 I re-merged my nginx fork with upstream, and then built against the
