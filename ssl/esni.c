@@ -1367,7 +1367,11 @@ static void esni_pbuf(BIO *out,char *msg,unsigned char *buf,size_t blen,int inde
      * be removed once the ESNI spec's crypto is stable.
      */
     if (buf==NULL || blen==0) {
-        BIO_printf(out,"OPENSSL: %s is NULL\n",msg);
+        BIO_printf(out,"OPENSSL: buf/blen is NULL\n");
+        return;
+    }
+    if (out==NULL || msg==NULL) {
+        BIO_printf(out,"OPENSSL: out or msg is NULL\n");
         return;
     }
     BIO_printf(out,"OPENSSL: %s (%zd):\n    ",msg,blen);
@@ -1444,6 +1448,7 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esniarr, int selector)
             BIO_printf(out,"ESNI Array has %d RRs, printing the %d-th.\n",nesnis,selector);
         }
     }
+
     int bf=BIO_flush(out);
     if (bf!=1) {
         /*
@@ -1452,6 +1457,7 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esniarr, int selector)
          */
         BIO_printf(out,"BIO_flush returned %d - things may get dodgy!\n",bf);
     }
+
     int i=0;
     for (i=0;i!=nesnis;i++) {
 
@@ -1898,7 +1904,7 @@ static unsigned char *esni_aead_dec(
      * From https://wiki.openssl.org/index.php/EVP_Authenticated_Encryption_and_Decryption
      */
     EVP_CIPHER_CTX *ctx=NULL;
-    int len;
+    int len=0;
     size_t plaintext_len=0;
     unsigned char *plaintext=NULL;
     const SSL_CIPHER *sc=cs2sc(ciph);

@@ -2448,7 +2448,7 @@ int s_client_main(int argc, char **argv)
 #ifndef OPENSSL_NO_ESNI
 #ifndef OPENSSL_NO_SSL_TRACE
         if (c_msg==2) {
-            OSSL_trace_set_callback(OSSL_TRACE_CATEGORY_TLS, esni_trace_cb, bio_c_out);
+            OSSL_trace_set_callback(OSSL_TRACE_CATEGORY_TLS, esni_trace_cb, bio_c_msg? bio_c_msg : bio_c_out);
         }
 #endif
 #endif
