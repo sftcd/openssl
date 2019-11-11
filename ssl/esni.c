@@ -1370,16 +1370,20 @@ static void esni_pbuf(BIO *out,char *msg,unsigned char *buf,size_t blen)
         BIO_printf(out,"msg is NULL\n");
         return;
     }
-    if (buf==NULL || blen==0) {
-        BIO_printf(out,"%s: buf/blen is NULL/zero\n",msg);
+    if (buf==NULL) {
+        BIO_printf(out,"%s: buf is NULL\n",msg);
+        return;
+    }
+    if (blen==0) {
+        BIO_printf(out,"%s: blen is zero\n",msg);
         return;
     }
     BIO_printf(out,"%s (%zd):\n    ",msg,blen);
-    int i;
-    for (i=0;i!=blen;i++) {
+    size_t i;
+    for (i=0;i<blen;i++) {
         if ((i!=0) && (i%16==0))
             BIO_printf(out,"\n    ");
-        BIO_printf(out,"%02x:",(unsigned int) (buf[i]));
+        BIO_printf(out,"%02x:",buf[i]);
     }
     BIO_printf(out,"\n");
     return;
@@ -1795,11 +1799,15 @@ static unsigned char *esni_aead_enc(
         goto err;
     }
     /*
-     * We'll allocate this much extra for ciphertext and check the AEAD doesn't require more later
+     * We'll allocate this much extra for ciphertext and check the AEAD doesn't require more
      * If it does, we'll fail.
      */
     size_t alloced_oh=64;
 
+    if (tag_len > alloced_oh) {
+        ESNIerr(ESNI_F_ESNI_AEAD_ENC, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
     ciphertext=OPENSSL_malloc(plain_len+alloced_oh);
     if (ciphertext==NULL) {
         ESNIerr(ESNI_F_ESNI_AEAD_ENC, ERR_R_INTERNAL_ERROR);
@@ -1864,15 +1872,25 @@ static unsigned char *esni_aead_enc(
 
     ciphertext_len += len;
 
-    /* Get the tag */
     /*
+     * Get the tag
      * This isn't a duplicate so needs to be added to the ciphertext
+     *
+     * So I had a problem with this code when built with optimisation
+     * turned on ("-O3" or even "-g -O1" when I manually edited the
+     * Makefile). Valgrind reports use of uninitialised memory
+     * related to the tag (when it was later printed in SSL_ESNI_print).
+     * When I was just passing in the tag directly, I got a couple
+     * of valgrind errors from within SSL_ESNI_print and then loads
+     * (>1000) other uninitialised memory errors later on from all
+     * sorts of places in code I've not touched for ESNI.
+     * For now, building with "no-asm" is a workaround that works
+     * around:-)
+     * I mailed the openssl-users list:
+     * https://mta.openssl.org/pipermail/openssl-users/2019-November/011503.html
+     * TODO(ESNI): follow up on this
      */
-    if(1 != EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_GET_TAG, tag_len, tag)) {
-        ESNIerr(ESNI_F_ESNI_AEAD_ENC, ERR_R_INTERNAL_ERROR);
-        goto err;
-    }
-    if (tag_len > alloced_oh) {
+    if(1 != EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_GET_TAG, tag_len, tag)) {
         ESNIerr(ESNI_F_ESNI_AEAD_ENC, ERR_R_INTERNAL_ERROR);
         goto err;
     }
@@ -2126,10 +2144,10 @@ static int esni_key_derivation(SSL_ESNI *esnikeys)
         goto err;
     }
     /*
-     * TODO(ESNI): implement label swapping when handling HRR - the 2nd time the
+     * TODO(ESNI): test label swapping when handling HRR - the 2nd time the
      * labels should go from "esni key" to "hrr esni key" and "esni iv" to
-     * "hrr esni iv" - but not yet - I've still to do HRR processing at
-     * all, and I suspect this crypto primitive will switch to use of 
+     * "hrr esni iv"
+     * I suspect this crypto primitive will switch to use of
      * whatever ends up from https://tools.ietf.org/html/draft-barnes-cfrg-hpke
      */
     const char *initkey="esni key";
@@ -2479,6 +2497,7 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys_in,
         ESNIerr(ESNI_F_SSL_ESNI_ENC, ERR_R_MALLOC_FAILURE);
         goto err;
     }
+    memset(esnikeys->tag,0,esnikeys->tag_len);
 
     esnikeys->cipher=esni_aead_enc(esnikeys->key, esnikeys->key_len,
             esnikeys->iv, esnikeys->iv_len,

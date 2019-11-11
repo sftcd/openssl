@@ -73,18 +73,11 @@ static int keymatexportlen = 20;
 static BIO *bio_c_out = NULL;
 static int c_quiet = 0;
 static char *sess_out = NULL;
+
 #ifndef OPENSSL_NO_ESNI
 const char *encservername = NULL;
 const char *servername = NULL;
 const char *public_name = NULL;
-#endif
-static SSL_SESSION *psksess = NULL;
-
-static void print_stuff(BIO *berr, SSL *con, int full);
-#ifndef OPENSSL_NO_OCSP
-static int ocsp_resp_cb(SSL *s, void *arg);
-#endif
-#ifndef OPENSSL_NO_ESNI
 static unsigned int esni_print_cb(SSL *s, char *str);
 int esni_strict=0;
 int esni_grease=0;
@@ -93,6 +86,14 @@ static size_t esni_trace_cb(const char *buf, size_t cnt,
                  int category, int cmd, void *vdata);
 #endif
 #endif
+
+static SSL_SESSION *psksess = NULL;
+
+static void print_stuff(BIO *berr, SSL *con, int full);
+#ifndef OPENSSL_NO_OCSP
+static int ocsp_resp_cb(SSL *s, void *arg);
+#endif
+
 static int ldap_ExtendedResponse_parse(const char *buf, long rem);
 static char *base64encode (const void *buf, size_t len);
 static int is_dNS_name(const char *host);
@@ -952,22 +953,18 @@ static int new_session_cb(SSL *s, SSL_SESSION *sess)
         if (rv!=1) {
             if (c_debug) 
                 BIO_printf(bio_err, "Can't set ESNI/hostname in session...\n");
-            ERR_print_errors(bio_err);
         } else {
             if (c_debug) 
                 BIO_printf(bio_err, "Set ESNI/hostname in session to %s\n",servername);
-            ERR_print_errors(bio_err);
         }
         /* also stick that in public_name_override */
         rv=SSL_SESSION_set1_public_name_override(sess,servername);
         if (rv!=1) {
             if (c_debug) 
                 BIO_printf(bio_err, "Can't set ESNI/public_name_override in session...\n");
-            ERR_print_errors(bio_err);
         } else {
             if (c_debug) 
                 BIO_printf(bio_err, "Set ESNI/public_name_override in session to %s\n",servername);
-            ERR_print_errors(bio_err);
         }
         /* 
          * put public_name into session, public_name set from callback
@@ -977,24 +974,20 @@ static int new_session_cb(SSL *s, SSL_SESSION *sess)
             if (rv!=1) {
                 if (c_debug) 
                     BIO_printf(bio_err, "Can't set ESNI/public_name in session...\n");
-                ERR_print_errors(bio_err);
             } else {
                 if (c_debug) 
                     BIO_printf(bio_err, "Set ESNI/public_name in session to %s\n",public_name);
-                ERR_print_errors(bio_err);
             }
         } else {
             if (c_debug) 
                 BIO_printf(bio_err, "Can't set ESNI/public_name (none visible) in session...\n");
-            ERR_print_errors(bio_err);
         }
+        ERR_print_errors(bio_err);
     }
-    /*
     if (c_debug) {
         BIO_printf(bio_err,"---\nESNI stuff so far:\n");
         SSL_SESSION_print(bio_err, sess);
     }
-    */
 
 #endif
 

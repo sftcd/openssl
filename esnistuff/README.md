@@ -24,11 +24,24 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- 20191111: Seeing some valgrind issues with default/non-debug build that
+disappear with a debug build, but that don't seem to affect functionality or (so
+far) cause a crash. Not fully clear what's up yet.
+    - Manually editing the Makefile to use "-g -O3" allows me to see where that
+      (or I guess some related error) happens
+    - Seems like the issue is related to extracting the GCM tag 
+      when calling 
+            EVP_CIPHER_CTX_ctrl(ctx,EVP_CTRL_AEAD_GET_TAG, taglen, tag)
+      (See comments around ssl/esni.c:1893)
+    - Looks like the problem may be in some SHA256 assembler
+    - Building with ``./config no-asm`` seems to work ok and is good enough for
+      us for now, at least for whenever I want to check things with valgrind.
+    - Sent a
+      [mail](https://mta.openssl.org/pipermail/openssl-users/2019-November/011503.html)
+      to the openssl-users list
 
-- 20191110: Seeing some valgrind issues with non-debug build that disappear
-with a debug build, that don't seem to affect functionality or (so far)
-cause a crash. Not clear what's up yet, so this commit is really to let
-me test this in a 32 bit build.
+- Had to do some fix-up of ordinals in util/libssl.num and util/libcrypto.num to
+  avoid a fail from ``make test``
 
 - Similar thing for lighttpd and ``SSL_CTX_load_verify_locations``
 
