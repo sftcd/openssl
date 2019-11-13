@@ -24,6 +24,19 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- Started to do some work on [apache2](apache2.md). So far, no acpache code
+  changes were made but I have a build and test setup now, and can see that the
+locally built but unmodifed httpd that links my OpenSSL .so is returning
+GREASEd ESNI when sent ESNI, which is good.
+
+- TODO: revisit overriding the ``ESNIKeys.public_name`` value. When I specify
+  "-c NONE" with testclient.sh script at the moment, we still get the public
+name from the drat-04 ESNI RR. Could be I need a way to flag NONE as special to
+``s_client`` from the command line. (I forget where that's at tbh;-) Right now,
+"-c NONE" gets translated to "-noservername" but looks like I may need a
+"-noservername-REALLY" or or a "-noservername-BUT-public-name-is-ok" or
+something:-)
+
 - 20191111: Seeing some valgrind issues with default/non-debug build that
 disappear with a debug build, but that don't seem to affect functionality or (so
 far) cause a crash. Not fully clear what's up yet.

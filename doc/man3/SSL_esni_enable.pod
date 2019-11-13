@@ -134,9 +134,9 @@ Unless otherwise stated all functions return 1 for success.
 
 =head1 SEE ALSO
 
-The specification: https://tools.ietf.org/html/draft-ietf-tls-esni
+The draft specification: https://tools.ietf.org/html/draft-ietf-tls-esni
 
-My fork has a bit of a design doc: https://github.com/sftcd/openssl/blob/master/esnistuff/design.md
+My ESNI enabled fork has it's README at: https://github.com/sftcd/openssl/tree/master/esnistuff
 
 =head1 HISTORY
 
