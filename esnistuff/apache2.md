@@ -190,10 +190,48 @@ that. If you give it a function name as a command line argument it'll start the
 server with a breakpoint set there. With no command line argument it just
 starts the server.
 
+## Reloading ESNI keys
+
+Apparently giving apache a command line argument of "-k graceful" causes a
+graceful reload of the configuration, without dropping existing connections.
+(Not sure how well I can test that proposition.)
+In any case, "-k graceful" does seem to have the required effect, so we'll
+try that whenever we deploy in a context with regular key updates. For the
+present that can be done via the [testapache.sh](testapache.sh) script by
+providing a "graceful" parameter to the script:
+
+            $ ./testapache.sh graceful
+            Telling apache to do the graceful thing
+
+In the error.log file we see:
+
+            [Sat Nov 16 15:21:14.405010 2019] [mpm_event:notice] [pid 26579:tid 140622617413440] AH00493: SIGUSR1 received.  Doing graceful restart
+
+    followed by some (but fewer) of the usual startup lines.
+
+If we check the process IDs, that seems to be behaving as desired:
+
+			$ ps -ef | grep httpd
+			stephen  26579  1882  0 15:20 ?        00:00:00 httpd -d ./esnistuff -f ./esnistuff/apachemin.conf
+			stephen  26580 26579  0 15:20 ?        00:00:00 httpd -d ./esnistuff -f ./esnistuff/apachemin.conf
+			stephen  26581 26579  0 15:20 ?        00:00:00 httpd -d ./esnistuff -f ./esnistuff/apachemin.conf
+			stephen  26582 26579  0 15:20 ?        00:00:00 httpd -d ./esnistuff -f ./esnistuff/apachemin.conf
+			stephen  26665 24624  0 15:20 pts/2    00:00:00 grep --color=auto httpd
+			$ ./testapache.sh graceful 
+			Telling apache to do the graceful thing
+			$ ps -ef | grep httpd
+			stephen  26579  1882  0 15:20 ?        00:00:00 httpd -d ./esnistuff -f ./esnistuff/apachemin.conf
+			stephen  26709 26579  0 15:21 ?        00:00:00 httpd -d ./esnistuff -f ./esnistuff/apachemin.conf
+			stephen  26710 26579  0 15:21 ?        00:00:00 httpd -d ./esnistuff -f ./esnistuff/apachemin.conf
+			stephen  26711 26579  0 15:21 ?        00:00:00 httpd -d ./esnistuff -f ./esnistuff/apachemin.conf
+			stephen  26810 24624  0 15:21 pts/2    00:00:00 grep --color=auto httpd
+			
+(Note that the above output from ``ps`` has been edited for clarity, in reality you'd see
+longer absolute path names there due to how [testapache.sh](testapache.sh) starts the
+server. I'm not sure if that's really needed or not though.)
+
 ## TODOs
 
-- Tidy up code generally.
-- ESNI key reloading.
 - Make ESNI status visible to e.g. PHP applications.
 - Check how ESNI key configuration plays with VirtualHost and other stanzas.
   (``load_esnikeys()`` is still being called a lot of times.)

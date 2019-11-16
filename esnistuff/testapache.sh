@@ -57,6 +57,15 @@ EOF
 fi
 
 export LD_LIBRARY_PATH=$OSSL
+
+# if we want to reload config then that's "graceful restart"
+if [[ "$1" == "graceful" ]]
+then
+    echo "Telling apache to do the graceful thing"
+    $APA/httpd -d $OSSL/esnistuff -f $OSSL/esnistuff/apachemin.conf -k graceful
+    exit $?
+fi
+
 PIDFILE=$OSSL/esnistuff/apache/httpd.pid
 # Kill off old processes from the last test
 if [ -f $PIDFILE ]
@@ -68,7 +77,8 @@ else
     echo "Can't find $PIDFILE - tring killall httpd"
     killall httpd
 fi
-# check if some process was left over after gdb or something
+
+# if starting afresh check if some process was left over after gdb or something
 
 # kill off other processes
 procs=`ps -ef | grep httpd | grep -v grep | awk '{print $2}'`
@@ -94,6 +104,6 @@ FGROUND=""
 echo "Executing: $VALGRIND $APA/httpd -f $OSSL/esnistuff/apachemin.conf"
 # move over there to run code, so config file can have relative paths
 cd $OSSL/esnistuff
-$VALGRIND $APA/httpd -d . -f apachemin.conf $FGROUND
+$VALGRIND $APA/httpd -d $OSSL/esnistuff -f $OSSL/esnistuff/apachemin.conf $FGROUND
 cd - 
 
