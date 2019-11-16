@@ -68,11 +68,23 @@ else
     echo "Can't find $PIDFILE - tring killall httpd"
     killall httpd
 fi
+# check if some process was left over after gdb or something
+
+# kill off other processes
+procs=`ps -ef | grep httpd | grep -v grep | awk '{print $2}'`
+for proc in $procs
+do
+    echo "Killing old httpd (from gdb maybe) in $proc"
+    kill -9 $proc
+done
+
+# give the n/w a chance so 9443 is free to use
 sleep 2
 
 # set to use valgrind, unset to not
 # VALGRIND="valgrind --leak-check=full --show-leak-kinds=all"
 # VALGRIND="valgrind --leak-check=full "
+#VALGRIND="valgrind "
 VALGRIND=""
 
 # Set/unset to detach or run in foreground

@@ -58,13 +58,13 @@ OpenSSL and curl - if not, you may need to install dependencies as you go.
             $ cd esnistuff
             $ make
 
-- test via a wrapper script...
+Now you can test that via our [testclient.sh](testclient.sh) wrapper script (also in the ``esnistuff`` directory)...
 
 If you cloned OpenSSL somewhere other than ``$HOME/code``, you can export an
 environment variable ``TOP`` and that will be used instead of
 ``$HOME/code/openssl``
 
-This tests that ESNI works against the cloudflare deployment...
+This tests that ESNI works against the cloudflare deployment:
 
             $ ./testclient.sh -H ietf.org
             Running ./testclient.sh at 20190828-072413
@@ -73,7 +73,7 @@ This tests that ESNI works against the cloudflare deployment...
             
             $
 
-This tests that ESNI works against our defo.ie deployment...
+This tests that ESNI works against our defo.ie deployment:
 
             $ ./testclient.sh -H only.esni.defo.ie -c cover.defo.ie 
             Running ./testclient.sh at 20190828-072453

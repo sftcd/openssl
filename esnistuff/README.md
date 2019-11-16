@@ -24,10 +24,12 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
-- Started to do some work on [apache2](apache2.md). So far, no acpache code
-  changes were made but I have a build and test setup now, and can see that the
-locally built but unmodifed httpd that links my OpenSSL .so is returning
-GREASEd ESNI when sent ESNI, which is good.
+- Started to do some work on [apache2](apache2.md). A basic
+ESNI test works in a localhost setup. Probably a lot still to do,
+including at least some tidying up. TODO: that needed a fake
+call to the ESNI callback, previously used for printing stuff
+in ``s_server``, so I should make that callback a bit more
+generic.
 
 - TODO: revisit overriding the ``ESNIKeys.public_name`` value. When I specify
   "-c NONE" with testclient.sh script at the moment, we still get the public

@@ -2505,7 +2505,6 @@ int tls_parse_stoc_esni(SSL *s, PACKET *pkt, unsigned int context,
         s->esni_done=1;
     } else {
         /* bummer - different nonce, we're no good */
-
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PARSE_STOC_ESNI, ERR_R_INTERNAL_ERROR);
         return 0;
     }
