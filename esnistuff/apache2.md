@@ -171,12 +171,12 @@ the command I ran was:
 - Adding the SSLESNIKeyDir config item required changes to: ``ssl_private.h``
   and ``ssl_engine_config.c``
 
-- I added a ``load_esnikeys()`` function as with other servers, (in ``ssl_engine_init.c``)
-  but as that is called more than once (not sure how to avoid that yet) I
-needed it to not fail if all the keys we attempt to load in one call are there already. 
-That's a change from what I did with other servers. That
-also seems to be called more than once for each VirtualHost at the moment, which could
-do with being fixed (but doesn't break).
+- I added a ``load_esnikeys()`` function as with other servers, (in
+  ``ssl_engine_init.c``) but as that is called more than once (not sure how to
+avoid that yet) I needed it to not fail if all the keys we attempt to load in
+one call are there already.  That's a change from what I did with other
+servers. That seems to be called more than once for each VirtualHost at the
+moment, which could do with being fixed (but doesn't break).
 
 - There are various changes in ``ssl_engine_init.c``  and ``ssl_engine_kernel.c``
 to handle ESNI. All of those need to be tidied up.
@@ -193,7 +193,7 @@ starts the server.
 ## TODOs
 
 - Tidy up code generally.
-- Make ``load_esnikeys()`` portable (using APR).
+- ESNI key reloading.
 - Make ESNI status visible to e.g. PHP applications.
 - Check how ESNI key configuration plays with VirtualHost and other stanzas.
   (``load_esnikeys()`` is still being called a lot of times.)
