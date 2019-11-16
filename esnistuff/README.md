@@ -24,6 +24,9 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- Made a few tweaks to [make-esnikeys.sh](make-esnikeys.sh) and
+  [nginx.md](nginx.md) to make it easier for others to replicate.
+
 - Started to do some work on [apache2](apache2.md). A basic
 ESNI test works in a localhost setup. Probably a lot still to do,
 including at least some tidying up. TODO: that needed a fake
