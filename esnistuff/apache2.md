@@ -145,22 +145,22 @@ Quick notes on code changes I've made so far:
 
 - All changes are within ``modules/ssl``.
 
-- For now, I've bracketed all my changes with ``#ifndef OPENSSL_NO_ESNI``. That's
-likely wrong (other code is bracketed using ifdef not ifndef. 
+- I've bracketed my changes with ``#ifdef HAVE_OPENSSL_ESNI``. That's
+defined in ``ssl_private.h`` if the included ``ssl.h`` defines ``SSL_OP_ESNI_GREASE``.
 
 - The build generated a few warnings of deprecated OpenSSL functions, but seems
-ok otherwise. (Seems similar to what I saw in [nginx](nginx.md) and
-[lighttpd](lighttpd.md).) I modified calls to these as done for lighttpd but
-the changes may be dodgier and I likely won't be testing them (soon) as they
-seem related to client auth and CRLs. The deprecated functions are listed
-below 
+  ok otherwise. (This is similar to what I saw in [nginx](nginx.md) and
+[lighttpd](lighttpd.md).) I modified calls to these as I did for lighttpd but
+the changes may be dodgier in this case and I likely won't be testing them
+(soon) as they seem related to client auth and CRLs. The deprecated functions
+are listed below 
     - ``SSL_CTX_load_verify_locations()``
     - ``X509_STORE_load_locations()``
     - ``ERR_peek_error_line_data()``
 
 - I'm using ``ap_log_error()`` liberally for now, with ``APLOG_INFO`` level (or
   higher) even if some of those should be debug really.  There's a
-semi-automagted log numbering scheme - the idea is to start with code that uses
+semi-automated log numbering scheme - the idea is to start with code that uses
 the ``APLOGNO()`` macro with nothing in the brackets, then to run a perl script
 (from $HOME/code/httpd) that'll generate the next unique log number to use, and
 modify the code accordingly. (I guess that would need re-doing when a PR is
@@ -171,13 +171,13 @@ forget what to do, the first time I used this the command I ran was:
             $ perl docs/log-message-tags/update-log-msg-tags modules/ssl/ssl_engine_config.c
 
 - Adding the SSLESNIKeyDir config item required changes to: ``ssl_private.h``
-  and `ssl_engine_config.c``
+  and ``ssl_engine_config.c``
 
-- I added a ``load_esnikeys`` as with other servers, (in ``ssl_engine_init.c``)
+- I added a ``load_esnikeys()`` function as with other servers, (in ``ssl_engine_init.c``)
   but as that is called more than once (not sure how to avoid that yet) I
-needed to not fail if all the keys we attempt to load are there already. That
-seems to be called twice for each ``SSL_CTX`` at the moment, which needs
-fixing.
+needed to not fail if all the keys we attempt to load in one call are there already. That
+also seems to be called more than once for each ``SSL_CTX`` at the moment, which could
+do with being fixed (but doesn't break).
 
 - There are various changes in ``ssl_engine_init.c``  and ``ssl_engine_kernel.c``
 to handle ESNI. All of those need to be tidied up.
@@ -193,13 +193,15 @@ starts the server.
 
 ## TODOs
 
-- Fix code bracketing 
-- Add other ESNI key configuration options (i.e. SSLESNIKeyFile)
-- Check how ESNI key configuration plays with VirtualHost and other stanzas
-- Check if changes for deprecated functions break anything
-- Make ESNI callback more generic.
-- Make ``load_esnikeys`` portable (using APR)
 - Proper logging of ESNI success/failure (there's basically debug stuff there now)
+- Tidy up code generally.
+- Make ``load_esnikeys()`` portable (using APR).
+- Make ESNI callback more generic. (Requires changes to my OpenSSL library, 
+  and hence other applications I've done too.)
 - Make ESNI status visible to e.g. PHP applications.
+- Check how ESNI key configuration plays with VirtualHost and other stanzas.
+- Check if changes for deprecated functions break anything
+- Add other ESNI key configuration options (i.e. SSLESNIKeyFile) - maybe solicit 
+  feedback from some apache maintainer first.
 - Testing, testing, testing.
 
