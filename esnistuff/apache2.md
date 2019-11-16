@@ -5,11 +5,9 @@ State of play: ESNI worked in a localhost setup.
 
 Getting ESNI working was a bit harder than with [nginx](nginx.md) as
 ``mod_ssl`` sniffed the ClientHello as soon as one is seen (i.e., before ESNI
-processing) and then set the key pair to use based on the cleartext SNI. I had
-to use the ESNI print callback instead (if ESNI configured)  so that's done
-after ESNI processing.  That really ought be a new callback for use after ENSI
-processing but before the main TLS key exchange. So I should make the print
-callback more generic.
+processing) and then set the key pair to use based on the cleartext SNI. I 
+used the ESNI callback instead (if ESNI configured)  so that's done
+after successful server-side ESNI processing.  
 
 ## Clone and Build
 
@@ -158,14 +156,14 @@ are listed below
     - ``X509_STORE_load_locations()``
     - ``ERR_peek_error_line_data()``
 
-- I'm using ``ap_log_error()`` liberally for now, with ``APLOG_INFO`` level (or
-  higher) even if some of those should be debug really.  There's a
-semi-automated log numbering scheme - the idea is to start with code that uses
-the ``APLOGNO()`` macro with nothing in the brackets, then to run a perl script
-(from $HOME/code/httpd) that'll generate the next unique log number to use, and
-modify the code accordingly. (I guess that would need re-doing when a PR is
-eventually submitted but can cross that hurdle when I get there.) As I'll
-forget what to do, the first time I used this the command I ran was:
+- I'm using ``ap_log_error()`` liberally for now, mostly with ``APLOG_INFO``
+  level (or higher).  There's a semi-automated log numbering scheme - the idea
+is to start with code that uses the ``APLOGNO()`` macro with nothing in the
+brackets, then to run a perl script (from $HOME/code/httpd) that'll generate
+the next unique log number to use, and modify the code accordingly. (I guess
+that would need re-doing when a PR is eventually submitted but can cross that
+hurdle when I get there.) As I'll forget what to do, the first time I used this
+the command I ran was:
 
             $ cd $HOME/code/httpd
             $ perl docs/log-message-tags/update-log-msg-tags modules/ssl/ssl_engine_config.c
@@ -175,8 +173,9 @@ forget what to do, the first time I used this the command I ran was:
 
 - I added a ``load_esnikeys()`` function as with other servers, (in ``ssl_engine_init.c``)
   but as that is called more than once (not sure how to avoid that yet) I
-needed to not fail if all the keys we attempt to load in one call are there already. That
-also seems to be called more than once for each ``SSL_CTX`` at the moment, which could
+needed it to not fail if all the keys we attempt to load in one call are there already. 
+That's a change from what I did with other servers. That
+also seems to be called more than once for each VirtualHost at the moment, which could
 do with being fixed (but doesn't break).
 
 - There are various changes in ``ssl_engine_init.c``  and ``ssl_engine_kernel.c``
@@ -193,13 +192,11 @@ starts the server.
 
 ## TODOs
 
-- Proper logging of ESNI success/failure (there's basically debug stuff there now)
 - Tidy up code generally.
 - Make ``load_esnikeys()`` portable (using APR).
-- Make ESNI callback more generic. (Requires changes to my OpenSSL library, 
-  and hence other applications I've done too.)
 - Make ESNI status visible to e.g. PHP applications.
 - Check how ESNI key configuration plays with VirtualHost and other stanzas.
+  (``load_esnikeys()`` is still being called a lot of times.)
 - Check if changes for deprecated functions break anything
 - Add other ESNI key configuration options (i.e. SSLESNIKeyFile) - maybe solicit 
   feedback from some apache maintainer first.

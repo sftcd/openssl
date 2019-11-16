@@ -24,7 +24,7 @@
 
 #define ESNI_SELECT_ALL -1 ///< used to duplicate all RRs in SSL_ESNI_dup
 
-#define ESNI_PBUF_SIZE 8*1024 ///<  8K buffer used for print string sent to application via esni_print_cb
+#define ESNI_PBUF_SIZE 8*1024 ///<  8K buffer used for print string sent to application via esni_cb
 
 /*
  * What value to use to indicate a bogus/missing time value, that might work on 

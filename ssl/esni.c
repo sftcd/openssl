@@ -3427,14 +3427,14 @@ int SSL_get_esni_status(SSL *s, char **hidden, char **clear_sni)
     return SSL_ESNI_STATUS_NOT_TRIED;
 }
 
-void SSL_set_esni_print_callback(SSL *s, SSL_esni_print_cb_func f)
+void SSL_set_esni_callback(SSL *s, SSL_esni_cb_func f)
 {
-    s->esni_print_cb=f;
+    s->esni_cb=f;
 }
 
-void SSL_CTX_set_esni_print_callback(SSL_CTX *s, SSL_esni_print_cb_func f)
+void SSL_CTX_set_esni_callback(SSL_CTX *s, SSL_esni_cb_func f)
 {
-    s->ext.esni_print_cb=f;
+    s->ext.esni_cb=f;
 }
 
 int SSL_ESNI_get_esni(SSL *s, SSL_ESNI **esni)
