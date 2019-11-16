@@ -25,7 +25,8 @@ There's a [TODO list](#todos) at the end.
 Most recent first...
 
 - Made the ESNI callback more generic, so it suits what I needed
-  for apache better.
+  for apache better, and various bits of apache tidying up - see [apache2.md](apache2,md)
+  for more.
 
 - Made a few tweaks to [make-esnikeys.sh](make-esnikeys.sh) and
   [nginx.md](nginx.md) to make it easier for others to replicate.

@@ -6,8 +6,9 @@ State of play: ESNI worked in a localhost setup.
 Getting ESNI working was a bit harder than with [nginx](nginx.md) as
 ``mod_ssl`` sniffed the ClientHello as soon as one is seen (i.e., before ESNI
 processing) and then set the key pair to use based on the cleartext SNI. I 
-used the ESNI callback instead (if ESNI configured)  so that's done
-after successful server-side ESNI processing.  
+used the ESNI callback instead (if ESNI configured)  so the ``init_vhost()``
+call (you can guess what that does:-) happens after successful server-side 
+ESNI processing.  
 
 ## Clone and Build
 
@@ -179,7 +180,7 @@ servers. That seems to be called more than once for each VirtualHost at the
 moment, which could do with being fixed (but doesn't break).
 
 - There are various changes in ``ssl_engine_init.c``  and ``ssl_engine_kernel.c``
-to handle ESNI. All of those need to be tidied up.
+to handle ESNI. 
 
 ## Debugging
 
@@ -230,13 +231,27 @@ If we check the process IDs, that seems to be behaving as desired:
 longer absolute path names there due to how [testapache.sh](testapache.sh) starts the
 server. I'm not sure if that's really needed or not though.)
 
+## PHP variables
+
+As with lighttpd and nginx I added the following variables that are now visible to
+PHP code:
+
+    - ``SSL_ENSI_STATUS`` - ``success`` means that others also mean what they say
+    - ``SSL_ESNI_HIDDEN`` - has value that was encrypted in ESNI (or ``NONE``)
+    - ``SSL_ESNI_COVER`` - has value that was seen in plaintext SNI (or ``NONE``)
+
+I still need to test those, but will wait 'till I've deployed on a real server
+as I don't have a locahost setup for testing PHP right now. (So there may be
+a bit more work needed.)
+
 ## TODOs
 
-- Make ESNI status visible to e.g. PHP applications.
+- Deploy as a public web server.
+- Test PHP can see our env vars ok.
+- Fix up 1st error.log line that says e.g. "Connection to child 128 established (server example.com:443)" since we're not using port 443 at all
 - Check how ESNI key configuration plays with VirtualHost and other stanzas.
   (``load_esnikeys()`` is still being called a lot of times.)
-- Check if changes for deprecated functions break anything
 - Add other ESNI key configuration options (i.e. SSLESNIKeyFile) - maybe solicit 
   feedback from some apache maintainer first.
-- Testing, testing, testing.
+- Check if changes for deprecated functions break anything
 
