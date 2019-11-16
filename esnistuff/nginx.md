@@ -172,9 +172,9 @@ lighttpd:-)
 As with lighttpd I added the following variables that are now visible to
 PHP code:
 
-    - ``SSL_ENSI_STATUS`` - ``success`` means that others also mean what they say
-    - ``SSL_ESNI_HIDDEN`` - has value that was encrypted in ESNI (or ``NONE``)
-    - ``SSL_ESNI_COVER`` - has value that was seen in plaintext SNI (or ``NONE``)
+- ``SSL_ENSI_STATUS`` - ``success`` means that others also mean what they say
+- ``SSL_ESNI_HIDDEN`` - has value that was encrypted in ESNI (or ``NONE``)
+- ``SSL_ESNI_COVER`` - has value that was seen in plaintext SNI (or ``NONE``)
 
 To see those using fastcgi you need to include the following in the relevant
 bits of nginx config:

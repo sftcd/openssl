@@ -161,8 +161,8 @@ Those are:
     - "tried but failed" - something went wrong during attempted decryption
     - "worked but bad name" - this is a client-side error, if the TLS server cert didn't match the ESNI
     - "error getting ESNI status" - if the call to ``SSL_esni_get_status`` failed
-- ``SSL_ESNI_HIDDEN``: will contain the actual ESNI used or "EMPTY" 
-- ``SSL_ESNI_COVER``: will contain the cleartext SNI seen or "EMPTY"
+- ``SSL_ESNI_HIDDEN``: will contain the actual ESNI used or "NONE" 
+- ``SSL_ESNI_COVER``: will contain the cleartext SNI seen or "NONE"
 
 Here's a PHP snippet that will display those:
 

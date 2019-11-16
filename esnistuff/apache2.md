@@ -236,9 +236,9 @@ server. I'm not sure if that's really needed or not though.)
 As with lighttpd and nginx I added the following variables that are now visible to
 PHP code:
 
-    - ``SSL_ENSI_STATUS`` - ``success`` means that others also mean what they say
-    - ``SSL_ESNI_HIDDEN`` - has value that was encrypted in ESNI (or ``NONE``)
-    - ``SSL_ESNI_COVER`` - has value that was seen in plaintext SNI (or ``NONE``)
+- ``SSL_ENSI_STATUS`` - ``success`` means that others also mean what they say
+- ``SSL_ESNI_HIDDEN`` - has value that was encrypted in ESNI (or ``NONE``)
+- ``SSL_ESNI_COVER`` - has value that was seen in plaintext SNI (or ``NONE``)
 
 I still need to test those, but will wait 'till I've deployed on a real server
 as I don't have a locahost setup for testing PHP right now. (So there may be
