@@ -1,7 +1,8 @@
 
 # Playing about with Apache2
 
-State of play: ESNI worked in a localhost setup. 
+State of play: ESNI seems to work ok. Not much tested of course;-)
+Currently deployed on [https://defo.ie:9443](https://defo.ie:9443). 
 
 Getting ESNI working was a bit harder than with [nginx](nginx.md) as
 ``mod_ssl`` sniffed the ClientHello as soon as one is seen (i.e., before ESNI
