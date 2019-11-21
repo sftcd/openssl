@@ -31,9 +31,8 @@ Most recent first...
 - Made a few tweaks to [make-esnikeys.sh](make-esnikeys.sh) and
   [nginx.md](nginx.md) to make it easier for others to replicate.
 
-- Started to do some work on [apache2](apache2.md). A basic
-ESNI test works in a localhost setup. Probably a lot still to do,
-including at least some tidying up. 
+- Started to do some work on [apache2](apache2.md). Seems to work
+in a localhost setup, and is now deployed at [https://defo.ie:9443/](https://defo.ie:9443/) 
 
 - TODO: revisit overriding the ``ESNIKeys.public_name`` value. When I specify
   "-c NONE" with testclient.sh script at the moment, we still get the public
@@ -1081,7 +1080,7 @@ I'm sure there's more but some collected so far:
   some operator.
 - What do we want/need to do to support the split backend approach? (separate
   fronting server from hosting server)
-- Integration with apache/wget
+- Integration with haproxy, wget
 - Adding/moving tests to the OpenSSL test suites
 - Continuous integration for these patches that aim to keep the patch series
   current against OpenSSL master as it evolves

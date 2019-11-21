@@ -49,6 +49,12 @@ And off we go with configure and make ...
             $ make -j8
             ... lotsa lotsa stuff ...
 
+    - The above was on a laptop running Ununtu 19.10 on which lots of other
+      s/w has been built.
+
+    - An Ubuntu 18.04 server required an additional ``sudo apt install libxml2-dev``
+    and adding ``--with-libxml2`` to the configure command line above to get that to work.
+
 After running configure, I see mention of ``$HOME/code/openssl`` in
 ``modules/ssl/modules.mk`` that seems to the right things with
 includes and shared objects.
@@ -240,14 +246,27 @@ PHP code:
 - ``SSL_ESNI_HIDDEN`` - has value that was encrypted in ESNI (or ``NONE``)
 - ``SSL_ESNI_COVER`` - has value that was seen in plaintext SNI (or ``NONE``)
 
-I still need to test those, but will wait 'till I've deployed on a real server
-as I don't have a locahost setup for testing PHP right now. (So there may be
-a bit more work needed.)
+I setup PHP for my apache deployment on [https://defo.ie:9443](https://defo.ie:9443). 
+That's not part of the localhost test setup, and there were a couple of things to
+do:
+
+    - If needed, install fast-cgi:
+
+            $ sudo apt install php7.2-cgi
+
+    - I edited ``/etc/php/7.2/fpm/pool.d/www.conf`` to use localhost:9000,
+      added ``proxy_module`` and ``proxy_fcgi_module`` to the global apache
+      config and turn on PHP and added the following to the apache config for the
+      VirtualHost using ESNI: 
+
+            <FilesMatch "\.php$">
+                SetHandler "proxy:fcgi://127.0.0.1:9000"
+            </FilesMatch>
+            Options +ExecCGI
+
 
 ## TODOs
 
-- Deploy as a public web server.
-- Test PHP can see our env vars ok.
 - Fix up 1st error.log line that says e.g. "Connection to child 128 established (server example.com:443)" since we're not using port 443 at all
 - Check how ESNI key configuration plays with VirtualHost and other stanzas.
   (``load_esnikeys()`` is still being called a lot of times.)
