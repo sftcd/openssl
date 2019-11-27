@@ -12,7 +12,8 @@ This builds ok on both 64 and 32 bit Ubuntus and (nominally) doesn't leak
 according to valgrind. It works e.g. when talking to www.cloudflare.com
 with e.g. ietf.org as the value inside the encrypted SNI. Server-side
 stuff seems to work when talking to itself, an NSS client and 
-the server sides: [lighttpd](./lighttpd.md) and [nginx](./nginx.md).
+the server sides: [lighttpd](./lighttpd.md), [nginx](./nginx.md)
+and [apache](./apache2.md)..
 
 There's some doxygen-generated documentation [here](api.html).
 
@@ -23,6 +24,9 @@ There's some doxygen-generated documentation [here](api.html).
 There's a [TODO list](#todos) at the end.
 
 Most recent first...
+
+- Fix a build issue with MacOS for issue#3 reported by patrickkh7788
+  with suggested fix. (Thanks!)
 
 - Made the ESNI callback more generic, so it suits what I needed
   for apache better, and various bits of apache tidying up - see [apache2.md](apache2,md)

@@ -3073,8 +3073,13 @@ static int esni_check_filenames(SSL_CTX *ctx, const char *privfname,const char *
     if (pubfname && stat(pubfname,&pubstat) < 0) return(ESNI_KEYPAIR_ERROR);
 
     // check the time info - we're only gonna do 1s precision on purpose
-    time_t privmod=pubstat.st_mtim.tv_sec;
-    time_t pubmod=(pubfname?pubstat.st_mtim.tv_sec:0);
+#ifdef __APPLE__
+    time_t privmod=pubstat.st_mtimespec.tv_sec;
+    time_t pubmod=(pubfname?pubstat.st_mtimespec.tv_sec:0);
+#else
+     time_t privmod=pubstat.st_mtim.tv_sec;
+     time_t pubmod=(pubfname?pubstat.st_mtim.tv_sec:0);
+#endif
     time_t rectime=(privmod>pubmod?privmod:pubmod);
 
     // now search list of existing key pairs to see if we have that one already
