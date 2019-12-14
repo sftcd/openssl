@@ -25,6 +25,10 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- Attempted to fix msft windows build issues identified via gitlab. (Might
+  take an iteration or two, as I don't have a windows build/test setup
+  locally at the moment.)
+
 - Fix a build issue with MacOS for issue#3 reported by patrickkh7788
   with suggested fix. (Thanks!)
 

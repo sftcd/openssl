@@ -1378,7 +1378,7 @@ static void esni_pbuf(BIO *out,char *msg,unsigned char *buf,size_t blen)
         BIO_printf(out,"%s: blen is zero\n",msg);
         return;
     }
-    BIO_printf(out,"%s (%zd):\n    ",msg,blen);
+    BIO_printf(out,"%s (%lu):\n    ",msg,(unsigned long)blen);
     size_t i;
     for (i=0;i<blen;i++) {
         if ((i!=0) && (i%16==0))
@@ -1399,7 +1399,7 @@ static void so_esni_pbuf(char *msg,unsigned char *buf,size_t blen)
         printf("so: %s is NULL\n",msg);
         return;
     }
-    printf("so: %s (%zd):\n    ",msg,blen);
+    printf("so: %s (%lu):\n    ",msg,(unsigned long)blen);
     int i;
     for (i=0;i!=blen;i++) {
         if ((i!=0) && (i%16==0))
@@ -1517,7 +1517,7 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esniarr, int selector)
 	    esni_pbuf(out,"ESNI Peer KeyShare:",esni->esni_peer_keyshare,esni->esni_peer_keyshare_len);
 	    BIO_printf(out,"ESNI Server groupd Id: %04x\n",esni->group_id);
 	    BIO_printf(out,"ENSI Server Ciphersuite is %04x\n",esni->ciphersuite);
-	    BIO_printf(out,"ESNI Server padded_length: %zd\n",esni->padded_length);
+	    BIO_printf(out,"ESNI Server padded_length: %lu\n",(unsigned long)esni->padded_length);
         if (esni->not_before==ESNI_NOTATIME) {
 	        BIO_printf(out,"ESNI Server not_before: unset\n");
         } else {
@@ -3073,12 +3073,15 @@ static int esni_check_filenames(SSL_CTX *ctx, const char *privfname,const char *
     if (pubfname && stat(pubfname,&pubstat) < 0) return(ESNI_KEYPAIR_ERROR);
 
     // check the time info - we're only gonna do 1s precision on purpose
-#ifdef __APPLE__
+#if defined(__APPLE__)
     time_t privmod=pubstat.st_mtimespec.tv_sec;
     time_t pubmod=(pubfname?pubstat.st_mtimespec.tv_sec:0);
+#elif defined(OPENSSL_SYS_WINDOWS)
+    time_t privmod=pubstat.st_mtime;
+    time_t pubmod=(pubfname?pubstat.st_mtime:0);
 #else
-     time_t privmod=pubstat.st_mtim.tv_sec;
-     time_t pubmod=(pubfname?pubstat.st_mtim.tv_sec:0);
+    time_t privmod=pubstat.st_mtim.tv_sec;
+    time_t pubmod=(pubfname?pubstat.st_mtim.tv_sec:0);
 #endif
     time_t rectime=(privmod>pubmod?privmod:pubmod);
 

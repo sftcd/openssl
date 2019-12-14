@@ -47,7 +47,7 @@ static void so_esni_pbuf(char *msg,unsigned char *buf,size_t blen,int indent)
         printf("OPENSSL: %s is NULL",msg);
         return;
     }
-    printf("OPENSSL: %s (%zd):\n    ",msg,blen);
+    printf("OPENSSL: %s (%lu):\n    ",msg,(unsigned long)blen);
     int i;
     for (i=0;i!=blen;i++) {
         if ((i!=0) && (i%16==0))
@@ -169,7 +169,7 @@ static void sp_esni_prr(unsigned char *sbuf,
 
             if (chunk < available) {
                 available -= chunk; sp += chunk;
-                chunk = snprintf((char*)sp, available, "%zd (",blen);
+                chunk = snprintf((char*)sp, available, "%lu (",(unsigned long)blen);
             }
         }
 
@@ -662,7 +662,7 @@ static int mk_esnikeys(int argc, char **argv)
     case 0xff03: /* esni draft -04 */
         pnlen=(public_name==NULL?0:strlen(public_name));
         if (pnlen > MAX_ESNI_COVER_NAME) {
-            fprintf(stderr,"Cover name too long (%zd), max is %d\n\n",pnlen,MAX_ESNI_COVER_NAME);
+            fprintf(stderr,"Cover name too long (%lu), max is %d\n\n",(unsigned long)pnlen,MAX_ESNI_COVER_NAME);
             usage(argv[0]);
         }
         if (pnlen > 0 && public_name[pnlen-1]=='.') {
