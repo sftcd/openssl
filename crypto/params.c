@@ -776,6 +776,9 @@ static int get_string_internal(const OSSL_PARAM *p, void **val, size_t max_len,
     if (used_len != NULL)
         *used_len = sz;
 
+    if (sz == 0)
+        return 1;
+
     if (*val == NULL) {
         char *const q = OPENSSL_malloc(sz);
 
@@ -892,9 +895,8 @@ int OSSL_PARAM_set_utf8_ptr(OSSL_PARAM *p, const char *val)
     if (p == NULL)
         return 0;
     p->return_size = 0;
-    if (val == NULL)
-        return 0;
-    return set_ptr_internal(p, val, OSSL_PARAM_UTF8_PTR, strlen(val) + 1);
+    return set_ptr_internal(p, val, OSSL_PARAM_UTF8_PTR,
+                            val == NULL ? 0 : strlen(val) + 1);
 }
 
 int OSSL_PARAM_set_octet_ptr(OSSL_PARAM *p, const void *val,
@@ -903,8 +905,6 @@ int OSSL_PARAM_set_octet_ptr(OSSL_PARAM *p, const void *val,
     if (p == NULL)
         return 0;
     p->return_size = 0;
-    if (val == NULL)
-        return 0;
     return set_ptr_internal(p, val, OSSL_PARAM_OCTET_PTR, used_len);
 }
 

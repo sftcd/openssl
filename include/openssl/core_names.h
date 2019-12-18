@@ -85,8 +85,8 @@ extern "C" {
 
 /* Known DIGEST names (not a complete list) */
 #define OSSL_DIGEST_NAME_MD5 "MD5"
-#define OSSL_DIGEST_NAME_KECCAK_KMAC128 "KECCAK_KMAC128"
-#define OSSL_DIGEST_NAME_KECCAK_KMAC256 "KECCAK_KMAC256"
+#define OSSL_DIGEST_NAME_KECCAK_KMAC128 "KECCAK-KMAC-128"
+#define OSSL_DIGEST_NAME_KECCAK_KMAC256 "KECCAK-KMAC-256"
 
 /* MAC parameters */
 #define OSSL_MAC_PARAM_KEY          "key"        /* octet string */
@@ -141,7 +141,7 @@ extern "C" {
 /* Known KDF names */
 #define OSSL_KDF_NAME_HKDF          "HKDF"
 #define OSSL_KDF_NAME_PBKDF2        "PBKDF2"
-#define OSSL_KDF_NAME_SCRYPT        "id-scrypt"
+#define OSSL_KDF_NAME_SCRYPT        "SCRYPT"
 #define OSSL_KDF_NAME_SSHKDF        "SSHKDF"
 #define OSSL_KDF_NAME_SSKDF         "SSKDF"
 #define OSSL_KDF_NAME_TLS1_PRF      "TLS1-PRF"
@@ -190,8 +190,30 @@ extern "C" {
 #define OSSL_EXCHANGE_PARAM_PAD      "pad" /* uint */
 
 /* Signature parameters */
-#define OSSL_SIGNATURE_PARAM_DIGEST         "digest"
+#define OSSL_SIGNATURE_PARAM_DIGEST         OSSL_ALG_PARAM_DIGEST
 #define OSSL_SIGNATURE_PARAM_DIGEST_SIZE    "digest-size"
+
+/* Asym cipher parameters */
+#define OSSL_ASYM_CIPHER_PARAM_PAD_MODE                 "pad-mode"
+#define OSSL_ASYM_CIPHER_PARAM_OAEP_DIGEST              OSSL_ALG_PARAM_DIGEST
+#define OSSL_ASYM_CIPHER_PARAM_OAEP_DIGEST_PROPS        "digest-props"
+#define OSSL_ASYM_CIPHER_PARAM_MGF1_DIGEST              "mgf1-digest"
+#define OSSL_ASYM_CIPHER_PARAM_MGF1_DIGEST_PROPS        "mgf1-digest-props"
+#define OSSL_ASYM_CIPHER_PARAM_OAEP_LABEL               "oaep-label"
+#define OSSL_ASYM_CIPHER_PARAM_OAEP_LABEL_LEN           "oaep-label-len"
+#define OSSL_ASYM_CIPHER_PARAM_TLS_CLIENT_VERSION       "tls-client-version"
+#define OSSL_ASYM_CIPHER_PARAM_TLS_NEGOTIATED_VERSION   "tls-negotiated-version"
+
+/*
+ * Serializer parameters
+ */
+/* The passphrase may be passed as a utf8 string or an octet string */
+#define OSSL_SERIALIZER_PARAM_CIPHER            OSSL_ALG_PARAM_CIPHER
+#define OSSL_SERIALIZER_PARAM_PROPERTIES        OSSL_ALG_PARAM_PROPERTIES
+#define OSSL_SERIALIZER_PARAM_PASS              "passphrase"
+
+/* Passphrase callback parameters */
+#define OSSL_PASSPHRASE_PARAM_INFO              "info"
 
 # ifdef __cplusplus
 }

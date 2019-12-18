@@ -14,6 +14,7 @@
 #include <openssl/core_numbers.h>
 #include <openssl/core_names.h>
 #include <openssl/params.h>
+#include "prov/bio.h"
 #include "prov/implementations.h"
 
 /* Functions provided by the core */
@@ -73,6 +74,9 @@ static int deflt_get_params(const OSSL_PROVIDER *prov, OSSL_PARAM params[])
  * We add diverse other names where applicable, such as the names that
  * NIST uses, or that are used for ASN.1 OBJECT IDENTIFIERs, or names
  * we have used historically.
+ *
+ * Algorithm names are case insensitive, but we use all caps in our "canonical"
+ * names for consistency.
  */
 static const OSSL_ALGORITHM deflt_digests[] = {
     /* Our primary name:NIST name[:our older names] */
@@ -93,11 +97,11 @@ static const OSSL_ALGORITHM deflt_digests[] = {
     { "SHA3-512", "default=yes", sha3_512_functions },
 
     /*
-     * KECCAK_KMAC128 and KECCAK_KMAC256 as hashes are mostly useful for
-     * the KMAC128 and KMAC256.
+     * KECCAK-KMAC-128 and KECCAK-KMAC-256 as hashes are mostly useful for
+     * the KMAC-128 and KMAC-256.
      */
-    { "KECCAK_KMAC128", "default=yes", keccak_kmac_128_functions },
-    { "KECCAK_KMAC256", "default=yes", keccak_kmac_256_functions },
+    { "KECCAK-KMAC-128:KECCAK-KMAC128", "default=yes", keccak_kmac_128_functions },
+    { "KECCAK-KMAC-256:KECCAK-KMAC256", "default=yes", keccak_kmac_256_functions },
 
     /* Our primary name:NIST name */
     { "SHAKE-128:SHAKE128", "default=yes", shake_128_functions },
@@ -111,8 +115,8 @@ static const OSSL_ALGORITHM deflt_digests[] = {
      * If we assume that "2b" and "2s" are versions, that pattern
      * fits with ours.  We also add our historical names.
      */
-    { "BLAKE2s-256:BLAKE2s256", "default=yes", blake2s256_functions },
-    { "BLAKE2b-512:BLAKE2b512", "default=yes", blake2b512_functions },
+    { "BLAKE2S-256:BLAKE2s256", "default=yes", blake2s256_functions },
+    { "BLAKE2B-512:BLAKE2b512", "default=yes", blake2b512_functions },
 #endif /* OPENSSL_NO_BLAKE2 */
 
 #ifndef OPENSSL_NO_SM3
@@ -285,6 +289,9 @@ static const OSSL_ALGORITHM deflt_ciphers[] = {
 #ifndef OPENSSL_NO_RC4
     { "RC4", "default=yes", rc4128_functions },
     { "RC4-40", "default=yes", rc440_functions },
+# ifndef OPENSSL_NO_MD5
+    { "RC4-HMAC-MD5", "default=yes", rc4_hmac_md5_functions },
+# endif /* OPENSSL_NO_MD5 */
 #endif /* OPENSSL_NO_RC4 */
 #ifndef OPENSSL_NO_RC5
     { "RC5-ECB", "default=yes", rc5128ecb_functions },
@@ -311,21 +318,21 @@ static const OSSL_ALGORITHM deflt_ciphers[] = {
 
 static const OSSL_ALGORITHM deflt_macs[] = {
 #ifndef OPENSSL_NO_BLAKE2
-    { "BLAKE2bMAC", "default=yes", blake2bmac_functions },
-    { "BLAKE2sMAC", "default=yes", blake2smac_functions },
+    { "BLAKE2BMAC", "default=yes", blake2bmac_functions },
+    { "BLAKE2SMAC", "default=yes", blake2smac_functions },
 #endif
 #ifndef OPENSSL_NO_CMAC
     { "CMAC", "default=yes", cmac_functions },
 #endif
     { "GMAC", "default=yes", gmac_functions },
     { "HMAC", "default=yes", hmac_functions },
-    { "KMAC128", "default=yes", kmac128_functions },
-    { "KMAC256", "default=yes", kmac256_functions },
+    { "KMAC-128:KMAC128", "default=yes", kmac128_functions },
+    { "KMAC-256:KMAC256", "default=yes", kmac256_functions },
 #ifndef OPENSSL_NO_SIPHASH
-    { "SipHash", "default=yes", siphash_functions },
+    { "SIPHASH", "default=yes", siphash_functions },
 #endif
 #ifndef OPENSSL_NO_POLY1305
-    { "Poly1305", "default=yes", poly1305_functions },
+    { "POLY1305", "default=yes", poly1305_functions },
 #endif
     { NULL, NULL, NULL }
 };
@@ -362,6 +369,10 @@ static const OSSL_ALGORITHM deflt_signature[] = {
     { NULL, NULL, NULL }
 };
 
+static const OSSL_ALGORITHM deflt_asym_cipher[] = {
+    { "RSA:rsaEncryption", "default=yes", rsa_asym_cipher_functions },
+    { NULL, NULL, NULL }
+};
 
 static const OSSL_ALGORITHM deflt_keymgmt[] = {
 #ifndef OPENSSL_NO_DH
@@ -371,6 +382,42 @@ static const OSSL_ALGORITHM deflt_keymgmt[] = {
     { "DSA", "default=yes", dsa_keymgmt_functions },
 #endif
     { "RSA", "default=yes", rsa_keymgmt_functions },
+    { NULL, NULL, NULL }
+};
+
+static const OSSL_ALGORITHM deflt_serializer[] = {
+    { "RSA", "default=yes,format=text,type=private",
+      rsa_priv_text_serializer_functions },
+    { "RSA", "default=yes,format=text,type=public",
+      rsa_pub_text_serializer_functions },
+    { "RSA", "default=yes,format=der,type=private",
+      rsa_priv_der_serializer_functions },
+    { "RSA", "default=yes,format=der,type=public",
+      rsa_pub_der_serializer_functions },
+    { "RSA", "default=yes,format=pem,type=private",
+      rsa_priv_pem_serializer_functions },
+    { "RSA", "default=yes,format=pem,type=public",
+      rsa_pub_pem_serializer_functions },
+
+    { "DH", "default=yes,format=text,type=private",
+      dh_priv_text_serializer_functions },
+    { "DH", "default=yes,format=text,type=public",
+      dh_pub_text_serializer_functions },
+    { "DH", "default=yes,format=text,type=domainparams",
+      dh_param_text_serializer_functions },
+    { "DH", "default=yes,format=der,type=private",
+      dh_priv_der_serializer_functions },
+    { "DH", "default=yes,format=der,type=public",
+      dh_pub_der_serializer_functions },
+    { "DH", "default=yes,format=der,type=domainparams",
+      dh_param_der_serializer_functions },
+    { "DH", "default=yes,format=pem,type=private",
+      dh_priv_pem_serializer_functions },
+    { "DH", "default=yes,format=pem,type=public",
+      dh_pub_pem_serializer_functions },
+    { "DH", "default=yes,format=pem,type=domainparams",
+      dh_param_pem_serializer_functions },
+
     { NULL, NULL, NULL }
 };
 
@@ -394,6 +441,10 @@ static const OSSL_ALGORITHM *deflt_query(OSSL_PROVIDER *prov,
         return deflt_keyexch;
     case OSSL_OP_SIGNATURE:
         return deflt_signature;
+    case OSSL_OP_ASYM_CIPHER:
+        return deflt_asym_cipher;
+    case OSSL_OP_SERIALIZER:
+        return deflt_serializer;
     }
     return NULL;
 }
@@ -415,6 +466,8 @@ int ossl_default_provider_init(const OSSL_PROVIDER *provider,
 {
     OSSL_core_get_library_context_fn *c_get_libctx = NULL;
 
+    if (!ossl_prov_bio_from_dispatch(in))
+        return 0;
     for (; in->function_id != 0; in++) {
         switch (in->function_id) {
         case OSSL_FUNC_CORE_GETTABLE_PARAMS:

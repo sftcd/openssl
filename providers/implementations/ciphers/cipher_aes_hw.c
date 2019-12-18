@@ -30,6 +30,10 @@ static int cipher_hw_aes_initkey(PROV_CIPHER_CTX *dat,
             if (dat->mode == EVP_CIPH_CBC_MODE)
                 dat->stream.cbc = (cbc128_f)HWAES_cbc_encrypt;
 # endif
+# ifdef HWAES_ecb_encrypt
+            if (dat->mode == EVP_CIPH_ECB_MODE)
+                dat->stream.ecb = (ecb128_f)HWAES_ecb_encrypt;
+# endif
         } else
 #endif
 #ifdef BSAES_CAPABLE
@@ -62,6 +66,11 @@ static int cipher_hw_aes_initkey(PROV_CIPHER_CTX *dat,
 # ifdef HWAES_cbc_encrypt
         if (dat->mode == EVP_CIPH_CBC_MODE)
             dat->stream.cbc = (cbc128_f)HWAES_cbc_encrypt;
+        else
+# endif
+# ifdef HWAES_ecb_encrypt
+        if (dat->mode == EVP_CIPH_ECB_MODE)
+            dat->stream.ecb = (ecb128_f)HWAES_ecb_encrypt;
         else
 # endif
 # ifdef HWAES_ctr32_encrypt_blocks
@@ -106,10 +115,13 @@ static int cipher_hw_aes_initkey(PROV_CIPHER_CTX *dat,
     return 1;
 }
 
+IMPLEMENT_CIPHER_HW_COPYCTX(cipher_hw_aes_copyctx, PROV_AES_CTX)
+
 #define PROV_CIPHER_HW_aes_mode(mode)                                          \
 static const PROV_CIPHER_HW aes_##mode = {                                     \
     cipher_hw_aes_initkey,                                                     \
-    cipher_hw_generic_##mode                                                   \
+    cipher_hw_generic_##mode,                                                  \
+    cipher_hw_aes_copyctx                                                      \
 };                                                                             \
 PROV_CIPHER_HW_declare(mode)                                                   \
 const PROV_CIPHER_HW *PROV_CIPHER_HW_aes_##mode(size_t keybits)                \

@@ -140,6 +140,7 @@ sub name_synopsis {
     foreach my $line ( split /\n+/, $syn ) {
         next unless $line =~ /^\s/;
         my $sym;
+        my $is_prototype = 1;
         $line =~ s/STACK_OF\([^)]+\)/int/g;
         $line =~ s/SPARSE_ARRAY_OF\([^)]+\)/int/g;
         $line =~ s/__declspec\([^)]+\)//;
@@ -154,11 +155,13 @@ sub name_synopsis {
             $sym = $1;
         } elsif ( $line =~ /typedef.* (\S+);/ ) {
             # a simple typedef: typedef ... NAME;
+            $is_prototype = 0;
             $sym = $1;
         } elsif ( $line =~ /enum (\S*) \{/ ) {
             # an enumeration: enum ... {
             $sym = $1;
         } elsif ( $line =~ /#(?:define|undef) ([A-Za-z0-9_]+)/ ) {
+            $is_prototype = 0;
             $sym = $1;
         } elsif ( $line =~ /([A-Za-z0-9_]+)\(/ ) {
             $sym = $1;
@@ -172,7 +175,7 @@ sub name_synopsis {
 
         # Do some sanity checks on the prototype.
         err($id, "prototype missing spaces around commas: $line")
-            if ( $line =~ /[a-z0-9],[^ ]/ );
+            if $is_prototype && $line =~ /[a-z0-9],[^ ]/;
     }
 
     foreach my $n ( keys %names ) {
@@ -235,7 +238,7 @@ sub check_head_style {
 my $markup_re =
     qr/(                        # Capture group
            [BIL]<               # The start of what we recurse on
-           (?:(?-1)|.)*?        # recurse the whole regexp (refering to
+           (?:(?-1)|.)*?        # recurse the whole regexp (referring to
                                 # the last opened capture group, i.e. the
                                 # start of this regexp), or pick next
                                 # character.  Do NOT be greedy!
@@ -450,13 +453,24 @@ sub check {
     # Make sure every link has a section.
     while ( $contents =~ /$markup_re/msg ) {
         my $target = $1;
-        next unless $target =~ /^L</;           # Skip if not L<...>, or
+        next unless $target =~ /^L<(.*)>$/;     # Skip if not L<...>
+        $target = $1;                           # Peal away L< and >
+        $target =~ s/\/[^\/]*$//;               # Peal away possible anchor
+        $target =~ s/.*\|//g;                   # Peal away possible link text
+        next if $target eq '';                  # Skip if links within page, or
         next if $target =~ /::/;                #   links to a Perl module, or
-        next if $target =~ m@L</@;              #   links within the page, or
-        next if $target =~ /^L<https?:/;        #   is a URL link, or
-        next if $target =~ m@\([1357]\)>$@;     #   it has a section, or
-        next if $target =~ m@\([1357]\)/.*>$@;  #   it has a section/anchor
+        next if $target =~ /^https?:/;          #   is a URL link, or
+        next if $target =~ /\([1357]\)$/;       #   it has a section
         err($id, "Section missing in $target")
+    }
+    # Check for proper links to commands.
+    while ( $contents =~ /L<([^>]*)\(1\)(?:\/.*)?>/g ) {
+        my $target = $1;
+        next if $target =~ /openssl-?/;
+        next if -f "doc/man1/$target.pod";
+        # TODO: Filter out "foreign manual" links.
+        next if $target =~ /ps|apropos|sha1sum|procmail|perl/;
+        err($id, "Bad command link L<$target(1)>");
     }
     # Check for proper in-man-3 API links.
     while ( $contents =~ /L<([^>]*)\(3\)(?:\/.*)?>/g ) {
@@ -633,15 +647,16 @@ sub checkmacros {
             next unless /^#\s*define\s*(\S+)\(/;
             my $macro = $1;
             next if $docced{$macro} || defined $seen{$macro};
-            next if $macro =~ /i2d_/
-                || $macro =~ /d2i_/
-                || $macro =~ /DEPRECATEDIN/
-                || $macro =~ /IMPLEMENT_/
-                || $macro =~ /DECLARE_/;
+            next if $macro =~ /^i2d_/
+                || $macro =~ /^d2i_/
+                || $macro =~ /^DEPRECATEDIN/
+                || $macro =~ /_fnsig$/
+                || $macro =~ /^IMPLEMENT_/
+                || $macro =~ /^_?DECLARE_/;
 
             # Skip macros known to be missing
             next if $opt_v && grep( /^$macro$/, @missing);
-    
+
             err("$f:", "macro $macro undocumented")
                 if $opt_d || $opt_e;
             $count++;
@@ -712,14 +727,13 @@ sub collectnames {
         map { s/^\s+//g; s/\s+$//g; $_ } # Trim prefix and suffix blanks
         split(/,/, $tmp);
     unless ( grep { $simplename eq $_ } @names ) {
-        err($id, "missing $simplename");
+        err($id, "$simplename not in NAME section");
         push @names, $simplename;
     }
     foreach my $name (@names) {
         next if $name eq "";
-        if ( $name =~ /\s/ ) {
-            err($id, "'$name' contains white space")
-        }
+        err($id, "'$name' contains white space")
+            if $name =~ /\s/;
         my $name_sec = "$name($section)";
         if ( !exists $name_map{$name_sec} ) {
             $name_map{$name_sec} = $filename;

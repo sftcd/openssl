@@ -13,6 +13,10 @@
 #ifndef OPENSSL_MACROS_H
 # define OPENSSL_MACROS_H
 
+/* Helper macros for CPP string composition */
+# define OPENSSL_MSTR_HELPER(x) #x
+# define OPENSSL_MSTR(x) OPENSSL_MSTR_HELPER(x)
+
 /*
  * Sometimes OPENSSSL_NO_xxx ends up with an empty file and some compilers
  * don't like that.  This will hopefully silence them.
@@ -24,15 +28,17 @@
  */
 # ifndef DECLARE_DEPRECATED
 #  define DECLARE_DEPRECATED(f)   f;
-#  ifdef __GNUC__
-#   if __GNUC__ > 3 || (__GNUC__ == 3 && __GNUC_MINOR__ > 0)
-#    undef DECLARE_DEPRECATED
-#    define DECLARE_DEPRECATED(f)    f __attribute__ ((deprecated));
-#   endif
-#  elif defined(__SUNPRO_C)
-#   if (__SUNPRO_C >= 0x5130)
-#    undef DECLARE_DEPRECATED
-#    define DECLARE_DEPRECATED(f)    f __attribute__ ((deprecated));
+#  ifndef OPENSSL_SUPPRESS_DEPRECATED
+#   ifdef __GNUC__
+#    if __GNUC__ > 3 || (__GNUC__ == 3 && __GNUC_MINOR__ > 0)
+#     undef DECLARE_DEPRECATED
+#     define DECLARE_DEPRECATED(f)    f __attribute__ ((deprecated));
+#    endif
+#   elif defined(__SUNPRO_C)
+#    if (__SUNPRO_C >= 0x5130)
+#     undef DECLARE_DEPRECATED
+#     define DECLARE_DEPRECATED(f)    f __attribute__ ((deprecated));
+#    endif
 #   endif
 #  endif
 # endif

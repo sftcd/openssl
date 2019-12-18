@@ -22,7 +22,7 @@
 # Auto generated headers
 /crypto/buildinf.h
 /include/crypto/*_conf.h
-/include/openssl/opensslconf.h
+/include/openssl/configuration.h
 /include/openssl/opensslv.h
 
 # Auto generated doc files
@@ -83,6 +83,7 @@ doc/man1/openssl-x509.pod
 /test/versions
 /test/ossl_shim/ossl_shim
 /test/rsa_complex
+/test/confdump
 # Other generated files in test/
 /test/provider_internal_test.conf
 /test/fipsinstall.conf
@@ -123,7 +124,6 @@ doc/man1/openssl-x509.pod
 /out32dll.dbg
 /inc32
 /MINFO
-/ms/.rnd
 /ms/bcb.mak
 /ms/libeay32.def
 /ms/nt.mak
@@ -156,6 +156,10 @@ doc/man1/openssl-x509.pod
 /test/fips_shatest.c
 /test/fips_test_suite.c
 /test/shatest.c
+
+# Generated docs directories
+/doc/html
+/doc/man
 
 ##### Generic patterns
 # Auto generated assembly language source files

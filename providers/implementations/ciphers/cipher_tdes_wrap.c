@@ -14,7 +14,7 @@
 #include "prov/implementations.h"
 #include "prov/providercommonerr.h"
 
-/* TODO (3.0) Figure out what flags are requred */
+/* TODO (3.0) Figure out what flags are required */
 #define TDES_WRAP_FLAGS (EVP_CIPH_WRAP_MODE | EVP_CIPH_CUSTOM_IV)
 
 
@@ -145,6 +145,8 @@ static int tdes_wrap_update(void *vctx, unsigned char *out, size_t *outl,
                             size_t inl)
 {
     *outl = 0;
+    if (inl == 0)
+        return 1;
     if (outsize < inl) {
         PROVerr(0, PROV_R_OUTPUT_BUFFER_TOO_SMALL);
         return 0;

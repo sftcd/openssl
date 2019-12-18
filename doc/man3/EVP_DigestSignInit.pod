@@ -57,7 +57,7 @@ The digest I<mdname> may be NULL if the signing algorithm supports it. The
 I<props> argument can always be NULL.
 
 No B<EVP_PKEY_CTX> will be created by EVP_DigestSignInit_ex() if the passed
-I<ctx> has already been assigned one via L<EVP_MD_CTX_set_ctx(3)>. See also
+I<ctx> has already been assigned one via L<EVP_MD_CTX_set_pkey_ctx(3)>. See also
 L<SM2(7)>.
 
 Only EVP_PKEY types that support signing can be used with these functions. This
@@ -174,7 +174,7 @@ L<EVP_DigestVerifyInit(3)>,
 L<EVP_DigestInit(3)>,
 L<evp(7)>, L<HMAC(3)>, L<MD2(3)>,
 L<MD5(3)>, L<MDC2(3)>, L<RIPEMD160(3)>,
-L<SHA1(3)>, L<dgst(1)>,
+L<SHA1(3)>, L<openssl-dgst(1)>,
 L<RAND(7)>
 
 =head1 HISTORY

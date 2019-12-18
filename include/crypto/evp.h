@@ -42,6 +42,11 @@ struct evp_pkey_ctx_st {
             EVP_SIGNATURE *signature;
             void *sigprovctx;
         } sig;
+
+        struct {
+            EVP_ASYM_CIPHER *cipher;
+            void *ciphprovctx;
+        } ciph;
     } op;
 
     /* Legacy fields below */
@@ -572,6 +577,10 @@ struct evp_pkey_st {
 #define EVP_PKEY_CTX_IS_DERIVE_OP(ctx) \
     ((ctx)->operation == EVP_PKEY_OP_DERIVE)
 
+#define EVP_PKEY_CTX_IS_ASYM_CIPHER_OP(ctx) \
+    ((ctx)->operation == EVP_PKEY_OP_ENCRYPT \
+     || (ctx)->operation == EVP_PKEY_OP_DECRYPT)
+
 void openssl_add_all_ciphers_int(void);
 void openssl_add_all_digests_int(void);
 void evp_cleanup_int(void);
@@ -593,7 +602,8 @@ void *evp_keymgmt_gendomparams(const EVP_KEYMGMT *keymgmt,
 void evp_keymgmt_freedomparams(const EVP_KEYMGMT *keymgmt,
                                void *provdomparams);
 int evp_keymgmt_exportdomparams(const EVP_KEYMGMT *keymgmt,
-                                void *provdomparams, OSSL_PARAM params[]);
+                                void *provdomparams,
+                                OSSL_CALLBACK *param_cb, void *cbarg);
 const OSSL_PARAM *
 evp_keymgmt_importdomparam_types(const EVP_KEYMGMT *keymgmt);
 const OSSL_PARAM *
@@ -606,8 +616,8 @@ void *evp_keymgmt_genkey(const EVP_KEYMGMT *keymgmt, void *domparams,
 void *evp_keymgmt_loadkey(const EVP_KEYMGMT *keymgmt,
                           void *id, size_t idlen);
 void evp_keymgmt_freekey(const EVP_KEYMGMT *keymgmt, void *provkey);
-int evp_keymgmt_exportkey(const EVP_KEYMGMT *keymgmt,
-                               void *provkey, OSSL_PARAM params[]);
+int evp_keymgmt_exportkey(const EVP_KEYMGMT *keymgmt, void *provkey,
+                          OSSL_CALLBACK *param_cb, void *cbarg);
 const OSSL_PARAM *evp_keymgmt_importkey_types(const EVP_KEYMGMT *keymgmt);
 const OSSL_PARAM *evp_keymgmt_exportkey_types(const EVP_KEYMGMT *keymgmt);
 

@@ -64,6 +64,9 @@ push @defltfiles, @rc2files unless disabled("rc2");
 my @chachafiles = qw( evpciph_chacha.txt );
 push @defltfiles, @chachafiles unless disabled("chacha");
 
+my @bffiles = qw( evpciph_bf.txt );
+push @defltfiles, @bffiles unless disabled("bf");
+
 plan tests =>
     ($no_fips ? 0 : 1)          # FIPS install test
     + (scalar(@configs) * scalar(@files))
@@ -80,7 +83,7 @@ unless ($no_fips) {
                 '-provider_name', 'fips', '-mac_name', 'HMAC',
                 '-macopt', 'digest:SHA256', '-macopt', 'hexkey:00',
                 '-section_name', 'fips_sect'])),
-       "fipinstall");
+       "fipsinstall");
 }
 
 foreach (@configs) {

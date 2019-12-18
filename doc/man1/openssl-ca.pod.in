@@ -62,6 +62,7 @@ B<openssl> B<ca>
 [B<-sm2-id> I<string>]
 [B<-sm2-hex-id> I<hex-string>]
 {- $OpenSSL::safe::opt_r_synopsis -}
+[I<certreq>...]
 
 =for openssl ifdef engine sm2-id sm2-hex-id
 
@@ -69,8 +70,11 @@ B<openssl> B<ca>
 
 This command is a minimal CA application. It can be used
 to sign certificate requests in a variety of forms and generate
-CRLs it also maintains a text database of issued certificates
+CRLs. It also maintains a text database of issued certificates
 and their status.
+When signing certificates, a single certificate request can be specified
+with the B<-in> option, or multiple requests can be processed by
+specifying a set of B<certreq> files after all options.
 
 The options descriptions will be divided into each purpose.
 
@@ -442,7 +446,8 @@ CA private key. Mandatory.
 =item B<RANDFILE>
 
 At startup the specified file is loaded into the random number generator,
-and at exit 256 bytes will be written to it.
+and at exit 256 bytes will be written to it. (Note: Using a RANDFILE is
+not necessary anymore, see the L</HISTORY> section.
 
 =item B<default_days>
 
@@ -650,7 +655,6 @@ A sample configuration file with the relevant sections for this command:
  serial         = $dir/serial           # serial no file
  #rand_serial    = yes                  # for random serial#'s
  private_key    = $dir/private/cakey.pem# CA private key
- RANDFILE       = $dir/private/.rand    # random number file
 
  default_days   = 365                   # how long to certify for
  default_crl_days= 30                   # how long before next CRL
@@ -686,7 +690,6 @@ The values below reflect the default values.
  ./demoCA/index.txt             - CA text database file
  ./demoCA/index.txt.old         - CA text database backup file
  ./demoCA/certs                 - certificate output file
- ./demoCA/.rnd                  - CA random seed information
 
 =head1 RESTRICTIONS
 
@@ -762,6 +765,11 @@ certificate validity period (specified by any of B<-startdate>,
 B<-enddate> and B<-days>) will be encoded as UTCTime if the dates are
 earlier than year 2049 (included), and as GeneralizedTime if the dates
 are in year 2050 or later.
+
+OpenSSL 1.1.1 introduced a new random generator (CSPRNG) with an improved
+seeding mechanism. The new seeding mechanism makes it unnecessary to
+define a RANDFILE for saving and restoring randomness. This option is
+retained mainly for compatibility reasons.
 
 =head1 SEE ALSO
 

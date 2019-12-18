@@ -316,7 +316,6 @@ CRYPTO_ocb128_setiv
 CRYPTO_ocb128_tag
 CRYPTO_ofb128_encrypt
 CRYPTO_secure_actual_size
-CRYPTO_secure_allocated
 CRYPTO_xts128_encrypt
 Camellia_cbc_encrypt
 Camellia_cfb128_encrypt
@@ -447,6 +446,7 @@ ERR_load_ERR_strings
 ERR_load_ESNI_strings
 ERR_load_ESS_strings
 ERR_load_EVP_strings
+ERR_load_KDF_strings
 ERR_load_OBJ_strings
 ERR_load_OCSP_strings
 ERR_load_OSSL_STORE_strings
@@ -455,6 +455,7 @@ ERR_load_PKCS12_strings
 ERR_load_PKCS7_strings
 ERR_load_RAND_strings
 ERR_load_RSA_strings
+ERR_load_OSSL_SERIALIZER_strings
 ERR_load_TS_strings
 ERR_load_UI_strings
 ERR_load_X509V3_strings
@@ -768,7 +769,6 @@ PKCS12_SAFEBAG_create_cert
 PKCS12_SAFEBAG_create_crl
 PKCS12_SAFEBAG_create_pkcs8_encrypt
 PKCS12_SAFEBAG_get0_attr
-PKCS12_SAFEBAG_get0_attrs
 PKCS12_SAFEBAG_get0_p8inf
 PKCS12_SAFEBAG_get0_pkcs8
 PKCS12_SAFEBAG_get0_safes
@@ -778,21 +778,14 @@ PKCS12_SAFEBAG_get1_crl
 PKCS12_SAFEBAG_get_bag_nid
 PKCS12_SAFEBAG_get_nid
 PKCS12_SAFEBAG_it
-PKCS12_add_CSPName_asc
 PKCS12_add_cert
-PKCS12_add_friendlyname_asc
-PKCS12_add_friendlyname_uni
-PKCS12_add_friendlyname_utf8
 PKCS12_add_key
-PKCS12_add_localkeyid
 PKCS12_add_safe
 PKCS12_add_safes
 PKCS12_decrypt_skey
 PKCS12_gen_mac
 PKCS12_get0_mac
 PKCS12_get_attr
-PKCS12_get_attr_gen
-PKCS12_get_friendlyname
 PKCS12_init
 PKCS12_it
 PKCS12_item_decrypt_d2i

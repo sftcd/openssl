@@ -202,6 +202,9 @@ extern const OSSL_DISPATCH des_cfb8_functions[];
 #ifndef OPENSSL_NO_RC4
 extern const OSSL_DISPATCH rc440_functions[];
 extern const OSSL_DISPATCH rc4128_functions[];
+# ifndef OPENSSL_NO_MD5
+extern const OSSL_DISPATCH rc4_hmac_md5_functions[];
+# endif /* OPENSSL_NO_MD5 */
 #endif /* OPENSSL_NO_RC4 */
 #ifndef OPENSSL_NO_CHACHA
 extern const OSSL_DISPATCH chacha20_functions[];
@@ -255,3 +258,32 @@ extern const OSSL_DISPATCH dh_keyexch_functions[];
 
 /* Signature */
 extern const OSSL_DISPATCH dsa_signature_functions[];
+
+/* Asym Cipher */
+extern const OSSL_DISPATCH rsa_asym_cipher_functions[];
+
+/* Serializers */
+extern const OSSL_DISPATCH rsa_priv_text_serializer_functions[];
+extern const OSSL_DISPATCH rsa_pub_text_serializer_functions[];
+extern const OSSL_DISPATCH rsa_priv_der_serializer_functions[];
+extern const OSSL_DISPATCH rsa_pub_der_serializer_functions[];
+extern const OSSL_DISPATCH rsa_priv_pem_serializer_functions[];
+extern const OSSL_DISPATCH rsa_pub_pem_serializer_functions[];
+extern const OSSL_DISPATCH dh_priv_text_serializer_functions[];
+extern const OSSL_DISPATCH dh_pub_text_serializer_functions[];
+extern const OSSL_DISPATCH dh_param_text_serializer_functions[];
+extern const OSSL_DISPATCH dh_priv_der_serializer_functions[];
+extern const OSSL_DISPATCH dh_pub_der_serializer_functions[];
+extern const OSSL_DISPATCH dh_param_der_serializer_functions[];
+extern const OSSL_DISPATCH dh_priv_pem_serializer_functions[];
+extern const OSSL_DISPATCH dh_pub_pem_serializer_functions[];
+extern const OSSL_DISPATCH dh_param_pem_serializer_functions[];
+extern const OSSL_DISPATCH dsa_priv_text_serializer_functions[];
+extern const OSSL_DISPATCH dsa_pub_text_serializer_functions[];
+extern const OSSL_DISPATCH dsa_param_text_serializer_functions[];
+extern const OSSL_DISPATCH dsa_priv_der_serializer_functions[];
+extern const OSSL_DISPATCH dsa_pub_der_serializer_functions[];
+extern const OSSL_DISPATCH dsa_param_der_serializer_functions[];
+extern const OSSL_DISPATCH dsa_priv_pem_serializer_functions[];
+extern const OSSL_DISPATCH dsa_pub_pem_serializer_functions[];
+extern const OSSL_DISPATCH dsa_param_pem_serializer_functions[];

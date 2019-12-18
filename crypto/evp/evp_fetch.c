@@ -52,67 +52,67 @@ struct evp_method_data_st {
     void (*destruct_method)(void *method);
 };
 
-static int add_names_to_namemap(OSSL_NAMEMAP *namemap,
-                                const char *names)
+#ifndef FIPS_MODE
+/* Creates an initial namemap with names found in the legacy method db */
+static void get_legacy_evp_names(const char *main_name, const char *alias,
+                                 void *arg)
 {
-    const char *p, *q;
-    size_t l;
-    int id = 0;
-
-    /* Check that we have a namemap and that there is at least one name */
-    if (namemap == NULL) {
-        ERR_raise(ERR_LIB_EVP, ERR_R_PASSED_NULL_PARAMETER);
-        return 0;
-    }
+    int main_id = ossl_namemap_add_name(arg, 0, main_name);
 
     /*
-     * Check that no name is an empty string, and that all names have at
-     * most one numeric identity together.
+     * We could check that the returned value is the same as main_id,
+     * but since this is a void function, there's no sane way to report
+     * the error.  The best we can do is trust ourselve to keep the legacy
+     * method database conflict free.
+     *
+     * This registers any alias with the same number as the main name.
+     * Should it be that the current |on| *has* the main name, this is
+     * simply a no-op.
      */
-    for (p = names; *p != '\0'; p = (q == NULL ? p + l : q + 1)) {
-        int this_id;
+    if (alias != NULL)
+        (void)ossl_namemap_add_name(arg, main_id, alias);
+}
 
-        if ((q = strchr(p, NAME_SEPARATOR)) == NULL)
-            l = strlen(p);       /* offset to \0 */
-        else
-            l = q - p;           /* offset to the next separator */
+static void get_legacy_cipher_names(const OBJ_NAME *on, void *arg)
+{
+    const EVP_CIPHER *cipher = (void *)OBJ_NAME_get(on->name, on->type);
 
-        this_id = ossl_namemap_name2num_n(namemap, p, l);
+    get_legacy_evp_names(EVP_CIPHER_name(cipher), on->name, arg);
+}
 
-        if (*p == '\0' || *p == NAME_SEPARATOR) {
-            ERR_raise(ERR_LIB_EVP, EVP_R_BAD_ALGORITHM_NAME);
-            return 0;
-        }
-        if (id == 0)
-            id = this_id;
-        else if (this_id != 0 && this_id != id) {
-            ERR_raise_data(ERR_LIB_EVP, EVP_R_CONFLICTING_ALGORITHM_NAME,
-                           "\"%.*s\" has an existing different identity %d (from \"%s\")",
-                           l, p, this_id, names);
-            return 0;
-        }
+static void get_legacy_md_names(const OBJ_NAME *on, void *arg)
+{
+    const EVP_MD *md = (void *)OBJ_NAME_get(on->name, on->type);
+    /* We don't want the pkey_type names, so we need some extra care */
+    int snid, lnid;
+
+    snid = OBJ_sn2nid(on->name);
+    lnid = OBJ_ln2nid(on->name);
+    if (snid != EVP_MD_pkey_type(md) && lnid != EVP_MD_pkey_type(md))
+        get_legacy_evp_names(EVP_MD_name(md), on->name, arg);
+    else
+        get_legacy_evp_names(EVP_MD_name(md), NULL, arg);
+}
+#endif
+
+static OSSL_NAMEMAP *get_prepopulated_namemap(OPENSSL_CTX *libctx)
+{
+    OSSL_NAMEMAP *namemap = ossl_namemap_stored(libctx);
+
+#ifndef FIPS_MODE
+    if (namemap != NULL && ossl_namemap_empty(namemap)) {
+        /* Before pilfering, we make sure the legacy database is populated */
+        OPENSSL_init_crypto(OPENSSL_INIT_ADD_ALL_CIPHERS
+                            |OPENSSL_INIT_ADD_ALL_DIGESTS, NULL);
+
+        OBJ_NAME_do_all(OBJ_NAME_TYPE_CIPHER_METH,
+                        get_legacy_cipher_names, namemap);
+        OBJ_NAME_do_all(OBJ_NAME_TYPE_MD_METH,
+                        get_legacy_md_names, namemap);
     }
+#endif
 
-    /* Now that we have checked, register all names */
-    for (p = names; *p != '\0'; p = (q == NULL ? p + l : q + 1)) {
-        int this_id;
-
-        if ((q = strchr(p, NAME_SEPARATOR)) == NULL)
-            l = strlen(p);       /* offset to \0 */
-        else
-            l = q - p;           /* offset to the next separator */
-
-        this_id = ossl_namemap_add_n(namemap, id, p, l);
-        if (id == 0)
-            id = this_id;
-        else if (this_id != id) {
-            ERR_raise_data(ERR_LIB_EVP, ERR_R_INTERNAL_ERROR,
-                           "Got id %d when expecting %d", this_id, id);
-            return 0;
-        }
-    }
-
-    return id;
+    return namemap;
 }
 
 /*
@@ -186,13 +186,9 @@ static void *get_evp_method_from_store(OPENSSL_CTX *libctx, void *store,
         && (store = get_evp_method_store(libctx)) == NULL)
         return NULL;
 
-    (void)ossl_method_store_fetch(store, meth_id, methdata->propquery,
-                                  &method);
-
-    if (method != NULL
-        && !methdata->refcnt_up_method(method)) {
-        method = NULL;
-    }
+    if (!ossl_method_store_fetch(store, meth_id, methdata->propquery,
+                                 &method))
+        return NULL;
     return method;
 }
 
@@ -237,23 +233,26 @@ static int put_evp_method_in_store(OPENSSL_CTX *libctx, void *store,
  * The core fetching functionality passes the name of the implementation.
  * This function is responsible to getting an identity number for it.
  */
-static void *construct_evp_method(const char *names, const OSSL_DISPATCH *fns,
+static void *construct_evp_method(const OSSL_ALGORITHM *algodef,
                                   OSSL_PROVIDER *prov, void *data)
 {
     /*
      * This function is only called if get_evp_method_from_store() returned
      * NULL, so it's safe to say that of all the spots to create a new
      * namemap entry, this is it.  Should the name already exist there, we
-     * know that ossl_namemap_add() will return its corresponding number.
+     * know that ossl_namemap_add_name() will return its corresponding
+     * number.
      */
     struct evp_method_data_st *methdata = data;
     OPENSSL_CTX *libctx = ossl_provider_library_context(prov);
     OSSL_NAMEMAP *namemap = ossl_namemap_stored(libctx);
-    int name_id = add_names_to_namemap(namemap, names);
+    const char *names = algodef->algorithm_names;
+    int name_id = ossl_namemap_add_names(namemap, 0, names, NAME_SEPARATOR);
 
     if (name_id == 0)
         return NULL;
-    return methdata->method_from_dispatch(name_id, fns, prov);
+    return methdata->method_from_dispatch(name_id, algodef->implementation,
+                                          prov);
 }
 
 static void destruct_evp_method(void *method, void *data)
@@ -274,7 +273,7 @@ inner_evp_generic_fetch(OPENSSL_CTX *libctx, int operation_id,
                         void (*free_method)(void *))
 {
     OSSL_METHOD_STORE *store = get_evp_method_store(libctx);
-    OSSL_NAMEMAP *namemap = ossl_namemap_stored(libctx);
+    OSSL_NAMEMAP *namemap = get_prepopulated_namemap(libctx);
     uint32_t meth_id = 0;
     void *method = NULL;
 
@@ -328,7 +327,6 @@ inner_evp_generic_fetch(OPENSSL_CTX *libctx, int operation_id,
         mcmdata.names = name;
         mcmdata.propquery = properties;
         mcmdata.method_from_dispatch = new_method;
-        mcmdata.destruct_method = free_method;
         mcmdata.refcnt_up_method = up_ref_method;
         mcmdata.destruct_method = free_method;
         if ((method = ossl_method_construct(libctx, operation_id,
@@ -343,10 +341,9 @@ inner_evp_generic_fetch(OPENSSL_CTX *libctx, int operation_id,
             if (name_id == 0)
                 name_id = ossl_namemap_name2num(namemap, name);
             meth_id = evp_method_id(operation_id, name_id);
-            ossl_method_store_cache_set(store, meth_id, properties, method);
+            ossl_method_store_cache_set(store, meth_id, properties, method,
+                                        up_ref_method, free_method);
         }
-    } else {
-        up_ref_method(method);
     }
 
     return method;
@@ -409,7 +406,8 @@ static void do_one(OSSL_PROVIDER *provider, const OSSL_ALGORITHM *algo,
     struct do_all_data_st *data = vdata;
     OPENSSL_CTX *libctx = ossl_provider_library_context(provider);
     OSSL_NAMEMAP *namemap = ossl_namemap_stored(libctx);
-    int name_id = add_names_to_namemap(namemap, algo->algorithm_names);
+    int name_id = ossl_namemap_add_names(namemap, 0, algo->algorithm_names,
+                                         NAME_SEPARATOR);
     void *method = NULL;
 
     if (name_id != 0)

@@ -12,7 +12,7 @@
 #include "cipher_aes_siv.h"
 #include "prov/implementations.h"
 #include "prov/providercommonerr.h"
-#include "prov/cipher_aead.h"
+#include "prov/ciphercommon_aead.h"
 
 #define siv_stream_update siv_cipher
 #define SIV_FLAGS AEAD_FLAGS
@@ -49,9 +49,6 @@ static int siv_init(void *vctx, const unsigned char *key, size_t keylen,
 
     ctx->enc = enc;
 
-    if (iv != NULL)
-        return 0;
-
     if (key != NULL) {
         if (keylen != ctx->keylen) {
             ERR_raise(ERR_LIB_PROV, PROV_R_INVALID_KEY_LENGTH);
@@ -78,6 +75,11 @@ static int siv_cipher(void *vctx, unsigned char *out, size_t *outl,
                       size_t outsize, const unsigned char *in, size_t inl)
 {
     PROV_AES_SIV_CTX *ctx = (PROV_AES_SIV_CTX *)vctx;
+
+    if (inl == 0) {
+        *outl = 0;
+        return 1;
+    }
 
     if (outsize < inl) {
         ERR_raise(ERR_LIB_PROV, PROV_R_OUTPUT_BUFFER_TOO_SMALL);

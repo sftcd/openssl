@@ -410,6 +410,9 @@ int tls1_change_cipher_state(SSL *s, int which)
         case SSL_SHA256:
             crypto_info.auth_algorithm = CRYPTO_SHA2_256_HMAC;
             break;
+        case SSL_SHA384:
+            crypto_info.auth_algorithm = CRYPTO_SHA2_384_HMAC;
+            break;
         default:
             goto skip_ktls;
         }
@@ -638,7 +641,7 @@ int tls1_generate_master_secret(SSL *s, unsigned char *out, unsigned char *p,
         unsigned char hash[EVP_MAX_MD_SIZE * 2];
         size_t hashlen;
         /*
-         * Digest cached records keeping record buffer (if present): this wont
+         * Digest cached records keeping record buffer (if present): this won't
          * affect client auth because we're freezing the buffer at the same
          * point (after client key exchange and before certificate verify)
          */

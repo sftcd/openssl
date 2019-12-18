@@ -105,12 +105,14 @@ struct err_state_st {
 /* # define ERR_LIB_JPAKE       49 */
 # define ERR_LIB_CT              50
 # define ERR_LIB_ASYNC           51
-# define ERR_LIB_SM2             52
-# define ERR_LIB_ESS             53
-# define ERR_LIB_PROP            54
-# define ERR_LIB_CRMF            55
-# define ERR_LIB_PROV            56
-# define ERR_LIB_CMP             57
+# define ERR_LIB_KDF             52
+# define ERR_LIB_SM2             53
+# define ERR_LIB_ESS             54
+# define ERR_LIB_PROP            55
+# define ERR_LIB_CRMF            56
+# define ERR_LIB_PROV            57
+# define ERR_LIB_CMP             58
+# define ERR_LIB_OSSL_SERIALIZER 59
 
 # define ERR_LIB_USER            128
 
@@ -157,6 +159,7 @@ struct err_state_st {
 #  define PROVerr(f, r) ERR_raise_data(ERR_LIB_PROV, (r), NULL)
 #  define RANDerr(f, r) ERR_raise_data(ERR_LIB_RAND, (r), NULL)
 #  define RSAerr(f, r) ERR_raise_data(ERR_LIB_RSA, (r), NULL)
+#  define KDFerr(f, r) ERR_raise_data(ERR_LIB_KDF, (r), NULL)
 #  define SM2err(f, r) ERR_raise_data(ERR_LIB_SM2, (r), NULL)
 #  define SSLerr(f, r) ERR_raise_data(ERR_LIB_SSL, (r), NULL)
 #  define SYSerr(f, r) ERR_raise_data(ERR_LIB_SYS, (r), NULL)
@@ -239,6 +242,8 @@ struct err_state_st {
 # define ERR_R_INIT_FAIL                         (6|ERR_R_FATAL)
 # define ERR_R_PASSED_INVALID_ARGUMENT           (7)
 # define ERR_R_OPERATION_FAIL                    (8|ERR_R_FATAL)
+# define ERR_R_INVALID_PROVIDER_FUNCTIONS        (9|ERR_R_FATAL)
+# define ERR_R_INTERRUPTED_OR_CANCELLED          (10)
 
 /*
  * 99 is the maximum possible ERR_R_... code, higher values are reserved for

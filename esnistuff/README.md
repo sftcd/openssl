@@ -25,6 +25,8 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- Remerged with upstream (20191218)
+
 - Attempted to fix msft windows build issues identified via gitlab. (Might
   take an iteration or two, as I don't have a windows build/test setup
   locally at the moment.)

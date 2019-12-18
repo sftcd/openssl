@@ -101,10 +101,10 @@ const OPTIONS req_options[] = {
     {"engine", OPT_ENGINE, 's', "Use engine, possibly a hardware device"},
     {"keygen_engine", OPT_KEYGEN_ENGINE, 's',
      "Specify engine to be used for key generation operations"},
+#endif
     {"in", OPT_IN, '<', "Input file"},
     {"inform", OPT_INFORM, 'F', "Input format - DER or PEM"},
     {"verify", OPT_VERIFY, '-', "Verify signature on REQ"},
-#endif
 
     OPT_SECTION("Certificate"),
     {"new", OPT_NEW, '-', "New request"},
@@ -214,9 +214,12 @@ static int duplicated(LHASH_OF(OPENSSL_STRING) *addexts, char *kv)
     *p = '\0';
 
     /* Finally have a clean "key"; see if it's there [by attempt to add it]. */
-    if ((p = (char *)lh_OPENSSL_STRING_insert(addexts, (OPENSSL_STRING*)kv))
-        != NULL || lh_OPENSSL_STRING_error(addexts)) {
-        OPENSSL_free(p != NULL ? p : kv);
+    p = (char *)lh_OPENSSL_STRING_insert(addexts, (OPENSSL_STRING*)kv);
+    if (p != NULL) {
+        OPENSSL_free(p);
+        return 1;
+    } else if (lh_OPENSSL_STRING_error(addexts)) {
+        OPENSSL_free(kv);
         return -1;
     }
 
@@ -476,12 +479,14 @@ int req_main(int argc, char **argv)
 
     if (verbose)
         BIO_printf(bio_err, "Using configuration from %s\n", template);
-    req_conf = app_load_config(template);
+    if ((req_conf = app_load_config(template)) == NULL)
+        goto end;
     if (addext_bio) {
         if (verbose)
             BIO_printf(bio_err,
                        "Using additional configuration from command line\n");
-        addext_conf = app_load_config_bio(addext_bio, NULL);
+        if ((addext_conf = app_load_config_bio(addext_bio, NULL)) == NULL)
+            goto end;
     }
     if (template != default_config_file && !app_load_modules(req_conf))
         goto end;
