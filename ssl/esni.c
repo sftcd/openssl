@@ -564,13 +564,14 @@ static ESNI_RECORD *SSL_ESNI_RECORD_new_from_binary(unsigned char *binbuf, size_
         case ESNI_DRAFT_02_VERSION:
         case ESNI_DRAFT_03_VERSION:
         case ESNI_DRAFT_04_VERSION:
+        case ESNI_DRAFT_06_VERSION:
             break;
         default:
             ESNIerr(ESNI_F_SSL_ESNI_RECORD_NEW_FROM_BINARY, ESNI_R_RR_DECODE_ERROR);
             goto err;
     }
     /* checksum decode */
-    if (er->version!=ESNI_DRAFT_04_VERSION) {
+    if (er->version!=ESNI_DRAFT_04_VERSION && er->version!=ESNI_DRAFT_06_VERSION) {
         if (!PACKET_copy_bytes(&pkt,er->checksum,4)) {
             ESNIerr(ESNI_F_SSL_ESNI_RECORD_NEW_FROM_BINARY, ESNI_R_RR_DECODE_ERROR);
             goto err;
@@ -711,7 +712,7 @@ static ESNI_RECORD *SSL_ESNI_RECORD_new_from_binary(unsigned char *binbuf, size_
         goto err;
     }
 
-    if (er->version!=ESNI_DRAFT_04_VERSION) {
+    if (er->version!=ESNI_DRAFT_04_VERSION && er->version!=ESNI_DRAFT_06_VERSION) {
         /*
         * note: not_before/not_after checking is done elsewhere/elsewhen
         */
@@ -891,7 +892,7 @@ static ESNI_RECORD *SSL_ESNI_RECORD_new_from_binary(unsigned char *binbuf, size_
         goto err;
     }
 
-    if (er->version!=ESNI_DRAFT_04_VERSION) {
+    if (er->version!=ESNI_DRAFT_04_VERSION && er->version!=ESNI_DRAFT_06_VERSION) {
         int cksum_ok=esni_checksum_check(binbuf,binblen-lleftover);
         if (cksum_ok!=1) {
             ESNIerr(ESNI_F_SSL_ESNI_RECORD_NEW_FROM_BINARY, ERR_R_INTERNAL_ERROR);

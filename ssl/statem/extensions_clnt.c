@@ -2237,7 +2237,7 @@ EXT_RETURN tls_construct_ctos_esni(SSL *s, WPACKET *pkt, unsigned int context,
         }
     }
 
-    if (s->esni->version!=ESNI_GREASE_VERSION) {
+    if (s->esni->version!=ESNI_GREASE_VERSION && s->esni->version!=ESNI_DRAFT_06_VERSION) {
         /*
         * client_random from CH - FIXME: literal 1024 seems dodgy, check the
         * SSL_get_client_random code.
@@ -2511,5 +2511,31 @@ int tls_parse_stoc_esni(SSL *s, PACKET *pkt, unsigned int context,
     
     return 1;
 }
+
+/**
+ * @brief Create the encrypted client hello extension for the ClientHello
+ *
+ * This gets the TLS h/w values needed (client_random, curve_id and TLS h/s key_share)
+ * and then calls SSL_ESNI_enc and encodes the resulting CLIENT_ESNI into
+ * the ClientHello.
+ */
+EXT_RETURN tls_construct_ctos_encch(SSL *s, WPACKET *pkt, unsigned int context,
+                                   X509 *x, size_t chainidx)
+{
+    return EXT_RETURN_NOT_SENT;
+}
+
+/**
+ * @brief Parse and check the enctypted client hello value returned in the EncryptedExtensions
+ * to make sure it has the nonce we sent in the ClientHello
+ *
+ * This is just checking the nonce.
+ */
+int tls_parse_stoc_encch(SSL *s, PACKET *pkt, unsigned int context,
+                               X509 *x, size_t chainidx)
+{
+    return 0;
+}
+
 #endif // END_OPENSSL_NO_ESNI
 // ESNI_DOXY_END

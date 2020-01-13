@@ -73,6 +73,7 @@
 #define ESNI_DRAFT_03_VERSION 0xff02 ///< ESNIKeys version from draft-03
 #define ESNI_DRAFT_04_VERSION 0xff03 ///< ESNIKeys version from draft-04
 #define ESNI_DRAFT_05_VERSION 0xff03 ///< ESNIConfig version from draft-05 (sigh - same version!)
+#define ESNI_DRAFT_06_VERSION 0xff04 ///< ESNIConfig version from draft-06 
 
 #define ESNI_RRTYPE 65439 ///< experimental (as per draft-03, and draft-04) ESNI RRTYPE
 
@@ -96,8 +97,8 @@
  *     } ESNIKeys;
  * </pre>
  * 
- * Note that I don't like the above, but it's what we have to
- * work with at the moment.
+ * Note that I didn't like the above, but it's what we had to
+ * work with.
  *
  * This structure is purely used when decoding the RR value
  * and is then discarded (selected values mapped into the
@@ -133,6 +134,24 @@
  *         ESNIKeys esni_keys;
  *         Extension dns_extensions<0..2^16-1>;
  *     } ESNIRecord;
+ * </pre>
+ *
+ * Draft-05 fiddled with stuff, but I'm not going to
+ * implement that one.
+ *
+ * Draft-06 moves us along to tunnelled CH and HPKE
+ * but the public key format isn't too different from
+ * draft-05:
+ *
+ * <pre>
+ *     struct {
+ *         uint16 version;
+ *         opaque public_name<1..2^16-1>;
+ *         KeyShareEntry keys<4..2^16-1>;
+ *         CipherSuite cipher_suites<2..2^16-2>;
+ *         uint16 padded_length;
+ *         Extension extensions<0..2^16-1>;
+ *     } ESNIConfig;
  * </pre>
  *
  */

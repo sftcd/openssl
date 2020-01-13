@@ -2647,7 +2647,28 @@ EXT_RETURN tls_construct_stoc_esni(SSL *s, WPACKET *pkt,
         return EXT_RETURN_SENT;
     }
     return EXT_RETURN_NOT_SENT;
-
 }
+
+/**
+ * @brief Decodes inbound encrypted client hello  extension into SSL_ESNI structure
+ */
+int tls_parse_ctos_encch(SSL *s, PACKET *pkt, unsigned int context,
+                               X509 *x, size_t chainidx)
+{
+    return 0; 
+}
+
+/**
+ * @brief If ESNI all went well, and we have a nonce then send that back
+ *
+ * Just do the biz... :-)
+ */
+EXT_RETURN tls_construct_stoc_encch(SSL *s, WPACKET *pkt,
+                                          unsigned int context, X509 *x,
+                                          size_t chainidx)
+{
+    return EXT_RETURN_NOT_SENT;
+}
+
 #endif // END_OPENSSL_NO_ESNI
 // ESNI_DOXY_END

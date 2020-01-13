@@ -25,6 +25,9 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- Playing with tunnelled client hello. Might make this a branch I guess (even
+  though I hate branches;-)
+
 - Remerged with upstream (20191219)
 
 - Remerged with upstream (20191218)

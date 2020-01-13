@@ -267,7 +267,11 @@ void usage(char *prog)
     printf("\t%s [-V version] [-o <fname>] [-p <privfname>] [-d duration] \n",prog);
     printf("\t\t\t[-P public-/clear_sni-name] [-z zonefrag-file] [-g] [-J [file-name]] [-A [file-name]]\n"); 
     printf("where:\n");
-    printf("-V specifies the ESNIKeys version to produce (default: 0xff01; 0xff02, 0xff03 allowed)\n");
+    printf("-V specifies the ESNIKeys version to produce (default: 0x%4x; 0x%4x, 0x%4x, 0x%4x allowed)\n",
+                    ESNI_DRAFT_02_VERSION,
+                    ESNI_DRAFT_03_VERSION,
+                    ESNI_DRAFT_04_VERSION,
+                    ESNI_DRAFT_06_VERSION);
     printf("-o specifies the output file name for the binary-encoded ESNIKeys (default: ./esnikeys.pub)\n");
     printf("-p specifies the output file name for the corresponding private key (default: ./esnikeys.priv)\n");
     printf("-k specifies the output file name for the corresponding key pair (default: ./esnikeys.key)\n");
@@ -279,7 +283,8 @@ void usage(char *prog)
     printf("If <privfname> exists already and contains an appropriate value, then that key will be used without change.\n");
     printf("There is no support for crypto options - we only support TLS_AES_128_GCM_SHA256 and X25519.\n");
     printf("Fix that if you like:-)\n");
-    printf("-A is only supported for versions 0xff02,0xff03 and not 0xff01\n");
+    printf("-A is only supported for versions 0x%4x, 0x%4x and not others\n",
+                    ESNI_DRAFT_03_VERSION, ESNI_DRAFT_04_VERSION);
     printf("-A says to include an AddressSet extension\n");
     printf("\n");
     printf("If a filename ie given with -A then that should contain one IP address per line.\n");
@@ -549,7 +554,7 @@ static int mk_esnikeys(int argc, char **argv)
     char *privfname=NULL; ///< private key file name
     char *pairfname=NULL; ///< key pair file name
     char *fragfname=NULL; ///< zone fragment file name
-    unsigned short ekversion=0xff01; ///< ESNIKeys version value (default is for draft esni -02)
+    unsigned short ekversion=ESNI_DRAFT_02_VERSION; ///< ESNIKeys version value (default is for draft esni -02)
     char *public_name=NULL; ///< ESNIKeys "public_name" field
     size_t pnlen=0; ///< length of public_name
     int includeaddrset=0; ///< whether or not to include an AddressSet extension
@@ -639,8 +644,12 @@ static int mk_esnikeys(int argc, char **argv)
         }
     }
 
-    if (ekversion==0xff01 && includeaddrset!=0) {
-        fprintf(stderr,"Version 0xff01 doesn't support AddressSet - exiting\n\n");
+    if (ekversion==ESNI_DRAFT_02_VERSION && includeaddrset!=0) {
+        fprintf(stderr,"Version 0x%4x doesn't support AddressSet - exiting\n\n",ekversion);
+        usage(argv[0]);
+    }
+    if (ekversion==ESNI_DRAFT_06_VERSION && includeaddrset!=0) {
+        fprintf(stderr,"Version 0x%4x doesn't support AddressSet - exiting\n\n",ekversion);
         usage(argv[0]);
     }
     if (duration <=0) {
@@ -656,10 +665,11 @@ static int mk_esnikeys(int argc, char **argv)
         usage(argv[0]);
     }
     switch(ekversion) {
-    case 0xff01: /* esni draft -02 */
+    case ESNI_DRAFT_02_VERSION: /* esni draft -02 */
         break;
-    case 0xff02: /* esni draft -03 */
-    case 0xff03: /* esni draft -04 */
+    case ESNI_DRAFT_03_VERSION: /* esni draft -03 */
+    case ESNI_DRAFT_04_VERSION: /* esni draft -04 */
+    case ESNI_DRAFT_06_VERSION: /* esni draft -06 to be */
         pnlen=(public_name==NULL?0:strlen(public_name));
         if (pnlen > MAX_ESNI_COVER_NAME) {
             fprintf(stderr,"Cover name too long (%lu), max is %d\n\n",(unsigned long)pnlen,MAX_ESNI_COVER_NAME);
@@ -675,7 +685,7 @@ static int mk_esnikeys(int argc, char **argv)
     }
 
     /* handle AddressSet stuff */
-    if ((ekversion==0xff02 || ekversion==0xff03) && includeaddrset!=0) {
+    if ((ekversion==ESNI_DRAFT_03_VERSION || ekversion==ESNI_DRAFT_04_VERSION) && includeaddrset!=0) {
         int rv=mk_aset(asetfname,public_name,&asetlen,&asetval);
         if (rv!=1) {
             fprintf(stderr,"mk_aset failed - exiting\n");
@@ -732,7 +742,7 @@ static int mk_esnikeys(int argc, char **argv)
          * version 0xff03 and just swap those out to dns_extensions
          * Can revisit later and grease internally if that's useful
          */
-        if (ekversion==0xff03) {
+        if (ekversion==ESNI_DRAFT_04_VERSION) {
             dnsextlen=extlen;
             dnsextvals=extvals;
             extlen=0;
@@ -899,10 +909,12 @@ static int mk_esnikeys(int argc, char **argv)
     memset(bbuf,0,MAX_ESNIKEYS_BUFLEN);
     *bp++=(ekversion>>8)%256; 
     *bp++=(ekversion%256);// version = 0xff01 or 0xff02
-    if (ekversion==0xff01 || ekversion==0xff02) {
+    if (ekversion==ESNI_DRAFT_02_VERSION || ekversion==ESNI_DRAFT_03_VERSION) {
         memset(bp,0,4); bp+=4; // space for checksum
     }
-    if (pnlen > 0 && (ekversion==0xff02 || ekversion == 0xff03)) {
+    if (pnlen > 0 && (ekversion==ESNI_DRAFT_03_VERSION || 
+                        ekversion == ESNI_DRAFT_04_VERSION || 
+                        ekversion == ESNI_DRAFT_06_VERSION)) {
         /* draft -03 and -04 have public_name here, -02 hasn't got that at all */
         *bp++=(pnlen>>8)%256;
         *bp++=pnlen%256;
@@ -924,7 +936,7 @@ static int mk_esnikeys(int argc, char **argv)
     /* padded_length */
     *bp++=0x01;
     *bp++=0x04; // 2 bytes padded length - 260, same as CF for now
-    if (ekversion==0xff01 || ekversion==0xff02) {
+    if (ekversion==ESNI_DRAFT_02_VERSION || ekversion==ESNI_DRAFT_03_VERSION) {
         memset(bp,0,4); bp+=4; // top zero 4 octets of time
         *bp++=(nb>>24)%256;
         *bp++=(nb>>16)%256;
@@ -944,7 +956,7 @@ static int mk_esnikeys(int argc, char **argv)
         bp+=extlen;
         free(extvals);
     }
-    if (ekversion==0xff03 && dnsextlen>0) {
+    if (ekversion==ESNI_DRAFT_04_VERSION && dnsextlen>0) {
         memcpy(bp,dnsextvals,dnsextlen);
         bp+=dnsextlen;
         free(dnsextvals);
@@ -953,7 +965,7 @@ static int mk_esnikeys(int argc, char **argv)
 
     so_esni_pbuf("BP",bbuf,bblen,0);
 
-    if (ekversion==0xff01 || ekversion==0xff02) {
+    if (ekversion==ESNI_DRAFT_02_VERSION || ekversion==ESNI_DRAFT_03_VERSION) {
         unsigned char cksum[4];
         if (esni_checksum_gen(bbuf,bblen,cksum)!=1) {
             fprintf(stderr,"fopen error (line:%d)\n",__LINE__);
@@ -1017,7 +1029,7 @@ static int mk_esnikeys(int argc, char **argv)
     fprintf(pairfp,"-----END ESNIKEY-----\n");
     fclose(pairfp);
 
-    if (ekversion==0xff01) {
+    if (ekversion==ESNI_DRAFT_02_VERSION) {
 
         /* Prepare zone fragment in buffer */
         sp_esni_txtrr(zbuf,MAX_ZONEDATA_BUFLEN,bbuf,bblen,duration/2,public_name);
@@ -1028,7 +1040,7 @@ static int mk_esnikeys(int argc, char **argv)
         }
     }
 
-    if (ekversion==0xff02 || ekversion==0xff03) {
+    if (ekversion==ESNI_DRAFT_03_VERSION || ekversion==ESNI_DRAFT_04_VERSION) {
 
         /* Prepare zone fragment in buffer */
         sp_esni_prr(zbuf,MAX_ZONEDATA_BUFLEN,bbuf,bblen,0xff9f,duration/2,public_name);
@@ -1075,11 +1087,11 @@ static int mk_esnikeys(int argc, char **argv)
         /*
          * Make up JSON string
          */
-        if (ekversion==0xff01) {
+        if (ekversion==ESNI_DRAFT_02_VERSION) {
             int b64len = EVP_EncodeBlock((unsigned char*)esnistr, (unsigned char *)bbuf, bblen);
             esnistr[b64len]='\0';
         }
-        if (ekversion==0xff02 || ekversion==0xff03) {
+        if (ekversion==ESNI_DRAFT_03_VERSION || ekversion==ESNI_DRAFT_04_VERSION) {
             /* binary -> ascii hex */
             char ch3[3];
             int i=0;

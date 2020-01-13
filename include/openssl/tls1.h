@@ -160,6 +160,7 @@ extern "C" {
 
 #ifndef OPENSSL_NO_ESNI
 #define TLSEXT_TYPE_esni                       0xffce
+#define TLSEXT_TYPE_encch                      0xffcf /* this isn't set in the draft yet TODO(ESNI): FIXME: use correct number */
 #endif
 
 /* NameType value from RFC3546 */

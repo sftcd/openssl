@@ -58,6 +58,8 @@ static int init_post_handshake_auth(SSL *s, unsigned int context);
 #ifndef OPENSSL_NO_ESNI
 static int init_esni(SSL *s, unsigned int context);
 static int final_esni(SSL *s, unsigned int context, int sent);
+static int init_encch(SSL *s, unsigned int context);
+static int final_encch(SSL *s, unsigned int context, int sent);
 #endif // END_OPENSSL_NO_ESNI
 
 /* Structure to define a built-in extension */
@@ -379,6 +381,17 @@ static const EXTENSION_DEFINITION ext_defs[] = {
         tls_parse_ctos_esni, tls_parse_stoc_esni,
         tls_construct_stoc_esni, tls_construct_ctos_esni,
         final_esni
+    },
+    /*
+     * Draft-06 encrypted client hello
+     */
+    {
+        TLSEXT_TYPE_encch,
+        SSL_EXT_CLIENT_HELLO | SSL_EXT_TLS1_3_ONLY | SSL_EXT_TLS1_3_ENCRYPTED_EXTENSIONS,
+        init_esni,
+        tls_parse_ctos_encch, tls_parse_stoc_encch,
+        tls_construct_stoc_encch, tls_construct_ctos_encch,
+        final_encch
     },
 #else // OPENSSL_NO_ESNI
     INVALID_EXTENSION,
@@ -956,6 +969,40 @@ static int init_esni(SSL *s, unsigned int context)
  * @brief check result of esni and return error or ok
  */
 static int final_esni(SSL *s, unsigned int context, int sent)
+{
+    /*
+     * Could be that cleaning up would be good, and/or 
+     * whatever's needed for handling tickets etc. etc.
+     */
+    if (!s->server && s->esni) {
+        if (s->esni->version==ESNI_GREASE_VERSION) {
+            /*
+             * If we greased, then it's ok that esni_done didn't get set
+             * TODO: figure if this is the right check to make
+             */
+            return 1;
+        } else if (s->esni_done!=1) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_FINAL_ESNI,
+                 SSL_R_CALLBACK_FAILED);
+            return 0;
+        }
+    }
+    return 1;
+}
+
+/**
+ * @brief Just note that esni is not yet done
+ */
+static int init_encch(SSL *s, unsigned int context)
+{
+    s->esni_done = 0;
+    return 1;
+}
+
+/**
+ * @brief check result of esni and return error or ok
+ */
+static int final_encch(SSL *s, unsigned int context, int sent)
 {
     /*
      * Could be that cleaning up would be good, and/or 

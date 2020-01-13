@@ -1723,27 +1723,21 @@ int s_client_main(int argc, char **argv)
 #ifndef OPENSSL_NO_ESNI
     if (encservername != NULL) {
         if (esnikeys_asciirr == NULL) {
-            BIO_printf(bio_err,
-                       "%s: Can't use -esni without -esnirr \n",
-                       prog);
+            BIO_printf(bio_err, "%s: Can't use -esni without -esnirr \n", prog);
             goto opthelp;
         }
         /*
          * tee up encrypted SNI
          */
         if (SSL_esni_checknames(encservername,servername)!=1) {
-            BIO_printf(bio_err,
-                       "%s: ESNI name check failed.\n",
-                       prog);
-            goto opthelp;
+            BIO_printf(bio_err, "%s: ESNI name check failed.\n", prog);
+            goto end;
         } 
 
         esnikeys=SSL_ESNI_new_from_buffer(ESNI_RRFMT_GUESS,strlen(esnikeys_asciirr),esnikeys_asciirr,&nesnis);
         if (nesnis==0 || esnikeys == NULL) {
-            BIO_printf(bio_err,
-                       "%s: ESNI decode failed.\n",
-                       prog);
-            goto opthelp;
+            BIO_printf(bio_err, "%s: ESNI decode failed.\n", prog);
+            goto end;
         } 
         if (c_msg>0) {
             SSL_ESNI_print(bio_err,esnikeys,ESNI_SELECT_ALL);
