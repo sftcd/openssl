@@ -309,6 +309,14 @@ typedef struct ssl_esni_st {
     char *privfname; ///< name of private key file from which this was loaded
     char *pubfname;  ///< name of private key file from which this was loaded
     time_t loadtime; ///< time public and private key were loaded from file
+    /*
+     * Record whether inner CH done already or not
+     * These'll be set to zero/NULL via memset when one of these is alloc'd
+     * TODO(ESNI): free/print innerch if set
+     */
+    int innerdone;
+    size_t innerch_len;
+    char *innerch;
 } SSL_ESNI;
 
 /**

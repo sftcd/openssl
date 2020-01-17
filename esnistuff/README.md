@@ -25,8 +25,24 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
-- Playing with tunnelled client hello. Might make this a branch I guess (even
-  though I hate branches;-)
+- Playing with tunnelled client hello in advance of the -06 spec. Even though I
+  hate branches, this is now the "encch" branch;-)
+    - NOTE: NOT WORKING YET
+    - Copied ``tls_construct_client_hello()`` (in ``ssl/statem/statem_clnt.c``)
+      into a new ``tls_constuct_encrypted_client_hello()``
+      to generate inner and outer CHs - plan is to refactor that after
+      something works, for now, there's loadsa duplicated code
+    - I added the boilerplate functions for handling encch extension as (almost) stubs
+    - outer extensions will use
+      the apparently otherwisse unused ``context`` parameter in the extension
+      handlers to differentiate between inner and outer
+    - TBD: provide inner ext value to each handler so it can make outer same
+      (or not) as appropriate
+    - Haven't looked at server side at al yet mind...
+
+- Changes from encch branch to bring back:
+    - apps/s_server.c - print stuff if only esnipair.key loaded
+    - testserver.sh - s/esnipair.key/esnikeys.key/ as the default key pair file
 
 - Remerged with upstream (20191219)
 

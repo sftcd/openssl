@@ -6,6 +6,11 @@
 : ${TOP=$HOME/code/openssl}
 export LD_LIBRARY_PATH=$TOP
 
+if [[ "$TOP" != "$HOME/code/openssl" ]]
+then
+    echo "Using $TOP as TOP"
+fi
+
 # An old value...
 #ESNI="/wHHBBOoACQAHQAg4YSfjSyJPNr1z3F8KqzBNBnMejim0mJZaPmria3XsicAAhMBAQQAAAAAW9pQEAAAAABb4jkQAAA="
 

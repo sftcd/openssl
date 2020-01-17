@@ -33,6 +33,10 @@ static int key_exchange_expected(SSL *s);
 static int ssl_cipher_list_to_bytes(SSL *s, STACK_OF(SSL_CIPHER) *sk,
                                     WPACKET *pkt);
 
+#ifndef OPENSSL_NO_ESNI
+static int tls_construct_encrypted_client_hello(SSL *s, WPACKET *pkt);
+#endif
+
 /*
  * Is a CertificateRequest message allowed at the moment or not?
  *
@@ -905,8 +909,18 @@ int ossl_statem_client_construct_message(SSL *s, WPACKET *pkt,
         break;
 
     case TLS_ST_CW_CLNT_HELLO:
+#ifndef OPENSSL_NO_ESNI
+        if (s->esni && s->esni->version==ESNI_DRAFT_06_VERSION) {
+            *confunc = tls_construct_encrypted_client_hello;
+            *mt = SSL3_MT_CLIENT_HELLO;
+        } else {
+            *confunc = tls_construct_client_hello;
+            *mt = SSL3_MT_CLIENT_HELLO;
+        }
+#else
         *confunc = tls_construct_client_hello;
         *mt = SSL3_MT_CLIENT_HELLO;
+#endif
         break;
 
     case TLS_ST_CW_END_OF_EARLY_DATA:
@@ -1292,6 +1306,405 @@ int tls_construct_client_hello(SSL *s, WPACKET *pkt)
 
     return 1;
 }
+
+#ifndef OPENSSL_NO_ESNI
+/*
+ * A guess at what ESNI draft-06 might call for...
+ * 
+ * This code is copied from tls_construct_client_hello
+ * For the moment, I'll duplicate it all and add to it.
+ * Once we have something working, then I'll come back
+ * and re-factor it, probably including the new code
+ * back into tls_construct_client_hello, but first, let's
+ * get something working, even if it's mega-ugly
+ *
+ * New chunks of code are marked with ESNI and ESNI-END
+ * to make later refactoring a bit easier.
+ */
+int tls_construct_encrypted_client_hello(SSL *s, WPACKET *pkt)
+{
+    unsigned char *p;
+    size_t sess_id_len;
+    int i, protverr;
+#ifndef OPENSSL_NO_COMP
+    SSL_COMP *comp;
+#endif
+    SSL_SESSION *sess = s->session;
+    unsigned char *session_id;
+
+    /* Work out what SSL/TLS/DTLS version to use */
+    protverr = ssl_set_client_hello_version(s);
+    if (protverr != 0) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CLIENT_HELLO,
+                 protverr);
+        return 0;
+    }
+
+    // ESNI
+    /*
+     * If doing ESNI stash the packet we've been given for later use as the outer CH
+     */
+    WPACKET *outer=pkt;
+    WPACKET inner;
+    BUF_MEM *inner_mem=NULL;
+    int mt=SSL3_MT_CLIENT_HELLO;
+    if (s->esni && s->esni->version==ESNI_DRAFT_06_VERSION) {
+        if ((inner_mem = BUF_MEM_new()) == NULL) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CLIENT_HELLO,
+                 protverr);
+            return 0;
+        }
+        if (!BUF_MEM_grow(inner_mem, SSL3_RT_MAX_PLAIN_LENGTH)) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CLIENT_HELLO,
+                 protverr);
+            return 0;
+        }
+
+        if (!WPACKET_init(&inner,inner_mem)
+                    || !ssl_set_handshake_header(s, &inner, mt)) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CLIENT_HELLO,
+                 protverr);
+            return 0;
+        }
+        pkt=&inner;
+    }
+    // ESNI
+
+    if (sess == NULL
+            || !ssl_version_supported(s, sess->ssl_version, NULL)
+            || !SSL_SESSION_is_resumable(sess)) {
+        if (s->hello_retry_request == SSL_HRR_NONE
+                && !ssl_get_new_session(s, 0)) {
+            /* SSLfatal() already called */
+            return 0;
+        }
+    }
+    /* else use the pre-loaded session */
+
+    p = s->s3.client_random;
+
+    /*
+     * for DTLS if client_random is initialized, reuse it, we are
+     * required to use same upon reply to HelloVerify
+     */
+    if (SSL_IS_DTLS(s)) {
+        size_t idx;
+        i = 1;
+        for (idx = 0; idx < sizeof(s->s3.client_random); idx++) {
+            if (p[idx]) {
+                i = 0;
+                break;
+            }
+        }
+    } else {
+        i = (s->hello_retry_request == SSL_HRR_NONE);
+    }
+
+    if (i && ssl_fill_hello_random(s, 0, p, sizeof(s->s3.client_random),
+                                   DOWNGRADE_NONE) <= 0) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CLIENT_HELLO,
+                 ERR_R_INTERNAL_ERROR);
+        return 0;
+    }
+
+    /*-
+     * version indicates the negotiated version: for example from
+     * an SSLv2/v3 compatible client hello). The client_version
+     * field is the maximum version we permit and it is also
+     * used in RSA encrypted premaster secrets. Some servers can
+     * choke if we initially report a higher version then
+     * renegotiate to a lower one in the premaster secret. This
+     * didn't happen with TLS 1.0 as most servers supported it
+     * but it can with TLS 1.1 or later if the server only supports
+     * 1.0.
+     *
+     * Possible scenario with previous logic:
+     *      1. Client hello indicates TLS 1.2
+     *      2. Server hello says TLS 1.0
+     *      3. RSA encrypted premaster secret uses 1.2.
+     *      4. Handshake proceeds using TLS 1.0.
+     *      5. Server sends hello request to renegotiate.
+     *      6. Client hello indicates TLS v1.0 as we now
+     *         know that is maximum server supports.
+     *      7. Server chokes on RSA encrypted premaster secret
+     *         containing version 1.0.
+     *
+     * For interoperability it should be OK to always use the
+     * maximum version we support in client hello and then rely
+     * on the checking of version to ensure the servers isn't
+     * being inconsistent: for example initially negotiating with
+     * TLS 1.0 and renegotiating with TLS 1.2. We do this by using
+     * client_version in client hello and not resetting it to
+     * the negotiated version.
+     *
+     * For TLS 1.3 we always set the ClientHello version to 1.2 and rely on the
+     * supported_versions extension for the real supported versions.
+     */
+    if (!WPACKET_put_bytes_u16(pkt, s->client_version)
+            || !WPACKET_memcpy(pkt, s->s3.client_random, SSL3_RANDOM_SIZE)) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CLIENT_HELLO,
+                 ERR_R_INTERNAL_ERROR);
+        return 0;
+    }
+
+    /* Session ID */
+    session_id = s->session->session_id;
+    if (s->new_session || s->session->ssl_version == TLS1_3_VERSION) {
+        if (s->version == TLS1_3_VERSION
+                && (s->options & SSL_OP_ENABLE_MIDDLEBOX_COMPAT) != 0) {
+            sess_id_len = sizeof(s->tmp_session_id);
+            s->tmp_session_id_len = sess_id_len;
+            session_id = s->tmp_session_id;
+            if (s->hello_retry_request == SSL_HRR_NONE
+                    && RAND_bytes(s->tmp_session_id, sess_id_len) <= 0) {
+                SSLfatal(s, SSL_AD_INTERNAL_ERROR,
+                         SSL_F_TLS_CONSTRUCT_CLIENT_HELLO,
+                         ERR_R_INTERNAL_ERROR);
+                return 0;
+            }
+        } else {
+            sess_id_len = 0;
+        }
+    } else {
+        assert(s->session->session_id_length <= sizeof(s->session->session_id));
+        sess_id_len = s->session->session_id_length;
+        if (s->version == TLS1_3_VERSION) {
+            s->tmp_session_id_len = sess_id_len;
+            memcpy(s->tmp_session_id, s->session->session_id, sess_id_len);
+        }
+    }
+    if (!WPACKET_start_sub_packet_u8(pkt)
+            || (sess_id_len != 0 && !WPACKET_memcpy(pkt, session_id,
+                                                    sess_id_len))
+            || !WPACKET_close(pkt)) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CLIENT_HELLO,
+                 ERR_R_INTERNAL_ERROR);
+        return 0;
+    }
+
+    /* cookie stuff for DTLS */
+    if (SSL_IS_DTLS(s)) {
+        if (s->d1->cookie_len > sizeof(s->d1->cookie)
+                || !WPACKET_sub_memcpy_u8(pkt, s->d1->cookie,
+                                          s->d1->cookie_len)) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CLIENT_HELLO,
+                     ERR_R_INTERNAL_ERROR);
+            return 0;
+        }
+    }
+
+    /* Ciphers supported */
+    if (!WPACKET_start_sub_packet_u16(pkt)) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CLIENT_HELLO,
+                 ERR_R_INTERNAL_ERROR);
+        return 0;
+    }
+
+    if (!ssl_cipher_list_to_bytes(s, SSL_get_ciphers(s), pkt)) {
+        /* SSLfatal() already called */
+        return 0;
+    }
+    if (!WPACKET_close(pkt)) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CLIENT_HELLO,
+                 ERR_R_INTERNAL_ERROR);
+        return 0;
+    }
+
+    /* COMPRESSION */
+    if (!WPACKET_start_sub_packet_u8(pkt)) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CLIENT_HELLO,
+                 ERR_R_INTERNAL_ERROR);
+        return 0;
+    }
+#ifndef OPENSSL_NO_COMP
+    if (ssl_allow_compression(s)
+            && s->ctx->comp_methods
+            && (SSL_IS_DTLS(s) || s->s3.tmp.max_ver < TLS1_3_VERSION)) {
+        int compnum = sk_SSL_COMP_num(s->ctx->comp_methods);
+        for (i = 0; i < compnum; i++) {
+            comp = sk_SSL_COMP_value(s->ctx->comp_methods, i);
+            if (!WPACKET_put_bytes_u8(pkt, comp->id)) {
+                SSLfatal(s, SSL_AD_INTERNAL_ERROR,
+                         SSL_F_TLS_CONSTRUCT_CLIENT_HELLO,
+                         ERR_R_INTERNAL_ERROR);
+                return 0;
+            }
+        }
+    }
+#endif
+    /* Add the NULL method */
+    if (!WPACKET_put_bytes_u8(pkt, 0) || !WPACKET_close(pkt)) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CLIENT_HELLO,
+                 ERR_R_INTERNAL_ERROR);
+        return 0;
+    }
+
+    printf("Doing inner exts\n");
+    /* TLS extensions */
+    if (!tls_construct_extensions(s, pkt, SSL_EXT_CLIENT_HELLO, NULL, 0)) {
+        /* SSLfatal() already called */
+        return 0;
+    }
+
+    /*
+     * From here on, it's all new code to generate the outer CH
+     * ESNI
+     */
+
+    if (!s->esni || (s->esni && s->esni->version!=ESNI_DRAFT_06_VERSION)) {
+        /*
+         * We're done now if this wasn't draft-06 
+         */
+        return 1;
+    }
+
+    /*
+     * close the inner CH
+     */
+    if (!WPACKET_close(pkt))  {
+        WPACKET_cleanup(pkt);
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CLIENT_HELLO,
+                 ERR_R_INTERNAL_ERROR);
+        return 0;
+    }
+
+    /*
+     * Set pointer/len for inner CH 
+     */
+    s->esni->innerdone=1;
+    if (!WPACKET_get_length(pkt, &s->esni->innerch_len)) {
+        WPACKET_cleanup(pkt);
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CLIENT_HELLO,
+                 ERR_R_INTERNAL_ERROR);
+        return 0;
+    }
+    s->esni->innerch=inner_mem->data;
+
+    /*
+     * Put back stashed packet
+     */
+    pkt=outer;
+
+    /*-
+     * version indicates the negotiated version: for example from
+     * an SSLv2/v3 compatible client hello). The client_version
+     * field is the maximum version we permit and it is also
+     * used in RSA encrypted premaster secrets. Some servers can
+     * choke if we initially report a higher version then
+     * renegotiate to a lower one in the premaster secret. This
+     * didn't happen with TLS 1.0 as most servers supported it
+     * but it can with TLS 1.1 or later if the server only supports
+     * 1.0.
+     *
+     * Possible scenario with previous logic:
+     *      1. Client hello indicates TLS 1.2
+     *      2. Server hello says TLS 1.0
+     *      3. RSA encrypted premaster secret uses 1.2.
+     *      4. Handshake proceeds using TLS 1.0.
+     *      5. Server sends hello request to renegotiate.
+     *      6. Client hello indicates TLS v1.0 as we now
+     *         know that is maximum server supports.
+     *      7. Server chokes on RSA encrypted premaster secret
+     *         containing version 1.0.
+     *
+     * For interoperability it should be OK to always use the
+     * maximum version we support in client hello and then rely
+     * on the checking of version to ensure the servers isn't
+     * being inconsistent: for example initially negotiating with
+     * TLS 1.0 and renegotiating with TLS 1.2. We do this by using
+     * client_version in client hello and not resetting it to
+     * the negotiated version.
+     *
+     * For TLS 1.3 we always set the ClientHello version to 1.2 and rely on the
+     * supported_versions extension for the real supported versions.
+     */
+    if (!WPACKET_put_bytes_u16(pkt, s->client_version)
+            || !WPACKET_memcpy(pkt, s->s3.client_random, SSL3_RANDOM_SIZE)) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CLIENT_HELLO,
+                 ERR_R_INTERNAL_ERROR);
+        return 0;
+    }
+
+    /* Session ID */
+    if (!WPACKET_start_sub_packet_u8(pkt)
+            || (sess_id_len != 0 && !WPACKET_memcpy(pkt, session_id,
+                                                    sess_id_len))
+            || !WPACKET_close(pkt)) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CLIENT_HELLO,
+                 ERR_R_INTERNAL_ERROR);
+        return 0;
+    }
+
+    /* cookie stuff for DTLS */
+    if (SSL_IS_DTLS(s)) {
+        if (s->d1->cookie_len > sizeof(s->d1->cookie)
+                || !WPACKET_sub_memcpy_u8(pkt, s->d1->cookie,
+                                          s->d1->cookie_len)) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CLIENT_HELLO,
+                     ERR_R_INTERNAL_ERROR);
+            return 0;
+        }
+    }
+
+    /* Ciphers supported */
+    if (!WPACKET_start_sub_packet_u16(pkt)) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CLIENT_HELLO,
+                 ERR_R_INTERNAL_ERROR);
+        return 0;
+    }
+
+    if (!ssl_cipher_list_to_bytes(s, SSL_get_ciphers(s), pkt)) {
+        /* SSLfatal() already called */
+        return 0;
+    }
+    if (!WPACKET_close(pkt)) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CLIENT_HELLO,
+                 ERR_R_INTERNAL_ERROR);
+        return 0;
+    }
+
+    /* COMPRESSION */
+    if (!WPACKET_start_sub_packet_u8(pkt)) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CLIENT_HELLO,
+                 ERR_R_INTERNAL_ERROR);
+        return 0;
+    }
+#ifndef OPENSSL_NO_COMP
+    if (ssl_allow_compression(s)
+            && s->ctx->comp_methods
+            && (SSL_IS_DTLS(s) || s->s3.tmp.max_ver < TLS1_3_VERSION)) {
+        int compnum = sk_SSL_COMP_num(s->ctx->comp_methods);
+        for (i = 0; i < compnum; i++) {
+            comp = sk_SSL_COMP_value(s->ctx->comp_methods, i);
+            if (!WPACKET_put_bytes_u8(pkt, comp->id)) {
+                SSLfatal(s, SSL_AD_INTERNAL_ERROR,
+                         SSL_F_TLS_CONSTRUCT_CLIENT_HELLO,
+                         ERR_R_INTERNAL_ERROR);
+                return 0;
+            }
+        }
+    }
+#endif
+    /* Add the NULL method */
+    if (!WPACKET_put_bytes_u8(pkt, 0) || !WPACKET_close(pkt)) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CLIENT_HELLO,
+                 ERR_R_INTERNAL_ERROR);
+        return 0;
+    }
+
+    /* TLS extensions for outer CH*/
+    printf("Doing outer exts\n");
+    if (!tls_construct_extensions(s, pkt, SSL_EXT_CLIENT_HELLO | SSL_EXT_CLIENT_HELLO_OUTER, NULL, 0)) {
+        /* SSLfatal() already called */
+        return 0;
+    }
+
+    WPACKET_finish(&inner);
+    BUF_MEM_free(inner_mem);
+
+    return 1;
+}
+#endif
 
 MSG_PROCESS_RETURN dtls_process_hello_verify(SSL *s, PACKET *pkt)
 {

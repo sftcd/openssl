@@ -270,6 +270,12 @@ typedef int (*tls_session_secret_cb_fn)(SSL *s, void *secret, int *secret_len,
 #define SSL_EXT_TLS1_3_CERTIFICATE              0x1000
 #define SSL_EXT_TLS1_3_NEW_SESSION_TICKET       0x2000
 #define SSL_EXT_TLS1_3_CERTIFICATE_REQUEST      0x4000
+#ifndef OPENSSL_NO_ESNI
+/*
+ * Used when we know we're dealing with a ClientHello Outer
+ */
+#define SSL_EXT_CLIENT_HELLO_OUTER              0x8000
+#endif
 
 /* Typedefs for handling custom extensions */
 

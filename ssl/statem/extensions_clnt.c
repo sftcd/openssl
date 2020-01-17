@@ -16,12 +16,23 @@
 #ifndef OPENSSL_NO_SSL_TRACE
 #include <openssl/trace.h>
 #endif
+/*
+ * Look ahead...
+ */
+static int context_is_inner(unsigned int context);
+/*
+ * Macro to exit for extensions that are the same in inner and outer
+ */
+#define IOSAME if (!context_is_inner(context)) return EXT_RETURN_NOT_SENT; 
 #endif
 
 EXT_RETURN tls_construct_ctos_renegotiate(SSL *s, WPACKET *pkt,
                                           unsigned int context, X509 *x,
                                           size_t chainidx)
 {
+#ifndef OPENSSL_NO_ESNI
+    IOSAME
+#endif
     /* Add RI if renegotiating */
     if (!s->renegotiate)
         return EXT_RETURN_NOT_SENT;
@@ -41,6 +52,19 @@ EXT_RETURN tls_construct_ctos_renegotiate(SSL *s, WPACKET *pkt,
 
 // ESNI_DOXY_START
 #ifndef OPENSSL_NO_ESNI
+
+/**
+ * @brief check if context is inner or outer
+ * @param context is as passed into extension handler
+ * @return 0 if the "OUTER" bit is set, 1 otherwise (for inner)
+ */
+static int context_is_inner(unsigned int context) {
+    if ((context&0xffff)&SSL_EXT_CLIENT_HELLO_OUTER) {
+        return 0;
+    } 
+    return 1;
+}
+
 /**
  * @brief Possibly do/don't send SNI if doing ESNI
  *
@@ -75,7 +99,17 @@ static EXT_RETURN esni_server_name_fixup(SSL *s, WPACKET *pkt,
                                           unsigned int context, X509 *x,
                                           size_t chainidx) 
 {
-    if (s->esni != NULL ) {
+    if (s->esni != NULL) {
+
+        /* 
+         * If doing ESNI then put in cover here, unless we're on draft-06
+         * in which case the entire CH will be fixed up, unless the context
+         * is the outer CH in which case we do want the cover name:-)
+         */
+        if (s->esni->version==ESNI_DRAFT_06_VERSION && context_is_inner(context)) {
+            return EXT_RETURN_SENT;
+        }
+
         size_t pn_len=(s->esni->public_name==NULL?0:OPENSSL_strnlen(s->esni->public_name,TLSEXT_MAXLEN_host_name));
         size_t cn_len=(s->esni->clear_sni==NULL?0:OPENSSL_strnlen(s->esni->clear_sni,TLSEXT_MAXLEN_host_name));
         size_t en_len=(s->esni->encservername==NULL?0:OPENSSL_strnlen(s->esni->encservername,TLSEXT_MAXLEN_host_name));
@@ -178,6 +212,9 @@ EXT_RETURN tls_construct_ctos_maxfragmentlen(SSL *s, WPACKET *pkt,
                                              unsigned int context, X509 *x,
                                              size_t chainidx)
 {
+#ifndef OPENSSL_NO_ESNI
+    IOSAME
+#endif
     if (s->ext.max_fragment_len_mode == TLSEXT_max_fragment_length_DISABLED)
         return EXT_RETURN_NOT_SENT;
 
@@ -203,6 +240,9 @@ EXT_RETURN tls_construct_ctos_maxfragmentlen(SSL *s, WPACKET *pkt,
 EXT_RETURN tls_construct_ctos_srp(SSL *s, WPACKET *pkt, unsigned int context,
                                   X509 *x, size_t chainidx)
 {
+#ifndef OPENSSL_NO_ESNI
+    IOSAME
+#endif
     /* Add SRP username if there is one */
     if (s->srp_ctx.login == NULL)
         return EXT_RETURN_NOT_SENT;
@@ -274,6 +314,9 @@ EXT_RETURN tls_construct_ctos_ec_pt_formats(SSL *s, WPACKET *pkt,
                                             unsigned int context, X509 *x,
                                             size_t chainidx)
 {
+#ifndef OPENSSL_NO_ESNI
+    IOSAME
+#endif
     const unsigned char *pformats;
     size_t num_formats;
     int reason, min_version, max_version;
@@ -309,6 +352,9 @@ EXT_RETURN tls_construct_ctos_supported_groups(SSL *s, WPACKET *pkt,
                                                unsigned int context, X509 *x,
                                                size_t chainidx)
 {
+#ifndef OPENSSL_NO_ESNI
+    IOSAME
+#endif
     const uint16_t *pgroups = NULL;
     size_t num_groups = 0, i;
     int min_version, max_version, reason;
@@ -372,6 +418,9 @@ EXT_RETURN tls_construct_ctos_session_ticket(SSL *s, WPACKET *pkt,
                                              unsigned int context, X509 *x,
                                              size_t chainidx)
 {
+#ifndef OPENSSL_NO_ESNI
+    IOSAME
+#endif
     size_t ticklen;
 
     if (!tls_use_ticket(s))
@@ -416,6 +465,9 @@ EXT_RETURN tls_construct_ctos_sig_algs(SSL *s, WPACKET *pkt,
                                        unsigned int context, X509 *x,
                                        size_t chainidx)
 {
+#ifndef OPENSSL_NO_ESNI
+    IOSAME
+#endif
     size_t salglen;
     const uint16_t *salg;
 
@@ -444,6 +496,9 @@ EXT_RETURN tls_construct_ctos_status_request(SSL *s, WPACKET *pkt,
                                              unsigned int context, X509 *x,
                                              size_t chainidx)
 {
+#ifndef OPENSSL_NO_ESNI
+    IOSAME
+#endif
     int i;
 
     /* This extension isn't defined for client Certificates */
@@ -517,6 +572,9 @@ EXT_RETURN tls_construct_ctos_status_request(SSL *s, WPACKET *pkt,
 EXT_RETURN tls_construct_ctos_npn(SSL *s, WPACKET *pkt, unsigned int context,
                                   X509 *x, size_t chainidx)
 {
+#ifndef OPENSSL_NO_ESNI
+    IOSAME
+#endif
     if (s->ctx->ext.npn_select_cb == NULL || !SSL_IS_FIRST_HANDSHAKE(s))
         return EXT_RETURN_NOT_SENT;
 
@@ -538,6 +596,9 @@ EXT_RETURN tls_construct_ctos_npn(SSL *s, WPACKET *pkt, unsigned int context,
 EXT_RETURN tls_construct_ctos_alpn(SSL *s, WPACKET *pkt, unsigned int context,
                                    X509 *x, size_t chainidx)
 {
+#ifndef OPENSSL_NO_ESNI
+    IOSAME
+#endif
     s->s3.alpn_sent = 0;
 
     if (s->ext.alpn == NULL || !SSL_IS_FIRST_HANDSHAKE(s))
@@ -564,6 +625,9 @@ EXT_RETURN tls_construct_ctos_use_srtp(SSL *s, WPACKET *pkt,
                                        unsigned int context, X509 *x,
                                        size_t chainidx)
 {
+#ifndef OPENSSL_NO_ESNI
+    IOSAME
+#endif
     STACK_OF(SRTP_PROTECTION_PROFILE) *clnt = SSL_get_srtp_profiles(s);
     int i, end;
 
@@ -607,6 +671,9 @@ EXT_RETURN tls_construct_ctos_use_srtp(SSL *s, WPACKET *pkt,
 EXT_RETURN tls_construct_ctos_etm(SSL *s, WPACKET *pkt, unsigned int context,
                                   X509 *x, size_t chainidx)
 {
+#ifndef OPENSSL_NO_ESNI
+    IOSAME
+#endif
     if (s->options & SSL_OP_NO_ENCRYPT_THEN_MAC)
         return EXT_RETURN_NOT_SENT;
 
@@ -624,6 +691,9 @@ EXT_RETURN tls_construct_ctos_etm(SSL *s, WPACKET *pkt, unsigned int context,
 EXT_RETURN tls_construct_ctos_sct(SSL *s, WPACKET *pkt, unsigned int context,
                                   X509 *x, size_t chainidx)
 {
+#ifndef OPENSSL_NO_ESNI
+    IOSAME
+#endif
     if (s->ct_validation_callback == NULL)
         return EXT_RETURN_NOT_SENT;
 
@@ -645,6 +715,9 @@ EXT_RETURN tls_construct_ctos_sct(SSL *s, WPACKET *pkt, unsigned int context,
 EXT_RETURN tls_construct_ctos_ems(SSL *s, WPACKET *pkt, unsigned int context,
                                   X509 *x, size_t chainidx)
 {
+#ifndef OPENSSL_NO_ESNI
+    IOSAME
+#endif
     if (s->options & SSL_OP_NO_EXTENDED_MASTER_SECRET)
         return EXT_RETURN_NOT_SENT;
 
@@ -662,6 +735,9 @@ EXT_RETURN tls_construct_ctos_supported_versions(SSL *s, WPACKET *pkt,
                                                  unsigned int context, X509 *x,
                                                  size_t chainidx)
 {
+#ifndef OPENSSL_NO_ESNI
+    IOSAME
+#endif
     int currv, min_version, max_version, reason;
 
     reason = ssl_get_min_max_version(s, &min_version, &max_version, NULL);
@@ -712,6 +788,9 @@ EXT_RETURN tls_construct_ctos_psk_kex_modes(SSL *s, WPACKET *pkt,
                                             unsigned int context, X509 *x,
                                             size_t chainidx)
 {
+#ifndef OPENSSL_NO_ESNI
+    IOSAME
+#endif
 #ifndef OPENSSL_NO_TLS1_3
     int nodhe = s->options & SSL_OP_ALLOW_NO_DHE_KEX;
 
@@ -798,6 +877,9 @@ EXT_RETURN tls_construct_ctos_key_share(SSL *s, WPACKET *pkt,
                                         unsigned int context, X509 *x,
                                         size_t chainidx)
 {
+#ifndef OPENSSL_NO_ESNI
+    IOSAME
+#endif
 #ifndef OPENSSL_NO_TLS1_3
     size_t i, num_groups = 0;
     const uint16_t *pgroups = NULL;
@@ -908,6 +990,9 @@ EXT_RETURN tls_construct_ctos_key_share(SSL *s, WPACKET *pkt,
 EXT_RETURN tls_construct_ctos_cookie(SSL *s, WPACKET *pkt, unsigned int context,
                                      X509 *x, size_t chainidx)
 {
+#ifndef OPENSSL_NO_ESNI
+    IOSAME
+#endif
     EXT_RETURN ret = EXT_RETURN_FAIL;
 
     /* Should only be set if we've had an HRR */
@@ -938,6 +1023,9 @@ EXT_RETURN tls_construct_ctos_early_data(SSL *s, WPACKET *pkt,
                                          unsigned int context, X509 *x,
                                          size_t chainidx)
 {
+#ifndef OPENSSL_NO_ESNI
+    IOSAME
+#endif
 #ifndef OPENSSL_NO_PSK
     char identity[PSK_MAX_IDENTITY_LEN + 1];
 #endif  /* OPENSSL_NO_PSK */
@@ -1120,6 +1208,9 @@ EXT_RETURN tls_construct_ctos_padding(SSL *s, WPACKET *pkt,
                                       unsigned int context, X509 *x,
                                       size_t chainidx)
 {
+#ifndef OPENSSL_NO_ESNI
+    IOSAME
+#endif
     unsigned char *padbytes;
     size_t hlen;
 
@@ -1190,6 +1281,9 @@ EXT_RETURN tls_construct_ctos_padding(SSL *s, WPACKET *pkt,
 EXT_RETURN tls_construct_ctos_psk(SSL *s, WPACKET *pkt, unsigned int context,
                                   X509 *x, size_t chainidx)
 {
+#ifndef OPENSSL_NO_ESNI
+    IOSAME
+#endif
 #ifndef OPENSSL_NO_TLS1_3
     uint32_t now, agesec, agems = 0;
     size_t reshashsize = 0, pskhashsize = 0, binderoffset, msglen;
@@ -1396,6 +1490,9 @@ EXT_RETURN tls_construct_ctos_post_handshake_auth(SSL *s, WPACKET *pkt,
                                                   unsigned int context,
                                                   X509 *x, size_t chainidx)
 {
+#ifndef OPENSSL_NO_ESNI
+    IOSAME
+#endif
 #ifndef OPENSSL_NO_TLS1_3
     if (!s->pha_enabled)
         return EXT_RETURN_NOT_SENT;
@@ -2237,7 +2334,11 @@ EXT_RETURN tls_construct_ctos_esni(SSL *s, WPACKET *pkt, unsigned int context,
         }
     }
 
-    if (s->esni->version!=ESNI_GREASE_VERSION && s->esni->version!=ESNI_DRAFT_06_VERSION) {
+    if (s->esni->version==ESNI_DRAFT_06_VERSION) {
+        return EXT_RETURN_NOT_SENT;
+    }
+
+    if (s->esni->version!=ESNI_GREASE_VERSION) {
         /*
         * client_random from CH - FIXME: literal 1024 seems dodgy, check the
         * SSL_get_client_random code.
@@ -2248,7 +2349,14 @@ EXT_RETURN tls_construct_ctos_esni(SSL *s, WPACKET *pkt, unsigned int context,
         uint16_t curve_id = s->s3.group_id;
         s->esni->hrr_swap=s->hello_retry_request;
         if (!SSL_ESNI_enc(s->esni,rd_len,rd,curve_id,s->ext.kse_len,s->ext.kse,&c)) {
-            return 0;
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ESNI,
+                     ERR_R_INTERNAL_ERROR);
+            return EXT_RETURN_FAIL;
+        }
+        if (c==NULL) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ESNI,
+                     ERR_R_INTERNAL_ERROR);
+            return EXT_RETURN_FAIL;
         }
 
 #ifndef OPENSSL_NO_SSL_TRACE
@@ -2522,7 +2630,76 @@ int tls_parse_stoc_esni(SSL *s, PACKET *pkt, unsigned int context,
 EXT_RETURN tls_construct_ctos_encch(SSL *s, WPACKET *pkt, unsigned int context,
                                    X509 *x, size_t chainidx)
 {
-    return EXT_RETURN_NOT_SENT;
+    if (context_is_inner(context)) {
+        return EXT_RETURN_NOT_SENT;
+    }
+    if (s->esni->version!=ESNI_DRAFT_06_VERSION) {
+        return EXT_RETURN_NOT_SENT;
+    }
+    if (s->esni->version==ESNI_GREASE_VERSION) {
+        /* 
+         * TODO(ESNI): add some random crap 
+         */
+        return EXT_RETURN_NOT_SENT;
+    }
+    if (s->esni->innerdone!=1 || !s->esni->innerch) {
+        return EXT_RETURN_NOT_SENT;
+    }
+    /*
+     * OK, let's try encrypt the fecker
+     */
+    unsigned char rd[1024];
+    size_t rd_len=SSL_get_client_random(s,rd,1024);
+    CLIENT_ESNI *c=NULL;
+
+    uint16_t curve_id = s->s3.group_id;
+    s->esni->hrr_swap=s->hello_retry_request;
+    if (!SSL_ESNI_enc(s->esni,rd_len,rd,curve_id,s->ext.kse_len,s->ext.kse,&c)) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ESNI,
+                 ERR_R_INTERNAL_ERROR);
+        return EXT_RETURN_FAIL;
+    }
+    if (c==NULL) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ESNI,
+                 ERR_R_INTERNAL_ERROR);
+        return EXT_RETURN_FAIL;
+    }
+    s->esni_attempted=1;
+
+    if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_encch)
+               /* Sub-packet for esni extension */
+            || !WPACKET_start_sub_packet_u16(pkt)
+    		|| !WPACKET_put_bytes_u16(pkt, c->ciphersuite)
+            /*
+             * TODO(ESNI): don't force self to remove leading two length bytes here
+             * Needs fluting about as sometimes they're in, sometimes not
+             */
+            || !WPACKET_memcpy(pkt, c->encoded_keyshare+2, c->encoded_keyshare_len-2)
+            || !WPACKET_sub_memcpy_u16(pkt, c->record_digest, c->record_digest_len)
+            || !WPACKET_sub_memcpy_u16(pkt, c->encrypted_sni, c->encrypted_sni_len)
+            || !WPACKET_close(pkt)
+                ) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ESNI,
+                 ERR_R_INTERNAL_ERROR);
+        return EXT_RETURN_FAIL;
+    }
+
+    if (s->esni_cb != NULL) {
+        BIO *biom = BIO_new(BIO_s_mem());
+        if (biom==NULL) {
+            return EXT_RETURN_FAIL;
+        }
+        SSL_ESNI_print(biom,s->esni,ESNI_SELECT_ALL);
+        char pstr[ESNI_PBUF_SIZE+1];
+        memset(pstr,0,ESNI_PBUF_SIZE+1);
+        BIO_read(biom,pstr,ESNI_PBUF_SIZE);
+        BIO_free(biom);
+        unsigned int cbrv=s->esni_cb(s,pstr);
+        if (cbrv != 1) {
+            return EXT_RETURN_FAIL;
+        }
+    }
+    return EXT_RETURN_SENT;
 }
 
 /**

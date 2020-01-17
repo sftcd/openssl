@@ -2363,7 +2363,7 @@ int s_server_main(int argc, char *argv[])
         closedir(dp);
 
     }
-    if (esnidir!=NULL || esniprivkeyfile!= NULL ) {
+    if (esnidir!=NULL || esniprivkeyfile!= NULL || esnikeyfile !=NULL) {
         SSL_ESNI *tp=NULL;
         int nesni=SSL_CTX_get_esni(ctx,&tp);
         if (nesni==0) {

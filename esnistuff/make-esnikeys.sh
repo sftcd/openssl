@@ -43,4 +43,4 @@ $MKBIN -V 0xff02 -o e3.pub -p e3.priv -k e3.key -P bar.example.net -A 127.0.0.10
 # the testserver.sh wrapper
 $MKBIN -V 0xff03 -o ff03.pub -p ff03.priv -k ff03.key -P ff03.example.net -A 127.0.0.101
 cd ..
-$MKBIN -V 0xff02 -o esnikeys.pub -p esnikeys.priv -k esnikeys.key -P example.net -A esnikeydir/127.0.0.99
+#$MKBIN -V 0xff02 -o esnikeys.pub -p esnikeys.priv -k esnikeys.key -P example.net -A esnikeydir/127.0.0.99
