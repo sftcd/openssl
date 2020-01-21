@@ -1305,26 +1305,6 @@ int tls_construct_client_hello(SSL *s, WPACKET *pkt)
 
 #ifndef OPENSSL_NO_ESNI
 
-/**
- * @brief stdout version of esni_pbuf - just for odd/occasional debugging
- */
-static void so_esni_pbuf(char *msg,unsigned char *buf,size_t blen) 
-{
-    if (buf==NULL) {
-        printf("so: %s is NULL\n",msg);
-        return;
-    }
-    printf("so: %s (%lu):\n    ",msg,(unsigned long)blen);
-    int i;
-    for (i=0;i!=blen;i++) {
-        if ((i!=0) && (i%16==0))
-            printf("\n    ");
-        printf("%02x:",buf[i]);
-    }
-    printf("\n");
-    return;
-}
-
 /*
  * A guess at what ESNI draft-06 might call for...
  * 
@@ -1593,7 +1573,7 @@ int tls_construct_encrypted_client_hello(SSL *s, WPACKET *pkt)
         WPACKET_cleanup(pkt);
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_ENCRYPTED_CLIENT_HELLO,
                  ERR_R_INTERNAL_ERROR);
-        return 0;
+        goto err;
     }
 
     /* 
@@ -1605,7 +1585,7 @@ int tls_construct_encrypted_client_hello(SSL *s, WPACKET *pkt)
         WPACKET_cleanup(pkt);
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_ENCRYPTED_CLIENT_HELLO,
                  ERR_R_INTERNAL_ERROR);
-        return 0;
+        goto err;
     }
 
     innerch_encoded[0]=0x16; // handshake message
@@ -1618,16 +1598,12 @@ int tls_construct_encrypted_client_hello(SSL *s, WPACKET *pkt)
     s->esni->innerch=innerch_encoded;
     s->esni->innerch_len=innerinnerlen+5;
 
-    /*
-     * print/debug
-     */
-    so_esni_pbuf("InnerCH",s->esni->innerch,s->esni->innerch_len);
-
     PACKET rpkt; ///< we'll decode back the inner ch to help make the outer
     if (!PACKET_buf_init(&rpkt, (unsigned char*) s->esni->innerch+9, s->esni->innerch_len-9)) {
+        WPACKET_cleanup(pkt);
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_ENCRYPTED_CLIENT_HELLO,
                  ERR_R_INTERNAL_ERROR);
-        return 0;
+        goto err;
     }
 
     /*
@@ -1637,7 +1613,7 @@ int tls_construct_encrypted_client_hello(SSL *s, WPACKET *pkt)
         WPACKET_cleanup(pkt);
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_ENCRYPTED_CLIENT_HELLO,
                  ERR_R_INTERNAL_ERROR);
-        return 0;
+        goto err;
     }
     
     /*
@@ -1682,7 +1658,7 @@ int tls_construct_encrypted_client_hello(SSL *s, WPACKET *pkt)
             || !WPACKET_memcpy(pkt, s->s3.client_random, SSL3_RANDOM_SIZE)) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_ENCRYPTED_CLIENT_HELLO,
                  ERR_R_INTERNAL_ERROR);
-        return 0;
+        goto err;
     }
 
     /* Session ID */
@@ -1692,7 +1668,7 @@ int tls_construct_encrypted_client_hello(SSL *s, WPACKET *pkt)
             || !WPACKET_close(pkt)) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_ENCRYPTED_CLIENT_HELLO,
                  ERR_R_INTERNAL_ERROR);
-        return 0;
+        goto err;
     }
 
     /* cookie stuff for DTLS */
@@ -1702,7 +1678,7 @@ int tls_construct_encrypted_client_hello(SSL *s, WPACKET *pkt)
                                           s->d1->cookie_len)) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_ENCRYPTED_CLIENT_HELLO,
                      ERR_R_INTERNAL_ERROR);
-            return 0;
+            goto err;
         }
     }
 
@@ -1710,24 +1686,24 @@ int tls_construct_encrypted_client_hello(SSL *s, WPACKET *pkt)
     if (!WPACKET_start_sub_packet_u16(pkt)) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_ENCRYPTED_CLIENT_HELLO,
                  ERR_R_INTERNAL_ERROR);
-        return 0;
+        goto err;
     }
 
     if (!ssl_cipher_list_to_bytes(s, SSL_get_ciphers(s), pkt)) {
         /* SSLfatal() already called */
-        return 0;
+        goto err;
     }
     if (!WPACKET_close(pkt)) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_ENCRYPTED_CLIENT_HELLO,
                  ERR_R_INTERNAL_ERROR);
-        return 0;
+        goto err;
     }
 
     /* COMPRESSION */
     if (!WPACKET_start_sub_packet_u8(pkt)) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_ENCRYPTED_CLIENT_HELLO,
                  ERR_R_INTERNAL_ERROR);
-        return 0;
+        goto err;
     }
 #ifndef OPENSSL_NO_COMP
     if (ssl_allow_compression(s)
@@ -1740,7 +1716,7 @@ int tls_construct_encrypted_client_hello(SSL *s, WPACKET *pkt)
                 SSLfatal(s, SSL_AD_INTERNAL_ERROR,
                          SSL_F_TLS_CONSTRUCT_ENCRYPTED_CLIENT_HELLO,
                          ERR_R_INTERNAL_ERROR);
-                return 0;
+                goto err;
             }
         }
     }
@@ -1749,14 +1725,14 @@ int tls_construct_encrypted_client_hello(SSL *s, WPACKET *pkt)
     if (!WPACKET_put_bytes_u8(pkt, 0) || !WPACKET_close(pkt)) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_ENCRYPTED_CLIENT_HELLO,
                  ERR_R_INTERNAL_ERROR);
-        return 0;
+        goto err;
     }
 
     /* TLS extensions for outer CH*/
     printf("Doing outer exts\n");
     if (!tls_construct_extensions(s, pkt, SSL_EXT_CLIENT_HELLO | SSL_EXT_CLIENT_HELLO_OUTER, NULL, 0)) {
         /* SSLfatal() already called */
-        return 0;
+        goto err;
     }
 
     WPACKET_finish(&inner);
