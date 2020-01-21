@@ -13,6 +13,7 @@
 #include "statem_local.h"
 
 #ifndef OPENSSL_NO_ESNI
+#include <openssl/hpke.h>
 #ifndef OPENSSL_NO_SSL_TRACE
 #include <openssl/trace.h>
 #endif
@@ -2730,7 +2731,9 @@ EXT_RETURN tls_construct_ctos_encch(SSL *s, WPACKET *pkt, unsigned int context,
         return EXT_RETURN_NOT_SENT;
     }
     if (!s->esni->innerch) {
-        return EXT_RETURN_NOT_SENT;
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ENCCH,
+                 ERR_R_INTERNAL_ERROR);
+        return EXT_RETURN_FAIL;
     }
     /*
      * OK, let's try encrypt the fecker
@@ -2742,12 +2745,40 @@ EXT_RETURN tls_construct_ctos_encch(SSL *s, WPACKET *pkt, unsigned int context,
     uint16_t curve_id = s->s3.group_id;
     s->esni->hrr_swap=s->hello_retry_request;
     if (!SSL_ESNI_enc(s->esni,rd_len,rd,curve_id,s->ext.kse_len,s->ext.kse,&c)) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ESNI,
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ENCCH,
                  ERR_R_INTERNAL_ERROR);
         return EXT_RETURN_FAIL;
     }
+
+    /*
+     * dummy call to hpke for compiling
+     */
+    int hpke_mode=HPKE_MODE_BASE;
+    hpke_suite_t hpke_suite = HPKE_SUITE_DEFAULT;
+    size_t senderpublen=HPKE_MAXSIZE; 
+    unsigned char senderpub[HPKE_MAXSIZE];
+    size_t cipherlen=HPKE_MAXSIZE; 
+    unsigned char cipher[HPKE_MAXSIZE];
+    int rv=hpke_enc(
+        hpke_mode, hpke_suite,
+        NULL, 0, NULL,
+        s->ext.kse_len-6, s->ext.kse+6,
+        0, NULL,
+        s->esni->innerch_len, s->esni->innerch,
+        0, NULL,
+        0, NULL,
+        &senderpublen, senderpub,
+        &cipherlen, cipher
+        );
+    if (rv!=1) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ENCCH,
+                 ERR_R_INTERNAL_ERROR);
+        return EXT_RETURN_FAIL;
+    }
+    printf("HPKE called ok, cipher len=%lx\n",cipherlen);
+
     if (c==NULL) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ESNI,
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ENCCH,
                  ERR_R_INTERNAL_ERROR);
         return EXT_RETURN_FAIL;
     }
@@ -2763,10 +2794,10 @@ EXT_RETURN tls_construct_ctos_encch(SSL *s, WPACKET *pkt, unsigned int context,
              */
             || !WPACKET_memcpy(pkt, c->encoded_keyshare+2, c->encoded_keyshare_len-2)
             || !WPACKET_sub_memcpy_u16(pkt, c->record_digest, c->record_digest_len)
-            || !WPACKET_sub_memcpy_u16(pkt, c->encrypted_sni, c->encrypted_sni_len)
+            || !WPACKET_sub_memcpy_u16(pkt, cipher, cipherlen)
             || !WPACKET_close(pkt)
                 ) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ESNI,
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ENCCH,
                  ERR_R_INTERNAL_ERROR);
         return EXT_RETURN_FAIL;
     }
@@ -2783,6 +2814,8 @@ EXT_RETURN tls_construct_ctos_encch(SSL *s, WPACKET *pkt, unsigned int context,
         BIO_free(biom);
         unsigned int cbrv=s->esni_cb(s,pstr);
         if (cbrv != 1) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ENCCH,
+                 ERR_R_INTERNAL_ERROR);
             return EXT_RETURN_FAIL;
         }
     }
