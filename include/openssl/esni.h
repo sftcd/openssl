@@ -310,18 +310,11 @@ typedef struct ssl_esni_st {
     char *pubfname;  ///< name of private key file from which this was loaded
     time_t loadtime; ///< time public and private key were loaded from file
     /*
-     * Record whether inner CH done already or not
+     * Store inner CH 
      * These'll be set to zero/NULL via memset when one of these is alloc'd
-     * TODO(ESNI): free/print innerch if set
      */
-    int innerdone;
     size_t innerch_len;
     unsigned char *innerch;
-    /*
-     * The decoded extensions that are in the innerch
-     */
-    void *raws;
-    size_t nraws;
     /*
      * Sadly we currently need to tell each (outer CH) extension handler what type it 
      * has so it can find it's inner equivalent value in the raws list above

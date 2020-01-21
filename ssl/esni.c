@@ -370,6 +370,8 @@ void SSL_ESNI_free(SSL_ESNI *deadesni)
         if (esni->pubfname!=NULL) OPENSSL_free(esni->pubfname);
         esni->loadtime=0;
 
+        if (esni->innerch) OPENSSL_free(esni->innerch);
+
         // zap all of that to zero 
         memset(esni,0,sizeof(SSL_ESNI));
     }
@@ -1581,6 +1583,11 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esniarr, int selector)
 	    esni_pbuf(out,"ESNI Encoded ESNIContents (hash input)",esni->hi,esni->hi_len);
 	    esni_pbuf(out,"ESNI Encoded ESNIContents (hash output)",esni->hash,esni->hash_len);
 	    esni_pbuf(out,"ESNI Padded SNI",esni->realSNI, esni->realSNI_len);
+        if (esni->innerch) {
+            esni_pbuf(out,"ESNI Inner Client Hello",esni->innerch,esni->innerch_len);
+        } else {
+	        BIO_printf(out,"ESNI Inner Client Hello is NULL\n");
+        }
 	    BIO_printf(out,"ESNI Cryptovars group id: %04x\n",esni->group_id);
 	    esni_pbuf(out,"ESNI Cryptovars Z",esni->Z,esni->Z_len);
 	    esni_pbuf(out,"ESNI Cryptovars Zx",esni->Zx,esni->Zx_len);

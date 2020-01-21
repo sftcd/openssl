@@ -74,13 +74,14 @@ static int context_is_inner(unsigned int context) {
  */
 static int esni_same_ext(SSL *s, WPACKET* pkt, int type)
 {
-    if (!pkt || !s->esni || !s->esni->raws || s->esni->nraws==0) {
+    if (!pkt || !s->esni || !s->clienthello || !s->clienthello->pre_proc_exts) {
         return EXT_RETURN_FAIL;
     }
     int ind=0;
     RAW_EXTENSION *myext=NULL;
-    RAW_EXTENSION *raws=(RAW_EXTENSION*)s->esni->raws;
-    for (ind=0;ind!=s->esni->nraws;ind++) {
+    RAW_EXTENSION *raws=s->clienthello->pre_proc_exts;
+    size_t nraws=s->clienthello->pre_proc_exts_len;
+    for (ind=0;ind!=nraws;ind++) {
         if (raws[ind].type==type) {
             myext=&raws[ind];
             break;
@@ -92,29 +93,12 @@ static int esni_same_ext(SSL *s, WPACKET* pkt, int type)
          */
         return EXT_RETURN_NOT_SENT;
     }
-    /// TODO(ESNI): why the +1/-1 needed below?
     
     if (myext->data.curr!=NULL && myext->data.remaining>0) {
 
-        /*
-        size_t offset=1;
-        if (myext->data.remaining>=16) {
-            offset=2;
-        }
-
-        if (!WPACKET_put_bytes_u16(pkt, type)
-            || !WPACKET_start_sub_packet_u16(pkt)
-            || !WPACKET_sub_memcpy_u8(pkt, myext->data.curr+offset, myext->data.remaining-offset)
-            || !WPACKET_close(pkt)) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_RENEGOTIATE,
-                    ERR_R_INTERNAL_ERROR);
-            return EXT_RETURN_FAIL;
-        }
-        */
-
         if (!WPACKET_put_bytes_u16(pkt, type)
             || !WPACKET_sub_memcpy_u16(pkt, myext->data.curr, myext->data.remaining)) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_RENEGOTIATE,
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_ESNI_SAME_EXT,
                     ERR_R_INTERNAL_ERROR);
             return EXT_RETURN_FAIL;
         }
@@ -125,7 +109,7 @@ static int esni_same_ext(SSL *s, WPACKET* pkt, int type)
          */
         if (!WPACKET_put_bytes_u16(pkt, type)
                 || !WPACKET_put_bytes_u16(pkt, 0)) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ETM,
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_ESNI_SAME_EXT,
                      ERR_R_INTERNAL_ERROR);
             return EXT_RETURN_FAIL;
         }
@@ -2710,7 +2694,7 @@ EXT_RETURN tls_construct_ctos_encch(SSL *s, WPACKET *pkt, unsigned int context,
          */
         return EXT_RETURN_NOT_SENT;
     }
-    if (s->esni->innerdone!=1 || !s->esni->innerch) {
+    if (!s->esni->innerch) {
         return EXT_RETURN_NOT_SENT;
     }
     /*

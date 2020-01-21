@@ -872,7 +872,7 @@ int tls_construct_extensions(SSL *s, WPACKET *pkt, unsigned int context,
         /*
          * coupla sanity checks first
          */
-        if (!s->esni || !s->esni->innerdone || s->esni->version!=ESNI_DRAFT_06_VERSION) {
+        if (!s->esni || !s->esni->innerch || s->esni->version!=ESNI_DRAFT_06_VERSION) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_EXTENSIONS,
                      reason);
             return 0;
