@@ -1,0 +1,10 @@
+# setup $TOP for this build tree - needed to use testclient.sh etc
+# if you're not running from $HOME/code/openssl
+# run this while at the top of your clone of the git repo
+# to run this:
+#
+#       $ . esnistuff/env
+#
+export TOP=`/bin/pwd`
+export LD_LIBRARY_PATH=$TOP
+

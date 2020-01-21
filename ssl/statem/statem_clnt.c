@@ -1644,22 +1644,8 @@ int tls_construct_encrypted_client_hello(SSL *s, WPACKET *pkt)
         return 0;
     }
     
-    /*
-     * Need to omit "OUTER" from |context| (3rd param) below
-    RAW_EXTENSION *raws=NULL; ///< the set of extensions in the inner CH
-    size_t nraws; ///< the number of supported extensions, not those present
-    if (!tls_collect_extensions(s, &s->clienthello->extensions, SSL_EXT_CLIENT_HELLO, &raws, &nraws, 0)) {
-        WPACKET_cleanup(pkt);
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_ENCRYPTED_CLIENT_HELLO,
-                 ERR_R_INTERNAL_ERROR);
-        return 0;
-    }
-    s->esni->raws=(void*)raws;
-    s->esni->nraws=nraws;
-    printf("Apparently %ld exts\n",nraws);
-     */
-    s->esni->raws=s->clienthello[0].pre_proc_exts;
-    s->esni->nraws=s->clienthello[0].pre_proc_exts_len;
+    s->esni->raws=s->clienthello->pre_proc_exts;
+    s->esni->nraws=s->clienthello->pre_proc_exts_len;
     printf("Apparently %ld exts\n",s->esni->nraws);
 
     /*
@@ -1783,6 +1769,8 @@ int tls_construct_encrypted_client_hello(SSL *s, WPACKET *pkt)
 
     WPACKET_finish(&inner);
     BUF_MEM_free(inner_mem);
+    if (innerch_encoded!=NULL) OPENSSL_free(innerch_encoded);
+    if (s->esni->raws) OPENSSL_free(s->esni->raws);
 
     return 1;
 }

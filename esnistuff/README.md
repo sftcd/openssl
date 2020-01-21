@@ -28,6 +28,9 @@ Most recent first...
 - Playing with tunnelled client hello in advance of the -06 spec. Even though I
   hate branches, this is now the "encch" branch;-)
     - NOTE: NOT WORKING YET
+    - Got to where CH has inner and outer and outer exts copied
+      from inner and outer establishes a session ok (still not
+      using hpke and server not really processing ENCCH yet)
     - Copied ``tls_construct_client_hello()`` (in ``ssl/statem/statem_clnt.c``)
       into a new ``tls_constuct_encrypted_client_hello()``
       to generate inner and outer CHs - plan is to refactor that after

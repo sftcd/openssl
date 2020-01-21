@@ -2655,7 +2655,7 @@ EXT_RETURN tls_construct_stoc_esni(SSL *s, WPACKET *pkt,
 int tls_parse_ctos_encch(SSL *s, PACKET *pkt, unsigned int context,
                                X509 *x, size_t chainidx)
 {
-    return 0; 
+    return 1; 
 }
 
 /**
