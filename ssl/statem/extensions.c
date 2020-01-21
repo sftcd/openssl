@@ -388,7 +388,7 @@ static const EXTENSION_DEFINITION ext_defs[] = {
     {
         TLSEXT_TYPE_encch,
         SSL_EXT_CLIENT_HELLO | SSL_EXT_TLS1_3_ONLY | SSL_EXT_TLS1_3_ENCRYPTED_EXTENSIONS,
-        init_esni,
+        init_encch,
         tls_parse_ctos_encch, tls_parse_stoc_encch,
         tls_construct_stoc_encch, tls_construct_ctos_encch,
         final_encch
@@ -867,6 +867,19 @@ int tls_construct_extensions(SSL *s, WPACKET *pkt, unsigned int context,
         return 0;
     }
 
+#ifndef OPENSSL_NO_ESNI
+    if ((context & SSL_EXT_CLIENT_HELLO_OUTER) != 0) {
+        /*
+         * coupla sanity checks first
+         */
+        if (!s->esni || !s->esni->innerdone || s->esni->version!=ESNI_DRAFT_06_VERSION) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_EXTENSIONS,
+                     reason);
+            return 0;
+        } 
+    }
+#endif
+
     for (i = 0, thisexd = ext_defs; i < OSSL_NELEM(ext_defs); i++, thisexd++) {
         EXT_RETURN (*construct)(SSL *s, WPACKET *pkt, unsigned int context,
                                 X509 *x, size_t chainidx);
@@ -881,6 +894,14 @@ int tls_construct_extensions(SSL *s, WPACKET *pkt, unsigned int context,
 
         if (construct == NULL)
             continue;
+
+#ifndef OPENSSL_NO_ESNI
+        /*
+         * Record the extension type in a place accessible
+         * to the extension handler
+         */
+        if (s->esni) s->esni->etype=thisexd->type;
+#endif
 
         ret = construct(s, pkt, context, x, chainidx);
         if (ret == EXT_RETURN_FAIL) {

@@ -307,6 +307,9 @@ int ERR_load_SSL_strings(void);
 #  define SSL_F_TLS_CONSTRUCT_CKE_SRP                      0
 #  define SSL_F_TLS_CONSTRUCT_CLIENT_CERTIFICATE           0
 #  define SSL_F_TLS_CONSTRUCT_CLIENT_HELLO                 0
+#ifndef OPENSSL_NO_ESNI
+#  define SSL_F_TLS_CONSTRUCT_ENCRYPTED_CLIENT_HELLO       0
+#endif
 #  define SSL_F_TLS_CONSTRUCT_CLIENT_KEY_EXCHANGE          0
 #  define SSL_F_TLS_CONSTRUCT_CLIENT_VERIFY                0
 #  define SSL_F_TLS_CONSTRUCT_CTOS_ALPN                    0

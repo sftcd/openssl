@@ -20,10 +20,11 @@
  * Look ahead...
  */
 static int context_is_inner(unsigned int context);
+static int esni_same_ext(SSL *s, WPACKET* pkt, int type);
 /*
  * Macro to exit for extensions that are the same in inner and outer
  */
-#define IOSAME if (!context_is_inner(context)) return EXT_RETURN_NOT_SENT; 
+#define IOSAME if (s->esni && !context_is_inner(context)) return esni_same_ext(s,pkt,s->esni->etype);
 #endif
 
 EXT_RETURN tls_construct_ctos_renegotiate(SSL *s, WPACKET *pkt,
@@ -59,10 +60,77 @@ EXT_RETURN tls_construct_ctos_renegotiate(SSL *s, WPACKET *pkt,
  * @return 0 if the "OUTER" bit is set, 1 otherwise (for inner)
  */
 static int context_is_inner(unsigned int context) {
-    if ((context&0xffff)&SSL_EXT_CLIENT_HELLO_OUTER) {
+    if (context&SSL_EXT_CLIENT_HELLO_OUTER) {
         return 0;
     } 
     return 1;
+}
+
+/**
+ * @brief repeat extension value from inner ch in outer ch
+ * @param s is the SSL session
+ * @param pkt is the packet containing extensions
+ * @return 1 for good other for bad
+ */
+static int esni_same_ext(SSL *s, WPACKET* pkt, int type)
+{
+    if (!pkt || !s->esni || !s->esni->raws || s->esni->nraws==0) {
+        return EXT_RETURN_FAIL;
+    }
+    int ind=0;
+    RAW_EXTENSION *myext=NULL;
+    RAW_EXTENSION *raws=(RAW_EXTENSION*)s->esni->raws;
+    for (ind=0;ind!=s->esni->nraws;ind++) {
+        if (raws[ind].type==type) {
+            myext=&raws[ind];
+            break;
+        }
+    }
+    if (myext==NULL) {
+        /*
+         * This one wasn't in inner, so don't send
+         */
+        return EXT_RETURN_NOT_SENT;
+    }
+    /// TODO(ESNI): why the +1/-1 needed below?
+    
+    if (myext->data.curr!=NULL && myext->data.remaining>0) {
+
+        /*
+        size_t offset=1;
+        if (myext->data.remaining>=16) {
+            offset=2;
+        }
+
+        if (!WPACKET_put_bytes_u16(pkt, type)
+            || !WPACKET_start_sub_packet_u16(pkt)
+            || !WPACKET_sub_memcpy_u8(pkt, myext->data.curr+offset, myext->data.remaining-offset)
+            || !WPACKET_close(pkt)) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_RENEGOTIATE,
+                    ERR_R_INTERNAL_ERROR);
+            return EXT_RETURN_FAIL;
+        }
+        */
+
+        if (!WPACKET_put_bytes_u16(pkt, type)
+            || !WPACKET_sub_memcpy_u16(pkt, myext->data.curr, myext->data.remaining)) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_RENEGOTIATE,
+                    ERR_R_INTERNAL_ERROR);
+            return EXT_RETURN_FAIL;
+        }
+
+    } else {
+        /*
+         * empty extension
+         */
+        if (!WPACKET_put_bytes_u16(pkt, type)
+                || !WPACKET_put_bytes_u16(pkt, 0)) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ETM,
+                     ERR_R_INTERNAL_ERROR);
+            return EXT_RETURN_FAIL;
+        }
+    }
+    return EXT_RETURN_SENT;
 }
 
 /**

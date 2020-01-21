@@ -316,7 +316,17 @@ typedef struct ssl_esni_st {
      */
     int innerdone;
     size_t innerch_len;
-    char *innerch;
+    unsigned char *innerch;
+    /*
+     * The decoded extensions that are in the innerch
+     */
+    void *raws;
+    size_t nraws;
+    /*
+     * Sadly we currently need to tell each (outer CH) extension handler what type it 
+     * has so it can find it's inner equivalent value in the raws list above
+     */
+    int etype;
 } SSL_ESNI;
 
 /**
