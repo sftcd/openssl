@@ -153,15 +153,6 @@ static EXT_RETURN esni_server_name_fixup(SSL *s, WPACKET *pkt,
 {
     if (s->esni != NULL) {
 
-        /* 
-         * If doing ESNI then put in cover here, unless we're on draft-06
-         * in which case the entire CH will be fixed up, unless the context
-         * is the outer CH in which case we do want the cover name:-)
-         */
-        if (s->esni->version==ESNI_DRAFT_06_VERSION && context_is_inner(context)) {
-            return EXT_RETURN_SENT;
-        }
-
         size_t pn_len=(s->esni->public_name==NULL?0:OPENSSL_strnlen(s->esni->public_name,TLSEXT_MAXLEN_host_name));
         size_t cn_len=(s->esni->clear_sni==NULL?0:OPENSSL_strnlen(s->esni->clear_sni,TLSEXT_MAXLEN_host_name));
         size_t en_len=(s->esni->encservername==NULL?0:OPENSSL_strnlen(s->esni->encservername,TLSEXT_MAXLEN_host_name));
@@ -235,9 +226,53 @@ EXT_RETURN tls_construct_ctos_server_name(SSL *s, WPACKET *pkt,
         return EXT_RETURN_NOT_SENT;
 
 #ifndef OPENSSL_NO_ESNI
-    int esnirv=esni_server_name_fixup(s,pkt,context,x,chainidx);
-    if (esnirv!=EXT_RETURN_SENT)
-        return esnirv;
+    if (s->esni && s->esni->version==ESNI_DRAFT_06_VERSION) {
+        int esnirv=esni_server_name_fixup(s,pkt,context,x,chainidx);
+        if (esnirv!=EXT_RETURN_SENT)
+            return esnirv;
+        /* send public/clear in outer, encservername in inner */
+
+        char *n2send=NULL;
+
+        if (context_is_inner(context)) {
+            n2send=s->esni->encservername;
+        } else {
+            if (s->esni->clear_sni) {
+                n2send=s->esni->clear_sni;
+            } else if (s->esni->public_name) {
+                n2send=s->esni->public_name;
+            } else {
+                /* send nothing:-) */
+                return EXT_RETURN_NOT_SENT;
+            }
+        }
+        if (n2send==NULL) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_SERVER_NAME,
+                     ERR_R_INTERNAL_ERROR);
+            return EXT_RETURN_FAIL;
+        }
+
+        /* Add TLS extension servername to the Client Hello message */
+        if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_server_name)
+                   /* Sub-packet for server_name extension */
+                || !WPACKET_start_sub_packet_u16(pkt)
+                   /* Sub-packet for servername list (always 1 hostname)*/
+                || !WPACKET_start_sub_packet_u16(pkt)
+                || !WPACKET_put_bytes_u8(pkt, TLSEXT_NAMETYPE_host_name)
+                || !WPACKET_sub_memcpy_u16(pkt, n2send,
+                                           strlen(n2send))
+                || !WPACKET_close(pkt)
+                || !WPACKET_close(pkt)) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_SERVER_NAME,
+                     ERR_R_INTERNAL_ERROR);
+            return EXT_RETURN_FAIL;
+        }
+        return EXT_RETURN_SENT;
+    } else {
+        int esnirv=esni_server_name_fixup(s,pkt,context,x,chainidx);
+        if (esnirv!=EXT_RETURN_SENT)
+            return esnirv;
+    }
 #endif // END_OPENSSL_NO_ESNI
 
     /* Add TLS extension servername to the Client Hello message */

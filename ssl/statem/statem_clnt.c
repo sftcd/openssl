@@ -1737,7 +1737,8 @@ int tls_construct_encrypted_client_hello(SSL *s, WPACKET *pkt)
 
     WPACKET_finish(&inner);
     BUF_MEM_free(inner_mem);
-    if (s->clienthello->pre_proc_exts) OPENSSL_free(s->clienthello->pre_proc_exts);
+    if (s->clienthello && s->clienthello->pre_proc_exts) OPENSSL_free(s->clienthello->pre_proc_exts);
+    if (s->clienthello) s->clienthello->pre_proc_exts=NULL;
 
     return 1;
 
@@ -1745,7 +1746,8 @@ err:
 
     WPACKET_finish(&inner);
     BUF_MEM_free(inner_mem);
-    if (s->clienthello->pre_proc_exts) OPENSSL_free(s->clienthello->pre_proc_exts);
+    if (s->clienthello && s->clienthello->pre_proc_exts) OPENSSL_free(s->clienthello->pre_proc_exts);
+    if (s->clienthello) s->clienthello->pre_proc_exts=NULL;
     return 0;
 
 }
