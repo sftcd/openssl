@@ -2023,27 +2023,27 @@ static unsigned char *SSL_hpke_dec(
         size_t *eslen) 
 {
 
-
     size_t publen=0; unsigned char *pub=NULL;
     size_t cipherlen=0; unsigned char *cipher=NULL;
     size_t aadlen=0; unsigned char *aad=NULL;
     size_t senderpublen=0; unsigned char *senderpub=NULL;
     size_t clearlen=HPKE_MAXSIZE; unsigned char clear[HPKE_MAXSIZE];
-    size_t privlen=0; unsigned char priv[HPKE_MAXSIZE];
+    int lprivlen=0; unsigned char lpriv[HPKE_MAXSIZE];
+    int privlen=0; unsigned char priv[HPKE_MAXSIZE];
 
     int hpke_mode=HPKE_MODE_BASE;
     hpke_suite_t hpke_suite = HPKE_SUITE_DEFAULT;
     cipherlen=esni->the_esni->encrypted_sni_len;
     cipher=esni->the_esni->encrypted_sni;
 
-    senderpublen=esni->the_esni->encoded_keyshare_len;
-    senderpub=esni->the_esni->encoded_keyshare;
+    senderpublen=esni->the_esni->encoded_keyshare_len-6;
+    senderpub=esni->the_esni->encoded_keyshare+6;
 
-    aad=kse;
-    aadlen=kselen;
+    aad=kse+6;
+    aadlen=kselen-6;
 
-    publen=esni->encoded_keyshare_len;
-    pub=esni->encoded_keyshare;
+    publen=esni->encoded_keyshare_len-6;
+    pub=esni->encoded_keyshare+6;
 
     BIO *bfp=BIO_new(BIO_s_mem());
     if (!bfp) {
@@ -2053,22 +2053,37 @@ static unsigned char *SSL_hpke_dec(
         BIO_free_all(bfp);
         return NULL;
     }
-    privlen = BIO_read(bfp, priv, HPKE_MAXSIZE);
-    if (privlen <= 0) {
+    lprivlen = BIO_read(bfp, lpriv, HPKE_MAXSIZE);
+    if (lprivlen <= 0) {
         BIO_free_all(bfp);
+        return NULL;
+    }
+    BIO_free_all(bfp);
+#define PEMPRIVHEAD "-----BEGIN PRIVATE KEY-----\n"
+#define PEMPRIVEND "-----END PRIVATE KEY-----\n"
+    size_t phl=strlen(PEMPRIVHEAD);
+    size_t pel=strlen(PEMPRIVEND);
+    if (strncmp(PEMPRIVHEAD,(char*)lpriv,phl)) {
+        return NULL;
+    }
+    if (strncmp(PEMPRIVEND,(char*)(lpriv+lprivlen-pel),pel)) {
+        return NULL;
+    }
+    lpriv[lprivlen-pel]='\0';
+    privlen=EVP_DecodeBlock(priv,lpriv+phl,lprivlen-(phl+pel));
+    if (privlen <= 0) {
         return NULL;
     }
 
     int rv=hpke_dec( hpke_mode, hpke_suite,
                 NULL, 0, NULL, // pskid, psk
                 publen, pub, // recipient public key
-                privlen, priv, // recipient private key
+                privlen-16, priv+16, // recipient private key
                 senderpublen, senderpub, // sender public
                 cipherlen, cipher, // ciphertext
                 aadlen,aad,  // add
                 0,NULL, // info
                 &clearlen, clear);  // clear
-    BIO_free_all(bfp);
     if (rv!=1) {
         return NULL;
     }
@@ -2079,6 +2094,8 @@ static unsigned char *SSL_hpke_dec(
     }
     memcpy(encservername,clear,clearlen);
     encservername[clearlen]=0x00;
+    *eslen=clearlen;
+    printf("encch: decrypted ok! yay!\n");
     return encservername;
 }
 
@@ -2104,6 +2121,7 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
 
     CLIENT_ESNI *ce=NULL;
     SSL_ESNI *match=NULL;
+
     /* 
      * Check if we've been configured to hard fail on ESNI failure
      * (SHOULD be off by default, so that GREASE works)
@@ -2348,7 +2366,7 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
                 /* add CLIENT_ESNI to the state temporarily */
                 s->esni[i].the_esni=ce; 
                 s->esni[i].hrr_swap=s->hello_retry_request;
-                encservername=SSL_hpke_dec(&s->esni[i],rd_len,rd,curve_id,s->ext.kse_len,s->ext.kse,&encservername_len);
+                encservername=SSL_ESNI_dec(&s->esni[i],rd_len,rd,curve_id,s->ext.kse_len,s->ext.kse,&encservername_len);
                 if (encservername!=NULL) {
                     /*
                      * Yay! it worked
@@ -2391,7 +2409,7 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
          * via trial decryption
          */
         match->hrr_swap=s->hello_retry_request;
-        encservername=SSL_hpke_dec(match,rd_len,rd,curve_id,s->ext.kse_len,s->ext.kse,&encservername_len);
+        encservername=SSL_ESNI_dec(match,rd_len,rd,curve_id,s->ext.kse_len,s->ext.kse,&encservername_len);
         if (encservername==NULL) {
             if (server_fail_grease!=0) {
                 SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ESNI,
@@ -2729,6 +2747,8 @@ int tls_parse_ctos_encch(SSL *s, PACKET *pkt, unsigned int context,
 {
     CLIENT_ESNI *ce=NULL;
     SSL_ESNI *match=NULL;
+
+    printf("Called tls_parse_ctos_encch\n");
     /* 
      * Check if we've been configured to hard fail on ESNI failure
      * (SHOULD be off by default, so that GREASE works)
@@ -2973,7 +2993,7 @@ int tls_parse_ctos_encch(SSL *s, PACKET *pkt, unsigned int context,
                 /* add CLIENT_ESNI to the state temporarily */
                 s->esni[i].the_esni=ce; 
                 s->esni[i].hrr_swap=s->hello_retry_request;
-                encservername=SSL_ESNI_dec(&s->esni[i],rd_len,rd,curve_id,s->ext.kse_len,s->ext.kse,&encservername_len);
+                encservername=SSL_hpke_dec(&s->esni[i],rd_len,rd,curve_id,s->ext.kse_len,s->ext.kse,&encservername_len);
                 if (encservername!=NULL) {
                     /*
                      * Yay! it worked
@@ -2996,7 +3016,7 @@ int tls_parse_ctos_encch(SSL *s, PACKET *pkt, unsigned int context,
                 goto err;
             } else {
                 OSSL_TRACE_BEGIN(TLS) {
-                    BIO_printf(trc_out,"Exiting tls_parse_ctos_esni at %d\n",__LINE__);
+                    BIO_printf(trc_out,"Exiting tls_parse_ctos_encch at %d\n",__LINE__);
                 } OSSL_TRACE_END(TLS);
                 goto noerr;
             }
@@ -3016,7 +3036,7 @@ int tls_parse_ctos_encch(SSL *s, PACKET *pkt, unsigned int context,
          * via trial decryption
          */
         match->hrr_swap=s->hello_retry_request;
-        encservername=SSL_ESNI_dec(match,rd_len,rd,curve_id,s->ext.kse_len,s->ext.kse,&encservername_len);
+        encservername=SSL_hpke_dec(match,rd_len,rd,curve_id,s->ext.kse_len,s->ext.kse,&encservername_len);
         if (encservername==NULL) {
             if (server_fail_grease!=0) {
                 SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ENCCH,
@@ -3145,7 +3165,7 @@ int tls_parse_ctos_encch(SSL *s, PACKET *pkt, unsigned int context,
         BIO_free(biom);
         if (cbrv != 1) {
             OSSL_TRACE_BEGIN(TLS) {
-                BIO_printf(trc_out,"Exiting tls_parse_ctos_esni at %d\n",__LINE__);
+                BIO_printf(trc_out,"Exiting tls_parse_ctos_encch at %d\n",__LINE__);
             } OSSL_TRACE_END(TLS);
             return 0;
         }
@@ -3174,7 +3194,7 @@ int tls_parse_ctos_encch(SSL *s, PACKET *pkt, unsigned int context,
 
     }
     OSSL_TRACE_BEGIN(TLS) {
-        BIO_printf(trc_out,"Happy exit from tls_parse_ctos_esni at %d\n",__LINE__);
+        BIO_printf(trc_out,"Happy exit from tls_parse_ctos_encch at %d\n",__LINE__);
     } OSSL_TRACE_END(TLS);
 
     return 1;
@@ -3194,7 +3214,7 @@ noerr:
         match->the_esni=NULL;
     }
     OSSL_TRACE_BEGIN(TLS) {
-        BIO_printf(trc_out,"Less happy exit from tls_parse_ctos_esni at %d\n",__LINE__);
+        BIO_printf(trc_out,"Less happy exit from tls_parse_ctos_encch at %d\n",__LINE__);
     } OSSL_TRACE_END(TLS);
     return 1;
 
@@ -3213,7 +3233,7 @@ err:
         match->the_esni=NULL;
     }
     OSSL_TRACE_BEGIN(TLS) {
-        BIO_printf(trc_out,"Unhappy exit from tls_parse_ctos_esni at %d\n",__LINE__);
+        BIO_printf(trc_out,"Unhappy exit from tls_parse_ctos_encch at %d\n",__LINE__);
     } OSSL_TRACE_END(TLS);
 
     return 0;

@@ -2783,20 +2783,30 @@ EXT_RETURN tls_construct_ctos_encch(SSL *s, WPACKET *pkt, unsigned int context,
         return EXT_RETURN_FAIL;
     }
     s->esni_attempted=1;
+        
+    size_t encoded_senderpublen=0;
+    unsigned char *encoded_senderpub=SSL_ESNI_wrap_keyshare(senderpub,senderpublen,curve_id,&encoded_senderpublen);
+    if (encoded_senderpub==NULL) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ENCCH,
+                 ERR_R_INTERNAL_ERROR);
+        return EXT_RETURN_FAIL;
+    }
 
     if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_encch)
                /* Sub-packet for esni extension */
             || !WPACKET_start_sub_packet_u16(pkt)
     		|| !WPACKET_put_bytes_u16(pkt, c->ciphersuite)
-            || !WPACKET_memcpy(pkt, senderpub, senderpublen)
+            || !WPACKET_memcpy(pkt, encoded_senderpub+2, encoded_senderpublen-2)
             || !WPACKET_sub_memcpy_u16(pkt, c->record_digest, c->record_digest_len)
             || !WPACKET_sub_memcpy_u16(pkt, cipher, cipherlen)
             || !WPACKET_close(pkt)
                 ) {
+        OPENSSL_free(encoded_senderpub);
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ENCCH,
                  ERR_R_INTERNAL_ERROR);
         return EXT_RETURN_FAIL;
     }
+    OPENSSL_free(encoded_senderpub);
 
     if (s->esni_cb != NULL) {
         BIO *biom = BIO_new(BIO_s_mem());

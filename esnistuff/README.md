@@ -28,7 +28,10 @@ Most recent first...
 - Playing with tunnelled client hello in advance of the -06 spec. Even though I
   hate branches, this is now the "encch" branch;-)
     - NOTE: NOT WORKING YET
-    - added call to ``hpke_dec`` on server, need to debug formatting
+    - added call to ``hpke_dec`` on server, that now decrypts (but
+      based on badly-tweaked inputs) - probably want an new API for
+      hpke that takes the private key as an EVP_PKEY instead of 
+      just the octet string version I have now
     - call to ``hpke_enc`` is now semi-realistic
       just does a (dodgy, no thought to params) encrypt with a key share and sends that
       as the meat of the encch value
