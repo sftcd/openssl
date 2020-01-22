@@ -2751,7 +2751,7 @@ EXT_RETURN tls_construct_ctos_encch(SSL *s, WPACKET *pkt, unsigned int context,
     }
 
     /*
-     * dummy call to hpke for compiling
+     * call to hpke for encrypting
      */
     int hpke_mode=HPKE_MODE_BASE;
     hpke_suite_t hpke_suite = HPKE_SUITE_DEFAULT;
@@ -2760,15 +2760,15 @@ EXT_RETURN tls_construct_ctos_encch(SSL *s, WPACKET *pkt, unsigned int context,
     size_t cipherlen=HPKE_MAXSIZE; 
     unsigned char cipher[HPKE_MAXSIZE];
     int rv=hpke_enc(
-        hpke_mode, hpke_suite,
-        NULL, 0, NULL,
-        s->ext.kse_len-6, s->ext.kse+6,
-        0, NULL,
-        s->esni->innerch_len, s->esni->innerch,
-        0, NULL,
-        0, NULL,
-        &senderpublen, senderpub,
-        &cipherlen, cipher
+        hpke_mode, hpke_suite, // mode, suite
+        NULL, 0, NULL, // pskid, psk
+        s->esni->esni_peer_keyshare_len-6, s->esni->esni_peer_keyshare+6, // peer's public
+        0, NULL, // priv
+        s->esni->innerch_len, s->esni->innerch, // clear
+        s->ext.kse_len-6, s->ext.kse+6, // aad
+        0, NULL, // info
+        &senderpublen, senderpub, // my pub
+        &cipherlen, cipher // cipher
         );
     if (rv!=1) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ENCCH,
@@ -2788,11 +2788,7 @@ EXT_RETURN tls_construct_ctos_encch(SSL *s, WPACKET *pkt, unsigned int context,
                /* Sub-packet for esni extension */
             || !WPACKET_start_sub_packet_u16(pkt)
     		|| !WPACKET_put_bytes_u16(pkt, c->ciphersuite)
-            /*
-             * TODO(ESNI): don't force self to remove leading two length bytes here
-             * Needs fluting about as sometimes they're in, sometimes not
-             */
-            || !WPACKET_memcpy(pkt, c->encoded_keyshare+2, c->encoded_keyshare_len-2)
+            || !WPACKET_memcpy(pkt, senderpub, senderpublen)
             || !WPACKET_sub_memcpy_u16(pkt, c->record_digest, c->record_digest_len)
             || !WPACKET_sub_memcpy_u16(pkt, cipher, cipherlen)
             || !WPACKET_close(pkt)

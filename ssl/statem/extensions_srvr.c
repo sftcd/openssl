@@ -21,6 +21,7 @@
 #include <netdb.h>
 /* for timing in TRACE */
 #include <time.h>
+#include <openssl/hpke.h>
 #endif
 
 #define COOKIE_STATE_FORMAT_VERSION     0
@@ -2008,6 +2009,79 @@ EXT_RETURN tls_construct_stoc_psk(SSL *s, WPACKET *pkt, unsigned int context,
 
 // ESNI_DOXY_START
 #ifndef OPENSSL_NO_ESNI
+
+/**
+ * @brief wrapper for hpke_dec since we call it >1 time
+ */
+static unsigned char *SSL_hpke_dec(
+        SSL_ESNI *esni, 
+        size_t rd_len,
+        unsigned char *rd, 
+        uint16_t curve_id,
+        size_t kselen,
+        unsigned char *kse,
+        size_t *eslen) 
+{
+
+
+    size_t publen=0; unsigned char *pub=NULL;
+    size_t cipherlen=0; unsigned char *cipher=NULL;
+    size_t aadlen=0; unsigned char *aad=NULL;
+    size_t senderpublen=0; unsigned char *senderpub=NULL;
+    size_t clearlen=HPKE_MAXSIZE; unsigned char clear[HPKE_MAXSIZE];
+    size_t privlen=0; unsigned char priv[HPKE_MAXSIZE];
+
+    int hpke_mode=HPKE_MODE_BASE;
+    hpke_suite_t hpke_suite = HPKE_SUITE_DEFAULT;
+    cipherlen=esni->the_esni->encrypted_sni_len;
+    cipher=esni->the_esni->encrypted_sni;
+
+    senderpublen=esni->the_esni->encoded_keyshare_len;
+    senderpub=esni->the_esni->encoded_keyshare;
+
+    aad=kse;
+    aadlen=kselen;
+
+    publen=esni->encoded_keyshare_len;
+    pub=esni->encoded_keyshare;
+
+    BIO *bfp=BIO_new(BIO_s_mem());
+    if (!bfp) {
+        return NULL;
+    }
+    if (!PEM_write_bio_PrivateKey(bfp,esni->keyshare,NULL,NULL,0,NULL,NULL)) {
+        BIO_free_all(bfp);
+        return NULL;
+    }
+    privlen = BIO_read(bfp, priv, HPKE_MAXSIZE);
+    if (privlen <= 0) {
+        BIO_free_all(bfp);
+        return NULL;
+    }
+
+    int rv=hpke_dec( hpke_mode, hpke_suite,
+                NULL, 0, NULL, // pskid, psk
+                publen, pub, // recipient public key
+                privlen, priv, // recipient private key
+                senderpublen, senderpub, // sender public
+                cipherlen, cipher, // ciphertext
+                aadlen,aad,  // add
+                0,NULL, // info
+                &clearlen, clear);  // clear
+    BIO_free_all(bfp);
+    if (rv!=1) {
+        return NULL;
+    }
+    // TODO: fix!
+    unsigned char *encservername=OPENSSL_malloc(clearlen+1);
+    if (!encservername) {
+        return NULL;
+    }
+    memcpy(encservername,clear,clearlen);
+    encservername[clearlen]=0x00;
+    return encservername;
+}
+
 /**
  * @brief Decodes inbound ESNI extension into SSL_ESNI structure
  *
@@ -2027,9 +2101,9 @@ EXT_RETURN tls_construct_stoc_psk(SSL *s, WPACKET *pkt, unsigned int context,
 int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
                                X509 *x, size_t chainidx)
 {
+
     CLIENT_ESNI *ce=NULL;
     SSL_ESNI *match=NULL;
-
     /* 
      * Check if we've been configured to hard fail on ESNI failure
      * (SHOULD be off by default, so that GREASE works)
@@ -2039,7 +2113,6 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
      * Note that someone tried
      */
     OSSL_TRACE_BEGIN(TLS) {
-
         time_t now=time(0);
         struct tm *tnow=gmtime(&now);
         char *anow=asctime(tnow);
@@ -2060,7 +2133,6 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
             if (res!=0) strncpy(clientip,"dunno",INET6_ADDRSTRLEN);
         }
         BIO_printf(trc_out,"Got ESNI from %s at %s",clientip,anow);
-
     } OSSL_TRACE_END(TLS);
 
     s->esni_attempted=1;
@@ -2276,7 +2348,7 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
                 /* add CLIENT_ESNI to the state temporarily */
                 s->esni[i].the_esni=ce; 
                 s->esni[i].hrr_swap=s->hello_retry_request;
-                encservername=SSL_ESNI_dec(&s->esni[i],rd_len,rd,curve_id,s->ext.kse_len,s->ext.kse,&encservername_len);
+                encservername=SSL_hpke_dec(&s->esni[i],rd_len,rd,curve_id,s->ext.kse_len,s->ext.kse,&encservername_len);
                 if (encservername!=NULL) {
                     /*
                      * Yay! it worked
@@ -2319,7 +2391,7 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
          * via trial decryption
          */
         match->hrr_swap=s->hello_retry_request;
-        encservername=SSL_ESNI_dec(match,rd_len,rd,curve_id,s->ext.kse_len,s->ext.kse,&encservername_len);
+        encservername=SSL_hpke_dec(match,rd_len,rd,curve_id,s->ext.kse_len,s->ext.kse,&encservername_len);
         if (encservername==NULL) {
             if (server_fail_grease!=0) {
                 SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ESNI,
@@ -2655,7 +2727,496 @@ EXT_RETURN tls_construct_stoc_esni(SSL *s, WPACKET *pkt,
 int tls_parse_ctos_encch(SSL *s, PACKET *pkt, unsigned int context,
                                X509 *x, size_t chainidx)
 {
-    return 1; 
+    CLIENT_ESNI *ce=NULL;
+    SSL_ESNI *match=NULL;
+    /* 
+     * Check if we've been configured to hard fail on ESNI failure
+     * (SHOULD be off by default, so that GREASE works)
+     */
+    int server_fail_grease=(s->options & SSL_OP_ESNI_HARDFAIL); 
+    /*
+     * Note that someone tried
+     */
+    OSSL_TRACE_BEGIN(TLS) {
+        time_t now=time(0);
+        struct tm *tnow=gmtime(&now);
+        char *anow=asctime(tnow);
+        int sockfd=0;
+        int res=0;
+        char clientip[INET6_ADDRSTRLEN]; 
+        memset(clientip,0,INET6_ADDRSTRLEN);
+        strncpy(clientip,"dunno",INET6_ADDRSTRLEN);
+        struct sockaddr_storage ss;
+        socklen_t salen = sizeof(ss);
+        struct sockaddr *sa;
+        memset(&ss,0,salen);
+        sa = (struct sockaddr *)&ss;
+        res=BIO_get_fd(s->rbio,&sockfd);
+        if (res!=-1) {
+            res = getpeername(sockfd,sa,&salen);
+            if (res==0) res=getnameinfo(sa,salen,clientip,INET6_ADDRSTRLEN, 0,0,NI_NUMERICHOST);
+            if (res!=0) strncpy(clientip,"dunno",INET6_ADDRSTRLEN);
+        }
+        BIO_printf(trc_out,"Got ENCCH from %s at %s",clientip,anow);
+    } OSSL_TRACE_END(TLS);
+
+    s->esni_attempted=1;
+    if (s->esni==NULL) {
+        /*
+         * No ESNIKeys loaded so we'll ignore the crap out
+         * of whatever the client asked for, other than noting
+         * it so's we can grease the answer (if we wanna)
+         * TODO(ESNI): add flag to SSL state for this case
+         */
+        if (server_fail_grease==0) {
+            /*
+             * ignore the problem
+             */
+            OSSL_TRACE_BEGIN(TLS) {
+                BIO_printf(trc_out,"Exiting tls_parse_ctos_encch at %d\n",__LINE__);
+            } OSSL_TRACE_END(TLS);
+            return 1;
+        } else {
+            /*
+             * hardfail
+             */
+            OSSL_TRACE_BEGIN(TLS) {
+                BIO_printf(trc_out,"Exiting tls_parse_ctos_encch at %d\n",__LINE__);
+            } OSSL_TRACE_END(TLS);
+            return 0;
+        }
+    }
+
+    /*
+     * We need the encoded key share from the h/s to be set or else
+     * ESNI won't work (the encoded key share is used as the AAD
+     * when decrypting)
+     */
+    if (s->ext.kse_len==0 || s->ext.kse==NULL) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ENCCH,
+                 SSL_R_BAD_EXTENSION);
+        return 0;
+    }
+
+    ce=OPENSSL_malloc(sizeof(CLIENT_ESNI));
+    if (ce==NULL) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ENCCH,
+                 SSL_R_BAD_EXTENSION);
+        return 0;
+    }
+    memset(ce,0,sizeof(CLIENT_ESNI));
+
+    unsigned char cipher[TLS_CIPHER_LEN];
+    memset(&cipher,0,TLS_CIPHER_LEN);
+    if (!PACKET_copy_bytes(pkt, cipher, TLS_CIPHER_LEN)) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ENCCH,
+                 SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+    ce->ciphersuite = cipher[0]*256+cipher[1];
+    uint16_t group_id=0;
+    unsigned int tmp;
+    if (!PACKET_get_net_2(pkt, &tmp)) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ENCCH,
+         SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+    if (tmp>0xffff) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ENCCH,
+         SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+    group_id=(uint16_t)tmp;
+
+    /*
+     * Code below is highly repetitive but that's ok for now, as the
+     * extension structure is quite likely to change. Depending on
+     * how it changes, there may be an opportunity to reduce the LOC
+     * here.
+     */
+
+    /* key_share len - should be 0x20 */
+    if (!PACKET_get_net_2(pkt, &tmp)) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ENCCH,
+         SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+    /* sanity check */
+    if (tmp > (OPENSSL_DH_MAX_MODULUS_BITS/8)) { /* actually 10000 integer DH bits is supported! */
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ENCCH,
+         SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+    if (tmp>PACKET_remaining(pkt)) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ENCCH,
+         SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+    unsigned char *tmpbuf=OPENSSL_malloc(tmp);  //* group id goes there too - sigh as always
+    if (tmpbuf==NULL) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ENCCH,
+         SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+    if (!PACKET_copy_bytes(pkt, tmpbuf, tmp)) {
+        OPENSSL_free(tmpbuf);
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ENCCH,
+         SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+    ce->encoded_keyshare=SSL_ESNI_wrap_keyshare(tmpbuf,tmp,group_id,&ce->encoded_keyshare_len);
+    OPENSSL_free(tmpbuf);
+    if (ce->encoded_keyshare==NULL ){
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ENCCH,
+         SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+
+    /* record_digest len - should also be 0x20 */
+    if (!PACKET_get_net_2(pkt, &tmp)) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ENCCH,
+         SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+    if (tmp > EVP_MAX_MD_SIZE) { /* MAX_MD_SIZE is biggest hash which works here */
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ENCCH,
+         SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+    if (tmp>PACKET_remaining(pkt)) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ENCCH,
+         SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+    ce->record_digest=OPENSSL_malloc(tmp);
+    if (ce->record_digest==NULL) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ENCCH,
+         SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+    if (!PACKET_copy_bytes(pkt, ce->record_digest, tmp)) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ENCCH,
+         SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+    ce->record_digest_len=tmp;
+
+    /* encrypted_sni len */
+    if (!PACKET_get_net_2(pkt, &tmp)) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ENCCH,
+         SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+    if (tmp > MAX_ESNI_CIPHER_SIZE) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ENCCH,
+         SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+    if (tmp>PACKET_remaining(pkt)) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ENCCH,
+         SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+    ce->encrypted_sni=OPENSSL_malloc(tmp);
+    if (ce->encrypted_sni==NULL) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ENCCH,
+         SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+    if (!PACKET_copy_bytes(pkt, ce->encrypted_sni, tmp)) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ENCCH,
+         SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+    ce->encrypted_sni_len=tmp;
+
+
+    /*
+     * We need the TLS h/s CH.random and key_share to attempt 
+     * decryption. Set those up now in case we need to do
+     * trial decruptions if there's a fake record digest
+     */
+    unsigned char rd[1024];
+    size_t rd_len=SSL_get_client_random(s,rd,1024);
+    uint16_t curve_id = s->s3.group_id;
+    unsigned char *encservername=NULL;
+    size_t encservername_len=0;
+
+    /*
+     * see which pub/private value matches record_digest 
+     */
+    int matchind=-1;
+    match=NULL; // more as a reminder to self:-)
+    int i; /* loop counter - android build doesn't like C99;-( */
+    for (i=0;i!=s->nesni && matchind==-1;i++) {
+        if (s->esni[i].rd_len==ce->record_digest_len &&
+            !memcmp(s->esni[i].rd,ce->record_digest,ce->record_digest_len)) {
+            /* found it */
+            match=&s->esni[i];
+            matchind=i;
+            break;
+        }
+    }
+
+    int trial_decryption_success=0;
+
+    if (matchind==-1 || match==NULL) {
+        /*
+         * Possible trial decryption if so-configured
+         */
+        int trial_decryption=(s->options & SSL_OP_ESNI_TRIALDECRYPT); 
+        if (trial_decryption!=0) {
+            matchind=-1;
+            match=NULL;
+            int i; /* loop counter - android build doesn't like C99;-( */
+            for (i=0;trial_decryption_success==0 && i!=s->nesni && matchind==-1;i++) {
+                /* add CLIENT_ESNI to the state temporarily */
+                s->esni[i].the_esni=ce; 
+                s->esni[i].hrr_swap=s->hello_retry_request;
+                encservername=SSL_ESNI_dec(&s->esni[i],rd_len,rd,curve_id,s->ext.kse_len,s->ext.kse,&encservername_len);
+                if (encservername!=NULL) {
+                    /*
+                     * Yay! it worked
+                     */
+                    trial_decryption_success=1;
+                    match=&s->esni[i];
+                    /* zap CLIENT_ESNI from the state - will be put back in a sec if all good */
+                    match->the_esni=NULL; 
+                    matchind=i;
+                    break;
+                } 
+                /* zap CLIENT_ESNI from the state */
+                s->esni[i].the_esni=NULL; 
+            }
+        } 
+        if (trial_decryption_success==0) {
+            if (server_fail_grease!=0) {
+                SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ENCCH,
+                SSL_R_BAD_EXTENSION);
+                goto err;
+            } else {
+                OSSL_TRACE_BEGIN(TLS) {
+                    BIO_printf(trc_out,"Exiting tls_parse_ctos_esni at %d\n",__LINE__);
+                } OSSL_TRACE_END(TLS);
+                goto noerr;
+            }
+        }
+    }
+    if (match->the_esni!=NULL) {
+        if(match->the_esni->encoded_keyshare!=NULL) OPENSSL_free(match->the_esni->encoded_keyshare);
+        if(match->the_esni->record_digest!=NULL) OPENSSL_free(match->the_esni->record_digest);
+        if(match->the_esni->encrypted_sni!=NULL) OPENSSL_free(match->the_esni->encrypted_sni);
+        OPENSSL_free(match->the_esni); 
+    }
+    match->the_esni=ce; 
+
+    if (trial_decryption_success==0) {
+        /*
+         * This is where we matched the record_digest and didn't yet decrypt
+         * via trial decryption
+         */
+        match->hrr_swap=s->hello_retry_request;
+        encservername=SSL_ESNI_dec(match,rd_len,rd,curve_id,s->ext.kse_len,s->ext.kse,&encservername_len);
+        if (encservername==NULL) {
+            if (server_fail_grease!=0) {
+                SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ENCCH,
+                SSL_R_BAD_EXTENSION);
+                goto err;
+            } else {
+                /* softfail exit */
+                OSSL_TRACE_BEGIN(TLS) {
+                    BIO_printf(trc_out,"Exiting tls_parse_ctos_encch at %d\n",__LINE__);
+                } OSSL_TRACE_END(TLS);
+                goto noerr;
+            }
+        }
+    }
+
+    /*
+     * I think (gulp!) the above is the last softfail exit as we've now
+     * managed to decrypt the ESNI presented, so it's "real" - if we 
+     * now find crap inside that, then we hard fail
+     */
+
+    /*
+     * check encservername has no zero bytes internally
+     * code here inspired by PACKET_contains_zero_byte but
+     * decided not to create a new pseudo-PACKET to do 
+     * that
+     */
+    if (memchr(encservername, 0, encservername_len) != NULL) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ENCCH,
+             SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+
+    /*
+     * Now apply esni by swapping out hostname  (all that work just for this:-)
+     */
+    if (s->ext.hostname != NULL && match->clear_sni!=NULL) {
+        OPENSSL_free(match->clear_sni);
+    }
+    match->clear_sni=s->ext.hostname;
+    s->ext.hostname=OPENSSL_strdup((char*)encservername);
+    if (s->ext.hostname==NULL) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ENCCH,
+            SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+
+    /*
+     * mimic the checks made earlier for plaintext SNI 
+     * TBH, I'm not sure of the impact of these, but I
+     * think the effect is the same. (But I've no clue
+     * what s->hit is for.)
+     */
+    if (s->hit) {
+        s->servername_done = 1;
+    } else {
+        s->servername_done = (s->session->ext.hostname != NULL)
+            && !strncasecmp(s->ext.hostname, s->session->ext.hostname,
+                            strlen(s->session->ext.hostname));
+
+        if (!s->servername_done && s->session->ext.hostname != NULL)
+            s->ext.early_data_ok = 0;
+    }
+    
+    /*
+     * copy the name once more:-)
+     */
+    if (s->session->ext.hostname==NULL) {
+        s->session->ext.hostname=OPENSSL_strdup((char*)encservername);
+        if (s->session->ext.hostname==NULL) {
+            SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ENCCH,
+                SSL_R_BAD_EXTENSION);
+            goto err;
+        }
+    }
+
+    /* 
+     * now set the other name copies for posterity and printing
+     * s->ext.hostname is the business end though and the only
+     * one used for keying
+     */
+    if (s->ext.encservername!=NULL) {
+        OPENSSL_free(s->ext.encservername);
+        s->ext.encservername=NULL;
+    }
+    s->ext.encservername=OPENSSL_strdup(s->ext.hostname);
+    /* no clear_sni in server */
+    if (s->ext.clear_sni!=NULL) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ENCCH,
+             SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+	s->ext.clear_sni=OPENSSL_strdup(match->clear_sni);
+	if (match->clear_sni!=NULL && s->ext.clear_sni==NULL) {
+		SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ENCCH,
+			SSL_R_BAD_EXTENSION);
+		goto err;
+	}
+    /* copy the public_name */
+    if (s->ext.public_name!=NULL) {
+        OPENSSL_free(s->ext.public_name);
+        s->ext.public_name=NULL;
+    }
+    s->ext.public_name=OPENSSL_strdup(match->public_name);
+	if (match->public_name!=NULL && s->ext.public_name==NULL) {
+		SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ENCCH,
+			SSL_R_BAD_EXTENSION);
+		goto err;
+	}
+    /*
+     * ESNI has now worked, as far as we're concerned
+     */
+    s->esni_done=1;
+
+
+    /*
+     * call callback
+     */
+    if (s->esni_cb != NULL) {
+        char pstr[ESNI_PBUF_SIZE+1];
+        memset(pstr,0,ESNI_PBUF_SIZE+1);
+        BIO *biom = BIO_new(BIO_s_mem());
+        SSL_ESNI_print(biom,s->esni,matchind);
+        BIO_read(biom,pstr,ESNI_PBUF_SIZE);
+        unsigned int cbrv=s->esni_cb(s,pstr);
+        BIO_free(biom);
+        if (cbrv != 1) {
+            OSSL_TRACE_BEGIN(TLS) {
+                BIO_printf(trc_out,"Exiting tls_parse_ctos_esni at %d\n",__LINE__);
+            } OSSL_TRACE_END(TLS);
+            return 0;
+        }
+    }
+
+    if (s->session!=NULL) {
+        /* 
+         * set hostname, public_name, clear_sni, encservername in the session 
+         * Note that we set hostname to the ESNI value (if present) as that
+         * is what'd be needed for any access control. That's a bit bad as
+         * the client side doesn't do that (hostname there reflects the 
+         * cleartext-SNI/clear_sni).
+         */
+        if (s->session->ext.encservername!=NULL) {
+            OPENSSL_free(s->session->ext.encservername);
+        }
+        s->session->ext.encservername=OPENSSL_strdup(s->ext.hostname);
+        if (s->session->ext.clear_sni!=NULL) {
+            OPENSSL_free(s->session->ext.clear_sni);
+        }
+        s->session->ext.clear_sni=OPENSSL_strdup(s->ext.clear_sni);
+        if (s->session->ext.public_name!=NULL) {
+            OPENSSL_free(s->session->ext.public_name);
+        }
+        s->session->ext.public_name=OPENSSL_strdup(s->ext.public_name);
+
+    }
+    OSSL_TRACE_BEGIN(TLS) {
+        BIO_printf(trc_out,"Happy exit from tls_parse_ctos_esni at %d\n",__LINE__);
+    } OSSL_TRACE_END(TLS);
+
+    return 1;
+
+noerr:
+
+    OSSL_TRACE_BEGIN(TLS) {
+        BIO_printf(trc_out,"noerr from %s at %d\n",__FUNCTION__,__LINE__);
+        SSL_ESNI_print(trc_out,s->esni,ESNI_SELECT_ALL);
+    } OSSL_TRACE_END(TLS);
+
+    if (ce->encoded_keyshare) OPENSSL_free(ce->encoded_keyshare);
+    if (ce->record_digest) OPENSSL_free(ce->record_digest);
+    if (ce->encrypted_sni) OPENSSL_free(ce->encrypted_sni);
+    if (ce) OPENSSL_free(ce);
+    if (s->esni && match!=NULL) {
+        match->the_esni=NULL;
+    }
+    OSSL_TRACE_BEGIN(TLS) {
+        BIO_printf(trc_out,"Less happy exit from tls_parse_ctos_esni at %d\n",__LINE__);
+    } OSSL_TRACE_END(TLS);
+    return 1;
+
+err:
+
+    OSSL_TRACE_BEGIN(TLS) {
+        BIO_printf(trc_out,"err from %s at %d\n",__FUNCTION__,__LINE__);
+        SSL_ESNI_print(trc_out,s->esni,ESNI_SELECT_ALL);
+    } OSSL_TRACE_END(TLS);
+
+    if (ce->encoded_keyshare) OPENSSL_free(ce->encoded_keyshare);
+    if (ce->record_digest) OPENSSL_free(ce->record_digest);
+    if (ce->encrypted_sni) OPENSSL_free(ce->encrypted_sni);
+    if (ce) OPENSSL_free(ce);
+    if (s->esni && match!=NULL) {
+        match->the_esni=NULL;
+    }
+    OSSL_TRACE_BEGIN(TLS) {
+        BIO_printf(trc_out,"Unhappy exit from tls_parse_ctos_esni at %d\n",__LINE__);
+    } OSSL_TRACE_END(TLS);
+
+    return 0;
 }
 
 /**

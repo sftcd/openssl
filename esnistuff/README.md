@@ -28,7 +28,8 @@ Most recent first...
 - Playing with tunnelled client hello in advance of the -06 spec. Even though I
   hate branches, this is now the "encch" branch;-)
     - NOTE: NOT WORKING YET
-    - Added an almost-dummy call to ``hpke_enc`` - for now the client
+    - added call to ``hpke_dec`` on server, need to debug formatting
+    - call to ``hpke_enc`` is now semi-realistic
       just does a (dodgy, no thought to params) encrypt with a key share and sends that
       as the meat of the encch value
     - Got to where CH has inner and outer and outer exts copied
