@@ -1417,6 +1417,7 @@ err:
  * @param pub is the encoded public (authentication) key
  * @param privlen is the length of the private key
  * @param priv is the encoded private key
+ * @param evppriv is a pointer to an internal form of private key
  * @param enclen is the length of the peer's public value
  * @param enc is the peer's public value
  * @param cipherlen is the length of the ciphertext 
@@ -1434,6 +1435,7 @@ int hpke_dec(
         char *pskid, size_t psklen, unsigned char *psk,
         size_t publen, unsigned char *pub,
         size_t privlen, unsigned char *priv,
+        EVP_PKEY *evppriv,
         size_t enclen, unsigned char *enc,
         size_t cipherlen, unsigned char *cipher,
         size_t aadlen, unsigned char *aad,
@@ -1445,7 +1447,7 @@ int hpke_dec(
     if ((crv=hpke_psk_check(mode,pskid,psklen,psk))!=1) return(crv);
     if ((crv=hpke_suite_check(suite))!=1) return(crv);
 
-    if (!priv || !clearlen || !clear || !cipher) return(__LINE__);
+    if (!(priv||evppriv) || !clearlen || !clear || !cipher) return(__LINE__);
     if ((mode==HPKE_MODE_AUTH || mode==HPKE_MODE_PSKAUTH) && (!pub || publen==0)) return(__LINE__);
     if ((mode==HPKE_MODE_PSK || mode==HPKE_MODE_PSKAUTH) && (!psk || psklen==0 || !pskid)) return(__LINE__);
 
@@ -1494,23 +1496,27 @@ int hpke_dec(
     }
 
     /* step 1. load decryptors private key */
-    if (hpke_kem_tab[suite.kem_id].Npriv==privlen) {
-        if (suite.kem_id%2) {
-            skR = hpke_EVP_PKEY_new_raw_nist_private_key(hpke_kem_tab[suite.kem_id].groupid,priv,privlen);
-        } else {
-            skR=EVP_PKEY_new_raw_private_key(hpke_kem_tab[suite.kem_id].groupid,NULL,priv,privlen);
+    if (!evppriv) {
+        if (hpke_kem_tab[suite.kem_id].Npriv==privlen) {
+            if (suite.kem_id%2) {
+                skR = hpke_EVP_PKEY_new_raw_nist_private_key(hpke_kem_tab[suite.kem_id].groupid,priv,privlen);
+            } else {
+                skR=EVP_PKEY_new_raw_private_key(hpke_kem_tab[suite.kem_id].groupid,NULL,priv,privlen);
+            }
         }
-    }
-    if (!skR) {
-        /* check PEM decode - that might work :-) */
-        bfp=BIO_new(BIO_s_mem());
-        if (!bfp) {
-            erv=__LINE__; goto err;
+        if (!skR) {
+            /* check PEM decode - that might work :-) */
+            bfp=BIO_new(BIO_s_mem());
+            if (!bfp) {
+                erv=__LINE__; goto err;
+            }
+            BIO_write(bfp,priv,privlen);
+            if (!PEM_read_bio_PrivateKey(bfp,&skR,NULL,NULL)) {
+                erv=__LINE__; goto err;
+            }
         }
-        BIO_write(bfp,priv,privlen);
-        if (!PEM_read_bio_PrivateKey(bfp,&skR,NULL,NULL)) {
-            erv=__LINE__; goto err;
-        }
+    } else {
+        skR=evppriv;
     }
 
     /* step 2 run DH KEM to get zz */
@@ -1672,7 +1678,7 @@ err:
 #endif
 
     if (bfp!=NULL) BIO_free_all(bfp);
-    if (skR!=NULL) EVP_PKEY_free(skR);
+    if (skR!=NULL && evppriv==NULL) EVP_PKEY_free(skR);
     if (pkE!=NULL) EVP_PKEY_free(pkE);
     if (pkI!=NULL) EVP_PKEY_free(pkI);
     if (pctx!=NULL) EVP_PKEY_CTX_free(pctx);

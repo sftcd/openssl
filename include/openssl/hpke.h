@@ -147,6 +147,7 @@ int hpke_enc(
  * @param pub is the encoded public (authentication) key
  * @param privlen is the length of the private key
  * @param priv is the encoded private key
+ * @param evppriv is a pointer to an internal form of private key
  * @param enclen is the length of the peer's public value
  * @param enc is the peer's public value
  * @param cipherlen is the length of the ciphertext 
@@ -164,6 +165,7 @@ int hpke_dec(
         char *pskid, size_t psklen, unsigned char *psk,
         size_t publen, unsigned char *pub,
         size_t privlen, unsigned char *priv,
+        EVP_PKEY *evppriv,
         size_t enclen, unsigned char *enc,
         size_t cipherlen, unsigned char *cipher,
         size_t aadlen, unsigned char *aad,

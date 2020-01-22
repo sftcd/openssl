@@ -2028,8 +2028,6 @@ static unsigned char *SSL_hpke_dec(
     size_t aadlen=0; unsigned char *aad=NULL;
     size_t senderpublen=0; unsigned char *senderpub=NULL;
     size_t clearlen=HPKE_MAXSIZE; unsigned char clear[HPKE_MAXSIZE];
-    int lprivlen=0; unsigned char lpriv[HPKE_MAXSIZE];
-    int privlen=0; unsigned char priv[HPKE_MAXSIZE];
 
     int hpke_mode=HPKE_MODE_BASE;
     hpke_suite_t hpke_suite = HPKE_SUITE_DEFAULT;
@@ -2045,40 +2043,10 @@ static unsigned char *SSL_hpke_dec(
     publen=esni->encoded_keyshare_len-6;
     pub=esni->encoded_keyshare+6;
 
-    BIO *bfp=BIO_new(BIO_s_mem());
-    if (!bfp) {
-        return NULL;
-    }
-    if (!PEM_write_bio_PrivateKey(bfp,esni->keyshare,NULL,NULL,0,NULL,NULL)) {
-        BIO_free_all(bfp);
-        return NULL;
-    }
-    lprivlen = BIO_read(bfp, lpriv, HPKE_MAXSIZE);
-    if (lprivlen <= 0) {
-        BIO_free_all(bfp);
-        return NULL;
-    }
-    BIO_free_all(bfp);
-#define PEMPRIVHEAD "-----BEGIN PRIVATE KEY-----\n"
-#define PEMPRIVEND "-----END PRIVATE KEY-----\n"
-    size_t phl=strlen(PEMPRIVHEAD);
-    size_t pel=strlen(PEMPRIVEND);
-    if (strncmp(PEMPRIVHEAD,(char*)lpriv,phl)) {
-        return NULL;
-    }
-    if (strncmp(PEMPRIVEND,(char*)(lpriv+lprivlen-pel),pel)) {
-        return NULL;
-    }
-    lpriv[lprivlen-pel]='\0';
-    privlen=EVP_DecodeBlock(priv,lpriv+phl,lprivlen-(phl+pel));
-    if (privlen <= 0) {
-        return NULL;
-    }
-
     int rv=hpke_dec( hpke_mode, hpke_suite,
                 NULL, 0, NULL, // pskid, psk
                 publen, pub, // recipient public key
-                privlen-16, priv+16, // recipient private key
+                0,NULL,esni->keyshare, // private key in EVP_PKEY form
                 senderpublen, senderpub, // sender public
                 cipherlen, cipher, // ciphertext
                 aadlen,aad,  // add
