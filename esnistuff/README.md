@@ -27,11 +27,13 @@ Most recent first...
 
 - Playing with tunnelled client hello in advance of the -06 spec. Even though I
   hate branches, this is now the "encch" branch;-)
-    - NOTE: NOT WORKING YET
-    - added call to ``hpke_dec`` on server, that now decrypts (but
-      based on badly-tweaked inputs) - probably want an new API for
-      hpke that takes the private key as an EVP_PKEY instead of 
-      just the octet string version I have now
+    - NOTE: NOT REALLY WORKING YET but kinda is 
+    - main caveats are that:
+        - no thought yet given the inner/outer CH value (mis)matches
+        - HPKE is used, but also without real thought
+        - error handling is almost certainly borked
+    - encrypted CH processing on server sorta worked now, v. hacky 
+    - added call to ``hpke_dec`` on server, that now decrypts 
     - call to ``hpke_enc`` is now semi-realistic
       just does a (dodgy, no thought to params) encrypt with a key share and sends that
       as the meat of the encch value
@@ -47,9 +49,14 @@ Most recent first...
       the apparently otherwise unused ``context`` parameter in the extension
       handlers to differentiate between inner and outer calls
 
-- Changes from encch branch to bring back:
+- Changes from encch branch to bring back that have nothing to do with encch:
     - apps/s_server.c - print stuff if only esnipair.key loaded
     - testserver.sh - s/esnipair.key/esnikeys.key/ as the default key pair file
+    - I've not re-sync'd with upstream (yet) so had to make 
+      [these](https://github.com/mspncp/openssl/commit/b63bf7778889dad7a40a76ef0e10b87215ee6ca9)
+      changes manually. If there's loadsa similar, I might need to re-sync but better to
+      leave that for later after this branch is done/re-merged into my fork's master.
+      (Note: this bullet's change is only needed if using OSSL_TRACE_BEGIN etc.)
 
 - Remerged with upstream (20191219)
 

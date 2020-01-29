@@ -1007,9 +1007,9 @@ static EVP_PKEY* hpke_EVP_PKEY_new_raw_nist_private_key(
 {
     int erv=1;
     EVP_PKEY *ret=NULL;
+    EC_POINT* pub_key = NULL;
     EC_KEY* ec_key = EC_KEY_new_by_curve_name(curve);
     if (!ec_key) { erv=__LINE__; goto err; }
-    EC_POINT* pub_key = NULL;
     const EC_GROUP* generator = EC_KEY_get0_group(ec_key);
     if (!generator) { erv=__LINE__; goto err; }
     pub_key = EC_POINT_new(generator);

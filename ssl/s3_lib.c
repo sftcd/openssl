@@ -3299,7 +3299,7 @@ int ssl3_new(SSL *s)
 
 #ifndef OPENSSL_NO_ESNI
 	s->esni_done=0;
-	s->esni_attempted=0;
+	s->esni_attempted=SSL_ESNI_NOT_ATTEMPTED;
 	s->esni=NULL;
 	s->nesni=0;
 	s->esni_cb=NULL;
@@ -3346,7 +3346,7 @@ void ssl3_free(SSL *s)
 	}
 	OPENSSL_free(s->esni);
 	s->esni_done=0;
-	s->esni_attempted=0;
+	s->esni_attempted=SSL_ESNI_NOT_ATTEMPTED;
 	s->esni=NULL;
 	s->nesni=0;
 	s->esni_cb=NULL;

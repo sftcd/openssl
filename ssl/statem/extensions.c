@@ -376,7 +376,7 @@ static const EXTENSION_DEFINITION ext_defs[] = {
      */
     {
         TLSEXT_TYPE_esni,
-        SSL_EXT_CLIENT_HELLO | SSL_EXT_TLS1_3_ONLY | SSL_EXT_TLS1_3_ENCRYPTED_EXTENSIONS,
+        SSL_EXT_CLIENT_HELLO | SSL_EXT_CLIENT_HELLO_INNER | SSL_EXT_TLS1_3_ONLY | SSL_EXT_TLS1_3_ENCRYPTED_EXTENSIONS,
         init_esni,
         tls_parse_ctos_esni, tls_parse_stoc_esni,
         tls_construct_stoc_esni, tls_construct_ctos_esni,
@@ -387,13 +387,14 @@ static const EXTENSION_DEFINITION ext_defs[] = {
      */
     {
         TLSEXT_TYPE_encch,
-        SSL_EXT_CLIENT_HELLO | SSL_EXT_TLS1_3_ONLY | SSL_EXT_TLS1_3_ENCRYPTED_EXTENSIONS,
+        SSL_EXT_CLIENT_HELLO | SSL_EXT_CLIENT_HELLO_OUTER | SSL_EXT_TLS1_3_ONLY,
         init_encch,
         tls_parse_ctos_encch, tls_parse_stoc_encch,
         tls_construct_stoc_encch, tls_construct_ctos_encch,
         final_encch
     },
-#else // OPENSSL_NO_ESNI
+#else
+    INVALID_EXTENSION,
     INVALID_EXTENSION,
 #endif // END_OPENSSL_NO_ESNI
     {

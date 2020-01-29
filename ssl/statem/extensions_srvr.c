@@ -175,6 +175,7 @@ int tls_parse_ctos_server_name(SSL *s, PACKET *pkt, unsigned int context,
 
         s->servername_done = 1;
     }
+
     if (s->hit) {
         /*
          * TODO(openssl-team): if the SNI doesn't match, we MUST
@@ -639,12 +640,33 @@ int tls_parse_ctos_key_share(SSL *s, PACKET *pkt, unsigned int context, X509 *x,
     if (s->hit && (s->ext.psk_kex_mode & TLSEXT_KEX_MODE_FLAG_KE_DHE) == 0)
         return 1;
 
+#ifndef OPENSSL_NO_ESNI
+    /* New Sanity check */
+    if (s->s3.peer_tmp != NULL) {
+        /*
+         * We may be within an inner CH, if so be less strict
+         * (for now) TODO(ESNI): figure out how strict
+         */
+        if (s->esni!=NULL && s->esni_attempted==SSL_ESNI_VIA_INNERCH) {
+            /* we should have an inner, so reset stuff to use inner key share */
+            s->s3.group_id=0;
+            EVP_PKEY_free(s->s3.peer_tmp);
+            s->s3.peer_tmp=NULL;
+
+        } else {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PARSE_CTOS_KEY_SHARE,
+                 ERR_R_INTERNAL_ERROR);
+            return 0;
+        }
+    }
+#else
     /* Sanity check */
     if (s->s3.peer_tmp != NULL) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PARSE_CTOS_KEY_SHARE,
                  ERR_R_INTERNAL_ERROR);
         return 0;
     }
+#endif
 
 #ifndef OPENSSL_NO_ESNI
     /*
@@ -2013,14 +2035,14 @@ EXT_RETURN tls_construct_stoc_psk(SSL *s, WPACKET *pkt, unsigned int context,
 /**
  * @brief wrapper for hpke_dec since we call it >1 time
  */
-static unsigned char *SSL_hpke_dec(
+static unsigned char *hpke_decrypt_encch(
         SSL_ESNI *esni, 
         size_t rd_len,
         unsigned char *rd, 
         uint16_t curve_id,
         size_t kselen,
         unsigned char *kse,
-        size_t *eslen) 
+        size_t *innerlen) 
 {
 
     size_t publen=0; unsigned char *pub=NULL;
@@ -2043,6 +2065,8 @@ static unsigned char *SSL_hpke_dec(
     publen=esni->encoded_keyshare_len-6;
     pub=esni->encoded_keyshare+6;
 
+    esni->crypto_started=1;
+
     int rv=hpke_dec( hpke_mode, hpke_suite,
                 NULL, 0, NULL, // pskid, psk
                 publen, pub, // recipient public key
@@ -2055,16 +2079,13 @@ static unsigned char *SSL_hpke_dec(
     if (rv!=1) {
         return NULL;
     }
-    // TODO: fix!
-    unsigned char *encservername=OPENSSL_malloc(clearlen+1);
-    if (!encservername) {
+    unsigned char *innerch=OPENSSL_malloc(clearlen);
+    if (!innerch) {
         return NULL;
     }
-    memcpy(encservername,clear,clearlen);
-    encservername[clearlen]=0x00;
-    *eslen=clearlen;
-    printf("encch: decrypted ok! yay!\n");
-    return encservername;
+    memcpy(innerch,clear,clearlen);
+    *innerlen=clearlen;
+    return innerch;
 }
 
 /**
@@ -2086,7 +2107,6 @@ static unsigned char *SSL_hpke_dec(
 int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
                                X509 *x, size_t chainidx)
 {
-
     CLIENT_ESNI *ce=NULL;
     SSL_ESNI *match=NULL;
 
@@ -2121,7 +2141,7 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
         BIO_printf(trc_out,"Got ESNI from %s at %s",clientip,anow);
     } OSSL_TRACE_END(TLS);
 
-    s->esni_attempted=1;
+    s->esni_attempted=SSL_ESNI_VIA_ESNI;
     if (s->esni==NULL) {
         /*
          * No ESNIKeys loaded so we'll ignore the crap out
@@ -2147,6 +2167,82 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
             return 0;
         }
     }
+
+    /*
+     * Special handling for draft-06 - if the innerch is set then
+     * we're being called after decryption of the encrypted/inner
+     * CH. That means decoding just the nonce really.
+     * TODO(ESNI): consider if it'd be better for esni_nonce to be
+     * a different extension - think it's ok to re-use this for now
+     * but probably will be a new one in the end
+     * TODO(ESNI): could this go wrong with loads of requests?
+     */
+    int matchind=-1;
+    match=NULL; // more as a reminder to self:-)
+    int i; /* loop counter - android build doesn't like C99;-( */
+    for (i=0;i!=s->nesni && matchind==-1;i++) {
+        if (s->esni[i].version==ESNI_DRAFT_06_VERSION && s->esni[i].innerch!=NULL) {
+            /* found it */
+            match=&s->esni[i];
+            matchind=i;
+            break;
+        }
+    }
+    if (match!=NULL) {
+        /*
+         * Try process this extension as per what we expect in draft-06
+         * We're expecting a nonce that >=16 octets long and we'll keep
+         * the 1st 16 of those for later
+         */
+
+        /* but first, we'll ignore the hell out of this in the OUTER CH if that happened */
+        if (context&SSL_EXT_CLIENT_HELLO_OUTER) {
+            OSSL_TRACE_BEGIN(TLS) {
+                BIO_printf(trc_out,"tls_parse_ctos_esni is a NOOP for OUTER CH");
+            } OSSL_TRACE_END(TLS);
+            return 1;
+        }
+
+        OSSL_TRACE_BEGIN(TLS) {
+            BIO_printf(trc_out,"Doing draft-06 esni-nonce thing in tls_parse_ctos_esni at %d\n",__LINE__);
+        } OSSL_TRACE_END(TLS);
+        unsigned int nlen=0;
+        if (!PACKET_get_net_2(pkt, &nlen)) {
+            SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ESNI,
+                     SSL_R_BAD_EXTENSION);
+            return 0;
+        }
+        if (nlen<16) {
+            SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ESNI,
+                     SSL_R_BAD_EXTENSION);
+            return 0;
+        }
+        if (match->nonce) {
+            OPENSSL_free(match->nonce);
+        }
+        match->nonce_len=nlen;
+        match->nonce=OPENSSL_malloc(nlen);
+        if (!match->nonce) {
+            SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ESNI,
+                     SSL_R_BAD_EXTENSION);
+            return 0;
+        }
+        if (!PACKET_copy_bytes(pkt, match->nonce, nlen)) {
+            SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ESNI,
+                     SSL_R_BAD_EXTENSION);
+            return 0;
+        }
+        if (PACKET_remaining(pkt)) {
+            SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ESNI,
+             SSL_R_BAD_EXTENSION);
+            goto err;
+        }
+        OSSL_TRACE_BEGIN(TLS) {
+            BIO_printf(trc_out,"Did draft-06 esni-nonce thing in tls_parse_ctos_esni at %d\n",__LINE__);
+        } OSSL_TRACE_END(TLS);
+        return 1;
+    }
+    
 
     /*
      * We need the encoded key share from the h/s to be set or else
@@ -2306,9 +2402,9 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
     /*
      * see which pub/private value matches record_digest 
      */
-    int matchind=-1;
+    matchind=-1;
     match=NULL; // more as a reminder to self:-)
-    int i; /* loop counter - android build doesn't like C99;-( */
+    i=0; /* loop counter - android build doesn't like C99;-( */
     for (i=0;i!=s->nesni && matchind==-1;i++) {
         if (s->esni[i].rd_len==ce->record_digest_len &&
             !memcmp(s->esni[i].rd,ce->record_digest,ce->record_digest_len)) {
@@ -2637,7 +2733,7 @@ EXT_RETURN tls_construct_stoc_esni(SSL *s, WPACKET *pkt,
                 }
                 return EXT_RETURN_SENT;
             }
-        } else if (s->esni_attempted == 1 ) {
+        } else if (s->esni_attempted == SSL_ESNI_VIA_ESNI ) {
             /*
              * We've either been GREASEd or the client went wonky and decryption failed
              * so cause sending first ESNIKeys value that may work if the client re-tries
@@ -2666,7 +2762,7 @@ EXT_RETURN tls_construct_stoc_esni(SSL *s, WPACKET *pkt,
              */
             return EXT_RETURN_NOT_SENT;
         }
-    } else if (s->esni_attempted==1) {
+    } else if (s->esni_attempted==SSL_ESNI_VIA_ESNI) {
         /*
          * In this case, if we've been greased or mistakenly sent an ESNI
          * but we have no ESNI keys loaded, so we'll randomly send a 
@@ -2716,7 +2812,16 @@ int tls_parse_ctos_encch(SSL *s, PACKET *pkt, unsigned int context,
     CLIENT_ESNI *ce=NULL;
     SSL_ESNI *match=NULL;
 
-    printf("Called tls_parse_ctos_encch\n");
+    if (context&SSL_EXT_CLIENT_HELLO_INNER) {
+        OSSL_TRACE_BEGIN(TLS) {
+            BIO_printf(trc_out,"tls_parse_ctos_encch is a NOOP for INNER CH");
+        } OSSL_TRACE_END(TLS);
+        return 1;
+    }
+
+    OSSL_TRACE_BEGIN(TLS) {
+        BIO_printf(trc_out,"Entering tls_parse_ctos_encch at %d\n",__LINE__);
+    } OSSL_TRACE_END(TLS);
     /* 
      * Check if we've been configured to hard fail on ESNI failure
      * (SHOULD be off by default, so that GREASE works)
@@ -2748,7 +2853,7 @@ int tls_parse_ctos_encch(SSL *s, PACKET *pkt, unsigned int context,
         BIO_printf(trc_out,"Got ENCCH from %s at %s",clientip,anow);
     } OSSL_TRACE_END(TLS);
 
-    s->esni_attempted=1;
+    s->esni_attempted=SSL_ESNI_VIA_INNERCH;
     if (s->esni==NULL) {
         /*
          * No ESNIKeys loaded so we'll ignore the crap out
@@ -2927,8 +3032,8 @@ int tls_parse_ctos_encch(SSL *s, PACKET *pkt, unsigned int context,
     unsigned char rd[1024];
     size_t rd_len=SSL_get_client_random(s,rd,1024);
     uint16_t curve_id = s->s3.group_id;
-    unsigned char *encservername=NULL;
-    size_t encservername_len=0;
+    unsigned char *innerch=NULL;
+    size_t innerch_len=0;
 
     /*
      * see which pub/private value matches record_digest 
@@ -2961,8 +3066,8 @@ int tls_parse_ctos_encch(SSL *s, PACKET *pkt, unsigned int context,
                 /* add CLIENT_ESNI to the state temporarily */
                 s->esni[i].the_esni=ce; 
                 s->esni[i].hrr_swap=s->hello_retry_request;
-                encservername=SSL_hpke_dec(&s->esni[i],rd_len,rd,curve_id,s->ext.kse_len,s->ext.kse,&encservername_len);
-                if (encservername!=NULL) {
+                innerch=hpke_decrypt_encch(&s->esni[i],rd_len,rd,curve_id,s->ext.kse_len,s->ext.kse,&innerch_len);
+                if (innerch!=NULL) {
                     /*
                      * Yay! it worked
                      */
@@ -3004,8 +3109,8 @@ int tls_parse_ctos_encch(SSL *s, PACKET *pkt, unsigned int context,
          * via trial decryption
          */
         match->hrr_swap=s->hello_retry_request;
-        encservername=SSL_hpke_dec(match,rd_len,rd,curve_id,s->ext.kse_len,s->ext.kse,&encservername_len);
-        if (encservername==NULL) {
+        innerch=hpke_decrypt_encch(match,rd_len,rd,curve_id,s->ext.kse_len,s->ext.kse,&innerch_len);
+        if (innerch==NULL) {
             if (server_fail_grease!=0) {
                 SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ENCCH,
                 SSL_R_BAD_EXTENSION);
@@ -3025,6 +3130,73 @@ int tls_parse_ctos_encch(SSL *s, PACKET *pkt, unsigned int context,
      * managed to decrypt the ESNI presented, so it's "real" - if we 
      * now find crap inside that, then we hard fail
      */
+    match->innerch=innerch;
+    match->innerch_len=innerch_len;
+
+    PACKET innerpacket;
+    /*
+     * The +/- 9 here drops leading octets
+     * TODO(ESNI): probably something better :-)
+     */
+    if (PACKET_buf_init(&innerpacket,innerch+9,innerch_len-9)!=1) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ENCCH,
+             SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+
+    /*
+     * Stash outer stuff incl SNI, if any (i.e. could be NULL)
+     */
+    s->clienthello_stash=s->clienthello;
+    s->clienthello=NULL;
+    char *clearservername=s->ext.hostname;
+    s->ext.hostname=NULL;
+    s->servername_done=0;
+    
+    /*
+     * Process inner CH
+     * TODO(ESNI): consider all the cases of possible mismatches
+     */
+    if (!tls_process_client_hello(s,&innerpacket)) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ENCCH,
+             SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+    if (!s->clienthello || !s->clienthello->pre_proc_exts) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ENCCH,
+             SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+    if (!tls_parse_all_extensions(s, SSL_EXT_CLIENT_HELLO | SSL_EXT_CLIENT_HELLO_INNER , s->clienthello->pre_proc_exts, NULL, 0,0)) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ENCCH,
+             SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+    // this won't work but let's see what happens
+    CLIENTHELLO_MSG *xx=s->clienthello;
+    s->clienthello=s->clienthello_stash;
+    s->clienthello_stash=xx;
+ 
+    /*
+     * This time, it'll be the inner/encrypted SNI, possibly also NULL
+     */
+    char *encservername=s->ext.hostname;
+
+    /*
+     * We'll try insist that somebody encrypted SNI sometime - maybe we ought not?
+     * TODO(ESNI): is inner CH ok without encrypted SNI?
+     */
+    if (!encservername) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ENCCH,
+             SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+
+    size_t encservername_len=strlen(encservername);
+    if (match->encservername) {
+        OPENSSL_free(match->encservername);
+    }
+    match->encservername=OPENSSL_strdup(encservername);
 
     /*
      * check encservername has no zero bytes internally
@@ -3035,22 +3207,16 @@ int tls_parse_ctos_encch(SSL *s, PACKET *pkt, unsigned int context,
     if (memchr(encservername, 0, encservername_len) != NULL) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ENCCH,
              SSL_R_BAD_EXTENSION);
-        goto err;
+            goto err;
     }
+    
+    match->clear_sni=clearservername;
 
-    /*
-     * Now apply esni by swapping out hostname  (all that work just for this:-)
-     */
-    if (s->ext.hostname != NULL && match->clear_sni!=NULL) {
-        OPENSSL_free(match->clear_sni);
-    }
-    match->clear_sni=s->ext.hostname;
-    s->ext.hostname=OPENSSL_strdup((char*)encservername);
-    if (s->ext.hostname==NULL) {
-        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ENCCH,
-            SSL_R_BAD_EXTENSION);
-        goto err;
-    }
+    OSSL_TRACE_BEGIN(TLS) {
+        BIO_printf(trc_out,"Got clear sni of %s and inner/ecrypted of %s\n",
+                (clearservername?clearservername:"NULL"),
+                (encservername?encservername:"NULL"));
+    } OSSL_TRACE_END(TLS);
 
     /*
      * mimic the checks made earlier for plaintext SNI 
@@ -3216,6 +3382,9 @@ EXT_RETURN tls_construct_stoc_encch(SSL *s, WPACKET *pkt,
                                           unsigned int context, X509 *x,
                                           size_t chainidx)
 {
+    /*
+     * Do nothing - any results are in the ESNI ext
+     */
     return EXT_RETURN_NOT_SENT;
 }
 

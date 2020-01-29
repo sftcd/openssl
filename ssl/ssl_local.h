@@ -406,6 +406,16 @@
 #define CERT_PRIVATE_KEY        2
 */
 
+#ifndef OPENSSL_NO_ESNI
+/*
+ * Values for s->esni_attempted to indicate whether using
+ * earlier drafts (ESNI extension) or later (encrypted CH)
+ */
+#define SSL_ESNI_NOT_ATTEMPTED 0
+#define SSL_ESNI_VIA_ESNI      1
+#define SSL_ESNI_VIA_INNERCH   2
+#endif
+
 /* Post-Handshake Authentication state */
 typedef enum {
     SSL_PHA_NONE = 0,
@@ -759,8 +769,9 @@ typedef enum tlsext_index_en {
     TLSEXT_IDX_cookie,
     TLSEXT_IDX_cryptopro_bug,
     TLSEXT_IDX_early_data,
-    TLSEXT_IDX_certificate_authorities,
     TLSEXT_IDX_esni,
+    TLSEXT_IDX_encch,
+    TLSEXT_IDX_certificate_authorities,
     TLSEXT_IDX_padding,
     TLSEXT_IDX_psk,
     /* Dummy index - must always be the last entry */
@@ -1619,6 +1630,9 @@ struct ssl_st {
      * calls.
      */
     CLIENTHELLO_MSG *clienthello;
+#ifndef OPENSSL_NO_ESNI
+    CLIENTHELLO_MSG *clienthello_stash;
+#endif
 
     /*-
      * no further mod of servername

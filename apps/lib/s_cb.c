@@ -663,6 +663,10 @@ static STRINT_PAIR tlsext_types[] = {
     {"psk kex modes", TLSEXT_TYPE_psk_kex_modes},
     {"certificate authorities", TLSEXT_TYPE_certificate_authorities},
     {"post handshake auth", TLSEXT_TYPE_post_handshake_auth},
+#ifndef OPENSSL_NO_ESNI
+    {"encrypted SNI (draft)",TLSEXT_TYPE_esni},
+    {"encrypted ClientHello (pre-draft)",TLSEXT_TYPE_encch},
+#endif
     {NULL}
 };
 

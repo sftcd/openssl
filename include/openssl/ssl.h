@@ -275,6 +275,7 @@ typedef int (*tls_session_secret_cb_fn)(SSL *s, void *secret, int *secret_len,
  * Used when we know we're dealing with a ClientHello Outer
  */
 #define SSL_EXT_CLIENT_HELLO_OUTER              0x8000
+#define SSL_EXT_CLIENT_HELLO_INNER              0x10000
 #endif
 
 /* Typedefs for handling custom extensions */

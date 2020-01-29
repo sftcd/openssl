@@ -13,6 +13,7 @@
 #include "statem_local.h"
 
 #ifndef OPENSSL_NO_ESNI
+#include <openssl/rand.h>
 #include <openssl/hpke.h>
 #ifndef OPENSSL_NO_SSL_TRACE
 #include <openssl/trace.h>
@@ -2404,6 +2405,10 @@ int tls_parse_stoc_psk(SSL *s, PACKET *pkt, unsigned int context, X509 *x,
 EXT_RETURN tls_construct_ctos_esni(SSL *s, WPACKET *pkt, unsigned int context,
                                    X509 *x, size_t chainidx)
 {
+    if (!context_is_inner(context)) {
+        return EXT_RETURN_NOT_SENT;
+    }
+
     if (s->session->ssl_version != TLS1_3_VERSION) {
         return EXT_RETURN_NOT_SENT;
     }
@@ -2423,7 +2428,33 @@ EXT_RETURN tls_construct_ctos_esni(SSL *s, WPACKET *pkt, unsigned int context,
     }
 
     if (s->esni->version==ESNI_DRAFT_06_VERSION) {
-        return EXT_RETURN_NOT_SENT;
+        /*
+         * Just send a nonce
+         */
+        if (s->esni->nonce) {
+            memset(s->esni->nonce,0,s->esni->nonce_len);
+            OPENSSL_free(s->esni->nonce);
+        }
+        s->esni->nonce_len=16;
+        s->esni->nonce=OPENSSL_malloc(s->esni->nonce_len);
+        if (!s->esni->nonce) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ESNI,
+                     ERR_R_INTERNAL_ERROR);
+            return EXT_RETURN_FAIL;
+        }
+        RAND_bytes(s->esni->nonce,s->esni->nonce_len);
+
+        if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_esni)
+                   /* Sub-packet for esni extension */
+                || !WPACKET_start_sub_packet_u16(pkt)
+                || !WPACKET_sub_memcpy_u16(pkt, s->esni->nonce, s->esni->nonce_len)
+                || !WPACKET_close(pkt)
+                    ) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ESNI,
+                     ERR_R_INTERNAL_ERROR);
+            return EXT_RETURN_FAIL;
+        }
+        return EXT_RETURN_SENT;
     }
 
     if (s->esni->version!=ESNI_GREASE_VERSION) {
@@ -2476,7 +2507,7 @@ EXT_RETURN tls_construct_ctos_esni(SSL *s, WPACKET *pkt, unsigned int context,
         } OSSL_TRACE_END(TLS);
 #endif
 
-        s->esni_attempted=1;
+        s->esni_attempted=SSL_ESNI_VIA_ESNI;
     } 
 
     /*
@@ -2782,7 +2813,7 @@ EXT_RETURN tls_construct_ctos_encch(SSL *s, WPACKET *pkt, unsigned int context,
                  ERR_R_INTERNAL_ERROR);
         return EXT_RETURN_FAIL;
     }
-    s->esni_attempted=1;
+    s->esni_attempted=SSL_ESNI_VIA_INNERCH;
         
     size_t encoded_senderpublen=0;
     unsigned char *encoded_senderpub=SSL_ESNI_wrap_keyshare(senderpub,senderpublen,curve_id,&encoded_senderpublen);
@@ -2829,10 +2860,7 @@ EXT_RETURN tls_construct_ctos_encch(SSL *s, WPACKET *pkt, unsigned int context,
 }
 
 /**
- * @brief Parse and check the enctypted client hello value returned in the EncryptedExtensions
- * to make sure it has the nonce we sent in the ClientHello
- *
- * This is just checking the nonce.
+ * @brief This should never happen!
  */
 int tls_parse_stoc_encch(SSL *s, PACKET *pkt, unsigned int context,
                                X509 *x, size_t chainidx)

@@ -2963,7 +2963,7 @@ int SSL_esni_enable(SSL *s, const char *hidden, const char *clear_sni, SSL_ESNI 
      * Checked for 0 when final_esni called
      */
     s->esni_done=0;
-    s->esni_attempted=0;
+    s->esni_attempted=SSL_ESNI_NOT_ATTEMPTED;
     /*
      * Optionally enable hostname checking 
      */
@@ -3437,7 +3437,7 @@ int SSL_get_esni_status(SSL *s, char **hidden, char **clear_sni)
         } else {
             return SSL_ESNI_STATUS_FAILED;
         }
-    } else if (s->esni_attempted==1) {
+    } else if (s->esni_attempted) {
         return SSL_ESNI_STATUS_GREASE;
     } 
     return SSL_ESNI_STATUS_NOT_TRIED;
