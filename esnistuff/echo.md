@@ -4,7 +4,7 @@
 The encch branch has a hacked-together prediction of how ECHO might work.
 These notes are the start of a non-haccky equivalent.
 
-## Overview of Current State (20200202s - a palindrome day!)
+## Overview of Current State (20200202 - a palindrome day!)
 
 On the client side, I messed with ``ssl/statem/statem_clnt.c`` adding a
 ``tls_construct_encrypted_client_hello()`` function, which (for now) repeats
@@ -23,11 +23,11 @@ to correctness) and sets the effective SNI.
 
 In the ``ssl/statem/extensions*.c`` files, extension handing code often has a
 ``context`` input parameter that determines which TLS protocol message is being
-processed at a given moment. THat's a bit mask, and I added bit definitions for
-the inner and outer CH in addition to the existing bit that indicates context
-is CH processing.  That's not a bad way to distiguish the inner and outer.
-That's done in ``include/openssl/ssl.h`` as those values are also used in the
-external API (see below).  The new values are:
+processed at a given moment. That's a bit mask, and I added bit definitions for
+the inner and outer CH in addition to the existing bit that indicates the
+current context is CH processing.  That's not a bad way to distiguish the inner
+and outer.  That's done in ``include/openssl/ssl.h`` as those values are also
+used in the external API (see below).  The new values are:
 
             #define SSL_EXT_CLIENT_HELLO_OUTER              0x8000
             #define SSL_EXT_CLIENT_HELLO_INNER              0x10000
@@ -83,33 +83,33 @@ The extensions where we're particularly interested in being able to use
 different inner/outer values are considered below. (The list here is from
 ``ssl/ssl_local.h`` where there's an ``enum`` defining these.)
 
-| Extension | Notes
-| renegotiate | same
-| server_name | differ or inner-only, application supplied
-| max_fragment_length | same
-| srp | dunno, perhaps: same or inner-only
-| ec_point_formats | determined by inner/outer key_share, internally generated
-| supported_groups | determined by inner/outer key_share, internally generated
-| session_ticket | same or inner-only
-| status_request | same
-| next_proto_neg | differ or inner-only, application supplied
-| application_layer_protocol_negotiation | differ or inner-only, application supplied
-| use_srtp | dunno
-| encrypt_then_mac | same
-| signed_certificate_timestamp | dunno
-| extended_master_secret | dunno
-| signature_algorithms_cert | same
-| post_handshake_auth | same
-| signature_algorithms | same
-| supported_versions | same (for now?)
-| psk_kex_modes | determined by inner/outer key_share
-| key_share | same or differ, internally generated
-| cookie | dunno
-| cryptopro_bug | same
-| early_data | dunno
-| esni | defunct, or if used as esni-nonce only used in EncryptedExtensions
-| encch | outer only (or nesting?) 
-| certificate_authorities | same
-| padding | differ?
-| psk | dunno - need to figure out "must be last" req
-
+| Extension | Notes |
+| --------- | ----- |
+| renegotiate | same |
+| server_name | differ or inner-only, application supplied |
+| max_fragment_length | same |
+| srp | dunno, perhaps: same or inner-only |
+| ec_point_formats | determined by inner/outer key_share, internally generated |
+| supported_groups | determined by inner/outer key_share, internally generated |
+| session_ticket | same or inner-only |
+| status_request | same |
+| next_proto_neg | differ or inner-only, application supplied |
+| application_layer_protocol_negotiation | differ or inner-only, application supplied |
+| use_srtp | dunno |
+| encrypt_then_mac | same |
+| signed_certificate_timestamp | dunno |
+| extended_master_secret | dunno |
+| signature_algorithms_cert | same |
+| post_handshake_auth | same |
+| signature_algorithms | same |
+| supported_versions | same (for now?) |
+| psk_kex_modes | determined by inner/outer key_share |
+| key_share | same or differ, internally generated |
+| cookie | dunno |
+| cryptopro_bug | same |
+| early_data | dunno |
+| esni | defunct, or if used as esni-nonce only used in EncryptedExtensions |
+| encch | outer only (or nesting?)  |
+| certificate_authorities | same |
+| padding | differ? |
+| psk | dunno - need to figure out "must be last" req |
