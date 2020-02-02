@@ -28,6 +28,7 @@ Most recent first...
 - Playing with tunnelled client hello in advance of the -06 spec. Even though I
   hate branches, this is now the "encch" branch;-)
     - NOTE: NOT REALLY WORKING YET but kinda is 
+    - Starting making [notes about how/where to go from here](echo.md) 
     - main caveats are that:
         - no thought yet given the inner/outer CH value (mis)matches
         - HPKE is used, but also without real thought
