@@ -44,15 +44,42 @@ A basic test on localhost works fine with not API changes needed.
 ## Obvious TBDs
 
 - Think about how to use HPKE properly.
-- Figure out what to pad (probably the overall ENCCH and not just the SNI now)
-  and how (cf. padded_length in ESNIKeys - which is now therefore more wrong
-  than ever:-)
 - Consider compression for when same value in inner/outer.
 
 ## Nesting
 
 If we can do one ENCCH, we could certainly do more than one. So would such
-nesting be interesting or useful? Needs a ponder. 
+nesting be interesting or useful? 
+
+The only case I can envisage where that might just be useful would be where we
+have web-sites, A is the ``public_name`` in B's ESNIConfig and B is the
+``public_name`` in C's ESNIConfig, but where we don't want the name B to ever
+be used in a cleartext SNI. With such a setup a CH for C would have B in
+the outer CH. However, it seems unlikely there'll be a way to indicate
+somewhere in B's DNS that that name should never be in a cleartext SNI.
+So probably ok to not support any nesting, IOW, the inner CH MUST NOT
+contain another inner CH.
+
+## Padding
+
+Up to draft-06, padding only affected the ESNI extension. Now however, we could
+in addition have (at least) ALPN, NPN or PSK identities in inner CH with
+different length values in the outer CH. So it seems we're no longer padding
+the name but the entire inner CH. There are too many variants to reasonably
+determine the exact size of the padded inner CH when creating an ESNIConfig
+so we should change that.
+
+Perhaps a good change would be for the ESNIConfig ``padded_length`` to now be
+optional and when present to mean "ensure the inner CH is at least this long
+and if longer is an integer multiple of 16 octets longer than this value." When
+no ``padded_length`` is specified, maybe just say inner CH MUST be at least 128
+octets and a MUST be a multiple of 16 octets long and otherwise let
+implementers figure it out. (Perhaps with guidance that as far as possible
+sending the same size inner CH for all connections to the same ``public_name``
+is better.)
+
+(As an aside the length of the psk identity in the server's response
+ought also be padded now, as well as the Certificate etc.)
 
 ## API issues
 
@@ -62,6 +89,11 @@ allowing applications to handle "custom" TLS extensions.  That could be bent
 into shape to do what we want but more will be needed to provide fuller control
 over what goes in the inner and outer CH's.
 
+## Could we ever use inner CH without ESNI?
+
+Would there ever be a real use for an inner CH if the SNI in
+the outer CH is the same as the inner? Probably not.
+
 ## Extension-specific handling
 
 If a non-standard behaviour were needed then the "custom" extension API can be
@@ -70,6 +102,7 @@ The standard inner vs. outer behaviour, for any given ClientHello extension,
 could be:
 
 1. same value in both
+1. same value in both, inner compressed
 1. unrelated internally generated values in inner/outer
 1. unrelated application provided values in inner/outer
 1. extension only present in outer
