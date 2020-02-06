@@ -4,17 +4,28 @@
 The encch branch has a hacked-together prediction of how ECHO might work.
 These notes are the start of a non-haccky equivalent.
 
-## Overview of Current State (20200202 - a palindrome day!)
+## Overview of Current State (20200206)
 
 On the client side, I messed with ``ssl/statem/statem_clnt.c`` adding a
 ``tls_construct_encrypted_client_hello()`` function, which (for now) repeats
 all of ``tls_construct_client_hello()`` (to construct the inner CH) before
 re-doing the process to make the outer CH. The only inner/outer variance so far
-is the SNI differs, the ESNI extension in the inner has the esni-nonce, and the
+is the SNI differs, the ESNI extension in the inner has the esni-nonce, a
+padding extension may be added (see below) and the
 ENCCH extension is added to the outer. The actual encryption calls are made
 within the ENCCH client to server handler. Otherwise all extension values are
-copied from the inner to outer CH when constructing the latter. There is no
-compression, nor padding, in this code.
+copied from the inner to outer CH when constructing the latter. 
+
+For padding, for the moment, I add padding to the inner CH so that the overall
+inner CH plaintext length (in the PACKET passed to
+``tls_process_client_hello()`` which I think is 9 octets shorter than what's
+sent on the wire)  is the ``padded_length`` from the ESNIKey or if the inner CH
+is longer than that, it is padded to a the nearest multiple of 16 octets plus a
+randomly chosen 0 to 3 additional 16 octet blocks of padding, i.e. between 0
+and 47 padding octets are added. I haven't done anything new with padding the
+server's response messages.
+
+There is no compression in this code.
 
 On the server side, the action kicks off inside ``tls_parse_ctos_encch()``
 which decrypts the ENCCH, makes calls to parse the inner CH and then overwrites
@@ -71,15 +82,13 @@ so we should change that.
 
 Perhaps a good change would be for the ESNIConfig ``padded_length`` to now be
 optional and when present to mean "ensure the inner CH is at least this long
-and if longer is an integer multiple of 16 octets longer than this value." When
-no ``padded_length`` is specified, maybe just say inner CH MUST be at least 128
-octets and a MUST be a multiple of 16 octets long and otherwise let
-implementers figure it out. (Perhaps with guidance that as far as possible
-sending the same size inner CH for all connections to the same ``public_name``
-is better.)
+and if longer is an integer multiple of 16 octets." When
+no ``padded_length`` is specified, or if ``padded_length`` is shorter than
+the inner CH, then I pad as described above, with between 0 and 47 padding
+octets to get to a multiple of 16.
 
 (As an aside the length of the psk identity in the server's response
-ought also be padded now, as well as the Certificate etc.)
+might also call for padding now, in addition to the Certificate etc.)
 
 ## API issues
 

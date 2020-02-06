@@ -52,6 +52,10 @@
  * Max ESNI ciphertext is max DNSNAME (255)+TLS SNI encoding(5) + nonce (16) + GCM tag (16)
  */
 #define MAX_ESNI_CIPHER_SIZE (255+5+16+EVP_GCM_TLS_TAG_LEN)
+/*
+ * Max ENCCH size is big:-)
+ */
+#define MAX_ENCCH_CIPHER_SIZE 1024
 #endif
 
 /*
@@ -3000,7 +3004,7 @@ int tls_parse_ctos_encch(SSL *s, PACKET *pkt, unsigned int context,
          SSL_R_BAD_EXTENSION);
         goto err;
     }
-    if (tmp > MAX_ESNI_CIPHER_SIZE) {
+    if (tmp > MAX_ENCCH_CIPHER_SIZE) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ENCCH,
          SSL_R_BAD_EXTENSION);
         goto err;

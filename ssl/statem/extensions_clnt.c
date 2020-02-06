@@ -1298,7 +1298,56 @@ EXT_RETURN tls_construct_ctos_padding(SSL *s, WPACKET *pkt,
                                       size_t chainidx)
 {
 #ifndef OPENSSL_NO_ESNI
-    IOSAME
+    if (s->esni && s->esni->version==ESNI_DRAFT_06_VERSION && context_is_inner(context)) {
+
+	    /*
+	     * See what padding we might like
+	     */
+	    size_t unpaddedinnerlen=0;
+	    if (!WPACKET_get_total_written(pkt, &unpaddedinnerlen)) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_PADDING,
+                     ERR_R_INTERNAL_ERROR);
+            return EXT_RETURN_FAIL;
+	    }
+	    /* 
+	     * this is what the server would like
+	     * TODO(ESNI): get those semantics fixed! :-)
+	     */
+	    unsigned int paddedlen=s->esni->padded_length;
+	    /*
+	     * First cut: if already longer, round up to multiple of
+	     * 16 with 0-2 16 octet blocks
+	     * If not already longer, round up to requested length
+	     */
+	    size_t addedpadding=0;
+	    if (unpaddedinnerlen>paddedlen) {
+	        unsigned char rv=0;
+	        int rrv=RAND_bytes(&rv,sizeof(rv));
+	        if (rrv!=1) {
+                SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_PADDING,
+                         ERR_R_INTERNAL_ERROR);
+                return EXT_RETURN_FAIL;
+	        }
+	        size_t addedsixteens=16*(rv%3);
+	        addedpadding= 16 - (unpaddedinnerlen%16)
+	                                + addedsixteens;
+	    } else {
+	        addedpadding=paddedlen-unpaddedinnerlen;
+	    }
+	    if (addedpadding!=0) {
+	        unsigned char *epadbytes;
+	        if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_padding)
+	                || !WPACKET_sub_allocate_bytes_u16(pkt, addedpadding, &epadbytes)) {
+                SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_PADDING,
+                         ERR_R_INTERNAL_ERROR);
+                return EXT_RETURN_FAIL;
+	        }
+	        memset(epadbytes, 0, addedpadding);
+	    }
+        return EXT_RETURN_SENT;
+	
+    }
+
 #endif
     unsigned char *padbytes;
     size_t hlen;
