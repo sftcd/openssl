@@ -686,7 +686,9 @@ EXT_RETURN tls_construct_ctos_alpn(SSL *s, WPACKET *pkt, unsigned int context,
                                    X509 *x, size_t chainidx)
 {
 #ifndef OPENSSL_NO_ESNI
-    IOSAME
+    if (s->esni && s->esni->version==ESNI_DRAFT_06_VERSION && !context_is_inner(context)) {
+        return EXT_RETURN_NOT_SENT;
+    }
 #endif
     s->s3.alpn_sent = 0;
 

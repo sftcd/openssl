@@ -26,6 +26,8 @@ PORT="8443"
 HARDFAIL="no"
 TRIALDECRYPT="no"
 SUPPLIEDPORT=""
+DEFALPNVAL="-alpn h2,h2"
+DOALPN="no"
 
 SUPPLIEDKEYFILE=""
 SUPPLIEDHIDDEN=""
@@ -47,7 +49,8 @@ echo "Running $0 at $NOW"
 
 function usage()
 {
-    echo "$0 [-cHpDsdnlvhK] - try out encrypted SNI via openssl s_server"
+    echo "$0 [-acHpDsdnlvhK] - try out encrypted SNI via openssl s_server"
+    echo "  -a provide an ALPN value of $DEFALPNVAL"
     echo "  -H means serve that hidden server"
     echo "  -D means find esni private/public values in that directory"
     echo "  -d means run s_server in verbose mode"
@@ -71,7 +74,7 @@ function usage()
 }
 
 # options may be followed by one colon to indicate they have a required argument
-if ! options=$(/usr/bin/getopt -s bash -o k:BTFc:D:H:p:Kdlvnh -l keyfile,badkey,trialdecrypt,hardfail,dir:,clear_sni:,hidden:,port:,keygen,debug,stale,valgrind,noesni,help -- "$@")
+if ! options=$(/usr/bin/getopt -s bash -o ak:BTFc:D:H:p:Kdlvnh -l alpn,keyfile,badkey,trialdecrypt,hardfail,dir:,clear_sni:,hidden:,port:,keygen,debug,stale,valgrind,noesni,help -- "$@")
 then
     # something went wrong, getopt will put out an error message for us
     exit 1
@@ -94,6 +97,7 @@ do
         -F|--hardfail) HARDFAIL="yes"; shift;;
         -T|--trialdecrypt) TRIALDECRYPT="yes"; shift;;
         -p|--port) SUPPLIEDPORT=$2; shift;;
+        -a|--alpn) DOALPN="yes";;
         (--) shift; break;;
         (-*) echo "$0: error - unrecognized option $1" 1>&2; exit 1;;
         (*)  break;;
@@ -232,6 +236,12 @@ fi
 # tell it where CA stuff is...
 certsdb=" -CApath $CAPATH"
 
+alpn=""
+if [[ "$DOALPN"=="yes" ]]
+then
+    alpn=$DEFALPNVAL
+fi
+
 # force tls13
 force13="-no_ssl3 -no_tls1 -no_tls1_1 -no_tls1_2"
 #force13="-cipher TLS13-AES-128-GCM-SHA256 -no_ssl3 -no_tls1 -no_tls1_1 -no_tls1_2"
@@ -254,8 +264,8 @@ trap cleanup SIGINT
 
 if [[ "$DEBUG" == "yes" ]]
 then
-    echo "Running: $vgcmd $TOP/apps/openssl s_server $dbgstr $keyfile1 $keyfile2 $certsdb $portstr $force13 $esnistr $snicmd $padding $hardfail $trialdecrypt"
+    echo "Running: $vgcmd $TOP/apps/openssl s_server $dbgstr $keyfile1 $keyfile2 $certsdb $portstr $force13 $esnistr $snicmd $padding $hardfail $trialdecrypt $alpn"
 fi
-$vgcmd $TOP/apps/openssl s_server $dbgstr $keyfile1 $keyfile2 $certsdb $portstr $force13 $esnistr $snicmd $padding $hardfail $trialdecrypt
+$vgcmd $TOP/apps/openssl s_server $dbgstr $keyfile1 $keyfile2 $certsdb $portstr $force13 $esnistr $snicmd $padding $hardfail $trialdecrypt $alpn
 
 

@@ -25,6 +25,8 @@ SUPPLIEDPORT=""
 GREASE="no"
 # HTTPPATH="index.html"
 HTTPPATH=""
+DEFALPNVAL="-alpn bollox,h2,foo"
+DOALPN="no"
 
 # which draft version we wanna go for 
 # DVERSION="02" => TXT RR from draft-02
@@ -78,7 +80,8 @@ echo "Running $0 at $NOW"
 
 function usage()
 {
-    echo "$0 [-cHPpsrdnlvhLV] - try out encrypted SNI via openssl s_client"
+    echo "$0 [-acHPpsrdnlvhLV] - try out encrypted SNI via openssl s_client"
+    echo "  -a provide an ALPN value of $DEFALPNVAL"
 	echo "  -c [name] specifices a name that I'll send as a clear SNI (NONE is special)"
     echo "  -f [pathname] specifies the file/pathname to request (default: '/')"
     echo "  -H means try connect to that hidden server"
@@ -103,7 +106,7 @@ function usage()
 }
 
 # options may be followed by one colon to indicate they have a required argument
-if ! options=$(/usr/bin/getopt -s bash -o f:gS:c:P:H:p:s:dlvnhLV: -l filepath:,grease:,session:,clear_sni:,esnipub:,hidden:,port:,server:,debug,stale,valgrind,noesni,help,lax,version: -- "$@")
+if ! options=$(/usr/bin/getopt -s bash -o af:gS:c:P:H:p:s:dlvnhLV: -l alpn,filepath:,grease:,session:,clear_sni:,esnipub:,hidden:,port:,server:,debug,stale,valgrind,noesni,help,lax,version: -- "$@")
 then
     # something went wrong, getopt will put out an error message for us
     exit 1
@@ -129,6 +132,7 @@ do
         -S|--session) SUPPLIEDSESSION=$2; shift;;
         -v|--valgrind) VG="yes" ;;
         -V|--version) SUPPLIEDVERSION=$2; shift;;
+        -a|--alpn) DOALPN="yes";;
         (--) shift; break;;
         (-*) echo "$0: error - unrecognized option $1" 1>&2; exit 1;;
         (*)  break;;
@@ -347,13 +351,19 @@ then
 	fi
 fi
 
+alpn=""
+if [[ "$DOALPN"=="yes" ]]
+then
+    alpn=$DEFALPNVAL
+fi
+
 TMPF=`mktemp /tmp/esnitestXXXX`
 
 if [[ "$DEBUG" == "yes" ]]
 then
-    echo "Running: $TOP/apps/openssl s_client $dbgstr $certsdb $force13 $target $esnistr $snicmd $session"
+    echo "Running: $TOP/apps/openssl s_client $dbgstr $certsdb $force13 $target $esnistr $snicmd $session $alpn"
 fi
-echo -e "$httpreq" | $vgcmd $TOP/apps/openssl s_client $dbgstr $certsdb $force13 $target $esnistr $snicmd $session >$TMPF 2>&1
+echo -e "$httpreq" | $vgcmd $TOP/apps/openssl s_client $dbgstr $certsdb $force13 $target $esnistr $snicmd $session $alpn >$TMPF 2>&1
 
 c200=`grep -c "200 OK" $TMPF`
 csucc=`grep -c "ESNI: success" $TMPF`

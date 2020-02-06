@@ -50,9 +50,11 @@ I invented an ESNIKey version 0xff04/``ESNI_DRAFT_06_VERSION`` for this that's
 used to get the pre-draft-06 behaviour, so earlier versions still work as
 before.
 
-A basic test on localhost works fine with not API changes needed.
+A basic test on localhost works fine with no API changes so far.
 
 ## Obvious TBDs
+
+These are obvious things to do, but I've not done 'em yet:-)
 
 - Think about how to use HPKE properly.
 - Consider compression for when same value in inner/outer.
@@ -70,6 +72,33 @@ the outer CH. However, it seems unlikely there'll be a way to indicate
 somewhere in B's DNS that that name should never be in a cleartext SNI.
 So probably ok to not support any nesting, IOW, the inner CH MUST NOT
 contain another inner CH.
+
+## ALPN handling
+
+It seems desirable to be able to send different ALPN values in the inner and
+outer CH.
+
+As a quick experiment, if an ALPN is being sent, I'm initially only sending
+that in the inner CH. That seems to work just fine as-is.
+
+Next up will be to define a new API to allow setting an outer CH ALPM value (or
+none) - that'll also need an ``s_client`` command line argument I guess. 
+
+For the command line, we'll go for say:
+
+            -alpn-outer val     When doing ECHO, send different "outer" ALPN 
+                                extension, considering named protocols supported 
+                                (comma-separated list) - "NONE" is a special
+                                value indicating to send no "outer" ALPN
+
+For the API, something, copied from ``SSL_CTX_set_alpn_protos()`` like:
+
+            SSL_CTX_set_outer_alpn_protos(SSL_CTX *s, unsigned char *alpn, size_t alpn_len); 
+
+...where that needs a call to ``next_protos_parse()`` as with the current
+function and where that'll fail unless ESNI has already been setup and
+with a ``ESNI_DRAFT_06_VERSION`` key. (Or maybe we'll let that go and
+only fail later, not sure.)
 
 ## Padding
 
@@ -98,6 +127,9 @@ allowing applications to handle "custom" TLS extensions.  That could be bent
 into shape to do what we want but more will be needed to provide fuller control
 over what goes in the inner and outer CH's.
 
+At this point, I'm not sure that offering a fine-grained-control API to
+the application is the right thing.
+
 ## Could we ever use inner CH without ESNI?
 
 Would there ever be a real use for an inner CH if the SNI in
@@ -117,9 +149,9 @@ could be:
 1. extension only present in outer
 1. extension only present in inner
 
-Default behaviour is to have the same value in inner and outer.  If inner/outer
-values differ, then the values could be internally generated or
-application-supplied.
+Default behaviour (or where it says "dunno" below:-) is to have the same value
+in inner and outer.  If inner/outer values differ, then the values could be
+internally generated or application-supplied.
 
 The extensions where we're particularly interested in being able to use
 different inner/outer values are considered below. (The list here is from
@@ -130,28 +162,28 @@ different inner/outer values are considered below. (The list here is from
 | renegotiate | same |
 | server_name | differ or inner-only, application supplied |
 | max_fragment_length | same |
-| srp | dunno, perhaps: same or inner-only |
-| ec_point_formats | determined by inner/outer key_share, internally generated |
-| supported_groups | determined by inner/outer key_share, internally generated |
-| session_ticket | same or inner-only |
+| srp | same |
+| ec_point_formats | same |
+| supported_groups | same |
+| session_ticket | dunno, maybe same or inner-only |
 | status_request | same |
-| next_proto_neg | differ or inner-only, application supplied |
+| next_proto_neg | dunno, differ or inner-only, application supplied, not that important? |
 | application_layer_protocol_negotiation | differ or inner-only, application supplied |
-| use_srtp | dunno |
+| use_srtp | same |
 | encrypt_then_mac | same |
-| signed_certificate_timestamp | dunno |
-| extended_master_secret | dunno |
+| signed_certificate_timestamp | same |
+| extended_master_secret | same |
 | signature_algorithms_cert | same |
 | post_handshake_auth | same |
 | signature_algorithms | same |
-| supported_versions | same (for now?) |
-| psk_kex_modes | determined by inner/outer key_share |
-| key_share | same or differ, internally generated |
-| cookie | dunno |
+| supported_versions | same |
+| psk_kex_modes | same |  
+| key_share | same |
+| cookie | dunno, same |
 | cryptopro_bug | same |
-| early_data | dunno |
+| early_data | dunno, same |
 | esni | defunct, or if used as esni-nonce only used in EncryptedExtensions |
-| encch | outer only (or nesting?)  |
+| encch | outer only |
 | certificate_authorities | same |
-| padding | differ? |
-| psk | dunno - need to figure out "must be last" req |
+| padding | added by ESNI processing in inner |
+| psk | dunno - need to figure out "must be last" req, and identifiers |
