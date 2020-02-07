@@ -58,7 +58,7 @@ Most recent first...
       changes manually. If there's loadsa similar, I might need to re-sync but better to
       leave that for later after this branch is done/re-merged into my fork's master.
       (Note: this bullet's change is only needed if using OSSL_TRACE_BEGIN etc.)
-    - added ``-a`` option to testclient.sh and testserver.h to allow use a fixed ALPN values
+    - added ``-a`` option to testclient.sh and testserver.h to allow use of fixed ALPN values
 
 - Remerged with upstream (20191219)
 

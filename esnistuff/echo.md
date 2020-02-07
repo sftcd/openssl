@@ -78,11 +78,7 @@ contain another inner CH.
 It seems desirable to be able to send different ALPN values in the inner and
 outer CH.
 
-As a quick experiment, if an ALPN is being sent, I'm initially only sending
-that in the inner CH. That seems to work just fine as-is. (I modified
-the test scripts to set ALPNs in the client and server.)
-
-For the ``s_client`` command line, we've added a new option:
+For the ``s_client`` command line, I added a new option:
 
             -alpn-outer val     When doing ECHO, send different "outer" ALPN 
                                 extension, considering named protocols supported 
@@ -95,17 +91,17 @@ For the APIs, I added:
             SSL_set_alpn_outer_protos(SSL_CTX *s, unsigned char *alpn, size_t alpn_len); 
 
 ...where those need a prior call to ``next_protos_parse()`` (as with the
-current functions witout the ``_outer_``) and where they'll fail unless ESNI
+current functions without the ``_outer_``) and where they'll fail unless ESNI
 has already been setup and with a ``ESNI_DRAFT_06_VERSION`` key. 
 
 ## Inner CH Padding
 
 Up to draft-06, padding only affected the ESNI extension. Now however, we could
-in addition have (at least) ALPN, NPN or PSK identities in inner CH with
-different length values in the outer CH. So it seems we're no longer padding
-the name but the entire inner CH. There are too many variants to reasonably
-determine the exact size of the padded inner CH when creating an ESNIConfig
-so we should change that.
+in addition have (at least) ALPN, but maybe also NPN or PSK identities in inner
+CH with different length values from the outer CH. So we're no longer
+padding the name but the entire inner CH. There are too many variants to
+reasonably determine the exact size of the padded inner CH when creating an
+ESNIConfig so we should change that.
 
 Perhaps a good change would be for the ESNIConfig ``padded_length`` to now be
 optional and when present to mean "ensure the inner CH is at least this long
@@ -153,41 +149,43 @@ could be:
 1. extension only present in outer
 1. extension only present in inner
 
-Default behaviour (or where it says "dunno" below:-) is to have the same value
-in inner and outer.  If inner/outer values differ, then the values could be
-internally generated or application-supplied.
+Default behaviour is to have the same value in inner and outer.  If inner/outer
+values differ, then the values could be internally generated or
+application-supplied.
 
-The extensions where we're particularly interested in being able to use
-different inner/outer values are considered below. (The list here is from
-``ssl/ssl_local.h`` where there's an ``enum`` defining these.)
+The table below lists the extensions supported in this build (the list here is from
+``ssl/ssl_local.h`` where there's an ``enum`` defining these.) and as notes on
+whether different inner/outer values might make sense. The "considered" column,
+indicates whether or not I spent time thining about each.
 
-| Extension | Notes |
-| --------- | ----- |
-| renegotiate | same |
-| server_name | differ or inner-only, application supplied |
-| max_fragment_length | same |
-| srp | same |
-| ec_point_formats | same |
-| supported_groups | same |
-| session_ticket | dunno, maybe same or inner-only |
-| status_request | same |
-| next_proto_neg | dunno, differ or inner-only, application supplied, not that important? |
-| application_layer_protocol_negotiation | differ or inner-only, application supplied |
-| use_srtp | same |
-| encrypt_then_mac | same |
-| signed_certificate_timestamp | same |
-| extended_master_secret | same |
-| signature_algorithms_cert | same |
-| post_handshake_auth | same |
-| signature_algorithms | same |
-| supported_versions | same |
-| psk_kex_modes | same |  
-| key_share | same |
-| cookie | dunno, same |
-| cryptopro_bug | same |
-| early_data | dunno, same |
-| esni | defunct, or if used as esni-nonce only used in EncryptedExtensions |
-| encch | outer only |
-| certificate_authorities | same |
-| padding | added by ESNI processing in inner |
-| psk | dunno - need to figure out "must be last" req, and identifiers |
+| Extension | Considered | Notes |
+| --------- | ---------- | ----- |
+| renegotiate | no | same |
+| server_name | yes | differ or inner-only, application supplied |
+| max_fragment_length | no | same |
+| srp | a bit | dunno, smells like inner-only if this is even allowed with TLS1.3 |
+| ec_point_formats | no | same |
+| supported_groups | no | same |
+| session_ticket | no | not in CH, even if handler code makes it seem it could be |
+| status_request | no | same |
+| next_proto_neg | a bit | dunno, differ or inner-only, application supplied, not that important? |
+| application_layer_protocol_negotiation | yes | differ or inner-only, application supplied |
+| use_srtp | no | same |
+| encrypt_then_mac | no | same |
+| signed_certificate_timestamp | no | same |
+| extended_master_secret | no | same |
+| signature_algorithms_cert | no | same |
+| post_handshake_auth | no | same |
+| signature_algorithms | no | same |
+| supported_versions | no | same |
+| psk_kex_modes | no | same |  
+| key_share | a bit | same seems to work for all cases, so no reason to allow variance? |
+| cookie | no | dunno, same |
+| cryptopro_bug | no | same |
+| early_data | no | dunno |
+| esni | yes | defunct, or if used as esni-nonce only used in EncryptedExtensions |
+| encch | yes | outer only |
+| certificate_authorities | no | dunno, maybe not so important |
+| padding | yes | added by ESNI processing to inner, not sure if I might be breaking any apps using the API |
+| psk | no | dunno - need to figure out "must be last" req, and identifiers |
+
