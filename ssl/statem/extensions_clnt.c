@@ -687,7 +687,36 @@ EXT_RETURN tls_construct_ctos_alpn(SSL *s, WPACKET *pkt, unsigned int context,
 {
 #ifndef OPENSSL_NO_ESNI
     if (s->esni && s->esni->version==ESNI_DRAFT_06_VERSION && !context_is_inner(context)) {
-        return EXT_RETURN_NOT_SENT;
+        /*
+         * Check if we have an outer value to send
+         */
+        if (s->esni->alpn_outer==NULL) {
+            return EXT_RETURN_NOT_SENT;
+        }
+        /*
+         * Check if the outer value is "NONE" - if so, don't send
+         */
+        unsigned char magic_none[]={04,'N','O','N','E'};
+        if (s->esni->alpn_outer_len==5 &&
+                !memcmp(s->esni->alpn_outer,magic_none,5)) {
+            return EXT_RETURN_NOT_SENT;
+        }
+        /*
+         * Well, send the outer value then
+         */
+
+        if (!WPACKET_put_bytes_u16(pkt,
+                    TLSEXT_TYPE_application_layer_protocol_negotiation)
+                   /* Sub-packet ALPN extension */
+                || !WPACKET_start_sub_packet_u16(pkt)
+                || !WPACKET_sub_memcpy_u16(pkt, s->esni->alpn_outer, s->esni->alpn_outer_len)
+                || !WPACKET_close(pkt)) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ALPN,
+                     ERR_R_INTERNAL_ERROR);
+            return EXT_RETURN_FAIL;
+        }
+        s->s3.alpn_sent = 1;
+        return EXT_RETURN_SENT;
     }
 #endif
     s->s3.alpn_sent = 0;
@@ -2495,6 +2524,7 @@ EXT_RETURN tls_construct_ctos_esni(SSL *s, WPACKET *pkt, unsigned int context,
         }
         RAND_bytes(s->esni->nonce,s->esni->nonce_len);
 
+#ifdef ESNI_ADDED_NONCE_LEN
         if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_esni)
                    /* Sub-packet for esni extension */
                 || !WPACKET_start_sub_packet_u16(pkt)
@@ -2505,6 +2535,16 @@ EXT_RETURN tls_construct_ctos_esni(SSL *s, WPACKET *pkt, unsigned int context,
                      ERR_R_INTERNAL_ERROR);
             return EXT_RETURN_FAIL;
         }
+
+#else
+        if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_esni)
+                || !WPACKET_sub_memcpy_u16(pkt, s->esni->nonce, s->esni->nonce_len)
+                    ) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ESNI,
+                     ERR_R_INTERNAL_ERROR);
+            return EXT_RETURN_FAIL;
+        }
+#endif
         return EXT_RETURN_SENT;
     }
 
@@ -2707,9 +2747,9 @@ int tls_parse_stoc_esni(SSL *s, PACKET *pkt, unsigned int context,
     }
 
     /*
-     * handle non -02 draft versions
+     * handle non -02 or -06 draft versions
      */
-    if (s->esni[matchind].version!=ESNI_DRAFT_02_VERSION) {
+    if (s->esni[matchind].version!=ESNI_DRAFT_02_VERSION && s->esni[matchind].version!=ESNI_DRAFT_06_VERSION) {
         /*
          * Consume the enum
          */

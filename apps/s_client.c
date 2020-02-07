@@ -603,6 +603,9 @@ typedef enum OPTION_choice {
     OPT_DTLS1_2, OPT_SCTP, OPT_TIMEOUT, OPT_MTU, OPT_KEYFORM, OPT_PASS,
     OPT_CERT_CHAIN, OPT_KEY, OPT_RECONNECT, OPT_BUILD_CHAIN,
     OPT_NEXTPROTONEG, OPT_ALPN,
+#ifndef OPENSSL_NO_ESNI
+    OPT_ALPN_OUTER,
+#endif
     OPT_CAPATH, OPT_NOCAPATH, OPT_CHAINCAPATH, OPT_VERIFYCAPATH,
     OPT_CAFILE, OPT_NOCAFILE, OPT_CHAINCAFILE, OPT_VERIFYCAFILE,
     OPT_CASTORE, OPT_NOCASTORE, OPT_CHAINCASTORE, OPT_VERIFYCASTORE,
@@ -774,6 +777,10 @@ const OPTIONS s_client_options[] = {
      "types  Send empty ClientHello extensions (comma-separated numbers)"},
     {"alpn", OPT_ALPN, 's',
      "Enable ALPN extension, considering named protocols supported (comma-separated list)"},
+#ifndef OPENSSL_NO_ESNI
+    {"alpn-outer", OPT_ALPN_OUTER, 's',
+     "Enable ALPN extension, considering named protocols supported (comma-separated list, or \"NONE\")"},
+#endif
     {"async", OPT_ASYNC, '-', "Support asynchronous operation"},
     {"nbio", OPT_NBIO, '-', "Use non-blocking IO"},
 
@@ -1099,6 +1106,9 @@ int s_client_main(int argc, char **argv)
 #endif
     int noservername = 0;
     const char *alpn_in = NULL;
+#ifndef OPENSSL_NO_ESNI
+    const char *alpn_outer_in = NULL;
+#endif
     tlsextctx tlsextcbp = { NULL, 0 };
     const char *ssl_config = NULL;
 #define MAX_SI_TYPES 100
@@ -1605,6 +1615,11 @@ int s_client_main(int argc, char **argv)
         case OPT_ALPN:
             alpn_in = opt_arg();
             break;
+#ifndef OPENSSL_NO_ESNI
+        case OPT_ALPN_OUTER:
+            alpn_outer_in = opt_arg();
+            break;
+#endif
         case OPT_SERVERINFO:
             p = opt_arg();
             len = strlen(p);
@@ -2331,6 +2346,21 @@ int s_client_main(int argc, char **argv)
          */
         esnikeys=NULL;
 
+    }
+
+    if (alpn_outer_in) {
+        size_t alpn_len;
+        unsigned char *alpn = next_protos_parse(&alpn_len, alpn_outer_in);
+        if (alpn == NULL) {
+            BIO_printf(bio_err, "Error parsing -alpn-outer argument\n");
+            goto end;
+        }
+        /* Returns 0 on success! */
+        if (SSL_set_alpn_outer_protos(con, alpn, alpn_len) != 0) {
+            BIO_printf(bio_err, "Error setting OUTER ALPN\n");
+            goto end;
+        }
+        OPENSSL_free(alpn);
     }
 #endif
 

@@ -540,3 +540,5 @@ SSL_CTX_esni_server_flush_keys          827	3_0_0	EXIST::FUNCTION:
 SSL_CTX_esni_server_key_status          829	3_0_0	EXIST::FUNCTION:
 SSL_ESNI_get_esni                       830	3_0_0	EXIST::FUNCTION:
 SSL_CTX_get_esni                        831	3_0_0	EXIST::FUNCTION:
+SSL_CTX_set_alpn_outer_protos           832 3_0_0   EXIST::FUNCTION:
+SSL_set_alpn_outer_protos               833 3_0_0   EXIST::FUNCTION:

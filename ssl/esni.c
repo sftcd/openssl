@@ -371,6 +371,7 @@ void SSL_ESNI_free(SSL_ESNI *deadesni)
         esni->loadtime=0;
 
         if (esni->innerch) OPENSSL_free(esni->innerch);
+        if (esni->alpn_outer) OPENSSL_free(esni->alpn_outer);
 
         // zap all of that to zero 
         memset(esni,0,sizeof(SSL_ESNI));
@@ -1587,6 +1588,11 @@ int SSL_ESNI_print(BIO* out, SSL_ESNI *esniarr, int selector)
             esni_pbuf(out,"ESNI Inner Client Hello",esni->innerch,esni->innerch_len);
         } else {
 	        BIO_printf(out,"ESNI Inner Client Hello is NULL\n");
+        }
+        if (esni->alpn_outer) {
+            esni_pbuf(out,"ESNI Outer ALPN",esni->alpn_outer,esni->alpn_outer_len);
+        } else {
+	        BIO_printf(out,"ESNI Outer ALPN not set\n");
         }
 	    BIO_printf(out,"ESNI Cryptovars group id: %04x\n",esni->group_id);
 	    esni_pbuf(out,"ESNI Cryptovars Z",esni->Z,esni->Z_len);
@@ -3710,6 +3716,12 @@ SSL_ESNI* SSL_ESNI_dup(SSL_ESNI* orig, size_t nesni, int selector)
         if (origi->privfname!=NULL) newi->privfname=OPENSSL_strdup(origi->privfname);
         if (origi->pubfname!=NULL) newi->pubfname=OPENSSL_strdup(origi->pubfname);
         newi->loadtime=origi->loadtime;
+
+        /*
+         * Handle inner/outer stuff
+         */
+        SSL_ESNI_dup_one(innerch,innerch_len)
+        SSL_ESNI_dup_one(alpn_outer,alpn_outer_len)
 
         /*
          * Special case - pointers here are shallow to ones above

@@ -166,6 +166,10 @@ int ERR_load_SSL_strings(void);
 #  define SSL_F_SSL_CTX_MAKE_PROFILES                      0
 #  define SSL_F_SSL_CTX_NEW                                0
 #  define SSL_F_SSL_CTX_SET_ALPN_PROTOS                    0
+#ifndef OPENSSL_NO_ESNI
+#  define SSL_F_SSL_CTX_SET_ALPN_OUTER_PROTOS              0
+#  define SSL_F_SSL_SET_ALPN_OUTER_PROTOS                  0
+#endif
 #  define SSL_F_SSL_CTX_SET_CIPHER_LIST                    0
 #  define SSL_F_SSL_CTX_SET_CLIENT_CERT_ENGINE             0
 #  define SSL_F_SSL_CTX_SET_CT_VALIDATION_CALLBACK         0

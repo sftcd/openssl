@@ -25,7 +25,10 @@ SUPPLIEDPORT=""
 GREASE="no"
 # HTTPPATH="index.html"
 HTTPPATH=""
-DEFALPNVAL="-alpn bollox,h2,foo"
+# The special value of NONE for alpn-outer means to not send at all
+# in the outer CH
+#DEFALPNVAL="-alpn secretdot,h2,foo -alpn-outer NONE"
+DEFALPNVAL="-alpn secretdot,h2,foo -alpn-outer http/1.1"
 DOALPN="no"
 
 # which draft version we wanna go for 
@@ -352,7 +355,7 @@ then
 fi
 
 alpn=""
-if [[ "$DOALPN"=="yes" ]]
+if [[ "$DOALPN" == "yes" ]]
 then
     alpn=$DEFALPNVAL
 fi
@@ -386,7 +389,9 @@ echo "$0 Summary: "
 if [[ "$DEBUG" == "yes" ]]
 then
 	noncestr=`grep -A1 "ESNI Nonce" $TMPF`
-	eestr=`grep -A5 EncryptedExtensions $TMPF`
+    # Depending on how many of these we get we might see the
+    # ESNI nonce in this output snippet
+	eestr=`grep -A7 EncryptedExtensions $TMPF`
 	echo "Nonce sent: $noncestr"
 	echo "Nonce Back: $eestr"
 	grep -e "ESNI: " $TMPF

@@ -320,6 +320,11 @@ typedef struct ssl_esni_st {
      * has so it can find it's inner equivalent value in the raws list above
      */
     int etype;
+    /*
+     * Supporting the concept of an outer ALPN on the client
+     */
+    size_t alpn_outer_len;
+    unsigned char *alpn_outer;
 } SSL_ESNI;
 
 /**

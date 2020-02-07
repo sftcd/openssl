@@ -2210,6 +2210,8 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
         OSSL_TRACE_BEGIN(TLS) {
             BIO_printf(trc_out,"Doing draft-06 esni-nonce thing in tls_parse_ctos_esni at %d\n",__LINE__);
         } OSSL_TRACE_END(TLS);
+
+#ifdef ESNI_ADDED_NONCE_LEN
         unsigned int nlen=0;
         if (!PACKET_get_net_2(pkt, &nlen)) {
             SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ESNI,
@@ -2241,6 +2243,30 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
              SSL_R_BAD_EXTENSION);
             goto err;
         }
+
+#else
+        unsigned int nlen=16;
+        if (match->nonce) {
+            OPENSSL_free(match->nonce);
+        }
+        match->nonce_len=nlen;
+        match->nonce=OPENSSL_malloc(nlen);
+        if (!match->nonce) {
+            SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ESNI,
+                     SSL_R_BAD_EXTENSION);
+            return 0;
+        }
+        if (!PACKET_copy_bytes(pkt, match->nonce, nlen)) {
+            SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ESNI,
+                     SSL_R_BAD_EXTENSION);
+            return 0;
+        }
+        if (PACKET_remaining(pkt)) {
+            SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ESNI,
+             SSL_R_BAD_EXTENSION);
+            goto err;
+        }
+#endif
         OSSL_TRACE_BEGIN(TLS) {
             BIO_printf(trc_out,"Did draft-06 esni-nonce thing in tls_parse_ctos_esni at %d\n",__LINE__);
         } OSSL_TRACE_END(TLS);
@@ -2721,7 +2747,7 @@ EXT_RETURN tls_construct_stoc_esni(SSL *s, WPACKET *pkt,
              * } ServerEncryptedSNI;
              *
              */
-            if (match->version==ESNI_DRAFT_02_VERSION) {
+            if (match->version==ESNI_DRAFT_02_VERSION || match->version==ESNI_DRAFT_06_VERSION) {
                 if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_esni)
                     || !WPACKET_put_bytes_u16(pkt, match->nonce_len)
                     || !WPACKET_memcpy(pkt, match->nonce, match->nonce_len)) {

@@ -79,28 +79,26 @@ It seems desirable to be able to send different ALPN values in the inner and
 outer CH.
 
 As a quick experiment, if an ALPN is being sent, I'm initially only sending
-that in the inner CH. That seems to work just fine as-is.
+that in the inner CH. That seems to work just fine as-is. (I modified
+the test scripts to set ALPNs in the client and server.)
 
-Next up will be to define a new API to allow setting an outer CH ALPM value (or
-none) - that'll also need an ``s_client`` command line argument I guess. 
-
-For the command line, we'll go for say:
+For the ``s_client`` command line, we've added a new option:
 
             -alpn-outer val     When doing ECHO, send different "outer" ALPN 
                                 extension, considering named protocols supported 
                                 (comma-separated list) - "NONE" is a special
                                 value indicating to send no "outer" ALPN
 
-For the API, something, copied from ``SSL_CTX_set_alpn_protos()`` like:
+For the APIs, I added:
 
-            SSL_CTX_set_outer_alpn_protos(SSL_CTX *s, unsigned char *alpn, size_t alpn_len); 
+            SSL_CTX_set_alpn_outer_protos(SSL_CTX *s, unsigned char *alpn, size_t alpn_len); 
+            SSL_set_alpn_outer_protos(SSL_CTX *s, unsigned char *alpn, size_t alpn_len); 
 
-...where that needs a call to ``next_protos_parse()`` as with the current
-function and where that'll fail unless ESNI has already been setup and
-with a ``ESNI_DRAFT_06_VERSION`` key. (Or maybe we'll let that go and
-only fail later, not sure.)
+...where those need a prior call to ``next_protos_parse()`` (as with the
+current functions witout the ``_outer_``) and where they'll fail unless ESNI
+has already been setup and with a ``ESNI_DRAFT_06_VERSION`` key. 
 
-## Padding
+## Inner CH Padding
 
 Up to draft-06, padding only affected the ESNI extension. Now however, we could
 in addition have (at least) ALPN, NPN or PSK identities in inner CH with
@@ -116,8 +114,14 @@ no ``padded_length`` is specified, or if ``padded_length`` is shorter than
 the inner CH, then I pad as described above, with between 0 and 47 padding
 octets to get to a multiple of 16.
 
-(As an aside the length of the psk identity in the server's response
-might also call for padding now, in addition to the Certificate etc.)
+## EncryptedExtensions now also call for padding
+
+Since we can now send ALPN in inner padded CH, that means we may also need
+record layer padding around EncryptedExtensions, as it's length varies based on
+the selected ALPN value. The same would be true if/when we have other values
+present in EncryptedExtensions that depend on lengths found in the inner CH.
+Since RFC8446 says that the padding extension can only be present in the CH,
+we need to do that padding via the record layer.
 
 ## API issues
 

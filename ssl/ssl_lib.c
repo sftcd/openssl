@@ -2981,6 +2981,53 @@ int SSL_set_alpn_protos(SSL *ssl, const unsigned char *protos,
     return 0;
 }
 
+#ifndef OPENSSL_NO_ESNI
+/*
+ * SSL_CTX_set_alpn_outer_protos sets the ALPN protocol list on |ctx| to |protos|.
+ * |protos| must be in wire-format (i.e. a series of non-empty, 8-bit
+ * length-prefixed strings). Returns 0 on success.
+ */
+int SSL_CTX_set_alpn_outer_protos(SSL_CTX *ctx, const unsigned char *protos,
+                            unsigned int protos_len)
+{
+    if (!ctx->ext.esni || ctx->ext.esni->version!=ESNI_DRAFT_06_VERSION) {
+        SSLerr(SSL_F_SSL_CTX_SET_ALPN_OUTER_PROTOS, ERR_R_MALLOC_FAILURE);
+        return 1;
+    }
+    if (ctx->ext.esni->alpn_outer) OPENSSL_free(ctx->ext.esni->alpn_outer);
+    ctx->ext.esni->alpn_outer = OPENSSL_memdup(protos, protos_len);
+    if (ctx->ext.esni->alpn_outer == NULL) {
+        SSLerr(SSL_F_SSL_CTX_SET_ALPN_OUTER_PROTOS, ERR_R_MALLOC_FAILURE);
+        return 1;
+    }
+    ctx->ext.esni->alpn_outer_len = protos_len;
+    return 0;
+}
+
+/*
+ * SSL_set_alpn_outer_protos sets the ALPN protocol list on |ssl| to |protos|.
+ * |protos| must be in wire-format (i.e. a series of non-empty, 8-bit
+ * length-prefixed strings). Returns 0 on success.
+ */
+int SSL_set_alpn_outer_protos(SSL *ssl, const unsigned char *protos,
+                        unsigned int protos_len)
+{
+    if (!ssl->esni || ssl->esni->version!=ESNI_DRAFT_06_VERSION) {
+        SSLerr(SSL_F_SSL_SET_ALPN_OUTER_PROTOS, ERR_R_MALLOC_FAILURE);
+        return 1;
+    }
+    if (ssl->esni->alpn_outer) OPENSSL_free(ssl->esni->alpn_outer);
+    ssl->esni->alpn_outer = OPENSSL_memdup(protos, protos_len);
+    if (ssl->esni->alpn_outer == NULL) {
+        SSLerr(SSL_F_SSL_SET_ALPN_OUTER_PROTOS, ERR_R_MALLOC_FAILURE);
+        return 1;
+    }
+    ssl->esni->alpn_outer_len = protos_len;
+
+    return 0;
+}
+#endif
+
 /*
  * SSL_CTX_set_alpn_select_cb sets a callback function on |ctx| that is
  * called during ClientHello processing in order to select an ALPN protocol

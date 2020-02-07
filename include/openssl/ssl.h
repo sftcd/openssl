@@ -848,6 +848,12 @@ __owur int SSL_CTX_set_alpn_protos(SSL_CTX *ctx, const unsigned char *protos,
                                    unsigned int protos_len);
 __owur int SSL_set_alpn_protos(SSL *ssl, const unsigned char *protos,
                                unsigned int protos_len);
+#ifndef OPENSSL_NO_ESNI
+__owur int SSL_CTX_set_alpn_outer_protos(SSL_CTX *ctx, const unsigned char *protos,
+                                   unsigned int protos_len);
+__owur int SSL_set_alpn_outer_protos(SSL *ssl, const unsigned char *protos,
+                               unsigned int protos_len);
+#endif
 typedef int (*SSL_CTX_alpn_select_cb_func)(SSL *ssl,
                                            const unsigned char **out,
                                            unsigned char *outlen,

@@ -227,6 +227,10 @@ static const ERR_STRING_DATA SSL_str_functs[] = {
     {ERR_PACK(ERR_LIB_SSL, SSL_F_SSL_CTX_NEW, 0), "SSL_CTX_new"},
     {ERR_PACK(ERR_LIB_SSL, SSL_F_SSL_CTX_SET_ALPN_PROTOS, 0),
      "SSL_CTX_set_alpn_protos"},
+#ifndef OPENSSL_NO_ESNI
+    {ERR_PACK(ERR_LIB_SSL, SSL_F_SSL_CTX_SET_ALPN_OUTER_PROTOS, 0),
+     "SSL_CTX_set_alpn_outer_protos"},
+#endif
     {ERR_PACK(ERR_LIB_SSL, SSL_F_SSL_CTX_SET_CIPHER_LIST, 0),
      "SSL_CTX_set_cipher_list"},
     {ERR_PACK(ERR_LIB_SSL, SSL_F_SSL_CTX_SET_CLIENT_CERT_ENGINE, 0),
@@ -325,6 +329,10 @@ static const ERR_STRING_DATA SSL_str_functs[] = {
      "SSL_SESSION_set1_id_context"},
     {ERR_PACK(ERR_LIB_SSL, SSL_F_SSL_SET_ALPN_PROTOS, 0),
      "SSL_set_alpn_protos"},
+#ifndef OPENSSL_NO_ESNI
+    {ERR_PACK(ERR_LIB_SSL, SSL_F_SSL_SET_ALPN_OUTER_PROTOS, 0),
+     "SSL_set_alpn_outer_protos"},
+#endif
     {ERR_PACK(ERR_LIB_SSL, SSL_F_SSL_SET_CERT, 0), "ssl_set_cert"},
     {ERR_PACK(ERR_LIB_SSL, SSL_F_SSL_SET_CERT_AND_KEY, 0),
      "ssl_set_cert_and_key"},
