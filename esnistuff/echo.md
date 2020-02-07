@@ -154,19 +154,20 @@ values differ, then the values could be internally generated or
 application-supplied.
 
 The table below lists the extensions supported in this build (the list here is from
-``ssl/ssl_local.h`` where there's an ``enum`` defining these.) and as notes on
+``ssl/ssl_local.h`` where there's an ``enum`` defining these) and notes on
 whether different inner/outer values might make sense. The "considered" column,
 indicates whether or not I spent time thining about each.
+The full list of extensions it at [IANA](https://www.iana.org/assignments/tls-extensiontype-values/tls-extensiontype-values.xhtml#tls-extensiontype-values-1) so I guess I should look there too sometime.
 
 | Extension | Considered | Notes |
 | --------- | ---------- | ----- |
-| renegotiate | no | same |
+| renegotiate | yes | not allowed in TLS1.3 - maybe need to test if we tried one in inner CH though |
 | server_name | yes | differ or inner-only, application supplied |
-| max_fragment_length | no | same |
-| srp | a bit | dunno, smells like inner-only if this is even allowed with TLS1.3 |
+| max_fragment_length | yes | same, probably has to be same for split-mode |
+| srp | a bit | dunno, defined in RFC 5054, smells like inner-only (it has a user name in it) if this is allowed with TLS1.3 (is it?) 8446 doesn't reference 5054 |
 | ec_point_formats | no | same |
 | supported_groups | no | same |
-| session_ticket | no | not in CH, even if handler code makes it seem it could be |
+| session_ticket | yes | not in TLS1.3 CH, even if handler code makes it seem it could be |
 | status_request | no | same |
 | next_proto_neg | a bit | dunno, differ or inner-only, application supplied, not that important? |
 | application_layer_protocol_negotiation | yes | differ or inner-only, application supplied |
