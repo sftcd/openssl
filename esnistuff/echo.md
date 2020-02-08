@@ -157,38 +157,40 @@ application-supplied.
 
 The table below lists the extensions supported in this build (the list here is from
 ``ssl/ssl_local.h`` where there's an ``enum`` defining these) and notes on
-whether different inner/outer values might make sense. The "considered" column,
-indicates whether or not I spent time thining about each.
+whether different inner/outer values might make sense. The "considered" column
+indicates whether or not I spent time thining that row, and the "implemented"
+colum describes the current implementation ("yes" meaning I did what's in the
+notes).
 The full list of extensions it at [IANA](https://www.iana.org/assignments/tls-extensiontype-values/tls-extensiontype-values.xhtml#tls-extensiontype-values-1) so I guess I should look there too sometime.
 
-| Extension | Considered | Notes |
-| --------- | ---------- | ----- |
-| renegotiate | yes | not allowed in TLS1.3 - maybe need to test if we tried one in inner CH though |
-| server_name | yes | differ or inner-only, application supplied |
-| max_fragment_length | yes | same, probably has to be same for split-mode |
-| srp | a bit | dunno, defined in RFC 5054, smells like inner-only (it has a user name in it) if this is allowed with TLS1.3 (is it?) 8446 doesn't reference 5054 |
-| ec_point_formats | no | same |
-| supported_groups | no | same |
-| session_ticket | yes | not in TLS1.3 CH, even if handler code makes it seem it could be |
-| status_request | yes | same, in case of split mode |
-| next_proto_neg | yes | differ or inner-only, application supplied, not coded up yet - is it still important? |
-| application_layer_protocol_negotiation | yes | differ or inner-only, application supplied |
-| use_srtp | yes | same - only SRTP profile (ciphersuite) stuff and SRTP to follow, so no point in varying |
-| encrypt_then_mac | yes | same would make no sense to vary, but not sure why it's being sent - TLS1.3 & only AEADs are two reasons to not |
-| signed_certificate_timestamp | yes | same, can't see a benefit in varying |
-| extended_master_secret | yes | same, shouldn't be in TLS1.3 but openssl sends, no harm though and no reason to vary |
-| signature_algorithms_cert | no | same |
-| post_handshake_auth | no | same |
-| signature_algorithms | no | same |
-| supported_versions | no | same |
-| psk_kex_modes | no | same |  
-| key_share | a bit | same seems to work for all cases, so no reason to allow variance? |
-| cookie | no | dunno, same |
-| cryptopro_bug | no | same |
-| early_data | no | dunno |
-| esni | yes | defunct, or if used as esni-nonce only used in EncryptedExtensions |
-| encch | yes | outer only |
-| certificate_authorities | no | dunno, maybe not so important |
-| padding | yes | added by ESNI processing to inner, not sure if I might be breaking any apps using the API |
-| psk | no | dunno - need to figure out "must be last" req, and identifiers |
+| Extension | Considered | Implemented | Notes |
+| --------- | ---------- | ----------- | ----- |
+| renegotiate | yes | same | not allowed in TLS1.3 - maybe need to test if we tried one in inner CH though |
+| server_name | yes | yes | differ or inner-only, application supplied |
+| max_fragment_length | yes | same | same, probably has to be same for split-mode |
+| srp | a bit | same | dunno, defined in RFC 5054, smells like inner-only (it has a user name in it) if this is allowed with TLS1.3 (is it?) 8446 doesn't reference 5054 |
+| ec_point_formats | no | same | same |
+| supported_groups | no | same | same |
+| session_ticket | yes | same | not in TLS1.3 CH, even if handler code makes it seem it could be |
+| status_request | yes | same | same, in case of split mode |
+| next_proto_neg | yes | same | differ or inner-only, application supplied, not coded up yet - is it still important? |
+| application_layer_protocol_negotiation | yes | same | differ or inner-only, application supplied |
+| use_srtp | yes | same | same - only SRTP profile (ciphersuite) stuff and SRTP to follow, so no point in varying |
+| encrypt_then_mac | yes | same | same would make no sense to vary, but not sure why it's being sent - TLS1.3 & only AEADs are two reasons to not |
+| signed_certificate_timestamp | yes | same | same, can't see a benefit in varying |
+| extended_master_secret | yes | same | same, shouldn't be in TLS1.3 but openssl sends, no harm though and no reason to vary |
+| signature_algorithms_cert | yes | same | same, in principle varying this could make sense but in practice there's no benefit |
+| post_handshake_auth | yes | same | differ or inner-only, application supplied - be good to hide the fact of client auth (not implemented yet) |
+| signature_algorithms | no | same | same |
+| supported_versions | no | same | same |
+| psk_kex_modes | no | same | same |  
+| key_share | a bit | same | same seems to work for all cases, so no reason to allow variance? |
+| cookie | no | same | dunno, same |
+| cryptopro_bug | no | same | same |
+| early_data | no | same | dunno |
+| esni | yes | yes | used as esni-nonce in CH and for nonce in EncryptedExtensions |
+| encch | yes | yes | outer only |
+| certificate_authorities | no | same | dunno, maybe not so important |
+| padding | yes | yes | added by ESNI processing to inner, not sure if I might be breaking any apps using the API |
+| psk | no | same | dunno - need to figure out "must be last" req, and identifiers |
 
