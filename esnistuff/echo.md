@@ -52,6 +52,8 @@ before.
 
 A basic test on localhost works fine with no API changes so far.
 
+Many of the error handling cases are not well handled in this build so far.
+
 ## Obvious TBDs
 
 These are obvious things to do, but I've not done 'em yet:-)
@@ -168,13 +170,13 @@ The full list of extensions it at [IANA](https://www.iana.org/assignments/tls-ex
 | ec_point_formats | no | same |
 | supported_groups | no | same |
 | session_ticket | yes | not in TLS1.3 CH, even if handler code makes it seem it could be |
-| status_request | no | same |
-| next_proto_neg | a bit | dunno, differ or inner-only, application supplied, not that important? |
+| status_request | yes | same, in case of split mode |
+| next_proto_neg | yes | differ or inner-only, application supplied, not coded up yet - is it still important? |
 | application_layer_protocol_negotiation | yes | differ or inner-only, application supplied |
-| use_srtp | no | same |
-| encrypt_then_mac | no | same |
-| signed_certificate_timestamp | no | same |
-| extended_master_secret | no | same |
+| use_srtp | yes | same - only SRTP profile (ciphersuite) stuff and SRTP to follow, so no point in varying |
+| encrypt_then_mac | yes | same would make no sense to vary, but not sure why it's being sent - TLS1.3 & only AEADs are two reasons to not |
+| signed_certificate_timestamp | yes | same, can't see a benefit in varying |
+| extended_master_secret | yes | same, shouldn't be in TLS1.3 but openssl sends, no harm though and no reason to vary |
 | signature_algorithms_cert | no | same |
 | post_handshake_auth | no | same |
 | signature_algorithms | no | same |
