@@ -181,11 +181,11 @@ The full list of extensions it at [IANA](https://www.iana.org/assignments/tls-ex
 | extended_master_secret | yes | same | same, shouldn't be in TLS1.3 but openssl sends, no harm though and no reason to vary |
 | signature_algorithms_cert | yes | same | same, in principle varying this could make sense but in practice there's no benefit |
 | post_handshake_auth | yes | same | differ or inner-only, application supplied - be good to hide the fact of client auth (not implemented yet) |
-| signature_algorithms | no | same | same |
-| supported_versions | no | same | same |
-| psk_kex_modes | no | same | same |  
+| signature_algorithms | yes | same | same, in principle varying this could make sense but in practice there's no benefit |
+| supported_versions | yes | same | same, maybe when TLS1.4 exists there'll be a benefit in varying, but not yet |
+| psk_kex_modes | yes | same | same, in principle varying this could make sense but in practice there's no benefit |
 | key_share | a bit | same | same seems to work for all cases, so no reason to allow variance? |
-| cookie | no | same | dunno, same |
+| cookie | yes | same | same, could, but unlikely to, change my mind if/when I think about HRR processing in detail again:-) |
 | cryptopro_bug | no | same | same |
 | early_data | no | same | dunno |
 | esni | yes | yes | used as esni-nonce in CH and for nonce in EncryptedExtensions |
