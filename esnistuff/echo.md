@@ -207,4 +207,47 @@ of this is done yet, and it might necessitate either biggish changes to the
 ``SSL`` struct or else keeping two of those about, would need to check how many
 fields would be changed if the key shares differ.
 
+## Session resumption or using PSKs
+
+I managed to create a PSK fail. To reproduce, run the test client twice:
+
+            $ cd $HOME/code/openssl/esnistuff
+            $ # start server
+            $ ./testserver.sh -c example.com -H foo.example.com -d -a
+            $ # get rid of session/tickets
+            $ rm -f lof.sess
+            $ # run client acquiring session
+            $ ./testclient.sh -v -p 8443 -s localhost -H lotsoffood.example.com -c example.com -P esnikeys.pub -d -a -S lof.sess
+            ...lots of output...
+            ESNI: success: clear sni: 'example.com', hidden: 'lotsoffood.example.com'
+            $ # try re-use session
+            $ ./testclient.sh -v -p 8443 -s localhost -H lotsoffood.example.com -c example.com -P esnikeys.pub -d -a -S lof.sess
+            ...lots of output...
+            ESNI: tried but failed
+            
+Reminders to self: the ``-S`` option will save the sessions 1st time as the
+named file doesn't exist and try re-use it 2nd time. Also - there's timing 
+here, the lof.sess file won't be created if we don't hang about for
+the tickets, but running using valgrind (the ``-v`` there) makes it all
+take long enough.
+
+Initially, the failure was because I just copied the PSK extensions from
+the inner to outer, and that doesn't verify - and that fail happened before
+the inner was decrypted. 
+First fix to try was to just not copy the PSK from
+inner, but see if re-calculation worked. It doesn't.
+First h/s, client is fine, 2nd time, when PSK sent, valgrind
+sees errors in the server. (There's an invalid memory read inside
+``tls_psk_do_binder()`` when handling the inner psk extension
+probably due to some missing initialisation.)
+
+So what's the right behaviour? Perhaps:
+    - bind the psk to the esni or the clear sni depending from
+      whom the ticket was rx'd (but likely don't re-use the
+      psk if it corresponds to the outer CH)
+    - if using a psk with the esni, then only put that in the
+      inner ch alongside the esni and don't put a psk in the
+      outer ch at all
+
+
 

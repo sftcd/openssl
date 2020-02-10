@@ -59,6 +59,7 @@ Most recent first...
       leave that for later after this branch is done/re-merged into my fork's master.
       (Note: this bullet's change is only needed if using OSSL_TRACE_BEGIN etc.)
     - added ``-a`` option to testclient.sh and testserver.h to allow use of fixed ALPN values
+    - played with SUPPLIEDSESSION script fragments a bit to improve it
 
 - Remerged with upstream (20191219)
 

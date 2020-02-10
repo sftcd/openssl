@@ -346,10 +346,10 @@ if [[ "$SUPPLIEDSESSION" != "" ]]
 then
 	if [ ! -f $SUPPLIEDSESSION ]
 	then
-		# resuming 
+		# save so we can resum
 		session=" -sess_out $SUPPLIEDSESSION"
 	else
-		# save so we can resum
+		# resuming
 		session=" -sess_in $SUPPLIEDSESSION"
 	fi
 fi
