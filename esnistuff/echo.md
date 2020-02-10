@@ -169,8 +169,8 @@ The full list of extensions it at [IANA](https://www.iana.org/assignments/tls-ex
 | server_name | yes | yes | differ or inner-only, application supplied |
 | max_fragment_length | yes | same | same, probably has to be same for split-mode |
 | srp | a bit | same | dunno, defined in RFC 5054, smells like inner-only (it has a user name in it) if this is allowed with TLS1.3 (is it?) 8446 doesn't reference 5054 |
-| ec_point_formats | no | same | same |
-| supported_groups | no | same | same |
+| ec_point_formats | yes | same | same, not supposed to be used in TLS1.3, but is sent in CH by OpenSSL, hmm |
+| supported_groups | yes | same | same, see notes on key_share |
 | session_ticket | yes | same | not in TLS1.3 CH, even if handler code makes it seem it could be |
 | status_request | yes | same | same, in case of split mode |
 | next_proto_neg | yes | same | differ or inner-only, application supplied, not coded up yet - is it still important? |
@@ -184,7 +184,7 @@ The full list of extensions it at [IANA](https://www.iana.org/assignments/tls-ex
 | signature_algorithms | yes | same | same, in principle varying this could make sense but in practice there's no benefit |
 | supported_versions | yes | same | same, maybe when TLS1.4 exists there'll be a benefit in varying, but not yet |
 | psk_kex_modes | yes | same | same, in principle varying this could make sense but in practice there's no benefit |
-| key_share | a bit | same | same seems to work for all cases, so no reason to allow variance? |
+| key_share | yes | same | same seems to work for all cases, but see more below |
 | cookie | yes | same | same, could, but unlikely to, change my mind if/when I think about HRR processing in detail again:-) |
 | cryptopro_bug | yes | none | this non-standard extension won't be in any CH (apparently) and has no ctos function |
 | early_data | no | same | dunno |
@@ -193,4 +193,18 @@ The full list of extensions it at [IANA](https://www.iana.org/assignments/tls-ex
 | certificate_authorities | yes | same | could vary in principle to hide client info but not so important, for browsers at least |
 | padding | yes | yes | added by ESNI processing to inner, not sure if I might be breaking any apps using the API |
 | psk | no | same | dunno - need to figure out "must be last" req, and identifiers |
+
+For the ``key_share`` extension and ``supported_groups``, while there's no
+pressing reason to want different key shares for OpenSSL today, there are two
+reasons to do a bit more than that.  Firstly, if/as new algorithms are
+introduced, there may be a need for different key shares in split mode.
+Secondly, if anyone else implemented a client using different key shares, then
+an OpenSSL server might need to support that, which'd in turn create a need for
+client support, at minimum for test purposes.  So if different key share values
+are not ruled out by the spec, then I'll likely want to implement support.
+There wouldn't be any need for a very easy to use API for clients though.  None
+of this is done yet, and it might necessitate either biggish changes to the
+``SSL`` struct or else keeping two of those about, would need to check how many
+fields would be changed if the key shares differ.
+
 
