@@ -186,11 +186,11 @@ The full list of extensions it at [IANA](https://www.iana.org/assignments/tls-ex
 | psk_kex_modes | yes | same | same, in principle varying this could make sense but in practice there's no benefit |
 | key_share | a bit | same | same seems to work for all cases, so no reason to allow variance? |
 | cookie | yes | same | same, could, but unlikely to, change my mind if/when I think about HRR processing in detail again:-) |
-| cryptopro_bug | no | same | same |
+| cryptopro_bug | yes | none | this non-standard extension won't be in any CH (apparently) and has no ctos function |
 | early_data | no | same | dunno |
 | esni | yes | yes | used as esni-nonce in CH and for nonce in EncryptedExtensions |
 | encch | yes | yes | outer only |
-| certificate_authorities | no | same | dunno, maybe not so important |
+| certificate_authorities | yes | same | could vary in principle to hide client info but not so important, for browsers at least |
 | padding | yes | yes | added by ESNI processing to inner, not sure if I might be breaking any apps using the API |
 | psk | no | same | dunno - need to figure out "must be last" req, and identifiers |
 
