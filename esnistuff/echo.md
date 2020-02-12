@@ -192,7 +192,9 @@ The full list of extensions it at [IANA](https://www.iana.org/assignments/tls-ex
 | encch | yes | yes | outer only |
 | certificate_authorities | yes | same | could vary in principle to hide client info but not so important, for browsers at least |
 | padding | yes | yes | added by ESNI processing to inner, not sure if I might be breaking any apps using the API |
-| psk | no | same | dunno - need to figure out "must be last" req, and identifiers |
+| psk | yes | inner only | see (still tentative) discussion below |
+
+## TLS session key share handling with ECHO
 
 For the ``key_share`` extension and ``supported_groups``, while there's no
 pressing reason to want different key shares for OpenSSL today, there are two
@@ -224,30 +226,31 @@ I managed to create a PSK fail. To reproduce, run the test client twice:
             $ ./testclient.sh -v -p 8443 -s localhost -H lotsoffood.example.com -c example.com -P esnikeys.pub -d -a -S lof.sess
             ...lots of output...
             ESNI: tried but failed
-            
-Reminders to self: the ``-S`` option will save the sessions 1st time as the
-named file doesn't exist and try re-use it 2nd time. Also - there's timing 
-here, the lof.sess file won't be created if we don't hang about for
-the tickets, but running using valgrind (the ``-v`` there) makes it all
-take long enough.
 
-Initially, the failure was because I just copied the PSK extensions from
-the inner to outer, and that doesn't verify - and that fail happened before
-the inner was decrypted. 
-First fix to try was to just not copy the PSK from
-inner, but see if re-calculation worked. It doesn't.
-First h/s, client is fine, 2nd time, when PSK sent, valgrind
-sees errors in the server. (There's an invalid memory read inside
-``tls_psk_do_binder()`` when handling the inner psk extension
-probably due to some missing initialisation.)
+Reminders to self: the ``-S`` option will save the sessions 1st time as the
+named file doesn't exist and try re-use it 2nd time. Also - there's timing
+here, the lof.sess file won't be created if we don't hang about for the
+tickets, but running using valgrind (the ``-v`` there) makes it all take long
+enough.
+
+Initially, the failure was because I just copied the PSK extensions from the
+inner to outer, and that doesn't verify - and that fail happened before the
+inner was decrypted.  First fix to try was to just not copy the PSK from inner,
+but see if re-calculation worked. It doesn't.  First h/s, client is fine, 2nd
+time, when PSK sent, valgrind sees errors in the server. (There's an invalid
+memory read inside ``tls_psk_do_binder()`` when handling the inner psk
+extension probably due to some missing initialisation.)
+
+Next try is to only include the PSK in the inner and see what happens.
+That needed a change in the ``tls_parse_stoc_psk()`` code, and I'm not
+clear if the correct psk checks are happening for sure, but did remove
+the crash and appear to work.
 
 So what's the right behaviour? Perhaps:
-    - bind the psk to the esni or the clear sni depending from
-      whom the ticket was rx'd (but likely don't re-use the
-      psk if it corresponds to the outer CH)
-    - if using a psk with the esni, then only put that in the
-      inner ch alongside the esni and don't put a psk in the
-      outer ch at all
+- bind the psk to the esni only, if esni was attempted ever
+- if using a psk whenever esni was ever in the frame, then only put that in the
+  inner ch alongside the esni and don't put a psk in the outer ch at all
+
 
 
 

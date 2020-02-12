@@ -1450,11 +1450,11 @@ EXT_RETURN tls_construct_ctos_padding(SSL *s, WPACKET *pkt,
 EXT_RETURN tls_construct_ctos_psk(SSL *s, WPACKET *pkt, unsigned int context,
                                   X509 *x, size_t chainidx)
 {
-    /*
 #ifndef OPENSSL_NO_ESNI
-    IOSAME
+    if (s->esni && s->esni->version==ESNI_DRAFT_06_VERSION && !context_is_inner(context)) {
+        return EXT_RETURN_NOT_SENT;
+    }
 #endif
-    */
 #ifndef OPENSSL_NO_TLS1_3
     uint32_t now, agesec, agems = 0;
     size_t reshashsize = 0, pskhashsize = 0, binderoffset, msglen;
