@@ -1315,7 +1315,36 @@ int tls_parse_ctos_psk(SSL *s, PACKET *pkt, unsigned int context, X509 *x,
     if (sess == NULL)
         return 1;
 
+#ifndef OPENSSL_NO_ESNI
+    SSL_ESNI *match=NULL; 
+    if (context&SSL_EXT_CLIENT_HELLO_INNER) {
+
+	    /*
+	     * handling for draft-06 
+	     */
+	    int matchind=-1;
+	    int i; /* loop counter - android build doesn't like C99;-( */
+	    for (i=0;i!=s->nesni && matchind==-1;i++) {
+	        if (s->esni[i].version==ESNI_DRAFT_06_VERSION && s->esni[i].innerch!=NULL) {
+	            /* found it */
+	            match=&s->esni[i];
+	            matchind=i;
+	            break;
+	        }
+	    }
+	    if (match!=NULL && match->innerch!=NULL) {
+            binderoffset = PACKET_data(pkt) - (const unsigned char *)match->innerch;
+	    } else {
+            SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_PSK,
+                 SSL_R_BAD_EXTENSION);
+            goto err;
+        }
+    } else {
+        binderoffset = PACKET_data(pkt) - (const unsigned char *)s->init_buf->data;
+    }
+#else
     binderoffset = PACKET_data(pkt) - (const unsigned char *)s->init_buf->data;
+#endif
     hashsize = EVP_MD_size(md);
 
     if (!PACKET_get_length_prefixed_2(pkt, &binders)) {
@@ -1340,36 +1369,11 @@ int tls_parse_ctos_psk(SSL *s, PACKET *pkt, unsigned int context, X509 *x,
 #ifndef OPENSSL_NO_ESNI
 
     if (context&SSL_EXT_CLIENT_HELLO_INNER) {
-	
-	    /*
-	     * handling for draft-06 
-	     */
-	    int matchind=-1;
-	    SSL_ESNI *match=NULL; // more as a reminder to self:-)
-	    int i; /* loop counter - android build doesn't like C99;-( */
-	    for (i=0;i!=s->nesni && matchind==-1;i++) {
-	        if (s->esni[i].version==ESNI_DRAFT_06_VERSION && s->esni[i].innerch!=NULL) {
-	            /* found it */
-	            match=&s->esni[i];
-	            matchind=i;
-	            break;
-	        }
-	    }
-	    if (match!=NULL && match->innerch!=NULL) {
-	        /*
-	         * Try process this extension as per what we expect in draft-06
-	         * We're expecting a nonce that >=16 octets long and we'll keep
-	         * the 1st 16 of those for later
-	         */
-	        if (tls_psk_do_binder(s, md, (const unsigned char *)match->innerch,
-	                          match->innerch_len, PACKET_data(&binder), NULL, sess, 0,
-	                          ext) != 1) {
-	            /* SSLfatal() already called */
-	            goto err;
-	        }
-	    } else {
-            SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_PSK,
-                 SSL_R_BAD_EXTENSION);
+
+        if (tls_psk_do_binder(s, md, (const unsigned char *)match->innerch+5,
+                          binderoffset-5, PACKET_data(&binder), NULL, sess, 0,
+                          ext) != 1) {
+            /* SSLfatal() already called */
             goto err;
         }
 

@@ -2095,6 +2095,7 @@ static int tls_early_post_process_client_hello(SSL *s)
 #ifndef OPENSSL_NO_ESNI
     if (s->clienthello_stash) {
         if (s->clienthello_stash->pre_proc_exts) OPENSSL_free(s->clienthello_stash->pre_proc_exts);
+        s->clienthello_stash->pre_proc_exts=NULL;
         OPENSSL_free(s->clienthello_stash);
         s->clienthello_stash = NULL;
     }
@@ -2104,10 +2105,14 @@ static int tls_early_post_process_client_hello(SSL *s)
     sk_SSL_CIPHER_free(ciphers);
     sk_SSL_CIPHER_free(scsvs);
 #ifndef OPENSSL_NO_ESNI
-    if (clienthello && clienthello->pre_proc_exts) OPENSSL_free(clienthello->pre_proc_exts);
+    if (clienthello && clienthello->pre_proc_exts) {
+        OPENSSL_free(clienthello->pre_proc_exts);
+        clienthello->pre_proc_exts=NULL;
+    }
     if (s->clienthello) OPENSSL_free(s->clienthello);
     if (s->clienthello_stash) {
         if (s->clienthello_stash->pre_proc_exts) OPENSSL_free(s->clienthello_stash->pre_proc_exts);
+        s->clienthello_stash->pre_proc_exts=NULL;
         OPENSSL_free(s->clienthello_stash);
         s->clienthello_stash = NULL;
     }

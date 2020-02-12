@@ -234,20 +234,23 @@ tickets, but running using valgrind (the ``-v`` there) makes it all take long
 enough.
 
 Initially, the failure was because I just copied the PSK extensions from the
-inner to outer, and that doesn't verify - and that fail happened before the
-inner was decrypted.  First fix to try was to just not copy the PSK from inner,
-but see if re-calculation worked. It doesn't.  First h/s, client is fine, 2nd
-time, when PSK sent, valgrind sees errors in the server. (There's an invalid
-memory read inside ``tls_psk_do_binder()`` when handling the inner psk
-extension probably due to some missing initialisation.)
+inner to outer, and that won't verify - and that fail happened before the
+inner was decrypted.  First try was to just not copy the PSK from inner,
+but see if re-calculation worked. It didn't, of course, as the outer CH
+was being used to verify the binder in the inner CH. 
+Next try was to only include the PSK in the inner and see what happens.
+That needed changes in the ``tls_parse_ctos_psk()`` code to
+fix the inputs to the binder checking. Then it appeared to work.
 
-Next try is to only include the PSK in the inner and see what happens.
-That needed a change in the ``tls_parse_stoc_psk()`` code, and I'm not
-clear if the correct psk checks are happening for sure, but did remove
-the crash and appear to work.
+Really need to check with early data though to be sure. So will look
+at that next.
 
-So what's the right behaviour? Perhaps:
-- bind the psk to the esni only, if esni was attempted ever
+I didn't do anything with the non-ticket PSK mode yet. That'd
+likely fail if tried.
+
+In the end what's the right behaviour? Perhaps:
+- bind the psk to the esni only, if esni is part of the stored session that
+  goes with the ticket
 - if using a psk whenever esni was ever in the frame, then only put that in the
   inner ch alongside the esni and don't put a psk in the outer ch at all
 
