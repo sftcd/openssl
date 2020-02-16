@@ -16,10 +16,10 @@ rm -f $SESSFILE
 
 if [[ "$1" != "NONE" ]]
 then
-    ./testclient.sh -p $PORT -s $SERVER -H $HIDDEN -c $COVER -P $PUBKEY -S $SESSFILE -v >/dev/null 2>&1
+    ./testclient.sh -p $PORT -s $SERVER -H $HIDDEN -c $COVER -P $PUBKEY -S $SESSFILE -a -v >/dev/null 2>&1
     if [ -f $SESSFILE ]
     then
-        ./testclient.sh -p $PORT -s $SERVER -H $HIDDEN -c $COVER -P $PUBKEY -S $SESSFILE -d
+        ./testclient.sh -p $PORT -s $SERVER -H $HIDDEN -c $COVER -P $PUBKEY -S $SESSFILE -E -a -d
     else
         echo "No $SESSFILE - exiting"
     fi

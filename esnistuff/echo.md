@@ -273,5 +273,12 @@ in what was to me an unexpected way. When I eventually figured that out, I just
 set that before sucessfullly returning from ``tls_parse_ctos_psk()`` when I've
 processed an inner CH.
 
+And with that, a test of early data (now within ``tick.sh``) seems to 
+work fine. For that, you need to start the server allowing early data
+as well, so e.g.:
+
+            $ ./testserver.sh -c example.com -H foo.example.com -d  -v -E -a
+
+
 
 
