@@ -28,6 +28,7 @@ TRIALDECRYPT="no"
 SUPPLIEDPORT=""
 DEFALPNVAL="-alpn h2,h2"
 DOALPN="no"
+TAKEEARLY="no"
 
 SUPPLIEDKEYFILE=""
 SUPPLIEDHIDDEN=""
@@ -49,9 +50,10 @@ echo "Running $0 at $NOW"
 
 function usage()
 {
-    echo "$0 [-acHpDsdnlvhK] - try out encrypted SNI via openssl s_server"
+    echo "$0 [-EacHpDsdnlvhK] - try out encrypted SNI via openssl s_server"
     echo "  -a provide an ALPN value of $DEFALPNVAL"
     echo "  -H means serve that hidden server"
+    echo "  -E means allow 1KB of early data"
     echo "  -D means find esni private/public values in that directory"
     echo "  -d means run s_server in verbose mode"
     echo "  -v means run with valgrind"
@@ -74,7 +76,7 @@ function usage()
 }
 
 # options may be followed by one colon to indicate they have a required argument
-if ! options=$(/usr/bin/getopt -s bash -o ak:BTFc:D:H:p:Kdlvnh -l alpn,keyfile,badkey,trialdecrypt,hardfail,dir:,clear_sni:,hidden:,port:,keygen,debug,stale,valgrind,noesni,help -- "$@")
+if ! options=$(/usr/bin/getopt -s bash -o Eak:BTFc:D:H:p:Kdlvnh -l early,alpn,keyfile,badkey,trialdecrypt,hardfail,dir:,clear_sni:,hidden:,port:,keygen,debug,stale,valgrind,noesni,help -- "$@")
 then
     # something went wrong, getopt will put out an error message for us
     exit 1
@@ -92,6 +94,7 @@ do
         -n|--noesni) NOESNI="yes" ;;
         -c|--clear_sni) SUPPLIEDCLEAR_SNI=$2; shift;;
         -B|--badkey) BADKEY="yes";;
+        -E|--early) TAKEEARLY="yes";;
         -H|--hidden) SUPPLIEDHIDDEN=$2; shift;;
         -D|--dir) SUPPLIEDDIR=$2; shift;;
         -F|--hardfail) HARDFAIL="yes"; shift;;
@@ -242,6 +245,12 @@ then
     alpn=$DEFALPNVAL
 fi
 
+early=""
+if [[ "$TAKEEARLY" == "yes" ]]
+then
+    early=" -early_data -max_early_data 1024 -recv_max_early_data 1024 "
+fi
+
 # force tls13
 force13="-no_ssl3 -no_tls1 -no_tls1_1 -no_tls1_2"
 #force13="-cipher TLS13-AES-128-GCM-SHA256 -no_ssl3 -no_tls1 -no_tls1_1 -no_tls1_2"
@@ -264,8 +273,8 @@ trap cleanup SIGINT
 
 if [[ "$DEBUG" == "yes" ]]
 then
-    echo "Running: $vgcmd $TOP/apps/openssl s_server $dbgstr $keyfile1 $keyfile2 $certsdb $portstr $force13 $esnistr $snicmd $padding $hardfail $trialdecrypt $alpn"
+    echo "Running: $vgcmd $TOP/apps/openssl s_server $dbgstr $keyfile1 $keyfile2 $certsdb $portstr $force13 $esnistr $snicmd $padding $hardfail $trialdecrypt $alpn $early"
 fi
-$vgcmd $TOP/apps/openssl s_server $dbgstr $keyfile1 $keyfile2 $certsdb $portstr $force13 $esnistr $snicmd $padding $hardfail $trialdecrypt $alpn
+$vgcmd $TOP/apps/openssl s_server $dbgstr $keyfile1 $keyfile2 $certsdb $portstr $force13 $esnistr $snicmd $padding $hardfail $trialdecrypt $alpn $early
 
 

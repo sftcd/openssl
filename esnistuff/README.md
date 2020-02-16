@@ -60,6 +60,8 @@ Most recent first...
       (Note: this bullet's change is only needed if using OSSL_TRACE_BEGIN etc.)
     - added ``-a`` option to testclient.sh and testserver.h to allow use of fixed ALPN values
     - played with SUPPLIEDSESSION script fragments a bit to improve it
+    - added an option to testclient and testserver to allow ``early_data`` - use with ``-E -S`` when resuming
+      on client, add ``-E`` to server to enable
 
 - Remerged with upstream (20191219)
 

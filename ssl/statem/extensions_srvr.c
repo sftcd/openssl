@@ -1396,6 +1396,12 @@ int tls_parse_ctos_psk(SSL *s, PACKET *pkt, unsigned int context, X509 *x,
 
     s->ext.tick_identity = id;
 
+#ifndef OPENSSL_NO_ESNI
+    if (context&SSL_EXT_CLIENT_HELLO_INNER) {
+        s->hit=1;
+    }
+#endif
+
     SSL_SESSION_free(s->session);
     s->session = sess;
     return 1;
@@ -3252,7 +3258,10 @@ int tls_parse_ctos_encch(SSL *s, PACKET *pkt, unsigned int context,
              SSL_R_BAD_EXTENSION);
         goto err;
     }
-    // this won't work but let's see what happens
+
+    /* 
+     * We can now swap back the outer CH
+     */
     CLIENTHELLO_MSG *xx=s->clienthello;
     s->clienthello=s->clienthello_stash;
     s->clienthello_stash=xx;

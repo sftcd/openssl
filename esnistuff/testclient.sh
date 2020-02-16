@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#set -x
+# set -x
 
 # to pick up correct .so's - maybe note 
 : ${TOP=$HOME/code/openssl}
@@ -66,6 +66,7 @@ SUPPLIEDESNI=""
 SUPPLIEDCADIR=""
 SUPPLIEDSESSION=""
 SUPPLIEDVERSION=""
+SENDEARLY="no"
 BELAX=""
 HIDDEN="encryptedsni.com"
 PNO="www.cloudflare.com"
@@ -97,6 +98,7 @@ function usage()
     echo "  -l means use stale ESNIKeys"
     echo "  -g means GREASE (only applied with -n)"
 	echo "  -S [file] means save or resume session from <file>"
+	echo "  -E if resuming, then send HTTP req as early data"
     echo "  -L means to not set esni_strict on the command line (be lax)"
     echo "  -n means don't trigger esni at all"
     echo "  -h means print this"
@@ -109,7 +111,7 @@ function usage()
 }
 
 # options may be followed by one colon to indicate they have a required argument
-if ! options=$(/usr/bin/getopt -s bash -o af:gS:c:P:H:p:s:dlvnhLV: -l alpn,filepath:,grease:,session:,clear_sni:,esnipub:,hidden:,port:,server:,debug,stale,valgrind,noesni,help,lax,version: -- "$@")
+if ! options=$(/usr/bin/getopt -s bash -o Eaf:gS:c:P:H:p:s:dlvnhLV: -l early,alpn,filepath:,grease:,session:,clear_sni:,esnipub:,hidden:,port:,server:,debug,stale,valgrind,noesni,help,lax,version: -- "$@")
 then
     # something went wrong, getopt will put out an error message for us
     exit 1
@@ -133,6 +135,7 @@ do
         -r|--realcert) REALCERT="yes" ;;
         -s|--server) SUPPLIEDSERVER=$2; shift;;
         -S|--session) SUPPLIEDSESSION=$2; shift;;
+        -E|--early) SENDEARLY="yes";;
         -v|--valgrind) VG="yes" ;;
         -V|--version) SUPPLIEDVERSION=$2; shift;;
         -a|--alpn) DOALPN="yes";;
@@ -346,7 +349,7 @@ if [[ "$SUPPLIEDSESSION" != "" ]]
 then
 	if [ ! -f $SUPPLIEDSESSION ]
 	then
-		# save so we can resum
+		# save so we can resume
 		session=" -sess_out $SUPPLIEDSESSION"
 	else
 		# resuming
@@ -362,11 +365,45 @@ fi
 
 TMPF=`mktemp /tmp/esnitestXXXX`
 
+# maybe early data?
+earlyfile=""
+if [[ "$SENDEARLY" == "yes" ]]
+then
+    # only makes sense if we're resuming
+    if [[ "$SUPPLIEDSESSION" == "" ]]
+    then
+        echo "It doesn't make sense to try early_data unless you're resuming - exiting"
+        exit 1
+    fi
+    if [  ! -f $SUPPLIEDSESSION ]
+    then
+        echo "It doesn't make sense to try early_data unless you're resuming - exiting"
+        exit 1
+    fi
+    EFTMP=`mktemp /tmp/esniearlyXXXX`
+    echo -e "$httpreq" >$EFTMP
+    early="-early_data $EFTMP "
+fi
+
 if [[ "$DEBUG" == "yes" ]]
 then
-    echo "Running: $TOP/apps/openssl s_client $dbgstr $certsdb $force13 $target $esnistr $snicmd $session $alpn"
+    echo "Running: $TOP/apps/openssl s_client $dbgstr $certsdb $force13 $target $esnistr $snicmd $session $early $alpn"
 fi
-echo -e "$httpreq" | $vgcmd $TOP/apps/openssl s_client $dbgstr $certsdb $force13 $target $esnistr $snicmd $session $alpn >$TMPF 2>&1
+if [[ "$SENDEARLY" == "yes" ]]
+then
+    echo -e "" | $vgcmd $TOP/apps/openssl s_client $dbgstr $certsdb $force13 $target $esnistr $snicmd $session $early $alpn >$TMPF 2>&1
+else
+    echo -e "$httpreq" | $vgcmd $TOP/apps/openssl s_client $dbgstr $certsdb $force13 $target $esnistr $snicmd $session $alpn >$TMPF 2>&1
+fi
+
+if [[ "$SENDEARLY" == "yes" ]]
+then
+    if [ -f $EFTMP ]
+    then
+        #rm -f $EFTMP
+        echo "not deleting $EFTMP"
+    fi
+fi
 
 c200=`grep -c "200 OK" $TMPF`
 csucc=`grep -c "ESNI: success" $TMPF`

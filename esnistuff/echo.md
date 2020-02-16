@@ -209,7 +209,7 @@ of this is done yet, and it might necessitate either biggish changes to the
 ``SSL`` struct or else keeping two of those about, would need to check how many
 fields would be changed if the key shares differ.
 
-## Session resumption or using PSKs
+## Tickets 
 
 I managed to create a PSK fail. To reproduce, run the test client twice:
 
@@ -243,7 +243,8 @@ That needed changes in the ``tls_parse_ctos_psk()`` code to
 fix the inputs to the binder checking. Then it appeared to work.
 
 Really need to check with early data though to be sure. So will look
-at that next.
+at that next. Added a ``-E`` option to ``testclient.sh`` for that.
+Haven't really tested yet though.
 
 I didn't do anything with the non-ticket PSK mode yet. That'd
 likely fail if tried.
@@ -254,6 +255,23 @@ In the end what's the right behaviour? Perhaps:
 - if using a psk whenever esni was ever in the frame, then only put that in the
   inner ch alongside the esni and don't put a psk in the outer ch at all
 
+## Tickets and Early data
+
+Now that PSK decryption seems to work, time to start playing with using
+tickets. To start I added early data handling to ``testclient.sh`` and
+``testserver.sh`` but it didn't work - it did work ok without ESNI. With
+ESNI/ECHO, it fails - the early data is being rejected and we fall back to a
+full h/s.  But it's not just early data - the ticket, while being presented and
+decrypted was not being used to abbreviate the h/s.
+
+To test this, I made a ``tick.sh`` that plays with tickets. If you run
+``./tick.sh NONE`` it'll get and re-use a ticket with no ESNI/ECHO involved.
+Just ``./tick.sh`` tries to do the same using ESNI/ECHO.  That fell back to a
+full h/s until I found that without ESNI there's a bit of looking ahead into
+the extension to detect a PSK in the (now outer) CH - that sets the ``s->hit``
+in what was to me an unexpected way. When I eventually figured that out, I just
+set that before sucessfullly returning from ``tls_parse_ctos_psk()`` when I've
+processed an inner CH.
 
 
 
