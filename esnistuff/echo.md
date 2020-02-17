@@ -164,7 +164,7 @@ application-supplied.
 The table below lists the extensions supported in this build (the list here is
 from ``ssl/ssl_local.h`` where there's an ``enum`` defining these) and notes on
 whether different inner/outer values might make sense. The "implemented" colum
-describes the current implementation ("yes" meaning I did what's in the notes).
+describes the current implementation.
 The full list of extensions it at
 [IANA](https://www.iana.org/assignments/tls-extensiontype-values/tls-extensiontype-values.xhtml#tls-extensiontype-values-1)
 so I guess I should look there too sometime.
@@ -172,33 +172,33 @@ so I guess I should look there too sometime.
 | Extension | Implemented | Notes |
 | --------- | ----------- | ----- |
 | renegotiate | same | not allowed in TLS1.3 - maybe need to test if we tried one in inner CH though |
-| server_name | yes | differ or inner-only, application supplied |
+| server_name | vary | differ or inner-only, application supplied |
 | max_fragment_length | same | same, probably has to be same for split-mode |
-| srp | a bit | same | dunno, defined in RFC 5054, smells like inner-only (it has a user name in it) if this is allowed with TLS1.3 (is it?) 8446 doesn't reference 5054 |
+| srp | same | dunno, defined in RFC 5054, smells like inner-only (it has a user name in it) if this is allowed with TLS1.3 (is it?) 8446 doesn't reference 5054 |
 | ec_point_formats | same | same, not supposed to be used in TLS1.3, but is sent in CH by OpenSSL, hmm |
 | supported_groups | same | same, see notes on key_share |
 | session_ticket | same | not in TLS1.3 CH, even if handler code makes it seem it could be |
 | status_request | same | same, in case of split mode |
 | next_proto_neg | same | differ or inner-only, application supplied, not coded up yet - is it still important? |
-| application_layer_protocol_negotiation | same | differ or inner-only, application supplied |
+| application_layer_protocol_negotiation | vary | differ or inner-only, application supplied |
 | use_srtp | same | same - only SRTP profile (ciphersuite) stuff and SRTP to follow, so no point in varying |
-| encrypt_then_mac | same | same would make no sense to vary, but not sure why it's being sent - TLS1.3 & only AEADs are two reasons to not |
-| signed_certificate_timestamp | same | same, can't see a benefit in varying |
-| extended_master_secret | same | same, shouldn't be in TLS1.3 but openssl sends, no harm though and no reason to vary |
-| signature_algorithms_cert | same | same, in principle varying this could make sense but in practice there's no benefit |
-| post_handshake_auth | same | differ or inner-only, application supplied - be good to hide the fact of client auth (not implemented yet) |
-| signature_algorithms | same | same, in principle varying this could make sense but in practice there's no benefit |
-| supported_versions | same | same, maybe when TLS1.4 exists there'll be a benefit in varying, but not yet |
-| psk_kex_modes | same | same, in principle varying this could make sense but in practice there's no benefit |
-| key_share | same | same seems to work for all cases, but see more below |
-| cookie | same | same, could, but unlikely to, change my mind if/when I think about HRR processing in detail again:-) |
+| encrypt_then_mac | same | would make no sense to vary, but not sure why it's being sent - TLS1.3 & only AEADs are two reasons to not |
+| signed_certificate_timestamp | same | can't see a benefit in varying |
+| extended_master_secret | same | shouldn't be in TLS1.3 but openssl sends, no harm though and no reason to vary |
+| signature_algorithms_cert | same | in principle varying this could make sense but in practice there's no benefit |
+| post_handshake_auth | same | differ or inner-only, application supplied might be good to hide the fact of client auth (not implemented yet) |
+| signature_algorithms | same | in principle varying this could make sense but in practice there's no benefit |
+| supported_versions | same | maybe when TLS1.4 exists there'll be a benefit in varying, but not yet |
+| psk_kex_modes | same | in principle varying this could make sense but in practice there's no benefit |
+| key_share | same | seems to work for all cases, but see more below |
+| cookie | same | could, but unlikely to, change my mind if/when I think about HRR processing in detail again:-) |
 | cryptopro_bug | none | this non-standard extension won't be in any CH (apparently) and has no ctos function |
-| early_data | same | same - noting that the PSK/Ticket is inner-only at present |
-| esni | yes | used as esni-nonce in CH and for nonce in EncryptedExtensions |
-| encch | yes | outer only |
+| early_data | same | noting that the PSK/Ticket is inner-only at present |
+| esni | inner | used as esni-nonce in CH and for nonce in EncryptedExtensions |
+| encch | outer | outer only, I guess obviously:-) |
 | certificate_authorities | same | could vary in principle to hide client info but not so important, for browsers at least |
-| padding | yes | added by ESNI processing to inner, not sure if I might be breaking any apps using the API |
-| psk | yes | inner only once ESNI is in use - see more below |
+| padding | inner | added by ESNI processing to inner, not sure if I might be breaking any apps using the API |
+| psk | inner | inner only once ESNI is in use - see more below |
 
 ## TLS session key share handling with ECHO
 
