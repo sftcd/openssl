@@ -83,8 +83,8 @@ contain another inner CH.
 
 ## Inner CH Padding
 
-Up to draft-06, padding only affected the ESNI extension. Now however, we could
-in addition have (at least) ALPN, but maybe also NPN or PSK identities in inner
+Up to draft-06, padding only affected the ESNI extension. Now however, we can
+in addition have (at least) ALPN, but also PSK identities in inner
 CH with different length values from the outer CH. So we're no longer
 padding the name but the entire inner CH. There are too many variants to
 reasonably determine the exact size of the padded inner CH when creating an
@@ -153,7 +153,7 @@ so I guess I should look there too sometime.
 | supported_groups | same | same, see notes on key_share |
 | session_ticket | same | not in TLS1.3 CH, even if handler code makes it seem it could be |
 | status_request | same | same, in case of split mode |
-| next_proto_neg | same | differ or inner-only, application supplied, not coded up yet - is it still important? |
+| next_proto_neg | same | non-standard, but CH content is empty, so no biggie - not sure how much used now anyway |
 | application_layer_protocol_negotiation | vary-app | differ or inner-only, application supplied |
 | use_srtp | same | same - only SRTP profile (ciphersuite) stuff and SRTP to follow, so no point in varying |
 | encrypt_then_mac | same | would make no sense to vary, but not sure why it's being sent - TLS1.3 & only AEADs are two reasons to not |
