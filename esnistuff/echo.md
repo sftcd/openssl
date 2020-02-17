@@ -4,15 +4,17 @@
 The encch branch has a hacked-together prediction of how ECHO might work.
 These notes are the start of a non-haccky equivalent.
 
-## Overview of Current State (20200206)
+## Overview of Current State (20200217)
 
 On the client side, I messed with ``ssl/statem/statem_clnt.c`` adding a
 ``tls_construct_encrypted_client_hello()`` function, which (for now) repeats
 all of ``tls_construct_client_hello()`` (to construct the inner CH) before
-re-doing the process to make the outer CH. The only inner/outer variance so far
-is the SNI differs, the ESNI extension in the inner has the esni-nonce, a
+re-doing the process to make the outer CH. The inner/outer differences
+are described in the table below, but in the main:
+the SNI and ALPN may differ, the ESNI extension in the inner has the esni-nonce, a
 padding extension may be added (see below) and the
-ENCCH extension is added to the outer. The actual encryption calls are made
+ENCCH extension is added to the outer. If a PSK is being used, that is only
+present in the inner CH. The actual encryption calls are made
 within the ENCCH client to server handler. Otherwise all extension values are
 copied from the inner to outer CH when constructing the latter. 
 
@@ -25,7 +27,7 @@ randomly chosen 0 to 3 additional 16 octet blocks of padding, i.e. between 0
 and 47 padding octets are added. I haven't done anything new with padding the
 server's response messages.
 
-There is no compression in this code.
+There is no compression of the inner or outer CH in this code.
 
 On the server side, the action kicks off inside ``tls_parse_ctos_encch()``
 which decrypts the ENCCH, makes calls to parse the inner CH and then overwrites
@@ -50,9 +52,13 @@ I invented an ESNIKey version 0xff04/``ESNI_DRAFT_06_VERSION`` for this that's
 used to get the pre-draft-06 behaviour, so earlier versions still work as
 before.
 
-A basic test on localhost works fine with no API changes so far.
+A basic test on localhost works fine with no API changes needed. I had to
+add a new API (and ``s_client`` command line argument) to set the ALPN
+for the outer CH to be different from the inner CH.
 
 Many of the error handling cases are not well handled in this build so far.
+Once draft-06 actually pops out, I'll look afresh at how to implement it,
+so may change a lot of the above.
 
 ## Obvious TBDs
 
@@ -155,44 +161,44 @@ Default behaviour is to have the same value in inner and outer.  If inner/outer
 values differ, then the values could be internally generated or
 application-supplied.
 
-The table below lists the extensions supported in this build (the list here is from
-``ssl/ssl_local.h`` where there's an ``enum`` defining these) and notes on
-whether different inner/outer values might make sense. The "considered" column
-indicates whether or not I spent time thining that row, and the "implemented"
-colum describes the current implementation ("yes" meaning I did what's in the
-notes).
-The full list of extensions it at [IANA](https://www.iana.org/assignments/tls-extensiontype-values/tls-extensiontype-values.xhtml#tls-extensiontype-values-1) so I guess I should look there too sometime.
+The table below lists the extensions supported in this build (the list here is
+from ``ssl/ssl_local.h`` where there's an ``enum`` defining these) and notes on
+whether different inner/outer values might make sense. The "implemented" colum
+describes the current implementation ("yes" meaning I did what's in the notes).
+The full list of extensions it at
+[IANA](https://www.iana.org/assignments/tls-extensiontype-values/tls-extensiontype-values.xhtml#tls-extensiontype-values-1)
+so I guess I should look there too sometime.
 
-| Extension | Considered | Implemented | Notes |
-| --------- | ---------- | ----------- | ----- |
-| renegotiate | yes | same | not allowed in TLS1.3 - maybe need to test if we tried one in inner CH though |
-| server_name | yes | yes | differ or inner-only, application supplied |
-| max_fragment_length | yes | same | same, probably has to be same for split-mode |
+| Extension | Implemented | Notes |
+| --------- | ----------- | ----- |
+| renegotiate | same | not allowed in TLS1.3 - maybe need to test if we tried one in inner CH though |
+| server_name | yes | differ or inner-only, application supplied |
+| max_fragment_length | same | same, probably has to be same for split-mode |
 | srp | a bit | same | dunno, defined in RFC 5054, smells like inner-only (it has a user name in it) if this is allowed with TLS1.3 (is it?) 8446 doesn't reference 5054 |
-| ec_point_formats | yes | same | same, not supposed to be used in TLS1.3, but is sent in CH by OpenSSL, hmm |
-| supported_groups | yes | same | same, see notes on key_share |
-| session_ticket | yes | same | not in TLS1.3 CH, even if handler code makes it seem it could be |
-| status_request | yes | same | same, in case of split mode |
-| next_proto_neg | yes | same | differ or inner-only, application supplied, not coded up yet - is it still important? |
-| application_layer_protocol_negotiation | yes | same | differ or inner-only, application supplied |
-| use_srtp | yes | same | same - only SRTP profile (ciphersuite) stuff and SRTP to follow, so no point in varying |
-| encrypt_then_mac | yes | same | same would make no sense to vary, but not sure why it's being sent - TLS1.3 & only AEADs are two reasons to not |
-| signed_certificate_timestamp | yes | same | same, can't see a benefit in varying |
-| extended_master_secret | yes | same | same, shouldn't be in TLS1.3 but openssl sends, no harm though and no reason to vary |
-| signature_algorithms_cert | yes | same | same, in principle varying this could make sense but in practice there's no benefit |
-| post_handshake_auth | yes | same | differ or inner-only, application supplied - be good to hide the fact of client auth (not implemented yet) |
-| signature_algorithms | yes | same | same, in principle varying this could make sense but in practice there's no benefit |
-| supported_versions | yes | same | same, maybe when TLS1.4 exists there'll be a benefit in varying, but not yet |
-| psk_kex_modes | yes | same | same, in principle varying this could make sense but in practice there's no benefit |
-| key_share | yes | same | same seems to work for all cases, but see more below |
-| cookie | yes | same | same, could, but unlikely to, change my mind if/when I think about HRR processing in detail again:-) |
-| cryptopro_bug | yes | none | this non-standard extension won't be in any CH (apparently) and has no ctos function |
-| early_data | no | same | dunno |
-| esni | yes | yes | used as esni-nonce in CH and for nonce in EncryptedExtensions |
-| encch | yes | yes | outer only |
-| certificate_authorities | yes | same | could vary in principle to hide client info but not so important, for browsers at least |
-| padding | yes | yes | added by ESNI processing to inner, not sure if I might be breaking any apps using the API |
-| psk | yes | inner only | see (still tentative) discussion below |
+| ec_point_formats | same | same, not supposed to be used in TLS1.3, but is sent in CH by OpenSSL, hmm |
+| supported_groups | same | same, see notes on key_share |
+| session_ticket | same | not in TLS1.3 CH, even if handler code makes it seem it could be |
+| status_request | same | same, in case of split mode |
+| next_proto_neg | same | differ or inner-only, application supplied, not coded up yet - is it still important? |
+| application_layer_protocol_negotiation | same | differ or inner-only, application supplied |
+| use_srtp | same | same - only SRTP profile (ciphersuite) stuff and SRTP to follow, so no point in varying |
+| encrypt_then_mac | same | same would make no sense to vary, but not sure why it's being sent - TLS1.3 & only AEADs are two reasons to not |
+| signed_certificate_timestamp | same | same, can't see a benefit in varying |
+| extended_master_secret | same | same, shouldn't be in TLS1.3 but openssl sends, no harm though and no reason to vary |
+| signature_algorithms_cert | same | same, in principle varying this could make sense but in practice there's no benefit |
+| post_handshake_auth | same | differ or inner-only, application supplied - be good to hide the fact of client auth (not implemented yet) |
+| signature_algorithms | same | same, in principle varying this could make sense but in practice there's no benefit |
+| supported_versions | same | same, maybe when TLS1.4 exists there'll be a benefit in varying, but not yet |
+| psk_kex_modes | same | same, in principle varying this could make sense but in practice there's no benefit |
+| key_share | same | same seems to work for all cases, but see more below |
+| cookie | same | same, could, but unlikely to, change my mind if/when I think about HRR processing in detail again:-) |
+| cryptopro_bug | none | this non-standard extension won't be in any CH (apparently) and has no ctos function |
+| early_data | same | same - noting that the PSK/Ticket is inner-only at present |
+| esni | yes | used as esni-nonce in CH and for nonce in EncryptedExtensions |
+| encch | yes | outer only |
+| certificate_authorities | same | could vary in principle to hide client info but not so important, for browsers at least |
+| padding | yes | added by ESNI processing to inner, not sure if I might be breaking any apps using the API |
+| psk | yes | inner only once ESNI is in use - see more below |
 
 ## TLS session key share handling with ECHO
 
@@ -209,69 +215,43 @@ of this is done yet, and it might necessitate either biggish changes to the
 ``SSL`` struct or else keeping two of those about, would need to check how many
 fields would be changed if the key shares differ.
 
-## Tickets 
+## PSKs and Tickets 
 
-I managed to create a PSK fail. To reproduce, run the test client twice:
-
-            $ cd $HOME/code/openssl/esnistuff
-            $ # start server
-            $ ./testserver.sh -c example.com -H foo.example.com -d -a
-            $ # get rid of session/tickets
-            $ rm -f lof.sess
-            $ # run client acquiring session
-            $ ./testclient.sh -v -p 8443 -s localhost -H lotsoffood.example.com -c example.com -P esnikeys.pub -d -a -S lof.sess
-            ...lots of output...
-            ESNI: success: clear sni: 'example.com', hidden: 'lotsoffood.example.com'
-            $ # try re-use session
-            $ ./testclient.sh -v -p 8443 -s localhost -H lotsoffood.example.com -c example.com -P esnikeys.pub -d -a -S lof.sess
-            ...lots of output...
-            ESNI: tried but failed
-
-Reminders to self: the ``-S`` option will save the sessions 1st time as the
-named file doesn't exist and try re-use it 2nd time. Also - there's timing
-here, the lof.sess file won't be created if we don't hang about for the
-tickets, but running using valgrind (the ``-v`` there) makes it all take long
-enough.
-
-Initially, the failure was because I just copied the PSK extensions from the
+Initially, PSK handling failed because I just copied the PSK extensions from the
 inner to outer, and that won't verify - and that fail happened before the
 inner was decrypted.  First try was to just not copy the PSK from inner,
 but see if re-calculation worked. It didn't, of course, as the outer CH
 was being used to verify the binder in the inner CH. 
 Next try was to only include the PSK in the inner and see what happens.
 That needed changes in the ``tls_parse_ctos_psk()`` code to
-fix the inputs to the binder checking. Then it appeared to work.
-
-Really need to check with early data though to be sure. So will look
-at that next. Added a ``-E`` option to ``testclient.sh`` for that.
-Haven't really tested yet though.
+fix the inputs to the binder checking. Then PSK decryption worked.
 
 I didn't do anything with the non-ticket PSK mode yet. That'd
 likely fail if tried.
 
 In the end what's the right behaviour? Perhaps:
-- bind the psk to the esni only, if esni is part of the stored session that
+- bind the psk to the inner CH only, if esni is part of the stored session that
   goes with the ticket
 - if using a psk whenever esni was ever in the frame, then only put that in the
   inner ch alongside the esni and don't put a psk in the outer ch at all
 
 ## Tickets and Early data
 
-Now that PSK decryption seems to work, time to start playing with using
+Once PSK decryption worked, it was time to start playing with using
 tickets. To start I added early data handling to ``testclient.sh`` and
 ``testserver.sh`` but it didn't work - it did work ok without ESNI. With
-ESNI/ECHO, it fails - the early data is being rejected and we fall back to a
+ESNI/ECHO, it failed - the early data was being rejected and we fall back to a
 full h/s.  But it's not just early data - the ticket, while being presented and
-decrypted was not being used to abbreviate the h/s.
+decrypted was not in fact being used to abbreviate the h/s.
 
 To test this, I made a ``tick.sh`` that plays with tickets. If you run
 ``./tick.sh NONE`` it'll get and re-use a ticket with no ESNI/ECHO involved.
 Just ``./tick.sh`` tries to do the same using ESNI/ECHO.  That fell back to a
 full h/s until I found that without ESNI there's a bit of looking ahead into
-the extension to detect a PSK in the (now outer) CH - that sets the ``s->hit``
+the PSK extension to detect a PSK in the (now outer) CH - that sets the ``s->hit``
 in what was to me an unexpected way. When I eventually figured that out, I just
-set that before sucessfullly returning from ``tls_parse_ctos_psk()`` when I've
-processed an inner CH.
+set that before returning from ``tls_parse_ctos_psk()`` when I've
+sucessfullly processed an inner CH.
 
 And with that, a test of early data (now within ``tick.sh``) seems to 
 work fine. For that, you need to start the server allowing early data
