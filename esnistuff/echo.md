@@ -81,6 +81,99 @@ somewhere in B's DNS that that name should never be in a cleartext SNI.
 So probably ok to not support any nesting, IOW, the inner CH MUST NOT
 contain another inner CH.
 
+## Inner CH Padding
+
+Up to draft-06, padding only affected the ESNI extension. Now however, we could
+in addition have (at least) ALPN, but maybe also NPN or PSK identities in inner
+CH with different length values from the outer CH. So we're no longer
+padding the name but the entire inner CH. There are too many variants to
+reasonably determine the exact size of the padded inner CH when creating an
+ESNIConfig so we should change that.
+
+Perhaps a good change would be for the ESNIConfig ``padded_length`` to now be
+optional and when present to mean "ensure the inner CH is at least this long
+and if longer is an integer multiple of 16 octets." When
+no ``padded_length`` is specified, or if ``padded_length`` is shorter than
+the inner CH, then I pad as described above, with between 0 and 47 padding
+octets to get to a multiple of 16.
+
+## EncryptedExtensions may now also call for padding
+
+Since we can now send ALPN in inner padded CH, that means we may also need
+record layer padding around EncryptedExtensions, as it's length could vary based on
+the selected ALPN value. The same would be true if/when other values
+present in EncryptedExtensions have lengths dependent on the inner CH.
+Since RFC8446 says that the padding extension can only be present in the CH,
+we need to do that padding via the record layer.
+
+## API issues
+
+There is an
+[API](https://www.openssl.org/docs/manmaster/man3/SSL_CTX_add_custom_ext.html)
+allowing applications to handle "custom" TLS extensions.  That could be 
+extended to allow fine-grained control of inner/outer extension handling. 
+At this point, I'm not sure that offering a fine-grained-control API to
+the application is the right thing, and it's more work, so I've not done
+it:-)
+
+## Could we ever use inner CH without ESNI?
+
+Would there ever be a real use for an inner CH if the SNI in
+the outer CH is the same as the inner? Probably not.
+
+## Extension-specific handling
+
+The standard inner vs. outer behaviour, for any given ClientHello extension,
+could, in principle, be:
+
+1. same - same value in both
+1. same-comp - same value in both, inner compressed
+1. vary-int - different internally generated values in inner/outer
+1. vary-app - different application provided values in inner/outer
+1. outer - extension only present in outer
+1. inner - extension only present in inner
+
+Default behaviour seems to have to be to have the same value in inner and outer.  
+
+The table below lists the extensions supported in this build (the list here is
+from ``ssl/ssl_local.h`` where there's an ``enum`` defining these) and notes on
+whether different inner/outer values might make sense. The "implemented" column
+describes the current implementation in terms of the behaviours above.
+The full list of extensions it at
+[IANA](https://www.iana.org/assignments/tls-extensiontype-values/tls-extensiontype-values.xhtml#tls-extensiontype-values-1)
+so I guess I should look there too sometime.
+
+| Extension | Implemented | Notes |
+| --------- | ----------- | ----- |
+| renegotiate | same | not allowed in TLS1.3 - maybe need to test if we tried one in inner CH though |
+| server_name | vary-app | differ or inner-only, application supplied |
+| max_fragment_length | same | same, probably has to be same for split-mode |
+| srp | same | dunno, defined in RFC 5054, smells like inner-only (it has a user name in it) if this is allowed with TLS1.3 (is it?) 8446 doesn't reference 5054 |
+| ec_point_formats | same | same, not supposed to be used in TLS1.3, but is sent in CH by OpenSSL, hmm |
+| supported_groups | same | same, see notes on key_share |
+| session_ticket | same | not in TLS1.3 CH, even if handler code makes it seem it could be |
+| status_request | same | same, in case of split mode |
+| next_proto_neg | same | differ or inner-only, application supplied, not coded up yet - is it still important? |
+| application_layer_protocol_negotiation | vary-app | differ or inner-only, application supplied |
+| use_srtp | same | same - only SRTP profile (ciphersuite) stuff and SRTP to follow, so no point in varying |
+| encrypt_then_mac | same | would make no sense to vary, but not sure why it's being sent - TLS1.3 & only AEADs are two reasons to not |
+| signed_certificate_timestamp | same | can't see a benefit in varying |
+| extended_master_secret | same | shouldn't be in TLS1.3 but openssl sends, no harm though and no reason to vary |
+| signature_algorithms_cert | same | in principle varying this could make sense but in practice there's no benefit |
+| post_handshake_auth | same | differ or inner-only, application supplied might be good to hide the fact of client auth (not implemented yet) |
+| signature_algorithms | same | in principle varying this could make sense but in practice there's no benefit |
+| supported_versions | same | maybe when TLS1.4 exists there'll be a benefit in varying, but not yet |
+| psk_kex_modes | same | in principle varying this could make sense but in practice there's no benefit |
+| key_share | same | seems to work for all cases, but see more below |
+| cookie | same | could, but unlikely to, change my mind if/when I think about HRR processing in detail again:-) |
+| cryptopro_bug | none | this non-standard extension won't be in any CH (apparently) and has no ctos function |
+| early_data | same | noting that the PSK/Ticket is inner-only at present |
+| esni | inner | used as esni-nonce in CH and for nonce in EncryptedExtensions |
+| encch | outer | outer only, I guess obviously:-) |
+| certificate_authorities | same | could vary in principle to hide client info but not so important, for browsers at least |
+| padding | inner | added by ESNI processing to inner, not sure if I might be breaking any apps using the API |
+| psk | inner | inner only once ESNI is in use - see more below |
+
 ## ALPN handling
 
 It seems desirable to be able to send different ALPN values in the inner and
@@ -101,104 +194,6 @@ For the APIs, I added:
 ...where those need a prior call to ``next_protos_parse()`` (as with the
 current functions without the ``_outer_``) and where they'll fail unless ESNI
 has already been setup and with a ``ESNI_DRAFT_06_VERSION`` key. 
-
-## Inner CH Padding
-
-Up to draft-06, padding only affected the ESNI extension. Now however, we could
-in addition have (at least) ALPN, but maybe also NPN or PSK identities in inner
-CH with different length values from the outer CH. So we're no longer
-padding the name but the entire inner CH. There are too many variants to
-reasonably determine the exact size of the padded inner CH when creating an
-ESNIConfig so we should change that.
-
-Perhaps a good change would be for the ESNIConfig ``padded_length`` to now be
-optional and when present to mean "ensure the inner CH is at least this long
-and if longer is an integer multiple of 16 octets." When
-no ``padded_length`` is specified, or if ``padded_length`` is shorter than
-the inner CH, then I pad as described above, with between 0 and 47 padding
-octets to get to a multiple of 16.
-
-## EncryptedExtensions now also call for padding
-
-Since we can now send ALPN in inner padded CH, that means we may also need
-record layer padding around EncryptedExtensions, as it's length varies based on
-the selected ALPN value. The same would be true if/when we have other values
-present in EncryptedExtensions that depend on lengths found in the inner CH.
-Since RFC8446 says that the padding extension can only be present in the CH,
-we need to do that padding via the record layer.
-
-## API issues
-
-There is an
-[API](https://www.openssl.org/docs/manmaster/man3/SSL_CTX_add_custom_ext.html)
-allowing applications to handle "custom" TLS extensions.  That could be bent
-into shape to do what we want but more will be needed to provide fuller control
-over what goes in the inner and outer CH's.
-
-At this point, I'm not sure that offering a fine-grained-control API to
-the application is the right thing.
-
-## Could we ever use inner CH without ESNI?
-
-Would there ever be a real use for an inner CH if the SNI in
-the outer CH is the same as the inner? Probably not.
-
-## Extension-specific handling
-
-If a non-standard behaviour were needed then the "custom" extension API can be
-used.  What we want though are standard behaviours for standard extensions.
-The standard inner vs. outer behaviour, for any given ClientHello extension,
-could be:
-
-1. same value in both
-1. same value in both, inner compressed
-1. unrelated internally generated values in inner/outer
-1. unrelated application provided values in inner/outer
-1. extension only present in outer
-1. extension only present in inner
-
-Default behaviour is to have the same value in inner and outer.  If inner/outer
-values differ, then the values could be internally generated or
-application-supplied.
-
-The table below lists the extensions supported in this build (the list here is
-from ``ssl/ssl_local.h`` where there's an ``enum`` defining these) and notes on
-whether different inner/outer values might make sense. The "implemented" colum
-describes the current implementation.
-The full list of extensions it at
-[IANA](https://www.iana.org/assignments/tls-extensiontype-values/tls-extensiontype-values.xhtml#tls-extensiontype-values-1)
-so I guess I should look there too sometime.
-
-| Extension | Implemented | Notes |
-| --------- | ----------- | ----- |
-| renegotiate | same | not allowed in TLS1.3 - maybe need to test if we tried one in inner CH though |
-| server_name | vary | differ or inner-only, application supplied |
-| max_fragment_length | same | same, probably has to be same for split-mode |
-| srp | same | dunno, defined in RFC 5054, smells like inner-only (it has a user name in it) if this is allowed with TLS1.3 (is it?) 8446 doesn't reference 5054 |
-| ec_point_formats | same | same, not supposed to be used in TLS1.3, but is sent in CH by OpenSSL, hmm |
-| supported_groups | same | same, see notes on key_share |
-| session_ticket | same | not in TLS1.3 CH, even if handler code makes it seem it could be |
-| status_request | same | same, in case of split mode |
-| next_proto_neg | same | differ or inner-only, application supplied, not coded up yet - is it still important? |
-| application_layer_protocol_negotiation | vary | differ or inner-only, application supplied |
-| use_srtp | same | same - only SRTP profile (ciphersuite) stuff and SRTP to follow, so no point in varying |
-| encrypt_then_mac | same | would make no sense to vary, but not sure why it's being sent - TLS1.3 & only AEADs are two reasons to not |
-| signed_certificate_timestamp | same | can't see a benefit in varying |
-| extended_master_secret | same | shouldn't be in TLS1.3 but openssl sends, no harm though and no reason to vary |
-| signature_algorithms_cert | same | in principle varying this could make sense but in practice there's no benefit |
-| post_handshake_auth | same | differ or inner-only, application supplied might be good to hide the fact of client auth (not implemented yet) |
-| signature_algorithms | same | in principle varying this could make sense but in practice there's no benefit |
-| supported_versions | same | maybe when TLS1.4 exists there'll be a benefit in varying, but not yet |
-| psk_kex_modes | same | in principle varying this could make sense but in practice there's no benefit |
-| key_share | same | seems to work for all cases, but see more below |
-| cookie | same | could, but unlikely to, change my mind if/when I think about HRR processing in detail again:-) |
-| cryptopro_bug | none | this non-standard extension won't be in any CH (apparently) and has no ctos function |
-| early_data | same | noting that the PSK/Ticket is inner-only at present |
-| esni | inner | used as esni-nonce in CH and for nonce in EncryptedExtensions |
-| encch | outer | outer only, I guess obviously:-) |
-| certificate_authorities | same | could vary in principle to hide client info but not so important, for browsers at least |
-| padding | inner | added by ESNI processing to inner, not sure if I might be breaking any apps using the API |
-| psk | inner | inner only once ESNI is in use - see more below |
 
 ## TLS session key share handling with ECHO
 
