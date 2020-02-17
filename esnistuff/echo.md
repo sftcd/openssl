@@ -226,14 +226,13 @@ Next try was to only include the PSK in the inner and see what happens.
 That needed changes in the ``tls_parse_ctos_psk()`` code to
 fix the inputs to the binder checking. Then PSK decryption worked.
 
-I didn't do anything with the non-ticket PSK mode yet. That'd
-likely fail if tried.
+In the end what's the right behaviour? Perhaps: if using a PSK whenever ESNI
+was ever in the frame, then only put that in the inner CH alongside the ESNI
+and don't put a PSK in the outer ch at all. The PSK binders will then verify
+against the inner CH and not the outer.
 
-In the end what's the right behaviour? Perhaps:
-- bind the psk to the inner CH only, if esni is part of the stored session that
-  goes with the ticket
-- if using a psk whenever esni was ever in the frame, then only put that in the
-  inner ch alongside the esni and don't put a psk in the outer ch at all
+I didn't do anything with the non-ticket PSK mode yet. That'd likely fail if
+tried.
 
 ## Tickets and Early data
 
@@ -251,7 +250,7 @@ full h/s until I found that without ESNI there's a bit of looking ahead into
 the PSK extension to detect a PSK in the (now outer) CH - that sets the ``s->hit``
 in what was to me an unexpected way. When I eventually figured that out, I just
 set that before returning from ``tls_parse_ctos_psk()`` when I've
-sucessfullly processed an inner CH.
+sucessfullly processed a PSK from an inner CH.
 
 And with that, a test of early data (now within ``tick.sh``) seems to 
 work fine. For that, you need to start the server allowing early data
