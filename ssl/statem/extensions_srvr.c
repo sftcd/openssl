@@ -674,8 +674,7 @@ int tls_parse_ctos_key_share(SSL *s, PACKET *pkt, unsigned int context, X509 *x,
 
 #ifndef OPENSSL_NO_ESNI
     /*
-     * We want to recored the encoded key share(s) for later use
-     * as AAD in ESNI
+     * Record the encoded key share(s) for later use as AAD in ESNI
      */
     const unsigned char *kse=PACKET_data(pkt);
     const size_t kse_len=PACKET_remaining(pkt);
@@ -3463,9 +3462,7 @@ err:
 }
 
 /**
- * @brief If ESNI all went well, and we have a nonce then send that back
- *
- * Just do the biz... :-)
+ * @brief this one's a NOOP for now
  */
 EXT_RETURN tls_construct_stoc_encch(SSL *s, WPACKET *pkt,
                                           unsigned int context, X509 *x,

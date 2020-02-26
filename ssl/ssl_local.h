@@ -1526,6 +1526,11 @@ struct ssl_st {
          */
         size_t kse_len;
         unsigned char *kse;
+        /*
+         * a place to stash the inner CH SSL* for a while
+         */
+        SSL* inner_s;
+
 #endif
         /* certificate status request info */
         /* Status type or -1 if no status type */

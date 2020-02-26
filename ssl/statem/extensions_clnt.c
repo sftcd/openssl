@@ -998,7 +998,12 @@ EXT_RETURN tls_construct_ctos_key_share(SSL *s, WPACKET *pkt,
                                         size_t chainidx)
 {
 #ifndef OPENSSL_NO_ESNI
+    /*
+     * Maybe temporarily... don't copy to outer, but generate a new key share
+     * esni_inner2outer_dup has nulled out the s2.tmp.pkey so we hope to get
+     * a new one...
     IOSAME
+     */ 
 #endif
 #ifndef OPENSSL_NO_TLS1_3
     size_t i, num_groups = 0;
@@ -1052,6 +1057,14 @@ EXT_RETURN tls_construct_ctos_key_share(SSL *s, WPACKET *pkt,
                  SSL_R_NO_SUITABLE_KEY_SHARE);
         return EXT_RETURN_FAIL;
     }
+
+#ifndef OPENSSL_NO_ESNI
+    if (!context_is_inner(context)) {
+        if (s->s3.tmp.pkey) {
+            s->s3.tmp.pkey=NULL;
+        }
+    }
+#endif
 
     if (!add_key_share(s, pkt, curve_id)) {
         /* SSLfatal() already called */
@@ -2263,6 +2276,18 @@ int tls_parse_stoc_key_share(SSL *s, PACKET *pkt, unsigned int context, X509 *x,
     PACKET encoded_pt;
     EVP_PKEY *ckey = s->s3.tmp.pkey, *skey = NULL;
 
+#ifndef OPENSSL_NO_ESNI
+    /*
+     * We we did set an inner key that's different from outer, try that
+     * TODO:(ESNI)make this work either way etc.
+     * For now, we only succeed with inner
+     */
+    SSL *inner=s->ext.inner_s;
+    if (context_is_inner(context) && inner!=NULL) {
+        ckey=inner->s3.tmp.pkey;
+    }
+#endif
+
     /* Sanity check */
     if (ckey == NULL || s->s3.peer_tmp != NULL) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PARSE_STOC_KEY_SHARE,
@@ -2352,6 +2377,18 @@ int tls_parse_stoc_key_share(SSL *s, PACKET *pkt, unsigned int context, X509 *x,
         return 0;
     }
     s->s3.peer_tmp = skey;
+#ifndef OPENSSL_NO_ESNI
+    /*
+     * This may be wrong but we're leaking one of these, so we'll try zap
+     * here
+     */
+    EVP_PKEY_free(ckey);
+    if (context_is_inner(context) && inner!=NULL) {
+        inner->s3.tmp.pkey=NULL;
+    } else { // outer
+        s->s3.tmp.pkey=NULL;
+    }
+#endif
 #endif
 
     return 1;

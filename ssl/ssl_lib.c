@@ -1277,6 +1277,9 @@ void SSL_free(SSL *s)
     OPENSSL_free(s->ext.encservername);
     OPENSSL_free(s->ext.clear_sni);
     OPENSSL_free(s->ext.public_name);
+    if (s->ext.inner_s!=NULL) {
+        OPENSSL_free(s->ext.inner_s);
+    }
 #endif
 
     CRYPTO_THREAD_lock_free(s->lock);

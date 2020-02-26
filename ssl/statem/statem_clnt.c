@@ -1306,6 +1306,32 @@ int tls_construct_client_hello(SSL *s, WPACKET *pkt)
 #ifndef OPENSSL_NO_ESNI
 
 /*
+ * A stab at a "special" copy of the SSL struct
+ * from inner to outer, so we can play with 
+ * changes
+ */
+static int esni_inner2outer_dup(SSL *in)
+{
+    if (!in) return(0);
+    SSL *new=OPENSSL_malloc(sizeof(SSL));
+    if (!new) return(0);
+    *new=*in; // struct copy 
+    in->ext.inner_s=new;
+    /*
+     * Now modify outer to taste...
+     */
+    if (in->s3.tmp.pkey) {
+        /*
+         * We'll start with just the TLS key_share - think a new
+         * one may just get made up on the fly, we'll see...
+         */
+        in->s3.tmp.pkey=NULL;
+    }
+
+    return(1);
+}
+
+/*
  * A guess at what ESNI draft-06 might call for...
  * 
  * This code is copied from tls_construct_client_hello
@@ -1621,6 +1647,15 @@ int tls_construct_encrypted_client_hello(SSL *s, WPACKET *pkt)
      */
     pkt=outer;
 
+    /*
+     * Now go for the mega-swapperoo
+     */
+    if (esni_inner2outer_dup(s)!=1) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_ENCRYPTED_CLIENT_HELLO,
+                 ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+
     /*-
      * version indicates the negotiated version: for example from
      * an SSLv2/v3 compatible client hello). The client_version
@@ -1729,7 +1764,6 @@ int tls_construct_encrypted_client_hello(SSL *s, WPACKET *pkt)
     }
 
     /* TLS extensions for outer CH*/
-    printf("Doing outer exts\n");
     if (!tls_construct_extensions(s, pkt, SSL_EXT_CLIENT_HELLO | SSL_EXT_CLIENT_HELLO_OUTER, NULL, 0)) {
         /* SSLfatal() already called */
         goto err;

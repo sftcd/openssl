@@ -4,7 +4,7 @@
 The encch branch has a hacked-together prediction of how ECHO might work.
 These notes are the start of a non-haccky equivalent.
 
-## Overview of Current State (20200217)
+## Overview of Current State (20200226)
 
 On the client side, I messed with ``ssl/statem/statem_clnt.c`` adding a
 ``tls_construct_encrypted_client_hello()`` function, which (for now) repeats
@@ -59,6 +59,11 @@ for the outer CH to be different from the inner CH.
 Many of the error handling cases are not well handled in this build so far.
 Once draft-06 actually pops out, I'll look afresh at how to implement it,
 so may change a lot of the above.
+
+I've started to see what'd be needed to allow/support clients that 
+vary the inner and outer SH some more. The main reason is that even
+if such changes might be naff or useless, someone might do it, so
+the server-side needs to handle it. Notes on that are at the end.
 
 ## Obvious TBDs
 
@@ -149,10 +154,10 @@ so I guess I should look there too sometime.
 | server_name | vary-app | differ or inner-only, application supplied |
 | max_fragment_length | same | same, probably has to be same for split-mode |
 | srp | same | dunno, defined in RFC 5054, smells like inner-only (it has a user name in it) if this is allowed with TLS1.3 (is it?) 8446 doesn't reference 5054 |
-| ec_point_formats | same | same, not supposed to be used in TLS1.3, but is sent in CH by OpenSSL, hmm |
-| supported_groups | same | same, see notes on key_share |
+| ec_point_formats | same | not supposed to be used in TLS1.3, but is sent in CH by OpenSSL, hmm |
+| supported_groups | same | see notes on key_share |
 | session_ticket | same | not in TLS1.3 CH, even if handler code makes it seem it could be |
-| status_request | same | same, in case of split mode |
+| status_request | same | in case of split mode |
 | next_proto_neg | same | non-standard, but CH content is empty, so no biggie - not sure how much used now anyway |
 | application_layer_protocol_negotiation | vary-app | differ or inner-only, application supplied |
 | use_srtp | same | same - only SRTP profile (ciphersuite) stuff and SRTP to follow, so no point in varying |
@@ -253,6 +258,24 @@ as well, so e.g.:
 
             $ ./testserver.sh -c example.com -H foo.example.com -d  -v -E -a
 
+## Testing variations between inner and outer CH
 
+As the current tunnel PR says that the inner and outer SH MAY differ
+however the client likes, I've started to look at what'd be required
+to support that.
+
+First version of that allows the TLS key share in the inner and outer
+to differ. To do that I've added an ``SSL *`` pointer within an
+``SSL *`` as ``s->ext.inner_s`` that points to a newly alloc'd 
+(but shallow) copy of the ``SSL *`` struct, at the point where the
+inner CH has been encoded, but before it's encrypted. That's done
+via ``esni_inner2outer_dup()`` in ``ssl/statem/statem_clnt.c``.
+That just has to NULL the pointer to the relevant ``EVP_PKEY*``
+(in ``s->s3.tmp.pkey``) and a new one will be made when the
+TLS extension handler is called for the outer CH. Seems to
+sorta-work, but not yet clear if the fallback to the outer stuff
+would work (probably not).
+I also no longer just copy the key share extension value from
+inner to outer.
 
 
