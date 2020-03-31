@@ -15,7 +15,7 @@
 #include <openssl/core_names.h>
 #include "crypto/ecx.h"
 #include "internal/nelem.h"
-#include "internal/param_build.h"
+#include "openssl/param_build.h"
 #include "crypto/evp.h"          /* For the internal API */
 #include "testutil.h"
 
@@ -262,7 +262,7 @@ static int test_fromdata_rsa(void)
 {
     int ret = 0;
     EVP_PKEY_CTX *ctx = NULL, *key_ctx = NULL;
-    EVP_PKEY *pk = NULL;
+    EVP_PKEY *pk = NULL, *copy_pk = NULL;
     /*
      * 32-bit RSA key, extracted from this command,
      * executed with OpenSSL 1.0.2:
@@ -310,11 +310,17 @@ static int test_fromdata_rsa(void)
         || !TEST_true(EVP_PKEY_pairwise_check(key_ctx)))
         goto err;
 
+    /* EVP_PKEY_copy_parameters() should fail for RSA */
+    if (!TEST_ptr(copy_pk = EVP_PKEY_new())
+        || !TEST_false(EVP_PKEY_copy_parameters(copy_pk, pk)))
+        goto err;
+
     ret = test_print_key_using_pem("RSA", pk)
           && test_print_key_using_serializer("RSA", pk);
 
  err:
     EVP_PKEY_free(pk);
+    EVP_PKEY_free(copy_pk);
     EVP_PKEY_CTX_free(key_ctx);
     EVP_PKEY_CTX_free(ctx);
 
@@ -332,7 +338,7 @@ static int test_fromdata_dh(void)
 {
     int ret = 0;
     EVP_PKEY_CTX *ctx = NULL, *key_ctx = NULL;
-    EVP_PKEY *pk = NULL;
+    EVP_PKEY *pk = NULL, *copy_pk = NULL;
     /*
      * 32-bit DH key, extracted from this command,
      * executed with OpenSSL 1.0.2:
@@ -364,6 +370,10 @@ static int test_fromdata_dh(void)
         || !TEST_int_eq(EVP_PKEY_size(pk), 4))
         goto err;
 
+    if (!TEST_ptr(copy_pk = EVP_PKEY_new())
+        || !TEST_true(EVP_PKEY_copy_parameters(copy_pk, pk)))
+        goto err;
+
     ret = test_print_key_using_pem("DH", pk)
           && test_print_key_using_serializer("DH", pk);
 
@@ -378,6 +388,7 @@ static int test_fromdata_dh(void)
 
  err:
     EVP_PKEY_free(pk);
+    EVP_PKEY_free(copy_pk);
     EVP_PKEY_CTX_free(ctx);
     EVP_PKEY_CTX_free(key_ctx);
 
@@ -399,7 +410,7 @@ static int test_fromdata_ecx(int tst)
 {
     int ret = 0;
     EVP_PKEY_CTX *ctx = NULL;
-    EVP_PKEY *pk = NULL;
+    EVP_PKEY *pk = NULL, *copy_pk = NULL;
     const char *alg = NULL;
 
     /* ED448_KEYLEN > X448_KEYLEN > X25519_KEYLEN == ED25519_KEYLEN */
@@ -565,11 +576,16 @@ static int test_fromdata_ecx(int tst)
         || !TEST_int_eq(EVP_PKEY_size(pk), size))
         goto err;
 
+    if (!TEST_ptr(copy_pk = EVP_PKEY_new())
+        || !TEST_false(EVP_PKEY_copy_parameters(copy_pk, pk)))
+        goto err;
+
     ret = test_print_key_using_pem(alg, pk)
           && test_print_key_using_serializer(alg, pk);
 
 err:
     EVP_PKEY_free(pk);
+    EVP_PKEY_free(copy_pk);
     EVP_PKEY_CTX_free(ctx);
 
     return ret;
@@ -579,8 +595,8 @@ static int test_fromdata_ec(void)
 {
     int ret = 0;
     EVP_PKEY_CTX *ctx = NULL;
-    EVP_PKEY *pk = NULL;
-    OSSL_PARAM_BLD bld;
+    EVP_PKEY *pk = NULL, *copy_pk = NULL;
+    OSSL_PARAM_BLD *bld = OSSL_PARAM_BLD_new();
     BIGNUM *ec_priv_bn = NULL;
     OSSL_PARAM *fromdata_params = NULL;
     const char *alg = "EC";
@@ -602,22 +618,22 @@ static int test_fromdata_ec(void)
         0xdc, 0x4b, 0x4d, 0x35, 0x43, 0xe1, 0x1b, 0xad
     };
 
-    ossl_param_bld_init(&bld);
-
+    if (!TEST_ptr(bld))
+        goto err;
     if (!TEST_ptr(ec_priv_bn = BN_bin2bn(ec_priv_keydata,
                                          sizeof(ec_priv_keydata), NULL)))
         goto err;
 
-    if (ossl_param_bld_push_utf8_string(&bld, OSSL_PKEY_PARAM_EC_NAME,
+    if (OSSL_PARAM_BLD_push_utf8_string(bld, OSSL_PKEY_PARAM_EC_NAME,
                                         "prime256v1", 0) <= 0)
         goto err;
-    if (ossl_param_bld_push_octet_string(&bld, OSSL_PKEY_PARAM_PUB_KEY,
+    if (OSSL_PARAM_BLD_push_octet_string(bld, OSSL_PKEY_PARAM_PUB_KEY,
                                          ec_pub_keydata,
                                          sizeof(ec_pub_keydata)) <= 0)
         goto err;
-    if (ossl_param_bld_push_BN(&bld, OSSL_PKEY_PARAM_PRIV_KEY, ec_priv_bn) <= 0)
+    if (OSSL_PARAM_BLD_push_BN(bld, OSSL_PKEY_PARAM_PRIV_KEY, ec_priv_bn) <= 0)
         goto err;
-    if (!TEST_ptr(fromdata_params = ossl_param_bld_to_param(&bld)))
+    if (!TEST_ptr(fromdata_params = OSSL_PARAM_BLD_to_param(bld)))
         goto err;
     ctx = EVP_PKEY_CTX_new_from_name(NULL, alg, NULL);
     if (!TEST_ptr(ctx))
@@ -630,12 +646,18 @@ static int test_fromdata_ec(void)
         || !TEST_int_eq(EVP_PKEY_size(pk), 2 + 35 * 2))
         goto err;
 
+    if (!TEST_ptr(copy_pk = EVP_PKEY_new())
+        || !TEST_true(EVP_PKEY_copy_parameters(copy_pk, pk)))
+        goto err;
+
     ret = test_print_key_using_pem(alg, pk)
           && test_print_key_using_serializer(alg, pk);
 err:
     BN_free(ec_priv_bn);
-    ossl_param_bld_free(fromdata_params);
+    OSSL_PARAM_BLD_free_params(fromdata_params);
+    OSSL_PARAM_BLD_free(bld);
     EVP_PKEY_free(pk);
+    EVP_PKEY_free(copy_pk);
     EVP_PKEY_CTX_free(ctx);
     return ret;
 }

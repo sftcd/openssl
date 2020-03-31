@@ -30,21 +30,8 @@ static int gen_init(EVP_PKEY_CTX *ctx, int operation)
     evp_pkey_ctx_free_old_ops(ctx);
     ctx->operation = operation;
 
-    if (ctx->engine != NULL || ctx->keytype == NULL)
+    if (ctx->keymgmt == NULL || ctx->keymgmt->gen_init == NULL)
         goto legacy;
-
-    if (ctx->keymgmt == NULL) {
-        ctx->keymgmt =
-            EVP_KEYMGMT_fetch(ctx->libctx, ctx->keytype, ctx->propquery);
-        if (ctx->keymgmt == NULL
-            || ctx->keymgmt->gen_init == NULL) {
-            EVP_KEYMGMT_free(ctx->keymgmt);
-            ctx->keymgmt = NULL;
-            goto legacy;
-        }
-    }
-    if (ctx->keymgmt->gen_init == NULL)
-        goto not_supported;
 
     switch (operation) {
     case EVP_PKEY_OP_PARAMGEN:
@@ -156,7 +143,7 @@ int EVP_PKEY_gen(EVP_PKEY_CTX *ctx, EVP_PKEY **ppkey)
         return -1;
     }
 
-    if (ctx->keymgmt == NULL)
+    if (ctx->keymgmt == NULL || ctx->op.keymgmt.genctx == NULL)
         goto legacy;
 
     ret = 1;
@@ -193,6 +180,8 @@ int EVP_PKEY_gen(EVP_PKEY_CTX *ctx, EVP_PKEY **ppkey)
 #ifdef FIPS_MODE
     goto not_supported;
 #else
+    if (ctx->pkey && !evp_pkey_downgrade(ctx->pkey))
+        goto not_accessible;
     switch (ctx->operation) {
     case EVP_PKEY_OP_PARAMGEN:
         ret = ctx->pmeth->paramgen(ctx, *ppkey);
@@ -221,6 +210,12 @@ int EVP_PKEY_gen(EVP_PKEY_CTX *ctx, EVP_PKEY **ppkey)
     ERR_raise(ERR_LIB_EVP, EVP_R_OPERATON_NOT_INITIALIZED);
     ret = -1;
     goto end;
+#ifndef FIPS_MODE
+ not_accessible:
+    ERR_raise(ERR_LIB_EVP, EVP_R_INACCESSIBLE_DOMAIN_PARAMETERS);
+    ret = -1;
+    goto end;
+#endif
 }
 
 int EVP_PKEY_paramgen(EVP_PKEY_CTX *ctx, EVP_PKEY **ppkey)
@@ -309,13 +304,10 @@ static int fromdata_init(EVP_PKEY_CTX *ctx, int operation)
         goto not_supported;
 
     evp_pkey_ctx_free_old_ops(ctx);
-    ctx->operation = operation;
-    if (ctx->keymgmt == NULL)
-        ctx->keymgmt = EVP_KEYMGMT_fetch(ctx->libctx, ctx->keytype,
-                                         ctx->propquery);
     if (ctx->keymgmt == NULL)
         goto not_supported;
 
+    ctx->operation = operation;
     return 1;
 
  not_supported:

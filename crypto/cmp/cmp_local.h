@@ -28,11 +28,11 @@
  * this structure is used to store the context for CMP sessions
  */
 struct ossl_cmp_ctx_st {
-    OSSL_cmp_log_cb_t log_cb; /* log callback for error/debug/etc. output */
+    OSSL_CMP_log_cb_t log_cb; /* log callback for error/debug/etc. output */
     OSSL_CMP_severity log_verbosity; /* level of verbosity of log output */
 
     /* message transfer */
-    OSSL_cmp_transfer_cb_t transfer_cb; /* default: OSSL_CMP_MSG_http_perform */
+    OSSL_CMP_transfer_cb_t transfer_cb; /* default: OSSL_CMP_MSG_http_perform */
     void *transfer_cb_arg; /* allows to store optional argument to cb */
     /* HTTP-based transfer */
     char *serverPath;
@@ -40,8 +40,8 @@ struct ossl_cmp_ctx_st {
     int serverPort;
     char *proxyName;
     int proxyPort;
-    int msgtimeout; /* max seconds to wait for each CMP message round trip */
-    int totaltimeout; /* maximum number seconds an enrollment may take, incl. */
+    int msg_timeout; /* max seconds to wait for each CMP message round trip */
+    int total_timeout; /* max number of seconds an enrollment may take, incl. */
     /* attempts polling for a response if a 'waiting' PKIStatus is received */
     time_t end_time; /* session start time + totaltimeout */
     OSSL_HTTP_bio_cb_t http_cb;
@@ -56,7 +56,7 @@ struct ossl_cmp_ctx_st {
     int unprotectedErrors;
     X509 *srvCert; /* certificate used to identify the server */
     X509 *validatedSrvCert; /* caches any already validated server cert */
-    X509_NAME *expected_sender; /* expected sender in pkiheader of response */
+    X509_NAME *expected_sender; /* expected sender in header of response */
     X509_STORE *trusted; /* trust store maybe w CRLs and cert verify callback */
     STACK_OF(X509) *untrusted_certs; /* untrusted (intermediate) certs */
     int ignore_keyusage; /* ignore key usage entry when validating certs */
@@ -95,7 +95,7 @@ struct ossl_cmp_ctx_st {
     int newPkey_priv; /* flag indicating if newPkey contains private key */
     X509_NAME *issuer; /* issuer name to used in cert template */
     int days; /* Number of days new certificates are asked to be valid for */
-    X509_NAME *subjectName; /* subject name to be used in the cert template */
+    X509_NAME *subjectName; /* subject name to be used in cert template */
     STACK_OF(GENERAL_NAME) *subjectAltNames; /* to add to the cert template */
     int SubjectAltName_nodefault;
     int setSubjectAltNameCritical;
@@ -122,7 +122,7 @@ struct ossl_cmp_ctx_st {
     STACK_OF(X509) *extraCertsIn; /* extraCerts received from server */
 
     /* certificate confirmation */
-    OSSL_cmp_certConf_cb_t certConf_cb; /* callback for app checking new cert */
+    OSSL_CMP_certConf_cb_t certConf_cb; /* callback for app checking new cert */
     void *certConf_cb_arg; /* allows to store an argument individual to cb */
 } /* OSSL_CMP_CTX */;
 
@@ -911,5 +911,11 @@ typedef int (*ossl_cmp_allow_unprotected_cb_t)(const OSSL_CMP_CTX *ctx,
 int ossl_cmp_msg_check_received(OSSL_CMP_CTX *ctx, const OSSL_CMP_MSG *msg,
                                 ossl_cmp_allow_unprotected_cb_t cb, int cb_arg);
 int ossl_cmp_verify_popo(const OSSL_CMP_MSG *msg, int accept_RAVerified);
+
+/* from cmp_client.c */
+int ossl_cmp_exchange_certConf(OSSL_CMP_CTX *ctx, int fail_info,
+                               const char *txt);
+int ossl_cmp_exchange_error(OSSL_CMP_CTX *ctx, int status, int fail_info,
+                            const char *txt, int errorCode, const char *details);
 
 #endif /* !defined(OSSL_CRYPTO_CMP_LOCAL_H) */

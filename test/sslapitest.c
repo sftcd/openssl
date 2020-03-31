@@ -1278,7 +1278,7 @@ static int ocsp_server_cb(SSL *s, void *arg)
             return SSL_TLSEXT_ERR_ALERT_FATAL;
 
         id = sk_OCSP_RESPID_value(ids, 0);
-        if (id == NULL || !OCSP_RESPID_match(id, ocspcert))
+        if (id == NULL || !OCSP_RESPID_match_ex(id, ocspcert, NULL, NULL))
             return SSL_TLSEXT_ERR_ALERT_FATAL;
     } else if (*argi != 1) {
         return SSL_TLSEXT_ERR_ALERT_FATAL;
@@ -1406,7 +1406,7 @@ static int test_tlsext_status_type(void)
             || !TEST_ptr(ids = sk_OCSP_RESPID_new_null())
             || !TEST_ptr(ocspcert = PEM_read_bio_X509(certbio,
                                                       NULL, NULL, NULL))
-            || !TEST_true(OCSP_RESPID_set_by_key(id, ocspcert))
+            || !TEST_true(OCSP_RESPID_set_by_key_ex(id, ocspcert, NULL, NULL))
             || !TEST_true(sk_OCSP_RESPID_push(ids, id)))
         goto end;
     id = NULL;
@@ -5533,8 +5533,8 @@ static int create_new_vfile(char *userid, char *password, const char *filename)
     if (!TEST_ptr(dummy) || !TEST_ptr(row))
         goto end;
 
-    gNid = SRP_create_verifier(userid, password, &row[DB_srpsalt],
-                               &row[DB_srpverifier], NULL, NULL);
+    gNid = SRP_create_verifier_ex(userid, password, &row[DB_srpsalt],
+                                  &row[DB_srpverifier], NULL, NULL, NULL, NULL);
     if (!TEST_ptr(gNid))
         goto end;
 
@@ -5590,8 +5590,8 @@ static int create_new_vbase(char *userid, char *password)
     if (!TEST_ptr(lgN))
         goto end;
 
-    if (!TEST_true(SRP_create_verifier_BN(userid, password, &salt, &verifier,
-                                          lgN->N, lgN->g)))
+    if (!TEST_true(SRP_create_verifier_BN_ex(userid, password, &salt, &verifier,
+                                             lgN->N, lgN->g, NULL, NULL)))
         goto end;
 
     user_pwd = OPENSSL_zalloc(sizeof(*user_pwd));

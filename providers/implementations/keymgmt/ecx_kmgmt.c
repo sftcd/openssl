@@ -11,7 +11,7 @@
 #include <openssl/core_numbers.h>
 #include <openssl/core_names.h>
 #include <openssl/params.h>
-#include "internal/param_build.h"
+#include "openssl/param_build.h"
 #include "crypto/ecx.h"
 #include "prov/implementations.h"
 #include "prov/providercommon.h"
@@ -56,26 +56,26 @@ static void *ed448_new_key(void *provctx)
 static int ecx_has(void *keydata, int selection)
 {
     ECX_KEY *key = keydata;
-    int ok = 1;
+    int ok = 0;
 
-    if ((selection & ECX_POSSIBLE_SELECTIONS) == 0)
-        return 0;
+    if (key != NULL) {
+        if ((selection & ECX_POSSIBLE_SELECTIONS) != 0)
+            ok = 1;
 
-    if ((selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY) != 0)
-        ok = ok && key->haspubkey;
+        if ((selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY) != 0)
+            ok = ok && key->haspubkey;
 
-    if ((selection & OSSL_KEYMGMT_SELECT_PRIVATE_KEY) != 0)
-        ok = ok && key->privkey != NULL;
-
+        if ((selection & OSSL_KEYMGMT_SELECT_PRIVATE_KEY) != 0)
+            ok = ok && key->privkey != NULL;
+    }
     return ok;
 }
 
 static int ecx_import(void *keydata, int selection, const OSSL_PARAM params[])
 {
     ECX_KEY *key = keydata;
-    size_t privkeylen = 0, pubkeylen;
-    const OSSL_PARAM *param_priv_key = NULL, *param_pub_key;
-    unsigned char *pubkey;
+    int ok = 1;
+    int include_private = 0;
 
     if (key == NULL)
         return 0;
@@ -83,38 +83,11 @@ static int ecx_import(void *keydata, int selection, const OSSL_PARAM params[])
     if ((selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY) == 0)
         return 0;
 
-    param_pub_key =
-        OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_PUB_KEY);
+    include_private = ((selection & OSSL_KEYMGMT_SELECT_PRIVATE_KEY) != 0);
+    if ((selection & OSSL_KEYMGMT_SELECT_KEYPAIR) != 0)
+        ok = ok && ecx_key_fromdata(key, params, include_private);
 
-    if ((selection & OSSL_KEYMGMT_SELECT_PRIVATE_KEY) != 0)
-        param_priv_key =
-            OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_PRIV_KEY);
-    /*
-     * If a private key is present then a public key must also be present.
-     * Alternatively we've just got a public key.
-     */
-    if (param_pub_key == NULL)
-        return 0;
-
-    if (param_priv_key != NULL
-             && !OSSL_PARAM_get_octet_string(param_priv_key,
-                                            (void **)&key->privkey, key->keylen,
-                                             &privkeylen))
-        return 0;
-
-    pubkey = key->pubkey;
-    if (!OSSL_PARAM_get_octet_string(param_pub_key,
-                                     (void **)&pubkey,
-                                     sizeof(key->pubkey), &pubkeylen))
-        return 0;
-
-    if (pubkeylen != key->keylen
-            || (param_priv_key != NULL && privkeylen != key->keylen))
-        return 0;
-
-    key->haspubkey = 1;
-
-    return 1;
+    return ok;
 }
 
 static int key_to_params(ECX_KEY *key, OSSL_PARAM_BLD *tmpl)
@@ -122,12 +95,12 @@ static int key_to_params(ECX_KEY *key, OSSL_PARAM_BLD *tmpl)
     if (key == NULL)
         return 0;
 
-    if (!ossl_param_bld_push_octet_string(tmpl, OSSL_PKEY_PARAM_PUB_KEY,
+    if (!OSSL_PARAM_BLD_push_octet_string(tmpl, OSSL_PKEY_PARAM_PUB_KEY,
                                           key->pubkey, key->keylen))
         return 0;
 
     if (key->privkey != NULL
-        && !ossl_param_bld_push_octet_string(tmpl, OSSL_PKEY_PARAM_PRIV_KEY,
+        && !OSSL_PARAM_BLD_push_octet_string(tmpl, OSSL_PKEY_PARAM_PRIV_KEY,
                                              key->privkey, key->keylen))
         return 0;
 
@@ -138,26 +111,30 @@ static int ecx_export(void *keydata, int selection, OSSL_CALLBACK *param_cb,
                       void *cbarg)
 {
     ECX_KEY *key = keydata;
-    OSSL_PARAM_BLD tmpl;
+    OSSL_PARAM_BLD *tmpl;
     OSSL_PARAM *params = NULL;
     int ret;
 
     if (key == NULL)
         return 0;
 
-    if ((selection & OSSL_KEYMGMT_SELECT_KEYPAIR) != 0
-            && !key_to_params(key, &tmpl))
+    tmpl = OSSL_PARAM_BLD_new();
+    if (tmpl == NULL)
         return 0;
 
-    ossl_param_bld_init(&tmpl);
-    params = ossl_param_bld_to_param(&tmpl);
-    if (params == NULL) {
-        ossl_param_bld_free(params);
+    if ((selection & OSSL_KEYMGMT_SELECT_KEYPAIR) != 0
+            && !key_to_params(key, tmpl)) {
+        OSSL_PARAM_BLD_free(tmpl);
         return 0;
     }
 
+    params = OSSL_PARAM_BLD_to_param(tmpl);
+    OSSL_PARAM_BLD_free(tmpl);
+    if (params == NULL)
+        return 0;
+
     ret = param_cb(params, cbarg);
-    ossl_param_bld_free(params);
+    OSSL_PARAM_BLD_free_params(params);
     return ret;
 }
 

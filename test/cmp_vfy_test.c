@@ -44,12 +44,6 @@ static void tear_down(CMP_VFY_TEST_FIXTURE *fixture)
     OPENSSL_free(fixture);
 }
 
-static int print_to_bio_out(const char *func, const char *file, int line,
-                            OSSL_CMP_severity level, const char *msg)
-{
-    return OSSL_CMP_print_to_bio(bio_out, func, file, line, level, msg);
-}
-
 static time_t test_time_valid = 0, test_time_after_expiration = 0;
 
 static CMP_VFY_TEST_FIXTURE *set_up(const char *const test_case_name)
@@ -313,7 +307,7 @@ static int test_validate_msg_signature_sender_cert_absent(void)
 }
 
 
-static int test_validate_with_sender(X509_NAME *name, int expected)
+static int test_validate_with_sender(const X509_NAME *name, int expected)
 {
     SETUP_TEST_FIXTURE(CMP_VFY_TEST_FIXTURE, set_up);
     fixture->expected = expected;

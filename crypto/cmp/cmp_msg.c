@@ -185,8 +185,8 @@ OSSL_CMP_MSG *ossl_cmp_msg_create(OSSL_CMP_CTX *ctx, int bodytype)
     (sk_GENERAL_NAME_num((ctx)->subjectAltNames) > 0 \
          || OSSL_CMP_CTX_reqExtensions_have_SAN(ctx) == 1)
 
-static X509_NAME *determine_subj(OSSL_CMP_CTX *ctx, X509 *refcert,
-                                 int bodytype)
+static const X509_NAME *determine_subj(OSSL_CMP_CTX *ctx, X509 *refcert,
+                                       int bodytype)
 {
     if (ctx->subjectName != NULL)
         return ctx->subjectName;
@@ -212,7 +212,7 @@ static OSSL_CRMF_MSG *crm_new(OSSL_CMP_CTX *ctx, int bodytype, int rid)
     /* refcert defaults to current client cert */
     EVP_PKEY *rkey = OSSL_CMP_CTX_get0_newPkey(ctx, 0);
     STACK_OF(GENERAL_NAME) *default_sans = NULL;
-    X509_NAME *subject = determine_subj(ctx, refcert, bodytype);
+    const X509_NAME *subject = determine_subj(ctx, refcert, bodytype);
     int crit = ctx->setSubjectAltNameCritical || subject == NULL;
     /* RFC5280: subjectAltName MUST be critical if subject is null */
     X509_EXTENSIONS *exts = NULL;
@@ -348,7 +348,8 @@ OSSL_CMP_MSG *ossl_cmp_certReq_new(OSSL_CMP_CTX *ctx, int type, int err_code)
     return msg;
 
  err:
-    CMPerr(0, err_code);
+    if (err_code != 0)
+        CMPerr(0, err_code);
     OSSL_CRMF_MSG_free(crm);
     OSSL_CMP_MSG_free(msg);
     return NULL;

@@ -20,7 +20,7 @@
 #include <openssl/evp.h>
 #include "internal/cryptlib.h"
 #include "internal/refcount.h"
-#include "internal/param_build.h"
+#include "openssl/param_build.h"
 #include "crypto/bn.h"
 #include "crypto/evp.h"
 #include "crypto/rsa.h"
@@ -1296,7 +1296,7 @@ int EVP_PKEY_CTX_set_rsa_keygen_bits(EVP_PKEY_CTX *ctx, int bits)
 
 int EVP_PKEY_CTX_set_rsa_keygen_pubexp(EVP_PKEY_CTX *ctx, BIGNUM *pubexp)
 {
-    OSSL_PARAM_BLD tmpl;
+    OSSL_PARAM_BLD *tmpl;
     OSSL_PARAM *params;
     int ret;
 
@@ -1315,13 +1315,17 @@ int EVP_PKEY_CTX_set_rsa_keygen_pubexp(EVP_PKEY_CTX *ctx, BIGNUM *pubexp)
         return EVP_PKEY_CTX_ctrl(ctx, EVP_PKEY_RSA, EVP_PKEY_OP_KEYGEN,
                                  EVP_PKEY_CTRL_RSA_KEYGEN_PUBEXP, 0, pubexp);
 
-    ossl_param_bld_init(&tmpl);
-    if (!ossl_param_bld_push_BN(&tmpl, OSSL_PKEY_PARAM_RSA_E, pubexp)
-        || (params = ossl_param_bld_to_param(&tmpl)) == NULL)
+    if ((tmpl = OSSL_PARAM_BLD_new()) == NULL)
         return 0;
+    if (!OSSL_PARAM_BLD_push_BN(tmpl, OSSL_PKEY_PARAM_RSA_E, pubexp)
+        || (params = OSSL_PARAM_BLD_to_param(tmpl)) == NULL) {
+        OSSL_PARAM_BLD_free(tmpl);
+        return 0;
+    }
+    OSSL_PARAM_BLD_free(tmpl);
 
     ret = EVP_PKEY_CTX_set_params(ctx, params);
-    ossl_param_bld_free(params);
+    OSSL_PARAM_BLD_free_params(params);
     return ret;
 }
 

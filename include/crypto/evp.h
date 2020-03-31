@@ -23,14 +23,12 @@ struct evp_pkey_ctx_st {
     int operation;
 
     /*
-     * Library context, Key type name and properties associated
-     * with this context
+     * Library context, property query, keytype and keymgmt associated with
+     * this context
      */
     OPENSSL_CTX *libctx;
-    const char *keytype;
     const char *propquery;
-
-    /* cached key manager */
+    const char *keytype;
     EVP_KEYMGMT *keymgmt;
 
     union {
@@ -504,14 +502,31 @@ const EVP_CIPHER *EVP_##cname##_ecb(void) { return &cname##_ecb; }
                              cipher##_init_key, NULL, NULL, NULL, NULL)
 
 /*
- * Type needs to be a bit field Sub-type needs to be for variations on the
- * method, as in, can it do arbitrary encryption....
+ * An EVP_PKEY can have the following states:
+ *
+ * untyped & empty:
+ *
+ *     type == EVP_PKEY_NONE && keymgmt == NULL
+ *
+ * typed & empty:
+ *
+ *     (type != EVP_PKEY_NONE && pkey.ptr == NULL)      ## legacy (libcrypto only)
+ *     || (keymgmt != NULL && keydata == NULL)          ## provider side
+ *
+ * fully assigned:
+ *
+ *     (type != EVP_PKEY_NONE && pkey.ptr != NULL)      ## legacy (libcrypto only)
+ *     || (keymgmt != NULL && keydata != NULL)          ## provider side
+ *
+ * The easiest way to detect a legacy key is:           type != EVP_PKEY_NONE
+ * The easiest way to detect a provider side key is:    keymgmt != NULL
  */
 struct evp_pkey_st {
     /* == Legacy attributes == */
     int type;
     int save_type;
 
+# ifndef FIPS_MODE
     /*
      * Legacy key "origin" is composed of a pointer to an EVP_PKEY_ASN1_METHOD,
      * a pointer to a low level key and possibly a pointer to an engine.
@@ -521,20 +536,21 @@ struct evp_pkey_st {
     ENGINE *pmeth_engine; /* If not NULL public key ENGINE to use */
     union {
         void *ptr;
-# ifndef OPENSSL_NO_RSA
+#  ifndef OPENSSL_NO_RSA
         struct rsa_st *rsa;     /* RSA */
-# endif
-# ifndef OPENSSL_NO_DSA
+#  endif
+#  ifndef OPENSSL_NO_DSA
         struct dsa_st *dsa;     /* DSA */
-# endif
-# ifndef OPENSSL_NO_DH
+#  endif
+#  ifndef OPENSSL_NO_DH
         struct dh_st *dh;       /* DH */
-# endif
-# ifndef OPENSSL_NO_EC
+#  endif
+#  ifndef OPENSSL_NO_EC
         struct ec_key_st *ec;   /* ECC */
         ECX_KEY *ecx;           /* X25519, X448, Ed25519, Ed448 */
-# endif
+#  endif
     } pkey;
+# endif
 
     /* == Common attributes == */
     CRYPTO_REF_COUNT references;
@@ -614,10 +630,8 @@ void evp_app_cleanup_int(void);
 void *evp_pkey_export_to_provider(EVP_PKEY *pk, OPENSSL_CTX *libctx,
                                   EVP_KEYMGMT **keymgmt,
                                   const char *propquery);
-void *evp_pkey_upgrade_to_provider(EVP_PKEY *pk, OPENSSL_CTX *libctx,
-                                   EVP_KEYMGMT **keymgmt,
-                                   const char *propquery);
 #ifndef FIPS_MODE
+int evp_pkey_downgrade(EVP_PKEY *pk);
 void evp_pkey_free_legacy(EVP_PKEY *x);
 #endif
 

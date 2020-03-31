@@ -915,11 +915,14 @@ int create_ssl_objects(SSL_CTX *serverctx, SSL_CTX *clientctx, SSL **sssl,
 }
 
 /*
- * Create an SSL connection, but does not ready any post-handshake
+ * Create an SSL connection, but does not read any post-handshake
  * NewSessionTicket messages.
  * If |read| is set and we're using DTLS then we will attempt to SSL_read on
  * the connection once we've completed one half of it, to ensure any retransmits
  * get triggered.
+ * We stop the connection attempt (and return a failure value) if either peer
+ * has SSL_get_error() return the value in the |want| parameter. The connection
+ * attempt could be restarted by a subsequent call to this function.
  */
 int create_bare_ssl_connection(SSL *serverssl, SSL *clientssl, int want,
                                int read)
@@ -938,6 +941,8 @@ int create_bare_ssl_connection(SSL *serverssl, SSL *clientssl, int want,
 
         if (!clienterr && retc <= 0 && err != SSL_ERROR_WANT_READ) {
             TEST_info("SSL_connect() failed %d, %d", retc, err);
+            if (want != SSL_ERROR_SSL)
+                TEST_openssl_errors();
             clienterr = 1;
         }
         if (want != SSL_ERROR_NONE && err == want)
@@ -954,6 +959,8 @@ int create_bare_ssl_connection(SSL *serverssl, SSL *clientssl, int want,
                 && err != SSL_ERROR_WANT_READ
                 && err != SSL_ERROR_WANT_X509_LOOKUP) {
             TEST_info("SSL_accept() failed %d, %d", rets, err);
+            if (want != SSL_ERROR_SSL)
+                TEST_openssl_errors();
             servererr = 1;
         }
         if (want != SSL_ERROR_NONE && err == want)

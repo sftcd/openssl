@@ -12,10 +12,43 @@
 #include <openssl/err.h>
 #include <openssl/cryptoerr.h>
 #include <openssl/params.h>
+#include <openssl/types.h>
+#include <openssl/safestack.h>
 #include "internal/cryptlib.h"
-#include "internal/param_build.h"
+#include "openssl/param_build.h"
 
+/*
+ * Special internal param type to indicate the end of an allocate OSSL_PARAM
+ * array.
+ */
 #define OSSL_PARAM_ALLOCATED_END    127
+
+typedef struct {
+    const char *key;
+    int type;
+    int secure;
+    size_t size;
+    size_t alloc_blocks;
+    const BIGNUM *bn;
+    const void *string;
+    union {
+        /*
+         * These fields are never directly addressed, but their sizes are
+         * imporant so that all native types can be copied here without overrun.
+         */
+        ossl_intmax_t i;
+        ossl_uintmax_t u;
+        double d;
+    } num;
+} OSSL_PARAM_BLD_DEF;
+
+DEFINE_STACK_OF(OSSL_PARAM_BLD_DEF)
+
+struct ossl_param_bld_st {
+    size_t total_blocks;
+    size_t secure_blocks;
+    STACK_OF(OSSL_PARAM_BLD_DEF) *params;
+};
 
 typedef union {
     OSSL_UNION_ALIGN;
@@ -32,14 +65,12 @@ static OSSL_PARAM_BLD_DEF *param_push(OSSL_PARAM_BLD *bld, const char *key,
                                       int size, size_t alloc, int type,
                                       int secure)
 {
-    OSSL_PARAM_BLD_DEF *pd;
+    OSSL_PARAM_BLD_DEF *pd = OPENSSL_zalloc(sizeof(*pd));
 
-    if (bld->curr >= OSSL_PARAM_BLD_MAX) {
-        CRYPTOerr(CRYPTO_F_PARAM_PUSH, CRYPTO_R_TOO_MANY_RECORDS);
+    if (pd == NULL) {
+        CRYPTOerr(CRYPTO_F_PARAM_PUSH, ERR_R_MALLOC_FAILURE);
         return NULL;
     }
-    pd = bld->params + bld->curr++;
-    memset(pd, 0, sizeof(*pd));
     pd->key = key;
     pd->type = type;
     pd->size = size;
@@ -48,6 +79,10 @@ static OSSL_PARAM_BLD_DEF *param_push(OSSL_PARAM_BLD *bld, const char *key,
         bld->secure_blocks += pd->alloc_blocks;
     else
         bld->total_blocks += pd->alloc_blocks;
+    if (sk_OSSL_PARAM_BLD_DEF_push(bld->params, pd) <= 0) {
+        OPENSSL_free(pd);
+        pd = NULL;
+    }
     return pd;
 }
 
@@ -66,83 +101,107 @@ static int param_push_num(OSSL_PARAM_BLD *bld, const char *key,
     return 1;
 }
 
-void ossl_param_bld_init(OSSL_PARAM_BLD *bld)
+OSSL_PARAM_BLD *OSSL_PARAM_BLD_new(void)
 {
-    memset(bld, 0, sizeof(*bld));
+    OSSL_PARAM_BLD *r = OPENSSL_zalloc(sizeof(OSSL_PARAM_BLD));
+
+    if (r != NULL) {
+        r->params = sk_OSSL_PARAM_BLD_DEF_new_null();
+        if (r->params == NULL) {
+            OPENSSL_free(r);
+            r = NULL;
+        }
+    }
+    return r;
 }
 
-int ossl_param_bld_push_int(OSSL_PARAM_BLD *bld, const char *key, int num)
+static void free_all_params(OSSL_PARAM_BLD *bld)
+{
+    int i, n = sk_OSSL_PARAM_BLD_DEF_num(bld->params);
+
+    for (i = 0; i < n; i++)
+        OPENSSL_free(sk_OSSL_PARAM_BLD_DEF_pop(bld->params));
+}
+
+void OSSL_PARAM_BLD_free(OSSL_PARAM_BLD *bld)
+{
+    free_all_params(bld);
+    sk_OSSL_PARAM_BLD_DEF_free(bld->params);
+    OPENSSL_free(bld);
+}
+
+int OSSL_PARAM_BLD_push_int(OSSL_PARAM_BLD *bld, const char *key, int num)
 {
     return param_push_num(bld, key, &num, sizeof(num), OSSL_PARAM_INTEGER);
 }
 
-int ossl_param_bld_push_uint(OSSL_PARAM_BLD *bld, const char *key,
+int OSSL_PARAM_BLD_push_uint(OSSL_PARAM_BLD *bld, const char *key,
                              unsigned int num)
 {
     return param_push_num(bld, key, &num, sizeof(num),
                           OSSL_PARAM_UNSIGNED_INTEGER);
 }
 
-int ossl_param_bld_push_long(OSSL_PARAM_BLD *bld, const char *key,
+int OSSL_PARAM_BLD_push_long(OSSL_PARAM_BLD *bld, const char *key,
                              long int num)
 {
     return param_push_num(bld, key, &num, sizeof(num), OSSL_PARAM_INTEGER);
 }
 
-int ossl_param_bld_push_ulong(OSSL_PARAM_BLD *bld, const char *key,
+int OSSL_PARAM_BLD_push_ulong(OSSL_PARAM_BLD *bld, const char *key,
                               unsigned long int num)
 {
     return param_push_num(bld, key, &num, sizeof(num),
                           OSSL_PARAM_UNSIGNED_INTEGER);
 }
 
-int ossl_param_bld_push_int32(OSSL_PARAM_BLD *bld, const char *key,
+int OSSL_PARAM_BLD_push_int32(OSSL_PARAM_BLD *bld, const char *key,
                               int32_t num)
 {
     return param_push_num(bld, key, &num, sizeof(num), OSSL_PARAM_INTEGER);
 }
 
-int ossl_param_bld_push_uint32(OSSL_PARAM_BLD *bld, const char *key,
+int OSSL_PARAM_BLD_push_uint32(OSSL_PARAM_BLD *bld, const char *key,
                                uint32_t num)
 {
     return param_push_num(bld, key, &num, sizeof(num),
                           OSSL_PARAM_UNSIGNED_INTEGER);
 }
 
-int ossl_param_bld_push_int64(OSSL_PARAM_BLD *bld, const char *key,
+int OSSL_PARAM_BLD_push_int64(OSSL_PARAM_BLD *bld, const char *key,
                               int64_t num)
 {
     return param_push_num(bld, key, &num, sizeof(num), OSSL_PARAM_INTEGER);
 }
 
-int ossl_param_bld_push_uint64(OSSL_PARAM_BLD *bld, const char *key,
+int OSSL_PARAM_BLD_push_uint64(OSSL_PARAM_BLD *bld, const char *key,
                                uint64_t num)
 {
     return param_push_num(bld, key, &num, sizeof(num),
                           OSSL_PARAM_UNSIGNED_INTEGER);
 }
 
-int ossl_param_bld_push_size_t(OSSL_PARAM_BLD *bld, const char *key,
+int OSSL_PARAM_BLD_push_size_t(OSSL_PARAM_BLD *bld, const char *key,
                                size_t num)
 {
     return param_push_num(bld, key, &num, sizeof(num),
                           OSSL_PARAM_UNSIGNED_INTEGER);
 }
 
-int ossl_param_bld_push_double(OSSL_PARAM_BLD *bld, const char *key,
+int OSSL_PARAM_BLD_push_double(OSSL_PARAM_BLD *bld, const char *key,
                                double num)
 {
     return param_push_num(bld, key, &num, sizeof(num), OSSL_PARAM_REAL);
 }
 
-int ossl_param_bld_push_BN(OSSL_PARAM_BLD *bld, const char *key,
+int OSSL_PARAM_BLD_push_BN(OSSL_PARAM_BLD *bld, const char *key,
                            const BIGNUM *bn)
 {
-    return ossl_param_bld_push_BN_pad(bld, key, bn,
+    return OSSL_PARAM_BLD_push_BN_pad(bld, key, bn,
                                       bn == NULL ? 0 : BN_num_bytes(bn));
 }
 
-int ossl_param_bld_push_BN_pad(OSSL_PARAM_BLD *bld, const char *key,
+int OSSL_PARAM_BLD_push_BN_pad(OSSL_PARAM_BLD *bld, const char *key,
                                const BIGNUM *bn, size_t sz)
 {
     int n, secure = 0;
@@ -168,7 +227,7 @@ int ossl_param_bld_push_BN_pad(OSSL_PARAM_BLD *bld, const char *key,
     return 1;
 }
 
-int ossl_param_bld_push_utf8_string(OSSL_PARAM_BLD *bld, const char *key,
+int OSSL_PARAM_BLD_push_utf8_string(OSSL_PARAM_BLD *bld, const char *key,
                                     const char *buf, size_t bsize)
 {
     OSSL_PARAM_BLD_DEF *pd;
@@ -187,7 +246,7 @@ int ossl_param_bld_push_utf8_string(OSSL_PARAM_BLD *bld, const char *key,
     return 1;
 }
 
-int ossl_param_bld_push_utf8_ptr(OSSL_PARAM_BLD *bld, const char *key,
+int OSSL_PARAM_BLD_push_utf8_ptr(OSSL_PARAM_BLD *bld, const char *key,
                                  char *buf, size_t bsize)
 {
     OSSL_PARAM_BLD_DEF *pd;
@@ -206,7 +265,7 @@ int ossl_param_bld_push_utf8_ptr(OSSL_PARAM_BLD *bld, const char *key,
     return 1;
 }
 
-int ossl_param_bld_push_octet_string(OSSL_PARAM_BLD *bld, const char *key,
+int OSSL_PARAM_BLD_push_octet_string(OSSL_PARAM_BLD *bld, const char *key,
                                      const void *buf, size_t bsize)
 {
     OSSL_PARAM_BLD_DEF *pd;
@@ -223,7 +282,7 @@ int ossl_param_bld_push_octet_string(OSSL_PARAM_BLD *bld, const char *key,
     return 1;
 }
 
-int ossl_param_bld_push_octet_ptr(OSSL_PARAM_BLD *bld, const char *key,
+int OSSL_PARAM_BLD_push_octet_ptr(OSSL_PARAM_BLD *bld, const char *key,
                                   void *buf, size_t bsize)
 {
     OSSL_PARAM_BLD_DEF *pd;
@@ -244,12 +303,12 @@ static OSSL_PARAM *param_bld_convert(OSSL_PARAM_BLD *bld, OSSL_PARAM *param,
                                      OSSL_PARAM_BLD_BLOCK *blk,
                                      OSSL_PARAM_BLD_BLOCK *secure)
 {
-    size_t i;
+    int i, num = sk_OSSL_PARAM_BLD_DEF_num(bld->params);
     OSSL_PARAM_BLD_DEF *pd;
     void *p;
 
-    for (i = 0; i < bld->curr; i++) {
-        pd = bld->params + i;
+    for (i = 0; i < num; i++) {
+        pd = sk_OSSL_PARAM_BLD_DEF_value(bld->params, i);
         param[i].key = pd->key;
         param[i].data_type = pd->type;
         param[i].data_size = pd->size;
@@ -288,11 +347,12 @@ static OSSL_PARAM *param_bld_convert(OSSL_PARAM_BLD *bld, OSSL_PARAM *param,
     return param + i;
 }
 
-OSSL_PARAM *ossl_param_bld_to_param(OSSL_PARAM_BLD *bld)
+OSSL_PARAM *OSSL_PARAM_BLD_to_param(OSSL_PARAM_BLD *bld)
 {
     OSSL_PARAM_BLD_BLOCK *blk, *s = NULL;
     OSSL_PARAM *params, *last;
-    const size_t p_blks = bytes_to_blocks((1 + bld->curr) * sizeof(*params));
+    const int num = sk_OSSL_PARAM_BLD_DEF_num(bld->params);
+    const size_t p_blks = bytes_to_blocks((1 + num) * sizeof(*params));
     const size_t total = ALIGN_SIZE * (p_blks + bld->total_blocks);
     const size_t ss = ALIGN_SIZE * bld->secure_blocks;
 
@@ -301,12 +361,14 @@ OSSL_PARAM *ossl_param_bld_to_param(OSSL_PARAM_BLD *bld)
         if (s == NULL) {
             CRYPTOerr(CRYPTO_F_OSSL_PARAM_BLD_TO_PARAM,
                       CRYPTO_R_SECURE_MALLOC_FAILURE);
+            OPENSSL_free(bld);
             return NULL;
         }
     }
     params = OPENSSL_malloc(total);
     if (params == NULL) {
         CRYPTOerr(CRYPTO_F_OSSL_PARAM_BLD_TO_PARAM, ERR_R_MALLOC_FAILURE);
+        OPENSSL_free(bld);
         OPENSSL_secure_free(s);
         return NULL;
     }
@@ -315,10 +377,15 @@ OSSL_PARAM *ossl_param_bld_to_param(OSSL_PARAM_BLD *bld)
     last->data_size = ss;
     last->data = s;
     last->data_type = OSSL_PARAM_ALLOCATED_END;
+
+    /* Reset builder for reuse */
+    bld->total_blocks = 0;
+    bld->secure_blocks = 0;
+    free_all_params(bld);
     return params;
 }
 
-void ossl_param_bld_free(OSSL_PARAM *params)
+void OSSL_PARAM_BLD_free_params(OSSL_PARAM *params)
 {
     if (params != NULL) {
         OSSL_PARAM *p;

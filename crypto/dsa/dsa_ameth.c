@@ -21,8 +21,10 @@
 #include <openssl/core_names.h>
 #include "internal/cryptlib.h"
 #include "crypto/asn1.h"
+#include "crypto/dsa.h"
 #include "crypto/evp.h"
-#include "internal/param_build.h"
+#include "openssl/param_build.h"
+#include "internal/ffc.h"
 #include "dsa_local.h"
 
 static int dsa_pub_decode(EVP_PKEY *pkey, X509_PUBKEY *pubkey)
@@ -521,12 +523,13 @@ static int dsa_pkey_export_to(const EVP_PKEY *from, void *to_keydata,
                               EVP_KEYMGMT *to_keymgmt)
 {
     DSA *dsa = from->pkey.dsa;
-    OSSL_PARAM_BLD tmpl;
+    OSSL_PARAM_BLD *tmpl;
     const BIGNUM *p = DSA_get0_p(dsa), *g = DSA_get0_g(dsa);
     const BIGNUM *q = DSA_get0_q(dsa), *pub_key = DSA_get0_pub_key(dsa);
     const BIGNUM *priv_key = DSA_get0_priv_key(dsa);
     OSSL_PARAM *params;
-    int rv;
+    int selection = 0;
+    int rv = 0;
 
     /*
      * If the DSA method is foreign, then we can't be sure of anything, and
@@ -538,30 +541,57 @@ static int dsa_pkey_export_to(const EVP_PKEY *from, void *to_keydata,
     if (p == NULL || q == NULL || g == NULL)
         return 0;
 
-    ossl_param_bld_init(&tmpl);
-    if (!ossl_param_bld_push_BN(&tmpl, OSSL_PKEY_PARAM_FFC_P, p)
-        || !ossl_param_bld_push_BN(&tmpl, OSSL_PKEY_PARAM_FFC_Q, q)
-        || !ossl_param_bld_push_BN(&tmpl, OSSL_PKEY_PARAM_FFC_G, g))
+    tmpl = OSSL_PARAM_BLD_new();
+    if (tmpl == NULL)
         return 0;
-    if (!ossl_param_bld_push_BN(&tmpl, OSSL_PKEY_PARAM_PUB_KEY,
-                                pub_key))
-        return 0;
+
+    if (!OSSL_PARAM_BLD_push_BN(tmpl, OSSL_PKEY_PARAM_FFC_P, p)
+        || !OSSL_PARAM_BLD_push_BN(tmpl, OSSL_PKEY_PARAM_FFC_Q, q)
+        || !OSSL_PARAM_BLD_push_BN(tmpl, OSSL_PKEY_PARAM_FFC_G, g))
+        goto err;
+    selection |= OSSL_KEYMGMT_SELECT_DOMAIN_PARAMETERS;
+    if (pub_key != NULL) {
+        if (!OSSL_PARAM_BLD_push_BN(tmpl, OSSL_PKEY_PARAM_PUB_KEY,
+                                    pub_key))
+            goto err;
+        selection |= OSSL_KEYMGMT_SELECT_PUBLIC_KEY;
+    }
     if (priv_key != NULL) {
-        if (!ossl_param_bld_push_BN(&tmpl, OSSL_PKEY_PARAM_PRIV_KEY,
+        if (!OSSL_PARAM_BLD_push_BN(tmpl, OSSL_PKEY_PARAM_PRIV_KEY,
                                     priv_key))
-            return 0;
+            goto err;
+        selection |= OSSL_KEYMGMT_SELECT_PRIVATE_KEY;
     }
 
-    if ((params = ossl_param_bld_to_param(&tmpl)) == NULL)
-        return 0;
+    if ((params = OSSL_PARAM_BLD_to_param(tmpl)) == NULL)
+        goto err;
 
     /* We export, the provider imports */
-    rv = evp_keymgmt_import(to_keymgmt, to_keydata, OSSL_KEYMGMT_SELECT_ALL,
-                            params);
+    rv = evp_keymgmt_import(to_keymgmt, to_keydata, selection, params);
 
-    ossl_param_bld_free(params);
-
+    OSSL_PARAM_BLD_free_params(params);
+err:
+    OSSL_PARAM_BLD_free(tmpl);
     return rv;
+}
+
+static int dsa_pkey_import_from(const OSSL_PARAM params[], void *key)
+{
+    EVP_PKEY *pkey = key;
+    DSA *dsa = DSA_new();
+
+    if (dsa == NULL) {
+        ERR_raise(ERR_LIB_DSA, ERR_R_MALLOC_FAILURE);
+        return 0;
+    }
+
+    if (!ffc_fromdata(dsa_get0_params(dsa), params)
+        || !dsa_key_fromdata(dsa, params)
+        || !EVP_PKEY_assign_DSA(pkey, dsa)) {
+        DSA_free(dsa);
+        return 0;
+    }
+    return 1;
 }
 
 /* NB these are sorted in pkey_id order, lowest first */
@@ -627,6 +657,7 @@ const EVP_PKEY_ASN1_METHOD dsa_asn1_meths[5] = {
      NULL, NULL, NULL, NULL,
 
      dsa_pkey_dirty_cnt,
-     dsa_pkey_export_to
+     dsa_pkey_export_to,
+     dsa_pkey_import_from
     }
 };

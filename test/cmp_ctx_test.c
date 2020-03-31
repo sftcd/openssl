@@ -520,7 +520,7 @@ static X509_STORE *X509_STORE_new_1(void)
 #define DEFINE_SET_TEST_DEFAULT(OSSL_CMP, CTX, N, DUP, FIELD, TYPE, DEFAULT) \
     static TYPE *OSSL_CMP_CTX_get0_##FIELD(const CMP_CTX *ctx) \
     { \
-        return ctx == NULL ? ERR(NULL) : ctx->FIELD; \
+        return ctx == NULL ? ERR(NULL) : (TYPE *)ctx->FIELD; \
     } \
     DEFINE_SET_GET_TEST_DEFAULT(OSSL_CMP, CTX, N, 0, DUP, FIELD, TYPE, DEFAULT)
 #define DEFINE_SET_TEST(OSSL_CMP, CTX, N, DUP, FIELD, TYPE) \
@@ -535,16 +535,16 @@ static X509_STORE *X509_STORE_new_1(void)
                              STACK_OF(TYPE)*, NULL, IS_0, \
                              sk_##TYPE##_new_null(), sk_##TYPE##_free)
 
-typedef OSSL_HTTP_bio_cb_t OSSL_cmp_http_cb_t;
+typedef OSSL_HTTP_bio_cb_t OSSL_CMP_http_cb_t;
 #define DEFINE_SET_CB_TEST(FIELD) \
-    static OSSL_cmp_##FIELD##_t OSSL_CMP_CTX_get_##FIELD(const CMP_CTX *ctx) \
+    static OSSL_CMP_##FIELD##_t OSSL_CMP_CTX_get_##FIELD(const CMP_CTX *ctx) \
     { \
         if (ctx == NULL) \
             CMPerr(0, CMP_R_NULL_ARGUMENT); \
         return ctx == NULL ? NULL /* cannot use ERR(NULL) here */ : ctx->FIELD;\
     } \
     DEFINE_SET_GET_BASE_TEST(OSSL_CMP_CTX, set, get, 0, FIELD, \
-                             OSSL_cmp_##FIELD##_t, NULL, IS_0, \
+                             OSSL_CMP_##FIELD##_t, NULL, IS_0, \
                              test_##FIELD, DROP)
 #define DEFINE_SET_GET_P_VOID_TEST(FIELD) \
     DEFINE_SET_GET_BASE_TEST(OSSL_CMP_CTX, set, get, 0, FIELD, void *, \

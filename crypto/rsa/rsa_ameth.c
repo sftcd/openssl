@@ -20,7 +20,7 @@
 #include <openssl/bn.h>
 #include <openssl/cms.h>
 #include <openssl/core_names.h>
-#include "internal/param_build.h"
+#include "openssl/param_build.h"
 #include "crypto/asn1.h"
 #include "crypto/evp.h"
 #include "crypto/rsa.h"
@@ -1084,32 +1084,34 @@ static int rsa_pkey_export_to(const EVP_PKEY *from, void *to_keydata,
                               EVP_KEYMGMT *to_keymgmt)
 {
     RSA *rsa = from->pkey.rsa;
-    OSSL_PARAM_BLD tmpl;
+    OSSL_PARAM_BLD *tmpl = OSSL_PARAM_BLD_new();
     const BIGNUM *n = RSA_get0_n(rsa), *e = RSA_get0_e(rsa);
     const BIGNUM *d = RSA_get0_d(rsa);
     STACK_OF(BIGNUM_const) *primes = NULL, *exps = NULL, *coeffs = NULL;
     int numprimes = 0, numexps = 0, numcoeffs = 0;
     OSSL_PARAM *params = NULL;
+    int selection = 0;
     int rv = 0;
 
+    if (tmpl == NULL)
+        return 0;
     /*
      * If the RSA method is foreign, then we can't be sure of anything, and
      * can therefore not export or pretend to export.
      */
     if (RSA_get_method(rsa) != RSA_PKCS1_OpenSSL())
-        return 0;
+        goto err;
 
     /* Public parameters must always be present */
     if (n == NULL || e == NULL)
         goto err;
 
-    ossl_param_bld_init(&tmpl);
-
     /* |e| and |n| are always present */
-    if (!ossl_param_bld_push_BN(&tmpl, OSSL_PKEY_PARAM_RSA_E, e))
+    if (!OSSL_PARAM_BLD_push_BN(tmpl, OSSL_PKEY_PARAM_RSA_E, e))
         goto err;
-    if (!ossl_param_bld_push_BN(&tmpl, OSSL_PKEY_PARAM_RSA_N, n))
+    if (!OSSL_PARAM_BLD_push_BN(tmpl, OSSL_PKEY_PARAM_RSA_N, n))
         goto err;
+    selection |= OSSL_KEYMGMT_SELECT_PUBLIC_KEY;
 
     if (d != NULL) {
         int i;
@@ -1136,19 +1138,14 @@ static int rsa_pkey_export_to(const EVP_PKEY *from, void *to_keydata,
             && (numprimes < 2 || numexps < 2 || numcoeffs < 1))
             goto err;
 
-        /* assert that an OSSL_PARAM_BLD has enough space. */
-        if (!ossl_assert(/* n, e */ 2 + /* d */ 1 + /* numprimes */ 1
-                         + numprimes + numexps + numcoeffs
-                         <= OSSL_PARAM_BLD_MAX))
+        if (!OSSL_PARAM_BLD_push_BN(tmpl, OSSL_PKEY_PARAM_RSA_D, d))
             goto err;
-
-        if (!ossl_param_bld_push_BN(&tmpl, OSSL_PKEY_PARAM_RSA_D, d))
-            goto err;
+        selection |= OSSL_KEYMGMT_SELECT_PRIVATE_KEY;
 
         for (i = 0; i < numprimes; i++) {
             const BIGNUM *num = sk_BIGNUM_const_value(primes, i);
 
-            if (!ossl_param_bld_push_BN(&tmpl, OSSL_PKEY_PARAM_RSA_FACTOR,
+            if (!OSSL_PARAM_BLD_push_BN(tmpl, OSSL_PKEY_PARAM_RSA_FACTOR,
                                         num))
                 goto err;
         }
@@ -1156,7 +1153,7 @@ static int rsa_pkey_export_to(const EVP_PKEY *from, void *to_keydata,
         for (i = 0; i < numexps; i++) {
             const BIGNUM *num = sk_BIGNUM_const_value(exps, i);
 
-            if (!ossl_param_bld_push_BN(&tmpl, OSSL_PKEY_PARAM_RSA_EXPONENT,
+            if (!OSSL_PARAM_BLD_push_BN(tmpl, OSSL_PKEY_PARAM_RSA_EXPONENT,
                                         num))
                 goto err;
         }
@@ -1164,25 +1161,43 @@ static int rsa_pkey_export_to(const EVP_PKEY *from, void *to_keydata,
         for (i = 0; i < numcoeffs; i++) {
             const BIGNUM *num = sk_BIGNUM_const_value(coeffs, i);
 
-            if (!ossl_param_bld_push_BN(&tmpl, OSSL_PKEY_PARAM_RSA_COEFFICIENT,
+            if (!OSSL_PARAM_BLD_push_BN(tmpl, OSSL_PKEY_PARAM_RSA_COEFFICIENT,
                                         num))
                 goto err;
         }
     }
 
-    if ((params = ossl_param_bld_to_param(&tmpl)) == NULL)
+    if ((params = OSSL_PARAM_BLD_to_param(tmpl)) == NULL)
         goto err;
 
     /* We export, the provider imports */
-    rv = evp_keymgmt_import(to_keymgmt, to_keydata, OSSL_KEYMGMT_SELECT_ALL,
-                            params);
+    rv = evp_keymgmt_import(to_keymgmt, to_keydata, selection, params);
 
  err:
     sk_BIGNUM_const_free(primes);
     sk_BIGNUM_const_free(exps);
     sk_BIGNUM_const_free(coeffs);
-    ossl_param_bld_free(params);
+    OSSL_PARAM_BLD_free_params(params);
+    OSSL_PARAM_BLD_free(tmpl);
     return rv;
+}
+
+static int rsa_pkey_import_from(const OSSL_PARAM params[], void *key)
+{
+    EVP_PKEY *pkey = key;
+    RSA *rsa = RSA_new();
+
+    if (rsa == NULL) {
+        ERR_raise(ERR_LIB_DH, ERR_R_MALLOC_FAILURE);
+        return 0;
+    }
+
+    if (!rsa_fromdata(rsa, params)
+        || !EVP_PKEY_assign_RSA(pkey, rsa)) {
+        RSA_free(rsa);
+        return 0;
+    }
+    return 1;
 }
 
 const EVP_PKEY_ASN1_METHOD rsa_asn1_meths[2] = {
@@ -1223,7 +1238,8 @@ const EVP_PKEY_ASN1_METHOD rsa_asn1_meths[2] = {
      0, 0, 0, 0,
 
      rsa_pkey_dirty_cnt,
-     rsa_pkey_export_to
+     rsa_pkey_export_to,
+     rsa_pkey_import_from
     },
 
     {
@@ -1268,5 +1284,6 @@ const EVP_PKEY_ASN1_METHOD rsa_pss_asn1_meth = {
      0, 0, 0, 0,
 
      rsa_pkey_dirty_cnt,
-     rsa_pkey_export_to
+     rsa_pkey_export_to,
+     rsa_pkey_import_from
 };

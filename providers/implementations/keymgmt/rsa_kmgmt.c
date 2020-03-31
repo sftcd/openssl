@@ -21,7 +21,7 @@
 #include <openssl/evp.h>
 #include <openssl/params.h>
 #include <openssl/types.h>
-#include "internal/param_build.h"
+#include "openssl/param_build.h"
 #include "prov/implementations.h"
 #include "prov/providercommon.h"
 #include "prov/provider_ctx.h"
@@ -51,80 +51,6 @@ static OSSL_OP_keymgmt_export_types_fn rsa_export_types;
 DEFINE_STACK_OF(BIGNUM)
 DEFINE_SPECIAL_STACK_OF_CONST(BIGNUM_const, BIGNUM)
 
-static int collect_numbers(STACK_OF(BIGNUM) *numbers,
-                           const OSSL_PARAM params[], const char *key)
-{
-    const OSSL_PARAM *p = NULL;
-
-    if (numbers == NULL)
-        return 0;
-
-    for (p = params; (p = OSSL_PARAM_locate_const(p, key)) != NULL; p++) {
-        BIGNUM *tmp = NULL;
-
-        if (!OSSL_PARAM_get_BN(p, &tmp))
-            return 0;
-        sk_BIGNUM_push(numbers, tmp);
-    }
-
-    return 1;
-}
-
-static int params_to_key(RSA *rsa, const OSSL_PARAM params[])
-{
-    const OSSL_PARAM *param_n, *param_e,  *param_d;
-    BIGNUM *n = NULL, *e = NULL, *d = NULL;
-    STACK_OF(BIGNUM) *factors = NULL, *exps = NULL, *coeffs = NULL;
-    int is_private = 0;
-
-    if (rsa == NULL)
-        return 0;
-
-    param_n = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_RSA_N);
-    param_e = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_RSA_E);
-    param_d = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_RSA_D);
-
-    if ((param_n != NULL && !OSSL_PARAM_get_BN(param_n, &n))
-        || (param_e != NULL && !OSSL_PARAM_get_BN(param_e, &e))
-        || (param_d != NULL && !OSSL_PARAM_get_BN(param_d, &d)))
-        goto err;
-
-    is_private = (d != NULL);
-
-    if (!RSA_set0_key(rsa, n, e, d))
-        goto err;
-    n = e = d = NULL;
-
-    if (is_private) {
-        if (!collect_numbers(factors = sk_BIGNUM_new_null(), params,
-                             OSSL_PKEY_PARAM_RSA_FACTOR)
-            || !collect_numbers(exps = sk_BIGNUM_new_null(), params,
-                                OSSL_PKEY_PARAM_RSA_EXPONENT)
-            || !collect_numbers(coeffs = sk_BIGNUM_new_null(), params,
-                                OSSL_PKEY_PARAM_RSA_COEFFICIENT))
-            goto err;
-
-        /* It's ok if this private key just has n, e and d */
-        if (sk_BIGNUM_num(factors) != 0
-            && !rsa_set0_all_params(rsa, factors, exps, coeffs))
-            goto err;
-    }
-
-    sk_BIGNUM_free(factors);
-    sk_BIGNUM_free(exps);
-    sk_BIGNUM_free(coeffs);
-    return 1;
-
- err:
-    BN_free(n);
-    BN_free(e);
-    BN_free(d);
-    sk_BIGNUM_pop_free(factors, BN_free);
-    sk_BIGNUM_pop_free(exps, BN_free);
-    sk_BIGNUM_pop_free(coeffs, BN_free);
-    return 0;
-}
-
 static int export_numbers(OSSL_PARAM_BLD *tmpl, const char *key,
                           STACK_OF(BIGNUM_const) *numbers)
 {
@@ -136,7 +62,7 @@ static int export_numbers(OSSL_PARAM_BLD *tmpl, const char *key,
     nnum = sk_BIGNUM_const_num(numbers);
 
     for (i = 0; i < nnum; i++) {
-        if (!ossl_param_bld_push_BN(tmpl, key,
+        if (!OSSL_PARAM_BLD_push_BN(tmpl, key,
                                     sk_BIGNUM_const_value(numbers, i)))
             return 0;
     }
@@ -159,13 +85,13 @@ static int key_to_params(RSA *rsa, OSSL_PARAM_BLD *tmpl)
     rsa_get0_all_params(rsa, factors, exps, coeffs);
 
     if (rsa_n != NULL
-        && !ossl_param_bld_push_BN(tmpl, OSSL_PKEY_PARAM_RSA_N, rsa_n))
+        && !OSSL_PARAM_BLD_push_BN(tmpl, OSSL_PKEY_PARAM_RSA_N, rsa_n))
         goto err;
     if (rsa_e != NULL
-        && !ossl_param_bld_push_BN(tmpl, OSSL_PKEY_PARAM_RSA_E, rsa_e))
+        && !OSSL_PARAM_BLD_push_BN(tmpl, OSSL_PKEY_PARAM_RSA_E, rsa_e))
         goto err;
     if (rsa_d != NULL
-        && !ossl_param_bld_push_BN(tmpl, OSSL_PKEY_PARAM_RSA_D, rsa_d))
+        && !OSSL_PARAM_BLD_push_BN(tmpl, OSSL_PKEY_PARAM_RSA_D, rsa_d))
         goto err;
 
     if (!export_numbers(tmpl, OSSL_PKEY_PARAM_RSA_FACTOR, factors)
@@ -198,14 +124,19 @@ static int rsa_has(void *keydata, int selection)
     RSA *rsa = keydata;
     int ok = 0;
 
-    if ((selection & RSA_POSSIBLE_SELECTIONS) != 0)
-        ok = 1;
+    if (rsa != NULL) {
+        if ((selection & RSA_POSSIBLE_SELECTIONS) != 0)
+            ok = 1;
 
-    ok = ok && (RSA_get0_e(rsa) != NULL);
-    if ((selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY) != 0)
-        ok = ok && (RSA_get0_n(rsa) != NULL);
-    if ((selection & OSSL_KEYMGMT_SELECT_PRIVATE_KEY) != 0)
-        ok = ok && (RSA_get0_d(rsa) != NULL);
+        if ((selection & OSSL_KEYMGMT_SELECT_OTHER_PARAMETERS) != 0)
+            ok = ok && 0;     /* This will change with PSS and OAEP */
+        if ((selection & OSSL_KEYMGMT_SELECT_KEYPAIR) != 0)
+            ok = ok && (RSA_get0_e(rsa) != NULL);
+        if ((selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY) != 0)
+            ok = ok && (RSA_get0_n(rsa) != NULL);
+        if ((selection & OSSL_KEYMGMT_SELECT_PRIVATE_KEY) != 0)
+            ok = ok && (RSA_get0_d(rsa) != NULL);
+    }
     return ok;
 }
 
@@ -235,7 +166,7 @@ static int rsa_import(void *keydata, int selection, const OSSL_PARAM params[])
     /* TODO(3.0) PSS and OAEP should bring on parameters */
 
     if ((selection & OSSL_KEYMGMT_SELECT_KEYPAIR) != 0)
-        ok = ok && params_to_key(rsa, params);
+        ok = ok && rsa_fromdata(rsa, params);
 
     return ok;
 }
@@ -244,7 +175,7 @@ static int rsa_export(void *keydata, int selection,
                       OSSL_CALLBACK *param_callback, void *cbarg)
 {
     RSA *rsa = keydata;
-    OSSL_PARAM_BLD tmpl;
+    OSSL_PARAM_BLD *tmpl;
     OSSL_PARAM *params = NULL;
     int ok = 1;
 
@@ -253,17 +184,22 @@ static int rsa_export(void *keydata, int selection,
 
     /* TODO(3.0) PSS and OAEP should bring on parameters */
 
-    ossl_param_bld_init(&tmpl);
-
-    if ((selection & OSSL_KEYMGMT_SELECT_KEYPAIR) != 0)
-        ok = ok && key_to_params(rsa, &tmpl);
-
-    if (!ok
-        || (params = ossl_param_bld_to_param(&tmpl)) == NULL)
+    tmpl = OSSL_PARAM_BLD_new();
+    if (tmpl == NULL)
         return 0;
 
+    if ((selection & OSSL_KEYMGMT_SELECT_KEYPAIR) != 0)
+        ok = ok && key_to_params(rsa, tmpl);
+
+    if (!ok
+        || (params = OSSL_PARAM_BLD_to_param(tmpl)) == NULL) {
+        OSSL_PARAM_BLD_free(tmpl);
+        return 0;
+    }
+    OSSL_PARAM_BLD_free(tmpl);
+
     ok = param_callback(params, cbarg);
-    ossl_param_bld_free(params);
+    OSSL_PARAM_BLD_free_params(params);
     return ok;
 }
 
