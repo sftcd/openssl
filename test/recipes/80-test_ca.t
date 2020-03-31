@@ -59,18 +59,14 @@ SKIP: {
                        srctop_file("test", "CAss.cnf"),
                        "-in", srctop_file("test", "certs", "sm2-csr.pem"),
                        "-out", "sm2-test.crt",
-                       "-sigopt", "sm2_id:1234567812345678",
-                       "-sm2-id", "1234567812345678",
+                       "-sigopt", "distid:1234567812345678",
+                       "-vfyopt", "distid:1234567812345678",
                        "-md", "sm3",
                        "-cert", srctop_file("test", "certs", "sm2-root.crt"),
                        "-keyfile", srctop_file("test", "certs", "sm2-root.key")]))),
        0,
        "Signing SM2 certificate request");
 }
-
-rmtree("demoCA", { safe => 0 });
-unlink "newcert.pem", "newreq.pem", "newkey.pem", "sm2-test.crt";
-
 
 sub yes {
     my $cntr = 10;

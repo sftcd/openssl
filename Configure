@@ -265,6 +265,19 @@ if (grep /^reconf(igure)?$/, @argvcopy) {
 
 $config{perlargv} = [ @argvcopy ];
 
+# Historical: if known directories in crypto/ have been removed, it means
+# that those sub-systems are disabled.
+# (the other option would be to removed them from the SUBDIRS statement in
+# crypto/build.info)
+# We reverse the input list for cosmetic purely reasons, to compensate that
+# 'unshift' adds at the front of the list (i.e. in reverse input order).
+foreach ( reverse sort( 'aes', 'aria', 'bf', 'camellia', 'cast', 'des', 'dh',
+                        'dsa', 'ec', 'hmac', 'idea', 'md2', 'md5', 'mdc2',
+                        'rc2', 'rc4', 'rc5', 'ripemd', 'rsa', 'seed', 'sha',
+                        'sm2', 'sm3', 'sm4') ) {
+    unshift @argvcopy, "no-$_" if ! -d catdir($srcdir, 'crypto', $_);
+}
+
 # Collect version numbers
 my %version = ();
 
@@ -412,6 +425,7 @@ my @disablables = (
     "rmd160",
     "scrypt",
     "sctp",
+    "secure-memory",
     "seed",
     "shared",
     "siphash",
@@ -559,6 +573,10 @@ my @disable_cascades = (
     "legacy"                 => [ "md2" ],
 
     "cmp"               => [ "crmf" ],
+
+    # Padlock engine uses low-level AES APIs which are deprecated
+    sub { $disabled{"deprecated-3.0"} }
+          => [ "padlockeng" ]
     );
 
 # Avoid protocol support holes.  Also disable all versions below N, if version
@@ -585,7 +603,7 @@ while ((my $first, my $second) = (shift @list, shift @list)) {
 
 &usage if ($#ARGV < 0);
 
-# For the "make variables" CINCLUDES and CDEFINES, we support lists with
+# For the "make variables" CPPINCLUDES and CPPDEFINES, we support lists with
 # platform specific list separators.  Users from those platforms should
 # recognise those separators from how you set up the PATH to find executables.
 # The default is the Unix like separator, :, but as an exception, we also
@@ -1025,7 +1043,11 @@ foreach (keys %user) {
 
     if (defined $value) {
         if (ref $user{$_} eq 'ARRAY') {
-            $user{$_} = [ split /$list_separator_re/, $value ];
+            if ($_ eq 'CPPDEFINES' || $_ eq 'CPPINCLUDES') {
+                $user{$_} = [ split /$list_separator_re/, $value ];
+            } else {
+                $user{$_} = [ $value ];
+            }
         } elsif (!defined $user{$_}) {
             $user{$_} = $value;
         }
@@ -1468,6 +1490,12 @@ die "Exactly one of SIXTY_FOUR_BIT|SIXTY_FOUR_BIT_LONG|THIRTY_TWO_BIT can be set
 
 $config{api} = $config{major} * 10000 + $config{minor} * 100
     unless $config{api};
+foreach (keys %$apitable) {
+    $disabled{"deprecated-$_"} = "deprecation"
+        if $disabled{deprecated} && $config{api} >= $apitable->{$_};
+}
+
+disable();                      # Run a cascade now
 
 # Hack cflags for better warnings (dev option) #######################
 
@@ -1479,7 +1507,7 @@ $config{cxxflags} = [ map { (my $x = $_) =~ s/([\\\"])/\\$1/g; $x }
                           @{$config{cxxflags}} ] if $config{CXX};
 
 $config{openssl_api_defines} = [
-    "OPENSSL_CONFIGURED_API=".$config{api}
+    "OPENSSL_CONFIGURED_API=".$config{api},
 ];
 
 my @strict_warnings_collection=();
@@ -1504,7 +1532,7 @@ if ($strict_warnings)
                 }
         }
 
-if (grep { $_ eq '-static' } @{$config{LDFLAGS}}) {
+if (grep { $_ =~ /(?:^|\s)-static(?:\s|$)/ } @{$config{LDFLAGS}}) {
     disable('static', 'pic', 'threads');
 }
 
@@ -1638,6 +1666,9 @@ foreach my $what (sort keys %disabled) {
     # There are deprecated disablables that translate to themselves.
     # They cause disabling cascades, but should otherwise not regiter.
     next if $deprecated_disablables{$what};
+    # The generated $disabled{"deprecated-x.y"} entries are special
+    # and treated properly elsewhere
+    next if $what =~ m|^deprecated-|;
 
     $config{options} .= " no-$what";
 
@@ -1789,23 +1820,62 @@ if ($builder eq "unified") {
         # contains a dollar sign, it had better be escaped, or it will be
         # taken for a variable name prefix.
         my %variables = ();
-        my $variable_re = qr/\$(?P<VARIABLE>[[:alpha:]][[:alnum:]_]*)/;
+        # Variable name syntax
+        my $variable_name_re = qr/(?P<VARIABLE>[[:alpha:]][[:alnum:]_]*)/;
+        # Value modifier syntaxes
+        my $variable_subst_re = qr/\/(?P<RE>(?:\\\/|.)*?)\/(?P<SUBST>.*?)/;
+        # Put it all together
+        my $variable_re = qr/\$
+                             (?|
+                                 # Simple case, just the name
+                                 ${variable_name_re}
+                             |
+                                 # Expressive case, with braces and possible
+                                 # modifier expressions
+                                 \{
+                                 ${variable_name_re}
+                                 (?:
+                                     # Pile on modifier expressions,
+                                     # separated by |
+                                     ${variable_subst_re}
+                                 )
+                                 \}
+                             )/x;
         my $expand_variables = sub {
             my $value = '';
             my $value_rest = shift;
 
             if ($ENV{CONFIGURE_DEBUG_VARIABLE_EXPAND}) {
                 print STDERR
-                    "DEBUG[\$expand_variables] Parsed '$value_rest' into:\n"
+                    "DEBUG[\$expand_variables] Parsed '$value_rest' ...\n"
             }
             while ($value_rest =~ /(?<!\\)${variable_re}/) {
-                $value .= $`;
-                $value .= $variables{$+{VARIABLE}};
                 $value_rest = $';
+                $value .= $`;
+
+                my $variable_value = $variables{$+{VARIABLE}};
+
+                # Process modifier expressions, if present
+                if (defined $+{RE}) {
+                    # We must save important %+ values, because the s///
+                    # below clears them
+                    my $re = $+{RE};
+                    my $subst = $+{SUBST};
+
+                    $variable_value =~ s/\Q$re\E/$subst/g;
+
+                    if ($ENV{CONFIGURE_DEBUG_VARIABLE_EXPAND}) {
+                        print STDERR
+                            "DEBUG[\$expand_variables] ... and substituted ",
+                            "'$re' with '$subst'\n";
+                    }
+                }
+
+                $value .= $variable_value;
             }
             if ($ENV{CONFIGURE_DEBUG_VARIABLE_EXPAND}) {
                 print STDERR
-                    "DEBUG[\$expand_variables] ... '$value$value_rest'\n";
+                    "DEBUG[\$expand_variables] ... into: '$value$value_rest'\n";
             }
             return $value . $value_rest;
         };
@@ -1836,6 +1906,34 @@ if ($builder eq "unified") {
                         delete $$ref->{$g}->{$ak};
                     }
                 }
+            }
+        };
+
+        # Support for pushing values on multiple indexes of a given hash
+        # array.
+        my $push_to = sub {
+            my $valueref = shift;
+            my $index_str = shift; # May be undef or empty
+            my $attrref = shift;   # May be undef
+            my $attr_str = shift;
+            my @values = @_;
+
+            if (defined $index_str) {
+                my @indexes = ( '' );
+                if ($index_str !~ m|^\s*$|) {
+                    @indexes = tokenize($index_str);
+                }
+                foreach (@indexes) {
+                    push @{$valueref->{$_}}, @values;
+                    if (defined $attrref) {
+                        $handle_attributes->($attr_str, \$$attrref->{$_},
+                                             @values);
+                    }
+                }
+            } else {
+                push @$valueref, @values;
+                $handle_attributes->($attr_str, $attrref, @values)
+                    if defined $attrref;
             }
         };
 
@@ -1919,88 +2017,64 @@ if ($builder eq "unified") {
                 }
             },
             qr/^\s* PROGRAMS ${attribs_re} \s* =  ${value_re} $/x
-            => sub {
-                if (!@skip || $skip[$#skip] > 0) {
-                    my @p = tokenize($expand_variables->($+{VALUE}));
-                    push @programs, @p;
-                    $handle_attributes->($+{ATTRIBS},
-                                         \$attributes{programs},
-                                         @p);
-                }
-            },
+            => sub { $push_to->(\@programs, undef,
+                                \$attributes{programs}, $+{ATTRIBS},
+                                tokenize($expand_variables->($+{VALUE})))
+                         if !@skip || $skip[$#skip] > 0; },
             qr/^\s* LIBS ${attribs_re} \s* =  ${value_re} $/x
-            => sub {
-                if (!@skip || $skip[$#skip] > 0) {
-                    my @l = tokenize($expand_variables->($+{VALUE}));
-                    push @libraries, @l;
-                    $handle_attributes->($+{ATTRIBS},
-                                         \$attributes{libraries},
-                                         @l);
-                }
-            },
+            => sub { $push_to->(\@libraries, undef,
+                                \$attributes{libraries}, $+{ATTRIBS},
+                                tokenize($expand_variables->($+{VALUE})))
+                         if !@skip || $skip[$#skip] > 0; },
             qr/^\s* MODULES ${attribs_re} \s* =  ${value_re} $/x
-            => sub {
-                if (!@skip || $skip[$#skip] > 0) {
-                    my @m = tokenize($expand_variables->($+{VALUE}));
-                    push @modules, @m;
-                    $handle_attributes->($+{ATTRIBS},
-                                         \$attributes{modules},
-                                         @m);
-                }
-            },
+            => sub { $push_to->(\@modules, undef,
+                                \$attributes{modules}, $+{ATTRIBS},
+                                tokenize($expand_variables->($+{VALUE})))
+                         if !@skip || $skip[$#skip] > 0; },
             qr/^\s* SCRIPTS ${attribs_re} \s* =  ${value_re} $/x
-            => sub {
-                if (!@skip || $skip[$#skip] > 0) {
-                    my @s = tokenize($expand_variables->($+{VALUE}));
-                    push @scripts, @s;
-                    $handle_attributes->($+{ATTRIBS},
-                                         \$attributes{scripts},
-                                         @s);
-                }
-            },
+            => sub { $push_to->(\@scripts, undef,
+                                \$attributes{scripts}, $+{ATTRIBS},
+                                tokenize($expand_variables->($+{VALUE})))
+                         if !@skip || $skip[$#skip] > 0; },
             qr/^\s* HTMLDOCS ${index_re} = ${value_re} $/x
-            => sub { push @{$htmldocs{$expand_variables->($+{INDEX})}},
-                         tokenize($expand_variables->($+{VALUE}))
-                         if !@skip || $skip[$#skip] > 0 },
+            => sub { $push_to->(\%htmldocs, $expand_variables->($+{INDEX}),
+                                undef, undef,
+                                tokenize($expand_variables->($+{VALUE})))
+                         if !@skip || $skip[$#skip] > 0; },
             qr/^\s* MANDOCS ${index_re} = ${value_re} $/x
-            => sub { push @{$mandocs{$expand_variables->($+{INDEX})}},
-                         tokenize($expand_variables->($+{VALUE}))
-                         if !@skip || $skip[$#skip] > 0 },
-            qr/^\s* ORDINALS ${index_re} = ${value_re} $/x
-            => sub { push @{$ordinals{$expand_variables->($+{INDEX})}},
-                         tokenize($expand_variables->($+{VALUE}))
-                         if !@skip || $skip[$#skip] > 0 },
+            => sub { $push_to->(\%mandocs, $expand_variables->($+{INDEX}),
+                                undef, undef,
+                                tokenize($expand_variables->($+{VALUE})))
+                         if !@skip || $skip[$#skip] > 0; },
             qr/^\s* SOURCE ${index_re} = ${value_re} $/x
-            => sub { push @{$sources{$expand_variables->($+{INDEX})}},
-                         tokenize($expand_variables->($+{VALUE}))
-                         if !@skip || $skip[$#skip] > 0 },
+            => sub { $push_to->(\%sources, $expand_variables->($+{INDEX}),
+                                undef, undef,
+                                tokenize($expand_variables->($+{VALUE})))
+                         if !@skip || $skip[$#skip] > 0; },
             qr/^\s* SHARED_SOURCE ${index_re} = ${value_re} $/x
-            => sub { push @{$shared_sources{$expand_variables->($+{INDEX})}},
-                         tokenize($expand_variables->($+{VALUE}))
-                         if !@skip || $skip[$#skip] > 0 },
+            => sub { $push_to->(\%shared_sources, $expand_variables->($+{INDEX}),
+                                undef, undef,
+                                tokenize($expand_variables->($+{VALUE})))
+                         if !@skip || $skip[$#skip] > 0; },
             qr/^\s* INCLUDE ${index_re} = ${value_re} $/x
-            => sub { push @{$includes{$expand_variables->($+{INDEX})}},
-                         tokenize($expand_variables->($+{VALUE}))
-                         if !@skip || $skip[$#skip] > 0 },
+            => sub { $push_to->(\%includes, $expand_variables->($+{INDEX}),
+                                undef, undef,
+                                tokenize($expand_variables->($+{VALUE})))
+                         if !@skip || $skip[$#skip] > 0; },
             qr/^\s* DEFINE ${index_re} = ${value_re} $/x
-            => sub { push @{$defines{$expand_variables->($+{INDEX})}},
-                         tokenize($expand_variables->($+{VALUE}))
-                         if !@skip || $skip[$#skip] > 0 },
+            => sub { $push_to->(\%defines, $expand_variables->($+{INDEX}),
+                                undef, undef,
+                                tokenize($expand_variables->($+{VALUE})))
+                         if !@skip || $skip[$#skip] > 0; },
             qr/^\s* DEPEND ${index_re} ${attribs_re} = ${value_re} $/x
-            => sub {
-                if (!@skip || $skip[$#skip] > 0) {
-                    my $i = $expand_variables->($+{INDEX});
-                    my @d = tokenize($expand_variables->($+{VALUE}));
-                    push @{$depends{$i}}, @d;
-                    $handle_attributes->($+{ATTRIBS},
-                                         \$attributes{depends}->{$i},
-                                         @d);
-                }
-            },
+            => sub { $push_to->(\%depends, $expand_variables->($+{INDEX}),
+                                \$attributes{depends}, $+{ATTRIBS},
+                                tokenize($expand_variables->($+{VALUE})))
+                         if !@skip || $skip[$#skip] > 0; },
             qr/^\s* GENERATE ${index_re} = ${value_re} $/x
-            => sub { push @{$generate{$expand_variables->($+{INDEX})}},
-                         $+{VALUE}
-                         if !@skip || $skip[$#skip] > 0 },
+            => sub { $push_to->(\%generate, $expand_variables->($+{INDEX}),
+                                undef, undef, $+{VALUE})
+                         if !@skip || $skip[$#skip] > 0; },
             qr/^\s* (?:\#.*)? $/x => sub { },
             "OTHERWISE" => sub { die "Something wrong with this line:\n$_\nat $sourced/$f" },
             "BEFORE" => sub {
@@ -2060,9 +2134,9 @@ EOF
             foreach (@{$sources{$dest}}) {
                 my $s = cleanfile($sourced, $_, $blddir);
 
-                # If it isn't in the source tree, we assume it's generated
-                # in the build tree
-                if ($s eq $src_configdata || ! -f $s || $generate{$_}) {
+                # If it's generated or we simply don't find it in the source
+                # tree, we assume it's in the build tree.
+                if ($s eq $src_configdata || $generate{$_} || ! -f $s) {
                     $s = cleanfile($buildd, $_, $blddir);
                 }
                 # We recognise C++, C and asm files
@@ -2092,9 +2166,9 @@ EOF
             foreach (@{$shared_sources{$dest}}) {
                 my $s = cleanfile($sourced, $_, $blddir);
 
-                # If it isn't in the source tree, we assume it's generated
-                # in the build tree
-                if ($s eq $src_configdata || ! -f $s || $generate{$_}) {
+                # If it's generated or we simply don't find it in the source
+                # tree, we assume it's in the build tree.
+                if ($s eq $src_configdata || $generate{$_} || ! -f $s) {
                     $s = cleanfile($buildd, $_, $blddir);
                 }
 
@@ -2134,8 +2208,7 @@ EOF
             my $gen = $generator[0];
             $generator[0] = cleanfile($sourced, $gen, $blddir);
 
-            # If the generator isn't in the source tree, we assume it's
-            # generated in the build tree
+            # If the generator is itself generated, it's in the build tree
             if ($generate{$gen}) {
                 $generator[0] = cleanfile($buildd, $gen, $blddir);
             }
@@ -2157,23 +2230,14 @@ EOF
 
                 # If we know it's generated, or assume it is because we can't
                 # find it in the source tree, we set file we depend on to be
-                # in the build tree rather than the source tree, and assume
-                # and that there are lines to build it in a BEGINRAW..ENDRAW
-                # section or in the Makefile template.
+                # in the build tree rather than the source tree.
                 if ($d eq $src_configdata
-                    || ! -f $d
                     || (grep { $d eq $_ }
                         map { cleanfile($srcdir, $_, $blddir) }
-                        grep { /\.h$/ } keys %{$unified_info{generate}})) {
+                        grep { /\.h$/ } keys %{$unified_info{generate}})
+                    || ! -f $d) {
                     $d = cleanfile($buildd, $_, $blddir);
                 }
-                # Take note if the file to depend on is being renamed
-                # Take extra care with files ending with .a, they should
-                # be treated without that extension, and the extension
-                # should be added back after treatment.
-                $d =~ /(\.a)?$/;
-                my $e = $1 // "";
-                $d = $`.$e;
                 $unified_info{depends}->{$ddest}->{$d} = 1;
 
                 # Fix up associated attributes
@@ -2212,9 +2276,6 @@ EOF
                 # be a generated file in the build tree.
                 if (! -f $ddest) {
                     $ddest = cleanfile($buildd, $dest, $blddir);
-                    if ($unified_info{rename}->{$ddest}) {
-                        $ddest = $unified_info{rename}->{$ddest};
-                    }
                 }
             }
             foreach my $v (@{$defines{$dest}}) {

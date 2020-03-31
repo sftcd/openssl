@@ -331,6 +331,8 @@ typedef struct digest_data_st {
     /* Expected output */
     unsigned char *output;
     size_t output_len;
+    /* Padding type */
+    int pad_type;
 } DIGEST_DATA;
 
 static int digest_test_init(EVP_TEST *t, const char *alg)
@@ -353,6 +355,7 @@ static int digest_test_init(EVP_TEST *t, const char *alg)
     t->data = mdat;
     mdat->digest = digest;
     mdat->fetched_digest = fetched_digest;
+    mdat->pad_type = 0;
     if (fetched_digest != NULL)
         TEST_info("%s is fetched", alg);
     return 1;
@@ -380,6 +383,8 @@ static int digest_test_parse(EVP_TEST *t,
         return evp_test_buffer_set_count(value, mdata->input);
     if (strcmp(keyword, "Ncopy") == 0)
         return evp_test_buffer_ncopy(value, mdata->input);
+    if (strcmp(keyword, "Padding") == 0)
+        return (mdata->pad_type = atoi(value)) > 0;
     return 0;
 }
 
@@ -394,6 +399,7 @@ static int digest_test_run(EVP_TEST *t)
     EVP_MD_CTX *mctx;
     unsigned char *got = NULL;
     unsigned int got_len;
+    OSSL_PARAM params[2];
 
     t->err = "TEST_FAILURE";
     if (!TEST_ptr(mctx = EVP_MD_CTX_new()))
@@ -407,6 +413,15 @@ static int digest_test_run(EVP_TEST *t)
     if (!EVP_DigestInit_ex(mctx, expected->digest, NULL)) {
         t->err = "DIGESTINIT_ERROR";
         goto err;
+    }
+    if (expected->pad_type > 0) {
+        params[0] = OSSL_PARAM_construct_int(OSSL_DIGEST_PARAM_PAD_TYPE,
+                                              &expected->pad_type);
+        params[1] = OSSL_PARAM_construct_end();
+        if (!TEST_int_gt(EVP_MD_CTX_set_params(mctx, params), 0)) {
+            t->err = "PARAMS_ERROR";
+            goto err;
+        }
     }
     if (!evp_test_buffer_do(expected->input, digest_update_fn, mctx)) {
         t->err = "DIGESTUPDATE_ERROR";
@@ -1295,7 +1310,7 @@ static int mac_test_run_mac(EVP_TEST *t)
             || !OSSL_PARAM_allocate_from_text(&params[params_n],
                                               defined_params,
                                               tmpkey, tmpval,
-                                              strlen(tmpval))) {
+                                              strlen(tmpval), NULL)) {
             OPENSSL_free(tmpkey);
             t->err = "MAC_PARAM_ERROR";
             goto err;
@@ -2114,7 +2129,7 @@ static int kdf_test_ctrl(EVP_TEST *t, EVP_KDF_CTX *kctx,
         *p++ = '\0';
 
     rv = OSSL_PARAM_allocate_from_text(kdata->p, defs, name, p,
-                                       p != NULL ? strlen(p) : 0);
+                                       p != NULL ? strlen(p) : 0, NULL);
     *++kdata->p = OSSL_PARAM_construct_end();
     if (!rv) {
         t->err = "KDF_PARAM_ERROR";
@@ -2489,8 +2504,8 @@ static int keygen_test_run(EVP_TEST *t)
 {
     KEYGEN_TEST_DATA *keygen = t->data;
     EVP_PKEY *pkey = NULL;
+    int rv = 1;
 
-    t->err = NULL;
     if (EVP_PKEY_keygen(keygen->genctx, &pkey) <= 0) {
         t->err = "KEYGEN_GENERATE_ERROR";
         goto err;
@@ -2499,6 +2514,7 @@ static int keygen_test_run(EVP_TEST *t)
     if (keygen->keyname != NULL) {
         KEY_LIST *key;
 
+        rv = 0;
         if (find_key(NULL, keygen->keyname, private_keys)) {
             TEST_info("Duplicate key %s", keygen->keyname);
             goto err;
@@ -2511,15 +2527,15 @@ static int keygen_test_run(EVP_TEST *t)
         key->key = pkey;
         key->next = private_keys;
         private_keys = key;
+        rv = 1;
     } else {
         EVP_PKEY_free(pkey);
     }
 
-    return 1;
+    t->err = NULL;
 
 err:
-    EVP_PKEY_free(pkey);
-    return 0;
+    return rv;
 }
 
 static const EVP_TEST_METHOD keygen_test_method = {
@@ -3130,17 +3146,6 @@ top:
         if (!TEST_ptr(key = OPENSSL_malloc(sizeof(*key))))
             return 0;
         key->name = take_value(pp);
-
-        /* Hack to detect SM2 keys */
-        if(pkey != NULL && strstr(key->name, "SM2") != NULL) {
-#ifdef OPENSSL_NO_SM2
-            EVP_PKEY_free(pkey);
-            pkey = NULL;
-#else
-            EVP_PKEY_set_alias_type(pkey, EVP_PKEY_SM2);
-#endif
-        }
-
         key->key = pkey;
         key->next = *klist;
         *klist = key;
@@ -3243,8 +3248,14 @@ OPT_TEST_DECLARE_USAGE("file...\n")
 
 int setup_tests(void)
 {
-    size_t n = test_get_argument_count();
+    size_t n;
 
+    if (!test_skip_common_options()) {
+        TEST_error("Error parsing test options\n");
+        return 0;
+    }
+
+    n = test_get_argument_count();
     if (n == 0)
         return 0;
 

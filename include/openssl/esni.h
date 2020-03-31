@@ -334,6 +334,8 @@ unsigned char *SSL_ESNI_wrap_keyshare(
  * This is an internal API called as part of the state machine
  * dealing with this extension.
  *
+ * @param ctx is the parent SSL_CTX
+ * @param con is the SSL connection
  * @param esnikeys is the SSL_ESNI structure
  * @param client_random_len is the number of bytes of
  * @param client_random being the TLS h/s client random
@@ -342,7 +344,9 @@ unsigned char *SSL_ESNI_wrap_keyshare(
  * @param client_keyshare is the h/s client keyshare
  * @return 1 for success, other otherwise
  */
-int SSL_ESNI_enc(SSL_ESNI *esnikeys, 
+int SSL_ESNI_enc(SSL_CTX *ctx,
+                SSL *con,
+                SSL_ESNI *esnikeys, 
                 size_t  client_random_len,
                 unsigned char *client_random,
                 uint16_t curve_id,
@@ -359,6 +363,8 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys,
  * is no guarantee it's a DNS name or printable etc. (Same as with
  * SNI generally.)
  *
+ * @param ctx is the parent SSL_CTX
+ * @param con is the SSL connection
  * @param esni is the SSL_ESNI structure
  * @param client_random_len is the number of bytes of
  * @param client_random being the TLS h/s client random
@@ -367,7 +373,9 @@ int SSL_ESNI_enc(SSL_ESNI *esnikeys,
  * @param client_keyshare is the h/s client keyshare
  * @return NULL for error, or the decrypted servername when it works
  */
-unsigned char *SSL_ESNI_dec(SSL_ESNI *esni,
+unsigned char *SSL_ESNI_dec(SSL_CTX *ctx,
+                SSL *con,
+                SSL_ESNI *esni,
 				size_t	client_random_len,
 				unsigned char *client_random,
 				uint16_t curve_id,
@@ -428,13 +436,14 @@ int SSL_esni_checknames(const char *encservername, const char *clear_sni);
  * (or TXT values for draft-02), we'll internally try decode and handle those and (later)
  * use whichever is relevant/best. The fmt parameter can be e.g. ESNI_RRFMT_ASCII_HEX
  *
- * @param ekfmt specifies the format of the input text string
+ * @param ctx is the parent SSL_CTX
+ * @param con is the SSL connection 
  * @param eklen is the length of the binary, base64 or ascii-hex encoded value from DNS
  * @param esnikeys is the binary, base64 or ascii-hex encoded value from DNS
  * @param num_esnis says how many SSL_ESNI structures are in the returned array
  * @return is an SSL_ESNI structure
  */
-SSL_ESNI* SSL_ESNI_new_from_buffer(const short ekfmt, const size_t eklen, const char *esnikeys, int *num_esnis);
+SSL_ESNI* SSL_ESNI_new_from_buffer(SSL_CTX *ctx, SSL *con, const short ekfmt, const size_t eklen, const char *esnikeys, int *num_esnis);
 
 /**
  * @brief Turn on SNI encryption for an (upcoming) TLS session
@@ -528,11 +537,12 @@ int SSL_CTX_esni_server_flush_keys(SSL_CTX *s, int age);
  * subsequently treat those as if they had been send in cleartext SNI.
  *
  * @param s is the SSL server context
+ * @param con is the SSL connection (can be NULL)
  * @param esnikeyfile has the relevant (X25519) private key in PEM format, or both keys
  * @param esnipubfile has the relevant (binary encoded, not base64) ESNIKeys structure, or is NULL
  * @return 1 for success, other otherwise
  */
-int SSL_CTX_esni_server_enable(SSL_CTX *s, const char *esnikeyfile, const char *esnipubfile);
+int SSL_CTX_esni_server_enable(SSL_CTX *s, SSL *con, const char *esnikeyfile, const char *esnipubfile);
 
 /**
  * Access an SSL_ESNI structure note - can include sensitive values!

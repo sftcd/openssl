@@ -7,6 +7,12 @@
  * https://www.openssl.org/source/license.html
  */
 
+/*
+ * DH low level APIs are deprecated for public use, but still ok for
+ * internal use.
+ */
+#include "internal/deprecated.h"
+
 #include <openssl/core_numbers.h>
 #include <openssl/core_names.h>
 #include <openssl/err.h>
@@ -48,11 +54,10 @@ static void *dh_priv_newctx(void *provctx)
 
     if (ctx != NULL) {
         ctx->provctx = provctx;
+
+        /* -1 is the "whatever" indicator, i.e. the PKCS8 library default PBE */
+        ctx->sc.pbe_nid = -1;
     }
-
-    /* -1 is the "whatever" indicator, i.e. the PKCS8 library default PBE */
-    ctx->sc.pbe_nid = -1;
-
     return ctx;
 }
 
@@ -113,18 +118,22 @@ static int dh_priv_set_ctx_params(void *vctx, const OSSL_PARAM params[])
 
 /* Private key : DER */
 static int dh_priv_der_data(void *vctx, const OSSL_PARAM params[], BIO *out,
-                             OSSL_PASSPHRASE_CALLBACK *cb, void *cbarg)
+                            OSSL_PASSPHRASE_CALLBACK *cb, void *cbarg)
 {
     struct dh_priv_ctx_st *ctx = vctx;
-    OSSL_OP_keymgmt_importkey_fn *dh_importkey =
-        ossl_prov_get_dh_importkey();
+    OSSL_OP_keymgmt_new_fn *dh_new = ossl_prov_get_keymgmt_dh_new();
+    OSSL_OP_keymgmt_free_fn *dh_free = ossl_prov_get_keymgmt_dh_free();
+    OSSL_OP_keymgmt_import_fn *dh_import = ossl_prov_get_keymgmt_dh_import();
     int ok = 0;
 
-    if (dh_importkey != NULL) {
-        DH *dh = dh_importkey(ctx->provctx, params);
+    if (dh_import != NULL) {
+        DH *dh;
 
-        ok = dh_priv_der(ctx, dh, out, cb, cbarg);
-        DH_free(dh);
+        if ((dh = dh_new(ctx->provctx)) != NULL
+            && dh_import(dh, OSSL_KEYMGMT_SELECT_KEYPAIR, params)
+            && dh_priv_der(ctx, dh, out, cb, cbarg))
+            ok = 1;
+        dh_free(dh);
     }
     return ok;
 }
@@ -148,24 +157,28 @@ static int dh_priv_der(void *vctx, void *dh, BIO *out,
 
 /* Private key : PEM */
 static int dh_pem_priv_data(void *vctx, const OSSL_PARAM params[], BIO *out,
-                             OSSL_PASSPHRASE_CALLBACK *cb, void *cbarg)
+                            OSSL_PASSPHRASE_CALLBACK *cb, void *cbarg)
 {
     struct dh_priv_ctx_st *ctx = vctx;
-    OSSL_OP_keymgmt_importkey_fn *dh_importkey =
-        ossl_prov_get_dh_importkey();
+    OSSL_OP_keymgmt_new_fn *dh_new = ossl_prov_get_keymgmt_dh_new();
+    OSSL_OP_keymgmt_free_fn *dh_free = ossl_prov_get_keymgmt_dh_free();
+    OSSL_OP_keymgmt_import_fn *dh_import = ossl_prov_get_keymgmt_dh_import();
     int ok = 0;
 
-    if (dh_importkey != NULL) {
-        DH *dh = dh_importkey(ctx, params);
+    if (dh_import != NULL) {
+        DH *dh;
 
-        ok = dh_pem_priv(ctx->provctx, dh, out, cb, cbarg);
-        DH_free(dh);
+        if ((dh = dh_new(ctx->provctx)) != NULL
+            && dh_import(dh, OSSL_KEYMGMT_SELECT_KEYPAIR, params)
+            && dh_pem_priv(ctx->provctx, dh, out, cb, cbarg))
+            ok = 1;
+        dh_free(dh);
     }
     return ok;
 }
 
 static int dh_pem_priv(void *vctx, void *dh, BIO *out,
-                        OSSL_PASSPHRASE_CALLBACK *cb, void *cbarg)
+                       OSSL_PASSPHRASE_CALLBACK *cb, void *cbarg)
 {
     struct dh_priv_ctx_st *ctx = vctx;
     int ret;
@@ -193,25 +206,29 @@ static void dh_print_freectx(void *ctx)
 {
 }
 
-static int dh_priv_print_data(void *provctx, const OSSL_PARAM params[],
-                               BIO *out,
-                               OSSL_PASSPHRASE_CALLBACK *cb, void *cbarg)
+static int dh_priv_print_data(void *vctx, const OSSL_PARAM params[], BIO *out,
+                              OSSL_PASSPHRASE_CALLBACK *cb, void *cbarg)
 {
-    OSSL_OP_keymgmt_importkey_fn *dh_importkey =
-        ossl_prov_get_dh_importkey();
+    struct dh_priv_ctx_st *ctx = vctx;
+    OSSL_OP_keymgmt_new_fn *dh_new = ossl_prov_get_keymgmt_dh_new();
+    OSSL_OP_keymgmt_free_fn *dh_free = ossl_prov_get_keymgmt_dh_free();
+    OSSL_OP_keymgmt_import_fn *dh_import = ossl_prov_get_keymgmt_dh_import();
     int ok = 0;
 
-    if (dh_importkey != NULL) {
-        DH *dh = dh_importkey(provctx, params); /* ctx == provctx */
+    if (dh_import != NULL) {
+        DH *dh;
 
-        ok = dh_priv_print(provctx, dh, out, cb, cbarg);
-        DH_free(dh);
+        if ((dh = dh_new(ctx->provctx)) != NULL
+            && dh_import(dh, OSSL_KEYMGMT_SELECT_KEYPAIR, params)
+            && dh_priv_print(ctx, dh, out, cb, cbarg))
+            ok = 1;
+        dh_free(dh);
     }
     return ok;
 }
 
 static int dh_priv_print(void *ctx, void *dh, BIO *out,
-                          OSSL_PASSPHRASE_CALLBACK *cb, void *cbarg)
+                         OSSL_PASSPHRASE_CALLBACK *cb, void *cbarg)
 {
     return ossl_prov_print_dh(out, dh, dh_print_priv);
 }

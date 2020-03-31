@@ -303,7 +303,9 @@ int EVP_DigestUpdate(EVP_MD_CTX *ctx, const void *data, size_t count)
         return 0;
     }
 
-    if (ctx->digest == NULL || ctx->digest->prov == NULL)
+    if (ctx->digest == NULL
+            || ctx->digest->prov == NULL
+            || (ctx->flags & EVP_MD_CTX_FLAG_NO_INIT) != 0)
         goto legacy;
 
     if (ctx->digest->dupdate == NULL) {
@@ -422,7 +424,8 @@ int EVP_MD_CTX_copy_ex(EVP_MD_CTX *out, const EVP_MD_CTX *in)
         return 0;
     }
 
-    if (in->digest->prov == NULL)
+    if (in->digest->prov == NULL
+            || (in->flags & EVP_MD_CTX_FLAG_NO_INIT) != 0)
         goto legacy;
 
     if (in->digest->dupctx == NULL) {
@@ -654,15 +657,12 @@ int EVP_MD_CTX_ctrl(EVP_MD_CTX *ctx, int cmd, int p1, void *p2)
     size_t sz;
     OSSL_PARAM params[2] = { OSSL_PARAM_END, OSSL_PARAM_END };
 
-    if (ctx == NULL || ctx->digest == NULL) {
-        ERR_raise(ERR_LIB_EVP, EVP_R_MESSAGE_DIGEST_IS_NULL);
+    if (ctx == NULL) {
+        ERR_raise(ERR_LIB_EVP, ERR_R_PASSED_NULL_PARAMETER);
         return 0;
     }
 
-    if (ctx->digest->prov == NULL
-        && (ctx->pctx == NULL
-            || (ctx->pctx->operation != EVP_PKEY_OP_VERIFYCTX
-                && ctx->pctx->operation != EVP_PKEY_OP_SIGNCTX)))
+    if (ctx->digest != NULL && ctx->digest->prov == NULL)
         goto legacy;
 
     switch (cmd) {

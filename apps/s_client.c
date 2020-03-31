@@ -95,7 +95,6 @@ static int ocsp_resp_cb(SSL *s, void *arg);
 #endif
 
 static int ldap_ExtendedResponse_parse(const char *buf, long rem);
-static char *base64encode (const void *buf, size_t len);
 static int is_dNS_name(const char *host);
 
 static int saved_errno;
@@ -627,7 +626,7 @@ typedef enum OPTION_choice {
     OPT_ESNI_GREASE,
 #endif
     OPT_SCTP_LABEL_BUG,
-    OPT_R_ENUM
+    OPT_R_ENUM, OPT_PROV_ENUM
 } OPTION_CHOICE;
 
 const OPTIONS s_client_options[] = {
@@ -640,7 +639,7 @@ const OPTIONS s_client_options[] = {
     {"ssl_client_engine", OPT_SSL_CLIENT_ENGINE, 's',
      "Specify engine to be used for client certificate operations"},
 #endif
-    {"ssl_config", OPT_SSL_CONFIG, 's', "Use specified configuration file"},
+    {"ssl_config", OPT_SSL_CONFIG, 's', "Use specified section for SSL_CTX configuration"},
 #ifndef OPENSSL_NO_CT
     {"ct", OPT_CT, '-', "Request and parse SCTs (also enables OCSP stapling)"},
     {"noct", OPT_NOCT, '-', "Do not request or parse SCTs (default)"},
@@ -686,12 +685,12 @@ const OPTIONS s_client_options[] = {
     {"pass", OPT_PASS, 's', "Private key file pass phrase source"},
     {"CApath", OPT_CAPATH, '/', "PEM format directory of CA's"},
     {"CAfile", OPT_CAFILE, '<', "PEM format file of CA's"},
-    {"CAstore", OPT_CAFILE, ':', "URI to store of CA's"},
+    {"CAstore", OPT_CASTORE, ':', "URI to store of CA's"},
     {"no-CAfile", OPT_NOCAFILE, '-',
      "Do not load the default certificates file"},
     {"no-CApath", OPT_NOCAPATH, '-',
      "Do not load certificates from the default certificates directory"},
-    {"no-CAstore", OPT_NOCAPATH, '-',
+    {"no-CAstore", OPT_NOCASTORE, '-',
      "Do not load certificates from the default certificates store"},
     {"requestCAfile", OPT_REQCAFILE, '<',
       "PEM format file of CA names to send to the server"},
@@ -854,6 +853,7 @@ const OPTIONS s_client_options[] = {
     {"chainCAfile", OPT_CHAINCAFILE, '<',
      "CA file for certificate chain (PEM format)"},
     OPT_X_OPTIONS,
+    OPT_PROV_OPTIONS,
 
     OPT_PARAMETERS(),
     {"host:port", 0, 0, "Where to connect; same as -connect option"},
@@ -1065,7 +1065,7 @@ int s_client_main(int argc, char **argv)
     int prexit = 0;
     int sdebug = 0;
     int reconnect = 0, verify = SSL_VERIFY_NONE, vpmtouched = 0;
-    int ret = 1, in_init = 1, i, nbio_test = 0, s = -1, k, width, state = 0;
+    int ret = 1, in_init = 1, i, nbio_test = 0, sock = -1, k, width, state = 0;
     int sbuf_len, sbuf_off, cmdletters = 1;
     int socket_family = AF_UNSPEC, socket_type = SOCK_STREAM, protocol = 0;
     int starttls_proto = PROTO_OFF, crl_format = FORMAT_PEM, crl_download = 0;
@@ -1349,6 +1349,10 @@ int s_client_main(int argc, char **argv)
             break;
         case OPT_R_CASES:
             if (!opt_rand(o))
+                goto end;
+            break;
+        case OPT_PROV_CASES:
+            if (!opt_provider(o))
                 goto end;
             break;
         case OPT_IGN_EOF:
@@ -1737,17 +1741,6 @@ int s_client_main(int argc, char **argv)
                        prog);
             goto opthelp;
         } 
-
-        esnikeys=SSL_ESNI_new_from_buffer(ESNI_RRFMT_GUESS,strlen(esnikeys_asciirr),esnikeys_asciirr,&nesnis);
-        if (nesnis==0 || esnikeys == NULL) {
-            BIO_printf(bio_err,
-                       "%s: ESNI decode failed.\n",
-                       prog);
-            goto opthelp;
-        } 
-        if (c_msg>0) {
-            SSL_ESNI_print(bio_err,esnikeys,ESNI_SELECT_ALL);
-        }
 
     }
 #endif
@@ -2318,6 +2311,18 @@ int s_client_main(int argc, char **argv)
 
 #ifndef OPENSSL_NO_ESNI
     if (encservername != NULL ) {
+
+        esnikeys=SSL_ESNI_new_from_buffer(ctx,con,ESNI_RRFMT_GUESS,strlen(esnikeys_asciirr),esnikeys_asciirr,&nesnis);
+        if (nesnis==0 || esnikeys == NULL) {
+            BIO_printf(bio_err,
+                       "%s: ESNI decode failed.\n",
+                       prog);
+            goto opthelp;
+        } 
+        if (c_msg>0) {
+            SSL_ESNI_print(bio_err,esnikeys,ESNI_SELECT_ALL);
+        }
+
         if (SSL_esni_enable(con,encservername,servername,esnikeys,nesnis,esni_strict)!=1) {
             BIO_printf(bio_err, "%s: ESNI enabling failed.\n", prog);
             ERR_print_errors(bio_err);
@@ -2366,16 +2371,16 @@ int s_client_main(int argc, char **argv)
     }
 
  re_start:
-    if (init_client(&s, host, port, bindhost, bindport, socket_family,
+    if (init_client(&sock, host, port, bindhost, bindport, socket_family,
                     socket_type, protocol) == 0) {
         BIO_printf(bio_err, "connect:errno=%d\n", get_last_socket_error());
-        BIO_closesocket(s);
+        BIO_closesocket(sock);
         goto end;
     }
-    BIO_printf(bio_c_out, "CONNECTED(%08X)\n", s);
+    BIO_printf(bio_c_out, "CONNECTED(%08X)\n", sock);
 
     if (c_nbio) {
-        if (!BIO_socket_nbio(s, 1)) {
+        if (!BIO_socket_nbio(sock, 1)) {
             ERR_print_errors(bio_err);
             goto end;
         }
@@ -2387,21 +2392,21 @@ int s_client_main(int argc, char **argv)
 
 #ifndef OPENSSL_NO_SCTP
         if (protocol == IPPROTO_SCTP)
-            sbio = BIO_new_dgram_sctp(s, BIO_NOCLOSE);
+            sbio = BIO_new_dgram_sctp(sock, BIO_NOCLOSE);
         else
 #endif
-            sbio = BIO_new_dgram(s, BIO_NOCLOSE);
+            sbio = BIO_new_dgram(sock, BIO_NOCLOSE);
 
         if ((peer_info.addr = BIO_ADDR_new()) == NULL) {
             BIO_printf(bio_err, "memory allocation failure\n");
-            BIO_closesocket(s);
+            BIO_closesocket(sock);
             goto end;
         }
-        if (!BIO_sock_info(s, BIO_SOCK_INFO_ADDRESS, &peer_info)) {
+        if (!BIO_sock_info(sock, BIO_SOCK_INFO_ADDRESS, &peer_info)) {
             BIO_printf(bio_err, "getsockname:errno=%d\n",
                        get_last_socket_error());
             BIO_ADDR_free(peer_info.addr);
-            BIO_closesocket(s);
+            BIO_closesocket(sock);
             goto end;
         }
 
@@ -2440,7 +2445,7 @@ int s_client_main(int argc, char **argv)
         }
     } else
 #endif /* OPENSSL_NO_DTLS */
-        sbio = BIO_new_socket(s, BIO_NOCLOSE);
+        sbio = BIO_new_socket(sock, BIO_NOCLOSE);
 
     if (nbio_test) {
         BIO *test;
@@ -2684,83 +2689,9 @@ int s_client_main(int argc, char **argv)
         }
         break;
     case PROTO_CONNECT:
-        {
-            enum {
-                error_proto,     /* Wrong protocol, not even HTTP */
-                error_connect,   /* CONNECT failed */
-                success
-            } foundit = error_connect;
-            BIO *fbio = BIO_new(BIO_f_buffer());
-
-            BIO_push(fbio, sbio);
-            BIO_printf(fbio, "CONNECT %s HTTP/1.0\r\n", connectstr);
-            /*
-             * Workaround for broken proxies which would otherwise close
-             * the connection when entering tunnel mode (eg Squid 2.6)
-             */
-            BIO_printf(fbio, "Proxy-Connection: Keep-Alive\r\n");
-
-            /* Support for basic (base64) proxy authentication */
-            if (proxyuser != NULL) {
-                size_t l;
-                char *proxyauth, *proxyauthenc;
-
-                l = strlen(proxyuser);
-                if (proxypass != NULL)
-                    l += strlen(proxypass);
-                proxyauth = app_malloc(l + 2, "Proxy auth string");
-                BIO_snprintf(proxyauth, l + 2, "%s:%s", proxyuser,
-                             (proxypass != NULL) ? proxypass : "");
-                proxyauthenc = base64encode(proxyauth, strlen(proxyauth));
-                BIO_printf(fbio, "Proxy-Authorization: Basic %s\r\n",
-                           proxyauthenc);
-                OPENSSL_clear_free(proxyauth, strlen(proxyauth));
-                OPENSSL_clear_free(proxyauthenc, strlen(proxyauthenc));
-            }
-
-            /* Terminate the HTTP CONNECT request */
-            BIO_printf(fbio, "\r\n");
-            (void)BIO_flush(fbio);
-            /*
-             * The first line is the HTTP response.  According to RFC 7230,
-             * it's formatted exactly like this:
-             *
-             * HTTP/d.d ddd Reason text\r\n
-             */
-            mbuf_len = BIO_gets(fbio, mbuf, BUFSIZZ);
-            if (mbuf_len < (int)strlen("HTTP/1.0 200")) {
-                BIO_printf(bio_err,
-                           "%s: HTTP CONNECT failed, insufficient response "
-                           "from proxy (got %d octets)\n", prog, mbuf_len);
-                (void)BIO_flush(fbio);
-                BIO_pop(fbio);
-                BIO_free(fbio);
-                goto shut;
-            }
-            if (mbuf[8] != ' ') {
-                BIO_printf(bio_err,
-                           "%s: HTTP CONNECT failed, incorrect response "
-                           "from proxy\n", prog);
-                foundit = error_proto;
-            } else if (mbuf[9] != '2') {
-                BIO_printf(bio_err, "%s: HTTP CONNECT failed: %s ", prog,
-                           &mbuf[9]);
-            } else {
-                foundit = success;
-            }
-            if (foundit != error_proto) {
-                /* Read past all following headers */
-                do {
-                    mbuf_len = BIO_gets(fbio, mbuf, BUFSIZZ);
-                } while (mbuf_len > 2);
-            }
-            (void)BIO_flush(fbio);
-            BIO_pop(fbio);
-            BIO_free(fbio);
-            if (foundit != success) {
-                goto shut;
-            }
-        }
+        if (!OSSL_HTTP_proxy_connect(sbio, host, port, proxyuser, proxypass,
+                                     0 /* no timeout */, bio_err, prog))
+            goto shut;
         break;
     case PROTO_IRC:
         {
@@ -3492,8 +3423,8 @@ int s_client_main(int argc, char **argv)
     timeout.tv_usec = 500000;  /* some extreme round-trip */
     do {
         FD_ZERO(&readfds);
-        openssl_fdset(s, &readfds);
-    } while (select(s + 1, &readfds, NULL, NULL, &timeout) > 0
+        openssl_fdset(sock, &readfds);
+    } while (select(sock + 1, &readfds, NULL, NULL, &timeout) > 0
              && BIO_read(sbio, sbuf, BUFSIZZ) > 0);
 
     BIO_closesocket(SSL_get_fd(con));
@@ -3952,29 +3883,6 @@ static int ldap_ExtendedResponse_parse(const char *buf, long rem)
     /* There is more data, but we don't care... */
  end:
     return ret;
-}
-
-/*
- * BASE64 encoder: used only for encoding basic proxy authentication credentials
- */
-static char *base64encode (const void *buf, size_t len)
-{
-    int i;
-    size_t outl;
-    char  *out;
-
-    /* Calculate size of encoded data */
-    outl = (len / 3);
-    if (len % 3 > 0)
-        outl++;
-    outl <<= 2;
-    out = app_malloc(outl + 1, "base64 encode buffer");
-
-    i = EVP_EncodeBlock((unsigned char *)out, buf, len);
-    assert(i <= (int)outl);
-    if (i < 0)
-        *out = '\0';
-    return out;
 }
 
 /*

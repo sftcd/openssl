@@ -783,8 +783,8 @@ static int get_ocsp_resp_from_responder(SSL *s, tlsextstatusctx *srctx,
     x = SSL_get_certificate(s);
     aia = X509_get1_ocsp(x);
     if (aia != NULL) {
-        if (!OCSP_parse_url(sk_OPENSSL_STRING_value(aia, 0),
-                            &host, &port, &path, &use_ssl)) {
+        if (!OSSL_HTTP_parse_url(sk_OPENSSL_STRING_value(aia, 0),
+                                 &host, &port, &path, &use_ssl)) {
             BIO_puts(bio_err, "cert_status: can't parse AIA URL\n");
             goto err;
         }
@@ -1018,7 +1018,8 @@ typedef enum OPTION_choice {
     OPT_R_ENUM,
     OPT_S_ENUM,
     OPT_V_ENUM,
-    OPT_X_ENUM
+    OPT_X_ENUM,
+    OPT_PROV_ENUM
 } OPTION_CHOICE;
 
 const OPTIONS s_server_options[] = {
@@ -1261,6 +1262,7 @@ const OPTIONS s_server_options[] = {
     {"chainCAfile", OPT_CHAINCAFILE, '<',
      "CA file for certificate chain (PEM format)"},
     OPT_X_OPTIONS,
+    OPT_PROV_OPTIONS,
     {NULL}
 };
 
@@ -1670,10 +1672,9 @@ int s_server_main(int argc, char *argv[])
         case OPT_STATUS_URL:
 #ifndef OPENSSL_NO_OCSP
             s_tlsextstatus = 1;
-            if (!OCSP_parse_url(opt_arg(),
-                                &tlscstatp.host,
-                                &tlscstatp.port,
-                                &tlscstatp.path, &tlscstatp.use_ssl)) {
+            if (!OSSL_HTTP_parse_url(opt_arg(),
+                                     &tlscstatp.host, &tlscstatp.port,
+                                     &tlscstatp.path, &tlscstatp.use_ssl)) {
                 BIO_printf(bio_err, "Error parsing URL\n");
                 goto end;
             }
@@ -1848,6 +1849,10 @@ int s_server_main(int argc, char *argv[])
             break;
         case OPT_R_CASES:
             if (!opt_rand(o))
+                goto end;
+            break;
+        case OPT_PROV_CASES:
+            if (!opt_provider(o))
                 goto end;
             break;
         case OPT_SERVERNAME:
@@ -2261,7 +2266,7 @@ int s_server_main(int argc, char *argv[])
 
 #ifndef OPENSSL_NO_ESNI
     if (esnikeyfile!= NULL) {
-        if (SSL_CTX_esni_server_enable(ctx,esnikeyfile,NULL)!=1) {
+        if (SSL_CTX_esni_server_enable(ctx,NULL,esnikeyfile,NULL)!=1) {
             BIO_printf(bio_err,"Failed to add ESNI key pair from: %s\n",esnikeyfile);
             goto end;
         }
@@ -2281,7 +2286,7 @@ int s_server_main(int argc, char *argv[])
             BIO_printf(bio_err, "Need -esnikey set as well as -esnipub\n" );
             goto end;
         }
-        if (SSL_CTX_esni_server_enable(ctx,esniprivkeyfile,esnipubfile)!=1) {
+        if (SSL_CTX_esni_server_enable(ctx,NULL,esniprivkeyfile,esnipubfile)!=1) {
             BIO_printf(bio_err, "Failure establishing ESNI parameters\n" );
             goto end;
         }
@@ -2350,7 +2355,7 @@ int s_server_main(int argc, char *argv[])
                 pubname[elen+1+nlen-1]=0x00;
                 struct stat thestat;
                 if (stat(pubname,&thestat)==0 && stat(privname,&thestat)==0) {
-                    if (SSL_CTX_esni_server_enable(ctx,privname,pubname)!=1) {
+                    if (SSL_CTX_esni_server_enable(ctx,NULL,privname,pubname)!=1) {
                         BIO_printf(bio_err, "Failure establishing ESNI parameters for %s\n",pubname );
                         //goto end;
                     }
@@ -4115,7 +4120,7 @@ static int generate_session_id(SSL *ssl, unsigned char *id,
 {
     unsigned int count = 0;
     unsigned int session_id_prefix_len = strlen(session_id_prefix);
-  
+
     do {
         if (RAND_bytes(id, *id_len) <= 0)
             return 0;

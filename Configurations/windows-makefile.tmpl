@@ -3,6 +3,8 @@
 ##
 ## {- join("\n## ", @autowarntext) -}
 {-
+ use File::Basename;
+
  our $sover_dirname = platform->shlib_version_as_filename();
 
  my $build_scheme = $target{build_scheme};
@@ -111,13 +113,25 @@ MISC_SCRIPTS={-
                          && $unified_info{attributes}->{scripts}->{$_}->{misc} }
                   @{$unified_info{scripts}})
 -}
-HTMLDOCS1={- join(" ", @{$unified_info{htmldocs}->{man1}}) -}
-HTMLDOCS3={- join(" ", @{$unified_info{htmldocs}->{man3}}) -}
-HTMLDOCS5={- join(" ", @{$unified_info{htmldocs}->{man5}}) -}
-HTMLDOCS7={- join(" ", @{$unified_info{htmldocs}->{man7}}) -}
+HTMLDOCS1={- our @HTMLDOCS1 = @{$unified_info{htmldocs}->{man1}};
+             join(" ", @HTMLDOCS1) -}
+HTMLDOCS3={- our @HTMLDOCS3 = @{$unified_info{htmldocs}->{man3}};
+             join(" ", @HTMLDOCS3) -}
+HTMLDOCS5={- our @HTMLDOCS5 = @{$unified_info{htmldocs}->{man5}};
+             join(" ", @HTMLDOCS5) -}
+HTMLDOCS7={- our @HTMLDOCS7 = @{$unified_info{htmldocs}->{man7}};
+             join(" ", @HTMLDOCS7) -}
+HTMLDOCS1_BLDDIRS={- my %dirs = map { dirname($_) => 1 } @HTMLDOCS1;
+                     join(' ', sort keys %dirs) -}
+HTMLDOCS3_BLDDIRS={- my %dirs = map { dirname($_) => 1 } @HTMLDOCS3;
+                     join(' ', sort keys %dirs) -}
+HTMLDOCS5_BLDDIRS={- my %dirs = map { dirname($_) => 1 } @HTMLDOCS5;
+                     join(' ', sort keys %dirs) -}
+HTMLDOCS7_BLDDIRS={- my %dirs = map { dirname($_) => 1 } @HTMLDOCS7;
+                     join(' ', sort keys %dirs) -}
 
-APPS_OPENSSL={- use File::Spec::Functions;
-                "\"".catfile("apps","openssl")."\"" -}
+APPS_OPENSSL="{- use File::Spec::Functions;
+                 catfile("apps","openssl") -}"
 
 # Do not edit these manually. Use Configure with --prefix or --openssldir
 # to change this!  Short explanation in the top comment in Configure
@@ -320,6 +334,7 @@ BIN_ASFLAGS={- join(' ', $target{bin_asflags} || (),
                          @{$config{bin_asflags}},
                          '$(CNF_ASFLAGS)', '$(ASFLAGS)') -}
 BIN_CPPFLAGS={- join(' ', $target{bin_cppflags} || (),
+                          (map { '-D'.$_ } @{$config{bin_defines} || ()}),
                           @{$config{bin_cppflags}},
                           '$(CNF_CPPFLAGS)', '$(CPPFLAGS)') -}
 BIN_CFLAGS={- join(' ', $target{bin_cflags} || (),
@@ -342,7 +357,7 @@ PROCESSOR= {- $config{processor} -}
 
 # The main targets ###################################################
 
-{- dependmagic('build_sw'); -}: build_libs_nodep build_modules_nodep build_programs_nodep
+{- dependmagic('build_sw'); -}: build_libs_nodep build_modules_nodep build_programs_nodep copy-utils
 {- dependmagic('build_libs'); -}: build_libs_nodep
 {- dependmagic('build_modules'); -}: build_modules_nodep
 {- dependmagic('build_programs'); -}: build_programs_nodep
@@ -370,15 +385,11 @@ build_all_generated: $(GENERATED_MANDATORY) $(GENERATED) build_docs
 all: build_sw build_docs
 
 test: tests
-{- dependmagic('tests'); -}: build_programs_nodep build_modules_nodep
+{- dependmagic('tests'); -}: build_programs_nodep build_modules_nodep copy-utils
 	@{- output_off() if $disabled{tests}; "" -}
-	-mkdir $(BLDDIR)\test\test-runs
 	set SRCTOP=$(SRCDIR)
 	set BLDTOP=$(BLDDIR)
-	set RESULT_D=$(BLDDIR)\test\test-runs
 	set PERL=$(PERL)
-	set OPENSSL_ENGINES=$(MAKEDIR)\engines
-	set OPENSSL_MODULES=$(MAKEDIR)\providers
 	"$(PERL)" "$(SRCDIR)\test\run_tests.pl" $(TESTS)
 	@{- if ($disabled{tests}) { output_on(); } else { output_off(); } "" -}
 	@$(ECHO) "Tests are not supported with your chosen Configure options"
@@ -401,10 +412,10 @@ libclean:
 	-del /Q /F $(LIBS) libcrypto.* libssl.* ossl_static.pdb
 
 clean: libclean
-	-rmdir /Q /S $(HTMLDOCS1)
-	-rmdir /Q /S $(HTMLDOCS3)
-	-rmdir /Q /S $(HTMLDOCS5)
-	-rmdir /Q /S $(HTMLDOCS7)
+	-rmdir /Q /S $(HTMLDOCS1_BLDDIRS)
+	-rmdir /Q /S $(HTMLDOCS3_BLDDIRS)
+	-rmdir /Q /S $(HTMLDOCS5_BLDDIRS)
+	-rmdir /Q /S $(HTMLDOCS7_BLDDIRS)
 	{- join("\n\t", map { "-del /Q /F $_" } @PROGRAMS) -}
 	-del /Q /F $(MODULES)
 	-del /Q /F $(SCRIPTS)
@@ -531,6 +542,14 @@ install_html_docs: build_html_docs
 
 uninstall_html_docs:
 
+# Helper targets #####################################################
+
+copy-utils: $(BLDDIR)\util\wrap.pl
+
+$(BLDDIR)\util\wrap.pl: configdata.pm
+	@if NOT EXIST "$(BLDDIR)\util" mkdir "$(BLDDIR)\util"
+	@if NOT "$(SRCDIR)"=="$(BLDDIR)" copy "$(SRCDIR)\util\$(@F)" "$(BLDDIR)\util"
+
 # Building targets ###################################################
 
 configdata.pm: "$(SRCDIR)\Configure" {- join(" ", map { '"'.$_.'"' } @{$config{build_file_templates}}, @{$config{build_infos}}, @{$config{conf_files}}) -}
@@ -571,12 +590,10 @@ reconfigure reconf:
 
       if ($args{src} =~ /\.html$/) {
 	  my $title = basename($args{src}, ".html");
+	  my $pod = $args{generator}->[0];
 	  return <<"EOF";
-$args{src}: $args{generator}->[0]
-	pod2html "--podroot=\$(SRCDIR)/doc" --htmldir=.. \\
-		 --podpath=man1:man3:man5:man7 "--infile=\$<" "--title=$title" \\
-	| \$(PERL) -pe "s|href=\\"http://man\\.he\\.net/(man\d/[^\\"]+)(?:\\.html)?\\"|href=\\"../\$1.html|g;" \\
-	> \$\@
+$args{src}: "$pod"
+	\$(PERL) \$(SRCDIR)/util/mkpod2html.pl -i "$pod" -o \$\@ -t "$title" -r "\$(SRCDIR)/doc"
 EOF
       } elsif (platform->isdef($args{src})) {
           my $target = platform->def($args{src});

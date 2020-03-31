@@ -1292,7 +1292,9 @@ DECLARE_PEM_rw(SSL_SESSION, SSL_SESSION)
 # define SSL_CTRL_SET_TLSEXT_STATUS_REQ_IDS      69
 # define SSL_CTRL_GET_TLSEXT_STATUS_REQ_OCSP_RESP        70
 # define SSL_CTRL_SET_TLSEXT_STATUS_REQ_OCSP_RESP        71
-# define SSL_CTRL_SET_TLSEXT_TICKET_KEY_CB       72
+# ifndef OPENSSL_NO_DEPRECATED_3_0
+#  define SSL_CTRL_SET_TLSEXT_TICKET_KEY_CB      72
+# endif
 # define SSL_CTRL_SET_TLS_EXT_SRP_USERNAME_CB    75
 # define SSL_CTRL_SET_SRP_VERIFY_PARAM_CB                76
 # define SSL_CTRL_SET_SRP_GIVE_CLIENT_PWD_CB             77
@@ -1547,6 +1549,8 @@ void BIO_ssl_shutdown(BIO *ssl_bio);
 
 __owur int SSL_CTX_set_cipher_list(SSL_CTX *, const char *str);
 __owur SSL_CTX *SSL_CTX_new(const SSL_METHOD *meth);
+__owur SSL_CTX *SSL_CTX_new_with_libctx(OPENSSL_CTX *libctx, const char *propq,
+                                        const SSL_METHOD *meth);
 int SSL_CTX_up_ref(SSL_CTX *ctx);
 void SSL_CTX_free(SSL_CTX *);
 __owur long SSL_CTX_set_timeout(SSL_CTX *ctx, long t);

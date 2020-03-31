@@ -136,7 +136,7 @@ if (!$avx && $win64 && ($flavour =~ /masm/ || $ENV{ASM} =~ /ml64/) &&
 	$avx = ($1>=10) + ($1>=11);
 }
 
-if (!$avx && `$ENV{CC} -v 2>&1` =~ /((?:^clang|LLVM) version|.*based on LLVM) ([3-9]\.[0-9]+)/) {
+if (!$avx && `$ENV{CC} -v 2>&1` =~ /((?:^clang|LLVM) version|.*based on LLVM) ([0-9]+\.[0-9]+)/) {
 	$avx = ($2>=3.0) + ($2>3.0);
 }
 
@@ -571,6 +571,7 @@ $code.=<<___;
 .align	64
 sha256_block_data_order_shaext:
 _shaext_shortcut:
+.cfi_startproc
 ___
 $code.=<<___ if ($win64);
 	lea	`-8-5*16`(%rsp),%rsp
@@ -714,6 +715,7 @@ $code.=<<___ if ($win64);
 ___
 $code.=<<___;
 	ret
+.cfi_endproc
 .size	sha256_block_data_order_shaext,.-sha256_block_data_order_shaext
 ___
 }}}
@@ -2555,4 +2557,4 @@ foreach (split("\n",$code)) {
 
 	print $_,"\n";
 }
-close STDOUT;
+close STDOUT or die "error closing STDOUT: $!";

@@ -33,7 +33,9 @@
 #define DEF_DAYS        30
 
 static int callb(int ok, X509_STORE_CTX *ctx);
-static int sign(X509 *x, EVP_PKEY *pkey, EVP_PKEY *fkey, int days, int clrext,
+static int sign(X509 *x, EVP_PKEY *pkey, EVP_PKEY *fkey,
+                STACK_OF(OPENSSL_STRING) *sigopts,
+                int days, int clrext,
                 const EVP_MD *digest, CONF *conf, const char *section,
                 int preserve_dates);
 static int x509_certify(X509_STORE *ctx, const char *CAfile, const EVP_MD *digest,
@@ -48,7 +50,7 @@ static int print_x509v3_exts(BIO *bio, X509 *x, const char *exts);
 typedef enum OPTION_choice {
     OPT_ERR = -1, OPT_EOF = 0, OPT_HELP,
     OPT_INFORM, OPT_OUTFORM, OPT_KEYFORM, OPT_REQ, OPT_CAFORM,
-    OPT_CAKEYFORM, OPT_SIGOPT, OPT_DAYS, OPT_PASSIN, OPT_EXTFILE,
+    OPT_CAKEYFORM, OPT_VFYOPT, OPT_SIGOPT, OPT_DAYS, OPT_PASSIN, OPT_EXTFILE,
     OPT_EXTENSIONS, OPT_IN, OPT_OUT, OPT_SIGNKEY, OPT_CA, OPT_CAKEY,
     OPT_CASERIAL, OPT_SET_SERIAL, OPT_NEW, OPT_FORCE_PUBKEY, OPT_SUBJ,
     OPT_ADDTRUST, OPT_ADDREJECT, OPT_SETALIAS, OPT_CERTOPT, OPT_NAMEOPT,
@@ -61,7 +63,7 @@ typedef enum OPTION_choice {
     OPT_SUBJECT_HASH_OLD,
     OPT_ISSUER_HASH_OLD,
     OPT_BADSIG, OPT_MD, OPT_ENGINE, OPT_NOCERT, OPT_PRESERVE_DATES,
-    OPT_R_ENUM, OPT_EXT
+    OPT_R_ENUM, OPT_PROV_ENUM, OPT_EXT
 } OPTION_CHOICE;
 
 const OPTIONS x509_options[] = {
@@ -80,6 +82,7 @@ const OPTIONS x509_options[] = {
     {"out", OPT_OUT, '>', "Output file - default stdout"},
     {"keyform", OPT_KEYFORM, 'E', "Private key format - default PEM"},
     {"req", OPT_REQ, '-', "Input is a certificate request, sign and output"},
+    {"vfyopt", OPT_VFYOPT, 's', "Verification parameter in n:v form"},
 
     OPT_SECTION("Output"),
     {"serial", OPT_SERIAL, '-', "Print serial number value"},
@@ -128,7 +131,7 @@ const OPTIONS x509_options[] = {
     {"setalias", OPT_SETALIAS, 's', "Set certificate alias"},
     {"days", OPT_DAYS, 'n',
      "How long till expiry of a signed certificate - def 30 days"},
-    {"signkey", OPT_SIGNKEY, '<', "Self sign cert with arg"},
+    {"signkey", OPT_SIGNKEY, 's', "Self sign cert with arg"},
     {"set_serial", OPT_SET_SERIAL, 's', "Serial number to use"},
     {"extensions", OPT_EXTENSIONS, 's', "Section from config file to use"},
     {"certopt", OPT_CERTOPT, 's', "Various certificate text options"},
@@ -144,8 +147,9 @@ const OPTIONS x509_options[] = {
      "The CA key, must be PEM format; if not in CAfile"},
     {"extfile", OPT_EXTFILE, '<', "File with X509V3 extensions to add"},
     OPT_R_OPTIONS,
+    OPT_PROV_OPTIONS,
     {"CAform", OPT_CAFORM, 'F', "CA format - default PEM"},
-    {"CAkeyform", OPT_CAKEYFORM, 'f', "CA key format - default PEM"},
+    {"CAkeyform", OPT_CAKEYFORM, 'E', "CA key format - default PEM"},
     {"sigopt", OPT_SIGOPT, 's', "Signature parameter in n:v form"},
     {"CAcreateserial", OPT_CACREATESERIAL, '-',
      "Create serial number file if it does not exist"},
@@ -173,7 +177,7 @@ int x509_main(int argc, char **argv)
     const unsigned long chtype = MBSTRING_ASC;
     const int multirdn = 0;
     STACK_OF(ASN1_OBJECT) *trust = NULL, *reject = NULL;
-    STACK_OF(OPENSSL_STRING) *sigopts = NULL;
+    STACK_OF(OPENSSL_STRING) *sigopts = NULL, *vfyopts = NULL;
     X509 *x = NULL, *xca = NULL;
     X509_REQ *req = NULL, *rq = NULL;
     X509_STORE *ctx = NULL;
@@ -239,7 +243,7 @@ int x509_main(int argc, char **argv)
                 goto opthelp;
             break;
         case OPT_CAKEYFORM:
-            if (!opt_format(opt_arg(), OPT_FMT_ANY, &CAkeyformat))
+            if (!opt_format(opt_arg(), OPT_FMT_PDE, &CAkeyformat))
                 goto opthelp;
             break;
         case OPT_OUT:
@@ -255,6 +259,12 @@ int x509_main(int argc, char **argv)
             if (!sigopts || !sk_OPENSSL_STRING_push(sigopts, opt_arg()))
                 goto opthelp;
             break;
+        case OPT_VFYOPT:
+            if (!vfyopts)
+                vfyopts = sk_OPENSSL_STRING_new_null();
+            if (!vfyopts || !sk_OPENSSL_STRING_push(vfyopts, opt_arg()))
+                goto opthelp;
+            break;
         case OPT_DAYS:
             if (preserve_dates)
                 goto opthelp;
@@ -268,6 +278,10 @@ int x509_main(int argc, char **argv)
             break;
         case OPT_R_CASES:
             if (!opt_rand(o))
+                goto end;
+            break;
+        case OPT_PROV_CASES:
+            if (!opt_provider(o))
                 goto end;
             break;
         case OPT_EXTENSIONS:
@@ -571,7 +585,7 @@ int x509_main(int argc, char **argv)
             BIO_printf(bio_err, "error unpacking public key\n");
             goto end;
         }
-        i = X509_REQ_verify(req, pkey);
+        i = do_X509_REQ_verify(req, pkey, vfyopts);
         if (i < 0) {
             BIO_printf(bio_err, "Request self-signature verification error\n");
             ERR_print_errors(bio_err);
@@ -843,8 +857,8 @@ int x509_main(int argc, char **argv)
                         goto end;
                 }
 
-                if (!sign(x, Upkey, fkey, days, clrext, digest, extconf,
-                          extsect, preserve_dates))
+                if (!sign(x, Upkey, fkey, sigopts, days, clrext, digest,
+                          extconf, extsect, preserve_dates))
                     goto end;
             } else if (CA_flag == i) {
                 BIO_printf(bio_err, "Getting CA Private Key\n");
@@ -944,6 +958,7 @@ int x509_main(int argc, char **argv)
     EVP_PKEY_free(CApkey);
     EVP_PKEY_free(fkey);
     sk_OPENSSL_STRING_free(sigopts);
+    sk_OPENSSL_STRING_free(vfyopts);
     X509_REQ_free(rq);
     ASN1_INTEGER_free(sno);
     sk_ASN1_OBJECT_pop_free(trust, ASN1_OBJECT_free);
@@ -1101,11 +1116,12 @@ static int callb(int ok, X509_STORE_CTX *ctx)
 }
 
 /* self-issue; self-sign unless a forced public key (fkey) is given */
-static int sign(X509 *x, EVP_PKEY *pkey, EVP_PKEY *fkey, int days, int clrext,
+static int sign(X509 *x, EVP_PKEY *pkey, EVP_PKEY *fkey,
+                STACK_OF(OPENSSL_STRING) *sigopts,
+                int days, int clrext,
                 const EVP_MD *digest, CONF *conf, const char *section,
                 int preserve_dates)
 {
-
     if (!X509_set_issuer_name(x, X509_get_subject_name(x)))
         goto err;
     if (!preserve_dates && !set_cert_times(x, NULL, NULL, days))
@@ -1124,7 +1140,7 @@ static int sign(X509 *x, EVP_PKEY *pkey, EVP_PKEY *fkey, int days, int clrext,
         if (!X509V3_EXT_add_nconf(conf, &ctx, section, x))
             goto err;
     }
-    if (!X509_sign(x, pkey, digest))
+    if (!do_X509_sign(x, pkey, digest, sigopts))
         goto err;
     return 1;
  err:

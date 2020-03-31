@@ -21,7 +21,9 @@ B<openssl srp>
 [B<-userinfo> I<text>]
 [B<-passin> I<arg>]
 [B<-passout> I<arg>]
+{- $OpenSSL::safe::opt_engine_synopsis -}
 {- $OpenSSL::safe::opt_r_synopsis -}
+{- $OpenSSL::safe::opt_provider_synopsis -}
 [I<user> ...]
 
 =for openssl ifdef engine
@@ -70,6 +72,10 @@ adding or modifying a user.
 The password source for the input and output file.
 For more information about the format of B<arg>
 see L<openssl(1)/Pass Phrase Options>.
+
+{- $OpenSSL::safe::opt_engine_item -}
+
+{- $OpenSSL::safe::opt_provider_item -}
 
 {- $OpenSSL::safe::opt_r_synopsis -}
 

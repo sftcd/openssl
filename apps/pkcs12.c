@@ -53,12 +53,12 @@ typedef enum OPTION_choice {
     OPT_ERR = -1, OPT_EOF = 0, OPT_HELP,
     OPT_CIPHER, OPT_NOKEYS, OPT_KEYEX, OPT_KEYSIG, OPT_NOCERTS, OPT_CLCERTS,
     OPT_CACERTS, OPT_NOOUT, OPT_INFO, OPT_CHAIN, OPT_TWOPASS, OPT_NOMACVER,
-    OPT_DESCERT, OPT_EXPORT, OPT_NOITER, OPT_MACITER, OPT_NOMACITER,
+    OPT_DESCERT, OPT_EXPORT, OPT_ITER, OPT_NOITER, OPT_MACITER, OPT_NOMACITER,
     OPT_NOMAC, OPT_LMK, OPT_NODES, OPT_MACALG, OPT_CERTPBE, OPT_KEYPBE,
     OPT_INKEY, OPT_CERTFILE, OPT_NAME, OPT_CSP, OPT_CANAME,
     OPT_IN, OPT_OUT, OPT_PASSIN, OPT_PASSOUT, OPT_PASSWORD, OPT_CAPATH,
     OPT_CAFILE, OPT_CASTORE, OPT_NOCAPATH, OPT_NOCAFILE, OPT_NOCASTORE, OPT_ENGINE,
-    OPT_R_ENUM
+    OPT_R_ENUM, OPT_PROV_ENUM
 } OPTION_CHOICE;
 
 const OPTIONS pkcs12_options[] = {
@@ -121,14 +121,16 @@ const OPTIONS pkcs12_options[] = {
     {"descert", OPT_DESCERT, '-', "Encrypt output with 3DES (the default)"},
     {"certpbe", OPT_CERTPBE, 's', "Certificate PBE algorithm (default 3DES)"},
 # endif
-    {"noiter", OPT_NOITER, '-', "Don't use encryption iteration"},
-    {"maciter", OPT_MACITER, '-', "Use MAC iteration"},
+    {"iter", OPT_ITER, 'p', "Specify the iteration count for encryption key and MAC"},
+    {"noiter", OPT_NOITER, '-', "Don't use encryption key iteration"},
+    {"maciter", OPT_MACITER, '-', "Unused, kept for backwards compatibility"},
     {"nomaciter", OPT_NOMACITER, '-', "Don't use MAC iteration"},
     {"nomac", OPT_NOMAC, '-', "Don't generate MAC"},
     {"nodes", OPT_NODES, '-', "Don't encrypt private keys"},
     {"", OPT_CIPHER, '-', "Any supported cipher"},
 
     OPT_R_OPTIONS,
+    OPT_PROV_OPTIONS,
     {NULL}
 };
 
@@ -214,11 +216,16 @@ int pkcs12_main(int argc, char **argv)
             if (!opt_cipher(opt_unknown(), &enc))
                 goto opthelp;
             break;
+        case OPT_ITER:
+            if (!opt_int(opt_arg(), &iter))
+                goto opthelp;
+            maciter = iter;
+            break;
         case OPT_NOITER:
             iter = 1;
             break;
         case OPT_MACITER:
-            maciter = PKCS12_DEFAULT_ITER;
+            /* no-op */
             break;
         case OPT_NOMACITER:
             maciter = 1;
@@ -300,6 +307,10 @@ int pkcs12_main(int argc, char **argv)
             break;
         case OPT_ENGINE:
             e = setup_engine(opt_arg(), 0);
+            break;
+        case OPT_PROV_CASES:
+            if (!opt_provider(o))
+                goto end;
             break;
         }
     }
@@ -887,12 +898,13 @@ static int alg_print(const X509_ALGOR *alg)
 
 int cert_load(BIO *in, STACK_OF(X509) *sk)
 {
-    int ret;
+    int ret = 0;
     X509 *cert;
-    ret = 0;
+
     while ((cert = PEM_read_bio_X509(in, NULL, NULL, NULL))) {
         ret = 1;
-        sk_X509_push(sk, cert);
+        if (!sk_X509_push(sk, cert))
+            return 0;
     }
     if (ret)
         ERR_clear_error();

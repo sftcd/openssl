@@ -195,8 +195,8 @@ MANDOCS7={-
              fill_lines(" ", $COLUMNS - 9, map { platform->bin($_) }
                         @{$unified_info{mandocs}->{man7}})) -}
 
-APPS_OPENSSL={- use File::Spec::Functions;
-                catfile("apps","openssl") -}
+APPS_OPENSSL="{- use File::Spec::Functions;
+                 catfile("apps","openssl") -}"
 
 # DESTDIR is for package builders so that they can configure for, say,
 # /usr/ and yet have everything installed to /tmp/somedir/usr/.
@@ -332,8 +332,15 @@ LIB_CPPFLAGS={- our $lib_cppflags =
                 join(' ', $target{lib_cppflags} || (),
                           $target{shared_cppflag} || (),
                           (map { '-D'.$_ }
+                               @{$target{lib_defines} || ()},
+                               @{$target{shared_defines} || ()},
                                @{$config{lib_defines} || ()},
                                @{$config{shared_defines} || ()}),
+                          (map { '-I'.quotify1($_) }
+                               @{$target{lib_includes}},
+                               @{$target{shared_includes}},
+                               @{$config{lib_includes}},
+                               @{$config{shared_includes}}),
                           @{$config{lib_cppflags}},
                           @{$config{shared_cppflag}});
                 join(' ', $lib_cppflags,
@@ -359,8 +366,15 @@ LIB_EX_LIBS=$(CNF_EX_LIBS) $(EX_LIBS)
 DSO_CPPFLAGS={- join(' ', $target{dso_cppflags} || (),
                           $target{module_cppflags} || (),
                           (map { '-D'.$_ }
+                               @{$target{dso_defines}},
+                               @{$target{module_defines}},
                                @{$config{dso_defines} || ()},
                                @{$config{module_defines} || ()}),
+                          (map { '-I'.quotify1($_) }
+                               @{$target{dso_includes}},
+                               @{$target{module_includes}},
+                               @{$config{dso_includes}},
+                               @{$config{module_includes}}),
                           @{$config{dso_cppflags}},
                           @{$config{module_cppflags}},
                           '$(CNF_CPPFLAGS)', '$(CPPFLAGS)') -}
@@ -450,16 +464,11 @@ all: build_sw build_docs
 test: tests
 {- dependmagic('tests'); -}: build_programs_nodep build_modules_nodep link-utils
 	@ : {- output_off() if $disabled{tests}; "" -}
-	( cd test; \
-	  mkdir -p test-runs; \
-	  SRCTOP=../$(SRCDIR) \
-	  BLDTOP=../$(BLDDIR) \
-	  RESULT_D=test-runs \
+	( SRCTOP=$(SRCDIR) \
+	  BLDTOP=$(BLDDIR) \
 	  PERL="$(PERL)" \
 	  EXE_EXT={- platform->binext() -} \
-	  OPENSSL_ENGINES=`cd ../$(BLDDIR)/engines 2>/dev/null && pwd` \
-	  OPENSSL_MODULES=`cd ../$(BLDDIR)/providers 2>/dev/null && pwd` \
-	  $(PERL) ../$(SRCDIR)/test/run_tests.pl $(TESTS) )
+	  $(PERL) $(SRCDIR)/test/run_tests.pl $(TESTS) )
 	@ : {- if ($disabled{tests}) { output_on(); } else { output_off(); } "" -}
 	@echo "Tests are not supported with your chosen Configure options"
 	@ : {- output_on() if !$disabled{tests}; "" -}
@@ -502,7 +511,7 @@ clean: libclean
 	-$(RM) `find . -name '*{- platform->depext() -}' \! -name '.*' \! -type d -print`
 	-$(RM) `find . -name '*{- platform->objext() -}' \! -name '.*' \! -type d -print`
 	$(RM) core
-	$(RM) tags TAGS doc-nits
+	$(RM) tags TAGS doc-nits cmd-nits
 	$(RM) -r test/test-runs
 	$(RM) openssl.pc libcrypto.pc libssl.pc
 	-$(RM) `find . -type l \! -name '.*' -print`
@@ -936,9 +945,12 @@ update: generate errors ordinals
 generate: generate_apps generate_crypto_bn generate_crypto_objects \
           generate_crypto_conf generate_crypto_asn1 generate_fuzz_oids
 
-.PHONY: doc-nits
+.PHONY: doc-nits cmd-nits
 doc-nits: build_generated
-	(cd $(SRCDIR); $(PERL) util/find-doc-nits -n -e )
+	$(PERL) $(SRCDIR)/util/find-doc-nits -n -l -e
+
+cmd-nits: build_generated apps/openssl
+	$(PERL) $(SRCDIR)/util/find-doc-nits -c
 
 # Test coverage is a good idea for the future
 #coverage: $(PROGRAMS) $(TESTPROGRAMS)
@@ -950,12 +962,6 @@ lint:
 generate_apps:
 	( cd $(SRCDIR); $(PERL) VMS/VMSify-conf.pl \
 				< apps/openssl.cnf > apps/openssl-vms.cnf )
-	@ : {- output_off() if $disabled{apps}; "" -}
-	( b=`pwd`; cd $(SRCDIR); \
-	  $(PERL) -I$$b apps/progs.pl -H $(APPS_OPENSSL) > apps/progs.h )
-	( b=`pwd`; cd $(SRCDIR); \
-	  $(PERL) -I$$b apps/progs.pl -C $(APPS_OPENSSL) > apps/progs.c )
-	@ : {- output_on() if $disabled{apps}; "" -}
 
 generate_crypto_bn:
 	( cd $(SRCDIR); $(PERL) crypto/bn/bn_prime.pl > crypto/bn/bn_prime.h )
@@ -1067,12 +1073,12 @@ tar:
 
 # Helper targets #####################################################
 
-link-utils: $(BLDDIR)/util/opensslwrap.sh
+link-utils: $(BLDDIR)/util/opensslwrap.sh $(BLDDIR)/util/wrap.pl
 
-$(BLDDIR)/util/opensslwrap.sh: configdata.pm
+$(BLDDIR)/util/opensslwrap.sh $(BLDDIR)/util/wrap.pl: configdata.pm
 	@if [ "$(SRCDIR)" != "$(BLDDIR)" ]; then \
 	    mkdir -p "$(BLDDIR)/util"; \
-	    ln -sf "../$(SRCDIR)/util/opensslwrap.sh" "$(BLDDIR)/util"; \
+	    ln -sf "../$(SRCDIR)/util/`basename "$@"`" "$(BLDDIR)/util"; \
 	fi
 
 FORCE:
@@ -1171,21 +1177,19 @@ reconfigure reconf:
 
       if ($args{src} =~ /\.html$/) {
 	  my $title = basename($args{src}, ".html");
+	  my $pod = $args{generator}->[0];
 	  return <<"EOF";
-$args{src}: $args{generator}->[0]
-	pod2html "--podroot=\$(SRCDIR)/doc" --htmldir=.. \\
-		 --podpath=man1:man3:man5:man7 "--infile=\$<" "--title=$title" \\
-	| \$(PERL) -pe 's|href="http://man\\.he\\.net/(man\\d/[^"]+)(?:\\.html)?"|href="../\$1.html|g;' \\
-	> \$\@
+$args{src}: $pod
+	\$(PERL) \$(SRCDIR)/util/mkpod2html.pl -i "$pod" -o \$\@ -t "$title" -r "\$(SRCDIR)/doc"
 EOF
       } elsif ($args{src} =~ /\.(\d)$/) {
 	  my $section = $1;
 	  my $name = uc basename($args{src}, ".$section");
+	  my $pod = $args{generator}->[0];
 	  return <<"EOF";
-$args{src}: $args{generator}->[0]
+$args{src}: $pod
 	pod2man --name=$name --section=$section --center=OpenSSL \\
-		--release=\$(VERSION) \$< \\
-	> \$\@
+		--release=\$(VERSION) $pod >\$\@
 EOF
       } elsif (platform->isdef($args{src})) {
           my $target = platform->def($args{src});

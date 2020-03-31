@@ -7,6 +7,12 @@
  * https://www.openssl.org/source/license.html
  */
 
+/*
+ * RSA low level APIs are deprecated for public use, but still ok for
+ * internal use.
+ */
+#include "internal/deprecated.h"
+
 #include "crypto/rsa.h"           /* rsa_get0_all_params() */
 #include "prov/bio.h"             /* ossl_prov_bio_printf() */
 #include "prov/implementations.h" /* rsa_keymgmt_functions */
@@ -14,9 +20,19 @@
 
 DEFINE_SPECIAL_STACK_OF_CONST(BIGNUM_const, BIGNUM)
 
-OSSL_OP_keymgmt_importkey_fn *ossl_prov_get_rsa_importkey(void)
+OSSL_OP_keymgmt_new_fn *ossl_prov_get_keymgmt_rsa_new(void)
 {
-    return ossl_prov_get_importkey(rsa_keymgmt_functions);
+    return ossl_prov_get_keymgmt_new(rsa_keymgmt_functions);
+}
+
+OSSL_OP_keymgmt_free_fn *ossl_prov_get_keymgmt_rsa_free(void)
+{
+    return ossl_prov_get_keymgmt_free(rsa_keymgmt_functions);
+}
+
+OSSL_OP_keymgmt_import_fn *ossl_prov_get_keymgmt_rsa_import(void)
+{
+    return ossl_prov_get_keymgmt_import(rsa_keymgmt_functions);
 }
 
 int ossl_prov_print_rsa(BIO *out, RSA *rsa, int priv)

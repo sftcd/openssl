@@ -28,12 +28,14 @@
 # include <openssl/txt_db.h>
 # include <openssl/engine.h>
 # include <openssl/ocsp.h>
+# include <openssl/http.h>
 # include <signal.h>
 # include "apps_ui.h"
 # include "opt.h"
 # include "fmt.h"
 # include "platform.h"
 
+/* also in include/internal/sockets.h */
 # if defined(OPENSSL_SYS_WIN32) || defined(OPENSSL_SYS_WINCE)
 #  define openssl_fdset(a,b) FD_SET((unsigned int)a, b)
 # else
@@ -195,12 +197,17 @@ X509_NAME *parse_name(const char *str, long chtype, int multirdn);
 void policies_print(X509_STORE_CTX *ctx);
 int bio_to_mem(unsigned char **out, int maxlen, BIO *in);
 int pkey_ctrl_string(EVP_PKEY_CTX *ctx, const char *value);
+int x509_ctrl_string(X509 *x, const char *value);
+int x509_req_ctrl_string(X509_REQ *x, const char *value);
 int init_gen_str(EVP_PKEY_CTX **pctx,
                  const char *algname, ENGINE *e, int do_param);
 int do_X509_sign(X509 *x, EVP_PKEY *pkey, const EVP_MD *md,
                  STACK_OF(OPENSSL_STRING) *sigopts);
+int do_X509_verify(X509 *x, EVP_PKEY *pkey, STACK_OF(OPENSSL_STRING) *vfyopts);
 int do_X509_REQ_sign(X509_REQ *x, EVP_PKEY *pkey, const EVP_MD *md,
                      STACK_OF(OPENSSL_STRING) *sigopts);
+int do_X509_REQ_verify(X509_REQ *x, EVP_PKEY *pkey,
+                       STACK_OF(OPENSSL_STRING) *vfyopts);
 int do_X509_CRL_sign(X509_CRL *x, EVP_PKEY *pkey, const EVP_MD *md,
                      STACK_OF(OPENSSL_STRING) *sigopts);
 
@@ -214,6 +221,30 @@ void print_cert_checks(BIO *bio, X509 *x,
                        const char *checkemail, const char *checkip);
 
 void store_setup_crl_download(X509_STORE *st);
+
+typedef struct app_http_tls_info_st {
+    const char *server;
+    const char *port;
+    int use_proxy;
+    long timeout;
+    SSL_CTX *ssl_ctx;
+} APP_HTTP_TLS_INFO;
+BIO *app_http_tls_cb(BIO *hbio, /* APP_HTTP_TLS_INFO */ void *arg,
+                     int connect, int detail);
+# ifndef OPENSSL_NO_SOCK
+ASN1_VALUE *app_http_get_asn1(const char *url, const char *proxy,
+                              const char *proxy_port, SSL_CTX *ssl_ctx,
+                              const STACK_OF(CONF_VALUE) *headers,
+                              long timeout, const char *expected_content_type,
+                              const ASN1_ITEM *it);
+ASN1_VALUE *app_http_post_asn1(const char *host, const char *port,
+                               const char *path, const char *proxy,
+                               const char *proxy_port, SSL_CTX *ctx,
+                               const STACK_OF(CONF_VALUE) *headers,
+                               const char *content_type,
+                               ASN1_VALUE *req, const ASN1_ITEM *req_it,
+                               long timeout, const ASN1_ITEM *rsp_it);
+# endif
 
 # define EXT_COPY_NONE   0
 # define EXT_COPY_ADD    1

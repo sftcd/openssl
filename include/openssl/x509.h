@@ -372,28 +372,30 @@ int X509_signature_print(BIO *bp, const X509_ALGOR *alg,
 
 int X509_sign(X509 *x, EVP_PKEY *pkey, const EVP_MD *md);
 int X509_sign_ctx(X509 *x, EVP_MD_CTX *ctx);
-# ifndef OPENSSL_NO_OCSP
-int X509_http_nbio(OCSP_REQ_CTX *rctx, X509 **pcert);
-# endif
 int X509_REQ_sign(X509_REQ *x, EVP_PKEY *pkey, const EVP_MD *md);
 int X509_REQ_sign_ctx(X509_REQ *x, EVP_MD_CTX *ctx);
 int X509_CRL_sign(X509_CRL *x, EVP_PKEY *pkey, const EVP_MD *md);
 int X509_CRL_sign_ctx(X509_CRL *x, EVP_MD_CTX *ctx);
-# ifndef OPENSSL_NO_OCSP
-int X509_CRL_http_nbio(OCSP_REQ_CTX *rctx, X509_CRL **pcrl);
-# endif
 int NETSCAPE_SPKI_sign(NETSCAPE_SPKI *x, EVP_PKEY *pkey, const EVP_MD *md);
 
 int X509_pubkey_digest(const X509 *data, const EVP_MD *type,
                        unsigned char *md, unsigned int *len);
 int X509_digest(const X509 *data, const EVP_MD *type,
                 unsigned char *md, unsigned int *len);
+ASN1_OCTET_STRING *X509_digest_sig(const X509 *cert);
 int X509_CRL_digest(const X509_CRL *data, const EVP_MD *type,
                     unsigned char *md, unsigned int *len);
 int X509_REQ_digest(const X509_REQ *data, const EVP_MD *type,
                     unsigned char *md, unsigned int *len);
 int X509_NAME_digest(const X509_NAME *data, const EVP_MD *type,
                      unsigned char *md, unsigned int *len);
+
+# if !defined(OPENSSL_NO_SOCK)
+X509 *X509_load_http(const char *url, BIO *bio, BIO *rbio, int timeout);
+#  define X509_http_nbio(url) X509_load_http(url, NULL, NULL, 0)
+X509_CRL *X509_CRL_load_http(const char *url, BIO *bio, BIO *rbio, int timeout);
+#  define X509_CRL_http_nbio(url) X509_CRL_load_http(url, NULL,  NULL, 0)
+# endif
 
 # ifndef OPENSSL_NO_STDIO
 X509 *d2i_X509_fp(FILE *fp, X509 **x509);
@@ -579,12 +581,10 @@ void X509_get0_signature(const ASN1_BIT_STRING **psig,
                          const X509_ALGOR **palg, const X509 *x);
 int X509_get_signature_nid(const X509 *x);
 
-# ifndef OPENSSL_NO_SM2
-void X509_set0_sm2_id(X509 *x, ASN1_OCTET_STRING *sm2_id);
-ASN1_OCTET_STRING *X509_get0_sm2_id(X509 *x);
-void X509_REQ_set0_sm2_id(X509_REQ *x, ASN1_OCTET_STRING *sm2_id);
-ASN1_OCTET_STRING *X509_REQ_get0_sm2_id(X509_REQ *x);
-# endif
+void X509_set0_distinguishing_id(X509 *x, ASN1_OCTET_STRING *d_id);
+ASN1_OCTET_STRING *X509_get0_distinguishing_id(X509 *x);
+void X509_REQ_set0_distinguishing_id(X509_REQ *x, ASN1_OCTET_STRING *d_id);
+ASN1_OCTET_STRING *X509_REQ_get0_distinguishing_id(X509_REQ *x);
 
 int X509_trusted(const X509 *x);
 int X509_alias_set1(X509 *x, const unsigned char *name, int len);
@@ -622,21 +622,26 @@ X509_INFO *X509_INFO_new(void);
 void X509_INFO_free(X509_INFO *a);
 char *X509_NAME_oneline(const X509_NAME *a, char *buf, int size);
 
-int ASN1_verify(i2d_of_void *i2d, X509_ALGOR *algor1,
-                ASN1_BIT_STRING *signature, char *data, EVP_PKEY *pkey);
+DEPRECATEDIN_3_0(int ASN1_verify(i2d_of_void *i2d, X509_ALGOR *algor1,
+                                 ASN1_BIT_STRING *signature, char *data,
+                                 EVP_PKEY *pkey))
 
-int ASN1_digest(i2d_of_void *i2d, const EVP_MD *type, char *data,
-                unsigned char *md, unsigned int *len);
+DEPRECATEDIN_3_0(int ASN1_digest(i2d_of_void *i2d, const EVP_MD *type,
+                                 char *data,
+                                 unsigned char *md, unsigned int *len))
 
-int ASN1_sign(i2d_of_void *i2d, X509_ALGOR *algor1,
-              X509_ALGOR *algor2, ASN1_BIT_STRING *signature,
-              char *data, EVP_PKEY *pkey, const EVP_MD *type);
+DEPRECATEDIN_3_0(int ASN1_sign(i2d_of_void *i2d, X509_ALGOR *algor1,
+                               X509_ALGOR *algor2, ASN1_BIT_STRING *signature,
+                               char *data, EVP_PKEY *pkey, const EVP_MD *type))
 
 int ASN1_item_digest(const ASN1_ITEM *it, const EVP_MD *type, void *data,
                      unsigned char *md, unsigned int *len);
 
 int ASN1_item_verify(const ASN1_ITEM *it, X509_ALGOR *algor1,
                      ASN1_BIT_STRING *signature, void *data, EVP_PKEY *pkey);
+int ASN1_item_verify_ctx(const ASN1_ITEM *it, X509_ALGOR *algor1,
+                         ASN1_BIT_STRING *signature, void *data,
+                         EVP_MD_CTX *ctx);
 
 int ASN1_item_sign(const ASN1_ITEM *it, X509_ALGOR *algor1,
                    X509_ALGOR *algor2, ASN1_BIT_STRING *signature, void *data,
@@ -1034,8 +1039,12 @@ int PKCS8_pkey_get0(const ASN1_OBJECT **ppkalg,
 
 const STACK_OF(X509_ATTRIBUTE) *
 PKCS8_pkey_get0_attrs(const PKCS8_PRIV_KEY_INFO *p8);
+int PKCS8_pkey_add1_attr(PKCS8_PRIV_KEY_INFO *p8, X509_ATTRIBUTE *attr);
 int PKCS8_pkey_add1_attr_by_NID(PKCS8_PRIV_KEY_INFO *p8, int nid, int type,
                                 const unsigned char *bytes, int len);
+int PKCS8_pkey_add1_attr_by_OBJ(PKCS8_PRIV_KEY_INFO *p8, const ASN1_OBJECT *obj,
+                                int type, const unsigned char *bytes, int len);
+
 
 int X509_PUBKEY_set0_param(X509_PUBKEY *pub, ASN1_OBJECT *aobj,
                            int ptype, void *pval,

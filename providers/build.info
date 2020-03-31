@@ -40,7 +40,7 @@ $LIBNONFIPS=libnonfips.a
 $LIBFIPS=libfips.a
 
 # Enough of our implementations include prov/ciphercommon.h (present in
-# providers/implementations/include), which includes crypto/ciphermode_platform.h
+# providers/implementations/include), which includes crypto/*_platform.h
 # (present in include), which in turn may include very internal header
 # files in crypto/, so let's have a common include list for them all.
 $COMMON_INCLUDES=../crypto ../include implementations/include common/include
@@ -101,6 +101,7 @@ SUBDIRS=fips
 $FIPSGOAL=fips
 DEPEND[$FIPSGOAL]=$LIBIMPLEMENTATIONS $LIBFIPS
 INCLUDE[$FIPSGOAL]=../include
+DEFINE[$FIPSGOAL]=FIPS_MODE
 IF[{- defined $target{shared_defflag} -}]
   SOURCE[$FIPSGOAL]=fips.ld
   GENERATE[fips.ld]=../util/providers.num

@@ -18,7 +18,7 @@ use OpenSSL::Test::Utils;
 
 setup("test_ssl");
 
-$ENV{CTLOG_FILE} = srctop_file("test", "ct", "log_list.conf");
+$ENV{CTLOG_FILE} = srctop_file("test", "ct", "log_list.cnf");
 
 my ($no_rsa, $no_dsa, $no_dh, $no_ec, $no_psk,
     $no_ssl3, $no_tls1, $no_tls1_1, $no_tls1_2, $no_tls1_3,
@@ -36,7 +36,7 @@ my $digest = "-sha1";
 my @reqcmd = ("openssl", "req");
 my @x509cmd = ("openssl", "x509", $digest);
 my @verifycmd = ("openssl", "verify");
-my @gendsacmd = ("openssl", "gendsa");
+my @genpkeycmd = ("openssl", "genpkey");
 my $dummycnf = srctop_file("apps", "openssl.cnf");
 
 my $CAkey = "keyCA.ss";
@@ -178,8 +178,8 @@ sub testss {
             SKIP: {
                 $ENV{CN2} = "DSA Certificate";
                 skip 'failure', 4 unless
-                    ok(run(app([@gendsacmd, "-out", $Dkey,
-                                $dsaparams],
+                    ok(run(app([@genpkeycmd, "-out", $Dkey,
+                                "-paramfile", $dsaparams],
                                stdout => "err.ss")),
                        "make a DSA key");
                 skip 'failure', 3 unless
@@ -221,7 +221,10 @@ sub testss {
             SKIP: {
                 $ENV{CN2} = "ECDSA Certificate";
                 skip 'failure', 4 unless
-                    ok(run(app(["openssl", "ecparam", "-name", "P-256",
+                    ok(run(app(["openssl", "genpkey", "-genparam",
+                                "-algorithm", "EC",
+                                "-pkeyopt", "ec_paramgen_curve:P-256",
+                                "-pkeyopt", "ec_param_enc:named_curve",
                                 "-out", "ecp.ss"])),
                        "make EC parameters");
                 skip 'failure', 3 unless
@@ -546,41 +549,3 @@ sub testssl {
 	}
     };
 }
-
-unlink $CAkey;
-unlink $CAcert;
-unlink $CAserial;
-unlink $CAreq;
-unlink $CAreq2;
-
-unlink $Ukey;
-unlink $Ureq;
-unlink $Ucert;
-unlink basename($Ucert, '.ss').'.srl';
-
-unlink $Dkey;
-unlink $Dreq;
-unlink $Dcert;
-
-unlink $Ekey;
-unlink $Ereq;
-unlink $Ecert;
-
-unlink $P1key;
-unlink $P1req;
-unlink $P1cert;
-unlink basename($P1cert, '.ss').'.srl';
-unlink $P1intermediate;
-unlink "intP1.ss";
-
-unlink $P2key;
-unlink $P2req;
-unlink $P2cert;
-unlink $P2intermediate;
-unlink "intP2.ss";
-
-unlink "ecp.ss";
-unlink "err.ss";
-
-unlink $server_sess;
-unlink $client_sess;

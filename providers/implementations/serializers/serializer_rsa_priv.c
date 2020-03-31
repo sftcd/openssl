@@ -7,6 +7,12 @@
  * https://www.openssl.org/source/license.html
  */
 
+/*
+ * RSA low level APIs are deprecated for public use, but still ok for
+ * internal use.
+ */
+#include "internal/deprecated.h"
+
 #include <openssl/core_numbers.h>
 #include <openssl/core_names.h>
 #include <openssl/err.h>
@@ -46,7 +52,7 @@ struct rsa_priv_ctx_st {
 /* Helper functions to prepare RSA-PSS params for serialization */
 
 static int prepare_rsa_params(const void *rsa, int nid,
-                              ASN1_STRING **pstr, int *pstrtype)
+                              void **pstr, int *pstrtype)
 {
     const RSA_PSS_PARAMS *pss = RSA_get0_pss_params(rsa);
     *pstr = NULL;
@@ -62,7 +68,8 @@ static int prepare_rsa_params(const void *rsa, int nid,
         return 1;
     }
     /* Encode PSS parameters */
-    if (ASN1_item_pack((void *)pss, ASN1_ITEM_rptr(RSA_PSS_PARAMS), pstr)
+    if (ASN1_item_pack((void *)pss, ASN1_ITEM_rptr(RSA_PSS_PARAMS),
+                       (ASN1_STRING **)pstr)
         == NULL)
         return 0;
 
@@ -77,11 +84,9 @@ static void *rsa_priv_newctx(void *provctx)
 
     if (ctx != NULL) {
         ctx->provctx = provctx;
+        /* -1 is the "whatever" indicator, i.e. the PKCS8 library default PBE */
+        ctx->sc.pbe_nid = -1;
     }
-
-    /* -1 is the "whatever" indicator, i.e. the PKCS8 library default PBE */
-    ctx->sc.pbe_nid = -1;
-
     return ctx;
 }
 
@@ -145,15 +150,19 @@ static int rsa_priv_der_data(void *vctx, const OSSL_PARAM params[], BIO *out,
                              OSSL_PASSPHRASE_CALLBACK *cb, void *cbarg)
 {
     struct rsa_priv_ctx_st *ctx = vctx;
-    OSSL_OP_keymgmt_importkey_fn *rsa_importkey =
-        ossl_prov_get_rsa_importkey();
+    OSSL_OP_keymgmt_new_fn *rsa_new = ossl_prov_get_keymgmt_rsa_new();
+    OSSL_OP_keymgmt_free_fn *rsa_free = ossl_prov_get_keymgmt_rsa_free();
+    OSSL_OP_keymgmt_import_fn *rsa_import = ossl_prov_get_keymgmt_rsa_import();
     int ok = 0;
 
-    if (rsa_importkey != NULL) {
-        RSA *rsa = rsa_importkey(ctx->provctx, params);
+    if (rsa_import != NULL) {
+        RSA *rsa;
 
-        ok = rsa_priv_der(vctx, rsa, out, cb, cbarg);
-        RSA_free(rsa);
+        if ((rsa = rsa_new(ctx->provctx)) != NULL
+            && rsa_import(rsa, OSSL_KEYMGMT_SELECT_KEYPAIR, params)
+            && rsa_priv_der(ctx, rsa, out, cb, cbarg))
+            ok = 1;
+        rsa_free(rsa);
     }
     return ok;
 }
@@ -180,15 +189,19 @@ static int rsa_pem_priv_data(void *vctx, const OSSL_PARAM params[], BIO *out,
                              OSSL_PASSPHRASE_CALLBACK *cb, void *cbarg)
 {
     struct rsa_priv_ctx_st *ctx = vctx;
-    OSSL_OP_keymgmt_importkey_fn *rsa_importkey =
-        ossl_prov_get_rsa_importkey();
+    OSSL_OP_keymgmt_new_fn *rsa_new = ossl_prov_get_keymgmt_rsa_new();
+    OSSL_OP_keymgmt_free_fn *rsa_free = ossl_prov_get_keymgmt_rsa_free();
+    OSSL_OP_keymgmt_import_fn *rsa_import = ossl_prov_get_keymgmt_rsa_import();
     int ok = 0;
 
-    if (rsa_importkey != NULL) {
-        RSA *rsa = rsa_importkey(ctx, params);
+    if (rsa_import != NULL) {
+        RSA *rsa;
 
-        ok = rsa_pem_priv(vctx, rsa, out, cb, cbarg);
-        RSA_free(rsa);
+        if ((rsa = rsa_new(ctx->provctx)) != NULL
+            && rsa_import(rsa, OSSL_KEYMGMT_SELECT_KEYPAIR, params)
+            && rsa_pem_priv(ctx, rsa, out, cb, cbarg))
+            ok = 1;
+        rsa_free(rsa);
     }
     return ok;
 }
@@ -222,19 +235,24 @@ static void rsa_print_freectx(void *ctx)
 {
 }
 
-static int rsa_priv_print_data(void *provctx, const OSSL_PARAM params[],
+static int rsa_priv_print_data(void *vctx, const OSSL_PARAM params[],
                                BIO *out,
                                OSSL_PASSPHRASE_CALLBACK *cb, void *cbarg)
 {
-    OSSL_OP_keymgmt_importkey_fn *rsa_importkey =
-        ossl_prov_get_rsa_importkey();
+    struct rsa_priv_ctx_st *ctx = vctx;
+    OSSL_OP_keymgmt_new_fn *rsa_new = ossl_prov_get_keymgmt_rsa_new();
+    OSSL_OP_keymgmt_free_fn *rsa_free = ossl_prov_get_keymgmt_rsa_free();
+    OSSL_OP_keymgmt_import_fn *rsa_import = ossl_prov_get_keymgmt_rsa_import();
     int ok = 0;
 
-    if (rsa_importkey != NULL) {
-        RSA *rsa = rsa_importkey(provctx, params); /* ctx == provctx */
+    if (rsa_import != NULL) {
+        RSA *rsa;
 
-        ok = rsa_priv_print(provctx, rsa, out, cb, cbarg);
-        RSA_free(rsa);
+        if ((rsa = rsa_new(ctx->provctx)) != NULL
+            && rsa_import(rsa, OSSL_KEYMGMT_SELECT_KEYPAIR, params)
+            && rsa_priv_print(ctx, rsa, out, cb, cbarg))
+            ok = 1;
+        rsa_free(rsa);
     }
     return ok;
 }

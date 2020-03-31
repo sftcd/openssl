@@ -25,6 +25,13 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- Remerged with upstream - started on 20200320 but didn't get done 'till 20200331 as
+there were a bunch of internal changes to figure out due to upstream changes and some
+distractions as well;-) Will likely re-do this again and then start on 1) a few
+API changes to better match upstream (and that are just better:-) and 2) including the 
+ESNI->ECHO work in this branch of the fork. Some changes may be needed to get this to
+work with apache etc. - those havne't been done to the forks of those servers yet.
+
 - Remerged with upstream (20191219)
 
 - Remerged with upstream (20191218)
@@ -986,7 +993,7 @@ session ticket being stored, nor received:
 
 - Added hostname validation as an option to ``SSL_esni_enable`` - if requested 
   and we don't get the
-  hidden name matching the server cert then ``SSL_esni_get_status``
+  hidden name matching the server cert then ``SSL_get_esni_status``
   returns a "bad name" error code.
   Not quite sure this is the right thing to do (TM:-) and we're 
   ignoring the covername when doing it, but it seems kinda sensible
@@ -1011,7 +1018,7 @@ seemed unkeen on. Decided to not bother with that.
   use encservername everywhere (and never enchostname;-) 
 
 - Tidied up the ``s_client`` display a bit so it says how things went,
-  and added ``SSL_ESNI_get_status()`` API for that. Also tweaked the 
+  and added ``SSL_get_esni_status()`` API for that. Also tweaked the 
   testit.sh script a good bit so hidden, cover and server are handled 
   consistently (see the [script](./testit.sh) for details).
 

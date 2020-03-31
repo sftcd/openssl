@@ -7,6 +7,12 @@
  * https://www.openssl.org/source/license.html
  */
 
+/*
+ * RSA low level APIs are deprecated for public use, but still ok for
+ * internal use.
+ */
+#include "internal/deprecated.h"
+
 #include <stdio.h>
 #include "internal/cryptlib.h"
 #include <openssl/asn1t.h>
@@ -589,6 +595,7 @@ static RSA_PSS_PARAMS *rsa_ctx_to_pss(EVP_PKEY_CTX *pkctx)
 {
     const EVP_MD *sigmd, *mgf1md;
     EVP_PKEY *pk = EVP_PKEY_CTX_get0_pkey(pkctx);
+    RSA *rsa = EVP_PKEY_get0_RSA(pk);
     int saltlen;
 
     if (EVP_PKEY_CTX_get_signature_md(pkctx, &sigmd) <= 0)
@@ -600,7 +607,7 @@ static RSA_PSS_PARAMS *rsa_ctx_to_pss(EVP_PKEY_CTX *pkctx)
     if (saltlen == -1) {
         saltlen = EVP_MD_size(sigmd);
     } else if (saltlen == -2 || saltlen == -3) {
-        saltlen = EVP_PKEY_size(pk) - EVP_MD_size(sigmd) - 2;
+        saltlen = RSA_size(rsa) - EVP_MD_size(sigmd) - 2;
         if ((EVP_PKEY_bits(pk) & 0x7) == 1)
             saltlen--;
         if (saltlen < 0)
@@ -858,6 +865,7 @@ static int rsa_sig_info_set(X509_SIG_INFO *siginf, const X509_ALGOR *sigalg,
     uint32_t flags;
     const EVP_MD *mgf1md = NULL, *md = NULL;
     RSA_PSS_PARAMS *pss;
+    int secbits;
 
     /* Sanity check: make sure it is PSS */
     if (OBJ_obj2nid(sigalg->algorithm) != EVP_PKEY_RSA_PSS)
@@ -877,7 +885,24 @@ static int rsa_sig_info_set(X509_SIG_INFO *siginf, const X509_ALGOR *sigalg,
     else
         flags = 0;
     /* Note: security bits half number of digest bits */
-    X509_SIG_INFO_set(siginf, mdnid, EVP_PKEY_RSA_PSS, EVP_MD_size(md) * 4,
+    secbits = EVP_MD_size(md) * 4;
+    /*
+     * SHA1 and MD5 are known to be broken. Reduce security bits so that
+     * they're no longer accepted at security level 1. The real values don't
+     * really matter as long as they're lower than 80, which is our security
+     * level 1.
+     * https://eprint.iacr.org/2020/014 puts a chosen-prefix attack for SHA1 at
+     * 2^63.4
+     * https://documents.epfl.ch/users/l/le/lenstra/public/papers/lat.pdf
+     * puts a chosen-prefix attack for MD5 at 2^39.
+     */
+    if (mdnid == NID_sha1)
+        secbits = 64;
+    else if (mdnid == NID_md5_sha1)
+        secbits = 68;
+    else if (mdnid == NID_md5)
+        secbits = 39;
+    X509_SIG_INFO_set(siginf, mdnid, EVP_PKEY_RSA_PSS, secbits,
                       flags);
     rv = 1;
     err:
@@ -1055,45 +1080,60 @@ static size_t rsa_pkey_dirty_cnt(const EVP_PKEY *pkey)
 
 DEFINE_SPECIAL_STACK_OF_CONST(BIGNUM_const, BIGNUM)
 
-static void *rsa_pkey_export_to(const EVP_PKEY *pk, EVP_KEYMGMT *keymgmt,
-                                int want_domainparams)
+static int rsa_pkey_export_to(const EVP_PKEY *from, void *to_keydata,
+                              EVP_KEYMGMT *to_keymgmt)
 {
-    RSA *rsa = pk->pkey.rsa;
+    RSA *rsa = from->pkey.rsa;
     OSSL_PARAM_BLD tmpl;
     const BIGNUM *n = RSA_get0_n(rsa), *e = RSA_get0_e(rsa);
     const BIGNUM *d = RSA_get0_d(rsa);
     STACK_OF(BIGNUM_const) *primes = NULL, *exps = NULL, *coeffs = NULL;
     int numprimes = 0, numexps = 0, numcoeffs = 0;
     OSSL_PARAM *params = NULL;
-    void *provkey = NULL;
+    int rv = 0;
 
     /*
-     * There are no domain parameters for RSA keys, or rather, they are
-     * included in the key data itself.
+     * If the RSA method is foreign, then we can't be sure of anything, and
+     * can therefore not export or pretend to export.
      */
-    if (want_domainparams)
-        goto err;
-
-    /* Get all the primes and CRT params */
-    if ((primes = sk_BIGNUM_const_new_null()) == NULL
-        || (exps = sk_BIGNUM_const_new_null()) == NULL
-        || (coeffs = sk_BIGNUM_const_new_null()) == NULL)
-        goto err;
-
-    if (!rsa_get0_all_params(rsa, primes, exps, coeffs))
-        goto err;
+    if (RSA_get_method(rsa) != RSA_PKCS1_OpenSSL())
+        return 0;
 
     /* Public parameters must always be present */
     if (n == NULL || e == NULL)
         goto err;
 
+    ossl_param_bld_init(&tmpl);
+
+    /* |e| and |n| are always present */
+    if (!ossl_param_bld_push_BN(&tmpl, OSSL_PKEY_PARAM_RSA_E, e))
+        goto err;
+    if (!ossl_param_bld_push_BN(&tmpl, OSSL_PKEY_PARAM_RSA_N, n))
+        goto err;
+
     if (d != NULL) {
-        /* It's a private key, so we should have everything else too */
+        int i;
+
+        /* Get all the primes and CRT params */
+        if ((primes = sk_BIGNUM_const_new_null()) == NULL
+            || (exps = sk_BIGNUM_const_new_null()) == NULL
+            || (coeffs = sk_BIGNUM_const_new_null()) == NULL)
+            goto err;
+
+        if (!rsa_get0_all_params(rsa, primes, exps, coeffs))
+            goto err;
+
         numprimes = sk_BIGNUM_const_num(primes);
         numexps = sk_BIGNUM_const_num(exps);
         numcoeffs = sk_BIGNUM_const_num(coeffs);
 
-        if (numprimes < 2 || numexps < 2 || numcoeffs < 1)
+        /*
+         * It's permisssible to have zero primes, i.e. no CRT params.
+         * Otherwise, there must be at least two, as many exponents,
+         * and one coefficient less.
+         */
+        if (numprimes != 0
+            && (numprimes < 2 || numexps < 2 || numcoeffs < 1))
             goto err;
 
         /* assert that an OSSL_PARAM_BLD has enough space. */
@@ -1101,15 +1141,6 @@ static void *rsa_pkey_export_to(const EVP_PKEY *pk, EVP_KEYMGMT *keymgmt,
                          + numprimes + numexps + numcoeffs
                          <= OSSL_PARAM_BLD_MAX))
             goto err;
-    }
-
-    ossl_param_bld_init(&tmpl);
-    if (!ossl_param_bld_push_BN(&tmpl, OSSL_PKEY_PARAM_RSA_N, n)
-        || !ossl_param_bld_push_BN(&tmpl, OSSL_PKEY_PARAM_RSA_E, e))
-        goto err;
-
-    if (d != NULL) {
-        int i;
 
         if (!ossl_param_bld_push_BN(&tmpl, OSSL_PKEY_PARAM_RSA_D, d))
             goto err;
@@ -1143,14 +1174,15 @@ static void *rsa_pkey_export_to(const EVP_PKEY *pk, EVP_KEYMGMT *keymgmt,
         goto err;
 
     /* We export, the provider imports */
-    provkey = evp_keymgmt_importkey(keymgmt, params);
+    rv = evp_keymgmt_import(to_keymgmt, to_keydata, OSSL_KEYMGMT_SELECT_ALL,
+                            params);
 
  err:
     sk_BIGNUM_const_free(primes);
     sk_BIGNUM_const_free(exps);
     sk_BIGNUM_const_free(coeffs);
     ossl_param_bld_free(params);
-    return provkey;
+    return rv;
 }
 
 const EVP_PKEY_ASN1_METHOD rsa_asn1_meths[2] = {

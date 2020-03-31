@@ -58,6 +58,11 @@ int main(int argc, char **argv)
     int reduce=0;
     int verbose=0;
 
+    // new vars, not sure what init needed
+    SSL_CTX *ctx=NULL;
+    const SSL_METHOD *meth = TLS_client_method();
+    SSL *con=NULL;
+
     // getopt vars
     int opt;
     
@@ -101,19 +106,37 @@ int main(int argc, char **argv)
         }
     }
     
+#if 0
     if (!ERR_load_ESNI_strings()) {
         printf("Can't init error strings - exiting\n");
         exit(1);
     }
-    // init ciphers
-    if (!ssl_load_ciphers()) {
-        printf("Can't init ciphers - exiting\n");
-        exit(1);
-    }
+
     if (!RAND_set_rand_method(NULL)) {
         printf("Can't init (P)RNG - exiting\n");
         exit(1);
     }
+#endif
+
+    ctx = SSL_CTX_new(meth);
+    if (ctx == NULL) {
+        printf("Can't init ctx - exiting\n");
+        exit(1);
+    }
+#if 0
+    // init ciphers - no longer needed with 1.1.1 apparently
+    // and if called causes a leak
+    if (!ssl_load_ciphers(ctx)) {
+        printf("Can't init ciphers - exiting\n");
+        exit(1);
+    }
+#endif
+    con = SSL_new(ctx);
+    if (con == NULL) {
+        printf("Can't init con - exiting\n");
+        exit(1);
+    }
+    con->ctx=ctx;
 
 #define TRYMEMBIO
 #ifndef TRYMEMBIO
@@ -181,7 +204,7 @@ int main(int argc, char **argv)
     }
 
     int nesnis=0;
-    esnikeys=SSL_ESNI_new_from_buffer(ESNI_RRFMT_GUESS,strlen(esni_str),esni_str,&nesnis);
+    esnikeys=SSL_ESNI_new_from_buffer(ctx,con,ESNI_RRFMT_GUESS,strlen(esni_str),esni_str,&nesnis);
     if (nesnis==0 || esnikeys == NULL) {
         printf("Can't create SSL_ESNI from RR value!\n");
         goto end;
@@ -275,7 +298,7 @@ int main(int argc, char **argv)
 
         SSL_ESNI *one=SSL_ESNI_dup(esnikeys,nesnis,i);
 
-        if (!SSL_ESNI_enc(one,cr_len,client_random,cid,ckl,ck,&the_esni)) {
+        if (!SSL_ESNI_enc(ctx,con,one,cr_len,client_random,cid,ckl,ck,&the_esni)) {
             printf("Can't encrypt SSL_ESNI!\n");
             SSL_ESNI_free(one);
             OPENSSL_free(one);
@@ -306,6 +329,12 @@ int main(int argc, char **argv)
 
 end:
     BIO_free_all(out);
+    if (con!=NULL) {
+        SSL_free(con);
+    }
+    if (ctx!=NULL) {
+        SSL_CTX_free(ctx);
+    }
     if (se!=NULL) {
         SSL_ESNI_ext_free(se,nses);
         OPENSSL_free(se);

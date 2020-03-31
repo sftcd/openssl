@@ -33,22 +33,22 @@ my @testdata = (
       providers => [ 'default' ],
       tests  => [ { providers => [] },
                   { },
-                  { args      => [ '-property', 'default=yes' ],
-                    message   => 'using property "default=yes"' },
-                  { args      => [ '-property', 'fips=no' ],
-                    message   => 'using property "fips=no"' },
-                  { args      => [ '-property', 'default=no', '-fetchfail' ],
+                  { args      => [ '-property', 'provider=default' ],
+                    message   => 'using property "provider=default"' },
+                  { args      => [ '-property', 'provider!=fips' ],
+                    message   => 'using property "provider!=fips"' },
+                  { args      => [ '-property', 'provider!=default', '-fetchfail' ],
                     message   =>
-                        'using property "default=no" is expected to fail' },
-                  { args      => [ '-property', 'fips=yes', '-fetchfail' ],
+                        'using property "provider!=default" is expected to fail' },
+                  { args      => [ '-property', 'provider=fips', '-fetchfail' ],
                     message   =>
-                        'using property "fips=yes" is expected to fail' } ] }
+                        'using property "provider=fips" is expected to fail' } ] }
 );
 
 unless ($no_fips) {
     push @setups, {
         cmd     => app(['openssl', 'fipsinstall',
-                        '-out', bldtop_file('providers', 'fipsinstall.conf'),
+                        '-out', bldtop_file('providers', 'fipsinstall.cnf'),
                         '-module', bldtop_file('providers', platform->dso('fips')),
                         '-provider_name', 'fips', '-mac_name', 'HMAC',
                         '-macopt', 'digest:SHA256', '-macopt', 'hexkey:00',
@@ -60,28 +60,48 @@ unless ($no_fips) {
           providers => [ 'fips' ],
           tests     => [
               { args    => [ '-property', '' ] },
+              { args    => [ '-property', 'provider=fips' ],
+                message => 'using property "provider=fips"' },
+              { args    => [ '-property', 'provider!=default' ],
+                message => 'using property "provider!=default"' },
+              { args      => [ '-property', 'provider=default', '-fetchfail' ],
+                message   =>
+                    'using property "provider=default" is expected to fail' },
+              { args      => [ '-property', 'provider!=fips', '-fetchfail' ],
+                message   =>
+                    'using property "provider!=fips" is expected to fail' },
               { args    => [ '-property', 'fips=yes' ],
                 message => 'using property "fips=yes"' },
-              { args    => [ '-property', 'default=no' ],
-                message => 'using property "default = no"' },
-              { args      => [ '-property', 'default=yes', '-fetchfail' ],
-                message   =>
-                    'using property "default=yes" is expected to fail' },
-              { args      => [ '-property', 'fips=no', '-fetchfail' ],
-                message   =>
-                    'using property "fips=no" is expected to fail' } ] },
+              { args    => [ '-property', 'fips!=no' ],
+                message => 'using property "fips!=no"' },
+              { args    => [ '-property', '-fips' ],
+                message => 'using property "-fips"' },
+              { args    => [ '-property', 'fips=no', '-fetchfail' ],
+                message => 'using property "fips=no is expected to fail"' },
+              { args    => [ '-property', 'fips!=yes', '-fetchfail' ],
+                message => 'using property "fips!=yes is expected to fail"' } ] },
         { config    => srctop_file("test", "default-and-fips.cnf"),
           providers => [ 'default', 'fips' ],
           tests     => [
               { args    => [ '-property', '' ] },
-              { args      => [ '-property', 'default=no' ],
-                message   => 'using property "default=no"' },
-              { args      => [ '-property', 'default=yes' ],
-                message   => 'using property "default=yes"' },
-              { args      => [ '-property', 'fips=no' ],
-                message   => 'using property "fips=no"' },
-              { args      => [ '-property', 'fips=yes' ],
-                message   => 'using property "fips=yes"' } ] }
+              { args      => [ '-property', 'provider!=default' ],
+                message   => 'using property "provider!=default"' },
+              { args      => [ '-property', 'provider=default' ],
+                message   => 'using property "provider=default"' },
+              { args      => [ '-property', 'provider!=fips' ],
+                message   => 'using property "provider!=fips"' },
+              { args      => [ '-property', 'provider=fips' ],
+                message   => 'using property "provider=fips"' },
+              { args    => [ '-property', 'fips=yes' ],
+                message => 'using property "fips=yes"' },
+              { args    => [ '-property', 'fips!=no' ],
+                message => 'using property "fips!=no"' },
+              { args    => [ '-property', '-fips' ],
+                message => 'using property "-fips"' },
+              { args    => [ '-property', 'fips=no' ],
+                message => 'using property "fips=no"' },
+              { args    => [ '-property', 'fips!=yes' ],
+                message => 'using property "fips!=yes"' } ] },
     );
 }
 
@@ -101,7 +121,7 @@ foreach my $setup (@setups) {
 
 foreach my $alg (@types) {
     foreach my $testcase (@testdata) {
-        $ENV{OPENSSL_CONF} = $testcase->{config};
+        $ENV{OPENSSL_CONF} = "";
         foreach my $test (@{$testcase->{tests}}) {
             my @testproviders =
                 @{ $test->{providers} // $testcase->{providers} };
@@ -117,6 +137,7 @@ foreach my $alg (@types) {
                 "running evp_fetch_prov_test with $alg$testprovstr$testmsg";
 
             ok(run(test(["evp_fetch_prov_test", "-type", "$alg",
+                         "-config", "$testcase->{config}",
                          @testargs, @testproviders])),
                $message);
         }

@@ -142,6 +142,7 @@ int EVP_CipherInit_ex(EVP_CIPHER_CTX *ctx, const EVP_CIPHER *cipher,
 
     if (tmpcipher->prov == NULL) {
         switch(tmpcipher->nid) {
+        case NID_undef:
         case NID_aes_256_ecb:
         case NID_aes_192_ecb:
         case NID_aes_128_ecb:
@@ -174,6 +175,10 @@ int EVP_CipherInit_ex(EVP_CIPHER_CTX *ctx, const EVP_CIPHER *cipher,
         case NID_aes_256_siv:
         case NID_aes_192_siv:
         case NID_aes_128_siv:
+        case NID_aes_256_cbc_hmac_sha256:
+        case NID_aes_128_cbc_hmac_sha256:
+        case NID_aes_256_cbc_hmac_sha1:
+        case NID_aes_128_cbc_hmac_sha1:
         case NID_id_aes256_wrap:
         case NID_id_aes256_wrap_pad:
         case NID_id_aes192_wrap:
@@ -322,7 +327,10 @@ int EVP_CipherInit_ex(EVP_CIPHER_CTX *ctx, const EVP_CIPHER *cipher,
         return 0;
 #else
         EVP_CIPHER *provciph =
-            EVP_CIPHER_fetch(NULL, OBJ_nid2sn(cipher->nid), "");
+            EVP_CIPHER_fetch(NULL,
+                             cipher->nid == NID_undef ? "NULL"
+                                                      : OBJ_nid2sn(cipher->nid),
+                             "");
 
         if (provciph == NULL) {
             EVPerr(EVP_F_EVP_CIPHERINIT_EX, EVP_R_INITIALIZATION_ERROR);
@@ -1086,7 +1094,9 @@ int EVP_CIPHER_CTX_ctrl(EVP_CIPHER_CTX *ctx, int type, int arg, void *ptr)
     int set_params = 1;
     size_t sz = arg;
     unsigned int i;
-    OSSL_PARAM params[2] = { OSSL_PARAM_END, OSSL_PARAM_END };
+    OSSL_PARAM params[4] = {
+        OSSL_PARAM_END, OSSL_PARAM_END, OSSL_PARAM_END, OSSL_PARAM_END
+    };
 
     if (ctx == NULL || ctx->cipher == NULL) {
         EVPerr(EVP_F_EVP_CIPHER_CTX_CTRL, EVP_R_NO_CIPHER_SET);
@@ -1129,10 +1139,22 @@ int EVP_CIPHER_CTX_ctrl(EVP_CIPHER_CTX *ctx, int type, int arg, void *ptr)
             return 0;
         params[0] = OSSL_PARAM_construct_size_t(OSSL_CIPHER_PARAM_IVLEN, &sz);
         break;
-    case EVP_CTRL_GCM_SET_IV_FIXED:
-        params[0] =
-            OSSL_PARAM_construct_octet_string(OSSL_CIPHER_PARAM_AEAD_TLS1_IV_FIXED,
-                                              ptr, sz);
+    case EVP_CTRL_AEAD_SET_IV_FIXED:
+        params[0] = OSSL_PARAM_construct_octet_string(
+                        OSSL_CIPHER_PARAM_AEAD_TLS1_IV_FIXED, ptr, sz);
+        break;
+    case EVP_CTRL_GCM_IV_GEN:
+        set_params = 0;
+        if (arg < 0)
+            sz = 0; /* special case that uses the iv length */
+        params[0] = OSSL_PARAM_construct_octet_string(
+                        OSSL_CIPHER_PARAM_AEAD_TLS1_GET_IV_GEN, ptr, sz);
+        break;
+    case EVP_CTRL_GCM_SET_IV_INV:
+        if (arg < 0)
+            return 0;
+        params[0] = OSSL_PARAM_construct_octet_string(
+                        OSSL_CIPHER_PARAM_AEAD_TLS1_SET_IV_INV, ptr, sz);
         break;
     case EVP_CTRL_GET_RC5_ROUNDS:
         set_params = 0; /* Fall thru */
@@ -1154,13 +1176,8 @@ int EVP_CIPHER_CTX_ctrl(EVP_CIPHER_CTX *ctx, int type, int arg, void *ptr)
         params[0] = OSSL_PARAM_construct_octet_string(OSSL_CIPHER_PARAM_AEAD_TAG,
                                                       ptr, sz);
         break;
-    case EVP_CTRL_AEAD_SET_MAC_KEY:
-        params[0] =
-            OSSL_PARAM_construct_octet_string(OSSL_CIPHER_PARAM_AEAD_MAC_KEY,
-                                              ptr, sz);
-        break;
     case EVP_CTRL_AEAD_TLS1_AAD:
-        /* This one does a set and a get - since it returns a padding size */
+        /* This one does a set and a get - since it returns a size */
         params[0] =
             OSSL_PARAM_construct_octet_string(OSSL_CIPHER_PARAM_AEAD_TLS1_AAD,
                                               ptr, sz);
@@ -1180,6 +1197,76 @@ int EVP_CIPHER_CTX_ctrl(EVP_CIPHER_CTX *ctx, int type, int arg, void *ptr)
         params[0] = OSSL_PARAM_construct_size_t(OSSL_CIPHER_PARAM_RC2_KEYBITS, &sz);
         break;
 #endif /* OPENSSL_NO_RC2 */
+#if !defined(OPENSSL_NO_MULTIBLOCK)
+    case EVP_CTRL_TLS1_1_MULTIBLOCK_MAX_BUFSIZE:
+        params[0] = OSSL_PARAM_construct_size_t(
+                OSSL_CIPHER_PARAM_TLS1_MULTIBLOCK_MAX_SEND_FRAGMENT, &sz);
+        ret = evp_do_ciph_ctx_setparams(ctx->cipher, ctx->provctx, params);
+        if (ret <= 0)
+            return 0;
+
+        params[0] = OSSL_PARAM_construct_size_t(
+                OSSL_CIPHER_PARAM_TLS1_MULTIBLOCK_MAX_BUFSIZE, &sz);
+        params[1] = OSSL_PARAM_construct_end();
+        ret = evp_do_ciph_ctx_getparams(ctx->cipher, ctx->provctx, params);
+        if (ret <= 0)
+            return 0;
+        return sz;
+    case EVP_CTRL_TLS1_1_MULTIBLOCK_AAD: {
+        EVP_CTRL_TLS1_1_MULTIBLOCK_PARAM *p =
+            (EVP_CTRL_TLS1_1_MULTIBLOCK_PARAM *)ptr;
+
+        if (arg < (int)sizeof(EVP_CTRL_TLS1_1_MULTIBLOCK_PARAM))
+            return 0;
+
+        params[0] = OSSL_PARAM_construct_octet_string(
+                OSSL_CIPHER_PARAM_TLS1_MULTIBLOCK_AAD, (void*)p->inp, p->len);
+        params[1] = OSSL_PARAM_construct_uint(
+                OSSL_CIPHER_PARAM_TLS1_MULTIBLOCK_INTERLEAVE, &p->interleave);
+        ret = evp_do_ciph_ctx_setparams(ctx->cipher, ctx->provctx, params);
+        if (ret <= 0)
+            return ret;
+        /* Retrieve the return values changed by the set */
+        params[0] = OSSL_PARAM_construct_size_t(
+                OSSL_CIPHER_PARAM_TLS1_MULTIBLOCK_AAD_PACKLEN, &sz);
+        params[1] = OSSL_PARAM_construct_uint(
+                OSSL_CIPHER_PARAM_TLS1_MULTIBLOCK_INTERLEAVE, &p->interleave);
+        params[2] = OSSL_PARAM_construct_end();
+        ret = evp_do_ciph_ctx_getparams(ctx->cipher, ctx->provctx, params);
+        if (ret <= 0)
+            return 0;
+        return sz;
+    }
+    case EVP_CTRL_TLS1_1_MULTIBLOCK_ENCRYPT: {
+        EVP_CTRL_TLS1_1_MULTIBLOCK_PARAM *p =
+            (EVP_CTRL_TLS1_1_MULTIBLOCK_PARAM *)ptr;
+
+        params[0] = OSSL_PARAM_construct_octet_string(
+                        OSSL_CIPHER_PARAM_TLS1_MULTIBLOCK_ENC, p->out, p->len);
+
+        params[1] = OSSL_PARAM_construct_octet_string(
+                OSSL_CIPHER_PARAM_TLS1_MULTIBLOCK_ENC_IN, (void*)p->inp,
+                p->len);
+        params[2] = OSSL_PARAM_construct_uint(
+                OSSL_CIPHER_PARAM_TLS1_MULTIBLOCK_INTERLEAVE, &p->interleave);
+        ret = evp_do_ciph_ctx_setparams(ctx->cipher, ctx->provctx, params);
+        if (ret <= 0)
+            return ret;
+        params[0] = OSSL_PARAM_construct_size_t(
+                        OSSL_CIPHER_PARAM_TLS1_MULTIBLOCK_ENC_LEN, &sz);
+        params[1] = OSSL_PARAM_construct_end();
+        ret = evp_do_ciph_ctx_getparams(ctx->cipher, ctx->provctx, params);
+        if (ret <= 0)
+            return 0;
+        return sz;
+    }
+#endif /* OPENSSL_NO_MULTIBLOCK */
+    case EVP_CTRL_AEAD_SET_MAC_KEY:
+        if (arg < 0)
+            return -1;
+        params[0] = OSSL_PARAM_construct_octet_string(
+                OSSL_CIPHER_PARAM_AEAD_MAC_KEY, ptr, sz);
+        break;
     }
 
     if (set_params)

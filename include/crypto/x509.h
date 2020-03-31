@@ -71,9 +71,9 @@ struct X509_req_st {
     ASN1_BIT_STRING *signature; /* signature */
     CRYPTO_REF_COUNT references;
     CRYPTO_RWLOCK *lock;
-# ifndef OPENSSL_NO_SM2
-    ASN1_OCTET_STRING *sm2_id;
-# endif
+
+    /* Set on live certificates for authentication purposes */
+    ASN1_OCTET_STRING *distinguishing_id;
 };
 
 struct X509_crl_info_st {
@@ -186,9 +186,9 @@ struct x509_st {
     X509_CERT_AUX *aux;
     CRYPTO_RWLOCK *lock;
     volatile int ex_cached;
-# ifndef OPENSSL_NO_SM2
-    ASN1_OCTET_STRING *sm2_id;
-# endif
+
+    /* Set on live certificates for authentication purposes */
+    ASN1_OCTET_STRING *distinguishing_id;
 } /* X509 */ ;
 
 /*
@@ -288,5 +288,6 @@ struct x509_object_st {
 
 int a2i_ipadd(unsigned char *ipout, const char *ipasc);
 int x509_set1_time(ASN1_TIME **ptm, const ASN1_TIME *tm);
+int x509_print_ex_brief(BIO *bio, X509 *cert, unsigned long neg_cflags);
 
 void x509_init_sig_info(X509 *x);

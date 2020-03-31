@@ -1145,7 +1145,7 @@ EXT_RETURN tls_construct_ctos_padding(SSL *s, WPACKET *pkt,
     if (s->session->ssl_version == TLS1_3_VERSION
             && s->session->ext.ticklen != 0
             && s->session->cipher != NULL) {
-        const EVP_MD *md = ssl_md(s->session->cipher->algorithm2);
+        const EVP_MD *md = ssl_md(s->ctx, s->session->cipher->algorithm2);
 
         if (md != NULL) {
             /*
@@ -1223,7 +1223,7 @@ EXT_RETURN tls_construct_ctos_psk(SSL *s, WPACKET *pkt, unsigned int context,
                      ERR_R_INTERNAL_ERROR);
             return EXT_RETURN_FAIL;
         }
-        mdres = ssl_md(s->session->cipher->algorithm2);
+        mdres = ssl_md(s->ctx, s->session->cipher->algorithm2);
         if (mdres == NULL) {
             /*
              * Don't recognize this cipher so we can't use the session.
@@ -1296,7 +1296,7 @@ EXT_RETURN tls_construct_ctos_psk(SSL *s, WPACKET *pkt, unsigned int context,
         return EXT_RETURN_NOT_SENT;
 
     if (s->psksession != NULL) {
-        mdpsk = ssl_md(s->psksession->cipher->algorithm2);
+        mdpsk = ssl_md(s->ctx, s->psksession->cipher->algorithm2);
         if (mdpsk == NULL) {
             /*
              * Don't recognize this cipher so we can't use the session.
@@ -2247,7 +2247,7 @@ EXT_RETURN tls_construct_ctos_esni(SSL *s, WPACKET *pkt, unsigned int context,
     
         uint16_t curve_id = s->s3.group_id;
         s->esni->hrr_swap=s->hello_retry_request;
-        if (!SSL_ESNI_enc(s->esni,rd_len,rd,curve_id,s->ext.kse_len,s->ext.kse,&c)) {
+        if (!SSL_ESNI_enc(s->ctx,s,s->esni,rd_len,rd,curve_id,s->ext.kse_len,s->ext.kse,&c)) {
             return 0;
         }
 

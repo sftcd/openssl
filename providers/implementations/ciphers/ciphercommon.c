@@ -109,6 +109,7 @@ static const OSSL_PARAM cipher_aead_known_gettable_ctx_params[] = {
     OSSL_PARAM_octet_string(OSSL_CIPHER_PARAM_IV, NULL, 0),
     OSSL_PARAM_octet_string(OSSL_CIPHER_PARAM_AEAD_TAG, NULL, 0),
     OSSL_PARAM_size_t(OSSL_CIPHER_PARAM_AEAD_TLS1_AAD_PAD, NULL),
+    OSSL_PARAM_octet_string(OSSL_CIPHER_PARAM_AEAD_TLS1_GET_IV_GEN, NULL, 0),
     OSSL_PARAM_END
 };
 const OSSL_PARAM *cipher_aead_gettable_ctx_params(void)
@@ -121,6 +122,7 @@ static const OSSL_PARAM cipher_aead_known_settable_ctx_params[] = {
     OSSL_PARAM_octet_string(OSSL_CIPHER_PARAM_AEAD_TAG, NULL, 0),
     OSSL_PARAM_octet_string(OSSL_CIPHER_PARAM_AEAD_TLS1_AAD, NULL, 0),
     OSSL_PARAM_octet_string(OSSL_CIPHER_PARAM_AEAD_TLS1_IV_FIXED, NULL, 0),
+    OSSL_PARAM_octet_string(OSSL_CIPHER_PARAM_AEAD_TLS1_SET_IV_INV, NULL, 0),
     OSSL_PARAM_END
 };
 const OSSL_PARAM *cipher_aead_settable_ctx_params(void)
@@ -174,7 +176,12 @@ int cipher_generic_block_update(void *vctx, unsigned char *out, size_t *outl,
     size_t outlint = 0;
     PROV_CIPHER_CTX *ctx = (PROV_CIPHER_CTX *)vctx;
     size_t blksz = ctx->blocksize;
-    size_t nextblocks = fillblock(ctx->buf, &ctx->bufsz, blksz, &in, &inl);
+    size_t nextblocks;
+
+    if (ctx->bufsz != 0)
+        nextblocks = fillblock(ctx->buf, &ctx->bufsz, blksz, &in, &inl);
+    else
+        nextblocks = inl & ~(blksz-1);
 
     /*
      * If we're decrypting and we end an update on a block boundary we hold
@@ -216,7 +223,7 @@ int cipher_generic_block_update(void *vctx, unsigned char *out, size_t *outl,
         in += nextblocks;
         inl -= nextblocks;
     }
-    if (!trailingdata(ctx->buf, &ctx->bufsz, blksz, &in, &inl)) {
+    if (inl != 0 && !trailingdata(ctx->buf, &ctx->bufsz, blksz, &in, &inl)) {
         /* ERR_raise already called */
         return 0;
     }

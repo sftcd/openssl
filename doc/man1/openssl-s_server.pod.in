@@ -19,7 +19,6 @@ B<openssl> B<s_server>
 [B<-verify> I<int>]
 [B<-Verify> I<int>]
 [B<-cert> I<infile>]
-[B<-nameopt> I<val>]
 [B<-naccept> I<+int>]
 [B<-serverinfo> I<val>]
 [B<-certform> B<DER>|B<PEM>]
@@ -42,6 +41,7 @@ B<openssl> B<s_server>
 [B<-no_resume_ephemeral>]
 [B<-www>]
 [B<-WWW>]
+[B<-http_server_binmode>]
 [B<-servername>]
 [B<-servername_fatal>]
 [B<-cert2> I<infile>]
@@ -51,6 +51,7 @@ B<openssl> B<s_server>
 [B<-id_prefix> I<val>]
 [B<-keymatexport> I<val>]
 [B<-keymatexportlen> I<+int>]
+[B<-CRLform> B<DER>|B<PEM>]
 [B<-CRL> I<infile>]
 [B<-crl_download>]
 [B<-cert_chain> I<infile>]
@@ -84,16 +85,10 @@ B<openssl> B<s_server>
 [B<-split_send_frag> I<+int>]
 [B<-max_pipelines> I<+int>]
 [B<-read_buf> I<+int>]
-[B<-no_ssl3>]
-[B<-no_tls1>]
-[B<-no_tls1_1>]
-[B<-no_tls1_2>]
-[B<-no_tls1_3>]
 [B<-bugs>]
 [B<-no_comp>]
 [B<-comp>]
 [B<-no_ticket>]
-[B<-num_tickets>]
 [B<-serverpref>]
 [B<-legacy_renegotiation>]
 [B<-no_renegotiation>]
@@ -113,36 +108,6 @@ B<openssl> B<s_server>
 [B<-dhparam> I<infile>]
 [B<-record_padding> I<val>]
 [B<-debug_broken_protocol>]
-[B<-policy> I<val>]
-[B<-purpose> I<val>]
-[B<-verify_name> I<val>]
-[B<-verify_depth> I<int>]
-[B<-auth_level> I<int>]
-[B<-attime> I<intmax>]
-[B<-verify_hostname> I<val>]
-[B<-verify_email> I<val>]
-[B<-verify_ip>]
-[B<-ignore_critical>]
-[B<-issuer_checks>]
-[B<-crl_check>]
-[B<-crl_check_all>]
-[B<-policy_check>]
-[B<-explicit_policy>]
-[B<-inhibit_any>]
-[B<-inhibit_map>]
-[B<-x509_strict>]
-[B<-extended_crl>]
-[B<-use_deltas>]
-[B<-policy_print>]
-[B<-check_ss_sig>]
-[B<-trusted_first>]
-[B<-suiteB_128_only>]
-[B<-suiteB_128>]
-[B<-suiteB_192>]
-[B<-partial_chain>]
-[B<-no_alt_chains>]
-[B<-no_check_time>]
-[B<-allow_proxy_certs>]
 [B<-nbio>]
 [B<-psk_identity> I<val>]
 [B<-psk_hint> I<val>]
@@ -150,33 +115,32 @@ B<openssl> B<s_server>
 [B<-psk_session> I<file>]
 [B<-srpvfile> I<infile>]
 [B<-srpuserseed> I<val>]
-[B<-ssl3>]
-[B<-tls1>]
-[B<-tls1_1>]
-[B<-tls1_2>]
-[B<-tls1_3>]
-[B<-dtls>]
 [B<-timeout>]
 [B<-mtu> I<+int>]
 [B<-listen>]
-[B<-dtls1>]
-[B<-dtls1_2>]
 [B<-sctp>]
 [B<-sctp_label_bug>]
 [B<-no_dhe>]
 [B<-nextprotoneg> I<val>]
 [B<-use_srtp> I<val>]
 [B<-alpn> I<val>]
-[B<-engine> I<val>]
 [B<-keylogfile> I<outfile>]
+[B<-recv_max_early_data> I<int>]
 [B<-max_early_data> I<int>]
 [B<-early_data>]
+[B<-stateless>]
 [B<-anti_replay>]
 [B<-no_anti_replay>]
-[B<-http_server_binmode>]
+[B<-num_tickets>]
+{- $OpenSSL::safe::opt_name_synopsis -}
+{- $OpenSSL::safe::opt_version_synopsis -}
+{- $OpenSSL::safe::opt_v_synopsis -}
+{- $OpenSSL::safe::opt_s_synopsis -}
 {- $OpenSSL::safe::opt_x_synopsis -}
 {- $OpenSSL::safe::opt_trust_synopsis -}
 {- $OpenSSL::safe::opt_r_synopsis -}
+{- $OpenSSL::safe::opt_engine_synopsis -}
+{- $OpenSSL::safe::opt_provider_synopsis -}
 
 =for openssl ifdef unix 4 6 unlink no_dhe nextprotoneg use_srtp engine
 
@@ -262,13 +226,6 @@ B<-cert> option.
 
 Specify whether the application should build the certificate chain to be
 provided to the client.
-
-=item B<-nameopt> I<val>
-
-Option which determines how the subject or issuer names are displayed. The
-I<val> argument can be a single option or multiple options separated by
-commas.  Alternatively the B<-nameopt> switch may be used more than once to
-set multiple options. See the L<openssl-x509(1)> manual page for details.
 
 =item B<-naccept> I<+int>
 
@@ -387,32 +344,39 @@ DH).
 
 Inhibit printing of session and certificate information.
 
-=item B<-www>
-
-Sends a status message back to the client when it connects. This includes
-information about the ciphers used and various session parameters.
-The output is in HTML format so this option will normally be used with a
-web browser. Cannot be used in conjunction with B<-early_data>.
-
-=item B<-WWW>
-
-Emulates a simple web server. Pages will be resolved relative to the
-current directory, for example if the URL https://myhost/page.html is
-requested the file F<./page.html> will be loaded. Cannot be used in conjunction
-with B<-early_data>.
-
 =item B<-tlsextdebug>
 
 Print a hex dump of any TLS extensions received from the server.
 
-=item B<-HTTP>
+=item B<-www>
+
+Sends a status message back to the client when it connects. This includes
+information about the ciphers used and various session parameters.
+The output is in HTML format so this option can be used with a web browser.
+The special URL C</renegcert> turns on client cert validation, and C</reneg>
+tells the server to request renegotiation.
+The B<-early_data> option cannot be used with this option.
+
+=item B<-WWW>, B<-HTTP>
 
 Emulates a simple web server. Pages will be resolved relative to the
-current directory, for example if the URL https://myhost/page.html is
-requested the file F<./page.html> will be loaded. The files loaded are
-assumed to contain a complete and correct HTTP response (lines that
-are part of the HTTP response line and headers must end with CRLF). Cannot be
-used in conjunction with B<-early_data>.
+current directory, for example if the URL C<https://myhost/page.html> is
+requested the file F<./page.html> will be sent.
+If the B<-HTTP> flag is used, the files are sent directly, and should contain
+any HTTP response headers (including status response line).
+If the B<-WWW> option is used,
+the response headers are generated by the server, and the file extension is
+examined to determine the B<Content-Type> header.
+Extensions of C<html>, C<htm>, and C<php> are C<text/html> and all others are
+C<text/plain>.
+In addition, the special URL C</stats> will return status
+information like the B<-www> option.
+Neither of these options can be used in conjunction with B<-early_data>.
+
+=item B<-http_server_binmode>
+
+When acting as web-server (using option B<-WWW> or B<-HTTP>) open files requested
+by the client in binary mode.
 
 =item B<-id_prefix> I<val>
 
@@ -502,16 +466,6 @@ effect if the buffer size is larger than the size that would otherwise be used
 and pipelining is in use (see L<SSL_CTX_set_default_read_buffer_len(3)> for
 further information).
 
-=item B<-ssl2>, B<-ssl3>, B<-tls1>, B<-tls1_1>, B<-tls1_2>, B<-tls1_3>, B<-no_ssl2>, B<-no_ssl3>, B<-no_tls1>, B<-no_tls1_1>, B<-no_tls1_2>, B<-no_tls1_3>
-
-These options require or disable the use of the specified SSL or TLS protocols.
-By default, this command will negotiate the highest mutually supported
-protocol version.
-When a specific TLS version is required, only that version will be accepted
-from the client.
-Note that not all protocols and flags may be available, depending on how
-OpenSSL was built.
-
 =item B<-bugs>
 
 There are several known bugs in SSL and TLS implementations. Adding this
@@ -592,23 +546,6 @@ load the parameters from the server certificate file.
 If this fails then a static set of parameters hard coded into this command
 will be used.
 
-=item B<-attime>, B<-check_ss_sig>, B<-crl_check>, B<-crl_check_all>,
-B<-explicit_policy>, B<-extended_crl>, B<-ignore_critical>, B<-inhibit_any>,
-B<-inhibit_map>, B<-no_alt_chains>, B<-no_check_time>, B<-partial_chain>, B<-policy>,
-B<-policy_check>, B<-policy_print>, B<-purpose>, B<-suiteB_128>,
-B<-suiteB_128_only>, B<-suiteB_192>, B<-trusted_first>, B<-use_deltas>,
-B<-auth_level>, B<-verify_depth>, B<-verify_email>, B<-verify_hostname>,
-B<-verify_ip>, B<-verify_name>, B<-x509_strict>
-
-Set different peer certificate verification options.
-See the L<openssl-verify(1)> manual page for details.
-
-=item B<-crl_check>, B<-crl_check_all>
-
-Check the peer certificate has not been revoked by its CA.
-The CRL(s) are appended to the certificate file. With the B<-crl_check_all>
-option all CRLs of all CAs in the chain are checked.
-
 =item B<-nbio>
 
 Turns on non blocking I/O.
@@ -646,13 +583,6 @@ Any without a cookie will be responded to with a HelloVerifyRequest.
 If a ClientHello with a cookie is received then this command will
 connect to that peer and complete the handshake.
 
-=item B<-dtls>, B<-dtls1>, B<-dtls1_2>
-
-These options make this command use DTLS protocols instead of TLS.
-With B<-dtls>, it will negotiate any supported DTLS protocol
-version, whilst B<-dtls1> and B<-dtls1_2> will only support DTLSv1.0 and
-DTLSv1.2 respectively.
-
 =item B<-sctp>
 
 Use SCTP for the transport protocol instead of UDP in DTLS. Must be used in
@@ -683,13 +613,6 @@ Protocol names are printable ASCII strings, for example "http/1.1" or
 "spdy/3".
 The flag B<-nextprotoneg> cannot be specified if B<-tls1_3> is used.
 
-=item B<-engine> I<val>
-
-Specifying an engine (by its unique id string in I<val>) will cause
-this command to attempt to obtain a functional reference to the
-specified engine, thus initialising it if needed. The engine will then be
-set as the default for all available algorithms.
-
 =item B<-keylogfile> I<outfile>
 
 Appends TLS secrets to the specified keylog file such that external programs
@@ -702,10 +625,19 @@ and any incoming early data (when used in conjunction with the B<-early_data>
 flag). The default value is approximately 16k. The argument must be an integer
 greater than or equal to 0.
 
+=item B<-recv_max_early_data> I<int>
+
+Specify the hard limit on the maximum number of early data bytes that will
+be accepted.
+
 =item B<-early_data>
 
 Accept early data where possible. Cannot be used in conjunction with B<-www>,
 B<-WWW>, B<-HTTP> or B<-rev>.
+
+=item B<-stateless>
+
+Require TLSv1.3 cookies.
 
 =item B<-anti_replay>, B<-no_anti_replay>
 
@@ -716,16 +648,27 @@ has been negotiated, and early data is enabled on the server. A full handshake
 is forced if a session ticket is used a second or subsequent time. Any early
 data that was sent will be rejected.
 
-=item B<-http_server_binmode>
+{- $OpenSSL::safe::opt_name_item -}
 
-When acting as web-server (using option B<-WWW> or B<-HTTP>) open files requested
-by the client in binary mode.
+{- $OpenSSL::safe::opt_version_item -}
+
+{- $OpenSSL::safe::opt_s_item -}
 
 {- $OpenSSL::safe::opt_x_item -}
 
 {- $OpenSSL::safe::opt_trust_item -}
 
 {- $OpenSSL::safe::opt_r_item -}
+
+{- $OpenSSL::safe::opt_engine_item -}
+
+{- $OpenSSL::safe::opt_provider_item -}
+
+{- $OpenSSL::safe::opt_v_item -}
+
+If the server requests a client certificate, then
+verification errors are displayed, for debugging, but the command will
+proceed unless the B<-verify_return_error> option is used.
 
 =back
 

@@ -7,6 +7,7 @@
 
 $COMMON_GOAL=../../libcommon.a
 
+$NULL_GOAL=../../libimplementations.a
 $AES_GOAL=../../libimplementations.a
 $TDES_1_GOAL=../../libimplementations.a
 $TDES_2_GOAL=../../libimplementations.a
@@ -35,12 +36,18 @@ IF[{- !$disabled{des} -}]
   SOURCE[$TDES_1_GOAL]=cipher_tdes.c cipher_tdes_hw.c
 ENDIF
 
+SOURCE[$NULL_GOAL]=\
+        cipher_null.c
+
 SOURCE[$AES_GOAL]=\
         cipher_aes.c cipher_aes_hw.c \
         cipher_aes_xts.c cipher_aes_xts_hw.c \
         cipher_aes_gcm.c cipher_aes_gcm_hw.c \
         cipher_aes_ccm.c cipher_aes_ccm_hw.c \
-        cipher_aes_wrp.c
+        cipher_aes_wrp.c \
+        cipher_aes_cbc_hmac_sha.c \
+        cipher_aes_cbc_hmac_sha256_hw.c cipher_aes_cbc_hmac_sha1_hw.c
+
 # Extra code to satisfy the FIPS and non-FIPS separation.
 # When the AES-xxx-XTS moves to legacy, this can be removed.
 SOURCE[../../libfips.a]=cipher_aes_xts_fips.c
@@ -129,4 +136,3 @@ IF[{- !$disabled{chacha} -}]
       cipher_chacha20_poly1305.c cipher_chacha20_poly1305_hw.c
  ENDIF
 ENDIF
-

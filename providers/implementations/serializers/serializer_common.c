@@ -1,5 +1,5 @@
 /*
- * Copyright 2019 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2019-2020 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -14,6 +14,7 @@
 #include <openssl/types.h>
 #include <openssl/x509.h>        /* i2d_X509_PUBKEY_bio() */
 #include "crypto/bn.h"           /* bn_get_words() */
+#include "crypto/ecx.h"
 #include "prov/bio.h"            /* ossl_prov_bio_printf() */
 #include "prov/implementations.h"
 #include "prov/providercommonerr.h" /* PROV_R_READ_KEY */
@@ -21,7 +22,7 @@
 
 static PKCS8_PRIV_KEY_INFO *
 ossl_prov_p8info_from_obj(const void *obj, int obj_nid,
-                          ASN1_STRING *params,
+                          void *params,
                           int params_type,
                           int (*k2d)(const void *obj,
                                      unsigned char **pder))
@@ -72,7 +73,7 @@ static X509_SIG *ossl_prov_encp8_from_p8info(PKCS8_PRIV_KEY_INFO *p8info,
 }
 
 static X509_SIG *ossl_prov_encp8_from_obj(const void *obj, int obj_nid,
-                                          ASN1_STRING *params,
+                                          void *params,
                                           int params_type,
                                           int (*k2d)(const void *obj,
                                                      unsigned char **pder),
@@ -87,7 +88,7 @@ static X509_SIG *ossl_prov_encp8_from_obj(const void *obj, int obj_nid,
 }
 
 static X509_PUBKEY *ossl_prov_pubkey_from_obj(const void *obj, int obj_nid,
-                                              ASN1_STRING *params,
+                                              void *params,
                                               int params_type,
                                               int (*k2d)(const void *obj,
                                                          unsigned char **pder))
@@ -112,12 +113,32 @@ static X509_PUBKEY *ossl_prov_pubkey_from_obj(const void *obj, int obj_nid,
     return xpk;
 }
 
-OSSL_OP_keymgmt_importkey_fn *ossl_prov_get_importkey(const OSSL_DISPATCH *fns)
+OSSL_OP_keymgmt_new_fn *ossl_prov_get_keymgmt_new(const OSSL_DISPATCH *fns)
 {
     /* Pilfer the keymgmt dispatch table */
     for (; fns->function_id != 0; fns++)
-        if (fns->function_id == OSSL_FUNC_KEYMGMT_IMPORTKEY)
-            return OSSL_get_OP_keymgmt_importkey(fns);
+        if (fns->function_id == OSSL_FUNC_KEYMGMT_NEW)
+            return OSSL_get_OP_keymgmt_new(fns);
+
+    return NULL;
+}
+
+OSSL_OP_keymgmt_free_fn *ossl_prov_get_keymgmt_free(const OSSL_DISPATCH *fns)
+{
+    /* Pilfer the keymgmt dispatch table */
+    for (; fns->function_id != 0; fns++)
+        if (fns->function_id == OSSL_FUNC_KEYMGMT_FREE)
+            return OSSL_get_OP_keymgmt_free(fns);
+
+    return NULL;
+}
+
+OSSL_OP_keymgmt_import_fn *ossl_prov_get_keymgmt_import(const OSSL_DISPATCH *fns)
+{
+    /* Pilfer the keymgmt dispatch table */
+    for (; fns->function_id != 0; fns++)
+        if (fns->function_id == OSSL_FUNC_KEYMGMT_IMPORT)
+            return OSSL_get_OP_keymgmt_import(fns);
 
     return NULL;
 }
@@ -138,29 +159,29 @@ OSSL_OP_keymgmt_importkey_fn *ossl_prov_get_importkey(const OSSL_DISPATCH *fns)
 # endif
 
 int ossl_prov_print_labeled_bignum(BIO *out, const char *label,
-                                   const BIGNUM *n)
+                                   const BIGNUM *bn)
 {
     const char *neg;
     const char *post_label_spc = " ";
     int bytes;
     BN_ULONG *words;
-    int i, off;
+    int n, i;
 
-    if (n == NULL)
+    if (bn == NULL)
         return 0;
     if (label == NULL) {
         label = "";
         post_label_spc = "";
     }
 
-    bytes = BN_num_bytes(n);
-    words = bn_get_words(n);
-    neg = BN_is_negative(n) ? "-" : "";
+    bytes = BN_num_bytes(bn);
+    words = bn_get_words(bn);
+    neg = BN_is_negative(bn) ? "-" : "";
 
-    if (BN_is_zero(n))
+    if (BN_is_zero(bn))
         return ossl_prov_bio_printf(out, "%s%s0\n", label, post_label_spc);
 
-    if (BN_num_bytes(n) <= BN_BYTES)
+    if (BN_num_bytes(bn) <= BN_BYTES)
         return ossl_prov_bio_printf(out,
                                     "%s%s%s" BN_FMTu " (%s0x" BN_FMTx ")\n",
                                     label, post_label_spc, neg, words[0],
@@ -172,60 +193,98 @@ int ossl_prov_print_labeled_bignum(BIO *out, const char *label,
     if (ossl_prov_bio_printf(out, "%s%s\n", label, neg) <= 0)
         return 0;
 
-    /* Skip past the zero bytes in the first word */
-    for (off = 0; off < BN_BYTES; off++) {
-        BN_ULONG l = words[0];
-        int o = 8 * (BN_BYTES - off - 1);
-        int b = ((l & (0xffLU << o)) >> o) & 0xff;
+    /* Keep track of how many bytes we have printed out so far */
+    n = 0;
 
-        if (b != 0)
-            break;
-    }
-    /* print 16 hex digits per line, indented with 4 spaces */
-    for (i = 0; i < bytes; i += 16) {
-        int j, step;
+    /*
+     * OpenSSL BIGNUMs are little endian limbs, so we print them last to
+     * first limb.
+     * i is used as limb index, j is used as the "byte index" in the limb
+     */
+    for (i = bytes / BN_BYTES - 1; i >= 0; i--) {
+        BN_ULONG l = words[i];
+        int  j;
 
-        if (ossl_prov_bio_printf(out, "    ") <= 0)
-            return 0;
+        for (j = BN_BYTES - 1; j >= 0; j--) {
+            int o = 8 * j;
+            int b = ((l & (0xffLU << o)) >> o) & 0xff;
 
-        for (j = 0; i + j < bytes && j < 16; j += BN_BYTES - step) {
-            int k;
-            BN_ULONG l = words[(i + j + off) / BN_BYTES];
+            /* Indent every new line with 4 spaces */
+            if ((n % 15) == 0) {
+                if (n > 0)
+                    if (ossl_prov_bio_printf(out, "\n") <= 0)
+                        return 0;
+                if (ossl_prov_bio_printf(out, "    ") <= 0)
+                    return 0;
+            }
 
-            step = (i + j + off) % BN_BYTES;
+            /*
+             * Upper bit set, then we print an extra zero and pretend the
+             * BIGNUM was one byte longer
+             */
+            if (n == 0 && b > 127) {
+                if (ossl_prov_bio_printf(out, "%02x:", 0) <= 0)
+                    return 0;
+                n++;
+                bytes++;
+            }
 
-            for (k = step; k < BN_BYTES; k++) {
-                int o = 8 * (BN_BYTES - k - 1);
-                int b = ((l & (0xffLU << o)) >> o) & 0xff;
-
-                /* We may have reached the number of bytes prematurely */
-                if (i + j + k - off >= bytes)
-                    break;
-
+            if (++n < bytes) {
                 if (ossl_prov_bio_printf(out, "%02x:", b) <= 0)
+                    return 0;
+            } else {
+                if (ossl_prov_bio_printf(out, "%02x", b) <= 0)
                     return 0;
             }
         }
-
-        if (ossl_prov_bio_printf(out, "\n") <= 0)
-            return 0;
     }
+    if (ossl_prov_bio_printf(out, "\n") <= 0)
+        return 0;
 
     return 1;
 }
 
-/* p2s = param to asn1_string, k2d = key to der */
+/* Number of octets per line */
+#define LABELED_BUF_PRINT_WIDTH    15
+
+int ossl_prov_print_labeled_buf(BIO *out, const char *label,
+                                const unsigned char *buf, size_t buflen)
+{
+    size_t i;
+
+    if (ossl_prov_bio_printf(out, "%s\n", label) <= 0)
+        return 0;
+
+    for (i = 0; i < buflen; i++) {
+        if ((i % LABELED_BUF_PRINT_WIDTH) == 0) {
+            if (i > 0 && ossl_prov_bio_printf(out, "\n") <= 0)
+                return 0;
+            if (ossl_prov_bio_printf(out, "    ") <= 0)
+                return 0;
+        }
+
+        if (ossl_prov_bio_printf(out, "%02x%s", buf[i],
+                                 (i == buflen - 1) ? "" : ":") <= 0)
+            return 0;
+    }
+    if (ossl_prov_bio_printf(out, "\n") <= 0)
+        return 0;
+
+    return 1;
+}
+
+/* p2s = param to asn1, k2d = key to der */
 int ossl_prov_write_priv_der_from_obj(BIO *out, const void *obj, int obj_nid,
                                       int (*p2s)(const void *obj, int nid,
-                                                 ASN1_STRING **str,
+                                                 void **str,
                                                  int *strtype),
                                       int (*k2d)(const void *obj,
                                                  unsigned char **pder),
                                       struct pkcs8_encrypt_ctx_st *ctx)
 {
     int ret = 0;
-    ASN1_STRING *str = NULL;
-    int strtype = 0;
+    void *str = NULL;
+    int strtype = V_ASN1_UNDEF;
 
     if (p2s != NULL && !p2s(obj, obj_nid, &str, &strtype))
         return 0;
@@ -253,15 +312,15 @@ int ossl_prov_write_priv_der_from_obj(BIO *out, const void *obj, int obj_nid,
 
 int ossl_prov_write_priv_pem_from_obj(BIO *out, const void *obj, int obj_nid,
                                       int (*p2s)(const void *obj, int nid,
-                                                 ASN1_STRING **str,
+                                                 void **str,
                                                  int *strtype),
                                       int (*k2d)(const void *obj,
                                                  unsigned char **pder),
                                       struct pkcs8_encrypt_ctx_st *ctx)
 {
     int ret = 0;
-    ASN1_STRING *str = NULL;
-    int strtype = 0;
+    void *str = NULL;
+    int strtype = V_ASN1_UNDEF;
 
     if (p2s != NULL && !p2s(obj, obj_nid, &str, &strtype))
         return 0;
@@ -289,14 +348,14 @@ int ossl_prov_write_priv_pem_from_obj(BIO *out, const void *obj, int obj_nid,
 
 int ossl_prov_write_pub_der_from_obj(BIO *out, const void *obj, int obj_nid,
                                      int (*p2s)(const void *obj, int nid,
-                                                ASN1_STRING **str,
+                                                void **str,
                                                 int *strtype),
                                      int (*k2d)(const void *obj,
                                                 unsigned char **pder))
 {
     int ret = 0;
-    ASN1_STRING *str = NULL;
-    int strtype = 0;
+    void *str = NULL;
+    int strtype = V_ASN1_UNDEF;
     X509_PUBKEY *xpk = NULL;
 
     if (p2s != NULL && !p2s(obj, obj_nid, &str, &strtype))
@@ -314,14 +373,14 @@ int ossl_prov_write_pub_der_from_obj(BIO *out, const void *obj, int obj_nid,
 
 int ossl_prov_write_pub_pem_from_obj(BIO *out, const void *obj, int obj_nid,
                                      int (*p2s)(const void *obj, int nid,
-                                                ASN1_STRING **str,
+                                                void **str,
                                                 int *strtype),
                                      int (*k2d)(const void *obj,
                                                 unsigned char **pder))
 {
     int ret = 0;
-    ASN1_STRING *str = NULL;
-    int strtype = 0;
+    void *str = NULL;
+    int strtype = V_ASN1_UNDEF;
     X509_PUBKEY *xpk = NULL;
 
     if (p2s != NULL && !p2s(obj, obj_nid, &str, &strtype))
@@ -336,4 +395,3 @@ int ossl_prov_write_pub_pem_from_obj(BIO *out, const void *obj, int obj_nid,
     X509_PUBKEY_free(xpk);
     return ret;
 }
-

@@ -179,15 +179,13 @@ static int test_store_ctx(void)
 
 OPT_TEST_DECLARE_USAGE("roots.pem untrusted.pem bad.pem\n")
 
-#ifndef OPENSSL_NO_SM2
-static int test_sm2_id(void)
+static int test_distinguishing_id(void)
 {
-    /* we only need an X509 structure, no matter if it's a real SM2 cert */
     X509 *x = NULL;
     BIO *bio = NULL;
     int ret = 0;
     ASN1_OCTET_STRING *v = NULL, *v2 = NULL;
-    char *sm2id = "this is an ID";
+    char *distid = "this is an ID";
 
     bio = BIO_new_file(bad_f, "r");
     if (bio == NULL)
@@ -201,14 +199,15 @@ static int test_sm2_id(void)
     if (v == NULL)
         goto err;
 
-    if (!ASN1_OCTET_STRING_set(v, (unsigned char *)sm2id, (int)strlen(sm2id))) {
+    if (!ASN1_OCTET_STRING_set(v, (unsigned char *)distid,
+                               (int)strlen(distid))) {
         ASN1_OCTET_STRING_free(v);
         goto err;
     }
 
-    X509_set0_sm2_id(x, v);
+    X509_set0_distinguishing_id(x, v);
 
-    v2 = X509_get0_sm2_id(x);
+    v2 = X509_get0_distinguishing_id(x);
     if (!TEST_ptr(v2)
             || !TEST_int_eq(ASN1_OCTET_STRING_cmp(v, v2), 0))
         goto err;
@@ -220,14 +219,13 @@ static int test_sm2_id(void)
     return ret;
 }
 
-static int test_req_sm2_id(void)
+static int test_req_distinguishing_id(void)
 {
-    /* we only need an X509_REQ structure, no matter if it's a real SM2 cert */
     X509_REQ *x = NULL;
     BIO *bio = NULL;
     int ret = 0;
     ASN1_OCTET_STRING *v = NULL, *v2 = NULL;
-    char *sm2id = "this is an ID";
+    char *distid = "this is an ID";
 
     bio = BIO_new_file(req_f, "r");
     if (bio == NULL)
@@ -241,14 +239,15 @@ static int test_req_sm2_id(void)
     if (v == NULL)
         goto err;
 
-    if (!ASN1_OCTET_STRING_set(v, (unsigned char *)sm2id, (int)strlen(sm2id))) {
+    if (!ASN1_OCTET_STRING_set(v, (unsigned char *)distid,
+                               (int)strlen(distid))) {
         ASN1_OCTET_STRING_free(v);
         goto err;
     }
 
-    X509_REQ_set0_sm2_id(x, v);
+    X509_REQ_set0_distinguishing_id(x, v);
 
-    v2 = X509_REQ_get0_sm2_id(x);
+    v2 = X509_REQ_get0_distinguishing_id(x);
     if (!TEST_ptr(v2)
             || !TEST_int_eq(ASN1_OCTET_STRING_cmp(v, v2), 0))
         goto err;
@@ -259,10 +258,14 @@ static int test_req_sm2_id(void)
     BIO_free(bio);
     return ret;
 }
-#endif
 
 int setup_tests(void)
 {
+    if (!test_skip_common_options()) {
+        TEST_error("Error parsing test options\n");
+        return 0;
+    }
+
     if (!TEST_ptr(roots_f = test_get_argument(0))
             || !TEST_ptr(untrusted_f = test_get_argument(1))
             || !TEST_ptr(bad_f = test_get_argument(2))
@@ -271,9 +274,7 @@ int setup_tests(void)
 
     ADD_TEST(test_alt_chains_cert_forgery);
     ADD_TEST(test_store_ctx);
-#ifndef OPENSSL_NO_SM2
-    ADD_TEST(test_sm2_id);
-    ADD_TEST(test_req_sm2_id);
-#endif
+    ADD_TEST(test_distinguishing_id);
+    ADD_TEST(test_req_distinguishing_id);
     return 1;
 }

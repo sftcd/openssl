@@ -9,19 +9,26 @@ openssl-speed - test library performance
 
 B<openssl speed>
 [B<-help>]
-[B<-engine> I<id>]
 [B<-elapsed>]
 [B<-evp> I<algo>]
 [B<-hmac> I<algo>]
 [B<-cmac> I<algo>]
+[B<-mb>]
+[B<-aead>]
+[B<-multi> I<num>]
+[B<-async_jobs> I<num>]
+[B<-misalign> I<num>]
 [B<-decrypt>]
 [B<-primes> I<num>]
 [B<-seconds> I<num>]
 [B<-bytes> I<num>]
+[B<-mr>]
 {- $OpenSSL::safe::opt_r_synopsis -}
+{- $OpenSSL::safe::opt_engine_synopsis -}
+{- $OpenSSL::safe::opt_provider_synopsis -}
 [I<algorithm> ...]
 
-=for openssl ifdef cmac multi async_jobs engine
+=for openssl ifdef hmac cmac multi async_jobs engine
 
 =head1 DESCRIPTION
 
@@ -38,13 +45,6 @@ the B<rand> algorithm name.
 
 Print out a usage message.
 
-=item B<-engine> I<id>
-
-Specifying an engine (by its unique I<id> string) will cause this command
-to attempt to obtain a functional reference to the specified engine,
-thus initialising it if needed. The engine will then be set as the default
-for all available algorithms.
-
 =item B<-elapsed>
 
 When calculating operations- or bytes-per-second, use wall-clock time
@@ -57,6 +57,18 @@ Use the specified cipher or message digest algorithm via the EVP interface.
 If I<algo> is an AEAD cipher, then you can pass B<-aead> to benchmark a
 TLS-like sequence. And if I<algo> is a multi-buffer capable cipher, e.g.
 aes-128-cbc-hmac-sha1, then B<-mb> will time multi-buffer operation.
+
+=item B<-multi> I<num>
+
+Run multiple operations in parallel.
+
+=item B<-async_jobs> I<num>
+
+Enable async mode and start specified number of jobs.
+
+=item B<-misalign> I<num>
+
+Misalign the buffers by the specified number of bytes.
 
 =item B<-hmac> I<digest>
 
@@ -84,7 +96,15 @@ Run benchmarks for I<num> seconds.
 
 Run benchmarks on I<num>-byte buffers. Affects ciphers, digests and the CSPRNG.
 
+=item B<-mr>
+
+Produce the summary in a mechanical, machine-readable, format.
+
 {- $OpenSSL::safe::opt_r_item -}
+
+{- $OpenSSL::safe::opt_engine_item -}
+
+{- $OpenSSL::safe::opt_provider_item -}
 
 =item I<algorithm> ...
 

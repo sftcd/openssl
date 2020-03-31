@@ -26,7 +26,7 @@
 #  include <openssl/types.h>
 #  include <openssl/x509.h>
 
-#  ifdef  __cplusplus
+#  ifdef __cplusplus
 extern "C" {
 #  endif
 
@@ -77,9 +77,9 @@ int OSSL_CRMF_MSG_set1_regCtrl_regToken(OSSL_CRMF_MSG *msg,
                                         const ASN1_UTF8STRING *tok);
 int OSSL_CRMF_MSG_set1_regCtrl_authenticator(OSSL_CRMF_MSG *msg,
                                              const ASN1_UTF8STRING *auth);
-int OSSL_CRMF_MSG_PKIPublicationInfo_push0_SinglePubInfo(
-                                               OSSL_CRMF_PKIPUBLICATIONINFO *pi,
-                                               OSSL_CRMF_SINGLEPUBINFO *spi);
+int
+OSSL_CRMF_MSG_PKIPublicationInfo_push0_SinglePubInfo(OSSL_CRMF_PKIPUBLICATIONINFO *pi,
+                                                     OSSL_CRMF_SINGLEPUBINFO *spi);
 #  define OSSL_CRMF_PUB_METHOD_DONTCARE 0
 #  define OSSL_CRMF_PUB_METHOD_X500     1
 #  define OSSL_CRMF_PUB_METHOD_WEB      2
@@ -88,10 +88,10 @@ int OSSL_CRMF_MSG_set0_SinglePubInfo(OSSL_CRMF_SINGLEPUBINFO *spi,
                                      int method, GENERAL_NAME *nm);
 #  define OSSL_CRMF_PUB_ACTION_DONTPUBLISH   0
 #  define OSSL_CRMF_PUB_ACTION_PLEASEPUBLISH 1
-int OSSL_CRMF_MSG_set_PKIPublicationInfo_action(
-                                  OSSL_CRMF_PKIPUBLICATIONINFO *pi, int action);
+int OSSL_CRMF_MSG_set_PKIPublicationInfo_action(OSSL_CRMF_PKIPUBLICATIONINFO *pi,
+                                                int action);
 int OSSL_CRMF_MSG_set1_regCtrl_pkiPublicationInfo(OSSL_CRMF_MSG *msg,
-                                        const OSSL_CRMF_PKIPUBLICATIONINFO *pi);
+                                                  const OSSL_CRMF_PKIPUBLICATIONINFO *pi);
 int OSSL_CRMF_MSG_set1_regCtrl_protocolEncrKey(OSSL_CRMF_MSG *msg,
                                                const X509_PUBKEY *pubkey);
 int OSSL_CRMF_MSG_set1_regCtrl_oldCertID(OSSL_CRMF_MSG *msg,
@@ -106,11 +106,11 @@ int OSSL_CRMF_MSG_set1_regInfo_certReq(OSSL_CRMF_MSG *msg,
 
 int OSSL_CRMF_MSG_set_validity(OSSL_CRMF_MSG *crm, time_t from, time_t to);
 int OSSL_CRMF_MSG_set_certReqId(OSSL_CRMF_MSG *crm, int rid);
-int OSSL_CRMF_MSG_get_certReqId(OSSL_CRMF_MSG *crm);
+int OSSL_CRMF_MSG_get_certReqId(const OSSL_CRMF_MSG *crm);
 int OSSL_CRMF_MSG_set0_extensions(OSSL_CRMF_MSG *crm, X509_EXTENSIONS *exts);
 
 int OSSL_CRMF_MSG_push0_extension(OSSL_CRMF_MSG *crm, X509_EXTENSION *ext);
-#  define OSSL_CRMF_POPO_NONE      -1
+#  define OSSL_CRMF_POPO_NONE       -1
 #  define OSSL_CRMF_POPO_RAVERIFIED 0
 #  define OSSL_CRMF_POPO_SIGNATURE  1
 #  define OSSL_CRMF_POPO_KEYENC     2
@@ -120,8 +120,10 @@ int OSSL_CRMF_MSG_create_popo(OSSL_CRMF_MSG *crm, EVP_PKEY *pkey,
 int OSSL_CRMF_MSGS_verify_popo(const OSSL_CRMF_MSGS *reqs,
                                int rid, int acceptRAVerified);
 OSSL_CRMF_CERTTEMPLATE *OSSL_CRMF_MSG_get0_tmpl(const OSSL_CRMF_MSG *crm);
-ASN1_INTEGER *OSSL_CRMF_CERTTEMPLATE_get0_serialNumber(OSSL_CRMF_CERTTEMPLATE *t);
-X509_NAME *OSSL_CRMF_CERTTEMPLATE_get0_issuer(OSSL_CRMF_CERTTEMPLATE *tmpl);
+ASN1_INTEGER
+*OSSL_CRMF_CERTTEMPLATE_get0_serialNumber(const OSSL_CRMF_CERTTEMPLATE *tmpl);
+X509_NAME
+*OSSL_CRMF_CERTTEMPLATE_get0_issuer(const OSSL_CRMF_CERTTEMPLATE *tmpl);
 X509_NAME *OSSL_CRMF_CERTID_get0_issuer(const OSSL_CRMF_CERTID *cid);
 ASN1_INTEGER *OSSL_CRMF_CERTID_get0_serialNumber(const OSSL_CRMF_CERTID *cid);
 int OSSL_CRMF_CERTTEMPLATE_fill(OSSL_CRMF_CERTTEMPLATE *tmpl,
@@ -129,11 +131,12 @@ int OSSL_CRMF_CERTTEMPLATE_fill(OSSL_CRMF_CERTTEMPLATE *tmpl,
                                 const X509_NAME *subject,
                                 const X509_NAME *issuer,
                                 const ASN1_INTEGER *serial);
-X509 *OSSL_CRMF_ENCRYPTEDVALUE_get1_encCert(OSSL_CRMF_ENCRYPTEDVALUE *ecert,
-                                            EVP_PKEY *pkey);
+X509
+*OSSL_CRMF_ENCRYPTEDVALUE_get1_encCert(const OSSL_CRMF_ENCRYPTEDVALUE *ecert,
+                                       EVP_PKEY *pkey);
 
 #  ifdef __cplusplus
 }
 #  endif
-# endif /* !defined OPENSSL_NO_CRMF */
-#endif /* !defined OPENSSL_CRMF_H */
+# endif /* !defined(OPENSSL_NO_CRMF) */
+#endif /* !defined(OPENSSL_CRMF_H) */

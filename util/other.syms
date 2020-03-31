@@ -18,6 +18,9 @@ BIO_callback_fn                         datatype
 BIO_callback_fn_ex                      datatype
 BIO_hostserv_priorities                 datatype
 BIO_lookup_type                         datatype
+CRYPTO_malloc_fn                        datatype
+CRYPTO_realloc_fn                       datatype
+CRYPTO_free_fn                          datatype
 CRYPTO_EX_dup                           datatype
 CRYPTO_EX_free                          datatype
 CRYPTO_EX_new                           datatype
@@ -34,6 +37,8 @@ GEN_SESSION_CB                          datatype
 OPENSSL_Applink                         external
 OPENSSL_CTX                             datatype
 NAMING_AUTHORITY                        datatype
+OCSP_parse_url                          define
+OSSL_HTTP_bio_cb_t                      datatype
 OSSL_PARAM                              datatype
 OSSL_PROVIDER                           datatype
 OSSL_SERIALIZER                         datatype
@@ -64,6 +69,9 @@ SSL_CTX_allow_early_data_cb_fn          datatype
 SSL_CTX_keylog_cb_func                  datatype
 SSL_allow_early_data_cb_fn              datatype
 SSL_client_hello_cb_fn                  datatype
+SSL_custom_ext_add_cb_ex                datatype
+SSL_custom_ext_free_cb_ex               datatype
+SSL_custom_ext_parse_cb_ex              datatype
 SSL_psk_client_cb_func                  datatype
 SSL_psk_find_session_cb_func            datatype
 SSL_psk_server_cb_func                  datatype
@@ -87,11 +95,15 @@ X509_STORE_CTX_lookup_crls_fn           datatype
 X509_STORE_CTX_verify_cb                datatype
 X509_STORE_CTX_verify_fn                datatype
 X509_STORE_set_verify_cb_func           datatype
+X509_LOOKUP                             datatype
+X509_LOOKUP_METHOD                      datatype
+X509_LOOKUP_TYPE                        datatype
 X509_LOOKUP_get_by_alias_fn             datatype
 X509_LOOKUP_get_by_subject_fn           datatype
 X509_LOOKUP_get_by_fingerprint_fn       datatype
 X509_LOOKUP_ctrl_fn                     datatype
 X509_LOOKUP_get_by_issuer_serial_fn     datatype
+X509_STORE                              datatype
 bio_info_cb                             datatype
 BIO_info_cb                             datatype
 custom_ext_add_cb                       datatype
@@ -206,8 +218,6 @@ ERR_raise                               define
 ERR_raise_data                          define
 EVP_DigestSignUpdate                    define
 EVP_DigestVerifyUpdate                  define
-EVP_KDF_name                            define
-EVP_MAC_name                            define
 EVP_MD_CTX_block_size                   define
 EVP_MD_CTX_name                         define
 EVP_MD_CTX_size                         define
@@ -353,17 +363,16 @@ OSSL_CMP_LOG_NOTICE                     define
 OSSL_CMP_LOG_WARNING                    define
 OSSL_CMP_MSTR_HELPER                    define
 OSSL_CMP_MSTR                           define
-OSSL_CMP_alert                          define
-OSSL_CMP_debug                          define
-OSSL_CMP_err                            define
-OSSL_CMP_info                           define
-OSSL_CMP_log                            define
-OSSL_CMP_log1                           define
-OSSL_CMP_log2                           define
-OSSL_CMP_log3                           define
-OSSL_CMP_log4                           define
 OSSL_CMP_severity                       datatype
-OSSL_CMP_warn                           define
+OSSL_cmp_certConf_cb_t                  datatype
+OSSL_cmp_log_cb_t                       datatype
+OSSL_cmp_transfer_cb_t                  datatype
+OSSL_CMP_SRV_cert_request_cb_t          datatype
+OSSL_CMP_SRV_rr_cb_t                    datatype
+OSSL_CMP_SRV_certConf_cb_t              datatype
+OSSL_CMP_SRV_genm_cb_t                  datatype
+OSSL_CMP_SRV_error_cb_t                 datatype
+OSSL_CMP_SRV_pollReq_cb_t               datatype
 OSSL_PARAM_TYPE                         define
 OSSL_PARAM_octet_ptr                    define
 OSSL_PARAM_octet_string                 define
@@ -375,6 +384,9 @@ OSSL_PARAM_utf8_string                  define
 OSSL_PARAM_get_TYPE                     generic
 OSSL_PARAM_END                          define
 OSSL_PARAM_set_TYPE                     generic
+OSSL_SERIALIZER_PUBKEY_TO_DER_PQ        define
+OSSL_SERIALIZER_PrivateKey_TO_DER_PQ    define
+OSSL_SERIALIZER_Parameters_TO_DER_PQ    define
 OSSL_SERIALIZER_PUBKEY_TO_PEM_PQ        define
 OSSL_SERIALIZER_PrivateKey_TO_PEM_PQ    define
 OSSL_SERIALIZER_Parameters_TO_PEM_PQ    define
@@ -540,6 +552,12 @@ SSLv23_client_method                    define
 SSLv23_method                           define
 SSLv23_server_method                    define
 TLS_DEFAULT_CIPHERSUITES                define deprecated 3.0.0
+X509_CRL_http_nbio                      define
+X509_http_nbio                          define
+X509_LOOKUP_add_dir                     define
+X509_LOOKUP_add_store                   define
+X509_LOOKUP_load_file                   define
+X509_LOOKUP_load_store                  define
 X509_STORE_set_lookup_crls_cb           define
 X509_STORE_set_verify_func              define
 EVP_PKEY_CTX_set1_id                    define
@@ -555,3 +573,4 @@ OSSL_TRACE_CANCEL                       define
 OSSL_TRACE1                             define
 OSSL_TRACE2                             define
 OSSL_TRACE9                             define
+TS_VERIFY_CTS_set_certs                 define deprecated 3.0.0
