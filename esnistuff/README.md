@@ -25,6 +25,27 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- Adding an "echo" (sub)command to the openssl command line tool to allow
+  for generating private keys/ECHOConfig. Added an ``apps/echo.c`` file 
+  and associated changes to ``apps/build.info``, ``apps/progs.h`` and
+  ``apps/progs.c``.
+
+- The overall plan for ECHO: Since we need to change the APIs a bit, both
+  because of ECHO and because of changes to OpenSSL upstream, I've taken the
+opportunity to hide more internals of the ESNI/ECHO data structures. That
+needed to be done at some stage anyway, so may as well do it now. The overall
+plan will be to add new code for ECHO, so we'll see code fragments protected by
+both ``OPENSSL_NO_ESNI`` and ``OPENSSL_NO_ECHO`` and some bits of code and data
+structures that are repetitive. The hope is that we can remove the
+``OPENSSL_NO_ESNI`` code before we're done. If support for draft-02 (as
+deployed by CF today) continues to be needed longer term we can figure out how
+best to handle that later. (The ``SSL_ESNI`` main data structure would be
+changing a lot anyway to ditch unneeded fields that were just useful in early
+interop, so this approach isn't as wasteful of time/LOC as it might seem.)
+We'll also add an option in the openssl command line for generation of
+ECHO public key values. Well - all that's the plan, we'll see how well
+it survives meeting with reality:-)
+
 - Remerged with upstream (20200331) - comment below still applies
 
 - Remerged with upstream - started on 20200320 but didn't get done 'till 20200331 as
