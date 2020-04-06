@@ -29,6 +29,8 @@ Most recent first...
   for generating private keys/ECHOConfig. Added an ``apps/echo.c`` file 
   and associated changes to ``apps/build.info``, ``apps/progs.h`` and
   ``apps/progs.c``.
+    - Added ``hpke.c`` to ``libcrypto`` via ``crypto/build.info``
+      and ``util/libcrypto.num``
 
 - The overall plan for ECHO: Since we need to change the APIs a bit, both
   because of ECHO and because of changes to OpenSSL upstream, I've taken the

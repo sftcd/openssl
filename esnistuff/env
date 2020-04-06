@@ -1,0 +1,1 @@
+export LD_LIBRARY_PATH=$HOME/code/openssl:$HOME/code/json-c/.libs
