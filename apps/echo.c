@@ -25,7 +25,8 @@ typedef enum OPTION_choice {
      * standard openssl options
      */
     OPT_ERR = -1, OPT_EOF = 0, OPT_HELP,
-    OPT_IN, OPT_PUBOUT, OPT_PRIVOUT, OPT_INFORM, OPT_OUTFORM, OPT_KEYFORM, 
+    //OPT_IN, OPT_INFORM, OPT_OUTFORM, OPT_KEYFORM, 
+    OPT_PUBOUT, OPT_PRIVOUT, OPT_PEMOUT, 
     /*
      * ECHOCOnfig specifics
      */
@@ -34,14 +35,15 @@ typedef enum OPTION_choice {
 
 const OPTIONS echo_options[] = {
     {"help", OPT_HELP, '-', "Display this summary"},
-    {"inform", OPT_INFORM, 'f',
-     "Input format - default PEM (one of DER or PEM)"},
-    {"in", OPT_IN, '<', "Input file - default stdin"},
-    {"outform", OPT_OUTFORM, 'f',
-     "Output format - default PEM (one of DER or PEM)"},
-    {"keyform", OPT_KEYFORM, 'E', "Private key format - default PEM"},
-    {"pubout", OPT_PUBOUT, '>', "Public key output file - default stdout"},
-    {"privout", OPT_PRIVOUT, '>', "Private key output file - default stdout"},
+    //{"inform", OPT_INFORM, 'f',
+     //"Input format - default PEM (one of DER or PEM)"},
+    //{"in", OPT_IN, '<', "Input file - default stdin"},
+    //{"outform", OPT_OUTFORM, 'f',
+     //"Output format - default PEM (one of DER or PEM)"},
+    //{"keyform", OPT_KEYFORM, 'E', "Private key format - default PEM"},
+    {"pubout", OPT_PUBOUT, '>', "Public key output file - default echoconfig.pub"},
+    {"privout", OPT_PRIVOUT, '>', "Private key output file - default echoconfig.priv"},
+    {"pemout", OPT_PEMOUT, '>', "PEM output file with private key and ECHOConfig - default echoconfig.pem"},
 
     {"public_name", OPT_PUBLICNAME, 's', "public_name value"},
     {"echo_version", OPT_ECHOVERSION, 'n', "ECHOConfig version (default=0xff03)"},
@@ -195,8 +197,11 @@ int echo_main(int argc, char **argv)
 {
     BIO *out = NULL;
     char *prog;
-    char *infile = NULL, *echoconfig_file = NULL, *keyfile = NULL;
+    /*
+    char *infile = NULL, 
     int informat = FORMAT_PEM, outformat = FORMAT_PEM, keyformat = FORMAT_PEM;
+    */
+    char *echoconfig_file = NULL, *keyfile = NULL, *pemfile=NULL;
     OPTION_CHOICE o;
 
     char *public_name = NULL;
@@ -216,6 +221,7 @@ int echo_main(int argc, char **argv)
             opt_help(echo_options);
             ret = 0;
             goto end;
+        /*
         case OPT_INFORM:
             if (!opt_format(opt_arg(), OPT_FMT_ANY, &informat))
                 goto opthelp;
@@ -231,11 +237,15 @@ int echo_main(int argc, char **argv)
             if (!opt_format(opt_arg(), OPT_FMT_PDE, &keyformat))
                 goto opthelp;
             break;
+        */
         case OPT_PUBOUT:
             echoconfig_file = opt_arg();
             break;
         case OPT_PRIVOUT:
             keyfile = opt_arg();
+            break;
+        case OPT_PEMOUT:
+            pemfile = opt_arg();
             break;
         case OPT_PUBLICNAME:
             public_name = opt_arg();
@@ -271,6 +281,7 @@ int echo_main(int argc, char **argv)
      * Not yet implemented things...
      * TODO: consdier whether to bother:-)
      */
+    /*
     if (infile!=NULL) {
         BIO_printf(bio_err,"ECHOConfig input is not yet implemented:-)\n");
         goto end;
@@ -287,10 +298,18 @@ int echo_main(int argc, char **argv)
         BIO_printf(bio_err,"ECHOConfig non PEM private key is not yet implemented:-)\n");
         goto end;
     }
+    */
 
-    if (echoconfig_file==NULL || keyfile==NULL) {
-        BIO_printf(bio_err,"ECHOConfig you have to specify the output public and private key file names\n");
-        goto end;
+    /*
+    if (echoconfig_file==NULL) {
+        echoconfig_file="echoconfig.pub";
+    }
+    if (keyfile==NULL) {
+        keyfile="echoconfig.priv";
+    }
+    */
+    if (pemfile==NULL) {
+        pemfile="echoconfig.pem";
     }
 
     /*
@@ -309,14 +328,26 @@ int echo_main(int argc, char **argv)
     }
     
     /*
-     * Write stuff to files
+     * Write stuff to files, "proper" OpenSSL code needed
      */
-    FILE *ecf=fopen(echoconfig_file,"w");
-    fwrite(echoconfig,echoconfig_len,1,ecf);
-    fclose(ecf);
-    FILE *kf=fopen(keyfile,"w");
-    fwrite(priv,privlen,1,kf);
-    fclose(kf);
+    if (echoconfig_file!=NULL) {
+        FILE *ecf=fopen(echoconfig_file,"w");
+        fwrite(echoconfig,echoconfig_len,1,ecf);
+        fprintf(ecf,"\n");
+        fclose(ecf);
+    }
+    if (keyfile!=NULL) {
+        FILE *kf=fopen(keyfile,"w");
+        fwrite(priv,privlen,1,kf);
+        fclose(kf);
+    }
+    FILE *pemf=fopen(pemfile,"w");
+    fwrite(priv,privlen,1,pemf);
+    fprintf(pemf,"-----BEGIN ECHOCONFIG-----\n");
+    fwrite(echoconfig,echoconfig_len,1,pemf);
+    fprintf(pemf,"\n");
+    fprintf(pemf,"-----END ECHOCONFIG-----\n");
+    fclose(pemf);
 
 
  end:
