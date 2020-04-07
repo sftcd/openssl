@@ -197,6 +197,7 @@ static int mk_echoconfig(
 
 int echo_main(int argc, char **argv)
 {
+    BIO *pemf=NULL;
     BIO *out = NULL;
     char *prog;
     /*
@@ -333,27 +334,41 @@ int echo_main(int argc, char **argv)
      * Write stuff to files, "proper" OpenSSL code needed
      */
     if (echoconfig_file!=NULL) {
-        FILE *ecf=fopen(echoconfig_file,"w");
-        fwrite(echoconfig,echoconfig_len,1,ecf);
-        fprintf(ecf,"\n");
-        fclose(ecf);
+        BIO *ecf=BIO_new_file(echoconfig_file,"w");
+        if (ecf==NULL) goto end;
+        BIO_write(ecf,echoconfig,echoconfig_len);
+        BIO_printf(ecf,"\n");
+        BIO_free_all(ecf);
+        BIO_printf(bio_err,"Wrote ECHOConfig to %s\n",echoconfig_file);
     }
     if (keyfile!=NULL) {
-        FILE *kf=fopen(keyfile,"w");
-        fwrite(priv,privlen,1,kf);
-        fclose(kf);
+        BIO *kf=BIO_new_file(keyfile,"w");
+        if (kf==NULL) goto end;
+        BIO_write(kf,priv,privlen);
+        BIO_free_all(kf);
+        BIO_printf(bio_err,"Wrote ECHO private key to %s\n",keyfile);
     }
-    FILE *pemf=fopen(pemfile,"w");
-    fwrite(priv,privlen,1,pemf);
-    fprintf(pemf,"-----BEGIN ECHOCONFIG-----\n");
-    fwrite(echoconfig,echoconfig_len,1,pemf);
-    fprintf(pemf,"\n");
-    fprintf(pemf,"-----END ECHOCONFIG-----\n");
-    fclose(pemf);
+    /*
+     * If we didn't write out either of the above then
+     * we'll create a PEM file
+     */
+    if (keyfile==NULL && echoconfig_file==NULL) {
+        if ((pemf = BIO_new_file(pemfile, "w")) == NULL) goto end;
+        BIO_write(pemf,priv,privlen);
+        BIO_printf(pemf,"-----BEGIN ECHOCONFIG-----\n");
+        BIO_write(pemf,echoconfig,echoconfig_len);
+        BIO_printf(pemf,"\n");
+        BIO_printf(pemf,"-----END ECHOCONFIG-----\n");
+        BIO_free_all(pemf);
+        BIO_printf(bio_err,"Wrote ECHO key pair to %s\n",pemfile);
+    } else {
+        if (keyfile==NULL) BIO_printf(bio_err,"Didn't write private key anywhere! That's a bit silly\n");
+        if (echoconfig_file==NULL) BIO_printf(bio_err,"Didn't write ECHOConfig anywhere! That's a bit silly\n");
+    }
 
+    ret=1;
 
  end:
-    BIO_free_all(out);
     return ret;
 }
 
