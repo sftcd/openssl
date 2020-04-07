@@ -27,7 +27,6 @@ typedef enum OPTION_choice {
      * standard openssl options
      */
     OPT_ERR = -1, OPT_EOF = 0, OPT_HELP,
-    //OPT_IN, OPT_INFORM, OPT_OUTFORM, OPT_KEYFORM, 
     OPT_PUBOUT, OPT_PRIVOUT, OPT_PEMOUT, 
     /*
      * ECHOCOnfig specifics
@@ -37,19 +36,11 @@ typedef enum OPTION_choice {
 
 const OPTIONS echo_options[] = {
     {"help", OPT_HELP, '-', "Display this summary"},
-    //{"inform", OPT_INFORM, 'f',
-     //"Input format - default PEM (one of DER or PEM)"},
-    //{"in", OPT_IN, '<', "Input file - default stdin"},
-    //{"outform", OPT_OUTFORM, 'f',
-     //"Output format - default PEM (one of DER or PEM)"},
-    //{"keyform", OPT_KEYFORM, 'E', "Private key format - default PEM"},
     {"pemout", OPT_PEMOUT, '>', "PEM output file with private key and ECHOConfig - default echoconfig.pem"},
     {"pubout", OPT_PUBOUT, '>', "Public key output file - default unset"},
     {"privout", OPT_PRIVOUT, '>', "Private key output file - default unset"},
-
     {"public_name", OPT_PUBLICNAME, 's', "public_name value"},
     {"echo_version", OPT_ECHOVERSION, 'n', "ECHOConfig version (default=0xff03)"},
-
     {NULL}
 };
 
@@ -198,19 +189,11 @@ static int mk_echoconfig(
 int echo_main(int argc, char **argv)
 {
     BIO *pemf=NULL;
-    BIO *out = NULL;
-    char *prog;
-    /*
-    char *infile = NULL, 
-    int informat = FORMAT_PEM, outformat = FORMAT_PEM, keyformat = FORMAT_PEM;
-    */
-    char *echoconfig_file = NULL, *keyfile = NULL, *pemfile=NULL;
+    char *prog=NULL;
     OPTION_CHOICE o;
-
-    char *public_name = NULL;
+    char *echoconfig_file = NULL, *keyfile = NULL, *pemfile=NULL;
+    char *public_name=NULL;
     unsigned short echo_version=0xff03;
-
-    int ret=0;
 
     prog = opt_init(argc, argv, echo_options);
     while ((o = opt_next()) != OPT_EOF) {
@@ -222,25 +205,7 @@ int echo_main(int argc, char **argv)
             goto end;
         case OPT_HELP:
             opt_help(echo_options);
-            ret = 0;
             goto end;
-        /*
-        case OPT_INFORM:
-            if (!opt_format(opt_arg(), OPT_FMT_ANY, &informat))
-                goto opthelp;
-            break;
-        case OPT_IN:
-            infile = opt_arg();
-            break;
-        case OPT_OUTFORM:
-            if (!opt_format(opt_arg(), OPT_FMT_ANY, &outformat))
-                goto opthelp;
-            break;
-        case OPT_KEYFORM:
-            if (!opt_format(opt_arg(), OPT_FMT_PDE, &keyformat))
-                goto opthelp;
-            break;
-        */
         case OPT_PUBOUT:
             echoconfig_file = opt_arg();
             break;
@@ -281,44 +246,14 @@ int echo_main(int argc, char **argv)
     }
 
     /*
-     * Not yet implemented things...
-     * TODO: consdier whether to bother:-)
+     * Set default if needed
      */
-    /*
-    if (infile!=NULL) {
-        BIO_printf(bio_err,"ECHOConfig input is not yet implemented:-)\n");
-        goto end;
-    }
-    if (infile!=NULL && informat!=FORMAT_PEM) {
-        BIO_printf(bio_err,"ECHOConfig non PEM input is not yet implemented:-)\n");
-        goto end;
-    }
-    if (outformat!=FORMAT_PEM) {
-        BIO_printf(bio_err,"ECHOConfig non PEM output is not yet implemented:-)\n");
-        goto end;
-    }
-    if (keyformat!=FORMAT_PEM) {
-        BIO_printf(bio_err,"ECHOConfig non PEM private key is not yet implemented:-)\n");
-        goto end;
-    }
-    */
-
-    /*
-    if (echoconfig_file==NULL) {
-        echoconfig_file="echoconfig.pub";
-    }
-    if (keyfile==NULL) {
-        keyfile="echoconfig.priv";
-    }
-    */
     if (pemfile==NULL) {
         pemfile="echoconfig.pem";
     }
 
     /*
-     * The plan:
-     * If input files are provided, then map those to the chosen output format.
-     * If not, generate a new ECHOConfig and spit that out
+     * Generate a new ECHOConfig and spit that out
      */
 
     size_t echoconfig_len=MAX_ECHOCONFIGS_BUFLEN;
@@ -362,14 +297,14 @@ int echo_main(int argc, char **argv)
         BIO_free_all(pemf);
         BIO_printf(bio_err,"Wrote ECHO key pair to %s\n",pemfile);
     } else {
-        if (keyfile==NULL) BIO_printf(bio_err,"Didn't write private key anywhere! That's a bit silly\n");
-        if (echoconfig_file==NULL) BIO_printf(bio_err,"Didn't write ECHOConfig anywhere! That's a bit silly\n");
+        if (keyfile==NULL) 
+            BIO_printf(bio_err,"Didn't write private key anywhere! That's a bit silly\n");
+        if (echoconfig_file==NULL) 
+            BIO_printf(bio_err,"Didn't write ECHOConfig anywhere! That's a bit silly\n");
     }
-
-    ret=1;
-
- end:
-    return ret;
+    return(1);
+end:
+    return(0);
 }
 
 #endif
