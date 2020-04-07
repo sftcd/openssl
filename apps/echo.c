@@ -20,6 +20,8 @@
 #include <openssl/echo.h>
 #include <crypto/hpke.h>
 
+#ifndef OPENSSL_NO_ECHO
+
 typedef enum OPTION_choice {
     /* 
      * standard openssl options
@@ -41,9 +43,9 @@ const OPTIONS echo_options[] = {
     //{"outform", OPT_OUTFORM, 'f',
      //"Output format - default PEM (one of DER or PEM)"},
     //{"keyform", OPT_KEYFORM, 'E', "Private key format - default PEM"},
-    {"pubout", OPT_PUBOUT, '>', "Public key output file - default echoconfig.pub"},
-    {"privout", OPT_PRIVOUT, '>', "Private key output file - default echoconfig.priv"},
     {"pemout", OPT_PEMOUT, '>', "PEM output file with private key and ECHOConfig - default echoconfig.pem"},
+    {"pubout", OPT_PUBOUT, '>', "Public key output file - default unset"},
+    {"privout", OPT_PRIVOUT, '>', "Private key output file - default unset"},
 
     {"public_name", OPT_PUBLICNAME, 's', "public_name value"},
     {"echo_version", OPT_ECHOVERSION, 'n', "ECHOConfig version (default=0xff03)"},
@@ -354,4 +356,6 @@ int echo_main(int argc, char **argv)
     BIO_free_all(out);
     return ret;
 }
+
+#endif
 
