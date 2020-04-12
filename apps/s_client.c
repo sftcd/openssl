@@ -619,6 +619,9 @@ typedef enum OPTION_choice {
     OPT_DTLS1_2, OPT_SCTP, OPT_TIMEOUT, OPT_MTU, OPT_KEYFORM, OPT_PASS,
     OPT_CERT_CHAIN, OPT_KEY, OPT_RECONNECT, OPT_BUILD_CHAIN,
     OPT_NEXTPROTONEG, OPT_ALPN,
+#ifndef OPENSSL_NO_ECHO
+    OPT_ALPN_OUTER,
+#endif
     OPT_CAPATH, OPT_NOCAPATH, OPT_CHAINCAPATH, OPT_VERIFYCAPATH,
     OPT_CAFILE, OPT_NOCAFILE, OPT_CHAINCAFILE, OPT_VERIFYCAFILE,
     OPT_CASTORE, OPT_NOCASTORE, OPT_CHAINCASTORE, OPT_VERIFYCASTORE,
@@ -803,6 +806,10 @@ const OPTIONS s_client_options[] = {
      "types  Send empty ClientHello extensions (comma-separated numbers)"},
     {"alpn", OPT_ALPN, 's',
      "Enable ALPN extension, considering named protocols supported (comma-separated list)"},
+#ifndef OPENSSL_NO_ECHO
+    {"alpn-outer", OPT_ALPN_OUTER, 's',
+     "Specify outer ALPN value, when using ECHO (comma-separated list, or \"NONE\"))"},
+#endif
     {"async", OPT_ASYNC, '-', "Support asynchronous operation"},
     {"nbio", OPT_NBIO, '-', "Use non-blocking IO"},
 
@@ -1204,6 +1211,9 @@ int s_client_main(int argc, char **argv)
 #endif
     int noservername = 0;
     const char *alpn_in = NULL;
+#ifndef OPENSSL_NO_ECHO
+    const char *alpn_outer_in = NULL;
+#endif
     tlsextctx tlsextcbp = { NULL, 0 };
     const char *ssl_config = NULL;
 #define MAX_SI_TYPES 100
@@ -1714,6 +1724,11 @@ int s_client_main(int argc, char **argv)
         case OPT_ALPN:
             alpn_in = opt_arg();
             break;
+#ifndef OPENSSL_NO_ECHO
+        case OPT_ALPN_OUTER:
+            alpn_outer_in = opt_arg();
+            break;
+#endif
         case OPT_SERVERINFO:
             p = opt_arg();
             len = strlen(p);
@@ -2558,7 +2573,12 @@ int s_client_main(int argc, char **argv)
             goto end;
         }
     }
-    // TODO(ECHO): check and set inner/outer alpns if needed
+    if (alpn_outer_in) {
+        if (SSL_echo_alpns(con,alpn_outer_in,alpn_in)!=1) {
+            BIO_printf(bio_err, "Error setting OUTER ALPN\n");
+            goto end;
+        }
+    }
 #endif
 
     if (dane_tlsa_domain != NULL) {
