@@ -324,6 +324,12 @@ typedef int (*SSL_async_callback_fn)(SSL *s, void *arg);
 /* set this to tell client to emit greased ESNI values */
 #define SSL_OP_ESNI_GREASE                               0x00000002U
 #endif
+#ifndef OPENSSL_NO_ECHO
+/* we'll take two values for ECHO greasing */
+/* we're using the same values as for ESNI, that should be fine */
+/* set this to tell client to emit greased ESNI values */
+#define SSL_OP_ECHO_GREASE                               0x00000002U
+#endif
 
 /* Allow initial connection to servers that don't support RI */
 # define SSL_OP_LEGACY_SERVER_CONNECT                    0x00000004U
@@ -333,6 +339,11 @@ typedef int (*SSL_async_callback_fn)(SSL *s, void *arg);
 /* we'll take two values for ESNI greasing */
 /* set this to tell server to fail if ESNI fails (default off due to GREASE) */
 #define SSL_OP_ESNI_HARDFAIL                             0x00000008U
+#endif
+#ifndef OPENSSL_NO_ECHO
+/* we'll take two values for ECHO greasing */
+/* set this to tell server to fail if ECHO fails (default off due to GREASE) */
+#define SSL_OP_ECHO_HARDFAIL                             0x00000008U
 #endif
 
 # define SSL_OP_TLSEXT_PADDING                           0x00000010U

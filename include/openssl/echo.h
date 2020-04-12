@@ -46,13 +46,13 @@
 /**
  * Exterally visible form of an ECHOKeys RR value
  */
-typedef struct ssl_echo_ext_st {
-    int index; ///< externally re-usable reference to this RR value
+typedef struct echo_diff_st {
+    int index; ///< externally re-usable reference to this value
     char *public_name; ///< public_name from ECHOKeys
-    char *prefixes;  ///< comma separated list of IP address prefixes, in CIDR form
-    uint64_t not_before; ///< from ECHOKeys (not currently used)
-    uint64_t not_after; ///< from ECHOKeys (not currently used)
-} SSL_ECHO_ext; 
+    char *inner_name; ///< server-name for inner CH
+    char *outer_alpns; ///< outer ALPN string
+    char *inner_alpns; ///< inner ALPN string
+} ECHO_DIFF;
 
 
 /*
@@ -72,7 +72,7 @@ typedef struct ssl_echo_ext_st {
  * @param num_echos says how many SSL_ECHO structures are in the returned array
  * @return is 1 for success, error otherwise
  */
-int SSL_add_ECHO(SSL *con, const short ekfmt, const size_t eklen, const char *echokeys, int *num_echos);
+int SSL_echo_add(SSL *con, const short ekfmt, const size_t eklen, const char *echokeys, int *num_echos);
 
 /**
  * @brief Decode and check the value retieved from DNS (binary, base64 or ascii-hex encoded)
@@ -87,7 +87,7 @@ int SSL_add_ECHO(SSL *con, const short ekfmt, const size_t eklen, const char *ec
  * @param num_echos says how many SSL_ECHO structures are in the returned array
  * @return is 1 for success, error otherwise
  */
-int SSL_CTX_add_ECHO(SSL_CTX *ctx, const short ekfmt, const size_t eklen, const char *echokeys, int *num_echos);
+int SSL_CTX_echo_add(SSL_CTX *ctx, const short ekfmt, const size_t eklen, const char *echokeys, int *num_echos);
 
 /**
  * @brief Turn on SNI encryption for an (upcoming) TLS session
@@ -124,28 +124,28 @@ int SSL_echo_alpns(SSL *s, const char *hidden_alpns, const char *public_alpns);
  *
  * @param in is the SSL session
  * @param out is the returned externally visible detailed form of the SSL_ECHO structure
- * @param nindices is an output saying how many indices are in the SSL_ECHO_ext structure 
+ * @param nindices is an output saying how many indices are in the ECHO_DIFF structure 
  * @return 1 for success, error otherwise
  */
-int SSL_echo_query(SSL *in, SSL_ECHO_ext **out, int *nindices);
+int SSL_echo_query(SSL *in, ECHO_DIFF **out, int *nindices);
 
 /** 
- * @brief free up memory for an SSL_ECHO_ext
+ * @brief free up memory for an ECHO_DIFF
  *
  * @param in is the structure to free up
  * @param size says how many indices are in in
  */
-void SSL_ECHO_ext_free(SSL_ECHO_ext *in, int size);
+void SSL_ECHO_DIFF_free(ECHO_DIFF *in, int size);
 
 /**
- * @brief utility fnc for application that wants to print an SSL_ECHO_ext
+ * @brief utility fnc for application that wants to print an ECHO_DIFF
  *
  * @param out is the BIO to use (e.g. stdout/whatever)
- * @param se is a pointer to an SSL_ECHO_ext struture
+ * @param se is a pointer to an ECHO_DIFF struture
  * @param count is the number of elements in se
  * @return 1 for success, error othewise
  */
-int SSL_ECHO_ext_print(BIO* out, SSL_ECHO_ext *se, int count);
+int SSL_ECHO_DIFF_print(BIO* out, ECHO_DIFF *se, int count);
 
 /**
  * @brief down-select to use of one option with an SSL_ECHO
@@ -154,10 +154,10 @@ int SSL_ECHO_ext_print(BIO* out, SSL_ECHO_ext *se, int count);
  * within an SSL_ECHO for later use.
  *
  * @param in is an SSL structure with possibly multiple RR values
- * @param index is the index value from an SSL_ECHO_ext produced from the 'in'
+ * @param index is the index value from an ECHO_DIFF produced from the 'in'
  * @return 1 for success, error otherwise
  */
-int SSL_ECHO_reduce(SSL *in, int index);
+int SSL_echo_reduce(SSL *in, int index);
 
 /**
  * Report on the number of ECHO key RRs currently loaded
@@ -203,7 +203,7 @@ int SSL_CTX_echo_server_enable(SSL_CTX *s, const char *echokeyfile, const char *
  * @return 1 for success, anything else for failure
  * 
  */
-int SSL_ECHO_print(BIO* out, SSL *con, int selector);
+int SSL_echo_print(BIO* out, SSL *con, int selector);
 
 /* 
  * Possible return codes from SSL_get_echo_status
@@ -236,7 +236,7 @@ int SSL_ECHO_print(BIO* out, SSL *con, int selector);
  * @param clear_sni will be set to the address of the hidden service
  * @return 1 for success, other otherwise
  */
-int SSL_get_echo_status(SSL *s, char **hidden, char **clear_sni);
+int SSL_echo_get_status(SSL *s, char **hidden, char **clear_sni);
 
 #endif
 #endif
