@@ -25,6 +25,11 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- Starting to create test setups for ECHO. Again, doing that a bit in
+  parallel to what I did with ESNI so the eventual contribution to
+  upstream can be better/smaller. ``esnistuff/doecho.sh`` is the 
+  start of that.
+
 - Adding an "echo" (sub)command to the openssl command line tool to allow
   for generating private keys/ECHOConfig. Added an ``apps/echo.c`` file 
   and associated changes to ``apps/build.info``, ``apps/progs.h`` and

@@ -38,6 +38,9 @@
 #ifndef OPENSSL_NO_ESNI
 #include <openssl/esni.h>
 #endif
+#ifndef OPENSSL_NO_ECHO
+#include "echo_local.h"
+#endif
 
 # ifdef OPENSSL_BUILD_SHLIBSSL
 #  undef OPENSSL_EXTERN

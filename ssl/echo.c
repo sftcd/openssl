@@ -20,6 +20,44 @@
 # include "ssl_local.h"
 # include "echo_local.h"
 
+/*
+ * Various ancilliary functions
+ */
+
+
+/**
+ * Try figure out ECHOConfig encodng
+ *
+ * @param eklen is the length of rrval
+ * @param rrval is encoded thing
+ * @param guessedfmt is our returned guess at the format
+ * @return 1 for success, 0 for error
+ */
+static int echo_guess_fmt(const size_t eklen, 
+                    const char *rrval,
+                    int *guessedfmt)
+{
+    if (!guessedfmt || eklen <=0 || !rrval) {
+        return(0);
+    }
+    /* asci hex is easy:-) either case allowed*/
+    const char *AH_alphabet="0123456789ABCDEFabcdef";
+    /* we actually add a semi-colon here as we accept multiple semi-colon separated values */
+    const char *B64_alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=;";
+    /*
+     * Try from most constrained to least in that order
+     */
+    if (eklen<=strspn(rrval,AH_alphabet)) {
+        *guessedfmt=ESNI_RRFMT_ASCIIHEX;
+    } else if (eklen<=strspn(rrval,B64_alphabet)) {
+        *guessedfmt=ESNI_RRFMT_B64TXT;
+    } else {
+        // fallback - try binary
+        *guessedfmt=ESNI_RRFMT_BIN;
+    }
+    return(1);
+} 
+
 /**
  * @brief Decode and check the value retieved from DNS (binary, base64 or ascii-hex encoded)
  *
@@ -29,12 +67,21 @@
  *
  * @param con is the SSL connection 
  * @param eklen is the length of the binary, base64 or ascii-hex encoded value from DNS
- * @param echokeys is the binary, base64 or ascii-hex encoded value from DNS
+ * @param ekval is the binary, base64 or ascii-hex encoded value from DNS
  * @param num_echos says how many SSL_ECHO structures are in the returned array
  * @return is 1 for success, error otherwise
  */
-int SSL_echo_add(SSL *con, const short ekfmt, const size_t eklen, const char *echokeys, int *num_echos)
+int SSL_echo_add(SSL *con, const short ekfmt, const size_t eklen, const char *ekval, int *num_echos)
 {
+
+    int usedfmt=ECHO_RRFMT_GUESS;
+    int rv=0;
+    if (ekfmt==ECHO_RRFMT_GUESS) {
+        rv=echo_guess_fmt(eklen,ekval,&usedfmt);
+        if (rv==0) return(rv);
+    } else {
+        usedfmt=ekfmt;
+    }
     return 1;
 }
 

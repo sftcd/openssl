@@ -66,8 +66,11 @@ keys:
 
 keyclean:
 	- rm -f esnikeys.pub esnikeys.priv
+	- rm -f echoconfig.pem
 	- rm -rf esnikeydir
 	- rm -rf cadir
 
 reallyclean: clean docclean keyclean
 
+echo: 
+	- ./doecho.sh

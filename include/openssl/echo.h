@@ -35,9 +35,10 @@
  * - can be TYPE65439 formatted as output from dig +short (multi-line)
  */
 #define ECHO_RRFMT_GUESS     0  ///< try guess which it is
-#define ECHO_RRFMT_BIN       1  ///< binary encoded
-#define ECHO_RRFMT_ASCIIHEX  2  ///< draft-03 ascii hex value(s catenated)
-#define ECHO_RRFMT_B64TXT    3  ///< draft-02 (legacy) base64 encoded TXT
+#define ECHO_RRFMT_BIN       1  ///< binary blob with one or more catenated encoded ECHOConfigs
+#define ECHO_RRFMT_B64TXT    2  ///< base64 encoded ECHOConfigs (semi-colon separated if >1)
+#define ECHO_RRFMT_ASCIIHEX  3  ///< ascii-hex encoded ECHOConfigs (semi-colon separated if >1)
+#define ECHO_RRFMT_HTTPSSVC  4  ///< presentation form of HTTPSSVC
 
 #define ECHO_GREASE_VERSION 0xffff ///< Fake ECHOKeys version to indicate grease
 #define ECHO_DRAFT_06_VERSION 0xff04 ///< ECHOConfig version from draft-06 

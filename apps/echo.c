@@ -78,7 +78,7 @@ static int mk_echoconfig(
         case 0xff01: /* esni draft -02 */
         case 0xff02: /* esni draft -03 */
             return 0;
-        case 0xff03: /* esni draft -04 */
+        case 0xff03: /* esni draft -04 onwards */
             pnlen=(public_name==NULL?0:strlen(public_name));
             break;
         default:
@@ -134,12 +134,8 @@ static int mk_echoconfig(
     unsigned char *bp=bbuf;
     memset(bbuf,0,MAX_ECHOCONFIGS_BUFLEN);
     *bp++=(ekversion>>8)%256; 
-    *bp++=(ekversion%256);// version = 0xff01 or 0xff02
-    if (ekversion==0xff01 || ekversion==0xff02) {
-        memset(bp,0,4); bp+=4; // space for checksum
-    }
-    if (pnlen > 0 && (ekversion==0xff02 || ekversion == 0xff03)) {
-        /* draft -03 and -04 have public_name here, -02 hasn't got that at all */
+    *bp++=(ekversion%256); // version = 0xff01 or 0xff02
+    if (pnlen > 0 ) {
         *bp++=(pnlen>>8)%256;
         *bp++=pnlen%256;
         memcpy(bp,public_name,pnlen); bp+=pnlen;
@@ -161,8 +157,8 @@ static int mk_echoconfig(
     *bp++=0x13;
     *bp++=0x01; // ciphersuite TLS_AES_128_GCM_SHA256
     /* padded_length */
-    *bp++=0x01;
-    *bp++=0x04; // 2 bytes padded length - 260, same as CF for now
+    *bp++=0x00;
+    *bp++=0x00; // 2 bytes padded length - 260, same as CF for now
     if (extlen==0) {
         *bp++=0x00;
         *bp++=0x00; // no extensions

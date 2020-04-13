@@ -20,94 +20,60 @@
 
 # include <openssl/ssl.h>
 # include <openssl/echo.h>
-
-#define ECHO_MAX_RRVALUE_LEN 2000 ///< Max size of a collection of ECHO RR values
-#define ECHO_SELECT_ALL -1 ///< used to duplicate all RRs in SSL_ECHO_dup
-#define ECHO_PBUF_SIZE 8*1024 ///<  8K buffer used for print string sent to application via echo_cb
-
-/*
- * What value to use to indicate a bogus/missing time value, that might work on 
- * all platforms? I thought about -1 but that might cause some errors if used
- * with gmtime() or similar. Zero isn't distinguishable from a calloc'd buffer
- * so didn't go for that. But a small value that's early in 1970 should be ok
- * here as ECHO was invented more than 40 years later. For now, we'll go with
- * one second into the time_t epoch, but will be happy to bikeshed on this
- * later as needed.
- */
-#define ECHO_NOTATIME 1 ///< value used to indicate that a now-defunct not_before/not_after field is bogus
-
-/*
- * ECHOKeys Extensions we know about...
- */
-#define ECHO_ADDRESS_SET_EXT 0x1001 ///< AddressSet as per draft-03
-
-/* TODO: find another implemenation of this, there's gotta be one */
-#define ECHO_A2B(__c__) (__c__>='0'&&__c__<='9'?(__c__-'0'):\
-                        (__c__>='A'&&__c__<='F'?(__c__-'A'+10):\
-                            (__c__>='a'&&__c__<='f'?(__c__-'a'+10):0)))
-
-
-/*
- * Known text input formats for ECHOKeys RR values
- * - can be TXT containing base64 encoded value (draft-02)
- * - can be TYPE65439 containing ascii-hex string(s)
- * - can be TYPE65439 formatted as output from dig +short (multi-line)
- */
-#define ECHO_RRFMT_GUESS     0  ///< try guess which it is
-#define ECHO_RRFMT_BIN       1  ///< binary encoded
-#define ECHO_RRFMT_ASCIIHEX  2  ///< draft-03 ascii hex value(s catenated)
-#define ECHO_RRFMT_B64TXT    3  ///< draft-02 (legacy) base64 encoded TXT
-
-/**
- * If defined, this provides enough API, internals and tracing so we can 
- * ensure/check we're generating keys the same way as other code, in 
- * partocular the existing NSS code
- */
-#define ECHO_CRYPT_INTEROP
-//#undef ECHO_CRYPT_INTEROP
-#ifdef ECHO_CRYPT_INTEROP
-
-#define ECHO_GREASE_VERSION 0xffff ///< Fake ECHOKeys version to indicate grease
-#define ECHO_DRAFT_02_VERSION 0xff01 ///< ECHOKeys version from draft-02
-#define ECHO_DRAFT_03_VERSION 0xff02 ///< ECHOKeys version from draft-03
-#define ECHO_DRAFT_04_VERSION 0xff03 ///< ECHOKeys version from draft-04
-#define ECHO_DRAFT_05_VERSION 0xff03 ///< ECHOConfig version from draft-05 (sigh - same version!)
+# include <crypto/hpke.h>
 
 #define ECHO_RRTYPE 65439 ///< experimental (as per draft-03, and draft-04) ECHO RRTYPE
-
-#endif
 
 /** 
  * @brief Representation of what goes in DNS
  * <pre>
+ *       opaque HpkePublicKey<1..2^16-1>;
+ *       uint16 HkpeKemId; // Defined in I-D.irtf-cfrg-hpke
+ *
+ *       struct {
+ *           opaque public_name<1..2^16-1>;
+ *           HpkePublicKey public_key;
+ *           HkpeKemId kem_id;
+ *           CipherSuite cipher_suites<2..2^16-2>;
+ *           uint16 maximum_name_length;
+ *           Extension extensions<0..2^16-1>;
+ *       } ECHOConfigContents;
+ *
+ *       struct {
+ *           uint16 version;
+ *           uint16 length;
+ *           select (ECHOConfig.version) {
+ *             case 0xff03: ECHOConfigContents;
+ *           }
+ *       } ECHOConfig;
+ *
+ *       ECHOConfig ECHOConfigs<1..2^16-1>;
  * </pre>
  *
  */
-typedef struct echo_record_st {
-    unsigned int version;
-    unsigned char checksum[4];
-    size_t public_name_len;
-    unsigned char *public_name;
-    unsigned int nkeys;
-    uint16_t *group_ids;
-    EVP_PKEY **keys;
-    size_t *encoded_lens;
-    unsigned char **encoded_keys;
-	size_t nsuites;
+typedef struct echo_config_st {
+    uint16_t version; ///< 0xff03 for draft-06
+    uint16_t public_name_len; ///< public_name
+    unsigned char *public_name; ///< public_name
+    uint16_t kem_id; ///< HPKE KEM ID to use
+    uint16_t pub_len; ///< HPKE public
+    unsigned char *pub;
+    EVP_PKEY *pub_pkey;
+	uint16_t nsuites;
 	uint16_t *ciphersuites;
-    unsigned int padded_length;
-    uint64_t not_before;
-    uint64_t not_after;
-    unsigned int nexts;
-    unsigned int *exttypes;
-    size_t *extlens;
+    uint16_t maximum_name_length;
+    uint16_t nexts;
+    uint16_t *exttypes;
+    uint16_t *extlens;
     unsigned char **exts;
-    size_t dnsext_offset;
-    unsigned int dnsnexts;
-    unsigned int *dnsexttypes;
-    size_t *dnsextlens;
-    unsigned char **dnsexts;
-} ECHO_RECORD;
+} ECHOConfig;
+
+typedef struct echo_configs_st {
+    uint16_t encoded_len; ///< length of overall encoded content
+    unsigned char *encoded; ///< overall encoded content
+    int nrecs; ///< Number of records 
+    ECHOConfig *recs; ///< individual records
+} ECHOConfigs;
 
 /**
  * What we send in the echo CH extension:
@@ -115,6 +81,12 @@ typedef struct echo_record_st {
  * The TLS presentation language version is:
  *
  * <pre>
+ * struct {
+ *          CipherSuite suite;
+ *          opaque record_digest<0..2^16-1>;
+ *          opaque enc<1..2^16-1>;
+ *          opaque encrypted_ch<1..2^16-1>;
+ *      } ClientEncryptedCH;
  * </pre>
  *
  * Fields encoded in extension, these are copies, (not malloc'd)
@@ -123,15 +95,15 @@ typedef struct echo_record_st {
  * structure.
  *
  */
-typedef struct client_echo_st {
-	uint16_t ciphersuite;
-    size_t encoded_keyshare_len; 
-    unsigned char *encoded_keyshare;
-    size_t record_digest_len;
-    unsigned char *record_digest;
-    size_t encrypted_sni_len;
-    unsigned char *encrypted_sni;
-} CLIENT_ECHO;
+typedef struct echo_encch_st {
+	uint16_t ciphersuite; ///< ciphersuite - TODO: make this a HPKE suite
+    size_t record_digest_len; ///< identifies DNS RR used
+    unsigned char *record_digest; ///< identifies DNS RR used
+    size_t enc_len; ///< public share
+    unsigned char *enc; ///< public share
+    size_t encch_len; ///< ciphertext 
+    unsigned char *encch; ///< ciphertext 
+} ECHO_ENCCH;
 
 /**
  * @brief The ECHO data structure that's part of the SSL structure 
@@ -147,33 +119,24 @@ typedef struct client_echo_st {
  */
 typedef struct ssl_echo_st {
     unsigned int version; ///< version from underlying ECHO_RECORD/ECHOKeys
-    char *encservername; ///< hidden server name
-    char *clear_sni; ///< cleartext SNI (can be NULL)
-    char *public_name;  ///< public_name from ECHOKeys
-    int require_hidden_match; ///< If 1 then SSL_get_echo_status will barf if hidden name doesn't match TLS server cert. If 0, don't care.
+    char *inner_name; ///< hidden server name
+    char *outer_name; ///< cleartext SNI (can be NULL)
+    char *public_name; ///< public_name from ECHOKeys
     int num_echo_rrs; ///< the number of ECHOKeys structures in this array
     size_t encoded_rr_len;
     unsigned char *encoded_rr; ///< Binary (base64 decoded) RR value
     size_t rd_len;
     unsigned char *rd; ///< Hash of the above (record_digest), using the relevant hash from the ciphersuite
 	uint16_t ciphersuite; ///< from ECHOKeys after selection of local preference
-    uint16_t group_id;  ///< our chosen group e.g. X25519
+    uint16_t kem_id;  ///< our chosen group e.g. X25519
     size_t echo_peer_keyshare_len;  
     unsigned char *echo_peer_keyshare; ///< the encoded peer's public value
     EVP_PKEY *echo_peer_pkey; ///< the peer public as a key
-    size_t padded_length; ///< from ECHOKeys
-    uint64_t not_before; ///< from ECHOKeys (not currently used)
-    uint64_t not_after; ///< from ECHOKeys (not currently used)
+    size_t maximum_name_length; ///< from ECHOConfig
     int nexts; ///< number of extensions 
     unsigned int *exttypes; ///< array of extension types
     size_t *extlens; ///< lengths of encoded extension octets
     unsigned char **exts; ///< encoded extension octets
-    int dnsnexts; ///< number of dns extensions 
-    unsigned int *dnsexttypes; ///< array of dns extension types
-    size_t *dnsextlens; ///< lengths of encoded dns extension octets
-    unsigned char **dnsexts; ///< encoded dns extension octets
-    int naddrs; ///< decoded AddressSet cardinality
-    BIO_ADDR *addrs; ///< decoded AddressSet values (v4 or v6)
     /*
      * Session specific stuff
      */
@@ -193,35 +156,13 @@ typedef struct ssl_echo_st {
     EVP_PKEY *keyshare; ///< my own private keyshare to use with  server's ECHO share 
     size_t encoded_keyshare_len; 
     unsigned char *encoded_keyshare; ///< my own public key share
-    size_t hi_len; 
-    unsigned char *hi; ///< ECHOContent encoded (hash input)
-    size_t hash_len;
-    unsigned char *hash;  ///< hash of hi (encoded ECHOContent)
-    size_t realSNI_len; 
-    unsigned char *realSNI; ///< padded ECHO
-    /* 
-     * Derived crypto vars
-     */
-    size_t Z_len;
-    unsigned char *Z; ///< ECDH shared secret 
-    size_t Zx_len;
-    unsigned char *Zx; ///< derived from Z as per I-D
-    size_t key_len;
-    unsigned char *key; ///< derived key
-    size_t iv_len;
-    unsigned char *iv; ///< derived iv
-    size_t aad_len; 
-    unsigned char *aad; ///< derived aad
     size_t plain_len;
     unsigned char *plain; ///< plaintext value for ECHO
     size_t cipher_len;
     unsigned char *cipher; ///< ciphetext value of ECHO
     size_t tag_len;
     unsigned char *tag; ///< GCM tag (already also in ciphertext)
-#ifdef ECHO_CRYPT_INTEROP
-    char *private_str; ///< for debug purposes, requires special build
-#endif
-    CLIENT_ECHO *the_echo; ///< the final outputs for the caller (note: not separately alloc'd)
+    ECHO_ENCCH *the_echo; ///< the final outputs for the caller (note: not separately alloc'd)
     /* 
      * File load information servers - if identical filenames not modified since
      * loadtime are added via SSL_echo_serve_enable then we'll ignore the new
@@ -232,31 +173,6 @@ typedef struct ssl_echo_st {
     char *pubfname;  ///< name of private key file from which this was loaded
     time_t loadtime; ///< time public and private key were loaded from file
 } SSL_ECHO;
-
-/*
- * Non-external Prototypes
- */
-
-/**
- * @brief wrap a "raw" key share in the relevant TLS presentation layer encoding
- *
- * Put the outer length and curve ID around a key share.
- * This just exists because we do it a few times: for the ECHO
- * client keyshare and for handshake client keyshare.
- * The input keyshare is the e.g. 32 octets of a point
- * on curve 25519 as used in X25519.
- *
- * @param keyshare is the input keyshare which'd be 32 octets for x25519
- * @param keyshare_len is the length of the above (0x20 for x25519)
- * @param curve_id is the IANA registered value for the curve e.g. 0x1d for X25519
- * @param outlen is the length of the encoded version of the above
- * @return is NULL (on error) or a pointer to the encoded version buffer
- */
-unsigned char *SSL_ECHO_wrap_keyshare(
-                const unsigned char *keyshare,
-                const size_t keyshare_len,
-                const uint16_t curve_id,
-                size_t *outlen);
 
 /**
  * @brief Do the client-side SNI encryption during a TLS handshake
@@ -282,7 +198,7 @@ int SSL_ECHO_enc(SSL_CTX *ctx,
                 uint16_t curve_id,
                 size_t  client_keyshare_len,
                 unsigned char *client_keyshare,
-                CLIENT_ECHO **the_echo);
+                ECHO_ENCCH **the_echo);
 
 /**
  * @brief Server-side decryption during a TLS handshake
@@ -342,23 +258,6 @@ void SSL_ECHO_free(SSL_ECHO *echokeys);
  */
 SSL_ECHO* SSL_ECHO_dup(SSL_ECHO* orig, size_t necho, int selector);
 
-/*
- * Externally visible Prototypes
- */
-
-/**
- * Make a basic check of names from CLI or API
- *
- * Note: This may disappear as all the checks currently done would
- * result in errors anyway. However, that could change, so we'll
- * keep it for now.
- *
- * @param encservername the hidden servie
- * @param convername the cleartext SNI to send (can be NULL if we don't want any)
- * @return 1 for success, other otherwise
- */
-int SSL_echo_checknames(const char *encservername, const char *clear_sni);
-
 /**
  * @brief Decode and check the value retieved from DNS (binary, base64 or ascii-hex encoded)
  *
@@ -374,137 +273,6 @@ int SSL_echo_checknames(const char *encservername, const char *clear_sni);
  * @return is an SSL_ECHO structure
  */
 SSL_ECHO* SSL_ECHO_new_from_buffer(SSL_CTX *ctx, SSL *con, const short ekfmt, const size_t eklen, const char *echokeys, int *num_echos);
-
-
-/**
- * Report on the number of ECHO key RRs currently loaded
- *
- * @param s is the SSL server context
- * @param numkeys returns the number currently loaded
- * @return 1 for success, other otherwise
- */
-int SSL_CTX_echo_server_key_status(SSL_CTX *s, int *numkeys);
-
-/**
- * Zap the set of stored ECHO Keys to allow a re-load without hogging memory
- *
- * Supply a zero or negative age to delete all keys. Providing age=3600 will
- * keep keys loaded in the last hour.
- *
- * @param s is the SSL server context
- * @param age don't flush keys loaded in the last age seconds
- * @return 1 for success, other otherwise
- */
-int SSL_CTX_echo_server_flush_keys(SSL_CTX *s, int age);
-
-/**
- * Access an SSL_ECHO structure note - can include sensitive values!
- *
- * @param s is a an SSL structure, as used on TLS client
- * @param echo is an SSL_ECHO structure
- * @return 1 for success, anything else for failure
- */
-int SSL_ECHO_get_echo(SSL *s, SSL_ECHO **echo);
-
-/**
- * Access an SSL_ECHO structure note - can include sensitive values!
- *
- * @param s is a an SSL_CTX structure, as used on TLS server
- * @param echo is an SSL_ECHO structure
- * @return 0 for failure, non-zero is the number of SSL_ECHO in the array
- */
-int SSL_CTX_get_echo(SSL_CTX *s, SSL_ECHO **echo);
-
-/* 
- * Possible return codes from SSL_get_echo_status
- */
-
-#define SSL_ECHO_STATUS_GREASE                  2 ///< ECHO GREASE happened (if you care:-)
-#define SSL_ECHO_STATUS_SUCCESS                 1 ///< Success
-#define SSL_ECHO_STATUS_FAILED                  0 ///< Some internal error
-#define SSL_ECHO_STATUS_BAD_CALL             -100 ///< Required in/out arguments were NULL
-#define SSL_ECHO_STATUS_NOT_TRIED            -101 ///< ECHO wasn't attempted 
-#define SSL_ECHO_STATUS_BAD_NAME             -102 ///< ECHO succeeded but the server cert didn't match the hidden service name
-#define SSL_ECHO_STATUS_TOOMANY              -103 ///< ECHO succeeded can't figure out which one!
-
-/**
- * @brief API to allow calling code know ECHO outcome, post-handshake
- *
- * This is intended to be called by applications after the TLS handshake
- * is complete. This works for both client and server. The caller does
- * not have to (and shouldn't) free the hidden or clear_sni strings.
- * TODO: Those are pointers into the SSL struct though so maybe better
- * to allocate fresh ones.
- *
- * Note that the PR we sent to curl will include a check that this
- * function exists (something like "AC_CHECK_FUNCS( SSL_get_echo_status )"
- * so don't change this name without co-ordinating with that.
- * The curl PR: https://github.com/curl/curl/pull/4011
- *
- * @param s The SSL context (if that's the right term)
- * @param hidden will be set to the address of the hidden service
- * @param clear_sni will be set to the address of the hidden service
- * @return 1 for success, other otherwise
- */
-int SSL_get_echo_status(SSL *s, char **hidden, char **clear_sni);
-
-/*
- * Crypto detailed debugging functions to allow comparison of intermediate
- * values with other code bases (in particular NSS) - these allow one to
- * set values that were generated in another code base's TLS handshake and
- * see if the same derived values are calculated.
- */
-
-/**
- * Allows caller to set the ECDH private value for ECHO. 
- *
- * This is intended to only be used for interop testing - what was
- * useful was to grab the value from the NSS implemtation, force
- * it into mine and see which of the derived values end up the same.
- *
- * @param echo is the SSL_ECHO struture
- * @param private_str is an ASCII-hex encoded X25519 point (essentially
- * a random 32 octet value:-) 
- * @return 1 for success, other otherwise
- *
- */
-int SSL_ECHO_set_private(SSL_ECHO *echo, char *private_str);
-
-/**
- * @brief Allows caller to set the nonce value for ECHO. 
- *
- * This is intended to only be used for interop testing - what was
- * useful was to grab the value from the NSS implemtation, force
- * it into mine and see which of the derived values end up the same.
- *
- * @param echo is the SSL_ECHO struture
- * @param nonce points to a buffer with the network byte order value
- * @oaram nlen is the size of the nonce buffer
- * @return 1 for success, other otherwise
- *
- */
-int SSL_ECHO_set_nonce(SSL_ECHO *echo, unsigned char *nonce, size_t nlen);
-
-/**
- * @brief Make up a GREASE/fake SSL_ECHO structure
- *
- * When doing GREASE (draft-ietf-tls-grease) we want to make up a
- * phony encrypted SNI. This function will do that:-)
- *
- * If s->echo isn't NULL on input then we leave it alone
- * If s->echo comes back NULL after this call, then we're not greasing
- *
- * TODO: arrange a flag that can be part of the openssl config
- * file to turn greasing on/off globally or as part of normal setup 
- * that allows greasing to be turned on/off per session. That'll
- * default to off for now.
- *
- * @param s is the SSL context
- * @param cp is a pointer to a possible greasy ECHO
- * @return 1 for success, other otherwise
- *
- */
-int SSL_ECHO_grease_me(SSL *s, CLIENT_ECHO **cp);
 
 #endif
 #endif
