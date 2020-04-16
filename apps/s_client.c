@@ -2560,10 +2560,12 @@ int s_client_main(int argc, char **argv)
     if (echo_inner_name != NULL ) {
         int nechos=0;
         int rv=SSL_echo_add(con,ESNI_RRFMT_GUESS,strlen(echo_rr),echo_rr,&nechos);
-        if (nechos==0 || rv != 1) {
-            BIO_printf(bio_err,
-                       "%s: ECHOConfig decode failed.\n",
-                       prog);
+        if (rv != 1) {
+            BIO_printf(bio_err, "%s: ECHOConfig decode failed.\n", prog);
+            goto opthelp;
+        } 
+        if (nechos ==0 ) {
+            BIO_printf(bio_err, "%s: ECHOConfig decode provided no keys.\n", prog);
             goto opthelp;
         } 
         rv=SSL_echo_server_name(con, echo_inner_name, echo_outer_name);

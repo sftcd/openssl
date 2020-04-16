@@ -20,7 +20,7 @@
 
 # include <openssl/ssl.h>
 
-#define MAX_ECHOCONFIGS_BUFLEN 2000  ///< max PEM encoded ESNIConfigs we'll emit
+#define ECHO_MAX_ECHOCONFIGS_BUFLEN 2000  ///< max PEM encoded ESNIConfigs we'll emit
 
 #define ECHO_MAX_RRVALUE_LEN 2000 ///< Max size of a collection of ECHO RR values
 
@@ -41,7 +41,7 @@
 #define ECHO_RRFMT_HTTPSSVC  4  ///< presentation form of HTTPSSVC
 
 #define ECHO_GREASE_VERSION 0xffff ///< Fake ECHOKeys version to indicate grease
-#define ECHO_DRAFT_06_VERSION 0xff04 ///< ECHOConfig version from draft-06 
+#define ECHO_DRAFT_06_VERSION 0xff03 ///< ECHOConfig version from draft-06 
 
 
 /**
@@ -73,7 +73,7 @@ typedef struct echo_diff_st {
  * @param num_echos says how many SSL_ECHO structures are in the returned array
  * @return is 1 for success, error otherwise
  */
-int SSL_echo_add(SSL *con, const short ekfmt, const size_t eklen, const char *echokeys, int *num_echos);
+int SSL_echo_add(SSL *con, int ekfmt, size_t eklen, char *echokeys, int *num_echos);
 
 /**
  * @brief Decode and check the value retieved from DNS (binary, base64 or ascii-hex encoded)

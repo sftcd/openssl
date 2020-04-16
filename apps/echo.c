@@ -75,10 +75,7 @@ static int mk_echoconfig(
     size_t pnlen=0; ///< length of public_name
 
     switch(ekversion) {
-        case 0xff01: /* esni draft -02 */
-        case 0xff02: /* esni draft -03 */
-            return 0;
-        case 0xff03: /* esni draft -04 onwards */
+        case ECHO_DRAFT_06_VERSION: /* esni draft -04 onwards */
             pnlen=(public_name==NULL?0:strlen(public_name));
             break;
         default:
@@ -130,9 +127,11 @@ static int mk_echoconfig(
      * ECHOConfig ECHOConfigs<1..2^16-1>;
      */
 
-    unsigned char bbuf[MAX_ECHOCONFIGS_BUFLEN]; ///< binary buffer
+    unsigned char bbuf[ECHO_MAX_ECHOCONFIGS_BUFLEN]; ///< binary buffer
     unsigned char *bp=bbuf;
-    memset(bbuf,0,MAX_ECHOCONFIGS_BUFLEN);
+    memset(bbuf,0,ECHO_MAX_ECHOCONFIGS_BUFLEN);
+    *bp++=0x00; // leave space for overall length
+    *bp++=0x00; // leave space for overall length
     *bp++=(ekversion>>8)%256; 
     *bp++=(ekversion%256); // version = 0xff01 or 0xff02
     if (pnlen > 0 ) {
@@ -172,6 +171,12 @@ static int mk_echoconfig(
     }
     size_t bblen=bp-bbuf;
 
+    /*
+     * Add back in the length
+     */
+    bbuf[0]=(bblen-2)/256;
+    bbuf[1]=(bblen-2)%256;
+
     int b64len = EVP_EncodeBlock((unsigned char*)echoconfig, (unsigned char *)bbuf, bblen);
     if (b64len >=(*echoconfig_len-1)) {
         return(__LINE__);
@@ -189,7 +194,7 @@ int echo_main(int argc, char **argv)
     OPTION_CHOICE o;
     char *echoconfig_file = NULL, *keyfile = NULL, *pemfile=NULL;
     char *public_name=NULL;
-    unsigned short echo_version=0xff03;
+    unsigned short echo_version=ECHO_DRAFT_06_VERSION;
 
     prog = opt_init(argc, argv, echo_options);
     while ((o = opt_next()) != OPT_EOF) {
@@ -234,7 +239,7 @@ int echo_main(int argc, char **argv)
         case 0xff01:
             BIO_printf(bio_err, "Unsupported version (0x%04x) - try using mk_esnikeys instead\n",echo_version);
             goto end;
-        case 0xff03:
+        case ECHO_DRAFT_06_VERSION:
             break;
         default:
             BIO_printf(bio_err, "Unsupported version (0x%04x) - exiting\n",echo_version);
@@ -252,8 +257,8 @@ int echo_main(int argc, char **argv)
      * Generate a new ECHOConfig and spit that out
      */
 
-    size_t echoconfig_len=MAX_ECHOCONFIGS_BUFLEN;
-    unsigned char echoconfig[MAX_ECHOCONFIGS_BUFLEN];
+    size_t echoconfig_len=ECHO_MAX_ECHOCONFIGS_BUFLEN;
+    unsigned char echoconfig[ECHO_MAX_ECHOCONFIGS_BUFLEN];
     size_t privlen=HPKE_MAXSIZE; unsigned char priv[HPKE_MAXSIZE];
     int rv=mk_echoconfig(echo_version, public_name, &echoconfig_len, echoconfig, &privlen, priv);
     if (rv!=1) {

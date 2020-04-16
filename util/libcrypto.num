@@ -5034,6 +5034,7 @@ ERR_load_ESNI_strings                   ?	3_0_0	EXIST::FUNCTION:
 hpke_kg                                 ?	3_0_0	EXIST::FUNCTION:
 hpke_enc                                ?	3_0_0	EXIST::FUNCTION:
 hpke_dec                                ?	3_0_0	EXIST::FUNCTION:
+hpke_ah_decode                          ?	3_0_0	EXIST::FUNCTION:
 SSL_add_ECHO                            ?	3_0_0	EXIST::FUNCTION:
 SSL_CTX_add_ECHO                        ?	3_0_0	EXIST::FUNCTION:
 SSL_echo_server_name                    ?	3_0_0	EXIST::FUNCTION:

@@ -29,6 +29,7 @@ Most recent first...
   parallel to what I did with ESNI so the eventual contribution to
   upstream can be better/smaller. ``esnistuff/doecho.sh`` is the 
   start of that.
+    - currently decodes a draft-06 format public key from command line
 
 - Adding an "echo" (sub)command to the openssl command line tool to allow
   for generating private keys/ECHOConfig. Added an ``apps/echo.c`` file 

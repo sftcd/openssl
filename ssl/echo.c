@@ -1,6 +1,6 @@
 /*
  * Copyright 2020 The OpenSSL Project Authors. All Rights Reserved.
- *
+*
  * Licensed under the OpenSSL license (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
  * in the file LICENSE in the source distribution or at
@@ -21,9 +21,22 @@
 # include "echo_local.h"
 
 /*
- * Various ancilliary functions
+ * Yes, global vars! 
+ * For decoding input strings with public keys (aka ECHOConfig) we'll accept
+ * semi-colon separated lists of strings via the API just in case that makes
+ * sense.
  */
 
+/* asci hex is easy:-) either case allowed*/
+const char *AH_alphabet="0123456789ABCDEFabcdef;";
+/* we actually add a semi-colon here as we accept multiple semi-colon separated values */
+const char *B64_alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=;";
+/* telltale for HTTPSSVC - TODO: finalise when possible */
+const char *httpssvc_telltale="echoconfig=";
+
+/*
+ * Ancilliary functions
+ */
 
 /**
  * Try figure out ECHOConfig encodng
@@ -33,30 +46,388 @@
  * @param guessedfmt is our returned guess at the format
  * @return 1 for success, 0 for error
  */
-static int echo_guess_fmt(const size_t eklen, 
-                    const char *rrval,
+static int echo_guess_fmt(size_t eklen, 
+                    char *rrval,
                     int *guessedfmt)
 {
     if (!guessedfmt || eklen <=0 || !rrval) {
         return(0);
     }
-    /* asci hex is easy:-) either case allowed*/
-    const char *AH_alphabet="0123456789ABCDEFabcdef";
-    /* we actually add a semi-colon here as we accept multiple semi-colon separated values */
-    const char *B64_alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=;";
+
     /*
      * Try from most constrained to least in that order
      */
-    if (eklen<=strspn(rrval,AH_alphabet)) {
-        *guessedfmt=ESNI_RRFMT_ASCIIHEX;
+    if (strstr(rrval,httpssvc_telltale)) {
+        *guessedfmt=ECHO_RRFMT_HTTPSSVC;
+    } else if (eklen<=strspn(rrval,AH_alphabet)) {
+        *guessedfmt=ECHO_RRFMT_ASCIIHEX;
     } else if (eklen<=strspn(rrval,B64_alphabet)) {
-        *guessedfmt=ESNI_RRFMT_B64TXT;
+        *guessedfmt=ECHO_RRFMT_B64TXT;
     } else {
         // fallback - try binary
-        *guessedfmt=ESNI_RRFMT_BIN;
+        *guessedfmt=ECHO_RRFMT_BIN;
     }
     return(1);
 } 
+
+
+/**
+ * @brief Decode from TXT RR to binary buffer
+ *
+ * This is like ct_base64_decode from crypto/ct/ct_b64.c
+ * but a) isn't static and b) is extended to allow a set of 
+ * semi-colon separated strings as the input to handle
+ * multivalued RRs.
+ *
+ * Decodes the base64 string |in| into |out|.
+ * A new string will be malloc'd and assigned to |out|. This will be owned by
+ * the caller. Do not provide a pre-allocated string in |out|.
+ * The input is modified if multivalued (NULL bytes are added in 
+ * place of semi-colon separators.
+ *
+ * @param in is the base64 encoded string
+ * @param out is the binary equivalent
+ * @return is the number of octets in |out| if successful, <=0 for failure
+ */
+static int echo_base64_decode(char *in, unsigned char **out)
+{
+    const char* sepstr=";";
+    size_t inlen = strlen(in);
+    int i=0;
+    int outlen=0;
+    unsigned char *outbuf = NULL;
+    int overallfraglen=0;
+
+    if (out == NULL) {
+        return 0;
+    }
+    if (inlen == 0) {
+        *out = NULL;
+        return 0;
+    }
+
+    /*
+     * overestimate of space but easier than base64 finding padding right now
+     */
+    outbuf = OPENSSL_malloc(inlen);
+    if (outbuf == NULL) {
+        goto err;
+    }
+
+    char *inp=in;
+    unsigned char *outp=outbuf;
+
+    while (overallfraglen<inlen) {
+
+        /* find length of 1st b64 string */
+        int ofraglen=0;
+        int thisfraglen=strcspn(inp,sepstr);
+        inp[thisfraglen]='\0';
+        overallfraglen+=(thisfraglen+1);
+
+        ofraglen = EVP_DecodeBlock(outp, (unsigned char *)inp, thisfraglen);
+        if (ofraglen < 0) {
+            goto err;
+        }
+
+        /* Subtract padding bytes from |outlen|.  Any more than 2 is malformed. */
+        i = 0;
+        while (inp[thisfraglen-i-1] == '=') {
+            if (++i > 2) {
+                goto err;
+            }
+        }
+        outp+=(ofraglen-i);
+        outlen+=(ofraglen-i);
+        inp+=(thisfraglen+1);
+
+    }
+
+    *out = outbuf;
+    return outlen;
+err:
+    OPENSSL_free(outbuf);
+    return -1;
+}
+
+
+/**
+ * @brief Free an ECHOConfig structure's internals
+ * @param tbf is the thing to be free'd
+ */
+void ECHOConfig_free(ECHOConfig *tbf)
+{
+    if (!tbf) return;
+    if (tbf->public_name) OPENSSL_free(tbf->public_name);
+    if (tbf->pub) OPENSSL_free(tbf->pub);
+    if (tbf->pub_pkey) EVP_PKEY_free(tbf->pub_pkey);
+    if (tbf->ciphersuites) OPENSSL_free(tbf->ciphersuites);
+    if (tbf->exttypes) OPENSSL_free(tbf->exttypes);
+    if (tbf->extlens) OPENSSL_free(tbf->extlens);
+    for (int i=0;i!=tbf->nexts;i++) {
+        if (tbf->exts[i]) OPENSSL_free(tbf->exts[i]);
+    }
+    if (tbf->exts) OPENSSL_free(tbf->exts);
+    memset(tbf,0,sizeof(ECHOConfig));
+    return;
+}
+
+/**
+ * @brief Free an ECHOConfigs structure's internals
+ * @param tbf is the thing to be free'd
+ */
+void ECHOConfigs_free(ECHOConfigs *tbf)
+{
+    if (!tbf) return;
+    if (tbf->encoded) OPENSSL_free(tbf->encoded);
+    for (int i=0;i!=tbf->nrecs;i++) {
+        if (tbf->recs[i]) ECHOConfig_free(tbf->recs[i]);
+    }
+    memset(tbf,0,sizeof(ECHOConfigs));
+    return;
+}
+
+/**
+ * @brief Decode from binary to an ECHOConfigs
+ *
+ * @param con is the SSL connection
+ * @param binbuf is the buffer with the encoding
+ * @param binblen is the length of binbunf
+ * @param leftover is the number of unused octets from the input
+ * @return NULL on error, or a pointer to an ECHOConfigs structure 
+ */
+static ECHOConfigs *ECHOConfigs_from_binary(SSL *con, unsigned char *binbuf, size_t binblen, int *leftover)
+{
+    ECHOConfigs *er=NULL; ///< ECHOConfigs record
+    ECHOConfig **te=NULL; ///< Array of ECHOConfig to be embedded in that
+    int rind=0; ///< record index
+
+    /* sanity check: version + checksum + KeyShareEntry have to be there - min len >= 10 */
+    if (binblen < ECHO_MIN_ECHOCONFIG_LEN) {
+        goto err;
+    }
+    if (leftover==NULL) {
+        goto err;
+    }
+    if (binbuf==NULL) {
+        goto err;
+    }
+
+    PACKET pkt={binbuf,binblen};
+
+    /* 
+     * Overall length of this ECHOConfigs (olen) still could be
+     * less than the input buffer length, (binblen) if the caller has been
+     * given a catenated set of binary buffers, which could happen
+     * and which we will support
+     */
+    unsigned int olen;
+    if (!PACKET_get_net_2(&pkt,&olen)) {
+        goto err;
+    }
+    if (olen < ECHO_MIN_ECHOCONFIG_LEN) {
+        goto err;
+    }
+
+    int not_to_consume=binblen-olen;
+
+    while (PACKET_remaining(&pkt)>not_to_consume) {
+
+        rind++;
+        te=OPENSSL_realloc(te,rind*sizeof(ECHOConfig*));
+        if (!te) {
+            goto err;
+        }
+        ECHOConfig *ec=OPENSSL_malloc(sizeof(ECHOConfig));
+        if (!ec) {
+            goto err;
+        }
+        te[rind]=ec;
+
+        /*
+         * Version
+         */
+        if (!PACKET_get_net_2(&pkt,&ec->version)) {
+            goto err;
+        }
+
+        /*
+         * check version and fail early if failing 
+         */
+        switch (ec->version) {
+            case ECHO_DRAFT_06_VERSION:
+                break;
+            default:
+                goto err;
+        }
+
+        /* 
+         * read public_name 
+         */
+        PACKET public_name_pkt;
+        if (!PACKET_get_length_prefixed_2(&pkt, &public_name_pkt)) {
+            goto err;
+        }
+        ec->public_name_len=PACKET_remaining(&public_name_pkt);
+        if (ec->public_name_len<=4||ec->public_name_len>TLSEXT_MAXLEN_host_name) {
+            goto err;
+        }
+        ec->public_name=OPENSSL_malloc(ec->public_name_len+1);
+        if (ec->public_name==NULL) {
+            goto err;
+        }
+        PACKET_copy_bytes(&public_name_pkt,ec->public_name,ec->public_name_len);
+        ec->public_name[ec->public_name_len]='\0';
+
+        /* 
+         * read HPKE public key - just a blob
+         */
+        PACKET pub_pkt;
+        if (!PACKET_get_length_prefixed_2(&pkt, &pub_pkt)) {
+            goto err;
+        }
+        ec->pub_len=PACKET_remaining(&pub_pkt);
+        ec->pub=OPENSSL_malloc(ec->pub_len);
+        if (ec->pub==NULL) {
+            goto err;
+        }
+        PACKET_copy_bytes(&pub_pkt,ec->pub,ec->pub_len);
+
+        /*
+         * Kem ID
+         */
+        if (!PACKET_get_net_2(&pkt,&ec->kem_id)) {
+            goto err;
+        }
+	
+	    /*
+	     * List of ciphersuites - 2 byte len + 2 bytes per ciphersuite
+	     * Code here inspired by ssl/ssl_lib.c:bytes_to_cipher_list
+	     */
+	    PACKET cipher_suites;
+	    if (!PACKET_get_length_prefixed_2(&pkt, &cipher_suites)) {
+	        goto err;
+	    }
+	    int suiteoctets=PACKET_remaining(&cipher_suites);
+	    if (!suiteoctets || (suiteoctets % 1)) {
+	        goto err;
+	    }
+	    ec->nsuites=suiteoctets/2;
+	    ec->ciphersuites=OPENSSL_malloc(ec->nsuites*sizeof(uint16_t));
+	    if (ec->ciphersuites==NULL) {
+	        goto err;
+	    }
+        unsigned char cipher[TLS_CIPHER_LEN];
+        int ci=0;
+        while (PACKET_copy_bytes(&cipher_suites, cipher, TLS_CIPHER_LEN)) {
+            ec->ciphersuites[ci++]=cipher[0]*256+cipher[1];
+        }
+        if (PACKET_remaining(&cipher_suites) > 0) {
+            goto err;
+        }
+
+        /*
+         * Maximum name length
+         */
+        if (!PACKET_get_net_2(&pkt,&ec->maximum_name_length)) {
+            goto err;
+        }
+
+        /*
+         * Extensions: we'll just store 'em for now and try parse any
+         * we understand a little later
+         */
+        PACKET exts;
+        if (!PACKET_get_length_prefixed_2(&pkt, &exts)) {
+            goto err;
+        }
+        while (PACKET_remaining(&exts) > 0) {
+            ec->nexts+=1;
+            /*
+             * a two-octet length prefixed list of:
+             * two octet extension type
+             * two octet extension length
+             * length octets
+             */
+            unsigned int exttype=0;
+            if (!PACKET_get_net_2(&exts,&exttype)) {
+                goto err;
+            }
+            unsigned int extlen=0;
+            if (extlen>=ECHO_MAX_RRVALUE_LEN) {
+                goto err;
+            }
+            if (!PACKET_get_net_2(&exts,&extlen)) {
+                goto err;
+            }
+            unsigned char *extval=NULL;
+            if (extlen != 0 ) {
+                extval=(unsigned char*)OPENSSL_malloc(extlen);
+                if (extval==NULL) {
+                    goto err;
+                }
+                if (!PACKET_copy_bytes(&exts,extval,extlen)) {
+                    OPENSSL_free(extval);
+                    goto err;
+                }
+            }
+            /* assign fields to lists, have to realloc */
+            unsigned int *tip=(unsigned int*)OPENSSL_realloc(ec->exttypes,ec->nexts*sizeof(ec->exttypes[0]));
+            if (tip==NULL) {
+                if (extval!=NULL) OPENSSL_free(extval);
+                goto err;
+            }
+            ec->exttypes=tip;
+            ec->exttypes[ec->nexts-1]=exttype;
+            unsigned int *lip=(unsigned int*)OPENSSL_realloc(ec->extlens,ec->nexts*sizeof(ec->extlens[0]));
+            if (lip==NULL) {
+                if (extval!=NULL) OPENSSL_free(extval);
+                goto err;
+            }
+            ec->extlens=lip;
+            ec->extlens[ec->nexts-1]=extlen;
+            unsigned char **vip=(unsigned char**)OPENSSL_realloc(ec->exts,ec->nexts*sizeof(unsigned char*));
+            if (vip==NULL) {
+                if (extval!=NULL) OPENSSL_free(extval);
+                goto err;
+            }
+            ec->exts=vip;
+            ec->exts[ec->nexts-1]=extval;
+        }
+	
+    }
+
+    int lleftover=PACKET_remaining(&pkt);
+    if (lleftover<0 || lleftover>binblen) {
+        goto err;
+    }
+
+    /*
+     * Success - make up return value
+     */
+    *leftover=lleftover;
+    er=(ECHOConfigs*)OPENSSL_malloc(sizeof(ECHOConfigs));
+    if (er==NULL) {
+        goto err;
+    }
+    memset(er,0,sizeof(ECHOConfigs));
+    er->nrecs=rind;
+    er->recs=te;
+    er->encoded_len=binblen;
+    er->encoded=binbuf;
+
+    return er;
+err:
+    if (er) {
+        ECHOConfigs_free(er);
+        OPENSSL_free(er);
+    }
+    if (te) {
+        for (int i=0;i!=rind;i++) ECHOConfig_free(te[i]);
+        OPENSSL_free(te); 
+    }
+    return NULL;
+}
 
 /**
  * @brief Decode and check the value retieved from DNS (binary, base64 or ascii-hex encoded)
@@ -71,18 +442,148 @@ static int echo_guess_fmt(const size_t eklen,
  * @param num_echos says how many SSL_ECHO structures are in the returned array
  * @return is 1 for success, error otherwise
  */
-int SSL_echo_add(SSL *con, const short ekfmt, const size_t eklen, const char *ekval, int *num_echos)
+int SSL_echo_add(
+        SSL *con, 
+        int ekfmt, 
+        size_t eklen, 
+        char *ekval, 
+        int *num_echos)
 {
-
-    int usedfmt=ECHO_RRFMT_GUESS;
+    /*
+     * Sanity checks on inputs
+     */
+    int detfmt=ECHO_RRFMT_GUESS;
     int rv=0;
-    if (ekfmt==ECHO_RRFMT_GUESS) {
-        rv=echo_guess_fmt(eklen,ekval,&usedfmt);
-        if (rv==0) return(rv);
-    } else {
-        usedfmt=ekfmt;
+    if (eklen==0 || !ekval || !num_echos || !con) {
+        SSLerr(SSL_F_ECHO_ADD, SSL_R_BAD_VALUE);
+        return(0);
     }
-    return 1;
+    if (eklen>=ECHO_MAX_RRVALUE_LEN) {
+        SSLerr(SSL_F_ECHO_ADD, SSL_R_BAD_VALUE);
+        return(0);
+    }
+    switch (ekfmt) {
+        case ECHO_RRFMT_GUESS:
+            rv=echo_guess_fmt(eklen,ekval,&detfmt);
+            if (rv==0)  {
+                SSLerr(SSL_F_ECHO_ADD, SSL_R_BAD_VALUE);
+                return(rv);
+            }
+            break;
+        case ECHO_RRFMT_HTTPSSVC:
+        case ECHO_RRFMT_ASCIIHEX:
+        case ECHO_RRFMT_B64TXT:
+            detfmt=ekfmt;
+            break;
+        default:
+            return(0);
+    }
+
+    /*
+     * Do the various decodes
+     */
+    unsigned char *outbuf = NULL;   /* a binary representation of a sequence of ECHOConfigs */
+    size_t declen=0;                /* length of the above */
+
+    char *ekcpy=ekval;
+    if (detfmt==ECHO_RRFMT_HTTPSSVC) {
+        ekcpy=strstr(ekval,httpssvc_telltale);
+        if (ekcpy==NULL) {
+            SSLerr(SSL_F_ECHO_ADD, SSL_R_BAD_VALUE);
+            return(rv);
+        }
+    }
+
+    if (detfmt==ECHO_RRFMT_B64TXT) {
+        /* need an int to get -1 return for failure case */
+        int tdeclen = echo_base64_decode(ekcpy, &outbuf);
+        if (tdeclen < 0) {
+            SSLerr(SSL_F_ECHO_ADD, SSL_R_BAD_VALUE);
+            goto err;
+        }
+        declen=tdeclen;
+    }
+
+    if (detfmt==ECHO_RRFMT_ASCIIHEX) {
+        /* Yay AH */
+        int adr=hpke_ah_decode(eklen,ekcpy,&declen,&outbuf);
+        if (adr==0) {
+            goto err;
+        }
+    }
+    if (detfmt==ECHO_RRFMT_BIN) {
+        /* just copy over the input to where we'd expect it */
+        declen=eklen;
+        outbuf=OPENSSL_malloc(declen);
+        if (outbuf==NULL){
+            goto err;
+        }
+        memcpy(outbuf,ekcpy,declen);
+    }
+
+    /*
+     * Now try decode each binary encoding if we can
+     */
+    int done=0;
+    unsigned char *outp=outbuf;
+    int oleftover=declen;
+    int nlens=0;
+    SSL_ECHO *retechos=NULL;
+    SSL_ECHO *newecho=NULL;
+    while (!done) {
+        nlens+=1;
+        SSL_ECHO *ts=OPENSSL_realloc(retechos,nlens*sizeof(SSL_ECHO));
+        if (!ts) {
+            goto err;
+        }
+        retechos=ts;
+        newecho=&retechos[nlens-1];
+        memset(newecho,0,sizeof(SSL_ECHO));
+    
+        int leftover=oleftover;
+        ECHOConfigs *er=ECHOConfigs_from_binary(con,outp,oleftover,&leftover);
+        if (er==NULL) {
+            goto err;
+        }
+        if (leftover<=0) {
+           done=1;
+        }
+        newecho->encoded_rr_len=oleftover-leftover;
+        if (newecho->encoded_rr_len <=0 || newecho->encoded_rr_len>ECHO_MAX_RRVALUE_LEN) {
+            goto err;
+        }
+        newecho->encoded_rr=OPENSSL_malloc(newecho->encoded_rr_len);
+        if (newecho->encoded_rr==NULL) {
+            goto err;
+        }
+        memcpy(newecho->encoded_rr,outp,newecho->encoded_rr_len);
+        oleftover=leftover;
+        outp+=newecho->encoded_rr_len;
+
+#if 0
+        if (echo_make_se_from_er(con, er,newecho,0)!=1) {
+            goto err;
+        }
+        ECHOConfigs_free(er);
+        OPENSSL_free(er);
+        er=NULL;
+#endif
+    }
+    for (int i=0;i!=nlens;i++) {
+        retechos[i].num_echo_rrs=nlens;
+    }
+    
+    if (outbuf!=NULL) {
+        OPENSSL_free(outbuf);
+    }
+
+    *num_echos=nlens;
+
+    return(1);
+
+err:
+    SSLerr(SSL_F_ECHO_ADD, SSL_R_BAD_VALUE);
+    return(0);
 }
 
 /**

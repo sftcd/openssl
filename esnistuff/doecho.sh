@@ -2,13 +2,22 @@
 
 # set -x
 
-. ./env
-
 # generate a key pair if needed, call s_client as well
 
-EFILE="echoconfig.pem"
+TOP="$HOME/code/openssl"
+export LD_LIBRARY_PATH=$TOP
+EDIR="$TOP/esnistuff"
+
+EFILE="$EDIR/echoconfig.pem"
 PUBLIC_NAME="example.com"
 HIDDEN_NAME="foo.example.com"
+
+VALGRIND=""
+if [[ "$1" == "-v" ]]
+then
+    VALGRIND=valgrind
+fi
+
 
 if [ ! -f $EFILE ]
 then
@@ -22,5 +31,6 @@ fi
 
 epub=`cat $EFILE | tail -2 | head -1`
 
-../apps/openssl s_client -servername $PUBLIC_NAME -echo $HIDDEN_NAME -echorr $epub
+echo "Running: ../apps/openssl s_client -servername $PUBLIC_NAME -echo $HIDDEN_NAME -echorr $epub"
+$VALGRIND $TOP/apps/openssl s_client -servername $PUBLIC_NAME -echo $HIDDEN_NAME -echorr $epub
 

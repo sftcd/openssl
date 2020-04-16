@@ -24,6 +24,8 @@
 
 #define ECHO_RRTYPE 65439 ///< experimental (as per draft-03, and draft-04) ECHO RRTYPE
 
+#define ECHO_MIN_ECHOCONFIG_LEN 32 ///< just for a sanity check
+
 /** 
  * @brief Representation of what goes in DNS
  * <pre>
@@ -52,27 +54,27 @@
  *
  */
 typedef struct echo_config_st {
-    uint16_t version; ///< 0xff03 for draft-06
-    uint16_t public_name_len; ///< public_name
+    unsigned int version; ///< 0xff03 for draft-06
+    unsigned int public_name_len; ///< public_name
     unsigned char *public_name; ///< public_name
-    uint16_t kem_id; ///< HPKE KEM ID to use
-    uint16_t pub_len; ///< HPKE public
+    unsigned int kem_id; ///< HPKE KEM ID to use
+    unsigned int pub_len; ///< HPKE public
     unsigned char *pub;
     EVP_PKEY *pub_pkey;
-	uint16_t nsuites;
-	uint16_t *ciphersuites;
-    uint16_t maximum_name_length;
-    uint16_t nexts;
-    uint16_t *exttypes;
-    uint16_t *extlens;
+	unsigned int nsuites;
+	unsigned int *ciphersuites;
+    unsigned int maximum_name_length;
+    unsigned int nexts;
+    unsigned int *exttypes;
+    unsigned int *extlens;
     unsigned char **exts;
 } ECHOConfig;
 
 typedef struct echo_configs_st {
-    uint16_t encoded_len; ///< length of overall encoded content
+    unsigned int encoded_len; ///< length of overall encoded content
     unsigned char *encoded; ///< overall encoded content
     int nrecs; ///< Number of records 
-    ECHOConfig *recs; ///< individual records
+    ECHOConfig **recs; ///< individual records
 } ECHOConfigs;
 
 /**
@@ -96,7 +98,7 @@ typedef struct echo_configs_st {
  *
  */
 typedef struct echo_encch_st {
-	uint16_t ciphersuite; ///< ciphersuite - TODO: make this a HPKE suite
+	unsigned int ciphersuite; ///< ciphersuite - TODO: make this a HPKE suite
     size_t record_digest_len; ///< identifies DNS RR used
     unsigned char *record_digest; ///< identifies DNS RR used
     size_t enc_len; ///< public share
@@ -127,8 +129,8 @@ typedef struct ssl_echo_st {
     unsigned char *encoded_rr; ///< Binary (base64 decoded) RR value
     size_t rd_len;
     unsigned char *rd; ///< Hash of the above (record_digest), using the relevant hash from the ciphersuite
-	uint16_t ciphersuite; ///< from ECHOKeys after selection of local preference
-    uint16_t kem_id;  ///< our chosen group e.g. X25519
+	unsigned int ciphersuite; ///< from ECHOKeys after selection of local preference
+    unsigned int kem_id;  ///< our chosen group e.g. X25519
     size_t echo_peer_keyshare_len;  
     unsigned char *echo_peer_keyshare; ///< the encoded peer's public value
     EVP_PKEY *echo_peer_pkey; ///< the peer public as a key
@@ -195,7 +197,7 @@ int SSL_ECHO_enc(SSL_CTX *ctx,
                 SSL_ECHO *echokeys, 
                 size_t  client_random_len,
                 unsigned char *client_random,
-                uint16_t curve_id,
+                unsigned int curve_id,
                 size_t  client_keyshare_len,
                 unsigned char *client_keyshare,
                 ECHO_ENCCH **the_echo);
@@ -224,7 +226,7 @@ unsigned char *SSL_ECHO_dec(SSL_CTX *ctx,
                 SSL_ECHO *echo,
 				size_t	client_random_len,
 				unsigned char *client_random,
-				uint16_t curve_id,
+				unsigned int curve_id,
 				size_t	client_keyshare_len,
 				unsigned char *client_keyshare,
 				size_t *encservername_len);
@@ -241,6 +243,13 @@ unsigned char *SSL_ECHO_dec(SSL_CTX *ctx,
  * @param echokeys is an SSL_ECHO structure
  */
 void SSL_ECHO_free(SSL_ECHO *echokeys);
+
+/**
+ *
+ * Free stuff
+ * @param tbf is the thing to be free'd
+ */
+void ECHOConfigs_free(ECHOConfigs *tbf);
 
 /**
  * @brief Duplicate the configuration related fields of an SSL_ECHO
