@@ -870,6 +870,16 @@ SSL *SSL_new(SSL_CTX *ctx)
     } 
 #endif
 
+#ifndef OPENSSL_NO_ECHO
+    if (ctx->ext.echo!=NULL) {
+        s->nechos=ctx->ext.nechos;
+        s->echo=ctx->ext.echo; /// TODO: this should be a _dup!!!
+    } else {
+        s->nechos=0;
+        s->echo=NULL;
+    }
+#endif
+
     return s;
  err:
     SSL_free(s);
@@ -1277,6 +1287,18 @@ void SSL_free(SSL *s)
     OPENSSL_free(s->ext.encservername);
     OPENSSL_free(s->ext.clear_sni);
     OPENSSL_free(s->ext.public_name);
+#endif
+
+#ifndef OPENSSL_NO_ECHO
+    if (s->echo!=NULL) {
+        int i=0;
+        for (i=0;i!=s->nechos;i++) {
+            SSL_ECHO_free(&s->echo[i]);
+        }
+        OPENSSL_free(s->echo);
+        s->echo=NULL;
+
+    }
 #endif
 
     CRYPTO_THREAD_lock_free(s->lock);

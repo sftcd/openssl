@@ -1440,6 +1440,7 @@ SSL_F_SSL_DERIVE:590:ssl_derive
 SSL_F_SSL_DO_CONFIG:391:ssl_do_config
 SSL_F_SSL_DO_HANDSHAKE:180:SSL_do_handshake
 SSL_F_SSL_DUP_CA_LIST:408:SSL_dup_CA_list
+SSL_F_SSL_ECHO_ADD:644:
 SSL_F_SSL_ENABLE_CT:402:SSL_enable_ct
 SSL_F_SSL_GENERATE_PKEY_GROUP:559:ssl_generate_pkey_group
 SSL_F_SSL_GENERATE_SESSION_ID:547:ssl_generate_session_id
@@ -3044,6 +3045,7 @@ SM2_R_INVALID_ENCODING:104:invalid encoding
 SM2_R_INVALID_FIELD:105:invalid field
 SM2_R_NO_PARAMETERS_SET:109:no parameters set
 SM2_R_USER_ID_TOO_LARGE:106:user id too large
+SSL_R_ALGORITHM_FETCH_FAILED:295:algorithm fetch failed
 SSL_R_APPLICATION_DATA_AFTER_CLOSE_NOTIFY:291:\
 	application data after close notify
 SSL_R_APP_DATA_IN_HANDSHAKE:100:app data in handshake
@@ -3150,7 +3152,6 @@ SSL_R_EXTENSION_NOT_RECEIVED:279:extension not received
 SSL_R_EXTRA_DATA_IN_MESSAGE:153:extra data in message
 SSL_R_EXT_LENGTH_MISMATCH:163:ext length mismatch
 SSL_R_FAILED_TO_INIT_ASYNC:405:failed to init async
-SSL_R_ALGORITHM_FETCH_FAILED:295:algorithm fetch failed
 SSL_R_FRAGMENTED_CLIENT_HELLO:401:fragmented client hello
 SSL_R_GOT_A_FIN_BEFORE_A_CCS:154:got a fin before a ccs
 SSL_R_HTTPS_PROXY_REQUEST:155:https proxy request

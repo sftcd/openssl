@@ -602,7 +602,6 @@ struct ssl_session_st {
         char *hostname;
 
 #ifndef OPENSSL_NO_ESNI
-
         /*
          * the hostname will be set to the ESNI value, as appropriate
          * invariants on hostname, encservername, clear_sni should be:
@@ -627,8 +626,17 @@ struct ssl_session_st {
          */
         size_t kse_len;
         unsigned char *kse;
-
 #endif
+
+#ifndef OPENSSL_NO_ECHO
+        /*
+         * TODO: Add more ECHO stuff here, as needed
+         */
+        char *echo_public_name;
+        char *echo_inner_name;
+        char *echo_outer_name;
+#endif
+
 # ifndef OPENSSL_NO_EC
         size_t ecpointformats_len;
         unsigned char *ecpointformats; /* peer's list */
@@ -1117,6 +1125,15 @@ struct ssl_ctx_st {
 		size_t	nesni; /* the number of elements in the esni array */
 		SSL_ESNI *esni;
         SSL_esni_cb_func esni_cb;
+#endif
+
+#ifndef OPENSSL_NO_ECHO
+        /*
+         * Encrypted ClientHello details
+         */
+        int nechos;
+        SSL_ECHO *echo;
+        // SSL_echo_cb_func esni_cb; - will need this later
 #endif
 
         unsigned char cookie_hmac_key[SHA256_DIGEST_LENGTH];
@@ -1702,6 +1719,11 @@ struct ssl_st {
 	size_t	nesni; /* the number of elements in the esni array */
 	SSL_ESNI *esni;
     SSL_esni_cb_func esni_cb;
+#endif
+#ifndef OPENSSL_NO_ECHO
+    int nechos;
+    SSL_ECHO *echo;
+    // SSL_echo_cb_func esni_cb; - will need this later
 #endif
 # ifndef OPENSSL_NO_CT
     /*

@@ -15,7 +15,7 @@ HIDDEN_NAME="foo.example.com"
 VALGRIND=""
 if [[ "$1" == "-v" ]]
 then
-    VALGRIND=valgrind
+    VALGRIND="valgrind --leak-check=full "
 fi
 
 

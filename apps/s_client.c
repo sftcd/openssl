@@ -97,7 +97,7 @@ const char *echo_public_name=NULL; ///< public-name from DNS ECHOConfig
 const char *echo_outer_name=NULL; ///< server-name in outer-CH - command line can override public-name
 int echo_grease=0;
 int nechos=0;
-const char *echo_rr = NULL;
+char *echo_rr = NULL;
 #ifndef OPENSSL_NO_SSL_TRACE
 static size_t echo_trace_cb(const char *buf, size_t cnt,
                  int category, int cmd, void *vdata);

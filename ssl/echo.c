@@ -1,6 +1,6 @@
 /*
  * Copyright 2020 The OpenSSL Project Authors. All Rights Reserved.
-*
+ *
  * Licensed under the OpenSSL license (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
  * in the file LICENSE in the source distribution or at
@@ -160,11 +160,11 @@ void ECHOConfig_free(ECHOConfig *tbf)
     if (!tbf) return;
     if (tbf->public_name) OPENSSL_free(tbf->public_name);
     if (tbf->pub) OPENSSL_free(tbf->pub);
-    if (tbf->pub_pkey) EVP_PKEY_free(tbf->pub_pkey);
     if (tbf->ciphersuites) OPENSSL_free(tbf->ciphersuites);
     if (tbf->exttypes) OPENSSL_free(tbf->exttypes);
     if (tbf->extlens) OPENSSL_free(tbf->extlens);
-    for (int i=0;i!=tbf->nexts;i++) {
+    int i=0;
+    for (i=0;i!=tbf->nexts;i++) {
         if (tbf->exts[i]) OPENSSL_free(tbf->exts[i]);
     }
     if (tbf->exts) OPENSSL_free(tbf->exts);
@@ -180,15 +180,41 @@ void ECHOConfigs_free(ECHOConfigs *tbf)
 {
     if (!tbf) return;
     if (tbf->encoded) OPENSSL_free(tbf->encoded);
-    for (int i=0;i!=tbf->nrecs;i++) {
-        if (tbf->recs[i]) ECHOConfig_free(tbf->recs[i]);
+    int i;
+    for (i=0;i!=tbf->nrecs;i++) {
+        ECHOConfig_free(&tbf->recs[i]);
     }
+    if (tbf->recs) OPENSSL_free(tbf->recs);
     memset(tbf,0,sizeof(ECHOConfigs));
     return;
 }
 
 /**
- * @brief Decode from binary to an ECHOConfigs
+ * @brief free an SSL_ECHO
+ *
+ * Free everything within an SSL_ECHO. Note that the
+ * caller has to free the top level SSL_ECHO, IOW the
+ * pattern here is: 
+ *      SSL_ECHO_free(tbf);
+ *      OPENSSL_free(tbf);
+ *
+ * @param tbf is a ptr to an SSL_ECHO structure
+ */
+void SSL_ECHO_free(SSL_ECHO *tbf)
+{
+    if (!tbf) return;
+    if (tbf->cfg) {
+        ECHOConfigs_free(tbf->cfg);
+        OPENSSL_free(tbf->cfg);
+    }
+    /*
+     * More TODO
+     */
+    return;
+}
+
+/**
+ * @brief Decode the first ECHOConfigs from a binary buffer (and say how may octets not consumed)
  *
  * @param con is the SSL connection
  * @param binbuf is the buffer with the encoding
@@ -199,7 +225,7 @@ void ECHOConfigs_free(ECHOConfigs *tbf)
 static ECHOConfigs *ECHOConfigs_from_binary(SSL *con, unsigned char *binbuf, size_t binblen, int *leftover)
 {
     ECHOConfigs *er=NULL; ///< ECHOConfigs record
-    ECHOConfig **te=NULL; ///< Array of ECHOConfig to be embedded in that
+    ECHOConfig  *te=NULL; ///< Array of ECHOConfig to be embedded in that
     int rind=0; ///< record index
 
     /* sanity check: version + checksum + KeyShareEntry have to be there - min len >= 10 */
@@ -233,16 +259,12 @@ static ECHOConfigs *ECHOConfigs_from_binary(SSL *con, unsigned char *binbuf, siz
 
     while (PACKET_remaining(&pkt)>not_to_consume) {
 
-        rind++;
-        te=OPENSSL_realloc(te,rind*sizeof(ECHOConfig*));
+        te=OPENSSL_realloc(te,(rind+1)*sizeof(ECHOConfig));
         if (!te) {
             goto err;
         }
-        ECHOConfig *ec=OPENSSL_malloc(sizeof(ECHOConfig));
-        if (!ec) {
-            goto err;
-        }
-        te[rind]=ec;
+        ECHOConfig *ec=&te[rind];
+        memset(ec,0,sizeof(ECHOConfig));
 
         /*
          * Version
@@ -269,7 +291,7 @@ static ECHOConfigs *ECHOConfigs_from_binary(SSL *con, unsigned char *binbuf, siz
             goto err;
         }
         ec->public_name_len=PACKET_remaining(&public_name_pkt);
-        if (ec->public_name_len<=4||ec->public_name_len>TLSEXT_MAXLEN_host_name) {
+        if (ec->public_name_len<=1||ec->public_name_len>TLSEXT_MAXLEN_host_name) {
             goto err;
         }
         ec->public_name=OPENSSL_malloc(ec->public_name_len+1);
@@ -309,11 +331,11 @@ static ECHOConfigs *ECHOConfigs_from_binary(SSL *con, unsigned char *binbuf, siz
 	        goto err;
 	    }
 	    int suiteoctets=PACKET_remaining(&cipher_suites);
-	    if (!suiteoctets || (suiteoctets % 1)) {
+	    if (suiteoctets<=0 || (suiteoctets % 1)) {
 	        goto err;
 	    }
 	    ec->nsuites=suiteoctets/2;
-	    ec->ciphersuites=OPENSSL_malloc(ec->nsuites*sizeof(uint16_t));
+	    ec->ciphersuites=OPENSSL_malloc(ec->nsuites*sizeof(unsigned int));
 	    if (ec->ciphersuites==NULL) {
 	        goto err;
 	    }
@@ -395,6 +417,7 @@ static ECHOConfigs *ECHOConfigs_from_binary(SSL *con, unsigned char *binbuf, siz
             ec->exts[ec->nexts-1]=extval;
         }
 	
+        rind++;
     }
 
     int lleftover=PACKET_remaining(&pkt);
@@ -413,18 +436,19 @@ static ECHOConfigs *ECHOConfigs_from_binary(SSL *con, unsigned char *binbuf, siz
     memset(er,0,sizeof(ECHOConfigs));
     er->nrecs=rind;
     er->recs=te;
-    er->encoded_len=binblen;
+    er->encoded_len=olen+2;
     er->encoded=binbuf;
-
     return er;
+
 err:
     if (er) {
         ECHOConfigs_free(er);
         OPENSSL_free(er);
+        er=NULL;
     }
     if (te) {
-        for (int i=0;i!=rind;i++) ECHOConfig_free(te[i]);
         OPENSSL_free(te); 
+        te=NULL;
     }
     return NULL;
 }
@@ -455,18 +479,18 @@ int SSL_echo_add(
     int detfmt=ECHO_RRFMT_GUESS;
     int rv=0;
     if (eklen==0 || !ekval || !num_echos || !con) {
-        SSLerr(SSL_F_ECHO_ADD, SSL_R_BAD_VALUE);
+        SSLerr(SSL_F_SSL_ECHO_ADD, SSL_R_BAD_VALUE);
         return(0);
     }
     if (eklen>=ECHO_MAX_RRVALUE_LEN) {
-        SSLerr(SSL_F_ECHO_ADD, SSL_R_BAD_VALUE);
+        SSLerr(SSL_F_SSL_ECHO_ADD, SSL_R_BAD_VALUE);
         return(0);
     }
     switch (ekfmt) {
         case ECHO_RRFMT_GUESS:
             rv=echo_guess_fmt(eklen,ekval,&detfmt);
             if (rv==0)  {
-                SSLerr(SSL_F_ECHO_ADD, SSL_R_BAD_VALUE);
+                SSLerr(SSL_F_SSL_ECHO_ADD, SSL_R_BAD_VALUE);
                 return(rv);
             }
             break;
@@ -489,7 +513,7 @@ int SSL_echo_add(
     if (detfmt==ECHO_RRFMT_HTTPSSVC) {
         ekcpy=strstr(ekval,httpssvc_telltale);
         if (ekcpy==NULL) {
-            SSLerr(SSL_F_ECHO_ADD, SSL_R_BAD_VALUE);
+            SSLerr(SSL_F_SSL_ECHO_ADD, SSL_R_BAD_VALUE);
             return(rv);
         }
     }
@@ -498,7 +522,7 @@ int SSL_echo_add(
         /* need an int to get -1 return for failure case */
         int tdeclen = echo_base64_decode(ekcpy, &outbuf);
         if (tdeclen < 0) {
-            SSLerr(SSL_F_ECHO_ADD, SSL_R_BAD_VALUE);
+            SSLerr(SSL_F_SSL_ECHO_ADD, SSL_R_BAD_VALUE);
             goto err;
         }
         declen=tdeclen;
@@ -545,44 +569,25 @@ int SSL_echo_add(
         if (er==NULL) {
             goto err;
         }
+        newecho->cfg=er;
         if (leftover<=0) {
            done=1;
         }
-        newecho->encoded_rr_len=oleftover-leftover;
-        if (newecho->encoded_rr_len <=0 || newecho->encoded_rr_len>ECHO_MAX_RRVALUE_LEN) {
-            goto err;
-        }
-        newecho->encoded_rr=OPENSSL_malloc(newecho->encoded_rr_len);
-        if (newecho->encoded_rr==NULL) {
-            goto err;
-        }
-        memcpy(newecho->encoded_rr,outp,newecho->encoded_rr_len);
         oleftover=leftover;
-        outp+=newecho->encoded_rr_len;
-
-#if 0
-        if (echo_make_se_from_er(con, er,newecho,0)!=1) {
-            goto err;
-        }
-        ECHOConfigs_free(er);
-        OPENSSL_free(er);
-        er=NULL;
-#endif
+        outp+=er->encoded_len;
     }
-    for (int i=0;i!=nlens;i++) {
-        retechos[i].num_echo_rrs=nlens;
-    }
+    con->nechos=nlens;
+    con->echo=retechos;
     
-    if (outbuf!=NULL) {
-        OPENSSL_free(outbuf);
-    }
-
     *num_echos=nlens;
 
     return(1);
 
 err:
-    SSLerr(SSL_F_ECHO_ADD, SSL_R_BAD_VALUE);
+    if (outbuf!=NULL) {
+        OPENSSL_free(outbuf);
+    }
+    SSLerr(SSL_F_SSL_ECHO_ADD, SSL_R_BAD_VALUE);
     return(0);
 }
 

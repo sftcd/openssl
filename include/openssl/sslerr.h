@@ -10,12 +10,6 @@
 
 #ifndef OPENSSL_SSLERR_H
 # define OPENSSL_SSLERR_H
-# pragma once
-
-# include <openssl/macros.h>
-# ifndef OPENSSL_NO_DEPRECATED_3_0
-#  define HEADER_SSLERR_H
-# endif
 
 # include <openssl/opensslconf.h>
 # include <openssl/symhacks.h>
@@ -71,9 +65,11 @@ int ERR_load_SSL_strings(void);
 #  define SSL_F_DTLS_RECORD_LAYER_NEW                      0
 #  define SSL_F_DTLS_WAIT_FOR_DRY                          0
 #  define SSL_F_EARLY_DATA_COUNT_OK                        0
+#  define SSL_F_ESNI_SERVER_NAME_FIXUP                     0
 #  define SSL_F_FINAL_EARLY_DATA                           0
 #  define SSL_F_FINAL_EC_PT_FORMATS                        0
 #  define SSL_F_FINAL_EMS                                  0
+#  define SSL_F_FINAL_ESNI                                 0
 #  define SSL_F_FINAL_KEY_SHARE                            0
 #  define SSL_F_FINAL_MAXFRAGMENTLEN                       0
 #  define SSL_F_FINAL_RENEGOTIATE                          0
@@ -192,6 +188,7 @@ int ERR_load_SSL_strings(void);
 #  define SSL_F_SSL_DO_CONFIG                              0
 #  define SSL_F_SSL_DO_HANDSHAKE                           0
 #  define SSL_F_SSL_DUP_CA_LIST                            0
+#  define SSL_F_SSL_ECHO_ADD                               0
 #  define SSL_F_SSL_ENABLE_CT                              0
 #  define SSL_F_SSL_GENERATE_PKEY_GROUP                    0
 #  define SSL_F_SSL_GENERATE_SESSION_ID                    0
@@ -316,6 +313,7 @@ int ERR_load_SSL_strings(void);
 #  define SSL_F_TLS_CONSTRUCT_CTOS_EARLY_DATA              0
 #  define SSL_F_TLS_CONSTRUCT_CTOS_EC_PT_FORMATS           0
 #  define SSL_F_TLS_CONSTRUCT_CTOS_EMS                     0
+#  define SSL_F_TLS_CONSTRUCT_CTOS_ESNI                    0
 #  define SSL_F_TLS_CONSTRUCT_CTOS_ETM                     0
 #  define SSL_F_TLS_CONSTRUCT_CTOS_HELLO                   0
 #  define SSL_F_TLS_CONSTRUCT_CTOS_KEY_EXCHANGE            0
@@ -385,6 +383,7 @@ int ERR_load_SSL_strings(void);
 #  define SSL_F_TLS_PARSE_CTOS_EARLY_DATA                  0
 #  define SSL_F_TLS_PARSE_CTOS_EC_PT_FORMATS               0
 #  define SSL_F_TLS_PARSE_CTOS_EMS                         0
+#  define SSL_F_TLS_PARSE_CTOS_ESNI                        0
 #  define SSL_F_TLS_PARSE_CTOS_KEY_SHARE                   0
 #  define SSL_F_TLS_PARSE_CTOS_MAXFRAGMENTLEN              0
 #  define SSL_F_TLS_PARSE_CTOS_POST_HANDSHAKE_AUTH         0
@@ -404,6 +403,7 @@ int ERR_load_SSL_strings(void);
 #  define SSL_F_TLS_PARSE_STOC_EARLY_DATA                  0
 #  define SSL_F_TLS_PARSE_STOC_EARLY_DATA_INFO             0
 #  define SSL_F_TLS_PARSE_STOC_EC_PT_FORMATS               0
+#  define SSL_F_TLS_PARSE_STOC_ESNI                        0
 #  define SSL_F_TLS_PARSE_STOC_KEY_SHARE                   0
 #  define SSL_F_TLS_PARSE_STOC_MAXFRAGMENTLEN              0
 #  define SSL_F_TLS_PARSE_STOC_NPN                         0
@@ -457,17 +457,12 @@ int ERR_load_SSL_strings(void);
 #  define SSL_F_WPACKET_INTERN_INIT_LEN                    0
 #  define SSL_F_WPACKET_START_SUB_PACKET_LEN__             0
 #  define SSL_F_WRITE_STATE_MACHINE                        0
-#  define SSL_F_ESNI_SERVER_NAME_FIXUP                     0
-#  define SSL_F_FINAL_ESNI                                 0
-#  define SSL_F_TLS_CONSTRUCT_CTOS_ESNI                    0
-#  define SSL_F_TLS_PARSE_CTOS_ESNI                        0
-#  define SSL_F_TLS_PARSE_STOC_ESNI                        0
-#  define SSL_F_ECHO_ADD                                   0
 # endif
 
 /*
  * SSL reason codes.
  */
+# define SSL_R_ALGORITHM_FETCH_FAILED                     295
 # define SSL_R_APPLICATION_DATA_AFTER_CLOSE_NOTIFY        291
 # define SSL_R_APP_DATA_IN_HANDSHAKE                      100
 # define SSL_R_ATTEMPT_TO_REUSE_SESSION_IN_DIFFERENT_CONTEXT 272
@@ -567,7 +562,6 @@ int ERR_load_SSL_strings(void);
 # define SSL_R_EXTRA_DATA_IN_MESSAGE                      153
 # define SSL_R_EXT_LENGTH_MISMATCH                        163
 # define SSL_R_FAILED_TO_INIT_ASYNC                       405
-# define SSL_R_ALGORITHM_FETCH_FAILED                     295
 # define SSL_R_FRAGMENTED_CLIENT_HELLO                    401
 # define SSL_R_GOT_A_FIN_BEFORE_A_CCS                     154
 # define SSL_R_HTTPS_PROXY_REQUEST                        155
@@ -783,6 +777,5 @@ int ERR_load_SSL_strings(void);
 # define SSL_R_WRONG_VERSION_NUMBER                       267
 # define SSL_R_X509_LIB                                   268
 # define SSL_R_X509_VERIFICATION_SETUP_PROBLEMS           269
-
 
 #endif

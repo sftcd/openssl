@@ -60,7 +60,6 @@ typedef struct echo_config_st {
     unsigned int kem_id; ///< HPKE KEM ID to use
     unsigned int pub_len; ///< HPKE public
     unsigned char *pub;
-    EVP_PKEY *pub_pkey;
 	unsigned int nsuites;
 	unsigned int *ciphersuites;
     unsigned int maximum_name_length;
@@ -74,7 +73,7 @@ typedef struct echo_configs_st {
     unsigned int encoded_len; ///< length of overall encoded content
     unsigned char *encoded; ///< overall encoded content
     int nrecs; ///< Number of records 
-    ECHOConfig **recs; ///< individual records
+    ECHOConfig *recs; ///< array of individual records
 } ECHOConfigs;
 
 /**
@@ -120,16 +119,14 @@ typedef struct echo_encch_st {
  * need to modify that (in ssl/echo.c)
  */
 typedef struct ssl_echo_st {
-    unsigned int version; ///< version from underlying ECHO_RECORD/ECHOKeys
-    char *inner_name; ///< hidden server name
-    char *outer_name; ///< cleartext SNI (can be NULL)
-    char *public_name; ///< public_name from ECHOKeys
-    int num_echo_rrs; ///< the number of ECHOKeys structures in this array
-    size_t encoded_rr_len;
-    unsigned char *encoded_rr; ///< Binary (base64 decoded) RR value
+    ECHOConfigs *cfg; ///< merge of underlying ECHOConfigs
     size_t rd_len;
-    unsigned char *rd; ///< Hash of the above (record_digest), using the relevant hash from the ciphersuite
-	unsigned int ciphersuite; ///< from ECHOKeys after selection of local preference
+    unsigned char *rd; ///< Hash of the encoded_rr record_digest, using the relevant hash from the ciphersuite
+
+    /*
+     * SSL/SSL_CTX instantiated things
+     */
+	unsigned int ciphersuite; ///< chosen from ECHOConfig after selection of local preference
     unsigned int kem_id;  ///< our chosen group e.g. X25519
     size_t echo_peer_keyshare_len;  
     unsigned char *echo_peer_keyshare; ///< the encoded peer's public value
@@ -242,7 +239,7 @@ unsigned char *SSL_ECHO_dec(SSL_CTX *ctx,
  *
  * @param echokeys is an SSL_ECHO structure
  */
-void SSL_ECHO_free(SSL_ECHO *echokeys);
+void SSL_ECHO_free(SSL_ECHO *tbf);
 
 /**
  *
