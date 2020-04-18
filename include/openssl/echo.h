@@ -88,7 +88,7 @@ int SSL_echo_add(SSL *con, int ekfmt, size_t eklen, char *echokeys, int *num_ech
  * @param num_echos says how many SSL_ECHO structures are in the returned array
  * @return is 1 for success, error otherwise
  */
-int SSL_CTX_echo_add(SSL_CTX *ctx, const short ekfmt, const size_t eklen, const char *echokeys, int *num_echos);
+int SSL_CTX_echo_add(SSL_CTX *ctx, short ekfmt, size_t eklen, char *echokeys, int *num_echos);
 
 /**
  * @brief Turn on SNI encryption for an (upcoming) TLS session

@@ -216,13 +216,12 @@ void SSL_ECHO_free(SSL_ECHO *tbf)
 /**
  * @brief Decode the first ECHOConfigs from a binary buffer (and say how may octets not consumed)
  *
- * @param con is the SSL connection
  * @param binbuf is the buffer with the encoding
  * @param binblen is the length of binbunf
  * @param leftover is the number of unused octets from the input
  * @return NULL on error, or a pointer to an ECHOConfigs structure 
  */
-static ECHOConfigs *ECHOConfigs_from_binary(SSL *con, unsigned char *binbuf, size_t binblen, int *leftover)
+static ECHOConfigs *ECHOConfigs_from_binary(unsigned char *binbuf, size_t binblen, int *leftover)
 {
     ECHOConfigs *er=NULL; ///< ECHOConfigs record
     ECHOConfig  *te=NULL; ///< Array of ECHOConfig to be embedded in that
@@ -453,32 +452,29 @@ err:
     return NULL;
 }
 
-/**
+/*
  * @brief Decode and check the value retieved from DNS (binary, base64 or ascii-hex encoded)
- *
- * The esnnikeys value here may be the catenation of multiple encoded ECHOKeys RR values 
- * (or TXT values for draft-02), we'll internally try decode and handle those and (later)
- * use whichever is relevant/best. The fmt parameter can be e.g. ECHO_RRFMT_ASCII_HEX
- *
- * @param con is the SSL connection 
+ * 
+ * This does the real work, can be called to add to a context or a connection
  * @param eklen is the length of the binary, base64 or ascii-hex encoded value from DNS
  * @param ekval is the binary, base64 or ascii-hex encoded value from DNS
  * @param num_echos says how many SSL_ECHO structures are in the returned array
+ * @param echos is a pointer to an array of decoded SSL_ECHO
  * @return is 1 for success, error otherwise
  */
-int SSL_echo_add(
-        SSL *con, 
+static int local_echo_add(
         int ekfmt, 
         size_t eklen, 
         char *ekval, 
-        int *num_echos)
+        int *num_echos,
+        SSL_ECHO **echos)
 {
     /*
      * Sanity checks on inputs
      */
     int detfmt=ECHO_RRFMT_GUESS;
     int rv=0;
-    if (eklen==0 || !ekval || !num_echos || !con) {
+    if (eklen==0 || !ekval || !num_echos) {
         SSLerr(SSL_F_SSL_ECHO_ADD, SSL_R_BAD_VALUE);
         return(0);
     }
@@ -502,13 +498,11 @@ int SSL_echo_add(
         default:
             return(0);
     }
-
     /*
      * Do the various decodes
      */
     unsigned char *outbuf = NULL;   /* a binary representation of a sequence of ECHOConfigs */
     size_t declen=0;                /* length of the above */
-
     char *ekcpy=ekval;
     if (detfmt==ECHO_RRFMT_HTTPSSVC) {
         ekcpy=strstr(ekval,httpssvc_telltale);
@@ -517,7 +511,6 @@ int SSL_echo_add(
             return(rv);
         }
     }
-
     if (detfmt==ECHO_RRFMT_B64TXT) {
         /* need an int to get -1 return for failure case */
         int tdeclen = echo_base64_decode(ekcpy, &outbuf);
@@ -527,7 +520,6 @@ int SSL_echo_add(
         }
         declen=tdeclen;
     }
-
     if (detfmt==ECHO_RRFMT_ASCIIHEX) {
         /* Yay AH */
         int adr=hpke_ah_decode(eklen,ekcpy,&declen,&outbuf);
@@ -544,7 +536,6 @@ int SSL_echo_add(
         }
         memcpy(outbuf,ekcpy,declen);
     }
-
     /*
      * Now try decode each binary encoding if we can
      */
@@ -565,7 +556,7 @@ int SSL_echo_add(
         memset(newecho,0,sizeof(SSL_ECHO));
     
         int leftover=oleftover;
-        ECHOConfigs *er=ECHOConfigs_from_binary(con,outp,oleftover,&leftover);
+        ECHOConfigs *er=ECHOConfigs_from_binary(outp,oleftover,&leftover);
         if (er==NULL) {
             goto err;
         }
@@ -576,10 +567,9 @@ int SSL_echo_add(
         oleftover=leftover;
         outp+=er->encoded_len;
     }
-    con->nechos=nlens;
-    con->echo=retechos;
-    
+
     *num_echos=nlens;
+    *echos=retechos;
 
     return(1);
 
@@ -587,8 +577,47 @@ err:
     if (outbuf!=NULL) {
         OPENSSL_free(outbuf);
     }
-    SSLerr(SSL_F_SSL_ECHO_ADD, SSL_R_BAD_VALUE);
     return(0);
+}
+
+/**
+ * @brief Decode and check the value retieved from DNS (binary, base64 or ascii-hex encoded)
+ *
+ * The esnnikeys value here may be the catenation of multiple encoded ECHOKeys RR values 
+ * (or TXT values for draft-02), we'll internally try decode and handle those and (later)
+ * use whichever is relevant/best. The fmt parameter can be e.g. ECHO_RRFMT_ASCII_HEX
+ *
+ * @param con is the SSL connection 
+ * @param eklen is the length of the binary, base64 or ascii-hex encoded value from DNS
+ * @param ekval is the binary, base64 or ascii-hex encoded value from DNS
+ * @param num_echos says how many SSL_ECHO structures are in the returned array
+ * @return is 1 for success, error otherwise
+ */
+int SSL_echo_add(
+        SSL *con, 
+        int ekfmt, 
+        size_t eklen, 
+        char *ekval, 
+        int *num_echos)
+{
+
+    /*
+     * Sanity checks on inputs
+     */
+    if (!con) {
+        SSLerr(SSL_F_SSL_ECHO_ADD, SSL_R_BAD_VALUE);
+        return(0);
+    }
+    SSL_ECHO *echos=NULL;
+    int rv=local_echo_add(ekfmt,eklen,ekval,num_echos,&echos);
+    if (rv!=1) {
+        SSLerr(SSL_F_SSL_ECHO_ADD, SSL_R_BAD_VALUE);
+        return(0);
+    }
+    con->echo=echos;
+    con->nechos=*num_echos;
+    return(1);
+
 }
 
 /**
@@ -600,13 +629,28 @@ err:
  *
  * @param ctx is the parent SSL_CTX
  * @param eklen is the length of the binary, base64 or ascii-hex encoded value from DNS
- * @param echokeys is the binary, base64 or ascii-hex encoded value from DNS
+ * @param ekval is the binary, base64 or ascii-hex encoded value from DNS
  * @param num_echos says how many SSL_ECHO structures are in the returned array
  * @return is 1 for success, error otherwise
  */
-int SSL_CTX_echo_add(SSL_CTX *ctx, const short ekfmt, const size_t eklen, const char *echokeys, int *num_echos)
+int SSL_CTX_echo_add(SSL_CTX *ctx, short ekfmt, size_t eklen, char *ekval, int *num_echos)
 {
-    return 1;
+    /*
+     * Sanity checks on inputs
+     */
+    if (!ctx) {
+        SSLerr(SSL_F_SSL_CTX_ECHO_ADD, SSL_R_BAD_VALUE);
+        return(0);
+    }
+    SSL_ECHO *echos=NULL;
+    int rv=local_echo_add(ekfmt,eklen,ekval,num_echos,&echos);
+    if (rv!=1) {
+        SSLerr(SSL_F_SSL_CTX_ECHO_ADD, SSL_R_BAD_VALUE);
+        return(0);
+    }
+    ctx->ext.echo=echos;
+    ctx->ext.nechos=*num_echos;
+    return(1);
 }
 
 /**
