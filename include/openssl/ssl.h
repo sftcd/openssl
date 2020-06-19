@@ -324,11 +324,11 @@ typedef int (*SSL_async_callback_fn)(SSL *s, void *arg);
 /* set this to tell client to emit greased ESNI values */
 #define SSL_OP_ESNI_GREASE                               0x00000002U
 #endif
-#ifndef OPENSSL_NO_ECHO
-/* we'll take two values for ECHO greasing */
+#ifndef OPENSSL_NO_ECH
+/* we'll take two values for ECH greasing */
 /* we're using the same values as for ESNI, that should be fine */
 /* set this to tell client to emit greased ESNI values */
-#define SSL_OP_ECHO_GREASE                               0x00000002U
+#define SSL_OP_ECH_GREASE                               0x00000002U
 #endif
 
 /* Allow initial connection to servers that don't support RI */
@@ -340,10 +340,10 @@ typedef int (*SSL_async_callback_fn)(SSL *s, void *arg);
 /* set this to tell server to fail if ESNI fails (default off due to GREASE) */
 #define SSL_OP_ESNI_HARDFAIL                             0x00000008U
 #endif
-#ifndef OPENSSL_NO_ECHO
-/* we'll take two values for ECHO greasing */
-/* set this to tell server to fail if ECHO fails (default off due to GREASE) */
-#define SSL_OP_ECHO_HARDFAIL                             0x00000008U
+#ifndef OPENSSL_NO_ECH
+/* we'll take two values for ECH greasing */
+/* set this to tell server to fail if ECH fails (default off due to GREASE) */
+#define SSL_OP_ECH_HARDFAIL                             0x00000008U
 #endif
 
 # define SSL_OP_TLSEXT_PADDING                           0x00000010U
@@ -353,6 +353,12 @@ typedef int (*SSL_async_callback_fn)(SSL *s, void *arg);
 /* of ESNIs even if there is no matching record_digest. That's very  */
 /* inefficient, but more privacy friendly */
 #define SSL_OP_ESNI_TRIALDECRYPT                         0x00000020U
+#endif
+#ifndef OPENSSL_NO_ECH
+/* If this is set then the server side will attempt trial decryption */
+/* of ESNIs even if there is no matching record_digest. That's very  */
+/* inefficient, but more privacy friendly */
+#define SSL_OP_ECH_TRIALDECRYPT                         0x00000020U
 #endif
 # define SSL_OP_SAFARI_ECDHE_ECDSA_BUG                   0x00000040U
 /*

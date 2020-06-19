@@ -491,6 +491,11 @@ static const ssl_trace_tbl ssl_exts_tbl[] = {
 #ifndef OPENSSL_NO_ESNI
     {TLSEXT_TYPE_esni,"encrypted_server_name"},
 #endif
+#ifndef OPENSSL_NO_ECH
+    {TLSEXT_TYPE_ech,"encrypted_client_hello"},
+    {TLSEXT_TYPE_ech_nonce,"ech_nonce"},
+    {TLSEXT_TYPE_outer_ch,"outer_extension"},
+#endif
 };
 
 static const ssl_trace_tbl ssl_groups_tbl[] = {
@@ -874,6 +879,24 @@ static int ssl_print_extension(BIO *bio, int indent, int server,
         BIO_indent(bio, indent + 2, 80);
         BIO_printf(bio,"Got an esni of length (%ld)\n",extlen);
         ssl_print_hex(bio, indent + 4, "ESNI", ext, extlen);
+        break;
+#endif
+
+#ifndef OPENSSL_NO_ECH
+    case TLSEXT_TYPE_ech:
+        BIO_indent(bio, indent + 2, 80);
+        BIO_printf(bio,"Got an ECH of length (%ld)\n",extlen);
+        ssl_print_hex(bio, indent + 4, "ECH", ext, extlen);
+        break;
+    case TLSEXT_TYPE_ech_nonce:
+        BIO_indent(bio, indent + 2, 80);
+        BIO_printf(bio,"Got an ECH nonce of length (%ld)\n",extlen);
+        ssl_print_hex(bio, indent + 4, "ECH_NONCE", ext, extlen);
+        break;
+    case TLSEXT_TYPE_outer_ch:
+        BIO_indent(bio, indent + 2, 80);
+        BIO_printf(bio,"Got an Outer extension of length (%ld)\n",extlen);
+        ssl_print_hex(bio, indent + 4, "OUTER_CH", ext, extlen);
         break;
 #endif
 

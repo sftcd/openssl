@@ -38,8 +38,8 @@
 #ifndef OPENSSL_NO_ESNI
 #include <openssl/esni.h>
 #endif
-#ifndef OPENSSL_NO_ECHO
-#include "echo_local.h"
+#ifndef OPENSSL_NO_ECH
+#include "ech_local.h"
 #endif
 
 # ifdef OPENSSL_BUILD_SHLIBSSL
@@ -628,13 +628,13 @@ struct ssl_session_st {
         unsigned char *kse;
 #endif
 
-#ifndef OPENSSL_NO_ECHO
+#ifndef OPENSSL_NO_ECH
         /*
-         * TODO: Add more ECHO stuff here, as needed
+         * TODO: Add more ECH stuff here, as needed
          */
-        char *echo_public_name;
-        char *echo_inner_name;
-        char *echo_outer_name;
+        char *ech_public_name;
+        char *ech_inner_name;
+        char *ech_outer_name;
 #endif
 
 # ifndef OPENSSL_NO_EC
@@ -1127,13 +1127,13 @@ struct ssl_ctx_st {
         SSL_esni_cb_func esni_cb;
 #endif
 
-#ifndef OPENSSL_NO_ECHO
+#ifndef OPENSSL_NO_ECH
         /*
          * Encrypted ClientHello details
          */
-        int nechos;
-        SSL_ECHO *echo;
-        // SSL_echo_cb_func esni_cb; - will need this later
+        int nechs;
+        SSL_ECH *ech;
+        // SSL_ech_cb_func esni_cb; - will need this later
 #endif
 
         unsigned char cookie_hmac_key[SHA256_DIGEST_LENGTH];
@@ -1675,7 +1675,7 @@ struct ssl_st {
         /* Is the session suitable for early data? */
         int early_data_ok;
 
-        /* May be sent by a server in HRR. Must be echoed back in ClientHello */
+        /* May be sent by a server in HRR. Must be eched back in ClientHello */
         unsigned char *tls13_cookie;
         size_t tls13_cookie_len;
         /* Have we received a cookie from the client? */
@@ -1720,10 +1720,10 @@ struct ssl_st {
 	SSL_ESNI *esni;
     SSL_esni_cb_func esni_cb;
 #endif
-#ifndef OPENSSL_NO_ECHO
-    int nechos;
-    SSL_ECHO *echo;
-    // SSL_echo_cb_func esni_cb; - will need this later
+#ifndef OPENSSL_NO_ECH
+    int nechs;
+    SSL_ECH *ech;
+    // SSL_ech_cb_func esni_cb; - will need this later
 #endif
 # ifndef OPENSSL_NO_CT
     /*

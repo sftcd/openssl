@@ -3306,6 +3306,11 @@ int ssl3_new(SSL *s)
 	s->esni_cb=NULL;
 #endif
 
+#ifndef OPENSSL_NO_ECH
+	s->ech=NULL;
+	s->nechs=0;
+#endif
+
     if (!s->method->ssl_clear(s))
         return 0;
 
@@ -3359,6 +3364,17 @@ void ssl3_free(SSL *s)
 		s->ext.hostname=NULL;
 	}
 #endif
+
+#ifdef OPENSSL_NO_ECH
+	int i; /* loop counter - android build doesn't like C99;-( */
+	for (i=0;i!=s->nechs;i++) {
+		SSL_ECH_free(&s->esni[i]);
+	}
+	OPENSSL_free(s->ech);
+	s->ech=NULL;
+	s->nechs=0;
+#endif
+
     memset(&s->s3, 0, sizeof(s->s3));
 }
 

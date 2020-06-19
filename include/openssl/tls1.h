@@ -162,6 +162,12 @@ extern "C" {
 #define TLSEXT_TYPE_esni                       0xffce
 #endif
 
+#ifndef OPENSSL_NO_ECH
+#define TLSEXT_TYPE_ech                       0xff02
+#define TLSEXT_TYPE_ech_nonce                 0xff03
+#define TLSEXT_TYPE_outer_ch                  0xff04
+#endif
+
 /* NameType value from RFC3546 */
 # define TLSEXT_NAMETYPE_host_name 0
 /* status request value from RFC3546 */

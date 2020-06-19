@@ -10,19 +10,19 @@
 /**
  * @file 
  * This implements the externally-visible functions
- * for handling Encrypted ClientHello (ECHO)
+ * for handling Encrypted ClientHello (ECH)
  */
 
-#ifndef OPENSSL_NO_ECHO
+#ifndef OPENSSL_NO_ECH
 
 # include <openssl/ssl.h>
-# include <openssl/echo.h>
+# include <openssl/ech.h>
 # include "ssl_local.h"
-# include "echo_local.h"
+# include "ech_local.h"
 
 /*
  * Yes, global vars! 
- * For decoding input strings with public keys (aka ECHOConfig) we'll accept
+ * For decoding input strings with public keys (aka ECHConfig) we'll accept
  * semi-colon separated lists of strings via the API just in case that makes
  * sense.
  */
@@ -32,21 +32,21 @@ const char *AH_alphabet="0123456789ABCDEFabcdef;";
 /* we actually add a semi-colon here as we accept multiple semi-colon separated values */
 const char *B64_alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=;";
 /* telltale for HTTPSSVC - TODO: finalise when possible */
-const char *httpssvc_telltale="echoconfig=";
+const char *httpssvc_telltale="echconfig=";
 
 /*
  * Ancilliary functions
  */
 
 /**
- * Try figure out ECHOConfig encodng
+ * Try figure out ECHConfig encodng
  *
  * @param eklen is the length of rrval
  * @param rrval is encoded thing
  * @param guessedfmt is our returned guess at the format
  * @return 1 for success, 0 for error
  */
-static int echo_guess_fmt(size_t eklen, 
+static int ech_guess_fmt(size_t eklen, 
                     char *rrval,
                     int *guessedfmt)
 {
@@ -58,14 +58,14 @@ static int echo_guess_fmt(size_t eklen,
      * Try from most constrained to least in that order
      */
     if (strstr(rrval,httpssvc_telltale)) {
-        *guessedfmt=ECHO_RRFMT_HTTPSSVC;
+        *guessedfmt=ECH_RRFMT_HTTPSSVC;
     } else if (eklen<=strspn(rrval,AH_alphabet)) {
-        *guessedfmt=ECHO_RRFMT_ASCIIHEX;
+        *guessedfmt=ECH_RRFMT_ASCIIHEX;
     } else if (eklen<=strspn(rrval,B64_alphabet)) {
-        *guessedfmt=ECHO_RRFMT_B64TXT;
+        *guessedfmt=ECH_RRFMT_B64TXT;
     } else {
         // fallback - try binary
-        *guessedfmt=ECHO_RRFMT_BIN;
+        *guessedfmt=ECH_RRFMT_BIN;
     }
     return(1);
 } 
@@ -89,7 +89,7 @@ static int echo_guess_fmt(size_t eklen,
  * @param out is the binary equivalent
  * @return is the number of octets in |out| if successful, <=0 for failure
  */
-static int echo_base64_decode(char *in, unsigned char **out)
+static int ech_base64_decode(char *in, unsigned char **out)
 {
     const char* sepstr=";";
     size_t inlen = strlen(in);
@@ -152,10 +152,10 @@ err:
 
 
 /**
- * @brief Free an ECHOConfig structure's internals
+ * @brief Free an ECHConfig structure's internals
  * @param tbf is the thing to be free'd
  */
-void ECHOConfig_free(ECHOConfig *tbf)
+void ECHConfig_free(ECHConfig *tbf)
 {
     if (!tbf) return;
     if (tbf->public_name) OPENSSL_free(tbf->public_name);
@@ -168,43 +168,43 @@ void ECHOConfig_free(ECHOConfig *tbf)
         if (tbf->exts[i]) OPENSSL_free(tbf->exts[i]);
     }
     if (tbf->exts) OPENSSL_free(tbf->exts);
-    memset(tbf,0,sizeof(ECHOConfig));
+    memset(tbf,0,sizeof(ECHConfig));
     return;
 }
 
 /**
- * @brief Free an ECHOConfigs structure's internals
+ * @brief Free an ECHConfigs structure's internals
  * @param tbf is the thing to be free'd
  */
-void ECHOConfigs_free(ECHOConfigs *tbf)
+void ECHConfigs_free(ECHConfigs *tbf)
 {
     if (!tbf) return;
     if (tbf->encoded) OPENSSL_free(tbf->encoded);
     int i;
     for (i=0;i!=tbf->nrecs;i++) {
-        ECHOConfig_free(&tbf->recs[i]);
+        ECHConfig_free(&tbf->recs[i]);
     }
     if (tbf->recs) OPENSSL_free(tbf->recs);
-    memset(tbf,0,sizeof(ECHOConfigs));
+    memset(tbf,0,sizeof(ECHConfigs));
     return;
 }
 
 /**
- * @brief free an SSL_ECHO
+ * @brief free an SSL_ECH
  *
- * Free everything within an SSL_ECHO. Note that the
- * caller has to free the top level SSL_ECHO, IOW the
+ * Free everything within an SSL_ECH. Note that the
+ * caller has to free the top level SSL_ECH, IOW the
  * pattern here is: 
- *      SSL_ECHO_free(tbf);
+ *      SSL_ECH_free(tbf);
  *      OPENSSL_free(tbf);
  *
- * @param tbf is a ptr to an SSL_ECHO structure
+ * @param tbf is a ptr to an SSL_ECH structure
  */
-void SSL_ECHO_free(SSL_ECHO *tbf)
+void SSL_ECH_free(SSL_ECH *tbf)
 {
     if (!tbf) return;
     if (tbf->cfg) {
-        ECHOConfigs_free(tbf->cfg);
+        ECHConfigs_free(tbf->cfg);
         OPENSSL_free(tbf->cfg);
     }
     /*
@@ -214,21 +214,21 @@ void SSL_ECHO_free(SSL_ECHO *tbf)
 }
 
 /**
- * @brief Decode the first ECHOConfigs from a binary buffer (and say how may octets not consumed)
+ * @brief Decode the first ECHConfigs from a binary buffer (and say how may octets not consumed)
  *
  * @param binbuf is the buffer with the encoding
  * @param binblen is the length of binbunf
  * @param leftover is the number of unused octets from the input
- * @return NULL on error, or a pointer to an ECHOConfigs structure 
+ * @return NULL on error, or a pointer to an ECHConfigs structure 
  */
-static ECHOConfigs *ECHOConfigs_from_binary(unsigned char *binbuf, size_t binblen, int *leftover)
+static ECHConfigs *ECHConfigs_from_binary(unsigned char *binbuf, size_t binblen, int *leftover)
 {
-    ECHOConfigs *er=NULL; ///< ECHOConfigs record
-    ECHOConfig  *te=NULL; ///< Array of ECHOConfig to be embedded in that
+    ECHConfigs *er=NULL; ///< ECHConfigs record
+    ECHConfig  *te=NULL; ///< Array of ECHConfig to be embedded in that
     int rind=0; ///< record index
 
     /* sanity check: version + checksum + KeyShareEntry have to be there - min len >= 10 */
-    if (binblen < ECHO_MIN_ECHOCONFIG_LEN) {
+    if (binblen < ECH_MIN_ECHCONFIG_LEN) {
         goto err;
     }
     if (leftover==NULL) {
@@ -241,7 +241,7 @@ static ECHOConfigs *ECHOConfigs_from_binary(unsigned char *binbuf, size_t binble
     PACKET pkt={binbuf,binblen};
 
     /* 
-     * Overall length of this ECHOConfigs (olen) still could be
+     * Overall length of this ECHConfigs (olen) still could be
      * less than the input buffer length, (binblen) if the caller has been
      * given a catenated set of binary buffers, which could happen
      * and which we will support
@@ -250,7 +250,7 @@ static ECHOConfigs *ECHOConfigs_from_binary(unsigned char *binbuf, size_t binble
     if (!PACKET_get_net_2(&pkt,&olen)) {
         goto err;
     }
-    if (olen < ECHO_MIN_ECHOCONFIG_LEN) {
+    if (olen < ECH_MIN_ECHCONFIG_LEN) {
         goto err;
     }
 
@@ -258,12 +258,12 @@ static ECHOConfigs *ECHOConfigs_from_binary(unsigned char *binbuf, size_t binble
 
     while (PACKET_remaining(&pkt)>not_to_consume) {
 
-        te=OPENSSL_realloc(te,(rind+1)*sizeof(ECHOConfig));
+        te=OPENSSL_realloc(te,(rind+1)*sizeof(ECHConfig));
         if (!te) {
             goto err;
         }
-        ECHOConfig *ec=&te[rind];
-        memset(ec,0,sizeof(ECHOConfig));
+        ECHConfig *ec=&te[rind];
+        memset(ec,0,sizeof(ECHConfig));
 
         /*
          * Version
@@ -276,7 +276,7 @@ static ECHOConfigs *ECHOConfigs_from_binary(unsigned char *binbuf, size_t binble
          * check version and fail early if failing 
          */
         switch (ec->version) {
-            case ECHO_DRAFT_06_VERSION:
+            case ECH_DRAFT_06_VERSION:
                 break;
             default:
                 goto err;
@@ -375,7 +375,7 @@ static ECHOConfigs *ECHOConfigs_from_binary(unsigned char *binbuf, size_t binble
                 goto err;
             }
             unsigned int extlen=0;
-            if (extlen>=ECHO_MAX_RRVALUE_LEN) {
+            if (extlen>=ECH_MAX_RRVALUE_LEN) {
                 goto err;
             }
             if (!PACKET_get_net_2(&exts,&extlen)) {
@@ -428,11 +428,11 @@ static ECHOConfigs *ECHOConfigs_from_binary(unsigned char *binbuf, size_t binble
      * Success - make up return value
      */
     *leftover=lleftover;
-    er=(ECHOConfigs*)OPENSSL_malloc(sizeof(ECHOConfigs));
+    er=(ECHConfigs*)OPENSSL_malloc(sizeof(ECHConfigs));
     if (er==NULL) {
         goto err;
     }
-    memset(er,0,sizeof(ECHOConfigs));
+    memset(er,0,sizeof(ECHConfigs));
     er->nrecs=rind;
     er->recs=te;
     er->encoded_len=olen+2;
@@ -441,7 +441,7 @@ static ECHOConfigs *ECHOConfigs_from_binary(unsigned char *binbuf, size_t binble
 
 err:
     if (er) {
-        ECHOConfigs_free(er);
+        ECHConfigs_free(er);
         OPENSSL_free(er);
         er=NULL;
     }
@@ -458,41 +458,41 @@ err:
  * This does the real work, can be called to add to a context or a connection
  * @param eklen is the length of the binary, base64 or ascii-hex encoded value from DNS
  * @param ekval is the binary, base64 or ascii-hex encoded value from DNS
- * @param num_echos says how many SSL_ECHO structures are in the returned array
- * @param echos is a pointer to an array of decoded SSL_ECHO
+ * @param num_echs says how many SSL_ECH structures are in the returned array
+ * @param echs is a pointer to an array of decoded SSL_ECH
  * @return is 1 for success, error otherwise
  */
-static int local_echo_add(
+static int local_ech_add(
         int ekfmt, 
         size_t eklen, 
         char *ekval, 
-        int *num_echos,
-        SSL_ECHO **echos)
+        int *num_echs,
+        SSL_ECH **echs)
 {
     /*
      * Sanity checks on inputs
      */
-    int detfmt=ECHO_RRFMT_GUESS;
+    int detfmt=ECH_RRFMT_GUESS;
     int rv=0;
-    if (eklen==0 || !ekval || !num_echos) {
-        SSLerr(SSL_F_SSL_ECHO_ADD, SSL_R_BAD_VALUE);
+    if (eklen==0 || !ekval || !num_echs) {
+        SSLerr(SSL_F_SSL_ECH_ADD, SSL_R_BAD_VALUE);
         return(0);
     }
-    if (eklen>=ECHO_MAX_RRVALUE_LEN) {
-        SSLerr(SSL_F_SSL_ECHO_ADD, SSL_R_BAD_VALUE);
+    if (eklen>=ECH_MAX_RRVALUE_LEN) {
+        SSLerr(SSL_F_SSL_ECH_ADD, SSL_R_BAD_VALUE);
         return(0);
     }
     switch (ekfmt) {
-        case ECHO_RRFMT_GUESS:
-            rv=echo_guess_fmt(eklen,ekval,&detfmt);
+        case ECH_RRFMT_GUESS:
+            rv=ech_guess_fmt(eklen,ekval,&detfmt);
             if (rv==0)  {
-                SSLerr(SSL_F_SSL_ECHO_ADD, SSL_R_BAD_VALUE);
+                SSLerr(SSL_F_SSL_ECH_ADD, SSL_R_BAD_VALUE);
                 return(rv);
             }
             break;
-        case ECHO_RRFMT_HTTPSSVC:
-        case ECHO_RRFMT_ASCIIHEX:
-        case ECHO_RRFMT_B64TXT:
+        case ECH_RRFMT_HTTPSSVC:
+        case ECH_RRFMT_ASCIIHEX:
+        case ECH_RRFMT_B64TXT:
             detfmt=ekfmt;
             break;
         default:
@@ -501,33 +501,33 @@ static int local_echo_add(
     /*
      * Do the various decodes
      */
-    unsigned char *outbuf = NULL;   /* a binary representation of a sequence of ECHOConfigs */
+    unsigned char *outbuf = NULL;   /* a binary representation of a sequence of ECHConfigs */
     size_t declen=0;                /* length of the above */
     char *ekcpy=ekval;
-    if (detfmt==ECHO_RRFMT_HTTPSSVC) {
+    if (detfmt==ECH_RRFMT_HTTPSSVC) {
         ekcpy=strstr(ekval,httpssvc_telltale);
         if (ekcpy==NULL) {
-            SSLerr(SSL_F_SSL_ECHO_ADD, SSL_R_BAD_VALUE);
+            SSLerr(SSL_F_SSL_ECH_ADD, SSL_R_BAD_VALUE);
             return(rv);
         }
     }
-    if (detfmt==ECHO_RRFMT_B64TXT) {
+    if (detfmt==ECH_RRFMT_B64TXT) {
         /* need an int to get -1 return for failure case */
-        int tdeclen = echo_base64_decode(ekcpy, &outbuf);
+        int tdeclen = ech_base64_decode(ekcpy, &outbuf);
         if (tdeclen < 0) {
-            SSLerr(SSL_F_SSL_ECHO_ADD, SSL_R_BAD_VALUE);
+            SSLerr(SSL_F_SSL_ECH_ADD, SSL_R_BAD_VALUE);
             goto err;
         }
         declen=tdeclen;
     }
-    if (detfmt==ECHO_RRFMT_ASCIIHEX) {
+    if (detfmt==ECH_RRFMT_ASCIIHEX) {
         /* Yay AH */
         int adr=hpke_ah_decode(eklen,ekcpy,&declen,&outbuf);
         if (adr==0) {
             goto err;
         }
     }
-    if (detfmt==ECHO_RRFMT_BIN) {
+    if (detfmt==ECH_RRFMT_BIN) {
         /* just copy over the input to where we'd expect it */
         declen=eklen;
         outbuf=OPENSSL_malloc(declen);
@@ -543,24 +543,24 @@ static int local_echo_add(
     unsigned char *outp=outbuf;
     int oleftover=declen;
     int nlens=0;
-    SSL_ECHO *retechos=NULL;
-    SSL_ECHO *newecho=NULL;
+    SSL_ECH *retechs=NULL;
+    SSL_ECH *newech=NULL;
     while (!done) {
         nlens+=1;
-        SSL_ECHO *ts=OPENSSL_realloc(retechos,nlens*sizeof(SSL_ECHO));
+        SSL_ECH *ts=OPENSSL_realloc(retechs,nlens*sizeof(SSL_ECH));
         if (!ts) {
             goto err;
         }
-        retechos=ts;
-        newecho=&retechos[nlens-1];
-        memset(newecho,0,sizeof(SSL_ECHO));
+        retechs=ts;
+        newech=&retechs[nlens-1];
+        memset(newech,0,sizeof(SSL_ECH));
     
         int leftover=oleftover;
-        ECHOConfigs *er=ECHOConfigs_from_binary(outp,oleftover,&leftover);
+        ECHConfigs *er=ECHConfigs_from_binary(outp,oleftover,&leftover);
         if (er==NULL) {
             goto err;
         }
-        newecho->cfg=er;
+        newech->cfg=er;
         if (leftover<=0) {
            done=1;
         }
@@ -568,8 +568,8 @@ static int local_echo_add(
         outp+=er->encoded_len;
     }
 
-    *num_echos=nlens;
-    *echos=retechos;
+    *num_echs=nlens;
+    *echs=retechs;
 
     return(1);
 
@@ -583,39 +583,39 @@ err:
 /**
  * @brief Decode and check the value retieved from DNS (binary, base64 or ascii-hex encoded)
  *
- * The esnnikeys value here may be the catenation of multiple encoded ECHOKeys RR values 
+ * The esnnikeys value here may be the catenation of multiple encoded ECHKeys RR values 
  * (or TXT values for draft-02), we'll internally try decode and handle those and (later)
- * use whichever is relevant/best. The fmt parameter can be e.g. ECHO_RRFMT_ASCII_HEX
+ * use whichever is relevant/best. The fmt parameter can be e.g. ECH_RRFMT_ASCII_HEX
  *
  * @param con is the SSL connection 
  * @param eklen is the length of the binary, base64 or ascii-hex encoded value from DNS
  * @param ekval is the binary, base64 or ascii-hex encoded value from DNS
- * @param num_echos says how many SSL_ECHO structures are in the returned array
+ * @param num_echs says how many SSL_ECH structures are in the returned array
  * @return is 1 for success, error otherwise
  */
-int SSL_echo_add(
+int SSL_ech_add(
         SSL *con, 
         int ekfmt, 
         size_t eklen, 
         char *ekval, 
-        int *num_echos)
+        int *num_echs)
 {
 
     /*
      * Sanity checks on inputs
      */
     if (!con) {
-        SSLerr(SSL_F_SSL_ECHO_ADD, SSL_R_BAD_VALUE);
+        SSLerr(SSL_F_SSL_ECH_ADD, SSL_R_BAD_VALUE);
         return(0);
     }
-    SSL_ECHO *echos=NULL;
-    int rv=local_echo_add(ekfmt,eklen,ekval,num_echos,&echos);
+    SSL_ECH *echs=NULL;
+    int rv=local_ech_add(ekfmt,eklen,ekval,num_echs,&echs);
     if (rv!=1) {
-        SSLerr(SSL_F_SSL_ECHO_ADD, SSL_R_BAD_VALUE);
+        SSLerr(SSL_F_SSL_ECH_ADD, SSL_R_BAD_VALUE);
         return(0);
     }
-    con->echo=echos;
-    con->nechos=*num_echos;
+    con->ech=echs;
+    con->nechs=*num_echs;
     return(1);
 
 }
@@ -623,33 +623,33 @@ int SSL_echo_add(
 /**
  * @brief Decode and check the value retieved from DNS (binary, base64 or ascii-hex encoded)
  *
- * The esnnikeys value here may be the catenation of multiple encoded ECHOKeys RR values 
+ * The esnnikeys value here may be the catenation of multiple encoded ECHKeys RR values 
  * (or TXT values for draft-02), we'll internally try decode and handle those and (later)
- * use whichever is relevant/best. The fmt parameter can be e.g. ECHO_RRFMT_ASCII_HEX
+ * use whichever is relevant/best. The fmt parameter can be e.g. ECH_RRFMT_ASCII_HEX
  *
  * @param ctx is the parent SSL_CTX
  * @param eklen is the length of the binary, base64 or ascii-hex encoded value from DNS
  * @param ekval is the binary, base64 or ascii-hex encoded value from DNS
- * @param num_echos says how many SSL_ECHO structures are in the returned array
+ * @param num_echs says how many SSL_ECH structures are in the returned array
  * @return is 1 for success, error otherwise
  */
-int SSL_CTX_echo_add(SSL_CTX *ctx, short ekfmt, size_t eklen, char *ekval, int *num_echos)
+int SSL_CTX_ech_add(SSL_CTX *ctx, short ekfmt, size_t eklen, char *ekval, int *num_echs)
 {
     /*
      * Sanity checks on inputs
      */
     if (!ctx) {
-        SSLerr(SSL_F_SSL_CTX_ECHO_ADD, SSL_R_BAD_VALUE);
+        SSLerr(SSL_F_SSL_CTX_ECH_ADD, SSL_R_BAD_VALUE);
         return(0);
     }
-    SSL_ECHO *echos=NULL;
-    int rv=local_echo_add(ekfmt,eklen,ekval,num_echos,&echos);
+    SSL_ECH *echs=NULL;
+    int rv=local_ech_add(ekfmt,eklen,ekval,num_echs,&echs);
     if (rv!=1) {
-        SSLerr(SSL_F_SSL_CTX_ECHO_ADD, SSL_R_BAD_VALUE);
+        SSLerr(SSL_F_SSL_CTX_ECH_ADD, SSL_R_BAD_VALUE);
         return(0);
     }
-    ctx->ext.echo=echos;
-    ctx->ext.nechos=*num_echos;
+    ctx->ext.ech=echs;
+    ctx->ext.nechs=*num_echs;
     return(1);
 }
 
@@ -662,7 +662,7 @@ int SSL_CTX_echo_add(SSL_CTX *ctx, short ekfmt, size_t eklen, char *ekval, int *
  * @return 1 for success, error otherwise
  * 
  */
-int SSL_echo_server_name(SSL *s, const char *hidden_name, const char *public_name)
+int SSL_ech_server_name(SSL *s, const char *hidden_name, const char *public_name)
 {
     return 1;
 }
@@ -676,85 +676,85 @@ int SSL_echo_server_name(SSL *s, const char *hidden_name, const char *public_nam
  * @return 1 for success, error otherwise
  * 
  */
-int SSL_echo_alpns(SSL *s, const char *hidden_alpns, const char *public_alpns)
+int SSL_ech_alpns(SSL *s, const char *hidden_alpns, const char *public_alpns)
 {
     return 1;
 }
 
 /**
- * @brief query the content of an SSL_ECHO structure
+ * @brief query the content of an SSL_ECH structure
  *
  * This function allows the application to examine some internals
- * of an SSL_ECHO structure so that it can then down-select some
+ * of an SSL_ECH structure so that it can then down-select some
  * options. In particular, the caller can see the public_name and
- * IP address related information associated with each ECHOKeys
+ * IP address related information associated with each ECHKeys
  * RR value (after decoding and initial checking within the
  * library), and can then choose which of the RR value options
  * the application would prefer to use.
  *
  * @param in is the SSL session
- * @param out is the returned externally visible detailed form of the SSL_ECHO structure
- * @param nindices is an output saying how many indices are in the ECHO_DIFF structure 
+ * @param out is the returned externally visible detailed form of the SSL_ECH structure
+ * @param nindices is an output saying how many indices are in the ECH_DIFF structure 
  * @return 1 for success, error otherwise
  */
-int SSL_echo_query(SSL *in, ECHO_DIFF **out, int *nindices)
+int SSL_ech_query(SSL *in, ECH_DIFF **out, int *nindices)
 {
     return 1;
 }
 
 /** 
- * @brief free up memory for an ECHO_DIFF
+ * @brief free up memory for an ECH_DIFF
  *
  * @param in is the structure to free up
  * @param size says how many indices are in in
  */
-void SSL_ECHO_DIFF_free(ECHO_DIFF *in, int size)
+void SSL_ECH_DIFF_free(ECH_DIFF *in, int size)
 {
     return;
 }
 
 /**
- * @brief utility fnc for application that wants to print an ECHO_DIFF
+ * @brief utility fnc for application that wants to print an ECH_DIFF
  *
  * @param out is the BIO to use (e.g. stdout/whatever)
- * @param se is a pointer to an ECHO_DIFF struture
+ * @param se is a pointer to an ECH_DIFF struture
  * @param count is the number of elements in se
  * @return 1 for success, error othewise
  */
-int SSL_ECHO_DIFF_print(BIO* out, ECHO_DIFF *se, int count)
+int SSL_ECH_DIFF_print(BIO* out, ECH_DIFF *se, int count)
 {
     return 1;
 }
 
 /**
- * @brief down-select to use of one option with an SSL_ECHO
+ * @brief down-select to use of one option with an SSL_ECH
  *
  * This allows the caller to select one of the RR values 
- * within an SSL_ECHO for later use.
+ * within an SSL_ECH for later use.
  *
  * @param in is an SSL structure with possibly multiple RR values
- * @param index is the index value from an ECHO_DIFF produced from the 'in'
+ * @param index is the index value from an ECH_DIFF produced from the 'in'
  * @return 1 for success, error otherwise
  */
-int SSL_echo_reduce(SSL *in, int index)
+int SSL_ech_reduce(SSL *in, int index)
 {
     return 1;
 }
 
 /**
- * Report on the number of ECHO key RRs currently loaded
+ * Report on the number of ECH key RRs currently loaded
  *
  * @param s is the SSL server context
  * @param numkeys returns the number currently loaded
  * @return 1 for success, other otherwise
  */
-int SSL_CTX_echo_server_key_status(SSL_CTX *s, int *numkeys)
+int SSL_CTX_ech_server_key_status(SSL_CTX *s, int *numkeys)
 {
     return 1;
 }
 
 /**
- * Zap the set of stored ECHO Keys to allow a re-load without hogging memory
+ * Zap the set of stored ECH Keys to allow a re-load without hogging memory
  *
  * Supply a zero or negative age to delete all keys. Providing age=3600 will
  * keep keys loaded in the last hour.
@@ -763,44 +763,44 @@ int SSL_CTX_echo_server_key_status(SSL_CTX *s, int *numkeys)
  * @param age don't flush keys loaded in the last age seconds
  * @return 1 for success, other otherwise
  */
-int SSL_CTX_echo_server_flush_keys(SSL_CTX *s, int age)
+int SSL_CTX_ech_server_flush_keys(SSL_CTX *s, int age)
 {
     return 1;
 }
 
 /**
- * Turn on ECHO server-side
+ * Turn on ECH server-side
  *
- * When this works, the server will decrypt any ECHO seen in ClientHellos and
+ * When this works, the server will decrypt any ECH seen in ClientHellos and
  * subsequently treat those as if they had been send in cleartext SNI.
  *
  * @param s is the SSL server context
  * @param con is the SSL connection (can be NULL)
- * @param echokeyfile has the relevant (X25519) private key in PEM format, or both keys
- * @param echopubfile has the relevant (binary encoded, not base64) ECHOKeys structure, or is NULL
+ * @param echkeyfile has the relevant (X25519) private key in PEM format, or both keys
+ * @param echpubfile has the relevant (binary encoded, not base64) ECHKeys structure, or is NULL
  * @return 1 for success, other otherwise
  */
-int SSL_CTX_echo_server_enable(SSL_CTX *s, const char *echokeyfile, const char *echopubfile)
+int SSL_CTX_ech_server_enable(SSL_CTX *s, const char *echkeyfile, const char *echpubfile)
 {
     return 1;
 }
 
 /** 
- * Print the content of an SSL_ECHO
+ * Print the content of an SSL_ECH
  *
  * @param out is the BIO to use (e.g. stdout/whatever)
  * @param con is an SSL session strucutre
- * @param selector allows for picking all (ECHO_SELECT_ALL==-1) or just one of the RR values in orig
+ * @param selector allows for picking all (ECH_SELECT_ALL==-1) or just one of the RR values in orig
  * @return 1 for success, anything else for failure
  * 
  */
-int SSL_echo_print(BIO* out, SSL *con, int selector)
+int SSL_ech_print(BIO* out, SSL *con, int selector)
 {
     return 1;
 }
 
 /**
- * @brief API to allow calling code know ECHO outcome, post-handshake
+ * @brief API to allow calling code know ECH outcome, post-handshake
  *
  * This is intended to be called by applications after the TLS handshake
  * is complete. This works for both client and server. The caller does
@@ -809,7 +809,7 @@ int SSL_echo_print(BIO* out, SSL *con, int selector)
  * to allocate fresh ones.
  *
  * Note that the PR we sent to curl will include a check that this
- * function exists (something like "AC_CHECK_FUNCS( SSL_get_echo_status )"
+ * function exists (something like "AC_CHECK_FUNCS( SSL_get_ech_status )"
  * so don't change this name without co-ordinating with that.
  * The curl PR: https://github.com/curl/curl/pull/4011
  *
@@ -818,9 +818,117 @@ int SSL_echo_print(BIO* out, SSL *con, int selector)
  * @param clear_sni will be set to the address of the hidden service
  * @return 1 for success, other otherwise
  */
-int SSL_echo_get_status(SSL *s, char **hidden, char **clear_sni)
+int SSL_ech_get_status(SSL *s, char **hidden, char **clear_sni)
 {
     return 1;
+}
+
+/** 
+ * @brief Representation of what goes in DNS
+typedef struct ech_config_st {
+    unsigned int version; ///< 0xff03 for draft-06
+    unsigned int public_name_len; ///< public_name
+    unsigned char *public_name; ///< public_name
+    unsigned int kem_id; ///< HPKE KEM ID to use
+    unsigned int pub_len; ///< HPKE public
+    unsigned char *pub;
+	unsigned int nsuites;
+	unsigned int *ciphersuites;
+    unsigned int maximum_name_length;
+    unsigned int nexts;
+    unsigned int *exttypes;
+    unsigned int *extlens;
+    unsigned char **exts;
+} ECHConfig;
+
+typedef struct ech_configs_st {
+    unsigned int encoded_len; ///< length of overall encoded content
+    unsigned char *encoded; ///< overall encoded content
+    int nrecs; ///< Number of records 
+    ECHConfig *recs; ///< array of individual records
+} ECHConfigs;
+*/
+
+static int len_field_dup(void *old, void* new, unsigned int len)
+{
+    if (len==0) {
+        new=NULL; 
+        return 1; 
+    }
+    new=(void*)OPENSSL_malloc(len);
+    if (!new) return 0;
+    memcpy(new,old,len);
+    return 1;
+} 
+
+static int ECHConfig_dup(ECHConfig *old, ECHConfig *new)
+{
+    if (!new || !old) return 0;
+    *new=*old; // shallow copy
+    if (len_field_dup((void*)old->pub,(void*)new->pub,old->pub_len)!=1) return 0;
+    // TODO: more to come
+    return 1;
+}
+
+static int ECHConfigs_dup(ECHConfigs *old, ECHConfigs *new)
+{
+    int i=0;
+    if (old->encoded!=NULL) {
+        if (len_field_dup((void*)old->encoded,(void*)new->encoded,old->encoded_len)!=1) return 0;
+        new->encoded_len=old->encoded_len;
+    }
+    new->recs=OPENSSL_malloc(old->nrecs*sizeof(ECHConfig)); 
+    if (!new->recs) return(0);
+    new->nrecs=old->nrecs;
+    memset(new->recs,0,old->nrecs*sizeof(ECHConfig)); 
+    for (i=0;i!=old->nrecs;i++) {
+        if (ECHConfig_dup(&old->recs[i],&new->recs[i])!=1) return(0);
+    }
+    return(1);
+}
+
+/**
+ * @brief Duplicate the configuration related fields of an SSL_ECH
+ *
+ * This is needed to handle the SSL_CTX->SSL factory model in the
+ * server. Clients don't need this.  There aren't too many fields 
+ * populated when this is called - essentially just the ECHKeys and
+ * the server private value. For the moment, we actually only
+ * deep-copy those.
+ *
+ * @param orig is the input array of SSL_ECH to be partly deep-copied
+ * @param nech is the number of elements in the array
+ * @param selector allows for picking all (ECH_SELECT_ALL==-1) or just one of the RR values in orig
+ * @return a partial deep-copy array or NULL if errors occur
+ */
+SSL_ECH* SSL_ECH_dup(SSL_ECH* orig, size_t nech, int selector)
+{
+    SSL_ECH *new_se=NULL;
+    if ((selector != ECH_SELECT_ALL) && selector<0) return(0);
+    int min_ind=0;
+    int max_ind=nech;
+    int i=0;
+
+    if (selector!=ECH_SELECT_ALL) {
+        if (selector>=nech) goto err;
+        min_ind=selector;
+        max_ind=selector+1;
+    }
+    new_se=OPENSSL_malloc((max_ind-min_ind)*sizeof(SSL_ECH));
+    if (!new_se) goto err;
+    memset(new_se,0,(max_ind-min_ind)*sizeof(SSL_ECH));
+
+    for (i=min_ind;i!=max_ind;i++) {
+        new_se[i]=orig[i];
+        if (ECHConfigs_dup(orig[i].cfg,new_se[i].cfg)!=1) goto err;
+    }
+
+    return new_se;
+err:
+    if (new_se!=NULL) {
+        SSL_ECH_free(new_se);
+    }
+    return NULL;
 }
 
 #endif

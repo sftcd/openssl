@@ -17,10 +17,10 @@
 #include <openssl/bn.h>
 #include <openssl/evp.h>
 #include <openssl/pem.h>
-#include <openssl/echo.h>
+#include <openssl/ech.h>
 #include <crypto/hpke.h>
 
-#ifndef OPENSSL_NO_ECHO
+#ifndef OPENSSL_NO_ECH
 
 typedef enum OPTION_choice {
     /* 
@@ -29,18 +29,18 @@ typedef enum OPTION_choice {
     OPT_ERR = -1, OPT_EOF = 0, OPT_HELP,
     OPT_PUBOUT, OPT_PRIVOUT, OPT_PEMOUT, 
     /*
-     * ECHOCOnfig specifics
+     * ECHCOnfig specifics
      */
-    OPT_PUBLICNAME, OPT_ECHOVERSION
+    OPT_PUBLICNAME, OPT_ECHVERSION
 } OPTION_CHOICE;
 
-const OPTIONS echo_options[] = {
+const OPTIONS ech_options[] = {
     {"help", OPT_HELP, '-', "Display this summary"},
-    {"pemout", OPT_PEMOUT, '>', "PEM output file with private key and ECHOConfig - default echoconfig.pem"},
+    {"pemout", OPT_PEMOUT, '>', "PEM output file with private key and ECHConfig - default echconfig.pem"},
     {"pubout", OPT_PUBOUT, '>', "Public key output file - default unset"},
     {"privout", OPT_PRIVOUT, '>', "Private key output file - default unset"},
     {"public_name", OPT_PUBLICNAME, 's', "public_name value"},
-    {"echo_version", OPT_ECHOVERSION, 'n', "ECHOConfig version (default=0xff03)"},
+    {"ech_version", OPT_ECHVERSION, 'n', "ECHConfig version (default=0xff03)"},
     {NULL}
 };
 
@@ -60,22 +60,22 @@ static unsigned short verstr2us(char *arg)
 }
 
 /**
- * @brief Make an X25519 key pair and ECHOConfig structure 
+ * @brief Make an X25519 key pair and ECHConfig structure 
  * @param ekversion is the version to make
- * @param public_name is for inclusion within the ECHOConfig
+ * @param public_name is for inclusion within the ECHConfig
  *
  * @return 1 for success, error otherwise
  */
-static int mk_echoconfig(
+static int mk_echconfig(
         unsigned short ekversion,
         const char *public_name,
-        size_t *echoconfig_len, unsigned char *echoconfig,
+        size_t *echconfig_len, unsigned char *echconfig,
         size_t *privlen, unsigned char *priv)
 {
     size_t pnlen=0; ///< length of public_name
 
     switch(ekversion) {
-        case ECHO_DRAFT_06_VERSION: /* esni draft -04 onwards */
+        case ECH_DRAFT_06_VERSION: /* esni draft -04 onwards */
             pnlen=(public_name==NULL?0:strlen(public_name));
             break;
         default:
@@ -114,22 +114,22 @@ static int mk_echoconfig(
      *     CipherSuite cipher_suites<2..2^16-2>;
      *     uint16 maximum_name_length;
      *     Extension extensions<0..2^16-1>;
-     * } ECHOConfigContents;
+     * } ECHConfigContents;
      *
      * struct {
      *     uint16 version;
      *     uint16 length;
-     *     select (ECHOConfig.version) {
-     *       case 0xff03: ECHOConfigContents;
+     *     select (ECHConfig.version) {
+     *       case 0xff03: ECHConfigContents;
      *     }
-     * } ECHOConfig;
+     * } ECHConfig;
      *
-     * ECHOConfig ECHOConfigs<1..2^16-1>;
+     * ECHConfig ECHConfigs<1..2^16-1>;
      */
 
-    unsigned char bbuf[ECHO_MAX_ECHOCONFIGS_BUFLEN]; ///< binary buffer
+    unsigned char bbuf[ECH_MAX_ECHCONFIGS_BUFLEN]; ///< binary buffer
     unsigned char *bp=bbuf;
-    memset(bbuf,0,ECHO_MAX_ECHOCONFIGS_BUFLEN);
+    memset(bbuf,0,ECH_MAX_ECHCONFIGS_BUFLEN);
     *bp++=0x00; // leave space for overall length
     *bp++=0x00; // leave space for overall length
     *bp++=(ekversion>>8)%256; 
@@ -177,26 +177,26 @@ static int mk_echoconfig(
     bbuf[0]=(bblen-2)/256;
     bbuf[1]=(bblen-2)%256;
 
-    int b64len = EVP_EncodeBlock((unsigned char*)echoconfig, (unsigned char *)bbuf, bblen);
-    if (b64len >=(*echoconfig_len-1)) {
+    int b64len = EVP_EncodeBlock((unsigned char*)echconfig, (unsigned char *)bbuf, bblen);
+    if (b64len >=(*echconfig_len-1)) {
         return(__LINE__);
     }
-    echoconfig[b64len]='\0';
-    *echoconfig_len=b64len;
+    echconfig[b64len]='\0';
+    *echconfig_len=b64len;
 
     return(1);
 }
 
-int echo_main(int argc, char **argv)
+int ech_main(int argc, char **argv)
 {
     BIO *pemf=NULL;
     char *prog=NULL;
     OPTION_CHOICE o;
-    char *echoconfig_file = NULL, *keyfile = NULL, *pemfile=NULL;
+    char *echconfig_file = NULL, *keyfile = NULL, *pemfile=NULL;
     char *public_name=NULL;
-    unsigned short echo_version=ECHO_DRAFT_06_VERSION;
+    unsigned short ech_version=ECH_DRAFT_06_VERSION;
 
-    prog = opt_init(argc, argv, echo_options);
+    prog = opt_init(argc, argv, ech_options);
     while ((o = opt_next()) != OPT_EOF) {
         switch (o) {
         case OPT_EOF:
@@ -205,10 +205,10 @@ int echo_main(int argc, char **argv)
             BIO_printf(bio_err, "%s: Use -help for summary.\n", prog);
             goto end;
         case OPT_HELP:
-            opt_help(echo_options);
+            opt_help(ech_options);
             goto end;
         case OPT_PUBOUT:
-            echoconfig_file = opt_arg();
+            echconfig_file = opt_arg();
             break;
         case OPT_PRIVOUT:
             keyfile = opt_arg();
@@ -219,8 +219,8 @@ int echo_main(int argc, char **argv)
         case OPT_PUBLICNAME:
             public_name = opt_arg();
             break;
-        case OPT_ECHOVERSION:
-            echo_version = verstr2us(opt_arg());
+        case OPT_ECHVERSION:
+            ech_version = verstr2us(opt_arg());
             break;
         }
     }
@@ -232,17 +232,17 @@ int echo_main(int argc, char **argv)
     }
 
     /* 
-     * Check ECHO-specific inputs
+     * Check ECH-specific inputs
      */
-    switch (echo_version) {
+    switch (ech_version) {
         case 0xff02:
         case 0xff01:
-            BIO_printf(bio_err, "Unsupported version (0x%04x) - try using mk_esnikeys instead\n",echo_version);
+            BIO_printf(bio_err, "Unsupported version (0x%04x) - try using mk_esnikeys instead\n",ech_version);
             goto end;
-        case ECHO_DRAFT_06_VERSION:
+        case ECH_DRAFT_06_VERSION:
             break;
         default:
-            BIO_printf(bio_err, "Unsupported version (0x%04x) - exiting\n",echo_version);
+            BIO_printf(bio_err, "Unsupported version (0x%04x) - exiting\n",ech_version);
             goto end;
     }
 
@@ -250,58 +250,58 @@ int echo_main(int argc, char **argv)
      * Set default if needed
      */
     if (pemfile==NULL) {
-        pemfile="echoconfig.pem";
+        pemfile="echconfig.pem";
     }
 
     /*
-     * Generate a new ECHOConfig and spit that out
+     * Generate a new ECHConfig and spit that out
      */
 
-    size_t echoconfig_len=ECHO_MAX_ECHOCONFIGS_BUFLEN;
-    unsigned char echoconfig[ECHO_MAX_ECHOCONFIGS_BUFLEN];
+    size_t echconfig_len=ECH_MAX_ECHCONFIGS_BUFLEN;
+    unsigned char echconfig[ECH_MAX_ECHCONFIGS_BUFLEN];
     size_t privlen=HPKE_MAXSIZE; unsigned char priv[HPKE_MAXSIZE];
-    int rv=mk_echoconfig(echo_version, public_name, &echoconfig_len, echoconfig, &privlen, priv);
+    int rv=mk_echconfig(ech_version, public_name, &echconfig_len, echconfig, &privlen, priv);
     if (rv!=1) {
-        BIO_printf(bio_err,"mk_echoconfig error: %d\n",rv);
+        BIO_printf(bio_err,"mk_echconfig error: %d\n",rv);
         goto end;
     }
     
     /*
      * Write stuff to files, "proper" OpenSSL code needed
      */
-    if (echoconfig_file!=NULL) {
-        BIO *ecf=BIO_new_file(echoconfig_file,"w");
+    if (echconfig_file!=NULL) {
+        BIO *ecf=BIO_new_file(echconfig_file,"w");
         if (ecf==NULL) goto end;
-        BIO_write(ecf,echoconfig,echoconfig_len);
+        BIO_write(ecf,echconfig,echconfig_len);
         BIO_printf(ecf,"\n");
         BIO_free_all(ecf);
-        BIO_printf(bio_err,"Wrote ECHOConfig to %s\n",echoconfig_file);
+        BIO_printf(bio_err,"Wrote ECHConfig to %s\n",echconfig_file);
     }
     if (keyfile!=NULL) {
         BIO *kf=BIO_new_file(keyfile,"w");
         if (kf==NULL) goto end;
         BIO_write(kf,priv,privlen);
         BIO_free_all(kf);
-        BIO_printf(bio_err,"Wrote ECHO private key to %s\n",keyfile);
+        BIO_printf(bio_err,"Wrote ECH private key to %s\n",keyfile);
     }
     /*
      * If we didn't write out either of the above then
      * we'll create a PEM file
      */
-    if (keyfile==NULL && echoconfig_file==NULL) {
+    if (keyfile==NULL && echconfig_file==NULL) {
         if ((pemf = BIO_new_file(pemfile, "w")) == NULL) goto end;
         BIO_write(pemf,priv,privlen);
-        BIO_printf(pemf,"-----BEGIN ECHOCONFIG-----\n");
-        BIO_write(pemf,echoconfig,echoconfig_len);
+        BIO_printf(pemf,"-----BEGIN ECHCONFIG-----\n");
+        BIO_write(pemf,echconfig,echconfig_len);
         BIO_printf(pemf,"\n");
-        BIO_printf(pemf,"-----END ECHOCONFIG-----\n");
+        BIO_printf(pemf,"-----END ECHCONFIG-----\n");
         BIO_free_all(pemf);
-        BIO_printf(bio_err,"Wrote ECHO key pair to %s\n",pemfile);
+        BIO_printf(bio_err,"Wrote ECH key pair to %s\n",pemfile);
     } else {
         if (keyfile==NULL) 
             BIO_printf(bio_err,"Didn't write private key anywhere! That's a bit silly\n");
-        if (echoconfig_file==NULL) 
-            BIO_printf(bio_err,"Didn't write ECHOConfig anywhere! That's a bit silly\n");
+        if (echconfig_file==NULL) 
+            BIO_printf(bio_err,"Didn't write ECHConfig anywhere! That's a bit silly\n");
     }
     return(1);
 end:

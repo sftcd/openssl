@@ -870,13 +870,13 @@ SSL *SSL_new(SSL_CTX *ctx)
     } 
 #endif
 
-#ifndef OPENSSL_NO_ECHO
-    if (ctx->ext.echo!=NULL) {
-        s->nechos=ctx->ext.nechos;
-        s->echo=ctx->ext.echo; /// TODO: this should be a _dup!!!
+#ifndef OPENSSL_NO_ECH
+    if (ctx->ext.ech!=NULL) {
+        s->nechs=ctx->ext.nechs;
+        s->ech=SSL_ECH_dup(ctx->ext.ech,s->nechs,ECH_SELECT_ALL); 
     } else {
-        s->nechos=0;
-        s->echo=NULL;
+        s->nechs=0;
+        s->ech=NULL;
     }
 #endif
 
@@ -1289,14 +1289,14 @@ void SSL_free(SSL *s)
     OPENSSL_free(s->ext.public_name);
 #endif
 
-#ifndef OPENSSL_NO_ECHO
-    if (s->echo!=NULL) {
+#ifndef OPENSSL_NO_ECH
+    if (s->ech!=NULL) {
         int i=0;
-        for (i=0;i!=s->nechos;i++) {
-            SSL_ECHO_free(&s->echo[i]);
+        for (i=0;i!=s->nechs;i++) {
+            SSL_ECH_free(&s->ech[i]);
         }
-        OPENSSL_free(s->echo);
-        s->echo=NULL;
+        OPENSSL_free(s->ech);
+        s->ech=NULL;
 
     }
 #endif
@@ -3349,6 +3349,11 @@ SSL_CTX *SSL_CTX_new_with_libctx(OPENSSL_CTX *libctx, const char *propq,
 	ret->ext.esni=NULL;
 #endif
 
+#ifndef OPENSSL_NO_ECH
+	ret->ext.nechs=0;
+	ret->ext.ech=NULL;
+#endif
+
     return ret;
  err:
     SSLerr(0, ERR_R_MALLOC_FAILURE);
@@ -3448,6 +3453,15 @@ void SSL_CTX_free(SSL_CTX *a)
 		OPENSSL_free(a->ext.esni);
 		a->ext.esni=NULL;
 		a->ext.nesni=0;
+	}
+#endif
+
+#ifndef OPENSSL_NO_ECH
+	if (a->ext.ech!=NULL) {
+        SSL_ECH_free(a->ext.ech);
+		OPENSSL_free(a->ext.ech);
+		a->ext.ech=NULL;
+		a->ext.nechs=0;
 	}
 #endif
 
