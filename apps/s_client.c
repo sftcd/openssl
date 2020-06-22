@@ -2469,6 +2469,9 @@ int s_client_main(int argc, char **argv)
             BIO_printf(bio_err, "ech_outer_name is set to %s\n",ech_outer_name);
         }
         if (thisname!=NULL) {
+            /*
+             * check matching of name and session
+             */
             const char *hn=SSL_SESSION_get0_hostname(sess);
             if (hn!=NULL) {
                 BIO_printf(bio_err, "Stored session hostname is %s\n",hn);
@@ -2480,26 +2483,6 @@ int s_client_main(int argc, char **argv)
                 BIO_printf(bio_err, "Stored session ech_inner_name is %s\n",ehn);
             } else { 
                 BIO_printf(bio_err, "Stored session ech_inner_name missing\n");
-            }
-            X509 *peer=SSL_SESSION_get0_peer(sess);
-            if (peer==NULL) {
-                SSL_SESSION_free(sess);
-                BIO_printf(bio_err, "Stored session peer is NULL - exiting\n");
-                ERR_print_errors(bio_err);
-                goto end;
-            }
-            /*
-             * FIXME: This causes a ``make test`` test case to fail
-             * when thisname is "localhost" and I guess it's a self-signed cert
-             * ...or maybe for all self-signed certs, which wouldn't be acceptable
-             * this used to be: int rv=X509_check_host(peer,thisname,strlen(thisname),0,NULL);
-             */
-            int rv=X509_check_host(peer,thisname,strlen(thisname),0,NULL);
-            if (rv!=1) {
-                SSL_SESSION_free(sess);
-                BIO_printf(bio_err, "Stored session peer doesn't match %s - exiting\n",thisname);
-                ERR_print_errors(bio_err);
-                goto end;
             }
         }
         }
@@ -2571,6 +2554,15 @@ int s_client_main(int argc, char **argv)
         rv=SSL_ech_server_name(con, ech_inner_name, ech_outer_name);
         if (rv!=1) {
             BIO_printf(bio_err, "%s: enabling ECH failed.\n", prog);
+            ERR_print_errors(bio_err);
+            goto end;
+        }
+        /*
+         * Try set that name to be verified
+         */
+        if (!X509_VERIFY_PARAM_set1_host(vpm,ech_inner_name,strlen(ech_inner_name))
+            || !SSL_CTX_set1_param(ctx, vpm)) {
+            BIO_printf(bio_err, "Error setting verify params\n");
             ERR_print_errors(bio_err);
             goto end;
         }
