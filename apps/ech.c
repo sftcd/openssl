@@ -45,16 +45,16 @@ const OPTIONS ech_options[] = {
 };
 
 /**
- * @brief map version string like 0xff01 or 65291 to unsigned short
+ * @brief map version string like 0xff01 or 65291 to uint16_t
  * @param arg is the version string, from command line
- * @return is the unsigned short value (with zero for error cases)
+ * @return is the uint16_t value (with zero for error cases)
  */
-static unsigned short verstr2us(char *arg)
+static uint16_t verstr2us(char *arg)
 {
     long lv=strtol(arg,NULL,0);
-    unsigned short rv=0;
+    uint16_t rv=0;
     if (lv < 0xffff && lv > 0 ) {
-        rv=(unsigned short)lv;
+        rv=(uint16_t)lv;
     }
     return(rv);
 }
@@ -67,7 +67,7 @@ static unsigned short verstr2us(char *arg)
  * @return 1 for success, error otherwise
  */
 static int mk_echconfig(
-        unsigned short ekversion,
+        uint16_t ekversion,
         const char *public_name,
         size_t *echconfig_len, unsigned char *echconfig,
         size_t *privlen, unsigned char *priv)
@@ -75,7 +75,7 @@ static int mk_echconfig(
     size_t pnlen=0; ///< length of public_name
 
     switch(ekversion) {
-        case ECH_DRAFT_06_VERSION: /* esni draft -04 onwards */
+        case ECH_DRAFT_07_VERSION: 
             pnlen=(public_name==NULL?0:strlen(public_name));
             break;
         default:
@@ -83,7 +83,7 @@ static int mk_echconfig(
     }
 
     /*
-     * Placeholder - I'm gonna argue to exclude but it's in draft-06 for now
+     * We don't need no crazy extensions... yet;-(
      */
     size_t extlen=0;
     unsigned char *extvals=NULL;
@@ -100,31 +100,34 @@ static int mk_echconfig(
         privlen, priv); 
     if (rv!=1) { return(__LINE__); }
  
-
     /*
-     * This is what's in draft-06:
+     * This is what's in draft-07:
      *
-     * opaque HpkePublicKey<1..2^16-1>;
-     * uint16 HkpeKemId; // Defined in I-D.irtf-cfrg-hpke
      *
-     * struct {
-     *     opaque public_name<1..2^16-1>;
-     *     HpkePublicKey public_key;
-     *     HkpeKemId kem_id;
-     *     CipherSuite cipher_suites<2..2^16-2>;
-     *     uint16 maximum_name_length;
-     *     Extension extensions<0..2^16-1>;
-     * } ECHConfigContents;
-     *
-     * struct {
-     *     uint16 version;
-     *     uint16 length;
-     *     select (ECHConfig.version) {
-     *       case 0xff03: ECHConfigContents;
-     *     }
-     * } ECHConfig;
-     *
-     * ECHConfig ECHConfigs<1..2^16-1>;
+     *  opaque HpkePublicKey<1..2^16-1>;
+     *  uint16 HkpeKemId;  // Defined in I-D.irtf-cfrg-hpke
+     *  uint16 HkpeKdfId;  // Defined in I-D.irtf-cfrg-hpke
+     *  uint16 HkpeAeadId; // Defined in I-D.irtf-cfrg-hpke
+     *  struct {
+     *      HkpeKdfId kdf_id;
+     *      HkpeAeadId aead_id;
+     *  } HpkeCipherSuite;
+     *  struct {
+     *      opaque public_name<1..2^16-1>;
+     *      HpkePublicKey public_key;
+     *      HkpeKemId kem_id;
+     *      HpkeCipherSuite cipher_suites<4..2^16-2>;
+     *      uint16 maximum_name_length;
+     *      Extension extensions<0..2^16-1>;
+     *  } ECHConfigContents;
+     *  struct {
+     *      uint16 version;
+     *      uint16 length;
+     *      select (ECHConfig.version) {
+     *        case 0xff07: ECHConfigContents;
+     *      }
+     *  } ECHConfig;
+     *  ECHConfig ECHConfigs<1..2^16-1>;
      */
 
     unsigned char bbuf[ECH_MAX_ECHCONFIGS_BUFLEN]; ///< binary buffer
@@ -133,7 +136,9 @@ static int mk_echconfig(
     *bp++=0x00; // leave space for overall length
     *bp++=0x00; // leave space for overall length
     *bp++=(ekversion>>8)%256; 
-    *bp++=(ekversion%256); // version = 0xff01 or 0xff02
+    *bp++=(ekversion%256); 
+    *bp++=0x00; // leave space for almost-overall length
+    *bp++=0x00; // leave space for almost-overall length
     if (pnlen > 0 ) {
         *bp++=(pnlen>>8)%256;
         *bp++=pnlen%256;
@@ -150,14 +155,16 @@ static int mk_echconfig(
     /* HPKE KEM id */
     *bp++=(HPKE_KEM_ID_25519/16);
     *bp++=(HPKE_KEM_ID_25519%16);
-    /* cipher_suites */
+    /* cipher_suite */
     *bp++=0x00;
-    *bp++=0x02; // length=2
-    *bp++=0x13;
-    *bp++=0x01; // ciphersuite TLS_AES_128_GCM_SHA256
-    /* padded_length */
+    *bp++=0x04;
+    *bp++=(HPKE_KDF_ID_HKDF_SHA256/16);
+    *bp++=(HPKE_KDF_ID_HKDF_SHA256%16);
+    *bp++=(HPKE_AEAD_ID_AES_GCM_128/16);
+    *bp++=(HPKE_AEAD_ID_AES_GCM_128%16);
+    /* maximum_name_length */
     *bp++=0x00;
-    *bp++=0x00; // 2 bytes padded length - 260, same as CF for now
+    *bp++=0x00; 
     if (extlen==0) {
         *bp++=0x00;
         *bp++=0x00; // no extensions
@@ -176,6 +183,8 @@ static int mk_echconfig(
      */
     bbuf[0]=(bblen-2)/256;
     bbuf[1]=(bblen-2)%256;
+    bbuf[3]=(bblen-4)/256;
+    bbuf[4]=(bblen-4)%256;
 
     int b64len = EVP_EncodeBlock((unsigned char*)echconfig, (unsigned char *)bbuf, bblen);
     if (b64len >=(*echconfig_len-1)) {
@@ -194,7 +203,7 @@ int ech_main(int argc, char **argv)
     OPTION_CHOICE o;
     char *echconfig_file = NULL, *keyfile = NULL, *pemfile=NULL;
     char *public_name=NULL;
-    unsigned short ech_version=ECH_DRAFT_06_VERSION;
+    uint16_t ech_version=ECH_DRAFT_07_VERSION;
 
     prog = opt_init(argc, argv, ech_options);
     while ((o = opt_next()) != OPT_EOF) {
@@ -239,7 +248,7 @@ int ech_main(int argc, char **argv)
         case 0xff01:
             BIO_printf(bio_err, "Unsupported version (0x%04x) - try using mk_esnikeys instead\n",ech_version);
             goto end;
-        case ECH_DRAFT_06_VERSION:
+        case ECH_DRAFT_07_VERSION:
             break;
         default:
             BIO_printf(bio_err, "Unsupported version (0x%04x) - exiting\n",ech_version);

@@ -276,10 +276,20 @@ static ECHConfigs *ECHConfigs_from_binary(unsigned char *binbuf, size_t binblen,
          * check version and fail early if failing 
          */
         switch (ec->version) {
-            case ECH_DRAFT_06_VERSION:
+            case ECH_DRAFT_07_VERSION:
                 break;
             default:
                 goto err;
+        }
+
+        /*
+         * In theory I should handle >1 ECHConfigContents...
+         * ... but feck it, I won't:-)
+         * TODO: live with that or fix it, if needed
+         */
+        unsigned int another_length;
+        if (!PACKET_get_net_2(&pkt,&another_length)) {
+            goto err;
         }
 
         /* 

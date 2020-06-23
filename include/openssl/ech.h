@@ -39,7 +39,7 @@
 #define ECH_RRFMT_HTTPSSVC  4  ///< presentation form of HTTPSSVC
 
 #define ECH_GREASE_VERSION 0xffff ///< Fake ECHKeys version to indicate grease
-#define ECH_DRAFT_06_VERSION 0xff03 ///< ECHConfig version from draft-06 
+#define ECH_DRAFT_07_VERSION 0xff07 ///< ECHConfig version from draft-07 
 
 
 /**

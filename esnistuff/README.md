@@ -25,10 +25,11 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- Next is to check production of a valid ECHConfig
+
 - After a hiatus (20200619) due to other work, back at it now.
   First up is ECHO -> ECH renaming bikeshed compliance, which
-  is done, but not passing all tests (so don't use this for a
-  minute:-)
+  is done.
 
 - Starting to create test setups for ECHO. Again, doing that a bit in
   parallel to what I did with ESNI so the eventual contribution to
