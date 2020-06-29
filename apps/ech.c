@@ -183,8 +183,8 @@ static int mk_echconfig(
      */
     bbuf[0]=(bblen-2)/256;
     bbuf[1]=(bblen-2)%256;
-    bbuf[3]=(bblen-4)/256;
-    bbuf[4]=(bblen-4)%256;
+    bbuf[4]=(bblen-4)/256;
+    bbuf[5]=(bblen-4)%256;
 
     int b64len = EVP_EncodeBlock((unsigned char*)echconfig, (unsigned char *)bbuf, bblen);
     if (b64len >=(*echconfig_len-1)) {

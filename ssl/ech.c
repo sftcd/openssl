@@ -226,9 +226,13 @@ static ECHConfigs *ECHConfigs_from_binary(unsigned char *binbuf, size_t binblen,
     ECHConfigs *er=NULL; ///< ECHConfigs record
     ECHConfig  *te=NULL; ///< Array of ECHConfig to be embedded in that
     int rind=0; ///< record index
+    size_t remaining=0;
 
     /* sanity check: version + checksum + KeyShareEntry have to be there - min len >= 10 */
     if (binblen < ECH_MIN_ECHCONFIG_LEN) {
+        goto err;
+    }
+    if (binblen >= ECH_MAX_ECHCONFIG_LEN) {
         goto err;
     }
     if (leftover==NULL) {
@@ -250,13 +254,14 @@ static ECHConfigs *ECHConfigs_from_binary(unsigned char *binbuf, size_t binblen,
     if (!PACKET_get_net_2(&pkt,&olen)) {
         goto err;
     }
-    if (olen < ECH_MIN_ECHCONFIG_LEN) {
+    if (olen < ECH_MIN_ECHCONFIG_LEN || olen > (binblen-2)) {
         goto err;
     }
 
     int not_to_consume=binblen-olen;
 
-    while (PACKET_remaining(&pkt)>not_to_consume) {
+    remaining=PACKET_remaining(&pkt);
+    while (remaining>not_to_consume) {
 
         te=OPENSSL_realloc(te,(rind+1)*sizeof(ECHConfig));
         if (!te) {
@@ -273,23 +278,31 @@ static ECHConfigs *ECHConfigs_from_binary(unsigned char *binbuf, size_t binblen,
         }
 
         /*
-         * check version and fail early if failing 
+         * Grab length of contents, needed in case we
+         * want to skip over it, if it's a version we
+         * don't support.
          */
-        switch (ec->version) {
-            case ECH_DRAFT_07_VERSION:
-                break;
-            default:
-                goto err;
+        unsigned int ech_content_length;
+        if (!PACKET_get_net_2(&pkt,&ech_content_length)) {
+            goto err;
+        }
+        remaining=PACKET_remaining(&pkt);
+        if ((ech_content_length-2) > remaining) {
+            goto err;
         }
 
         /*
-         * In theory I should handle >1 ECHConfigContents...
-         * ... but feck it, I won't:-)
-         * TODO: live with that or fix it, if needed
+         * check version 
          */
-        unsigned int another_length;
-        if (!PACKET_get_net_2(&pkt,&another_length)) {
-            goto err;
+        if (ec->version!=ECH_DRAFT_07_VERSION) {
+            unsigned char *foo=OPENSSL_malloc(ech_content_length);
+            if (!foo) goto err;
+            if (!PACKET_copy_bytes(&pkt, foo, ech_content_length)) {
+                OPENSSL_free(foo);
+                goto err;
+            }
+            OPENSSL_free(foo);
+            continue;
         }
 
         /* 
@@ -427,6 +440,7 @@ static ECHConfigs *ECHConfigs_from_binary(unsigned char *binbuf, size_t binblen,
         }
 	
         rind++;
+        remaining=PACKET_remaining(&pkt);
     }
 
     int lleftover=PACKET_remaining(&pkt);

@@ -25,6 +25,7 @@
 #define ECH_RRTYPE 65439 ///< experimental (as per draft-03, and draft-04) ECH RRTYPE
 
 #define ECH_MIN_ECHCONFIG_LEN 32 ///< just for a sanity check
+#define ECH_MAX_ECHCONFIG_LEN 512 ///< just for a sanity check
 
 #define ECH_SELECT_ALL -1 ///< used to duplicate all RRs in SSL_ECH_dup
 
