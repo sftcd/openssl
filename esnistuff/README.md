@@ -25,7 +25,15 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
-- Next is to check production of a valid ECHConfig
+- Simplified testclient.sh a bit to become echcli.sh - does more or
+  less the same but losing some options that are no longer needed I
+  hope. (testclient.sh will stay there for use with earlier/ESNI
+  draft versions for now, just in case.)
+    - That's not working yet because I need to do the DNS RRTYPE
+      decoding stuff, but will fix soon.
+
+- Next is to check production of a valid ECHConfig, seems sorta ok for
+  now, I'm sure more'll turn up later.
 
 - After a hiatus (20200619) due to other work, back at it now.
   First up is ECHO -> ECH renaming bikeshed compliance, which
