@@ -15,7 +15,7 @@ stuff seems to work when talking to itself, an NSS client and
 the server sides: [lighttpd](./lighttpd.md), [nginx](./nginx.md)
 and [apache](./apache2.md)..
 
-There's some doxygen-generated documentation [here](api.html).
+There's some (well out of date) doxygen-generated documentation [here](api.html).
 
 **We haven't done much testing. Use at your own risk.**
 
@@ -24,6 +24,20 @@ There's some doxygen-generated documentation [here](api.html).
 There's a [TODO list](#todos) at the end.
 
 Most recent first...
+
+- More work on adding svcb - also noted that ietf.org no longer
+  appears to be a good ESNI target via CF for some reason but
+  others (e.g. rte.ie) are. I guess that must be down to a CF
+  backend change of some sort.
+
+- Added new APIs (``SSL_svcb_add`` and ``SSL_CTX_svcb_add``) 
+  for ingestion of SVCB/HTTPS RR values since we can't reliably
+  distinguish those from ECHConfigs with the various possible
+  encodings. That also means a new command line arg for the
+  command line tools in general. Bit boring but needs to be done
+  I guess. Also lead to some renaming as passing an ECHConfigs
+  in doesn't involve any DNS RR any more. Now have the code
+  for the 1st testable version of ``SSL_scvb_add()``.
 
 - Simplified testclient.sh a bit to become echcli.sh - does more or
   less the same but losing some options that are no longer needed I

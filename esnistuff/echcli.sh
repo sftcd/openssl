@@ -208,7 +208,7 @@ then
 	else
         # try draft-07 only for now, i.e. HTTPSSVC
         # kill the spaces and joing the lines if multi-valued seen 
-        ECH=`dig +short -t TYPE65482 $hidden | cut -f 3- -d' ' | sed -e 's/ //g' | sed -e 'N;s/\n//'`
+        ECH=`dig +short -t TYPE65 $hidden | cut -f 3- -d' ' | sed -e 's/ //g' | sed -e 'N;s/\n//'`
         if [[ "$ECH" == "" ]]
         then
             # TODO: do the parsing biz
@@ -225,7 +225,7 @@ then
     exit 100
 fi
 
-echstr="-ech $hidden -echrr $ECH "
+echstr="-ech $hidden -scvb $ECH "
 if [[ "$NOECH" == "yes" ]]
 then
     echo "Not trying ECH"

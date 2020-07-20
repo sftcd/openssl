@@ -26,20 +26,28 @@
 
 #define ECH_PBUF_SIZE 8*1024 ///<  8K buffer used for print string sent to application via ech_cb
 
+#define ECH_MAX_DNSNAME 255 ///< max size of a DNS name string (+1 for null and one for luck!)
+
 /*
  * Known text input formats for ECHKeys RR values
  * - can be TXT containing base64 encoded value (draft-02)
  * - can be TYPE65439 containing ascii-hex string(s)
  * - can be TYPE65439 formatted as output from dig +short (multi-line)
  */
-#define ECH_RRFMT_GUESS     0  ///< try guess which it is
-#define ECH_RRFMT_BIN       1  ///< binary blob with one or more catenated encoded ECHConfigs
-#define ECH_RRFMT_B64TXT    2  ///< base64 encoded ECHConfigs (semi-colon separated if >1)
-#define ECH_RRFMT_ASCIIHEX  3  ///< ascii-hex encoded ECHConfigs (semi-colon separated if >1)
-#define ECH_RRFMT_HTTPSSVC  4  ///< presentation form of HTTPSSVC
+#define ECH_FMT_GUESS     0  ///< try guess which it is
+#define ECH_FMT_BIN       1  ///< binary blob with one or more catenated encoded ECHConfigs
+#define ECH_FMT_B64TXT    2  ///< base64 encoded ECHConfigs (semi-colon separated if >1)
+#define ECH_FMT_ASCIIHEX  3  ///< ascii-hex encoded ECHConfigs (semi-colon separated if >1)
+#define ECH_FMT_HTTPSSVC  4  ///< presentation form of HTTPSSVC
 
 #define ECH_GREASE_VERSION 0xffff ///< Fake ECHKeys version to indicate grease
 #define ECH_DRAFT_07_VERSION 0xff07 ///< ECHConfig version from draft-07 
+
+/* 
+ * the wire-format code for ECH within an SCVB or HTTPS RData
+ */
+#define ECH_ECH_PCODE     0x0005
+#define ECH_ALPN_PCODE    0x0001
 
 
 /**
@@ -58,38 +66,70 @@ typedef struct ech_diff_st {
  * Externally visible Prototypes
  */
 
+
 /**
- * @brief Decode and check the value retieved from DNS (binary, base64 or ascii-hex encoded)
+ * @brief Decode/store SVCB/HTTPS RR value provided as (binary or ascii-hex encoded) 
  *
- * The esnnikeys value here may be the catenation of multiple encoded ECHKeys RR values 
- * (or TXT values for draft-02), we'll internally try decode and handle those and (later)
- * use whichever is relevant/best. The fmt parameter can be e.g. ECH_RRFMT_ASCII_HEX
+ * rrval may be the catenation of multiple encoded ECHConfigs.
+ * We internally try decode and handle those and (later)
+ * use whichever is relevant/best. The fmt parameter can be e.g. ECH_FMT_ASCII_HEX
+ *
+ * @param ctx is the parent SSL_CTX
+ * @param rrlen is the length of the rrval
+ * @param rrval is the binary, base64 or ascii-hex encoded RData
+ * @param num_echs says how many SSL_ECH structures are in the returned array
+ * @return is 1 for success, error otherwise
+ */
+int SSL_CTX_svcb_add(SSL_CTX *ctx, short rrfmt, size_t rrlen, char *rrval, int *num_echs);
+
+/**
+ * @brief Decode/store SVCB/HTTPS RR value provided as (binary or ascii-hex encoded) 
+ *
+ * rrval may be the catenation of multiple encoded ECHConfigs.
+ * We internally try decode and handle those and (later)
+ * use whichever is relevant/best. The fmt parameter can be e.g. ECH_FMT_ASCII_HEX
  *
  * @param con is the SSL connection 
- * @param eklen is the length of the binary, base64 or ascii-hex encoded value from DNS
- * @param echkeys is the binary, base64 or ascii-hex encoded value from DNS
+ * @param rrlen is the length of the rrval
+ * @param rrval is the binary, base64 or ascii-hex encoded RData
+ * @param num_echs says how many SSL_ECH structures are in the returned array
+ * @return is 1 for success, error otherwise
+ */
+int SSL_svcb_add(SSL *con, int rrfmt, size_t rrlen, char *rrval, int *num_echs);
+
+
+/**
+ * @brief Decode/store ECHConfigs provided as (binary, base64 or ascii-hex encoded) 
+ *
+ * ekval may be the catenation of multiple encoded ECHConfigs.
+ * We internally try decode and handle those and (later)
+ * use whichever is relevant/best. The fmt parameter can be e.g. ECH_FMT_ASCII_HEX
+ *
+ * @param con is the SSL connection 
+ * @param eklen is the length of the ekval
+ * @param ekval is the binary, base64 or ascii-hex encoded ECHConfigs
  * @param num_echs says how many SSL_ECH structures are in the returned array
  * @return is 1 for success, error otherwise
  */
 int SSL_ech_add(SSL *con, int ekfmt, size_t eklen, char *echkeys, int *num_echs);
 
 /**
- * @brief Decode and check the value retieved from DNS (binary, base64 or ascii-hex encoded)
+ * @brief Decode/store ECHConfigs provided as (binary, base64 or ascii-hex encoded) 
  *
- * The esnnikeys value here may be the catenation of multiple encoded ECHKeys RR values 
- * (or TXT values for draft-02), we'll internally try decode and handle those and (later)
- * use whichever is relevant/best. The fmt parameter can be e.g. ECH_RRFMT_ASCII_HEX
+ * ekval may be the catenation of multiple encoded ECHConfigs.
+ * We internally try decode and handle those and (later)
+ * use whichever is relevant/best. The fmt parameter can be e.g. ECH_FMT_ASCII_HEX
  *
  * @param ctx is the parent SSL_CTX
- * @param eklen is the length of the binary, base64 or ascii-hex encoded value from DNS
- * @param echkeys is the binary, base64 or ascii-hex encoded value from DNS
+ * @param eklen is the length of the ekval
+ * @param ekval is the binary, base64 or ascii-hex encoded ECHConfigs
  * @param num_echs says how many SSL_ECH structures are in the returned array
  * @return is 1 for success, error otherwise
  */
 int SSL_CTX_ech_add(SSL_CTX *ctx, short ekfmt, size_t eklen, char *echkeys, int *num_echs);
 
 /**
- * @brief Turn on SNI encryption for an (upcoming) TLS session
+ * @brief Turn on client hello encryption for an (upcoming) TLS session
  * 
  * @param s is the SSL context
  * @param hidden_name is the hidden service name
@@ -100,7 +140,7 @@ int SSL_CTX_ech_add(SSL_CTX *ctx, short ekfmt, size_t eklen, char *echkeys, int 
 int SSL_ech_server_name(SSL *s, const char *hidden_name, const char *public_name);
 
 /**
- * @brief Turn on ALPN encryption for an (upcoming) TLS session
+ * @brief Add an ALPN for inclusion in ECH for an (upcoming) TLS session
  * 
  * @param s is the SSL context
  * @param hidden_alpns is the hidden service alpns

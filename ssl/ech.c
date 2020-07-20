@@ -31,7 +31,7 @@
 const char *AH_alphabet="0123456789ABCDEFabcdef;";
 /* we actually add a semi-colon here as we accept multiple semi-colon separated values */
 const char *B64_alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=;";
-/* telltale for HTTPSSVC - TODO: finalise when possible */
+/* telltale for HTTPSSVC in presentation format */
 const char *httpssvc_telltale="echconfig=";
 
 /*
@@ -58,14 +58,14 @@ static int ech_guess_fmt(size_t eklen,
      * Try from most constrained to least in that order
      */
     if (strstr(rrval,httpssvc_telltale)) {
-        *guessedfmt=ECH_RRFMT_HTTPSSVC;
+        *guessedfmt=ECH_FMT_HTTPSSVC;
     } else if (eklen<=strspn(rrval,AH_alphabet)) {
-        *guessedfmt=ECH_RRFMT_ASCIIHEX;
+        *guessedfmt=ECH_FMT_ASCIIHEX;
     } else if (eklen<=strspn(rrval,B64_alphabet)) {
-        *guessedfmt=ECH_RRFMT_B64TXT;
+        *guessedfmt=ECH_FMT_B64TXT;
     } else {
         // fallback - try binary
-        *guessedfmt=ECH_RRFMT_BIN;
+        *guessedfmt=ECH_FMT_BIN;
     }
     return(1);
 } 
@@ -496,7 +496,7 @@ static int local_ech_add(
     /*
      * Sanity checks on inputs
      */
-    int detfmt=ECH_RRFMT_GUESS;
+    int detfmt=ECH_FMT_GUESS;
     int rv=0;
     if (eklen==0 || !ekval || !num_echs) {
         SSLerr(SSL_F_SSL_ECH_ADD, SSL_R_BAD_VALUE);
@@ -507,16 +507,16 @@ static int local_ech_add(
         return(0);
     }
     switch (ekfmt) {
-        case ECH_RRFMT_GUESS:
+        case ECH_FMT_GUESS:
             rv=ech_guess_fmt(eklen,ekval,&detfmt);
             if (rv==0)  {
                 SSLerr(SSL_F_SSL_ECH_ADD, SSL_R_BAD_VALUE);
                 return(rv);
             }
             break;
-        case ECH_RRFMT_HTTPSSVC:
-        case ECH_RRFMT_ASCIIHEX:
-        case ECH_RRFMT_B64TXT:
+        case ECH_FMT_HTTPSSVC:
+        case ECH_FMT_ASCIIHEX:
+        case ECH_FMT_B64TXT:
             detfmt=ekfmt;
             break;
         default:
@@ -528,14 +528,21 @@ static int local_ech_add(
     unsigned char *outbuf = NULL;   /* a binary representation of a sequence of ECHConfigs */
     size_t declen=0;                /* length of the above */
     char *ekcpy=ekval;
-    if (detfmt==ECH_RRFMT_HTTPSSVC) {
+    if (detfmt==ECH_FMT_HTTPSSVC) {
         ekcpy=strstr(ekval,httpssvc_telltale);
         if (ekcpy==NULL) {
             SSLerr(SSL_F_SSL_ECH_ADD, SSL_R_BAD_VALUE);
             return(rv);
         }
+        /* point ekcpy at b64 encoded value */
+        if (strlen(ekcpy)<=strlen(httpssvc_telltale)) {
+            SSLerr(SSL_F_SSL_ECH_ADD, SSL_R_BAD_VALUE);
+            return(rv);
+        }
+        ekcpy+=strlen(httpssvc_telltale);
+        detfmt=ECH_FMT_B64TXT; /* tee up next step */
     }
-    if (detfmt==ECH_RRFMT_B64TXT) {
+    if (detfmt==ECH_FMT_B64TXT) {
         /* need an int to get -1 return for failure case */
         int tdeclen = ech_base64_decode(ekcpy, &outbuf);
         if (tdeclen < 0) {
@@ -544,14 +551,13 @@ static int local_ech_add(
         }
         declen=tdeclen;
     }
-    if (detfmt==ECH_RRFMT_ASCIIHEX) {
-        /* Yay AH */
+    if (detfmt==ECH_FMT_ASCIIHEX) {
         int adr=hpke_ah_decode(eklen,ekcpy,&declen,&outbuf);
         if (adr==0) {
             goto err;
         }
     }
-    if (detfmt==ECH_RRFMT_BIN) {
+    if (detfmt==ECH_FMT_BIN) {
         /* just copy over the input to where we'd expect it */
         declen=eklen;
         outbuf=OPENSSL_malloc(declen);
@@ -605,15 +611,64 @@ err:
 }
 
 /**
- * @brief Decode and check the value retieved from DNS (binary, base64 or ascii-hex encoded)
+ * @brief decode the DNS name in a binary RData
  *
- * The esnnikeys value here may be the catenation of multiple encoded ECHKeys RR values 
- * (or TXT values for draft-02), we'll internally try decode and handle those and (later)
- * use whichever is relevant/best. The fmt parameter can be e.g. ECH_RRFMT_ASCII_HEX
+ * Encoding as defined in https://tools.ietf.org/html/rfc1035#section-3.1
+ *
+ * @param buf points to the buffer (in/out)
+ * @param remaining points to the remaining buffer length (in/out)
+ * @param dnsname returns the string form name on success
+ * @return is 1 for success, error otherwise
+ */
+static int local_decode_rdata_name(unsigned char **buf,size_t *remaining,char **dnsname)
+{
+    if (!buf) return(0);
+    if (!remaining) return(0);
+    if (!dnsname) return(0);
+    unsigned char *cp=*buf;
+    size_t rem=*remaining;
+    char *thename=NULL,*tp=NULL;
+    unsigned char clen=0; /* chunk len */
+
+    thename=OPENSSL_malloc(ECH_MAX_DNSNAME);
+    if (thename==NULL) {
+        return(0);
+    }
+    tp=thename;
+
+    clen=*cp++;
+    if (clen==0) {
+        /* 
+         * special case - return "." as name
+         */
+        thename[0]='.';
+        thename[1]=0x00;
+    }
+    while(clen!=0) {
+        if (clen>rem) return(1);
+        memcpy(tp,cp,clen);
+        tp+=clen;
+        *tp='.'; tp++;
+        cp+=clen; rem-=clen+1;
+        clen=*cp++;
+    }
+
+    *buf=cp;
+    *remaining=rem;
+    *dnsname=thename;
+    return(1);
+}
+
+/**
+ * @brief Decode/store ECHConfigs provided as (binary, base64 or ascii-hex encoded) 
+ *
+ * ekval may be the catenation of multiple encoded ECHConfigs.
+ * We internally try decode and handle those and (later)
+ * use whichever is relevant/best. The fmt parameter can be e.g. ECH_FMT_ASCII_HEX
  *
  * @param con is the SSL connection 
- * @param eklen is the length of the binary, base64 or ascii-hex encoded value from DNS
- * @param ekval is the binary, base64 or ascii-hex encoded value from DNS
+ * @param eklen is the length of the ekval
+ * @param ekval is the binary, base64 or ascii-hex encoded ECHConfigs
  * @param num_echs says how many SSL_ECH structures are in the returned array
  * @return is 1 for success, error otherwise
  */
@@ -645,15 +700,15 @@ int SSL_ech_add(
 }
 
 /**
- * @brief Decode and check the value retieved from DNS (binary, base64 or ascii-hex encoded)
+ * @brief Decode/store ECHConfigs provided as (binary, base64 or ascii-hex encoded) 
  *
- * The esnnikeys value here may be the catenation of multiple encoded ECHKeys RR values 
- * (or TXT values for draft-02), we'll internally try decode and handle those and (later)
- * use whichever is relevant/best. The fmt parameter can be e.g. ECH_RRFMT_ASCII_HEX
+ * ekval may be the catenation of multiple encoded ECHConfigs.
+ * We internally try decode and handle those and (later)
+ * use whichever is relevant/best. The fmt parameter can be e.g. ECH_FMT_ASCII_HEX
  *
  * @param ctx is the parent SSL_CTX
- * @param eklen is the length of the binary, base64 or ascii-hex encoded value from DNS
- * @param ekval is the binary, base64 or ascii-hex encoded value from DNS
+ * @param eklen is the length of the ekval
+ * @param ekval is the binary, base64 or ascii-hex encoded ECHConfigs
  * @param num_echs says how many SSL_ECH structures are in the returned array
  * @return is 1 for success, error otherwise
  */
@@ -953,6 +1008,136 @@ err:
         SSL_ECH_free(new_se);
     }
     return NULL;
+}
+
+/**
+ * @brief Decode/store SVCB/HTTPS RR value provided as (binary or ascii-hex encoded) 
+ *
+ * rrval may be the catenation of multiple encoded ECHConfigs.
+ * We internally try decode and handle those and (later)
+ * use whichever is relevant/best. The fmt parameter can be e.g. ECH_FMT_ASCII_HEX
+ *
+ * @param ctx is the parent SSL_CTX
+ * @param rrlen is the length of the rrval
+ * @param rrval is the binary, base64 or ascii-hex encoded RData
+ * @param num_echs says how many SSL_ECH structures are in the returned array
+ * @return is 1 for success, error otherwise
+ */
+int SSL_CTX_svcb_add(SSL_CTX *ctx, short rrfmt, size_t rrlen, char *rrval, int *num_echs)
+{
+    return 0;
+}
+
+/**
+ * @brief Decode/store SVCB/HTTPS RR value provided as (binary or ascii-hex encoded) 
+ *
+ * rrval may be the catenation of multiple encoded ECHConfigs.
+ * We internally try decode and handle those and (later)
+ * use whichever is relevant/best. The fmt parameter can be e.g. ECH_FMT_ASCII_HEX
+ *
+ * @param con is the SSL connection 
+ * @param rrlen is the length of the rrval
+ * @param rrval is the binary, base64 or ascii-hex encoded RData
+ * @param num_echs says how many SSL_ECH structures are in the returned array
+ * @return is 1 for success, error otherwise
+ */
+int SSL_svcb_add(SSL *con, int rrfmt, size_t rrlen, char *rrval, int *num_echs)
+{
+
+    /*
+     * Sanity checks on inputs
+     */
+    if (!con) {
+        SSLerr(SSL_F_SSL_SVCB_ADD, SSL_R_BAD_VALUE);
+        return(0);
+    }
+    SSL_ECH *echs=NULL;
+    /*
+     * Extract eklen,ekval from RR if possible
+     */
+    int detfmt=ECH_FMT_GUESS;
+    int rv=0;
+    size_t binlen=0; /* the RData */
+    unsigned char *binbuf=NULL;
+    size_t eklen=0; /* the ECHConfigs, within the above */
+    unsigned char *ekval=NULL;
+
+    if (rrfmt==ECH_FMT_ASCIIHEX) {
+        detfmt=rrfmt;
+    } else if (rrfmt==ECH_FMT_BIN) {
+        detfmt=rrfmt;
+    } else {
+        rv=ech_guess_fmt(rrlen,rrval,&detfmt);
+        if (rv==0)  {
+            SSLerr(SSL_F_SSL_SVCB_ADD, SSL_R_BAD_VALUE);
+            return(rv);
+        }
+    }
+    if (detfmt==ECH_FMT_ASCIIHEX) {
+        rv=hpke_ah_decode(rrlen,rrval,&binlen,&binbuf);
+        if (rv==0) {
+            SSLerr(SSL_F_SSL_SVCB_ADD, SSL_R_BAD_VALUE);
+            return(rv);
+        }
+    }
+
+    /*
+     * Now we have a binary encoded RData so we'll skip the
+     * name, and then walk through the SvcParamKey binary
+     * codes 'till we find what we want
+     */
+    unsigned char *cp=binbuf;
+    size_t remaining=binlen;
+    char *dnsname=NULL;
+    /* skip 2 octet priority */
+    if (remaining<=2) goto err;
+    cp+=2; remaining-=2;
+    rv=local_decode_rdata_name(&cp,&remaining,&dnsname);
+    if (rv!=1) {
+        SSLerr(SSL_F_SSL_SVCB_ADD, SSL_R_BAD_VALUE);
+        return(0);
+    }
+    short pcode=0;
+    short plen=0;
+    int done=0;
+    while (!done) {
+        if (remaining<4) goto err;
+        pcode=(*cp<<8)+(*(cp+1)); cp+=2;
+        plen=(*cp<<8)+(*(cp+1)); cp+=2;
+        if (pcode==ECH_ECH_PCODE) {
+            eklen=(size_t)plen;
+            ekval=cp;
+            done=1;
+        }
+        if (plen!=0 && plen <= remaining) {
+            cp+=plen;
+        }
+    } 
+    if (!done) goto err;
+
+    /*
+     * Deposit ECHConfigs that we found
+     */
+    rv=local_ech_add(ECH_FMT_BIN,eklen,(char*)ekval,num_echs,&echs);
+    if (rv!=1) {
+        SSLerr(SSL_F_SSL_SVCB_ADD, SSL_R_BAD_VALUE);
+        return(0);
+    }
+
+    if (detfmt==ECH_FMT_ASCIIHEX) {
+        OPENSSL_free(binbuf);
+    }
+
+    con->ech=echs;
+    con->nechs=*num_echs;
+    return(1);
+
+err:
+    if (detfmt==ECH_FMT_ASCIIHEX) {
+        OPENSSL_free(binbuf);
+    }
+    return(0);
+
 }
 
 #endif

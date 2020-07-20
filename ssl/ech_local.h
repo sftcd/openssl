@@ -273,7 +273,7 @@ SSL_ECH* SSL_ECH_dup(SSL_ECH* orig, size_t nech, int selector);
  *
  * The esnnikeys value here may be the catenation of multiple encoded ECHKeys RR values 
  * (or TXT values for draft-02), we'll internally try decode and handle those and (later)
- * use whichever is relevant/best. The fmt parameter can be e.g. ECH_RRFMT_ASCII_HEX
+ * use whichever is relevant/best. The fmt parameter can be e.g. ECH_FMT_ASCII_HEX
  *
  * @param ctx is the parent SSL_CTX
  * @param con is the SSL connection 

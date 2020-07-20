@@ -31,5 +31,5 @@ fi
 
 epub=`cat $EFILE | tail -2 | head -1`
 
-echo "Running: ../apps/openssl s_client -servername $PUBLIC_NAME -ech $HIDDEN_NAME -echrr $epub"
-$VALGRIND $TOP/apps/openssl s_client -servername $PUBLIC_NAME -ech $HIDDEN_NAME -echrr $epub
+echo "Running: ../apps/openssl s_client -servername $PUBLIC_NAME -ech $HIDDEN_NAME -echconfig $epub"
+$VALGRIND $TOP/apps/openssl s_client -servername $PUBLIC_NAME -ech $HIDDEN_NAME -echconfig $epub

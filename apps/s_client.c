@@ -97,7 +97,8 @@ const char *ech_public_name=NULL; ///< public-name from DNS ECHConfig
 const char *ech_outer_name=NULL; ///< server-name in outer-CH - command line can override public-name
 int ech_grease=0;
 int nechs=0;
-char *ech_rr = NULL;
+char *ech_encoded_configs = NULL;
+char *ech_svcb_rr = NULL;
 #ifndef OPENSSL_NO_SSL_TRACE
 static size_t ech_trace_cb(const char *buf, size_t cnt,
                  int category, int cmd, void *vdata);
@@ -647,7 +648,8 @@ typedef enum OPTION_choice {
 #endif
 #ifndef OPENSSL_NO_ECH
     OPT_ECH,
-    OPT_ECH_RR,
+    OPT_ECHCONFIGS,
+    OPT_SVCB,
     OPT_ECH_GREASE,
 #endif
     OPT_SCTP_LABEL_BUG,
@@ -790,8 +792,10 @@ const OPTIONS s_client_options[] = {
 #ifndef OPENSSL_NO_ECH
     {"ech", OPT_ECH, 's',
      "Set to use extension encrypted ClientHello, value is server-name for inner CH"},
-    {"echrr", OPT_ECH_RR, 's',
-     "Set ECHConfig , value is b64 or RR as per I-D"},
+    {"echconfigs", OPT_ECHCONFIGS, 's',
+     "Set ECHConfigs, value is b64, ASCII-HEX or binary encoded ECHConfigs"},
+    {"scvb", OPT_SVCB, 's',
+     "Set ECHConfigs and possibly ALPN vis an SVCB RData, b64, ASCII-HEX or binary encoded"},
     {"ech_grease",OPT_ECH_GREASE,'-',
      "Send GREASE values when not really using ECH"},
 #endif
@@ -1770,8 +1774,11 @@ int s_client_main(int argc, char **argv)
         case OPT_ECH:
             ech_inner_name = opt_arg();
             break;
-        case OPT_ECH_RR:
-            ech_rr = opt_arg();
+        case OPT_ECHCONFIGS:
+            ech_encoded_configs= opt_arg();
+            break;
+        case OPT_SVCB:
+            ech_svcb_rr = opt_arg();
             break;
         case OPT_ECH_GREASE:
             ech_grease=1;
@@ -1883,9 +1890,9 @@ int s_client_main(int argc, char **argv)
 
 #ifndef OPENSSL_NO_ECH
     if (ech_inner_name != NULL) {
-        if (ech_rr == NULL) {
+        if (ech_encoded_configs == NULL && ech_svcb_rr == NULL) {
             BIO_printf(bio_err,
-                       "%s: Can't use -ech without -echrr \n",
+                       "%s: Can't use -ech without -echconfigs or -svcb \n",
                        prog);
             goto opthelp;
         }
@@ -2540,9 +2547,8 @@ int s_client_main(int argc, char **argv)
 #endif
 
 #ifndef OPENSSL_NO_ECH
-    if (ech_inner_name != NULL ) {
-        int nechs=0;
-        int rv=SSL_ech_add(con,ESNI_RRFMT_GUESS,strlen(ech_rr),ech_rr,&nechs);
+    if (ech_encoded_configs!=NULL) {
+        int rv=SSL_ech_add(con,ESNI_RRFMT_GUESS,strlen(ech_encoded_configs),ech_encoded_configs,&nechs);
         if (rv != 1) {
             BIO_printf(bio_err, "%s: ECHConfig decode failed.\n", prog);
             goto opthelp;
@@ -2551,7 +2557,24 @@ int s_client_main(int argc, char **argv)
             BIO_printf(bio_err, "%s: ECHConfig decode provided no keys.\n", prog);
             goto opthelp;
         } 
-        rv=SSL_ech_server_name(con, ech_inner_name, ech_outer_name);
+    }
+
+    if (ech_svcb_rr!=NULL) {
+        int lnechs=0;
+        int rv=SSL_svcb_add(con,ESNI_RRFMT_GUESS,strlen(ech_svcb_rr),ech_svcb_rr,&lnechs);
+        if (rv != 1) {
+            BIO_printf(bio_err, "%s: SVCB decode failed.\n", prog);
+            goto opthelp;
+        } 
+        if (lnechs ==0 ) {
+            BIO_printf(bio_err, "%s: SVCB decode provided no keys.\n", prog);
+            goto opthelp;
+        } 
+        nechs+=lnechs;
+    }
+
+    if (ech_inner_name != NULL ) {
+        int rv=SSL_ech_server_name(con, ech_inner_name, ech_outer_name);
         if (rv!=1) {
             BIO_printf(bio_err, "%s: enabling ECH failed.\n", prog);
             ERR_print_errors(bio_err);

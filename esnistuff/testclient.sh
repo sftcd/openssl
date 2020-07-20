@@ -38,7 +38,7 @@ DVERSION="any"
 # if server isn't set, it defaults to clear_sni
 # if clear_sni isn't set it defaults to www.cloudflare.com
 # if clear_sni is "NONE" we send no (clear) SNI at all and 
-#      server falls back to wwww.cloudflare.com
+#      server falls back to www.cloudflare.com
 
 # DNS lookups
 # _esni.$hidden is checked first, if nothing there then
