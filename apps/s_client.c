@@ -794,7 +794,7 @@ const OPTIONS s_client_options[] = {
      "Set to use extension encrypted ClientHello, value is server-name for inner CH"},
     {"echconfigs", OPT_ECHCONFIGS, 's',
      "Set ECHConfigs, value is b64, ASCII-HEX or binary encoded ECHConfigs"},
-    {"scvb", OPT_SVCB, 's',
+    {"svcb", OPT_SVCB, 's',
      "Set ECHConfigs and possibly ALPN vis an SVCB RData, b64, ASCII-HEX or binary encoded"},
     {"ech_grease",OPT_ECH_GREASE,'-',
      "Send GREASE values when not really using ECH"},
@@ -2567,8 +2567,11 @@ int s_client_main(int argc, char **argv)
             goto opthelp;
         } 
         if (lnechs ==0 ) {
+            /*
+             * We'll note that we didn't get ECH keys but continue
+             */
             BIO_printf(bio_err, "%s: SVCB decode provided no keys.\n", prog);
-            goto opthelp;
+            //goto opthelp;
         } 
         nechs+=lnechs;
     }

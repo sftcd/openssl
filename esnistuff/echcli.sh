@@ -46,7 +46,7 @@ SUPPLIEDCADIR=""
 SUPPLIEDSESSION=""
 
 # default values
-HIDDEN="encryptedsni.com"
+HIDDEN="blog.cloudflare.com"
 PNO="www.cloudflare.com"
 CAPATH="/etc/ssl/certs/"
 CAFILE="./cadir/oe.csr"
@@ -71,7 +71,7 @@ function usage()
     echo "  -H means try connect to that hidden server"
     echo "  -n means don't trigger ech at all"
     echo "  -p [port] specifices a port (default: 443)"
-	echo "  -P [filename] means read ECHKeys public value from file and not DNS"
+	echo "  -P [filename] means read ECHConfigs public value from file and not DNS"
     echo "  -r (or --realcert) says to not use locally generated fake CA regardless"
 	echo "  -s [name] specifices a server to which I'll connect (localhost=>local certs, unless you also provide --realcert)"
 	echo "  -S [file] means save or resume session from <file>"
@@ -225,7 +225,7 @@ then
     exit 100
 fi
 
-echstr="-ech $hidden -scvb $ECH "
+echstr="-ech $hidden -svcb $ECH "
 if [[ "$NOECH" == "yes" ]]
 then
     echo "Not trying ECH"

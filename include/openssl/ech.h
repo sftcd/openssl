@@ -46,12 +46,13 @@
 /* 
  * the wire-format code for ECH within an SCVB or HTTPS RData
  */
-#define ECH_ECH_PCODE     0x0005
-#define ECH_ALPN_PCODE    0x0001
+#define ECH_PCODE_ALPN           0x0001
+#define ECH_PCODE_NO_DEF_ALPN    0x0002
+#define ECH_PCODE_ECH            0x0005
 
 
 /**
- * Exterally visible form of an ECHKeys RR value
+ * Exterally visible form of an ECHConfigs RR value
  */
 typedef struct ech_diff_st {
     int index; ///< externally re-usable reference to this value

@@ -40,7 +40,7 @@ const OPTIONS ech_options[] = {
     {"pubout", OPT_PUBOUT, '>', "Public key output file - default unset"},
     {"privout", OPT_PRIVOUT, '>', "Private key output file - default unset"},
     {"public_name", OPT_PUBLICNAME, 's', "public_name value"},
-    {"ech_version", OPT_ECHVERSION, 'n', "ECHConfig version (default=0xff03)"},
+    {"ech_version", OPT_ECHVERSION, 'n', "ECHConfig version (default=0xff07)"},
     {NULL}
 };
 

@@ -517,6 +517,7 @@ static int local_ech_add(
         case ECH_FMT_HTTPSSVC:
         case ECH_FMT_ASCIIHEX:
         case ECH_FMT_B64TXT:
+        case ECH_FMT_BIN:
             detfmt=ekfmt;
             break;
         default:
@@ -1034,6 +1035,10 @@ int SSL_CTX_svcb_add(SSL_CTX *ctx, short rrfmt, size_t rrlen, char *rrval, int *
  * rrval may be the catenation of multiple encoded ECHConfigs.
  * We internally try decode and handle those and (later)
  * use whichever is relevant/best. The fmt parameter can be e.g. ECH_FMT_ASCII_HEX
+ * Note that we "succeed" even if there is no ECHConfigs in the input - some
+ * callers might download the RR from DNS and pass it here without looking 
+ * inside, and there are valid uses of such RRs. The caller can check though
+ * using the num_echs output.
  *
  * @param con is the SSL connection 
  * @param rrlen is the length of the rrval
@@ -1089,6 +1094,7 @@ int SSL_svcb_add(SSL *con, int rrfmt, size_t rrlen, char *rrval, int *num_echs)
     unsigned char *cp=binbuf;
     size_t remaining=binlen;
     char *dnsname=NULL;
+    int no_def_alpn=0;
     /* skip 2 octet priority */
     if (remaining<=2) goto err;
     cp+=2; remaining-=2;
@@ -1097,23 +1103,57 @@ int SSL_svcb_add(SSL *con, int rrfmt, size_t rrlen, char *rrval, int *num_echs)
         SSLerr(SSL_F_SSL_SVCB_ADD, SSL_R_BAD_VALUE);
         return(0);
     }
+    size_t alpn_len=0;
+    unsigned char *alpn_val=NULL;
     short pcode=0;
     short plen=0;
     int done=0;
-    while (!done) {
-        if (remaining<4) goto err;
+    while (!done && remaining>=4) {
         pcode=(*cp<<8)+(*(cp+1)); cp+=2;
         plen=(*cp<<8)+(*(cp+1)); cp+=2;
-        if (pcode==ECH_ECH_PCODE) {
+        remaining-=4;
+        if (pcode==ECH_PCODE_ECH) {
             eklen=(size_t)plen;
             ekval=cp;
             done=1;
         }
+        if (pcode==ECH_PCODE_ALPN) {
+            alpn_len=(size_t)plen;
+            alpn_val=cp;
+        }
+        if (pcode==ECH_PCODE_NO_DEF_ALPN) {
+            no_def_alpn=1;
+        }
         if (plen!=0 && plen <= remaining) {
             cp+=plen;
+            remaining-=plen;
         }
     } 
-    if (!done) goto err;
+    if (no_def_alpn==1) {
+        printf("Got no-def-ALPN\n");
+    }
+    if (alpn_len>0 && alpn_val!=NULL) {
+        size_t aid_len=0;
+        char aid_buf[255];
+        unsigned char *ap=alpn_val;
+        printf("Got ALPN with overall length: %lu\n",alpn_len);
+        int ind=0;
+        while (((alpn_val+alpn_len)-ap)>0) {
+            ind++;
+            aid_len=*ap++;
+            if (aid_len>0 && aid_len<255) {
+                memcpy(aid_buf,ap,aid_len);
+                aid_buf[aid_len]=0x00;
+                printf("ALPN id %d is %s\n",ind,aid_buf);
+                ap+=aid_len;
+            }        
+        }
+    }
+    if (!done) {
+        printf("Didn't get an ECHConfigs\n");
+        *num_echs=0;
+        return(1);
+    }
 
     /*
      * Deposit ECHConfigs that we found
@@ -1121,11 +1161,21 @@ int SSL_svcb_add(SSL *con, int rrfmt, size_t rrlen, char *rrval, int *num_echs)
     rv=local_ech_add(ECH_FMT_BIN,eklen,(char*)ekval,num_echs,&echs);
     if (rv!=1) {
         SSLerr(SSL_F_SSL_SVCB_ADD, SSL_R_BAD_VALUE);
+        printf("Got but failed to parse an ECHConfigs\n");
         return(0);
+    } else {
+        printf("Got and parsed an ECHConfigs\n");
     }
 
     if (detfmt==ECH_FMT_ASCIIHEX) {
         OPENSSL_free(binbuf);
+    }
+    
+    /*
+     * Whack in ALPN info to ECHs
+     */
+    for (int i=0;i!=*num_echs;i++) {
+        echs[i].dns_no_def_alpn=no_def_alpn;
     }
 
     con->ech=echs;

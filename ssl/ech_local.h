@@ -175,6 +175,11 @@ typedef struct ssl_ech_st {
     char *privfname; ///< name of private key file from which this was loaded
     char *pubfname;  ///< name of private key file from which this was loaded
     time_t loadtime; ///< time public and private key were loaded from file
+    /*
+     * New in draft-07
+     */
+    char *dns_alpns; ///< ALPN values from SVCB/HTTPS RR (as comma-sep string)
+    int dns_no_def_alpn; ///< no_def_alpn if set in DNS RR
 } SSL_ECH;
 
 /**
