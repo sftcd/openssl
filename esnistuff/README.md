@@ -25,10 +25,15 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- Added [echsrv.sh](echsvr.sh), to run a local test server with ECH inputs.
+  (That's obviously derived from [testserver.sh](testserver.sh).) Made
+  corresponding additions (just to start, they're non-functional for now) to
+  ``s_server.c``.
+
 - More work on adding svcb - also noted that ietf.org no longer
   appears to be a good ESNI target via CF for some reason but
   others (e.g. rte.ie) are. I guess that must be down to a CF
-  backend change of some sort.
+  backend change of some sort. 
 
 - Added new APIs (``SSL_svcb_add`` and ``SSL_CTX_svcb_add``) 
   for ingestion of SVCB/HTTPS RR values since we can't reliably

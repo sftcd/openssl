@@ -21,8 +21,26 @@
 #include <openssl/e_os2.h>
 #include <openssl/async.h>
 #include <openssl/ssl.h>
+
 #ifndef OPENSSL_NO_ESNI
 #include <openssl/esni.h>
+
+#include <dirent.h> /* for esnidir handling */
+/* to use tracing, if configured and requested */
+#ifndef OPENSSL_NO_SSL_TRACE
+#include <openssl/trace.h>
+#endif
+/* for sockaddr stuff - not portable!!!  */
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
+#include <netdb.h>
+/* for timing in TRACE */
+#include <time.h>
+#endif
+
+#ifndef OPENSSL_NO_ECH
+#include <openssl/ech.h>
 #include <dirent.h> /* for esnidir handling */
 /* to use tracing, if configured and requested */
 #ifndef OPENSSL_NO_SSL_TRACE
@@ -90,12 +108,61 @@ static void free_sessions(void);
 static DH *load_dh_param(const char *dhfile);
 #endif
 static void print_connection_info(SSL *con);
+
 #ifndef OPENSSL_NO_ESNI
 static unsigned int esni_print_cb(SSL *s, char *str);
 #ifndef OPENSSL_NO_SSL_TRACE
 static size_t esni_trace_cb(const char *buf, size_t cnt,
                  int category, int cmd, void *vdata);
 #endif
+#endif
+
+#ifndef OPENSSL_NO_ECH
+static unsigned int ech_print_cb(SSL *s, char *str);
+#ifndef OPENSSL_NO_SSL_TRACE
+static size_t ech_trace_cb(const char *buf, size_t cnt,
+                 int category, int cmd, void *vdata);
+#endif
+
+/**
+ * Padding size info
+ */
+typedef struct {
+    size_t certpad; ///< Certificate messages to be a multiple of this size
+    size_t certverifypad; ///< CertificateVerify messages to be a multiple of this size
+} ech_padding_sizes;
+/**
+ * passed as an argument to callback
+ */
+ech_padding_sizes *ech_ps=NULL;
+/** 
+ * @ brief pad Certificate and CertificateVerify messages
+ *
+ * This is passed to SSL_CTX_set_record_padding_callback
+ * and pads the Certificate and CertificateVerify handshake
+ * messages to a size derived from the argument arg
+ *
+ * @param s is the SSL connection
+ * @param len is the plaintext length before padding
+ * @param arg is a pointer to an esni_padding_sizes struct
+ * @return is the number of bytes of padding to add to the plaintext
+ */
+static size_t ech_padding_cb(SSL *s, int type, size_t len, void *arg)
+{
+    /* hard coded for now*/
+    ech_padding_sizes *ps=(ech_padding_sizes*)arg;
+    int state=SSL_get_state(s);
+    if (state==TLS_ST_SW_CERT) {
+        size_t newlen=ps->certpad-(len%ps->certpad)-16;
+        return (newlen>0?newlen:0);
+    }
+    if (state==TLS_ST_SW_CERT_VRFY) {
+        size_t newlen=ps->certverifypad-(len%ps->certverifypad)-16;
+        return (newlen>0?newlen:0);
+    }
+    return 0;
+}
+
 #endif
 
 static const int bufsize = 16 * 1024;
@@ -475,12 +542,60 @@ typedef struct tlsextctx_st {
     char *servername;
     BIO *biodebug;
     int extension_error;
-#ifndef OPENSSL_NO_ESNI
+#if !defined(OPENSSL_NO_ESNI) && !defined(OPENSSL_NO_ECH) 
     X509* scert;
 #endif
 } tlsextctx;
 
 // ESNI_DOXY_START
+
+#ifndef OPENSSL_NO_ECH
+
+/**
+ * @brief print an ECH structure string, thread safely
+ */
+static unsigned int ech_print_cb(SSL *s, char *str)
+{
+    if (str!=NULL) {
+        BIO_printf(bio_s_out,"ECH Server callback printing: %s\n",str);
+    }
+    return 1;
+}
+
+#ifndef OPENSSL_NO_SSL_TRACE
+/*
+ * ECH Tracing callback 
+ */
+static size_t ech_trace_cb(const char *buf, size_t cnt,
+                 int category, int cmd, void *vdata)
+{
+     BIO *bio = vdata;
+     const char *label = NULL;
+     switch (cmd) {
+     case OSSL_TRACE_CTRL_BEGIN:
+         label = "ECH TRACE BEGIN";
+         break;
+     case OSSL_TRACE_CTRL_END:
+         label = "ECH TRACE END";
+         break;
+     }
+     if (label != NULL) {
+         union {
+             pthread_t tid;
+             unsigned long ltid;
+         } tid;
+         tid.tid = pthread_self();
+         BIO_printf(bio, "%s TRACE[%s]:%lx\n",
+                    label, OSSL_trace_get_category_name(category), tid.ltid);
+     }
+     size_t brv=(size_t)BIO_puts(bio, buf);
+     (void)BIO_flush(bio);
+     return brv;
+}
+#endif
+
+#endif
+
 #ifndef OPENSSL_NO_ESNI
 
 /**
@@ -524,7 +639,6 @@ static size_t esni_padding_cb(SSL *s, int type, size_t len, void *arg)
     /* hard coded for now*/
     esni_padding_sizes *ps=(esni_padding_sizes*)arg;
     int state=SSL_get_state(s);
-
     if (state==TLS_ST_SW_CERT) {
         size_t newlen=ps->certpad-(len%ps->certpad)-16;
         return (newlen>0?newlen:0);
@@ -1014,6 +1128,10 @@ typedef enum OPTION_choice {
     OPT_ESNIKEY, OPT_ESNIPRIV, OPT_ESNIPUB, OPT_ESNIDIR, OPT_ESNISPECIFICPAD, OPT_ESNI_HARDFAIL,
     OPT_ESNI_TRIALDECRYPT,
 #endif
+#ifndef OPENSSL_NO_ECH
+    OPT_ECHCONFIG, OPT_ECHDIR, OPT_ECHSPECIFICPAD, OPT_ECH_HARDFAIL,
+    OPT_ECH_TRIALDECRYPT,
+#endif
     OPT_HTTP_SERVER_BINMODE,
     OPT_R_ENUM,
     OPT_S_ENUM,
@@ -1251,6 +1369,13 @@ const OPTIONS s_server_options[] = {
     {"esnihardfail", OPT_ESNI_HARDFAIL, '-', "Fail connection if ESNI decryption fails (default is to serve SNI/COVER site if ESNI fails due to GREASE"},
     {"esnitrialdecrypt", OPT_ESNI_TRIALDECRYPT, '-', "Attepmt trial decryption with all loaded keys even if ESNI record_digest matching fails"},
 #endif
+#ifndef OPENSSL_NO_ECH
+    {"echkey", OPT_ECHCONFIG, 's', "Load ECH key pair"},
+    {"echdir", OPT_ECHDIR, 's', "ECH information directory"},
+    {"echspecificpad", OPT_ECHSPECIFICPAD, '-', "Do specific padding of Certificate/CertificateVerify (instead of general padding all)"},
+    {"echhardfail", OPT_ECH_HARDFAIL, '-', "Fail connection if ESNI decryption fails (default is to serve SNI/COVER site if ESNI fails due to GREASE"},
+    {"echtrialdecrypt", OPT_ECH_TRIALDECRYPT, '-', "Attepmt trial decryption with all loaded keys even if ESNI record_digest matching fails"},
+#endif
     OPT_R_OPTIONS,
     OPT_S_OPTIONS,
     OPT_V_OPTIONS,
@@ -1359,6 +1484,13 @@ int s_server_main(int argc, char *argv[])
     int esnispecificpad=0; ///< we default to generally padding to 512 octet multiples
     int esnihardfail=0; ///< whether we fail if ESNI does or fall back to trying to serve COVER
     int esnitrialdecrypt=0; ///< whether we attempt trial decryptions if record_digest mismatch
+#endif
+#ifndef OPENSSL_NO_ECH
+    char *echkeyfile = NULL; 
+    char *echdir=NULL;
+    int echspecificpad=0; ///< we default to generally padding to 512 octet multiples
+    int echhardfail=0; ///< whether we fail if ECH does or fall back to trying to serve COVER
+    int echtrialdecrypt=0; ///< whether we attempt trial decryptions if record_digest mismatch
 #endif
 
 #ifndef OPENSSL_NO_SCTP
@@ -1946,6 +2078,23 @@ int s_server_main(int argc, char *argv[])
             esnitrialdecrypt=1;
             break;
 #endif
+#ifndef OPENSSL_NO_ECH
+        case OPT_ECHCONFIG:
+            echkeyfile=opt_arg();
+            break;
+        case OPT_ECHDIR:
+            echdir=opt_arg();
+            break;
+        case OPT_ECHSPECIFICPAD:
+            echspecificpad=1;
+            break;
+        case OPT_ECH_HARDFAIL:
+            echhardfail=1;
+            break;
+        case OPT_ECH_TRIALDECRYPT:
+            echtrialdecrypt=1;
+            break;
+#endif
         case OPT_HTTP_SERVER_BINMODE:
             http_server_binmode = 1;
             break;
@@ -2051,7 +2200,7 @@ int s_server_main(int argc, char *argv[])
                 ERR_print_errors(bio_err);
                 goto end;
             }
-#ifndef OPENSSL_NO_ESNI
+#if !defined(OPENSSL_NO_ESNI) && !defined(OPENSSL_NO_ECH)
             tlsextcbp.scert=s_cert2;
 #endif
         }
@@ -2148,6 +2297,15 @@ int s_server_main(int argc, char *argv[])
     }
     if (esnitrialdecrypt!=0) {
         SSL_CTX_set_options(ctx,SSL_OP_ESNI_TRIALDECRYPT);
+    }
+#endif
+
+#ifndef OPENSSL_NO_ECH
+    if (echhardfail!=0) {
+        SSL_CTX_set_options(ctx,SSL_OP_ECH_HARDFAIL);
+    }
+    if (echtrialdecrypt!=0) {
+        SSL_CTX_set_options(ctx,SSL_OP_ECH_TRIALDECRYPT);
     }
 #endif
 
@@ -2366,18 +2524,87 @@ int s_server_main(int argc, char *argv[])
             }
         }
         closedir(dp);
-
     }
-    if (esnidir!=NULL || esniprivkeyfile!= NULL ) {
-        SSL_ESNI *tp=NULL;
-        int nesni=SSL_CTX_get_esni(ctx,&tp);
-        if (nesni==0) {
-            BIO_printf(bio_err, "Failure establishing ESNI parameters - can't print 'em\n" );
+#endif
+
+#ifndef OPENSSL_NO_ECH
+    if (echkeyfile!= NULL) {
+        if (SSL_CTX_ech_server_enable(ctx,esnikeyfile)!=1) {
+            BIO_printf(bio_err,"Failed to add ECHConfig/Key from: %s\n",echkeyfile);
             goto end;
-        } 
-        if (bio_s_out != NULL) {
-            SSL_ESNI_print(bio_s_out,tp,ESNI_SELECT_ALL);
         }
+        if (bio_s_out != NULL) {
+            BIO_printf(bio_s_out,"Added ESNI key pair from: %s\n",esnikeyfile);
+        }
+    }
+
+    if (echdir != NULL ) {
+        /*
+         * Try load any good looking public/private ECH values found in files in that directory
+         * TODO: Find a more OpenSSL-like way of reading a directory without all the massive
+         * indirection involved in the CApath which seems to delve about 5 call deep to do
+         * anything. The echdir shouldn't be embedded in the library at all really, so
+         * arguably handling it fully here in the app is better, though there may I guess
+         * be issues with portability.
+         */
+        size_t elen=strlen(echdir);
+        if ((elen+7) >= PATH_MAX) {
+            /* too long, go away */
+            BIO_printf(bio_err, "'%s' is too long a directory name - exiting \r\n", echdir);
+            goto end;
+        }
+        /* if not a directory, ignore it */
+        if (app_isdir(echdir) <= 0) {
+            BIO_printf(bio_err, "'%s' is not a directory - exiting \r\n", echdir);
+            goto end;
+        }
+        DIR *dp;
+        struct dirent *ep;
+        dp=opendir(echdir);
+        if (dp==NULL) {
+            BIO_printf(bio_err, "Can't read directory '%s' - exiting \r\n", echdir);
+            goto end;
+        }
+        while ((ep=readdir(dp))!=NULL) {
+            char echname[PATH_MAX];
+            /*
+             * If the file name matches *.pem, then try enable that 
+             */
+            size_t nlen=strlen(ep->d_name);
+            if (nlen>5) {
+                char *last4=ep->d_name+nlen-4;
+                if (strncmp(last4,".pem",4)) {
+                    continue;
+                }
+                if ((elen+nlen+1+1)>=PATH_MAX) { /* +1 for '/' and of NULL terminator */
+                    closedir(dp);
+                    BIO_printf(bio_err,"name too long: %s/%s - exiting \r\n",echdir,ep->d_name);
+                    goto end;
+                }
+                snprintf(echname,PATH_MAX,"%s/%s",echdir,ep->d_name);
+                struct stat thestat;
+                if (stat(echname,&thestat)==0) {
+                    if (SSL_CTX_ech_server_enable(ctx,echname)!=1) {
+                        BIO_printf(bio_err, "Failure establishing ECH parameters for %s\n",echname);
+                    }
+                    if (bio_s_out != NULL) {
+                        BIO_printf(bio_s_out,"Added ECH key pair: %s\n",echname);
+                    }
+                }
+            }
+        }
+        closedir(dp);
+    }
+
+    /* 
+     * Set padding sizes 
+     */
+    if (echspecificpad) {
+        ech_ps=OPENSSL_malloc(sizeof(ech_padding_sizes)); 
+        ech_ps->certpad=2000;
+        ech_ps->certverifypad=500;
+        SSL_CTX_set_record_padding_callback_arg(ctx,(void*)ech_ps);
+        SSL_CTX_set_record_padding_callback(ctx,ech_padding_cb);
     }
 #endif
 
@@ -2387,6 +2614,7 @@ int s_server_main(int argc, char *argv[])
             ERR_print_errors(bio_err);
             goto end;
         }
+
 #ifndef OPENSSL_NO_ESNI
         if (esnihardfail!=0) {
             SSL_CTX_set_options(ctx2,SSL_OP_ESNI_HARDFAIL);
@@ -2395,6 +2623,7 @@ int s_server_main(int argc, char *argv[])
             SSL_CTX_set_options(ctx2,SSL_OP_ESNI_TRIALDECRYPT);
         }
 #endif
+
     }
 
     if (ctx2 != NULL) {

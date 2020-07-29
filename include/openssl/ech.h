@@ -227,12 +227,10 @@ int SSL_CTX_ech_server_flush_keys(SSL_CTX *s, int age);
  * subsequently treat those as if they had been send in cleartext SNI.
  *
  * @param s is the SSL server context
- * @param con is the SSL connection (can be NULL)
- * @param echkeyfile has the relevant (X25519) private key in PEM format, or both keys
- * @param echpubfile has the relevant (binary encoded, not base64) ECHKeys structure, or is NULL
+ * @param echcfgfile has the relevant ECHConfig(s) and private key in PEM format
  * @return 1 for success, other otherwise
  */
-int SSL_CTX_ech_server_enable(SSL_CTX *s, const char *echkeyfile, const char *echpubfile);
+int SSL_CTX_ech_server_enable(SSL_CTX *s, const char *echcfgfile);
 
 /** 
  * Print the content of an SSL_ECH
