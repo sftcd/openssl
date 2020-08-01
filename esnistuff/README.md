@@ -25,6 +25,18 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- Starting to do local ECH testing (ECH isn't actually happening yet,
+  but soon:-), to do that, after you have a local ESNI stup working, 
+  then kick that off with:
+
+            $ cd $HOME/code/openssl/esnistuff
+            $ ./echsvr.h -d
+            ... in another window or whatever
+            ... and assuming your ECHConfig is is ``echconfig.pem``
+            $ ./echcli.sh -d -p 8443 -s localhost -H foo.example.com -P `./pem2rr.sh echconfig.pem` 
+            ... and see how it goes
+            ... for now, it works but does no ECH at all 
+
 - Added [echsrv.sh](echsvr.sh), to run a local test server with ECH inputs.
   (That's obviously derived from [testserver.sh](testserver.sh).) Made
   corresponding additions (just to start, they're non-functional for now) to
