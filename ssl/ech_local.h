@@ -59,7 +59,7 @@
  *           uint16 version;
  *           uint16 length;
  *           select (ECHConfig.version) {
- *             case 0xff03: ECHConfigContents;
+ *             case 0xff08: ECHConfigContents;
  *           }
  *       } ECHConfig;
  *

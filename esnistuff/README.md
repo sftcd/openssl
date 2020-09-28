@@ -33,7 +33,7 @@ Most recent first...
   then kick that off with:
 
             $ cd $HOME/code/openssl/esnistuff
-            $ ./echsvr.h -d
+            $ ./echsvr.sh -d
             ... in another window or whatever
             ... and assuming your ECHConfig is is ``echconfig.pem``
             $ ./echcli.sh -d -p 8443 -s localhost -H foo.example.com -P `./pem2rr.sh echconfig.pem` 

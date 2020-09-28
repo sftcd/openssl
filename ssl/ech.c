@@ -294,7 +294,7 @@ static ECHConfigs *ECHConfigs_from_binary(unsigned char *binbuf, size_t binblen,
         /*
          * check version 
          */
-        if (ec->version!=ECH_DRAFT_07_VERSION) {
+        if (ec->version!=ECH_DRAFT_PRE08_VERSION) {
             unsigned char *foo=OPENSSL_malloc(ech_content_length);
             if (!foo) goto err;
             if (!PACKET_copy_bytes(&pkt, foo, ech_content_length)) {

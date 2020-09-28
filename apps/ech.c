@@ -40,7 +40,7 @@ const OPTIONS ech_options[] = {
     {"pubout", OPT_PUBOUT, '>', "Public key output file - default unset"},
     {"privout", OPT_PRIVOUT, '>', "Private key output file - default unset"},
     {"public_name", OPT_PUBLICNAME, 's', "public_name value"},
-    {"ech_version", OPT_ECHVERSION, 'n', "ECHConfig version (default=0xff07)"},
+    {"ech_version", OPT_ECHVERSION, 'n', "ECHConfig version (default=0xff08)"},
     {NULL}
 };
 
@@ -102,7 +102,7 @@ static int mk_echconfig(
     if (rv!=1) { return(__LINE__); }
  
     /*
-     * This is what's in draft-07:
+     * This is what's in draft-pre08:
      *
      *
      *  opaque HpkePublicKey<1..2^16-1>;
@@ -112,12 +112,12 @@ static int mk_echconfig(
      *  struct {
      *      HkpeKdfId kdf_id;
      *      HkpeAeadId aead_id;
-     *  } HpkeCipherSuite;
+     *  } ECHCipherSuite;
      *  struct {
      *      opaque public_name<1..2^16-1>;
      *      HpkePublicKey public_key;
      *      HkpeKemId kem_id;
-     *      HpkeCipherSuite cipher_suites<4..2^16-2>;
+     *      ECHCipherSuite cipher_suites<4..2^16-2>;
      *      uint16 maximum_name_length;
      *      Extension extensions<0..2^16-1>;
      *  } ECHConfigContents;
@@ -125,7 +125,7 @@ static int mk_echconfig(
      *      uint16 version;
      *      uint16 length;
      *      select (ECHConfig.version) {
-     *        case 0xff07: ECHConfigContents;
+     *        case 0xff08: ECHConfigContents;
      *      }
      *  } ECHConfig;
      *  ECHConfig ECHConfigs<1..2^16-1>;
