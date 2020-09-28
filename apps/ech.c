@@ -76,6 +76,7 @@ static int mk_echconfig(
 
     switch(ekversion) {
         case ECH_DRAFT_07_VERSION: 
+        case ECH_DRAFT_PRE08_VERSION: 
             pnlen=(public_name==NULL?0:strlen(public_name));
             break;
         default:
@@ -203,7 +204,7 @@ int ech_main(int argc, char **argv)
     OPTION_CHOICE o;
     char *echconfig_file = NULL, *keyfile = NULL, *pemfile=NULL;
     char *public_name=NULL;
-    uint16_t ech_version=ECH_DRAFT_07_VERSION;
+    uint16_t ech_version=ECH_DRAFT_PRE08_VERSION;
 
     prog = opt_init(argc, argv, ech_options);
     while ((o = opt_next()) != OPT_EOF) {
@@ -249,6 +250,7 @@ int ech_main(int argc, char **argv)
             BIO_printf(bio_err, "Unsupported version (0x%04x) - try using mk_esnikeys instead\n",ech_version);
             goto end;
         case ECH_DRAFT_07_VERSION:
+        case ECH_DRAFT_PRE08_VERSION:
             break;
         default:
             BIO_printf(bio_err, "Unsupported version (0x%04x) - exiting\n",ech_version);

@@ -41,10 +41,11 @@
 #define ECH_FMT_HTTPSSVC  4  ///< presentation form of HTTPSSVC
 
 #define ECH_GREASE_VERSION 0xffff ///< Fake ECHKeys version to indicate grease
-#define ECH_DRAFT_07_VERSION 0xff07 ///< ECHConfig version from draft-07 
+#define ECH_DRAFT_07_VERSION 0xff07 ///< ECHConfig version from draft-07
+#define ECH_DRAFT_PRE08_VERSION 0xff08 ///< ECHConfig version from pre-draft-08
 
 /* 
- * the wire-format code for ECH within an SCVB or HTTPS RData
+ * the wire-format code for ECH within an SVCB or HTTPS RData
  */
 #define ECH_PCODE_ALPN           0x0001
 #define ECH_PCODE_NO_DEF_ALPN    0x0002

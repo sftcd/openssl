@@ -361,10 +361,10 @@ static ECHConfigs *ECHConfigs_from_binary(unsigned char *binbuf, size_t binblen,
 	    if (ec->ciphersuites==NULL) {
 	        goto err;
 	    }
-        unsigned char cipher[TLS_CIPHER_LEN];
+        unsigned char cipher[ECH_CIPHER_LEN];
         int ci=0;
-        while (PACKET_copy_bytes(&cipher_suites, cipher, TLS_CIPHER_LEN)) {
-            ec->ciphersuites[ci++]=cipher[0]*256+cipher[1];
+        while (PACKET_copy_bytes(&cipher_suites, cipher, ECH_CIPHER_LEN)) {
+            memcpy(ec->ciphersuites[ci++],cipher,ECH_CIPHER_LEN);
         }
         if (PACKET_remaining(&cipher_suites) > 0) {
             goto err;

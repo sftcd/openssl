@@ -25,6 +25,9 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- 20200928: back at it now that the github discussion-storm seems to have
+  died down on the pre-08 changes
+
 - Starting to do local ECH testing (ECH isn't actually happening yet,
   but soon:-), to do that, after you have a local ESNI stup working, 
   then kick that off with:

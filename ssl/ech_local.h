@@ -29,18 +29,28 @@
 
 #define ECH_SELECT_ALL -1 ///< used to duplicate all RRs in SSL_ECH_dup
 
+#define ECH_CIPHER_LEN 4 ///< length of an ECHCipher (2 for kdf, 2 for aead)
+
 
 /** 
  * @brief Representation of what goes in DNS
  * <pre>
- *       opaque HpkePublicKey<1..2^16-1>;
- *       uint16 HkpeKemId; // Defined in I-D.irtf-cfrg-hpke
+ *
+ *         opaque HpkePublicKey<1..2^16-1>;
+ *         uint16 HpkeKemId;  // Defined in I-D.irtf-cfrg-hpke
+ *         uint16 HpkeKdfId;  // Defined in I-D.irtf-cfrg-hpke
+ *         uint16 HpkeAeadId; // Defined in I-D.irtf-cfrg-hpke
+ *  
+ *         struct {
+ *             HpkeKdfId kdf_id;
+ *             HpkeAeadId aead_id;
+ *         } ECHCipherSuite;
  *
  *       struct {
  *           opaque public_name<1..2^16-1>;
  *           HpkePublicKey public_key;
  *           HkpeKemId kem_id;
- *           CipherSuite cipher_suites<2..2^16-2>;
+ *           ECHCipherSuite cipher_suites<4..2^16-2>;
  *           uint16 maximum_name_length;
  *           Extension extensions<0..2^16-1>;
  *       } ECHConfigContents;
@@ -57,6 +67,8 @@
  * </pre>
  *
  */
+typedef unsigned char ech_ciphersuite_t[ECH_CIPHER_LEN];
+
 typedef struct ech_config_st {
     unsigned int version; ///< 0xff03 for draft-06
     unsigned int public_name_len; ///< public_name
@@ -65,7 +77,7 @@ typedef struct ech_config_st {
     unsigned int pub_len; ///< HPKE public
     unsigned char *pub;
 	unsigned int nsuites;
-	unsigned int *ciphersuites;
+	ech_ciphersuite_t *ciphersuites;
     unsigned int maximum_name_length;
     unsigned int nexts;
     unsigned int *exttypes;
