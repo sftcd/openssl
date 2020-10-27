@@ -1,7 +1,7 @@
 
 # This is a temporary place for ESNI content ...
 
-Stephen Farrell, stephen.farrell@cs.tcd.ie, 20191026-ish
+Stephen Farrell, stephen.farrell@cs.tcd.ie, 20200929-ish
 
 I'll put stuff here that'll likely disappear as this matures. The plan is
 to delete all this before submitting PRs to the openssl folks. Over time,
@@ -24,6 +24,18 @@ There's some (well out of date) doxygen-generated documentation [here](api.html)
 There's a [TODO list](#todos) at the end.
 
 Most recent first...
+
+- 20201027: Did a quick check of draft-02 suff - still seems ok with defo.ie,
+  but ``./testclient.sh -H ietf.org`` doesn't work now, however that seems more
+  like some cloudflare ops change as ``./testclient.sh -H rte.ie -c NONE`` does
+  work. Probably no need to delve into full detail but IIRC the ``-c NONE``
+  didn't used be needed so maybe Clouflare are now just more picky about
+  the draft-02 cover SNI sent to 'em for some reason.
+
+- 20201027: Tidied up hpke.c implementation so get rid of openssl build warnings
+  and updated HPKE to draft-06, though still defaulting to draft-05
+  (with the X-coordinate DH fix) in this build for now due to ESNI-08 spec
+  brokenly calling for that.
 
 - 20200928: back at it now that the github discussion-storm seems to have
   died down on the pre-08 changes

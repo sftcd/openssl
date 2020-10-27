@@ -1721,6 +1721,8 @@ struct ssl_st {
     SSL_esni_cb_func esni_cb;
 #endif
 #ifndef OPENSSL_NO_ECH
+    int ech_done;
+    int ech_grease;
     int nechs;
     SSL_ECH *ech;
     // SSL_ech_cb_func esni_cb; - will need this later

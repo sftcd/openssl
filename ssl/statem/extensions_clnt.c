@@ -18,6 +18,12 @@
 #endif
 #endif
 
+#ifndef OPENSSL_NO_ECH
+#ifndef OPENSSL_NO_SSL_TRACE
+#include <openssl/trace.h>
+#endif
+#endif
+
 EXT_RETURN tls_construct_ctos_renegotiate(SSL *s, WPACKET *pkt,
                                           unsigned int context, X509 *x,
                                           size_t chainidx)
@@ -2208,7 +2214,6 @@ int tls_parse_stoc_psk(SSL *s, PACKET *pkt, unsigned int context, X509 *x,
 
 // ESNI_DOXY_START
 #ifndef OPENSSL_NO_ESNI
-
 /**
  * @brief Create the ESNI extension for the ClientHello
  *
@@ -2512,4 +2517,70 @@ int tls_parse_stoc_esni(SSL *s, PACKET *pkt, unsigned int context,
     return 1;
 }
 #endif // END_OPENSSL_NO_ESNI
+
+#ifndef OPENSSL_NO_ECH
+
+/**
+ * @brief decide to send ECH from client (or not)
+ *
+ * This is really a stub for now
+ */
+static int SSL_ech_do_ctos(SSL *s, unsigned int context) 
+{
+    return 1;
+}
+
+#define SSL_ECH_I_HATE_GREASE 0
+#define SSL_ECH_SEND_NO_GREASE 1
+#define SSL_ECH_SEND_GREASE 2
+#define SSL_ECH_SEND_REAL 3
+
+static int SSL_ech_send_grease(SSL *s, WPACKET *pkt, unsigned int context,
+                                   X509 *x, size_t chainidx)
+{
+    /*
+     * Let's send some random stuff that looks like...
+     *       struct {
+     *          ECHCipherSuite cipher_suite;
+     *          opaque config_id<0..255>;
+     *          opaque enc<1..2^16-1>;
+     *          opaque payload<1..2^16-1>;
+     *       } ClientECH;
+     */
+    return 0;
+}
+
+/**
+ * @brief Create the ECH extension for the ClientHello
+ */
+EXT_RETURN tls_construct_ctos_ech(SSL *s, WPACKET *pkt, unsigned int context,
+                                   X509 *x, size_t chainidx)
+{
+    int doit=SSL_ech_do_ctos(s,context);
+    if (!doit) {
+        return EXT_RETURN_NOT_SENT;
+    }
+    if (doit==SSL_ECH_SEND_GREASE) {
+        if (SSL_ech_send_grease(s,pkt,context,x,chainidx)!=1) {
+            return EXT_RETURN_NOT_SENT;
+        }
+        return EXT_RETURN_SENT;
+    }
+    /* moar later */
+    return EXT_RETURN_NOT_SENT;
+}
+
+/**
+ * @brief Parse and check the ECH value returned in the EncryptedExtensions
+ * to make sure it has the nonce we sent in the ClientHello
+ *
+ */
+int tls_parse_stoc_ech(SSL *s, PACKET *pkt, unsigned int context,
+                               X509 *x, size_t chainidx)
+{
+    return 1;
+}
+
+#endif // END_OPENSSL_NO_ECH
+
 // ESNI_DOXY_END

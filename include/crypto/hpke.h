@@ -22,11 +22,10 @@
 #include <openssl/ssl.h>
 
 /* biggest/default buffer we use */
-#define HPKE_MAXSIZE (640*1024) ///< 640k is more than enough for anyone (using this program:-)
+#define HPKE_MAXSIZE (40*1024) ///< 40k is more than enough for anyone (using this program:-)
 
 /*
  * The HPKE modes 
- * We only support base for now
  */
 #define HPKE_MODE_BASE              0 ///< Base mode 
 #define HPKE_MODE_PSK               1 ///< Pre-shared key mode
@@ -37,16 +36,17 @@
  * The (16bit) HPKE algorithn IDs
  */
 #define HPKE_KEM_ID_RESERVED         0x0000 ///< not used
-#define HPKE_KEM_ID_P256             0x0001 ///< NIST P-256
-#define HPKE_KEM_ID_25519            0x0002 ///< Curve25519
-#define HPKE_KEM_ID_P521             0x0003 ///< NIST P-521
-#define HPKE_KEM_ID_448              0x0004 ///< Curve448
-#define HPKE_KEM_ID_MAX              0x0004 ///< Curve448
+#define HPKE_KEM_ID_P256             0x0010 ///< NIST P-256
+#define HPKE_KEM_ID_P384             0x0011 ///< NIST P-256
+#define HPKE_KEM_ID_P521             0x0012 ///< NIST P-521
+#define HPKE_KEM_ID_25519            0x0020 ///< Curve25519
+#define HPKE_KEM_ID_448              0x0021 ///< Curve448
 
 #define HPKE_KDF_ID_RESERVED         0x0000 ///< not used
 #define HPKE_KDF_ID_HKDF_SHA256      0x0001 ///< HKDF-SHA256
-#define HPKE_KDF_ID_HKDF_SHA512      0x0002 ///< HKDF-SHA512
-#define HPKE_KDF_ID_MAX              0x0002 ///< HKDF-SHA512
+#define HPKE_KDF_ID_HKDF_SHA384      0x0002 ///< HKDF-SHA512
+#define HPKE_KDF_ID_HKDF_SHA512      0x0003 ///< HKDF-SHA512
+#define HPKE_KDF_ID_MAX              0x0003 ///< HKDF-SHA512
 
 #define HPKE_AEAD_ID_RESERVED        0x0000 ///< not used
 #define HPKE_AEAD_ID_AES_GCM_128     0x0001 ///< AES-GCM-128
@@ -61,12 +61,14 @@
 #define HPKE_MODESTR_PSKAUTH    "pskauth"           ///< psk+sender-key pair (4)
 
 /* strings for suites */
-#define HPKE_KEMSTR_P256        "p256"              ///< KEM id 1
-#define HPKE_KEMSTR_X25519      "x25519"            ///< KEM id 2
-#define HPKE_KEMSTR_P521        "p521"              ///< KEM id 3
-#define HPKE_KEMSTR_X448        "x448"              ///< KEM id 4
+#define HPKE_KEMSTR_P256        "p256"              ///< KEM id 0x10
+#define HPKE_KEMSTR_P384        "p384"              ///< KEM id 0x11
+#define HPKE_KEMSTR_P521        "p521"              ///< KEM id 0x12
+#define HPKE_KEMSTR_X25519      "x25519"            ///< KEM id 0x20
+#define HPKE_KEMSTR_X448        "x448"              ///< KEM id 0x21
 #define HPKE_KDFSTR_256         "hkdf-sha256"       ///< KDF id 1
-#define HPKE_KDFSTR_512         "hkdf-sha512"       ///< KDF id 2
+#define HPKE_KDFSTR_384         "hkdf-sha384"       ///< KDF id 2
+#define HPKE_KDFSTR_512         "hkdf-sha512"       ///< KDF id 3
 #define HPKE_AEADSTR_AES128GCM  "aes128gcm"         ///< AEAD id 1
 #define HPKE_AEADSTR_AES256GCM  "aes256gcm"         ///< AEAD id 2
 #define HPKE_AEADSTR_CP         "chachapoly1305"    ///< AEAD id 3

@@ -60,6 +60,12 @@ static int init_esni(SSL *s, unsigned int context);
 static int final_esni(SSL *s, unsigned int context, int sent);
 #endif // END_OPENSSL_NO_ESNI
 
+#ifndef OPENSSL_NO_ECH
+static int init_ech(SSL *s, unsigned int context);
+static int final_ech(SSL *s, unsigned int context, int sent);
+#endif // END_OPENSSL_NO_ECH
+
+
 /* Structure to define a built-in extension */
 typedef struct extensions_definition_st {
     /* The defined type for the extension */
@@ -383,6 +389,21 @@ static const EXTENSION_DEFINITION ext_defs[] = {
 #else // OPENSSL_NO_ESNI
     INVALID_EXTENSION,
 #endif // END_OPENSSL_NO_ESNI
+#ifndef OPENSSL_NO_ECH
+    /* 
+     * Must be in this list after key_share as that input is needed for ECH
+     */
+    {
+        TLSEXT_TYPE_ech,
+        SSL_EXT_CLIENT_HELLO | SSL_EXT_TLS1_3_ONLY | SSL_EXT_TLS1_3_ENCRYPTED_EXTENSIONS,
+        init_ech,
+        tls_parse_ctos_ech, tls_parse_stoc_ech,
+        tls_construct_stoc_ech, tls_construct_ctos_ech,
+        final_ech
+    },
+#else // OPENSSL_NO_ECH
+    INVALID_EXTENSION,
+#endif // END_OPENSSL_NO_ECH
     {
         TLSEXT_TYPE_certificate_authorities,
         SSL_EXT_CLIENT_HELLO | SSL_EXT_TLS1_3_CERTIFICATE_REQUEST
@@ -942,7 +963,6 @@ static int init_server_name(SSL *s, unsigned int context)
 
 // ESNI_DOXY_START
 #ifndef OPENSSL_NO_ESNI
-
 /**
  * @brief Just note that esni is not yet done
  */
@@ -951,7 +971,6 @@ static int init_esni(SSL *s, unsigned int context)
     s->esni_done = 0;
     return 1;
 }
-
 /**
  * @brief check result of esni and return error or ok
  */
@@ -976,8 +995,43 @@ static int final_esni(SSL *s, unsigned int context, int sent)
     }
     return 1;
 }
-
 #endif // END_OPENSSL_NO_ESNI
+
+#ifndef OPENSSL_NO_ECH
+/**
+ * @brief Just note that ech is not yet done
+ */
+static int init_ech(SSL *s, unsigned int context)
+{
+    s->ech_done = 0;
+    return 1;
+}
+/**
+ * @brief check result of ech and return error or ok
+ */
+static int final_ech(SSL *s, unsigned int context, int sent)
+{
+    /*
+     * Could be that cleaning up would be good, and/or 
+     * whatever's needed for handling tickets etc. etc.
+     */
+    if (!s->server && s->ech) {
+        if (s->ech_grease) {
+            /*
+             * If we greased, then it's ok that esni_done didn't get set
+             * TODO: figure if this is the right check to make
+             */
+            return 1;
+        } else if (s->ech_done!=1) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_FINAL_ECH,
+                 SSL_R_CALLBACK_FAILED);
+            return 0;
+        }
+    }
+    return 1;
+}
+#endif // END_OPENSSL_NO_ECH
+
 // ESNI_DOXY_END
 
 static int final_server_name(SSL *s, unsigned int context, int sent)

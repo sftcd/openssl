@@ -2662,4 +2662,25 @@ EXT_RETURN tls_construct_stoc_esni(SSL *s, WPACKET *pkt,
 
 }
 #endif // END_OPENSSL_NO_ESNI
+#ifndef OPENSSL_NO_ECH
+/**
+ * @brief Decodes inbound ECH extension 
+ */
+int tls_parse_ctos_ech(SSL *s, PACKET *pkt, unsigned int context,
+                               X509 *x, size_t chainidx)
+{
+    return 1;
+}
+
+/**
+ * @brief Answer an ECH
+ */
+EXT_RETURN tls_construct_stoc_ech(SSL *s, WPACKET *pkt,
+                                          unsigned int context, X509 *x,
+                                          size_t chainidx)
+{
+    return EXT_RETURN_FAIL;
+}
+
+#endif // END_OPENSSL_NO_ECH
 // ESNI_DOXY_END

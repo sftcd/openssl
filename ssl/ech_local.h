@@ -70,7 +70,7 @@
 typedef unsigned char ech_ciphersuite_t[ECH_CIPHER_LEN];
 
 typedef struct ech_config_st {
-    unsigned int version; ///< 0xff03 for draft-06
+    unsigned int version; ///< 0xff08 for draft-08
     unsigned int public_name_len; ///< public_name
     unsigned char *public_name; ///< public_name
     unsigned int kem_id; ///< HPKE KEM ID to use
@@ -121,6 +121,12 @@ typedef struct ech_encch_st {
     size_t encch_len; ///< ciphertext 
     unsigned char *encch; ///< ciphertext 
 } ECH_ENCCH;
+
+typedef struct ech_stash_st {
+    WPACKET *pkt;
+    unsigned char client_random[SSL3_RANDOM_SIZE];
+} ECH_STASH;
+
 
 /**
  * @brief The ECH data structure that's part of the SSL structure 
@@ -188,10 +194,15 @@ typedef struct ssl_ech_st {
     char *pubfname;  ///< name of private key file from which this was loaded
     time_t loadtime; ///< time public and private key were loaded from file
     /*
-     * New in draft-07
+     * Stuff about inner/outer diffs for extensions other than SNI
      */
     char *dns_alpns; ///< ALPN values from SVCB/HTTPS RR (as comma-sep string)
     int dns_no_def_alpn; ///< no_def_alpn if set in DNS RR
+
+    /*
+     * Inner/Outer things
+     */
+    ECH_STASH inner2outer_stash; ///< things to stash before making an outer after an inner
 } SSL_ECH;
 
 /**
