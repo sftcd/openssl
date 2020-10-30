@@ -122,12 +122,6 @@ typedef struct ech_encch_st {
     unsigned char *encch; ///< ciphertext 
 } ECH_ENCCH;
 
-typedef struct ech_stash_st {
-    WPACKET *pkt;
-    unsigned char client_random[SSL3_RANDOM_SIZE];
-} ECH_STASH;
-
-
 /**
  * @brief The ECH data structure that's part of the SSL structure 
  *
@@ -202,7 +196,8 @@ typedef struct ssl_ech_st {
     /*
      * Inner/Outer things
      */
-    ECH_STASH inner2outer_stash; ///< things to stash before making an outer after an inner
+    unsigned char *innerch;
+    size_t innerch_len;
 } SSL_ECH;
 
 /**

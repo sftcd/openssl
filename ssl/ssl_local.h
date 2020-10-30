@@ -628,15 +628,6 @@ struct ssl_session_st {
         unsigned char *kse;
 #endif
 
-#ifndef OPENSSL_NO_ECH
-        /*
-         * TODO: Add more ECH stuff here, as needed
-         */
-        char *ech_public_name;
-        char *ech_inner_name;
-        char *ech_outer_name;
-#endif
-
 # ifndef OPENSSL_NO_EC
         size_t ecpointformats_len;
         unsigned char *ecpointformats; /* peer's list */
@@ -1601,6 +1592,28 @@ struct ssl_st {
          */
         size_t kse_len;
         unsigned char *kse;
+#endif
+
+#ifndef OPENSSL_NO_ECH
+        /*
+         * ECH stuff...
+         */
+        char *ech_public_name;
+        char *ech_inner_name;
+        char *ech_outer_name;
+        /*
+         * Additionally we record the encoded key share extension
+         * value from the ClientHello for use as the AAD in ENSI
+         */
+        size_t ech_kse_len;
+        unsigned char *ech_kse;
+        /*
+         * a place to stash the inner CH SSL* details
+         */
+        SSL* inner_s;
+        int inner_s_checked;
+        int inner_s_shdone;
+        int inner_s_ftd;
 #endif
         /* certificate status request info */
         /* Status type or -1 if no status type */

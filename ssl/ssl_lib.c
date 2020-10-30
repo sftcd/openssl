@@ -1299,6 +1299,14 @@ void SSL_free(SSL *s)
         s->ech=NULL;
 
     }
+    if (s->ext.ech_kse!=NULL) {
+        OPENSSL_free(s->ext.ech_kse);
+        s->ext.ech_kse=NULL;
+        s->ext.ech_kse_len=0;
+    }
+    OPENSSL_free(s->ext.ech_public_name);
+    OPENSSL_free(s->ext.ech_inner_name);
+    OPENSSL_free(s->ext.ech_outer_name);
 #endif
 
     CRYPTO_THREAD_lock_free(s->lock);

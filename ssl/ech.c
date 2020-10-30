@@ -207,6 +207,9 @@ void SSL_ECH_free(SSL_ECH *tbf)
         ECHConfigs_free(tbf->cfg);
         OPENSSL_free(tbf->cfg);
     }
+    if (tbf->innerch) {
+        OPENSSL_free(tbf->innerch);
+    }
     /*
      * More TODO
      */
@@ -1101,6 +1104,8 @@ int SSL_svcb_add(SSL *con, int rrfmt, size_t rrlen, char *rrval, int *num_echs)
         SSLerr(SSL_F_SSL_SVCB_ADD, SSL_R_BAD_VALUE);
         return(0);
     }
+    // skipping this, we can free it
+    OPENSSL_free(dnsname);
     size_t alpn_len=0;
     unsigned char *alpn_val=NULL;
     short pcode=0;
@@ -1134,7 +1139,6 @@ int SSL_svcb_add(SSL *con, int rrfmt, size_t rrlen, char *rrval, int *num_echs)
         size_t aid_len=0;
         char aid_buf[255];
         unsigned char *ap=alpn_val;
-        printf("Got ALPN with overall length: %lu\n",alpn_len);
         int ind=0;
         while (((alpn_val+alpn_len)-ap)>0) {
             ind++;
