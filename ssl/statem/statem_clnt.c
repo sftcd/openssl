@@ -1151,8 +1151,10 @@ int tls_construct_client_hello(SSL *s, WPACKET *pkt)
 #endif
     SSL_SESSION *sess = s->session;
     unsigned char *session_id;
+
 #ifndef OPENSSL_NO_ECH
     int outerneeded=0;
+    BUF_MEM *inner_mem=NULL;
 
     /*
      * Try establish if we're doing ECH or not early
@@ -1187,7 +1189,6 @@ int tls_construct_client_hello(SSL *s, WPACKET *pkt)
         unsigned char *innerch_encoded=NULL;
         WPACKET *outer=pkt;
         WPACKET inner;
-        BUF_MEM *inner_mem=NULL;
         int mt=SSL3_MT_CLIENT_HELLO;
         if ((inner_mem = BUF_MEM_new()) == NULL) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CLIENT_HELLO,
@@ -1207,7 +1208,6 @@ int tls_construct_client_hello(SSL *s, WPACKET *pkt)
         }
         pkt=&inner;
         
-        // ESNI
         /*
          * Finish up the "inner" CH then carefully stash the 
          * inner-bits we'll (maybe) want later and
@@ -1266,9 +1266,9 @@ int tls_construct_client_hello(SSL *s, WPACKET *pkt)
         }
         /*
          * We can fre up inner_mem now
-         * TODO: add this to error handling
          */
         BUF_MEM_free(inner_mem);
+        inner_mem=NULL;
 
         /*
          * parse full inner CH (usually done on server)
@@ -1496,8 +1496,11 @@ int tls_construct_client_hello(SSL *s, WPACKET *pkt)
 #endif
 
     return 1;
+#ifndef OPENSSL_NO_ECH
 err:
+    if (inner_mem!=NULL) BUF_MEM_free(inner_mem);
     return 0;
+#endif
 }
 
 MSG_PROCESS_RETURN dtls_process_hello_verify(SSL *s, PACKET *pkt)
