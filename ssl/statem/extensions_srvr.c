@@ -2679,7 +2679,7 @@ EXT_RETURN tls_construct_stoc_ech(SSL *s, WPACKET *pkt,
                                           unsigned int context, X509 *x,
                                           size_t chainidx)
 {
-    return EXT_RETURN_FAIL;
+    return EXT_RETURN_NOT_SENT;
 }
 
 #endif // END_OPENSSL_NO_ECH

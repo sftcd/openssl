@@ -1290,6 +1290,9 @@ void SSL_free(SSL *s)
 #endif
 
 #ifndef OPENSSL_NO_ECH
+    if (s->ext.inner_s!=NULL) {
+        OPENSSL_free(s->ext.inner_s);
+    }
     if (s->ech!=NULL) {
         int i=0;
         for (i=0;i!=s->nechs;i++) {
