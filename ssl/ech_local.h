@@ -31,6 +31,8 @@
 
 #define ECH_CIPHER_LEN 4 ///< length of an ECHCipher (2 for kdf, 2 for aead)
 
+#define ECH_OUTERS_MAX 10 ///< max number of TLS extensions that can be compressed via outer-exts
+
 
 /** 
  * @brief Representation of what goes in DNS
@@ -136,8 +138,6 @@ typedef struct ech_encch_st {
  */
 typedef struct ssl_ech_st {
     ECHConfigs *cfg; ///< merge of underlying ECHConfigs
-    size_t rd_len;
-    unsigned char *rd; ///< Hash of the encoded_rr record_digest, using the relevant hash from the ciphersuite
 
     /*
      * SSL/SSL_CTX instantiated things
@@ -148,10 +148,6 @@ typedef struct ssl_ech_st {
     unsigned char *ech_peer_keyshare; ///< the encoded peer's public value
     EVP_PKEY *ech_peer_pkey; ///< the peer public as a key
     size_t maximum_name_length; ///< from ECHConfig
-    int nexts; ///< number of extensions 
-    unsigned int *exttypes; ///< array of extension types
-    size_t *extlens; ///< lengths of encoded extension octets
-    unsigned char **exts; ///< encoded extension octets
     /*
      * Session specific stuff
      */
@@ -171,12 +167,6 @@ typedef struct ssl_ech_st {
     EVP_PKEY *keyshare; ///< my own private keyshare to use with  server's ECH share 
     size_t encoded_keyshare_len; 
     unsigned char *encoded_keyshare; ///< my own public key share
-    size_t plain_len;
-    unsigned char *plain; ///< plaintext value for ECH
-    size_t cipher_len;
-    unsigned char *cipher; ///< ciphetext value of ECH
-    size_t tag_len;
-    unsigned char *tag; ///< GCM tag (already also in ciphertext)
     ECH_ENCCH *the_ech; ///< the final outputs for the caller (note: not separately alloc'd)
     /* 
      * File load information servers - if identical filenames not modified since
@@ -198,6 +188,21 @@ typedef struct ssl_ech_st {
      */
     unsigned char *innerch;
     size_t innerch_len;
+    unsigned char *encoded_innerch;
+    size_t encoded_innerch_len;
+    int n_outer_only;
+    uint16_t outer_only[ECH_OUTERS_MAX];
+    /*
+     * Placeholder for putting the extension type currently being
+     * processed - this is pretty naff but will do for now
+     */
+    int etype;
+    /*
+     * API inputs
+     */
+    char *inner_name;
+    char *outer_name;
+    
 } SSL_ECH;
 
 /**
@@ -306,6 +311,46 @@ SSL_ECH* SSL_ECH_dup(SSL_ECH* orig, size_t nech, int selector);
  * @return is an SSL_ECH structure
  */
 SSL_ECH* SSL_ECH_new_from_buffer(SSL_CTX *ctx, SSL *con, const short ekfmt, const size_t eklen, const char *echkeys, int *num_echs);
+
+/**
+ * @brief After "normal" 1st pass CH is done, fix encoding as needed
+ *
+ * This will make up the ClientHelloInner and EncodedClientHelloInner buffes
+ *
+ * @param s is the SSL session
+ * @return 1 for success, error otherwise
+ */
+int ech_encode_inner(SSL *s);
+
+/*
+ * Return values from ech_same_ext
+ */
+#define ECH_SAME_EXT_ERR 0
+#define ECH_SAME_EXT_DONE 1
+#define ECH_SAME_EXT_CONTINUE 2
+
+/**
+ * @brief repeat extension value from inner ch in outer ch and handle outer compression
+ * @param s is the SSL session
+ * @param pkt is the packet containing extensions
+ * @return 0: error, 1: copied existing and done, 2: ignore existing
+ */
+int ech_same_ext(SSL *s, WPACKET* pkt);
+
+/**
+ * @brief print a buffer nicely
+ *
+ * This is used in SSL_ESNI_print
+ */
+void ech_pbuf(char *msg,unsigned char *buf,size_t blen);
+
+/*
+ * A stab at a "special" copy of the SSL struct
+ * from inner to outer, so we can play with
+ * changes
+ */
+int ech_inner2outer_dup(SSL *in);
+
 
 #endif
 #endif

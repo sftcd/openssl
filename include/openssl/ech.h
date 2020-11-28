@@ -131,15 +131,15 @@ int SSL_ech_add(SSL *con, int ekfmt, size_t eklen, char *echkeys, int *num_echs)
 int SSL_CTX_ech_add(SSL_CTX *ctx, short ekfmt, size_t eklen, char *echkeys, int *num_echs);
 
 /**
- * @brief Turn on client hello encryption for an (upcoming) TLS session
+ * @brief Turn on SNI encryption for an (upcoming) TLS session
  * 
  * @param s is the SSL context
- * @param hidden_name is the hidden service name
- * @param public_name is the cleartext SNI name to use
+ * @param inner_name is the (to be) hidden service name
+ * @param outer_name is the cleartext SNI name to use
  * @return 1 for success, error otherwise
  * 
  */
-int SSL_ech_server_name(SSL *s, const char *hidden_name, const char *public_name);
+int SSL_ech_server_name(SSL *s, const char *inner_name, const char *outer_name);
 
 /**
  * @brief Add an ALPN for inclusion in ECH for an (upcoming) TLS session

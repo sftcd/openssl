@@ -788,7 +788,13 @@ typedef enum tlsext_index_en {
     TLSEXT_IDX_cryptopro_bug,
     TLSEXT_IDX_early_data,
     TLSEXT_IDX_certificate_authorities,
+#ifndef OPENSSL_NO_ESNI
     TLSEXT_IDX_esni,
+#endif
+#ifndef OPENSSL_NO_ECH
+    TLSEXT_IDX_ech,
+    TLSEXT_IDX_outer_extensions,
+#endif
     TLSEXT_IDX_padding,
     TLSEXT_IDX_psk,
     /* Dummy index - must always be the last entry */
@@ -1610,6 +1616,7 @@ struct ssl_st {
         /*
          * a place to stash the inner CH SSL* details
          */
+        int ch_depth;
         SSL* inner_s;
         int inner_s_checked;
         int inner_s_shdone;

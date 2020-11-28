@@ -1097,37 +1097,9 @@ WORK_STATE ossl_statem_client_post_process_message(SSL *s, WORK_STATE wst)
 }
 
 #ifndef OPENSSL_NO_ECH
-/*
- * A stab at a "special" copy of the SSL struct
- * from inner to outer, so we can play with
- * changes
- */
-static int ech_inner2outer_dup(SSL *in)
-{
-    if (!in) return(0);
-
-    /*
-     * Mega-copy
-     */
-    SSL *new=OPENSSL_malloc(sizeof(SSL));
-    if (!new) return(0);
-    *new=*in; // struct copy
-    in->ext.inner_s=new;
-    /*
-     * Note that we've not yet checked if server
-     * successfully used the inner_s - this'll be
-     * checked and fixed up after 1st EncryptedExtension
-     * is rx'd. Code for that in ssl/record/ssl3_record_tls13.c:tls13_enc_esni
-     */
-    in->ext.inner_s_checked=0;
-    in->ext.inner_s_shdone=0;
-    in->ext.inner_s_ftd=0;
-
-    return(1);
-}
 
 
-static int tls_construct_client_hello_aux(SSL *s, WPACKET *pkt, int callno);
+static int tls_construct_client_hello_aux(SSL *s, WPACKET *pkt);
 
 int tls_construct_client_hello(SSL *s, WPACKET *pkt)
 {
@@ -1145,7 +1117,14 @@ int tls_construct_client_hello(SSL *s, WPACKET *pkt)
      * Plan is, if not doing ECH, just call existing
      * code.
      */
-    if (s->ech==NULL) return tls_construct_client_hello_aux(s, pkt, 0);
+    if (s->ech==NULL) return tls_construct_client_hello_aux(s, pkt);
+
+    /*
+     * Set a magic CH depth flag in the SSL state so that
+     * other code (e.g. extension handlers) know where we#'re
+     * at
+     */
+    s->ext.ch_depth=0;
 
     /*
      * If doing ECH, we'll create a "fake" packet for the inner CH
@@ -1153,36 +1132,33 @@ int tls_construct_client_hello(SSL *s, WPACKET *pkt)
      * fake packet, stash it and call the existing code a 2nd time
      * for the outer CH
      */
-    unsigned char *innerch_encoded=NULL;
+    unsigned char *innerch_full=NULL;
     WPACKET inner; ///< "fake" pkt for inner
     BUF_MEM *inner_mem=NULL;
     int mt=SSL3_MT_CLIENT_HELLO;
     if ((inner_mem = BUF_MEM_new()) == NULL) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_ENCRYPTED_CLIENT_HELLO,
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CLIENT_HELLO,
              protverr);
         goto err;
     }
     if (!BUF_MEM_grow(inner_mem, SSL3_RT_MAX_PLAIN_LENGTH)) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_ENCRYPTED_CLIENT_HELLO,
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CLIENT_HELLO,
              protverr);
         goto err;
     }
     if (!WPACKET_init(&inner,inner_mem)
                 || !ssl_set_handshake_header(s, &inner, mt)) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_ENCRYPTED_CLIENT_HELLO,
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CLIENT_HELLO,
              protverr);
         goto err;
     }
 
     /*
-     * Make initial call into CH constuction. callno should be 
-     * incremented for each call, i.e. 0 for first call (inner)
-     * then 1 for 2nd (outer). Maybe someday there'll be an
-     * outer-outer if we get tor-like, who knows.
+     * Make initial call into CH constuction. 
      */
-    int rv=tls_construct_client_hello_aux(s, &inner, 0);
+    int rv=tls_construct_client_hello_aux(s, &inner);
     if (rv!=1) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_ENCRYPTED_CLIENT_HELLO,
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CLIENT_HELLO,
              protverr);
         goto err;
     }
@@ -1192,7 +1168,7 @@ int tls_construct_client_hello(SSL *s, WPACKET *pkt)
      */
     if (!WPACKET_close(&inner))  {
         WPACKET_cleanup(&inner);
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_ENCRYPTED_CLIENT_HELLO,
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CLIENT_HELLO,
                  ERR_R_INTERNAL_ERROR);
         goto err;
     }
@@ -1203,7 +1179,7 @@ int tls_construct_client_hello(SSL *s, WPACKET *pkt)
     size_t innerinnerlen=0;
     if (!WPACKET_get_length(&inner, &innerinnerlen)) {
         WPACKET_cleanup(&inner);
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_ENCRYPTED_CLIENT_HELLO,
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CLIENT_HELLO,
                  ERR_R_INTERNAL_ERROR);
         goto err;
     }
@@ -1212,24 +1188,37 @@ int tls_construct_client_hello(SSL *s, WPACKET *pkt)
      * we need to prepend a few octets onto that to get the encoding 
      * we can decode
      */
-    innerch_encoded=OPENSSL_malloc(innerinnerlen+5);
-    if (!innerch_encoded) {
+    innerch_full=OPENSSL_malloc(innerinnerlen+5);
+    if (!innerch_full) {
         WPACKET_cleanup(pkt);
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_ENCRYPTED_CLIENT_HELLO,
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CLIENT_HELLO,
                  ERR_R_INTERNAL_ERROR);
         goto err;
     }
 
-    innerch_encoded[0]=0x16; // handshake message
-    innerch_encoded[1]=0x03; // TLSv1.0 fake version
-    innerch_encoded[2]=0x01; // TLSv1.0 fake version
-    innerch_encoded[3]=(innerinnerlen%0xffff)>>8;
-    innerch_encoded[4]=(innerinnerlen%0xff);
-    memcpy(&innerch_encoded[5],inner_mem->data,innerinnerlen);
-
-    s->ech->innerch=innerch_encoded;
+    /*
+     * These prepended octets probably don't match draft-09
+     * but will fix later so that's a TODO:
+     */
+    innerch_full[0]=0x16; // handshake message
+    innerch_full[1]=0x03; // TLSv1.0 fake version
+    innerch_full[2]=0x01; // TLSv1.0 fake version
+    innerch_full[3]=(innerinnerlen%0xffff)>>8;
+    innerch_full[4]=(innerinnerlen%0xff);
+    memcpy(&innerch_full[5],inner_mem->data,innerinnerlen);
+    s->ech->innerch=innerch_full;
     s->ech->innerch_len=innerinnerlen+5;
 
+    ech_pbuf("inner CH",s->ech->innerch,s->ech->innerch_len);
+
+    /*
+     * Dump inner client random
+     */
+    ech_pbuf("inner, client_random",s->s3.client_random,SSL3_RANDOM_SIZE);
+
+    /*
+     * Decode inner so that we can make up encoded inner
+     */
     PACKET rpkt; ///< we'll decode back the inner ch to help make the outer
     if (!PACKET_buf_init(&rpkt, (unsigned char*) s->ech->innerch+9, s->ech->innerch_len-9)) {
         WPACKET_cleanup(pkt);
@@ -1240,6 +1229,8 @@ int tls_construct_client_hello(SSL *s, WPACKET *pkt)
 
     /*
      * parse full inner CH (usually done on server)
+     * this gets us individually encoded extensions so we can choose
+     * to compress and/or to re-use the same value in outer
      */
     if (!tls_process_client_hello(s,&rpkt)) {
         WPACKET_cleanup(pkt);
@@ -1247,16 +1238,36 @@ int tls_construct_client_hello(SSL *s, WPACKET *pkt)
                  ERR_R_INTERNAL_ERROR);
         goto err;
     }
-    
+
     /*
-     * Now go for the mega-swapperoo
+     * Now we can make a ClientHelloInner and then 
+     * EncodedClientHelloInner (as above with outer-extensions)
+     * We have to do it this way so the PSK binders in the inner
+     * will work ok if the inner is forwarded to a split backend,
+     * pretty gruesome but I guess...
+     *
+     */
+    if (ech_encode_inner(s)!=1) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CLIENT_HELLO,
+                 ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+    ech_pbuf("encoded inner CH",s->ech->encoded_innerch,s->ech->encoded_innerch_len);
+
+    /*
+     * Now go for the mega-dup: we'll need both for handling the 
+     * server's answer
      */
     if (ech_inner2outer_dup(s)!=1) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_ENCRYPTED_CLIENT_HELLO,
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CLIENT_HELLO,
                  ERR_R_INTERNAL_ERROR);
         goto err;
     }
 
+    /*
+     * Now we vary the outer vs. inner, according to taste
+     * For me: I want a different key!
+     */
     if (s->s3.tmp.pkey) {
         /*
          * We'll start with just the TLS key_share - think a new
@@ -1264,26 +1275,41 @@ int tls_construct_client_hello(SSL *s, WPACKET *pkt)
          */
         s->s3.tmp.pkey=NULL;
     }
-
+    
+    /*
+     * Now we're at level 1, the outer CH
+     */
+    s->ext.ch_depth=1;
 
     /*
-     * Make second call into CH constuction. callno should be 
-     * incremented for each call, i.e. 0 for first call (inner)
-     * then 1 for 2nd (outer). Maybe someday there'll be an
-     * outer-outer if we get tor-like, who knows.
+     * Make second call into CH constuction. 
      */
-    rv=tls_construct_client_hello_aux(s, pkt, 1);
+    rv=tls_construct_client_hello_aux(s, pkt);
     if (rv!=1) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_ENCRYPTED_CLIENT_HELLO,
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CLIENT_HELLO,
              protverr);
         goto err;
     }
+    ech_pbuf("encoded inner CH",s->ech->encoded_innerch,s->ech->encoded_innerch_len);
+
+    /*
+     * Check outer 
+     */
+    ech_pbuf("outer, client_random",s->s3.client_random,SSL3_RANDOM_SIZE);
+
+
+    /*
+     * Now we can make the ClientHelloOuterAAD
+     * then encrypt using hpke
+     * and then finally make the eventual ClientHello
+     */
 
     return(1);
 err:
     return(0);
 }
-static int tls_construct_client_hello_aux(SSL *s, WPACKET *pkt, int callno)
+
+static int tls_construct_client_hello_aux(SSL *s, WPACKET *pkt)
 #else
 int tls_construct_client_hello(SSL *s, WPACKET *pkt)
 #endif

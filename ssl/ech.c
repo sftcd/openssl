@@ -19,6 +19,7 @@
 # include <openssl/ech.h>
 # include "ssl_local.h"
 # include "ech_local.h"
+# include "statem/statem_local.h"
 
 /*
  * Yes, global vars! 
@@ -210,6 +211,11 @@ void SSL_ECH_free(SSL_ECH *tbf)
     if (tbf->innerch) {
         OPENSSL_free(tbf->innerch);
     }
+    if (tbf->encoded_innerch) {
+        OPENSSL_free(tbf->encoded_innerch);
+    }
+    if (tbf->inner_name!=NULL) OPENSSL_free(tbf->inner_name);
+    if (tbf->outer_name!=NULL) OPENSSL_free(tbf->outer_name);
     /*
      * More TODO
      */
@@ -740,13 +746,23 @@ int SSL_CTX_ech_add(SSL_CTX *ctx, short ekfmt, size_t eklen, char *ekval, int *n
  * @brief Turn on SNI encryption for an (upcoming) TLS session
  * 
  * @param s is the SSL context
- * @param hidden_name is the hidden service name
- * @param public_name is the cleartext SNI name to use
+ * @param inner_name is the (to be) hidden service name
+ * @param outer_name is the cleartext SNI name to use
  * @return 1 for success, error otherwise
  * 
  */
-int SSL_ech_server_name(SSL *s, const char *hidden_name, const char *public_name)
+int SSL_ech_server_name(SSL *s, const char *inner_name, const char *outer_name)
 {
+    if (s==NULL) return(0);
+    if (s->ech==NULL) return(0);
+    if (inner_name==NULL) return(0);
+    if (outer_name==NULL) return(0);
+
+    if (s->ech->inner_name!=NULL) OPENSSL_free(s->ech->inner_name);
+    s->ech->inner_name=OPENSSL_strdup(inner_name);
+    if (s->ech->outer_name!=NULL) OPENSSL_free(s->ech->outer_name);
+    s->ech->outer_name=OPENSSL_strdup(outer_name);
+
     return 1;
 }
 
@@ -1004,6 +1020,13 @@ SSL_ECH* SSL_ECH_dup(SSL_ECH* orig, size_t nech, int selector)
         if (ECHConfigs_dup(orig[i].cfg,new_se[i].cfg)!=1) goto err;
     }
 
+    if (orig->inner_name!=NULL) {
+        new_se->inner_name=OPENSSL_strdup(orig->inner_name);
+    }
+    if (orig->outer_name!=NULL) {
+        new_se->inner_name=OPENSSL_strdup(orig->inner_name);
+    }
+
     return new_se;
 err:
     if (new_se!=NULL) {
@@ -1190,6 +1213,440 @@ err:
     }
     return(0);
 
+}
+
+/* 
+ * When doing ECH, this array specifies which inner CH extensions (if 
+ * any) are to be "compressed" using the (ickky) outer extensions
+ * trickery.
+ * Basically, we store a 0 for "don't" and a 1 for "do" and the index
+ * is the same as the index of the extension itself. 
+ *
+ * This is likely to disappear before submitting a PR to upstream. If
+ * anyone else implements the outer extension stuff, then I'll need to
+ * test it on the server-side, so I'll need to be able to do various
+ * tests of correct (and incorrect!) uses of that. In reality, when
+ * or if this feature reaches upstream, my guess is there'll not be 
+ * a need for such configuration flexibility on the client side at 
+ * all, and if any such compression is needed that can be hard-coded
+ * into the extension-specific ctos functions, if it really saves 
+ * useful space (could do if we don't break an MTU as a result) or
+ * helps somehow with not standing out (if it makes a reach use of
+ * ECH look more like GREASEd ones).
+ *
+ * As with ext_defs in extensions.c: NOTE: Changes in the number or order
+ * of these extensions should be mirrored with equivalent changes to the
+ * indexes ( TLSEXT_IDX_* ) defined in ssl_local.h.
+ *
+ * Lotsa notes, eh - that's because I'm not sure this is sane:-)
+ */
+int ech_outer_config[]={
+     /*TLSEXT_IDX_renegotiate */ 0,
+     /*TLSEXT_IDX_server_name */ 0,
+     /*TLSEXT_IDX_max_fragment_length */ 0,
+     /*TLSEXT_IDX_srp */ 0,
+     /*TLSEXT_IDX_ec_point_formats */ 0,
+     /*TLSEXT_IDX_supported_groups */ 0,
+     /*TLSEXT_IDX_session_ticket */ 0,
+     /*TLSEXT_IDX_status_request */ 0,
+     /*TLSEXT_IDX_next_proto_neg */ 0,
+     /*TLSEXT_IDX_application_layer_protocol_negotiation */ 0,
+     /*TLSEXT_IDX_use_srtp */ 0,
+     /*TLSEXT_IDX_encrypt_then_mac */ 0,
+     /*TLSEXT_IDX_signed_certificate_timestamp */ 0,
+     /*TLSEXT_IDX_extended_master_secret */ 0,
+     /*TLSEXT_IDX_signature_algorithms_cert */ 0,
+     /*TLSEXT_IDX_post_handshake_auth */ 0,
+     /*TLSEXT_IDX_signature_algorithms */ 1,
+     /*TLSEXT_IDX_supported_versions */ 1,
+     /*TLSEXT_IDX_psk_kex_modes */ 1,
+     /*TLSEXT_IDX_key_share */ 1,
+     /*TLSEXT_IDX_cookie */ 0,
+     /*TLSEXT_IDX_cryptopro_bug */ 0,
+     /*TLSEXT_IDX_early_data */ 0,
+     /*TLSEXT_IDX_certificate_authorities */ 0,
+#ifndef OPENSSL_NO_ESNI
+     /*TLSEXT_IDX_esni */ 0,
+#endif
+#ifndef OPENSSL_NO_ECH
+     /*TLSEXT_IDX_ech */ 0,
+     /*TLSEXT_IDX_outer_extensions */ 0,
+#endif
+     /*TLSEXT_IDX_padding */ 0,
+     /*TLSEXT_IDX_psk */ 0,
+    }; 
+
+/* 
+ * When doing ECH, this array specifies whether, when we're not
+ * compressing, to re-use the inner value in the outer CH  ("0")
+ * or whether to generate an independently new value for the
+ * outer ("1")
+ *
+ * As above this is likely to disappear before submitting a PR to 
+ * upstream. 
+ *
+ * As with ext_defs in extensions.c: NOTE: Changes in the number or order
+ * of these extensions should be mirrored with equivalent changes to the
+ * indexes ( TLSEXT_IDX_* ) defined in ssl_local.h.
+ */
+int ech_outer_indep[]={
+     /*TLSEXT_IDX_renegotiate */ 0,
+     /*TLSEXT_IDX_server_name */ 0,
+     /*TLSEXT_IDX_max_fragment_length */ 0,
+     /*TLSEXT_IDX_srp */ 0,
+     /*TLSEXT_IDX_ec_point_formats */ 0,
+     /*TLSEXT_IDX_supported_groups */ 0,
+     /*TLSEXT_IDX_session_ticket */ 0,
+     /*TLSEXT_IDX_status_request */ 0,
+     /*TLSEXT_IDX_next_proto_neg */ 0,
+     /*TLSEXT_IDX_application_layer_protocol_negotiation */ 0,
+     /*TLSEXT_IDX_use_srtp */ 0,
+     /*TLSEXT_IDX_encrypt_then_mac */ 0,
+     /*TLSEXT_IDX_signed_certificate_timestamp */ 0,
+     /*TLSEXT_IDX_extended_master_secret */ 0,
+     /*TLSEXT_IDX_signature_algorithms_cert */ 0,
+     /*TLSEXT_IDX_post_handshake_auth */ 0,
+     /*TLSEXT_IDX_signature_algorithms */ 0,
+     /*TLSEXT_IDX_supported_versions */ 0,
+     /*TLSEXT_IDX_psk_kex_modes */ 0,
+     /*TLSEXT_IDX_key_share */ 1,
+     /*TLSEXT_IDX_cookie */ 0,
+     /*TLSEXT_IDX_cryptopro_bug */ 0,
+     /*TLSEXT_IDX_early_data */ 0,
+     /*TLSEXT_IDX_certificate_authorities */ 0,
+#ifndef OPENSSL_NO_ESNI
+     /*TLSEXT_IDX_esni */ 0,
+#endif
+#ifndef OPENSSL_NO_ECH
+     /*TLSEXT_IDX_ech */ 0,
+     /*TLSEXT_IDX_outer_extensions */ 0,
+#endif
+     /*TLSEXT_IDX_padding */ 0,
+     /*TLSEXT_IDX_psk */ 0,
+}; 
+
+/**
+ * @brief repeat extension value from inner ch in outer ch and handle outer compression
+ * @param s is the SSL session
+ * @param pkt is the packet containing extensions
+ * @return 0: error, 1: copied existing and done, 2: ignore existing
+ */
+int ech_same_ext(SSL *s, WPACKET* pkt)
+{
+    if (!s->ech) return(ECH_SAME_EXT_CONTINUE); // nothing to do
+    int type=s->ech->etype;
+    int nexts=sizeof(ech_outer_config)/sizeof(int);
+    int tind=ech_map_ext_type_to_ind(type);
+    if (tind==-1) return(ECH_SAME_EXT_ERR);
+    if (tind>=nexts) return(ECH_SAME_EXT_ERR);
+
+    /*
+     * When doing the inner CH, just note what will later be
+     * compressed, if we want to compress
+     */
+    if (s->ext.ch_depth==0 && !ech_outer_config[tind]) {
+        printf("Not doing outer compressing for ext type %d\n",type);
+        return(ECH_SAME_EXT_CONTINUE);
+    }
+    if (s->ext.ch_depth==0 && ech_outer_config[tind]) {
+        printf("Will do outer compressing for ext type %d\n",type);
+        if (s->ech->n_outer_only>=ECH_OUTERS_MAX) {
+	        return ECH_SAME_EXT_ERR;
+        }
+        s->ech->outer_only[s->ech->n_outer_only]=type;
+        s->ech->n_outer_only++;
+        return(ECH_SAME_EXT_CONTINUE);
+    }
+
+    /* 
+     * From here on we're in 2nd call, making the outer CH 
+     */
+    if (!s->clienthello) return(ECH_SAME_EXT_ERR); 
+    if (!pkt) return(ECH_SAME_EXT_ERR);
+    if (ech_outer_indep[tind]) {
+        printf("New outer without compressing for ext type %d\n",type);
+        return(ECH_SAME_EXT_CONTINUE);
+    } else {
+        printf("Re-using inner in outer without compressing for ext type %d\n",type);
+
+	    int ind=0;
+	    RAW_EXTENSION *myext=NULL;
+	    RAW_EXTENSION *raws=s->clienthello->pre_proc_exts;
+	    if (raws==NULL) {
+	        return ECH_SAME_EXT_ERR;
+	    }
+	    size_t nraws=s->clienthello->pre_proc_exts_len;
+	    for (ind=0;ind!=nraws;ind++) {
+	        if (raws[ind].type==type) {
+	            myext=&raws[ind];
+	            break;
+	        }
+	    }
+	    if (myext==NULL) {
+	        /*
+	         * This one wasn't in inner, so don't send
+	         */
+            printf("Exiting at %d\n",__LINE__);
+	        return ECH_SAME_EXT_CONTINUE;
+	    }
+	    if (myext->data.curr!=NULL && myext->data.remaining>0) {
+	        if (!WPACKET_put_bytes_u16(pkt, type)
+	            || !WPACKET_sub_memcpy_u16(pkt, myext->data.curr, myext->data.remaining)) {
+                printf("Exiting at %d\n",__LINE__);
+	            return ECH_SAME_EXT_ERR;
+	        }
+	    } else {
+	        /*
+	         * empty extension
+	         */
+	        if (!WPACKET_put_bytes_u16(pkt, type)
+	                || !WPACKET_put_bytes_u16(pkt, 0)) {
+                printf("Exiting at %d\n",__LINE__);
+	            return ECH_SAME_EXT_ERR;
+	        }
+	    }
+        printf("Exiting at %d\n",__LINE__);
+        return(ECH_SAME_EXT_DONE);
+    }
+}
+
+/**
+ * @brief After "normal" 1st pass CH is done, fix encoding as needed
+ *
+ * This will make up the ClientHelloInner and EncodedClientHelloInner buffes
+ *
+ * @param s is the SSL session
+ * @return 1 for success, error otherwise
+ */
+int ech_encode_inner(SSL *s)
+{
+    /*
+     * So we'll try a sort-of decode of s->ech->innerch into
+     * s->ech->encoded_innerch, modulo s->ech->outers
+     *
+     * As a reminder the CH is:
+     *  struct {
+     *    ProtocolVersion legacy_version = 0x0303;    TLS v1.2
+     *    Random random;
+     *    opaque legacy_session_id<0..32>;
+     *    CipherSuite cipher_suites<2..2^16-2>;
+     *    opaque legacy_compression_methods<1..2^8-1>;
+     *    Extension extensions<8..2^16-1>;
+     *  } ClientHello;
+     */
+    if (s->ech==NULL) return(0);
+    
+ #ifdef OLDWAY
+    if (s->ech->innerch==NULL || s->ech->innerch_len==0) return(0);
+    /* 
+     * the input is longer than output by definition so allocate that much 
+     * this'll be freed later when 's' is so no need to handle on exit
+     */
+    s->ech->encoded_innerch=OPENSSL_malloc(s->ech->innerch_len);
+    if (s->ech->encoded_innerch==NULL) return(0);
+    /*
+     * Walk the input 'till we hit extensions
+     * Bear in mind we're not (here) dealing with a
+     * random client-hello from someone else but only
+     * with one we just made. So we can assume a bit
+     * more (modulo code evolution).
+     */
+    unsigned char *icb=s->ech->innerch;
+    size_t skip2cs=76;
+    /*
+     * Sanity check index vs. length to check 
+     */
+    if ((skip2cs+2)>s->ech->innerch_len) return(0);
+    size_t cslen=256*icb[skip2cs]+icb[skip2cs+1];
+    /*
+     * offset for exts is end of ciphersuites plus 
+     * 2 for empty compression plus two for length
+     * of encoded exts
+     */
+    size_t extoffset=2+skip2cs+cslen+2+2;
+    if (extoffset>s->ech->innerch_len) return(0);
+    /*
+     * Might need two more here for decoding function, we'll see
+     */
+    /*
+     * TODO: check clean up of extensions
+     * Note sure why I made that call:-)
+     */
+    unsigned char *full_encoded_exts=&s->ech->innerch[extoffset];
+    size_t fe_len=s->ech->innerch_len-extoffset;
+    PACKET extensions;
+    RAW_EXTENSION *rexts;
+    size_t rexts_len;
+    if (!PACKET_buf_init(&extensions, full_encoded_exts, fe_len)) {
+        return(0);
+    }
+    if (!tls_collect_extensions(s, &extensions, SSL_EXT_CLIENT_HELLO,
+                                &rexts,&rexts_len,1)) {
+        return(0);
+    }
+#endif
+
+    /*
+     * Go over the extensions, and check if we should include
+     * the value or if this one's compressed in the inner
+     * This depends on us having made the call to process
+     * client hello before.
+     */
+
+    unsigned char *innerch_full=NULL;
+    WPACKET inner; ///< "fake" pkt for inner
+    BUF_MEM *inner_mem=NULL;
+    int mt=SSL3_MT_CLIENT_HELLO;
+    if ((inner_mem = BUF_MEM_new()) == NULL) {
+        goto err;
+    }
+    if (!BUF_MEM_grow(inner_mem, SSL3_RT_MAX_PLAIN_LENGTH)) {
+        goto err;
+    }
+    if (!WPACKET_init(&inner,inner_mem)
+                || !ssl_set_handshake_header(s, &inner, mt)) {
+        goto err;
+    }
+
+    uint16_t *oo=s->ech->outer_only;
+    int noo=s->ech->n_outer_only;
+    RAW_EXTENSION *raws=s->clienthello->pre_proc_exts;
+    size_t nraws=s->clienthello->pre_proc_exts_len;
+    int ind=0;
+    int compression_started=0;
+    int compression_done=0;
+    for (ind=0;ind!=nraws;ind++) {
+        int present=raws[ind].present;
+        if (!present) continue;
+        int type=raws[ind].type;
+        int do_compression=0;
+        int ooi=0;
+        for (ooi=0;ooi!=noo;ooi++) {
+            if (type==oo[ooi]) {
+                if (compression_done==1) {
+                    /*
+                     * Error - only allowed 1 run of contiguous exts
+                     */
+                    return(0);
+                }
+                do_compression=1;
+                compression_started=1;
+            }
+        }
+        if (do_compression && !compression_done) {
+                if (!WPACKET_put_bytes_u16(&inner, type)
+                    || !WPACKET_sub_memcpy_u16(&inner, oo, noo*2)) {
+                    compression_done=1;
+                    return (0);
+                }
+        } else if (!do_compression) {
+            if (raws[ind].data.curr!=NULL) {
+                if (!WPACKET_put_bytes_u16(&inner, type)
+                    || !WPACKET_sub_memcpy_u16(&inner, raws[ind].data.curr, raws[ind].data.remaining)) {
+                    return (0);
+                }
+            } else {
+                /*
+                 * empty extension
+                 */
+                if (!WPACKET_put_bytes_u16(&inner, type)
+                        || !WPACKET_put_bytes_u16(&inner, 0)) {
+                    return (0);
+                }
+            }
+        }
+    }
+
+    /*
+     * close the inner CH
+     */
+    if (!WPACKET_close(&inner))  {
+        WPACKET_cleanup(&inner);
+        goto err;
+    }
+
+    /*
+     * Set pointer/len for inner CH 
+     */
+    size_t innerinnerlen=0;
+    if (!WPACKET_get_length(&inner, &innerinnerlen)) {
+        WPACKET_cleanup(&inner);
+        goto err;
+    }
+
+    /* 
+     * we need to prepend a few octets onto that to get the encoding 
+     * we can decode
+     */
+    innerch_full=OPENSSL_malloc(innerinnerlen);
+    if (!innerch_full) {
+        goto err;
+    }
+    memcpy(innerch_full,inner_mem->data,innerinnerlen);
+    s->ech->encoded_innerch=innerch_full;
+    s->ech->encoded_innerch_len=innerinnerlen;
+
+    return(1);
+err:
+    // TODO: free stuff
+    return(0);
+}
+
+/**
+ * @brief print a buffer nicely
+ *
+ * This is used in SSL_ESNI_print
+ */
+void ech_pbuf(char *msg,unsigned char *buf,size_t blen)
+{
+    if (msg==NULL) {
+        printf("msg is NULL\n");
+        return;
+    }
+    if (buf==NULL) {
+        printf("%s: buf is NULL\n",msg);
+        return;
+    }
+    if (blen==0) {
+        printf("%s: blen is zero\n",msg);
+        return;
+    }
+    printf("%s (%lu):\n    ",msg,(unsigned long)blen);
+    size_t i;
+    for (i=0;i<blen;i++) {
+        if ((i!=0) && (i%16==0))
+            printf("\n    ");
+        printf("%02x:",buf[i]);
+    }
+    printf("\n");
+    return;
+}
+
+/*
+ * A stab at a "special" copy of the SSL struct
+ * from inner to outer, so we can play with
+ * changes
+ */
+int ech_inner2outer_dup(SSL *in)
+{
+    if (!in) return(0);
+    /*
+     * Mega-copy
+     */
+    SSL *new=OPENSSL_malloc(sizeof(SSL));
+    if (!new) return(0);
+    *new=*in; // struct copy
+    in->ext.inner_s=new;
+    /*
+     * Note that we've not yet checked if server
+     * successfully used the inner_s - this'll be
+     * checked and fixed up after 1st EncryptedExtension
+     * is rx'd. Code for that in ssl/record/ssl3_record_tls13.c:tls13_enc_esni
+     */
+    in->ext.inner_s_checked=0;
+    in->ext.inner_s_shdone=0;
+    in->ext.inner_s_ftd=0;
+    return(1);
 }
 
 #endif

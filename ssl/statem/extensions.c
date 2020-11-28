@@ -63,6 +63,8 @@ static int final_esni(SSL *s, unsigned int context, int sent);
 #ifndef OPENSSL_NO_ECH
 static int init_ech(SSL *s, unsigned int context);
 static int final_ech(SSL *s, unsigned int context, int sent);
+static int init_ech_outer_exts(SSL *s, unsigned int context);
+static int final_ech_outer_exts(SSL *s, unsigned int context, int sent);
 #endif // END_OPENSSL_NO_ECH
 
 
@@ -401,7 +403,16 @@ static const EXTENSION_DEFINITION ext_defs[] = {
         tls_construct_stoc_ech, tls_construct_ctos_ech,
         final_ech
     },
+    {
+        TLSEXT_TYPE_outer_extensions,
+        SSL_EXT_CLIENT_HELLO | SSL_EXT_TLS1_3_ONLY,
+        init_ech_outer_exts,
+        tls_parse_ctos_ech_outer_exts, tls_parse_stoc_ech_outer_exts,
+        tls_construct_stoc_ech_outer_exts, tls_construct_ctos_ech_outer_exts,
+        final_ech_outer_exts
+    },
 #else // OPENSSL_NO_ECH
+    INVALID_EXTENSION,
     INVALID_EXTENSION,
 #endif // END_OPENSSL_NO_ECH
     {
@@ -430,6 +441,26 @@ static const EXTENSION_DEFINITION ext_defs[] = {
         tls_construct_ctos_psk, NULL
     }
 };
+
+#ifndef OPENSSL_NO_ECH
+/*
+ * TODO: So this is dim but will fix later.
+ * @brief map from ext type to index in ext_defs table
+ * @param type is the input type
+ * @return the index or -1 for error
+ */
+int ech_map_ext_type_to_ind(int type)
+{
+    const EXTENSION_DEFINITION *e=ext_defs;
+    int ed_size=sizeof(ext_defs)/sizeof(EXTENSION_DEFINITION);
+    if (type<0) return(-1);
+    for (int i=0;i!=ed_size;i++) {
+        if (e->type==type) return(i);
+        e++;
+    }
+    return(-1);
+}
+#endif
 
 /* Check whether an extension's context matches the current context */
 static int validate_context(SSL *s, unsigned int extctx, unsigned int thisctx)
@@ -890,6 +921,15 @@ int tls_construct_extensions(SSL *s, WPACKET *pkt, unsigned int context,
         if (construct == NULL)
             continue;
 
+#ifndef OPENSSL_NO_ECH
+        /*
+         * This is imperfect but let's get it working before we
+         * optimise the code changes (the thing we're doing is a
+         * work-in-progress still... 
+         */
+        if (s->ech) s->ech->etype=thisexd->type;
+#endif
+
         ret = construct(s, pkt, context, x, chainidx);
         if (ret == EXT_RETURN_FAIL) {
             /* SSLfatal() already called */
@@ -1030,6 +1070,12 @@ static int final_ech(SSL *s, unsigned int context, int sent)
     }
     return 1;
 }
+
+static int final_ech_outer_exts(SSL *s, unsigned int context, int sent)
+{
+    return 1;
+}
+
 #endif // END_OPENSSL_NO_ECH
 
 // ESNI_DOXY_END
@@ -1803,6 +1849,11 @@ static int final_maxfragmentlen(SSL *s, unsigned int context, int sent)
             return 0;
         }
 
+    return 1;
+}
+
+static int init_ech_outer_exts(SSL *s, unsigned int context)
+{
     return 1;
 }
 

@@ -163,9 +163,11 @@ extern "C" {
 #endif
 
 #ifndef OPENSSL_NO_ECH
-#define TLSEXT_TYPE_ech                       0xff08
 #define TLSEXT_TYPE_ech_nonce                 0xff03
 #define TLSEXT_TYPE_outer_ch                  0xff04
+
+#define TLSEXT_TYPE_ech                       0xfe08
+#define TLSEXT_TYPE_outer_extensions          0xfd00
 #endif
 
 /* NameType value from RFC3546 */
