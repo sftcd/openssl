@@ -21,6 +21,9 @@ GREASE="no"
 
 # Protocol parameters
 
+DEFALPNVAL="-alpn secret,foo,h2 -alpn-outer http/1.1"
+DOALPN="yes"
+
 # default port
 PORT="443"
 # port from commeand line
@@ -273,13 +276,19 @@ then
 	fi
 fi
 
+alpn=""
+if [[ "$DOALPN" == "yes" ]]
+then
+    alpn=$DEFALPNVAL
+fi
+
 TMPF=`mktemp /tmp/echtestXXXX`
 
 if [[ "$DEBUG" == "yes" ]]
 then
-    echo "Running: $TOP/apps/openssl s_client $dbgstr $certsdb $force13 $target $echstr $snicmd $session"
+    echo "Running: $TOP/apps/openssl s_client $dbgstr $certsdb $force13 $target $echstr $snicmd $session $alpn"
 fi
-echo -e "$httpreq" | $vgcmd $TOP/apps/openssl s_client $dbgstr $certsdb $force13 $target $echstr $snicmd $session >$TMPF 2>&1
+echo -e "$httpreq" | $vgcmd $TOP/apps/openssl s_client $dbgstr $certsdb $force13 $target $echstr $snicmd $session $alpn >$TMPF 2>&1
 
 c200=`grep -c "200 OK" $TMPF`
 csucc=`grep -c "ECH: success" $TMPF`

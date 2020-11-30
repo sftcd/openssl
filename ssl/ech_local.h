@@ -100,28 +100,23 @@ typedef struct ech_configs_st {
  * The TLS presentation language version is:
  *
  * <pre>
- * struct {
- *          CipherSuite suite;
- *          opaque record_digest<0..2^16-1>;
- *          opaque enc<1..2^16-1>;
- *          opaque encrypted_ch<1..2^16-1>;
- *      } ClientEncryptedCH;
+ *     struct {
+ *       ECHCipherSuite cipher_suite;
+ *       opaque config_id<0..255>;
+ *       opaque enc<1..2^16-1>;
+ *       opaque payload<1..2^16-1>;
+ *    } ClientECH;
  * </pre>
- *
- * Fields encoded in extension, these are copies, (not malloc'd)
- * of pointers elsewhere in SSL_ECH. One of these is returned
- * from SSL_ECH_enc, and is also pointed to from the SSL_ECH
- * structure.
  *
  */
 typedef struct ech_encch_st {
-	unsigned int ciphersuite; ///< ciphersuite - TODO: make this a HPKE suite
-    size_t record_digest_len; ///< identifies DNS RR used
-    unsigned char *record_digest; ///< identifies DNS RR used
+	unsigned int ciphersuite; ///< ciphersuite 
+    size_t config_id_len; ///< identifies DNS RR used
+    unsigned char *config_id; ///< identifies DNS RR used
     size_t enc_len; ///< public share
     unsigned char *enc; ///< public share
-    size_t encch_len; ///< ciphertext 
-    unsigned char *encch; ///< ciphertext 
+    size_t payload_len; ///< ciphertext 
+    unsigned char *payload; ///< ciphertext 
 } ECH_ENCCH;
 
 /**

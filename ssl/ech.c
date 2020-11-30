@@ -1245,22 +1245,22 @@ int ech_outer_config[]={
      /*TLSEXT_IDX_server_name */ 0,
      /*TLSEXT_IDX_max_fragment_length */ 0,
      /*TLSEXT_IDX_srp */ 0,
-     /*TLSEXT_IDX_ec_point_formats */ 0,
-     /*TLSEXT_IDX_supported_groups */ 0,
-     /*TLSEXT_IDX_session_ticket */ 0,
-     /*TLSEXT_IDX_status_request */ 0,
-     /*TLSEXT_IDX_next_proto_neg */ 0,
-     /*TLSEXT_IDX_application_layer_protocol_negotiation */ 0,
+     /*TLSEXT_IDX_ec_point_formats */ 1,
+     /*TLSEXT_IDX_supported_groups */ 1,
+     /*TLSEXT_IDX_session_ticket */ 1,
+     /*TLSEXT_IDX_status_request */ 1,
+     /*TLSEXT_IDX_next_proto_neg */ 1,
+     /*TLSEXT_IDX_application_layer_protocol_negotiation */ 1,
      /*TLSEXT_IDX_use_srtp */ 0,
      /*TLSEXT_IDX_encrypt_then_mac */ 0,
      /*TLSEXT_IDX_signed_certificate_timestamp */ 0,
      /*TLSEXT_IDX_extended_master_secret */ 0,
      /*TLSEXT_IDX_signature_algorithms_cert */ 0,
      /*TLSEXT_IDX_post_handshake_auth */ 0,
-     /*TLSEXT_IDX_signature_algorithms */ 1,
-     /*TLSEXT_IDX_supported_versions */ 1,
-     /*TLSEXT_IDX_psk_kex_modes */ 1,
-     /*TLSEXT_IDX_key_share */ 1,
+     /*TLSEXT_IDX_signature_algorithms */ 0,
+     /*TLSEXT_IDX_supported_versions */ 0,
+     /*TLSEXT_IDX_psk_kex_modes */ 0,
+     /*TLSEXT_IDX_key_share */ 0,
      /*TLSEXT_IDX_cookie */ 0,
      /*TLSEXT_IDX_cryptopro_bug */ 0,
      /*TLSEXT_IDX_early_data */ 0,
@@ -1345,11 +1345,11 @@ int ech_same_ext(SSL *s, WPACKET* pkt)
      * compressed, if we want to compress
      */
     if (s->ext.ch_depth==0 && !ech_outer_config[tind]) {
-        printf("Not doing outer compressing for ext type %d\n",type);
+        printf("Not doing outer compressing for ext type %x\n",type);
         return(ECH_SAME_EXT_CONTINUE);
     }
     if (s->ext.ch_depth==0 && ech_outer_config[tind]) {
-        printf("Will do outer compressing for ext type %d\n",type);
+        printf("Will do outer compressing for ext type %x\n",type);
         if (s->ech->n_outer_only>=ECH_OUTERS_MAX) {
 	        return ECH_SAME_EXT_ERR;
         }
@@ -1364,10 +1364,10 @@ int ech_same_ext(SSL *s, WPACKET* pkt)
     if (!s->clienthello) return(ECH_SAME_EXT_ERR); 
     if (!pkt) return(ECH_SAME_EXT_ERR);
     if (ech_outer_indep[tind]) {
-        printf("New outer without compressing for ext type %d\n",type);
+        printf("New outer for ext type %x\n",type);
         return(ECH_SAME_EXT_CONTINUE);
     } else {
-        printf("Re-using inner in outer without compressing for ext type %d\n",type);
+        printf("Re-using inner in outer for ext type %x\n",type);
 
 	    int ind=0;
 	    RAW_EXTENSION *myext=NULL;
@@ -1508,49 +1508,49 @@ int ech_encode_inner(SSL *s)
         goto err;
     }
 
-    uint16_t *oo=s->ech->outer_only;
-    int noo=s->ech->n_outer_only;
     RAW_EXTENSION *raws=s->clienthello->pre_proc_exts;
     size_t nraws=s->clienthello->pre_proc_exts_len;
     int ind=0;
-    int compression_started=0;
     int compression_done=0;
     for (ind=0;ind!=nraws;ind++) {
         int present=raws[ind].present;
         if (!present) continue;
-        int type=raws[ind].type;
-        int do_compression=0;
+        int tobecompressed=0;
         int ooi=0;
-        for (ooi=0;ooi!=noo;ooi++) {
-            if (type==oo[ooi]) {
-                if (compression_done==1) {
-                    /*
-                     * Error - only allowed 1 run of contiguous exts
-                     */
-                    return(0);
-                }
-                do_compression=1;
-                compression_started=1;
+        for (ooi=0;!tobecompressed && ooi!=s->ech->n_outer_only;ooi++) {
+            if (raws[ind].type==s->ech->outer_only[ooi]) {
+                tobecompressed=1;
             }
         }
-        if (do_compression && !compression_done) {
-                if (!WPACKET_put_bytes_u16(&inner, type)
-                    || !WPACKET_sub_memcpy_u16(&inner, oo, noo*2)) {
-                    compression_done=1;
+        if (!compression_done && tobecompressed) {
+            if (!WPACKET_put_bytes_u16(&inner, TLSEXT_TYPE_outer_extensions) ||
+                !WPACKET_put_bytes_u16(&inner, 2*s->ech->n_outer_only)) {
+                printf("Exiting at %d\n",__LINE__);
+                return (0);
+            }
+            int iind=0;
+            for (iind=0;iind!=s->ech->n_outer_only;iind++) {
+                if (!WPACKET_put_bytes_u16(&inner, s->ech->outer_only[iind])) {
+                    printf("Exiting at %d\n",__LINE__);
                     return (0);
                 }
-        } else if (!do_compression) {
+            }
+            compression_done=1;
+        } 
+        if (!tobecompressed) {
             if (raws[ind].data.curr!=NULL) {
-                if (!WPACKET_put_bytes_u16(&inner, type)
+                if (!WPACKET_put_bytes_u16(&inner, raws[ind].type)
                     || !WPACKET_sub_memcpy_u16(&inner, raws[ind].data.curr, raws[ind].data.remaining)) {
+                    printf("Exiting at %d\n",__LINE__);
                     return (0);
                 }
             } else {
                 /*
-                 * empty extension
-                 */
-                if (!WPACKET_put_bytes_u16(&inner, type)
+                * empty extension
+                */
+                if (!WPACKET_put_bytes_u16(&inner, raws[ind].type)
                         || !WPACKET_put_bytes_u16(&inner, 0)) {
+                    printf("Exiting at %d\n",__LINE__);
                     return (0);
                 }
             }
