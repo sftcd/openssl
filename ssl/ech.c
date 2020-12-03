@@ -1436,56 +1436,6 @@ int ech_encode_inner(SSL *s)
      */
     if (s->ech==NULL) return(0);
     
- #ifdef OLDWAY
-    if (s->ech->innerch==NULL || s->ech->innerch_len==0) return(0);
-    /* 
-     * the input is longer than output by definition so allocate that much 
-     * this'll be freed later when 's' is so no need to handle on exit
-     */
-    s->ech->encoded_innerch=OPENSSL_malloc(s->ech->innerch_len);
-    if (s->ech->encoded_innerch==NULL) return(0);
-    /*
-     * Walk the input 'till we hit extensions
-     * Bear in mind we're not (here) dealing with a
-     * random client-hello from someone else but only
-     * with one we just made. So we can assume a bit
-     * more (modulo code evolution).
-     */
-    unsigned char *icb=s->ech->innerch;
-    size_t skip2cs=76;
-    /*
-     * Sanity check index vs. length to check 
-     */
-    if ((skip2cs+2)>s->ech->innerch_len) return(0);
-    size_t cslen=256*icb[skip2cs]+icb[skip2cs+1];
-    /*
-     * offset for exts is end of ciphersuites plus 
-     * 2 for empty compression plus two for length
-     * of encoded exts
-     */
-    size_t extoffset=2+skip2cs+cslen+2+2;
-    if (extoffset>s->ech->innerch_len) return(0);
-    /*
-     * Might need two more here for decoding function, we'll see
-     */
-    /*
-     * TODO: check clean up of extensions
-     * Note sure why I made that call:-)
-     */
-    unsigned char *full_encoded_exts=&s->ech->innerch[extoffset];
-    size_t fe_len=s->ech->innerch_len-extoffset;
-    PACKET extensions;
-    RAW_EXTENSION *rexts;
-    size_t rexts_len;
-    if (!PACKET_buf_init(&extensions, full_encoded_exts, fe_len)) {
-        return(0);
-    }
-    if (!tls_collect_extensions(s, &extensions, SSL_EXT_CLIENT_HELLO,
-                                &rexts,&rexts_len,1)) {
-        return(0);
-    }
-#endif
-
     /*
      * Go over the extensions, and check if we should include
      * the value or if this one's compressed in the inner
@@ -1526,13 +1476,13 @@ int ech_encode_inner(SSL *s)
             if (!WPACKET_put_bytes_u16(&inner, TLSEXT_TYPE_outer_extensions) ||
                 !WPACKET_put_bytes_u16(&inner, 2*s->ech->n_outer_only)) {
                 printf("Exiting at %d\n",__LINE__);
-                return (0);
+                goto err;
             }
             int iind=0;
             for (iind=0;iind!=s->ech->n_outer_only;iind++) {
                 if (!WPACKET_put_bytes_u16(&inner, s->ech->outer_only[iind])) {
                     printf("Exiting at %d\n",__LINE__);
-                    return (0);
+                    goto err;
                 }
             }
             compression_done=1;
@@ -1542,7 +1492,7 @@ int ech_encode_inner(SSL *s)
                 if (!WPACKET_put_bytes_u16(&inner, raws[ind].type)
                     || !WPACKET_sub_memcpy_u16(&inner, raws[ind].data.curr, raws[ind].data.remaining)) {
                     printf("Exiting at %d\n",__LINE__);
-                    return (0);
+                    goto err;
                 }
             } else {
                 /*
@@ -1551,7 +1501,7 @@ int ech_encode_inner(SSL *s)
                 if (!WPACKET_put_bytes_u16(&inner, raws[ind].type)
                         || !WPACKET_put_bytes_u16(&inner, 0)) {
                     printf("Exiting at %d\n",__LINE__);
-                    return (0);
+                    goto err;
                 }
             }
         }
@@ -1561,7 +1511,6 @@ int ech_encode_inner(SSL *s)
      * close the inner CH
      */
     if (!WPACKET_close(&inner))  {
-        WPACKET_cleanup(&inner);
         goto err;
     }
 
@@ -1570,7 +1519,6 @@ int ech_encode_inner(SSL *s)
      */
     size_t innerinnerlen=0;
     if (!WPACKET_get_length(&inner, &innerinnerlen)) {
-        WPACKET_cleanup(&inner);
         goto err;
     }
 
@@ -1585,9 +1533,13 @@ int ech_encode_inner(SSL *s)
     memcpy(innerch_full,inner_mem->data,innerinnerlen);
     s->ech->encoded_innerch=innerch_full;
     s->ech->encoded_innerch_len=innerinnerlen;
+    WPACKET_cleanup(&inner);
+    BUF_MEM_free(inner_mem);
 
     return(1);
 err:
+    WPACKET_cleanup(&inner);
+    BUF_MEM_free(inner_mem);
     // TODO: free stuff
     return(0);
 }
@@ -1630,12 +1582,8 @@ void ech_pbuf(char *msg,unsigned char *buf,size_t blen)
 int ech_inner2outer_dup(SSL *in)
 {
     if (!in) return(0);
-    /*
-     * Mega-copy
-     */
-    SSL *new=OPENSSL_malloc(sizeof(SSL));
+    SSL *new=SSL_dup(in);
     if (!new) return(0);
-    *new=*in; // struct copy
     in->ext.inner_s=new;
     /*
      * Note that we've not yet checked if server

@@ -1098,6 +1098,13 @@ WORK_STATE ossl_statem_client_post_process_message(SSL *s, WORK_STATE wst)
 
 #ifndef OPENSSL_NO_ECH
 
+/*
+ * Wrap the existing ClientHello construction with ECH code.
+ * As needed, we'll call the existing stuff twice, once for inner
+ * and then for outer, to allow for differences.
+ *
+ * TODO: decide what code should be here vs. in ssl/ech.c
+ */
 
 static int tls_construct_client_hello_aux(SSL *s, WPACKET *pkt);
 
@@ -1209,6 +1216,9 @@ int tls_construct_client_hello(SSL *s, WPACKET *pkt)
     s->ech->innerch=innerch_full;
     s->ech->innerch_len=innerinnerlen+5;
 
+    WPACKET_cleanup(&inner);
+    BUF_MEM_free(inner_mem);
+
     ech_pbuf("inner CH",s->ech->innerch,s->ech->innerch_len);
 
     /*
@@ -1264,6 +1274,7 @@ int tls_construct_client_hello(SSL *s, WPACKET *pkt)
         goto err;
     }
 
+#ifdef NOCRASH
     /*
      * Now we vary the outer vs. inner, according to taste
      * For me: I want a different key!
@@ -1275,6 +1286,7 @@ int tls_construct_client_hello(SSL *s, WPACKET *pkt)
          */
         s->s3.tmp.pkey=NULL;
     }
+#endif
     
     /*
      * Now we're at level 1, the outer CH
@@ -1306,6 +1318,8 @@ int tls_construct_client_hello(SSL *s, WPACKET *pkt)
 
     return(1);
 err:
+    WPACKET_cleanup(&inner);
+    BUF_MEM_free(inner_mem);
     return(0);
 }
 

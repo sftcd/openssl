@@ -936,7 +936,17 @@ static int add_key_share(SSL *s, WPACKET *pkt, unsigned int curve_id)
     size_t encodedlen;
 
     if (s->s3.tmp.pkey != NULL) {
+#ifndef OPENSSL_NO_ECH
+        /*
+         * With ECH we can get an outer that re-uses a share with 
+         * it's inner, so a non-HRR case is no longer an error
+         *
+         * TODO: Figure out if there is an error case!
+         */
+        if (s->ech==NULL && s->ext.ch_depth==1 && !ossl_assert(s->hello_retry_request == SSL_HRR_PENDING)) {
+#else
         if (!ossl_assert(s->hello_retry_request == SSL_HRR_PENDING)) {
+#endif
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_ADD_KEY_SHARE,
                      ERR_R_INTERNAL_ERROR);
             return 0;

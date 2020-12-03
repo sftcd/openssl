@@ -25,6 +25,10 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- 20201203: Coded up as far as the ``hpke_enc`` call on the client - not
+  really according to the draft but along same lines (waiting for an
+  "interop" draft before I get too worried about precision)
+
 - 20201027: Did a quick check of draft-02 suff - still seems ok with defo.ie,
   but ``./testclient.sh -H ietf.org`` doesn't work now, however that seems more
   like some cloudflare ops change as ``./testclient.sh -H rte.ie -c NONE`` does

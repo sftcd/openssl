@@ -1239,6 +1239,14 @@ void SSL_free(SSL *s)
     OPENSSL_free(s->ext.ocsp.resp);
     OPENSSL_free(s->ext.alpn);
     OPENSSL_free(s->ext.tls13_cookie);
+#ifndef OPENSSL_NO_ECH
+    /*
+     * Not sure why this isn't there already but anyway...
+     */
+    if (s->clienthello!=NULL) {
+        OPENSSL_free(s->clienthello->pre_proc_exts);
+    }
+#endif
     OPENSSL_free(s->clienthello);
     OPENSSL_free(s->pha_context);
     EVP_MD_CTX_free(s->pha_dgst);
@@ -1291,7 +1299,8 @@ void SSL_free(SSL *s)
 
 #ifndef OPENSSL_NO_ECH
     if (s->ext.inner_s!=NULL) {
-        OPENSSL_free(s->ext.inner_s);
+        SSL_free(s->ext.inner_s);
+        s->ext.inner_s=NULL;
     }
     if (s->ech!=NULL) {
         int i=0;
@@ -4035,11 +4044,19 @@ SSL *SSL_dup(SSL *s)
     SSL *ret;
     int i;
 
+#ifndef OPENSSL_NO_ECH
+    /* If we're not ECH/inner and not quiescent, just up_ref! */
+    if (s->ext.ch_depth!=0 && ( !SSL_in_init(s) || !SSL_in_before(s))) {
+        CRYPTO_UP_REF(&s->references, &i, s->lock);
+        return s;
+    }
+#else
     /* If we're not quiescent, just up_ref! */
     if (!SSL_in_init(s) || !SSL_in_before(s)) {
         CRYPTO_UP_REF(&s->references, &i, s->lock);
         return s;
     }
+#endif
 
     /*
      * Otherwise, copy configuration state, and session if set.
