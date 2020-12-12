@@ -22,6 +22,25 @@
 # include "statem/statem_local.h"
 
 /*
+ * Needed to use stat for file status below in ech_check_filenames
+ */
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
+
+/*
+ * @brief Decode and check the value retieved from DNS (binary, base64 or ascii-hex encoded)
+ * 
+ * This does the real work, can be called to add to a context or a connection
+ * @param eklen is the length of the binary, base64 or ascii-hex encoded value from DNS
+ * @param ekval is the binary, base64 or ascii-hex encoded value from DNS
+ * @param num_echs says how many SSL_ECH structures are in the returned array
+ * @param echs is a pointer to an array of decoded SSL_ECH
+ * @return is 1 for success, error otherwise
+ */
+static int local_ech_add( int ekfmt, size_t eklen, unsigned char *ekval, int *num_echs, SSL_ECH **echs);
+
+/*
  * Yes, global vars! 
  * For decoding input strings with public keys (aka ECHConfig) we'll accept
  * semi-colon separated lists of strings via the API just in case that makes
@@ -39,6 +58,148 @@ const char *httpssvc_telltale="echconfig=";
  * Ancilliary functions
  */
 
+#define ECH_KEYPAIR_ERROR          0
+#define ECH_KEYPAIR_NEW            1
+#define ECH_KEYPAIR_UNMODIFIED     2
+#define ECH_KEYPAIR_MODIFIED       3
+
+/**
+ * Check if key pair needs to be (re-)loaded or not
+ *
+ * We go through the keys we have and see what we find
+ *
+ * @param ctx is the SSL server context
+ * @param privfname is the private key filename
+ * @param pubfname is the public key filename (can be NULL sometimes)
+ * @param index is the index if we find a match
+ * @return negative for error, otherwise one of: ECH_KEYPAIR_UNMODIFIED ECH_KEYPAIR_MODIFIED ECH_KEYPAIR_NEW
+ */
+static int ech_check_filenames(SSL_CTX *ctx, const char *pemfname,int *index)
+{
+    struct stat pemstat;
+    // if bad input, crap out
+    if (ctx==NULL || pemfname==NULL || index==NULL) return(ECH_KEYPAIR_ERROR);
+    // if we have none, then it is new
+    if (ctx->ext.ech==NULL || ctx->ext.nechs==0) return(ECH_KEYPAIR_NEW);
+    // if no file info, crap out
+    if (stat(pemfname,&pemstat) < 0) return(ECH_KEYPAIR_ERROR);
+    // check the time info - we're only gonna do 1s precision on purpose
+#if defined(__APPLE__)
+    time_t pemmod=pemtat.st_mtimespec.tv_sec;
+#elif defined(OPENSSL_SYS_WINDOWS)
+    time_t pemmod=pemtat.st_mtime;
+#else
+    time_t pemmod=pemstat.st_mtim.tv_sec;
+#endif
+    // now search list of existing key pairs to see if we have that one already
+    int ind=0;
+    size_t pemlen=strlen(pemfname);
+    for(ind=0;ind!=ctx->ext.nechs;ind++) {
+        if (ctx->ext.ech[ind].pemfname==NULL) return(ECH_KEYPAIR_ERROR);
+        size_t llen=strlen(ctx->ext.ech[ind].pemfname);
+        if (llen==pemlen && !strncmp(ctx->ext.ech[ind].pemfname,pemfname,pemlen)) {
+            // matching files!
+            if (ctx->ext.ech[ind].loadtime<pemmod) {
+                // aha! load it up so
+                *index=ind;
+                return(ECH_KEYPAIR_MODIFIED);
+            } else {
+                // tell caller no need to bother
+                *index=-1; // just in case:->
+                return(ECH_KEYPAIR_UNMODIFIED);
+            }
+        }
+    }
+    *index=-1; // just in case:->
+    return ECH_KEYPAIR_NEW;
+}
+
+/**
+ * @brief Read an ECHConfigs (better only have 1) and single private key from
+ *
+ * @param pemfile is the name of the file
+ * @param ctx is the SSL context
+ * @param echs an (output) pointer to the ECHConfigs output
+ * @param priv an (output) pointer to the private key 
+ * @return 1 for success, otherwise error
+ */
+static int ech_readpemfile(SSL_CTX *ctx, const char *pemfile, ECHConfigs **echs, EVP_PKEY **priv)
+{
+    /*
+     * The file content should look like:
+     * -----BEGIN PRIVATE KEY-----
+     * MC4CAQAwBQYDK2VuBCIEIEiVgUq4FlrMNX3lH5osEm1yjqtVcQfeu3hY8VOFortE
+     * -----END PRIVATE KEY-----
+     * -----BEGIN ECHCONFIG-----
+     * AEP/CQBBAAtleGFtcGxlLmNvbQAkAB0AIF8i/TRompaA6Uoi1H3xqiqzq6IuUqFjT2GNT4wzWmF6ACAABAABAAEAAAAA
+     * -----END ECHCONFIG-----
+     */
+
+    BIO *pem_in=NULL;
+    unsigned char *inbuf=NULL;
+    char *pname=NULL;
+    char *pheader=NULL;
+    unsigned char *pdata=NULL;
+    long plen;
+
+    /*
+     * Now check and parse inputs
+     */
+    pem_in = BIO_new(BIO_s_file());
+    if (pem_in==NULL) {
+        goto err;
+    }
+    if (BIO_read_filename(pem_in,pemfile)<=0) {
+        goto err;
+    }
+    if (!PEM_read_bio_PrivateKey(pem_in,priv,NULL,NULL)) {
+        goto err;
+    }
+    inbuf=OPENSSL_malloc(ECH_MAX_ECHCONFIG_LEN);
+    if (inbuf==NULL) {
+        goto err;
+    }
+    if (PEM_read_bio(pem_in,&pname,&pheader,&pdata,&plen)<=0) {
+        goto err;
+    }
+    if (!pheader) {
+        goto err;
+    }
+    if (strncmp(PEM_STRING_ECHCONFIG,pheader,strlen(pheader))) {
+        goto err;
+    }
+    OPENSSL_free(pheader); pheader=NULL;
+    if (pname) {
+        OPENSSL_free(pname);  pname=NULL;
+    }
+    if (plen>=ECH_MAX_ECHCONFIG_LEN) {
+        goto err;
+    }
+    BIO_free(pem_in);
+
+    /*
+     * Now decode that ECHConfigs
+     */
+    int num_echs=0;
+    SSL_ECH *sechs=NULL;
+    int rv=local_ech_add(ECH_FMT_GUESS,plen,pdata,&num_echs,&sechs);
+    if (rv!=1) {
+        goto err;
+    }
+
+    *echs=sechs->cfg;
+
+    return(1);
+
+err:
+    if (inbuf!=NULL) OPENSSL_free(inbuf);
+    if (pheader!=NULL) OPENSSL_free(pheader); 
+    if (pname!=NULL) OPENSSL_free(pname); 
+    if (pdata!=NULL) OPENSSL_free(pdata); 
+    if (pem_in!=NULL) BIO_free(pem_in);
+    return(0);
+}
+
 /**
  * Try figure out ECHConfig encodng
  *
@@ -48,7 +209,7 @@ const char *httpssvc_telltale="echconfig=";
  * @return 1 for success, 0 for error
  */
 static int ech_guess_fmt(size_t eklen, 
-                    char *rrval,
+                    unsigned char *rrval,
                     int *guessedfmt)
 {
     if (!guessedfmt || eklen <=0 || !rrval) {
@@ -58,11 +219,11 @@ static int ech_guess_fmt(size_t eklen,
     /*
      * Try from most constrained to least in that order
      */
-    if (strstr(rrval,httpssvc_telltale)) {
+    if (strstr((char*)rrval,httpssvc_telltale)) {
         *guessedfmt=ECH_FMT_HTTPSSVC;
-    } else if (eklen<=strspn(rrval,AH_alphabet)) {
+    } else if (eklen<=strspn((char*)rrval,AH_alphabet)) {
         *guessedfmt=ECH_FMT_ASCIIHEX;
-    } else if (eklen<=strspn(rrval,B64_alphabet)) {
+    } else if (eklen<=strspn((char*)rrval,B64_alphabet)) {
         *guessedfmt=ECH_FMT_B64TXT;
     } else {
         // fallback - try binary
@@ -303,7 +464,7 @@ static ECHConfigs *ECHConfigs_from_binary(unsigned char *binbuf, size_t binblen,
         /*
          * check version 
          */
-        if (ec->version!=ECH_DRAFT_08_VERSION) {
+        if (ec->version!=ECH_DRAFT_09_VERSION) {
             unsigned char *foo=OPENSSL_malloc(ech_content_length);
             if (!foo) goto err;
             if (!PACKET_copy_bytes(&pkt, foo, ech_content_length)) {
@@ -498,7 +659,7 @@ err:
 static int local_ech_add(
         int ekfmt, 
         size_t eklen, 
-        char *ekval, 
+        unsigned char *ekval, 
         int *num_echs,
         SSL_ECH **echs)
 {
@@ -537,9 +698,9 @@ static int local_ech_add(
      */
     unsigned char *outbuf = NULL;   /* a binary representation of a sequence of ECHConfigs */
     size_t declen=0;                /* length of the above */
-    char *ekcpy=ekval;
+    char *ekcpy=(char*)ekval;
     if (detfmt==ECH_FMT_HTTPSSVC) {
-        ekcpy=strstr(ekval,httpssvc_telltale);
+        ekcpy=strstr((char*)ekval,httpssvc_telltale);
         if (ekcpy==NULL) {
             SSLerr(SSL_F_SSL_ECH_ADD, SSL_R_BAD_VALUE);
             return(rv);
@@ -698,9 +859,8 @@ int SSL_ech_add(
         return(0);
     }
     SSL_ECH *echs=NULL;
-    int rv=local_ech_add(ekfmt,eklen,ekval,num_echs,&echs);
+    int rv=local_ech_add(ekfmt,eklen,(unsigned char*)ekval,num_echs,&echs);
     if (rv!=1) {
-        SSLerr(SSL_F_SSL_ECH_ADD, SSL_R_BAD_VALUE);
         return(0);
     }
     con->ech=echs;
@@ -732,7 +892,7 @@ int SSL_CTX_ech_add(SSL_CTX *ctx, short ekfmt, size_t eklen, char *ekval, int *n
         return(0);
     }
     SSL_ECH *echs=NULL;
-    int rv=local_ech_add(ekfmt,eklen,ekval,num_echs,&echs);
+    int rv=local_ech_add(ekfmt,eklen,(unsigned char*)ekval,num_echs,&echs);
     if (rv!=1) {
         SSLerr(SSL_F_SSL_CTX_ECH_ADD, SSL_R_BAD_VALUE);
         return(0);
@@ -756,12 +916,14 @@ int SSL_ech_server_name(SSL *s, const char *inner_name, const char *outer_name)
     if (s==NULL) return(0);
     if (s->ech==NULL) return(0);
     if (inner_name==NULL) return(0);
-    if (outer_name==NULL) return(0);
+    // outer name can be NULL!
+    // if (outer_name==NULL) return(0);
 
     if (s->ech->inner_name!=NULL) OPENSSL_free(s->ech->inner_name);
     s->ech->inner_name=OPENSSL_strdup(inner_name);
     if (s->ech->outer_name!=NULL) OPENSSL_free(s->ech->outer_name);
-    s->ech->outer_name=OPENSSL_strdup(outer_name);
+    if (outer_name!=NULL) s->ech->outer_name=OPENSSL_strdup(outer_name);
+    else s->ech->outer_name=NULL;
 
     return 1;
 }
@@ -873,13 +1035,81 @@ int SSL_CTX_ech_server_flush_keys(SSL_CTX *s, int age)
  * When this works, the server will decrypt any ECH seen in ClientHellos and
  * subsequently treat those as if they had been send in cleartext SNI.
  *
- * @param s is the SSL connection (can be NULL)
- * @param echcfgfile has the relevant ECHConfig(s) and private key in PEM format
+ * @param ctx is the SSL connection (can be NULL)
+ * @param pemfile has the relevant ECHConfig(s) and private key in PEM format
  * @return 1 for success, other otherwise
  */
-int SSL_CTX_ech_server_enable(SSL_CTX *s, const char *echcfgfile)
+int SSL_CTX_ech_server_enable(SSL_CTX *ctx, const char *pemfile)
 {
-    return 1;
+    if (ctx==NULL || pemfile==NULL) {
+        return(0);
+    }
+
+    /*
+     * Check if we already loaded that one etc.
+     */
+    int index=-1;
+    int fnamestat=ech_check_filenames(ctx,pemfile,&index);
+    switch (fnamestat) {
+        case ECH_KEYPAIR_UNMODIFIED:
+            // nothing to do
+            return(1);
+        case ECH_KEYPAIR_ERROR:
+            return(0);
+    }
+
+    /*
+     * Load up the file content
+     */
+    ECHConfigs *echs=NULL;
+    EVP_PKEY *priv=NULL;
+    int rv=ech_readpemfile(ctx,pemfile,&echs,&priv);
+    if (rv!=1) {
+        return(rv);
+    }
+
+    /*
+     * This is a restriction of our PEM file scheme - we only accept
+     * one public key per PEM file
+     */
+    if (!priv || !echs || echs->nrecs!=1) {
+        return(0);
+    }
+
+    /*
+     * Now store the keypair in a new or current place
+     */
+    if (fnamestat==ECH_KEYPAIR_MODIFIED) {
+        if (index<0 || index >=ctx->ext.nechs) {
+            return(0);
+        }
+        SSL_ECH *curr_ec=&ctx->ext.ech[index];
+        SSL_ECH_free(curr_ec);
+        memset(curr_ec,0,sizeof(SSL_ECH));
+        curr_ec->cfg=echs;
+        curr_ec->pemfname=OPENSSL_strdup(pemfile);
+        curr_ec->loadtime=time(0);
+        curr_ec->keyshare=priv;
+
+        return(1);
+    } 
+    if (fnamestat==ECH_KEYPAIR_NEW) {
+        SSL_ECH *re_ec=OPENSSL_realloc(ctx->ext.ech,(ctx->ext.nechs+1)*sizeof(SSL_ECH));
+        if (re_ec==NULL) {
+            return(0);
+        }
+        ctx->ext.ech=re_ec;
+        SSL_ECH *new_ec=&ctx->ext.ech[ctx->ext.nechs];
+        memset(new_ec,0,sizeof(SSL_ECH));
+        new_ec->cfg=echs;
+        new_ec->pemfname=OPENSSL_strdup(pemfile);
+        new_ec->loadtime=time(0);
+        new_ec->keyshare=priv;
+        ctx->ext.nechs++;
+        return(1);
+    } 
+
+    return 0;
 }
 
 /** 
@@ -1096,7 +1326,7 @@ int SSL_svcb_add(SSL *con, int rrfmt, size_t rrlen, char *rrval, int *num_echs)
     } else if (rrfmt==ECH_FMT_BIN) {
         detfmt=rrfmt;
     } else {
-        rv=ech_guess_fmt(rrlen,rrval,&detfmt);
+        rv=ech_guess_fmt(rrlen,(unsigned char*)rrval,&detfmt);
         if (rv==0)  {
             SSLerr(SSL_F_SSL_SVCB_ADD, SSL_R_BAD_VALUE);
             return(rv);
@@ -1183,7 +1413,7 @@ int SSL_svcb_add(SSL *con, int rrfmt, size_t rrlen, char *rrval, int *num_echs)
     /*
      * Deposit ECHConfigs that we found
      */
-    rv=local_ech_add(ECH_FMT_BIN,eklen,(char*)ekval,num_echs,&echs);
+    rv=local_ech_add(ECH_FMT_BIN,eklen,ekval,num_echs,&echs);
     if (rv!=1) {
         SSLerr(SSL_F_SSL_SVCB_ADD, SSL_R_BAD_VALUE);
         printf("Got but failed to parse an ECHConfigs\n");
@@ -1534,13 +1764,13 @@ int ech_encode_inner(SSL *s)
     s->ech->encoded_innerch=innerch_full;
     s->ech->encoded_innerch_len=innerinnerlen;
     WPACKET_cleanup(&inner);
-    BUF_MEM_free(inner_mem);
+    if (inner_mem) BUF_MEM_free(inner_mem);
+    inner_mem=NULL;
 
     return(1);
 err:
     WPACKET_cleanup(&inner);
-    BUF_MEM_free(inner_mem);
-    // TODO: free stuff
+    if (inner_mem) BUF_MEM_free(inner_mem);
     return(0);
 }
 

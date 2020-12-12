@@ -200,5 +200,13 @@ int hpke_kg(
  */
 int hpke_ah_decode(size_t ahlen, const char *ah, size_t *blen, unsigned char **buf);
 
+/**
+ * @brief check if a suite is supported locally
+ *
+ * @param suite is the suite to check
+ * @return 1 for good/supported, not-1 otherwise
+ */
+int hpke_suite_check(hpke_suite_t suite);
+
 #endif
 

@@ -2529,12 +2529,12 @@ int s_server_main(int argc, char *argv[])
 
 #ifndef OPENSSL_NO_ECH
     if (echkeyfile!= NULL) {
-        if (SSL_CTX_ech_server_enable(ctx,esnikeyfile)!=1) {
+        if (SSL_CTX_ech_server_enable(ctx,echkeyfile)!=1) {
             BIO_printf(bio_err,"Failed to add ECHConfig/Key from: %s\n",echkeyfile);
             goto end;
         }
         if (bio_s_out != NULL) {
-            BIO_printf(bio_s_out,"Added ESNI key pair from: %s\n",esnikeyfile);
+            BIO_printf(bio_s_out,"Added ECH key pair from: %s\n",echkeyfile);
         }
     }
 

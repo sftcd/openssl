@@ -33,7 +33,6 @@
 
 #define ECH_OUTERS_MAX 10 ///< max number of TLS extensions that can be compressed via outer-exts
 
-
 /** 
  * @brief Representation of what goes in DNS
  * <pre>
@@ -169,8 +168,7 @@ typedef struct ssl_ech_st {
      * data. If identical file names that are more recently modified are loaded
      * to a server we'll overwrite this entry.
      */
-    char *privfname; ///< name of private key file from which this was loaded
-    char *pubfname;  ///< name of private key file from which this was loaded
+    char *pemfname; ///< name of PEM file from which this was loaded
     time_t loadtime; ///< time public and private key were loaded from file
     /*
      * Stuff about inner/outer diffs for extensions other than SNI

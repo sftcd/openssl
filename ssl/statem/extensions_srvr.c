@@ -2669,6 +2669,15 @@ EXT_RETURN tls_construct_stoc_esni(SSL *s, WPACKET *pkt,
 int tls_parse_ctos_ech(SSL *s, PACKET *pkt, unsigned int context,
                                X509 *x, size_t chainidx)
 {
+    int assume_grease=0;
+    if (s->ech==NULL) {
+        printf("tls_parse_ctos_ech called - NULL ECH so assuming grease\n");
+        assume_grease=1;
+    }
+
+    if (assume_grease==1) {
+        return(1);
+    }
     return 1;
 }
 
@@ -2687,6 +2696,7 @@ int tls_parse_ctos_ech_outer_exts(SSL *s, PACKET *pkt, unsigned int context,
 {
     return 1;
 }
+
 EXT_RETURN tls_construct_stoc_ech_outer_exts(SSL *s, WPACKET *pkt,
                                           unsigned int context, X509 *x,
                                           size_t chainidx)

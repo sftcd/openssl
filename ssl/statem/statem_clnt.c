@@ -1217,7 +1217,8 @@ int tls_construct_client_hello(SSL *s, WPACKET *pkt)
     s->ech->innerch_len=innerinnerlen+5;
 
     WPACKET_cleanup(&inner);
-    BUF_MEM_free(inner_mem);
+    if (inner_mem) BUF_MEM_free(inner_mem);
+    inner_mem=NULL;
 
     ech_pbuf("inner CH",s->ech->innerch,s->ech->innerch_len);
 
@@ -1310,16 +1311,10 @@ int tls_construct_client_hello(SSL *s, WPACKET *pkt)
     ech_pbuf("outer, client_random",s->s3.client_random,SSL3_RANDOM_SIZE);
 
 
-    /*
-     * Now we can make the ClientHelloOuterAAD
-     * then encrypt using hpke
-     * and then finally make the eventual ClientHello
-     */
-
     return(1);
 err:
     WPACKET_cleanup(&inner);
-    BUF_MEM_free(inner_mem);
+    if (inner_mem) BUF_MEM_free(inner_mem);
     return(0);
 }
 

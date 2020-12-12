@@ -57,6 +57,9 @@ extern "C" {
 #ifndef OPENSSL_NO_ESNI
 #define PEM_STRING_ESNIKEY       "ESNIKEY"
 #endif
+#ifndef OPENSSL_NO_ECH
+#define PEM_STRING_ECHCONFIG     "ECHCONFIG"
+#endif
 
 # define PEM_TYPE_ENCRYPTED      10
 # define PEM_TYPE_MIC_ONLY       20

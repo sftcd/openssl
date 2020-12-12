@@ -40,7 +40,7 @@ const OPTIONS ech_options[] = {
     {"pubout", OPT_PUBOUT, '>', "Public key output file - default unset"},
     {"privout", OPT_PRIVOUT, '>', "Private key output file - default unset"},
     {"public_name", OPT_PUBLICNAME, 's', "public_name value"},
-    {"ech_version", OPT_ECHVERSION, 'n', "ECHConfig version (default=0xff08)"},
+    {"ech_version", OPT_ECHVERSION, 'n', "ECHConfig version (default=0xff09)"},
     {NULL}
 };
 
@@ -77,6 +77,7 @@ static int mk_echconfig(
     switch(ekversion) {
         case ECH_DRAFT_07_VERSION: 
         case ECH_DRAFT_08_VERSION: 
+        case ECH_DRAFT_09_VERSION: 
             pnlen=(public_name==NULL?0:strlen(public_name));
             break;
         default:
@@ -125,7 +126,7 @@ static int mk_echconfig(
      *      uint16 version;
      *      uint16 length;
      *      select (ECHConfig.version) {
-     *        case 0xff08: ECHConfigContents;
+     *        case 0xff09: ECHConfigContents;
      *      }
      *  } ECHConfig;
      *  ECHConfig ECHConfigs<1..2^16-1>;
@@ -154,15 +155,15 @@ static int mk_echconfig(
     *bp++=0x20; // length=32
     memcpy(bp,pub,32); bp+=32;
     /* HPKE KEM id */
-    *bp++=(HPKE_KEM_ID_25519/16);
-    *bp++=(HPKE_KEM_ID_25519%16);
+    *bp++=(HPKE_KEM_ID_25519>>8)%256;
+    *bp++=(HPKE_KEM_ID_25519%256);
     /* cipher_suite */
     *bp++=0x00;
     *bp++=0x04;
-    *bp++=(HPKE_KDF_ID_HKDF_SHA256/16);
-    *bp++=(HPKE_KDF_ID_HKDF_SHA256%16);
-    *bp++=(HPKE_AEAD_ID_AES_GCM_128/16);
-    *bp++=(HPKE_AEAD_ID_AES_GCM_128%16);
+    *bp++=(HPKE_KDF_ID_HKDF_SHA256>>8)%256;
+    *bp++=(HPKE_KDF_ID_HKDF_SHA256%256);
+    *bp++=(HPKE_AEAD_ID_AES_GCM_128>>8)%256;
+    *bp++=(HPKE_AEAD_ID_AES_GCM_128%256);
     /* maximum_name_length */
     *bp++=0x00;
     *bp++=0x00; 
@@ -204,7 +205,7 @@ int ech_main(int argc, char **argv)
     OPTION_CHOICE o;
     char *echconfig_file = NULL, *keyfile = NULL, *pemfile=NULL;
     char *public_name=NULL;
-    uint16_t ech_version=ECH_DRAFT_08_VERSION;
+    uint16_t ech_version=ECH_DRAFT_09_VERSION;
 
     prog = opt_init(argc, argv, ech_options);
     while ((o = opt_next()) != OPT_EOF) {
@@ -251,6 +252,7 @@ int ech_main(int argc, char **argv)
             goto end;
         case ECH_DRAFT_07_VERSION:
         case ECH_DRAFT_08_VERSION:
+        case ECH_DRAFT_09_VERSION:
             break;
         default:
             BIO_printf(bio_err, "Unsupported version (0x%04x) - exiting\n",ech_version);

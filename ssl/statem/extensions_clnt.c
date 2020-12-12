@@ -2785,10 +2785,73 @@ EXT_RETURN tls_construct_ctos_ech(SSL *s, WPACKET *pkt, unsigned int context,
     unsigned char cipher[HPKE_MAXSIZE];
 
     /*
-     * TODO: do this right:-)
+     * Pick a matching public key from the Config (if we can)
+     * We'll just take the 1st matching.
      */
-    unsigned char *peerpub=s->ech->cfg[0].recs[0].pub;
-    size_t peerpub_len=s->ech->cfg[0].recs[0].pub_len;
+    unsigned char *peerpub=NULL;
+    size_t peerpub_len=0;
+    ECHConfig *tc=NULL;
+
+    int cind=0;
+
+    ECHConfigs *cfgs=s->ech->cfg;
+    if (cfgs==NULL) {
+        /*
+         * Treating this as an error. Note there could be 
+         * some corner case with SCVB that gets us here
+         * but hopefully not
+         */
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ECH,
+                 ERR_R_INTERNAL_ERROR);
+        return EXT_RETURN_FAIL;
+    }
+
+    /*
+     * Search through the ECHConfigs for one that's good
+     * enough. If no public_name was set via API then we 
+     * just take the 1st match where we locally support
+     * the HPKE suite.
+     * If OTOH, a public_name was provided via API then
+     * we prefer the first that matches that.
+     * TODO: the bit above about names:-) the public_name
+     * is set at the ECHConfig level (ugh)
+     */
+    int onlen=(s->ech->outer_name==NULL?0:strlen(s->ech->outer_name));
+    for (cind=0;cind!=cfgs->nrecs;cind++) {
+        ECHConfig *ltc=&cfgs->recs[cind];
+        if (s->ech->outer_name && (
+                    ltc->public_name_len!=onlen ||
+                    strncmp(s->ech->outer_name,(char*)ltc->public_name,onlen))) {
+            continue;
+        }
+        hpke_suite.kem_id=ltc->kem_id;
+        int csuite=0;
+        for (csuite=0;csuite!=ltc->nsuites;csuite++) {
+            unsigned char *es=(unsigned char*)&ltc->ciphersuites[csuite];
+            hpke_suite.kdf_id=es[0]*256+es[1];
+            hpke_suite.aead_id=es[2]*256+es[3];
+            if (hpke_suite_check(hpke_suite)==1) {
+                /*
+                * success
+                */
+                tc=ltc;
+                break;
+            }
+        }
+    }
+
+    if (tc==NULL) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ECH,
+                 ERR_R_INTERNAL_ERROR);
+        return EXT_RETURN_FAIL;
+    }
+
+
+    /*
+     * tc is our selected config
+     */
+    peerpub=tc->pub;
+    peerpub_len=tc->pub_len;
 
     int rv=hpke_enc(
         hpke_mode, hpke_suite, // mode, suite
@@ -2796,7 +2859,7 @@ EXT_RETURN tls_construct_ctos_ech(SSL *s, WPACKET *pkt, unsigned int context,
         peerpub_len-4,peerpub+4,
         0, NULL, // priv
         s->ech->encoded_innerch_len, s->ech->encoded_innerch, // clear
-        0, NULL, // aad - TODO: Fix
+        0, NULL, // aad 
         0, NULL, // info
         &senderpublen, senderpub, // my pub
         &cipherlen, cipher // cipher

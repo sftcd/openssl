@@ -388,19 +388,6 @@ err:
     else return NULL;
 }
 
-/*!
- * @brief Check if ciphersuite is ok/known to us
- * @param suite is the externally supplied cipheruite
- * @return 1 for good, not-1 for error
- */
-static int hpke_suite_check(hpke_suite_t suite)
-{
-    if (hpke_kem_id_check(suite.kem_id)!=1) return(__LINE__);
-    if (suite.kdf_id>HPKE_KDF_ID_MAX) return(__LINE__);
-    if (suite.aead_id>HPKE_AEAD_ID_MAX) return(__LINE__);
-    return(1);
-}
-
 /*
  * There's an odd accidental coding style feature here:
  * For all the externally visible functions in hpke.h, when
@@ -2132,3 +2119,56 @@ err:
     if (bfp!=NULL) BIO_free_all(bfp);
     return(erv);
 }
+
+/**
+ * @brief check if a suite is supported locally
+ *
+ * @param suite is the suite to check
+ * @return 1 for good/supported, not-1 otherwise
+ */
+int hpke_suite_check(hpke_suite_t suite)
+{
+    /*
+     * We just check that the fields of the suite are each
+     * implemented here
+     */
+    int kem_ok=0; 
+    int kdf_ok=0;
+    int aead_ok=0;
+
+    int ind=0;
+
+    /* check KEM */
+    int nkems=sizeof(hpke_kem_tab)/sizeof(hpke_kem_info_t);
+    for (ind=0;ind!=nkems;ind++) {
+        if (suite.kem_id==hpke_kem_tab[ind].kem_id &&
+            hpke_kem_tab[ind].hash_init_func!=NULL) {
+            kem_ok=1;
+            break;
+        }
+    }
+
+    /* check kdf */
+    int nkdfs=sizeof(hpke_kdf_tab)/sizeof(hpke_kdf_info_t);
+    for (ind=0;ind!=nkdfs;ind++) {
+        if (suite.kdf_id==hpke_kdf_tab[ind].kdf_id &&
+            hpke_kdf_tab[ind].hash_init_func!=NULL) {
+            kdf_ok=1;
+            break;
+        }
+    }
+
+    /* check aead */
+    int naeads=sizeof(hpke_aead_tab)/sizeof(hpke_aead_info_t);
+    for (ind=0;ind!=naeads;ind++) {
+        if (suite.aead_id==hpke_aead_tab[ind].aead_id &&
+            hpke_aead_tab[ind].aead_init_func!=NULL) {
+            aead_ok=1;
+            break;
+        }
+    }
+
+    if (kem_ok==1 && kdf_ok==1 && aead_ok==1) return(1);
+    return(0);
+}
+

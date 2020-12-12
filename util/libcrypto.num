@@ -5035,3 +5035,4 @@ hpke_kg                                 ?	3_0_0	EXIST::FUNCTION:
 hpke_enc                                ?	3_0_0	EXIST::FUNCTION:
 hpke_dec                                ?	3_0_0	EXIST::FUNCTION:
 hpke_ah_decode                          ?	3_0_0	EXIST::FUNCTION:
+hpke_suite_check                        ?	3_0_0	EXIST::FUNCTION:
