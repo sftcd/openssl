@@ -2662,6 +2662,7 @@ EXT_RETURN tls_construct_stoc_esni(SSL *s, WPACKET *pkt,
 
 }
 #endif // END_OPENSSL_NO_ESNI
+
 #ifndef OPENSSL_NO_ECH
 /**
  * @brief Decodes inbound ECH extension 
@@ -2674,6 +2675,7 @@ int tls_parse_ctos_ech(SSL *s, PACKET *pkt, unsigned int context,
         printf("tls_parse_ctos_ech called - NULL ECH so assuming grease\n");
         assume_grease=1;
     }
+    printf("tls_parse_ctos_ech called - with a real ECH!\n");
 
     if (assume_grease==1) {
         return(1);

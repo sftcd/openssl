@@ -1086,19 +1086,21 @@ int SSL_CTX_ech_server_enable(SSL_CTX *ctx, const char *pemfile)
     if (fnamestat==ECH_KEYPAIR_MODIFIED) {
         if (index<0 || index >=ctx->ext.nechs) {
             SSL_ECH_free(sechs);
+            OPENSSL_free(sechs);
             return(0);
         }
         SSL_ECH *curr_ec=&ctx->ext.ech[index];
         SSL_ECH_free(curr_ec);
         memset(curr_ec,0,sizeof(SSL_ECH));
         *curr_ec=*sechs; // struct copy
-        SSL_ECH_free(sechs);
+        OPENSSL_free(sechs);
         return(1);
     } 
     if (fnamestat==ECH_KEYPAIR_NEW) {
         SSL_ECH *re_ec=OPENSSL_realloc(ctx->ext.ech,(ctx->ext.nechs+1)*sizeof(SSL_ECH));
         if (re_ec==NULL) {
             SSL_ECH_free(sechs);
+            OPENSSL_free(sechs);
             return(0);
         }
         ctx->ext.ech=re_ec;
@@ -1106,7 +1108,7 @@ int SSL_CTX_ech_server_enable(SSL_CTX *ctx, const char *pemfile)
         memset(new_ec,0,sizeof(SSL_ECH));
         *new_ec=*sechs;
         ctx->ext.nechs++;
-        SSL_ECH_free(sechs);
+        OPENSSL_free(sechs);
         return(1);
     } 
 

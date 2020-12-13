@@ -2879,8 +2879,8 @@ EXT_RETURN tls_construct_ctos_ech(SSL *s, WPACKET *pkt, unsigned int context,
         || !WPACKET_put_bytes_u16(pkt, hpke_suite.kdf_id)
         || !WPACKET_put_bytes_u16(pkt, hpke_suite.aead_id)
         || !WPACKET_sub_memcpy_u16(pkt, config_id, config_id_len)
-        || !WPACKET_sub_memcpy_u16(pkt, cipher, cipherlen)
         || !WPACKET_sub_memcpy_u16(pkt, senderpub, senderpublen)
+        || !WPACKET_sub_memcpy_u16(pkt, cipher, cipherlen)
         || !WPACKET_close(pkt)
             ) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ECH, ERR_R_INTERNAL_ERROR);
