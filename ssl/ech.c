@@ -69,10 +69,9 @@ const char *httpssvc_telltale="echconfig=";
  * We go through the keys we have and see what we find
  *
  * @param ctx is the SSL server context
- * @param privfname is the private key filename
- * @param pubfname is the public key filename (can be NULL sometimes)
+ * @param pemfname is the PEM key filename
  * @param index is the index if we find a match
- * @return negative for error, otherwise one of: ECH_KEYPAIR_UNMODIFIED ECH_KEYPAIR_MODIFIED ECH_KEYPAIR_NEW
+ * @return zero for error, otherwise one of: ECH_KEYPAIR_UNMODIFIED ECH_KEYPAIR_MODIFIED ECH_KEYPAIR_NEW
  */
 static int ech_check_filenames(SSL_CTX *ctx, const char *pemfname,int *index)
 {
@@ -119,17 +118,19 @@ static int ech_check_filenames(SSL_CTX *ctx, const char *pemfname,int *index)
  *
  * @param pemfile is the name of the file
  * @param ctx is the SSL context
- * @param echs an (output) pointer to the ECHConfigs output
- * @param priv an (output) pointer to the private key 
+ * @param sechs an (output) pointer to the SSL_ECH output
  * @return 1 for success, otherwise error
  */
-static int ech_readpemfile(SSL_CTX *ctx, const char *pemfile, ECHConfigs **echs, EVP_PKEY **priv)
+static int ech_readpemfile(SSL_CTX *ctx, const char *pemfile, SSL_ECH **sechs)
 {
     /*
-     * The file content should look like:
-     * -----BEGIN PRIVATE KEY-----
+     * The file content should look as below. Note that as girhub barfs
+     * if I provide an actual private key in PEM format, I've reversed
+     * the string PRIVATE in the PEM header;-)
+     *
+     * -----BEGIN ETAVRIP KEY-----
      * MC4CAQAwBQYDK2VuBCIEIEiVgUq4FlrMNX3lH5osEm1yjqtVcQfeu3hY8VOFortE
-     * -----END PRIVATE KEY-----
+     * -----END ETAVRIP KEY-----
      * -----BEGIN ECHCONFIG-----
      * AEP/CQBBAAtleGFtcGxlLmNvbQAkAB0AIF8i/TRompaA6Uoi1H3xqiqzq6IuUqFjT2GNT4wzWmF6ACAABAABAAEAAAAA
      * -----END ECHCONFIG-----
@@ -141,6 +142,7 @@ static int ech_readpemfile(SSL_CTX *ctx, const char *pemfile, ECHConfigs **echs,
     char *pheader=NULL;
     unsigned char *pdata=NULL;
     long plen;
+    EVP_PKEY *priv=NULL;
 
     /*
      * Now check and parse inputs
@@ -152,7 +154,7 @@ static int ech_readpemfile(SSL_CTX *ctx, const char *pemfile, ECHConfigs **echs,
     if (BIO_read_filename(pem_in,pemfile)<=0) {
         goto err;
     }
-    if (!PEM_read_bio_PrivateKey(pem_in,priv,NULL,NULL)) {
+    if (!PEM_read_bio_PrivateKey(pem_in,&priv,NULL,NULL)) {
         goto err;
     }
     inbuf=OPENSSL_malloc(ECH_MAX_ECHCONFIG_LEN);
@@ -181,22 +183,25 @@ static int ech_readpemfile(SSL_CTX *ctx, const char *pemfile, ECHConfigs **echs,
      * Now decode that ECHConfigs
      */
     int num_echs=0;
-    SSL_ECH *sechs=NULL;
-    int rv=local_ech_add(ECH_FMT_GUESS,plen,pdata,&num_echs,&sechs);
+    int rv=local_ech_add(ECH_FMT_GUESS,plen,pdata,&num_echs,sechs);
     if (rv!=1) {
         goto err;
     }
 
-    *echs=sechs->cfg;
+    (*sechs)->pemfname=OPENSSL_strdup(pemfile);
+    (*sechs)->loadtime=time(0);
+    (*sechs)->keyshare=priv;
 
     return(1);
 
 err:
+    if (priv!=NULL) EVP_PKEY_free(priv);
     if (inbuf!=NULL) OPENSSL_free(inbuf);
     if (pheader!=NULL) OPENSSL_free(pheader); 
     if (pname!=NULL) OPENSSL_free(pname); 
     if (pdata!=NULL) OPENSSL_free(pdata); 
     if (pem_in!=NULL) BIO_free(pem_in);
+    if (*sechs) { SSL_ECH_free(*sechs); OPENSSL_free(*sechs); *sechs=NULL;}
     return(0);
 }
 
@@ -1061,9 +1066,8 @@ int SSL_CTX_ech_server_enable(SSL_CTX *ctx, const char *pemfile)
     /*
      * Load up the file content
      */
-    ECHConfigs *echs=NULL;
-    EVP_PKEY *priv=NULL;
-    int rv=ech_readpemfile(ctx,pemfile,&echs,&priv);
+    SSL_ECH *sechs;
+    int rv=ech_readpemfile(ctx,pemfile,&sechs);
     if (rv!=1) {
         return(rv);
     }
@@ -1072,7 +1076,7 @@ int SSL_CTX_ech_server_enable(SSL_CTX *ctx, const char *pemfile)
      * This is a restriction of our PEM file scheme - we only accept
      * one public key per PEM file
      */
-    if (!priv || !echs || echs->nrecs!=1) {
+    if (!sechs || ! sechs->cfg || sechs->cfg->nrecs!=1) {
         return(0);
     }
 
@@ -1081,31 +1085,28 @@ int SSL_CTX_ech_server_enable(SSL_CTX *ctx, const char *pemfile)
      */
     if (fnamestat==ECH_KEYPAIR_MODIFIED) {
         if (index<0 || index >=ctx->ext.nechs) {
+            SSL_ECH_free(sechs);
             return(0);
         }
         SSL_ECH *curr_ec=&ctx->ext.ech[index];
         SSL_ECH_free(curr_ec);
         memset(curr_ec,0,sizeof(SSL_ECH));
-        curr_ec->cfg=echs;
-        curr_ec->pemfname=OPENSSL_strdup(pemfile);
-        curr_ec->loadtime=time(0);
-        curr_ec->keyshare=priv;
-
+        *curr_ec=*sechs; // struct copy
+        SSL_ECH_free(sechs);
         return(1);
     } 
     if (fnamestat==ECH_KEYPAIR_NEW) {
         SSL_ECH *re_ec=OPENSSL_realloc(ctx->ext.ech,(ctx->ext.nechs+1)*sizeof(SSL_ECH));
         if (re_ec==NULL) {
+            SSL_ECH_free(sechs);
             return(0);
         }
         ctx->ext.ech=re_ec;
         SSL_ECH *new_ec=&ctx->ext.ech[ctx->ext.nechs];
         memset(new_ec,0,sizeof(SSL_ECH));
-        new_ec->cfg=echs;
-        new_ec->pemfname=OPENSSL_strdup(pemfile);
-        new_ec->loadtime=time(0);
-        new_ec->keyshare=priv;
+        *new_ec=*sechs;
         ctx->ext.nechs++;
+        SSL_ECH_free(sechs);
         return(1);
     } 
 
