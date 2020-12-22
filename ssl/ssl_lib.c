@@ -874,6 +874,9 @@ SSL *SSL_new(SSL_CTX *ctx)
     if (ctx->ext.ech!=NULL) {
         s->nechs=ctx->ext.nechs;
         s->ech=SSL_ECH_dup(ctx->ext.ech,s->nechs,ECH_SELECT_ALL); 
+        if (s->ech==NULL) {
+            goto err;
+        }
     } else {
         s->nechs=0;
         s->ech=NULL;

@@ -2198,6 +2198,7 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
          SSL_R_BAD_EXTENSION);
         goto err;
     }
+
     if (tmp>PACKET_remaining(pkt)) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ESNI,
          SSL_R_BAD_EXTENSION);
@@ -2664,6 +2665,51 @@ EXT_RETURN tls_construct_stoc_esni(SSL *s, WPACKET *pkt,
 #endif // END_OPENSSL_NO_ESNI
 
 #ifndef OPENSSL_NO_ECH
+
+/**
+ * @brief wrapper for hpke_dec since we call it >1 time
+ */
+static unsigned char *hpke_decrypt_encch(SSL_ECH *ech, size_t *innerlen)
+{
+    size_t publen=0; unsigned char *pub=NULL;
+    size_t cipherlen=0; unsigned char *cipher=NULL;
+    size_t aadlen=0; unsigned char *aad=NULL;
+    size_t senderpublen=0; unsigned char *senderpub=NULL;
+    size_t clearlen=HPKE_MAXSIZE; unsigned char clear[HPKE_MAXSIZE];
+    int hpke_mode=HPKE_MODE_BASE;
+    hpke_suite_t hpke_suite = HPKE_SUITE_DEFAULT;
+    cipherlen=ech->the_ech->payload_len;
+    cipher=ech->the_ech->payload;
+    senderpublen=ech->the_ech->enc_len;
+    senderpub=ech->the_ech->enc;
+    aad=NULL;
+    aadlen=0;
+    /*
+     * We only support one ECHConfig for now on the server side
+     */
+    publen=ech->cfg->recs[0].pub_len;
+    pub=ech->cfg->recs[0].pub;
+    ech->crypto_started=1;
+    int rv=hpke_dec( hpke_mode, hpke_suite,
+                NULL, 0, NULL, // pskid, psk
+                publen, pub, // recipient public key
+                0,NULL,ech->keyshare, // private key in EVP_PKEY form
+                senderpublen, senderpub, // sender public
+                cipherlen, cipher, // ciphertext
+                aadlen,aad,  // add
+                0,NULL, // info
+                &clearlen, clear);  // clear
+    if (rv!=1) {
+        return NULL;
+    }
+    unsigned char *innerch=OPENSSL_malloc(clearlen);
+    if (!innerch) {
+        return NULL;
+    }
+    memcpy(innerch,clear,clearlen);
+    *innerlen=clearlen;
+    return innerch;
+}
 /**
  * @brief Decodes inbound ECH extension 
  */
@@ -2674,13 +2720,163 @@ int tls_parse_ctos_ech(SSL *s, PACKET *pkt, unsigned int context,
     if (s->ech==NULL) {
         printf("tls_parse_ctos_ech called - NULL ECH so assuming grease\n");
         assume_grease=1;
+    } else {
+        printf("tls_parse_ctos_ech called - with a real ECH!\n");
     }
-    printf("tls_parse_ctos_ech called - with a real ECH!\n");
 
-    if (assume_grease==1) {
-        return(1);
+    /*
+     * Decode the inbound value
+     * We're looking for:
+     *
+     * struct {
+     *   ECHCipherSuite cipher_suite;
+     *   opaque config_id<0..255>;
+     *   opaque enc<1..2^16-1>;
+     *   opaque payload<1..2^16-1>;
+     *  } ClientECH;
+     */
+    ECH_ENCCH *extval=NULL;
+
+    extval=OPENSSL_malloc(sizeof(ECH_ENCCH));
+    if (extval==NULL) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ECH, SSL_R_BAD_EXTENSION);
+        goto err;
     }
+    if (s->ech!=NULL) {
+        s->ech->the_ech=extval;
+    }
+
+    unsigned int tmp;
+    if (!PACKET_get_net_2(pkt, &tmp)) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ECH, SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+    extval->kdf_id=tmp&0xffff;
+    if (!PACKET_get_net_2(pkt, &tmp)) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ECH, SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+    extval->aead_id=tmp&0xffff;
+
+    /* config id */
+    if (!PACKET_get_net_2(pkt, &tmp)) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ECH, SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+    if (tmp > MAX_ECH_CONFIG_ID_LEN) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ECH, SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+    if (tmp>PACKET_remaining(pkt)) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ECH, SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+    extval->config_id_len=tmp;
+    extval->config_id=OPENSSL_malloc(tmp);
+    if (extval->config_id==NULL) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ECH, SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+    if (!PACKET_copy_bytes(pkt, extval->config_id, tmp)) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ECH, SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+
+    /* enc - the client's public share */
+    if (!PACKET_get_net_2(pkt, &tmp)) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ECH, SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+    if (tmp > MAX_ECH_ENC_LEN) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ECH, SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+    if (tmp>PACKET_remaining(pkt)) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ECH, SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+    extval->enc_len=tmp;
+    extval->enc=OPENSSL_malloc(tmp);
+    if (extval->enc==NULL) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ECH, SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+    if (!PACKET_copy_bytes(pkt, extval->enc, tmp)) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ECH, SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+
+    /* payload - the encrypted CH */
+    if (!PACKET_get_net_2(pkt, &tmp)) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ECH, SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+    if (tmp > MAX_ECH_PAYLOAD_LEN) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ECH, SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+    if (tmp>PACKET_remaining(pkt)) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ECH, SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+    extval->payload_len=tmp;
+    extval->payload=OPENSSL_malloc(tmp);
+    if (extval->payload==NULL) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ECH, SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+    if (!PACKET_copy_bytes(pkt, extval->payload, tmp)) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ECH, SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+
+    /*
+     * Now see which (if any) of our configs match, or whether
+     * we need to trial decrypt
+     */
+    int cfgind=-1;
+    int foundcfg=0;
+    if (assume_grease==0 && extval->config_id_len!=0) {
+        if (s->ech->cfg==NULL || s->ech->cfg->nrecs==0) {
+            // shouldn't happen if assume_grease
+            return(0);
+        }
+        for (cfgind=0;cfgind!=s->ech->cfg->nrecs;cfgind++) {
+            ECHConfig *e=&s->ech[cfgind].cfg->recs[0];
+            if (extval->config_id_len==e->config_id_len
+                    && !memcmp(extval->config_id,e->config_id,e->config_id_len)) {
+                foundcfg=1;
+                break;
+            }
+        }
+    }
+    /*
+     * Trial decrypt
+     */
+    size_t clearlen=0;
+    unsigned char *clear=NULL;
+    if (!foundcfg && (s->options & SSL_OP_ECH_TRIALDECRYPT)) { 
+        assume_grease=1;
+        for (cfgind=0;cfgind!=s->ech->cfg->nrecs;cfgind++) {
+            clear=hpke_decrypt_encch(&s->ech[cfgind],&clearlen);
+            if (clear!=NULL) {
+                foundcfg=1;
+                break;
+            }
+        }
+    }
+    if (foundcfg) {
+        clear=hpke_decrypt_encch(&s->ech[cfgind],&clearlen);
+    }
+    printf("parse_ctos_ech: assume_grease: %d, foundcfg: %d, cfgind: %d, clearlen: %ld, clear %p\n",
+            assume_grease,foundcfg,cfgind,clearlen,clear);
     return 1;
+err:
+    if (s->ech==NULL && extval!=NULL) {
+        ECH_ENCCH_free(extval);
+        OPENSSL_free(extval);
+    }
+    return(0);
 }
 
 /**

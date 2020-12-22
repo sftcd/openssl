@@ -2624,6 +2624,15 @@ int s_server_main(int argc, char *argv[])
         }
 #endif
 
+#ifndef OPENSSL_NO_ECH
+        if (echhardfail!=0) {
+            SSL_CTX_set_options(ctx2,SSL_OP_ECH_HARDFAIL);
+        }
+        if (echtrialdecrypt!=0) {
+            SSL_CTX_set_options(ctx2,SSL_OP_ECH_TRIALDECRYPT);
+        }
+#endif
+
     }
 
     if (ctx2 != NULL) {

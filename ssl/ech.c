@@ -191,6 +191,10 @@ static int ech_readpemfile(SSL_CTX *ctx, const char *pemfile, SSL_ECH **sechs)
     (*sechs)->pemfname=OPENSSL_strdup(pemfile);
     (*sechs)->loadtime=time(0);
     (*sechs)->keyshare=priv;
+    if (inbuf!=NULL) OPENSSL_free(inbuf);
+    if (pheader!=NULL) OPENSSL_free(pheader); 
+    if (pname!=NULL) OPENSSL_free(pname); 
+    if (pdata!=NULL) OPENSSL_free(pdata); 
 
     return(1);
 
@@ -356,6 +360,18 @@ void ECHConfigs_free(ECHConfigs *tbf)
     return;
 }
 
+/*
+ * @brief free an ECH_ENCCH
+ * @param tbf is a ptr to an SSL_ECH structure
+ */
+void ECH_ENCCH_free(ECH_ENCCH *ev)
+{
+    if (ev->config_id!=NULL) OPENSSL_free(ev->config_id);
+    if (ev->enc!=NULL) OPENSSL_free(ev->enc);
+    if (ev->payload!=NULL) OPENSSL_free(ev->payload);
+    return;
+}
+
 /**
  * @brief free an SSL_ECH
  *
@@ -382,6 +398,12 @@ void SSL_ECH_free(SSL_ECH *tbf)
     }
     if (tbf->inner_name!=NULL) OPENSSL_free(tbf->inner_name);
     if (tbf->outer_name!=NULL) OPENSSL_free(tbf->outer_name);
+
+    if (tbf->the_ech!=NULL) {
+        ECH_ENCCH *ev=tbf->the_ech;
+        ECH_ENCCH_free(ev);
+        OPENSSL_free(ev);
+    }
     /*
      * More TODO
      */
@@ -425,7 +447,7 @@ static ECHConfigs *ECHConfigs_from_binary(unsigned char *binbuf, size_t binblen,
      * given a catenated set of binary buffers, which could happen
      * and which we will support
      */
-    unsigned int olen;
+    unsigned int olen=0;
     if (!PACKET_get_net_2(&pkt,&olen)) {
         goto err;
     }
@@ -613,6 +635,14 @@ static ECHConfigs *ECHConfigs_from_binary(unsigned char *binbuf, size_t binblen,
             ec->exts=vip;
             ec->exts[ec->nexts-1]=extval;
         }
+
+        /*
+         * Caclculate config_id value for this one
+         * TODO: really do it:-)
+         */
+        ec->config_id_len=0;
+        ec->config_id=NULL;
+
 	
         rind++;
         remaining=PACKET_remaining(&pkt);
@@ -634,7 +664,7 @@ static ECHConfigs *ECHConfigs_from_binary(unsigned char *binbuf, size_t binblen,
     memset(er,0,sizeof(ECHConfigs));
     er->nrecs=rind;
     er->recs=te;
-    er->encoded_len=olen+2;
+    er->encoded_len=binblen;
     er->encoded=binbuf;
     return er;
 
@@ -1179,38 +1209,53 @@ typedef struct ech_configs_st {
 } ECHConfigs;
 */
 
-static int len_field_dup(void *old, void* new, unsigned int len)
+void *len_field_dup(void *old, unsigned int len)
 {
-    if (len==0) {
-        new=NULL; 
-        return 1; 
-    }
-    new=(void*)OPENSSL_malloc(len);
+    if (!old || len==0) return NULL;
+    void *new=(void*)OPENSSL_malloc(len);
     if (!new) return 0;
     memcpy(new,old,len);
-    return 1;
+    return new;
 } 
+
+#define ECHFDUP(__f__,__flen__) \
+    if (old->__flen__!=0) { \
+        new->__f__=len_field_dup((void*)old->__f__,old->__flen__); \
+        if (new->__f__==NULL) return 0; \
+    }
 
 static int ECHConfig_dup(ECHConfig *old, ECHConfig *new)
 {
     if (!new || !old) return 0;
-    *new=*old; // shallow copy
-    if (len_field_dup((void*)old->pub,(void*)new->pub,old->pub_len)!=1) return 0;
+    *new=*old; // shallow copy, followed by deep copies
+    ECHFDUP(pub,pub_len);
+    ECHFDUP(public_name,public_name_len);
+    ECHFDUP(config_id,config_id_len);
+    if (old->ciphersuites) {
+        new->ciphersuites=OPENSSL_malloc(old->nsuites*sizeof(ech_ciphersuite_t));
+        if (!new->ciphersuites) return(0);
+        memcpy(new->ciphersuites,old->ciphersuites,old->nsuites*sizeof(ech_ciphersuite_t));
+    }
     // TODO: more to come
+
     return 1;
 }
 
 static int ECHConfigs_dup(ECHConfigs *old, ECHConfigs *new)
 {
-    int i=0;
-    if (old->encoded!=NULL) {
-        if (len_field_dup((void*)old->encoded,(void*)new->encoded,old->encoded_len)!=1) return 0;
+    if (!new || !old) return 0;
+    if (old->encoded_len!=0) {
+        if (old->encoded_len!=0) {
+            new->encoded=len_field_dup((void*)old->encoded,old->encoded_len);
+            if (new->encoded==NULL) return 0;
+        }
         new->encoded_len=old->encoded_len;
     }
     new->recs=OPENSSL_malloc(old->nrecs*sizeof(ECHConfig)); 
     if (!new->recs) return(0);
     new->nrecs=old->nrecs;
     memset(new->recs,0,old->nrecs*sizeof(ECHConfig)); 
+    int i=0;
     for (i=0;i!=old->nrecs;i++) {
         if (ECHConfig_dup(&old->recs[i],&new->recs[i])!=1) return(0);
     }
@@ -1249,7 +1294,9 @@ SSL_ECH* SSL_ECH_dup(SSL_ECH* orig, size_t nech, int selector)
     memset(new_se,0,(max_ind-min_ind)*sizeof(SSL_ECH));
 
     for (i=min_ind;i!=max_ind;i++) {
-        new_se[i]=orig[i];
+        new_se[i]=orig[i]; // shallow
+        new_se[i].cfg=OPENSSL_malloc(sizeof(ECHConfigs));
+        if (new_se[i].cfg==NULL) goto err;
         if (ECHConfigs_dup(orig[i].cfg,new_se[i].cfg)!=1) goto err;
     }
 

@@ -33,6 +33,10 @@
 
 #define ECH_OUTERS_MAX 10 ///< max number of TLS extensions that can be compressed via outer-exts
 
+#define MAX_ECH_CONFIG_ID_LEN 0x30 ///< max size of ENC-CH config id we'll decode
+#define MAX_ECH_ENC_LEN 0x60 ///< max size of ENC-CH peer key share we'll decode
+#define MAX_ECH_PAYLOAD_LEN 0x200 ///< max size of ENC-CH ciphertext we'll decode
+
 /** 
  * @brief Representation of what goes in DNS
  * <pre>
@@ -84,6 +88,8 @@ typedef struct ech_config_st {
     unsigned int *exttypes;
     unsigned int *extlens;
     unsigned char **exts;
+    unsigned int config_id_len;
+    unsigned char *config_id;
 } ECHConfig;
 
 typedef struct ech_configs_st {
@@ -109,7 +115,8 @@ typedef struct ech_configs_st {
  *
  */
 typedef struct ech_encch_st {
-	unsigned int ciphersuite; ///< ciphersuite 
+	uint16_t kdf_id; ///< ciphersuite 
+	uint16_t aead_id; ///< ciphersuite 
     size_t config_id_len; ///< identifies DNS RR used
     unsigned char *config_id; ///< identifies DNS RR used
     size_t enc_len; ///< public share
@@ -135,33 +142,21 @@ typedef struct ssl_ech_st {
 
     /*
      * SSL/SSL_CTX instantiated things
-     */
 	unsigned int ciphersuite; ///< chosen from ECHConfig after selection of local preference
     unsigned int kem_id;  ///< our chosen group e.g. X25519
     size_t ech_peer_keyshare_len;  
     unsigned char *ech_peer_keyshare; ///< the encoded peer's public value
     EVP_PKEY *ech_peer_pkey; ///< the peer public as a key
     size_t maximum_name_length; ///< from ECHConfig
+     */
     /*
      * Session specific stuff
      */
     int crypto_started; ///< set to one if someone tried to use this for real
     int hrr_swap; ///< 0 if not a HRR, 1 if it is (and we use different IV for draft-04 on)
-    size_t nonce_len; 
-    unsigned char *nonce; ///< Nonce we challenge server to respond with
-    size_t hs_cr_len; 
-    unsigned char *hs_cr; ///< Client random from TLS h/s
-    size_t hs_kse_len;
-    unsigned char *hs_kse;///< Client key share from TLS h/s
-    /* 
-     * Crypto Vars - not all are really needed in the struct
-     * (though tickets/resumption need a quick thought)
-     * But all are handy for interop testing
-     */
     EVP_PKEY *keyshare; ///< my own private keyshare to use with  server's ECH share 
-    size_t encoded_keyshare_len; 
-    unsigned char *encoded_keyshare; ///< my own public key share
-    ECH_ENCCH *the_ech; ///< the final outputs for the caller (note: not separately alloc'd)
+    ECH_ENCCH *the_ech; ///< the decoded extension value as rx'd at the server
+
     /* 
      * File load information servers - if identical filenames not modified since
      * loadtime are added via SSL_ech_serve_enable then we'll ignore the new
@@ -170,6 +165,7 @@ typedef struct ssl_ech_st {
      */
     char *pemfname; ///< name of PEM file from which this was loaded
     time_t loadtime; ///< time public and private key were loaded from file
+
     /*
      * Stuff about inner/outer diffs for extensions other than SNI
      */
@@ -343,6 +339,12 @@ void ech_pbuf(char *msg,unsigned char *buf,size_t blen);
  * changes
  */
 int ech_inner2outer_dup(SSL *in);
+
+/*
+ * @brief free an ECH_ENCCH
+ * @param tbf is a ptr to an SSL_ECH structure
+ */
+void ECH_ENCCH_free(ECH_ENCCH *ev);
 
 
 #endif

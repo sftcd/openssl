@@ -25,6 +25,9 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- 20201222: upgraded to HPKE-07 and did a bunch of valgrinding - next up
+  is to get HPKE decrypt to work
+
 - 20201203: Coded up as far as the ``hpke_enc`` call on the client - not
   really according to the draft but along same lines (waiting for an
   "interop" draft before I get too worried about precision)

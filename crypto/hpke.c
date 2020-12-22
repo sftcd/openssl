@@ -43,11 +43,17 @@
 /*
  * Temp thing only
  */
-#if !defined(DRAFT_06)
-#define DRAFT_05
+#if !defined(DRAFT_07)
+#define DRAFT_06
 #else
-#undef DRAFT_05
+#undef DRAFT_06
 #endif
+//We may as well forget draft 05 now
+//#if !defined(DRAFT_06)
+//#define DRAFT_05
+//#else
+//#undef DRAFT_05
+//#endif
 
 /*
  * Define this if you want loads printing of intermediate
@@ -604,6 +610,10 @@ err:
 #define HPKE_5869_MODE_KEM  1 ///< Abide by HPKE section 4.1
 #define HPKE_5869_MODE_FULL 2 ///< Abide by HPKE section 5.1
 
+#ifdef DRAFT_07
+#define HPKE_VERLABEL    "HPKE-07"  ///< The version string label
+#endif
+
 #ifdef DRAFT_06
 #define HPKE_VERLABEL    "HPKE-06"  ///< The version string label
 #endif
@@ -620,11 +630,11 @@ err:
 #define HPKE_INFOHASH_LABEL "info_hash" ///< A label within key_schedule_context
 #define HPKE_SS_LABEL "shared_secret" ///< Yet another label
 
+#if defined(DRAFT_06) || defined(DRAFT_07)
+#define HPKE_NONCE_LABEL "base_nonce" ///< guess?
+#endif
 #ifdef DRAFT_05
 #define HPKE_NONCE_LABEL "nonce" ///< guess?
-#endif
-#ifdef DRAFT_06
-#define HPKE_NONCE_LABEL "base_nonce" ///< guess?
 #endif
 
 #define HPKE_EXP_LABEL "exp" ///< guess again?
@@ -1551,7 +1561,7 @@ int hpke_enc(
     }
 #endif
 
-#ifdef DRAFT_06
+#if defined(DRAFT_06) || defined(DRAFT_07)
     erv=hpke_extract(suite,HPKE_5869_MODE_FULL,
                     (const unsigned char*)"",0,
                     (const unsigned char*)HPKE_PSK_HASH_LABEL,strlen(HPKE_PSK_HASH_LABEL),
@@ -1890,7 +1900,7 @@ int hpke_dec(
 #endif
 
 
-#ifdef DRAFT_06
+#if defined(DRAFT_06) || defined(DRAFT_07)
     erv=hpke_extract(suite,HPKE_5869_MODE_FULL,
                     (const unsigned char*)"",0,
                     (const unsigned char*)HPKE_PSK_HASH_LABEL,strlen(HPKE_PSK_HASH_LABEL),
