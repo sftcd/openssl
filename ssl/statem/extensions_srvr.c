@@ -2673,7 +2673,6 @@ static unsigned char *hpke_decrypt_encch(SSL_ECH *ech, size_t *innerlen)
 {
     size_t publen=0; unsigned char *pub=NULL;
     size_t cipherlen=0; unsigned char *cipher=NULL;
-    size_t aadlen=0; unsigned char *aad=NULL;
     size_t senderpublen=0; unsigned char *senderpub=NULL;
     size_t clearlen=HPKE_MAXSIZE; unsigned char clear[HPKE_MAXSIZE];
     int hpke_mode=HPKE_MODE_BASE;
@@ -2682,26 +2681,31 @@ static unsigned char *hpke_decrypt_encch(SSL_ECH *ech, size_t *innerlen)
     cipher=ech->the_ech->payload;
     senderpublen=ech->the_ech->enc_len;
     senderpub=ech->the_ech->enc;
-    aad=NULL;
-    aadlen=0;
     /*
      * We only support one ECHConfig for now on the server side
      */
-    publen=ech->cfg->recs[0].pub_len;
-    pub=ech->cfg->recs[0].pub;
+    publen=ech->cfg->recs[0].pub_len-4;
+    pub=ech->cfg->recs[0].pub+4;
     ech->crypto_started=1;
+
+    ech_pbuf("pub",pub,publen);
+    ech_pbuf("senderpub",senderpub,senderpublen);
+    ech_pbuf("cipher",cipher,cipherlen);
+
     int rv=hpke_dec( hpke_mode, hpke_suite,
                 NULL, 0, NULL, // pskid, psk
-                publen, pub, // recipient public key
+                //publen, pub, // recipient public key
+                0, NULL,
                 0,NULL,ech->keyshare, // private key in EVP_PKEY form
                 senderpublen, senderpub, // sender public
                 cipherlen, cipher, // ciphertext
-                aadlen,aad,  // add
+                0,NULL, // aad
                 0,NULL, // info
                 &clearlen, clear);  // clear
     if (rv!=1) {
         return NULL;
     }
+    ech_pbuf("clear",clear,clearlen);
     unsigned char *innerch=OPENSSL_malloc(clearlen);
     if (!innerch) {
         return NULL;
@@ -2716,6 +2720,8 @@ static unsigned char *hpke_decrypt_encch(SSL_ECH *ech, size_t *innerlen)
 int tls_parse_ctos_ech(SSL *s, PACKET *pkt, unsigned int context,
                                X509 *x, size_t chainidx)
 {
+    size_t clearlen=0;
+    unsigned char *clear=NULL;
     int assume_grease=0;
     if (s->ech==NULL) {
         printf("tls_parse_ctos_ech called - NULL ECH so assuming grease\n");
@@ -2853,8 +2859,6 @@ int tls_parse_ctos_ech(SSL *s, PACKET *pkt, unsigned int context,
     /*
      * Trial decrypt
      */
-    size_t clearlen=0;
-    unsigned char *clear=NULL;
     if (!foundcfg && (s->options & SSL_OP_ECH_TRIALDECRYPT)) { 
         assume_grease=1;
         for (cfgind=0;cfgind!=s->ech->cfg->nrecs;cfgind++) {
@@ -2875,6 +2879,9 @@ err:
     if (s->ech==NULL && extval!=NULL) {
         ECH_ENCCH_free(extval);
         OPENSSL_free(extval);
+    }
+    if (clearlen!=0 && clear!=NULL) {
+        OPENSSL_free(clear);
     }
     return(0);
 }

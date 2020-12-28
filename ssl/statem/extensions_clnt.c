@@ -2850,13 +2850,21 @@ EXT_RETURN tls_construct_ctos_ech(SSL *s, WPACKET *pkt, unsigned int context,
     /*
      * tc is our selected config
      */
-    peerpub=tc->pub;
-    peerpub_len=tc->pub_len;
+    peerpub=tc->pub+4;
+    peerpub_len=tc->pub_len-4;
+    if (peerpub_len <=0) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ECH,
+                 ERR_R_INTERNAL_ERROR);
+        return EXT_RETURN_FAIL;
+    }
+
+    ech_pbuf("pub",peerpub,peerpub_len);
+    ech_pbuf("clear",s->ech->encoded_innerch, s->ech->encoded_innerch_len);
 
     int rv=hpke_enc(
         hpke_mode, hpke_suite, // mode, suite
         NULL, 0, NULL, // pskid, psk
-        peerpub_len-4,peerpub+4,
+        peerpub_len,peerpub,
         0, NULL, // priv
         s->ech->encoded_innerch_len, s->ech->encoded_innerch, // clear
         0, NULL, // aad 
@@ -2864,6 +2872,8 @@ EXT_RETURN tls_construct_ctos_ech(SSL *s, WPACKET *pkt, unsigned int context,
         &senderpublen, senderpub, // my pub
         &cipherlen, cipher // cipher
         );
+    ech_pbuf("senderpub",senderpub,senderpublen);
+    ech_pbuf("cipher",cipher,cipherlen);
     if (rv!=1) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ECH,
                  ERR_R_INTERNAL_ERROR);

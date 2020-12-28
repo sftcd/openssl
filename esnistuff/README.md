@@ -25,6 +25,9 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- 20201228: got the call to ``hpke_dec`` succeeding now, next up to
+  try put inner CH back together (when compressed) and use it
+
 - 20201222: upgraded to HPKE-07 and did a bunch of valgrinding - next up
   is to get HPKE decrypt to work
 

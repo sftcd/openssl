@@ -1377,8 +1377,10 @@ int hpke_enc(
 
     int erv=1; /* Our error return value - 1 is success */
 #if defined(SUPERVERBOSE) || defined(TESTVECTORS)
-    hpke_tv_t *ltv=(hpke_tv_t*)tv;
     printf("Encrypting:\n");
+#endif
+#if defined(TESTVECTORS)
+    hpke_tv_t *ltv=(hpke_tv_t*)tv;
 #endif
 
     /*
