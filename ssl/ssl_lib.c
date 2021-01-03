@@ -1246,9 +1246,18 @@ void SSL_free(SSL *s)
     /*
      * Not sure why this isn't there already but anyway...
      */
-    if (s->clienthello!=NULL) {
+    if (s->clienthello!=NULL && s->clienthello->pre_proc_exts!=NULL) {
         OPENSSL_free(s->clienthello->pre_proc_exts);
+        s->clienthello->pre_proc_exts=NULL;
     }
+    if (s->clienthello_stash!=NULL && s->clienthello_stash->pre_proc_exts!=NULL) {
+        /*
+         * TODO: why is this already freed?
+         */
+        //OPENSSL_free(s->clienthello_stash->pre_proc_exts);
+        s->clienthello_stash->pre_proc_exts=NULL;
+    }
+    OPENSSL_free(s->clienthello_stash);
 #endif
     OPENSSL_free(s->clienthello);
     OPENSSL_free(s->pha_context);

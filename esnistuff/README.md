@@ -25,6 +25,13 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- 20210102: server side decrypt/decode of inner now sorta there, next
+  up is to get the client to react correctly to the session (inner or
+  outer-based) that gets established. (Note: there's some really ickky
+  stuff still on the server side that'd be v. brittle if >1 extension
+  ever interacts and one of those but not the other is "compressed."
+  All that compression is just muck really;-)
+
 - 20201228: got the call to ``hpke_dec`` succeeding now, next up to
   try put inner CH back together (when compressed) and use it
 

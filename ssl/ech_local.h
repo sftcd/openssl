@@ -340,12 +340,11 @@ void ech_pbuf(char *msg,unsigned char *buf,size_t blen);
  */
 int ech_inner2outer_dup(SSL *in);
 
-/*
+/**
  * @brief free an ECH_ENCCH
  * @param tbf is a ptr to an SSL_ECH structure
  */
 void ECH_ENCCH_free(ECH_ENCCH *ev);
-
 
 #endif
 #endif

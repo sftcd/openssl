@@ -29,6 +29,12 @@
 #include <unistd.h>
 
 /*
+ * This used be static inside ssl/statem/statem_clnt.c
+ */
+extern int ssl_cipher_list_to_bytes(SSL *s, STACK_OF(SSL_CIPHER) *sk,
+                                    WPACKET *pkt);
+
+/*
  * @brief Decode and check the value retieved from DNS (binary, base64 or ascii-hex encoded)
  * 
  * This does the real work, can be called to add to a context or a connection
@@ -1693,7 +1699,7 @@ int ech_same_ext(SSL *s, WPACKET* pkt)
 /**
  * @brief After "normal" 1st pass CH is done, fix encoding as needed
  *
- * This will make up the ClientHelloInner and EncodedClientHelloInner buffes
+ * This will make up the ClientHelloInner and EncodedClientHelloInner buffers
  *
  * @param s is the SSL session
  * @return 1 for success, error otherwise
@@ -1738,6 +1744,56 @@ int ech_encode_inner(SSL *s)
         goto err;
     }
 
+    /*
+     * Add ver/rnd/sess-id/suites to buffer
+     */
+    if (!WPACKET_put_bytes_u16(&inner, s->client_version)
+            || !WPACKET_memcpy(&inner, s->s3.client_random, SSL3_RANDOM_SIZE)) {
+        goto err;
+    }
+    /* Session ID */
+    unsigned char *session_id;
+    size_t sess_id_len=0;
+    session_id = s->session->session_id;
+    if (s->version == TLS1_3_VERSION
+            && (s->options & SSL_OP_ENABLE_MIDDLEBOX_COMPAT) != 0) {
+        sess_id_len = sizeof(s->tmp_session_id);
+        s->tmp_session_id_len = sess_id_len;
+        session_id = s->tmp_session_id;
+    } else {
+        sess_id_len = 0;
+    }
+    if (!WPACKET_start_sub_packet_u8(&inner)
+            || (sess_id_len != 0 && !WPACKET_memcpy(&inner, session_id,
+                                                    sess_id_len))
+            || !WPACKET_close(&inner)) {
+        return 0;
+    }
+    /* Ciphers supported */
+    if (!WPACKET_start_sub_packet_u16(&inner)) {
+        return 0;
+    }
+    if (!ssl_cipher_list_to_bytes(s, SSL_get_ciphers(s), &inner)) {
+        return 0;
+    }
+    if (!WPACKET_close(&inner)) {
+        return 0;
+    }
+    /* COMPRESSION */
+    if (!WPACKET_start_sub_packet_u8(&inner)) {
+        return 0;
+    }
+    /* Add the NULL compression method */
+    if (!WPACKET_put_bytes_u8(&inner, 0) || !WPACKET_close(&inner)) {
+        return 0;
+    }
+
+    /*
+     * Now mess with extensions
+     */
+    if (!WPACKET_start_sub_packet_u16(&inner)) {
+        return 0;
+    }
     RAW_EXTENSION *raws=s->clienthello->pre_proc_exts;
     size_t nraws=s->clienthello->pre_proc_exts_len;
     int ind=0;
@@ -1788,6 +1844,12 @@ int ech_encode_inner(SSL *s)
     }
 
     /*
+     * close the exts sub packet
+     */
+    if (!WPACKET_close(&inner))  {
+        goto err;
+    }
+    /*
      * close the inner CH
      */
     if (!WPACKET_close(&inner))  {
@@ -1803,16 +1865,21 @@ int ech_encode_inner(SSL *s)
     }
 
     /* 
-     * we need to prepend a few octets onto that to get the encoding 
+     * we need to prepend a few more octets onto that to get the encoding 
      * we can decode
+     * TODO: encode this properly
      */
-    innerch_full=OPENSSL_malloc(innerinnerlen);
+    unsigned char icpre[]={0x16,0x03,0x01};
+    innerch_full=OPENSSL_malloc(innerinnerlen+5);
     if (!innerch_full) {
         goto err;
     }
-    memcpy(innerch_full,inner_mem->data,innerinnerlen);
+    memcpy(innerch_full,icpre,3);
+    innerch_full[3]=(innerinnerlen>>8)&0xff;
+    innerch_full[4]=innerinnerlen&0xff;
+    memcpy(innerch_full+5,inner_mem->data,innerinnerlen);
     s->ech->encoded_innerch=innerch_full;
-    s->ech->encoded_innerch_len=innerinnerlen;
+    s->ech->encoded_innerch_len=innerinnerlen+5;
     WPACKET_cleanup(&inner);
     if (inner_mem) BUF_MEM_free(inner_mem);
     inner_mem=NULL;

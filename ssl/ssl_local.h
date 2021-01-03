@@ -1745,7 +1745,7 @@ struct ssl_st {
     int ech_grease;
     int nechs;
     SSL_ECH *ech;
-    // SSL_ech_cb_func esni_cb; - will need this later
+    CLIENTHELLO_MSG *clienthello_stash;
 #endif
 # ifndef OPENSSL_NO_CT
     /*

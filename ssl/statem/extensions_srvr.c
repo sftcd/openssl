@@ -643,12 +643,48 @@ int tls_parse_ctos_key_share(SSL *s, PACKET *pkt, unsigned int context, X509 *x,
     if (s->hit && (s->ext.psk_kex_mode & TLSEXT_KEX_MODE_FLAG_KE_DHE) == 0)
         return 1;
 
+#ifndef OPENSSL_NO_ECH
+    /* 
+     * Sanity check - different for outer & inner CH 
+     * We expect peer_temp to be NULL 1st time and not NULL 2nd time
+     */
+    if (s->ext.ch_depth==0) {
+        /*
+         * outer CH
+         */
+        if (s->s3.peer_tmp != NULL) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PARSE_CTOS_KEY_SHARE,
+                 ERR_R_INTERNAL_ERROR);
+            return 0;
+        }
+    } else if (s->ext.ch_depth==1) {
+        /*
+         * inner CH
+         */
+        if ( s->s3.peer_tmp != NULL) {
+            /* 
+             * This is the nominal case, but we now set it to NULL for
+             * 2nd key derivation
+             */
+            s->s3.peer_tmp=NULL;
+        } else if (s->s3.peer_tmp == NULL) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PARSE_CTOS_KEY_SHARE,
+                 ERR_R_INTERNAL_ERROR);
+            return 0;
+        }
+    } else {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PARSE_CTOS_KEY_SHARE,
+                 ERR_R_INTERNAL_ERROR);
+        return 0;
+    }
+#else
     /* Sanity check */
     if (s->s3.peer_tmp != NULL) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PARSE_CTOS_KEY_SHARE,
                  ERR_R_INTERNAL_ERROR);
         return 0;
     }
+#endif
 
 #ifndef OPENSSL_NO_ESNI
     /*
@@ -2706,6 +2742,9 @@ static unsigned char *hpke_decrypt_encch(SSL_ECH *ech, size_t *innerlen)
         return NULL;
     }
     ech_pbuf("clear",clear,clearlen);
+    /*
+     * Allocate space for that now, including msg type and 2 octet length
+     */
     unsigned char *innerch=OPENSSL_malloc(clearlen);
     if (!innerch) {
         return NULL;
@@ -2845,7 +2884,8 @@ int tls_parse_ctos_ech(SSL *s, PACKET *pkt, unsigned int context,
     if (assume_grease==0 && extval->config_id_len!=0) {
         if (s->ech->cfg==NULL || s->ech->cfg->nrecs==0) {
             // shouldn't happen if assume_grease
-            return(0);
+            SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ECH, SSL_R_BAD_EXTENSION);
+            goto err;
         }
         for (cfgind=0;cfgind!=s->ech->cfg->nrecs;cfgind++) {
             ECHConfig *e=&s->ech[cfgind].cfg->recs[0];
@@ -2869,12 +2909,75 @@ int tls_parse_ctos_ech(SSL *s, PACKET *pkt, unsigned int context,
             }
         }
     }
-    if (foundcfg) {
+    if (!foundcfg) {
         clear=hpke_decrypt_encch(&s->ech[cfgind],&clearlen);
+        if (clear!=NULL) foundcfg=1;
     }
     printf("parse_ctos_ech: assume_grease: %d, foundcfg: %d, cfgind: %d, clearlen: %ld, clear %p\n",
             assume_grease,foundcfg,cfgind,clearlen,clear);
+    if (!foundcfg) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ECH, SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+    /*
+     * Clear with a type/len prceeded
+     */
+    ech_pbuf("clear",clear,clearlen);
+
+    /*
+     * Now we would like to re-construct an inner CH from that cleartext
+     *
+     * Idea is to decode, then check for outers and if we find 'em
+     * copy each one from the outer
+     */
+    PACKET innerpacket;
+    if (clearlen < 9) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ECH, SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+    if (PACKET_buf_init(&innerpacket,clear+9,clearlen-9)!=1) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ECH, SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+    /*
+     * Stash outer stuff incl SNI, if any (i.e. could be NULL)
+     */
+    s->clienthello_stash=s->clienthello;
+    s->clienthello=NULL;
+    /*
+     * Might have to zap more in a bit, TODO: check
+     */
+    s->ext.hostname=NULL;
+    s->servername_done=0;
+    /*
+     * Process inner CH
+     */
+    s->ext.ch_depth=1;
+    if (!tls_process_client_hello(s,&innerpacket)) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ECH, SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+    if (!s->clienthello || !s->clienthello->pre_proc_exts) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ECH, SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+    if (!tls_parse_all_extensions(s, SSL_EXT_CLIENT_HELLO, s->clienthello->pre_proc_exts, NULL, 0,0)) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ECH, SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+
+    /*
+     * Lastly, all having gone well, we should do a swapperoo - ditch the outer and go with the
+     * inner
+     */
+
+    if (clearlen!=0 && clear!=NULL) {
+        OPENSSL_free(clear);
+        clear=NULL;
+        clearlen=0;
+    }
     return 1;
+
 err:
     if (s->ech==NULL && extval!=NULL) {
         ECH_ENCCH_free(extval);
@@ -2899,6 +3002,117 @@ EXT_RETURN tls_construct_stoc_ech(SSL *s, WPACKET *pkt,
 int tls_parse_ctos_ech_outer_exts(SSL *s, PACKET *pkt, unsigned int context,
                                X509 *x, size_t chainidx)
 {
+    /*
+     * There better now be one of these in the outer CH
+     */
+    if (s->ext.ch_depth==0) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ECH_OUTER_EXTS, SSL_R_BAD_EXTENSION);
+        return(0);
+    }
+    if (s->ech==NULL) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ECH_OUTER_EXTS, SSL_R_BAD_EXTENSION);
+        return(0);
+    }
+    if (s->clienthello_stash==NULL) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ECH_OUTER_EXTS, SSL_R_BAD_EXTENSION);
+        return(0);
+    }
+    if (s->clienthello_stash->pre_proc_exts==NULL) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ECH_OUTER_EXTS, SSL_R_BAD_EXTENSION);
+        return(0);
+    }
+    /*
+     * For each extension here, if there's an outer equivalent, then splice
+     * that in, bail if there're errors
+     */
+    int nouters=PACKET_remaining(pkt)/2;
+    printf("We have %d compressed exts\n",nouters);
+    if (nouters>=ECH_OUTERS_MAX) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ECH_OUTER_EXTS, SSL_R_BAD_EXTENSION);
+        return(0);
+    }
+    uint16_t *etypes=s->ech->outer_only;
+    s->ech->n_outer_only=nouters;
+    int exti=0;
+    for (exti=0;exti!=nouters;exti++) {
+        unsigned int tmp;
+        if (!PACKET_get_net_2(pkt, &tmp)) {
+            SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ECH_OUTER_EXTS, SSL_R_BAD_EXTENSION);
+            return(0);
+        }
+        etypes[exti]=(uint32_t) (tmp&0xffff);
+        printf("\touter %d is type %x\n",exti,etypes[exti]);
+    }
+
+    /*
+     * Plan is:
+     * - splice in the values from outer, but there's a gotcha:
+     *    pre_proc_exts has an entry for all known exts that includes
+     *    flags for present/parsed/rx'd order so we need to fix those 
+     *    values up and get these re-parsed in case there's a side
+     *    effect (sigh - this compression is nuts!)
+     * - finally check de-compress won't break a rule (e.g. 2 occurrences of one ext type)
+     * - declare victory
+     */
+
+    /*
+     * Figure out the offset of the outers in inner, that'll be what we up positions
+     * by
+     */
+    int outer_order=-1; ///< the order of the outer_ext in the inner CH, we'll splice in exts from outer at this point
+    RAW_EXTENSION *inner=s->clienthello->pre_proc_exts;
+    int inner_size=s->clienthello->pre_proc_exts_len;
+    for (int i=0;i!=inner_size;i++) {
+        if (inner->type==TLSEXT_TYPE_outer_extensions && inner->present) {
+            outer_order=inner->received_order;
+            break;
+        }
+        inner++;
+    }
+    if (outer_order==-1) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ECH_OUTER_EXTS, SSL_R_BAD_EXTENSION);
+        return(0);
+    }
+
+    /* 
+     * Now look through outer CH exts and adjust inners as needed
+     * This code depends on the inner and outer RAW_EXTENSION arrays having
+     * the same exts at the same indices. So don't change that;-) 
+     * We do do some checks just in case.
+     */
+    const RAW_EXTENSION *outer=s->clienthello_stash->pre_proc_exts;
+    inner=s->clienthello->pre_proc_exts;
+    int outer_size=s->clienthello_stash->pre_proc_exts_len;
+    if (inner_size!=outer_size) return(0);
+    for (int i=0;i!=outer_size;i++) {
+        if (inner->present==1 && inner->type!= TLSEXT_TYPE_outer_extensions && inner->type!=outer->type) {
+            SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ECH_OUTER_EXTS, SSL_R_BAD_EXTENSION);
+            return(0);
+        }
+        for (int j=0;j!=nouters;j++) {
+            if (outer->type==etypes[j] && outer->present==1) {
+                printf("Compressed Ext %d (type %x) is present in outer CH (pos %d, rx pos %ld, parsed: %d, size: %ld)\n",
+                        j,etypes[j],i,outer->received_order,outer->parsed,outer->data.remaining);
+                if (inner->present==1 && inner->received_order>=outer_order) {
+                    inner->received_order=outer_order+j;
+                }
+                /*
+                 * TODO: FIXME: this is broken - by the time we're here, outer->data
+                 * has been parsed which means that the PACKET has zero data remaining
+                 * so if we re-parsed it, we'd fail. However, we should also be luck
+                 * in that the SSL *s input here starts out with the result of having
+                 * done that parsing, so we should be ok, unless there's some interaction
+                 * between yet another extension value and "this" one where we have
+                 * different values for "this" one in inner and outer.
+                 * Yes, this compression sucks awfully.
+                 * Oh - and the packet data pointer is probably gonna cause trouble
+                 * when freed (but we'll see that soon)
+                 */
+                inner->data=outer->data;
+            }
+        }
+        outer++; inner++;
+    }
     return 1;
 }
 
