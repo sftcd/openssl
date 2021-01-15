@@ -176,7 +176,7 @@ static EXT_RETURN esni_server_name_fixup(SSL *s, WPACKET *pkt,
  * send SNI if the clear_sni was explicitly set 
  * and is the same as the SNI (that maybe got set
  * via some weirdo application API that we couldn't
- * change when Ech enabling perhaps)
+ * change when ECH enabling perhaps)
  *
  * When the name is fixed up, we record the original
  * encservername, clear_sni and public_name in the 
@@ -194,22 +194,29 @@ static EXT_RETURN ech_server_name_fixup(SSL *s, WPACKET *pkt,
                                           unsigned int context, X509 *x,
                                           size_t chainidx) 
 {
-    if (s->ech != NULL ) {
-        char *cpn=NULL;
-        size_t pn_len=(cpn==NULL?0:OPENSSL_strnlen(cpn,TLSEXT_MAXLEN_host_name));
+    if (s->ech != NULL && s->ext.ch_depth==1 ) {
+        char *pn=NULL;
+        size_t pn_len=0;
+        if (s->ech->cfg->recs!=NULL) {
+            pn_len=s->ech->cfg->recs[0].public_name_len;
+            pn=(char*)s->ech->cfg->recs[0].public_name;
+        }
         size_t on_len=(s->ech->outer_name==NULL?0:OPENSSL_strnlen(s->ech->outer_name,TLSEXT_MAXLEN_host_name));
         size_t in_len=(s->ech->inner_name==NULL?0:OPENSSL_strnlen(s->ech->inner_name,TLSEXT_MAXLEN_host_name));
+
         size_t ehn_len=(s->ext.hostname==NULL?0:OPENSSL_strnlen(s->ext.hostname,TLSEXT_MAXLEN_host_name));
         size_t een_len=(s->ext.encservername==NULL?0:OPENSSL_strnlen(s->ext.encservername,TLSEXT_MAXLEN_host_name));
         size_t epn_len=(s->ext.public_name==NULL?0:OPENSSL_strnlen(s->ext.public_name,TLSEXT_MAXLEN_host_name));
-        size_t ecn_len=(s->ext.clear_sni==NULL?0:OPENSSL_strnlen(s->ext.clear_sni,TLSEXT_MAXLEN_host_name));
-        /* check inputs make sense */
-		if (s->ech->inner_name==NULL) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_ECH_SERVER_NAME_FIXUP,
-                 ERR_R_INTERNAL_ERROR);
-            return EXT_RETURN_FAIL;
+
+        /*
+         * TODO: test/handle the case with session resumption
+         */
+
+        // free up old values if they had been set
+        if (ehn_len!=0) {
+            OPENSSL_free(s->ext.hostname);
+            s->ext.hostname=NULL;
         }
-        /* record values for posterity/printing */
         if (een_len!=0) {
             OPENSSL_free(s->ext.encservername);
             s->ext.encservername=NULL;
@@ -218,41 +225,35 @@ static EXT_RETURN ech_server_name_fixup(SSL *s, WPACKET *pkt,
             OPENSSL_free(s->ext.public_name);
             s->ext.public_name=NULL;
         }
-        if (ecn_len!=0) {
-            OPENSSL_free(s->ext.clear_sni);
-            s->ext.clear_sni=NULL;
-        }
-        if (pn_len!=0) {
-            s->ext.public_name=OPENSSL_strdup(cpn);
-        }
+
+        /* 
+         * Set values to be used
+         */
         if (in_len!=0) {
             s->ext.encservername=OPENSSL_strdup(s->ech->inner_name);
-        }
+        } else if (pn_len!=0 && in_len==0) {
+            s->ext.encservername=OPENSSL_strndup(pn,pn_len);
+        } 
         if (on_len!=0) {
-            s->ext.clear_sni=OPENSSL_strdup(s->ech->outer_name);
+            s->ext.hostname=OPENSSL_strdup(s->ech->outer_name);
         }
-        /* now do the checks */
-        if (pn_len!=0 && on_len==0) {
-            /* if public_name set */
-            if (pn_len!=ehn_len || CRYPTO_memcmp(s->ext.hostname,cpn,pn_len)) {
-                SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_ECH_SERVER_NAME_FIXUP,
-                    ERR_R_INTERNAL_ERROR);
-                return EXT_RETURN_NOT_SENT;
-            }
-        } else {
-            /* maybe clear_sni */
-            if (on_len!=ehn_len || CRYPTO_memcmp(s->ext.hostname,s->ech->outer_name,on_len)) {
-                SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_ECH_SERVER_NAME_FIXUP,
-                    ERR_R_INTERNAL_ERROR);
-                return EXT_RETURN_NOT_SENT;
-            }
+        if (pn_len!=0) {
+            s->ext.public_name=OPENSSL_strndup(pn,pn_len);
         }
-        /* barf if the clear_sni and encservername are the same - makes no sense */
-        if (in_len==on_len && !CRYPTO_memcmp(s->ech->inner_name,s->ech->outer_name,in_len)) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_ECH_SERVER_NAME_FIXUP,
+
+        /* 
+         * barf if the hostname and encservername are the same - makes no sense 
+         */
+        if (s->ext.hostname && s->ext.encservername) {
+            if (strlen(s->ext.hostname)==strlen(s->ext.encservername) &&
+                    !CRYPTO_memcmp(s->ext.hostname,s->ext.encservername,
+                        strlen(s->ext.hostname))) {
+                SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_ECH_SERVER_NAME_FIXUP,
                  ERR_R_INTERNAL_ERROR);
-            return EXT_RETURN_FAIL;
+                return EXT_RETURN_FAIL;
+            }
         }
+
     } 
     return EXT_RETURN_SENT;
 }
@@ -263,34 +264,34 @@ EXT_RETURN tls_construct_ctos_server_name(SSL *s, WPACKET *pkt,
                                           unsigned int context, X509 *x,
                                           size_t chainidx)
 {
-    if (s->ext.hostname == NULL)
-        return EXT_RETURN_NOT_SENT;
-
 #ifndef OPENSSL_NO_ESNI
-    int esnirv=esni_server_name_fixup(s,pkt,context,x,chainidx);
-    if (esnirv!=EXT_RETURN_SENT) {
-        return esnirv;
+    if (s->esni!=NULL) {
+        int esnirv=esni_server_name_fixup(s,pkt,context,x,chainidx);
+        if (esnirv!=EXT_RETURN_SENT) {
+            return esnirv;
+        }
     }
 #endif // END_OPENSSL_NO_ESNI
 
 #ifndef OPENSSL_NO_ECH
-    if (s->ech != NULL && s->ext.ch_depth==0) {
+    if (s->ech != NULL && s->ext.ch_depth==1) {
         int esnirv=ech_server_name_fixup(s,pkt,context,x,chainidx);
         if (esnirv!=EXT_RETURN_SENT) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_SERVER_NAME,
+                     ERR_R_INTERNAL_ERROR);
             return esnirv;
         }
-    } else if (s->ech != NULL && s->ext.ch_depth==1) {
-        /*
-         * Outer CH - use the public_name
-         */
+        if (s->ext.encservername==NULL) {
+            return EXT_RETURN_NOT_SENT;
+        }
         if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_server_name)
                    /* Sub-packet for server_name extension */
                 || !WPACKET_start_sub_packet_u16(pkt)
                    /* Sub-packet for servername list (always 1 hostname)*/
                 || !WPACKET_start_sub_packet_u16(pkt)
                 || !WPACKET_put_bytes_u8(pkt, TLSEXT_NAMETYPE_host_name)
-                || !WPACKET_sub_memcpy_u16(pkt, s->ext.hostname,
-                                           strlen(s->ext.hostname))
+                || !WPACKET_sub_memcpy_u16(pkt, s->ext.encservername,
+                                           strlen(s->ext.encservername))
                 || !WPACKET_close(pkt)
                 || !WPACKET_close(pkt)) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_SERVER_NAME,
@@ -300,6 +301,9 @@ EXT_RETURN tls_construct_ctos_server_name(SSL *s, WPACKET *pkt,
         return EXT_RETURN_SENT;
     }
 #endif
+
+    if (s->ext.hostname == NULL)
+        return EXT_RETURN_NOT_SENT;
 
     /* Add TLS extension servername to the Client Hello message */
     if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_server_name)
@@ -935,18 +939,16 @@ static int add_key_share(SSL *s, WPACKET *pkt, unsigned int curve_id)
     EVP_PKEY *key_share_key = NULL;
     size_t encodedlen;
 
-    if (s->s3.tmp.pkey != NULL) {
 #ifndef OPENSSL_NO_ECH
-        /*
-         * With ECH we can get an outer that re-uses a share with 
-         * it's inner, so a non-HRR case is no longer an error
-         *
-         * TODO: Figure out if there is an error case!
-         */
-        if (s->ech==NULL && s->ext.ch_depth==1 && !ossl_assert(s->hello_retry_request == SSL_HRR_PENDING)) {
+    /*
+     * With ECH we can get an outer that re-uses a share with 
+     * it's inner, so a non-HRR case is no longer an error
+     */
+    if (s->ech==NULL && s->s3.tmp.pkey != NULL) {
 #else
-        if (!ossl_assert(s->hello_retry_request == SSL_HRR_PENDING)) {
+    if (s->s3.tmp.pkey != NULL) {
 #endif
+        if (!ossl_assert(s->hello_retry_request == SSL_HRR_PENDING)) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_ADD_KEY_SHARE,
                      ERR_R_INTERNAL_ERROR);
             return 0;
@@ -2770,7 +2772,7 @@ EXT_RETURN tls_construct_ctos_ech(SSL *s, WPACKET *pkt, unsigned int context,
     if (!s->ech) {
         return EXT_RETURN_NOT_SENT;
     }
-    if (s->ext.ch_depth==0) {
+    if (s->ext.ch_depth==1) {
         return EXT_RETURN_NOT_SENT;
     }
 
@@ -2858,27 +2860,34 @@ EXT_RETURN tls_construct_ctos_ech(SSL *s, WPACKET *pkt, unsigned int context,
         return EXT_RETURN_FAIL;
     }
 
+    if (s->ext.inner_s==NULL || s->ext.inner_s->ech==NULL) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ECH,
+                 ERR_R_INTERNAL_ERROR);
+        return EXT_RETURN_FAIL;
+    }
+
     ech_pbuf("pub",peerpub,peerpub_len);
-    ech_pbuf("clear",s->ech->encoded_innerch, s->ech->encoded_innerch_len);
+
+    ech_pbuf("clear",s->ext.inner_s->ech->encoded_innerch, s->ext.inner_s->ech->encoded_innerch_len);
 
     int rv=hpke_enc(
         hpke_mode, hpke_suite, // mode, suite
         NULL, 0, NULL, // pskid, psk
         peerpub_len,peerpub,
         0, NULL, // priv
-        s->ech->encoded_innerch_len, s->ech->encoded_innerch, // clear
+        s->ext.inner_s->ech->encoded_innerch_len, s->ext.inner_s->ech->encoded_innerch, // clear
         0, NULL, // aad 
         0, NULL, // info
         &senderpublen, senderpub, // my pub
         &cipherlen, cipher // cipher
         );
-    ech_pbuf("senderpub",senderpub,senderpublen);
-    ech_pbuf("cipher",cipher,cipherlen);
     if (rv!=1) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ECH,
                  ERR_R_INTERNAL_ERROR);
         return EXT_RETURN_FAIL;
     }
+    ech_pbuf("senderpub",senderpub,senderpublen);
+    ech_pbuf("cipher",cipher,cipherlen);
     printf("HPKE called ok, cipher len=%lx\n",cipherlen);
 
     unsigned char config_id[]={'S','F'};

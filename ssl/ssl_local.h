@@ -1611,13 +1611,9 @@ struct ssl_st {
          * Additionally we record the encoded key share extension
          * value from the ClientHello for use as the AAD in ENSI
          */
-        size_t ech_kse_len;
-        unsigned char *ech_kse;
-        /*
-         * a place to stash the inner CH SSL* details
-         */
         int ch_depth;
-        SSL* inner_s;
+        SSL* inner_s; // pointer to inner CH from outer
+        SSL* outer_s; // pointer to outer CH from inner
         int inner_s_checked;
         int inner_s_shdone;
         int inner_s_ftd;
@@ -1745,7 +1741,7 @@ struct ssl_st {
     int ech_grease;
     int nechs;
     SSL_ECH *ech;
-    CLIENTHELLO_MSG *clienthello_stash;
+    //CLIENTHELLO_MSG *clienthello_stash;
 #endif
 # ifndef OPENSSL_NO_CT
     /*

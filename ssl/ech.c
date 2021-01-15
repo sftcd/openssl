@@ -20,6 +20,7 @@
 # include "ssl_local.h"
 # include "ech_local.h"
 # include "statem/statem_local.h"
+#include <openssl/rand.h>
 
 /*
  * Needed to use stat for file status below in ech_check_filenames
@@ -366,12 +367,41 @@ void ECHConfigs_free(ECHConfigs *tbf)
     return;
 }
 
+void *len_field_dup(void *old, unsigned int len)
+{
+    if (!old || len==0) return NULL;
+    void *new=(void*)OPENSSL_malloc(len);
+    if (!new) return 0;
+    memcpy(new,old,len);
+    return new;
+} 
+
+#define ECHFDUP(__f__,__flen__) \
+    if (old->__flen__!=0) { \
+        new->__f__=len_field_dup((void*)old->__f__,old->__flen__); \
+        if (new->__f__==NULL) return 0; \
+    }
+
+/*
+ * @brief free an ECH_ENCCH
+ * @param tbf is a ptr to an SSL_ECH structure
+ */
+static int ECH_ENCCH_dup(ECH_ENCCH *old, ECH_ENCCH *new)
+{
+    if (!old || !new) return 0;
+    ECHFDUP(config_id,config_id_len);
+    ECHFDUP(enc,enc_len);
+    ECHFDUP(payload,payload_len);
+    return 1;
+}
+
 /*
  * @brief free an ECH_ENCCH
  * @param tbf is a ptr to an SSL_ECH structure
  */
 void ECH_ENCCH_free(ECH_ENCCH *ev)
 {
+    if (!ev) return;
     if (ev->config_id!=NULL) OPENSSL_free(ev->config_id);
     if (ev->enc!=NULL) OPENSSL_free(ev->enc);
     if (ev->payload!=NULL) OPENSSL_free(ev->payload);
@@ -410,6 +440,7 @@ void SSL_ECH_free(SSL_ECH *tbf)
         ECH_ENCCH_free(ev);
         OPENSSL_free(ev);
     }
+    memset(tbf,0,sizeof(SSL_ECH));
     /*
      * More TODO
      */
@@ -1215,21 +1246,6 @@ typedef struct ech_configs_st {
 } ECHConfigs;
 */
 
-void *len_field_dup(void *old, unsigned int len)
-{
-    if (!old || len==0) return NULL;
-    void *new=(void*)OPENSSL_malloc(len);
-    if (!new) return 0;
-    memcpy(new,old,len);
-    return new;
-} 
-
-#define ECHFDUP(__f__,__flen__) \
-    if (old->__flen__!=0) { \
-        new->__f__=len_field_dup((void*)old->__f__,old->__flen__); \
-        if (new->__f__==NULL) return 0; \
-    }
-
 static int ECHConfig_dup(ECHConfig *old, ECHConfig *new)
 {
     if (!new || !old) return 0;
@@ -1304,13 +1320,19 @@ SSL_ECH* SSL_ECH_dup(SSL_ECH* orig, size_t nech, int selector)
         new_se[i].cfg=OPENSSL_malloc(sizeof(ECHConfigs));
         if (new_se[i].cfg==NULL) goto err;
         if (ECHConfigs_dup(orig[i].cfg,new_se[i].cfg)!=1) goto err;
+        if (orig->the_ech) {
+            new_se->the_ech=OPENSSL_malloc(sizeof(ECH_ENCCH));
+            if (new_se->the_ech==NULL) return 0;
+            memset(new_se->the_ech,0,sizeof(ECH_ENCCH));
+            if (ECH_ENCCH_dup(orig->the_ech,new_se->the_ech)!=1) return(0);
+        }
     }
 
     if (orig->inner_name!=NULL) {
         new_se->inner_name=OPENSSL_strdup(orig->inner_name);
     }
     if (orig->outer_name!=NULL) {
-        new_se->inner_name=OPENSSL_strdup(orig->inner_name);
+        new_se->outer_name=OPENSSL_strdup(orig->outer_name);
     }
 
     return new_se;
@@ -1620,6 +1642,8 @@ int ech_outer_indep[]={
 int ech_same_ext(SSL *s, WPACKET* pkt)
 {
     if (!s->ech) return(ECH_SAME_EXT_CONTINUE); // nothing to do
+    if (!s->ext.inner_s) return(ECH_SAME_EXT_CONTINUE); // nothing to do
+    SSL *inner=s->ext.inner_s;
     int type=s->ech->etype;
     int nexts=sizeof(ech_outer_config)/sizeof(int);
     int tind=ech_map_ext_type_to_ind(type);
@@ -1630,11 +1654,11 @@ int ech_same_ext(SSL *s, WPACKET* pkt)
      * When doing the inner CH, just note what will later be
      * compressed, if we want to compress
      */
-    if (s->ext.ch_depth==0 && !ech_outer_config[tind]) {
+    if (s->ext.ch_depth==1 && !ech_outer_config[tind]) {
         printf("Not doing outer compressing for ext type %x\n",type);
         return(ECH_SAME_EXT_CONTINUE);
     }
-    if (s->ext.ch_depth==0 && ech_outer_config[tind]) {
+    if (s->ext.ch_depth==1 && ech_outer_config[tind]) {
         printf("Will do outer compressing for ext type %x\n",type);
         if (s->ech->n_outer_only>=ECH_OUTERS_MAX) {
 	        return ECH_SAME_EXT_ERR;
@@ -1645,9 +1669,9 @@ int ech_same_ext(SSL *s, WPACKET* pkt)
     }
 
     /* 
-     * From here on we're in 2nd call, making the outer CH 
+     * From here on we're in 2nd call, meaning the outer CH 
      */
-    if (!s->clienthello) return(ECH_SAME_EXT_ERR); 
+    if (!inner->clienthello) return(ECH_SAME_EXT_ERR); 
     if (!pkt) return(ECH_SAME_EXT_ERR);
     if (ech_outer_indep[tind]) {
         printf("New outer for ext type %x\n",type);
@@ -1657,11 +1681,11 @@ int ech_same_ext(SSL *s, WPACKET* pkt)
 
 	    int ind=0;
 	    RAW_EXTENSION *myext=NULL;
-	    RAW_EXTENSION *raws=s->clienthello->pre_proc_exts;
+	    RAW_EXTENSION *raws=inner->clienthello->pre_proc_exts;
 	    if (raws==NULL) {
 	        return ECH_SAME_EXT_ERR;
 	    }
-	    size_t nraws=s->clienthello->pre_proc_exts_len;
+	    size_t nraws=inner->clienthello->pre_proc_exts_len;
 	    for (ind=0;ind!=nraws;ind++) {
 	        if (raws[ind].type==type) {
 	            myext=&raws[ind];
@@ -1751,18 +1775,13 @@ int ech_encode_inner(SSL *s)
             || !WPACKET_memcpy(&inner, s->s3.client_random, SSL3_RANDOM_SIZE)) {
         goto err;
     }
-    /* Session ID */
-    unsigned char *session_id;
-    size_t sess_id_len=0;
-    session_id = s->session->session_id;
-    if (s->version == TLS1_3_VERSION
-            && (s->options & SSL_OP_ENABLE_MIDDLEBOX_COMPAT) != 0) {
-        sess_id_len = sizeof(s->tmp_session_id);
-        s->tmp_session_id_len = sess_id_len;
-        session_id = s->tmp_session_id;
-    } else {
-        sess_id_len = 0;
-    }
+    /* 
+     * Session ID - we'll check if there's one already set in the
+     * outer or inner and if so, use that. If not, we'll set one
+     * for both inner and outer.
+     */
+    unsigned char *session_id=s->session->session_id;;
+    size_t sess_id_len=s->session->session_id_length;
     if (!WPACKET_start_sub_packet_u8(&inner)
             || (sess_id_len != 0 && !WPACKET_memcpy(&inner, session_id,
                                                     sess_id_len))
@@ -1926,7 +1945,7 @@ void ech_pbuf(char *msg,unsigned char *buf,size_t blen)
  * from inner to outer, so we can play with
  * changes
  */
-int ech_inner2outer_dup(SSL *in)
+int not_ech_inner2outer_dup(SSL *in)
 {
     if (!in) return(0);
     SSL *new=SSL_dup(in);
@@ -1941,6 +1960,26 @@ int ech_inner2outer_dup(SSL *in)
     in->ext.inner_s_checked=0;
     in->ext.inner_s_shdone=0;
     in->ext.inner_s_ftd=0;
+    return(1);
+}
+
+/*
+ * Handling for the ECH accept_confirmation (see
+ * spec, section 7.2) - this is a magic value in
+ * the ServerHello.random lower 8 octets that is
+ * used to signal that the inner worked.
+ *
+ * TODO: complete this - for the moment, I'm just
+ * setting this to 8 zero octets, will put in the
+ * real calculation later.
+ *
+ * @param: s is the SSL inner context
+ * @param: ac is (preallocated) 8 octet buffer
+ * @return: 1 for success, 0 otherwise
+ */
+int ech_calc_accept_confirm(SSL *s, unsigned char *acbuf)
+{
+    memset(acbuf,0,8);
     return(1);
 }
 

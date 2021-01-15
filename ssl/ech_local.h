@@ -346,5 +346,17 @@ int ech_inner2outer_dup(SSL *in);
  */
 void ECH_ENCCH_free(ECH_ENCCH *ev);
 
+/*
+ * Handling for the ECH accept_confirmation (see
+ * spec, section 7.2) - this is a magic value in
+ * the ServerHello.random lower 8 octets that is
+ * used to signal that the inner worked.
+ *
+ * @param: s is the SSL inner context
+ * @param: ac is (preallocated) 8 octet buffer
+ * @return: 1 for success, 0 otherwise
+ */
+int ech_calc_accept_confirm(SSL *s, unsigned char *acbuf);
+
 #endif
 #endif

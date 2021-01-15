@@ -1250,14 +1250,6 @@ void SSL_free(SSL *s)
         OPENSSL_free(s->clienthello->pre_proc_exts);
         s->clienthello->pre_proc_exts=NULL;
     }
-    if (s->clienthello_stash!=NULL && s->clienthello_stash->pre_proc_exts!=NULL) {
-        /*
-         * TODO: why is this already freed?
-         */
-        //OPENSSL_free(s->clienthello_stash->pre_proc_exts);
-        s->clienthello_stash->pre_proc_exts=NULL;
-    }
-    OPENSSL_free(s->clienthello_stash);
 #endif
     OPENSSL_free(s->clienthello);
     OPENSSL_free(s->pha_context);
@@ -1310,7 +1302,7 @@ void SSL_free(SSL *s)
 #endif
 
 #ifndef OPENSSL_NO_ECH
-    if (s->ext.inner_s!=NULL) {
+    if (s->ext.inner_s!=NULL && s->ext.inner_s!=s)  {
         SSL_free(s->ext.inner_s);
         s->ext.inner_s=NULL;
     }
@@ -1319,14 +1311,9 @@ void SSL_free(SSL *s)
         for (i=0;i!=s->nechs;i++) {
             SSL_ECH_free(&s->ech[i]);
         }
+        memset(s->ech,0,s->nechs*sizeof(SSL_ECH));
         OPENSSL_free(s->ech);
         s->ech=NULL;
-
-    }
-    if (s->ext.ech_kse!=NULL) {
-        OPENSSL_free(s->ext.ech_kse);
-        s->ext.ech_kse=NULL;
-        s->ext.ech_kse_len=0;
     }
     OPENSSL_free(s->ext.ech_public_name);
     OPENSSL_free(s->ext.ech_inner_name);
@@ -3490,8 +3477,12 @@ void SSL_CTX_free(SSL_CTX *a)
 
 #ifndef OPENSSL_NO_ECH
 	if (a->ext.ech!=NULL) {
-        SSL_ECH_free(a->ext.ech);
-		OPENSSL_free(a->ext.ech);
+        int i=0;
+        for (i=0;i!=a->ext.nechs;i++) {
+            SSL_ECH_free(&a->ext.ech[i]);
+        }
+        memset(a->ext.ech,0,a->ext.nechs*sizeof(SSL_ECH));
+        OPENSSL_free(a->ext.ech);
 		a->ext.ech=NULL;
 		a->ext.nechs=0;
 	}
@@ -4057,10 +4048,12 @@ SSL *SSL_dup(SSL *s)
     int i;
 
 #ifndef OPENSSL_NO_ECH
-    /* If we're not ECH/inner and not quiescent, just up_ref! */
-    if (s->ext.ch_depth!=0 && ( !SSL_in_init(s) || !SSL_in_before(s))) {
-        CRYPTO_UP_REF(&s->references, &i, s->lock);
-        return s;
+    if (( !SSL_in_init(s) || !SSL_in_before(s))) {
+        /* If we're not ECH and not quiescent, just up_ref! */
+        if (!s->ech) {
+            CRYPTO_UP_REF(&s->references, &i, s->lock);
+            return s;
+        }
     }
 #else
     /* If we're not quiescent, just up_ref! */
@@ -4169,6 +4162,17 @@ SSL *SSL_dup(SSL *s)
             || !dup_ca_names(&ret->client_ca_names, s->client_ca_names))
         goto err;
 
+#ifndef OPENSSL_NO_ECH
+    if (s->ech) {
+        ret->ech=SSL_ECH_dup(s->ech,s->nechs,ECH_SELECT_ALL);
+        if (ret->ech==NULL) goto err;
+        ret->nechs=s->nechs;
+    } else {
+        ret->nechs=0;
+        ret->ech=NULL;
+    }
+    ret->ech_done=s->ech_done;
+#endif
     return ret;
 
  err:

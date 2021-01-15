@@ -1530,6 +1530,7 @@ MSG_PROCESS_RETURN tls_process_client_hello(SSL *s, PACKET *pkt)
             goto err;
         }
 
+
         if (SSL_IS_DTLS(s)) {
             if (!PACKET_get_length_prefixed_1(pkt, &cookie)) {
                 SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PROCESS_CLIENT_HELLO,
@@ -2376,6 +2377,16 @@ int tls_construct_server_hello(SSL *s, WPACKET *pkt)
     int version;
     unsigned char *session_id;
     int usetls13 = SSL_IS_TLS13(s) || s->hello_retry_request == SSL_HRR_PENDING;
+
+#ifndef OPENSSL_NO_ECH
+    unsigned char acbuf[8];
+    if (ech_calc_accept_confirm(s,acbuf)!=1) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS13_ENC,
+                ERR_R_INTERNAL_ERROR);
+        return 0;
+    }
+    memcpy(s->s3.server_random+SSL3_RANDOM_SIZE-8,acbuf,8);
+#endif
 
     version = usetls13 ? TLS1_2_VERSION : s->version;
     if (!WPACKET_put_bytes_u16(pkt, version)
