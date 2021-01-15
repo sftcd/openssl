@@ -4171,7 +4171,7 @@ SSL *SSL_dup(SSL *s)
         ret->nechs=0;
         ret->ech=NULL;
     }
-    ret->ech_done=s->ech_done;
+    ret->ext.ech_done=s->ext.ech_done;
 #endif
     return ret;
 

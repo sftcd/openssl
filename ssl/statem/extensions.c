@@ -1043,7 +1043,7 @@ static int final_esni(SSL *s, unsigned int context, int sent)
  */
 static int init_ech(SSL *s, unsigned int context)
 {
-    s->ech_done = 0;
+    s->ext.ech_done = 0;
     return 1;
 }
 /**
@@ -1055,18 +1055,18 @@ static int final_ech(SSL *s, unsigned int context, int sent)
      * Could be that cleaning up would be good, and/or 
      * whatever's needed for handling tickets etc. etc.
      */
-    if (!s->server && s->ech) {
+    if (!s->server && s->ech && s->ext.inner_s==NULL && s->ext.outer_s!=NULL) {
         if (s->ech_grease) {
             /*
              * If we greased, then it's ok that esni_done didn't get set
              * TODO: figure if this is the right check to make
              */
             return 1;
-        } else if (s->ech_done!=1) {
+        } else if (s->ext.ech_done!=1) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_FINAL_ECH,
                  SSL_R_CALLBACK_FAILED);
             return 0;
-        }
+        } 
     }
     return 1;
 }

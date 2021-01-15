@@ -386,16 +386,20 @@ int ssl3_digest_cached_records(SSL *s, int keep)
     void *hdata;
 
     if (s->s3.handshake_dgst == NULL) {
+
 #ifndef OPENSSL_NO_ECH
         /*
          * If we're processing the inner CH on the client
          * then we should inherit the handshake buffer from
-         * the outer (maybe! TODO: check that)
+         * the outer... TODO: check that as it's probably
+         * wrong - can't see how split mode can work unless
+         * the transcripts differ for inner and outer
          */
         if (s->ech!=NULL && s->ext.inner_s==NULL && s->ext.outer_s!=NULL) {
             s->s3.handshake_buffer=s->ext.outer_s->s3.handshake_buffer;
         }
 #endif
+
         hdatalen = BIO_get_mem_data(s->s3.handshake_buffer, &hdata);
         if (hdatalen <= 0) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_SSL3_DIGEST_CACHED_RECORDS,

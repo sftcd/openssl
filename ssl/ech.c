@@ -1957,9 +1957,8 @@ int not_ech_inner2outer_dup(SSL *in)
      * checked and fixed up after 1st EncryptedExtension
      * is rx'd. Code for that in ssl/record/ssl3_record_tls13.c:tls13_enc_esni
      */
-    in->ext.inner_s_checked=0;
-    in->ext.inner_s_shdone=0;
     in->ext.inner_s_ftd=0;
+    in->ext.ech_done=0;
     return(1);
 }
 

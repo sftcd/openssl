@@ -1194,8 +1194,6 @@ int tls_construct_client_hello(SSL *s, WPACKET *pkt)
      * is rx'd. 
      * You can find code for that in ssl/record/ssl3_record_tls13.c:tls13_enc_ech
      */
-    new_s->ext.inner_s_checked=0;
-    new_s->ext.inner_s_shdone=0;
     new_s->ext.inner_s_ftd=0;
     new_s->session->session_id_length=s->session->session_id_length;
     memcpy(new_s->session->session_id,s->session->session_id,s->session->session_id_length);
@@ -1697,16 +1695,6 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL *s, PACKET *pkt)
     SSL_COMP *comp;
 #endif
 
-#if 0
-//#ifndef OPENSSL_NO_ECH
-    /*
-     * Copy packet in case we have an inner CH in play too
-     * and process that @ end if needed - gotta do this now
-     * as there's no "reset" operation for PACKET (I think;-)
-     */
-    PACKET pkt_cpy=*pkt; // try a struct copy to start with
-#endif
-
     if (!PACKET_get_net_2(pkt, &sversion)) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PROCESS_SERVER_HELLO,
                  SSL_R_LENGTH_MISMATCH);
@@ -1754,8 +1742,8 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL *s, PACKET *pkt)
              */
             SSL stmp=*s; // stash outer fields
             s->ext.inner_s->rlayer=s->rlayer;
-            *s=*s->ext.inner_s;
-            *s->ext.outer_s=stmp;
+            *s=*s->ext.inner_s; // struct copy (deliberately)
+            *s->ext.outer_s=stmp; // struct copy (deliberately)
         }
     }
 #endif
@@ -2064,18 +2052,6 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL *s, PACKET *pkt)
     }
 
     OPENSSL_free(extensions);
-#if 0
-//#ifndef OPENSSL_NO_ECH
-    /* 
-     * recurse once if there's an uprocessed inner CH as well
-     */
-    if (s->ext.inner_s!=NULL && !s->ext.inner_s_shdone) {
-        MSG_PROCESS_RETURN rv=tls_process_server_hello(s->ext.inner_s,&pkt_cpy);
-        s->ext.inner_s_shdone=1;
-        return (rv);
-    }
-#endif
-
     return MSG_PROCESS_CONTINUE_READING;
  err:
     OPENSSL_free(extensions);

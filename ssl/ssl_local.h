@@ -1614,9 +1614,10 @@ struct ssl_st {
         int ch_depth;
         SSL* inner_s; // pointer to inner CH from outer
         SSL* outer_s; // pointer to outer CH from inner
-        int inner_s_checked;
-        int inner_s_shdone;
+        //int inner_s_checked;
+        //int inner_s_shdone;
         int inner_s_ftd;
+        int ech_done;
 #endif
         /* certificate status request info */
         /* Status type or -1 if no status type */
@@ -1737,11 +1738,10 @@ struct ssl_st {
     SSL_esni_cb_func esni_cb;
 #endif
 #ifndef OPENSSL_NO_ECH
-    int ech_done;
+    //int ech_done;
     int ech_grease;
     int nechs;
     SSL_ECH *ech;
-    //CLIENTHELLO_MSG *clienthello_stash;
 #endif
 # ifndef OPENSSL_NO_CT
     /*
