@@ -2868,14 +2868,14 @@ EXT_RETURN tls_construct_ctos_ech(SSL *s, WPACKET *pkt, unsigned int context,
 
     ech_pbuf("pub",peerpub,peerpub_len);
 
-    ech_pbuf("clear",s->ext.inner_s->ech->encoded_innerch, s->ext.inner_s->ech->encoded_innerch_len);
+    ech_pbuf("clear",s->ext.inner_s->ext.encoded_innerch, s->ext.inner_s->ext.encoded_innerch_len);
 
     int rv=hpke_enc(
         hpke_mode, hpke_suite, // mode, suite
         NULL, 0, NULL, // pskid, psk
         peerpub_len,peerpub,
         0, NULL, // priv
-        s->ext.inner_s->ech->encoded_innerch_len, s->ext.inner_s->ech->encoded_innerch, // clear
+        s->ext.inner_s->ext.encoded_innerch_len, s->ext.inner_s->ext.encoded_innerch, // clear
         0, NULL, // aad 
         0, NULL, // info
         &senderpublen, senderpub, // my pub

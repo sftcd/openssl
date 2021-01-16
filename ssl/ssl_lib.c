@@ -871,16 +871,8 @@ SSL *SSL_new(SSL_CTX *ctx)
 #endif
 
 #ifndef OPENSSL_NO_ECH
-    if (ctx->ext.ech!=NULL) {
-        s->nechs=ctx->ext.nechs;
-        s->ech=SSL_ECH_dup(ctx->ext.ech,s->nechs,ECH_SELECT_ALL); 
-        if (s->ech==NULL) {
-            goto err;
-        }
-    } else {
-        s->nechs=0;
-        s->ech=NULL;
-    }
+    s->nechs=ctx->ext.nechs;
+    s->ech=ctx->ext.ech;
 #endif
 
     return s;
@@ -1302,19 +1294,22 @@ void SSL_free(SSL *s)
 #endif
 
 #ifndef OPENSSL_NO_ECH
-    if (s->ext.inner_s!=NULL && s->ext.inner_s!=s)  {
+
+    if (s->ech!=NULL && s->ext.inner_s!=NULL && s->ext.inner_s!=s)  {
+        // Don't go around in circles forever
+        s->ext.inner_s->ext.outer_s=NULL;
         SSL_free(s->ext.inner_s);
         s->ext.inner_s=NULL;
+    } 
+    if (s->ech!=NULL && s->ext.outer_s!=NULL && s->ext.outer_s!=s)  {
+        // Don't go around in circles forever
+        s->ext.outer_s->ext.inner_s=NULL;
+        SSL_free(s->ext.outer_s);
+        s->ext.outer_s=NULL;
     }
-    if (s->ech!=NULL) {
-        int i=0;
-        for (i=0;i!=s->nechs;i++) {
-            SSL_ECH_free(&s->ech[i]);
-        }
-        memset(s->ech,0,s->nechs*sizeof(SSL_ECH));
-        OPENSSL_free(s->ech);
-        s->ech=NULL;
-    }
+
+    OPENSSL_free(s->ext.innerch);
+    OPENSSL_free(s->ext.encoded_innerch);
     OPENSSL_free(s->ext.ech_public_name);
     OPENSSL_free(s->ext.ech_inner_name);
     OPENSSL_free(s->ext.ech_outer_name);
@@ -4163,14 +4158,8 @@ SSL *SSL_dup(SSL *s)
         goto err;
 
 #ifndef OPENSSL_NO_ECH
-    if (s->ech) {
-        ret->ech=SSL_ECH_dup(s->ech,s->nechs,ECH_SELECT_ALL);
-        if (ret->ech==NULL) goto err;
-        ret->nechs=s->nechs;
-    } else {
-        ret->nechs=0;
-        ret->ech=NULL;
-    }
+    ret->ech=s->ech;
+    ret->nechs=s->nechs;
     ret->ext.ech_done=s->ext.ech_done;
 #endif
     return ret;

@@ -2669,7 +2669,7 @@ EXT_RETURN tls_construct_stoc_esni(SSL *s, WPACKET *pkt,
 /**
  * @brief wrapper for hpke_dec since we call it >1 time
  */
-static unsigned char *hpke_decrypt_encch(SSL_ECH *ech, size_t *innerlen)
+static unsigned char *hpke_decrypt_encch(SSL_ECH *ech, ECH_ENCCH *the_ech, size_t *innerlen)
 {
     size_t publen=0; unsigned char *pub=NULL;
     size_t cipherlen=0; unsigned char *cipher=NULL;
@@ -2677,16 +2677,15 @@ static unsigned char *hpke_decrypt_encch(SSL_ECH *ech, size_t *innerlen)
     size_t clearlen=HPKE_MAXSIZE; unsigned char clear[HPKE_MAXSIZE];
     int hpke_mode=HPKE_MODE_BASE;
     hpke_suite_t hpke_suite = HPKE_SUITE_DEFAULT;
-    cipherlen=ech->the_ech->payload_len;
-    cipher=ech->the_ech->payload;
-    senderpublen=ech->the_ech->enc_len;
-    senderpub=ech->the_ech->enc;
+    cipherlen=the_ech->payload_len;
+    cipher=the_ech->payload;
+    senderpublen=the_ech->enc_len;
+    senderpub=the_ech->enc;
     /*
      * We only support one ECHConfig for now on the server side
      */
     publen=ech->cfg->recs[0].pub_len-4;
     pub=ech->cfg->recs[0].pub+4;
-    ech->crypto_started=1;
 
     ech_pbuf("pub",pub,publen);
     ech_pbuf("senderpub",senderpub,senderpublen);
@@ -2751,9 +2750,6 @@ int tls_parse_ctos_ech(SSL *s, PACKET *pkt, unsigned int context,
     if (extval==NULL) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ECH, SSL_R_BAD_EXTENSION);
         goto err;
-    }
-    if (s->ech!=NULL) {
-        s->ech->the_ech=extval;
     }
 
     unsigned int tmp;
@@ -2867,15 +2863,17 @@ int tls_parse_ctos_ech(SSL *s, PACKET *pkt, unsigned int context,
     if (!foundcfg && (s->options & SSL_OP_ECH_TRIALDECRYPT)) { 
         assume_grease=1;
         for (cfgind=0;cfgind!=s->ech->cfg->nrecs;cfgind++) {
-            clear=hpke_decrypt_encch(&s->ech[cfgind],&clearlen);
+            clear=hpke_decrypt_encch(&s->ech[cfgind],extval,&clearlen);
             if (clear!=NULL) {
                 foundcfg=1;
                 break;
             }
         }
-    }
-    if (!foundcfg) {
-        clear=hpke_decrypt_encch(&s->ech[cfgind],&clearlen);
+    } else {
+        /*
+         * Just try 1st
+         */
+        clear=hpke_decrypt_encch(s->ech,extval,&clearlen);
         if (clear!=NULL) foundcfg=1;
     }
     printf("parse_ctos_ech: assume_grease: %d, foundcfg: %d, cfgind: %d, clearlen: %ld, clear %p\n",
@@ -2883,6 +2881,11 @@ int tls_parse_ctos_ech(SSL *s, PACKET *pkt, unsigned int context,
     if (!foundcfg) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ECH, SSL_R_BAD_EXTENSION);
         goto err;
+    }
+    if (extval!=NULL) {
+        ECH_ENCCH_free(extval);
+        OPENSSL_free(extval);
+        extval=NULL;
     }
     /*
      * Clear with a type/len prceeded
@@ -2996,8 +2999,8 @@ int tls_parse_ctos_ech_outer_exts(SSL *s, PACKET *pkt, unsigned int context,
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ECH_OUTER_EXTS, SSL_R_BAD_EXTENSION);
         return(0);
     }
-    uint16_t *etypes=s->ech->outer_only;
-    s->ech->n_outer_only=nouters;
+    uint16_t *etypes=s->ext.outer_only;
+    s->ext.n_outer_only=nouters;
     int exti=0;
     for (exti=0;exti!=nouters;exti++) {
         unsigned int tmp;

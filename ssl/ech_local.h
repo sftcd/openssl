@@ -131,7 +131,7 @@ typedef struct ech_encch_st {
  * On the client-side, one of these is part of the SSL structure.
  * On the server-side, an array of these is part of the SSL_CTX
  * structure, and we match one of 'em to be part of the SSL 
- * structure when a handshake is in porgress. (Well, hopefully:-)
+ * structure when a handshake is in progress. (Well, hopefully:-)
  *
  * Note that SSL_ECH_dup copies all these fields (when values are
  * set), so if you add, change or remove a field here, you'll also
@@ -139,24 +139,11 @@ typedef struct ech_encch_st {
  */
 typedef struct ssl_ech_st {
     ECHConfigs *cfg; ///< merge of underlying ECHConfigs
-
     /*
-     * SSL/SSL_CTX instantiated things
-	unsigned int ciphersuite; ///< chosen from ECHConfig after selection of local preference
-    unsigned int kem_id;  ///< our chosen group e.g. X25519
-    size_t ech_peer_keyshare_len;  
-    unsigned char *ech_peer_keyshare; ///< the encoded peer's public value
-    EVP_PKEY *ech_peer_pkey; ///< the peer public as a key
-    size_t maximum_name_length; ///< from ECHConfig
+     * API inputs
      */
-    /*
-     * Session specific stuff
-     */
-    int crypto_started; ///< set to one if someone tried to use this for real
-    int hrr_swap; ///< 0 if not a HRR, 1 if it is (and we use different IV for draft-04 on)
-    EVP_PKEY *keyshare; ///< my own private keyshare to use with  server's ECH share 
-    ECH_ENCCH *the_ech; ///< the decoded extension value as rx'd at the server
-
+    char *inner_name;
+    char *outer_name;
     /* 
      * File load information servers - if identical filenames not modified since
      * loadtime are added via SSL_ech_serve_enable then we'll ignore the new
@@ -165,33 +152,14 @@ typedef struct ssl_ech_st {
      */
     char *pemfname; ///< name of PEM file from which this was loaded
     time_t loadtime; ///< time public and private key were loaded from file
-
+    EVP_PKEY *keyshare; ///< my own private keyshare to use as a server
     /*
      * Stuff about inner/outer diffs for extensions other than SNI
+     * TODO: code that up:-)
      */
     char *dns_alpns; ///< ALPN values from SVCB/HTTPS RR (as comma-sep string)
     int dns_no_def_alpn; ///< no_def_alpn if set in DNS RR
 
-    /*
-     * Inner/Outer things
-     */
-    unsigned char *innerch;
-    size_t innerch_len;
-    unsigned char *encoded_innerch;
-    size_t encoded_innerch_len;
-    int n_outer_only;
-    uint16_t outer_only[ECH_OUTERS_MAX];
-    /*
-     * Placeholder for putting the extension type currently being
-     * processed - this is pretty naff but will do for now
-     */
-    int etype;
-    /*
-     * API inputs
-     */
-    char *inner_name;
-    char *outer_name;
-    
 } SSL_ECH;
 
 /**
@@ -332,13 +300,6 @@ int ech_same_ext(SSL *s, WPACKET* pkt);
  * This is used in SSL_ESNI_print
  */
 void ech_pbuf(char *msg,unsigned char *buf,size_t blen);
-
-/*
- * A stab at a "special" copy of the SSL struct
- * from inner to outer, so we can play with
- * changes
- */
-int ech_inner2outer_dup(SSL *in);
 
 /**
  * @brief free an ECH_ENCCH

@@ -1130,6 +1130,7 @@ struct ssl_ctx_st {
          */
         int nechs;
         SSL_ECH *ech;
+
         // SSL_ech_cb_func esni_cb; - will need this later
 #endif
 
@@ -1604,20 +1605,37 @@ struct ssl_st {
         /*
          * ECH stuff...
          */
+
+        /*
+         * inner CH encodings for the client
+         */
+        unsigned char *innerch;
+        size_t innerch_len;
+        unsigned char *encoded_innerch;
+        size_t encoded_innerch_len;
+        /*
+         * Compression related nonsense
+         */
+        int n_outer_only;
+        uint16_t outer_only[ECH_OUTERS_MAX];
+        /*
+         * Client side Placeholder for putting the extension type currently being
+         * processed - this is pretty naff but will do for now
+         */
+        int etype;
+        /*
+         * Selected name values for this session.
+         */
         char *ech_public_name;
         char *ech_inner_name;
         char *ech_outer_name;
-        /*
-         * Additionally we record the encoded key share extension
-         * value from the ClientHello for use as the AAD in ENSI
-         */
+
         int ch_depth;
         SSL* inner_s; // pointer to inner CH from outer
         SSL* outer_s; // pointer to outer CH from inner
-        //int inner_s_checked;
-        //int inner_s_shdone;
         int inner_s_ftd;
         int ech_done;
+
 #endif
         /* certificate status request info */
         /* Status type or -1 if no status type */
@@ -1738,7 +1756,6 @@ struct ssl_st {
     SSL_esni_cb_func esni_cb;
 #endif
 #ifndef OPENSSL_NO_ECH
-    //int ech_done;
     int ech_grease;
     int nechs;
     SSL_ECH *ech;

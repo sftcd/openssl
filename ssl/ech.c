@@ -383,9 +383,9 @@ void *len_field_dup(void *old, unsigned int len)
     }
 
 /*
+ * currently not needed - might want it later so keep for a bit
  * @brief free an ECH_ENCCH
  * @param tbf is a ptr to an SSL_ECH structure
- */
 static int ECH_ENCCH_dup(ECH_ENCCH *old, ECH_ENCCH *new)
 {
     if (!old || !new) return 0;
@@ -394,6 +394,7 @@ static int ECH_ENCCH_dup(ECH_ENCCH *old, ECH_ENCCH *new)
     ECHFDUP(payload,payload_len);
     return 1;
 }
+ */
 
 /*
  * @brief free an ECH_ENCCH
@@ -426,20 +427,10 @@ void SSL_ECH_free(SSL_ECH *tbf)
         ECHConfigs_free(tbf->cfg);
         OPENSSL_free(tbf->cfg);
     }
-    if (tbf->innerch) {
-        OPENSSL_free(tbf->innerch);
-    }
-    if (tbf->encoded_innerch) {
-        OPENSSL_free(tbf->encoded_innerch);
-    }
+
     if (tbf->inner_name!=NULL) OPENSSL_free(tbf->inner_name);
     if (tbf->outer_name!=NULL) OPENSSL_free(tbf->outer_name);
 
-    if (tbf->the_ech!=NULL) {
-        ECH_ENCCH *ev=tbf->the_ech;
-        ECH_ENCCH_free(ev);
-        OPENSSL_free(ev);
-    }
     memset(tbf,0,sizeof(SSL_ECH));
     /*
      * More TODO
@@ -1312,6 +1303,7 @@ SSL_ECH* SSL_ECH_dup(SSL_ECH* orig, size_t nech, int selector)
         max_ind=selector+1;
     }
     new_se=OPENSSL_malloc((max_ind-min_ind)*sizeof(SSL_ECH));
+    printf("Duplicating an SSL_ECH of size %ld from %p to %p\n",sizeof(SSL_ECH),orig,new_se);
     if (!new_se) goto err;
     memset(new_se,0,(max_ind-min_ind)*sizeof(SSL_ECH));
 
@@ -1320,12 +1312,6 @@ SSL_ECH* SSL_ECH_dup(SSL_ECH* orig, size_t nech, int selector)
         new_se[i].cfg=OPENSSL_malloc(sizeof(ECHConfigs));
         if (new_se[i].cfg==NULL) goto err;
         if (ECHConfigs_dup(orig[i].cfg,new_se[i].cfg)!=1) goto err;
-        if (orig->the_ech) {
-            new_se->the_ech=OPENSSL_malloc(sizeof(ECH_ENCCH));
-            if (new_se->the_ech==NULL) return 0;
-            memset(new_se->the_ech,0,sizeof(ECH_ENCCH));
-            if (ECH_ENCCH_dup(orig->the_ech,new_se->the_ech)!=1) return(0);
-        }
     }
 
     if (orig->inner_name!=NULL) {
@@ -1644,7 +1630,7 @@ int ech_same_ext(SSL *s, WPACKET* pkt)
     if (!s->ech) return(ECH_SAME_EXT_CONTINUE); // nothing to do
     if (!s->ext.inner_s) return(ECH_SAME_EXT_CONTINUE); // nothing to do
     SSL *inner=s->ext.inner_s;
-    int type=s->ech->etype;
+    int type=s->ext.etype;
     int nexts=sizeof(ech_outer_config)/sizeof(int);
     int tind=ech_map_ext_type_to_ind(type);
     if (tind==-1) return(ECH_SAME_EXT_ERR);
@@ -1660,11 +1646,11 @@ int ech_same_ext(SSL *s, WPACKET* pkt)
     }
     if (s->ext.ch_depth==1 && ech_outer_config[tind]) {
         printf("Will do outer compressing for ext type %x\n",type);
-        if (s->ech->n_outer_only>=ECH_OUTERS_MAX) {
+        if (s->ext.n_outer_only>=ECH_OUTERS_MAX) {
 	        return ECH_SAME_EXT_ERR;
         }
-        s->ech->outer_only[s->ech->n_outer_only]=type;
-        s->ech->n_outer_only++;
+        s->ext.outer_only[s->ext.n_outer_only]=type;
+        s->ext.n_outer_only++;
         return(ECH_SAME_EXT_CONTINUE);
     }
 
@@ -1822,20 +1808,20 @@ int ech_encode_inner(SSL *s)
         if (!present) continue;
         int tobecompressed=0;
         int ooi=0;
-        for (ooi=0;!tobecompressed && ooi!=s->ech->n_outer_only;ooi++) {
-            if (raws[ind].type==s->ech->outer_only[ooi]) {
+        for (ooi=0;!tobecompressed && ooi!=s->ext.n_outer_only;ooi++) {
+            if (raws[ind].type==s->ext.outer_only[ooi]) {
                 tobecompressed=1;
             }
         }
         if (!compression_done && tobecompressed) {
             if (!WPACKET_put_bytes_u16(&inner, TLSEXT_TYPE_outer_extensions) ||
-                !WPACKET_put_bytes_u16(&inner, 2*s->ech->n_outer_only)) {
+                !WPACKET_put_bytes_u16(&inner, 2*s->ext.n_outer_only)) {
                 printf("Exiting at %d\n",__LINE__);
                 goto err;
             }
             int iind=0;
-            for (iind=0;iind!=s->ech->n_outer_only;iind++) {
-                if (!WPACKET_put_bytes_u16(&inner, s->ech->outer_only[iind])) {
+            for (iind=0;iind!=s->ext.n_outer_only;iind++) {
+                if (!WPACKET_put_bytes_u16(&inner, s->ext.outer_only[iind])) {
                     printf("Exiting at %d\n",__LINE__);
                     goto err;
                 }
@@ -1897,8 +1883,8 @@ int ech_encode_inner(SSL *s)
     innerch_full[3]=(innerinnerlen>>8)&0xff;
     innerch_full[4]=innerinnerlen&0xff;
     memcpy(innerch_full+5,inner_mem->data,innerinnerlen);
-    s->ech->encoded_innerch=innerch_full;
-    s->ech->encoded_innerch_len=innerinnerlen+5;
+    s->ext.encoded_innerch=innerch_full;
+    s->ext.encoded_innerch_len=innerinnerlen+5;
     WPACKET_cleanup(&inner);
     if (inner_mem) BUF_MEM_free(inner_mem);
     inner_mem=NULL;
@@ -1938,28 +1924,6 @@ void ech_pbuf(char *msg,unsigned char *buf,size_t blen)
     }
     printf("\n");
     return;
-}
-
-/*
- * A stab at a "special" copy of the SSL struct
- * from inner to outer, so we can play with
- * changes
- */
-int not_ech_inner2outer_dup(SSL *in)
-{
-    if (!in) return(0);
-    SSL *new=SSL_dup(in);
-    if (!new) return(0);
-    in->ext.inner_s=new;
-    /*
-     * Note that we've not yet checked if server
-     * successfully used the inner_s - this'll be
-     * checked and fixed up after 1st EncryptedExtension
-     * is rx'd. Code for that in ssl/record/ssl3_record_tls13.c:tls13_enc_esni
-     */
-    in->ext.inner_s_ftd=0;
-    in->ext.ech_done=0;
-    return(1);
 }
 
 /*

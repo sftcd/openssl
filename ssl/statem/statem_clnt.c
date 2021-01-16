@@ -1186,7 +1186,7 @@ int tls_construct_client_hello(SSL *s, WPACKET *pkt)
         goto err;
     }
     s->ext.inner_s=new_s;
-    s->ext.inner_s->ext.outer_s=s;
+    new_s->ext.outer_s=s;
     /*
      * Note that we've not yet checked if server
      * successfully used the inner_s - this'll be
@@ -1287,8 +1287,8 @@ int tls_construct_client_hello(SSL *s, WPACKET *pkt)
     innerch_full[3]=(innerinnerlen%0xffff)>>8;
     innerch_full[4]=(innerinnerlen%0xff);
     memcpy(&innerch_full[5],inner_mem->data,innerinnerlen);
-    new_s->ech->innerch=innerch_full;
-    new_s->ech->innerch_len=innerinnerlen+5;
+    new_s->ext.innerch=innerch_full;
+    new_s->ext.innerch_len=innerinnerlen+5;
 
     WPACKET_cleanup(&inner);
     if (inner_mem) BUF_MEM_free(inner_mem);
@@ -1297,7 +1297,7 @@ int tls_construct_client_hello(SSL *s, WPACKET *pkt)
     /*
      * Dump inner, client random & session id
      */
-    ech_pbuf("inner CH",new_s->ech->innerch,new_s->ech->innerch_len);
+    ech_pbuf("inner CH",new_s->ext.innerch,new_s->ext.innerch_len);
     ech_pbuf("inner, client_random",new_s->s3.client_random,SSL3_RANDOM_SIZE);
     ech_pbuf("inner, session_id",new_s->session->session_id,new_s->session->session_id_length);
 
@@ -1305,7 +1305,7 @@ int tls_construct_client_hello(SSL *s, WPACKET *pkt)
      * Decode inner so that we can make up encoded inner
      */
     PACKET rpkt; ///< we'll decode back the inner ch to help make the outer
-    if (!PACKET_buf_init(&rpkt, (unsigned char*) new_s->ech->innerch+9, new_s->ech->innerch_len-9)) {
+    if (!PACKET_buf_init(&rpkt, (unsigned char*) new_s->ext.innerch+9, new_s->ext.innerch_len-9)) {
         WPACKET_cleanup(pkt);
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_ENCRYPTED_CLIENT_HELLO,
                  ERR_R_INTERNAL_ERROR);
@@ -1337,7 +1337,7 @@ int tls_construct_client_hello(SSL *s, WPACKET *pkt)
                  ERR_R_INTERNAL_ERROR);
         goto err;
     }
-    ech_pbuf("encoded inner CH",new_s->ech->encoded_innerch,new_s->ech->encoded_innerch_len);
+    ech_pbuf("encoded inner CH",new_s->ext.encoded_innerch,new_s->ext.encoded_innerch_len);
 
     /*
      * Make second call into CH constuction. 
@@ -1348,7 +1348,7 @@ int tls_construct_client_hello(SSL *s, WPACKET *pkt)
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CLIENT_HELLO, protverr);
         goto err;
     }
-    ech_pbuf("encoded inner CH",s->ech->encoded_innerch,s->ech->encoded_innerch_len);
+    ech_pbuf("encoded inner CH",s->ext.encoded_innerch,s->ext.encoded_innerch_len);
 
     /*
      * Check outer 
@@ -1737,11 +1737,16 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL *s, PACKET *pkt)
         if (memcmp(s->s3.server_random+SSL3_RANDOM_SIZE-8,acbuf,8)==0) {
             printf("Yay - it's an inny ServerHello\n");
             fflush(stdout);
+            SSL stmp=*s; // stash outer fields
+            /*
+             * Need to reset references to outer so we don't leave memory behind
+             * or double free
+             */
+            //stmp.references=1;
+            s->ext.inner_s->rlayer=s->rlayer;
             /*
              * Swaperoo
              */
-            SSL stmp=*s; // stash outer fields
-            s->ext.inner_s->rlayer=s->rlayer;
             *s=*s->ext.inner_s; // struct copy (deliberately)
             *s->ext.outer_s=stmp; // struct copy (deliberately)
         }

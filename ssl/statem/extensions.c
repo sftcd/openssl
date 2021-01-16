@@ -927,7 +927,7 @@ int tls_construct_extensions(SSL *s, WPACKET *pkt, unsigned int context,
          * optimise the code changes (the thing we're doing is a
          * work-in-progress still... 
          */
-        if (s->ech) s->ech->etype=thisexd->type;
+        if (s->ech) s->ext.etype=thisexd->type;
 #endif
 
         ret = construct(s, pkt, context, x, chainidx);
