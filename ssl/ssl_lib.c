@@ -873,6 +873,9 @@ SSL *SSL_new(SSL_CTX *ctx)
 #ifndef OPENSSL_NO_ECH
     s->nechs=ctx->ext.nechs;
     s->ech=ctx->ext.ech;
+    s->ech_cb=ctx->ext.ech_cb;
+    s->ext.ech_attempted=0;
+    s->ext.ech_grease=ECH_GREASE_UNKNOWN;
 #endif
 
     return s;
@@ -1179,6 +1182,26 @@ void SSL_free(SSL *s)
         return;
     REF_ASSERT_ISNT(i < 0);
 
+#if 0
+#ifndef OPENSSL_NO_ECH
+    /*
+     * This may need to be 1st, to avoid double-free's
+     */
+    if (s->ext.inner_s!=NULL && s->ext.inner_s!=s)  {
+        // Don't go around in circles forever
+        s->ext.inner_s->ext.outer_s=NULL;
+        SSL_free(s->ext.inner_s);
+        s->ext.inner_s=NULL;
+    } 
+    if (s->ext.outer_s!=NULL && s->ext.outer_s!=s)  {
+        // Don't go around in circles forever
+        s->ext.outer_s->ext.inner_s=NULL;
+        SSL_free(s->ext.outer_s);
+        s->ext.outer_s=NULL;
+    }
+#endif
+#endif
+
     X509_VERIFY_PARAM_free(s->param);
     dane_final(&s->dane);
     CRYPTO_free_ex_data(CRYPTO_EX_INDEX_SSL, s, &s->ex_data);
@@ -1294,25 +1317,21 @@ void SSL_free(SSL *s)
 #endif
 
 #ifndef OPENSSL_NO_ECH
-
-    if (s->ech!=NULL && s->ext.inner_s!=NULL && s->ext.inner_s!=s)  {
-        // Don't go around in circles forever
-        s->ext.inner_s->ext.outer_s=NULL;
-        SSL_free(s->ext.inner_s);
-        s->ext.inner_s=NULL;
-    } 
-    if (s->ech!=NULL && s->ext.outer_s!=NULL && s->ext.outer_s!=s)  {
-        // Don't go around in circles forever
-        s->ext.outer_s->ext.inner_s=NULL;
-        SSL_free(s->ext.outer_s);
-        s->ext.outer_s=NULL;
-    }
-
     OPENSSL_free(s->ext.innerch);
     OPENSSL_free(s->ext.encoded_innerch);
     OPENSSL_free(s->ext.ech_public_name);
     OPENSSL_free(s->ext.ech_inner_name);
     OPENSSL_free(s->ext.ech_outer_name);
+#endif
+
+#ifndef OPENSSL_NO_ECH
+    /*
+     * Not sure why this is needed but seems to be
+     */
+    if (s->s3.tmp.pkey!=NULL) {
+        EVP_PKEY_free(s->s3.tmp.pkey);
+        s->s3.tmp.pkey=NULL;
+    }
 #endif
 
     CRYPTO_THREAD_lock_free(s->lock);

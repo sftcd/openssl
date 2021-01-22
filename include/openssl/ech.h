@@ -234,6 +234,8 @@ int SSL_CTX_ech_server_flush_keys(SSL_CTX *s, int age);
  */
 int SSL_CTX_ech_server_enable(SSL_CTX *s, const char *echcfgfile);
 
+#define ECH_SELECT_ALL -1 ///< used to indicate "all" in SSL_ech_print etc.
+
 /** 
  * Print the content of an SSL_ECH
  *
@@ -262,21 +264,16 @@ int SSL_ech_print(BIO* out, SSL *con, int selector);
  *
  * This is intended to be called by applications after the TLS handshake
  * is complete. This works for both client and server. The caller does
- * not have to (and shouldn't) free the hidden or clear_sni strings.
+ * not have to (and shouldn't) free the inner_sni or outer_sni strings.
  * TODO: Those are pointers into the SSL struct though so maybe better
  * to allocate fresh ones.
  *
- * Note that the PR we sent to curl will include a check that this
- * function exists (something like "AC_CHECK_FUNCS( SSL_get_ech_status )"
- * so don't change this name without co-ordinating with that.
- * The curl PR: https://github.com/curl/curl/pull/4011
- *
  * @param s The SSL context (if that's the right term)
- * @param hidden will be set to the address of the hidden service
- * @param clear_sni will be set to the address of the hidden service
+ * @param inner_sni will be set to the SNI from the inner CH (if any)
+ * @param outer_sni will be set to the SNI from the outer CH (if any)
  * @return 1 for success, other otherwise
  */
-int SSL_ech_get_status(SSL *s, char **hidden, char **clear_sni);
+int SSL_ech_get_status(SSL *s, char **inner_sni, char **outer_sni);
 
 #endif
 #endif

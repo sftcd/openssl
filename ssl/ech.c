@@ -28,6 +28,10 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
+/*
+ * For ossl_assert
+ */
+#include "internal/cryptlib.h"
 
 /*
  * This used be static inside ssl/statem/statem_clnt.c
@@ -367,18 +371,24 @@ void ECHConfigs_free(ECHConfigs *tbf)
     return;
 }
 
-void *len_field_dup(void *old, unsigned int len)
+/*
+ * Copy a field old->foo based on old->foo_len to new->foo
+ * We allocate one extra octet in case the value is a
+ * string and NUL that out.
+ */
+static void *ech_len_field_dup(void *old, unsigned int len)
 {
     if (!old || len==0) return NULL;
-    void *new=(void*)OPENSSL_malloc(len);
+    void *new=(void*)OPENSSL_malloc(len+1);
     if (!new) return 0;
     memcpy(new,old,len);
+    memset(new+len,0,1);
     return new;
 } 
 
 #define ECHFDUP(__f__,__flen__) \
     if (old->__flen__!=0) { \
-        new->__f__=len_field_dup((void*)old->__f__,old->__flen__); \
+        new->__f__=ech_len_field_dup((void*)old->__f__,old->__flen__); \
         if (new->__f__==NULL) return 0; \
     }
 
@@ -1192,23 +1202,65 @@ int SSL_ech_print(BIO* out, SSL *con, int selector)
  *
  * This is intended to be called by applications after the TLS handshake
  * is complete. This works for both client and server. The caller does
- * not have to (and shouldn't) free the hidden or clear_sni strings.
+ * not have to (and shouldn't) free the inner_sni or outer_sni strings.
  * TODO: Those are pointers into the SSL struct though so maybe better
  * to allocate fresh ones.
  *
- * Note that the PR we sent to curl will include a check that this
- * function exists (something like "AC_CHECK_FUNCS( SSL_get_ech_status )"
- * so don't change this name without co-ordinating with that.
- * The curl PR: https://github.com/curl/curl/pull/4011
- *
  * @param s The SSL context (if that's the right term)
- * @param hidden will be set to the address of the hidden service
- * @param clear_sni will be set to the address of the hidden service
+ * @param inner_sni will be set to the SNI from the inner CH (if any)
+ * @param outer_sni will be set to the SNI from the outer CH (if any)
  * @return 1 for success, other otherwise
  */
-int SSL_ech_get_status(SSL *s, char **hidden, char **clear_sni)
+int SSL_ech_get_status(SSL *s, char **inner_sni, char **outer_sni)
 {
-    return 1;
+    if (s==NULL || outer_sni==NULL || inner_sni==NULL) {
+        return SSL_ECH_STATUS_BAD_CALL;
+    }
+    *outer_sni=NULL;
+    *inner_sni=NULL;
+
+    /*
+     * set vars - note we may be pointing to NULL which is fine
+     * TODO: Add more cross checks maybe
+     */
+    char *ech_public_name=s->ext.ech_public_name;
+    char *ech_inner_name=s->ext.ech_inner_name;
+    char *ech_outer_name=s->ext.ech_outer_name;
+    /*
+    char *sinner=NULL;
+    if (s->ext.inner_s!=NULL) sinner=s->ext.inner_s->ext.hostname;
+    else sinner=s->ext.hostname;
+    char *souter=NULL;
+    if (s->ext.outer_s!=NULL) souter=s->ext.outer_s->ext.hostname;
+    else souter=s->ext.hostname;
+    */
+
+    if (s->ech!=NULL && s->ext.ech_attempted) {
+
+        long vr=X509_V_OK;
+        vr=SSL_get_verify_result(s);
+        /*
+         * Prefer clear_sni (if supplied) to draft-03/draft-04 public_name 
+         */
+        *inner_sni=ech_inner_name;
+        if (ech_outer_name!=NULL) {
+            *outer_sni=ech_outer_name;
+        } else {
+            *outer_sni=ech_public_name;
+        }
+        if (s->ext.ech_done==1) {
+            if (vr == X509_V_OK ) {
+                return SSL_ECH_STATUS_SUCCESS;
+            } else {
+                return SSL_ECH_STATUS_BAD_NAME;
+            }
+        } else {
+            return SSL_ECH_STATUS_FAILED;
+        }
+    } else if (s->ext.ech_attempted==1) {
+        return SSL_ECH_STATUS_GREASE;
+    } 
+    return SSL_ECH_STATUS_NOT_TRIED;
 }
 
 /** 
@@ -1259,7 +1311,7 @@ static int ECHConfigs_dup(ECHConfigs *old, ECHConfigs *new)
     if (!new || !old) return 0;
     if (old->encoded_len!=0) {
         if (old->encoded_len!=0) {
-            new->encoded=len_field_dup((void*)old->encoded,old->encoded_len);
+            new->encoded=ech_len_field_dup((void*)old->encoded,old->encoded_len);
             if (new->encoded==NULL) return 0;
         }
         new->encoded_len=old->encoded_len;
@@ -1344,6 +1396,10 @@ err:
  */
 int SSL_CTX_svcb_add(SSL_CTX *ctx, short rrfmt, size_t rrlen, char *rrval, int *num_echs)
 {
+    /*
+     * GOTHERE - populate this and sort out the dup/free'ing so it works
+     * and doesn't leak
+     */
     return 0;
 }
 
@@ -1366,7 +1422,6 @@ int SSL_CTX_svcb_add(SSL_CTX *ctx, short rrfmt, size_t rrlen, char *rrval, int *
  */
 int SSL_svcb_add(SSL *con, int rrfmt, size_t rrlen, char *rrval, int *num_echs)
 {
-
     /*
      * Sanity checks on inputs
      */
@@ -1738,7 +1793,6 @@ int ech_encode_inner(SSL *s)
      * This depends on us having made the call to process
      * client hello before.
      */
-
     unsigned char *innerch_full=NULL;
     WPACKET inner; ///< "fake" pkt for inner
     BUF_MEM *inner_mem=NULL;
@@ -1753,7 +1807,6 @@ int ech_encode_inner(SSL *s)
                 || !ssl_set_handshake_header(s, &inner, mt)) {
         goto err;
     }
-
     /*
      * Add ver/rnd/sess-id/suites to buffer
      */
@@ -1792,7 +1845,6 @@ int ech_encode_inner(SSL *s)
     if (!WPACKET_put_bytes_u8(&inner, 0) || !WPACKET_close(&inner)) {
         return 0;
     }
-
     /*
      * Now mess with extensions
      */
@@ -1847,7 +1899,6 @@ int ech_encode_inner(SSL *s)
             }
         }
     }
-
     /*
      * close the exts sub packet
      */
@@ -1860,7 +1911,6 @@ int ech_encode_inner(SSL *s)
     if (!WPACKET_close(&inner))  {
         goto err;
     }
-
     /*
      * Set pointer/len for inner CH 
      */
@@ -1869,6 +1919,214 @@ int ech_encode_inner(SSL *s)
         goto err;
     }
 
+#if 0
+    /* 
+     * we need to prepend a few more octets onto that to get the encoding 
+     * we can decode
+     * TODO: encode this properly
+     */
+    unsigned char icpre[]={0x16,0x03,0x01};
+    innerch_full=OPENSSL_malloc(innerinnerlen+5);
+    if (!innerch_full) {
+        goto err;
+    }
+    memcpy(innerch_full,icpre,3);
+    innerch_full[3]=(innerinnerlen>>8)&0xff;
+    innerch_full[4]=innerinnerlen&0xff;
+    memcpy(innerch_full+5,inner_mem->data,innerinnerlen);
+    s->ext.encoded_innerch=innerch_full;
+    s->ext.encoded_innerch_len=innerinnerlen+5;
+#endif
+    innerch_full=OPENSSL_malloc(innerinnerlen);
+    if (!innerch_full) {
+        goto err;
+    }
+    memcpy(innerch_full,inner_mem->data,innerinnerlen);
+    s->ext.encoded_innerch=innerch_full;
+    s->ext.encoded_innerch_len=innerinnerlen;
+
+    WPACKET_cleanup(&inner);
+    if (inner_mem) BUF_MEM_free(inner_mem);
+    inner_mem=NULL;
+    return(1);
+err:
+    WPACKET_cleanup(&inner);
+    if (inner_mem) BUF_MEM_free(inner_mem);
+    return(0);
+}
+
+/**
+ * @brief After "normal" 1st pass CH receipt (of outer) is done, fix encoding as needed
+ *
+ * This will produce the ClientHelloInner from the EncodedClientHelloInner, which
+ * is the result of successful decryption 
+ *
+ * @param s is the SSL session
+ * @return 1 for success, error otherwise
+ */
+int ech_decode_inner(SSL *s)
+{
+
+    /*
+     * So we'll try a sort-of decode of s->ech->innerch into
+     * s->ech->encoded_innerch, modulo s->ech->outers
+     *
+     * As a reminder the CH is:
+     *  struct {
+     *    ProtocolVersion legacy_version = 0x0303;    TLS v1.2
+     *    Random random;
+     *    opaque legacy_session_id<0..32>;
+     *    CipherSuite cipher_suites<2..2^16-2>;
+     *    opaque legacy_compression_methods<1..2^8-1>;
+     *    Extension extensions<8..2^16-1>;
+     *  } ClientHello;
+     */
+    SSL *outer=s->ext.outer_s;
+    if (outer==NULL) return(0);
+    if (outer->ext.encoded_innerch==NULL) return(0);
+
+    /*
+     * To get started, just return the input without
+     * decompressing
+     */
+    s->ext.innerch=OPENSSL_malloc(outer->ext.encoded_innerch_len);
+    s->ext.innerch_len=outer->ext.encoded_innerch_len;
+    memcpy(s->ext.innerch,outer->ext.encoded_innerch,s->ext.innerch_len);
+    return(1);
+#if 0
+    
+    if (outer->clienthello==NULL) return(0);
+    /*
+     * Go over the encoded inner, and check if we should include
+     * the value or if this one's compressed in the inner
+     * This depends on us having made the call to process
+     * client hello before.
+     */
+    unsigned char *innerch_full=NULL;
+    WPACKET inner; ///< "fake" pkt for inner
+    BUF_MEM *inner_mem=NULL;
+    int mt=SSL3_MT_CLIENT_HELLO;
+    if ((inner_mem = BUF_MEM_new()) == NULL) {
+        goto err;
+    }
+    if (!BUF_MEM_grow(inner_mem, SSL3_RT_MAX_PLAIN_LENGTH)) {
+        goto err;
+    }
+    if (!WPACKET_init(&inner,inner_mem)
+                || !ssl_set_handshake_header(s, &inner, mt)) {
+        goto err;
+    }
+    /*
+     * Add ver/rnd/sess-id/suites to buffer
+     */
+    if (!WPACKET_put_bytes_u16(&inner, s->client_version)
+            || !WPACKET_memcpy(&inner, s->s3.client_random, SSL3_RANDOM_SIZE)) {
+        goto err;
+    }
+    /* 
+     * Session ID - we'll check if there's one already set in the
+     * outer or inner and if so, use that. If not, we'll set one
+     * for both inner and outer.
+     */
+    unsigned char *session_id=s->session->session_id;;
+    size_t sess_id_len=s->session->session_id_length;
+    if (!WPACKET_start_sub_packet_u8(&inner)
+            || (sess_id_len != 0 && !WPACKET_memcpy(&inner, session_id,
+                                                    sess_id_len))
+            || !WPACKET_close(&inner)) {
+        return 0;
+    }
+    /* Ciphers supported */
+    if (!WPACKET_start_sub_packet_u16(&inner)) {
+        return 0;
+    }
+    if (!ssl_cipher_list_to_bytes(s, SSL_get_ciphers(s), &inner)) {
+        return 0;
+    }
+    if (!WPACKET_close(&inner)) {
+        return 0;
+    }
+    /* COMPRESSION */
+    if (!WPACKET_start_sub_packet_u8(&inner)) {
+        return 0;
+    }
+    /* Add the NULL compression method */
+    if (!WPACKET_put_bytes_u8(&inner, 0) || !WPACKET_close(&inner)) {
+        return 0;
+    }
+    /*
+     * Now mess with extensions
+     */
+    if (!WPACKET_start_sub_packet_u16(&inner)) {
+        return 0;
+    }
+    RAW_EXTENSION *raws=s->clienthello->pre_proc_exts;
+    size_t nraws=s->clienthello->pre_proc_exts_len;
+    int ind=0;
+    int compression_done=0;
+    for (ind=0;ind!=nraws;ind++) {
+        int present=raws[ind].present;
+        if (!present) continue;
+        int tobecompressed=0;
+        int ooi=0;
+        for (ooi=0;!tobecompressed && ooi!=s->ext.n_outer_only;ooi++) {
+            if (raws[ind].type==s->ext.outer_only[ooi]) {
+                tobecompressed=1;
+            }
+        }
+        if (!compression_done && tobecompressed) {
+            if (!WPACKET_put_bytes_u16(&inner, TLSEXT_TYPE_outer_extensions) ||
+                !WPACKET_put_bytes_u16(&inner, 2*s->ext.n_outer_only)) {
+                printf("Exiting at %d\n",__LINE__);
+                goto err;
+            }
+            int iind=0;
+            for (iind=0;iind!=s->ext.n_outer_only;iind++) {
+                if (!WPACKET_put_bytes_u16(&inner, s->ext.outer_only[iind])) {
+                    printf("Exiting at %d\n",__LINE__);
+                    goto err;
+                }
+            }
+            compression_done=1;
+        } 
+        if (!tobecompressed) {
+            if (raws[ind].data.curr!=NULL) {
+                if (!WPACKET_put_bytes_u16(&inner, raws[ind].type)
+                    || !WPACKET_sub_memcpy_u16(&inner, raws[ind].data.curr, raws[ind].data.remaining)) {
+                    printf("Exiting at %d\n",__LINE__);
+                    goto err;
+                }
+            } else {
+                /*
+                * empty extension
+                */
+                if (!WPACKET_put_bytes_u16(&inner, raws[ind].type)
+                        || !WPACKET_put_bytes_u16(&inner, 0)) {
+                    printf("Exiting at %d\n",__LINE__);
+                    goto err;
+                }
+            }
+        }
+    }
+    /*
+     * close the exts sub packet
+     */
+    if (!WPACKET_close(&inner))  {
+        goto err;
+    }
+    /*
+     * close the inner CH
+     */
+    if (!WPACKET_close(&inner))  {
+        goto err;
+    }
+    /*
+     * Set pointer/len for inner CH 
+     */
+    size_t innerinnerlen=0;
+    if (!WPACKET_get_length(&inner, &innerinnerlen)) {
+        goto err;
+    }
     /* 
      * we need to prepend a few more octets onto that to get the encoding 
      * we can decode
@@ -1888,12 +2146,12 @@ int ech_encode_inner(SSL *s)
     WPACKET_cleanup(&inner);
     if (inner_mem) BUF_MEM_free(inner_mem);
     inner_mem=NULL;
-
     return(1);
 err:
     WPACKET_cleanup(&inner);
     if (inner_mem) BUF_MEM_free(inner_mem);
     return(0);
+#endif
 }
 
 /**
@@ -1943,6 +2201,55 @@ void ech_pbuf(char *msg,unsigned char *buf,size_t blen)
 int ech_calc_accept_confirm(SSL *s, unsigned char *acbuf)
 {
     memset(acbuf,0,8);
+    return(1);
+}
+
+void SSL_set_ech_callback(SSL *s, SSL_ech_cb_func f)
+{
+    s->ech_cb=f;
+}
+
+void SSL_CTX_set_ech_callback(SSL_CTX *s, SSL_ech_cb_func f)
+{
+    s->ext.ech_cb=f;
+}
+
+/*
+ * Swap the inner and outer.
+ * The only reason to make this a function is because it's
+ * likely very brittle - if we need any other fields to be
+ * handled specially (e.g. because of some so far untested
+ * combination of extensions), then this may fail, so good
+ * to keep things in one place as we find that out.
+ *
+ * @param s is the SSL session to swap about
+ * @return 0 for error, 1 for success
+ */
+int ech_swaperoo(SSL *s)
+
+{
+    if (s->ext.inner_s==NULL) return(0);
+    if (s->ext.inner_s->ext.outer_s==NULL) return(0);
+    SSL tmp_outer=*s; // stash outer fields
+    SSL tmp_inner=*s->ext.inner_s; // stash inner fields
+    SSL *inp=s->ext.inner_s;
+    SSL *outp=s->ext.inner_s->ext.outer_s;
+    if (!ossl_assert(outp==s))
+        return(0);
+
+
+    *s=tmp_inner;
+    s->ext.inner_s=NULL;
+    s->ext.outer_s=inp;
+    *s->ext.outer_s=tmp_outer;
+    s->ext.outer_s->ext.inner_s=outp;
+    s->ext.outer_s->ext.outer_s=NULL;
+    s->rlayer=s->ext.outer_s->rlayer;
+    s->init_buf=s->ext.outer_s->init_buf;
+    s->s3=s->ext.outer_s->s3;
+    s->session=s->ext.outer_s->session;
+    s->ext.outer_s->session=NULL;
+    
     return(1);
 }
 

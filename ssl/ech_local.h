@@ -27,8 +27,6 @@
 #define ECH_MIN_ECHCONFIG_LEN 32 ///< just for a sanity check
 #define ECH_MAX_ECHCONFIG_LEN 512 ///< just for a sanity check
 
-#define ECH_SELECT_ALL -1 ///< used to duplicate all RRs in SSL_ECH_dup
-
 #define ECH_CIPHER_LEN 4 ///< length of an ECHCipher (2 for kdf, 2 for aead)
 
 #define ECH_OUTERS_MAX 10 ///< max number of TLS extensions that can be compressed via outer-exts
@@ -36,6 +34,10 @@
 #define MAX_ECH_CONFIG_ID_LEN 0x30 ///< max size of ENC-CH config id we'll decode
 #define MAX_ECH_ENC_LEN 0x60 ///< max size of ENC-CH peer key share we'll decode
 #define MAX_ECH_PAYLOAD_LEN 0x200 ///< max size of ENC-CH ciphertext we'll decode
+
+#define ECH_GREASE_UNKNOWN -1 ///< value for s->ext.ech_grease when we're not yet sure
+#define ECH_NOT_GREASE 0 ///< value for s->ext.ech_grease when decryption worked
+#define ECH_IS_GREASE 0 ///< value for s->ext.ech_grease when decryption failed
 
 /** 
  * @brief Representation of what goes in DNS
@@ -279,6 +281,17 @@ SSL_ECH* SSL_ECH_new_from_buffer(SSL_CTX *ctx, SSL *con, const short ekfmt, cons
  */
 int ech_encode_inner(SSL *s);
 
+/**
+ * @brief After "normal" 1st pass CH receipt (of outer) is done, fix encoding as needed
+ *
+ * This will produce the ClientHelloInner from the EncodedClientHelloInner, which
+ * is the result of successful decryption 
+ *
+ * @param s is the SSL session
+ * @return 1 for success, error otherwise
+ */
+int ech_decode_inner(SSL *s);
+
 /*
  * Return values from ech_same_ext
  */
@@ -318,6 +331,16 @@ void ECH_ENCCH_free(ECH_ENCCH *ev);
  * @return: 1 for success, 0 otherwise
  */
 int ech_calc_accept_confirm(SSL *s, unsigned char *acbuf);
+
+/*
+ * Swap the inner and outer.
+ * The only reason to make this a function is because it's
+ * likely very brittle - if we need any other fields to be
+ * handled specially (e.g. because of some so far untested
+ * combination of extensions), then this may fail, so good
+ * to keep things in one place as we find that out.
+ */
+int ech_swaperoo(SSL *s);
 
 #endif
 #endif

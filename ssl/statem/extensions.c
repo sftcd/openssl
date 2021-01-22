@@ -1056,7 +1056,7 @@ static int final_ech(SSL *s, unsigned int context, int sent)
      * whatever's needed for handling tickets etc. etc.
      */
     if (!s->server && s->ech && s->ext.inner_s==NULL && s->ext.outer_s!=NULL) {
-        if (s->ech_grease) {
+        if (s->ext.ech_grease) {
             /*
              * If we greased, then it's ok that esni_done didn't get set
              * TODO: figure if this is the right check to make

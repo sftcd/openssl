@@ -876,6 +876,12 @@ void SSL_set_esni_callback(SSL *s, SSL_esni_cb_func f);
 void SSL_CTX_set_esni_callback(SSL_CTX *s, SSL_esni_cb_func f);
 #endif
 
+#ifndef OPENSSL_NO_ECH
+typedef unsigned int (*SSL_ech_cb_func)(SSL *ssl, char *str);
+void SSL_set_ech_callback(SSL *s, SSL_ech_cb_func f);
+void SSL_CTX_set_ech_callback(SSL_CTX *s, SSL_ech_cb_func f);
+#endif
+
 # ifndef OPENSSL_NO_PSK
 /*
  * the maximum length of the buffer given to callbacks containing the

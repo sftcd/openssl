@@ -628,6 +628,12 @@ struct ssl_session_st {
         unsigned char *kse;
 #endif
 
+#ifndef OPENSSL_NO_ECH
+        char *ech_public_name;
+        char *ech_inner_name;
+        char *ech_outer_name;
+#endif
+
 # ifndef OPENSSL_NO_EC
         size_t ecpointformats_len;
         unsigned char *ecpointformats; /* peer's list */
@@ -1130,8 +1136,7 @@ struct ssl_ctx_st {
          */
         int nechs;
         SSL_ECH *ech;
-
-        // SSL_ech_cb_func esni_cb; - will need this later
+        SSL_ech_cb_func ech_cb; 
 #endif
 
         unsigned char cookie_hmac_key[SHA256_DIGEST_LENGTH];
@@ -1608,6 +1613,7 @@ struct ssl_st {
 
         /*
          * inner CH encodings for the client
+         * and maybe now server too...
          */
         unsigned char *innerch;
         size_t innerch_len;
@@ -1625,6 +1631,7 @@ struct ssl_st {
         int etype;
         /*
          * Selected name values for this session.
+         * Same fields used on client and server.
          */
         char *ech_public_name;
         char *ech_inner_name;
@@ -1635,6 +1642,8 @@ struct ssl_st {
         SSL* outer_s; // pointer to outer CH from inner
         int inner_s_ftd;
         int ech_done;
+        int ech_attempted;
+        int ech_grease;
 
 #endif
         /* certificate status request info */
@@ -1756,9 +1765,9 @@ struct ssl_st {
     SSL_esni_cb_func esni_cb;
 #endif
 #ifndef OPENSSL_NO_ECH
-    int ech_grease;
     int nechs;
     SSL_ECH *ech;
+    SSL_ech_cb_func ech_cb; 
 #endif
 # ifndef OPENSSL_NO_CT
     /*

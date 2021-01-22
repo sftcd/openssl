@@ -3309,6 +3309,7 @@ int ssl3_new(SSL *s)
 #ifndef OPENSSL_NO_ECH
 	s->ech=NULL;
 	s->nechs=0;
+	s->ech_cb=NULL;
 #endif
 
     if (!s->method->ssl_clear(s))
@@ -3373,6 +3374,7 @@ void ssl3_free(SSL *s)
 	OPENSSL_free(s->ech);
 	s->ech=NULL;
 	s->nechs=0;
+    s->ech_cb=NULL;
 #endif
 
     memset(&s->s3, 0, sizeof(s->s3));

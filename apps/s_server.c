@@ -41,7 +41,7 @@
 
 #ifndef OPENSSL_NO_ECH
 #include <openssl/ech.h>
-#include <dirent.h> /* for esnidir handling */
+#include <dirent.h> /* for echdir handling */
 /* to use tracing, if configured and requested */
 #ifndef OPENSSL_NO_SSL_TRACE
 #include <openssl/trace.h>
@@ -594,6 +594,141 @@ static size_t ech_trace_cb(const char *buf, size_t cnt,
 }
 #endif
 
+/**
+ * @brief a servername_cb that is ECH aware
+ *
+ * The server has possibly 2 names (from command line and ECHConfig) basically 
+ * in ctx and ctx2. (Some other server could have N names, in different 
+ * ECHConfigs, but s_server only handles 2.)
+ * So we need to check if any client-supplied SNI in the inner/outer matches 
+ * either and serve whichever is appropriate.
+ * X509_check_host is the way to do that, given an X509* pointer.
+ *
+ * We default to the "main" ctx if the client-supplied (E)SNI does not
+ * match the ctx2 certificate.
+ * We don't fail if the client-supplied (E)SNI matches neither, but
+ * just continue with the "main" ctx.
+ * If the client-supplied (E)SNI matches both ctx and ctx2, then we'll
+ * switch to ctx2 anyway - we don't try for a "best" match in that
+ * case.
+ *
+ * @param s is the SSL connection
+ * @param ad is dunno
+ * @param arg is a pointer to a tlsext
+ * @return 1 or error
+ */
+static int ssl_ech_servername_cb(SSL *s, int *ad, void *arg)
+{
+    tlsextctx *p = (tlsextctx *) arg;
+    /*
+     * Basic logging
+     */
+    time_t now=time(0);
+    struct tm *tnow=gmtime(&now);
+    char *anow=asctime(tnow);
+    int sockfd=0;
+    int res=0;
+    char clientip[INET6_ADDRSTRLEN]; 
+    memset(clientip,0,INET6_ADDRSTRLEN);
+    strncpy(clientip,"dunno",INET6_ADDRSTRLEN);
+    struct sockaddr_storage ss;
+    socklen_t salen = sizeof(ss);
+    struct sockaddr *sa;
+    memset(&ss,0,salen);
+    sa = (struct sockaddr *)&ss;
+    res=BIO_get_fd(SSL_get_wbio(s),&sockfd);
+    if (res!=-1) {
+        res = getpeername(sockfd,sa,&salen);
+        if (res==0) res=getnameinfo(sa,salen,clientip,INET6_ADDRSTRLEN, 0,0,NI_NUMERICHOST);
+        if (res!=0) strncpy(clientip,"dunno",INET6_ADDRSTRLEN);
+    }
+    BIO_printf(p->biodebug,"ssl_ech_servername_cb: connection from %s at %s",clientip,anow);
+    /*
+     * Name that matches "main" ctx
+     */
+    const char *servername = SSL_get_servername(s, TLSEXT_NAMETYPE_host_name);
+    if (p->biodebug != NULL ) {
+        /*
+        * Client supplied SNI from inner and outer
+        */
+        char *inner_sni=NULL; 
+        char *outer_sni=NULL;
+        int echrv=SSL_ech_get_status(s,&inner_sni,&outer_sni);
+        switch (echrv) {
+        case SSL_ECH_STATUS_GREASE: 
+            BIO_printf(p->biodebug,"ssl_ech_servername_cb: attempt we interpret as GREASE\n");
+            break;
+        case SSL_ECH_STATUS_NOT_TRIED: 
+            BIO_printf(p->biodebug,"ssl_ech_servername_cb: not attempted\n");
+            break;
+        case SSL_ECH_STATUS_FAILED: 
+            BIO_printf(p->biodebug,"ssl_ech_servername_cb: tried but failed\n");
+            break;
+        case SSL_ECH_STATUS_BAD_CALL: 
+            BIO_printf(p->biodebug,"ssl_ech_servername_cb: bad input to API\n");
+            break;
+        case SSL_ECH_STATUS_BAD_NAME: 
+            BIO_printf(p->biodebug,"ssl_ech_servername_cb: worked but bad name\n");
+            break;
+        case SSL_ECH_STATUS_TOOMANY: 
+            BIO_printf(p->biodebug,"ssl_ech_servername_cb: Too many names (I wish I remembered what this error means!)\n");
+            break;
+        case SSL_ECH_STATUS_SUCCESS:
+            BIO_printf(p->biodebug,"ssl_ech_servername_cb: success: outer %s, inner: %s\n",
+                            (outer_sni==NULL?"none":outer_sni),
+                            (inner_sni==NULL?"none":inner_sni));
+            break;
+        default:
+            BIO_printf(p->biodebug,"ssl_ech_servername_cb: Error getting ECH status\n");
+            break;
+        }
+    }
+    if (servername != NULL && p->biodebug != NULL) {
+        const char *cp = servername;
+        unsigned char uc;
+        BIO_printf(p->biodebug, "ssl_ech_servername_cb: Hostname in TLS extension: \"");
+        while ((uc = *cp++) != 0)
+            BIO_printf(p->biodebug,
+                       isascii(uc) && isprint(uc) ? "%c" : "\\x%02x", uc);
+        BIO_printf(p->biodebug, "\"\n");
+        if (p->servername!=NULL) {
+            BIO_printf(p->biodebug, "ssl_ech_servername_cb: ctx servername: %s\n",p->servername);
+        } else {
+            BIO_printf(p->biodebug, "ssl_ech_servername_cb: ctx servername is NULL\n");
+        }
+        if (p->scert == NULL ) {
+            BIO_printf(p->biodebug, "ssl_ech_servername_cb: No 2nd cert! Things likely won't go well:-)\n");
+        }
+    }
+    if (p->servername == NULL)
+        return SSL_TLSEXT_ERR_NOACK;
+    if (p->scert == NULL )
+        return SSL_TLSEXT_ERR_NOACK;
+    if (servername != NULL) {
+        if (ctx2 != NULL) {
+            /*
+             * TODO: Check if strlen is really safe here - think it should be as
+             * internally will have checked there are no embedded NUL bytes but
+             * make sure.
+             */
+            BIO_printf(p->biodebug, "ssl_ech_servername_cb: TLS servername: %s.\n",servername);
+            BIO_printf(p->biodebug, "ssl_ech_servername_cb: Cert servername: %s.\n",p->servername);
+            int mrv=X509_check_host(p->scert,servername,strlen(servername),0,NULL);
+            if (mrv==1) {
+                if (p->biodebug!=NULL) {
+                     BIO_printf(p->biodebug, "ssl_ech_servername_cb: Switching context.\n");
+                }
+                SSL_set_SSL_CTX(s, ctx2);
+            } else {
+                if (p->biodebug!=NULL) {
+                     BIO_printf(p->biodebug, "ssl_ech_servername_cb: Not switching context - no name match (%d).\n",mrv);
+                }
+            }
+        }
+    } 
+    return SSL_TLSEXT_ERR_OK;
+}
+
 #endif
 
 #ifndef OPENSSL_NO_ESNI
@@ -674,7 +809,6 @@ static size_t esni_padding_cb(SSL *s, int type, size_t len, void *arg)
 static int ssl_esni_servername_cb(SSL *s, int *ad, void *arg)
 {
     tlsextctx *p = (tlsextctx *) arg;
-
     /*
      * Basic logging
      */
@@ -706,13 +840,12 @@ static int ssl_esni_servername_cb(SSL *s, int *ad, void *arg)
         /*
         * Client supplied ESNI (hidden) and SNI (clear_sni)
         */
-
         char *hidden=NULL; 
         char *clear_sni=NULL;
         int esnirv=SSL_get_esni_status(s,&hidden,&clear_sni);
         switch (esnirv) {
         case SSL_ESNI_STATUS_NOT_TRIED: 
-            BIO_printf(p->biodebug,"ssl_esni_servername_cb: not attempted\n");
+            BIO_printf(p->biodebug,"ssl_esni_servername_cb: ESNI not attempted\n");
             break;
         case SSL_ESNI_STATUS_FAILED: 
             BIO_printf(p->biodebug,"ssl_esni_servername_cb: tried but failed\n");
@@ -729,13 +862,10 @@ static int ssl_esni_servername_cb(SSL *s, int *ad, void *arg)
             BIO_printf(p->biodebug,"ssl_esni_servername_cb: Error getting ESNI status\n");
             break;
         }
-
     }
-
     if (servername != NULL && p->biodebug != NULL) {
         const char *cp = servername;
         unsigned char uc;
-
         BIO_printf(p->biodebug, "ssl_esni_servername_cb: Hostname in TLS extension: \"");
         while ((uc = *cp++) != 0)
             BIO_printf(p->biodebug,
@@ -750,13 +880,10 @@ static int ssl_esni_servername_cb(SSL *s, int *ad, void *arg)
             BIO_printf(p->biodebug, "ssl_esni_servername_cb: No 2nd cert! Things likely won't go well:-)\n");
         }
     }
-
     if (p->servername == NULL)
         return SSL_TLSEXT_ERR_NOACK;
-
     if (p->scert == NULL )
         return SSL_TLSEXT_ERR_NOACK;
-
     if (servername != NULL) {
         if (ctx2 != NULL) {
             /*
@@ -777,11 +904,8 @@ static int ssl_esni_servername_cb(SSL *s, int *ad, void *arg)
             }
         }
     } 
-
     return SSL_TLSEXT_ERR_OK;
-
 }
-
 #ifndef OPENSSL_NO_SSL_TRACE
 /*
  * ESNI Tracing callback 
@@ -813,8 +937,8 @@ static size_t esni_trace_cb(const char *buf, size_t cnt,
      return brv;
 }
 #endif
-
 #endif
+
 // ESNI_DOXY_END
 
 
@@ -2845,6 +2969,7 @@ int s_server_main(int argc, char *argv[])
             goto end;
         }
         tlsextcbp.biodebug = bio_s_out;
+
 #ifndef OPENSSL_NO_ESNI
         SSL_CTX_set_tlsext_servername_callback(ctx2, ssl_esni_servername_cb);
         SSL_CTX_set_tlsext_servername_arg(ctx2, &tlsextcbp);
@@ -2857,7 +2982,26 @@ int s_server_main(int argc, char *argv[])
             OSSL_trace_set_callback(OSSL_TRACE_CATEGORY_TLS, esni_trace_cb, bio_s_out);
         }
 #endif
-#else
+#endif
+
+#ifndef OPENSSL_NO_ECH
+        /*
+         * Setting this second, (for now) means we prefer ECH and ignore ESNI
+         */
+        SSL_CTX_set_tlsext_servername_callback(ctx2, ssl_ech_servername_cb);
+        SSL_CTX_set_tlsext_servername_arg(ctx2, &tlsextcbp);
+        SSL_CTX_set_tlsext_servername_callback(ctx, ssl_ech_servername_cb);
+        SSL_CTX_set_tlsext_servername_arg(ctx, &tlsextcbp);
+        SSL_CTX_set_ech_callback(ctx2, ech_print_cb);
+        SSL_CTX_set_ech_callback(ctx, ech_print_cb);
+#ifndef OPENSSL_NO_SSL_TRACE
+        if (s_msg==2) {
+            OSSL_trace_set_callback(OSSL_TRACE_CATEGORY_TLS, ech_trace_cb, bio_s_out);
+        }
+#endif
+#endif
+
+#if defined(OPENSSL_NO_ESNI) && defined(OPENSSL_NO_ECH)
         SSL_CTX_set_tlsext_servername_callback(ctx2, ssl_servername_cb);
         SSL_CTX_set_tlsext_servername_arg(ctx2, &tlsextcbp);
         SSL_CTX_set_tlsext_servername_callback(ctx, ssl_servername_cb);

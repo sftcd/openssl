@@ -2763,7 +2763,7 @@ static int SSL_ech_send_grease(SSL *s, WPACKET *pkt, unsigned int context,
 EXT_RETURN tls_construct_ctos_ech(SSL *s, WPACKET *pkt, unsigned int context,
                                    X509 *x, size_t chainidx)
 {
-    if (!s->ech && s->ech_grease) {
+    if (!s->ech && s->ext.ech_grease) {
         if (SSL_ech_send_grease(s,pkt,context,x,chainidx)!=1) {
             return EXT_RETURN_NOT_SENT;
         }

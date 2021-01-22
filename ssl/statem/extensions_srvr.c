@@ -2446,27 +2446,6 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
      * ESNI has now worked, as far as we're concerned
      */
     s->esni_done=1;
-
-
-    /*
-     * call callback
-     */
-    if (s->esni_cb != NULL) {
-        char pstr[ESNI_PBUF_SIZE+1];
-        memset(pstr,0,ESNI_PBUF_SIZE+1);
-        BIO *biom = BIO_new(BIO_s_mem());
-        SSL_ESNI_print(biom,s->esni,matchind);
-        BIO_read(biom,pstr,ESNI_PBUF_SIZE);
-        unsigned int cbrv=s->esni_cb(s,pstr);
-        BIO_free(biom);
-        if (cbrv != 1) {
-            OSSL_TRACE_BEGIN(TLS) {
-                BIO_printf(trc_out,"Exiting tls_parse_ctos_esni at %d\n",__LINE__);
-            } OSSL_TRACE_END(TLS);
-            return 0;
-        }
-    }
-
     if (s->session!=NULL) {
         /* 
          * set hostname, public_name, clear_sni, encservername in the session 
@@ -2487,7 +2466,6 @@ int tls_parse_ctos_esni(SSL *s, PACKET *pkt, unsigned int context,
             OPENSSL_free(s->session->ext.public_name);
         }
         s->session->ext.public_name=OPENSSL_strdup(s->ext.public_name);
-
     }
     OSSL_TRACE_BEGIN(TLS) {
         BIO_printf(trc_out,"Happy exit from tls_parse_ctos_esni at %d\n",__LINE__);
@@ -2725,13 +2703,19 @@ int tls_parse_ctos_ech(SSL *s, PACKET *pkt, unsigned int context,
     SSL *inner=NULL;
     size_t clearlen=0;
     unsigned char *clear=NULL;
-    int assume_grease=0;
+    char *hncpy=NULL;
     if (s->ech==NULL) {
-        printf("tls_parse_ctos_ech called - NULL ECH so assuming grease\n");
-        assume_grease=1;
+        s->ext.ech_grease=ECH_IS_GREASE;
+        printf("tls_parse_ctos_ech called - NULL ECH so assuming grease.\n");
     } else {
+        s->ext.ech_grease=ECH_GREASE_UNKNOWN;
         printf("tls_parse_ctos_ech called - with a real ECH!\n");
     }
+
+    /*
+     * Remember that we got one
+     */
+    s->ext.ech_attempted=1;
 
     /*
      * Decode the inbound value
@@ -2842,7 +2826,7 @@ int tls_parse_ctos_ech(SSL *s, PACKET *pkt, unsigned int context,
      */
     int cfgind=-1;
     int foundcfg=0;
-    if (assume_grease==0 && extval->config_id_len!=0) {
+    if (s->ext.ech_grease==ECH_GREASE_UNKNOWN && extval->config_id_len!=0) {
         if (s->ech->cfg==NULL || s->ech->cfg->nrecs==0) {
             // shouldn't happen if assume_grease
             SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ECH, SSL_R_BAD_EXTENSION);
@@ -2856,12 +2840,17 @@ int tls_parse_ctos_ech(SSL *s, PACKET *pkt, unsigned int context,
                 break;
             }
         }
+        if (foundcfg==1) {
+            clear=hpke_decrypt_encch(&s->ech[cfgind],extval,&clearlen);
+            if (clear==NULL) {
+                s->ext.ech_grease=ECH_IS_GREASE;
+            }
+        } 
     }
     /*
-     * Trial decrypt
+     * Trial decrypt, if still needed
      */
     if (!foundcfg && (s->options & SSL_OP_ECH_TRIALDECRYPT)) { 
-        assume_grease=1;
         for (cfgind=0;cfgind!=s->ech->cfg->nrecs;cfgind++) {
             clear=hpke_decrypt_encch(&s->ech[cfgind],extval,&clearlen);
             if (clear!=NULL) {
@@ -2869,77 +2858,51 @@ int tls_parse_ctos_ech(SSL *s, PACKET *pkt, unsigned int context,
                 break;
             }
         }
+    } 
+
+    if (clear==NULL) {
+        s->ext.ech_grease=ECH_IS_GREASE;
     } else {
-        /*
-         * Just try 1st
-         */
-        clear=hpke_decrypt_encch(s->ech,extval,&clearlen);
-        if (clear!=NULL) foundcfg=1;
+        s->ext.ech_grease=ECH_NOT_GREASE;
     }
     printf("parse_ctos_ech: assume_grease: %d, foundcfg: %d, cfgind: %d, clearlen: %ld, clear %p\n",
-            assume_grease,foundcfg,cfgind,clearlen,clear);
-    if (!foundcfg) {
-        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ECH, SSL_R_BAD_EXTENSION);
-        goto err;
-    }
+            s->ext.ech_grease,foundcfg,cfgind,clearlen,clear);
+    ech_pbuf("clear",clear,clearlen);
+
+    /*
+     * Stash the cleartext for later processing - we can't be sure
+     * it's ok to decode and process that now as some later outer
+     * extension may be involved ('cause crappy compression) or may
+     * have a side-effect if processed later on
+     */
+    s->ext.encoded_innerch_len=clearlen;
+    s->ext.encoded_innerch=clear;
+
     if (extval!=NULL) {
         ECH_ENCCH_free(extval);
         OPENSSL_free(extval);
         extval=NULL;
     }
-    /*
-     * Clear with a type/len prceeded
-     */
-    ech_pbuf("clear",clear,clearlen);
 
     /*
-     * Now we would like to re-construct an inner CH from that cleartext
-     *
-     * Idea is to decode, then check for outers and if we find 'em
-     * copy each one from the outer
+     * call callback
      */
-    PACKET innerpacket;
-    if (clearlen < 9) {
-        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ECH, SSL_R_BAD_EXTENSION);
-        goto err;
-    }
-    if (PACKET_buf_init(&innerpacket,clear+9,clearlen-9)!=1) {
-        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ECH, SSL_R_BAD_EXTENSION);
-        goto err;
-    }
-    /*
-     * Might have to zap more in a bit, TODO: check
-     */
-    s->servername_done=0;
-    /*
-     * Process inner CH
-     */
-    inner=SSL_dup(s);
-    if (inner==NULL) {
-        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ECH, SSL_R_BAD_EXTENSION);
-        goto err;
-    }
-    inner->ext.ch_depth=1;
-    inner->ext.outer_s=s;
-    s->ext.inner_s=inner;
-    if (!tls_process_client_hello(inner,&innerpacket)) {
-        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ECH, SSL_R_BAD_EXTENSION);
-        goto err;
-    }
-    if (!inner->clienthello || !inner->clienthello->pre_proc_exts) {
-        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ECH, SSL_R_BAD_EXTENSION);
-        goto err;
-    }
-    if (!tls_parse_all_extensions(inner, SSL_EXT_CLIENT_HELLO, inner->clienthello->pre_proc_exts, NULL, 0,0)) {
-        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ECH, SSL_R_BAD_EXTENSION);
-        goto err;
+    if (s->ech!=NULL && s->ech_cb != NULL) {
+        char pstr[ECH_PBUF_SIZE+1];
+        memset(pstr,0,ECH_PBUF_SIZE+1);
+        BIO *biom = BIO_new(BIO_s_mem());
+        SSL_ech_print(biom,s,ECH_SELECT_ALL);
+        BIO_read(biom,pstr,ECH_PBUF_SIZE);
+        unsigned int cbrv=s->ech_cb(s,pstr);
+        BIO_free(biom);
+        if (cbrv != 1) {
+            OSSL_TRACE_BEGIN(TLS) {
+                BIO_printf(trc_out,"Exiting tls_parse_ctos_ech at %d\n",__LINE__);
+            } OSSL_TRACE_END(TLS);
+            return 0;
+        }
     }
 
-    if (clearlen!=0 && clear!=NULL) {
-        OPENSSL_free(clear);
-        clear=NULL;
-        clearlen=0;
-    }
     return 1;
 
 err:

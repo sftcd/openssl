@@ -1530,6 +1530,23 @@ MSG_PROCESS_RETURN tls_process_client_hello(SSL *s, PACKET *pkt)
             goto err;
         }
 
+#ifndef OPENSSL_NO_ECH
+        /*
+         * The session ID is not repeated in the inner CH, so if that's
+         * what we're parsing (on a server) then we use the outer CH's
+         * session ID
+         */
+        if (s->server && s->ext.ch_depth==1) {
+            if (s->ext.outer_s==NULL || s->ext.outer_s->clienthello==NULL) {
+                SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PROCESS_CLIENT_HELLO,
+                         SSL_R_RECORD_LENGTH_MISMATCH);
+                goto err;
+            }
+            unsigned int session_id_len=s->ext.outer_s->clienthello->session_id_len;
+            clienthello->session_id_len=s->ext.outer_s->clienthello->session_id_len;
+            memcpy(clienthello->session_id,s->ext.outer_s->clienthello->session_id,session_id_len);
+        }
+#endif
 
         if (SSL_IS_DTLS(s)) {
             if (!PACKET_get_length_prefixed_1(pkt, &cookie)) {
@@ -1625,6 +1642,9 @@ static int tls_early_post_process_client_hello(SSL *s)
     STACK_OF(SSL_CIPHER) *scsvs = NULL;
     CLIENTHELLO_MSG *clienthello = s->clienthello;
     DOWNGRADE dgrd = DOWNGRADE_NONE;
+#ifndef OPENSSL_NO_ECH
+    SSL *new_se=NULL;
+#endif
 
     /* Finished parsing the ClientHello, now we can start processing it */
     /* Give the ClientHello callback a crack at things */
@@ -2097,6 +2117,75 @@ static int tls_early_post_process_client_hello(SSL *s)
         }
     }
 
+#ifndef OPENSSL_NO_ECH
+    /*
+     * If we successfully decrypted an ECH then see if handling
+     * that as a real inner CH makes sense and if so, do the
+     * swaperoo
+     */
+    if (s->ext.ch_depth==0 && s->ext.ech_attempted==1 && s->ext.encoded_innerch) {
+        /*
+         * De-compress inner ch if/as needed
+         */
+        new_se=SSL_dup(s);
+        new_se->ext.ch_depth=1;
+        new_se->ext.outer_s=s;
+        new_se->ext.inner_s=NULL;
+        // GOTHERE
+        new_se->rlayer=s->rlayer;
+        new_se->method=s->method;
+        /*
+         * Parse the inner into new_se
+         */
+        /*
+         * form up the full inner for processing
+         */
+        if (ech_decode_inner(new_se)!=1) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PROCESS_CLIENT_HELLO,
+                 ERR_R_INTERNAL_ERROR);
+            goto err;
+        }
+
+        PACKET rpkt; // input packet - from new_se->ext.innerch
+        /*
+         * The +1 below is because tls_process_client_hello doesn't 
+         * want to be given the message type, so the buffer should
+         * start with the version octets
+         */
+        if (PACKET_buf_init(&rpkt,new_se->ext.innerch+4,new_se->ext.innerch_len-4)!=1) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR,
+                     SSL_F_TLS_EARLY_POST_PROCESS_CLIENT_HELLO,
+                     ERR_R_INTERNAL_ERROR);
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PROCESS_CLIENT_HELLO,
+                 ERR_R_INTERNAL_ERROR);
+            goto err;
+        }
+        /*
+         * process the encoded inner
+         */
+        MSG_PROCESS_RETURN rv=tls_process_client_hello(new_se, &rpkt);
+        if (rv!=MSG_PROCESS_CONTINUE_PROCESSING) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR,
+                     SSL_F_TLS_EARLY_POST_PROCESS_CLIENT_HELLO,
+                     ERR_R_INTERNAL_ERROR);
+            goto err;
+        }
+        if (tls_early_post_process_client_hello(new_se)!=1) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR,
+                     SSL_F_TLS_EARLY_POST_PROCESS_CLIENT_HELLO,
+                     ERR_R_INTERNAL_ERROR);
+            goto err;
+        }
+        s->ext.inner_s=new_se;
+        if (ech_swaperoo(s)!=1) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR,
+                     SSL_F_TLS_EARLY_POST_PROCESS_CLIENT_HELLO,
+                     ERR_R_INTERNAL_ERROR);
+            goto err;
+        }
+    }
+#endif
+
     sk_SSL_CIPHER_free(ciphers);
     sk_SSL_CIPHER_free(scsvs);
     OPENSSL_free(clienthello->pre_proc_exts);
@@ -2104,6 +2193,12 @@ static int tls_early_post_process_client_hello(SSL *s)
     s->clienthello = NULL;
     return 1;
  err:
+#ifndef OPENSSL_NO_ECH
+    if (new_se!=NULL) {
+        SSL_free(new_se);
+        new_se=NULL;
+    }
+#endif
     sk_SSL_CIPHER_free(ciphers);
     sk_SSL_CIPHER_free(scsvs);
 #ifndef OPENSSL_NO_ECH
