@@ -1594,12 +1594,12 @@ int ech_outer_config[]={
      /*TLSEXT_IDX_server_name */ 0,
      /*TLSEXT_IDX_max_fragment_length */ 0,
      /*TLSEXT_IDX_srp */ 0,
-     /*TLSEXT_IDX_ec_point_formats */ 1,
-     /*TLSEXT_IDX_supported_groups */ 1,
-     /*TLSEXT_IDX_session_ticket */ 1,
-     /*TLSEXT_IDX_status_request */ 1,
-     /*TLSEXT_IDX_next_proto_neg */ 1,
-     /*TLSEXT_IDX_application_layer_protocol_negotiation */ 1,
+     /*TLSEXT_IDX_ec_point_formats */ 0,
+     /*TLSEXT_IDX_supported_groups */ 0,
+     /*TLSEXT_IDX_session_ticket */ 0,
+     /*TLSEXT_IDX_status_request */ 0,
+     /*TLSEXT_IDX_next_proto_neg */ 0,
+     /*TLSEXT_IDX_application_layer_protocol_negotiation */ 0,
      /*TLSEXT_IDX_use_srtp */ 0,
      /*TLSEXT_IDX_encrypt_then_mac */ 0,
      /*TLSEXT_IDX_signed_certificate_timestamp */ 0,
@@ -2228,6 +2228,7 @@ void SSL_CTX_set_ech_callback(SSL_CTX *s, SSL_ech_cb_func f)
 int ech_swaperoo(SSL *s)
 
 {
+    printf("ech_swaperoo called\n");
     if (s->ext.inner_s==NULL) return(0);
     if (s->ext.inner_s->ext.outer_s==NULL) return(0);
     SSL tmp_outer=*s; // stash outer fields
@@ -2249,8 +2250,101 @@ int ech_swaperoo(SSL *s)
     s->s3=s->ext.outer_s->s3;
     s->session=s->ext.outer_s->session;
     s->ext.outer_s->session=NULL;
+
+    s->statem=outp->statem;
     
+    printf("ech_swaperoo success\n");
     return(1);
 }
+
+/*
+ * @brief if we had inner CH cleartext, try parse and process
+ * that and then decide whether to swap it for the current 
+ * SSL *s - if we decide to, the big swaperoo happens inside
+ * here (for now)
+ * 
+ * @param s is the SSL session
+ * @return 1 for success, 0 for failure
+ */
+int ech_process_inner_if_present(SSL *s) 
+{
+    SSL *new_se=NULL;
+    /*
+     * If we successfully decrypted an ECH then see if handling
+     * that as a real inner CH makes sense and if so, do the
+     * swaperoo
+     */
+    if (s->ext.ch_depth==0 && s->ext.ech_attempted==1 && s->ext.encoded_innerch) {
+        /*
+         * De-compress inner ch if/as needed
+         */
+        new_se=SSL_dup(s);
+        new_se->ext.ch_depth=1;
+        new_se->ext.outer_s=s;
+        new_se->ext.inner_s=NULL;
+        // GOTHERE
+        new_se->rlayer=s->rlayer;
+        //new_se->method=s->method;
+        new_se->ext.debug_cb=s->ext.debug_cb;
+        new_se->ext.debug_arg=s->ext.debug_arg;
+        /*
+         * Parse the inner into new_se
+         */
+        /*
+         * form up the full inner for processing
+         */
+        if (ech_decode_inner(new_se)!=1) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PROCESS_CLIENT_HELLO,
+                 ERR_R_INTERNAL_ERROR);
+            goto err;
+        }
+        ech_pbuf("Inner CH (decoded)",new_se->ext.innerch,new_se->ext.innerch_len);
+        PACKET rpkt; // input packet - from new_se->ext.innerch
+        /*
+         * The +4 below is because tls_process_client_hello doesn't 
+         * want to be given the message type & length, so the buffer should
+         * start with the version octets (0x03 0x03)
+         */
+        if (PACKET_buf_init(&rpkt,new_se->ext.innerch+4,new_se->ext.innerch_len-4)!=1) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR,
+                     SSL_F_TLS_EARLY_POST_PROCESS_CLIENT_HELLO,
+                     ERR_R_INTERNAL_ERROR);
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PROCESS_CLIENT_HELLO,
+                 ERR_R_INTERNAL_ERROR);
+            goto err;
+        }
+        /*
+         * process the encoded inner
+         */
+        MSG_PROCESS_RETURN rv=tls_process_client_hello(new_se, &rpkt);
+        if (rv!=MSG_PROCESS_CONTINUE_PROCESSING) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR,
+                     SSL_F_TLS_EARLY_POST_PROCESS_CLIENT_HELLO,
+                     ERR_R_INTERNAL_ERROR);
+            goto err;
+        }
+        if (tls_post_process_client_hello(new_se,WORK_MORE_A)!=1) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR,
+                     SSL_F_TLS_EARLY_POST_PROCESS_CLIENT_HELLO,
+                     ERR_R_INTERNAL_ERROR);
+            goto err;
+        }
+        s->ext.inner_s=new_se;
+        if (ech_swaperoo(s)!=1) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR,
+                     SSL_F_TLS_EARLY_POST_PROCESS_CLIENT_HELLO,
+                     ERR_R_INTERNAL_ERROR);
+            goto err;
+        }
+    }
+    return(1);
+err:
+    if (new_se!=NULL) {
+        SSL_free(new_se);
+        new_se=NULL;
+    }
+    return(0);
+}
+
 
 #endif

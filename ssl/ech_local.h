@@ -342,5 +342,16 @@ int ech_calc_accept_confirm(SSL *s, unsigned char *acbuf);
  */
 int ech_swaperoo(SSL *s);
 
+/*
+ * @brief if we had inner CH cleartext, try parse and process
+ * that and then decide whether to swap it for the current 
+ * SSL *s - if we decide to, the big swaperoo happens inside
+ * here (for now)
+ * 
+ * @param s is the SSL session
+ * @return 1 for success, 0 for failure
+ */
+int ech_process_inner_if_present(SSL *s); 
+
 #endif
 #endif

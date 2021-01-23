@@ -2700,10 +2700,10 @@ static unsigned char *hpke_decrypt_encch(SSL_ECH *ech, ECH_ENCCH *the_ech, size_
 int tls_parse_ctos_ech(SSL *s, PACKET *pkt, unsigned int context,
                                X509 *x, size_t chainidx)
 {
-    SSL *inner=NULL;
+    //SSL *inner=NULL;
     size_t clearlen=0;
     unsigned char *clear=NULL;
-    char *hncpy=NULL;
+    //char *hncpy=NULL;
     if (s->ech==NULL) {
         s->ext.ech_grease=ECH_IS_GREASE;
         printf("tls_parse_ctos_ech called - NULL ECH so assuming grease.\n");

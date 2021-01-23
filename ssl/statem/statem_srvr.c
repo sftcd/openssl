@@ -1642,9 +1642,6 @@ static int tls_early_post_process_client_hello(SSL *s)
     STACK_OF(SSL_CIPHER) *scsvs = NULL;
     CLIENTHELLO_MSG *clienthello = s->clienthello;
     DOWNGRADE dgrd = DOWNGRADE_NONE;
-#ifndef OPENSSL_NO_ECH
-    SSL *new_se=NULL;
-#endif
 
     /* Finished parsing the ClientHello, now we can start processing it */
     /* Give the ClientHello callback a crack at things */
@@ -1686,6 +1683,7 @@ static int tls_early_post_process_client_hello(SSL *s)
         /* SSLv3/TLS */
         s->client_version = clienthello->legacy_version;
     }
+
     /*
      * Do SSL/TLS version negotiation if applicable. For DTLS we just check
      * versions are potentially compatible. Version negotiation comes later.
@@ -2118,71 +2116,10 @@ static int tls_early_post_process_client_hello(SSL *s)
     }
 
 #ifndef OPENSSL_NO_ECH
-    /*
-     * If we successfully decrypted an ECH then see if handling
-     * that as a real inner CH makes sense and if so, do the
-     * swaperoo
-     */
-    if (s->ext.ch_depth==0 && s->ext.ech_attempted==1 && s->ext.encoded_innerch) {
-        /*
-         * De-compress inner ch if/as needed
-         */
-        new_se=SSL_dup(s);
-        new_se->ext.ch_depth=1;
-        new_se->ext.outer_s=s;
-        new_se->ext.inner_s=NULL;
-        // GOTHERE
-        new_se->rlayer=s->rlayer;
-        new_se->method=s->method;
-        /*
-         * Parse the inner into new_se
-         */
-        /*
-         * form up the full inner for processing
-         */
-        if (ech_decode_inner(new_se)!=1) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PROCESS_CLIENT_HELLO,
-                 ERR_R_INTERNAL_ERROR);
-            goto err;
-        }
-
-        PACKET rpkt; // input packet - from new_se->ext.innerch
-        /*
-         * The +1 below is because tls_process_client_hello doesn't 
-         * want to be given the message type, so the buffer should
-         * start with the version octets
-         */
-        if (PACKET_buf_init(&rpkt,new_se->ext.innerch+4,new_se->ext.innerch_len-4)!=1) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR,
-                     SSL_F_TLS_EARLY_POST_PROCESS_CLIENT_HELLO,
-                     ERR_R_INTERNAL_ERROR);
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PROCESS_CLIENT_HELLO,
-                 ERR_R_INTERNAL_ERROR);
-            goto err;
-        }
-        /*
-         * process the encoded inner
-         */
-        MSG_PROCESS_RETURN rv=tls_process_client_hello(new_se, &rpkt);
-        if (rv!=MSG_PROCESS_CONTINUE_PROCESSING) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR,
-                     SSL_F_TLS_EARLY_POST_PROCESS_CLIENT_HELLO,
-                     ERR_R_INTERNAL_ERROR);
-            goto err;
-        }
-        if (tls_early_post_process_client_hello(new_se)!=1) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR,
-                     SSL_F_TLS_EARLY_POST_PROCESS_CLIENT_HELLO,
-                     ERR_R_INTERNAL_ERROR);
-            goto err;
-        }
-        s->ext.inner_s=new_se;
-        if (ech_swaperoo(s)!=1) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR,
-                     SSL_F_TLS_EARLY_POST_PROCESS_CLIENT_HELLO,
-                     ERR_R_INTERNAL_ERROR);
-            goto err;
-        }
+    if (ech_process_inner_if_present(s)!=1) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PROCESS_CLIENT_HELLO,
+             ERR_R_INTERNAL_ERROR);
+        goto err;
     }
 #endif
 
@@ -2193,12 +2130,6 @@ static int tls_early_post_process_client_hello(SSL *s)
     s->clienthello = NULL;
     return 1;
  err:
-#ifndef OPENSSL_NO_ECH
-    if (new_se!=NULL) {
-        SSL_free(new_se);
-        new_se=NULL;
-    }
-#endif
     sk_SSL_CIPHER_free(ciphers);
     sk_SSL_CIPHER_free(scsvs);
 #ifndef OPENSSL_NO_ECH
