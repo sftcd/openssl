@@ -19,6 +19,7 @@
 # include <openssl/ech.h>
 # include "ssl_local.h"
 # include "ech_local.h"
+//# include "statem/statem.h"
 # include "statem/statem_local.h"
 #include <openssl/rand.h>
 
@@ -1397,7 +1398,7 @@ err:
 int SSL_CTX_svcb_add(SSL_CTX *ctx, short rrfmt, size_t rrlen, char *rrval, int *num_echs)
 {
     /*
-     * GOTHERE - populate this and sort out the dup/free'ing so it works
+     * TODO: populate this and sort out the dup/free'ing so it works
      * and doesn't leak
      */
     return 0;
@@ -2228,30 +2229,59 @@ void SSL_CTX_set_ech_callback(SSL_CTX *s, SSL_ech_cb_func f)
 int ech_swaperoo(SSL *s)
 
 {
+
+#if 0
+    printf("FAKE ech_swaperoo called\n");
+    return(1);
+#endif
+
     printf("ech_swaperoo called\n");
+    /*
+     * Make some checks
+     */
+    if (s==NULL) return(0);
     if (s->ext.inner_s==NULL) return(0);
     if (s->ext.inner_s->ext.outer_s==NULL) return(0);
-    SSL tmp_outer=*s; // stash outer fields
-    SSL tmp_inner=*s->ext.inner_s; // stash inner fields
     SSL *inp=s->ext.inner_s;
     SSL *outp=s->ext.inner_s->ext.outer_s;
     if (!ossl_assert(outp==s))
         return(0);
 
+    /*
+     * Stash inner fields
+     */
+    SSL tmp_outer=*s;
+    SSL tmp_inner=*s->ext.inner_s;
 
+    /*
+     * General field swap
+     */
     *s=tmp_inner;
-    s->ext.inner_s=NULL;
+    *inp=tmp_outer;
     s->ext.outer_s=inp;
-    *s->ext.outer_s=tmp_outer;
-    s->ext.outer_s->ext.inner_s=outp;
+    s->ext.inner_s=NULL;
+    s->ext.outer_s->ext.inner_s=s;
     s->ext.outer_s->ext.outer_s=NULL;
-    s->rlayer=s->ext.outer_s->rlayer;
-    s->init_buf=s->ext.outer_s->init_buf;
-    s->s3=s->ext.outer_s->s3;
-    s->session=s->ext.outer_s->session;
-    s->ext.outer_s->session=NULL;
 
-    s->statem=outp->statem;
+    /*
+     * Fields we (for now) need the same in both
+     */
+    s->rlayer=tmp_outer.rlayer;
+    s->rlayer.s=s;
+    s->init_buf=tmp_outer.init_buf;
+    s->init_buf=tmp_outer.init_buf;
+    s->init_msg=tmp_outer.init_msg;
+    s->init_off=tmp_outer.init_off;
+    s->init_num=tmp_outer.init_num;
+    s->ext.debug_cb=tmp_outer.ext.debug_cb;
+    s->ext.debug_arg=tmp_outer.ext.debug_arg;
+    s->wbio=tmp_outer.wbio;
+    s->rbio=tmp_outer.rbio;
+    s->s3=tmp_outer.s3;
+    s->statem=tmp_outer.statem;
+
+    s->session=tmp_outer.session;
+    s->ext.outer_s->session=NULL;
     
     printf("ech_swaperoo success\n");
     return(1);
@@ -2276,17 +2306,41 @@ int ech_process_inner_if_present(SSL *s)
      */
     if (s->ext.ch_depth==0 && s->ext.ech_attempted==1 && s->ext.encoded_innerch) {
         /*
-         * De-compress inner ch if/as needed
+         * De-compress inner ch if/as needed: TBD
          */
-        new_se=SSL_dup(s);
+
+        // GOTHERE
+
+        /*
+         * My try-and-see version of duplicating enough of
+         * the outer context - TODO: make this waaay less
+         * brittle somehow
+         */
+        new_se=SSL_new(s->ctx);
         new_se->ext.ch_depth=1;
         new_se->ext.outer_s=s;
         new_se->ext.inner_s=NULL;
-        // GOTHERE
         new_se->rlayer=s->rlayer;
-        //new_se->method=s->method;
+        new_se->init_buf=s->init_buf;
+        new_se->init_buf=s->init_buf;
+        new_se->init_msg=s->init_msg;
+        new_se->init_off=s->init_off;
+        new_se->init_num=s->init_num;
         new_se->ext.debug_cb=s->ext.debug_cb;
         new_se->ext.debug_arg=s->ext.debug_arg;
+        new_se->wbio=s->wbio;
+        new_se->rbio=s->rbio;
+
+        /*
+         * If we're processing the inner CH on the client
+         * then we should inherit the handshake buffer from
+         * the outer... 
+         * TODO: that's wrong if/when we decompress - can't 
+         * see how split mode can work unless
+         * the transcripts differ for inner and outer
+         */
+        new_se->s3.handshake_buffer=s->s3.handshake_buffer;
+
         /*
          * Parse the inner into new_se
          */
@@ -2309,8 +2363,6 @@ int ech_process_inner_if_present(SSL *s)
             SSLfatal(s, SSL_AD_INTERNAL_ERROR,
                      SSL_F_TLS_EARLY_POST_PROCESS_CLIENT_HELLO,
                      ERR_R_INTERNAL_ERROR);
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PROCESS_CLIENT_HELLO,
-                 ERR_R_INTERNAL_ERROR);
             goto err;
         }
         /*
@@ -2329,6 +2381,14 @@ int ech_process_inner_if_present(SSL *s)
                      ERR_R_INTERNAL_ERROR);
             goto err;
         }
+
+        // do the swap
+        new_se->statem=s->statem;
+        //new_se->statem.read_state_work=WORK_FINISHED_STOP;
+        new_se->ext.outer_s=s;
+        new_se->ext.inner_s=NULL;
+        *s=*new_se;
+#if 0
         s->ext.inner_s=new_se;
         if (ech_swaperoo(s)!=1) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR,
@@ -2336,11 +2396,13 @@ int ech_process_inner_if_present(SSL *s)
                      ERR_R_INTERNAL_ERROR);
             goto err;
         }
+#endif
     }
     return(1);
 err:
     if (new_se!=NULL) {
         SSL_free(new_se);
+        //OPENSSL_free(new_se);
         new_se=NULL;
     }
     return(0);

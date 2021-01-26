@@ -1187,6 +1187,10 @@ int tls_construct_client_hello(SSL *s, WPACKET *pkt)
     }
     s->ext.inner_s=new_s;
     new_s->ext.outer_s=s;
+    new_s->init_buf=s->init_buf;
+    new_s->init_msg=s->init_msg;
+    new_s->init_off=s->init_off;
+    new_s->init_num=s->init_num;
     new_s->version=TLS1_3_VERSION;
     /*
      * Note that we've not yet checked if server
