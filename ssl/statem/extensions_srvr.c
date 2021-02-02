@@ -2700,16 +2700,18 @@ static unsigned char *hpke_decrypt_encch(SSL_ECH *ech, ECH_ENCCH *the_ech, size_
 int tls_parse_ctos_ech(SSL *s, PACKET *pkt, unsigned int context,
                                X509 *x, size_t chainidx)
 {
-    //SSL *inner=NULL;
     size_t clearlen=0;
     unsigned char *clear=NULL;
-    //char *hncpy=NULL;
     if (s->ech==NULL) {
         s->ext.ech_grease=ECH_IS_GREASE;
-        printf("tls_parse_ctos_ech called - NULL ECH so assuming grease.\n");
+        OSSL_TRACE_BEGIN(TLS) {
+            BIO_printf(trc_out,"tls_parse_ctos_ech called - NULL ECH so assuming grease.\n");
+        } OSSL_TRACE_END(TLS);
     } else {
         s->ext.ech_grease=ECH_GREASE_UNKNOWN;
-        printf("tls_parse_ctos_ech called - with a real ECH!\n");
+        OSSL_TRACE_BEGIN(TLS) {
+            BIO_printf(trc_out,"tls_parse_ctos_ech called - with a real ECH!\n");
+        } OSSL_TRACE_END(TLS);
     }
 
     /*
@@ -2865,8 +2867,10 @@ int tls_parse_ctos_ech(SSL *s, PACKET *pkt, unsigned int context,
     } else {
         s->ext.ech_grease=ECH_NOT_GREASE;
     }
-    printf("parse_ctos_ech: assume_grease: %d, foundcfg: %d, cfgind: %d, clearlen: %ld, clear %p\n",
+    OSSL_TRACE_BEGIN(TLS) {
+        BIO_printf(trc_out,"parse_ctos_ech: assume_grease: %d, foundcfg: %d, cfgind: %d, clearlen: %ld, clear %p\n",
             s->ext.ech_grease,foundcfg,cfgind,clearlen,clear);
+    } OSSL_TRACE_END(TLS);
     ech_pbuf("clear",clear,clearlen);
 
     /*
@@ -2934,16 +2938,26 @@ int tls_parse_ctos_ech_outer_exts(SSL *s, PACKET *pkt, unsigned int context,
                                X509 *x, size_t chainidx)
 {
     /*
+     * We could barf here I guess
+     */
+    if (s->ech==NULL) {
+        OSSL_TRACE_BEGIN(TLS) {
+            BIO_printf(trc_out,"Ignoring outer_extensions as we're not doing ECH.\n");
+        } OSSL_TRACE_END(TLS);
+        return(1);
+    }
+
+    /*
      * There better not be one of these in the outer CH
      */
-    if (s->ext.ch_depth!=0) {
+    if (s->ext.ch_depth!=1) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ECH_OUTER_EXTS, SSL_R_BAD_EXTENSION);
         return(0);
     }
-    if (s->ech==NULL) {
-        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ECH_OUTER_EXTS, SSL_R_BAD_EXTENSION);
-        return(0);
-    }
+
+    /*
+     * And we also need the actual values from the outer
+     */
     if (s->ext.outer_s==NULL) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ECH_OUTER_EXTS, SSL_R_BAD_EXTENSION);
         return(0);
@@ -2952,12 +2966,15 @@ int tls_parse_ctos_ech_outer_exts(SSL *s, PACKET *pkt, unsigned int context,
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ECH_OUTER_EXTS, SSL_R_BAD_EXTENSION);
         return(0);
     }
+
     /*
      * For each extension here, if there's an outer equivalent, then splice
      * that in, bail if there're errors
      */
     int nouters=PACKET_remaining(pkt)/2;
-    printf("We have %d compressed exts\n",nouters);
+    OSSL_TRACE_BEGIN(TLS) {
+        BIO_printf(trc_out,"We have %d compressed exts\n",nouters);
+    } OSSL_TRACE_END(TLS);
     if (nouters>=ECH_OUTERS_MAX) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ECH_OUTER_EXTS, SSL_R_BAD_EXTENSION);
         return(0);
@@ -2972,7 +2989,9 @@ int tls_parse_ctos_ech_outer_exts(SSL *s, PACKET *pkt, unsigned int context,
             return(0);
         }
         etypes[exti]=(uint32_t) (tmp&0xffff);
-        printf("\touter %d is type %x\n",exti,etypes[exti]);
+        OSSL_TRACE_BEGIN(TLS) {
+            BIO_printf(trc_out,"\touter %d is type %x\n",exti,etypes[exti]);
+        } OSSL_TRACE_END(TLS);
     }
 
     /*
@@ -3022,8 +3041,10 @@ int tls_parse_ctos_ech_outer_exts(SSL *s, PACKET *pkt, unsigned int context,
         }
         for (int j=0;j!=nouters;j++) {
             if (outerexts->type==etypes[j] && outerexts->present==1) {
-                printf("Compressed Ext %d (type %x) is present in outer CH (pos %d, rx pos %ld, parsed: %d, size: %ld)\n",
+                OSSL_TRACE_BEGIN(TLS) {
+                    BIO_printf(trc_out,"Compressed Ext %d (type %x) is present in outer CH (pos %d, rx pos %ld, parsed: %d, size: %ld)\n",
                         j,etypes[j],i,outerexts->received_order,outerexts->parsed,outerexts->data.remaining);
+                } OSSL_TRACE_END(TLS);
                 if (inner->present==1 && inner->received_order>=outer_order) {
                     inner->received_order=outer_order+j;
                     inner->parsed=0;

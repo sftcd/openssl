@@ -22,6 +22,7 @@
 //# include "statem/statem.h"
 # include "statem/statem_local.h"
 #include <openssl/rand.h>
+#include <openssl/trace.h>
 
 /*
  * Needed to use stat for file status below in ech_check_filenames
@@ -1356,7 +1357,6 @@ SSL_ECH* SSL_ECH_dup(SSL_ECH* orig, size_t nech, int selector)
         max_ind=selector+1;
     }
     new_se=OPENSSL_malloc((max_ind-min_ind)*sizeof(SSL_ECH));
-    printf("Duplicating an SSL_ECH of size %ld from %p to %p\n",sizeof(SSL_ECH),orig,new_se);
     if (!new_se) goto err;
     memset(new_se,0,(max_ind-min_ind)*sizeof(SSL_ECH));
 
@@ -1519,13 +1519,11 @@ int SSL_svcb_add(SSL *con, int rrfmt, size_t rrlen, char *rrval, int *num_echs)
             if (aid_len>0 && aid_len<255) {
                 memcpy(aid_buf,ap,aid_len);
                 aid_buf[aid_len]=0x00;
-                printf("ALPN id %d is %s\n",ind,aid_buf);
                 ap+=aid_len;
             }        
         }
     }
     if (!done) {
-        printf("Didn't get an ECHConfigs\n");
         *num_echs=0;
         return(1);
     }
@@ -1536,10 +1534,8 @@ int SSL_svcb_add(SSL *con, int rrfmt, size_t rrlen, char *rrval, int *num_echs)
     rv=local_ech_add(ECH_FMT_BIN,eklen,ekval,num_echs,&echs);
     if (rv!=1) {
         SSLerr(SSL_F_SSL_SVCB_ADD, SSL_R_BAD_VALUE);
-        printf("Got but failed to parse an ECHConfigs\n");
         return(0);
     } else {
-        printf("Got and parsed an ECHConfigs\n");
     }
 
     if (detfmt==ECH_FMT_ASCIIHEX) {
@@ -1641,7 +1637,7 @@ int ech_outer_config[]={
  */
 int ech_outer_indep[]={
      /*TLSEXT_IDX_renegotiate */ 0,
-     /*TLSEXT_IDX_server_name */ 0,
+     /*TLSEXT_IDX_server_name */ 1,
      /*TLSEXT_IDX_max_fragment_length */ 0,
      /*TLSEXT_IDX_srp */ 0,
      /*TLSEXT_IDX_ec_point_formats */ 0,
@@ -1649,7 +1645,7 @@ int ech_outer_indep[]={
      /*TLSEXT_IDX_session_ticket */ 0,
      /*TLSEXT_IDX_status_request */ 0,
      /*TLSEXT_IDX_next_proto_neg */ 0,
-     /*TLSEXT_IDX_application_layer_protocol_negotiation */ 0,
+     /*TLSEXT_IDX_application_layer_protocol_negotiation */ 1,
      /*TLSEXT_IDX_use_srtp */ 0,
      /*TLSEXT_IDX_encrypt_then_mac */ 0,
      /*TLSEXT_IDX_signed_certificate_timestamp */ 0,
@@ -1684,7 +1680,7 @@ int ech_outer_indep[]={
 int ech_same_ext(SSL *s, WPACKET* pkt)
 {
     if (!s->ech) return(ECH_SAME_EXT_CONTINUE); // nothing to do
-    if (!s->ext.inner_s) return(ECH_SAME_EXT_CONTINUE); // nothing to do
+    if (s->ext.ch_depth==0) return(ECH_SAME_EXT_CONTINUE); // nothing to do for outer
     SSL *inner=s->ext.inner_s;
     int type=s->ext.etype;
     int nexts=sizeof(ech_outer_config)/sizeof(int);
@@ -1697,16 +1693,17 @@ int ech_same_ext(SSL *s, WPACKET* pkt)
      * compressed, if we want to compress
      */
     if (s->ext.ch_depth==1 && !ech_outer_config[tind]) {
-        printf("Not doing outer compressing for ext type %x\n",type);
         return(ECH_SAME_EXT_CONTINUE);
     }
     if (s->ext.ch_depth==1 && ech_outer_config[tind]) {
-        printf("Will do outer compressing for ext type %x\n",type);
         if (s->ext.n_outer_only>=ECH_OUTERS_MAX) {
 	        return ECH_SAME_EXT_ERR;
         }
         s->ext.outer_only[s->ext.n_outer_only]=type;
         s->ext.n_outer_only++;
+        OSSL_TRACE_BEGIN(TLS) {
+            BIO_printf(trc_out,"Marking ext type %x for compression\n",s->ext.etype);
+        } OSSL_TRACE_END(TLS);
         return(ECH_SAME_EXT_CONTINUE);
     }
 
@@ -1716,10 +1713,8 @@ int ech_same_ext(SSL *s, WPACKET* pkt)
     if (!inner->clienthello) return(ECH_SAME_EXT_ERR); 
     if (!pkt) return(ECH_SAME_EXT_ERR);
     if (ech_outer_indep[tind]) {
-        printf("New outer for ext type %x\n",type);
         return(ECH_SAME_EXT_CONTINUE);
     } else {
-        printf("Re-using inner in outer for ext type %x\n",type);
 
 	    int ind=0;
 	    RAW_EXTENSION *myext=NULL;
@@ -1738,13 +1733,11 @@ int ech_same_ext(SSL *s, WPACKET* pkt)
 	        /*
 	         * This one wasn't in inner, so don't send
 	         */
-            printf("Exiting at %d\n",__LINE__);
 	        return ECH_SAME_EXT_CONTINUE;
 	    }
 	    if (myext->data.curr!=NULL && myext->data.remaining>0) {
 	        if (!WPACKET_put_bytes_u16(pkt, type)
 	            || !WPACKET_sub_memcpy_u16(pkt, myext->data.curr, myext->data.remaining)) {
-                printf("Exiting at %d\n",__LINE__);
 	            return ECH_SAME_EXT_ERR;
 	        }
 	    } else {
@@ -1753,11 +1746,9 @@ int ech_same_ext(SSL *s, WPACKET* pkt)
 	         */
 	        if (!WPACKET_put_bytes_u16(pkt, type)
 	                || !WPACKET_put_bytes_u16(pkt, 0)) {
-                printf("Exiting at %d\n",__LINE__);
 	            return ECH_SAME_EXT_ERR;
 	        }
 	    }
-        printf("Exiting at %d\n",__LINE__);
         return(ECH_SAME_EXT_DONE);
     }
 }
@@ -1816,18 +1807,14 @@ int ech_encode_inner(SSL *s)
         goto err;
     }
     /* 
-     * Session ID - we'll check if there's one already set in the
-     * outer or inner and if so, use that. If not, we'll set one
-     * for both inner and outer.
+     * Session ID - forced to zero in the encoded inner as we
+     * gotta re-use the value from outer
      */
-    unsigned char *session_id=s->session->session_id;;
-    size_t sess_id_len=s->session->session_id_length;
     if (!WPACKET_start_sub_packet_u8(&inner)
-            || (sess_id_len != 0 && !WPACKET_memcpy(&inner, session_id,
-                                                    sess_id_len))
             || !WPACKET_close(&inner)) {
         return 0;
     }
+
     /* Ciphers supported */
     if (!WPACKET_start_sub_packet_u16(&inner)) {
         return 0;
@@ -1864,18 +1851,19 @@ int ech_encode_inner(SSL *s)
         for (ooi=0;!tobecompressed && ooi!=s->ext.n_outer_only;ooi++) {
             if (raws[ind].type==s->ext.outer_only[ooi]) {
                 tobecompressed=1;
+                OSSL_TRACE_BEGIN(TLS) {
+                    BIO_printf(trc_out,"Going to compress something\n");
+                } OSSL_TRACE_END(TLS);
             }
         }
         if (!compression_done && tobecompressed) {
             if (!WPACKET_put_bytes_u16(&inner, TLSEXT_TYPE_outer_extensions) ||
                 !WPACKET_put_bytes_u16(&inner, 2*s->ext.n_outer_only)) {
-                printf("Exiting at %d\n",__LINE__);
                 goto err;
             }
             int iind=0;
             for (iind=0;iind!=s->ext.n_outer_only;iind++) {
                 if (!WPACKET_put_bytes_u16(&inner, s->ext.outer_only[iind])) {
-                    printf("Exiting at %d\n",__LINE__);
                     goto err;
                 }
             }
@@ -1885,7 +1873,6 @@ int ech_encode_inner(SSL *s)
             if (raws[ind].data.curr!=NULL) {
                 if (!WPACKET_put_bytes_u16(&inner, raws[ind].type)
                     || !WPACKET_sub_memcpy_u16(&inner, raws[ind].data.curr, raws[ind].data.remaining)) {
-                    printf("Exiting at %d\n",__LINE__);
                     goto err;
                 }
             } else {
@@ -1894,7 +1881,6 @@ int ech_encode_inner(SSL *s)
                 */
                 if (!WPACKET_put_bytes_u16(&inner, raws[ind].type)
                         || !WPACKET_put_bytes_u16(&inner, 0)) {
-                    printf("Exiting at %d\n",__LINE__);
                     goto err;
                 }
             }
@@ -1920,24 +1906,6 @@ int ech_encode_inner(SSL *s)
         goto err;
     }
 
-#if 0
-    /* 
-     * we need to prepend a few more octets onto that to get the encoding 
-     * we can decode
-     * TODO: encode this properly
-     */
-    unsigned char icpre[]={0x16,0x03,0x01};
-    innerch_full=OPENSSL_malloc(innerinnerlen+5);
-    if (!innerch_full) {
-        goto err;
-    }
-    memcpy(innerch_full,icpre,3);
-    innerch_full[3]=(innerinnerlen>>8)&0xff;
-    innerch_full[4]=innerinnerlen&0xff;
-    memcpy(innerch_full+5,inner_mem->data,innerinnerlen);
-    s->ext.encoded_innerch=innerch_full;
-    s->ext.encoded_innerch_len=innerinnerlen+5;
-#endif
     innerch_full=OPENSSL_malloc(innerinnerlen);
     if (!innerch_full) {
         goto err;
@@ -1986,6 +1954,7 @@ int ech_decode_inner(SSL *s)
     if (outer==NULL) return(0);
     if (outer->ext.encoded_innerch==NULL) return(0);
 
+#if 0
     /*
      * To get started, just return the input without
      * decompressing
@@ -1994,15 +1963,86 @@ int ech_decode_inner(SSL *s)
     s->ext.innerch_len=outer->ext.encoded_innerch_len;
     memcpy(s->ext.innerch,outer->ext.encoded_innerch,s->ext.innerch_len);
     return(1);
-#if 0
+#endif
     
-    if (outer->clienthello==NULL) return(0);
     /*
-     * Go over the encoded inner, and check if we should include
-     * the value or if this one's compressed in the inner
-     * This depends on us having made the call to process
-     * client hello before.
+     * Decode the cleartext.
+     * If there's no outer_extensions, we're done
+     * If there's an outer_extensions, we gotta splice those
+     * values in and then re-encode to get the decoded inner
+     * GOTHERE
      */
+
+    /*
+     * First, check if there's any compression at all
+     */
+    if (!outer->clienthello) {
+        OSSL_TRACE_BEGIN(TLS) {
+            BIO_printf(trc_out,"No outer CH\n");
+        } OSSL_TRACE_END(TLS);
+        return(0);
+    }
+    if (!outer->clienthello->pre_proc_exts) {
+        OSSL_TRACE_BEGIN(TLS) {
+            BIO_printf(trc_out,"No outer CH exts\n");
+        } OSSL_TRACE_END(TLS);
+        return(0);
+    }
+    RAW_EXTENSION *raws=outer->clienthello->pre_proc_exts;
+    size_t nraws=outer->clienthello->pre_proc_exts_len;
+    int ind=0;
+    int somecompressed=0;
+    int outeroffset=-1;
+    size_t decompressedsize=outer->ext.encoded_innerch_len;
+    /*
+     * add bytes for session ID and it's length (1)
+     * minus the length of an empty session ID (1)
+     */
+    decompressedsize+=outer->tmp_session_id_len+1-1;
+    for (ind=0;ind!=nraws;ind++) {
+        int present=raws[ind].present;
+        if (!present) continue;
+        if (raws[ind].type==TLSEXT_TYPE_outer_extensions) {
+            outeroffset=ind;
+            somecompressed=1;
+            OSSL_TRACE_BEGIN(TLS) {
+                BIO_printf(trc_out,"We have some compression\n");
+            } OSSL_TRACE_END(TLS);
+        }
+    }
+
+    s->ext.innerch=OPENSSL_malloc(decompressedsize);
+    if (!s->ext.innerch) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PROCESS_CLIENT_HELLO,
+             ERR_R_INTERNAL_ERROR);
+        return(0);
+    }
+    s->ext.innerch_len=decompressedsize;
+
+    /*
+     * Expand with session ID
+     */
+    if (somecompressed==0) {
+        OSSL_TRACE_BEGIN(TLS) {
+            BIO_printf(trc_out,"We have no compression\n");
+        } OSSL_TRACE_END(TLS);
+        size_t offset2sessid=6+32; 
+        memcpy(s->ext.innerch,outer->ext.encoded_innerch,offset2sessid);
+        s->ext.innerch[offset2sessid]=outer->tmp_session_id_len;
+        memcpy(s->ext.innerch+offset2sessid+1,outer->tmp_session_id,outer->tmp_session_id_len);
+        memcpy(s->ext.innerch+offset2sessid+1+outer->tmp_session_id_len,
+                    outer->ext.encoded_innerch+offset2sessid+1,
+                    outer->ext.encoded_innerch_len-offset2sessid-1);
+        return(1);
+    }
+    // TODO: code that up shortly GOTHERE
+    OSSL_TRACE_BEGIN(TLS) {
+        BIO_printf(trc_out,"We have compression but the code is still a TODO:\n");
+    } OSSL_TRACE_END(TLS);
+
+    return(0);
+
+#if 0
     unsigned char *innerch_full=NULL;
     WPACKET inner; ///< "fake" pkt for inner
     BUF_MEM *inner_mem=NULL;
@@ -2153,6 +2193,7 @@ err:
     if (inner_mem) BUF_MEM_free(inner_mem);
     return(0);
 #endif
+
 }
 
 /**
@@ -2162,26 +2203,31 @@ err:
  */
 void ech_pbuf(char *msg,unsigned char *buf,size_t blen)
 {
+
+    OSSL_TRACE_BEGIN(TLS) {
+
     if (msg==NULL) {
-        printf("msg is NULL\n");
+        BIO_printf(trc_out,"msg is NULL\n");
         return;
     }
     if (buf==NULL) {
-        printf("%s: buf is NULL\n",msg);
+        BIO_printf(trc_out,"%s: buf is NULL\n",msg);
         return;
     }
     if (blen==0) {
-        printf("%s: blen is zero\n",msg);
+        BIO_printf(trc_out,"%s: blen is zero\n",msg);
         return;
     }
-    printf("%s (%lu):\n    ",msg,(unsigned long)blen);
+    BIO_printf(trc_out,"%s (%lu):\n    ",msg,(unsigned long)blen);
     size_t i;
     for (i=0;i<blen;i++) {
         if ((i!=0) && (i%16==0))
-            printf("\n    ");
-        printf("%02x:",buf[i]);
+            BIO_printf(trc_out,"\n    ");
+        BIO_printf(trc_out,"%02x:",buf[i]);
     }
-    printf("\n");
+    BIO_printf(trc_out,"\n");
+
+    } OSSL_TRACE_END(TLS);
     return;
 }
 
@@ -2230,12 +2276,6 @@ int ech_swaperoo(SSL *s)
 
 {
 
-#if 0
-    printf("FAKE ech_swaperoo called\n");
-    return(1);
-#endif
-
-    printf("ech_swaperoo called\n");
     /*
      * Make some checks
      */
@@ -2280,10 +2320,13 @@ int ech_swaperoo(SSL *s)
     s->s3=tmp_outer.s3;
     s->statem=tmp_outer.statem;
 
+    // WRONG!!! TODO: FIXME: 
+    s->s3.handshake_buffer=tmp_outer.s3.handshake_buffer;
+    ech_ptranscript(s);
+
     s->session=tmp_outer.session;
     s->ext.outer_s->session=NULL;
-    
-    printf("ech_swaperoo success\n");
+
     return(1);
 }
 
@@ -2309,8 +2352,6 @@ int ech_process_inner_if_present(SSL *s)
          * De-compress inner ch if/as needed: TBD
          */
 
-        // GOTHERE
-
         /*
          * My try-and-see version of duplicating enough of
          * the outer context - TODO: make this waaay less
@@ -2330,16 +2371,6 @@ int ech_process_inner_if_present(SSL *s)
         new_se->ext.debug_arg=s->ext.debug_arg;
         new_se->wbio=s->wbio;
         new_se->rbio=s->rbio;
-
-        /*
-         * If we're processing the inner CH on the client
-         * then we should inherit the handshake buffer from
-         * the outer... 
-         * TODO: that's wrong if/when we decompress - can't 
-         * see how split mode can work unless
-         * the transcripts differ for inner and outer
-         */
-        new_se->s3.handshake_buffer=s->s3.handshake_buffer;
 
         /*
          * Parse the inner into new_se
@@ -2365,8 +2396,77 @@ int ech_process_inner_if_present(SSL *s)
                      ERR_R_INTERNAL_ERROR);
             goto err;
         }
+
+#if 0
         /*
-         * process the encoded inner
+         * TODO: remove this when ech_decode_inner is complete
+         * for now, we'll hack the session ID to be that of the
+         * outer
+         */
+        if (!SSL_set_session(new_se, SSL_get_session(s))) {
+        //if (!SSL_copy_session_id(new_se, s)) {
+            goto err;
+        }
+
+        /*
+         * bummer - that has a side-effect as it's intended for
+         * when a session is resumed, with the upshot that the
+         * server sends an unwanted psk extension in ServerHello
+         * so we'll try bit by bit...
+         * below not working so leave above for a bit
+         * GOTHERE
+         */
+        if (!SSL_set_ssl_method(new_se, s->method)) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR,
+                     SSL_F_TLS_EARLY_POST_PROCESS_CLIENT_HELLO,
+                     ERR_R_INTERNAL_ERROR);
+            goto err;
+        }
+        if (s->cert != NULL) {
+            ssl_cert_free(new_se->cert);
+            new_se->cert = ssl_cert_dup(s->cert);
+            if (new_se->cert == NULL) {
+                SSLfatal(s, SSL_AD_INTERNAL_ERROR,
+                     SSL_F_TLS_EARLY_POST_PROCESS_CLIENT_HELLO,
+                     ERR_R_INTERNAL_ERROR);
+                goto err;
+            }
+        }
+        if (!SSL_set_session_id_context(new_se, s->sid_ctx,
+                                        (int)s->sid_ctx_length)) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR,
+                     SSL_F_TLS_EARLY_POST_PROCESS_CLIENT_HELLO,
+                     ERR_R_INTERNAL_ERROR);
+            goto err;
+        }
+        if (new_se->session==NULL) {
+            new_se->session=(SSL_SESSION*)OPENSSL_zalloc(sizeof(SSL_SESSION));
+            if (new_se->session==NULL) {
+                SSLfatal(s, SSL_AD_INTERNAL_ERROR,
+                     SSL_F_TLS_EARLY_POST_PROCESS_CLIENT_HELLO,
+                     ERR_R_INTERNAL_ERROR);
+                goto err;
+            }
+        }
+        new_se->session->session_id_length=s->session->session_id_length;
+        memcpy(new_se->session->session_id,s->session->session_id,new_se->session->session_id_length);
+#endif
+
+
+        /*
+         * The session id copy above zaps the buffer
+         * If we're processing the inner CH on the client
+         * then we should inherit the handshake buffer from
+         * the outer... 
+         * TODO: that's wrong if/when we decompress - can't 
+         * see how split mode can work unless
+         * the transcripts differ for inner and outer
+         */
+        new_se->s3.handshake_buffer=s->s3.handshake_buffer;
+        ech_ptranscript(s);
+
+        /*
+         * process the decoded inner
          */
         MSG_PROCESS_RETURN rv=tls_process_client_hello(new_se, &rpkt);
         if (rv!=MSG_PROCESS_CONTINUE_PROCESSING) {
@@ -2375,6 +2475,7 @@ int ech_process_inner_if_present(SSL *s)
                      ERR_R_INTERNAL_ERROR);
             goto err;
         }
+
         if (tls_post_process_client_hello(new_se,WORK_MORE_A)!=1) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR,
                      SSL_F_TLS_EARLY_POST_PROCESS_CLIENT_HELLO,
@@ -2408,5 +2509,24 @@ err:
     return(0);
 }
 
+void ech_ptranscript(SSL *s)
+{
+    size_t hdatalen;
+    unsigned char *hdata;
+    hdatalen = BIO_get_mem_data(s->s3.handshake_buffer, &hdata);
+    ech_pbuf("transcript input",hdata,hdatalen);
+    //OPENSSL_free(hdata);
+    unsigned char ddata[1000];
+    size_t ddatalen;
+    if (s->s3.handshake_dgst!=NULL) {
+        ssl_handshake_hash(s,ddata,1000,&ddatalen);
+        ech_pbuf("transcript digest",ddata,ddatalen);
+    } else {
+        OSSL_TRACE_BEGIN(TLS) {
+            BIO_printf(trc_out,"handshake_dgst is NULL\n");
+        } OSSL_TRACE_END(TLS);
+    }
+    return;
+}
 
 #endif

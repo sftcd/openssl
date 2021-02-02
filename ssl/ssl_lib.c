@@ -854,7 +854,6 @@ SSL *SSL_new(SSL_CTX *ctx)
     if (ctx->ext.esni!=NULL) {
 	    s->esni=SSL_ESNI_dup(ctx->ext.esni,ctx->ext.nesni,ESNI_SELECT_ALL);
         if (s->esni==NULL) {
-            //printf("Bugger bad dup 1\n");
             goto err;
         }
 	    s->nesni=ctx->ext.nesni;
@@ -862,7 +861,6 @@ SSL *SSL_new(SSL_CTX *ctx)
 	    s->esni_done=0;
 	    s->esni_attempted=0;
         if (s->esni->num_esni_rrs==0) {
-            // printf("Bugger bad dup 2\n");
             goto err;
         }
     } else if (ctx->ext.nesni!=0) {

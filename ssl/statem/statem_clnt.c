@@ -1193,13 +1193,9 @@ int tls_construct_client_hello(SSL *s, WPACKET *pkt)
     new_s->init_num=s->init_num;
     new_s->version=TLS1_3_VERSION;
     /*
-     * Note that we've not yet checked if server
-     * successfully used the inner_s - this'll be
-     * checked and fixed up after 1st EncryptedExtension
-     * is rx'd. 
-     * You can find code for that in ssl/record/ssl3_record_tls13.c:tls13_enc_ech
+     * The inner CH will use the same session ID as the outer,
+     * which we set just above
      */
-    new_s->ext.inner_s_ftd=0;
     new_s->session->session_id_length=s->session->session_id_length;
     memcpy(new_s->session->session_id,s->session->session_id,s->session->session_id_length);
     new_s->tmp_session_id_len=s->session->session_id_length;
@@ -1209,8 +1205,11 @@ int tls_construct_client_hello(SSL *s, WPACKET *pkt)
      * Set a magic CH depth flag in the SSL state so that
      * other code (e.g. extension handlers) know where we#'re
      * at: 1 is "inner CH", 0 is "outer CH"
+     * Also note we've yet to have succeed with a (fancy trial)
+     * decryption
      */
     new_s->ext.ch_depth=1;
+    new_s->ext.inner_s_ftd=0;
 
     /*
      * If doing ECH, we'll create a "fake" packet for the inner CH
@@ -1284,21 +1283,6 @@ int tls_construct_client_hello(SSL *s, WPACKET *pkt)
     memcpy(innerch_full,inner_mem->data,innerinnerlen);
     new_s->ext.innerch=innerch_full;
     new_s->ext.innerch_len=innerinnerlen;
-
-#if 0
-    /*
-     * These prepended octets probably don't match draft-09
-     * but will fix later so that's a TODO:
-     */
-    innerch_full[0]=0x16; // handshake message
-    innerch_full[1]=0x03; // TLSv1.0 fake version
-    innerch_full[2]=0x01; // TLSv1.0 fake version
-    innerch_full[3]=(innerinnerlen%0xffff)>>8;
-    innerch_full[4]=(innerinnerlen%0xff);
-    memcpy(&innerch_full[5],inner_mem->data,innerinnerlen);
-    new_s->ext.innerch=innerch_full;
-    new_s->ext.innerch_len=innerinnerlen+5;
-#endif
 
     WPACKET_cleanup(&inner);
     if (inner_mem) BUF_MEM_free(inner_mem);
@@ -1472,20 +1456,13 @@ int tls_construct_client_hello(SSL *s, WPACKET *pkt)
         return 0;
     }
 
-#ifndef OPENSSL_NO_ECH
-    /*
-     * If we're doing ECH, then we've already handled session ID
-     * and have to not muck that up 
-     */
-    if (s->ech) {
-        session_id = s->session->session_id;
-        sess_id_len = sizeof(s->tmp_session_id);
-    } else {
-#endif
     /* Session ID */
     session_id = s->session->session_id;
     if (s->new_session || s->session->ssl_version == TLS1_3_VERSION) {
         if (s->version == TLS1_3_VERSION
+#ifndef OPENSSL_NO_ECH
+                &&  !s->ech 
+#endif
                 && (s->options & SSL_OP_ENABLE_MIDDLEBOX_COMPAT) != 0) {
             sess_id_len = sizeof(s->tmp_session_id);
             s->tmp_session_id_len = sess_id_len;
@@ -1498,6 +1475,15 @@ int tls_construct_client_hello(SSL *s, WPACKET *pkt)
                          ERR_R_INTERNAL_ERROR);
                 return 0;
             }
+#ifndef OPENSSL_NO_ECH
+        } else if (s->ech) {
+            assert(s->session->session_id_length <= sizeof(s->session->session_id));
+            sess_id_len = s->session->session_id_length;
+            if (s->version == TLS1_3_VERSION) {
+                s->tmp_session_id_len = sess_id_len;
+                memcpy(s->tmp_session_id, s->session->session_id, sess_id_len);
+            }
+#endif
         } else {
             sess_id_len = 0;
         }
@@ -1509,9 +1495,7 @@ int tls_construct_client_hello(SSL *s, WPACKET *pkt)
             memcpy(s->tmp_session_id, s->session->session_id, sess_id_len);
         }
     }
-#ifndef OPENSSL_NO_ECH
-    }
-#endif
+
     if (!WPACKET_start_sub_packet_u8(pkt)
         || (sess_id_len != 0 && !WPACKET_memcpy(pkt, session_id,
                                                 sess_id_len))

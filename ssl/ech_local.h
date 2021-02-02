@@ -353,5 +353,7 @@ int ech_swaperoo(SSL *s);
  */
 int ech_process_inner_if_present(SSL *s); 
 
+void ech_ptranscript(SSL *s);
+
 #endif
 #endif

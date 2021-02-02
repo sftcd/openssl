@@ -36,7 +36,6 @@
         if (__rv==ECH_SAME_EXT_ERR) return(EXT_RETURN_FAIL); \
         if (__rv==ECH_SAME_EXT_DONE) return(EXT_RETURN_SENT); \
     }
-
 #endif
 
 EXT_RETURN tls_construct_ctos_renegotiate(SSL *s, WPACKET *pkt,

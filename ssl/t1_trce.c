@@ -493,8 +493,7 @@ static const ssl_trace_tbl ssl_exts_tbl[] = {
 #endif
 #ifndef OPENSSL_NO_ECH
     {TLSEXT_TYPE_ech,"encrypted_client_hello"},
-    {TLSEXT_TYPE_ech_nonce,"ech_nonce"},
-    {TLSEXT_TYPE_outer_ch,"outer_extension"},
+    {TLSEXT_TYPE_outer_extensions,"outer_extension"},
 #endif
 };
 
@@ -888,12 +887,7 @@ static int ssl_print_extension(BIO *bio, int indent, int server,
         BIO_printf(bio,"Got an ECH of length (%ld)\n",extlen);
         ssl_print_hex(bio, indent + 4, "ECH", ext, extlen);
         break;
-    case TLSEXT_TYPE_ech_nonce:
-        BIO_indent(bio, indent + 2, 80);
-        BIO_printf(bio,"Got an ECH nonce of length (%ld)\n",extlen);
-        ssl_print_hex(bio, indent + 4, "ECH_NONCE", ext, extlen);
-        break;
-    case TLSEXT_TYPE_outer_ch:
+    case TLSEXT_TYPE_outer_extensions:
         BIO_indent(bio, indent + 2, 80);
         BIO_printf(bio,"Got an Outer extension of length (%ld)\n",extlen);
         ssl_print_hex(bio, indent + 4, "OUTER_CH", ext, extlen);
