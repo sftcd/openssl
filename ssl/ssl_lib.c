@@ -869,11 +869,30 @@ SSL *SSL_new(SSL_CTX *ctx)
 #endif
 
 #ifndef OPENSSL_NO_ECH
+
     s->nechs=ctx->ext.nechs;
-    s->ech=ctx->ext.ech;
+    if (s->nechs>0) {
+        s->ech=SSL_ECH_dup(ctx->ext.ech,s->nechs,ECH_SELECT_ALL);
+        if (!s->ech) {
+            goto err;
+        }
+    } else {
+        s->ech=NULL;
+    }
+
     s->ech_cb=ctx->ext.ech_cb;
+    s->ext.inner_s=NULL;
+    s->ext.outer_s=NULL;
+    s->ext.ech_public_name=NULL;
+    s->ext.ech_inner_name=NULL;
+    s->ext.ech_outer_name=NULL;
+    s->ext.inner_s_ftd=0;
+    s->ext.ech_done=0;
     s->ext.ech_attempted=0;
+    s->ext.ech_grease=0;
+    s->ext.ch_depth=0;
     s->ext.ech_grease=ECH_GREASE_UNKNOWN;
+
 #endif
 
     return s;
@@ -1180,24 +1199,6 @@ void SSL_free(SSL *s)
         return;
     REF_ASSERT_ISNT(i < 0);
 
-#ifndef OPENSSL_NO_ECH
-    /*
-     * This may need to be 1st, to avoid double-free's
-     */
-    if (s->ext.inner_s!=NULL && s->ext.inner_s!=s)  {
-        // Don't go around in circles forever
-        s->ext.inner_s->ext.outer_s=NULL;
-        SSL_free(s->ext.inner_s);
-        s->ext.inner_s=NULL;
-    } 
-    if (s->ext.outer_s!=NULL && s->ext.outer_s!=s)  {
-        // Don't go around in circles forever
-        s->ext.outer_s->ext.inner_s=NULL;
-        SSL_free(s->ext.outer_s);
-        s->ext.outer_s=NULL;
-    }
-#endif
-
     X509_VERIFY_PARAM_free(s->param);
     dane_final(&s->dane);
     CRYPTO_free_ex_data(CRYPTO_EX_INDEX_SSL, s, &s->ex_data);
@@ -1208,13 +1209,15 @@ void SSL_free(SSL *s)
     ssl_free_wbio_buffer(s);
 
 #ifndef OPENSSL_NO_ECH
-    if (s->ext.inner_s!=NULL) // Tricksy way to only free this field once
+    /* 
+     * Tricksy way to only free this once
+     * For some reason doing the same with rbio below results in a leak
+     * so we don't do it:-)
+     */
+    if (s->ext.inner_s!=NULL) 
 #endif
     BIO_free_all(s->wbio);
     s->wbio = NULL;
-#ifndef OPENSSL_NO_ECH
-    if (s->ext.inner_s!=NULL) // Tricksy way to only free this field once
-#endif
     BIO_free_all(s->rbio);
     s->rbio = NULL;
 
@@ -1262,20 +1265,6 @@ void SSL_free(SSL *s)
     OPENSSL_free(s->ext.ocsp.resp);
     OPENSSL_free(s->ext.alpn);
     OPENSSL_free(s->ext.tls13_cookie);
-#if 0
-#ifndef OPENSSL_NO_ECH
-    /*
-     * Not sure why this isn't there already but anyway...
-     */
-    if (s->clienthello!=NULL && s->clienthello->pre_proc_exts!=NULL) {
-        // GOTHERE
-        //if (s->ext.inner_s!=NULL) { // Tricksy way to only free this field once
-            OPENSSL_free(s->clienthello->pre_proc_exts);
-            s->clienthello->pre_proc_exts=NULL;
-        //}
-    }
-#endif
-#endif
     OPENSSL_free(s->clienthello);
     OPENSSL_free(s->pha_context);
     EVP_MD_CTX_free(s->pha_dgst);
@@ -1332,15 +1321,38 @@ void SSL_free(SSL *s)
     OPENSSL_free(s->ext.ech_public_name);
     OPENSSL_free(s->ext.ech_inner_name);
     OPENSSL_free(s->ext.ech_outer_name);
-#endif
+    if (s->nechs>0 && s->ech!=NULL) {
+        int i=0;
+        for (i=0;i!=s->nechs;i++) {
+            SSL_ECH_free(&s->ech[i]);
+        }
+        OPENSSL_free(s->ech);
+        s->ech=NULL;
+        s->nechs=0;
+    }
 
-#ifndef OPENSSL_NO_ECH
     /*
      * Not sure why this is needed but seems to be
      */
     if (s->s3.tmp.pkey!=NULL) {
         EVP_PKEY_free(s->s3.tmp.pkey);
         s->s3.tmp.pkey=NULL;
+    }
+
+    /*
+     * Free up the inner or outer, as needed
+     */
+    if (s->ext.inner_s!=NULL && s->ext.inner_s!=s)  {
+        // Don't go around in circles forever
+        s->ext.inner_s->ext.outer_s=NULL;
+        SSL_free(s->ext.inner_s);
+        s->ext.inner_s=NULL;
+    } 
+    if (s->ext.outer_s!=NULL && s->ext.outer_s!=s)  {
+        // Don't go around in circles forever
+        s->ext.outer_s->ext.inner_s=NULL;
+        SSL_free(s->ext.outer_s);
+        s->ext.outer_s=NULL;
     }
 #endif
 
@@ -3489,7 +3501,6 @@ void SSL_CTX_free(SSL_CTX *a)
     for (i = 0; i < SSL_MD_NUM_IDX; i++)
         ssl_evp_md_free(a->ssl_digest_methods[i]);
 
-    CRYPTO_THREAD_lock_free(a->lock);
 #ifndef OPENSSL_NO_ESNI
 	if (a->ext.esni!=NULL) {
         SSL_ESNI_free(a->ext.esni);
@@ -3511,6 +3522,8 @@ void SSL_CTX_free(SSL_CTX *a)
 		a->ext.nechs=0;
 	}
 #endif
+
+    CRYPTO_THREAD_lock_free(a->lock);
 
     OPENSSL_free(a->propq);
 
@@ -4187,9 +4200,23 @@ SSL *SSL_dup(SSL *s)
         goto err;
 
 #ifndef OPENSSL_NO_ECH
-    ret->ech=s->ech;
     ret->nechs=s->nechs;
+    ret->ech=SSL_ECH_dup(s->ech,ret->nechs,ECH_SELECT_ALL);
+    if (!ret->ech) {
+        goto err;
+    }
+    ret->ech_cb=s->ech_cb;
+    ret->ext.inner_s=s->ext.inner_s;
+    ret->ext.outer_s=s->ext.outer_s;
+    ret->ext.ech_public_name=OPENSSL_strdup(s->ext.ech_public_name);
+    ret->ext.ech_inner_name=OPENSSL_strdup(s->ext.ech_inner_name);
+    ret->ext.ech_outer_name=OPENSSL_strdup(s->ext.ech_outer_name);
+    ret->ext.inner_s_ftd=s->ext.inner_s_ftd;
     ret->ext.ech_done=s->ext.ech_done;
+    ret->ext.ech_attempted=s->ext.ech_attempted;
+    ret->ext.ech_grease=s->ext.ech_grease;
+    ret->ext.ch_depth=s->ext.ch_depth;
+
 #endif
     return ret;
 

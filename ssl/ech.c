@@ -442,11 +442,11 @@ void SSL_ECH_free(SSL_ECH *tbf)
 
     if (tbf->inner_name!=NULL) OPENSSL_free(tbf->inner_name);
     if (tbf->outer_name!=NULL) OPENSSL_free(tbf->outer_name);
+    if (tbf->pemfname!=NULL) OPENSSL_free(tbf->pemfname);
+    if (tbf->keyshare!=NULL) EVP_PKEY_free(tbf->keyshare);
+    if (tbf->dns_alpns!=NULL) OPENSSL_free(tbf->dns_alpns);
 
     memset(tbf,0,sizeof(SSL_ECH));
-    /*
-     * More TODO
-     */
     return;
 }
 
@@ -1373,6 +1373,17 @@ SSL_ECH* SSL_ECH_dup(SSL_ECH* orig, size_t nech, int selector)
     if (orig->outer_name!=NULL) {
         new_se->outer_name=OPENSSL_strdup(orig->outer_name);
     }
+    if (orig->pemfname!=NULL) {
+        new_se->pemfname=OPENSSL_strdup(orig->pemfname);
+    }
+    if (orig->keyshare!=NULL) {
+        new_se->keyshare=orig->keyshare;
+        EVP_PKEY_up_ref(orig->keyshare);
+    }
+    if (orig->dns_alpns!=NULL) {
+        new_se->dns_alpns=OPENSSL_strdup(orig->dns_alpns);
+    }
+    new_se->dns_no_def_alpn=orig->dns_no_def_alpn;
 
     return new_se;
 err:
@@ -2292,6 +2303,12 @@ int ech_swaperoo(SSL *s)
     s->ext.outer_s->ext.outer_s=NULL;
 
     /*
+     * Copy read and writers
+     */
+    s->wbio=tmp_outer.wbio;
+    s->rbio=tmp_outer.rbio;
+
+    /*
      * Fields we (for now) need the same in both
      */
     s->rlayer=tmp_outer.rlayer;
@@ -2304,8 +2321,6 @@ int ech_swaperoo(SSL *s)
 
     s->ext.debug_cb=tmp_outer.ext.debug_cb;
     s->ext.debug_arg=tmp_outer.ext.debug_arg;
-    s->wbio=tmp_outer.wbio;
-    s->rbio=tmp_outer.rbio;
     s->statem=tmp_outer.statem;
 
     /*
@@ -2415,6 +2430,16 @@ int ech_process_inner_if_present(SSL *s)
         new_se->ext.debug_arg=s->ext.debug_arg;
         new_se->wbio=s->wbio;
         new_se->rbio=s->rbio;
+
+        if (s->nechs && !s->ctx->ext.nechs) {
+            new_se->nechs=s->nechs;
+            new_se->ech=SSL_ECH_dup(s->ech,new_se->nechs,ECH_SELECT_ALL);
+            if (!new_se->ech) {
+                SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PROCESS_CLIENT_HELLO,
+                    ERR_R_INTERNAL_ERROR);
+                goto err;
+            }
+        }
 
         /*
          * Parse the inner into new_se

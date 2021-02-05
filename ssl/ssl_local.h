@@ -1637,13 +1637,13 @@ struct ssl_st {
         char *ech_inner_name;
         char *ech_outer_name;
 
-        int ch_depth;
         SSL* inner_s; // pointer to inner CH from outer
         SSL* outer_s; // pointer to outer CH from inner
         int inner_s_ftd;
         int ech_done;
         int ech_attempted;
         int ech_grease;
+        int ch_depth;
 
 #endif
         /* certificate status request info */
