@@ -312,7 +312,7 @@ int ech_same_ext(SSL *s, WPACKET* pkt);
  *
  * This is used in SSL_ESNI_print
  */
-void ech_pbuf(char *msg,unsigned char *buf,size_t blen);
+void ech_pbuf(const char *msg,unsigned char *buf,size_t blen);
 
 /**
  * @brief free an ECH_ENCCH
@@ -353,7 +353,7 @@ int ech_swaperoo(SSL *s);
  */
 int ech_process_inner_if_present(SSL *s); 
 
-void ech_ptranscript(SSL *s);
+void ech_ptranscript(const char* msg,SSL *s);
 
 #endif
 #endif

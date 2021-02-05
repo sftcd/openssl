@@ -2033,6 +2033,7 @@ int ech_decode_inner(SSL *s)
         memcpy(s->ext.innerch+offset2sessid+1+outer->tmp_session_id_len,
                     outer->ext.encoded_innerch+offset2sessid+1,
                     outer->ext.encoded_innerch_len-offset2sessid-1);
+
         return(1);
     }
     // TODO: code that up shortly GOTHERE
@@ -2201,7 +2202,7 @@ err:
  *
  * This is used in SSL_ESNI_print
  */
-void ech_pbuf(char *msg,unsigned char *buf,size_t blen)
+void ech_pbuf(const char *msg,unsigned char *buf,size_t blen)
 {
 
     OSSL_TRACE_BEGIN(TLS) {
@@ -2275,6 +2276,7 @@ void SSL_CTX_set_ech_callback(SSL_CTX *s, SSL_ech_cb_func f)
 int ech_swaperoo(SSL *s)
 
 {
+    ech_ptranscript("ech_swaperoo, b4",s);
 
     /*
      * Make some checks
@@ -2313,19 +2315,63 @@ int ech_swaperoo(SSL *s)
     s->init_msg=tmp_outer.init_msg;
     s->init_off=tmp_outer.init_off;
     s->init_num=tmp_outer.init_num;
+
     s->ext.debug_cb=tmp_outer.ext.debug_cb;
     s->ext.debug_arg=tmp_outer.ext.debug_arg;
     s->wbio=tmp_outer.wbio;
     s->rbio=tmp_outer.rbio;
-    s->s3=tmp_outer.s3;
     s->statem=tmp_outer.statem;
-
-    // WRONG!!! TODO: FIXME: 
-    s->s3.handshake_buffer=tmp_outer.s3.handshake_buffer;
-    ech_ptranscript(s);
+    //s->s3=tmp_outer.s3;
 
     s->session=tmp_outer.session;
     s->ext.outer_s->session=NULL;
+
+    /*
+     * Fix up the transcript to reflect the inner CH
+     * If there's a cilent hello at the start of the buffer, then
+     * it's likely that's the outer CH and we want to replace that
+     * with the inner. We need to be careful that there could be a
+     * server hello following and can't lose that.
+     * I don't think the outer client hello can be anwhere except
+     * at the start of the buffer.
+     * TODO: consider HRR, early_data etc
+     */
+    unsigned char *curr_buf=NULL;
+    size_t curr_buflen=0;
+    unsigned char *new_buf=NULL;
+    size_t new_buflen=0;
+
+    curr_buflen = BIO_get_mem_data(tmp_outer.s3.handshake_buffer, &curr_buf);
+    /*
+     * TODO: use proper message types, add checking, freeing etc.
+     */
+    if (curr_buf[0]==0x01) {
+        /*
+         * It's a client hello, presumably the outer
+         */
+        size_t outer_chlen=1+curr_buf[1]*256*256+curr_buf[2]*256+curr_buf[3];
+        size_t other_octets=curr_buflen-outer_chlen;
+        new_buflen=tmp_outer.ext.innerch_len+other_octets;
+        new_buf=OPENSSL_malloc(new_buflen);
+        memcpy(new_buf,tmp_outer.ext.innerch,tmp_outer.ext.innerch_len);
+        memcpy(new_buf+tmp_outer.ext.innerch_len,&curr_buf[outer_chlen],other_octets);
+    } else {
+        new_buf=tmp_outer.ext.innerch;
+        new_buflen=tmp_outer.ext.innerch_len;
+    }
+
+
+    if (!ssl3_init_finished_mac(s)) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PROCESS_CLIENT_HELLO,
+         ERR_R_INTERNAL_ERROR);
+        return(0);
+    }
+    if (!ssl3_finish_mac(s, new_buf, new_buflen)) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PROCESS_CLIENT_HELLO,
+         ERR_R_INTERNAL_ERROR);
+        return(0);
+    }
+    ech_ptranscript("ech_swaperoo, after",s);
 
     return(1);
 }
@@ -2454,18 +2500,6 @@ int ech_process_inner_if_present(SSL *s)
 
 
         /*
-         * The session id copy above zaps the buffer
-         * If we're processing the inner CH on the client
-         * then we should inherit the handshake buffer from
-         * the outer... 
-         * TODO: that's wrong if/when we decompress - can't 
-         * see how split mode can work unless
-         * the transcripts differ for inner and outer
-         */
-        new_se->s3.handshake_buffer=s->s3.handshake_buffer;
-        ech_ptranscript(s);
-
-        /*
          * process the decoded inner
          */
         MSG_PROCESS_RETURN rv=tls_process_client_hello(new_se, &rpkt);
@@ -2483,13 +2517,6 @@ int ech_process_inner_if_present(SSL *s)
             goto err;
         }
 
-        // do the swap
-        new_se->statem=s->statem;
-        //new_se->statem.read_state_work=WORK_FINISHED_STOP;
-        new_se->ext.outer_s=s;
-        new_se->ext.inner_s=NULL;
-        *s=*new_se;
-#if 0
         s->ext.inner_s=new_se;
         if (ech_swaperoo(s)!=1) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR,
@@ -2497,30 +2524,29 @@ int ech_process_inner_if_present(SSL *s)
                      ERR_R_INTERNAL_ERROR);
             goto err;
         }
-#endif
     }
     return(1);
 err:
     if (new_se!=NULL) {
         SSL_free(new_se);
-        //OPENSSL_free(new_se);
+        OPENSSL_free(new_se);
         new_se=NULL;
     }
     return(0);
 }
 
-void ech_ptranscript(SSL *s)
+void ech_ptranscript(const char *msg, SSL *s)
 {
     size_t hdatalen;
     unsigned char *hdata;
     hdatalen = BIO_get_mem_data(s->s3.handshake_buffer, &hdata);
-    ech_pbuf("transcript input",hdata,hdatalen);
+    ech_pbuf(msg,hdata,hdatalen);
     //OPENSSL_free(hdata);
     unsigned char ddata[1000];
     size_t ddatalen;
     if (s->s3.handshake_dgst!=NULL) {
         ssl_handshake_hash(s,ddata,1000,&ddatalen);
-        ech_pbuf("transcript digest",ddata,ddatalen);
+        ech_pbuf(msg,ddata,ddatalen);
     } else {
         OSSL_TRACE_BEGIN(TLS) {
             BIO_printf(trc_out,"handshake_dgst is NULL\n");

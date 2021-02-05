@@ -14,6 +14,11 @@
 #include <openssl/kdf.h>
 #include <openssl/core_names.h>
 
+#ifndef OPENSSL_NO_ECH
+// temp tracing
+#include <openssl/trace.h>
+#endif
+
 #define TLS13_MAX_LABEL_LEN     249
 
 /* Always filled with zeros */
@@ -275,6 +280,46 @@ int tls13_generate_secret(SSL *s, const EVP_MD *md,
     return ret == 0;
 }
 
+#ifndef OPENSSL_NO_ECH
+/*
+ * Temp tracing code
+ */
+static void pbuf(const char *msg,unsigned char *buf,size_t blen)
+{
+    OSSL_TRACE_BEGIN(TLS) {
+    if (msg==NULL) {
+        BIO_printf(trc_out,"msg is NULL\n");
+        return;
+    }
+    if (buf==NULL) {
+        BIO_printf(trc_out,"%s: buf is NULL\n",msg);
+        return;
+    }
+    if (blen==0) {
+        BIO_printf(trc_out,"%s: blen is zero\n",msg);
+        return;
+    }
+    BIO_printf(trc_out,"%s (%lu):\n    ",msg,(unsigned long)blen);
+    size_t i;
+    for (i=0;i<blen;i++) {
+        if ((i!=0) && (i%16==0))
+            BIO_printf(trc_out,"\n    ");
+        BIO_printf(trc_out,"%02x:",buf[i]);
+    }
+    BIO_printf(trc_out,"\n");
+    } OSSL_TRACE_END(TLS);
+    return;
+}
+static void ptranscript(const char *msg, SSL *s)
+{
+    size_t hdatalen=0;
+    unsigned char *hdata=NULL;
+    hdatalen = BIO_get_mem_data(s->s3.handshake_buffer, &hdata);
+    pbuf(msg,hdata,hdatalen);
+    return;
+}
+#endif
+
 /*
  * Given an input secret |insecret| of length |insecretlen| generate the
  * handshake secret. This requires the early secret to already have been
@@ -508,6 +553,14 @@ int tls13_change_cipher_state(SSL *s, int which)
     int ret = 0;
     const EVP_MD *md = NULL;
     const EVP_CIPHER *cipher = NULL;
+
+#ifndef OPENSSL_NO_ECH
+    OSSL_TRACE_BEGIN(TLS) {
+        BIO_printf(trc_out,"SSL*=%p, inner=%p, outer=%p\n",s,s->ext.inner_s,s->ext.outer_s);
+        BIO_printf(trc_out,"handshake_dgst is %p\n",s->s3.handshake_dgst);
+    } OSSL_TRACE_END(TLS);
+    ptranscript("gen_hs",s);
+#endif
 
     if (which & SSL3_CC_READ) {
         if (s->enc_read_ctx != NULL) {

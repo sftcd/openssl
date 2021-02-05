@@ -153,8 +153,8 @@ rm -f $tmpf
 dbgstr=" -quiet"
 if [[ "$DEBUG" == "yes" ]]
 then
-    #dbgstr="-msg -debug -security_debug_verbose -state -tlsextdebug"
-    dbgstr="-msg $TRACING -tlsextdebug "
+    dbgstr="-msg $TRACING -debug -security_debug_verbose -state -tlsextdebug -keylogfile srv.keys"
+    #dbgstr="-msg $TRACING -tlsextdebug "
 fi
 
 vgcmd=""
