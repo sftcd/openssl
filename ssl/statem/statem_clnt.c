@@ -1342,11 +1342,17 @@ int tls_construct_client_hello(SSL *s, WPACKET *pkt)
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CLIENT_HELLO, protverr);
         goto err;
     }
-    ech_pbuf("encoded inner CH",s->ext.encoded_innerch,s->ext.encoded_innerch_len);
 
     /*
-     * Check outer 
+     * Free up raw exts as needed (happens like this on real server
      */
+    if (new_s->clienthello!=NULL && new_s->clienthello->pre_proc_exts!=NULL) {
+        OPENSSL_free(new_s->clienthello->pre_proc_exts);
+        OPENSSL_free(new_s->clienthello);
+        new_s->clienthello=NULL;
+    }
+
+    ech_pbuf("encoded inner CH",s->ext.encoded_innerch,s->ext.encoded_innerch_len);
     ech_pbuf("outer, client_random",s->s3.client_random,SSL3_RANDOM_SIZE);
     ech_pbuf("outer, session_id",s->session->session_id,s->session->session_id_length);
     return(1);
@@ -1354,6 +1360,11 @@ int tls_construct_client_hello(SSL *s, WPACKET *pkt)
 err:
     WPACKET_cleanup(&inner);
     if (inner_mem) BUF_MEM_free(inner_mem);
+    if (new_s->clienthello!=NULL && new_s->clienthello->pre_proc_exts!=NULL) {
+        OPENSSL_free(new_s->clienthello->pre_proc_exts);
+        OPENSSL_free(new_s->clienthello);
+        new_s->clienthello=NULL;
+    }
     return(0);
 }
 

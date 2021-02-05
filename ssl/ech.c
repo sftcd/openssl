@@ -1535,8 +1535,7 @@ int SSL_svcb_add(SSL *con, int rrfmt, size_t rrlen, char *rrval, int *num_echs)
     if (rv!=1) {
         SSLerr(SSL_F_SSL_SVCB_ADD, SSL_R_BAD_VALUE);
         return(0);
-    } else {
-    }
+    } 
 
     if (detfmt==ECH_FMT_ASCIIHEX) {
         OPENSSL_free(binbuf);
@@ -1954,17 +1953,6 @@ int ech_decode_inner(SSL *s)
     if (outer==NULL) return(0);
     if (outer->ext.encoded_innerch==NULL) return(0);
 
-#if 0
-    /*
-     * To get started, just return the input without
-     * decompressing
-     */
-    s->ext.innerch=OPENSSL_malloc(outer->ext.encoded_innerch_len);
-    s->ext.innerch_len=outer->ext.encoded_innerch_len;
-    memcpy(s->ext.innerch,outer->ext.encoded_innerch,s->ext.innerch_len);
-    return(1);
-#endif
-    
     /*
      * Decode the cleartext.
      * If there's no outer_extensions, we're done
@@ -1991,7 +1979,6 @@ int ech_decode_inner(SSL *s)
     RAW_EXTENSION *raws=outer->clienthello->pre_proc_exts;
     size_t nraws=outer->clienthello->pre_proc_exts_len;
     int ind=0;
-    int somecompressed=0;
     int outeroffset=-1;
     size_t decompressedsize=outer->ext.encoded_innerch_len;
     /*
@@ -2004,7 +1991,6 @@ int ech_decode_inner(SSL *s)
         if (!present) continue;
         if (raws[ind].type==TLSEXT_TYPE_outer_extensions) {
             outeroffset=ind;
-            somecompressed=1;
             OSSL_TRACE_BEGIN(TLS) {
                 BIO_printf(trc_out,"We have some compression\n");
             } OSSL_TRACE_END(TLS);
@@ -2022,7 +2008,7 @@ int ech_decode_inner(SSL *s)
     /*
      * Expand with session ID
      */
-    if (somecompressed==0) {
+    if (outeroffset==-1) {
         OSSL_TRACE_BEGIN(TLS) {
             BIO_printf(trc_out,"We have no compression\n");
         } OSSL_TRACE_END(TLS);
@@ -2321,10 +2307,6 @@ int ech_swaperoo(SSL *s)
     s->wbio=tmp_outer.wbio;
     s->rbio=tmp_outer.rbio;
     s->statem=tmp_outer.statem;
-    //s->s3=tmp_outer.s3;
-
-    s->session=tmp_outer.session;
-    s->ext.outer_s->session=NULL;
 
     /*
      * Fix up the transcript to reflect the inner CH
@@ -2340,27 +2322,40 @@ int ech_swaperoo(SSL *s)
     size_t curr_buflen=0;
     unsigned char *new_buf=NULL;
     size_t new_buflen=0;
+    size_t outer_chlen=0;
+    size_t other_octets=0;
 
     curr_buflen = BIO_get_mem_data(tmp_outer.s3.handshake_buffer, &curr_buf);
-    /*
-     * TODO: use proper message types, add checking, freeing etc.
-     */
-    if (curr_buf[0]==0x01) {
+    if (curr_buflen>0 && curr_buf[0]==SSL3_MT_CLIENT_HELLO) {
         /*
          * It's a client hello, presumably the outer
          */
-        size_t outer_chlen=1+curr_buf[1]*256*256+curr_buf[2]*256+curr_buf[3];
-        size_t other_octets=curr_buflen-outer_chlen;
-        new_buflen=tmp_outer.ext.innerch_len+other_octets;
-        new_buf=OPENSSL_malloc(new_buflen);
-        memcpy(new_buf,tmp_outer.ext.innerch,tmp_outer.ext.innerch_len);
-        memcpy(new_buf+tmp_outer.ext.innerch_len,&curr_buf[outer_chlen],other_octets);
+        outer_chlen=1+curr_buf[1]*256*256+curr_buf[2]*256+curr_buf[3];
+        if (outer_chlen>curr_buflen) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PROCESS_CLIENT_HELLO,
+             ERR_R_INTERNAL_ERROR);
+            return(0);
+        }
+        other_octets=curr_buflen-outer_chlen;
+        if (other_octets>0) {
+            new_buflen=tmp_outer.ext.innerch_len+other_octets;
+            new_buf=OPENSSL_malloc(new_buflen);
+            memcpy(new_buf,tmp_outer.ext.innerch,tmp_outer.ext.innerch_len);
+            memcpy(new_buf+tmp_outer.ext.innerch_len,&curr_buf[outer_chlen],other_octets);
+        } else {
+            new_buf=tmp_outer.ext.innerch;
+            new_buflen=tmp_outer.ext.innerch_len;
+        }
     } else {
         new_buf=tmp_outer.ext.innerch;
         new_buflen=tmp_outer.ext.innerch_len;
     }
 
-
+    /*
+     * And now reset the handshake transcript to out buffer
+     * Note ssl3_finish_mac isn't that great a name - that one just
+     * adds to the transcript but doesn't actually "finish" anything
+     */
     if (!ssl3_init_finished_mac(s)) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PROCESS_CLIENT_HELLO,
          ERR_R_INTERNAL_ERROR);
@@ -2372,6 +2367,9 @@ int ech_swaperoo(SSL *s)
         return(0);
     }
     ech_ptranscript("ech_swaperoo, after",s);
+    if (other_octets>0) {
+        OPENSSL_free(new_buf);
+    }
 
     return(1);
 }
@@ -2442,62 +2440,6 @@ int ech_process_inner_if_present(SSL *s)
                      ERR_R_INTERNAL_ERROR);
             goto err;
         }
-
-#if 0
-        /*
-         * TODO: remove this when ech_decode_inner is complete
-         * for now, we'll hack the session ID to be that of the
-         * outer
-         */
-        if (!SSL_set_session(new_se, SSL_get_session(s))) {
-        //if (!SSL_copy_session_id(new_se, s)) {
-            goto err;
-        }
-
-        /*
-         * bummer - that has a side-effect as it's intended for
-         * when a session is resumed, with the upshot that the
-         * server sends an unwanted psk extension in ServerHello
-         * so we'll try bit by bit...
-         * below not working so leave above for a bit
-         * GOTHERE
-         */
-        if (!SSL_set_ssl_method(new_se, s->method)) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR,
-                     SSL_F_TLS_EARLY_POST_PROCESS_CLIENT_HELLO,
-                     ERR_R_INTERNAL_ERROR);
-            goto err;
-        }
-        if (s->cert != NULL) {
-            ssl_cert_free(new_se->cert);
-            new_se->cert = ssl_cert_dup(s->cert);
-            if (new_se->cert == NULL) {
-                SSLfatal(s, SSL_AD_INTERNAL_ERROR,
-                     SSL_F_TLS_EARLY_POST_PROCESS_CLIENT_HELLO,
-                     ERR_R_INTERNAL_ERROR);
-                goto err;
-            }
-        }
-        if (!SSL_set_session_id_context(new_se, s->sid_ctx,
-                                        (int)s->sid_ctx_length)) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR,
-                     SSL_F_TLS_EARLY_POST_PROCESS_CLIENT_HELLO,
-                     ERR_R_INTERNAL_ERROR);
-            goto err;
-        }
-        if (new_se->session==NULL) {
-            new_se->session=(SSL_SESSION*)OPENSSL_zalloc(sizeof(SSL_SESSION));
-            if (new_se->session==NULL) {
-                SSLfatal(s, SSL_AD_INTERNAL_ERROR,
-                     SSL_F_TLS_EARLY_POST_PROCESS_CLIENT_HELLO,
-                     ERR_R_INTERNAL_ERROR);
-                goto err;
-            }
-        }
-        new_se->session->session_id_length=s->session->session_id_length;
-        memcpy(new_se->session->session_id,s->session->session_id,new_se->session->session_id_length);
-#endif
-
 
         /*
          * process the decoded inner

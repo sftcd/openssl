@@ -1180,7 +1180,6 @@ void SSL_free(SSL *s)
         return;
     REF_ASSERT_ISNT(i < 0);
 
-#if 0
 #ifndef OPENSSL_NO_ECH
     /*
      * This may need to be 1st, to avoid double-free's
@@ -1198,7 +1197,6 @@ void SSL_free(SSL *s)
         s->ext.outer_s=NULL;
     }
 #endif
-#endif
 
     X509_VERIFY_PARAM_free(s->param);
     dane_final(&s->dane);
@@ -1209,11 +1207,20 @@ void SSL_free(SSL *s)
     /* Ignore return value */
     ssl_free_wbio_buffer(s);
 
+#ifndef OPENSSL_NO_ECH
+    if (s->ext.inner_s!=NULL) // Tricksy way to only free this field once
+#endif
     BIO_free_all(s->wbio);
     s->wbio = NULL;
+#ifndef OPENSSL_NO_ECH
+    if (s->ext.inner_s!=NULL) // Tricksy way to only free this field once
+#endif
     BIO_free_all(s->rbio);
     s->rbio = NULL;
 
+#ifndef OPENSSL_NO_ECH
+    if (s->ext.inner_s!=NULL) // Tricksy way to only free this field once
+#endif
     BUF_MEM_free(s->init_buf);
 
     /* add extra stuff */
@@ -1255,14 +1262,19 @@ void SSL_free(SSL *s)
     OPENSSL_free(s->ext.ocsp.resp);
     OPENSSL_free(s->ext.alpn);
     OPENSSL_free(s->ext.tls13_cookie);
+#if 0
 #ifndef OPENSSL_NO_ECH
     /*
      * Not sure why this isn't there already but anyway...
      */
     if (s->clienthello!=NULL && s->clienthello->pre_proc_exts!=NULL) {
-        OPENSSL_free(s->clienthello->pre_proc_exts);
-        s->clienthello->pre_proc_exts=NULL;
+        // GOTHERE
+        //if (s->ext.inner_s!=NULL) { // Tricksy way to only free this field once
+            OPENSSL_free(s->clienthello->pre_proc_exts);
+            s->clienthello->pre_proc_exts=NULL;
+        //}
     }
+#endif
 #endif
     OPENSSL_free(s->clienthello);
     OPENSSL_free(s->pha_context);
