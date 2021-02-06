@@ -1599,10 +1599,18 @@ err:
 int ech_outer_config[]={
      /*TLSEXT_IDX_renegotiate */ 0,
      /*TLSEXT_IDX_server_name */ 0,
+#define DOCOMPRESS
+#ifdef DOCOMPRESS
+     /*TLSEXT_IDX_max_fragment_length */ 1,
+     /*TLSEXT_IDX_srp */ 1,
+     /*TLSEXT_IDX_ec_point_formats */ 1,
+     /*TLSEXT_IDX_supported_groups */ 1,
+#else
      /*TLSEXT_IDX_max_fragment_length */ 0,
      /*TLSEXT_IDX_srp */ 0,
      /*TLSEXT_IDX_ec_point_formats */ 0,
      /*TLSEXT_IDX_supported_groups */ 0,
+#endif
      /*TLSEXT_IDX_session_ticket */ 0,
      /*TLSEXT_IDX_status_request */ 0,
      /*TLSEXT_IDX_next_proto_neg */ 0,
@@ -1947,8 +1955,8 @@ int ech_decode_inner(SSL *s)
 {
 
     /*
-     * So we'll try a sort-of decode of s->ech->innerch into
-     * s->ech->encoded_innerch, modulo s->ech->outers
+     * So we'll try a sort-of decode of outer->ext.innerch into
+     * s->ext.encoded_innerch, modulo s->ext.outers
      *
      * As a reminder the CH is:
      *  struct {
@@ -1963,17 +1971,10 @@ int ech_decode_inner(SSL *s)
     SSL *outer=s->ext.outer_s;
     if (outer==NULL) return(0);
     if (outer->ext.encoded_innerch==NULL) return(0);
+    if (s->ext.inner_s!=NULL) return(0);
 
     /*
-     * Decode the cleartext.
-     * If there's no outer_extensions, we're done
-     * If there's an outer_extensions, we gotta splice those
-     * values in and then re-encode to get the decoded inner
-     * GOTHERE
-     */
-
-    /*
-     * First, check if there's any compression at all
+     * Check if there's any compression at all
      */
     if (!outer->clienthello) {
         OSSL_TRACE_BEGIN(TLS) {
@@ -1987,16 +1988,69 @@ int ech_decode_inner(SSL *s)
         } OSSL_TRACE_END(TLS);
         return(0);
     }
-    RAW_EXTENSION *raws=outer->clienthello->pre_proc_exts;
-    size_t nraws=outer->clienthello->pre_proc_exts_len;
-    int ind=0;
-    int outeroffset=-1;
-    size_t decompressedsize=outer->ext.encoded_innerch_len;
+
     /*
      * add bytes for session ID and it's length (1)
      * minus the length of an empty session ID (1)
      */
-    decompressedsize+=outer->tmp_session_id_len+1-1;
+    size_t initial_decompressedsize=outer->ext.encoded_innerch_len;
+    unsigned char *initial_decomp=NULL;
+    initial_decompressedsize+=outer->tmp_session_id_len+1-1;
+    initial_decomp=OPENSSL_malloc(initial_decompressedsize);
+    if (!initial_decomp) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PROCESS_CLIENT_HELLO,
+             ERR_R_INTERNAL_ERROR);
+        return(0);
+    }
+    s->ext.innerch_len=initial_decompressedsize;
+    s->ext.innerch=initial_decomp;
+    size_t offset2sessid=6+32; 
+    memcpy(initial_decomp,outer->ext.encoded_innerch,offset2sessid);
+    initial_decomp[offset2sessid]=outer->tmp_session_id_len;
+    memcpy(initial_decomp+offset2sessid+1,
+                outer->tmp_session_id,
+                outer->tmp_session_id_len);
+    memcpy(initial_decomp+offset2sessid+1+outer->tmp_session_id_len,
+                outer->ext.encoded_innerch+offset2sessid+1,
+                outer->ext.encoded_innerch_len-offset2sessid-1);
+
+    /*
+     * Initial decode of inner
+     */
+    ech_pbuf("Inner CH (session-id-added but no decompression)",initial_decomp,initial_decompressedsize);
+    PACKET rpkt; 
+    /*
+     * The +4 below is because tls_process_client_hello doesn't 
+     * want to be given the message type & length, so the buffer should
+     * start with the version octets (0x03 0x03)
+     */
+    if (PACKET_buf_init(&rpkt,initial_decomp+4,initial_decompressedsize-4)!=1) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR,
+                 SSL_F_TLS_EARLY_POST_PROCESS_CLIENT_HELLO,
+                 ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+    MSG_PROCESS_RETURN rv=tls_process_client_hello(s, &rpkt);
+    if (rv!=MSG_PROCESS_CONTINUE_PROCESSING) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR,
+                 SSL_F_TLS_EARLY_POST_PROCESS_CLIENT_HELLO,
+                 ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+    if (!s->clienthello) {
+        goto err;
+    }
+    if (!s->clienthello->pre_proc_exts) {
+        goto err;
+    }
+
+    /*
+     * Check to see if there's compression
+     */
+    RAW_EXTENSION *raws=s->clienthello->pre_proc_exts;
+    size_t nraws=s->clienthello->pre_proc_exts_len;
+    int ind=0;
+    int outeroffset=-1;
     for (ind=0;ind!=nraws;ind++) {
         int present=raws[ind].present;
         if (!present) continue;
@@ -2007,190 +2061,51 @@ int ech_decode_inner(SSL *s)
             } OSSL_TRACE_END(TLS);
         }
     }
-
-    s->ext.innerch=OPENSSL_malloc(decompressedsize);
-    if (!s->ext.innerch) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PROCESS_CLIENT_HELLO,
-             ERR_R_INTERNAL_ERROR);
-        return(0);
-    }
-    s->ext.innerch_len=decompressedsize;
-
-    /*
-     * Expand with session ID
-     */
     if (outeroffset==-1) {
         OSSL_TRACE_BEGIN(TLS) {
             BIO_printf(trc_out,"We have no compression\n");
         } OSSL_TRACE_END(TLS);
-        size_t offset2sessid=6+32; 
-        memcpy(s->ext.innerch,outer->ext.encoded_innerch,offset2sessid);
-        s->ext.innerch[offset2sessid]=outer->tmp_session_id_len;
-        memcpy(s->ext.innerch+offset2sessid+1,outer->tmp_session_id,outer->tmp_session_id_len);
-        memcpy(s->ext.innerch+offset2sessid+1+outer->tmp_session_id_len,
-                    outer->ext.encoded_innerch+offset2sessid+1,
-                    outer->ext.encoded_innerch_len-offset2sessid-1);
 
+        if (s->clienthello) {
+            if (s->clienthello->pre_proc_exts) {
+                OPENSSL_free(s->clienthello->pre_proc_exts);
+            }
+            OPENSSL_free(s->clienthello);
+            s->clienthello=NULL;
+        }
         return(1);
     }
-    // TODO: code that up shortly GOTHERE
+
+    if (s->clienthello) {
+        if (s->clienthello->pre_proc_exts) {
+            OPENSSL_free(s->clienthello->pre_proc_exts);
+        }
+        OPENSSL_free(s->clienthello);
+        s->clienthello=NULL;
+    }
+
+    /*
+     * Above we should collect the outer types, 
+     * then here we should grab the outer values and pack
+     * those into the innerch
+     * That's a TODO: GOTHERE
+     */
+
     OSSL_TRACE_BEGIN(TLS) {
         BIO_printf(trc_out,"We have compression but the code is still a TODO:\n");
     } OSSL_TRACE_END(TLS);
 
-    return(0);
-
-#if 0
-    unsigned char *innerch_full=NULL;
-    WPACKET inner; ///< "fake" pkt for inner
-    BUF_MEM *inner_mem=NULL;
-    int mt=SSL3_MT_CLIENT_HELLO;
-    if ((inner_mem = BUF_MEM_new()) == NULL) {
-        goto err;
-    }
-    if (!BUF_MEM_grow(inner_mem, SSL3_RT_MAX_PLAIN_LENGTH)) {
-        goto err;
-    }
-    if (!WPACKET_init(&inner,inner_mem)
-                || !ssl_set_handshake_header(s, &inner, mt)) {
-        goto err;
-    }
-    /*
-     * Add ver/rnd/sess-id/suites to buffer
-     */
-    if (!WPACKET_put_bytes_u16(&inner, s->client_version)
-            || !WPACKET_memcpy(&inner, s->s3.client_random, SSL3_RANDOM_SIZE)) {
-        goto err;
-    }
-    /* 
-     * Session ID - we'll check if there's one already set in the
-     * outer or inner and if so, use that. If not, we'll set one
-     * for both inner and outer.
-     */
-    unsigned char *session_id=s->session->session_id;;
-    size_t sess_id_len=s->session->session_id_length;
-    if (!WPACKET_start_sub_packet_u8(&inner)
-            || (sess_id_len != 0 && !WPACKET_memcpy(&inner, session_id,
-                                                    sess_id_len))
-            || !WPACKET_close(&inner)) {
-        return 0;
-    }
-    /* Ciphers supported */
-    if (!WPACKET_start_sub_packet_u16(&inner)) {
-        return 0;
-    }
-    if (!ssl_cipher_list_to_bytes(s, SSL_get_ciphers(s), &inner)) {
-        return 0;
-    }
-    if (!WPACKET_close(&inner)) {
-        return 0;
-    }
-    /* COMPRESSION */
-    if (!WPACKET_start_sub_packet_u8(&inner)) {
-        return 0;
-    }
-    /* Add the NULL compression method */
-    if (!WPACKET_put_bytes_u8(&inner, 0) || !WPACKET_close(&inner)) {
-        return 0;
-    }
-    /*
-     * Now mess with extensions
-     */
-    if (!WPACKET_start_sub_packet_u16(&inner)) {
-        return 0;
-    }
-    RAW_EXTENSION *raws=s->clienthello->pre_proc_exts;
-    size_t nraws=s->clienthello->pre_proc_exts_len;
-    int ind=0;
-    int compression_done=0;
-    for (ind=0;ind!=nraws;ind++) {
-        int present=raws[ind].present;
-        if (!present) continue;
-        int tobecompressed=0;
-        int ooi=0;
-        for (ooi=0;!tobecompressed && ooi!=s->ext.n_outer_only;ooi++) {
-            if (raws[ind].type==s->ext.outer_only[ooi]) {
-                tobecompressed=1;
-            }
-        }
-        if (!compression_done && tobecompressed) {
-            if (!WPACKET_put_bytes_u16(&inner, TLSEXT_TYPE_outer_extensions) ||
-                !WPACKET_put_bytes_u16(&inner, 2*s->ext.n_outer_only)) {
-                printf("Exiting at %d\n",__LINE__);
-                goto err;
-            }
-            int iind=0;
-            for (iind=0;iind!=s->ext.n_outer_only;iind++) {
-                if (!WPACKET_put_bytes_u16(&inner, s->ext.outer_only[iind])) {
-                    printf("Exiting at %d\n",__LINE__);
-                    goto err;
-                }
-            }
-            compression_done=1;
-        } 
-        if (!tobecompressed) {
-            if (raws[ind].data.curr!=NULL) {
-                if (!WPACKET_put_bytes_u16(&inner, raws[ind].type)
-                    || !WPACKET_sub_memcpy_u16(&inner, raws[ind].data.curr, raws[ind].data.remaining)) {
-                    printf("Exiting at %d\n",__LINE__);
-                    goto err;
-                }
-            } else {
-                /*
-                * empty extension
-                */
-                if (!WPACKET_put_bytes_u16(&inner, raws[ind].type)
-                        || !WPACKET_put_bytes_u16(&inner, 0)) {
-                    printf("Exiting at %d\n",__LINE__);
-                    goto err;
-                }
-            }
-        }
-    }
-    /*
-     * close the exts sub packet
-     */
-    if (!WPACKET_close(&inner))  {
-        goto err;
-    }
-    /*
-     * close the inner CH
-     */
-    if (!WPACKET_close(&inner))  {
-        goto err;
-    }
-    /*
-     * Set pointer/len for inner CH 
-     */
-    size_t innerinnerlen=0;
-    if (!WPACKET_get_length(&inner, &innerinnerlen)) {
-        goto err;
-    }
-    /* 
-     * we need to prepend a few more octets onto that to get the encoding 
-     * we can decode
-     * TODO: encode this properly
-     */
-    unsigned char icpre[]={0x16,0x03,0x01};
-    innerch_full=OPENSSL_malloc(innerinnerlen+5);
-    if (!innerch_full) {
-        goto err;
-    }
-    memcpy(innerch_full,icpre,3);
-    innerch_full[3]=(innerinnerlen>>8)&0xff;
-    innerch_full[4]=innerinnerlen&0xff;
-    memcpy(innerch_full+5,inner_mem->data,innerinnerlen);
-    s->ext.encoded_innerch=innerch_full;
-    s->ext.encoded_innerch_len=innerinnerlen+5;
-    WPACKET_cleanup(&inner);
-    if (inner_mem) BUF_MEM_free(inner_mem);
-    inner_mem=NULL;
-    return(1);
 err:
-    WPACKET_cleanup(&inner);
-    if (inner_mem) BUF_MEM_free(inner_mem);
+
+    if (s->clienthello) {
+        if (s->clienthello->pre_proc_exts) {
+            OPENSSL_free(s->clienthello->pre_proc_exts);
+        }
+        OPENSSL_free(s->clienthello);
+        s->clienthello=NULL;
+    }
+
     return(0);
-#endif
 
 }
 
@@ -2452,6 +2367,7 @@ int ech_process_inner_if_present(SSL *s)
                  ERR_R_INTERNAL_ERROR);
             goto err;
         }
+
         ech_pbuf("Inner CH (decoded)",new_se->ext.innerch,new_se->ext.innerch_len);
         PACKET rpkt; // input packet - from new_se->ext.innerch
         /*
@@ -2465,7 +2381,6 @@ int ech_process_inner_if_present(SSL *s)
                      ERR_R_INTERNAL_ERROR);
             goto err;
         }
-
         /*
          * process the decoded inner
          */
@@ -2494,11 +2409,6 @@ int ech_process_inner_if_present(SSL *s)
     }
     return(1);
 err:
-    if (new_se!=NULL) {
-        SSL_free(new_se);
-        OPENSSL_free(new_se);
-        new_se=NULL;
-    }
     return(0);
 }
 

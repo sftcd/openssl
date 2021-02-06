@@ -2134,7 +2134,8 @@ static int tls_early_post_process_client_hello(SSL *s)
     sk_SSL_CIPHER_free(scsvs);
 #ifndef OPENSSL_NO_ECH
     if (clienthello) OPENSSL_free(clienthello->pre_proc_exts);
-    OPENSSL_free(s->clienthello);
+    OPENSSL_free(clienthello);
+    s->clienthello=NULL;
 #else
     OPENSSL_free(clienthello->pre_proc_exts);
     OPENSSL_free(s->clienthello);
