@@ -197,10 +197,10 @@ int tls13_enc(SSL *s, SSL3_RECORD *recs, size_t n_recs, int sending)
      * Note that we succeeded in decrypting something...
      * accept_confirmation ins't definitive I think
      */
-    if (!sending && !s->server && s->ech && !s->ext.ech_done && s->ext.inner_s==NULL && s->ext.outer_s!=NULL && s->ext.inner_s_ftd) {
-        s->ext.ech_done=1;
-        printf("Managed to decrypt fine - marking ECH as done\n");
-        fflush(stdout);
+    if (!sending && !s->server && 
+            s->ech && !s->ext.ech_success && 
+            s->ext.inner_s==NULL && s->ext.outer_s!=NULL) {
+        s->ext.ech_success=1;
     } 
 #endif
 

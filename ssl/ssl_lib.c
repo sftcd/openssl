@@ -886,9 +886,9 @@ SSL *SSL_new(SSL_CTX *ctx)
     s->ext.ech_public_name=NULL;
     s->ext.ech_inner_name=NULL;
     s->ext.ech_outer_name=NULL;
-    s->ext.inner_s_ftd=0;
     s->ext.ech_done=0;
     s->ext.ech_attempted=0;
+    s->ext.ech_success=0;
     s->ext.ech_grease=0;
     s->ext.ch_depth=0;
     s->ext.ech_grease=ECH_GREASE_UNKNOWN;
@@ -4211,9 +4211,9 @@ SSL *SSL_dup(SSL *s)
     ret->ext.ech_public_name=OPENSSL_strdup(s->ext.ech_public_name);
     ret->ext.ech_inner_name=OPENSSL_strdup(s->ext.ech_inner_name);
     ret->ext.ech_outer_name=OPENSSL_strdup(s->ext.ech_outer_name);
-    ret->ext.inner_s_ftd=s->ext.inner_s_ftd;
     ret->ext.ech_done=s->ext.ech_done;
     ret->ext.ech_attempted=s->ext.ech_attempted;
+    ret->ext.ech_success=s->ext.ech_success;
     ret->ext.ech_grease=s->ext.ech_grease;
     ret->ext.ch_depth=s->ext.ch_depth;
 

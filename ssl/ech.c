@@ -19,7 +19,6 @@
 # include <openssl/ech.h>
 # include "ssl_local.h"
 # include "ech_local.h"
-//# include "statem/statem.h"
 # include "statem/statem_local.h"
 #include <openssl/rand.h>
 #include <openssl/trace.h>
@@ -34,6 +33,12 @@
  * For ossl_assert
  */
 #include "internal/cryptlib.h"
+
+/*
+ * This is in ssl/statem/extensions.c - we'll try a call to that and
+ * if it works, fix up some header file somwwhere
+ */
+extern int final_server_name(SSL *s, unsigned int context, int sent);
 
 /*
  * This used be static inside ssl/statem/statem_clnt.c
@@ -1194,8 +1199,22 @@ int SSL_CTX_ech_server_enable(SSL_CTX *ctx, const char *pemfile)
  * @return 1 for success, anything else for failure
  * 
  */
-int SSL_ech_print(BIO* out, SSL *con, int selector)
+int SSL_ech_print(BIO* out, SSL *s, int selector)
 {
+    /*
+     * Ignore details for now and just print state
+     */
+    BIO_printf(out,"*** SSL_ech_print ***\n");
+    BIO_printf(out,"s=%p\n",s);
+    BIO_printf(out,"inner_s=%p\n",s->ext.inner_s);
+    BIO_printf(out,"outer_s=%p\n",s->ext.outer_s);
+    BIO_printf(out,"ech_attempted=%d\n",s->ext.ech_attempted);
+    BIO_printf(out,"ech_done=%d\n",s->ext.ech_done);
+    BIO_printf(out,"ech_grease=%d\n",s->ext.ech_grease);
+    BIO_printf(out,"ech_success=%d\n",s->ext.ech_success);
+    BIO_printf(out,"*** SSL_ech_print ***\n");
+
+
     return 1;
 }
 
@@ -1223,34 +1242,33 @@ int SSL_ech_get_status(SSL *s, char **inner_sni, char **outer_sni)
 
     /*
      * set vars - note we may be pointing to NULL which is fine
-     * TODO: Add more cross checks maybe
      */
     char *ech_public_name=s->ext.ech_public_name;
     char *ech_inner_name=s->ext.ech_inner_name;
     char *ech_outer_name=s->ext.ech_outer_name;
-    /*
+
     char *sinner=NULL;
     if (s->ext.inner_s!=NULL) sinner=s->ext.inner_s->ext.hostname;
     else sinner=s->ext.hostname;
     char *souter=NULL;
     if (s->ext.outer_s!=NULL) souter=s->ext.outer_s->ext.hostname;
     else souter=s->ext.hostname;
-    */
 
-    if (s->ech!=NULL && s->ext.ech_attempted) {
+    if (s->ech!=NULL && s->ext.ech_attempted==1) {
 
         long vr=X509_V_OK;
         vr=SSL_get_verify_result(s);
         /*
-         * Prefer clear_sni (if supplied) to draft-03/draft-04 public_name 
+         * Prefer clear_sni (if supplied) to public_name 
          */
-        *inner_sni=ech_inner_name;
-        if (ech_outer_name!=NULL) {
-            *outer_sni=ech_outer_name;
+        //*inner_sni=ech_inner_name;
+        *inner_sni=sinner;
+        if (souter!=NULL) {
+            *outer_sni=souter;
         } else {
             *outer_sni=ech_public_name;
         }
-        if (s->ext.ech_done==1) {
+        if (s->ext.ech_success==1) {
             if (vr == X509_V_OK ) {
                 return SSL_ECH_STATUS_SUCCESS;
             } else {
@@ -1259,7 +1277,7 @@ int SSL_ech_get_status(SSL *s, char **inner_sni, char **outer_sni)
         } else {
             return SSL_ECH_STATUS_FAILED;
         }
-    } else if (s->ext.ech_attempted==1) {
+    } else if (s->ext.ech_grease==ECH_IS_GREASE) {
         return SSL_ECH_STATUS_GREASE;
     } 
     return SSL_ECH_STATUS_NOT_TRIED;
@@ -2010,10 +2028,10 @@ int ech_decode_inner(SSL *s)
      * We'll start genoffset at the end of the session ID, just
      * before the ciphersuites
      */
-    size_t genoffset=offset2sessid+1;
+    size_t genoffset=offset2sessid+1; // 1 is the length of the session id itself
     size_t suiteslen=outer->ext.encoded_innerch[genoffset]*256+outer->ext.encoded_innerch[genoffset+1];
-    genoffset+=suiteslen+2; // the 2 for the NULL compression
-    size_t startofexts=genoffset+outer->tmp_session_id_len+2; // the +2 for what? TODO:
+    genoffset+=suiteslen+2; // the 2 for the suites len
+    size_t startofexts=genoffset+outer->tmp_session_id_len+2; // the +2 for the NULL compression
 
     /*
      * Initial decode of inner
@@ -2165,167 +2183,6 @@ int ech_decode_inner(SSL *s)
 err:
     if (initial_decomp!=NULL) OPENSSL_free(initial_decomp);
     return(0);
-
-#if 0
-    /*
-     * Check to see if there's compression
-     */
-    RAW_EXTENSION *raws=s->clienthello->pre_proc_exts;
-    size_t nraws=s->clienthello->pre_proc_exts_len;
-    int ind=0;
-    int outeroffset=-1;
-    uint16_t outers[ECH_OUTERS_MAX];
-    int n_outers=0;
-    for (ind=0;ind!=nraws;ind++) {
-        int present=raws[ind].present;
-        if (!present) continue;
-        if (raws[ind].type==TLSEXT_TYPE_outer_extensions) {
-
-        }
-    }
-
-    if (n_outers==0) {
-        OSSL_TRACE_BEGIN(TLS) {
-            BIO_printf(trc_out,"We had no compression\n");
-        } OSSL_TRACE_END(TLS);
-        s->ext.innerch=initial_decomp;
-        s->ext.innerch_len=initial_decomp_len;
-        if (s->clienthello) {
-            if (s->clienthello->pre_proc_exts) {
-                OPENSSL_free(s->clienthello->pre_proc_exts);
-            }
-            OPENSSL_free(s->clienthello);
-            s->clienthello=NULL;
-        }
-        return(1);
-    }
-
-    /*
-     * Now copy references to outer into inner
-     * for exts that are present before outerind, leave 'em alone
-     * for exts that are outers, copy in the order given
-     * for exts that are present after outerind copy to pos +n_outers
-     * finally check that everything we wanted to decompress was actually
-     * present in outer CH
-     */
-    if (!outer->clienthello) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_ECH_DECODE_INNER, ERR_R_INTERNAL_ERROR);
-        goto err;
-    }
-    if (!outer->clienthello->pre_proc_exts) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_ECH_DECODE_INNER, ERR_R_INTERNAL_ERROR);
-        goto err;
-    }
-    RAW_EXTENSION *outer_raws=outer->clienthello->pre_proc_exts;
-    int n_outer_raws=outer->clienthello->pre_proc_exts_len;
-    int n_decomped=0;
-    int addedoctets=0;
-    for (ind=0;ind!=nraws;ind++) {
-        if (raws[ind].present && raws[ind].received_order<outeroffset) {
-            continue;
-        }
-        if (raws[ind].present && raws[ind].received_order>outeroffset) {
-            raws[ind].received_order+=(n_outers-1);
-            continue;
-        }
-        if (raws[ind].type==TLSEXT_TYPE_outer_extensions && raws[ind].present && raws[ind].received_order==outeroffset) {
-
-            int oind=0;
-            for (oind=0;oind!=n_outers;oind++) {
-                if (raws[ind].type==outers[oind]) {
-                    int ovind=0;
-                    int ovindfound=0;
-                    for (ovind=0;ovind!=n_outer_raws;ovind++) {
-                        /*
-                        * TODO: we can maybe optimise this since ovind and ind should
-                        * be in lock-step, but need to check that out for cases with 
-                        * custom extension handlers
-                        */
-                        if (outer_raws[ovind].type==raws[ind].type) {
-                            ovindfound=1;
-                            break;
-                        }
-                    }
-                    if (!ovindfound) {
-                        /*
-                        * TODO: This isn't an internal error and could happen to make it a real one 
-                        */
-                        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_ECH_DECODE_INNER, ERR_R_INTERNAL_ERROR);
-                        goto err;
-                    }
-                    if (raws[ind].present==1) {
-                        /*
-                        * TODO: This isn't an internal error and could happen to make it a real one 
-                        */
-                        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_ECH_DECODE_INNER, ERR_R_INTERNAL_ERROR);
-                        goto err;
-                    }
-                    if (outer_raws[ovind].present!=1) {
-                        /*
-                        * TODO: This isn't an internal error and could happen to make it a real one 
-                        */
-                        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_ECH_DECODE_INNER, ERR_R_INTERNAL_ERROR);
-                        goto err;
-                    }
-
-                    addedoctets+=4; // ext type + length
-                    addedoctets+=PACKET_remaining(&raws[ind].data); // ext val len
-                    raws[ind].data=outer_raws[ovind].data;
-                    raws[ind].present=1;
-                    raws[ind].parsed=outer_raws[ovind].parsed;
-                    raws[ind].received_order=outeroffset+ovind;
-                    n_decomped++;
-                }
-            }
-        }
-    }
-
-    /// reduce added octets by size of outer exts
-    addedoctets-=4; // type & len
-    addedoctets-=2*n_outers; // list of types
-    if (addedoctets <= 0) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_ECH_DECODE_INNER, ERR_R_INTERNAL_ERROR);
-        goto err;
-    }
-
-    /*
-     * Finally re-encode to get the full inner CH
-     * TODO: maybe optimise this out later (keep for
-     * now in case the entire compression thing goes
-     * away in which case this bit just disappears)
-     */
-    unsigned char *final_decomp=NULL;
-    size_t final_decomp_len=0;
-
-    final_decomp_len=initial_decomp_len+addedoctets;
-
-    if (s->clienthello) {
-        if (s->clienthello->pre_proc_exts) {
-            OPENSSL_free(s->clienthello->pre_proc_exts);
-        }
-        OPENSSL_free(s->clienthello);
-        s->clienthello=NULL;
-    }
-
-
-    OSSL_TRACE_BEGIN(TLS) {
-        BIO_printf(trc_out,"We may have dealt with compression.\n");
-    } OSSL_TRACE_END(TLS);
-
-    return(1);
-
-err:
-
-    if (s->clienthello) {
-        if (s->clienthello->pre_proc_exts) {
-            OPENSSL_free(s->clienthello->pre_proc_exts);
-        }
-        OPENSSL_free(s->clienthello);
-        s->clienthello=NULL;
-    }
-
-    return(0);
-#endif
 
 }
 
@@ -2520,6 +2377,29 @@ int ech_swaperoo(SSL *s)
     if (other_octets>0) {
         OPENSSL_free(new_buf);
     }
+    /*
+     * Finally! Declare victory - in both contexts
+     * The outer's ech_attempted will have been set already
+     * but not the rest of 'em.
+     */
+    //s->ext.outer_s->ext.ech_attempted=1; 
+    //s->ext.ech_attempted=1; 
+    //s->ext.outer_s->ext.ech_done=1; 
+    //s->ext.ech_done=1; 
+
+    s->ext.outer_s->ext.ech_success=1; 
+    s->ext.ech_success=1; 
+
+    /*
+     * Now do servername callback that we postponed earlier
+     * in case ECH worked out well.
+     */
+    if (final_server_name(s,0,1)!=1) {
+        s->ext.outer_s->ext.ech_success=0; 
+        s->ext.ech_success=0; 
+        // TODO: maybe swaperoo back?
+        return(0);
+    }
 
     return(1);
 }
@@ -2552,6 +2432,7 @@ int ech_process_inner_if_present(SSL *s)
          * brittle somehow
          */
         new_se=SSL_new(s->ctx);
+        new_se->ext.ech_attempted=1;
         new_se->ext.ch_depth=1;
         new_se->ext.outer_s=s;
         new_se->ext.inner_s=NULL;

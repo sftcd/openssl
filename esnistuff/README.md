@@ -25,6 +25,27 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- 20210211: Handshake with ECH is working, still need to do GREASE
+and also proper calculation of server-random magic lower bits, but
+otherwise ok. Integrating with apps (only s_client/s_server done
+so far) with ECH differs a bit from ESNI in how and when information about
+the inner/outer is made available to the application, but we managed
+to hide that by moving the call to the application's server name callback. 
+
+- 20210210: We're using the following fields in the SSL.ext data structure:
+
+    - client:
+        - ech_attempted: ECH extension will be present in outer CH
+        - ech_grease: We'll include a grease value as ECH extension
+        - ech_done: saw magic server_random value (so decryption
+            worked out)
+        - ech_success: session based on inner CH established ok
+    - server:
+        - ech_attempted: ECH extension present in outer CH
+        - ech_grease: Couldn't decrypt ECH so treating as GREASE
+        - ech_done: Decryption of ECH succeeded
+        - ech_success: session based on inner CH established ok
+
 - 20210102: server side decrypt/decode of inner now sorta there, next
   up is to get the client to react correctly to the session (inner or
   outer-based) that gets established. (Note: there's some really ickky

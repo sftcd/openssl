@@ -1639,9 +1639,9 @@ struct ssl_st {
 
         SSL* inner_s; // pointer to inner CH from outer
         SSL* outer_s; // pointer to outer CH from inner
-        int inner_s_ftd;
-        int ech_done;
         int ech_attempted;
+        int ech_done;
+        int ech_success;
         int ech_grease;
         int ch_depth;
 

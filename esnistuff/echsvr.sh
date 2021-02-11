@@ -134,7 +134,7 @@ fi
 
 keyfile1="-key $KEYFILE1 -cert $CERTFILE1"
 keyfile2="-key2 $KEYFILE2 -cert2 $CERTFILE2"
-keyfile3="-key2 $KEYFILE3 -cert2 $CERTFILE3"
+#keyfile3="-key2 $KEYFILE3 -cert2 $CERTFILE3"
 
 # figure out if we have tracing enabled within OpenSSL
 # there's probably an easier way but s_server -help
@@ -153,8 +153,8 @@ rm -f $tmpf
 dbgstr=" -quiet"
 if [[ "$DEBUG" == "yes" ]]
 then
-    dbgstr="-msg $TRACING -debug -security_debug_verbose -state -tlsextdebug -keylogfile srv.keys"
-    #dbgstr="-msg $TRACING -tlsextdebug "
+    #dbgstr="-msg $TRACING -debug -security_debug_verbose -state -tlsextdebug -keylogfile srv.keys"
+    dbgstr="-msg $TRACING -tlsextdebug "
 fi
 
 vgcmd=""
@@ -224,9 +224,10 @@ fi
 certsdb=" -CApath $CAPATH"
 
 # force tls13
-force13="-no_ssl3 -no_tls1 -no_tls1_1 -no_tls1_2"
+#force13="-no_ssl3 -no_tls1 -no_tls1_1 -no_tls1_2"
 #force13="-cipher TLS13-AES-128-GCM-SHA256 -no_ssl3 -no_tls1 -no_tls1_1 -no_tls1_2"
 #force13="-tls1_3 -cipher TLS13-AES-128-GCM-SHA256 "
+force13="-tls1_3 "
 
 # catch the ctrl-C used to stop the server and do any clean up needed
 cleanup() {

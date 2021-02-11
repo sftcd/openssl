@@ -2867,6 +2867,11 @@ int tls_parse_ctos_ech(SSL *s, PACKET *pkt, unsigned int context,
     } else {
         s->ext.ech_grease=ECH_NOT_GREASE;
     }
+    /*
+     * We succeeded or failed in decrypting, but we're done
+     * with that now.
+     */
+    s->ext.ech_done=1;
     OSSL_TRACE_BEGIN(TLS) {
         BIO_printf(trc_out,"parse_ctos_ech: assume_grease: %d, foundcfg: %d, cfgind: %d, clearlen: %ld, clear %p\n",
             s->ext.ech_grease,foundcfg,cfgind,clearlen,clear);

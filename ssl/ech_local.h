@@ -37,7 +37,7 @@
 
 #define ECH_GREASE_UNKNOWN -1 ///< value for s->ext.ech_grease when we're not yet sure
 #define ECH_NOT_GREASE 0 ///< value for s->ext.ech_grease when decryption worked
-#define ECH_IS_GREASE 0 ///< value for s->ext.ech_grease when decryption failed
+#define ECH_IS_GREASE 1 ///< value for s->ext.ech_grease when decryption failed
 
 /** 
  * @brief Representation of what goes in DNS

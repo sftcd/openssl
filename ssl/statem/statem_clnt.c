@@ -1209,7 +1209,6 @@ int tls_construct_client_hello(SSL *s, WPACKET *pkt)
      * decryption
      */
     new_s->ext.ch_depth=1;
-    new_s->ext.inner_s_ftd=0;
 
     /*
      * If doing ECH, we'll create a "fake" packet for the inner CH
@@ -1731,8 +1730,7 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL *s, PACKET *pkt)
      * Try figure out if ServerHello is for inner or outer
      * Only do new stuff if needed - accept_confirmation version (draft-09)
      */
-    if (s->ech && s->ext.inner_s!=NULL && s->ext.outer_s==NULL && !s->ext.inner_s_ftd) {
-        s->ext.inner_s_ftd=1;
+    if (s->ech && s->ext.inner_s!=NULL && s->ext.outer_s==NULL && !s->ext.ech_success) {
         unsigned char acbuf[8];
         if (ech_calc_accept_confirm(s,acbuf)!=1) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS13_ENC,
@@ -1740,6 +1738,7 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL *s, PACKET *pkt)
             return -1;
         }
         if (memcmp(s->s3.server_random+SSL3_RANDOM_SIZE-8,acbuf,8)==0) {
+            s->ext.ech_success=1;
             printf("Yay - it's an inny ServerHello - swaperoo time\n");
             fflush(stdout);
             if (ech_swaperoo(s)!=1) {
