@@ -50,7 +50,7 @@ SUPPLIEDSESSION=""
 
 # default values
 HIDDEN="blog.cloudflare.com"
-PNO="www.cloudflare.com"
+PNO="crypto.cloudflare.com"
 CAPATH="/etc/ssl/certs/"
 CAFILE="./cadir/oe.csr"
 REALCERT="no" # default to fake CA for localhost
@@ -212,7 +212,7 @@ then
 	else
         # try draft-07 only for now, i.e. HTTPSSVC
         # kill the spaces and joing the lines if multi-valued seen 
-        ECH=`dig +short -t TYPE65 $hidden | cut -f 3- -d' ' | sed -e 's/ //g' | sed -e 'N;s/\n//'`
+        ECH=`dig +short -t TYPE65 $hidden | tail -1 | cut -f 3- -d' ' | sed -e 's/ //g' | sed -e 'N;s/\n//'`
         if [[ "$ECH" == "" ]]
         then
             # TODO: do the parsing biz
