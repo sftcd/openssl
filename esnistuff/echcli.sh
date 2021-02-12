@@ -3,7 +3,7 @@
 # Script to run basic tests using the openssl command line tool.
 # Equivalent tests should migrate to being run as part of ``make test``
 
-#set -x
+# set -x
 
 # to pick up correct .so's - maybe note 
 : ${TOP=$HOME/code/openssl}
@@ -87,7 +87,7 @@ function usage()
 }
 
 # options may be followed by one colon to indicate they have a required argument
-if ! options=$(/usr/bin/getopt -s bash -o c:df:ghH:np:P:rs:S:v -l clear_sni:,debug,filepath:,grease:,help,hidden:,noech,port:,echpub:,realcert,server:,session:,valgrind -- "$@")
+if ! options=$(/usr/bin/getopt -s bash -o c:df:ghH:np:P:rs:S:v -l clear_sni:,debug,filepath:,grease,help,hidden:,noech,port:,echpub:,realcert,server:,session:,valgrind -- "$@")
 then
     # something went wrong, getopt will put out an error message for us
     exit 1

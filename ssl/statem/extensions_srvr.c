@@ -2936,7 +2936,42 @@ EXT_RETURN tls_construct_stoc_ech(SSL *s, WPACKET *pkt,
                                           unsigned int context, X509 *x,
                                           size_t chainidx)
 {
-    return EXT_RETURN_NOT_SENT;
+    if (s->ext.ech_grease!=ECH_IS_GREASE) {
+        return EXT_RETURN_NOT_SENT;
+    }
+
+    /*
+     * If the client GREASEd, or we thing it did, we
+     * return an ECHConfigs, as the value of the 
+     * extension.
+     */
+    if (s->ech==NULL || s->ech->cfg==NULL) {
+        OSSL_TRACE_BEGIN(TLS) { 
+            BIO_printf(trc_out,"ECH - not sending ECHConfigs back to client even though they GREASE'd as I've no loaded configs\n");
+        } OSSL_TRACE_END(TLS);
+        return EXT_RETURN_NOT_SENT;
+    }
+    if (s->ech->cfg->encoded==NULL || s->ech->cfg->encoded_len==0) {
+        OSSL_TRACE_BEGIN(TLS) { 
+            BIO_printf(trc_out,"ECH - not sending ECHConfigs back to client even though they GREASE'd as I've a busted config loaded\n");
+        } OSSL_TRACE_END(TLS);
+        return EXT_RETURN_NOT_SENT;
+    }
+
+    if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_ech) 
+        //|| !WPACKET_start_sub_packet_u16(pkt)
+        || !WPACKET_sub_memcpy_u16(pkt, s->ech->cfg->encoded, s->ech->cfg->encoded_len)
+        //|| !WPACKET_close(pkt)
+            ) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ECH, ERR_R_INTERNAL_ERROR);
+        return 0;
+    }
+
+    OSSL_TRACE_BEGIN(TLS) { 
+        BIO_printf(trc_out,"ECH - sending ECHConfigs back to client\n");
+    } OSSL_TRACE_END(TLS);
+
+    return EXT_RETURN_SENT;
 }
 
 int tls_parse_ctos_ech_outer_exts(SSL *s, PACKET *pkt, unsigned int context,

@@ -25,6 +25,8 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- 20210212: Added basic GREASE'ing to client and server.
+
 - 20210211: Handshake with ECH is working, still need to do GREASE
 and also proper calculation of server-random magic lower bits, but
 otherwise ok. Integrating with apps (only s_client/s_server done

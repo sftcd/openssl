@@ -891,7 +891,11 @@ SSL *SSL_new(SSL_CTX *ctx)
     s->ext.ech_success=0;
     s->ext.ech_grease=0;
     s->ext.ch_depth=0;
-    s->ext.ech_grease=ECH_GREASE_UNKNOWN;
+    if (ctx->options & SSL_OP_ECH_GREASE) { 
+        s->ext.ech_grease=ECH_IS_GREASE;
+    } else {
+        s->ext.ech_grease=ECH_NOT_GREASE;
+    }
 
 #endif
 

@@ -326,9 +326,9 @@ typedef int (*SSL_async_callback_fn)(SSL *s, void *arg);
 #endif
 #ifndef OPENSSL_NO_ECH
 /* we'll take two values for ECH greasing */
-/* we're using the same values as for ESNI, that should be fine */
-/* set this to tell client to emit greased ESNI values */
-#define SSL_OP_ECH_GREASE                               0x00000002U
+/* set this to tell client to emit greased ECH values */
+/* Reserved value (until OpenSSL 3.0.0)                  0x00000080U */
+#define SSL_OP_ECH_GREASE                               0x00000080U
 #endif
 
 /* Allow initial connection to servers that don't support RI */
@@ -362,7 +362,6 @@ typedef int (*SSL_async_callback_fn)(SSL *s, void *arg);
 #endif
 # define SSL_OP_SAFARI_ECDHE_ECDSA_BUG                   0x00000040U
 /*
- * Reserved value (until OpenSSL 3.0.0)                  0x00000080U
  * Reserved value (until OpenSSL 3.0.0)                  0x00000100U
  * Reserved value (until OpenSSL 3.0.0)                  0x00000200U
  */

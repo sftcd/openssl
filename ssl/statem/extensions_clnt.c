@@ -25,6 +25,7 @@
 #endif
 
 #ifndef OPENSSL_NO_ECH
+#include <openssl/rand.h>
 
 /*
  * Handle inner/outer CH issues
@@ -2445,7 +2446,8 @@ EXT_RETURN tls_construct_ctos_esni(SSL *s, WPACKET *pkt, unsigned int context,
     }
 
     CLIENT_ESNI *c=NULL;
-    if (s->esni==NULL || s->esni->encservername == NULL || s->esni->version==ESNI_GREASE_VERSION) {
+    if ( (s->options & SSL_OP_ESNI_GREASE) || 
+         (s->esni!=NULL && s->esni->version==ESNI_GREASE_VERSION)) {
         /*
          * Check if we want to grease or are done...
          */
@@ -2457,6 +2459,9 @@ EXT_RETURN tls_construct_ctos_esni(SSL *s, WPACKET *pkt, unsigned int context,
             return EXT_RETURN_NOT_SENT;
         }
     }
+
+    /* With no grease and nothing else, we're done */
+    if (s->esni==NULL) return EXT_RETURN_NOT_SENT;
 
     if (s->esni->version!=ESNI_GREASE_VERSION) {
         /*
@@ -2740,6 +2745,7 @@ int tls_parse_stoc_esni(SSL *s, PACKET *pkt, unsigned int context,
 #define SSL_ECH_SEND_NO_GREASE 1
 #define SSL_ECH_SEND_GREASE 2
 #define SSL_ECH_SEND_REAL 3
+#define SSL_ECH_GREASE_BUFSIZ 255
 
 static int SSL_ech_send_grease(SSL *s, WPACKET *pkt, unsigned int context,
                                    X509 *x, size_t chainidx)
@@ -2752,8 +2758,70 @@ static int SSL_ech_send_grease(SSL *s, WPACKET *pkt, unsigned int context,
      *          opaque enc<1..2^16-1>;
      *          opaque payload<1..2^16-1>;
      *       } ClientECH;
+     *
+     * Here's one such (len=266):
+     *
+     * 00010001 00025346 00208607 BCE0C3B1 
+     * 1D1E5391 9BD5D99C C1CDB5F2 5F0F9EB3
+     * F35E8359 2C810ADC 8A2F00DE 2AA118F9
+     * 698530FB AA4BE33B C8704024 EFE4D6E1
+     * AB676E73 E8F25D23 54B813A2 27C91784
+     * B831915F 24914F0C 8C558883 725CA676
+     * BC97A0A4 E2B55271 E15A86B2 86ED2C56
+     * 2C69C833 9C01A85A 8ED8EC2D 3C37C223
+     * 3B932715 C25361BF 01CB470A 370DDE46
+     * C1B3458A 4CD88FC2 4C97DF3C 1AEB9E86
+     * 4E04289F 3DF5A0EA D7FFBEEF 5DD2E30A
+     * 9A8825EF 92239CD5 C1420BAF 7A33E7B4
+     * 7BBF0813 BABF51B6 156A79B3 79E37A6C
+     * 70DADF09 A4CA746E 1CAA79A1 D5EF5BA9
+     * 69ACA1A6 ECCB6561 77C46F46 2860CAB1 
+     * BFC6C1E4 26F4AFCF F597721F 33B89CCC
+     * A9D63D4F 2591C945 AD0E
      */
-    return 0;
+
+    /*
+     * Assign buffers of the right size, that we'll mostly randomly fill
+     */
+    hpke_suite_t hpke_suite = HPKE_SUITE_DEFAULT;
+    size_t cid_len=1;
+    unsigned char cid[SSL_ECH_GREASE_BUFSIZ];
+    size_t senderpub_len=32;
+    unsigned char senderpub[SSL_ECH_GREASE_BUFSIZ];
+    size_t cipher_len=206;
+    unsigned char cipher[SSL_ECH_GREASE_BUFSIZ];
+
+    if (s==NULL || s->ctx==NULL) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ECH, ERR_R_INTERNAL_ERROR);
+        return 0;
+    }
+
+    if ((RAND_bytes_ex(s->ctx->libctx, cid, cid_len) <= 0) ||
+        (RAND_bytes_ex(s->ctx->libctx, senderpub, senderpub_len) <= 0) ||
+        (RAND_bytes_ex(s->ctx->libctx, cipher, cipher_len) <= 0) 
+            ) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ECH, ERR_R_INTERNAL_ERROR);
+        return 0;
+    }
+
+    if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_ech) 
+        || !WPACKET_start_sub_packet_u16(pkt)
+        || !WPACKET_put_bytes_u16(pkt, hpke_suite.kdf_id)
+        || !WPACKET_put_bytes_u16(pkt, hpke_suite.aead_id)
+        || !WPACKET_sub_memcpy_u16(pkt, cid, cid_len)
+        || !WPACKET_sub_memcpy_u16(pkt, senderpub, senderpub_len)
+        || !WPACKET_sub_memcpy_u16(pkt, cipher, cipher_len)
+        || !WPACKET_close(pkt)
+            ) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ECH, ERR_R_INTERNAL_ERROR);
+        return 0;
+    }
+
+    OSSL_TRACE_BEGIN(TLS) { 
+        BIO_printf(trc_out,"ECH - sending GREASE\n");
+    } OSSL_TRACE_END(TLS);
+
+    return 1;
 }
 
 /**
@@ -2762,7 +2830,7 @@ static int SSL_ech_send_grease(SSL *s, WPACKET *pkt, unsigned int context,
 EXT_RETURN tls_construct_ctos_ech(SSL *s, WPACKET *pkt, unsigned int context,
                                    X509 *x, size_t chainidx)
 {
-    if (!s->ech && s->ext.ech_grease) {
+    if (s->ext.ech_grease==ECH_IS_GREASE || (s->options & SSL_OP_ECH_GREASE) ) {
         if (SSL_ech_send_grease(s,pkt,context,x,chainidx)!=1) {
             return EXT_RETURN_NOT_SENT;
         }
