@@ -49,7 +49,7 @@ SUPPLIEDCADIR=""
 SUPPLIEDSESSION=""
 
 # default values
-HIDDEN="blog.cloudflare.com"
+HIDDEN="crypto.cloudflare.com"
 PNO="crypto.cloudflare.com"
 CAPATH="/etc/ssl/certs/"
 CAFILE="./cadir/oe.csr"

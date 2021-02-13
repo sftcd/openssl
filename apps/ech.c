@@ -75,8 +75,10 @@ static int mk_echconfig(
     size_t pnlen=0; ///< length of public_name
 
     switch(ekversion) {
+#if 0
         case ECH_DRAFT_07_VERSION: 
         case ECH_DRAFT_08_VERSION: 
+#endif
         case ECH_DRAFT_09_VERSION: 
             pnlen=(public_name==NULL?0:strlen(public_name));
             break;
@@ -250,8 +252,10 @@ int ech_main(int argc, char **argv)
         case 0xff01:
             BIO_printf(bio_err, "Unsupported version (0x%04x) - try using mk_esnikeys instead\n",ech_version);
             goto end;
+#if 0
         case ECH_DRAFT_07_VERSION:
         case ECH_DRAFT_08_VERSION:
+#endif
         case ECH_DRAFT_09_VERSION:
             break;
         default:

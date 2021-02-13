@@ -40,10 +40,10 @@
 #define ECH_FMT_ASCIIHEX  3  ///< ascii-hex encoded ECHConfigs (semi-colon separated if >1)
 #define ECH_FMT_HTTPSSVC  4  ///< presentation form of HTTPSSVC
 
-#define ECH_GREASE_VERSION 0xffff ///< Fake ECHKeys version to indicate grease
-#define ECH_DRAFT_07_VERSION 0xff07 ///< ECHConfig version from draft-07
-#define ECH_DRAFT_08_VERSION 0xff08 ///< ECHConfig version from draft-08
-#define ECH_DRAFT_09_VERSION 0xff09 ///< ECHConfig version from draft-08
+//#define ECH_GREASE_VERSION 0xffff ///< Fake ECHKeys version to indicate grease
+//#define ECH_DRAFT_07_VERSION 0xff07 ///< ECHConfig version from draft-07
+//#define ECH_DRAFT_08_VERSION 0xff08 ///< ECHConfig version from draft-08
+#define ECH_DRAFT_09_VERSION 0xfe09 ///< ECHConfig version from draft-08
 
 /* 
  * the wire-format code for ECH within an SVCB or HTTPS RData
