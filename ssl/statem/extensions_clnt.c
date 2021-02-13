@@ -194,63 +194,53 @@ static EXT_RETURN ech_server_name_fixup(SSL *s, WPACKET *pkt,
                                           unsigned int context, X509 *x,
                                           size_t chainidx) 
 {
-    if (s->ech != NULL && s->ext.ch_depth==1 ) {
+    if (s->ech != NULL) { 
         char *pn=NULL;
         size_t pn_len=0;
+        /* This from the ECHConfig */
         if (s->ech->cfg->recs!=NULL) {
             pn_len=s->ech->cfg->recs[0].public_name_len;
             pn=(char*)s->ech->cfg->recs[0].public_name;
         }
-        size_t on_len=(s->ech->outer_name==NULL?0:OPENSSL_strnlen(s->ech->outer_name,TLSEXT_MAXLEN_host_name));
+        /* These are from the application, direct */
         size_t in_len=(s->ech->inner_name==NULL?0:OPENSSL_strnlen(s->ech->inner_name,TLSEXT_MAXLEN_host_name));
+        size_t on_len=(s->ech->outer_name==NULL?0:OPENSSL_strnlen(s->ech->outer_name,TLSEXT_MAXLEN_host_name));
 
+        /* TODO: test/handle the case with session resumption */
+        /* These can (or will!) come from a stored session */
         size_t ehn_len=(s->ext.hostname==NULL?0:OPENSSL_strnlen(s->ext.hostname,TLSEXT_MAXLEN_host_name));
-        size_t een_len=(s->ext.encservername==NULL?0:OPENSSL_strnlen(s->ext.encservername,TLSEXT_MAXLEN_host_name));
-        size_t epn_len=(s->ext.public_name==NULL?0:OPENSSL_strnlen(s->ext.public_name,TLSEXT_MAXLEN_host_name));
+        size_t epn_len=(s->ext.ech_public_name==NULL?0:OPENSSL_strnlen(s->ext.ech_public_name,TLSEXT_MAXLEN_host_name));
+        size_t ein_len=(s->ext.ech_inner_name==NULL?0:OPENSSL_strnlen(s->ext.ech_inner_name,TLSEXT_MAXLEN_host_name));
+        size_t eon_len=(s->ext.ech_outer_name==NULL?0:OPENSSL_strnlen(s->ext.ech_outer_name,TLSEXT_MAXLEN_host_name));
 
-        /*
-         * TODO: test/handle the case with session resumption
-         */
-
-        // free up old values if they had been set
-        if (ehn_len!=0) {
-            OPENSSL_free(s->ext.hostname);
-            s->ext.hostname=NULL;
-        }
-        if (een_len!=0) {
-            OPENSSL_free(s->ext.encservername);
-            s->ext.encservername=NULL;
-        }
-        if (epn_len!=0) {
-            OPENSSL_free(s->ext.public_name);
-            s->ext.public_name=NULL;
-        }
+        /* free up old values if they had been set - do we need this? not sure
+        if (ehn_len!=0) { OPENSSL_free(s->ext.hostname); s->ext.hostname=NULL; ehn_len=0; }
+        if (epn_len!=0) { OPENSSL_free(s->ext.ech_public_name); s->ext.ech_public_name=NULL; epn_len=0 ;}
+        if (ein_len!=0) { OPENSSL_free(s->ext.ech_inner_name); s->ext.ech_inner_name=NULL; ein_len=0; }
+        if (eon_len!=0) { OPENSSL_free(s->ext.ech_outer_name); s->ext.ech_outer_name=NULL; eon_len=0; }
+        */
 
         /* 
          * Set values to be used
          */
-        if (in_len!=0) {
-            s->ext.encservername=OPENSSL_strdup(s->ech->inner_name);
-        } else if (pn_len!=0 && in_len==0) {
-            s->ext.encservername=OPENSSL_strndup(pn,pn_len);
-        } 
-        if (on_len!=0) {
-            s->ext.hostname=OPENSSL_strdup(s->ech->outer_name);
-        }
-        if (pn_len!=0) {
-            s->ext.public_name=OPENSSL_strndup(pn,pn_len);
+        if (s->ext.ch_depth==1) { // Inner CH
+            if (in_len!=0) {
+                /* we prefer this over all */
+                if (ehn_len!=0) { OPENSSL_free(s->ext.hostname); s->ext.hostname=NULL; ehn_len=0; }
+                s->ext.hostname=OPENSSL_strdup(s->ech->inner_name);
+            } else if (pn_len!=0 && in_len==0) {
+                if (ehn_len!=0) { OPENSSL_free(s->ext.hostname); s->ext.hostname=NULL; ehn_len=0; }
+                s->ext.hostname=OPENSSL_strndup(pn,pn_len);
+            } 
         }
 
-        /* 
-         * barf if the hostname and encservername are the same - makes no sense 
-         */
-        if (s->ext.hostname && s->ext.encservername) {
-            if (strlen(s->ext.hostname)==strlen(s->ext.encservername) &&
-                    !CRYPTO_memcmp(s->ext.hostname,s->ext.encservername,
-                        strlen(s->ext.hostname))) {
-                SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_ECH_SERVER_NAME_FIXUP,
-                 ERR_R_INTERNAL_ERROR);
-                return EXT_RETURN_FAIL;
+        if (s->ext.ch_depth==0) { // Outer CH
+            if (on_len!=0) {
+                if (ehn_len!=0) { OPENSSL_free(s->ext.hostname); s->ext.hostname=NULL; ehn_len=0; }
+                s->ext.hostname=OPENSSL_strdup(s->ech->outer_name);
+            } else if (pn_len!=0) {
+                if (ehn_len!=0) { OPENSSL_free(s->ext.hostname); s->ext.hostname=NULL; ehn_len=0; }
+                s->ext.hostname=OPENSSL_strndup(pn,pn_len);
             }
         }
 
@@ -281,24 +271,6 @@ EXT_RETURN tls_construct_ctos_server_name(SSL *s, WPACKET *pkt,
                      ERR_R_INTERNAL_ERROR);
             return esnirv;
         }
-        if (s->ext.encservername==NULL) {
-            return EXT_RETURN_NOT_SENT;
-        }
-        if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_server_name)
-                   /* Sub-packet for server_name extension */
-                || !WPACKET_start_sub_packet_u16(pkt)
-                   /* Sub-packet for servername list (always 1 hostname)*/
-                || !WPACKET_start_sub_packet_u16(pkt)
-                || !WPACKET_put_bytes_u8(pkt, TLSEXT_NAMETYPE_host_name)
-                || !WPACKET_sub_memcpy_u16(pkt, s->ext.encservername,
-                                           strlen(s->ext.encservername))
-                || !WPACKET_close(pkt)
-                || !WPACKET_close(pkt)) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_SERVER_NAME,
-                     ERR_R_INTERNAL_ERROR);
-            return EXT_RETURN_FAIL;
-        }
-        return EXT_RETURN_SENT;
     }
 #endif
 
@@ -2876,22 +2848,24 @@ EXT_RETURN tls_construct_ctos_ech(SSL *s, WPACKET *pkt, unsigned int context,
     }
 
     /*
-     * Search through the ECHConfigs for one that's good
-     * enough. If no public_name was set via API then we 
+     * Search through the ECHConfigs for one that's a best
+     * match in terms of outer_name==public_name. 
+     * If no public_name was set via API then we 
      * just take the 1st match where we locally support
      * the HPKE suite.
      * If OTOH, a public_name was provided via API then
      * we prefer the first that matches that.
-     * TODO: the bit above about names:-) the public_name
-     * is set at the ECHConfig level (ugh)
      */
     int onlen=(s->ech->outer_name==NULL?0:strlen(s->ech->outer_name));
+    int prefind=-1;
+    ECHConfig *firstmatch=NULL;
+    
     for (cind=0;cind!=cfgs->nrecs;cind++) {
         ECHConfig *ltc=&cfgs->recs[cind];
         if (s->ech->outer_name && (
                     ltc->public_name_len!=onlen ||
                     strncmp(s->ech->outer_name,(char*)ltc->public_name,onlen))) {
-            continue;
+            prefind=cind;
         }
         hpke_suite.kem_id=ltc->kem_id;
         int csuite=0;
@@ -2901,26 +2875,35 @@ EXT_RETURN tls_construct_ctos_ech(SSL *s, WPACKET *pkt, unsigned int context,
             hpke_suite.aead_id=es[2]*256+es[3];
             if (hpke_suite_check(hpke_suite)==1) {
                 /*
-                * success
+                * success if both "fit"
                 */
-                tc=ltc;
-                break;
+                if (prefind!=-1) {
+                    tc=ltc;
+                    break;
+                }
+                if (firstmatch==NULL) {
+                    firstmatch=ltc;
+                }
             }
         }
     }
-
-    if (tc==NULL) {
+    if (tc==NULL && firstmatch==NULL) {
+        OSSL_TRACE_BEGIN(TLS) { 
+            BIO_printf(trc_out,"No matching ECHConfig sadly\n");
+        } OSSL_TRACE_END(TLS);
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ECH,
                  ERR_R_INTERNAL_ERROR);
         return EXT_RETURN_FAIL;
     }
-
+    if (tc==NULL && firstmatch!=NULL) {
+        tc=firstmatch;
+    }
 
     /*
      * tc is our selected config
      */
-    peerpub=tc->pub+4;
-    peerpub_len=tc->pub_len-4;
+    peerpub=tc->pub;
+    peerpub_len=tc->pub_len;
     if (peerpub_len <=0) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ECH,
                  ERR_R_INTERNAL_ERROR);

@@ -75,10 +75,6 @@ static int mk_echconfig(
     size_t pnlen=0; ///< length of public_name
 
     switch(ekversion) {
-#if 0
-        case ECH_DRAFT_07_VERSION: 
-        case ECH_DRAFT_08_VERSION: 
-#endif
         case ECH_DRAFT_09_VERSION: 
             pnlen=(public_name==NULL?0:strlen(public_name));
             break;
@@ -105,33 +101,32 @@ static int mk_echconfig(
     if (rv!=1) { return(__LINE__); }
  
     /*
-     * This is what's in draft-pre08:
+     * This is what's in draft-09:
+     * 
+     *   opaque HpkePublicKey<1..2^16-1>;
+     *   uint16 HpkeKemId;  // Defined in I-D.irtf-cfrg-hpke
+     *   uint16 HpkeKdfId;  // Defined in I-D.irtf-cfrg-hpke
+     *   uint16 HpkeAeadId; // Defined in I-D.irtf-cfrg-hpke
+     *   struct {
+     *       HpkeKdfId kdf_id;
+     *       HpkeAeadId aead_id;
+     *   } ECHCipherSuite;
+     *   struct {
+     *       opaque public_name<1..2^16-1>;
+     *       HpkePublicKey public_key;
+     *       HpkeKemId kem_id;
+     *       ECHCipherSuite cipher_suites<4..2^16-4>;
+     *       uint16 maximum_name_length;
+     *       Extension extensions<0..2^16-1>;
+     *   } ECHConfigContents;
+     *   struct {
+     *       uint16 version;
+     *       uint16 length;
+     *       select (ECHConfig.version) {
+     *         case 0xfe09: ECHConfigContents contents;
+     *       }
+     *   } ECHConfig;
      *
-     *
-     *  opaque HpkePublicKey<1..2^16-1>;
-     *  uint16 HkpeKemId;  // Defined in I-D.irtf-cfrg-hpke
-     *  uint16 HkpeKdfId;  // Defined in I-D.irtf-cfrg-hpke
-     *  uint16 HkpeAeadId; // Defined in I-D.irtf-cfrg-hpke
-     *  struct {
-     *      HkpeKdfId kdf_id;
-     *      HkpeAeadId aead_id;
-     *  } ECHCipherSuite;
-     *  struct {
-     *      opaque public_name<1..2^16-1>;
-     *      HpkePublicKey public_key;
-     *      HkpeKemId kem_id;
-     *      ECHCipherSuite cipher_suites<4..2^16-2>;
-     *      uint16 maximum_name_length;
-     *      Extension extensions<0..2^16-1>;
-     *  } ECHConfigContents;
-     *  struct {
-     *      uint16 version;
-     *      uint16 length;
-     *      select (ECHConfig.version) {
-     *        case 0xff09: ECHConfigContents;
-     *      }
-     *  } ECHConfig;
-     *  ECHConfig ECHConfigs<1..2^16-1>;
      */
 
     unsigned char bbuf[ECH_MAX_ECHCONFIGS_BUFLEN]; ///< binary buffer
@@ -149,10 +144,12 @@ static int mk_echconfig(
         memcpy(bp,public_name,pnlen); bp+=pnlen;
     }
     /* keys */
-    *bp++=0x00;
-    *bp++=0x24; // length=36
-    *bp++=0x00;
-    *bp++=0x1d; // curveid=X25519= decimal 29
+    // The CF public key is only 32 bytes long, so including
+    // these is probably wrong. TODO: add some NIST stuff
+    //*bp++=0x00;
+    //*bp++=0x24; // length=36
+    //*bp++=0x00;
+    //*bp++=0x1d; // curveid=X25519= decimal 29
     *bp++=0x00;
     *bp++=0x20; // length=32
     memcpy(bp,pub,32); bp+=32;
@@ -248,14 +245,10 @@ int ech_main(int argc, char **argv)
      * Check ECH-specific inputs
      */
     switch (ech_version) {
-        case 0xff02:
-        case 0xff01:
+        case 0xff01: // ESNI precursors
+        case 0xff02: // ESNI precursors
             BIO_printf(bio_err, "Unsupported version (0x%04x) - try using mk_esnikeys instead\n",ech_version);
             goto end;
-#if 0
-        case ECH_DRAFT_07_VERSION:
-        case ECH_DRAFT_08_VERSION:
-#endif
         case ECH_DRAFT_09_VERSION:
             break;
         default:

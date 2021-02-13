@@ -1081,7 +1081,7 @@ static int final_ech(SSL *s, unsigned int context, int sent)
              * TODO: figure if this is the right check to make
              */
             return 1;
-        } else if (s->ext.ech_done!=1) {
+        } else if (s->ext.ech_success!=1) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_FINAL_ECH,
                  SSL_R_CALLBACK_FAILED);
             return 0;

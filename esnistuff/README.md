@@ -25,6 +25,9 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
+- 20210213: Started testing against CF deployment. Various fixes
+  being fixed;-)
+
 - 20210212: Added basic GREASE'ing to client and server.
 
 - 20210211: Handshake with ECH is working, still need to do GREASE

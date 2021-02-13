@@ -598,8 +598,8 @@ static ECHConfigs *ECHConfigs_from_binary(unsigned char *binbuf, size_t binblen,
 	    if (suiteoctets<=0 || (suiteoctets % 1)) {
 	        goto err;
 	    }
-	    ec->nsuites=suiteoctets/2;
-	    ec->ciphersuites=OPENSSL_malloc(ec->nsuites*sizeof(unsigned int));
+	    ec->nsuites=suiteoctets/ECH_CIPHER_LEN;
+	    ec->ciphersuites=OPENSSL_malloc(ec->nsuites*sizeof(ech_ciphersuite_t));
 	    if (ec->ciphersuites==NULL) {
 	        goto err;
 	    }
