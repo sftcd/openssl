@@ -2756,7 +2756,7 @@ static int SSL_ech_send_grease(SSL *s, WPACKET *pkt, unsigned int context,
      * Assign buffers of the right size, that we'll mostly randomly fill
      */
     hpke_suite_t hpke_suite = HPKE_SUITE_DEFAULT;
-    size_t cid_len=1;
+    size_t cid_len=8;
     unsigned char cid[SSL_ECH_GREASE_BUFSIZ];
     size_t senderpub_len=32;
     unsigned char senderpub[SSL_ECH_GREASE_BUFSIZ];
@@ -2780,7 +2780,7 @@ static int SSL_ech_send_grease(SSL *s, WPACKET *pkt, unsigned int context,
         || !WPACKET_start_sub_packet_u16(pkt)
         || !WPACKET_put_bytes_u16(pkt, hpke_suite.kdf_id)
         || !WPACKET_put_bytes_u16(pkt, hpke_suite.aead_id)
-        || !WPACKET_sub_memcpy_u16(pkt, cid, cid_len)
+        || !WPACKET_sub_memcpy_u8(pkt, cid, cid_len)
         || !WPACKET_sub_memcpy_u16(pkt, senderpub, senderpub_len)
         || !WPACKET_sub_memcpy_u16(pkt, cipher, cipher_len)
         || !WPACKET_close(pkt)
@@ -2947,7 +2947,7 @@ EXT_RETURN tls_construct_ctos_ech(SSL *s, WPACKET *pkt, unsigned int context,
         || !WPACKET_start_sub_packet_u16(pkt)
         || !WPACKET_put_bytes_u16(pkt, hpke_suite.kdf_id)
         || !WPACKET_put_bytes_u16(pkt, hpke_suite.aead_id)
-        || !WPACKET_sub_memcpy_u16(pkt, config_id, config_id_len)
+        || !WPACKET_sub_memcpy_u8(pkt, config_id, config_id_len)
         || !WPACKET_sub_memcpy_u16(pkt, senderpub, senderpublen)
         || !WPACKET_sub_memcpy_u16(pkt, cipher, cipherlen)
         || !WPACKET_close(pkt)

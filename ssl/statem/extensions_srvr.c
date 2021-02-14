@@ -2751,7 +2751,7 @@ int tls_parse_ctos_ech(SSL *s, PACKET *pkt, unsigned int context,
     extval->aead_id=tmp&0xffff;
 
     /* config id */
-    if (!PACKET_get_net_2(pkt, &tmp)) {
+    if (!PACKET_get_1(pkt, &tmp)) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ECH, SSL_R_BAD_EXTENSION);
         goto err;
     }
