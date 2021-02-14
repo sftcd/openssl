@@ -2669,6 +2669,9 @@ static unsigned char *hpke_decrypt_encch(SSL_ECH *ech, ECH_ENCCH *the_ech, size_
     ech_pbuf("senderpub",senderpub,senderpublen);
     ech_pbuf("cipher",cipher,cipherlen);
 
+    unsigned char aad[]={ 0x01, 0x02};
+    size_t aad_len=2;
+
     int rv=hpke_dec( hpke_mode, hpke_suite,
                 NULL, 0, NULL, // pskid, psk
                 //publen, pub, // recipient public key
@@ -2676,7 +2679,7 @@ static unsigned char *hpke_decrypt_encch(SSL_ECH *ech, ECH_ENCCH *the_ech, size_
                 0,NULL,ech->keyshare, // private key in EVP_PKEY form
                 senderpublen, senderpub, // sender public
                 cipherlen, cipher, // ciphertext
-                0,NULL, // aad
+                aad_len,aad, // aad
                 0,NULL, // info
                 &clearlen, clear);  // clear
     if (rv!=1) {

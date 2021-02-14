@@ -25,8 +25,9 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
-- 20210213: Started testing against CF deployment. Various fixes
-  being fixed;-)
+- 20210214: Started testing against CF deployment. Various fixes
+  being fixed... Next one up will be to do the AAD called for
+  by draft-09 (which is a PITA;-)
 
 - 20210212: Added basic GREASE'ing to client and server.
 
