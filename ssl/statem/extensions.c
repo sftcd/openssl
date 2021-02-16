@@ -1123,6 +1123,7 @@ static int final_server_name(SSL *s, unsigned int context, int sent)
      * GREASE)
      */
     if (s->ext.ech_attempted==0 || s->ext.ech_grease==ECH_IS_GREASE || s->ext.ech_success==1) 
+    {
 #endif
     if (s->ctx->ext.servername_cb != NULL)
         ret = s->ctx->ext.servername_cb(s, &altmp,
@@ -1130,6 +1131,10 @@ static int final_server_name(SSL *s, unsigned int context, int sent)
     else if (s->session_ctx->ext.servername_cb != NULL)
         ret = s->session_ctx->ext.servername_cb(s, &altmp,
                                        s->session_ctx->ext.servername_arg);
+#ifndef OPENSSL_NO_ECH
+    // this avoids a warning
+    }
+#endif
 
     /*
      * For servers, propagate the SNI hostname from the temporary

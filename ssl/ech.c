@@ -73,13 +73,22 @@ const char *B64_alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz01
 const char *httpssvc_telltale="echconfig=";
 
 /*
- * Ancilliary functions
+ * Ancilliary definintions
  */
 
 #define ECH_KEYPAIR_ERROR          0
 #define ECH_KEYPAIR_NEW            1
 #define ECH_KEYPAIR_UNMODIFIED     2
 #define ECH_KEYPAIR_MODIFIED       3
+
+/*
+#define SSL_ECH_I_HATE_GREASE 0
+#define SSL_ECH_SEND_NO_GREASE 1
+#define SSL_ECH_SEND_GREASE 2
+#define SSL_ECH_SEND_REAL 3
+*/
+
+#define SSL_ECH_GREASE_BUFSIZ 255
 
 /**
  * Check if key pair needs to be (re-)loaded or not
@@ -1244,8 +1253,8 @@ int SSL_ech_get_status(SSL *s, char **inner_sni, char **outer_sni)
      * set vars - note we may be pointing to NULL which is fine
      */
     char *ech_public_name=s->ext.ech_public_name;
-    char *ech_inner_name=s->ext.ech_inner_name;
-    char *ech_outer_name=s->ext.ech_outer_name;
+    //char *ech_inner_name=s->ext.ech_inner_name;
+    //char *ech_outer_name=s->ext.ech_outer_name;
 
     char *sinner=NULL;
     if (s->ext.inner_s!=NULL) sinner=s->ext.inner_s->ext.hostname;
@@ -2013,7 +2022,19 @@ int ech_decode_inner(SSL *s)
     }
     s->ext.innerch_len=initial_decomp_len;
     s->ext.innerch=initial_decomp;
+
+    unsigned char *startofmessage=outer->ext.encoded_innerch;
+    /*
+     * Jump over the ciphersuites and (MUST be NULL) compression to
+     * the start of extensions
+     * We'll start genoffset at the end of the session ID, just
+     * before the ciphersuites
+     */
     size_t offset2sessid=6+32; 
+    size_t genoffset=offset2sessid+1; // 1 is the length of the session id itself
+    size_t suiteslen=startofmessage[genoffset]*256+startofmessage[genoffset+1];
+    size_t startofexts=genoffset+outer->tmp_session_id_len+2+suiteslen + 2; // the last +2 for the NULL compression
+
     memcpy(initial_decomp,outer->ext.encoded_innerch,offset2sessid);
     initial_decomp[offset2sessid]=outer->tmp_session_id_len;
     memcpy(initial_decomp+offset2sessid+1,
@@ -2022,16 +2043,6 @@ int ech_decode_inner(SSL *s)
     memcpy(initial_decomp+offset2sessid+1+outer->tmp_session_id_len,
                 outer->ext.encoded_innerch+offset2sessid+1,
                 outer->ext.encoded_innerch_len-offset2sessid-1);
-    /*
-     * Jump over the ciphersuites and (MUST be NULL) compression to
-     * the start of extensions
-     * We'll start genoffset at the end of the session ID, just
-     * before the ciphersuites
-     */
-    size_t genoffset=offset2sessid+1; // 1 is the length of the session id itself
-    size_t suiteslen=outer->ext.encoded_innerch[genoffset]*256+outer->ext.encoded_innerch[genoffset+1];
-    genoffset+=suiteslen+2; // the 2 for the suites len
-    size_t startofexts=genoffset+outer->tmp_session_id_len+2; // the +2 for the NULL compression
 
     /*
      * Initial decode of inner
@@ -2531,6 +2542,534 @@ void ech_ptranscript(const char *msg, SSL *s)
         } OSSL_TRACE_END(TLS);
     }
     return;
+}
+
+/*
+ * Send grease
+ */
+int SSL_ech_send_grease(SSL *s, WPACKET *pkt, unsigned int context,
+                                   X509 *x, size_t chainidx)
+{
+    /*
+     * Let's send some random stuff that looks like...
+     *       struct {
+     *          ECHCipherSuite cipher_suite;
+     *          opaque config_id<0..255>;
+     *          opaque enc<1..2^16-1>;
+     *          opaque payload<1..2^16-1>;
+     *       } ClientECH;
+     *
+     * Here's one such (len=266):
+     *
+     * 00010001 00025346 00208607 BCE0C3B1 
+     * 1D1E5391 9BD5D99C C1CDB5F2 5F0F9EB3
+     * F35E8359 2C810ADC 8A2F00DE 2AA118F9
+     * 698530FB AA4BE33B C8704024 EFE4D6E1
+     * AB676E73 E8F25D23 54B813A2 27C91784
+     * B831915F 24914F0C 8C558883 725CA676
+     * BC97A0A4 E2B55271 E15A86B2 86ED2C56
+     * 2C69C833 9C01A85A 8ED8EC2D 3C37C223
+     * 3B932715 C25361BF 01CB470A 370DDE46
+     * C1B3458A 4CD88FC2 4C97DF3C 1AEB9E86
+     * 4E04289F 3DF5A0EA D7FFBEEF 5DD2E30A
+     * 9A8825EF 92239CD5 C1420BAF 7A33E7B4
+     * 7BBF0813 BABF51B6 156A79B3 79E37A6C
+     * 70DADF09 A4CA746E 1CAA79A1 D5EF5BA9
+     * 69ACA1A6 ECCB6561 77C46F46 2860CAB1 
+     * BFC6C1E4 26F4AFCF F597721F 33B89CCC
+     * A9D63D4F 2591C945 AD0E
+     */
+
+    /*
+     * Assign buffers of the right size, that we'll mostly randomly fill
+     */
+    hpke_suite_t hpke_suite = HPKE_SUITE_DEFAULT;
+    size_t cid_len=8;
+    unsigned char cid[SSL_ECH_GREASE_BUFSIZ];
+    size_t senderpub_len=32;
+    unsigned char senderpub[SSL_ECH_GREASE_BUFSIZ];
+    size_t cipher_len=206;
+    unsigned char cipher[SSL_ECH_GREASE_BUFSIZ];
+    if (s==NULL || s->ctx==NULL) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ECH, ERR_R_INTERNAL_ERROR);
+        return 0;
+    }
+    if ((RAND_bytes_ex(s->ctx->libctx, cid, cid_len) <= 0) ||
+        (RAND_bytes_ex(s->ctx->libctx, senderpub, senderpub_len) <= 0) ||
+        (RAND_bytes_ex(s->ctx->libctx, cipher, cipher_len) <= 0) 
+            ) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ECH, ERR_R_INTERNAL_ERROR);
+        return 0;
+    }
+    if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_ech) 
+        || !WPACKET_start_sub_packet_u16(pkt)
+        || !WPACKET_put_bytes_u16(pkt, hpke_suite.kdf_id)
+        || !WPACKET_put_bytes_u16(pkt, hpke_suite.aead_id)
+        || !WPACKET_sub_memcpy_u8(pkt, cid, cid_len)
+        || !WPACKET_sub_memcpy_u16(pkt, senderpub, senderpub_len)
+        || !WPACKET_sub_memcpy_u16(pkt, cipher, cipher_len)
+        || !WPACKET_close(pkt)
+            ) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ECH, ERR_R_INTERNAL_ERROR);
+        return 0;
+    }
+    OSSL_TRACE_BEGIN(TLS) { 
+        BIO_printf(trc_out,"ECH - sending GREASE\n");
+    } OSSL_TRACE_END(TLS);
+    return 1;
+}
+
+/*
+ * Calc AAD and encrypt
+ */
+int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
+{
+    /*
+     * So this is a PITA but let's try
+     * TODO: For now, we'll leave the call to hpke_enc in the extension
+     * handler, but that'll have to move in a bit.
+     *
+     * 1. Make up the AAD:
+     *      - the HPKE suite
+     *      - my HPKE ephemeral public key
+     *      - the encoded outer, minus the ECH
+     * 2. Do the encryption
+     * 3. Put the ECH back into the encoding
+     * 4. Encode the outer (again!)
+     *
+     * There'll be "fixing up lengths" involved at various places as we
+     * go probaby.
+     */ 
+
+    int hpke_mode=HPKE_MODE_BASE;
+    hpke_suite_t hpke_suite = HPKE_SUITE_DEFAULT;
+    size_t cipherlen=HPKE_MAXSIZE; 
+    unsigned char cipher[HPKE_MAXSIZE];
+    unsigned char *aad=NULL;
+    size_t aad_len=0;
+    /*
+     * My ephemeral key pair for HPKE encryption
+     * Has to be externally generated so public can be part of AAD (sigh)
+     */
+    unsigned char mypub[HPKE_MAXSIZE];
+    size_t mypub_len=HPKE_MAXSIZE;
+    /*
+     * For some reason the EVP variant here doesn't work
+     * inside HPKE - check that out - TODO:
+     */
+//#define EVP
+#define RAW
+#ifdef EVP
+    EVP_PKEY *mypriv_evp=NULL;
+#else
+    unsigned char mypriv[HPKE_MAXSIZE];
+    size_t mypriv_len=HPKE_MAXSIZE;
+#endif
+
+    /*
+     * Pick a matching public key from the Config (if we can)
+     * We'll just take the 1st matching.
+     */
+    unsigned char *peerpub=NULL;
+    size_t peerpub_len=0;
+    ECHConfig *tc=NULL;
+    int cind=0;
+    ECHConfigs *cfgs=s->ech->cfg;
+    if (cfgs==NULL) {
+        /*
+         * Treating this as an error. Note there could be 
+         * some corner case with SCVB that gets us here
+         * but hopefully not
+         */
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ECH,
+                 ERR_R_INTERNAL_ERROR);
+        return 0;
+    }
+
+    /*
+     * Search through the ECHConfigs for one that's a best
+     * match in terms of outer_name==public_name. 
+     * If no public_name was set via API then we 
+     * just take the 1st match where we locally support
+     * the HPKE suite.
+     * If OTOH, a public_name was provided via API then
+     * we prefer the first that matches that.
+     */
+    int onlen=(s->ech->outer_name==NULL?0:strlen(s->ech->outer_name));
+    int prefind=-1;
+    ECHConfig *firstmatch=NULL;
+    for (cind=0;cind!=cfgs->nrecs;cind++) {
+        ECHConfig *ltc=&cfgs->recs[cind];
+        if (s->ech->outer_name && (
+                    ltc->public_name_len!=onlen ||
+                    strncmp(s->ech->outer_name,(char*)ltc->public_name,onlen))) {
+            prefind=cind;
+        }
+        hpke_suite.kem_id=ltc->kem_id;
+        int csuite=0;
+        for (csuite=0;csuite!=ltc->nsuites;csuite++) {
+            unsigned char *es=(unsigned char*)&ltc->ciphersuites[csuite];
+            hpke_suite.kdf_id=es[0]*256+es[1];
+            hpke_suite.aead_id=es[2]*256+es[3];
+            if (hpke_suite_check(hpke_suite)==1) {
+                /*
+                * success if both "fit"
+                */
+                if (prefind!=-1) {
+                    tc=ltc;
+                    break;
+                }
+                if (firstmatch==NULL) {
+                    firstmatch=ltc;
+                }
+            }
+        }
+    }
+    if (tc==NULL && firstmatch==NULL) {
+        OSSL_TRACE_BEGIN(TLS) { 
+            BIO_printf(trc_out,"No matching ECHConfig sadly\n");
+        } OSSL_TRACE_END(TLS);
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ECH,
+                 ERR_R_INTERNAL_ERROR);
+        return 0;
+    }
+    if (tc==NULL && firstmatch!=NULL) {
+        tc=firstmatch;
+    }
+    /*
+     * tc is our selected config
+     */
+    peerpub=tc->pub;
+    peerpub_len=tc->pub_len;
+    if (peerpub_len <=0) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ECH, ERR_R_INTERNAL_ERROR);
+        return 0;
+    }
+    if (s->ext.inner_s==NULL || s->ext.inner_s->ech==NULL) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ECH, ERR_R_INTERNAL_ERROR);
+        return 0;
+    }
+    ech_pbuf("EAAE: peer pub",peerpub,peerpub_len);
+    ech_pbuf("EAAE: clear",s->ext.inner_s->ext.encoded_innerch, s->ext.inner_s->ext.encoded_innerch_len);
+
+
+#ifdef EVP
+    if (hpke_kg_evp(hpke_mode, hpke_suite, &mypub_len, mypub, &mypriv_evp)!=1) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ECH, ERR_R_INTERNAL_ERROR);
+        return 0;
+    }
+    if (mypub_len>HPKE_MAXSIZE || mypriv_evp==NULL) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ECH, ERR_R_INTERNAL_ERROR);
+        return 0;
+    }
+    ech_pbuf("EAAE: my pub",mypub,mypub_len);
+#else
+    if (hpke_kg(hpke_mode, hpke_suite, &mypub_len, mypub, &mypriv_len, mypriv)!=1) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ECH, ERR_R_INTERNAL_ERROR);
+        return 0;
+    }
+    if (mypub_len>=HPKE_MAXSIZE || mypriv_len >=HPKE_MAXSIZE) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ECH, ERR_R_INTERNAL_ERROR);
+        return 0;
+    }
+    ech_pbuf("EAAE: my pub",mypub,mypub_len);
+    ech_pbuf("EAAE: my priv",mypriv,mypriv_len);
+#endif
+
+    unsigned char *config_id=NULL;
+    size_t config_id_len=0;
+    aad_len=4+1+config_id_len+2+mypub_len+2+pkt->written-4;
+    aad=OPENSSL_malloc(aad_len);
+    if (aad==NULL) {
+#ifdef EVP
+        EVP_PKEY_free(mypriv_evp); mypriv_evp=NULL;
+#endif
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ECH, ERR_R_INTERNAL_ERROR);
+        return 0;
+    }
+
+    unsigned char *cp=aad;
+    *cp++=((hpke_suite.kdf_id&0xffff)/256);
+    *cp++=((hpke_suite.kdf_id&0xffff)%256);
+    *cp++=((hpke_suite.aead_id&0xffff)/256);
+    *cp++=((hpke_suite.aead_id&0xffff)%256);
+    *cp++=((config_id_len&0xff)%256);
+    if (config_id_len>0) {
+        *cp++=((config_id[0]&0xff)%256);
+        *cp++=((config_id[1]&0xff)%256);
+    }
+    *cp++=((mypub_len&0xffff)/256);
+    *cp++=((mypub_len&0xffff)%256);
+    memcpy(cp,mypub,mypub_len); cp+=mypub_len;
+    *cp++=(((pkt->written-4)&0xffff)/256);
+    *cp++=(((pkt->written-4)&0xffff)%256);
+    memcpy(cp,pkt->buf->data+4,pkt->written-4);
+
+    ech_pbuf("EAAE: aad",aad,aad_len);
+
+#ifdef EVP
+    int rv=hpke_enc_evp(
+        hpke_mode, hpke_suite, // mode, suite
+        NULL, 0, NULL, // pskid, psk
+        peerpub_len,peerpub,
+        0, NULL, // priv
+        s->ext.inner_s->ext.encoded_innerch_len, s->ext.inner_s->ext.encoded_innerch, // clear
+        aad_len, aad, // aad 
+        0, NULL, // info
+        mypub_len, mypub, mypriv_evp, // my ephemeral key pair for D-H
+        &cipherlen, cipher // cipher
+        );
+    if (rv!=1) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ECH, ERR_R_INTERNAL_ERROR);
+        EVP_PKEY_free(mypriv_evp); mypriv_evp=NULL;
+        OPENSSL_free(aad);
+        return 0; 
+    }
+#else
+    int rv=hpke_enc_raw(
+        hpke_mode, hpke_suite, // mode, suite
+        NULL, 0, NULL, // pskid, psk
+        peerpub_len,peerpub,
+        0, NULL, // priv
+        s->ext.inner_s->ext.encoded_innerch_len, s->ext.inner_s->ext.encoded_innerch, // clear
+        aad_len, aad, // aad 
+        0, NULL, // info
+        mypub_len, mypub,
+        mypriv_len,mypriv,
+        &cipherlen, cipher // cipher
+        );
+    if (rv!=1) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ECH, ERR_R_INTERNAL_ERROR);
+#ifdef EVP
+        EVP_PKEY_free(mypriv_evp); mypriv_evp=NULL;
+#endif
+        OPENSSL_free(aad);
+        return 0; 
+    }
+#endif
+
+    ech_pbuf("EAAE: hpke mypub",mypub,mypub_len);
+    ech_pbuf("EAAE: cipher",cipher,cipherlen);
+    OPENSSL_free(aad);
+#ifdef EVP
+    EVP_PKEY_free(mypriv_evp); mypriv_evp=NULL;
+#endif
+
+    WPACKET echval;
+    BUF_MEM *echval_mem=NULL;
+    if ((echval_mem = BUF_MEM_new()) == NULL) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ECH, ERR_R_INTERNAL_ERROR);
+        return 0;
+    }
+    if (!BUF_MEM_grow(echval_mem, SSL3_RT_MAX_PLAIN_LENGTH)) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ECH, ERR_R_INTERNAL_ERROR);
+        return 0;
+    }
+    if (!WPACKET_init(&echval,echval_mem)) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ECH, ERR_R_INTERNAL_ERROR);
+        return 0;
+    }
+    if (!WPACKET_put_bytes_u16(&echval, TLSEXT_TYPE_ech) 
+        || !WPACKET_start_sub_packet_u16(&echval)
+        || !WPACKET_put_bytes_u16(&echval, hpke_suite.kdf_id)
+        || !WPACKET_put_bytes_u16(&echval, hpke_suite.aead_id)
+        || !WPACKET_sub_memcpy_u8(&echval, config_id, config_id_len)
+        || !WPACKET_sub_memcpy_u16(&echval, mypub, mypub_len)
+        || !WPACKET_sub_memcpy_u16(&echval, cipher, cipherlen)
+        || !WPACKET_close(&echval)
+            ) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ECH, ERR_R_INTERNAL_ERROR);
+            return 0;
+    }
+    ech_pbuf("EAAE echval",(unsigned char*) echval.buf->data,echval.written);
+
+    ech_pbuf("EAAE pkt b4",(unsigned char*) pkt->buf->data,pkt->written);
+    if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_ech) 
+        || !WPACKET_start_sub_packet_u16(pkt)
+        || !WPACKET_put_bytes_u16(pkt, hpke_suite.kdf_id)
+        || !WPACKET_put_bytes_u16(pkt, hpke_suite.aead_id)
+        || !WPACKET_sub_memcpy_u8(pkt, config_id, config_id_len)
+        || !WPACKET_sub_memcpy_u16(pkt, mypub, mypub_len)
+        || !WPACKET_sub_memcpy_u16(pkt, cipher, cipherlen)
+        || !WPACKET_close(pkt)
+            ) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ECH, ERR_R_INTERNAL_ERROR);
+            return 0;
+    }
+
+    /*
+     * TODO: Total hack time!!! once this works, we'll fix
+     */
+    unsigned char *startofmessage=(unsigned char*)pkt->buf->data;
+    /*
+     * Jump over the ciphersuites and (MUST be NULL) compression to
+     * the start of extensions
+     * We'll start genoffset at the end of the session ID, just
+     * before the ciphersuites
+     */
+    size_t genoffset=6+32+1+s->tmp_session_id_len; 
+    size_t suiteslen=startofmessage[genoffset]*256+startofmessage[genoffset+1];
+    size_t startofexts=genoffset+suiteslen+2+2; // the 2 for the suites len
+
+    size_t origextlens=startofmessage[startofexts]*256+startofmessage[startofexts+1];
+    size_t newextlens=origextlens+echval.written;
+    startofmessage[startofexts]=(newextlens&0xffff)/256; 
+    startofmessage[startofexts+1]=(newextlens&0xffff)%256; 
+
+    ech_pbuf("EAAE pkt to startofexts+2",(unsigned char*) pkt->buf->data,startofexts+2);
+    ech_pbuf("EAAE pkt aftr",(unsigned char*) pkt->buf->data,pkt->written);
+
+    /*
+     * Now splice the encrypted ECH back into the outer CH and adjust lengths
+     * as needed
+     */
+
+    return 1;
+}
+
+/*
+ * Server figures out AAD from state
+ */
+int ech_srv_get_aad(SSL *s,
+        size_t pub_len, unsigned char *pub,
+        size_t config_id_len, unsigned char *config_id, 
+        size_t de_len, unsigned char *de, 
+        size_t *aad_len,unsigned char *aad)
+{
+    if (s==NULL || aad_len == NULL || aad==NULL) return 0;
+
+    unsigned char *cp=aad;
+    //int hpke_mode=HPKE_MODE_BASE;
+    hpke_suite_t hpke_suite = HPKE_SUITE_DEFAULT;
+
+    *cp++=((hpke_suite.kdf_id&0xffff)/256);
+    if ((cp-aad)>*aad_len) return 0;
+    *cp++=((hpke_suite.kdf_id&0xffff)%256);
+    if ((cp-aad)>*aad_len) return 0;
+    *cp++=((hpke_suite.aead_id&0xffff)/256);
+    if ((cp-aad)>*aad_len) return 0;
+    *cp++=((hpke_suite.aead_id&0xffff)%256);
+    if ((cp-aad)>*aad_len) return 0;
+    *cp++=((config_id_len&0xff)%256);
+    if ((cp-aad)>*aad_len) return 0;
+    if (config_id_len>0) {
+        if ((cp-aad)>*aad_len) return 0;
+        *cp++=((config_id[0]&0xff)%256);
+        if ((cp-aad)>*aad_len) return 0;
+        *cp++=((config_id[1]&0xff)%256);
+    }
+
+    *cp++=((pub_len&0xffff)/256);
+    if ((cp-aad)>*aad_len) return 0;
+    *cp++=((pub_len&0xffff)%256);
+    if ((cp-aad)>*aad_len) return 0;
+    memcpy(cp,pub,pub_len); cp+=pub_len;
+    if ((cp-aad)>*aad_len) return 0;
+
+    *cp++=((de_len&0xffff)/256);
+    if ((cp-aad)>*aad_len) return 0;
+    *cp++=((de_len&0xffff)%256);
+    if ((cp-aad)>*aad_len) return 0;
+    memcpy(cp,de,de_len); cp+=de_len;
+    if ((cp-aad)>*aad_len) return 0;
+
+    *aad_len=(cp-aad);
+
+    ech_pbuf("SRV AAD:",aad,*aad_len);
+
+    return 1;
+}
+
+/*
+ * Given CH encoding, return CH minus the ECH value (if present)
+ *
+ * @param s: SSL session stuff
+ * @param ch_len: length of original encoded CH 
+ * @param ch: buffer with original encoded CH
+ * @param de_len: zero if no ECH present, otherwise length of buffer with CH after ECH taken out
+ * @param de: NULL or the above buffer (allocated internally, caller needs to free)
+ */
+int drop_ech_from_ch(SSL *s, size_t ch_len, unsigned char *ch,
+        size_t *de_len, unsigned char *de) 
+{
+
+    /*
+     * TODO: Total hack time!!! once this works, we'll fix
+     */
+    unsigned char *startofmessage=ch;
+    /*
+     * Jump over the ciphersuites and (MUST be NULL) compression to
+     * the start of extensions
+     * We'll start genoffset at the end of the session ID, just
+     * before the ciphersuites
+     */
+    //size_t genoffset=2+32+1+s->tmp_session_id_len;  // note 1st 2 here was 6 before
+    size_t genoffset=2+32+1+32;  // session id not yet set
+    size_t suiteslen=startofmessage[genoffset]*256+startofmessage[genoffset+1];
+    size_t startofexts=genoffset+suiteslen+2+2; // the 2 for the suites len
+
+    size_t origextlens=startofmessage[startofexts]*256+startofmessage[startofexts+1];
+
+    /* 
+     * find ECH if it's there
+     */
+    size_t echlen=0; // length of ECH, including type & ECH-internal length
+    size_t echoffset=0; // offset of ECH from start of CH
+
+    if ((startofexts+2)>(ch_len-startofexts)) {
+         return 0;
+    }
+
+    ech_pbuf("dropping orig CH",(unsigned char*) ch,ch_len);
+    ech_pbuf("dropping orig to startofexts+2",(unsigned char*) ch,startofexts+2);
+
+    unsigned char *e_start=&startofmessage[startofexts+2];
+    int extsremaining=origextlens-2;
+    int found=0;
+    uint16_t etype=0;
+    size_t elen=0;
+
+    while (!found && extsremaining>0) {
+        etype=e_start[0]*256+e_start[1];
+        elen=e_start[2]*256+e_start[3];
+        if (etype==TLSEXT_TYPE_ech) {
+            found=1;
+            echlen=elen+4; // type and length included
+            echoffset=(e_start-ch); // offset from start of outer CH
+            break;
+        }
+        e_start+=(4+elen);
+        extsremaining-=(4+elen);
+    }
+
+    if (!found) {
+        *de_len=0;
+        return 1;
+    }
+
+
+    size_t newextlens=origextlens-echlen;
+
+    if ((startofexts+newextlens)>*de_len) {
+        return 0;
+    }
+
+    /* 
+     * assemble de
+     */
+    memcpy(de,ch,startofexts);
+    de[startofexts]=(newextlens&0xffff)/256; 
+    de[startofexts+1]=(newextlens&0xffff)%256; 
+    size_t beforeECH=echoffset-startofexts-2;
+    size_t afterECH=ch_len-startofexts-2-beforeECH-echlen;
+    memcpy(de+startofexts+2,ch+startofexts+2,beforeECH);
+    memcpy(de+startofexts+2+beforeECH,ch+startofexts+2+beforeECH+echlen,afterECH);
+
+    *de_len=ch_len-echlen;
+
+    ech_pbuf("CH minus ECH",de,*de_len);
+
+    return (1);
 }
 
 #endif

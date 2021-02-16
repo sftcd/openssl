@@ -2647,7 +2647,8 @@ EXT_RETURN tls_construct_stoc_esni(SSL *s, WPACKET *pkt,
 /**
  * @brief wrapper for hpke_dec since we call it >1 time
  */
-static unsigned char *hpke_decrypt_encch(SSL_ECH *ech, ECH_ENCCH *the_ech, size_t *innerlen)
+static unsigned char *hpke_decrypt_encch(SSL_ECH *ech, ECH_ENCCH *the_ech, 
+        size_t aad_len, unsigned char *aad, size_t *innerlen)
 {
     size_t publen=0; unsigned char *pub=NULL;
     size_t cipherlen=0; unsigned char *cipher=NULL;
@@ -2668,9 +2669,6 @@ static unsigned char *hpke_decrypt_encch(SSL_ECH *ech, ECH_ENCCH *the_ech, size_
     ech_pbuf("pub",pub,publen);
     ech_pbuf("senderpub",senderpub,senderpublen);
     ech_pbuf("cipher",cipher,cipherlen);
-
-    unsigned char aad[]={ 0x01, 0x02};
-    size_t aad_len=2;
 
     int rv=hpke_dec( hpke_mode, hpke_suite,
                 NULL, 0, NULL, // pskid, psk
@@ -2768,11 +2766,11 @@ int tls_parse_ctos_ech(SSL *s, PACKET *pkt, unsigned int context,
     }
     extval->config_id_len=tmp;
     extval->config_id=OPENSSL_malloc(tmp);
-    if (extval->config_id==NULL) {
+    if (extval->config_id_len!=0 && extval->config_id==NULL) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ECH, SSL_R_BAD_EXTENSION);
         goto err;
     }
-    if (!PACKET_copy_bytes(pkt, extval->config_id, tmp)) {
+    if (extval->config_id_len>0 && !PACKET_copy_bytes(pkt, extval->config_id, tmp)) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ECH, SSL_R_BAD_EXTENSION);
         goto err;
     }
@@ -2826,6 +2824,20 @@ int tls_parse_ctos_ech(SSL *s, PACKET *pkt, unsigned int context,
     }
 
     /*
+     * Calculate AAD value
+     */
+    unsigned char aad[HPKE_MAXSIZE];
+    size_t aad_len=HPKE_MAXSIZE;
+
+    if (ech_srv_get_aad(s,extval->enc_len, extval->enc, 
+                extval->config_id_len, extval->config_id, 
+                s->ext.ech_dropped_from_ch_len, s->ext.ech_dropped_from_ch, 
+                &aad_len,&aad)!=1) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ECH, SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+
+    /*
      * Now see which (if any) of our configs match, or whether
      * we need to trial decrypt
      */
@@ -2846,7 +2858,7 @@ int tls_parse_ctos_ech(SSL *s, PACKET *pkt, unsigned int context,
             }
         }
         if (foundcfg==1) {
-            clear=hpke_decrypt_encch(&s->ech[cfgind],extval,&clearlen);
+            clear=hpke_decrypt_encch(&s->ech[cfgind],extval,aad_len,aad,&clearlen);
             if (clear==NULL) {
                 s->ext.ech_grease=ECH_IS_GREASE;
             }
@@ -2857,7 +2869,7 @@ int tls_parse_ctos_ech(SSL *s, PACKET *pkt, unsigned int context,
      */
     if (!foundcfg && (s->options & SSL_OP_ECH_TRIALDECRYPT)) { 
         for (cfgind=0;cfgind!=s->ech->cfg->nrecs;cfgind++) {
-            clear=hpke_decrypt_encch(&s->ech[cfgind],extval,&clearlen);
+            clear=hpke_decrypt_encch(&s->ech[cfgind],extval,aad_len,aad,&clearlen);
             if (clear!=NULL) {
                 foundcfg=1;
                 break;

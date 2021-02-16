@@ -5032,7 +5032,10 @@ SRP_Calc_client_key_ex                  ?	3_0_0	EXIST::FUNCTION:SRP
 X509v3_cache_extensions                 ?	3_0_0	EXIST::FUNCTION:
 ERR_load_ESNI_strings                   ?	3_0_0	EXIST::FUNCTION:
 hpke_kg                                 ?	3_0_0	EXIST::FUNCTION:
+hpke_kg_evp                             ?	3_0_0	EXIST::FUNCTION:
 hpke_enc                                ?	3_0_0	EXIST::FUNCTION:
+hpke_enc_evp                            ?	3_0_0	EXIST::FUNCTION:
+hpke_enc_raw                            ?	3_0_0	EXIST::FUNCTION:
 hpke_dec                                ?	3_0_0	EXIST::FUNCTION:
 hpke_ah_decode                          ?	3_0_0	EXIST::FUNCTION:
 hpke_suite_check                        ?	3_0_0	EXIST::FUNCTION:

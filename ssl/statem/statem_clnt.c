@@ -1342,6 +1342,24 @@ int tls_construct_client_hello(SSL *s, WPACKET *pkt)
         goto err;
     }
 
+    ech_pbuf("encoded inner CH",s->ext.encoded_innerch,s->ext.encoded_innerch_len);
+    ech_pbuf("outer, client_random",s->s3.client_random,SSL3_RANDOM_SIZE);
+    ech_pbuf("outer, session_id",s->session->session_id,s->session->session_id_length);
+
+    if (ech_aad_and_encrypt(s,pkt)!=1) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CLIENT_HELLO,
+                 ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+
+    /*
+     * Finallly, finally, we need to:
+     * - calculate the AAD for the encryption:
+     *     - easy bit: suite
+     *     - public key: generate our ephemeral key pair 
+     *     - encoded outer CH without ECH
+     */
+
     /*
      * Free up raw exts as needed (happens like this on real server
      */
@@ -1351,9 +1369,6 @@ int tls_construct_client_hello(SSL *s, WPACKET *pkt)
         new_s->clienthello=NULL;
     }
 
-    ech_pbuf("encoded inner CH",s->ext.encoded_innerch,s->ext.encoded_innerch_len);
-    ech_pbuf("outer, client_random",s->s3.client_random,SSL3_RANDOM_SIZE);
-    ech_pbuf("outer, session_id",s->session->session_id,s->session->session_id_length);
     return(1);
 
 err:

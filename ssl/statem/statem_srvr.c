@@ -1388,6 +1388,40 @@ MSG_PROCESS_RETURN tls_process_client_hello(SSL *s, PACKET *pkt)
     static const unsigned char null_compression = 0;
     CLIENTHELLO_MSG *clienthello = NULL;
 
+#ifndef OPENSSL_NO_ECH
+    /*
+     * If we're a server and we might do ECH then we should
+     * stash a version of the outer CH (if that's what we're
+     * being called to look at), minus the ECH extension for
+     * the AAD to be used in potential decryptions.
+     *
+     * Yes, it's a PITA that this needs to be done here.
+     */
+    if (s->server && s->ech!=NULL && s->ext.ch_depth==0) {
+        /* 
+         * figure out value (if present) and stash that
+         */
+        size_t de_len=HPKE_MAXSIZE;
+        unsigned char de[HPKE_MAXSIZE];
+        if (drop_ech_from_ch(s,pkt->remaining,pkt->curr,&de_len,de)!=1) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PROCESS_CLIENT_HELLO,
+                     ERR_R_INTERNAL_ERROR);
+            goto err;
+        }
+        if (de_len>0) {
+            // we got an ECH there, better stash de value really
+            s->ext.ech_dropped_from_ch=OPENSSL_malloc(de_len); 
+            if (!s->ext.ech_dropped_from_ch) {
+                SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PROCESS_CLIENT_HELLO,
+                         ERR_R_INTERNAL_ERROR);
+                goto err;
+            }
+            s->ext.ech_dropped_from_ch_len=de_len;
+            memcpy(s->ext.ech_dropped_from_ch,de,de_len);
+        }
+    }
+#endif
+
     /* Check if this is actually an unexpected renegotiation ClientHello */
     if (s->renegotiate == 0 && !SSL_IS_FIRST_HANDSHAKE(s)) {
         if (!ossl_assert(!SSL_IS_TLS13(s))) {

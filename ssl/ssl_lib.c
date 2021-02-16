@@ -1325,6 +1325,7 @@ void SSL_free(SSL *s)
     OPENSSL_free(s->ext.ech_public_name);
     OPENSSL_free(s->ext.ech_inner_name);
     OPENSSL_free(s->ext.ech_outer_name);
+    OPENSSL_free(s->ext.ech_dropped_from_ch); 
     if (s->nechs>0 && s->ech!=NULL) {
         int i=0;
         for (i=0;i!=s->nechs;i++) {

@@ -1644,6 +1644,8 @@ struct ssl_st {
         int ech_success;
         int ech_grease;
         int ch_depth;
+        int ech_dropped_from_ch_len; // length of CH if you dropped ECH extension: <=0 if not present
+        unsigned char *ech_dropped_from_ch; // ptr to buffer with CH minus ECH buffer
 
 #endif
         /* certificate status request info */

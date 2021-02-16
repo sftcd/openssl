@@ -1329,7 +1329,7 @@ err:
 }
 
 /*!
- * @brief HPKE single-shot encryption function
+ * @brief Internal HPKE single-shot encryption function
  * @param mode is the HPKE mode
  * @param suite is the ciphersuite to use
  * @param pskid is the pskid string fpr a PSK mode (can be NULL)
@@ -1345,13 +1345,16 @@ err:
  * @param aad is the encoded additional data (can be NULL)
  * @param infolen is the lenght of the info data (can be zero)
  * @param info is the encoded info data (can be NULL)
+ * @param extsenderpublen is the length of the input buffer with the sender's public key 
+ * @param extsenderpub is the input buffer for sender public key
+ * @param extsenderpriv has the handle for the sender private key
  * @param senderpublen is the length of the input buffer for the sender's public key (length used on output)
  * @param senderpub is the input buffer for ciphertext
  * @param cipherlen is the length of the input buffer for ciphertext (length used on output)
  * @param cipher is the input buffer for ciphertext
  * @return 1 for good (OpenSSL style), not-1 for error
  */
-int hpke_enc(
+static int hpke_enc_int(
         unsigned int mode, hpke_suite_t suite,
         char *pskid, size_t psklen, unsigned char *psk,
         size_t publen, unsigned char *pub,
@@ -1359,19 +1362,37 @@ int hpke_enc(
         size_t clearlen, unsigned char *clear,
         size_t aadlen, unsigned char *aad,
         size_t infolen, unsigned char *info,
+        size_t extsenderpublen, unsigned char *extsenderpub, 
+        EVP_PKEY *extsenderpriv, size_t rawsenderprivlen,  unsigned char *rawsenderpriv,
         size_t *senderpublen, unsigned char *senderpub,
         size_t *cipherlen, unsigned char *cipher
 #ifdef TESTVECTORS
         , void *tv
 #endif
         )
+
 {
     int crv=1;
     if ((crv=hpke_mode_check(mode))!=1) return(crv);
     if ((crv=hpke_psk_check(mode,pskid,psklen,psk))!=1) return(crv);
     if ((crv=hpke_suite_check(suite))!=1) return(crv);
 
-    if (!pub || !clear || !senderpublen || !senderpub || !cipherlen  || !cipher) return(__LINE__);
+    /*
+     * Depending on who called us, we may want to generated this key pair
+     * or we may have had it handed to us via extsender* inputs
+     */
+    int evpcaller=0;
+    int rawcaller=0;
+    if (extsenderpublen>0 && extsenderpub!=NULL && extsenderpriv!=NULL) {
+        evpcaller=1;
+    } 
+    if (extsenderpublen>0 && extsenderpub!=NULL && extsenderpriv==NULL && rawsenderprivlen>0 && rawsenderpriv!=NULL) {
+        rawcaller=1;
+    } 
+
+    if (!evpcaller && !rawcaller && (!pub || !clear || !senderpublen || !senderpub || !cipherlen  || !cipher)) return(__LINE__);
+    if (evpcaller && (!pub || !clear || !extsenderpublen || !extsenderpub || !extsenderpriv || !cipherlen  || !cipher)) return(__LINE__);
+    if (rawcaller && (!pub || !clear || !extsenderpublen || !extsenderpub || !rawsenderpriv || !cipherlen  || !cipher)) return(__LINE__);
     if ((mode==HPKE_MODE_AUTH || mode==HPKE_MODE_PSKAUTH) && (!priv || privlen==0)) return(__LINE__);
     if ((mode==HPKE_MODE_PSK || mode==HPKE_MODE_PSKAUTH) && (!psk || psklen==0 || !pskid)) return(__LINE__);
 
@@ -1431,40 +1452,96 @@ int hpke_enc(
         erv=__LINE__; goto err;
     }
 
-    /* step 1. generate sender's key pair: skE, pkE */
-    pctx = EVP_PKEY_CTX_new(pkR, NULL);
-    if (pctx == NULL) {
-        erv=__LINE__; goto err;
-    }
-    if (EVP_PKEY_keygen_init(pctx) <= 0) {
-        erv=__LINE__; goto err;
-    }
-#ifdef TESTVECTORS
-    if (ltv) {
-        /*
-         * Read encap DH private from tv, then use that instead of 
-         * a newly generated key pair
-         */
-        if (hpke_kem_id_check(ltv->kem_id)!=1) return(__LINE__);
-        unsigned char *bin_skE=NULL;
-        size_t bin_skElen=0;
-        if (1!=hpke_ah_decode(strlen(ltv->skEm),ltv->skEm,&bin_skElen,&bin_skE)) { 
-            erv=__LINE__; goto err; 
-        }
-        if (hpke_kem_id_nist_curve(ltv->kem_id)==1) {
-            pkE = hpke_EVP_PKEY_new_raw_nist_private_key(hpke_kem_tab[ltv->kem_id].groupid,bin_skE,bin_skElen);
-        } else {
-            pkE = EVP_PKEY_new_raw_private_key(hpke_kem_tab[ltv->kem_id].groupid,NULL,bin_skE,bin_skElen);
-        }
-        if (!pkE) { erv=__LINE__; goto err; }
-        OPENSSL_free(bin_skE);
+    /* step 1. generate or import sender's key pair: skE, pkE */
 
-    } else  
+    if (!evpcaller && !rawcaller) {
+        pctx = EVP_PKEY_CTX_new(pkR, NULL);
+        if (pctx == NULL) {
+            erv=__LINE__; goto err;
+        }
+        if (EVP_PKEY_keygen_init(pctx) <= 0) {
+            erv=__LINE__; goto err;
+        }
+#ifdef TESTVECTORS
+        if (ltv) {
+            /*
+            * Read encap DH private from tv, then use that instead of 
+            * a newly generated key pair
+            */
+            if (hpke_kem_id_check(ltv->kem_id)!=1) return(__LINE__);
+            unsigned char *bin_skE=NULL;
+            size_t bin_skElen=0;
+
+            if (1!=hpke_ah_decode(strlen(ltv->skEm),ltv->skEm,&bin_skElen,&bin_skE)) { 
+                erv=__LINE__; goto err; 
+            }
+            if (hpke_kem_id_nist_curve(ltv->kem_id)==1) {
+                pkE = hpke_EVP_PKEY_new_raw_nist_private_key(hpke_kem_tab[ltv->kem_id].groupid,bin_skE,bin_skElen);
+            } else {
+                pkE = EVP_PKEY_new_raw_private_key(hpke_kem_tab[ltv->kem_id].groupid,NULL,bin_skE,bin_skElen);
+            }
+            if (!pkE) { erv=__LINE__; goto err; }
+            OPENSSL_free(bin_skE);
+
+        } else  
 #endif
-    if (EVP_PKEY_keygen(pctx, &pkE) <= 0) {
-        erv=__LINE__; goto err;
+        if (EVP_PKEY_keygen(pctx, &pkE) <= 0) {
+            erv=__LINE__; goto err;
+        }
+        EVP_PKEY_CTX_free(pctx); pctx=NULL;
+    } else if (evpcaller) {
+
+        pkE=extsenderpriv;
+        if (EVP_PKEY_set1_tls_encodedpoint(pkE,extsenderpub,extsenderpublen)!=1) {
+            erv=__LINE__; goto err;
+        }
+        pkE=extsenderpriv;
+
+#if 0
+        /*
+         * Double check we're a good key pair
+         */
+        unsigned char *checkpub=NULL;
+        size_t checkpublen=EVP_PKEY_get1_tls_encodedpoint(pkE,&checkpub);
+        if (checkpublen!=extsenderpublen ||
+                memcmp(checkpub,extsenderpub,checkpublen)) {
+            erv=__LINE__; goto err;
+        }
+        OPENSSL_free(checkpub);
+#endif
+
+    } else if (rawcaller) {
+
+        if (hpke_kem_tab[suite.kem_id].Npriv==rawsenderprivlen) {
+            if (hpke_kem_id_nist_curve(suite.kem_id)==1) {
+                pkE = hpke_EVP_PKEY_new_raw_nist_private_key(hpke_kem_tab[suite.kem_id].groupid,rawsenderpriv,rawsenderprivlen);
+            } else {
+                pkE=EVP_PKEY_new_raw_private_key(hpke_kem_tab[suite.kem_id].groupid,NULL,rawsenderpriv,rawsenderprivlen);
+            }
+        }
+        if (!pkE) {
+            /* check PEM decode - that might work :-) */
+            bfp=BIO_new(BIO_s_mem());
+            if (!bfp) {
+                erv=__LINE__; goto err;
+            }
+            BIO_write(bfp,rawsenderpriv,rawsenderprivlen);
+            if (!PEM_read_bio_PrivateKey(bfp,&pkE,NULL,NULL)) {
+                erv=__LINE__; goto err;
+            }
+            if (bfp!=NULL) {
+                BIO_free_all(bfp); bfp=NULL;
+            }
+        }
+
+        if (!pkE) { erv=__LINE__; goto err; }
+#if 0
+        if (EVP_PKEY_set1_tls_encodedpoint(pkE,extsenderpub,extsenderpublen)!=1) {
+            erv=__LINE__; goto err;
+        }
+#endif
+
     }
-    EVP_PKEY_CTX_free(pctx); pctx=NULL;
 
     /* step 2 run DH KEM to get dh */
     enclen = EVP_PKEY_get1_tls_encodedpoint(pkE,&enc);
@@ -1646,11 +1723,13 @@ int hpke_enc(
      */
     memcpy(cipher,lcipher,lcipherlen);
     *cipherlen=lcipherlen;
-    if (enclen>*senderpublen) {
-        erv=__LINE__; goto err;
+    if (!evpcaller && !rawcaller) {
+        if (enclen>*senderpublen) {
+            erv=__LINE__; goto err;
+        }
+        memcpy(senderpub,enc,enclen);
+        *senderpublen=enclen;
     }
-    memcpy(senderpub,enc,enclen);
-    *senderpublen=enclen;
 
 err:
 
@@ -1702,12 +1781,180 @@ err:
 
     if (bfp!=NULL) BIO_free_all(bfp);
     if (pkR!=NULL) EVP_PKEY_free(pkR);
-    if (pkE!=NULL) EVP_PKEY_free(pkE);
+    if (!evpcaller && pkE!=NULL) EVP_PKEY_free(pkE);
     if (skI!=NULL) EVP_PKEY_free(skI);
     if (pctx!=NULL) EVP_PKEY_CTX_free(pctx);
     if (shared_secret!=NULL) OPENSSL_free(shared_secret);
     if (enc!=NULL) OPENSSL_free(enc);
     return erv;
+}
+
+/*!
+ * @brief HPKE single-shot encryption function
+ * @param mode is the HPKE mode
+ * @param suite is the ciphersuite to use
+ * @param pskid is the pskid string fpr a PSK mode (can be NULL)
+ * @param psklen is the psk length
+ * @param psk is the psk 
+ * @param publen is the length of the recipient public key
+ * @param pub is the encoded recipient public key
+ * @param privlen is the length of the private (authentication) key
+ * @param priv is the encoded private (authentication) key
+ * @param clearlen is the length of the cleartext
+ * @param clear is the encoded cleartext
+ * @param aadlen is the lenght of the additional data (can be zero)
+ * @param aad is the encoded additional data (can be NULL)
+ * @param infolen is the lenght of the info data (can be zero)
+ * @param info is the encoded info data (can be NULL)
+ * @param senderpublen is the length of the input buffer for the sender's public key (length used on output)
+ * @param senderpub is the input buffer for ciphertext
+ * @param cipherlen is the length of the input buffer for ciphertext (length used on output)
+ * @param cipher is the input buffer for ciphertext
+ * @return 1 for good (OpenSSL style), not-1 for error
+ */
+int hpke_enc(
+        unsigned int mode, hpke_suite_t suite,
+        char *pskid, size_t psklen, unsigned char *psk,
+        size_t publen, unsigned char *pub,
+        size_t privlen, unsigned char *priv,
+        size_t clearlen, unsigned char *clear,
+        size_t aadlen, unsigned char *aad,
+        size_t infolen, unsigned char *info,
+        size_t *senderpublen, unsigned char *senderpub,
+        size_t *cipherlen, unsigned char *cipher
+#ifdef TESTVECTORS
+        , void *tv
+#endif
+        )
+{
+    return hpke_enc_int(mode,suite,
+            pskid,psklen,psk,
+            publen,pub,
+            privlen,priv,
+            clearlen,clear,
+            aadlen,aad,
+            infolen,info,
+            0,NULL, 
+            NULL,0,NULL,
+            senderpublen,senderpub,
+            cipherlen,cipher
+#ifdef TESTVECTORS
+            , void *tv
+#endif
+           );
+}
+
+/*!
+ * @brief Internal HPKE single-shot encryption function
+ * @param mode is the HPKE mode
+ * @param suite is the ciphersuite to use
+ * @param pskid is the pskid string fpr a PSK mode (can be NULL)
+ * @param psklen is the psk length
+ * @param psk is the psk 
+ * @param publen is the length of the recipient public key
+ * @param pub is the encoded recipient public key
+ * @param privlen is the length of the private (authentication) key
+ * @param priv is the encoded private (authentication) key
+ * @param clearlen is the length of the cleartext
+ * @param clear is the encoded cleartext
+ * @param aadlen is the lenght of the additional data (can be zero)
+ * @param aad is the encoded additional data (can be NULL)
+ * @param infolen is the lenght of the info data (can be zero)
+ * @param info is the encoded info data (can be NULL)
+ * @param senderpublen is the length of the input buffer with the sender's public key 
+ * @param senderpub is the input buffer for sender public key
+ * @param senderpriv has the handle for the sender private key
+ * @param cipherlen is the length of the input buffer for ciphertext (length used on output)
+ * @param cipher is the input buffer for ciphertext
+ * @return 1 for good (OpenSSL style), not-1 for error
+ */
+int hpke_enc_evp(
+        unsigned int mode, hpke_suite_t suite,
+        char *pskid, size_t psklen, unsigned char *psk,
+        size_t publen, unsigned char *pub,
+        size_t privlen, unsigned char *priv,
+        size_t clearlen, unsigned char *clear,
+        size_t aadlen, unsigned char *aad,
+        size_t infolen, unsigned char *info,
+        size_t extsenderpublen, unsigned char *extsenderpub, EVP_PKEY *extsenderpriv,
+        size_t *cipherlen, unsigned char *cipher
+#ifdef TESTVECTORS
+        , void *tv
+#endif
+        )
+{
+    return hpke_enc_int(mode,suite,
+            pskid,psklen,psk,
+            publen,pub,
+            privlen,priv,
+            clearlen,clear,
+            aadlen,aad,
+            infolen,info,
+            extsenderpublen,extsenderpub, 
+            extsenderpriv, 0, NULL,
+            0,NULL,
+            cipherlen,cipher
+#ifdef TESTVECTORS
+            , void *tv
+#endif
+           );
+}
+
+/*!
+ * @brief Internal HPKE single-shot encryption function
+ * @param mode is the HPKE mode
+ * @param suite is the ciphersuite to use
+ * @param pskid is the pskid string fpr a PSK mode (can be NULL)
+ * @param psklen is the psk length
+ * @param psk is the psk 
+ * @param publen is the length of the recipient public key
+ * @param pub is the encoded recipient public key
+ * @param privlen is the length of the private (authentication) key
+ * @param priv is the encoded private (authentication) key
+ * @param clearlen is the length of the cleartext
+ * @param clear is the encoded cleartext
+ * @param aadlen is the lenght of the additional data (can be zero)
+ * @param aad is the encoded additional data (can be NULL)
+ * @param infolen is the lenght of the info data (can be zero)
+ * @param info is the encoded info data (can be NULL)
+ * @param senderpublen is the length of the input buffer with the sender's public key 
+ * @param senderpub is the input buffer for sender public key
+ * @param senderpriv has the handle for the sender private key
+ * @param cipherlen is the length of the input buffer for ciphertext (length used on output)
+ * @param cipher is the input buffer for ciphertext
+ * @return 1 for good (OpenSSL style), not-1 for error
+ */
+int hpke_enc_raw(
+        unsigned int mode, hpke_suite_t suite,
+        char *pskid, size_t psklen, unsigned char *psk,
+        size_t publen, unsigned char *pub,
+        size_t privlen, unsigned char *priv,
+        size_t clearlen, unsigned char *clear,
+        size_t aadlen, unsigned char *aad,
+        size_t infolen, unsigned char *info,
+        size_t extsenderpublen, unsigned char *extsenderpub, 
+        size_t rawsenderprivlen,  unsigned char *rawsenderpriv,
+        size_t *cipherlen, unsigned char *cipher
+#ifdef TESTVECTORS
+        , void *tv
+#endif
+        )
+{
+    return hpke_enc_int(mode,suite,
+            pskid,psklen,psk,
+            publen,pub,
+            privlen,priv,
+            clearlen,clear,
+            aadlen,aad,
+            infolen,info,
+            extsenderpublen,extsenderpub, 
+            NULL, rawsenderprivlen, rawsenderpriv,
+            0,NULL,
+            cipherlen,cipher
+#ifdef TESTVECTORS
+            , void *tv
+#endif
+           );
 }
 
 /*!
@@ -1817,6 +2064,7 @@ int hpke_dec(
 
     /* step 1. load decryptors private key */
     if (!evppriv) {
+
         if (hpke_kem_tab[suite.kem_id].Npriv==privlen) {
             if (hpke_kem_id_nist_curve(suite.kem_id)==1) {
                 skR = hpke_EVP_PKEY_new_raw_nist_private_key(hpke_kem_tab[suite.kem_id].groupid,priv,privlen);
@@ -1835,6 +2083,7 @@ int hpke_dec(
                 erv=__LINE__; goto err;
             }
         }
+
     } else {
         skR=evppriv;
     }
@@ -2047,7 +2296,7 @@ err:
 /*!
  * @brief generate a key pair
  * @param mode is the mode (currently unused)
- * @param suite is the ciphersuite (currently unused)
+ * @param suite is the ciphersuite 
  * @param publen is the size of the public key buffer (exact length on output)
  * @param pub is the public value
  * @param privlen is the size of the private key buffer (exact length on output)
@@ -2129,6 +2378,74 @@ err:
     if (pctx!=NULL) EVP_PKEY_CTX_free(pctx);
     if (lpub!=NULL) OPENSSL_free(lpub);
     if (bfp!=NULL) BIO_free_all(bfp);
+    return(erv);
+}
+
+/*!
+ * @brief generate a key pair keeping private inside API
+ * @param mode is the mode (currently unused)
+ * @param suite is the ciphersuite 
+ * @param publen is the size of the public key buffer (exact length on output)
+ * @param pub is the public value
+ * @param priv is the private key
+ * @return 1 for good (OpenSSL style), not-1 for error
+ */
+int hpke_kg_evp(
+        unsigned int mode, hpke_suite_t suite,
+        size_t *publen, unsigned char *pub,
+        EVP_PKEY **priv)
+{
+    if (hpke_suite_check(suite)!=1) return(__LINE__);
+    if (!pub || !priv) return(__LINE__);
+    int erv=1; /* Our error return value - 1 is success */
+    EVP_PKEY_CTX *pctx=NULL;
+    EVP_PKEY *skR=NULL;
+    unsigned char *lpub=NULL;
+
+    /* step 1. generate sender's key pair */
+    if (hpke_kem_id_nist_curve(suite.kem_id)==1) {
+        pctx = EVP_PKEY_CTX_new_id(EVP_PKEY_EC, NULL);
+        if (pctx == NULL) {
+            erv=__LINE__; goto err;
+        }
+        if (1 != EVP_PKEY_paramgen_init(pctx)) {
+            erv=__LINE__; goto err;
+        }
+        if (1 != EVP_PKEY_CTX_set_ec_paramgen_curve_nid(pctx, hpke_kem_tab[suite.kem_id].groupid)) {
+            erv=__LINE__; goto err;
+        }
+    } else {
+        pctx = EVP_PKEY_CTX_new_id(hpke_kem_tab[suite.kem_id].groupid, NULL);
+        if (pctx == NULL) {
+            erv=__LINE__; goto err;
+        }
+    }
+    if (EVP_PKEY_keygen_init(pctx) <= 0) {
+        erv=__LINE__; goto err;
+    }
+    if (EVP_PKEY_keygen(pctx, &skR) <= 0) {
+        erv=__LINE__; goto err;
+    }
+    EVP_PKEY_CTX_free(pctx); pctx=NULL;
+    size_t lpublen = EVP_PKEY_get1_tls_encodedpoint(skR,&lpub);
+    if (lpub==NULL || lpublen == 0) {
+        erv=__LINE__; goto err;
+    }
+    if (lpublen>*publen) {
+        erv=__LINE__; goto err;
+    }
+    *publen=lpublen;
+    memcpy(pub,lpub,lpublen);
+    OPENSSL_free(lpub);lpub=NULL;
+    *priv=skR;
+    if (pctx!=NULL) EVP_PKEY_CTX_free(pctx);
+    if (lpub!=NULL) OPENSSL_free(lpub);
+    return(erv);
+
+err:
+    if (skR!=NULL) EVP_PKEY_free(skR);
+    if (pctx!=NULL) EVP_PKEY_CTX_free(pctx);
+    if (lpub!=NULL) OPENSSL_free(lpub);
     return(erv);
 }
 
