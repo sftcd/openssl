@@ -464,6 +464,92 @@ void SSL_ECH_free(SSL_ECH *tbf)
     return;
 }
 
+/*
+ * @brief client-side calculation of config_id as per draft-09
+ *
+ * @param cfg is the ECHConfigs structure
+ * @param cind is the index of the ECHConfig we want
+ * @param olen is buffer size of out on inpuit and actual size on success 
+ * @param out is a caller-allocated buffer for the result
+ * @return 1 for success, error otherwise
+ */
+static int ech_calc_config_id(ECHConfigs *cfg, int cind)
+{
+
+    if (!cfg) return 0;
+    if (cind>cfg->nrecs) return 0;
+
+    ECHConfig *thecfg=&cfg->recs[cind];
+    if (thecfg->config_id!=NULL) return 1; // already done
+
+    size_t encodedechlen=thecfg->encoding_length;
+    unsigned char *encodedech=thecfg->encoding_start;
+
+#undef DOATEST
+#ifdef DOATEST
+
+    /*
+     * Now do the extract/expand thing
+     */
+    // initial testcase thanks to Cloudflare providing the test vector privately
+    unsigned char testech[]={
+            0xfe,0x09,0x00,0x4f,0x00,0x13,0x63,0x6c,0x6f,0x75,0x64,0x66,0x6c,0x61,0x72,0x65,
+            0x2d,0x65,0x73,0x6e,0x69,0x2e,0x63,0x6f,0x6d,0x00,0x20,0x45,0xcb,0xde,0xe7,0xaf,
+            0x19,0x26,0x20,0x82,0xc9,0x92,0x6f,0xc2,0xb2,0x31,0xd0,0x52,0x28,0x48,0x24,0x22,
+            0x87,0x3b,0x1e,0xe4,0x42,0x4c,0xdf,0xab,0xfd,0xf0,0x17,0x00,0x20,0x00,0x10,0x00,
+            0x01,0x00,0x01,0x00,0x01,0x00,0x03,0x00,0x02,0x00,0x01,0x00,0x02,0x00,0x03,0x00,
+            0x00,0x00,0x00};
+
+    size_t testlen=sizeof(testech);
+
+    encodedchlen=testlen;
+    encodedech=testech;
+#endif
+    
+    hpke_suite_t suite = HPKE_SUITE_DEFAULT;
+    int mode5869=0;
+    size_t s1len=HPKE_MAXSIZE;
+    unsigned char s1[HPKE_MAXSIZE];
+    size_t s2len=8;
+    unsigned char s2[8];
+    
+    int erv=1;
+
+    erv=hpke_extract(
+        suite, mode5869,
+        "", 0, //const unsigned char *salt, const size_t saltlen,
+        "tls ech config id", strlen("tls ech config id"), // const unsigned char *label, const size_t labellen,
+        encodedech, encodedechlen, // unsigned char *ikm, const size_t ikmlen,
+        s1, &s1len);
+    if (erv!=1) return 0;
+
+    /*
+     * It was not at all clear from the spec that the same label
+     * should be provided to both calls, but no need to fix as 
+     * the calculated config_id idea will go away.
+     */
+    erv=hpke_expand(
+        suite, mode5869, 
+        s1, s1len, // unsigned char *prk, size_t prklen,
+        "tls ech config id", strlen("tls ech config id"), // const unsigned char *label, const size_t labellen,
+        NULL, 0, // unsigned char *info, size_t infolen,
+        8, // uint32_t L,
+        s2, &s2len); 
+    if (erv!=1) return 0;
+
+    thecfg->config_id=OPENSSL_malloc(s2len);
+    if (!thecfg->config_id) {
+        return 0;
+    }
+    thecfg->config_id_len=s2len;
+    memcpy(thecfg->config_id,s2,thecfg->config_id_len);
+
+    ech_pbuf("calculated config id input",thecfg->encoding_start,thecfg->encoding_length);
+    ech_pbuf("calculated config id",s2,s2len);
+
+    return 1;
+}
+
 /**
  * @brief Decode the first ECHConfigs from a binary buffer (and say how may octets not consumed)
  *
@@ -502,6 +588,7 @@ static ECHConfigs *ECHConfigs_from_binary(unsigned char *binbuf, size_t binblen,
      * and which we will support
      */
     unsigned int olen=0;
+    unsigned int ooffset=0;
     if (!PACKET_get_net_2(&pkt,&olen)) {
         goto err;
     }
@@ -513,6 +600,7 @@ static ECHConfigs *ECHConfigs_from_binary(unsigned char *binbuf, size_t binblen,
 
     remaining=PACKET_remaining(&pkt);
     while (remaining>not_to_consume) {
+    
 
         te=OPENSSL_realloc(te,(rind+1)*sizeof(ECHConfig));
         if (!te) {
@@ -520,6 +608,10 @@ static ECHConfigs *ECHConfigs_from_binary(unsigned char *binbuf, size_t binblen,
         }
         ECHConfig *ec=&te[rind];
         memset(ec,0,sizeof(ECHConfig));
+
+        ec->encoding_length=olen;
+        ooffset=pkt.curr-binbuf;
+        ec->encoding_start=binbuf+ooffset;
 
         /*
          * Version
@@ -690,13 +782,6 @@ static ECHConfigs *ECHConfigs_from_binary(unsigned char *binbuf, size_t binblen,
             ec->exts[ec->nexts-1]=extval;
         }
 
-        /*
-         * Caclculate config_id value for this one
-         * TODO: really do it:-)
-         */
-        ec->config_id_len=0;
-        ec->config_id=NULL;
-
 	
         rind++;
         remaining=PACKET_remaining(&pkt);
@@ -718,8 +803,21 @@ static ECHConfigs *ECHConfigs_from_binary(unsigned char *binbuf, size_t binblen,
     memset(er,0,sizeof(ECHConfigs));
     er->nrecs=rind;
     er->recs=te;
+    te=NULL;
     er->encoded_len=binblen;
     er->encoded=binbuf;
+
+    /*
+     * Caclculate config_id values - draft-09 only!!!
+     */
+    for (rind=0;rind!=er->nrecs;rind++) {
+        er->recs[rind].config_id_len=0;
+        er->recs[rind].config_id=NULL;
+        if (ech_calc_config_id(er,rind)!=1) {
+            goto err;
+        }
+    }
+
     return er;
 
 err:
@@ -2776,8 +2874,12 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
     ech_pbuf("EAAE: my priv",mypriv,mypriv_len);
 #endif
 
-    unsigned char *config_id=NULL;
-    size_t config_id_len=0;
+    unsigned char *config_id=tc->config_id;
+    size_t config_id_len=tc->config_id_len;
+
+    ech_pbuf("EAAE: config id input",tc->encoding_start,tc->encoding_length);
+    ech_pbuf("EAAE: config_id",config_id,config_id_len);
+
     aad_len=4+1+config_id_len+2+mypub_len+2+pkt->written-4;
     aad=OPENSSL_malloc(aad_len);
     if (aad==NULL) {
@@ -2795,8 +2897,7 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
     *cp++=((hpke_suite.aead_id&0xffff)%256);
     *cp++=((config_id_len&0xff)%256);
     if (config_id_len>0) {
-        *cp++=((config_id[0]&0xff)%256);
-        *cp++=((config_id[1]&0xff)%256);
+        memcpy(cp,config_id,config_id_len); cp+=config_id_len;
     }
     *cp++=((mypub_len&0xffff)/256);
     *cp++=((mypub_len&0xffff)%256);
@@ -2953,12 +3054,8 @@ int ech_srv_get_aad(SSL *s,
     *cp++=((config_id_len&0xff)%256);
     if ((cp-aad)>*aad_len) return 0;
     if (config_id_len>0) {
-        if ((cp-aad)>*aad_len) return 0;
-        *cp++=((config_id[0]&0xff)%256);
-        if ((cp-aad)>*aad_len) return 0;
-        *cp++=((config_id[1]&0xff)%256);
+        memcpy(cp,config_id,config_id_len); cp+=config_id_len;
     }
-
     *cp++=((pub_len&0xffff)/256);
     if ((cp-aad)>*aad_len) return 0;
     *cp++=((pub_len&0xffff)%256);

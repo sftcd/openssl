@@ -307,5 +307,70 @@ int hpke_ah_decode(size_t ahlen, const char *ah, size_t *blen, unsigned char **b
  */
 int hpke_suite_check(hpke_suite_t suite);
 
+/*
+ * These are temporary and only needed for esni-draft-09
+ * where we gotta call 'em from outside
+ */
+
+/*!
+ * brief RFC5869 HKDF-Extract
+ *
+ * @param suite is the ciphersuite 
+ * @param mode5869 - controls labelling specifics
+ * @param salt - surprisingly this is the salt;-)
+ * @param saltlen - length of above
+ * @param label - label for separation
+ * @param labellen - length of above
+ * @param zz - the initial key material (IKM)
+ * @param zzlen - length of above
+ * @param secret - the result of extraction (allocated inside)
+ * @param secretlen - bufsize on input, used size on output
+ * @return 1 for good otherwise bad
+ *
+ * Mode can be:
+ * - HPKE_5869_MODE_PURE meaning to ignore all the
+ * HPKE-specific labelling and produce an output that's 
+ * RFC5869 compliant (useful for testing and maybe
+ * more)
+ * - HPKE_5869_MODE_KEM meaning to follow section 4.1
+ * where the suite_id is used as:
+ *   concat("KEM", I2OSP(kem_id, 2))
+ * - HPKE_5869_MODE_FULL meaning to follow section 5.1
+ * where the suite_id is used as:
+ *   concat("HPKE",I2OSP(kem_id, 2),
+ *          I2OSP(kdf_id, 2), I2OSP(aead_id, 2))
+ *
+ * Isn't that a bit of a mess!
+ */
+int hpke_extract(
+        hpke_suite_t suite, int mode5869,
+        const unsigned char *salt, const size_t saltlen,
+        const unsigned char *label, const size_t labellen,
+        unsigned char *ikm, const size_t ikmlen,
+        unsigned char *secret, size_t *secretlen);
+
+/*!
+ * brief RFC5869 HKDF-Expand
+ *
+ * @param suite is the ciphersuite 
+ * @param mode5869 - controls labelling specifics
+ * @param prk - the initial pseudo-random key material 
+ * @param prk - length of above
+ * @param label - label to prepend to info
+ * @param labellen - label to prepend to info
+ * @param context - the info
+ * @param contextlen - length of above
+ * @param L - the length of the output desired 
+ * @param out - the result of expansion (allocated by caller)
+ * @param outlen - buf size on input
+ * @return 1 for good otherwise bad
+ */
+int hpke_expand(hpke_suite_t suite, int mode5869, 
+                unsigned char *prk, size_t prklen,
+                unsigned char *label, size_t labellen,
+                unsigned char *info, size_t infolen,
+                uint32_t L,
+                unsigned char *out, size_t *outlen);
+
 #endif
 

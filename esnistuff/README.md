@@ -25,9 +25,12 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
-- 20210214: Started testing against CF deployment. Various fixes
-  being fixed... Next one up will be to do the AAD called for
-  by draft-09 (which is a PITA;-)
+DON'T TRY ECH YET!!! The very much work-in-progress code is
+sooooo awful still...
+
+- 20210217: Moar testing against CF deployment. Various fixes
+  being fixed... config_id and AAD for -09 sorta done but not
+  succeeding so far. Next step is to build NSS and compare.
 
 - 20210212: Added basic GREASE'ing to client and server.
 

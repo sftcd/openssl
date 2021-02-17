@@ -672,7 +672,7 @@ err:
  *
  * Isn't that a bit of a mess!
  */
-static int hpke_extract(
+int hpke_extract(
         hpke_suite_t suite, int mode5869,
         const unsigned char *salt, const size_t saltlen,
         const unsigned char *label, const size_t labellen,
@@ -812,7 +812,7 @@ err:
  * @param outlen - buf size on input
  * @return 1 for good otherwise bad
  */
-static int hpke_expand(hpke_suite_t suite, int mode5869, 
+int hpke_expand(hpke_suite_t suite, int mode5869, 
                 unsigned char *prk, size_t prklen,
                 unsigned char *label, size_t labellen,
                 unsigned char *info, size_t infolen,
@@ -825,6 +825,9 @@ static int hpke_expand(hpke_suite_t suite, int mode5869,
     unsigned char *lip=libuf;
     size_t concat_offset=0;
 
+    if (L>*outlen) {
+        erv=__LINE__; goto err;
+    }
     /*
      * Handle oddities of HPKE labels (or not)
      */
@@ -924,7 +927,7 @@ static int hpke_expand(hpke_suite_t suite, int mode5869,
     if (EVP_PKEY_CTX_add1_hkdf_info(pctx, libuf, concat_offset)!=1) {
         erv=__LINE__; goto err;
     }
-    size_t loutlen=*outlen; /* just in case it changes */
+    size_t loutlen=L;
     if (EVP_PKEY_derive(pctx, out, &loutlen)!=1) {
         erv=__LINE__; goto err;
     }

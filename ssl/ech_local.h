@@ -90,6 +90,8 @@ typedef struct ech_config_st {
     unsigned int *exttypes;
     unsigned int *extlens;
     unsigned char **exts;
+    size_t encoding_length;         // these fields will disappear in -10
+    unsigned char *encoding_start; // as they're only needed to calc config_id  
     unsigned int config_id_len;
     unsigned char *config_id;
 } ECHConfig;
