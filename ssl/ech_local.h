@@ -400,5 +400,7 @@ int ech_srv_get_aad(SSL *s,
 int drop_ech_from_ch(SSL *s, size_t ch_len, unsigned char *ch,
         size_t *de_len, unsigned char *de);
 
+int ech_make_enc_info(ECHConfig *tc,unsigned char *info,size_t *info_len);
+
 #endif
 #endif

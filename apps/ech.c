@@ -144,12 +144,6 @@ static int mk_echconfig(
         memcpy(bp,public_name,pnlen); bp+=pnlen;
     }
     /* keys */
-    // The CF public key is only 32 bytes long, so including
-    // these is probably wrong. TODO: add some NIST stuff
-    //*bp++=0x00;
-    //*bp++=0x24; // length=36
-    //*bp++=0x00;
-    //*bp++=0x1d; // curveid=X25519= decimal 29
     *bp++=0x00;
     *bp++=0x20; // length=32
     memcpy(bp,pub,32); bp+=32;
@@ -184,8 +178,8 @@ static int mk_echconfig(
      */
     bbuf[0]=(bblen-2)/256;
     bbuf[1]=(bblen-2)%256;
-    bbuf[4]=(bblen-4)/256;
-    bbuf[5]=(bblen-4)%256;
+    bbuf[4]=(bblen-6)/256;
+    bbuf[5]=(bblen-6)%256;
 
     int b64len = EVP_EncodeBlock((unsigned char*)echconfig, (unsigned char *)bbuf, bblen);
     if (b64len >=(*echconfig_len-1)) {

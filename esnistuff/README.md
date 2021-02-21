@@ -28,6 +28,15 @@ Most recent first...
 DON'T TRY ECH YET!!! The very much work-in-progress code is
 sooooo awful still...
 
+- 20210217: Started to play with NSS again as a comparison. Some
+changes since I last did that. I created a ``nssdoech.sh`` script
+for that. First off, it was saying that ECH/HPKE was disabled in
+the build, so for the NSS build I tried:
+
+            $ ./build.sh -Denable_draft_hpke=1
+
+   and that seems to move things along a bit...
+
 - 20210217: Moar testing against CF deployment. Various fixes
   being fixed... config_id and AAD for -09 sorta done but not
   succeeding so far. Next step is to build NSS and compare.

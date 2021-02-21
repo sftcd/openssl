@@ -343,10 +343,10 @@ int hpke_suite_check(hpke_suite_t suite);
  * Isn't that a bit of a mess!
  */
 int hpke_extract(
-        hpke_suite_t suite, int mode5869,
+        const hpke_suite_t suite, const int mode5869,
         const unsigned char *salt, const size_t saltlen,
-        const unsigned char *label, const size_t labellen,
-        unsigned char *ikm, const size_t ikmlen,
+        const char *label, const size_t labellen,
+        const unsigned char *ikm, const size_t ikmlen,
         unsigned char *secret, size_t *secretlen);
 
 /*!
@@ -365,11 +365,11 @@ int hpke_extract(
  * @param outlen - buf size on input
  * @return 1 for good otherwise bad
  */
-int hpke_expand(hpke_suite_t suite, int mode5869, 
-                unsigned char *prk, size_t prklen,
-                unsigned char *label, size_t labellen,
-                unsigned char *info, size_t infolen,
-                uint32_t L,
+int hpke_expand(const hpke_suite_t suite, const int mode5869, 
+                const unsigned char *prk, const size_t prklen,
+                const char *label, const size_t labellen,
+                const unsigned char *info, const size_t infolen,
+                const uint32_t L,
                 unsigned char *out, size_t *outlen);
 
 #endif

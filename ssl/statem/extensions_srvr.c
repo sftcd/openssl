@@ -2660,15 +2660,26 @@ static unsigned char *hpke_decrypt_encch(SSL_ECH *ech, ECH_ENCCH *the_ech,
     cipher=the_ech->payload;
     senderpublen=the_ech->enc_len;
     senderpub=the_ech->enc;
+
+    hpke_suite.aead_id=the_ech->aead_id; // GOTHERE
+    hpke_suite.kdf_id=the_ech->kdf_id; // GOTHERE
+
     /*
      * We only support one ECHConfig for now on the server side
      */
-    publen=ech->cfg->recs[0].pub_len-4;
-    pub=ech->cfg->recs[0].pub+4;
+    publen=ech->cfg->recs[0].pub_len;
+    pub=ech->cfg->recs[0].pub;
 
-    ech_pbuf("pub",pub,publen);
+    ech_pbuf("my local pub",pub,publen);
     ech_pbuf("senderpub",senderpub,senderpublen);
     ech_pbuf("cipher",cipher,cipherlen);
+
+    unsigned char info[HPKE_MAXSIZE];
+    size_t info_len=HPKE_MAXSIZE;
+    if (ech_make_enc_info(ech->cfg->recs,info,&info_len)!=1) {
+        return NULL; 
+    }
+    ech_pbuf("info",info,info_len);
 
     int rv=hpke_dec( hpke_mode, hpke_suite,
                 NULL, 0, NULL, // pskid, psk
@@ -2678,7 +2689,7 @@ static unsigned char *hpke_decrypt_encch(SSL_ECH *ech, ECH_ENCCH *the_ech,
                 senderpublen, senderpub, // sender public
                 cipherlen, cipher, // ciphertext
                 aad_len,aad, // aad
-                0,NULL, // info
+                info_len, info, // info
                 &clearlen, clear);  // clear
     if (rv!=1) {
         return NULL;
@@ -2832,7 +2843,7 @@ int tls_parse_ctos_ech(SSL *s, PACKET *pkt, unsigned int context,
     if (ech_srv_get_aad(s,extval->enc_len, extval->enc, 
                 extval->config_id_len, extval->config_id, 
                 s->ext.ech_dropped_from_ch_len, s->ext.ech_dropped_from_ch, 
-                &aad_len,&aad)!=1) {
+                &aad_len,aad)!=1) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ECH, SSL_R_BAD_EXTENSION);
         goto err;
     }
@@ -2891,6 +2902,16 @@ int tls_parse_ctos_ech(SSL *s, PACKET *pkt, unsigned int context,
         BIO_printf(trc_out,"parse_ctos_ech: assume_grease: %d, foundcfg: %d, cfgind: %d, clearlen: %ld, clear %p\n",
             s->ext.ech_grease,foundcfg,cfgind,clearlen,clear);
     } OSSL_TRACE_END(TLS);
+
+    /*
+     * Bit more logging
+     */
+    if (foundcfg==1) {
+        ECHConfig *e=&s->ech[cfgind].cfg->recs[cfgind];
+        ech_pbuf("local config_id",e->config_id,e->config_id_len);
+        ech_pbuf("remote config_id",extval->config_id,extval->config_id_len);
+    }
+    
     ech_pbuf("clear",clear,clearlen);
 
     /*

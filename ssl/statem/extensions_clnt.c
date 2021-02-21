@@ -2720,8 +2720,6 @@ EXT_RETURN tls_construct_ctos_ech(SSL *s, WPACKET *pkt, unsigned int context,
     if (s->ext.ch_depth==1) {
         return EXT_RETURN_NOT_SENT;
     }
-
-
     /*
      * We'll fake out sending this one - after the entire thing has been
      * constructed we'll then finally encode and encrypt - need to do it
@@ -2729,158 +2727,6 @@ EXT_RETURN tls_construct_ctos_ech(SSL *s, WPACKET *pkt, unsigned int context,
      * encryption (sigh!)
      */
     return EXT_RETURN_NOT_SENT;
-
-#if 0
-
-    /*
-     * call to hpke for encrypting
-     */
-    int hpke_mode=HPKE_MODE_BASE;
-    hpke_suite_t hpke_suite = HPKE_SUITE_DEFAULT;
-    size_t senderpublen=HPKE_MAXSIZE; 
-    unsigned char senderpub[HPKE_MAXSIZE];
-    size_t cipherlen=HPKE_MAXSIZE; 
-    unsigned char cipher[HPKE_MAXSIZE];
-
-    /*
-     * Pick a matching public key from the Config (if we can)
-     * We'll just take the 1st matching.
-     */
-    unsigned char *peerpub=NULL;
-    size_t peerpub_len=0;
-    ECHConfig *tc=NULL;
-
-    int cind=0;
-
-    ECHConfigs *cfgs=s->ech->cfg;
-    if (cfgs==NULL) {
-        /*
-         * Treating this as an error. Note there could be 
-         * some corner case with SCVB that gets us here
-         * but hopefully not
-         */
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ECH,
-                 ERR_R_INTERNAL_ERROR);
-        return EXT_RETURN_FAIL;
-    }
-
-    /*
-     * Search through the ECHConfigs for one that's a best
-     * match in terms of outer_name==public_name. 
-     * If no public_name was set via API then we 
-     * just take the 1st match where we locally support
-     * the HPKE suite.
-     * If OTOH, a public_name was provided via API then
-     * we prefer the first that matches that.
-     */
-    int onlen=(s->ech->outer_name==NULL?0:strlen(s->ech->outer_name));
-    int prefind=-1;
-    ECHConfig *firstmatch=NULL;
-    
-    for (cind=0;cind!=cfgs->nrecs;cind++) {
-        ECHConfig *ltc=&cfgs->recs[cind];
-        if (s->ech->outer_name && (
-                    ltc->public_name_len!=onlen ||
-                    strncmp(s->ech->outer_name,(char*)ltc->public_name,onlen))) {
-            prefind=cind;
-        }
-        hpke_suite.kem_id=ltc->kem_id;
-        int csuite=0;
-        for (csuite=0;csuite!=ltc->nsuites;csuite++) {
-            unsigned char *es=(unsigned char*)&ltc->ciphersuites[csuite];
-            hpke_suite.kdf_id=es[0]*256+es[1];
-            hpke_suite.aead_id=es[2]*256+es[3];
-            if (hpke_suite_check(hpke_suite)==1) {
-                /*
-                * success if both "fit"
-                */
-                if (prefind!=-1) {
-                    tc=ltc;
-                    break;
-                }
-                if (firstmatch==NULL) {
-                    firstmatch=ltc;
-                }
-            }
-        }
-    }
-    if (tc==NULL && firstmatch==NULL) {
-        OSSL_TRACE_BEGIN(TLS) { 
-            BIO_printf(trc_out,"No matching ECHConfig sadly\n");
-        } OSSL_TRACE_END(TLS);
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ECH,
-                 ERR_R_INTERNAL_ERROR);
-        return EXT_RETURN_FAIL;
-    }
-    if (tc==NULL && firstmatch!=NULL) {
-        tc=firstmatch;
-    }
-
-    /*
-     * tc is our selected config
-     */
-    peerpub=tc->pub;
-    peerpub_len=tc->pub_len;
-    if (peerpub_len <=0) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ECH,
-                 ERR_R_INTERNAL_ERROR);
-        return EXT_RETURN_FAIL;
-    }
-
-    if (s->ext.inner_s==NULL || s->ext.inner_s->ech==NULL) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ECH,
-                 ERR_R_INTERNAL_ERROR);
-        return EXT_RETURN_FAIL;
-    }
-
-    ech_pbuf("pub",peerpub,peerpub_len);
-
-    ech_pbuf("clear",s->ext.inner_s->ext.encoded_innerch, s->ext.inner_s->ext.encoded_innerch_len);
-
-    unsigned char aad[]={ 0x01, 0x02};
-    size_t aad_len=2;
-
-    int rv=hpke_enc(
-        hpke_mode, hpke_suite, // mode, suite
-        NULL, 0, NULL, // pskid, psk
-        peerpub_len,peerpub,
-        0, NULL, // priv
-        s->ext.inner_s->ext.encoded_innerch_len, s->ext.inner_s->ext.encoded_innerch, // clear
-        aad_len, aad, // aad 
-        0, NULL, // info
-        &senderpublen, senderpub, // my pub
-        &cipherlen, cipher // cipher
-        );
-    if (rv!=1) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ECH,
-                 ERR_R_INTERNAL_ERROR);
-        return EXT_RETURN_FAIL;
-    }
-    ech_pbuf("senderpub",senderpub,senderpublen);
-    ech_pbuf("cipher",cipher,cipherlen);
-
-    /*
-    unsigned char config_id[]={'S','F'};
-    size_t config_id_len=2;
-    */
-    unsigned char *config_id=NULL;
-    size_t config_id_len=0;
-
-    if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_ech) 
-        || !WPACKET_start_sub_packet_u16(pkt)
-        || !WPACKET_put_bytes_u16(pkt, hpke_suite.kdf_id)
-        || !WPACKET_put_bytes_u16(pkt, hpke_suite.aead_id)
-        || !WPACKET_sub_memcpy_u8(pkt, config_id, config_id_len)
-        || !WPACKET_sub_memcpy_u16(pkt, senderpub, senderpublen)
-        || !WPACKET_sub_memcpy_u16(pkt, cipher, cipherlen)
-        || !WPACKET_close(pkt)
-            ) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ECH, ERR_R_INTERNAL_ERROR);
-            return EXT_RETURN_FAIL;
-    }
-    return EXT_RETURN_SENT;
-#endif
-
 }
 
 /**
@@ -2905,6 +2751,30 @@ int tls_parse_stoc_ech_outer_exts(SSL *s, PACKET *pkt, unsigned int context,
                                X509 *x, size_t chainidx)
 {
     return 0;
+}
+
+/**
+ * @brief Add ech_is_inner if needed
+ */
+EXT_RETURN tls_construct_ctos_ech_is_inner(SSL *s, WPACKET *pkt, unsigned int context,
+                                   X509 *x, size_t chainidx)
+{
+    if (s->ext.ech_grease==ECH_IS_GREASE || (s->options & SSL_OP_ECH_GREASE) ) {
+        return EXT_RETURN_NOT_SENT;
+    }
+    if (!s->ech) {
+        return EXT_RETURN_NOT_SENT;
+    }
+    if (s->ext.ch_depth==1) {
+        if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_ech_is_inner)
+                || !WPACKET_put_bytes_u16(pkt, 0)) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_NPN,
+                     ERR_R_INTERNAL_ERROR);
+            return EXT_RETURN_FAIL;
+        }
+        return EXT_RETURN_SENT;
+    }
+    return EXT_RETURN_NOT_SENT;
 }
 
 #endif // END_OPENSSL_NO_ECH

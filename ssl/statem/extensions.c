@@ -415,6 +415,14 @@ static const EXTENSION_DEFINITION ext_defs[] = {
         tls_construct_stoc_ech_outer_exts, tls_construct_ctos_ech_outer_exts,
         final_ech_outer_exts
     },
+    {
+        TLSEXT_TYPE_ech_is_inner,
+        SSL_EXT_CLIENT_HELLO | SSL_EXT_TLS1_3_ONLY,
+        NULL,
+        NULL, NULL,
+        NULL, tls_construct_ctos_ech_is_inner,
+        NULL
+    },
 #else // OPENSSL_NO_ECH
     INVALID_EXTENSION,
     INVALID_EXTENSION,

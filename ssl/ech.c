@@ -517,8 +517,8 @@ static int ech_calc_config_id(ECHConfigs *cfg, int cind)
 
     erv=hpke_extract(
         suite, mode5869,
-        "", 0, //const unsigned char *salt, const size_t saltlen,
-        "tls ech config id", strlen("tls ech config id"), // const unsigned char *label, const size_t labellen,
+        (const unsigned char*) "", 0, //const unsigned char *salt, const size_t saltlen,
+        ECH_CONFIG_ID_STRING, strlen(ECH_CONFIG_ID_STRING),
         encodedech, encodedechlen, // unsigned char *ikm, const size_t ikmlen,
         s1, &s1len);
     if (erv!=1) return 0;
@@ -531,7 +531,7 @@ static int ech_calc_config_id(ECHConfigs *cfg, int cind)
     erv=hpke_expand(
         suite, mode5869, 
         s1, s1len, // unsigned char *prk, size_t prklen,
-        "tls ech config id", strlen("tls ech config id"), // const unsigned char *label, const size_t labellen,
+        ECH_CONFIG_ID_STRING, strlen(ECH_CONFIG_ID_STRING), // const unsigned char *label, const size_t labellen,
         NULL, 0, // unsigned char *info, size_t infolen,
         8, // uint32_t L,
         s2, &s2len); 
@@ -2053,9 +2053,12 @@ int ech_encode_inner(SSL *s)
     if (!innerch_full) {
         goto err;
     }
-    memcpy(innerch_full,inner_mem->data,innerinnerlen);
+    /*
+     * Finally ditch the type and 3-octet length
+     */
+    memcpy(innerch_full,inner_mem->data+4,innerinnerlen-4);
     s->ext.encoded_innerch=innerch_full;
-    s->ext.encoded_innerch_len=innerinnerlen;
+    s->ext.encoded_innerch_len=innerinnerlen-4;
 
     WPACKET_cleanup(&inner);
     if (inner_mem) BUF_MEM_free(inner_mem);
@@ -2128,7 +2131,7 @@ int ech_decode_inner(SSL *s)
      * We'll start genoffset at the end of the session ID, just
      * before the ciphersuites
      */
-    size_t offset2sessid=6+32; 
+    size_t offset2sessid=2+32; 
     size_t genoffset=offset2sessid+1; // 1 is the length of the session id itself
     size_t suiteslen=startofmessage[genoffset]*256+startofmessage[genoffset+1];
     size_t startofexts=genoffset+outer->tmp_session_id_len+2+suiteslen + 2; // the last +2 for the NULL compression
@@ -2146,6 +2149,13 @@ int ech_decode_inner(SSL *s)
      * Initial decode of inner
      */
     ech_pbuf("Inner CH (session-id-added but no decompression)",initial_decomp,initial_decomp_len);
+    if (startofexts>initial_decomp_len) {
+        OSSL_TRACE_BEGIN(TLS) {
+            BIO_printf(trc_out,"Oops - exts out of bounds\n");
+        } OSSL_TRACE_END(TLS);
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_ECH_DECODE_INNER, ERR_R_MALLOC_FAILURE);
+        return(0);
+    }
     ech_pbuf("start of exts",&initial_decomp[startofexts],initial_decomp_len-startofexts);
 
     /*
@@ -2245,6 +2255,7 @@ int ech_decode_inner(SSL *s)
     size_t final_decomp_len=0;
 
     final_decomp_len=
+        4 + // the type and 3-octet length 
         genoffset + // the start of the CH up to the start of the outers ext
         tot_outer_lens + // the cumulative length of the extensions to splice in
         (initial_decomp_len-genoffset-(n_outers*2+4)); // the rest
@@ -2254,7 +2265,11 @@ int ech_decode_inner(SSL *s)
         goto err;
     }
     size_t offset=genoffset;
-    memcpy(final_decomp,initial_decomp,offset);
+    final_decomp[0]=0x01;
+    final_decomp[1]=((final_decomp_len-4)>>16)%256;
+    final_decomp[2]=((final_decomp_len-4)>>8)%256;
+    final_decomp[3]=(final_decomp_len-4)%256;
+    memcpy(final_decomp+4,initial_decomp,offset);offset+=4;
     for (iind=0;iind!=n_outers;iind++) {
         int ooffset=outer_offsets[iind]+4;
         size_t osize=outer_sizes[iind];
@@ -2268,18 +2283,12 @@ int ech_decode_inner(SSL *s)
             initial_decomp+genoffset+4+2*n_outers,
             initial_decomp_len-genoffset-(n_outers*2+4)); 
 
-    /* 
-     * and finally finally: fix overall length of exts value and CH
-     */
-    final_decomp[1]=((final_decomp_len-5)/(256*256))%0xff;
-    final_decomp[2]=((final_decomp_len-5)/(256))%0xff;
-    final_decomp[3]=((final_decomp_len-5))%0xff;
-
     size_t outer_exts_len=4+2*n_outers;
-    size_t initial_oolen=final_decomp[startofexts]*256+final_decomp[startofexts+1];
+    size_t initial_oolen=final_decomp[startofexts+4]*256+final_decomp[startofexts+5];
 
-    final_decomp[startofexts]=(initial_oolen+tot_outer_lens-outer_exts_len)/(256)%0xff;
-    final_decomp[startofexts+1]=(initial_oolen+tot_outer_lens-outer_exts_len)%0xff;
+    // the added 4 is for the type+3-octets len
+    final_decomp[startofexts+4]=(initial_oolen+tot_outer_lens-outer_exts_len)/(256)%0xff;
+    final_decomp[startofexts+5]=(initial_oolen+tot_outer_lens-outer_exts_len)%0xff;
 
 
     ech_pbuf("final_decomp",final_decomp,final_decomp_len);
@@ -2717,6 +2726,20 @@ int SSL_ech_send_grease(SSL *s, WPACKET *pkt, unsigned int context,
     return 1;
 }
 
+int ech_make_enc_info(ECHConfig *tc,unsigned char *info,size_t *info_len) 
+{
+    unsigned char *ip=info;
+
+    if (!tc || !info || !info_len) return 0;
+    if (*info_len < (strlen(ECH_CONTEXT_STRING)+1+tc->encoding_length)) return 0;
+    
+    memcpy(ip,ECH_CONTEXT_STRING,strlen(ECH_CONTEXT_STRING)); ip+=strlen(ECH_CONTEXT_STRING);
+    *ip++=0x00;
+    memcpy(ip,tc->encoding_start,tc->encoding_length);
+    *info_len= strlen(ECH_CONTEXT_STRING)+1+tc->encoding_length;
+    return 1;
+}
+
 /*
  * Calc AAD and encrypt
  */
@@ -2880,7 +2903,7 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
     ech_pbuf("EAAE: config id input",tc->encoding_start,tc->encoding_length);
     ech_pbuf("EAAE: config_id",config_id,config_id_len);
 
-    aad_len=4+1+config_id_len+2+mypub_len+2+pkt->written-4;
+    aad_len=4+1+config_id_len+2+mypub_len+3+pkt->written-4;
     aad=OPENSSL_malloc(aad_len);
     if (aad==NULL) {
 #ifdef EVP
@@ -2902,11 +2925,24 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
     *cp++=((mypub_len&0xffff)/256);
     *cp++=((mypub_len&0xffff)%256);
     memcpy(cp,mypub,mypub_len); cp+=mypub_len;
-    *cp++=(((pkt->written-4)&0xffff)/256);
-    *cp++=(((pkt->written-4)&0xffff)%256);
-    memcpy(cp,pkt->buf->data+4,pkt->written-4);
+    *cp++=(((pkt->written-4)&0xffffff)/(256*256));
+    *cp++=(((pkt->written-4)&0xffffff)/256);
+    *cp++=((pkt->written-4)%256);
+    memcpy(cp,pkt->buf->data+4,pkt->written-2);
 
     ech_pbuf("EAAE: aad",aad,aad_len);
+
+    unsigned char info[HPKE_MAXSIZE];
+    size_t info_len=HPKE_MAXSIZE;
+    if (ech_make_enc_info(tc,info,&info_len)!=1) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ECH, ERR_R_INTERNAL_ERROR);
+#ifdef EVP
+        EVP_PKEY_free(mypriv_evp); mypriv_evp=NULL;
+#endif
+        OPENSSL_free(aad);
+        return 0; 
+    }
+    ech_pbuf("EAAE info",info,info_len);
 
 #ifdef EVP
     int rv=hpke_enc_evp(
@@ -2916,7 +2952,7 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
         0, NULL, // priv
         s->ext.inner_s->ext.encoded_innerch_len, s->ext.inner_s->ext.encoded_innerch, // clear
         aad_len, aad, // aad 
-        0, NULL, // info
+        info, info_len, // 0, NULL, // info
         mypub_len, mypub, mypriv_evp, // my ephemeral key pair for D-H
         &cipherlen, cipher // cipher
         );
@@ -2934,7 +2970,7 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
         0, NULL, // priv
         s->ext.inner_s->ext.encoded_innerch_len, s->ext.inner_s->ext.encoded_innerch, // clear
         aad_len, aad, // aad 
-        0, NULL, // info
+        info_len, info, // info
         mypub_len, mypub,
         mypriv_len,mypriv,
         &cipherlen, cipher // cipher
@@ -3040,7 +3076,6 @@ int ech_srv_get_aad(SSL *s,
     if (s==NULL || aad_len == NULL || aad==NULL) return 0;
 
     unsigned char *cp=aad;
-    //int hpke_mode=HPKE_MODE_BASE;
     hpke_suite_t hpke_suite = HPKE_SUITE_DEFAULT;
 
     *cp++=((hpke_suite.kdf_id&0xffff)/256);
@@ -3063,6 +3098,8 @@ int ech_srv_get_aad(SSL *s,
     memcpy(cp,pub,pub_len); cp+=pub_len;
     if ((cp-aad)>*aad_len) return 0;
 
+    *cp++=((de_len&0xffffff)/(256*256));
+    if ((cp-aad)>*aad_len) return 0;
     *cp++=((de_len&0xffff)/256);
     if ((cp-aad)>*aad_len) return 0;
     *cp++=((de_len&0xffff)%256);
@@ -3101,7 +3138,9 @@ int drop_ech_from_ch(SSL *s, size_t ch_len, unsigned char *ch,
      * before the ciphersuites
      */
     //size_t genoffset=2+32+1+s->tmp_session_id_len;  // note 1st 2 here was 6 before
-    size_t genoffset=2+32+1+32;  // session id not yet set
+    size_t genoffset=2+32;
+    size_t sessid_len=startofmessage[genoffset];
+    genoffset+=(1+sessid_len);
     size_t suiteslen=startofmessage[genoffset]*256+startofmessage[genoffset+1];
     size_t startofexts=genoffset+suiteslen+2+2; // the 2 for the suites len
 
