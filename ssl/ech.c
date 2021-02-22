@@ -1822,6 +1822,14 @@ int ech_outer_indep[]={
  */
 int ech_same_ext(SSL *s, WPACKET* pkt)
 {
+
+#define DUPEMALL
+#ifdef DUPEMALL
+    /*
+     * Setting this means no compression at all.
+     */
+    return(ECH_SAME_EXT_CONTINUE);
+#endif
     if (!s->ech) return(ECH_SAME_EXT_CONTINUE); // nothing to do
     if (s->ext.ch_depth==0) return(ECH_SAME_EXT_CONTINUE); // nothing to do for outer
     SSL *inner=s->ext.inner_s;
@@ -2180,8 +2188,23 @@ int ech_decode_inner(SSL *s)
         OSSL_TRACE_BEGIN(TLS) {
             BIO_printf(trc_out,"We had no compression\n");
         } OSSL_TRACE_END(TLS);
-        s->ext.innerch=initial_decomp;
-        s->ext.innerch_len=initial_decomp_len;
+        /*
+         * We still need to add msg type & 3-octet length
+         */
+        unsigned char *final_decomp=NULL;
+        size_t final_decomp_len=initial_decomp_len+4;
+        final_decomp=OPENSSL_malloc(final_decomp_len);
+        if (!final_decomp) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_ECH_DECODE_INNER, ERR_R_MALLOC_FAILURE);
+            return(0);
+        }
+        final_decomp[0]=0x01;
+        final_decomp[1]=((initial_decomp_len)>>16)%256;
+        final_decomp[2]=((initial_decomp_len)>>8)%256;
+        final_decomp[3]=(initial_decomp_len)%256;
+        memcpy(final_decomp+4,initial_decomp,initial_decomp_len);
+        s->ext.innerch=final_decomp;
+        s->ext.innerch_len=final_decomp_len;
         return(1);
     }
     /*
@@ -2244,7 +2267,10 @@ int ech_decode_inner(SSL *s)
     }
 
     if (found_outers!=n_outers) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_ECH_DECODE_INNER, ERR_R_MALLOC_FAILURE);
+        OSSL_TRACE_BEGIN(TLS) {
+            BIO_printf(trc_out,"Error found outers (%d) not same as claimed (%d)\n",found_outers,n_outers);
+        } OSSL_TRACE_END(TLS);
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_ECH_DECODE_INNER, ERR_R_INTERNAL_ERROR);
         goto err;
     }
 
@@ -3183,9 +3209,7 @@ int drop_ech_from_ch(SSL *s, size_t ch_len, unsigned char *ch,
         return 1;
     }
 
-
     size_t newextlens=origextlens-echlen;
-
     if ((startofexts+newextlens)>*de_len) {
         return 0;
     }
