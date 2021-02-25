@@ -25,6 +25,7 @@
  */
 #define ECH_CONFIG_ID_STRING (char*) "tls ech config id"
 #define ECH_CONTEXT_STRING (char*) "tls ech"
+#define ECH_ACCEPT_CONFIRM_STRING (char*) "ech accept confirmation"
 
 #define ECH_MAX_ECHCONFIGS_BUFLEN 2000  ///< max PEM encoded ESNIConfigs we'll emit
 #define ECH_MAX_RRVALUE_LEN 2000 ///< Max size of a collection of ECH RR values

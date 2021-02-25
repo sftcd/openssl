@@ -1236,6 +1236,9 @@ void SSL_free(SSL *s)
     sk_SSL_CIPHER_free(s->tls13_ciphersuites);
     sk_SSL_CIPHER_free(s->peer_ciphers);
 
+#ifndef OPENSSL_NO_ECH
+    if (s->ext.inner_s!=NULL) // Tricksy way to only free this field once
+#endif
     /* Make the next call work :-) */
     if (s->session != NULL) {
         ssl_clear_bad_session(s);

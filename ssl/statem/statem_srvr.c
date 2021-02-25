@@ -1982,6 +1982,20 @@ static int tls_early_post_process_client_hello(SSL *s)
         }
     }
 
+#ifdef OPENSSL_NO_ECH
+    /*
+     * This is naff, but we'll refuse to handle the session_secret_cb
+     * for now because we'll need to re-calculate the server random
+     * later to inclue the ECH magic (can't do it now as we don't
+     * yet have the SH encoding)
+     *
+     * Hopefully, avoiding this means that the server random won't
+     * be used until we've had a chance to figure out the magic.
+     * TODO: validate that!!
+     */
+    if (s->ech && s->ext.ech_done && s->ect.ech_grease==0) 
+#endif
+
     if (!s->hit
             && s->version >= TLS1_VERSION
             && !SSL_IS_TLS13(s)
@@ -2439,16 +2453,6 @@ int tls_construct_server_hello(SSL *s, WPACKET *pkt)
     unsigned char *session_id;
     int usetls13 = SSL_IS_TLS13(s) || s->hello_retry_request == SSL_HRR_PENDING;
 
-#ifndef OPENSSL_NO_ECH
-    unsigned char acbuf[8];
-    if (ech_calc_accept_confirm(s,acbuf)!=1) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS13_ENC,
-                ERR_R_INTERNAL_ERROR);
-        return 0;
-    }
-    memcpy(s->s3.server_random+SSL3_RANDOM_SIZE-8,acbuf,8);
-#endif
-
     version = usetls13 ? TLS1_2_VERSION : s->version;
     if (!WPACKET_put_bytes_u16(pkt, version)
                /*
@@ -2549,6 +2553,43 @@ int tls_construct_server_hello(SSL *s, WPACKET *pkt)
         /* SSLfatal() already called */;
         return 0;
     }
+
+#ifndef OPENSSL_NO_ECH
+    /*
+     * Calculate the magic server random to indicate that
+     * we're accepting ECH, if that's the case
+     *
+     * TODO: This may be wrong!! The server random was set back during
+     * CH processing, and may have been used for key derivation already
+     * in which case we'll need to re-do those derivations (maybe).
+     * First, we'll try just get the right calculation done. (Using
+     * NSS for now as my guide.)
+     */
+    unsigned char acbuf[8];
+    if (s->ech && s->ext.ech_done && s->ext.ech_success==1) {
+        // HACK HACK
+        if (!pkt || !pkt->buf) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS13_ENC, ERR_R_INTERNAL_ERROR);
+            return 0;
+        }
+        unsigned char *shbuf=pkt->buf->data;
+        size_t shlen=pkt->written;
+        if (ech_calc_accept_confirm(s,acbuf,shbuf,shlen)!=1) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS13_ENC, ERR_R_INTERNAL_ERROR);
+            return 0;
+        }
+    }
+    memcpy(s->s3.server_random+SSL3_RANDOM_SIZE-8,acbuf,8);
+    /*
+     * Now HACK HACK at the packet to swap those bits (sigh)
+     * TODO: consider adding a new WPACKET_foo API for this
+     * it ought not be here.
+     */
+    size_t shoffset=6+24;
+    unsigned char *p=&pkt->buf->data[shoffset];
+    memcpy(p,acbuf,8);
+
+#endif
 
     return 1;
 }

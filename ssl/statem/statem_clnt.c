@@ -1713,6 +1713,22 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL *s, PACKET *pkt)
 #ifndef OPENSSL_NO_COMP
     SSL_COMP *comp;
 #endif
+#ifndef OPENSSL_NO_ECH
+    // HACK HACK
+    unsigned char *shbuf=pkt->curr;
+    size_t shlen=pkt->remaining;
+    SSL inner=*s->ext.inner_s;
+    SSL outer=*s;
+    int trying_inner=0;
+    if (s->ech!=NULL && s->ext.ch_depth==0 && s->ext.ech_grease==0) {
+        /*
+         * Try process inner - if it fails to match the SH.random after processing, we'll
+         * have to come back and try outer
+         */
+        *s=inner;
+        trying_inner=1;
+    }
+#endif
 
     if (!PACKET_get_net_2(pkt, &sversion)) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PROCESS_SERVER_HELLO,
@@ -1739,31 +1755,6 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL *s, PACKET *pkt)
             goto err;
         }
     }
-
-#ifndef OPENSSL_NO_ECH
-    /*
-     * Try figure out if ServerHello is for inner or outer
-     * Only do new stuff if needed - accept_confirmation version (draft-09)
-     */
-    if (s->ech && s->ext.inner_s!=NULL && s->ext.outer_s==NULL && !s->ext.ech_success) {
-        unsigned char acbuf[8];
-        if (ech_calc_accept_confirm(s,acbuf)!=1) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS13_ENC,
-                    ERR_R_INTERNAL_ERROR);
-            return -1;
-        }
-        if (memcmp(s->s3.server_random+SSL3_RANDOM_SIZE-8,acbuf,8)==0) {
-            s->ext.ech_success=1;
-            printf("Yay - it's an inny ServerHello - swaperoo time\n");
-            fflush(stdout);
-            if (ech_swaperoo(s)!=1) {
-                SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS13_ENC,
-                        ERR_R_INTERNAL_ERROR);
-                return -1;
-            }
-        }
-    }
-#endif
 
     /* Get the session-id. */
     if (!PACKET_get_length_prefixed_1(pkt, &session_id)) {
@@ -2053,6 +2044,43 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL *s, PACKET *pkt)
         BIO_ctrl(SSL_get_wbio(s),
                  BIO_CTRL_DGRAM_SCTP_ADD_AUTH_KEY,
                  sizeof(sctpauthkey), sctpauthkey);
+    }
+#endif
+
+#ifndef OPENSSL_NO_ECH
+    /*
+     * Try figure out if ServerHello is for inner or outer
+     * Only do new stuff if needed - accept_confirmation version (draft-09)
+     */
+    if (trying_inner) {
+        unsigned char acbuf[8];
+        if (ech_calc_accept_confirm(s,acbuf,shbuf,shlen)!=1) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS13_ENC,
+                    ERR_R_INTERNAL_ERROR);
+            return -1;
+        }
+        if (memcmp(s->s3.server_random+SSL3_RANDOM_SIZE-8,acbuf,8)==0) {
+            s->ext.ech_success=1;
+            printf("Yay - it's an inny ServerHello - swaperoo time\n");
+            fflush(stdout);
+            // swap back before final swap
+            inner=*s; *s=outer; *s->ext.inner_s=inner;
+            if (ech_swaperoo(s)!=1) {
+                SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS13_ENC,
+                        ERR_R_INTERNAL_ERROR);
+                return -1;
+            }
+        } else {
+            /*
+             * Fallback to trying outer
+             * More HACK HACK
+             */
+            pkt->remaining=shlen;
+            pkt->curr=shbuf;
+            *s=outer;
+            s->ext.ech_grease=1;
+            return tls_process_server_hello(s, pkt);
+        }
     }
 #endif
 

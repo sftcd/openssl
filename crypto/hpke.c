@@ -591,10 +591,6 @@ err:
 
 }
 
-#define HPKE_5869_MODE_PURE 0 ///< Do "pure" RFC5869
-#define HPKE_5869_MODE_KEM  1 ///< Abide by HPKE section 4.1
-#define HPKE_5869_MODE_FULL 2 ///< Abide by HPKE section 5.1
-
 #define HPKE_VERLABEL    "HPKE-07"  ///< The version string label
 #define HPKE_SEC41LABEL  "KEM"       ///< The "suite_id" label for 4.1
 #define HPKE_SEC51LABEL  "HPKE"      ///< The "suite_id" label for 5.1

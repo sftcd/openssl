@@ -326,13 +326,21 @@ void ECH_ENCCH_free(ECH_ENCCH *ev);
  * Handling for the ECH accept_confirmation (see
  * spec, section 7.2) - this is a magic value in
  * the ServerHello.random lower 8 octets that is
- * used to signal that the inner worked.
+ * used to signal that the inner worked. As per
+ * the draft-09 spec:
  *
- * @param: s is the SSL inner context
- * @param: ac is (preallocated) 8 octet buffer
+ * accept_confirmation =
+ *          Derive-Secret(Handshake Secret,
+ *                        "ech accept confirmation",
+ *                        ClientHelloInner...ServerHelloECHConf)
+ *
+ * @param s is the SSL inner context
+ * @param ac is (preallocated) 8 octet buffer
+ * @param shbuf is a pointer to the SH buffer (incl. the type+3-octet length)
+ * @param shlen is the length of the SH buf
  * @return: 1 for success, 0 otherwise
  */
-int ech_calc_accept_confirm(SSL *s, unsigned char *acbuf);
+int ech_calc_accept_confirm(SSL *s, unsigned char *acbuf, unsigned char *shbuf, size_t shlen);
 
 /*
  * Swap the inner and outer.

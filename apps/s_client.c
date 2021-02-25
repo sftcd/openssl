@@ -3975,7 +3975,7 @@ static void print_stuff(BIO *bio, SSL *s, int full)
                 BIO_printf(bio,"ECH: worked but bad name\n");
                 break;
             case SSL_ECH_STATUS_GREASE: 
-                BIO_printf(bio,"ECH: Just did greasing\n");
+                BIO_printf(bio,"ECH: only greasing\n");
                 break;
             case SSL_ECH_STATUS_SUCCESS:
                 BIO_printf(bio,"ECH: success: outer SNI: '%s', inner SNI: '%s'\n",

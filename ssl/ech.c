@@ -35,6 +35,11 @@
 #include "internal/cryptlib.h"
 
 /*
+ * For raw attempt with hpke_expand
+ */
+#include <crypto/hpke.h>
+
+/*
  * This is in ssl/statem/extensions.c - we'll try a call to that and
  * if it works, fix up some header file somwwhere
  */
@@ -2369,19 +2374,148 @@ void ech_pbuf(const char *msg,unsigned char *buf,size_t blen)
  * Handling for the ECH accept_confirmation (see
  * spec, section 7.2) - this is a magic value in
  * the ServerHello.random lower 8 octets that is
- * used to signal that the inner worked.
+ * used to signal that the inner worked. As per
+ * the draft-09 spec:
  *
- * TODO: complete this - for the moment, I'm just
- * setting this to 8 zero octets, will put in the
- * real calculation later.
+ * accept_confirmation =
+ *          Derive-Secret(Handshake Secret,
+ *                        "ech accept confirmation",
+ *                        ClientHelloInner...ServerHelloECHConf)
  *
- * @param: s is the SSL inner context
- * @param: ac is (preallocated) 8 octet buffer
+ * @param s is the SSL inner context
+ * @param ac is (preallocated) 8 octet buffer
+ * @param shbuf is a pointer to the SH buffer (incl. the type+3-octet length)
+ * @param shlen is the length of the SH buf
  * @return: 1 for success, 0 otherwise
  */
-int ech_calc_accept_confirm(SSL *s, unsigned char *acbuf)
+int ech_calc_accept_confirm(SSL *s, unsigned char *acbuf, unsigned char *shbuf, size_t shlen)
 {
-    memset(acbuf,0,8);
+
+    // ech_ptranscript("calc (outer), b4",s->ext.outer_s);
+
+    /*
+     * First, find the right pointers/lengths
+     */
+    unsigned char *tbuf=NULL; // local transcript buffer
+    size_t tlen=0;
+    unsigned char *chbuf=NULL;
+    size_t chlen=0;
+    size_t shoffset=6+24; // offset to "magic" bits in SH.random within shbuf
+    const EVP_MD *md=NULL;
+
+    chbuf=s->ext.innerch;
+    chlen=s->ext.innerch_len;
+
+    ech_pbuf("calc conf : innerch",chbuf,chlen);
+
+    ech_pbuf("calc conf : SH",shbuf,shlen);
+
+    if (s->server) {
+        tlen=chlen+shlen;
+    } else {
+        /* need to add type + 3-octet length for client */
+        tlen=chlen+shlen+4;
+    }
+    tbuf=OPENSSL_malloc(tlen);
+    if (!tbuf) {
+        return(0);
+    }
+    memcpy(tbuf,chbuf,chlen);
+    if (s->server) {
+        memcpy(tbuf+chlen,shbuf,shlen);
+        tbuf[chlen+1]=((shlen-4)>>16)&0xff;
+        tbuf[chlen+2]=((shlen-4)>>8)&0xff;
+        tbuf[chlen+3]=(shlen-4)&0xff;
+    } else {
+        /* need to add type + 3-octet length for client */
+        tbuf[chlen]=0x02; // ServerHello
+        tbuf[chlen+1]=(shlen>>16)&0xff;
+        tbuf[chlen+2]=(shlen>>8)&0xff;
+        tbuf[chlen+3]=shlen&0xff;
+        memcpy(tbuf+chlen+4,shbuf,shlen);
+    }
+    memset(tbuf+chlen+shoffset,0,8);
+    /*
+     * figure out  h/s hash
+     */
+    md=ssl_handshake_md(s);
+    if (md==NULL) {
+        const unsigned char *cipherchars=&tbuf[chlen+shoffset+8+1+32]; // the chosen ciphersuite
+        SSL_CIPHER *c=ssl_get_cipher_by_char(s, cipherchars, 0);
+        md=ssl_md(s->ctx, c->algorithm2);
+        if (md==NULL) {
+            /*
+            * TODO: FIXME: find the real h/s hash, sha256 will alomost always
+            * but *not always* be correct
+            */
+            md=s->ctx->ssl_digest_methods[SSL_HANDSHAKE_MAC_SHA256];
+        }
+    }
+    /*
+     * For some reason the internal 3-length of the shbuf is 
+     * bolloxed at this point. We'll fix it so, but here and
+     * not in the actual shbuf, just in case that breaks some
+     * other thing.
+     */
+    ech_pbuf("calc conf : tbuf",tbuf,tlen);
+
+    /*
+     * Next, zap the magic bits and do the keyed hashing
+     */
+    unsigned char *insecret=s->handshake_secret;
+    char *label_prefix="tls13 ";
+    size_t label_prefixlen=strlen(label_prefix);
+    char *label=ECH_ACCEPT_CONFIRM_STRING;
+    size_t labellen=strlen(label);
+    unsigned int hashlen=EVP_MD_size(md);
+    unsigned char hashval[EVP_MAX_MD_SIZE];
+    EVP_MD_CTX *ctx = EVP_MD_CTX_new();
+
+    if (EVP_DigestInit_ex(ctx, md, NULL) <= 0
+            || EVP_DigestUpdate(ctx, tbuf, tlen) <= 0
+            || EVP_DigestFinal_ex(ctx, hashval, &hashlen) <= 0) {
+        EVP_MD_CTX_free(ctx);
+        OPENSSL_free(tbuf);
+        return(0);
+    }
+    EVP_MD_CTX_free(ctx);
+    ech_pbuf("calc conf : hashval",hashval,hashlen);
+
+    unsigned char *info=NULL;
+    size_t infolen=2+1+label_prefixlen+labellen+1+hashlen;
+    info=OPENSSL_malloc(infolen);
+    if (!info) {
+        OPENSSL_free(tbuf);
+        return(0);
+    }
+    info[0]=hashlen/256;
+    info[1]=hashlen%256;
+    info[2]=label_prefixlen+labellen;
+    memcpy(info+3,label_prefix,label_prefixlen);
+    memcpy(info+3+label_prefixlen,label,labellen);
+    info[3+label_prefixlen+labellen]=hashlen;
+    memcpy(info+4+label_prefixlen+labellen,hashval,hashlen);
+    ech_pbuf("calc conf : info",info,infolen);
+
+    ech_pbuf("calc conf : h/s secret",insecret,EVP_MAX_MD_SIZE);
+
+    unsigned char hoval[32];
+    if (!tls13_hkdf_expand(s, md, insecret,
+                           (const unsigned char *)label,labellen,
+                           hashval, hashlen, 
+                           hoval, 32, 1)) {
+        EVP_MD_CTX_free(ctx);
+        OPENSSL_free(tbuf);
+        return(0);
+    }
+    ech_pbuf("calc conf : hoval",hoval,32);
+
+    /*
+     * Finally, set the output
+     */
+    memcpy(acbuf,hoval,8);
+    ech_pbuf("calc conf : result",acbuf,8);
+
     return(1);
 }
 
@@ -2407,12 +2541,11 @@ void SSL_CTX_set_ech_callback(SSL_CTX *s, SSL_ech_cb_func f)
  * @return 0 for error, 1 for success
  */
 int ech_swaperoo(SSL *s)
-
 {
     ech_ptranscript("ech_swaperoo, b4",s);
 
     /*
-     * Make some checks
+     * Make some checks 
      */
     if (s==NULL) return(0);
     if (s->ext.inner_s==NULL) return(0);
@@ -2501,9 +2634,8 @@ int ech_swaperoo(SSL *s)
         new_buf=tmp_outer.ext.innerch;
         new_buflen=tmp_outer.ext.innerch_len;
     }
-
     /*
-     * And now reset the handshake transcript to out buffer
+     * And now reset the handshake transcript to our buffer
      * Note ssl3_finish_mac isn't that great a name - that one just
      * adds to the transcript but doesn't actually "finish" anything
      */
@@ -2526,14 +2658,12 @@ int ech_swaperoo(SSL *s)
      * The outer's ech_attempted will have been set already
      * but not the rest of 'em.
      */
-    //s->ext.outer_s->ext.ech_attempted=1; 
-    //s->ext.ech_attempted=1; 
-    //s->ext.outer_s->ext.ech_done=1; 
-    //s->ext.ech_done=1; 
-
     s->ext.outer_s->ext.ech_success=1; 
     s->ext.ech_success=1; 
-
+    s->ext.outer_s->ext.ech_done=1; 
+    s->ext.ech_done=1; 
+    s->ext.outer_s->ext.ech_grease=0; 
+    s->ext.ech_grease=0; 
     /*
      * Now do servername callback that we postponed earlier
      * in case ECH worked out well.
@@ -2541,10 +2671,8 @@ int ech_swaperoo(SSL *s)
     if (final_server_name(s,0,1)!=1) {
         s->ext.outer_s->ext.ech_success=0; 
         s->ext.ech_success=0; 
-        // TODO: maybe swaperoo back?
         return(0);
     }
-
     return(1);
 }
 
@@ -2659,8 +2787,8 @@ err:
 
 void ech_ptranscript(const char *msg, SSL *s)
 {
-    size_t hdatalen;
-    unsigned char *hdata;
+    size_t hdatalen=0;
+    unsigned char *hdata=NULL;
     hdatalen = BIO_get_mem_data(s->s3.handshake_buffer, &hdata);
     ech_pbuf(msg,hdata,hdatalen);
     //OPENSSL_free(hdata);
@@ -2954,7 +3082,7 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
     *cp++=(((pkt->written-4)&0xffffff)/(256*256));
     *cp++=(((pkt->written-4)&0xffffff)/256);
     *cp++=((pkt->written-4)%256);
-    memcpy(cp,pkt->buf->data+4,pkt->written-2);
+    memcpy(cp,pkt->buf->data+4,pkt->written-4);
 
     ech_pbuf("EAAE: aad",aad,aad_len);
 

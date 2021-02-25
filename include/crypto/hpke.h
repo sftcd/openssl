@@ -349,6 +349,13 @@ int hpke_extract(
         const unsigned char *ikm, const size_t ikmlen,
         unsigned char *secret, size_t *secretlen);
 
+/*
+ * 5869 modes for func below
+ */
+#define HPKE_5869_MODE_PURE 0 ///< Do "pure" RFC5869
+#define HPKE_5869_MODE_KEM  1 ///< Abide by HPKE section 4.1
+#define HPKE_5869_MODE_FULL 2 ///< Abide by HPKE section 5.1
+
 /*!
  * brief RFC5869 HKDF-Expand
  *
