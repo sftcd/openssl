@@ -1828,7 +1828,7 @@ int ech_outer_indep[]={
 int ech_same_ext(SSL *s, WPACKET* pkt)
 {
 
-#define DUPEMALL
+#undef DUPEMALL
 #ifdef DUPEMALL
     /*
      * Setting this means no compression at all.
@@ -2014,7 +2014,10 @@ int ech_encode_inner(SSL *s)
         }
         if (!compression_done && tobecompressed) {
             if (!WPACKET_put_bytes_u16(&inner, TLSEXT_TYPE_outer_extensions) ||
-                !WPACKET_put_bytes_u16(&inner, 2*s->ext.n_outer_only)) {
+                !WPACKET_put_bytes_u16(&inner, 2*s->ext.n_outer_only+1)) {
+                goto err;
+            }
+            if (!WPACKET_put_bytes_u8(&inner, 2*s->ext.n_outer_only)) {
                 goto err;
             }
             int iind=0;
@@ -2212,17 +2215,22 @@ int ech_decode_inner(SSL *s)
         s->ext.innerch_len=final_decomp_len;
         return(1);
     }
+
     /*
      * At this point, we're pointing at the outer extensions in the
      * encoded_innerch
      */
-
     int n_outers=elen/2;
     size_t tot_outer_lens=0; // total length of outers (incl. type+len+val)
     uint16_t outers[ECH_OUTERS_MAX];
     size_t outer_sizes[ECH_OUTERS_MAX];
     int outer_offsets[ECH_OUTERS_MAX];
-    const unsigned char *oval_buf=&initial_decomp[genoffset+4];
+    uint8_t slen=initial_decomp[genoffset+4]; // the unnecessary internal length
+    if (!ossl_assert(n_outers==slen/2)) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_ECH_DECODE_INNER, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+    const unsigned char *oval_buf=&initial_decomp[genoffset+5];
 
     if (n_outers<=0 || n_outers>ECH_OUTERS_MAX) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_ECH_DECODE_INNER, ERR_R_INTERNAL_ERROR);
@@ -2289,7 +2297,7 @@ int ech_decode_inner(SSL *s)
         4 + // the type and 3-octet length 
         genoffset + // the start of the CH up to the start of the outers ext
         tot_outer_lens + // the cumulative length of the extensions to splice in
-        (initial_decomp_len-genoffset-(n_outers*2+4)); // the rest
+        (initial_decomp_len-genoffset-(n_outers*2+5)); // the rest
     final_decomp=OPENSSL_malloc(final_decomp_len);
     if (final_decomp==NULL) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_ECH_DECODE_INNER, ERR_R_MALLOC_FAILURE);
@@ -2311,10 +2319,10 @@ int ech_decode_inner(SSL *s)
         memcpy(final_decomp+offset,exts_start+ooffset,osize); offset+=osize;
     }
     memcpy(final_decomp+offset,
-            initial_decomp+genoffset+4+2*n_outers,
-            initial_decomp_len-genoffset-(n_outers*2+4)); 
+            initial_decomp+genoffset+5+2*n_outers,
+            initial_decomp_len-genoffset-(n_outers*2+5)); 
 
-    size_t outer_exts_len=4+2*n_outers;
+    size_t outer_exts_len=5+2*n_outers;
     size_t initial_oolen=final_decomp[startofexts+4]*256+final_decomp[startofexts+5];
 
     // the added 4 is for the type+3-octets len

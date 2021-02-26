@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -x
+# set -x
 
 LDIR=/home/stephen/code/dist/Debug/
 RDIR=/home/stephen/code/openssl/esnistuff

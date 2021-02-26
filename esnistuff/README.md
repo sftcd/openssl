@@ -28,6 +28,13 @@ Most recent first...
 DON'T TRY ECH YET!!! The very much work-in-progress code is
 sooooo awful still...
 
+- 20210226: Got NSS with ECH mostly working with s_server, to
+the point NSS client figures the server has accepted the ECH,
+but it then fails decrypting tickets so some key derivation is
+likely wrong; CH server similarly seems to be accepting my
+ECH from s_client, but I'm not seeing the right SH.random
+magic bits
+
 - 20210217: Started to play with NSS again as a comparison. Some
 changes since I last did that. I created a ``nssdoech.sh`` script
 for that. First off, it was saying that ECH/HPKE was disabled in

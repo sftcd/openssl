@@ -3014,7 +3014,9 @@ int tls_parse_ctos_ech_outer_exts(SSL *s, PACKET *pkt, unsigned int context,
                                X509 *x, size_t chainidx)
 {
     /*
-     * We could barf here I guess
+     * We could barf here I guess as this is, in the end, not called - I handed
+     * coeed ech_decode_inner for now that handles this specific one (becuase
+     * it must;-(
      */
     if (s->ech==NULL) {
         OSSL_TRACE_BEGIN(TLS) {
@@ -3044,10 +3046,23 @@ int tls_parse_ctos_ech_outer_exts(SSL *s, PACKET *pkt, unsigned int context,
     }
 
     /*
+     * Read the gratuituously added internal 1-octer length field
+     */
+    unsigned int slen=0;
+    if (PACKET_get_1(pkt,&slen)!=1) { 
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ECH_OUTER_EXTS, SSL_R_BAD_EXTENSION);
+        return(0);
+    }
+
+    /*
      * For each extension here, if there's an outer equivalent, then splice
      * that in, bail if there're errors
      */
     int nouters=PACKET_remaining(pkt)/2;
+    if (!ossl_assert(nouters==slen/2)) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PARSE_CTOS_ECH_OUTER_EXTS, SSL_R_BAD_EXTENSION);
+        return(0);
+    }
     OSSL_TRACE_BEGIN(TLS) {
         BIO_printf(trc_out,"We have %d compressed exts\n",nouters);
     } OSSL_TRACE_END(TLS);
