@@ -2063,6 +2063,7 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL *s, PACKET *pkt)
             s->ext.ech_success=1;
             printf("Yay - it's an inny ServerHello - swaperoo time\n");
             fflush(stdout);
+
             // swap back before final swap
             inner=*s; *s=outer; *s->ext.inner_s=inner;
             if (ech_swaperoo(s)!=1) {
@@ -2070,6 +2071,29 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL *s, PACKET *pkt)
                         ERR_R_INTERNAL_ERROR);
                 return -1;
             }
+
+            size_t alen=s->ext.innerch_len+shlen+4;
+            unsigned char *abuf=OPENSSL_malloc(alen);
+            if (abuf==NULL) {
+                SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS13_ENC,
+                        ERR_R_INTERNAL_ERROR);
+                return -1;
+            }
+            memcpy(abuf,s->ext.innerch,s->ext.innerch_len);
+            abuf[s->ext.innerch_len]=0x02;
+            abuf[s->ext.innerch_len+1]=((shlen>>16)&0xff);
+            abuf[s->ext.innerch_len+2]=((shlen>>8)&0xff);
+            abuf[s->ext.innerch_len+3]=(shlen&0xff);
+            memcpy(abuf+s->ext.innerch_len+4,shbuf,shlen);
+            ech_pbuf("Client transcript re-init",abuf,alen);
+            if (ech_reset_hs_buffer(s,abuf,alen)!=1) {
+                OPENSSL_free(abuf);
+                SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS13_ENC,
+                        ERR_R_INTERNAL_ERROR);
+                return -1;
+            }
+            OPENSSL_free(abuf);
+
         } else {
             /*
              * Fallback to trying outer

@@ -410,5 +410,15 @@ int drop_ech_from_ch(SSL *s, size_t ch_len, unsigned char *ch,
 
 int ech_make_enc_info(ECHConfig *tc,unsigned char *info,size_t *info_len);
 
+/*
+ * @brief reset the handshake buffer for transcript after ECH is good
+ *
+ * @param s is the session
+ * @param buf is the data to put into the transcript (usuallhy inner CH)
+ * @param blen is the length of buf
+ * @return 1 for success
+ */
+int ech_reset_hs_buffer(SSL *s, unsigned char *buf, size_t blen);
+
 #endif
 #endif

@@ -20,6 +20,7 @@ fi
 
 
 NSSPARAMS=" -Q"
+XNSSPARAMS=" -Q"
 
 if [[ "$1" == "localhost" ]]
 then
@@ -55,7 +56,7 @@ else
     echlen=$((2*echlen)) # octets -> AH chars
     ECH_AH=${ECHwithtail:0:echlen}
     ECH=`echo $ECH_AH | xxd -r -p | base64 -w0`
-	valgrind $LDIR/bin/tstclnt $XNSSPARAMS -h $CFFE -a $TARGET -p 443  \
+	 $LDIR/bin/tstclnt $XNSSPARAMS -h $CFFE -a $TARGET -p 443  \
         -d /home/stephen/.mozilla/firefox/33d5rynn.default-1566560611149/ \
 		-N $ECH $*
 fi

@@ -2379,6 +2379,31 @@ void ech_pbuf(const char *msg,unsigned char *buf,size_t blen)
 }
 
 /*
+ * @brief reset the handshake buffer for transcript after ECH is good
+ *
+ * I can't believe this worked!
+ * TODO: figure out why (and fix error handling)
+ *
+ * @param s is the session
+ * @param buf is the data to put into the transcript (usuallhy inner CH)
+ * @param blen is the length of buf
+ * @return 1 for success
+ */
+int ech_reset_hs_buffer(SSL *s, unsigned char *buf, size_t blen)
+{
+    /*
+     * On the off-chance it'll work we'll reset the handshake_buffer
+     */
+    (void)BIO_set_close(s->s3.handshake_buffer, BIO_CLOSE);
+    BIO_free(s->s3.handshake_buffer);
+    EVP_MD_CTX_free(s->s3.handshake_dgst);
+    s->s3.handshake_dgst=NULL;
+    s->s3.handshake_buffer = BIO_new(BIO_s_mem());
+    BIO_write(s->s3.handshake_buffer, (void *)buf, (int)blen);
+    return 1;
+}
+
+/*
  * Handling for the ECH accept_confirmation (see
  * spec, section 7.2) - this is a magic value in
  * the ServerHello.random lower 8 octets that is
@@ -2517,6 +2542,8 @@ int ech_calc_accept_confirm(SSL *s, unsigned char *acbuf, unsigned char *shbuf, 
         return(0);
     }
     ech_pbuf("calc conf : hoval",hoval,32);
+
+    ech_reset_hs_buffer(s,chbuf,chlen);
 
     /*
      * Finally, set the output
