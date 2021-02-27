@@ -50,7 +50,8 @@ SUPPLIEDSESSION=""
 
 # default values
 HIDDEN="crypto.cloudflare.com"
-PNO="crypto.cloudflare.com"
+#PNO="crypto.cloudflare.com"
+PNO="rte.ie"
 CAPATH="/etc/ssl/certs/"
 CAFILE="./cadir/oe.csr"
 REALCERT="no" # default to fake CA for localhost
@@ -177,7 +178,7 @@ then
 fi
 
 # Set address of target 
-if [[ "$clear_sni" != "" ]]
+if [[ "$clear_sni" != "" && "$hidden" == "" ]]
 then
     target=" -connect $clear_sni:$PORT "
 else
@@ -219,18 +220,13 @@ then
         # try draft-09 only for now, i.e. HTTPSSVC
         # kill the spaces and joing the lines if multi-valued seen 
         qname=$hidden
-        if [[ "$PNO" == "crypto.cloudflare.com" ]]
-        then
-            # special case for CF - we know where they keep their SVCB's :-)
-            qname=$PNO
-        fi
         ECH=`dig +short -t TYPE65 $qname | tail -1 | cut -f 3- -d' ' | sed -e 's/ //g' | sed -e 'N;s/\n//'`
         if [[ "$ECH" == "" ]]
         then
             # TODO: do the parsing biz
             echo "Can't parse ECHO from HTTPSSVC"
-        else
-            echo "ECH from DNS is : $ECH"
+        #else
+            #echo "ECH from DNS is : $ECH"
         fi
 	fi
 fi
@@ -320,20 +316,16 @@ then
 	echo "$vgout"
 	echo ""
 fi
+goodresult=`grep -c "Yay - it's an inny ServerHello - swaperoo time" $TMPF`
 echo "$0 Summary: "
-if [[ "$DEBUG" == "yes" ]]
-then
-	noncestr=`grep -A1 "ECH Nonce" $TMPF`
-	eestr=`grep -A5 EncryptedExtensions $TMPF`
-	echo "Nonce sent: $noncestr"
-	echo "Nonce Back: $eestr"
-	grep -e "ECH: " $TMPF
-else
-    ctot=$((csucc||c200))
-	echo "Looks like $ctot ok's and $c4xx bad's."
-fi
-echo ""
+#echo ""
 rm -f $TMPF
+if (( $goodresult > 0 ))
+then
+    echo "Looks like it worked ok"
+else
+    echo "Bummer - probably didn't work"
+fi
 # exit with something useful
 if [[ "$ctot" == "1" && "$c4xx" == "0" ]]
 then
