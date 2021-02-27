@@ -1,7 +1,7 @@
 
 # This is a temporary place for ESNI content ...
 
-Stephen Farrell, stephen.farrell@cs.tcd.ie, 20200929-ish
+Stephen Farrell, stephen.farrell@cs.tcd.ie, 20210227-ish
 
 I'll put stuff here that'll likely disappear as this matures. The plan is
 to delete all this before submitting PRs to the openssl folks. Over time,
@@ -28,7 +28,12 @@ Most recent first...
 DON'T TRY ECH YET!!! The very much work-in-progress code is
 sooooo awful still...
 
-- 20210208: s_client works vs. CF with ciphersuite 0x1301 so
+- 20210227: (later:-) Now have NSS tstclnt working against 
+my ``openssl s_server`` and my ``openssl s_client`` working
+vs. the Cloudflare test deployment for draft-09 (which will
+not be the last draft).
+
+- 20210227: s_client works vs. CF with ciphersuite 0x1301 so
 I guess I have a bug in handling 0x1302's hash output length
 in the ECH confirmation magic bit calculation. And still 
 loads of leaks and code re-factoring needed, but can now 

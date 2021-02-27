@@ -84,7 +84,7 @@ function usage()
 
 	echo ""
 	echo "The following should work:"
-	echo "    $0 -s www.cloudflare.com -c NONE -H ietf.org"
+	echo "    $0 -H ietf.org"
     exit 99
 }
 
@@ -216,9 +216,15 @@ then
 		    fi
 		fi
 	else
-        # try draft-07 only for now, i.e. HTTPSSVC
+        # try draft-09 only for now, i.e. HTTPSSVC
         # kill the spaces and joing the lines if multi-valued seen 
-        ECH=`dig +short -t TYPE65 $hidden | tail -1 | cut -f 3- -d' ' | sed -e 's/ //g' | sed -e 'N;s/\n//'`
+        qname=$hidden
+        if [[ "$PNO" == "crypto.cloudflare.com" ]]
+        then
+            # special case for CF - we know where they keep their SVCB's :-)
+            qname=$PNO
+        fi
+        ECH=`dig +short -t TYPE65 $qname | tail -1 | cut -f 3- -d' ' | sed -e 's/ //g' | sed -e 'N;s/\n//'`
         if [[ "$ECH" == "" ]]
         then
             # TODO: do the parsing biz

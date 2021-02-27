@@ -2536,7 +2536,7 @@ int ech_calc_accept_confirm(SSL *s, unsigned char *acbuf, unsigned char *shbuf, 
     if (!tls13_hkdf_expand(s, md, insecret,
                            (const unsigned char *)label,labellen,
                            hashval, hashlen, 
-                           hoval, 32, 1)) {
+                           hoval, hashlen, 1)) {
         EVP_MD_CTX_free(ctx);
         OPENSSL_free(tbuf);
         return(0);
