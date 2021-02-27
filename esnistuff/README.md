@@ -28,6 +28,17 @@ Most recent first...
 DON'T TRY ECH YET!!! The very much work-in-progress code is
 sooooo awful still...
 
+- 20210208: s_client works vs. CF with ciphersuite 0x1301 so
+I guess I have a bug in handling 0x1302's hash output length
+in the ECH confirmation magic bit calculation. And still 
+loads of leaks and code re-factoring needed, but can now 
+claim -09 interop for at least some credible setups.
+
+- 20210227: NSS tstclnt and s_client now both working against
+s_server, but s_client failing vs. CF deployment (looks like
+the CF server decrypts ok, but I get a different SH.random
+magic still)
+
 - 20210226: Got NSS with ECH mostly working with s_server, to
 the point NSS client figures the server has accepted the ECH,
 but it then fails decrypting tickets so some key derivation is

@@ -54,6 +54,7 @@ PNO="crypto.cloudflare.com"
 CAPATH="/etc/ssl/certs/"
 CAFILE="./cadir/oe.csr"
 REALCERT="no" # default to fake CA for localhost
+CIPHERSUITES="" # default to internal default
 
 function whenisitagain()
 {
@@ -72,6 +73,7 @@ function usage()
     echo "  -g means GREASE (only applied with -n)"
     echo "  -h means print this"
     echo "  -H means try connect to that hidden server"
+    echo "  -j just use 0x1301 ciphersuite"
     echo "  -n means don't trigger ech at all"
     echo "  -p [port] specifices a port (default: 443)"
 	echo "  -P [filename] means read ECHConfigs public value from file and not DNS"
@@ -87,7 +89,7 @@ function usage()
 }
 
 # options may be followed by one colon to indicate they have a required argument
-if ! options=$(/usr/bin/getopt -s bash -o c:df:ghH:np:P:rs:S:v -l clear_sni:,debug,filepath:,grease,help,hidden:,noech,port:,echpub:,realcert,server:,session:,valgrind -- "$@")
+if ! options=$(/usr/bin/getopt -s bash -o c:df:ghH:jnp:P:rs:S:v -l clear_sni:,debug,filepath:,grease,help,hidden:,just,noech,port:,echpub:,realcert,server:,session:,valgrind -- "$@")
 then
     # something went wrong, getopt will put out an error message for us
     exit 1
@@ -103,6 +105,7 @@ do
 		-g|--grease) GREASE="yes";;
         -h|--help) usage;;
         -H|--hidden) SUPPLIEDHIDDEN=$2; shift;;
+        -j|--just) CIPHERSUITES=" -ciphersuites TLS_AES_128_GCM_SHA256 " ;;
         -n|--noech) NOECH="yes" ;;
         -p|--port) SUPPLIEDPORT=$2; shift;;
 		-P|--echpub) SUPPLIEDECH=$2; shift;;
@@ -188,6 +191,9 @@ then
 	target=" -connect $SUPPLIEDSERVER:$PORT"
 	server=$SUPPLIEDSERVER
 fi
+
+# set ciphersuites
+ciphers=$CIPHERSUITES
 
 if [[ "$NOECH" != "yes" ]]
 then
@@ -287,9 +293,9 @@ TMPF=`mktemp /tmp/echtestXXXX`
 
 if [[ "$DEBUG" == "yes" ]]
 then
-    echo "Running: $TOP/apps/openssl s_client $dbgstr $certsdb $force13 $target $echstr $snicmd $session $alpn"
+    echo "Running: $TOP/apps/openssl s_client $dbgstr $certsdb $force13 $target $echstr $snicmd $session $alpn $ciphers"
 fi
-echo -e "$httpreq" | $vgcmd $TOP/apps/openssl s_client $dbgstr $certsdb $force13 $target $echstr $snicmd $session $alpn >$TMPF 2>&1
+echo -e "$httpreq" | $vgcmd $TOP/apps/openssl s_client $dbgstr $certsdb $force13 $target $echstr $snicmd $session $alpn $ciphers >$TMPF 2>&1
 
 c200=`grep -c "200 OK" $TMPF`
 csucc=`grep -c "ECH: success" $TMPF`
