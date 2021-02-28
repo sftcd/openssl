@@ -28,6 +28,8 @@ Most recent first...
 DON'T TRY ECH YET!!! The very much work-in-progress code is
 sooooo awful still...
 
+- 20210238: cleaned up leaks at least in nominal operation
+
 - 20210227: (later:-) Now have NSS tstclnt working against 
 my ``openssl s_server`` and my ``openssl s_client`` working
 vs. the Cloudflare test deployment for draft-09 (which will

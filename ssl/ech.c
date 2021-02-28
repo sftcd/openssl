@@ -366,6 +366,7 @@ void ECHConfig_free(ECHConfig *tbf)
     if (tbf->ciphersuites) OPENSSL_free(tbf->ciphersuites);
     if (tbf->exttypes) OPENSSL_free(tbf->exttypes);
     if (tbf->extlens) OPENSSL_free(tbf->extlens);
+    if (tbf->config_id) OPENSSL_free(tbf->config_id);
     int i=0;
     for (i=0;i!=tbf->nexts;i++) {
         if (tbf->exts[i]) OPENSSL_free(tbf->exts[i]);
@@ -2514,6 +2515,7 @@ int ech_calc_accept_confirm(SSL *s, unsigned char *acbuf, unsigned char *shbuf, 
     EVP_MD_CTX_free(ctx);
     ech_pbuf("calc conf : hashval",hashval,hashlen);
 
+#if 0
     unsigned char *info=NULL;
     size_t infolen=2+1+label_prefixlen+labellen+1+hashlen;
     info=OPENSSL_malloc(infolen);
@@ -2529,6 +2531,7 @@ int ech_calc_accept_confirm(SSL *s, unsigned char *acbuf, unsigned char *shbuf, 
     info[3+label_prefixlen+labellen]=hashlen;
     memcpy(info+4+label_prefixlen+labellen,hashval,hashlen);
     ech_pbuf("calc conf : info",info,infolen);
+#endif
 
     ech_pbuf("calc conf : h/s secret",insecret,EVP_MAX_MD_SIZE);
 
@@ -2541,6 +2544,7 @@ int ech_calc_accept_confirm(SSL *s, unsigned char *acbuf, unsigned char *shbuf, 
         OPENSSL_free(tbuf);
         return(0);
     }
+    OPENSSL_free(tbuf);
     ech_pbuf("calc conf : hoval",hoval,32);
 
     ech_reset_hs_buffer(s,chbuf,chlen);
@@ -3181,6 +3185,7 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
     EVP_PKEY_free(mypriv_evp); mypriv_evp=NULL;
 #endif
 
+#if 0
     WPACKET echval;
     BUF_MEM *echval_mem=NULL;
     if ((echval_mem = BUF_MEM_new()) == NULL) {
@@ -3208,6 +3213,7 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
             return 0;
     }
     ech_pbuf("EAAE echval",(unsigned char*) echval.buf->data,echval.written);
+#endif
 
     ech_pbuf("EAAE pkt b4",(unsigned char*) pkt->buf->data,pkt->written);
     if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_ech) 
@@ -3223,32 +3229,33 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
             return 0;
     }
 
-    /*
-     * TODO: Total hack time!!! once this works, we'll fix
-     */
-    unsigned char *startofmessage=(unsigned char*)pkt->buf->data;
+    // length to include
+    size_t newlen=6+2+2+3+config_id_len+mypub_len+cipherlen;
+
+#if 0
+    printf("EAAE lengths: echval.written: %ld, pkt.written: %ld, newlen: %ld\n",
+            echval.written,pkt->written,newlen);
+#endif
+
     /*
      * Jump over the ciphersuites and (MUST be NULL) compression to
      * the start of extensions
      * We'll start genoffset at the end of the session ID, just
      * before the ciphersuites
      */
+    unsigned char *startofmessage=(unsigned char*)pkt->buf->data;
     size_t genoffset=6+32+1+s->tmp_session_id_len; 
     size_t suiteslen=startofmessage[genoffset]*256+startofmessage[genoffset+1];
     size_t startofexts=genoffset+suiteslen+2+2; // the 2 for the suites len
 
     size_t origextlens=startofmessage[startofexts]*256+startofmessage[startofexts+1];
-    size_t newextlens=origextlens+echval.written;
+    //size_t newextlens=origextlens+echval.written;
+    size_t newextlens=origextlens+newlen;
     startofmessage[startofexts]=(newextlens&0xffff)/256; 
     startofmessage[startofexts+1]=(newextlens&0xffff)%256; 
 
     ech_pbuf("EAAE pkt to startofexts+2",(unsigned char*) pkt->buf->data,startofexts+2);
     ech_pbuf("EAAE pkt aftr",(unsigned char*) pkt->buf->data,pkt->written);
-
-    /*
-     * Now splice the encrypted ECH back into the outer CH and adjust lengths
-     * as needed
-     */
 
     return 1;
 }
