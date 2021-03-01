@@ -460,11 +460,13 @@ void SSL_ECH_free(SSL_ECH *tbf)
         OPENSSL_free(tbf->cfg);
     }
 
-    if (tbf->inner_name!=NULL) OPENSSL_free(tbf->inner_name);
-    if (tbf->outer_name!=NULL) OPENSSL_free(tbf->outer_name);
-    if (tbf->pemfname!=NULL) OPENSSL_free(tbf->pemfname);
-    if (tbf->keyshare!=NULL) EVP_PKEY_free(tbf->keyshare);
-    if (tbf->dns_alpns!=NULL) OPENSSL_free(tbf->dns_alpns);
+#define CFREE(__x__) if (tbf->__x__) OPENSSL_free(tbf->__x__); tbf->__x__=NULL;
+
+    CFREE(inner_name);
+    CFREE(outer_name);
+    CFREE(pemfname);
+    if (tbf->keyshare!=NULL) EVP_PKEY_free(tbf->keyshare); tbf->keyshare=NULL;
+    CFREE(dns_alpns);
 
     memset(tbf,0,sizeof(SSL_ECH));
     return;
@@ -1109,29 +1111,12 @@ int SSL_ech_server_name(SSL *s, const char *inner_name, const char *outer_name)
     if (s==NULL) return(0);
     if (s->ech==NULL) return(0);
     if (inner_name==NULL) return(0);
-    // outer name can be NULL!
-    // if (outer_name==NULL) return(0);
-
     if (s->ech->inner_name!=NULL) OPENSSL_free(s->ech->inner_name);
     s->ech->inner_name=OPENSSL_strdup(inner_name);
     if (s->ech->outer_name!=NULL) OPENSSL_free(s->ech->outer_name);
     if (outer_name!=NULL) s->ech->outer_name=OPENSSL_strdup(outer_name);
     else s->ech->outer_name=NULL;
 
-    return 1;
-}
-
-/**
- * @brief Turn on ALPN encryption for an (upcoming) TLS session
- * 
- * @param s is the SSL context
- * @param hidden_alpns is the hidden service alpns
- * @param public_alpns is the cleartext SNI alpns to use
- * @return 1 for success, error otherwise
- * 
- */
-int SSL_ech_alpns(SSL *s, const char *hidden_alpns, const char *public_alpns)
-{
     return 1;
 }
 

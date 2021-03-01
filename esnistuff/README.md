@@ -28,6 +28,9 @@ Most recent first...
 DON'T TRY ECH YET!!! The very much work-in-progress code is
 sooooo awful still...
 
+- 20210301: re-added outer ALPN handling, seems ok at protocol
+level, still need to check if any callback changes needed
+
 - 20210238: cleaned up leaks at least in nominal operation
 
 - 20210227: (later:-) Now have NSS tstclnt working against 

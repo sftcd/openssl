@@ -1101,6 +1101,10 @@ struct ssl_ctx_st {
          */
         unsigned char *alpn;
         size_t alpn_len;
+#ifndef OPENSSL_NO_ECH
+        unsigned char *alpn_outer;
+        size_t alpn_outer_len;
+#endif
 
 # ifndef OPENSSL_NO_NEXTPROTONEG
         /* Next protocol negotiation information */
@@ -1700,6 +1704,10 @@ struct ssl_st {
          */
         unsigned char *alpn;
         size_t alpn_len;
+#ifndef OPENSSL_NO_ECH
+        unsigned char *alpn_outer;
+        size_t alpn_outer_len;
+#endif
         /*
          * Next protocol negotiation. For the client, this is the protocol that
          * we sent in NextProtocol and is set when handling ServerHello

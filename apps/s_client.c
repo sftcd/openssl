@@ -2258,6 +2258,23 @@ int s_client_main(int argc, char **argv)
         }
         OPENSSL_free(alpn);
     }
+ 
+#ifndef OPENSSL_NO_ECH
+    if (alpn_outer_in) {
+        size_t alpn_outer_len;
+        unsigned char *alpn_outer = next_protos_parse(&alpn_outer_len, alpn_outer_in);
+        if (alpn_outer == NULL) {
+            BIO_printf(bio_err, "Error parsing -alpn_outer argument\n");
+            goto end;
+        }
+        /* Returns 0 on success! */
+        if (SSL_CTX_set_ech_alpn_protos(ctx, alpn_outer, alpn_outer_len) != 0) {
+            BIO_printf(bio_err, "Error setting ALPN-OUTER\n");
+            goto end;
+        }
+        OPENSSL_free(alpn_outer);
+    }
+#endif
 
     for (i = 0; i < serverinfo_count; i++) {
         if (!SSL_CTX_add_client_custom_ext(ctx,
@@ -2590,12 +2607,6 @@ int s_client_main(int argc, char **argv)
             || !SSL_CTX_set1_param(ctx, vpm)) {
             BIO_printf(bio_err, "Error setting verify params\n");
             ERR_print_errors(bio_err);
-            goto end;
-        }
-    }
-    if (alpn_outer_in) {
-        if (SSL_ech_alpns(con,alpn_outer_in,alpn_in)!=1) {
-            BIO_printf(bio_err, "Error setting OUTER ALPN\n");
             goto end;
         }
     }

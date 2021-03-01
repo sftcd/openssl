@@ -546,7 +546,6 @@ SSL_CTX_ech_add                        ?	3_0_0	EXIST::FUNCTION:
 SSL_svcb_add                            ?	3_0_0	EXIST::FUNCTION:
 SSL_CTX_svcb_add                        ?	3_0_0	EXIST::FUNCTION:
 SSL_ech_server_name                    ?	3_0_0	EXIST::FUNCTION:
-SSL_ech_alpns                          ?	3_0_0	EXIST::FUNCTION:
 SSL_ech_query                          ?	3_0_0	EXIST::FUNCTION:
 SSL_ECH_DIFF_print                     ?	3_0_0	EXIST::FUNCTION:
 SSL_ech_reduce                         ?	3_0_0	EXIST::FUNCTION:
@@ -557,3 +556,5 @@ SSL_ech_print                          ?	3_0_0	EXIST::FUNCTION:
 SSL_ech_get_status                     ?	3_0_0	EXIST::FUNCTION:
 SSL_CTX_set_ech_callback               ?	3_0_0	EXIST::FUNCTION:
 SSL_set_ech_callback                   ?	3_0_0	EXIST::FUNCTION:
+SSL_CTX_set_ech_alpn_protos            ?  	3_0_0	EXIST::FUNCTION:
+SSL_set_ech_alpn_protos                ?  	3_0_0	EXIST::FUNCTION:

@@ -808,6 +808,17 @@ SSL *SSL_new(SSL_CTX *ctx)
         s->ext.alpn_len = s->ctx->ext.alpn_len;
     }
 
+#ifndef OPENSSL_NO_ECH
+
+    if (s->ctx->ext.alpn_outer) {
+        s->ext.alpn_outer = OPENSSL_malloc(s->ctx->ext.alpn_outer_len);
+        if (s->ext.alpn_outer == NULL)
+            goto err;
+        memcpy(s->ext.alpn_outer, s->ctx->ext.alpn_outer, s->ctx->ext.alpn_outer_len);
+        s->ext.alpn_outer_len = s->ctx->ext.alpn_outer_len;
+    }
+#endif
+
     s->verified_chain = NULL;
     s->verify_result = X509_V_OK;
 
@@ -1271,6 +1282,9 @@ void SSL_free(SSL *s)
 #endif
     OPENSSL_free(s->ext.ocsp.resp);
     OPENSSL_free(s->ext.alpn);
+#ifndef OPENSSL_NO_ECH
+    OPENSSL_free(s->ext.alpn_outer);
+#endif
     OPENSSL_free(s->ext.tls13_cookie);
     OPENSSL_free(s->clienthello);
     OPENSSL_free(s->pha_context);
@@ -3101,6 +3115,45 @@ int SSL_CTX_set_alpn_protos(SSL_CTX *ctx, const unsigned char *protos,
     return 0;
 }
 
+#ifndef OPENSSL_NO_ECH
+/*
+ * SSL_CTX_set_ech_alpn_protos sets the ALPN protocol list for use in
+ * the ECH outer CH, on |ctx| to |protos|.
+ * |protos| must be in wire-format (i.e. a series of non-empty, 8-bit
+ * length-prefixed strings). Returns 0 on success.
+ */
+int SSL_CTX_set_ech_alpn_protos(SSL_CTX *ctx, const unsigned char *protos,
+                            unsigned int protos_len)
+{
+    OPENSSL_free(ctx->ext.alpn_outer);
+    ctx->ext.alpn_outer = OPENSSL_memdup(protos, protos_len);
+    if (ctx->ext.alpn_outer == NULL) {
+        SSLerr(SSL_F_SSL_CTX_SET_ALPN_PROTOS, ERR_R_MALLOC_FAILURE);
+        return 1;
+    }
+    ctx->ext.alpn_outer_len = protos_len;
+    return 0;
+}
+
+/*
+ * SSL_set_ech_alpn_protos sets the outer CH ALPN protocol list on |ssl| to |protos|.
+ * |protos| must be in wire-format (i.e. a series of non-empty, 8-bit
+ * length-prefixed strings). Returns 0 on success.
+ */
+int SSL_ech_set_alpn_protos(SSL *ssl, const unsigned char *protos,
+                        unsigned int protos_len)
+{
+    OPENSSL_free(ssl->ext.alpn_outer);
+    ssl->ext.alpn_outer = OPENSSL_memdup(protos, protos_len);
+    if (ssl->ext.alpn_outer == NULL) {
+        SSLerr(SSL_F_SSL_SET_ALPN_PROTOS, ERR_R_MALLOC_FAILURE);
+        return 1;
+    }
+    ssl->ext.alpn_outer_len = protos_len;
+    return 0;
+}
+#endif
+
 /*
  * SSL_set_alpn_protos sets the ALPN protocol list on |ssl| to |protos|.
  * |protos| must be in wire-format (i.e. a series of non-empty, 8-bit
@@ -3116,7 +3169,6 @@ int SSL_set_alpn_protos(SSL *ssl, const unsigned char *protos,
         return 1;
     }
     ssl->ext.alpn_len = protos_len;
-
     return 0;
 }
 
@@ -3499,6 +3551,9 @@ void SSL_CTX_free(SSL_CTX *a)
 #endif
     OPENSSL_free(a->ext.supportedgroups);
     OPENSSL_free(a->ext.alpn);
+#ifndef OPENSSL_NO_ECH
+    OPENSSL_free(a->ext.alpn_outer);
+#endif
     OPENSSL_secure_free(a->ext.secure);
 
     ssl_evp_md_free(a->md5);

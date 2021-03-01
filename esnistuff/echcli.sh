@@ -21,7 +21,7 @@ GREASE="no"
 
 # Protocol parameters
 
-DEFALPNVAL="-alpn secret,foo,h2 -alpn-outer http/1.1"
+DEFALPNVAL="-alpn inner,secret,h2 -alpn-outer outer,public,http/1.1"
 DOALPN="yes"
 
 # default port

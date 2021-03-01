@@ -677,11 +677,40 @@ EXT_RETURN tls_construct_ctos_alpn(SSL *s, WPACKET *pkt, unsigned int context,
 {
     s->s3.alpn_sent = 0;
 
+#ifndef OPENSSL_NO_ECH
+    /*
+     * If we have different alpn and alpn_outer values, then we set
+     * the appropriate one for inner and outer. 
+     * If no alpn is set (for inner or ouer), we don't send any.
+     */
+    if (!SSL_IS_FIRST_HANDSHAKE(s))
+        return EXT_RETURN_NOT_SENT;
+    unsigned char *aval=s->ext.alpn;
+    size_t alen=s->ext.alpn_len;
+    if (s->ext.ch_depth==1 && s->ext.alpn==NULL)  // inner
+        return EXT_RETURN_NOT_SENT;
+    if (s->ext.ch_depth==0 && !(s->ext.alpn || s->ext.alpn_outer)) // outer 
+        return EXT_RETURN_NOT_SENT;
+    if (s->ext.ch_depth==0 && s->ext.alpn_outer!=NULL) {
+        aval=s->ext.alpn_outer;
+        alen=s->ext.alpn_outer_len;
+    }
+
+    if (!WPACKET_put_bytes_u16(pkt,
+                TLSEXT_TYPE_application_layer_protocol_negotiation)
+               /* Sub-packet ALPN extension */
+            || !WPACKET_start_sub_packet_u16(pkt)
+            || !WPACKET_sub_memcpy_u16(pkt, aval, alen) 
+            || !WPACKET_close(pkt)) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ALPN,
+                 ERR_R_INTERNAL_ERROR);
+        return EXT_RETURN_FAIL;
+    }
+
+#else
+
     if (s->ext.alpn == NULL || !SSL_IS_FIRST_HANDSHAKE(s))
         return EXT_RETURN_NOT_SENT;
-#ifndef OPENSSL_NO_ECH
-    IOSAME
-#endif
 
     if (!WPACKET_put_bytes_u16(pkt,
                 TLSEXT_TYPE_application_layer_protocol_negotiation)
@@ -693,6 +722,7 @@ EXT_RETURN tls_construct_ctos_alpn(SSL *s, WPACKET *pkt, unsigned int context,
                  ERR_R_INTERNAL_ERROR);
         return EXT_RETURN_FAIL;
     }
+#endif
     s->s3.alpn_sent = 1;
 
     return EXT_RETURN_SENT;
