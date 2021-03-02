@@ -2956,14 +2956,7 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
      * For some reason the EVP variant here doesn't work
      * inside HPKE - check that out - TODO:
      */
-#define EVP
-//#define RAW
-#ifdef EVP
     EVP_PKEY *mypriv_evp=NULL;
-#else
-    unsigned char mypriv[HPKE_MAXSIZE];
-    size_t mypriv_len=HPKE_MAXSIZE;
-#endif
 
     /*
      * Pick a matching public key from the Config (if we can)
@@ -3052,7 +3045,6 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
     ech_pbuf("EAAE: clear",s->ext.inner_s->ext.encoded_innerch, s->ext.inner_s->ext.encoded_innerch_len);
 
 
-#ifdef EVP
     if (hpke_kg_evp(hpke_mode, hpke_suite, &mypub_len, mypub, &mypriv_evp)!=1) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ECH, ERR_R_INTERNAL_ERROR);
         return 0;
@@ -3062,18 +3054,6 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
         return 0;
     }
     ech_pbuf("EAAE: my pub",mypub,mypub_len);
-#else
-    if (hpke_kg(hpke_mode, hpke_suite, &mypub_len, mypub, &mypriv_len, mypriv)!=1) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ECH, ERR_R_INTERNAL_ERROR);
-        return 0;
-    }
-    if (mypub_len>=HPKE_MAXSIZE || mypriv_len >=HPKE_MAXSIZE) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ECH, ERR_R_INTERNAL_ERROR);
-        return 0;
-    }
-    ech_pbuf("EAAE: my pub",mypub,mypub_len);
-    ech_pbuf("EAAE: my priv",mypriv,mypriv_len);
-#endif
 
     unsigned char *config_id=tc->config_id;
     size_t config_id_len=tc->config_id_len;
@@ -3084,9 +3064,7 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
     aad_len=4+1+config_id_len+2+mypub_len+3+pkt->written-4;
     aad=OPENSSL_malloc(aad_len);
     if (aad==NULL) {
-#ifdef EVP
         EVP_PKEY_free(mypriv_evp); mypriv_evp=NULL;
-#endif
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ECH, ERR_R_INTERNAL_ERROR);
         return 0;
     }
@@ -3114,15 +3092,12 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
     size_t info_len=HPKE_MAXSIZE;
     if (ech_make_enc_info(tc,info,&info_len)!=1) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ECH, ERR_R_INTERNAL_ERROR);
-#ifdef EVP
         EVP_PKEY_free(mypriv_evp); mypriv_evp=NULL;
-#endif
         OPENSSL_free(aad);
         return 0; 
     }
     ech_pbuf("EAAE info",info,info_len);
 
-#ifdef EVP
     int rv=hpke_enc_evp(
         hpke_mode, hpke_suite, // mode, suite
         NULL, 0, NULL, // pskid, psk
@@ -3140,65 +3115,11 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
         OPENSSL_free(aad);
         return 0; 
     }
-#else
-    int rv=hpke_enc_raw(
-        hpke_mode, hpke_suite, // mode, suite
-        NULL, 0, NULL, // pskid, psk
-        peerpub_len,peerpub,
-        0, NULL, // priv
-        s->ext.inner_s->ext.encoded_innerch_len, s->ext.inner_s->ext.encoded_innerch, // clear
-        aad_len, aad, // aad 
-        info_len, info, // info
-        mypub_len, mypub,
-        mypriv_len,mypriv,
-        &cipherlen, cipher // cipher
-        );
-    if (rv!=1) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ECH, ERR_R_INTERNAL_ERROR);
-#ifdef EVP
-        EVP_PKEY_free(mypriv_evp); mypriv_evp=NULL;
-#endif
-        OPENSSL_free(aad);
-        return 0; 
-    }
-#endif
 
     ech_pbuf("EAAE: hpke mypub",mypub,mypub_len);
     ech_pbuf("EAAE: cipher",cipher,cipherlen);
     OPENSSL_free(aad);
-#ifdef EVP
     EVP_PKEY_free(mypriv_evp); mypriv_evp=NULL;
-#endif
-
-#if 0
-    WPACKET echval;
-    BUF_MEM *echval_mem=NULL;
-    if ((echval_mem = BUF_MEM_new()) == NULL) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ECH, ERR_R_INTERNAL_ERROR);
-        return 0;
-    }
-    if (!BUF_MEM_grow(echval_mem, SSL3_RT_MAX_PLAIN_LENGTH)) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ECH, ERR_R_INTERNAL_ERROR);
-        return 0;
-    }
-    if (!WPACKET_init(&echval,echval_mem)) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ECH, ERR_R_INTERNAL_ERROR);
-        return 0;
-    }
-    if (!WPACKET_put_bytes_u16(&echval, TLSEXT_TYPE_ech) 
-        || !WPACKET_start_sub_packet_u16(&echval)
-        || !WPACKET_put_bytes_u16(&echval, hpke_suite.kdf_id)
-        || !WPACKET_put_bytes_u16(&echval, hpke_suite.aead_id)
-        || !WPACKET_sub_memcpy_u8(&echval, config_id, config_id_len)
-        || !WPACKET_sub_memcpy_u16(&echval, mypub, mypub_len)
-        || !WPACKET_sub_memcpy_u16(&echval, cipher, cipherlen)
-        || !WPACKET_close(&echval)
-            ) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ECH, ERR_R_INTERNAL_ERROR);
-            return 0;
-    }
-    ech_pbuf("EAAE echval",(unsigned char*) echval.buf->data,echval.written);
-#endif
 
     ech_pbuf("EAAE pkt b4",(unsigned char*) pkt->buf->data,pkt->written);
     if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_ech) 
@@ -3216,12 +3137,6 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
 
     // length to include
     size_t newlen=6+2+2+3+config_id_len+mypub_len+cipherlen;
-
-#if 0
-    printf("EAAE lengths: echval.written: %ld, pkt.written: %ld, newlen: %ld\n",
-            echval.written,pkt->written,newlen);
-#endif
-
     /*
      * Jump over the ciphersuites and (MUST be NULL) compression to
      * the start of extensions

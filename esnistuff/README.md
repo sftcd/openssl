@@ -28,7 +28,10 @@ Most recent first...
 DON'T TRY ECH YET!!! The very much work-in-progress code is
 sooooo awful still...
 
-- 20210301: fixed the use of ``hpke_enc_evp`` variant
+- 20210301: fixed the use of ``hpke_enc_evp`` variant, and got
+rid of the ``hpke_enc_raw`` variant code (which exposes the
+sender's ephemeral private key bits to the application
+unnecessarily)
 
 - 20210301: re-added outer ALPN handling, seems ok at protocol
 level, still need to check if any callback changes needed
