@@ -1709,12 +1709,7 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL *s, PACKET *pkt)
     // HACK HACK
     const unsigned char *shbuf=pkt->curr;
     size_t shlen=pkt->remaining;
-    if (s==NULL) {
-        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PROCESS_SERVER_HELLO,
-                 SSL_R_LENGTH_MISMATCH);
-        goto err;
-    }
-    SSL inner=*s->ext.inner_s;
+    SSL inner;
     SSL outer=*s;
     int trying_inner=0;
     if (s->ech!=NULL && s->ext.ch_depth==0 && s->ext.ech_grease==0) {
@@ -1722,6 +1717,7 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL *s, PACKET *pkt)
          * Try process inner - if it fails to match the SH.random after processing, we'll
          * have to come back and try outer
          */
+        inner=*s->ext.inner_s;
         *s=inner;
         trying_inner=1;
     }
