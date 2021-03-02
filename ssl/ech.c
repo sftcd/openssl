@@ -460,12 +460,12 @@ void SSL_ECH_free(SSL_ECH *tbf)
         OPENSSL_free(tbf->cfg);
     }
 
-#define CFREE(__x__) if (tbf->__x__) OPENSSL_free(tbf->__x__); tbf->__x__=NULL;
+#define CFREE(__x__) if (tbf->__x__) { OPENSSL_free(tbf->__x__); tbf->__x__=NULL; }
 
     CFREE(inner_name);
     CFREE(outer_name);
     CFREE(pemfname);
-    if (tbf->keyshare!=NULL) EVP_PKEY_free(tbf->keyshare); tbf->keyshare=NULL;
+    if (tbf->keyshare!=NULL) { EVP_PKEY_free(tbf->keyshare); tbf->keyshare=NULL; }
     CFREE(dns_alpns);
 
     memset(tbf,0,sizeof(SSL_ECH));
@@ -2334,7 +2334,7 @@ err:
  *
  * This is used in SSL_ESNI_print
  */
-void ech_pbuf(const char *msg,unsigned char *buf,size_t blen)
+void ech_pbuf(const char *msg, const unsigned char *buf, const size_t blen)
 {
 
     OSSL_TRACE_BEGIN(TLS) {
@@ -2407,7 +2407,7 @@ int ech_reset_hs_buffer(SSL *s, unsigned char *buf, size_t blen)
  * @param shlen is the length of the SH buf
  * @return: 1 for success, 0 otherwise
  */
-int ech_calc_accept_confirm(SSL *s, unsigned char *acbuf, unsigned char *shbuf, size_t shlen)
+int ech_calc_accept_confirm(SSL *s, unsigned char *acbuf, const unsigned char *shbuf, const size_t shlen)
 {
 
     // ech_ptranscript("calc (outer), b4",s->ext.outer_s);
@@ -2460,7 +2460,7 @@ int ech_calc_accept_confirm(SSL *s, unsigned char *acbuf, unsigned char *shbuf, 
     md=ssl_handshake_md(s);
     if (md==NULL) {
         const unsigned char *cipherchars=&tbuf[chlen+shoffset+8+1+32]; // the chosen ciphersuite
-        SSL_CIPHER *c=ssl_get_cipher_by_char(s, cipherchars, 0);
+        const SSL_CIPHER *c=ssl_get_cipher_by_char(s, cipherchars, 0);
         md=ssl_md(s->ctx, c->algorithm2);
         if (md==NULL) {
             /*
@@ -2482,8 +2482,13 @@ int ech_calc_accept_confirm(SSL *s, unsigned char *acbuf, unsigned char *shbuf, 
      * Next, zap the magic bits and do the keyed hashing
      */
     unsigned char *insecret=s->handshake_secret;
+#if 0
+    /*
+     * Only used for additional tracing, currently compiled out below
+     */
     char *label_prefix="tls13 ";
     size_t label_prefixlen=strlen(label_prefix);
+#endif
     char *label=ECH_ACCEPT_CONFIRM_STRING;
     size_t labellen=strlen(label);
     unsigned int hashlen=EVP_MD_size(md);
@@ -3219,14 +3224,14 @@ int ech_srv_get_aad(SSL *s,
  * @param de_len: zero if no ECH present, otherwise length of buffer with CH after ECH taken out
  * @param de: NULL or the above buffer (allocated internally, caller needs to free)
  */
-int drop_ech_from_ch(SSL *s, size_t ch_len, unsigned char *ch,
+int drop_ech_from_ch(SSL *s, const size_t ch_len, const unsigned char *ch,
         size_t *de_len, unsigned char *de) 
 {
 
     /*
      * TODO: Total hack time!!! once this works, we'll fix
      */
-    unsigned char *startofmessage=ch;
+    const unsigned char *startofmessage=ch;
     /*
      * Jump over the ciphersuites and (MUST be NULL) compression to
      * the start of extensions
@@ -3255,7 +3260,7 @@ int drop_ech_from_ch(SSL *s, size_t ch_len, unsigned char *ch,
     ech_pbuf("dropping orig CH",(unsigned char*) ch,ch_len);
     ech_pbuf("dropping orig to startofexts+2",(unsigned char*) ch,startofexts+2);
 
-    unsigned char *e_start=&startofmessage[startofexts+2];
+    const unsigned char *e_start=&startofmessage[startofexts+2];
     int extsremaining=origextlens-2;
     int found=0;
     uint16_t etype=0;

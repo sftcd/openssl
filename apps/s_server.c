@@ -942,6 +942,7 @@ static size_t esni_trace_cb(const char *buf, size_t cnt,
 // ESNI_DOXY_END
 
 
+#if defined(OPENSSL_NO_ESNI) && defined(OPENSSL_NO_ECH)
 static int ssl_servername_cb(SSL *s, int *ad, void *arg)
 {
     tlsextctx *p = (tlsextctx *) arg;
@@ -973,6 +974,7 @@ static int ssl_servername_cb(SSL *s, int *ad, void *arg)
 
     return SSL_TLSEXT_ERR_OK;
 }
+#endif
 
 /* Structure passed to cert status callback */
 typedef struct tlsextstatusctx_st {
@@ -2988,10 +2990,8 @@ int s_server_main(int argc, char *argv[])
          */
         if (echkeyfile!= NULL || echdir != NULL ) {
             SSL_CTX_set_tlsext_servername_callback(ctx2, ssl_ech_servername_cb);
-            //SSL_CTX_set_tlsext_servername_callback(ctx2, ssl_servername_cb);
             SSL_CTX_set_tlsext_servername_arg(ctx2, &tlsextcbp);
             SSL_CTX_set_tlsext_servername_callback(ctx, ssl_ech_servername_cb);
-            //SSL_CTX_set_tlsext_servername_callback(ctx, ssl_servername_cb);
             SSL_CTX_set_tlsext_servername_arg(ctx, &tlsextcbp);
             SSL_CTX_set_ech_callback(ctx2, ech_print_cb);
             SSL_CTX_set_ech_callback(ctx, ech_print_cb);

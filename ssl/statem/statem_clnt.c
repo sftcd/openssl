@@ -1707,7 +1707,7 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL *s, PACKET *pkt)
 #endif
 #ifndef OPENSSL_NO_ECH
     // HACK HACK
-    unsigned char *shbuf=pkt->curr;
+    const unsigned char *shbuf=pkt->curr;
     size_t shlen=pkt->remaining;
     SSL inner=*s->ext.inner_s;
     SSL outer=*s;

@@ -28,7 +28,7 @@ static const unsigned char default_zeros[EVP_MAX_MD_SIZE];
 /*
  * Temp tracing code
  */
-static void pbuf(const char *msg,unsigned char *buf,size_t blen)
+static void pbuf(const char *msg, const unsigned char *buf, const size_t blen)
 {
     OSSL_TRACE_BEGIN(TLS) {
     if (msg==NULL) {

@@ -2572,7 +2572,7 @@ int tls_construct_server_hello(SSL *s, WPACKET *pkt)
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS13_ENC, ERR_R_INTERNAL_ERROR);
             return 0;
         }
-        unsigned char *shbuf=pkt->buf->data;
+        unsigned char *shbuf=(unsigned char *)pkt->buf->data;
         size_t shlen=pkt->written;
         if (ech_calc_accept_confirm(s,acbuf,shbuf,shlen)!=1) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS13_ENC, ERR_R_INTERNAL_ERROR);
@@ -2586,7 +2586,7 @@ int tls_construct_server_hello(SSL *s, WPACKET *pkt)
      * it ought not be here.
      */
     size_t shoffset=6+24;
-    unsigned char *p=&pkt->buf->data[shoffset];
+    unsigned char *p=(unsigned char*) &pkt->buf->data[shoffset];
     memcpy(p,acbuf,8);
 
 #endif

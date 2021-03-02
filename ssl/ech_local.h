@@ -314,7 +314,7 @@ int ech_same_ext(SSL *s, WPACKET* pkt);
  *
  * This is used in SSL_ESNI_print
  */
-void ech_pbuf(const char *msg,unsigned char *buf,size_t blen);
+void ech_pbuf(const char *msg,const unsigned char *buf,const size_t blen);
 
 /**
  * @brief free an ECH_ENCCH
@@ -340,7 +340,7 @@ void ECH_ENCCH_free(ECH_ENCCH *ev);
  * @param shlen is the length of the SH buf
  * @return: 1 for success, 0 otherwise
  */
-int ech_calc_accept_confirm(SSL *s, unsigned char *acbuf, unsigned char *shbuf, size_t shlen);
+int ech_calc_accept_confirm(SSL *s, unsigned char *acbuf, const unsigned char *shbuf, const size_t shlen);
 
 /*
  * Swap the inner and outer.
@@ -405,7 +405,7 @@ int ech_srv_get_aad(SSL *s,
  * @param de: NULL or the above buffer (caller-allocated)
  * @return 1 for success, zero otherwise
  */
-int drop_ech_from_ch(SSL *s, size_t ch_len, unsigned char *ch,
+int drop_ech_from_ch(SSL *s, const size_t ch_len, const unsigned char *ch,
         size_t *de_len, unsigned char *de);
 
 int ech_make_enc_info(ECHConfig *tc,unsigned char *info,size_t *info_len);
