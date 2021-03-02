@@ -2956,8 +2956,8 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
      * For some reason the EVP variant here doesn't work
      * inside HPKE - check that out - TODO:
      */
-//#define EVP
-#define RAW
+#define EVP
+//#define RAW
 #ifdef EVP
     EVP_PKEY *mypriv_evp=NULL;
 #else
@@ -3130,8 +3130,8 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
         0, NULL, // priv
         s->ext.inner_s->ext.encoded_innerch_len, s->ext.inner_s->ext.encoded_innerch, // clear
         aad_len, aad, // aad 
-        info, info_len, // 0, NULL, // info
-        mypub_len, mypub, mypriv_evp, // my ephemeral key pair for D-H
+        info_len, info, // info
+        mypub_len, mypub, mypriv_evp,
         &cipherlen, cipher // cipher
         );
     if (rv!=1) {

@@ -1458,23 +1458,6 @@ static int hpke_enc_int(
     } else if (evpcaller) {
 
         pkE=extsenderpriv;
-        if (EVP_PKEY_set1_tls_encodedpoint(pkE,extsenderpub,extsenderpublen)!=1) {
-            erv=__LINE__; goto err;
-        }
-        pkE=extsenderpriv;
-
-#if 0
-        /*
-         * Double check we're a good key pair
-         */
-        unsigned char *checkpub=NULL;
-        size_t checkpublen=EVP_PKEY_get1_tls_encodedpoint(pkE,&checkpub);
-        if (checkpublen!=extsenderpublen ||
-                memcmp(checkpub,extsenderpub,checkpublen)) {
-            erv=__LINE__; goto err;
-        }
-        OPENSSL_free(checkpub);
-#endif
 
     } else if (rawcaller) {
 
