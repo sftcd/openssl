@@ -1709,6 +1709,11 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL *s, PACKET *pkt)
     // HACK HACK
     const unsigned char *shbuf=pkt->curr;
     size_t shlen=pkt->remaining;
+    if (s==NULL) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_F_TLS_PROCESS_SERVER_HELLO,
+                 SSL_R_LENGTH_MISMATCH);
+        goto err;
+    }
     SSL inner=*s->ext.inner_s;
     SSL outer=*s;
     int trying_inner=0;
