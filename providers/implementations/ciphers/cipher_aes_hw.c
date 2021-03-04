@@ -1,5 +1,5 @@
 /*
- * Copyright 2001-2019 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2001-2021 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -13,8 +13,8 @@
  */
 #include "internal/deprecated.h"
 
+#include <openssl/proverr.h>
 #include "cipher_aes.h"
-#include "prov/providercommonerr.h"
 
 static int cipher_hw_aes_initkey(PROV_CIPHER_CTX *dat,
                                  const unsigned char *key, size_t keylen)
@@ -114,7 +114,7 @@ static int cipher_hw_aes_initkey(PROV_CIPHER_CTX *dat,
     }
 
     if (ret < 0) {
-        ERR_raise(ERR_LIB_PROV, PROV_R_AES_KEY_SETUP_FAILED);
+        ERR_raise(ERR_LIB_PROV, PROV_R_KEY_SETUP_FAILED);
         return 0;
     }
 
@@ -126,11 +126,11 @@ IMPLEMENT_CIPHER_HW_COPYCTX(cipher_hw_aes_copyctx, PROV_AES_CTX)
 #define PROV_CIPHER_HW_aes_mode(mode)                                          \
 static const PROV_CIPHER_HW aes_##mode = {                                     \
     cipher_hw_aes_initkey,                                                     \
-    cipher_hw_generic_##mode,                                                  \
+    ossl_cipher_hw_generic_##mode,                                             \
     cipher_hw_aes_copyctx                                                      \
 };                                                                             \
 PROV_CIPHER_HW_declare(mode)                                                   \
-const PROV_CIPHER_HW *PROV_CIPHER_HW_aes_##mode(size_t keybits)                \
+const PROV_CIPHER_HW *ossl_prov_cipher_hw_aes_##mode(size_t keybits)           \
 {                                                                              \
     PROV_CIPHER_HW_select(mode)                                                \
     return &aes_##mode;                                                        \

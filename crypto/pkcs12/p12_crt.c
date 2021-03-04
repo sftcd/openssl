@@ -55,7 +55,7 @@ PKCS12 *PKCS12_create(const char *pass, const char *name, EVP_PKEY *pkey, X509 *
         mac_iter = 1;
 
     if (pkey == NULL && cert == NULL && ca == NULL) {
-        PKCS12err(PKCS12_F_PKCS12_CREATE, PKCS12_R_INVALID_NULL_ARGUMENT);
+        ERR_raise(ERR_LIB_PKCS12, PKCS12_R_INVALID_NULL_ARGUMENT);
         return NULL;
     }
 
@@ -201,6 +201,24 @@ PKCS12_SAFEBAG *PKCS12_add_key(STACK_OF(PKCS12_SAFEBAG) **pbags,
     PKCS12_SAFEBAG_free(bag);
     return NULL;
 
+}
+
+PKCS12_SAFEBAG *PKCS12_add_secret(STACK_OF(PKCS12_SAFEBAG) **pbags, 
+                                  int nid_type, const unsigned char *value, int len)
+{
+    PKCS12_SAFEBAG *bag = NULL;
+
+    /* Add secret, storing the value as an octet string */
+    if ((bag = PKCS12_SAFEBAG_create_secret(nid_type, V_ASN1_OCTET_STRING, value, len)) == NULL)
+        goto err;
+
+    if (!pkcs12_add_bag(pbags, bag))
+        goto err;
+
+    return bag;
+ err:
+    PKCS12_SAFEBAG_free(bag);
+    return NULL;
 }
 
 int PKCS12_add_safe(STACK_OF(PKCS7) **psafes, STACK_OF(PKCS12_SAFEBAG) *bags,

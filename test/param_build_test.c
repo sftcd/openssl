@@ -1,5 +1,5 @@
 /*
- * Copyright 2019 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2019-2020 The OpenSSL Project Authors. All Rights Reserved.
  * Copyright (c) 2019, Oracle and/or its affiliates.  All rights reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
@@ -24,6 +24,7 @@ static int template_public_test(void)
     int32_t i32;
     int64_t i64;
     double d;
+    time_t t;
     char *utf = NULL;
     const char *cutf;
     int res = 0;
@@ -33,6 +34,7 @@ static int template_public_test(void)
         || !TEST_true(OSSL_PARAM_BLD_push_long(bld, "l", 42))
         || !TEST_true(OSSL_PARAM_BLD_push_int32(bld, "i32", 1532))
         || !TEST_true(OSSL_PARAM_BLD_push_int64(bld, "i64", -9999999))
+        || !TEST_true(OSSL_PARAM_BLD_push_time_t(bld, "t", 11224))
         || !TEST_true(OSSL_PARAM_BLD_push_double(bld, "d", 1.61803398875))
         || !TEST_ptr(bn = BN_new())
         || !TEST_true(BN_set_word(bn, 1729))
@@ -70,6 +72,13 @@ static int template_public_test(void)
         || !TEST_size_t_eq(p->data_size, sizeof(long int))
         || !TEST_true(OSSL_PARAM_get_long(p, &l))
         || !TEST_long_eq(l, 42)
+        /* Check time_t */
+        || !TEST_ptr(p = OSSL_PARAM_locate(params, "t"))
+        || !TEST_str_eq(p->key, "t")
+        || !TEST_uint_eq(p->data_type, OSSL_PARAM_INTEGER)
+        || !TEST_size_t_eq(p->data_size, sizeof(time_t))
+        || !TEST_true(OSSL_PARAM_get_time_t(p, &t))
+        || !TEST_time_t_eq(t, 11224)
         /* Check double */
         || !TEST_ptr(p = OSSL_PARAM_locate(params, "d"))
         || !TEST_true(OSSL_PARAM_get_double(p, &d))
@@ -205,7 +214,7 @@ static int builder_limit_test(void)
     
     for (i = 0; i < n; i++) {
         names[i][0] = 'A' + (i / 26) - 1;
-        names[i][0] = 'a' + (i % 26) - 1;
+        names[i][1] = 'a' + (i % 26) - 1;
         names[i][2] = '\0';
         if (!TEST_true(OSSL_PARAM_BLD_push_int(bld, names[i], 3 * i + 1)))
             goto err;

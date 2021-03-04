@@ -1,5 +1,5 @@
 /*
- * Copyright 1995-2016 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 1995-2020 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -90,7 +90,7 @@ int ASN1_get_object(const unsigned char **pp, long *plength, int *ptag,
         goto err;
 
     if (*plength > (omax - (p - *pp))) {
-        ASN1err(ASN1_F_ASN1_GET_OBJECT, ASN1_R_TOO_LONG);
+        ERR_raise(ERR_LIB_ASN1, ASN1_R_TOO_LONG);
         /*
          * Set this so that even if things are not long enough the values are
          * set correctly
@@ -100,7 +100,7 @@ int ASN1_get_object(const unsigned char **pp, long *plength, int *ptag,
     *pp = p;
     return ret | inf;
  err:
-    ASN1err(ASN1_F_ASN1_GET_OBJECT, ASN1_R_HEADER_TOO_LONG);
+    ERR_raise(ERR_LIB_ASN1, ASN1_R_HEADER_TOO_LONG);
     return 0x80;
 }
 
@@ -275,22 +275,33 @@ ASN1_STRING *ASN1_STRING_dup(const ASN1_STRING *str)
     return ret;
 }
 
-int ASN1_STRING_set(ASN1_STRING *str, const void *_data, int len)
+int ASN1_STRING_set(ASN1_STRING *str, const void *_data, int len_in)
 {
     unsigned char *c;
     const char *data = _data;
+    size_t len;
 
-    if (len < 0) {
+    if (len_in < 0) {
         if (data == NULL)
             return 0;
-        else
-            len = strlen(data);
+        len = strlen(data);
+    } else {
+        len = (size_t)len_in;
     }
-    if ((str->length <= len) || (str->data == NULL)) {
+    /*
+     * Verify that the length fits within an integer for assignment to
+     * str->length below.  The additional 1 is subtracted to allow for the
+     * '\0' terminator even though this isn't strictly necessary.
+     */
+    if (len > INT_MAX - 1) {
+        ERR_raise(ERR_LIB_ASN1, ASN1_R_TOO_LARGE);
+        return 0;
+    }
+    if ((size_t)str->length <= len || str->data == NULL) {
         c = str->data;
         str->data = OPENSSL_realloc(c, len + 1);
         if (str->data == NULL) {
-            ASN1err(ASN1_F_ASN1_STRING_SET, ERR_R_MALLOC_FAILURE);
+            ERR_raise(ERR_LIB_ASN1, ERR_R_MALLOC_FAILURE);
             str->data = c;
             return 0;
         }
@@ -322,7 +333,7 @@ ASN1_STRING *ASN1_STRING_type_new(int type)
 
     ret = OPENSSL_zalloc(sizeof(*ret));
     if (ret == NULL) {
-        ASN1err(ASN1_F_ASN1_STRING_TYPE_NEW, ERR_R_MALLOC_FAILURE);
+        ERR_raise(ERR_LIB_ASN1, ERR_R_MALLOC_FAILURE);
         return NULL;
     }
     ret->type = type;
@@ -376,10 +387,12 @@ int ASN1_STRING_length(const ASN1_STRING *x)
     return x->length;
 }
 
+#ifndef OPENSSL_NO_DEPRECATED_3_0
 void ASN1_STRING_length_set(ASN1_STRING *x, int len)
 {
     x->length = len;
 }
+#endif
 
 int ASN1_STRING_type(const ASN1_STRING *x)
 {

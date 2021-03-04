@@ -28,6 +28,9 @@ Most recent first...
 DON'T TRY ECH YET!!! The very much work-in-progress code is
 sooooo awful still...
 
+- 20210304: rebased with upstream (many, many changes so testing needed!).
+Some new warnings about deprecation, not yet fixed.
+
 - 20210301: fixed the use of ``hpke_enc_evp`` variant, and got
 rid of the ``hpke_enc_raw`` variant code (which exposes the
 sender's ephemeral private key bits to the application

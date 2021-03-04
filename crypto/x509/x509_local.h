@@ -1,5 +1,5 @@
 /*
- * Copyright 2014-2018 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2014-2020 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -8,6 +8,9 @@
  */
 
 #include "internal/refcount.h"
+
+#define X509V3_conf_add_error_name_value(val) \
+    ERR_add_error_data(4, "name=", (val)->name, ", value=", (val)->value)
 
 /*
  * This structure holds all parameters associated with a verify operation by
@@ -87,6 +90,11 @@ struct x509_lookup_method_st {
                                X509_OBJECT *ret);
     int (*get_by_alias) (X509_LOOKUP *ctx, X509_LOOKUP_TYPE type,
                          const char *str, int len, X509_OBJECT *ret);
+    int (*get_by_subject_ex) (X509_LOOKUP *ctx, X509_LOOKUP_TYPE type,
+                              const X509_NAME *name, X509_OBJECT *ret,
+                              OSSL_LIB_CTX *libctx, const char *propq);
+    int (*ctrl_ex) (X509_LOOKUP *ctx, int cmd, const char *argc, long argl,
+                    char **ret, OSSL_LIB_CTX *libctx, const char *propq);
 };
 
 /* This is the functions plus an instance of the local variables. */
@@ -149,3 +157,5 @@ DEFINE_STACK_OF(STACK_OF_X509_NAME_ENTRY)
 
 void x509_set_signature_info(X509_SIG_INFO *siginf, const X509_ALGOR *alg,
                              const ASN1_STRING *sig);
+int x509_likely_issued(X509 *issuer, X509 *subject);
+int x509_signing_allowed(const X509 *issuer, const X509 *subject);

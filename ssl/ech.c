@@ -2103,11 +2103,11 @@ int ech_decode_inner(SSL *s)
     if (outer==NULL) return(0);
     if (outer->ext.encoded_innerch==NULL) return(0);
     if (!outer->clienthello) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_ECH_DECODE_INNER, ERR_R_INTERNAL_ERROR);
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return(0);
     }
     if (!outer->clienthello->extensions.curr) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_ECH_DECODE_INNER, ERR_R_INTERNAL_ERROR);
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return(0);
     }
 
@@ -2120,7 +2120,7 @@ int ech_decode_inner(SSL *s)
     initial_decomp_len+=outer->tmp_session_id_len+1-1;
     initial_decomp=OPENSSL_malloc(initial_decomp_len);
     if (!initial_decomp) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_ECH_DECODE_INNER, ERR_R_MALLOC_FAILURE);
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_MALLOC_FAILURE);
         return(0);
     }
     s->ext.innerch_len=initial_decomp_len;
@@ -2155,7 +2155,7 @@ int ech_decode_inner(SSL *s)
         OSSL_TRACE_BEGIN(TLS) {
             BIO_printf(trc_out,"Oops - exts out of bounds\n");
         } OSSL_TRACE_END(TLS);
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_ECH_DECODE_INNER, ERR_R_MALLOC_FAILURE);
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_MALLOC_FAILURE);
         return(0);
     }
     ech_pbuf("start of exts",&initial_decomp[startofexts],initial_decomp_len-startofexts);
@@ -2189,7 +2189,7 @@ int ech_decode_inner(SSL *s)
         size_t final_decomp_len=initial_decomp_len+4;
         final_decomp=OPENSSL_malloc(final_decomp_len);
         if (!final_decomp) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_ECH_DECODE_INNER, ERR_R_MALLOC_FAILURE);
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_MALLOC_FAILURE);
             return(0);
         }
         final_decomp[0]=0x01;
@@ -2213,13 +2213,13 @@ int ech_decode_inner(SSL *s)
     int outer_offsets[ECH_OUTERS_MAX];
     uint8_t slen=initial_decomp[genoffset+4]; // the unnecessary internal length
     if (!ossl_assert(n_outers==slen/2)) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_ECH_DECODE_INNER, ERR_R_INTERNAL_ERROR);
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         goto err;
     }
     const unsigned char *oval_buf=&initial_decomp[genoffset+5];
 
     if (n_outers<=0 || n_outers>ECH_OUTERS_MAX) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_ECH_DECODE_INNER, ERR_R_INTERNAL_ERROR);
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         goto err;
     }
     int i=0;
@@ -2233,7 +2233,7 @@ int ech_decode_inner(SSL *s)
         OSSL_TRACE_BEGIN(TLS) {
             BIO_printf(trc_out,"So no real compression (or too much!)\n");
         } OSSL_TRACE_END(TLS);
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_ECH_DECODE_INNER, ERR_R_INTERNAL_ERROR);
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         goto err;
     }
 
@@ -2269,7 +2269,7 @@ int ech_decode_inner(SSL *s)
         OSSL_TRACE_BEGIN(TLS) {
             BIO_printf(trc_out,"Error found outers (%d) not same as claimed (%d)\n",found_outers,n_outers);
         } OSSL_TRACE_END(TLS);
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_ECH_DECODE_INNER, ERR_R_INTERNAL_ERROR);
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         goto err;
     }
 
@@ -2286,7 +2286,7 @@ int ech_decode_inner(SSL *s)
         (initial_decomp_len-genoffset-(n_outers*2+5)); // the rest
     final_decomp=OPENSSL_malloc(final_decomp_len);
     if (final_decomp==NULL) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_ECH_DECODE_INNER, ERR_R_MALLOC_FAILURE);
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_MALLOC_FAILURE);
         goto err;
     }
     size_t offset=genoffset;
@@ -2645,8 +2645,7 @@ int ech_swaperoo(SSL *s)
          */
         outer_chlen=1+curr_buf[1]*256*256+curr_buf[2]*256+curr_buf[3];
         if (outer_chlen>curr_buflen) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PROCESS_CLIENT_HELLO,
-             ERR_R_INTERNAL_ERROR);
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             return(0);
         }
         other_octets=curr_buflen-outer_chlen;
@@ -2669,13 +2668,11 @@ int ech_swaperoo(SSL *s)
      * adds to the transcript but doesn't actually "finish" anything
      */
     if (!ssl3_init_finished_mac(s)) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PROCESS_CLIENT_HELLO,
-         ERR_R_INTERNAL_ERROR);
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return(0);
     }
     if (!ssl3_finish_mac(s, new_buf, new_buflen)) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PROCESS_CLIENT_HELLO,
-         ERR_R_INTERNAL_ERROR);
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return(0);
     }
     ech_ptranscript("ech_swaperoo, after",s);
@@ -2752,8 +2749,7 @@ int ech_process_inner_if_present(SSL *s)
             new_se->nechs=s->nechs;
             new_se->ech=SSL_ECH_dup(s->ech,new_se->nechs,ECH_SELECT_ALL);
             if (!new_se->ech) {
-                SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PROCESS_CLIENT_HELLO,
-                    ERR_R_INTERNAL_ERROR);
+                SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
                 goto err;
             }
         }
@@ -2765,8 +2761,7 @@ int ech_process_inner_if_present(SSL *s)
          * form up the full inner for processing
          */
         if (ech_decode_inner(new_se)!=1) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_PROCESS_CLIENT_HELLO,
-                 ERR_R_INTERNAL_ERROR);
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             goto err;
         }
 
@@ -2778,9 +2773,7 @@ int ech_process_inner_if_present(SSL *s)
          * start with the version octets (0x03 0x03)
          */
         if (PACKET_buf_init(&rpkt,new_se->ext.innerch+4,new_se->ext.innerch_len-4)!=1) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR,
-                     SSL_F_TLS_EARLY_POST_PROCESS_CLIENT_HELLO,
-                     ERR_R_INTERNAL_ERROR);
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             goto err;
         }
         /*
@@ -2788,24 +2781,18 @@ int ech_process_inner_if_present(SSL *s)
          */
         MSG_PROCESS_RETURN rv=tls_process_client_hello(new_se, &rpkt);
         if (rv!=MSG_PROCESS_CONTINUE_PROCESSING) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR,
-                     SSL_F_TLS_EARLY_POST_PROCESS_CLIENT_HELLO,
-                     ERR_R_INTERNAL_ERROR);
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             goto err;
         }
 
         if (tls_post_process_client_hello(new_se,WORK_MORE_A)!=1) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR,
-                     SSL_F_TLS_EARLY_POST_PROCESS_CLIENT_HELLO,
-                     ERR_R_INTERNAL_ERROR);
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             goto err;
         }
 
         s->ext.inner_s=new_se;
         if (ech_swaperoo(s)!=1) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR,
-                     SSL_F_TLS_EARLY_POST_PROCESS_CLIENT_HELLO,
-                     ERR_R_INTERNAL_ERROR);
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             goto err;
         }
     }
@@ -2881,14 +2868,14 @@ int SSL_ech_send_grease(SSL *s, WPACKET *pkt, unsigned int context,
     size_t cipher_len=206;
     unsigned char cipher[SSL_ECH_GREASE_BUFSIZ];
     if (s==NULL || s->ctx==NULL) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ECH, ERR_R_INTERNAL_ERROR);
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
     }
     if ((RAND_bytes_ex(s->ctx->libctx, cid, cid_len) <= 0) ||
         (RAND_bytes_ex(s->ctx->libctx, senderpub, senderpub_len) <= 0) ||
         (RAND_bytes_ex(s->ctx->libctx, cipher, cipher_len) <= 0) 
             ) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ECH, ERR_R_INTERNAL_ERROR);
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
     }
     if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_ech) 
@@ -2900,7 +2887,7 @@ int SSL_ech_send_grease(SSL *s, WPACKET *pkt, unsigned int context,
         || !WPACKET_sub_memcpy_u16(pkt, cipher, cipher_len)
         || !WPACKET_close(pkt)
             ) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ECH, ERR_R_INTERNAL_ERROR);
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
     }
     OSSL_TRACE_BEGIN(TLS) { 
@@ -2978,8 +2965,7 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
          * some corner case with SCVB that gets us here
          * but hopefully not
          */
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ECH,
-                 ERR_R_INTERNAL_ERROR);
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
     }
 
@@ -3026,8 +3012,7 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
         OSSL_TRACE_BEGIN(TLS) { 
             BIO_printf(trc_out,"No matching ECHConfig sadly\n");
         } OSSL_TRACE_END(TLS);
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ECH,
-                 ERR_R_INTERNAL_ERROR);
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
     }
     if (tc==NULL && firstmatch!=NULL) {
@@ -3039,11 +3024,11 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
     peerpub=tc->pub;
     peerpub_len=tc->pub_len;
     if (peerpub_len <=0) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ECH, ERR_R_INTERNAL_ERROR);
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
     }
     if (s->ext.inner_s==NULL || s->ext.inner_s->ech==NULL) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ECH, ERR_R_INTERNAL_ERROR);
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
     }
     ech_pbuf("EAAE: peer pub",peerpub,peerpub_len);
@@ -3051,11 +3036,11 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
 
 
     if (hpke_kg_evp(hpke_mode, hpke_suite, &mypub_len, mypub, &mypriv_evp)!=1) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ECH, ERR_R_INTERNAL_ERROR);
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
     }
     if (mypub_len>HPKE_MAXSIZE || mypriv_evp==NULL) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ECH, ERR_R_INTERNAL_ERROR);
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
     }
     ech_pbuf("EAAE: my pub",mypub,mypub_len);
@@ -3070,7 +3055,7 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
     aad=OPENSSL_malloc(aad_len);
     if (aad==NULL) {
         EVP_PKEY_free(mypriv_evp); mypriv_evp=NULL;
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ECH, ERR_R_INTERNAL_ERROR);
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
     }
 
@@ -3096,7 +3081,7 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
     unsigned char info[HPKE_MAXSIZE];
     size_t info_len=HPKE_MAXSIZE;
     if (ech_make_enc_info(tc,info,&info_len)!=1) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ECH, ERR_R_INTERNAL_ERROR);
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         EVP_PKEY_free(mypriv_evp); mypriv_evp=NULL;
         OPENSSL_free(aad);
         return 0; 
@@ -3115,7 +3100,7 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
         &cipherlen, cipher // cipher
         );
     if (rv!=1) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ECH, ERR_R_INTERNAL_ERROR);
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         EVP_PKEY_free(mypriv_evp); mypriv_evp=NULL;
         OPENSSL_free(aad);
         return 0; 
@@ -3136,7 +3121,7 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
         || !WPACKET_sub_memcpy_u16(pkt, cipher, cipherlen)
         || !WPACKET_close(pkt)
             ) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_F_TLS_CONSTRUCT_CTOS_ECH, ERR_R_INTERNAL_ERROR);
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             return 0;
     }
 

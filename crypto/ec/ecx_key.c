@@ -10,13 +10,15 @@
 #include <openssl/err.h>
 #include "crypto/ecx.h"
 
-ECX_KEY *ecx_key_new(ECX_KEY_TYPE type, int haspubkey)
+ECX_KEY *ossl_ecx_key_new(OSSL_LIB_CTX *libctx, ECX_KEY_TYPE type, int haspubkey,
+                          const char *propq)
 {
     ECX_KEY *ret = OPENSSL_zalloc(sizeof(*ret));
 
     if (ret == NULL)
         return NULL;
 
+    ret->libctx = libctx;
     ret->haspubkey = haspubkey;
     switch (type) {
     case ECX_KEY_TYPE_X25519:
@@ -35,17 +37,24 @@ ECX_KEY *ecx_key_new(ECX_KEY_TYPE type, int haspubkey)
     ret->type = type;
     ret->references = 1;
 
-    ret->lock = CRYPTO_THREAD_lock_new();
-    if (ret->lock == NULL) {
+    if (propq != NULL) {
+        ret->propq = OPENSSL_strdup(propq);
         ERR_raise(ERR_LIB_EC, ERR_R_MALLOC_FAILURE);
-        OPENSSL_free(ret);
-        return NULL;
+        if (ret->propq == NULL)
+            goto err;
     }
 
+    ret->lock = CRYPTO_THREAD_lock_new();
+    if (ret->lock == NULL)
+        goto err;
     return ret;
+err:
+    ERR_raise(ERR_LIB_EC, ERR_R_MALLOC_FAILURE);
+    OPENSSL_free(ret);
+    return NULL;
 }
 
-void ecx_key_free(ECX_KEY *key)
+void ossl_ecx_key_free(ECX_KEY *key)
 {
     int i;
 
@@ -53,17 +62,23 @@ void ecx_key_free(ECX_KEY *key)
         return;
 
     CRYPTO_DOWN_REF(&key->references, &i, key->lock);
-    REF_PRINT_COUNT("ECX_KEY", r);
+    REF_PRINT_COUNT("ECX_KEY", key);
     if (i > 0)
         return;
     REF_ASSERT_ISNT(i < 0);
 
+    OPENSSL_free(key->propq);
     OPENSSL_secure_clear_free(key->privkey, key->keylen);
     CRYPTO_THREAD_lock_free(key->lock);
     OPENSSL_free(key);
 }
 
-int ecx_key_up_ref(ECX_KEY *key)
+void ossl_ecx_key_set0_libctx(ECX_KEY *key, OSSL_LIB_CTX *libctx)
+{
+    key->libctx = libctx;
+}
+
+int ossl_ecx_key_up_ref(ECX_KEY *key)
 {
     int i;
 
@@ -75,7 +90,7 @@ int ecx_key_up_ref(ECX_KEY *key)
     return ((i > 1) ? 1 : 0);
 }
 
-unsigned char *ecx_key_allocate_privkey(ECX_KEY *key)
+unsigned char *ossl_ecx_key_allocate_privkey(ECX_KEY *key)
 {
     key->privkey = OPENSSL_secure_zalloc(key->keylen);
 

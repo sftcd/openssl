@@ -1,5 +1,5 @@
 /*
- * Copyright 2001-2018 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2001-2020 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -117,7 +117,7 @@ OCSP_SINGLERESP *OCSP_basic_add1_status(OCSP_BASICRESP *rsp,
     switch (cs->type = status) {
     case V_OCSP_CERTSTATUS_REVOKED:
         if (!revtime) {
-            OCSPerr(OCSP_F_OCSP_BASIC_ADD1_STATUS, OCSP_R_NO_REVOKED_TIME);
+            ERR_raise(ERR_LIB_OCSP, OCSP_R_NO_REVOKED_TIME);
             goto err;
         }
         if ((cs->value.revoked = ri = OCSP_REVOKEDINFO_new()) == NULL)
@@ -158,14 +158,7 @@ OCSP_SINGLERESP *OCSP_basic_add1_status(OCSP_BASICRESP *rsp,
 
 int OCSP_basic_add1_cert(OCSP_BASICRESP *resp, X509 *cert)
 {
-    if (resp->certs == NULL
-        && (resp->certs = sk_X509_new_null()) == NULL)
-        return 0;
-
-    if (!sk_X509_push(resp->certs, cert))
-        return 0;
-    X509_up_ref(cert);
-    return 1;
+    return ossl_x509_add_cert_new(&resp->certs, cert, X509_ADD_FLAG_UP_REF);
 }
 
 /*
@@ -183,14 +176,13 @@ int OCSP_basic_sign_ctx(OCSP_BASICRESP *brsp,
     EVP_PKEY *pkey;
 
     if (ctx == NULL || EVP_MD_CTX_pkey_ctx(ctx) == NULL) {
-        OCSPerr(OCSP_F_OCSP_BASIC_SIGN_CTX, OCSP_R_NO_SIGNER_KEY);
+        ERR_raise(ERR_LIB_OCSP, OCSP_R_NO_SIGNER_KEY);
         goto err;
     }
 
     pkey = EVP_PKEY_CTX_get0_pkey(EVP_MD_CTX_pkey_ctx(ctx));
     if (pkey == NULL || !X509_check_private_key(signer, pkey)) {
-        OCSPerr(OCSP_F_OCSP_BASIC_SIGN_CTX,
-                OCSP_R_PRIVATE_KEY_DOES_NOT_MATCH_CERTIFICATE);
+        ERR_raise(ERR_LIB_OCSP, OCSP_R_PRIVATE_KEY_DOES_NOT_MATCH_CERTIFICATE);
         goto err;
     }
 
@@ -260,7 +252,7 @@ int OCSP_RESPID_set_by_name(OCSP_RESPID *respid, X509 *cert)
 }
 
 int OCSP_RESPID_set_by_key_ex(OCSP_RESPID *respid, X509 *cert,
-                              OPENSSL_CTX *libctx, const char *propq)
+                              OSSL_LIB_CTX *libctx, const char *propq)
 {
     ASN1_OCTET_STRING *byKey = NULL;
     unsigned char md[SHA_DIGEST_LENGTH];
@@ -297,7 +289,7 @@ int OCSP_RESPID_set_by_key(OCSP_RESPID *respid, X509 *cert)
     return OCSP_RESPID_set_by_key_ex(respid, cert, NULL, NULL);
 }
 
-int OCSP_RESPID_match_ex(OCSP_RESPID *respid, X509 *cert, OPENSSL_CTX *libctx,
+int OCSP_RESPID_match_ex(OCSP_RESPID *respid, X509 *cert, OSSL_LIB_CTX *libctx,
                          const char *propq)
 {
     EVP_MD *sha1 = NULL;

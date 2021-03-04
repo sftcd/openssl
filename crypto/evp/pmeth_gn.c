@@ -1,5 +1,5 @@
 /*
- * Copyright 2006-2016 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2006-2021 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -52,7 +52,7 @@ static int gen_init(EVP_PKEY_CTX *ctx, int operation)
     goto end;
 
  legacy:
-#ifdef FIPS_MODE
+#ifdef FIPS_MODULE
     goto not_supported;
 #else
     if (ctx->pmeth == NULL
@@ -76,8 +76,10 @@ static int gen_init(EVP_PKEY_CTX *ctx, int operation)
 #endif
 
  end:
-    if (ret <= 0)
+    if (ret <= 0 && ctx != NULL) {
+        evp_pkey_ctx_free_old_ops(ctx);
         ctx->operation = EVP_PKEY_OP_UNDEFINED;
+    }
     return ret;
 
  not_supported:
@@ -125,6 +127,8 @@ int EVP_PKEY_gen(EVP_PKEY_CTX *ctx, EVP_PKEY **ppkey)
     int ret = 0;
     OSSL_CALLBACK cb;
     EVP_PKEY *allocated_pkey = NULL;
+    /* Legacy compatible keygen callback info, only used with provider impls */
+    int gentmp[2];
 
     if (ppkey == NULL)
         return -1;
@@ -143,8 +147,20 @@ int EVP_PKEY_gen(EVP_PKEY_CTX *ctx, EVP_PKEY **ppkey)
         return -1;
     }
 
-    if (ctx->keymgmt == NULL || ctx->op.keymgmt.genctx == NULL)
+    if (ctx->op.keymgmt.genctx == NULL)
         goto legacy;
+
+    /*
+     * Asssigning gentmp to ctx->keygen_info is something our legacy
+     * implementations do.  Because the provider implementations aren't
+     * allowed to reach into our EVP_PKEY_CTX, we need to provide similar
+     * space for backward compatibility.  It's ok that we attach a local
+     * variable, as it should only be useful in the calls down from here.
+     * This is cleared as soon as it isn't useful any more, i.e. directly
+     * after the evp_keymgmt_util_gen() call.
+     */
+    ctx->keygen_info = gentmp;
+    ctx->keygen_info_count = 2;
 
     ret = 1;
     if (ctx->pkey != NULL) {
@@ -153,31 +169,43 @@ int EVP_PKEY_gen(EVP_PKEY_CTX *ctx, EVP_PKEY **ppkey)
             evp_pkey_export_to_provider(ctx->pkey, ctx->libctx,
                                         &tmp_keymgmt, ctx->propquery);
 
-        if (keydata == NULL)
+        if (tmp_keymgmt == NULL)
             goto not_supported;
+        /*
+         * It's ok if keydata is NULL here.  The backend is expected to deal
+         * with that as it sees fit.
+         */
         ret = evp_keymgmt_gen_set_template(ctx->keymgmt,
                                            ctx->op.keymgmt.genctx, keydata);
     }
 
     /*
      * the returned value from evp_keymgmt_util_gen() is cached in *ppkey,
-     * so we so not need to save it, just check it.
+     * so we do not need to save it, just check it.
      */
     ret = ret
         && (evp_keymgmt_util_gen(*ppkey, ctx->keymgmt, ctx->op.keymgmt.genctx,
                                  ossl_callback_to_pkey_gencb, ctx)
             != NULL);
 
-#ifndef FIPS_MODE
+    ctx->keygen_info = NULL;
+
+#ifndef FIPS_MODULE
     /* In case |*ppkey| was originally a legacy key */
     if (ret)
         evp_pkey_free_legacy(*ppkey);
 #endif
 
+    /*
+     * Because we still have legacy keys, and evp_pkey_downgrade()
+     * TODO remove this #legacy internal keys are gone
+     */
+    (*ppkey)->type = ctx->legacy_keytype;
+
     goto end;
 
  legacy:
-#ifdef FIPS_MODE
+#ifdef FIPS_MODULE
     goto not_supported;
 #else
     if (ctx->pkey && !evp_pkey_downgrade(ctx->pkey))
@@ -210,7 +238,7 @@ int EVP_PKEY_gen(EVP_PKEY_CTX *ctx, EVP_PKEY **ppkey)
     ERR_raise(ERR_LIB_EVP, EVP_R_OPERATON_NOT_INITIALIZED);
     ret = -1;
     goto end;
-#ifndef FIPS_MODE
+#ifndef FIPS_MODULE
  not_accessible:
     ERR_raise(ERR_LIB_EVP, EVP_R_INACCESSIBLE_DOMAIN_PARAMETERS);
     ret = -1;
@@ -273,7 +301,7 @@ int EVP_PKEY_CTX_get_keygen_info(EVP_PKEY_CTX *ctx, int idx)
     return ctx->keygen_info[idx];
 }
 
-#ifndef FIPS_MODE
+#ifndef FIPS_MODULE
 
 EVP_PKEY *EVP_PKEY_new_mac_key(int type, ENGINE *e,
                                const unsigned char *key, int keylen)
@@ -294,9 +322,9 @@ EVP_PKEY *EVP_PKEY_new_mac_key(int type, ENGINE *e,
     return mac_key;
 }
 
-#endif /* FIPS_MODE */
+#endif /* FIPS_MODULE */
 
-/*- All methods below can also be used in FIPS_MODE */
+/*- All methods below can also be used in FIPS_MODULE */
 
 static int fromdata_init(EVP_PKEY_CTX *ctx, int operation)
 {
@@ -311,27 +339,23 @@ static int fromdata_init(EVP_PKEY_CTX *ctx, int operation)
     return 1;
 
  not_supported:
-    ctx->operation = EVP_PKEY_OP_UNDEFINED;
+    if (ctx != NULL)
+        ctx->operation = EVP_PKEY_OP_UNDEFINED;
     ERR_raise(ERR_LIB_EVP, EVP_R_OPERATION_NOT_SUPPORTED_FOR_THIS_KEYTYPE);
     return -2;
 }
 
-int EVP_PKEY_param_fromdata_init(EVP_PKEY_CTX *ctx)
+int EVP_PKEY_fromdata_init(EVP_PKEY_CTX *ctx)
 {
-    return fromdata_init(ctx, EVP_PKEY_OP_PARAMFROMDATA);
+    return fromdata_init(ctx, EVP_PKEY_OP_FROMDATA);
 }
 
-int EVP_PKEY_key_fromdata_init(EVP_PKEY_CTX *ctx)
-{
-    return fromdata_init(ctx, EVP_PKEY_OP_KEYFROMDATA);
-}
-
-int EVP_PKEY_fromdata(EVP_PKEY_CTX *ctx, EVP_PKEY **ppkey, OSSL_PARAM params[])
+int EVP_PKEY_fromdata(EVP_PKEY_CTX *ctx, EVP_PKEY **ppkey, int selection,
+                      OSSL_PARAM params[])
 {
     void *keydata = NULL;
-    int selection;
 
-    if (ctx == NULL || (ctx->operation & EVP_PKEY_OP_TYPE_FROMDATA) == 0) {
+    if (ctx == NULL || (ctx->operation & EVP_PKEY_OP_FROMDATA) == 0) {
         ERR_raise(ERR_LIB_EVP, EVP_R_OPERATION_NOT_SUPPORTED_FOR_THIS_KEYTYPE);
         return -2;
     }
@@ -347,40 +371,17 @@ int EVP_PKEY_fromdata(EVP_PKEY_CTX *ctx, EVP_PKEY **ppkey, OSSL_PARAM params[])
         return -1;
     }
 
-    if (ctx->operation == EVP_PKEY_OP_PARAMFROMDATA)
-        selection = OSSL_KEYMGMT_SELECT_ALL_PARAMETERS;
-    else
-        selection = OSSL_KEYMGMT_SELECT_ALL;
-    keydata = evp_keymgmt_util_fromdata(*ppkey, ctx->keymgmt, selection,
-                                        params);
-
+    keydata = evp_keymgmt_util_fromdata(*ppkey, ctx->keymgmt, selection, params);
     if (keydata == NULL)
         return 0;
     /* keydata is cached in *ppkey, so we need not bother with it further */
     return 1;
 }
 
-/*
- * TODO(3.0) Re-evaluate the names, it's possible that we find these to be
- * better:
- *
- * EVP_PKEY_param_settable()
- * EVP_PKEY_param_gettable()
- */
-const OSSL_PARAM *EVP_PKEY_param_fromdata_settable(EVP_PKEY_CTX *ctx)
+const OSSL_PARAM *EVP_PKEY_fromdata_settable(EVP_PKEY_CTX *ctx, int selection)
 {
     /* We call fromdata_init to get ctx->keymgmt populated */
-    if (fromdata_init(ctx, EVP_PKEY_OP_UNDEFINED))
-        return evp_keymgmt_import_types(ctx->keymgmt,
-                                        OSSL_KEYMGMT_SELECT_ALL_PARAMETERS);
-    return NULL;
-}
-
-const OSSL_PARAM *EVP_PKEY_key_fromdata_settable(EVP_PKEY_CTX *ctx)
-{
-    /* We call fromdata_init to get ctx->keymgmt populated */
-    if (fromdata_init(ctx, EVP_PKEY_OP_UNDEFINED))
-        return evp_keymgmt_import_types(ctx->keymgmt,
-                                        OSSL_KEYMGMT_SELECT_ALL);
+    if (fromdata_init(ctx, EVP_PKEY_OP_UNDEFINED) == 1)
+        return evp_keymgmt_import_types(ctx->keymgmt, selection);
     return NULL;
 }

@@ -27,13 +27,14 @@ DH_get_length, DH_set_length - Routines for getting and setting data in a DH obj
  int DH_test_flags(const DH *dh, int flags);
  void DH_set_flags(DH *dh, int flags);
 
+ long DH_get_length(const DH *dh);
+ int DH_set_length(DH *dh, long length);
+
 Deprecated since OpenSSL 3.0, can be hidden entirely by defining
 B<OPENSSL_API_COMPAT> with a suitable version value, see
 L<openssl_user_macros(7)>:
 
  ENGINE *DH_get0_engine(DH *d);
- long DH_get_length(const DH *dh);
- int DH_set_length(DH *dh, long length);
 
 =head1 DESCRIPTION
 
@@ -56,11 +57,9 @@ and therefore the values that have been passed in should not be freed directly
 after this function has been called. The I<q> parameter may be NULL.
 DH_set0_pqg() also checks if the parameters associated with I<p> and I<g> and
 optionally I<q> are associated with known safe prime groups. If it is a safe
-prime group then the value of I<q> will be set to q = (p - 1) / 2 if I<q> is NULL.
-For safe prime groups the optional length parameter I<length> is set to twice
-the value of the maximum_target_security_strength(BN_num_bits(I<p>)) as listed in
-SP800-56Ar3 Table(s) 25 & 26. If it is not a safe prime group then the optional
-length parameter will be set if I<q> is not NULL to BN_num_bits(I<q>).
+prime group then the value of I<q> will be set to q = (p - 1) / 2 if I<q> is
+NULL. The optional length parameter will be set to BN_num_bits(I<q>) if I<q>
+is not NULL.
 
 To get the public and private key values use the DH_get0_key() function. A
 pointer to the public key will be stored in I<*pub_key>, and a pointer to the
@@ -96,7 +95,9 @@ The DH_get_length() and DH_set_length() functions get and set the optional
 length parameter associated with this DH object. If the length is nonzero then
 it is used, otherwise it is ignored. The I<length> parameter indicates the
 length of the secret exponent (private key) in bits. These functions are
-deprecated.
+deprecated. For safe prime groups the optional length parameter I<length> can be
+set to a value greater or equal to 2 * maximum_target_security_strength(BN_num_bits(I<p>))
+as listed in SP800-56Ar3 Table(s) 25 & 26.
 
 =head1 NOTES
 
@@ -127,14 +128,13 @@ L<DH_set_method(3)>, L<DH_size(3)>, L<DH_meth_new(3)>
 
 =head1 HISTORY
 
-The DH_get0_engine(), DH_get_length() and DH_set_length() functions were
-deprecated in OpenSSL 3.0.
+The DH_get0_engine() function was deprecated in OpenSSL 3.0.
 
 The functions described here were added in OpenSSL 1.1.0.
 
 =head1 COPYRIGHT
 
-Copyright 2016-2018 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2016-2020 The OpenSSL Project Authors. All Rights Reserved.
 
 Licensed under the Apache License 2.0 (the "License").  You may not use
 this file except in compliance with the License.  You can obtain a copy

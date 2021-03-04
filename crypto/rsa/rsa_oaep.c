@@ -1,5 +1,5 @@
 /*
- * Copyright 1999-2019 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 1999-2021 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -40,25 +40,23 @@ int RSA_padding_add_PKCS1_OAEP(unsigned char *to, int tlen,
                                const unsigned char *from, int flen,
                                const unsigned char *param, int plen)
 {
-    return rsa_padding_add_PKCS1_OAEP_mgf1_with_libctx(NULL, to, tlen, from,
-                                                       flen, param, plen, NULL,
-                                                       NULL);
+    return ossl_rsa_padding_add_PKCS1_OAEP_mgf1_ex(NULL, to, tlen, from, flen,
+                                                   param, plen, NULL, NULL);
 }
 
 /*
- * Perform ihe padding as per NIST 800-56B 7.2.2.3
+ * Perform the padding as per NIST 800-56B 7.2.2.3
  *      from (K) is the key material.
  *      param (A) is the additional input.
  * Step numbers are included here but not in the constant time inverse below
  * to avoid complicating an already difficult enough function.
  */
-int rsa_padding_add_PKCS1_OAEP_mgf1_with_libctx(OPENSSL_CTX *libctx,
-                                                unsigned char *to, int tlen,
-                                                const unsigned char *from,
-                                                int flen,
-                                                const unsigned char *param,
-                                                int plen, const EVP_MD *md,
-                                                const EVP_MD *mgf1md)
+int ossl_rsa_padding_add_PKCS1_OAEP_mgf1_ex(OSSL_LIB_CTX *libctx,
+                                            unsigned char *to, int tlen,
+                                            const unsigned char *from, int flen,
+                                            const unsigned char *param,
+                                            int plen, const EVP_MD *md,
+                                            const EVP_MD *mgf1md)
 {
     int rv = 0;
     int i, emlen = tlen - 1;
@@ -67,13 +65,14 @@ int rsa_padding_add_PKCS1_OAEP_mgf1_with_libctx(OPENSSL_CTX *libctx,
     unsigned char seedmask[EVP_MAX_MD_SIZE];
     int mdlen, dbmask_len = 0;
 
-#ifndef FIPS_MODE
-    if (md == NULL)
+    if (md == NULL) {
+#ifndef FIPS_MODULE
         md = EVP_sha1();
 #else
-        RSAerr(0, ERR_R_PASSED_NULL_PARAMETER);
+        ERR_raise(ERR_LIB_RSA, ERR_R_PASSED_NULL_PARAMETER);
         return 0;
 #endif
+    }
     if (mgf1md == NULL)
         mgf1md = md;
 
@@ -81,12 +80,12 @@ int rsa_padding_add_PKCS1_OAEP_mgf1_with_libctx(OPENSSL_CTX *libctx,
 
     /* step 2b: check KLen > nLen - 2 HLen - 2 */
     if (flen > emlen - 2 * mdlen - 1) {
-        RSAerr(0, RSA_R_DATA_TOO_LARGE_FOR_KEY_SIZE);
+        ERR_raise(ERR_LIB_RSA, RSA_R_DATA_TOO_LARGE_FOR_KEY_SIZE);
         return 0;
     }
 
     if (emlen < 2 * mdlen + 1) {
-        RSAerr(0, RSA_R_KEY_SIZE_TOO_SMALL);
+        ERR_raise(ERR_LIB_RSA, RSA_R_KEY_SIZE_TOO_SMALL);
         return 0;
     }
 
@@ -110,7 +109,7 @@ int rsa_padding_add_PKCS1_OAEP_mgf1_with_libctx(OPENSSL_CTX *libctx,
     dbmask_len = emlen - mdlen;
     dbmask = OPENSSL_malloc(dbmask_len);
     if (dbmask == NULL) {
-        RSAerr(0, ERR_R_MALLOC_FAILURE);
+        ERR_raise(ERR_LIB_RSA, ERR_R_MALLOC_FAILURE);
         goto err;
     }
 
@@ -140,9 +139,8 @@ int RSA_padding_add_PKCS1_OAEP_mgf1(unsigned char *to, int tlen,
                                     const unsigned char *param, int plen,
                                     const EVP_MD *md, const EVP_MD *mgf1md)
 {
-    return rsa_padding_add_PKCS1_OAEP_mgf1_with_libctx(NULL, to, tlen, from,
-                                                       flen, param, plen, md,
-                                                       mgf1md);
+    return ossl_rsa_padding_add_PKCS1_OAEP_mgf1_ex(NULL, to, tlen, from, flen,
+                                                   param, plen, md, mgf1md);
 }
 
 int RSA_padding_check_PKCS1_OAEP(unsigned char *to, int tlen,
@@ -171,10 +169,10 @@ int RSA_padding_check_PKCS1_OAEP_mgf1(unsigned char *to, int tlen,
     int mdlen;
 
     if (md == NULL) {
-#ifndef FIPS_MODE
+#ifndef FIPS_MODULE
         md = EVP_sha1();
 #else
-        RSAerr(0, ERR_R_PASSED_NULL_PARAMETER);
+        ERR_raise(ERR_LIB_RSA, ERR_R_PASSED_NULL_PARAMETER);
         return -1;
 #endif
     }
@@ -195,22 +193,20 @@ int RSA_padding_check_PKCS1_OAEP_mgf1(unsigned char *to, int tlen,
      * This does not leak any side-channel information.
      */
     if (num < flen || num < 2 * mdlen + 2) {
-        RSAerr(RSA_F_RSA_PADDING_CHECK_PKCS1_OAEP_MGF1,
-               RSA_R_OAEP_DECODING_ERROR);
+        ERR_raise(ERR_LIB_RSA, RSA_R_OAEP_DECODING_ERROR);
         return -1;
     }
 
     dblen = num - mdlen - 1;
     db = OPENSSL_malloc(dblen);
     if (db == NULL) {
-        RSAerr(RSA_F_RSA_PADDING_CHECK_PKCS1_OAEP_MGF1, ERR_R_MALLOC_FAILURE);
+        ERR_raise(ERR_LIB_RSA, ERR_R_MALLOC_FAILURE);
         goto cleanup;
     }
 
     em = OPENSSL_malloc(num);
     if (em == NULL) {
-        RSAerr(RSA_F_RSA_PADDING_CHECK_PKCS1_OAEP_MGF1,
-               ERR_R_MALLOC_FAILURE);
+        ERR_raise(ERR_LIB_RSA, ERR_R_MALLOC_FAILURE);
         goto cleanup;
     }
 
@@ -302,7 +298,7 @@ int RSA_padding_check_PKCS1_OAEP_mgf1(unsigned char *to, int tlen,
         to[i] = constant_time_select_8(mask, db[i + mdlen + 1], to[i]);
     }
 
-#ifndef FIPS_MODE
+#ifndef FIPS_MODULE
     /*
      * To avoid chosen ciphertext attacks, the error message should not
      * reveal which kind of decoding error happened.
@@ -311,8 +307,7 @@ int RSA_padding_check_PKCS1_OAEP_mgf1(unsigned char *to, int tlen,
      * the error stack. Instead we opt not to put an error on the stack at all
      * in case of padding failure in the FIPS provider.
      */
-    RSAerr(RSA_F_RSA_PADDING_CHECK_PKCS1_OAEP_MGF1,
-           RSA_R_OAEP_DECODING_ERROR);
+    ERR_raise(ERR_LIB_RSA, RSA_R_OAEP_DECODING_ERROR);
     err_clear_last_constant_time(1 & good);
 #endif
  cleanup:

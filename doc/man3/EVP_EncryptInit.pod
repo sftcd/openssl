@@ -48,8 +48,10 @@ EVP_CIPHER_CTX_name,
 EVP_CIPHER_CTX_nid,
 EVP_CIPHER_CTX_get_params,
 EVP_CIPHER_gettable_ctx_params,
+EVP_CIPHER_CTX_gettable_params,
 EVP_CIPHER_CTX_set_params,
 EVP_CIPHER_settable_ctx_params,
+EVP_CIPHER_CTX_settable_params,
 EVP_CIPHER_CTX_block_size,
 EVP_CIPHER_CTX_key_length,
 EVP_CIPHER_CTX_iv_length,
@@ -72,7 +74,7 @@ EVP_CIPHER_do_all_provided
 
  #include <openssl/evp.h>
 
- EVP_CIPHER *EVP_CIPHER_fetch(OPENSSL_CTX *ctx, const char *algorithm,
+ EVP_CIPHER *EVP_CIPHER_fetch(OSSL_LIB_CTX *ctx, const char *algorithm,
                               const char *properties);
  int EVP_CIPHER_up_ref(EVP_CIPHER *cipher);
  void EVP_CIPHER_free(EVP_CIPHER *cipher);
@@ -125,9 +127,9 @@ EVP_CIPHER_do_all_provided
  int EVP_CIPHER_nid(const EVP_CIPHER *e);
  int EVP_CIPHER_number(const EVP_CIPHER *e);
  int EVP_CIPHER_is_a(const EVP_CIPHER *cipher, const char *name);
- void EVP_CIPHER_names_do_all(const EVP_CIPHER *cipher,
-                              void (*fn)(const char *name, void *data),
-                              void *data);
+ int EVP_CIPHER_names_do_all(const EVP_CIPHER *cipher,
+                             void (*fn)(const char *name, void *data),
+                             void *data);
  const char *EVP_CIPHER_name(const EVP_CIPHER *cipher);
  const OSSL_PROVIDER *EVP_CIPHER_provider(const EVP_CIPHER *cipher);
  int EVP_CIPHER_block_size(const EVP_CIPHER *e);
@@ -147,6 +149,8 @@ EVP_CIPHER_do_all_provided
  const OSSL_PARAM *EVP_CIPHER_gettable_params(const EVP_CIPHER *cipher);
  const OSSL_PARAM *EVP_CIPHER_settable_ctx_params(const EVP_CIPHER *cipher);
  const OSSL_PARAM *EVP_CIPHER_gettable_ctx_params(const EVP_CIPHER *cipher);
+ const OSSL_PARAM *EVP_CIPHER_CTX_settable_params(EVP_CIPHER_CTX *ctx);
+ const OSSL_PARAM *EVP_CIPHER_CTX_gettable_params(EVP_CIPHER_CTX *ctx);
  int EVP_CIPHER_CTX_block_size(const EVP_CIPHER_CTX *ctx);
  int EVP_CIPHER_CTX_key_length(const EVP_CIPHER_CTX *ctx);
  int EVP_CIPHER_CTX_iv_length(const EVP_CIPHER_CTX *ctx);
@@ -159,13 +163,13 @@ EVP_CIPHER_do_all_provided
  int EVP_CIPHER_param_to_asn1(EVP_CIPHER_CTX *c, ASN1_TYPE *type);
  int EVP_CIPHER_asn1_to_param(EVP_CIPHER_CTX *c, ASN1_TYPE *type);
 
- void EVP_CIPHER_do_all_provided(OPENSSL_CTX *libctx,
+ void EVP_CIPHER_do_all_provided(OSSL_LIB_CTX *libctx,
                                  void (*fn)(EVP_CIPHER *cipher, void *arg),
                                  void *arg);
 
 =head1 DESCRIPTION
 
-The EVP cipher routines are a high level interface to certain
+The EVP cipher routines are a high-level interface to certain
 symmetric ciphers.
 
 The B<EVP_CIPHER> type is a structure for cipher method implementation.
@@ -210,10 +214,15 @@ specified.
 EVP_EncryptUpdate() encrypts B<inl> bytes from the buffer B<in> and
 writes the encrypted version to B<out>. This function can be called
 multiple times to encrypt successive blocks of data. The amount
-of data written depends on the block alignment of the encrypted data:
-as a result the amount of data written may be anything from zero bytes
-to (inl + cipher_block_size - 1) so B<out> should contain sufficient
-room. The actual number of bytes written is placed in B<outl>. It also
+of data written depends on the block alignment of the encrypted data.
+For most ciphers and modes, the amount of data written can be anything
+from zero bytes to (inl + cipher_block_size - 1) bytes.
+For wrap cipher modes, the amount of data written can be anything
+from zero bytes to (inl + cipher_block_size) bytes.
+For stream ciphers, the amount of data written can be anything from zero
+bytes to inl bytes.
+Thus, B<out> should contain sufficient room for the operation being performed.
+The actual number of bytes written is placed in B<outl>. It also
 checks if B<in> and B<out> are partially overlapping, and if they are
 0 is returned to indicate failure.
 
@@ -297,12 +306,28 @@ context B<ctx>.
 EVP_CIPHER_CTX_get_params() retrieves the requested list of operation
 B<params> from CIPHER context B<ctx>.
 
-EVP_CIPHER_gettable_params(), EVP_CIPHER_gettable_ctx_params(), and
-EVP_CIPHER_settable_ctx_params() get a constant B<OSSL_PARAM> array
-that describes the retrievable and settable parameters, i.e. parameters
-that can be used with EVP_CIPHER_get_params(), EVP_CIPHER_CTX_get_params()
-and EVP_CIPHER_CTX_set_params(), respectively.
-See L<OSSL_PARAM(3)> for the use of B<OSSL_PARAM> as parameter descriptor.
+EVP_CIPHER_gettable_params() returns an B<OSSL_PARAM> array that describes
+the retrievable and settable parameters.  EVP_CIPHER_gettable_params()
+returns parameters that can be used with EVP_CIPHER_get_params().  See
+L<OSSL_PARAM(3)> for the use of B<OSSL_PARAM> as a parameter descriptor.
+
+EVP_CIPHER_gettable_ctx_params() and EVP_CIPHER_CTX_gettable_params()
+return constant B<OSSL_PARAM> arrays that describe the retrievable
+parameters that can be used with EVP_CIPHER_CTX_get_params().
+EVP_CIPHER_gettable_ctx_params() returns the parameters that can be
+retrieved from the algorithm, whereas EVP_CIPHER_CTX_gettable_params()
+returns the parameters that can be retrieved in the context's current
+state.  See L<OSSL_PARAM(3)> for the use of B<OSSL_PARAM> as a parameter
+descriptor.
+
+EVP_CIPHER_settable_ctx_params() and EVP_CIPHER_CTX_settable_params()
+return constant B<OSSL_PARAM> arrays that describe the settable
+parameters that can be used with EVP_CIPHER_CTX_set_params().
+EVP_CIPHER_settable_ctx_params() returns the parameters that can be
+retrieved from the algorithm, whereas EVP_CIPHER_CTX_settable_params()
+returns the parameters that can be retrieved in the context's current
+state.  See L<OSSL_PARAM(3)> for the use of B<OSSL_PARAM> as a parameter
+descriptor.
 
 EVP_CIPHER_key_length() and EVP_CIPHER_CTX_key_length() return the key
 length of a cipher when passed an B<EVP_CIPHER> or B<EVP_CIPHER_CTX>
@@ -341,7 +366,7 @@ algorithm that's identifiable with I<name>, otherwise 0.
 If I<cipher> is a legacy cipher (it's the return value from the likes
 of EVP_aes128() rather than the result of an EVP_CIPHER_fetch()), only
 cipher names registered with the default library context (see
-L<OPENSSL_CTX(3)>) will be considered.
+L<OSSL_LIB_CTX(3)>) will be considered.
 
 EVP_CIPHER_number() returns the internal dynamic number assigned to
 the I<cipher>.  This is only useful with fetched B<EVP_CIPHER>s.
@@ -456,6 +481,9 @@ than zero for success and zero or a negative number on failure.
 
 EVP_CIPHER_CTX_rand_key() returns 1 for success.
 
+EVP_CIPHER_names_do_all() returns 1 if the callback was called for all names.
+A return value of 0 means that the callback was not called for any names.
+
 =head1 CIPHER LISTING
 
 All algorithms have a fixed key length unless otherwise stated.
@@ -558,7 +586,7 @@ Sets the CCM B<L> value. If not set a default is used (8 for AES).
 
 =item EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_IVLEN, ivlen, NULL)
 
-Sets the CCM nonce (IV) length. This call can only be made before specifying an
+Sets the CCM nonce (IV) length. This call can only be made before specifying a 
 nonce value. The nonce length is given by B<15 - L> so it is 7 by default for
 AES.
 
@@ -642,10 +670,10 @@ This call is only valid when decrypting data.
 =head1 NOTES
 
 Where possible the B<EVP> interface to symmetric ciphers should be used in
-preference to the low level interfaces. This is because the code then becomes
+preference to the low-level interfaces. This is because the code then becomes
 transparent to the cipher used and much more flexible. Additionally, the
 B<EVP> interface will ensure the use of platform specific cryptographic
-acceleration such as AES-NI (the low level interfaces do not provide the
+acceleration such as AES-NI (the low-level interfaces do not provide the
 guarantee).
 
 PKCS padding works by adding B<n> padding bytes of value B<n> to make the total
@@ -770,7 +798,7 @@ with a 128-bit key:
 
      /* Don't set key or IV right away; we want to check lengths */
      ctx = EVP_CIPHER_CTX_new();
-     EVP_CipherInit_ex(&ctx, EVP_aes_128_cbc(), NULL, NULL, NULL,
+     EVP_CipherInit_ex(ctx, EVP_aes_128_cbc(), NULL, NULL, NULL,
                        do_encrypt);
      OPENSSL_assert(EVP_CIPHER_CTX_key_length(ctx) == 16);
      OPENSSL_assert(EVP_CIPHER_CTX_iv_length(ctx) == 16);
@@ -800,6 +828,50 @@ with a 128-bit key:
      return 1;
  }
 
+Encryption using AES-CBC with a 256-bit key with "CS1" ciphertext stealing.
+
+ int encrypt(const unsigned char *key, const unsigned char *iv,
+             const unsigned char *msg, size_t msg_len, unsigned char *out)
+ {
+    /*
+     * This assumes that key size is 32 bytes and the iv is 16 bytes.
+     * For ciphertext stealing mode the length of the ciphertext "out" will be
+     * the same size as the plaintext size "msg_len".
+     * The "msg_len" can be any size >= 16.
+     */
+     int ret = 0, encrypt = 1, outlen, len;
+     EVP_CIPHER_CTX *ctx = NULL;
+     EVP_CIPHER *cipher = NULL;
+     OSSL_PARAM params[2];
+
+     ctx = EVP_CIPHER_CTX_new();
+     cipher = EVP_CIPHER_fetch(NULL, "AES-256-CBC-CTS", NULL);
+     if (ctx == NULL || cipher == NULL)
+         goto err;
+
+     if (!EVP_CipherInit_ex(ctx, cipher, NULL, key, iv, encrypt))
+         goto err;
+     /*
+      * The default is "CS1" so this is not really needed,
+      * but would be needed to set either "CS2" or "CS3".
+      */
+     params[0] = OSSL_PARAM_construct_utf8_string(OSSL_CIPHER_PARAM_CTS_MODE,
+                                                  "CS1", 0);
+     params[1] = OSSL_PARAM_construct_end();
+     if (!EVP_CIPHER_CTX_set_params(ctx, params))
+         goto err;
+
+     /* NOTE: CTS mode does not support multiple calls to EVP_CipherUpdate() */
+     if (!EVP_CipherUpdate(ctx, encrypted, &outlen, msg, msglen))
+         goto err;
+      if (!EVP_CipherFinal_ex(ctx, encrypted + outlen, &len))
+         goto err;
+     ret = 1;
+ err:
+     EVP_CIPHER_free(cipher);
+     EVP_CIPHER_CTX_free(ctx);
+     return ret;
+ }
 
 =head1 SEE ALSO
 
@@ -832,12 +904,15 @@ disappeared.  EVP_CIPHER_CTX_init() remains as an alias for
 EVP_CIPHER_CTX_reset().
 
 The EVP_CIPHER_fetch(), EVP_CIPHER_free(), EVP_CIPHER_up_ref(),
-EVP_CIPHER_CTX_set_params() and EVP_CIPHER_CTX_get_params() functions
-were added in 3.0.
+EVP_CIPHER_get_params(), EVP_CIPHER_CTX_set_params(),
+EVP_CIPHER_CTX_get_params(), EVP_CIPHER_gettable_params(),
+EVP_CIPHER_settable_ctx_params(), EVP_CIPHER_gettable_ctx_params(),
+EVP_CIPHER_CTX_settable_params() and EVP_CIPHER_CTX_gettable_params()
+functions were added in 3.0.
 
 =head1 COPYRIGHT
 
-Copyright 2000-2018 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2000-2020 The OpenSSL Project Authors. All Rights Reserved.
 
 Licensed under the Apache License 2.0 (the "License").  You may not use
 this file except in compliance with the License.  You can obtain a copy

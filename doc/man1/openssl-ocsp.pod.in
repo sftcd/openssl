@@ -103,8 +103,8 @@ specify output filename, default is standard output.
 =item B<-issuer> I<filename>
 
 This specifies the current issuer certificate. This option can be used
-multiple times. The certificate specified in I<filename> must be in
-PEM format. This option B<MUST> come before any B<-cert> options.
+multiple times.
+This option B<MUST> come before any B<-cert> options.
 
 =item B<-cert> I<filename>
 
@@ -130,6 +130,7 @@ the OCSP request is not signed.
 =item B<-sign_other> I<filename>
 
 Additional certificates to include in the signed request.
+The input can be in PEM, DER, or PKCS#12 format.
 
 =item B<-nonce>, B<-no_nonce>
 
@@ -156,6 +157,8 @@ with B<-serial>, B<-cert> and B<-host> options).
 =item B<-url> I<responder_url>
 
 Specify the responder URL. Both HTTP and HTTPS (SSL/TLS) URLs can be specified.
+The optional userinfo and fragment components are ignored.
+Any given query component is handled as part of the path component.
 
 =item B<-host> I<hostname>:I<port>, B<-path> I<pathname>
 
@@ -180,10 +183,12 @@ the complete request is received.
 
 =item B<-verify_other> I<file>
 
-File containing additional certificates to search when attempting to locate
+File or URI containing additional certificates to search
+when attempting to locate
 the OCSP response signing certificate. Some responders omit the actual signer's
 certificate from the response: this option can be used to supply the necessary
 certificate in such cases.
+The input can be in PEM, DER, or PKCS#12 format.
 
 =item B<-trust_other>
 
@@ -194,8 +199,9 @@ root CA is not appropriate.
 
 =item B<-VAfile> I<file>
 
-File containing explicitly trusted responder certificates. Equivalent to the
-B<-verify_other> and B<-trust_other> options.
+File or URI containing explicitly trusted responder certificates.
+Equivalent to the B<-verify_other> and B<-trust_other> options.
+The input can be in PEM, DER, or PKCS#12 format.
 
 =item B<-noverify>
 
@@ -296,6 +302,7 @@ must also be present.
 
 CA certificate corresponding to the revocation information in the index
 file given with B<-index>.
+The input can be in PEM, DER, or PKCS#12 format.
 
 =item B<-rsigner> I<file>
 
@@ -309,11 +316,12 @@ specified in the B<-rsigner> option is used.
 =item B<-passin> I<arg>
 
 The private key password source. For more information about the format of I<arg>
-see L<openssl(1)/Pass Phrase Options>.
+see L<openssl-passphrase-options(1)>.
 
 =item B<-rother> I<file>
 
 Additional certificates to include in the OCSP response.
+The input can be in PEM, DER, or PKCS#12 format.
 
 =item B<-rsigopt> I<nm>:I<v>
 
@@ -478,7 +486,7 @@ The -no_alt_chains option was added in OpenSSL 1.1.0.
 
 =head1 COPYRIGHT
 
-Copyright 2001-2019 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2001-2020 The OpenSSL Project Authors. All Rights Reserved.
 
 Licensed under the Apache License 2.0 (the "License").  You may not use
 this file except in compliance with the License.  You can obtain a copy

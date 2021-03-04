@@ -15,12 +15,12 @@ We can consider this the retirement home of cryptographic algorithms.
 
 =head2 Properties
 
-The implementations in this provider specifically have these property
+The implementations in this provider specifically has this property
 defined:
 
 =over 4
 
-"provider=legacy"
+=item "provider=legacy"
 
 =back
 
@@ -77,7 +77,7 @@ following =head2 titles are appropriate to use:
 
 L<OSSL_PARAM(3)>,
 L<openssl-core.h(7)>,
-L<openssl-core_numbers.h(7)>,
+L<openssl-core_dispatch.h(7)>,
 L<provider(7)>
 
 =head1 COPYRIGHT

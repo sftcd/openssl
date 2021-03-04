@@ -1,5 +1,5 @@
 /*
- * Copyright 1995-2019 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 1995-2021 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -62,7 +62,7 @@ static const BIGNUM _bignum_small_prime_factors = {
     BN_FLG_STATIC_DATA
 };
 
-const BIGNUM *bn_get0_small_factors(void)
+const BIGNUM *ossl_bn_get0_small_factors(void)
 {
     return &_bignum_small_prime_factors;
 }
@@ -132,7 +132,7 @@ int BN_generate_prime_ex2(BIGNUM *ret, int bits, int safe,
 
     if (bits < 2) {
         /* There are no prime numbers this small. */
-        BNerr(BN_F_BN_GENERATE_PRIME_EX2, BN_R_BITS_TOO_SMALL);
+        ERR_raise(ERR_LIB_BN, BN_R_BITS_TOO_SMALL);
         return 0;
     } else if (add == NULL && safe && bits < 6 && bits != 3) {
         /*
@@ -140,13 +140,15 @@ int BN_generate_prime_ex2(BIGNUM *ret, int bits, int safe,
          * But the following two safe primes with less than 6 bits (11, 23)
          * are unreachable for BN_rand with BN_RAND_TOP_TWO.
          */
-        BNerr(BN_F_BN_GENERATE_PRIME_EX2, BN_R_BITS_TOO_SMALL);
+        ERR_raise(ERR_LIB_BN, BN_R_BITS_TOO_SMALL);
         return 0;
     }
 
     mods = OPENSSL_zalloc(sizeof(*mods) * NUMPRIMES);
-    if (mods == NULL)
-        goto err;
+    if (mods == NULL) {
+        ERR_raise(ERR_LIB_BN, ERR_R_MALLOC_FAILURE);
+        return 0;
+    }
 
     BN_CTX_start(ctx);
     t = BN_CTX_get(ctx);
@@ -207,7 +209,7 @@ int BN_generate_prime_ex2(BIGNUM *ret, int bits, int safe,
     return found;
 }
 
-#ifndef FIPS_MODE
+#ifndef FIPS_MODULE
 int BN_generate_prime_ex(BIGNUM *ret, int bits, int safe,
                          const BIGNUM *add, const BIGNUM *rem, BN_GENCB *cb)
 {
@@ -265,7 +267,7 @@ static int bn_is_prime_int(const BIGNUM *w, int checks, BN_CTX *ctx,
                            int do_trial_division, BN_GENCB *cb)
 {
     int i, status, ret = -1;
-#ifndef FIPS_MODE
+#ifndef FIPS_MODULE
     BN_CTX *ctxlocal = NULL;
 #else
 
@@ -301,17 +303,17 @@ static int bn_is_prime_int(const BIGNUM *w, int checks, BN_CTX *ctx,
         if (!BN_GENCB_call(cb, 1, -1))
             return -1;
     }
-#ifndef FIPS_MODE
+#ifndef FIPS_MODULE
     if (ctx == NULL && (ctxlocal = ctx = BN_CTX_new()) == NULL)
         goto err;
 #endif
 
-    ret = bn_miller_rabin_is_prime(w, checks, ctx, cb, 0, &status);
+    ret = ossl_bn_miller_rabin_is_prime(w, checks, ctx, cb, 0, &status);
     if (!ret)
         goto err;
     ret = (status == BN_PRIMETEST_PROBABLY_PRIME);
 err:
-#ifndef FIPS_MODE
+#ifndef FIPS_MODULE
     BN_CTX_free(ctxlocal);
 #endif
     return ret;
@@ -332,8 +334,8 @@ err:
  *
  * returns 0 if there was an error, otherwise it returns 1.
  */
-int bn_miller_rabin_is_prime(const BIGNUM *w, int iterations, BN_CTX *ctx,
-                             BN_GENCB *cb, int enhanced, int *status)
+int ossl_bn_miller_rabin_is_prime(const BIGNUM *w, int iterations, BN_CTX *ctx,
+                                  BN_GENCB *cb, int enhanced, int *status)
 {
     int i, j, a, ret = 0;
     BIGNUM *g, *w1, *w3, *x, *m, *z, *b;

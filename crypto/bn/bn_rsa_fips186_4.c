@@ -1,8 +1,8 @@
 /*
- * Copyright 2018-2019 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2018-2020 The OpenSSL Project Authors. All Rights Reserved.
  * Copyright (c) 2018-2019, Oracle and/or its affiliates.  All rights reserved.
  *
- * Licensed under the OpenSSL license (the "License").  You may not use
+ * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
  * in the file LICENSE in the source distribution or at
  * https://www.openssl.org/source/license.html
@@ -45,7 +45,7 @@ static const BN_ULONG inv_sqrt_2_val[] = {
     BN_DEF(0x754ABE9FUL, 0x597D89B3UL), BN_DEF(0xF9DE6484UL, 0xB504F333UL)
 };
 
-const BIGNUM bn_inv_sqrt_2 = {
+const BIGNUM ossl_bn_inv_sqrt_2 = {
     (BN_ULONG *)inv_sqrt_2_val,
     OSSL_NELEM(inv_sqrt_2_val),
     OSSL_NELEM(inv_sqrt_2_val),
@@ -65,7 +65,7 @@ static int bn_rsa_fips186_4_aux_prime_min_size(int nbits)
 {
     if (nbits >= 3072)
         return 171;
-    if (nbits == 2048)
+    if (nbits >= 2048)
         return 141;
     return 0;
 }
@@ -83,7 +83,7 @@ static int bn_rsa_fips186_4_aux_prime_max_sum_size_for_prob_primes(int nbits)
 {
     if (nbits >= 3072)
         return 1518;
-    if (nbits == 2048)
+    if (nbits >= 2048)
         return 1007;
     return 0;
 }
@@ -109,6 +109,7 @@ static int bn_rsa_fips186_4_find_aux_prob_prime(const BIGNUM *Xp1,
 
     if (BN_copy(p1, Xp1) == NULL)
         return 0;
+    BN_set_flags(p1, BN_FLG_CONSTTIME);
 
     /* Find the first odd number >= Xp1 that is probably prime */
     for(;;) {
@@ -146,11 +147,12 @@ err:
  *     cb An optional BIGNUM callback.
  * Returns: 1 on success otherwise it returns 0.
  */
-int bn_rsa_fips186_4_gen_prob_primes(BIGNUM *p, BIGNUM *Xpout,
-                                     BIGNUM *p1, BIGNUM *p2,
-                                     const BIGNUM *Xp, const BIGNUM *Xp1,
-                                     const BIGNUM *Xp2, int nlen,
-                                     const BIGNUM *e, BN_CTX *ctx, BN_GENCB *cb)
+int ossl_bn_rsa_fips186_4_gen_prob_primes(BIGNUM *p, BIGNUM *Xpout,
+                                          BIGNUM *p1, BIGNUM *p2,
+                                          const BIGNUM *Xp, const BIGNUM *Xp1,
+                                          const BIGNUM *Xp2, int nlen,
+                                          const BIGNUM *e, BN_CTX *ctx,
+                                          BN_GENCB *cb)
 {
     int ret = 0;
     BIGNUM *p1i = NULL, *p2i = NULL, *Xp1i = NULL, *Xp2i = NULL;
@@ -196,7 +198,8 @@ int bn_rsa_fips186_4_gen_prob_primes(BIGNUM *p, BIGNUM *Xpout,
             bn_rsa_fips186_4_aux_prime_max_sum_size_for_prob_primes(nlen))
         goto err;
     /* (Steps 4.3/5.3) - generate prime */
-    if (!bn_rsa_fips186_4_derive_prime(p, Xpout, Xp, p1i, p2i, nlen, e, ctx, cb))
+    if (!ossl_bn_rsa_fips186_4_derive_prime(p, Xpout, Xp, p1i, p2i, nlen, e,
+                                            ctx, cb))
         goto err;
     ret = 1;
 err:
@@ -234,9 +237,10 @@ err:
  * Assumptions:
  *     Y, X, r1, r2, e are not NULL.
  */
-int bn_rsa_fips186_4_derive_prime(BIGNUM *Y, BIGNUM *X, const BIGNUM *Xin,
-                                  const BIGNUM *r1, const BIGNUM *r2, int nlen,
-                                  const BIGNUM *e, BN_CTX *ctx, BN_GENCB *cb)
+int ossl_bn_rsa_fips186_4_derive_prime(BIGNUM *Y, BIGNUM *X, const BIGNUM *Xin,
+                                       const BIGNUM *r1, const BIGNUM *r2,
+                                       int nlen, const BIGNUM *e, BN_CTX *ctx,
+                                       BN_GENCB *cb)
 {
     int ret = 0;
     int i, imax;
@@ -269,9 +273,10 @@ int bn_rsa_fips186_4_derive_prime(BIGNUM *Y, BIGNUM *X, const BIGNUM *Xin,
      * We only have the first 256 bit of 1/sqrt(2)
      */
     if (Xin == NULL) {
-        if (bits < BN_num_bits(&bn_inv_sqrt_2))
+        if (bits < BN_num_bits(&ossl_bn_inv_sqrt_2))
             goto err;
-        if (!BN_lshift(base, &bn_inv_sqrt_2, bits - BN_num_bits(&bn_inv_sqrt_2))
+        if (!BN_lshift(base, &ossl_bn_inv_sqrt_2,
+                       bits - BN_num_bits(&ossl_bn_inv_sqrt_2))
             || !BN_lshift(range, BN_value_one(), bits)
             || !BN_sub(range, range, base))
             goto err;

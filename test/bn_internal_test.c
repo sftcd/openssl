@@ -1,7 +1,7 @@
 /*
- * Copyright 1995-2018 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 1995-2020 The OpenSSL Project Authors. All Rights Reserved.
  *
- * Licensed under the OpenSSL license (the "License").  You may not use
+ * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
  * in the file LICENSE in the source distribution or at
  * https://www.openssl.org/source/license.html
@@ -34,7 +34,8 @@ static int test_is_prime_enhanced(void)
           /* test passing a prime returns the correct status */
           && TEST_true(BN_set_word(bn, 11))
           /* return extra parameters related to composite */
-          && TEST_true(bn_miller_rabin_is_prime(bn, 10, ctx, NULL, 1, &status))
+          && TEST_true(ossl_bn_miller_rabin_is_prime(bn, 10, ctx, NULL, 1,
+                                                     &status))
           && TEST_int_eq(status, BN_PRIMETEST_PROBABLY_PRIME);
     BN_free(bn);
     return ret;
@@ -53,7 +54,8 @@ static int test_is_composite_enhanced(int id)
     ret = TEST_ptr(bn = BN_new())
           /* negative tests for different composite numbers */
           && TEST_true(BN_set_word(bn, composites[id]))
-          && TEST_true(bn_miller_rabin_is_prime(bn, 10, ctx, NULL, 1, &status))
+          && TEST_true(ossl_bn_miller_rabin_is_prime(bn, 10, ctx, NULL, 1,
+                                                     &status))
           && TEST_int_ne(status, BN_PRIMETEST_PROBABLY_PRIME);
 
     BN_free(bn);
@@ -78,7 +80,7 @@ static int test_bn_small_factors(void)
         if (p > 751)
             break;
     }
-    ret = TEST_BN_eq(bn_get0_small_factors(), b);
+    ret = TEST_BN_eq(ossl_bn_get0_small_factors(), b);
 err:
     BN_free(b);
     return ret;

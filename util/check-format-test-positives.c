@@ -1,5 +1,5 @@
 /*
- * Copyright 2007-2019 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2007-2021 The OpenSSL Project Authors. All Rights Reserved.
  * Copyright Nokia 2007-2019
  * Copyright Siemens AG 2015-2019
  *
@@ -42,7 +42,9 @@
 *@ multi-line comment indent off by -1
  *X*@ no spc after leading '*' in multi-line comment, reported unless sloppy-spc
  *@0 more than two spaces after .   in comment, reported unless sloppy-spc
-*/ /*@2 multi-line comment end indent off by -1 (relative to comment start) */
+ *@0 more than two spaces after ?   in comment, reported unless sloppy-spc
+ *@0 more than two spaces after !   in comment, reported unless sloppy-spc
+*/ /*@ multi-line comment end indent off by -1 (relative to comment start) */
 */ /*@ unexpected comment ending delimiter outside comment */
 /*@ comment line is 4 columns tooooooooooooooooo wide, reported unless sloppy-len */
 /*@ comment line is 5 columns toooooooooooooooooooooooooooooooooooooooooooooo wide */
@@ -117,7 +119,9 @@ int f (int a,       /*@ space after fn before '(', reported unless sloppy-spc */
         do f(c, c); /*@ (non-brace) code after 'do' */
         while ( 2); /*@ space after '(', reported unless sloppy-spc */
     b; c;           /*@ more than one statement per line */
+  outer:            /*@ outer label special indent off by 1 */
     do{             /*@ no space before '{', reported unless sloppy-spc */
+     inner:         /*@ inner label normal indent off by 1 */
         f (3,       /*@ space after fn before '(', reported unless sloppy-spc */
            4);      /*@0 false negative: should report single stmt in braces */
     }               /*@0 'while' not on same line as preceding '}' */
@@ -127,219 +131,217 @@ int f (int a,       /*@ space after fn before '(', reported unless sloppy-spc */
     case(2):        /*@ no space after 'case', reported unless sloppy-spc */
     default: ;      /*@ code after 'default:' */
 }                   /*@ statement indent off by -4 */
-  label:            /*@ label special statement indent off by 1 */
     return(         /*@ no space after 'return', reported unless sloppy-spc */
            x); }    /*@ code before block-level '}' */
 /* Here the tool should stop complaining apart from the below issues at EOF */
 
 void f_looong_body()
 {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+    ;
+
+
+    ;               /*@ 2 essentially empty lines before, if !sloppy-spc */
 }                   /*@ function body length > 200 lines */
-
 #if 0               /*@0 unclosed #if */
 struct t {          /*@0 unclosed brace at decl/block level */
     enum {          /*@0 unclosed brace at enum/expression level */
           v = (1    /*@0 unclosed parenthesis */
-               etyp /*@0 empty line follows just before EOF: */
+               etyp /*@0 empty line follows just before EOF, if !sloppy-spc: */
 

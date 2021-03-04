@@ -1,5 +1,5 @@
 # -*- mode: perl; -*-
-# Copyright 2016-2016 The OpenSSL Project Authors. All Rights Reserved.
+# Copyright 2016-2020 The OpenSSL Project Authors. All Rights Reserved.
 #
 # Licensed under the Apache License 2.0 (the "License").  You may not use
 # this file except in compliance with the License.  You can obtain a copy
@@ -14,6 +14,8 @@ use warnings;
 
 package ssltests;
 use OpenSSL::Test::Utils;
+
+our $fips_mode;
 
 our @tests = (
     {
@@ -150,11 +152,13 @@ our @tests_tls_1_1 = (
     {
         name => "SNI-clienthello-disable-v12",
         server => {
+            "CipherString" => "DEFAULT:\@SECLEVEL=0",
             extra => {
                 "ServerNameCallback" => "ClientHelloNoV12",
             },
         },
         client => {
+            "CipherString" => "DEFAULT:\@SECLEVEL=0",
             extra => {
                 "ServerName" => "server2",
             },
@@ -166,4 +170,4 @@ our @tests_tls_1_1 = (
     },
 );
 
-push @tests, @tests_tls_1_1 unless disabled("tls1_1");
+push @tests, @tests_tls_1_1 unless disabled("tls1_1") || $fips_mode;

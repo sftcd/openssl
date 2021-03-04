@@ -1,5 +1,5 @@
 /*
- * Copyright 1995-2020 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 1995-2021 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -13,19 +13,17 @@
  */
 #include "internal/deprecated.h"
 
-#include <stdio.h>
+#include <openssl/bn.h>
+#include <openssl/engine.h>
 #include "internal/cryptlib.h"
 #include "internal/refcount.h"
-#include <openssl/bn.h>
-#include <openssl/asn1.h>
-#include <openssl/engine.h>
-#include "dsa_local.h"
 #include "crypto/dsa.h"
 #include "crypto/dh.h" /* required by DSA_dup_DH() */
+#include "dsa_local.h"
 
-static DSA *dsa_new_intern(ENGINE *engine, OPENSSL_CTX *libctx);
+static DSA *dsa_new_intern(ENGINE *engine, OSSL_LIB_CTX *libctx);
 
-#ifndef FIPS_MODE
+#ifndef FIPS_MODULE
 
 int DSA_set_ex_data(DSA *d, int idx, void *arg)
 {
@@ -54,7 +52,7 @@ DH *DSA_dup_DH(const DSA *r)
     if (ret == NULL)
         goto err;
 
-    if (!ffc_params_copy(dh_get0_params(ret), &r->params))
+    if (!ossl_ffc_params_copy(ossl_dh_get0_params(ret), &r->params))
         goto err;
 
     if (r->pub_key != NULL) {
@@ -122,7 +120,7 @@ int DSA_set_method(DSA *dsa, const DSA_METHOD *meth)
         meth->init(dsa);
     return 1;
 }
-#endif /* FIPS_MODE */
+#endif /* FIPS_MODULE */
 
 
 const DSA_METHOD *DSA_get_method(DSA *d)
@@ -130,30 +128,30 @@ const DSA_METHOD *DSA_get_method(DSA *d)
     return d->meth;
 }
 
-static DSA *dsa_new_intern(ENGINE *engine, OPENSSL_CTX *libctx)
+static DSA *dsa_new_intern(ENGINE *engine, OSSL_LIB_CTX *libctx)
 {
     DSA *ret = OPENSSL_zalloc(sizeof(*ret));
 
     if (ret == NULL) {
-        DSAerr(0, ERR_R_MALLOC_FAILURE);
+        ERR_raise(ERR_LIB_DSA, ERR_R_MALLOC_FAILURE);
         return NULL;
     }
 
     ret->references = 1;
     ret->lock = CRYPTO_THREAD_lock_new();
     if (ret->lock == NULL) {
-        DSAerr(0, ERR_R_MALLOC_FAILURE);
+        ERR_raise(ERR_LIB_DSA, ERR_R_MALLOC_FAILURE);
         OPENSSL_free(ret);
         return NULL;
     }
 
     ret->libctx = libctx;
     ret->meth = DSA_get_default_method();
-#if !defined(FIPS_MODE) && !defined(OPENSSL_NO_ENGINE)
+#if !defined(FIPS_MODULE) && !defined(OPENSSL_NO_ENGINE)
     ret->flags = ret->meth->flags & ~DSA_FLAG_NON_FIPS_ALLOW; /* early default init */
     if (engine) {
         if (!ENGINE_init(engine)) {
-            DSAerr(0, ERR_R_ENGINE_LIB);
+            ERR_raise(ERR_LIB_DSA, ERR_R_ENGINE_LIB);
             goto err;
         }
         ret->engine = engine;
@@ -162,7 +160,7 @@ static DSA *dsa_new_intern(ENGINE *engine, OPENSSL_CTX *libctx)
     if (ret->engine) {
         ret->meth = ENGINE_get_DSA(ret->engine);
         if (ret->meth == NULL) {
-            DSAerr(0, ERR_R_ENGINE_LIB);
+            ERR_raise(ERR_LIB_DSA, ERR_R_ENGINE_LIB);
             goto err;
         }
     }
@@ -170,13 +168,13 @@ static DSA *dsa_new_intern(ENGINE *engine, OPENSSL_CTX *libctx)
 
     ret->flags = ret->meth->flags & ~DSA_FLAG_NON_FIPS_ALLOW;
 
-#ifndef FIPS_MODE
+#ifndef FIPS_MODULE
     if (!crypto_new_ex_data_ex(libctx, CRYPTO_EX_INDEX_DSA, ret, &ret->ex_data))
         goto err;
 #endif
 
     if ((ret->meth->init != NULL) && !ret->meth->init(ret)) {
-        DSAerr(0, ERR_R_INIT_FAIL);
+        ERR_raise(ERR_LIB_DSA, ERR_R_INIT_FAIL);
         goto err;
     }
 
@@ -192,12 +190,12 @@ DSA *DSA_new_method(ENGINE *engine)
     return dsa_new_intern(engine, NULL);
 }
 
-DSA *dsa_new_with_ctx(OPENSSL_CTX *libctx)
+DSA *ossl_dsa_new(OSSL_LIB_CTX *libctx)
 {
     return dsa_new_intern(NULL, libctx);
 }
 
-#ifndef FIPS_MODE
+#ifndef FIPS_MODULE
 DSA *DSA_new(void)
 {
     return dsa_new_intern(NULL, NULL);
@@ -219,17 +217,17 @@ void DSA_free(DSA *r)
 
     if (r->meth != NULL && r->meth->finish != NULL)
         r->meth->finish(r);
-#if !defined(FIPS_MODE) && !defined(OPENSSL_NO_ENGINE)
+#if !defined(FIPS_MODULE) && !defined(OPENSSL_NO_ENGINE)
     ENGINE_finish(r->engine);
 #endif
 
-#ifndef FIPS_MODE
+#ifndef FIPS_MODULE
     CRYPTO_free_ex_data(CRYPTO_EX_INDEX_DSA, r, &r->ex_data);
 #endif
 
     CRYPTO_THREAD_lock_free(r->lock);
 
-    ffc_params_cleanup(&r->params);
+    ossl_ffc_params_cleanup(&r->params);
     BN_clear_free(r->pub_key);
     BN_clear_free(r->priv_key);
     OPENSSL_free(r);
@@ -247,10 +245,15 @@ int DSA_up_ref(DSA *r)
     return ((i > 1) ? 1 : 0);
 }
 
+void ossl_dsa_set0_libctx(DSA *d, OSSL_LIB_CTX *libctx)
+{
+    d->libctx = libctx;
+}
+
 void DSA_get0_pqg(const DSA *d,
                   const BIGNUM **p, const BIGNUM **q, const BIGNUM **g)
 {
-    ffc_params_get0_pqg(&d->params, p, q, g);
+    ossl_ffc_params_get0_pqg(&d->params, p, q, g);
 }
 
 int DSA_set0_pqg(DSA *d, BIGNUM *p, BIGNUM *q, BIGNUM *g)
@@ -263,7 +266,7 @@ int DSA_set0_pqg(DSA *d, BIGNUM *p, BIGNUM *q, BIGNUM *g)
         || (d->params.g == NULL && g == NULL))
         return 0;
 
-    ffc_params_set0_pqg(&d->params, p, q, g);
+    ossl_ffc_params_set0_pqg(&d->params, p, q, g);
     d->dirty_cnt++;
 
     return 1;
@@ -305,13 +308,6 @@ void DSA_get0_key(const DSA *d,
 
 int DSA_set0_key(DSA *d, BIGNUM *pub_key, BIGNUM *priv_key)
 {
-    /* If the field pub_key in d is NULL, the corresponding input
-     * parameters MUST be non-NULL.  The priv_key field may
-     * be left NULL.
-     */
-    if (d->pub_key == NULL && pub_key == NULL)
-        return 0;
-
     if (pub_key != NULL) {
         BN_free(d->pub_key);
         d->pub_key = pub_key;
@@ -335,10 +331,29 @@ int DSA_security_bits(const DSA *d)
 
 int DSA_bits(const DSA *dsa)
 {
-    return BN_num_bits(dsa->params.p);
+    if (dsa->params.p != NULL)
+        return BN_num_bits(dsa->params.p);
+    return -1;
 }
 
-FFC_PARAMS *dsa_get0_params(DSA *dsa)
+FFC_PARAMS *ossl_dsa_get0_params(DSA *dsa)
 {
     return &dsa->params;
+}
+
+int ossl_dsa_ffc_params_fromdata(DSA *dsa, const OSSL_PARAM params[])
+{
+    int ret;
+    FFC_PARAMS *ffc;
+
+    if (dsa == NULL)
+        return 0;
+    ffc = ossl_dsa_get0_params(dsa);
+    if (ffc == NULL)
+        return 0;
+
+    ret = ossl_ffc_params_fromdata(ffc, params);
+    if (ret)
+        dsa->dirty_cnt++;
+    return ret;
 }

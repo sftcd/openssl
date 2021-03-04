@@ -37,6 +37,7 @@
 PLATFORM={- $config{target} -}
 SRCDIR={- $config{sourcedir} -}
 BLDDIR={- $config{builddir} -}
+FIPSKEY={- $config{FIPSKEY} -}
 
 VERSION={- "$config{full_version}" -}
 MAJOR={- $config{major} -}
@@ -50,6 +51,14 @@ SHLIBPDBS={- join(" ", map { platform->sharedlibpdb($_) // () } @{$unified_info{
 MODULES={- our @MODULES = map { platform->dso($_) } @{$unified_info{modules}};
            join(" ", @MODULES) -}
 MODULEPDBS={- join(" ", map { platform->dsopdb($_) } @{$unified_info{modules}}) -}
+FIPSMODULENAME={- # We do some extra checking here, as there should be only one
+                  use File::Basename;
+                  my @fipsmodules =
+                      grep { !$unified_info{attributes}->{modules}->{$_}->{noinst}
+                             && $unified_info{attributes}->{modules}->{$_}->{fips} }
+                      @{$unified_info{modules}};
+                  die "More that one FIPS module" if scalar @fipsmodules > 1;
+                  join(" ", map { basename(platform->dso($_)) } @fipsmodules) -}
 PROGRAMS={- our @PROGRAMS = map { platform->bin($_) } @{$unified_info{programs}}; join(" ", @PROGRAMS) -}
 PROGRAMPDBS={- join(" ", map { $_.".pdb" } @{$unified_info{programs}}) -}
 SCRIPTS={- our @SCRIPTS = @{$unified_info{scripts}}; join(" ", @SCRIPTS) -}
@@ -92,6 +101,18 @@ INSTALL_ENGINEPDBS={-
         join(" ", map { quotify1(platform->dsopdb($_)) }
                   grep { !$unified_info{attributes}->{modules}->{$_}->{noinst}
                          && $unified_info{attributes}->{modules}->{$_}->{engine} }
+                  @{$unified_info{modules}})
+-}
+INSTALL_MODULES={-
+        join(" ", map { platform->dso($_) }
+                  grep { !$unified_info{attributes}->{modules}->{$_}->{noinst}
+                          && !$unified_info{attributes}->{modules}->{$_}->{engine} }
+                  @{$unified_info{modules}})
+-}
+INSTALL_MODULEPDBS={-
+        join(" ", map { quotify1(platform->dsopdb($_)) }
+                  grep { !$unified_info{attributes}->{modules}->{$_}->{noinst}
+                         && !$unified_info{attributes}->{modules}->{$_}->{engine} }
                   @{$unified_info{modules}})
 -}
 INSTALL_PROGRAMS={-
@@ -251,8 +272,8 @@ CNF_CPPFLAGS={- our $cppfags2 =
                     join(' ', $target{cppflags} || (),
                               (map { '-D'.quotify1($_) } @{$target{defines}},
                                                          @{$config{defines}}),
-                              (map { '-I'.quotify1($_) } @{$target{includes}},
-                                                         @{$config{includes}}),
+                              (map { '-I'.'"'.$_.'"' } @{$target{includes}},
+                                                       @{$config{includes}}),
                               @{$config{cppflags}}) -}
 CNF_CFLAGS={- join(' ', $target{cflags} || (),
                         @{$config{cflags}}) -}
@@ -393,6 +414,7 @@ test: tests
 	set SRCTOP=$(SRCDIR)
 	set BLDTOP=$(BLDDIR)
 	set PERL=$(PERL)
+	set FIPSKEY=$(FIPSKEY)
 	"$(PERL)" "$(SRCDIR)\test\run_tests.pl" $(TESTS)
 	@{- if ($disabled{tests}) { output_on(); } else { output_off(); } "" -}
 	@$(ECHO) "Tests are not supported with your chosen Configure options"
@@ -441,13 +463,25 @@ depend:
 
 # Install helper targets #############################################
 
-install_sw: install_dev install_engines install_runtime
+install_sw: install_dev install_engines install_modules install_runtime
 
-uninstall_sw: uninstall_runtime uninstall_engines uninstall_dev
+uninstall_sw: uninstall_runtime uninstall_modules uninstall_engines uninstall_dev
 
 install_docs: install_html_docs
 
 uninstall_docs: uninstall_html_docs
+
+install_fips: install_sw
+	@$(ECHO) "*** Installing FIPS module configuration"
+	@$(ECHO) "fipsinstall $(DESTDIR)$(MODULESDIR)/$(FIPSMODULENAME).cnf"
+	@openssl fipsinstall -module $(DESTDIR)$(MODULESDIR)/$(FIPSMODULENAME) \
+		-out $(DESTDIR)$(MODULESDIR)/$(FIPSMODULENAME).cnf \
+		-macopt "key:$(FIPSKEY)"
+
+uninstall_fips: uninstall_sw
+	@$(ECHO) "*** Uninstalling FIPS module configuration"
+	@$(ECHO) "$(RM) $(DESTDIR)$(MODULESDIR)/$(FIPSMODULENAME).cnf"
+	@$(RM) $(DESTDIR)$(MODULESDIR)/$(FIPSMODULENAME).cnf
 
 install_ssldirs:
 	@"$(PERL)" "$(SRCDIR)\util\mkdir-p.pl" "$(OPENSSLDIR)\certs"
@@ -487,9 +521,11 @@ install_dev: install_runtime_libs
 
 uninstall_dev:
 
-install_engines: install_runtime_libs build_modules
+_install_modules_deps: install_runtime_libs build_modules
+
+install_engines: _install_modules_deps
 	@if "$(INSTALLTOP)"=="" ( $(ECHO) "INSTALLTOP should not be empty" & exit 1 )
-	@$(ECHO) "*** Installing ENGINE modules"
+	@$(ECHO) "*** Installing engines"
 	@"$(PERL)" "$(SRCDIR)\util\mkdir-p.pl" "$(ENGINESDIR)"
 	@if not "$(INSTALL_ENGINES)"=="" \
 	 "$(PERL)" "$(SRCDIR)\util\copy.pl" $(INSTALL_ENGINES) "$(ENGINESDIR)"
@@ -497,6 +533,17 @@ install_engines: install_runtime_libs build_modules
 	 "$(PERL)" "$(SRCDIR)\util\copy.pl" $(INSTALL_ENGINEPDBS) "$(ENGINESDIR)"
 
 uninstall_engines:
+
+install_modules: _install_modules_deps
+	@if "$(INSTALLTOP)"=="" ( $(ECHO) "INSTALLTOP should not be empty" & exit 1 )
+	@$(ECHO) "*** Installing modules"
+	@"$(PERL)" "$(SRCDIR)\util\mkdir-p.pl" "$(MODULESDIR)"
+	@if not "$(INSTALL_MODULES)"=="" \
+	 "$(PERL)" "$(SRCDIR)\util\copy.pl" $(INSTALL_MODULES) "$(MODULESDIR)"
+	@if not "$(INSTALL_MODULES)"=="" \
+	 "$(PERL)" "$(SRCDIR)\util\copy.pl" $(INSTALL_MODULEPDBS) "$(MODULESDIR)"
+
+uninstall_modules:
 
 install_runtime: install_programs
 
@@ -581,24 +628,39 @@ reconfigure reconf:
      return map { platform->sharedlib_import($_) // platform->staticlib($_) } @_;
  }
 
+  sub generatetarget {
+      my %args = @_;
+      my $deps = join(" ", @{$args{deps}});
+      return <<"EOF";
+$args{target}: $deps
+EOF
+  }
+
   sub generatesrc {
       my %args = @_;
-      my ($gen0, @gens) = @{$args{generator}};
-      my $generator = '"'.$gen0.'"'.join('', map { " $_" } @gens);
-      my $generator_incs = join("", map { " -I \"$_\"" } @{$args{generator_incs}});
+      my $gen0 = $args{generator}->[0];
+      my $gen_args = join('', map { " $_" }
+                              @{$args{generator}}[1..$#{$args{generator}}]);
+      my $gen_incs = join("", map { " -I \"$_\"" } @{$args{generator_incs}});
       my $incs = join("", map { " -I \"$_\"" } @{$args{incs}});
       my $defs = join("", map { " -D".$_ } @{$args{defs}});
       my $deps = @{$args{deps}} ?
           '"'.join('" "', @{$args{generator_deps}}, @{$args{deps}}).'"' : '';
 
       if ($args{src} =~ /\.html$/) {
-	  my $title = basename($args{src}, ".html");
-	  my $pod = $args{generator}->[0];
-	  return <<"EOF";
+          #
+          # HTML generator
+          #
+          my $title = basename($args{src}, ".html");
+          my $pod = $gen0;
+          return <<"EOF";
 $args{src}: "$pod"
 	\$(PERL) \$(SRCDIR)/util/mkpod2html.pl -i "$pod" -o \$\@ -t "$title" -r "\$(SRCDIR)/doc"
 EOF
       } elsif (platform->isdef($args{src})) {
+          #
+          # Linker script-ish generator
+          #
           my $target = platform->def($args{src});
           my $mkdef = abs2rel(rel2abs(catfile($config{sourcedir},
                                               "util", "mkdef.pl")),
@@ -607,31 +669,13 @@ EOF
           my $ord_name =
               $args{generator}->[1] || platform->dsoname($args{product});
           return <<"EOF";
-$target: $args{generator}->[0] $deps $mkdef
-	"\$(PERL)" $mkdef$ord_ver --ordinals $args{generator}->[0] --name $ord_name --OS windows > $target
+$target: $gen0 $deps $mkdef
+	"\$(PERL)" $mkdef$ord_ver --ordinals $gen0 --name $ord_name --OS windows > $target
 EOF
-      } elsif (!platform->isasm($args{src})) {
-          my $target = $args{src};
-          if ($args{generator}->[0] =~ m|^.*\.in$|) {
-              my $dofile = abs2rel(rel2abs(catfile($config{sourcedir},
-                                                   "util", "dofile.pl")),
-                                   rel2abs($config{builddir}));
-              my @modules = ( 'configdata.pm',
-                              grep { $_ =~ m|\.pm$| } @{$args{deps}} );
-              my %moduleincs = map { '"-I'.dirname($_).'"' => 1 } @modules;
-              @modules = map { "-M".basename($_, '.pm') } @modules;
-              my $modules = join(' ', '', sort keys %moduleincs, @modules);
-              return <<"EOF";
-$target: "$args{generator}->[0]" $deps
-	"\$(PERL)"$modules "$dofile" "-o$target{build_file}" $generator > \$@
-EOF
-	  } else {
-              return <<"EOF";
-$target: "$args{generator}->[0]" $deps
-	"\$(PERL)"$generator_incs $generator > \$@
-EOF
-	  }
-      } else {
+      } elsif (platform->isasm($args{src})) {
+          #
+          # Assembler generator
+          #
           my $cppflags = {
               shlib => '$(LIB_CFLAGS) $(LIB_CPPFLAGS)',
               lib => '$(LIB_CFLAGS) $(LIB_CPPFLAGS)',
@@ -640,13 +684,14 @@ EOF
           } -> {$args{intent}};
           my $target = platform->asm($args{src});
 
-          if ($args{generator}->[0] =~ /\.pl$/) {
-              $generator = '"$(PERL)"'.$generator_incs.' '.$generator
+          my $generator;
+          if ($gen0 =~ /\.pl$/) {
+              $generator = '"$(PERL)"'.$gen_incs.' '.$gen0.$gen_args
                   .' "$(PERLASM_SCHEME)"'.$incs.' '.$cppflags.$defs.' $(PROCESSSOR)';
-          } elsif ($args{generator}->[0] =~ /\.S$/) {
+          } elsif ($gen0 =~ /\.S$/) {
               $generator = undef;
           } else {
-              die "Generator type for $src unknown: $generator\n";
+              die "Generator type for $src unknown: $gen0\n";
           }
 
           if (defined($generator)) {
@@ -654,7 +699,7 @@ EOF
               # end up generating foo.s in two steps.
               if ($args{src} =~ /\.S$/) {
                    return <<"EOF";
-$target: "$args{generator}->[0]" $deps
+$target: "$gen0" $deps
 	set ASM=\$(AS)
 	$generator \$@.S
 	\$(CPP) $incs $cppflags $defs \$@.S > \$@.i && move /Y \$@.i \$@
@@ -663,14 +708,66 @@ EOF
               }
               # Otherwise....
               return <<"EOF";
-$target: "$args{generator}->[0]" $deps
+$target: "$gen0" $deps
 	set ASM=\$(AS)
 	$generator \$@
 EOF
           }
           return <<"EOF";
-$target: "$args{generator}->[0]" $deps
-	\$(CPP) $incs $cppflags $defs "$args{generator}->[0]" > \$@.i && move /Y \$@.i \$@
+$target: "$gen0" $deps
+	\$(CPP) $incs $cppflags $defs "$gen0" > \$@.i && move /Y \$@.i \$@
+EOF
+      } elsif ($gen0 =~ m|^.*\.in$|) {
+          #
+          # "dofile" generator (file.in -> file)
+          #
+          my $dofile = abs2rel(rel2abs(catfile($config{sourcedir},
+                                               "util", "dofile.pl")),
+                               rel2abs($config{builddir}));
+          my @modules = ( 'configdata.pm',
+                          grep { $_ =~ m|\.pm$| } @{$args{deps}} );
+          my %moduleincs = map { '"-I'.dirname($_).'"' => 1 } @modules;
+          $deps = join(' ', $deps, @modules);
+          @modules = map { "-M".basename($_, '.pm') } @modules;
+          my $modules = join(' ', '', sort keys %moduleincs, @modules);
+          return <<"EOF";
+$args{src}: "$gen0" $deps
+	"\$(PERL)"$modules "$dofile" "-o$target{build_file}" "$gen0"$gen_args > \$@
+EOF
+      } elsif (grep { $_ eq $gen0 } @{$unified_info{programs}}) {
+          #
+          # Generic generator using OpenSSL programs
+          #
+
+          # Redo $deps, because programs aren't expected to have deps of their
+          # own.  This is a little more tricky, though, because running programs
+          # may have dependencies on all sorts of files, so we search through
+          # our database of programs and modules to see if our dependencies
+          # are one of those.
+          $deps = join(' ', map { my $x = $_;
+                                  if (grep { $x eq $_ }
+                                          @{$unified_info{programs}}) {
+                                      platform->bin($x);
+                                  } elsif (grep { $x eq $_ }
+                                          @{$unified_info{modules}}) {
+                                      platform->dso($x);
+                                  } else {
+                                      $x;
+                                  }
+                                } @{$args{deps}});
+          # Also redo $gen0, to ensure that we have the proper extension.
+          $gen0 = platform->bin($gen0);
+          return <<"EOF";
+$args{src}: $gen0 $deps
+	$gen0$gen_args > \$@
+EOF
+      } else {
+          #
+          # Generic generator using Perl
+          #
+          return <<"EOF";
+$args{src}: "$gen0" $deps
+	"\$(PERL)"$gen_incs $gen0$gen_args > \$@
 EOF
       }
   }

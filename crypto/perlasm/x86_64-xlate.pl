@@ -1,5 +1,5 @@
 #! /usr/bin/env perl
-# Copyright 2005-2018 The OpenSSL Project Authors. All Rights Reserved.
+# Copyright 2005-2020 The OpenSSL Project Authors. All Rights Reserved.
 #
 # Licensed under the Apache License 2.0 (the "License").  You may not use
 # this file except in compliance with the License.  You can obtain a copy
@@ -1200,7 +1200,7 @@ while(defined(my $line=<>)) {
 
     $line =~ s|[#!].*$||;	# get rid of asm-style comments...
     $line =~ s|/\*.*\*/||;	# ... and C-style comments...
-    $line =~ s|^\s+||;		# ... and skip white spaces in beginning
+    $line =~ s|^\s+||;		# ... and skip whitespaces in beginning
     $line =~ s|\s+$||;		# ... and at the end
 
     if (my $label=label->re(\$line))	{ print $label->out(); }

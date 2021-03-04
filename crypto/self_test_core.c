@@ -31,7 +31,8 @@ struct ossl_self_test_st
     void *cb_arg;
 };
 
-static void *self_test_set_callback_new(OPENSSL_CTX *ctx)
+#ifndef FIPS_MODULE
+static void *self_test_set_callback_new(OSSL_LIB_CTX *ctx)
 {
     SELF_TEST_CB *stcb;
 
@@ -44,19 +45,18 @@ static void self_test_set_callback_free(void *stcb)
     OPENSSL_free(stcb);
 }
 
-static const OPENSSL_CTX_METHOD self_test_set_callback_method = {
+static const OSSL_LIB_CTX_METHOD self_test_set_callback_method = {
     self_test_set_callback_new,
     self_test_set_callback_free,
 };
 
-static SELF_TEST_CB *get_self_test_callback(OPENSSL_CTX *libctx)
+static SELF_TEST_CB *get_self_test_callback(OSSL_LIB_CTX *libctx)
 {
-    return openssl_ctx_get_data(libctx, OPENSSL_CTX_SELF_TEST_CB_INDEX,
-                                &self_test_set_callback_method);
+    return ossl_lib_ctx_get_data(libctx, OSSL_LIB_CTX_SELF_TEST_CB_INDEX,
+                                 &self_test_set_callback_method);
 }
 
-#ifndef FIPS_MODE
-void OSSL_SELF_TEST_set_callback(OPENSSL_CTX *libctx, OSSL_CALLBACK *cb,
+void OSSL_SELF_TEST_set_callback(OSSL_LIB_CTX *libctx, OSSL_CALLBACK *cb,
                                  void *cbarg)
 {
     SELF_TEST_CB *stcb = get_self_test_callback(libctx);
@@ -66,9 +66,8 @@ void OSSL_SELF_TEST_set_callback(OPENSSL_CTX *libctx, OSSL_CALLBACK *cb,
         stcb->cbarg = cbarg;
     }
 }
-#endif /* FIPS_MODE */
 
-void OSSL_SELF_TEST_get_callback(OPENSSL_CTX *libctx, OSSL_CALLBACK **cb,
+void OSSL_SELF_TEST_get_callback(OSSL_LIB_CTX *libctx, OSSL_CALLBACK **cb,
                                  void **cbarg)
 {
     SELF_TEST_CB *stcb = get_self_test_callback(libctx);
@@ -78,6 +77,7 @@ void OSSL_SELF_TEST_get_callback(OPENSSL_CTX *libctx, OSSL_CALLBACK **cb,
     if (cbarg != NULL)
         *cbarg = (stcb != NULL ? stcb->cbarg : NULL);
 }
+#endif /* FIPS_MODULE */
 
 static void self_test_setparams(OSSL_SELF_TEST *st)
 {
@@ -157,12 +157,15 @@ void OSSL_SELF_TEST_onend(OSSL_SELF_TEST *st, int ret)
  * is modified (corrupted). This is used to modify output signatures or
  * ciphertext before they are verified or decrypted.
  */
-void OSSL_SELF_TEST_oncorrupt_byte(OSSL_SELF_TEST *st, unsigned char *bytes)
+int OSSL_SELF_TEST_oncorrupt_byte(OSSL_SELF_TEST *st, unsigned char *bytes)
 {
     if (st != NULL && st->cb != NULL) {
         st->phase = OSSL_SELF_TEST_PHASE_CORRUPT;
         self_test_setparams(st);
-        if (!st->cb(st->params, st->cb_arg))
+        if (!st->cb(st->params, st->cb_arg)) {
             bytes[0] ^= 1;
+            return 1;
+        }
     }
+    return 0;
 }

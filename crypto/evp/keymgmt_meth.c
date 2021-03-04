@@ -1,5 +1,5 @@
 /*
- * Copyright 2019 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2019-2021 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -8,14 +8,13 @@
  */
 
 #include <openssl/crypto.h>
-#include <openssl/core_numbers.h>
+#include <openssl/core_dispatch.h>
 #include <openssl/evp.h>
 #include <openssl/err.h>
 #include "internal/provider.h"
 #include "internal/refcount.h"
 #include "crypto/evp.h"
 #include "evp_local.h"
-
 
 static void *keymgmt_new(void)
 {
@@ -24,7 +23,7 @@ static void *keymgmt_new(void)
     if ((keymgmt = OPENSSL_zalloc(sizeof(*keymgmt))) == NULL
         || (keymgmt->lock = CRYPTO_THREAD_lock_new()) == NULL) {
         EVP_KEYMGMT_free(keymgmt);
-        EVPerr(0, ERR_R_MALLOC_FAILURE);
+        ERR_raise(ERR_LIB_EVP, ERR_R_MALLOC_FAILURE);
         return NULL;
     }
 
@@ -38,7 +37,8 @@ static void *keymgmt_from_dispatch(int name_id,
                                    OSSL_PROVIDER *prov)
 {
     EVP_KEYMGMT *keymgmt = NULL;
-    int setparamfncnt = 0, getparamfncnt = 0, setgenparamfncnt = 0;
+    int setparamfncnt = 0, getparamfncnt = 0;
+    int setgenparamfncnt = 0;
     int importfncnt = 0, exportfncnt = 0;
 
     if ((keymgmt = keymgmt_new()) == NULL) {
@@ -51,108 +51,116 @@ static void *keymgmt_from_dispatch(int name_id,
         switch (fns->function_id) {
         case OSSL_FUNC_KEYMGMT_NEW:
             if (keymgmt->new == NULL)
-                keymgmt->new = OSSL_get_OP_keymgmt_new(fns);
+                keymgmt->new = OSSL_FUNC_keymgmt_new(fns);
             break;
         case OSSL_FUNC_KEYMGMT_GEN_INIT:
             if (keymgmt->gen_init == NULL)
-                keymgmt->gen_init = OSSL_get_OP_keymgmt_gen_init(fns);
+                keymgmt->gen_init = OSSL_FUNC_keymgmt_gen_init(fns);
             break;
         case OSSL_FUNC_KEYMGMT_GEN_SET_TEMPLATE:
             if (keymgmt->gen_set_template == NULL)
                 keymgmt->gen_set_template =
-                    OSSL_get_OP_keymgmt_gen_set_template(fns);
+                    OSSL_FUNC_keymgmt_gen_set_template(fns);
             break;
         case OSSL_FUNC_KEYMGMT_GEN_SET_PARAMS:
             if (keymgmt->gen_set_params == NULL) {
                 setgenparamfncnt++;
                 keymgmt->gen_set_params =
-                    OSSL_get_OP_keymgmt_gen_set_params(fns);
+                    OSSL_FUNC_keymgmt_gen_set_params(fns);
             }
             break;
         case OSSL_FUNC_KEYMGMT_GEN_SETTABLE_PARAMS:
             if (keymgmt->gen_settable_params == NULL) {
                 setgenparamfncnt++;
                 keymgmt->gen_settable_params =
-                    OSSL_get_OP_keymgmt_gen_settable_params(fns);
+                    OSSL_FUNC_keymgmt_gen_settable_params(fns);
             }
             break;
         case OSSL_FUNC_KEYMGMT_GEN:
             if (keymgmt->gen == NULL)
-                keymgmt->gen = OSSL_get_OP_keymgmt_gen(fns);
+                keymgmt->gen = OSSL_FUNC_keymgmt_gen(fns);
             break;
         case OSSL_FUNC_KEYMGMT_GEN_CLEANUP:
             if (keymgmt->gen_cleanup == NULL)
-                keymgmt->gen_cleanup = OSSL_get_OP_keymgmt_gen_cleanup(fns);
+                keymgmt->gen_cleanup = OSSL_FUNC_keymgmt_gen_cleanup(fns);
             break;
         case OSSL_FUNC_KEYMGMT_FREE:
             if (keymgmt->free == NULL)
-                keymgmt->free = OSSL_get_OP_keymgmt_free(fns);
+                keymgmt->free = OSSL_FUNC_keymgmt_free(fns);
+            break;
+        case OSSL_FUNC_KEYMGMT_LOAD:
+            if (keymgmt->load == NULL)
+                keymgmt->load = OSSL_FUNC_keymgmt_load(fns);
             break;
         case OSSL_FUNC_KEYMGMT_GET_PARAMS:
             if (keymgmt->get_params == NULL) {
                 getparamfncnt++;
-                keymgmt->get_params = OSSL_get_OP_keymgmt_get_params(fns);
+                keymgmt->get_params = OSSL_FUNC_keymgmt_get_params(fns);
             }
             break;
         case OSSL_FUNC_KEYMGMT_GETTABLE_PARAMS:
             if (keymgmt->gettable_params == NULL) {
                 getparamfncnt++;
                 keymgmt->gettable_params =
-                    OSSL_get_OP_keymgmt_gettable_params(fns);
+                    OSSL_FUNC_keymgmt_gettable_params(fns);
             }
             break;
          case OSSL_FUNC_KEYMGMT_SET_PARAMS:
             if (keymgmt->set_params == NULL) {
                 setparamfncnt++;
-                keymgmt->set_params = OSSL_get_OP_keymgmt_set_params(fns);
+                keymgmt->set_params = OSSL_FUNC_keymgmt_set_params(fns);
             }
             break;
         case OSSL_FUNC_KEYMGMT_SETTABLE_PARAMS:
             if (keymgmt->settable_params == NULL) {
                 setparamfncnt++;
                 keymgmt->settable_params =
-                    OSSL_get_OP_keymgmt_settable_params(fns);
+                    OSSL_FUNC_keymgmt_settable_params(fns);
             }
             break;
         case OSSL_FUNC_KEYMGMT_QUERY_OPERATION_NAME:
             if (keymgmt->query_operation_name == NULL)
                 keymgmt->query_operation_name =
-                    OSSL_get_OP_keymgmt_query_operation_name(fns);
+                    OSSL_FUNC_keymgmt_query_operation_name(fns);
             break;
         case OSSL_FUNC_KEYMGMT_HAS:
             if (keymgmt->has == NULL)
-                keymgmt->has = OSSL_get_OP_keymgmt_has(fns);
+                keymgmt->has = OSSL_FUNC_keymgmt_has(fns);
+            break;
+        case OSSL_FUNC_KEYMGMT_COPY:
+            if (keymgmt->copy == NULL)
+                keymgmt->copy = OSSL_FUNC_keymgmt_copy(fns);
             break;
         case OSSL_FUNC_KEYMGMT_VALIDATE:
             if (keymgmt->validate == NULL)
-                keymgmt->validate = OSSL_get_OP_keymgmt_validate(fns);
+                keymgmt->validate = OSSL_FUNC_keymgmt_validate(fns);
             break;
         case OSSL_FUNC_KEYMGMT_MATCH:
             if (keymgmt->match == NULL)
-                keymgmt->match = OSSL_get_OP_keymgmt_match(fns);
+                keymgmt->match = OSSL_FUNC_keymgmt_match(fns);
             break;
         case OSSL_FUNC_KEYMGMT_IMPORT:
             if (keymgmt->import == NULL) {
                 importfncnt++;
-                keymgmt->import = OSSL_get_OP_keymgmt_import(fns);
+                keymgmt->import = OSSL_FUNC_keymgmt_import(fns);
             }
             break;
         case OSSL_FUNC_KEYMGMT_IMPORT_TYPES:
             if (keymgmt->import_types == NULL) {
                 importfncnt++;
-                keymgmt->import_types = OSSL_get_OP_keymgmt_import_types(fns);
+                keymgmt->import_types = OSSL_FUNC_keymgmt_import_types(fns);
             }
             break;
         case OSSL_FUNC_KEYMGMT_EXPORT:
             if (keymgmt->export == NULL) {
                 exportfncnt++;
-                keymgmt->export = OSSL_get_OP_keymgmt_export(fns);
+                keymgmt->export = OSSL_FUNC_keymgmt_export(fns);
             }
             break;
         case OSSL_FUNC_KEYMGMT_EXPORT_TYPES:
             if (keymgmt->export_types == NULL) {
                 exportfncnt++;
-                keymgmt->export_types = OSSL_get_OP_keymgmt_export_types(fns);
+                keymgmt->export_types = OSSL_FUNC_keymgmt_export_types(fns);
             }
             break;
         }
@@ -166,7 +174,9 @@ static void *keymgmt_from_dispatch(int name_id,
      * export if you can't import or export.
      */
     if (keymgmt->free == NULL
-        || (keymgmt->new == NULL && keymgmt->gen == NULL)
+        || (keymgmt->new == NULL
+            && keymgmt->gen == NULL
+            && keymgmt->load == NULL)
         || keymgmt->has == NULL
         || (getparamfncnt != 0 && getparamfncnt != 2)
         || (setparamfncnt != 0 && setparamfncnt != 2)
@@ -177,7 +187,7 @@ static void *keymgmt_from_dispatch(int name_id,
             && (keymgmt->gen_init == NULL
                 || keymgmt->gen_cleanup == NULL))) {
         EVP_KEYMGMT_free(keymgmt);
-        EVPerr(0, EVP_R_INVALID_PROVIDER_FUNCTIONS);
+        ERR_raise(ERR_LIB_EVP, EVP_R_INVALID_PROVIDER_FUNCTIONS);
         return NULL;
     }
     keymgmt->prov = prov;
@@ -187,7 +197,7 @@ static void *keymgmt_from_dispatch(int name_id,
     return keymgmt;
 }
 
-EVP_KEYMGMT *evp_keymgmt_fetch_by_number(OPENSSL_CTX *ctx, int name_id,
+EVP_KEYMGMT *evp_keymgmt_fetch_by_number(OSSL_LIB_CTX *ctx, int name_id,
                                          const char *properties)
 {
     return evp_generic_fetch_by_number(ctx,
@@ -197,7 +207,7 @@ EVP_KEYMGMT *evp_keymgmt_fetch_by_number(OPENSSL_CTX *ctx, int name_id,
                                        (void (*)(void *))EVP_KEYMGMT_free);
 }
 
-EVP_KEYMGMT *EVP_KEYMGMT_fetch(OPENSSL_CTX *ctx, const char *algorithm,
+EVP_KEYMGMT *EVP_KEYMGMT_fetch(OSSL_LIB_CTX *ctx, const char *algorithm,
                                const char *properties)
 {
     return evp_generic_fetch(ctx, OSSL_OP_KEYMGMT, algorithm, properties,
@@ -239,12 +249,17 @@ int EVP_KEYMGMT_number(const EVP_KEYMGMT *keymgmt)
     return keymgmt->name_id;
 }
 
+const char *EVP_KEYMGMT_get0_first_name(const EVP_KEYMGMT *keymgmt)
+{
+    return evp_first_name(keymgmt->prov, keymgmt->name_id);
+}
+
 int EVP_KEYMGMT_is_a(const EVP_KEYMGMT *keymgmt, const char *name)
 {
     return evp_is_a(keymgmt->prov, keymgmt->name_id, NULL, name);
 }
 
-void EVP_KEYMGMT_do_all_provided(OPENSSL_CTX *libctx,
+void EVP_KEYMGMT_do_all_provided(OSSL_LIB_CTX *libctx,
                                  void (*fn)(EVP_KEYMGMT *keymgmt, void *arg),
                                  void *arg)
 {
@@ -254,12 +269,14 @@ void EVP_KEYMGMT_do_all_provided(OPENSSL_CTX *libctx,
                        (void (*)(void *))EVP_KEYMGMT_free);
 }
 
-void EVP_KEYMGMT_names_do_all(const EVP_KEYMGMT *keymgmt,
-                              void (*fn)(const char *name, void *data),
-                              void *data)
+int EVP_KEYMGMT_names_do_all(const EVP_KEYMGMT *keymgmt,
+                             void (*fn)(const char *name, void *data),
+                             void *data)
 {
     if (keymgmt->prov != NULL)
-        evp_names_do_all(keymgmt->prov, keymgmt->name_id, fn, data);
+        return evp_names_do_all(keymgmt->prov, keymgmt->name_id, fn, data);
+
+    return 1;
 }
 
 /*
@@ -297,8 +314,15 @@ void *evp_keymgmt_gen_init(const EVP_KEYMGMT *keymgmt, int selection)
 int evp_keymgmt_gen_set_template(const EVP_KEYMGMT *keymgmt, void *genctx,
                                  void *template)
 {
+    /*
+     * It's arguable if we actually should return success in this case, as
+     * it allows the caller to set a template key, which is then ignored.
+     * However, this is how the legacy methods (EVP_PKEY_METHOD) operate,
+     * so we do this in the interest of backward compatibility.
+     * TODO(3.0) Investigate if we should change this behaviour.
+     */
     if (keymgmt->gen_set_template == NULL)
-        return 0;
+        return 1;
     return keymgmt->gen_set_template(genctx, template);
 }
 
@@ -310,13 +334,13 @@ int evp_keymgmt_gen_set_params(const EVP_KEYMGMT *keymgmt, void *genctx,
     return keymgmt->gen_set_params(genctx, params);
 }
 
-const OSSL_PARAM *evp_keymgmt_gen_settable_params(const EVP_KEYMGMT *keymgmt)
+const OSSL_PARAM *EVP_KEYMGMT_gen_settable_params(const EVP_KEYMGMT *keymgmt)
 {
     void *provctx = ossl_provider_ctx(EVP_KEYMGMT_provider(keymgmt));
 
     if (keymgmt->gen_settable_params == NULL)
         return NULL;
-    return keymgmt->gen_settable_params(provctx);
+    return keymgmt->gen_settable_params(NULL, provctx);
 }
 
 void *evp_keymgmt_gen(const EVP_KEYMGMT *keymgmt, void *genctx,
@@ -333,6 +357,14 @@ void evp_keymgmt_gen_cleanup(const EVP_KEYMGMT *keymgmt, void *genctx)
         keymgmt->gen_cleanup(genctx);
 }
 
+void *evp_keymgmt_load(const EVP_KEYMGMT *keymgmt,
+                       const void *objref, size_t objref_sz)
+{
+    if (keymgmt->load != NULL)
+        return keymgmt->load(objref, objref_sz);
+    return NULL;
+}
+
 int evp_keymgmt_get_params(const EVP_KEYMGMT *keymgmt, void *keydata,
                            OSSL_PARAM params[])
 {
@@ -341,11 +373,13 @@ int evp_keymgmt_get_params(const EVP_KEYMGMT *keymgmt, void *keydata,
     return keymgmt->get_params(keydata, params);
 }
 
-const OSSL_PARAM *evp_keymgmt_gettable_params(const EVP_KEYMGMT *keymgmt)
+const OSSL_PARAM *EVP_KEYMGMT_gettable_params(const EVP_KEYMGMT *keymgmt)
 {
+    void *provctx = ossl_provider_ctx(EVP_KEYMGMT_provider(keymgmt));
+
     if (keymgmt->gettable_params == NULL)
         return NULL;
-    return keymgmt->gettable_params();
+    return keymgmt->gettable_params(provctx);
 }
 
 int evp_keymgmt_set_params(const EVP_KEYMGMT *keymgmt, void *keydata,
@@ -356,11 +390,13 @@ int evp_keymgmt_set_params(const EVP_KEYMGMT *keymgmt, void *keydata,
     return keymgmt->set_params(keydata, params);
 }
 
-const OSSL_PARAM *evp_keymgmt_settable_params(const EVP_KEYMGMT *keymgmt)
+const OSSL_PARAM *EVP_KEYMGMT_settable_params(const EVP_KEYMGMT *keymgmt)
 {
+    void *provctx = ossl_provider_ctx(EVP_KEYMGMT_provider(keymgmt));
+
     if (keymgmt->settable_params == NULL)
         return NULL;
-    return keymgmt->settable_params();
+    return keymgmt->settable_params(provctx);
 }
 
 int evp_keymgmt_has(const EVP_KEYMGMT *keymgmt, void *keydata, int selection)
@@ -370,12 +406,12 @@ int evp_keymgmt_has(const EVP_KEYMGMT *keymgmt, void *keydata, int selection)
 }
 
 int evp_keymgmt_validate(const EVP_KEYMGMT *keymgmt, void *keydata,
-                         int selection)
+                         int selection, int checktype)
 {
     /* We assume valid if the implementation doesn't have a function */
     if (keymgmt->validate == NULL)
         return 1;
-    return keymgmt->validate(keydata, selection);
+    return keymgmt->validate(keydata, selection, checktype);
 }
 
 int evp_keymgmt_match(const EVP_KEYMGMT *keymgmt,

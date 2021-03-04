@@ -1,5 +1,5 @@
 /*
- * Copyright 2006-2016 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2006-2020 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -59,164 +59,164 @@ static void *evp_signature_from_dispatch(int name_id,
         case OSSL_FUNC_SIGNATURE_NEWCTX:
             if (signature->newctx != NULL)
                 break;
-            signature->newctx = OSSL_get_OP_signature_newctx(fns);
+            signature->newctx = OSSL_FUNC_signature_newctx(fns);
             ctxfncnt++;
             break;
         case OSSL_FUNC_SIGNATURE_SIGN_INIT:
             if (signature->sign_init != NULL)
                 break;
-            signature->sign_init = OSSL_get_OP_signature_sign_init(fns);
+            signature->sign_init = OSSL_FUNC_signature_sign_init(fns);
             signfncnt++;
             break;
         case OSSL_FUNC_SIGNATURE_SIGN:
             if (signature->sign != NULL)
                 break;
-            signature->sign = OSSL_get_OP_signature_sign(fns);
+            signature->sign = OSSL_FUNC_signature_sign(fns);
             signfncnt++;
             break;
         case OSSL_FUNC_SIGNATURE_VERIFY_INIT:
             if (signature->verify_init != NULL)
                 break;
-            signature->verify_init = OSSL_get_OP_signature_verify_init(fns);
+            signature->verify_init = OSSL_FUNC_signature_verify_init(fns);
             verifyfncnt++;
             break;
         case OSSL_FUNC_SIGNATURE_VERIFY:
             if (signature->verify != NULL)
                 break;
-            signature->verify = OSSL_get_OP_signature_verify(fns);
+            signature->verify = OSSL_FUNC_signature_verify(fns);
             verifyfncnt++;
             break;
         case OSSL_FUNC_SIGNATURE_VERIFY_RECOVER_INIT:
             if (signature->verify_recover_init != NULL)
                 break;
             signature->verify_recover_init
-                = OSSL_get_OP_signature_verify_recover_init(fns);
+                = OSSL_FUNC_signature_verify_recover_init(fns);
             verifyrecfncnt++;
             break;
         case OSSL_FUNC_SIGNATURE_VERIFY_RECOVER:
             if (signature->verify_recover != NULL)
                 break;
             signature->verify_recover
-                = OSSL_get_OP_signature_verify_recover(fns);
+                = OSSL_FUNC_signature_verify_recover(fns);
             verifyrecfncnt++;
             break;
         case OSSL_FUNC_SIGNATURE_DIGEST_SIGN_INIT:
             if (signature->digest_sign_init != NULL)
                 break;
             signature->digest_sign_init
-                = OSSL_get_OP_signature_digest_sign_init(fns);
+                = OSSL_FUNC_signature_digest_sign_init(fns);
             break;
         case OSSL_FUNC_SIGNATURE_DIGEST_SIGN_UPDATE:
             if (signature->digest_sign_update != NULL)
                 break;
             signature->digest_sign_update
-                = OSSL_get_OP_signature_digest_sign_update(fns);
+                = OSSL_FUNC_signature_digest_sign_update(fns);
             digsignfncnt++;
             break;
         case OSSL_FUNC_SIGNATURE_DIGEST_SIGN_FINAL:
             if (signature->digest_sign_final != NULL)
                 break;
             signature->digest_sign_final
-                = OSSL_get_OP_signature_digest_sign_final(fns);
+                = OSSL_FUNC_signature_digest_sign_final(fns);
             digsignfncnt++;
             break;
         case OSSL_FUNC_SIGNATURE_DIGEST_SIGN:
             if (signature->digest_sign != NULL)
                 break;
             signature->digest_sign
-                = OSSL_get_OP_signature_digest_sign(fns);
+                = OSSL_FUNC_signature_digest_sign(fns);
             break;
         case OSSL_FUNC_SIGNATURE_DIGEST_VERIFY_INIT:
             if (signature->digest_verify_init != NULL)
                 break;
             signature->digest_verify_init
-                = OSSL_get_OP_signature_digest_verify_init(fns);
+                = OSSL_FUNC_signature_digest_verify_init(fns);
             break;
         case OSSL_FUNC_SIGNATURE_DIGEST_VERIFY_UPDATE:
             if (signature->digest_verify_update != NULL)
                 break;
             signature->digest_verify_update
-                = OSSL_get_OP_signature_digest_verify_update(fns);
+                = OSSL_FUNC_signature_digest_verify_update(fns);
             digverifyfncnt++;
             break;
         case OSSL_FUNC_SIGNATURE_DIGEST_VERIFY_FINAL:
             if (signature->digest_verify_final != NULL)
                 break;
             signature->digest_verify_final
-                = OSSL_get_OP_signature_digest_verify_final(fns);
+                = OSSL_FUNC_signature_digest_verify_final(fns);
             digverifyfncnt++;
             break;
         case OSSL_FUNC_SIGNATURE_DIGEST_VERIFY:
             if (signature->digest_verify != NULL)
                 break;
             signature->digest_verify
-                = OSSL_get_OP_signature_digest_verify(fns);
+                = OSSL_FUNC_signature_digest_verify(fns);
             break;
         case OSSL_FUNC_SIGNATURE_FREECTX:
             if (signature->freectx != NULL)
                 break;
-            signature->freectx = OSSL_get_OP_signature_freectx(fns);
+            signature->freectx = OSSL_FUNC_signature_freectx(fns);
             ctxfncnt++;
             break;
         case OSSL_FUNC_SIGNATURE_DUPCTX:
             if (signature->dupctx != NULL)
                 break;
-            signature->dupctx = OSSL_get_OP_signature_dupctx(fns);
+            signature->dupctx = OSSL_FUNC_signature_dupctx(fns);
             break;
         case OSSL_FUNC_SIGNATURE_GET_CTX_PARAMS:
             if (signature->get_ctx_params != NULL)
                 break;
             signature->get_ctx_params
-                = OSSL_get_OP_signature_get_ctx_params(fns);
+                = OSSL_FUNC_signature_get_ctx_params(fns);
             gparamfncnt++;
             break;
         case OSSL_FUNC_SIGNATURE_GETTABLE_CTX_PARAMS:
             if (signature->gettable_ctx_params != NULL)
                 break;
             signature->gettable_ctx_params
-                = OSSL_get_OP_signature_gettable_ctx_params(fns);
+                = OSSL_FUNC_signature_gettable_ctx_params(fns);
             gparamfncnt++;
             break;
         case OSSL_FUNC_SIGNATURE_SET_CTX_PARAMS:
             if (signature->set_ctx_params != NULL)
                 break;
             signature->set_ctx_params
-                = OSSL_get_OP_signature_set_ctx_params(fns);
+                = OSSL_FUNC_signature_set_ctx_params(fns);
             sparamfncnt++;
             break;
         case OSSL_FUNC_SIGNATURE_SETTABLE_CTX_PARAMS:
             if (signature->settable_ctx_params != NULL)
                 break;
             signature->settable_ctx_params
-                = OSSL_get_OP_signature_settable_ctx_params(fns);
+                = OSSL_FUNC_signature_settable_ctx_params(fns);
             sparamfncnt++;
             break;
         case OSSL_FUNC_SIGNATURE_GET_CTX_MD_PARAMS:
             if (signature->get_ctx_md_params != NULL)
                 break;
             signature->get_ctx_md_params
-                = OSSL_get_OP_signature_get_ctx_md_params(fns);
+                = OSSL_FUNC_signature_get_ctx_md_params(fns);
             gmdparamfncnt++;
             break;
         case OSSL_FUNC_SIGNATURE_GETTABLE_CTX_MD_PARAMS:
             if (signature->gettable_ctx_md_params != NULL)
                 break;
             signature->gettable_ctx_md_params
-                = OSSL_get_OP_signature_gettable_ctx_md_params(fns);
+                = OSSL_FUNC_signature_gettable_ctx_md_params(fns);
             gmdparamfncnt++;
             break;
         case OSSL_FUNC_SIGNATURE_SET_CTX_MD_PARAMS:
             if (signature->set_ctx_md_params != NULL)
                 break;
             signature->set_ctx_md_params
-                = OSSL_get_OP_signature_set_ctx_md_params(fns);
+                = OSSL_FUNC_signature_set_ctx_md_params(fns);
             smdparamfncnt++;
             break;
         case OSSL_FUNC_SIGNATURE_SETTABLE_CTX_MD_PARAMS:
             if (signature->settable_ctx_md_params != NULL)
                 break;
             signature->settable_ctx_md_params
-                = OSSL_get_OP_signature_settable_ctx_md_params(fns);
+                = OSSL_FUNC_signature_settable_ctx_md_params(fns);
             smdparamfncnt++;
             break;
         }
@@ -298,7 +298,7 @@ OSSL_PROVIDER *EVP_SIGNATURE_provider(const EVP_SIGNATURE *signature)
     return signature->prov;
 }
 
-EVP_SIGNATURE *EVP_SIGNATURE_fetch(OPENSSL_CTX *ctx, const char *algorithm,
+EVP_SIGNATURE *EVP_SIGNATURE_fetch(OSSL_LIB_CTX *ctx, const char *algorithm,
                                    const char *properties)
 {
     return evp_generic_fetch(ctx, OSSL_OP_SIGNATURE, algorithm, properties,
@@ -317,7 +317,7 @@ int EVP_SIGNATURE_number(const EVP_SIGNATURE *signature)
     return signature->name_id;
 }
 
-void EVP_SIGNATURE_do_all_provided(OPENSSL_CTX *libctx,
+void EVP_SIGNATURE_do_all_provided(OSSL_LIB_CTX *libctx,
                                    void (*fn)(EVP_SIGNATURE *signature,
                                               void *arg),
                                    void *arg)
@@ -329,12 +329,36 @@ void EVP_SIGNATURE_do_all_provided(OPENSSL_CTX *libctx,
 }
 
 
-void EVP_SIGNATURE_names_do_all(const EVP_SIGNATURE *signature,
-                                void (*fn)(const char *name, void *data),
-                                void *data)
+int EVP_SIGNATURE_names_do_all(const EVP_SIGNATURE *signature,
+                               void (*fn)(const char *name, void *data),
+                               void *data)
 {
     if (signature->prov != NULL)
-        evp_names_do_all(signature->prov, signature->name_id, fn, data);
+        return evp_names_do_all(signature->prov, signature->name_id, fn, data);
+
+    return 1;
+}
+
+const OSSL_PARAM *EVP_SIGNATURE_gettable_ctx_params(const EVP_SIGNATURE *sig)
+{
+    void *provctx;
+
+    if (sig == NULL || sig->gettable_ctx_params == NULL)
+        return NULL;
+
+    provctx = ossl_provider_ctx(EVP_SIGNATURE_provider(sig));
+    return sig->gettable_ctx_params(NULL, provctx);
+}
+
+const OSSL_PARAM *EVP_SIGNATURE_settable_ctx_params(const EVP_SIGNATURE *sig)
+{
+    void *provctx;
+
+    if (sig == NULL || sig->settable_ctx_params == NULL)
+        return NULL;
+
+    provctx = ossl_provider_ctx(EVP_SIGNATURE_provider(sig));
+    return sig->settable_ctx_params(NULL, provctx);
 }
 
 static int evp_pkey_signature_init(EVP_PKEY_CTX *ctx, int operation)
@@ -346,7 +370,7 @@ static int evp_pkey_signature_init(EVP_PKEY_CTX *ctx, int operation)
     const char *supported_sig = NULL;
 
     if (ctx == NULL) {
-        EVPerr(0, EVP_R_OPERATION_NOT_SUPPORTED_FOR_THIS_KEYTYPE);
+        ERR_raise(ERR_LIB_EVP, EVP_R_OPERATION_NOT_SUPPORTED_FOR_THIS_KEYTYPE);
         return -2;
     }
 
@@ -359,7 +383,7 @@ static int evp_pkey_signature_init(EVP_PKEY_CTX *ctx, int operation)
      */
     ERR_set_mark();
 
-    if (ctx->keymgmt == NULL)
+    if (evp_pkey_ctx_is_legacy(ctx))
         goto legacy;
 
     /*
@@ -369,7 +393,7 @@ static int evp_pkey_signature_init(EVP_PKEY_CTX *ctx, int operation)
     tmp_keymgmt = ctx->keymgmt;
     provkey = evp_pkey_export_to_provider(ctx->pkey, ctx->libctx,
                                           &tmp_keymgmt, ctx->propquery);
-    if (provkey == NULL)
+    if (tmp_keymgmt == NULL)
         goto legacy;
     if (!EVP_KEYMGMT_up_ref(tmp_keymgmt)) {
         ERR_clear_last_mark();
@@ -417,17 +441,18 @@ static int evp_pkey_signature_init(EVP_PKEY_CTX *ctx, int operation)
     /* No more legacy from here down to legacy: */
 
     ctx->op.sig.signature = signature;
-    ctx->op.sig.sigprovctx = signature->newctx(ossl_provider_ctx(signature->prov));
+    ctx->op.sig.sigprovctx =
+        signature->newctx(ossl_provider_ctx(signature->prov), ctx->propquery);
     if (ctx->op.sig.sigprovctx == NULL) {
         /* The provider key can stay in the cache */
-        EVPerr(0, EVP_R_INITIALIZATION_ERROR);
+        ERR_raise(ERR_LIB_EVP, EVP_R_INITIALIZATION_ERROR);
         goto err;
     }
 
     switch (operation) {
     case EVP_PKEY_OP_SIGN:
         if (signature->sign_init == NULL) {
-            EVPerr(0, EVP_R_OPERATION_NOT_SUPPORTED_FOR_THIS_KEYTYPE);
+            ERR_raise(ERR_LIB_EVP, EVP_R_OPERATION_NOT_SUPPORTED_FOR_THIS_KEYTYPE);
             ret = -2;
             goto err;
         }
@@ -435,7 +460,7 @@ static int evp_pkey_signature_init(EVP_PKEY_CTX *ctx, int operation)
         break;
     case EVP_PKEY_OP_VERIFY:
         if (signature->verify_init == NULL) {
-            EVPerr(0, EVP_R_OPERATION_NOT_SUPPORTED_FOR_THIS_KEYTYPE);
+            ERR_raise(ERR_LIB_EVP, EVP_R_OPERATION_NOT_SUPPORTED_FOR_THIS_KEYTYPE);
             ret = -2;
             goto err;
         }
@@ -443,14 +468,14 @@ static int evp_pkey_signature_init(EVP_PKEY_CTX *ctx, int operation)
         break;
     case EVP_PKEY_OP_VERIFYRECOVER:
         if (signature->verify_recover_init == NULL) {
-            EVPerr(0, EVP_R_OPERATION_NOT_SUPPORTED_FOR_THIS_KEYTYPE);
+            ERR_raise(ERR_LIB_EVP, EVP_R_OPERATION_NOT_SUPPORTED_FOR_THIS_KEYTYPE);
             ret = -2;
             goto err;
         }
         ret = signature->verify_recover_init(ctx->op.sig.sigprovctx, provkey);
         break;
     default:
-        EVPerr(0, EVP_R_INITIALIZATION_ERROR);
+        ERR_raise(ERR_LIB_EVP, EVP_R_INITIALIZATION_ERROR);
         goto err;
     }
 
@@ -459,7 +484,7 @@ static int evp_pkey_signature_init(EVP_PKEY_CTX *ctx, int operation)
         ctx->op.sig.sigprovctx = NULL;
         goto err;
     }
-    return 1;
+    goto end;
 
  legacy:
     /*
@@ -474,7 +499,7 @@ static int evp_pkey_signature_init(EVP_PKEY_CTX *ctx, int operation)
             || (operation == EVP_PKEY_OP_VERIFY && ctx->pmeth->verify == NULL)
             || (operation == EVP_PKEY_OP_VERIFYRECOVER
                 && ctx->pmeth->verify_recover == NULL)) {
-        EVPerr(0, EVP_R_OPERATION_NOT_SUPPORTED_FOR_THIS_KEYTYPE);
+        ERR_raise(ERR_LIB_EVP, EVP_R_OPERATION_NOT_SUPPORTED_FOR_THIS_KEYTYPE);
         return -2;
     }
 
@@ -495,14 +520,20 @@ static int evp_pkey_signature_init(EVP_PKEY_CTX *ctx, int operation)
         ret = ctx->pmeth->verify_recover_init(ctx);
         break;
     default:
-        EVPerr(0, EVP_R_INITIALIZATION_ERROR);
+        ERR_raise(ERR_LIB_EVP, EVP_R_INITIALIZATION_ERROR);
         goto err;
     }
     if (ret <= 0)
         goto err;
-    return ret;
+ end:
+#ifndef FIPS_MODULE
+    if (ret > 0)
+        ret = evp_pkey_ctx_use_cached_data(ctx);
+#endif
 
+    return ret;
  err:
+    evp_pkey_ctx_free_old_ops(ctx);
     ctx->operation = EVP_PKEY_OP_UNDEFINED;
     return ret;
 }
@@ -519,12 +550,12 @@ int EVP_PKEY_sign(EVP_PKEY_CTX *ctx,
     int ret;
 
     if (ctx == NULL) {
-        EVPerr(0, EVP_R_OPERATION_NOT_SUPPORTED_FOR_THIS_KEYTYPE);
+        ERR_raise(ERR_LIB_EVP, EVP_R_OPERATION_NOT_SUPPORTED_FOR_THIS_KEYTYPE);
         return -2;
     }
 
     if (ctx->operation != EVP_PKEY_OP_SIGN) {
-        EVPerr(0, EVP_R_OPERATON_NOT_INITIALIZED);
+        ERR_raise(ERR_LIB_EVP, EVP_R_OPERATON_NOT_INITIALIZED);
         return -1;
     }
 
@@ -538,7 +569,7 @@ int EVP_PKEY_sign(EVP_PKEY_CTX *ctx,
  legacy:
 
     if (ctx->pmeth == NULL || ctx->pmeth->sign == NULL) {
-        EVPerr(0, EVP_R_OPERATION_NOT_SUPPORTED_FOR_THIS_KEYTYPE);
+        ERR_raise(ERR_LIB_EVP, EVP_R_OPERATION_NOT_SUPPORTED_FOR_THIS_KEYTYPE);
         return -2;
     }
 
@@ -558,12 +589,12 @@ int EVP_PKEY_verify(EVP_PKEY_CTX *ctx,
     int ret;
 
     if (ctx == NULL) {
-        EVPerr(0, EVP_R_OPERATION_NOT_SUPPORTED_FOR_THIS_KEYTYPE);
+        ERR_raise(ERR_LIB_EVP, EVP_R_OPERATION_NOT_SUPPORTED_FOR_THIS_KEYTYPE);
         return -2;
     }
 
     if (ctx->operation != EVP_PKEY_OP_VERIFY) {
-        EVPerr(0, EVP_R_OPERATON_NOT_INITIALIZED);
+        ERR_raise(ERR_LIB_EVP, EVP_R_OPERATON_NOT_INITIALIZED);
         return -1;
     }
 
@@ -576,7 +607,7 @@ int EVP_PKEY_verify(EVP_PKEY_CTX *ctx,
     return ret;
  legacy:
     if (ctx->pmeth == NULL || ctx->pmeth->verify == NULL) {
-        EVPerr(0, EVP_R_OPERATION_NOT_SUPPORTED_FOR_THIS_KEYTYPE);
+        ERR_raise(ERR_LIB_EVP, EVP_R_OPERATION_NOT_SUPPORTED_FOR_THIS_KEYTYPE);
         return -2;
     }
 
@@ -595,12 +626,12 @@ int EVP_PKEY_verify_recover(EVP_PKEY_CTX *ctx,
     int ret;
 
     if (ctx == NULL) {
-        EVPerr(0, EVP_R_OPERATION_NOT_SUPPORTED_FOR_THIS_KEYTYPE);
+        ERR_raise(ERR_LIB_EVP, EVP_R_OPERATION_NOT_SUPPORTED_FOR_THIS_KEYTYPE);
         return -2;
     }
 
     if (ctx->operation != EVP_PKEY_OP_VERIFYRECOVER) {
-        EVPerr(0, EVP_R_OPERATON_NOT_INITIALIZED);
+        ERR_raise(ERR_LIB_EVP, EVP_R_OPERATON_NOT_INITIALIZED);
         return -1;
     }
 
@@ -614,7 +645,7 @@ int EVP_PKEY_verify_recover(EVP_PKEY_CTX *ctx,
     return ret;
  legacy:
     if (ctx->pmeth == NULL || ctx->pmeth->verify_recover == NULL) {
-        EVPerr(0, EVP_R_OPERATION_NOT_SUPPORTED_FOR_THIS_KEYTYPE);
+        ERR_raise(ERR_LIB_EVP, EVP_R_OPERATION_NOT_SUPPORTED_FOR_THIS_KEYTYPE);
         return -2;
     }
     M_check_autoarg(ctx, rout, routlen, EVP_F_EVP_PKEY_VERIFY_RECOVER)

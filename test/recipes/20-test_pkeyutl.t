@@ -1,5 +1,5 @@
 #! /usr/bin/env perl
-# Copyright 2018 The OpenSSL Project Authors. All Rights Reserved.
+# Copyright 2018-2020 The OpenSSL Project Authors. All Rights Reserved.
 #
 # Licensed under the Apache License 2.0 (the "License").  You may not use
 # this file except in compliance with the License.  You can obtain a copy
@@ -16,7 +16,7 @@ use OpenSSL::Test::Utils;
 
 setup("test_pkeyutl");
 
-plan tests => 11;
+plan tests => 12;
 
 # For the tests below we use the cert itself as the TBS file
 
@@ -31,7 +31,8 @@ SKIP: {
                       '-out', 'sm2.sig', '-rawin',
                       '-digest', 'sm3', '-pkeyopt', 'distid:someid']))),
                       "Sign a piece of data using SM2");
-    ok_nofips(run(app(([ 'openssl', 'pkeyutl', '-verify', '-certin',
+    ok_nofips(run(app(([ 'openssl', 'pkeyutl',
+                      '-verify', '-certin',
                       '-in', srctop_file('test', 'certs', 'sm2.pem'),
                       '-inkey', srctop_file('test', 'certs', 'sm2.pem'),
                       '-sigfile', 'sm2.sig', '-rawin',
@@ -74,8 +75,8 @@ sub tsignverify {
     my $pubkey = shift;
     my @extraopts = @_;
 
-    my $data_to_sign = srctop_file('test', 'README');
-    my $other_data = srctop_file('test', 'README.external');
+    my $data_to_sign = srctop_file('test', 'data.bin');
+    my $other_data = srctop_file('test', 'data2.bin');
     my $sigfile = basename($privkey, '.pem') . '.sig';
 
     my @args = ();
@@ -123,6 +124,14 @@ SKIP: {
                     srctop_file("test","testrsa.pem"),
                     srctop_file("test","testrsapub.pem"),
                     "-rawin", "-digest", "sha256");
+    };
+
+    subtest "RSA CLI signature and verification with pkeyopt" => sub {
+        tsignverify("RSA",
+                    srctop_file("test","testrsa.pem"),
+                    srctop_file("test","testrsapub.pem"),
+                    "-rawin", "-digest", "sha256",
+                    "-pkeyopt", "rsa_padding_mode:pss");
     };
 }
 
