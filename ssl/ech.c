@@ -1239,7 +1239,7 @@ int SSL_CTX_ech_server_enable(SSL_CTX *ctx, const char *pemfile)
     /*
      * Load up the file content
      */
-    SSL_ECH *sechs;
+    SSL_ECH *sechs=NULL;
     int rv=ech_readpemfile(ctx,pemfile,&sechs);
     if (rv!=1) {
         return(rv);

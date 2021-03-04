@@ -29,7 +29,9 @@ DON'T TRY ECH YET!!! The very much work-in-progress code is
 sooooo awful still...
 
 - 20210304: rebased with upstream (many, many changes so testing needed!).
-Some new warnings about deprecation, not yet fixed.
+Some new warnings about deprecation, not yet fixed. Loading our PEM file
+seems broken as is HPKE for NIST curves, so stuff to fix. The client ECH
+stuff with 25519 seems ok though.
 
 - 20210301: fixed the use of ``hpke_enc_evp`` variant, and got
 rid of the ``hpke_enc_raw`` variant code (which exposes the

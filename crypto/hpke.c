@@ -744,7 +744,13 @@ int hpke_extract(
     if (EVP_PKEY_CTX_set1_hkdf_salt(pctx, salt, saltlen)!=1) {
         erv=__LINE__; goto err;
     }
+    /*
+     * get the right size set first - new in latest upstream
+     */
     size_t lsecretlen=*secretlen;
+    if (EVP_PKEY_derive(pctx, NULL, &lsecretlen)!=1) {
+        erv=__LINE__; goto err;
+    }
     if (EVP_PKEY_derive(pctx, secret, &lsecretlen)!=1) {
         erv=__LINE__; goto err;
     }
