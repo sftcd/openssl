@@ -2209,47 +2209,13 @@ int hpke_kg(
     if (!pub || !priv) return(__LINE__);
     int erv=1; /* Our error return value - 1 is success */
 
-    EVP_PKEY_CTX *pctx=NULL;
     EVP_PKEY *skR=NULL;
-    unsigned char *lpub=NULL;
     BIO *bfp=NULL;
 
-    /* step 1. generate sender's key pair */
-    if (hpke_kem_id_nist_curve(suite.kem_id)==1) {
-        pctx = EVP_PKEY_CTX_new_id(EVP_PKEY_EC, NULL);
-        if (pctx == NULL) {
-            erv=__LINE__; goto err;
-        }
-        if (1 != EVP_PKEY_paramgen_init(pctx)) {
-            erv=__LINE__; goto err;
-        }
-        if (1 != EVP_PKEY_CTX_set_ec_paramgen_curve_nid(pctx, hpke_kem_tab[suite.kem_id].groupid)) {
-            erv=__LINE__; goto err;
-        }
-    } else {
-        pctx = EVP_PKEY_CTX_new_id(hpke_kem_tab[suite.kem_id].groupid, NULL);
-        if (pctx == NULL) {
-            erv=__LINE__; goto err;
-        }
+    erv=hpke_kg_evp(mode,suite,publen,pub,&skR);
+    if (erv!=1) {
+        return(erv);
     }
-    if (EVP_PKEY_keygen_init(pctx) <= 0) {
-        erv=__LINE__; goto err;
-    }
-    if (EVP_PKEY_keygen(pctx, &skR) <= 0) {
-        erv=__LINE__; goto err;
-    }
-    EVP_PKEY_CTX_free(pctx); pctx=NULL;
-
-    size_t lpublen = EVP_PKEY_get1_tls_encodedpoint(skR,&lpub);
-    if (lpub==NULL || lpublen == 0) {
-        erv=__LINE__; goto err;
-    }
-    if (lpublen>*publen) {
-        erv=__LINE__; goto err;
-    }
-    *publen=lpublen;
-    memcpy(pub,lpub,lpublen);
-    OPENSSL_free(lpub);lpub=NULL;
 
     bfp=BIO_new(BIO_s_mem());
     if (!bfp) {
@@ -2272,8 +2238,6 @@ int hpke_kg(
 err:
 
     if (skR!=NULL) EVP_PKEY_free(skR);
-    if (pctx!=NULL) EVP_PKEY_CTX_free(pctx);
-    if (lpub!=NULL) OPENSSL_free(lpub);
     if (bfp!=NULL) BIO_free_all(bfp);
     return(erv);
 }
@@ -2284,7 +2248,7 @@ err:
  * @param suite is the ciphersuite 
  * @param publen is the size of the public key buffer (exact length on output)
  * @param pub is the public value
- * @param priv is the private key
+ * @param priv is the private key pointer
  * @return 1 for good (OpenSSL style), not-1 for error
  */
 int hpke_kg_evp(
@@ -2308,6 +2272,9 @@ int hpke_kg_evp(
         if (1 != EVP_PKEY_paramgen_init(pctx)) {
             erv=__LINE__; goto err;
         }
+        if (EVP_PKEY_keygen_init(pctx) <= 0) {
+            erv=__LINE__; goto err;
+        }
         if (1 != EVP_PKEY_CTX_set_ec_paramgen_curve_nid(pctx, hpke_kem_tab[suite.kem_id].groupid)) {
             erv=__LINE__; goto err;
         }
@@ -2316,11 +2283,11 @@ int hpke_kg_evp(
         if (pctx == NULL) {
             erv=__LINE__; goto err;
         }
+        if (EVP_PKEY_keygen_init(pctx) <= 0) {
+            erv=__LINE__; goto err;
+        }
     }
-    if (EVP_PKEY_keygen_init(pctx) <= 0) {
-        erv=__LINE__; goto err;
-    }
-    if (EVP_PKEY_keygen(pctx, &skR) <= 0) {
+    if (EVP_PKEY_gen(pctx, &skR) <= 0) {
         erv=__LINE__; goto err;
     }
     EVP_PKEY_CTX_free(pctx); pctx=NULL;

@@ -146,6 +146,76 @@ static int ech_check_filenames(SSL_CTX *ctx, const char *pemfname,int *index)
 }
 
 /**
+ * @brief Decode from TXT RR to binary buffer
+ *
+ * This is like ct_base64_decode from crypto/ct/ct_b64.c
+ * but a) isn't static and b) is extended to allow a set of 
+ * semi-colon separated strings as the input to handle
+ * multivalued RRs.
+ *
+ * Decodes the base64 string |in| into |out|.
+ * A new string will be malloc'd and assigned to |out|. This will be owned by
+ * the caller. Do not provide a pre-allocated string in |out|.
+ * The input is modified if multivalued (NULL bytes are added in 
+ * place of semi-colon separators.
+ *
+ * @param in is the base64 encoded string
+ * @param out is the binary equivalent
+ * @return is the number of octets in |out| if successful, <=0 for failure
+ */
+static int ech_base64_decode(char *in, unsigned char **out)
+{
+    const char* sepstr=";";
+    size_t inlen = strlen(in);
+    int i=0;
+    int outlen=0;
+    unsigned char *outbuf = NULL;
+    int overallfraglen=0;
+    if (out == NULL) {
+        return 0;
+    }
+    if (inlen == 0) {
+        *out = NULL;
+        return 0;
+    }
+    /*
+     * overestimate of space but easier than base64 finding padding right now
+     */
+    outbuf = OPENSSL_malloc(inlen);
+    if (outbuf == NULL) {
+        goto err;
+    }
+    char *inp=in;
+    unsigned char *outp=outbuf;
+    while (overallfraglen<inlen) {
+        /* find length of 1st b64 string */
+        int ofraglen=0;
+        int thisfraglen=strcspn(inp,sepstr);
+        inp[thisfraglen]='\0';
+        overallfraglen+=(thisfraglen+1);
+        ofraglen = EVP_DecodeBlock(outp, (unsigned char *)inp, thisfraglen);
+        if (ofraglen < 0) {
+            goto err;
+        }
+        /* Subtract padding bytes from |outlen|.  Any more than 2 is malformed. */
+        i = 0;
+        while (inp[thisfraglen-i-1] == '=') {
+            if (++i > 2) {
+                goto err;
+            }
+        }
+        outp+=(ofraglen-i);
+        outlen+=(ofraglen-i);
+        inp+=(thisfraglen+1);
+    }
+    *out = outbuf;
+    return outlen;
+err:
+    OPENSSL_free(outbuf);
+    return -1;
+}
+
+/**
  * @brief Read an ECHConfigs (better only have 1) and single private key from
  *
  * @param pemfile is the name of the file
@@ -155,6 +225,7 @@ static int ech_check_filenames(SSL_CTX *ctx, const char *pemfname,int *index)
  */
 static int ech_readpemfile(SSL_CTX *ctx, const char *pemfile, SSL_ECH **sechs)
 {
+    if (ctx==NULL || pemfile==NULL || sechs==NULL) return(0);
     /*
      * The file content should look as below. Note that as girhub barfs
      * if I provide an actual private key in PEM format, I've reversed
@@ -186,9 +257,31 @@ static int ech_readpemfile(SSL_CTX *ctx, const char *pemfile, SSL_ECH **sechs)
     if (BIO_read_filename(pem_in,pemfile)<=0) {
         goto err;
     }
+#define DO_PRIV_OURSELVES
+#ifdef DO_PRIV_OURSELVES
+    unsigned char prbuf[32];
+    size_t prbuf_len=32;
+    if (PEM_read_bio(pem_in,&pname,&pheader,&pdata,&plen)<=0) {
+        goto err;
+    }
+    if (!pheader) {
+        goto err;
+    }
+    if (strncmp(PEM_STRING_ECPRIVATEKEY,pheader,strlen(pheader))) {
+        goto err;
+    }
+    memcpy(prbuf,pdata+16,32);
+
+    if (pname!=NULL) { OPENSSL_free(pname);  pname=NULL; }
+    if (pheader!=NULL) { OPENSSL_free(pheader);  pheader=NULL;}
+    if (pname!=NULL) { OPENSSL_free(pname);  pname=NULL;}
+    if (pdata!=NULL) { OPENSSL_free(pdata);  pdata=NULL;}
+
+#else
     if (!PEM_read_bio_PrivateKey(pem_in,&priv,NULL,NULL)) {
         goto err;
     }
+#endif
     inbuf=OPENSSL_malloc(ECH_MAX_ECHCONFIG_LEN);
     if (inbuf==NULL) {
         goto err;
@@ -210,6 +303,7 @@ static int ech_readpemfile(SSL_CTX *ctx, const char *pemfile, SSL_ECH **sechs)
         goto err;
     }
     BIO_free(pem_in);
+    pem_in=NULL;
 
     /*
      * Now decode that ECHConfigs
@@ -219,6 +313,30 @@ static int ech_readpemfile(SSL_CTX *ctx, const char *pemfile, SSL_ECH **sechs)
     if (rv!=1) {
         goto err;
     }
+
+#ifdef DO_PRIV_OURSELVES
+    /*
+     * Map the prbuf to an EVP_PKEY
+     * We only support one private-key/ECHConfig pair per file and they
+     * need to match for now.
+     */
+    if (num_echs>1) {
+        goto err;
+    }
+    SSL_ECH *se=*sechs;
+    if (se==NULL) {
+        goto err;
+    }
+    if (se->cfg->nrecs!=1) {
+        goto err;
+    }
+    unsigned int kem_id=se->cfg->recs[0].kem_id;
+    priv=EVP_PKEY_new_raw_private_key(EVP_PKEY_X25519,NULL,prbuf,prbuf_len);
+    if (!priv) {
+        goto err;
+    }
+    
+#endif
 
     (*sechs)->pemfname=OPENSSL_strdup(pemfile);
     (*sechs)->loadtime=time(0);
@@ -233,6 +351,7 @@ static int ech_readpemfile(SSL_CTX *ctx, const char *pemfile, SSL_ECH **sechs)
 err:
     if (priv!=NULL) EVP_PKEY_free(priv);
     if (inbuf!=NULL) OPENSSL_free(inbuf);
+    if (prbuf!=NULL) OPENSSL_free(prbuf);
     if (pheader!=NULL) OPENSSL_free(pheader); 
     if (pname!=NULL) OPENSSL_free(pname); 
     if (pdata!=NULL) OPENSSL_free(pdata); 
@@ -273,85 +392,6 @@ static int ech_guess_fmt(size_t eklen,
     return(1);
 } 
 
-
-/**
- * @brief Decode from TXT RR to binary buffer
- *
- * This is like ct_base64_decode from crypto/ct/ct_b64.c
- * but a) isn't static and b) is extended to allow a set of 
- * semi-colon separated strings as the input to handle
- * multivalued RRs.
- *
- * Decodes the base64 string |in| into |out|.
- * A new string will be malloc'd and assigned to |out|. This will be owned by
- * the caller. Do not provide a pre-allocated string in |out|.
- * The input is modified if multivalued (NULL bytes are added in 
- * place of semi-colon separators.
- *
- * @param in is the base64 encoded string
- * @param out is the binary equivalent
- * @return is the number of octets in |out| if successful, <=0 for failure
- */
-static int ech_base64_decode(char *in, unsigned char **out)
-{
-    const char* sepstr=";";
-    size_t inlen = strlen(in);
-    int i=0;
-    int outlen=0;
-    unsigned char *outbuf = NULL;
-    int overallfraglen=0;
-
-    if (out == NULL) {
-        return 0;
-    }
-    if (inlen == 0) {
-        *out = NULL;
-        return 0;
-    }
-
-    /*
-     * overestimate of space but easier than base64 finding padding right now
-     */
-    outbuf = OPENSSL_malloc(inlen);
-    if (outbuf == NULL) {
-        goto err;
-    }
-
-    char *inp=in;
-    unsigned char *outp=outbuf;
-
-    while (overallfraglen<inlen) {
-
-        /* find length of 1st b64 string */
-        int ofraglen=0;
-        int thisfraglen=strcspn(inp,sepstr);
-        inp[thisfraglen]='\0';
-        overallfraglen+=(thisfraglen+1);
-
-        ofraglen = EVP_DecodeBlock(outp, (unsigned char *)inp, thisfraglen);
-        if (ofraglen < 0) {
-            goto err;
-        }
-
-        /* Subtract padding bytes from |outlen|.  Any more than 2 is malformed. */
-        i = 0;
-        while (inp[thisfraglen-i-1] == '=') {
-            if (++i > 2) {
-                goto err;
-            }
-        }
-        outp+=(ofraglen-i);
-        outlen+=(ofraglen-i);
-        inp+=(thisfraglen+1);
-
-    }
-
-    *out = outbuf;
-    return outlen;
-err:
-    OPENSSL_free(outbuf);
-    return -1;
-}
 
 
 /**
