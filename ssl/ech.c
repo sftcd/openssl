@@ -2420,8 +2420,11 @@ int ech_reset_hs_buffer(SSL *s, unsigned char *buf, size_t blen)
     /*
      * On the off-chance it'll work we'll reset the handshake_buffer
      */
-    (void)BIO_set_close(s->s3.handshake_buffer, BIO_CLOSE);
-    BIO_free(s->s3.handshake_buffer);
+    if (s->s3.handshake_buffer) {
+        (void)BIO_set_close(s->s3.handshake_buffer, BIO_CLOSE);
+        BIO_free(s->s3.handshake_buffer);
+        s->s3.handshake_buffer=NULL;
+    }
     EVP_MD_CTX_free(s->s3.handshake_dgst);
     s->s3.handshake_dgst=NULL;
     s->s3.handshake_buffer = BIO_new(BIO_s_mem());

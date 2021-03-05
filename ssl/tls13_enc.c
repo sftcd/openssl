@@ -60,8 +60,10 @@ static void ptranscript(const char *msg, SSL *s)
 {
     size_t hdatalen=0;
     unsigned char *hdata=NULL;
-    hdatalen = BIO_get_mem_data(s->s3.handshake_buffer, &hdata);
-    pbuf(msg,hdata,hdatalen);
+    if (s->s3.handshake_buffer) {
+        hdatalen = BIO_get_mem_data(s->s3.handshake_buffer, &hdata);
+        pbuf(msg,hdata,hdatalen);
+    }
     return;
 }
 #endif

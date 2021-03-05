@@ -28,11 +28,9 @@ Most recent first...
 DON'T TRY ECH YET!!! The very much work-in-progress code is
 sooooo awful still...
 
-- 20210304: rebased with upstream (many, many changes so testing needed!).
+- 20210305: rebased with upstream (many, many changes so testing needed!).
 Some new warnings about deprecation, not yet fixed. Loading our PEM file
-broken for now so stuff to fix. The client ECH stuff with 25519 seems ok though
-there's an error thrown on the server at the end. So getting there, but
-not there yet. 
+was broken - currently hacked around that. The client ECH stuff with 25519 seems ok.
 
 - 20210301: fixed the use of ``hpke_enc_evp`` variant, and got
 rid of the ``hpke_enc_raw`` variant code (which exposes the
