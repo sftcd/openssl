@@ -46,8 +46,6 @@
  */
 #undef SUPERVERBOSE
 
-#define USEBUF2EVP
-
 #if defined(SUPERVERBOSE) || defined(TESTVECTORS)
 unsigned char *pbuf; ///< global var for debug printing
 size_t pblen=1024; ///< global var for debug printing
@@ -1449,18 +1447,9 @@ static int hpke_enc_int(
             if (1!=hpke_ah_decode(strlen(ltv->skEm),ltv->skEm,&bin_skElen,&bin_skE)) { 
                 erv=__LINE__; goto err; 
             }
-#ifdef USEBUF2EVP
             if (hpke_prbuf2evp(ltv->kem_id,bin_skE,bin_skElen,&pkE)!=1) {
                 erv=__LINE__; goto err; 
             }
-#else
-            if (hpke_kem_id_nist_curve(ltv->kem_id)==1) {
-                pkE = hpke_EVP_PKEY_new_raw_nist_private_key(hpke_kem_tab[ltv->kem_id].groupid,bin_skE,bin_skElen);
-            } else {
-                pkE = EVP_PKEY_new_raw_private_key(hpke_kem_tab[ltv->kem_id].groupid,NULL,bin_skE,bin_skElen);
-            }
-            if (!pkE) { erv=__LINE__; goto err; }
-#endif
             OPENSSL_free(bin_skE);
 
         } else  
@@ -1475,33 +1464,9 @@ static int hpke_enc_int(
 
     } else if (rawcaller) {
 
-#ifdef USEBUF2EVP
         if (hpke_prbuf2evp(suite.kem_id,rawsenderpriv,rawsenderprivlen,&pkE)!=1) {
             erv=__LINE__; goto err; 
         }
-#else
-        if (hpke_kem_tab[suite.kem_id].Npriv==rawsenderprivlen) {
-            if (hpke_kem_id_nist_curve(suite.kem_id)==1) {
-                pkE = hpke_EVP_PKEY_new_raw_nist_private_key(hpke_kem_tab[suite.kem_id].groupid,rawsenderpriv,rawsenderprivlen);
-            } else {
-                pkE=EVP_PKEY_new_raw_private_key(hpke_kem_tab[suite.kem_id].groupid,NULL,rawsenderpriv,rawsenderprivlen);
-            }
-        }
-        if (!pkE) {
-            /* check PEM decode - that might work :-) */
-            bfp=BIO_new(BIO_s_mem());
-            if (!bfp) {
-                erv=__LINE__; goto err;
-            }
-            BIO_write(bfp,rawsenderpriv,rawsenderprivlen);
-            if (!PEM_read_bio_PrivateKey(bfp,&pkE,NULL,NULL)) {
-                erv=__LINE__; goto err;
-            }
-            if (bfp!=NULL) {
-                BIO_free_all(bfp); bfp=NULL;
-            }
-        }
-#endif
         if (!pkE) { erv=__LINE__; goto err; }
 
     }
@@ -2424,6 +2389,7 @@ int hpke_prbuf2evp(
 
         if (!lpriv) {
             // if we're not done, maybe prepend/append PEM header/footer and try again
+            // TODO: re=-use PEM defined symbols from elsewhere
             unsigned char hf_prbuf[HPKE_MAXSIZE];
             size_t hf_prbuf_len=0;
 #define PEM_PRIVATEHEADER "-----BEGIN PRIVATE KEY-----\n"
