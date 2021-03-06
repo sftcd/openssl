@@ -30,7 +30,7 @@ sooooo awful still...
 
 - 20210305: rebased with upstream (many, many changes so testing needed!).
 Some new warnings about deprecation, not yet fixed. Loading our PEM file
-was broken - currently hacked around that. The client ECH stuff with 25519 seems ok.
+was broken so added a new HPKE API to handle that better.
 
 - 20210301: fixed the use of ``hpke_enc_evp`` variant, and got
 rid of the ``hpke_enc_raw`` variant code (which exposes the

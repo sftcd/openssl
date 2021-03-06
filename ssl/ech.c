@@ -257,10 +257,8 @@ static int ech_readpemfile(SSL_CTX *ctx, const char *pemfile, SSL_ECH **sechs)
     if (BIO_read_filename(pem_in,pemfile)<=0) {
         goto err;
     }
-#define DO_PRIV_OURSELVES
-#ifdef DO_PRIV_OURSELVES
-    unsigned char prbuf[32];
-    size_t prbuf_len=32;
+    unsigned char prbuf[HPKE_MAXSIZE];
+    size_t prbuf_len=HPKE_MAXSIZE;
     if (PEM_read_bio(pem_in,&pname,&pheader,&pdata,&plen)<=0) {
         goto err;
     }
@@ -270,18 +268,14 @@ static int ech_readpemfile(SSL_CTX *ctx, const char *pemfile, SSL_ECH **sechs)
     if (strncmp(PEM_STRING_ECPRIVATEKEY,pheader,strlen(pheader))) {
         goto err;
     }
-    memcpy(prbuf,pdata+16,32);
+    prbuf_len=plen;
+    memcpy(prbuf,pdata,plen);
 
     if (pname!=NULL) { OPENSSL_free(pname);  pname=NULL; }
     if (pheader!=NULL) { OPENSSL_free(pheader);  pheader=NULL;}
     if (pname!=NULL) { OPENSSL_free(pname);  pname=NULL;}
     if (pdata!=NULL) { OPENSSL_free(pdata);  pdata=NULL;}
 
-#else
-    if (!PEM_read_bio_PrivateKey(pem_in,&priv,NULL,NULL)) {
-        goto err;
-    }
-#endif
     inbuf=OPENSSL_malloc(ECH_MAX_ECHCONFIG_LEN);
     if (inbuf==NULL) {
         goto err;
@@ -314,7 +308,6 @@ static int ech_readpemfile(SSL_CTX *ctx, const char *pemfile, SSL_ECH **sechs)
         goto err;
     }
 
-#ifdef DO_PRIV_OURSELVES
     /*
      * Map the prbuf to an EVP_PKEY
      * We only support one private-key/ECHConfig pair per file and they
@@ -331,13 +324,13 @@ static int ech_readpemfile(SSL_CTX *ctx, const char *pemfile, SSL_ECH **sechs)
         goto err;
     }
     unsigned int kem_id=se->cfg->recs[0].kem_id;
-    priv=EVP_PKEY_new_raw_private_key(EVP_PKEY_X25519,NULL,prbuf,prbuf_len);
+    if (hpke_prbuf2evp(kem_id,prbuf,prbuf_len,&priv)!=1) {
+        goto err;
+    }
     if (!priv) {
         goto err;
     }
     
-#endif
-
     (*sechs)->pemfname=OPENSSL_strdup(pemfile);
     (*sechs)->loadtime=time(0);
     (*sechs)->keyshare=priv;

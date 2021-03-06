@@ -379,5 +379,25 @@ int hpke_expand(const hpke_suite_t suite, const int mode5869,
                 const uint32_t L,
                 unsigned char *out, size_t *outlen);
 
+/*!
+ * brief: map a kem_id and a private key buffer into an EVP_PKEY
+ *
+ * @param kem_id is what'd you'd expect (using the HPKE registry values)
+ * @param prbuf is the private key buffer
+ * @param prbuf_len is the length of that buffer
+ * @param priv is a pointer to an EVP_PKEY * for the result
+ * @return 1 for success, otherwise failure
+ *
+ * Note that the buffer is expected to be some form of the PEM encoded
+ * private key, but could still have the PEM header or not, and might
+ * or might not be base64 encoded. We'll try handle all those options.
+ */
+int hpke_prbuf2evp(
+        unsigned int kem_id,
+        unsigned char *prbuf,
+        size_t prbuf_len,
+        EVP_PKEY **priv);
+
+
 #endif
 

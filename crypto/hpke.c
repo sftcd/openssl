@@ -46,6 +46,8 @@
  */
 #undef SUPERVERBOSE
 
+#define USEBUF2EVP
+
 #if defined(SUPERVERBOSE) || defined(TESTVECTORS)
 unsigned char *pbuf; ///< global var for debug printing
 size_t pblen=1024; ///< global var for debug printing
@@ -1447,12 +1449,18 @@ static int hpke_enc_int(
             if (1!=hpke_ah_decode(strlen(ltv->skEm),ltv->skEm,&bin_skElen,&bin_skE)) { 
                 erv=__LINE__; goto err; 
             }
+#ifdef USEBUF2EVP
+            if (hpke_prbuf2evp(ltv->kem_id,bin_skE,bin_skElen,&pkE)!=1) {
+                erv=__LINE__; goto err; 
+            }
+#else
             if (hpke_kem_id_nist_curve(ltv->kem_id)==1) {
                 pkE = hpke_EVP_PKEY_new_raw_nist_private_key(hpke_kem_tab[ltv->kem_id].groupid,bin_skE,bin_skElen);
             } else {
                 pkE = EVP_PKEY_new_raw_private_key(hpke_kem_tab[ltv->kem_id].groupid,NULL,bin_skE,bin_skElen);
             }
             if (!pkE) { erv=__LINE__; goto err; }
+#endif
             OPENSSL_free(bin_skE);
 
         } else  
@@ -1467,6 +1475,11 @@ static int hpke_enc_int(
 
     } else if (rawcaller) {
 
+#ifdef USEBUF2EVP
+        if (hpke_prbuf2evp(suite.kem_id,rawsenderpriv,rawsenderprivlen,&pkE)!=1) {
+            erv=__LINE__; goto err; 
+        }
+#else
         if (hpke_kem_tab[suite.kem_id].Npriv==rawsenderprivlen) {
             if (hpke_kem_id_nist_curve(suite.kem_id)==1) {
                 pkE = hpke_EVP_PKEY_new_raw_nist_private_key(hpke_kem_tab[suite.kem_id].groupid,rawsenderpriv,rawsenderprivlen);
@@ -1488,13 +1501,8 @@ static int hpke_enc_int(
                 BIO_free_all(bfp); bfp=NULL;
             }
         }
-
-        if (!pkE) { erv=__LINE__; goto err; }
-#if 0
-        if (EVP_PKEY_set1_tls_encodedpoint(pkE,extsenderpub,extsenderpublen)!=1) {
-            erv=__LINE__; goto err;
-        }
 #endif
+        if (!pkE) { erv=__LINE__; goto err; }
 
     }
 
@@ -2362,6 +2370,87 @@ int hpke_suite_check(hpke_suite_t suite)
     }
 
     if (kem_ok==1 && kdf_ok==1 && aead_ok==1) return(1);
-    return(0);
+    return(__LINE__);
 }
+
+/*!
+ * brief: map a kem_id and a private key buffer into an EVP_PKEY
+ *
+ * @param kem_id is what'd you'd expect (using the HPKE registry values)
+ * @param prbuf is the private key buffer
+ * @param prbuf_len is the length of that buffer
+ * @param priv is a pointer to an EVP_PKEY * for the result
+ * @return 1 for success, otherwise failure
+ *
+ * Note that the buffer is expected to be some form of the PEM encoded
+ * private key, but could still have the PEM header or not, and might
+ * or might not be base64 encoded. We'll try handle all those options.
+ */
+int hpke_prbuf2evp(
+        unsigned int kem_id,
+        unsigned char *prbuf,
+        size_t prbuf_len,
+        EVP_PKEY **priv)
+{
+#if defined(SUPERVERBOSE) || defined(TESTVECTORS)
+    hpke_pbuf(stdout,"hpke_prbuf2evp input",prbuf,prbuf_len);
+#endif
+    EVP_PKEY *lpriv=NULL;
+    if (prbuf==NULL || prbuf_len==0 || priv==NULL) {
+        return __LINE__;
+    }
+    if (hpke_kem_id_check(kem_id)!=1) return(__LINE__);
+    if (hpke_kem_tab[kem_id].Npriv==prbuf_len) {
+        if (hpke_kem_id_nist_curve(kem_id)==1) {
+            lpriv = hpke_EVP_PKEY_new_raw_nist_private_key(hpke_kem_tab[kem_id].groupid,prbuf,prbuf_len);
+        } else {
+            lpriv=EVP_PKEY_new_raw_private_key(hpke_kem_tab[kem_id].groupid,NULL,prbuf,prbuf_len);
+        }
+    }
+    if (!lpriv) {
+        /* check PEM decode - that might work :-) */
+        BIO *bfp=BIO_new(BIO_s_mem());
+        if (!bfp) {
+            return(__LINE__);
+        }
+        BIO_write(bfp,prbuf,prbuf_len);
+        if (!PEM_read_bio_PrivateKey(bfp,&lpriv,NULL,NULL)) {
+            BIO_free_all(bfp); bfp=NULL;
+            return(__LINE__);
+        }
+        if (bfp!=NULL) {
+            BIO_free_all(bfp); bfp=NULL;
+        }
+
+        if (!lpriv) {
+            // if we're not done, maybe prepend/append PEM header/footer and try again
+            unsigned char hf_prbuf[HPKE_MAXSIZE];
+            size_t hf_prbuf_len=0;
+#define PEM_PRIVATEHEADER "-----BEGIN PRIVATE KEY-----\n"
+#define PEM_PRIVATEFOOTER "\n-----END PRIVATE KEY-----\n"
+            memcpy(hf_prbuf,PEM_PRIVATEHEADER,strlen(PEM_PRIVATEHEADER)); hf_prbuf_len+=strlen(PEM_PRIVATEHEADER);
+            memcpy(hf_prbuf+hf_prbuf_len,prbuf,prbuf_len); hf_prbuf_len+=prbuf_len;
+            memcpy(hf_prbuf+hf_prbuf_len,PEM_PRIVATEFOOTER,strlen(PEM_PRIVATEFOOTER)); hf_prbuf_len+=strlen(PEM_PRIVATEFOOTER);
+            bfp=BIO_new(BIO_s_mem());
+            if (!bfp) {
+                return(__LINE__);
+            }
+            BIO_write(bfp,hf_prbuf,hf_prbuf_len);
+            if (!PEM_read_bio_PrivateKey(bfp,&lpriv,NULL,NULL)) {
+                BIO_free_all(bfp); bfp=NULL;
+                return(__LINE__);
+            }
+            if (bfp!=NULL) {
+                BIO_free_all(bfp); bfp=NULL;
+            }
+        }
+    }
+    if (!lpriv) return(__LINE__); 
+    *priv=lpriv;
+#if defined(SUPERVERBOSE) || defined(TESTVECTORS)
+    printf("hpke_prbuf2evp success\n");
+#endif
+    return(1);
+}
+
 

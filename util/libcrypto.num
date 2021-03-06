@@ -4989,6 +4989,7 @@ hpke_extract                            ?	3_0_0	EXIST::FUNCTION:
 hpke_expand                             ?	3_0_0	EXIST::FUNCTION:
 hpke_ah_decode                          ?	3_0_0	EXIST::FUNCTION:
 hpke_suite_check                        ?	3_0_0	EXIST::FUNCTION:
+hpke_prbuf2evp                          ?	3_0_0	EXIST::FUNCTION:
 SRP_create_verifier_ex                  ?	3_0_0	EXIST::FUNCTION:DEPRECATEDIN_3_0,SRP
 SRP_create_verifier_BN_ex               ?	3_0_0	EXIST::FUNCTION:DEPRECATEDIN_3_0,SRP
 SRP_Calc_B_ex                           ?	3_0_0	EXIST::FUNCTION:DEPRECATEDIN_3_0,SRP
