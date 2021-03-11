@@ -385,6 +385,8 @@ int hpke_expand(const hpke_suite_t suite, const int mode5869,
  * @param kem_id is what'd you'd expect (using the HPKE registry values)
  * @param prbuf is the private key buffer
  * @param prbuf_len is the length of that buffer
+ * @param pubuf is the public key buffer (if available)
+ * @param pubuf_len is the length of that buffer
  * @param priv is a pointer to an EVP_PKEY * for the result
  * @return 1 for success, otherwise failure
  *
@@ -396,6 +398,8 @@ int hpke_prbuf2evp(
         unsigned int kem_id,
         unsigned char *prbuf,
         size_t prbuf_len,
+        unsigned char *pubuf,
+        size_t pubuf_len,
         EVP_PKEY **priv);
 
 

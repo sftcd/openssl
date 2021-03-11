@@ -324,7 +324,7 @@ static int ech_readpemfile(SSL_CTX *ctx, const char *pemfile, SSL_ECH **sechs)
         goto err;
     }
     unsigned int kem_id=se->cfg->recs[0].kem_id;
-    if (hpke_prbuf2evp(kem_id,prbuf,prbuf_len,&priv)!=1) {
+    if (hpke_prbuf2evp(kem_id,prbuf,prbuf_len,NULL,0,&priv)!=1) {
         goto err;
     }
     if (!priv) {

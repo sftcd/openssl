@@ -28,6 +28,9 @@ Most recent first...
 DON'T TRY ECH YET!!! The very much work-in-progress code is
 sooooo awful still...
 
+- 20210310: updated HPKE/happykey code to match latest upstream OpenSSL
+(but HPKE/draft-07 is still the default build here for now)
+
 - 20210305: rebased with upstream (many, many changes so testing needed!).
 Some new warnings about deprecation, not yet fixed. Loading our PEM file
 was broken so added a new HPKE API to handle that better.
