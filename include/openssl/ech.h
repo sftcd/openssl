@@ -47,7 +47,8 @@
 //#define ECH_GREASE_VERSION 0xffff ///< Fake ECHKeys version to indicate grease
 //#define ECH_DRAFT_07_VERSION 0xff07 ///< ECHConfig version from draft-07
 //#define ECH_DRAFT_08_VERSION 0xff08 ///< ECHConfig version from draft-08
-#define ECH_DRAFT_09_VERSION 0xfe09 ///< ECHConfig version from draft-08
+#define ECH_DRAFT_09_VERSION 0xfe09 ///< ECHConfig version from draft-09
+#define ECH_DRAFT_10_VERSION 0xfe0a ///< ECHConfig version from draft-10
 
 /* 
  * the wire-format code for ECH within an SVCB or HTTPS RData

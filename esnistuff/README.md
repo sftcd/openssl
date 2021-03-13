@@ -28,6 +28,10 @@ Most recent first...
 DON'T TRY ECH YET!!! The very much work-in-progress code is
 sooooo awful still...
 
+- 20210312: started to code up draft-10, first  by adding more 
+options for the ``openssl ech`` command so we can do more tests
+as we go.
+
 - 20210310: updated HPKE/happykey code to match latest upstream OpenSSL
 (but HPKE/draft-07 is still the default build here for now)
 
