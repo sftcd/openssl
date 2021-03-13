@@ -101,9 +101,10 @@ static uint16_t verstr2us(char *arg)
  * @param hpke_suite is the hpke_suite_t result
  * @return 1 for success something else otherwise
  */
-static int suitestr2suite(char *instr, hpke_suite_t hpke_suite)
+static int suitestr2suite(char *instr, hpke_suite_t *hpke_suite)
 {
     if (!instr) return(0);
+    if (!hpke_suite) return(0);
     if (strlen(instr)>ECH_MAXSUITESTR) return(0);
     char *suitestr=OPENSSL_strdup(instr);
     uint16_t kem=0,kdf=0,aead=0;
@@ -147,9 +148,9 @@ static int suitestr2suite(char *instr, hpke_suite_t hpke_suite)
     }
     OPENSSL_free(suitestr);
     if (kem==0||kdf==0||aead==0) return(0);
-    hpke_suite.kem_id=kem;
-    hpke_suite.kdf_id=kdf;
-    hpke_suite.aead_id=aead;
+    hpke_suite->kem_id=kem;
+    hpke_suite->kdf_id=kdf;
+    hpke_suite->aead_id=aead;
     return 1;
 }
 
@@ -444,7 +445,7 @@ int ech_main(int argc, char **argv)
     }
 
     if (suitestr!=NULL) {
-        if (suitestr2suite(suitestr,hpke_suite)!=1) {
+        if (suitestr2suite(suitestr,&hpke_suite)!=1) {
             BIO_printf(bio_err, "Bad HPKE_SUITE (%s)\n",suitestr);
             ERR_print_errors(bio_err);
             goto end;
