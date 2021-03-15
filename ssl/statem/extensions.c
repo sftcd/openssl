@@ -700,6 +700,9 @@ int tls_collect_extensions(SSL *s, PACKET *packet, unsigned int context,
                 && !((context & SSL_EXT_TLS1_2_SERVER_HELLO) != 0
                      && type == TLSEXT_TYPE_cryptopro_bug)
 #endif
+#ifndef OPENSSL_NO_ECH
+                && (type==TLSEXT_TYPE_ech && !s->ext.ech_attempted)
+#endif
                                                                 ) {
             SSLfatal(s, SSL_AD_UNSUPPORTED_EXTENSION,
                      SSL_R_UNSOLICITED_EXTENSION);
@@ -725,6 +728,8 @@ int tls_collect_extensions(SSL *s, PACKET *packet, unsigned int context,
          * be called once. The application could do all sorts of
          * things that are expensive, e.g. a DB lookup, or that
          * have side-effects and can't be done twice.
+         *
+         * See above - this may be defunct
          */
         if (type==TLSEXT_TYPE_ech) {
             s->ext.ech_attempted=1;

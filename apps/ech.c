@@ -466,6 +466,8 @@ int ech_main(int argc, char **argv)
             ERR_print_errors(bio_err);
             goto end;
         }
+    } else {
+        extlen=0;
     }
 
     /*

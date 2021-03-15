@@ -1330,6 +1330,8 @@ int tls_construct_client_hello(SSL *s, WPACKET *pkt)
         goto err;
     }
 
+    s->ext.ech_attempted=1;
+
     /*
      * Free up raw exts as needed (happens like this on real server
      */
@@ -1674,6 +1676,10 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL *s, PACKET *pkt)
          * Try process inner - if it fails to match the SH.random after processing, we'll
          * have to come back and try outer
          */
+        if (!s->ext.inner_s) {
+            SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_LENGTH_MISMATCH);
+            goto err;
+        }
         inner=*s->ext.inner_s;
         *s=inner;
         trying_inner=1;
@@ -1993,6 +1999,7 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL *s, PACKET *pkt)
         }
         if (memcmp(s->s3.server_random+SSL3_RANDOM_SIZE-8,acbuf,8)==0) {
             s->ext.ech_success=1;
+            // TODO: remove this and find another way for the test script to check
             printf("Yay - it's an inny ServerHello - swaperoo time\n");
             fflush(stdout);
 
@@ -2028,10 +2035,13 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL *s, PACKET *pkt)
              * Fallback to trying outer
              * More HACK HACK
              */
+            *s=outer;
+            SSL_free(s->ext.inner_s); // may as well free now
+            s->ext.inner_s=NULL;
+            s->ext.ech_grease=1;
+            s->ext.ech_done=1;
             pkt->remaining=shlen;
             pkt->curr=shbuf;
-            *s=outer;
-            s->ext.ech_grease=1;
             return tls_process_server_hello(s, pkt);
         }
     }

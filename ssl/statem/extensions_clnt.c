@@ -2625,6 +2625,7 @@ EXT_RETURN tls_construct_ctos_ech(SSL *s, WPACKET *pkt, unsigned int context,
         if (SSL_ech_send_grease(s,pkt,context,x,chainidx)!=1) {
             return EXT_RETURN_NOT_SENT;
         }
+        s->ext.ech_attempted=1;
         return EXT_RETURN_SENT;
     }
     if (!s->ech) {

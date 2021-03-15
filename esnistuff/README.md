@@ -28,8 +28,16 @@ Most recent first...
 DON'T TRY ECH YET!!! The very much work-in-progress code is
 sooooo awful still...
 
+- 20210315: nominal localhost operation with draft-09 and when
+  a draft-10 ECHConfig loaded (no other draft-10 changes made
+  yet). Next is to fix a bunch of purely draft-09 error cases to tidy
+  up where valgrind isn't happy (e.g. when wrong key used by
+  client).
+
+- 20210313: added reading of draft-10 ECHConfig to library
+
 - 20210312: started to code up draft-10, first  by adding more 
-options for the ``openssl ech`` command so we can do more tests
+options for the ``openssl ech`` command line tool so we can do more tests
 as we go.
 
 - 20210310: updated HPKE/happykey code to match latest upstream OpenSSL
@@ -148,7 +156,7 @@ to hide that by moving the call to the application's server name callback.
             $ ./echsvr.sh -d
             ... in another window or whatever
             ... and assuming your ECHConfig is is ``echconfig.pem``
-            $ ./echcli.sh -d -p 8443 -s localhost -H foo.example.com -P `./pem2rr.sh echconfig.pem` 
+            $ ./echcli.sh -d -p 8443 -s localhost -H foo.example.com -P `./pem2rr.sh -p echconfig.pem` 
             ... and see how it goes
             ... for now, it works but does no ECH at all 
 

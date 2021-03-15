@@ -137,6 +137,22 @@ int SSL_ech_add(SSL *con, int ekfmt, size_t eklen, char *echkeys, int *num_echs)
 int SSL_CTX_ech_add(SSL_CTX *ctx, short ekfmt, size_t eklen, char *echkeys, int *num_echs);
 
 /**
+ * @brief Decode/store ECHConfigs provided as (binary, base64 or ascii-hex encoded) 
+ *
+ * ekval may be the catenation of multiple encoded ECHConfigs.
+ * We internally try decode and handle those and (later)
+ * use whichever is relevant/best. The fmt parameter can be e.g. ECH_FMT_ASCII_HEX
+ *
+ * @param ctx is the parent SSL_CTX
+ * @param eklen is the length of the ekval
+ * @param ekval is the binary, base64 or ascii-hex encoded ECHConfigs
+ * @param num_echs says how many SSL_ECH structures are in the returned array
+ * @return is 1 for success, error otherwise
+ */
+int SSL_CTX_set_ech_alpn_protos(SSL_CTX *ctx, const unsigned char *protos,
+                            const size_t protos_len);
+
+/**
  * @brief Turn on SNI encryption for an (upcoming) TLS session
  * 
  * @param s is the SSL context

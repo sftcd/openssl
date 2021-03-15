@@ -2556,8 +2556,8 @@ static unsigned char *hpke_decrypt_encch(SSL_ECH *ech, ECH_ENCCH *the_ech,
     senderpublen=the_ech->enc_len;
     senderpub=the_ech->enc;
 
-    hpke_suite.aead_id=the_ech->aead_id; // GOTHERE
-    hpke_suite.kdf_id=the_ech->kdf_id; // GOTHERE
+    hpke_suite.aead_id=the_ech->aead_id; 
+    hpke_suite.kdf_id=the_ech->kdf_id; 
 
     /*
      * We only support one ECHConfig for now on the server side
@@ -2805,9 +2805,9 @@ int tls_parse_ctos_ech(SSL *s, PACKET *pkt, unsigned int context,
         ECHConfig *e=&s->ech[cfgind].cfg->recs[cfgind];
         ech_pbuf("local config_id",e->config_id,e->config_id_len);
         ech_pbuf("remote config_id",extval->config_id,extval->config_id_len);
+        ech_pbuf("clear",clear,clearlen);
     }
     
-    ech_pbuf("clear",clear,clearlen);
 
     /*
      * Stash the cleartext for later processing - we can't be sure
@@ -2909,8 +2909,8 @@ int tls_parse_ctos_ech_outer_exts(SSL *s, PACKET *pkt, unsigned int context,
                                X509 *x, size_t chainidx)
 {
     /*
-     * We could barf here I guess as this is, in the end, not called - I handed
-     * coeed ech_decode_inner for now that handles this specific one (becuase
+     * We could barf here I guess as this is, in the end, not called - I hand
+     * coded ech_decode_inner for now that handles this specific one (becuase
      * it must;-(
      */
     if (s->ech==NULL) {

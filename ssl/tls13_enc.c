@@ -19,6 +19,7 @@
 #ifndef OPENSSL_NO_ECH
 // temp tracing
 #include <openssl/trace.h>
+#include "ech_local.h"
 #endif
 
 #define TLS13_MAX_LABEL_LEN     249
@@ -27,42 +28,13 @@
 static const unsigned char default_zeros[EVP_MAX_MD_SIZE];
 
 #ifndef OPENSSL_NO_ECH
-/*
- * Temp tracing code
- */
-static void pbuf(const char *msg, const unsigned char *buf, const size_t blen)
-{
-    OSSL_TRACE_BEGIN(TLS) {
-    if (msg==NULL) {
-        BIO_printf(trc_out,"msg is NULL\n");
-        return;
-    }
-    if (buf==NULL) {
-        BIO_printf(trc_out,"%s: buf is NULL\n",msg);
-        return;
-    }
-    if (blen==0) {
-        BIO_printf(trc_out,"%s: blen is zero\n",msg);
-        return;
-    }
-    BIO_printf(trc_out,"%s (%lu):\n    ",msg,(unsigned long)blen);
-    size_t i;
-    for (i=0;i<blen;i++) {
-        if ((i!=0) && (i%16==0))
-            BIO_printf(trc_out,"\n    ");
-        BIO_printf(trc_out,"%02x:",buf[i]);
-    }
-    BIO_printf(trc_out,"\n");
-    } OSSL_TRACE_END(TLS);
-    return;
-}
 static void ptranscript(const char *msg, SSL *s)
 {
     size_t hdatalen=0;
     unsigned char *hdata=NULL;
     if (s->s3.handshake_buffer) {
         hdatalen = BIO_get_mem_data(s->s3.handshake_buffer, &hdata);
-        pbuf(msg,hdata,hdatalen);
+        ech_pbuf(msg,hdata,hdatalen);
     }
     return;
 }
@@ -109,9 +81,9 @@ int tls13_hkdf_expand(SSL *s, const EVP_MD *md, const unsigned char *secret,
         BIO_printf(trc_out,"hkdf inputs:\n");
     } OSSL_TRACE_END(TLS);
     size_t secretlen=EVP_MD_size(md);
-    pbuf("\tsecret",secret,secretlen);
-    pbuf("\tlabel",label,labellen);
-    pbuf("\tdata",data,datalen);
+    ech_pbuf("\tsecret",secret,secretlen);
+    ech_pbuf("\tlabel",label,labellen);
+    ech_pbuf("\tdata",data,datalen);
 #endif
 
     kctx = EVP_KDF_CTX_new(kdf);
@@ -170,7 +142,7 @@ int tls13_hkdf_expand(SSL *s, const EVP_MD *md, const unsigned char *secret,
     OSSL_TRACE_BEGIN(TLS) {
         BIO_printf(trc_out,"hkdf output:\n");
     } OSSL_TRACE_END(TLS);
-    pbuf("\tout",out,outlen);
+    ech_pbuf("\tout",out,outlen);
 #endif
 
     if (ret != 0) {

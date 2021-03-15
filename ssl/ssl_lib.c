@@ -1255,7 +1255,8 @@ void SSL_free(SSL *s)
     s->rbio = NULL;
 
 #ifndef OPENSSL_NO_ECH
-    if (s->ext.inner_s!=NULL) // Tricksy way to only free this field once
+    // Hmm - this seems needed on client but not on server?
+    if (s->ext.inner_s!=NULL && s->init_buf) 
 #endif
     BUF_MEM_free(s->init_buf);
 
@@ -1265,14 +1266,17 @@ void SSL_free(SSL *s)
     sk_SSL_CIPHER_free(s->tls13_ciphersuites);
     sk_SSL_CIPHER_free(s->peer_ciphers);
 
-#ifndef OPENSSL_NO_ECH
-    //if (s->ext.inner_s!=NULL) // Tricksy way to only free this field once
-#endif
     /* Make the next call work :-) */
+#ifndef OPENSSL_NO_ECH
+    //if (s->ext.inner_s!=NULL) 
+#endif
     if (s->session != NULL) {
         ssl_clear_bad_session(s);
         SSL_SESSION_free(s->session);
     }
+#ifndef OPENSSL_NO_ECH
+    s->session = NULL;
+#endif
     SSL_SESSION_free(s->psksession);
     OPENSSL_free(s->psksession_id);
 
@@ -3148,7 +3152,7 @@ int SSL_CTX_set_alpn_protos(SSL_CTX *ctx, const unsigned char *protos,
  * length-prefixed strings). Returns 0 on success.
  */
 int SSL_CTX_set_ech_alpn_protos(SSL_CTX *ctx, const unsigned char *protos,
-                            unsigned int protos_len)
+                            const size_t protos_len)
 {
     OPENSSL_free(ctx->ext.alpn_outer);
     ctx->ext.alpn_outer = OPENSSL_memdup(protos, protos_len);

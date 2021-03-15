@@ -503,7 +503,7 @@ typedef struct tlsextctx_st {
 static unsigned int ech_print_cb(SSL *s, char *str)
 {
     if (str!=NULL) {
-        BIO_printf(bio_s_out,"ECH Server callback printing: %s\n",str);
+        BIO_printf(bio_s_out,"ECH Server callback printing: \n%s\n",str);
     }
     return 1;
 }

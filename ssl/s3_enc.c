@@ -17,6 +17,7 @@
 
 #ifndef OPENSSL_NO_ECH
 #include <openssl/trace.h>
+#include "ech_local.h"
 #endif
 
 static int ssl3_generate_key_block(SSL *s, unsigned char *km, int num)
@@ -343,46 +344,13 @@ void ssl3_free_digest_list(SSL *s)
     s->s3.handshake_dgst = NULL;
 }
 
-#ifndef OPENSSL_NO_ECH
-/*
- * Temp tracing code
- */
-static void pbuf(const char *msg,const unsigned char *buf,const size_t blen)
-{
-    OSSL_TRACE_BEGIN(TLS) {
-    if (msg==NULL) {
-        BIO_printf(trc_out,"msg is NULL\n");
-        return;
-    }
-    if (buf==NULL) {
-        BIO_printf(trc_out,"%s: buf is NULL\n",msg);
-        return;
-    }
-    if (blen==0) {
-        BIO_printf(trc_out,"%s: blen is zero\n",msg);
-        return;
-    }
-    BIO_printf(trc_out,"%s (%lu):\n    ",msg,(unsigned long)blen);
-    size_t i;
-    for (i=0;i<blen;i++) {
-        if ((i!=0) && (i%16==0))
-            BIO_printf(trc_out,"\n    ");
-        BIO_printf(trc_out,"%02x:",buf[i]);
-    }
-    BIO_printf(trc_out,"\n");
-    } OSSL_TRACE_END(TLS);
-    return;
-}
-#endif
-
 int ssl3_finish_mac(SSL *s, const unsigned char *buf, size_t len)
 {
     int ret;
 
 #ifndef OPENSSL_NO_ECH
-    pbuf("Adding this to transcript",buf,len);
+    ech_pbuf("Adding this to transcript",buf,len);
 #endif
-
 
     if (s->s3.handshake_dgst == NULL) {
         /* Note: this writes to a memory BIO so a failure is a fatal error */

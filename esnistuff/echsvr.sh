@@ -7,6 +7,12 @@
 export LD_LIBRARY_PATH=$TOP
 
 ECHKEYFILE="$TOP/esnistuff/echconfig.pem"
+ECH10KEYFILE="$TOP/esnistuff/echconfig-10.pem"
+# prefer the draft-10 file if it's there
+if [ -f $ECH10KEYFILE ]
+then
+    ECHKEYFILE="$TOP/esnistuff/echconfig-10.pem"
+fi 
 
 HIDDEN="foo.example.com"
 HIDDEN2="bar.example.com"
