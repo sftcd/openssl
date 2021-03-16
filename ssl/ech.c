@@ -1293,7 +1293,7 @@ int SSL_CTX_ech_add(SSL_CTX *ctx, short ekfmt, size_t eklen, char *ekval, int *n
 }
 
 /**
- * @brief Turn on SNI encryption for an (upcoming) TLS session
+ * @brief Try turn on ECH for an (upcoming) TLS session on a client
  * 
  * @param s is the SSL context
  * @param inner_name is the (to be) hidden service name
@@ -1311,6 +1311,8 @@ int SSL_ech_server_name(SSL *s, const char *inner_name, const char *outer_name)
     if (s->ech->outer_name!=NULL) OPENSSL_free(s->ech->outer_name);
     if (outer_name!=NULL) s->ech->outer_name=OPENSSL_strdup(outer_name);
     else s->ech->outer_name=NULL;
+
+    s->ext.ech_attempted=1; 
 
     return 1;
 }
@@ -1536,10 +1538,6 @@ int SSL_ech_get_status(SSL *s, char **inner_sni, char **outer_sni)
     /*
      * set vars - note we may be pointing to NULL which is fine
      */
-    char *ech_public_name=s->ext.ech_public_name;
-    //char *ech_inner_name=s->ext.ech_inner_name;
-    //char *ech_outer_name=s->ext.ech_outer_name;
-
     char *sinner=NULL;
     if (s->ext.inner_s!=NULL) sinner=s->ext.inner_s->ext.hostname;
     else sinner=s->ext.hostname;
@@ -1551,16 +1549,8 @@ int SSL_ech_get_status(SSL *s, char **inner_sni, char **outer_sni)
 
         long vr=X509_V_OK;
         vr=SSL_get_verify_result(s);
-        /*
-         * Prefer clear_sni (if supplied) to public_name 
-         */
-        //*inner_sni=ech_inner_name;
         *inner_sni=sinner;
-        if (souter!=NULL) {
-            *outer_sni=souter;
-        } else {
-            *outer_sni=ech_public_name;
-        }
+        *outer_sni=souter;
         if (s->ext.ech_success==1) {
             if (vr == X509_V_OK ) {
                 return SSL_ECH_STATUS_SUCCESS;
@@ -2856,6 +2846,8 @@ int ech_swaperoo(SSL *s)
      * The outer's ech_attempted will have been set already
      * but not the rest of 'em.
      */
+    s->ext.outer_s->ext.ech_attempted=1; 
+    s->ext.ech_attempted=1; 
     s->ext.outer_s->ext.ech_success=1; 
     s->ext.ech_success=1; 
     s->ext.outer_s->ext.ech_done=1; 

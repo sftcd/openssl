@@ -164,18 +164,16 @@ fi
 
 # Set SNI
 clear_sni=$PNO
-snicmd="-servername $clear_sni"
 if [[ "$SUPPLIEDPNO" != "" ]]
 then
     if [[ "$SUPPLIEDPNO" == "NONE" ]]
     then
-        snicmd="-noservername "
         clear_sni=""
     else
-        snicmd=" -servername $SUPPLIEDPNO "
         clear_sni=$SUPPLIEDPNO
     fi
 fi
+echoutercmd="-ech-outer $clear_sni"
 
 # Set address of target 
 if [[ "$clear_sni" != "" && "$hidden" == "" ]]
@@ -237,16 +235,15 @@ then
     exit 100
 fi
 
-echstr="-ech $hidden -svcb $ECH "
+echstr="-servername $hidden -svcb $ECH "
 if [[ "$NOECH" == "yes" ]]
 then
     echo "Not trying ECH"
-    echstr=""
-    hidden=$clear_sni
+    echstr="-servername $hidden "
     if [[ "$GREASE" == "yes" ]]
     then
         echo "Trying to GREASE though"
-        echstr=" -ech_grease "
+        echstr=" -servername $hidden -ech_grease "
     fi
 fi
 
@@ -295,9 +292,9 @@ TMPF=`mktemp /tmp/echtestXXXX`
 
 if [[ "$DEBUG" == "yes" ]]
 then
-    echo "Running: $TOP/apps/openssl s_client $dbgstr $certsdb $force13 $target $echstr $snicmd $session $alpn $ciphers"
+    echo "Running: $TOP/apps/openssl s_client $dbgstr $certsdb $force13 $target $echstr $echoutercmd $session $alpn $ciphers"
 fi
-echo -e "$httpreq" | $vgcmd $TOP/apps/openssl s_client $dbgstr $certsdb $force13 $target $echstr $snicmd $session $alpn $ciphers >$TMPF 2>&1
+echo -e "$httpreq" | $vgcmd $TOP/apps/openssl s_client $dbgstr $certsdb $force13 $target $echstr $echoutercmd $session $alpn $ciphers >$TMPF 2>&1
 
 c200=`grep -c "200 OK" $TMPF`
 csucc=`grep -c "ECH: success" $TMPF`
@@ -316,9 +313,9 @@ then
 	echo "$vgout"
 	echo ""
 fi
-goodresult=`grep -c "Yay - it's an inny ServerHello - swaperoo time" $TMPF`
+goodresult=`grep -c "ECH: success" $TMPF`
 echo "$0 Summary: "
-#echo ""
+allresult=`grep "ECH:" $TMPF`
 rm -f $TMPF
 if (( $goodresult > 0 ))
 then
@@ -326,6 +323,7 @@ then
 else
     echo "Bummer - probably didn't work"
 fi
+echo $allresult
 # exit with something useful
 if [[ "$ctot" == "1" && "$c4xx" == "0" ]]
 then

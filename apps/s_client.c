@@ -89,8 +89,7 @@ static size_t esni_trace_cb(const char *buf, size_t cnt,
 #endif
 
 #ifndef OPENSSL_NO_ECH
-const char *ech_inner_name=NULL; ///< server-name in inner-CH
-const char *ech_public_name=NULL; ///< public-name from DNS ECHConfig
+const char *ech_inner_name=NULL; ///< server-name in inner-CH - default to usual servername
 const char *ech_outer_name=NULL; ///< server-name in outer-CH - command line can override public-name
 int ech_grease=0;
 int nechs=0;
@@ -514,7 +513,7 @@ typedef enum OPTION_choice {
     OPT_ESNI_GREASE,
 #endif
 #ifndef OPENSSL_NO_ECH
-    OPT_ECH,
+    OPT_ECHOUTER,
     OPT_ECHCONFIGS,
     OPT_SVCB,
     OPT_ECH_GREASE,
@@ -660,8 +659,8 @@ const OPTIONS s_client_options[] = {
      "Send GREASE values when not really using ESNI"},
 #endif
 #ifndef OPENSSL_NO_ECH
-    {"ech", OPT_ECH, 's',
-     "Set to use extension encrypted ClientHello, value is server-name for inner CH"},
+    {"ech-outer", OPT_ECHOUTER, 's',
+     "The name to put in the outer CH overriding the server's choice"},
     {"echconfigs", OPT_ECHCONFIGS, 's',
      "Set ECHConfigs, value is b64, ASCII-HEX or binary encoded ECHConfigs"},
     {"svcb", OPT_SVCB, 's',
@@ -926,7 +925,7 @@ static int new_session_cb(SSL *s, SSL_SESSION *sess)
          * If doing ECH then stuff that name into the session, so that 
           * it'll be visible/remembered later.
           */
-        int rv=SSL_SESSION_set1_enchostname(sess,ech_inner_name);
+        int rv=SSL_SESSION_set1_hostname(sess,ech_inner_name);
         if (rv!=1) {
             if (c_debug) 
                 BIO_printf(bio_err, "Can't set ECH/inner_name in session...\n");
@@ -937,45 +936,6 @@ static int new_session_cb(SSL *s, SSL_SESSION *sess)
             ERR_print_errors(bio_err);
         }
     } 
-    if (ech_outer_name!=NULL) {
-        /*
-         * If doing cleartext SNI then put that in session 
-         */
-        int rv=SSL_SESSION_set1_hostname(sess,ech_outer_name);
-        if (rv!=1) {
-            if (c_debug) 
-                BIO_printf(bio_err, "Can't set ECH/hostname in session...\n");
-        } else {
-            if (c_debug) 
-                BIO_printf(bio_err, "Set ECH/hostname in session to %s\n",ech_outer_name);
-        }
-        /* also stick that in public_name_override */
-        rv=SSL_SESSION_set1_public_name_override(sess,ech_outer_name);
-        if (rv!=1) {
-            if (c_debug) 
-                BIO_printf(bio_err, "Can't set ECH/hostname in session...\n");
-        } else {
-            if (c_debug) 
-                BIO_printf(bio_err, "Set ECH/hostname in session to %s\n",ech_outer_name);
-        }
-        /* 
-         * put public_name into session, public_name set from callback
-         */
-        if (ech_public_name!=NULL) {
-            rv=SSL_SESSION_set1_public_name(sess,ech_public_name);
-            if (rv!=1) {
-                if (c_debug) 
-                    BIO_printf(bio_err, "Can't set ECH/public_name in session...\n");
-            } else {
-                if (c_debug) 
-                    BIO_printf(bio_err, "Set ECH/public_name in session to %s\n",ech_public_name);
-            }
-        } else {
-            if (c_debug) 
-                BIO_printf(bio_err, "Can't set ECH/public_name (none visible) in session...\n");
-        }
-        ERR_print_errors(bio_err);
-    }
     if (c_debug) {
         BIO_printf(bio_err,"---\nECH stuff so far:\n");
         SSL_SESSION_print(bio_err, sess);
@@ -1646,7 +1606,7 @@ int s_client_main(int argc, char **argv)
         case OPT_SERVERNAME:
             servername = opt_arg();
 #ifndef OPENSSL_NO_ECH
-            ech_outer_name = servername;
+            ech_inner_name = servername;
 #endif
             break;
 #ifndef OPENSSL_NO_ESNI
@@ -1665,8 +1625,8 @@ int s_client_main(int argc, char **argv)
 #endif
 
 #ifndef OPENSSL_NO_ECH
-        case OPT_ECH:
-            ech_inner_name = opt_arg();
+        case OPT_ECHOUTER:
+            ech_outer_name = opt_arg();
             break;
         case OPT_ECHCONFIGS:
             ech_encoded_configs= opt_arg();
@@ -2407,12 +2367,6 @@ int s_client_main(int argc, char **argv)
                 BIO_printf(bio_err, "Stored session hostname is %s\n",hn);
             } else { 
                 BIO_printf(bio_err, "Stored session hostname is missing\n");
-            }
-            const char *ehn=SSL_SESSION_get0_enchostname(sess);
-            if (ehn!=NULL) {
-                BIO_printf(bio_err, "Stored session ech_inner_name is %s\n",ehn);
-            } else { 
-                BIO_printf(bio_err, "Stored session ech_inner_name missing\n");
             }
         }
         }

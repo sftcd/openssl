@@ -248,7 +248,7 @@ EXT_RETURN tls_construct_ctos_server_name(SSL *s, WPACKET *pkt,
 #endif // END_OPENSSL_NO_ESNI
 
 #ifndef OPENSSL_NO_ECH
-    if (s->ech != NULL && s->ext.ch_depth==1) {
+    if (s->ech != NULL) { 
         int esnirv=ech_server_name_fixup(s,pkt,context,x,chainidx);
         if (esnirv!=EXT_RETURN_SENT) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);

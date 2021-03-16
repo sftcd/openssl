@@ -645,12 +645,6 @@ struct ssl_session_st {
         unsigned char *kse;
 #endif
 
-#ifndef OPENSSL_NO_ECH
-        char *ech_public_name;
-        char *ech_inner_name;
-        char *ech_outer_name;
-#endif
-
 # ifndef OPENSSL_NO_EC
         size_t ecpointformats_len;
         unsigned char *ecpointformats; /* peer's list */
@@ -1682,14 +1676,6 @@ struct ssl_st {
          * processed - this is pretty naff but will do for now
          */
         int etype;
-        /*
-         * Selected name values for this session.
-         * Same fields used on client and server.
-         */
-        char *ech_public_name;
-        char *ech_inner_name;
-        char *ech_outer_name;
-
         SSL* inner_s; // pointer to inner CH from outer
         SSL* outer_s; // pointer to outer CH from inner
         int ech_attempted;

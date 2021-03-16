@@ -1665,7 +1665,16 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL *s, PACKET *pkt)
     SSL_COMP *comp;
 #endif
 #ifndef OPENSSL_NO_ECH
-    // HACK HACK
+    /*
+     * What we'll do for ECH is: if we sent an ECH then we'll try
+     * the inner_s first to see if it matches/works (based on the
+     * awful ServerHello.random confirmation trick from the spec). 
+     * If that is good then good, we'll swap over the inner and 
+     * outer contexts and proceed with inner. If confirmation fails
+     * then we'll start over with another call to this function
+     * with just the outer CH context and see what happens there.
+     * (And we'll note ECH is done/failed).
+     */
     const unsigned char *shbuf=pkt->curr;
     size_t shlen=pkt->remaining;
     SSL inner;
@@ -1995,18 +2004,17 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL *s, PACKET *pkt)
         unsigned char acbuf[8];
         if (ech_calc_accept_confirm(s,acbuf,shbuf,shlen)!=1) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+            goto err;
             return -1;
         }
         if (memcmp(s->s3.server_random+SSL3_RANDOM_SIZE-8,acbuf,8)==0) {
             s->ext.ech_success=1;
-            // TODO: remove this and find another way for the test script to check
-            printf("Yay - it's an inny ServerHello - swaperoo time\n");
-            fflush(stdout);
 
             // swap back before final swap
             inner=*s; *s=outer; *s->ext.inner_s=inner;
             if (ech_swaperoo(s)!=1) {
                 SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+                goto err;
                 return -1;
             }
 
@@ -2014,6 +2022,7 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL *s, PACKET *pkt)
             unsigned char *abuf=OPENSSL_malloc(alen);
             if (abuf==NULL) {
                 SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+                goto err;
                 return -1;
             }
             memcpy(abuf,s->ext.innerch,s->ext.innerch_len);
@@ -2026,6 +2035,7 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL *s, PACKET *pkt)
             if (ech_reset_hs_buffer(s,abuf,alen)!=1) {
                 OPENSSL_free(abuf);
                 SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+                goto err;
                 return -1;
             }
             OPENSSL_free(abuf);
@@ -2033,15 +2043,16 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL *s, PACKET *pkt)
         } else {
             /*
              * Fallback to trying outer
-             * More HACK HACK
              */
             *s=outer;
-            SSL_free(s->ext.inner_s); // may as well free now
-            s->ext.inner_s=NULL;
+            s->ext.inner_s->session=NULL; // phoney attempt to avoid double-free TODO: FIXME: 
+            //SSL_free(s->ext.inner_s); // may as well free now
+            //s->ext.inner_s=NULL;
             s->ext.ech_grease=1;
             s->ext.ech_done=1;
             pkt->remaining=shlen;
             pkt->curr=shbuf;
+            OPENSSL_free(extensions);
             return tls_process_server_hello(s, pkt);
         }
     }

@@ -885,9 +885,6 @@ SSL *SSL_new(SSL_CTX *ctx)
     s->ech_cb=ctx->ext.ech_cb;
     s->ext.inner_s=NULL;
     s->ext.outer_s=NULL;
-    s->ext.ech_public_name=NULL;
-    s->ext.ech_inner_name=NULL;
-    s->ext.ech_outer_name=NULL;
     s->ext.ech_done=0;
     s->ext.ech_attempted=0;
     s->ext.ech_success=0;
@@ -1361,9 +1358,6 @@ void SSL_free(SSL *s)
 #ifndef OPENSSL_NO_ECH
     OPENSSL_free(s->ext.innerch);
     OPENSSL_free(s->ext.encoded_innerch);
-    OPENSSL_free(s->ext.ech_public_name);
-    OPENSSL_free(s->ext.ech_inner_name);
-    OPENSSL_free(s->ext.ech_outer_name);
     OPENSSL_free(s->ext.ech_dropped_from_ch); 
     if (s->nechs>0 && s->ech!=NULL) {
         int i=0;
@@ -1398,6 +1392,16 @@ void SSL_free(SSL *s)
         SSL_free(s->ext.outer_s);
         s->ext.outer_s=NULL;
     }
+
+    /*
+     * We also seem to leave this behind....
+     */
+    if (s->s3.handshake_buffer) {
+        (void)BIO_set_close(s->s3.handshake_buffer, BIO_CLOSE);
+        BIO_free(s->s3.handshake_buffer);
+        s->s3.handshake_buffer=NULL;
+    }
+
 #endif
 
     CRYPTO_THREAD_lock_free(s->lock);
@@ -4290,9 +4294,6 @@ SSL *SSL_dup(SSL *s)
     ret->ech_cb=s->ech_cb;
     ret->ext.inner_s=s->ext.inner_s;
     ret->ext.outer_s=s->ext.outer_s;
-    ret->ext.ech_public_name=OPENSSL_strdup(s->ext.ech_public_name);
-    ret->ext.ech_inner_name=OPENSSL_strdup(s->ext.ech_inner_name);
-    ret->ext.ech_outer_name=OPENSSL_strdup(s->ext.ech_outer_name);
     ret->ext.ech_done=s->ext.ech_done;
     ret->ext.ech_attempted=s->ext.ech_attempted;
     ret->ext.ech_success=s->ext.ech_success;

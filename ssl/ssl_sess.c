@@ -95,12 +95,6 @@ SSL_SESSION *SSL_SESSION_new(void)
     ss->ext.kse=NULL;
 #endif
 
-#ifndef OPENSSL_NO_ECH
-    ss->ext.ech_inner_name=NULL;
-    ss->ext.ech_outer_name=NULL;
-    ss->ext.ech_public_name=NULL;
-#endif
-
     if (!CRYPTO_new_ex_data(CRYPTO_EX_INDEX_SSL_SESSION, ss, &ss->ex_data)) {
         CRYPTO_THREAD_lock_free(ss->lock);
         OPENSSL_free(ss);
@@ -224,27 +218,6 @@ SSL_SESSION *ssl_session_dup(const SSL_SESSION *src, int ticket)
         }
         memcpy(dest->ext.kse,src->ext.kse,src->ext.kse_len);
         dest->ext.kse_len=src->ext.kse_len;
-    }
-#endif
-
-#ifndef OPENSSL_NOECH
-    if (src->ext.ech_inner_name) {
-        dest->ext.ech_inner_name = OPENSSL_strdup(src->ext.ech_inner_name);
-        if (dest->ext.ech_inner_name == NULL) {
-            goto err;
-        }
-    }
-    if (src->ext.ech_outer_name) {
-        dest->ext.ech_outer_name = OPENSSL_strdup(src->ext.ech_outer_name);
-        if (dest->ext.ech_outer_name == NULL) {
-            goto err;
-        }
-    }
-    if (src->ext.ech_public_name) {
-        dest->ext.ech_public_name = OPENSSL_strdup(src->ext.ech_public_name);
-        if (dest->ext.ech_public_name == NULL) {
-            goto err;
-        }
     }
 #endif
 
@@ -828,11 +801,6 @@ void SSL_SESSION_free(SSL_SESSION *ss)
     OPENSSL_free(ss->ext.public_name);
     OPENSSL_free(ss->ext.kse);
     ss->ext.kse_len=0;
-#endif
-#ifndef OPENSSL_NO_ECH
-    OPENSSL_free(ss->ext.ech_inner_name);
-    OPENSSL_free(ss->ext.ech_outer_name);
-    OPENSSL_free(ss->ext.ech_public_name);
 #endif
     OPENSSL_free(ss->ext.tick);
 #ifndef OPENSSL_NO_PSK
