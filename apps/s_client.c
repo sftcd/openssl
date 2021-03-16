@@ -1759,10 +1759,10 @@ int s_client_main(int argc, char **argv)
 #endif
 
 #ifndef OPENSSL_NO_ECH
-    if (ech_inner_name != NULL) {
+    if (alpn_outer_in !=NULL || ech_outer_name != NULL) {
         if (ech_encoded_configs == NULL && ech_svcb_rr == NULL) {
             BIO_printf(bio_err,
-                       "%s: Can't use -ech without -echconfigs or -svcb \n",
+                       "%s: Can't use -ech-outer nor -alpn-outer without -echconfigs or -svcb \n",
                        prog);
             goto opthelp;
         }
@@ -2453,7 +2453,7 @@ int s_client_main(int argc, char **argv)
         nechs+=lnechs;
     }
 
-    if (ech_inner_name != NULL ) {
+    if (ech_svcb_rr != NULL && ech_outer_name != NULL ) {
         int rv=SSL_ech_server_name(con, ech_inner_name, ech_outer_name);
         if (rv!=1) {
             BIO_printf(bio_err, "%s: enabling ECH failed.\n", prog);

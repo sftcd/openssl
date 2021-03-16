@@ -68,7 +68,7 @@ echo "Running $0 at $NOW"
 function usage()
 {
     echo "$0 [-cdfhHPpsrnlvL] - try out encrypted client hello (ECH) via openssl s_client"
-	echo "  -c [name] specifices a name that I'll send as a clear SNI (NONE is special)"
+	echo "  -c [name] specifices a name that I'll send as an outer SNI (NONE is special)"
     echo "  -d means run s_client in verbose mode"
     echo "  -f [pathname] specifies the file/pathname to request (default: '/')"
     echo "  -g means GREASE (only applied with -n)"
@@ -173,7 +173,12 @@ then
         clear_sni=$SUPPLIEDPNO
     fi
 fi
-echoutercmd="-ech-outer $clear_sni"
+if [[ "$GREASE" == "yes" ]]
+then
+    echoutercmd=" "
+else
+    echoutercmd="-ech-outer $clear_sni"
+fi
 
 # Set address of target 
 if [[ "$clear_sni" != "" && "$hidden" == "" ]]
@@ -243,7 +248,12 @@ then
     if [[ "$GREASE" == "yes" ]]
     then
         echo "Trying to GREASE though"
-        echstr=" -servername $hidden -ech_grease "
+        if [[ "$SUPPLIEDPNO" == "NONE" ]]
+        then
+            echstr=" -noservername -ech_grease "
+        else
+            echstr=" -servername $clear_sni -ech_grease "
+        fi
     fi
 fi
 
@@ -283,7 +293,7 @@ then
 fi
 
 alpn=""
-if [[ "$DOALPN" == "yes" ]]
+if [[ "$GREASE" == "no" && "$DOALPN" == "yes" ]]
 then
     alpn=$DEFALPNVAL
 fi
@@ -321,7 +331,10 @@ if (( $goodresult > 0 ))
 then
     echo "Looks like it worked ok"
 else
-    echo "Bummer - probably didn't work"
+    if [[ "$NOECH" != "yes" ]]
+    then
+        echo "Bummer - probably didn't work"
+    fi
 fi
 echo $allresult
 # exit with something useful

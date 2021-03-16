@@ -904,12 +904,12 @@ static int ssl_print_extension(BIO *bio, int indent, int server,
 #ifndef OPENSSL_NO_ECH
     case TLSEXT_TYPE_ech:
         BIO_indent(bio, indent + 2, 80);
-        BIO_printf(bio,"Got an ECH of length (%ld)\n",extlen);
+        BIO_printf(bio,"ECH of length (%ld)\n",extlen);
         ssl_print_hex(bio, indent + 4, "ECH", ext, extlen);
         break;
     case TLSEXT_TYPE_outer_extensions:
         BIO_indent(bio, indent + 2, 80);
-        BIO_printf(bio,"Got an Outer extension of length (%ld)\n",extlen);
+        BIO_printf(bio,"Outer extension of length (%ld)\n",extlen);
         ssl_print_hex(bio, indent + 4, "OUTER_CH", ext, extlen);
         break;
 #endif

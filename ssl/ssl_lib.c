@@ -1244,7 +1244,7 @@ void SSL_free(SSL *s)
      * For some reason doing the same with rbio below results in a leak
      * so we don't do it:-)
      */
-    if (s->ext.inner_s!=NULL) 
+    if (s->ext.ech_grease==ECH_IS_GREASE || s->ext.inner_s!=NULL) 
 #endif
     BIO_free_all(s->wbio);
     s->wbio = NULL;
@@ -1253,7 +1253,7 @@ void SSL_free(SSL *s)
 
 #ifndef OPENSSL_NO_ECH
     // Hmm - this seems needed on client but not on server?
-    if (s->ext.inner_s!=NULL && s->init_buf) 
+    if (s->ext.ech_grease==ECH_IS_GREASE || (s->ext.inner_s!=NULL && s->init_buf)) 
 #endif
     BUF_MEM_free(s->init_buf);
 
