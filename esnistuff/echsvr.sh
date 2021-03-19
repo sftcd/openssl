@@ -166,7 +166,7 @@ fi
 vgcmd=""
 if [[ "$VG" == "yes" ]]
 then
-    vgcmd="valgrind --leak-check=full "
+    vgcmd="valgrind --track-origins=yes --leak-check=full "
 fi
 
 if [[ "$SUPPLIEDPORT" != "" ]]

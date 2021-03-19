@@ -2492,6 +2492,7 @@ int tls_construct_server_hello(SSL *s, WPACKET *pkt)
      * NSS for now as my guide.)
      */
     unsigned char acbuf[8];
+    memset(acbuf,0,8);
     if (s->ech && s->ext.ech_done && s->ext.ech_success==1) {
         // HACK HACK
         if (!pkt || !pkt->buf) {

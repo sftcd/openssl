@@ -1253,7 +1253,7 @@ void SSL_free(SSL *s)
 
 #ifndef OPENSSL_NO_ECH
     // Hmm - this seems needed on client but not on server?
-    if (s->ext.ech_grease==ECH_IS_GREASE || (s->ext.inner_s!=NULL && s->init_buf)) 
+    if (!s->server && s->ext.inner_s==NULL && s->ext.outer_s!=NULL && s->ext.ech_grease!=ECH_IS_GREASE) 
 #endif
     BUF_MEM_free(s->init_buf);
 
@@ -1265,14 +1265,22 @@ void SSL_free(SSL *s)
 
     /* Make the next call work :-) */
 #ifndef OPENSSL_NO_ECH
-    //if (s->ext.inner_s!=NULL) 
-#endif
+    // only do this one if...
+    if (    s->server ||
+            (!s->server && s->ext.ech_grease!=ECH_IS_GREASE) ||
+            (!s->server && s->ext.ech_grease==ECH_IS_GREASE && s->ext.ch_depth==0) 
+       ) {
+        if (s->session != NULL) {
+            ssl_clear_bad_session(s);
+            SSL_SESSION_free(s->session);
+        }
+        s->session = NULL;
+    }
+#else
     if (s->session != NULL) {
         ssl_clear_bad_session(s);
         SSL_SESSION_free(s->session);
     }
-#ifndef OPENSSL_NO_ECH
-    s->session = NULL;
 #endif
     SSL_SESSION_free(s->psksession);
     OPENSSL_free(s->psksession_id);
@@ -4212,6 +4220,7 @@ SSL *SSL_dup(SSL *s)
          */
         if (!SSL_copy_session_id(ret, s))
             goto err;
+
     } else {
         /*
          * No session has been established yet, so we have to expect that

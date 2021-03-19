@@ -2009,7 +2009,7 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL *s, PACKET *pkt)
         }
         if (memcmp(s->s3.server_random+SSL3_RANDOM_SIZE-8,acbuf,8)==0) {
             s->ext.ech_success=1;
-
+        
             // swap back before final swap
             inner=*s; *s=outer; *s->ext.inner_s=inner;
             if (ech_swaperoo(s)!=1) {
@@ -2042,17 +2042,33 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL *s, PACKET *pkt)
 
         } else {
             /*
-             * Fallback to trying outer
+             * Fallback to trying outer, with a bit of clean-up
+             * TODO: figure out what's right here if (as is likely) the
+             * accept confirmation calculation changes to avoid this
+             * fairly brittle clean-up
              */
+            OPENSSL_free(extensions); extensions=NULL;
+            EVP_PKEY_free(s->s3.peer_tmp); s->s3.peer_tmp=NULL;
+            SSL_SESSION_free(s->session); s->session=NULL;
+            if (s->s3.handshake_buffer) {
+                (void)BIO_set_close(s->s3.handshake_buffer, BIO_CLOSE);
+                BIO_free(s->s3.handshake_buffer);
+            }
+
+            // swap back
             *s=outer;
-            s->ext.inner_s->session=NULL; // phoney attempt to avoid double-free TODO: FIXME: 
-            //SSL_free(s->ext.inner_s); // may as well free now
-            //s->ext.inner_s=NULL;
+
+            // note result in outer
             s->ext.ech_grease=1;
             s->ext.ech_done=1;
+            // note result in inner
+            s->ext.inner_s->ext.ech_grease=1;
+            s->ext.inner_s->ext.ech_done=1;
+
+
+            // reset buffer for SH
             pkt->remaining=shlen;
             pkt->curr=shbuf;
-            OPENSSL_free(extensions);
             return tls_process_server_hello(s, pkt);
         }
     }

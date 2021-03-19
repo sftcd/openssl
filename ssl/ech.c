@@ -2691,14 +2691,19 @@ int ech_calc_accept_confirm(SSL *s, unsigned char *acbuf, const unsigned char *s
                            hoval, hashlen, 1)) {
         goto err;
     }
+
+    /*
+     * Put back the transpript buffer as it was where we got it
+     * TODO: consider HRR
+     */
     ech_pbuf("calc conf : hoval",hoval,32);
-    ech_reset_hs_buffer(s,chbuf,chlen);
 
     /*
      * Finally, set the output
      */
     memcpy(acbuf,hoval,8);
     ech_pbuf("calc conf : result",acbuf,8);
+    ech_reset_hs_buffer(s,s->ext.innerch,s->ext.innerch_len);
 
     if (tbuf) OPENSSL_free(tbuf);
     if (ctx) EVP_MD_CTX_free(ctx);

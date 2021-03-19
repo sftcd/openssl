@@ -50,8 +50,8 @@ SUPPLIEDSESSION=""
 
 # default values
 HIDDEN="crypto.cloudflare.com"
-#PNO="crypto.cloudflare.com"
-PNO="rte.ie"
+PNO="crypto.cloudflare.com"
+#PNO="rte.ie"
 CAPATH="/etc/ssl/certs/"
 CAFILE="./cadir/oe.csr"
 REALCERT="no" # default to fake CA for localhost

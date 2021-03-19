@@ -28,6 +28,11 @@ Most recent first...
 DON'T TRY ECH YET!!! The very much work-in-progress code is
 sooooo awful still...
 
+- 20210319: resolved leaks when wrong ECHConfig used by 
+  client - probably more to be done there, in terms of
+  exploring all failure modes, but as the accept confirmation
+  signal is still likely to change, probably ok for now
+
 - 20210315: nominal localhost operation with draft-09 and when
   a draft-10 ECHConfig loaded (no other draft-10 changes made
   yet). Next is to fix a bunch of purely draft-09 error cases to tidy
