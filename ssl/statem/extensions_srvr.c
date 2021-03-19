@@ -2556,6 +2556,7 @@ static unsigned char *hpke_decrypt_encch(SSL_ECH *ech, ECH_ENCCH *the_ech,
     senderpublen=the_ech->enc_len;
     senderpub=the_ech->enc;
 
+
     hpke_suite.aead_id=the_ech->aead_id; 
     hpke_suite.kdf_id=the_ech->kdf_id; 
 
@@ -2564,6 +2565,7 @@ static unsigned char *hpke_decrypt_encch(SSL_ECH *ech, ECH_ENCCH *the_ech,
      */
     publen=ech->cfg->recs[0].pub_len;
     pub=ech->cfg->recs[0].pub;
+    hpke_suite.kem_id=ech->cfg->recs[0].kem_id; 
 
     ech_pbuf("my local pub",pub,publen);
     ech_pbuf("senderpub",senderpub,senderpublen);

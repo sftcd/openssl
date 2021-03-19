@@ -24,7 +24,7 @@ XNSSPARAMS=" -Q"
 
 if [[ "$1" == "localhost" ]]
 then
-	ECHCFG=`cat echconfig.pem | tail -2 | head -1`
+	ECHCFG=`cat echconfig-256.pem | tail -2 | head -1`
 	echo "Running: valgrind $LDIR/bin/tstclnt $NSSPARAMS -h localhost -p 8443 -a foo.example.com -d cadir/nssca/ -N $ECHCFG" 
 	valgrind $LDIR/bin/tstclnt $NSSPARAMS -h localhost -p 8443 -a foo.example.com -d cadir/nssca/ -N $ECHCFG
 elif [[ "$1" == "defo" ]]
