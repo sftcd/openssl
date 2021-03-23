@@ -29,7 +29,7 @@ DON'T TRY ECH YET!!! The very much work-in-progress code is
 sooooo awful still...
 
 - 20210323: created a draft-09 branch to preserve that before
-  we move onto the breaking changes for draft-10
+  we move onto the breaking changes for draft-10.
 
 - 20210319: resolved leaks when wrong ECHConfig used by 
   client - probably more to be done there, in terms of
