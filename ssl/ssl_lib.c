@@ -3181,7 +3181,7 @@ int SSL_CTX_set_ech_alpn_protos(SSL_CTX *ctx, const unsigned char *protos,
  * |protos| must be in wire-format (i.e. a series of non-empty, 8-bit
  * length-prefixed strings). Returns 0 on success.
  */
-int SSL_ech_set_alpn_protos(SSL *ssl, const unsigned char *protos,
+int SSL_set_ech_alpn_protos(SSL *ssl, const unsigned char *protos,
                         unsigned int protos_len)
 {
     OPENSSL_free(ssl->ext.alpn_outer);

@@ -137,7 +137,7 @@ typedef struct ech_configs_st {
 /**
  * What we send in the ech CH extension:
  *
- * The TLS presentation language version is:
+ * The draft-09 TLS presentation language version is:
  *
  * <pre>
  *     struct {
@@ -147,6 +147,21 @@ typedef struct ech_configs_st {
  *       opaque payload<1..2^16-1>;
  *    } ClientECH;
  * </pre>
+ *
+ * For draft-10, we get:
+ *
+ * <pre>
+ *     struct {
+ *       HpkeSymmetricCipherSuite cipher_suite;
+ *       uint8 config_id;
+ *       opaque enc<1..2^16-1>;
+ *       opaque payload<1..2^16-1>;
+ *    } ClientECH;
+ * </pre>
+ *
+ * The same struct below still works, we can treat
+ * changing the config id to a uint8 as a TODO: for
+ * now.
  *
  */
 typedef struct ech_encch_st {
@@ -196,61 +211,6 @@ typedef struct ssl_ech_st {
     int dns_no_def_alpn; ///< no_def_alpn if set in DNS RR
 
 } SSL_ECH;
-
-/**
- * @brief Do the client-side SNI encryption during a TLS handshake
- *
- * This is an internal API called as part of the state machine
- * dealing with this extension.
- *
- * @param ctx is the parent SSL_CTX
- * @param con is the SSL connection
- * @param echkeys is the SSL_ECH structure
- * @param client_random_len is the number of bytes of
- * @param client_random being the TLS h/s client random
- * @param curve_id is the curve_id of the client keyshare
- * @param client_keyshare_len is the number of bytes of
- * @param client_keyshare is the h/s client keyshare
- * @return 1 for success, other otherwise
- */
-int SSL_ECH_enc(SSL_CTX *ctx,
-                SSL *con,
-                SSL_ECH *echkeys, 
-                size_t  client_random_len,
-                unsigned char *client_random,
-                unsigned int curve_id,
-                size_t  client_keyshare_len,
-                unsigned char *client_keyshare,
-                ECH_ENCCH **the_ech);
-
-/**
- * @brief Server-side decryption during a TLS handshake
- *
- * This is the internal API called as part of the state machine
- * dealing with this extension.
- * Note that the decrypted server name is just a set of octets - there
- * is no guarantee it's a DNS name or printable etc. (Same as with
- * SNI generally.)
- *
- * @param ctx is the parent SSL_CTX
- * @param con is the SSL connection
- * @param ech is the SSL_ECH structure
- * @param client_random_len is the number of bytes of
- * @param client_random being the TLS h/s client random
- * @param curve_id is the curve_id of the client keyshare
- * @param client_keyshare_len is the number of bytes of
- * @param client_keyshare is the h/s client keyshare
- * @return NULL for error, or the decrypted servername when it works
- */
-unsigned char *SSL_ECH_dec(SSL_CTX *ctx,
-                SSL *con,
-                SSL_ECH *ech,
-				size_t	client_random_len,
-				unsigned char *client_random,
-				unsigned int curve_id,
-				size_t	client_keyshare_len,
-				unsigned char *client_keyshare,
-				size_t *encservername_len);
 
 /**
  * Memory management - free an SSL_ECH
