@@ -592,12 +592,7 @@ err:
 
 }
 
-#ifdef DRAFT_08
 #define HPKE_VERLABEL    "HPKE-v1"  ///< The version string label
-#else
-#define HPKE_VERLABEL    "HPKE-07"  ///< The version string label
-#endif
-
 #define HPKE_SEC41LABEL  "KEM"       ///< The "suite_id" label for 4.1
 #define HPKE_SEC51LABEL  "HPKE"      ///< The "suite_id" label for 5.1
 #define HPKE_EAE_PRK_LABEL "eae_prk"  ///< The label within ExtractAndExpand
