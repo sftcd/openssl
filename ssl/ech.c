@@ -3106,6 +3106,7 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
      */
     unsigned char *peerpub=NULL;
     size_t peerpub_len=0;
+
     ECHConfig *tc=NULL;
     int cind=0;
     ECHConfigs *cfgs=s->ech->cfg;
@@ -3116,7 +3117,7 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
          * but hopefully not
          */
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-        return 0;
+        goto err;
     }
 
     /*
@@ -3163,7 +3164,7 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
             BIO_printf(trc_out,"No matching ECHConfig sadly\n");
         } OSSL_TRACE_END(TLS);
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-        return 0;
+        goto err;
     }
     if (tc==NULL && firstmatch!=NULL) {
         tc=firstmatch;
@@ -3175,11 +3176,11 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
     peerpub_len=tc->pub_len;
     if (peerpub_len <=0) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-        return 0;
+        goto err;
     }
     if (s->ext.inner_s==NULL || s->ext.inner_s->ech==NULL) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-        return 0;
+        goto err;
     }
     ech_pbuf("EAAE: peer pub",peerpub,peerpub_len);
     ech_pbuf("EAAE: clear",s->ext.inner_s->ext.encoded_innerch, s->ext.inner_s->ext.encoded_innerch_len);
@@ -3187,11 +3188,11 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
 
     if (hpke_kg_evp(hpke_mode, hpke_suite, &mypub_len, mypub, &mypriv_evp)!=1) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-        return 0;
+        goto err;
     }
     if (mypub_len>HPKE_MAXSIZE || mypriv_evp==NULL) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-        return 0;
+        goto err;
     }
     ech_pbuf("EAAE: my pub",mypub,mypub_len);
 
@@ -3204,9 +3205,8 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
     aad_len=4+1+2+mypub_len+3+pkt->written-4;
     aad=OPENSSL_malloc(aad_len);
     if (aad==NULL) {
-        EVP_PKEY_free(mypriv_evp); mypriv_evp=NULL;
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-        return 0;
+        goto err;
     }
 
     unsigned char *cp=aad;
@@ -3215,7 +3215,7 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
     *cp++=((hpke_suite.aead_id&0xffff)/256);
     *cp++=((hpke_suite.aead_id&0xffff)%256);
     if (config_id_len!=1) {
-        return 0;
+        goto err;
     }
     *cp++=config_id[0];
     *cp++=((mypub_len&0xffff)/256);
@@ -3232,9 +3232,7 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
     size_t info_len=HPKE_MAXSIZE;
     if (ech_make_enc_info(tc,info,&info_len)!=1) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-        EVP_PKEY_free(mypriv_evp); mypriv_evp=NULL;
-        OPENSSL_free(aad);
-        return 0; 
+        goto err;
     }
     ech_pbuf("EAAE info",info,info_len);
 
@@ -3251,14 +3249,12 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
         );
     if (rv!=1) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-        EVP_PKEY_free(mypriv_evp); mypriv_evp=NULL;
-        OPENSSL_free(aad);
-        return 0; 
+        goto err;
     }
 
     ech_pbuf("EAAE: hpke mypub",mypub,mypub_len);
     ech_pbuf("EAAE: cipher",cipher,cipherlen);
-    OPENSSL_free(aad);
+    OPENSSL_free(aad); aad=NULL;
     EVP_PKEY_free(mypriv_evp); mypriv_evp=NULL;
 
     ech_pbuf("EAAE pkt b4",(unsigned char*) pkt->buf->data,pkt->written);
@@ -3272,7 +3268,7 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
         || !WPACKET_close(pkt)
             ) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-            return 0;
+            goto err;
     }
 
     // length to include
@@ -3297,6 +3293,15 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
     ech_pbuf("EAAE pkt aftr",(unsigned char*) pkt->buf->data,pkt->written);
 
     return 1;
+
+err:
+    if (aad!=NULL) OPENSSL_free(aad);
+    if (mypriv_evp!=NULL) EVP_PKEY_free(mypriv_evp);
+    // next one doesn't belong here but works, this should
+    // be freed in ssl_lib.c:SSL_free but that has some 
+    // odd issue I'm currently working around, TODO: see later... 
+    if (s->init_buf!=NULL) { BUF_MEM_free(s->init_buf); s->init_buf=NULL; }
+    return 0;
 }
 
 /*

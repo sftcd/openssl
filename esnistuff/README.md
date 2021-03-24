@@ -28,7 +28,8 @@ Most recent first...
 DON'T TRY ECH YET!!! The very much work-in-progress code is
 sooooo awful still...
 
-- 20210323: starting on the breaking changes for draft-10
+- 20210323: made changes that might provide draft-10 interop
+  (seems to work locally at least)
 
 - 20210323: created a draft-09 branch to preserve that before
   we move onto the breaking changes for draft-10.
