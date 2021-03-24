@@ -2634,7 +2634,7 @@ int tls_parse_ctos_ech(SSL *s, PACKET *pkt, unsigned int context,
      *
      * struct {
      *   ECHCipherSuite cipher_suite;
-     *   opaque config_id<0..255>;
+     *   uint8 config_id;
      *   opaque enc<1..2^16-1>;
      *   opaque payload<1..2^16-1>;
      *  } ClientECH;
@@ -2660,25 +2660,13 @@ int tls_parse_ctos_ech(SSL *s, PACKET *pkt, unsigned int context,
     extval->aead_id=tmp&0xffff;
 
     /* config id */
-    if (!PACKET_get_1(pkt, &tmp)) {
-        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
-        goto err;
-    }
-    if (tmp > MAX_ECH_CONFIG_ID_LEN) {
-        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
-        goto err;
-    }
-    if (tmp>PACKET_remaining(pkt)) {
-        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
-        goto err;
-    }
-    extval->config_id_len=tmp;
-    extval->config_id=OPENSSL_malloc(tmp);
+    extval->config_id_len=1;
+    extval->config_id=OPENSSL_malloc(1);
     if (extval->config_id_len!=0 && extval->config_id==NULL) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         goto err;
     }
-    if (extval->config_id_len>0 && !PACKET_copy_bytes(pkt, extval->config_id, tmp)) {
+    if (extval->config_id_len>0 && !PACKET_copy_bytes(pkt, extval->config_id, 1)) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         goto err;
     }

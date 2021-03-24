@@ -448,20 +448,6 @@ static void *ech_len_field_dup(void *old, unsigned int len)
     }
 
 /*
- * currently not needed - might want it later so keep for a bit
- * @brief free an ECH_ENCCH
- * @param tbf is a ptr to an SSL_ECH structure
-static int ECH_ENCCH_dup(ECH_ENCCH *old, ECH_ENCCH *new)
-{
-    if (!old || !new) return 0;
-    ECHFDUP(config_id,config_id_len);
-    ECHFDUP(enc,enc_len);
-    ECHFDUP(payload,payload_len);
-    return 1;
-}
- */
-
-/*
  * @brief free an ECH_ENCCH
  * @param tbf is a ptr to an SSL_ECH structure
  */
@@ -3215,7 +3201,7 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
     ech_pbuf("EAAE: config id input",tc->encoding_start,tc->encoding_length);
     ech_pbuf("EAAE: config_id",config_id,config_id_len);
 
-    aad_len=4+1+config_id_len+2+mypub_len+3+pkt->written-4;
+    aad_len=4+1+2+mypub_len+3+pkt->written-4;
     aad=OPENSSL_malloc(aad_len);
     if (aad==NULL) {
         EVP_PKEY_free(mypriv_evp); mypriv_evp=NULL;
@@ -3228,10 +3214,10 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
     *cp++=((hpke_suite.kdf_id&0xffff)%256);
     *cp++=((hpke_suite.aead_id&0xffff)/256);
     *cp++=((hpke_suite.aead_id&0xffff)%256);
-    *cp++=((config_id_len&0xff)%256);
-    if (config_id_len>0) {
-        memcpy(cp,config_id,config_id_len); cp+=config_id_len;
+    if (config_id_len!=1) {
+        return 0;
     }
+    *cp++=config_id[0];
     *cp++=((mypub_len&0xffff)/256);
     *cp++=((mypub_len&0xffff)%256);
     memcpy(cp,mypub,mypub_len); cp+=mypub_len;
@@ -3280,7 +3266,7 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
         || !WPACKET_start_sub_packet_u16(pkt)
         || !WPACKET_put_bytes_u16(pkt, hpke_suite.kdf_id)
         || !WPACKET_put_bytes_u16(pkt, hpke_suite.aead_id)
-        || !WPACKET_sub_memcpy_u8(pkt, config_id, config_id_len)
+        || !WPACKET_put_bytes_u8(pkt, config_id[0])
         || !WPACKET_sub_memcpy_u16(pkt, mypub, mypub_len)
         || !WPACKET_sub_memcpy_u16(pkt, cipher, cipherlen)
         || !WPACKET_close(pkt)
@@ -3290,7 +3276,7 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
     }
 
     // length to include
-    size_t newlen=6+2+2+3+config_id_len+mypub_len+cipherlen;
+    size_t newlen=6+2+2+3+mypub_len+cipherlen;
     /*
      * Jump over the ciphersuites and (MUST be NULL) compression to
      * the start of extensions
@@ -3303,7 +3289,6 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
     size_t startofexts=genoffset+suiteslen+2+2; // the 2 for the suites len
 
     size_t origextlens=startofmessage[startofexts]*256+startofmessage[startofexts+1];
-    //size_t newextlens=origextlens+echval.written;
     size_t newextlens=origextlens+newlen;
     startofmessage[startofexts]=(newextlens&0xffff)/256; 
     startofmessage[startofexts+1]=(newextlens&0xffff)%256; 
@@ -3336,11 +3321,8 @@ int ech_srv_get_aad(SSL *s,
     if ((cp-aad)>*aad_len) return 0;
     *cp++=((hpke_suite.aead_id&0xffff)%256);
     if ((cp-aad)>*aad_len) return 0;
-    *cp++=((config_id_len&0xff)%256);
+    *cp++=((config_id[0]&0xff)%256);
     if ((cp-aad)>*aad_len) return 0;
-    if (config_id_len>0) {
-        memcpy(cp,config_id,config_id_len); cp+=config_id_len;
-    }
     *cp++=((pub_len&0xffff)/256);
     if ((cp-aad)>*aad_len) return 0;
     *cp++=((pub_len&0xffff)%256);

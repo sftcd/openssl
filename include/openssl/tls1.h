@@ -163,7 +163,7 @@ extern "C" {
 #endif
 
 #ifndef OPENSSL_NO_ECH
-#define TLSEXT_TYPE_ech                       0xfe09
+#define TLSEXT_TYPE_ech                       0xfe0a
 #define TLSEXT_TYPE_outer_extensions          0xfd00
 #define TLSEXT_TYPE_ech_is_inner              0xda09
 #endif
