@@ -1109,6 +1109,16 @@ static int tls_construct_client_hello_aux(SSL *s, WPACKET *pkt);
 int tls_construct_client_hello(SSL *s, WPACKET *pkt)
 {
 
+    /*
+     * If doing ECH, we'll create a "fake" packet for the inner CH
+     * call the existing code with that, then "finish" that
+     * fake packet, stash it and call the existing code a 2nd time
+     * for the outer CH
+     */
+    unsigned char *innerch_full=NULL;
+    WPACKET inner; ///< "fake" pkt for inner
+    BUF_MEM *inner_mem=NULL;
+
     /* Work out what SSL/TLS/DTLS version to use */
     int protverr = ssl_set_client_hello_version(s);
     if (protverr != 0) {
@@ -1199,15 +1209,6 @@ int tls_construct_client_hello(SSL *s, WPACKET *pkt)
      */
     new_s->ext.ch_depth=1;
 
-    /*
-     * If doing ECH, we'll create a "fake" packet for the inner CH
-     * call the existing code with that, then "finish" that
-     * fake packet, stash it and call the existing code a 2nd time
-     * for the outer CH
-     */
-    unsigned char *innerch_full=NULL;
-    WPACKET inner; ///< "fake" pkt for inner
-    BUF_MEM *inner_mem=NULL;
     int mt=SSL3_MT_CLIENT_HELLO;
     if ((inner_mem = BUF_MEM_new()) == NULL) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, protverr);

@@ -2784,7 +2784,7 @@ int tls_parse_ctos_ech(SSL *s, PACKET *pkt, unsigned int context,
      */
     s->ext.ech_done=1;
     OSSL_TRACE_BEGIN(TLS) {
-        BIO_printf(trc_out,"parse_ctos_ech: assume_grease: %d, foundcfg: %d, cfgind: %d, clearlen: %ld, clear %p\n",
+        BIO_printf(trc_out,"parse_ctos_ech: assume_grease: %d, foundcfg: %d, cfgind: %d, clearlen: %zd, clear %p\n",
             s->ext.ech_grease,foundcfg,cfgind,clearlen,clear);
     } OSSL_TRACE_END(TLS);
 
@@ -3018,7 +3018,7 @@ int tls_parse_ctos_ech_outer_exts(SSL *s, PACKET *pkt, unsigned int context,
         for (int j=0;j!=nouters;j++) {
             if (outerexts->type==etypes[j] && outerexts->present==1) {
                 OSSL_TRACE_BEGIN(TLS) {
-                    BIO_printf(trc_out,"Compressed Ext %d (type %x) is present in outer CH (pos %d, rx pos %ld, parsed: %d, size: %ld)\n",
+                    BIO_printf(trc_out,"Compressed Ext %d (type %x) is present in outer CH (pos %d, rx pos %zd, parsed: %d, size: %zd)\n",
                         j,etypes[j],i,outerexts->received_order,outerexts->parsed,outerexts->data.remaining);
                 } OSSL_TRACE_END(TLS);
                 if (inner->present==1 && inner->received_order>=outer_order) {
