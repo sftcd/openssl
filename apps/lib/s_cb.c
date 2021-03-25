@@ -674,6 +674,7 @@ static STRINT_PAIR tlsext_types[] = {
 #ifndef OPENSSL_NO_ECH
     {"encrypted ClientHello",TLSEXT_TYPE_ech},
     {"outer exts",TLSEXT_TYPE_outer_extensions},
+    {"ECH is inner",TLSEXT_TYPE_ech_is_inner},
 #endif
     {NULL}
 };
