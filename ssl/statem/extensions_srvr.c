@@ -3052,5 +3052,15 @@ EXT_RETURN tls_construct_stoc_ech_outer_exts(SSL *s, WPACKET *pkt,
     return EXT_RETURN_NOT_SENT;
 }
 
+int tls_parse_ctos_ech_is_inner(SSL *s, PACKET *pkt, unsigned int context,
+                               X509 *x, size_t chainidx)
+{
+    /*
+     * Return error if this is not an inner CH
+     */
+    if (s->ext.ch_depth!=1) return 0;
+    return 1;
+}
+
 #endif // END_OPENSSL_NO_ECH
 // ESNI_DOXY_END
