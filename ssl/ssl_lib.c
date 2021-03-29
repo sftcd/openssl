@@ -808,6 +808,8 @@ SSL *SSL_new(SSL_CTX *ctx)
         memcpy(s->ext.alpn_outer, s->ctx->ext.alpn_outer, s->ctx->ext.alpn_outer_len);
         s->ext.alpn_outer_len = s->ctx->ext.alpn_outer_len;
     }
+
+    if (ctx->ext.ech_attempted) s->ext.ech_attempted=1;
 #endif
 
     s->verified_chain = NULL;

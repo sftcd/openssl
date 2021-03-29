@@ -189,11 +189,15 @@ static EXT_RETURN ech_server_name_fixup(SSL *s, WPACKET *pkt,
                                           unsigned int context, X509 *x,
                                           size_t chainidx) 
 {
-    if (s->ech != NULL) { 
+    if (s->ech != NULL) {
         char *pn=NULL;
         size_t pn_len=0;
         /* This from the ECHConfig */
         if (s->ech->cfg->recs!=NULL) {
+            if (s->ech->cfg->nrecs!=1) {
+                /* for now we only know how to handle one on the client */
+                return(EXT_RETURN_FAIL);
+            }
             pn_len=s->ech->cfg->recs[0].public_name_len;
             pn=(char*)s->ech->cfg->recs[0].public_name;
         }
@@ -212,10 +216,8 @@ static EXT_RETURN ech_server_name_fixup(SSL *s, WPACKET *pkt,
                 /* we prefer this over all */
                 if (ehn_len!=0) { OPENSSL_free(s->ext.hostname); s->ext.hostname=NULL; ehn_len=0; }
                 s->ext.hostname=OPENSSL_strdup(s->ech->inner_name);
-            } else if (pn_len!=0 && in_len==0) {
-                if (ehn_len!=0) { OPENSSL_free(s->ext.hostname); s->ext.hostname=NULL; ehn_len=0; }
-                s->ext.hostname=OPENSSL_strndup(pn,pn_len);
             } 
+            /* otherwise we leave the s->ext.hostname alone */
         }
 
         if (s->ext.ch_depth==0) { // Outer CH
@@ -225,6 +227,8 @@ static EXT_RETURN ech_server_name_fixup(SSL *s, WPACKET *pkt,
             } else if (pn_len!=0) {
                 if (ehn_len!=0) { OPENSSL_free(s->ext.hostname); s->ext.hostname=NULL; ehn_len=0; }
                 s->ext.hostname=OPENSSL_strndup(pn,pn_len);
+            } else { // don't send sensitive inner in outer!
+                OPENSSL_free(s->ext.hostname); s->ext.hostname=NULL; ehn_len=0;
             }
         }
 

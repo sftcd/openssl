@@ -827,118 +827,122 @@ static void freeandcopy(char **dest, const char *source)
 static int new_session_cb(SSL *s, SSL_SESSION *sess)
 {
 
-#ifndef OPENSSL_NO_ESNI
-    if (c_debug) {
-        BIO_printf(bio_c_out,"new_session_cb called - esni flavour\n");
-    }
-    const char *hn=SSL_SESSION_get0_hostname(sess);
-    if (hn==NULL && c_debug) {
-        BIO_printf(bio_c_out,"Existing session hostname is NULL\n");
-    } else if (c_debug) {
-        BIO_printf(bio_c_out,"Existing session hostname is %s\n",hn);
-    }
-    const char *ehn=SSL_SESSION_get0_enchostname(sess);
-    if (ehn==NULL && c_debug) {
-        BIO_printf(bio_c_out,"Existing session enchostname is NULL\n");
-    } else if (c_debug)  {
-        BIO_printf(bio_c_out,"Existing session enchostname is %s\n",ehn);
-    }
-    if (encservername!=NULL) {
-        /*
-         * If doing ESNI then stuff that name into the session, so that 
-          * it'll be visible/remembered later.
-          */
-        int rv=SSL_SESSION_set1_enchostname(sess,encservername);
-        if (rv!=1) {
-            if (c_debug) 
-                BIO_printf(bio_err, "Can't set ESNI/enchostname in session...\n");
-            ERR_print_errors(bio_err);
-        } else {
-            if (c_debug) 
-                BIO_printf(bio_err, "Set ESNI/enchostname in session to %s\n",encservername);
-            ERR_print_errors(bio_err);
-        }
-    } 
-    if (servername!=NULL) {
-        /*
-         * If doing cleartext SNI then put that in session 
-         */
-        int rv=SSL_SESSION_set1_hostname(sess,servername);
-        if (rv!=1) {
-            if (c_debug) 
-                BIO_printf(bio_err, "Can't set ESNI/hostname in session...\n");
-        } else {
-            if (c_debug) 
-                BIO_printf(bio_err, "Set ESNI/hostname in session to %s\n",servername);
-        }
-        /* also stick that in public_name_override */
-        rv=SSL_SESSION_set1_public_name_override(sess,servername);
-        if (rv!=1) {
-            if (c_debug) 
-                BIO_printf(bio_err, "Can't set ESNI/public_name_override in session...\n");
-        } else {
-            if (c_debug) 
-                BIO_printf(bio_err, "Set ESNI/public_name_override in session to %s\n",servername);
-        }
-        /* 
-         * put public_name into session, public_name set from callback
-         */
-        if (public_name!=NULL) {
-            rv=SSL_SESSION_set1_public_name(sess,public_name);
-            if (rv!=1) {
-                if (c_debug) 
-                    BIO_printf(bio_err, "Can't set ESNI/public_name in session...\n");
-            } else {
-                if (c_debug) 
-                    BIO_printf(bio_err, "Set ESNI/public_name in session to %s\n",public_name);
-            }
-        } else {
-            if (c_debug) 
-                BIO_printf(bio_err, "Can't set ESNI/public_name (none visible) in session...\n");
-        }
-        ERR_print_errors(bio_err);
-    }
-    if (c_debug) {
-        BIO_printf(bio_err,"---\nESNI stuff so far:\n");
-        SSL_SESSION_print(bio_err, sess);
+#ifndef OPENSSL_NO_ECH
+    if (nechs>0) {
+	    if (c_debug) {
+	        BIO_printf(bio_c_out,"new_session_cb called ech flavour\n");
+	    }
+	    const char *hn_1=SSL_SESSION_get0_hostname(sess);
+	    if (hn_1==NULL && c_debug) {
+	        BIO_printf(bio_c_out,"Existing session hostname is NULL\n");
+	    } else if (c_debug) {
+	        BIO_printf(bio_c_out,"Existing session hostname is %s\n",hn_1);
+	    }
+	    const char *ehn_1=SSL_SESSION_get0_enchostname(sess);
+	    if (ehn_1==NULL && c_debug) {
+	        BIO_printf(bio_c_out,"Existing session enchostname is NULL\n");
+	    } else if (c_debug)  {
+	        BIO_printf(bio_c_out,"Existing session enchostname is %s\n",ehn_1);
+	    }
+	    if (ech_inner_name!=NULL) {
+	        /*
+	         * If doing ECH then stuff that name into the session, so that 
+	          * it'll be visible/remembered later.
+	          */
+	        int rv=SSL_SESSION_set1_hostname(sess,ech_inner_name);
+	        if (rv!=1) {
+	            if (c_debug) 
+	                BIO_printf(bio_err, "Can't set ECH/inner_name in session...\n");
+	            ERR_print_errors(bio_err);
+	        } else {
+	            if (c_debug) 
+	                BIO_printf(bio_err, "Set ECH/inner_name in session to %s\n",ech_inner_name);
+	            ERR_print_errors(bio_err);
+	        }
+	    } 
+	    if (c_debug) {
+	        BIO_printf(bio_err,"---\nECH stuff so far:\n");
+	        SSL_SESSION_print(bio_err, sess);
+	    }
     }
 #endif
 
-#ifndef OPENSSL_NO_ECH
-    if (c_debug) {
-        BIO_printf(bio_c_out,"new_session_cb called ech flavour\n");
-    }
-    const char *hn_1=SSL_SESSION_get0_hostname(sess);
-    if (hn_1==NULL && c_debug) {
-        BIO_printf(bio_c_out,"Existing session hostname is NULL\n");
-    } else if (c_debug) {
-        BIO_printf(bio_c_out,"Existing session hostname is %s\n",hn_1);
-    }
-    const char *ehn_1=SSL_SESSION_get0_enchostname(sess);
-    if (ehn_1==NULL && c_debug) {
-        BIO_printf(bio_c_out,"Existing session enchostname is NULL\n");
-    } else if (c_debug)  {
-        BIO_printf(bio_c_out,"Existing session enchostname is %s\n",ehn_1);
-    }
-    if (ech_inner_name!=NULL) {
-        /*
-         * If doing ECH then stuff that name into the session, so that 
-          * it'll be visible/remembered later.
-          */
-        int rv=SSL_SESSION_set1_hostname(sess,ech_inner_name);
-        if (rv!=1) {
-            if (c_debug) 
-                BIO_printf(bio_err, "Can't set ECH/inner_name in session...\n");
-            ERR_print_errors(bio_err);
-        } else {
-            if (c_debug) 
-                BIO_printf(bio_err, "Set ECH/inner_name in session to %s\n",ech_inner_name);
-            ERR_print_errors(bio_err);
-        }
-    } 
-    if (c_debug) {
-        BIO_printf(bio_err,"---\nECH stuff so far:\n");
-        SSL_SESSION_print(bio_err, sess);
+#ifndef OPENSSL_NO_ESNI
+    if (encservername!=NULL) {
+	    if (c_debug) {
+	        BIO_printf(bio_c_out,"new_session_cb called - esni flavour\n");
+	    }
+	    const char *hn=SSL_SESSION_get0_hostname(sess);
+	    if (hn==NULL && c_debug) {
+	        BIO_printf(bio_c_out,"Existing session hostname is NULL\n");
+	    } else if (c_debug) {
+	        BIO_printf(bio_c_out,"Existing session hostname is %s\n",hn);
+	    }
+	    const char *ehn=SSL_SESSION_get0_enchostname(sess);
+	    if (ehn==NULL && c_debug) {
+	        BIO_printf(bio_c_out,"Existing session enchostname is NULL\n");
+	    } else if (c_debug)  {
+	        BIO_printf(bio_c_out,"Existing session enchostname is %s\n",ehn);
+	    }
+	    if (encservername!=NULL) {
+	        /*
+	         * If doing ESNI then stuff that name into the session, so that 
+	          * it'll be visible/remembered later.
+	          */
+	        int rv=SSL_SESSION_set1_enchostname(sess,encservername);
+	        if (rv!=1) {
+	            if (c_debug) 
+	                BIO_printf(bio_err, "Can't set ESNI/enchostname in session...\n");
+	            ERR_print_errors(bio_err);
+	        } else {
+	            if (c_debug) 
+	                BIO_printf(bio_err, "Set ESNI/enchostname in session to %s\n",encservername);
+	            ERR_print_errors(bio_err);
+	        }
+	    } 
+	    if (servername!=NULL) {
+	        /*
+	         * If doing cleartext SNI then put that in session 
+	         */
+	        int rv=SSL_SESSION_set1_hostname(sess,servername);
+	        if (rv!=1) {
+	            if (c_debug) 
+	                BIO_printf(bio_err, "Can't set ESNI/hostname in session...\n");
+	        } else {
+	            if (c_debug) 
+	                BIO_printf(bio_err, "Set ESNI/hostname in session to %s\n",servername);
+	        }
+	        /* also stick that in public_name_override */
+	        rv=SSL_SESSION_set1_public_name_override(sess,servername);
+	        if (rv!=1) {
+	            if (c_debug) 
+	                BIO_printf(bio_err, "Can't set ESNI/public_name_override in session...\n");
+	        } else {
+	            if (c_debug) 
+	                BIO_printf(bio_err, "Set ESNI/public_name_override in session to %s\n",servername);
+	        }
+	        /* 
+	         * put public_name into session, public_name set from callback
+	         */
+	        if (public_name!=NULL) {
+	            rv=SSL_SESSION_set1_public_name(sess,public_name);
+	            if (rv!=1) {
+	                if (c_debug) 
+	                    BIO_printf(bio_err, "Can't set ESNI/public_name in session...\n");
+	            } else {
+	                if (c_debug) 
+	                    BIO_printf(bio_err, "Set ESNI/public_name in session to %s\n",public_name);
+	            }
+	        } else {
+	            if (c_debug) 
+	                BIO_printf(bio_err, "Can't set ESNI/public_name (none visible) in session...\n");
+	        }
+	        ERR_print_errors(bio_err);
+	    }
+	    if (c_debug) {
+	        BIO_printf(bio_err,"---\nESNI stuff so far:\n");
+	        SSL_SESSION_print(bio_err, sess);
+	    }
     }
 #endif
 
@@ -2338,37 +2342,37 @@ int s_client_main(int argc, char **argv)
 
 #ifndef OPENSSL_NO_ECH
         {
-        /*
-         * As per RFC8446, 4.6.1 check that the cert in the session covers
-         * the server name we want (preferring the inner name over 
-         * the outer)
-         * At this point it doesn't really matter what the old names in
-         * the session were, those are just informative.
-         */
-        const char *thisname=NULL;
-        if (ech_inner_name!=NULL) {
-            thisname=ech_inner_name;
-            BIO_printf(bio_err, "ech_inner_name is set to %s\n",ech_inner_name);
-        } else if (ech_outer_name!=NULL) {
-            BIO_printf(bio_err, "ech_inner_name is NULL\n");
-            thisname=ech_outer_name;
-        }
-        if (ech_outer_name==NULL) {
-            BIO_printf(bio_err, "ech_outer_name is NULL\n");
-        } else {
-            BIO_printf(bio_err, "ech_outer_name is set to %s\n",ech_outer_name);
-        }
-        if (thisname!=NULL) {
-            /*
-             * check matching of name and session
-             */
-            const char *hn=SSL_SESSION_get0_hostname(sess);
-            if (hn!=NULL) {
-                BIO_printf(bio_err, "Stored session hostname is %s\n",hn);
-            } else { 
-                BIO_printf(bio_err, "Stored session hostname is missing\n");
-            }
-        }
+	        /*
+	         * As per RFC8446, 4.6.1 check that the cert in the session covers
+	         * the server name we want (preferring the inner name over 
+	         * the outer)
+	         * At this point it doesn't really matter what the old names in
+	         * the session were, those are just informative.
+	         */
+	        const char *thisname=NULL;
+	        if (ech_inner_name!=NULL) {
+	            thisname=ech_inner_name;
+	            BIO_printf(bio_err, "ech_inner_name is set to %s\n",ech_inner_name);
+	        } else if (ech_outer_name!=NULL) {
+	            BIO_printf(bio_err, "ech_inner_name is NULL\n");
+	            thisname=ech_outer_name;
+	        }
+	        if (ech_outer_name==NULL) {
+	            BIO_printf(bio_err, "ech_outer_name is NULL\n");
+	        } else {
+	            BIO_printf(bio_err, "ech_outer_name is set to %s\n",ech_outer_name);
+	        }
+	        if (thisname!=NULL) {
+	            /*
+	             * check matching of name and session
+	             */
+	            const char *hn=SSL_SESSION_get0_hostname(sess);
+	            if (hn!=NULL) {
+	                BIO_printf(bio_err, "Stored session hostname is %s\n",hn);
+	            } else { 
+	                BIO_printf(bio_err, "Stored session hostname is missing\n");
+	            }
+	        }
         }
 #endif
 
@@ -2453,7 +2457,7 @@ int s_client_main(int argc, char **argv)
         nechs+=lnechs;
     }
 
-    if (ech_svcb_rr != NULL && ech_outer_name != NULL ) {
+    if (ech_svcb_rr != NULL && ech_inner_name != NULL ) {
         int rv=SSL_ech_server_name(con, ech_inner_name, ech_outer_name);
         if (rv!=1) {
             BIO_printf(bio_err, "%s: enabling ECH failed.\n", prog);
