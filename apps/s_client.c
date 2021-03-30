@@ -2439,7 +2439,6 @@ int s_client_main(int argc, char **argv)
             goto opthelp;
         } 
     }
-
     if (ech_svcb_rr!=NULL) {
         int lnechs=0;
         int rv=SSL_svcb_add(con,ESNI_RRFMT_GUESS,strlen(ech_svcb_rr),ech_svcb_rr,&lnechs);
@@ -2456,8 +2455,7 @@ int s_client_main(int argc, char **argv)
         } 
         nechs+=lnechs;
     }
-
-    if (ech_svcb_rr != NULL && ech_inner_name != NULL ) {
+    if (ech_svcb_rr != NULL && ech_inner_name != NULL && ech_outer_name != NULL) {
         int rv=SSL_ech_server_name(con, ech_inner_name, ech_outer_name);
         if (rv!=1) {
             BIO_printf(bio_err, "%s: enabling ECH failed.\n", prog);

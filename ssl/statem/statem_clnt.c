@@ -1192,6 +1192,13 @@ int tls_construct_client_hello(SSL *s, WPACKET *pkt)
     new_s->init_num=s->init_num;
     new_s->version=TLS1_3_VERSION;
     /*
+     * move the hostname/SNI from the outer to the inner
+     */
+    if (s->ext.hostname!=NULL) {
+        new_s->ext.hostname=s->ext.hostname;
+        s->ext.hostname=NULL;
+    }
+    /*
      * The inner CH will use the same session ID as the outer,
      * which we set just above
      */
