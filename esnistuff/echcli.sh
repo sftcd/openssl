@@ -227,7 +227,7 @@ then
         if [[ "$ECH" == "" ]]
         then
             # TODO: do the parsing biz
-            echo "Can't parse ECHO from HTTPSSVC"
+            echo "Can't parse ECH from HTTPSSVC"
         #else
             #echo "ECH from DNS is : $ECH"
         fi
