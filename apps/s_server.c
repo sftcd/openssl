@@ -3946,6 +3946,40 @@ static int www_body(int s, int stype, int prot, unsigned char *context)
                      "HTTP/1.0 200 ok\r\nContent-type: text/html\r\n\r\n");
             BIO_puts(io, "<HTML><BODY BGCOLOR=\"#ffffff\">\n");
             /* BIO_puts(io, OpenSSL_version(OPENSSL_VERSION)); */
+
+#ifndef OPENSSL_NO_ECH
+            /*
+             * Customise output a bit to show ECH info at top
+             * Note: unlikely to want to integrate this upstream
+             */
+            BIO_puts(io, "<h1>OpenSSL with ECH</h1>\n");
+            char *ech_inner=NULL; 
+            char *ech_outer=NULL;
+            BIO_puts(io, "<h2>\n");
+            int echrv=SSL_ech_get_status(con,&ech_inner,&ech_outer);
+            switch (echrv) {
+            case SSL_ECH_STATUS_NOT_TRIED: 
+                BIO_puts(io,"ECH not attempted\n");
+                break;
+            case SSL_ECH_STATUS_FAILED: 
+                BIO_puts(io,"ECH tried but failed\n");
+                break;
+            case SSL_ECH_STATUS_BAD_NAME: 
+                BIO_puts(io,"ECH worked but bad name\n");
+                break;
+            case SSL_ECH_STATUS_SUCCESS:
+                BIO_printf(io,"ECH success: clear sni: %s, ech_inner: %s\n",
+                                (ech_outer==NULL?"none":ech_outer),
+                            (ech_inner==NULL?"none":ech_inner));
+                break;
+            default:
+                BIO_printf(io," Error getting ECH status\n");
+                break;
+            }
+            BIO_puts(io, "</h2>\n");
+
+#endif
+
 #ifndef OPENSSL_NO_ESNI
             /*
              * Customise output a bit to show ESNI info at top
@@ -3976,13 +4010,18 @@ static int www_body(int s, int stype, int prot, unsigned char *context)
                 break;
             }
             BIO_puts(io, "</h2>\n");
+#endif
+
+#if !defined(OPENSSL_NO_ECH) || !defined(OPENSSL_NO_ESNI) 
             BIO_puts(io, "<h2>TLS Session details</h2>\n");
             BIO_puts(io, "<pre>\n");
             /*
              * also dump session info to server stdout for debugging
              */
             SSL_SESSION_print(bio_s_out, SSL_get_session(con));
-#else
+#endif
+
+#if defined(OPENSSL_NO_ECH) && defined(OPENSSL_NO_ESNI)
             BIO_puts(io, "<pre>\n");
             BIO_puts(io, "\n");
             for (i = 0; i < local_argc; i++) {
