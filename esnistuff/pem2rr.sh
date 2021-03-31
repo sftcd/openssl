@@ -7,6 +7,9 @@
 
 PEMFILE="echconfig.pem"
 RRFILE="/dev/stdout"
+DOMAIN=""
+IPV4=""
+IPV6=""
 
 function usage()
 {
@@ -30,6 +33,9 @@ do
     case "$1" in
         -h|--help) usage;;
         -p|--pemfile) PEMFILE=$2; shift;;
+        -d|--domain) DOMAIN=$2; shift;;
+        -4|--ipv4) IPV4=$2; shift;;
+        -6|--ipv6) IPV6=$2; shift;;
         -r|--rrfile) RRFILE=$2; shift;;
         (--) shift; break;;
         (-*) echo "$0: error - unrecognized option $1" 1>&2; exit 1;;
