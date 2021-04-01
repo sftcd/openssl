@@ -2307,9 +2307,10 @@ int ech_decode_inner(SSL *s)
      * before the ciphersuites
      */
     size_t offset2sessid=2+32; 
-    size_t genoffset=offset2sessid+1; // 1 is the length of the session id itself
-    size_t suiteslen=startofmessage[genoffset]*256+startofmessage[genoffset+1];
-    size_t startofexts=genoffset+outer->tmp_session_id_len+2+suiteslen + 2; // the last +2 for the NULL compression
+    size_t suiteslen=startofmessage[offset2sessid+1]*256+startofmessage[offset2sessid+1+1];
+    size_t startofexts=offset2sessid+1+outer->tmp_session_id_len +  // skipping session id
+                2+suiteslen +                                       // skipping suites
+                2;                                                  // skipping NULL compression
 
     memcpy(initial_decomp,outer->ext.encoded_innerch,offset2sessid);
     initial_decomp[offset2sessid]=outer->tmp_session_id_len;
@@ -2319,11 +2320,8 @@ int ech_decode_inner(SSL *s)
     memcpy(initial_decomp+offset2sessid+1+outer->tmp_session_id_len,
                 outer->ext.encoded_innerch+offset2sessid+1,
                 outer->ext.encoded_innerch_len-offset2sessid-1);
-
-    /*
-     * Initial decode of inner
-     */
     ech_pbuf("Inner CH (session-id-added but no decompression)",initial_decomp,initial_decomp_len);
+
     if (startofexts>initial_decomp_len) {
         OSSL_TRACE_BEGIN(TLS) {
             BIO_printf(trc_out,"Oops - exts out of bounds\n");
@@ -2338,17 +2336,17 @@ int ech_decode_inner(SSL *s)
      */
     int found=0;
     int remaining=initial_decomp[startofexts]*256+initial_decomp[startofexts+1];
-    genoffset=startofexts+2; // 1st ext type, skip the overall exts len
+    size_t oneextstart=startofexts+2; // 1st ext type, skip the overall exts len
     uint16_t etype;
     size_t elen;
     while (!found && remaining>0) {
-        etype=initial_decomp[genoffset]*256+initial_decomp[genoffset+1];
-        elen=initial_decomp[genoffset+2]*256+initial_decomp[genoffset+3];
+        etype=initial_decomp[oneextstart]*256+initial_decomp[oneextstart+1];
+        elen=initial_decomp[oneextstart+2]*256+initial_decomp[oneextstart+3];
         if (etype==TLSEXT_TYPE_outer_extensions) {
             found=1;
         } else {
             remaining-=(elen+4);
-            genoffset+=(elen+4);
+            oneextstart+=(elen+4);
         }
     }
     if (found==0) {
@@ -2376,20 +2374,17 @@ int ech_decode_inner(SSL *s)
     }
 
     /*
-     * At this point, we're pointing at the outer extensions in the
+     * At this point, onextstart is the offset of the outer extensions in the
      * encoded_innerch
      */
     int n_outers=elen/2;
-    size_t tot_outer_lens=0; // total length of outers (incl. type+len+val)
-    uint16_t outers[ECH_OUTERS_MAX];
-    size_t outer_sizes[ECH_OUTERS_MAX];
-    int outer_offsets[ECH_OUTERS_MAX];
-    uint8_t slen=initial_decomp[genoffset+4]; // the unnecessary internal length
+    uint16_t outers[ECH_OUTERS_MAX]; // the extension types that were compressed
+    uint8_t slen=initial_decomp[oneextstart+4]; 
     if (!ossl_assert(n_outers==slen/2)) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         goto err;
     }
-    const unsigned char *oval_buf=&initial_decomp[genoffset+5];
+    const unsigned char *oval_buf=&initial_decomp[oneextstart+5];
 
     if (n_outers<=0 || n_outers>ECH_OUTERS_MAX) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
@@ -2414,6 +2409,9 @@ int ech_decode_inner(SSL *s)
      * Got through outer exts and mark what we need
      */
     int iind=0;
+    size_t tot_outer_lens=0; // total length of outers (incl. type+len+val)
+    size_t outer_sizes[ECH_OUTERS_MAX]; // the sizes, in same order as in "outers"
+    int outer_offsets[ECH_OUTERS_MAX]; // the offsets in outer-CH, in same order as in "outers"
     const unsigned char *exts_start=outer->clienthello->extensions.curr;
     size_t exts_len=outer->clienthello->extensions.remaining;
     remaining=exts_len;
@@ -2426,7 +2424,7 @@ int ech_decode_inner(SSL *s)
             if (etype==outers[iind]) {
                 outer_sizes[iind]=elen;
                 outer_offsets[iind]=ep-exts_start;
-                tot_outer_lens+=(outer_sizes[iind]+4);
+                tot_outer_lens+=(elen+4);
                 /*
                  * Note that this check depends on previously barfing on
                  * a single extension appearing twice
@@ -2449,25 +2447,24 @@ int ech_decode_inner(SSL *s)
     /*
      * Now almost-finally package up the lot
      */
+    size_t outer_exts_len=5+2*n_outers;
     unsigned char *final_decomp=NULL;
-    size_t final_decomp_len=0;
-
-    final_decomp_len=
-        4 + // the type and 3-octet length 
-        genoffset + // the start of the CH up to the start of the outers ext
-        tot_outer_lens + // the cumulative length of the extensions to splice in
-        (initial_decomp_len-genoffset-(n_outers*2+5)); // the rest
+    size_t final_decomp_len= 4 // the type and 3-octet length 
+                        + initial_decomp_len // where we started
+                        - outer_exts_len // removing the overall size of the outers_extension
+                        + tot_outer_lens; // adding back the cumulative length of the extensions to splice in
     final_decomp=OPENSSL_malloc(final_decomp_len);
     if (final_decomp==NULL) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_MALLOC_FAILURE);
         goto err;
     }
-    size_t offset=genoffset;
+    size_t offset=oneextstart;
     final_decomp[0]=0x01;
     final_decomp[1]=((final_decomp_len-4)>>16)%256;
     final_decomp[2]=((final_decomp_len-4)>>8)%256;
     final_decomp[3]=(final_decomp_len-4)%256;
-    memcpy(final_decomp+4,initial_decomp,offset);offset+=4;
+    memcpy(final_decomp+4,initial_decomp,offset);offset+=4; // the start up to the "outers" 
+    // now splice in from the outer CH
     for (iind=0;iind!=n_outers;iind++) {
         int ooffset=outer_offsets[iind]+4;
         size_t osize=outer_sizes[iind];
@@ -2477,17 +2474,24 @@ int ech_decode_inner(SSL *s)
         final_decomp[offset]=(osize%256)&0xff; offset++;
         memcpy(final_decomp+offset,exts_start+ooffset,osize); offset+=osize;
     }
+    // now copy over extensions from inner CH from after "outers" to end
     memcpy(final_decomp+offset,
-            initial_decomp+genoffset+5+2*n_outers,
-            initial_decomp_len-genoffset-(n_outers*2+5)); 
+            initial_decomp+oneextstart+outer_exts_len,
+            initial_decomp_len-oneextstart-outer_exts_len); 
 
-    size_t outer_exts_len=5+2*n_outers;
-    size_t initial_oolen=final_decomp[startofexts+4]*256+final_decomp[startofexts+5];
+    // the +4 and +5 are because the final_decomp has the type+3-octet length
+    // and startofexts is the offset within initial_decomp which doesn't have
+    // those
+    size_t initial_extslen=final_decomp[startofexts+4]*256+final_decomp[startofexts+5];
+    size_t final_extslen=initial_extslen+tot_outer_lens-outer_exts_len;
+    OSSL_TRACE_BEGIN(TLS) {
+        BIO_printf(trc_out,"Initial extensions length: 0x%zx, Final extensions length: 0x%zx\n",
+                initial_extslen, final_extslen);
+    } OSSL_TRACE_END(TLS);
 
     // the added 4 is for the type+3-octets len
-    final_decomp[startofexts+4]=(initial_oolen+tot_outer_lens-outer_exts_len)/(256)%0xff;
-    final_decomp[startofexts+5]=(initial_oolen+tot_outer_lens-outer_exts_len)%0xff;
-
+    final_decomp[startofexts+4]=(final_extslen/256)&0xff;
+    final_decomp[startofexts+5]=final_extslen%256;
 
     ech_pbuf("final_decomp",final_decomp,final_decomp_len);
     s->ext.innerch=final_decomp;

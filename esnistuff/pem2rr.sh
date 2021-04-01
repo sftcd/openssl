@@ -10,10 +10,12 @@ RRFILE="/dev/stdout"
 DOMAIN=""
 IPV4s=""
 IPV6s=""
+BASE64="no"
 
 function usage()
 {
-    echo "$0 [-pr] - map a PEMFile containing an ECHConfigs to an ascii hex RR value"
+    echo "$0 [-pr] - map a PEMFile containing an ECHConfigs to an ascii hex or base64 encoded SVCB RR value"
+    echo "  -b means to produce base64 encoded output (default is ascji-hex)"
     echo "  -p [pemfile] specifies the pemfile input (default $PEMFILE)"
     echo "  -4 addrs  specifies the IPV4 addresses (space separated) to include"
     echo "  -6 addrs  specifies the IPV6 addresses (space separated) to include"
@@ -24,7 +26,7 @@ function usage()
 }
 
 # options may be followed by one colon to indicate they have a required argument
-if ! options=$(/usr/bin/getopt -s bash -o 4:6:d:hp:r: -l ipv4,ipv6,domain,help,pemfile:,rrfile: -- "$@")
+if ! options=$(/usr/bin/getopt -s bash -o 4:6:bd:hp:r: -l ipv4,ipv6,base64,domain,help,pemfile:,rrfile: -- "$@")
 then
     # something went wrong, getopt will put out an error message for us
     exit 1
@@ -35,6 +37,7 @@ while [ $# -gt 0 ]
 do
     case "$1" in
         -h|--help) usage;;
+        -b|--base64) BASE64="yes";;
         -p|--pemfile) PEMFILE=$2; shift;;
         -d|--domain) DOMAIN=$2; shift;;
         -4|--ipv4) IPV4s=$2; shift;;
@@ -82,4 +85,10 @@ fi
 #echo "domain: $DOMAIN, IPv4s $IPV4s, IPV6s $IPV6s"
 # TODO: map IPv4/6 to hints in SVCB as needed
 
-echo "$rr_preamble$ah_ech_header$ah_ech$rr_postamble" >$RRFILE
+if [[ "$BASE64" != "yes" ]]
+then
+    echo "$rr_preamble$ah_ech_header$ah_ech$rr_postamble" >$RRFILE
+else
+    b64str=`echo "$rr_preamble$ah_ech_header$ah_ech$rr_postamble" | xxd -p -r | base64 -w 0` 
+    echo $b64str >$RRFILE
+fi
