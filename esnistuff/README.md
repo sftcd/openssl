@@ -28,6 +28,17 @@ Most recent first...
 DON'T TRY ECH YET!!! The very much work-in-progress code is
 sooooo awful still...
 
+- Niall's curl build + our draft-10 library now works against
+  https://draft-10.esni.defo.ie:8410 which is only an s_server
+  instance (so not a real server, hence: please be kind:-).
+  Reminder to self, for invoking that:
+
+            $ cd $HOME/code/curl
+            $ export /home/stephen/code/curl/lib/.libs:/home/stephen/code/openssl 
+            $ src/curl https://draft-10.esni.defo.ie:8410/stats --echconfig "AEL+CgA+zgAgACDpySLJgFRnOze6x/6Dt4AqAkecRlgvFuopBQ6xCqN2aAAEAAEAAQAAAA1jb3Zlci5kZWZvLmllAAA=" -v
+
+  Niall has a wrapper script that retrieves the ECHConfig from
+  DNS but I've yet to test that.
 
 - 20210323: made changes that might provide draft-10 interop
   (seems to work locally at least)
