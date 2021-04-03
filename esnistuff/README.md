@@ -34,7 +34,7 @@ sooooo awful still...
   Reminder to self, for invoking that:
 
             $ cd $HOME/code/curl
-            $ export /home/stephen/code/curl/lib/.libs:/home/stephen/code/openssl 
+            $ export LD_LIBRARY_PATH="/home/stephen/code/curl/lib/.libs:/home/stephen/code/openssl"
             $ src/curl https://draft-10.esni.defo.ie:8410/stats --echconfig "AEL+CgA+zgAgACDpySLJgFRnOze6x/6Dt4AqAkecRlgvFuopBQ6xCqN2aAAEAAEAAQAAAA1jb3Zlci5kZWZvLmllAAA=" -v
 
   Niall has a wrapper script that retrieves the ECHConfig from
