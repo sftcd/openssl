@@ -3897,9 +3897,9 @@ static int www_body(int s, int stype, int prot, unsigned char *context)
             STACK_OF(SSL_CIPHER) *sk;
             static const char *space = "                          ";
 
-#ifndef OPENSSL_NO_ESNI
+#if !defined(OPENSSL_NO_ESNI) && !defined(OPENSSL_NO_ECH)
             /*
-             * This isn't an ESNI related change really. Seems like
+             * This isn't an ECH/ESNI related change really. Seems like
              * s_server hangs in some way if we get to this code
              * with www=1, so maybe only do it if renego is 
              * actually supported. Try it anyway
@@ -3968,7 +3968,7 @@ static int www_body(int s, int stype, int prot, unsigned char *context)
                 BIO_puts(io,"ECH worked but bad name\n");
                 break;
             case SSL_ECH_STATUS_SUCCESS:
-                BIO_printf(io,"ECH success: clear sni: %s, ech_inner: %s\n",
+                BIO_printf(io,"ECH success: outer sni: %s, inner sni: %s\n",
                                 (ech_outer==NULL?"none":ech_outer),
                             (ech_inner==NULL?"none":ech_inner));
                 break;
@@ -4173,9 +4173,9 @@ static int www_body(int s, int stype, int prot, unsigned char *context)
                 break;
             }
 
-#ifndef OPENSSL_NO_ESNI
+#if !defined(OPENSSL_NO_ECH) || !defined(OPENSSL_NO_ESNI) 
             /*
-             * Again, not really an ESNI change but server up index.html
+             * Again, not really an ESNI change but serve up index.html
              * (if one exists) as a default pathname if none was provided
              */
             if (*p=='\0') {
@@ -4229,7 +4229,7 @@ static int www_body(int s, int stype, int prot, unsigned char *context)
                     ((i > 4) && (strcmp(&(p[i - 4]), ".htm") == 0)))
                     BIO_puts(io,
                              "HTTP/1.0 200 ok\r\nContent-type: text/html\r\n\r\n");
-#ifndef OPENSSL_NO_ESNI
+#if !defined(OPENSSL_NO_ECH) || !defined(OPENSSL_NO_ESNI) 
                 /* 
                  * same comment as last time
                  */

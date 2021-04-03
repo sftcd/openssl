@@ -30,6 +30,7 @@ PORT="8443"
 HARDFAIL="no"
 TRIALDECRYPT="no"
 SUPPLIEDPORT=""
+WEBSERVER=""
 
 SUPPLIEDKEYFILE=""
 SUPPLIEDHIDDEN=""
@@ -50,20 +51,21 @@ echo "Running $0 at $NOW"
 
 function usage()
 {
-    echo "$0 [-cHpDsdnlvhK] - try out encrypted SNI via openssl s_server"
-    echo "  -H means serve that hidden server"
+    echo "$0 [-cHpDsdnlvhKw] - try out encrypted SNI via openssl s_server"
+    echo "  -B to input a bad key pair to server setup, for testing"
+	echo "  -c [name] specifices a name that I'll accept as a cleartext SNI (NONE is special)"
     echo "  -D means find ech config files in that directory"
     echo "  -d means run s_server in verbose mode"
-    echo "  -v means run with valgrind"
-    echo "  -n means don't trigger ech at all"
-	echo "  -c [name] specifices a name that I'll accept as a cleartext SNI (NONE is special)"
-    echo "  -p [port] specifices a port (default: 8443)"
 	echo "  -F says to hard fail if ECH attempted but fails"
-	echo "  -T says to attempt trial decryption if necessary"
+    echo "  -H means serve that hidden server"
+    echo "  -h means print this"
 	echo "  -K to generate server keys "
 	echo "  -k provide ECH Key pair PEM file"
-    echo "  -B to input a bad key pair to server setup, for testing"
-    echo "  -h means print this"
+    echo "  -n means don't trigger ech at all"
+    echo "  -p [port] specifices a port (default: 8443)"
+    echo "  -v means run with valgrind"
+	echo "  -T says to attempt trial decryption if necessary"
+    echo "  -w means to run as a pretty dumb web server"
 
 	echo ""
 	echo "The following should work:"
@@ -74,7 +76,7 @@ function usage()
 }
 
 # options may be followed by one colon to indicate they have a required argument
-if ! options=$(/usr/bin/getopt -s bash -o k:BTFc:D:H:p:Kdlvnh -l keyfile,badkey,trialdecrypt,hardfail,dir:,clear_sni:,hidden:,port:,keygen,debug,stale,valgrind,noech,help -- "$@")
+if ! options=$(/usr/bin/getopt -s bash -o k:BTFc:D:H:p:Kdlvnhw -l keyfile,badkey,trialdecrypt,hardfail,dir:,clear_sni:,hidden:,port:,keygen,debug,stale,valgrind,noech,help,web -- "$@")
 then
     # something went wrong, getopt will put out an error message for us
     exit 1
@@ -97,6 +99,7 @@ do
         -p|--port) SUPPLIEDPORT=$2; shift;;
         -T|--trialdecrypt) TRIALDECRYPT="yes"; shift;;
         -v|--valgrind) VG="yes" ;;
+        -w|--web) WEBSERVER=" -WWW " ;;
         (--) shift; break;;
         (-*) echo "$0: error - unrecognized option $1" 1>&2; exit 1;;
         (*)  break;;
@@ -247,8 +250,8 @@ trap cleanup SIGINT
 
 if [[ "$DEBUG" == "yes" ]]
 then
-    echo "Running: $vgcmd $TOP/apps/openssl s_server $dbgstr $keyfile1 $keyfile2 $certsdb $portstr $force13 $echstr $snicmd $hardfail $trialdecrypt"
+    echo "Running: $vgcmd $TOP/apps/openssl s_server $dbgstr $keyfile1 $keyfile2 $certsdb $portstr $force13 $echstr $snicmd $hardfail $trialdecrypt $WEBSERVER"
 fi
-$vgcmd $TOP/apps/openssl s_server $dbgstr $keyfile1 $keyfile2 $certsdb $portstr $force13 $echstr $snicmd $hardfail $trialdecrypt
+$vgcmd $TOP/apps/openssl s_server $dbgstr $keyfile1 $keyfile2 $certsdb $portstr $force13 $echstr $snicmd $hardfail $trialdecrypt $WEBSERVER
 
 

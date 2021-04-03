@@ -2606,8 +2606,10 @@ int ech_calc_accept_confirm(SSL *s, unsigned char *acbuf, const unsigned char *s
     chbuf=s->ext.innerch;
     chlen=s->ext.innerch_len;
 
+#ifdef ECH_SUPERVERBOSE
     ech_pbuf("calc conf : innerch",chbuf,chlen);
     ech_pbuf("calc conf : SH",shbuf,shlen);
+#endif
 
     if (s->server) {
         tlen=chlen+shlen;
@@ -2657,7 +2659,9 @@ int ech_calc_accept_confirm(SSL *s, unsigned char *acbuf, const unsigned char *s
         }
     }
 
+#ifdef ECH_SUPERVERBOSE
     ech_pbuf("calc conf : tbuf",tbuf,tlen);
+#endif
 
     /*
      * Next, zap the magic bits and do the keyed hashing
@@ -2673,8 +2677,10 @@ int ech_calc_accept_confirm(SSL *s, unsigned char *acbuf, const unsigned char *s
             || EVP_DigestFinal_ex(ctx, hashval, &hashlen) <= 0) {
         goto err;
     }
+#ifdef ECH_SUPERVERBOSE
     ech_pbuf("calc conf : hashval",hashval,hashlen);
     ech_pbuf("calc conf : h/s secret",insecret,EVP_MAX_MD_SIZE);
+#endif
 
     unsigned char hoval[32];
     if (!tls13_hkdf_expand(s, md, insecret,
@@ -2688,13 +2694,17 @@ int ech_calc_accept_confirm(SSL *s, unsigned char *acbuf, const unsigned char *s
      * Put back the transpript buffer as it was where we got it
      * TODO: consider HRR
      */
+#ifdef ECH_SUPERVERBOSE
     ech_pbuf("calc conf : hoval",hoval,32);
+#endif
 
     /*
      * Finally, set the output
      */
     memcpy(acbuf,hoval,8);
+#ifdef ECH_SUPERVERBOSE
     ech_pbuf("calc conf : result",acbuf,8);
+#endif
     ech_reset_hs_buffer(s,s->ext.innerch,s->ext.innerch_len);
 
     if (tbuf) OPENSSL_free(tbuf);
@@ -2745,7 +2755,7 @@ int ech_swaperoo(SSL *s)
         return(0);
 
     /*
-     * Stash inner fields
+     * Stash fields
      */
     SSL tmp_outer=*s;
     SSL tmp_inner=*s->ext.inner_s;
@@ -2765,6 +2775,7 @@ int ech_swaperoo(SSL *s)
      */
     s->wbio=tmp_outer.wbio;
     s->rbio=tmp_outer.rbio;
+    s->bbio=tmp_outer.bbio;
 
     /*
      * Fields we (for now) need the same in both

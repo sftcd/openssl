@@ -349,7 +349,9 @@ int ssl3_finish_mac(SSL *s, const unsigned char *buf, size_t len)
     int ret;
 
 #ifndef OPENSSL_NO_ECH
+#ifdef ECH_SUPERVERBOSE
     ech_pbuf("Adding this to transcript",buf,len);
+#endif
 #endif
 
     if (s->s3.handshake_dgst == NULL) {

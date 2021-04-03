@@ -1238,7 +1238,6 @@ void SSL_free(SSL *s)
     RECORD_LAYER_release(&s->rlayer);
 
     /* Ignore return value */
-    ssl_free_wbio_buffer(s);
 
 #ifndef OPENSSL_NO_ECH
     /* 
@@ -1246,6 +1245,11 @@ void SSL_free(SSL *s)
      * For some reason doing the same with rbio below results in a leak
      * so we don't do it:-)
      */
+    if (s->ext.ech_grease==ECH_IS_GREASE || s->ext.inner_s!=NULL) 
+#endif
+    ssl_free_wbio_buffer(s);
+
+#ifndef OPENSSL_NO_ECH
     if (s->ext.ech_grease==ECH_IS_GREASE || s->ext.inner_s!=NULL) 
 #endif
     BIO_free_all(s->wbio);

@@ -28,6 +28,7 @@
 static const unsigned char default_zeros[EVP_MAX_MD_SIZE];
 
 #ifndef OPENSSL_NO_ECH
+#ifdef ECH_SUPERVERBOSE
 static void ptranscript(const char *msg, SSL *s)
 {
     size_t hdatalen=0;
@@ -38,6 +39,7 @@ static void ptranscript(const char *msg, SSL *s)
     }
     return;
 }
+#endif
 #endif
 
 /*
@@ -77,6 +79,7 @@ int tls13_hkdf_expand(SSL *s, const EVP_MD *md, const unsigned char *secret,
     WPACKET pkt;
 
 #ifndef OPENSSL_NO_ECH
+#ifdef ECH_SUPERVERBOSE
     OSSL_TRACE_BEGIN(TLS) {
         BIO_printf(trc_out,"hkdf inputs:\n");
     } OSSL_TRACE_END(TLS);
@@ -84,6 +87,7 @@ int tls13_hkdf_expand(SSL *s, const EVP_MD *md, const unsigned char *secret,
     ech_pbuf("\tsecret",secret,secretlen);
     ech_pbuf("\tlabel",label,labellen);
     ech_pbuf("\tdata",data,datalen);
+#endif
 #endif
 
     kctx = EVP_KDF_CTX_new(kdf);
@@ -139,10 +143,12 @@ int tls13_hkdf_expand(SSL *s, const EVP_MD *md, const unsigned char *secret,
     EVP_KDF_CTX_free(kctx);
 
 #ifndef OPENSSL_NO_ECH
+#ifdef ECH_SUPERVERBOSE
     OSSL_TRACE_BEGIN(TLS) {
         BIO_printf(trc_out,"hkdf output:\n");
     } OSSL_TRACE_END(TLS);
     ech_pbuf("\tout",out,outlen);
+#endif
 #endif
 
     if (ret != 0) {
@@ -537,11 +543,13 @@ int tls13_change_cipher_state(SSL *s, int which)
 #endif
 
 #ifndef OPENSSL_NO_ECH
+#ifdef ECH_SUPERVERBOSE
     OSSL_TRACE_BEGIN(TLS) {
         BIO_printf(trc_out,"SSL*=%p, inner=%p, outer=%p, which=%02x\n",s,s->ext.inner_s,s->ext.outer_s,which);
         BIO_printf(trc_out,"handshake_dgst is %p\n",s->s3.handshake_dgst);
     } OSSL_TRACE_END(TLS);
     ptranscript("gen_hs",s);
+#endif
 #endif
 
     if (which & SSL3_CC_READ) {

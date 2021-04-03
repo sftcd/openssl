@@ -173,7 +173,7 @@ then
         clear_sni=$SUPPLIEDPNO
     fi
 fi
-if [[ "$GREASE" == "yes" ]]
+if [[ "$GREASE" == "yes" || "$NOECH" == "yes" ]]
 then
     echoutercmd=" "
 else
@@ -293,7 +293,7 @@ then
 fi
 
 alpn=""
-if [[ "$GREASE" == "no" && "$DOALPN" == "yes" ]]
+if [[ "$GREASE" == "no" && "$DOALPN" == "yes" && "$NOECH" == "no" ]]
 then
     alpn=$DEFALPNVAL
 fi
@@ -304,7 +304,7 @@ if [[ "$DEBUG" == "yes" ]]
 then
     echo "Running: $TOP/apps/openssl s_client $dbgstr $certsdb $force13 $target $echstr $echoutercmd $session $alpn $ciphers"
 fi
-echo -e "$httpreq" | $vgcmd $TOP/apps/openssl s_client $dbgstr $certsdb $force13 $target $echstr $echoutercmd $session $alpn $ciphers >$TMPF 2>&1
+( echo -e "$httpreq" ; sleep 3) | $vgcmd $TOP/apps/openssl s_client $dbgstr $certsdb $force13 $target $echstr $echoutercmd $session $alpn $ciphers >$TMPF 2>&1
 
 c200=`grep -c "200 OK" $TMPF`
 csucc=`grep -c "ECH: success" $TMPF`
