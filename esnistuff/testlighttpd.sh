@@ -3,7 +3,7 @@
 set -x
 
 OSSL="$HOME/code/openssl"
-LIGHTY="$HOME/code/lighttpd1.4"
+LIGHTY="$HOME/code/lighttpd1.4-latest"
 
 export LD_LIBRARY_PATH=$OSSL
 
@@ -63,8 +63,8 @@ fi
 FOREGROUND="-D "
 
 # set to use valgrind, unset to not
-#VALGRIND="valgrind --leak-check=full --show-leak-kinds=all"
-VALGRIND="valgrind --leak-check=full --error-limit=1 --track-origins=yes"
+VALGRIND="valgrind --leak-check=full --show-leak-kinds=all"
+#VALGRIND="valgrind --leak-check=full --error-limit=1 --track-origins=yes"
 # VALGRIND=""
 
 echo "Executing: $VALGRIND $LIGHTY/src/lighttpd $FOREGROUND -f $OSSL/esnistuff/lighttpdmin.conf -m $LIGHTY/src/.libs"

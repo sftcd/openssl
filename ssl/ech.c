@@ -1374,6 +1374,8 @@ int SSL_ech_reduce(SSL *in, int index)
  */
 int SSL_CTX_ech_server_key_status(SSL_CTX *s, int *numkeys)
 {
+    if (!numkeys) return 0;
+    if (s->ext.nechs) *numkeys=s->ext.nechs;
     return 1;
 }
 
@@ -2792,6 +2794,12 @@ int ech_swaperoo(SSL *s)
     s->statem=tmp_outer.statem;
 
     /*
+     * Used by CH callback in lighttpd
+     * TODO: figure out how to not call CH cb twice!
+     */
+    s->ex_data=tmp_outer.ex_data;
+
+    /*
      * Fix up the transcript to reflect the inner CH
      * If there's a cilent hello at the start of the buffer, then
      * it's likely that's the outer CH and we want to replace that
@@ -2911,6 +2919,8 @@ int ech_process_inner_if_present(SSL *s)
         new_se->ext.debug_arg=s->ext.debug_arg;
         new_se->wbio=s->wbio;
         new_se->rbio=s->rbio;
+        new_se->bbio=s->bbio;
+        new_se->ex_data=s->ex_data;
 
         if (s->nechs && !s->ctx->ext.nechs) {
             new_se->nechs=s->nechs;

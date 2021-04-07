@@ -1,7 +1,87 @@
 
-# Playing with lighttpd
+# Playing with lighttpd for ECH
 
-Notes as I ESNI-enabled lighttpd-1.4.
+Notes as I ECH-enable lighttpd-1.4 starting 20210404.
+(Followed by earlier notes about how I [ESNI-enabled](#ESNI-version) lighttpd-1.4 back
+in 2019.).
+
+The plan is similar to how ESNI was handled - create a configuration item
+for the directory within which ECHConfig PEM files can be found, the load all
+those into the server's ``SSL_CTX``. We'll want a better way to reload keys
+periodically in case (or for when) keys are rotated. Finally make ECH related
+information available to the environment for things like PHP.
+
+## ESNI -> ECH 
+
+- I made a "last" [commit](https://github.com/sftcd/lighttpd1.4/commit/38640bbcabff307c74a28bc6e61a1f5978973e78) in
+  case we want to resurrect ESNI at some point.
+- And then re-based with upstream.
+- And then threw away the ESNI changes from ``src/mod_openssl.c`` which was the only
+  source file modified for ESNI and started in on ECH - it looks like there are a lot of changes 
+  to that file from upstream and given FF has dropped ESNI, not much point aiming to support both ECH and ESNI. 
+
+## Build
+
+            $ ./autogen.sh 
+            ... stuff ...
+            # I don't have bzip2 dev/headers and want my own openssl build so...
+            # The below may also need --without-zlib
+            $ ./configure --with-openssl=$HOME/code/openssl --with-openssl-libs=$HOME/code/openssl --without-bzip2
+            ... stuff ...
+            $ make
+            ... stuff ...
+
+I wanted to turn off optimisation at one stage of debugging - to do that ``export CFLAGS="-g "`` before
+running the configure script seems to do the trick.
+
+## Configurarion
+
+Added new configuration settings:
+
+- ssl.echkeydir - name of directory scanned for ``*.pem`` files that will be parsed/used if they contain a private key and ECHConfig
+- ssl.ecrefresh - frequency (in seconds) to re-check whether some PEM files need to be reloaded
+- ssl.echtrialdecrypt - whether or not ECH trial decryption is enabled 
+- ssl.echonly - whether this virtual host ought only be accessible if ECH was successfully used
+
+Those are reflected in the [``lighthttpdmin.conf``](lighthttpdmin.conf) config file used in
+local testing.
+
+Echonly directive handling isn't yet implemented. (Won't be long though:-)
+
+## Testing
+
+The script [``testlighttpd.sh``](./testlighttpd.sh) sets environment vars and
+then runs lighttpd from the build, listening (for HTTPS only) on port 3443:
+
+            $ ./testlighttpd.sh
+
+The ``testlighthtpd.sh`` script runs the server in foreground so you'll ned to ctrl-C
+out of that, when done. (Valgrind reports a small fixed sized leak on exit there,
+not sure if that's my fault or not.)
+
+On the client side, we can use curl:
+
+            $ cd $HOME/code/curl
+            $ src/curl https://foo.example.com:3443/index.html -v     --cacert  /home/stephen/code/openssl/esnistuff/cadir/oe.csr --echconfig "AED+CgA8vwAgACCB9YyilgR2NMLVPOsESVceIrfGpXThGIUMIwGfGClmSgAEAAEAAQAAAAtleGFtcGxlLmNvbQAA"
+            <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+                "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+            <html xmlns="http://www.w3.org/1999/xhtml">
+            <head>
+            <title>Lighttpd top page.</title>
+            </head>
+            <!-- Background white, links blue (unvisited), navy (visited), red
+            (active) -->
+            <body bgcolor="#FFFFFF" text="#000000" link="#0000FF"
+            vlink="#000080" alink="#FF0000">
+            <p>This is the pretty dumb top page for testing. </p>
+            
+            </body>
+            </html>
+
+
+# ESNI-version
+
+Text below documents the 2019 ESNI setup. 
 
 ##  Build
 

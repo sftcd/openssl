@@ -1113,7 +1113,7 @@ static int final_server_name(SSL *s, unsigned int context, int sent)
     /*
      * Only do servername callback if there's no ECH in play
      * or if we're done attempting to decrypt that ECH
-     * (where done could mean it worked, failed or was
+     * (where done could mean it worked, wasn't attempted or was
      * GREASE)
      */
     if (s->ext.ech_attempted==0 || s->ext.ech_grease==ECH_IS_GREASE || s->ext.ech_success==1) 

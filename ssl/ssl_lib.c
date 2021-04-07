@@ -1233,6 +1233,14 @@ void SSL_free(SSL *s)
 
     X509_VERIFY_PARAM_free(s->param);
     dane_final(&s->dane);
+#ifndef OPENSSL_NO_ECH
+    /* 
+     * Tricksy way to only free this once
+     * For some reason doing the same with rbio below results in a leak
+     * so we don't do it:-)
+     */
+    if (s->ext.ech_grease==ECH_IS_GREASE || s->ext.inner_s!=NULL) 
+#endif
     CRYPTO_free_ex_data(CRYPTO_EX_INDEX_SSL, s, &s->ex_data);
 
     RECORD_LAYER_release(&s->rlayer);
@@ -1240,11 +1248,6 @@ void SSL_free(SSL *s)
     /* Ignore return value */
 
 #ifndef OPENSSL_NO_ECH
-    /* 
-     * Tricksy way to only free this once
-     * For some reason doing the same with rbio below results in a leak
-     * so we don't do it:-)
-     */
     if (s->ext.ech_grease==ECH_IS_GREASE || s->ext.inner_s!=NULL) 
 #endif
     ssl_free_wbio_buffer(s);

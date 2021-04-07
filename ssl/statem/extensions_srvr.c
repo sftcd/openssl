@@ -2613,9 +2613,11 @@ int tls_parse_ctos_ech(SSL *s, PACKET *pkt, unsigned int context,
     unsigned char *clear=NULL;
     if (s->ech==NULL) {
         s->ext.ech_grease=ECH_IS_GREASE;
+        s->ext.ech_attempted=1;
         OSSL_TRACE_BEGIN(TLS) {
             BIO_printf(trc_out,"tls_parse_ctos_ech called - NULL ECH so assuming grease.\n");
         } OSSL_TRACE_END(TLS);
+        return 1;
     } else {
         s->ext.ech_grease=ECH_GREASE_UNKNOWN;
         OSSL_TRACE_BEGIN(TLS) {
