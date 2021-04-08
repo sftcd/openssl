@@ -20,6 +20,24 @@ information available to the environment for things like PHP.
   source file modified for ESNI and started in on ECH - it looks like there are a lot of changes 
   to that file from upstream and given FF has dropped ESNI, not much point aiming to support both ECH and ESNI. 
 
+## Clone
+
+- 20210408: looking at moving to use 
+Glenn Stauss' [ECH-experimental](https://github.com/gstrauss/lighttpd1.4/tree/ECH-experimental/) branch, 
+rather than [my fork](https://github.com/sftcd/lighttpd1.4) 
+mainly because he knows what he'd doing with server and I don't, so his way of doing
+things is better that my stumbling about:-) 
+
+            $ git clone https://github.com/gstrauss/lighttpd1.4 lighttpd1.4-gstrauss
+            ...
+            $ cd lighttpd1.4-gstrauss
+            $ git checkout ECH-experimental
+            Branch 'ECH-experimental' set up to track remote branch 'ECH-experimental' from 'origin'.
+            Switched to a new branch 'ECH-experimental'
+            $
+
+More to follow on this as I change the test config file/script to match...
+
 ## Build
 
             $ ./autogen.sh 
@@ -34,7 +52,7 @@ information available to the environment for things like PHP.
 I wanted to turn off optimisation at one stage of debugging - to do that ``export CFLAGS="-g "`` before
 running the configure script seems to do the trick.
 
-## Configurarion
+## Configuration
 
 Added new configuration settings:
 

@@ -4,13 +4,14 @@
 
 # generate a key pair if needed, call s_client as well
 
-TOP="$HOME/code/openssl"
+: ${TOP=$HOME/code/openssl}
 export LD_LIBRARY_PATH=$TOP
 EDIR="$TOP/esnistuff"
 
 EFILE="$EDIR/echconfig.pem"
 PUBLIC_NAME="example.com"
 HIDDEN_NAME="foo.example.com"
+RUNCLI="no" # can parameterise later if needed
 
 VALGRIND=""
 if [[ "$1" == "-v" ]]
@@ -29,7 +30,11 @@ then
     exit 1
 fi
 
-epub=`cat $EFILE | tail -2 | head -1`
+if [[ "$RUNCLI" == "no" ]]
+then
+    exit 0
+fi
 
+epub=`cat $EFILE | tail -2 | head -1`
 echo "Running: ../apps/openssl s_client -servername $PUBLIC_NAME -ech $HIDDEN_NAME -echconfigs $epub"
 $VALGRIND $TOP/apps/openssl s_client -servername $PUBLIC_NAME -ech $HIDDEN_NAME -echconfigs $epub

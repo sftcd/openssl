@@ -63,6 +63,7 @@ clean:
 keys:
 	- ./make-esnikeys.sh
 	- ./testserver.sh -K
+	- ./doech.sh
 
 keyclean:
 	- rm -f esnikeys.pub esnikeys.priv
