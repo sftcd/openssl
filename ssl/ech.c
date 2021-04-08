@@ -344,7 +344,6 @@ static int ech_readpemfile(SSL_CTX *ctx, const char *pemfile, SSL_ECH **sechs)
 err:
     if (priv!=NULL) EVP_PKEY_free(priv);
     if (inbuf!=NULL) OPENSSL_free(inbuf);
-    if (prbuf!=NULL) OPENSSL_free(prbuf);
     if (pheader!=NULL) OPENSSL_free(pheader); 
     if (pname!=NULL) OPENSSL_free(pname); 
     if (pdata!=NULL) OPENSSL_free(pdata); 
@@ -1375,7 +1374,8 @@ int SSL_ech_reduce(SSL *in, int index)
 int SSL_CTX_ech_server_key_status(SSL_CTX *s, int *numkeys)
 {
     if (!numkeys) return 0;
-    if (s->ext.nechs) *numkeys=s->ext.nechs;
+    if (s->ext.ech) *numkeys=s->ext.nechs;
+    else *numkeys=0;
     return 1;
 }
 
@@ -1391,6 +1391,32 @@ int SSL_CTX_ech_server_key_status(SSL_CTX *s, int *numkeys)
  */
 int SSL_CTX_ech_server_flush_keys(SSL_CTX *s, int age)
 {
+    if (s==NULL) return 0;
+    if (s->ext.ech==NULL) return 1;
+    if (s->ext.nechs==0) return 1;
+    if (age<=0) {
+        SSL_ECH_free(s->ext.ech);
+        OPENSSL_free(s->ext.ech);
+        s->ext.ech=NULL;
+        s->ext.nechs=0;
+        return 1;
+    }
+    /*
+     * Otherwise go through them and delete as needed
+     */
+    time_t now=time(0);
+    int i=0;
+    int deleted=0; // number deleted
+    for (i=0;i!=s->ext.nechs;i++) {
+        SSL_ECH *ep=&s->ext.ech[i];
+        if ((ep->loadtime + age) <= now ) {
+            SSL_ECH_free(ep);
+            deleted++;
+            continue;
+        } 
+        s->ext.ech[i-deleted]=s->ext.ech[i]; // struct copy!
+    }
+    s->ext.nechs -= deleted;
     return 1;
 }
 
