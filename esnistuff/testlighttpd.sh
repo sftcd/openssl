@@ -3,7 +3,7 @@
 set -x
 
 OSSL="$HOME/code/openssl"
-LIGHTY="$HOME/code/lighttpd1.4-latest"
+LIGHTY="$HOME/code/lighttpd1.4-gstrauss"
 export TOP=$OSSL
 
 export LD_LIBRARY_PATH=$OSSL

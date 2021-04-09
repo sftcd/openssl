@@ -1625,6 +1625,9 @@ MSG_PROCESS_RETURN tls_process_client_hello(SSL *s, PACKET *pkt)
     if (clienthello != NULL)
         OPENSSL_free(clienthello->pre_proc_exts);
     OPENSSL_free(clienthello);
+#ifndef OPENSSL_NO_ECH
+    s->clienthello=NULL;
+#endif
 
     return MSG_PROCESS_ERROR;
 }
@@ -1932,10 +1935,6 @@ static int tls_early_post_process_client_hello(SSL *s)
      * for now because we'll need to re-calculate the server random
      * later to inclue the ECH magic (can't do it now as we don't
      * yet have the SH encoding)
-     *
-     * Hopefully, avoiding this means that the server random won't
-     * be used until we've had a chance to figure out the magic.
-     * TODO: validate that!!
      */
     if (s->ech && s->ext.ech_done && s->ect.ech_grease==0) 
 #endif

@@ -1320,8 +1320,21 @@ void SSL_free(SSL *s)
     OPENSSL_free(s->ext.alpn_outer);
 #endif
     OPENSSL_free(s->ext.tls13_cookie);
+#ifndef OPENSSL_NO_ECH
+    // s_server seems to not need this, but lighttpd may need it
+    // TODO: reconcile that!
+#undef DONTFREEECH
+#ifdef DONTFREEECH
+    if (s->ext.ech_grease==ECH_IS_GREASE || s->ext.inner_s!=NULL) 
+#endif
+#endif
     if (s->clienthello != NULL)
         OPENSSL_free(s->clienthello->pre_proc_exts);
+#ifndef OPENSSL_NO_ECH
+#ifdef DONTFREEECH
+    if (s->ext.ech_grease==ECH_IS_GREASE || s->ext.inner_s!=NULL) 
+#endif
+#endif
     OPENSSL_free(s->clienthello);
     OPENSSL_free(s->pha_context);
     EVP_MD_CTX_free(s->pha_dgst);
@@ -1381,6 +1394,7 @@ void SSL_free(SSL *s)
         for (i=0;i!=s->nechs;i++) {
             SSL_ECH_free(&s->ech[i]);
         }
+        memset(s->ech,0,s->nechs*sizeof(SSL_ECH));
         OPENSSL_free(s->ech);
         s->ech=NULL;
         s->nechs=0;

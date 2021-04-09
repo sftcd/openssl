@@ -22,6 +22,7 @@
 # include "statem/statem_local.h"
 #include <openssl/rand.h>
 #include <openssl/trace.h>
+#include <openssl/evp.h>
 
 /*
  * Needed to use stat for file status below in ech_check_filenames
@@ -1678,29 +1679,31 @@ SSL_ECH* SSL_ECH_dup(SSL_ECH* orig, size_t nech, int selector)
     memset(new_se,0,(max_ind-min_ind)*sizeof(SSL_ECH));
 
     for (i=min_ind;i!=max_ind;i++) {
-        new_se[i]=orig[i]; // shallow
+        //new_se[i]=orig[i]; // shallow
         new_se[i].cfg=OPENSSL_malloc(sizeof(ECHConfigs));
         if (new_se[i].cfg==NULL) goto err;
         if (ECHConfigs_dup(orig[i].cfg,new_se[i].cfg)!=1) goto err;
-    }
 
-    if (orig->inner_name!=NULL) {
-        new_se->inner_name=OPENSSL_strdup(orig->inner_name);
+        if (orig[i].inner_name!=NULL) {
+            new_se[i].inner_name=OPENSSL_strdup(orig[i].inner_name);
+        }
+        if (orig[i].outer_name!=NULL) {
+            new_se[i].outer_name=OPENSSL_strdup(orig[i].outer_name);
+        }
+        if (orig[i].pemfname!=NULL) {
+            new_se[i].pemfname=OPENSSL_strdup(orig[i].pemfname);
+        }
+        new_se[i].loadtime=orig[i].loadtime;
+        if (orig[i].keyshare!=NULL) {
+            new_se[i].keyshare=orig[i].keyshare;
+            EVP_PKEY_up_ref(orig[i].keyshare);
+        }
+        if (orig[i].dns_alpns!=NULL) {
+            new_se[i].dns_alpns=OPENSSL_strdup(orig[i].dns_alpns);
+        }
+        new_se[i].dns_no_def_alpn=orig[i].dns_no_def_alpn;
+
     }
-    if (orig->outer_name!=NULL) {
-        new_se->outer_name=OPENSSL_strdup(orig->outer_name);
-    }
-    if (orig->pemfname!=NULL) {
-        new_se->pemfname=OPENSSL_strdup(orig->pemfname);
-    }
-    if (orig->keyshare!=NULL) {
-        new_se->keyshare=orig->keyshare;
-        EVP_PKEY_up_ref(orig->keyshare);
-    }
-    if (orig->dns_alpns!=NULL) {
-        new_se->dns_alpns=OPENSSL_strdup(orig->dns_alpns);
-    }
-    new_se->dns_no_def_alpn=orig->dns_no_def_alpn;
 
     return new_se;
 err:
@@ -2815,6 +2818,11 @@ int ech_swaperoo(SSL *s)
     s->init_off=tmp_outer.init_off;
     s->init_num=tmp_outer.init_num;
 
+    /*  
+     * lighttpd failure case implies I need this
+     */
+    s->handshake_func=tmp_outer.handshake_func;
+
     s->ext.debug_cb=tmp_outer.ext.debug_cb;
     s->ext.debug_arg=tmp_outer.ext.debug_arg;
     s->statem=tmp_outer.statem;
@@ -2905,6 +2913,26 @@ int ech_swaperoo(SSL *s)
         s->ext.ech_success=0; 
         return(0);
     }
+
+    /*
+     * call ECH callback
+     */
+    if (s->ech!=NULL && s->ext.ech_done==1 && s->ech_cb != NULL) {
+        char pstr[ECH_PBUF_SIZE+1];
+        memset(pstr,0,ECH_PBUF_SIZE+1);
+        BIO *biom = BIO_new(BIO_s_mem());
+        SSL_ech_print(biom,s,ECH_SELECT_ALL);
+        BIO_read(biom,pstr,ECH_PBUF_SIZE);
+        unsigned int cbrv=s->ech_cb(s,pstr);
+        BIO_free(biom);
+        if (cbrv != 1) {
+            OSSL_TRACE_BEGIN(TLS) {
+                BIO_printf(trc_out,"Exiting tls_parse_ctos_ech at %d\n",__LINE__);
+            } OSSL_TRACE_END(TLS);
+            return 0;
+        }
+    }
+
     return(1);
 }
 
@@ -2947,6 +2975,7 @@ int ech_process_inner_if_present(SSL *s)
         new_se->rbio=s->rbio;
         new_se->bbio=s->bbio;
         new_se->ex_data=s->ex_data;
+        new_se->handshake_func=s->handshake_func;
 
         if (s->nechs && !s->ctx->ext.nechs) {
             new_se->nechs=s->nechs;
