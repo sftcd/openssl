@@ -355,7 +355,7 @@ int ech_main(int argc, char **argv)
     char *extfile=NULL;
     unsigned char extvals[ECH_MAXEXTLEN];
     size_t extlen=ECH_MAXEXTLEN;
-    uint16_t ech_version=ECH_DRAFT_09_VERSION;
+    uint16_t ech_version=ECH_DRAFT_10_VERSION;
     uint16_t max_name_length=0;
     hpke_suite_t hpke_suite = HPKE_SUITE_DEFAULT;
 

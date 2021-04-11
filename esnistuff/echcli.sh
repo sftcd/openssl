@@ -258,7 +258,7 @@ then
 fi
 
 #httpreq="GET $HTTPPATH\\r\\n\\r\\n"
-httpreq="GET /$HTTPPATH HTTP/1.1\r\nConnection: close\r\nHost: $hidden\r\n\r\n"
+httpreq="GET /$HTTPPATH HTTP/1.1\\r\\nConnection: close\\r\\nHost: $hidden\\r\\n\\r\\n"
 
 # tell it where CA stuff is...
 if [[ "$server" != "localhost" ]]
