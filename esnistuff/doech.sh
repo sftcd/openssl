@@ -23,6 +23,7 @@ fi
 if [ ! -f $EFILE ]
 then
     ../apps/openssl ech -public_name $PUBLIC_NAME -pemout $EFILE
+	cp $EFILE $EDIR/esnikeydir/`basename $EFILE`.ech
 fi
 if [ ! -f $EFILE ]
 then
