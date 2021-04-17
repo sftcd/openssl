@@ -28,6 +28,10 @@ Most recent first...
 DON'T TRY ECH YET!!! The very much work-in-progress code is
 sooooo awful still...
 
+- 20210417: deployed a lighttpd on defo.ie at draft-10.esni.defo.ie:9410 which works, but
+  still some oddity related to the "ECH only" virtual host (draft-10-echonly.esni.defo.ie:9410)
+  on the same server - seems to relate to ALPN somehow, investigating...
+
 - Niall's curl build + our draft-10 library now works against
   https://draft-10.esni.defo.ie:8410 which is only an s_server
   instance (so not a real server, hence: please be kind:-).

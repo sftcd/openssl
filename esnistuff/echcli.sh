@@ -50,8 +50,7 @@ SUPPLIEDSESSION=""
 
 # default values
 HIDDEN="crypto.cloudflare.com"
-PNO="crypto.cloudflare.com"
-#PNO="rte.ie"
+PNO=""
 CAPATH="/etc/ssl/certs/"
 CAFILE="./cadir/oe.csr"
 REALCERT="no" # default to fake CA for localhost
@@ -76,6 +75,7 @@ function usage()
     echo "  -H means try connect to that hidden server"
     echo "  -j just use 0x1301 ciphersuite"
     echo "  -n means don't trigger ech at all"
+    echo "  -N means don't send specific inner/outer alpns"
     echo "  -p [port] specifices a port (default: 443)"
 	echo "  -P [filename] means read ECHConfigs public value from file and not DNS"
     echo "  -r (or --realcert) says to not use locally generated fake CA regardless"
@@ -90,7 +90,7 @@ function usage()
 }
 
 # options may be followed by one colon to indicate they have a required argument
-if ! options=$(/usr/bin/getopt -s bash -o c:df:ghH:jnp:P:rs:S:v -l clear_sni:,debug,filepath:,grease,help,hidden:,just,noech,port:,echpub:,realcert,server:,session:,valgrind -- "$@")
+if ! options=$(/usr/bin/getopt -s bash -o c:df:ghH:jnNp:P:rs:S:v -l clear_sni:,debug,filepath:,grease,help,hidden:,just,noech,noalpn,port:,echpub:,realcert,server:,session:,valgrind -- "$@")
 then
     # something went wrong, getopt will put out an error message for us
     exit 1
@@ -108,6 +108,7 @@ do
         -H|--hidden) SUPPLIEDHIDDEN=$2; shift;;
         -j|--just) CIPHERSUITES=" -ciphersuites TLS_AES_128_GCM_SHA256 " ;;
         -n|--noech) NOECH="yes" ;;
+        -N|--noalpn) DOALPN="no" ;;
         -p|--port) SUPPLIEDPORT=$2; shift;;
 		-P|--echpub) SUPPLIEDECH=$2; shift;;
         -r|--realcert) REALCERT="yes" ;;
@@ -162,34 +163,22 @@ then
     PORT=$SUPPLIEDPORT
 fi
 
-# Set SNI
-clear_sni=$PNO
-if [[ "$SUPPLIEDPNO" != "" ]]
+echoutercmd=" "
+if [[ "$SUPPLIEDPNO" != "" && "$SUPPLIEDPNO" != "NONE" ]] 
 then
-    if [[ "$SUPPLIEDPNO" == "NONE" ]]
-    then
-        clear_sni=""
-    else
-        clear_sni=$SUPPLIEDPNO
-    fi
-fi
-if [[ "$GREASE" == "yes" || "$NOECH" == "yes" ]]
-then
-    echoutercmd=" "
-else
-    echoutercmd="-ech-outer $clear_sni"
+    echoutercmd="-ech-outer $SUPPLIEDPNO"
 fi
 
 # Set address of target 
-if [[ "$clear_sni" != "" && "$hidden" == "" ]]
+if [[ "$SUPPLIEDPNO" != "" && "$hidden" == "" ]]
 then
-    target=" -connect $clear_sni:$PORT "
+    target=" -connect $SUPPLIEDPNO:$PORT "
 else
     # I guess we better connect to hidden 
     # Note that this could leak via DNS again
     target=" -connect $hidden:$PORT "
 fi
-server=$clear_sni
+server=$hidden
 if [[ "$SUPPLIEDSERVER" != "" ]]
 then
 	target=" -connect $SUPPLIEDSERVER:$PORT"
@@ -223,6 +212,10 @@ then
         # try draft-09 only for now, i.e. HTTPSSVC
         # kill the spaces and joing the lines if multi-valued seen 
         qname=$hidden
+        if [[ "$PORT" != "" && "$PORT" != "443" ]]
+        then
+            qname="_$PORT._https.$hidden"
+        fi
         ECH=`dig +short -t TYPE65 $qname | tail -1 | cut -f 3- -d' ' | sed -e 's/ //g' | sed -e 'N;s/\n//'`
         if [[ "$ECH" == "" ]]
         then
@@ -240,20 +233,25 @@ then
     exit 100
 fi
 
+# normally the inner SNI is what we want to hide
 echstr="-servername $hidden -svcb $ECH "
 if [[ "$NOECH" == "yes" ]]
 then
     echo "Not trying ECH"
-    echstr="-servername $hidden "
+    if [[ "$SUPPLIEDPNO" == "" && "$hidden" != "" ]]
+    then
+        echstr="-servername $hidden "
+    elif [[ "$SUPPLIEDPNO" != "" && "$SUPPLIEDPNO" != "NONE" ]]
+    then
+        echstr="-servername $SUPPLIEDPNO "
+    elif [[ "$hidden" == "" || "$SUPPLIEDPNO" == "NONE" ]]
+    then
+        echstr=" -noservername"
+    fi
     if [[ "$GREASE" == "yes" ]]
     then
         echo "Trying to GREASE though"
-        if [[ "$SUPPLIEDPNO" == "NONE" ]]
-        then
-            echstr=" -noservername -ech_grease "
-        else
-            echstr=" -servername $clear_sni -ech_grease "
-        fi
+        echstr=" $echstr -ech_grease "
     fi
 fi
 
@@ -325,7 +323,7 @@ then
 fi
 goodresult=`grep -c "ECH: success" $TMPF`
 echo "$0 Summary: "
-allresult=`grep "ECH:" $TMPF`
+allresult=`grep "ECH: " $TMPF`
 rm -f $TMPF
 if (( $goodresult > 0 ))
 then

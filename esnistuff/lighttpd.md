@@ -1,15 +1,23 @@
 
 # Playing with lighttpd for ECH
 
-Notes as I ECH-enable lighttpd-1.4 starting 20210404.
-(Followed by earlier notes about how I [ESNI-enabled](#ESNI-version) lighttpd-1.4 back
-in 2019.).
+Notes on ECH-enabling lighttpd-1.4 starting 20210404.  (Followed by earlier
+notes about how I [ESNI-enabled](#ESNI-version) lighttpd-1.4 back in 2019.).
 
-The plan is similar to how ESNI was handled - create a configuration item
-for the directory within which ECHConfig PEM files can be found, the load all
-those into the server's ``SSL_CTX``. We'll want a better way to reload keys
-periodically in case (or for when) keys are rotated. Finally make ECH related
-information available to the environment for things like PHP.
+Acknowlegement: Glenn Strauss (a lighttpd dev) has been of enormous assistance
+with ECH. Any errors below are not his though.
+
+The plan is similar to how ESNI was handled: 
+
+- Create a server configuration item for the directory within which ECHConfig
+  PEM files can be found, then load all those into the server's ``SSL_CTX``,
+with periodic re-loads (if file is new/modified) to support key rotation.
+- We also support a way to make a specific virtual host "ECH only" by
+  configuring a (presumably different) virtual host name to use, if ECH wasn't
+successfully used in the ClientHello for that TLS session.
+- There's some additional (compile time) logging that can be turned on.
+- Finally, we provide a way to make ECH related information available to the
+  environment for things like PHP.
 
 ## ESNI -> ECH 
 
@@ -22,11 +30,8 @@ information available to the environment for things like PHP.
 
 ## Clone
 
-- 20210408: looking at moving to use 
-Glenn Stauss' [ECH-experimental](https://github.com/gstrauss/lighttpd1.4/tree/ECH-experimental/) branch, 
-rather than [my fork](https://github.com/sftcd/lighttpd1.4) 
-mainly because he knows what he'd doing with server and I don't, so his way of doing
-things is better that my stumbling about:-) 
+We're using Glenn Stauss' [ECH-experimental](https://github.com/gstrauss/lighttpd1.4/tree/ECH-experimental/) branch
+for lighttpd, 
 
             $ git clone https://github.com/gstrauss/lighttpd1.4 lighttpd1.4-gstrauss
             ...
@@ -35,8 +40,6 @@ things is better that my stumbling about:-)
             Branch 'ECH-experimental' set up to track remote branch 'ECH-experimental' from 'origin'.
             Switched to a new branch 'ECH-experimental'
             $
-
-More to follow on this as I change the test config file/script to match...
 
 ## Build
 
@@ -54,19 +57,25 @@ running the configure script seems to do the trick.
 
 ## Configuration
 
-Added new configuration settings:
+Added new server configuration settings, under ssl.ech-opts:
 
-- ssl.echkeydir - name of directory scanned for ``*.pem`` files that will be parsed/used if they contain a private key and ECHConfig
-- ssl.ecrefresh - frequency (in seconds) to re-check whether some PEM files need to be reloaded
-- ssl.echtrialdecrypt - whether or not ECH trial decryption is enabled 
-- ssl.echonly - whether this virtual host ought only be accessible if ECH was successfully used
+- keydir - name of directory scanned for ``*.ech`` files that will be parsed/used if they contain a private key and ECHConfig
+- refresh - frequency (in seconds) to re-check whether some PEM files need to be reloaded
+- trial-decrypt - whether or not ECH trial decryption is enabled 
+
+In addition there's a virtual host specific configuration item:
+
+- ssl.non-ech-host - name of vhost to pretend was used if ECH wasn't successful (or not tried)
 
 Those are reflected in the [``lighthttpdmin.conf``](lighthttpdmin.conf) config file used in
 local testing.
 
-Echonly directive handling isn't yet implemented. (Won't be long though:-)
+## Testing on localhost
 
-## Testing
+First you'll need a bunch of keys for ECH and TLS generally:
+
+            $ cd $HOME/code/openssl/esnistuff
+            $ make keys
 
 The script [``testlighttpd.sh``](./testlighttpd.sh) sets environment vars and
 then runs lighttpd from the build, listening (for HTTPS only) on port 3443:
@@ -77,10 +86,27 @@ The ``testlighthtpd.sh`` script runs the server in foreground so you'll ned to c
 out of that, when done. (Valgrind reports a small fixed sized leak on exit there,
 not sure if that's my fault or not.)
 
-On the client side, we can use curl:
+I also added example.com, foo.example.com, bar.example.com and bat.example.com to
+``/etc/hosts`` to match the setup in [``lighthttpdmin.conf``](lighthttpdmin.conf).
 
+You can then use our wrapper for ``openssl s_client`` to access a web page:
+
+            $ ./echcli.sh -d -p 3443 -s localhost -H foo.example.com -c example.com -P `./pem2rr.sh -p echconfig-10.pem` -v -f index.html
+            Running ./echcli.sh at 20210416-213418
+            Assuming supplied ECH is RR value
+            ./echcli.sh Valgrind
+            Binary file /tmp/echtest72YF matches
+            
+            ./echcli.sh Summary: 
+            Looks like it worked ok
+            Binary file /tmp/echtest72YF matches
+            $ 
+
+Or, if you've built it, you can use our ECH-enabled curl:
+
+            $ export ECHCONFIG=`./pem2rr.sh -p echconfig.pem`
             $ cd $HOME/code/curl
-            $ src/curl https://foo.example.com:3443/index.html -v     --cacert  /home/stephen/code/openssl/esnistuff/cadir/oe.csr --echconfig "AED+CgA8vwAgACCB9YyilgR2NMLVPOsESVceIrfGpXThGIUMIwGfGClmSgAEAAEAAQAAAAtleGFtcGxlLmNvbQAA"
+            $ src/curl https://foo.example.com:3443/index.html -v     --cacert  /home/stephen/code/openssl/esnistuff/cadir/oe.csr --echconfig $ECHCONFIG
             <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
                 "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
             <html xmlns="http://www.w3.org/1999/xhtml">
@@ -95,6 +121,38 @@ On the client side, we can use curl:
             
             </body>
             </html>
+
+## Deployment under defo.ie
+
+There's an instance of lighttpd on our test server, listening on port 9410, with the associated HTTPS
+RRs in DNS. 
+
+The (currently) fixed ECHConfig for that is:
+
+            AEL+CgA+8QAgACCsEiogyYobxSGHLGd6uSDbuIbW05M41U37vsypEWdqZQAEAAEAAQAAAA1jb3Zlci5kZWZvLmllAAA=
+
+There are 3 virtual hosts:
+
+- cover.defo.ie:9410 - no ECHConfig published in DNS
+- draft-10.esni.defo.ie:9410 - ECHConfig published in DNS
+- draft-10-echonly.esni.defo.ie:9410 - ECHConfig published in DNS, won't be served unless ECH succeeded
+
+(The -echonly host isn't currently working... investigating...)
+
+A basic test using ``echcli.sh``:
+
+            $ ./echcli.sh -p 9410 -s defo.ie -H draft-10.esni.defo.ie  -f index.html 
+            Running ./echcli.sh at 20210416-223656
+            ./echcli.sh Summary: 
+            Looks like it worked ok
+            Binary file /tmp/echtestlqdw matches
+            $ 
+
+Using our ECH-enabled curl:
+
+            $ curl --echconfig AEL+CgA+8QAgACCsEiogyYobxSGHLGd6uSDbuIbW05M41U37vsypEWdqZQAEAAEAAQAAAA1jb3Zlci5kZWZvLmllAAA= https://draft-10.esni.defo.ie:9410/
+            ... HTML follows...
+
 
 
 # ESNI-version
