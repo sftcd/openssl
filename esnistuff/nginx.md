@@ -1,5 +1,40 @@
 
-# ESNI-enabling Nginx
+# ECH-enabling Nginx
+
+The earlier ESNI details (from late 2019 are [below](#ESNI).
+
+## Clone and Build 
+
+It looks (from [here](https://github.com/openssl/openssl/issues/12703)) like the latest nginx
+and OpenSSL 3.0.0 has a build problem, namely that some functions that are deprecated in 
+the latest OpenSSL are used by nginx. So we need to define ``OPENSSL_SUPPRESS_DEPRECATED``
+to buid (for now).
+
+First, you need a separate clone of our OpenSSL build (because nginx's build, in this
+instantiation, re-builds OpenSSL and links static libraries, so we put that in a new
+directory in order to avoid disturbing other builds):
+
+            $ cd $HOME/code
+            $ git clone https://github.com/sftcd/openssl.git openssl-for-nginx-draft-10
+            $ cd openssl-for-nginx-draft-10
+            $ ./config --debug
+            ...stuff...
+            $ make
+            ...go for coffee...
+
+Then you need nginx, and to switch to our ``ECH-experimental`` branch:
+
+            $ cd $HOME/code
+            $ git clone https://github.com/sftcd/nginx.git nginx-draft-10
+            $ cd nginx-draft-10
+            $ git checkout ECH-experimental
+            $ CFLAGS="-DOPENSSL_SUPPRESS_DEPRECATED" ./auto/configure --with-debug --prefix=nginx --with-http_ssl_module --with-openssl=$HOME/code/openssl-for-nginx-draft-10  --with-openssl-opt="--debug"
+            $ make
+            ... go for coffee ...
+
+That's as far as I gotten today (20210419), more to come...
+
+# ESNI
 
 I have a first version of Nginx with ESNI enabled working. Not much tested 
 and but it was pretty easy and seems to work.
