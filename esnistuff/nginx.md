@@ -71,7 +71,9 @@ at the INFO level. The success case in ``error.log`` looks like:
 
             2021/04/20 01:13:00 [notice] 50570#0: *2 ECH success outer_sni: example.com inner_sni: foo.example.com while SSL handshaking, client: 127.0.0.1, server: 0.0.0.0:5443
 
-So we have a localhost nginx with ECH draft-10 working. Yay! (20210420)
+## Deployment 
+
+We have an nginx instance running at [https://draft-10.esni.defo.ie:10410/](https://draft-10.esni.defo.ie:10410/)
 
 # ESNI
 

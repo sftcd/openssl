@@ -28,6 +28,9 @@ Most recent first...
 DON'T TRY ECH YET!!! The very much work-in-progress code is
 sooooo awful still...
 
+- 20210420: deployed an nginx at https://draft-10.esni.defo.ie:10410 that seems to
+  work.
+
 - 20210417: deployed a lighttpd on defo.ie at draft-10.esni.defo.ie:9410 which works, but
   still some oddity related to the "ECH only" virtual host (draft-10-echonly.esni.defo.ie:9410)
   on the same server - seems to relate to ALPN somehow, investigating...
