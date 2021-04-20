@@ -32,7 +32,46 @@ Then you need nginx, and to switch to our ``ECH-experimental`` branch:
             $ make
             ... go for coffee ...
 
-That's as far as I gotten today (20210419), more to come...
+## ECH configuration in Nginx
+
+To turn on ECH - configure a directory (via ``ssl_echkeydir``) that contains
+key files. I did the directory based approach first, as I'd used that with
+``openssl s_server`` and [lighttpd](lighttpd.md).
+
+I added an ECH key directory configuration setting that can be within the
+``http`` stanza 
+in the nginx config file. Then, with a bit of generic parameter handling
+and the addition of a ``load_echkeys()`` function that's pretty much as done
+for [lighttpd](./lighttpd).
+
+The ``load_eckeys()`` function expects ECH key files to be in the configured
+directory. It attempts to load all files matching ``<foo>.ech``
+It skips any files that don't match that naming pattern or don't parse correctly.  
+
+You can see that configuration setting, called ``ssl_echkeydir`` in our
+test [nginxmin-draft-10.confg](nginxmin-draft-10.conf).
+
+            $ ./testnginx-draft-10.sh
+            ... stuff ...
+            $ ./echcli.sh -p 5443 -s localhost -H foo.example.com  -P `./pem2rr.sh -p echkeydir/foo.example.com.ech`
+            Running ./echcli.sh at 20210420-001300
+            Assuming supplied ECH is RR value
+            ./echcli.sh Summary: 
+            Looks like it worked ok
+            ECH: success: outer SNI: 'example.com', inner SNI: 'foo.example.com'
+
+We log when keys are loaded or re-loaded. That's in the error log and looks like:
+
+            2021/04/19 23:39:53 [notice] 50568#0: load_echkeys, worked for: /home/stephen/code/openssl/esnistuff/echkeydir/foo.example.com.ech
+            2021/04/19 23:39:53 [notice] 50568#0: load_echkeys, total keys loaded: 1
+
+We log when ECH is attempted, and works or fails, or if it's not tried. The
+success case is at the NOTICE log level, whereas other events are just logged
+at the INFO level. The success case in ``error.log`` looks like:
+
+            2021/04/20 01:13:00 [notice] 50570#0: *2 ECH success outer_sni: example.com inner_sni: foo.example.com while SSL handshaking, client: 127.0.0.1, server: 0.0.0.0:5443
+
+So we have a localhost nginx with ECH draft-10 working. Yay! (20210420)
 
 # ESNI
 
