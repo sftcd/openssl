@@ -25,16 +25,6 @@ APR stuff in a ``srclib`` sub-directory of the httpd source directory.
             $ ./buildconf
             ... stuff ...
 
-Before running configure, this build seems to assume that OpenSSL shared
-objects will be in a ``lib`` subdirectory of the one we specify, and similarly
-for an ``include`` directory. The latter is true of OpenSSL builds, but the
-former is not (in my case anyway). We'll work around that with a link:
-
-            $ ln -s $HOME/code/openssl $HOME/code/openssl/lib
-
-If you re-configure your OpenSSL build (e.g. re-running
-``$HOME/code/openssl/config``) then you may need to re-do the above step.
-
 And off we go with configure and make ...
 
             $ export CFLAGS="-I$HOME/code/openssl/include"
