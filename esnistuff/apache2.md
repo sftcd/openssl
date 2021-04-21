@@ -60,74 +60,77 @@ ok. There's an example in [apachemin-draft-10.conf](apachemin-draft-10.conf).
 
 ## Run
 
-I created a [testapache-draft-10.sh](testapache-draft-10.sh) script to start a local instance of apache 
-for example.com and foo.example.com on port 9443. That uses (what I hope is) a 
-pretty minimal configuration that can be found in [apachemin-draft-10.conf](apachemin-draft-10.conf).
-That starts an instance of httpd listening on port 9443 with VirtualServers
-for example.com (default) and foo.example.com.
+I created a [testapache-draft-10.sh](testapache-draft-10.sh) script to start a
+local instance of apache for example.com and foo.example.com on port 9443. That
+uses (what I hope is) a pretty minimal configuration that can be found in
+[apachemin-draft-10.conf](apachemin-draft-10.conf).  That starts an instance of
+httpd listening on port 9443 with VirtualServers for example.com (default) and
+foo.example.com. 
 
 When that's running then you can use curl to access web pages:
 
             $ cd $HOME/code/openssl/esnistuff
-            $ ./testapache-draft-10.sh
-            Killing old httpd in process 17365
-            Executing:  httpd -f apachemin-draft-10.conf
+            $ ./testapache-draft-10.sh 
+            Killing old httpd in process 303611
+            Executing:  httpd -f apachemin.conf
+            $
 
-20210421: GOT HERE - the server now runs and loads an ECH key pair, next up is
-to test that as per below, but that's not yet done...
+Then you can use ``echcli.sh`` to request a web page while using ECH:
 
-            $ curl --connect-to example.com:9443:localhost:9443 https://example.com:9443/index.html --cacert cadir/oe.csr
-            ... you should see HTML now ...
-            $ curl --connect-to foo.example.com:9443:localhost:9443 https://foo.example.com:9443/index.html --cacert cadir/oe.csr
-            ... you should see slightly different HTML now ...
+            $ ./echcli.sh -p 9443 -s localhost -H foo.example.com  -P `./pem2rr.sh -p echkeydir/foo.example.com.ech` -f index.html
+            Running ./echcli.sh at 20210421-143445
+            Assuming supplied ECH is RR value
+            ./echcli.sh Summary: 
+            Looks like it worked ok
+            ECH: success: outer SNI: 'example.com', inner SNI: 'foo.example.com'
+            $
 
-If I try my testclient against an apache server with no ECH configured I get the expected 
-behaviour, which is for the server to return a GREASE ECH
-value, when it gets sent one.
+For the above ``error.log`` should contain a line like:
 
-            $ ./testclient.sh -p 9443 -s localhost -H foo.example.com -c example.com -P esnikeydir/ff03.pub -d
-            ... loadsa stuff...
-			ESNI Nonce (16):
-			    96:52:2d:18:f9:bc:09:7e:8e:70:cb:1d:bf:db:25:50:
-			Nonce Back: <<< TLS 1.3, Handshake [length 006c], EncryptedExtensions
-			    08 00 00 68 00 66 00 00 00 00 ff ce 00 5e 01 55
-			    8c 49 42 e3 30 d0 9d b7 3c ce fe 14 ad 13 ea 1d
-			    2b 27 97 63 eb e8 79 42 e3 9f b8 15 b4 76 7a 19
-			    85 d8 ab 8c 9c 59 82 eb 2d 05 83 16 75 18 80 1f
-			    b6 24 2c ab c0 c6 a7 6d 03 28 ab 53 b1 44 8c e7
-			ESNI: tried but failed
-            
-The "ff ce" just after the "Nonce Back" line there is the 
-extension type for the GREASEd value - in that case it's
-0x5e long. (The extract above doesn't have the entire value
-in case you're wondering.)
+            Wed Apr 21 14:34:45.280917 2021] [ssl:info] [pid 304816:tid 139958983890496] [client 127.0.0.1:38748] AH10240: ECH success outer_sni: example.com inner_sni: foo.example.com
 
-Trying after ECH is configured now works and (with OpenSSL tracing on) looks like:
+And ``access.log`` should contain something like:
 
-            $ ./testclient.sh -p 9443 -s localhost -H baz.example.com -c whatever  -P esnikeydir/ff03.pub -d -f index.html
-            ... lotsa stuff ...
-            ./testclient.sh Summary: 
-            Nonce sent: ESNI Nonce: buf is NULL
-            ESNI H/S Client Random: buf is NULL
-            --
-            ESNI Nonce (16):
-                8f:90:5c:63:d9:83:4c:ae:83:3b:75:0b:0a:39:89:1a:
-            Nonce Back:     EncryptedExtensions, Length=23
-                extensions, length = 21
-                    extension_type=encrypted_server_name(65486), length=17
-                    Got an esni of length (17)
-                        ESNI (len=17): 008F905C63D9834CAE833B750B0A39891A
-            ESNI: success: clear sni: 'whatever', hidden: 'baz.example.com'
+            `127.0.0.1 - - [21/Apr/2021:14:34:45 +0000] foo.example.com "GET /index.html HTTP/1.1" 200 "-" "-"
 
-Without OpenSSL tracing you'll see fewer lines but it's the last one that counts.
+One oddity is that I also see this error:
 
-In the apache server error log (with "info" log level) we also see:
+            [Wed Apr 21 14:34:45.676815 2021] [core:notice] [pid 304814:tid 139958999263104] AH00051: child pid 304816 exit signal Abort (6), possible coredump in /home/stephen/code/openssl/esnistuff
 
-            [Sat Nov 16 07:30:46.717225 2019] [ssl:info] [pid 7769:tid 139779161855744] [client 127.0.0.1:52010] AH01964: Connection to child 129 established (server example.com:443)
-            [Sat Nov 16 07:30:46.718464 2019] [ssl:info] [pid 7769:tid 139779161855744] [client 127.0.0.1:52010] AH10246: later call to get server nane of |baz.example.com|
-            [Sat Nov 16 07:30:46.718519 2019] [ssl:info] [pid 7769:tid 139779161855744] [client 127.0.0.1:52010] AH10248: init_vhost worked for baz.example.com
+I'm not sure if that's caused by my code or something else. One [web
+page](https://serverfault.com/questions/894248/ah00052-child-pid-pid-exit-signal-aborted-6-apache-error?noredirect=1)
+implies it might be something to do with PHP configuration, but it's one to
+check out. I don't see the same issue when using our curl build. Using
+``echcli.sh`` without trying ECH doesn't cause that error though.
+
+You can also use our ECH-enabled curl build to test this.  Note that I've added
+example.com and foo.example.com to ``/etc/hosts`` as having addresses within
+127.0.0/24. (If you don't do that you'll need to use curl's ``--connect-to`` or
+``--resolve`` command line arguments to handle things.)
+
+            $ cd $HOME/code/curl
+            $ src/curl https://foo.example.com:9443/index.html --cacert ../openssl/esnistuff/cadir/oe.csr -v --echconfig AED+CgA8vwAgACCB9YyilgR2NMLVPOsESVceIrfGpXThGIUMIwGfGClmSgAEAAEAAQAAAAtleGFtcGxlLmNvbQAA
+            * STATE: INIT => CONNECT handle 0x55b089e61fc8; line 1634 (connection #-5000)
+            * Added connection 0. The cache now contains 1 members
+            * STATE: CONNECT => RESOLVING handle 0x55b089e61fc8; line 1680 (connection #0)
+            ... lots of stuff, then some HTML...
+            <p>This is the pretty dumb top page for foo.example.com testing. </p>
+
+            </body>
+            </html>
+
+            * STATE: PERFORMING => DONE handle 0x555980130fc8; line 2240 (connection #0)
+            * multi_done
+            * Connection #0 to host foo.example.com left intact
+            * Expire cleared (transfer 0x555980130fc8)
+
+# defo.ie deployment
+
+TBD, but next up (once that Abort error log line is checked some more)
 
 # ESNI
+
+This is text from late 2019 and only kept for posterity.
 
 State of play: ESNI seems to work ok. Not much tested of course;-)
 Currently deployed on [https://defo.ie:9443](https://defo.ie:9443). 

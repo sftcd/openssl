@@ -101,7 +101,7 @@ VALGRIND=""
 FGROUND=""
 # FGROUND="-DFOREGROUND "
 
-echo "Executing: $VALGRIND $APA/httpd -f $OSSL/esnistuff/apachemin.conf"
+echo "Executing: $VALGRIND $APA/httpd -f $OSSL/esnistuff/apachemin-draft-10.conf"
 # move over there to run code, so config file can have relative paths
 cd $OSSL/esnistuff
 $VALGRIND $APA/httpd -d $OSSL/esnistuff -f $OSSL/esnistuff/apachemin-draft-10.conf $FGROUND
