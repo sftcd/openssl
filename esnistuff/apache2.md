@@ -1,5 +1,133 @@
 
-# Playing about with Apache2
+# Playing about with Apache2 and ECH
+
+We earlier did all this for [ESNI](#ESNI), a precursor to ECH.
+
+## Clone and Build for ECH draft-10
+
+Continuing to use my fork of https://github.com/apache/httpd but now
+with a branch for ECH stuff.
+
+That's apache 2.5 - whereas 2.4 is probably what's widely used.
+Might want to revert to that later, but we'll see (also later:-). 
+
+Turns out that needs the Apache Portable Runtime (APR) to build. (That name
+rings a bell from the distant past;-) As recommended, my httpd build has the
+APR stuff in a ``srclib`` sub-directory of the httpd source directory.
+
+            $ cd $HOME/code
+            $ git clone https://github.com/sftcd/httpd httpd-draft-10
+            $ cd httpd-draft-10
+            $ git checkout ECH-experimental
+            $ cd srclib
+            $ git clone https://github.com/apache/apr.git
+            $ cd ..
+            $ ./buildconf
+            ... stuff ...
+
+Before running configure, this build seems to assume that OpenSSL shared
+objects will be in a ``lib`` subdirectory of the one we specify, and similarly
+for an ``include`` directory. The latter is true of OpenSSL builds, but the
+former is not (in my case anyway). We'll work around that with a link:
+
+            $ ln -s $HOME/code/openssl $HOME/code/openssl/lib
+
+If you re-configure your OpenSSL build (e.g. re-running
+``$HOME/code/openssl/config``) then you may need to re-do the above step.
+
+And off we go with configure and make ...
+
+            $ export CFLAGS="-I$HOME/code/openssl/include"
+            $ export LDFLAGS="-L$HOME/code/openssl"
+            $ ./configure --enable-ssl --with-ssl=$HOME/code/openssl
+            ... loads of stuff ...
+            $ make -j8
+            ... lotsa lotsa stuff ...
+
+## Generate TLS and ECH keys
+
+This should be the same as for [nginx](nginx.md#generate), et al.
+
+At least, I'm using the same keys for now and that seems ok.
+
+## ECH Configuration in Apache
+
+I added a server-wide ``SSLECHKeyDir`` setting (as with
+[lighttpd](lightttpd.md) that ought have the directory where ECH key pair
+files are stored, and we then load those keys as before using a
+``load_echkeys()`` function in ``ssl_module_init.c``.  That seems to load keys
+ok. There's an example in [apachemin-draft-10.conf](apachemin-draft-10.conf). 
+
+## Run
+
+I created a [testapache-draft-10.sh](testapache-draft-10.sh) script to start a local instance of apache 
+for example.com and foo.example.com on port 9443. That uses (what I hope is) a 
+pretty minimal configuration that can be found in [apachemin-draft-10.conf](apachemin-draft-10.conf).
+That starts an instance of httpd listening on port 9443 with VirtualServers
+for example.com (default) and foo.example.com.
+
+When that's running then you can use curl to access web pages:
+
+            $ cd $HOME/code/openssl/esnistuff
+            $ ./testapache-draft-10.sh
+            Killing old httpd in process 17365
+            Executing:  httpd -f apachemin-draft-10.conf
+
+20210421: GOT HERE - the server now runs and loads an ECH key pair, next up is
+to test that as per below, but that's not yet done...
+
+            $ curl --connect-to example.com:9443:localhost:9443 https://example.com:9443/index.html --cacert cadir/oe.csr
+            ... you should see HTML now ...
+            $ curl --connect-to foo.example.com:9443:localhost:9443 https://foo.example.com:9443/index.html --cacert cadir/oe.csr
+            ... you should see slightly different HTML now ...
+
+If I try my testclient against an apache server with no ECH configured I get the expected 
+behaviour, which is for the server to return a GREASE ECH
+value, when it gets sent one.
+
+            $ ./testclient.sh -p 9443 -s localhost -H foo.example.com -c example.com -P esnikeydir/ff03.pub -d
+            ... loadsa stuff...
+			ESNI Nonce (16):
+			    96:52:2d:18:f9:bc:09:7e:8e:70:cb:1d:bf:db:25:50:
+			Nonce Back: <<< TLS 1.3, Handshake [length 006c], EncryptedExtensions
+			    08 00 00 68 00 66 00 00 00 00 ff ce 00 5e 01 55
+			    8c 49 42 e3 30 d0 9d b7 3c ce fe 14 ad 13 ea 1d
+			    2b 27 97 63 eb e8 79 42 e3 9f b8 15 b4 76 7a 19
+			    85 d8 ab 8c 9c 59 82 eb 2d 05 83 16 75 18 80 1f
+			    b6 24 2c ab c0 c6 a7 6d 03 28 ab 53 b1 44 8c e7
+			ESNI: tried but failed
+            
+The "ff ce" just after the "Nonce Back" line there is the 
+extension type for the GREASEd value - in that case it's
+0x5e long. (The extract above doesn't have the entire value
+in case you're wondering.)
+
+Trying after ECH is configured now works and (with OpenSSL tracing on) looks like:
+
+            $ ./testclient.sh -p 9443 -s localhost -H baz.example.com -c whatever  -P esnikeydir/ff03.pub -d -f index.html
+            ... lotsa stuff ...
+            ./testclient.sh Summary: 
+            Nonce sent: ESNI Nonce: buf is NULL
+            ESNI H/S Client Random: buf is NULL
+            --
+            ESNI Nonce (16):
+                8f:90:5c:63:d9:83:4c:ae:83:3b:75:0b:0a:39:89:1a:
+            Nonce Back:     EncryptedExtensions, Length=23
+                extensions, length = 21
+                    extension_type=encrypted_server_name(65486), length=17
+                    Got an esni of length (17)
+                        ESNI (len=17): 008F905C63D9834CAE833B750B0A39891A
+            ESNI: success: clear sni: 'whatever', hidden: 'baz.example.com'
+
+Without OpenSSL tracing you'll see fewer lines but it's the last one that counts.
+
+In the apache server error log (with "info" log level) we also see:
+
+            [Sat Nov 16 07:30:46.717225 2019] [ssl:info] [pid 7769:tid 139779161855744] [client 127.0.0.1:52010] AH01964: Connection to child 129 established (server example.com:443)
+            [Sat Nov 16 07:30:46.718464 2019] [ssl:info] [pid 7769:tid 139779161855744] [client 127.0.0.1:52010] AH10246: later call to get server nane of |baz.example.com|
+            [Sat Nov 16 07:30:46.718519 2019] [ssl:info] [pid 7769:tid 139779161855744] [client 127.0.0.1:52010] AH10248: init_vhost worked for baz.example.com
+
+# ESNI
 
 State of play: ESNI seems to work ok. Not much tested of course;-)
 Currently deployed on [https://defo.ie:9443](https://defo.ie:9443). 
