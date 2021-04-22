@@ -7,8 +7,8 @@
 # should help if you wanna use gdb for apache
 # (*) https://github.com/sftcd/openssl/blob/master/esnistuff/apache2.md
 
-OSSL_TOP=$HOME/code/openssl
-AP_TOP=$HOME/code/httpd
+OSSL_TOP=$HOME/code/openssl-draft-10
+AP_TOP=$HOME/code/httpd-draft-10
 
 OSSL_LP=$OSSL_TOP
 HTTPD_LP=$AP_TOP/.libs

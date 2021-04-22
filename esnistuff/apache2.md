@@ -34,6 +34,18 @@ And off we go with configure and make ...
             $ make -j8
             ... lotsa lotsa stuff ...
 
+    - An Ubuntu 18.04 server required an additional ``sudo apt install libxml2-dev``
+    and adding ``--with-libxml2`` to the configure command line above and adding
+    and include path to CFLAGS to get that to work.
+
+            $ export CFLAGS="-I$HOME/code/openssl/include -I/usr/include/libxml2"
+            $ export LDFLAGS="-L$HOME/code/openssl"
+            $ ./configure --enable-ssl --with-ssl=$HOME/code/openssl --with-libxml2
+            ... loads of stuff ...
+            $ make -j8
+            ... lotsa lotsa stuff ...
+
+
 ## Generate TLS and ECH keys
 
 This should be the same as for [nginx](nginx.md#generate), et al.
@@ -90,8 +102,9 @@ One oddity is that I also see this error:
 I'm not sure if that's caused by my code or something else. One [web
 page](https://serverfault.com/questions/894248/ah00052-child-pid-pid-exit-signal-aborted-6-apache-error?noredirect=1)
 implies it might be something to do with PHP configuration, but it's one to
-check out. I don't see the same issue when using our curl build. Using
-``echcli.sh`` without trying ECH doesn't cause that error though.
+check out. I don't see the same issue every time when using our curl ECH with ECH
+but I have seen it sometimes. Using ``echcli.sh`` without trying ECH hasn't 
+so far caused that error though.
 
 You can also use our ECH-enabled curl build to test this.  Note that I've added
 example.com and foo.example.com to ``/etc/hosts`` as having addresses within
@@ -116,7 +129,11 @@ example.com and foo.example.com to ``/etc/hosts`` as having addresses within
 
 # defo.ie deployment
 
-TBD, but next up (once that Abort error log line is checked some more)
+20210422: Deployed on port 11410. ECH works but looks like some server callback
+isn't working right - we're currently getting back the cert for the ``public_name``
+even though the client sees the ServerHello as meaning success in ECH. That's
+a bit of a puzzle, but a twice-called callback with the first setting the
+cert based on outer SNI might do it. Investigating...   
 
 # ESNI
 
