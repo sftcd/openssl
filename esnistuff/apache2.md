@@ -45,6 +45,8 @@ And off we go with configure and make ...
             $ make -j8
             ... lotsa lotsa stuff ...
 
+On machines where I have >1 openssl build I tend to use $HOME/code/openssl-draft-10 
+for example. You might find that in some scirpt or other and have to adjust.
 
 ## Generate TLS and ECH keys
 
@@ -106,6 +108,12 @@ check out. I don't see the same issue every time when using our curl ECH with EC
 but I have seen it sometimes. Using ``echcli.sh`` without trying ECH hasn't 
 so far caused that error though.
 
+One theory on the above: I did see ``s->rbio`` possibly being free'd twice, so
+perhaps protect that as with ``s->wbio`` - see ``ssl/ssl_lib.c:1260`` or
+about there. Haven't committed that change as IIRC it leads to a leak in
+other contexts and the need for this should disappear once I move all
+the ECH decryption stuff to before the outer CH is handled.
+
 You can also use our ECH-enabled curl build to test this.  Note that I've added
 example.com and foo.example.com to ``/etc/hosts`` as having addresses within
 127.0.0/24. (If you don't do that you'll need to use curl's ``--connect-to`` or
@@ -126,6 +134,25 @@ example.com and foo.example.com to ``/etc/hosts`` as having addresses within
             * multi_done
             * Connection #0 to host foo.example.com left intact
             * Expire cleared (transfer 0x555980130fc8)
+
+## Debugging
+
+With a bit of arm-wrestling I figured out how to run apache in the debugger
+loading all the various shared libraries needed with one process.  Since that's
+too much to type each time, I made an [apachegdb.sh](apachegdb.sh) script to do
+that. If you give it a function name as a command line argument it'll start the
+server with a breakpoint set there. With no command line argument it just
+starts the server.
+
+To build for debug:
+
+            $ export CFLAGS="-I$HOME/code/openssl/include -I/usr/include/libxml2 -g"
+            $ export LDFLAGS="-L$HOME/code/openssl"
+            $ ./configure --enable-ssl --with-ssl=$HOME/code/openssl --with-libxml2
+            ... loads of stuff ...
+            $ make clean 
+            $ make -j8
+            ... lotsa lotsa stuff ...
 
 # defo.ie deployment
 
