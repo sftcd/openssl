@@ -28,6 +28,9 @@ Most recent first...
 DON'T TRY ECH YET!!! The very much work-in-progress code is
 sooooo awful still...
 
+- 20210425: created an ESNI-and-ECH branch to mark state of play before
+  the start of cleaning up.
+
 - 20210420: deployed an nginx at https://draft-10.esni.defo.ie:10410 that seems to
   work.
 
