@@ -7,6 +7,11 @@
  * https://www.openssl.org/source/license.html
  */
 
+#if defined(__TANDEM) && defined(_SPT_MODEL_)
+# include <spthread.h>
+# include <spt_extensions.h> /* timeval */
+#endif
+
 #include <string.h>
 #include "internal/nelem.h"
 #include "internal/cryptlib.h"
@@ -1269,6 +1274,7 @@ static int init_sig_algs(SSL *s, unsigned int context)
     /* Clear any signature algorithms extension received */
     OPENSSL_free(s->s3.tmp.peer_sigalgs);
     s->s3.tmp.peer_sigalgs = NULL;
+    s->s3.tmp.peer_sigalgslen = 0;
 
     return 1;
 }
@@ -1278,6 +1284,7 @@ static int init_sig_algs_cert(SSL *s, ossl_unused unsigned int context)
     /* Clear any signature algorithms extension received */
     OPENSSL_free(s->s3.tmp.peer_cert_sigalgs);
     s->s3.tmp.peer_cert_sigalgs = NULL;
+    s->s3.tmp.peer_cert_sigalgslen = 0;
 
     return 1;
 }
@@ -1725,7 +1732,7 @@ int tls_psk_do_binder(SSL *s, const EVP_MD *md, const unsigned char *msgstart,
 
     bindersize = hashsize;
     if (EVP_DigestSignInit_ex(mctx, NULL, EVP_MD_name(md), s->ctx->libctx,
-                              s->ctx->propq, mackey) <= 0
+                              s->ctx->propq, mackey, NULL) <= 0
             || EVP_DigestSignUpdate(mctx, hash, hashsize) <= 0
             || EVP_DigestSignFinal(mctx, binderout, &bindersize) <= 0
             || bindersize != hashsize) {

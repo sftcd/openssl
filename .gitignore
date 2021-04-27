@@ -215,6 +215,7 @@ providers/common/include/prov/der_sm2.h
 *.exp
 *.lib
 *.pdb
+*.tds
 *.ilk
 *.def
 *.rc
@@ -230,6 +231,7 @@ cscope.*
 *.d
 *.d.tmp
 pod2htmd.tmp
+MAKE0[0-9][0-9][0-9].@@@
 
 # Windows manifest files
 *.manifest

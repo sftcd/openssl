@@ -231,6 +231,7 @@ RSA_OAEP_PARAMS_free,
 RSA_OAEP_PARAMS_new,
 RSA_PSS_PARAMS_free,
 RSA_PSS_PARAMS_new,
+RSA_PSS_PARAMS_dup,
 SCRYPT_PARAMS_free,
 SCRYPT_PARAMS_new,
 SXNETID_free,
@@ -273,6 +274,7 @@ X509_CRL_INFO_free,
 X509_CRL_INFO_new,
 X509_CRL_dup,
 X509_CRL_free,
+X509_CRL_new_ex,
 X509_CRL_new,
 X509_EXTENSION_dup,
 X509_EXTENSION_free,
@@ -288,6 +290,7 @@ X509_REQ_INFO_new,
 X509_REQ_dup,
 X509_REQ_free,
 X509_REQ_new,
+X509_REQ_new_ex,
 X509_REVOKED_dup,
 X509_REVOKED_free,
 X509_REVOKED_new,
@@ -315,6 +318,14 @@ X509_dup,
  void TYPE_free(TYPE *a);
  int TYPE_print_ctx(BIO *out, TYPE *a, int indent, const ASN1_PCTX *pctx);
 
+Deprecated since OpenSSL 3.0, can be hidden entirely by defining
+B<OPENSSL_API_COMPAT> with a suitable version value, see
+L<openssl_user_macros(7)>:
+
+ DSA *DSAparams_dup(const DSA *dsa);
+ RSA *RSAPrivateKey_dup(const RSA *rsa);
+ RSA *RSAPublicKey_dup(const RSA *rsa);
+
 =head1 DESCRIPTION
 
 In the description below, B<I<TYPE>> is used
@@ -339,7 +350,8 @@ The object returned must be released by calling B<I<TYPE>_free>().
 
 B<I<TYPE>_new_ex>() is similiar to B<I<TYPE>_new>() but also passes the
 library context I<libctx> and the property query I<propq> to use when retrieving
-algorithms from providers.
+algorithms from providers. This created object can then be used when loading
+binary data using B<d2i_I<TYPE>>().
 
 B<I<TYPE>_dup>() copies an existing object, leaving it untouched.
 
@@ -361,12 +373,15 @@ B<I<TYPE>_print_ctx>() returns 1 on success or zero on failure.
 
 =head1 HISTORY
 
-The functions PKCS7_new_ex() and CMS_ContentInfo_new_ex() were
-added in OpenSSL 3.0.
+The functions X509_REQ_new_ex(), X509_CRL_new_ex(), PKCS7_new_ex() and
+CMS_ContentInfo_new_ex() were added in OpenSSL 3.0.
+
+The functions DSAparams_dup(), RSAPrivateKey_dup() and RSAPublicKey_dup() were
+deprecated in 3.0.
 
 =head1 COPYRIGHT
 
-Copyright 2016-2020 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2016-2021 The OpenSSL Project Authors. All Rights Reserved.
 
 Licensed under the Apache License 2.0 (the "License").  You may not use
 this file except in compliance with the License.  You can obtain a copy

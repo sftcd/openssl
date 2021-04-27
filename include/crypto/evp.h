@@ -193,6 +193,8 @@ const EVP_PKEY_METHOD *ossl_rsa_pss_pkey_method(void);
 struct evp_mac_st {
     OSSL_PROVIDER *prov;
     int name_id;
+    char *type_name;
+    const char *description;
 
     CRYPTO_REF_COUNT refcnt;
     CRYPTO_RWLOCK *lock;
@@ -214,6 +216,8 @@ struct evp_mac_st {
 struct evp_kdf_st {
     OSSL_PROVIDER *prov;
     int name_id;
+    char *type_name;
+    const char *description;
     CRYPTO_REF_COUNT refcnt;
     CRYPTO_RWLOCK *lock;
 
@@ -230,6 +234,10 @@ struct evp_kdf_st {
     OSSL_FUNC_kdf_set_ctx_params_fn *set_ctx_params;
 };
 
+#define EVP_ORIG_DYNAMIC    0
+#define EVP_ORIG_GLOBAL     1
+#define EVP_ORIG_METH       2
+
 struct evp_md_st {
     /* nid */
     int type;
@@ -238,6 +246,7 @@ struct evp_md_st {
     int pkey_type;
     int md_size;
     unsigned long flags;
+    int origin;
     int (*init) (EVP_MD_CTX *ctx);
     int (*update) (EVP_MD_CTX *ctx, const void *data, size_t count);
     int (*final) (EVP_MD_CTX *ctx, unsigned char *md);
@@ -251,6 +260,8 @@ struct evp_md_st {
     /* New structure members */
     /* Above comment to be removed when legacy has gone */
     int name_id;
+    char *type_name;
+    const char *description;
     OSSL_PROVIDER *prov;
     CRYPTO_REF_COUNT refcnt;
     CRYPTO_RWLOCK *lock;
@@ -281,6 +292,8 @@ struct evp_cipher_st {
     /* Legacy structure members */
     /* Various flags */
     unsigned long flags;
+    /* How the EVP_CIPHER was created. */
+    int origin;
     /* init key */
     int (*init) (EVP_CIPHER_CTX *ctx, const unsigned char *key,
                  const unsigned char *iv, int enc);
@@ -303,6 +316,8 @@ struct evp_cipher_st {
     /* New structure members */
     /* Above comment to be removed when legacy has gone */
     int name_id;
+    char *type_name;
+    const char *description;
     OSSL_PROVIDER *prov;
     CRYPTO_REF_COUNT refcnt;
     CRYPTO_RWLOCK *lock;
@@ -331,7 +346,7 @@ struct evp_cipher_st {
 
 #define BLOCK_CIPHER_ecb_loop() \
         size_t i, bl; \
-        bl = EVP_CIPHER_CTX_cipher(ctx)->block_size;    \
+        bl = EVP_CIPHER_CTX_get0_cipher(ctx)->block_size;    \
         if (inl < bl) return 1;\
         inl -= bl; \
         for (i=0; i <= inl; i+=bl)
@@ -416,6 +431,7 @@ static int cname##_cfb##cbits##_cipher(EVP_CIPHER_CTX *ctx, unsigned char *out, 
 static const EVP_CIPHER cname##_##mode = { \
         nid##_##nmode, block_size, key_len, iv_len, \
         flags | EVP_CIPH_##MODE##_MODE, \
+        EVP_ORIG_GLOBAL, \
         init_key, \
         cname##_##mode##_cipher, \
         cleanup, \
@@ -471,6 +487,7 @@ BLOCK_CIPHER_def_ecb(cname, kstruct, nid, block_size, key_len, flags, \
 static const EVP_CIPHER cname##_cbc = {\
         nid##_cbc, block_size, key_len, iv_len, \
         flags | EVP_CIPH_CBC_MODE,\
+        EVP_ORIG_GLOBAL,\
         init_key,\
         cname##_cbc_cipher,\
         cleanup,\
@@ -484,6 +501,7 @@ const EVP_CIPHER *EVP_##cname##_cbc(void) { return &cname##_cbc; }\
 static const EVP_CIPHER cname##_cfb = {\
         nid##_cfb64, 1, key_len, iv_len, \
         flags | EVP_CIPH_CFB_MODE,\
+        EVP_ORIG_GLOBAL,\
         init_key,\
         cname##_cfb_cipher,\
         cleanup,\
@@ -497,6 +515,7 @@ const EVP_CIPHER *EVP_##cname##_cfb(void) { return &cname##_cfb; }\
 static const EVP_CIPHER cname##_ofb = {\
         nid##_ofb64, 1, key_len, iv_len, \
         flags | EVP_CIPH_OFB_MODE,\
+        EVP_ORIG_GLOBAL,\
         init_key,\
         cname##_ofb_cipher,\
         cleanup,\
@@ -510,6 +529,7 @@ const EVP_CIPHER *EVP_##cname##_ofb(void) { return &cname##_ofb; }\
 static const EVP_CIPHER cname##_ecb = {\
         nid##_ecb, block_size, key_len, iv_len, \
         flags | EVP_CIPH_ECB_MODE,\
+        EVP_ORIG_GLOBAL,\
         init_key,\
         cname##_ecb_cipher,\
         cleanup,\
@@ -608,6 +628,21 @@ DEFINE_STACK_OF(OP_CACHE_ELEM)
 #define evp_pkey_is_provided(pk)                                \
     ((pk)->keymgmt != NULL)
 
+union legacy_pkey_st {
+    void *ptr;
+    struct rsa_st *rsa;     /* RSA */
+#  ifndef OPENSSL_NO_DSA
+    struct dsa_st *dsa;     /* DSA */
+#  endif
+#  ifndef OPENSSL_NO_DH
+    struct dh_st *dh;       /* DH */
+#  endif
+#  ifndef OPENSSL_NO_EC
+    struct ec_key_st *ec;   /* ECC */
+    ECX_KEY *ecx;           /* X25519, X448, Ed25519, Ed448 */
+#  endif
+};
+
 struct evp_pkey_st {
     /* == Legacy attributes == */
     int type;
@@ -621,29 +656,21 @@ struct evp_pkey_st {
     const EVP_PKEY_ASN1_METHOD *ameth;
     ENGINE *engine;
     ENGINE *pmeth_engine; /* If not NULL public key ENGINE to use */
-    union {
-        void *ptr;
-        struct rsa_st *rsa;     /* RSA */
-#  ifndef OPENSSL_NO_DSA
-        struct dsa_st *dsa;     /* DSA */
-#  endif
-#  ifndef OPENSSL_NO_DH
-        struct dh_st *dh;       /* DH */
-#  endif
-#  ifndef OPENSSL_NO_EC
-        struct ec_key_st *ec;   /* ECC */
-        ECX_KEY *ecx;           /* X25519, X448, Ed25519, Ed448 */
-#  endif
-    } pkey;
+
+    /* Union to store the reference to an origin legacy key */
+    union legacy_pkey_st pkey;
+
+    /* Union to store the reference to a non-origin legacy key */
+    union legacy_pkey_st legacy_cache_pkey;
 # endif
 
     /* == Common attributes == */
-    /* If these are modified, so must evp_pkey_downgrade() */
     CRYPTO_REF_COUNT references;
     CRYPTO_RWLOCK *lock;
+#ifndef FIPS_MODULE
     STACK_OF(X509_ATTRIBUTE) *attributes; /* [ 0 ] */
     int save_parameters;
-#ifndef FIPS_MODULE
+    int foreign:1; /* the low-level key is using an engine or an app-method */
     CRYPTO_EX_DATA ex_data;
 #endif
 
@@ -719,8 +746,10 @@ void *evp_pkey_export_to_provider(EVP_PKEY *pk, OSSL_LIB_CTX *libctx,
                                   const char *propquery);
 #ifndef FIPS_MODULE
 int evp_pkey_copy_downgraded(EVP_PKEY **dest, const EVP_PKEY *src);
-int evp_pkey_downgrade(EVP_PKEY *pk);
+void *evp_pkey_get_legacy(EVP_PKEY *pk);
 void evp_pkey_free_legacy(EVP_PKEY *x);
+EVP_PKEY *evp_pkcs82pkey_legacy(const PKCS8_PRIV_KEY_INFO *p8inf,
+                                OSSL_LIB_CTX *libctx, const char *propq);
 #endif
 
 /*
@@ -770,7 +799,8 @@ int evp_keymgmt_get_params(const EVP_KEYMGMT *keymgmt,
                            void *keydata, OSSL_PARAM params[]);
 int evp_keymgmt_set_params(const EVP_KEYMGMT *keymgmt,
                            void *keydata, const OSSL_PARAM params[]);
-void *evp_keymgmt_gen_init(const EVP_KEYMGMT *keymgmt, int selection);
+void *evp_keymgmt_gen_init(const EVP_KEYMGMT *keymgmt, int selection,
+                           const OSSL_PARAM params[]);
 int evp_keymgmt_gen_set_template(const EVP_KEYMGMT *keymgmt, void *genctx,
                                  void *template);
 int evp_keymgmt_gen_set_params(const EVP_KEYMGMT *keymgmt, void *genctx,
@@ -797,9 +827,8 @@ int evp_keymgmt_export(const EVP_KEYMGMT *keymgmt, void *keydata,
                        int selection, OSSL_CALLBACK *param_cb, void *cbarg);
 const OSSL_PARAM *evp_keymgmt_export_types(const EVP_KEYMGMT *keymgmt,
                                            int selection);
-int evp_keymgmt_copy(const EVP_KEYMGMT *keymgmt,
-                     void *keydata_to, const void *keydata_from,
-                     int selection);
+void *evp_keymgmt_dup(const EVP_KEYMGMT *keymgmt,
+                      const void *keydata_from, int selection);
 
 /* Pulling defines out of C source files */
 
@@ -821,10 +850,11 @@ const EVP_CIPHER *evp_get_cipherbyname_ex(OSSL_LIB_CTX *libctx,
 const EVP_MD *evp_get_digestbyname_ex(OSSL_LIB_CTX *libctx,
                                       const char *name);
 
-int pkcs5_pbkdf2_hmac_ex(const char *pass, int passlen,
-                         const unsigned char *salt, int saltlen, int iter,
-                         const EVP_MD *digest, int keylen, unsigned char *out,
-                         OSSL_LIB_CTX *libctx, const char *propq);
+int ossl_pkcs5_pbkdf2_hmac_ex(const char *pass, int passlen,
+                              const unsigned char *salt, int saltlen, int iter,
+                              const EVP_MD *digest, int keylen,
+                              unsigned char *out,
+                              OSSL_LIB_CTX *libctx, const char *propq);
 
 # ifndef FIPS_MODULE
 /*
@@ -854,15 +884,11 @@ int evp_pkey_ctx_get1_id_len_prov(EVP_PKEY_CTX *ctx, size_t *id_len);
 int evp_pkey_ctx_use_cached_data(EVP_PKEY_CTX *ctx);
 # endif /* !defined(FIPS_MODULE) */
 
-void evp_method_store_flush(OSSL_LIB_CTX *libctx);
+int evp_method_store_flush(OSSL_LIB_CTX *libctx);
 int evp_set_default_properties_int(OSSL_LIB_CTX *libctx, const char *propq,
                                    int loadconfig);
 
 void evp_md_ctx_clear_digest(EVP_MD_CTX *ctx, int force);
-
-EVP_PKEY *evp_privatekey_from_binary(int keytype, EVP_PKEY **a,
-                                     const unsigned char **pp, long length,
-                                     OSSL_LIB_CTX *libctx, const char *propq);
 
 /* Three possible states: */
 # define EVP_PKEY_STATE_UNKNOWN         0
@@ -883,5 +909,12 @@ int evp_pkey_ctx_get_params_to_ctrl(EVP_PKEY_CTX *ctx, OSSL_PARAM *params);
 
 /* This must ONLY be called for legacy EVP_PKEYs */
 int evp_pkey_get_params_to_ctrl(const EVP_PKEY *pkey, OSSL_PARAM *params);
+
+/* Same as the public get0 functions but are not const */
+# ifndef OPENSSL_NO_DEPRECATED_3_0
+DH *evp_pkey_get0_DH_int(const EVP_PKEY *pkey);
+EC_KEY *evp_pkey_get0_EC_KEY_int(const EVP_PKEY *pkey);
+RSA *evp_pkey_get0_RSA_int(const EVP_PKEY *pkey);
+# endif
 
 #endif /* OSSL_CRYPTO_EVP_H */

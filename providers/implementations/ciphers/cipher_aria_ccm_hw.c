@@ -1,5 +1,5 @@
 /*
- * Copyright 2019-2020 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2019-2021 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -18,9 +18,9 @@ static int ccm_aria_initkey(PROV_CCM_CTX *ctx,
 {
     PROV_ARIA_CCM_CTX *actx = (PROV_ARIA_CCM_CTX *)ctx;
 
-    aria_set_encrypt_key(key, keylen * 8, &actx->ks.ks);
+    ossl_aria_set_encrypt_key(key, keylen * 8, &actx->ks.ks);
     CRYPTO_ccm128_init(&ctx->ccm_ctx, ctx->m, ctx->l, &actx->ks.ks,
-                       (block128_f)aria_encrypt);
+                       (block128_f)ossl_aria_encrypt);
     ctx->str = NULL;
     ctx->key_set = 1;
     return 1;

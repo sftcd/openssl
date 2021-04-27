@@ -50,7 +50,7 @@ static int WIN32_rename(const char *from, const char *to);
 # include <conio.h>
 #endif
 
-#if defined(OPENSSL_SYS_MSDOS) && !defined(_WIN32)
+#if defined(OPENSSL_SYS_MSDOS) && !defined(_WIN32) || defined(__BORLANDC__)
 # define _kbhit kbhit
 #endif
 
@@ -628,26 +628,180 @@ void app_bail_out(char *fmt, ...)
     exit(1);
 }
 
-void* app_malloc(int sz, const char *what)
+void *app_malloc(size_t sz, const char *what)
 {
     void *vp = OPENSSL_malloc(sz);
 
     if (vp == NULL)
-        app_bail_out("%s: Could not allocate %d bytes for %s\n",
+        app_bail_out("%s: Could not allocate %zu bytes for %s\n",
                      opt_getprog(), sz, what);
     return vp;
+}
+
+char *next_item(char *opt) /* in list separated by comma and/or space */
+{
+    /* advance to separator (comma or whitespace), if any */
+    while (*opt != ',' && !isspace(*opt) && *opt != '\0')
+        opt++;
+    if (*opt != '\0') {
+        /* terminate current item */
+        *opt++ = '\0';
+        /* skip over any whitespace after separator */
+        while (isspace(*opt))
+            opt++;
+    }
+    return *opt == '\0' ? NULL : opt; /* NULL indicates end of input */
+}
+
+static void warn_cert_msg(const char *uri, X509 *cert, const char *msg)
+{
+    char *subj = X509_NAME_oneline(X509_get_subject_name(cert), NULL, 0);
+
+    BIO_printf(bio_err, "Warning: certificate from '%s' with subject '%s' %s\n",
+               uri, subj, msg);
+    OPENSSL_free(subj);
+}
+
+static void warn_cert(const char *uri, X509 *cert, int warn_EE,
+                      X509_VERIFY_PARAM *vpm)
+{
+    uint32_t ex_flags = X509_get_extension_flags(cert);
+    int res = X509_cmp_timeframe(vpm, X509_get0_notBefore(cert),
+                                 X509_get0_notAfter(cert));
+
+    if (res != 0)
+        warn_cert_msg(uri, cert, res > 0 ? "has expired" : "not yet valid");
+    if (warn_EE && (ex_flags & EXFLAG_V1) == 0 && (ex_flags & EXFLAG_CA) == 0)
+        warn_cert_msg(uri, cert, "is not a CA cert");
+}
+
+static void warn_certs(const char *uri, STACK_OF(X509) *certs, int warn_EE,
+                       X509_VERIFY_PARAM *vpm)
+{
+    int i;
+
+    for (i = 0; i < sk_X509_num(certs); i++)
+        warn_cert(uri, sk_X509_value(certs, i), warn_EE, vpm);
+}
+
+int load_cert_certs(const char *uri,
+                    X509 **pcert, STACK_OF(X509) **pcerts,
+                    int exclude_http, const char *pass, const char *desc,
+                    X509_VERIFY_PARAM *vpm)
+{
+    int ret = 0;
+    char *pass_string;
+
+    if (exclude_http && (strncasecmp(uri, "http://", 7) == 0
+                         || strncasecmp(uri, "https://", 8) == 0)) {
+        BIO_printf(bio_err, "error: HTTP retrieval not allowed for %s\n", desc);
+        return ret;
+    }
+    pass_string = get_passwd(pass, desc);
+    ret = load_key_certs_crls(uri, 0, pass_string, desc, NULL, NULL, NULL,
+                              pcert, pcerts, NULL, NULL);
+    clear_free(pass_string);
+
+    if (ret) {
+        if (pcert != NULL)
+            warn_cert(uri, *pcert, 0, vpm);
+        warn_certs(uri, *pcerts, 1, vpm);
+    } else {
+        sk_X509_pop_free(*pcerts, X509_free);
+        *pcerts = NULL;
+    }
+    return ret;
+}
+
+STACK_OF(X509) *load_certs_multifile(char *files, const char *pass,
+                                     const char *desc, X509_VERIFY_PARAM *vpm)
+{
+    STACK_OF(X509) *certs = NULL;
+    STACK_OF(X509) *result = sk_X509_new_null();
+
+    if (files == NULL)
+        goto err;
+    if (result == NULL)
+        goto oom;
+
+    while (files != NULL) {
+        char *next = next_item(files);
+
+        if (!load_cert_certs(files, NULL, &certs, 0, pass, desc, vpm))
+            goto err;
+        if (!X509_add_certs(result, certs,
+                            X509_ADD_FLAG_UP_REF | X509_ADD_FLAG_NO_DUP))
+            goto oom;
+        sk_X509_pop_free(certs, X509_free);
+        certs = NULL;
+        files = next;
+    }
+    return result;
+
+ oom:
+    BIO_printf(bio_err, "out of memory\n");
+ err:
+    sk_X509_pop_free(certs, X509_free);
+    sk_X509_pop_free(result, X509_free);
+    return NULL;
+}
+
+static X509_STORE *sk_X509_to_store(X509_STORE *store /* may be NULL */,
+                                    const STACK_OF(X509) *certs /* may NULL */)
+{
+    int i;
+
+    if (store == NULL)
+        store = X509_STORE_new();
+    if (store == NULL)
+        return NULL;
+    for (i = 0; i < sk_X509_num(certs); i++) {
+        if (!X509_STORE_add_cert(store, sk_X509_value(certs, i))) {
+            X509_STORE_free(store);
+            return NULL;
+        }
+    }
+    return store;
+}
+
+/*
+ * Create cert store structure with certificates read from given file(s).
+ * Returns pointer to created X509_STORE on success, NULL on error.
+ */
+X509_STORE *load_certstore(char *input, const char *pass, const char *desc,
+                           X509_VERIFY_PARAM *vpm)
+{
+    X509_STORE *store = NULL;
+    STACK_OF(X509) *certs = NULL;
+
+    while (input != NULL) {
+        char *next = next_item(input);
+        int ok;
+
+        if (!load_cert_certs(input, NULL, &certs, 1, pass, desc, vpm)) {
+            X509_STORE_free(store);
+            return NULL;
+        }
+        ok = (store = sk_X509_to_store(store, certs)) != NULL;
+        sk_X509_pop_free(certs, X509_free);
+        certs = NULL;
+        if (!ok)
+            return NULL;
+        input = next;
+    }
+    return store;
 }
 
 /*
  * Initialize or extend, if *certs != NULL, a certificate stack.
  * The caller is responsible for freeing *certs if its value is left not NULL.
  */
-int load_certs(const char *uri, STACK_OF(X509) **certs,
+int load_certs(const char *uri, int maybe_stdin, STACK_OF(X509) **certs,
                const char *pass, const char *desc)
 {
     int was_NULL = *certs == NULL;
-    int ret = load_key_certs_crls(uri, 0, pass, desc, NULL, NULL, NULL,
-                                  NULL, certs, NULL, NULL);
+    int ret = load_key_certs_crls(uri, maybe_stdin, pass, desc, NULL, NULL,
+                                  NULL, NULL, certs, NULL, NULL);
 
     if (!ret && was_NULL) {
         sk_X509_pop_free(*certs, X509_free);
@@ -719,6 +873,11 @@ int load_key_certs_crls(const char *uri, int maybe_stdin,
         cnt_expectations++;
         expect = OSSL_STORE_INFO_PUBKEY;
     }
+    if (pparams != NULL) {
+        *pparams = NULL;
+        cnt_expectations++;
+        expect = OSSL_STORE_INFO_PARAMS;
+    }
     if (pcert != NULL) {
         *pcert = NULL;
         cnt_expectations++;
@@ -783,7 +942,7 @@ int load_key_certs_crls(const char *uri, int maybe_stdin,
         goto end;
 
     failed = NULL;
-    while (!OSSL_STORE_eof(ctx)) {
+    while (cnt_expectations > 0 && !OSSL_STORE_eof(ctx)) {
         OSSL_STORE_INFO *info = OSSL_STORE_load(ctx);
         int type, ok = 1;
 
@@ -805,28 +964,37 @@ int load_key_certs_crls(const char *uri, int maybe_stdin,
         type = OSSL_STORE_INFO_get_type(info);
         switch (type) {
         case OSSL_STORE_INFO_PKEY:
-            if (ppkey != NULL && *ppkey == NULL)
+            if (ppkey != NULL && *ppkey == NULL) {
                 ok = (*ppkey = OSSL_STORE_INFO_get1_PKEY(info)) != NULL;
-
+                cnt_expectations -= ok;
+            }
             /*
              * An EVP_PKEY with private parts also holds the public parts,
              * so if the caller asked for a public key, and we got a private
              * key, we can still pass it back.
              */
-            if (ok && ppubkey != NULL && *ppubkey == NULL)
+            if (ok && ppubkey != NULL && *ppubkey == NULL) {
                 ok = ((*ppubkey = OSSL_STORE_INFO_get1_PKEY(info)) != NULL);
+                cnt_expectations -= ok;
+            }
             break;
         case OSSL_STORE_INFO_PUBKEY:
-            if (ppubkey != NULL && *ppubkey == NULL)
+            if (ppubkey != NULL && *ppubkey == NULL) {
                 ok = ((*ppubkey = OSSL_STORE_INFO_get1_PUBKEY(info)) != NULL);
+                cnt_expectations -= ok;
+            }
             break;
         case OSSL_STORE_INFO_PARAMS:
-            if (pparams != NULL && *pparams == NULL)
+            if (pparams != NULL && *pparams == NULL) {
                 ok = ((*pparams = OSSL_STORE_INFO_get1_PARAMS(info)) != NULL);
+                cnt_expectations -= ok;
+            }
             break;
         case OSSL_STORE_INFO_CERT:
-            if (pcert != NULL && *pcert == NULL)
+            if (pcert != NULL && *pcert == NULL) {
                 ok = (*pcert = OSSL_STORE_INFO_get1_CERT(info)) != NULL;
+                cnt_expectations -= ok;
+            }
             else if (pcerts != NULL)
                 ok = X509_add_cert(*pcerts,
                                    OSSL_STORE_INFO_get1_CERT(info),
@@ -834,8 +1002,10 @@ int load_key_certs_crls(const char *uri, int maybe_stdin,
             ncerts += ok;
             break;
         case OSSL_STORE_INFO_CRL:
-            if (pcrl != NULL && *pcrl == NULL)
+            if (pcrl != NULL && *pcrl == NULL) {
                 ok = (*pcrl = OSSL_STORE_INFO_get1_CRL(info)) != NULL;
+                cnt_expectations -= ok;
+            }
             else if (pcrls != NULL)
                 ok = sk_X509_CRL_push(*pcrls, OSSL_STORE_INFO_get1_CRL(info));
             ncrls += ok;
@@ -1790,17 +1960,21 @@ int bio_to_mem(unsigned char **out, int maxlen, BIO *in)
 
 int pkey_ctrl_string(EVP_PKEY_CTX *ctx, const char *value)
 {
-    int rv;
+    int rv = 0;
     char *stmp, *vtmp = NULL;
+
     stmp = OPENSSL_strdup(value);
-    if (!stmp)
+    if (stmp == NULL)
         return -1;
     vtmp = strchr(stmp, ':');
-    if (vtmp) {
-        *vtmp = 0;
-        vtmp++;
-    }
+    if (vtmp == NULL)
+        goto err;
+
+    *vtmp = 0;
+    vtmp++;
     rv = EVP_PKEY_CTX_ctrl_str(ctx, stmp, vtmp);
+
+ err:
     OPENSSL_free(stmp);
     return rv;
 }
@@ -2218,12 +2392,12 @@ static const char *tls_error_hint(void)
 /* HTTP callback function that supports TLS connection also via HTTPS proxy */
 BIO *app_http_tls_cb(BIO *hbio, void *arg, int connect, int detail)
 {
-    APP_HTTP_TLS_INFO *info = (APP_HTTP_TLS_INFO *)arg;
-    SSL_CTX *ssl_ctx = info->ssl_ctx;
-    SSL *ssl;
-    BIO *sbio = NULL;
-
     if (connect && detail) { /* connecting with TLS */
+        APP_HTTP_TLS_INFO *info = (APP_HTTP_TLS_INFO *)arg;
+        SSL_CTX *ssl_ctx = info->ssl_ctx;
+        SSL *ssl;
+        BIO *sbio = NULL;
+
         if ((info->use_proxy
              && !OSSL_HTTP_proxy_connect(hbio, info->server, info->port,
                                          NULL, NULL, /* no proxy credentials */
@@ -2244,6 +2418,7 @@ BIO *app_http_tls_cb(BIO *hbio, void *arg, int connect, int detail)
         hbio = BIO_push(sbio, hbio);
     } else if (!connect && !detail) { /* disconnecting after error */
         const char *hint = tls_error_hint();
+
         if (hint != NULL)
             ERR_add_error_data(2, " : ", hint);
         /*
@@ -2252,6 +2427,14 @@ BIO *app_http_tls_cb(BIO *hbio, void *arg, int connect, int detail)
          */
     }
     return hbio;
+}
+
+void APP_HTTP_TLS_INFO_free(APP_HTTP_TLS_INFO *info)
+{
+    if (info != NULL) {
+        SSL_CTX_free(info->ssl_ctx);
+        OPENSSL_free(info);
+    }
 }
 
 ASN1_VALUE *app_http_get_asn1(const char *url, const char *proxy,

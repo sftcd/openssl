@@ -82,7 +82,7 @@ int crl_main(int argc, char **argv)
     X509_LOOKUP *lookup = NULL;
     X509_OBJECT *xobj = NULL;
     EVP_PKEY *pkey;
-    const EVP_MD *digest = EVP_sha1();
+    EVP_MD *digest = (EVP_MD *)EVP_sha1();
     char *infile = NULL, *outfile = NULL, *crldiff = NULL, *keyfile = NULL;
     char *digestname = NULL;
     const char *CAfile = NULL, *CApath = NULL, *CAstore = NULL, *prog;
@@ -308,15 +308,19 @@ int crl_main(int argc, char **argv)
                     X509_NAME_hash_ex(X509_CRL_get_issuer(x), app_get0_libctx(),
                                       app_get0_propq(), &ok);
 
-                BIO_printf(bio_out, "issuer name hash=");
-                if (ok)
+                if (num > 1)
+                    BIO_printf(bio_out, "issuer name hash=");
+                if (ok) {
                     BIO_printf(bio_out, "%08lx\n", hash_value);
-                else
+                } else {
                     BIO_puts(bio_out, "<ERROR>");
+                    goto end;
+                }
             }
 #ifndef OPENSSL_NO_MD5
             if (hash_old == i) {
-                BIO_printf(bio_out, "issuer name old hash=");
+                if (num > 1)
+                    BIO_printf(bio_out, "issuer name old hash=");
                 BIO_printf(bio_out, "%08lx\n",
                            X509_NAME_hash_old(X509_CRL_get_issuer(x)));
             }
@@ -343,8 +347,7 @@ int crl_main(int argc, char **argv)
                     BIO_printf(bio_err, "out of memory\n");
                     goto end;
                 }
-                BIO_printf(bio_out, "%s Fingerprint=",
-                           OBJ_nid2sn(EVP_MD_type(digest)));
+                BIO_printf(bio_out, "%s Fingerprint=", EVP_MD_name(digest));
                 for (j = 0; j < (int)n; j++) {
                     BIO_printf(bio_out, "%02X%c", md[j], (j + 1 == (int)n)
                                ? '\n' : ':');
@@ -378,6 +381,7 @@ int crl_main(int argc, char **argv)
     if (ret != 0)
         ERR_print_errors(bio_err);
     BIO_free_all(out);
+    EVP_MD_free(digest);
     X509_CRL_free(x);
     X509_STORE_CTX_free(ctx);
     X509_STORE_free(store);

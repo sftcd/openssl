@@ -1,5 +1,5 @@
 /*
- * Copyright 1995-2020 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 1995-2021 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -145,7 +145,7 @@ static long md_ctrl(BIO *b, int cmd, long num, void *ptr)
     switch (cmd) {
     case BIO_CTRL_RESET:
         if (BIO_get_init(b))
-            ret = EVP_DigestInit_ex(ctx, EVP_MD_CTX_md(ctx), NULL);
+            ret = EVP_DigestInit_ex(ctx, EVP_MD_CTX_get0_md(ctx), NULL);
         else
             ret = 0;
         if (ret > 0)
@@ -154,7 +154,7 @@ static long md_ctrl(BIO *b, int cmd, long num, void *ptr)
     case BIO_C_GET_MD:
         if (BIO_get_init(b)) {
             ppmd = ptr;
-            *ppmd = EVP_MD_CTX_md(ctx);
+            *ppmd = EVP_MD_CTX_get0_md(ctx);
         } else
             ret = 0;
         break;

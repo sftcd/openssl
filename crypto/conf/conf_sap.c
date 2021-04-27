@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2020 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2002-2021 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -15,7 +15,7 @@
 #include <openssl/asn1.h>
 #include <openssl/engine.h>
 
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(__BORLANDC__)
 # define strdup _strdup
 #endif
 
@@ -40,7 +40,7 @@ void OPENSSL_config(const char *appname)
 }
 #endif
 
-int openssl_config_int(const OPENSSL_INIT_SETTINGS *settings)
+int ossl_config_int(const OPENSSL_INIT_SETTINGS *settings)
 {
     int ret = 0;
     const char *filename;
@@ -55,7 +55,7 @@ int openssl_config_int(const OPENSSL_INIT_SETTINGS *settings)
     flags = settings ? settings->flags : DEFAULT_CONF_MFLAGS;
 
 #ifdef OPENSSL_INIT_DEBUG
-    fprintf(stderr, "OPENSSL_INIT: openssl_config_int(%s, %s, %lu)\n",
+    fprintf(stderr, "OPENSSL_INIT: ossl_config_int(%s, %s, %lu)\n",
             filename, appname, flags);
 #endif
 
@@ -66,7 +66,7 @@ int openssl_config_int(const OPENSSL_INIT_SETTINGS *settings)
     return ret;
 }
 
-void openssl_no_config_int(void)
+void ossl_no_config_int(void)
 {
     openssl_configured = 1;
 }

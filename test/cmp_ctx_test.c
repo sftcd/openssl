@@ -1,5 +1,5 @@
 /*
- * Copyright 2007-2020 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2007-2021 The OpenSSL Project Authors. All Rights Reserved.
  * Copyright Nokia 2007-2019
  * Copyright Siemens AG 2015-2019
  *
@@ -874,6 +874,5 @@ int setup_tests(void)
     ADD_TEST(test_CTX_set1_get0_transactionID);
     ADD_TEST(test_CTX_set1_get0_senderNonce);
     ADD_TEST(test_CTX_set1_get0_recipNonce);
-    /* ossl_cmp_build_cert_chain() is tested in cmp_protect.c */
     return 1;
 }

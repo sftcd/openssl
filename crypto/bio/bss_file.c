@@ -1,5 +1,5 @@
 /*
- * Copyright 1995-2020 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 1995-2021 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -216,7 +216,7 @@ static long file_ctrl(BIO *b, int cmd, long num, void *ptr)
 #   define _IOB_ENTRIES 20
 #  endif
         /* Safety net to catch purely internal BIO_set_fp calls */
-#  if defined(_MSC_VER) && _MSC_VER>=1900
+#  if (defined(_MSC_VER) && _MSC_VER>=1900) || defined(__BORLANDC__)
         if (ptr == stdin || ptr == stdout || ptr == stderr)
             BIO_clear_flags(b, BIO_FLAGS_UPLINK_INTERNAL);
 #  elif defined(_IOB_ENTRIES)

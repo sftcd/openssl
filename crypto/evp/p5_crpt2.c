@@ -1,5 +1,5 @@
 /*
- * Copyright 1999-2020 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 1999-2021 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -19,10 +19,11 @@
 #include "crypto/evp.h"
 #include "evp_local.h"
 
-int pkcs5_pbkdf2_hmac_ex(const char *pass, int passlen,
-                         const unsigned char *salt, int saltlen, int iter,
-                         const EVP_MD *digest, int keylen, unsigned char *out,
-                         OSSL_LIB_CTX *libctx, const char *propq)
+int ossl_pkcs5_pbkdf2_hmac_ex(const char *pass, int passlen,
+                              const unsigned char *salt, int saltlen, int iter,
+                              const EVP_MD *digest, int keylen,
+                              unsigned char *out,
+                              OSSL_LIB_CTX *libctx, const char *propq)
 {
     const char *empty = "";
     int rv = 1, mode = 1;
@@ -82,8 +83,8 @@ int PKCS5_PBKDF2_HMAC(const char *pass, int passlen, const unsigned char *salt,
                       int saltlen, int iter, const EVP_MD *digest, int keylen,
                       unsigned char *out)
 {
-    return pkcs5_pbkdf2_hmac_ex(pass, passlen, salt, saltlen, iter, digest,
-                                keylen, out, NULL, NULL);
+    return ossl_pkcs5_pbkdf2_hmac_ex(pass, passlen, salt, saltlen, iter, digest,
+                                     keylen, out, NULL, NULL);
 }
 
 
@@ -91,8 +92,14 @@ int PKCS5_PBKDF2_HMAC_SHA1(const char *pass, int passlen,
                            const unsigned char *salt, int saltlen, int iter,
                            int keylen, unsigned char *out)
 {
-    return PKCS5_PBKDF2_HMAC(pass, passlen, salt, saltlen, iter, EVP_sha1(),
-                             keylen, out);
+    EVP_MD *digest;
+    int r = 0;
+
+    if ((digest = EVP_MD_fetch(NULL, SN_sha1, NULL)) != NULL)
+        r = ossl_pkcs5_pbkdf2_hmac_ex(pass, passlen, salt, saltlen, iter,
+                                      digest, keylen, out, NULL, NULL);
+    EVP_MD_free(digest);
+    return r;
 }
 
 /*
@@ -160,7 +167,7 @@ int PKCS5_v2_PBKDF2_keyivgen(EVP_CIPHER_CTX *ctx, const char *pass,
     PBKDF2PARAM *kdf = NULL;
     const EVP_MD *prfmd;
 
-    if (EVP_CIPHER_CTX_cipher(ctx) == NULL) {
+    if (EVP_CIPHER_CTX_get0_cipher(ctx) == NULL) {
         ERR_raise(ERR_LIB_EVP, EVP_R_NO_CIPHER_SET);
         goto err;
     }

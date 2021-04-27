@@ -1,5 +1,5 @@
 /*
- * Copyright 1995-2020 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 1995-2021 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -52,8 +52,10 @@ int ASN1_get_object(const unsigned char **pp, long *plength, int *ptag,
     int tag, xclass, inf;
     long max = omax;
 
-    if (!max)
-        goto err;
+    if (omax <= 0) {
+        ERR_raise(ERR_LIB_ASN1, ASN1_R_TOO_SMALL);
+        return 0x80;
+    }
     ret = (*p & V_ASN1_CONSTRUCTED);
     xclass = (*p & V_ASN1_PRIVATE);
     i = *p & V_ASN1_PRIMITIVE_TAG;
@@ -340,7 +342,7 @@ ASN1_STRING *ASN1_STRING_type_new(int type)
     return ret;
 }
 
-void asn1_string_embed_free(ASN1_STRING *a, int embed)
+void ossl_asn1_string_embed_free(ASN1_STRING *a, int embed)
 {
     if (a == NULL)
         return;
@@ -354,7 +356,7 @@ void ASN1_STRING_free(ASN1_STRING *a)
 {
     if (a == NULL)
         return;
-    asn1_string_embed_free(a, a->flags & ASN1_STRING_FLAG_EMBED);
+    ossl_asn1_string_embed_free(a, a->flags & ASN1_STRING_FLAG_EMBED);
 }
 
 void ASN1_STRING_clear_free(ASN1_STRING *a)
@@ -411,8 +413,9 @@ unsigned char *ASN1_STRING_data(ASN1_STRING *x)
 }
 #endif
 
-char *sk_ASN1_UTF8STRING2text(STACK_OF(ASN1_UTF8STRING) *text, const char *sep,
-                              size_t max_len /* excluding NUL terminator */)
+char *ossl_sk_ASN1_UTF8STRING2text(STACK_OF(ASN1_UTF8STRING) *text,
+                                   const char *sep,
+                                   size_t max_len /* excluding NUL terminator */)
 {
     int i;
     ASN1_UTF8STRING *current;

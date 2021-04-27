@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2020-2021 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -121,13 +121,6 @@ const char *ossl_ec_curve_nid2name(int nid)
 
     if (nid <= 0)
         return NULL;
-
-    /*
-     * TODO(3.0) Figure out if we should try to find the nid with
-     * EC_curve_nid2nist() first, i.e. make it a priority to return
-     * NIST names if there is one for the NID.  This is related to
-     * the TODO comment in ossl_ec_curve_name2nid().
-     */
 
     for (i = 0; i < OSSL_NELEM(curve_list); i++) {
         if (curve_list[i].nid == nid)

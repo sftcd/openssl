@@ -29,6 +29,7 @@ static int prepare_from_text(const OSSL_PARAM *paramdefs, const char *key,
 {
     const OSSL_PARAM *p;
     size_t buf_bits;
+    int r;
 
     /*
      * ishex is used to translate legacy style string controls in hex format
@@ -49,11 +50,11 @@ static int prepare_from_text(const OSSL_PARAM *paramdefs, const char *key,
     case OSSL_PARAM_INTEGER:
     case OSSL_PARAM_UNSIGNED_INTEGER:
         if (*ishex)
-            BN_hex2bn(tmpbn, value);
+            r = BN_hex2bn(tmpbn, value);
         else
-            BN_asc2bn(tmpbn, value);
+            r = BN_asc2bn(tmpbn, value);
 
-        if (*tmpbn == NULL)
+        if (r == 0 || *tmpbn == NULL)
             return 0;
 
         /*
@@ -75,8 +76,8 @@ static int prepare_from_text(const OSSL_PARAM *paramdefs, const char *key,
         *buf_n = (buf_bits + 7) / 8;
 
         /*
-         * TODO(v3.0) is this the right way to do this?  This code expects
-         * a zero data size to simply mean "arbitrary size".
+         * A zero data size means "arbitrary size", so only do the
+         * range checking if a size is specified.
          */
         if (p->data_size > 0) {
             if (buf_bits > p->data_size * 8

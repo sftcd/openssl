@@ -691,13 +691,13 @@ err:
     return 0;
 }
 
-/* TODO(3.0): An arbitrary amount for now. Take another look at this */
-# define MAX_GROUPLIST   40
-
+# define GROUPLIST_INCREMENT   40
+# define GROUP_NAME_BUFFER_LENGTH 64
 typedef struct {
     SSL_CTX *ctx;
     size_t gidcnt;
-    uint16_t gid_arr[MAX_GROUPLIST];
+    size_t gidmax;
+    uint16_t *gid_arr;
 } gid_cb_st;
 
 static int gid_cb(const char *elem, int len, void *arg)
@@ -705,12 +705,18 @@ static int gid_cb(const char *elem, int len, void *arg)
     gid_cb_st *garg = arg;
     size_t i;
     uint16_t gid = 0;
-    char etmp[20];
+    char etmp[GROUP_NAME_BUFFER_LENGTH];
 
     if (elem == NULL)
         return 0;
-    if (garg->gidcnt == MAX_GROUPLIST)
-        return 0;
+    if (garg->gidcnt == garg->gidmax) {
+        uint16_t *tmp =
+            OPENSSL_realloc(garg->gid_arr, garg->gidmax + GROUPLIST_INCREMENT);
+        if (tmp == NULL)
+            return 0;
+        garg->gidmax += GROUPLIST_INCREMENT;
+        garg->gid_arr = tmp;
+    }
     if (len > (int)(sizeof(etmp) - 1))
         return 0;
     memcpy(etmp, elem, len);
@@ -732,13 +738,20 @@ int tls1_set_groups_list(SSL_CTX *ctx, uint16_t **pext, size_t *pextlen,
 {
     gid_cb_st gcb;
     uint16_t *tmparr;
+    int ret = 0;
 
     gcb.gidcnt = 0;
+    gcb.gidmax = GROUPLIST_INCREMENT;
+    gcb.gid_arr = OPENSSL_malloc(gcb.gidmax * sizeof(*gcb.gid_arr));
+    if (gcb.gid_arr == NULL)
+        return 0;
     gcb.ctx = ctx;
     if (!CONF_parse_list(str, ':', 1, gid_cb, &gcb))
-        return 0;
-    if (pext == NULL)
-        return 1;
+        goto end;
+    if (pext == NULL) {
+        ret = 1;
+        goto end;
+    }
 
     /*
      * gid_cb ensurse there are no duplicates so we can just go ahead and set
@@ -746,10 +759,13 @@ int tls1_set_groups_list(SSL_CTX *ctx, uint16_t **pext, size_t *pextlen,
      */
     tmparr = OPENSSL_memdup(gcb.gid_arr, gcb.gidcnt * sizeof(*tmparr));
     if (tmparr == NULL)
-        return 0;
+        goto end;
     *pext = tmparr;
     *pextlen = gcb.gidcnt;
-    return 1;
+    ret = 1;
+ end:
+    OPENSSL_free(gcb.gid_arr);
+    return ret;
 }
 
 /* Check a group id matches preferences */
@@ -1142,7 +1158,7 @@ int ssl_setup_sig_algs(SSL_CTX *ctx)
 
         /*
          * Check hash is available.
-         * TODO(3.0): This test is not perfect. A provider could have support
+         * This test is not perfect. A provider could have support
          * for a signature scheme, but not a particular hash. However the hash
          * could be available from some other loaded provider. In that case it
          * could be that the signature is available, and the hash is available
@@ -2916,7 +2932,7 @@ EVP_PKEY *ssl_get_auto_dh(SSL *s)
         goto err;
 
 err:
-    OSSL_PARAM_BLD_free_params(params);
+    OSSL_PARAM_free(params);
     OSSL_PARAM_BLD_free(tmpl);
     EVP_PKEY_CTX_free(pctx);
     BN_free(p);

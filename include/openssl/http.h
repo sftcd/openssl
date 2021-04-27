@@ -39,18 +39,17 @@ typedef BIO *(*OSSL_HTTP_bio_cb_t)(BIO *bio, void *arg, int connect, int detail)
 #define HTTP_DEFAULT_MAX_RESP_LEN (100 * 1024)
 
 OSSL_HTTP_REQ_CTX *OSSL_HTTP_REQ_CTX_new(BIO *wbio, BIO *rbio,
-                                         int method_GET, int maxline,
-                                         unsigned long max_resp_len,
+                                         int maxline, unsigned long max_resp_len,
                                          int timeout, const char *expected_ct,
                                          int expect_asn1);
 void OSSL_HTTP_REQ_CTX_free(OSSL_HTTP_REQ_CTX *rctx);
-int OSSL_HTTP_REQ_CTX_set_request_line(OSSL_HTTP_REQ_CTX *rctx,
+int OSSL_HTTP_REQ_CTX_set_request_line(OSSL_HTTP_REQ_CTX *rctx, int method_POST,
                                        const char *server, const char *port,
                                        const char *path);
 int OSSL_HTTP_REQ_CTX_add1_header(OSSL_HTTP_REQ_CTX *rctx,
                                   const char *name, const char *value);
-int OSSL_HTTP_REQ_CTX_i2d(OSSL_HTTP_REQ_CTX *rctx, const char *content_type,
-                          const ASN1_ITEM *it, ASN1_VALUE *req);
+int OSSL_HTTP_REQ_CTX_set1_req(OSSL_HTTP_REQ_CTX *rctx, const char *content_type,
+                               const ASN1_ITEM *it, ASN1_VALUE *req);
 int OSSL_HTTP_REQ_CTX_nbio(OSSL_HTTP_REQ_CTX *rctx);
 ASN1_VALUE *OSSL_HTTP_REQ_CTX_sendreq_d2i(OSSL_HTTP_REQ_CTX *rctx,
                                           const ASN1_ITEM *it);

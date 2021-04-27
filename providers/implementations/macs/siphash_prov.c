@@ -16,12 +16,6 @@
 #include <openssl/proverr.h>
 
 #include "crypto/siphash.h"
-/*
- * TODO(3.0) when siphash has moved entirely to our providers, this
- * header should be moved to the provider include directory.  For the
- * moment, crypto/siphash/siphash_ameth.c has us stuck.
- */
-#include "../../../crypto/siphash/siphash_local.h"
 
 #include "prov/implementations.h"
 #include "prov/providercommon.h"
@@ -194,6 +188,9 @@ static int siphash_set_params(void *vmacctx, const OSSL_PARAM *params)
     struct siphash_data_st *ctx = vmacctx;
     const OSSL_PARAM *p = NULL;
     size_t size;
+
+    if (params == NULL)
+        return 1;
 
     if ((p = OSSL_PARAM_locate_const(params, OSSL_MAC_PARAM_SIZE)) != NULL) {
         if (!OSSL_PARAM_get_size_t(p, &size)

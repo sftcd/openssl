@@ -1,5 +1,5 @@
 /*
- * Copyright 1999-2020 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 1999-2021 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -21,7 +21,7 @@ static STACK_OF(CONF_VALUE) *i2v_EXTENDED_KEY_USAGE(const X509V3_EXT_METHOD
                                                     *method, void *eku, STACK_OF(CONF_VALUE)
                                                     *extlist);
 
-const X509V3_EXT_METHOD v3_ext_ku = {
+const X509V3_EXT_METHOD ossl_v3_ext_ku = {
     NID_ext_key_usage, 0,
     ASN1_ITEM_ref(EXTENDED_KEY_USAGE),
     0, 0, 0, 0,
@@ -33,7 +33,7 @@ const X509V3_EXT_METHOD v3_ext_ku = {
 };
 
 /* NB OCSP acceptable responses also is a SEQUENCE OF OBJECT */
-const X509V3_EXT_METHOD v3_ocsp_accresp = {
+const X509V3_EXT_METHOD ossl_v3_ocsp_accresp = {
     NID_id_pkix_OCSP_acceptableResponses, 0,
     ASN1_ITEM_ref(EXTENDED_KEY_USAGE),
     0, 0, 0, 0,

@@ -15,12 +15,13 @@
 #include <openssl/err.h>
 #include <openssl/cms.h>
 #include <openssl/ess.h>
-#include "cms_local.h"
+#include "internal/sizes.h"
 #include "crypto/asn1.h"
 #include "crypto/evp.h"
 #include "crypto/cms.h"
 #include "crypto/ess.h"
 #include "crypto/x509.h" /* for ossl_x509_add_cert_new() */
+#include "cms_local.h"
 
 /* CMS SignedData Utilities */
 
@@ -328,9 +329,12 @@ CMS_SignerInfo *CMS_add1_signer(CMS_ContentInfo *cms,
     /* See if digest is present in digestAlgorithms */
     for (i = 0; i < sk_X509_ALGOR_num(sd->digestAlgorithms); i++) {
         const ASN1_OBJECT *aoid;
+        char name[OSSL_MAX_NAME_SIZE];
+
         alg = sk_X509_ALGOR_value(sd->digestAlgorithms, i);
         X509_ALGOR_get0(&aoid, NULL, NULL, alg);
-        if (OBJ_obj2nid(aoid) == EVP_MD_type(md))
+        OBJ_obj2txt(name, sizeof(name), aoid, 0);
+        if (EVP_MD_is_a(md, name))
             break;
     }
 
@@ -372,7 +376,7 @@ CMS_SignerInfo *CMS_add1_signer(CMS_ContentInfo *cms,
             ESS_SIGNING_CERT_V2 *sc2 = NULL;
             int add_sc;
 
-            if (md == EVP_sha1() || md == NULL) {
+            if (md == NULL || EVP_MD_is_a(md, SN_sha1)) {
                 if ((sc = ossl_ess_signing_cert_new_init(signer,
                                                          NULL, 1)) == NULL)
                     goto err;
@@ -419,7 +423,7 @@ CMS_SignerInfo *CMS_add1_signer(CMS_ContentInfo *cms,
         } else if (EVP_DigestSignInit_ex(si->mctx, &si->pctx, EVP_MD_name(md),
                                          ossl_cms_ctx_get0_libctx(ctx),
                                          ossl_cms_ctx_get0_propq(ctx),
-                                         pk) <= 0) {
+                                         pk, NULL) <= 0) {
             goto err;
         }
     }
@@ -724,9 +728,10 @@ int CMS_SignerInfo_sign(CMS_SignerInfo *si)
     int alen;
     size_t siglen;
     const CMS_CTX *ctx = si->cms_ctx;
-    const char *md_name = OBJ_nid2sn(OBJ_obj2nid(si->digestAlgorithm->algorithm));
+    char md_name[OSSL_MAX_NAME_SIZE];
 
-    if (md_name == NULL)
+    if (!OBJ_obj2txt(md_name, sizeof(md_name),
+                     si->digestAlgorithm->algorithm, 0))
         return 0;
 
     if (CMS_signed_get_attr_by_NID(si, NID_pkcs9_signingTime, -1) < 0) {
@@ -734,7 +739,7 @@ int CMS_SignerInfo_sign(CMS_SignerInfo *si)
             goto err;
     }
 
-    if (!CMS_si_check_attributes(si))
+    if (!ossl_cms_si_check_attributes(si))
         goto err;
 
     if (si->pctx)
@@ -743,28 +748,11 @@ int CMS_SignerInfo_sign(CMS_SignerInfo *si)
         EVP_MD_CTX_reset(mctx);
         if (EVP_DigestSignInit_ex(mctx, &pctx, md_name,
                                   ossl_cms_ctx_get0_libctx(ctx),
-                                  ossl_cms_ctx_get0_propq(ctx), si->pkey) <= 0)
+                                  ossl_cms_ctx_get0_propq(ctx), si->pkey,
+                                  NULL) <= 0)
             goto err;
         si->pctx = pctx;
     }
-
-    /*
-     * TODO(3.0): This causes problems when providers are in use, so disabled
-     * for now. Can we get rid of this completely? AFAICT this ctrl has been
-     * present since CMS was first put in - but has never been used to do
-     * anything. All internal implementations just return 1 and ignore this ctrl
-     * and have always done so by the looks of things. To fix this we could
-     * convert this ctrl into a param, which would require us to send all the
-     * signer info data as a set of params...but that is non-trivial and since
-     * this isn't used by anything it may be better just to remove it.
-     */
-#if 0
-    if (EVP_PKEY_CTX_ctrl(pctx, -1, EVP_PKEY_OP_SIGN,
-                          EVP_PKEY_CTRL_CMS_SIGN, 0, si) <= 0) {
-        ERR_raise(ERR_LIB_CMS, CMS_R_CTRL_ERROR);
-        goto err;
-    }
-#endif
 
     alen = ASN1_item_i2d((ASN1_VALUE *)si->signedAttrs, &abuf,
                          ASN1_ITEM_rptr(CMS_Attributes_Sign));
@@ -780,24 +768,6 @@ int CMS_SignerInfo_sign(CMS_SignerInfo *si)
         goto err;
     if (EVP_DigestSignFinal(mctx, abuf, &siglen) <= 0)
         goto err;
-
-    /*
-     * TODO(3.0): This causes problems when providers are in use, so disabled
-     * for now. Can we get rid of this completely? AFAICT this ctrl has been
-     * present since CMS was first put in - but has never been used to do
-     * anything. All internal implementations just return 1 and ignore this ctrl
-     * and have always done so by the looks of things. To fix this we could
-     * convert this ctrl into a param, which would require us to send all the
-     * signer info data as a set of params...but that is non-trivial and since
-     * this isn't used by anything it may be better just to remove it.
-     */
-#if 0
-    if (EVP_PKEY_CTX_ctrl(pctx, -1, EVP_PKEY_OP_SIGN,
-                          EVP_PKEY_CTRL_CMS_SIGN, 1, si) <= 0) {
-        ERR_raise(ERR_LIB_CMS, CMS_R_CTRL_ERROR);
-        goto err;
-    }
-#endif
 
     EVP_MD_CTX_reset(mctx);
 
@@ -816,7 +786,7 @@ int CMS_SignerInfo_verify(CMS_SignerInfo *si)
     EVP_MD_CTX *mctx = NULL;
     unsigned char *abuf = NULL;
     int alen, r = -1;
-    const char *name;
+    char name[OSSL_MAX_NAME_SIZE];
     const EVP_MD *md;
     EVP_MD *fetched_md = NULL;
     const CMS_CTX *ctx = si->cms_ctx;
@@ -828,10 +798,10 @@ int CMS_SignerInfo_verify(CMS_SignerInfo *si)
         return -1;
     }
 
-    if (!CMS_si_check_attributes(si))
+    if (!ossl_cms_si_check_attributes(si))
         return -1;
 
-    name = OBJ_nid2sn(OBJ_obj2nid(si->digestAlgorithm->algorithm));
+    OBJ_obj2txt(name, sizeof(name), si->digestAlgorithm->algorithm, 0);
 
     (void)ERR_set_mark();
     fetched_md = EVP_MD_fetch(libctx, name, propq);
@@ -853,7 +823,7 @@ int CMS_SignerInfo_verify(CMS_SignerInfo *si)
     }
     mctx = si->mctx;
     if (EVP_DigestVerifyInit_ex(mctx, &si->pctx, EVP_MD_name(md), libctx,
-                                propq, si->pkey) <= 0)
+                                propq, si->pkey, NULL) <= 0)
         goto err;
 
     if (!cms_sd_asn1_ctrl(si, 1))
@@ -958,7 +928,7 @@ int CMS_SignerInfo_verify_content(CMS_SignerInfo *si, BIO *chain)
         } else
             r = 1;
     } else {
-        const EVP_MD *md = EVP_MD_CTX_md(mctx);
+        const EVP_MD *md = EVP_MD_CTX_get0_md(mctx);
         const CMS_CTX *ctx = si->cms_ctx;
 
         pkctx = EVP_PKEY_CTX_new_from_pkey(ossl_cms_ctx_get0_libctx(ctx),

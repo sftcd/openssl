@@ -1,5 +1,5 @@
 #! /usr/bin/env perl
-# Copyright 1998-2020 The OpenSSL Project Authors. All Rights Reserved.
+# Copyright 1998-2021 The OpenSSL Project Authors. All Rights Reserved.
 #
 # Licensed under the Apache License 2.0 (the "License").  You may not use
 # this file except in compliance with the License.  You can obtain a copy
@@ -679,6 +679,7 @@ EOF
         }
       ],
       [ '.*86-.*-linux1',         { target => "linux-aout" } ],
+      [ 'riscv64-.*-linux.',      { target => "linux64-riscv64" } ],
       [ '.*-.*-linux.',           { target => "linux-generic32" } ],
       [ 'sun4[uv].*-.*-solaris2',
         sub {

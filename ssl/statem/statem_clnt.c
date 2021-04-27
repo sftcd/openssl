@@ -2161,7 +2161,7 @@ static MSG_PROCESS_RETURN tls_process_as_hello_retry_request(SSL *s,
     return MSG_PROCESS_ERROR;
 }
 
-/* prepare server cert verificaton by setting s->session->peer_chain from pkt */
+/* prepare server cert verification by setting s->session->peer_chain from pkt */
 MSG_PROCESS_RETURN tls_process_server_certificate(SSL *s, PACKET *pkt)
 {
     unsigned long cert_list_len, cert_len;
@@ -2504,7 +2504,7 @@ static int tls_process_ske_dhe(SSL *s, PACKET *pkt, EVP_PKEY **pkey)
 
  err:
     OSSL_PARAM_BLD_free(tmpl);
-    OSSL_PARAM_BLD_free_params(params);
+    OSSL_PARAM_free(params);
     EVP_PKEY_free(peer_tmp);
     EVP_PKEY_CTX_free(pctx);
     BN_free(p);
@@ -2672,7 +2672,8 @@ MSG_PROCESS_RETURN tls_process_key_exchange(SSL *s, PACKET *pkt)
 
         if (EVP_DigestVerifyInit_ex(md_ctx, &pctx,
                                     md == NULL ? NULL : EVP_MD_name(md),
-                                    s->ctx->libctx, s->ctx->propq, pkey) <= 0) {
+                                    s->ctx->libctx, s->ctx->propq, pkey,
+                                    NULL) <= 0) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_EVP_LIB);
             goto err;
         }
@@ -2751,6 +2752,7 @@ MSG_PROCESS_RETURN tls_process_certificate_request(SSL *s, PACKET *pkt)
         s->s3.tmp.ctype_len = 0;
         OPENSSL_free(s->pha_context);
         s->pha_context = NULL;
+        s->pha_context_len = 0;
 
         if (!PACKET_get_length_prefixed_1(pkt, &reqctx) ||
             !PACKET_memdup(&reqctx, &s->pha_context, &s->pha_context_len)) {
@@ -3041,14 +3043,15 @@ int tls_process_cert_status_body(SSL *s, PACKET *pkt)
     }
     s->ext.ocsp.resp = OPENSSL_malloc(resplen);
     if (s->ext.ocsp.resp == NULL) {
+        s->ext.ocsp.resp_len = 0;
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_MALLOC_FAILURE);
         return 0;
     }
+    s->ext.ocsp.resp_len = resplen;
     if (!PACKET_copy_bytes(pkt, s->ext.ocsp.resp, resplen)) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_LENGTH_MISMATCH);
         return 0;
     }
-    s->ext.ocsp.resp_len = resplen;
 
     return 1;
 }
@@ -3166,6 +3169,7 @@ static int tls_construct_cke_psk_preamble(SSL *s, WPACKET *pkt)
 
     if (psklen > PSK_MAX_PSK_LEN) {
         SSLfatal(s, SSL_AD_HANDSHAKE_FAILURE, ERR_R_INTERNAL_ERROR);
+        psklen = PSK_MAX_PSK_LEN;   /* Avoid overrunning the array on cleanse */
         goto err;
     } else if (psklen == 0) {
         SSLfatal(s, SSL_AD_HANDSHAKE_FAILURE, SSL_R_PSK_IDENTITY_NOT_FOUND);
@@ -3513,7 +3517,7 @@ static int tls_construct_cke_gost(SSL *s, WPACKET *pkt)
 }
 
 #ifndef OPENSSL_NO_GOST
-int gost18_cke_cipher_nid(const SSL *s)
+int ossl_gost18_cke_cipher_nid(const SSL *s)
 {
     if ((s->s3.tmp.new_cipher->algorithm_enc & SSL_MAGMA) != 0)
         return NID_magma_ctr;
@@ -3523,7 +3527,7 @@ int gost18_cke_cipher_nid(const SSL *s)
     return NID_undef;
 }
 
-int gost_ukm(const SSL *s, unsigned char *dgst_buf)
+int ossl_gost_ukm(const SSL *s, unsigned char *dgst_buf)
 {
     EVP_MD_CTX * hash = NULL;
     unsigned int md_len;
@@ -3558,14 +3562,14 @@ static int tls_construct_cke_gost18(SSL *s, WPACKET *pkt)
     unsigned char *pms = NULL;
     size_t pmslen = 0;
     size_t msglen;
-    int cipher_nid = gost18_cke_cipher_nid(s);
+    int cipher_nid = ossl_gost18_cke_cipher_nid(s);
 
     if (cipher_nid == NID_undef) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
     }
 
-    if (gost_ukm(s, rnd_dgst) <= 0) {
+    if (ossl_gost_ukm(s, rnd_dgst) <= 0) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         goto err;
     }
@@ -3711,9 +3715,11 @@ int tls_construct_client_key_exchange(SSL *s, WPACKET *pkt)
  err:
     OPENSSL_clear_free(s->s3.tmp.pms, s->s3.tmp.pmslen);
     s->s3.tmp.pms = NULL;
+    s->s3.tmp.pmslen = 0;
 #ifndef OPENSSL_NO_PSK
     OPENSSL_clear_free(s->s3.tmp.psk, s->s3.tmp.psklen);
     s->s3.tmp.psk = NULL;
+    s->s3.tmp.psklen = 0;
 #endif
     return 0;
 }
@@ -3785,6 +3791,7 @@ int tls_client_key_exchange_post_work(SSL *s)
  err:
     OPENSSL_clear_free(pms, pmslen);
     s->s3.tmp.pms = NULL;
+    s->s3.tmp.pmslen = 0;
     return 0;
 }
 

@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2020-2021 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -12,11 +12,13 @@
 #include <openssl/objects.h>
 #include <openssl/evp.h>
 #include "internal/cryptlib.h"
-#include "crypto/evp.h"
 #include "internal/provider.h"
+#include "internal/core.h"
+#include "crypto/evp.h"
 #include "evp_local.h"
 
-static int evp_kem_init(EVP_PKEY_CTX *ctx, int operation)
+static int evp_kem_init(EVP_PKEY_CTX *ctx, int operation,
+                        const OSSL_PARAM params[])
 {
     int ret = 0;
     EVP_KEM *kem = NULL;
@@ -79,7 +81,7 @@ static int evp_kem_init(EVP_PKEY_CTX *ctx, int operation)
             ret = -2;
             goto err;
         }
-        ret = kem->encapsulate_init(ctx->op.encap.kemprovctx, provkey);
+        ret = kem->encapsulate_init(ctx->op.encap.kemprovctx, provkey, params);
         break;
     case EVP_PKEY_OP_DECAPSULATE:
         if (kem->decapsulate_init == NULL) {
@@ -87,7 +89,7 @@ static int evp_kem_init(EVP_PKEY_CTX *ctx, int operation)
             ret = -2;
             goto err;
         }
-        ret = kem->decapsulate_init(ctx->op.encap.kemprovctx, provkey);
+        ret = kem->decapsulate_init(ctx->op.encap.kemprovctx, provkey, params);
         break;
     default:
         ERR_raise(ERR_LIB_EVP, EVP_R_INITIALIZATION_ERROR);
@@ -104,9 +106,9 @@ static int evp_kem_init(EVP_PKEY_CTX *ctx, int operation)
     return ret;
 }
 
-int EVP_PKEY_encapsulate_init(EVP_PKEY_CTX *ctx)
+int EVP_PKEY_encapsulate_init(EVP_PKEY_CTX *ctx, const OSSL_PARAM params[])
 {
-    return evp_kem_init(ctx, EVP_PKEY_OP_ENCAPSULATE);
+    return evp_kem_init(ctx, EVP_PKEY_OP_ENCAPSULATE, params);
 }
 
 int EVP_PKEY_encapsulate(EVP_PKEY_CTX *ctx,
@@ -117,7 +119,7 @@ int EVP_PKEY_encapsulate(EVP_PKEY_CTX *ctx,
         return 0;
 
     if (ctx->operation != EVP_PKEY_OP_ENCAPSULATE) {
-        ERR_raise(ERR_LIB_EVP, EVP_R_OPERATON_NOT_INITIALIZED);
+        ERR_raise(ERR_LIB_EVP, EVP_R_OPERATION_NOT_INITIALIZED);
         return -1;
     }
 
@@ -133,9 +135,9 @@ int EVP_PKEY_encapsulate(EVP_PKEY_CTX *ctx,
                                           out, outlen, secret, secretlen);
 }
 
-int EVP_PKEY_decapsulate_init(EVP_PKEY_CTX *ctx)
+int EVP_PKEY_decapsulate_init(EVP_PKEY_CTX *ctx, const OSSL_PARAM params[])
 {
-    return evp_kem_init(ctx, EVP_PKEY_OP_DECAPSULATE);
+    return evp_kem_init(ctx, EVP_PKEY_OP_DECAPSULATE, params);
 }
 
 int EVP_PKEY_decapsulate(EVP_PKEY_CTX *ctx,
@@ -148,7 +150,7 @@ int EVP_PKEY_decapsulate(EVP_PKEY_CTX *ctx,
         return 0;
 
     if (ctx->operation != EVP_PKEY_OP_DECAPSULATE) {
-        ERR_raise(ERR_LIB_EVP, EVP_R_OPERATON_NOT_INITIALIZED);
+        ERR_raise(ERR_LIB_EVP, EVP_R_OPERATION_NOT_INITIALIZED);
         return -1;
     }
 
@@ -182,9 +184,10 @@ static EVP_KEM *evp_kem_new(OSSL_PROVIDER *prov)
     return kem;
 }
 
-static void *evp_kem_from_dispatch(int name_id, const OSSL_DISPATCH *fns,
-                                   OSSL_PROVIDER *prov)
+static void *evp_kem_from_algorithm(int name_id, const OSSL_ALGORITHM *algodef,
+                                    OSSL_PROVIDER *prov)
 {
+    const OSSL_DISPATCH *fns = algodef->implementation;
     EVP_KEM *kem = NULL;
     int ctxfncnt = 0, encfncnt = 0, decfncnt = 0;
     int gparamfncnt = 0, sparamfncnt = 0;
@@ -195,6 +198,9 @@ static void *evp_kem_from_dispatch(int name_id, const OSSL_DISPATCH *fns,
     }
 
     kem->name_id = name_id;
+    if ((kem->type_name = ossl_algorithm_get1_first_name(algodef)) == NULL)
+        goto err;
+    kem->description = algodef->algorithm_description;
 
     for (; fns->function_id != 0; fns++) {
         switch (fns->function_id) {
@@ -296,16 +302,18 @@ static void *evp_kem_from_dispatch(int name_id, const OSSL_DISPATCH *fns,
 
 void EVP_KEM_free(EVP_KEM *kem)
 {
-    if (kem != NULL) {
-        int i;
+    int i;
 
-        CRYPTO_DOWN_REF(&kem->refcnt, &i, kem->lock);
-        if (i > 0)
-            return;
-        ossl_provider_free(kem->prov);
-        CRYPTO_THREAD_lock_free(kem->lock);
-        OPENSSL_free(kem);
-    }
+    if (kem == NULL)
+        return;
+
+    CRYPTO_DOWN_REF(&kem->refcnt, &i, kem->lock);
+    if (i > 0)
+        return;
+    OPENSSL_free(kem->type_name);
+    ossl_provider_free(kem->prov);
+    CRYPTO_THREAD_lock_free(kem->lock);
+    OPENSSL_free(kem);
 }
 
 int EVP_KEM_up_ref(EVP_KEM *kem)
@@ -325,7 +333,7 @@ EVP_KEM *EVP_KEM_fetch(OSSL_LIB_CTX *ctx, const char *algorithm,
                        const char *properties)
 {
     return evp_generic_fetch(ctx, OSSL_OP_KEM, algorithm, properties,
-                             evp_kem_from_dispatch,
+                             evp_kem_from_algorithm,
                              (int (*)(void *))EVP_KEM_up_ref,
                              (void (*)(void *))EVP_KEM_free);
 }
@@ -340,12 +348,22 @@ int EVP_KEM_number(const EVP_KEM *kem)
     return kem->name_id;
 }
 
+const char *EVP_KEM_name(const EVP_KEM *kem)
+{
+    return kem->type_name;
+}
+
+const char *EVP_KEM_description(const EVP_KEM *kem)
+{
+    return kem->description;
+}
+
 void EVP_KEM_do_all_provided(OSSL_LIB_CTX *libctx,
                              void (*fn)(EVP_KEM *kem, void *arg),
                              void *arg)
 {
     evp_generic_do_all(libctx, OSSL_OP_KEM, (void (*)(void *, void *))fn, arg,
-                       evp_kem_from_dispatch,
+                       evp_kem_from_algorithm,
                        (void (*)(void *))EVP_KEM_free);
 }
 

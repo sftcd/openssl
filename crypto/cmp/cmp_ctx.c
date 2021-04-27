@@ -108,7 +108,7 @@ OSSL_CMP_CTX *OSSL_CMP_CTX_new(OSSL_LIB_CTX *libctx, const char *propq)
 
     ctx->libctx = libctx;
     if (propq != NULL && (ctx->propq = OPENSSL_strdup(propq)) == NULL)
-        goto err;
+        goto oom;
 
     ctx->log_verbosity = OSSL_CMP_LOG_INFO;
 
@@ -118,7 +118,7 @@ OSSL_CMP_CTX *OSSL_CMP_CTX_new(OSSL_LIB_CTX *libctx, const char *propq)
     ctx->msg_timeout = 2 * 60;
 
     if ((ctx->untrusted = sk_X509_new_null()) == NULL)
-        goto err;
+        goto oom;
 
     ctx->pbm_slen = 16;
     if (!cmp_ctx_set_md(ctx, &ctx->pbm_owf, NID_sha256))
@@ -134,9 +134,10 @@ OSSL_CMP_CTX *OSSL_CMP_CTX_new(OSSL_LIB_CTX *libctx, const char *propq)
     /* all other elements are initialized to 0 or NULL, respectively */
     return ctx;
 
+ oom:
+    ERR_raise(ERR_LIB_X509, ERR_R_MALLOC_FAILURE);
  err:
     OSSL_CMP_CTX_free(ctx);
-    ERR_raise(ERR_LIB_X509, ERR_R_MALLOC_FAILURE);
     return NULL;
 }
 
@@ -607,7 +608,7 @@ int OSSL_CMP_CTX_set1_##FIELD(OSSL_CMP_CTX *ctx, const TYPE *val) \
     return 1; \
 }
 
-#define X509_invalid(cert) (!x509v3_cache_extensions(cert))
+#define X509_invalid(cert) (!ossl_x509v3_cache_extensions(cert))
 #define EVP_PKEY_invalid(key) 0
 #define DEFINE_OSSL_CMP_CTX_set1_up_ref(FIELD, TYPE) \
 int OSSL_CMP_CTX_set1_##FIELD(OSSL_CMP_CTX *ctx, TYPE *val) \
@@ -734,8 +735,8 @@ int OSSL_CMP_CTX_build_cert_chain(OSSL_CMP_CTX *ctx, X509_STORE *own_trusted,
         return 0;
 
     ossl_cmp_debug(ctx, "trying to build chain for own CMP signer cert");
-    chain = ossl_cmp_build_cert_chain(ctx->libctx, ctx->propq, own_trusted,
-                                      ctx->untrusted, ctx->cert);
+    chain = X509_build_chain(ctx->cert, ctx->untrusted, own_trusted, 0,
+                             ctx->libctx, ctx->propq);
     if (chain == NULL) {
         ERR_raise(ERR_LIB_CMP, CMP_R_FAILED_BUILDING_OWN_CHAIN);
         return 0;

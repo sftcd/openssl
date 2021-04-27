@@ -1,5 +1,5 @@
 /*
- * Copyright 1995-2020 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 1995-2021 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -86,6 +86,6 @@ static ossl_inline void err_clear(ERR_STATE *es, size_t i, int deall)
     es->err_func[i] = NULL;
 }
 
-ERR_STATE *err_get_state_int(void);
+ERR_STATE *ossl_err_get_state_int(void);
 void ossl_err_string_int(unsigned long e, const char *func,
                          char *buf, size_t len);

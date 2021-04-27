@@ -1,5 +1,5 @@
 /*
- * Copyright 1995-2020 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 1995-2021 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -53,9 +53,9 @@ int ASN1_digest(i2d_of_void *i2d, const EVP_MD *type, char *data,
 
 #endif
 
-int asn1_item_digest_ex(const ASN1_ITEM *it, const EVP_MD *md, void *asn,
-                        unsigned char *data, unsigned int *len,
-                        OSSL_LIB_CTX *libctx, const char *propq)
+int ossl_asn1_item_digest_ex(const ASN1_ITEM *it, const EVP_MD *md, void *asn,
+                             unsigned char *data, unsigned int *len,
+                             OSSL_LIB_CTX *libctx, const char *propq)
 {
     int i, ret = 0;
     unsigned char *str = NULL;
@@ -75,8 +75,8 @@ int asn1_item_digest_ex(const ASN1_ITEM *it, const EVP_MD *md, void *asn,
 #endif
             fetched_md = EVP_MD_fetch(libctx, EVP_MD_name(md), propq);
     }
-     if (fetched_md == NULL)
-         goto err;
+    if (fetched_md == NULL)
+        goto err;
 
     ret = EVP_Digest(str, i, data, len, fetched_md, NULL);
 err:
@@ -89,6 +89,6 @@ err:
 int ASN1_item_digest(const ASN1_ITEM *it, const EVP_MD *md, void *asn,
                      unsigned char *data, unsigned int *len)
 {
-    return asn1_item_digest_ex(it, md, asn, data, len, NULL, NULL);
+    return ossl_asn1_item_digest_ex(it, md, asn, data, len, NULL, NULL);
 }
 

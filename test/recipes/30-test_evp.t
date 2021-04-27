@@ -1,5 +1,5 @@
 #! /usr/bin/env perl
-# Copyright 2015-2020 The OpenSSL Project Authors. All Rights Reserved.
+# Copyright 2015-2021 The OpenSSL Project Authors. All Rights Reserved.
 #
 # Licensed under the Apache License 2.0 (the "License").  You may not use
 # this file except in compliance with the License.  You can obtain a copy
@@ -22,6 +22,7 @@ use lib bldtop_dir('.');
 
 my $no_fips = disabled('fips') || ($ENV{NO_FIPS} // 0);
 my $no_legacy = disabled('legacy') || ($ENV{NO_LEGACY} // 0);
+my $no_des = disabled("des");
 my $no_dh = disabled("dh");
 my $no_dsa = disabled("dsa");
 my $no_ec = disabled("ec");
@@ -56,7 +57,14 @@ my @files = qw(
                 evppkey_rsa_common.txt
                 evprand.txt
               );
-push @files, qw(evppkey_ffdhe.txt) unless $no_dh;
+push @files, qw(
+                evppkey_ffdhe.txt
+                evppkey_dh.txt
+               ) unless $no_dh;
+push @files, qw(
+                evpkdf_x942_des.txt
+                evpmac_cmac_des.txt
+               ) unless $no_des;
 push @files, qw(evppkey_dsa.txt) unless $no_dsa;
 push @files, qw(evppkey_ecx.txt) unless $no_ec;
 push @files, qw(
@@ -65,7 +73,7 @@ push @files, qw(
                 evppkey_ecdsa.txt
                 evppkey_kas.txt
                 evppkey_mismatch.txt
-              ) unless $no_ec || $no_gost;
+               ) unless $no_ec || $no_gost;
 
 # A list of tests that only run with the default provider
 # (i.e. The algorithms are not present in the fips provider)
@@ -130,19 +138,29 @@ foreach my $f ( @defltfiles ) {
        "running evp_test -config $conf $f");
 }
 
+# test_errors OPTIONS
+#
+# OPTIONS may include:
+#
+# key      => "filename"        # expected to be found in $SRCDIR/test/certs
+# out      => "filename"        # file to write error strings to
+# args     => [ ... extra openssl pkey args ... ]
+# expected => regexps to match error lines against
 sub test_errors { # actually tests diagnostics of OSSL_STORE
-    my ($expected, $key, @opts) = @_;
-    my $infile = srctop_file('test', 'certs', $key);
-    my @args = qw(openssl pkey -in);
-    push(@args, $infile, @opts);
-    my $tmpfile = 'out.txt';
-    my $res = !run(app([@args], stderr => $tmpfile));
-    my $found = 0;
-    open(my $in, '<', $tmpfile) or die "Could not open file $tmpfile";
-    while(<$in>) {
-        print; # this may help debugging
-        $res &&= !m/asn1 encoding/; # output must not include ASN.1 parse errors
-        $found = 1 if m/$expected/; # output must include $expected
+    my %opts = @_;
+    my $infile = srctop_file('test', 'certs', $opts{key});
+    my @args = ( qw(openssl pkey -in), $infile, @{$opts{args} // []} );
+    my $res = !run(app([@args], stderr => $opts{out}));
+    my $found = !exists $opts{expected};
+    open(my $in, '<', $opts{out}) or die "Could not open file $opts{out}";
+    while(my $errline = <$in>) {
+        print $errline; # this may help debugging
+
+        # output must not include ASN.1 parse errors
+        $res &&= $errline !~ m/asn1 encoding/;
+        # output must include what is expressed in $opts{$expected}
+        $found = 1
+            if exists $opts{expected} && $errline =~ m/$opts{expected}/;
     }
     close $in;
     # $tmpfile is kept to help with investigation in case of failure
@@ -152,15 +170,19 @@ sub test_errors { # actually tests diagnostics of OSSL_STORE
 SKIP: {
     skip "DSA not disabled", 2 if !disabled("dsa");
 
-    ok(test_errors("unsupported algorithm", "server-dsa-key.pem"),
-       "error loading unsupported dsa private key");
-    ok(test_errors("unsupported algorithm", "server-dsa-pubkey.pem", "-pubin"),
-       "error loading unsupported dsa public key");
+    ok(test_errors(key => 'server-dsa-key.pem',
+                   out => 'server-dsa-key.err'),
+       "expected error loading unsupported dsa private key");
+    ok(test_errors(key => 'server-dsa-pubkey.pem',
+                   out => 'server-dsa-pubkey.err',
+                   args => [ '-pubin' ],
+                   expected => 'unsupported'),
+       "expected error loading unsupported dsa public key");
 }
 
 SKIP: {
-    skip "sm2 not disabled", 1 if !disabled("sm2");
+    skip "SM2 not disabled", 1 if !disabled("sm2");
 
-    ok(test_errors("unknown group|unsupported algorithm", "sm2.key"),
-       "error loading unsupported sm2 private key");
+    ok(test_errors(key => 'sm2.key', out => 'sm2.err'),
+       "expected error loading unsupported sm2 private key");
 }

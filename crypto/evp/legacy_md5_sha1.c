@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2020 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2015-2021 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -29,6 +29,7 @@ static const EVP_MD md5_sha1_md = {
     NID_md5_sha1,
     MD5_SHA1_DIGEST_LENGTH,
     0,
+    EVP_ORIG_GLOBAL,
     LEGACY_EVP_MD_METH_TABLE(md5_sha1_int_init, md5_sha1_int_update,
                              md5_sha1_int_final, md5_sha1_int_ctrl,
                              MD5_SHA1_CBLOCK),

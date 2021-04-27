@@ -192,7 +192,7 @@ static EVP_PKEY_CTX *int_ctx_new(OSSL_LIB_CTX *libctx,
         /* If we have an engine, something went wrong somewhere... */
         if (!ossl_assert(e == NULL))
             return NULL;
-        keytype = evp_first_name(pkey->keymgmt->prov, pkey->keymgmt->name_id);
+        keytype = EVP_KEYMGMT_name(pkey->keymgmt);
         goto common;
     }
 
@@ -224,7 +224,7 @@ static EVP_PKEY_CTX *int_ctx_new(OSSL_LIB_CTX *libctx,
      */
     if (!ossl_assert(e == NULL || keytype == NULL))
         return NULL;
-    if (e == NULL)
+    if (e == NULL && (pkey == NULL || pkey->foreign == 0))
         keytype = OBJ_nid2sn(id);
 
 # ifndef OPENSSL_NO_ENGINE
@@ -246,6 +246,8 @@ static EVP_PKEY_CTX *int_ctx_new(OSSL_LIB_CTX *libctx,
      */
     if (e != NULL)
         pmeth = ENGINE_get_pkey_meth(e, id);
+    else if (pkey != NULL && pkey->foreign)
+        pmeth = EVP_PKEY_meth_find(id);
     else
 # endif
         pmeth = evp_pkey_meth_find_added_by_application(id);
@@ -266,8 +268,7 @@ static EVP_PKEY_CTX *int_ctx_new(OSSL_LIB_CTX *libctx,
         /*
          * Chase down the legacy NID, as that might be needed for diverse
          * purposes, such as ensure that EVP_PKEY_type() can return sensible
-         * values, or that there's a better chance to "downgrade" a key when
-         * needed.  We go through all keymgmt names, because the keytype
+         * values. We go through all keymgmt names, because the keytype
          * that's passed to this function doesn't necessarily translate
          * directly.
          * TODO: Remove this when #legacy keys are gone.
@@ -314,6 +315,7 @@ static EVP_PKEY_CTX *int_ctx_new(OSSL_LIB_CTX *libctx,
     if (propquery != NULL) {
         ret->propquery = OPENSSL_strdup(propquery);
         if (ret->propquery == NULL) {
+            OPENSSL_free(ret);
             EVP_KEYMGMT_free(keymgmt);
             return NULL;
         }

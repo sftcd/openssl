@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2020-2021 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -38,7 +38,7 @@ struct key2ms_ctx_st {
 static int write_msblob(struct key2ms_ctx_st *ctx, OSSL_CORE_BIO *cout,
                         EVP_PKEY *pkey, int ispub)
 {
-    BIO *out = bio_new_from_core_bio(ctx->provctx, cout);
+    BIO *out = ossl_bio_new_from_core_bio(ctx->provctx, cout);
     int ret =
         ispub ? i2b_PublicKey_bio(out, pkey) : i2b_PrivateKey_bio(out, pkey);
 
@@ -53,7 +53,7 @@ static int write_pvk(struct key2ms_ctx_st *ctx, OSSL_CORE_BIO *cout,
     BIO *out = NULL;
     int ret = 0;
 
-    out = bio_new_from_core_bio(ctx->provctx, cout);
+    out = ossl_bio_new_from_core_bio(ctx->provctx, cout);
     ret = i2b_PVK_bio(out, pkey, ctx->pvk_encr_level,
                       ossl_pw_pem_password, &ctx->pwdata);
     BIO_free(out);

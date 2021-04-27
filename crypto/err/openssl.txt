@@ -66,6 +66,7 @@ ASN1_R_INVALID_STRING_TABLE_VALUE:218:invalid string table value
 ASN1_R_INVALID_UNIVERSALSTRING_LENGTH:133:invalid universalstring length
 ASN1_R_INVALID_UTF8STRING:134:invalid utf8string
 ASN1_R_INVALID_VALUE:219:invalid value
+ASN1_R_LENGTH_TOO_LONG:231:length too long
 ASN1_R_LIST_ERROR:188:list error
 ASN1_R_MIME_NO_CONTENT_TYPE:206:mime no content type
 ASN1_R_MIME_PARSE_ERROR:207:mime parse error
@@ -299,7 +300,6 @@ CMS_R_ERROR_READING_MESSAGEDIGEST_ATTRIBUTE:114:\
 	error reading messagedigest attribute
 CMS_R_ERROR_SETTING_KEY:115:error setting key
 CMS_R_ERROR_SETTING_RECIPIENTINFO:116:error setting recipientinfo
-CMS_R_ESS_NO_SIGNING_CERTID_ATTRIBUTE:182:ess no signing certid attribute
 CMS_R_ESS_SIGNING_CERTID_MISMATCH_ERROR:183:ess signing certid mismatch error
 CMS_R_INVALID_ENCRYPTED_KEY_LENGTH:117:invalid encrypted key length
 CMS_R_INVALID_KEY_ENCRYPTION_PARAMETER:176:invalid key encryption parameter
@@ -478,6 +478,7 @@ DH_R_DECODE_ERROR:104:decode error
 DH_R_INVALID_PARAMETER_NAME:110:invalid parameter name
 DH_R_INVALID_PARAMETER_NID:114:invalid parameter nid
 DH_R_INVALID_PUBKEY:102:invalid public key
+DH_R_INVALID_SECRET:128:invalid secret
 DH_R_KDF_PARAMETER_ERROR:112:kdf parameter error
 DH_R_KEYS_NOT_SET:108:keys not set
 DH_R_MISSING_PUBKEY:125:missing pubkey
@@ -629,10 +630,16 @@ ENGINE_R_UNIMPLEMENTED_CIPHER:146:unimplemented cipher
 ENGINE_R_UNIMPLEMENTED_DIGEST:147:unimplemented digest
 ENGINE_R_UNIMPLEMENTED_PUBLIC_KEY_METHOD:101:unimplemented public key method
 ENGINE_R_VERSION_INCOMPATIBILITY:145:version incompatibility
-
+ESS_R_EMPTY_ESS_CERT_ID_LIST:107:empty ess cert id list
+ESS_R_ESS_CERT_DIGEST_ERROR:103:ess cert digest error
+ESS_R_ESS_CERT_ID_NOT_FOUND:104:ess cert id not found
+ESS_R_ESS_CERT_ID_WRONG_ORDER:105:ess cert id wrong order
+ESS_R_ESS_DIGEST_ALG_UNKNOWN:106:ess digest alg unknown
 ESS_R_ESS_SIGNING_CERTIFICATE_ERROR:102:ess signing certificate error
 ESS_R_ESS_SIGNING_CERT_ADD_ERROR:100:ess signing cert add error
 ESS_R_ESS_SIGNING_CERT_V2_ADD_ERROR:101:ess signing cert v2 add error
+ESS_R_MISSING_SIGNING_CERTIFICATE_ATTRIBUTE:108:\
+	missing signing certificate attribute
 EVP_R_AES_KEY_SETUP_FAILED:143:aes key setup failed
 EVP_R_ARIA_KEY_SETUP_FAILED:176:aria key setup failed
 EVP_R_BAD_ALGORITHM_NAME:200:bad algorithm name
@@ -661,8 +668,8 @@ EVP_R_EXPECTING_AN_HMAC_KEY:174:expecting an hmac key
 EVP_R_EXPECTING_AN_RSA_KEY:127:expecting an rsa key
 EVP_R_EXPECTING_A_DH_KEY:128:expecting a dh key
 EVP_R_EXPECTING_A_DSA_KEY:129:expecting a dsa key
-EVP_R_EXPECTING_A_ECX_KEY:219:expecting a ecx key
-EVP_R_EXPECTING_A_EC_KEY:142:expecting a ec key
+EVP_R_EXPECTING_A_ECX_KEY:219:expecting an ecx key
+EVP_R_EXPECTING_A_EC_KEY:142:expecting an ec key
 EVP_R_EXPECTING_A_POLY1305_KEY:164:expecting a poly1305 key
 EVP_R_EXPECTING_A_SIPHASH_KEY:175:expecting a siphash key
 EVP_R_FINAL_ERROR:188:final error
@@ -707,9 +714,9 @@ EVP_R_NO_KEY_SET:154:no key set
 EVP_R_NO_OPERATION_SET:149:no operation set
 EVP_R_NULL_MAC_PKEY_CTX:208:null mac pkey ctx
 EVP_R_ONLY_ONESHOT_SUPPORTED:177:only oneshot supported
+EVP_R_OPERATION_NOT_INITIALIZED:151:operation not initialized
 EVP_R_OPERATION_NOT_SUPPORTED_FOR_THIS_KEYTYPE:150:\
 	operation not supported for this keytype
-EVP_R_OPERATON_NOT_INITIALIZED:151:operation not initialized
 EVP_R_OUTPUT_WOULD_OVERFLOW:202:output would overflow
 EVP_R_PARAMETER_TOO_LARGE:187:parameter too large
 EVP_R_PARTIALLY_OVERLAPPING:162:partially overlapping buffers
@@ -804,6 +811,7 @@ OCSP_R_STATUS_TOO_OLD:127:status too old
 OCSP_R_UNKNOWN_MESSAGE_DIGEST:119:unknown message digest
 OCSP_R_UNKNOWN_NID:120:unknown nid
 OCSP_R_UNSUPPORTED_REQUESTORNAME_TYPE:129:unsupported requestorname type
+OSSL_DECODER_R_COULD_NOT_DECODE_OBJECT:101:could not decode object
 OSSL_DECODER_R_MISSING_GET_PARAMS:100:missing get params
 OSSL_ENCODER_R_ENCODER_NOT_FOUND:101:encoder not found
 OSSL_ENCODER_R_INCORRECT_PROPERTY_QUERY:100:incorrect property query
@@ -844,8 +852,10 @@ PEM_R_BAD_VERSION_NUMBER:117:bad version number
 PEM_R_BIO_WRITE_FAILURE:118:bio write failure
 PEM_R_CIPHER_IS_NULL:127:cipher is null
 PEM_R_ERROR_CONVERTING_PRIVATE_KEY:115:error converting private key
+PEM_R_EXPECTING_DSS_KEY_BLOB:131:expecting dss key blob
 PEM_R_EXPECTING_PRIVATE_KEY_BLOB:119:expecting private key blob
 PEM_R_EXPECTING_PUBLIC_KEY_BLOB:120:expecting public key blob
+PEM_R_EXPECTING_RSA_KEY_BLOB:132:expecting rsa key blob
 PEM_R_HEADER_TOO_LONG:128:header too long
 PEM_R_INCONSISTENT_HEADER:121:inconsistent header
 PEM_R_KEYBLOB_HEADER_PARSE_ERROR:122:keyblob header parse error
@@ -997,6 +1007,8 @@ PROV_R_INVALID_X931_DIGEST:170:invalid x931 digest
 PROV_R_IN_ERROR_STATE:192:in error state
 PROV_R_KEY_SETUP_FAILED:101:key setup failed
 PROV_R_KEY_SIZE_TOO_SMALL:171:key size too small
+PROV_R_LENGTH_TOO_LARGE:202:length too large
+PROV_R_MISMATCHING_DOMAIN_PARAMETERS:203:mismatching domain parameters
 PROV_R_MISSING_CEK_ALG:144:missing cek alg
 PROV_R_MISSING_CIPHER:155:missing cipher
 PROV_R_MISSING_CONFIG_DATA:213:missing config data

@@ -82,25 +82,6 @@ static int try_crl(struct extracted_param_data_st *, OSSL_STORE_INFO **,
 static int try_pkcs12(struct extracted_param_data_st *, OSSL_STORE_INFO **,
                       OSSL_STORE_CTX *, OSSL_LIB_CTX *, const char *);
 
-#define SET_ERR_MARK() ERR_set_mark()
-#define CLEAR_ERR_MARK()                                                \
-    do {                                                                \
-        int err = ERR_peek_last_error();                                \
-                                                                        \
-        if (ERR_GET_LIB(err) == ERR_LIB_ASN1                            \
-            && (ERR_GET_REASON(err) == ASN1_R_UNKNOWN_PUBLIC_KEY_TYPE   \
-                || ERR_GET_REASON(err) == ASN1_R_NO_MATCHING_CHOICE_TYPE \
-                || ERR_GET_REASON(err) == ERR_R_NESTED_ASN1_ERROR))     \
-            ERR_pop_to_mark();                                          \
-        else                                                            \
-            ERR_clear_last_mark();                                      \
-    } while(0)
-#define RESET_ERR_MARK()                                                \
-    do {                                                                \
-        CLEAR_ERR_MARK();                                               \
-        SET_ERR_MARK();                                                 \
-    } while(0)
-
 int ossl_store_handle_load_result(const OSSL_PARAM params[], void *arg)
 {
     struct ossl_load_result_data_st *cbdata = arg;
@@ -145,25 +126,33 @@ int ossl_store_handle_load_result(const OSSL_PARAM params[], void *arg)
      * The helper functions return 0 on actual errors, otherwise 1, even if
      * they didn't fill out |*v|.
      */
-    SET_ERR_MARK();
-    if (!try_name(&helper_data, v))
+    ERR_set_mark();
+    if (*v == NULL && !try_name(&helper_data, v))
         goto err;
-    RESET_ERR_MARK();
-    if (!try_key(&helper_data, v, ctx, provider, libctx, propq))
+    ERR_pop_to_mark();
+    ERR_set_mark();
+    if (*v == NULL && !try_key(&helper_data, v, ctx, provider, libctx, propq))
         goto err;
-    RESET_ERR_MARK();
-    if (!try_cert(&helper_data, v, libctx, propq))
+    ERR_pop_to_mark();
+    ERR_set_mark();
+    if (*v == NULL && !try_cert(&helper_data, v, libctx, propq))
         goto err;
-    RESET_ERR_MARK();
-    if (!try_crl(&helper_data, v, libctx, propq))
+    ERR_pop_to_mark();
+    ERR_set_mark();
+    if (*v == NULL && !try_crl(&helper_data, v, libctx, propq))
         goto err;
-    RESET_ERR_MARK();
-    if (!try_pkcs12(&helper_data, v, ctx, libctx, propq))
+    ERR_pop_to_mark();
+    ERR_set_mark();
+    if (*v == NULL && !try_pkcs12(&helper_data, v, ctx, libctx, propq))
         goto err;
-    CLEAR_ERR_MARK();
+    ERR_pop_to_mark();
+
+    if (*v == NULL)
+        ERR_raise(ERR_LIB_OSSL_STORE, ERR_R_UNSUPPORTED);
 
     return (*v != NULL);
  err:
+    ERR_clear_last_mark();
     return 0;
 }
 
@@ -304,16 +293,14 @@ static EVP_PKEY *try_key_value_legacy(struct extracted_param_data_st *data,
     const unsigned char *der = data->octet_data, *derp;
     long der_len = (long)data->octet_data_size;
 
-    SET_ERR_MARK();
     /* Try PUBKEY first, that's a real easy target */
     if (ctx->expected_type == 0
         || ctx->expected_type == OSSL_STORE_INFO_PUBKEY) {
         derp = der;
         pk = d2i_PUBKEY_ex(NULL, &derp, der_len, libctx, propq);
+
         if (pk != NULL)
             *store_info_new = OSSL_STORE_INFO_new_PUBKEY;
-
-        RESET_ERR_MARK();
     }
 
     /* Try private keys next */
@@ -324,9 +311,11 @@ static EVP_PKEY *try_key_value_legacy(struct extracted_param_data_st *data,
         X509_SIG *p8 = NULL;
         PKCS8_PRIV_KEY_INFO *p8info = NULL;
 
-        /* See if it's an encrypted PKCS#8 and decrypt it */
+        /* See if it's an encrypted PKCS#8 and decrypt it. */
         derp = der;
-        if ((p8 = d2i_X509_SIG(NULL, &derp, der_len)) != NULL) {
+        p8 = d2i_X509_SIG(NULL, &derp, der_len);
+
+        if (p8 != NULL) {
             char pbuf[PEM_BUFSIZE];
             size_t plen = 0;
 
@@ -351,7 +340,6 @@ static EVP_PKEY *try_key_value_legacy(struct extracted_param_data_st *data,
             }
             X509_SIG_free(p8);
         }
-        RESET_ERR_MARK();
 
         /*
          * If the encrypted PKCS#8 couldn't be decrypted,
@@ -361,7 +349,7 @@ static EVP_PKEY *try_key_value_legacy(struct extracted_param_data_st *data,
             /* Try to unpack an unencrypted PKCS#8, that's easy */
             derp = der;
             p8info = d2i_PKCS8_PRIV_KEY_INFO(NULL, &derp, der_len);
-            RESET_ERR_MARK();
+
             if (p8info != NULL) {
                 pk = EVP_PKCS82PKEY_ex(p8info, libctx, propq);
                 PKCS8_PRIV_KEY_INFO_free(p8info);
@@ -373,7 +361,6 @@ static EVP_PKEY *try_key_value_legacy(struct extracted_param_data_st *data,
 
         OPENSSL_free(new_der);
     }
-    CLEAR_ERR_MARK();
 
     return pk;
 }
@@ -408,8 +395,8 @@ static int try_key(struct extracted_param_data_st *data, OSSL_STORE_INFO **v,
 
             /*
              * Desperate last maneuver, in case the decoders don't support
-             * the data we have, then we try on our own to at least get a
-             * legacy key.
+             * the data we have, then we try on our own to at least get an
+             * engine provided legacy key.
              * This is the same as der2key_decode() does, but in a limited
              * way and within the walls of libcrypto.
              *
@@ -483,7 +470,7 @@ static int try_cert(struct extracted_param_data_st *data, OSSL_STORE_INFO **v,
             /* We determined the object type */
             data->object_type = OSSL_OBJECT_CERT;
 
-        if (cert != NULL && !x509_set0_libctx(cert, libctx, propq)) {
+        if (cert != NULL && !ossl_x509_set0_libctx(cert, libctx, propq)) {
             X509_free(cert);
             cert = NULL;
         }
@@ -506,11 +493,12 @@ static int try_crl(struct extracted_param_data_st *data, OSSL_STORE_INFO **v,
 
         crl = d2i_X509_CRL(NULL, (const unsigned char **)&data->octet_data,
                            data->octet_data_size);
+
         if (crl != NULL)
             /* We determined the object type */
             data->object_type = OSSL_OBJECT_CRL;
 
-        if (crl != NULL && !x509_crl_set0_libctx(crl, libctx, propq)) {
+        if (crl != NULL && !ossl_x509_crl_set0_libctx(crl, libctx, propq)) {
             X509_CRL_free(crl);
             crl = NULL;
         }
@@ -528,13 +516,17 @@ static int try_pkcs12(struct extracted_param_data_st *data, OSSL_STORE_INFO **v,
                       OSSL_STORE_CTX *ctx,
                       OSSL_LIB_CTX *libctx, const char *propq)
 {
+    int ok = 1;
+
     /* There is no specific object type for PKCS12 */
     if (data->object_type == OSSL_OBJECT_UNKNOWN) {
         /* Initial parsing */
         PKCS12 *p12;
 
-        if ((p12 = d2i_PKCS12(NULL, (const unsigned char **)&data->octet_data,
-                              data->octet_data_size)) != NULL) {
+        p12 = d2i_PKCS12(NULL, (const unsigned char **)&data->octet_data,
+                         data->octet_data_size);
+
+        if (p12 != NULL) {
             char *pass = NULL;
             char tpass[PEM_BUFSIZE];
             size_t tpass_len;
@@ -543,6 +535,8 @@ static int try_pkcs12(struct extracted_param_data_st *data, OSSL_STORE_INFO **v,
             STACK_OF(X509) *chain = NULL;
 
             data->object_type = OSSL_OBJECT_PKCS12;
+
+            ok = 0;              /* Assume decryption or parse error */
 
             if (PKCS12_verify_mac(p12, "", 0)
                 || PKCS12_verify_mac(p12, NULL, 0)) {
@@ -577,7 +571,8 @@ static int try_pkcs12(struct extracted_param_data_st *data, OSSL_STORE_INFO **v,
                 OSSL_STORE_INFO *osi_pkey = NULL;
                 OSSL_STORE_INFO *osi_cert = NULL;
                 OSSL_STORE_INFO *osi_ca = NULL;
-                int ok = 1;
+
+                ok = 1;          /* Parsing went through correctly! */
 
                 if ((infos = sk_OSSL_STORE_INFO_new_null()) != NULL) {
                     if (pkey != NULL) {
@@ -627,5 +622,5 @@ static int try_pkcs12(struct extracted_param_data_st *data, OSSL_STORE_INFO **v,
         *v = sk_OSSL_STORE_INFO_shift(ctx->cached_info);
     }
 
-    return 1;
+    return ok;
 }

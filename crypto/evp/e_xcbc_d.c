@@ -1,5 +1,5 @@
 /*
- * Copyright 1995-2020 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 1995-2021 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -41,6 +41,7 @@ static const EVP_CIPHER d_xcbc_cipher = {
     NID_desx_cbc,
     8, 24, 8,
     EVP_CIPH_CBC_MODE,
+    EVP_ORIG_GLOBAL,
     desx_cbc_init_key,
     desx_cbc_cipher,
     NULL,

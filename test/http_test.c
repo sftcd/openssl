@@ -142,7 +142,8 @@ static int test_http_url_ok(const char *url, int exp_ssl, const char *exp_host,
     int exp_num, num, ssl;
     int res;
 
-    TEST_int_eq(sscanf(exp_port, "%d", &exp_num), 1);
+    if (!TEST_int_eq(sscanf(exp_port, "%d", &exp_num), 1))
+        return 0;
     res = TEST_true(OSSL_HTTP_parse_url(url, &ssl, &user, &host, &port, &num,
                                         &path, &query, &frag))
         && TEST_str_eq(host, exp_host)
@@ -203,7 +204,7 @@ static int test_http_url_ipv4(void)
 
 static int test_http_url_ipv6(void)
 {
-    return test_http_url_ok("http://[FF01::101]:6", 0, "FF01::101", "6", "/");
+    return test_http_url_ok("http://[FF01::101]:6", 0, "[FF01::101]", "6", "/");
 }
 
 static int test_http_url_invalid(const char *url)

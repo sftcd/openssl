@@ -2412,7 +2412,8 @@ int hpke_prbuf2evp(
     if (priv) BN_free(priv);
     if (ctx) EVP_PKEY_CTX_free(ctx);
     if (param_bld) OSSL_PARAM_BLD_free(param_bld);
-    if (params) OSSL_PARAM_BLD_free_params(params);
+    if (params) OSSL_PARAM_free(params);
+    //if (params) OSSL_PARAM_BLD_free_params(params);
     return(erv);
 err:
 #if defined(SUPERVERBOSE) || defined(TESTVECTORS)
@@ -2421,7 +2422,8 @@ err:
     if (priv) BN_free(priv);
     if (ctx) EVP_PKEY_CTX_free(ctx);
     if (param_bld) OSSL_PARAM_BLD_free(param_bld);
-    if (params) OSSL_PARAM_BLD_free_params(params);
+    if (params) OSSL_PARAM_free(params);
+    //if (params) OSSL_PARAM_BLD_free_params(params);
     return(erv);
 }
 

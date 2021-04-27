@@ -1,5 +1,5 @@
 /*
- * Copyright 1999-2020 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 1999-2021 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -25,7 +25,7 @@ static AUTHORITY_INFO_ACCESS *v2i_AUTHORITY_INFO_ACCESS(X509V3_EXT_METHOD
                                                         STACK_OF(CONF_VALUE)
                                                         *nval);
 
-const X509V3_EXT_METHOD v3_info = { NID_info_access, X509V3_EXT_MULTILINE,
+const X509V3_EXT_METHOD ossl_v3_info = { NID_info_access, X509V3_EXT_MULTILINE,
     ASN1_ITEM_ref(AUTHORITY_INFO_ACCESS),
     0, 0, 0, 0,
     0, 0,
@@ -35,7 +35,7 @@ const X509V3_EXT_METHOD v3_info = { NID_info_access, X509V3_EXT_MULTILINE,
     NULL
 };
 
-const X509V3_EXT_METHOD v3_sinfo = { NID_sinfo_access, X509V3_EXT_MULTILINE,
+const X509V3_EXT_METHOD ossl_v3_sinfo = { NID_sinfo_access, X509V3_EXT_MULTILINE,
     ASN1_ITEM_ref(AUTHORITY_INFO_ACCESS),
     0, 0, 0, 0,
     0, 0,

@@ -764,13 +764,6 @@ static int rsa_to_text(BIO *out, const void *key, int selection)
                                saltlen,
                                (saltlen == 20 ? " (default)" : "")) <= 0)
                     goto err;
-                /*
-                 * TODO(3.0) Should we show the ASN.1 trailerField value, or
-                 * the actual trailerfield byte (i.e. 0xBC for 1)?
-                 * crypto/rsa/rsa_ameth.c isn't very clear on that, as it
-                 * does display 0xBC when the default applies, but the ASN.1
-                 * trailerField value otherwise...
-                 */
                 if (BIO_printf(out, "  Trailer Field: 0x%x%s\n",
                                trailerfield,
                                (trailerfield == 1 ? " (default)" : "")) <= 0)
@@ -833,7 +826,7 @@ static int key2text_encode(void *vctx, const void *key, int selection,
                                            int selection),
                            OSSL_PASSPHRASE_CALLBACK *cb, void *cbarg)
 {
-    BIO *out = bio_new_from_core_bio(vctx, cout);
+    BIO *out = ossl_bio_new_from_core_bio(vctx, cout);
     int ret;
 
     if (out == NULL)

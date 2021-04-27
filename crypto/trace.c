@@ -1,5 +1,5 @@
 /*
- * Copyright 2019-2020 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2019-2021 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -468,7 +468,8 @@ BIO *OSSL_trace_begin(int category)
     prefix = trace_channels[category].prefix;
 
     if (channel != NULL) {
-        CRYPTO_THREAD_write_lock(trace_lock);
+        if (!CRYPTO_THREAD_write_lock(trace_lock))
+            return NULL;
         current_channel = channel;
         switch (trace_channels[category].type) {
         case SIMPLE_CHANNEL:

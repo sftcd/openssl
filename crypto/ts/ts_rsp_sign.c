@@ -8,14 +8,15 @@
  */
 
 #include "e_os.h"
-#include "internal/cryptlib.h"
 
 #include <openssl/objects.h>
 #include <openssl/ts.h>
 #include <openssl/pkcs7.h>
 #include <openssl/crypto.h>
-#include "ts_local.h"
+#include "internal/cryptlib.h"
+#include "internal/sizes.h"
 #include "crypto/ess.h"
+#include "ts_local.h"
 
 DEFINE_STACK_OF_CONST(EVP_MD)
 
@@ -108,7 +109,7 @@ static int def_extension_cb(struct TS_resp_ctx *ctx, X509_EXTENSION *ext,
 
 /* TS_RESP_CTX management functions. */
 
-TS_RESP_CTX *TS_RESP_CTX_new(void)
+TS_RESP_CTX *TS_RESP_CTX_new_ex(OSSL_LIB_CTX *libctx, const char *propq)
 {
     TS_RESP_CTX *ctx;
 
@@ -117,8 +118,15 @@ TS_RESP_CTX *TS_RESP_CTX_new(void)
         return NULL;
     }
 
-    ctx->signer_md = EVP_sha256();
-
+    if (propq != NULL) {
+        ctx->propq = OPENSSL_strdup(propq);
+        if (ctx->propq == NULL) {
+            OPENSSL_free(ctx);
+            ERR_raise(ERR_LIB_TS, ERR_R_MALLOC_FAILURE);
+            return NULL;
+        }
+    }
+    ctx->libctx = libctx;
     ctx->serial_cb = def_serial_cb;
     ctx->time_cb = def_time_cb;
     ctx->extension_cb = def_extension_cb;
@@ -126,11 +134,17 @@ TS_RESP_CTX *TS_RESP_CTX_new(void)
     return ctx;
 }
 
+TS_RESP_CTX *TS_RESP_CTX_new(void)
+{
+    return TS_RESP_CTX_new_ex(NULL, NULL);
+}
+
 void TS_RESP_CTX_free(TS_RESP_CTX *ctx)
 {
     if (!ctx)
         return;
 
+    OPENSSL_free(ctx->propq);
     X509_free(ctx->signer_cert);
     EVP_PKEY_free(ctx->signer_key);
     sk_X509_pop_free(ctx->certs, X509_free);
@@ -434,7 +448,7 @@ static int ts_RESP_check_request(TS_RESP_CTX *ctx)
     TS_REQ *request = ctx->request;
     TS_MSG_IMPRINT *msg_imprint;
     X509_ALGOR *md_alg;
-    int md_alg_id;
+    char md_alg_name[OSSL_MAX_NAME_SIZE];
     const ASN1_OCTET_STRING *digest;
     const EVP_MD *md = NULL;
     int i;
@@ -448,10 +462,10 @@ static int ts_RESP_check_request(TS_RESP_CTX *ctx)
 
     msg_imprint = request->msg_imprint;
     md_alg = msg_imprint->hash_algo;
-    md_alg_id = OBJ_obj2nid(md_alg->algorithm);
+    OBJ_obj2txt(md_alg_name, sizeof(md_alg_name), md_alg->algorithm, 0);
     for (i = 0; !md && i < sk_EVP_MD_num(ctx->mds); ++i) {
         const EVP_MD *current_md = sk_EVP_MD_value(ctx->mds, i);
-        if (md_alg_id == EVP_MD_type(current_md))
+        if (EVP_MD_is_a(current_md, md_alg_name))
             md = current_md;
     }
     if (!md) {
@@ -623,13 +637,14 @@ static int ts_RESP_sign(TS_RESP_CTX *ctx)
     ASN1_OBJECT *oid;
     BIO *p7bio = NULL;
     int i;
+    EVP_MD *signer_md = NULL;
 
     if (!X509_check_private_key(ctx->signer_cert, ctx->signer_key)) {
         ERR_raise(ERR_LIB_TS, TS_R_PRIVATE_KEY_DOES_NOT_MATCH_CERTIFICATE);
         goto err;
     }
 
-    if ((p7 = PKCS7_new()) == NULL) {
+    if ((p7 = PKCS7_new_ex(ctx->libctx, ctx->propq)) == NULL) {
         ERR_raise(ERR_LIB_TS, ERR_R_MALLOC_FAILURE);
         goto err;
     }
@@ -648,8 +663,16 @@ static int ts_RESP_sign(TS_RESP_CTX *ctx)
         }
     }
 
+    if (ctx->signer_md == NULL)
+        signer_md = EVP_MD_fetch(ctx->libctx, "SHA256", ctx->propq);
+    else if (EVP_MD_provider(ctx->signer_md) == NULL)
+        signer_md = EVP_MD_fetch(ctx->libctx, EVP_MD_name(ctx->signer_md),
+                                 ctx->propq);
+    else
+        signer_md = (EVP_MD *)ctx->signer_md;
+
     if ((si = PKCS7_add_signature(p7, ctx->signer_cert,
-                                  ctx->signer_key, ctx->signer_md)) == NULL) {
+                                  ctx->signer_key, signer_md)) == NULL) {
         ERR_raise(ERR_LIB_TS, TS_R_PKCS7_ADD_SIGNATURE_ERROR);
         goto err;
     }
@@ -663,7 +686,7 @@ static int ts_RESP_sign(TS_RESP_CTX *ctx)
 
     certs = ctx->flags & TS_ESS_CERT_ID_CHAIN ? ctx->certs : NULL;
     if (ctx->ess_cert_id_digest == NULL
-        || ctx->ess_cert_id_digest == EVP_sha1()) {
+        || EVP_MD_is_a(ctx->ess_cert_id_digest, SN_sha1)) {
         if ((sc = ossl_ess_signing_cert_new_init(ctx->signer_cert,
                                                  certs, 0)) == NULL)
             goto err;
@@ -704,6 +727,9 @@ static int ts_RESP_sign(TS_RESP_CTX *ctx)
 
     ret = 1;
  err:
+    if (signer_md != ctx->signer_md)
+        EVP_MD_free(signer_md);
+
     if (!ret)
         TS_RESP_CTX_set_status_info_cond(ctx, TS_STATUS_REJECTION,
                                          "Error during signature "

@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2020-2021 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -19,6 +19,6 @@ struct kdf_data_st {
 
 typedef struct kdf_data_st KDF_DATA;
 
-KDF_DATA *kdf_data_new(void *provctx);
-void kdf_data_free(KDF_DATA *kdfdata);
-int kdf_data_up_ref(KDF_DATA *kdfdata);
+KDF_DATA *ossl_kdf_data_new(void *provctx);
+void ossl_kdf_data_free(KDF_DATA *kdfdata);
+int ossl_kdf_data_up_ref(KDF_DATA *kdfdata);

@@ -222,6 +222,7 @@ static unsigned char *rsa_generate_signature_aid(PROV_RSA_CTX *ctx,
     unsigned char *aid = NULL;
     int saltlen;
     RSA_PSS_PARAMS_30 pss_params;
+    int ret;
 
     if (!WPACKET_init_der(&pkt, aid_buf, buf_len)) {
         ERR_raise(ERR_LIB_PROV, ERR_R_MALLOC_FAILURE);
@@ -229,33 +230,41 @@ static unsigned char *rsa_generate_signature_aid(PROV_RSA_CTX *ctx,
     }
 
     switch(ctx->pad_mode) {
-        case RSA_PKCS1_PADDING:
-            if (!ossl_DER_w_algorithmIdentifier_MDWithRSAEncryption(&pkt, -1,
-                                                                    ctx->mdnid)) {
-                ERR_raise(ERR_LIB_PROV, ERR_R_INTERNAL_ERROR);
-                goto cleanup;
-            }
+    case RSA_PKCS1_PADDING:
+        ret = ossl_DER_w_algorithmIdentifier_MDWithRSAEncryption(&pkt, -1,
+                                                                 ctx->mdnid);
+
+        if (ret > 0) {
             break;
-        case RSA_PKCS1_PSS_PADDING:
-            saltlen = rsa_pss_compute_saltlen(ctx);
-            if (saltlen < 0)
-                goto cleanup;
-            if (!ossl_rsa_pss_params_30_set_defaults(&pss_params)
-                || !ossl_rsa_pss_params_30_set_hashalg(&pss_params, ctx->mdnid)
-                || !ossl_rsa_pss_params_30_set_maskgenhashalg(&pss_params,
-                                                              ctx->mgf1_mdnid)
-                || !ossl_rsa_pss_params_30_set_saltlen(&pss_params, saltlen)
-                || !ossl_DER_w_algorithmIdentifier_RSA_PSS(&pkt, -1,
-                                                           RSA_FLAG_TYPE_RSASSAPSS,
-                                                           &pss_params)) {
-                ERR_raise(ERR_LIB_PROV, ERR_R_INTERNAL_ERROR);
-                goto cleanup;
-            }
-            break;
-        default:
-            ERR_raise_data(ERR_LIB_PROV, ERR_R_UNSUPPORTED,
-                           "Algorithm ID generation");
+        } else if (ret == 0) {
+            ERR_raise(ERR_LIB_PROV, ERR_R_INTERNAL_ERROR);
             goto cleanup;
+        }
+        ERR_raise_data(ERR_LIB_PROV, ERR_R_UNSUPPORTED,
+                       "Algorithm ID generation - md NID: %d",
+                       ctx->mdnid);
+        goto cleanup;
+    case RSA_PKCS1_PSS_PADDING:
+        saltlen = rsa_pss_compute_saltlen(ctx);
+        if (saltlen < 0)
+            goto cleanup;
+        if (!ossl_rsa_pss_params_30_set_defaults(&pss_params)
+            || !ossl_rsa_pss_params_30_set_hashalg(&pss_params, ctx->mdnid)
+            || !ossl_rsa_pss_params_30_set_maskgenhashalg(&pss_params,
+                                                          ctx->mgf1_mdnid)
+            || !ossl_rsa_pss_params_30_set_saltlen(&pss_params, saltlen)
+            || !ossl_DER_w_algorithmIdentifier_RSA_PSS(&pkt, -1,
+                                                       RSA_FLAG_TYPE_RSASSAPSS,
+                                                       &pss_params)) {
+            ERR_raise(ERR_LIB_PROV, ERR_R_INTERNAL_ERROR);
+            goto cleanup;
+        }
+        break;
+    default:
+        ERR_raise_data(ERR_LIB_PROV, ERR_R_UNSUPPORTED,
+                       "Algorithm ID generation - pad mode: %d",
+                       ctx->pad_mode);
+        goto cleanup;
     }
     if (WPACKET_finish(&pkt)) {
         WPACKET_get_total_written(&pkt, aid_len);
@@ -275,7 +284,8 @@ static int rsa_setup_md(PROV_RSA_CTX *ctx, const char *mdname,
     if (mdname != NULL) {
         EVP_MD *md = EVP_MD_fetch(ctx->libctx, mdname, mdprops);
         int sha1_allowed = (ctx->operation != EVP_PKEY_OP_SIGN);
-        int md_nid = ossl_digest_rsa_sign_get_md_nid(md, sha1_allowed);
+        int md_nid = ossl_digest_rsa_sign_get_md_nid(ctx->libctx, md,
+                                                     sha1_allowed);
         size_t mdname_len = strlen(mdname);
 
         if (md == NULL
@@ -334,7 +344,7 @@ static int rsa_setup_mgf1_md(PROV_RSA_CTX *ctx, const char *mdname,
         return 0;
     }
     /* The default for mgf1 is SHA1 - so allow SHA1 */
-    if ((mdnid = ossl_digest_rsa_sign_get_md_nid(md, 1)) == NID_undef
+    if ((mdnid = ossl_digest_rsa_sign_get_md_nid(ctx->libctx, md, 1)) == NID_undef
         || !rsa_check_padding(ctx, NULL, mdname, mdnid)) {
         if (mdnid == NID_undef)
             ERR_raise_data(ERR_LIB_PROV, PROV_R_DIGEST_NOT_ALLOWED,
@@ -357,24 +367,28 @@ static int rsa_setup_mgf1_md(PROV_RSA_CTX *ctx, const char *mdname,
     return 1;
 }
 
-static int rsa_signverify_init(void *vprsactx, void *vrsa, int operation)
+static int rsa_signverify_init(void *vprsactx, void *vrsa,
+                               const OSSL_PARAM params[], int operation)
 {
     PROV_RSA_CTX *prsactx = (PROV_RSA_CTX *)vprsactx;
 
     if (!ossl_prov_is_running())
         return 0;
 
-    if (prsactx == NULL || vrsa == NULL || !RSA_up_ref(vrsa))
+    if (prsactx == NULL || vrsa == NULL)
         return 0;
 
+    if (!ossl_rsa_check_key(prsactx->libctx, vrsa, operation))
+        return 0;
+
+    if (!RSA_up_ref(vrsa))
+        return 0;
     RSA_free(prsactx->rsa);
     prsactx->rsa = vrsa;
     prsactx->operation = operation;
 
-    if (!ossl_rsa_check_key(vrsa, operation == EVP_PKEY_OP_SIGN)) {
-        ERR_raise(ERR_LIB_PROV, PROV_R_INVALID_KEY_LENGTH);
+    if (!rsa_set_ctx_params(prsactx, params))
         return 0;
-    }
 
     /* Maximum for sign, auto for verify */
     prsactx->saltlen = RSA_PSS_SALTLEN_AUTO;
@@ -468,11 +482,11 @@ static void free_tbuf(PROV_RSA_CTX *ctx)
     ctx->tbuf = NULL;
 }
 
-static int rsa_sign_init(void *vprsactx, void *vrsa)
+static int rsa_sign_init(void *vprsactx, void *vrsa, const OSSL_PARAM params[])
 {
     if (!ossl_prov_is_running())
         return 0;
-    return rsa_signverify_init(vprsactx, vrsa, EVP_PKEY_OP_SIGN);
+    return rsa_signverify_init(vprsactx, vrsa, params, EVP_PKEY_OP_SIGN);
 }
 
 static int rsa_sign(void *vprsactx, unsigned char *sig, size_t *siglen,
@@ -621,11 +635,13 @@ static int rsa_sign(void *vprsactx, unsigned char *sig, size_t *siglen,
     return 1;
 }
 
-static int rsa_verify_recover_init(void *vprsactx, void *vrsa)
+static int rsa_verify_recover_init(void *vprsactx, void *vrsa,
+                                   const OSSL_PARAM params[])
 {
     if (!ossl_prov_is_running())
         return 0;
-    return rsa_signverify_init(vprsactx, vrsa, EVP_PKEY_OP_VERIFYRECOVER);
+    return rsa_signverify_init(vprsactx, vrsa, params,
+                               EVP_PKEY_OP_VERIFYRECOVER);
 }
 
 static int rsa_verify_recover(void *vprsactx,
@@ -685,8 +701,8 @@ static int rsa_verify_recover(void *vprsactx,
             {
                 size_t sltmp;
 
-                ret = int_rsa_verify(prsactx->mdnid, NULL, 0, rout, &sltmp,
-                                     sig, siglen, prsactx->rsa);
+                ret = ossl_rsa_verify(prsactx->mdnid, NULL, 0, rout, &sltmp,
+                                      sig, siglen, prsactx->rsa);
                 if (ret <= 0) {
                     ERR_raise(ERR_LIB_PROV, ERR_R_RSA_LIB);
                     return 0;
@@ -712,11 +728,12 @@ static int rsa_verify_recover(void *vprsactx,
     return 1;
 }
 
-static int rsa_verify_init(void *vprsactx, void *vrsa)
+static int rsa_verify_init(void *vprsactx, void *vrsa,
+                           const OSSL_PARAM params[])
 {
     if (!ossl_prov_is_running())
         return 0;
-    return rsa_signverify_init(vprsactx, vrsa, EVP_PKEY_OP_VERIFY);
+    return rsa_signverify_init(vprsactx, vrsa, params, EVP_PKEY_OP_VERIFY);
 }
 
 static int rsa_verify(void *vprsactx, const unsigned char *sig, size_t siglen,
@@ -801,7 +818,8 @@ static int rsa_verify(void *vprsactx, const unsigned char *sig, size_t siglen,
 }
 
 static int rsa_digest_signverify_init(void *vprsactx, const char *mdname,
-                                      void *vrsa, int operation)
+                                      void *vrsa, const OSSL_PARAM params[],
+                                      int operation)
 {
     PROV_RSA_CTX *prsactx = (PROV_RSA_CTX *)vprsactx;
 
@@ -810,7 +828,7 @@ static int rsa_digest_signverify_init(void *vprsactx, const char *mdname,
 
     if (prsactx != NULL)
         prsactx->flag_allow_md = 0;
-    if (!rsa_signverify_init(vprsactx, vrsa, operation))
+    if (!rsa_signverify_init(vprsactx, vrsa, params, operation))
         return 0;
     if (mdname != NULL
         /* was rsa_setup_md already called in rsa_signverify_init()? */
@@ -824,7 +842,7 @@ static int rsa_digest_signverify_init(void *vprsactx, const char *mdname,
         goto error;
     }
 
-    if (!EVP_DigestInit_ex(prsactx->mdctx, prsactx->md, NULL))
+    if (!EVP_DigestInit_ex2(prsactx->mdctx, prsactx->md, params))
         goto error;
 
     return 1;
@@ -850,12 +868,12 @@ static int rsa_digest_signverify_update(void *vprsactx,
 }
 
 static int rsa_digest_sign_init(void *vprsactx, const char *mdname,
-                                void *vrsa)
+                                void *vrsa, const OSSL_PARAM params[])
 {
     if (!ossl_prov_is_running())
         return 0;
     return rsa_digest_signverify_init(vprsactx, mdname, vrsa,
-                                      EVP_PKEY_OP_SIGN);
+                                      params, EVP_PKEY_OP_SIGN);
 }
 
 static int rsa_digest_sign_final(void *vprsactx, unsigned char *sig,
@@ -887,12 +905,12 @@ static int rsa_digest_sign_final(void *vprsactx, unsigned char *sig,
 }
 
 static int rsa_digest_verify_init(void *vprsactx, const char *mdname,
-                                  void *vrsa)
+                                  void *vrsa, const OSSL_PARAM params[])
 {
     if (!ossl_prov_is_running())
         return 0;
     return rsa_digest_signverify_init(vprsactx, mdname, vrsa,
-                                      EVP_PKEY_OP_VERIFY);
+                                      params, EVP_PKEY_OP_VERIFY);
 }
 
 int rsa_digest_verify_final(void *vprsactx, const unsigned char *sig,
@@ -995,7 +1013,7 @@ static int rsa_get_ctx_params(void *vprsactx, OSSL_PARAM *params)
     PROV_RSA_CTX *prsactx = (PROV_RSA_CTX *)vprsactx;
     OSSL_PARAM *p;
 
-    if (prsactx == NULL || params == NULL)
+    if (prsactx == NULL)
         return 0;
 
     p = OSSL_PARAM_locate(params, OSSL_SIGNATURE_PARAM_ALGORITHM_ID);
@@ -1114,8 +1132,11 @@ static int rsa_set_ctx_params(void *vprsactx, const OSSL_PARAM params[])
     char mgf1mdname[OSSL_MAX_NAME_SIZE] = "", *pmgf1mdname = NULL;
     char mgf1mdprops[OSSL_MAX_PROPQUERY_SIZE] = "", *pmgf1mdprops = NULL;
 
-    if (prsactx == NULL || params == NULL)
+    if (prsactx == NULL)
         return 0;
+    if (params == NULL)
+        return 1;
+
     pad_mode = prsactx->pad_mode;
     saltlen = prsactx->saltlen;
 

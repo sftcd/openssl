@@ -1,5 +1,5 @@
 /*
- * Copyright 2019-2020 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2019-2021 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -152,8 +152,12 @@ int ossl_ffc_params_full_validate(OSSL_LIB_CTX *libctx, const FFC_PARAMS *params
                                               res, NULL);
 #else
     if (params->seed != NULL) {
-        return ossl_ffc_params_FIPS186_4_validate(libctx, params, paramstype,
-                                                  res, NULL);
+        if (params->flags & FFC_PARAM_FLAG_VALIDATE_LEGACY)
+            return ossl_ffc_params_FIPS186_2_validate(libctx, params, paramstype,
+                                                      res, NULL);
+        else
+            return ossl_ffc_params_FIPS186_4_validate(libctx, params, paramstype,
+                                                      res, NULL);
     } else {
         int ret = 0;
 

@@ -2,8 +2,8 @@
 
 =head1 NAME
 
-EVP_MAC, EVP_MAC_fetch, EVP_MAC_up_ref, EVP_MAC_free,
-EVP_MAC_is_a, EVP_MAC_number, EVP_MAC_name, EVP_MAC_names_do_all,
+EVP_MAC, EVP_MAC_fetch, EVP_MAC_up_ref, EVP_MAC_free, EVP_MAC_is_a,
+EVP_MAC_number, EVP_MAC_name, EVP_MAC_names_do_all, EVP_MAC_description,
 EVP_MAC_provider, EVP_MAC_get_params, EVP_MAC_gettable_params,
 EVP_MAC_CTX, EVP_MAC_CTX_new, EVP_MAC_CTX_free, EVP_MAC_CTX_dup,
 EVP_MAC_CTX_mac, EVP_MAC_CTX_get_params, EVP_MAC_CTX_set_params,
@@ -29,6 +29,7 @@ EVP_MAC_do_all_provided - EVP MAC routines
  int EVP_MAC_names_do_all(const EVP_MAC *mac,
                           void (*fn)(const char *name, void *data),
                           void *data);
+ const char *EVP_MAC_description(const EVP_MAC *mac);
  const OSSL_PROVIDER *EVP_MAC_provider(const EVP_MAC *mac);
  int EVP_MAC_get_params(EVP_MAC *mac, OSSL_PARAM params[]);
 
@@ -85,7 +86,7 @@ rely on an underlying computation algorithm.
 
 EVP_MAC_fetch() fetches an implementation of a MAC I<algorithm>, given
 a library context I<libctx> and a set of I<properties>.
-See L<provider(7)/Fetching algorithms> for further information.
+See L<crypto(7)/ALGORITHM FETCHING> for further information.
 
 See L<OSSL_PROVIDER-default(7)/Message Authentication Code (MAC)> for the list
 of algorithms supported by the default provider.
@@ -117,12 +118,15 @@ I<ctx>.
 
 =head2 Computing functions
 
-EVP_MAC_init() sets up the underlying context with information given
+EVP_MAC_init() sets up the underlying context I<ctx> with information given
 via the I<key> and I<params> arguments.  The MAC I<key> has a length of
 I<keylen> and the parameters in I<params> are processed before setting
-the key.  If I<key> is NULL, the key must be set via params either
+the key.  If I<key> is NULL, the key must be set via I<params> either
 as part of this call or separately using EVP_MAC_CTX_set_params().
-This should be called before calling EVP_MAC_update() and EVP_MAC_final().
+Providing non-NULL I<params> to this function is equivalent to calling
+EVP_MAC_CTX_set_params() with those I<params> for the same I<ctx> beforehand.
+
+EVP_MAC_init() should be called before EVP_MAC_update() and EVP_MAC_final().
 
 EVP_MAC_update() adds I<datalen> bytes from I<data> to the MAC input.
 
@@ -204,6 +208,10 @@ recommended to use EVP_MAC_names_do_all() instead.
 
 EVP_MAC_names_do_all() traverses all names for I<mac>, and calls
 I<fn> with each name and I<data>.
+
+EVP_MAC_description() returns a description of the I<mac>, meant for display
+and human consumption.  The description is at the discretion of the mac
+implementation.
 
 =head1 PARAMETERS
 
@@ -303,6 +311,13 @@ All these parameters should be used before the calls to any of
 EVP_MAC_init(), EVP_MAC_update() and EVP_MAC_final() for a full
 computation.
 Anything else may give undefined results.
+
+=head1 NOTES
+
+The MAC life-cycle is described in L<life_cycle-mac(7)>.  In the future,
+the transitions described there will be enforced.  When this is done, it will
+not be considered a breaking change to the API.
+
 
 =head1 RETURN VALUES
 
@@ -428,7 +443,9 @@ L<EVP_MAC-GMAC(7)>,
 L<EVP_MAC-HMAC(7)>,
 L<EVP_MAC-KMAC(7)>,
 L<EVP_MAC-Siphash(7)>,
-L<EVP_MAC-Poly1305(7)>
+L<EVP_MAC-Poly1305(7)>,
+L<provider-mac(7)>,
+L<life_cycle-mac(7)>
 
 =head1 HISTORY
 

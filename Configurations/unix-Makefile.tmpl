@@ -288,7 +288,7 @@ HTMLDIR=$(DOCDIR)/html
 # MANSUFFIX is for the benefit of anyone who may want to have a suffix
 # appended after the manpage file section number.  "ssl" is popular,
 # resulting in files such as config.5ssl rather than config.5.
-MANSUFFIX=
+MANSUFFIX=ossl
 HTMLSUFFIX=html
 
 # For "optional" echo messages, to get "real" silence
@@ -544,8 +544,14 @@ libclean:
 	$(RM) *{- platform->defext() -}
 
 clean: libclean
-	$(RM) $(HTMLDOCS1) $(HTMLDOCS3) $(HTMLDOCS5) $(HTMLDOCS7)
-	$(RM) $(MANDOCS1) $(MANDOCS3) $(MANDOCS5) $(MANDOCS7)
+	$(RM) $(HTMLDOCS1)
+	$(RM) $(HTMLDOCS3)
+	$(RM) $(HTMLDOCS5)
+	$(RM) $(HTMLDOCS7)
+	$(RM) $(MANDOCS1)
+	$(RM) $(MANDOCS3)
+	$(RM) $(MANDOCS5)
+	$(RM) $(MANDOCS7)
 	$(RM) $(PROGRAMS) $(TESTPROGS) $(MODULES) $(SCRIPTS)
 	$(RM) $(GENERATED_MANDATORY) $(GENERATED)
 	-find . -name '*{- platform->depext() -}' \! -name '.*' \! -type d -exec $(RM) {} \;
@@ -555,7 +561,6 @@ clean: libclean
 	$(RM) -r test/test-runs
 	$(RM) openssl.pc libcrypto.pc libssl.pc
 	-find . -type l \! -name '.*' -exec $(RM) {} \;
-	$(RM) $(TARFILE)
 
 distclean: clean
 	$(RM) configdata.pm
@@ -1211,12 +1216,19 @@ tar:
 
 # Helper targets #####################################################
 
-link-utils: $(BLDDIR)/util/opensslwrap.sh $(BLDDIR)/util/wrap.pl
+link-utils: $(BLDDIR)/util/opensslwrap.sh $(BLDDIR)/util/wrap.pl \
+            $(BLDDIR)/apps/openssl.cnf
 
 $(BLDDIR)/util/opensslwrap.sh $(BLDDIR)/util/wrap.pl: configdata.pm
 	@if [ "$(SRCDIR)" != "$(BLDDIR)" ]; then \
 	    mkdir -p "$(BLDDIR)/util"; \
 	    ln -sf "../$(SRCDIR)/util/`basename "$@"`" "$(BLDDIR)/util"; \
+	fi
+
+$(BLDDIR)/apps/openssl.cnf: configdata.pm
+	@if [ "$(SRCDIR)" != "$(BLDDIR)" ]; then \
+	    mkdir -p "$(BLDDIR)/apps"; \
+	    ln -sf "../$(SRCDIR)/apps/`basename "$@"`" "$(BLDDIR)/apps"; \
 	fi
 
 FORCE:
@@ -1345,7 +1357,7 @@ EOF
           my $pod = $gen0;
           return <<"EOF";
 $args{src}: $pod
-	pod2man --name=$name --section=$section --center=OpenSSL \\
+	pod2man --name=$name --section=$section\$(MANSUFFIX) --center=OpenSSL \\
 		--release=\$(VERSION) $pod >\$\@
 EOF
       } elsif (platform->isdef($args{src})) {
@@ -1435,9 +1447,10 @@ EOF
           # Also redo $gen0, to ensure that we have the proper extension where
           # necessary.
           $gen0 = platform->bin($gen0);
+          # Use $(PERL) to execute wrap.pl directly to avoid calling env
           return <<"EOF";
 $args{src}: $gen0 $deps \$(BLDDIR)/util/wrap.pl
-	\$(BLDDIR)/util/wrap.pl $gen0$gen_args > \$@
+	\$(PERL) \$(BLDDIR)/util/wrap.pl $gen0$gen_args > \$@
 EOF
       } else {
           #
@@ -1496,7 +1509,7 @@ $obj: $deps
 	$cmd $cmdflags -c -o \$\@ $srcs
 EOF
       } elsif (grep /\.S$/, @srcs) {
-          # Originally there was mutli-step rule with $(CC) -E file.S
+          # Originally there was multi-step rule with $(CC) -E file.S
           # followed by $(CC) -c file.s. It compensated for one of
           # legacy platform compiler's inability to handle .S files.
           # The platform is long discontinued by vendor so there is
@@ -1608,7 +1621,7 @@ EOF
 
       my $recipe = '';
 
-      if (defined $simple) {
+      if (defined $simple && $simple ne $full) {
           if (sharedaix()) {
               $recipe .= <<"EOF";
 $simple: $full
@@ -1684,7 +1697,7 @@ EOF
                  @{$args{objs}};
       my @deps = compute_lib_depends(@{$args{deps}});
       my $shared_def = join("", map { ' '.$target{shared_defflag}.$_ } @defs);
-      # TODO(3.0): next line needs to become "less magic" (see PR #11950)
+      # Next line needs to become "less magic" (see PR #11950)
       $shared_def .= ' '.$target{shared_fipsflag} if (m/providers\/fips/ && defined $target{shared_fipsflag});
       my $objs = join(" \\\n\t\t", fill_lines(' ', $COLUMNS - 16, @objs));
       my $deps = join(" \\\n" . ' ' x (length($dso) + 2),

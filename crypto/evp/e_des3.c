@@ -1,5 +1,5 @@
 /*
- * Copyright 1995-2020 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 1995-2021 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -397,7 +397,7 @@ static int des_ede3_wrap_cipher(EVP_CIPHER_CTX *ctx, unsigned char *out,
     if (inl >= EVP_MAXCHUNK || inl % 8)
         return -1;
 
-    if (is_partially_overlapping(out, in, inl)) {
+    if (ossl_is_partially_overlapping(out, in, inl)) {
         ERR_raise(ERR_LIB_EVP, EVP_R_PARTIALLY_OVERLAPPING);
         return 0;
     }
@@ -413,6 +413,7 @@ static const EVP_CIPHER des3_wrap = {
     8, 24, 0,
     EVP_CIPH_WRAP_MODE | EVP_CIPH_CUSTOM_IV | EVP_CIPH_FLAG_CUSTOM_CIPHER
         | EVP_CIPH_FLAG_DEFAULT_ASN1,
+    EVP_ORIG_GLOBAL,
     des_ede3_init_key, des_ede3_wrap_cipher,
     NULL,
     sizeof(DES_EDE_KEY),

@@ -169,6 +169,10 @@ CMS_ContentInfo *CMS_digest_create_ex(BIO *in, const EVP_MD *md,
 {
     CMS_ContentInfo *cms;
 
+    /*
+     * Because the EVP_MD is cached and can be a legacy algorithm, we
+     * cannot fetch the algorithm if it isn't supplied.
+     */
     if (md == NULL)
         md = EVP_sha1();
     cms = ossl_cms_DigestedData_create(md, ctx, propq);
@@ -381,7 +385,7 @@ int CMS_verify(CMS_ContentInfo *cms, STACK_OF(X509) *certs,
             if (cadesVerify) {
                 STACK_OF(X509) *si_chain = si_chains ? si_chains[i] : NULL;
 
-                if (ossl_ess_check_signing_certs(si, si_chain) <= 0)
+                if (ossl_cms_check_signing_certs(si, si_chain) <= 0)
                     goto err;
             }
         }

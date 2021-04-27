@@ -1,5 +1,5 @@
 /*
- * Copyright 2013-2016 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2013-2021 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -89,7 +89,7 @@ void aes_ccm_decrypt(void)
     EVP_CIPHER_CTX *ctx;
     int outlen, tmplen, rv;
     unsigned char outbuf[1024];
-    printf("AES CCM Derypt:\n");
+    printf("AES CCM Decrypt:\n");
     printf("Ciphertext:\n");
     BIO_dump_fp(stdout, ccm_ct, sizeof(ccm_ct));
     ctx = EVP_CIPHER_CTX_new();

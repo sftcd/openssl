@@ -18,18 +18,19 @@ OSSL_HTTP_REQ_CTX *OCSP_sendreq_new(BIO *io, const char *path,
 {
     OSSL_HTTP_REQ_CTX *rctx = NULL;
 
-    if ((rctx = OSSL_HTTP_REQ_CTX_new(io, io, 1 /* POST */,
+    if ((rctx = OSSL_HTTP_REQ_CTX_new(io, io,
                                       maxline, 0 /* default max_resp_len */,
                                       0 /* no timeout, blocking indefinitely */,
                                       NULL, 1 /* expect_asn1 */)) == NULL)
         return NULL;
 
-    if (!OSSL_HTTP_REQ_CTX_set_request_line(rctx, NULL, NULL, path))
+    if (!OSSL_HTTP_REQ_CTX_set_request_line(rctx, 1 /* POST */, NULL, NULL, path))
         goto err;
 
-    if (req != NULL && !OSSL_HTTP_REQ_CTX_i2d(rctx, "application/ocsp-request",
-                                              ASN1_ITEM_rptr(OCSP_REQUEST),
-                                              (ASN1_VALUE *)req))
+    if (req != NULL
+        && !OSSL_HTTP_REQ_CTX_set1_req(rctx, "application/ocsp-request",
+                                       ASN1_ITEM_rptr(OCSP_REQUEST),
+                                       (ASN1_VALUE *)req))
         goto err;
 
     return rctx;
@@ -50,17 +51,16 @@ OCSP_RESPONSE *OCSP_sendreq_bio(BIO *b, const char *path, OCSP_REQUEST *req)
 {
     OCSP_RESPONSE *resp = NULL;
     OSSL_HTTP_REQ_CTX *ctx;
-    int rv;
 
     ctx = OCSP_sendreq_new(b, path, req, -1 /* default max resp line length */);
     if (ctx == NULL)
         return NULL;
 
-    rv = OCSP_sendreq_nbio(&resp, ctx);
+    OCSP_sendreq_nbio(&resp, ctx);
 
     /* this indirectly calls ERR_clear_error(): */
     OSSL_HTTP_REQ_CTX_free(ctx);
 
-    return rv == 1 ? resp : NULL;
+    return resp;
 }
 #endif /* !defined(OPENSSL_NO_OCSP) */

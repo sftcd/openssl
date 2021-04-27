@@ -9,7 +9,8 @@ EVP_KEYMGMT_free,
 EVP_KEYMGMT_provider,
 EVP_KEYMGMT_is_a,
 EVP_KEYMGMT_number,
-EVP_KEYMGMT_get0_first_name,
+EVP_KEYMGMT_description,
+EVP_KEYMGMT_name,
 EVP_KEYMGMT_do_all_provided,
 EVP_KEYMGMT_names_do_all,
 EVP_KEYMGMT_gettable_params,
@@ -30,7 +31,8 @@ EVP_KEYMGMT_gen_settable_params
  const OSSL_PROVIDER *EVP_KEYMGMT_provider(const EVP_KEYMGMT *keymgmt);
  int EVP_KEYMGMT_is_a(const EVP_KEYMGMT *keymgmt, const char *name);
  int EVP_KEYMGMT_number(const EVP_KEYMGMT *keymgmt);
- const char *EVP_KEYMGMT_get0_first_name(const EVP_KEYMGMT *keymgmt);
+ const char *EVP_KEYMGMT_name(const EVP_KEYMGMT *keymgmt);
+ const char *EVP_KEYMGMT_description(const EVP_KEYMGMT *keymgmt);
 
  void EVP_KEYMGMT_do_all_provided(OSSL_LIB_CTX *libctx,
                                   void (*fn)(EVP_KEYMGMT *keymgmt, void *arg),
@@ -72,14 +74,18 @@ algorithm that's identifiable with I<name>.
 EVP_KEYMGMT_number() returns the internal dynamic number assigned to
 the I<keymgmt>.
 
-EVP_KEYMGMT_get0_first_name() returns the first algorithm name that is found for
-the given I<keymgmt>. Note that the I<keymgmt> may have multiple synonyms
-associated with it. In this case it is undefined which one will be returned.
-Ownership of the returned string is retained by the I<keymgmt> object and should
-not be freed by the caller.
+EVP_KEYMGMT_name() returns the algorithm name from the provided implementation
+for the given I<keymgmt>. Note that the I<keymgmt> may have multiple synonyms
+associated with it. In this case the first name from the algorithm
+definition is returned. Ownership of the returned string is retained by the
+I<keymgmt> object and should not be freed by the caller.
 
 EVP_KEYMGMT_names_do_all() traverses all names for the I<keymgmt>, and
 calls I<fn> with each name and I<data>.
+
+EVP_KEYMGMT_description() returns a description of the I<keymgmt>, meant for
+display and human consumption.  The description is at the discretion of the
+I<keymgmt> implementation.
 
 EVP_KEYMGMT_do_all_provided() traverses all key keymgmt implementations by
 all activated providers in the library context I<libctx>, and for each
@@ -123,7 +129,10 @@ otherwise 0.
 
 EVP_KEYMGMT_number() returns an integer.
 
-EVP_KEYMGMT_get0_first_name() returns the name that is found or NULL on error.
+EVP_KEYMGMT_name() returns the algorithm name, or NULL on error.
+
+EVP_KEYMGMT_description() returns a pointer to a decription, or NULL if
+there isn't one.
 
 EVP_KEYMGMT_gettable_params(), EVP_KEYMGMT_settable_params() and
 EVP_KEYMGMT_gen_settable_params() return a constant B<OSSL_PARAM> array or
@@ -139,7 +148,7 @@ The functions described here were added in OpenSSL 3.0.
 
 =head1 COPYRIGHT
 
-Copyright 2019-2020 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2019-2021 The OpenSSL Project Authors. All Rights Reserved.
 
 Licensed under the Apache License 2.0 (the "License").  You may not use
 this file except in compliance with the License.  You can obtain a copy

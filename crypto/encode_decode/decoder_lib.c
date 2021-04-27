@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2020-2021 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -17,6 +17,7 @@
 #include <openssl/x509err.h>
 #include <openssl/trace.h>
 #include "internal/passphrase.h"
+#include "internal/bio.h"
 #include "crypto/decoder.h"
 #include "encoder_local.h"
 #include "e_os.h"
@@ -31,6 +32,12 @@ struct decoder_process_data_st {
     size_t current_decoder_inst_index;
     /* For tracing, count recursion level */
     size_t recursion;
+
+    /*-
+     * Flags
+     */
+    unsigned int flag_next_level_called : 1;
+    unsigned int flag_construct_called : 1;
 };
 
 static int decoder_process(const OSSL_PARAM params[], void *arg);
@@ -39,7 +46,14 @@ int OSSL_DECODER_from_bio(OSSL_DECODER_CTX *ctx, BIO *in)
 {
     struct decoder_process_data_st data;
     int ok = 0;
+    BIO *new_bio = NULL;
 
+    if (BIO_tell(in) < 0) {
+        new_bio = BIO_new(BIO_f_readbuffer());
+        if (new_bio == NULL)
+            return 0;
+        in = BIO_push(new_bio, in);
+    }
     memset(&data, 0, sizeof(data));
     data.ctx = ctx;
     data.bio = in;
@@ -49,9 +63,36 @@ int OSSL_DECODER_from_bio(OSSL_DECODER_CTX *ctx, BIO *in)
 
     ok = decoder_process(NULL, &data);
 
+    if (!data.flag_construct_called) {
+        const char *spaces
+            = ctx->start_input_type != NULL && ctx->input_structure != NULL
+            ? " " : "";
+        const char *input_type_label
+            = ctx->start_input_type != NULL ? "Input type: " : "";
+        const char *input_structure_label
+            = ctx->input_structure != NULL ? "Input structure: " : "";
+        const char *comma
+            = ctx->start_input_type != NULL && ctx->input_structure != NULL
+            ? ", " : "";
+        const char *input_type
+            = ctx->start_input_type != NULL ? ctx->start_input_type : "";
+        const char *input_structure
+            = ctx->input_structure != NULL ? ctx->input_structure : "";
+
+        ERR_raise_data(ERR_LIB_OSSL_DECODER, ERR_R_UNSUPPORTED,
+                       "No supported for the data to decode.%s%s%s%s%s%s",
+                       spaces, input_type_label, input_type, comma,
+                       input_structure_label, input_structure);
+        ok = 0;
+    }
+
     /* Clear any internally cached passphrase */
     (void)ossl_pw_clear_passphrase_cache(&ctx->pwdata);
 
+    if (new_bio != NULL) {
+        BIO_pop(new_bio);
+        BIO_free(new_bio);
+    }
     return ok;
 }
 
@@ -509,14 +550,21 @@ static int decoder_process(const OSSL_PARAM params[], void *arg)
     OSSL_DECODER_CTX *ctx = data->ctx;
     OSSL_DECODER_INSTANCE *decoder_inst = NULL;
     OSSL_DECODER *decoder = NULL;
+    OSSL_CORE_BIO *cbio = NULL;
     BIO *bio = data->bio;
     long loc;
     size_t i;
-    int err, lib, reason, ok = 0;
+    int ok = 0;
     /* For recursions */
     struct decoder_process_data_st new_data;
     const char *data_type = NULL;
     const char *data_structure = NULL;
+
+    /*
+     * This is an indicator up the call stack that something was indeed
+     * decoded, leading to a recursive call of this function.
+     */
+    data->flag_next_level_called = 1;
 
     memset(&new_data, 0, sizeof(new_data));
     new_data.ctx = data->ctx;
@@ -549,10 +597,14 @@ static int decoder_process(const OSSL_PARAM params[], void *arg)
                                            data->current_decoder_inst_index);
         decoder = OSSL_DECODER_INSTANCE_get_decoder(decoder_inst);
 
-        if (ctx->construct != NULL
-            && ctx->construct(decoder_inst, params, ctx->construct_data)) {
-            ok = 1;
-            goto end;
+        data->flag_construct_called = 0;
+        if (ctx->construct != NULL) {
+            int rv = ctx->construct(decoder_inst, params, ctx->construct_data);
+
+            data->flag_construct_called = 1;
+            ok = (rv > 0);
+            if (ok)
+                goto end;
         }
 
         /* The constructor didn't return success */
@@ -595,7 +647,7 @@ static int decoder_process(const OSSL_PARAM params[], void *arg)
          * too special knowledge.
          */
         trace_data_structure = data_structure;
-        if (data_type != NULL
+        if (data_type != NULL && data_structure != NULL
             && strcasecmp(data_structure, "type-specific") == 0)
             data_structure = NULL;
 
@@ -619,6 +671,11 @@ static int decoder_process(const OSSL_PARAM params[], void *arg)
 
     if ((loc = BIO_tell(bio)) < 0) {
         ERR_raise(ERR_LIB_OSSL_DECODER, ERR_R_BIO_LIB);
+        goto end;
+    }
+
+    if ((cbio = ossl_core_bio_new_from_bio(bio)) == NULL) {
+        ERR_raise(ERR_LIB_OSSL_DECODER, ERR_R_MALLOC_FAILURE);
         goto end;
     }
 
@@ -728,8 +785,14 @@ static int decoder_process(const OSSL_PARAM params[], void *arg)
                        (void *)new_decoder_inst);
         } OSSL_TRACE_END(DECODER);
 
+        /*
+         * We only care about errors reported from decoder implementations
+         * if it returns false (i.e. there was a fatal error).
+         */
+        ERR_set_mark();
+
         new_data.current_decoder_inst_index = i;
-        ok = new_decoder->decode(new_decoderctx, (OSSL_CORE_BIO *)bio,
+        ok = new_decoder->decode(new_decoderctx, cbio,
                                  new_data.ctx->selection,
                                  decoder_process, &new_data,
                                  ossl_pw_passphrase_callback_dec,
@@ -737,34 +800,33 @@ static int decoder_process(const OSSL_PARAM params[], void *arg)
 
         OSSL_TRACE_BEGIN(DECODER) {
             BIO_printf(trc_out,
-                       "(ctx %p) %s [%u] Running decoder instance %p => %d\n",
+                       "(ctx %p) %s [%u] Running decoder instance %p => %d"
+                       " (recursed further: %s, construct called: %s)\n",
                        (void *)new_data.ctx, LEVEL, (unsigned int)i,
-                       (void *)new_decoder_inst, ok);
+                       (void *)new_decoder_inst, ok,
+                       new_data.flag_next_level_called ? "yes" : "no",
+                       new_data.flag_construct_called ? "yes" : "no");
         } OSSL_TRACE_END(DECODER);
 
-        if (ok)
+        data->flag_construct_called = new_data.flag_construct_called;
+
+        /* Break on error or if we tried to construct an object already */
+        if (!ok || data->flag_construct_called) {
+            ERR_clear_last_mark();
             break;
+        }
+        ERR_pop_to_mark();
 
         /*
-         * These errors are assumed to come from ossl_store_handle_load_result()
-         * in crypto/store/store_result.c.  They are currently considered fatal
-         * errors, so we preserve them in the error queue and stop.
+         * Break if the decoder implementation that we called recursed, since
+         * that indicates that it successfully decoded something.
          */
-        err = ERR_peek_last_error();
-        lib = ERR_GET_LIB(err);
-        reason = ERR_GET_REASON(err);
-        if ((lib == ERR_LIB_EVP
-             && reason == EVP_R_UNSUPPORTED_PRIVATE_KEY_ALGORITHM)
-#ifndef OPENSSL_NO_EC
-            || (lib == ERR_LIB_EC && reason == EC_R_UNKNOWN_GROUP)
-#endif
-            || (lib == ERR_LIB_X509 && reason == X509_R_UNSUPPORTED_ALGORITHM)
-            || (lib == ERR_LIB_PKCS12
-                && reason == PKCS12_R_PKCS12_CIPHERFINAL_ERROR))
-            goto end;
+        if (new_data.flag_next_level_called)
+            break;
     }
 
  end:
+    ossl_core_bio_free(cbio);
     BIO_free(new_data.bio);
     return ok;
 }

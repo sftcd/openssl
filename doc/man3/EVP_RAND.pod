@@ -4,12 +4,13 @@
 
 EVP_RAND, EVP_RAND_fetch, EVP_RAND_free, EVP_RAND_up_ref, EVP_RAND_CTX,
 EVP_RAND_CTX_new, EVP_RAND_CTX_free, EVP_RAND_instantiate,
-EVP_RAND_uninstantiate, EVP_RAND_generate, EVP_RAND_reseed,
-EVP_RAND_nonce, EVP_RAND_enable_locking,
-EVP_RAND_verify_zeroization, EVP_RAND_strength, EVP_RAND_state,
+EVP_RAND_uninstantiate, EVP_RAND_generate, EVP_RAND_reseed, EVP_RAND_nonce,
+EVP_RAND_enable_locking, EVP_RAND_verify_zeroization, EVP_RAND_strength,
+EVP_RAND_state,
 EVP_RAND_provider, EVP_RAND_CTX_rand, EVP_RAND_is_a, EVP_RAND_number,
-EVP_RAND_name, EVP_RAND_names_do_all, EVP_RAND_get_ctx_params,
-EVP_RAND_set_ctx_params, EVP_RAND_do_all_provided, EVP_RAND_get_params,
+EVP_RAND_name, EVP_RAND_names_do_all, EVP_RAND_description,
+EVP_RAND_CTX_get_params,
+EVP_RAND_CTX_set_params, EVP_RAND_do_all_provided, EVP_RAND_get_params,
 EVP_RAND_gettable_ctx_params, EVP_RAND_settable_ctx_params,
 EVP_RAND_CTX_gettable_params, EVP_RAND_CTX_settable_params,
 EVP_RAND_gettable_params, EVP_RAND_STATE_UNINITIALISED, EVP_RAND_STATE_READY,
@@ -30,8 +31,8 @@ EVP_RAND_STATE_ERROR - EVP RAND routines
  void EVP_RAND_CTX_free(EVP_RAND_CTX *ctx);
  EVP_RAND *EVP_RAND_CTX_rand(EVP_RAND_CTX *ctx);
  int EVP_RAND_get_params(EVP_RAND *rand, OSSL_PARAM params[]);
- int EVP_RAND_get_ctx_params(EVP_RAND_CTX *ctx, OSSL_PARAM params[]);
- int EVP_RAND_set_ctx_params(EVP_RAND_CTX *ctx, const OSSL_PARAM params[]);
+ int EVP_RAND_CTX_get_params(EVP_RAND_CTX *ctx, OSSL_PARAM params[]);
+ int EVP_RAND_CTX_set_params(EVP_RAND_CTX *ctx, const OSSL_PARAM params[]);
  const OSSL_PARAM *EVP_RAND_gettable_params(const EVP_RAND *rand);
  const OSSL_PARAM *EVP_RAND_gettable_ctx_params(const EVP_RAND *rand);
  const OSSL_PARAM *EVP_RAND_settable_ctx_params(const EVP_RAND *rand);
@@ -39,6 +40,7 @@ EVP_RAND_STATE_ERROR - EVP RAND routines
  const OSSL_PARAM *EVP_RAND_CTX_settable_params(EVP_RAND_CTX *ctx);
  int EVP_RAND_number(const EVP_RAND *rand);
  const char *EVP_RAND_name(const EVP_RAND *rand);
+ const char *EVP_RAND_description(const EVP_RAND *rand);
  int EVP_RAND_is_a(const EVP_RAND *rand, const char *name);
  const OSSL_PROVIDER *EVP_RAND_provider(const EVP_RAND *rand);
  void EVP_RAND_do_all_provided(OSSL_LIB_CTX *libctx,
@@ -81,7 +83,7 @@ RAND and RAND_DRBG functions.
 After creating a B<EVP_RAND_CTX> for the required algorithm using
 EVP_RAND_CTX_new(), inputs to the algorithm are supplied either by
 passing them as part of the EVP_RAND_instantiate() call or using calls to
-EVP_RAND_set_ctx_params() before calling EVP_RAND_instantiate().  Finally,
+EVP_RAND_CTX_set_params() before calling EVP_RAND_instantiate().  Finally,
 call EVP_RAND_generate() to produce cryptographically secure random bytes.
 
 =head2 Types
@@ -95,7 +97,7 @@ B<EVP_RAND_CTX> structures are reference counted.
 
 EVP_RAND_fetch() fetches an implementation of a RAND I<algorithm>, given
 a library context I<libctx> and a set of I<properties>.
-See L<provider(7)/Fetching algorithms> for further information.
+See L<crypto(7)/ALGORITHM FETCHING> for further information.
 
 The returned value must eventually be freed with
 L<EVP_RAND_free(3)>.
@@ -168,14 +170,14 @@ parameters should be retrieved.
 Note that a parameter that is unknown in the underlying context is
 simply ignored.
 
-EVP_RAND_get_ctx_params() retrieves chosen parameters, given the
+EVP_RAND_CTX_get_params() retrieves chosen parameters, given the
 context I<ctx> and its underlying context.
 The set of parameters given with I<params> determine exactly what
 parameters should be retrieved.
 Note that a parameter that is unknown in the underlying context is
 simply ignored.
 
-EVP_RAND_set_ctx_params() passes chosen parameters to the underlying
+EVP_RAND_CTX_set_params() passes chosen parameters to the underlying
 context, given a context I<ctx>.
 The set of parameters given with I<params> determine exactly what
 parameters are passed down.
@@ -247,6 +249,10 @@ EVP_RAND_name() returns the canonical name of I<rand>.
 
 EVP_RAND_names_do_all() traverses all names for I<rand>, and calls
 I<fn> with each name and I<data>.
+
+EVP_RAND_description() returns a description of the rand, meant for display
+and human consumption.  The description is at the discretion of the rand
+implementation.
 
 EVP_RAND_verify_zeroization() confirms if the internal DRBG state is
 currently zeroed.  This is used by the FIPS provider to support the mandatory
@@ -336,6 +342,10 @@ An B<EVP_RAND_CTX> needs to have locking enabled if it acts as the parent of
 more than one child and the children can be accessed concurrently.  This must
 be done by explicitly calling EVP_RAND_enable_locking().
 
+The RAND life-cycle is described in L<life_cycle-rand(7)>.  In the future,
+the transitions described there will be enforced.  When this is done, it will
+not be considered a breaking change to the API.
+
 =head1 RETURN VALUES
 
 EVP_RAND_fetch() returns a pointer to a newly fetched B<EVP_RAND>, or
@@ -382,7 +392,8 @@ L<EVP_RAND-CTR-DRBG(7)>,
 L<EVP_RAND-HASH-DRBG(7)>,
 L<EVP_RAND-HMAC-DRBG(7)>,
 L<EVP_RAND-TEST-RAND(7)>,
-L<provider-rand(7)>
+L<provider-rand(7)>,
+L<life_cycle-rand(7)>
 
 =head1 HISTORY
 

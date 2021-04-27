@@ -1,5 +1,3 @@
-SUBDIRS=ossl_shim
-
 # TODO: use ../apps/libapps.a instead of direct ../apps/lib source.
 # This can't currently be done, because some of its units drag in too many
 # unresolved references that don't apply here.
@@ -7,7 +5,7 @@ SUBDIRS=ossl_shim
 # be useful here.
 #
 # Auxiliary program source (copied from ../apps/build.info)
-IF[{- $config{target} =~ /^(?:VC-|mingw)/ -}]
+IF[{- $config{target} =~ /^(?:VC-|mingw|BC-)/ -}]
   # It's called 'init', but doesn't have much 'init' in it...
   $AUXLIBAPPSSRC=../apps/lib/win32_init.c
 ENDIF
@@ -57,7 +55,8 @@ IF[{- !$disabled{tests} -}]
           http_test servername_test ocspapitest fatalerrtest tls13ccstest \
           sysdefaulttest errtest ssl_ctx_test gosttest \
           context_internal_test aesgcmtest params_test evp_pkey_dparams_test \
-          keymgmt_internal_test hexstr_test provider_status_test defltfips_test
+          keymgmt_internal_test hexstr_test provider_status_test defltfips_test \
+          bio_readbuffer_test
 
   IF[{- !$disabled{'deprecated-3.0'} -}]
     PROGRAMS{noinst}=enginetest
@@ -306,6 +305,10 @@ IF[{- !$disabled{tests} -}]
   SOURCE[bio_callback_test]=bio_callback_test.c
   INCLUDE[bio_callback_test]=../include ../apps/include
   DEPEND[bio_callback_test]=../libcrypto libtestutil.a
+
+  SOURCE[bio_readbuffer_test]=bio_readbuffer_test.c
+  INCLUDE[bio_readbuffer_test]=../include ../apps/include
+  DEPEND[bio_readbuffer_test]=../libcrypto libtestutil.a
 
   SOURCE[bio_memleak_test]=bio_memleak_test.c
   INCLUDE[bio_memleak_test]=../include ../apps/include

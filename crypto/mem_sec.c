@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2020 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2015-2021 The OpenSSL Project Authors. All Rights Reserved.
  * Copyright 2004-2014, Akamai Technologies. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
@@ -132,7 +132,8 @@ void *CRYPTO_secure_malloc(size_t num, const char *file, int line)
     if (!secure_mem_initialized) {
         return CRYPTO_malloc(num, file, line);
     }
-    CRYPTO_THREAD_write_lock(sec_malloc_lock);
+    if (!CRYPTO_THREAD_write_lock(sec_malloc_lock))
+        return NULL;
     ret = sh_malloc(num);
     actual_size = ret ? sh_actual_size(ret) : 0;
     secure_mem_used += actual_size;
@@ -164,7 +165,8 @@ void CRYPTO_secure_free(void *ptr, const char *file, int line)
         CRYPTO_free(ptr, file, line);
         return;
     }
-    CRYPTO_THREAD_write_lock(sec_malloc_lock);
+    if (!CRYPTO_THREAD_write_lock(sec_malloc_lock))
+        return;
     actual_size = sh_actual_size(ptr);
     CLEAR(ptr, actual_size);
     secure_mem_used -= actual_size;
@@ -188,7 +190,8 @@ void CRYPTO_secure_clear_free(void *ptr, size_t num,
         CRYPTO_free(ptr, file, line);
         return;
     }
-    CRYPTO_THREAD_write_lock(sec_malloc_lock);
+    if (!CRYPTO_THREAD_write_lock(sec_malloc_lock))
+        return;
     actual_size = sh_actual_size(ptr);
     CLEAR(ptr, actual_size);
     secure_mem_used -= actual_size;
@@ -205,14 +208,14 @@ void CRYPTO_secure_clear_free(void *ptr, size_t num,
 int CRYPTO_secure_allocated(const void *ptr)
 {
 #ifndef OPENSSL_NO_SECURE_MEMORY
-    int ret;
-
     if (!secure_mem_initialized)
         return 0;
-    CRYPTO_THREAD_write_lock(sec_malloc_lock);
-    ret = sh_allocated(ptr);
-    CRYPTO_THREAD_unlock(sec_malloc_lock);
-    return ret;
+    /*
+     * Only read accesses to the arena take place in sh_allocated() and this
+     * is only changed by the sh_init() and sh_done() calls which are not
+     * locked.  Hence, it is safe to make this check without a lock too.
+     */
+    return sh_allocated(ptr);
 #else
     return 0;
 #endif /* OPENSSL_NO_SECURE_MEMORY */
@@ -232,7 +235,8 @@ size_t CRYPTO_secure_actual_size(void *ptr)
 #ifndef OPENSSL_NO_SECURE_MEMORY
     size_t actual_size;
 
-    CRYPTO_THREAD_write_lock(sec_malloc_lock);
+    if (!CRYPTO_THREAD_write_lock(sec_malloc_lock))
+        return 0;
     actual_size = sh_actual_size(ptr);
     CRYPTO_THREAD_unlock(sec_malloc_lock);
     return actual_size;

@@ -1,5 +1,5 @@
 /*
- * Copyright 1995-2020 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 1995-2021 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -204,7 +204,7 @@ static size_t c2i_ibuf(unsigned char *b, int *pneg,
     return plen;
 }
 
-int i2c_ASN1_INTEGER(ASN1_INTEGER *a, unsigned char **pp)
+int ossl_i2c_ASN1_INTEGER(ASN1_INTEGER *a, unsigned char **pp)
 {
     return i2c_ibuf(a->data, a->length, a->type & V_ASN1_NEG, pp);
 }
@@ -283,8 +283,8 @@ static int asn1_get_int64(int64_t *pr, const unsigned char *b, size_t blen,
 }
 
 /* Convert ASN1 INTEGER content octets to ASN1_INTEGER structure */
-ASN1_INTEGER *c2i_ASN1_INTEGER(ASN1_INTEGER **a, const unsigned char **pp,
-                               long len)
+ASN1_INTEGER *ossl_c2i_ASN1_INTEGER(ASN1_INTEGER **a, const unsigned char **pp,
+                                    long len)
 {
     ASN1_INTEGER *ret = NULL;
     size_t r;
@@ -308,8 +308,10 @@ ASN1_INTEGER *c2i_ASN1_INTEGER(ASN1_INTEGER **a, const unsigned char **pp,
 
     c2i_ibuf(ret->data, &neg, *pp, len);
 
-    if (neg)
+    if (neg != 0)
         ret->type |= V_ASN1_NEG;
+    else
+        ret->type &= ~V_ASN1_NEG;
 
     *pp += len;
     if (a != NULL)
@@ -317,7 +319,7 @@ ASN1_INTEGER *c2i_ASN1_INTEGER(ASN1_INTEGER **a, const unsigned char **pp,
     return ret;
  err:
     ERR_raise(ERR_LIB_ASN1, ERR_R_MALLOC_FAILURE);
-    if ((a == NULL) || (*a != ret))
+    if (a == NULL || *a != ret)
         ASN1_INTEGER_free(ret);
     return NULL;
 }
@@ -396,7 +398,7 @@ ASN1_INTEGER *d2i_ASN1_UINTEGER(ASN1_INTEGER **a, const unsigned char **pp,
     ASN1_INTEGER *ret = NULL;
     const unsigned char *p;
     unsigned char *s;
-    long len;
+    long len = 0;
     int inf, tag, xclass;
     int i;
 
@@ -419,6 +421,10 @@ ASN1_INTEGER *d2i_ASN1_UINTEGER(ASN1_INTEGER **a, const unsigned char **pp,
         goto err;
     }
 
+    if (len < 0) {
+        i = ASN1_R_ILLEGAL_NEGATIVE_VALUE;
+        goto err;
+    }
     /*
      * We must OPENSSL_malloc stuff, even for 0 bytes otherwise it signifies
      * a missing NULL parameter.
@@ -609,7 +615,8 @@ BIGNUM *ASN1_ENUMERATED_to_BN(const ASN1_ENUMERATED *ai, BIGNUM *bn)
 }
 
 /* Internal functions used by x_int64.c */
-int c2i_uint64_int(uint64_t *ret, int *neg, const unsigned char **pp, long len)
+int ossl_c2i_uint64_int(uint64_t *ret, int *neg,
+                        const unsigned char **pp, long len)
 {
     unsigned char buf[sizeof(uint64_t)];
     size_t buflen;
@@ -625,7 +632,7 @@ int c2i_uint64_int(uint64_t *ret, int *neg, const unsigned char **pp, long len)
     return asn1_get_uint64(ret, buf, buflen);
 }
 
-int i2c_uint64_int(unsigned char *p, uint64_t r, int neg)
+int ossl_i2c_uint64_int(unsigned char *p, uint64_t r, int neg)
 {
     unsigned char buf[sizeof(uint64_t)];
     size_t off;

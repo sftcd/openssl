@@ -5,6 +5,7 @@
 EVP_SIGNATURE_fetch, EVP_SIGNATURE_free, EVP_SIGNATURE_up_ref,
 EVP_SIGNATURE_number, EVP_SIGNATURE_is_a, EVP_SIGNATURE_provider,
 EVP_SIGNATURE_do_all_provided, EVP_SIGNATURE_names_do_all,
+EVP_SIGNATURE_name, EVP_SIGNATURE_description,
 EVP_SIGNATURE_gettable_ctx_params, EVP_SIGNATURE_settable_ctx_params
 - Functions to manage EVP_SIGNATURE algorithm objects
 
@@ -17,6 +18,7 @@ EVP_SIGNATURE_gettable_ctx_params, EVP_SIGNATURE_settable_ctx_params
  void EVP_SIGNATURE_free(EVP_SIGNATURE *signature);
  int EVP_SIGNATURE_up_ref(EVP_SIGNATURE *signature);
  int EVP_SIGNATURE_number(const EVP_SIGNATURE *signature);
+ const char *EVP_SIGNATURE_name(const EVP_SIGNATURE *signature);
  int EVP_SIGNATURE_is_a(const EVP_SIGNATURE *signature, const char *name);
  OSSL_PROVIDER *EVP_SIGNATURE_provider(const EVP_SIGNATURE *signature);
  void EVP_SIGNATURE_do_all_provided(OSSL_LIB_CTX *libctx,
@@ -26,6 +28,8 @@ EVP_SIGNATURE_gettable_ctx_params, EVP_SIGNATURE_settable_ctx_params
  int EVP_SIGNATURE_names_do_all(const EVP_SIGNATURE *signature,
                                 void (*fn)(const char *name, void *data),
                                 void *data);
+ const char *EVP_SIGNATURE_name(const EVP_SIGNATURE *signature);
+ const char *EVP_SIGNATURE_description(const EVP_SIGNATURE *signature);
  const OSSL_PARAM *EVP_SIGNATURE_gettable_ctx_params(const EVP_SIGNATURE *sig);
  const OSSL_PARAM *EVP_SIGNATURE_settable_ctx_params(const EVP_SIGNATURE *sig);
 
@@ -36,7 +40,7 @@ B<algorithm> from any provider offering it, within the criteria given
 by the B<properties>.
 The algorithm will be one offering functions for performing signature related
 tasks such as signing and verifying.
-See L<provider(7)/Fetching algorithms> for further information.
+See L<crypto(7)/ALGORITHM FETCHING> for further information.
 
 The returned value must eventually be freed with EVP_SIGNATURE_free().
 
@@ -61,8 +65,18 @@ and the given I<arg> as argument.
 EVP_SIGNATURE_number() returns the internal dynamic number assigned to
 I<signature>.
 
+EVP_SIGNATURE_name() returns the algorithm name from the provided
+implementation for the given I<signature>. Note that the I<signature> may have
+multiple synonyms associated with it. In this case the first name from the
+algorithm definition is returned. Ownership of the returned string is retained
+by the I<signature> object and should not be freed by the caller.
+
 EVP_SIGNATURE_names_do_all() traverses all names for I<signature>, and calls
 I<fn> with each name and I<data>.
+
+EVP_SIGNATURE_description() returns a description of the I<signature>, meant
+for display and human consumption.  The description is at the discretion of
+the I<signature> implementation.
 
 EVP_SIGNATURE_gettable_ctx_params() and EVP_SIGNATURE_settable_ctx_params()
 return a constant B<OSSL_PARAM> array that describes the names and types of key
@@ -84,7 +98,7 @@ return a constant B<OSSL_PARAM> array or NULL on error.
 
 =head1 SEE ALSO
 
-L<provider(7)/Fetching algorithms>, L<OSSL_PROVIDER(3)>
+L<crypto(7)/ALGORITHM FETCHING>, L<OSSL_PROVIDER(3)>
 
 =head1 HISTORY
 
@@ -92,7 +106,7 @@ The functions described here were added in OpenSSL 3.0.
 
 =head1 COPYRIGHT
 
-Copyright 2019-2020 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2019-2021 The OpenSSL Project Authors. All Rights Reserved.
 
 Licensed under the Apache License 2.0 (the "License").  You may not use
 this file except in compliance with the License.  You can obtain a copy

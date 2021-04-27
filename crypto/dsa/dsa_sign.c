@@ -1,5 +1,5 @@
 /*
- * Copyright 1995-2020 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 1995-2021 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -95,7 +95,7 @@ int i2d_DSA_SIG(const DSA_SIG *sig, unsigned char **ppout)
             return -1;
     }
 
-    if (!encode_der_dsa_sig(&pkt, sig->r, sig->s)
+    if (!ossl_encode_der_dsa_sig(&pkt, sig->r, sig->s)
             || !WPACKET_get_total_written(&pkt, &encoded_len)
             || !WPACKET_finish(&pkt)) {
         BUF_MEM_free(buf);

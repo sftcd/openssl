@@ -1,5 +1,5 @@
 /*
- * Copyright 2003-2020 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2003-2021 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -20,7 +20,7 @@ static STACK_OF(CONF_VALUE) *i2v_POLICY_MAPPINGS(const X509V3_EXT_METHOD
                                                  *method, void *pmps, STACK_OF(CONF_VALUE)
                                                  *extlist);
 
-const X509V3_EXT_METHOD v3_policy_mappings = {
+const X509V3_EXT_METHOD ossl_v3_policy_mappings = {
     NID_policy_mappings, 0,
     ASN1_ITEM_ref(POLICY_MAPPINGS),
     0, 0, 0, 0,

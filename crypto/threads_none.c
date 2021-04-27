@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2018 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2016-2021 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -31,14 +31,14 @@ CRYPTO_RWLOCK *CRYPTO_THREAD_lock_new(void)
     return lock;
 }
 
-int CRYPTO_THREAD_read_lock(CRYPTO_RWLOCK *lock)
+__owur int CRYPTO_THREAD_read_lock(CRYPTO_RWLOCK *lock)
 {
     if (!ossl_assert(*(unsigned int *)lock == 1))
         return 0;
     return 1;
 }
 
-int CRYPTO_THREAD_write_lock(CRYPTO_RWLOCK *lock)
+__owur int CRYPTO_THREAD_write_lock(CRYPTO_RWLOCK *lock)
 {
     if (!ossl_assert(*(unsigned int *)lock == 1))
         return 0;

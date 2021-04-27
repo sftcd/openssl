@@ -85,7 +85,7 @@ static int null_callback(int ok, X509_STORE_CTX *e)
 /*-
  * Return 1 if given cert is considered self-signed, 0 if not, or -1 on error.
  * This actually verifies self-signedness only if requested.
- * It calls X509v3_cache_extensions()
+ * It calls ossl_x509v3_cache_extensions()
  * to match issuer and subject names (i.e., the cert being self-issued) and any
  * present authority key identifier to match the subject key identifier, etc.
  */
@@ -97,7 +97,7 @@ int X509_self_signed(X509 *cert, int verify_signature)
         ERR_raise(ERR_LIB_X509, X509_R_UNABLE_TO_GET_CERTS_PUBLIC_KEY);
         return -1;
     }
-    if (!x509v3_cache_extensions(cert))
+    if (!ossl_x509v3_cache_extensions(cert))
         return -1;
     if ((cert->ex_flags & EXFLAG_SS) == 0)
         return 0;
@@ -329,7 +329,7 @@ static X509 *find_issuer(X509_STORE_CTX *ctx, STACK_OF(X509) *sk, X509 *x)
         if (ctx->check_issued(ctx, x, issuer)
             && (((x->ex_flags & EXFLAG_SI) != 0 && sk_X509_num(ctx->chain) == 1)
                 || !sk_X509_contains(ctx->chain, issuer))) {
-            if (x509_check_cert_time(ctx, issuer, -1))
+            if (ossl_x509_check_cert_time(ctx, issuer, -1))
                 return issuer;
             if (rv == NULL || ASN1_TIME_compare(X509_get0_notAfter(issuer),
                                                 X509_get0_notAfter(rv)) > 0)
@@ -342,7 +342,7 @@ static X509 *find_issuer(X509_STORE_CTX *ctx, STACK_OF(X509) *sk, X509 *x)
 /* Check that the given certificate 'x' is issued by the certificate 'issuer' */
 static int check_issued(ossl_unused X509_STORE_CTX *ctx, X509 *x, X509 *issuer)
 {
-    int err = x509_likely_issued(issuer, x);
+    int err = ossl_x509_likely_issued(issuer, x);
 
     if (err == X509_V_OK)
         return 1;
@@ -1701,7 +1701,7 @@ static int check_policy(X509_STORE_CTX *ctx)
  *
  * Return 1 on success, 0 otherwise.
  */
-int x509_check_cert_time(X509_STORE_CTX *ctx, X509 *x, int depth)
+int ossl_x509_check_cert_time(X509_STORE_CTX *ctx, X509 *x, int depth)
 {
     time_t *ptime;
     int i;
@@ -1745,7 +1745,7 @@ static int internal_verify(X509_STORE_CTX *ctx)
          * We report the issuer as NULL because all we have is a bare key.
          */
         xi = NULL;
-    } else if (x509_likely_issued(xi, xi) != X509_V_OK
+    } else if (ossl_x509_likely_issued(xi, xi) != X509_V_OK
                /* exceptional case: last cert in the chain is not self-issued */
                && ((ctx->param->flags & X509_V_FLAG_PARTIAL_CHAIN) == 0)) {
         if (n > 0) {
@@ -1804,7 +1804,7 @@ static int internal_verify(X509_STORE_CTX *ctx)
              * we are free to ignore any key usage restrictions on such certs.
              */
             int ret = xs == xi && (xi->ex_flags & EXFLAG_CA) == 0
-                ? X509_V_OK : x509_signing_allowed(xi, xs);
+                ? X509_V_OK : ossl_x509_signing_allowed(xi, xs);
 
             CB_FAIL_IF(ret != X509_V_OK, ctx, xi, issuer_depth, ret);
             if ((pkey = X509_get0_pubkey(xi)) == NULL) {
@@ -1818,7 +1818,7 @@ static int internal_verify(X509_STORE_CTX *ctx)
 
         /* in addition to RFC 5280, do also for trusted (root) cert */
         /* Calls verify callback as needed */
-        if (!x509_check_cert_time(ctx, xs, n))
+        if (!ossl_x509_check_cert_time(ctx, xs, n))
             return 0;
 
         /*
@@ -1886,7 +1886,7 @@ int X509_cmp_time(const ASN1_TIME *ctm, time_t *cmp_time)
      * Digit and date ranges will be verified in the conversion methods.
      */
     for (i = 0; i < ctm->length - 1; i++) {
-        if (!ascii_isdigit(ctm->data[i]))
+        if (!ossl_ascii_isdigit(ctm->data[i]))
             return 0;
     }
     if (ctm->data[ctm->length - 1] != upper_z)
@@ -2052,7 +2052,7 @@ X509_CRL *X509_CRL_diff(X509_CRL *base, X509_CRL *newer,
         return NULL;
     }
     /* Create new CRL */
-    crl = X509_CRL_new();
+    crl = X509_CRL_new_ex(base->libctx, base->propq);
     if (crl == NULL || !X509_CRL_set_version(crl, 1))
         goto memerr;
     /* Set issuer name */
@@ -3287,7 +3287,7 @@ static int build_chain(X509_STORE_CTX *ctx)
         case X509_V_ERR_CERT_NOT_YET_VALID:
         case X509_V_ERR_ERROR_IN_CERT_NOT_AFTER_FIELD:
         case X509_V_ERR_CERT_HAS_EXPIRED:
-            return 0; /* Callback already issued by x509_check_cert_time() */
+            return 0; /* Callback already issued by ossl_x509_check_cert_time() */
         default: /* A preliminary error has become final */
             return verify_cb_cert(ctx, NULL, num - 1, ctx->error);
         case X509_V_OK:
@@ -3320,6 +3320,48 @@ static int build_chain(X509_STORE_CTX *ctx)
     ctx->error = X509_V_ERR_OUT_OF_MEM;
     sk_X509_free(sk_untrusted);
     return -1;
+}
+
+STACK_OF(X509) *X509_build_chain(X509 *target, STACK_OF(X509) *certs,
+                                 X509_STORE *store, int with_self_signed,
+                                 OSSL_LIB_CTX *libctx, const char *propq)
+{
+    int finish_chain = store != NULL;
+    X509_STORE_CTX *ctx;
+    int flags = X509_ADD_FLAG_UP_REF;
+    STACK_OF(X509) *result = NULL;
+
+    if (target == NULL) {
+        ERR_raise(ERR_LIB_X509, ERR_R_PASSED_NULL_PARAMETER);
+        return NULL;
+    }
+
+    if ((ctx = X509_STORE_CTX_new_ex(libctx, propq)) == NULL)
+        return NULL;
+    if (!X509_STORE_CTX_init(ctx, store, target, finish_chain ? certs : NULL))
+        goto err;
+    if (!finish_chain)
+        X509_STORE_CTX_set0_trusted_stack(ctx, certs);
+    if (!ossl_x509_add_cert_new(&ctx->chain, target, X509_ADD_FLAG_UP_REF)) {
+        ctx->error = X509_V_ERR_OUT_OF_MEM;
+        goto err;
+    }
+    ctx->num_untrusted = 1;
+
+    if (!build_chain(ctx) && finish_chain)
+        goto err;
+
+    /* result list to store the up_ref'ed certificates */
+    if (sk_X509_num(ctx->chain) > 1 && !with_self_signed)
+        flags |= X509_ADD_FLAG_NO_SS;
+    if (!ossl_x509_add_certs_new(&result, ctx->chain, flags)) {
+        sk_X509_free(result);
+        result = NULL;
+    }
+
+ err:
+    X509_STORE_CTX_free(ctx);
+    return result;
 }
 
 static const int minbits_table[] = { 80, 112, 128, 192, 256 };

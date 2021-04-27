@@ -1,5 +1,5 @@
 /*
- * Copyright 1999-2020 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 1999-2021 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -160,6 +160,8 @@ X509_ALGOR *PKCS5_pbkdf2_set(int iter, unsigned char *salt, int saltlen,
     kdf->salt->value.octet_string = osalt;
     kdf->salt->type = V_ASN1_OCTET_STRING;
 
+    if (saltlen < 0)
+        goto merr;
     if (saltlen == 0)
         saltlen = PKCS5_SALT_LEN;
     if ((osalt->data = OPENSSL_malloc(saltlen)) == NULL)

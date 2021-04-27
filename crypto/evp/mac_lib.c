@@ -1,5 +1,5 @@
 /*
- * Copyright 2018-2020 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2018-2021 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -39,12 +39,12 @@ EVP_MAC_CTX *EVP_MAC_CTX_new(EVP_MAC *mac)
 
 void EVP_MAC_CTX_free(EVP_MAC_CTX *ctx)
 {
-    if (ctx != NULL) {
-        ctx->meth->freectx(ctx->data);
-        ctx->data = NULL;
-        /* refcnt-- */
-        EVP_MAC_free(ctx->meth);
-    }
+    if (ctx == NULL)
+        return;
+    ctx->meth->freectx(ctx->data);
+    ctx->data = NULL;
+    /* refcnt-- */
+    EVP_MAC_free(ctx->meth);
     OPENSSL_free(ctx);
 }
 
@@ -165,9 +165,12 @@ int EVP_MAC_number(const EVP_MAC *mac)
 
 const char *EVP_MAC_name(const EVP_MAC *mac)
 {
-    if (mac->prov != NULL)
-        return evp_first_name(mac->prov, mac->name_id);
-    return NULL;
+    return mac->type_name;
+}
+
+const char *EVP_MAC_description(const EVP_MAC *mac)
+{
+    return mac->description;
 }
 
 int EVP_MAC_is_a(const EVP_MAC *mac, const char *name)

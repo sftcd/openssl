@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2020 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2015-2021 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -219,4 +219,4 @@ __owur int o2i_SCT_signature(SCT *sct, const unsigned char **in, size_t len);
 /*
  * Handlers for Certificate Transparency X509v3/OCSP extensions
  */
-extern const X509V3_EXT_METHOD v3_ct_scts[3];
+extern const X509V3_EXT_METHOD ossl_v3_ct_scts[3];

@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2020 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2016-2021 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -123,7 +123,7 @@ int SCT_CTX_verify(const SCT_CTX *sctx, const SCT *sct)
         goto end;
 
     if (!EVP_DigestVerifyInit_ex(ctx, NULL, "SHA2-256", sctx->libctx,
-                                 sctx->propq, sctx->pkey))
+                                 sctx->propq, sctx->pkey, NULL))
         goto end;
 
     if (!sct_ctx_update(ctx, sctx, sct))

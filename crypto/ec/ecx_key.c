@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2020-2021 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -7,6 +7,7 @@
  * https://www.openssl.org/source/license.html
  */
 
+#include <string.h>
 #include <openssl/err.h>
 #include "crypto/ecx.h"
 
@@ -39,7 +40,6 @@ ECX_KEY *ossl_ecx_key_new(OSSL_LIB_CTX *libctx, ECX_KEY_TYPE type, int haspubkey
 
     if (propq != NULL) {
         ret->propq = OPENSSL_strdup(propq);
-        ERR_raise(ERR_LIB_EC, ERR_R_MALLOC_FAILURE);
         if (ret->propq == NULL)
             goto err;
     }

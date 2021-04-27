@@ -45,6 +45,7 @@ static OSSL_FUNC_keymgmt_import_fn dh_import;
 static OSSL_FUNC_keymgmt_import_types_fn dh_import_types;
 static OSSL_FUNC_keymgmt_export_fn dh_export;
 static OSSL_FUNC_keymgmt_export_types_fn dh_export_types;
+static OSSL_FUNC_keymgmt_dup_fn dh_dup;
 
 #define DH_POSSIBLE_SELECTIONS                                                 \
     (OSSL_KEYMGMT_SELECT_KEYPAIR | OSSL_KEYMGMT_SELECT_DOMAIN_PARAMETERS)
@@ -91,7 +92,7 @@ static int dh_gen_type_name2id_w_default(const char *name, int type)
 #endif
     }
 
-    return ossl_dh_gen_type_name2id(name);
+    return ossl_dh_gen_type_name2id(name, type);
 }
 
 static void *dh_newdata(void *provctx)
@@ -128,19 +129,19 @@ static void dh_freedata(void *keydata)
 static int dh_has(const void *keydata, int selection)
 {
     const DH *dh = keydata;
-    int ok = 0;
+    int ok = 1;
 
-    if (ossl_prov_is_running() && dh != NULL) {
-        if ((selection & DH_POSSIBLE_SELECTIONS) != 0)
-            ok = 1;
+    if (!ossl_prov_is_running() || dh == NULL)
+        return 0;
+    if ((selection & DH_POSSIBLE_SELECTIONS) == 0)
+        return 1; /* the selection is not missing */
 
-        if ((selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY) != 0)
-            ok = ok && (DH_get0_pub_key(dh) != NULL);
-        if ((selection & OSSL_KEYMGMT_SELECT_PRIVATE_KEY) != 0)
-            ok = ok && (DH_get0_priv_key(dh) != NULL);
-        if ((selection & OSSL_KEYMGMT_SELECT_DOMAIN_PARAMETERS) != 0)
-            ok = ok && (DH_get0_p(dh) != NULL && DH_get0_g(dh) != NULL);
-    }
+    if ((selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY) != 0)
+        ok = ok && (DH_get0_pub_key(dh) != NULL);
+    if ((selection & OSSL_KEYMGMT_SELECT_PRIVATE_KEY) != 0)
+        ok = ok && (DH_get0_priv_key(dh) != NULL);
+    if ((selection & OSSL_KEYMGMT_SELECT_DOMAIN_PARAMETERS) != 0)
+        ok = ok && (DH_get0_p(dh) != NULL && DH_get0_g(dh) != NULL);
     return ok;
 }
 
@@ -212,7 +213,7 @@ static int dh_export(void *keydata, int selection, OSSL_CALLBACK *param_cb,
         goto err;
     }
     ok = param_cb(params, cbarg);
-    OSSL_PARAM_BLD_free_params(params);
+    OSSL_PARAM_free(params);
 err:
     OSSL_PARAM_BLD_free(tmpl);
     return ok;
@@ -228,9 +229,9 @@ err:
     OSSL_PARAM_int(OSSL_PKEY_PARAM_FFC_GINDEX, NULL),                          \
     OSSL_PARAM_int(OSSL_PKEY_PARAM_FFC_PCOUNTER, NULL),                        \
     OSSL_PARAM_int(OSSL_PKEY_PARAM_FFC_H, NULL),                               \
+    OSSL_PARAM_int(OSSL_PKEY_PARAM_DH_PRIV_LEN, NULL),                         \
     OSSL_PARAM_octet_string(OSSL_PKEY_PARAM_FFC_SEED, NULL, 0),                \
-    OSSL_PARAM_utf8_string(OSSL_PKEY_PARAM_GROUP_NAME, NULL, 0),               \
-    OSSL_PARAM_utf8_string(OSSL_PKEY_PARAM_DH_PRIV_LEN, NULL, 0)
+    OSSL_PARAM_utf8_string(OSSL_PKEY_PARAM_GROUP_NAME, NULL, 0)
 # define DH_IMEXPORTABLE_PUBLIC_KEY                                            \
     OSSL_PARAM_BN(OSSL_PKEY_PARAM_PUB_KEY, NULL, 0)
 # define DH_IMEXPORTABLE_PRIVATE_KEY                                           \
@@ -376,13 +377,13 @@ static int dh_validate_private(const DH *dh)
 static int dh_validate(const void *keydata, int selection, int checktype)
 {
     const DH *dh = keydata;
-    int ok = 0;
+    int ok = 1;
 
     if (!ossl_prov_is_running())
         return 0;
 
-    if ((selection & DH_POSSIBLE_SELECTIONS) != 0)
-        ok = 1;
+    if ((selection & DH_POSSIBLE_SELECTIONS) == 0)
+        return 1; /* nothing to validate */
 
     if ((selection & OSSL_KEYMGMT_SELECT_DOMAIN_PARAMETERS) != 0) {
         /*
@@ -408,7 +409,8 @@ static int dh_validate(const void *keydata, int selection, int checktype)
     return ok;
 }
 
-static void *dh_gen_init_base(void *provctx, int selection, int type)
+static void *dh_gen_init_base(void *provctx, int selection,
+                              const OSSL_PARAM params[], int type)
 {
     OSSL_LIB_CTX *libctx = PROV_LIBCTX_OF(provctx);
     struct dh_gen_ctx *gctx = NULL;
@@ -441,17 +443,23 @@ static void *dh_gen_init_base(void *provctx, int selection, int type)
         gctx->generator = DH_GENERATOR_2;
         gctx->dh_type = type;
     }
+    if (!dh_gen_set_params(gctx, params)) {
+        OPENSSL_free(gctx);
+        gctx = NULL;
+    }
     return gctx;
 }
 
-static void *dh_gen_init(void *provctx, int selection)
+static void *dh_gen_init(void *provctx, int selection,
+                         const OSSL_PARAM params[])
 {
-    return dh_gen_init_base(provctx, selection, DH_FLAG_TYPE_DH);
+    return dh_gen_init_base(provctx, selection, params, DH_FLAG_TYPE_DH);
 }
 
-static void *dhx_gen_init(void *provctx, int selection)
+static void *dhx_gen_init(void *provctx, int selection,
+                          const OSSL_PARAM params[])
 {
-   return dh_gen_init_base(provctx, selection, DH_FLAG_TYPE_DHX);
+   return dh_gen_init_base(provctx, selection, params, DH_FLAG_TYPE_DHX);
 }
 
 static int dh_gen_set_template(void *genctx, void *templ)
@@ -480,13 +488,15 @@ static int dh_set_gen_seed(struct dh_gen_ctx *gctx, unsigned char *seed,
     return 1;
 }
 
-static int dh_gen_set_params(void *genctx, const OSSL_PARAM params[])
+static int dh_gen_common_set_params(void *genctx, const OSSL_PARAM params[])
 {
     struct dh_gen_ctx *gctx = genctx;
     const OSSL_PARAM *p;
 
     if (gctx == NULL)
         return 0;
+    if (params == NULL)
+        return 1;
 
     p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_FFC_TYPE);
     if (p != NULL) {
@@ -508,11 +518,59 @@ static int dh_gen_set_params(void *genctx, const OSSL_PARAM params[])
             ERR_raise(ERR_LIB_PROV, ERR_R_PASSED_INVALID_ARGUMENT);
             return 0;
         }
-        gctx->gen_type = DH_PARAMGEN_TYPE_GROUP;
     }
-    p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_DH_GENERATOR);
-    if (p != NULL && !OSSL_PARAM_get_int(p, &gctx->generator))
+    if ((p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_FFC_PBITS)) != NULL
+        && !OSSL_PARAM_get_size_t(p, &gctx->pbits))
         return 0;
+    p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_DH_PRIV_LEN);
+    if (p != NULL && !OSSL_PARAM_get_int(p, &gctx->priv_len))
+        return 0;
+    return 1;
+}
+
+static const OSSL_PARAM *dh_gen_settable_params(ossl_unused void *genctx,
+                                                ossl_unused void *provctx)
+{
+    static const OSSL_PARAM dh_gen_settable[] = {
+        OSSL_PARAM_utf8_string(OSSL_PKEY_PARAM_FFC_TYPE, NULL, 0),
+        OSSL_PARAM_utf8_string(OSSL_PKEY_PARAM_GROUP_NAME, NULL, 0),
+        OSSL_PARAM_int(OSSL_PKEY_PARAM_DH_PRIV_LEN, NULL),
+        OSSL_PARAM_size_t(OSSL_PKEY_PARAM_FFC_PBITS, NULL),
+        OSSL_PARAM_int(OSSL_PKEY_PARAM_DH_GENERATOR, NULL),
+        OSSL_PARAM_END
+    };
+    return dh_gen_settable;
+}
+
+static const OSSL_PARAM *dhx_gen_settable_params(ossl_unused void *genctx,
+                                                 ossl_unused void *provctx)
+{
+    static const OSSL_PARAM dhx_gen_settable[] = {
+        OSSL_PARAM_utf8_string(OSSL_PKEY_PARAM_FFC_TYPE, NULL, 0),
+        OSSL_PARAM_utf8_string(OSSL_PKEY_PARAM_GROUP_NAME, NULL, 0),
+        OSSL_PARAM_int(OSSL_PKEY_PARAM_DH_PRIV_LEN, NULL),
+        OSSL_PARAM_size_t(OSSL_PKEY_PARAM_FFC_PBITS, NULL),
+        OSSL_PARAM_size_t(OSSL_PKEY_PARAM_FFC_QBITS, NULL),
+        OSSL_PARAM_utf8_string(OSSL_PKEY_PARAM_FFC_DIGEST, NULL, 0),
+        OSSL_PARAM_utf8_string(OSSL_PKEY_PARAM_FFC_DIGEST_PROPS, NULL, 0),
+        OSSL_PARAM_int(OSSL_PKEY_PARAM_FFC_GINDEX, NULL),
+        OSSL_PARAM_octet_string(OSSL_PKEY_PARAM_FFC_SEED, NULL, 0),
+        OSSL_PARAM_int(OSSL_PKEY_PARAM_FFC_PCOUNTER, NULL),
+        OSSL_PARAM_int(OSSL_PKEY_PARAM_FFC_H, NULL),
+        OSSL_PARAM_END
+    };
+    return dhx_gen_settable;
+}
+
+static int dhx_gen_set_params(void *genctx, const OSSL_PARAM params[])
+{
+    struct dh_gen_ctx *gctx = genctx;
+    const OSSL_PARAM *p;
+
+    if (!dh_gen_common_set_params(genctx, params))
+        return 0;
+
+    /* Parameters related to fips186-4 and fips186-2 */
     p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_FFC_GINDEX);
     if (p != NULL && !OSSL_PARAM_get_int(p, &gctx->gindex))
         return 0;
@@ -527,10 +585,6 @@ static int dh_gen_set_params(void *genctx, const OSSL_PARAM params[])
         && (p->data_type != OSSL_PARAM_OCTET_STRING
             || !dh_set_gen_seed(gctx, p->data, p->data_size)))
             return 0;
-
-    if ((p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_FFC_PBITS)) != NULL
-        && !OSSL_PARAM_get_size_t(p, &gctx->pbits))
-        return 0;
     if ((p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_FFC_QBITS)) != NULL
         && !OSSL_PARAM_get_size_t(p, &gctx->qbits))
         return 0;
@@ -552,31 +606,41 @@ static int dh_gen_set_params(void *genctx, const OSSL_PARAM params[])
         if (gctx->mdprops == NULL)
             return 0;
     }
-    p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_DH_PRIV_LEN);
-    if (p != NULL && !OSSL_PARAM_get_int(p, &gctx->priv_len))
+
+    /* Parameters that are not allowed for DHX */
+    p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_DH_GENERATOR);
+    if (p != NULL) {
+        ERR_raise(ERR_LIB_PROV, ERR_R_UNSUPPORTED);
         return 0;
+    }
     return 1;
 }
 
-static const OSSL_PARAM *dh_gen_settable_params(ossl_unused void *genctx,
-                                                ossl_unused void *provctx)
+static int dh_gen_set_params(void *genctx, const OSSL_PARAM params[])
 {
-    static OSSL_PARAM settable[] = {
-        OSSL_PARAM_utf8_string(OSSL_PKEY_PARAM_GROUP_NAME, NULL, 0),
-        OSSL_PARAM_int(OSSL_PKEY_PARAM_DH_PRIV_LEN, NULL),
-        OSSL_PARAM_int(OSSL_PKEY_PARAM_DH_GENERATOR, NULL),
-        OSSL_PARAM_utf8_string(OSSL_PKEY_PARAM_FFC_TYPE, NULL, 0),
-        OSSL_PARAM_size_t(OSSL_PKEY_PARAM_FFC_PBITS, NULL),
-        OSSL_PARAM_size_t(OSSL_PKEY_PARAM_FFC_QBITS, NULL),
-        OSSL_PARAM_utf8_string(OSSL_PKEY_PARAM_FFC_DIGEST, NULL, 0),
-        OSSL_PARAM_utf8_string(OSSL_PKEY_PARAM_FFC_DIGEST_PROPS, NULL, 0),
-        OSSL_PARAM_int(OSSL_PKEY_PARAM_FFC_GINDEX, NULL),
-        OSSL_PARAM_octet_string(OSSL_PKEY_PARAM_FFC_SEED, NULL, 0),
-        OSSL_PARAM_int(OSSL_PKEY_PARAM_FFC_PCOUNTER, NULL),
-        OSSL_PARAM_int(OSSL_PKEY_PARAM_FFC_H, NULL),
-        OSSL_PARAM_END
-    };
-    return settable;
+    struct dh_gen_ctx *gctx = genctx;
+    const OSSL_PARAM *p;
+
+    if (!dh_gen_common_set_params(genctx, params))
+        return 0;
+
+    p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_DH_GENERATOR);
+    if (p != NULL && !OSSL_PARAM_get_int(p, &gctx->generator))
+        return 0;
+
+    /* Parameters that are not allowed for DH */
+    if (OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_FFC_GINDEX) != NULL
+        || OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_FFC_PCOUNTER) != NULL
+        || OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_FFC_H) != NULL
+        || OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_FFC_SEED) != NULL
+        || OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_FFC_QBITS) != NULL
+        || OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_FFC_DIGEST) != NULL
+        || OSSL_PARAM_locate_const(params,
+                                   OSSL_PKEY_PARAM_FFC_DIGEST_PROPS) != NULL) {
+        ERR_raise(ERR_LIB_PROV, ERR_R_PASSED_INVALID_ARGUMENT);
+        return 0;
+    }
+    return 1;
 }
 
 static int dh_gencb(int p, int n, BN_GENCB *cb)
@@ -600,6 +664,14 @@ static void *dh_gen(void *genctx, OSSL_CALLBACK *osslcb, void *cbarg)
 
     if (!ossl_prov_is_running() || gctx == NULL)
         return NULL;
+
+    /*
+     * If a group name is selected then the type is group regardless of what the
+     * the user selected. This overrides rather than errors for backwards
+     * compatibility.
+     */
+    if (gctx->group_nid != NID_undef)
+        gctx->gen_type = DH_PARAMGEN_TYPE_GROUP;
 
     /* For parameter generation - If there is a group name just create it */
     if (gctx->gen_type == DH_PARAMGEN_TYPE_GROUP
@@ -697,7 +769,7 @@ static void dh_gen_cleanup(void *genctx)
     OPENSSL_free(gctx);
 }
 
-void *dh_load(const void *reference, size_t reference_sz)
+static void *dh_load(const void *reference, size_t reference_sz)
 {
     DH *dh = NULL;
 
@@ -708,6 +780,13 @@ void *dh_load(const void *reference, size_t reference_sz)
         *(DH **)reference = NULL;
         return dh;
     }
+    return NULL;
+}
+
+static void *dh_dup(const void *keydata_from, int selection)
+{
+    if (ossl_prov_is_running())
+        return ossl_dh_dup(keydata_from, selection);
     return NULL;
 }
 
@@ -733,6 +812,7 @@ const OSSL_DISPATCH ossl_dh_keymgmt_functions[] = {
     { OSSL_FUNC_KEYMGMT_IMPORT_TYPES, (void (*)(void))dh_import_types },
     { OSSL_FUNC_KEYMGMT_EXPORT, (void (*)(void))dh_export },
     { OSSL_FUNC_KEYMGMT_EXPORT_TYPES, (void (*)(void))dh_export_types },
+    { OSSL_FUNC_KEYMGMT_DUP, (void (*)(void))dh_dup },
     { 0, NULL }
 };
 
@@ -746,9 +826,9 @@ const OSSL_DISPATCH ossl_dhx_keymgmt_functions[] = {
     { OSSL_FUNC_KEYMGMT_NEW, (void (*)(void))dhx_newdata },
     { OSSL_FUNC_KEYMGMT_GEN_INIT, (void (*)(void))dhx_gen_init },
     { OSSL_FUNC_KEYMGMT_GEN_SET_TEMPLATE, (void (*)(void))dh_gen_set_template },
-    { OSSL_FUNC_KEYMGMT_GEN_SET_PARAMS, (void (*)(void))dh_gen_set_params },
+    { OSSL_FUNC_KEYMGMT_GEN_SET_PARAMS, (void (*)(void))dhx_gen_set_params },
     { OSSL_FUNC_KEYMGMT_GEN_SETTABLE_PARAMS,
-      (void (*)(void))dh_gen_settable_params },
+      (void (*)(void))dhx_gen_settable_params },
     { OSSL_FUNC_KEYMGMT_GEN, (void (*)(void))dh_gen },
     { OSSL_FUNC_KEYMGMT_GEN_CLEANUP, (void (*)(void))dh_gen_cleanup },
     { OSSL_FUNC_KEYMGMT_LOAD, (void (*)(void))dh_load },
@@ -766,5 +846,6 @@ const OSSL_DISPATCH ossl_dhx_keymgmt_functions[] = {
     { OSSL_FUNC_KEYMGMT_EXPORT_TYPES, (void (*)(void))dh_export_types },
     { OSSL_FUNC_KEYMGMT_QUERY_OPERATION_NAME,
       (void (*)(void))dhx_query_operation_name },
+    { OSSL_FUNC_KEYMGMT_DUP, (void (*)(void))dh_dup },
     { 0, NULL }
 };

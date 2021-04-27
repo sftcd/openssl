@@ -1,5 +1,5 @@
 /*
- * Copyright 2019-2020 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2019-2021 The OpenSSL Project Authors. All Rights Reserved.
  * Copyright (c) 2019, Oracle and/or its affiliates.  All rights reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
@@ -385,7 +385,8 @@ err:
     return res;
 }
 
-OSSL_PROPERTY_LIST *ossl_parse_query(OSSL_LIB_CTX *ctx, const char *s)
+OSSL_PROPERTY_LIST *ossl_parse_query(OSSL_LIB_CTX *ctx, const char *s,
+                                     int create_values)
 {
     STACK_OF(PROPERTY_DEFINITION) *sk;
     OSSL_PROPERTY_LIST *res = NULL;
@@ -425,7 +426,7 @@ OSSL_PROPERTY_LIST *ossl_parse_query(OSSL_LIB_CTX *ctx, const char *s)
             prop->v.str_val = ossl_property_true;
             goto skip_value;
         }
-        if (!parse_value(ctx, &s, prop, 0))
+        if (!parse_value(ctx, &s, prop, create_values))
             prop->type = PROPERTY_TYPE_VALUE_UNDEFINED;
 
 skip_value:

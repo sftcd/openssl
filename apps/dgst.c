@@ -99,7 +99,7 @@ int dgst_main(int argc, char **argv)
     char *hmac_key = NULL;
     char *mac_name = NULL, *digestname = NULL;
     char *passinarg = NULL, *passin = NULL;
-    const EVP_MD *md = NULL;
+    EVP_MD *md = NULL;
     const char *outfile = NULL, *keyfile = NULL, *prog = NULL;
     const char *sigfile = NULL;
     const char *md_name = NULL;
@@ -112,7 +112,7 @@ int dgst_main(int argc, char **argv)
     struct doall_dgst_digests dec;
 
     buf = app_malloc(BUFSIZE, "I/O buffer");
-    md = EVP_get_digestbyname(argv[0]);
+    md = (EVP_MD *)EVP_get_digestbyname(argv[0]);
 
     prog = opt_init(argc, argv, dgst_options);
     while ((o = opt_next()) != OPT_EOF) {
@@ -225,7 +225,9 @@ int dgst_main(int argc, char **argv)
         BIO_printf(bio_err, "%s: Can only sign or verify one file.\n", prog);
         goto end;
     }
-    app_RAND_load();
+    if (!app_RAND_load())
+        goto end;
+
     if (digestname != NULL) {
         if (!opt_md(digestname, &md))
             goto opthelp;
@@ -373,7 +375,7 @@ int dgst_main(int argc, char **argv)
             goto end;
         }
         if (md == NULL)
-            md = EVP_sha256();
+            md = (EVP_MD *)EVP_sha256();
         if (!EVP_DigestInit_ex(mctx, md, impl)) {
             BIO_printf(bio_err, "Error setting digest\n");
             ERR_print_errors(bio_err);
@@ -402,8 +404,9 @@ int dgst_main(int argc, char **argv)
 
     if (md == NULL) {
         EVP_MD_CTX *tctx;
+
         BIO_get_md_ctx(bmd, &tctx);
-        md = EVP_MD_CTX_md(tctx);
+        md = EVP_MD_CTX_get1_md(tctx);
     }
     if (md != NULL)
         md_name = EVP_MD_name(md);
@@ -427,7 +430,7 @@ int dgst_main(int argc, char **argv)
         const char *sig_name = NULL;
         if (!out_bin) {
             if (sigkey != NULL)
-                sig_name = EVP_PKEY_get0_first_alg_name(sigkey);
+                sig_name = EVP_PKEY_get0_type_name(sigkey);
         }
         ret = 0;
         for (i = 0; i < argc; i++) {
@@ -450,6 +453,7 @@ int dgst_main(int argc, char **argv)
     BIO_free(in);
     OPENSSL_free(passin);
     BIO_free_all(out);
+    EVP_MD_free(md);
     EVP_PKEY_free(sigkey);
     sk_OPENSSL_STRING_free(sigopts);
     sk_OPENSSL_STRING_free(macopts);

@@ -15,6 +15,7 @@
 #include <openssl/asn1.h>
 #include <openssl/cms.h>
 #include <openssl/cms.h>
+#include "internal/sizes.h"
 #include "crypto/x509.h"
 #include "cms_local.h"
 
@@ -105,7 +106,7 @@ void ossl_cms_resolve_libctx(CMS_ContentInfo *ci)
         for (i = 0; i < sk_CMS_CertificateChoices_num(*pcerts); i++) {
             cch = sk_CMS_CertificateChoices_value(*pcerts, i);
             if (cch->type == CMS_CERTCHOICE_CERT)
-                x509_set0_libctx(cch->d.certificate, libctx, propq);
+                ossl_x509_set0_libctx(cch->d.certificate, libctx, propq);
         }
     }
 }
@@ -403,10 +404,10 @@ BIO *ossl_cms_DigestAlgorithm_init_bio(X509_ALGOR *digestAlgorithm,
     const ASN1_OBJECT *digestoid;
     const EVP_MD *digest = NULL;
     EVP_MD *fetched_digest = NULL;
-    const char *alg;
+    char alg[OSSL_MAX_NAME_SIZE];
 
     X509_ALGOR_get0(&digestoid, NULL, NULL, digestAlgorithm);
-    alg = OBJ_nid2sn(OBJ_obj2nid(digestoid));
+    OBJ_obj2txt(alg, sizeof(alg), digestoid, 0);
 
     (void)ERR_set_mark();
     fetched_digest = EVP_MD_fetch(ossl_cms_ctx_get0_libctx(ctx), alg,
@@ -459,7 +460,7 @@ int ossl_cms_DigestAlgorithm_find_ctx(EVP_MD_CTX *mctx, BIO *chain,
              * Workaround for broken implementations that use signature
              * algorithm OID instead of digest.
              */
-            || EVP_MD_pkey_type(EVP_MD_CTX_md(mtmp)) == nid)
+            || EVP_MD_pkey_type(EVP_MD_CTX_get0_md(mtmp)) == nid)
             return EVP_MD_CTX_copy_ex(mctx, mtmp);
         chain = BIO_next(chain);
     }

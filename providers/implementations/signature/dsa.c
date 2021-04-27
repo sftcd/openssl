@@ -127,7 +127,8 @@ static int dsa_setup_md(PROV_DSA_CTX *ctx,
         int sha1_allowed = (ctx->operation != EVP_PKEY_OP_SIGN);
         WPACKET pkt;
         EVP_MD *md = EVP_MD_fetch(ctx->libctx, mdname, mdprops);
-        int md_nid = ossl_digest_get_approved_nid_with_sha1(md, sha1_allowed);
+        int md_nid = ossl_digest_get_approved_nid_with_sha1(ctx->libctx, md,
+                                                            sha1_allowed);
         size_t mdname_len = strlen(mdname);
 
         if (md == NULL || md_nid == NID_undef) {
@@ -171,7 +172,8 @@ static int dsa_setup_md(PROV_DSA_CTX *ctx,
     return 1;
 }
 
-static int dsa_signverify_init(void *vpdsactx, void *vdsa, int operation)
+static int dsa_signverify_init(void *vpdsactx, void *vdsa,
+                               const OSSL_PARAM params[], int operation)
 {
     PROV_DSA_CTX *pdsactx = (PROV_DSA_CTX *)vpdsactx;
 
@@ -183,21 +185,27 @@ static int dsa_signverify_init(void *vpdsactx, void *vdsa, int operation)
     DSA_free(pdsactx->dsa);
     pdsactx->dsa = vdsa;
     pdsactx->operation = operation;
-    if (!ossl_dsa_check_key(vdsa, operation == EVP_PKEY_OP_SIGN)) {
+
+    if (!dsa_set_ctx_params(pdsactx, params))
+        return 0;
+
+    if (!ossl_dsa_check_key(pdsactx->libctx, vdsa,
+                            operation == EVP_PKEY_OP_SIGN)) {
         ERR_raise(ERR_LIB_PROV, PROV_R_INVALID_KEY_LENGTH);
         return 0;
     }
     return 1;
 }
 
-static int dsa_sign_init(void *vpdsactx, void *vdsa)
+static int dsa_sign_init(void *vpdsactx, void *vdsa, const OSSL_PARAM params[])
 {
-    return dsa_signverify_init(vpdsactx, vdsa, EVP_PKEY_OP_SIGN);
+    return dsa_signverify_init(vpdsactx, vdsa, params, EVP_PKEY_OP_SIGN);
 }
 
-static int dsa_verify_init(void *vpdsactx, void *vdsa)
+static int dsa_verify_init(void *vpdsactx, void *vdsa,
+                           const OSSL_PARAM params[])
 {
-    return dsa_signverify_init(vpdsactx, vdsa, EVP_PKEY_OP_VERIFY);
+    return dsa_signverify_init(vpdsactx, vdsa, params, EVP_PKEY_OP_VERIFY);
 }
 
 static int dsa_sign(void *vpdsactx, unsigned char *sig, size_t *siglen,
@@ -244,7 +252,8 @@ static int dsa_verify(void *vpdsactx, const unsigned char *sig, size_t siglen,
 }
 
 static int dsa_digest_signverify_init(void *vpdsactx, const char *mdname,
-                                      void *vdsa, int operation)
+                                      void *vdsa, const OSSL_PARAM params[],
+                                      int operation)
 {
     PROV_DSA_CTX *pdsactx = (PROV_DSA_CTX *)vpdsactx;
 
@@ -252,7 +261,7 @@ static int dsa_digest_signverify_init(void *vpdsactx, const char *mdname,
         return 0;
 
     pdsactx->flag_allow_md = 0;
-    if (!dsa_signverify_init(vpdsactx, vdsa, operation))
+    if (!dsa_signverify_init(vpdsactx, vdsa, params, operation))
         return 0;
 
     if (!dsa_setup_md(pdsactx, mdname, NULL))
@@ -262,7 +271,7 @@ static int dsa_digest_signverify_init(void *vpdsactx, const char *mdname,
     if (pdsactx->mdctx == NULL)
         goto error;
 
-    if (!EVP_DigestInit_ex(pdsactx->mdctx, pdsactx->md, NULL))
+    if (!EVP_DigestInit_ex2(pdsactx->mdctx, pdsactx->md, params))
         goto error;
 
     return 1;
@@ -276,14 +285,17 @@ static int dsa_digest_signverify_init(void *vpdsactx, const char *mdname,
 }
 
 static int dsa_digest_sign_init(void *vpdsactx, const char *mdname,
-                                      void *vdsa)
+                                void *vdsa, const OSSL_PARAM params[])
 {
-    return dsa_digest_signverify_init(vpdsactx, mdname, vdsa, EVP_PKEY_OP_SIGN);
+    return dsa_digest_signverify_init(vpdsactx, mdname, vdsa, params,
+                                      EVP_PKEY_OP_SIGN);
 }
 
-static int dsa_digest_verify_init(void *vpdsactx, const char *mdname, void *vdsa)
+static int dsa_digest_verify_init(void *vpdsactx, const char *mdname,
+                                  void *vdsa, const OSSL_PARAM params[])
 {
-    return dsa_digest_signverify_init(vpdsactx, mdname, vdsa, EVP_PKEY_OP_VERIFY);
+    return dsa_digest_signverify_init(vpdsactx, mdname, vdsa, params,
+                                      EVP_PKEY_OP_VERIFY);
 }
 
 int dsa_digest_signverify_update(void *vpdsactx, const unsigned char *data,
@@ -413,7 +425,7 @@ static int dsa_get_ctx_params(void *vpdsactx, OSSL_PARAM *params)
     PROV_DSA_CTX *pdsactx = (PROV_DSA_CTX *)vpdsactx;
     OSSL_PARAM *p;
 
-    if (pdsactx == NULL || params == NULL)
+    if (pdsactx == NULL)
         return 0;
 
     p = OSSL_PARAM_locate(params, OSSL_SIGNATURE_PARAM_ALGORITHM_ID);
@@ -445,8 +457,10 @@ static int dsa_set_ctx_params(void *vpdsactx, const OSSL_PARAM params[])
     PROV_DSA_CTX *pdsactx = (PROV_DSA_CTX *)vpdsactx;
     const OSSL_PARAM *p;
 
-    if (pdsactx == NULL || params == NULL)
+    if (pdsactx == NULL)
         return 0;
+    if (params == NULL)
+        return 1;
 
     p = OSSL_PARAM_locate_const(params, OSSL_SIGNATURE_PARAM_DIGEST);
     /* Not allowed during certain operations */

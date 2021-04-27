@@ -1,6 +1,16 @@
 Welcome to the OpenSSL Project
 ==============================
 
+This is sftcd's fork of OpenSSL to implement Encrypted Client Hello (ECH).
+This is not well tested. Do not use it other than for testing. 
+
+The latest code for that is in the [ECH-without-ESNI](https://github.com/sftcd/openssl/tree/ECH-without-ESNI)
+branch, which you ought checkout to work with this. You'll then find details of
+the state of play, tools, integrations etc. in a [README](https://github.com/sftcd/openssl/tree/ECH-without-ESNI/esnistuff/).
+
+There is an older branch that also includes code for the earlier Encrypted Server Name Indication 
+[(ESNI)](https://github.com/sftcd/openssl/tree/ESNI-and-ECH/esnistuff). 
+
 [![openssl logo]][www.openssl.org]
 
 [![github actions ci badge]][github actions ci]

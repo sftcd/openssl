@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2020 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2011-2021 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -50,7 +50,7 @@ static int drbg_bytes(unsigned char *out, int count)
     return EVP_RAND_generate(drbg, out, count, 0, 0, NULL, 0);
 }
 
-RAND_METHOD rand_meth = {
+RAND_METHOD ossl_rand_meth = {
     drbg_seed,
     drbg_bytes,
     NULL,
@@ -62,7 +62,7 @@ RAND_METHOD rand_meth = {
 RAND_METHOD *RAND_OpenSSL(void)
 {
 #ifndef FIPS_MODULE
-    return &rand_meth;
+    return &ossl_rand_meth;
 #else
     return NULL;
 #endif

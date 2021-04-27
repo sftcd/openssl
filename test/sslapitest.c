@@ -31,6 +31,7 @@
 #include <openssl/core_dispatch.h>
 #include <openssl/provider.h>
 #include <openssl/param_build.h>
+#include <openssl/x509v3.h>
 
 #include "helpers/ssltestlib.h"
 #include "testutil.h"
@@ -625,10 +626,14 @@ static int test_client_cert_verify_cb(void)
 end:
     X509_free(crt1);
     X509_free(crt2);
-    SSL_shutdown(clientssl);
-    SSL_shutdown(serverssl);
-    SSL_free(serverssl);
-    SSL_free(clientssl);
+    if (clientssl != NULL) {
+        SSL_shutdown(clientssl);
+        SSL_free(clientssl);
+    }
+    if (serverssl != NULL) {
+        SSL_shutdown(serverssl);
+        SSL_free(serverssl);
+    }
     SSL_CTX_free(sctx);
     SSL_CTX_free(cctx);
 
@@ -1078,7 +1083,7 @@ static int ping_pong_query(SSL *clientssl, SSL *serverssl, int cfd, int sfd, int
         goto end;
 
     /* ktls is used then kernel sequences are used instead of OpenSSL sequences */
-    if (clientssl->mode & SSL_MODE_NO_KTLS_TX) {
+    if ((SSL_get_options(clientssl) & SSL_OP_ENABLE_KTLS) == 0) {
         if (!TEST_mem_ne(crec_wseq_before, rec_seq_size,
                          crec_wseq_after, rec_seq_size))
             goto end;
@@ -1088,7 +1093,7 @@ static int ping_pong_query(SSL *clientssl, SSL *serverssl, int cfd, int sfd, int
             goto end;
     }
 
-    if (serverssl->mode & SSL_MODE_NO_KTLS_TX) {
+    if ((SSL_get_options(serverssl) & SSL_OP_ENABLE_KTLS) == 0) {
         if (!TEST_mem_ne(srec_wseq_before, rec_seq_size,
                          srec_wseq_after, rec_seq_size))
             goto end;
@@ -1098,7 +1103,11 @@ static int ping_pong_query(SSL *clientssl, SSL *serverssl, int cfd, int sfd, int
             goto end;
     }
 
-    if (clientssl->mode & SSL_MODE_NO_KTLS_RX) {
+    if ((SSL_get_options(clientssl) & SSL_OP_ENABLE_KTLS) == 0
+#if defined(OPENSSL_NO_KTLS_RX)
+        || 1
+#endif
+       ) {
         if (!TEST_mem_ne(crec_rseq_before, rec_seq_size,
                          crec_rseq_after, rec_seq_size))
             goto end;
@@ -1108,7 +1117,11 @@ static int ping_pong_query(SSL *clientssl, SSL *serverssl, int cfd, int sfd, int
             goto end;
     }
 
-    if (serverssl->mode & SSL_MODE_NO_KTLS_RX) {
+    if ((SSL_get_options(serverssl) & SSL_OP_ENABLE_KTLS) == 0
+#if defined(OPENSSL_NO_KTLS_RX)
+        || 1
+#endif
+       ) {
         if (!TEST_mem_ne(srec_rseq_before, rec_seq_size,
                          srec_rseq_after, rec_seq_size))
             goto end;
@@ -1123,8 +1136,7 @@ end:
     return 0;
 }
 
-static int execute_test_ktls(int cis_ktls_tx, int cis_ktls_rx,
-                             int sis_ktls_tx, int sis_ktls_rx,
+static int execute_test_ktls(int cis_ktls, int sis_ktls,
                              int tls_version, const char *cipher,
                              int rec_seq_size)
 {
@@ -1151,23 +1163,13 @@ static int execute_test_ktls(int cis_ktls_tx, int cis_ktls_rx,
                                           &clientssl, sfd, cfd)))
         goto end;
 
-    if (!cis_ktls_tx) {
-        if (!TEST_true(SSL_set_mode(clientssl, SSL_MODE_NO_KTLS_TX)))
+    if (cis_ktls) {
+        if (!TEST_true(SSL_set_options(clientssl, SSL_OP_ENABLE_KTLS)))
             goto end;
     }
 
-    if (!sis_ktls_tx) {
-        if (!TEST_true(SSL_set_mode(serverssl, SSL_MODE_NO_KTLS_TX)))
-            goto end;
-    }
-
-    if (!cis_ktls_rx) {
-        if (!TEST_true(SSL_set_mode(clientssl, SSL_MODE_NO_KTLS_RX)))
-            goto end;
-    }
-
-    if (!sis_ktls_rx) {
-        if (!TEST_true(SSL_set_mode(serverssl, SSL_MODE_NO_KTLS_RX)))
+    if (sis_ktls) {
+        if (!TEST_true(SSL_set_mode(serverssl, SSL_OP_ENABLE_KTLS)))
             goto end;
     }
 
@@ -1175,7 +1177,7 @@ static int execute_test_ktls(int cis_ktls_tx, int cis_ktls_rx,
                                                 SSL_ERROR_NONE)))
         goto end;
 
-    if (!cis_ktls_tx) {
+    if (!cis_ktls) {
         if (!TEST_false(BIO_get_ktls_send(clientssl->wbio)))
             goto end;
     } else {
@@ -1183,7 +1185,7 @@ static int execute_test_ktls(int cis_ktls_tx, int cis_ktls_rx,
             goto end;
     }
 
-    if (!sis_ktls_tx) {
+    if (!sis_ktls) {
         if (!TEST_false(BIO_get_ktls_send(serverssl->wbio)))
             goto end;
     } else {
@@ -1191,7 +1193,11 @@ static int execute_test_ktls(int cis_ktls_tx, int cis_ktls_rx,
             goto end;
     }
 
-    if (!cis_ktls_rx) {
+    if (!cis_ktls
+#if defined(OPENSSL_NO_KTLS_RX)
+        || 1
+#endif
+       ) {
         if (!TEST_false(BIO_get_ktls_recv(clientssl->rbio)))
             goto end;
     } else {
@@ -1199,7 +1205,11 @@ static int execute_test_ktls(int cis_ktls_tx, int cis_ktls_rx,
             goto end;
     }
 
-    if (!sis_ktls_rx) {
+    if (!sis_ktls
+#if defined(OPENSSL_NO_KTLS_RX)
+        || 1
+#endif
+       ) {
         if (!TEST_false(BIO_get_ktls_recv(serverssl->rbio)))
             goto end;
     } else {
@@ -1337,14 +1347,14 @@ end:
 #if !defined(OPENSSL_NO_TLS1_2) || !defined(OSSL_NO_USABLE_TLS1_3)
 static int test_ktls(int test)
 {
-    int cis_ktls_tx, cis_ktls_rx, sis_ktls_tx, sis_ktls_rx;
+    int cis_ktls, sis_ktls;
     int tlsver, testresult;
 
-    if (test > 15) {
+    if (test > 3) {
 #if defined(OSSL_NO_USABLE_TLS1_3)
         return 1;
 #else
-        test -= 16;
+        test -= 4;
         tlsver = TLS1_3_VERSION;
 #endif
     } else {
@@ -1355,34 +1365,22 @@ static int test_ktls(int test)
 #endif
     }
 
-    cis_ktls_tx = (test & 1) != 0;
-    cis_ktls_rx = (test & 2) != 0;
-    sis_ktls_tx = (test & 4) != 0;
-    sis_ktls_rx = (test & 8) != 0;
-
-#if defined(OPENSSL_NO_KTLS_RX)
-    if (cis_ktls_rx || sis_ktls_rx)
-        return 1;
-#endif
-#if !defined(OSSL_NO_USABLE_TLS1_3)
-    if (tlsver == TLS1_3_VERSION && (cis_ktls_rx || sis_ktls_rx))
-        return 1;
-#endif
+    cis_ktls = (test & 1) != 0;
+    sis_ktls = (test & 2) != 0;
 
     testresult = 1;
 #ifdef OPENSSL_KTLS_AES_GCM_128
-    testresult &= execute_test_ktls(cis_ktls_tx, cis_ktls_rx, sis_ktls_tx,
-                                    sis_ktls_rx, tlsver, "AES128-GCM-SHA256",
+    testresult &= execute_test_ktls(cis_ktls, sis_ktls, tlsver,
+                                    "AES128-GCM-SHA256",
                                     TLS_CIPHER_AES_GCM_128_REC_SEQ_SIZE);
 #endif
 #ifdef OPENSSL_KTLS_AES_CCM_128
-    testresult &= execute_test_ktls(cis_ktls_tx, cis_ktls_rx, sis_ktls_tx,
-                                    sis_ktls_rx, tlsver, "AES128-CCM",
+    testresult &= execute_test_ktls(cis_ktls, sis_ktls, tlsver, "AES128-CCM",
                                     TLS_CIPHER_AES_CCM_128_REC_SEQ_SIZE);
 #endif
 #ifdef OPENSSL_KTLS_AES_GCM_256
-    testresult &= execute_test_ktls(cis_ktls_tx, cis_ktls_rx, sis_ktls_tx,
-                                    sis_ktls_rx, tlsver, "AES256-GCM-SHA384",
+    testresult &= execute_test_ktls(cis_ktls, sis_ktls, tlsver,
+                                    "AES256-GCM-SHA384",
                                     TLS_CIPHER_AES_GCM_256_REC_SEQ_SIZE);
 #endif
     return testresult;
@@ -2739,8 +2737,10 @@ static int execute_test_ssl_bio(int pop_ssl, bio_change_t change_bio)
 
     /* Verify changing the rbio/wbio directly does not cause leaks */
     if (change_bio != NO_BIO_CHANGE) {
-        if (!TEST_ptr(membio2 = BIO_new(BIO_s_mem())))
+        if (!TEST_ptr(membio2 = BIO_new(BIO_s_mem()))) {
+            ssl = NULL;
             goto end;
+        }
         if (change_bio == CHANGE_RBIO)
             SSL_set0_rbio(ssl, membio2);
         else
@@ -5956,7 +5956,8 @@ static int get_MFL_from_client_hello(BIO *bio, int *mfl_codemfl_code)
     memset(&pkt2, 0, sizeof(pkt2));
     memset(&pkt3, 0, sizeof(pkt3));
 
-    if (!TEST_true( PACKET_buf_init( &pkt, data, len ) )
+    if (!TEST_long_gt(len, 0)
+            || !TEST_true( PACKET_buf_init( &pkt, data, len ) )
                /* Skip the record header */
             || !PACKET_forward(&pkt, SSL3_RT_HEADER_LENGTH)
                /* Skip the handshake message header */
@@ -8294,10 +8295,10 @@ static EVP_PKEY *get_tmp_dh_params(void)
         BN_free(p);
         EVP_PKEY_CTX_free(pctx);
         OSSL_PARAM_BLD_free(tmpl);
-        OSSL_PARAM_BLD_free_params(params);
+        OSSL_PARAM_free(params);
     }
 
-    if (!EVP_PKEY_up_ref(tmp_dh_params))
+    if (tmp_dh_params != NULL && !EVP_PKEY_up_ref(tmp_dh_params))
         return NULL;
 
     return tmp_dh_params;
@@ -8313,7 +8314,14 @@ static DH *tmp_dh_callback(SSL *s, int is_export, int keylen)
     if (!TEST_ptr(dhpkey))
         return NULL;
 
-    ret = EVP_PKEY_get0_DH(dhpkey);
+    /*
+     * libssl does not free the returned DH, so we free it now knowing that even
+     * after we free dhpkey, there will still be a reference to the owning
+     * EVP_PKEY in tmp_dh_params, and so the DH object will live for the length
+     * of time we need it for.
+     */
+    ret = EVP_PKEY_get1_DH(dhpkey);
+    DH_free(ret);
 
     EVP_PKEY_free(dhpkey);
 
@@ -8361,7 +8369,7 @@ static int test_set_tmp_dh(int idx)
     }
 #  ifndef OPENSSL_NO_DEPRECATED_3_0
     if (idx == 7 || idx == 8) {
-        dh = EVP_PKEY_get0_DH(dhpkey);
+        dh = EVP_PKEY_get1_DH(dhpkey);
         if (!TEST_ptr(dh))
             goto end;
     }
@@ -8431,6 +8439,9 @@ static int test_set_tmp_dh(int idx)
     testresult = 1;
 
  end:
+#  ifndef OPENSSL_NO_DEPRECATED_3_0
+    DH_free(dh);
+#  endif
     SSL_free(serverssl);
     SSL_free(clientssl);
     SSL_CTX_free(sctx);
@@ -8605,6 +8616,118 @@ end:
     return testresult;
 }
 #endif
+/*
+ * Test that setting an ALPN does not violate RFC
+ */
+static int test_set_alpn(void)
+{
+    SSL_CTX *ctx = NULL;
+    SSL *ssl = NULL;
+    int testresult = 0;
+
+    unsigned char bad0[] = { 0x00, 'b', 'a', 'd' };
+    unsigned char good[] = { 0x04, 'g', 'o', 'o', 'd' };
+    unsigned char bad1[] = { 0x01, 'b', 'a', 'd' };
+    unsigned char bad2[] = { 0x03, 'b', 'a', 'd', 0x00};
+    unsigned char bad3[] = { 0x03, 'b', 'a', 'd', 0x01, 'b', 'a', 'd'};
+    unsigned char bad4[] = { 0x03, 'b', 'a', 'd', 0x06, 'b', 'a', 'd'};
+
+    /* Create an initial SSL_CTX with no certificate configured */
+    ctx = SSL_CTX_new_ex(libctx, NULL, TLS_server_method());
+    if (!TEST_ptr(ctx))
+        goto end;
+
+    /* the set_alpn functions return 0 (false) on success, non-zero (true) on failure */
+    if (!TEST_false(SSL_CTX_set_alpn_protos(ctx, NULL, 2)))
+        goto end;
+    if (!TEST_false(SSL_CTX_set_alpn_protos(ctx, good, 0)))
+        goto end;
+    if (!TEST_false(SSL_CTX_set_alpn_protos(ctx, good, sizeof(good))))
+        goto end;
+    if (!TEST_true(SSL_CTX_set_alpn_protos(ctx, good, 1)))
+        goto end;
+    if (!TEST_true(SSL_CTX_set_alpn_protos(ctx, bad0, sizeof(bad0))))
+        goto end;
+    if (!TEST_true(SSL_CTX_set_alpn_protos(ctx, bad1, sizeof(bad1))))
+        goto end;
+    if (!TEST_true(SSL_CTX_set_alpn_protos(ctx, bad2, sizeof(bad2))))
+        goto end;
+    if (!TEST_true(SSL_CTX_set_alpn_protos(ctx, bad3, sizeof(bad3))))
+        goto end;
+    if (!TEST_true(SSL_CTX_set_alpn_protos(ctx, bad4, sizeof(bad4))))
+        goto end;
+
+    ssl = SSL_new(ctx);
+    if (!TEST_ptr(ssl))
+        goto end;
+
+    if (!TEST_false(SSL_set_alpn_protos(ssl, NULL, 2)))
+        goto end;
+    if (!TEST_false(SSL_set_alpn_protos(ssl, good, 0)))
+        goto end;
+    if (!TEST_false(SSL_set_alpn_protos(ssl, good, sizeof(good))))
+        goto end;
+    if (!TEST_true(SSL_set_alpn_protos(ssl, good, 1)))
+        goto end;
+    if (!TEST_true(SSL_set_alpn_protos(ssl, bad0, sizeof(bad0))))
+        goto end;
+    if (!TEST_true(SSL_set_alpn_protos(ssl, bad1, sizeof(bad1))))
+        goto end;
+    if (!TEST_true(SSL_set_alpn_protos(ssl, bad2, sizeof(bad2))))
+        goto end;
+    if (!TEST_true(SSL_set_alpn_protos(ssl, bad3, sizeof(bad3))))
+        goto end;
+    if (!TEST_true(SSL_set_alpn_protos(ssl, bad4, sizeof(bad4))))
+        goto end;
+
+    testresult = 1;
+
+end:
+    SSL_free(ssl);
+    SSL_CTX_free(ctx);
+    return testresult;
+}
+
+static int test_inherit_verify_param(void)
+{
+    int testresult = 0;
+
+    SSL_CTX *ctx = NULL;
+    X509_VERIFY_PARAM *cp = NULL;
+    SSL *ssl = NULL;
+    X509_VERIFY_PARAM *sp = NULL;
+    int hostflags = X509_CHECK_FLAG_NEVER_CHECK_SUBJECT;
+
+    ctx = SSL_CTX_new_ex(libctx, NULL, TLS_server_method());
+    if (!TEST_ptr(ctx))
+        goto end;
+
+    cp = SSL_CTX_get0_param(ctx);
+    if (!TEST_ptr(cp))
+        goto end;
+    if (!TEST_int_eq(X509_VERIFY_PARAM_get_hostflags(cp), 0))
+        goto end;
+
+    X509_VERIFY_PARAM_set_hostflags(cp, hostflags);
+
+    ssl = SSL_new(ctx);
+    if (!TEST_ptr(ssl))
+        goto end;
+
+    sp = SSL_get0_param(ssl);
+    if (!TEST_ptr(sp))
+        goto end;
+    if (!TEST_int_eq(X509_VERIFY_PARAM_get_hostflags(sp), hostflags))
+        goto end;
+
+    testresult = 1;
+
+ end:
+    SSL_free(ssl);
+    SSL_CTX_free(ctx);
+
+    return testresult;
+}
 
 OPT_TEST_DECLARE_USAGE("certfile privkeyfile srpvfile tmpfile provider config\n")
 
@@ -8729,7 +8852,7 @@ int setup_tests(void)
 
 #if !defined(OPENSSL_NO_KTLS) && !defined(OPENSSL_NO_SOCK)
 # if !defined(OPENSSL_NO_TLS1_2) || !defined(OSSL_NO_USABLE_TLS1_3)
-    ADD_ALL_TESTS(test_ktls, 32);
+    ADD_ALL_TESTS(test_ktls, 8);
     ADD_ALL_TESTS(test_ktls_sendfile_anytls, 6);
 # endif
 #endif
@@ -8855,6 +8978,8 @@ int setup_tests(void)
 #ifndef OSSL_NO_USABLE_TLS1_3
     ADD_TEST(test_sni_tls13);
 #endif
+    ADD_TEST(test_inherit_verify_param);
+    ADD_TEST(test_set_alpn);
     return 1;
 
  err:

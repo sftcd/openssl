@@ -729,7 +729,11 @@ static EVP_CIPHER_CTX *init_evp_cipher_ctx(const char *ciphername,
         goto end;
     }
 
-    EVP_CIPHER_CTX_set_key_length(ctx, keylen);
+    if (!EVP_CIPHER_CTX_set_key_length(ctx, keylen)) {
+        EVP_CIPHER_CTX_free(ctx);
+        ctx = NULL;
+        goto end;
+    }
 
     if (!EVP_CipherInit_ex(ctx, NULL, NULL, key, iv, 1)) {
         EVP_CIPHER_CTX_free(ctx);
@@ -838,19 +842,19 @@ static int EVP_Update_loop_aead(void *args)
 
     if (decrypt) {
         for (count = 0; COND(c[D_EVP][testnum]); count++) {
-            EVP_DecryptInit_ex(ctx, NULL, NULL, NULL, iv);
-            EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_TAG,
-                                sizeof(faketag), faketag);
-            EVP_DecryptUpdate(ctx, NULL, &outl, aad, sizeof(aad));
-            EVP_DecryptUpdate(ctx, buf, &outl, buf, lengths[testnum]);
-            EVP_DecryptFinal_ex(ctx, buf + outl, &outl);
+            (void)EVP_DecryptInit_ex(ctx, NULL, NULL, NULL, iv);
+            (void)EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_TAG,
+                                      sizeof(faketag), faketag);
+            (void)EVP_DecryptUpdate(ctx, NULL, &outl, aad, sizeof(aad));
+            (void)EVP_DecryptUpdate(ctx, buf, &outl, buf, lengths[testnum]);
+            (void)EVP_DecryptFinal_ex(ctx, buf + outl, &outl);
         }
     } else {
         for (count = 0; COND(c[D_EVP][testnum]); count++) {
-            EVP_EncryptInit_ex(ctx, NULL, NULL, NULL, iv);
-            EVP_EncryptUpdate(ctx, NULL, &outl, aad, sizeof(aad));
-            EVP_EncryptUpdate(ctx, buf, &outl, buf, lengths[testnum]);
-            EVP_EncryptFinal_ex(ctx, buf + outl, &outl);
+            (void)EVP_EncryptInit_ex(ctx, NULL, NULL, NULL, iv);
+            (void)EVP_EncryptUpdate(ctx, NULL, &outl, aad, sizeof(aad));
+            (void)EVP_EncryptUpdate(ctx, buf, &outl, buf, lengths[testnum]);
+            (void)EVP_EncryptFinal_ex(ctx, buf + outl, &outl);
         }
     }
     return count;
@@ -1592,8 +1596,7 @@ int speed_main(int argc, char **argv)
 #endif
             break;
         case OPT_MISALIGN:
-            if (!opt_int(opt_arg(), &misalign))
-                goto end;
+            misalign = opt_int_arg();
             if (misalign > MISALIGN) {
                 BIO_printf(bio_err,
                            "%s: Maximum offset is %d\n", prog, MISALIGN);
@@ -1621,8 +1624,7 @@ int speed_main(int argc, char **argv)
                 goto end;
             break;
         case OPT_PRIMES:
-            if (!opt_int(opt_arg(), &primes))
-                goto end;
+            primes = opt_int_arg();
             break;
         case OPT_SECONDS:
             seconds.sym = seconds.rsa = seconds.dsa = seconds.ecdsa
@@ -1644,7 +1646,9 @@ int speed_main(int argc, char **argv)
     argc = opt_num_rest();
     argv = opt_rest();
 
-    app_RAND_load();
+    if (!app_RAND_load())
+        goto end;
+
     for (; *argv; argv++) {
         const char *algo = *argv;
 
@@ -1754,7 +1758,7 @@ int speed_main(int argc, char **argv)
         } else if (!(EVP_CIPHER_flags(evp_cipher) &
                      EVP_CIPH_FLAG_AEAD_CIPHER)) {
             BIO_printf(bio_err, "%s is not an AEAD cipher\n",
-                       OBJ_nid2ln(EVP_CIPHER_nid(evp_cipher)));
+                       EVP_CIPHER_name(evp_cipher));
             goto end;
         }
     }
@@ -1766,7 +1770,7 @@ int speed_main(int argc, char **argv)
         } else if (!(EVP_CIPHER_flags(evp_cipher) &
                      EVP_CIPH_FLAG_TLS1_1_MULTIBLOCK)) {
             BIO_printf(bio_err, "%s is not a multi-block capable\n",
-                       OBJ_nid2ln(EVP_CIPHER_nid(evp_cipher)));
+                       EVP_CIPHER_name(evp_cipher));
             goto end;
         } else if (async_jobs > 0) {
             BIO_printf(bio_err, "Async mode is not supported with -mb");
@@ -2084,7 +2088,7 @@ int speed_main(int argc, char **argv)
         if (doit[algindex]) {
             int st = 1;
 
-            keylen = 16 + i * 8;
+            keylen = 16 + k * 8;
             for (i = 0; st && i < loopargs_len; i++) {
                 loopargs[i].ctx = init_evp_cipher_ctx(names[algindex],
                                                       key32, keylen);
@@ -2110,7 +2114,7 @@ int speed_main(int argc, char **argv)
         if (doit[algindex]) {
             int st = 1;
 
-            keylen = 16 + i * 8;
+            keylen = 16 + k * 8;
             for (i = 0; st && i < loopargs_len; i++) {
                 loopargs[i].ctx = init_evp_cipher_ctx(names[algindex],
                                                       key32, keylen);
@@ -2215,7 +2219,7 @@ int speed_main(int argc, char **argv)
                 goto end;
             }
 
-            names[D_EVP] = OBJ_nid2ln(EVP_CIPHER_nid(evp_cipher));
+            names[D_EVP] = EVP_CIPHER_name(evp_cipher);
 
             if (EVP_CIPHER_mode(evp_cipher) == EVP_CIPH_CCM_MODE) {
                 loopfunc = EVP_Update_loop_ccm;
@@ -3599,8 +3603,8 @@ static void multiblock_speed(const EVP_CIPHER *evp_cipher, int lengths_single,
     const int *mblengths = mblengths_list;
     int j, count, keylen, num = OSSL_NELEM(mblengths_list);
     const char *alg_name;
-    unsigned char *inp, *out, *key, no_key[32], no_iv[16];
-    EVP_CIPHER_CTX *ctx;
+    unsigned char *inp = NULL, *out = NULL, *key, no_key[32], no_iv[16];
+    EVP_CIPHER_CTX *ctx = NULL;
     double d = 0.0;
 
     if (lengths_single) {
@@ -3610,17 +3614,27 @@ static void multiblock_speed(const EVP_CIPHER *evp_cipher, int lengths_single,
 
     inp = app_malloc(mblengths[num - 1], "multiblock input buffer");
     out = app_malloc(mblengths[num - 1] + 1024, "multiblock output buffer");
-    ctx = EVP_CIPHER_CTX_new();
-    EVP_EncryptInit_ex(ctx, evp_cipher, NULL, NULL, no_iv);
+    if ((ctx = EVP_CIPHER_CTX_new()) == NULL)
+        app_bail_out("failed to allocate cipher context\n");
+    if (!EVP_EncryptInit_ex(ctx, evp_cipher, NULL, NULL, no_iv))
+        app_bail_out("failed to initialise cipher context\n");
 
-    keylen = EVP_CIPHER_CTX_key_length(ctx);
+    if ((keylen = EVP_CIPHER_CTX_key_length(ctx)) < 0) {
+        BIO_printf(bio_err, "Impossible negative key length: %d\n", keylen);
+        goto err;
+    }
     key = app_malloc(keylen, "evp_cipher key");
-    EVP_CIPHER_CTX_rand_key(ctx, key);
-    EVP_EncryptInit_ex(ctx, NULL, NULL, key, NULL);
+    if (!EVP_CIPHER_CTX_rand_key(ctx, key))
+        app_bail_out("failed to generate random cipher key\n");
+    if (!EVP_EncryptInit_ex(ctx, NULL, NULL, key, NULL))
+        app_bail_out("failed to set cipher key\n");
     OPENSSL_clear_free(key, keylen);
 
-    EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_MAC_KEY, sizeof(no_key), no_key);
-    alg_name = OBJ_nid2ln(EVP_CIPHER_nid(evp_cipher));
+    if (!EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_MAC_KEY,
+                             sizeof(no_key), no_key))
+        app_bail_out("failed to set AEAD key\n");
+    if ((alg_name = EVP_CIPHER_name(evp_cipher)) == NULL)
+        app_bail_out("failed to get cipher name\n");
 
     for (j = 0; j < num; j++) {
         print_message(alg_name, 0, mblengths[j], seconds->sym);
@@ -3696,6 +3710,7 @@ static void multiblock_speed(const EVP_CIPHER *evp_cipher, int lengths_single,
         fprintf(stdout, "\n");
     }
 
+ err:
     OPENSSL_free(inp);
     OPENSSL_free(out);
     EVP_CIPHER_CTX_free(ctx);

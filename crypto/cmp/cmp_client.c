@@ -221,8 +221,8 @@ static int send_receive_check(OSSL_CMP_CTX *ctx, const OSSL_CMP_MSG *req,
                                 ASN1_INTEGER_get(emc->errorCode)) > 0)
             ERR_add_error_data(1, buf);
         if (emc->errorDetails != NULL) {
-            char *text = sk_ASN1_UTF8STRING2text(emc->errorDetails, ", ",
-                                                 OSSL_CMP_PKISI_BUFLEN - 1);
+            char *text = ossl_sk_ASN1_UTF8STRING2text(emc->errorDetails, ", ",
+                                                      OSSL_CMP_PKISI_BUFLEN - 1);
 
             if (text != NULL)
                 ERR_add_error_data(2, "; errorDetails: ", text);
@@ -316,8 +316,8 @@ static int poll_for_response(OSSL_CMP_CTX *ctx, int sleep, int rid,
                                            " with reason = '")) < 0) {
                 *str = '\0';
             } else {
-                char *text = sk_ASN1_UTF8STRING2text(pollRep->reason, ", ",
-                                                     sizeof(str) - len - 2);
+                char *text = ossl_sk_ASN1_UTF8STRING2text(pollRep->reason, ", ",
+                                                          sizeof(str) - len - 2);
 
                 if (text == NULL
                         || BIO_snprintf(str + len, sizeof(str) - len,
@@ -496,9 +496,8 @@ int OSSL_CMP_certConf_cb(OSSL_CMP_CTX *ctx, X509 *cert, int fail_info,
         return fail_info;
 
     ossl_cmp_debug(ctx, "trying to build chain for newly enrolled cert");
-    chain = ossl_cmp_build_cert_chain(ctx->libctx, ctx->propq,
-                                      out_trusted /* may be NULL */,
-                                      ctx->untrusted, cert);
+    chain = X509_build_chain(cert, ctx->untrusted, out_trusted /* maybe NULL */,
+                             0, ctx->libctx, ctx->propq);
     if (sk_X509_num(chain) > 0)
         X509_free(sk_X509_shift(chain)); /* remove leaf (EE) cert */
     if (out_trusted != NULL) {

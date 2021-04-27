@@ -79,8 +79,8 @@ typedef struct {
 typedef void CRYPTO_RWLOCK;
 
 CRYPTO_RWLOCK *CRYPTO_THREAD_lock_new(void);
-int CRYPTO_THREAD_read_lock(CRYPTO_RWLOCK *lock);
-int CRYPTO_THREAD_write_lock(CRYPTO_RWLOCK *lock);
+__owur int CRYPTO_THREAD_read_lock(CRYPTO_RWLOCK *lock);
+__owur int CRYPTO_THREAD_write_lock(CRYPTO_RWLOCK *lock);
 int CRYPTO_THREAD_unlock(CRYPTO_RWLOCK *lock);
 void CRYPTO_THREAD_lock_free(CRYPTO_RWLOCK *lock);
 
@@ -435,7 +435,7 @@ int CRYPTO_memcmp(const void * in_a, const void * in_b, size_t len);
 # define OPENSSL_INIT_ENGINE_CAPI            0x00002000L
 # define OPENSSL_INIT_ENGINE_PADLOCK         0x00004000L
 # define OPENSSL_INIT_ENGINE_AFALG           0x00008000L
-/* OPENSSL_INIT_ZLIB                         0x00010000L */
+/* FREE:                                     0x00010000L */
 # define OPENSSL_INIT_ATFORK                 0x00020000L
 /* OPENSSL_INIT_BASE_ONLY                    0x00040000L */
 # define OPENSSL_INIT_NO_ATEXIT              0x00080000L
@@ -519,6 +519,7 @@ int CRYPTO_THREAD_compare_id(CRYPTO_THREAD_ID a, CRYPTO_THREAD_ID b);
 OSSL_LIB_CTX *OSSL_LIB_CTX_new(void);
 int OSSL_LIB_CTX_load_config(OSSL_LIB_CTX *ctx, const char *config_file);
 void OSSL_LIB_CTX_free(OSSL_LIB_CTX *);
+OSSL_LIB_CTX *OSSL_LIB_CTX_get0_global_default(void);
 OSSL_LIB_CTX *OSSL_LIB_CTX_set0_default(OSSL_LIB_CTX *libctx);
 
 # ifdef  __cplusplus

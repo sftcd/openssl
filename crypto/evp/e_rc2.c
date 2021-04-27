@@ -1,5 +1,5 @@
 /*
- * Copyright 1995-2020 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 1995-2021 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -53,6 +53,7 @@ static const EVP_CIPHER r2_64_cbc_cipher = {
     NID_rc2_64_cbc,
     8, 8 /* 64 bit */ , 8,
     EVP_CIPH_CBC_MODE | EVP_CIPH_VARIABLE_LENGTH | EVP_CIPH_CTRL_INIT,
+    EVP_ORIG_GLOBAL,
     rc2_init_key,
     rc2_cbc_cipher,
     NULL,
@@ -67,6 +68,7 @@ static const EVP_CIPHER r2_40_cbc_cipher = {
     NID_rc2_40_cbc,
     8, 5 /* 40 bit */ , 8,
     EVP_CIPH_CBC_MODE | EVP_CIPH_VARIABLE_LENGTH | EVP_CIPH_CTRL_INIT,
+    EVP_ORIG_GLOBAL,
     rc2_init_key,
     rc2_cbc_cipher,
     NULL,

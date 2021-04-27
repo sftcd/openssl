@@ -20,6 +20,7 @@
  * internal use.
  */
 #include "internal/deprecated.h"
+#include <assert.h>
 #include <openssl/evp.h>
 #include <openssl/provider.h>
 #include <openssl/dsa.h>
@@ -37,7 +38,7 @@
 static OSSL_LIB_CTX *libctx = NULL;
 static OSSL_PROVIDER *nullprov = NULL;
 static OSSL_PROVIDER *libprov = NULL;
-static STACK_OF(OPENSSL_CSTRING) *cipher_names = NULL;
+static STACK_OF(OPENSSL_STRING) *cipher_names = NULL;
 
 typedef enum OPTION_choice {
     OPT_ERR = -1,
@@ -83,7 +84,7 @@ static int test_dsa_param_keygen(int tstid)
     int expected;
     EVP_PKEY_CTX *gen_ctx = NULL;
     EVP_PKEY *pkey_parm = NULL;
-    EVP_PKEY *pkey = NULL;
+    EVP_PKEY *pkey = NULL, *dup_pk = NULL;
     DSA *dsa = NULL;
     int pind, qind, gind;
     BIGNUM *p = NULL, *q = NULL, *g = NULL;
@@ -127,9 +128,17 @@ static int test_dsa_param_keygen(int tstid)
         || !TEST_int_gt(EVP_PKEY_keygen_init(gen_ctx), 0)
         || !TEST_int_eq(EVP_PKEY_keygen(gen_ctx, &pkey), expected))
         goto err;
+
+    if (expected) {
+        if (!TEST_ptr(dup_pk = EVP_PKEY_dup(pkey))
+            || !TEST_int_eq(EVP_PKEY_eq(pkey, dup_pk), 1))
+            goto err;
+    }
+
     ret = 1;
 err:
     EVP_PKEY_free(pkey);
+    EVP_PKEY_free(dup_pk);
     EVP_PKEY_CTX_free(gen_ctx);
     EVP_PKEY_free(pkey_parm);
     DSA_free(dsa);
@@ -147,7 +156,7 @@ static int do_dh_param_keygen(int tstid, const BIGNUM **bn)
     int expected;
     EVP_PKEY_CTX *gen_ctx = NULL;
     EVP_PKEY *pkey_parm = NULL;
-    EVP_PKEY *pkey = NULL;
+    EVP_PKEY *pkey = NULL, *dup_pk = NULL;
     DH *dh = NULL;
     int pind, qind, gind;
     BIGNUM *p = NULL, *q = NULL, *g = NULL;
@@ -182,9 +191,17 @@ static int do_dh_param_keygen(int tstid, const BIGNUM **bn)
         || !TEST_int_gt(EVP_PKEY_keygen_init(gen_ctx), 0)
         || !TEST_int_eq(EVP_PKEY_keygen(gen_ctx, &pkey), expected))
         goto err;
+
+    if (expected) {
+        if (!TEST_ptr(dup_pk = EVP_PKEY_dup(pkey))
+            || !TEST_int_eq(EVP_PKEY_eq(pkey, dup_pk), 1))
+            goto err;
+    }
+
     ret = 1;
 err:
     EVP_PKEY_free(pkey);
+    EVP_PKEY_free(dup_pk);
     EVP_PKEY_CTX_free(gen_ctx);
     EVP_PKEY_free(pkey_parm);
     DH_free(dh);
@@ -322,7 +339,7 @@ static int test_cipher_reinit(int test_id)
         0x0f, 0x0e, 0x0d, 0x0c, 0x0b, 0x0a, 0x09, 0x08,
         0x07, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01, 0x00
     };
-    const char *name = sk_OPENSSL_CSTRING_value(cipher_names, test_id);
+    const char *name = sk_OPENSSL_STRING_value(cipher_names, test_id);
 
     if (!TEST_ptr(ctx = EVP_CIPHER_CTX_new()))
         goto err;
@@ -404,7 +421,7 @@ static int test_cipher_reinit_partialupdate(int test_id)
         0x0f, 0x0e, 0x0d, 0x0c, 0x0b, 0x0a, 0x09, 0x08,
         0x07, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01, 0x00
     };
-    const char *name = sk_OPENSSL_CSTRING_value(cipher_names, test_id);
+    const char *name = sk_OPENSSL_STRING_value(cipher_names, test_id);
 
     if (!TEST_ptr(ctx = EVP_CIPHER_CTX_new()))
         goto err;
@@ -457,9 +474,15 @@ static int name_cmp(const char * const *a, const char * const *b)
 
 static void collect_cipher_names(EVP_CIPHER *cipher, void *cipher_names_list)
 {
-    STACK_OF(OPENSSL_CSTRING) *names = cipher_names_list;
+    STACK_OF(OPENSSL_STRING) *names = cipher_names_list;
+    const char *name = EVP_CIPHER_name(cipher);
+    char *namedup = NULL;
 
-    sk_OPENSSL_CSTRING_push(names, EVP_CIPHER_name(cipher));
+    assert(name != NULL);
+    /* the cipher will be freed after returning, strdup is needed */
+    if ((namedup = OPENSSL_strdup(name)) != NULL
+        && !sk_OPENSSL_STRING_push(names, namedup))
+        OPENSSL_free(namedup);
 }
 
 static int rsa_keygen(int bits, EVP_PKEY **pub, EVP_PKEY **priv)
@@ -506,7 +529,7 @@ static int kem_rsa_gen_recover(void)
 
     ret = TEST_true(rsa_keygen(2048, &pub, &priv))
           && TEST_ptr(sctx = EVP_PKEY_CTX_new_from_pkey(libctx, pub, NULL))
-          && TEST_int_eq(EVP_PKEY_encapsulate_init(sctx), 1)
+          && TEST_int_eq(EVP_PKEY_encapsulate_init(sctx, NULL), 1)
           && TEST_int_eq(EVP_PKEY_CTX_set_kem_op(sctx, "RSASVE"), 1)
           && TEST_int_eq(EVP_PKEY_encapsulate(sctx, NULL, &ctlen, NULL,
                                               &secretlen), 1)
@@ -515,7 +538,7 @@ static int kem_rsa_gen_recover(void)
           && TEST_int_eq(EVP_PKEY_encapsulate(sctx, ct, &ctlen, secret,
                                               &secretlen), 1)
           && TEST_ptr(rctx = EVP_PKEY_CTX_new_from_pkey(libctx, priv, NULL))
-          && TEST_int_eq(EVP_PKEY_decapsulate_init(rctx), 1)
+          && TEST_int_eq(EVP_PKEY_decapsulate_init(rctx, NULL), 1)
           && TEST_int_eq(EVP_PKEY_CTX_set_kem_op(rctx, "RSASVE"), 1)
           && TEST_int_eq(EVP_PKEY_decapsulate(rctx, NULL, &unwraplen,
                                               ct, ctlen), 1)
@@ -545,21 +568,21 @@ static int kem_rsa_params(void)
           /* Test setting kem op before the init fails */
           && TEST_int_eq(EVP_PKEY_CTX_set_kem_op(pubctx, "RSASVE"), -2)
           /* Test NULL ctx passed */
-          && TEST_int_eq(EVP_PKEY_encapsulate_init(NULL), 0)
+          && TEST_int_eq(EVP_PKEY_encapsulate_init(NULL, NULL), 0)
           && TEST_int_eq(EVP_PKEY_encapsulate(NULL, NULL, NULL, NULL, NULL), 0)
-          && TEST_int_eq(EVP_PKEY_decapsulate_init(NULL), 0)
+          && TEST_int_eq(EVP_PKEY_decapsulate_init(NULL, NULL), 0)
           && TEST_int_eq(EVP_PKEY_decapsulate(NULL, NULL, NULL, NULL, 0), 0)
           /* Test Invalid operation */
           && TEST_int_eq(EVP_PKEY_encapsulate(pubctx, NULL, NULL, NULL, NULL), -1)
           && TEST_int_eq(EVP_PKEY_decapsulate(privctx, NULL, NULL, NULL, 0), 0)
           /* Wrong key component - no secret should be returned on failure */
-          && TEST_int_eq(EVP_PKEY_decapsulate_init(pubctx), 1)
+          && TEST_int_eq(EVP_PKEY_decapsulate_init(pubctx, NULL), 1)
           && TEST_int_eq(EVP_PKEY_CTX_set_kem_op(pubctx, "RSASVE"), 1)
           && TEST_int_eq(EVP_PKEY_decapsulate(pubctx, secret, &secretlen, ct,
                                               sizeof(ct)), 0)
           && TEST_uchar_eq(secret[0], 0)
           /* Test encapsulate fails if the mode is not set */
-          && TEST_int_eq(EVP_PKEY_encapsulate_init(pubctx), 1)
+          && TEST_int_eq(EVP_PKEY_encapsulate_init(pubctx, NULL), 1)
           && TEST_int_eq(EVP_PKEY_encapsulate(pubctx, ct, &ctlen, secret, &secretlen), -2)
           /* Test setting a bad kem ops fail */
           && TEST_int_eq(EVP_PKEY_CTX_set_kem_op(pubctx, "RSA"), 0)
@@ -583,7 +606,7 @@ static int kem_rsa_params(void)
           /* Test that lengths are optional if ct is not NULL */
           && TEST_int_eq(EVP_PKEY_encapsulate(pubctx, ct, NULL, secret, NULL), 1)
           /* Pass if secret or secret length are not NULL */
-          && TEST_int_eq(EVP_PKEY_decapsulate_init(privctx), 1)
+          && TEST_int_eq(EVP_PKEY_decapsulate_init(privctx, NULL), 1)
           && TEST_int_eq(EVP_PKEY_CTX_set_kem_op(privctx, "RSASVE"), 1)
           && TEST_int_eq(EVP_PKEY_decapsulate(privctx, secret, NULL, ct, sizeof(ct)), 1)
           && TEST_int_eq(EVP_PKEY_decapsulate(privctx, NULL, &secretlen, ct, sizeof(ct)), 1)
@@ -633,7 +656,7 @@ static int kem_invalid_keytype(void)
 
     if (!TEST_ptr(sctx = EVP_PKEY_CTX_new_from_pkey(libctx, key, NULL)))
         goto done;
-    if (!TEST_int_eq(EVP_PKEY_encapsulate_init(sctx), -2))
+    if (!TEST_int_eq(EVP_PKEY_encapsulate_init(sctx, NULL), -2))
         goto done;
 
     ret = 1;
@@ -677,13 +700,13 @@ int setup_tests(void)
     ADD_TEST(dhx_cert_load);
 #endif
 
-    if (!TEST_ptr(cipher_names = sk_OPENSSL_CSTRING_new(name_cmp)))
+    if (!TEST_ptr(cipher_names = sk_OPENSSL_STRING_new(name_cmp)))
         return 0;
     EVP_CIPHER_do_all_provided(libctx, collect_cipher_names, cipher_names);
 
-    ADD_ALL_TESTS(test_cipher_reinit, sk_OPENSSL_CSTRING_num(cipher_names));
+    ADD_ALL_TESTS(test_cipher_reinit, sk_OPENSSL_STRING_num(cipher_names));
     ADD_ALL_TESTS(test_cipher_reinit_partialupdate,
-                  sk_OPENSSL_CSTRING_num(cipher_names));
+                  sk_OPENSSL_STRING_num(cipher_names));
     ADD_TEST(kem_rsa_gen_recover);
     ADD_TEST(kem_rsa_params);
 #ifndef OPENSSL_NO_DH
@@ -692,9 +715,15 @@ int setup_tests(void)
     return 1;
 }
 
+/* Because OPENSSL_free is a macro, it can't be passed as a function pointer */
+static void string_free(char *m)
+{
+    OPENSSL_free(m);
+}
+
 void cleanup_tests(void)
 {
-    sk_OPENSSL_CSTRING_free(cipher_names);
+    sk_OPENSSL_STRING_pop_free(cipher_names, string_free);
     OSSL_PROVIDER_unload(libprov);
     OSSL_LIB_CTX_free(libctx);
     OSSL_PROVIDER_unload(nullprov);

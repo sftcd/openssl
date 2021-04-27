@@ -1,5 +1,5 @@
 /*
- * Copyright 2017-2020 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2017-2021 The OpenSSL Project Authors. All Rights Reserved.
  * Copyright 2017 Ribose Inc. All Rights Reserved.
  * Ported from Ribose contributions from Botan.
  *
@@ -187,7 +187,7 @@ int ossl_sm2_encrypt(const EC_KEY *key,
 
     memset(ciphertext_buf, 0, *ciphertext_len);
 
-    if (!BN_priv_rand_range(k, order)) {
+    if (!BN_priv_rand_range_ex(k, order, ctx)) {
         ERR_raise(ERR_LIB_SM2, ERR_R_INTERNAL_ERROR);
         goto done;
     }

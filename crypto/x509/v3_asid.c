@@ -1,5 +1,5 @@
 /*
- * Copyright 2006-2020 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2006-2021 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -528,9 +528,9 @@ static void *v2i_ASIdentifiers(const struct v3_ext_method *method,
         /*
          * Figure out whether this is an AS or an RDI.
          */
-        if (!v3_name_cmp(val->name, "AS")) {
+        if (!ossl_v3_name_cmp(val->name, "AS")) {
             which = V3_ASID_ASNUM;
-        } else if (!v3_name_cmp(val->name, "RDI")) {
+        } else if (!ossl_v3_name_cmp(val->name, "RDI")) {
             which = V3_ASID_RDI;
         } else {
             ERR_raise(ERR_LIB_X509V3, X509V3_R_EXTENSION_NAME_ERROR);
@@ -624,7 +624,7 @@ static void *v2i_ASIdentifiers(const struct v3_ext_method *method,
 /*
  * OpenSSL dispatch.
  */
-const X509V3_EXT_METHOD v3_asid = {
+const X509V3_EXT_METHOD ossl_v3_asid = {
     NID_sbgp_autonomousSysNum,  /* nid */
     0,                          /* flags */
     ASN1_ITEM_ref(ASIdentifiers), /* template */

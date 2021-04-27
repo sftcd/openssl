@@ -261,7 +261,7 @@ static int ossl_encoder_ctx_setup_for_pkey(OSSL_ENCODER_CTX *ctx,
         }
     }
 
-    if (OSSL_ENCODER_CTX_get_num_encoders(ctx) != 0) {
+    if (data != NULL && OSSL_ENCODER_CTX_get_num_encoders(ctx) != 0) {
         if (!OSSL_ENCODER_CTX_set_construct(ctx, encoder_construct_pkey)
             || !OSSL_ENCODER_CTX_set_construct_data(ctx, data)
             || !OSSL_ENCODER_CTX_set_cleanup(ctx, encoder_destruct_pkey))
@@ -316,7 +316,7 @@ OSSL_ENCODER_CTX *OSSL_ENCODER_CTX_new_for_pkey(const EVP_PKEY *pkey,
     OSSL_TRACE_BEGIN(ENCODER) {
         BIO_printf(trc_out,
                    "(ctx %p) Looking for %s encoders with selection %d\n",
-                   (void *)ctx, EVP_PKEY_get0_first_alg_name(pkey), selection);
+                   (void *)ctx, EVP_PKEY_get0_type_name(pkey), selection);
         BIO_printf(trc_out, "    output type: %s, output structure: %s\n",
                    output_type, output_struct);
     } OSSL_TRACE_END(ENCODER);
@@ -327,6 +327,14 @@ OSSL_ENCODER_CTX *OSSL_ENCODER_CTX_new_for_pkey(const EVP_PKEY *pkey,
         && OSSL_ENCODER_CTX_set_selection(ctx, selection)
         && ossl_encoder_ctx_setup_for_pkey(ctx, pkey, selection, propquery)
         && OSSL_ENCODER_CTX_add_extra(ctx, libctx, propquery)) {
+        OSSL_PARAM params[2] = { OSSL_PARAM_END, OSSL_PARAM_END };
+        int save_parameters = pkey->save_parameters;
+
+        params[0] = OSSL_PARAM_construct_int(OSSL_ENCODER_PARAM_SAVE_PARAMETERS,
+                                             &save_parameters);
+        /* ignoring error as this is only auxiliary parameter */
+        (void)OSSL_ENCODER_CTX_set_params(ctx, params);
+
         OSSL_TRACE_BEGIN(ENCODER) {
             BIO_printf(trc_out, "(ctx %p) Got %d encoders\n",
                        (void *)ctx, OSSL_ENCODER_CTX_get_num_encoders(ctx));

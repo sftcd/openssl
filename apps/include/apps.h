@@ -46,7 +46,7 @@
 # define _UC(c) ((unsigned char)(c))
 
 void app_RAND_load_conf(CONF *c, const char *section);
-void app_RAND_write(void);
+int app_RAND_write(void);
 int app_RAND_load(void);
 
 extern char *default_config_file; /* may be "" */
@@ -120,7 +120,16 @@ EVP_PKEY *load_pubkey(const char *uri, int format, int maybe_stdin,
                       const char *pass, ENGINE *e, const char *desc);
 EVP_PKEY *load_keyparams(const char *uri, int maybe_stdin, const char *keytype,
                          const char *desc);
-int load_certs(const char *uri, STACK_OF(X509) **certs,
+char *next_item(char *opt); /* in list separated by comma and/or space */
+int load_cert_certs(const char *uri,
+                    X509 **pcert, STACK_OF(X509) **pcerts,
+                    int exclude_http, const char *pass, const char *desc,
+                    X509_VERIFY_PARAM *vpm);
+STACK_OF(X509) *load_certs_multifile(char *files, const char *pass,
+                                     const char *desc, X509_VERIFY_PARAM *vpm);
+X509_STORE *load_certstore(char *input, const char *pass, const char *desc,
+                           X509_VERIFY_PARAM *vpm);
+int load_certs(const char *uri, int maybe_stdin, STACK_OF(X509) **certs,
                const char *pass, const char *desc);
 int load_crls(const char *uri, STACK_OF(X509_CRL) **crls,
               const char *pass, const char *desc);
@@ -203,7 +212,7 @@ typedef struct ca_db_st {
 } CA_DB;
 
 void app_bail_out(char *fmt, ...);
-void* app_malloc(int sz, const char *what);
+void *app_malloc(size_t sz, const char *what);
 BIGNUM *load_serial(const char *serialfile, int create, ASN1_INTEGER **retai);
 int save_serial(const char *serialfile, const char *suffix, const BIGNUM *serial,
                 ASN1_INTEGER **retai);
@@ -262,6 +271,7 @@ typedef struct app_http_tls_info_st {
 } APP_HTTP_TLS_INFO;
 BIO *app_http_tls_cb(BIO *hbio, /* APP_HTTP_TLS_INFO */ void *arg,
                      int connect, int detail);
+void APP_HTTP_TLS_INFO_free(APP_HTTP_TLS_INFO *info);
 # ifndef OPENSSL_NO_SOCK
 ASN1_VALUE *app_http_get_asn1(const char *url, const char *proxy,
                               const char *no_proxy, SSL_CTX *ssl_ctx,

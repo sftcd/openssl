@@ -1,5 +1,5 @@
 /*
- * Copyright 1998-2017 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 1998-2021 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -267,7 +267,7 @@ EVP_PKEY *get_dsa(int dsa_bits)
                              params) <= 0)
         pkey = NULL;
 err:
-    OSSL_PARAM_BLD_free_params(params);
+    OSSL_PARAM_free(params);
     OSSL_PARAM_BLD_free(tmpl);
     BN_free(priv_key);
     BN_free(pub_key);

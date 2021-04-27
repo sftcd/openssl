@@ -65,12 +65,12 @@ static int verify_command(const char *data, const char *digest, const char *quer
                           const char *in, int token_in,
                           const char *CApath, const char *CAfile,
                           const char *CAstore,
-                          const char *untrusted, X509_VERIFY_PARAM *vpm);
+                          char *untrusted, X509_VERIFY_PARAM *vpm);
 static TS_VERIFY_CTX *create_verify_ctx(const char *data, const char *digest,
                                         const char *queryfile,
                                         const char *CApath, const char *CAfile,
                                         const char *CAstore,
-                                        const char *untrusted,
+                                        char *untrusted,
                                         X509_VERIFY_PARAM *vpm);
 static X509_STORE *create_cert_store(const char *CApath, const char *CAfile,
                                      const char *CAstore, X509_VERIFY_PARAM *vpm);
@@ -100,7 +100,7 @@ const OPTIONS ts_options[] = {
     {"CAfile", OPT_CAFILE, '<', "File with trusted CA certs"},
     {"CApath", OPT_CAPATH, '/', "Path to trusted CA files"},
     {"CAstore", OPT_CASTORE, ':', "URI to trusted CA store"},
-    {"untrusted", OPT_UNTRUSTED, '<', "File with untrusted certs"},
+    {"untrusted", OPT_UNTRUSTED, '<', "Extra untrusted certs"},
     {"token_in", OPT_TOKEN_IN, '-', "Input is a PKCS#7 file"},
     {"token_out", OPT_TOKEN_OUT, '-', "Output is a PKCS#7 file"},
     {"passin", OPT_PASSIN, 's', "Input file pass phrase source"},
@@ -149,16 +149,17 @@ static char* opt_helplist[] = {
     "    [-text]",
 #endif
     "",
-    " openssl ts -verify -CApath dir -CAfile file.pem -CAstore uri",
-    "   -untrusted file.pem [-data file] [-digest hexstring]",
-    "    [-queryfile file] -in file [-token_in] ...",
+    " openssl ts -verify -CApath dir -CAfile root-cert.pem -CAstore uri",
+    "   -untrusted extra-certs.pem [-data file] [-digest hexstring]",
+    "    [-queryfile request.tsq] -in response.tsr [-token_in] ...",
     NULL,
 };
 
 int ts_main(int argc, char **argv)
 {
     CONF *conf = NULL;
-    const char *CAfile = NULL, *untrusted = NULL, *prog;
+    const char *CAfile = NULL, *prog;
+    char *untrusted = NULL;
     const char *configfile = default_config_file, *engine = NULL;
     const char *section = NULL, *digestname = NULL;
     char **helpp;
@@ -167,7 +168,7 @@ int ts_main(int argc, char **argv)
     char *in = NULL, *out = NULL, *queryfile = NULL, *passin = NULL;
     char *inkey = NULL, *signer = NULL, *chain = NULL, *CApath = NULL;
     char *CAstore = NULL;
-    const EVP_MD *md = NULL;
+    EVP_MD *md = NULL;
     OPTION_CHOICE o, mode = OPT_ERR;
     int ret = 1, no_nonce = 0, cert = 0, text = 0;
     int vpmtouched = 0;
@@ -291,7 +292,9 @@ int ts_main(int argc, char **argv)
     if (argc != 0 || mode == OPT_ERR)
         goto opthelp;
 
-    app_RAND_load();
+    if (!app_RAND_load())
+        goto end;
+
     if (digestname != NULL) {
         if (!opt_md(digestname, &md))
             goto opthelp;
@@ -340,6 +343,7 @@ int ts_main(int argc, char **argv)
 
  end:
     X509_VERIFY_PARAM_free(vpm);
+    EVP_MD_free(md);
     NCONF_free(conf);
     OPENSSL_free(password);
     return ret;
@@ -842,7 +846,7 @@ static int save_ts_serial(const char *serialfile, ASN1_INTEGER *serial)
 static int verify_command(const char *data, const char *digest, const char *queryfile,
                           const char *in, int token_in,
                           const char *CApath, const char *CAfile,
-                          const char *CAstore, const char *untrusted,
+                          const char *CAstore, char *untrusted,
                           X509_VERIFY_PARAM *vpm)
 {
     BIO *in_bio = NULL;
@@ -890,10 +894,11 @@ static TS_VERIFY_CTX *create_verify_ctx(const char *data, const char *digest,
                                         const char *queryfile,
                                         const char *CApath, const char *CAfile,
                                         const char *CAstore,
-                                        const char *untrusted,
+                                        char *untrusted,
                                         X509_VERIFY_PARAM *vpm)
 {
     TS_VERIFY_CTX *ctx = NULL;
+    STACK_OF(X509) *certs;
     BIO *input = NULL;
     TS_REQ *request = NULL;
     int ret = 0;
@@ -943,10 +948,13 @@ static TS_VERIFY_CTX *create_verify_ctx(const char *data, const char *digest,
             == NULL)
         goto err;
 
-    /* Loading untrusted certificates. */
-    if (untrusted
-        && TS_VERIFY_CTX_set_certs(ctx, TS_CONF_load_certs(untrusted)) == NULL)
-        goto err;
+    /* Loading any extra untrusted certificates. */
+    if (untrusted != NULL) {
+        certs = load_certs_multifile(untrusted, NULL, "extra untrusted certs",
+                                     vpm);
+        if (certs == NULL || TS_VERIFY_CTX_set_certs(ctx, certs) == NULL)
+            goto err;
+    }
     ret = 1;
 
  err:

@@ -2,8 +2,9 @@
 #include <openssl/err.h>
 #include <openssl/core.h>
 #include <openssl/core_dispatch.h>
-#include "crypto/evp.h"
 #include "internal/provider.h"
+#include "internal/core.h"
+#include "crypto/evp.h"
 #include "evp_local.h"
 
 static int evp_mac_up_ref(void *vmac)
@@ -26,6 +27,7 @@ static void evp_mac_free(void *vmac)
     CRYPTO_DOWN_REF(&mac->refcnt, &ref, mac->lock);
     if (ref > 0)
         return;
+    OPENSSL_free(mac->type_name);
     ossl_provider_free(mac->prov);
     CRYPTO_THREAD_lock_free(mac->lock);
     OPENSSL_free(mac);
@@ -46,10 +48,11 @@ static void *evp_mac_new(void)
     return mac;
 }
 
-static void *evp_mac_from_dispatch(int name_id,
-                                   const OSSL_DISPATCH *fns,
-                                   OSSL_PROVIDER *prov)
+static void *evp_mac_from_algorithm(int name_id,
+                                    const OSSL_ALGORITHM *algodef,
+                                    OSSL_PROVIDER *prov)
 {
+    const OSSL_DISPATCH *fns = algodef->implementation;
     EVP_MAC *mac = NULL;
     int fnmaccnt = 0, fnctxcnt = 0;
 
@@ -58,6 +61,11 @@ static void *evp_mac_from_dispatch(int name_id,
         return NULL;
     }
     mac->name_id = name_id;
+    if ((mac->type_name = ossl_algorithm_get1_first_name(algodef)) == NULL) {
+        evp_mac_free(mac);
+        return NULL;
+    }
+    mac->description = algodef->algorithm_description;
 
     for (; fns->function_id != 0; fns++) {
         switch (fns->function_id) {
@@ -153,7 +161,7 @@ EVP_MAC *EVP_MAC_fetch(OSSL_LIB_CTX *libctx, const char *algorithm,
                        const char *properties)
 {
     return evp_generic_fetch(libctx, OSSL_OP_MAC, algorithm, properties,
-                             evp_mac_from_dispatch, evp_mac_up_ref,
+                             evp_mac_from_algorithm, evp_mac_up_ref,
                              evp_mac_free);
 }
 
@@ -225,5 +233,5 @@ void EVP_MAC_do_all_provided(OSSL_LIB_CTX *libctx,
 {
     evp_generic_do_all(libctx, OSSL_OP_MAC,
                        (void (*)(void *, void *))fn, arg,
-                       evp_mac_from_dispatch, evp_mac_free);
+                       evp_mac_from_algorithm, evp_mac_free);
 }

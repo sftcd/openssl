@@ -69,7 +69,8 @@ static void *x448_newctx(void *provctx)
     return ecx_newctx(provctx, X448_KEYLEN);
 }
 
-static int ecx_init(void *vecxctx, void *vkey)
+static int ecx_init(void *vecxctx, void *vkey,
+                    ossl_unused const OSSL_PARAM params[])
 {
     PROV_ECX_CTX *ecxctx = (PROV_ECX_CTX *)vecxctx;
     ECX_KEY *key = vkey;
@@ -153,7 +154,8 @@ static int ecx_derive(void *vecxctx, unsigned char *secret, size_t *secretlen,
             }
         } else
 #endif
-        if (X25519(secret, ecxctx->key->privkey, ecxctx->peerkey->pubkey) == 0) {
+        if (ossl_x25519(secret, ecxctx->key->privkey,
+                        ecxctx->peerkey->pubkey) == 0) {
             ERR_raise(ERR_LIB_PROV, PROV_R_FAILED_DURING_DERIVATION);
             return 0;
         }
@@ -168,7 +170,8 @@ static int ecx_derive(void *vecxctx, unsigned char *secret, size_t *secretlen,
             }
         } else
 #endif
-        if (X448(secret, ecxctx->key->privkey, ecxctx->peerkey->pubkey) == 0) {
+        if (ossl_x448(secret, ecxctx->key->privkey,
+                      ecxctx->peerkey->pubkey) == 0) {
             ERR_raise(ERR_LIB_PROV, PROV_R_FAILED_DURING_DERIVATION);
             return 0;
         }

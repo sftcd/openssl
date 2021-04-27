@@ -1,5 +1,5 @@
 /*
- * Copyright 2019-2020 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2019-2021 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -107,7 +107,28 @@ void ossl_algorithm_do_all(OSSL_LIB_CTX *libctx, int operation_id,
     cbdata.data = data;
 
     if (provider == NULL)
-        ossl_provider_forall_loaded(libctx, algorithm_do_this, &cbdata);
+        ossl_provider_doall_activated(libctx, algorithm_do_this, &cbdata);
     else
         algorithm_do_this(provider, &cbdata);
+}
+
+char *ossl_algorithm_get1_first_name(const OSSL_ALGORITHM *algo)
+{
+    const char *first_name_end = NULL;
+    size_t first_name_len = 0;
+    char *ret;
+
+    if (algo->algorithm_names == NULL)
+        return NULL;
+
+    first_name_end = strchr(algo->algorithm_names, ':');
+    if (first_name_end == NULL)
+        first_name_len = strlen(algo->algorithm_names);
+    else
+        first_name_len = first_name_end - algo->algorithm_names;
+
+    ret = OPENSSL_strndup(algo->algorithm_names, first_name_len);
+    if (ret == NULL)
+        ERR_raise(ERR_LIB_EVP, ERR_R_MALLOC_FAILURE);
+    return ret;
 }

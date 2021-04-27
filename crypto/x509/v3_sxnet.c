@@ -1,5 +1,5 @@
 /*
- * Copyright 1999-2020 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 1999-2021 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -25,7 +25,7 @@ static int sxnet_i2r(X509V3_EXT_METHOD *method, SXNET *sx, BIO *out,
 static SXNET *sxnet_v2i(X509V3_EXT_METHOD *method, X509V3_CTX *ctx,
                         STACK_OF(CONF_VALUE) *nval);
 #endif
-const X509V3_EXT_METHOD v3_sxnet = {
+const X509V3_EXT_METHOD ossl_v3_sxnet = {
     NID_sxnet, X509V3_EXT_MULTILINE, ASN1_ITEM_ref(SXNET),
     0, 0, 0, 0,
     0, 0,

@@ -1,5 +1,5 @@
 /*
- * Copyright 2019-2020 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2019-2021 The OpenSSL Project Authors. All Rights Reserved.
  * Copyright (c) 2019, Oracle and/or its affiliates.  All rights reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
@@ -1128,11 +1128,13 @@ int OSSL_PARAM_get_utf8_string(const OSSL_PARAM *p, char **val, size_t max_len)
      */
     size_t data_length = p->data_size;
 
+    if (ret == 0)
+        return 0;
     if (data_length >= max_len)
         data_length = OPENSSL_strnlen(p->data, data_length);
     if (data_length >= max_len)
         return 0;            /* No space for a terminating NUL byte */
-    ((char *)*val)[data_length] = '\0';
+    (*val)[data_length] = '\0';
 
     return ret;
 }
@@ -1291,4 +1293,3 @@ int OSSL_PARAM_get_octet_string_ptr(const OSSL_PARAM *p, const void **val,
     return OSSL_PARAM_get_octet_ptr(p, val, used_len)
         || get_string_ptr_internal(p, val, used_len, OSSL_PARAM_OCTET_STRING);
 }
-

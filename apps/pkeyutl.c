@@ -124,6 +124,7 @@ int pkeyutl_main(int argc, char **argv)
     STACK_OF(OPENSSL_STRING) *pkeyopts_passin = NULL;
     int rawin = 0;
     EVP_MD_CTX *mctx = NULL;
+    EVP_MD *md = NULL;
     int filesize = -1;
     OSSL_LIB_CTX *libctx = app_get0_libctx();
 
@@ -255,7 +256,8 @@ int pkeyutl_main(int argc, char **argv)
     if (argc != 0)
         goto opthelp;
 
-    app_RAND_load();
+    if (!app_RAND_load())
+        goto end;
 
     if (rawin && pkey_op != EVP_PKEY_OP_SIGN && pkey_op != EVP_PKEY_OP_VERIFY) {
         BIO_printf(bio_err,
@@ -506,6 +508,7 @@ int pkeyutl_main(int argc, char **argv)
  end:
     EVP_MD_CTX_free(mctx);
     EVP_PKEY_CTX_free(ctx);
+    EVP_MD_free(md);
     release_engine(e);
     BIO_free(in);
     BIO_free_all(out);
@@ -606,11 +609,13 @@ static EVP_PKEY_CTX *init_ctx(const char *kdfalg, int *pkeysize,
 
         switch (pkey_op) {
         case EVP_PKEY_OP_SIGN:
-            rv = EVP_DigestSignInit_ex(mctx, NULL, digestname, libctx, propq, pkey);
+            rv = EVP_DigestSignInit_ex(mctx, NULL, digestname, libctx, propq,
+                                       pkey, NULL);
             break;
 
         case EVP_PKEY_OP_VERIFY:
-            rv = EVP_DigestVerifyInit_ex(mctx, NULL, digestname, libctx, propq, pkey);
+            rv = EVP_DigestVerifyInit_ex(mctx, NULL, digestname, libctx, propq,
+                                         pkey, NULL);
             break;
         }
 
