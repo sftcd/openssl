@@ -1,15 +1,11 @@
 # The main targets ###################################################
 #
 
-all: esni mk_esnikeys
+all: 
 
 # While futzing with documentation/doxygen stuff this is handy
 thelot:
-	- (cd ..;make)
-	- make esni
-	- make test
 	- make doc	
-	- ./testclient.sh -H ietf.org
 
 libssl.a: ../libssl.a
 	cp ../libssl.a .
@@ -35,43 +31,17 @@ docclean:
 # change back to the line below when done debugging maybe
 #${CC} -g -pthread -Wa,--noexecstack -Wall -O3 -o $@ $< -L. -lssl -lcrypto -ldl 
 
-esnimain.o: esnimain.c ../include/openssl/esni.h ../include/openssl/esnierr.h
-	$(CC) -g -I../apps -I. -I..  -I../include -I../ssl $(BIN_CFLAGS) $(BIN_CPPFLAGS) -MMD -MF $<.d.tmp -MT $@ -c -o $@ $< 
-
-esni: esnimain.o libssl.a libcrypto.a
-	${CC} -g -pthread -Wall -o $@ esnimain.o -L. -lssl -lcrypto -ldl 
-
-test:
-	./doit.sh fresh -v
-
-staletest:
-	./doit.sh
-
-mk_esnikeys: mk_esnikeys.o
-
-mk_esnikeys.o: mk_esnikeys.c ../include/openssl/esni.h 
-	$(CC) -g -I../apps -I. -I..  -I../include -I../ssl $(BIN_CFLAGS) $(BIN_CPPFLAGS) -MMD -MF $<.d.tmp -MT $@ -c -o $@ $< 
-
-mk_esnikeys: mk_esnikeys.o libssl.a libcrypto.a
-	${CC} -g -pthread -Wall -o $@ mk_esnikeys.o -L. -lssl -lcrypto -ldl 
-
 clean:
-	- rm -f esni esnimain.o libssl.a libcrypto.a *.tmp 
-	- rm -f mk_esnikeys.o mk_esnikeys 
+	- rm -f libssl.a libcrypto.a *.tmp 
 	- rm -f nss.premaster.txt nss.ssl.debug
 
 keys:
-	- ./make-esnikeys.sh
-	- ./testserver.sh -K
+	- ./make-example-ca.sh
 	- ./doech.sh
 
 keyclean:
-	- rm -f esnikeys.pub esnikeys.priv
 	- rm -f echoconfig.pem
-	- rm -rf esnikeydir
 	- rm -rf cadir
 
 reallyclean: clean docclean keyclean
 
-echo: 
-	- ./doecho.sh

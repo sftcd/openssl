@@ -492,9 +492,6 @@ static const ssl_trace_tbl ssl_exts_tbl[] = {
 # ifndef OPENSSL_NO_NEXTPROTONEG
     {TLSEXT_TYPE_next_proto_neg, "next_proto_neg"},
 # endif
-#ifndef OPENSSL_NO_ESNI
-    {TLSEXT_TYPE_esni,"encrypted_server_name"},
-#endif
 #ifndef OPENSSL_NO_ECH
     {TLSEXT_TYPE_ech,"encrypted_client_hello"},
     {TLSEXT_TYPE_outer_extensions,"outer_extension"},
@@ -892,14 +889,6 @@ static int ssl_print_extension(BIO *bio, int indent, int server,
         BIO_indent(bio, indent + 2, 80);
         BIO_printf(bio, "max_early_data=%u\n", max_early_data);
         break;
-
-#ifndef OPENSSL_NO_ESNI
-    case TLSEXT_TYPE_esni:
-        BIO_indent(bio, indent + 2, 80);
-        BIO_printf(bio,"Got an esni of length (%ld)\n",extlen);
-        ssl_print_hex(bio, indent + 4, "ESNI", ext, extlen);
-        break;
-#endif
 
 #ifndef OPENSSL_NO_ECH
     case TLSEXT_TYPE_ech:

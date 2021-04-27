@@ -28,6 +28,10 @@ Most recent first...
 DON'T TRY ECH YET!!! The very much work-in-progress code is
 sooooo awful still...
 
+- 20210426: this build removes ESNI code but still builds and seems to
+  run at least a basic ECH client test ok; most likely this'll need to
+  be done more than once to get it all right
+
 - 20210425: created an ESNI-and-ECH branch to mark state of play before
   the start of cleaning up.
 

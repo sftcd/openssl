@@ -16,11 +16,6 @@
 #include <errno.h>
 #include <openssl/e_os2.h>
 
-#ifndef OPENSSL_NO_ESNI
-# include <openssl/esni.h>
-# include <openssl/esnierr.h>
-#endif
-
 #ifndef OPENSSL_NO_ECH
 # include <openssl/ech.h>
 #endif
@@ -74,19 +69,6 @@ static int keymatexportlen = 20;
 static BIO *bio_c_out = NULL;
 static int c_quiet = 0;
 static char *sess_out = NULL;
-
-#ifndef OPENSSL_NO_ESNI
-const char *encservername = NULL;
-const char *servername = NULL;
-const char *public_name = NULL;
-static unsigned int esni_print_cb(SSL *s, char *str);
-int esni_strict=0;
-int esni_grease=0;
-#ifndef OPENSSL_NO_SSL_TRACE
-static size_t esni_trace_cb(const char *buf, size_t cnt,
-                 int category, int cmd, void *vdata);
-#endif
-#endif
 
 #ifndef OPENSSL_NO_ECH
 const char *ech_inner_name=NULL; ///< server-name in inner-CH - default to usual servername
@@ -506,12 +488,6 @@ typedef enum OPTION_choice {
 #endif
     OPT_DANE_TLSA_RRDATA, OPT_DANE_EE_NO_NAME,
     OPT_ENABLE_PHA,
-#ifndef OPENSSL_NO_ESNI
-    OPT_ESNI,
-    OPT_ESNI_RR,
-    OPT_ESNI_STRICT,
-    OPT_ESNI_GREASE,
-#endif
 #ifndef OPENSSL_NO_ECH
     OPT_ECHOUTER,
     OPT_ECHCONFIGS,
@@ -648,16 +624,6 @@ const OPTIONS s_client_options[] = {
     {"nocommands", OPT_NOCMDS, '-', "Do not use interactive command letters"},
     {"servername", OPT_SERVERNAME, 's',
      "Set TLS extension servername (SNI) in ClientHello (default)"},
-#ifndef OPENSSL_NO_ESNI
-    {"esni", OPT_ESNI, 's',
-     "Set TLS extension encrypted servername (ESNI) in ClientHello, value is to-be-encrypted name"},
-    {"esnirr", OPT_ESNI_RR, 's',
-     "Set ESNI ESNIKeys, value is RR as per I-D -02,-03 or -04"},
-    {"esni_strict",OPT_ESNI_STRICT,'-',
-     "Enforce strict matching between ESNI value and TLS server cert"},
-    {"esni_grease",OPT_ESNI_GREASE,'-',
-     "Send GREASE values when not really using ESNI"},
-#endif
 #ifndef OPENSSL_NO_ECH
     {"ech-outer", OPT_ECHOUTER, 's',
      "The name to put in the outer CH overriding the server's choice"},
@@ -838,12 +804,6 @@ static int new_session_cb(SSL *s, SSL_SESSION *sess)
 	    } else if (c_debug) {
 	        BIO_printf(bio_c_out,"Existing session hostname is %s\n",hn_1);
 	    }
-	    const char *ehn_1=SSL_SESSION_get0_enchostname(sess);
-	    if (ehn_1==NULL && c_debug) {
-	        BIO_printf(bio_c_out,"Existing session enchostname is NULL\n");
-	    } else if (c_debug)  {
-	        BIO_printf(bio_c_out,"Existing session enchostname is %s\n",ehn_1);
-	    }
 	    if (ech_inner_name!=NULL) {
 	        /*
 	         * If doing ECH then stuff that name into the session, so that 
@@ -862,85 +822,6 @@ static int new_session_cb(SSL *s, SSL_SESSION *sess)
 	    } 
 	    if (c_debug) {
 	        BIO_printf(bio_err,"---\nECH stuff so far:\n");
-	        SSL_SESSION_print(bio_err, sess);
-	    }
-    }
-#endif
-
-#ifndef OPENSSL_NO_ESNI
-    if (encservername!=NULL) {
-	    if (c_debug) {
-	        BIO_printf(bio_c_out,"new_session_cb called - esni flavour\n");
-	    }
-	    const char *hn=SSL_SESSION_get0_hostname(sess);
-	    if (hn==NULL && c_debug) {
-	        BIO_printf(bio_c_out,"Existing session hostname is NULL\n");
-	    } else if (c_debug) {
-	        BIO_printf(bio_c_out,"Existing session hostname is %s\n",hn);
-	    }
-	    const char *ehn=SSL_SESSION_get0_enchostname(sess);
-	    if (ehn==NULL && c_debug) {
-	        BIO_printf(bio_c_out,"Existing session enchostname is NULL\n");
-	    } else if (c_debug)  {
-	        BIO_printf(bio_c_out,"Existing session enchostname is %s\n",ehn);
-	    }
-	    if (encservername!=NULL) {
-	        /*
-	         * If doing ESNI then stuff that name into the session, so that 
-	          * it'll be visible/remembered later.
-	          */
-	        int rv=SSL_SESSION_set1_enchostname(sess,encservername);
-	        if (rv!=1) {
-	            if (c_debug) 
-	                BIO_printf(bio_err, "Can't set ESNI/enchostname in session...\n");
-	            ERR_print_errors(bio_err);
-	        } else {
-	            if (c_debug) 
-	                BIO_printf(bio_err, "Set ESNI/enchostname in session to %s\n",encservername);
-	            ERR_print_errors(bio_err);
-	        }
-	    } 
-	    if (servername!=NULL) {
-	        /*
-	         * If doing cleartext SNI then put that in session 
-	         */
-	        int rv=SSL_SESSION_set1_hostname(sess,servername);
-	        if (rv!=1) {
-	            if (c_debug) 
-	                BIO_printf(bio_err, "Can't set ESNI/hostname in session...\n");
-	        } else {
-	            if (c_debug) 
-	                BIO_printf(bio_err, "Set ESNI/hostname in session to %s\n",servername);
-	        }
-	        /* also stick that in public_name_override */
-	        rv=SSL_SESSION_set1_public_name_override(sess,servername);
-	        if (rv!=1) {
-	            if (c_debug) 
-	                BIO_printf(bio_err, "Can't set ESNI/public_name_override in session...\n");
-	        } else {
-	            if (c_debug) 
-	                BIO_printf(bio_err, "Set ESNI/public_name_override in session to %s\n",servername);
-	        }
-	        /* 
-	         * put public_name into session, public_name set from callback
-	         */
-	        if (public_name!=NULL) {
-	            rv=SSL_SESSION_set1_public_name(sess,public_name);
-	            if (rv!=1) {
-	                if (c_debug) 
-	                    BIO_printf(bio_err, "Can't set ESNI/public_name in session...\n");
-	            } else {
-	                if (c_debug) 
-	                    BIO_printf(bio_err, "Set ESNI/public_name in session to %s\n",public_name);
-	            }
-	        } else {
-	            if (c_debug) 
-	                BIO_printf(bio_err, "Can't set ESNI/public_name (none visible) in session...\n");
-	        }
-	        ERR_print_errors(bio_err);
-	    }
-	    if (c_debug) {
-	        BIO_printf(bio_err,"---\nESNI stuff so far:\n");
 	        SSL_SESSION_print(bio_err, sess);
 	    }
     }
@@ -1038,16 +919,7 @@ int s_client_main(int argc, char **argv)
 #if defined(OPENSSL_SYS_WINDOWS) || defined(OPENSSL_SYS_MSDOS)
     struct timeval tv;
 #endif
-#ifndef OPENSSL_NO_ESNI
-    int nesnis=0;
-    const char *esnikeys_asciirr = NULL;
-    SSL_ESNI *esnikeys=NULL;
-#else
-    /*
-     * We make this global (yuk) if doing ESNI so we can stuff in session via cb
-     */
     const char *servername = NULL;
-#endif
     int noservername = 0;
     const char *alpn_in = NULL;
 #ifndef OPENSSL_NO_ECH
@@ -1613,21 +1485,6 @@ int s_client_main(int argc, char **argv)
             ech_inner_name = servername;
 #endif
             break;
-#ifndef OPENSSL_NO_ESNI
-        case OPT_ESNI:
-            encservername = opt_arg();
-            break;
-        case OPT_ESNI_RR:
-            esnikeys_asciirr = opt_arg();
-            break;
-        case OPT_ESNI_STRICT:
-            esni_strict=1;
-            break;
-        case OPT_ESNI_GREASE:
-            esni_grease=1;
-            break;
-#endif
-
 #ifndef OPENSSL_NO_ECH
         case OPT_ECHOUTER:
             ech_outer_name = opt_arg();
@@ -1741,26 +1598,6 @@ int s_client_main(int argc, char **argv)
             goto opthelp;
         }
     }
-
-#ifndef OPENSSL_NO_ESNI
-    if (encservername != NULL) {
-        if (esnikeys_asciirr == NULL) {
-            BIO_printf(bio_err,
-                       "%s: Can't use -esni without -esnirr \n",
-                       prog);
-            goto opthelp;
-        }
-        /*
-         * tee up encrypted SNI
-         */
-        if (SSL_esni_checknames(encservername,servername)!=1) {
-            BIO_printf(bio_err,
-                       "%s: ESNI name check failed.\n",
-                       prog);
-            goto opthelp;
-        } 
-    }
-#endif
 
 #ifndef OPENSSL_NO_ECH
     if (alpn_outer_in !=NULL || ech_outer_name != NULL) {
@@ -1961,12 +1798,6 @@ int s_client_main(int argc, char **argv)
         ERR_print_errors(bio_err);
         goto end;
     }
-
-#ifndef OPENSSL_NO_ESNI
-    if (esni_grease!=0) {
-        SSL_CTX_set_options(ctx,SSL_OP_ESNI_GREASE);
-    }
-#endif
 
 #ifndef OPENSSL_NO_ECH
     if (ech_grease!=0) {
@@ -2265,9 +2096,9 @@ int s_client_main(int argc, char **argv)
             goto end;
         }
         if (!SSL_set_session(con, sess)) {
-#if !defined(OPENSSL_NO_ESNI) && !defined(OPENSSL_NO_ECH)
+#ifndef OPENSSL_NO_ECH
             /* 
-             * Nothing to do with ESNI, but a missing free here
+             * Nothing to do with ECH, but a missing free here
              */
             SSL_SESSION_free(sess);
 #endif
@@ -2275,70 +2106,6 @@ int s_client_main(int argc, char **argv)
             ERR_print_errors(bio_err);
             goto end;
         }
-
-#ifndef OPENSSL_NO_ESNI
-        {
-        /*
-         * As per RFC8446, 4.6.1 check that the cert in the session covers
-         * the server name we want (preferring encservername over 
-         * servername)
-         * At this point it doesn't really matter what the old names in
-         * the session were, those are just informative.
-         * Maybe print the peer's subject name (and/or SANs) as well?
-         * But likely too much info and 'openssl sess_id' can do it 
-         * We also print stuff, maybe a bit too much.
-         */
-        const char *thisname=NULL;
-        if (encservername!=NULL) {
-            thisname=encservername;
-            BIO_printf(bio_err, "Encservername is set to %s\n",encservername);
-        } else if (servername!=NULL) {
-            BIO_printf(bio_err, "Encservername is NULL\n");
-            thisname=servername;
-        }
-        if (servername==NULL) {
-            BIO_printf(bio_err, "Servername is NULL\n");
-        } else {
-            BIO_printf(bio_err, "Servername is set to %s\n",servername);
-        }
-
-        if (esni_strict && thisname!=NULL) {
-            const char *hn=SSL_SESSION_get0_hostname(sess);
-            if (hn!=NULL) {
-                BIO_printf(bio_err, "Stored session hostname is %s\n",hn);
-            } else { 
-                BIO_printf(bio_err, "Stored session hostname is missing\n");
-            }
-            const char *ehn=SSL_SESSION_get0_enchostname(sess);
-            if (ehn!=NULL) {
-                BIO_printf(bio_err, "Stored session encrypted hostname is %s\n",ehn);
-            } else { 
-                BIO_printf(bio_err, "Stored session encrypted hostname is missing\n");
-            }
-            X509 *peer=SSL_SESSION_get0_peer(sess);
-            if (peer==NULL) {
-                SSL_SESSION_free(sess);
-                BIO_printf(bio_err, "Stored session peer is NULL - exiting\n");
-                ERR_print_errors(bio_err);
-                goto end;
-            }
-            /*
-             * FIXME: This causes a ``make test`` test case to fail
-             * when thisname is "localhost" and I guess it's a self-signed cert
-             * ...or maybe for all self-signed certs, which wouldn't be acceptable
-             * this used to be: int rv=X509_check_host(peer,thisname,strlen(thisname),0,NULL);
-             */
-            int rv=X509_check_host(peer,thisname,strlen(thisname),0,NULL);
-            if (rv!=1) {
-                SSL_SESSION_free(sess);
-                BIO_printf(bio_err, "Stored session peer doesn't match %s - exiting\n",thisname);
-                ERR_print_errors(bio_err);
-                goto end;
-            }
-        }
-
-        }
-#endif
 
 #ifndef OPENSSL_NO_ECH
         {
@@ -2394,42 +2161,9 @@ int s_client_main(int argc, char **argv)
         }
     }
 
-#ifndef OPENSSL_NO_ESNI
-    if (encservername != NULL ) {
-        esnikeys=SSL_ESNI_new_from_buffer(ctx,con,ESNI_RRFMT_GUESS,strlen(esnikeys_asciirr),esnikeys_asciirr,&nesnis);
-        if (nesnis==0 || esnikeys == NULL) {
-            BIO_printf(bio_err,
-                       "%s: ESNI decode failed.\n",
-                       prog);
-            goto opthelp;
-        } 
-        if (c_msg>0) {
-            SSL_ESNI_print(bio_err,esnikeys,ESNI_SELECT_ALL);
-        }
-        if (SSL_esni_enable(con,encservername,servername,esnikeys,nesnis,esni_strict)!=1) {
-            BIO_printf(bio_err, "%s: ESNI enabling failed.\n", prog);
-            ERR_print_errors(bio_err);
-            /*
-             * Slight leak on error here otherwise
-             * Normally esnikeys will be freed when the SSL context is, but
-             * we don't yet have one of those, so...
-             */
-            if (esnikeys!=NULL) {
-                SSL_ESNI_free(esnikeys);
-                OPENSSL_free(esnikeys);
-            }
-            goto end;
-        }
-        /*
-         * NULL this as we no longer need to free it
-         */
-        esnikeys=NULL;
-    }
-#endif
-
 #ifndef OPENSSL_NO_ECH
     if (ech_encoded_configs!=NULL) {
-        int rv=SSL_ech_add(con,ESNI_RRFMT_GUESS,strlen(ech_encoded_configs),ech_encoded_configs,&nechs);
+        int rv=SSL_ech_add(con,ECH_FMT_GUESS,strlen(ech_encoded_configs),ech_encoded_configs,&nechs);
         if (rv != 1) {
             BIO_printf(bio_err, "%s: ECHConfig decode failed.\n", prog);
             goto opthelp;
@@ -2441,7 +2175,7 @@ int s_client_main(int argc, char **argv)
     }
     if (ech_svcb_rr!=NULL) {
         int lnechs=0;
-        int rv=SSL_svcb_add(con,ESNI_RRFMT_GUESS,strlen(ech_svcb_rr),ech_svcb_rr,&lnechs);
+        int rv=SSL_svcb_add(con,ECH_FMT_GUESS,strlen(ech_svcb_rr),ech_svcb_rr,&lnechs);
         if (rv != 1) {
             BIO_printf(bio_err, "%s: SVCB decode failed.\n", prog);
             goto opthelp;
@@ -2596,14 +2330,6 @@ int s_client_main(int argc, char **argv)
             SSL_set_msg_callback(con, msg_cb);
         SSL_set_msg_callback_arg(con, bio_c_msg ? bio_c_msg : bio_c_out);
 
-#ifndef OPENSSL_NO_ESNI
-#ifndef OPENSSL_NO_SSL_TRACE
-        if (c_msg==2) {
-            OSSL_trace_set_callback(OSSL_TRACE_CATEGORY_TLS, esni_trace_cb, bio_c_msg? bio_c_msg : bio_c_out);
-        }
-#endif
-#endif
-
 #ifndef OPENSSL_NO_ECH
 #ifndef OPENSSL_NO_SSL_TRACE
         if (c_msg==2) {
@@ -2623,12 +2349,6 @@ int s_client_main(int argc, char **argv)
         SSL_set_tlsext_status_type(con, TLSEXT_STATUSTYPE_ocsp);
         SSL_CTX_set_tlsext_status_cb(ctx, ocsp_resp_cb);
         SSL_CTX_set_tlsext_status_arg(ctx, bio_c_out);
-    }
-#endif
-
-#ifndef OPENSSL_NO_ESNI
-    if (c_msg) {
-        SSL_set_esni_callback(con, esni_print_cb);
     }
 #endif
 
@@ -3527,20 +3247,6 @@ int s_client_main(int argc, char **argv)
  shut:
     if (in_init)
         print_stuff(bio_c_out, con, full_log);
-#ifdef NOT_OPENSSL_NO_ESNI_BUT_DEBUGGING
-    /*
-     * Debugging - not really ESNI related (I think) but the 
-     * callback for session tickets isn't firing in a slightly
-     * confusing manner so this is to rule out some possible
-     * causes.
-     */
-    if (sess_out) {
-        int snooze=10;
-        printf("Sleeping for %d\n",snooze);
-        sleep(snooze);
-        printf("Waking\n");
-    }
-#endif
     do_ssl_shutdown(con);
 
     /*
@@ -3574,13 +3280,6 @@ int s_client_main(int argc, char **argv)
             print_stuff(bio_c_out, con, 1);
         SSL_free(con);
     }
-#ifndef OPENSSL_NO_ESNI
-    if (esnikeys!=NULL) {
-        SSL_ESNI_free(esnikeys);
-        OPENSSL_free(esnikeys);
-        esnikeys=NULL;
-    }
-#endif
     SSL_SESSION_free(psksess);
 #if !defined(OPENSSL_NO_NEXTPROTONEG)
     OPENSSL_free(next_proto.data);
@@ -3824,32 +3523,6 @@ static void print_stuff(BIO *bio, SSL *s, int full)
         BIO_printf(bio, "Verify return code: %ld (%s)\n", verify_result,
                    X509_verify_cert_error_string(verify_result));
 
-#ifndef OPENSSL_NO_ESNI
-        char *hidden=NULL;
-        char *clear_sni=NULL;
-        switch (SSL_get_esni_status(s,&hidden,&clear_sni)) {
-        case SSL_ESNI_STATUS_NOT_TRIED: 
-            break;
-        case SSL_ESNI_STATUS_FAILED: 
-            BIO_printf(bio,"ESNI: tried but failed\n");
-            break;
-        case SSL_ESNI_STATUS_BAD_NAME: 
-            BIO_printf(bio,"ESNI: worked but bad name\n");
-            break;
-        case SSL_ESNI_STATUS_GREASE: 
-            BIO_printf(bio,"ESNI: Just did greasing\n");
-            break;
-        case SSL_ESNI_STATUS_SUCCESS:
-            BIO_printf(bio,"ESNI: success: clear sni: '%s', hidden: '%s'\n",
-                            (clear_sni==NULL?"none":clear_sni),
-                            (hidden==NULL?"none":hidden));
-            break;
-        default:
-            BIO_printf(bio,"ESNI: Error trying ESNI\n");
-            break;
-        }
-#endif
-
 #ifndef OPENSSL_NO_ECH
         {
             char *inner=NULL;
@@ -3907,60 +3580,10 @@ static void print_stuff(BIO *bio, SSL *s, int full)
     (void)BIO_flush(bio);
 }
 
-// ESNI_DOXY_START
-#ifndef OPENSSL_NO_ESNI
-/**
- * @brief print an ESNI structure, this time thread safely;-)
- */
-static unsigned int esni_print_cb(SSL *s, char *str)
-{
-    if (c_debug && str!=NULL) {
-        BIO_printf(bio_c_out,"ESNI Client callback printing: %s\n",str);
-    } else if (c_debug && str==NULL) {
-        BIO_printf(bio_c_out,"ESNI Client callback not printing 'cause str is NULL\n");
-    }
-    return 1;
-}
-
-#ifndef OPENSSL_NO_SSL_TRACE
-/*
- * ESNI Tracing callback 
- */
-static size_t esni_trace_cb(const char *buf, size_t cnt,
-                 int category, int cmd, void *vdata)
-{
-     BIO *bio = vdata;
-     const char *label = NULL;
-     switch (cmd) {
-     case OSSL_TRACE_CTRL_BEGIN:
-         label = "ESNI TRACE BEGIN";
-         break;
-     case OSSL_TRACE_CTRL_END:
-         label = "ESNI TRACE END";
-         break;
-     }
-     if (label != NULL) {
-         union {
-             pthread_t tid;
-             unsigned long ltid;
-         } tid;
-         tid.tid = pthread_self();
-         BIO_printf(bio, "%s TRACE[%s]:%lx\n",
-                    label, OSSL_trace_get_category_name(category), tid.ltid);
-     }
-     size_t brv=(size_t)BIO_puts(bio, buf);
-     (void)BIO_flush(bio);
-     return brv;
-}
-#endif
-
-#endif
-// ESNI_DOXY_END
-
 #ifndef OPENSSL_NO_ECH
 #ifndef OPENSSL_NO_SSL_TRACE
 /*
- * ESNI Tracing callback 
+ * ECH Tracing callback 
  */
 static size_t ech_trace_cb(const char *buf, size_t cnt,
                  int category, int cmd, void *vdata)

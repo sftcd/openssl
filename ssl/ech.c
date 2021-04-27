@@ -1949,9 +1949,6 @@ int ech_outer_config[]={
      /*TLSEXT_IDX_cryptopro_bug */ 0,
      /*TLSEXT_IDX_early_data */ 0,
      /*TLSEXT_IDX_certificate_authorities */ 0,
-#ifndef OPENSSL_NO_ESNI
-     /*TLSEXT_IDX_esni */ 0,
-#endif
 #ifndef OPENSSL_NO_ECH
      /*TLSEXT_IDX_ech */ 0,
      /*TLSEXT_IDX_outer_extensions */ 0,
@@ -1998,9 +1995,6 @@ int ech_outer_indep[]={
      /*TLSEXT_IDX_cryptopro_bug */ 0,
      /*TLSEXT_IDX_early_data */ 0,
      /*TLSEXT_IDX_certificate_authorities */ 0,
-#ifndef OPENSSL_NO_ESNI
-     /*TLSEXT_IDX_esni */ 0,
-#endif
 #ifndef OPENSSL_NO_ECH
      /*TLSEXT_IDX_ech */ 0,
      /*TLSEXT_IDX_outer_extensions */ 0,

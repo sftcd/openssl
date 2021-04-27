@@ -9,9 +9,6 @@
 
 #include <stdio.h>
 #include <openssl/err.h>
-#ifndef OPENSSL_NO_ESNI
-#include <openssl/esnierr.h>
-#endif
 #include "crypto/err.h"
 #include "crypto/cryptoerr.h"
 #include "crypto/asn1err.h"
@@ -108,9 +105,6 @@ int err_load_crypto_strings_int(void)
         || err_load_OSSL_STORE_strings_int() == 0
         || err_load_PROP_strings_int() == 0
         || err_load_PROV_strings_int() == 0
-#endif
-#ifndef OPENSSL_NO_ESNI
-        || ERR_load_ESNI_strings() == 0
 #endif
         )
         return 0;

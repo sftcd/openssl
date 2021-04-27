@@ -86,15 +86,6 @@ SSL_SESSION *SSL_SESSION_new(void)
         return NULL;
     }
 
-#ifdef OPENSSL_NO_ESNI
-    ss->ext.enchostname=NULL;
-    ss->ext.hostname=NULL;
-    ss->ext.clear_sni=NULL;
-    ss->ext.pubic_name=NULL;
-    ss->ext.kse_len=0;
-    ss->ext.kse=NULL;
-#endif
-
     if (!CRYPTO_new_ex_data(CRYPTO_EX_INDEX_SSL_SESSION, ss, &ss->ex_data)) {
         CRYPTO_THREAD_lock_free(ss->lock);
         OPENSSL_free(ss);
@@ -191,35 +182,6 @@ SSL_SESSION *ssl_session_dup(const SSL_SESSION *src, int ticket)
             goto err;
         }
     }
-
-#ifndef OPENSSL_NO_ESNI
-    if (src->ext.encservername) {
-        dest->ext.encservername = OPENSSL_strdup(src->ext.encservername);
-        if (dest->ext.encservername == NULL) {
-            goto err;
-        }
-    }
-    if (src->ext.clear_sni) {
-        dest->ext.clear_sni = OPENSSL_strdup(src->ext.clear_sni);
-        if (dest->ext.clear_sni == NULL) {
-            goto err;
-        }
-    }
-    if (src->ext.public_name) {
-        dest->ext.public_name = OPENSSL_strdup(src->ext.public_name);
-        if (dest->ext.public_name == NULL) {
-            goto err;
-        }
-    }
-    if (src->ext.kse_len!=0 && src->ext.kse != NULL) {
-        dest->ext.kse = OPENSSL_malloc(src->ext.kse_len);
-        if (dest->ext.kse == NULL) {
-            goto err;
-        }
-        memcpy(dest->ext.kse,src->ext.kse,src->ext.kse_len);
-        dest->ext.kse_len=src->ext.kse_len;
-    }
-#endif
 
     if (ticket != 0 && src->ext.tick != NULL) {
         dest->ext.tick =
@@ -795,13 +757,6 @@ void SSL_SESSION_free(SSL_SESSION *ss)
     X509_free(ss->peer);
     sk_X509_pop_free(ss->peer_chain, X509_free);
     OPENSSL_free(ss->ext.hostname);
-#ifndef OPENSSL_NO_ESNI
-    OPENSSL_free(ss->ext.encservername);
-    OPENSSL_free(ss->ext.clear_sni);
-    OPENSSL_free(ss->ext.public_name);
-    OPENSSL_free(ss->ext.kse);
-    ss->ext.kse_len=0;
-#endif
     OPENSSL_free(ss->ext.tick);
 #ifndef OPENSSL_NO_PSK
     OPENSSL_free(ss->psk_identity_hint);
@@ -915,52 +870,6 @@ const char *SSL_SESSION_get0_hostname(const SSL_SESSION *s)
 {
     return s->ext.hostname;
 }
-
-#ifndef OPENSSL_NO_ESNI
-
-const char *SSL_SESSION_get0_enchostname(const SSL_SESSION *s)
-{
-    return s->ext.encservername;
-}
-
-int SSL_SESSION_set1_enchostname(SSL_SESSION *s, const char *hostname)
-{
-    if (s->ext.encservername) 
-        OPENSSL_free(s->ext.encservername);
-    if (hostname == NULL) {
-        s->ext.encservername = NULL;
-        return 1;
-    }
-    s->ext.encservername = OPENSSL_strdup(hostname);
-    return s->ext.encservername != NULL;
-}
-
-int SSL_SESSION_set1_public_name_override(SSL_SESSION *s, const char *servername)
-{
-    if (s->ext.clear_sni) 
-        OPENSSL_free(s->ext.clear_sni);
-    if (servername == NULL) {
-        s->ext.clear_sni = NULL;
-        return 1;
-    }
-    s->ext.clear_sni = OPENSSL_strdup(servername);
-    return s->ext.clear_sni != NULL;
-}
- 
-
-int SSL_SESSION_set1_public_name(SSL_SESSION *s, const char *public_name)
-{
-    if (s->ext.public_name) 
-        OPENSSL_free(s->ext.public_name);
-    if (public_name == NULL) {
-        s->ext.public_name = NULL;
-        return 1;
-    }
-    s->ext.public_name = OPENSSL_strdup(public_name);
-    return s->ext.public_name != NULL;
-}
-
-#endif
 
 #ifndef OPENSSL_NO_ECH
 /* 

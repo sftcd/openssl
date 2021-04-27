@@ -73,7 +73,6 @@ static ERR_STRING_DATA ERR_str_libraries[] = {
     {ERR_PACK(ERR_LIB_KDF, 0, 0), "KDF routines"},
     {ERR_PACK(ERR_LIB_OSSL_STORE, 0, 0), "STORE routines"},
     {ERR_PACK(ERR_LIB_SM2, 0, 0), "SM2 routines"},
-    {ERR_PACK(ERR_LIB_ESNI, 0, 0), "ESNI routines"},
     {ERR_PACK(ERR_LIB_ESS, 0, 0), "ESS routines"},
     {ERR_PACK(ERR_LIB_PROV, 0, 0), "Provider routines"},
     {ERR_PACK(ERR_LIB_OSSL_ENCODER, 0, 0), "ENCODER routines"},

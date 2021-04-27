@@ -854,24 +854,6 @@ SSL *SSL_new(SSL_CTX *ctx)
         goto err;
 #endif
 
-#ifndef OPENSSL_NO_ESNI
-    if (ctx->ext.esni!=NULL) {
-	    s->esni=SSL_ESNI_dup(ctx->ext.esni,ctx->ext.nesni,ESNI_SELECT_ALL);
-        if (s->esni==NULL) {
-            goto err;
-        }
-	    s->nesni=ctx->ext.nesni;
-	    s->esni_cb=ctx->ext.esni_cb;
-	    s->esni_done=0;
-	    s->esni_attempted=0;
-        if (s->esni->num_esni_rrs==0) {
-            goto err;
-        }
-    } else if (ctx->ext.nesni!=0) {
-        goto err;
-    } 
-#endif
-
 #ifndef OPENSSL_NO_ECH
 
     s->nechs=ctx->ext.nechs;
@@ -1357,32 +1339,6 @@ void SSL_free(SSL *s)
 
 #ifndef OPENSSL_NO_SRTP
     sk_SRTP_PROTECTION_PROFILE_free(s->srtp_profiles);
-#endif
-
-#ifndef OPENSSL_NO_ESNI
-	if (s->esni!=NULL) {
-        /*
-         * int i;
-        for (i=0;i!=s->nesni;i++) {
-		    SSL_ESNI_free(&s->esni[i]);
-        }
-        */
-        SSL_ESNI_free(s->esni);
-		OPENSSL_free(s->esni);
-		s->nesni=0;
-		s->esni_cb=NULL;
-		s->esni=NULL;
-		s->esni_done=0;
-	    s->esni_attempted=0;
-	}
-    if (s->ext.kse!=NULL) {
-        OPENSSL_free(s->ext.kse);
-        s->ext.kse=NULL;
-        s->ext.kse_len=0;
-    }
-    OPENSSL_free(s->ext.encservername);
-    OPENSSL_free(s->ext.clear_sni);
-    OPENSSL_free(s->ext.public_name);
 #endif
 
 #ifndef OPENSSL_NO_ECH
@@ -3532,10 +3488,6 @@ SSL_CTX *SSL_CTX_new_ex(OSSL_LIB_CTX *libctx, const char *propq,
 
     ssl_ctx_system_config(ret);
 
-#ifndef OPENSSL_NO_ESNI
-	ret->ext.esni=NULL;
-#endif
-
 #ifndef OPENSSL_NO_ECH
 	ret->ext.nechs=0;
 	ret->ext.ech=NULL;
@@ -3643,15 +3595,6 @@ void SSL_CTX_free(SSL_CTX *a)
     OPENSSL_free(a->group_list);
 
     OPENSSL_free(a->sigalg_lookup_cache);
-
-#ifndef OPENSSL_NO_ESNI
-	if (a->ext.esni!=NULL) {
-        SSL_ESNI_free(a->ext.esni);
-		OPENSSL_free(a->ext.esni);
-		a->ext.esni=NULL;
-		a->ext.nesni=0;
-	}
-#endif
 
 #ifndef OPENSSL_NO_ECH
 	if (a->ext.ech!=NULL) {

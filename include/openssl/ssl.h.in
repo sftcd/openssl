@@ -330,17 +330,6 @@ typedef int (*SSL_async_callback_fn)(SSL *s, void *arg);
 /* Allow initial connection to servers that don't support RI */
 # define SSL_OP_LEGACY_SERVER_CONNECT                    0x00000004U
 
-#ifndef OPENSSL_NO_ESNI
-/* TODO: Find space for real values */
-/* set this to tell client to emit greased ESNI values */
-#define SSL_OP_ESNI_GREASE                               0x00000008U
-/* set this to tell server to fail if ESNI fails (default off due to GREASE) */
-#define SSL_OP_ESNI_HARDFAIL                             0x00000100U
-/* If this is set then the server side will attempt trial decryption */
-/* of ESNIs even if there is no matching record_digest. That's very  */
-/* inefficient, but more privacy friendly */
-#define SSL_OP_ESNI_TRIALDECRYPT                         0x00000020U
-#endif
 #ifndef OPENSSL_NO_ECH
 /* TODO: Find space for real values */
 /* we'll take two values for ECH greasing */
@@ -349,7 +338,7 @@ typedef int (*SSL_async_callback_fn)(SSL *s, void *arg);
 /* set this to tell server to fail if ECH fails (default off due to GREASE) */
 #define SSL_OP_ECH_HARDFAIL                              0x00000100U
 /* If this is set then the server side will attempt trial decryption */
-/* of ESNIs even if there is no matching record_digest. That's very  */
+/* of ECHs even if there is no matching record_digest. That's very  */
 /* inefficient, but more privacy friendly */
 #define SSL_OP_ECH_TRIALDECRYPT                         0x00000020U
 #endif
@@ -864,12 +853,6 @@ void SSL_CTX_set_alpn_select_cb(SSL_CTX *ctx,
                                 void *arg);
 void SSL_get0_alpn_selected(const SSL *ssl, const unsigned char **data,
                             unsigned int *len);
-
-#ifndef OPENSSL_NO_ESNI
-typedef unsigned int (*SSL_esni_cb_func)(SSL *ssl, char *str);
-void SSL_set_esni_callback(SSL *s, SSL_esni_cb_func f);
-void SSL_CTX_set_esni_callback(SSL_CTX *s, SSL_esni_cb_func f);
-#endif
 
 #ifndef OPENSSL_NO_ECH
 typedef unsigned int (*SSL_ech_cb_func)(SSL *ssl, char *str);
@@ -1722,12 +1705,6 @@ __owur int SSL_SESSION_set_protocol_version(SSL_SESSION *s, int version);
 
 __owur const char *SSL_SESSION_get0_hostname(const SSL_SESSION *s);
 __owur int SSL_SESSION_set1_hostname(SSL_SESSION *s, const char *hostname);
-#if !defined(OPENSSL_NO_ESNI) || !defined(OPENSSL_NO_ECH)
-__owur const char *SSL_SESSION_get0_enchostname(const SSL_SESSION *s);
-__owur int SSL_SESSION_set1_enchostname(SSL_SESSION *s, const char *hostname);
-__owur int SSL_SESSION_set1_public_name(SSL_SESSION *s, const char *hostname);
-__owur int SSL_SESSION_set1_public_name_override(SSL_SESSION *s, const char *hostname);
-#endif
 void SSL_SESSION_get0_alpn_selected(const SSL_SESSION *s,
                                     const unsigned char **alpn,
                                     size_t *len);
@@ -2578,11 +2555,6 @@ void SSL_CTX_set_allow_early_data_cb(SSL_CTX *ctx,
 void SSL_set_allow_early_data_cb(SSL *s,
                                  SSL_allow_early_data_cb_fn cb,
                                  void *arg);
-#ifndef OPENSSL_NO_ESNI
-#define SSL_MAX_SSL_RECORD_DIGEST_LENGTH 255
-#define SSL_MAX_SSL_ENCRYPTED_SNI_LENGTH 1024
-#endif
-
 
 /* store the default cipher strings inside the library */
 const char *OSSL_default_cipher_list(void);

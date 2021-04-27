@@ -305,7 +305,7 @@ int ech_same_ext(SSL *s, WPACKET* pkt);
 /**
  * @brief print a buffer nicely
  *
- * This is used in SSL_ESNI_print
+ * This is used in SSL_ECH_print
  */
 void ech_pbuf(const char *msg,const unsigned char *buf,const size_t blen);
 

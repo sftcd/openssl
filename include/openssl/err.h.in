@@ -122,7 +122,6 @@ struct err_state_st {
 # define ERR_LIB_OSSL_ENCODER    59
 # define ERR_LIB_OSSL_DECODER    60
 # define ERR_LIB_HTTP            61
-# define ERR_LIB_ESNI            100
 # define ERR_LIB_ECH             101
 
 # define ERR_LIB_USER            128
@@ -171,7 +170,6 @@ struct err_state_st {
 #  define UIerr(f, r) ERR_raise_data(ERR_LIB_UI, (r), NULL)
 #  define X509V3err(f, r) ERR_raise_data(ERR_LIB_X509V3, (r), NULL)
 #  define X509err(f, r) ERR_raise_data(ERR_LIB_X509, (r), NULL)
-#  define ESNIerr(f, r) ERR_raise_data(ERR_LIB_ESNI, (r), NULL)
 # endif
 
 /*-

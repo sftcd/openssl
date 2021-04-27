@@ -27,7 +27,7 @@
 #define ECH_CONTEXT_STRING (char*) "tls ech"
 #define ECH_ACCEPT_CONFIRM_STRING (char*) "ech accept confirmation"
 
-#define ECH_MAX_ECHCONFIGS_BUFLEN 2000  ///< max PEM encoded ESNIConfigs we'll emit
+#define ECH_MAX_ECHCONFIGS_BUFLEN 2000  ///< max PEM encoded ECHConfigs we'll emit
 #define ECH_MAX_RRVALUE_LEN 2000 ///< Max size of a collection of ECH RR values
 #define ECH_PBUF_SIZE 8*1024 ///<  8K buffer used for print string sent to application via ech_cb
 #define ECH_MAX_DNSNAME 255 ///< max size of a DNS name string (+1 for null and one for luck!)

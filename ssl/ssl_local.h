@@ -34,9 +34,6 @@
 # include "internal/refcount.h"
 # include "internal/tsan_assist.h"
 # include "internal/bio.h"
-#ifndef OPENSSL_NO_ESNI
-#include <openssl/esni.h>
-#endif
 #ifndef OPENSSL_NO_ECH
 #include "ech_local.h"
 #endif
@@ -546,9 +543,6 @@ struct ssl_method_st {
  *      Session_ID_context [ 4 ] EXPLICIT OCTET STRING,   -- the Session ID context
  *      Verify_result [ 5 ] EXPLICIT INTEGER,   -- X509_V_... code for `Peer'
  *      HostName [ 6 ] EXPLICIT OCTET STRING,   -- optional HostName from servername TLS extension
- *      #ifdef OPENSSL_NO_ESNI
- *      ENSIName [14] EXPLICIT OCTET STRING,    -- optional ESNI value
- *      #endif
  *      PSK_identity_hint [ 7 ] EXPLICIT OCTET STRING, -- optional PSK identity hint
  *      PSK_identity [ 8 ] EXPLICIT OCTET STRING,  -- optional PSK identity
  *      Ticket_lifetime_hint [9] EXPLICIT INTEGER, -- server's lifetime hint for session ticket
@@ -617,33 +611,6 @@ struct ssl_session_st {
 
     struct {
         char *hostname;
-
-#ifndef OPENSSL_NO_ESNI
-        /*
-         * the hostname will be set to the ESNI value, as appropriate
-         * invariants on hostname, encservername, clear_sni should be:
-         * - all NULL: no SNI/ESNI
-         * - hostname!=NULL, others NULL: just standard SNI
-         * - encservername !=NULL || clear_sni || public_name != NULL: ESNI is setup
-         *   in which case hostname should be the ESNI, other than
-         *   before the ESNI extension has been processed
-         * - hostname is the one used for keying
-         * - clear_sni is the API-provided SNI or the SNI from an
-         *   SNI extension
-         * - public_name is the name provided from ESNIKeys and 
-         *   can be overrided by clear_sni
-         *
-         */
-		char *encservername;
-		char *clear_sni;
-		char *public_name;
-        /*
-         * Additionally we record the encoded key share extension
-         * value from the ClientHello for use as the AAD in ENSI
-         */
-        size_t kse_len;
-        unsigned char *kse;
-#endif
 
 # ifndef OPENSSL_NO_EC
         size_t ecpointformats_len;
@@ -805,9 +772,6 @@ typedef enum tlsext_index_en {
     TLSEXT_IDX_cryptopro_bug,
     TLSEXT_IDX_early_data,
     TLSEXT_IDX_certificate_authorities,
-#ifndef OPENSSL_NO_ESNI
-    TLSEXT_IDX_esni,
-#endif
 #ifndef OPENSSL_NO_ECH
     TLSEXT_IDX_ech,
     TLSEXT_IDX_outer_extensions,
@@ -1158,17 +1122,6 @@ struct ssl_ctx_st {
         SSL_CTX_npn_select_cb_func npn_select_cb;
         void *npn_select_cb_arg;
 # endif
-
-#ifndef OPENSSL_NO_ESNI
-		/* 
-		 * Encrypted SNI structure(s), one per loaded key pair
-		 * will be reduced to (the matching) one when we derive an 
-		 * SSL structure from the SSL_CTX factory
-		 */
-		size_t	nesni; /* the number of elements in the esni array */
-		SSL_ESNI *esni;
-        SSL_esni_cb_func esni_cb;
-#endif
 
 #ifndef OPENSSL_NO_ECH
         /*
@@ -1642,17 +1595,6 @@ struct ssl_st {
                          const unsigned char *data, int len, void *arg);
         void *debug_arg;
         char *hostname;
-#ifndef OPENSSL_NO_ESNI
-		char *encservername;
-		char *clear_sni;
-		char *public_name;
-        /*
-         * Additionally we record the encoded key share extension
-         * value from the ClientHello for use as the AAD in ENSI
-         */
-        size_t kse_len;
-        unsigned char *kse;
-#endif
 
 #ifndef OPENSSL_NO_ECH
         /*
@@ -1803,13 +1745,6 @@ struct ssl_st {
      * 2 : don't call servername callback, no ack in server hello
      */
     int servername_done;
-#ifndef OPENSSL_NO_ESNI
-    int esni_done;
-    int esni_attempted;
-	size_t	nesni; /* the number of elements in the esni array */
-	SSL_ESNI *esni;
-    SSL_esni_cb_func esni_cb;
-#endif
 #ifndef OPENSSL_NO_ECH
     int nechs;
     SSL_ECH *ech;

@@ -23,23 +23,6 @@
 #include <openssl/ssl.h>
 #include <openssl/decoder.h>
 
-#ifndef OPENSSL_NO_ESNI
-#include <openssl/esni.h>
-
-#include <dirent.h> /* for esnidir handling */
-/* to use tracing, if configured and requested */
-#ifndef OPENSSL_NO_SSL_TRACE
-#include <openssl/trace.h>
-#endif
-/* for sockaddr stuff - not portable!!!  */
-#include <netinet/in.h>
-#include <sys/socket.h>
-#include <arpa/inet.h>
-#include <netdb.h>
-/* for timing in TRACE */
-#include <time.h>
-#endif
-
 #ifndef OPENSSL_NO_ECH
 #include <openssl/ech.h>
 #include <dirent.h> /* for echdir handling */
@@ -101,14 +84,6 @@ static int generate_session_id(SSL *ssl, unsigned char *id,
 static void init_session_cache_ctx(SSL_CTX *sctx);
 static void free_sessions(void);
 static void print_connection_info(SSL *con);
-
-#ifndef OPENSSL_NO_ESNI
-static unsigned int esni_print_cb(SSL *s, char *str);
-#ifndef OPENSSL_NO_SSL_TRACE
-static size_t esni_trace_cb(const char *buf, size_t cnt,
-                 int category, int cmd, void *vdata);
-#endif
-#endif
 
 #ifndef OPENSSL_NO_ECH
 static unsigned int ech_print_cb(SSL *s, char *str);
@@ -488,12 +463,12 @@ typedef struct tlsextctx_st {
     char *servername;
     BIO *biodebug;
     int extension_error;
-#if !defined(OPENSSL_NO_ESNI) && !defined(OPENSSL_NO_ECH) 
+#ifndef OPENSSL_NO_ECH 
     X509* scert;
 #endif
 } tlsextctx;
 
-// ESNI_DOXY_START
+// ECH_DOXY_START
 
 #ifndef OPENSSL_NO_ECH
 
@@ -677,218 +652,10 @@ static int ssl_ech_servername_cb(SSL *s, int *ad, void *arg)
 
 #endif
 
-#ifndef OPENSSL_NO_ESNI
-
-/**
- * @brief print an ESNI structure, this time thread safely;-)
- */
-static unsigned int esni_print_cb(SSL *s, char *str)
-{
-    if (str!=NULL) {
-        BIO_printf(bio_s_out,"ESNI Server callback printing: %s\n",str);
-    }
-    return 1;
-}
-
-/**
- * Padding size info
- */
-typedef struct {
-    size_t certpad; ///< Certificate messages to be a multiple of this size
-    size_t certverifypad; ///< CertificateVerify messages to be a multiple of this size
-} esni_padding_sizes;
-
-/**
- * passed as an argument to callback
- */
-esni_padding_sizes *esni_ps=NULL;
-
-/** 
- * @ brief pad Certificate and CertificateVerify messages
- *
- * This is passed to SSL_CTX_set_record_padding_callback
- * and pads the Certificate and CertificateVerify handshake
- * messages to a size derived from the argument arg
- *
- * @param s is the SSL connection
- * @param len is the plaintext length before padding
- * @param arg is a pointer to an esni_padding_sizes struct
- * @return is the number of bytes of padding to add to the plaintext
- */
-static size_t esni_padding_cb(SSL *s, int type, size_t len, void *arg)
-{
-    /* hard coded for now*/
-    esni_padding_sizes *ps=(esni_padding_sizes*)arg;
-    int state=SSL_get_state(s);
-    if (state==TLS_ST_SW_CERT) {
-        size_t newlen=ps->certpad-(len%ps->certpad)-16;
-        return (newlen>0?newlen:0);
-    }
-    if (state==TLS_ST_SW_CERT_VRFY) {
-        size_t newlen=ps->certverifypad-(len%ps->certverifypad)-16;
-        return (newlen>0?newlen:0);
-    }
-    return 0;
-}
-
-/**
- * @brief a servername_cb that is ESNI aware
- *
- * The server has possibly two names (from command line and config) basically 
- * in ctx and ctx2.
- * So we need to check if the client-supplied (E)SNI matches either and
- * serve whichever is appropriate.
- * X509_check_host is the way to do that, given an X509* pointer.
- * We default to the "main" ctx is the client-supplied (E)SNI does not
- * match the ctx2 certificate.
- * We don't fail if the client-supplied (E)SNI matches neither, but
- * just continue with the "main" ctx.
- * If the client-supplied (E)SNI matches both ctx and ctx2, then we'll
- * switch to ctx2 anyway - we don't try for a "best" match in that
- * case.
- *
- * @param s is the SSL connection
- * @param ad is dunno
- * @param arg is a pointer to a tlsext
- * @return 1 or error
- */
-static int ssl_esni_servername_cb(SSL *s, int *ad, void *arg)
-{
-    tlsextctx *p = (tlsextctx *) arg;
-    /*
-     * Basic logging
-     */
-    time_t now=time(0);
-    struct tm *tnow=gmtime(&now);
-    char *anow=asctime(tnow);
-    int sockfd=0;
-    int res=0;
-    char clientip[INET6_ADDRSTRLEN]; 
-    memset(clientip,0,INET6_ADDRSTRLEN);
-    strncpy(clientip,"dunno",INET6_ADDRSTRLEN);
-    struct sockaddr_storage ss;
-    socklen_t salen = sizeof(ss);
-    struct sockaddr *sa;
-    memset(&ss,0,salen);
-    sa = (struct sockaddr *)&ss;
-    res=BIO_get_fd(SSL_get_wbio(s),&sockfd);
-    if (res!=-1) {
-        res = getpeername(sockfd,sa,&salen);
-        if (res==0) res=getnameinfo(sa,salen,clientip,INET6_ADDRSTRLEN, 0,0,NI_NUMERICHOST);
-        if (res!=0) strncpy(clientip,"dunno",INET6_ADDRSTRLEN);
-    }
-    BIO_printf(p->biodebug,"ssl_esni_servername_cb: connection from %s at %s",clientip,anow);
-    /*
-     * Name that matches "main" ctx
-     */
-    const char *servername = SSL_get_servername(s, TLSEXT_NAMETYPE_host_name);
-    if (p->biodebug != NULL ) {
-        /*
-        * Client supplied ESNI (hidden) and SNI (clear_sni)
-        */
-        char *hidden=NULL; 
-        char *clear_sni=NULL;
-        int esnirv=SSL_get_esni_status(s,&hidden,&clear_sni);
-        switch (esnirv) {
-        case SSL_ESNI_STATUS_NOT_TRIED: 
-            BIO_printf(p->biodebug,"ssl_esni_servername_cb: ESNI not attempted\n");
-            break;
-        case SSL_ESNI_STATUS_FAILED: 
-            BIO_printf(p->biodebug,"ssl_esni_servername_cb: tried but failed\n");
-            break;
-        case SSL_ESNI_STATUS_BAD_NAME: 
-            BIO_printf(p->biodebug,"ssl_esni_servername_cb: worked but bad name\n");
-            break;
-        case SSL_ESNI_STATUS_SUCCESS:
-            BIO_printf(p->biodebug,"ssl_esni_servername_cb: success: clear sni: %s, hidden: %s\n",
-                            (clear_sni==NULL?"none":clear_sni),
-                            (hidden==NULL?"none":hidden));
-            break;
-        default:
-            BIO_printf(p->biodebug,"ssl_esni_servername_cb: Error getting ESNI status\n");
-            break;
-        }
-    }
-    if (servername != NULL && p->biodebug != NULL) {
-        const char *cp = servername;
-        unsigned char uc;
-        BIO_printf(p->biodebug, "ssl_esni_servername_cb: Hostname in TLS extension: \"");
-        while ((uc = *cp++) != 0)
-            BIO_printf(p->biodebug,
-                       isascii(uc) && isprint(uc) ? "%c" : "\\x%02x", uc);
-        BIO_printf(p->biodebug, "\"\n");
-        if (p->servername!=NULL) {
-            BIO_printf(p->biodebug, "ssl_esni_servername_cb: ctx servername: %s\n",p->servername);
-        } else {
-            BIO_printf(p->biodebug, "ssl_esni_servername_cb: ctx servername is NULL\n");
-        }
-        if (p->scert == NULL ) {
-            BIO_printf(p->biodebug, "ssl_esni_servername_cb: No 2nd cert! Things likely won't go well:-)\n");
-        }
-    }
-    if (p->servername == NULL)
-        return SSL_TLSEXT_ERR_NOACK;
-    if (p->scert == NULL )
-        return SSL_TLSEXT_ERR_NOACK;
-    if (servername != NULL) {
-        if (ctx2 != NULL) {
-            /*
-             * TODO: Check if strlen is really safe here - think it should be as
-             * internally will have checked there are no embedded NUL bytes but
-             * make sure.
-             */
-            int mrv=X509_check_host(p->scert,servername,strlen(servername),0,NULL);
-            if (mrv==1) {
-                if (p->biodebug!=NULL) {
-                     BIO_printf(p->biodebug, "ssl_esni_servername_cb: Switching context.\n");
-                }
-                SSL_set_SSL_CTX(s, ctx2);
-            } else {
-                if (p->biodebug!=NULL) {
-                     BIO_printf(p->biodebug, "ssl_esni_servername_cb: Not switching context - no name match (%d).\n",mrv);
-                }
-            }
-        }
-    } 
-    return SSL_TLSEXT_ERR_OK;
-}
-#ifndef OPENSSL_NO_SSL_TRACE
-/*
- * ESNI Tracing callback 
- */
-static size_t esni_trace_cb(const char *buf, size_t cnt,
-                 int category, int cmd, void *vdata)
-{
-     BIO *bio = vdata;
-     const char *label = NULL;
-     switch (cmd) {
-     case OSSL_TRACE_CTRL_BEGIN:
-         label = "ESNI TRACE BEGIN";
-         break;
-     case OSSL_TRACE_CTRL_END:
-         label = "ESNI TRACE END";
-         break;
-     }
-     if (label != NULL) {
-         union {
-             pthread_t tid;
-             unsigned long ltid;
-         } tid;
-         tid.tid = pthread_self();
-         BIO_printf(bio, "%s TRACE[%s]:%lx\n",
-                    label, OSSL_trace_get_category_name(category), tid.ltid);
-     }
-     size_t brv=(size_t)BIO_puts(bio, buf);
-     (void)BIO_flush(bio);
-     return brv;
-}
-#endif
-#endif
-
-// ESNI_DOXY_END
+// ECH_DOXY_END
 
 
-#if defined(OPENSSL_NO_ESNI) && defined(OPENSSL_NO_ECH)
+#ifdef OPENSSL_NO_ECH
 static int ssl_servername_cb(SSL *s, int *ad, void *arg)
 {
     tlsextctx *p = (tlsextctx *) arg;
@@ -1190,10 +957,6 @@ typedef enum OPTION_choice {
     OPT_SRTP_PROFILES, OPT_KEYMATEXPORT, OPT_KEYMATEXPORTLEN,
     OPT_KEYLOG_FILE, OPT_MAX_EARLY, OPT_RECV_MAX_EARLY, OPT_EARLY_DATA,
     OPT_S_NUM_TICKETS, OPT_ANTI_REPLAY, OPT_NO_ANTI_REPLAY, OPT_SCTP_LABEL_BUG,
-#ifndef OPENSSL_NO_ESNI
-    OPT_ESNIKEY, OPT_ESNIPRIV, OPT_ESNIPUB, OPT_ESNIDIR, OPT_ESNISPECIFICPAD, OPT_ESNI_HARDFAIL,
-    OPT_ESNI_TRIALDECRYPT,
-#endif
 #ifndef OPENSSL_NO_ECH
     OPT_ECHCONFIG, OPT_ECHDIR, OPT_ECHSPECIFICPAD, OPT_ECH_HARDFAIL,
     OPT_ECH_TRIALDECRYPT,
@@ -1433,21 +1196,12 @@ const OPTIONS s_server_options[] = {
 #endif
     {"alpn", OPT_ALPN, 's',
      "Set the advertised protocols for the ALPN extension (comma-separated list)"},
-#ifndef OPENSSL_NO_ESNI
-    {"esnikey", OPT_ESNIKEY, 's', "Load ESNI key pair"},
-    {"esnipriv", OPT_ESNIPRIV, 's', "Load ESNI private key"},
-    {"esnipub", OPT_ESNIPUB, 's', "Load ESNI public key"},
-    {"esnidir", OPT_ESNIDIR, 's', "ESNI information directory"},
-    {"esnispecificpad", OPT_ESNISPECIFICPAD, '-', "Do specific padding of Certificate/CertificateVerify (instead of general padding all)"},
-    {"esnihardfail", OPT_ESNI_HARDFAIL, '-', "Fail connection if ESNI decryption fails (default is to serve SNI/COVER site if ESNI fails due to GREASE"},
-    {"esnitrialdecrypt", OPT_ESNI_TRIALDECRYPT, '-', "Attepmt trial decryption with all loaded keys even if ESNI record_digest matching fails"},
-#endif
 #ifndef OPENSSL_NO_ECH
     {"echkey", OPT_ECHCONFIG, 's', "Load ECH key pair"},
     {"echdir", OPT_ECHDIR, 's', "ECH information directory"},
     {"echspecificpad", OPT_ECHSPECIFICPAD, '-', "Do specific padding of Certificate/CertificateVerify (instead of general padding all)"},
-    {"echhardfail", OPT_ECH_HARDFAIL, '-', "Fail connection if ESNI decryption fails (default is to serve SNI/COVER site if ESNI fails due to GREASE"},
-    {"echtrialdecrypt", OPT_ECH_TRIALDECRYPT, '-', "Attepmt trial decryption with all loaded keys even if ESNI record_digest matching fails"},
+    {"echhardfail", OPT_ECH_HARDFAIL, '-', "Fail connection if ECH decryption fails (default is to serve SNI/COVER site if ECH fails due to GREASE"},
+    {"echtrialdecrypt", OPT_ECH_TRIALDECRYPT, '-', "Attepmt trial decryption with all loaded keys even if ECH record_digest matching fails"},
 #endif
 #ifndef OPENSSL_NO_KTLS
     {"sendfile", OPT_SENDFILE, '-', "Use sendfile to response file with -WWW"},
@@ -1502,7 +1256,7 @@ int s_server_main(int argc, char *argv[])
     OPTION_CHOICE o;
     EVP_PKEY *s_key2 = NULL;
     X509 *s_cert2 = NULL;
-#if !defined(OPENSSL_NO_ESNI) && !defined(OPENSSL_NO_ECH)
+#ifndef OPENSSL_NO_ECH
     tlsextctx tlsextcbp = { NULL, NULL, SSL_TLSEXT_ERR_ALERT_WARNING, NULL };
 #else
     tlsextctx tlsextcbp = { NULL, NULL, SSL_TLSEXT_ERR_ALERT_WARNING };
@@ -1543,15 +1297,6 @@ int s_server_main(int argc, char *argv[])
     const char *keylog_file = NULL;
     int max_early_data = -1, recv_max_early_data = -1;
     char *psksessf = NULL;
-#ifndef OPENSSL_NO_ESNI
-    char *esnikeyfile = NULL; 
-    char *esniprivkeyfile = NULL; 
-    char *esnipubfile = NULL;
-    char *esnidir=NULL;
-    int esnispecificpad=0; ///< we default to generally padding to 512 octet multiples
-    int esnihardfail=0; ///< whether we fail if ESNI does or fall back to trying to serve COVER
-    int esnitrialdecrypt=0; ///< whether we attempt trial decryptions if record_digest mismatch
-#endif
 #ifndef OPENSSL_NO_ECH
     char *echkeyfile = NULL; 
     char *echdir=NULL;
@@ -2122,29 +1867,6 @@ int s_server_main(int argc, char *argv[])
             if (max_early_data == -1)
                 max_early_data = SSL3_RT_MAX_PLAIN_LENGTH;
             break;
-#ifndef OPENSSL_NO_ESNI
-        case OPT_ESNIKEY:
-            esnikeyfile=opt_arg();
-            break;
-        case OPT_ESNIPRIV:
-            esniprivkeyfile=opt_arg();
-            break;
-        case OPT_ESNIPUB:
-            esnipubfile=opt_arg();
-            break;
-        case OPT_ESNIDIR:
-            esnidir=opt_arg();
-            break;
-        case OPT_ESNISPECIFICPAD:
-            esnispecificpad=1;
-            break;
-        case OPT_ESNI_HARDFAIL:
-            esnihardfail=1;
-            break;
-        case OPT_ESNI_TRIALDECRYPT:
-            esnitrialdecrypt=1;
-            break;
-#endif
 #ifndef OPENSSL_NO_ECH
         case OPT_ECHCONFIG:
             echkeyfile=opt_arg();
@@ -2281,7 +2003,7 @@ int s_server_main(int argc, char *argv[])
             if (s_cert2 == NULL)
                 goto end;
 
-#if !defined(OPENSSL_NO_ESNI) && !defined(OPENSSL_NO_ECH)
+#ifndef OPENSSL_NO_ECH
             tlsextcbp.scert=s_cert2;
 #endif
         }
@@ -2363,15 +2085,6 @@ int s_server_main(int argc, char *argv[])
         ERR_print_errors(bio_err);
         goto end;
     }
-
-#ifndef OPENSSL_NO_ESNI
-    if (esnihardfail!=0) {
-        SSL_CTX_set_options(ctx,SSL_OP_ESNI_HARDFAIL);
-    }
-    if (esnitrialdecrypt!=0) {
-        SSL_CTX_set_options(ctx,SSL_OP_ESNI_TRIALDECRYPT);
-    }
-#endif
 
 #ifndef OPENSSL_NO_ECH
     if (echhardfail!=0) {
@@ -2500,111 +2213,6 @@ int s_server_main(int argc, char *argv[])
         goto end;
     }
 
-#ifndef OPENSSL_NO_ESNI
-    if (esnikeyfile!= NULL) {
-        if (SSL_CTX_esni_server_enable(ctx,NULL,esnikeyfile,NULL)!=1) {
-            BIO_printf(bio_err,"Failed to add ESNI key pair from: %s\n",esnikeyfile);
-            goto end;
-        }
-        if (bio_s_out != NULL) {
-            BIO_printf(bio_s_out,"Added ESNI key pair from: %s\n",esnikeyfile);
-        }
-    }
-    if (esniprivkeyfile!= NULL || esnipubfile!=NULL) {
-        /*
-         * need both set to go ahead
-         */
-        if (esniprivkeyfile==NULL) {
-            BIO_printf(bio_err, "Need -esnipub set as well as -esnikey\n" );
-            goto end;
-        }
-        if (esnipubfile==NULL) {
-            BIO_printf(bio_err, "Need -esnikey set as well as -esnipub\n" );
-            goto end;
-        }
-        if (SSL_CTX_esni_server_enable(ctx,NULL,esniprivkeyfile,esnipubfile)!=1) {
-            BIO_printf(bio_err, "Failure establishing ESNI parameters\n" );
-            goto end;
-        }
-        if (bio_s_out != NULL) {
-            BIO_printf(bio_s_out,"Added ESNI key pair: %s,%s\n",esniprivkeyfile,esnipubfile);
-        }
-        /* 
-         * Set padding sizes 
-         */
-        if (esnispecificpad) {
-            esni_ps=OPENSSL_malloc(sizeof(esni_padding_sizes)); 
-            esni_ps->certpad=2000;
-            esni_ps->certverifypad=500;
-            SSL_CTX_set_record_padding_callback_arg(ctx,(void*)esni_ps);
-            SSL_CTX_set_record_padding_callback(ctx,esni_padding_cb);
-        }
-    }
-    if (esnidir != NULL ) {
-        /*
-         * Try load any good looking public/private ESNI values found in files in that directory
-         * TODO: Find a more OpenSSL-like way of reading a directory without all the massive
-         * indirection involved in the CApath which seems to delve about 5 call deep to do
-         * anything. The esnidir shouldn't be embedded in the library at all really, so
-         * arguably handling it fully here in the app is better, though there may I guess
-         * be issues with portability.
-         */
-        size_t elen=strlen(esnidir);
-        if ((elen+7) >= PATH_MAX) {
-            /* too long, go away */
-            BIO_printf(bio_err, "'%s' is too long a directory name - exiting \r\n", esnidir);
-            goto end;
-        }
-        /* if not a directory, ignore it */
-        if (app_isdir(esnidir) <= 0) {
-            BIO_printf(bio_err, "'%s' is not a directory - exiting \r\n", esnidir);
-            goto end;
-        }
-        DIR *dp;
-        struct dirent *ep;
-        dp=opendir(esnidir);
-        if (dp==NULL) {
-            BIO_printf(bio_err, "Can't read directory '%s' - exiting \r\n", esnidir);
-            goto end;
-        }
-        while ((ep=readdir(dp))!=NULL) {
-            char privname[PATH_MAX];
-            char pubname[PATH_MAX];
-            /*
-             * If the file name matches *.priv, then check for matching *.pub and try enable that pair
-             */
-            size_t nlen=strlen(ep->d_name);
-            if (nlen>5) {
-                char *last5=ep->d_name+nlen-5;
-                if (strncmp(last5,".priv",5)) {
-                    continue;
-                }
-                if ((elen+nlen+1+1)>=PATH_MAX) { /* +1 for '/' and of NULL terminator */
-                    closedir(dp);
-                    BIO_printf(bio_err,"name too long: %s/%s - exiting \r\n",esnidir,ep->d_name);
-                    goto end;
-                }
-                snprintf(privname,PATH_MAX,"%s/%s",esnidir,ep->d_name);
-                snprintf(pubname,PATH_MAX,"%s/%s",esnidir,ep->d_name);
-                pubname[elen+1+nlen-3]='u';
-                pubname[elen+1+nlen-2]='b';
-                pubname[elen+1+nlen-1]=0x00;
-                struct stat thestat;
-                if (stat(pubname,&thestat)==0 && stat(privname,&thestat)==0) {
-                    if (SSL_CTX_esni_server_enable(ctx,NULL,privname,pubname)!=1) {
-                        BIO_printf(bio_err, "Failure establishing ESNI parameters for %s\n",pubname );
-                        //goto end;
-                    }
-                    if (bio_s_out != NULL) {
-                        BIO_printf(bio_s_out,"Added ESNI key pair: %s,%s\n",pubname,privname);
-                    }
-                }
-            }
-        }
-        closedir(dp);
-    }
-#endif
-
 #ifndef OPENSSL_NO_ECH
     if (echkeyfile!= NULL) {
         if (SSL_CTX_ech_server_enable(ctx,echkeyfile)!=1) {
@@ -2692,15 +2300,6 @@ int s_server_main(int argc, char *argv[])
             ERR_print_errors(bio_err);
             goto end;
         }
-
-#ifndef OPENSSL_NO_ESNI
-        if (esnihardfail!=0) {
-            SSL_CTX_set_options(ctx2,SSL_OP_ESNI_HARDFAIL);
-        }
-        if (esnitrialdecrypt!=0) {
-            SSL_CTX_set_options(ctx2,SSL_OP_ESNI_TRIALDECRYPT);
-        }
-#endif
 
 #ifndef OPENSSL_NO_ECH
         if (echhardfail!=0) {
@@ -2840,11 +2439,13 @@ int s_server_main(int argc, char *argv[])
         goto end;
     }
 
-#ifndef OPENSSL_NO_ESNI
+#ifndef OPENSSL_NO_ECH
     /*
      * FIXME: This is a hack just to test. See if giving the same chain to the 2nd key pair works
      * Better workaround is to supply s_chain_file2 as a new CLA in case the paths are very different 
      * but maybe wanna check with maintainers first
+     * TODO: Check if this is needed - I kept it from ESNI -> ECH transition but maybe it's
+     * not needed?
      */
     if (ctx2 != NULL
         && !set_cert_key_stuff(ctx2, s_cert2, s_key2, s_chain, build_chain))
@@ -2936,28 +2537,7 @@ int s_server_main(int argc, char *argv[])
         }
         tlsextcbp.biodebug = bio_s_out;
 
-#ifndef OPENSSL_NO_ESNI
-        if (esnikeyfile!= NULL || esniprivkeyfile!= NULL || esnipubfile!=NULL || esnidir != NULL ) {
-            SSL_CTX_set_tlsext_servername_callback(ctx2, ssl_esni_servername_cb);
-            SSL_CTX_set_tlsext_servername_arg(ctx2, &tlsextcbp);
-            SSL_CTX_set_tlsext_servername_callback(ctx, ssl_esni_servername_cb);
-            SSL_CTX_set_tlsext_servername_arg(ctx, &tlsextcbp);
-            SSL_CTX_set_esni_callback(ctx2, esni_print_cb);
-            SSL_CTX_set_esni_callback(ctx, esni_print_cb);
-#ifndef OPENSSL_NO_SSL_TRACE
-            if (s_msg==2) {
-                OSSL_trace_set_callback(OSSL_TRACE_CATEGORY_TLS, esni_trace_cb, bio_s_out);
-            }
-#endif
-        }
-#endif
-
 #ifndef OPENSSL_NO_ECH
-        /*
-         * The fact we do this 2nd means that if both ESNI and ECH are
-         * specified on command line (which we don't really need to 
-         * support), then we'll prefer ECH
-         */
         SSL_CTX_set_tlsext_servername_callback(ctx2, ssl_ech_servername_cb);
         SSL_CTX_set_tlsext_servername_arg(ctx2, &tlsextcbp);
         SSL_CTX_set_tlsext_servername_callback(ctx, ssl_ech_servername_cb);
@@ -2971,7 +2551,7 @@ int s_server_main(int argc, char *argv[])
 #endif
 #endif
 
-#if defined(OPENSSL_NO_ESNI) && defined(OPENSSL_NO_ECH)
+#if defined(OPENSSL_NO_ECH)
         SSL_CTX_set_tlsext_servername_callback(ctx2, ssl_servername_cb);
         SSL_CTX_set_tlsext_servername_arg(ctx2, &tlsextcbp);
         SSL_CTX_set_tlsext_servername_callback(ctx, ssl_servername_cb);
@@ -3027,9 +2607,6 @@ int s_server_main(int argc, char *argv[])
     print_stats(bio_s_out, ctx);
     ret = 0;
  end:
-#ifndef OPENSSL_NO_ESNI
-    if (esni_ps) OPENSSL_free(esni_ps);
-#endif
     SSL_CTX_free(ctx);
     SSL_SESSION_free(psksess);
     set_keylog_file(NULL, NULL);
@@ -3897,9 +3474,9 @@ static int www_body(int s, int stype, int prot, unsigned char *context)
             STACK_OF(SSL_CIPHER) *sk;
             static const char *space = "                          ";
 
-#if !defined(OPENSSL_NO_ESNI) && !defined(OPENSSL_NO_ECH)
+#ifndef OPENSSL_NO_ECH
             /*
-             * This isn't an ECH/ESNI related change really. Seems like
+             * This isn't an ECH related change really. Seems like
              * s_server hangs in some way if we get to this code
              * with www=1, so maybe only do it if renego is 
              * actually supported. Try it anyway
@@ -3980,39 +3557,7 @@ static int www_body(int s, int stype, int prot, unsigned char *context)
 
 #endif
 
-#ifndef OPENSSL_NO_ESNI
-            /*
-             * Customise output a bit to show ESNI info at top
-             * Note: unlikely to want to integrate this upstream
-             */
-            BIO_puts(io, "<h1>OpenSSL with ESNI</h1>\n");
-            char *hidden=NULL; 
-            char *clear_sni=NULL;
-            BIO_puts(io, "<h2>\n");
-            int esnirv=SSL_get_esni_status(con,&hidden,&clear_sni);
-            switch (esnirv) {
-            case SSL_ESNI_STATUS_NOT_TRIED: 
-                BIO_puts(io,"ESNI not attempted\n");
-                break;
-            case SSL_ESNI_STATUS_FAILED: 
-                BIO_puts(io,"ESNI tried but failed\n");
-                break;
-            case SSL_ESNI_STATUS_BAD_NAME: 
-                BIO_puts(io,"ESNI worked but bad name\n");
-                break;
-            case SSL_ESNI_STATUS_SUCCESS:
-                BIO_printf(io,"ESNI success: clear sni: %s, hidden: %s\n",
-                                (clear_sni==NULL?"none":clear_sni),
-                            (hidden==NULL?"none":hidden));
-                break;
-            default:
-                BIO_printf(io," Error getting ESNI status\n");
-                break;
-            }
-            BIO_puts(io, "</h2>\n");
-#endif
-
-#if !defined(OPENSSL_NO_ECH) || !defined(OPENSSL_NO_ESNI) 
+#ifndef OPENSSL_NO_ECH
             BIO_puts(io, "<h2>TLS Session details</h2>\n");
             BIO_puts(io, "<pre>\n");
             /*
@@ -4021,7 +3566,7 @@ static int www_body(int s, int stype, int prot, unsigned char *context)
             SSL_SESSION_print(bio_s_out, SSL_get_session(con));
 #endif
 
-#if defined(OPENSSL_NO_ECH) && defined(OPENSSL_NO_ESNI)
+#ifndef OPENSSL_NO_ECH
             BIO_puts(io, "<pre>\n");
             BIO_puts(io, "\n");
             for (i = 0; i < local_argc; i++) {
@@ -4173,9 +3718,9 @@ static int www_body(int s, int stype, int prot, unsigned char *context)
                 break;
             }
 
-#if !defined(OPENSSL_NO_ECH) || !defined(OPENSSL_NO_ESNI) 
+#ifndef OPENSSL_NO_ECH
             /*
-             * Again, not really an ESNI change but serve up index.html
+             * Again, not really an ECH change but serve up index.html
              * (if one exists) as a default pathname if none was provided
              */
             if (*p=='\0') {
@@ -4229,7 +3774,7 @@ static int www_body(int s, int stype, int prot, unsigned char *context)
                     ((i > 4) && (strcmp(&(p[i - 4]), ".htm") == 0)))
                     BIO_puts(io,
                              "HTTP/1.0 200 ok\r\nContent-type: text/html\r\n\r\n");
-#if !defined(OPENSSL_NO_ECH) || !defined(OPENSSL_NO_ESNI) 
+#ifndef OPENSSL_NO_ECH
                 /* 
                  * same comment as last time
                  */

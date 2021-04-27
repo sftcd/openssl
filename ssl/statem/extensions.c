@@ -57,11 +57,6 @@ static int final_early_data(SSL *s, unsigned int context, int sent);
 static int final_maxfragmentlen(SSL *s, unsigned int context, int sent);
 static int init_post_handshake_auth(SSL *s, unsigned int context);
 
-#ifndef OPENSSL_NO_ESNI
-static int init_esni(SSL *s, unsigned int context);
-static int final_esni(SSL *s, unsigned int context, int sent);
-#endif // END_OPENSSL_NO_ESNI
-
 #ifndef OPENSSL_NO_ECH
 static int init_ech(SSL *s, unsigned int context);
 static int final_ech(SSL *s, unsigned int context, int sent);
@@ -370,24 +365,10 @@ static const EXTENSION_DEFINITION ext_defs[] = {
         tls_construct_stoc_early_data, tls_construct_ctos_early_data,
         final_early_data
     },
-#ifndef OPENSSL_NO_ESNI
-    /* 
-     * Must be in this list after key_share as that input is needed for ESNI
-     */
-    {
-        TLSEXT_TYPE_esni,
-        SSL_EXT_CLIENT_HELLO | SSL_EXT_TLS1_3_ONLY | SSL_EXT_TLS1_3_ENCRYPTED_EXTENSIONS,
-        init_esni,
-        tls_parse_ctos_esni, tls_parse_stoc_esni,
-        tls_construct_stoc_esni, tls_construct_ctos_esni,
-        final_esni
-    },
-#else // OPENSSL_NO_ESNI
-    INVALID_EXTENSION,
-#endif // END_OPENSSL_NO_ESNI
 #ifndef OPENSSL_NO_ECH
     /* 
      * Must be in this list after key_share as that input is needed for ECH
+     * TODO: draft-11 may remove that requirement
      */
     {
         TLSEXT_TYPE_ech,
@@ -1017,41 +998,7 @@ static int init_server_name(SSL *s, unsigned int context)
     return 1;
 }
 
-// ESNI_DOXY_START
-#ifndef OPENSSL_NO_ESNI
-/**
- * @brief Just note that esni is not yet done
- */
-static int init_esni(SSL *s, unsigned int context)
-{
-    s->esni_done = 0;
-    return 1;
-}
-/**
- * @brief check result of esni and return error or ok
- */
-static int final_esni(SSL *s, unsigned int context, int sent)
-{
-    /*
-     * Could be that cleaning up would be good, and/or 
-     * whatever's needed for handling tickets etc. etc.
-     */
-    if (!s->server && s->esni) {
-        if (s->esni->version==ESNI_GREASE_VERSION) {
-            /*
-             * If we greased, then it's ok that esni_done didn't get set
-             * TODO: figure if this is the right check to make
-             */
-            return 1;
-        } else if (s->esni_done!=1) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_R_CALLBACK_FAILED);
-            return 0;
-        }
-    }
-    return 1;
-}
-#endif // END_OPENSSL_NO_ESNI
-
+// ECH_DOXY_START
 #ifndef OPENSSL_NO_ECH
 /**
  * @brief Just note that ech is not yet done
@@ -1092,7 +1039,7 @@ static int final_ech_outer_exts(SSL *s, unsigned int context, int sent)
 
 #endif // END_OPENSSL_NO_ECH
 
-// ESNI_DOXY_END
+// ECH_DOXY_END
 
 #ifndef OPENSSL_NO_ECH
 int final_server_name(SSL *s, unsigned int context, int sent)

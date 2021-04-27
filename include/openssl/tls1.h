@@ -158,10 +158,6 @@ extern "C" {
 #  define TLSEXT_TYPE_next_proto_neg              13172
 # endif
 
-#ifndef OPENSSL_NO_ESNI
-#define TLSEXT_TYPE_esni                       0xffce
-#endif
-
 #ifndef OPENSSL_NO_ECH
 #define TLSEXT_TYPE_ech                       0xfe0a
 #define TLSEXT_TYPE_outer_extensions          0xfd00

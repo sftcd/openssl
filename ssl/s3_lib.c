@@ -3334,14 +3334,6 @@ int ssl3_new(SSL *s)
         return 0;
 #endif
 
-#ifndef OPENSSL_NO_ESNI
-	s->esni_done=0;
-	s->esni_attempted=0;
-	s->esni=NULL;
-	s->nesni=0;
-	s->esni_cb=NULL;
-#endif
-
 #ifndef OPENSSL_NO_ECH
 	s->ech=NULL;
 	s->nechs=0;
@@ -3383,27 +3375,10 @@ void ssl3_free(SSL *s)
     ssl_srp_ctx_free_intern(s);
 #endif
 
-#ifdef OPENSSL_NO_ESNI
-	int i; /* loop counter - android build doesn't like C99;-( */
-	for (i=0;i!=s->nesni;i++) {
-		SSL_ESNI_free(&s->esni[i]);
-	}
-	OPENSSL_free(s->esni);
-	s->esni_done=0;
-	s->esni_attempted=0;
-	s->esni=NULL;
-	s->nesni=0;
-	s->esni_cb=NULL;
-	if (s->ext.hostname) {
-		OPENSSL_free(s->ext.hostname);
-		s->ext.hostname=NULL;
-	}
-#endif
-
 #ifdef OPENSSL_NO_ECH
 	int i; /* loop counter - android build doesn't like C99;-( */
 	for (i=0;i!=s->nechs;i++) {
-		SSL_ECH_free(&s->esni[i]);
+		SSL_ECH_free(&s->ech[i]);
 	}
 	OPENSSL_free(s->ech);
 	s->ech=NULL;

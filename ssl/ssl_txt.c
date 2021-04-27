@@ -82,32 +82,6 @@ int SSL_SESSION_print(BIO *bp, const SSL_SESSION *x)
             goto err;
     }
 
-#ifndef OPENSSL_NO_ESNI
-	/*
-	 * This is not ESNI related but let's see...
-	 */
-	if (x->ext.hostname!=NULL) {
-		BIO_printf(bp,"\n    SNI/Hostname: %s",x->ext.hostname);
-	} else {
-		BIO_printf(bp,"\n    SNI/Hostname is NULL");
-	}
-    if (x->ext.encservername!=NULL) {
-		BIO_printf(bp,"\n    ESNI/encservername: %s",x->ext.encservername);
-	} else {
-		BIO_printf(bp,"\n    ESNI/encservername is NULL");
-    }
-    if (x->ext.clear_sni!=NULL) {
-		BIO_printf(bp,"\n    ESNI/clear_sni: %s",x->ext.clear_sni);
-	} else {
-		BIO_printf(bp,"\n    ESNI/clear_sni is NULL");
-    }
-    if (x->ext.public_name!=NULL) {
-		BIO_printf(bp,"\n    ESNI/public_name: %s",x->ext.public_name);
-	} else {
-		BIO_printf(bp,"\n    ESNI/public_name is NULL");
-    }
-#endif
-
 #ifndef OPENSSL_NO_ECH
 	/*
 	 * (TODO:) This is not ECH related but we should do something
