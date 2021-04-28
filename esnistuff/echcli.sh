@@ -6,7 +6,7 @@
 # set -x
 
 # to pick up correct .so's - maybe note 
-: ${TOP=$HOME/code/openssl}
+: ${TOP:=$HOME/code/openssl}
 export LD_LIBRARY_PATH=$TOP
 
 # variables/settings

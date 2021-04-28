@@ -4,7 +4,7 @@
 
 # generate a key pair if needed, call s_client as well
 
-: ${TOP=$HOME/code/openssl}
+: ${TOP:=$HOME/code/openssl}
 export LD_LIBRARY_PATH=$TOP
 EDIR="$TOP/esnistuff"
 
