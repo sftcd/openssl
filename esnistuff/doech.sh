@@ -19,17 +19,37 @@ then
     VALGRIND="valgrind --leak-check=full "
 fi
 
+if [ ! -d $EDIR ]
+then
+    mkdir -p $EDIR
+fi
+
+if [ ! -d $EDIR/echkeydir ]
+then
+    mkdir $EDIR/echkeydir
+fi
 
 if [ ! -f $EFILE ]
 then
     ../apps/openssl ech -public_name $PUBLIC_NAME -pemout $EFILE
-	cp $EFILE $EDIR/esnikeydir/`basename $EFILE`.ech
 fi
 if [ ! -f $EFILE ]
 then
     echo "Failed to make $EFILE - exiting"
     exit 1
 fi
+
+ECHFILE="$EDIR/echkeydir/`basename $EFILE`.ech"
+if [ ! -f $ECHFILE ]
+then
+	cp $EFILE $EDIR/echkeydir/`basename $EFILE`.ech
+fi
+if [ ! -f $ECHFILE ]
+then
+    echo "Failed to make $ECHFILE - exiting"
+    exit 1
+fi
+
 
 if [[ "$RUNCLI" == "no" ]]
 then
