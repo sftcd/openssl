@@ -1,4 +1,69 @@
 
+
+# Building OpenSSL and curl with ECH support
+
+April 28th 2021
+
+Notes on an earlier version of this with Encrypted Server Name Indication
+(ESNI), which is the precursor to ECH, are [below](#Notes).
+
+Our OpenSSL fork with an ECH support branch is at:
+[https://github.com/sftcd/openssl/](https://github.com/sftcd/openssl/).  
+
+Our curl fork with an ECH support branch is at:
+[https://github.com/niallor/curl/](https://github.com/niallor/curl/).
+
+To build our OpenSSL fork:
+
+            $ cd $HOME/code
+            $ git clone https://github.com/sftcd/openssl
+            $ git checkout ECH-without-ESNI
+            $ ./config 
+            ... stuff ...
+            $ make -j8
+            ... stuff (maybe go for coffee) ...
+            $
+
+To test that worked:
+
+            $ cd $HOME/code/openssl/esnistuff
+            $ ./echcli.sh -d
+            ... lots of debug output...
+            ./echcli.sh Summary: 
+            Looks like it worked ok
+            Binary file /tmp/echtesthUwq matches
+            $
+
+To build curl: clone the repo, checkout the branch, then run buildconf and
+configure with abtruse settings:-) These are needed so the curl configure
+script picks up our ECH-enabled OpenSSL build - configure checks that the ECH
+functions are actually usable in the OpenSSL with which it's being built at
+this stage. (Note: The ``LD_LIBRARY_PATH`` setting will be need whenever you
+run this build of curl, e.g. after a logout/login, or a new shell.)
+
+            $ cd $HOME/code
+            $ git clone https://github.com/niallor/curl.git
+            $ cd curl
+            $ git checkout ECH-WIP
+            $ ./buildconf
+            $ export LD_LIBRARY_PATH=$HOME/code/openssl
+            $ LDFLAGS="-L$HOME/code/openssl" ./configure --with-ssl=$HOME/code/openssl --enable-ech 
+            ...lots of output...
+              WARNING: ech enabled but marked EXPERIMENTAL. Use with caution!
+            $ make 
+            ...lots more output...
+ 
+If you don't get that warning at the end then ECH isn't enabled so go back some steps
+and re-do whatever needs re-doing:-)
+
+To test curl, using our draft-10 nginx server on defo.ie:
+
+            $ src/curl --echconfig AEL+CgA+8QAgACCsEiogyYobxSGHLGd6uSDbuIbW05M41U37vsypEWdqZQAEAAEAAQAAAA1jb3Zlci5kZWZvLmllAAA= https://draft-10.esni.defo.ie:10410/
+            ... HTML output that includes: ...
+            SSL_ECH_STATUS: success <img src="greentick-small.png" alt="good" /> <br/>
+            ...
+            $ 
+
 # Notes on Building OpenSSl and curl with ESNI support
 
 August 30th 2019.
