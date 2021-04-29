@@ -17,7 +17,8 @@ directory in order to avoid disturbing other builds):
             $ cd $HOME/code
             $ git clone https://github.com/sftcd/openssl.git openssl-for-nginx-draft-10
             $ cd openssl-for-nginx-draft-10
-            $ ./config --debug
+            $ git checkout ECH-without-ESNI
+            $ ./config -d
             ...stuff...
             $ make
             ...go for coffee...
@@ -53,7 +54,7 @@ test [nginxmin-draft-10.confg](nginxmin-draft-10.conf).
 
             $ ./testnginx-draft-10.sh
             ... stuff ...
-            $ ./echcli.sh -p 5443 -s localhost -H foo.example.com  -P `./pem2rr.sh -p echkeydir/foo.example.com.ech`
+            $ ./echcli.sh -p 5443 -s localhost -H foo.example.com  -P `./pem2rr.sh -p echconfig.pem`
             Running ./echcli.sh at 20210420-001300
             Assuming supplied ECH is RR value
             ./echcli.sh Summary: 

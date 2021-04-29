@@ -28,6 +28,11 @@ Most recent first...
 DON'T TRY ECH YET!!! The very much work-in-progress code is
 sooooo awful still...
 
+- 20210429: made myself a [checklist](checklist.md) for things to check
+  whenever non-trivial changes made (one just done and there's more upcoming).
+  All the localhost/dev-machine parts of that are now done. Will push
+  and move on to the defo.ie deployment parts...
+
 - 20210426: this build removes ESNI code but still builds and seems to
   run at least a basic ECH client test ok; most likely this'll need to
   be done more than once to get it all right
@@ -491,7 +496,7 @@ the more popular web servers by first tackling a simpler one.
 There's notes about that in [lighttpd.md](./lighttpd.md).
 
 - Belatedly noting the existence of the instructions for 
-  [HOWTO build openssl and curl](./building-curl-openssl-with-esni.md).
+  [HOWTO build openssl and curl](./building-curl-openssl-with-ech.md).
   (Was reminded to do this because I had to modify the [curl-esni](curl-esni)
   shell script.)
 
