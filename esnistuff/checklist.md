@@ -16,7 +16,7 @@ such situtions coming up, so no harm to write this down.
 1. echcli.sh works against CF and/or a defo.ie server 
 
             $ cd $HOME/code/openssl/esnistuff
-            $ ./echcli.sh -N # vs. CF with no alpn
+            $ ./echcli.sh # run vs. CF with sensible defaults
             $ ./echcli.sh -H draft-10.esni.defo.ie -p 10410
             $ ./echcli.sh -H draft-10.esni.defo.ie -p 8410 -f stats -d
 

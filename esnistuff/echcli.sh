@@ -50,6 +50,7 @@ SUPPLIEDSESSION=""
 
 # default values
 HIDDEN="crypto.cloudflare.com"
+DEFFRAG="/cdn-cgi/trace" # what CF like for giving a hint as to whether ECH worked
 PNO=""
 CAPATH="/etc/ssl/certs/"
 CAFILE="./cadir/oe.csr"
@@ -253,6 +254,13 @@ then
         echo "Trying to GREASE though"
         echstr=" $echstr -ech_grease "
     fi
+fi
+
+if [[ "$SUPPLIEDHIDDEN" == "" && "$HTTPPATH" == "" ]]
+then
+    # we're at CF, set things to work nicely
+    HTTPPATH=$DEFFRAG
+    DOALPN="no"
 fi
 
 #httpreq="GET $HTTPPATH\\r\\n\\r\\n"
