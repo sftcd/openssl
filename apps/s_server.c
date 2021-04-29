@@ -2446,8 +2446,8 @@ int s_server_main(int argc, char *argv[])
      * FIXME: This is a hack just to test. See if giving the same chain to the 2nd key pair works
      * Better workaround is to supply s_chain_file2 as a new CLA in case the paths are very different 
      * but maybe wanna check with maintainers first
-     * TODO: Check if this is needed - I kept it from ESNI -> ECH transition but maybe it's
-     * not needed?
+     * I kept it from ESNI -> ECH transition and looking againm, it's still a valid FIXME - I should
+     * add a 2nd chain file.
      */
     if (ctx2 != NULL
         && !set_cert_key_stuff(ctx2, s_cert2, s_key2, s_chain, build_chain))
@@ -3725,6 +3725,8 @@ static int www_body(int s, int stype, int prot, unsigned char *context)
              * Again, not really an ECH change but serve up index.html
              * (if one exists) as a default pathname if none was provided
              */
+
+            opmode = (http_server_binmode == 1) ? "rb" : "r";
             if (*p=='\0') {
                 if ((file = BIO_new_file("index.html", "r")) == NULL) {
                     BIO_puts(io, text);
@@ -3732,16 +3734,12 @@ static int www_body(int s, int stype, int prot, unsigned char *context)
                     ERR_print_errors(io);
                     break;
                 }
-            }
-
-            opmode = (http_server_binmode == 1) ? "rb" : "r";
-            if ((file = BIO_new_file(p, opmode)) == NULL) {
+            } else if ((file = BIO_new_file(p, opmode)) == NULL) {
                 BIO_puts(io, text);
                 BIO_printf(io, "Error opening '%s' mode='%s'\r\n", p, opmode);
                 ERR_print_errors(io);
                 break;
             }
-
             if (file==NULL) {
                 BIO_puts(io, text);
                 BIO_printf(io, "Weird - shouldn't get here '%s'\r\n", p);
