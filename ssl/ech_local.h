@@ -413,5 +413,14 @@ int ech_make_enc_info(ECHConfig *tc,unsigned char *info,size_t *info_len);
  */
 int ech_reset_hs_buffer(SSL *s, unsigned char *buf, size_t blen);
 
+/*
+ * If an ECH is present, attempt decryption
+ *
+ * @param s: SSL session stuff
+ * @param pkt: the received CH that might include an ECH
+ * @param newpkt: the plaintext from ECH 
+ */
+int ech_early_decrypt(SSL *s, PACKET *pkt, PACKET *newpkt);
+
 #endif
 #endif

@@ -1376,6 +1376,9 @@ MSG_PROCESS_RETURN tls_process_client_hello(SSL *s, PACKET *pkt)
     CLIENTHELLO_MSG *clienthello = NULL;
 
 #ifndef OPENSSL_NO_ECH
+
+#ifndef ECH_UPFRONT_DEC
+    // tested, will-be-legacy code
     /*
      * If we're a server and we might do ECH then we should
      * stash a version of the outer CH (if that's what we're
@@ -1405,6 +1408,24 @@ MSG_PROCESS_RETURN tls_process_client_hello(SSL *s, PACKET *pkt)
             memcpy(s->ext.ech_dropped_from_ch,de,de_len);
         }
     }
+
+#else
+    // new code
+    if (s->server && s->ech!=NULL && s->ext.ch_depth==0) {
+        PACKET newpkt;
+        if (ech_early_decrypt(s,pkt,&newpkt)!=1) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+            goto err;
+        }
+        if (s->ext.ch_depth==1) {
+            // we did a swaperoo!
+            // swap pkt/newpkt
+            pkt=&newpkt; // bad idea but enought for now
+        }
+    }
+
+#endif
+
 #endif
 
     /* Check if this is actually an unexpected renegotiation ClientHello */
@@ -1933,7 +1954,7 @@ static int tls_early_post_process_client_hello(SSL *s)
     /*
      * This is naff, but we'll refuse to handle the session_secret_cb
      * for now because we'll need to re-calculate the server random
-     * later to inclue the ECH magic (can't do it now as we don't
+     * later to include the ECH magic (can't do it now as we don't
      * yet have the SH encoding)
      */
     if (s->ech && s->ext.ech_done && s->ect.ech_grease==0) 

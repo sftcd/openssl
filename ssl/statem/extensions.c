@@ -402,6 +402,7 @@ static const EXTENSION_DEFINITION ext_defs[] = {
 #else // OPENSSL_NO_ECH
     INVALID_EXTENSION,
     INVALID_EXTENSION,
+    INVALID_EXTENSION,
 #endif // END_OPENSSL_NO_ECH
     {
         TLSEXT_TYPE_certificate_authorities,

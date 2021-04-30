@@ -3519,4 +3519,139 @@ int drop_ech_from_ch(SSL *s, const size_t ch_len, const unsigned char *ch,
     return (1);
 }
 
+/*!
+ * Given a CH find the offsets of the session id, extensions and ECH 
+ *
+ * @param: pkt is the CH
+ * @param: sessid points to offset of session_id
+ * @param: exts points to offset of extensions
+ * @param: echoffset points to offset of ECH
+ * @return 1 for success, other otherwise
+ *
+ * Offsets are set to zero at start and must be non-zero to be
+ * meaningful. If no ECH is present (or no extensions) then 
+ * those will be returned as zero.
+ * Offsets are returned to the type or length field in question.
+ */
+static int ech_get_offsets(PACKET *pkt, size_t *sessid, size_t *exts, size_t *echoffset)
+{
+    if (!pkt || !sessid || !exts || !echoffset) return(0);
+
+    *sessid=0;
+    *exts=0;
+    *echoffset=0;
+
+    const unsigned char *ch=pkt->curr;
+    const size_t ch_len=pkt->remaining;
+
+    /*
+     * Jump over the ciphersuites and (MUST be NULL) compression to
+     * the start of extensions
+     * We'll start genoffset at the end of the session ID, just
+     * before the ciphersuites
+     */
+    size_t genoffset=2+32;
+    *sessid=genoffset; // set output
+    size_t sessid_len=ch[genoffset];
+    genoffset+=(1+sessid_len);
+    size_t suiteslen=ch[genoffset]*256+ch[genoffset+1];
+    size_t startofexts=genoffset+suiteslen+2+2; // the 2 for the suites len
+    if (startofexts==ch_len) { 
+        // no extensions present, which is theoretically ok
+        return(1);
+    }
+    if (startofexts>ch_len) { 
+        // oops, shouldn't happen but just in case...
+        return(0);
+    }
+    *exts=startofexts; // set output
+    size_t origextlens=ch[startofexts]*256+ch[startofexts+1];
+    /* 
+     * find ECH if it's there
+     */
+    size_t echlen=0; // length of ECH, including type & ECH-internal length
+    //size_t echoffset=0; // offset of ECH from start of CH
+    if ((startofexts+2)>(ch_len-startofexts)) {
+         return 0;
+    }
+    const unsigned char *e_start=&ch[startofexts+2];
+    int extsremaining=origextlens-2;
+    int found=0;
+    uint16_t etype=0;
+    size_t elen=0;
+    while (!found && extsremaining>0) {
+        etype=e_start[0]*256+e_start[1];
+        elen=e_start[2]*256+e_start[3];
+        if (etype==TLSEXT_TYPE_ech) {
+            found=1;
+            echlen=elen+4; // type and length included
+            *echoffset=(e_start-ch); // set output
+            break;
+        }
+        e_start+=(4+elen);
+        extsremaining-=(4+elen);
+    }
+    ech_pbuf("orig CH",(unsigned char*) ch,ch_len);
+    ech_pbuf("orig CH session_id",(unsigned char*) ch+*sessid,sessid_len);
+    ech_pbuf("orig CH exts",(unsigned char*) ch+*exts,origextlens);
+    ech_pbuf("orig CH/ECH",(unsigned char*) ch+*echoffset,echlen);
+    return(1);
+}
+
+
+/*
+ * If an ECH is present, attempt decryption
+ *
+ * @param s: SSL session stuff
+ * @param pkt: the received CH that might include an ECH
+ * @param newpkt: the plaintext from ECH 
+ * @return 1 for success, zero otherwise
+ *
+ * If decryption succeeds, then we'll swap the inner and outer
+ * CHs so that all further processing will only take into account
+ * the inner CH.
+ *
+ * The fact that decryption worked is signalled to the caller
+ * via the swap, e.g. s->ext.ch_depth will go from 0 (outer)
+ * at call-time, to 1 (inner) on return.
+ */
+int ech_early_decrypt(SSL *s, PACKET *pkt, PACKET *newpkt)
+{
+
+    /*
+     * The plan:
+     * 1. check if there's an ECH
+     * 2. trial-decrypt or check if config matches one loaded
+     * 3. if decrypt fails tee-up GREASE
+     * 4. if decrypt worked:
+     *      - stash outer config id
+     *      - handle inner
+     *      - swaperoo
+     */
+    int rv=0;
+
+    /*
+     * 1. check if there's an ECH
+     */
+    size_t startofsessid=0; ///< offset of session id within Ch
+    size_t startofexts=0; ///< offset of extensions within CH
+    size_t echoffset=0; ///< offset of start of ECH within CH
+    rv=ech_get_offsets(pkt,&startofsessid,&startofexts,&echoffset);
+    if (rv!=1) return(rv);
+
+
+    /*
+     * 2. trial-decrypt or check if config matches one loaded
+     */
+    /*
+     * 3. if decrypt fails tee-up GREASE
+     */
+    /*
+     * 4. if decrypt worked:
+     */
+
+
+    return(1);
+}
+
 #endif

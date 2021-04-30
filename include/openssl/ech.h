@@ -18,6 +18,17 @@
 #ifndef HEADER_ECH_H
 # define HEADER_ECH_H
 
+/*
+ * Temporary symbol for code that is/isn't used
+ * when we do up-front ECH decryption on a server
+ * that's not part of normal extension handling.
+ * (That "up-front" approach is likely what'll be
+ * needed long term.)
+ * undef this to get back to previously-tested
+ * state
+ */
+#define ECH_UPFRONT_DEC
+
 # include <openssl/ssl.h>
 
 /*
