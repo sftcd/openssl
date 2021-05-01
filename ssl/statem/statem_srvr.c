@@ -1421,7 +1421,7 @@ MSG_PROCESS_RETURN tls_process_client_hello(SSL *s, PACKET *pkt)
             // we did a swaperoo!
             // swap pkt/newpkt
             pkt=&newpkt; // bad idea but enought for now
-        }
+        } // otherwise continue
     }
 
 #endif

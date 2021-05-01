@@ -1935,29 +1935,23 @@ static unsigned char *hpke_decrypt_encch(SSL_ECH *ech, ECH_ENCCH *the_ech,
     cipher=the_ech->payload;
     senderpublen=the_ech->enc_len;
     senderpub=the_ech->enc;
-
-
     hpke_suite.aead_id=the_ech->aead_id; 
     hpke_suite.kdf_id=the_ech->kdf_id; 
-
     /*
      * We only support one ECHConfig for now on the server side
      */
     publen=ech->cfg->recs[0].pub_len;
     pub=ech->cfg->recs[0].pub;
     hpke_suite.kem_id=ech->cfg->recs[0].kem_id; 
-
     ech_pbuf("my local pub",pub,publen);
     ech_pbuf("senderpub",senderpub,senderpublen);
     ech_pbuf("cipher",cipher,cipherlen);
-
     unsigned char info[HPKE_MAXSIZE];
     size_t info_len=HPKE_MAXSIZE;
     if (ech_make_enc_info(ech->cfg->recs,info,&info_len)!=1) {
         return NULL; 
     }
     ech_pbuf("info",info,info_len);
-
     int rv=hpke_dec( hpke_mode, hpke_suite,
                 NULL, 0, NULL, // pskid, psk
                 //publen, pub, // recipient public key
@@ -1983,6 +1977,7 @@ static unsigned char *hpke_decrypt_encch(SSL_ECH *ech, ECH_ENCCH *the_ech,
     *innerlen=clearlen;
     return innerch;
 }
+
 /**
  * @brief Decodes inbound ECH extension 
  */

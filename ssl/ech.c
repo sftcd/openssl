@@ -21,7 +21,9 @@
 # include "ech_local.h"
 # include "statem/statem_local.h"
 #include <openssl/rand.h>
+#ifndef OPENSSL_NO_SSL_TRACE
 #include <openssl/trace.h>
+#endif
 #include <openssl/evp.h>
 
 /*
@@ -2532,36 +2534,28 @@ err:
 }
 
 /**
- * @brief print a buffer nicely
- *
- * This is used in SSL_ESNI_print
+ * @brief print a buffer nicely for debug/interop purposes
  */
 void ech_pbuf(const char *msg, const unsigned char *buf, const size_t blen)
 {
 
     OSSL_TRACE_BEGIN(TLS) {
-
     if (msg==NULL) {
         BIO_printf(trc_out,"msg is NULL\n");
-        return;
-    }
-    if (buf==NULL) {
+    } else if (buf==NULL) {
         BIO_printf(trc_out,"%s: buf is NULL\n",msg);
-        return;
-    }
-    if (blen==0) {
+    } else if (blen==0) {
         BIO_printf(trc_out,"%s: blen is zero\n",msg);
-        return;
-    }
-    BIO_printf(trc_out,"%s (%lu):\n    ",msg,(unsigned long)blen);
-    size_t i;
-    for (i=0;i<blen;i++) {
-        if ((i!=0) && (i%16==0))
-            BIO_printf(trc_out,"\n    ");
-        BIO_printf(trc_out,"%02x:",(unsigned)(buf[i]));
-    }
-    BIO_printf(trc_out,"\n");
-
+    } else {
+        BIO_printf(trc_out,"%s (%lu):\n    ",msg,(unsigned long)blen);
+        size_t i;
+        for (i=0;i<blen;i++) {
+            if ((i!=0) && (i%16==0))
+                BIO_printf(trc_out,"\n    ");
+            BIO_printf(trc_out,"%02x:",(unsigned)(buf[i]));
+        }
+        BIO_printf(trc_out,"\n");
+        }
     } OSSL_TRACE_END(TLS);
     return;
 }
@@ -3598,6 +3592,66 @@ static int ech_get_offsets(PACKET *pkt, size_t *sessid, size_t *exts, size_t *ec
     return(1);
 }
 
+/**
+ * @brief wrapper for hpke_dec since we call it >1 time
+ */
+static unsigned char *early_hpke_decrypt_encch(SSL_ECH *ech, ECH_ENCCH *the_ech, 
+        size_t aad_len, unsigned char *aad, size_t *innerlen)
+{
+    size_t publen=0; unsigned char *pub=NULL;
+    size_t cipherlen=0; unsigned char *cipher=NULL;
+    size_t senderpublen=0; unsigned char *senderpub=NULL;
+    size_t clearlen=HPKE_MAXSIZE; unsigned char clear[HPKE_MAXSIZE];
+    int hpke_mode=HPKE_MODE_BASE;
+    hpke_suite_t hpke_suite = HPKE_SUITE_DEFAULT;
+    cipherlen=the_ech->payload_len;
+    cipher=the_ech->payload;
+    senderpublen=the_ech->enc_len;
+    senderpub=the_ech->enc;
+    hpke_suite.aead_id=the_ech->aead_id; 
+    hpke_suite.kdf_id=the_ech->kdf_id; 
+    /*
+     * We only support one ECHConfig for now on the server side
+     */
+    publen=ech->cfg->recs[0].pub_len;
+    pub=ech->cfg->recs[0].pub;
+    hpke_suite.kem_id=ech->cfg->recs[0].kem_id; 
+    ech_pbuf("aad",aad,aad_len);
+    ech_pbuf("my local pub",pub,publen);
+    ech_pbuf("senderpub",senderpub,senderpublen);
+    ech_pbuf("cipher",cipher,cipherlen);
+    unsigned char info[HPKE_MAXSIZE];
+    size_t info_len=HPKE_MAXSIZE;
+    if (ech_make_enc_info(ech->cfg->recs,info,&info_len)!=1) {
+        return NULL; 
+    }
+    ech_pbuf("info",info,info_len);
+    int rv=hpke_dec( hpke_mode, hpke_suite,
+                NULL, 0, NULL, // pskid, psk
+                //publen, pub, // recipient public key
+                0, NULL,
+                0,NULL,ech->keyshare, // private key in EVP_PKEY form
+                senderpublen, senderpub, // sender public
+                cipherlen, cipher, // ciphertext
+                aad_len,aad, // aad
+                info_len, info, // info
+                &clearlen, clear);  // clear
+    if (rv!=1) {
+        return NULL;
+    }
+    ech_pbuf("clear",clear,clearlen);
+    /*
+     * Allocate space for that now, including msg type and 2 octet length
+     */
+    unsigned char *innerch=OPENSSL_malloc(clearlen);
+    if (!innerch) {
+        return NULL;
+    }
+    memcpy(innerch,clear,clearlen);
+    *innerlen=clearlen;
+    return innerch;
+}
+
 
 /*
  * If an ECH is present, attempt decryption
@@ -3615,7 +3669,7 @@ static int ech_get_offsets(PACKET *pkt, size_t *sessid, size_t *exts, size_t *ec
  * via the swap, e.g. s->ext.ch_depth will go from 0 (outer)
  * at call-time, to 1 (inner) on return.
  */
-int ech_early_decrypt(SSL *s, PACKET *pkt, PACKET *newpkt)
+int ech_early_decrypt(SSL *s, PACKET *outerpkt, PACKET *newpkt)
 {
 
     /*
@@ -3636,13 +3690,241 @@ int ech_early_decrypt(SSL *s, PACKET *pkt, PACKET *newpkt)
     size_t startofsessid=0; ///< offset of session id within Ch
     size_t startofexts=0; ///< offset of extensions within CH
     size_t echoffset=0; ///< offset of start of ECH within CH
-    rv=ech_get_offsets(pkt,&startofsessid,&startofexts,&echoffset);
+    size_t ch_len=outerpkt->remaining; /// overall length of outer CH
+    const unsigned char *ch=outerpkt->curr;
+    rv=ech_get_offsets(outerpkt,&startofsessid,&startofexts,&echoffset);
     if (rv!=1) return(rv);
-
+    if (echoffset==0) return(1); ///< ECH not present
+    /*
+     * Remember that we got an ECH 
+     */
+    s->ext.ech_attempted=1;
 
     /*
      * 2. trial-decrypt or check if config matches one loaded
      */
+    PACKET echpkt;
+    const unsigned char *startofech=&outerpkt->curr[echoffset+4];
+    size_t echlen=outerpkt->curr[echoffset+2]*256+outerpkt->curr[echoffset+3];
+    size_t clearlen=0; unsigned char *clear=NULL;
+
+    rv=PACKET_buf_init(&echpkt,startofech,echlen);
+
+    PACKET *pkt=&echpkt;
+    /*
+     * Decode the inbound value
+     * We're looking for:
+     *
+     * struct {
+     *   ECHCipherSuite cipher_suite;
+     *   uint8 config_id;
+     *   opaque enc<1..2^16-1>;
+     *   opaque payload<1..2^16-1>;
+     *  } ClientECH;
+     */
+    ECH_ENCCH *extval=NULL;
+
+    extval=OPENSSL_malloc(sizeof(ECH_ENCCH));
+    if (extval==NULL) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+    unsigned int tmp;
+    if (!PACKET_get_net_2(pkt, &tmp)) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+    extval->kdf_id=tmp&0xffff;
+    if (!PACKET_get_net_2(pkt, &tmp)) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+    extval->aead_id=tmp&0xffff;
+
+    /* config id */
+    extval->config_id_len=1;
+    extval->config_id=OPENSSL_malloc(1);
+    if (extval->config_id_len!=0 && extval->config_id==NULL) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+    if (extval->config_id_len>0 && !PACKET_copy_bytes(pkt, extval->config_id, 1)) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+
+    /* enc - the client's public share */
+    if (!PACKET_get_net_2(pkt, &tmp)) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+    if (tmp > MAX_ECH_ENC_LEN) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+    if (tmp>PACKET_remaining(pkt)) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+    extval->enc_len=tmp;
+    extval->enc=OPENSSL_malloc(tmp);
+    if (extval->enc==NULL) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+    if (!PACKET_copy_bytes(pkt, extval->enc, tmp)) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+
+    /* payload - the encrypted CH */
+    if (!PACKET_get_net_2(pkt, &tmp)) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+    if (tmp > MAX_ECH_PAYLOAD_LEN) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+    if (tmp>PACKET_remaining(pkt)) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+    extval->payload_len=tmp;
+    extval->payload=OPENSSL_malloc(tmp);
+    if (extval->payload==NULL) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+    if (!PACKET_copy_bytes(pkt, extval->payload, tmp)) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+
+    /*
+     * Calculate AAD value
+     */
+
+    unsigned char aad[HPKE_MAXSIZE];
+    size_t aad_len=HPKE_MAXSIZE;
+
+    unsigned char de[HPKE_MAXSIZE];
+    size_t de_len=HPKE_MAXSIZE;
+
+    /*
+     * newextlen = length of exts after taking out ech
+     *  ch_len-startofexts== oldextslen+2
+     *  newextlens=oldextlens-echlen
+     */
+    size_t newextlens=ch_len-echlen-startofexts-6;
+
+    memcpy(de,ch,startofexts);
+    de[startofexts]=(newextlens&0xffff)/256; 
+    de[startofexts+1]=(newextlens&0xffff)%256; 
+    size_t beforeECH=echoffset-startofexts-2;
+    size_t afterECH=ch_len-(echoffset+echlen);
+    memcpy(de+startofexts+2,ch+startofexts+2,beforeECH);
+    memcpy(de+startofexts+2+beforeECH,ch+startofexts+2+beforeECH+echlen,afterECH);
+    de_len=ch_len-echlen-4;
+
+    ech_pbuf("EARLY config id",extval->config_id,extval->config_id_len);
+
+    if (ech_srv_get_aad(s,extval->enc_len, extval->enc, 
+                extval->config_id_len, extval->config_id, 
+                de_len,de,
+                &aad_len,aad)!=1) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+
+    ech_pbuf("EARLY aad",aad,aad_len);
+
+    /*
+     * Now see which (if any) of our configs match, or whether
+     * we need to trial decrypt
+     */
+    int cfgind=-1;
+    int foundcfg=0;
+    s->ext.ech_grease=ECH_GREASE_UNKNOWN;
+    if (extval->config_id_len!=0) {
+        if (s->ech->cfg==NULL || s->ech->cfg->nrecs==0) {
+            // shouldn't happen if assume_grease
+            SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+            goto err;
+        }
+        for (cfgind=0;cfgind!=s->ech->cfg->nrecs;cfgind++) {
+            ECHConfig *e=&s->ech[cfgind].cfg->recs[0];
+            OSSL_TRACE_BEGIN(TLS) {
+                BIO_printf(trc_out,"EARLY: comparing rx'd config id (%x,%zu) vs. %d-th configured (%x,%u)\n",
+                        extval->config_id[0],extval->config_id_len,cfgind, e->config_id[0],e->config_id_len);
+            } OSSL_TRACE_END(TLS);
+            if (extval->config_id_len==e->config_id_len
+                    && !memcmp(extval->config_id,e->config_id,e->config_id_len)) {
+                foundcfg=1;
+                break;
+            }
+        }
+        if (foundcfg==1) {
+            clear=early_hpke_decrypt_encch(&s->ech[cfgind],extval,aad_len,aad,&clearlen);
+            if (clear==NULL) {
+                s->ext.ech_grease=ECH_IS_GREASE;
+            }
+        } 
+    }
+    /*
+     * Trial decrypt, if still needed
+     */
+    if (!foundcfg && (s->options & SSL_OP_ECH_TRIALDECRYPT)) { 
+        for (cfgind=0;cfgind!=s->ech->cfg->nrecs;cfgind++) {
+            clear=early_hpke_decrypt_encch(&s->ech[cfgind],extval,aad_len,aad,&clearlen);
+            if (clear!=NULL) {
+                foundcfg=1;
+                break;
+            }
+        }
+    } 
+
+    if (clear==NULL) {
+        s->ext.ech_grease=ECH_IS_GREASE;
+    } else {
+        s->ext.ech_grease=ECH_NOT_GREASE;
+    }
+    /*
+     * We succeeded or failed in decrypting, but we're done
+     * with that now.
+     */
+    s->ext.ech_done=1;
+    OSSL_TRACE_BEGIN(TLS) {
+        BIO_printf(trc_out,"EARLY: assume_grease: %d, foundcfg: %d, cfgind: %d, clearlen: %zd, clear %p\n",
+            s->ext.ech_grease,foundcfg,cfgind,clearlen,clear);
+    } OSSL_TRACE_END(TLS);
+
+    /*
+     * Bit more logging
+     */
+    if (foundcfg==1) {
+        ECHConfig *e=&s->ech[cfgind].cfg->recs[cfgind];
+        ech_pbuf("local config_id",e->config_id,e->config_id_len);
+        ech_pbuf("remote config_id",extval->config_id,extval->config_id_len);
+        ech_pbuf("clear",clear,clearlen);
+    }
+    
+
+    /*
+     * Stash the cleartext for later processing - we can't be sure
+     * it's ok to decode and process that now as some later outer
+     * extension may be involved ('cause crappy compression) or may
+     * have a side-effect if processed later on
+     */
+    s->ext.encoded_innerch_len=clearlen;
+    s->ext.encoded_innerch=clear;
+
+    if (extval!=NULL) {
+        ECH_ENCCH_free(extval);
+        OPENSSL_free(extval);
+        extval=NULL;
+    }
+
     /*
      * 3. if decrypt fails tee-up GREASE
      */
@@ -3652,6 +3934,8 @@ int ech_early_decrypt(SSL *s, PACKET *pkt, PACKET *newpkt)
 
 
     return(1);
+err:
+    return(0);
 }
 
 #endif
