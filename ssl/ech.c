@@ -3835,6 +3835,23 @@ int ech_early_decrypt(SSL *s, PACKET *outerpkt, PACKET *newpkt)
      * We'd like to grab the outer SNI (for fun/profit)
      * Maybe later we might grab outer ALPNs too
      */
+    if (outersnioffset>0) {
+        PACKET osni;
+        const unsigned char *osnibuf=&outerpkt->curr[outersnioffset+4];
+        size_t osnilen=outerpkt->curr[outersnioffset+2]*256+outerpkt->curr[outersnioffset+3];
+        if (PACKET_buf_init(&osni,osnibuf,osnilen)!=1) {
+            SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+            goto err;
+        }
+        if (tls_parse_ctos_server_name(s, &osni, 0, NULL, 0)!=1) {
+            SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+            goto err;
+        }
+        s->ech->outer_name=s->ext.hostname;
+        // clean up 
+        s->ext.hostname=NULL;
+        s->servername_done=0;
+    }
 
     /*
      * 2. trial-decrypt or check if config matches one loaded

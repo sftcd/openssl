@@ -1227,10 +1227,8 @@ void SSL_free(SSL *s)
 #ifndef OPENSSL_NO_ECH
     /* 
      * Tricksy way to only free this once
-     * For some reason doing the same with rbio below results in a leak
-     * so we don't do it:-)
      */
-    if (s->ext.ech_grease==ECH_IS_GREASE || s->ext.inner_s!=NULL) 
+    if (s->ext.ech_grease==ECH_IS_GREASE || s->ext.inner_s==NULL) 
 #endif
     CRYPTO_free_ex_data(CRYPTO_EX_INDEX_SSL, s, &s->ex_data);
 
@@ -1239,12 +1237,12 @@ void SSL_free(SSL *s)
     /* Ignore return value */
 
 #ifndef OPENSSL_NO_ECH
-    if (s->ext.ech_grease==ECH_IS_GREASE || s->ext.inner_s!=NULL) 
+    if (s->ext.ech_grease==ECH_IS_GREASE || s->ext.inner_s==NULL) 
 #endif
     ssl_free_wbio_buffer(s);
 
 #ifndef OPENSSL_NO_ECH
-    if (s->ext.ech_grease==ECH_IS_GREASE || s->ext.inner_s!=NULL) 
+    if (s->ext.ech_grease==ECH_IS_GREASE || s->ext.inner_s==NULL) 
 #endif
     BIO_free_all(s->wbio);
     s->wbio = NULL;
@@ -1314,17 +1312,12 @@ void SSL_free(SSL *s)
 #ifndef OPENSSL_NO_ECH
     // s_server seems to not need this, but lighttpd may need it
     // TODO: reconcile that!
-#undef DONTFREEECH
-#ifdef DONTFREEECH
-    if (s->ext.ech_grease==ECH_IS_GREASE || s->ext.inner_s!=NULL) 
-#endif
+    if (s->ext.ech_grease==ECH_IS_GREASE || s->ext.inner_s==NULL) 
 #endif
     if (s->clienthello != NULL)
         OPENSSL_free(s->clienthello->pre_proc_exts);
 #ifndef OPENSSL_NO_ECH
-#ifdef DONTFREEECH
-    if (s->ext.ech_grease==ECH_IS_GREASE || s->ext.inner_s!=NULL) 
-#endif
+    if (s->ext.ech_grease==ECH_IS_GREASE || s->ext.inner_s==NULL) 
 #endif
     OPENSSL_free(s->clienthello);
     OPENSSL_free(s->pha_context);

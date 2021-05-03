@@ -1387,6 +1387,7 @@ MSG_PROCESS_RETURN tls_process_client_hello(SSL *s, PACKET *pkt)
         if (s->ext.ech_success==1) {
             // If ECH worked, the inner CH MUST be smaller so we can
             // overwrite the outer packet, but no harm to check anyway
+            // I just happen to know that pkt->curr == s->init_msg
             if (newpkt.remaining>pkt->remaining) {
                 SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
                 goto err;
