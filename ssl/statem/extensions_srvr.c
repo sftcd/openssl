@@ -1920,292 +1920,21 @@ EXT_RETURN tls_construct_stoc_psk(SSL *s, WPACKET *pkt, unsigned int context,
 #ifndef OPENSSL_NO_ECH
 
 /**
- * @brief wrapper for hpke_dec since we call it >1 time
- */
-static unsigned char *hpke_decrypt_encch(SSL_ECH *ech, ECH_ENCCH *the_ech, 
-        size_t aad_len, unsigned char *aad, size_t *innerlen)
-{
-    size_t publen=0; unsigned char *pub=NULL;
-    size_t cipherlen=0; unsigned char *cipher=NULL;
-    size_t senderpublen=0; unsigned char *senderpub=NULL;
-    size_t clearlen=HPKE_MAXSIZE; unsigned char clear[HPKE_MAXSIZE];
-    int hpke_mode=HPKE_MODE_BASE;
-    hpke_suite_t hpke_suite = HPKE_SUITE_DEFAULT;
-    cipherlen=the_ech->payload_len;
-    cipher=the_ech->payload;
-    senderpublen=the_ech->enc_len;
-    senderpub=the_ech->enc;
-    hpke_suite.aead_id=the_ech->aead_id; 
-    hpke_suite.kdf_id=the_ech->kdf_id; 
-    /*
-     * We only support one ECHConfig for now on the server side
-     */
-    publen=ech->cfg->recs[0].pub_len;
-    pub=ech->cfg->recs[0].pub;
-    hpke_suite.kem_id=ech->cfg->recs[0].kem_id; 
-    ech_pbuf("my local pub",pub,publen);
-    ech_pbuf("senderpub",senderpub,senderpublen);
-    ech_pbuf("cipher",cipher,cipherlen);
-    unsigned char info[HPKE_MAXSIZE];
-    size_t info_len=HPKE_MAXSIZE;
-    if (ech_make_enc_info(ech->cfg->recs,info,&info_len)!=1) {
-        return NULL; 
-    }
-    ech_pbuf("info",info,info_len);
-    int rv=hpke_dec( hpke_mode, hpke_suite,
-                NULL, 0, NULL, // pskid, psk
-                //publen, pub, // recipient public key
-                0, NULL,
-                0,NULL,ech->keyshare, // private key in EVP_PKEY form
-                senderpublen, senderpub, // sender public
-                cipherlen, cipher, // ciphertext
-                aad_len,aad, // aad
-                info_len, info, // info
-                &clearlen, clear);  // clear
-    if (rv!=1) {
-        return NULL;
-    }
-    ech_pbuf("clear",clear,clearlen);
-    /*
-     * Allocate space for that now, including msg type and 2 octet length
-     */
-    unsigned char *innerch=OPENSSL_malloc(clearlen);
-    if (!innerch) {
-        return NULL;
-    }
-    memcpy(innerch,clear,clearlen);
-    *innerlen=clearlen;
-    return innerch;
-}
-
-/**
  * @brief Decodes inbound ECH extension 
  */
 int tls_parse_ctos_ech(SSL *s, PACKET *pkt, unsigned int context,
                                X509 *x, size_t chainidx)
 {
-    size_t clearlen=0;
-    unsigned char *clear=NULL;
-    if (s->ech==NULL) {
-        s->ext.ech_grease=ECH_IS_GREASE;
-        s->ext.ech_attempted=1;
-        OSSL_TRACE_BEGIN(TLS) {
-            BIO_printf(trc_out,"tls_parse_ctos_ech called - NULL ECH so assuming grease.\n");
-        } OSSL_TRACE_END(TLS);
+    if (s->ext.ech_grease==ECH_IS_GREASE) {
         return 1;
-    } else {
-        s->ext.ech_grease=ECH_GREASE_UNKNOWN;
-        OSSL_TRACE_BEGIN(TLS) {
-            BIO_printf(trc_out,"tls_parse_ctos_ech called - with a real ECH!\n");
-        } OSSL_TRACE_END(TLS);
-    }
-
-    /*
-     * Remember that we got one
-     */
-    s->ext.ech_attempted=1;
-
-    /*
-     * Decode the inbound value
-     * We're looking for:
-     *
-     * struct {
-     *   ECHCipherSuite cipher_suite;
-     *   uint8 config_id;
-     *   opaque enc<1..2^16-1>;
-     *   opaque payload<1..2^16-1>;
-     *  } ClientECH;
-     */
-    ECH_ENCCH *extval=NULL;
-
-    extval=OPENSSL_malloc(sizeof(ECH_ENCCH));
-    if (extval==NULL) {
-        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
-        goto err;
-    }
-
-    unsigned int tmp;
-    if (!PACKET_get_net_2(pkt, &tmp)) {
-        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
-        goto err;
-    }
-    extval->kdf_id=tmp&0xffff;
-    if (!PACKET_get_net_2(pkt, &tmp)) {
-        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
-        goto err;
-    }
-    extval->aead_id=tmp&0xffff;
-
-    /* config id */
-    extval->config_id_len=1;
-    extval->config_id=OPENSSL_malloc(1);
-    if (extval->config_id_len!=0 && extval->config_id==NULL) {
-        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
-        goto err;
-    }
-    if (extval->config_id_len>0 && !PACKET_copy_bytes(pkt, extval->config_id, 1)) {
-        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
-        goto err;
-    }
-
-    /* enc - the client's public share */
-    if (!PACKET_get_net_2(pkt, &tmp)) {
-        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
-        goto err;
-    }
-    if (tmp > MAX_ECH_ENC_LEN) {
-        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
-        goto err;
-    }
-    if (tmp>PACKET_remaining(pkt)) {
-        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
-        goto err;
-    }
-    extval->enc_len=tmp;
-    extval->enc=OPENSSL_malloc(tmp);
-    if (extval->enc==NULL) {
-        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
-        goto err;
-    }
-    if (!PACKET_copy_bytes(pkt, extval->enc, tmp)) {
-        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
-        goto err;
-    }
-
-    /* payload - the encrypted CH */
-    if (!PACKET_get_net_2(pkt, &tmp)) {
-        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
-        goto err;
-    }
-    if (tmp > MAX_ECH_PAYLOAD_LEN) {
-        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
-        goto err;
-    }
-    if (tmp>PACKET_remaining(pkt)) {
-        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
-        goto err;
-    }
-    extval->payload_len=tmp;
-    extval->payload=OPENSSL_malloc(tmp);
-    if (extval->payload==NULL) {
-        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
-        goto err;
-    }
-    if (!PACKET_copy_bytes(pkt, extval->payload, tmp)) {
-        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
-        goto err;
-    }
-
-    /*
-     * Calculate AAD value
-     */
-    unsigned char aad[HPKE_MAXSIZE];
-    size_t aad_len=HPKE_MAXSIZE;
-
-    if (ech_srv_get_aad(s,extval->enc_len, extval->enc, 
-                extval->config_id_len, extval->config_id, 
-                s->ext.ech_dropped_from_ch_len, s->ext.ech_dropped_from_ch, 
-                &aad_len,aad)!=1) {
-        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
-        goto err;
-    }
-
-    /*
-     * Now see which (if any) of our configs match, or whether
-     * we need to trial decrypt
-     */
-    int cfgind=-1;
-    int foundcfg=0;
-    if (s->ext.ech_grease==ECH_GREASE_UNKNOWN && extval->config_id_len!=0) {
-        if (s->ech->cfg==NULL || s->ech->cfg->nrecs==0) {
-            // shouldn't happen if assume_grease
-            SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
-            goto err;
-        }
-        for (cfgind=0;cfgind!=s->ech->cfg->nrecs;cfgind++) {
-            ECHConfig *e=&s->ech[cfgind].cfg->recs[0];
-            if (extval->config_id_len==e->config_id_len
-                    && !memcmp(extval->config_id,e->config_id,e->config_id_len)) {
-                foundcfg=1;
-                break;
-            }
-        }
-        if (foundcfg==1) {
-            clear=hpke_decrypt_encch(&s->ech[cfgind],extval,aad_len,aad,&clearlen);
-            if (clear==NULL) {
-                s->ext.ech_grease=ECH_IS_GREASE;
-            }
-        } 
     }
     /*
-     * Trial decrypt, if still needed
+     * Barf here - we shouldn't see this here
      */
-    if (!foundcfg && (s->options & SSL_OP_ECH_TRIALDECRYPT)) { 
-        for (cfgind=0;cfgind!=s->ech->cfg->nrecs;cfgind++) {
-            clear=hpke_decrypt_encch(&s->ech[cfgind],extval,aad_len,aad,&clearlen);
-            if (clear!=NULL) {
-                foundcfg=1;
-                break;
-            }
-        }
-    } 
-
-    if (clear==NULL) {
-        s->ext.ech_grease=ECH_IS_GREASE;
-    } else {
-        s->ext.ech_grease=ECH_NOT_GREASE;
-    }
-    /*
-     * We succeeded or failed in decrypting, but we're done
-     * with that now.
-     */
-    s->ext.ech_done=1;
     OSSL_TRACE_BEGIN(TLS) {
-        BIO_printf(trc_out,"parse_ctos_ech: assume_grease: %d, foundcfg: %d, cfgind: %d, clearlen: %zd, clear %p\n",
-            s->ext.ech_grease,foundcfg,cfgind,clearlen,clear);
+        BIO_printf(trc_out,"ECH shouldn't be seen here.\n");
     } OSSL_TRACE_END(TLS);
-
-    /*
-     * Bit more logging
-     */
-    if (foundcfg==1) {
-        ECHConfig *e=&s->ech[cfgind].cfg->recs[cfgind];
-        ech_pbuf("local config_id",e->config_id,e->config_id_len);
-        ech_pbuf("remote config_id",extval->config_id,extval->config_id_len);
-        ech_pbuf("clear",clear,clearlen);
-    }
-    
-
-    /*
-     * Stash the cleartext for later processing - we can't be sure
-     * it's ok to decode and process that now as some later outer
-     * extension may be involved ('cause crappy compression) or may
-     * have a side-effect if processed later on
-     */
-    s->ext.encoded_innerch_len=clearlen;
-    s->ext.encoded_innerch=clear;
-
-    if (extval!=NULL) {
-        ECH_ENCCH_free(extval);
-        OPENSSL_free(extval);
-        extval=NULL;
-    }
-
-    return 1;
-
-err:
-    if (s->ech==NULL && extval!=NULL) {
-        ECH_ENCCH_free(extval);
-        OPENSSL_free(extval);
-    }
-    if (clearlen!=0 && clear!=NULL) {
-        OPENSSL_free(clear);
-    }
-    if (s->ext.inner_s!=NULL) {
-        SSL_free(s->ext.inner_s);
-        s->ext.inner_s=NULL;
-    }
-    return(0);
+    return 0;
 }
 
 /**
@@ -2220,8 +1949,8 @@ EXT_RETURN tls_construct_stoc_ech(SSL *s, WPACKET *pkt,
     }
 
     /*
-     * If the client GREASEd, or we thing it did, we
-     * return an ECHConfigs, as the value of the 
+     * If the client GREASEd, or we think it did, we
+     * return an ECHConfig, as the value of the 
      * extension.
      */
     if (s->ech==NULL || s->ech->cfg==NULL) {
@@ -2247,7 +1976,7 @@ EXT_RETURN tls_construct_stoc_ech(SSL *s, WPACKET *pkt,
     }
 
     OSSL_TRACE_BEGIN(TLS) { 
-        BIO_printf(trc_out,"ECH - sending ECHConfigs back to client\n");
+        BIO_printf(trc_out,"ECH - sending ECHConfig back to client\n");
     } OSSL_TRACE_END(TLS);
 
     return EXT_RETURN_SENT;
@@ -2257,150 +1986,12 @@ int tls_parse_ctos_ech_outer_exts(SSL *s, PACKET *pkt, unsigned int context,
                                X509 *x, size_t chainidx)
 {
     /*
-     * We could barf here I guess as this is, in the end, not called - I hand
-     * coded ech_decode_inner for now that handles this specific one (becuase
-     * it must;-(
+     * Barf here - we shouldn't see this here
      */
-    if (s->ech==NULL) {
-        OSSL_TRACE_BEGIN(TLS) {
-            BIO_printf(trc_out,"Ignoring outer_extensions as we're not doing ECH.\n");
-        } OSSL_TRACE_END(TLS);
-        return(1);
-    }
-
-    /*
-     * There better not be one of these in the outer CH
-     */
-    if (s->ext.ch_depth!=1) {
-        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
-        return(0);
-    }
-
-    /*
-     * And we also need the actual values from the outer
-     */
-    if (s->ext.outer_s==NULL) {
-        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
-        return(0);
-    }
-    if (s->ext.outer_s->clienthello==NULL) {
-        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
-        return(0);
-    }
-
-    /*
-     * Read the gratuituously added internal 1-octer length field
-     */
-    unsigned int slen=0;
-    if (PACKET_get_1(pkt,&slen)!=1) { 
-        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
-        return(0);
-    }
-
-    /*
-     * For each extension here, if there's an outer equivalent, then splice
-     * that in, bail if there're errors
-     */
-    int nouters=PACKET_remaining(pkt)/2;
-    if (!ossl_assert(nouters==slen/2)) {
-        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
-        return(0);
-    }
     OSSL_TRACE_BEGIN(TLS) {
-        BIO_printf(trc_out,"We have %d compressed exts\n",nouters);
+        BIO_printf(trc_out,"outer_extensions shouldn't be seen here.\n");
     } OSSL_TRACE_END(TLS);
-    if (nouters>=ECH_OUTERS_MAX) {
-        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
-        return(0);
-    }
-    uint16_t *etypes=s->ext.outer_only;
-    s->ext.n_outer_only=nouters;
-    int exti=0;
-    for (exti=0;exti!=nouters;exti++) {
-        unsigned int tmp;
-        if (!PACKET_get_net_2(pkt, &tmp)) {
-            SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
-            return(0);
-        }
-        etypes[exti]=(uint32_t) (tmp&0xffff);
-        OSSL_TRACE_BEGIN(TLS) {
-            BIO_printf(trc_out,"\touter %d is type %x\n",exti,etypes[exti]);
-        } OSSL_TRACE_END(TLS);
-    }
-
-    /*
-     * Plan is:
-     * - splice in the values from outer, but there's a gotcha:
-     *    pre_proc_exts has an entry for all known exts that includes
-     *    flags for present/parsed/rx'd order so we need to fix those 
-     *    values up and get these re-parsed in case there's a side
-     *    effect (sigh - this compression is nuts!)
-     * - finally check de-compress won't break a rule (e.g. 2 occurrences of one ext type)
-     * - declare victory
-     */
-
-    /*
-     * Figure out the offset of the outers in inner, that'll be what we up positions
-     * by
-     */
-    int outer_order=-1; ///< the order of the outer_ext in the inner CH, we'll splice in exts from outer at this point
-    RAW_EXTENSION *inner=s->clienthello->pre_proc_exts;
-    int inner_size=s->clienthello->pre_proc_exts_len;
-    for (int i=0;i!=inner_size;i++) {
-        if (inner->type==TLSEXT_TYPE_outer_extensions && inner->present) {
-            outer_order=inner->received_order;
-            break;
-        }
-        inner++;
-    }
-    if (outer_order==-1) {
-        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
-        return(0);
-    }
-
-    /* 
-     * Now look through outer CH exts and adjust inners as needed
-     * This code depends on the inner and outer RAW_EXTENSION arrays having
-     * the same exts at the same indices. So don't change that;-) 
-     * We do do some checks just in case.
-     */
-    const RAW_EXTENSION *outerexts=s->ext.outer_s->clienthello->pre_proc_exts;
-    inner=s->clienthello->pre_proc_exts;
-    int outer_size=s->ext.outer_s->clienthello->pre_proc_exts_len;
-    if (inner_size!=outer_size) return(0);
-    for (int i=0;i!=outer_size;i++) {
-        if (inner->present==1 && inner->type!= TLSEXT_TYPE_outer_extensions && inner->type!=outerexts->type) {
-            SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
-            return(0);
-        }
-        for (int j=0;j!=nouters;j++) {
-            if (outerexts->type==etypes[j] && outerexts->present==1) {
-                OSSL_TRACE_BEGIN(TLS) {
-                    BIO_printf(trc_out,"Compressed Ext %d (type %x) is present in outer CH (pos %d, rx pos %zd, parsed: %d, size: %zd)\n",
-                        j,etypes[j],i,outerexts->received_order,outerexts->parsed,outerexts->data.remaining);
-                } OSSL_TRACE_END(TLS);
-                if (inner->present==1 && inner->received_order>=outer_order) {
-                    inner->received_order=outer_order+j;
-                    inner->parsed=0;
-                }
-                /*
-                 * TODO: FIXME: this is broken - by the time we're here, outer->data
-                 * has been parsed which means that the PACKET has zero data remaining
-                 * so if we re-parsed it, we'd fail. However, we should also be luck
-                 * in that the SSL *s input here starts out with the result of having
-                 * done that parsing, so we should be ok, unless there's some interaction
-                 * between yet another extension value and "this" one where we have
-                 * different values for "this" one in inner and outer.
-                 * Yes, this compression sucks awfully.
-                 * Oh - and the packet data pointer is probably gonna cause trouble
-                 * when freed (but we'll see that soon)
-                 */
-                inner->data=outerexts->data;
-            }
-        }
-        outerexts++; inner++;
-    }
-    return 1;
+    return 0;
 }
 
 EXT_RETURN tls_construct_stoc_ech_outer_exts(SSL *s, WPACKET *pkt,
@@ -2416,7 +2007,7 @@ int tls_parse_ctos_ech_is_inner(SSL *s, PACKET *pkt, unsigned int context,
     /*
      * Return error if this is not an inner CH
      */
-    if (s->ext.ch_depth!=1) return 0;
+    if (s->ext.ech_success!=1) return 0;
     return 1;
 }
 

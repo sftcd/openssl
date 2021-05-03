@@ -2018,6 +2018,10 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL *s, PACKET *pkt)
         }
         if (memcmp(s->s3.server_random+SSL3_RANDOM_SIZE-8,acbuf,8)==0) {
             s->ext.ech_success=1;
+            OSSL_TRACE_BEGIN(TLS) {
+                BIO_printf(trc_out, "ECH succeeded - swapping inner/outer\n");
+            } OSSL_TRACE_END(TLS);
+
         
             // swap back before final swap
             inner=*s; *s=outer; *s->ext.inner_s=inner;

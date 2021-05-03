@@ -353,8 +353,8 @@ int ech_swaperoo(SSL *s);
  * 
  * @param s is the SSL session
  * @return 1 for success, 0 for failure
- */
 int ech_process_inner_if_present(SSL *s); 
+ */
 
 void ech_ptranscript(const char* msg,SSL *s);
 

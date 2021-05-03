@@ -1377,54 +1377,24 @@ MSG_PROCESS_RETURN tls_process_client_hello(SSL *s, PACKET *pkt)
 
 #ifndef OPENSSL_NO_ECH
 
-#ifndef ECH_UPFRONT_DEC
-    // tested, will-be-legacy code
-    /*
-     * If we're a server and we might do ECH then we should
-     * stash a version of the outer CH (if that's what we're
-     * being called to look at), minus the ECH extension for
-     * the AAD to be used in potential decryptions.
-     *
-     * Yes, it's a PITA that this needs to be done here.
-     */
-    if (s->server && s->ech!=NULL && s->ext.ch_depth==0) {
-        /* 
-         * figure out value (if present) and stash that
-         */
-        size_t de_len=HPKE_MAXSIZE;
-        unsigned char de[HPKE_MAXSIZE];
-        if (drop_ech_from_ch(s,pkt->remaining,pkt->curr,&de_len,de)!=1) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-            goto err;
-        }
-        if (de_len>0) {
-            // we got an ECH there, better stash de value really
-            s->ext.ech_dropped_from_ch=OPENSSL_malloc(de_len); 
-            if (!s->ext.ech_dropped_from_ch) {
-                SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-                goto err;
-            }
-            s->ext.ech_dropped_from_ch_len=de_len;
-            memcpy(s->ext.ech_dropped_from_ch,de,de_len);
-        }
-    }
-
-#else
     // new code
-    if (s->server && s->ech!=NULL && s->ext.ch_depth==0) {
+    if (s->server && s->ech!=NULL) {
         PACKET newpkt;
         if (ech_early_decrypt(s,pkt,&newpkt)!=1) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             goto err;
         }
-        if (s->ext.ch_depth==1) {
-            // we did a swaperoo!
-            // swap pkt/newpkt
-            pkt=&newpkt; // bad idea but enought for now
-        } // otherwise continue
+        if (s->ext.ech_success==1) {
+            // If ECH worked, the inner CH MUST be smaller so we can
+            // overwrite the outer packet, but no harm to check anyway
+            if (newpkt.remaining>pkt->remaining) {
+                SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+                goto err;
+            }
+            memcpy(s->init_msg,newpkt.curr,newpkt.remaining);
+            pkt->remaining=newpkt.remaining;
+        } 
     }
-
-#endif
 
 #endif
 
@@ -1559,23 +1529,6 @@ MSG_PROCESS_RETURN tls_process_client_hello(SSL *s, PACKET *pkt)
             SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_LENGTH_MISMATCH);
             goto err;
         }
-
-#ifndef OPENSSL_NO_ECH
-        /*
-         * The session ID is not repeated in the inner CH, so if that's
-         * what we're parsing (on a server) then we use the outer CH's
-         * session ID
-         */
-        if (s->server && s->ext.ch_depth==1) {
-            if (s->ext.outer_s==NULL || s->ext.outer_s->clienthello==NULL) {
-                SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_RECORD_LENGTH_MISMATCH);
-                goto err;
-            }
-            unsigned int session_id_len=s->ext.outer_s->clienthello->session_id_len;
-            clienthello->session_id_len=s->ext.outer_s->clienthello->session_id_len;
-            memcpy(clienthello->session_id,s->ext.outer_s->clienthello->session_id,session_id_len);
-        }
-#endif
 
         if (SSL_IS_DTLS(s)) {
             if (!PACKET_get_length_prefixed_1(pkt, &cookie)) {
@@ -1957,7 +1910,7 @@ static int tls_early_post_process_client_hello(SSL *s)
      * later to include the ECH magic (can't do it now as we don't
      * yet have the SH encoding)
      */
-    if (s->ech && s->ext.ech_done && s->ect.ech_grease==0) 
+    if (s->ech && s->ext.ech_success) 
 #endif
 
     if (!s->hit
@@ -2116,13 +2069,6 @@ static int tls_early_post_process_client_hello(SSL *s)
             goto err;
         }
     }
-
-#ifndef OPENSSL_NO_ECH
-    if (ech_process_inner_if_present(s)!=1) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-        goto err;
-    }
-#endif
 
     sk_SSL_CIPHER_free(ciphers);
     sk_SSL_CIPHER_free(scsvs);
@@ -2512,9 +2458,9 @@ int tls_construct_server_hello(SSL *s, WPACKET *pkt)
      * First, we'll try just get the right calculation done. (Using
      * NSS for now as my guide.)
      */
-    unsigned char acbuf[8];
-    memset(acbuf,0,8);
-    if (s->ech && s->ext.ech_done && s->ext.ech_success==1) {
+    if (s->ech && s->ext.ech_success==1) {
+        unsigned char acbuf[8];
+        memset(acbuf,0,8);
         // HACK HACK
         if (!pkt || !pkt->buf) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
@@ -2526,16 +2472,16 @@ int tls_construct_server_hello(SSL *s, WPACKET *pkt)
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             return 0;
         }
+        memcpy(s->s3.server_random+SSL3_RANDOM_SIZE-8,acbuf,8);
+        /*
+         * Now HACK HACK at the packet to swap those bits (sigh)
+         * TODO: consider adding a new WPACKET_foo API for this
+         * it ought not be here.
+         */
+        size_t shoffset=6+24;
+        unsigned char *p=(unsigned char*) &pkt->buf->data[shoffset];
+        memcpy(p,acbuf,8);
     }
-    memcpy(s->s3.server_random+SSL3_RANDOM_SIZE-8,acbuf,8);
-    /*
-     * Now HACK HACK at the packet to swap those bits (sigh)
-     * TODO: consider adding a new WPACKET_foo API for this
-     * it ought not be here.
-     */
-    size_t shoffset=6+24;
-    unsigned char *p=(unsigned char*) &pkt->buf->data[shoffset];
-    memcpy(p,acbuf,8);
 
 #endif
 
