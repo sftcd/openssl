@@ -1,6 +1,16 @@
 #!/bin/bash
 
-set -x
+# set -x
+
+# Run a lighttpd on localhost:3443 with foo.example.com accessible
+# via ECH
+
+# Note on testing - if you have our curl build locally, and foo.example.com
+# is in your /etc/hosts, then:
+#       $src/curl --echconfig AED+CgA8ogAgACCRR4BdUxMqi3p2QZxscc4yKK7SSEe6yvjD/XQcodPBLwAEAAEAAQAAAAtleGFtcGxlLmNvbQAA --cacert ../openssl/esnistuff/cadir/oe.csr https://foo.example.com:3443/index.html -v
+#
+# Replace the bas64 encoded stuff abouve with the right public key as
+# needed.
 
 OSSL="$HOME/code/openssl"
 LIGHTY="$HOME/code/lighttpd1.4-gstrauss"

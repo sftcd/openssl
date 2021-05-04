@@ -1558,11 +1558,18 @@ int SSL_ech_get_status(SSL *s, char **inner_sni, char **outer_sni)
      * set vars - note we may be pointing to NULL which is fine
      */
     char *sinner=NULL;
-    if (s->ext.inner_s!=NULL) sinner=s->ext.inner_s->ext.hostname;
-    else sinner=s->ext.hostname;
     char *souter=NULL;
-    if (s->ext.outer_s!=NULL) souter=s->ext.outer_s->ext.hostname;
-    else souter=s->ext.hostname;
+    if (!s->server) {
+        if (s->ext.inner_s!=NULL) sinner=s->ext.inner_s->ext.hostname;
+        else sinner=s->ext.hostname;
+        if (s->ext.outer_s!=NULL) souter=s->ext.outer_s->ext.hostname;
+        else souter=s->ext.hostname;
+    } else {
+        if (s->ech && s->ext.ech_success) {
+            sinner=s->ech->inner_name;
+            souter=s->ech->outer_name;
+        }
+    }
 
     if (s->ech!=NULL && s->ext.ech_attempted==1) {
 
@@ -3848,10 +3855,16 @@ int ech_early_decrypt(SSL *s, PACKET *outerpkt, PACKET *newpkt)
             goto err;
         }
         s->ech->outer_name=s->ext.hostname;
+        OSSL_TRACE_BEGIN(TLS) {
+            BIO_printf(trc_out,"EARLY: found outer SNI of %s\n",s->ext.hostname);
+        } OSSL_TRACE_END(TLS);
         // clean up 
         s->ext.hostname=NULL;
         s->servername_done=0;
-    }
+    } else
+        OSSL_TRACE_BEGIN(TLS) {
+            BIO_printf(trc_out,"EARLY: no sign of an outer SNI\n");
+        } OSSL_TRACE_END(TLS);
 
     /*
      * 2. trial-decrypt or check if config matches one loaded

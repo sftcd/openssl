@@ -192,7 +192,7 @@ typedef struct ech_encch_st {
 typedef struct ssl_ech_st {
     ECHConfigs *cfg; ///< merge of underlying ECHConfigs
     /*
-     * API inputs
+     * API input names, or, set on server from CH if ECH worked
      */
     char *inner_name;
     char *outer_name;

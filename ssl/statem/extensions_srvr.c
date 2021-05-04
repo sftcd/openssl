@@ -161,6 +161,12 @@ int tls_parse_ctos_server_name(SSL *s, PACKET *pkt, unsigned int context,
             return 0;
         }
 
+#ifndef OPENSSL_NO_ECH
+        if (s->ech && s->ext.ech_success==1) {
+            s->ech->inner_name=OPENSSL_strdup(s->ext.hostname);
+        }
+#endif
+
         s->servername_done = 1;
     } else {
         /*
