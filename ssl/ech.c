@@ -2954,6 +2954,25 @@ int ech_calc_accept_confirm(SSL *s, unsigned char *acbuf, const unsigned char *s
     if (tbuf) OPENSSL_free(tbuf);
     if (ctx) EVP_MD_CTX_free(ctx);
 
+    /*
+     * call ECH callback
+     */
+    if (s->ech!=NULL && s->ext.ech_done==1 && s->ech_cb != NULL) {
+        char pstr[ECH_PBUF_SIZE+1];
+        memset(pstr,0,ECH_PBUF_SIZE+1);
+        BIO *biom = BIO_new(BIO_s_mem());
+        SSL_ech_print(biom,s,ECH_SELECT_ALL);
+        BIO_read(biom,pstr,ECH_PBUF_SIZE);
+        unsigned int cbrv=s->ech_cb(s,pstr);
+        BIO_free(biom);
+        if (cbrv != 1) {
+            OSSL_TRACE_BEGIN(TLS) {
+                BIO_printf(trc_out,"Exiting tls_parse_ctos_ech at %d\n",__LINE__);
+            } OSSL_TRACE_END(TLS);
+            return 0;
+        }
+    }
+
     return(1);
 
 err:
