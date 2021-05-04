@@ -2050,9 +2050,11 @@ int ech_same_ext(SSL *s, WPACKET* pkt)
         }
         s->ext.outer_only[s->ext.n_outer_only]=type;
         s->ext.n_outer_only++;
+#ifndef OPENSSL_NO_SSL_TRACE
         OSSL_TRACE_BEGIN(TLS) {
             BIO_printf(trc_out,"Marking ext type %x for compression\n",s->ext.etype);
         } OSSL_TRACE_END(TLS);
+#endif
         return(ECH_SAME_EXT_CONTINUE);
     }
 
@@ -2200,9 +2202,11 @@ int ech_encode_inner(SSL *s)
         for (ooi=0;!tobecompressed && ooi!=s->ext.n_outer_only;ooi++) {
             if (raws[ind].type==s->ext.outer_only[ooi]) {
                 tobecompressed=1;
+#ifndef OPENSSL_NO_SSL_TRACE
                 OSSL_TRACE_BEGIN(TLS) {
                     BIO_printf(trc_out,"Going to compress something\n");
                 } OSSL_TRACE_END(TLS);
+#endif
             }
         }
         if (!compression_done && tobecompressed) {
@@ -2343,9 +2347,11 @@ int ech_decode_inner2(SSL *s, const unsigned char *ob, size_t ob_len, size_t out
                 s->ext.encoded_innerch_len-offset2sessid-1);
     ech_pbuf("Inner CH (session-id-added but no decompression)",initial_decomp,initial_decomp_len);
     if (startofexts>initial_decomp_len) {
+#ifndef OPENSSL_NO_SSL_TRACE
         OSSL_TRACE_BEGIN(TLS) {
             BIO_printf(trc_out,"Oops - exts out of bounds\n");
         } OSSL_TRACE_END(TLS);
+#endif
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_MALLOC_FAILURE);
         return(0);
     }
@@ -2369,9 +2375,11 @@ int ech_decode_inner2(SSL *s, const unsigned char *ob, size_t ob_len, size_t out
         }
     }
     if (found==0) {
+#ifndef OPENSSL_NO_SSL_TRACE
         OSSL_TRACE_BEGIN(TLS) {
             BIO_printf(trc_out,"We had no compression\n");
         } OSSL_TRACE_END(TLS);
+#endif
         /*
          * We still need to add msg type & 3-octet length
          */
@@ -2411,13 +2419,17 @@ int ech_decode_inner2(SSL *s, const unsigned char *ob, size_t ob_len, size_t out
     for (i=0;i!=n_outers;i++) {
         outers[i]=oval_buf[2*i]*256+oval_buf[2*i+1];
     }
+#ifndef OPENSSL_NO_SSL_TRACE
     OSSL_TRACE_BEGIN(TLS) {
         BIO_printf(trc_out,"We have %d outers compressed\n",n_outers);
     } OSSL_TRACE_END(TLS);
+#endif
     if (n_outers<=0 || n_outers > ECH_OUTERS_MAX ) {
+#ifndef OPENSSL_NO_SSL_TRACE
         OSSL_TRACE_BEGIN(TLS) {
             BIO_printf(trc_out,"So no real compression (or too much!)\n");
         } OSSL_TRACE_END(TLS);
+#endif
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         goto err;
     }
@@ -2452,9 +2464,11 @@ int ech_decode_inner2(SSL *s, const unsigned char *ob, size_t ob_len, size_t out
         ep+=(elen+4);
     }
     if (found_outers!=n_outers) {
+#ifndef OPENSSL_NO_SSL_TRACE
         OSSL_TRACE_BEGIN(TLS) {
             BIO_printf(trc_out,"Error found outers (%d) not same as claimed (%d)\n",found_outers,n_outers);
         } OSSL_TRACE_END(TLS);
+#endif
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         goto err;
     }
@@ -2497,10 +2511,12 @@ int ech_decode_inner2(SSL *s, const unsigned char *ob, size_t ob_len, size_t out
     // those
     size_t initial_extslen=final_decomp[startofexts+4]*256+final_decomp[startofexts+5];
     size_t final_extslen=initial_extslen+tot_outer_lens-outer_exts_len;
+#ifndef OPENSSL_NO_SSL_TRACE
     OSSL_TRACE_BEGIN(TLS) {
         BIO_printf(trc_out,"Initial extensions length: 0x%zx, Final extensions length: 0x%zx\n",
                 initial_extslen, final_extslen);
     } OSSL_TRACE_END(TLS);
+#endif
     // the added 4 is for the type+3-octets len
     final_decomp[startofexts+4]=(final_extslen/256)&0xff;
     final_decomp[startofexts+5]=final_extslen%256;
@@ -2587,9 +2603,11 @@ int ech_decode_inner(SSL *s)
                 outer->ext.encoded_innerch_len-offset2sessid-1);
     ech_pbuf("Inner CH (session-id-added but no decompression)",initial_decomp,initial_decomp_len);
     if (startofexts>initial_decomp_len) {
+#ifndef OPENSSL_NO_SSL_TRACE
         OSSL_TRACE_BEGIN(TLS) {
             BIO_printf(trc_out,"Oops - exts out of bounds\n");
         } OSSL_TRACE_END(TLS);
+#endif
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_MALLOC_FAILURE);
         return(0);
     }
@@ -2613,9 +2631,11 @@ int ech_decode_inner(SSL *s)
         }
     }
     if (found==0) {
+#ifndef OPENSSL_NO_SSL_TRACE
         OSSL_TRACE_BEGIN(TLS) {
             BIO_printf(trc_out,"We had no compression\n");
         } OSSL_TRACE_END(TLS);
+#endif
         /*
          * We still need to add msg type & 3-octet length
          */
@@ -2655,13 +2675,17 @@ int ech_decode_inner(SSL *s)
     for (i=0;i!=n_outers;i++) {
         outers[i]=oval_buf[2*i]*256+oval_buf[2*i+1];
     }
+#ifndef OPENSSL_NO_SSL_TRACE
     OSSL_TRACE_BEGIN(TLS) {
         BIO_printf(trc_out,"We have %d outers compressed\n",n_outers);
     } OSSL_TRACE_END(TLS);
+#endif
     if (n_outers<=0 || n_outers > ECH_OUTERS_MAX ) {
+#ifndef OPENSSL_NO_SSL_TRACE
         OSSL_TRACE_BEGIN(TLS) {
             BIO_printf(trc_out,"So no real compression (or too much!)\n");
         } OSSL_TRACE_END(TLS);
+#endif
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         goto err;
     }
@@ -2696,9 +2720,11 @@ int ech_decode_inner(SSL *s)
         ep+=(elen+4);
     }
     if (found_outers!=n_outers) {
+#ifndef OPENSSL_NO_SSL_TRACE
         OSSL_TRACE_BEGIN(TLS) {
             BIO_printf(trc_out,"Error found outers (%d) not same as claimed (%d)\n",found_outers,n_outers);
         } OSSL_TRACE_END(TLS);
+#endif
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         goto err;
     }
@@ -2741,10 +2767,12 @@ int ech_decode_inner(SSL *s)
     // those
     size_t initial_extslen=final_decomp[startofexts+4]*256+final_decomp[startofexts+5];
     size_t final_extslen=initial_extslen+tot_outer_lens-outer_exts_len;
+#ifndef OPENSSL_NO_SSL_TRACE
     OSSL_TRACE_BEGIN(TLS) {
         BIO_printf(trc_out,"Initial extensions length: 0x%zx, Final extensions length: 0x%zx\n",
                 initial_extslen, final_extslen);
     } OSSL_TRACE_END(TLS);
+#endif
     // the added 4 is for the type+3-octets len
     final_decomp[startofexts+4]=(final_extslen/256)&0xff;
     final_decomp[startofexts+5]=final_extslen%256;
@@ -2764,6 +2792,7 @@ err:
 void ech_pbuf(const char *msg, const unsigned char *buf, const size_t blen)
 {
 
+#ifndef OPENSSL_NO_SSL_TRACE
     OSSL_TRACE_BEGIN(TLS) {
     if (msg==NULL) {
         BIO_printf(trc_out,"msg is NULL\n");
@@ -2782,6 +2811,7 @@ void ech_pbuf(const char *msg, const unsigned char *buf, const size_t blen)
         BIO_printf(trc_out,"\n");
         }
     } OSSL_TRACE_END(TLS);
+#endif
     return;
 }
 
@@ -2966,9 +2996,11 @@ int ech_calc_accept_confirm(SSL *s, unsigned char *acbuf, const unsigned char *s
         unsigned int cbrv=s->ech_cb(s,pstr);
         BIO_free(biom);
         if (cbrv != 1) {
+#ifndef OPENSSL_NO_SSL_TRACE
             OSSL_TRACE_BEGIN(TLS) {
                 BIO_printf(trc_out,"Exiting tls_parse_ctos_ech at %d\n",__LINE__);
             } OSSL_TRACE_END(TLS);
+#endif
             return 0;
         }
     }
@@ -3158,9 +3190,11 @@ int ech_swaperoo(SSL *s)
         unsigned int cbrv=s->ech_cb(s,pstr);
         BIO_free(biom);
         if (cbrv != 1) {
+#ifndef OPENSSL_NO_SSL_TRACE
             OSSL_TRACE_BEGIN(TLS) {
                 BIO_printf(trc_out,"Exiting tls_parse_ctos_ech at %d\n",__LINE__);
             } OSSL_TRACE_END(TLS);
+#endif
             return 0;
         }
     }
@@ -3181,9 +3215,11 @@ void ech_ptranscript(const char *msg, SSL *s)
         ssl_handshake_hash(s,ddata,1000,&ddatalen);
         ech_pbuf(msg,ddata,ddatalen);
     } else {
+#ifndef OPENSSL_NO_SSL_TRACE
         OSSL_TRACE_BEGIN(TLS) {
             BIO_printf(trc_out,"handshake_dgst is NULL\n");
         } OSSL_TRACE_END(TLS);
+#endif
     }
     return;
 }
@@ -3257,9 +3293,11 @@ int SSL_ech_send_grease(SSL *s, WPACKET *pkt, unsigned int context,
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
     }
+#ifndef OPENSSL_NO_SSL_TRACE
     OSSL_TRACE_BEGIN(TLS) { 
         BIO_printf(trc_out,"ECH - sending GREASE\n");
     } OSSL_TRACE_END(TLS);
+#endif
     return 1;
 }
 
@@ -3377,9 +3415,11 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
         }
     }
     if (tc==NULL && firstmatch==NULL) {
+#ifndef OPENSSL_NO_SSL_TRACE
         OSSL_TRACE_BEGIN(TLS) { 
             BIO_printf(trc_out,"No matching ECHConfig sadly\n");
         } OSSL_TRACE_END(TLS);
+#endif
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         goto err;
     }
@@ -3874,16 +3914,21 @@ int ech_early_decrypt(SSL *s, PACKET *outerpkt, PACKET *newpkt)
             goto err;
         }
         s->ech->outer_name=s->ext.hostname;
+#ifndef OPENSSL_NO_SSL_TRACE
         OSSL_TRACE_BEGIN(TLS) {
             BIO_printf(trc_out,"EARLY: found outer SNI of %s\n",s->ext.hostname);
         } OSSL_TRACE_END(TLS);
+#endif
         // clean up 
         s->ext.hostname=NULL;
         s->servername_done=0;
-    } else
+    } 
+#ifndef OPENSSL_NO_SSL_TRACE
+    else
         OSSL_TRACE_BEGIN(TLS) {
             BIO_printf(trc_out,"EARLY: no sign of an outer SNI\n");
         } OSSL_TRACE_END(TLS);
+#endif
 
     /*
      * 2. trial-decrypt or check if config matches one loaded
@@ -4039,10 +4084,12 @@ int ech_early_decrypt(SSL *s, PACKET *outerpkt, PACKET *newpkt)
         }
         for (cfgind=0;cfgind!=s->ech->cfg->nrecs;cfgind++) {
             ECHConfig *e=&s->ech[cfgind].cfg->recs[0];
+#ifndef OPENSSL_NO_SSL_TRACE
             OSSL_TRACE_BEGIN(TLS) {
                 BIO_printf(trc_out,"EARLY: comparing rx'd config id (%x,%zu) vs. %d-th configured (%x,%u)\n",
                         extval->config_id[0],extval->config_id_len,cfgind, e->config_id[0],e->config_id_len);
             } OSSL_TRACE_END(TLS);
+#endif
             if (extval->config_id_len==e->config_id_len
                     && !memcmp(extval->config_id,e->config_id,e->config_id_len)) {
                 foundcfg=1;
@@ -4090,10 +4137,12 @@ int ech_early_decrypt(SSL *s, PACKET *outerpkt, PACKET *newpkt)
         s->ext.ech_grease=ECH_NOT_GREASE;
         s->ext.ech_success=1;
     }
+#ifndef OPENSSL_NO_SSL_TRACE
     OSSL_TRACE_BEGIN(TLS) {
         BIO_printf(trc_out,"EARLY: success: %d, assume_grease: %d, foundcfg: %d, cfgind: %d, clearlen: %zd, clear %p\n",
             s->ext.ech_success,s->ext.ech_grease,foundcfg,cfgind,clearlen,clear);
     } OSSL_TRACE_END(TLS);
+#endif
 
     /*
      * Bit more logging
