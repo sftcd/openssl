@@ -1228,7 +1228,8 @@ void SSL_free(SSL *s)
     /* 
      * Tricksy way to only free this once
      */
-    if (s->ext.ech_grease==ECH_IS_GREASE || s->ext.inner_s==NULL) 
+#define INOUTFREE if ( s->server || (!s->server && (s->ext.ech_grease==ECH_IS_GREASE || s->ext.inner_s!=NULL)))
+    INOUTFREE
 #endif
     CRYPTO_free_ex_data(CRYPTO_EX_INDEX_SSL, s, &s->ex_data);
 
@@ -1237,12 +1238,14 @@ void SSL_free(SSL *s)
     /* Ignore return value */
 
 #ifndef OPENSSL_NO_ECH
-    if (s->ext.ech_grease==ECH_IS_GREASE || s->ext.inner_s==NULL) 
+    //if (s->ext.ech_grease==ECH_IS_GREASE || s->ext.inner_s==NULL && s->ext.outer_s!=NULL) 
+    // if (s->ext.inner_s==NULL && s->ext.outer_s!=NULL) 
+    INOUTFREE
 #endif
     ssl_free_wbio_buffer(s);
 
 #ifndef OPENSSL_NO_ECH
-    if (s->ext.ech_grease==ECH_IS_GREASE || s->ext.inner_s==NULL) 
+    INOUTFREE
 #endif
     BIO_free_all(s->wbio);
     s->wbio = NULL;
@@ -1312,12 +1315,12 @@ void SSL_free(SSL *s)
 #ifndef OPENSSL_NO_ECH
     // s_server seems to not need this, but lighttpd may need it
     // TODO: reconcile that!
-    if (s->ext.ech_grease==ECH_IS_GREASE || s->ext.inner_s==NULL) 
+    if (s->ext.inner_s==NULL && s->ext.outer_s!=NULL) 
 #endif
     if (s->clienthello != NULL)
         OPENSSL_free(s->clienthello->pre_proc_exts);
 #ifndef OPENSSL_NO_ECH
-    if (s->ext.ech_grease==ECH_IS_GREASE || s->ext.inner_s==NULL) 
+    if (s->ext.inner_s==NULL && s->ext.outer_s!=NULL) 
 #endif
     OPENSSL_free(s->clienthello);
     OPENSSL_free(s->pha_context);
@@ -1369,18 +1372,19 @@ void SSL_free(SSL *s)
     /*
      * Free up the inner or outer, as needed
      */
-    if (s->ext.inner_s!=NULL && s->ext.inner_s!=s)  {
-        // Don't go around in circles forever
-        s->ext.inner_s->ext.outer_s=NULL;
-        SSL_free(s->ext.inner_s);
-        s->ext.inner_s=NULL;
-    } 
     if (s->ext.outer_s!=NULL && s->ext.outer_s!=s)  {
         // Don't go around in circles forever
         s->ext.outer_s->ext.inner_s=NULL;
         SSL_free(s->ext.outer_s);
         s->ext.outer_s=NULL;
     }
+    if (s->ext.inner_s!=NULL && s->ext.inner_s!=s)  {
+        // Don't go around in circles forever
+        s->ext.inner_s->ext.outer_s=NULL;
+        SSL_free(s->ext.inner_s);
+        s->ext.inner_s=NULL;
+    } 
+
 
     /*
      * We also seem to leave this behind....
