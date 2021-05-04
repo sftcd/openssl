@@ -71,7 +71,7 @@ fi
 # VALGRIND="valgrind --leak-check=full "
 VALGRIND=""
 
-echo "Executing: $VALGRIND $NGINX/objs/nginx -c $OSSL/esnistuff/nginxmin.conf"
+echo "Executing: $VALGRIND $NGINX/objs/nginx -c $OSSL/esnistuff/nginxmin-draft-10.conf"
 # move over there to run code, so config file can have relative paths
 cd $OSSL/esnistuff
 $VALGRIND $NGINX/objs/nginx -c $OSSL/esnistuff/nginxmin-draft-10.conf 
