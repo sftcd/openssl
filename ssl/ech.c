@@ -38,7 +38,7 @@
 #include "internal/cryptlib.h"
 
 /*
- * For raw attempt with hpke_expand
+ * For HPKE APIs
  */
 #include <crypto/hpke.h>
 
@@ -88,13 +88,6 @@ const char *httpssvc_telltale="echconfig=";
 #define ECH_KEYPAIR_NEW            1
 #define ECH_KEYPAIR_UNMODIFIED     2
 #define ECH_KEYPAIR_MODIFIED       3
-
-/*
-#define SSL_ECH_I_HATE_GREASE 0
-#define SSL_ECH_SEND_NO_GREASE 1
-#define SSL_ECH_SEND_GREASE 2
-#define SSL_ECH_SEND_REAL 3
-*/
 
 #define SSL_ECH_GREASE_BUFSIZ 255
 
@@ -168,15 +161,12 @@ static int ech_check_filenames(SSL_CTX *ctx, const char *pemfname,int *index)
  */
 static int ech_base64_decode(char *in, unsigned char **out)
 {
+    if (!in || !out) return(0);
     const char* sepstr=";";
     size_t inlen = strlen(in);
     int i=0;
     int outlen=0;
     unsigned char *outbuf = NULL;
-    int overallfraglen=0;
-    if (out == NULL) {
-        return 0;
-    }
     if (inlen == 0) {
         *out = NULL;
         return 0;
@@ -190,6 +180,7 @@ static int ech_base64_decode(char *in, unsigned char **out)
     }
     char *inp=in;
     unsigned char *outp=outbuf;
+    int overallfraglen=0;
     while (overallfraglen<inlen) {
         /* find length of 1st b64 string */
         int ofraglen=0;
@@ -219,7 +210,7 @@ err:
 }
 
 /**
- * @brief Read an ECHConfigs (better only have 1) and single private key from
+ * @brief Read an ECHConfigs (better only have 1) and single private key from pemfile
  *
  * @param pemfile is the name of the file
  * @param ctx is the SSL context
@@ -230,7 +221,7 @@ static int ech_readpemfile(SSL_CTX *ctx, const char *pemfile, SSL_ECH **sechs)
 {
     if (ctx==NULL || pemfile==NULL || sechs==NULL) return(0);
     /*
-     * The file content should look as below. Note that as girhub barfs
+     * The file content should look as below. Note that as github barfs
      * if I provide an actual private key in PEM format, I've reversed
      * the string PRIVATE in the PEM header;-)
      *

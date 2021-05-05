@@ -2025,6 +2025,7 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL *s, PACKET *pkt)
         
             // swap back before final swap
             inner=*s; *s=outer; *s->ext.inner_s=inner;
+            // ...aaand... final swap:
             if (ech_swaperoo(s)!=1) {
                 SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
                 goto err;

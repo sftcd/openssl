@@ -4977,7 +4977,6 @@ OSSL_PARAM_BLD_free                     ?	3_0_0	EXIST::FUNCTION:
 EVP_PKEY_set_type_by_keymgmt            ?	3_0_0	EXIST::FUNCTION:
 OCSP_RESPID_set_by_key_ex               ?	3_0_0	EXIST::FUNCTION:OCSP
 OCSP_RESPID_match_ex                    ?	3_0_0	EXIST::FUNCTION:OCSP
-ERR_load_ESNI_strings                   ?	3_0_0	EXIST::FUNCTION:
 hpke_kg                                 ?	3_0_0	EXIST::FUNCTION:
 hpke_kg_evp                             ?	3_0_0	EXIST::FUNCTION:
 hpke_enc                                ?	3_0_0	EXIST::FUNCTION:
