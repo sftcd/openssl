@@ -276,17 +276,6 @@ SSL_ECH* SSL_ECH_new_from_buffer(SSL_CTX *ctx, SSL *con, const short ekfmt, cons
  */
 int ech_encode_inner(SSL *s);
 
-/**
- * @brief After "normal" 1st pass CH receipt (of outer) is done, fix encoding as needed
- *
- * This will produce the ClientHelloInner from the EncodedClientHelloInner, which
- * is the result of successful decryption 
- *
- * @param s is the SSL session
- * @return 1 for success, error otherwise
- */
-int ech_decode_inner(SSL *s);
-
 /*
  * Return values from ech_same_ext
  */
