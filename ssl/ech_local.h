@@ -41,6 +41,14 @@
 #define ECH_NOT_GREASE 0 ///< value for s->ext.ech_grease when decryption worked
 #define ECH_IS_GREASE 1 ///< value for s->ext.ech_grease when decryption failed
 
+/*
+ * This is a special marker value. If set via a specific call
+ * to our external API, then we'll override use of the 
+ * ECHConfig.public_name and send no outer SNI.
+ */
+extern char *ech_public_name_override_null;
+#define ECH_PUBLIC_NAME_OVERRIDE_NULL  ech_public_name_override_null
+
 /** 
  * @brief Representation of what goes in DNS for draft-09 and draft-10
  *

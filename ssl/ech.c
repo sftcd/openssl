@@ -81,6 +81,13 @@ const char *B64_alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz01
 const char *httpssvc_telltale="echconfig=";
 
 /*
+ * This is a special marker value. If set via a specific call
+ * to our external API, then we'll override use of the 
+ * ECHConfig.public_name and send no outer SNI.
+ */
+char *ech_public_name_override_null="DON'T SEND ANY OUTER NAME";
+
+/*
  * Ancilliary definintions
  */
 
@@ -475,7 +482,9 @@ void SSL_ECH_free(SSL_ECH *tbf)
 #define CFREE(__x__) if (tbf->__x__) { OPENSSL_free(tbf->__x__); tbf->__x__=NULL; }
 
     CFREE(inner_name);
-    CFREE(outer_name);
+    if (tbf->outer_name!=ECH_PUBLIC_NAME_OVERRIDE_NULL) {
+        CFREE(outer_name);
+    }
     CFREE(pemfname);
     if (tbf->keyshare!=NULL) { EVP_PKEY_free(tbf->keyshare); tbf->keyshare=NULL; }
     CFREE(dns_alpns);
@@ -1290,11 +1299,35 @@ int SSL_ech_server_name(SSL *s, const char *inner_name, const char *outer_name)
     if (s->ech->inner_name!=NULL) OPENSSL_free(s->ech->inner_name);
     s->ech->inner_name=OPENSSL_strdup(inner_name);
     if (s->ech->outer_name!=NULL) OPENSSL_free(s->ech->outer_name);
-    if (outer_name!=NULL) s->ech->outer_name=OPENSSL_strdup(outer_name);
-    else s->ech->outer_name=NULL;
+    if (outer_name!=NULL && strlen(outer_name)>0) s->ech->outer_name=OPENSSL_strdup(outer_name);
+    else s->ech->outer_name=ECH_PUBLIC_NAME_OVERRIDE_NULL;
 
     s->ext.ech_attempted=1; 
+    return 1;
+}
 
+/**
+ * @brief Set the outer SNI
+ * 
+ * @param s is the SSL context
+ * @param outer_name is the (to be) hidden service name
+ * @return 1 for success, error otherwise
+ *
+ * Providing a NULL or empty outer_name has a special effect - that means we 
+ * won't send the ECHConfig.public_name (which is the default). If you prefer 
+ * the default, then don't call this. If you supply a non-NULL value and
+ * do ECH then the value supplied here will override the ECHConfig.public_name
+ * 
+ */
+int SSL_ech_set_outer_server_name(SSL *s, const char *outer_name)
+{
+    if (s==NULL) return(0);
+    if (s->ech==NULL) return(0);
+    if (s->ech->outer_name!=NULL) OPENSSL_free(s->ech->outer_name);
+    if (outer_name!=NULL && strlen(outer_name)>0) s->ech->outer_name=OPENSSL_strdup(outer_name);
+    else s->ech->outer_name=ECH_PUBLIC_NAME_OVERRIDE_NULL;
+
+    s->ext.ech_attempted=1; 
     return 1;
 }
 

@@ -164,15 +164,34 @@ int SSL_CTX_set_ech_alpn_protos(SSL_CTX *ctx, const unsigned char *protos,
                             const size_t protos_len);
 
 /**
- * @brief Turn on SNI encryption for an (upcoming) TLS session
+ * @brief Set the inner and outer SNI
  * 
  * @param s is the SSL context
  * @param inner_name is the (to be) hidden service name
- * @param outer_name is the cleartext SNI name to use
+ * @param outer_name is the cleartext SNI name to use 
  * @return 1 for success, error otherwise
- * 
+ *
+ * Providing a NULL outer_name has a special effect - that means we won't
+ * send the ECHConfig.public_name (which is the default). If you prefer 
+ * the default, then don't call this. If you supply a non-NULL value and
+ * do ECH then the value supplied here will override the ECHConfig.public_name
  */
 int SSL_ech_server_name(SSL *s, const char *inner_name, const char *outer_name);
+
+/**
+ * @brief Set the outer SNI
+ * 
+ * @param s is the SSL context
+ * @param outer_name is the (to be) hidden service name
+ * @return 1 for success, error otherwise
+ *
+ * Providing a NULL or empty outer_name has a special effect - that means we 
+ * won't send the ECHConfig.public_name (which is the default). If you prefer 
+ * the default, then don't call this. If you supply a non-NULL value and
+ * do ECH then the value supplied here will override the ECHConfig.public_name
+ * 
+ */
+int SSL_ech_set_outer_server_name(SSL *s, const char *outer_name);
 
 /**
  * @brief Add an ALPN for inclusion in ECH for an (upcoming) TLS session

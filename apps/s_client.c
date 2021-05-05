@@ -18,6 +18,7 @@
 
 #ifndef OPENSSL_NO_ECH
 # include <openssl/ech.h>
+#define ECH_NAME_NONE "NONE"
 #endif
 
 #ifndef OPENSSL_NO_SOCK
@@ -72,7 +73,7 @@ static char *sess_out = NULL;
 
 #ifndef OPENSSL_NO_ECH
 const char *ech_inner_name=NULL; ///< server-name in inner-CH - default to usual servername
-const char *ech_outer_name=NULL; ///< server-name in outer-CH - command line can override public-name
+const char *sni_outer_name=NULL; ///< server-name in outer-CH - command line can override ECHConfig.public-name
 int ech_grease=0;
 int nechs=0;
 char *ech_encoded_configs = NULL;
@@ -489,7 +490,7 @@ typedef enum OPTION_choice {
     OPT_DANE_TLSA_RRDATA, OPT_DANE_EE_NO_NAME,
     OPT_ENABLE_PHA,
 #ifndef OPENSSL_NO_ECH
-    OPT_ECHOUTER,
+    OPT_SNIOUTER,
     OPT_ECHCONFIGS,
     OPT_SVCB,
     OPT_ECH_GREASE,
@@ -625,8 +626,8 @@ const OPTIONS s_client_options[] = {
     {"servername", OPT_SERVERNAME, 's',
      "Set TLS extension servername (SNI) in ClientHello (default)"},
 #ifndef OPENSSL_NO_ECH
-    {"ech-outer", OPT_ECHOUTER, 's',
-     "The name to put in the outer CH overriding the server's choice"},
+    {"sni-outer", OPT_SNIOUTER, 's',
+     "The name to put in the outer CH overriding the server's choice, or \"NONE\""},
     {"echconfigs", OPT_ECHCONFIGS, 's',
      "Set ECHConfigs, value is b64, ASCII-HEX or binary encoded ECHConfigs"},
     {"svcb", OPT_SVCB, 's',
@@ -1486,8 +1487,8 @@ int s_client_main(int argc, char **argv)
 #endif
             break;
 #ifndef OPENSSL_NO_ECH
-        case OPT_ECHOUTER:
-            ech_outer_name = opt_arg();
+        case OPT_SNIOUTER:
+            sni_outer_name = opt_arg();
             break;
         case OPT_ECHCONFIGS:
             ech_encoded_configs= opt_arg();
@@ -1601,10 +1602,10 @@ int s_client_main(int argc, char **argv)
     }
 
 #ifndef OPENSSL_NO_ECH
-    if (alpn_outer_in !=NULL || ech_outer_name != NULL) {
+    if (alpn_outer_in !=NULL || sni_outer_name != NULL) {
         if (ech_encoded_configs == NULL && ech_svcb_rr == NULL) {
             BIO_printf(bio_err,
-                       "%s: Can't use -ech-outer nor -alpn-outer without -echconfigs or -svcb \n",
+                       "%s: Can't use -sni-outer nor -alpn-outer without -echconfigs or -svcb \n",
                        prog);
             goto opthelp;
         }
@@ -2121,14 +2122,14 @@ int s_client_main(int argc, char **argv)
 	        if (ech_inner_name!=NULL) {
 	            thisname=ech_inner_name;
 	            BIO_printf(bio_err, "ech_inner_name is set to %s\n",ech_inner_name);
-	        } else if (ech_outer_name!=NULL) {
-	            BIO_printf(bio_err, "ech_inner_name is NULL\n");
-	            thisname=ech_outer_name;
+	        } else if (sni_outer_name!=NULL && strncmp(sni_outer_name,ECH_NAME_NONE,strlen(ECH_NAME_NONE))) {
+	            BIO_printf(bio_err, "ech_inner_name is NULL, using outer %s\n",sni_outer_name);
+	            thisname=sni_outer_name;
 	        }
-	        if (ech_outer_name==NULL) {
-	            BIO_printf(bio_err, "ech_outer_name is NULL\n");
+	        if (sni_outer_name==NULL) {
+	            BIO_printf(bio_err, "sni_outer_name is NULL\n");
 	        } else {
-	            BIO_printf(bio_err, "ech_outer_name is set to %s\n",ech_outer_name);
+	            BIO_printf(bio_err, "sni_outer_name is set to %s\n",sni_outer_name);
 	        }
 	        if (thisname!=NULL) {
 	            /*
@@ -2174,6 +2175,7 @@ int s_client_main(int argc, char **argv)
             goto opthelp;
         } 
     }
+
     if (ech_svcb_rr!=NULL) {
         int lnechs=0;
         int rv=SSL_svcb_add(con,ECH_FMT_GUESS,strlen(ech_svcb_rr),ech_svcb_rr,&lnechs);
@@ -2190,21 +2192,35 @@ int s_client_main(int argc, char **argv)
         } 
         nechs+=lnechs;
     }
-    if (ech_svcb_rr != NULL && ech_inner_name != NULL && ech_outer_name != NULL) {
-        int rv=SSL_ech_server_name(con, ech_inner_name, ech_outer_name);
+
+    if (ech_svcb_rr != NULL & sni_outer_name!=NULL) {
+        const char *outer_to_use=NULL;
+        if (sni_outer_name!=NULL && strncmp(sni_outer_name,ECH_NAME_NONE,strlen(ECH_NAME_NONE))) {
+            outer_to_use=sni_outer_name;
+        }
+        int rv=SSL_ech_set_outer_server_name(con, outer_to_use);
         if (rv!=1) {
-            BIO_printf(bio_err, "%s: enabling ECH failed.\n", prog);
+            BIO_printf(bio_err, "%s: enabling ECH outer name failed.\n", prog);
             ERR_print_errors(bio_err);
             goto end;
         }
+    }
+
+    if (ech_svcb_rr != NULL & ech_inner_name!=NULL) {
+        const char *inner_to_use=NULL;
+        if (ech_inner_name!=NULL && strncmp(sni_outer_name,ECH_NAME_NONE,strlen(ECH_NAME_NONE))) {
+            inner_to_use=sni_outer_name;
+        }
         /*
-         * Try set that name to be verified
+         * Set any non-NULL name to be verified
          */
-        if (!X509_VERIFY_PARAM_set1_host(vpm,ech_inner_name,strlen(ech_inner_name))
-            || !SSL_CTX_set1_param(ctx, vpm)) {
-            BIO_printf(bio_err, "Error setting verify params\n");
-            ERR_print_errors(bio_err);
-            goto end;
+        if (inner_to_use) {
+            if (!X509_VERIFY_PARAM_set1_host(vpm,ech_inner_name,strlen(ech_inner_name))
+                || !SSL_CTX_set1_param(ctx, vpm)) {
+                BIO_printf(bio_err, "Error setting verify params\n");
+                ERR_print_errors(bio_err);
+                goto end;
+            }
         }
     }
 #endif

@@ -529,6 +529,7 @@ SSL_CTX_set_ech_callback               ?	3_0_0	EXIST::FUNCTION:
 SSL_set_ech_callback                   ?	3_0_0	EXIST::FUNCTION:
 SSL_CTX_set_ech_alpn_protos            ?  	3_0_0	EXIST::FUNCTION:
 SSL_set_ech_alpn_protos                ?  	3_0_0	EXIST::FUNCTION:
+SSL_ech_set_outer_server_name           ?  	3_0_0	EXIST::FUNCTION:
 SSL_CTX_new_ex                          ?	3_0_0	EXIST::FUNCTION:
 SSL_new_session_ticket                  ?	3_0_0	EXIST::FUNCTION:
 SSL_get0_peer_certificate               ?	3_0_0	EXIST::FUNCTION:

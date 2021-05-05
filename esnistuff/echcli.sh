@@ -164,10 +164,10 @@ then
     PORT=$SUPPLIEDPORT
 fi
 
-echoutercmd=" "
-if [[ "$SUPPLIEDPNO" != "" && "$SUPPLIEDPNO" != "NONE" ]] 
+snioutercmd=" "
+if [[ "$SUPPLIEDPNO" != "" ]] 
 then
-    echoutercmd="-ech-outer $SUPPLIEDPNO"
+    snioutercmd="-sni-outer $SUPPLIEDPNO"
 fi
 
 # Set address of target 
@@ -242,7 +242,7 @@ then
     if [[ "$SUPPLIEDPNO" == "" && "$hidden" != "" ]]
     then
         echstr="-servername $hidden "
-    elif [[ "$SUPPLIEDPNO" != "" && "$SUPPLIEDPNO" != "NONE" ]]
+    elif [[ "$SUPPLIEDPNO" != "" ]]
     then
         echstr="-servername $SUPPLIEDPNO "
     elif [[ "$hidden" == "" || "$SUPPLIEDPNO" == "NONE" ]]
@@ -253,6 +253,11 @@ then
     then
         echo "Trying to GREASE though"
         echstr=" $echstr -ech_grease "
+    fi
+else
+    if [[ "$hidden" == "NONE" ]]
+    then
+        echstr=" -noservername -svcb $ECH"
     fi
 fi
 
@@ -308,9 +313,9 @@ TMPF=`mktemp /tmp/echtestXXXX`
 
 if [[ "$DEBUG" == "yes" ]]
 then
-    echo "Running: $TOP/apps/openssl s_client $dbgstr $certsdb $force13 $target $echstr $echoutercmd $session $alpn $ciphers"
+    echo "Running: $TOP/apps/openssl s_client $dbgstr $certsdb $force13 $target $echstr $snioutercmd $session $alpn $ciphers"
 fi
-( echo -e "$httpreq" ; sleep 2) | $vgcmd $TOP/apps/openssl s_client $dbgstr $certsdb $force13 $target $echstr $echoutercmd $session $alpn $ciphers >$TMPF 2>&1
+( echo -e "$httpreq" ; sleep 2) | $vgcmd $TOP/apps/openssl s_client $dbgstr $certsdb $force13 $target $echstr $snioutercmd $session $alpn $ciphers >$TMPF 2>&1
 
 c200=`grep -c "200 OK" $TMPF`
 csucc=`grep -c "ECH: success" $TMPF`

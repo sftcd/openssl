@@ -143,6 +143,12 @@ EXT_RETURN tls_construct_ctos_server_name(SSL *s, WPACKET *pkt,
 
 #ifndef OPENSSL_NO_ECH
     if (s->ech != NULL) { 
+        /*
+         * Don't send outer SNI if external API says that
+         */
+        if (s->ext.ch_depth==0 && s->ech->outer_name==ECH_PUBLIC_NAME_OVERRIDE_NULL) {
+            return EXT_RETURN_NOT_SENT;
+        }
         int esnirv=ech_server_name_fixup(s,pkt,context,x,chainidx);
         if (esnirv!=EXT_RETURN_SENT) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
