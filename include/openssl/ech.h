@@ -309,6 +309,7 @@ int SSL_ech_print(BIO* out, SSL *con, int selector);
 #define SSL_ECH_STATUS_NOT_TRIED            -101 ///< ECH wasn't attempted 
 #define SSL_ECH_STATUS_BAD_NAME             -102 ///< ECH succeeded but the server cert didn't match the hidden service name
 #define SSL_ECH_STATUS_TOOMANY              -103 ///< ECH succeeded can't figure out which one!
+#define SSL_ECH_STATUS_NOT_CONFIGURED       -104 ///> ECH wasn't even configured
 
 /**
  * @brief API to allow calling code know ECH outcome, post-handshake

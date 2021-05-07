@@ -563,19 +563,25 @@ static int ssl_ech_servername_cb(SSL *s, int *ad, void *arg)
         if (res==0) res=getnameinfo(sa,salen,clientip,INET6_ADDRSTRLEN, 0,0,NI_NUMERICHOST);
         if (res!=0) strncpy(clientip,"dunno",INET6_ADDRSTRLEN);
     }
-    BIO_printf(p->biodebug,"ssl_ech_servername_cb: connection from %s at %s",clientip,anow);
     /*
      * Name that matches "main" ctx
      */
     const char *servername = SSL_get_servername(s, TLSEXT_NAMETYPE_host_name);
+    char *inner_sni=NULL; 
+    char *outer_sni=NULL;
+    int echrv=SSL_ech_get_status(s,&inner_sni,&outer_sni);
     if (p->biodebug != NULL ) {
+        /* 
+         * spit out that basic logging
+         */
+        BIO_printf(p->biodebug,"ssl_ech_servername_cb: connection from %s at %s",clientip,anow);
         /*
         * Client supplied SNI from inner and outer
         */
-        char *inner_sni=NULL; 
-        char *outer_sni=NULL;
-        int echrv=SSL_ech_get_status(s,&inner_sni,&outer_sni);
         switch (echrv) {
+        case SSL_ECH_STATUS_NOT_CONFIGURED: 
+            BIO_printf(p->biodebug,"ssl_ech_servername_cb: ECH not configured\n");
+            break;
         case SSL_ECH_STATUS_GREASE: 
             BIO_printf(p->biodebug,"ssl_ech_servername_cb: attempt we interpret as GREASE\n");
             break;

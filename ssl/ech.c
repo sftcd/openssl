@@ -1578,6 +1578,10 @@ int SSL_ech_get_status(SSL *s, char **inner_sni, char **outer_sni)
     *outer_sni=NULL;
     *inner_sni=NULL;
 
+    if (s->ech==NULL) {
+        return SSL_ECH_STATUS_NOT_CONFIGURED; 
+    }
+
     /*
      * set vars - note we may be pointing to NULL which is fine
      */

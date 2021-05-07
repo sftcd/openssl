@@ -1228,7 +1228,7 @@ void SSL_free(SSL *s)
     /* 
      * Tricksy way to only free this once
      */
-#define INOUTFREE if ( s->server || (!s->server && (s->ext.ech_grease==ECH_IS_GREASE || s->ext.inner_s!=NULL)))
+#define INOUTFREE if ( s->server || (!s->server && (s->ext.ech_grease==ECH_IS_GREASE || s->ext.inner_s!=NULL || s->ech==NULL)))
     INOUTFREE
 #endif
     CRYPTO_free_ex_data(CRYPTO_EX_INDEX_SSL, s, &s->ex_data);
