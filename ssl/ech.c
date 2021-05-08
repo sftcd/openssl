@@ -2921,7 +2921,6 @@ int ech_swaperoo(SSL *s)
 
     /*
      * Used by CH callback in lighttpd
-     * TODO: figure out how to not call CH cb twice!
      */
     s->ex_data=tmp_outer.ex_data;
 
@@ -3149,10 +3148,6 @@ int ech_make_enc_info(ECHConfig *tc,unsigned char *info,size_t *info_len)
 int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
 {
     /*
-     * So this is a PITA but let's try
-     * TODO: For now, we'll leave the call to hpke_enc in the extension
-     * handler, but that'll have to move in a bit.
-     *
      * 1. Make up the AAD:
      *      - the HPKE suite
      *      - my HPKE ephemeral public key
@@ -3177,10 +3172,6 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
      */
     unsigned char mypub[HPKE_MAXSIZE];
     size_t mypub_len=HPKE_MAXSIZE;
-    /*
-     * For some reason the EVP variant here doesn't work
-     * inside HPKE - check that out - TODO:
-     */
     EVP_PKEY *mypriv_evp=NULL;
 
     /*
