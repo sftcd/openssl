@@ -2208,7 +2208,7 @@ int s_client_main(int argc, char **argv)
 
     if (ech_svcb_rr != NULL & ech_inner_name!=NULL) {
         const char *inner_to_use=NULL;
-        if (ech_inner_name!=NULL && strncmp(sni_outer_name,ECH_NAME_NONE,strlen(ECH_NAME_NONE))) {
+        if (ech_inner_name!=NULL && strncmp(ech_inner_name,ECH_NAME_NONE,strlen(ECH_NAME_NONE))) {
             inner_to_use=sni_outer_name;
         }
         /*

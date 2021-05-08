@@ -1658,8 +1658,6 @@ static int ECHConfig_dup(ECHConfig *old, ECHConfig *new)
         if (!new->ciphersuites) return(0);
         memcpy(new->ciphersuites,old->ciphersuites,old->nsuites*sizeof(ech_ciphersuite_t));
     }
-    // TODO: more to come
-
     return 1;
 }
 
@@ -1751,29 +1749,7 @@ err:
 }
 
 /**
- * @brief Decode/store SVCB/HTTPS RR value provided as (binary or ascii-hex encoded) 
- *
- * rrval may be the catenation of multiple encoded ECHConfigs.
- * We internally try decode and handle those and (later)
- * use whichever is relevant/best. The fmt parameter can be e.g. ECH_FMT_ASCII_HEX
- *
- * @param ctx is the parent SSL_CTX
- * @param rrlen is the length of the rrval
- * @param rrval is the binary, base64 or ascii-hex encoded RData
- * @param num_echs says how many SSL_ECH structures are in the returned array
- * @return is 1 for success, error otherwise
- */
-int SSL_CTX_svcb_add(SSL_CTX *ctx, short rrfmt, size_t rrlen, char *rrval, int *num_echs)
-{
-    /*
-     * TODO: populate this and sort out the dup/free'ing so it works
-     * and doesn't leak
-     */
-    return 0;
-}
-
-/**
- * @brief Decode/store SVCB/HTTPS RR value provided as (binary or ascii-hex encoded) 
+ * @brief Decode SVCB/HTTPS RR value provided as (binary or ascii-hex encoded) 
  *
  * rrval may be the catenation of multiple encoded ECHConfigs.
  * We internally try decode and handle those and (later)
@@ -1783,22 +1759,14 @@ int SSL_CTX_svcb_add(SSL_CTX *ctx, short rrfmt, size_t rrlen, char *rrval, int *
  * inside, and there are valid uses of such RRs. The caller can check though
  * using the num_echs output.
  *
- * @param con is the SSL connection 
  * @param rrlen is the length of the rrval
  * @param rrval is the binary, base64 or ascii-hex encoded RData
  * @param num_echs says how many SSL_ECH structures are in the returned array
+ * @param echs is the returned array of SSL_ECH
  * @return is 1 for success, error otherwise
  */
-int SSL_svcb_add(SSL *con, int rrfmt, size_t rrlen, char *rrval, int *num_echs)
+static int local_svcb_add(int rrfmt, size_t rrlen, char *rrval, int *num_echs, SSL_ECH **echs)
 {
-    /*
-     * Sanity checks on inputs
-     */
-    if (!con) {
-        SSLerr(SSL_F_SSL_SVCB_ADD, SSL_R_BAD_VALUE);
-        return(0);
-    }
-    SSL_ECH *echs=NULL;
     /*
      * Extract eklen,ekval from RR if possible
      */
@@ -1808,7 +1776,6 @@ int SSL_svcb_add(SSL *con, int rrfmt, size_t rrlen, char *rrval, int *num_echs)
     unsigned char *binbuf=NULL;
     size_t eklen=0; /* the ECHConfigs, within the above */
     unsigned char *ekval=NULL;
-
     if (rrfmt==ECH_FMT_ASCIIHEX) {
         detfmt=rrfmt;
     } else if (rrfmt==ECH_FMT_BIN) {
@@ -1827,7 +1794,6 @@ int SSL_svcb_add(SSL *con, int rrfmt, size_t rrlen, char *rrval, int *num_echs)
             return(rv);
         }
     }
-
     /*
      * Now we have a binary encoded RData so we'll skip the
      * name, and then walk through the SvcParamKey binary
@@ -1895,37 +1861,124 @@ int SSL_svcb_add(SSL *con, int rrfmt, size_t rrlen, char *rrval, int *num_echs)
         *num_echs=0;
         return(1);
     }
-
     /*
      * Deposit ECHConfigs that we found
      */
-    rv=local_ech_add(ECH_FMT_BIN,eklen,ekval,num_echs,&echs);
+    rv=local_ech_add(ECH_FMT_BIN,eklen,ekval,num_echs,echs);
     if (rv!=1) {
         SSLerr(SSL_F_SSL_SVCB_ADD, SSL_R_BAD_VALUE);
         return(0);
     } 
-
     if (detfmt==ECH_FMT_ASCIIHEX) {
         OPENSSL_free(binbuf);
     }
-    
     /*
      * Whack in ALPN info to ECHs
      */
+    SSL_ECH *lechs=*echs;
     for (int i=0;i!=*num_echs;i++) {
-        echs[i].dns_no_def_alpn=no_def_alpn;
+        lechs[i].dns_no_def_alpn=no_def_alpn;
     }
-
-    con->ech=echs;
-    con->nechs=*num_echs;
     return(1);
-
 err:
     if (detfmt==ECH_FMT_ASCIIHEX) {
         OPENSSL_free(binbuf);
     }
     return(0);
+}
 
+/**
+ * @brief Decode/store SVCB/HTTPS RR value provided as (binary or ascii-hex encoded) 
+ *
+ * rrval may be the catenation of multiple encoded ECHConfigs.
+ * We internally try decode and handle those and (later)
+ * use whichever is relevant/best. The fmt parameter can be e.g. ECH_FMT_ASCII_HEX
+ *
+ * @param ctx is the parent SSL_CTX
+ * @param rrlen is the length of the rrval
+ * @param rrval is the binary, base64 or ascii-hex encoded RData
+ * @param num_echs says how many SSL_ECH structures are in the returned array
+ * @return is 1 for success, error otherwise
+ */
+int SSL_CTX_svcb_add(SSL_CTX *ctx, short rrfmt, size_t rrlen, char *rrval, int *num_echs)
+{
+    /*
+     * Sanity checks on inputs
+     */
+    if (!ctx) {
+        SSLerr(SSL_F_SSL_CTX_SVCB_ADD, SSL_R_BAD_VALUE);
+        return(0);
+    }
+    /*
+     * If ECHs were previously set we'll free 'em first
+     */
+    if (ctx->ext.nechs && ctx->ext.ech) {
+        int i;
+        for (i=0;i!=ctx->ext.nechs;i++) {
+            SSL_ECH_free(&ctx->ext.ech[i]);
+        }
+        OPENSSL_free(ctx->ext.ech);
+        ctx->ext.ech=NULL;
+        ctx->ext.nechs=0;
+    }
+
+    SSL_ECH *echs=NULL;
+    if (local_svcb_add(rrfmt,rrlen,rrval,num_echs,&echs)!=1) {
+        SSLerr(SSL_F_SSL_CTX_SVCB_ADD, SSL_R_BAD_VALUE);
+        return 0;
+    }
+    ctx->ext.ech=echs;
+    ctx->ext.nechs=*num_echs;
+    return 1;
+}
+
+/**
+ * @brief Decode/store SVCB/HTTPS RR value provided as (binary or ascii-hex encoded) 
+ *
+ * rrval may be the catenation of multiple encoded ECHConfigs.
+ * We internally try decode and handle those and (later)
+ * use whichever is relevant/best. The fmt parameter can be e.g. ECH_FMT_ASCII_HEX
+ * Note that we "succeed" even if there is no ECHConfigs in the input - some
+ * callers might download the RR from DNS and pass it here without looking 
+ * inside, and there are valid uses of such RRs. The caller can check though
+ * using the num_echs output.
+ *
+ * @param con is the SSL connection 
+ * @param rrlen is the length of the rrval
+ * @param rrval is the binary, base64 or ascii-hex encoded RData
+ * @param num_echs says how many SSL_ECH structures are in the returned array
+ * @return is 1 for success, error otherwise
+ */
+int SSL_svcb_add(SSL *con, int rrfmt, size_t rrlen, char *rrval, int *num_echs)
+{
+    /*
+     * Sanity checks on inputs
+     */
+    if (!con) {
+        SSLerr(SSL_F_SSL_SVCB_ADD, SSL_R_BAD_VALUE);
+        return(0);
+    }
+    /*
+     * If ECHs were previously set we'll free 'em first
+     */
+    if (con->nechs && con->ech) {
+        int i;
+        for (i=0;i!=con->nechs;i++) {
+            SSL_ECH_free(&con->ech[i]);
+        }
+        OPENSSL_free(con->ech);
+        con->ech=NULL;
+        con->nechs=0;
+    }
+
+    SSL_ECH *echs=NULL;
+    if (local_svcb_add(rrfmt,rrlen,rrval,num_echs,&echs)!=1) {
+        SSLerr(SSL_F_SSL_SVCB_ADD, SSL_R_BAD_VALUE);
+        return 0;
+    }
+    con->ech=echs;
+    con->nechs=*num_echs;
+    return(1);
 }
 
 /* 
