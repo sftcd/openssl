@@ -806,7 +806,6 @@ SSL *SSL_new(SSL_CTX *ctx)
     }
 
 #ifndef OPENSSL_NO_ECH
-
     if (s->ctx->ext.alpn_outer) {
         s->ext.alpn_outer = OPENSSL_malloc(s->ctx->ext.alpn_outer_len);
         if (s->ext.alpn_outer == NULL)
@@ -814,8 +813,6 @@ SSL *SSL_new(SSL_CTX *ctx)
         memcpy(s->ext.alpn_outer, s->ctx->ext.alpn_outer, s->ctx->ext.alpn_outer_len);
         s->ext.alpn_outer_len = s->ctx->ext.alpn_outer_len;
     }
-
-    if (ctx->ext.ech_attempted) s->ext.ech_attempted=1;
 #endif
 
     s->verified_chain = NULL;

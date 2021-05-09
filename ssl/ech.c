@@ -1278,7 +1278,6 @@ int SSL_CTX_ech_add(SSL_CTX *ctx, short ekfmt, size_t eklen, char *ekval, int *n
     }
     ctx->ext.ech=echs;
     ctx->ext.nechs=*num_echs;
-    ctx->ext.ech_attempted=1;
     return(1);
 }
 

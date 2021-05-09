@@ -1130,7 +1130,6 @@ struct ssl_ctx_st {
         int nechs;
         SSL_ECH *ech;
         SSL_ech_cb_func ech_cb; 
-        int ech_attempted;
 #endif
 
         unsigned char cookie_hmac_key[SHA256_DIGEST_LENGTH];
