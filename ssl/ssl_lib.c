@@ -3177,7 +3177,7 @@ int SSL_CTX_set_ech_alpn_protos(SSL_CTX *ctx, const unsigned char *protos,
     OPENSSL_free(ctx->ext.alpn_outer);
     ctx->ext.alpn_outer = OPENSSL_memdup(protos, protos_len);
     if (ctx->ext.alpn_outer == NULL) {
-        SSLerr(SSL_F_SSL_CTX_SET_ALPN_PROTOS, ERR_R_MALLOC_FAILURE);
+        SSLerr(SSL_F_SSL_CTX_SET_ECH_ALPN_PROTOS, ERR_R_MALLOC_FAILURE);
         return 1;
     }
     ctx->ext.alpn_outer_len = protos_len;
@@ -3195,7 +3195,7 @@ int SSL_set_ech_alpn_protos(SSL *ssl, const unsigned char *protos,
     OPENSSL_free(ssl->ext.alpn_outer);
     ssl->ext.alpn_outer = OPENSSL_memdup(protos, protos_len);
     if (ssl->ext.alpn_outer == NULL) {
-        SSLerr(SSL_F_SSL_SET_ALPN_PROTOS, ERR_R_MALLOC_FAILURE);
+        SSLerr(SSL_F_SSL_SET_ECH_ALPN_PROTOS, ERR_R_MALLOC_FAILURE);
         return 1;
     }
     ssl->ext.alpn_outer_len = protos_len;
