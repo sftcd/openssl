@@ -39,7 +39,7 @@ static int purpose_print(BIO *bio, X509 *cert, X509_PURPOSE *pt);
 static int print_x509v3_exts(BIO *bio, X509 *x, const char *ext_names);
 
 typedef enum OPTION_choice {
-    OPT_ERR = -1, OPT_EOF = 0, OPT_HELP,
+    OPT_COMMON,
     OPT_INFORM, OPT_OUTFORM, OPT_KEYFORM, OPT_REQ, OPT_CAFORM,
     OPT_CAKEYFORM, OPT_VFYOPT, OPT_SIGOPT, OPT_DAYS, OPT_PASSIN, OPT_EXTFILE,
     OPT_EXTENSIONS, OPT_IN, OPT_OUT, OPT_KEY, OPT_SIGNKEY, OPT_CA, OPT_CAKEY,
@@ -189,7 +189,7 @@ static void warn_copying(ASN1_OBJECT *excluded, const char *names)
                    sn);
 }
 
-static X509_REQ *x509_to_req(X509 *cert, EVP_PKEY *pkey, const EVP_MD *digest,
+static X509_REQ *x509_to_req(X509 *cert, EVP_PKEY *pkey, const char *digest,
                              STACK_OF(OPENSSL_STRING) *sigopts,
                              int ext_copy, const char *names)
 {
@@ -249,7 +249,7 @@ int x509_main(int argc, char **argv)
     EVP_PKEY *privkey = NULL, *CAkey = NULL, *pubkey = NULL;
     EVP_PKEY *pkey;
     int newcert = 0;
-    char *subj = NULL, *digestname = NULL;
+    char *subj = NULL, *digest = NULL;
     X509_NAME *fsubj = NULL;
     const unsigned long chtype = MBSTRING_ASC;
     const int multirdn = 1;
@@ -258,7 +258,6 @@ int x509_main(int argc, char **argv)
     X509 *x = NULL, *xca = NULL, *issuer_cert;
     X509_REQ *req = NULL, *rq = NULL;
     X509_STORE *ctx = NULL;
-    EVP_MD *digest = NULL;
     char *CAkeyfile = NULL, *CAserial = NULL, *pubkeyfile = NULL, *alias = NULL;
     char *checkhost = NULL, *checkemail = NULL, *checkip = NULL;
     char *ext_names = NULL;
@@ -267,9 +266,9 @@ int x509_main(int argc, char **argv)
     char *prog;
     int days = UNSET_DAYS; /* not explicitly set */
     int x509toreq = 0, modulus = 0, print_pubkey = 0, pprint = 0;
-    int CAformat = FORMAT_PEM, CAkeyformat = FORMAT_PEM;
+    int CAformat = FORMAT_UNDEF, CAkeyformat = FORMAT_UNDEF;
     int fingerprint = 0, reqfile = 0, checkend = 0;
-    int informat = FORMAT_PEM, outformat = FORMAT_PEM, keyformat = FORMAT_PEM;
+    int informat = FORMAT_UNDEF, outformat = FORMAT_PEM, keyformat = FORMAT_UNDEF;
     int next_serial = 0, subject_hash = 0, issuer_hash = 0, ocspid = 0;
     int noout = 0, CA_createserial = 0, email = 0;
     int ocsp_uri = 0, trustout = 0, clrtrust = 0, clrreject = 0, aliasout = 0;
@@ -545,7 +544,7 @@ int x509_main(int argc, char **argv)
             checkend = 1;
             {
                 intmax_t temp = 0;
-                if (!opt_imax(opt_arg(), &temp))
+                if (!opt_intmax(opt_arg(), &temp))
                     goto opthelp;
                 checkoffset = (time_t)temp;
                 if ((intmax_t)checkoffset != temp) {
@@ -568,7 +567,7 @@ int x509_main(int argc, char **argv)
             preserve_dates = 1;
             break;
         case OPT_MD:
-            digestname = opt_unknown();
+            digest = opt_unknown();
             break;
         }
     }
@@ -581,10 +580,6 @@ int x509_main(int argc, char **argv)
     if (!app_RAND_load())
         goto end;
 
-    if (digestname != NULL) {
-        if (!opt_md(digestname, &digest))
-            goto opthelp;
-    }
     if (preserve_dates && days != UNSET_DAYS) {
         BIO_printf(bio_err, "Cannot use -preserve_dates with -days option\n");
         goto end;
@@ -724,7 +719,7 @@ int x509_main(int argc, char **argv)
             }
         }
     } else {
-        x = load_cert_pass(infile, 1, passin, "certificate");
+        x = load_cert_pass(infile, informat, 1, passin, "certificate");
         if (x == NULL)
             goto end;
     }
@@ -739,7 +734,7 @@ int x509_main(int argc, char **argv)
         goto end;
 
     if (CAfile != NULL) {
-        xca = load_cert_pass(CAfile, 1, passin, "CA certificate");
+        xca = load_cert_pass(CAfile, CAformat, 1, passin, "CA certificate");
         if (xca == NULL)
             goto end;
     }
@@ -971,16 +966,26 @@ int x509_main(int argc, char **argv)
         } else if (i == fingerprint) {
             unsigned int n;
             unsigned char md[EVP_MAX_MD_SIZE];
-            const EVP_MD *fdig = digest;
+            const char *fdigname = digest;
+            EVP_MD *fdig;
+            int digres;
 
-            if (fdig == NULL)
-                fdig = EVP_sha1();
+            if (fdigname == NULL)
+                fdigname = "SHA1";
 
-            if (!X509_digest(x, fdig, md, &n)) {
+            if ((fdig = EVP_MD_fetch(app_get0_libctx(), fdigname,
+                                     app_get0_propq())) == NULL) {
+                BIO_printf(bio_err, "Unknown digest\n");
+                goto end;
+            }
+            digres = X509_digest(x, fdig, md, &n);
+            EVP_MD_free(fdig);
+            if (!digres) {
                 BIO_printf(bio_err, "Out of memory\n");
                 goto end;
             }
-            BIO_printf(out, "%s Fingerprint=", EVP_MD_name(fdig));
+
+            BIO_printf(out, "%s Fingerprint=", fdigname);
             for (j = 0; j < (int)n; j++)
                 BIO_printf(out, "%02X%c", md[j], (j + 1 == (int)n) ? '\n' : ':');
         } else if (i == ocspid) {
@@ -1038,7 +1043,6 @@ int x509_main(int argc, char **argv)
     EVP_PKEY_free(privkey);
     EVP_PKEY_free(CAkey);
     EVP_PKEY_free(pubkey);
-    EVP_MD_free(digest);
     sk_OPENSSL_STRING_free(sigopts);
     sk_OPENSSL_STRING_free(vfyopts);
     X509_REQ_free(rq);

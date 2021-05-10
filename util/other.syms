@@ -333,6 +333,7 @@ EVP_seed_cfb                            define
 EVP_sm4_cfb                             define
 OBJ_cleanup                             define deprecated 1.1.0
 OCSP_parse_url                          define
+OCSP_REQ_CTX                            datatype deprecated 3.0.0
 OCSP_REQ_CTX_add1_header                define deprecated 3.0.0
 OCSP_REQ_CTX_free                       define deprecated 3.0.0
 OCSP_REQ_CTX_i2d                        define deprecated 3.0.0
@@ -430,6 +431,11 @@ PEM_FLAG_EAY_COMPATIBLE                 define
 PEM_FLAG_ONLY_B64                       define
 PEM_FLAG_SECURE                         define
 RAND_cleanup                            define deprecated 1.1.0
+SHA1                                    define
+SHA224                                  define
+SHA256                                  define
+SHA384                                  define
+SHA512                                  define
 SSL_COMP_free_compression_methods       define deprecated 1.1.0
 SSL_CTX_add0_chain_cert                 define
 SSL_CTX_add1_chain_cert                 define
@@ -588,8 +594,8 @@ SSLv23_client_method                    define
 SSLv23_method                           define
 SSLv23_server_method                    define
 TLS_DEFAULT_CIPHERSUITES                define deprecated 3.0.0
-X509_CRL_http_nbio                      define
-X509_http_nbio                          define
+X509_CRL_http_nbio                      define deprecated 3.0.0
+X509_http_nbio                          define deprecated 3.0.0
 X509_LOOKUP_add_dir                     define
 X509_LOOKUP_add_store                   define
 X509_LOOKUP_add_store_ex                define

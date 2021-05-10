@@ -350,7 +350,7 @@ Gets a implementation specific randomly generated key for the associated
 cipher ctx. This is currently only supported by 3DES (which sets the key to
 odd parity).
 
-=item "alg_id_param" (B<OSSL_CIPHER_PARAM_ALG_ID>) <octet string>
+=item "alg_id_param" (B<OSSL_CIPHER_PARAM_ALGORITHM_ID_PARAMS>) <octet string>
 
 Used to pass the DER encoded AlgorithmIdentifier parameter to or from
 the cipher implementation.  Functions like L<EVP_CIPHER_param_to_asn1(3)>
@@ -435,7 +435,7 @@ Byte 11-12: Input length (Always 0)
 
 Gets the result of running the "tls1multi_aad" operation.
 
-=item "cts_mode" (B<OSSL_CIPHER_PARAM_CTS_MODE>) <utf8 string>
+=item "cts_mode" (B<OSSL_CIPHER_PARAM_CTS_MODE>) <UTF8 string>
 
 Sets the cipher text stealing mode. For all modes the output size is the same as
 the input size.

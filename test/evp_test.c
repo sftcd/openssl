@@ -504,6 +504,7 @@ typedef struct cipher_data_st {
     size_t key_len;
     size_t key_bits; /* Used by RC2 */
     unsigned char *iv;
+    unsigned char *next_iv; /* Expected IV state after operation */
     unsigned int rounds;
     size_t iv_len;
     unsigned char *plaintext;
@@ -564,6 +565,7 @@ static void cipher_test_cleanup(EVP_TEST *t)
 
     OPENSSL_free(cdat->key);
     OPENSSL_free(cdat->iv);
+    OPENSSL_free(cdat->next_iv);
     OPENSSL_free(cdat->ciphertext);
     OPENSSL_free(cdat->plaintext);
     for (i = 0; i < AAD_NUM; i++)
@@ -589,6 +591,8 @@ static int cipher_test_parse(EVP_TEST *t, const char *keyword,
     }
     if (strcmp(keyword, "IV") == 0)
         return parse_bin(value, &cdat->iv, &cdat->iv_len);
+    if (strcmp(keyword, "NextIV") == 0)
+        return parse_bin(value, &cdat->next_iv, &cdat->iv_len);
     if (strcmp(keyword, "Plaintext") == 0)
         return parse_bin(value, &cdat->plaintext, &cdat->plaintext_len);
     if (strcmp(keyword, "Ciphertext") == 0)
@@ -885,6 +889,19 @@ static int cipher_test_enc(EVP_TEST *t, int enc,
                                 rtag, expected->tag_len))
             goto err;
     }
+    /* Check the updated IV */
+    if (expected->next_iv != NULL) {
+        /* Some (e.g., GCM) tests use IVs longer than EVP_MAX_IV_LENGTH. */
+        unsigned char iv[128];
+        if (!TEST_true(EVP_CIPHER_CTX_get_updated_iv(ctx, iv, sizeof(iv)))
+                || ((EVP_CIPHER_flags(expected->cipher) & EVP_CIPH_CUSTOM_IV) == 0
+                    && !TEST_mem_eq(expected->next_iv, expected->iv_len, iv,
+                                    expected->iv_len))) {
+            t->err = "INVALID_NEXT_IV";
+            goto err;
+        }
+    }
+
     t->err = NULL;
     ok = 1;
  err:
@@ -1012,6 +1029,8 @@ typedef struct mac_data_st {
     /* MAC salt (blake2) */
     unsigned char *salt;
     size_t salt_len;
+    /* XOF mode? */
+    int xof;
     /* Collection of controls */
     STACK_OF(OPENSSL_STRING) *controls;
 } MAC_DATA;
@@ -1106,6 +1125,8 @@ static int mac_test_parse(EVP_TEST *t,
         return parse_bin(value, &mdata->input, &mdata->input_len);
     if (strcmp(keyword, "Output") == 0)
         return parse_bin(value, &mdata->output, &mdata->output_len);
+    if (strcmp(keyword, "XOF") == 0)
+        return mdata->xof = 1;
     if (strcmp(keyword, "Ctrl") == 0)
         return sk_OPENSSL_STRING_push(mdata->controls,
                                       OPENSSL_strdup(value)) != 0;
@@ -1146,6 +1167,10 @@ static int mac_test_run_pkey(EVP_TEST *t)
     unsigned char *got = NULL;
     size_t got_len;
     int i;
+
+    /* We don't do XOF mode via PKEY */
+    if (expected->xof)
+        return 1;
 
     if (expected->alg == NULL)
         TEST_info("Trying the EVP_PKEY %s test", OBJ_nid2sn(expected->type));
@@ -1343,20 +1368,34 @@ static int mac_test_run_mac(EVP_TEST *t)
         t->err = "MAC_UPDATE_ERROR";
         goto err;
     }
-    if (!EVP_MAC_final(ctx, NULL, &got_len, 0)) {
-        t->err = "MAC_FINAL_LENGTH_ERROR";
-        goto err;
-    }
-    if (!TEST_ptr(got = OPENSSL_malloc(got_len))) {
-        t->err = "TEST_FAILURE";
-        goto err;
-    }
-    if (!EVP_MAC_final(ctx, got, &got_len, got_len)
-        || !memory_err_compare(t, "TEST_MAC_ERR",
-                               expected->output, expected->output_len,
-                               got, got_len)) {
-        t->err = "TEST_MAC_ERR";
-        goto err;
+    if (expected->xof) {
+        if (!TEST_ptr(got = OPENSSL_malloc(expected->output_len))) {
+            t->err = "TEST_FAILURE";
+            goto err;
+        }
+        if (!EVP_MAC_finalXOF(ctx, got, expected->output_len)
+            || !memory_err_compare(t, "TEST_MAC_ERR",
+                                   expected->output, expected->output_len,
+                                   got, expected->output_len)) {
+            t->err = "MAC_FINAL_ERROR";
+            goto err;
+        }
+    } else {
+        if (!EVP_MAC_final(ctx, NULL, &got_len, 0)) {
+            t->err = "MAC_FINAL_LENGTH_ERROR";
+            goto err;
+        }
+        if (!TEST_ptr(got = OPENSSL_malloc(got_len))) {
+            t->err = "TEST_FAILURE";
+            goto err;
+        }
+        if (!EVP_MAC_final(ctx, got, &got_len, got_len)
+            || !memory_err_compare(t, "TEST_MAC_ERR",
+                                   expected->output, expected->output_len,
+                                   got, got_len)) {
+            t->err = "TEST_MAC_ERR";
+            goto err;
+        }
     }
     t->err = NULL;
  err:

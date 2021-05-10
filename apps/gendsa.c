@@ -23,7 +23,7 @@
 #include <openssl/pem.h>
 
 typedef enum OPTION_choice {
-    OPT_ERR = -1, OPT_EOF = 0, OPT_HELP,
+    OPT_COMMON,
     OPT_OUT, OPT_PASSOUT, OPT_ENGINE, OPT_CIPHER, OPT_VERBOSE,
     OPT_R_ENUM, OPT_PROV_ENUM
 } OPTION_CHOICE;
@@ -121,7 +121,7 @@ int gendsa_main(int argc, char **argv)
         goto end;
     }
 
-    pkey = load_keyparams(dsaparams, 1, "DSA", "DSA parameters");
+    pkey = load_keyparams(dsaparams, FORMAT_UNDEF, 1, "DSA", "DSA parameters");
 
     out = bio_open_owner(outfile, FORMAT_PEM, private);
     if (out == NULL)

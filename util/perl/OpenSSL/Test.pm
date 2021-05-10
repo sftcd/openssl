@@ -1,4 +1,4 @@
-# Copyright 2016-2020 The OpenSSL Project Authors. All Rights Reserved.
+# Copyright 2016-2021 The OpenSSL Project Authors. All Rights Reserved.
 #
 # Licensed under the Apache License 2.0 (the "License").  You may not use
 # this file except in compliance with the License.  You can obtain a copy
@@ -1232,7 +1232,7 @@ sub __wrap_cmd {
             # In the Windows case, we run perl explicitly.  We might not
             # need it, but that depends on if the user has associated the
             # '.pl' extension with a perl interpreter, so better be safe.
-            @prefix = ( $^X, $std_wrapper );
+            @prefix = ( __fixup_prg($^X), $std_wrapper );
         } else {
             # Otherwise, we assume Unix semantics, and trust that the #!
             # line activates perl for us.

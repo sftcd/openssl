@@ -108,18 +108,19 @@ char *get_passwd(const char *pass, const char *desc);
 int app_passwd(const char *arg1, const char *arg2, char **pass1, char **pass2);
 int add_oid_section(CONF *conf);
 X509_REQ *load_csr(const char *file, int format, const char *desc);
-X509 *load_cert_pass(const char *uri, int maybe_stdin,
+X509 *load_cert_pass(const char *uri, int format, int maybe_stdin,
                      const char *pass, const char *desc);
-#define load_cert(uri, desc) load_cert_pass(uri, 1, NULL, desc)
-X509_CRL *load_crl(const char *uri, const char *desc);
+#define load_cert(uri, format, desc) load_cert_pass(uri, format, 1, NULL, desc)
+X509_CRL *load_crl(const char *uri, int format, int maybe_stdin,
+                   const char *desc);
 void cleanse(char *str);
 void clear_free(char *str);
 EVP_PKEY *load_key(const char *uri, int format, int maybe_stdin,
                    const char *pass, ENGINE *e, const char *desc);
 EVP_PKEY *load_pubkey(const char *uri, int format, int maybe_stdin,
                       const char *pass, ENGINE *e, const char *desc);
-EVP_PKEY *load_keyparams(const char *uri, int maybe_stdin, const char *keytype,
-                         const char *desc);
+EVP_PKEY *load_keyparams(const char *uri, int format, int maybe_stdin,
+                         const char *keytype, const char *desc);
 char *next_item(char *opt); /* in list separated by comma and/or space */
 int load_cert_certs(const char *uri,
                     X509 **pcert, STACK_OF(X509) **pcerts,
@@ -133,13 +134,13 @@ int load_certs(const char *uri, int maybe_stdin, STACK_OF(X509) **certs,
                const char *pass, const char *desc);
 int load_crls(const char *uri, STACK_OF(X509_CRL) **crls,
               const char *pass, const char *desc);
-int load_key_certs_crls(const char *uri, int maybe_stdin,
+int load_key_certs_crls(const char *uri, int format, int maybe_stdin,
                         const char *pass, const char *desc,
                         EVP_PKEY **ppkey, EVP_PKEY **ppubkey,
                         EVP_PKEY **pparams,
                         X509 **pcert, STACK_OF(X509) **pcerts,
                         X509_CRL **pcrl, STACK_OF(X509_CRL) **pcrls);
-int load_key_cert_crl(const char *uri, int maybe_stdin,
+int load_key_cert_crl(const char *uri, int format, int maybe_stdin,
                       const char *pass, const char *desc,
                       EVP_PKEY **ppkey, EVP_PKEY **ppubkey,
                       X509 **pcert, X509_CRL **pcrl);
@@ -241,14 +242,14 @@ int x509_req_ctrl_string(X509_REQ *x, const char *value);
 int init_gen_str(EVP_PKEY_CTX **pctx,
                  const char *algname, ENGINE *e, int do_param,
                  OSSL_LIB_CTX *libctx, const char *propq);
-int do_X509_sign(X509 *x, EVP_PKEY *pkey, const EVP_MD *md,
+int do_X509_sign(X509 *x, EVP_PKEY *pkey, const char *md,
                  STACK_OF(OPENSSL_STRING) *sigopts, X509V3_CTX *ext_ctx);
 int do_X509_verify(X509 *x, EVP_PKEY *pkey, STACK_OF(OPENSSL_STRING) *vfyopts);
-int do_X509_REQ_sign(X509_REQ *x, EVP_PKEY *pkey, const EVP_MD *md,
+int do_X509_REQ_sign(X509_REQ *x, EVP_PKEY *pkey, const char *md,
                      STACK_OF(OPENSSL_STRING) *sigopts);
 int do_X509_REQ_verify(X509_REQ *x, EVP_PKEY *pkey,
                        STACK_OF(OPENSSL_STRING) *vfyopts);
-int do_X509_CRL_sign(X509_CRL *x, EVP_PKEY *pkey, const EVP_MD *md,
+int do_X509_CRL_sign(X509_CRL *x, EVP_PKEY *pkey, const char *md,
                      STACK_OF(OPENSSL_STRING) *sigopts);
 
 extern char *psk_key;

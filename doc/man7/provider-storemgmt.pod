@@ -141,17 +141,27 @@ The contents of the octet string is expected to be in DER form.
 Indicates that the caller wants to search for an object with the given
 serial number associated.
 
-=item "digest" (B<OSSL_STORE_PARAM_DIGEST>) <utf8 string>
+=item "digest" (B<OSSL_STORE_PARAM_DIGEST>) <UTF8 string>
 
 =item "fingerprint" (B<OSSL_STORE_PARAM_FINGERPRINT>) <octet string>
 
 Indicates that the caller wants to search for an object with the given
 fingerprint, computed with the given digest.
 
-=item "alias" (B<OSSL_STORE_PARAM_ALIAS>) <utf8 string>
+=item "alias" (B<OSSL_STORE_PARAM_ALIAS>) <UTF8 string>
 
 Indicates that the caller wants to search for an object with the given
 alias (some call it a "friendly name").
+
+=item "properties" (B<OSSL_STORE_PARAM_PROPERTIES) <utf8 string>
+
+Property string to use when querying for algorithms such as the B<OSSL_DECODER>
+decoder implementations.
+
+=item "input-type" (B<OSSL_STORE_PARAM_INPUT_TYPE) <utf8 string>
+
+Type of the input format as a hint to use when decoding the objects in the
+store.
 
 =back
 

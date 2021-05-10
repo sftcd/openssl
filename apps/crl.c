@@ -19,7 +19,7 @@
 #include <openssl/pem.h>
 
 typedef enum OPTION_choice {
-    OPT_ERR = -1, OPT_EOF = 0, OPT_HELP,
+    OPT_COMMON,
     OPT_INFORM, OPT_IN, OPT_OUTFORM, OPT_OUT, OPT_KEYFORM, OPT_KEY,
     OPT_ISSUER, OPT_LASTUPDATE, OPT_NEXTUPDATE, OPT_FINGERPRINT,
     OPT_CRLNUMBER, OPT_BADSIG, OPT_GENDELTA, OPT_CAPATH, OPT_CAFILE, OPT_CASTORE,
@@ -88,7 +88,7 @@ int crl_main(int argc, char **argv)
     const char *CAfile = NULL, *CApath = NULL, *CAstore = NULL, *prog;
     OPTION_CHOICE o;
     int hash = 0, issuer = 0, lastupdate = 0, nextupdate = 0, noout = 0;
-    int informat = FORMAT_PEM, outformat = FORMAT_PEM, keyformat = FORMAT_PEM;
+    int informat = FORMAT_UNDEF, outformat = FORMAT_PEM, keyformat = FORMAT_UNDEF;
     int ret = 1, num = 0, badsig = 0, fingerprint = 0, crlnumber = 0;
     int text = 0, do_ver = 0, noCAfile = 0, noCApath = 0, noCAstore = 0;
     int i;
@@ -177,7 +177,7 @@ int crl_main(int argc, char **argv)
             nextupdate = ++num;
             break;
         case OPT_NOOUT:
-            noout = ++num;
+            noout = 1;
             break;
         case OPT_FINGERPRINT:
             fingerprint = ++num;
@@ -211,7 +211,7 @@ int crl_main(int argc, char **argv)
         if (!opt_md(digestname, &digest))
             goto opthelp;
     }
-    x = load_crl(infile, "CRL");
+    x = load_crl(infile, informat, 1, "CRL");
     if (x == NULL)
         goto end;
 
@@ -250,13 +250,13 @@ int crl_main(int argc, char **argv)
             BIO_printf(bio_err, "verify OK\n");
     }
 
-    if (crldiff) {
+    if (crldiff != NULL) {
         X509_CRL *newcrl, *delta;
         if (!keyfile) {
             BIO_puts(bio_err, "Missing CRL signing key\n");
             goto end;
         }
-        newcrl = load_crl(crldiff, "other CRL");
+        newcrl = load_crl(crldiff, informat, 0, "other CRL");
         if (!newcrl)
             goto end;
         pkey = load_key(keyfile, keyformat, 0, NULL, NULL, "CRL signing key");

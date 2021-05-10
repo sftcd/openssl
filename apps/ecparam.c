@@ -22,7 +22,7 @@
 #include "ec_common.h"
 
 typedef enum OPTION_choice {
-    OPT_ERR = -1, OPT_EOF = 0, OPT_HELP,
+    OPT_COMMON,
     OPT_INFORM, OPT_OUTFORM, OPT_IN, OPT_OUT, OPT_TEXT,
     OPT_CHECK, OPT_LIST_CURVES, OPT_NO_SEED, OPT_NOOUT, OPT_NAME,
     OPT_CONV_FORM, OPT_PARAM_ENC, OPT_GENKEY, OPT_ENGINE, OPT_CHECK_NAMED,
@@ -240,7 +240,7 @@ int ecparam_main(int argc, char **argv)
             goto end;
         }
     } else {
-        params_key = load_keyparams(infile, 1, "EC", "EC parameters");
+        params_key = load_keyparams(infile, informat, 1, "EC", "EC parameters");
         if (params_key == NULL || !EVP_PKEY_is_a(params_key, "EC"))
             goto end;
         if (point_format

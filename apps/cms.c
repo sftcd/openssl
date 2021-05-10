@@ -61,7 +61,7 @@ struct cms_key_param_st {
 };
 
 typedef enum OPTION_choice {
-    OPT_ERR = -1, OPT_EOF = 0, OPT_HELP,
+    OPT_COMMON,
     OPT_INFORM, OPT_OUTFORM, OPT_IN, OPT_OUT, OPT_ENCRYPT,
     OPT_DECRYPT, OPT_SIGN, OPT_CADES, OPT_SIGN_RECEIPT, OPT_RESIGN,
     OPT_VERIFY, OPT_VERIFY_RETCODE, OPT_VERIFY_RECEIPT,
@@ -215,9 +215,7 @@ const OPTIONS cms_options[] = {
     {"aes128-wrap", OPT_AES128_WRAP, '-', "Use AES128 to wrap key"},
     {"aes192-wrap", OPT_AES192_WRAP, '-', "Use AES192 to wrap key"},
     {"aes256-wrap", OPT_AES256_WRAP, '-', "Use AES256 to wrap key"},
-# ifndef OPENSSL_NO_DES
     {"des3-wrap", OPT_3DES_WRAP, '-', "Use 3DES-EDE to wrap key"},
-# endif
     {"wrap", OPT_WRAP, 's', "Any wrap cipher to wrap key"},
 
     OPT_R_OPTIONS,
@@ -284,7 +282,7 @@ int cms_main(int argc, char **argv)
     X509_VERIFY_PARAM *vpm = NULL;
     char *certfile = NULL, *keyfile = NULL, *contfile = NULL;
     const char *CAfile = NULL, *CApath = NULL, *CAstore = NULL;
-    char *certsoutfile = NULL, *digestname = NULL;
+    char *certsoutfile = NULL, *digestname = NULL, *wrapname = NULL;
     int noCAfile = 0, noCApath = 0, noCAstore = 0;
     char *infile = NULL, *outfile = NULL, *rctfile = NULL;
     char *passinarg = NULL, *passin = NULL, *signerfile = NULL;
@@ -294,7 +292,7 @@ int cms_main(int argc, char **argv)
     int flags = CMS_DETACHED, noout = 0, print = 0, keyidx = -1, vpmtouched = 0;
     int informat = FORMAT_SMIME, outformat = FORMAT_SMIME;
     int operation = 0, ret = 1, rr_print = 0, rr_allorfirst = -1;
-    int verify_retcode = 0, rctformat = FORMAT_SMIME, keyform = FORMAT_PEM;
+    int verify_retcode = 0, rctformat = FORMAT_SMIME, keyform = FORMAT_UNDEF;
     size_t secret_keylen = 0, secret_keyidlen = 0;
     unsigned char *pwri_pass = NULL, *pwri_tmp = NULL;
     unsigned char *secret_key = NULL, *secret_keyid = NULL;
@@ -613,7 +611,8 @@ int cms_main(int argc, char **argv)
             if (operation == SMIME_ENCRYPT) {
                 if (encerts == NULL && (encerts = sk_X509_new_null()) == NULL)
                     goto end;
-                cert = load_cert(opt_arg(), "recipient certificate file");
+                cert = load_cert(opt_arg(), FORMAT_UNDEF,
+                                 "recipient certificate file");
                 if (cert == NULL)
                     goto end;
                 sk_X509_push(encerts, cert);
@@ -676,22 +675,13 @@ int cms_main(int argc, char **argv)
                 goto end;
             break;
         case OPT_3DES_WRAP:
-# ifndef OPENSSL_NO_DES
-            wrap_cipher = (EVP_CIPHER *)EVP_des_ede3_wrap();
-# endif
-            break;
         case OPT_AES128_WRAP:
-            wrap_cipher = (EVP_CIPHER *)EVP_aes_128_wrap();
-            break;
         case OPT_AES192_WRAP:
-            wrap_cipher = (EVP_CIPHER *)EVP_aes_192_wrap();
-            break;
         case OPT_AES256_WRAP:
-            wrap_cipher = (EVP_CIPHER *)EVP_aes_256_wrap();
+            wrapname = opt_flag() + 1;
             break;
         case OPT_WRAP:
-            if (!opt_cipher(opt_unknown(), &wrap_cipher))
-                goto end;
+            wrapname = opt_unknown();
             break;
         }
     }
@@ -704,6 +694,10 @@ int cms_main(int argc, char **argv)
     }
     if (ciphername != NULL) {
         if (!opt_cipher(ciphername, &cipher))
+            goto end;
+    }
+    if (wrapname != NULL) {
+        if (!opt_cipher(wrapname, &wrap_cipher))
             goto end;
     }
 
@@ -817,7 +811,8 @@ int cms_main(int argc, char **argv)
             if ((encerts = sk_X509_new_null()) == NULL)
                 goto end;
         while (*argv) {
-            if ((cert = load_cert(*argv, "recipient certificate file")) == NULL)
+            if ((cert = load_cert(*argv, FORMAT_UNDEF,
+                                  "recipient certificate file")) == NULL)
                 goto end;
             sk_X509_push(encerts, cert);
             cert = NULL;
@@ -833,7 +828,7 @@ int cms_main(int argc, char **argv)
     }
 
     if (recipfile != NULL && (operation == SMIME_DECRYPT)) {
-        if ((recip = load_cert(recipfile,
+        if ((recip = load_cert(recipfile, FORMAT_UNDEF,
                                "recipient certificate file")) == NULL) {
             ERR_print_errors(bio_err);
             goto end;
@@ -841,7 +836,7 @@ int cms_main(int argc, char **argv)
     }
 
     if (originatorfile != NULL) {
-        if ((originator = load_cert(originatorfile,
+        if ((originator = load_cert(originatorfile, FORMAT_UNDEF,
                                     "originator certificate file")) == NULL) {
              ERR_print_errors(bio_err);
              goto end;
@@ -849,7 +844,7 @@ int cms_main(int argc, char **argv)
     }
 
     if (operation == SMIME_SIGN_RECEIPT) {
-        if ((signer = load_cert(signerfile,
+        if ((signer = load_cert(signerfile, FORMAT_UNDEF,
                                 "receipt signer certificate file")) == NULL) {
             ERR_print_errors(bio_err);
             goto end;
@@ -1055,7 +1050,7 @@ int cms_main(int argc, char **argv)
             signerfile = sk_OPENSSL_STRING_value(sksigners, i);
             keyfile = sk_OPENSSL_STRING_value(skkeys, i);
 
-            signer = load_cert(signerfile, "signer certificate");
+            signer = load_cert(signerfile, FORMAT_UNDEF, "signer certificate");
             if (signer == NULL) {
                 ret = 2;
                 goto end;
