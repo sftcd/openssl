@@ -18,7 +18,7 @@
 #include <openssl/core_names.h>
 
 typedef enum OPTION_choice {
-    OPT_ERR = -1, OPT_EOF = 0, OPT_HELP,
+    OPT_COMMON,
     OPT_INFORM, OPT_OUTFORM, OPT_PASSIN, OPT_PASSOUT, OPT_ENGINE,
     OPT_IN, OPT_OUT, OPT_PUBIN, OPT_PUBOUT, OPT_TEXT_PUB,
     OPT_TEXT, OPT_NOOUT, OPT_CIPHER, OPT_TRADITIONAL, OPT_CHECK, OPT_PUB_CHECK,
@@ -75,7 +75,7 @@ int pkey_main(int argc, char **argv)
     char *infile = NULL, *outfile = NULL, *passin = NULL, *passout = NULL;
     char *passinarg = NULL, *passoutarg = NULL, *ciphername = NULL, *prog;
     OPTION_CHOICE o;
-    int informat = FORMAT_PEM, outformat = FORMAT_PEM;
+    int informat = FORMAT_UNDEF, outformat = FORMAT_PEM;
     int pubin = 0, pubout = 0, text_pub = 0, text = 0, noout = 0, ret = 1;
     int private = 0, traditional = 0, check = 0, pub_check = 0;
 #ifndef OPENSSL_NO_EC

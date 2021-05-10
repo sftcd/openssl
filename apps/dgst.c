@@ -36,7 +36,8 @@ struct doall_dgst_digests {
 };
 
 typedef enum OPTION_choice {
-    OPT_ERR = -1, OPT_EOF = 0, OPT_HELP, OPT_LIST,
+    OPT_COMMON,
+    OPT_LIST,
     OPT_C, OPT_R, OPT_OUT, OPT_SIGN, OPT_PASSIN, OPT_VERIFY,
     OPT_PRVERIFY, OPT_SIGNATURE, OPT_KEYFORM, OPT_ENGINE, OPT_ENGINE_IMPL,
     OPT_HEX, OPT_BINARY, OPT_DEBUG, OPT_FIPS_FINGERPRINT,
@@ -104,7 +105,7 @@ int dgst_main(int argc, char **argv)
     const char *sigfile = NULL;
     const char *md_name = NULL;
     OPTION_CHOICE o;
-    int separator = 0, debug = 0, keyform = FORMAT_PEM, siglen = 0;
+    int separator = 0, debug = 0, keyform = FORMAT_UNDEF, siglen = 0;
     int i, ret = 1, out_bin = -1, want_pub = 0, do_verify = 0;
     int xoflen = 0;
     unsigned char *buf = NULL, *sigbuf = NULL;

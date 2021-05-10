@@ -22,6 +22,7 @@
 #include <errno.h>
 #include <ctype.h>
 #include <limits.h>
+#include <openssl/err.h>
 #include <openssl/bio.h>
 #include <openssl/x509v3.h>
 
@@ -35,7 +36,6 @@ const char OPT_PARAM_STR[] = "-P";
 static char **argv;
 static int argc;
 static int opt_index;
-static char *param_name;
 static char *arg;
 static char *flag;
 static char *dunno;
@@ -141,12 +141,12 @@ char *opt_progname(const char *argv0)
 }
 #endif
 
-char *opt_appname(const char *arg0)
+char *opt_appname(const char *argv0)
 {
     size_t len = strlen(prog);
 
-    if (arg0 != NULL)
-        BIO_snprintf(prog + len, sizeof(prog) - len - 1, " %s", arg0);
+    if (argv0 != NULL)
+        BIO_snprintf(prog + len, sizeof(prog) - len - 1, " %s", argv0);
     return prog;
 }
 
@@ -226,7 +226,7 @@ static OPT_PAIR formats[] = {
 };
 
 /* Print an error message about a failed format parse. */
-int opt_format_error(const char *s, unsigned long flags)
+static int opt_format_error(const char *s, unsigned long flags)
 {
     OPT_PAIR *ap;
 
@@ -324,7 +324,7 @@ int opt_format(const char *s, unsigned long flags, int *result)
 }
 
 /* Return string representing the given format. */
-const char *format2str(int format)
+static const char *format2str(int format)
 {
     switch (format) {
     default:
@@ -359,32 +359,54 @@ void print_format_error(int format, unsigned long flags)
 }
 
 /* Parse a cipher name, put it in *EVP_CIPHER; return 0 on failure, else 1. */
+int opt_cipher_silent(const char *name, EVP_CIPHER **cipherp)
+{
+    EVP_CIPHER_free(*cipherp);
+
+    ERR_set_mark();
+    if ((*cipherp = EVP_CIPHER_fetch(NULL, name, NULL)) != NULL
+        || (*cipherp = (EVP_CIPHER *)EVP_get_cipherbyname(name)) != NULL) {
+        ERR_pop_to_mark();
+        return 1;
+    }
+    ERR_clear_last_mark();
+    return 0;
+}
+
 int opt_cipher(const char *name, EVP_CIPHER **cipherp)
 {
-    *cipherp = EVP_CIPHER_fetch(NULL, name, NULL);
-    if (*cipherp != NULL)
-        return 1;
-    *cipherp = (EVP_CIPHER *)EVP_get_cipherbyname(name);
-    if (*cipherp != NULL)
-        return 1;
-    opt_printf_stderr("%s: Unknown cipher: %s\n", prog, name);
-    return 0;
+    int ret;
+
+    if ((ret = opt_cipher_silent(name, cipherp)) == 0)
+       opt_printf_stderr("%s: Unknown cipher: %s\n", prog, name);
+    return ret;
 }
 
 /*
  * Parse message digest name, put it in *EVP_MD; return 0 on failure, else 1.
  */
+int opt_md_silent(const char *name, EVP_MD **mdp)
+{
+    EVP_MD_free(*mdp);
+
+    ERR_set_mark();
+    if ((*mdp = EVP_MD_fetch(NULL, name, NULL)) != NULL
+        || (*mdp = (EVP_MD *)EVP_get_digestbyname(name)) != NULL) {
+        ERR_pop_to_mark();
+        return 1;
+    }
+    ERR_clear_last_mark();
+    return 0;
+}
+
 int opt_md(const char *name, EVP_MD **mdp)
 {
-    *mdp = (EVP_MD *)EVP_get_digestbyname(name);
-    if (*mdp != NULL)
-        return 1;
-    *mdp = EVP_MD_fetch(NULL, name, NULL);
-    if (*mdp != NULL)
-        return 1;
-    opt_printf_stderr("%s: Unknown option or message digest: %s\n", prog,
-                      name != NULL ? name : "\"\"");
-    return 0;
+    int ret;
+
+    if ((ret = opt_md_silent(name, mdp)) == 0)
+        opt_printf_stderr("%s: Unknown option or message digest: %s\n", prog,
+                          name != NULL ? name : "\"\"");
+    return ret;
 }
 
 /* Look through a list of name/value pairs. */
@@ -433,7 +455,7 @@ int opt_int(const char *value, int *result)
     return 1;
 }
 
-/* Parse and return a natural number, assuming range has been checked before. */
+/* Parse and return an integer, assuming range has been checked before. */
 int opt_int_arg(void)
 {
     int result = -1;
@@ -492,7 +514,7 @@ int opt_long(const char *value, long *result)
     !defined(OPENSSL_NO_INTTYPES_H)
 
 /* Parse an intmax_t, put it into *result; return 0 on failure, else 1. */
-int opt_imax(const char *value, intmax_t *result)
+int opt_intmax(const char *value, intmax_t *result)
 {
     int oerrno = errno;
     intmax_t m;
@@ -514,7 +536,7 @@ int opt_imax(const char *value, intmax_t *result)
 }
 
 /* Parse a uintmax_t, put it into *result; return 0 on failure, else 1. */
-int opt_umax(const char *value, uintmax_t *result)
+int opt_uintmax(const char *value, uintmax_t *result)
 {
     int oerrno = errno;
     uintmax_t m;
@@ -631,7 +653,7 @@ int opt_verify(int opt, X509_VERIFY_PARAM *vpm)
             X509_VERIFY_PARAM_set_auth_level(vpm, i);
         break;
     case OPT_V_ATTIME:
-        if (!opt_imax(opt_arg(), &t))
+        if (!opt_intmax(opt_arg(), &t))
             return 0;
         if (t != (time_t)t) {
             opt_printf_stderr("%s: epoch time out of range %s\n",
@@ -745,7 +767,7 @@ int opt_next(void)
 
     /* Look at current arg; at end of the list? */
     arg = NULL;
-    p = param_name = argv[opt_index];
+    p = argv[opt_index];
     if (p == NULL)
         return 0;
 
@@ -827,11 +849,11 @@ int opt_next(void)
             }
             break;
         case 'M':
-            if (!opt_imax(arg, &imval))
+            if (!opt_intmax(arg, &imval))
                 return -1;
             break;
         case 'U':
-            if (!opt_umax(arg, &umval))
+            if (!opt_uintmax(arg, &umval))
                 return -1;
             break;
         case 'l':
@@ -868,19 +890,13 @@ int opt_next(void)
     return -1;
 }
 
-/* Return the name of the most recent flag parameter. */
-char *opt_name(void)
-{
-    return param_name;
-}
-
 /* Return the most recent flag parameter. */
 char *opt_arg(void)
 {
     return arg;
 }
 
-/* Return the most recent flag. */
+/* Return the most recent flag (option name including the preceding '-'). */
 char *opt_flag(void)
 {
     return flag;
@@ -950,7 +966,7 @@ static const char *valtype2param(const OPTIONS *o)
     return "parm";
 }
 
-void opt_print(const OPTIONS *o, int doingparams, int width)
+static void opt_print(const OPTIONS *o, int doingparams, int width)
 {
     const char* help;
     char start[80 + 1];

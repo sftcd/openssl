@@ -79,7 +79,7 @@ static CONF *addext_conf = NULL;
 static int batch = 0;
 
 typedef enum OPTION_choice {
-    OPT_ERR = -1, OPT_EOF = 0, OPT_HELP,
+    OPT_COMMON,
     OPT_INFORM, OPT_OUTFORM, OPT_ENGINE, OPT_KEYGEN_ENGINE, OPT_KEY,
     OPT_PUBKEY, OPT_NEW, OPT_CONFIG, OPT_KEYFORM, OPT_IN, OPT_OUT,
     OPT_KEYOUT, OPT_PASSIN, OPT_PASSOUT, OPT_NEWKEY,
@@ -240,12 +240,11 @@ int req_main(int argc, char **argv)
     X509 *new_x509 = NULL, *CAcert = NULL;
     X509_REQ *req = NULL;
     EVP_CIPHER *cipher = NULL;
-    EVP_MD *md_alg = NULL, *digest = NULL;
     int ext_copy = EXT_COPY_UNSET;
     BIO *addext_bio = NULL;
     char *extensions = NULL;
     const char *infile = NULL, *CAfile = NULL, *CAkeyfile = NULL;
-    char *outfile = NULL, *keyfile = NULL, *digestname = NULL;
+    char *outfile = NULL, *keyfile = NULL, *digest = NULL;
     char *keyalgstr = NULL, *p, *prog, *passargin = NULL, *passargout = NULL;
     char *passin = NULL, *passout = NULL;
     char *nofree_passin = NULL, *nofree_passout = NULL;
@@ -257,7 +256,7 @@ int req_main(int argc, char **argv)
     int days = UNSET_DAYS;
     int ret = 1, gen_x509 = 0, i = 0, newreq = 0, verbose = 0;
     int pkey_type = -1;
-    int informat = FORMAT_PEM, outformat = FORMAT_PEM, keyform = FORMAT_PEM;
+    int informat = FORMAT_UNDEF, outformat = FORMAT_PEM, keyform = FORMAT_UNDEF;
     int modulus = 0, multirdn = 1, verify = 0, noout = 0, text = 0;
     int noenc = 0, newhdr = 0, subject = 0, pubkey = 0, precert = 0;
     long newkey_len = -1;
@@ -468,7 +467,7 @@ int req_main(int argc, char **argv)
             newreq = precert = 1;
             break;
         case OPT_MD:
-            digestname = opt_unknown();
+            digest = opt_unknown();
             break;
         }
     }
@@ -480,12 +479,6 @@ int req_main(int argc, char **argv)
 
     if (!app_RAND_load())
         goto end;
-
-    if (digestname != NULL) {
-        if (!opt_md(digestname, &md_alg))
-            goto opthelp;
-        digest = md_alg;
-    }
 
     if (!gen_x509) {
         if (days != UNSET_DAYS)
@@ -536,15 +529,12 @@ int req_main(int argc, char **argv)
     if (!add_oid_section(req_conf))
         goto end;
 
-    if (md_alg == NULL) {
+    if (digest == NULL) {
         p = NCONF_get_string(req_conf, section, "default_md");
-        if (p == NULL) {
+        if (p == NULL)
             ERR_clear_error();
-        } else {
-            if (!opt_md(p, &md_alg))
-                goto opthelp;
-            digest = md_alg;
-        }
+        else
+            digest = p;
     }
 
     if (extensions == NULL) {
@@ -772,7 +762,7 @@ int req_main(int argc, char **argv)
             BIO_printf(bio_err,
                        "Ignoring -CAkey option since no -CA option is given\n");
         } else {
-            if ((CAkey = load_key(CAkeyfile, FORMAT_PEM,
+            if ((CAkey = load_key(CAkeyfile, FORMAT_UNDEF,
                                   0, passin, e, "issuer private key")) == NULL)
                 goto end;
         }
@@ -787,7 +777,7 @@ int req_main(int argc, char **argv)
                            "Need to give the -CAkey option if using -CA\n");
                 goto end;
             }
-            if ((CAcert = load_cert_pass(CAfile, 1, passin,
+            if ((CAcert = load_cert_pass(CAfile, FORMAT_UNDEF, 1, passin,
                                          "issuer certificate")) == NULL)
                 goto end;
             if (!X509_check_private_key(CAcert, CAkey)) {
@@ -1058,8 +1048,6 @@ int req_main(int argc, char **argv)
     BIO_free(addext_bio);
     BIO_free_all(out);
     EVP_PKEY_free(pkey);
-    EVP_MD_free(md_alg);
-    EVP_MD_free(digest);
     EVP_PKEY_CTX_free(genctx);
     sk_OPENSSL_STRING_free(pkeyopts);
     sk_OPENSSL_STRING_free(sigopts);
@@ -1120,7 +1108,8 @@ static int make_REQ(X509_REQ *req, EVP_PKEY *pkey, X509_NAME *fsubj,
         }
     }
 
-    if (!X509_REQ_set_version(req, 0L)) /* so far there is only version 1 */
+    /* so far there is only version 1 */
+    if (!X509_REQ_set_version(req, X509_REQ_VERSION_1))
         goto err;
 
     if (fsubj != NULL)

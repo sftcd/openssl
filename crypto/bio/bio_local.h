@@ -1,5 +1,5 @@
 /*
- * Copyright 2005-2016 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2005-2021 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -113,6 +113,7 @@ typedef struct bio_f_buffer_ctx_struct {
 } BIO_F_BUFFER_CTX;
 
 struct bio_st {
+    OSSL_LIB_CTX *libctx;
     const BIO_METHOD *method;
     /* bio, mode, argp, argi, argl, ret */
     BIO_callback_fn callback;

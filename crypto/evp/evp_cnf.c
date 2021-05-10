@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2020 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2012-2021 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -38,10 +38,10 @@ static int alg_module_init(CONF_IMODULE *md, const CONF *cnf)
         if (strcmp(oval->name, "fips_mode") == 0) {
             int m;
 
-            if (!X509V3_get_value_bool(oval, &m)) {
-                ERR_raise(ERR_LIB_EVP, EVP_R_INVALID_FIPS_MODE);
+            /* Detailed error already reported. */
+            if (!X509V3_get_value_bool(oval, &m))
                 return 0;
-            }
+
             /*
              * fips_mode is deprecated and should not be used in new
              * configurations.

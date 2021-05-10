@@ -487,6 +487,11 @@ typedef int (EVP_PBE_KEYGEN) (EVP_CIPHER_CTX *ctx, const char *pass,
                               const EVP_CIPHER *cipher, const EVP_MD *md,
                               int en_de);
 
+typedef int (EVP_PBE_KEYGEN_EX) (EVP_CIPHER_CTX *ctx, const char *pass,
+                                 int passlen, ASN1_TYPE *param,
+                                 const EVP_CIPHER *cipher, const EVP_MD *md,
+                                 int en_de, OSSL_LIB_CTX *libctx, const char *propq);
+
 # ifndef OPENSSL_NO_DEPRECATED_3_0
 #  define EVP_PKEY_assign_RSA(pkey,rsa) EVP_PKEY_assign((pkey),EVP_PKEY_RSA,\
                                                          (rsa))
@@ -676,6 +681,9 @@ __owur int EVP_DigestFinal_ex(EVP_MD_CTX *ctx, unsigned char *md,
 __owur int EVP_Digest(const void *data, size_t count,
                           unsigned char *md, unsigned int *size,
                           const EVP_MD *type, ENGINE *impl);
+__owur int EVP_Q_digest(OSSL_LIB_CTX *libctx, const char *name,
+                        const char *propq, const void *data, size_t count,
+                        unsigned char *md, unsigned int *size);
 
 __owur int EVP_MD_CTX_copy(EVP_MD_CTX *out, const EVP_MD_CTX *in);
 __owur int EVP_DigestInit(EVP_MD_CTX *ctx, const EVP_MD *type);
@@ -1171,11 +1179,17 @@ int EVP_MAC_CTX_get_params(EVP_MAC_CTX *ctx, OSSL_PARAM params[]);
 int EVP_MAC_CTX_set_params(EVP_MAC_CTX *ctx, const OSSL_PARAM params[]);
 
 size_t EVP_MAC_CTX_get_mac_size(EVP_MAC_CTX *ctx);
+unsigned char *EVP_Q_mac(OSSL_LIB_CTX *libctx, const char *name, const char *propq,
+                         const char *subalg, const OSSL_PARAM *params,
+                         const void *key, size_t keylen,
+                         const unsigned char *data, size_t datalen,
+                         unsigned char *out, size_t outsize, unsigned int *outlen);
 int EVP_MAC_init(EVP_MAC_CTX *ctx, const unsigned char *key, size_t keylen,
                  const OSSL_PARAM params[]);
 int EVP_MAC_update(EVP_MAC_CTX *ctx, const unsigned char *data, size_t datalen);
 int EVP_MAC_final(EVP_MAC_CTX *ctx,
                   unsigned char *out, size_t *outl, size_t outsize);
+int EVP_MAC_finalXOF(EVP_MAC_CTX *ctx, unsigned char *out, size_t outsize);
 const OSSL_PARAM *EVP_MAC_gettable_params(const EVP_MAC *mac);
 const OSSL_PARAM *EVP_MAC_gettable_ctx_params(const EVP_MAC *mac);
 const OSSL_PARAM *EVP_MAC_settable_ctx_params(const EVP_MAC *mac);
@@ -1432,22 +1446,39 @@ int PKCS5_PBKDF2_HMAC(const char *pass, int passlen,
 int PKCS5_v2_PBE_keyivgen(EVP_CIPHER_CTX *ctx, const char *pass, int passlen,
                           ASN1_TYPE *param, const EVP_CIPHER *cipher,
                           const EVP_MD *md, int en_de);
+int PKCS5_v2_PBE_keyivgen_ex(EVP_CIPHER_CTX *ctx, const char *pass, int passlen,
+                             ASN1_TYPE *param, const EVP_CIPHER *cipher,
+                             const EVP_MD *md, int en_de,
+                             OSSL_LIB_CTX *libctx, const char *propq);
 
 #ifndef OPENSSL_NO_SCRYPT
 int EVP_PBE_scrypt(const char *pass, size_t passlen,
                    const unsigned char *salt, size_t saltlen,
                    uint64_t N, uint64_t r, uint64_t p, uint64_t maxmem,
                    unsigned char *key, size_t keylen);
+int EVP_PBE_scrypt_ex(const char *pass, size_t passlen,
+                      const unsigned char *salt, size_t saltlen,
+                      uint64_t N, uint64_t r, uint64_t p, uint64_t maxmem,
+                      unsigned char *key, size_t keylen,
+                      OSSL_LIB_CTX *ctx, const char *propq);
 
 int PKCS5_v2_scrypt_keyivgen(EVP_CIPHER_CTX *ctx, const char *pass,
                              int passlen, ASN1_TYPE *param,
                              const EVP_CIPHER *c, const EVP_MD *md, int en_de);
+int PKCS5_v2_scrypt_keyivgen_ex(EVP_CIPHER_CTX *ctx, const char *pass,
+                                int passlen, ASN1_TYPE *param,
+                                const EVP_CIPHER *c, const EVP_MD *md, int en_de,
+                                OSSL_LIB_CTX *libctx, const char *propq);
 #endif
 
 void PKCS5_PBE_add(void);
 
 int EVP_PBE_CipherInit(ASN1_OBJECT *pbe_obj, const char *pass, int passlen,
                        ASN1_TYPE *param, EVP_CIPHER_CTX *ctx, int en_de);
+
+int EVP_PBE_CipherInit_ex(ASN1_OBJECT *pbe_obj, const char *pass, int passlen,
+                          ASN1_TYPE *param, EVP_CIPHER_CTX *ctx, int en_de,
+                          OSSL_LIB_CTX *libctx, const char *propq);
 
 /* PBE type */
 
@@ -1464,6 +1495,8 @@ int EVP_PBE_alg_add(int nid, const EVP_CIPHER *cipher, const EVP_MD *md,
                     EVP_PBE_KEYGEN *keygen);
 int EVP_PBE_find(int type, int pbe_nid, int *pcnid, int *pmnid,
                  EVP_PBE_KEYGEN **pkeygen);
+int EVP_PBE_find_ex(int type, int pbe_nid, int *pcnid, int *pmnid,
+                    EVP_PBE_KEYGEN **pkeygen, EVP_PBE_KEYGEN_EX **pkeygen_ex);
 void EVP_PBE_cleanup(void);
 int EVP_PBE_get(int *ptype, int *ppbe_nid, size_t num);
 

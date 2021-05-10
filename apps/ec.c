@@ -22,7 +22,7 @@
 #include "ec_common.h"
 
 typedef enum OPTION_choice {
-    OPT_ERR = -1, OPT_EOF = 0, OPT_HELP,
+    OPT_COMMON,
     OPT_INFORM, OPT_OUTFORM, OPT_ENGINE, OPT_IN, OPT_OUT,
     OPT_NOOUT, OPT_TEXT, OPT_PARAM_OUT, OPT_PUBIN, OPT_PUBOUT,
     OPT_PASSIN, OPT_PASSOUT, OPT_PARAM_ENC, OPT_CONV_FORM, OPT_CIPHER,
@@ -73,7 +73,7 @@ int ec_main(int argc, char **argv)
     char *infile = NULL, *outfile = NULL, *ciphername = NULL, *prog;
     char *passin = NULL, *passout = NULL, *passinarg = NULL, *passoutarg = NULL;
     OPTION_CHOICE o;
-    int informat = FORMAT_PEM, outformat = FORMAT_PEM, text = 0, noout = 0;
+    int informat = FORMAT_UNDEF, outformat = FORMAT_PEM, text = 0, noout = 0;
     int pubin = 0, pubout = 0, param_out = 0, ret = 1, private = 0;
     int check = 0;
     char *asn1_encoding = NULL;
@@ -267,7 +267,10 @@ int ec_main(int argc, char **argv)
                                              NULL);
         if (enc != NULL) {
             OSSL_ENCODER_CTX_set_cipher(ectx, EVP_CIPHER_name(enc), NULL);
+            /* Default passphrase prompter */
+            OSSL_ENCODER_CTX_set_passphrase_ui(ectx, get_ui_method(), NULL);
             if (passout != NULL)
+                /* When passout given, override the passphrase prompter */
                 OSSL_ENCODER_CTX_set_passphrase(ectx,
                                                 (const unsigned char *)passout,
                                                 strlen(passout));

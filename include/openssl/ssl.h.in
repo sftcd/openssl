@@ -438,7 +438,6 @@ typedef int (*SSL_async_callback_fn)(SSL *s, void *arg);
  */
 # define SSL_OP_ALL        (SSL_OP_CRYPTOPRO_TLSEXT_BUG|\
                             SSL_OP_DONT_INSERT_EMPTY_FRAGMENTS|\
-                            SSL_OP_LEGACY_SERVER_CONNECT|\
                             SSL_OP_TLSEXT_PADDING|\
                             SSL_OP_SAFARI_ECDHE_ECDSA_BUG)
 
@@ -668,8 +667,8 @@ void SSL_set_msg_callback(SSL *ssl,
         SSL_ctrl((s),SSL_CTRL_GET_EXTMS_SUPPORT,0,NULL)
 
 # ifndef OPENSSL_NO_SRP
-
 /* see tls_srp.c */
+#  ifndef OPENSSL_NO_DEPRECATED_3_0
 OSSL_DEPRECATEDIN_3_0 __owur int SSL_SRP_CTX_init(SSL *s);
 OSSL_DEPRECATEDIN_3_0 __owur int SSL_CTX_SRP_CTX_init(SSL_CTX *ctx);
 OSSL_DEPRECATEDIN_3_0 int SSL_SRP_CTX_free(SSL *ctx);
@@ -677,7 +676,7 @@ OSSL_DEPRECATEDIN_3_0 int SSL_CTX_SRP_CTX_free(SSL_CTX *ctx);
 OSSL_DEPRECATEDIN_3_0 __owur int SSL_srp_server_param_with_username(SSL *s,
                                                                     int *ad);
 OSSL_DEPRECATEDIN_3_0 __owur int SRP_Calc_A_param(SSL *s);
-
+#  endif
 # endif
 
 /* 100k max cert list */
@@ -1844,6 +1843,7 @@ __owur X509_VERIFY_PARAM *SSL_CTX_get0_param(SSL_CTX *ctx);
 __owur X509_VERIFY_PARAM *SSL_get0_param(SSL *ssl);
 
 # ifndef OPENSSL_NO_SRP
+#  ifndef OPENSSL_NO_DEPRECATED_3_0
 OSSL_DEPRECATEDIN_3_0 int SSL_CTX_set_srp_username(SSL_CTX *ctx, char *name);
 OSSL_DEPRECATEDIN_3_0 int SSL_CTX_set_srp_password(SSL_CTX *ctx, char *password);
 OSSL_DEPRECATEDIN_3_0 int SSL_CTX_set_srp_strength(SSL_CTX *ctx, int strength);
@@ -1870,6 +1870,7 @@ OSSL_DEPRECATEDIN_3_0 __owur BIGNUM *SSL_get_srp_N(SSL *s);
 
 OSSL_DEPRECATEDIN_3_0 __owur char *SSL_get_srp_username(SSL *s);
 OSSL_DEPRECATEDIN_3_0 __owur char *SSL_get_srp_userinfo(SSL *s);
+#  endif
 # endif
 
 /*

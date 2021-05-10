@@ -3,7 +3,8 @@
 ##
 ## {- join("\n## ", @autowarntext) -}
 {-
-     our $makedepprog = platform->makedepprog();
+     our $makedep_scheme = $config{makedep_scheme};
+     our $makedepcmd = platform->makedepcmd();
 
      sub windowsdll { $config{target} =~ /^(?:Cygwin|mingw)/ }
 
@@ -163,12 +164,21 @@ INSTALL_ENGINES={-
                                && $unified_info{attributes}->{modules}->{$_}->{engine} }
                         @{$unified_info{modules}}))
 -}
+INSTALL_FIPS={-
+        join(" \\\n" . ' ' x 16,
+             fill_lines(" ", $COLUMNS - 16,
+                        map { platform->dso($_) }
+                        grep { !$unified_info{attributes}->{modules}->{$_}->{noinst}
+                               && $unified_info{attributes}->{modules}->{$_}->{fips} }
+                        @{$unified_info{modules}}))
+-}
 INSTALL_MODULES={-
         join(" \\\n" . ' ' x 16,
              fill_lines(" ", $COLUMNS - 16,
                         map { platform->dso($_) }
                         grep { !$unified_info{attributes}->{modules}->{$_}->{noinst}
-                               && !$unified_info{attributes}->{modules}->{$_}->{engine} }
+                               && !$unified_info{attributes}->{modules}->{$_}->{engine}
+                               && !$unified_info{attributes}->{modules}->{$_}->{fips} }
                         @{$unified_info{modules}}))
 -}
 INSTALL_PROGRAMS={-
@@ -315,7 +325,7 @@ CXXFLAGS={- join(' ', @{$config{CXXFLAGS}}) -}
 LDFLAGS= {- join(' ', @{$config{LDFLAGS}}) -}
 EX_LIBS= {- join(' ', @{$config{LDLIBS}}) -}
 
-MAKEDEPEND={- $config{makedepprog} -}
+MAKEDEPEND={- $config{makedepcmd} -}
 
 PERL={- $config{PERL} -}
 
@@ -516,9 +526,9 @@ list-tests:
 	@echo "Tests are not supported with your chosen Configure options"
 	@ : {- output_on() if !$disabled{tests}; "" -}
 
-install: install_sw install_ssldirs install_docs
+install: install_sw install_ssldirs install_docs {- $disabled{fips} ? "" : "install_fips" -}
 
-uninstall: uninstall_docs uninstall_sw
+uninstall: uninstall_docs uninstall_sw {- $disabled{fips} ? "" : "uninstall_fips" -}
 
 libclean:
 	@set -e; for s in $(SHLIB_INFO); do \
@@ -570,9 +580,7 @@ distclean: clean
 # concatenate only if that is true.
 depend:
 	@: {- output_off() if $disabled{makedepend}; "" -}
-	@$(PERL) $(SRCDIR)/util/add-depends.pl {-
-		 defined $makedepprog  && $makedepprog =~ /\/makedepend/
-                 ? 'makedepend' : 'gcc' -}
+	@$(PERL) $(SRCDIR)/util/add-depends.pl "{- $makedep_scheme -}"
 	@: {- output_on() if $disabled{makedepend}; "" -}
 
 # Install helper targets #############################################
@@ -586,17 +594,33 @@ install_docs: install_man_docs install_html_docs
 uninstall_docs: uninstall_man_docs uninstall_html_docs
 	$(RM) -r $(DESTDIR)$(DOCDIR)
 
-install_fips: install_sw
+{- output_off() if $disabled{fips}; "" -}
+install_fips: build_sw providers/fipsmodule.cnf
+	@[ -n "$(INSTALLTOP)" ] || (echo INSTALLTOP should not be empty; exit 1)
+	@$(PERL) $(SRCDIR)/util/mkdir-p.pl $(DESTDIR)$(MODULESDIR)
+	@$(ECHO) "*** Installing FIPS module"
+	@$(ECHO) "install $(INSTALL_FIPS) -> $(DESTDIR)$(MODULESDIR)/$(FIPSMODULENAME)"
+	@cp "$(INSTALL_FIPS)" $(DESTDIR)$(MODULESDIR)/$(FIPSMODULENAME).new
+	@chmod 755 $(DESTDIR)$(MODULESDIR)/$(FIPSMODULENAME).new
+	@mv -f $(DESTDIR)$(MODULESDIR)/$(FIPSMODULENAME).new \
+	       $(DESTDIR)$(MODULESDIR)/$(FIPSMODULENAME)
 	@$(ECHO) "*** Installing FIPS module configuration"
-	@$(ECHO) "fipsinstall $(DESTDIR)$(MODULESDIR)/$(FIPSMODULENAME).cnf"
-	@openssl fipsinstall -module $(DESTDIR)$(MODULESDIR)/$(FIPSMODULENAME) \
-		-out $(DESTDIR)$(MODULESDIR)/$(FIPSMODULENAME).cnf \
-		-macopt 'key:$(FIPSKEY)'
+	@$(ECHO) "install providers/fipsmodule.cnf -> $(DESTDIR)$(OPENSSLDIR)/fipsmodule.cnf"
+	@cp providers/fipsmodule.cnf $(DESTDIR)$(OPENSSLDIR)/fipsmodule.cnf
 
-uninstall_fips: uninstall_sw
+uninstall_fips:
 	@$(ECHO) "*** Uninstalling FIPS module configuration"
-	@$(ECHO) "$(RM) $(DESTDIR)$(MODULESDIR)/$(FIPSMODULENAME).cnf"
-	@$(RM) $(DESTDIR)$(MODULESDIR)/$(FIPSMODULENAME).cnf
+	$(RM) $(DESTDIR)$(OPENSSLDIR)/fipsmodule.cnf
+	@$(ECHO) "*** Uninstalling FIPS module"
+	$(RM) $(DESTDIR)$(MODULESDIR)/$(FIPSMODULENAME)
+{- if ($disabled{fips}) { output_on(); } else { output_off(); } "" -}
+install_fips:
+	@$(ECHO) "The 'install_fips' target requires the 'enable-fips' option"
+
+uninstall_fips:
+	@$(ECHO) "The 'uninstall_fips' target requires the 'enable-fips' option"
+{- output_on() if !$disabled{fips}; "" -}
+
 
 install_ssldirs:
 	@$(PERL) $(SRCDIR)/util/mkdir-p.pl $(DESTDIR)$(OPENSSLDIR)/certs
@@ -1031,6 +1055,9 @@ uninstall_html_docs:
 # It's important that generate_buildinfo comes after ordinals, as ordinals
 # is sensitive to build.info changes.
 update: generate errors ordinals generate_buildinfo
+{- output_off() if $disabled{fips}; "" -}
+update: fips-checksums
+{- output_on() if $disabled{fips}; "" -}
 
 generate: generate_apps generate_crypto_bn generate_crypto_objects \
           generate_crypto_conf generate_crypto_asn1 generate_fuzz_oids
@@ -1112,6 +1139,41 @@ generate_doc_buildinfo:
           else \
                 mv $(SRCDIR)/doc/build.info.new $(SRCDIR)/doc/build.info; \
           fi )
+
+{- output_off() if $disabled{fips}; "" -}
+generate_fips_sources: $(SRCDIR)/providers/fips.module.sources
+$(SRCDIR)/providers/fips.module.sources: \
+                $(SRCDIR)/Configure \
+                {- join(" \\\n" . ' ' x 16,
+                        fill_lines(" ", $COLUMNS - 16,
+                                   @{$config{build_file_templates}},
+                                   @{$config{build_infos}},
+                                   @{$config{conf_files}})) -}
+	rm -rf sources-tmp
+	mkdir sources-tmp
+	( \
+	  srcdir=`cd $(SRCDIR); pwd`; \
+	  cd sources-tmp \
+	  && $$srcdir/Configure enable-fips \
+	  && ./configdata.pm --query 'get_sources("providers/fips")' > sources1 \
+	  && $$srcdir/Configure enable-fips no-asm \
+	  && ./configdata.pm --query 'get_sources("providers/fips")' > sources2 \
+	)
+	( \
+	  srcdir2=`if [ "$(SRCDIR)" = "." ]; then echo ".."; elif echo "$(SRCDIR)" | grep '^/' > /dev/null; then echo "$(SRCDIR)"; else echo "../$(SRCDIR)"; fi`; \
+	  cat sources-tmp/sources1 sources-tmp/sources2 \
+	  | grep -v ' : \\$$' | sed -e 's| \\$$||' -e "s|^  $$srcdir2/||"; \
+	  cd $(SRCDIR); \
+	  for x in crypto/bn/asm/*.pl crypto/bn/asm/*.S \
+		   crypto/aes/asm/*.pl crypto/aes/asm/*.S \
+		   crypto/ec/asm/*.pl \
+		   crypto/modes/asm/*.pl \
+		   crypto/sha/asm/*.pl; do \
+	    echo "$$x"; \
+	  done \
+	) | sort | uniq > $(SRCDIR)/providers/fips.module.sources
+	rm -rf sources-tmp
+{- output_on() if $disabled{fips}; "" -}
 
 # Set to -force to force a rebuild
 ERROR_REBUILD=
@@ -1208,6 +1270,20 @@ tags TAGS: FORCE
 	rm -f TAGS tags
 	-ctags -R .
 	-etags `find . -name '*.[ch]' -o -name '*.pm'`
+
+{- output_off() if $disabled{fips}; "" -}
+fips-checksums: generate_fips_sources
+	if which unifdef > /dev/null; then \
+	    ( cd $(SRCDIR) \
+	      && cat providers/fips.module.sources \
+	             | xargs ./util/fips-checksums.sh \
+	             > providers/fips-sources.checksums \
+	      && sha256sum providers/fips-sources.checksums \
+	             > providers/fips.checksum ); \
+	else \
+	    echo >&2 "WARNING: unifdef not in your \$$PATH, FIPS checksums not calculated"; \
+	fi
+{- output_on() if $disabled{fips}; "" -}
 
 # Release targets (note: only available on Unix) #####################
 
@@ -1518,8 +1594,7 @@ EOF
 $obj: $deps
 	$cmd $incs $defs $cmdflags -c -o \$\@ $srcs
 EOF
-      } elsif (defined $makedepprog && $makedepprog !~ /\/makedepend/
-               && !grep /\.rc$/, @srcs) {
+      } elsif ($makedep_scheme eq 'gcc' && !grep /\.rc$/, @srcs) {
           $recipe .= <<"EOF";
 $obj: $deps
 	$cmd $incs $defs $cmdflags -MMD -MF $dep.tmp -MT \$\@ -c -o \$\@ $srcs
@@ -1535,7 +1610,7 @@ EOF
 $obj: $deps
 	$cmd $incs $defs $cmdflags $cmdcompile -o \$\@ $srcs
 EOF
-          if (defined $makedepprog  && $makedepprog =~ /\/makedepend/) {
+          if ($makedep_scheme eq 'makedepend') {
               $recipe .= <<"EOF";
 	\$(MAKEDEPEND) -f- -Y -- $incs $cmdflags -- $srcs 2>/dev/null \\
 	    > $dep

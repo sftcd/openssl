@@ -37,7 +37,7 @@
 #endif
 
 typedef enum OPTION_choice {
-    OPT_ERR = -1, OPT_EOF = 0, OPT_HELP,
+    OPT_COMMON,
     OPT_INFORM, OPT_OUTFORM, OPT_ENGINE, OPT_IN, OPT_OUT,
     OPT_PUBIN, OPT_PUBOUT, OPT_PASSOUT, OPT_PASSIN,
     OPT_RSAPUBKEY_IN, OPT_RSAPUBKEY_OUT,
@@ -96,7 +96,7 @@ int rsa_main(int argc, char **argv)
     char *infile = NULL, *outfile = NULL, *ciphername = NULL, *prog;
     char *passin = NULL, *passout = NULL, *passinarg = NULL, *passoutarg = NULL;
     int private = 0;
-    int informat = FORMAT_PEM, outformat = FORMAT_PEM, text = 0, check = 0;
+    int informat = FORMAT_UNDEF, outformat = FORMAT_PEM, text = 0, check = 0;
     int noout = 0, modulus = 0, pubin = 0, pubout = 0, ret = 1;
     int pvk_encr = DEFAULT_PVK_ENCR_STRENGTH;
     OPTION_CHOICE o;
@@ -204,7 +204,7 @@ int rsa_main(int argc, char **argv)
     }
 
     if (pubin) {
-        int tmpformat = -1;
+        int tmpformat = FORMAT_UNDEF;
 
         if (pubin == 2) {
             if (informat == FORMAT_PEM)
@@ -333,6 +333,20 @@ int rsa_main(int argc, char **argv)
     if (OSSL_ENCODER_CTX_get_num_encoders(ectx) == 0) {
         BIO_printf(bio_err, "%s format not supported\n", output_type);
         goto end;
+    }
+
+    /* Passphrase setup */
+    if (enc != NULL)
+        OSSL_ENCODER_CTX_set_cipher(ectx, EVP_CIPHER_name(enc), NULL);
+
+    /* Default passphrase prompter */
+    if (enc != NULL || outformat == FORMAT_PVK) {
+        OSSL_ENCODER_CTX_set_passphrase_ui(ectx, get_ui_method(), NULL);
+        if (passout != NULL)
+            /* When passout given, override the passphrase prompter */
+            OSSL_ENCODER_CTX_set_passphrase(ectx,
+                                            (const unsigned char *)passout,
+                                            strlen(passout));
     }
 
     /* PVK is a bit special... */

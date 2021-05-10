@@ -94,7 +94,7 @@ extern "C" {
 #define OSSL_CIPHER_PARAM_SPEED                "speed"        /* uint */
 #define OSSL_CIPHER_PARAM_CTS_MODE             "cts_mode"     /* utf8_string */
 /* For passing the AlgorithmIdentifier parameter in DER form */
-#define OSSL_CIPHER_PARAM_ALG_ID               "alg_id_param" /* octet_string */
+#define OSSL_CIPHER_PARAM_ALGORITHM_ID_PARAMS  "alg_id_param" /* octet_string */
 
 #define OSSL_CIPHER_PARAM_TLS1_MULTIBLOCK_MAX_SEND_FRAGMENT                    \
     "tls1multi_maxsndfrag" /* uint */
@@ -207,7 +207,6 @@ extern "C" {
 #define OSSL_KDF_PARAM_SSHKDF_SESSION_ID "session_id" /* octet string */
 #define OSSL_KDF_PARAM_SSHKDF_TYPE  "type"      /* int */
 #define OSSL_KDF_PARAM_SIZE         "size"      /* size_t */
-#define OSSL_KDF_PARAM_CIPHER       OSSL_ALG_PARAM_CIPHER     /* utf8 string */
 #define OSSL_KDF_PARAM_CONSTANT     "constant"  /* octet string */
 #define OSSL_KDF_PARAM_PKCS12_ID    "id"        /* int */
 #define OSSL_KDF_PARAM_KBKDF_USE_L  "use-l"             /* int */
@@ -546,6 +545,8 @@ extern "C" {
 
 /* You may want to pass properties for the provider implementation to use */
 #define OSSL_STORE_PARAM_PROPERTIES "properties"   /* utf8_string */
+/* OSSL_DECODER input type if a decoder is used by the store */
+#define OSSL_STORE_PARAM_INPUT_TYPE "input-type"   /* UTF8_STRING */
 
 # ifdef __cplusplus
 }

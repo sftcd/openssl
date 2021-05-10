@@ -131,8 +131,8 @@ static int opt_revreason = CRL_REASON_NONE;
 /* credentials format */
 static char *opt_certform_s = "PEM";
 static int opt_certform = FORMAT_PEM;
-static char *opt_keyform_s = "PEM";
-static int opt_keyform = FORMAT_PEM;
+static char *opt_keyform_s = NULL;
+static int opt_keyform = FORMAT_UNDEF;
 static char *opt_otherpass = NULL;
 static char *opt_engine = NULL;
 
@@ -188,7 +188,7 @@ static int opt_accept_raverified = 0;
 static X509_VERIFY_PARAM *vpm = NULL;
 
 typedef enum OPTION_choice {
-    OPT_ERR = -1, OPT_EOF = 0, OPT_HELP,
+    OPT_COMMON,
     OPT_CONFIG, OPT_SECTION, OPT_VERBOSITY,
 
     OPT_CMD, OPT_INFOTYPE, OPT_GENINFO,
@@ -635,7 +635,7 @@ static X509 *load_cert_pwd(const char *uri, const char *pass, const char *desc)
     X509 *cert;
     char *pass_string = get_passwd(pass, desc);
 
-    cert = load_cert_pass(uri, 0, pass_string, desc);
+    cert = load_cert_pass(uri, FORMAT_UNDEF, 0, pass_string, desc);
     clear_free(pass_string);
     return cert;
 }
@@ -2188,10 +2188,10 @@ static char *opt_str(void)
 
     if (arg[0] == '\0') {
         CMP_warn1("%s option argument is empty string, resetting option",
-                  opt_name());
+                  opt_flag());
         arg = NULL;
     } else if (arg[0] == '-') {
-        CMP_warn1("%s option argument starts with hyphen", opt_name());
+        CMP_warn1("%s option argument starts with hyphen", opt_flag());
     }
     return arg;
 }
@@ -2855,7 +2855,9 @@ int cmp_main(int argc, char **argv)
         OSSL_CMP_CTX_print_errors(cmp_ctx);
 
     ossl_cmp_mock_srv_free(OSSL_CMP_CTX_get_transfer_cb_arg(cmp_ctx));
+#ifndef OPENSSL_NO_SOCK
     APP_HTTP_TLS_INFO_free(OSSL_CMP_CTX_get_http_cb_arg(cmp_ctx));
+#endif
     X509_STORE_free(OSSL_CMP_CTX_get_certConf_cb_arg(cmp_ctx));
     OSSL_CMP_CTX_free(cmp_ctx);
     X509_VERIFY_PARAM_free(vpm);
