@@ -165,7 +165,7 @@ then
 fi
 
 snioutercmd=" "
-if [[ "$SUPPLIEDPNO" != "" ]] 
+if [[ "$SUPPLIEDPNO" != "" && "$NOECH" != "yes" ]] 
 then
     snioutercmd="-sni-outer $SUPPLIEDPNO"
 fi
@@ -239,12 +239,12 @@ echstr="-servername $hidden -svcb $ECH "
 if [[ "$NOECH" == "yes" ]]
 then
     echo "Not trying ECH"
-    if [[ "$SUPPLIEDPNO" == "" && "$hidden" != "" ]]
-    then
-        echstr="-servername $hidden "
-    elif [[ "$SUPPLIEDPNO" != "" ]]
+    if [[ "$SUPPLIEDPNO" != "" ]]
     then
         echstr="-servername $SUPPLIEDPNO "
+    elif [[ "$SUPPLIEDPNO" == "" && "$hidden" != "" ]]
+    then
+        echstr="-servername $hidden "
     elif [[ "$hidden" == "" || "$SUPPLIEDPNO" == "NONE" ]]
     then
         echstr=" -noservername"
@@ -261,7 +261,7 @@ else
     fi
 fi
 
-if [[ "$SUPPLIEDHIDDEN" == "" && "$HTTPPATH" == "" ]]
+if [[ "$DOECH" == "yes" && "$SUPPLIEDHIDDEN" == "" && "$HTTPPATH" == "" ]]
 then
     # we're at CF, set things to work nicely
     HTTPPATH=$DEFFRAG
@@ -269,7 +269,20 @@ then
 fi
 
 #httpreq="GET $HTTPPATH\\r\\n\\r\\n"
-httpreq="GET /$HTTPPATH HTTP/1.1\\r\\nConnection: close\\r\\nHost: $hidden\\r\\n\\r\\n"
+httphost=$hidden
+if [[ "$NOECH" == "yes" ]]
+then
+    if [[ "$SUPPLIEDPNO" != "" ]]
+    then
+        httphost=$SUPPLIEDPNO
+    elif [[ "$SUPPLIEDSERVER" != "" ]]
+    then
+        httphost=$SUPPLIEDSERVER
+    else
+        httphost="localhost"
+    fi
+fi
+httpreq="GET /$HTTPPATH HTTP/1.1\\r\\nConnection: close\\r\\nHost: $httphost\\r\\n\\r\\n"
 
 # tell it where CA stuff is...
 if [[ "$server" != "localhost" ]]

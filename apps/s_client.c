@@ -2114,8 +2114,8 @@ int s_client_main(int argc, char **argv)
         {
 	        /*
 	         * As per RFC8446, 4.6.1 check that the cert in the session covers
-	         * the server name we want (preferring the inner name over 
-	         * the outer)
+	         * the server name we want (preferring the inner name (if set) over 
+	         * the outer (if set).
 	         * At this point it doesn't really matter what the old names in
 	         * the session were, those are just informative.
 	         */
@@ -3546,6 +3546,8 @@ static void print_stuff(BIO *bio, SSL *s, int full)
             char *inner=NULL;
             char *outer=NULL;
             switch (SSL_ech_get_status(s,&inner,&outer)) {
+            case SSL_ECH_STATUS_NOT_CONFIGURED:
+                break;
             case SSL_ECH_STATUS_NOT_TRIED: 
                 break;
             case SSL_ECH_STATUS_FAILED: 

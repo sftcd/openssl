@@ -1,8 +1,4 @@
-# ESNI and resumption notes
-
-This is a separate file for now, when done and conclusions reached, I'll
-summarise it in the design doc. Did that now, so this file will disappear
-later (keep for now for test cases below).
+# ECH and resumption notes
 
 The bottom line seems to be that there's a need to bind the HIDDEN to the
 session, and maybe also the COVER. That isn't quite the current behaviour,
@@ -16,7 +12,7 @@ But if that's not current behaviour, it might break something.
 So I might also want to keep the no ESNI and no SNI behaviour the same
 as today, even if that's not quite the right idea.
 
-Aside from ESNI-aware servers/clients dealing with unaware peers, we
+Aside from ECH-aware servers/clients dealing with unaware peers, we
 also gotta worry about sessions that are stored and valid whilst the
 peer's code is updated. Not sure how to handle that, probably need to
 ask maintainers.
@@ -26,10 +22,6 @@ ask maintainers.
 We'll start on the client side.
 
 client:
-	- In order to not require a DNS library in the client library, we
-	  require the command line arguments to be supplied each time.
-	- The ESNIKeys stuff can change (due to timing/geography) but 
-	  we want the same HIDDEN value always.
 	- add encservername to session (partly done)
 		- to be undone!
 	- undo the above because we wanna check that the new SNI (ESNI or SNI)
@@ -50,14 +42,19 @@ These are some tests I did before starting to code up changes.
 
 Server stays running in all tests so far. Check server restart affects later. 
 
-- t1: no esni to HIDDEN
-	- client connects without ESNI and stores session 
-	- client re-connects without ESNI and reuses session 
+- t0: start server without any ECH keys
+            $ ./echsrv.sh -n
+
+- t1: no ECH to HIDDEN
+	- client connects without ECH and stores session 
+	- client re-connects without ECH and reuses session 
 	- commands:
-			$ ./testclient.sh -p 4000 -s localhost -n -c foo.example.com -vd -S t1sess >t1log.first 2>&1
-			$ ./testclient.sh -p 4000 -s localhost -n -c foo.example.com -vd -S t1sess >t1log.second 2>&1
+            $ ./echcli.sh -s localhost -c example.com -p 8443 -n -S t1sess >t1log.first 2>&1
+            $ ./echcli.sh -s localhost -c example.com -p 8443 -n -S t1sess >t1log.second 2>&1
 	- works as planned - abbreviated h/s, correct cert
 	- rechecked
+
+GOTHERE
 
 - t2: no esni to COVER
 	- client connects without ESNI and stores session 
