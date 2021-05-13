@@ -1377,7 +1377,6 @@ MSG_PROCESS_RETURN tls_process_client_hello(SSL *s, PACKET *pkt)
 
 #ifndef OPENSSL_NO_ECH
 
-    // new code
     if (s->server && s->ech!=NULL) {
         PACKET newpkt;
         if (ech_early_decrypt(s,pkt,&newpkt)!=1) {
@@ -1904,14 +1903,14 @@ static int tls_early_post_process_client_hello(SSL *s)
         }
     }
 
-#ifdef OPENSSL_NO_ECH
+#ifndef OPENSSL_NO_ECH
     /*
      * This is naff, but we'll refuse to handle the session_secret_cb
      * for now because we'll need to re-calculate the server random
      * later to include the ECH magic (can't do it now as we don't
      * yet have the SH encoding)
      */
-    if (s->ech && s->ext.ech_success) 
+    if ((s->ech && s->ext.ech_success) || !s->ech) 
 #endif
 
     if (!s->hit

@@ -43,18 +43,19 @@ These are some tests I did before starting to code up changes.
 Server stays running in all tests so far. Check server restart affects later. 
 
 - t0: start server without any ECH keys
-            $ ./echsrv.sh -n
+            $ ./echsvr.sh -ndv
 
 - t1: no ECH to HIDDEN
 	- client connects without ECH and stores session 
 	- client re-connects without ECH and reuses session 
 	- commands:
-            $ ./echcli.sh -s localhost -c example.com -p 8443 -n -S t1sess >t1log.first 2>&1
-            $ ./echcli.sh -s localhost -c example.com -p 8443 -n -S t1sess >t1log.second 2>&1
+            $ rm -f t1sess t1log.first t1log.second
+            $ ./echcli.sh -s localhost -c example.com -p 8443 -ndv -S t1sess >t1log.first 2>&1
+            $ ./echcli.sh -s localhost -c example.com -p 8443 -ndv -S t1sess >t1log.second 2>&1
 	- works as planned - abbreviated h/s, correct cert
 	- rechecked
 
-GOTHERE
+GOTHERE - and so far this works, but more TODO
 
 - t2: no esni to COVER
 	- client connects without ESNI and stores session 

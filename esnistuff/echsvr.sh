@@ -3,21 +3,23 @@
 # set -x
 
 # to pick up correct .so's - maybe note 
-: ${TOP:=$HOME/code/openssl}
-export LD_LIBRARY_PATH=$TOP
+: ${CODETOP:=$HOME/code/openssl}
+export LD_LIBRARY_PATH=$CODETOP
+# to pick up the relevant configuration
+: ${CFGTOP:=$HOME/code/openssl}
 
-ECHKEYFILE="$TOP/esnistuff/echconfig.pem"
-ECH10KEYFILE="$TOP/esnistuff/echconfig-10.pem"
+ECHKEYFILE="$CFGTOP/esnistuff/echconfig.pem"
+ECH10KEYFILE="$CFGTOP/esnistuff/echconfig-10.pem"
 # prefer the draft-10 file if it's there
 if [ -f $ECH10KEYFILE ]
 then
-    ECHKEYFILE="$TOP/esnistuff/echconfig-10.pem"
+    ECHKEYFILE="$CFGTOP/esnistuff/echconfig-10.pem"
 fi 
 
 HIDDEN="foo.example.com"
 HIDDEN2="bar.example.com"
 CLEAR_SNI="example.com"
-ECHDIR="$TOP/esnistuff/echkeydir"
+ECHDIR="$CFGTOP/esnistuff/echkeydir"
 
 SSLCFG="/etc/ssl/openssl.cnf"
 
@@ -36,7 +38,7 @@ SUPPLIEDKEYFILE=""
 SUPPLIEDHIDDEN=""
 SUPPLIEDCLEAR_SNI=""
 SUPPLIEDDIR=""
-CAPATH="$TOP/esnistuff/cadir/"
+CAPATH="$CFGTOP/esnistuff/cadir/"
 
 # whether we feed a bad key pair to server for testing
 BADKEY="no"
@@ -127,12 +129,12 @@ then
     fi
 fi
 
-KEYFILE1=$TOP/esnistuff/cadir/$clear_sni.priv
-CERTFILE1=$TOP/esnistuff/cadir/$clear_sni.crt
-KEYFILE2=$TOP/esnistuff/cadir/$hidden.priv
-CERTFILE2=$TOP/esnistuff/cadir/$hidden.crt
-KEYFILE3=$TOP/esnistuff/cadir/$HIDDEN2.priv
-CERTFILE3=$TOP/esnistuff/cadir/$HIDDEN2.crt
+KEYFILE1=$CFGTOP/esnistuff/cadir/$clear_sni.priv
+CERTFILE1=$CFGTOP/esnistuff/cadir/$clear_sni.crt
+KEYFILE2=$CFGTOP/esnistuff/cadir/$hidden.priv
+CERTFILE2=$CFGTOP/esnistuff/cadir/$hidden.crt
+KEYFILE3=$CFGTOP/esnistuff/cadir/$HIDDEN2.priv
+CERTFILE3=$CFGTOP/esnistuff/cadir/$HIDDEN2.crt
 
 if [[ "$KEYGEN" == "yes" ]]
 then
@@ -150,7 +152,7 @@ keyfile2="-key2 $KEYFILE2 -cert2 $CERTFILE2"
 # ought work
 TRACING=""
 tmpf=`mktemp`
-$TOP/apps/openssl s_server -help >$tmpf 2>&1
+$CODETOP/apps/openssl s_server -help >$tmpf 2>&1
 tcount=`grep -c 'trace protocol messages' $tmpf`
 if [[ "$tcount" == "1" ]]
 then
@@ -250,8 +252,8 @@ trap cleanup SIGINT
 
 if [[ "$DEBUG" == "yes" ]]
 then
-    echo "Running: $vgcmd $TOP/apps/openssl s_server $dbgstr $keyfile1 $keyfile2 $certsdb $portstr $force13 $echstr $snicmd $hardfail $trialdecrypt $WEBSERVER"
+    echo "Running: $vgcmd $CODETOP/apps/openssl s_server $dbgstr $keyfile1 $keyfile2 $certsdb $portstr $force13 $echstr $snicmd $hardfail $trialdecrypt $WEBSERVER"
 fi
-$vgcmd $TOP/apps/openssl s_server $dbgstr $keyfile1 $keyfile2 $certsdb $portstr $force13 $echstr $snicmd $hardfail $trialdecrypt $WEBSERVER
+$vgcmd $CODETOP/apps/openssl s_server $dbgstr $keyfile1 $keyfile2 $certsdb $portstr $force13 $echstr $snicmd $hardfail $trialdecrypt $WEBSERVER
 
 

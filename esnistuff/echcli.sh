@@ -5,9 +5,12 @@
 
 # set -x
 
+
 # to pick up correct .so's - maybe note 
-: ${TOP:=$HOME/code/openssl}
-export LD_LIBRARY_PATH=$TOP
+: ${CODETOP:=$HOME/code/openssl}
+export LD_LIBRARY_PATH=$CODETOP
+# to pick up the relevant configuration
+: ${CFGTOP:=$HOME/code/openssl}
 
 # variables/settings
 # use Valgrind or not
@@ -134,7 +137,7 @@ fi
 # ought work
 TRACING=""
 tmpf=`mktemp`
-$TOP/apps/openssl s_client -help >$tmpf 2>&1
+$CODETOP/apps/openssl s_client -help >$tmpf 2>&1
 tcount=`grep -c 'trace output of protocol messages' $tmpf`
 if [[ "$tcount" == "1" ]]
 then
@@ -308,10 +311,10 @@ if [[ "$SUPPLIEDSESSION" != "" ]]
 then
 	if [ ! -f $SUPPLIEDSESSION ]
 	then
-		# resuming 
+		# save so we can resume
 		session=" -sess_out $SUPPLIEDSESSION"
 	else
-		# save so we can resume
+		# resuming 
 		session=" -sess_in $SUPPLIEDSESSION"
 	fi
 fi
@@ -326,9 +329,9 @@ TMPF=`mktemp /tmp/echtestXXXX`
 
 if [[ "$DEBUG" == "yes" ]]
 then
-    echo "Running: $TOP/apps/openssl s_client $dbgstr $certsdb $force13 $target $echstr $snioutercmd $session $alpn $ciphers"
+    echo "Running: $CODETOP/apps/openssl s_client $dbgstr $certsdb $force13 $target $echstr $snioutercmd $session $alpn $ciphers"
 fi
-( echo -e "$httpreq" ; sleep 2) | $vgcmd $TOP/apps/openssl s_client $dbgstr $certsdb $force13 $target $echstr $snioutercmd $session $alpn $ciphers >$TMPF 2>&1
+( echo -e "$httpreq" ; sleep 2) | $vgcmd $CODETOP/apps/openssl s_client $dbgstr $certsdb $force13 $target $echstr $snioutercmd $session $alpn $ciphers >$TMPF 2>&1
 
 c200=`grep -c "200 OK" $TMPF`
 csucc=`grep -c "ECH: success" $TMPF`

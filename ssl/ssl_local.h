@@ -775,6 +775,7 @@ typedef enum tlsext_index_en {
 #ifndef OPENSSL_NO_ECH
     TLSEXT_IDX_ech,
     TLSEXT_IDX_outer_extensions,
+    TLSEXT_IDX_ech_is_inner,
 #endif
     TLSEXT_IDX_padding,
     TLSEXT_IDX_psk,
