@@ -4301,10 +4301,13 @@ SSL *SSL_dup(SSL *s)
 
 #ifndef OPENSSL_NO_ECH
     ret->nechs=s->nechs;
-    ret->ech=SSL_ECH_dup(s->ech,ret->nechs,ECH_SELECT_ALL);
-    if (!ret->ech) {
-        goto err;
-    }
+    ret->ech=NULL;
+    if (s->ech) {
+        ret->ech=SSL_ECH_dup(s->ech,ret->nechs,ECH_SELECT_ALL);
+        if (!ret->ech) {
+            goto err;
+        }
+    } 
     ret->ech_cb=s->ech_cb;
     ret->ext.inner_s=s->ext.inner_s;
     ret->ext.outer_s=s->ext.outer_s;
@@ -4313,8 +4316,8 @@ SSL *SSL_dup(SSL *s)
     ret->ext.ech_success=s->ext.ech_success;
     ret->ext.ech_grease=s->ext.ech_grease;
     ret->ext.ch_depth=s->ext.ch_depth;
-
 #endif
+
     return ret;
 
  err:

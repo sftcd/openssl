@@ -28,6 +28,12 @@ Most recent first...
 DON'T TRY ECH YET!!! The very much work-in-progress code is
 sooooo awful still...
 
+- 20210514: finally got the ``make test`` target fixed after a lot
+  of painful mucking about (the fault was mine but wasn't helped by
+  the oddball test setup). Also brought GREASE up to draft-10 spec
+  and improved greasiness via ``hpke_good4grease`` API that knows the
+  internal lengths etc.
+
 - 20210429: made myself a [checklist](checklist.md) for things to check
   whenever non-trivial changes made (one just done and there's more upcoming).
   All the localhost/dev-machine parts of that are now done. Will push
