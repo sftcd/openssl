@@ -3607,6 +3607,7 @@ int ech_early_decrypt(SSL *s, PACKET *outerpkt, PACKET *newpkt)
      * 4. if decrypt worked, de-compress cleartext to make up real inner CH
      */
     int rv=0;
+    ECH_ENCCH *extval=NULL;
 
     /*
      * 1. check if there's an ECH
@@ -3690,7 +3691,6 @@ int ech_early_decrypt(SSL *s, PACKET *outerpkt, PACKET *newpkt)
      *   opaque payload<1..2^16-1>;
      *  } ClientECH;
      */
-    ECH_ENCCH *extval=NULL;
 
     extval=OPENSSL_malloc(sizeof(ECH_ENCCH));
     if (extval==NULL) {
