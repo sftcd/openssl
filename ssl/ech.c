@@ -3888,6 +3888,10 @@ int ech_early_decrypt(SSL *s, PACKET *outerpkt, PACKET *newpkt)
         extval=NULL;
     }
 
+    if (s->ext.ech_grease==ECH_IS_GREASE) {
+        return 1;
+    }
+
     /*
      * 4. if decrypt worked, de-compress cleartext to make up real inner CH
      */

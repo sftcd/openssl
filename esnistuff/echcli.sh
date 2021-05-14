@@ -368,9 +368,15 @@ if (( $goodresult > 0 ))
 then
     echo "Looks like it worked ok"
 else
-    if [[ "$NOECH" != "yes" ]]
+    if [[ "$NOECH" != "yes" && "$GREASE" != "yes" ]]
     then
         echo "Bummer - probably didn't work"
+    elif [[ "$NOECH" == "yes" ]]
+    then
+        echo "Didn't try ECH"
+    elif [[ "$GREASE" == "yes" ]]
+    then
+        echo "Only greased"
     fi
 fi
 echo $allresult
