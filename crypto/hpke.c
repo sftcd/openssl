@@ -1,5 +1,5 @@
 /*
- * Copyright 2019 Stephen Farrell. All Rights Reserved.
+ * Copyright 2019-2021 Stephen Farrell. All Rights Reserved.
  *
  * Licensed under the OpenSSL license (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -10,9 +10,6 @@
 /**
  * @file
  * An OpenSSL-based HPKE implementation following draft-irtf-cfrg-hpke
- *
- * I plan to use this for my ESNI-enabled OpenSSL build (https://github.com/sftcd/openssl)
- * when the time is right.
  */
 
 #include <stddef.h>
@@ -607,7 +604,7 @@ err:
 #define HPKE_SECRET_LABEL "secret" ///< guess again?
 
 /*!
- * brief RFC5869 HKDF-Extract
+ * @brief RFC5869 HKDF-Extract
  *
  * @param suite is the ciphersuite 
  * @param mode5869 - controls labelling specifics
@@ -767,7 +764,7 @@ err:
 }
 
 /*!
- * brief RFC5869 HKDF-Expand
+ * @brief RFC5869 HKDF-Expand
  *
  * @param suite is the ciphersuite 
  * @param mode5869 - controls labelling specifics
@@ -2279,7 +2276,7 @@ int hpke_suite_check(hpke_suite_t suite)
 }
 
 /*!
- * brief: map a kem_id and a private key buffer into an EVP_PKEY
+ * @brief: map a kem_id and a private key buffer into an EVP_PKEY
  *
  * @param kem_id is what'd you'd expect (using the HPKE registry values)
  * @param prbuf is the private key buffer
@@ -2413,7 +2410,6 @@ int hpke_prbuf2evp(
     if (ctx) EVP_PKEY_CTX_free(ctx);
     if (param_bld) OSSL_PARAM_BLD_free(param_bld);
     if (params) OSSL_PARAM_free(params);
-    //if (params) OSSL_PARAM_BLD_free_params(params);
     return(erv);
 err:
 #if defined(SUPERVERBOSE) || defined(TESTVECTORS)
@@ -2423,8 +2419,103 @@ err:
     if (ctx) EVP_PKEY_CTX_free(ctx);
     if (param_bld) OSSL_PARAM_BLD_free(param_bld);
     if (params) OSSL_PARAM_free(params);
-    //if (params) OSSL_PARAM_BLD_free_params(params);
     return(erv);
+}
+
+/*!
+ * @brief randomly pick a suite
+ *
+ * @param suite is the result
+ * @return 1 for success, otherwise failure
+ *
+ * If you change the structure of the various *_tab arrays
+ * then this code will also need change.
+ */
+static int hpke_random_suite(hpke_suite_t *suite)
+{
+    unsigned char rval=0; 
+    int nkems=sizeof(hpke_kem_tab)/sizeof(hpke_kem_info_t);
+    if (RAND_bytes_ex(NULL, &rval, sizeof(rval)) <= 0) return(__LINE__);
+    uint16_t nthkem=(rval%5+1); // ok the "5" is magic!!!
+    uint16_t found=0;
+    int entry=0;
+    while(found<nthkem && entry<nkems) {
+        if (hpke_kem_tab[entry].keytype!=NULL) {
+            found++;
+        }
+        entry++;
+    }
+    suite->kem_id=hpke_kem_tab[entry-1].kem_id;
+
+    /* check kdf */
+    int nkdfs=sizeof(hpke_kdf_tab)/sizeof(hpke_kdf_info_t)-1;
+    if (RAND_bytes_ex(NULL, &rval, sizeof(rval)) <= 0) return(__LINE__);
+    suite->kdf_id=hpke_kdf_tab[(rval%nkdfs+1)].kdf_id;
+
+    /* check aead */
+    int naeads=sizeof(hpke_aead_tab)/sizeof(hpke_aead_info_t)-1;
+    if (RAND_bytes_ex(NULL, &rval, sizeof(rval)) <= 0) return(__LINE__);
+    suite->aead_id=hpke_aead_tab[(rval%naeads+1)].aead_id;
+
+    return 1;
+}
+
+/*!
+ * @brief return a (possibly) random suite, public key and ciphertext for GREASErs
+ *
+ * @param suite-in specifies the preferred suite or NULL for a random choice
+ * @param suite is the chosen or random suite
+ * @param pub is a random value of the appropriate length for a sender public value
+ * @param pub_len is the length of pub (buffer size on input)
+ * @param cipher is a buffer to hold a random value of the appropriate length for a ciphertext
+ * @param cipher_len is the length of cipher
+ * @return 1 for success, otherwise failure
+ *
+ * As usual buffers are caller allocated and lengths on input are buffer size.
+ */
+int hpke_good4grease(
+        hpke_suite_t *suite_in,
+        hpke_suite_t suite,
+        unsigned char *pub,
+        size_t *pub_len,
+        unsigned char *cipher,
+        size_t cipher_len)
+{
+    hpke_suite_t chosen;
+    int crv=0;
+
+    if (!pub || !pub_len || !cipher || !cipher_len) return(__LINE__);
+    if (suite_in==NULL) {
+        // choose a random suite
+        crv=hpke_random_suite(&chosen);
+        if (crv!=1) return(crv);
+    } else {
+        chosen=*suite_in;
+    }
+#ifdef SUPERVERBOSE
+    printf("GREASEy suite before check:\n\tkem: %s (%d), kdf: %s (%d), aead: %s (%d)\n",
+                hpke_kem_strtab[chosen.kem_id],chosen.kem_id,
+                hpke_kdf_strtab[chosen.kdf_id], chosen.kdf_id,
+                hpke_aead_strtab[chosen.aead_id], chosen.aead_id);
+#endif
+    if ((crv=hpke_suite_check(chosen))!=1) return(__LINE__);
+    // publen
+    size_t plen=hpke_kem_tab[chosen.kem_id].Npk;
+    if (plen>*pub_len) return(__LINE__);
+    if (RAND_bytes_ex(NULL, pub, plen) <= 0) return(__LINE__);
+    *pub_len=plen;
+    if (RAND_bytes_ex(NULL, cipher, cipher_len) <= 0) return(__LINE__);
+
+#ifdef SUPERVERBOSE
+    printf("GREASEy suite:\n\tkem: %s (%d), kdf: %s (%d), aead: %s (%d)\n",
+                hpke_kem_strtab[chosen.kem_id],chosen.kem_id,
+                hpke_kdf_strtab[chosen.kdf_id], chosen.kdf_id,
+                hpke_aead_strtab[chosen.aead_id], chosen.aead_id);
+    hpke_pbuf(stdout,"GREASEy public",pub,*pub_len); 
+    hpke_pbuf(stdout,"GREASEy cipher",cipher,cipher_len); 
+#endif
+
+    return 1;
 }
 
 

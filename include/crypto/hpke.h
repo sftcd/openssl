@@ -1,5 +1,5 @@
 /*
- * Copyright 2019 Stephen Farrell. All Rights Reserved.
+ * Copyright 2019-2021 Stephen Farrell. All Rights Reserved.
  *
  * Licensed under the OpenSSL license (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -11,9 +11,6 @@
  * @file 
  * This has the data structures and prototypes (both internal and external)
  * for an OpenSSL-based HPKE implementation following draft-irtf-cfrg-hpke
- *
- * I plan to use this for my ESNI-enabled OpenSSL build when the time is 
- * right, that's: https://github.com/sftcd/openssl)
  */
 
 #ifndef HPKE_H_INCLUDED
@@ -402,6 +399,26 @@ int hpke_prbuf2evp(
         size_t pubuf_len,
         EVP_PKEY **priv);
 
+/*!
+ * brief return a (possibly) random suite, public key and ciphertext for GREASErs
+ *
+ * @param suite-in specifies the preferred suite or NULL for a random choice
+ * @param suite is the chosen or random suite
+ * @param pub is a random value of the appropriate length for a sender public value
+ * @param pub_len is the length of pub (buffer size on input)
+ * @param cipher is a random value of the appropriate length for a ciphertext
+ * @param cipher_len is the length of cipher
+ * @return 1 for success, otherwise failure
+ *
+ * As usual buffers are caller allocated and lengths on input are buffer size.
+ */
+int hpke_good4grease(
+        hpke_suite_t *suite_in,
+        hpke_suite_t suite,
+        unsigned char *pub,
+        size_t *pub_len,
+        unsigned char *cipher,
+        size_t cipher_len);
 
 #endif
 

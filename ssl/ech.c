@@ -3094,21 +3094,31 @@ int SSL_ech_send_grease(SSL *s, WPACKET *pkt, unsigned int context,
     hpke_suite_t hpke_suite = HPKE_SUITE_DEFAULT;
     size_t cid_len=1;
     unsigned char cid;
-    size_t senderpub_len=32;
+    size_t senderpub_len=SSL_ECH_GREASE_BUFSIZ;
     unsigned char senderpub[SSL_ECH_GREASE_BUFSIZ];
     size_t cipher_len=206;
+    size_t cipher_len_jitter=10;
     unsigned char cipher[SSL_ECH_GREASE_BUFSIZ];
     if (s==NULL || s->ctx==NULL) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
     }
-    if ((RAND_bytes_ex(s->ctx->libctx, &cid, cid_len) <= 0) ||
-        (RAND_bytes_ex(s->ctx->libctx, senderpub, senderpub_len) <= 0) ||
-        (RAND_bytes_ex(s->ctx->libctx, cipher, cipher_len) <= 0) 
-            ) {
+
+    if (RAND_bytes_ex(s->ctx->libctx, &cid, cid_len) <= 0) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
     }
+    cipher_len-=cipher_len_jitter;
+    cipher_len+=(cid%cipher_len_jitter);
+    if (hpke_good4grease(NULL,hpke_suite,senderpub,&senderpub_len,cipher,cipher_len)!=1) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+        return 0;
+    }
+    if (RAND_bytes_ex(s->ctx->libctx, &cid, cid_len) <= 0) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+        return 0;
+    }
+
     if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_ech) 
         || !WPACKET_start_sub_packet_u16(pkt)
         || !WPACKET_put_bytes_u16(pkt, hpke_suite.kdf_id)
