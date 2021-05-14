@@ -192,7 +192,7 @@ fi
 # set ciphersuites
 ciphers=$CIPHERSUITES
 
-if [[ "$NOECH" != "yes" ]]
+if [[ "$NOECH" == "no" && "$GREASE" == "no" ]]
 then
 	if [[ "$SUPPLIEDECH" != "" ]]
 	then
@@ -231,7 +231,7 @@ then
 	fi
 fi
 
-if [[ "$NOECH" != "yes" && "$ECH" == "" ]]
+if [[ "$NOECH" == "no" && "$GREASE" == "no" && "$ECH" == "" ]]
 then
     echo "Not trying - no sign of ECHKeys ECH "
     exit 100
@@ -258,9 +258,19 @@ then
         echstr=" $echstr -ech_grease "
     fi
 else
-    if [[ "$hidden" == "NONE" ]]
+    if [[ "$GREASE" == "yes" && "$hidden" == "NONE" ]]
     then
-        echstr=" -noservername -svcb $ECH"
+        echo "Trying to GREASE"
+        echstr=" -noservername -ech_grease "
+    elif [[ "$GREASE" == "yes" && "$hidden" != "NONE" ]]
+    then
+        echstr=" -servername $hidden -ech_grease "
+    elif [[ "$GREASE" == "no" && "$hidden" != "NONE" ]]
+    then
+        echstr=" -servername $hidden -svcb $ECH "
+    elif [[ "$GREASE" == "no" && "$hidden" == "NONE" ]]
+    then
+        echstr=" -noservername -svcb $ECH "
     fi
 fi
 

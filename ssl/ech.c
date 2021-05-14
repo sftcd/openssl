@@ -3062,38 +3062,38 @@ int SSL_ech_send_grease(SSL *s, WPACKET *pkt, unsigned int context,
      * Let's send some random stuff that looks like...
      *       struct {
      *          ECHCipherSuite cipher_suite;
-     *          opaque config_id<0..255>;
+     *          uint8 config_id;
      *          opaque enc<1..2^16-1>;
      *          opaque payload<1..2^16-1>;
      *       } ClientECH;
      *
      * Here's one such (len=266):
      *
-     * 00010001 00025346 00208607 BCE0C3B1 
-     * 1D1E5391 9BD5D99C C1CDB5F2 5F0F9EB3
-     * F35E8359 2C810ADC 8A2F00DE 2AA118F9
-     * 698530FB AA4BE33B C8704024 EFE4D6E1
-     * AB676E73 E8F25D23 54B813A2 27C91784
-     * B831915F 24914F0C 8C558883 725CA676
-     * BC97A0A4 E2B55271 E15A86B2 86ED2C56
-     * 2C69C833 9C01A85A 8ED8EC2D 3C37C223
-     * 3B932715 C25361BF 01CB470A 370DDE46
-     * C1B3458A 4CD88FC2 4C97DF3C 1AEB9E86
-     * 4E04289F 3DF5A0EA D7FFBEEF 5DD2E30A
-     * 9A8825EF 92239CD5 C1420BAF 7A33E7B4
-     * 7BBF0813 BABF51B6 156A79B3 79E37A6C
-     * 70DADF09 A4CA746E 1CAA79A1 D5EF5BA9
-     * 69ACA1A6 ECCB6561 77C46F46 2860CAB1 
-     * BFC6C1E4 26F4AFCF F597721F 33B89CCC
-     * A9D63D4F 2591C945 AD0E
+     * 00010001 A2002051 6EBE9D0A DEAB2EFA 
+     * B49AF2DF 102ABF7E 1336BC5F D8A4A97D 
+     * 54121A65 50356C00 E1F9362F 06B1FCBC 
+     * 167383BA 7814D9A5 9C4951E6 EA145BD0 
+     * 81D0665C F77E988D 22861CF8 BE9EA57F 
+     * 02FFB6E0 99CE5C59 88A20A16 11A40FA5 
+     * 7241506C 65B13B9D 725894E4 1C99B2B6 
+     * 97326165 BD54058A 769ADD22 76A6A22F 
+     * 41D7F997 2FF8275E 181984EF 98F7613E 
+     * 84DC4AF1 90495E4E CE8C4DEC 0F01E0C7 
+     * 52BEE067 1AD61832 5F91C7E3 A8E5500B 
+     * B57554B8 19027F7A 95B0D926 69F4BF30 
+     * F73D9BDA 43E4417D 71772177 2E0C6D7D 
+     * 81829157 2F4EBAFC 0078534A E6C570D3 
+     * 81AF1EA6 3E6EF075 AB21F8CC 3B783726 
+     * 2CAFCA57 A2678A72 7DD60ADE 579C2647 
+     * 49992E61 B2506BB8 4451
      */
 
     /*
      * Assign buffers of the right size, that we'll mostly randomly fill
      */
     hpke_suite_t hpke_suite = HPKE_SUITE_DEFAULT;
-    size_t cid_len=8;
-    unsigned char cid[SSL_ECH_GREASE_BUFSIZ];
+    size_t cid_len=1;
+    unsigned char cid;
     size_t senderpub_len=32;
     unsigned char senderpub[SSL_ECH_GREASE_BUFSIZ];
     size_t cipher_len=206;
@@ -3102,7 +3102,7 @@ int SSL_ech_send_grease(SSL *s, WPACKET *pkt, unsigned int context,
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
     }
-    if ((RAND_bytes_ex(s->ctx->libctx, cid, cid_len) <= 0) ||
+    if ((RAND_bytes_ex(s->ctx->libctx, &cid, cid_len) <= 0) ||
         (RAND_bytes_ex(s->ctx->libctx, senderpub, senderpub_len) <= 0) ||
         (RAND_bytes_ex(s->ctx->libctx, cipher, cipher_len) <= 0) 
             ) {
@@ -3113,7 +3113,7 @@ int SSL_ech_send_grease(SSL *s, WPACKET *pkt, unsigned int context,
         || !WPACKET_start_sub_packet_u16(pkt)
         || !WPACKET_put_bytes_u16(pkt, hpke_suite.kdf_id)
         || !WPACKET_put_bytes_u16(pkt, hpke_suite.aead_id)
-        || !WPACKET_sub_memcpy_u8(pkt, cid, cid_len)
+        || !WPACKET_memcpy(pkt, &cid, cid_len)
         || !WPACKET_sub_memcpy_u16(pkt, senderpub, senderpub_len)
         || !WPACKET_sub_memcpy_u16(pkt, cipher, cipher_len)
         || !WPACKET_close(pkt)
