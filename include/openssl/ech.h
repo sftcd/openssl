@@ -194,17 +194,6 @@ int SSL_ech_server_name(SSL *s, const char *inner_name, const char *outer_name);
 int SSL_ech_set_outer_server_name(SSL *s, const char *outer_name);
 
 /**
- * @brief Add an ALPN for inclusion in ECH for an (upcoming) TLS session
- * 
- * @param s is the SSL context
- * @param hidden_alpns is the hidden service alpns
- * @param public_alpns is the cleartext SNI alpns to use
- * @return 1 for success, error otherwise
- * 
- */
-int SSL_ech_alpns(SSL *s, const char *hidden_alpns, const char *public_alpns);
-
-/**
  * @brief query the content of an SSL_ECH structure
  *
  * This function allows the application to examine some internals

@@ -251,7 +251,7 @@ int hpke_ah_decode(size_t ahlen, const char *ah, size_t *blen, unsigned char **b
     if (lbuf==NULL) {
         return 0;
     }
-    int i=0;
+    size_t i=0;
     for (i=0;i!=lblen;i++) {
         lbuf[i]=HPKE_A2B(ah[2*i])*16+HPKE_A2B(ah[2*i+1]);
     }
