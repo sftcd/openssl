@@ -187,7 +187,7 @@ static int ech_base64_decode(char *in, unsigned char **out)
     }
     char *inp=in;
     unsigned char *outp=outbuf;
-    int overallfraglen=0;
+    size_t overallfraglen=0;
     while (overallfraglen<inlen) {
         /* find length of 1st b64 string */
         int ofraglen=0;
@@ -385,8 +385,6 @@ static int ech_guess_fmt(size_t eklen,
     return(1);
 } 
 
-
-
 /**
  * @brief Free an ECHConfig structure's internals
  * @param tbf is the thing to be free'd
@@ -400,7 +398,7 @@ void ECHConfig_free(ECHConfig *tbf)
     if (tbf->exttypes) OPENSSL_free(tbf->exttypes);
     if (tbf->extlens) OPENSSL_free(tbf->extlens);
     if (tbf->config_id) OPENSSL_free(tbf->config_id);
-    int i=0;
+    unsigned int i=0;
     for (i=0;i!=tbf->nexts;i++) {
         if (tbf->exts[i]) OPENSSL_free(tbf->exts[i]);
     }
@@ -437,7 +435,7 @@ static void *ech_len_field_dup(void *old, unsigned int len)
     void *new=(void*)OPENSSL_malloc(len+1);
     if (!new) return 0;
     memcpy(new,old,len);
-    memset(new+len,0,1);
+    memset((unsigned char*)new+len,0,1);
     return new;
 } 
 
@@ -3697,6 +3695,7 @@ int ech_early_decrypt(SSL *s, PACKET *outerpkt, PACKET *newpkt)
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         goto err;
     }
+    memset(extval,0,sizeof(ECH_ENCCH));
     unsigned int tmp;
     if (!PACKET_get_net_2(pkt, &tmp)) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);

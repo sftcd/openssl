@@ -34,7 +34,7 @@
 #define ECH_OUTERS_MAX 10 ///< max number of TLS extensions that can be compressed via outer-exts
 
 #define MAX_ECH_CONFIG_ID_LEN 0x30 ///< max size of ENC-CH config id we'll decode
-#define MAX_ECH_ENC_LEN 0x60 ///< max size of ENC-CH peer key share we'll decode
+#define MAX_ECH_ENC_LEN 0x100 ///< max size of ENC-CH peer key share we'll decode
 #define MAX_ECH_PAYLOAD_LEN 0x200 ///< max size of ENC-CH ciphertext we'll decode
 
 #define ECH_GREASE_UNKNOWN -1 ///< value for s->ext.ech_grease when we're not yet sure
@@ -290,6 +290,12 @@ int ech_encode_inner(SSL *s);
 #define ECH_SAME_EXT_ERR 0
 #define ECH_SAME_EXT_DONE 1
 #define ECH_SAME_EXT_CONTINUE 2
+
+/**
+ * @brief Free an ECHConfig structure's internals
+ * @param tbf is the thing to be free'd
+ */
+void ECHConfig_free(ECHConfig *tbf);
 
 /**
  * @brief repeat extension value from inner ch in outer ch and handle outer compression
