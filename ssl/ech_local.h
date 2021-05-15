@@ -256,7 +256,7 @@ void ECHConfigs_free(ECHConfigs *tbf);
  * @param selector allows for picking all (ECH_SELECT_ALL==-1) or just one of the RR values in orig
  * @return a partial deep-copy array or NULL if errors occur
  */
-SSL_ECH* SSL_ECH_dup(SSL_ECH* orig, size_t nech, int selector);
+SSL_ECH* SSL_ECH_dup(SSL_ECH* orig, size_t nech, unsigned int selector);
 
 /**
  * @brief Decode and check the value retieved from DNS (binary, base64 or ascii-hex encoded)

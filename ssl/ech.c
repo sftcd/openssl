@@ -623,7 +623,10 @@ static ECHConfigs *ECHConfigs_from_binary(unsigned char *binbuf, size_t binblen,
         goto err;
     }
 
-    int not_to_consume=binblen-olen;
+    if (binblen<=olen) {
+        goto err;
+    }
+    size_t not_to_consume=binblen-olen;
 
     remaining=PACKET_remaining(&pkt);
     while (remaining>not_to_consume) {
@@ -713,7 +716,9 @@ static ECHConfigs *ECHConfigs_from_binary(unsigned char *binbuf, size_t binblen,
 	        if (ec->pub==NULL) {
 	            goto err;
 	        }
-	        PACKET_copy_bytes(&pub_pkt,ec->pub,ec->pub_len);
+	        if (PACKET_copy_bytes(&pub_pkt,ec->pub,ec->pub_len)!=1) {
+                goto err;
+            }
 
 		    /*
 		     * List of ciphersuites - 2 byte len + 2 bytes per ciphersuite
@@ -762,7 +767,9 @@ static ECHConfigs *ECHConfigs_from_binary(unsigned char *binbuf, size_t binblen,
 	        if (ec->public_name==NULL) {
 	            goto err;
 	        }
-	        PACKET_copy_bytes(&public_name_pkt,ec->public_name,ec->public_name_len);
+	        if (PACKET_copy_bytes(&public_name_pkt,ec->public_name,ec->public_name_len)!=1) {
+                goto err;
+            }
 	        ec->public_name[ec->public_name_len]='\0';
 
 	        /*
@@ -851,7 +858,9 @@ static ECHConfigs *ECHConfigs_from_binary(unsigned char *binbuf, size_t binblen,
 	        if (ec->public_name==NULL) {
 	            goto err;
 	        }
-	        PACKET_copy_bytes(&public_name_pkt,ec->public_name,ec->public_name_len);
+	        if (PACKET_copy_bytes(&public_name_pkt,ec->public_name,ec->public_name_len)!=1) {
+                goto err;
+            }
 	        ec->public_name[ec->public_name_len]='\0';
 	        /* 
 	         * read HPKE public key - just a blob
@@ -972,7 +981,7 @@ static ECHConfigs *ECHConfigs_from_binary(unsigned char *binbuf, size_t binblen,
         remaining=PACKET_remaining(&pkt);
     }
 
-    int lleftover=PACKET_remaining(&pkt);
+    size_t lleftover=PACKET_remaining(&pkt);
     if (lleftover<0 || lleftover>binblen) {
         goto err;
     }
@@ -1542,9 +1551,9 @@ int SSL_ech_print(BIO* out, SSL *s, int selector)
      * Ignore details for now and just print state
      */
     BIO_printf(out,"*** SSL_ech_print ***\n");
-    BIO_printf(out,"s=%p\n",s);
-    BIO_printf(out,"inner_s=%p\n",s->ext.inner_s);
-    BIO_printf(out,"outer_s=%p\n",s->ext.outer_s);
+    BIO_printf(out,"s=%p\n",(void*)s);
+    BIO_printf(out,"inner_s=%p\n",(void*)s->ext.inner_s);
+    BIO_printf(out,"outer_s=%p\n",(void*)s->ext.outer_s);
     BIO_printf(out,"ech_attempted=%d\n",s->ext.ech_attempted);
     BIO_printf(out,"ech_done=%d\n",s->ext.ech_done);
     BIO_printf(out,"ech_grease=%d\n",s->ext.ech_grease);
@@ -1695,7 +1704,7 @@ static int ECHConfigs_dup(ECHConfigs *old, ECHConfigs *new)
  * @param selector allows for picking all (ECH_SELECT_ALL==-1) or just one of the RR values in orig
  * @return a partial deep-copy array or NULL if errors occur
  */
-SSL_ECH* SSL_ECH_dup(SSL_ECH* orig, size_t nech, int selector)
+SSL_ECH* SSL_ECH_dup(SSL_ECH* orig, size_t nech, unsigned int selector)
 {
     SSL_ECH *new_se=NULL;
     if ((selector != ECH_SELECT_ALL) && selector<0) return(0);
@@ -1814,8 +1823,8 @@ static int local_svcb_add(int rrfmt, size_t rrlen, char *rrval, int *num_echs, S
     OPENSSL_free(dnsname);
     size_t alpn_len=0;
     unsigned char *alpn_val=NULL;
-    short pcode=0;
-    short plen=0;
+    unsigned short pcode=0;
+    unsigned short plen=0;
     int done=0;
     while (!done && remaining>=4) {
         pcode=(*cp<<8)+(*(cp+1)); cp+=2;
@@ -2111,8 +2120,8 @@ int ech_same_ext(SSL *s, WPACKET* pkt)
     if (!s->ech) return(ECH_SAME_EXT_CONTINUE); // nothing to do
     if (s->ext.ch_depth==0) return(ECH_SAME_EXT_CONTINUE); // nothing to do for outer
     SSL *inner=s->ext.inner_s;
-    int type=s->ext.etype;
-    int nexts=sizeof(ech_outer_config)/sizeof(int);
+    unsigned int type=s->ext.etype;
+    unsigned int nexts=sizeof(ech_outer_config)/sizeof(int);
     int tind=ech_map_ext_type_to_ind(type);
     if (tind==-1) return(ECH_SAME_EXT_ERR);
     if (tind>=nexts) return(ECH_SAME_EXT_ERR);
@@ -2147,7 +2156,7 @@ int ech_same_ext(SSL *s, WPACKET* pkt)
         return(ECH_SAME_EXT_CONTINUE);
     } else {
 
-	    int ind=0;
+	    size_t ind=0;
 	    RAW_EXTENSION *myext=NULL;
 	    RAW_EXTENSION *raws=inner->clienthello->pre_proc_exts;
 	    if (raws==NULL) {
@@ -2272,7 +2281,7 @@ int ech_encode_inner(SSL *s)
     }
     RAW_EXTENSION *raws=s->clienthello->pre_proc_exts;
     size_t nraws=s->clienthello->pre_proc_exts_len;
-    int ind=0;
+    size_t ind=0;
     int compression_done=0;
     for (ind=0;ind!=nraws;ind++) {
         int present=raws[ind].present;
@@ -3038,7 +3047,13 @@ void ech_ptranscript(const char *msg, SSL *s)
     unsigned char ddata[1000];
     size_t ddatalen;
     if (s->s3.handshake_dgst!=NULL) {
-        ssl_handshake_hash(s,ddata,1000,&ddatalen);
+        if (!ssl_handshake_hash(s,ddata,1000,&ddatalen)) {
+#ifndef OPENSSL_NO_SSL_TRACE
+            OSSL_TRACE_BEGIN(TLS) {
+                BIO_printf(trc_out,"ssl_handshake_hash failed\n");
+            } OSSL_TRACE_END(TLS);
+#endif
+        }
         ech_pbuf(msg,ddata,ddatalen);
     } else {
 #ifndef OPENSSL_NO_SSL_TRACE
@@ -3212,7 +3227,7 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
      * If OTOH, a public_name was provided via API then
      * we prefer the first that matches that.
      */
-    int onlen=(s->ech->outer_name==NULL?0:strlen(s->ech->outer_name));
+    unsigned int onlen=(s->ech->outer_name==NULL?0:strlen(s->ech->outer_name));
     int prefind=-1;
     ECHConfig *firstmatch=NULL;
     for (cind=0;cind!=cfgs->nrecs;cind++) {
@@ -3223,7 +3238,7 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
             prefind=cind;
         }
         hpke_suite.kem_id=ltc->kem_id;
-        int csuite=0;
+        unsigned int csuite=0;
         for (csuite=0;csuite!=ltc->nsuites;csuite++) {
             unsigned char *es=(unsigned char*)&ltc->ciphersuites[csuite];
             hpke_suite.kdf_id=es[0]*256+es[1];
@@ -3403,33 +3418,35 @@ int ech_srv_get_aad(SSL *s,
     unsigned char *cp=aad;
     hpke_suite_t hpke_suite = HPKE_SUITE_DEFAULT;
 
+#define CPCHECK if ((size_t)(cp-aad)>*aad_len) return 0;
+
     *cp++=((hpke_suite.kdf_id&0xffff)/256);
-    if ((cp-aad)>*aad_len) return 0;
+    CPCHECK
     *cp++=((hpke_suite.kdf_id&0xffff)%256);
-    if ((cp-aad)>*aad_len) return 0;
+    CPCHECK
     *cp++=((hpke_suite.aead_id&0xffff)/256);
-    if ((cp-aad)>*aad_len) return 0;
+    CPCHECK
     *cp++=((hpke_suite.aead_id&0xffff)%256);
-    if ((cp-aad)>*aad_len) return 0;
+    CPCHECK
     *cp++=((config_id[0]&0xff)%256);
-    if ((cp-aad)>*aad_len) return 0;
+    CPCHECK
     *cp++=((pub_len&0xffff)/256);
-    if ((cp-aad)>*aad_len) return 0;
+    CPCHECK
     *cp++=((pub_len&0xffff)%256);
-    if ((cp-aad)>*aad_len) return 0;
+    CPCHECK
     memcpy(cp,pub,pub_len); cp+=pub_len;
-    if ((cp-aad)>*aad_len) return 0;
+    CPCHECK
 
     *cp++=((de_len&0xffffff)/(256*256));
-    if ((cp-aad)>*aad_len) return 0;
+    CPCHECK
     *cp++=((de_len&0xffff)/256);
-    if ((cp-aad)>*aad_len) return 0;
+    CPCHECK
     *cp++=((de_len&0xffff)%256);
-    if ((cp-aad)>*aad_len) return 0;
+    CPCHECK
     memcpy(cp,de,de_len); cp+=de_len;
-    if ((cp-aad)>*aad_len) return 0;
+    CPCHECK
 
-    *aad_len=(cp-aad);
+    *aad_len=(size_t)(cp-aad);
 
     ech_pbuf("SRV AAD:",aad,*aad_len);
 
