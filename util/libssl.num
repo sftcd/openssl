@@ -538,3 +538,5 @@ SSL_set0_tmp_dh_pkey                    ?	3_0_0	EXIST::FUNCTION:
 SSL_CTX_set0_tmp_dh_pkey                ?	3_0_0	EXIST::FUNCTION:
 SSL_group_to_name                       ?	3_0_0	EXIST::FUNCTION:
 SSL_ECH_DIFF_free                       ?	3_0_0	EXIST::FUNCTION:
+SSL_CTX_set_ech_alpn_protos             ?   3_0_0   EXIST::FUNCTION:
+SSL_set_ech_alpn_protos                 ?   3_0_0   EXIST::FUNCTION:
