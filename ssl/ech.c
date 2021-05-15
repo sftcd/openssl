@@ -874,7 +874,9 @@ static ECHConfigs *ECHConfigs_from_binary(unsigned char *binbuf, size_t binblen,
 	        if (ec->pub==NULL) {
 	            goto err;
 	        }
-	        PACKET_copy_bytes(&pub_pkt,ec->pub,ec->pub_len);
+	        if (PACKET_copy_bytes(&pub_pkt,ec->pub,ec->pub_len)!=1) {
+                goto err;
+            }
 	        /*
 	         * Kem ID
 	         */
@@ -982,7 +984,7 @@ static ECHConfigs *ECHConfigs_from_binary(unsigned char *binbuf, size_t binblen,
     }
 
     size_t lleftover=PACKET_remaining(&pkt);
-    if (lleftover<0 || lleftover>binblen) {
+    if (lleftover>binblen) {
         goto err;
     }
 
@@ -1704,7 +1706,7 @@ static int ECHConfigs_dup(ECHConfigs *old, ECHConfigs *new)
  * @param selector allows for picking all (ECH_SELECT_ALL==-1) or just one of the RR values in orig
  * @return a partial deep-copy array or NULL if errors occur
  */
-SSL_ECH* SSL_ECH_dup(SSL_ECH* orig, size_t nech, unsigned int selector)
+SSL_ECH* SSL_ECH_dup(SSL_ECH* orig, size_t nech, int selector)
 {
     SSL_ECH *new_se=NULL;
     if ((selector != ECH_SELECT_ALL) && selector<0) return(0);
@@ -1713,7 +1715,7 @@ SSL_ECH* SSL_ECH_dup(SSL_ECH* orig, size_t nech, unsigned int selector)
     int i=0;
 
     if (selector!=ECH_SELECT_ALL) {
-        if (selector>=nech) goto err;
+        if ((unsigned int)selector>=nech) goto err;
         min_ind=selector;
         max_ind=selector+1;
     }
@@ -2124,7 +2126,7 @@ int ech_same_ext(SSL *s, WPACKET* pkt)
     unsigned int nexts=sizeof(ech_outer_config)/sizeof(int);
     int tind=ech_map_ext_type_to_ind(type);
     if (tind==-1) return(ECH_SAME_EXT_ERR);
-    if (tind>=nexts) return(ECH_SAME_EXT_ERR);
+    if (tind>=(int)nexts) return(ECH_SAME_EXT_ERR);
 
     /*
      * When doing the inner CH, just note what will later be
