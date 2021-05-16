@@ -50,14 +50,16 @@ unsigned char *pbuf; ///< global var for debug printing
 size_t pblen=1024; ///< global var for debug printing
 #endif
 
+#if defined(SUPERVERBOSE) || defined(TESTVECTORS)
 /*
  * @brief table of mode strings
  */
-const char *hpke_mode_strtab[]={
+static const char *hpke_mode_strtab[]={
     HPKE_MODESTR_BASE,
     HPKE_MODESTR_PSK,
     HPKE_MODESTR_AUTH,
     HPKE_MODESTR_PSKAUTH};
+#endif
 
 /*!
  * @brief info about an AEAD
@@ -73,22 +75,23 @@ typedef struct {
 /*!
  * @brief table of AEADs
  */
-hpke_aead_info_t hpke_aead_tab[]={
+static hpke_aead_info_t hpke_aead_tab[]={
     { 0, NULL, 0, 0, 0 }, // this is needed to keep indexing correct
     { HPKE_AEAD_ID_AES_GCM_128, EVP_aes_128_gcm, 16, 16, 12 }, 
     { HPKE_AEAD_ID_AES_GCM_256, EVP_aes_256_gcm, 16, 32, 12 }, 
     { HPKE_AEAD_ID_CHACHA_POLY1305, EVP_chacha20_poly1305, 16, 32, 12 } 
 };
 
+#if defined(SUPERVERBOSE) || defined(TESTVECTORS)
 /*
  * @brief table of AEAD strings
  */
-const char *hpke_aead_strtab[]={
+static const char *hpke_aead_strtab[]={
     NULL,
     HPKE_AEADSTR_AES128GCM,
     HPKE_AEADSTR_AES256GCM,
     HPKE_AEADSTR_CP};
-
+#endif
 
 /*!
  * @brief info about a KEM
@@ -110,7 +113,7 @@ typedef struct {
  *
  * Ok we're wasting space here, but not much and it's ok
  */
-hpke_kem_info_t hpke_kem_tab[]={
+static hpke_kem_info_t hpke_kem_tab[]={
     { 0, NULL, NULL, 0, NULL, 0, 0, 0 }, // this is needed to keep indexing correct
     { 1, NULL, NULL, 0, NULL, 0, 0, 0 }, // this is needed to keep indexing correct
     { 2, NULL, NULL, 0, NULL, 0, 0, 0 }, // this is needed to keep indexing correct
@@ -148,6 +151,7 @@ hpke_kem_info_t hpke_kem_tab[]={
     {34, NULL, NULL, 0, NULL, 0, 0, 0 }, // this is needed to keep indexing correct
 };
 
+#if defined(SUPERVERBOSE) || defined(TESTVECTORS)
 /*
  * @brief table of KEM strings
  *
@@ -168,6 +172,7 @@ const char *hpke_kem_strtab[]={
     HPKE_KEMSTR_X25519,
     HPKE_KEMSTR_X448,
     NULL};
+#endif
 
 /*!
  * @brief info about a KDF
@@ -181,13 +186,14 @@ typedef struct {
 /*!
  * @brief table of KDFs
  */
-hpke_kdf_info_t hpke_kdf_tab[]={
+static hpke_kdf_info_t hpke_kdf_tab[]={
     { 0, NULL, 0 }, // this is needed to keep indexing correct
     { HPKE_KDF_ID_HKDF_SHA256, EVP_sha256, 32 },
     { HPKE_KDF_ID_HKDF_SHA384, EVP_sha384, 48 },
     { HPKE_KDF_ID_HKDF_SHA512, EVP_sha512, 64 }
 };
 
+#if defined(SUPERVERBOSE) || defined(TESTVECTORS)
 /*
  * @brief table of KDF strings
  */
@@ -196,6 +202,7 @@ const char *hpke_kdf_strtab[]={
     HPKE_KDFSTR_256,
     HPKE_KDFSTR_384,
     HPKE_KDFSTR_512};
+#endif
 
 /*!
  * <pre>

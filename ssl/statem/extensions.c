@@ -438,12 +438,13 @@ static const EXTENSION_DEFINITION ext_defs[] = {
  * @param type is the input type
  * @return the index or -1 for error
  */
-int ech_map_ext_type_to_ind(int type)
+int ech_map_ext_type_to_ind(unsigned int type)
 {
     const EXTENSION_DEFINITION *e=ext_defs;
-    int ed_size=sizeof(ext_defs)/sizeof(EXTENSION_DEFINITION);
+    unsigned int ed_size=sizeof(ext_defs)/sizeof(EXTENSION_DEFINITION);
+    unsigned int i;
     if (type<0) return(-1);
-    for (int i=0;i!=ed_size;i++) {
+    for (i=0;i!=ed_size;i++) {
         if (e->type==type) return(i);
         e++;
     }
