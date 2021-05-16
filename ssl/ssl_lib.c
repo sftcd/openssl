@@ -1348,7 +1348,7 @@ void SSL_free(SSL *s)
     OPENSSL_free(s->ext.encoded_innerch);
     OPENSSL_free(s->ext.ech_dropped_from_ch); 
     if (s->nechs>0 && s->ech!=NULL) {
-        unsigned int n=0;
+        int n=0;
         for (n=0;n!=s->nechs;n++) {
             SSL_ECH_free(&s->ech[n]);
         }
@@ -3637,7 +3637,7 @@ void SSL_CTX_free(SSL_CTX *a)
 
 #ifndef OPENSSL_NO_ECH
 	if (a->ext.ech!=NULL) {
-        unsigned int n=0;
+        int n=0;
         for (n=0;n!=a->ext.nechs;n++) {
             SSL_ECH_free(&a->ext.ech[n]);
         }

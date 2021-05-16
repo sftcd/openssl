@@ -847,6 +847,10 @@ void SSL_get0_alpn_selected(const SSL *ssl, const unsigned char **data,
 typedef unsigned int (*SSL_ech_cb_func)(SSL *ssl, char *str);
 void SSL_set_ech_callback(SSL *s, SSL_ech_cb_func f);
 void SSL_CTX_set_ech_callback(SSL_CTX *s, SSL_ech_cb_func f);
+int SSL_CTX_set_ech_alpn_protos(SSL_CTX *ctx, const unsigned char *protos,
+                            const size_t protos_len);
+int SSL_set_ech_alpn_protos(SSL *ssl, const unsigned char *protos,
+                        unsigned int protos_len);
 #endif
 
 # ifndef OPENSSL_NO_PSK
