@@ -443,7 +443,6 @@ int ech_map_ext_type_to_ind(unsigned int type)
     const EXTENSION_DEFINITION *e=ext_defs;
     unsigned int ed_size=sizeof(ext_defs)/sizeof(EXTENSION_DEFINITION);
     unsigned int i;
-    if (type<0) return(-1);
     for (i=0;i!=ed_size;i++) {
         if (e->type==type) return(i);
         e++;

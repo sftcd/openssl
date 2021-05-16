@@ -1619,7 +1619,7 @@ struct ssl_st {
          * Client side Placeholder for putting the extension type currently being
          * processed - this is pretty naff but will do for now
          */
-        int etype;
+        unsigned int etype;
         SSL* inner_s; // pointer to inner CH from outer
         SSL* outer_s; // pointer to outer CH from inner
         int ech_attempted;
