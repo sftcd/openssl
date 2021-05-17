@@ -102,7 +102,7 @@ typedef struct {
 /**
  * passed as an argument to callback
  */
-ech_padding_sizes *ech_ps=NULL;
+static ech_padding_sizes *ech_ps=NULL;
 /** 
  * @ brief pad Certificate and CertificateVerify messages
  *

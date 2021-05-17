@@ -72,12 +72,12 @@ static int c_quiet = 0;
 static char *sess_out = NULL;
 
 #ifndef OPENSSL_NO_ECH
-const char *ech_inner_name=NULL; ///< server-name in inner-CH - default to usual servername
-const char *sni_outer_name=NULL; ///< server-name in outer-CH - command line can override ECHConfig.public-name
-int ech_grease=0;
-int nechs=0;
-char *ech_encoded_configs = NULL;
-char *ech_svcb_rr = NULL;
+static const char *ech_inner_name=NULL; ///< server-name in inner-CH - default to usual servername
+static const char *sni_outer_name=NULL; ///< server-name in outer-CH - command line can override ECHConfig.public-name
+static int ech_grease=0;
+static int nechs=0;
+static char *ech_encoded_configs = NULL;
+static char *ech_svcb_rr = NULL;
 #ifndef OPENSSL_NO_SSL_TRACE
 static size_t ech_trace_cb(const char *buf, size_t cnt,
                  int category, int cmd, void *vdata);

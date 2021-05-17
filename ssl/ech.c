@@ -1056,18 +1056,15 @@ static int local_ech_add(
     int detfmt=ECH_FMT_GUESS;
     int rv=0;
     if (eklen==0 || !ekval || !num_echs) {
-        SSLerr(SSL_F_LOCAL_ECH_ADD, SSL_R_BAD_VALUE);
         return(0);
     }
     if (eklen>=ECH_MAX_RRVALUE_LEN) {
-        SSLerr(SSL_F_LOCAL_ECH_ADD, SSL_R_BAD_VALUE);
         return(0);
     }
     switch (ekfmt) {
         case ECH_FMT_GUESS:
             rv=ech_guess_fmt(eklen,ekval,&detfmt);
             if (rv==0)  {
-                SSLerr(SSL_F_LOCAL_ECH_ADD, SSL_R_BAD_VALUE);
                 return(rv);
             }
             break;
@@ -1089,12 +1086,10 @@ static int local_ech_add(
     if (detfmt==ECH_FMT_HTTPSSVC) {
         ekcpy=strstr((char*)ekval,httpssvc_telltale);
         if (ekcpy==NULL) {
-            SSLerr(SSL_F_LOCAL_ECH_ADD, SSL_R_BAD_VALUE);
             return(rv);
         }
         /* point ekcpy at b64 encoded value */
         if (strlen(ekcpy)<=strlen(httpssvc_telltale)) {
-            SSLerr(SSL_F_LOCAL_ECH_ADD, SSL_R_BAD_VALUE);
             return(rv);
         }
         ekcpy+=strlen(httpssvc_telltale);
@@ -1104,7 +1099,6 @@ static int local_ech_add(
         /* need an int to get -1 return for failure case */
         int tdeclen = ech_base64_decode(ekcpy, &outbuf);
         if (tdeclen < 0) {
-            SSLerr(SSL_F_LOCAL_ECH_ADD, SSL_R_BAD_VALUE);
             goto err;
         }
         declen=tdeclen;
@@ -1112,7 +1106,6 @@ static int local_ech_add(
     if (detfmt==ECH_FMT_ASCIIHEX) {
         int adr=hpke_ah_decode(eklen,ekcpy,&declen,&outbuf);
         if (adr==0) {
-            SSLerr(SSL_F_LOCAL_ECH_ADD, SSL_R_BAD_VALUE);
             goto err;
         }
     }
@@ -1121,7 +1114,6 @@ static int local_ech_add(
         declen=eklen;
         outbuf=OPENSSL_malloc(declen);
         if (outbuf==NULL){
-            SSLerr(SSL_F_LOCAL_ECH_ADD, SSL_R_BAD_VALUE);
             goto err;
         }
         memcpy(outbuf,ekcpy,declen);
@@ -1244,7 +1236,6 @@ int SSL_ech_add(
      * Sanity checks on inputs
      */
     if (!con) {
-        SSLerr(SSL_F_SSL_ECH_ADD, SSL_R_BAD_VALUE);
         return(0);
     }
     SSL_ECH *echs=NULL;
@@ -1278,13 +1269,11 @@ int SSL_CTX_ech_add(SSL_CTX *ctx, short ekfmt, size_t eklen, char *ekval, int *n
      * Sanity checks on inputs
      */
     if (!ctx) {
-        SSLerr(SSL_F_SSL_CTX_ECH_ADD, SSL_R_BAD_VALUE);
         return(0);
     }
     SSL_ECH *echs=NULL;
     int rv=local_ech_add(ekfmt,eklen,(unsigned char*)ekval,num_echs,&echs);
     if (rv!=1) {
-        SSLerr(SSL_F_SSL_CTX_ECH_ADD, SSL_R_BAD_VALUE);
         return(0);
     }
     ctx->ext.ech=echs;
@@ -1793,14 +1782,12 @@ static int local_svcb_add(int rrfmt, size_t rrlen, char *rrval, int *num_echs, S
     } else {
         rv=ech_guess_fmt(rrlen,(unsigned char*)rrval,&detfmt);
         if (rv==0)  {
-            SSLerr(SSL_F_LOCAL_SVCB_ADD, SSL_R_BAD_VALUE);
             return(rv);
         }
     }
     if (detfmt==ECH_FMT_ASCIIHEX) {
         rv=hpke_ah_decode(rrlen,rrval,&binlen,&binbuf);
         if (rv==0) {
-            SSLerr(SSL_F_LOCAL_SVCB_ADD, SSL_R_BAD_VALUE);
             return(rv);
         }
     }
@@ -1818,7 +1805,6 @@ static int local_svcb_add(int rrfmt, size_t rrlen, char *rrval, int *num_echs, S
     cp+=2; remaining-=2;
     rv=local_decode_rdata_name(&cp,&remaining,&dnsname);
     if (rv!=1) {
-        SSLerr(SSL_F_LOCAL_SVCB_ADD, SSL_R_BAD_VALUE);
         return(0);
     }
     // skipping this, we can free it
@@ -1876,7 +1862,6 @@ static int local_svcb_add(int rrfmt, size_t rrlen, char *rrval, int *num_echs, S
      */
     rv=local_ech_add(ECH_FMT_BIN,eklen,ekval,num_echs,echs);
     if (rv!=1) {
-        SSLerr(SSL_F_LOCAL_SVCB_ADD, SSL_R_BAD_VALUE);
         return(0);
     } 
     if (detfmt==ECH_FMT_ASCIIHEX) {
@@ -1916,7 +1901,6 @@ int SSL_CTX_svcb_add(SSL_CTX *ctx, short rrfmt, size_t rrlen, char *rrval, int *
      * Sanity checks on inputs
      */
     if (!ctx) {
-        SSLerr(SSL_F_SSL_CTX_SVCB_ADD, SSL_R_BAD_VALUE);
         return(0);
     }
     /*
@@ -1934,7 +1918,6 @@ int SSL_CTX_svcb_add(SSL_CTX *ctx, short rrfmt, size_t rrlen, char *rrval, int *
 
     SSL_ECH *echs=NULL;
     if (local_svcb_add(rrfmt,rrlen,rrval,num_echs,&echs)!=1) {
-        SSLerr(SSL_F_SSL_CTX_SVCB_ADD, SSL_R_BAD_VALUE);
         return 0;
     }
     ctx->ext.ech=echs;
@@ -1965,7 +1948,6 @@ int SSL_svcb_add(SSL *con, int rrfmt, size_t rrlen, char *rrval, int *num_echs)
      * Sanity checks on inputs
      */
     if (!con) {
-        SSLerr(SSL_F_SSL_SVCB_ADD, SSL_R_BAD_VALUE);
         return(0);
     }
     /*
@@ -1983,7 +1965,6 @@ int SSL_svcb_add(SSL *con, int rrfmt, size_t rrlen, char *rrval, int *num_echs)
 
     SSL_ECH *echs=NULL;
     if (local_svcb_add(rrfmt,rrlen,rrval,num_echs,&echs)!=1) {
-        SSLerr(SSL_F_SSL_SVCB_ADD, SSL_R_BAD_VALUE);
         return 0;
     }
     con->ech=echs;
