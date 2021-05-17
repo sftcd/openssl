@@ -371,11 +371,13 @@ static EVP_PKEY* hpke_EVP_PKEY_new_raw_nist_public_key(
         EVP_PKEY_CTX_free(cctx);
         erv=__LINE__; goto err;
     }
-    // For some reason this returns zero for p256 but works!
-    EVP_PKEY_set1_tls_encodedpoint(ret,buf,buflen);
+    if (EVP_PKEY_set1_encoded_public_key(ret,buf,buflen)!=1) {
+        EVP_PKEY_CTX_free(cctx);
+        erv=__LINE__; goto err;
+    }
 err:
 #if defined(SUPERVERBOSE) || defined(TESTVECTORS)
-    pblen = EVP_PKEY_get1_tls_encodedpoint(ret,&pbuf); 
+    pblen = EVP_PKEY_get1_encoded_public_key(ret,&pbuf); 
     hpke_pbuf(stdout,"EARLY public",pbuf,pblen); 
     if (pblen) OPENSSL_free(pbuf);
 #endif
@@ -1433,7 +1435,7 @@ static int hpke_enc_int(
     }
 
     /* step 2 run DH KEM to get dh */
-    enclen = EVP_PKEY_get1_tls_encodedpoint(pkE,&enc);
+    enclen = EVP_PKEY_get1_encoded_public_key(pkE,&enc);
     if (enc==NULL || enclen == 0) {
         erv=__LINE__; goto err;
     }
@@ -1458,7 +1460,7 @@ static int hpke_enc_int(
         if (!skI) { 
             erv=__LINE__;goto err;
         }
-        mypublen=EVP_PKEY_get1_tls_encodedpoint(skI,&mypub);
+        mypublen=EVP_PKEY_get1_encoded_public_key(skI,&mypub);
         if (mypub==NULL || mypublen == 0) {
             erv=__LINE__; goto err;
         }
@@ -1591,21 +1593,21 @@ err:
                 hpke_aead_strtab[suite.aead_id], suite.aead_id);
 
     if (pkE) { 
-        pblen = EVP_PKEY_get1_tls_encodedpoint(pkE,&pbuf); 
+        pblen = EVP_PKEY_get1_encoded_public_key(pkE,&pbuf); 
         hpke_pbuf(stdout,"\tpkE",pbuf,pblen); 
         if (pblen) OPENSSL_free(pbuf); 
     } else { 
         fprintf(stdout,"\tpkE is NULL\n"); 
     }
     if (pkR) { 
-        pblen = EVP_PKEY_get1_tls_encodedpoint(pkR,&pbuf); 
+        pblen = EVP_PKEY_get1_encoded_public_key(pkR,&pbuf); 
         hpke_pbuf(stdout,"\tpkR",pbuf,pblen); 
         if (pblen) OPENSSL_free(pbuf); 
     } else { 
         fprintf(stdout,"\tpkR is NULL\n"); 
     }
     if (skI) { 
-        pblen = EVP_PKEY_get1_tls_encodedpoint(skI,&pbuf); 
+        pblen = EVP_PKEY_get1_encoded_public_key(skI,&pbuf); 
         hpke_pbuf(stdout,"\tskI",pbuf,pblen); 
         if (pblen) OPENSSL_free(pbuf); 
     } else { 
@@ -1924,7 +1926,7 @@ int hpke_dec(
     }
 
     /* step 2 run DH KEM to get dh */
-    mypublen=EVP_PKEY_get1_tls_encodedpoint(skR,&mypub);
+    mypublen=EVP_PKEY_get1_encoded_public_key(skR,&mypub);
     if (mypub==NULL || mypublen == 0) {
         erv=__LINE__; goto err;
     }
@@ -2059,21 +2061,21 @@ err:
                 hpke_aead_strtab[suite.aead_id], suite.aead_id);
 
     if (pkE) { 
-        pblen = EVP_PKEY_get1_tls_encodedpoint(pkE,&pbuf); 
+        pblen = EVP_PKEY_get1_encoded_public_key(pkE,&pbuf); 
         hpke_pbuf(stdout,"\tpkE",pbuf,pblen); 
         if (pblen) OPENSSL_free(pbuf); 
     } else { 
         fprintf(stdout,"\tpkE is NULL\n"); 
     }
     if (skR) { 
-        pblen = EVP_PKEY_get1_tls_encodedpoint(skR,&pbuf); 
+        pblen = EVP_PKEY_get1_encoded_public_key(skR,&pbuf); 
         hpke_pbuf(stdout,"\tpkR",pbuf,pblen); 
         if (pblen) OPENSSL_free(pbuf); 
     } else { 
         fprintf(stdout,"\tpkR is NULL\n"); 
     }
     if (pkI) { 
-        pblen = EVP_PKEY_get1_tls_encodedpoint(pkI,&pbuf); 
+        pblen = EVP_PKEY_get1_encoded_public_key(pkI,&pbuf); 
         hpke_pbuf(stdout,"\tpkI",pbuf,pblen); 
         if (pblen) OPENSSL_free(pbuf); 
     } else { 
@@ -2208,7 +2210,7 @@ int hpke_kg_evp(
         erv=__LINE__; goto err;
     }
     EVP_PKEY_CTX_free(pctx); pctx=NULL;
-    size_t lpublen = EVP_PKEY_get1_tls_encodedpoint(skR,&lpub);
+    size_t lpublen = EVP_PKEY_get1_encoded_public_key(skR,&lpub);
     if (lpub==NULL || lpublen == 0) {
         erv=__LINE__; goto err;
     }

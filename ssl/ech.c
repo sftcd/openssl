@@ -74,11 +74,11 @@ static int local_ech_add( int ekfmt, size_t eklen, unsigned char *ekval, int *nu
  */
 
 /* asci hex is easy:-) either case allowed*/
-const char *AH_alphabet="0123456789ABCDEFabcdef;";
+static const char *AH_alphabet="0123456789ABCDEFabcdef;";
 /* we actually add a semi-colon here as we accept multiple semi-colon separated values */
-const char *B64_alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=;";
+static const char *B64_alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=;";
 /* telltale for HTTPSSVC in presentation format */
-const char *httpssvc_telltale="echconfig=";
+static const char *httpssvc_telltale="echconfig=";
 
 /*
  * This is a special marker value. If set via a specific call
@@ -119,9 +119,9 @@ static int ech_check_filenames(SSL_CTX *ctx, const char *pemfname,int *index)
     if (stat(pemfname,&pemstat) < 0) return(ECH_KEYPAIR_ERROR);
     // check the time info - we're only gonna do 1s precision on purpose
 #if defined(__APPLE__)
-    time_t pemmod=pemtat.st_mtimespec.tv_sec;
+    time_t pemmod=pemstat.st_mtimespec.tv_sec;
 #elif defined(OPENSSL_SYS_WINDOWS)
-    time_t pemmod=pemtat.st_mtime;
+    time_t pemmod=pemstat.st_mtime;
 #else
     time_t pemmod=pemstat.st_mtim.tv_sec;
 #endif
@@ -2016,7 +2016,7 @@ int SSL_svcb_add(SSL *con, int rrfmt, size_t rrlen, char *rrval, int *num_echs)
  *
  * Lotsa notes, eh - that's because I'm not sure this is sane:-)
  */
-int ech_outer_config[]={
+static int ech_outer_config[]={
      /*TLSEXT_IDX_renegotiate */ 0,
      /*TLSEXT_IDX_server_name */ 0,
 #define DOCOMPRESS
@@ -2070,7 +2070,7 @@ int ech_outer_config[]={
  * of these extensions should be mirrored with equivalent changes to the
  * indexes ( TLSEXT_IDX_* ) defined in ssl_local.h.
  */
-int ech_outer_indep[]={
+static int ech_outer_indep[]={
      /*TLSEXT_IDX_renegotiate */ 0,
      /*TLSEXT_IDX_server_name */ 1,
      /*TLSEXT_IDX_max_fragment_length */ 0,
@@ -2454,7 +2454,7 @@ static int ech_decode_inner(SSL *s, const unsigned char *ob, size_t ob_len, size
     int remaining=initial_decomp[startofexts]*256+initial_decomp[startofexts+1];
     size_t oneextstart=startofexts+2; // 1st ext type, skip the overall exts len
     uint16_t etype;
-    size_t elen;
+    size_t elen=0;
     while (!found && remaining>0) {
         etype=initial_decomp[oneextstart]*256+initial_decomp[oneextstart+1];
         elen=initial_decomp[oneextstart+2]*256+initial_decomp[oneextstart+3];
