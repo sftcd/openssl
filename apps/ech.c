@@ -334,7 +334,7 @@ static int mk_echconfig(
     bbuf[4]=(bblen-6)/256;
     bbuf[5]=(bblen-6)%256;
 
-    int b64len = EVP_EncodeBlock((unsigned char*)echconfig, (unsigned char *)bbuf, bblen);
+    unsigned int b64len = EVP_EncodeBlock((unsigned char*)echconfig, (unsigned char *)bbuf, bblen);
     if (b64len >=(*echconfig_len-1)) {
         return(__LINE__);
     }
