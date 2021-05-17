@@ -640,7 +640,12 @@ static int ssl_ech_servername_cb(SSL *s, int *ad, void *arg)
              */
             BIO_printf(p->biodebug, "ssl_ech_servername_cb: TLS servername: %s.\n",servername);
             BIO_printf(p->biodebug, "ssl_ech_servername_cb: Cert servername: %s.\n",p->servername);
-            int mrv=X509_check_host(p->scert,servername,strlen(servername),0,NULL);
+            int mrv;
+            X509_VERIFY_PARAM *vpm = NULL;
+            vpm = X509_VERIFY_PARAM_new();
+            if (!vpm) return SSL_TLSEXT_ERR_NOACK;
+            mrv=X509_VERIFY_PARAM_set1_host(vpm,servername,strlen(servername));
+            X509_VERIFY_PARAM_free(vpm);
             if (mrv==1) {
                 if (p->biodebug!=NULL) {
                      BIO_printf(p->biodebug, "ssl_ech_servername_cb: Switching context.\n");

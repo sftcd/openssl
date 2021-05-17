@@ -79,7 +79,11 @@ static hpke_aead_info_t hpke_aead_tab[]={
     { 0, NULL, 0, 0, 0 }, // this is needed to keep indexing correct
     { HPKE_AEAD_ID_AES_GCM_128, EVP_aes_128_gcm, 16, 16, 12 }, 
     { HPKE_AEAD_ID_AES_GCM_256, EVP_aes_256_gcm, 16, 32, 12 }, 
+#ifndef OPENSSL_NO_CHACHA20
+#ifndef OPENSSL_NO_POLY1305
     { HPKE_AEAD_ID_CHACHA_POLY1305, EVP_chacha20_poly1305, 16, 32, 12 } 
+#endif
+#endif
 };
 
 #if defined(SUPERVERBOSE) || defined(TESTVECTORS)
