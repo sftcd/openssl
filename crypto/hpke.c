@@ -528,7 +528,15 @@ static int hpke_aead_enc(
     size_t ciphertextlen;
     unsigned char *ciphertext=NULL;
     size_t taglen=hpke_aead_tab[suite.aead_id].taglen;
+#ifdef OPENSSL_SYS_WINDOWS
+    /* compiler dislikes this seemingly */
+    unsigned char tag[16];
+    if (taglen!=16) {
+        erv=__LINE__; goto err;
+    }
+#else
     unsigned char tag[taglen];
+#endif
     if ((taglen+plainlen)>*cipherlen) {
         erv=__LINE__; goto err;
     }
