@@ -15,11 +15,6 @@
 #ifndef OPENSSL_NO_ECH
 #include <openssl/rand.h>
 #include <openssl/trace.h>
-/* for sockaddr stuff - not portable!!!  */
-#include <netinet/in.h>
-#include <sys/socket.h>
-#include <arpa/inet.h>
-#include <netdb.h>
 /* for timing in TRACE */
 #include <time.h>
 #endif
