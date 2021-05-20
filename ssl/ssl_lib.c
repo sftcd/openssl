@@ -1251,7 +1251,13 @@ void SSL_free(SSL *s)
 
 #ifndef OPENSSL_NO_ECH
     // Hmm - this seems needed on client but not on server?
-    if (!s->server && s->ext.inner_s==NULL && s->ext.outer_s!=NULL && s->ext.ech_grease!=ECH_IS_GREASE)
+    // if (!s->server && s->ext.inner_s==NULL && s->ext.outer_s!=NULL && s->ext.ech_grease!=ECH_IS_GREASE)
+    printf("Checking whether to free init_buf for (%s) s=%p\n",s->ext.inner_s?"outer":"inner",s);
+    if ( s->init_buf && ( (!s->server && (s->ext.inner_s || !s->ech)) || s->server))
+        printf("Will free %p\n",s->init_buf);
+    else
+        printf("Won't free %p\n",s->init_buf);
+    if ( s->init_buf && ( (!s->server && (s->ext.inner_s || !s->ech)) || s->server))
 #endif
     BUF_MEM_free(s->init_buf);
 

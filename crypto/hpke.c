@@ -729,6 +729,7 @@ int hpke_extract(
             memcpy(labeled_ikm+concat_offset,label,labellen);
             concat_offset+=labellen;
             if (concat_offset>=HPKE_MAXSIZE) { erv=__LINE__; goto err; }
+            if (ikmlen>0) // added 'cause asan test
             memcpy(labeled_ikm+concat_offset,ikm,ikmlen);
             concat_offset+=ikmlen;
             if (concat_offset>=HPKE_MAXSIZE) { erv=__LINE__; goto err; }

@@ -31,7 +31,10 @@
  */
 #include <sys/types.h>
 #include <sys/stat.h>
+#if !defined(OPENSSL_SYS_WINDOWS)
 #include <unistd.h>
+#endif
+
 /*
  * For ossl_assert
  */
@@ -2775,7 +2778,8 @@ int ech_calc_accept_confirm(SSL *s, unsigned char *acbuf, const unsigned char *s
     ech_pbuf("calc conf : h/s secret",insecret,EVP_MAX_MD_SIZE);
 #endif
 
-    unsigned char hoval[32];
+    //unsigned char hoval[32]; changed due to asan test
+    unsigned char hoval[EVP_MAX_MD_SIZE];
     if (!tls13_hkdf_expand(s, md, insecret,
                            (const unsigned char *)label,labellen,
                            hashval, hashlen, 
@@ -2946,6 +2950,7 @@ int ech_swaperoo(SSL *s)
         if (other_octets>0) {
             new_buflen=tmp_outer.ext.innerch_len+other_octets;
             new_buf=OPENSSL_malloc(new_buflen);
+            if (tmp_outer.ext.innerch) // asan check added
             memcpy(new_buf,tmp_outer.ext.innerch,tmp_outer.ext.innerch_len);
             memcpy(new_buf+tmp_outer.ext.innerch_len,&curr_buf[outer_chlen],other_octets);
         } else {
@@ -3380,10 +3385,6 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
 err:
     if (aad!=NULL) OPENSSL_free(aad);
     if (mypriv_evp!=NULL) EVP_PKEY_free(mypriv_evp);
-    // next one doesn't belong here but works, this should
-    // be freed in ssl_lib.c:SSL_free but that has some 
-    // odd issue I'm currently working around, TODO: see later... 
-    if (s->init_buf!=NULL) { BUF_MEM_free(s->init_buf); s->init_buf=NULL; }
     return 0;
 }
 
