@@ -760,6 +760,7 @@ HTTP_R_ERROR_PARSING_URL:101:error parsing url
 HTTP_R_ERROR_RECEIVING:103:error receiving
 HTTP_R_ERROR_SENDING:102:error sending
 HTTP_R_FAILED_READING_DATA:128:failed reading data
+HTTP_R_HEADER_PARSE_ERROR:126:header parse error
 HTTP_R_INCONSISTENT_CONTENT_LENGTH:120:inconsistent content length
 HTTP_R_INVALID_PORT_NUMBER:123:invalid port number
 HTTP_R_INVALID_URL_PATH:125:invalid url path
@@ -774,6 +775,7 @@ HTTP_R_REDIRECTION_FROM_HTTPS_TO_HTTP:112:redirection from https to http
 HTTP_R_REDIRECTION_NOT_ENABLED:116:redirection not enabled
 HTTP_R_RESPONSE_LINE_TOO_LONG:113:response line too long
 HTTP_R_RESPONSE_PARSE_ERROR:104:response parse error
+HTTP_R_SERVER_CANCELED_CONNECTION:127:server canceled connection
 HTTP_R_SOCK_NOT_SUPPORTED:122:sock not supported
 HTTP_R_STATUS_CODE_UNSUPPORTED:114:status code unsupported
 HTTP_R_TLS_NOT_ENABLED:107:tls not enabled
@@ -810,6 +812,7 @@ OCSP_R_UNKNOWN_MESSAGE_DIGEST:119:unknown message digest
 OCSP_R_UNKNOWN_NID:120:unknown nid
 OCSP_R_UNSUPPORTED_REQUESTORNAME_TYPE:129:unsupported requestorname type
 OSSL_DECODER_R_COULD_NOT_DECODE_OBJECT:101:could not decode object
+OSSL_DECODER_R_DECODER_NOT_FOUND:102:decoder not found
 OSSL_DECODER_R_MISSING_GET_PARAMS:100:missing get params
 OSSL_ENCODER_R_ENCODER_NOT_FOUND:101:encoder not found
 OSSL_ENCODER_R_INCORRECT_PROPERTY_QUERY:100:incorrect property query
@@ -829,6 +832,7 @@ OSSL_STORE_R_NOT_A_NAME:103:not a name
 OSSL_STORE_R_NOT_A_PRIVATE_KEY:102:not a private key
 OSSL_STORE_R_NOT_A_PUBLIC_KEY:122:not a public key
 OSSL_STORE_R_NOT_PARAMETERS:104:not parameters
+OSSL_STORE_R_NO_LOADERS_FOUND:123:no loaders found
 OSSL_STORE_R_PASSPHRASE_CALLBACK_ERROR:114:passphrase callback error
 OSSL_STORE_R_PATH_MUST_BE_ABSOLUTE:108:path must be absolute
 OSSL_STORE_R_SEARCH_ONLY_SUPPORTED_FOR_DIRECTORIES:119:\
@@ -1361,6 +1365,7 @@ SSL_R_MISSING_DSA_SIGNING_CERT:165:missing dsa signing cert
 SSL_R_MISSING_ECDSA_SIGNING_CERT:381:missing ecdsa signing cert
 SSL_R_MISSING_FATAL:256:missing fatal
 SSL_R_MISSING_PARAMETERS:290:missing parameters
+SSL_R_MISSING_PSK_KEX_MODES_EXTENSION:310:missing psk kex modes extension
 SSL_R_MISSING_RSA_CERTIFICATE:168:missing rsa certificate
 SSL_R_MISSING_RSA_ENCRYPTING_CERT:169:missing rsa encrypting cert
 SSL_R_MISSING_RSA_SIGNING_CERT:170:missing rsa signing cert

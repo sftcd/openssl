@@ -72,6 +72,7 @@ static char *opt_path = NULL;
 static char *opt_proxy = NULL;
 static char *opt_no_proxy = NULL;
 static char *opt_recipient = NULL;
+static int opt_keep_alive = 1;
 static int opt_msg_timeout = -1;
 static int opt_total_timeout = -1;
 
@@ -205,7 +206,7 @@ typedef enum OPTION_choice {
 
     OPT_SERVER, OPT_PATH, OPT_PROXY, OPT_NO_PROXY,
     OPT_RECIPIENT,
-    OPT_MSG_TIMEOUT, OPT_TOTAL_TIMEOUT,
+    OPT_KEEP_ALIVE, OPT_MSG_TIMEOUT, OPT_TOTAL_TIMEOUT,
 
     OPT_TRUSTED, OPT_UNTRUSTED, OPT_SRVCERT,
     OPT_EXPECT_SENDER,
@@ -344,8 +345,10 @@ const OPTIONS cmp_options[] = {
      "Default from environment variable 'no_proxy', else 'NO_PROXY', else none"},
     {"recipient", OPT_RECIPIENT, 's',
      "DN of CA. Default: subject of -srvcert, -issuer, issuer of -oldcert or -cert"},
+    {"keep_alive", OPT_KEEP_ALIVE, 'N',
+     "Persistent HTTP connections. 0: no, 1 (the default): request, 2: require"},
     {"msg_timeout", OPT_MSG_TIMEOUT, 'N',
-     "Timeout per CMP message round trip (or 0 for none). Default 120 seconds"},
+     "Number of seconds allowed per CMP message round trip, or 0 for infinite"},
     {"total_timeout", OPT_TOTAL_TIMEOUT, 'N',
      "Overall time an enrollment incl. polling may take. Default 0 = infinite"},
 
@@ -530,7 +533,7 @@ static varref cmp_vars[] = { /* must be in same order as enumerated above! */
     {&opt_oldcert}, {(char **)&opt_revreason},
 
     {&opt_server}, {&opt_path}, {&opt_proxy}, {&opt_no_proxy},
-    {&opt_recipient},
+    {&opt_recipient}, {(char **)&opt_keep_alive},
     {(char **)&opt_msg_timeout}, {(char **)&opt_total_timeout},
 
     {&opt_trusted}, {&opt_untrusted}, {&opt_srvcert},
@@ -1817,6 +1820,15 @@ static int setup_client_ctx(OSSL_CMP_CTX *ctx, ENGINE *engine)
     if (!setup_verification_ctx(ctx))
         goto err;
 
+    if (opt_keep_alive != 1)
+        (void)OSSL_CMP_CTX_set_option(ctx, OSSL_CMP_OPT_KEEP_ALIVE,
+                                      opt_keep_alive);
+    if (opt_total_timeout > 0 && opt_msg_timeout > 0
+            && opt_total_timeout < opt_msg_timeout) {
+        CMP_err2("-total_timeout argument = %d must not be < %d (-msg_timeout)",
+                 opt_total_timeout, opt_msg_timeout);
+        goto err;
+    }
     if (opt_msg_timeout >= 0) /* must do this before setup_ssl_ctx() */
         (void)OSSL_CMP_CTX_set_option(ctx, OSSL_CMP_OPT_MSG_TIMEOUT,
                                       opt_msg_timeout);
@@ -2232,6 +2244,13 @@ static int get_opts(int argc, char **argv)
         case OPT_RECIPIENT:
             opt_recipient = opt_str();
             break;
+        case OPT_KEEP_ALIVE:
+            opt_keep_alive = opt_int_arg();
+            if (opt_keep_alive > 2) {
+                CMP_err("-keep_alive argument must be 0, 1, or 2");
+                goto opthelp;
+            }
+            break;
         case OPT_MSG_TIMEOUT:
             opt_msg_timeout = opt_int_arg();
             break;
@@ -2533,6 +2552,84 @@ static int get_opts(int argc, char **argv)
     return 1;
 }
 
+#ifndef OPENSSL_NO_SOCK
+static int cmp_server(OSSL_CMP_CTX *srv_cmp_ctx) {
+    BIO *acbio;
+    BIO *cbio = NULL;
+    int keep_alive = 0;
+    int msgs = 0;
+    int retry = 1;
+    int ret = 1;
+
+    if ((acbio = http_server_init_bio(prog, opt_port)) == NULL)
+        return 0;
+    while (opt_max_msgs <= 0 || msgs < opt_max_msgs) {
+        char *path = NULL;
+        OSSL_CMP_MSG *req = NULL;
+        OSSL_CMP_MSG *resp = NULL;
+
+        ret = http_server_get_asn1_req(ASN1_ITEM_rptr(OSSL_CMP_MSG),
+                                       (ASN1_VALUE **)&req, &path,
+                                       &cbio, acbio, &keep_alive,
+                                       prog, opt_port, 0, 0);
+        if (ret == 0) { /* no request yet */
+            if (retry) {
+                ossl_sleep(1000);
+                retry = 0;
+                continue;
+            }
+            ret = 0;
+            goto next;
+        }
+        if (ret++ == -1) /* fatal error */
+            break;
+
+        ret = 0;
+        msgs++;
+        if (req != NULL) {
+            if (strcmp(path, "") != 0 && strcmp(path, "pkix/") != 0) {
+                (void)http_server_send_status(cbio, 404, "Not Found");
+                CMP_err1("expecting empty path or 'pkix/' but got '%s'",
+                         path);
+                OPENSSL_free(path);
+                OSSL_CMP_MSG_free(req);
+                goto next;
+            }
+            OPENSSL_free(path);
+            resp = OSSL_CMP_CTX_server_perform(cmp_ctx, req);
+            OSSL_CMP_MSG_free(req);
+            if (resp == NULL) {
+                (void)http_server_send_status(cbio,
+                                              500, "Internal Server Error");
+                break; /* treated as fatal error */
+            }
+            ret = http_server_send_asn1_resp(cbio, keep_alive,
+                                             "application/pkixcmp",
+                                             ASN1_ITEM_rptr(OSSL_CMP_MSG),
+                                             (const ASN1_VALUE *)resp);
+            OSSL_CMP_MSG_free(resp);
+            if (!ret)
+                break; /* treated as fatal error */
+        }
+    next:
+        if (!ret) { /* on transmission error, cancel CMP transaction */
+            (void)OSSL_CMP_CTX_set1_transactionID(srv_cmp_ctx, NULL);
+            (void)OSSL_CMP_CTX_set1_senderNonce(srv_cmp_ctx, NULL);
+        }
+        if (!ret || !keep_alive
+            || OSSL_CMP_CTX_get_status(srv_cmp_ctx) == -1
+             /* transaction closed by OSSL_CMP_CTX_server_perform() */) {
+            BIO_free_all(cbio);
+            cbio = NULL;
+        }
+    }
+
+    BIO_free_all(cbio);
+    BIO_free_all(acbio);
+    return ret;
+}
+#endif
+
 int cmp_main(int argc, char **argv)
 {
     char *configfile = NULL;
@@ -2540,6 +2637,7 @@ int cmp_main(int argc, char **argv)
     X509 *newcert = NULL;
     ENGINE *engine = NULL;
     char mock_server[] = "mock server:1";
+    OSSL_CMP_CTX *srv_cmp_ctx = NULL;
     int ret = 0; /* default: failure */
 
     prog = opt_appname(argv[0]);
@@ -2651,12 +2749,13 @@ int cmp_main(int argc, char **argv)
 
         if ((srv_ctx = setup_srv_ctx(engine)) == NULL)
             goto err;
+        srv_cmp_ctx = OSSL_CMP_SRV_CTX_get0_cmp_ctx(srv_ctx);
         OSSL_CMP_CTX_set_transfer_cb_arg(cmp_ctx, srv_ctx);
-        if (!OSSL_CMP_CTX_set_log_cb(OSSL_CMP_SRV_CTX_get0_cmp_ctx(srv_ctx),
-                                     print_to_bio_out)) {
+        if (!OSSL_CMP_CTX_set_log_cb(srv_cmp_ctx, print_to_bio_out)) {
             CMP_err1("cannot set up error reporting and logging for %s", prog);
             goto err;
         }
+        OSSL_CMP_CTX_set_log_verbosity(srv_cmp_ctx, opt_verbosity);
     }
 
 
@@ -2664,59 +2763,7 @@ int cmp_main(int argc, char **argv)
 #ifdef OPENSSL_NO_SOCK
         BIO_printf(bio_err, "Cannot act as server - sockets not supported\n");
 #else
-        BIO *acbio;
-        BIO *cbio = NULL;
-        int msgs = 0;
-
-        if ((acbio = http_server_init_bio(prog, opt_port)) == NULL)
-            goto err;
-        while (opt_max_msgs <= 0 || msgs < opt_max_msgs) {
-            char *path = NULL;
-            OSSL_CMP_MSG *req = NULL;
-            OSSL_CMP_MSG *resp = NULL;
-
-            ret = http_server_get_asn1_req(ASN1_ITEM_rptr(OSSL_CMP_MSG),
-                                           (ASN1_VALUE **)&req, &path,
-                                           &cbio, acbio, prog, 0, 0);
-            if (ret == 0)
-                continue;
-            if (ret++ == -1)
-                break; /* fatal error */
-
-            ret = 0;
-            msgs++;
-            if (req != NULL) {
-                if (strcmp(path, "") != 0 && strcmp(path, "pkix/") != 0) {
-                    (void)http_server_send_status(cbio, 404, "Not Found");
-                    CMP_err1("expecting empty path or 'pkix/' but got '%s'",
-                             path);
-                    OPENSSL_free(path);
-                    OSSL_CMP_MSG_free(req);
-                    goto cont;
-                }
-                OPENSSL_free(path);
-                resp = OSSL_CMP_CTX_server_perform(cmp_ctx, req);
-                OSSL_CMP_MSG_free(req);
-                if (resp == NULL) {
-                    (void)http_server_send_status(cbio,
-                                                  500, "Internal Server Error");
-                    break; /* treated as fatal error */
-                }
-                ret = http_server_send_asn1_resp(cbio, "application/pkixcmp",
-                                                 ASN1_ITEM_rptr(OSSL_CMP_MSG),
-                                                 (const ASN1_VALUE *)resp);
-                OSSL_CMP_MSG_free(resp);
-                if (!ret)
-                    break; /* treated as fatal error */
-            } else {
-                (void)http_server_send_status(cbio, 400, "Bad Request");
-            }
-        cont:
-            BIO_free_all(cbio);
-            cbio = NULL;
-        }
-        BIO_free_all(cbio);
-        BIO_free_all(acbio);
+        ret = cmp_server(srv_cmp_ctx);
 #endif
         goto err;
     }

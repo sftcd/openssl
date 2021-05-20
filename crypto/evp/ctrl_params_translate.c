@@ -1482,7 +1482,7 @@ static int get_payload_group_name(enum state state,
             if (grp != NULL)
                 nid = EC_GROUP_get_curve_name(grp);
             if (nid != NID_undef)
-                ctx->p2 = (char *)ossl_ec_curve_nid2name(nid);
+                ctx->p2 = (char *)OSSL_EC_curve_nid2name(nid);
         }
         break;
 #endif
@@ -2623,9 +2623,9 @@ static int evp_pkey_ctx_setget_params_to_ctrl(EVP_PKEY_CTX *pctx,
     return 1;
 }
 
-int evp_pkey_ctx_set_params_to_ctrl(EVP_PKEY_CTX *ctx, OSSL_PARAM *params)
+int evp_pkey_ctx_set_params_to_ctrl(EVP_PKEY_CTX *ctx, const OSSL_PARAM *params)
 {
-    return evp_pkey_ctx_setget_params_to_ctrl(ctx, SET, params);
+    return evp_pkey_ctx_setget_params_to_ctrl(ctx, SET, (OSSL_PARAM *)params);
 }
 
 int evp_pkey_ctx_get_params_to_ctrl(EVP_PKEY_CTX *ctx, OSSL_PARAM *params)

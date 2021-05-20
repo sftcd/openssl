@@ -1,5 +1,5 @@
 /*
- * Copyright 1995-2020 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 1995-2021 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -221,10 +221,13 @@ unsigned char *HMAC(const EVP_MD *evp_md, const void *key, int key_len,
                     unsigned char *md, unsigned int *md_len)
 {
     static unsigned char static_md[EVP_MAX_MD_SIZE];
+    int size = EVP_MD_size(evp_md);
 
+    if (size < 0)
+        return NULL;
     return EVP_Q_mac(NULL, "HMAC", NULL, EVP_MD_name(evp_md), NULL,
                      key, key_len, data, data_len,
-                     md == NULL ? static_md : md, EVP_MD_size(evp_md), md_len);
+                     md == NULL ? static_md : md, size, md_len);
 }
 
 void HMAC_CTX_set_flags(HMAC_CTX *ctx, unsigned long flags)

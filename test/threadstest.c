@@ -16,13 +16,14 @@
 
 #include <string.h>
 #include <openssl/crypto.h>
-#include <openssl/evp.h>
+#include <openssl/rsa.h>
 #include <openssl/aes.h>
 #include <openssl/rsa.h>
 #include "testutil.h"
 
 static int do_fips = 0;
 static char *privkey;
+static char *config_file = NULL;
 
 #if !defined(OPENSSL_THREADS) || defined(CRYPTO_TDEBUG)
 
@@ -291,7 +292,6 @@ static void thread_general_worker(void)
     };
     unsigned int mdoutl;
     int ciphoutl;
-    EVP_PKEY_CTX *pctx = NULL;
     EVP_PKEY *pkey = NULL;
     int testresult = 0;
     int i, isfips;
@@ -320,18 +320,13 @@ static void thread_general_worker(void)
             goto err;
     }
 
-    pctx = EVP_PKEY_CTX_new_from_name(multi_libctx, "RSA", NULL);
-    if (!TEST_ptr(pctx)
-            || !TEST_int_gt(EVP_PKEY_keygen_init(pctx), 0)
-               /*
-                * We want the test to run quickly - not securely. Therefore we
-                * use an insecure bit length where we can (512). In the FIPS
-                * module though we must use a longer length.
-                */
-            || !TEST_int_gt(EVP_PKEY_CTX_set_rsa_keygen_bits(pctx,
-                                                             isfips ? 2048 : 512),
-                                                             0)
-            || !TEST_int_gt(EVP_PKEY_keygen(pctx, &pkey), 0))
+    /*
+     * We want the test to run quickly - not securely.
+     * Therefore we use an insecure bit length where we can (512).
+     * In the FIPS module though we must use a longer length.
+     */
+    pkey = EVP_PKEY_Q_keygen(multi_libctx, NULL, "RSA", isfips ? 2048 : 512);
+    if (!TEST_ptr(pkey))
         goto err;
 
     testresult = 1;
@@ -340,7 +335,6 @@ static void thread_general_worker(void)
     EVP_MD_free(md);
     EVP_CIPHER_CTX_free(cipherctx);
     EVP_CIPHER_free(ciph);
-    EVP_PKEY_CTX_free(pctx);
     EVP_PKEY_free(pkey);
     if (!testresult)
         multi_success = 0;
@@ -457,9 +451,10 @@ static int test_multi(int idx)
 #endif
 
     multi_success = 1;
-    multi_libctx = OSSL_LIB_CTX_new();
-    if (!TEST_ptr(multi_libctx))
-        goto err;
+    if (!TEST_true(test_get_libctx(&multi_libctx, NULL, config_file,
+                                   NULL, NULL)))
+        return 0;
+
     prov = OSSL_PROVIDER_load(multi_libctx, (idx == 1) ? "fips" : "default");
     if (!TEST_ptr(prov))
         goto err;
@@ -590,7 +585,7 @@ static int test_multi_default(void)
 typedef enum OPTION_choice {
     OPT_ERR = -1,
     OPT_EOF = 0,
-    OPT_FIPS,
+    OPT_FIPS, OPT_CONFIG_FILE,
     OPT_TEST_ENUM
 } OPTION_CHOICE;
 
@@ -599,6 +594,8 @@ const OPTIONS *test_get_options(void)
     static const OPTIONS options[] = {
         OPT_TEST_OPTIONS_DEFAULT_USAGE,
         { "fips", OPT_FIPS, '-', "Test the FIPS provider" },
+        { "config", OPT_CONFIG_FILE, '<',
+          "The configuration file to use for the libctx" },
         { NULL }
     };
     return options;
@@ -613,6 +610,9 @@ int setup_tests(void)
         switch (o) {
         case OPT_FIPS:
             do_fips = 1;
+            break;
+        case OPT_CONFIG_FILE:
+            config_file = opt_arg();
             break;
         case OPT_TEST_CASES:
             break;

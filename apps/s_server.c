@@ -78,6 +78,7 @@ static int accept_socket = -1;
 static int s_nbio = 0;
 static int s_nbio_test = 0;
 static int s_crlf = 0;
+static int immediate_reneg = 0;
 static SSL_CTX *ctx = NULL;
 static SSL_CTX *ctx2 = NULL;
 static int www = 0;
@@ -438,6 +439,7 @@ typedef struct tlsextstatusctx_st {
     char *respin;
     /* Default responder to use */
     char *host, *path, *port;
+    char *proxy, *no_proxy;
     int use_ssl;
     int verbose;
 } tlsextstatusctx;
@@ -457,6 +459,7 @@ static int get_ocsp_resp_from_responder(SSL *s, tlsextstatusctx *srctx,
                                         OCSP_RESPONSE **resp)
 {
     char *host = NULL, *port = NULL, *path = NULL;
+    char *proxy = NULL, *no_proxy = NULL;
     int use_ssl;
     STACK_OF(OPENSSL_STRING) *aia = NULL;
     X509 *x = NULL;
@@ -491,6 +494,8 @@ static int get_ocsp_resp_from_responder(SSL *s, tlsextstatusctx *srctx,
         port = srctx->port;
         use_ssl = srctx->use_ssl;
     }
+    proxy = srctx->proxy;
+    no_proxy = srctx->no_proxy;
 
     inctx = X509_STORE_CTX_new();
     if (inctx == NULL)
@@ -522,8 +527,8 @@ static int get_ocsp_resp_from_responder(SSL *s, tlsextstatusctx *srctx,
         if (!OCSP_REQUEST_add_ext(req, ext, -1))
             goto err;
     }
-    *resp = process_responder(req, host, path, port, use_ssl, NULL,
-                             srctx->timeout);
+    *resp = process_responder(req, host, port, path, proxy, no_proxy,
+                              use_ssl, NULL /* headers */, srctx->timeout);
     if (*resp == NULL) {
         BIO_puts(bio_err, "cert_status: error querying responder\n");
         goto done;
@@ -686,7 +691,8 @@ typedef enum OPTION_choice {
     OPT_CASTORE, OPT_NOCASTORE, OPT_CHAINCASTORE, OPT_VERIFYCASTORE,
     OPT_NBIO, OPT_NBIO_TEST, OPT_IGN_EOF, OPT_NO_IGN_EOF,
     OPT_DEBUG, OPT_TLSEXTDEBUG, OPT_STATUS, OPT_STATUS_VERBOSE,
-    OPT_STATUS_TIMEOUT, OPT_STATUS_URL, OPT_STATUS_FILE, OPT_MSG, OPT_MSGFILE,
+    OPT_STATUS_TIMEOUT, OPT_PROXY, OPT_NO_PROXY, OPT_STATUS_URL,
+    OPT_STATUS_FILE, OPT_MSG, OPT_MSGFILE,
     OPT_TRACE, OPT_SECURITY_DEBUG, OPT_SECURITY_DEBUG_VERBOSE, OPT_STATE,
     OPT_CRLF, OPT_QUIET, OPT_BRIEF, OPT_NO_DHE,
     OPT_NO_RESUME_EPHEMERAL, OPT_PSK_IDENTITY, OPT_PSK_HINT, OPT_PSK,
@@ -712,7 +718,7 @@ const OPTIONS s_server_options[] = {
     OPT_SECTION("General"),
     {"help", OPT_HELP, '-', "Display this summary"},
     {"ssl_config", OPT_SSL_CONFIG, 's',
-     "Configure SSL_CTX using the configuration 'val'"},
+     "Configure SSL_CTX using the given configuration value"},
 #ifndef OPENSSL_NO_SSL_TRACE
     {"trace", OPT_TRACE, '-', "trace protocol messages"},
 #endif
@@ -780,7 +786,7 @@ const OPTIONS s_server_options[] = {
     {"servername", OPT_SERVERNAME, 's',
      "Servername for HostName TLS extension"},
     {"servername_fatal", OPT_SERVERNAME_FATAL, '-',
-     "mismatch send fatal alert (default warning alert)"},
+     "On servername mismatch send fatal alert (default warning alert)"},
     {"nbio_test", OPT_NBIO_TEST, '-', "Test with the non-blocking test bio"},
     {"crlf", OPT_CRLF, '-', "Convert LF from terminal into CRLF"},
     {"quiet", OPT_QUIET, '-', "No server output"},
@@ -817,13 +823,13 @@ const OPTIONS s_server_options[] = {
      "use URI as certificate store to verify CA certificate"},
     {"no_cache", OPT_NO_CACHE, '-', "Disable session cache"},
     {"ext_cache", OPT_EXT_CACHE, '-',
-     "Disable internal cache, setup and use external cache"},
+     "Disable internal cache, set up and use external cache"},
     {"verify_return_error", OPT_VERIFY_RET_ERROR, '-',
      "Close connection on verification error"},
     {"verify_quiet", OPT_VERIFY_QUIET, '-',
      "No verify output except verify errors"},
-    {"ign_eof", OPT_IGN_EOF, '-', "ignore input eof (default when -quiet)"},
-    {"no_ign_eof", OPT_NO_IGN_EOF, '-', "Do not ignore input eof"},
+    {"ign_eof", OPT_IGN_EOF, '-', "Ignore input EOF (default when -quiet)"},
+    {"no_ign_eof", OPT_NO_IGN_EOF, '-', "Do not ignore input EOF"},
 
 #ifndef OPENSSL_NO_OCSP
     OPT_SECTION("OCSP"),
@@ -833,6 +839,12 @@ const OPTIONS s_server_options[] = {
     {"status_timeout", OPT_STATUS_TIMEOUT, 'n',
      "Status request responder timeout"},
     {"status_url", OPT_STATUS_URL, 's', "Status request fallback URL"},
+    {"proxy", OPT_PROXY, 's',
+     "[http[s]://]host[:port][/path] of HTTP(S) proxy to use; path is ignored"},
+    {"no_proxy", OPT_NO_PROXY, 's',
+     "List of addresses of servers not to use HTTP(S) proxy for"},
+    {OPT_MORE_STR, 0, 0,
+     "Default from environment variable 'no_proxy', else 'NO_PROXY', else none"},
     {"status_file", OPT_STATUS_FILE, '<',
      "File containing DER encoded OCSP Response"},
 #endif
@@ -860,7 +872,7 @@ const OPTIONS s_server_options[] = {
     OPT_SECTION("Network"),
     {"nbio", OPT_NBIO, '-', "Use non-blocking IO"},
     {"timeout", OPT_TIMEOUT, '-', "Enable timeouts"},
-    {"mtu", OPT_MTU, 'p', "Set link layer MTU"},
+    {"mtu", OPT_MTU, 'p', "Set link-layer MTU"},
     {"read_buf", OPT_READ_BUF, 'p',
      "Default read buffer size to be used for connections"},
     {"split_send_frag", OPT_SPLIT_SEND_FRAG, 'p',
@@ -1258,6 +1270,9 @@ int s_server_main(int argc, char *argv[])
             if (!opt_format(opt_arg(), OPT_FMT_PEMDER, &crl_format))
                 goto opthelp;
             break;
+        case OPT_S_IMMEDIATE_RENEG:
+            immediate_reneg = 1;
+            break;
         case OPT_S_CASES:
         case OPT_S_NUM_TICKETS:
         case OPT_ANTI_REPLAY:
@@ -1333,6 +1348,16 @@ int s_server_main(int argc, char *argv[])
 #ifndef OPENSSL_NO_OCSP
             s_tlsextstatus = 1;
             tlscstatp.timeout = atoi(opt_arg());
+#endif
+            break;
+        case OPT_PROXY:
+#ifndef OPENSSL_NO_OCSP
+            tlscstatp.proxy = opt_arg();
+#endif
+            break;
+        case OPT_NO_PROXY:
+#ifndef OPENSSL_NO_OCSP
+            tlscstatp.no_proxy = opt_arg();
 #endif
             break;
         case OPT_STATUS_URL:
@@ -2784,6 +2809,8 @@ static int init_ssl_connection(SSL *con)
     } else {
         do {
             i = SSL_accept(con);
+            if (immediate_reneg)
+                SSL_renegotiate(con);
 
             if (i <= 0)
                 retry = is_retryable(con, i);
@@ -3030,9 +3057,7 @@ static int www_body(int s, int stype, int prot, unsigned char *context)
                     continue;
                 }
 #endif
-#if !defined(OPENSSL_SYS_MSDOS)
-                sleep(1);
-#endif
+                ossl_sleep(1000);
                 continue;
             }
         } else if (i == 0) {    /* end of input */
@@ -3459,9 +3484,7 @@ static int rev_body(int s, int stype, int prot, unsigned char *context)
                     continue;
                 }
 #endif
-#if !defined(OPENSSL_SYS_MSDOS)
-                sleep(1);
-#endif
+                ossl_sleep(1000);
                 continue;
             }
         } else if (i == 0) {    /* end of input */

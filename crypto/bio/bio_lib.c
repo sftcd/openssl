@@ -11,7 +11,6 @@
 #include <errno.h>
 #include <openssl/crypto.h>
 #include "bio_local.h"
-#include "internal/cryptlib.h"
 
 /*
  * Helper macro for the callback to determine whether an operator expects a
@@ -478,6 +477,37 @@ int BIO_gets(BIO *b, char *buf, int size)
     return ret;
 }
 
+int BIO_get_line(BIO *bio, char *buf, int size)
+{
+    int ret = 0;
+    char *ptr = buf;
+
+    if (buf == NULL) {
+        ERR_raise(ERR_LIB_BIO, ERR_R_PASSED_NULL_PARAMETER);
+        return -1;
+    }
+    if (size <= 0) {
+        ERR_raise(ERR_LIB_BIO, BIO_R_INVALID_ARGUMENT);
+        return -1;
+    }
+    *buf = '\0';
+
+    if (bio == NULL) {
+        ERR_raise(ERR_LIB_BIO, ERR_R_PASSED_NULL_PARAMETER);
+        return -1;
+    }
+    if (!bio->init) {
+        ERR_raise(ERR_LIB_BIO, BIO_R_UNINITIALIZED);
+        return -1;
+    }
+
+    while (size-- > 1 && (ret = BIO_read(bio, ptr, 1)) > 0)
+        if (*ptr++ == '\n')
+            break;
+    *ptr = '\0';
+    return ret > 0 || BIO_eof(bio) ? ptr - buf : ret;
+}
+
 int BIO_indent(BIO *b, int indent, int max)
 {
     if (indent < 0)
@@ -870,7 +900,8 @@ int BIO_do_connect_retry(BIO *bio, int timeout, int nap_milliseconds)
     BIO_set_nbio(bio, !blocking);
 
  retry:
-    rv = BIO_do_connect(bio); /* This may indirectly call ERR_clear_error(); */
+    ERR_set_mark();
+    rv = BIO_do_connect(bio);
 
     if (rv <= 0) { /* could be timeout or retryable error or fatal error */
         int err = ERR_peek_last_error();
@@ -897,7 +928,7 @@ int BIO_do_connect_retry(BIO *bio, int timeout, int nap_milliseconds)
             }
         }
         if (timeout >= 0 && do_retry) {
-            ERR_clear_error(); /* using ERR_pop_to_mark() would be cleaner */
+            ERR_pop_to_mark();
             /* will not actually wait if timeout == 0 (i.e., blocking BIO): */
             rv = bio_wait(bio, max_time, nap_milliseconds);
             if (rv > 0)
@@ -905,11 +936,14 @@ int BIO_do_connect_retry(BIO *bio, int timeout, int nap_milliseconds)
             ERR_raise(ERR_LIB_BIO,
                       rv == 0 ? BIO_R_CONNECT_TIMEOUT : BIO_R_CONNECT_ERROR);
         } else {
+            ERR_clear_last_mark();
             rv = -1;
             if (err == 0) /* missing error queue entry */
                 /* workaround: general error */
                 ERR_raise(ERR_LIB_BIO, BIO_R_CONNECT_ERROR);
         }
+    } else {
+        ERR_clear_last_mark();
     }
 
     return rv;

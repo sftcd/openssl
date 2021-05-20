@@ -58,6 +58,7 @@ void OSSL_ENCODER_free(OSSL_ENCODER *encoder)
     CRYPTO_DOWN_REF(&encoder->base.refcnt, &ref, encoder->base.lock);
     if (ref > 0)
         return;
+    OPENSSL_free(encoder->base.name);
     ossl_provider_free(encoder->base.prov);
     CRYPTO_THREAD_lock_free(encoder->base.lock);
     OPENSSL_free(encoder);
@@ -76,6 +77,7 @@ static void *encoder_store_new(OSSL_LIB_CTX *ctx)
 
 
 static const OSSL_LIB_CTX_METHOD encoder_store_method = {
+    OSSL_LIB_CTX_METHOD_DEFAULT_PRIORITY,
     encoder_store_new,
     encoder_store_free,
 };
@@ -168,6 +170,10 @@ static void *encoder_from_algorithm(int id, const OSSL_ALGORITHM *algodef,
     if ((encoder = ossl_encoder_new()) == NULL)
         return NULL;
     encoder->base.id = id;
+    if ((encoder->base.name = ossl_algorithm_get1_first_name(algodef)) == NULL) {
+        OSSL_ENCODER_free(encoder);
+        return NULL;
+    }
     encoder->base.propdef = algodef->property_definition;
     encoder->base.description = algodef->algorithm_description;
 
@@ -435,6 +441,11 @@ int OSSL_ENCODER_number(const OSSL_ENCODER *encoder)
     }
 
     return encoder->base.id;
+}
+
+const char *OSSL_ENCODER_name(const OSSL_ENCODER *encoder)
+{
+    return encoder->base.name;
 }
 
 const char *OSSL_ENCODER_description(const OSSL_ENCODER *encoder)

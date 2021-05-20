@@ -652,7 +652,7 @@ int EVP_PKEY_CTX_is_a(EVP_PKEY_CTX *ctx, const char *keytype)
     return EVP_KEYMGMT_is_a(ctx->keymgmt, keytype);
 }
 
-int EVP_PKEY_CTX_set_params(EVP_PKEY_CTX *ctx, OSSL_PARAM *params)
+int EVP_PKEY_CTX_set_params(EVP_PKEY_CTX *ctx, const OSSL_PARAM *params)
 {
     switch (evp_pkey_ctx_state(ctx)) {
     case EVP_PKEY_STATE_PROVIDER:
@@ -735,7 +735,7 @@ int EVP_PKEY_CTX_get_params(EVP_PKEY_CTX *ctx, OSSL_PARAM *params)
 }
 
 #ifndef FIPS_MODULE
-const OSSL_PARAM *EVP_PKEY_CTX_gettable_params(EVP_PKEY_CTX *ctx)
+const OSSL_PARAM *EVP_PKEY_CTX_gettable_params(const EVP_PKEY_CTX *ctx)
 {
     void *provctx;
 
@@ -772,7 +772,7 @@ const OSSL_PARAM *EVP_PKEY_CTX_gettable_params(EVP_PKEY_CTX *ctx)
     return NULL;
 }
 
-const OSSL_PARAM *EVP_PKEY_CTX_settable_params(EVP_PKEY_CTX *ctx)
+const OSSL_PARAM *EVP_PKEY_CTX_settable_params(const EVP_PKEY_CTX *ctx)
 {
     void *provctx;
 
@@ -878,7 +878,6 @@ int evp_pkey_ctx_get_params_strict(EVP_PKEY_CTX *ctx, OSSL_PARAM *params)
     return EVP_PKEY_CTX_get_params(ctx, params);
 }
 
-/* TODO(3.0): Deprecate in favour of get_signature_md_name */
 int EVP_PKEY_CTX_get_signature_md(EVP_PKEY_CTX *ctx, const EVP_MD **md)
 {
     OSSL_PARAM sig_md_params[2], *p = sig_md_params;
@@ -913,10 +912,6 @@ int EVP_PKEY_CTX_get_signature_md(EVP_PKEY_CTX *ctx, const EVP_MD **md)
     return 1;
 }
 
-/*
- * TODO(3.0): Deprecate functions calling this in favour of
- * functions setting md name.
- */
 static int evp_pkey_ctx_set_md(EVP_PKEY_CTX *ctx, const EVP_MD *md,
                                int fallback, const char *param, int op,
                                int ctrl)

@@ -847,7 +847,7 @@ static const char *format2string(int format)
 }
 
 /* Set type expectation, but clear it if objects of different types expected. */
-#define SET_EXPECT(val) expect = expect < 0 ? val : (expect == val ? val : 0);
+#define SET_EXPECT(expect, val) ((expect) = (expect) < 0 ? (val) : ((expect) == (val) ? (val) : 0))
 /*
  * Load those types of credentials for which the result pointer is not NULL.
  * Reads from stdio if uri is NULL and maybe_stdin is nonzero.
@@ -889,22 +889,22 @@ int load_key_certs_crls(const char *uri, int format, int maybe_stdin,
     if (ppkey != NULL) {
         *ppkey = NULL;
         cnt_expectations++;
-        SET_EXPECT(OSSL_STORE_INFO_PKEY);
+        SET_EXPECT(expect, OSSL_STORE_INFO_PKEY);
     }
     if (ppubkey != NULL) {
         *ppubkey = NULL;
         cnt_expectations++;
-        SET_EXPECT(OSSL_STORE_INFO_PUBKEY);
+        SET_EXPECT(expect, OSSL_STORE_INFO_PUBKEY);
     }
     if (pparams != NULL) {
         *pparams = NULL;
         cnt_expectations++;
-        SET_EXPECT(OSSL_STORE_INFO_PARAMS);
+        SET_EXPECT(expect, OSSL_STORE_INFO_PARAMS);
     }
     if (pcert != NULL) {
         *pcert = NULL;
         cnt_expectations++;
-        SET_EXPECT(OSSL_STORE_INFO_CERT);
+        SET_EXPECT(expect, OSSL_STORE_INFO_CERT);
     }
     if (pcerts != NULL) {
         if (*pcerts == NULL && (*pcerts = sk_X509_new_null()) == NULL) {
@@ -912,12 +912,12 @@ int load_key_certs_crls(const char *uri, int format, int maybe_stdin,
             goto end;
         }
         cnt_expectations++;
-        SET_EXPECT(OSSL_STORE_INFO_CERT);
+        SET_EXPECT(expect, OSSL_STORE_INFO_CERT);
     }
     if (pcrl != NULL) {
         *pcrl = NULL;
         cnt_expectations++;
-        SET_EXPECT(OSSL_STORE_INFO_CRL);
+        SET_EXPECT(expect, OSSL_STORE_INFO_CRL);
     }
     if (pcrls != NULL) {
         if (*pcrls == NULL && (*pcrls = sk_X509_CRL_new_null()) == NULL) {
@@ -925,7 +925,7 @@ int load_key_certs_crls(const char *uri, int format, int maybe_stdin,
             goto end;
         }
         cnt_expectations++;
-        SET_EXPECT(OSSL_STORE_INFO_CRL);
+        SET_EXPECT(expect, OSSL_STORE_INFO_CRL);
     }
     if (cnt_expectations == 0) {
         BIO_printf(bio_err, "Internal error: nothing to load from %s\n",
@@ -2479,6 +2479,7 @@ ASN1_VALUE *app_http_get_asn1(const char *url, const char *proxy,
     char *server;
     char *port;
     int use_ssl;
+    BIO *mem;
     ASN1_VALUE *resp = NULL;
 
     if (url == NULL || it == NULL) {
@@ -2500,10 +2501,13 @@ ASN1_VALUE *app_http_get_asn1(const char *url, const char *proxy,
     info.use_proxy = proxy != NULL;
     info.timeout = timeout;
     info.ssl_ctx = ssl_ctx;
-    resp = OSSL_HTTP_get_asn1(url, proxy, no_proxy,
-                              NULL, NULL, app_http_tls_cb, &info,
-                              headers, 0 /* maxline */, 0 /* max_resp_len */,
-                              timeout, expected_content_type, it);
+    mem = OSSL_HTTP_get(url, proxy, no_proxy, NULL /* bio */, NULL /* rbio */,
+                        app_http_tls_cb, &info, 0 /* buf_size */, headers,
+                        expected_content_type, 1 /* expect_asn1 */,
+                        OSSL_HTTP_DEFAULT_MAX_RESP_LEN, timeout);
+    resp = ASN1_item_d2i_bio(it, mem, NULL);
+    BIO_free(mem);
+
  end:
     OPENSSL_free(server);
     OPENSSL_free(port);
@@ -2517,21 +2521,31 @@ ASN1_VALUE *app_http_post_asn1(const char *host, const char *port,
                                const STACK_OF(CONF_VALUE) *headers,
                                const char *content_type,
                                ASN1_VALUE *req, const ASN1_ITEM *req_it,
+                               const char *expected_content_type,
                                long timeout, const ASN1_ITEM *rsp_it)
 {
     APP_HTTP_TLS_INFO info;
+    BIO *rsp, *req_mem = ASN1_item_i2d_mem_bio(req_it, req);
+    ASN1_VALUE *res;
 
+    if (req_mem == NULL)
+        return NULL;
     info.server = host;
     info.port = port;
     info.use_proxy = proxy != NULL;
     info.timeout = timeout;
     info.ssl_ctx = ssl_ctx;
-    return OSSL_HTTP_post_asn1(host, port, path, ssl_ctx != NULL,
-                               proxy, no_proxy,
-                               NULL, NULL, app_http_tls_cb, &info,
-                               headers, content_type, req, req_it,
-                               0 /* maxline */,
-                               0 /* max_resp_len */, timeout, NULL, rsp_it);
+    rsp = OSSL_HTTP_transfer(NULL, host, port, path, ssl_ctx != NULL,
+                             proxy, no_proxy, NULL /* bio */, NULL /* rbio */,
+                             app_http_tls_cb, &info,
+                             0 /* buf_size */, headers, content_type, req_mem,
+                             expected_content_type, 1 /* expect_asn1 */,
+                             OSSL_HTTP_DEFAULT_MAX_RESP_LEN, timeout,
+                             0 /* keep_alive */);
+    BIO_free(req_mem);
+    res = ASN1_item_d2i_bio(rsp_it, rsp, NULL);
+    BIO_free(rsp);
+    return res;
 }
 
 #endif

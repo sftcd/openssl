@@ -2277,39 +2277,42 @@ int SSL_get_key_update_type(const SSL *s)
     return s->key_update;
 }
 
-int SSL_renegotiate(SSL *s)
+/*
+ * Can we accept a renegotiation request?  If yes, set the flag and
+ * return 1 if yes. If not, raise error and return 0.
+ */
+static int can_renegotiate(const SSL *s)
 {
     if (SSL_IS_TLS13(s)) {
         ERR_raise(ERR_LIB_SSL, SSL_R_WRONG_SSL_VERSION);
         return 0;
     }
 
-    if ((s->options & SSL_OP_NO_RENEGOTIATION)) {
+    if ((s->options & SSL_OP_NO_RENEGOTIATION) != 0) {
         ERR_raise(ERR_LIB_SSL, SSL_R_NO_RENEGOTIATION);
         return 0;
     }
 
+    return 1;
+}
+
+int SSL_renegotiate(SSL *s)
+{
+    if (!can_renegotiate(s))
+        return 0;
+
     s->renegotiate = 1;
     s->new_session = 1;
-
     return s->method->ssl_renegotiate(s);
 }
 
 int SSL_renegotiate_abbreviated(SSL *s)
 {
-    if (SSL_IS_TLS13(s)) {
-        ERR_raise(ERR_LIB_SSL, SSL_R_WRONG_SSL_VERSION);
+    if (!can_renegotiate(s))
         return 0;
-    }
-
-    if ((s->options & SSL_OP_NO_RENEGOTIATION)) {
-        ERR_raise(ERR_LIB_SSL, SSL_R_NO_RENEGOTIATION);
-        return 0;
-    }
 
     s->renegotiate = 1;
     s->new_session = 0;
-
     return s->method->ssl_renegotiate(s);
 }
 
@@ -2324,10 +2327,14 @@ int SSL_renegotiate_pending(const SSL *s)
 
 int SSL_new_session_ticket(SSL *s)
 {
-    if (SSL_in_init(s) || SSL_IS_FIRST_HANDSHAKE(s) || !s->server
+    /* If we are in init because we're sending tickets, okay to send more. */
+    if ((SSL_in_init(s) && s->ext.extra_tickets_expected == 0)
+            || SSL_IS_FIRST_HANDSHAKE(s) || !s->server
             || !SSL_IS_TLS13(s))
         return 0;
     s->ext.extra_tickets_expected++;
+    if (s->rlayer.wbuf[0].left == 0 && !SSL_in_init(s))
+        ossl_statem_set_in_init(s, 1);
     return 1;
 }
 
@@ -4874,37 +4881,32 @@ void *SSL_CTX_get0_security_ex_data(const SSL_CTX *ctx)
     return ctx->cert->sec_ex;
 }
 
-/*
- * Get/Set/Clear options in SSL_CTX or SSL, formerly macros, now functions that
- * can return unsigned long, instead of the generic long return value from the
- * control interface.
- */
-unsigned long SSL_CTX_get_options(const SSL_CTX *ctx)
+uint64_t SSL_CTX_get_options(const SSL_CTX *ctx)
 {
     return ctx->options;
 }
 
-unsigned long SSL_get_options(const SSL *s)
+uint64_t SSL_get_options(const SSL *s)
 {
     return s->options;
 }
 
-unsigned long SSL_CTX_set_options(SSL_CTX *ctx, unsigned long op)
+uint64_t SSL_CTX_set_options(SSL_CTX *ctx, uint64_t op)
 {
     return ctx->options |= op;
 }
 
-unsigned long SSL_set_options(SSL *s, unsigned long op)
+uint64_t SSL_set_options(SSL *s, uint64_t op)
 {
     return s->options |= op;
 }
 
-unsigned long SSL_CTX_clear_options(SSL_CTX *ctx, unsigned long op)
+uint64_t SSL_CTX_clear_options(SSL_CTX *ctx, uint64_t op)
 {
     return ctx->options &= ~op;
 }
 
-unsigned long SSL_clear_options(SSL *s, unsigned long op)
+uint64_t SSL_clear_options(SSL *s, uint64_t op)
 {
     return s->options &= ~op;
 }

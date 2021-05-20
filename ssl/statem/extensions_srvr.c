@@ -669,6 +669,8 @@ int tls_parse_ctos_key_share(SSL *s, PACKET *pkt, unsigned int context, X509 *x,
         }
 
         s->s3.group_id = group_id;
+        /* Cache the selected group ID in the SSL_SESSION */
+        s->session->kex_group = group_id;
 
         if (EVP_PKEY_set1_encoded_public_key(s->s3.peer_tmp,
                 PACKET_data(&encoded_pt),
@@ -1614,6 +1616,13 @@ EXT_RETURN tls_construct_stoc_key_share(SSL *s, WPACKET *pkt,
         }
         return EXT_RETURN_NOT_SENT;
     }
+    if (s->hit && (s->ext.psk_kex_mode & TLSEXT_KEX_MODE_FLAG_KE_DHE) == 0) {
+        /*
+         * PSK ('hit') and explicitly not doing DHE (if the client sent the
+         * DHE option we always take it); don't send key share.
+         */
+        return EXT_RETURN_NOT_SENT;
+    }
 
     if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_key_share)
             || !WPACKET_start_sub_packet_u16(pkt)
@@ -1698,6 +1707,7 @@ EXT_RETURN tls_construct_stoc_key_share(SSL *s, WPACKET *pkt,
             return EXT_RETURN_FAIL;
         }
     }
+    s->s3.did_kex = 1;
     return EXT_RETURN_SENT;
 #else
     return EXT_RETURN_FAIL;
