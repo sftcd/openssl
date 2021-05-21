@@ -33,6 +33,7 @@
 #include "internal/asn1.h"       /* For asn1_d2i_read_bio */
 #include "internal/o_dir.h"
 #include "internal/cryptlib.h"
+#include "crypto/ctype.h"        /* For ossl_isdigit */
 #include "crypto/pem.h"          /* For PVK and "blob" PEM headers */
 
 #include "e_loader_attic_err.c"
@@ -199,6 +200,7 @@ static OSSL_STORE_INFO *new_EMBEDDED(const char *new_pem_name,
         return NULL;
     }
 
+    data->blob = embedded;
     data->pem_name =
         new_pem_name == NULL ? NULL : OPENSSL_strdup(new_pem_name);
 
@@ -207,7 +209,6 @@ static OSSL_STORE_INFO *new_EMBEDDED(const char *new_pem_name,
         store_info_free(info);
         info = NULL;
     }
-    data->blob = embedded;
 
     return info;
 }

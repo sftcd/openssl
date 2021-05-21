@@ -886,7 +886,8 @@ int evp_pkey_ctx_use_cached_data(EVP_PKEY_CTX *ctx);
 
 int evp_method_store_flush(OSSL_LIB_CTX *libctx);
 int evp_set_default_properties_int(OSSL_LIB_CTX *libctx, const char *propq,
-                                   int loadconfig);
+                                   int loadconfig, int mirrored);
+char *evp_get_global_properties_str(OSSL_LIB_CTX *libctx, int loadconfig);
 
 void evp_md_ctx_clear_digest(EVP_MD_CTX *ctx, int force);
 
@@ -904,7 +905,7 @@ int evp_pkey_ctx_ctrl_str_to_param(EVP_PKEY_CTX *ctx,
                                    const char *name, const char *value);
 
 /* These two must ONLY be called for legacy operations */
-int evp_pkey_ctx_set_params_to_ctrl(EVP_PKEY_CTX *ctx, OSSL_PARAM *params);
+int evp_pkey_ctx_set_params_to_ctrl(EVP_PKEY_CTX *ctx, const OSSL_PARAM *params);
 int evp_pkey_ctx_get_params_to_ctrl(EVP_PKEY_CTX *ctx, OSSL_PARAM *params);
 
 /* This must ONLY be called for legacy EVP_PKEYs */

@@ -266,10 +266,15 @@ static int ech_readpemfile(SSL_CTX *ctx, const char *pemfile, SSL_ECH **sechs)
     if (PEM_read_bio(pem_in,&pname,&pheader,&pdata,&plen)<=0) {
         goto err;
     }
-    if (!pheader) {
+    if (!pname) {
         goto err;
     }
-    if (strncmp(PEM_STRING_ECPRIVATEKEY,pheader,strlen(pheader))) {
+    if (strlen(pname)==0) {
+        goto err;
+    }
+    if (strncmp(PEM_STRING_ECPRIVATEKEY,pname,strlen(pname))
+        &&
+        strncmp(PEM_STRING_PKCS8INF,pname,strlen(pname))) {
         goto err;
     }
     prbuf_len=plen;
@@ -287,15 +292,18 @@ static int ech_readpemfile(SSL_CTX *ctx, const char *pemfile, SSL_ECH **sechs)
     if (PEM_read_bio(pem_in,&pname,&pheader,&pdata,&plen)<=0) {
         goto err;
     }
-    if (!pheader) {
+    if (!pname) {
         goto err;
     }
-    if (strncmp(PEM_STRING_ECHCONFIG,pheader,strlen(pheader))) {
+    if (strlen(pname)==0) {
         goto err;
     }
-    OPENSSL_free(pheader); pheader=NULL;
-    if (pname) {
-        OPENSSL_free(pname);  pname=NULL;
+    if (strncmp(PEM_STRING_ECHCONFIG,pname,strlen(pname))) {
+        goto err;
+    }
+    OPENSSL_free(pname);  pname=NULL;
+    if (pheader) {
+        OPENSSL_free(pheader); pheader=NULL;
     }
     if (plen>=ECH_MAX_ECHCONFIG_LEN) {
         goto err;

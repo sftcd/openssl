@@ -34,6 +34,7 @@
 #include <openssl/encoder.h>
 #include <openssl/core_names.h>
 
+#include "internal/numbers.h"   /* includes SIZE_MAX */
 #include "internal/ffc.h"
 #include "crypto/asn1.h"
 #include "crypto/evp.h"
@@ -1335,23 +1336,21 @@ int EVP_PKEY_get_group_name(const EVP_PKEY *pkey, char *gname, size_t gname_sz,
                                           gname, gname_sz, gname_len);
 }
 
-int EVP_PKEY_supports_digest_nid(EVP_PKEY *pkey, int nid)
+int EVP_PKEY_digestsign_supports_digest(EVP_PKEY *pkey, OSSL_LIB_CTX *libctx,
+                                        const char *name, const char *propq)
 {
-    int rv, default_nid;
+    int rv;
+    EVP_MD_CTX *ctx = NULL;
 
-    rv = evp_pkey_asn1_ctrl(pkey, ASN1_PKEY_CTRL_SUPPORTS_MD_NID, nid, NULL);
-    if (rv == -2) {
-        /*
-         * If there is a mandatory default digest and this isn't it, then
-         * the answer is 'no'.
-         */
-        rv = EVP_PKEY_get_default_digest_nid(pkey, &default_nid);
-        if (rv == 2)
-            return (nid == default_nid);
-        /* zero is an error from EVP_PKEY_get_default_digest_nid() */
-        if (rv == 0)
-            return -1;
-    }
+    if ((ctx = EVP_MD_CTX_new()) == NULL)
+        return -1;
+
+    ERR_set_mark();
+    rv = EVP_DigestSignInit_ex(ctx, NULL, name, libctx,
+                               propq, pkey, NULL);
+    ERR_pop_to_mark();
+
+    EVP_MD_CTX_free(ctx);
     return rv;
 }
 
@@ -1879,7 +1878,8 @@ void *evp_pkey_export_to_provider(EVP_PKEY *pk, OSSL_LIB_CTX *libctx,
         if ((keydata = evp_keymgmt_newdata(tmp_keymgmt)) == NULL)
             goto end;
 
-        if (!pk->ameth->export_to(pk, keydata, tmp_keymgmt, libctx, propquery)) {
+        if (!pk->ameth->export_to(pk, keydata, tmp_keymgmt->import,
+                                  libctx, propquery)) {
             evp_keymgmt_freedata(tmp_keymgmt, keydata);
             keydata = NULL;
             goto end;

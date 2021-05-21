@@ -2219,7 +2219,7 @@ int hpke_kg_evp(
             erv=__LINE__; goto err;
         }
     }
-    if (EVP_PKEY_gen(pctx, &skR) <= 0) {
+    if (EVP_PKEY_generate(pctx, &skR) <= 0) {
         erv=__LINE__; goto err;
     }
     EVP_PKEY_CTX_free(pctx); pctx=NULL;
@@ -2340,8 +2340,8 @@ int hpke_prbuf2evp(
     const char *keytype=hpke_kem_tab[kem_id].keytype;
     const char *groupname=hpke_kem_tab[kem_id].groupname;
 
-    if (hpke_kem_tab[kem_id].Npriv==prbuf_len) {
-
+    if (hpke_kem_tab[kem_id].Npriv==prbuf_len ||
+       (hpke_kem_tab[kem_id].Npriv+16)==prbuf_len) {
         if (!keytype) return(0);
         param_bld = OSSL_PARAM_BLD_new();
         if (!param_bld) {
@@ -2356,7 +2356,11 @@ int hpke_prbuf2evp(
             }
         } 
         if (strlen(keytype)==2 && !strcmp(keytype,"EC")) {
-            priv = BN_bin2bn(prbuf, prbuf_len, NULL);
+            if ((hpke_kem_tab[kem_id].Npriv+16)==prbuf_len) {
+                priv = BN_bin2bn(prbuf+16, prbuf_len-16, NULL);
+            } else {
+                priv = BN_bin2bn(prbuf, prbuf_len, NULL);
+            }
             if (!priv) {
                 erv=__LINE__; goto err; 
             } 
@@ -2364,8 +2368,14 @@ int hpke_prbuf2evp(
                 erv=__LINE__; goto err; 
             }
         } else {
-            if (OSSL_PARAM_BLD_push_octet_string(param_bld, "priv", prbuf, prbuf_len)!=1) {
-                erv=__LINE__; goto err; 
+            if ((hpke_kem_tab[kem_id].Npriv+16)==prbuf_len) {
+                if (OSSL_PARAM_BLD_push_octet_string(param_bld, "priv", prbuf+16, prbuf_len-16)!=1) {
+                    erv=__LINE__; goto err; 
+                }
+            } else {
+                if (OSSL_PARAM_BLD_push_octet_string(param_bld, "priv", prbuf, prbuf_len)!=1) {
+                    erv=__LINE__; goto err; 
+                }
             }
         }
         params = OSSL_PARAM_BLD_to_param(param_bld);

@@ -255,9 +255,10 @@ int otherparams_to_params(const EC_KEY *ec, OSSL_PARAM_BLD *tmpl,
                                              name))
         return 0;
 
-    if ((EC_KEY_get_enc_flags(ec) & EC_PKEY_NO_PUBKEY) != 0)
-        ossl_param_build_set_int(tmpl, params,
-                                 OSSL_PKEY_PARAM_EC_INCLUDE_PUBLIC, 0);
+    if ((EC_KEY_get_enc_flags(ec) & EC_PKEY_NO_PUBKEY) != 0
+            && !ossl_param_build_set_int(tmpl, params,
+                                         OSSL_PKEY_PARAM_EC_INCLUDE_PUBLIC, 0))
+        return 0;
 
     ecdh_cofactor_mode =
         (EC_KEY_get_flags(ec) & EC_FLAG_COFACTOR_ECDH) ? 1 : 0;
@@ -1288,14 +1289,8 @@ static void *sm2_gen(void *genctx, OSSL_CALLBACK *osslcb, void *cbarg)
     ret = ec_gen_assign_group(ec, gctx->gen_group);
 
     /* Whether you want it or not, you get a keypair, not just one half */
-    if ((gctx->selection & OSSL_KEYMGMT_SELECT_KEYPAIR) != 0) {
-        /*
-         * For SM2, we need a new flag to indicate the 'generate' function
-         * to use a new range
-         */
-        EC_KEY_set_flags(ec, EC_FLAG_SM2_RANGE);
+    if ((gctx->selection & OSSL_KEYMGMT_SELECT_KEYPAIR) != 0)
         ret = ret && EC_KEY_generate_key(ec);
-    }
 
     if (ret)
         return ec;

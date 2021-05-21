@@ -114,7 +114,6 @@ err:
 static int ecdsa_keygen_test(int id)
 {
     int ret = 0;
-    EVP_PKEY_CTX *ctx = NULL;
     EVP_PKEY *pkey = NULL;
     unsigned char *priv = NULL;
     unsigned char *pubx = NULL, *puby = NULL;
@@ -123,10 +122,7 @@ static int ecdsa_keygen_test(int id)
 
     self_test_args.called = 0;
     self_test_args.enable = 1;
-    if (!TEST_ptr(ctx = EVP_PKEY_CTX_new_from_name(libctx, "EC", NULL))
-        || !TEST_int_gt(EVP_PKEY_keygen_init(ctx), 0)
-        || !TEST_true(EVP_PKEY_CTX_set_group_name(ctx, tst->curve_name))
-        || !TEST_int_gt(EVP_PKEY_keygen(ctx, &pkey), 0)
+    if (!TEST_ptr(pkey = EVP_PKEY_Q_keygen(libctx, NULL, "EC", tst->curve_name))
         || !TEST_int_ge(self_test_args.called, 3)
         || !TEST_true(pkey_get_bn_bytes(pkey, OSSL_PKEY_PARAM_PRIV_KEY, &priv,
                                         &priv_len))
@@ -147,7 +143,6 @@ err:
     OPENSSL_free(pubx);
     OPENSSL_free(puby);
     EVP_PKEY_free(pkey);
-    EVP_PKEY_CTX_free(ctx);
     return ret;
 }
 
@@ -251,17 +246,13 @@ err:
 static int ecdsa_siggen_test(int id)
 {
     int ret = 0;
-    EVP_PKEY_CTX *ctx = NULL, *key_ctx = NULL;
     EVP_PKEY *pkey = NULL;
     size_t sig_len = 0, rlen = 0, slen = 0;
     unsigned char *sig = NULL;
     unsigned char *r = NULL, *s = NULL;
     const struct ecdsa_siggen_st *tst = &ecdsa_siggen_data[id];
 
-    if (!TEST_ptr(ctx = EVP_PKEY_CTX_new_from_name(libctx, "EC", NULL))
-        || !TEST_int_gt(EVP_PKEY_keygen_init(ctx), 0)
-        || !TEST_true(EVP_PKEY_CTX_set_group_name(ctx, tst->curve_name))
-        || !TEST_int_gt(EVP_PKEY_keygen(ctx, &pkey), 0))
+    if (!TEST_ptr(pkey = EVP_PKEY_Q_keygen(libctx, NULL, "EC", tst->curve_name)))
         goto err;
 
     if (!TEST_true(sig_gen(pkey, NULL, tst->digest_alg, tst->msg, tst->msg_len,
@@ -276,8 +267,6 @@ err:
     OPENSSL_free(s);
     OPENSSL_free(sig);
     EVP_PKEY_free(pkey);
-    EVP_PKEY_CTX_free(key_ctx);
-    EVP_PKEY_CTX_free(ctx);
     return ret;
 }
 
@@ -461,7 +450,7 @@ static int dsa_create_pkey(EVP_PKEY **pkey,
                            const unsigned char *g, size_t g_len,
                            const unsigned char *seed, size_t seed_len,
                            int counter,
-                           const char *validate_type,
+                           int validate_pq, int validate_g,
                            const unsigned char *pub, size_t pub_len,
                            BN_CTX *bn_ctx)
 {
@@ -474,9 +463,12 @@ static int dsa_create_pkey(EVP_PKEY **pkey,
     if (!TEST_ptr(bld = OSSL_PARAM_BLD_new())
         || !TEST_ptr(p_bn = BN_CTX_get(bn_ctx))
         || !TEST_ptr(BN_bin2bn(p, p_len, p_bn))
-        || !TEST_true(OSSL_PARAM_BLD_push_utf8_string(bld,
-                         OSSL_PKEY_PARAM_FFC_VALIDATE_TYPE,
-                         validate_type, 0))
+        || !TEST_true(OSSL_PARAM_BLD_push_int(bld,
+                                              OSSL_PKEY_PARAM_FFC_VALIDATE_PQ,
+                                              validate_pq))
+        || !TEST_true(OSSL_PARAM_BLD_push_int(bld,
+                                              OSSL_PKEY_PARAM_FFC_VALIDATE_G,
+                                              validate_g))
         || !TEST_true(OSSL_PARAM_BLD_push_BN(bld, OSSL_PKEY_PARAM_FFC_P, p_bn))
         || !TEST_ptr(q_bn = BN_CTX_get(bn_ctx))
         || !TEST_ptr(BN_bin2bn(q, q_len, q_bn))
@@ -535,7 +527,7 @@ static int dsa_pqver_test(int id)
         || !TEST_true(dsa_create_pkey(&param_key, tst->p, tst->p_len,
                                       tst->q, tst->q_len, NULL, 0,
                                       tst->seed, tst->seed_len, tst->counter,
-                                      OSSL_FFC_PARAM_VALIDATE_PQ,
+                                      1, 0,
                                       NULL, 0,
                                       bn_ctx))
         || !TEST_ptr(key_ctx = EVP_PKEY_CTX_new_from_pkey(libctx, param_key,
@@ -636,7 +628,7 @@ static int dsa_sigver_test(int id)
     if (!TEST_ptr(bn_ctx = BN_CTX_new())
         || !TEST_true(dsa_create_pkey(&pkey, tst->p, tst->p_len,
                                       tst->q, tst->q_len, tst->g, tst->g_len,
-                                      NULL, 0, 0, "", tst->pub, tst->pub_len,
+                                      NULL, 0, 0, 0, 0, tst->pub, tst->pub_len,
                                       bn_ctx)))
         goto err;
 
@@ -1007,21 +999,6 @@ err:
 #endif /* OPENSSL_NO_DH */
 
 
-static EVP_PKEY *rsa_keygen(int bits)
-{
-    EVP_PKEY *key = NULL;
-    EVP_PKEY_CTX *keygen_ctx = NULL;
-
-    if (!TEST_ptr(keygen_ctx = EVP_PKEY_CTX_new_from_name(libctx, "RSA", NULL))
-        || !TEST_int_gt(EVP_PKEY_keygen_init(keygen_ctx), 0)
-        || !TEST_true(EVP_PKEY_CTX_set_rsa_keygen_bits(keygen_ctx, bits))
-        || !TEST_int_gt(EVP_PKEY_keygen(keygen_ctx, &key), 0))
-        goto err;
-err:
-    EVP_PKEY_CTX_free(keygen_ctx);
-    return key;
-}
-
 static int rsa_create_pkey(EVP_PKEY **pkey,
                            const unsigned char *n, size_t n_len,
                            const unsigned char *e, size_t e_len,
@@ -1199,7 +1176,7 @@ static int rsa_siggen_test(int id)
     }
     *p++ = OSSL_PARAM_construct_end();
 
-    if (!TEST_ptr(pkey = rsa_keygen(tst->mod))
+    if (!TEST_ptr(pkey = EVP_PKEY_Q_keygen(libctx, NULL, "RSA", tst->mod))
        || !TEST_true(pkey_get_bn_bytes(pkey, OSSL_PKEY_PARAM_RSA_N, &n, &n_len))
        || !TEST_true(pkey_get_bn_bytes(pkey, OSSL_PKEY_PARAM_RSA_E, &e, &e_len))
        || !TEST_true(sig_gen(pkey, params, tst->digest_alg,
@@ -1275,7 +1252,7 @@ static int rsa_decryption_primitive_test(int id)
     BN_CTX *bn_ctx = NULL;
     const struct rsa_decrypt_prim_st *tst  = &rsa_decrypt_prim_data[id];
 
-    if (!TEST_ptr(pkey = rsa_keygen(2048))
+    if (!TEST_ptr(pkey = EVP_PKEY_Q_keygen(libctx, NULL, "RSA", 2048))
         || !TEST_true(pkey_get_bn_bytes(pkey, OSSL_PKEY_PARAM_RSA_N, &n, &n_len))
         || !TEST_true(pkey_get_bn_bytes(pkey, OSSL_PKEY_PARAM_RSA_E, &e, &e_len))
         || !TEST_ptr(ctx = EVP_PKEY_CTX_new_from_pkey(libctx, pkey, ""))

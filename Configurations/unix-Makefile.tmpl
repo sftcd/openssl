@@ -3,6 +3,8 @@
 ##
 ## {- join("\n## ", @autowarntext) -}
 {-
+     use OpenSSL::Util;
+
      our $makedep_scheme = $config{makedep_scheme};
      our $makedepcmd = platform->makedepcmd();
 
@@ -506,7 +508,8 @@ build_all_generated: $(GENERATED_MANDATORY) $(GENERATED) build_docs
 all: build_sw build_docs
 
 test: tests
-{- dependmagic('tests'); -}: build_programs_nodep build_modules_nodep link-utils
+{- dependmagic('tests'); -}: build_programs_nodep build_modules_nodep link-utils run_tests
+run_tests:
 	@ : {- output_off() if $disabled{tests}; "" -}
 	( SRCTOP=$(SRCDIR) \
 	  BLDTOP=$(BLDDIR) \
@@ -520,8 +523,7 @@ test: tests
 
 list-tests:
 	@ : {- output_off() if $disabled{tests}; "" -}
-	@SRCTOP="$(SRCDIR)" \
-	 $(PERL) $(SRCDIR)/test/run_tests.pl list
+	$(MAKE) run_tests TESTS=list
 	@ : {- if ($disabled{tests}) { output_on(); } else { output_off(); } "" -}
 	@echo "Tests are not supported with your chosen Configure options"
 	@ : {- output_on() if !$disabled{tests}; "" -}
@@ -567,8 +569,9 @@ clean: libclean
 	-find . -name '*{- platform->depext() -}' \! -name '.*' \! -type d -exec $(RM) {} \;
 	-find . -name '*{- platform->objext() -}' \! -name '.*' \! -type d -exec $(RM) {} \;
 	$(RM) core
-	$(RM) tags TAGS doc-nits cmd-nits md-nits
+	$(RM) tags TAGS doc-nits md-nits
 	$(RM) -r test/test-runs
+	$(RM) providers/fips*.new
 	$(RM) openssl.pc libcrypto.pc libssl.pc
 	-find . -type l \! -name '.*' -exec $(RM) {} \;
 
@@ -937,6 +940,7 @@ install_man_docs: build_man_docs
 		$(ECHO) "install $$x -> $(DESTDIR)$(MANDIR)/man1/$${fn}$(MANSUFFIX)"; \
 		cp $$x $(DESTDIR)$(MANDIR)/man1/$${fn}$(MANSUFFIX); \
 		chmod 644 $(DESTDIR)$(MANDIR)/man1/$${fn}$(MANSUFFIX); \
+		$(PERL) $(SRCDIR)/util/write-man-symlinks install $(SRCDIR)/doc/man1 $(BLDDIR)/doc/man1 $${fn}$(MANSUFFIX) $(DESTDIR)$(MANDIR)/man1; \
 	done
 	@set -e; for x in dummy $(MANDOCS3); do \
 		if [ "$$x" = "dummy" ]; then continue; fi; \
@@ -944,6 +948,7 @@ install_man_docs: build_man_docs
 		$(ECHO) "install $$x -> $(DESTDIR)$(MANDIR)/man3/$${fn}$(MANSUFFIX)"; \
 		cp $$x $(DESTDIR)$(MANDIR)/man3/$${fn}$(MANSUFFIX); \
 		chmod 644 $(DESTDIR)$(MANDIR)/man3/$${fn}$(MANSUFFIX); \
+		$(PERL) $(SRCDIR)/util/write-man-symlinks install $(SRCDIR)/doc/man3 $(BLDDIR)/doc/man3 $${fn}$(MANSUFFIX) $(DESTDIR)$(MANDIR)/man3; \
 	done
 	@set -e; for x in dummy $(MANDOCS5); do \
 		if [ "$$x" = "dummy" ]; then continue; fi; \
@@ -951,6 +956,7 @@ install_man_docs: build_man_docs
 		$(ECHO) "install $$x -> $(DESTDIR)$(MANDIR)/man5/$${fn}$(MANSUFFIX)"; \
 		cp $$x $(DESTDIR)$(MANDIR)/man5/$${fn}$(MANSUFFIX); \
 		chmod 644 $(DESTDIR)$(MANDIR)/man5/$${fn}$(MANSUFFIX); \
+		$(PERL) $(SRCDIR)/util/write-man-symlinks install $(SRCDIR)/doc/man5 $(BLDDIR)/doc/man5 $${fn}$(MANSUFFIX) $(DESTDIR)$(MANDIR)/man5; \
 	done
 	@set -e; for x in dummy $(MANDOCS7); do \
 		if [ "$$x" = "dummy" ]; then continue; fi; \
@@ -958,33 +964,38 @@ install_man_docs: build_man_docs
 		$(ECHO) "install $$x -> $(DESTDIR)$(MANDIR)/man7/$${fn}$(MANSUFFIX)"; \
 		cp $$x $(DESTDIR)$(MANDIR)/man7/$${fn}$(MANSUFFIX); \
 		chmod 644 $(DESTDIR)$(MANDIR)/man7/$${fn}$(MANSUFFIX); \
+		$(PERL) $(SRCDIR)/util/write-man-symlinks install $(SRCDIR)/doc/man7 $(BLDDIR)/doc/man7 $${fn}$(MANSUFFIX) $(DESTDIR)$(MANDIR)/man7; \
 	done
 
-uninstall_man_docs:
+uninstall_man_docs: build_man_docs
 	@$(ECHO) "*** Uninstalling manpages"
 	@set -e; for x in dummy $(MANDOCS1); do \
 		if [ "$$x" = "dummy" ]; then continue; fi; \
 		fn=`basename $$x`; \
 		$(ECHO) "$(RM) $(DESTDIR)$(MANDIR)/man1/$${fn}$(MANSUFFIX)"; \
 		$(RM) $(DESTDIR)$(MANDIR)/man1/$${fn}$(MANSUFFIX); \
+		$(PERL) $(SRCDIR)/util/write-man-symlinks uninstall $(SRCDIR)/doc/man1 $(BLDDIR)/doc/man1 $${fn}$(MANSUFFIX) $(DESTDIR)$(MANDIR)/man1; \
 	done
 	@set -e; for x in dummy $(MANDOCS3); do \
 		if [ "$$x" = "dummy" ]; then continue; fi; \
 		fn=`basename $$x`; \
 		$(ECHO) "$(RM) $(DESTDIR)$(MANDIR)/man3/$${fn}$(MANSUFFIX)"; \
 		$(RM) $(DESTDIR)$(MANDIR)/man3/$${fn}$(MANSUFFIX); \
+		$(PERL) $(SRCDIR)/util/write-man-symlinks uninstall $(SRCDIR)/doc/man3 $(BLDDIR)/doc/man3 $${fn}$(MANSUFFIX) $(DESTDIR)$(MANDIR)/man3; \
 	done
 	@set -e; for x in dummy $(MANDOCS5); do \
 		if [ "$$x" = "dummy" ]; then continue; fi; \
 		fn=`basename $$x`; \
 		$(ECHO) "$(RM) $(DESTDIR)$(MANDIR)/man5/$${fn}$(MANSUFFIX)"; \
 		$(RM) $(DESTDIR)$(MANDIR)/man5/$${fn}$(MANSUFFIX); \
+		$(PERL) $(SRCDIR)/util/write-man-symlinks uninstall $(SRCDIR)/doc/man5 $(BLDDIR)/doc/man5 $${fn}$(MANSUFFIX) $(DESTDIR)$(MANDIR)/man5; \
 	done
 	@set -e; for x in dummy $(MANDOCS7); do \
 		if [ "$$x" = "dummy" ]; then continue; fi; \
 		fn=`basename $$x`; \
 		$(ECHO) "$(RM) $(DESTDIR)$(MANDIR)/man7/$${fn}$(MANSUFFIX)"; \
 		$(RM) $(DESTDIR)$(MANDIR)/man7/$${fn}$(MANSUFFIX); \
+		$(PERL) $(SRCDIR)/util/write-man-symlinks uninstall $(SRCDIR)/doc/man7 $(BLDDIR)/doc/man7 $${fn}$(MANSUFFIX) $(DESTDIR)$(MANDIR)/man7; \
 	done
 
 install_html_docs: build_html_docs
@@ -1055,21 +1066,15 @@ uninstall_html_docs:
 # It's important that generate_buildinfo comes after ordinals, as ordinals
 # is sensitive to build.info changes.
 update: generate errors ordinals generate_buildinfo
-{- output_off() if $disabled{fips}; "" -}
-update: fips-checksums
-{- output_on() if $disabled{fips}; "" -}
 
 generate: generate_apps generate_crypto_bn generate_crypto_objects \
           generate_crypto_conf generate_crypto_asn1 generate_fuzz_oids
 
 generate_buildinfo: generate_doc_buildinfo
 
-.PHONY: doc-nits cmd-nits md-nits
+.PHONY: doc-nits md-nits
 doc-nits: build_generated_pods
-	$(PERL) $(SRCDIR)/util/find-doc-nits -n -l -e
-
-cmd-nits: build_generated apps/openssl build_generated_pods
-	$(PERL) $(SRCDIR)/util/find-doc-nits -c
+	$(PERL) $(SRCDIR)/util/find-doc-nits -c -n -l -e
 
 # This uses "mdl", the markdownlint application, which is written in ruby.
 # The source is at https://github.com/markdownlint/markdownlint
@@ -1140,9 +1145,8 @@ generate_doc_buildinfo:
                 mv $(SRCDIR)/doc/build.info.new $(SRCDIR)/doc/build.info; \
           fi )
 
-{- output_off() if $disabled{fips}; "" -}
-generate_fips_sources: $(SRCDIR)/providers/fips.module.sources
-$(SRCDIR)/providers/fips.module.sources: \
+generate_fips_sources: providers/fips.module.sources.new
+providers/fips.module.sources.new: \
                 $(SRCDIR)/Configure \
                 {- join(" \\\n" . ' ' x 16,
                         fill_lines(" ", $COLUMNS - 16,
@@ -1154,9 +1158,9 @@ $(SRCDIR)/providers/fips.module.sources: \
 	( \
 	  srcdir=`cd $(SRCDIR); pwd`; \
 	  cd sources-tmp \
-	  && $$srcdir/Configure enable-fips \
+	  && $$srcdir/Configure --banner=Configured enable-fips \
 	  && ./configdata.pm --query 'get_sources("providers/fips")' > sources1 \
-	  && $$srcdir/Configure enable-fips no-asm \
+	  && $$srcdir/Configure --banner=Configured enable-fips no-asm \
 	  && ./configdata.pm --query 'get_sources("providers/fips")' > sources2 \
 	)
 	( \
@@ -1171,9 +1175,8 @@ $(SRCDIR)/providers/fips.module.sources: \
 		   crypto/sha/asm/*.pl; do \
 	    echo "$$x"; \
 	  done \
-	) | sort | uniq > $(SRCDIR)/providers/fips.module.sources
+	) | sort | uniq > providers/fips.module.sources.new
 	rm -rf sources-tmp
-{- output_on() if $disabled{fips}; "" -}
 
 # Set to -force to force a rebuild
 ERROR_REBUILD=
@@ -1261,29 +1264,38 @@ ordinals: build_generated
                 $(SSLHEADERS)
 
 test_ordinals:
-	( cd test; \
-	  SRCTOP=../$(SRCDIR) \
-	  BLDTOP=../$(BLDDIR) \
-	    $(PERL) ../$(SRCDIR)/test/run_tests.pl test_ordinals )
+	$(MAKE) run_tests TESTS=test_ordinals
 
 tags TAGS: FORCE
 	rm -f TAGS tags
 	-ctags -R .
 	-etags `find . -name '*.[ch]' -o -name '*.pm'`
 
-{- output_off() if $disabled{fips}; "" -}
-fips-checksums: generate_fips_sources
-	if which unifdef > /dev/null; then \
-	    ( cd $(SRCDIR) \
-	      && cat providers/fips.module.sources \
-	             | xargs ./util/fips-checksums.sh \
-	             > providers/fips-sources.checksums \
-	      && sha256sum providers/fips-sources.checksums \
-	             > providers/fips.checksum ); \
-	else \
-	    echo >&2 "WARNING: unifdef not in your \$$PATH, FIPS checksums not calculated"; \
-	fi
-{- output_on() if $disabled{fips}; "" -}
+providers/fips.checksum.new: providers/fips.module.sources.new
+	@which unifdef > /dev/null || \
+	( echo >&2 "ERROR: unifdef not in your \$$PATH, FIPS checksums not calculated"; \
+	  false )
+	( sources=`pwd`/providers/fips.module.sources.new; \
+	  cd $(SRCDIR) \
+	  && cat $$sources \
+	         | xargs ./util/fips-checksums.sh ) \
+	         > providers/fips-sources.checksums.new \
+	&& sha256sum providers/fips-sources.checksums.new \
+	     | sed -e 's|\.new||' > providers/fips.checksum.new
+
+fips-checksums: providers/fips.checksum.new
+
+$(SRCDIR)/providers/fips.checksum: providers/fips.checksum.new
+	cp -p providers/fips.module.sources.new $(SRCDIR)/providers/fips.module.sources
+	cp -p providers/fips-sources.checksums.new $(SRCDIR)/providers/fips-sources.checksums
+	cp -p providers/fips.checksum.new $(SRCDIR)/providers/fips.checksum
+
+update-fips-checksums: $(SRCDIR)/providers/fips.checksum
+
+diff-fips-checksums: fips-checksums
+	diff -u $(SRCDIR)/providers/fips.module.sources providers/fips.module.sources.new
+	diff -u $(SRCDIR)/providers/fips-sources.checksums providers/fips-sources.checksums.new
+	diff -u $(SRCDIR)/providers/fips.checksum providers/fips.checksum.new
 
 # Release targets (note: only available on Unix) #####################
 

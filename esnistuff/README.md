@@ -28,6 +28,14 @@ Most recent first...
 DON'T TRY ECH YET!!! The very much work-in-progress code is
 sooooo awful still...
 
+- 20210520: remerged with upstream - there's some new issue in 
+  reading ECH private keys - just put in a workaround for x25519
+  for now, but needs checking.
+
+- 20210520: a bunch of improvements wrt the CI actions done on
+  pushing - many now working (coupla windows changes still needed,
+  some docs and a few others, but mostly done).
+
 - 20210514: finally got the ``make test`` target fixed after a lot
   of painful mucking about (the fault was mine but wasn't helped by
   the oddball test setup). Also brought GREASE up to draft-10 spec

@@ -96,6 +96,7 @@ static void fips_prov_ossl_ctx_free(void *fgbl)
 }
 
 static const OSSL_LIB_CTX_METHOD fips_prov_ossl_ctx_method = {
+    OSSL_LIB_CTX_METHOD_DEFAULT_PRIORITY,
     fips_prov_ossl_ctx_new,
     fips_prov_ossl_ctx_free,
 };
@@ -668,7 +669,7 @@ int OSSL_provider_init(const OSSL_CORE_HANDLE *handle,
 
     if (!fips_get_params_from_core(fgbl)) {
         /* Error already raised */
-        return 0;
+        goto err;
     }
     /*
      * Disable the conditional error check if it's disabled in the fips config

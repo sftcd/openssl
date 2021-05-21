@@ -2516,11 +2516,22 @@ static int test_extra_tickets(int idx)
             || !TEST_int_eq(4, new_called))
         goto end;
 
+    /* Once more, but with SSL_do_handshake() to drive the ticket generation */
+    c = '4';
+    new_called = 0;
+    if (!TEST_true(SSL_new_session_ticket(serverssl))
+            || !TEST_true(SSL_new_session_ticket(serverssl))
+            || !TEST_true(SSL_do_handshake(serverssl))
+            || !TEST_int_eq(2, new_called)
+            || !TEST_false(SSL_read_ex(clientssl, buf, sizeof(buf), &nbytes))
+            || !TEST_int_eq(4, new_called))
+        goto end;
+
     /*
      * Use the always-retry BIO to exercise the logic that forces ticket
      * generation to wait until a record boundary.
      */
-    c = '4';
+    c = '5';
     new_called = 0;
     tmp = SSL_get_wbio(serverssl);
     if (!TEST_ptr(tmp) || !TEST_true(BIO_up_ref(tmp))) {
@@ -2536,9 +2547,14 @@ static int test_extra_tickets(int idx)
     /* Restore a BIO that will let the write succeed */
     SSL_set0_wbio(serverssl, tmp);
     tmp = NULL;
-    /* These calls should just queue the request and not send anything. */
+    /*
+     * These calls should just queue the request and not send anything
+     * even if we explicitly try to hit the state machine.
+     */
     if (!TEST_true(SSL_new_session_ticket(serverssl))
             || !TEST_true(SSL_new_session_ticket(serverssl))
+            || !TEST_int_eq(0, new_called)
+            || !TEST_true(SSL_do_handshake(serverssl))
             || !TEST_int_eq(0, new_called))
         goto end;
     /* Re-do the write; still no tickets sent */
@@ -2551,8 +2567,12 @@ static int test_extra_tickets(int idx)
             || !TEST_int_eq(c, buf[0])
             || !TEST_false(SSL_read_ex(clientssl, buf, sizeof(buf), &nbytes)))
         goto end;
+    /* Even trying to hit the state machine now will still not send tickets */
+    if (!TEST_true(SSL_do_handshake(serverssl))
+            || !TEST_int_eq(0, new_called))
+        goto end;
     /* Now the *next* write should send the tickets */
-    c = '5';
+    c = '6';
     if (!TEST_true(SSL_write_ex(serverssl, &c, 1, &nbytes))
             || !TEST_size_t_eq(1, nbytes)
             || !TEST_int_eq(2, new_called)
@@ -4487,19 +4507,19 @@ static int test_ciphersuite_change(void)
  * Test 12 = Test all ECDHE with TLSv1.2 client and server
  * Test 13 = Test all FFDHE with TLSv1.2 client and server
  */
+# ifndef OPENSSL_NO_EC
+static int ecdhe_kexch_groups[] = {NID_X9_62_prime256v1, NID_secp384r1,
+                                   NID_secp521r1, NID_X25519, NID_X448};
+# endif
+# ifndef OPENSSL_NO_DH
+static int ffdhe_kexch_groups[] = {NID_ffdhe2048, NID_ffdhe3072, NID_ffdhe4096,
+                                   NID_ffdhe6144, NID_ffdhe8192};
+# endif
 static int test_key_exchange(int idx)
 {
     SSL_CTX *sctx = NULL, *cctx = NULL;
     SSL *serverssl = NULL, *clientssl = NULL;
     int testresult = 0;
-# ifndef OPENSSL_NO_EC
-    int ecdhe_kexch_groups[] = {NID_X9_62_prime256v1, NID_secp384r1,
-                                NID_secp521r1, NID_X25519, NID_X448};
-# endif
-# ifndef OPENSSL_NO_DH
-    int ffdhe_kexch_groups[] = {NID_ffdhe2048, NID_ffdhe3072, NID_ffdhe4096,
-                                NID_ffdhe6144, NID_ffdhe8192};
-# endif
     int kexch_alg;
     int *kexch_groups = &kexch_alg;
     int kexch_groups_size = 1;
@@ -4592,7 +4612,9 @@ static int test_key_exchange(int idx)
         goto end;
 
     if (!TEST_true(SSL_CTX_set_cipher_list(sctx,
-                   TLS1_TXT_RSA_WITH_AES_128_SHA)))
+                   TLS1_TXT_ECDHE_RSA_WITH_AES_128_GCM_SHA256 ":"
+                   TLS1_TXT_DHE_RSA_WITH_AES_128_GCM_SHA256))
+            || !TEST_true(SSL_CTX_set_dh_auto(sctx, 1)))
         goto end;
 
     /*
@@ -4601,8 +4623,8 @@ static int test_key_exchange(int idx)
      */
 # ifndef OPENSSL_NO_TLS1_2
     if (!TEST_true(SSL_CTX_set_cipher_list(cctx,
-                   TLS1_TXT_ECDHE_ECDSA_WITH_AES_128_CCM ":"
-                   TLS1_TXT_RSA_WITH_AES_128_SHA)))
+                   TLS1_TXT_ECDHE_RSA_WITH_AES_128_GCM_SHA256 ":"
+                   TLS1_TXT_DHE_RSA_WITH_AES_128_GCM_SHA256)))
         goto end;
 # endif
 
@@ -4630,7 +4652,8 @@ static int test_key_exchange(int idx)
                      kexch_name0))
         goto end;
 
-    if (max_version == TLS1_3_VERSION) {
+    /* We don't implement RFC 7919 named groups for TLS 1.2. */
+    if (idx != 13) {
         if (!TEST_int_eq(SSL_get_negotiated_group(serverssl), kexch_groups[0]))
             goto end;
         if (!TEST_int_eq(SSL_get_negotiated_group(clientssl), kexch_groups[0]))
@@ -4645,6 +4668,228 @@ static int test_key_exchange(int idx)
     SSL_CTX_free(cctx);
     return testresult;
 }
+
+# if !defined(OPENSSL_NO_TLS1_2) \
+     && !defined(OPENSSL_NO_EC)  \
+     && !defined(OPENSSL_NO_DH)
+static int set_ssl_groups(SSL *serverssl, SSL *clientssl, int clientmulti,
+                          int isecdhe, int idx)
+{
+    int kexch_alg;
+    int *kexch_groups = &kexch_alg;
+    int numec, numff;
+
+    numec = OSSL_NELEM(ecdhe_kexch_groups);
+    numff = OSSL_NELEM(ffdhe_kexch_groups);
+    if (isecdhe)
+        kexch_alg = ecdhe_kexch_groups[idx];
+    else
+        kexch_alg = ffdhe_kexch_groups[idx];
+
+    if (clientmulti) {
+        if (!TEST_true(SSL_set1_groups(serverssl, kexch_groups, 1)))
+            return 0;
+        if (isecdhe) {
+            if (!TEST_true(SSL_set1_groups(clientssl, ecdhe_kexch_groups,
+                                           numec)))
+                return 0;
+        } else {
+            if (!TEST_true(SSL_set1_groups(clientssl, ffdhe_kexch_groups,
+                                           numff)))
+                return 0;
+        }
+    } else {
+        if (!TEST_true(SSL_set1_groups(clientssl, kexch_groups, 1)))
+            return 0;
+        if (isecdhe) {
+            if (!TEST_true(SSL_set1_groups(serverssl, ecdhe_kexch_groups,
+                                           numec)))
+                return 0;
+        } else {
+            if (!TEST_true(SSL_set1_groups(serverssl, ffdhe_kexch_groups,
+                                           numff)))
+                return 0;
+        }
+    }
+    return 1;
+}
+
+/*-
+ * Test the SSL_get_negotiated_group() API across a battery of scenarios.
+ * Run through both the ECDHE and FFDHE group lists used in the previous
+ * test, for both TLS 1.2 and TLS 1.3, negotiating each group in turn,
+ * confirming the expected result; then perform a resumption handshake
+ * while offering the same group list, and another resumption handshake
+ * offering a different group list.  The returned value should be the
+ * negotiated group for the initial handshake; for TLS 1.3 resumption
+ * handshakes the returned value will be negotiated on the resumption
+ * handshake itself, but for TLS 1.2 resumption handshakes the value will
+ * be cached in the session from the original handshake, regardless of what
+ * was offered in the resumption ClientHello.
+ *
+ * Using E for the number of EC groups and F for the number of FF groups:
+ * E tests of ECDHE with TLS 1.3, client sends only one group
+ * F tests of FFDHE with TLS 1.3, client sends only one group
+ * E tests of ECDHE with TLS 1.2, client sends only one group
+ * F tests of FFDHE with TLS 1.2, client sends only one group
+ * E tests of ECDHE with TLS 1.3, server only has one group
+ * F tests of FFDHE with TLS 1.3, server only has one group
+ * E tests of ECDHE with TLS 1.2, server only has one group
+ * F tests of FFDHE with TLS 1.2, server only has one group
+ */
+static int test_negotiated_group(int idx)
+{
+    int clientmulti, istls13, isecdhe, numec, numff, numgroups;
+    int expectednid;
+    SSL_CTX *sctx = NULL, *cctx = NULL;
+    SSL *serverssl = NULL, *clientssl = NULL;
+    SSL_SESSION *origsess = NULL;
+    int testresult = 0;
+    int kexch_alg;
+    int max_version = TLS1_3_VERSION;
+
+    numec = OSSL_NELEM(ecdhe_kexch_groups);
+    numff = OSSL_NELEM(ffdhe_kexch_groups);
+    numgroups = numec + numff;
+    clientmulti = (idx < 2 * numgroups);
+    idx = idx % (2 * numgroups);
+    istls13 = (idx < numgroups);
+    idx = idx % numgroups;
+    isecdhe = (idx < numec);
+    if (!isecdhe)
+        idx -= numec;
+    /* Now 'idx' is an index into ecdhe_kexch_groups or ffdhe_kexch_groups */
+    if (isecdhe)
+        kexch_alg = ecdhe_kexch_groups[idx];
+    else
+        kexch_alg = ffdhe_kexch_groups[idx];
+    /* We expect nothing for the unimplemented TLS 1.2 FFDHE named groups */
+    if (!istls13 && !isecdhe)
+        expectednid = NID_undef;
+    else
+        expectednid = kexch_alg;
+
+    if (!istls13)
+        max_version = TLS1_2_VERSION;
+
+    if (!TEST_true(create_ssl_ctx_pair(libctx, TLS_server_method(),
+                                       TLS_client_method(), TLS1_VERSION,
+                                       max_version, &sctx, &cctx, cert,
+                                       privkey)))
+        goto end;
+
+    /*
+     * Force (EC)DHE ciphers for TLS 1.2.
+     * Be sure to enable auto tmp DH so that FFDHE can succeed.
+     */
+    if (!TEST_true(SSL_CTX_set_cipher_list(sctx,
+                   TLS1_TXT_ECDHE_RSA_WITH_AES_128_GCM_SHA256 ":"
+                   TLS1_TXT_DHE_RSA_WITH_AES_128_GCM_SHA256))
+            || !TEST_true(SSL_CTX_set_dh_auto(sctx, 1)))
+        goto end;
+    if (!TEST_true(SSL_CTX_set_cipher_list(cctx,
+                   TLS1_TXT_ECDHE_RSA_WITH_AES_128_GCM_SHA256 ":"
+                   TLS1_TXT_DHE_RSA_WITH_AES_128_GCM_SHA256)))
+        goto end;
+
+    if (!TEST_true(create_ssl_objects(sctx, cctx, &serverssl, &clientssl,
+                                             NULL, NULL)))
+        goto end;
+
+    if (!TEST_true(set_ssl_groups(serverssl, clientssl, clientmulti, isecdhe,
+                                  idx)))
+        goto end;
+
+    if (!TEST_true(create_ssl_connection(serverssl, clientssl, SSL_ERROR_NONE)))
+        goto end;
+
+    /* Initial handshake; always the configured one */
+    if (!TEST_uint_eq(SSL_get_negotiated_group(clientssl), expectednid)
+            || !TEST_uint_eq(SSL_get_negotiated_group(serverssl), expectednid))
+        goto end;
+
+    if (!TEST_ptr((origsess = SSL_get1_session(clientssl))))
+        goto end;
+
+    SSL_shutdown(clientssl);
+    SSL_shutdown(serverssl);
+    SSL_free(serverssl);
+    SSL_free(clientssl);
+    serverssl = clientssl = NULL;
+
+    /* First resumption attempt; use the same config as initial handshake */
+    if (!TEST_true(create_ssl_objects(sctx, cctx, &serverssl, &clientssl,
+                                             NULL, NULL))
+            || !TEST_true(SSL_set_session(clientssl, origsess))
+            || !TEST_true(set_ssl_groups(serverssl, clientssl, clientmulti,
+                                         isecdhe, idx)))
+        goto end;
+
+    if (!TEST_true(create_ssl_connection(serverssl, clientssl, SSL_ERROR_NONE))
+            || !TEST_true(SSL_session_reused(clientssl)))
+        goto end;
+
+    /* Still had better agree, since nothing changed... */
+    if (!TEST_uint_eq(SSL_get_negotiated_group(clientssl), expectednid)
+            || !TEST_uint_eq(SSL_get_negotiated_group(serverssl), expectednid))
+        goto end;
+
+    SSL_shutdown(clientssl);
+    SSL_shutdown(serverssl);
+    SSL_free(serverssl);
+    SSL_free(clientssl);
+    serverssl = clientssl = NULL;
+
+    /*-
+     * Second resumption attempt
+     * The party that picks one group changes it, which we effectuate by
+     * changing 'idx' and updating what we expect.
+     */
+    if (idx == 0)
+        idx = 1;
+    else
+        idx--;
+    if (istls13) {
+        if (isecdhe)
+            expectednid = ecdhe_kexch_groups[idx];
+        else
+            expectednid = ffdhe_kexch_groups[idx];
+        /* Verify that we are changing what we expect. */
+        if (!TEST_int_ne(expectednid, kexch_alg))
+            goto end;
+    } else {
+        /* TLS 1.2 only supports named groups for ECDHE. */
+        if (isecdhe)
+            expectednid = kexch_alg;
+        else
+            expectednid = 0;
+    }
+    if (!TEST_true(create_ssl_objects(sctx, cctx, &serverssl, &clientssl,
+                                             NULL, NULL))
+            || !TEST_true(SSL_set_session(clientssl, origsess))
+            || !TEST_true(set_ssl_groups(serverssl, clientssl, clientmulti,
+                                         isecdhe, idx)))
+        goto end;
+
+    if (!TEST_true(create_ssl_connection(serverssl, clientssl, SSL_ERROR_NONE))
+            || !TEST_true(SSL_session_reused(clientssl)))
+        goto end;
+
+    /* Check that we get what we expected */
+    if (!TEST_uint_eq(SSL_get_negotiated_group(clientssl), expectednid)
+            || !TEST_uint_eq(SSL_get_negotiated_group(serverssl), expectednid))
+        goto end;
+
+    testresult = 1;
+ end:
+    SSL_free(serverssl);
+    SSL_free(clientssl);
+    SSL_CTX_free(sctx);
+    SSL_CTX_free(cctx);
+    SSL_SESSION_free(origsess);
+    return testresult;
+}
+# endif /* !defined(OPENSSL_NO_EC) && !defined(OPENSSL_NO_DH) */
 
 /*
  * Test TLSv1.3 Cipher Suite
@@ -8102,12 +8347,21 @@ static int test_sigalgs_available(int idx)
     if (!TEST_ptr(cctx) || !TEST_ptr(sctx))
         goto end;
 
-    if (!TEST_true(create_ssl_ctx_pair(libctx, TLS_server_method(),
-                                       TLS_client_method(),
-                                       TLS1_VERSION,
-                                       0,
-                                       &sctx, &cctx, cert, privkey)))
-        goto end;
+    if (idx != 5) {
+        if (!TEST_true(create_ssl_ctx_pair(libctx, TLS_server_method(),
+                                           TLS_client_method(),
+                                           TLS1_VERSION,
+                                           0,
+                                           &sctx, &cctx, cert, privkey)))
+            goto end;
+    } else {
+        if (!TEST_true(create_ssl_ctx_pair(libctx, TLS_server_method(),
+                                           TLS_client_method(),
+                                           TLS1_VERSION,
+                                           0,
+                                           &sctx, &cctx, cert2, privkey2)))
+            goto end;
+    }
 
     /* Ensure we only use TLSv1.2 ciphersuites based on SHA256 */
     if (idx < 4) {
@@ -8135,16 +8389,17 @@ static int test_sigalgs_available(int idx)
             goto end;
     }
 
-    if (!TEST_int_eq(SSL_CTX_use_certificate_file(sctx, cert2,
-                                                  SSL_FILETYPE_PEM), 1)
+    if (idx != 5
+        && (!TEST_int_eq(SSL_CTX_use_certificate_file(sctx, cert2,
+                                                      SSL_FILETYPE_PEM), 1)
             || !TEST_int_eq(SSL_CTX_use_PrivateKey_file(sctx,
                                                         privkey2,
                                                         SSL_FILETYPE_PEM), 1)
-            || !TEST_int_eq(SSL_CTX_check_private_key(sctx), 1))
+            || !TEST_int_eq(SSL_CTX_check_private_key(sctx), 1)))
         goto end;
 
     if (!TEST_true(create_ssl_objects(sctx, cctx, &serverssl, &clientssl,
-                                             NULL, NULL)))
+                                      NULL, NULL)))
         goto end;
 
     if (!TEST_true(create_ssl_connection(serverssl, clientssl, SSL_ERROR_NONE)))
@@ -8981,6 +9236,11 @@ int setup_tests(void)
 # ifndef OPENSSL_NO_TLS1_2
     /* Test with both TLSv1.3 and 1.2 versions */
     ADD_ALL_TESTS(test_key_exchange, 14);
+#  if !defined(OPENSSL_NO_EC) && !defined(OPENSSL_NO_DH)
+    ADD_ALL_TESTS(test_negotiated_group,
+                  4 * (OSSL_NELEM(ecdhe_kexch_groups)
+                       + OSSL_NELEM(ffdhe_kexch_groups)));
+#  endif
 # else
     /* Test with only TLSv1.3 versions */
     ADD_ALL_TESTS(test_key_exchange, 12);
