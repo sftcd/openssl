@@ -244,7 +244,6 @@ static int ech_readpemfile(SSL_CTX *ctx, const char *pemfile, SSL_ECH **sechs)
      */
 
     BIO *pem_in=NULL;
-    unsigned char *inbuf=NULL;
     char *pname=NULL;
     char *pheader=NULL;
     unsigned char *pdata=NULL;
@@ -261,34 +260,13 @@ static int ech_readpemfile(SSL_CTX *ctx, const char *pemfile, SSL_ECH **sechs)
     if (BIO_read_filename(pem_in,pemfile)<=0) {
         goto err;
     }
-    unsigned char prbuf[HPKE_MAXSIZE];
-    size_t prbuf_len=HPKE_MAXSIZE;
-    if (PEM_read_bio(pem_in,&pname,&pheader,&pdata,&plen)<=0) {
+    if (!PEM_read_bio_PrivateKey(pem_in,&priv,NULL,NULL)) {
         goto err;
     }
-    if (!pname) {
+    if (!priv) {
         goto err;
     }
-    if (strlen(pname)==0) {
-        goto err;
-    }
-    if (strncmp(PEM_STRING_ECPRIVATEKEY,pname,strlen(pname))
-        &&
-        strncmp(PEM_STRING_PKCS8INF,pname,strlen(pname))) {
-        goto err;
-    }
-    prbuf_len=plen;
-    memcpy(prbuf,pdata,plen);
 
-    if (pname!=NULL) { OPENSSL_free(pname);  pname=NULL; }
-    if (pheader!=NULL) { OPENSSL_free(pheader);  pheader=NULL;}
-    if (pname!=NULL) { OPENSSL_free(pname);  pname=NULL;}
-    if (pdata!=NULL) { OPENSSL_free(pdata);  pdata=NULL;}
-
-    inbuf=OPENSSL_malloc(ECH_MAX_ECHCONFIG_LEN);
-    if (inbuf==NULL) {
-        goto err;
-    }
     if (PEM_read_bio(pem_in,&pname,&pheader,&pdata,&plen)<=0) {
         goto err;
     }
@@ -320,33 +298,9 @@ static int ech_readpemfile(SSL_CTX *ctx, const char *pemfile, SSL_ECH **sechs)
         goto err;
     }
 
-    /*
-     * Map the prbuf to an EVP_PKEY
-     * We only support one private-key/ECHConfig pair per file and they
-     * need to match for now.
-     */
-    if (num_echs>1) {
-        goto err;
-    }
-    SSL_ECH *se=*sechs;
-    if (se==NULL) {
-        goto err;
-    }
-    if (se->cfg->nrecs!=1) {
-        goto err;
-    }
-    unsigned int kem_id=se->cfg->recs[0].kem_id;
-    if (hpke_prbuf2evp(kem_id,prbuf,prbuf_len,NULL,0,&priv)!=1) {
-        goto err;
-    }
-    if (!priv) {
-        goto err;
-    }
-    
     (*sechs)->pemfname=OPENSSL_strdup(pemfile);
     (*sechs)->loadtime=time(0);
     (*sechs)->keyshare=priv;
-    if (inbuf!=NULL) OPENSSL_free(inbuf);
     if (pheader!=NULL) OPENSSL_free(pheader); 
     if (pname!=NULL) OPENSSL_free(pname); 
     if (pdata!=NULL) OPENSSL_free(pdata); 
@@ -355,7 +309,6 @@ static int ech_readpemfile(SSL_CTX *ctx, const char *pemfile, SSL_ECH **sechs)
 
 err:
     if (priv!=NULL) EVP_PKEY_free(priv);
-    if (inbuf!=NULL) OPENSSL_free(inbuf);
     if (pheader!=NULL) OPENSSL_free(pheader); 
     if (pname!=NULL) OPENSSL_free(pname); 
     if (pdata!=NULL) OPENSSL_free(pdata); 

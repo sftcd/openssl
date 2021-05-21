@@ -32,6 +32,10 @@ sooooo awful still...
   reading ECH private keys - just put in a workaround for x25519
   for now, but needs checking.
 
+- 20210521: fixed the private key loading - latest library lets
+  us go back to only using the PEM function, which is better 
+  than having to delve down to the HPKE one 
+
 - 20210520: a bunch of improvements wrt the CI actions done on
   pushing - many now working (coupla windows changes still needed,
   some docs and a few others, but mostly done).
