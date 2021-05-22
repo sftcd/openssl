@@ -99,7 +99,7 @@ char *ech_public_name_override_null="DON'T SEND ANY OUTER NAME";
 #define ECH_KEYPAIR_UNMODIFIED     2
 #define ECH_KEYPAIR_MODIFIED       3
 
-#define SSL_ECH_GREASE_BUFSIZ 255
+#define SSL_ECH_GREASE_BUFSIZ 0x200
 
 /**
  * Check if key pair needs to be (re-)loaded or not
@@ -3021,33 +3021,8 @@ int SSL_ech_send_grease(SSL *s, WPACKET *pkt, unsigned int context,
                                    X509 *x, size_t chainidx)
 {
     /*
-     * Let's send some random stuff that looks like...
-     *       struct {
-     *          ECHCipherSuite cipher_suite;
-     *          uint8 config_id;
-     *          opaque enc<1..2^16-1>;
-     *          opaque payload<1..2^16-1>;
-     *       } ClientECH;
-     *
-     * Here's one such (len=266):
-     *
-     * 00010001 A2002051 6EBE9D0A DEAB2EFA 
-     * B49AF2DF 102ABF7E 1336BC5F D8A4A97D 
-     * 54121A65 50356C00 E1F9362F 06B1FCBC 
-     * 167383BA 7814D9A5 9C4951E6 EA145BD0 
-     * 81D0665C F77E988D 22861CF8 BE9EA57F 
-     * 02FFB6E0 99CE5C59 88A20A16 11A40FA5 
-     * 7241506C 65B13B9D 725894E4 1C99B2B6 
-     * 97326165 BD54058A 769ADD22 76A6A22F 
-     * 41D7F997 2FF8275E 181984EF 98F7613E 
-     * 84DC4AF1 90495E4E CE8C4DEC 0F01E0C7 
-     * 52BEE067 1AD61832 5F91C7E3 A8E5500B 
-     * B57554B8 19027F7A 95B0D926 69F4BF30 
-     * F73D9BDA 43E4417D 71772177 2E0C6D7D 
-     * 81829157 2F4EBAFC 0078534A E6C570D3 
-     * 81AF1EA6 3E6EF075 AB21F8CC 3B783726 
-     * 2CAFCA57 A2678A72 7DD60ADE 579C2647 
-     * 49992E61 B2506BB8 4451
+     * Let's send some random stuff that looks like a real ECH
+     * TODO: validate this vs. other clients and configurations
      */
 
     /*
@@ -3058,20 +3033,29 @@ int SSL_ech_send_grease(SSL *s, WPACKET *pkt, unsigned int context,
     unsigned char cid;
     size_t senderpub_len=SSL_ECH_GREASE_BUFSIZ;
     unsigned char senderpub[SSL_ECH_GREASE_BUFSIZ];
-    size_t cipher_len=206;
-    size_t cipher_len_jitter=10;
+    /* 
+     * this is what I produce for a real ECH when including padding in
+     * the inner CH with the default/current client hello padding code
+     * this value doesn't vary with at least minor changes to inner.sni
+     * length.
+     * For now, we'll turn off jitter too as it seems like the default
+     * CH padding results in a fixed length CH for at least many options.
+     */
+    size_t cipher_len=0x1d3; 
+    size_t cipher_len_jitter=0;
     unsigned char cipher[SSL_ECH_GREASE_BUFSIZ];
     if (s==NULL || s->ctx==NULL) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
     }
-
     if (RAND_bytes_ex(s->ctx->libctx, &cid, cid_len) <= 0) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
     }
-    cipher_len-=cipher_len_jitter;
-    cipher_len+=(cid%cipher_len_jitter);
+    if (cipher_len_jitter!=0) {
+        cipher_len-=cipher_len_jitter;
+        cipher_len+=(cid%cipher_len_jitter);
+    }
     if (hpke_good4grease(NULL,hpke_suite,senderpub,&senderpub_len,cipher,cipher_len)!=1) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;

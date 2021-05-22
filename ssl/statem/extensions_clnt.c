@@ -1122,10 +1122,12 @@ EXT_RETURN tls_construct_ctos_padding(SSL *s, WPACKET *pkt,
     unsigned char *padbytes;
     size_t hlen;
 
+#ifndef OPENSSL_NO_ECH
+    if (!(s->ext.ech_grease==ECH_IS_GREASE) && !(s->ech && s->ext.ch_depth==1) && (s->options & SSL_OP_TLSEXT_PADDING) == 0)
+        return EXT_RETURN_NOT_SENT;
+#else
     if ((s->options & SSL_OP_TLSEXT_PADDING) == 0)
         return EXT_RETURN_NOT_SENT;
-#ifndef OPENSSL_NO_ECH
-    IOSAME
 #endif
 
     /*
