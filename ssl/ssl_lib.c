@@ -876,6 +876,7 @@ SSL *SSL_new(SSL_CTX *ctx)
     s->ext.ech_attempted=0;
     s->ext.ech_success=0;
     s->ext.ech_grease=0;
+    s->ext.ech_grease_suite=NULL;
     s->ext.ch_depth=0;
     if (ctx->options & SSL_OP_ECH_GREASE) { 
         s->ext.ech_grease=ECH_IS_GREASE;
@@ -1307,6 +1308,7 @@ void SSL_free(SSL *s)
     OPENSSL_free(s->ext.alpn);
 #ifndef OPENSSL_NO_ECH
     OPENSSL_free(s->ext.alpn_outer);
+    OPENSSL_free(s->ext.ech_grease_suite);
 #endif
     OPENSSL_free(s->ext.tls13_cookie);
 #ifndef OPENSSL_NO_ECH

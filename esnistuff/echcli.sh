@@ -21,6 +21,9 @@ DEBUG="no"
 NOECH="no"
 # whether or not to grease (only makes sense with NOECH==yes)
 GREASE="no"
+# the specific HPKE suite to use for grease, if so instructed
+GSUITE="0x20,1,1"
+GSUITESET="no"
 
 # Protocol parameters
 
@@ -70,11 +73,12 @@ echo "Running $0 at $NOW"
 
 function usage()
 {
-    echo "$0 [-cdfhHPpsrnlvL] - try out encrypted client hello (ECH) via openssl s_client"
+    echo "$0 [-cdfgGhHPpsrnlvL] - try out encrypted client hello (ECH) via openssl s_client"
 	echo "  -c [name] specifices a name that I'll send as an outer SNI (NONE is special)"
     echo "  -d means run s_client in verbose mode"
     echo "  -f [pathname] specifies the file/pathname to request (default: '/')"
     echo "  -g means GREASE (only applied with -n)"
+    echo "  -G means set GREASE suite to default rather than randomly pick"
     echo "  -h means print this"
     echo "  -H means try connect to that hidden server"
     echo "  -j just use 0x1301 ciphersuite"
@@ -94,7 +98,7 @@ function usage()
 }
 
 # options may be followed by one colon to indicate they have a required argument
-if ! options=$(/usr/bin/getopt -s bash -o c:df:ghH:jnNp:P:rs:S:v -l clear_sni:,debug,filepath:,grease,help,hidden:,just,noech,noalpn,port:,echpub:,realcert,server:,session:,valgrind -- "$@")
+if ! options=$(/usr/bin/getopt -s bash -o c:df:gGhH:jnNp:P:rs:S:v -l clear_sni:,debug,filepath:,grease,greasesuite,help,hidden:,just,noech,noalpn,port:,echpub:,realcert,server:,session:,valgrind -- "$@")
 then
     # something went wrong, getopt will put out an error message for us
     exit 1
@@ -108,6 +112,7 @@ do
         -d|--debug) DEBUG="yes" ;;
         -f|--filepath) HTTPPATH=$2; shift;;
 		-g|--grease) GREASE="yes";;
+		-G|--greasesuite) GSUITESET="yes";;
         -h|--help) usage;;
         -H|--hidden) SUPPLIEDHIDDEN=$2; shift;;
         -j|--just) CIPHERSUITES=" -ciphersuites TLS_AES_128_GCM_SHA256 " ;;
@@ -237,6 +242,12 @@ then
     exit 100
 fi
 
+grease_str=" -ech_grease "
+if [[ "$GSUITESET" == "yes" ]]
+then
+    grease_str=" -ech_grease -ech_grease_suite=$GSUITE"
+fi
+
 # normally the inner SNI is what we want to hide
 echstr="-servername $hidden -svcb $ECH "
 if [[ "$NOECH" == "yes" ]]
@@ -255,16 +266,16 @@ then
     if [[ "$GREASE" == "yes" ]]
     then
         echo "Trying to GREASE though"
-        echstr=" $echstr -ech_grease "
+        echstr=" $echstr $grease_str "
     fi
 else
     if [[ "$GREASE" == "yes" && "$hidden" == "NONE" ]]
     then
         echo "Trying to GREASE"
-        echstr=" -noservername -ech_grease "
+        echstr=" -noservername $grease_str "
     elif [[ "$GREASE" == "yes" && "$hidden" != "NONE" ]]
     then
-        echstr=" -servername $hidden -ech_grease "
+        echstr=" -servername $hidden $grease_str "
     elif [[ "$GREASE" == "no" && "$hidden" != "NONE" ]]
     then
         echstr=" -servername $hidden -svcb $ECH "

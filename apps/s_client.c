@@ -75,6 +75,7 @@ static char *sess_out = NULL;
 static const char *ech_inner_name=NULL; ///< server-name in inner-CH - default to usual servername
 static const char *sni_outer_name=NULL; ///< server-name in outer-CH - command line can override ECHConfig.public-name
 static int ech_grease=0;
+static char *ech_grease_suite = NULL;
 static int nechs=0;
 static char *ech_encoded_configs = NULL;
 static char *ech_svcb_rr = NULL;
@@ -494,6 +495,7 @@ typedef enum OPTION_choice {
     OPT_ECHCONFIGS,
     OPT_SVCB,
     OPT_ECH_GREASE,
+    OPT_ECH_GREASE_SUITE,
 #endif
     OPT_SCTP_LABEL_BUG,
     OPT_R_ENUM, OPT_PROV_ENUM
@@ -634,6 +636,8 @@ const OPTIONS s_client_options[] = {
      "Set ECHConfigs and possibly ALPN vis an SVCB RData, b64, ASCII-HEX or binary encoded"},
     {"ech_grease",OPT_ECH_GREASE,'-',
      "Send GREASE values when not really using ECH"},
+    {"ech_grease_suite",OPT_ECH_GREASE_SUITE,'s',
+     "Use this HPKE suite for GREASE values when not really using ECH"},
 #endif
     {"noservername", OPT_NOSERVERNAME, '-',
      "Do not send the server name (SNI) extension in the ClientHello"},
@@ -1502,6 +1506,9 @@ int s_client_main(int argc, char **argv)
         case OPT_ECH_GREASE:
             ech_grease=1;
             break;
+        case OPT_ECH_GREASE_SUITE:
+            ech_grease_suite=opt_arg();
+            break;
 #endif
 
         case OPT_NOSERVERNAME:
@@ -2085,6 +2092,15 @@ int s_client_main(int argc, char **argv)
 
     if (enable_pha)
         SSL_set_post_handshake_auth(con, 1);
+
+#ifndef OPENSSL_NO_ECH
+    if (ech_grease_suite!=NULL) {
+        if (SSL_ech_set_grease_suite(con,ech_grease_suite)!=1) {
+            ERR_print_errors(bio_err);
+            goto end;
+        }
+    }
+#endif
 
     if (sess_in != NULL) {
         SSL_SESSION *sess;

@@ -2541,3 +2541,65 @@ int hpke_good4grease(
 }
 
 
+/*
+ * @brief string matching for suites
+ */
+#define HPKE_MSMATCH(inp,known) (strlen(inp)==strlen(known) && !strcasecmp(inp,known))
+
+/*!
+ * @brief map a strin to a HPKE suite
+ *
+ * @param str is the string value
+ * @param suite is the resulting suite
+ * @return 1 for success, otherwise failure
+ */ 
+int hpke_str2suite(char *suitestr, hpke_suite_t suite)
+{
+    int erv=0;
+    uint16_t kem=0,kdf=0,aead=0;
+    /* See if it contains a mix of our strings and numbers  */
+    char *st=strtok(suitestr,",");
+    if (!st) { erv=__LINE__; return erv; }
+    while (st!=NULL) {
+        /* check if string is known or number and if so handle appropriately */
+        if (kem==0) {
+            if (HPKE_MSMATCH(st,HPKE_KEMSTR_P256)) kem=HPKE_KEM_ID_P256;
+            if (HPKE_MSMATCH(st,HPKE_KEMSTR_P384)) kem=HPKE_KEM_ID_P384;
+            if (HPKE_MSMATCH(st,HPKE_KEMSTR_P521)) kem=HPKE_KEM_ID_P521;
+            if (HPKE_MSMATCH(st,HPKE_KEMSTR_X25519)) kem=HPKE_KEM_ID_25519;
+            if (HPKE_MSMATCH(st,HPKE_KEMSTR_X448)) kem=HPKE_KEM_ID_448;
+            if (HPKE_MSMATCH(st,"0x10")) kem=HPKE_KEM_ID_P256;
+            if (HPKE_MSMATCH(st,"16")) kem=HPKE_KEM_ID_P256;
+            if (HPKE_MSMATCH(st,"0x11")) kem=HPKE_KEM_ID_P384;
+            if (HPKE_MSMATCH(st,"17")) kem=HPKE_KEM_ID_P384;
+            if (HPKE_MSMATCH(st,"0x12")) kem=HPKE_KEM_ID_P521;
+            if (HPKE_MSMATCH(st,"18")) kem=HPKE_KEM_ID_P521;
+            if (HPKE_MSMATCH(st,"0x20")) kem=HPKE_KEM_ID_25519;
+            if (HPKE_MSMATCH(st,"32")) kem=HPKE_KEM_ID_25519;
+            if (HPKE_MSMATCH(st,"0x21")) kem=HPKE_KEM_ID_448;
+            if (HPKE_MSMATCH(st,"33")) kem=HPKE_KEM_ID_448;
+        } else if (kem!=0 && kdf==0) {
+            if (HPKE_MSMATCH(st,HPKE_KDFSTR_256)) kdf=1;
+            if (HPKE_MSMATCH(st,HPKE_KDFSTR_384)) kdf=2;
+            if (HPKE_MSMATCH(st,HPKE_KDFSTR_512)) kdf=3;
+            if (HPKE_MSMATCH(st,"1")) kdf=1;
+            if (HPKE_MSMATCH(st,"2")) kdf=2;
+            if (HPKE_MSMATCH(st,"3")) kdf=3;
+        } else if (kem!=0 && kdf!=0 && aead==0) {
+            if (HPKE_MSMATCH(st,HPKE_AEADSTR_AES128GCM)) aead=1;
+            if (HPKE_MSMATCH(st,HPKE_AEADSTR_AES256GCM)) aead=2;
+            if (HPKE_MSMATCH(st,HPKE_AEADSTR_CP)) aead=3;
+            if (HPKE_MSMATCH(st,"1")) aead=1;
+            if (HPKE_MSMATCH(st,"2")) aead=2;
+            if (HPKE_MSMATCH(st,"3")) aead=3;
+        }
+        st=strtok(NULL,",");
+    }
+    if (kem==0||kdf==0||aead==0) { erv=__LINE__; return erv; }
+    suite.kem_id=kem;
+    suite.kdf_id=kdf;
+    suite.aead_id=aead;
+    return 1;
+}
+
+

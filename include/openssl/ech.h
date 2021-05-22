@@ -30,7 +30,6 @@
 #define ECH_UPFRONT_DEC
 
 # include <openssl/ssl.h>
-
 /*
  * Strings used in crypto derivations
  */
@@ -299,6 +298,15 @@ int SSL_ech_print(BIO* out, SSL *con, int selector);
  * @return 1 for success, other otherwise
  */
 int SSL_ech_get_status(SSL *s, char **inner_sni, char **outer_sni);
+
+/*
+ * @brief API to allow clients to set a preferred HPKE suite to use when GREASEing
+ *
+ * @param s is the SSL context
+ * @param suite is the relevant suite string
+ * @return 1 for success, other otherwise
+ */
+int SSL_ech_set_grease_suite(SSL *s,const char* suite);
 
 #endif
 #endif

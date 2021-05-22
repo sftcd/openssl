@@ -420,5 +420,14 @@ int hpke_good4grease(
         unsigned char *cipher,
         size_t cipher_len);
 
+/*!
+ * @brief map a strin to a HPKE suite
+ *
+ * @param str is the string value
+ * @param suite is the resulting suite
+ * @return 1 for success, otherwise failure
+ */ 
+int hpke_str2suite(char *str, hpke_suite_t suite);
+
 #endif
 

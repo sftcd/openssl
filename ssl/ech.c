@@ -3028,6 +3028,8 @@ int SSL_ech_send_grease(SSL *s, WPACKET *pkt, unsigned int context,
     /*
      * Assign buffers of the right size, that we'll mostly randomly fill
      */
+    hpke_suite_t hpke_suite_in = HPKE_SUITE_DEFAULT;
+    hpke_suite_t *hpke_suite_in_p = NULL;
     hpke_suite_t hpke_suite = HPKE_SUITE_DEFAULT;
     size_t cid_len=1;
     unsigned char cid;
@@ -3056,7 +3058,14 @@ int SSL_ech_send_grease(SSL *s, WPACKET *pkt, unsigned int context,
         cipher_len-=cipher_len_jitter;
         cipher_len+=(cid%cipher_len_jitter);
     }
-    if (hpke_good4grease(NULL,hpke_suite,senderpub,&senderpub_len,cipher,cipher_len)!=1) {
+    if (s->ext.ech_grease_suite) {
+        if (hpke_str2suite(s->ext.ech_grease_suite,hpke_suite_in)!=1) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+            return 0;
+        }
+        hpke_suite_in_p=&hpke_suite_in;
+    }
+    if (hpke_good4grease(hpke_suite_in_p,hpke_suite,senderpub,&senderpub_len,cipher,cipher_len)!=1) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
     }
@@ -3877,5 +3886,24 @@ err:
     }
     return(0);
 }
+
+/*
+ * @brief API to allow clients to set a preferred HPKE suite to use when GREASEing
+ *
+ * @param s is the SSL session
+ * @param suite is the relevant suite string
+ * @return 1 for success, other otherwise
+ */
+int SSL_ech_set_grease_suite(SSL *s, const char* suite)
+{
+    if (!s || !suite) return 0;
+    /*
+     * We'll just stash the value for now and interpret when/if we do GREASE
+     */
+    if (s->ext.ech_grease_suite) OPENSSL_free(s->ext.ech_grease_suite);
+    s->ext.ech_grease_suite=OPENSSL_strdup(suite);
+    return 1;
+}
+
 
 #endif
