@@ -43,6 +43,9 @@ CAPATH="$CFGTOP/esnistuff/cadir/"
 # whether we feed a bad key pair to server for testing
 BADKEY="no"
 
+# whethe or not to do ECH-specific paddng
+ECHPAD="no"
+
 function whenisitagain()
 {
     /bin/date -u +%Y%m%d-%H%M%S
@@ -65,6 +68,7 @@ function usage()
 	echo "  -k provide ECH Key pair PEM file"
     echo "  -n means don't trigger ech at all"
     echo "  -p [port] specifices a port (default: 8443)"
+    echo "  -P turn on ECH specific padding"
     echo "  -v means run with valgrind"
 	echo "  -T says to attempt trial decryption if necessary"
     echo "  -w means to run as a pretty dumb web server"
@@ -78,7 +82,7 @@ function usage()
 }
 
 # options may be followed by one colon to indicate they have a required argument
-if ! options=$(/usr/bin/getopt -s bash -o k:BTFc:D:H:p:Kdlvnhw -l keyfile,badkey,trialdecrypt,hardfail,dir:,clear_sni:,hidden:,port:,keygen,debug,stale,valgrind,noech,help,web -- "$@")
+if ! options=$(/usr/bin/getopt -s bash -o k:BTFc:D:H:p:PKdlvnhw -l keyfile,badkey,trialdecrypt,hardfail,dir:,clear_sni:,hidden:,port:,pad,keygen,debug,stale,valgrind,noech,help,web -- "$@")
 then
     # something went wrong, getopt will put out an error message for us
     exit 1
@@ -99,6 +103,7 @@ do
         -K|--keygen) KEYGEN="yes" ;;
         -n|--noech) NOECH="yes" ;;
         -p|--port) SUPPLIEDPORT=$2; shift;;
+        -P|--pad) ECHPAD="yes";;
         -T|--trialdecrypt) TRIALDECRYPT="yes"; shift;;
         -v|--valgrind) VG="yes" ;;
         -w|--web) WEBSERVER=" -WWW " ;;
@@ -131,6 +136,13 @@ fi
 
 # Set preferred ALPN - can parameterise later if/as needed
 alpn_cmd=" -alpn h2"
+
+# Set padding if needed
+echpad_cmd=""
+if [[ "$ECHPAD" == "yes" ]]
+then
+    echpad_cmd=" -echspecificpad "
+fi
 
 KEYFILE1=$CFGTOP/esnistuff/cadir/$clear_sni.priv
 CERTFILE1=$CFGTOP/esnistuff/cadir/$clear_sni.crt
@@ -255,8 +267,8 @@ trap cleanup SIGINT
 
 if [[ "$DEBUG" == "yes" ]]
 then
-    echo "Running: $vgcmd $CODETOP/apps/openssl s_server $dbgstr $keyfile1 $keyfile2 $certsdb $portstr $force13 $echstr $snicmd $hardfail $trialdecrypt $alpn_cmd $WEBSERVER"
+    echo "Running: $vgcmd $CODETOP/apps/openssl s_server $dbgstr $keyfile1 $keyfile2 $certsdb $portstr $force13 $echstr $snicmd $hardfail $trialdecrypt $alpn_cmd $echpad_cmd $WEBSERVER"
 fi
-$vgcmd $CODETOP/apps/openssl s_server $dbgstr $keyfile1 $keyfile2 $certsdb $portstr $force13 $echstr $snicmd $hardfail $trialdecrypt $alpn_cmd $WEBSERVER
+$vgcmd $CODETOP/apps/openssl s_server $dbgstr $keyfile1 $keyfile2 $certsdb $portstr $force13 $echstr $snicmd $hardfail $trialdecrypt $alpn_cmd $echpad_cmd $WEBSERVER
 
 
