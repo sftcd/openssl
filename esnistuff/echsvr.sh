@@ -129,6 +129,9 @@ then
     fi
 fi
 
+# Set preferred ALPN - can parameterise later if/as needed
+alpn_cmd=" -alpn h2"
+
 KEYFILE1=$CFGTOP/esnistuff/cadir/$clear_sni.priv
 CERTFILE1=$CFGTOP/esnistuff/cadir/$clear_sni.crt
 KEYFILE2=$CFGTOP/esnistuff/cadir/$hidden.priv
@@ -252,8 +255,8 @@ trap cleanup SIGINT
 
 if [[ "$DEBUG" == "yes" ]]
 then
-    echo "Running: $vgcmd $CODETOP/apps/openssl s_server $dbgstr $keyfile1 $keyfile2 $certsdb $portstr $force13 $echstr $snicmd $hardfail $trialdecrypt $WEBSERVER"
+    echo "Running: $vgcmd $CODETOP/apps/openssl s_server $dbgstr $keyfile1 $keyfile2 $certsdb $portstr $force13 $echstr $snicmd $hardfail $trialdecrypt $alpn_cmd $WEBSERVER"
 fi
-$vgcmd $CODETOP/apps/openssl s_server $dbgstr $keyfile1 $keyfile2 $certsdb $portstr $force13 $echstr $snicmd $hardfail $trialdecrypt $WEBSERVER
+$vgcmd $CODETOP/apps/openssl s_server $dbgstr $keyfile1 $keyfile2 $certsdb $portstr $force13 $echstr $snicmd $hardfail $trialdecrypt $alpn_cmd $WEBSERVER
 
 

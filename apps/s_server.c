@@ -2407,6 +2407,16 @@ int s_server_main(int argc, char *argv[])
 #endif
     if (alpn_ctx.data)
         SSL_CTX_set_alpn_select_cb(ctx, alpn_cb, &alpn_ctx);
+#ifndef OPENSSL_NO_ECH
+    /*
+     * If we have a 2nd context to which we might switch, then set the same alpn callback
+     * for that too. (Note: this isn't really ECH-specific, it probaby ought happen in any
+     * case.)
+     */
+    if (s_cert2 && alpn_ctx.data) {
+        SSL_CTX_set_alpn_select_cb(ctx2, alpn_cb, &alpn_ctx);
+    }
+#endif
 
     if (!no_dhe) {
         EVP_PKEY *dhpkey = NULL;

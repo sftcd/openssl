@@ -28,6 +28,10 @@ Most recent first...
 DON'T TRY ECH YET!!! The very much work-in-progress code is
 sooooo awful still...
 
+- 20210524: fixed ALPN handling on server when we have two contexts 
+  (which we do for ECH). That's not really an ECH-specific fix though
+  but needs doing anyway.
+
 - 20210522: turned on padding for inner CH when real, and made GREASEy
   ECH extension match that length; padding is as-was for library (i.e.
   same alg as when padding option set)
