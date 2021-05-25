@@ -2455,12 +2455,6 @@ int tls_construct_server_hello(SSL *s, WPACKET *pkt)
     /*
      * Calculate the magic server random to indicate that
      * we're accepting ECH, if that's the case
-     *
-     * TODO: This may be wrong!! The server random was set back during
-     * CH processing, and may have been used for key derivation already
-     * in which case we'll need to re-do those derivations (maybe).
-     * First, we'll try just get the right calculation done. (Using
-     * NSS for now as my guide.)
      */
     if (s->ech && s->ext.ech_success==1) {
         unsigned char acbuf[8];

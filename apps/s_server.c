@@ -96,9 +96,9 @@ static size_t ech_trace_cb(const char *buf, size_t cnt,
  * Padding size info
  */
 typedef struct {
-    size_t shpad; ///< ServerHello messages to be a multiple of this size
     size_t certpad; ///< Certificate messages to be a multiple of this size
     size_t certverifypad; ///< CertificateVerify messages to be a multiple of this size
+    size_t eepad; ///< EncryptedExtensions are padded to be a multiple of this size
 } ech_padding_sizes;
 /**
  * passed as an argument to callback
@@ -121,16 +121,19 @@ static size_t ech_padding_cb(SSL *s, int type, size_t len, void *arg)
     /* hard coded for now*/
     ech_padding_sizes *ps=(ech_padding_sizes*)arg;
     int state=SSL_get_state(s);
-    if (state==TLS_ST_SW_SRVR_HELLO) {
-        size_t newlen=ps->shpad-(len%ps->shpad)-16;
-        return (newlen>0?newlen:0);
-    }
     if (state==TLS_ST_SW_CERT) {
-        size_t newlen=ps->certpad-(len%ps->certpad)-16;
+        int newlen=ps->certpad-(len%ps->certpad)-16;
+        if (newlen<0) newlen+=ps->certpad;
         return (newlen>0?newlen:0);
     }
     if (state==TLS_ST_SW_CERT_VRFY) {
-        size_t newlen=ps->certverifypad-(len%ps->certverifypad)-16;
+        int newlen=ps->certverifypad-(len%ps->certverifypad)-16;
+        if (newlen<0) newlen+=ps->certverifypad;
+        return (newlen>0?newlen:0);
+    }
+    if (state==TLS_ST_SW_ENCRYPTED_EXTENSIONS) {
+        int newlen=ps->eepad-(len%ps->eepad)-16;
+        if (newlen<0) newlen+=ps->eepad;
         return (newlen>0?newlen:0);
     }
     return 0;
@@ -2332,9 +2335,9 @@ int s_server_main(int argc, char *argv[])
      */
     if (echspecificpad) {
         ech_ps=OPENSSL_malloc(sizeof(ech_padding_sizes)); 
-        ech_ps->shpad=132;
         ech_ps->certpad=1800;
         ech_ps->certverifypad=500;
+        ech_ps->eepad=32;
         SSL_CTX_set_record_padding_callback_arg(ctx,(void*)ech_ps);
         SSL_CTX_set_record_padding_callback(ctx,ech_padding_cb);
     }

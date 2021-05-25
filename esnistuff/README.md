@@ -28,6 +28,9 @@ Most recent first...
 DON'T TRY ECH YET!!! The very much work-in-progress code is
 sooooo awful still...
 
+- 20210525: More work done on padding - [padding_notes.md](padding_notes.md).
+  Probably ok to park that for a bit and discuss on the list or in GH.
+
 - 20210524: fixed ALPN handling on server when we have two contexts 
   (which we do for ECH). That's not really an ECH-specific fix though
   but needs doing anyway.
