@@ -55,5 +55,5 @@ sf/20210525
 
 ## EncryptedExtensions
 
-- These are all padded to a multiple of 500, via an ``s_server`` callback.
+- These are all padded to a multiple of 32, via an ``s_server`` callback.
 - The selected ALPN is one of those.
