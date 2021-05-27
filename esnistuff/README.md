@@ -28,6 +28,8 @@ Most recent first...
 DON'T TRY ECH YET!!! The very much work-in-progress code is
 sooooo awful still...
 
+- 20210527: starting working on haproxy - [notes](haproxy.md)
+
 - 20210525: More work done on padding - [padding_notes.md](padding_notes.md).
   Probably ok to park that for a bit and discuss on the list or in GH.
 
