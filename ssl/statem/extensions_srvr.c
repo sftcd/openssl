@@ -1939,6 +1939,9 @@ int tls_parse_ctos_ech(SSL *s, PACKET *pkt, unsigned int context,
     if (s->ext.ech_grease==ECH_IS_GREASE) {
         return 1;
     }
+    if (!s->ech) {
+        return 1;
+    }
     /*
      * Barf here - we shouldn't see this here
      */

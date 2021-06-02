@@ -230,6 +230,7 @@ err:
 static int ech_readpemfile(SSL_CTX *ctx, const char *pemfile, SSL_ECH **sechs)
 {
     if (ctx==NULL || pemfile==NULL || sechs==NULL) return(0);
+    if (strlen(pemfile)==0) return(0);
     /*
      * The file content should look as below. Note that as github barfs
      * if I provide an actual private key in PEM format, I've reversed
