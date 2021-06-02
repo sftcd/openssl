@@ -39,7 +39,7 @@ All my code code changes, are protected using ``#ifndef OPENSSL_NO_ECH``
 ## Minimal haproxy configuration
 
 Still learning this so I'll follow [this guide](https://www.haproxy.com/blog/the-four-essential-sections-of-an-haproxy-configuration/)
-and put my test script [here](testhaproxy.sh) with a minimal config [here](haproxymin.cfg).
+and put my test script [here](testhaproxy.sh) with a minimal config [here](haproxymin.conf).
 That test script starts a lighttpd as needed to act as a back-end server.
 
 A typical haproxy config will include lines like:
@@ -58,7 +58,7 @@ but the changes to all those are pretty obvious and minimal for now.
 
 ## Test runs
 
-I have ``/etc/hosts`` entries for example.com and foo.exmaple.com
+I have ``/etc/hosts`` entries for example.com and foo.example.com
 that map those to localhost.
 
 Start our test server instances, with a lighttpd listening on localhost:3480 for cleartext
@@ -138,7 +138,7 @@ A basic test to see if we're up and running is to just use curl:
 
 The ``SERVERUSED`` cookie was added by haproxy and the file served by lighttpd, as can
 be seen from the lighttpd logs. That did use ECH even if it's not visible. But we can
-also use out test client script (that uses ``s_client``) to make that visible:
+also use our test client script (that uses ``s_client``) to make that visible:
 
             $ ./echcli.sh -s localhost -H foo.example.com -p 7443 -P `./pem2rr.sh echconfig.pem` -f index.html
             Running ./echcli.sh at 20210602-201418
