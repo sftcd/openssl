@@ -3,7 +3,7 @@
 # set -x
 
 # Run a haproxy on localhost:7443 with a backed of:
-# a lighttpd on localhost:3443 with foo.example.com 
+# a lighttpd on localhost:3480 with foo.example.com 
 
 # Note on testing - if you have our curl build locally, and foo.example.com
 # is in your /etc/hosts, then:
