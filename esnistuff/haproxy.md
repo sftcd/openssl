@@ -70,71 +70,93 @@ already a lighttpd running a new one won't be started.)
             Executing:  /home/stephen/code/haproxy/haproxy -f /home/stephen/code/openssl/esnistuff/haproxymin.conf  -dV
             $
 
-A basic test to see if we're up and running is to just use curl:
+A basic test using our [ECH-enabled curl](building-curl-openssl-with-ech.md):
 
-            $ curl -v --cacert cadir/oe.csr https://foo.example.com:7443/index.html
-            *   Trying 127.0.1.3:7443...
-            * TCP_NODELAY set
-            * Connected to foo.example.com (127.0.1.3) port 7443 (#0)
-            * ALPN, offering h2
-            * ALPN, offering http/1.1
-            * successfully set certificate verify locations:
-            *   CAfile: cadir/oe.csr
-                CApath: /etc/ssl/certs
-            * TLSv1.3 (OUT), TLS handshake, Client hello (1):
-            * TLSv1.3 (IN), TLS handshake, Server hello (2):
-            * TLSv1.3 (IN), TLS handshake, Encrypted Extensions (8):
-            * TLSv1.3 (IN), TLS handshake, Certificate (11):
-            * TLSv1.3 (IN), TLS handshake, CERT verify (15):
-            * TLSv1.3 (IN), TLS handshake, Finished (20):
-            * TLSv1.3 (OUT), TLS change cipher, Change cipher spec (1):
-            * TLSv1.3 (OUT), TLS handshake, Finished (20):
-            * SSL connection using TLSv1.3 / TLS_AES_256_GCM_SHA384
-            * ALPN, server did not agree to a protocol
-            * Server certificate:
-            *  subject: C=IE; ST=Laighin; O=openssl-esni; CN=foo.example.com
-            *  start date: Apr 29 13:17:33 2021 GMT
-            *  expire date: Apr 27 13:17:33 2031 GMT
-            *  subjectAltName: host "foo.example.com" matched cert's "foo.example.com"
-            *  issuer: C=IE; ST=Laighin; O=openssl-esni; CN=ca
-            *  SSL certificate verify ok.
-            > GET /index.html HTTP/1.1
-            > Host: foo.example.com:7443
-            > User-Agent: curl/7.68.0
-            > Accept: */*
-            > 
-            * TLSv1.3 (IN), TLS handshake, Newsession Ticket (4):
-            * TLSv1.3 (IN), TLS handshake, Newsession Ticket (4):
-            * old SSL session ID is stale, removing
-            * Mark bundle as not supporting multiuse
-            < HTTP/1.1 200 OK
-            < content-type: text/html
-            < etag: "2613545160"
-            < last-modified: Thu, 29 Apr 2021 13:13:28 GMT
-            < content-length: 459
-            < accept-ranges: bytes
-            < date: Thu, 27 May 2021 22:21:13 GMT
-            < server: lighttpd/1.4.60-devel-lighttpd-1.4.53-1098-g66d95722
-            < set-cookie: SERVERUSED=; Expires=Thu, 01-Jan-1970 00:00:01 GMT; path=/
-            < cache-control: private
-            < 
-            
-            <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
-                "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
-            <html xmlns="http://www.w3.org/1999/xhtml">
-            <head>
-            <title>Lighttpd top page.</title>
-            </head>
-            <!-- Background white, links blue (unvisited), navy (visited), red
-            (active) -->
-            <body bgcolor="#FFFFFF" text="#000000" link="#0000FF"
-            vlink="#000080" alink="#FF0000">
-            <p>This is the pretty dumb top page for testing. </p>
-            
-            </body>
-            </html>
-            
-            * Connection #0 to host foo.example.com left intact
+            $ curl -v --echconfig AEL+CgA+8QAgACCsEiogyYobxSGHLGd6uSDbuIbW05M41U37vsypEWdqZQAEAAEAAQAAAA1jb3Zlci5kZWZvLmllAAA= --cacert cadir/oe.csr https://foo.example.com:7443/index.html
+			*   Trying 127.0.1.3:7443...
+			* Connected to foo.example.com (127.0.1.3) port 7443 (#0)
+			* ALPN, offering http/1.1
+			*  CAfile: ../openssl/esnistuff/cadir/oe.csr
+			* ECH: found STRING_ECH_CONFIG:
+			*  AEL+CgA+8QAgACCsEiogyYobxSGHLGd6uSDbuIbW05M41U37vsypEWdqZQAEAAEAAQAAAA1jb3Zlci5kZWZvLmllAAA=
+			* ECH: will use hostname 'foo.example.com' as ECH inner name
+			  ECH: will use string 'splodge.local' as ECH outer name
+			* ECH: rv 0 from SSL_ech_server_name()
+			* ECH: rv 1 from SSL_ech_add() [OK]
+			* ECH: nechs 1 from SSL_ech_add() [OK]
+			* ossl_connect_step1() returning CURLE_OK
+			* ossl_connect_step2() starting
+			* TLSv1.0 (OUT), TLS header, Certificate Status (22):
+			* TLSv1.3 (OUT), TLS handshake, Client hello (1):
+			* SSL_connect() returned -1, detail 2
+			* ossl_connect_step2() starting
+			* TLSv1.2 (IN), TLS header, Certificate Status (22):
+			* TLSv1.3 (IN), TLS handshake, Server hello (2):
+			* TLSv1.2 (IN), TLS header, Finished (20):
+			* TLSv1.2 (IN), TLS header, Unknown (23):
+			* TLSv1.3 (IN), TLS handshake, Encrypted Extensions (8):
+			* TLSv1.2 (IN), TLS header, Unknown (23):
+			* TLSv1.3 (IN), TLS handshake, Certificate (11):
+			* TLSv1.2 (IN), TLS header, Unknown (23):
+			* TLSv1.3 (IN), TLS handshake, CERT verify (15):
+			* TLSv1.2 (IN), TLS header, Unknown (23):
+			* TLSv1.3 (IN), TLS handshake, Finished (20):
+			* TLSv1.2 (OUT), TLS header, Finished (20):
+			* TLSv1.3 (OUT), TLS change cipher, Change cipher spec (1):
+			* TLSv1.2 (OUT), TLS header, Unknown (23):
+			* TLSv1.3 (OUT), TLS handshake, Finished (20):
+			* SSL connection using TLSv1.3 / TLS_AES_256_GCM_SHA384
+			* ALPN, server did not agree to a protocol
+			* ossl_connect_step2() returning CURLE_OK
+			* Server certificate:
+			*  subject: C=IE; ST=Laighin; O=openssl-esni; CN=foo.example.com
+			*  start date: Apr 29 13:17:33 2021 GMT
+			*  expire date: Apr 27 13:17:33 2031 GMT
+			*  subjectAltName: host "foo.example.com" matched cert's "foo.example.com"
+			*  issuer: C=IE; ST=Laighin; O=openssl-esni; CN=ca
+			*  SSL certificate verify ok.
+			* TLSv1.2 (OUT), TLS header, Unknown (23):
+			> GET /index.html HTTP/1.1
+			> Host: foo.example.com:7443
+			> User-Agent: curl/7.77.0-DEV
+			> Accept: */*
+			> 
+			* TLSv1.2 (IN), TLS header, Unknown (23):
+			* TLSv1.3 (IN), TLS handshake, Newsession Ticket (4):
+			* TLSv1.2 (IN), TLS header, Unknown (23):
+			* TLSv1.3 (IN), TLS handshake, Newsession Ticket (4):
+			* old SSL session ID is stale, removing
+			* TLSv1.2 (IN), TLS header, Unknown (23):
+			* Mark bundle as not supporting multiuse
+			< HTTP/1.1 200 OK
+			< content-type: text/html
+			< etag: "2613545160"
+			< last-modified: Thu, 29 Apr 2021 13:13:28 GMT
+			< content-length: 459
+			< accept-ranges: bytes
+			< date: Thu, 03 Jun 2021 20:44:44 GMT
+
+			< server: lighttpd/1.4.60-devel-lighttpd-1.4.53-1098-g66d95722
+			< set-cookie: SERVERUSED=; Expires=Thu, 01-Jan-1970 00:00:01 GMT; path=/
+			< cache-control: private
+			< 
+			
+			<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+			    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+			<html xmlns="http://www.w3.org/1999/xhtml">
+			<head>
+			<title>Lighttpd top page.</title>
+			</head>
+			<!-- Background white, links blue (unvisited), navy (visited), red
+			(active) -->
+			<body bgcolor="#FFFFFF" text="#000000" link="#0000FF"
+			vlink="#000080" alink="#FF0000">
+			<p>This is the pretty dumb top page for testing. </p>
+			
+			</body>
+			</html>
+			
+			* Connection #0 to host foo.example.com left intact
 
 The ``SERVERUSED`` cookie was added by haproxy and the file served by lighttpd, as can
 be seen from the lighttpd logs. That did use ECH even if it's not visible. But we can
