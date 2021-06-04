@@ -7,7 +7,8 @@
 
 # Note on testing - if you have our curl build locally, and foo.example.com
 # is in your /etc/hosts, then:
-#       $src/curl --echconfig AED+CgA8ogAgACCRR4BdUxMqi3p2QZxscc4yKK7SSEe6yvjD/XQcodPBLwAEAAEAAQAAAAtleGFtcGxlLmNvbQAA --cacert ../openssl/esnistuff/cadir/oe.csr https://foo.example.com:7443/index.html -v
+#       $ cd $HOME/code/curl
+#       $ src/curl --echconfig AED+CgA8ogAgACCRR4BdUxMqi3p2QZxscc4yKK7SSEe6yvjD/XQcodPBLwAEAAEAAQAAAAtleGFtcGxlLmNvbQAA --cacert ../openssl/esnistuff/cadir/oe.csr https://foo.example.com:7443/index.html -v
 #
 # Replace the bas64 encoded stuff abouve with the right public key as
 # needed.

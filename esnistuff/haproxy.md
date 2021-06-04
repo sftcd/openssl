@@ -72,96 +72,99 @@ already a lighttpd running a new one won't be started.)
 
 A basic test using our [ECH-enabled curl](building-curl-openssl-with-ech.md):
 
-            $ curl -v --echconfig AEL+CgA+8QAgACCsEiogyYobxSGHLGd6uSDbuIbW05M41U37vsypEWdqZQAEAAEAAQAAAA1jb3Zlci5kZWZvLmllAAA= --cacert cadir/oe.csr https://foo.example.com:7443/index.html
-			*   Trying 127.0.1.3:7443...
-			* Connected to foo.example.com (127.0.1.3) port 7443 (#0)
-			* ALPN, offering http/1.1
-			*  CAfile: ../openssl/esnistuff/cadir/oe.csr
-			* ECH: found STRING_ECH_CONFIG:
-			*  AEL+CgA+8QAgACCsEiogyYobxSGHLGd6uSDbuIbW05M41U37vsypEWdqZQAEAAEAAQAAAA1jb3Zlci5kZWZvLmllAAA=
-			* ECH: will use hostname 'foo.example.com' as ECH inner name
-			  ECH: will use string 'splodge.local' as ECH outer name
-			* ECH: rv 0 from SSL_ech_server_name()
-			* ECH: rv 1 from SSL_ech_add() [OK]
-			* ECH: nechs 1 from SSL_ech_add() [OK]
-			* ossl_connect_step1() returning CURLE_OK
-			* ossl_connect_step2() starting
-			* TLSv1.0 (OUT), TLS header, Certificate Status (22):
-			* TLSv1.3 (OUT), TLS handshake, Client hello (1):
-			* SSL_connect() returned -1, detail 2
-			* ossl_connect_step2() starting
-			* TLSv1.2 (IN), TLS header, Certificate Status (22):
-			* TLSv1.3 (IN), TLS handshake, Server hello (2):
-			* TLSv1.2 (IN), TLS header, Finished (20):
-			* TLSv1.2 (IN), TLS header, Unknown (23):
-			* TLSv1.3 (IN), TLS handshake, Encrypted Extensions (8):
-			* TLSv1.2 (IN), TLS header, Unknown (23):
-			* TLSv1.3 (IN), TLS handshake, Certificate (11):
-			* TLSv1.2 (IN), TLS header, Unknown (23):
-			* TLSv1.3 (IN), TLS handshake, CERT verify (15):
-			* TLSv1.2 (IN), TLS header, Unknown (23):
-			* TLSv1.3 (IN), TLS handshake, Finished (20):
-			* TLSv1.2 (OUT), TLS header, Finished (20):
-			* TLSv1.3 (OUT), TLS change cipher, Change cipher spec (1):
-			* TLSv1.2 (OUT), TLS header, Unknown (23):
-			* TLSv1.3 (OUT), TLS handshake, Finished (20):
-			* SSL connection using TLSv1.3 / TLS_AES_256_GCM_SHA384
-			* ALPN, server did not agree to a protocol
-			* ossl_connect_step2() returning CURLE_OK
-			* Server certificate:
-			*  subject: C=IE; ST=Laighin; O=openssl-esni; CN=foo.example.com
-			*  start date: Apr 29 13:17:33 2021 GMT
-			*  expire date: Apr 27 13:17:33 2031 GMT
-			*  subjectAltName: host "foo.example.com" matched cert's "foo.example.com"
-			*  issuer: C=IE; ST=Laighin; O=openssl-esni; CN=ca
-			*  SSL certificate verify ok.
-			* TLSv1.2 (OUT), TLS header, Unknown (23):
-			> GET /index.html HTTP/1.1
-			> Host: foo.example.com:7443
-			> User-Agent: curl/7.77.0-DEV
-			> Accept: */*
-			> 
-			* TLSv1.2 (IN), TLS header, Unknown (23):
-			* TLSv1.3 (IN), TLS handshake, Newsession Ticket (4):
-			* TLSv1.2 (IN), TLS header, Unknown (23):
-			* TLSv1.3 (IN), TLS handshake, Newsession Ticket (4):
-			* old SSL session ID is stale, removing
-			* TLSv1.2 (IN), TLS header, Unknown (23):
-			* Mark bundle as not supporting multiuse
-			< HTTP/1.1 200 OK
-			< content-type: text/html
-			< etag: "2613545160"
-			< last-modified: Thu, 29 Apr 2021 13:13:28 GMT
-			< content-length: 459
-			< accept-ranges: bytes
-			< date: Thu, 03 Jun 2021 20:44:44 GMT
+            $ cd $HOME/code/curl
+            $ src/curl -v --echconfig AEL+CgA+8QAgACCsEiogyYobxSGHLGd6uSDbuIbW05M41U37vsypEWdqZQAEAAEAAQAAAA1jb3Zlci5kZWZvLmllAAA= \
+                --cacert ../openssl/esnistuff/cadir/oe.csr https://foo.example.com:7443/index.html
+            *   Trying 127.0.1.3:7443...
+            * Connected to foo.example.com (127.0.1.3) port 7443 (#0)
+            * ALPN, offering http/1.1
+            *  CAfile: ../openssl/esnistuff/cadir/oe.csr
+            * ECH: found STRING_ECH_CONFIG:
+            *  AEL+CgA+8QAgACCsEiogyYobxSGHLGd6uSDbuIbW05M41U37vsypEWdqZQAEAAEAAQAAAA1jb3Zlci5kZWZvLmllAAA=
+            * ECH: will use hostname 'foo.example.com' as ECH inner name
+              ECH: will use string 'splodge.local' as ECH outer name
+            * ECH: rv 0 from SSL_ech_server_name()
+            * ECH: rv 1 from SSL_ech_add() [OK]
+            * ECH: nechs 1 from SSL_ech_add() [OK]
+            * ossl_connect_step1() returning CURLE_OK
+            * ossl_connect_step2() starting
+            * TLSv1.0 (OUT), TLS header, Certificate Status (22):
+            * TLSv1.3 (OUT), TLS handshake, Client hello (1):
+            * SSL_connect() returned -1, detail 2
+            * ossl_connect_step2() starting
+            * TLSv1.2 (IN), TLS header, Certificate Status (22):
+            * TLSv1.3 (IN), TLS handshake, Server hello (2):
+            * TLSv1.2 (IN), TLS header, Finished (20):
+            * TLSv1.2 (IN), TLS header, Unknown (23):
+            * TLSv1.3 (IN), TLS handshake, Encrypted Extensions (8):
+            * TLSv1.2 (IN), TLS header, Unknown (23):
+            * TLSv1.3 (IN), TLS handshake, Certificate (11):
+            * TLSv1.2 (IN), TLS header, Unknown (23):
+            * TLSv1.3 (IN), TLS handshake, CERT verify (15):
+            * TLSv1.2 (IN), TLS header, Unknown (23):
+            * TLSv1.3 (IN), TLS handshake, Finished (20):
+            * TLSv1.2 (OUT), TLS header, Finished (20):
+            * TLSv1.3 (OUT), TLS change cipher, Change cipher spec (1):
+            * TLSv1.2 (OUT), TLS header, Unknown (23):
+            * TLSv1.3 (OUT), TLS handshake, Finished (20):
+            * SSL connection using TLSv1.3 / TLS_AES_256_GCM_SHA384
+            * ALPN, server did not agree to a protocol
+            * ossl_connect_step2() returning CURLE_OK
+            * Server certificate:
+            *  subject: C=IE; ST=Laighin; O=openssl-esni; CN=foo.example.com
+            *  start date: Apr 29 13:17:33 2021 GMT
+            *  expire date: Apr 27 13:17:33 2031 GMT
+            *  subjectAltName: host "foo.example.com" matched cert's "foo.example.com"
+            *  issuer: C=IE; ST=Laighin; O=openssl-esni; CN=ca
+            *  SSL certificate verify ok.
+            * TLSv1.2 (OUT), TLS header, Unknown (23):
+            > GET /index.html HTTP/1.1
+            > Host: foo.example.com:7443
+            > User-Agent: curl/7.77.0-DEV
+            > Accept: */*
+            > 
+            * TLSv1.2 (IN), TLS header, Unknown (23):
+            * TLSv1.3 (IN), TLS handshake, Newsession Ticket (4):
+            * TLSv1.2 (IN), TLS header, Unknown (23):
+            * TLSv1.3 (IN), TLS handshake, Newsession Ticket (4):
+            * old SSL session ID is stale, removing
+            * TLSv1.2 (IN), TLS header, Unknown (23):
+            * Mark bundle as not supporting multiuse
+            < HTTP/1.1 200 OK
+            < content-type: text/html
+            < etag: "2613545160"
+            < last-modified: Thu, 29 Apr 2021 13:13:28 GMT
+            < content-length: 459
+            < accept-ranges: bytes
+            < date: Thu, 03 Jun 2021 20:44:44 GMT
 
-			< server: lighttpd/1.4.60-devel-lighttpd-1.4.53-1098-g66d95722
-			< set-cookie: SERVERUSED=; Expires=Thu, 01-Jan-1970 00:00:01 GMT; path=/
-			< cache-control: private
-			< 
-			
-			<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
-			    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
-			<html xmlns="http://www.w3.org/1999/xhtml">
-			<head>
-			<title>Lighttpd top page.</title>
-			</head>
-			<!-- Background white, links blue (unvisited), navy (visited), red
-			(active) -->
-			<body bgcolor="#FFFFFF" text="#000000" link="#0000FF"
-			vlink="#000080" alink="#FF0000">
-			<p>This is the pretty dumb top page for testing. </p>
-			
-			</body>
-			</html>
-			
-			* Connection #0 to host foo.example.com left intact
+            < server: lighttpd/1.4.60-devel-lighttpd-1.4.53-1098-g66d95722
+            < set-cookie: SERVERUSED=; Expires=Thu, 01-Jan-1970 00:00:01 GMT; path=/
+            < cache-control: private
+            < 
+            
+            <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+                "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+            <html xmlns="http://www.w3.org/1999/xhtml">
+            <head>
+            <title>Lighttpd top page.</title>
+            </head>
+            <!-- Background white, links blue (unvisited), navy (visited), red
+            (active) -->
+            <body bgcolor="#FFFFFF" text="#000000" link="#0000FF"
+            vlink="#000080" alink="#FF0000">
+            <p>This is the pretty dumb top page for testing. </p>
+            
+            </body>
+            </html>
+            
+            * Connection #0 to host foo.example.com left intact
 
 The ``SERVERUSED`` cookie was added by haproxy and the file served by lighttpd, as can
 be seen from the lighttpd logs. That did use ECH even if it's not visible. But we can
 also use our test client script (that uses ``s_client``) to make that visible:
 
+            $ cd $HOME/code/openssl/esnistuff
             $ ./echcli.sh -s localhost -H foo.example.com -p 7443 -P `./pem2rr.sh echconfig.pem` -f index.html
             Running ./echcli.sh at 20210602-201418
             Assuming supplied ECH is RR value
@@ -169,6 +172,56 @@ also use our test client script (that uses ``s_client``) to make that visible:
             Looks like it worked ok
             ECH: success: outer SNI: 'example.com', inner SNI: 'foo.example.com'
             $
+
+## Potential Frontend/Backend configurations
+
+There are a pile of variations possible, and they're hard to describe accurately 
+when chatting with people, so we'll name and document them like this:
+
+            N. setup-name: Client <--[prot]--> frontend <--[prot]--> Backend
+
+Where "N" is a number, "setup-name" is some catchy title we use just for ease
+of reference, "client" is ``curl`` or ``s_client``, "frontend" is haproxy in
+all cases so we'll just note the relevant port number used by our test setup, 
+and as the "backend" is also always lighttpd, we'll do the same for that. 
+Finally, "prot" is some string describing the protocol options on that hop.
+
+With that our first and most basic setup is:
+
+            1. ECH-front: Client <--[TLS+ECH]--> :7443 <--[Plaintext HTTP]--> :3480
+
+The second one just turns on TLS, via two entirely independent TLS sessions, with no ECH to the backend:
+
+            2. Two-TLS: Client <--[TLS+ECH]--> :7444 <--[other-TLS]--> :3481
+
+So far, only the above two setups work.
+
+The third has one TLS session from the client to backend, with the frontend
+just using the (outer) SNI for e.g. routing, if at all, and so that the 
+frontend doesn't get to see the plaintext HTTP traffic. This isn't that
+interesting for us (other than to understand how to set it up), but 
+is on the path to one we do want.
+
+            3. One-TLS: Client <--[TLS]--> :7445 <--[same-TLS]--> :3482
+
+The fourth one we'll want (but are far from having) will be where we really
+have a split-mode ECH, with the same TLS session between client and backend
+but where the frontend did decrypt the ECH and just pass on the inner CH to
+the backend, but where the frontend doesn't get to see the plaintext HTTP
+traffic.
+
+            4. Split-mode: Client <--[TLS+ECH]--> :7446 <--[inner-CH]--> :3483
+
+Note wrt split-mode: we're not yet even sure whether or not we need some other
+wrapping around the TLS session between the frontend and backend here - that
+could be needed a) for some kind of cover traffic or b) in order to enable the
+backend to signal ECH success/acceptance to the client.
+
+A fifth option that we don't plan to investigate but that may be worth naming
+is where we have two separate TLS sessions both of which independently use ECH.
+If that did prove useful, it'd probably be fairly easy to do.
+
+            5. Two-ECH: Client <--[TLS+ECH]--> frontend <--[other-TLS+ECH]--> backend
 
 ## Summary
 
