@@ -20,11 +20,47 @@ export TOP=$OSSL
 
 export LD_LIBRARY_PATH=$OSSL
 
+HLOGDIR="$OSSL/esnistuff/haproxy/logs"
+HLOGFILE="$HLOGDIR/haproxy.log"
+RSCFG="/etc/rsyslog.conf"
+
 # make directories for lighttpd stuff if needed
 mkdir -p $OSSL/esnistuff/lighttpd/logs
 mkdir -p $OSSL/esnistuff/lighttpd/www
 mkdir -p $OSSL/esnistuff/lighttpd/baz
-mkdir -p $OSSL/esnistuff/haproxy/logs
+mkdir -p $HLOGDIR
+
+if [ ! -f $HLOGFILE ]
+then
+    touch $HLOGFILE
+    chmod a+w $HLOGFILE
+fi
+
+# Check if $RSCFG has an entry for our haproxy log file
+if [ -f $RSCFG ] 
+then
+    syslogknowsalready=`grep -c "$HLOGFILE" $RSCFG`
+    if [[ "$syslogknowsalready" == "0" ]]
+    then
+        echo "You need stanzas for haproxy logging in $RSCFG"
+        echo "That should look like:" 
+        echo ""
+    cat <<EOF
+# Haproxy - you might not want this here forever as it means packets
+# rx'd could fill a disk maybe
+\$ModLoad imudp
+\$UDPServerAddress 127.0.4.5
+\$UDPServerRun 7514
+local0.* $HLOGFILE
+EOF
+    echo ""
+    echo "You should fix that - exiting in the meantime"
+    exit
+    fi
+else 
+    echo "No sign of $RSCFG - exiting as haproxymin.conf needs that"
+    exit
+fi
 
 # check for/make a home page for example.com and other virtual hosts
 if [ ! -f $OSSL/esnistuff/lighttpd/www/index.html ]

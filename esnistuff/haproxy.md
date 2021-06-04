@@ -173,6 +173,11 @@ also use our test client script (that uses ``s_client``) to make that visible:
             ECH: success: outer SNI: 'example.com', inner SNI: 'foo.example.com'
             $
 
+[testhaproxy.sh](testhaproxy.sh) does pretty minimal logging in
+``$HOME/code/openssl/esnistuff/haproxy/logs/haproxy.log`` but you
+need to add some stanzas to ``/etc/rsyslog.conf`` to get that.
+(Absent those, the test script will, for now, complain and exit.)
+
 ## Potential Frontend/Backend configurations
 
 There are a pile of variations possible, and they're hard to describe accurately 
