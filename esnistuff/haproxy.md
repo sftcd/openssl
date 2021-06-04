@@ -194,8 +194,6 @@ The second one just turns on TLS, via two entirely independent TLS sessions, wit
 
             2. Two-TLS: Client <--[TLS+ECH]--> :7444 <--[other-TLS]--> :3481
 
-So far, only the above two setups work.
-
 The third has one TLS session from the client to backend, with the frontend
 just using the (outer) SNI for e.g. routing, if at all, and so that the 
 frontend doesn't get to see the plaintext HTTP traffic. This isn't that
@@ -203,6 +201,9 @@ interesting for us (other than to understand how to set it up), but
 is on the path to one we do want.
 
             3. One-TLS: Client <--[TLS]--> :7445 <--[same-TLS]--> :3482
+
+The three setups above work, it may be a while before we get a working
+version of...
 
 The fourth one we'll want (but are far from having) will be where we really
 have a split-mode ECH, with the same TLS session between client and backend
