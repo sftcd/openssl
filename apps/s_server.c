@@ -29,11 +29,15 @@
 #ifndef OPENSSL_NO_SSL_TRACE
 #include <openssl/trace.h>
 #endif
+#if defined(_WIN32)
+#include <winsock.h>
+#else
 /* for sockaddr stuff - not portable!!!  */
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <netdb.h>
+#endif
 /* for timing in TRACE */
 #include <time.h>
 #endif
