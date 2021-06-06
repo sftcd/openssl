@@ -36,6 +36,10 @@
 #endif
 #include "internal/o_dir.h"
 
+#ifndef PATH_MAX
+# define PATH_MAX 4096
+#endif
+
 /*
  * For ossl_assert
  */
