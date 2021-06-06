@@ -25,7 +25,6 @@
 
 #ifndef OPENSSL_NO_ECH
 #include <openssl/ech.h>
-#include <dirent.h> /* for echdir handling */
 /* to use tracing, if configured and requested */
 #ifndef OPENSSL_NO_SSL_TRACE
 #include <openssl/trace.h>
@@ -2275,11 +2274,6 @@ int s_server_main(int argc, char *argv[])
     if (echdir != NULL ) {
         /*
          * Try load any good looking public/private ECH values found in files in that directory
-         * TODO: Find a more OpenSSL-like way of reading a directory without all the massive
-         * indirection involved in the CApath which seems to delve about 5 call deep to do
-         * anything. The echdir shouldn't be embedded in the library at all really, so
-         * arguably handling it fully here in the app is better, though there may I guess
-         * be issues with portability.
          */
         size_t elen=strlen(echdir);
         if ((elen+7) >= PATH_MAX) {
@@ -2292,42 +2286,13 @@ int s_server_main(int argc, char *argv[])
             BIO_printf(bio_err, "'%s' is not a directory - exiting \r\n", echdir);
             goto end;
         }
-        DIR *dp;
-        struct dirent *ep;
-        dp=opendir(echdir);
-        if (dp==NULL) {
-            BIO_printf(bio_err, "Can't read directory '%s' - exiting \r\n", echdir);
+        int nloaded=0;
+        int erc=SSL_CTX_ech_readpemdir(ctx,echdir,&nloaded);
+        if (erc!=1) {
+            BIO_printf(bio_err, "Failure reading ECH keys from %s\n",echdir);
             goto end;
         }
-        while ((ep=readdir(dp))!=NULL) {
-            char echname[PATH_MAX];
-            /*
-             * If the file name matches *.pem, then try enable that 
-             */
-            size_t nlen=strlen(ep->d_name);
-            if (nlen>5) {
-                char *last4=ep->d_name+nlen-4;
-                if (strncmp(last4,".pem",4)) {
-                    continue;
-                }
-                if ((elen+nlen+1+1)>=PATH_MAX) { /* +1 for '/' and of NULL terminator */
-                    closedir(dp);
-                    BIO_printf(bio_err,"name too long: %s/%s - exiting \r\n",echdir,ep->d_name);
-                    goto end;
-                }
-                snprintf(echname,PATH_MAX,"%s/%s",echdir,ep->d_name);
-                struct stat thestat;
-                if (stat(echname,&thestat)==0) {
-                    if (SSL_CTX_ech_server_enable(ctx,echname)!=1) {
-                        BIO_printf(bio_err, "Failure establishing ECH parameters for %s\n",echname);
-                    }
-                    if (bio_s_out != NULL) {
-                        BIO_printf(bio_s_out,"Added ECH key pair: %s\n",echname);
-                    }
-                }
-            }
-        }
-        closedir(dp);
+        BIO_printf(bio_s_out,"Added %d ECH key pairs from: %s\n",nloaded,echdir);
     }
 
     /* 

@@ -540,3 +540,4 @@ SSL_set_ech_callback                    540	3_0_0	EXIST::FUNCTION:ECH
 SSL_CTX_set_ech_callback                541	3_0_0	EXIST::FUNCTION:ECH
 SSL_CTX_set_ech_alpn_protos             542	3_0_0	EXIST::FUNCTION:ECH
 SSL_ech_set_grease_suite                  ? 3_0_0   EXIST::FUNCTION:ECH
+SSL_CTX_ech_readpemdir                    ? 3_0_0   EXIST::FUNCTION:ECH

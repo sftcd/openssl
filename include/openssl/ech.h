@@ -257,6 +257,16 @@ int SSL_CTX_ech_server_flush_keys(SSL_CTX *s, int age);
  */
 int SSL_CTX_ech_server_enable(SSL_CTX *s, const char *echcfgfile);
 
+/*!
+ * @brief API to load all the keys found in a directory
+ *
+ * @param ctx is an SSL_CTX
+ * @param echdir is the directory name
+ * @oaram number_loaded returns the number of key pairs successfully loaded
+ * @return 1 for success, other otherwise
+ */
+int SSL_CTX_ech_readpemdir(SSL_CTX *ctx, const char *echdir, int *number_loaded);
+
 #define ECH_SELECT_ALL -1 ///< used to indicate "all" in SSL_ech_print etc.
 
 /** 
@@ -307,6 +317,7 @@ int SSL_ech_get_status(SSL *s, char **inner_sni, char **outer_sni);
  * @return 1 for success, other otherwise
  */
 int SSL_ech_set_grease_suite(SSL *s,const char* suite);
+
 
 #endif
 #endif

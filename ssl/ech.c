@@ -34,6 +34,7 @@
 #if !defined(OPENSSL_SYS_WINDOWS)
 #include <unistd.h>
 #endif
+#include "internal/o_dir.h"
 
 /*
  * For ossl_assert
@@ -3906,5 +3907,84 @@ int SSL_ech_set_grease_suite(SSL *s, const char* suite)
     return 1;
 }
 
+
+/*!
+ * @brief API to load all the keys found in a directory
+ *
+ * @param ctx is an SSL_CTX
+ * @param echdir is the directory name
+ * @oaram number_loaded returns the number of key pairs successfully loaded
+ * @return 1 for success, other otherwise
+ */
+int SSL_CTX_ech_readpemdir(SSL_CTX *ctx, const char *echdir, int *number_loaded)
+{
+    if (!ctx || !echdir || !number_loaded) return(0);
+    OPENSSL_DIR_CTX *d = NULL;
+    const char *filename;
+    /* Note that a side effect is that the CAs will be sorted by name */
+    while ((filename = OPENSSL_DIR_read(&d, echdir))) {
+        char echname[PATH_MAX];
+        int r;
+        if (strlen(echdir) + strlen(filename) + 2 > sizeof(echname)) {
+#ifndef OPENSSL_NO_SSL_TRACE
+            OSSL_TRACE_BEGIN(TLS) {
+                BIO_printf(trc_out,"name too long: %s/%s - skipping it \r\n",echdir,filename);
+            } OSSL_TRACE_END(TLS);
+#endif
+            continue;
+        }
+#ifdef OPENSSL_SYS_VMS
+        r = BIO_snprintf(echname, sizeof(echname), "%s%s", echdir, filename);
+#else
+        r = BIO_snprintf(echname, sizeof(echname), "%s/%s", echdir, filename);
+#endif
+        if (r <= 0 || r >= (int)sizeof(echname)) {
+#ifndef OPENSSL_NO_SSL_TRACE
+            OSSL_TRACE_BEGIN(TLS) {
+                BIO_printf(trc_out,"name oddity: %s/%s - skipping it \r\n",echdir,filename);
+            } OSSL_TRACE_END(TLS);
+#endif
+            continue;
+        }
+        size_t nlen=strlen(filename);
+        if (nlen <= 4 ) {
+#ifndef OPENSSL_NO_SSL_TRACE
+            OSSL_TRACE_BEGIN(TLS) {
+                BIO_printf(trc_out,"name too short: %s/%s - skipping it \r\n",echdir,filename);
+            } OSSL_TRACE_END(TLS);
+#endif
+            continue;
+        }
+        const char *last4=filename+nlen-4;
+        if (strncmp(last4,".pem",4) && strncmp(last4,".ech",4)) {
+#ifndef OPENSSL_NO_SSL_TRACE
+            OSSL_TRACE_BEGIN(TLS) {
+                BIO_printf(trc_out,"name doesn't end in .pem: %s/%s - skipping it \r\n",echdir,filename);
+            } OSSL_TRACE_END(TLS);
+#endif
+            continue;
+        }
+        struct stat thestat;
+        if (stat(echname,&thestat)==0) {
+            if (SSL_CTX_ech_server_enable(ctx,echname)!=1) {
+#ifndef OPENSSL_NO_SSL_TRACE
+                OSSL_TRACE_BEGIN(TLS) {
+                    BIO_printf(trc_out, "Failure establishing ECH parameters for %s\n",echname);
+                } OSSL_TRACE_END(TLS);
+#endif
+            }
+            *number_loaded=*number_loaded+1;
+#ifndef OPENSSL_NO_SSL_TRACE
+            OSSL_TRACE_BEGIN(TLS) {
+                BIO_printf(trc_out,"Added %d-th ECH key pair from: %s\n",*number_loaded,echname);
+            } OSSL_TRACE_END(TLS);
+#endif
+        }
+    }
+    if (d)
+        OPENSSL_DIR_end(&d);
+
+    return 1;
+}
 
 #endif
