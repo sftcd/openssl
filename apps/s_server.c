@@ -24,6 +24,10 @@
 #include <openssl/decoder.h>
 
 #ifndef OPENSSL_NO_ECH
+
+#ifndef PATH_MAX
+# define PATH_MAX 4096
+#endif
 #include <openssl/ech.h>
 /* to use tracing, if configured and requested */
 #ifndef OPENSSL_NO_SSL_TRACE
