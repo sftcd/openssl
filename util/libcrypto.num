@@ -5424,4 +5424,5 @@ hpke_expand                             5551	3_0_0	EXIST::FUNCTION:
 hpke_ah_decode                          5552	3_0_0	EXIST::FUNCTION:
 hpke_suite_check                        5553	3_0_0	EXIST::FUNCTION:
 hpke_good4grease                        5555	3_0_0	EXIST::FUNCTION:
-hpke_str2suite                             ?    3_0_0   EXIST::FUNCTION:
+hpke_str2suite                          5556	3_0_0	EXIST::FUNCTION:
+hpke_prbuf2evp                          5557	3_0_0	EXIST::FUNCTION:

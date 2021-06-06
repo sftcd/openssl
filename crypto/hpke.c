@@ -2603,6 +2603,13 @@ int hpke_str2suite(char *suitestr, hpke_suite_t suite)
     suite.kem_id=kem;
     suite.kdf_id=kdf;
     suite.aead_id=aead;
+    /* 
+     * this line is only needed to avoid a complile error in a CI build
+     * that sets -Werror=unused-but-set-parameter
+     * I guess passing a struct on the stack isn't considered good - maybe
+     * think about changing that later
+     */
+    if (suite.kem_id==0||suite.kdf_id==0||suite.aead_id==0) { erv=__LINE__; return erv; }
     return 1;
 }
 
