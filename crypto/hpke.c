@@ -2544,7 +2544,11 @@ int hpke_good4grease(
 /*
  * @brief string matching for suites
  */
+#if defined(_WIN32)
+#define HPKE_MSMATCH(inp,known) (strlen(inp)==strlen(known) && !_stricmp(inp,known))
+#else
 #define HPKE_MSMATCH(inp,known) (strlen(inp)==strlen(known) && !strcasecmp(inp,known))
+#endif
 
 /*!
  * @brief map a strin to a HPKE suite
