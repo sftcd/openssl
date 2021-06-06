@@ -33,9 +33,7 @@
 #ifndef OPENSSL_NO_SSL_TRACE
 #include <openssl/trace.h>
 #endif
-#if defined(_WIN32)
-#include <winsock.h>
-#else
+#if !defined(_WIN32)
 /* for sockaddr stuff - not portable!!!  */
 #include <netinet/in.h>
 #include <sys/socket.h>
