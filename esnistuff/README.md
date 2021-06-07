@@ -28,6 +28,8 @@ Most recent first...
 DON'T TRY ECH YET!!! The very much work-in-progress code is
 sooooo awful still...
 
+- 20210607: might just have the entire CI build stuff working now
+
 - 20210602: haproxy sorta working a bit - [notes](haproxy.md) 
 
 - 20210525: More work done on padding - [padding_notes.md](padding_notes.md).
