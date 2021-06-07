@@ -46,8 +46,8 @@
 #undef SUPERVERBOSE
 
 #if defined(SUPERVERBOSE) || defined(TESTVECTORS)
-unsigned char *pbuf; ///< global var for debug printing
-size_t pblen=1024; ///< global var for debug printing
+unsigned char *pbuf; /**< global var for debug printing */
+size_t pblen=1024; /**< global var for debug printing */
 #endif
 
 #if defined(SUPERVERBOSE) || defined(TESTVECTORS)
@@ -65,18 +65,18 @@ static const char *hpke_mode_strtab[]={
  * @brief info about an AEAD
  */
 typedef struct {
-    uint16_t            aead_id; ///< code point for aead alg
-    const EVP_CIPHER*   (*aead_init_func)(void); ///< the aead we're using
-    size_t              taglen; ///< aead tag len
-    size_t              Nk; ///< size of a key for this aead
-    size_t              Nn; ///< length of a nonce for this aead
+    uint16_t            aead_id; /**< code point for aead alg */
+    const EVP_CIPHER*   (*aead_init_func)(void); /**< the aead we're using */
+    size_t              taglen; /**< aead tag len */
+    size_t              Nk; /**< size of a key for this aead */
+    size_t              Nn; /**< length of a nonce for this aead */
 } hpke_aead_info_t;
 
 /*!
  * @brief table of AEADs
  */
 static hpke_aead_info_t hpke_aead_tab[]={
-    { 0, NULL, 0, 0, 0 }, // this is needed to keep indexing correct
+    { 0, NULL, 0, 0, 0 }, /* this is needed to keep indexing correct */
     { HPKE_AEAD_ID_AES_GCM_128, EVP_aes_128_gcm, 16, 16, 12 }, 
     { HPKE_AEAD_ID_AES_GCM_256, EVP_aes_256_gcm, 16, 32, 12 }, 
 #ifndef OPENSSL_NO_CHACHA20
@@ -101,15 +101,15 @@ static const char *hpke_aead_strtab[]={
  * @brief info about a KEM
  */
 typedef struct {
-    uint16_t            kem_id; ///< code point for key encipherment method
-    const char          *keytype; ///< string form of algorithm type "EC"/"X25519"/"X448"
-    const char          *groupname; ///< string form of EC group needed for NIST curves "P-256"/"p-384"/"p-521"
-    int                 groupid; ///< NID of KEM
-    const EVP_MD*       (*hash_init_func)(void); ///< the hash alg we're using for the HKDF
-    size_t              Nsecret; ///< size of secrets
-    size_t              Nenc; ///< length of encapsulated key
-    size_t              Npk; ///< length of public key
-    size_t              Npriv; ///< length of raw private key
+    uint16_t            kem_id; /**< code point for key encipherment method */
+    const char          *keytype; /**< string form of algorithm type "EC"/"X25519"/"X448" */
+    const char          *groupname; /**< string form of EC group needed for NIST curves "P-256"/"p-384"/"p-521" */
+    int                 groupid; /**< NID of KEM */
+    const EVP_MD*       (*hash_init_func)(void); /**< the hash alg we're using for the HKDF */
+    size_t              Nsecret; /**< size of secrets */
+    size_t              Nenc; /**< length of encapsulated key */
+    size_t              Npk; /**< length of public key */
+    size_t              Npriv; /**< length of raw private key */
 } hpke_kem_info_t;
 
 /*!
@@ -118,41 +118,41 @@ typedef struct {
  * Ok we're wasting space here, but not much and it's ok
  */
 static hpke_kem_info_t hpke_kem_tab[]={
-    { 0, NULL, NULL, 0, NULL, 0, 0, 0 }, // this is needed to keep indexing correct
-    { 1, NULL, NULL, 0, NULL, 0, 0, 0 }, // this is needed to keep indexing correct
-    { 2, NULL, NULL, 0, NULL, 0, 0, 0 }, // this is needed to keep indexing correct
-    { 3, NULL, NULL, 0, NULL, 0, 0, 0 }, // this is needed to keep indexing correct
-    { 4, NULL, NULL, 0, NULL, 0, 0, 0 }, // this is needed to keep indexing correct
-    { 5, NULL, NULL, 0, NULL, 0, 0, 0 }, // this is needed to keep indexing correct
-    { 6, NULL, NULL, 0, NULL, 0, 0, 0 }, // this is needed to keep indexing correct
-    { 7, NULL, NULL, 0, NULL, 0, 0, 0 }, // this is needed to keep indexing correct
-    { 8, NULL, NULL, 0, NULL, 0, 0, 0 }, // this is needed to keep indexing correct
-    { 9, NULL, NULL, 0, NULL, 0, 0, 0 }, // this is needed to keep indexing correct
-    {10, NULL, NULL, 0, NULL, 0, 0, 0 }, // this is needed to keep indexing correct
-    {11, NULL, NULL, 0, NULL, 0, 0, 0 }, // this is needed to keep indexing correct
-    {12, NULL, NULL, 0, NULL, 0, 0, 0 }, // this is needed to keep indexing correct
-    {13, NULL, NULL, 0, NULL, 0, 0, 0 }, // this is needed to keep indexing correct
-    {14, NULL, NULL, 0, NULL, 0, 0, 0 }, // this is needed to keep indexing correct
-    {15, NULL, NULL, 0, NULL, 0, 0, 0 }, // this is needed to keep indexing correct
-    { HPKE_KEM_ID_P256, "EC", "P-256", NID_X9_62_prime256v1, EVP_sha256, 32, 65, 65, 32 }, // maybe "prime256v1" instead of P-256?
+    { 0, NULL, NULL, 0, NULL, 0, 0, 0 }, /* this is needed to keep indexing correct */
+    { 1, NULL, NULL, 0, NULL, 0, 0, 0 }, /* this is needed to keep indexing correct */
+    { 2, NULL, NULL, 0, NULL, 0, 0, 0 }, /* this is needed to keep indexing correct */
+    { 3, NULL, NULL, 0, NULL, 0, 0, 0 }, /* this is needed to keep indexing correct */
+    { 4, NULL, NULL, 0, NULL, 0, 0, 0 }, /* this is needed to keep indexing correct */
+    { 5, NULL, NULL, 0, NULL, 0, 0, 0 }, /* this is needed to keep indexing correct */
+    { 6, NULL, NULL, 0, NULL, 0, 0, 0 }, /* this is needed to keep indexing correct */
+    { 7, NULL, NULL, 0, NULL, 0, 0, 0 }, /* this is needed to keep indexing correct */
+    { 8, NULL, NULL, 0, NULL, 0, 0, 0 }, /* this is needed to keep indexing correct */
+    { 9, NULL, NULL, 0, NULL, 0, 0, 0 }, /* this is needed to keep indexing correct */
+    {10, NULL, NULL, 0, NULL, 0, 0, 0 }, /* this is needed to keep indexing correct */
+    {11, NULL, NULL, 0, NULL, 0, 0, 0 }, /* this is needed to keep indexing correct */
+    {12, NULL, NULL, 0, NULL, 0, 0, 0 }, /* this is needed to keep indexing correct */
+    {13, NULL, NULL, 0, NULL, 0, 0, 0 }, /* this is needed to keep indexing correct */
+    {14, NULL, NULL, 0, NULL, 0, 0, 0 }, /* this is needed to keep indexing correct */
+    {15, NULL, NULL, 0, NULL, 0, 0, 0 }, /* this is needed to keep indexing correct */
+    { HPKE_KEM_ID_P256, "EC", "P-256", NID_X9_62_prime256v1, EVP_sha256, 32, 65, 65, 32 }, /* maybe "prime256v1" instead of P-256? */
     { HPKE_KEM_ID_P384, "EC", "P-384", NID_secp384r1, EVP_sha384, 48, 97, 97, 48 },
     { HPKE_KEM_ID_P521, "EC", "P-521", NID_secp521r1, EVP_sha512, 64, 133, 133, 66 },
-    {19, NULL, NULL, 0, NULL, 0, 0, 0 }, // this is needed to keep indexing correct
-    {20, NULL, NULL, 0, NULL, 0, 0, 0 }, // this is needed to keep indexing correct
-    {21, NULL, NULL, 0, NULL, 0, 0, 0 }, // this is needed to keep indexing correct
-    {22, NULL, NULL, 0, NULL, 0, 0, 0 }, // this is needed to keep indexing correct
-    {23, NULL, NULL, 0, NULL, 0, 0, 0 }, // this is needed to keep indexing correct
-    {24, NULL, NULL, 0, NULL, 0, 0, 0 }, // this is needed to keep indexing correct
-    {25, NULL, NULL, 0, NULL, 0, 0, 0 }, // this is needed to keep indexing correct
-    {26, NULL, NULL, 0, NULL, 0, 0, 0 }, // this is needed to keep indexing correct
-    {27, NULL, NULL, 0, NULL, 0, 0, 0 }, // this is needed to keep indexing correct
-    {28, NULL, NULL, 0, NULL, 0, 0, 0 }, // this is needed to keep indexing correct
-    {29, NULL, NULL, 0, NULL, 0, 0, 0 }, // this is needed to keep indexing correct
-    {30, NULL, NULL, 0, NULL, 0, 0, 0 }, // this is needed to keep indexing correct
-    {31, NULL, NULL, 0, NULL, 0, 0, 0 }, // this is needed to keep indexing correct
+    {19, NULL, NULL, 0, NULL, 0, 0, 0 }, /* this is needed to keep indexing correct */
+    {20, NULL, NULL, 0, NULL, 0, 0, 0 }, /* this is needed to keep indexing correct */
+    {21, NULL, NULL, 0, NULL, 0, 0, 0 }, /* this is needed to keep indexing correct */
+    {22, NULL, NULL, 0, NULL, 0, 0, 0 }, /* this is needed to keep indexing correct */
+    {23, NULL, NULL, 0, NULL, 0, 0, 0 }, /* this is needed to keep indexing correct */
+    {24, NULL, NULL, 0, NULL, 0, 0, 0 }, /* this is needed to keep indexing correct */
+    {25, NULL, NULL, 0, NULL, 0, 0, 0 }, /* this is needed to keep indexing correct */
+    {26, NULL, NULL, 0, NULL, 0, 0, 0 }, /* this is needed to keep indexing correct */
+    {27, NULL, NULL, 0, NULL, 0, 0, 0 }, /* this is needed to keep indexing correct */
+    {28, NULL, NULL, 0, NULL, 0, 0, 0 }, /* this is needed to keep indexing correct */
+    {29, NULL, NULL, 0, NULL, 0, 0, 0 }, /* this is needed to keep indexing correct */
+    {30, NULL, NULL, 0, NULL, 0, 0, 0 }, /* this is needed to keep indexing correct */
+    {31, NULL, NULL, 0, NULL, 0, 0, 0 }, /* this is needed to keep indexing correct */
     { HPKE_KEM_ID_25519, "X25519", NULL, EVP_PKEY_X25519, EVP_sha256, 32, 32, 32, 32 },
     { HPKE_KEM_ID_448, "X448", NULL, EVP_PKEY_X448, EVP_sha512, 64, 56, 56, 56 },
-    {34, NULL, NULL, 0, NULL, 0, 0, 0 }, // this is needed to keep indexing correct
+    {34, NULL, NULL, 0, NULL, 0, 0, 0 }, /* this is needed to keep indexing correct */
 };
 
 #if defined(SUPERVERBOSE) || defined(TESTVECTORS)
@@ -182,16 +182,16 @@ const char *hpke_kem_strtab[]={
  * @brief info about a KDF
  */
 typedef struct {
-    uint16_t            kdf_id; ///< code point for KDF
-    const EVP_MD*       (*hash_init_func)(void); ///< the hash alg we're using
-    size_t              Nh; ///< length of hash/extract output
+    uint16_t            kdf_id; /**< code point for KDF */
+    const EVP_MD*       (*hash_init_func)(void); /**< the hash alg we're using */
+    size_t              Nh; /**< length of hash/extract output */
 } hpke_kdf_info_t;
 
 /*!
  * @brief table of KDFs
  */
 static hpke_kdf_info_t hpke_kdf_tab[]={
-    { 0, NULL, 0 }, // this is needed to keep indexing correct
+    { 0, NULL, 0 }, /* this is needed to keep indexing correct */
     { HPKE_KDF_ID_HKDF_SHA256, EVP_sha256, 32 },
     { HPKE_KDF_ID_HKDF_SHA384, EVP_sha384, 48 },
     { HPKE_KDF_ID_HKDF_SHA512, EVP_sha512, 64 }
@@ -250,6 +250,7 @@ const char *hpke_kdf_strtab[]={
 int hpke_ah_decode(size_t ahlen, const char *ah, size_t *blen, unsigned char **buf)
 {
     size_t lblen=0;
+    size_t i=0;
     unsigned char *lbuf=NULL;
     if (ahlen <=0 || ah==NULL || blen==NULL || buf==NULL) {
         return 0;
@@ -262,7 +263,6 @@ int hpke_ah_decode(size_t ahlen, const char *ah, size_t *blen, unsigned char **b
     if (lbuf==NULL) {
         return 0;
     }
-    size_t i=0;
     for (i=0;i!=lblen;i++) {
         lbuf[i]=HPKE_A2B(ah[2*i])*16+HPKE_A2B(ah[2*i+1]);
     }
@@ -358,7 +358,7 @@ static EVP_PKEY* hpke_EVP_PKEY_new_raw_nist_public_key(
 {
     int erv=1;
     EVP_PKEY *ret=NULL;
-    // following s3_lib.c:ssl_generate_param_group
+    /* following s3_lib.c:ssl_generate_param_group */
     EVP_PKEY_CTX *cctx=EVP_PKEY_CTX_new_id(EVP_PKEY_EC,NULL);
     if (cctx==NULL) {
         erv=__LINE__; goto err;
@@ -435,6 +435,8 @@ static int hpke_aead_dec(
     size_t plaintextlen=0;
     unsigned char *plaintext=NULL;
     size_t taglen=hpke_aead_tab[suite.aead_id].taglen;
+    const EVP_CIPHER *enc = NULL; 
+
     plaintext=OPENSSL_malloc(cipherlen);
     if (plaintext==NULL) {
         erv=__LINE__; goto err;
@@ -444,7 +446,7 @@ static int hpke_aead_dec(
         erv=__LINE__; goto err;
     }
     /* Initialise the encryption operation. */
-    const EVP_CIPHER *enc = hpke_aead_tab[suite.aead_id].aead_init_func();
+    enc=hpke_aead_tab[suite.aead_id].aead_init_func();
     if (enc == NULL) {
         erv=__LINE__; goto err;
     }
@@ -528,15 +530,11 @@ static int hpke_aead_enc(
     size_t ciphertextlen;
     unsigned char *ciphertext=NULL;
     size_t taglen=hpke_aead_tab[suite.aead_id].taglen;
-#ifdef OPENSSL_SYS_WINDOWS
-    /* compiler dislikes this seemingly */
+    const EVP_CIPHER *enc = NULL; 
     unsigned char tag[16];
     if (taglen!=16) {
         erv=__LINE__; goto err;
     }
-#else
-    unsigned char tag[taglen];
-#endif
     if ((taglen+plainlen)>*cipherlen) {
         erv=__LINE__; goto err;
     }
@@ -553,7 +551,7 @@ static int hpke_aead_enc(
         erv=__LINE__; goto err;
     }
     /* Initialise the encryption operation. */
-    const EVP_CIPHER *enc = hpke_aead_tab[suite.aead_id].aead_init_func();
+    enc=hpke_aead_tab[suite.aead_id].aead_init_func();
     if (enc == NULL) {
         erv=__LINE__; goto err;
     }
@@ -610,19 +608,19 @@ err:
 
 }
 
-#define HPKE_VERLABEL    "HPKE-v1"  ///< The version string label
-#define HPKE_SEC41LABEL  "KEM"       ///< The "suite_id" label for 4.1
-#define HPKE_SEC51LABEL  "HPKE"      ///< The "suite_id" label for 5.1
-#define HPKE_EAE_PRK_LABEL "eae_prk"  ///< The label within ExtractAndExpand
+#define HPKE_VERLABEL    "HPKE-v1"  /**< The version string label */
+#define HPKE_SEC41LABEL  "KEM"       /**< The "suite_id" label for 4.1 */
+#define HPKE_SEC51LABEL  "HPKE"      /**< The "suite_id" label for 5.1 */
+#define HPKE_EAE_PRK_LABEL "eae_prk"  /**< The label within ExtractAndExpand */
 
-#define HPKE_PSKIDHASH_LABEL "psk_id_hash" ///< A label within key_schedule_context
-#define HPKE_INFOHASH_LABEL "info_hash" ///< A label within key_schedule_context
-#define HPKE_SS_LABEL "shared_secret" ///< Yet another label
-#define HPKE_NONCE_LABEL "base_nonce" ///< guess?
-#define HPKE_EXP_LABEL "exp" ///< guess again?
-#define HPKE_KEY_LABEL "key" ///< guess again?
-#define HPKE_PSK_HASH_LABEL "psk_hash" ///< guess again?
-#define HPKE_SECRET_LABEL "secret" ///< guess again?
+#define HPKE_PSKIDHASH_LABEL "psk_id_hash" /**< A label within key_schedule_context */
+#define HPKE_INFOHASH_LABEL "info_hash" /**< A label within key_schedule_context */
+#define HPKE_SS_LABEL "shared_secret" /**< Yet another label */
+#define HPKE_NONCE_LABEL "base_nonce" /**< guess? */
+#define HPKE_EXP_LABEL "exp" /**< guess again? */
+#define HPKE_KEY_LABEL "key" /**< guess again? */
+#define HPKE_PSK_HASH_LABEL "psk_hash" /**< guess again? */
+#define HPKE_SECRET_LABEL "secret" /**< guess again? */
 
 /*!
  * @brief RFC5869 HKDF-Extract
@@ -667,6 +665,7 @@ int hpke_extract(
     size_t labeled_ikmlen=0;
     int erv=1;
     size_t concat_offset=0;
+    size_t lsecretlen=0;
 
     /*
      * Handle oddities of HPKE labels (or not)
@@ -729,7 +728,7 @@ int hpke_extract(
             memcpy(labeled_ikm+concat_offset,label,labellen);
             concat_offset+=labellen;
             if (concat_offset>=HPKE_MAXSIZE) { erv=__LINE__; goto err; }
-            if (ikmlen>0) // added 'cause asan test
+            if (ikmlen>0) /* added 'cause asan test */
             memcpy(labeled_ikm+concat_offset,ikm,ikmlen);
             concat_offset+=ikmlen;
             if (concat_offset>=HPKE_MAXSIZE) { erv=__LINE__; goto err; }
@@ -767,7 +766,7 @@ int hpke_extract(
     /*
      * get the right size set first - new in latest upstream
      */
-    size_t lsecretlen=*secretlen;
+    lsecretlen=*secretlen;
     if (EVP_PKEY_derive(pctx, NULL, &lsecretlen)!=1) {
         erv=__LINE__; goto err;
     }
@@ -813,6 +812,7 @@ int hpke_expand(const hpke_suite_t suite, const int mode5869,
     unsigned char libuf[HPKE_MAXSIZE];
     unsigned char *lip=libuf;
     size_t concat_offset=0;
+    size_t loutlen=L;
 
     if (L>*outlen) {
         erv=__LINE__; goto err;
@@ -916,7 +916,6 @@ int hpke_expand(const hpke_suite_t suite, const int mode5869,
     if (EVP_PKEY_CTX_add1_hkdf_info(pctx, libuf, concat_offset)!=1) {
         erv=__LINE__; goto err;
     }
-    size_t loutlen=L;
     if (EVP_PKEY_derive(pctx, out, &loutlen)!=1) {
         erv=__LINE__; goto err;
     }
@@ -1170,6 +1169,7 @@ static int hpke_do_kem(
     }
 
     if (akey!=NULL) {
+        size_t zzlen2=0;
 
         /* step 2 run to get 2nd half of zz */
         if (encrypting) {
@@ -1192,7 +1192,6 @@ static int hpke_do_kem(
                 erv=__LINE__; goto err;
             }
         }
-        size_t zzlen2=0;
         if (EVP_PKEY_derive(pctx, NULL, &zzlen2) <= 0) {
             erv=__LINE__; goto err;
         }
@@ -1313,51 +1312,14 @@ static int hpke_enc_int(
         )
 
 {
+    int erv=1; /* Our error return value - 1 is success */
     int crv=1;
-    if ((crv=hpke_mode_check(mode))!=1) return(crv);
-    if ((crv=hpke_psk_check(mode,pskid,psklen,psk))!=1) return(crv);
-    if ((crv=hpke_suite_check(suite))!=1) return(crv);
-
-    /*
-     * Depending on who called us, we may want to generated this key pair
-     * or we may have had it handed to us via extsender* inputs
-     */
+    int arv=1;
     int evpcaller=0;
     int rawcaller=0;
-    if (extsenderpublen>0 && extsenderpub!=NULL && extsenderpriv!=NULL) {
-        evpcaller=1;
-    } 
-    if (extsenderpublen>0 && extsenderpub!=NULL && extsenderpriv==NULL && rawsenderprivlen>0 && rawsenderpriv!=NULL) {
-        rawcaller=1;
-    } 
-
-    if (!evpcaller && !rawcaller && (!pub || !clear || !senderpublen || !senderpub || !cipherlen  || !cipher)) return(__LINE__);
-    if (evpcaller && (!pub || !clear || !extsenderpublen || !extsenderpub || !extsenderpriv || !cipherlen  || !cipher)) return(__LINE__);
-    if (rawcaller && (!pub || !clear || !extsenderpublen || !extsenderpub || !rawsenderpriv || !cipherlen  || !cipher)) return(__LINE__);
-    if ((mode==HPKE_MODE_AUTH || mode==HPKE_MODE_PSKAUTH) && (!priv || privlen==0)) return(__LINE__);
-    if ((mode==HPKE_MODE_PSK || mode==HPKE_MODE_PSKAUTH) && (!psk || psklen==0 || !pskid)) return(__LINE__);
-
-    int erv=1; /* Our error return value - 1 is success */
-#if defined(SUPERVERBOSE) || defined(TESTVECTORS)
-    printf("Encrypting:\n");
-#endif
 #if defined(TESTVECTORS)
     hpke_tv_t *ltv=(hpke_tv_t*)tv;
 #endif
-
-    /*
-     * The plan:
-     * 0. Initialise peer's key from string
-     * 1. generate sender's key pair
-     * 2. run DH KEM to get dh
-     * 3. create context buffer
-     * 4. extracts and expands as needed
-     * 5. call the AEAD 
-     *
-     * We'll follow the names used in the test vectors from the draft.
-     * For now, we're replicating the setup from Appendix A.2
-     */
-
     /* declare vars - done early so goto err works ok */
     EVP_PKEY_CTX *pctx=NULL;
     EVP_PKEY *pkR=NULL;
@@ -1382,6 +1344,47 @@ static int hpke_enc_int(
     size_t  mypublen=0;
     unsigned char *mypub=NULL;
     BIO *bfp=NULL;
+    size_t halflen=0;
+    size_t pskidlen=0;
+    size_t lcipherlen=HPKE_MAXSIZE;
+    unsigned char lcipher[HPKE_MAXSIZE];
+
+    if ((crv=hpke_mode_check(mode))!=1) return(crv);
+    if ((crv=hpke_psk_check(mode,pskid,psklen,psk))!=1) return(crv);
+    if ((crv=hpke_suite_check(suite))!=1) return(crv);
+    /*
+     * Depending on who called us, we may want to generated this key pair
+     * or we may have had it handed to us via extsender* inputs
+     */
+    if (extsenderpublen>0 && extsenderpub!=NULL && extsenderpriv!=NULL) {
+        evpcaller=1;
+    } 
+    if (extsenderpublen>0 && extsenderpub!=NULL && extsenderpriv==NULL && rawsenderprivlen>0 && rawsenderpriv!=NULL) {
+        rawcaller=1;
+    } 
+    if (!evpcaller && !rawcaller && (!pub || !clear || !senderpublen || !senderpub || !cipherlen  || !cipher)) return(__LINE__);
+    if (evpcaller && (!pub || !clear || !extsenderpublen || !extsenderpub || !extsenderpriv || !cipherlen  || !cipher)) return(__LINE__);
+    if (rawcaller && (!pub || !clear || !extsenderpublen || !extsenderpub || !rawsenderpriv || !cipherlen  || !cipher)) return(__LINE__);
+    if ((mode==HPKE_MODE_AUTH || mode==HPKE_MODE_PSKAUTH) && (!priv || privlen==0)) return(__LINE__);
+    if ((mode==HPKE_MODE_PSK || mode==HPKE_MODE_PSKAUTH) && (!psk || psklen==0 || !pskid)) return(__LINE__);
+
+
+#if defined(SUPERVERBOSE) || defined(TESTVECTORS)
+    printf("Encrypting:\n");
+#endif
+
+    /*
+     * The plan:
+     * 0. Initialise peer's key from string
+     * 1. generate sender's key pair
+     * 2. run DH KEM to get dh
+     * 3. create context buffer
+     * 4. extracts and expands as needed
+     * 5. call the AEAD 
+     *
+     * We'll follow the names used in the test vectors from the draft.
+     * For now, we're replicating the setup from Appendix A.2
+     */
 
     /* step 0. Initialise peer's key from string */
     if (hpke_kem_id_nist_curve(suite.kem_id)==1) {
@@ -1491,8 +1494,8 @@ static int hpke_enc_int(
      */
     memset(ks_context,0,HPKE_MAXSIZE);
     ks_context[0]=(unsigned char)(mode%256); ks_contextlen--;
-    size_t halflen=ks_contextlen;
-    size_t pskidlen=(psk==NULL?0:strlen(pskid));
+    halflen=ks_contextlen;
+    pskidlen=(psk==NULL?0:strlen(pskid));
     erv=hpke_extract(suite,HPKE_5869_MODE_FULL,
                     (const unsigned char*)"",0,
                     HPKE_PSKIDHASH_LABEL,strlen(HPKE_PSKIDHASH_LABEL),
@@ -1567,9 +1570,7 @@ static int hpke_enc_int(
     }
 
     /* step 5. call the AEAD */
-    size_t lcipherlen=HPKE_MAXSIZE;
-    unsigned char lcipher[HPKE_MAXSIZE];
-    int arv=hpke_aead_enc(
+    arv=hpke_aead_enc(
                 suite,
                 key,keylen,
                 nonce,noncelen,
@@ -1858,28 +1859,9 @@ int hpke_dec(
         size_t infolen, unsigned char *info,
         size_t *clearlen, unsigned char *clear)
 {
-    int crv=1;
-    if ((crv=hpke_mode_check(mode))!=1) return(crv);
-    if ((crv=hpke_psk_check(mode,pskid,psklen,psk))!=1) return(crv);
-    if ((crv=hpke_suite_check(suite))!=1) return(crv);
-
-    if (!(priv||evppriv) || !clearlen || !clear || !cipher) return(__LINE__);
-    if ((mode==HPKE_MODE_AUTH || mode==HPKE_MODE_PSKAUTH) && (!pub || publen==0)) return(__LINE__);
-    if ((mode==HPKE_MODE_PSK || mode==HPKE_MODE_PSKAUTH) && (!psk || psklen==0 || !pskid)) return(__LINE__);
-
     int erv=1;
-
-    /*
-     * The plan:
-     * 0. Initialise peer's key from string
-     * 1. load decryptors private key
-     * 2. run DH KEM to get dh
-     * 3. create context buffer
-     * 4. extracts and expands as needed
-     * 5. call the AEAD 
-     *
-     */
-
+    int crv=1;
+    int arv=1;
     /* declare vars - done early so goto err works ok */
     EVP_PKEY_CTX *pctx=NULL;
     EVP_PKEY *skR=NULL;
@@ -1902,6 +1884,28 @@ int hpke_dec(
     size_t  mypublen=0;
     unsigned char *mypub=NULL;
     BIO *bfp=NULL;
+    size_t halflen=0;
+    size_t pskidlen=0;
+    size_t lclearlen=HPKE_MAXSIZE;
+    unsigned char lclear[HPKE_MAXSIZE];
+
+    if ((crv=hpke_mode_check(mode))!=1) return(crv);
+    if ((crv=hpke_psk_check(mode,pskid,psklen,psk))!=1) return(crv);
+    if ((crv=hpke_suite_check(suite))!=1) return(crv);
+    if (!(priv||evppriv) || !clearlen || !clear || !cipher) return(__LINE__);
+    if ((mode==HPKE_MODE_AUTH || mode==HPKE_MODE_PSKAUTH) && (!pub || publen==0)) return(__LINE__);
+    if ((mode==HPKE_MODE_PSK || mode==HPKE_MODE_PSKAUTH) && (!psk || psklen==0 || !pskid)) return(__LINE__);
+
+    /*
+     * The plan:
+     * 0. Initialise peer's key from string
+     * 1. load decryptors private key
+     * 2. run DH KEM to get dh
+     * 3. create context buffer
+     * 4. extracts and expands as needed
+     * 5. call the AEAD 
+     *
+     */
 
 #if defined(SUPERVERBOSE) || defined(TESTVECTORS)
     printf("Decrypting:\n");
@@ -1955,8 +1959,8 @@ int hpke_dec(
      */
     memset(ks_context,0,HPKE_MAXSIZE);
     ks_context[0]=(unsigned char)(mode%256); ks_contextlen--;
-    size_t halflen=ks_contextlen;
-    size_t pskidlen=(psk==NULL?0:strlen(pskid));
+    halflen=ks_contextlen;
+    pskidlen=(psk==NULL?0:strlen(pskid));
     erv=hpke_extract(suite,HPKE_5869_MODE_FULL,
                     (const unsigned char*)"",0,
                     HPKE_PSKIDHASH_LABEL,strlen(HPKE_PSKIDHASH_LABEL),
@@ -2043,9 +2047,7 @@ int hpke_dec(
     }
 
     /* step 5. call the AEAD */
-    size_t lclearlen=HPKE_MAXSIZE;
-    unsigned char lclear[HPKE_MAXSIZE];
-    int arv=hpke_aead_dec(
+    arv=hpke_aead_dec(
                 suite,
                 key,keylen,
                 nonce,noncelen,
@@ -2137,18 +2139,18 @@ int hpke_kg(
         size_t *publen, unsigned char *pub,
         size_t *privlen, unsigned char *priv) 
 {
-    if (hpke_suite_check(suite)!=1) return(__LINE__);
-    if (!pub || !priv) return(__LINE__);
     int erv=1; /* Our error return value - 1 is success */
-
     EVP_PKEY *skR=NULL;
     BIO *bfp=NULL;
+    unsigned char lpriv[HPKE_MAXSIZE];
+    size_t lprivlen = 0;
 
+    if (hpke_suite_check(suite)!=1) return(__LINE__);
+    if (!pub || !priv) return(__LINE__);
     erv=hpke_kg_evp(mode,suite,publen,pub,&skR);
     if (erv!=1) {
         return(erv);
     }
-
     bfp=BIO_new(BIO_s_mem());
     if (!bfp) {
         erv=__LINE__; goto err;
@@ -2156,8 +2158,7 @@ int hpke_kg(
     if (!PEM_write_bio_PrivateKey(bfp,skR,NULL,NULL,0,NULL,NULL)) {
         erv=__LINE__; goto err;
     }
-    unsigned char lpriv[HPKE_MAXSIZE];
-    size_t lprivlen = BIO_read(bfp, lpriv, HPKE_MAXSIZE);
+    lprivlen=BIO_read(bfp, lpriv, HPKE_MAXSIZE);
     if (lprivlen <=0) {
         erv=__LINE__; goto err;
     }
@@ -2188,13 +2189,14 @@ int hpke_kg_evp(
         size_t *publen, unsigned char *pub,
         EVP_PKEY **priv)
 {
-    if (hpke_suite_check(suite)!=1) return(__LINE__);
-    if (!pub || !priv) return(__LINE__);
     int erv=1; /* Our error return value - 1 is success */
     EVP_PKEY_CTX *pctx=NULL;
     EVP_PKEY *skR=NULL;
     unsigned char *lpub=NULL;
+    size_t lpublen = 0;
 
+    if (hpke_suite_check(suite)!=1) return(__LINE__);
+    if (!pub || !priv) return(__LINE__);
     /* step 1. generate sender's key pair */
     if (hpke_kem_id_nist_curve(suite.kem_id)==1) {
         pctx = EVP_PKEY_CTX_new_id(EVP_PKEY_EC, NULL);
@@ -2223,7 +2225,7 @@ int hpke_kg_evp(
         erv=__LINE__; goto err;
     }
     EVP_PKEY_CTX_free(pctx); pctx=NULL;
-    size_t lpublen = EVP_PKEY_get1_encoded_public_key(skR,&lpub);
+    lpublen = EVP_PKEY_get1_encoded_public_key(skR,&lpub);
     if (lpub==NULL || lpublen == 0) {
         erv=__LINE__; goto err;
     }
@@ -2260,11 +2262,12 @@ int hpke_suite_check(hpke_suite_t suite)
     int kem_ok=0; 
     int kdf_ok=0;
     int aead_ok=0;
-
     int ind=0;
+    int nkems=sizeof(hpke_kem_tab)/sizeof(hpke_kem_info_t);
+    int nkdfs=sizeof(hpke_kdf_tab)/sizeof(hpke_kdf_info_t);
+    int naeads=sizeof(hpke_aead_tab)/sizeof(hpke_aead_info_t);
 
     /* check KEM */
-    int nkems=sizeof(hpke_kem_tab)/sizeof(hpke_kem_info_t);
     for (ind=0;ind!=nkems;ind++) {
         if (suite.kem_id==hpke_kem_tab[ind].kem_id &&
             hpke_kem_tab[ind].hash_init_func!=NULL) {
@@ -2274,7 +2277,6 @@ int hpke_suite_check(hpke_suite_t suite)
     }
 
     /* check kdf */
-    int nkdfs=sizeof(hpke_kdf_tab)/sizeof(hpke_kdf_info_t);
     for (ind=0;ind!=nkdfs;ind++) {
         if (suite.kdf_id==hpke_kdf_tab[ind].kdf_id &&
             hpke_kdf_tab[ind].hash_init_func!=NULL) {
@@ -2284,7 +2286,6 @@ int hpke_suite_check(hpke_suite_t suite)
     }
 
     /* check aead */
-    int naeads=sizeof(hpke_aead_tab)/sizeof(hpke_aead_info_t);
     for (ind=0;ind!=naeads;ind++) {
         if (suite.aead_id==hpke_aead_tab[ind].aead_id &&
             hpke_aead_tab[ind].aead_init_func!=NULL) {
@@ -2321,24 +2322,27 @@ int hpke_prbuf2evp(
         EVP_PKEY **retpriv)
 {
     int erv=1;
+    EVP_PKEY *lpriv=NULL;
+    EVP_PKEY_CTX *ctx=NULL;
+    BIGNUM *priv=NULL;
+    const char *keytype=NULL;
+    const char *groupname=NULL;
+    OSSL_PARAM_BLD *param_bld=NULL;
+    OSSL_PARAM *params=NULL;
+
+    keytype=hpke_kem_tab[kem_id].keytype;
+    groupname=hpke_kem_tab[kem_id].groupname;
+
 #if defined(SUPERVERBOSE) || defined(TESTVECTORS)
     printf("Called hpke_prbuf2evp with kem id: %04x\n",kem_id);
     hpke_pbuf(stdout,"hpke_prbuf2evp priv input",prbuf,prbuf_len);
     hpke_pbuf(stdout,"hpke_prbuf2evp pub input",pubuf,pubuf_len);
 #endif
 
-    EVP_PKEY *lpriv=NULL;
     if (prbuf==NULL || prbuf_len==0 || retpriv==NULL) {
         return __LINE__;
     }
     if (hpke_kem_id_check(kem_id)!=1) return(__LINE__);
-
-    EVP_PKEY_CTX *ctx=NULL;
-    BIGNUM *priv=NULL;
-    OSSL_PARAM_BLD *param_bld=NULL;;
-    OSSL_PARAM *params = NULL;
-    const char *keytype=hpke_kem_tab[kem_id].keytype;
-    const char *groupname=hpke_kem_tab[kem_id].groupname;
 
     if (hpke_kem_tab[kem_id].Npriv==prbuf_len) {
 
@@ -2400,8 +2404,10 @@ int hpke_prbuf2evp(
         }
 
         if (!lpriv) {
-            // if we're not done, maybe prepend/append PEM header/footer and try again
-            // TODO: re=-use PEM defined symbols from elsewhere
+            /* 
+             * if we're not done, maybe prepend/append PEM header/footer and try again
+             * TODO: re=-use PEM defined symbols from elsewhere 
+             */
             unsigned char hf_prbuf[HPKE_MAXSIZE];
             size_t hf_prbuf_len=0;
 #define PEM_PRIVATEHEADER "-----BEGIN PRIVATE KEY-----\n"
@@ -2457,10 +2463,14 @@ static int hpke_random_suite(hpke_suite_t *suite)
 {
     unsigned char rval=0; 
     int nkems=sizeof(hpke_kem_tab)/sizeof(hpke_kem_info_t);
-    if (RAND_bytes_ex(NULL, &rval, sizeof(rval)) <= 0) return(__LINE__);
-    uint16_t nthkem=(rval%5+1); // ok the "5" is magic!!!
+    uint16_t nthkem=0;
     uint16_t found=0;
     int entry=0;
+    int nkdfs=sizeof(hpke_kdf_tab)/sizeof(hpke_kdf_info_t)-1;
+    int naeads=sizeof(hpke_aead_tab)/sizeof(hpke_aead_info_t)-1;
+
+    if (RAND_bytes_ex(NULL, &rval, sizeof(rval)) <= 0) return(__LINE__);
+    nthkem=(rval%5+1); /* ok the "5" is magic!!! */
     while(found<nthkem && entry<nkems) {
         if (hpke_kem_tab[entry].keytype!=NULL) {
             found++;
@@ -2470,12 +2480,10 @@ static int hpke_random_suite(hpke_suite_t *suite)
     suite->kem_id=hpke_kem_tab[entry-1].kem_id;
 
     /* check kdf */
-    int nkdfs=sizeof(hpke_kdf_tab)/sizeof(hpke_kdf_info_t)-1;
     if (RAND_bytes_ex(NULL, &rval, sizeof(rval)) <= 0) return(__LINE__);
     suite->kdf_id=hpke_kdf_tab[(rval%nkdfs+1)].kdf_id;
 
     /* check aead */
-    int naeads=sizeof(hpke_aead_tab)/sizeof(hpke_aead_info_t)-1;
     if (RAND_bytes_ex(NULL, &rval, sizeof(rval)) <= 0) return(__LINE__);
     suite->aead_id=hpke_aead_tab[(rval%naeads+1)].aead_id;
 
@@ -2505,10 +2513,11 @@ int hpke_good4grease(
 {
     hpke_suite_t chosen;
     int crv=0;
+    size_t plen=0;
 
     if (!pub || !pub_len || !cipher || !cipher_len) return(__LINE__);
     if (suite_in==NULL) {
-        // choose a random suite
+        /* choose a random suite */
         crv=hpke_random_suite(&chosen);
         if (crv!=1) return(crv);
     } else {
@@ -2521,8 +2530,8 @@ int hpke_good4grease(
                 hpke_aead_strtab[chosen.aead_id], chosen.aead_id);
 #endif
     if ((crv=hpke_suite_check(chosen))!=1) return(__LINE__);
-    // publen
-    size_t plen=hpke_kem_tab[chosen.kem_id].Npk;
+    /* publen */
+    plen=hpke_kem_tab[chosen.kem_id].Npk;
     if (plen>*pub_len) return(__LINE__);
     if (RAND_bytes_ex(NULL, pub, plen) <= 0) return(__LINE__);
     *pub_len=plen;

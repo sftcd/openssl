@@ -1388,9 +1388,11 @@ MSG_PROCESS_RETURN tls_process_client_hello(SSL *s, PACKET *pkt)
             goto err;
         }
         if (s->ext.ech_success==1) {
-            // If ECH worked, the inner CH MUST be smaller so we can
-            // overwrite the outer packet, but no harm to check anyway
-            // I just happen to know that pkt->curr == s->init_msg
+            /* 
+             * If ECH worked, the inner CH MUST be smaller so we can
+             * overwrite the outer packet, but no harm to check anyway
+             * I just happen to know that pkt->curr == s->init_msg
+             */
             if (newpkt.remaining>pkt->remaining) {
                 SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
                 goto err;
@@ -2458,14 +2460,19 @@ int tls_construct_server_hello(SSL *s, WPACKET *pkt)
      */
     if (s->ech && s->ext.ech_success==1) {
         unsigned char acbuf[8];
+        unsigned char *shbuf=NULL;
+        size_t shlen=0;
+        size_t shoffset=0;
+        unsigned char *p=NULL;
+
         memset(acbuf,0,8);
-        // HACK HACK
+        /* HACK HACK */
         if (!pkt || !pkt->buf) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             return 0;
         }
-        unsigned char *shbuf=(unsigned char *)pkt->buf->data;
-        size_t shlen=pkt->written;
+        shbuf=(unsigned char *)pkt->buf->data;
+        shlen=pkt->written;
         if (ech_calc_accept_confirm(s,acbuf,shbuf,shlen)!=1) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             return 0;
@@ -2476,8 +2483,8 @@ int tls_construct_server_hello(SSL *s, WPACKET *pkt)
          * TODO: consider adding a new WPACKET_foo API for this
          * it ought not be here.
          */
-        size_t shoffset=6+24;
-        unsigned char *p=(unsigned char*) &pkt->buf->data[shoffset];
+        shoffset=6+24;
+        p=(unsigned char*) &pkt->buf->data[shoffset];
         memcpy(p,acbuf,8);
     }
 

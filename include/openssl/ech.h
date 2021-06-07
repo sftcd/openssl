@@ -37,10 +37,10 @@
 #define ECH_CONTEXT_STRING (char*) "tls ech"
 #define ECH_ACCEPT_CONFIRM_STRING (char*) "ech accept confirmation"
 
-#define ECH_MAX_ECHCONFIGS_BUFLEN 2000  ///< max PEM encoded ECHConfigs we'll emit
-#define ECH_MAX_RRVALUE_LEN 2000 ///< Max size of a collection of ECH RR values
-#define ECH_PBUF_SIZE 8*1024 ///<  8K buffer used for print string sent to application via ech_cb
-#define ECH_MAX_DNSNAME 255 ///< max size of a DNS name string (+1 for null and one for luck!)
+#define ECH_MAX_ECHCONFIGS_BUFLEN 2000  /**< max PEM encoded ECHConfigs we'll emit */
+#define ECH_MAX_RRVALUE_LEN 2000 /**< Max size of a collection of ECH RR values */
+#define ECH_PBUF_SIZE 8*1024 /**<  8K buffer used for print string sent to application via ech_cb */
+#define ECH_MAX_DNSNAME 255 /**< max size of a DNS name string (+1 for null and one for luck!) */
 
 /*
  * Known text input formats for ECHKeys RR values
@@ -48,17 +48,14 @@
  * - can be TYPE65439 containing ascii-hex string(s)
  * - can be TYPE65439 formatted as output from dig +short (multi-line)
  */
-#define ECH_FMT_GUESS     0  ///< try guess which it is
-#define ECH_FMT_BIN       1  ///< binary blob with one or more catenated encoded ECHConfigs
-#define ECH_FMT_B64TXT    2  ///< base64 encoded ECHConfigs (semi-colon separated if >1)
-#define ECH_FMT_ASCIIHEX  3  ///< ascii-hex encoded ECHConfigs (semi-colon separated if >1)
-#define ECH_FMT_HTTPSSVC  4  ///< presentation form of HTTPSSVC
+#define ECH_FMT_GUESS     0  /**< try guess which it is */
+#define ECH_FMT_BIN       1  /**< binary blob with one or more catenated encoded ECHConfigs */
+#define ECH_FMT_B64TXT    2  /**< base64 encoded ECHConfigs (semi-colon separated if >1) */
+#define ECH_FMT_ASCIIHEX  3  /**< ascii-hex encoded ECHConfigs (semi-colon separated if >1) */
+#define ECH_FMT_HTTPSSVC  4  /**< presentation form of HTTPSSVC */
 
-//#define ECH_GREASE_VERSION 0xffff ///< Fake ECHKeys version to indicate grease
-//#define ECH_DRAFT_07_VERSION 0xff07 ///< ECHConfig version from draft-07
-//#define ECH_DRAFT_08_VERSION 0xff08 ///< ECHConfig version from draft-08
-#define ECH_DRAFT_09_VERSION 0xfe09 ///< ECHConfig version from draft-09
-#define ECH_DRAFT_10_VERSION 0xfe0a ///< ECHConfig version from draft-10
+#define ECH_DRAFT_09_VERSION 0xfe09 /**< ECHConfig version from draft-09 */
+#define ECH_DRAFT_10_VERSION 0xfe0a /**< ECHConfig version from draft-10 */
 
 /* 
  * the wire-format code for ECH within an SVCB or HTTPS RData
@@ -72,11 +69,11 @@
  * Exterally visible form of an ECHConfigs RR value
  */
 typedef struct ech_diff_st {
-    int index; ///< externally re-usable reference to this value
-    char *public_name; ///< public_name from ECHKeys
-    char *inner_name; ///< server-name for inner CH
-    char *outer_alpns; ///< outer ALPN string
-    char *inner_alpns; ///< inner ALPN string
+    int index; /**< externally re-usable reference to this value */
+    char *public_name; /**< public_name from ECHKeys */
+    char *inner_name; /**< server-name for inner CH */
+    char *outer_alpns; /**< outer ALPN string */
+    char *inner_alpns; /**< inner ALPN string */
 } ECH_DIFF;
 
 
@@ -267,7 +264,7 @@ int SSL_CTX_ech_server_enable(SSL_CTX *s, const char *echcfgfile);
  */
 int SSL_CTX_ech_readpemdir(SSL_CTX *ctx, const char *echdir, int *number_loaded);
 
-#define ECH_SELECT_ALL -1 ///< used to indicate "all" in SSL_ech_print etc.
+#define ECH_SELECT_ALL -1 /**< used to indicate "all" in SSL_ech_print etc. */
 
 /** 
  * Print the content of an SSL_ECH
@@ -284,14 +281,14 @@ int SSL_ech_print(BIO* out, SSL *con, int selector);
  * Possible return codes from SSL_get_ech_status
  */
 
-#define SSL_ECH_STATUS_GREASE                  2 ///< ECH GREASE happened (if you care:-)
-#define SSL_ECH_STATUS_SUCCESS                 1 ///< Success
-#define SSL_ECH_STATUS_FAILED                  0 ///< Some internal error
-#define SSL_ECH_STATUS_BAD_CALL             -100 ///< Required in/out arguments were NULL
-#define SSL_ECH_STATUS_NOT_TRIED            -101 ///< ECH wasn't attempted 
-#define SSL_ECH_STATUS_BAD_NAME             -102 ///< ECH succeeded but the server cert didn't match the hidden service name
-#define SSL_ECH_STATUS_TOOMANY              -103 ///< ECH succeeded can't figure out which one!
-#define SSL_ECH_STATUS_NOT_CONFIGURED       -104 ///> ECH wasn't even configured
+#define SSL_ECH_STATUS_GREASE                  2 /**< ECH GREASE happened (if you care:-) */
+#define SSL_ECH_STATUS_SUCCESS                 1 /**< Success */
+#define SSL_ECH_STATUS_FAILED                  0 /**< Some internal error */
+#define SSL_ECH_STATUS_BAD_CALL             -100 /**< Required in/out arguments were NULL */
+#define SSL_ECH_STATUS_NOT_TRIED            -101 /**< ECH wasn't attempted  */
+#define SSL_ECH_STATUS_BAD_NAME             -102 /**< ECH succeeded but the server cert didn't match the hidden service name */
+#define SSL_ECH_STATUS_TOOMANY              -103 /**< ECH succeeded can't figure out which one! */
+#define SSL_ECH_STATUS_NOT_CONFIGURED       -104 /**> ECH wasn't even configured */
 
 /**
  * @brief API to allow calling code know ECH outcome, post-handshake

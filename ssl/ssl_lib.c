@@ -1236,8 +1236,6 @@ void SSL_free(SSL *s)
     /* Ignore return value */
 
 #ifndef OPENSSL_NO_ECH
-    //if (s->ext.ech_grease==ECH_IS_GREASE || s->ext.inner_s==NULL && s->ext.outer_s!=NULL) 
-    // if (s->ext.inner_s==NULL && s->ext.outer_s!=NULL) 
     INOUTFREE
 #endif
     ssl_free_wbio_buffer(s);
@@ -1251,7 +1249,7 @@ void SSL_free(SSL *s)
     s->rbio = NULL;
 
 #ifndef OPENSSL_NO_ECH
-    // Hmm - this seems needed on client but not on server?
+    /* Hmm - this seems needed on client but not on server? */
     if ( s->init_buf && ( (!s->server && (s->ext.inner_s || !s->ech)) || s->server))
 #endif
     BUF_MEM_free(s->init_buf);
@@ -1264,7 +1262,7 @@ void SSL_free(SSL *s)
 
     /* Make the next call work :-) */
 #ifndef OPENSSL_NO_ECH
-    // only do this one if...
+    /* only do this one if... */
     if (    s->server ||
             (!s->server && s->ext.ech_grease!=ECH_IS_GREASE) ||
             (!s->server && s->ext.ech_grease==ECH_IS_GREASE && s->ext.ch_depth==0) 
@@ -1312,8 +1310,10 @@ void SSL_free(SSL *s)
 #endif
     OPENSSL_free(s->ext.tls13_cookie);
 #ifndef OPENSSL_NO_ECH
-    // s_server seems to not need this, but lighttpd may need it
-    // TODO: reconcile that!
+    /* 
+     * s_server seems to not need this, but lighttpd may need it
+     * TODO: reconcile that!
+     */
     if (s->ext.inner_s==NULL && s->ext.outer_s!=NULL) 
 #endif
     if (s->clienthello != NULL)
@@ -1372,13 +1372,13 @@ void SSL_free(SSL *s)
      * Free up the inner or outer, as needed
      */
     if (s->ext.outer_s!=NULL && s->ext.outer_s!=s)  {
-        // Don't go around in circles forever
+        /* Don't go around in circles forever */
         s->ext.outer_s->ext.inner_s=NULL;
         SSL_free(s->ext.outer_s);
         s->ext.outer_s=NULL;
     }
     if (s->ext.inner_s!=NULL && s->ext.inner_s!=s)  {
-        // Don't go around in circles forever
+        /* Don't go around in circles forever */
         s->ext.inner_s->ext.outer_s=NULL;
         SSL_free(s->ext.inner_s);
         s->ext.inner_s=NULL;

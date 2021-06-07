@@ -93,8 +93,8 @@ static uint16_t verstr2us(char *arg)
  */
 #define HPKE_MSMATCH(inp,known) (strlen(inp)==strlen(known) && !strcasecmp(inp,known))
 
-#define ECH_MAXSUITESTR 32 ///< a max suitestr len just for sanity checking
-#define ECH_MAXEXTLEN 513 ///< a max extensions len just for sanity checking
+#define ECH_MAXSUITESTR 32 /* a max suitestr len just for sanity checking */
+#define ECH_MAXEXTLEN 513 /* a max extensions len just for sanity checking */
 
 /**
  * @brief parse a string into an HPKE ciphersuite
@@ -104,13 +104,15 @@ static uint16_t verstr2us(char *arg)
  */
 static int suitestr2suite(char *instr, hpke_suite_t *hpke_suite)
 {
+    uint16_t kem=0,kdf=0,aead=0;
+    char *suitestr=NULL;
+    char *st=NULL;
     if (!instr) return(0);
     if (!hpke_suite) return(0);
     if (strlen(instr)>ECH_MAXSUITESTR) return(0);
-    char *suitestr=OPENSSL_strdup(instr);
-    uint16_t kem=0,kdf=0,aead=0;
+    suitestr=OPENSSL_strdup(instr);
     /* See if it contains a mix of our strings and numbers  */
-    char *st=strtok(suitestr,",");
+    st=strtok(suitestr,",");
     if (!st) { free(suitestr); return(0); }
     while (st!=NULL) {
         /* check if string is known or number and if so handle appropriately */
@@ -171,7 +173,14 @@ static int mk_echconfig(
         size_t *echconfig_len, unsigned char *echconfig,
         size_t *privlen, unsigned char *priv)
 {
-    size_t pnlen=0; ///< length of public_name
+    size_t pnlen=0; 
+    int hpke_mode=HPKE_MODE_BASE;
+    size_t publen=HPKE_MAXSIZE; unsigned char pub[HPKE_MAXSIZE];
+    int rv=0;
+    unsigned char bbuf[ECH_MAX_ECHCONFIGS_BUFLEN]; 
+    unsigned char *bp=bbuf;
+    size_t bblen=0;
+    unsigned int b64len = 0;
 
     switch(ekversion) {
         case ECH_DRAFT_09_VERSION: 
@@ -185,9 +194,7 @@ static int mk_echconfig(
     /* new private key please... */
     if (priv==NULL) { return (__LINE__); }
 
-    int hpke_mode=HPKE_MODE_BASE;
-    size_t publen=HPKE_MAXSIZE; unsigned char pub[HPKE_MAXSIZE];
-    int rv=hpke_kg(
+    rv=hpke_kg(
         hpke_mode, hpke_suite,
         &publen, pub,
         privlen, priv); 
@@ -252,15 +259,13 @@ static int mk_echconfig(
      *
      */
 
-    unsigned char bbuf[ECH_MAX_ECHCONFIGS_BUFLEN]; ///< binary buffer
-    unsigned char *bp=bbuf;
     memset(bbuf,0,ECH_MAX_ECHCONFIGS_BUFLEN);
-    *bp++=0x00; // leave space for overall length
-    *bp++=0x00; // leave space for overall length
+    *bp++=0x00; /* leave space for overall length */
+    *bp++=0x00; /* leave space for overall length */
     *bp++=(ekversion>>8)%256; 
     *bp++=(ekversion%256); 
-    *bp++=0x00; // leave space for almost-overall length
-    *bp++=0x00; // leave space for almost-overall length
+    *bp++=0x00; /* leave space for almost-overall length */
+    *bp++=0x00; /* leave space for almost-overall length */
     if (ekversion==ECH_DRAFT_10_VERSION) {
         uint8_t config_id=0;
         RAND_bytes(&config_id,1);
@@ -281,7 +286,7 @@ static int mk_echconfig(
         /* maximum_name_length */
         *bp++=(max_name_length>>8)%256;
         *bp++=(max_name_length%256);
-        // public_name
+        /* public_name */
         if (pnlen > 0 ) {
             *bp++=(pnlen>>8)%256;
             *bp++=pnlen%256;
@@ -316,7 +321,7 @@ static int mk_echconfig(
 
     if (extlen==0) {
         *bp++=0x00;
-        *bp++=0x00; // no extensions
+        *bp++=0x00; /* no extensions */
     } else {
         if (!extvals) {
             return(__LINE__);
@@ -325,7 +330,7 @@ static int mk_echconfig(
         *bp++=(extlen%256);
         memcpy(bp,extvals,extlen); bp+=extlen;
     }
-    size_t bblen=bp-bbuf;
+    bblen=bp-bbuf;
 
     /*
      * Add back in the length
@@ -335,7 +340,7 @@ static int mk_echconfig(
     bbuf[4]=(bblen-6)/256;
     bbuf[5]=(bblen-6)%256;
 
-    unsigned int b64len = EVP_EncodeBlock((unsigned char*)echconfig, (unsigned char *)bbuf, bblen);
+    b64len = EVP_EncodeBlock((unsigned char*)echconfig, (unsigned char *)bbuf, bblen);
     if (b64len >=(*echconfig_len-1)) {
         return(__LINE__);
     }
@@ -359,6 +364,10 @@ int ech_main(int argc, char **argv)
     uint16_t ech_version=ECH_DRAFT_10_VERSION;
     uint16_t max_name_length=0;
     hpke_suite_t hpke_suite = HPKE_SUITE_DEFAULT;
+    size_t echconfig_len=ECH_MAX_ECHCONFIGS_BUFLEN;
+    unsigned char echconfig[ECH_MAX_ECHCONFIGS_BUFLEN];
+    size_t privlen=HPKE_MAXSIZE; unsigned char priv[HPKE_MAXSIZE];
+    int rv=0;
 
     prog = opt_init(argc, argv, ech_options);
     while ((o = opt_next()) != OPT_EOF) {
@@ -417,8 +426,8 @@ int ech_main(int argc, char **argv)
      * Check ECH-specific inputs
      */
     switch (ech_version) {
-        case 0xff01: // ESNI precursors
-        case 0xff02: // ESNI precursors
+        case 0xff01: /* ESNI precursors */
+        case 0xff02: /* ESNI precursors */
         case 1:
         case 2:
             BIO_printf(bio_err, "No longer supported older version (0x%04x) - try using mk_esnikeys instead\n",ech_version);
@@ -482,10 +491,7 @@ int ech_main(int argc, char **argv)
      * Generate a new ECHConfig and spit that out
      */
 
-    size_t echconfig_len=ECH_MAX_ECHCONFIGS_BUFLEN;
-    unsigned char echconfig[ECH_MAX_ECHCONFIGS_BUFLEN];
-    size_t privlen=HPKE_MAXSIZE; unsigned char priv[HPKE_MAXSIZE];
-    int rv=mk_echconfig(ech_version, max_name_length, public_name, hpke_suite, extlen, extvals, &echconfig_len, echconfig, &privlen, priv);
+    rv=mk_echconfig(ech_version, max_name_length, public_name, hpke_suite, extlen, extvals, &echconfig_len, echconfig, &privlen, priv);
     if (rv!=1) {
         BIO_printf(bio_err,"mk_echconfig error: %d\n",rv);
         goto end;

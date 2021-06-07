@@ -68,7 +68,7 @@ static int init_ech(SSL *s, unsigned int context);
 static int final_ech(SSL *s, unsigned int context, int sent);
 static int init_ech_outer_exts(SSL *s, unsigned int context);
 static int final_ech_outer_exts(SSL *s, unsigned int context, int sent);
-#endif // END_OPENSSL_NO_ECH
+#endif /* END_OPENSSL_NO_ECH */
 
 
 /* Structure to define a built-in extension */
@@ -400,11 +400,11 @@ static const EXTENSION_DEFINITION ext_defs[] = {
         NULL, tls_construct_ctos_ech_is_inner,
         NULL
     },
-#else // OPENSSL_NO_ECH
+#else /* OPENSSL_NO_ECH */
     INVALID_EXTENSION,
     INVALID_EXTENSION,
     INVALID_EXTENSION,
-#endif // END_OPENSSL_NO_ECH
+#endif /* END_OPENSSL_NO_ECH */
     {
         TLSEXT_TYPE_certificate_authorities,
         SSL_EXT_CLIENT_HELLO | SSL_EXT_TLS1_3_CERTIFICATE_REQUEST
@@ -1005,7 +1005,7 @@ static int init_server_name(SSL *s, unsigned int context)
     return 1;
 }
 
-// ECH_DOXY_START
+/* ECH_DOXY_START */
 #ifndef OPENSSL_NO_ECH
 /**
  * @brief Just note that ech is not yet done
@@ -1044,9 +1044,9 @@ static int final_ech_outer_exts(SSL *s, unsigned int context, int sent)
     return 1;
 }
 
-#endif // END_OPENSSL_NO_ECH
+#endif /* END_OPENSSL_NO_ECH */
 
-// ECH_DOXY_END
+/* ECH_DOXY_END */
 
 #ifndef OPENSSL_NO_ECH
 int final_server_name(SSL *s, unsigned int context, int sent)
@@ -1080,7 +1080,7 @@ static int final_server_name(SSL *s, unsigned int context, int sent)
         ret = s->session_ctx->ext.servername_cb(s, &altmp,
                                        s->session_ctx->ext.servername_arg);
 #ifndef OPENSSL_NO_ECH
-    // this avoids a warning
+    /* this avoids a warning */
     }
 #endif
 

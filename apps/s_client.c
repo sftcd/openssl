@@ -72,8 +72,8 @@ static int c_quiet = 0;
 static char *sess_out = NULL;
 
 #ifndef OPENSSL_NO_ECH
-static const char *ech_inner_name=NULL; ///< server-name in inner-CH - default to usual servername
-static const char *sni_outer_name=NULL; ///< server-name in outer-CH - command line can override ECHConfig.public-name
+static const char *ech_inner_name=NULL; 
+static const char *sni_outer_name=NULL; 
 static int ech_grease=0;
 static char *ech_grease_suite = NULL;
 static int nechs=0;
@@ -800,10 +800,12 @@ static int new_session_cb(SSL *s, SSL_SESSION *sess)
 
 #ifndef OPENSSL_NO_ECH
     if (nechs>0) {
+	    const char *hn_1=NULL;
+
 	    if (c_debug) {
 	        BIO_printf(bio_c_out,"new_session_cb called ech flavour\n");
 	    }
-	    const char *hn_1=SSL_SESSION_get0_hostname(sess);
+	    hn_1=SSL_SESSION_get0_hostname(sess);
 	    if (hn_1==NULL && c_debug) {
 	        BIO_printf(bio_c_out,"Existing session hostname is NULL\n");
 	    } else if (c_debug) {
@@ -2208,17 +2210,17 @@ int s_client_main(int argc, char **argv)
              * We'll note that we didn't get ECH keys but continue
              */
             BIO_printf(bio_err, "%s: SVCB decode provided no keys.\n", prog);
-            //goto opthelp;
         } 
         nechs+=lnechs;
     }
 
     if (ech_svcb_rr != NULL && sni_outer_name!=NULL) {
         const char *outer_to_use=NULL;
+        int rv=0;
         if (sni_outer_name!=NULL && strncmp(sni_outer_name,ECH_NAME_NONE,strlen(ECH_NAME_NONE))) {
             outer_to_use=sni_outer_name;
         }
-        int rv=SSL_ech_set_outer_server_name(con, outer_to_use);
+        rv=SSL_ech_set_outer_server_name(con, outer_to_use);
         if (rv!=1) {
             BIO_printf(bio_err, "%s: enabling ECH outer name failed.\n", prog);
             ERR_print_errors(bio_err);

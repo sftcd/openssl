@@ -56,7 +56,7 @@ EXT_RETURN tls_construct_ctos_renegotiate(SSL *s, WPACKET *pkt,
     return EXT_RETURN_SENT;
 }
 
-// ECH_DOXY_START
+/* ECH_DOXY_START */
 #ifndef OPENSSL_NO_ECH
 /**
  * @brief check/handle names when doing ECH
@@ -90,6 +90,9 @@ static EXT_RETURN ech_server_name_fixup(SSL *s, WPACKET *pkt,
     if (s->ech != NULL) {
         char *pn=NULL;
         size_t pn_len=0;
+        size_t in_len=0;
+        size_t on_len=0;
+        size_t ehn_len=0;
         /* This from the ECHConfig */
         if (s->ech->cfg->recs!=NULL) {
             if (s->ech->cfg->nrecs!=1) {
@@ -101,15 +104,15 @@ static EXT_RETURN ech_server_name_fixup(SSL *s, WPACKET *pkt,
         }
 
         /* These are from the application, direct */
-        size_t in_len=(s->ech->inner_name==NULL?0:OPENSSL_strnlen(s->ech->inner_name,TLSEXT_MAXLEN_host_name));
-        size_t on_len=(s->ech->outer_name==NULL?0:OPENSSL_strnlen(s->ech->outer_name,TLSEXT_MAXLEN_host_name));
+        in_len=(s->ech->inner_name==NULL?0:OPENSSL_strnlen(s->ech->inner_name,TLSEXT_MAXLEN_host_name));
+        on_len=(s->ech->outer_name==NULL?0:OPENSSL_strnlen(s->ech->outer_name,TLSEXT_MAXLEN_host_name));
         /* TODO: test/handle the case with session resumption */
-        size_t ehn_len=(s->ext.hostname==NULL?0:OPENSSL_strnlen(s->ext.hostname,TLSEXT_MAXLEN_host_name));
+        ehn_len=(s->ext.hostname==NULL?0:OPENSSL_strnlen(s->ext.hostname,TLSEXT_MAXLEN_host_name));
 
         /* 
          * Set values to be used
          */
-        if (s->ext.ch_depth==1) { // Inner CH
+        if (s->ext.ch_depth==1) { /* Inner CH */
             if (in_len!=0) {
                 /* we prefer this over all */
                 if (ehn_len!=0) { OPENSSL_free(s->ext.hostname); s->ext.hostname=NULL; ehn_len=0; }
@@ -118,14 +121,14 @@ static EXT_RETURN ech_server_name_fixup(SSL *s, WPACKET *pkt,
             /* otherwise we leave the s->ext.hostname alone */
         }
 
-        if (s->ext.ch_depth==0) { // Outer CH
+        if (s->ext.ch_depth==0) { /* Outer CH */
             if (on_len!=0) {
                 if (ehn_len!=0) { OPENSSL_free(s->ext.hostname); s->ext.hostname=NULL; ehn_len=0; }
                 s->ext.hostname=OPENSSL_strdup(s->ech->outer_name);
             } else if (pn_len!=0) {
                 if (ehn_len!=0) { OPENSSL_free(s->ext.hostname); s->ext.hostname=NULL; ehn_len=0; }
                 s->ext.hostname=OPENSSL_strndup(pn,pn_len);
-            } else { // don't send sensitive inner in outer!
+            } else { /* don't send sensitive inner in outer! */
                 OPENSSL_free(s->ext.hostname); s->ext.hostname=NULL; ehn_len=0;
             }
         }
@@ -133,8 +136,8 @@ static EXT_RETURN ech_server_name_fixup(SSL *s, WPACKET *pkt,
     } 
     return EXT_RETURN_SENT;
 }
-#endif // END_OPENSSL_NO_ECH
-// ECH_DOXY_END
+#endif /* END_OPENSSL_NO_ECH */
+/* ECH_DOXY_END */
 
 EXT_RETURN tls_construct_ctos_server_name(SSL *s, WPACKET *pkt,
                                           unsigned int context, X509 *x,
@@ -143,16 +146,17 @@ EXT_RETURN tls_construct_ctos_server_name(SSL *s, WPACKET *pkt,
 
 #ifndef OPENSSL_NO_ECH
     if (s->ech != NULL) { 
+        int echrv=0;
         /*
          * Don't send outer SNI if external API says that
          */
         if (s->ext.ch_depth==0 && s->ech->outer_name==ECH_PUBLIC_NAME_OVERRIDE_NULL) {
             return EXT_RETURN_NOT_SENT;
         }
-        int esnirv=ech_server_name_fixup(s,pkt,context,x,chainidx);
-        if (esnirv!=EXT_RETURN_SENT) {
+        echrv=ech_server_name_fixup(s,pkt,context,x,chainidx);
+        if (echrv!=EXT_RETURN_SENT) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-            return esnirv;
+            return echrv;
         }
     }
 #endif
@@ -553,6 +557,10 @@ EXT_RETURN tls_construct_ctos_npn(SSL *s, WPACKET *pkt, unsigned int context,
 EXT_RETURN tls_construct_ctos_alpn(SSL *s, WPACKET *pkt, unsigned int context,
                                    X509 *x, size_t chainidx)
 {
+#ifndef OPENSSL_NO_ECH
+    unsigned char *aval=NULL;
+    size_t alen=0;
+#endif
     s->s3.alpn_sent = 0;
 
 #ifndef OPENSSL_NO_ECH
@@ -563,11 +571,11 @@ EXT_RETURN tls_construct_ctos_alpn(SSL *s, WPACKET *pkt, unsigned int context,
      */
     if (!SSL_IS_FIRST_HANDSHAKE(s))
         return EXT_RETURN_NOT_SENT;
-    unsigned char *aval=s->ext.alpn;
-    size_t alen=s->ext.alpn_len;
-    if (s->ext.ch_depth==1 && s->ext.alpn==NULL)  // inner
+    aval=s->ext.alpn;
+    alen=s->ext.alpn_len;
+    if (s->ext.ch_depth==1 && s->ext.alpn==NULL)  /* inner */
         return EXT_RETURN_NOT_SENT;
-    if (s->ext.ch_depth==0 && !(s->ext.alpn || s->ext.alpn_outer)) // outer 
+    if (s->ext.ch_depth==0 && !(s->ext.alpn || s->ext.alpn_outer)) /* outer */ 
         return EXT_RETURN_NOT_SENT;
     if (s->ext.ch_depth==0 && s->ext.alpn_outer!=NULL) {
         aval=s->ext.alpn_outer;
@@ -760,11 +768,11 @@ EXT_RETURN tls_construct_ctos_psk_kex_modes(SSL *s, WPACKET *pkt,
                                             unsigned int context, X509 *x,
                                             size_t chainidx)
 {
+#ifndef OPENSSL_NO_TLS1_3
+    int nodhe = s->options & SSL_OP_ALLOW_NO_DHE_KEX;
 #ifndef OPENSSL_NO_ECH
     IOSAME
 #endif
-#ifndef OPENSSL_NO_TLS1_3
-    int nodhe = s->options & SSL_OP_ALLOW_NO_DHE_KEX;
 
     if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_psk_kex_modes)
             || !WPACKET_start_sub_packet_u16(pkt)
@@ -854,13 +862,13 @@ EXT_RETURN tls_construct_ctos_key_share(SSL *s, WPACKET *pkt,
                                         unsigned int context, X509 *x,
                                         size_t chainidx)
 {
-#ifndef OPENSSL_NO_ECH
-    IOSAME
-#endif
 #ifndef OPENSSL_NO_TLS1_3
     size_t i, num_groups = 0;
     const uint16_t *pgroups = NULL;
     uint16_t curve_id = 0;
+#ifndef OPENSSL_NO_ECH
+    IOSAME
+#endif
 
     /* key_share extension */
     if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_key_share)
@@ -2199,7 +2207,7 @@ int tls_parse_stoc_psk(SSL *s, PACKET *pkt, unsigned int context, X509 *x,
     return 1;
 }
 
-// ECH_DOXY_START
+/* ECH_DOXY_START */
 #ifndef OPENSSL_NO_ECH
 
 /**
@@ -2277,6 +2285,6 @@ EXT_RETURN tls_construct_ctos_ech_is_inner(SSL *s, WPACKET *pkt, unsigned int co
     return EXT_RETURN_NOT_SENT;
 }
 
-#endif // END_OPENSSL_NO_ECH
+#endif /* END_OPENSSL_NO_ECH */
 
-// ECH_DOXY_END
+/* ECH_DOXY_END */

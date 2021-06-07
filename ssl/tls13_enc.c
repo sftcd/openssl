@@ -17,7 +17,7 @@
 #include <openssl/core_names.h>
 
 #ifndef OPENSSL_NO_ECH
-// temp tracing
+/* temp tracing */
 #include <openssl/trace.h>
 #include "ech_local.h"
 #endif

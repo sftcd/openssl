@@ -1116,8 +1116,15 @@ int tls_construct_client_hello(SSL *s, WPACKET *pkt)
      * for the outer CH
      */
     unsigned char *innerch_full=NULL;
-    WPACKET inner; ///< "fake" pkt for inner
+    WPACKET inner; /* "fake" pkt for inner */
     BUF_MEM *inner_mem=NULL;
+    SSL_SESSION *sess=NULL;
+    size_t sess_id_len=0;
+    SSL *new_s=NULL;
+    int mt=SSL3_MT_CLIENT_HELLO;
+    int rv=0;
+    size_t innerinnerlen=0;
+    PACKET rpkt; /* we'll decode back the inner ch to help make the outer */
 
     /* Work out what SSL/TLS/DTLS version to use */
     int protverr = ssl_set_client_hello_version(s);
@@ -1140,7 +1147,7 @@ int tls_construct_client_hello(SSL *s, WPACKET *pkt)
      * value). That's a bit of a change, so we'll fix it up here
      * before dupliating the SSL struct.
      */
-    SSL_SESSION *sess=s->session;
+    sess=s->session;
     if (sess == NULL
             || !ssl_version_supported(s, sess->ssl_version, NULL)
             || !SSL_SESSION_is_resumable(sess)) {
@@ -1150,7 +1157,6 @@ int tls_construct_client_hello(SSL *s, WPACKET *pkt)
             return 0;
         }
     }
-    size_t sess_id_len=0;
     if (s->new_session || s->session->ssl_version == TLS1_3_VERSION) {
         if (s->version == TLS1_3_VERSION
                 && (s->options & SSL_OP_ENABLE_MIDDLEBOX_COMPAT) != 0) {
@@ -1179,7 +1185,7 @@ int tls_construct_client_hello(SSL *s, WPACKET *pkt)
     /*
      * Before we start on the outer, we copy the details for the inner
      */
-    SSL *new_s=SSL_dup(s);
+    new_s=SSL_dup(s);
     if (!new_s) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, protverr);
         goto err;
@@ -1217,7 +1223,6 @@ int tls_construct_client_hello(SSL *s, WPACKET *pkt)
      */
     new_s->ext.ch_depth=1;
 
-    int mt=SSL3_MT_CLIENT_HELLO;
     if ((inner_mem = BUF_MEM_new()) == NULL) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, protverr);
         goto err;
@@ -1235,7 +1240,7 @@ int tls_construct_client_hello(SSL *s, WPACKET *pkt)
     /*
      * Make initial call into CH constuction. 
      */
-    int rv=tls_construct_client_hello_aux(new_s, &inner);
+    rv=tls_construct_client_hello_aux(new_s, &inner);
     if (rv!=1) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, protverr);
         goto err;
@@ -1253,7 +1258,6 @@ int tls_construct_client_hello(SSL *s, WPACKET *pkt)
     /*
      * Set pointer/len for inner CH 
      */
-    size_t innerinnerlen=0;
     if (!WPACKET_get_length(&inner, &innerinnerlen)) {
         WPACKET_cleanup(&inner);
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
@@ -1288,7 +1292,6 @@ int tls_construct_client_hello(SSL *s, WPACKET *pkt)
     /*
      * Decode inner so that we can make up encoded inner
      */
-    PACKET rpkt; ///< we'll decode back the inner ch to help make the outer
     if (!PACKET_buf_init(&rpkt, (unsigned char*) new_s->ext.innerch+4, new_s->ext.innerch_len-4)) {
         WPACKET_cleanup(pkt);
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
@@ -1323,7 +1326,7 @@ int tls_construct_client_hello(SSL *s, WPACKET *pkt)
     /*
      * Make second call into CH constuction. 
      */
-    s->ext.ch_depth=0; // unmark the outer after duping
+    s->ext.ch_depth=0; /* unmark the outer after duping */
     rv=tls_construct_client_hello_aux(s, pkt);
     if (rv!=1) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, protverr);
@@ -2017,23 +2020,25 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL *s, PACKET *pkt)
             return -1;
         }
         if (memcmp(s->s3.server_random+SSL3_RANDOM_SIZE-8,acbuf,8)==0) {
+            size_t alen=0;
+            unsigned char *abuf=NULL;
             s->ext.ech_success=1;
             OSSL_TRACE_BEGIN(TLS) {
                 BIO_printf(trc_out, "ECH succeeded - swapping inner/outer\n");
             } OSSL_TRACE_END(TLS);
 
         
-            // swap back before final swap
+            /* swap back before final swap */
             inner=*s; *s=outer; *s->ext.inner_s=inner;
-            // ...aaand... final swap:
+            /* ...aaand... final swap: */
             if (ech_swaperoo(s)!=1) {
                 SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
                 goto err;
                 return -1;
             }
 
-            size_t alen=s->ext.innerch_len+shlen+4;
-            unsigned char *abuf=OPENSSL_malloc(alen);
+            alen=s->ext.innerch_len+shlen+4;
+            abuf=OPENSSL_malloc(alen);
             if (abuf==NULL) {
                 SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
                 goto err;
@@ -2069,18 +2074,17 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL *s, PACKET *pkt)
                 BIO_free(s->s3.handshake_buffer);
             }
 
-            // swap back
+            /* swap back */
             *s=outer;
 
-            // note result in outer
+            /* note result in outer */
             s->ext.ech_grease=1;
             s->ext.ech_done=1;
-            // note result in inner
+            /* note result in inner */
             s->ext.inner_s->ext.ech_grease=1;
             s->ext.inner_s->ext.ech_done=1;
 
-
-            // reset buffer for SH
+            /* reset buffer for SH */
             pkt->remaining=shlen;
             pkt->curr=shbuf;
             return tls_process_server_hello(s, pkt);

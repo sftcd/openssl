@@ -101,9 +101,9 @@ static size_t ech_trace_cb(const char *buf, size_t cnt,
  * Padding size info
  */
 typedef struct {
-    size_t certpad; ///< Certificate messages to be a multiple of this size
-    size_t certverifypad; ///< CertificateVerify messages to be a multiple of this size
-    size_t eepad; ///< EncryptedExtensions are padded to be a multiple of this size
+    size_t certpad; /**< Certificate messages to be a multiple of this size */
+    size_t certverifypad; /**< CertificateVerify messages to be a multiple of this size */
+    size_t eepad; /**< EncryptedExtensions are padded to be a multiple of this size */
 } ech_padding_sizes;
 /**
  * passed as an argument to callback
@@ -482,7 +482,7 @@ typedef struct tlsextctx_st {
 #endif
 } tlsextctx;
 
-// ECH_DOXY_START
+/* ECH_DOXY_START */
 
 #ifndef OPENSSL_NO_ECH
 
@@ -563,12 +563,17 @@ static int ssl_ech_servername_cb(SSL *s, int *ad, void *arg)
     char *anow=asctime(tnow);
     int sockfd=0;
     int res=0;
-    char clientip[INET6_ADDRSTRLEN]; 
-    memset(clientip,0,INET6_ADDRSTRLEN);
-    strncpy(clientip,"dunno",INET6_ADDRSTRLEN);
     struct sockaddr_storage ss;
     socklen_t salen = sizeof(ss);
     struct sockaddr *sa;
+    char clientip[INET6_ADDRSTRLEN]; 
+    const char *servername = NULL;
+    char *inner_sni=NULL; 
+    char *outer_sni=NULL;
+    int echrv=0;
+
+    memset(clientip,0,INET6_ADDRSTRLEN);
+    strncpy(clientip,"dunno",INET6_ADDRSTRLEN);
     memset(&ss,0,salen);
     sa = (struct sockaddr *)&ss;
     res=BIO_get_fd(SSL_get_wbio(s),&sockfd);
@@ -580,10 +585,8 @@ static int ssl_ech_servername_cb(SSL *s, int *ad, void *arg)
     /*
      * Name that matches "main" ctx
      */
-    const char *servername = SSL_get_servername(s, TLSEXT_NAMETYPE_host_name);
-    char *inner_sni=NULL; 
-    char *outer_sni=NULL;
-    int echrv=SSL_ech_get_status(s,&inner_sni,&outer_sni);
+    servername = SSL_get_servername(s, TLSEXT_NAMETYPE_host_name);
+    echrv=SSL_ech_get_status(s,&inner_sni,&outer_sni);
     if (p->biodebug != NULL ) {
         /* 
          * spit out that basic logging
@@ -647,6 +650,8 @@ static int ssl_ech_servername_cb(SSL *s, int *ad, void *arg)
         return SSL_TLSEXT_ERR_NOACK;
     if (servername != NULL) {
         if (ctx2 != NULL) {
+            int mrv;
+            X509_VERIFY_PARAM *vpm = NULL;
             /*
              * TODO: Check if strlen is really safe here - think it should be as
              * internally will have checked there are no embedded NUL bytes but
@@ -654,8 +659,6 @@ static int ssl_ech_servername_cb(SSL *s, int *ad, void *arg)
              */
             BIO_printf(p->biodebug, "ssl_ech_servername_cb: TLS servername: %s.\n",servername);
             BIO_printf(p->biodebug, "ssl_ech_servername_cb: Cert servername: %s.\n",p->servername);
-            int mrv;
-            X509_VERIFY_PARAM *vpm = NULL;
             vpm = X509_VERIFY_PARAM_new();
             if (!vpm) return SSL_TLSEXT_ERR_NOACK;
             mrv=X509_VERIFY_PARAM_set1_host(vpm,servername,strlen(servername));
@@ -677,7 +680,7 @@ static int ssl_ech_servername_cb(SSL *s, int *ad, void *arg)
 
 #endif
 
-// ECH_DOXY_END
+/* ECH_DOXY_END */
 
 
 #ifdef OPENSSL_NO_ECH
@@ -1337,9 +1340,9 @@ int s_server_main(int argc, char *argv[])
 #ifndef OPENSSL_NO_ECH
     char *echkeyfile = NULL; 
     char *echdir=NULL;
-    int echspecificpad=0; ///< we default to generally padding to 512 octet multiples
-    int echhardfail=0; ///< whether we fail if ECH does or fall back to trying to serve COVER
-    int echtrialdecrypt=0; ///< whether we attempt trial decryptions if record_digest mismatch
+    int echspecificpad=0; /* we default to generally padding to 512 octet multiples */
+    int echhardfail=0; /* whether we fail if ECH does or fall back to trying to serve COVER */
+    int echtrialdecrypt=0; /* whether we attempt trial decryptions if record_digest mismatch */
 #endif
     int no_ca_names = 0;
 #ifndef OPENSSL_NO_SCTP
@@ -2281,7 +2284,9 @@ int s_server_main(int argc, char *argv[])
         /*
          * Try load any good looking public/private ECH values found in files in that directory
          */
+        int nloaded=0;
         size_t elen=strlen(echdir);
+        int erc=0;
         if ((elen+7) >= PATH_MAX) {
             /* too long, go away */
             BIO_printf(bio_err, "'%s' is too long a directory name - exiting \r\n", echdir);
@@ -2292,8 +2297,7 @@ int s_server_main(int argc, char *argv[])
             BIO_printf(bio_err, "'%s' is not a directory - exiting \r\n", echdir);
             goto end;
         }
-        int nloaded=0;
-        int erc=SSL_CTX_ech_readpemdir(ctx,echdir,&nloaded);
+        erc=SSL_CTX_ech_readpemdir(ctx,echdir,&nloaded);
         if (erc!=1) {
             BIO_printf(bio_err, "Failure reading ECH keys from %s\n",echdir);
             goto end;
@@ -3506,6 +3510,9 @@ static int www_body(int s, int stype, int prot, unsigned char *context)
             static const char *space = "                          ";
 
 #ifndef OPENSSL_NO_ECH
+            char *ech_inner=NULL; 
+            char *ech_outer=NULL;
+            int echrv=0;
             /*
              * This isn't an ECH related change really. Seems like
              * s_server hangs in some way if we get to this code
@@ -3561,10 +3568,8 @@ static int www_body(int s, int stype, int prot, unsigned char *context)
              * Note: unlikely to want to integrate this upstream
              */
             BIO_puts(io, "<h1>OpenSSL with ECH</h1>\n");
-            char *ech_inner=NULL; 
-            char *ech_outer=NULL;
             BIO_puts(io, "<h2>\n");
-            int echrv=SSL_ech_get_status(con,&ech_inner,&ech_outer);
+            echrv=SSL_ech_get_status(con,&ech_inner,&ech_outer);
             switch (echrv) {
             case SSL_ECH_STATUS_NOT_TRIED: 
                 BIO_puts(io,"ECH not attempted\n");

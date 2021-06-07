@@ -22,24 +22,24 @@
 # include <openssl/ech.h>
 # include <crypto/hpke.h>
 
-#undef ECH_SUPERVERBOSE ///< to get bazillions more lines of tracing
+#undef ECH_SUPERVERBOSE /**< to get bazillions more lines of tracing */
 
-#define ECH_RRTYPE 65439 ///< experimental (as per draft-03, and draft-04) ECH RRTYPE
+#define ECH_RRTYPE 65439 /**< experimental (as per draft-03, and draft-04) ECH RRTYPE */
 
-#define ECH_MIN_ECHCONFIG_LEN 32 ///< just for a sanity check
-#define ECH_MAX_ECHCONFIG_LEN 512 ///< just for a sanity check
+#define ECH_MIN_ECHCONFIG_LEN 32 /**< just for a sanity check */
+#define ECH_MAX_ECHCONFIG_LEN 512 /**< just for a sanity check */
 
-#define ECH_CIPHER_LEN 4 ///< length of an ECHCipher (2 for kdf, 2 for aead)
+#define ECH_CIPHER_LEN 4 /**< length of an ECHCipher (2 for kdf, 2 for aead) */
 
-#define ECH_OUTERS_MAX 10 ///< max number of TLS extensions that can be compressed via outer-exts
+#define ECH_OUTERS_MAX 10 /**< max number of TLS extensions that can be compressed via outer-exts */
 
-#define MAX_ECH_CONFIG_ID_LEN 0x30 ///< max size of ENC-CH config id we'll decode
-#define MAX_ECH_ENC_LEN 0x100 ///< max size of ENC-CH peer key share we'll decode
-#define MAX_ECH_PAYLOAD_LEN 0x200 ///< max size of ENC-CH ciphertext we'll decode
+#define MAX_ECH_CONFIG_ID_LEN 0x30 /**< max size of ENC-CH config id we'll decode */
+#define MAX_ECH_ENC_LEN 0x100 /**< max size of ENC-CH peer key share we'll decode */
+#define MAX_ECH_PAYLOAD_LEN 0x200 /**< max size of ENC-CH ciphertext we'll decode */
 
-#define ECH_GREASE_UNKNOWN -1 ///< value for s->ext.ech_grease when we're not yet sure
-#define ECH_NOT_GREASE 0 ///< value for s->ext.ech_grease when decryption worked
-#define ECH_IS_GREASE 1 ///< value for s->ext.ech_grease when decryption failed
+#define ECH_GREASE_UNKNOWN -1 /**< value for s->ext.ech_grease when we're not yet sure */
+#define ECH_NOT_GREASE 0 /**< value for s->ext.ech_grease when decryption worked */
+#define ECH_IS_GREASE 1 /**< value for s->ext.ech_grease when decryption failed */
 
 /*
  * This is a special marker value. If set via a specific call
@@ -55,9 +55,9 @@ extern char *ech_public_name_override_null;
  * <pre>
  *  draft-09:
  *         opaque HpkePublicKey<1..2^16-1>;
- *         uint16 HpkeKemId;  // Defined in I-D.irtf-cfrg-hpke
- *         uint16 HpkeKdfId;  // Defined in I-D.irtf-cfrg-hpke
- *         uint16 HpkeAeadId; // Defined in I-D.irtf-cfrg-hpke
+ *         uint16 HpkeKemId;  
+ *         uint16 HpkeKdfId; 
+ *         uint16 HpkeAeadId;
  *  
  *         struct {
  *             HpkeKdfId kdf_id;
@@ -85,9 +85,9 @@ extern char *ech_public_name_override_null;
  *
  *  draft-10
  *   opaque HpkePublicKey<1..2^16-1>;
- *   uint16 HpkeKemId;  // Defined in I-D.irtf-cfrg-hpke
- *   uint16 HpkeKdfId;  // Defined in I-D.irtf-cfrg-hpke
- *   uint16 HpkeAeadId; // Defined in I-D.irtf-cfrg-hpke
+ *   uint16 HpkeKemId;  
+ *   uint16 HpkeKdfId;  
+ *   uint16 HpkeAeadId; 
  *   struct {
  *       HpkeKdfId kdf_id;
  *       HpkeAeadId aead_id;
@@ -118,11 +118,11 @@ extern char *ech_public_name_override_null;
 typedef unsigned char ech_ciphersuite_t[ECH_CIPHER_LEN];
 
 typedef struct ech_config_st {
-    unsigned int version; ///< 0xff08 for draft-08
-    unsigned int public_name_len; ///< public_name
-    unsigned char *public_name; ///< public_name
-    unsigned int kem_id; ///< HPKE KEM ID to use
-    unsigned int pub_len; ///< HPKE public
+    unsigned int version; /**< 0xff08 for draft-08 */
+    unsigned int public_name_len; /**< public_name */
+    unsigned char *public_name; /**< public_name */
+    unsigned int kem_id; /**< HPKE KEM ID to use */
+    unsigned int pub_len; /**< HPKE public */
     unsigned char *pub;
 	unsigned int nsuites;
 	ech_ciphersuite_t *ciphersuites;
@@ -131,17 +131,17 @@ typedef struct ech_config_st {
     unsigned int *exttypes;
     unsigned int *extlens;
     unsigned char **exts;
-    size_t encoding_length;         // these fields will disappear in -10
-    unsigned char *encoding_start; // as they're only needed to calc config_id  
+    size_t encoding_length;         /* these fields will disappear in -10 */
+    unsigned char *encoding_start; /* as they're only needed to calc config_id */
     unsigned int config_id_len;
     unsigned char *config_id;
 } ECHConfig;
 
 typedef struct ech_configs_st {
-    unsigned int encoded_len; ///< length of overall encoded content
-    unsigned char *encoded; ///< overall encoded content
-    int nrecs; ///< Number of records 
-    ECHConfig *recs; ///< array of individual records
+    unsigned int encoded_len; /**< length of overall encoded content */
+    unsigned char *encoded; /**< overall encoded content */
+    int nrecs; /**< Number of records  */
+    ECHConfig *recs; /**< array of individual records */
 } ECHConfigs;
 
 /**
@@ -175,14 +175,14 @@ typedef struct ech_configs_st {
  *
  */
 typedef struct ech_encch_st {
-	uint16_t kdf_id; ///< ciphersuite 
-	uint16_t aead_id; ///< ciphersuite 
-    size_t config_id_len; ///< identifies DNS RR used
-    unsigned char *config_id; ///< identifies DNS RR used
-    size_t enc_len; ///< public share
-    unsigned char *enc; ///< public share
-    size_t payload_len; ///< ciphertext 
-    unsigned char *payload; ///< ciphertext 
+	uint16_t kdf_id; /**< ciphersuite  */
+	uint16_t aead_id; /**< ciphersuite  */
+    size_t config_id_len; /**< identifies DNS RR used */
+    unsigned char *config_id; /**< identifies DNS RR used */
+    size_t enc_len; /**< public share */
+    unsigned char *enc; /**< public share */
+    size_t payload_len; /**< ciphertext  */
+    unsigned char *payload; /**< ciphertext  */
 } ECH_ENCCH;
 
 /**
@@ -198,7 +198,7 @@ typedef struct ech_encch_st {
  * need to modify that (in ssl/ech.c)
  */
 typedef struct ssl_ech_st {
-    ECHConfigs *cfg; ///< merge of underlying ECHConfigs
+    ECHConfigs *cfg; /**< merge of underlying ECHConfigs */
     /*
      * API input names, or, set on server from CH if ECH worked
      */
@@ -210,15 +210,15 @@ typedef struct ssl_ech_st {
      * data. If identical file names that are more recently modified are loaded
      * to a server we'll overwrite this entry.
      */
-    char *pemfname; ///< name of PEM file from which this was loaded
-    time_t loadtime; ///< time public and private key were loaded from file
-    EVP_PKEY *keyshare; ///< my own private keyshare to use as a server
+    char *pemfname; /**< name of PEM file from which this was loaded */
+    time_t loadtime; /**< time public and private key were loaded from file */
+    EVP_PKEY *keyshare; /**< my own private keyshare to use as a server */
     /*
      * Stuff about inner/outer diffs for extensions other than SNI
      * TODO: code that up:-)
      */
-    char *dns_alpns; ///< ALPN values from SVCB/HTTPS RR (as comma-sep string)
-    int dns_no_def_alpn; ///< no_def_alpn if set in DNS RR
+    char *dns_alpns; /**< ALPN values from SVCB/HTTPS RR (as comma-sep string) */
+    int dns_no_def_alpn; /**< no_def_alpn if set in DNS RR */
 
 } SSL_ECH;
 

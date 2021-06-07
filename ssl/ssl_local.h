@@ -1627,16 +1627,16 @@ struct ssl_st {
          * processed - this is pretty naff but will do for now
          */
         unsigned int etype;
-        SSL* inner_s; // pointer to inner CH from outer
-        SSL* outer_s; // pointer to outer CH from inner
+        SSL* inner_s; /* pointer to inner CH from outer */
+        SSL* outer_s; /* pointer to outer CH from inner */
         int ech_attempted;
         int ech_done;
         int ech_success;
         int ech_grease;
         char* ech_grease_suite;
         int ch_depth;
-        int ech_dropped_from_ch_len; // length of CH if you dropped ECH extension: <=0 if not present
-        unsigned char *ech_dropped_from_ch; // ptr to buffer with CH minus ECH buffer
+        int ech_dropped_from_ch_len; /* length of CH if you dropped ECH extension: <=0 if not present */
+        unsigned char *ech_dropped_from_ch; /* ptr to buffer with CH minus ECH buffer */
 
 #endif
         /* certificate status request info */

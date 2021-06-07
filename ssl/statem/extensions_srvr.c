@@ -1927,7 +1927,7 @@ EXT_RETURN tls_construct_stoc_psk(SSL *s, WPACKET *pkt, unsigned int context,
     return EXT_RETURN_SENT;
 }
 
-// ECH_DOXY_START
+/* ECH_DOXY_START */
 #ifndef OPENSSL_NO_ECH
 
 /**
@@ -1981,9 +1981,7 @@ EXT_RETURN tls_construct_stoc_ech(SSL *s, WPACKET *pkt,
     }
 
     if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_ech) 
-        //|| !WPACKET_start_sub_packet_u16(pkt)
         || !WPACKET_sub_memcpy_u16(pkt, s->ech->cfg->encoded, s->ech->cfg->encoded_len)
-        //|| !WPACKET_close(pkt)
             ) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
@@ -2025,5 +2023,5 @@ int tls_parse_ctos_ech_is_inner(SSL *s, PACKET *pkt, unsigned int context,
     return 1;
 }
 
-#endif // END_OPENSSL_NO_ECH
-// ECH_DOXY_END
+#endif /* END_OPENSSL_NO_ECH */
+/* ECH_DOXY_END */
