@@ -287,10 +287,11 @@ static void warn_binary(const char *file)
                 BIO_printf(bio_err, "Warning: input file '%s' contains %s"
                            " character; better use -binary option\n",
                            file, *cur == '\0' ? "NUL" : "8-bit");
-                break;
+                goto end;
             }
         }
     }
+ end:
     BIO_free(bio);
 }
 
@@ -307,10 +308,10 @@ int cms_main(int argc, char **argv)
     EVP_MD *sign_md = NULL;
     STACK_OF(OPENSSL_STRING) *rr_to = NULL, *rr_from = NULL;
     STACK_OF(OPENSSL_STRING) *sksigners = NULL, *skkeys = NULL;
-    STACK_OF(X509) *encerts = NULL, *other = NULL;
+    STACK_OF(X509) *encerts = sk_X509_new_null(), *other = NULL;
     X509 *cert = NULL, *recip = NULL, *signer = NULL, *originator = NULL;
     X509_STORE *store = NULL;
-    X509_VERIFY_PARAM *vpm = NULL;
+    X509_VERIFY_PARAM *vpm = X509_VERIFY_PARAM_new();
     char *certfile = NULL, *keyfile = NULL, *contfile = NULL;
     const char *CAfile = NULL, *CApath = NULL, *CAstore = NULL;
     char *certsoutfile = NULL, *digestname = NULL, *wrapname = NULL;
@@ -320,7 +321,8 @@ int cms_main(int argc, char **argv)
     char *originatorfile = NULL, *recipfile = NULL, *ciphername = NULL;
     char *to = NULL, *from = NULL, *subject = NULL, *prog;
     cms_key_param *key_first = NULL, *key_param = NULL;
-    int flags = CMS_DETACHED, noout = 0, print = 0, keyidx = -1, vpmtouched = 0;
+    int flags = CMS_DETACHED, binary_files = 0;
+    int noout = 0, print = 0, keyidx = -1, vpmtouched = 0;
     int informat = FORMAT_SMIME, outformat = FORMAT_SMIME;
     int operation = 0, ret = 1, rr_print = 0, rr_allorfirst = -1;
     int verify_retcode = 0, rctformat = FORMAT_SMIME, keyform = FORMAT_UNDEF;
@@ -332,8 +334,8 @@ int cms_main(int argc, char **argv)
     OPTION_CHOICE o;
     OSSL_LIB_CTX *libctx = app_get0_libctx();
 
-    if ((vpm = X509_VERIFY_PARAM_new()) == NULL)
-        return 1;
+    if (encerts == NULL || vpm == NULL)
+        goto end;
 
     prog = opt_init(argc, argv, cms_options);
     while ((o = opt_next()) != OPT_EOF) {
@@ -641,8 +643,6 @@ int cms_main(int argc, char **argv)
             break;
         case OPT_RECIP:
             if (operation == SMIME_ENCRYPT) {
-                if (encerts == NULL && (encerts = sk_X509_new_null()) == NULL)
-                    goto end;
                 cert = load_cert(opt_arg(), FORMAT_UNDEF,
                                  "recipient certificate file");
                 if (cert == NULL)
@@ -659,7 +659,7 @@ int cms_main(int argc, char **argv)
         case OPT_KEYOPT:
             keyidx = -1;
             if (operation == SMIME_ENCRYPT) {
-                if (encerts != NULL)
+                if (sk_X509_num(encerts) > 0)
                     keyidx += sk_X509_num(encerts);
             } else {
                 if (keyfile != NULL || signerfile != NULL)
@@ -797,7 +797,7 @@ int cms_main(int argc, char **argv)
         }
     } else if (operation == SMIME_ENCRYPT) {
         if (*argv == NULL && secret_key == NULL
-            && pwri_pass == NULL && encerts == NULL) {
+            && pwri_pass == NULL && sk_X509_num(encerts) <= 0) {
             BIO_printf(bio_err, "No recipient(s) certificate(s) specified\n");
             goto opthelp;
         }
@@ -813,14 +813,26 @@ int cms_main(int argc, char **argv)
 
     ret = 2;
 
-    if (!(operation & SMIME_SIGNERS))
+    if ((operation & SMIME_SIGNERS) == 0) {
+        if ((flags & CMS_DETACHED) == 0)
+            BIO_printf(bio_err,
+                       "Warning: -nodetach option is ignored for non-signing operation\n");
+
         flags &= ~CMS_DETACHED;
+    }
+    if ((operation & SMIME_IP) == 0 && contfile != NULL)
+        BIO_printf(bio_err,
+                   "Warning: -contfile option is ignored for the given operation\n");
 
     if ((flags & CMS_BINARY) != 0) {
         if (!(operation & SMIME_OP))
             outformat = FORMAT_BINARY;
         if (!(operation & SMIME_IP))
             informat = FORMAT_BINARY;
+        if ((operation & SMIME_SIGNERS) != 0 && (flags & CMS_DETACHED) != 0)
+            binary_files = 1;
+        if ((operation & SMIME_IP) != 0 && contfile == NULL)
+            binary_files = 1;
     }
 
     if (operation == SMIME_ENCRYPT) {
@@ -838,16 +850,19 @@ int cms_main(int argc, char **argv)
             goto end;
         }
 
-        if (*argv && encerts == NULL)
-            if ((encerts = sk_X509_new_null()) == NULL)
-                goto end;
-        while (*argv) {
-            if ((cert = load_cert(*argv, FORMAT_UNDEF,
-                                  "recipient certificate file")) == NULL)
-                goto end;
-            sk_X509_push(encerts, cert);
-            cert = NULL;
-            argv++;
+        if (*argv != NULL) {
+            if (operation == SMIME_ENCRYPT) {
+                for (; *argv != NULL; argv++) {
+                    cert = load_cert(*argv, FORMAT_UNDEF,
+                                     "recipient certificate file");
+                    if (cert == NULL)
+                        goto end;
+                    sk_X509_push(encerts, cert);
+                    cert = NULL;
+                }
+            } else {
+                BIO_printf(bio_err, "Warning: recipient certificate file parameters ignored for operation other than -encrypt\n");
+            }
         }
     }
 
@@ -901,7 +916,7 @@ int cms_main(int argc, char **argv)
     if ((flags & CMS_BINARY) == 0)
         warn_binary(infile);
     in = bio_open_default(infile, 'r',
-                          (flags & CMS_BINARY) != 0 ? FORMAT_BINARY : informat);
+                          binary_files ? FORMAT_BINARY : informat);
     if (in == NULL)
         goto end;
 
@@ -944,7 +959,8 @@ int cms_main(int argc, char **argv)
             goto end;
     }
 
-    out = bio_open_default(outfile, 'w', outformat);
+    out = bio_open_default(outfile, 'w',
+                           binary_files ? FORMAT_BINARY : outformat);
     if (out == NULL)
         goto end;
 
@@ -997,7 +1013,7 @@ int cms_main(int argc, char **argv)
 
             res = EVP_PKEY_CTX_ctrl(pctx, -1, -1,
                                     EVP_PKEY_CTRL_CIPHER,
-                                    EVP_CIPHER_nid(cipher), NULL);
+                                    EVP_CIPHER_get_nid(cipher), NULL);
             if (res <= 0 && res != -2)
                 goto end;
 
@@ -1182,9 +1198,10 @@ int cms_main(int argc, char **argv)
     } else if (operation == SMIME_VERIFY) {
         if (CMS_verify(cms, other, store, indata, out, flags) > 0) {
             BIO_printf(bio_err, "%s Verification successful\n",
-                       (flags & CMS_CADES) ? "CAdES" : "CMS");
+                       (flags & CMS_CADES) != 0 ? "CAdES" : "CMS");
         } else {
-            BIO_printf(bio_err, "Verification failure\n");
+            BIO_printf(bio_err, "%s Verification failure\n",
+                       (flags & CMS_CADES) != 0 ? "CAdES" : "CMS");
             if (verify_retcode)
                 ret = verify_err + 32;
             goto end;

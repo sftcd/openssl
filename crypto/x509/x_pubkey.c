@@ -71,6 +71,7 @@ static void x509_pubkey_ex_free(ASN1_VALUE **pval, const ASN1_ITEM *it)
     X509_ALGOR_free(pubkey->algor);
     ASN1_BIT_STRING_free(pubkey->public_key);
     EVP_PKEY_free(pubkey->pkey);
+    OPENSSL_free(pubkey->propq);
     OPENSSL_free(pubkey);
     *pval = NULL;
 }
@@ -85,12 +86,15 @@ static int x509_pubkey_ex_populate(ASN1_VALUE **pval, const ASN1_ITEM *it)
             || (pubkey->public_key = ASN1_BIT_STRING_new()) != NULL);
 }
 
-static int x509_pubkey_ex_new(ASN1_VALUE **pval, const ASN1_ITEM *it)
+
+static int x509_pubkey_ex_new_ex(ASN1_VALUE **pval, const ASN1_ITEM *it,
+                                 OSSL_LIB_CTX *libctx, const char *propq)
 {
     X509_PUBKEY *ret;
 
     if ((ret = OPENSSL_zalloc(sizeof(*ret))) == NULL
-        || !x509_pubkey_ex_populate((ASN1_VALUE **)&ret, NULL)) {
+        || !x509_pubkey_ex_populate((ASN1_VALUE **)&ret, NULL)
+        || !x509_pubkey_set0_libctx(ret, libctx, propq)) {
         x509_pubkey_ex_free((ASN1_VALUE **)&ret, NULL);
         ERR_raise(ERR_LIB_ASN1, ERR_R_MALLOC_FAILURE);
     } else {
@@ -100,17 +104,18 @@ static int x509_pubkey_ex_new(ASN1_VALUE **pval, const ASN1_ITEM *it)
     return ret != NULL;
 }
 
-static int x509_pubkey_ex_d2i(ASN1_VALUE **pval,
-                              const unsigned char **in, long len,
-                              const ASN1_ITEM *it, int tag, int aclass,
-                              char opt, ASN1_TLC *ctx)
+static int x509_pubkey_ex_d2i_ex(ASN1_VALUE **pval,
+                                 const unsigned char **in, long len,
+                                 const ASN1_ITEM *it, int tag, int aclass,
+                                 char opt, ASN1_TLC *ctx, OSSL_LIB_CTX *libctx,
+                                 const char *propq)
 {
     const unsigned char *in_saved = *in;
     X509_PUBKEY *pubkey;
     int ret;
     OSSL_DECODER_CTX *dctx = NULL;
 
-    if (*pval == NULL && !x509_pubkey_ex_new(pval, it))
+    if (*pval == NULL && !x509_pubkey_ex_new_ex(pval, it, libctx, propq))
         return 0;
     if (!x509_pubkey_ex_populate(pval, NULL)) {
         ERR_raise(ERR_LIB_ASN1, ERR_R_MALLOC_FAILURE);
@@ -190,16 +195,30 @@ static int x509_pubkey_ex_print(BIO *out, const ASN1_VALUE **pval, int indent,
 
 static const ASN1_EXTERN_FUNCS x509_pubkey_ff = {
     NULL,
-    x509_pubkey_ex_new,
+    NULL,
     x509_pubkey_ex_free,
     0,                          /* Default clear behaviour is OK */
-    x509_pubkey_ex_d2i,
+    NULL,
     x509_pubkey_ex_i2d,
-    x509_pubkey_ex_print
+    x509_pubkey_ex_print,
+    x509_pubkey_ex_new_ex,
+    x509_pubkey_ex_d2i_ex,
 };
 
 IMPLEMENT_EXTERN_ASN1(X509_PUBKEY, V_ASN1_SEQUENCE, x509_pubkey_ff)
 IMPLEMENT_ASN1_FUNCTIONS(X509_PUBKEY)
+
+X509_PUBKEY *X509_PUBKEY_new_ex(OSSL_LIB_CTX *libctx, const char *propq)
+{
+    X509_PUBKEY *pubkey = NULL;
+
+    pubkey = (X509_PUBKEY *)ASN1_item_new_ex(X509_PUBKEY_it(), libctx, propq);
+    if (!x509_pubkey_set0_libctx(pubkey, libctx, propq)) {
+        X509_PUBKEY_free(pubkey);
+        pubkey = NULL;
+    }
+    return pubkey;
+}
 
 /*
  * X509_PUBKEY_dup() must be implemented manually, because there is no
@@ -225,7 +244,6 @@ X509_PUBKEY *X509_PUBKEY_dup(const X509_PUBKEY *a)
     return pubkey;
 }
 
-/* TODO should better be called X509_PUBKEY_set1 */
 int X509_PUBKEY_set(X509_PUBKEY **x, EVP_PKEY *pkey)
 {
     X509_PUBKEY *pk = NULL;
@@ -557,7 +575,7 @@ DH *ossl_d2i_DH_PUBKEY(DH **a, const unsigned char **pp, long length)
     pkey = d2i_PUBKEY_legacy(NULL, &q, length);
     if (pkey == NULL)
         return NULL;
-    if (EVP_PKEY_id(pkey) == EVP_PKEY_DH)
+    if (EVP_PKEY_get_id(pkey) == EVP_PKEY_DH)
         key = EVP_PKEY_get1_DH(pkey);
     EVP_PKEY_free(pkey);
     if (key == NULL)
@@ -598,7 +616,7 @@ DH *ossl_d2i_DHx_PUBKEY(DH **a, const unsigned char **pp, long length)
     pkey = d2i_PUBKEY_legacy(NULL, &q, length);
     if (pkey == NULL)
         return NULL;
-    if (EVP_PKEY_id(pkey) == EVP_PKEY_DHX)
+    if (EVP_PKEY_get_id(pkey) == EVP_PKEY_DHX)
         key = EVP_PKEY_get1_DH(pkey);
     EVP_PKEY_free(pkey);
     if (key == NULL)
@@ -684,7 +702,7 @@ EC_KEY *d2i_EC_PUBKEY(EC_KEY **a, const unsigned char **pp, long length)
     pkey = d2i_PUBKEY_legacy(NULL, &q, length);
     if (pkey == NULL)
         return NULL;
-    type = EVP_PKEY_id(pkey);
+    type = EVP_PKEY_get_id(pkey);
     if (type == EVP_PKEY_EC || type == EVP_PKEY_SM2)
         key = EVP_PKEY_get1_EC_KEY(pkey);
     EVP_PKEY_free(pkey);
@@ -768,7 +786,7 @@ ECX_KEY *ossl_d2i_ED448_PUBKEY(ECX_KEY **a,
     pkey = d2i_PUBKEY_legacy(NULL, &q, length);
     if (pkey == NULL)
         return NULL;
-    if (EVP_PKEY_id(pkey) == EVP_PKEY_ED448)
+    if (EVP_PKEY_get_id(pkey) == EVP_PKEY_ED448)
         key = ossl_evp_pkey_get1_ED448(pkey);
     EVP_PKEY_free(pkey);
     if (key == NULL)
@@ -810,7 +828,7 @@ ECX_KEY *ossl_d2i_X25519_PUBKEY(ECX_KEY **a,
     pkey = d2i_PUBKEY_legacy(NULL, &q, length);
     if (pkey == NULL)
         return NULL;
-    if (EVP_PKEY_id(pkey) == EVP_PKEY_X25519)
+    if (EVP_PKEY_get_id(pkey) == EVP_PKEY_X25519)
         key = ossl_evp_pkey_get1_X25519(pkey);
     EVP_PKEY_free(pkey);
     if (key == NULL)
@@ -852,7 +870,7 @@ ECX_KEY *ossl_d2i_X448_PUBKEY(ECX_KEY **a,
     pkey = d2i_PUBKEY_legacy(NULL, &q, length);
     if (pkey == NULL)
         return NULL;
-    if (EVP_PKEY_id(pkey) == EVP_PKEY_X448)
+    if (EVP_PKEY_get_id(pkey) == EVP_PKEY_X448)
         key = ossl_evp_pkey_get1_X448(pkey);
     EVP_PKEY_free(pkey);
     if (key == NULL)

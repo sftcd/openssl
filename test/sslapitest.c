@@ -326,10 +326,6 @@ static int test_keylog_output(char *buffer, const SSL *ssl,
 
             if (!TEST_ptr(token = strtok(NULL, " \n")))
                 return 0;
-
-            /*
-             * TODO(TLS1.3): test that application traffic secrets are what
-             * we expect */
         } else {
             TEST_info("Unexpected token %s\n", token);
             return 0;
@@ -1294,7 +1290,7 @@ static int test_ktls_sendfile(int tls_version, const char *cipher)
         || !TEST_true(BIO_get_ktls_send(serverssl->wbio)))
         goto end;
 
-    if (!TEST_true(RAND_bytes_ex(libctx, buf, SENDFILE_SZ)))
+    if (!TEST_true(RAND_bytes_ex(libctx, buf, SENDFILE_SZ, 0)))
         goto end;
 
     out = BIO_new_file(tmpfilename, "wb");
@@ -2907,10 +2903,6 @@ static int test_set_sigalgs(int idx)
                                        &sctx, &cctx, cert, privkey)))
         return 0;
 
-    /*
-     * TODO(TLS1.3): These APIs cannot set TLSv1.3 sig algs so we just test it
-     * for TLSv1.2 for now until we add a new API.
-     */
     SSL_CTX_set_max_proto_version(cctx, TLS1_2_VERSION);
 
     if (testctx) {
@@ -8850,7 +8842,7 @@ static int test_dh_auto(int idx)
 
     if (!TEST_int_gt(SSL_get_tmp_key(serverssl, &tmpkey), 0))
         goto end;
-    if (!TEST_size_t_eq(EVP_PKEY_bits(tmpkey), expdhsize))
+    if (!TEST_size_t_eq(EVP_PKEY_get_bits(tmpkey), expdhsize))
         goto end;
 
     if (!TEST_true(create_ssl_connection(serverssl, clientssl, SSL_ERROR_NONE)))
