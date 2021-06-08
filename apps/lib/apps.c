@@ -35,6 +35,7 @@
 #include <openssl/ui.h>
 #include <openssl/safestack.h>
 #include <openssl/rsa.h>
+#include <openssl/rand.h>
 #include <openssl/bn.h>
 #include <openssl/ssl.h>
 #include <openssl/store.h>
@@ -403,14 +404,18 @@ CONF *app_load_config_verbose(const char *filename, int verbose)
 
 CONF *app_load_config_internal(const char *filename, int quiet)
 {
-    BIO *in = NULL; /* leads to empty config in case filename == "" */
+    BIO *in;
     CONF *conf;
 
-    if (*filename != '\0'
-        && (in = bio_open_default_(filename, 'r', FORMAT_TEXT, quiet)) == NULL)
-        return NULL;
-    conf = app_load_config_bio(in, filename);
-    BIO_free(in);
+    if (filename == NULL || *filename != '\0') {
+        if ((in = bio_open_default_(filename, 'r', FORMAT_TEXT, quiet)) == NULL)
+            return NULL;
+        conf = app_load_config_bio(in, filename);
+        BIO_free(in);
+    } else {
+        /* Return empty config if filename is empty string. */
+        conf = NCONF_new_ex(app_libctx, NULL);
+    }
     return conf;
 }
 
@@ -629,7 +634,7 @@ void app_bail_out(char *fmt, ...)
     BIO_vprintf(bio_err, fmt, args);
     va_end(args);
     ERR_print_errors(bio_err);
-    exit(1);
+    exit(EXIT_FAILURE);
 }
 
 void *app_malloc(size_t sz, const char *what)
@@ -884,7 +889,6 @@ int load_key_certs_crls(const char *uri, int format, int maybe_stdin,
     const char *input_type;
     OSSL_PARAM itp[2];
     const OSSL_PARAM *params = NULL;
-    /* TODO make use of the engine reference 'eng' when loading pkeys */
 
     if (ppkey != NULL) {
         *ppkey = NULL;
@@ -2257,8 +2261,6 @@ int do_X509_sign(X509 *cert, EVP_PKEY *pkey, const char *md,
         if (!adapt_keyid_ext(cert, ext_ctx, "authorityKeyIdentifier",
                              "keyid, issuer", !self_sign))
             goto end;
-
-        /* TODO any further measures for ensuring default RFC 5280 compliance */
     }
 
     if (mctx != NULL && do_sign_init(mctx, pkey, md, sigopts) > 0)
@@ -3257,4 +3259,37 @@ void app_params_free(OSSL_PARAM *params)
             OPENSSL_free(params[i].data);
         OPENSSL_free(params);
     }
+}
+
+EVP_PKEY *app_keygen(EVP_PKEY_CTX *ctx, const char *alg, int bits, int verbose)
+{
+    EVP_PKEY *res = NULL;
+
+    if (verbose && alg != NULL) {
+        BIO_printf(bio_err, "Generating %s key", alg);
+        if (bits > 0)
+            BIO_printf(bio_err, " with %d bits\n", bits);
+        else
+            BIO_printf(bio_err, "\n");
+    }
+    if (!RAND_status())
+        BIO_printf(bio_err, "Warning: generating random key material may take a long time\n"
+                   "if the system has a poor entropy source\n");
+    if (EVP_PKEY_keygen(ctx, &res) <= 0)
+        app_bail_out("%s: Error generating %s key\n", opt_getprog(),
+                     alg != NULL ? alg : "asymmetric");
+    return res;
+}
+
+EVP_PKEY *app_paramgen(EVP_PKEY_CTX *ctx, const char *alg)
+{
+    EVP_PKEY *res = NULL;
+
+    if (!RAND_status())
+        BIO_printf(bio_err, "Warning: generating random key parameters may take a long time\n"
+                   "if the system has a poor entropy source\n");
+    if (EVP_PKEY_paramgen(ctx, &res) <= 0)
+        app_bail_out("%s: Generating %s key parameters failed\n",
+                     opt_getprog(), alg != NULL ? alg : "asymmetric");
+    return res;
 }

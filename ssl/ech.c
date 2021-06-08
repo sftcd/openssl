@@ -3099,7 +3099,7 @@ int SSL_ech_send_grease(SSL *s, WPACKET *pkt, unsigned int context,
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
     }
-    if (RAND_bytes_ex(s->ctx->libctx, &cid, cid_len) <= 0) {
+    if (RAND_bytes_ex(s->ctx->libctx, &cid, cid_len, RAND_DRBG_STRENGTH) <= 0) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
     }
@@ -3118,7 +3118,7 @@ int SSL_ech_send_grease(SSL *s, WPACKET *pkt, unsigned int context,
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
     }
-    if (RAND_bytes_ex(s->ctx->libctx, &cid, cid_len) <= 0) {
+    if (RAND_bytes_ex(s->ctx->libctx, &cid, cid_len, RAND_DRBG_STRENGTH) <= 0) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
     }

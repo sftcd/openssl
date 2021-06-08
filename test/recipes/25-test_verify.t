@@ -11,7 +11,7 @@ use strict;
 use warnings;
 
 use File::Spec::Functions qw/canonpath/;
-use OpenSSL::Test qw/:DEFAULT srctop_file ok_nofips/;
+use OpenSSL::Test qw/:DEFAULT srctop_file ok_nofips with/;
 use OpenSSL::Test::Utils;
 
 setup("test_verify");
@@ -28,7 +28,7 @@ sub verify {
     run(app([@args]));
 }
 
-plan tests => 155;
+plan tests => 156;
 
 # Canonical success
 ok(verify("ee-cert", "sslserver", ["root-cert"], ["ca-cert"]),
@@ -369,6 +369,13 @@ ok(!verify("badalt9-cert", "", ["root-cert"], ["ncca1-cert", "ncca3-cert"], ),
 ok(!verify("badalt10-cert", "", ["root-cert"], ["ncca1-cert", "ncca3-cert"], ),
    "Name constraints nested DNS name excluded");
 
+#Check that we get the expected failure return code
+with({ exit_checker => sub { return shift == 2; } },
+   sub {
+      ok(verify("bad-othername-namec", "", ["bad-othername-namec-inter"], [], "-partial_chain"),
+         "Name constraints bad othername name constraint");
+   });
+
 ok(verify("ee-pss-sha1-cert", "", ["root-cert"], ["ca-cert"], "-auth_level", "0"),
     "Accept PSS signature using SHA1 at auth level 0");
 
@@ -402,7 +409,7 @@ ok(verify("some-names2", "", ["many-constraints"], ["many-constraints"], ),
 ok(verify("root-cert-rsa2", "", ["root-cert-rsa2"], [], "-check_ss_sig"),
     "Public Key Algorithm rsa instead of rsaEncryption");
 
-ok(verify("ee-self-signed", "", ["ee-self-signed"], []),
+ok(verify("ee-self-signed", "", ["ee-self-signed"], [], "-attime", "1593565200"),
    "accept trusted self-signed EE cert excluding key usage keyCertSign");
 
 SKIP: {
