@@ -1,3 +1,4 @@
+# This is just an Encrypted Client Hello (ECH) placeholder
 
 This is a stub file to point you at the branch that now
 has the current Encrypted Client Hello (ECH) code.
