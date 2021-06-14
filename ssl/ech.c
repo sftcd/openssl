@@ -4068,4 +4068,53 @@ int SSL_CTX_ech_readpemdir(SSL_CTX *ctx, const char *echdir, int *number_loaded)
     return 1;
 }
 
+/*
+ * @brief provide a way to do raw ECH decryption for split-mode frontends
+ *
+ * @param ctx is an SSL_CTX
+ * @param outer_ch is the entire client hello (possibly incl. ECH)
+ * @param outer_len is the length of the above (on input the buffer size)
+ * @param inner is the resulting plaintext CH, if all went well
+ * @param inner_len is the length of the above (on input the buffer size)
+ * @param inner_sni is the inner SNI (if present)
+ * @param outer_sni is the outer SNI (if present)
+ * @param decrypted_ok is 0 on return if decryption failed, 1 if it worked
+ * @return 1 for success (incl. failed decrypt) or 0 on error
+ *
+ * Note that the outer_ch's length is inside the TLV data
+ */
+int SSL_CTX_ech_raw_decrypt(SSL_CTX *ctx, 
+                            unsigned char *outer_ch, size_t outer_len,
+                            unsigned char *inner_ch, size_t *inner_len, 
+                            char **inner_sni, char **outer_sni,
+                            int *decrypted_ok)
+{
+    SSL *s=NULL;
+    PACKET pkt_outer;
+    PACKET pkt_inner;
+    int rv=0;
+
+    if (!ctx || !outer_ch || outer_len==0 || !inner_ch || inner_len==0
+                || !inner_sni || !outer_sni || !decrypted_ok) return 0;
+    s=SSL_new(ctx);
+    if (!s) return 0;
+    if (PACKET_buf_init(&pkt_outer,outer_ch+9,outer_len-9)!=1) { goto err; }
+    if (PACKET_buf_init(&pkt_inner,inner_ch+9,*inner_len-9)!=1) { goto err; }
+
+    rv=ech_early_decrypt(s,&pkt_outer,&pkt_inner);
+    if (rv!=1) goto err;
+
+    *outer_sni=s->ech->outer_name;
+
+    if (s->ext.ech_success==1) *decrypted_ok=1;
+    else *decrypted_ok=0;
+
+    *inner_len=pkt_inner.remaining+9;
+
+    return rv;
+err:
+    if (s) SSL_free(s);
+    return 0;
+}
+
 #endif

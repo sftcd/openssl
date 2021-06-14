@@ -10,7 +10,7 @@ SSL_CTX_ech_readpemdir, SSL_ech_print,
 SSL_ech_get_status, SSL_ech_set_grease_suite,
 SSL_CTX_set_ech_alpn_protos, SSL_set_ech_alpn_protos,
 SSL_CTX_set_ech_callback, SSL_set_ech_callback,
-SSL_ECH_DIFF_free
+SSL_ECH_DIFF_free,SSL_CTX_ech_raw_decrypt
 - Encrypted Client Helllo (ECH) support - client, server and commmon functions 
 
 =head1 SYNOPSIS
@@ -37,6 +37,7 @@ SSL_ECH_DIFF_free
  void SSL_set_ech_callback(SSL *s, SSL_ech_cb_func f);
  void SSL_CTX_set_ech_callback(SSL_CTX *s, SSL_ech_cb_func f);
  void SSL_ECH_DIFF_free(ECH_DIFF *in, int size);
+ int SSL_CTX_ech_raw_decrypt(SSL_CTX *ctx, unsigned char *outer_ch, size_t outer_len, unsigned char *inner_ch, size_t *inner_len, char **inner_sni, char **outer_sni, int *decrypted_ok);
 
 =head1 DESCRIPTION
 

@@ -45,7 +45,10 @@ look;-) ... because a simple change to
 
 All my code code changes, are protected using ``#ifndef OPENSSL_NO_ECH``
 
-## ECH Configuration in haproxy
+## Shared-mode ECH Configuration in haproxy
+
+"Shared-mode" in haproxy terms is where the frontend is a TLS terminator
+and does all the ECH work.
 
 We're still learning haproxy configuration, so we'll follow [this
 guide](https://www.haproxy.com/blog/the-four-essential-sections-of-an-haproxy-configuration/)
@@ -230,7 +233,9 @@ The third has one TLS session from the client to backend, with the frontend
 just using the (outer) SNI for e.g. routing, if at all, and so that the
 frontend doesn't get to see the plaintext HTTP traffic. This isn't that
 interesting for us (other than to understand how to set it up), but is on the
-path to one we do want.
+path to one we do want. (In the actual configuration we also have a backend
+listener at :3483 to handle the case where an unknown (outer) SNI was
+seen.)
 
             3. One-TLS: Client <--[TLS]--> :7445 <--[same-TLS]--> :3482
 
@@ -241,8 +246,10 @@ The fourth one we'll want (but are far from having) will be where we really
 have a split-mode ECH, with the same TLS session between client and backend but
 where the frontend did decrypt the ECH and just pass on the inner CH to the
 backend, but where the frontend doesn't get to see the plaintext HTTP traffic.
+(As in the previous case, we have another backend listener at :3485 to handle
+the case of both an outer SNI and a failure to decrypt an ECH.)
 
-            4. Split-mode: Client <--[TLS+ECH]--> :7446 <--[inner-CH]--> :3483
+            4. Split-mode: Client <--[TLS+ECH]--> :7446 <--[inner-CH]--> :3484
 
 Note wrt split-mode: we're not yet even sure whether or not we need some other
 wrapping around the TLS session between the frontend and backend here - that
@@ -258,9 +265,21 @@ If that did prove useful, it'd probably be fairly easy to do.
 
 ## Split-Mode in More Detail
 
+As a reminder "split-mode" in haproxy terms is where the frontend only
+attempts ECH decryption, and all the rest of the TLS handling happens
+in the backend.
+
 Our split-mode needs a bit more detail before we can figure out what code is
 needed where. We need to consider GREASE and failed-decryption, as well as
 success. And then there's HRR, which is always a mystery;-)
+
+### Code 
+
+It's looking like the ``mode tcp`` code that detects an (outer) SNI is
+in ``src/payload.c:smp_fetch_ssl_hello_sni``.
+
+For a 1st attempt: I'll think about whether detecting and decrypting
+an ECH in there might work.
 
 ### Nominal Messaging
 
@@ -437,12 +456,23 @@ For ease of reference the usual HRR flow (without ECH) is as follows:
          {Finished}              -------->
 ```
 
+### Split-mode state of play
+
+We've added a new external API for split-mode (``SSL_CTX_ech_raw_decrypt``) that
+takes the inbound ClientHello, and, if that contains an ECH, attempts decryption.
+That API also returns the outer and inner SNI (if present) so that routing
+can happen as needed.
+
+So far, we've not figured how to properly handle configuring that, nor how to
+handle injecting the decrypted "inner" ClientHello when decryption succeeds.
+So it's a work-in-progress still.
+
 ## Summary
 
-We've done a basic form of ECH-enabling haproxy, there's still a TODO: list.
+We've done a basic form of Shared-mode ECH-enabling haproxy, there's still a 
+TODO: list.
 
 * There are leaks on exit - check if that's some effect of threads by running
   with vanilla OpenSSL libraries
 * More analysis of split-mode ECH.
-* Much later) start coding up split-mode ECH
 
