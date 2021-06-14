@@ -263,23 +263,54 @@ If that did prove useful, it'd probably be fairly easy to do.
             5. Two-ECH: Client <--[TLS+ECH]--> frontend <--[other-TLS+ECH]-->
                backend
 
-## Split-Mode in More Detail
+## Split-mode state of play
+
+We added a new external API for split-mode (``SSL_CTX_ech_raw_decrypt``) that
+takes the inbound ClientHello, and, if that contains an ECH, attempts decryption.
+That API also returns the outer and inner SNI (if present) so that routing
+can happen as needed. 
+
+In haproxy, we added a ``req_ssl_ech`` check that can route the request based
+on inner or outer SNI - ``smp_fetch_ssl_hello_ech`` will preferentially return
+the inner SNI (if decryption worked and an SNI was found) but fallback to the
+outer SNI.
+
+The idea is to configure "routes" for both in the frontend. With the example
+configuration below, assuming "foo.example.com" is the inner SNI and
+"example.com" is the outer SNI (or ``ECHConfig.public_name``) then if
+decryption works, we'll route to the "foo" backend on port 3484, whereas if it
+fails (or no ECH is present etc.) then we'll route to the "eg" server on port
+3485. 
+
+            frontend Split-mode
+                mode tcp
+                option tcplog
+                bind :7446 
+                use_backend b
+            backend b
+                mode tcp
+                option ssl-hello-ech echconfig.pem
+                use-server foo if { req_ssl_ech -i foo.example.com }
+                use-server eg if { req_ssl_ech -i example.com }
+                server eg 127.0.3.4:3485 check
+                server foo 127.0.3.4:3484 check
+                server default 127.0.3.4:3485
+
+So far, we've not figured how to properly handle passing the configuration on
+to ``smp_fetch_ssl_hello_ech``, nor how to handle injecting the decrypted
+"inner" ClientHello when decryption succeeds.  So it's a work-in-progress
+still, but new OpenSSL API doing the ECH decryption and the routing does seem
+to work ok.  (And of course this may be the totally wrong approach - we hope to
+learn about that when chatting with haproxy devs.)
+
+## Split-Mode messaging
 
 As a reminder "split-mode" in haproxy terms is where the frontend only
 attempts ECH decryption, and all the rest of the TLS handling happens
 in the backend.
 
-Our split-mode needs a bit more detail before we can figure out what code is
-needed where. We need to consider GREASE and failed-decryption, as well as
-success. And then there's HRR, which is always a mystery;-)
-
-### Code 
-
-It's looking like the ``mode tcp`` code that detects an (outer) SNI is
-in ``src/payload.c:smp_fetch_ssl_hello_sni``.
-
-For a 1st attempt: I'll think about whether detecting and decrypting
-an ECH in there might work.
+The figures here are mainly for ease of reference, as we figure
+stuff out and/or talk to people about it.
 
 ### Nominal Messaging
 
@@ -455,17 +486,6 @@ For ease of reference the usual HRR flow (without ECH) is as follows:
          {CertificateVerify*}
          {Finished}              -------->
 ```
-
-### Split-mode state of play
-
-We've added a new external API for split-mode (``SSL_CTX_ech_raw_decrypt``) that
-takes the inbound ClientHello, and, if that contains an ECH, attempts decryption.
-That API also returns the outer and inner SNI (if present) so that routing
-can happen as needed.
-
-So far, we've not figured how to properly handle configuring that, nor how to
-handle injecting the decrypted "inner" ClientHello when decryption succeeds.
-So it's a work-in-progress still.
 
 ## Summary
 

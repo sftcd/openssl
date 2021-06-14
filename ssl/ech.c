@@ -4093,6 +4093,10 @@ int SSL_CTX_ech_raw_decrypt(SSL_CTX *ctx,
     PACKET pkt_outer;
     PACKET pkt_inner;
     int rv=0;
+    size_t startofsessid=0; /**< offset of session id within Ch */
+    size_t startofexts=0; /**< offset of extensions within CH */
+    size_t echoffset=0; /**< offset of start of ECH within CH */
+    size_t innersnioffset=0; /**< offset to SNI in inner */
 
     if (!ctx || !outer_ch || outer_len==0 || !inner_ch || inner_len==0
                 || !inner_sni || !outer_sni || !decrypted_ok) return 0;
@@ -4106,10 +4110,52 @@ int SSL_CTX_ech_raw_decrypt(SSL_CTX *ctx,
 
     *outer_sni=s->ech->outer_name;
 
-    if (s->ext.ech_success==1) *decrypted_ok=1;
-    else *decrypted_ok=0;
+    if (s->ext.ech_success==0) {
+        *decrypted_ok=0;
+    } else {
+        size_t ilen=pkt_inner.remaining;
 
-    *inner_len=pkt_inner.remaining+9;
+        /* make sure there's space */
+        if ((ilen+9)>*inner_len) goto err;
+
+        /* Fix up header and length of inner CH */
+        inner_ch[0]=0x16;
+        inner_ch[1]=0x03;
+        inner_ch[2]=0x01;
+        inner_ch[3]=((ilen+4)>>8)&0xff;
+        inner_ch[4]=(ilen+4)&0xff;
+        inner_ch[5]=0x01;
+        inner_ch[6]=(ilen>>16)&0xff;
+        inner_ch[7]=(ilen>>8)&0xff;
+        inner_ch[8]=ilen&0xff;
+        *inner_len=ilen+9;
+
+        /*
+        * Grab the inner SNI (if it's there)
+        */
+        rv=ech_get_offsets(&pkt_inner,&startofsessid,&startofexts,&echoffset,&innersnioffset);
+        if (rv!=1) return(rv);
+        if (innersnioffset>0) {
+            PACKET isni;
+            const unsigned char *isnibuf=&pkt_inner.curr[innersnioffset+4];
+            size_t isnilen=pkt_inner.curr[innersnioffset+2]*256+pkt_inner.curr[innersnioffset+3];
+            if (PACKET_buf_init(&isni,isnibuf,isnilen)!=1) {
+                SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+                goto err;
+            }
+            if (tls_parse_ctos_server_name(s, &isni, 0, NULL, 0)!=1) {
+                SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+                goto err;
+            }
+            *inner_sni=s->ext.hostname;
+        }
+
+        /*
+         * Declare success to caller
+         */
+        *decrypted_ok=1;
+
+    }
 
     return rv;
 err:
