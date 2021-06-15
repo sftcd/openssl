@@ -1,7 +1,7 @@
 
 # This is a temporary place for ESNI content ...
 
-Stephen Farrell, stephen.farrell@cs.tcd.ie, 20210227-ish
+Stephen Farrell, stephen.farrell@cs.tcd.ie, 20210615-ish
 
 I'll put stuff here that'll likely disappear as this matures. The plan is
 to delete all this before submitting PRs to the openssl folks. Over time,
@@ -9,11 +9,11 @@ I'll likely move any documentation, test code etc into the proper openssl test
 framework.
 
 This builds ok on both 64 and 32 bit Ubuntus and (nominally) doesn't leak
-according to valgrind. It works e.g. when talking to www.cloudflare.com
-with e.g. ietf.org as the value inside the encrypted SNI. Server-side
-stuff seems to work when talking to itself, an NSS client and 
-the server sides: [lighttpd](./lighttpd.md), [nginx](./nginx.md)
-and [apache](./apache2.md)..
+according to valgrind. It works e.g. when talking to crypto.cloudflare.com
+
+An ``s_client`` works with the ``s_server`` but also with 
+[lighttpd](./lighttpd.md), [nginx](./nginx.md),
+[apache](./apache2.md) and, most recently, [haproxy](haproxy.md).
 
 There's some (well out of date) doxygen-generated documentation [here](api.html).
 
@@ -28,7 +28,7 @@ Most recent first...
 DON'T TRY ECH YET!!! The very much work-in-progress code is
 sooooo awful still...
 
-- 20210615: got split-mode s_client to s_server via haproxy working 
+- 20210615: got split-mode ``s_client`` to ``s_server`` via haproxy working 
   (with horrible code but working nonetheless)
 
 - 20210608: rebmerged with upstream

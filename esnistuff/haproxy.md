@@ -1,13 +1,26 @@
 # Notes on building/integrating with haproxy
 
-These are from May/June 2021.
+These notes are from May/June 2021.
 
 ## Clone and build
 
-I forked the [upstream repo](https://github.com/haproxy/haproxy) and made
+First you need my ECH-enabled OpenSSL fork:
+
+            $ cd $HOME/code
+            $ git clone https://github.com/sftcd/openssl.git
+            $ cd openssl
+            $ git checkout ECH_UPFRONT_DEC
+            $ ./config
+            ...
+            $ make
+            ...
+
+Next you need my fork of the [upstream haproxy repo](https://github.com/haproxy/haproxy) and made
 an ``ECH-experimental`` branch, so then...
 
+            $ cd $HOME/code
             $ git clone https://github.com/sftcd/haproxy.git
+            $ cd haproxy
             $ git checkout ECH-experimental
 
 To build that with a non-standard build of OpenSSL...
@@ -86,7 +99,7 @@ given ``SSL_CTX`` or ``SSL`` session). It's not clear if that makes sense for
 haproxy where (at least in principle) different frontends might each need their
 own fully independent sets of ECH keys.
 
-## Test runs
+## Shared-mode test runs
 
 I have ``/etc/hosts`` entries for example.com and foo.example.com
 that map those to localhost.
@@ -208,10 +221,11 @@ make that visible:
 need to add some stanzas to ``/etc/rsyslog.conf`` to get that.
 (Absent those, the test script will, for now, complain and exit.)
 
-## Named Frontend/Backend Setups
+## Naming different frontend/backend setups
 
-There are a pile of variations possible, and they're hard to describe accurately
-when chatting with people, so we'll name and document them like this:
+Before we get to talking about split-mode, there are a pile of variations
+possible, and they're hard to describe accurately when chatting with people, so
+we'll name and document them like this:
 
             N. setup-name: Client <--[prot]--> frontend <--[prot]--> Backend
 
@@ -263,17 +277,48 @@ If that did prove useful, it'd probably be fairly easy to do.
             5. Two-ECH: Client <--[TLS+ECH]--> frontend <--[other-TLS+ECH]-->
                backend
 
-## Split-mode state of play
+## Split-mode 
 
-We added a new external API for split-mode (``SSL_CTX_ech_raw_decrypt``) that
-takes the inbound ClientHello, and, if that contains an ECH, attempts decryption.
-That API also returns the outer and inner SNI (if present) so that routing
-can happen as needed. 
+Our model for split-mode is that haproxy only does ECH decryption - if 
+decryption fails or no ECH extension is present, then haproxy will forward
+to a backend that has the private key of the ``ECHConfig.public_name``. If
+decryption works, then haproxy will forward based on the SNI from the
+inner ClientHello. 
 
-In haproxy, we added a ``req_ssl_ech`` check that can route the request based
-on inner or outer SNI - ``smp_fetch_ssl_hello_ech`` will preferentially return
-the inner SNI (if decryption worked and an SNI was found) but fallback to the
-outer SNI.
+We added a new external API for haproxy to use in split-mode
+(``SSL_CTX_ech_raw_decrypt``) that takes the inbound ClientHello, and, if that
+contains an ECH, attempts decryption.  That API also returns the outer and
+inner SNI (if present) so that routing can happen as needed. 
+
+In haproxy, we added a ``req_ssl_ech`` keyword check to ``src/payload.c`` that
+can route the request based on inner or outer SNI - ``smp_fetch_ssl_hello_ech``
+will preferentially return the inner SNI (if decryption worked and an SNI was
+found) but fallback to the outer SNI.
+
+So far, we've not figured how to properly handle passing configuration on to
+``smp_fetch_ssl_hello_ech`` though we do handle it improperly:-).  By
+"improperly" I mean the use of echconfig.pem in the config fragment below. It'd
+be better if that were in some default and we read the file(s) and created the
+``SSL_CTX`` (or ``SSL``) structures at startup. 
+
+We've yet to add an API so that the backend for ``ECHConflg.public_name`` can
+respond correctly to failed encryptions or GREASEd ECH.
+
+Notes:
+
+* One important thing to note here is that the haproy frontend only processes the
+  OuterClientHello and after that (has worked), the frontend acts as a
+  passthrough - in ``mode tcp`` in haproxy terms. The frontend also never sees
+  the e.g. HTTP cleartext traffic, so isn't really in ``mode http`` either - it
+  seems a new mode may be needed.
+* One could argue that there's a need to be able to support cover traffic from
+  frontend to backend and to have that, and subsequent traffic, use an ecrypted
+  tunnel between frontend and backend. Otherwise a network observer who can see
+  traffic between client and frontend, and also between frontend and backend, can
+  easily defeat ECH as it'll simply see the result of ECH decryption. (That
+  wouldn't be needed in all network setups, but in some.)
+
+## Running haproxy split-mode 
 
 The idea is to configure "routes" for both in the frontend. With the example
 configuration below, assuming "foo.example.com" is the inner SNI and
@@ -295,83 +340,45 @@ fails (or no ECH is present etc.) then we'll route to the "eg" server on port
                 server foo 127.0.3.4:3484 check
                 server default 127.0.3.4:3485
 
-So far, we've not figured how to properly handle passing the configuration on
-to ``smp_fetch_ssl_hello_ech`` though we do handle it improperly:-). 
-By "improperly" I mean the use of echconfig.pem in the above config
-fragment. It'd be better if that were in some default and we read the
-file(s) and created the ``SSL_CTX`` (or ``SSL``) structures at
-startup. 
+If the above configuration is in a file called ``sm.cfg`` then haproxy
+can be started via a command like:
 
-We also need to figure how to handle injecting the decrypted
-"inner" ClientHello when decryption succeeds.  So it's a work-in-progress
-still, but new OpenSSL API doing the ECH decryption and the routing does seem
-to work ok.  (And of course this may be the totally wrong approach - we hope to
-learn about that when chatting with haproxy devs.)
+            $ LD_LIBRARY_PATH=$HOME/code/openssl ./haproxy -f sm.cfg -dV 
 
-## Split-Mode messaging
+We can then start the non-ECH-enabled backend for foo.example.com listening on
+port 3484 as follows:
 
-As a reminder "split-mode" in haproxy terms is where the frontend only
-attempts ECH decryption, and all the rest of the TLS handling happens
-in the backend.
+            $ cd $HOME/code/openssl/esnistuff
+            $ ../apps/openssl s_server -msg -trace  -tlsextdebug  \
+                -key cadir/example.com.priv \
+                -cert cadir/example.com.crt \
+                -key2 cadir/foo.example.com.priv \
+                -cert2 cadir/foo.example.com.crt  \
+                -CApath cadir/  \
+                -port 3484  -tls1_3  -servername foo.example.com
 
-The figures here are mainly for ease of reference, as we figure
-stuff out and/or talk to people about it.
+Running a server for example.com on port 3485 is done similarly.
 
-### Nominal Messaging
+For the client, we do the following to use ECH and send our request to port 7446 
+where haproxy is listening:
 
-The basic TLS1.3 1RTT handshake is as shown below, (from
-[rfc8446bis](https://datatracker.ietf.org/doc/draft-ietf-tls-rfc8446bis/), both
-for reference and so I can easily cut'n'paste text.
+            $ cd $HOME/code/openssl/esnistuff
+            $ ./echcli.sh -s localhost  -H foo.example.com -p 7446 \
+                -P `./pem2rr.sh echconfig.pem` -f index.html -N -c something-else
+            Running ./echcli.sh at 20210615-191012
+            Assuming supplied ECH is RR value
+            ./echcli.sh Summary: 
+            Looks like it worked ok
+            ECH: success: outer SNI: 'something-else', inner SNI: 'foo.example.com'
 
-```asciidoc
-       Client                                              Server
+### Split-Mode messaging
 
-Key  ^ ClientHello
-Exch | + key_share*
-     | + signature_algorithms*
-     | + psk_key_exchange_modes*
-     v + pre_shared_key*         -------->
-                                                       ServerHello  ^ Key
-                                                      + key_share*  | Exch
-                                                 + pre_shared_key*  v
-                                             {EncryptedExtensions}  ^  Server
-                                             {CertificateRequest*}  v  Params
-                                                    {Certificate*}  ^
-                                              {CertificateVerify*}  | Auth
-                                                        {Finished}  v
-                                 <--------     [Application Data*]
-     ^ {Certificate*}
-Auth | {CertificateVerify*}
-     v {Finished}                -------->
-       [Application Data]        <------->      [Application Data]
-```
-
-When using ECH in Split-mode, following the current
+When using ECH in split-mode, following 
 [draft-10](https://datatracker.ietf.org/doc/draft-ietf-tls-esni/10/) of the
-spec, we want to see the following flows in the nominal case, where the
-frontend decrypts the outer ClientHello.  Note: we expect some minor changes in
+spec, we have the following flows in the nominal case, where the
+haproxy frontend decrypts the ECH.  Note: we expect minor changes in
 upcoming ECH draft specs, but they likely won't affect the flows, only message
 syntax and crypto calculations.
-
-Notes:
-
-* One important thing to note here is that the frontend only processes the
-  OuterClientHello and after that (has worked), the frontend acts as a
-  passthrough - in ``mode tcp`` in haproxy terms. The frontend also never sees
-  the e.g. HTTP cleartext traffic, so isn't really in ``mode http`` either - it
-  seems a new mode may be needed.
-* One could argue that there's a need to be able to support cover traffic from
-  frontend to backend and to have that, and subsequent traffic, use an ecrypted
-  tunnel between frontend and backend. Otherwise a network observer who can see
-  traffic between client and frontend, and also between frontend and backend, can
-  easily defeat ECH as it'll simply see the result of ECH decryption. (That
-  wouldn't be needed in all network setups, but in some.)
-* There are likely to be some additional octets that need to be sent from
-  frontend to backend, that would not be present in a "pure" client to backend
-  TLS session. Those may be needed so that the backend has the full transcript
-  (incl. outer CH) available to it for cryptographic calculations, either for the
-  ServerHello ECH-acceptance signal, or for Finished message calculations.
-  (Details there are liable to change though, based on recent discussion.)
 
 ```asciidoc
        Client                    Frontend                 Backend
@@ -381,13 +388,13 @@ Exch | + key_share*
      | + signature_algorithms*
      | + psk_key_exchange_modes*
      | + ECH*
-     v + pre_shared_key*   --->
+     v                --------->
                                 ^ InnerClientHello
                                 | + key_share*
                                 | + signature_algorithms*
                                 | + psk_key_exchange_modes*
-                                | + ech-is-inner*
-                                v + pre_shared_key*   ----------->
+                                | + ech_is_inner*
+                                v                     ----------->
 
                                             ServerHello+ECH-accept  ^ Key
                                                       + key_share*  | Exch
@@ -404,13 +411,16 @@ Auth | {CertificateVerify*}
        [Application Data]        <------->      [Application Data]
 ```
 
+In the above case, the ServerHello contains the ECH acceptance signal
+as part of the random value.
+
 ### GREASE and Failed ECH Decryption
 
 A GREASEd ClientHello contains an ECH extension with essentially random bits
 but in the correct format. Doing this has two justifications - so as to
-exercise code points as usual with GREASing, but also in this case to increase
-the cost of blocking all ECH, if a sufficientl number of clients emit GREASEd
-ECH even when not actually doing ECH.
+exercise code points as usual with GREASing, but also in this case to possibly
+increase the cost of blocking all ECH, if a sufficientl number of clients emit
+GREASEd ECH even when not actually doing ECH.
 
 For GREASEd ECH a server could just ignore the value, however, a client might
 also have used an outdated ECHConfig and have actually attempted ECH. In that
@@ -418,16 +428,9 @@ case the server can't really distinguish the failed decryption from a GREASEd
 ECH, so the spec calls for the server to respond with an ECH for the client
 that has the up-to-date ECHConfig for that frontend.
 
-If ECH decoding simply fails, then failing the entire session is correct. (Or
-whatever else haproxy does today with such cases.)
-
-One option (shown below, but not clearl what we want), might be for the
-frontend to simply pass along the outer CH in the event of failed ECH
-decryption of any kind, and to expect the backend to include the correct
-ECHConfig in it's first flight. That implies that the backend is ECH-aware but
-we already need that for the ServerHello ECH-acceptance signal. (And that's
-probably a new configuration item for the backend servers - to load an
-ECHConfig rather than an ECH key pair when acting only as a backend.)
+If ECH decoding simply fails, e.g. for syntactic reasons, then failing the
+entire session is correct. (Or whatever else haproxy does today with such
+cases.)
 
 ```asciidoc
        Client                    Frontend                 Backend
@@ -437,17 +440,17 @@ Exch | + key_share*
      | + signature_algorithms*
      | + psk_key_exchange_modes*
      | + ECH*
-     v + pre_shared_key*   --->
+     v             ----------->
                                 ^ OuterClientHello
                                 | + key_share*
                                 | + signature_algorithms*
                                 | + psk_key_exchange_modes*
                                 | + ECH*
-                                v + pre_shared_key*   ----------->
+                                v                     ----------->
 
                                                        ServerHello  ^ Key
                                                       + key_share*  | Exch
-                                                 + pre_shared_key*  v
+                                                                    v
                                              {EncryptedExtensions}  ^  Server
                                              {CertificateRequest*}  v  Params
                                                     {Certificate*}  ^
@@ -460,6 +463,9 @@ Auth | {CertificateVerify*}
      v {Finished}                -------->
        [Application Data]        <------->      [Application Data]
 ```
+
+We have yet to implement a server that can respond with the correct 
+ECHConfig but without having access to the ECH private key.
 
 ### HRR - Hello Request Retry
 
@@ -492,15 +498,18 @@ For ease of reference the usual HRR flow (without ECH) is as follows:
          {Finished}              -------->
 ```
 
+We have still to figure out how to handle HRR. Most likely we won't
+do that until we have draft-11 of the spec implemented. (As the time
+of writing draft-11 was just issued yesterday.)
+
 ## Summary
 
-We've done a basic form of Shared-mode ECH-enabling haproxy, there's still a 
+We've done Shared-mode and Split-mode ECH-enabling haproxy, there's still a 
 TODO: list.
 
 * There are leaks on exit - check if that's some effect of threads by running
   with vanilla OpenSSL libraries
 * Add option to load a set of keys in a directory.
 * Load ECH key pair(s) for split mode at startup.
-* Inject decrypted inner CH into flow as needed.
-* More analysis of split-mode ECH.
+* HRR
 

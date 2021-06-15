@@ -2009,10 +2009,18 @@ int tls_parse_ctos_ech_is_inner(SSL *s, PACKET *pkt, unsigned int context,
                                X509 *x, size_t chainidx)
 {
     /*
-     * Return error if this is not an inner CH
+     * If there wasn't an earlier ECH decrypt attempt, then we
+     * must be a backend
      */
     if (s->ext.ech_attempted!=1) {
         s->ext.ech_backend=1;
+        OSSL_TRACE_BEGIN(TLS) {
+            BIO_printf(trc_out,"ech_is_inner seen - think we're a backend\n");
+        } OSSL_TRACE_END(TLS);
+    } else {
+        OSSL_TRACE_BEGIN(TLS) {
+            BIO_printf(trc_out,"ech_is_inner shouldn't be seen here.\n");
+        } OSSL_TRACE_END(TLS);
     }
     return 1;
 }

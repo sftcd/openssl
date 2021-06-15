@@ -1386,10 +1386,12 @@ MSG_PROCESS_RETURN tls_process_client_hello(SSL *s, PACKET *pkt)
      * TODO: find a better way to do this
      */
     if (!pkt) goto err;
-    s->ext.innerch_len=pkt->remaining;
-    s->ext.innerch=OPENSSL_malloc(s->ext.innerch_len);
-    if (!s->ext.innerch) goto err;
-    memcpy(s->ext.innerch,pkt->curr,s->ext.innerch_len);
+    if (pkt->remaining) {
+        s->ext.innerch_len=pkt->remaining;
+        s->ext.innerch=OPENSSL_malloc(s->ext.innerch_len);
+        if (!s->ext.innerch) goto err;
+        memcpy(s->ext.innerch,pkt->curr,s->ext.innerch_len);
+    }
 
     if (s->server && s->ech!=NULL) {
         PACKET newpkt;
