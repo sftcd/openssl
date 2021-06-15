@@ -1386,7 +1386,10 @@ MSG_PROCESS_RETURN tls_process_client_hello(SSL *s, PACKET *pkt)
      * TODO: find a better way to do this
      */
     if (!pkt) goto err;
-    if (pkt->remaining) {
+    if (s->server && pkt->remaining) {
+        if (s->ext.innerch!=NULL) {
+            OPENSSL_free(s->ext.innerch);
+        }
         s->ext.innerch_len=pkt->remaining;
         s->ext.innerch=OPENSSL_malloc(s->ext.innerch_len);
         if (!s->ext.innerch) goto err;
@@ -1619,6 +1622,11 @@ MSG_PROCESS_RETURN tls_process_client_hello(SSL *s, PACKET *pkt)
     OPENSSL_free(clienthello);
 #ifndef OPENSSL_NO_ECH
     s->clienthello=NULL;
+    if (s->ext.innerch!=NULL) {
+        OPENSSL_free(s->ext.innerch);
+        s->ext.innerch=NULL;
+        s->ext.innerch_len=0;
+    }
 #endif
 
     return MSG_PROCESS_ERROR;
