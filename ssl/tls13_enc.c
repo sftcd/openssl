@@ -565,8 +565,9 @@ int tls13_change_cipher_state(SSL *s, int which)
 #ifndef OPENSSL_NO_ECH
 #ifdef ECH_SUPERVERBOSE
     OSSL_TRACE_BEGIN(TLS) {
-        BIO_printf(trc_out,"SSL*=%p, inner=%p, outer=%p, which=%02x\n",s,s->ext.inner_s,s->ext.outer_s,which);
-        BIO_printf(trc_out,"handshake_dgst is %p\n",s->s3.handshake_dgst);
+        BIO_printf(trc_out,"SSL*=%p, inner=%p, outer=%p, which=%02x\n",
+                (void*)s, (void*)s->ext.inner_s, (void*)s->ext.outer_s,which);
+        BIO_printf(trc_out,"handshake_dgst is %p\n",(void*)s->s3.handshake_dgst);
     } OSSL_TRACE_END(TLS);
     ptranscript("gen_hs",s);
 #endif

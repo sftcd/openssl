@@ -3915,7 +3915,7 @@ int ech_early_decrypt(SSL *s, PACKET *outerpkt, PACKET *newpkt)
 #ifndef OPENSSL_NO_SSL_TRACE
     OSSL_TRACE_BEGIN(TLS) {
         BIO_printf(trc_out,"EARLY: success: %d, assume_grease: %d, foundcfg: %d, cfgind: %d, clearlen: %zd, clear %p\n",
-            s->ext.ech_success,s->ext.ech_grease,foundcfg,cfgind,clearlen,clear);
+            s->ext.ech_success,s->ext.ech_grease,foundcfg,cfgind,clearlen,(void*)clear);
     } OSSL_TRACE_END(TLS);
 #endif
 
