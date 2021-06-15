@@ -597,7 +597,7 @@ static int ssl_ech_servername_cb(SSL *s, int *ad, void *arg)
         */
         switch (echrv) {
         case SSL_ECH_STATUS_BACKEND: 
-            BIO_printf(p->biodebug,"ssl_ech_servername_cb: ECH acting as backed, got ech_is_inner\n");
+            BIO_printf(p->biodebug,"ssl_ech_servername_cb: ECH acting as backend, got ech_is_inner\n");
             break;
         case SSL_ECH_STATUS_NOT_CONFIGURED: 
             BIO_printf(p->biodebug,"ssl_ech_servername_cb: ECH not configured\n");

@@ -28,6 +28,9 @@ Most recent first...
 DON'T TRY ECH YET!!! The very much work-in-progress code is
 sooooo awful still...
 
+- 20210615: got split-mode s_client to s_server via haproxy working 
+  (with horrible code but working nonetheless)
+
 - 20210608: rebmerged with upstream
 
 - 20210607: might just have the entire CI build stuff working now

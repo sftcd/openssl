@@ -1380,6 +1380,16 @@ MSG_PROCESS_RETURN tls_process_client_hello(SSL *s, PACKET *pkt)
     CLIENTHELLO_MSG *clienthello = NULL;
 
 #ifndef OPENSSL_NO_ECH
+    /*
+     * For split-mode we want to have a way to point at the CH octets
+     * for the accept-confirmation calculation.
+     * TODO: find a better way to do this
+     */
+    if (!pkt) goto err;
+    s->ext.innerch_len=pkt->remaining;
+    s->ext.innerch=OPENSSL_malloc(s->ext.innerch_len);
+    if (!s->ext.innerch) goto err;
+    memcpy(s->ext.innerch,pkt->curr,s->ext.innerch_len);
 
     if (s->server && s->ech!=NULL) {
         PACKET newpkt;
@@ -2458,7 +2468,7 @@ int tls_construct_server_hello(SSL *s, WPACKET *pkt)
      * Calculate the magic server random to indicate that
      * we're accepting ECH, if that's the case
      */
-    if (s->ech && s->ext.ech_success==1) {
+    if (s->ext.ech_backend || (s->ech && s->ext.ech_success==1)) {
         unsigned char acbuf[8];
         unsigned char *shbuf=NULL;
         size_t shlen=0;

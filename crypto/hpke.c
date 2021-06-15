@@ -2469,8 +2469,7 @@ static int hpke_random_suite(hpke_suite_t *suite)
     int nkdfs=sizeof(hpke_kdf_tab)/sizeof(hpke_kdf_info_t)-1;
     int naeads=sizeof(hpke_aead_tab)/sizeof(hpke_aead_info_t)-1;
 
-    /* if (RAND_bytes_ex(NULL, &rval, sizeof(rval),RAND_DRBG_STRENGTH) <= 0) return(__LINE__); */
-    if (RAND_bytes( &rval, sizeof(rval)) <= 0) return(__LINE__);
+    if (RAND_bytes(&rval, sizeof(rval)) <= 0) return(__LINE__);
     nthkem=(rval%5+1); /* ok the "5" is magic!!! */
     while(found<nthkem && entry<nkems) {
         if (hpke_kem_tab[entry].keytype!=NULL) {
@@ -2481,11 +2480,11 @@ static int hpke_random_suite(hpke_suite_t *suite)
     suite->kem_id=hpke_kem_tab[entry-1].kem_id;
 
     /* check kdf */
-    if (RAND_bytes_ex(NULL, &rval, sizeof(rval),RAND_DRBG_STRENGTH) <= 0) return(__LINE__);
+    if (RAND_bytes(&rval, sizeof(rval)) <= 0) return(__LINE__);
     suite->kdf_id=hpke_kdf_tab[(rval%nkdfs+1)].kdf_id;
 
     /* check aead */
-    if (RAND_bytes_ex(NULL, &rval, sizeof(rval),RAND_DRBG_STRENGTH) <= 0) return(__LINE__);
+    if (RAND_bytes(&rval, sizeof(rval)) <= 0) return(__LINE__);
     suite->aead_id=hpke_aead_tab[(rval%naeads+1)].aead_id;
 
     return 1;
@@ -2534,9 +2533,9 @@ int hpke_good4grease(
     /* publen */
     plen=hpke_kem_tab[chosen.kem_id].Npk;
     if (plen>*pub_len) return(__LINE__);
-    if (RAND_bytes_ex(NULL, pub, plen,RAND_DRBG_STRENGTH) <= 0) return(__LINE__);
+    if (RAND_bytes(pub, plen) <= 0) return(__LINE__);
     *pub_len=plen;
-    if (RAND_bytes_ex(NULL, cipher, cipher_len,RAND_DRBG_STRENGTH) <= 0) return(__LINE__);
+    if (RAND_bytes(cipher, cipher_len) <= 0) return(__LINE__);
 
 #ifdef SUPERVERBOSE
     printf("GREASEy suite:\n\tkem: %s (%d), kdf: %s (%d), aead: %s (%d)\n",

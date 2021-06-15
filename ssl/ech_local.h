@@ -22,7 +22,6 @@
 # include <openssl/ech.h>
 # include <crypto/hpke.h>
 
-//#undef ECH_SUPERVERBOSE /**< to get bazillions more lines of tracing */
 #define ECH_SUPERVERBOSE  1 /**< to get bazillions more lines of tracing */
 
 #define ECH_RRTYPE 65439 /**< experimental (as per draft-03, and draft-04) ECH RRTYPE */
