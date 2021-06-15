@@ -1569,6 +1569,9 @@ int SSL_ech_get_status(SSL *s, char **inner_sni, char **outer_sni)
     *outer_sni=NULL;
     *inner_sni=NULL;
 
+    if (s->ext.ech_backend) {
+        return SSL_ECH_STATUS_BACKEND; 
+    }
     if (s->ech==NULL) {
         return SSL_ECH_STATUS_NOT_CONFIGURED; 
     }
@@ -2615,7 +2618,6 @@ err:
  */
 void ech_pbuf(const char *msg, const unsigned char *buf, const size_t blen)
 {
-
 #ifndef OPENSSL_NO_SSL_TRACE
     OSSL_TRACE_BEGIN(TLS) {
     if (msg==NULL) {
@@ -2805,7 +2807,8 @@ int ech_calc_accept_confirm(SSL *s, unsigned char *acbuf, const unsigned char *s
 #ifdef ECH_SUPERVERBOSE
     ech_pbuf("calc conf : result",acbuf,8);
 #endif
-    ech_reset_hs_buffer(s,s->ext.innerch,s->ext.innerch_len);
+    if (!s->ext.ech_backend) 
+        ech_reset_hs_buffer(s,s->ext.innerch,s->ext.innerch_len);
 
     if (tbuf) OPENSSL_free(tbuf);
     if (ctx) EVP_MD_CTX_free(ctx);
@@ -4092,6 +4095,8 @@ int SSL_CTX_ech_raw_decrypt(SSL_CTX *ctx,
     SSL *s=NULL;
     PACKET pkt_outer;
     PACKET pkt_inner;
+    unsigned char *inner_buf=NULL;
+    size_t inner_buf_len=*inner_len;
     int rv=0;
     size_t startofsessid=0; /**< offset of session id within Ch */
     size_t startofexts=0; /**< offset of extensions within CH */
@@ -4103,7 +4108,9 @@ int SSL_CTX_ech_raw_decrypt(SSL_CTX *ctx,
     s=SSL_new(ctx);
     if (!s) return 0;
     if (PACKET_buf_init(&pkt_outer,outer_ch+9,outer_len-9)!=1) { goto err; }
-    if (PACKET_buf_init(&pkt_inner,inner_ch+9,*inner_len-9)!=1) { goto err; }
+    inner_buf=OPENSSL_malloc(inner_buf_len);
+    if (inner_buf==NULL) goto err;
+    if (PACKET_buf_init(&pkt_inner,inner_buf,inner_buf_len)!=1) { goto err; }
 
     rv=ech_early_decrypt(s,&pkt_outer,&pkt_inner);
     if (rv!=1) goto err;
@@ -4116,7 +4123,7 @@ int SSL_CTX_ech_raw_decrypt(SSL_CTX *ctx,
         size_t ilen=pkt_inner.remaining;
 
         /* make sure there's space */
-        if ((ilen+9)>*inner_len) goto err;
+        if ((ilen+9)>inner_buf_len) goto err;
 
         /* Fix up header and length of inner CH */
         inner_ch[0]=0x16;
@@ -4128,6 +4135,7 @@ int SSL_CTX_ech_raw_decrypt(SSL_CTX *ctx,
         inner_ch[6]=(ilen>>16)&0xff;
         inner_ch[7]=(ilen>>8)&0xff;
         inner_ch[8]=ilen&0xff;
+        memcpy(inner_ch+9,pkt_inner.curr,ilen);
         *inner_len=ilen+9;
 
         /*
@@ -4156,10 +4164,12 @@ int SSL_CTX_ech_raw_decrypt(SSL_CTX *ctx,
         *decrypted_ok=1;
 
     }
+    if (inner_buf) OPENSSL_free(inner_buf);
 
     return rv;
 err:
     if (s) SSL_free(s);
+    if (inner_buf) OPENSSL_free(inner_buf);
     return 0;
 }
 

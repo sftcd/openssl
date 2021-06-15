@@ -874,6 +874,7 @@ SSL *SSL_new(SSL_CTX *ctx)
     s->ext.outer_s=NULL;
     s->ext.ech_done=0;
     s->ext.ech_attempted=0;
+    s->ext.ech_backend=0;
     s->ext.ech_success=0;
     s->ext.ech_grease=0;
     s->ext.ech_grease_suite=NULL;
@@ -4317,6 +4318,7 @@ SSL *SSL_dup(SSL *s)
     ret->ext.outer_s=s->ext.outer_s;
     ret->ext.ech_done=s->ext.ech_done;
     ret->ext.ech_attempted=s->ext.ech_attempted;
+    ret->ext.ech_backend=s->ext.ech_backend;
     ret->ext.ech_success=s->ext.ech_success;
     ret->ext.ech_grease=s->ext.ech_grease;
     ret->ext.ch_depth=s->ext.ch_depth;

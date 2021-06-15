@@ -2011,7 +2011,9 @@ int tls_parse_ctos_ech_is_inner(SSL *s, PACKET *pkt, unsigned int context,
     /*
      * Return error if this is not an inner CH
      */
-    if (s->ext.ech_success!=1) return 0;
+    if (s->ext.ech_attempted!=1) {
+        s->ext.ech_backend=1;
+    }
     return 1;
 }
 

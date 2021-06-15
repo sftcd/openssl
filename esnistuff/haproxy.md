@@ -289,15 +289,20 @@ fails (or no ECH is present etc.) then we'll route to the "eg" server on port
                 use_backend b
             backend b
                 mode tcp
-                option ssl-hello-ech echconfig.pem
-                use-server foo if { req_ssl_ech -i foo.example.com }
-                use-server eg if { req_ssl_ech -i example.com }
+                use-server foo if { req_ssl_ech(echconfig.pem) -i foo.example.com }
+                use-server eg if { req_ssl_ech(echconfig.pem) -i example.com }
                 server eg 127.0.3.4:3485 check
                 server foo 127.0.3.4:3484 check
                 server default 127.0.3.4:3485
 
 So far, we've not figured how to properly handle passing the configuration on
-to ``smp_fetch_ssl_hello_ech``, nor how to handle injecting the decrypted
+to ``smp_fetch_ssl_hello_ech`` though we do handle it improperly:-). 
+By "improperly" I mean the use of echconfig.pem in the above config
+fragment. It'd be better if that were in some default and we read the
+file(s) and created the ``SSL_CTX`` (or ``SSL``) structures at
+startup. 
+
+We also need to figure how to handle injecting the decrypted
 "inner" ClientHello when decryption succeeds.  So it's a work-in-progress
 still, but new OpenSSL API doing the ECH decryption and the routing does seem
 to work ok.  (And of course this may be the totally wrong approach - we hope to
@@ -494,5 +499,8 @@ TODO: list.
 
 * There are leaks on exit - check if that's some effect of threads by running
   with vanilla OpenSSL libraries
+* Add option to load a set of keys in a directory.
+* Load ECH key pair(s) for split mode at startup.
+* Inject decrypted inner CH into flow as needed.
 * More analysis of split-mode ECH.
 

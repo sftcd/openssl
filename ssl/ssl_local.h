@@ -1633,6 +1633,7 @@ struct ssl_st {
         int ech_done;
         int ech_success;
         int ech_grease;
+        int ech_backend;
         char* ech_grease_suite;
         int ch_depth;
         int ech_dropped_from_ch_len; /* length of CH if you dropped ECH extension: <=0 if not present */

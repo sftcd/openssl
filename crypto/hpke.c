@@ -2469,7 +2469,8 @@ static int hpke_random_suite(hpke_suite_t *suite)
     int nkdfs=sizeof(hpke_kdf_tab)/sizeof(hpke_kdf_info_t)-1;
     int naeads=sizeof(hpke_aead_tab)/sizeof(hpke_aead_info_t)-1;
 
-    if (RAND_bytes_ex(NULL, &rval, sizeof(rval),RAND_DRBG_STRENGTH) <= 0) return(__LINE__);
+    //if (RAND_bytes_ex(NULL, &rval, sizeof(rval),RAND_DRBG_STRENGTH) <= 0) return(__LINE__);
+    if (RAND_bytes( &rval, sizeof(rval)) <= 0) return(__LINE__);
     nthkem=(rval%5+1); /* ok the "5" is magic!!! */
     while(found<nthkem && entry<nkems) {
         if (hpke_kem_tab[entry].keytype!=NULL) {
