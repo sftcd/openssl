@@ -49,8 +49,8 @@ const OPTIONS ech_options[] = {
     {"privout", OPT_PRIVOUT, '>', "Private key output file - default unset"},
     {"public_name", OPT_PUBLICNAME, 's', "public_name value"},
     {"mlen", OPT_MAXNAMELENGTH, 'n', "maximum name length value"},
-    {"suite", OPT_HPKESUITE, 's', "HPKE ciphersuite: e.g. \"0X20,1,3\""},
-    {"ech_version", OPT_ECHVERSION, 'n', "ECHConfig draft version(default=0xff09 (9), also supported: 0xff0a (10))"},
+    {"suite", OPT_HPKESUITE, 's', "HPKE ciphersuite: e.g. \"0x20,1,3\""},
+    {"ech_version", OPT_ECHVERSION, 'n', "ECHConfig draft version(default=0xff0a (10), also supported: 0xff09 (9))"},
     {"extfile", OPT_ECHEXTFILE, 's', "Name fo a file containing encoded extensions\n"},
     {NULL}
 };
