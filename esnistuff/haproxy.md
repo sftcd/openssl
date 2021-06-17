@@ -357,6 +357,13 @@ port 3484 as follows:
                 -CApath cadir/  \
                 -port 3484  -tls1_3  -servername foo.example.com
 
+Equivalently, it's ok if the backend server on port 3484 is also 
+ECH-enabled itself and has a copy of the ECH key pair. If that's
+the desired setup, one of our test scripts is also usable:
+
+            $ cd $HOME/code/openssl/esnistuff
+            $ ./echsvr.sh -p 3484
+
 Running a server for example.com on port 3485 is done similarly.
 
 For the client, we do the following to use ECH and send our request to port 7446 

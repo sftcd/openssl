@@ -2176,8 +2176,8 @@ int ech_encode_inner(SSL *s)
     size_t innerinnerlen=0;
 
     /*
-     * So we'll try a sort-of decode of s->ech->innerch into
-     * s->ech->encoded_innerch, modulo s->ech->outers
+     * So we'll try a sort-of encode of s->ext.innerch into
+     * s->ext.encoded_innerch, modulo outers/compression
      *
      * As a reminder the CH is:
      *  struct {
@@ -2480,6 +2480,9 @@ static int ech_decode_inner(SSL *s, const unsigned char *ob, size_t ob_len, size
         final_decomp[2]=((initial_decomp_len)>>8)%256;
         final_decomp[3]=(initial_decomp_len)%256;
         memcpy(final_decomp+4,initial_decomp,initial_decomp_len);
+        if (s->ext.innerch) {
+            OPENSSL_free(s->ext.innerch);
+        }
         s->ext.innerch=final_decomp;
         s->ext.innerch_len=final_decomp_len;
         return(1);
@@ -2601,6 +2604,9 @@ static int ech_decode_inner(SSL *s, const unsigned char *ob, size_t ob_len, size
     final_decomp[startofexts+4]=(final_extslen/256)&0xff;
     final_decomp[startofexts+5]=final_extslen%256;
     ech_pbuf("final_decomp",final_decomp,final_decomp_len);
+    if (s->ext.innerch) {
+        OPENSSL_free(s->ext.innerch);
+    }
     s->ext.innerch=final_decomp;
     s->ext.innerch_len=final_decomp_len;
     OPENSSL_free(initial_decomp);
@@ -4115,7 +4121,7 @@ int SSL_CTX_ech_raw_decrypt(SSL_CTX *ctx,
     rv=ech_early_decrypt(s,&pkt_outer,&pkt_inner);
     if (rv!=1) goto err;
 
-    *outer_sni=s->ech->outer_name;
+    if (s->ech->outer_name) *outer_sni=OPENSSL_strdup(s->ech->outer_name);
 
     if (s->ext.ech_success==0) {
         *decrypted_ok=0;
@@ -4155,7 +4161,8 @@ int SSL_CTX_ech_raw_decrypt(SSL_CTX *ctx,
                 SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
                 goto err;
             }
-            *inner_sni=s->ext.hostname;
+            /* TODO: this upsets valgrind when used in haproxy FIXME: */
+            if (s->ext.hostname) *inner_sni=OPENSSL_strdup(s->ext.hostname);
         }
 
         /*
@@ -4164,8 +4171,8 @@ int SSL_CTX_ech_raw_decrypt(SSL_CTX *ctx,
         *decrypted_ok=1;
 
     }
+    if (s) SSL_free(s);
     if (inner_buf) OPENSSL_free(inner_buf);
-
     return rv;
 err:
     if (s) SSL_free(s);

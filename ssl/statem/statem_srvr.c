@@ -1390,10 +1390,20 @@ MSG_PROCESS_RETURN tls_process_client_hello(SSL *s, PACKET *pkt)
         if (s->ext.innerch!=NULL) {
             OPENSSL_free(s->ext.innerch);
         }
+        /*
+         * For backend, ensure type & 3 octer length included
+         * here. TODO: regularise this, we're doing it differently
+         * for shared and split mode, which seems wrong.
+         */
         s->ext.innerch_len=pkt->remaining;
-        s->ext.innerch=OPENSSL_malloc(s->ext.innerch_len);
+        s->ext.innerch=OPENSSL_malloc(s->ext.innerch_len+4);
         if (!s->ext.innerch) goto err;
-        memcpy(s->ext.innerch,pkt->curr,s->ext.innerch_len);
+        s->ext.innerch[0]=0x01;
+        s->ext.innerch[1]=((s->ext.innerch_len>>16)&0xff);
+        s->ext.innerch[2]=((s->ext.innerch_len>>8)&0xff);
+        s->ext.innerch[3]=(s->ext.innerch_len&0xff);
+        memcpy(s->ext.innerch+4,pkt->curr,s->ext.innerch_len);
+        s->ext.innerch_len+=4;
     }
 
     if (s->server && s->ech!=NULL) {
