@@ -427,7 +427,7 @@ int hpke_good4grease(
  * @param suite is the resulting suite
  * @return 1 for success, otherwise failure
  */ 
-int hpke_str2suite(char *str, hpke_suite_t suite);
+int hpke_str2suite(char *str, hpke_suite_t *suite);
 
 #endif
 

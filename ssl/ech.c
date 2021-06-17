@@ -3111,7 +3111,7 @@ int SSL_ech_send_grease(SSL *s, WPACKET *pkt, unsigned int context,
         cipher_len+=(cid%cipher_len_jitter);
     }
     if (s->ext.ech_grease_suite) {
-        if (hpke_str2suite(s->ext.ech_grease_suite,hpke_suite_in)!=1) {
+        if (hpke_str2suite(s->ext.ech_grease_suite,&hpke_suite_in)!=1) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             return 0;
         }

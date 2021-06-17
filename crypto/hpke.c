@@ -2566,10 +2566,11 @@ int hpke_good4grease(
  * @param suite is the resulting suite
  * @return 1 for success, otherwise failure
  */ 
-int hpke_str2suite(char *suitestr, hpke_suite_t suite)
+int hpke_str2suite(char *suitestr, hpke_suite_t *suite)
 {
     int erv=0;
     uint16_t kem=0,kdf=0,aead=0;
+    if (!suite) return(__LINE__);
     /* See if it contains a mix of our strings and numbers  */
     char *st=strtok(suitestr,",");
     if (!st) { erv=__LINE__; return erv; }
@@ -2609,16 +2610,16 @@ int hpke_str2suite(char *suitestr, hpke_suite_t suite)
         st=strtok(NULL,",");
     }
     if (kem==0||kdf==0||aead==0) { erv=__LINE__; return erv; }
-    suite.kem_id=kem;
-    suite.kdf_id=kdf;
-    suite.aead_id=aead;
+    suite->kem_id=kem;
+    suite->kdf_id=kdf;
+    suite->aead_id=aead;
     /* 
      * this line is only needed to avoid a complile error in a CI build
      * that sets -Werror=unused-but-set-parameter
      * I guess passing a struct on the stack isn't considered good - maybe
      * think about changing that later
      */
-    if (suite.kem_id==0||suite.kdf_id==0||suite.aead_id==0) { erv=__LINE__; return erv; }
+    if (suite->kem_id==0||suite->kdf_id==0||suite->aead_id==0) { erv=__LINE__; return erv; }
     return 1;
 }
 
