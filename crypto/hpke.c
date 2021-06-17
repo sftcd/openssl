@@ -2570,9 +2570,9 @@ int hpke_str2suite(char *suitestr, hpke_suite_t *suite)
 {
     int erv=0;
     uint16_t kem=0,kdf=0,aead=0;
+    char *st=NULL;
     if (!suite) return(__LINE__);
     /* See if it contains a mix of our strings and numbers  */
-    char *st=NULL;
     st=strtok(suitestr,",");
     if (!st) { erv=__LINE__; return erv; }
     while (st!=NULL) {
