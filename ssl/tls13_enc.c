@@ -116,10 +116,12 @@ int tls13_hkdf_expand(SSL *s, const EVP_MD *md, const unsigned char *secret,
     OSSL_TRACE_BEGIN(TLS) {
         BIO_printf(trc_out,"hkdf inputs:\n");
     } OSSL_TRACE_END(TLS);
-    size_t secretlen=EVP_MD_size(md);
-    tls13_pbuf("\tsecret",secret,secretlen);
-    tls13_pbuf("\tlabel",label,labellen);
-    tls13_pbuf("\tdata",data,datalen);
+    {
+        size_t secretlen=EVP_MD_size(md);
+        tls13_pbuf("\tsecret",secret,secretlen);
+        tls13_pbuf("\tlabel",label,labellen);
+        tls13_pbuf("\tdata",data,datalen);
+    }
 #endif
 #endif
 
