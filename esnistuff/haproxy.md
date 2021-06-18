@@ -290,19 +290,12 @@ We added a new external API for haproxy to use in split-mode
 contains an ECH, attempts decryption.  That API also returns the outer and
 inner SNI (if present) so that routing can happen as needed. 
 
-In haproxy, we added a ``req_ssl_ech`` keyword check to ``src/payload.c`` that
-can route the request based on inner or outer SNI - ``smp_fetch_ssl_hello_ech``
-will preferentially return the inner SNI (if decryption worked and an SNI was
-found) but fallback to the outer SNI.
-
-So far, we've not figured how to properly handle passing configuration on to
-``smp_fetch_ssl_hello_ech`` though we do handle it improperly:-).  By
-"improperly" I mean the use of echconfig.pem in the config fragment below. It'd
-be better if that were in some default and we read the file(s) and created the
-``SSL_CTX`` (or ``SSL``) structures at startup. 
-
-We've yet to add an API so that the backend for ``ECHConflg.public_name`` can
-respond correctly to failed encryptions or GREASEd ECH.
+In haproxy, we added a ``tcp-request ech-decrypt`` keyword to allow
+configuring the PEM file with the ECH key pair. 
+When so configured, the existing ``smp_fetch_ssl_hello_sni`` (which
+handles SNI based routing) is modified to first call ``attempt_split_ech``.
+``attempt_split_ech`` will try decrypt and route based on the inner or outer
+SNI values found as appropriate.
 
 Notes:
 
@@ -331,13 +324,18 @@ fails (or no ECH is present etc.) then we'll route to the "eg" server on port
                 mode tcp
                 option tcplog
                 bind :7446 
-                use_backend b
-            backend b
+                use_backend 3484
+            backend 3484
                 mode tcp
-                use-server foo if { req_ssl_ech(echconfig.pem) -i foo.example.com }
-                use-server eg if { req_ssl_ech(echconfig.pem) -i example.com }
-                server eg 127.0.3.4:3485 check
-                server foo 127.0.3.4:3484 check
+                # next 2 lines seem to be needed to get switching on (outer) SNI to
+                # work, not sure why
+                tcp-request inspect-delay 5s
+                tcp-request content accept if { req_ssl_hello_type 1 }
+                tcp-request ech-decrypt echconfig.pem
+                use-server foo if { req.ssl_sni -i foo.example.com }
+                use-server eg if { req.ssl_sni -i example.com }
+                server eg 127.0.3.4:3485 
+                server foo 127.0.3.4:3484 
                 server default 127.0.3.4:3485
 
 If the above configuration is in a file called ``sm.cfg`` then haproxy
@@ -519,4 +517,9 @@ TODO: list.
 * Add option to load a set of keys in a directory.
 * Load ECH key pair(s) for split mode at startup.
 * HRR
+* Answer GREASE in shared-mode
+* Re-factor split-mode code, so e.g. alpn based routing also works 
+* Add an API so that the backend for ``ECHConflg.public_name`` can
+  respond correctly to failed encryptions or GREASEd ECH.
+
 
