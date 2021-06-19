@@ -104,8 +104,6 @@ char *ech_public_name_override_null="DON'T SEND ANY OUTER NAME";
 #define ECH_KEYPAIR_UNMODIFIED     2
 #define ECH_KEYPAIR_MODIFIED       3
 
-#define SSL_ECH_GREASE_BUFSIZ 0x200
-
 /**
  * Check if key pair needs to be (re-)loaded or not
  *
@@ -3091,8 +3089,8 @@ int SSL_ech_send_grease(SSL *s, WPACKET *pkt, unsigned int context,
     hpke_suite_t hpke_suite = HPKE_SUITE_DEFAULT;
     size_t cid_len=1;
     unsigned char cid;
-    size_t senderpub_len=SSL_ECH_GREASE_BUFSIZ;
-    unsigned char senderpub[SSL_ECH_GREASE_BUFSIZ];
+    size_t senderpub_len=MAX_ECH_ENC_LEN;
+    unsigned char senderpub[MAX_ECH_ENC_LEN];
     /* 
      * this is what I produce for a real ECH when including padding in
      * the inner CH with the default/current client hello padding code
@@ -3103,7 +3101,7 @@ int SSL_ech_send_grease(SSL *s, WPACKET *pkt, unsigned int context,
      */
     size_t cipher_len=0x1d3; 
     size_t cipher_len_jitter=0;
-    unsigned char cipher[SSL_ECH_GREASE_BUFSIZ];
+    unsigned char cipher[MAX_ECH_PAYLOAD_LEN];
     if (s==NULL || s->ctx==NULL) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
@@ -3416,27 +3414,26 @@ err:
 /*
  * Server figures out AAD from state
  */
-int ech_srv_get_aad(SSL *s,
+static int ech_srv_get_aad(SSL *s,
+        uint16_t kdf_id, uint16_t aead_id,
         size_t pub_len, unsigned char *pub,
         size_t config_id_len, unsigned char *config_id, 
         size_t de_len, unsigned char *de, 
         size_t *aad_len,unsigned char *aad)
 {
     unsigned char *cp=aad;
-    hpke_suite_t hpke_suite = HPKE_SUITE_DEFAULT;
 
     if (s==NULL || aad_len == NULL || aad==NULL) return 0;
 
-
 #define CPCHECK if ((size_t)(cp-aad)>*aad_len) return 0;
 
-    *cp++=((hpke_suite.kdf_id&0xffff)/256);
+    *cp++=((kdf_id&0xffff)/256);
     CPCHECK
-    *cp++=((hpke_suite.kdf_id&0xffff)%256);
+    *cp++=((kdf_id&0xffff)%256);
     CPCHECK
-    *cp++=((hpke_suite.aead_id&0xffff)/256);
+    *cp++=((aead_id&0xffff)/256);
     CPCHECK
-    *cp++=((hpke_suite.aead_id&0xffff)%256);
+    *cp++=((aead_id&0xffff)%256);
     CPCHECK
     *cp++=((config_id[0]&0xff)%256);
     CPCHECK
@@ -3581,6 +3578,8 @@ static unsigned char *early_hpke_decrypt_encch(SSL_ECH *ech, ECH_ENCCH *the_ech,
     hpke_suite.kdf_id=the_ech->kdf_id; 
     /*
      * We only support one ECHConfig for now on the server side
+     * The calling code looks after matching the ECH.config_id
+     * and/or trial decryption.
      */
     publen=ech->cfg->recs[0].pub_len;
     pub=ech->cfg->recs[0].pub;
@@ -3842,7 +3841,9 @@ int ech_early_decrypt(SSL *s, PACKET *outerpkt, PACKET *newpkt)
 
     ech_pbuf("EARLY config id",extval->config_id,extval->config_id_len);
 
-    if (ech_srv_get_aad(s,extval->enc_len, extval->enc, 
+    if (ech_srv_get_aad(s,
+                extval->kdf_id, extval->aead_id,
+                extval->enc_len, extval->enc, 
                 extval->config_id_len, extval->config_id, 
                 de_len,de,
                 &aad_len,aad)!=1) {

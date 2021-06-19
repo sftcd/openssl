@@ -29,6 +29,11 @@
  */
 #define ECH_UPFRONT_DEC
 
+/*
+ * Default for this in hpke.h can be overridden so let's do that
+ */
+#define HPKE_MAXSIZE 0x280
+
 # include <openssl/ssl.h>
 /*
  * Strings used in crypto derivations

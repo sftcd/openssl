@@ -373,25 +373,6 @@ int SSL_ech_send_grease(SSL *s, WPACKET *pkt, unsigned int context,
 int ech_aad_and_encrypt(SSL *s, WPACKET *pkt);
 
 /*
- * Server figures out AAD from state
- *
- * @param pub_len: length of sender's public key
- * @param pub: sender's public key
- * @param config_id_len: length of sender's config_id (can be zero)
- * @param config_id: sender's config_id (can be NULL)
- * @param de_len: zero if no ECH present, otherwise length of buffer with CH after ECH taken out
- * @param de: NULL or the above buffer (allocated internally, caller needs to free)
- * @param aad_len: size of caller-allocated aad buffer (set to actual length on success)
- * @param aad: caller-allocated buffer for AAD result
- * @return 1 for success, zero otherwise
- */
-int ech_srv_get_aad(SSL *s,
-        size_t pub_len, unsigned char *pub,
-        size_t config_id_len, unsigned char *config_id, 
-        size_t de_len, unsigned char *de, 
-        size_t *aad_len,unsigned char *aad);
-
-/*
  * Given CH encoding, return CH minus the ECH value (if present)
  *
  * @param s: SSL session stuff
