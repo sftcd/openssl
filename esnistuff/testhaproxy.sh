@@ -17,12 +17,23 @@ OSSL="$HOME/code/openssl"
 LIGHTY="$HOME/code/lighttpd1.4-gstrauss"
 HAPPY="$HOME/code/haproxy/haproxy"
 export TOP=$OSSL
-
 export LD_LIBRARY_PATH=$OSSL
 
 HLOGDIR="$OSSL/esnistuff/haproxy/logs"
 HLOGFILE="$HLOGDIR/haproxy.log"
 RSCFG="/etc/rsyslog.conf"
+
+doclient="no"
+
+if [[ "$1" == "client" ]]
+then
+    doclient="yes"
+elif [[ "$1" != "" ]]
+then
+    echo "Unrecognised argument: $1"
+    echo "usage: $0 [client]"
+    exit -1
+fi
 
 # make directories for lighttpd stuff if needed
 mkdir -p $OSSL/esnistuff/lighttpd/logs
@@ -118,7 +129,7 @@ fi
 VALGRIND=""
 
 # Check if a lighttpd is running
-lrunning=`ps -ef | grep lighttpd | grep -v grep`
+lrunning=`ps -ef | grep lighttpd | grep -v grep | grep -v tail`
 
 if [[ "$lrunning" == "" ]]
 then
@@ -128,7 +139,40 @@ else
     echo "Lighttpd already running: $lrunning"
 fi
 
-# Now start up a haproxy
 HAPDEBUGSTR=" -dV " 
+if [[ "$doclient" == "yes" ]]
+then
+    # run server in background
+    HAPDEBUGSTR=" -DdV " 
+    # Kill any earlier haproxy running
+    killall haproxy
+fi
+
+
+# Now start up a haproxy
 echo "Executing: $VALGRIND $HAPPY -f $OSSL/esnistuff/haproxymin.conf $HAPDEBUGSTR"
 $VALGRIND $HAPPY -f $OSSL/esnistuff/haproxymin.conf $HAPDEBUGSTR
+
+if [[ "$doclient" == "yes" ]]
+then
+    echo "Doing client calls..."
+    # Uncomment for loadsa logging...
+    clilog=" -d "
+    for port in 7443 7444 7445 7446 
+    do
+        # do GREASEy case
+        echo "**** Greasing: $OSSL/esnistuff/echcli.sh $clilog -gn -p $port \
+                -c example.com -s localhost -f index.html"
+        $OSSL/esnistuff/echcli.sh $clilog -gn -p $port \
+                -c example.com -s localhost -f index.html
+        # do real ECH case
+        echo "**** Real ECH: $OSSL/esnistuff/echcli.sh $clilog -s localhost -H foo.example.com  \
+                -p $port \
+                -P `$OSSL/esnistuff/pem2rr.sh echconfig.pem` \
+                -f index.html -N "
+        $OSSL/esnistuff/echcli.sh $clilog -s localhost -H foo.example.com  \
+                -p $port \
+                -P `$OSSL/esnistuff/pem2rr.sh echconfig.pem` \
+                -f index.html -N
+    done
+fi

@@ -378,21 +378,27 @@ rm -f $TMPF
 if (( $goodresult > 0 ))
 then
     echo "Looks like it worked ok"
+    res=0
 else
     if [[ "$NOECH" != "yes" && "$GREASE" != "yes" ]]
     then
         echo "Bummer - probably didn't work"
+        res=1
     elif [[ "$NOECH" == "yes" ]]
     then
         echo "Didn't try ECH"
+        res=0
     elif [[ "$GREASE" == "yes" ]]
     then
         echo "Only greased"
+        res=0
     fi
 fi
 echo $allresult
+exit $res
 # exit with something useful
-if [[ "$ctot" == "1" && "$c4xx" == "0" ]]
+# not sure if this still useful, check sometime...
+if [[ "$csucc" == "1" && "$c4xx" == "0" ]]
 then
     exit 0
 else
