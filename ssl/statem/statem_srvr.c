@@ -1383,7 +1383,6 @@ MSG_PROCESS_RETURN tls_process_client_hello(SSL *s, PACKET *pkt)
     /*
      * For split-mode we want to have a way to point at the CH octets
      * for the accept-confirmation calculation.
-     * TODO: find a better way to do this
      */
     if (!pkt) goto err;
     if (s->server && pkt->remaining) {
@@ -2516,6 +2515,26 @@ int tls_construct_server_hello(SSL *s, WPACKET *pkt)
         shoffset=6+24;
         p=(unsigned char*) &pkt->buf->data[shoffset];
         memcpy(p,acbuf,8);
+    } else if (s->ext.ech_grease==ECH_IS_GREASE && s->ech_cb!=NULL) {
+        /*
+         * call ECH callback
+         */
+        char pstr[ECH_PBUF_SIZE+1];
+        BIO *biom = BIO_new(BIO_s_mem());
+        unsigned int cbrv=0;
+        memset(pstr,0,ECH_PBUF_SIZE+1);
+        SSL_ech_print(biom,s,ECH_SELECT_ALL);
+        BIO_read(biom,pstr,ECH_PBUF_SIZE);
+        cbrv=s->ech_cb(s,pstr);
+        BIO_free(biom);
+        if (cbrv != 1) {
+#ifndef OPENSSL_NO_SSL_TRACE
+            OSSL_TRACE_BEGIN(TLS) {
+                BIO_printf(trc_out,"Error calling ech_cb from tls_construct_server_hello at %d\n",__LINE__);
+            } OSSL_TRACE_END(TLS);
+#endif
+            return 0;
+        }
     }
 
 #endif

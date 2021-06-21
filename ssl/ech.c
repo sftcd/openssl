@@ -1589,8 +1589,7 @@ int SSL_ech_get_status(SSL *s, char **inner_sni, char **outer_sni)
         }
     }
 
-    if (s->ech!=NULL && s->ext.ech_attempted==1) {
-
+    if (s->ech!=NULL && s->ext.ech_attempted==1 && s->ext.ech_grease!=ECH_IS_GREASE) {
         long vr=X509_V_OK;
         vr=SSL_get_verify_result(s);
         *inner_sni=sinner;
@@ -2832,7 +2831,7 @@ int ech_calc_accept_confirm(SSL *s, unsigned char *acbuf, const unsigned char *s
         if (cbrv != 1) {
 #ifndef OPENSSL_NO_SSL_TRACE
             OSSL_TRACE_BEGIN(TLS) {
-                BIO_printf(trc_out,"Exiting tls_parse_ctos_ech at %d\n",__LINE__);
+                BIO_printf(trc_out,"Exiting ech_calc_accept_confirm at %d\n",__LINE__);
             } OSSL_TRACE_END(TLS);
 #endif
             return 0;
@@ -3592,6 +3591,19 @@ static unsigned char *early_hpke_decrypt_encch(SSL_ECH *ech, ECH_ENCCH *the_ech,
         return NULL; 
     }
     ech_pbuf("info",info,info_len);
+    /*
+     * We may generate errors here but we'll ignore
+     * those as we might be dealing with a GREASEd
+     * ECH. The way to do that is to consume all
+     * errors generated internally during the attempt
+     * to decrypt. But to do that we first need to
+     * know there are no other errors in the queue
+     * that we ought not consume as the application
+     * should know about those.
+     */
+    if (ERR_peek_error()!=0) {
+        return NULL;
+    }
     rv=hpke_dec( hpke_mode, hpke_suite,
                 NULL, 0, NULL, /* pskid, psk */
                 0, NULL, /* publen, pub, recipient public key */
@@ -3601,6 +3613,7 @@ static unsigned char *early_hpke_decrypt_encch(SSL_ECH *ech, ECH_ENCCH *the_ech,
                 aad_len,aad, 
                 info_len, info,
                 &clearlen, clear);
+    while (ERR_get_error()!=0); 
     if (rv!=1) {
         return NULL;
     }
