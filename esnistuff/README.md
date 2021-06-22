@@ -28,8 +28,14 @@ Most recent first...
 DON'T TRY ECH YET!!! The very much work-in-progress code is
 sooooo awful still...
 
+- 20210622: added [agiletest.sh](agiletest.sh) that'll have a pile of
+  tests related to alg agility and other parameter handling (just keygen
+  so far)
+
+- 20210622: haproxy/split-mode still needs work on key rotation but otherwise
+  not that bad 
+
 - 20210615: got split-mode ``s_client`` to ``s_server`` via haproxy working 
-  (with horrible code but working nonetheless)
 
 - 20210608: rebmerged with upstream
 

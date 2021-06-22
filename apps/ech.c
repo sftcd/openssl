@@ -139,13 +139,18 @@ static int suitestr2suite(char *instr, hpke_suite_t *hpke_suite)
             if (HPKE_MSMATCH(st,"1")) kdf=1;
             if (HPKE_MSMATCH(st,"2")) kdf=2;
             if (HPKE_MSMATCH(st,"3")) kdf=3;
+            if (HPKE_MSMATCH(st,"0x01")) kdf=1;
+            if (HPKE_MSMATCH(st,"0x02")) kdf=2;
+            if (HPKE_MSMATCH(st,"0x03")) kdf=3;
         } else if (kem!=0 && kdf!=0 && aead==0) {
             if (HPKE_MSMATCH(st,HPKE_AEADSTR_AES128GCM)) aead=1;
             if (HPKE_MSMATCH(st,HPKE_AEADSTR_AES256GCM)) aead=2;
             if (HPKE_MSMATCH(st,HPKE_AEADSTR_CP)) aead=3;
             if (HPKE_MSMATCH(st,"1")) aead=1;
             if (HPKE_MSMATCH(st,"2")) aead=2;
-            if (HPKE_MSMATCH(st,"3")) aead=3;
+            if (HPKE_MSMATCH(st,"0x01")) aead=1;
+            if (HPKE_MSMATCH(st,"0x02")) aead=2;
+            if (HPKE_MSMATCH(st,"0x03")) aead=3;
         }
         st=strtok(NULL,",");
     }
