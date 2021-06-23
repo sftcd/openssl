@@ -28,12 +28,21 @@ Most recent first...
 DON'T TRY ECH YET!!! The very much work-in-progress code is
 sooooo awful still...
 
-- 20210622: added [agiletest.sh](agiletest.sh) that'll have a pile of
-  tests related to alg agility and other parameter handling (just keygen
-  so far)
+- 20210623: FIXME: seems like our ``make-example-ca.sh`` script barfs when 
+  openssl is built in debug more but works fine otherwise (or some such). 
+  (The fake CA key gen fails as do subsequent operations, perhaps some 
+  mismatch between the openssl.cnf files?) Added a work
+  around for that for now, as it's probably not an ECH related issue.
+
+- 20210623: added [agiletest.sh](agiletest.sh) that has a pile of
+  tests related to algorithm agility and other parameter handling. See
+  [agility.md](agility.md) for some more details.
 
 - 20210622: haproxy/split-mode still needs work on key rotation but otherwise
-  not that bad 
+  not that bad, though there's some unexpected behaviour when nonsense
+  inner SNI values are used. (Had a call with haproxy devs on 20210623
+  so won't try fix that just yet - some other changes to do first to
+  more properly handle inner/outer CH's in a more generic manner.)
 
 - 20210615: got split-mode ``s_client`` to ``s_server`` via haproxy working 
 

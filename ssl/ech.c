@@ -3604,6 +3604,12 @@ static unsigned char *early_hpke_decrypt_encch(SSL_ECH *ech, ECH_ENCCH *the_ech,
     if (ERR_peek_error()!=0) {
         return NULL;
     }
+#ifndef OPENSSL_NO_SSL_TRACE
+        OSSL_TRACE_BEGIN(TLS) {
+            BIO_printf(trc_out,"hpke_dec suite: kem: %04x, kdf: %04x, aead: %04x\n",
+                    hpke_suite.kem_id, hpke_suite.kdf_id, hpke_suite.aead_id);
+        } OSSL_TRACE_END(TLS);
+#endif
     rv=hpke_dec( hpke_mode, hpke_suite,
                 NULL, 0, NULL, /* pskid, psk */
                 0, NULL, /* publen, pub, recipient public key */

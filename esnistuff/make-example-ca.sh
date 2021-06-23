@@ -1,12 +1,14 @@
 #!/bin/bash
 
+# set -x
+
 # Make key pairs for a fake local CA, example.com, foo.example.com
 # and bar.example.com
 
-: ${TOP=$HOME/code/openssl}
-
-export LD_LIBRARY_PATH=$TOP
-OBIN=$TOP/apps/openssl
+: ${TOP:=$HOME/code/openssl}
+: ${LD_LIBRARY_PATH:=$HOME/code/openssl}
+: ${OBIN:=$TOP/apps/openssl}
+export LD_LIBRARY_PATH
 
 #set -x
 DSTR=`date -u --rfc-3339=s | sed -e 's/ /T/' | sed -e 's/:/-/g'`
@@ -53,19 +55,24 @@ cp serial serial.1st demoCA
 cp index.txt demoCA/newcerts
 cp serial serial.1st demoCA/newcerts
 
-# an openssl config
-if [ -f ../openssl.cnf ]
-then
-	cp ../openssl.cnf .
-else
-	cp /etc/ssl/openssl.cnf .
-fi
-
-# and an openssl config
 if [ ! -f openssl.cnf ]
 then
-	echo "You need an openssl.cnf file sorry."
-	exit 1
+    # an openssl config
+    if [ -f ../openssl.cnf ]
+    then
+        cp ../openssl.cnf .
+    elif [ -f $TOP/apps/openssl.cnf ]
+    then
+        cp $TOP/apps/openssl.cnf .
+    else
+        cp /etc/ssl/openssl.cnf .
+    fi
+    # and an openssl config
+    if [ ! -f openssl.cnf ]
+    then
+        echo "You need an openssl.cnf file sorry."
+        exit 1
+    fi
 fi
 
 # make sure we blindly copy extensions (DANGER - don't do in any real uses!)
@@ -100,7 +107,13 @@ $OBIN req -batch -new -x509 -days 3650 -extensions v3_ca \
 	-newkey rsa:4096 -keyout oe.priv  -out oe.csr  \
 	-config openssl.cnf -passin pass:$PASS \
 	-subj "/C=IE/ST=Laighin/O=openssl-esni/CN=ca" \
-	-passout pass:$PASS \
+	-passout pass:$PASS
+
+if [ ! -f oe.priv ]
+then
+    echo "Didn't create fake CA key pair oe.priv/oe.csr - exiting"
+    exit 11
+fi
 
 # generate and sign a key for the TLS server
 index=0

@@ -512,6 +512,8 @@ of writing draft-11 was just issued yesterday.)
 We've done Shared-mode and Split-mode ECH-enabling haproxy, there's still a 
 TODO: list.
 
+* Some bug causing the wrong inner SNI to be routed as if correct, that
+  also doesn't get barfed on by backend - odd.
 * There are leaks on exit - check if that's some effect of threads by running
   with vanilla OpenSSL libraries
 * Add option to load a set of keys in a directory.
