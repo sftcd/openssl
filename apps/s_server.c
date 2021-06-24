@@ -995,7 +995,7 @@ typedef enum OPTION_choice {
     OPT_KEYLOG_FILE, OPT_MAX_EARLY, OPT_RECV_MAX_EARLY, OPT_EARLY_DATA,
     OPT_S_NUM_TICKETS, OPT_ANTI_REPLAY, OPT_NO_ANTI_REPLAY, OPT_SCTP_LABEL_BUG,
 #ifndef OPENSSL_NO_ECH
-    OPT_ECHCONFIG, OPT_ECHDIR, OPT_ECHSPECIFICPAD, OPT_ECH_HARDFAIL,
+    OPT_ECHCONFIG, OPT_ECHDIR, OPT_ECHSPECIFICPAD, 
     OPT_ECH_TRIALDECRYPT,
 #endif
     OPT_HTTP_SERVER_BINMODE, OPT_NOCANAMES, OPT_IGNORE_UNEXPECTED_EOF,
@@ -1243,7 +1243,6 @@ const OPTIONS s_server_options[] = {
     {"echkey", OPT_ECHCONFIG, 's', "Load ECH key pair"},
     {"echdir", OPT_ECHDIR, 's', "ECH information directory"},
     {"echspecificpad", OPT_ECHSPECIFICPAD, '-', "Do specific padding of Certificate/CertificateVerify (instead of general padding all)"},
-    {"echhardfail", OPT_ECH_HARDFAIL, '-', "Fail connection if ECH decryption fails (default is to serve SNI/COVER site if ECH fails due to GREASE"},
     {"echtrialdecrypt", OPT_ECH_TRIALDECRYPT, '-', "Attepmt trial decryption with all loaded keys even if ECH record_digest matching fails"},
 #endif
 #ifndef OPENSSL_NO_KTLS
@@ -1344,7 +1343,6 @@ int s_server_main(int argc, char *argv[])
     char *echkeyfile = NULL; 
     char *echdir=NULL;
     int echspecificpad=0; /* we default to generally padding to 512 octet multiples */
-    int echhardfail=0; /* whether we fail if ECH does or fall back to trying to serve COVER */
     int echtrialdecrypt=0; /* whether we attempt trial decryptions if record_digest mismatch */
 #endif
     int no_ca_names = 0;
@@ -1933,9 +1931,6 @@ int s_server_main(int argc, char *argv[])
         case OPT_ECHSPECIFICPAD:
             echspecificpad=1;
             break;
-        case OPT_ECH_HARDFAIL:
-            echhardfail=1;
-            break;
         case OPT_ECH_TRIALDECRYPT:
             echtrialdecrypt=1;
             break;
@@ -2146,9 +2141,6 @@ int s_server_main(int argc, char *argv[])
     }
 
 #ifndef OPENSSL_NO_ECH
-    if (echhardfail!=0) {
-        SSL_CTX_set_options(ctx,SSL_OP_ECH_HARDFAIL);
-    }
     if (echtrialdecrypt!=0) {
         SSL_CTX_set_options(ctx,SSL_OP_ECH_TRIALDECRYPT);
     }
@@ -2329,9 +2321,6 @@ int s_server_main(int argc, char *argv[])
         }
 
 #ifndef OPENSSL_NO_ECH
-        if (echhardfail!=0) {
-            SSL_CTX_set_options(ctx2,SSL_OP_ECH_HARDFAIL);
-        }
         if (echtrialdecrypt!=0) {
             SSL_CTX_set_options(ctx2,SSL_OP_ECH_TRIALDECRYPT);
         }

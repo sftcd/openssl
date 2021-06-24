@@ -393,7 +393,6 @@ static int cmd_Options(SSL_CONF_CTX *cctx, const char *value)
         SSL_FLAG_TBL_INV("AntiReplay", SSL_OP_NO_ANTI_REPLAY),
 #ifndef OPENSSL_NO_ECH
         SSL_FLAG_TBL_INV("ECHGrease", SSL_OP_ECH_GREASE),
-        SSL_FLAG_TBL_INV("ECHHardFail", SSL_OP_ECH_HARDFAIL),
         SSL_FLAG_TBL_INV("ECHTrialDecrypt", SSL_OP_ECH_TRIALDECRYPT),
 #endif
         SSL_FLAG_TBL_INV("ExtendedMasterSecret", SSL_OP_NO_EXTENDED_MASTER_SECRET),

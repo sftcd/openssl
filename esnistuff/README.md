@@ -28,6 +28,9 @@ Most recent first...
 DON'T TRY ECH YET!!! The very much work-in-progress code is
 sooooo awful still...
 
+- 20210624: Started an internal [code review](code-review.md) of
+  all the ECH changes, that'll be ongoing for a bit.
+
 - 20210624: Our ``make-example-ca.sh`` script was barfing when 
   openssl is built in debug mode but working fine otherwise.
   Changing from "-newkey rsa:4096" to just "-newkey rsa" fixed
