@@ -116,15 +116,17 @@ then
     # there's an odd issue with debug builds meaning we want
     # to use the system's openssl (for now) for these keys
     # FIXME: figure that out
-    mkdir -p cadir
-    cp /etc/ssl/openssl.cnf cadir
-    obin=`which openssl`
+    # mkdir -p cadir
+    # cp /etc/ssl/openssl.cnf cadir
+    # obin=`which openssl`
     if [[ "$verbose" == "yes" ]]
     then
         echo "Making keys/fake CA etc."
-        OBIN=$obin $CODETOP/esnistuff/make-example-ca.sh
+        #OBIN=$obin $CODETOP/esnistuff/make-example-ca.sh
+        $CODETOP/esnistuff/make-example-ca.sh
     else
-        OBIN=$obin $CODETOP/esnistuff/make-example-ca.sh >/dev/null 2>&1
+        #OBIN=$obin $CODETOP/esnistuff/make-example-ca.sh >/dev/null 2>&1
+        $CODETOP/esnistuff/make-example-ca.sh >/dev/null 2>&1
     fi
 fi
 

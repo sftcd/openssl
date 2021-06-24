@@ -104,7 +104,7 @@ NLENGTHS=${#LENGTHS[*]}
 
 # make the root CA key pair
 $OBIN req -batch -new -x509 -days 3650 -extensions v3_ca \
-	-newkey rsa:4096 -keyout oe.priv  -out oe.csr  \
+	-newkey rsa -keyout oe.priv  -out oe.csr  \
 	-config openssl.cnf -passin pass:$PASS \
 	-subj "/C=IE/ST=Laighin/O=openssl-esni/CN=ca" \
 	-passout pass:$PASS
@@ -122,7 +122,7 @@ do
 	length=${LENGTHS[((index%NLENGTHS))]}
 
 	echo "Doing name $index, at $length"
-	$OBIN req -new -newkey rsa:$length -days 3650 -keyout $host.priv \
+	$OBIN req -new -newkey rsa -days 3650 -keyout $host.priv \
 		-out $host.csr -nodes -config openssl.cnf \
 		-subj "/C=IE/ST=Laighin/L=dublin/O=openssl-esni/CN=$host" \
 		-addext "subjectAltName = DNS:*.$host,DNS:$host"

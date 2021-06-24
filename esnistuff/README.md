@@ -28,11 +28,11 @@ Most recent first...
 DON'T TRY ECH YET!!! The very much work-in-progress code is
 sooooo awful still...
 
-- 20210623: FIXME: seems like our ``make-example-ca.sh`` script barfs when 
-  openssl is built in debug more but works fine otherwise (or some such). 
-  (The fake CA key gen fails as do subsequent operations, perhaps some 
-  mismatch between the openssl.cnf files?) Added a work
-  around for that for now, as it's probably not an ECH related issue.
+- 20210624: Our ``make-example-ca.sh`` script was barfing when 
+  openssl is built in debug mode but working fine otherwise.
+  Changing from "-newkey rsa:4096" to just "-newkey rsa" fixed
+  that and is enough for us, as that's not en ECH thing.
+  (I removed a workaround for this from agiletest.sh too.)
 
 - 20210623: added [agiletest.sh](agiletest.sh) that has a pile of
   tests related to algorithm agility and other parameter handling. See
