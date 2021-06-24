@@ -57,26 +57,37 @@ Of the flags:
 
 * ``SSL_OP_ECH_HARDFAIL`` - deleted that one - it made sense for ESNI but 
 doesn't really for ECH 
-* ``SSL_OP_ECH_GREASE`` - GOTHERE
-* ``SSL_OP_ECH_TRIALDECRYPT``
+* ``SSL_OP_ECH_GREASE`` - documented
+* ``SSL_OP_ECH_TRIALDECRYPT`` - documented
 
-There are also prototypes for the ECH callbacks and for 
-outer ALPN. Maybe we should generalise sone outer API
-some, not sure. Or, at least move the outer SNI to an
-API like that for ALPNs. (Currently outer SNI is handled
-in the same way we did ESNI but that mightn't be 
-sensible any more.)
+There were also prototypes for the ECH callbacks and for 
+setting outer ALPN - I moved those to ech.h for now. (All of ech.h
+might end up in ssl.h eventually, but not yet.) 
 
 ## ``./include/openssl/pem.h``
+
+Just defines ECHCONFIG as a PEM string, so that's fine.
+
 ## ``./include/openssl/ech.h``
+
+**TODO: revisit this when more nitty ones done.**
+
 ## ``./include/openssl/tls1.h``
+
+Just defines the extension type codes for TLS, so that's fine.
+(Note that the WG process of changing these per-interop target
+means this'll change as we do that, and we might have two
+different values for some time-windows if we want to support
+both old/new at once.)
 
 ## ``./include/openssl/ssl.h``
 
-See ssl.h.in above.
-
+See ssl.h.in above, this one's generated from that.
 
 ## ``./crypto/ec/asm/ecp_nistz256-armv4.pl``
+
+Ah. I'll try this as a separate commit in a minute...
+
 ## ``./ssl/ssl_sess.c``
 ## ``./ssl/tls13_enc.c``
 ## ``./ssl/s3_lib.c``

@@ -300,6 +300,19 @@ by the kernel directly and not via any available OpenSSL Providers. This might
 be undesirable if, for example, the application requires all cryptographic
 operations to be performed by the FIPS provider.
 
+=item SSL_OP_ECH_GREASE
+
+If set, TLS ClientHello messages emitted by the client will include GREASE
+Encrypted ClientHello (ECH) extension values, if a ECH is not really being
+attempted.
+
+=item SSL_OP_ECH_TRIALDECRYPT
+
+If set, servers will attempt to decrypt ECH extensions using all loaded
+ECH key pairs. By default, servers will only attempt decryption using
+an ECH key pair that matches the config_id in the ECH extension value
+received.
+
 =back
 
 The following options no longer have any effect but their identifiers are

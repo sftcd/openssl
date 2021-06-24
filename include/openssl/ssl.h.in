@@ -317,17 +317,6 @@ typedef int (*SSL_verify_cb)(int preverify_ok, X509_STORE_CTX *x509_ctx);
 /* Typedef for SSL async callback */
 typedef int (*SSL_async_callback_fn)(SSL *s, void *arg);
 
-#ifndef OPENSSL_NO_ECH
-/* TODO: Find space for real values */
-/* we'll take two values for ECH greasing */
-/* set this to tell client to emit greased ECH values */
-#define SSL_OP_ECH_GREASE                               0x00000080U
-/* If this is set then the server side will attempt trial decryption */
-/* of ECHs even if there is no matching record_digest. That's very  */
-/* inefficient, but more privacy friendly */
-#define SSL_OP_ECH_TRIALDECRYPT                         0x00000020U
-#endif
-
 #define SSL_OP_BIT(n)  ((uint64_t)1 << (uint64_t)n)
 
 /*
@@ -418,6 +407,15 @@ typedef int (*SSL_async_callback_fn)(SSL *s, void *arg);
      * interoperability with CryptoPro CSP 3.x
      */
 # define SSL_OP_CRYPTOPRO_TLSEXT_BUG                     SSL_OP_BIT(31)
+
+#ifndef OPENSSL_NO_ECH
+/* set this to tell client to emit greased ECH values */
+#define SSL_OP_ECH_GREASE                               SSL_OP_BIT(32)
+/* If this is set then the server side will attempt trial decryption */
+/* of ECHs even if there is no matching record_digest. That's a bit  */
+/* inefficient, but more privacy friendly */
+#define SSL_OP_ECH_TRIALDECRYPT                         SSL_OP_BIT(33)
+#endif
 
 /*
  * Option "collections."
@@ -814,16 +812,6 @@ void SSL_CTX_set_alpn_select_cb(SSL_CTX *ctx,
                                 void *arg);
 void SSL_get0_alpn_selected(const SSL *ssl, const unsigned char **data,
                             unsigned int *len);
-
-#ifndef OPENSSL_NO_ECH
-typedef unsigned int (*SSL_ech_cb_func)(SSL *ssl, char *str);
-void SSL_set_ech_callback(SSL *s, SSL_ech_cb_func f);
-void SSL_CTX_set_ech_callback(SSL_CTX *s, SSL_ech_cb_func f);
-int SSL_CTX_set_ech_alpn_protos(SSL_CTX *ctx, const unsigned char *protos,
-                            const size_t protos_len);
-int SSL_set_ech_alpn_protos(SSL *ssl, const unsigned char *protos,
-                        unsigned int protos_len);
-#endif
 
 # ifndef OPENSSL_NO_PSK
 /*

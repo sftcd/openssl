@@ -179,6 +179,28 @@ int SSL_ech_server_name(SSL *s, const char *inner_name, const char *outer_name);
 int SSL_ech_set_outer_server_name(SSL *s, const char *outer_name);
 
 /**
+ * @brief set the ALPN values for the outer ClientHello 
+ *
+ * @param s is the SSL_CTX
+ * @param protos encodes the ALPN values 
+ * @param protos_len is the length of protos
+ * @return 1 for success, error otherwise
+ */
+int SSL_CTX_set_ech_alpn_protos(SSL_CTX *ctx, const unsigned char *protos,
+                            const size_t protos_len);
+
+/**
+ * @brief set the ALPN values for the outer ClientHello 
+ *
+ * @param s is the SSL session
+ * @param protos encodes the ALPN values 
+ * @param protos_len is the length of protos
+ * @return 1 for success, error otherwise
+ */
+int SSL_set_ech_alpn_protos(SSL *ssl, const unsigned char *protos,
+                        unsigned int protos_len);
+
+/**
  * @brief query the content of an SSL_ECH structure
  *
  * This function allows the application to examine some internals
@@ -312,7 +334,7 @@ int SSL_ech_print(BIO* out, SSL *con, int selector);
  */
 int SSL_ech_get_status(SSL *s, char **inner_sni, char **outer_sni);
 
-/*
+/**
  * @brief API to allow clients to set a preferred HPKE suite to use when GREASEing
  *
  * @param s is the SSL context
@@ -321,7 +343,7 @@ int SSL_ech_get_status(SSL *s, char **inner_sni, char **outer_sni);
  */
 int SSL_ech_set_grease_suite(SSL *s,const char* suite);
 
-/*
+/**
  * @brief provide a way to do raw ECH decryption for split-mode frontends
  *
  * @param ctx is an SSL_CTX
@@ -341,6 +363,40 @@ int SSL_CTX_ech_raw_decrypt(SSL_CTX *ctx,
                             unsigned char *inner_ch, size_t *inner_len, 
                             char **inner_sni, char **outer_sni,
                             int *decrypted_ok);
+
+/**
+ * @brief prototype for an ECH callback
+ *
+ * @param ssl is the SSL session
+ * @param str is a string representation of the ECH details
+ * @return 1 for success, other otherwise
+ */
+typedef unsigned int (*SSL_ech_cb_func)(SSL *ssl, char *str);
+
+/**
+ * @brief set an ECH callback for the SSL session
+ *
+ * @param s is the SSL session
+ * @param f is the callback function
+ *
+ * This will be called once an ECH value has been processed.
+ * At that point, e.g. SSL_ech_get_status() could be called
+ * so the application can find out what happened.
+ */ 
+void SSL_set_ech_callback(SSL *s, SSL_ech_cb_func f);
+
+
+/**
+ * @brief set an ECH callback for the SSL session
+ *
+ * @param s is the SSL_CTX
+ * @param f is the callback function
+ *
+ * This will be called once an ECH value has been processed.
+ * At that point, e.g. SSL_ech_get_status() could be called
+ * so the application can find out what happened.
+ */ 
+void SSL_CTX_set_ech_callback(SSL_CTX *s, SSL_ech_cb_func f);
 
 #endif
 #endif
