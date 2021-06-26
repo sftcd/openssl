@@ -13,12 +13,6 @@
 # defined.
 HOME			= .
 
-# ifndef OPENSSL_NO_ECH
-# ECH related options
-# Options = ECHGrease, ECHTrialDecrypt
-Options = ECHGrease
-# endif
-
  # Use this in order to automatically load providers.
 openssl_conf = openssl_init
 

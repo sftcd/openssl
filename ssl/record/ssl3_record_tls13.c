@@ -187,7 +187,7 @@ int tls13_enc(SSL *s, SSL3_RECORD *recs, size_t n_recs, int sending,
 #ifndef OPENSSL_NO_ECH
     /*
      * Note that we succeeded in decrypting something...
-     * accept_confirmation ins't definitive I think
+     * accept_confirmation signal isn't definitive 
      */
     if (!sending && !s->server && 
             s->ech && !s->ext.ech_success && 

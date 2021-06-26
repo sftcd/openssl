@@ -135,7 +135,11 @@ so I deleted (both lines of:-) the ECH code.
 
 ## ``./ssl/record/ssl3_record_tls13.c``
 
-GOTHERE
+This just sets ``s->ext.ech_success`` to 1 for clients if we 
+managed to decrypt something.
+
+** TODO: revisit use of ``s->ext.inner_s`` and ``s->ext.outer_s`` there,
+  those mightn't be needed any more with the ``ECH_UPFRONT_DEC`` branch. **
 
 ## ``./ssl/ech_local.h``
 ## ``./ssl/s3_enc.c``
