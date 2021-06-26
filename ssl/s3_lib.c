@@ -3334,10 +3334,21 @@ int ssl3_new(SSL *s)
         return 0;
 #endif
 
+#if 0
+    /*
+     * This (and the _free() function's) ECH code seems superflous, 
+     * at least with basic tests.  I (probbaly) added this because 
+     * there was similar ESNI code here, and maybe I added that 
+     * because I wasn't sure at the beginning. In any case, we'll see
+     * via a crash or leak if this turns out needed by some app.
+     * The zero'ing and free'ing are also now incomplete - there are
+     * more ECH related fields now (e.g. s->ext.inner_s etc.).
+     */
 #ifndef OPENSSL_NO_ECH
 	s->ech=NULL;
 	s->nechs=0;
 	s->ech_cb=NULL;
+#endif
 #endif
 
     if (!s->method->ssl_clear(s))
@@ -3375,6 +3386,7 @@ void ssl3_free(SSL *s)
     ssl_srp_ctx_free_intern(s);
 #endif
 
+#if 0
 #ifdef OPENSSL_NO_ECH
 	int i; /* loop counter - android build doesn't like C99;-( */
 	for (i=0;i!=s->nechs;i++) {
@@ -3384,6 +3396,7 @@ void ssl3_free(SSL *s)
 	s->ech=NULL;
 	s->nechs=0;
     s->ech_cb=NULL;
+#endif
 #endif
 
     memset(&s->s3, 0, sizeof(s->s3));

@@ -1103,10 +1103,6 @@ struct ssl_ctx_st {
          */
         unsigned char *alpn;
         size_t alpn_len;
-#ifndef OPENSSL_NO_ECH
-        unsigned char *alpn_outer;
-        size_t alpn_outer_len;
-#endif
 
 # ifndef OPENSSL_NO_NEXTPROTONEG
         /* Next protocol negotiation information */
@@ -1132,6 +1128,9 @@ struct ssl_ctx_st {
         int nechs;
         SSL_ECH *ech;
         SSL_ech_cb_func ech_cb; 
+        unsigned char *alpn_outer;
+        size_t alpn_outer_len;
+
 #endif
 
         unsigned char cookie_hmac_key[SHA256_DIGEST_LENGTH];
@@ -1638,6 +1637,8 @@ struct ssl_st {
         int ch_depth;
         int ech_dropped_from_ch_len; /* length of CH if you dropped ECH extension: <=0 if not present */
         unsigned char *ech_dropped_from_ch; /* ptr to buffer with CH minus ECH buffer */
+        unsigned char *alpn_outer;
+        size_t alpn_outer_len;
 
 #endif
         /* certificate status request info */
@@ -1692,10 +1693,7 @@ struct ssl_st {
          */
         unsigned char *alpn;
         size_t alpn_len;
-#ifndef OPENSSL_NO_ECH
-        unsigned char *alpn_outer;
-        size_t alpn_outer_len;
-#endif
+
         /*
          * Next protocol negotiation. For the client, this is the protocol that
          * we sent in NextProtocol and is set when handling ServerHello
@@ -1760,6 +1758,7 @@ struct ssl_st {
     SSL_ECH *ech;
     SSL_ech_cb_func ech_cb; 
 #endif
+
 # ifndef OPENSSL_NO_CT
     /*
      * Validates that the SCTs (Signed Certificate Timestamps) are sufficient.

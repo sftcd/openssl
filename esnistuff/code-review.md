@@ -86,14 +86,57 @@ See ssl.h.in above, this one's generated from that.
 
 ## ``./crypto/ec/asm/ecp_nistz256-armv4.pl``
 
-Ah. I'll try this as a separate commit in a minute...
+The earlier gitlab-based CI objected to code in this file
+so we found a work-around. It seems that's no longer a problem
+so we've reverted this to the content of the file from
+the master branch.
 
 ## ``./ssl/ssl_sess.c``
+
+Another TODO! What to send as SNI when resuming? I guess
+using ``public_name`` and re-doing ECH seems to be 
+what's called for, so we probably need to note that the
+session used ECH, and what ``public_name`` was used 1st
+time around.  (We need setter/getter methods for those 
+fields here.) And we probably need to do stuff in
+the client and server to handle that properly.
+
+There are some questions here though, so I sent a
+[mail](https://mailarchive.ietf.org/arch/msg/tls/uMhAL5JBJmac4b-6JFtPaiY6tPw/)
+to the TLS WG list. Will come back to this when
+that thread resolves.
+
+**TODO: revisit this when list discussion done.**
+
 ## ``./ssl/tls13_enc.c``
+
+The only ECH code here is added tracing, to help with interop
+as we mess with the transcript so none of that code likely needs
+to be upstreamed ever - IOW, this one's fine.
+
 ## ``./ssl/s3_lib.c``
+
+There's ECH code here for setting to null and freeing. I don't
+think that's needed, but it might I guess with some set of API
+calls that I've forgotten. I've ifdef'd that code out for now
+and added a comment.
+
 ## ``./ssl/t1_trce.c``
+
+This just has a bit of tracing for the new ECH related extensions.
+Seems fine.
+
 ## ``./ssl/ssl_conf.c``
+
+Code just allows setting our two options (grease/trial decrypt) in 
+a config file. Seems fine but hasn't been tested. Turned out that
+figuring out how to actually test that was waaay too much effort
+so I deleted (both lines of:-) the ECH code.
+
 ## ``./ssl/record/ssl3_record_tls13.c``
+
+GOTHERE
+
 ## ``./ssl/ech_local.h``
 ## ``./ssl/s3_enc.c``
 ## ``./ssl/ech.c``

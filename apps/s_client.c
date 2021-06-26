@@ -627,18 +627,6 @@ const OPTIONS s_client_options[] = {
     {"nocommands", OPT_NOCMDS, '-', "Do not use interactive command letters"},
     {"servername", OPT_SERVERNAME, 's',
      "Set TLS extension servername (SNI) in ClientHello (default)"},
-#ifndef OPENSSL_NO_ECH
-    {"sni-outer", OPT_SNIOUTER, 's',
-     "The name to put in the outer CH overriding the server's choice, or \"NONE\""},
-    {"echconfigs", OPT_ECHCONFIGS, 's',
-     "Set ECHConfigs, value is b64, ASCII-HEX or binary encoded ECHConfigs"},
-    {"svcb", OPT_SVCB, 's',
-     "Set ECHConfigs and possibly ALPN vis an SVCB RData, b64, ASCII-HEX or binary encoded"},
-    {"ech_grease",OPT_ECH_GREASE,'-',
-     "Send GREASE values when not really using ECH"},
-    {"ech_grease_suite",OPT_ECH_GREASE_SUITE,'s',
-     "Use this HPKE suite for GREASE values when not really using ECH"},
-#endif
     {"noservername", OPT_NOSERVERNAME, '-',
      "Do not send the server name (SNI) extension in the ClientHello"},
     {"tlsextdebug", OPT_TLSEXTDEBUG, '-',
@@ -697,6 +685,18 @@ const OPTIONS s_client_options[] = {
 #endif
     {"early_data", OPT_EARLY_DATA, '<', "File to send as early data"},
     {"enable_pha", OPT_ENABLE_PHA, '-', "Enable post-handshake-authentication"},
+#ifndef OPENSSL_NO_ECH
+    {"sni-outer", OPT_SNIOUTER, 's',
+     "The name to put in the outer CH overriding the server's choice, or \"NONE\""},
+    {"echconfigs", OPT_ECHCONFIGS, 's',
+     "Set ECHConfigs, value is b64, ASCII-HEX or binary encoded ECHConfigs"},
+    {"svcb", OPT_SVCB, 's',
+     "Set ECHConfigs and possibly ALPN vis an SVCB RData, b64, ASCII-HEX or binary encoded"},
+    {"ech_grease",OPT_ECH_GREASE,'-',
+     "Send GREASE values when not really using ECH"},
+    {"ech_grease_suite",OPT_ECH_GREASE_SUITE,'s',
+     "Use this HPKE suite for GREASE values when not really using ECH"},
+#endif
 #ifndef OPENSSL_NO_SRTP
     {"use_srtp", OPT_USE_SRTP, 's',
      "Offer SRTP key management with a colon-separated profile list"},

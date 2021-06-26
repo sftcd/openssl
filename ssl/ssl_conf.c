@@ -391,10 +391,6 @@ static int cmd_Options(SSL_CONF_CTX *cctx, const char *value)
         SSL_FLAG_TBL("PrioritizeChaCha", SSL_OP_PRIORITIZE_CHACHA),
         SSL_FLAG_TBL("MiddleboxCompat", SSL_OP_ENABLE_MIDDLEBOX_COMPAT),
         SSL_FLAG_TBL_INV("AntiReplay", SSL_OP_NO_ANTI_REPLAY),
-#ifndef OPENSSL_NO_ECH
-        SSL_FLAG_TBL_INV("ECHGrease", SSL_OP_ECH_GREASE),
-        SSL_FLAG_TBL_INV("ECHTrialDecrypt", SSL_OP_ECH_TRIALDECRYPT),
-#endif
         SSL_FLAG_TBL_INV("ExtendedMasterSecret", SSL_OP_NO_EXTENDED_MASTER_SECRET),
         SSL_FLAG_TBL_INV("CANames", SSL_OP_DISABLE_TLSEXT_CA_NAMES),
         SSL_FLAG_TBL("KTLS", SSL_OP_ENABLE_KTLS)

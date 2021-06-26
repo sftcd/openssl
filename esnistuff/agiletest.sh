@@ -113,12 +113,6 @@ fi
 # (The "if needed" bit only applies if we re-use a tmpdir.)
 if [ ! -d ./cadir ]
 then
-    # there's an odd issue with debug builds meaning we want
-    # to use the system's openssl (for now) for these keys
-    # FIXME: figure that out
-    # mkdir -p cadir
-    # cp /etc/ssl/openssl.cnf cadir
-    # obin=`which openssl`
     if [[ "$verbose" == "yes" ]]
     then
         echo "Making keys/fake CA etc."
@@ -145,9 +139,25 @@ fi
 
 # We'll re-use the PEM files and dervice suites from file names
 
+vparm=""
+sleepb4=4
+sleepaftr=2
 if [[ "$verbose" == "yes" ]]
 then
     vparm=" -d "
+    # the -v will also get you valgrind...
+    # vparm=" -vd "
+    # with valgrind you probably also need to wait longer
+    # sleepb4=10
+    # sleepaftr=8
+fi
+
+# kill off any server running from a previous test
+pids=`ps -ef | grep s_server | grep -v grep | awk '{print $2}'`
+if [[ "$pids" != "" ]]
+then
+    # exiting without cleanup
+    kill $pids
 fi
 
 for file in *.pem 
@@ -164,7 +174,7 @@ do
         CFGTOP=$scratchdir $CODETOP/esnistuff/echsvr.sh -w -k $scratchdir/$file $vparm >/dev/null 2>&1 &
     fi
     # wait a bit
-    sleep 4
+    sleep $sleepb4
     pids=`ps -ef | grep s_server | grep -v grep | awk '{print $2}'`
     if [[ "$pids" == "" ]]
     then
@@ -174,7 +184,7 @@ do
     fi
     # Try an 'aul client...
     # wait a bit
-    sleep 4
+    sleep $sleepb4
     if [[ "$verbose" == "yes" ]]
     then
         $CODETOP/esnistuff/echcli.sh -P `$CODETOP/esnistuff/pem2rr.sh -p $file` -s localhost -p 8443 -H foo.example.com $vparm -f index.html
@@ -196,6 +206,8 @@ do
     then
         kill $portpid
     fi
+    # sleep a bit
+    sleep $sleepaftr
     pids=`ps -ef | grep s_server | grep -v grep | awk '{print $2}'`
     if [[ "$pids" != "" ]]
     then
@@ -208,8 +220,6 @@ do
         echo "Client failed for $file - exiting"
         exit 21
     fi
-    # sleep a bit
-    sleep 2
 done
 
 cd $startdir
