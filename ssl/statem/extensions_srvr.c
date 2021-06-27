@@ -1986,25 +1986,6 @@ EXT_RETURN tls_construct_stoc_ech(SSL *s, WPACKET *pkt,
     return EXT_RETURN_SENT;
 }
 
-int tls_parse_ctos_ech_outer_exts(SSL *s, PACKET *pkt, unsigned int context,
-                               X509 *x, size_t chainidx)
-{
-    /*
-     * Barf here - we shouldn't see this here
-     */
-    OSSL_TRACE_BEGIN(TLS) {
-        BIO_printf(trc_out,"outer_extensions shouldn't be seen here.\n");
-    } OSSL_TRACE_END(TLS);
-    return 0;
-}
-
-EXT_RETURN tls_construct_stoc_ech_outer_exts(SSL *s, WPACKET *pkt,
-                                          unsigned int context, X509 *x,
-                                          size_t chainidx)
-{
-    return EXT_RETURN_NOT_SENT;
-}
-
 int tls_parse_ctos_ech_is_inner(SSL *s, PACKET *pkt, unsigned int context,
                                X509 *x, size_t chainidx)
 {

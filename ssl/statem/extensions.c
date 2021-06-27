@@ -67,8 +67,6 @@ static int final_psk(SSL *s, unsigned int context, int sent);
 #ifndef OPENSSL_NO_ECH
 static int init_ech(SSL *s, unsigned int context);
 static int final_ech(SSL *s, unsigned int context, int sent);
-static int init_ech_outer_exts(SSL *s, unsigned int context);
-static int final_ech_outer_exts(SSL *s, unsigned int context, int sent);
 #endif /* END_OPENSSL_NO_ECH */
 
 
@@ -386,10 +384,10 @@ static const EXTENSION_DEFINITION ext_defs[] = {
     {
         TLSEXT_TYPE_outer_extensions,
         SSL_EXT_CLIENT_HELLO | SSL_EXT_TLS1_3_ONLY,
-        init_ech_outer_exts,
-        tls_parse_ctos_ech_outer_exts, tls_parse_stoc_ech_outer_exts,
-        tls_construct_stoc_ech_outer_exts, tls_construct_ctos_ech_outer_exts,
-        final_ech_outer_exts
+        NULL,
+        NULL, NULL,
+        NULL, NULL,
+        NULL
     },
     {
         TLSEXT_TYPE_ech_is_inner,
@@ -1035,11 +1033,6 @@ static int final_ech(SSL *s, unsigned int context, int sent)
             return 0;
         } 
     }
-    return 1;
-}
-
-static int final_ech_outer_exts(SSL *s, unsigned int context, int sent)
-{
     return 1;
 }
 
@@ -1832,11 +1825,6 @@ static int final_maxfragmentlen(SSL *s, unsigned int context, int sent)
             return 0;
         }
 
-    return 1;
-}
-
-static int init_ech_outer_exts(SSL *s, unsigned int context)
-{
     return 1;
 }
 

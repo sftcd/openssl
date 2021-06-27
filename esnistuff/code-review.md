@@ -106,7 +106,7 @@ There are some questions here though, so I sent a
 to the TLS WG list. Will come back to this when
 that thread resolves.
 
-**TODO: revisit this when list discussion done.**
+**TODO: revisit this when resumption list discussion done.**
 
 ## ``./ssl/tls13_enc.c``
 
@@ -119,7 +119,8 @@ to be upstreamed ever - IOW, this one's fine.
 There's ECH code here for setting to null and freeing. I don't
 think that's needed, but it might I guess with some set of API
 calls that I've forgotten. I've ifdef'd that code out for now
-and added a comment.
+and added a comment in case it turns up later but expectation
+is that code can stay out.
 
 ## ``./ssl/t1_trce.c``
 
@@ -142,13 +143,41 @@ managed to decrypt something.
   those mightn't be needed any more with the ``ECH_UPFRONT_DEC`` branch. **
 
 ## ``./ssl/ech_local.h``
+
+**TODO: revisit this when more nitty ones done.**
+
 ## ``./ssl/s3_enc.c``
+
+This just has some additional tracing that can be dropped
+later.
+
 ## ``./ssl/ech.c``
+
+**TODO: revisit this when more nitty ones done.**
+
 ## ``./ssl/ssl_txt.c``
+
+Code here is a placeholder for printing ECH related information
+for/from a stored session. The answer here will be obvious but
+will depend on what we store in the session.
+
+**TODO: revisit this when resumption list discussion done.**
+
 ## ``./ssl/statem/statem_local.h``
+
+Just a bunch of prototypes, but a reminder tha we don't
+really need the ``*_ech_outer_exts()`` functions as that's
+handled in earlier. So removed those from here and the
+other ``ssl/statem/extensions*.c`` files.
+
 ## ``./ssl/statem/extensions.c``
 ## ``./ssl/statem/extensions_srvr.c``
 ## ``./ssl/statem/extensions_clnt.c``
+
+Looks like there's a missing thing - what to do when we get an ECHConfig back
+having GREASE'd (or if our attempt was considered GREASE). Probably needs a
+new API and a new error code and a new element in the SSL struct.
+
 ## ``./ssl/statem/statem_clnt.c``
 ## ``./ssl/statem/statem_lib.c``
 ## ``./ssl/statem/statem_srvr.c``

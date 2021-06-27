@@ -114,9 +114,6 @@ __owur WORK_STATE dtls_wait_for_dry(SSL *s);
 
 /* some client-only functions */
 __owur int tls_construct_client_hello(SSL *s, WPACKET *pkt);
-#ifndef OPENSSL_NO_ECH
-__owur int tls_construct_client_hello_with_ech(SSL *s, WPACKET *pkt);
-#endif
 __owur MSG_PROCESS_RETURN tls_process_server_hello(SSL *s, PACKET *pkt);
 __owur MSG_PROCESS_RETURN tls_process_certificate_request(SSL *s, PACKET *pkt);
 __owur MSG_PROCESS_RETURN tls_process_new_session_ticket(SSL *s, PACKET *pkt);
@@ -426,29 +423,27 @@ int tls13_save_handshake_digest_for_pha(SSL *s);
 int tls13_restore_handshake_digest_for_pha(SSL *s);
 
 #ifndef OPENSSL_NO_ECH
+__owur int tls_construct_client_hello_with_ech(SSL *s, WPACKET *pkt);
 int tls_parse_ctos_ech(SSL *s, PACKET *pkt, unsigned int context,
                                X509 *x, size_t chainidx);
+EXT_RETURN tls_construct_ctos_ech(SSL *s, WPACKET *pkt, unsigned int context,
+                                   X509 *x, size_t chainidx);
 EXT_RETURN tls_construct_stoc_ech(SSL *s, WPACKET *pkt,
                                           unsigned int context, X509 *x,
                                           size_t chainidx);
-EXT_RETURN tls_construct_ctos_ech(SSL *s, WPACKET *pkt, unsigned int context,
-                                   X509 *x, size_t chainidx);
 int tls_parse_stoc_ech(SSL *s, PACKET *pkt, unsigned int context,
-                               X509 *x, size_t chainidx);
-
-int tls_parse_ctos_ech_outer_exts(SSL *s, PACKET *pkt, unsigned int context,
-                               X509 *x, size_t chainidx);
-EXT_RETURN tls_construct_stoc_ech_outer_exts(SSL *s, WPACKET *pkt,
-                                          unsigned int context, X509 *x,
-                                          size_t chainidx);
-EXT_RETURN tls_construct_ctos_ech_outer_exts(SSL *s, WPACKET *pkt, unsigned int context,
-                                   X509 *x, size_t chainidx);
-int tls_parse_stoc_ech_outer_exts(SSL *s, PACKET *pkt, unsigned int context,
                                X509 *x, size_t chainidx);
 EXT_RETURN tls_construct_ctos_ech_is_inner(SSL *s, WPACKET *pkt, unsigned int context,
                                    X509 *x, size_t chainidx);
 int tls_parse_ctos_ech_is_inner(SSL *s, PACKET *pkt, unsigned int context,
                                X509 *x, size_t chainidx);
+/**
+ * @brief maps the extension type to the index in the array of extension types
+ *
+ * @param type is the 16 bit extension type
+ * @return is the index of that extension handler
+ */
 int ech_map_ext_type_to_ind(unsigned int type);
+
 #endif
 

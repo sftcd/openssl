@@ -2237,27 +2237,12 @@ EXT_RETURN tls_construct_ctos_ech(SSL *s, WPACKET *pkt, unsigned int context,
 }
 
 /**
- * @brief Parse and check the ECH value returned in the EncryptedExtensions
- * to make sure it has the nonce we sent in the ClientHello
- *
+ * @brief if the server thinks we GREASE'd then we should get the right ECHConfig back
  */
 int tls_parse_stoc_ech(SSL *s, PACKET *pkt, unsigned int context,
                                X509 *x, size_t chainidx)
 {
     return 1;
-}
-
-EXT_RETURN tls_construct_ctos_ech_outer_exts(SSL *s, WPACKET *pkt, unsigned int context,
-                                   X509 *x, size_t chainidx)
-{
-
-    return EXT_RETURN_NOT_SENT;
-}
-
-int tls_parse_stoc_ech_outer_exts(SSL *s, PACKET *pkt, unsigned int context,
-                               X509 *x, size_t chainidx)
-{
-    return 0;
 }
 
 /**
