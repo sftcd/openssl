@@ -22,6 +22,9 @@
 static int final_renegotiate(SSL *s, unsigned int context, int sent);
 static int init_server_name(SSL *s, unsigned int context);
 #ifndef OPENSSL_NO_ECH
+/* If ECH is attempted, we'll want to postpone calling this until
+ * we know if decryption worked or not, so this can't be local 
+ * anymore */
 int final_server_name(SSL *s, unsigned int context, int sent);
 #else
 static int final_server_name(SSL *s, unsigned int context, int sent);
@@ -370,12 +373,14 @@ static const EXTENSION_DEFINITION ext_defs[] = {
     },
 #ifndef OPENSSL_NO_ECH
     /* 
-     * Must be in this list after key_share as that input is needed for ECH
-     * TODO: draft-11 may remove that requirement
+     * For now, TLSEXT_TYPE_ech must be in this list after key_share as that input 
+     * is needed for ECH acceptance calculation 
+     * TODO: draft-11 will remove that requirement, but we've not coded that up yet.
      */
     {
         TLSEXT_TYPE_ech,
-        SSL_EXT_CLIENT_HELLO | SSL_EXT_TLS1_3_ONLY | SSL_EXT_TLS1_3_ENCRYPTED_EXTENSIONS,
+        SSL_EXT_CLIENT_HELLO | SSL_EXT_TLS1_3_ONLY | 
+        SSL_EXT_TLS1_3_ENCRYPTED_EXTENSIONS,
         init_ech,
         tls_parse_ctos_ech, tls_parse_stoc_ech,
         tls_construct_stoc_ech, tls_construct_ctos_ech,
@@ -428,26 +433,6 @@ static const EXTENSION_DEFINITION ext_defs[] = {
         tls_construct_ctos_psk, final_psk
     }
 };
-
-#ifndef OPENSSL_NO_ECH
-/*
- * TODO: So this is dim but will fix later.
- * @brief map from ext type to index in ext_defs table
- * @param type is the input type
- * @return the index or -1 for error
- */
-int ech_map_ext_type_to_ind(unsigned int type)
-{
-    const EXTENSION_DEFINITION *e=ext_defs;
-    unsigned int ed_size=sizeof(ext_defs)/sizeof(EXTENSION_DEFINITION);
-    unsigned int i;
-    for (i=0;i!=ed_size;i++) {
-        if (e->type==type) return(i);
-        e++;
-    }
-    return(-1);
-}
-#endif
 
 /* Check whether an extension's context matches the current context */
 static int validate_context(SSL *s, unsigned int extctx, unsigned int thisctx)
@@ -686,6 +671,12 @@ int tls_collect_extensions(SSL *s, PACKET *packet, unsigned int context,
                      && type == TLSEXT_TYPE_cryptopro_bug)
 #endif
 #ifndef OPENSSL_NO_ECH
+                /*
+                 * ECH is a bit special here - because of the outer
+                 * compression stuff, we don't directly set the
+                 * SSL_EXT_FLAG_SENT (except when GREASEing) so we
+                 * make a special check to see if we attempted ECH
+                 */
                 && (type==TLSEXT_TYPE_ech && !s->ext.ech_attempted)
 #endif
                                                                 ) {
@@ -1004,6 +995,27 @@ static int init_server_name(SSL *s, unsigned int context)
 
 /* ECH_DOXY_START */
 #ifndef OPENSSL_NO_ECH
+
+/*
+ * @brief map from ext type to index in ext_defs table
+ * @param type is the input type
+ * @return the index or -1 for error
+ *
+ * This is called from ssl/ech.c:ech_same_ext when we're figuring
+ * out whether or not to copy an inner extension to the outer CH.
+ */
+int ech_map_ext_type_to_ind(unsigned int type)
+{
+    const EXTENSION_DEFINITION *e=ext_defs;
+    unsigned int ed_size=sizeof(ext_defs)/sizeof(EXTENSION_DEFINITION);
+    unsigned int i;
+    for (i=0;i!=ed_size;i++) {
+        if (e->type==type) return(i);
+        e++;
+    }
+    return(-1);
+}
+
 /**
  * @brief Just note that ech is not yet done
  */
@@ -1022,14 +1034,13 @@ static int final_ech(SSL *s, unsigned int context, int sent)
      * whatever's needed for handling tickets etc. etc.
      */
     if (!s->server && s->ech && s->ext.inner_s==NULL && s->ext.outer_s!=NULL) {
-        if (s->ext.ech_grease) {
+        if (s->ext.ech_grease==ECH_IS_GREASE) {
             /*
-             * If we greased, then it's ok that esni_done didn't get set
-             * TODO: figure if this is the right check to make
+             * If we greased, then it's ok that ech_success didn't get set
              */
             return 1;
         } else if (s->ext.ech_success!=1) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_R_CALLBACK_FAILED);
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             return 0;
         } 
     }

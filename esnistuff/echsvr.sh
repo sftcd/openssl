@@ -135,7 +135,7 @@ then
 fi
 
 # Set preferred ALPN - can parameterise later if/as needed
-alpn_cmd=" -alpn h2"
+alpn_cmd=" -alpn http/1.1,h2 "
 
 # Set padding if needed
 echpad_cmd=""

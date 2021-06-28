@@ -1693,7 +1693,7 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL *s, PACKET *pkt)
     SSL inner;
     SSL outer=*s;
     int trying_inner=0;
-    if (s->ech!=NULL && s->ext.ch_depth==0 && s->ext.ech_grease==0) {
+    if (s->ech!=NULL && s->ext.ech_done!=1 && s->ext.ch_depth==0 && s->ext.ech_grease==ECH_NOT_GREASE) {
         /*
          * Try process inner - if it fails to match the SH.random after processing, we'll
          * have to come back and try outer
@@ -2079,10 +2079,10 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL *s, PACKET *pkt)
             *s=outer;
 
             /* note result in outer */
-            s->ext.ech_grease=1;
+            //s->ext.ech_grease=1;
             s->ext.ech_done=1;
             /* note result in inner */
-            s->ext.inner_s->ext.ech_grease=1;
+            //s->ext.inner_s->ext.ech_grease=1;
             s->ext.inner_s->ext.ech_done=1;
 
             /* reset buffer for SH */

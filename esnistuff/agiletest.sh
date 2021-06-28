@@ -160,6 +160,9 @@ then
     kill $pids
 fi
 
+skipgood="no"
+if [[ "$skipgood" == "no" ]]
+then
 for file in *.pem 
 do
     kem=${file:0:4}
@@ -218,6 +221,88 @@ do
     if [[ "$cret" != "0" ]]
     then
         echo "Client failed for $file - exiting"
+        exit 21
+    fi
+done
+fi
+
+# Try out some deliberate failure cases
+for file in *.pem 
+do
+    kem=${file:0:4}
+    kdf=${file:5:4}
+    aead=${file:10:4}
+    # setup to use the wrong file 
+    badkem=$kem
+    badkdf=$(((kdf+1)%4))
+    if [[ "$badkdf" == "0" ]] 
+    then
+        badkdf=1
+    fi
+    badaead=$(((aead+1)%4))
+    if [[ "$badaead" == "0" ]] 
+    then
+        badaead=1
+    fi
+    badfile="$badkem,0x0$badkdf,0x0$badaead.pem"
+    if [ ! -f $badfile ]
+    then
+        echo "Can't see a $badfile - exiting"
+        exit 23
+    fi
+    echo "s_client/s_server debiberare failure test for server's kem: $kem, kdf: $kdf, aead; $aead, vs client's $badfile"
+    # start server
+    if [[ "$verbose" == "yes" ]]
+    then
+        CFGTOP=$scratchdir $CODETOP/esnistuff/echsvr.sh -w -k $scratchdir/$file $vparm &
+    else
+        CFGTOP=$scratchdir $CODETOP/esnistuff/echsvr.sh -w -k $scratchdir/$file $vparm >/dev/null 2>&1 &
+    fi
+    # wait a bit
+    sleep $sleepb4
+    pids=`ps -ef | grep s_server | grep -v grep | awk '{print $2}'`
+    if [[ "$pids" == "" ]]
+    then
+        echo "No sign of s_server - exiting (before client)"
+        # exiting without cleanup
+        exit 19
+    fi
+    # Try an 'aul client...
+    # wait a bit
+    sleep $sleepb4
+    if [[ "$verbose" == "yes" ]]
+    then
+        $CODETOP/esnistuff/echcli.sh -P `$CODETOP/esnistuff/pem2rr.sh -p $badfile` -s localhost -p 8443 -H foo.example.com $vparm -f index.html
+    else
+        $CODETOP/esnistuff/echcli.sh -P `$CODETOP/esnistuff/pem2rr.sh -p $badfile` -s localhost -p 8443 -H foo.example.com $vparm -f index.html >/dev/null 2>&1
+    fi
+    cret=$?
+    # kill server
+    pids=`ps -ef | grep s_server | grep -v grep | awk '{print $2}'`
+    if [[ "$pids" == "" ]]
+    then
+        echo "No sign of s_server - exiting (after client)"
+        # exiting without cleanup
+        exit 19
+    fi
+    kill $pids
+    portpid=`netstat -anp 2>/dev/null | grep 8443 | grep openssl | awk '{print $7}' | sed -e 's#/.*##' 2>/dev/null`
+    if [[ "$portpid" != "" ]]
+    then
+        kill $portpid
+    fi
+    # sleep a bit
+    sleep $sleepaftr
+    pids=`ps -ef | grep s_server | grep -v grep | awk '{print $2}'`
+    if [[ "$pids" != "" ]]
+    then
+        echo "hmm... $pids still running - exiting"
+        # exiting without cleanup
+        exit 20
+    fi
+    if [[ "$cret" == "0" ]]
+    then
+        echo "Client didn't fail as expected for server's $file vs. client's $badfile - exiting"
         exit 21
     fi
 done

@@ -171,12 +171,30 @@ handled in earlier. So removed those from here and the
 other ``ssl/statem/extensions*.c`` files.
 
 ## ``./ssl/statem/extensions.c``
+
+draft-10 imposed a requirment that the ECH handlers be after the 
+``key_share`` handles in the extensions table (so that we can 
+correctly calculate the ECH accept signal). That's removed in
+draft-11, so left a TODO: in for that. 
+
+For ECH, we need a special check when we get one back in 
+an encrypted extension if we really tried ECH but used the
+wrong key - because of the outer extensions stuff we don't
+set the usual "we sent that extension" flag when we send
+ECH, so we need a special check (around line 670). Tried
+a couple of other ways to handle that, but ended up keeping
+the check and just adding an explanatory comment.
+
+That, plus some new test cases with real ECH attempts with
+the wrong key, lead to a bunch of changes and clean-ups.
+
 ## ``./ssl/statem/extensions_srvr.c``
 ## ``./ssl/statem/extensions_clnt.c``
 
-Looks like there's a missing thing - what to do when we get an ECHConfig back
-having GREASE'd (or if our attempt was considered GREASE). Probably needs a
-new API and a new error code and a new element in the SSL struct.
+**TODO** Looks like there's a missing thing - what to do when we get an
+ECHConfig back having GREASE'd (or if our attempt was considered GREASE).
+Probably needs a new API and a new error code and a new element in the SSL
+struct.
 
 ## ``./ssl/statem/statem_clnt.c``
 ## ``./ssl/statem/statem_lib.c``

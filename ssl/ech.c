@@ -1567,6 +1567,9 @@ int SSL_ech_get_status(SSL *s, char **inner_sni, char **outer_sni)
     *outer_sni=NULL;
     *inner_sni=NULL;
 
+    if (s->ext.ech_grease==ECH_IS_GREASE) {
+        return SSL_ECH_STATUS_GREASE; 
+    }
     if (s->ext.ech_backend) {
         return SSL_ECH_STATUS_BACKEND; 
     }
@@ -2056,6 +2059,7 @@ static int ech_outer_indep[]={
 
 /**
  * @brief repeat extension value from inner ch in outer ch and handle outer compression
+ *
  * @param s is the SSL session
  * @param pkt is the packet containing extensions
  * @return 0: error, 1: copied existing and done, 2: ignore existing
@@ -3004,8 +3008,8 @@ int ech_swaperoo(SSL *s)
     s->ext.ech_success=1; 
     s->ext.outer_s->ext.ech_done=1; 
     s->ext.ech_done=1; 
-    s->ext.outer_s->ext.ech_grease=0; 
-    s->ext.ech_grease=0; 
+    s->ext.outer_s->ext.ech_grease=ECH_NOT_GREASE; 
+    s->ext.ech_grease=ECH_NOT_GREASE; 
     /*
      * Now do servername callback that we postponed earlier
      * in case ECH worked out well.
@@ -3141,6 +3145,7 @@ int SSL_ech_send_grease(SSL *s, WPACKET *pkt, unsigned int context,
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
     }
+    s->ext.ech_grease=ECH_IS_GREASE;
 #ifndef OPENSSL_NO_SSL_TRACE
     OSSL_TRACE_BEGIN(TLS) { 
         BIO_printf(trc_out,"ECH - sending GREASE\n");

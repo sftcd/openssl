@@ -801,6 +801,9 @@ static int new_session_cb(SSL *s, SSL_SESSION *sess)
 #ifndef OPENSSL_NO_ECH
     if (nechs>0) {
 	    const char *hn_1=NULL;
+        char *inner=NULL;
+        char *outer=NULL;
+        int rv;
 
 	    if (c_debug) {
 	        BIO_printf(bio_c_out,"new_session_cb called ech flavour\n");
@@ -811,22 +814,22 @@ static int new_session_cb(SSL *s, SSL_SESSION *sess)
 	    } else if (c_debug) {
 	        BIO_printf(bio_c_out,"Existing session hostname is %s\n",hn_1);
 	    }
-	    if (ech_inner_name!=NULL) {
-	        /*
-	         * If doing ECH then stuff that name into the session, so that 
-	          * it'll be visible/remembered later.
-	          */
-	        int rv=SSL_SESSION_set1_hostname(sess,ech_inner_name);
-	        if (rv!=1) {
-	            if (c_debug) 
-	                BIO_printf(bio_err, "Can't set ECH/inner_name in session...\n");
-	            ERR_print_errors(bio_err);
-	        } else {
-	            if (c_debug) 
-	                BIO_printf(bio_err, "Set ECH/inner_name in session to %s\n",ech_inner_name);
-	            ERR_print_errors(bio_err);
-	        }
-	    } 
+        rv=SSL_ech_get_status(s,&inner,&outer);
+        if (rv==SSL_ECH_STATUS_SUCCESS) {
+            if (c_debug) {
+                BIO_printf(bio_err, "ECH Succeeded\n");
+                ERR_print_errors(bio_err);
+            }
+        } else {
+            if (c_debug) {
+                BIO_printf(bio_err, "ECH did not succeed\n");
+                ERR_print_errors(bio_err);
+            }
+            /*
+             * Don't save session 
+             */
+            return 0;
+        }
 	    if (c_debug) {
 	        BIO_printf(bio_err,"---\nECH stuff so far:\n");
 	        SSL_SESSION_print(bio_err, sess);

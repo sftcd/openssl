@@ -437,11 +437,13 @@ EXT_RETURN tls_construct_ctos_ech_is_inner(SSL *s, WPACKET *pkt, unsigned int co
                                    X509 *x, size_t chainidx);
 int tls_parse_ctos_ech_is_inner(SSL *s, PACKET *pkt, unsigned int context,
                                X509 *x, size_t chainidx);
-/**
- * @brief maps the extension type to the index in the array of extension types
+/*
+ * @brief map from ext type to index in ext_defs table
+ * @param type is the input type
+ * @return the index or -1 for error
  *
- * @param type is the 16 bit extension type
- * @return is the index of that extension handler
+ * This is called from ssl/ech.c:ech_same_ext when we're figuring
+ * out whether or not to copy an inner extension to the outer CH.
  */
 int ech_map_ext_type_to_ind(unsigned int type);
 

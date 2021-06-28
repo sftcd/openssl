@@ -651,7 +651,11 @@ static int ssl_ech_servername_cb(SSL *s, int *ad, void *arg)
         return SSL_TLSEXT_ERR_NOACK;
     if (p->scert == NULL )
         return SSL_TLSEXT_ERR_NOACK;
-    if (servername != NULL) {
+    /*
+     * This is a bit limiting but ok for testing via s_server:
+     * We only switch to the 2nd context if ECH worked
+     */
+    if (echrv==SSL_ECH_STATUS_SUCCESS && servername != NULL) {
         if (ctx2 != NULL) {
             int mrv;
             X509_VERIFY_PARAM *vpm = NULL;
