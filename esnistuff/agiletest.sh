@@ -250,7 +250,7 @@ do
         echo "Can't see a $badfile - exiting"
         exit 23
     fi
-    echo "s_client/s_server debiberare failure test for server's kem: $kem, kdf: $kdf, aead; $aead, vs client's $badfile"
+    echo "s_client/s_server deliberate failure test for server's kem: $kem, kdf: $kdf, aead; $aead, vs client's $badfile"
     # start server
     if [[ "$verbose" == "yes" ]]
     then

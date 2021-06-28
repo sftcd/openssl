@@ -696,22 +696,6 @@ int tls_collect_extensions(SSL *s, PACKET *packet, unsigned int context,
                                 s->ext.debug_arg);
         }
 
-#ifndef OPENSSL_NO_ECH
-        /*
-         * We need to note if ECH has been attemped. In that case
-         * we don't want to call the servername callback until 
-         * after we've tried decryption, because that should only
-         * be called once. The application could do all sorts of
-         * things that are expensive, e.g. a DB lookup, or that
-         * have side-effects and can't be done twice.
-         *
-         * See above - this may be defunct
-         */
-        if (type==TLSEXT_TYPE_ech) {
-            s->ext.ech_attempted=1;
-        }
-#endif
-
     }
 
     if (init) {

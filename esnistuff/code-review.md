@@ -184,9 +184,11 @@ set the usual "we sent that extension" flag when we send
 ECH, so we need a special check (around line 670). Tried
 a couple of other ways to handle that, but ended up keeping
 the check and just adding an explanatory comment.
-
 That, plus some new test cases with real ECH attempts with
 the wrong key, lead to a bunch of changes and clean-ups.
+
+Was also seemingly superflously setting the ``ech_attempted``
+flag when it'd be set already so removed that code. 
 
 ## ``./ssl/statem/extensions_srvr.c``
 ## ``./ssl/statem/extensions_clnt.c``

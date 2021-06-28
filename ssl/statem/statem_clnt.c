@@ -2079,10 +2079,8 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL *s, PACKET *pkt)
             *s=outer;
 
             /* note result in outer */
-            //s->ext.ech_grease=1;
             s->ext.ech_done=1;
             /* note result in inner */
-            //s->ext.inner_s->ext.ech_grease=1;
             s->ext.inner_s->ext.ech_done=1;
 
             /* reset buffer for SH */
