@@ -437,7 +437,7 @@ EXT_RETURN tls_construct_ctos_ech_is_inner(SSL *s, WPACKET *pkt, unsigned int co
                                    X509 *x, size_t chainidx);
 int tls_parse_ctos_ech_is_inner(SSL *s, PACKET *pkt, unsigned int context,
                                X509 *x, size_t chainidx);
-/*
+/**
  * @brief map from ext type to index in ext_defs table
  * @param type is the input type
  * @return the index or -1 for error
@@ -446,6 +446,31 @@ int tls_parse_ctos_ech_is_inner(SSL *s, PACKET *pkt, unsigned int context,
  * out whether or not to copy an inner extension to the outer CH.
  */
 int ech_map_ext_type_to_ind(unsigned int type);
+
+/**
+ * @brief map a list of ciphers to octets
+ * @param s is the SSL structure
+ * @param sk is the list of ciphers
+ * @param pkt is the packet into which we encode sk
+ * @return 1 for good, error otherwise 
+ *
+ * This used be static in ssl/statem/statem_clnt.c, but it's now
+ * also used in ssl/ech.c
+ */
+int ssl_cipher_list_to_bytes(SSL *s, STACK_OF(SSL_CIPHER) *sk,
+                                    WPACKET *pkt);
+/* 
+ * @brief make final SNI-related calls (callback in particular)
+ * @param s is the SSL structure
+ * @param context is 
+ * @param sent is 
+ * @return 1 for good, error otherwise 
+ *
+ * If ECH is attempted, we'll want to postpone calling this until
+ * we know if decryption worked or not, so this can't be local 
+ * anymore, so we moved this to ssl/statem/statem_local.h
+ */
+int final_server_name(SSL *s, unsigned int context, int sent);
 
 #endif
 

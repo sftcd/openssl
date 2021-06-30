@@ -194,6 +194,8 @@ the wrong key, lead to a bunch of changes and clean-ups.
 Was also seemingly superflously setting the ``ech_attempted``
 flag when it'd be set already so removed that code. 
 
+``final_server_name`` prototype moved to ``statem_local.h``
+
 ## ``./ssl/statem/extensions_srvr.c``
 
 The few bits of code there seem sensible. ("Few bits" because
@@ -208,11 +210,20 @@ Probably needs a new API and a new error code and a new element in the SSL
 struct.
 
 **TODO** check out early data handling - that's yet to be tested.
+The ``IOSAME`` macro call within ``tls_construct_ctos_early_data`` in
+particular.
 
 I took out a setting of ``ech_attempted`` from ``ctos_ech`` when GREASEing -
 that might break something I've forgotten but shouldn't be needed.
 
 ## ``./ssl/statem/statem_clnt.c``
+
+``ssl_cipher_list_to_bytes`` prototype moved to ``statem_local.h``
+
+Added a good few more comments to clarify how we're re-using code
+and what's new for ECH. Surprisingly (for me:-) the code itself
+was fairly clean.
+
 ## ``./ssl/statem/statem_lib.c``
 ## ``./ssl/statem/statem_srvr.c``
 ## ``./ssl/ssl_local.h``

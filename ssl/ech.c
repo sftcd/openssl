@@ -51,18 +51,6 @@
 #include <crypto/hpke.h>
 
 /*
- * This is in ssl/statem/extensions.c - we'll try a call to that and
- * if it works, fix up some header file somwwhere
- */
-extern int final_server_name(SSL *s, unsigned int context, int sent);
-
-/*
- * This used be static inside ssl/statem/statem_clnt.c
- */
-extern int ssl_cipher_list_to_bytes(SSL *s, STACK_OF(SSL_CIPHER) *sk,
-                                    WPACKET *pkt);
-
-/*
  * @brief Decode and check the value retieved from DNS (binary, base64 or ascii-hex encoded)
  * 
  * This does the real work, can be called to add to a context or a connection

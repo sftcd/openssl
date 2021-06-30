@@ -22,10 +22,11 @@
 static int final_renegotiate(SSL *s, unsigned int context, int sent);
 static int init_server_name(SSL *s, unsigned int context);
 #ifndef OPENSSL_NO_ECH
-/* If ECH is attempted, we'll want to postpone calling this until
+/* 
+ * If ECH is attempted, we'll want to postpone calling this until
  * we know if decryption worked or not, so this can't be local 
- * anymore */
-int final_server_name(SSL *s, unsigned int context, int sent);
+ * anymore, so we moved this to ssl/statem/statem_local.h
+ */
 #else
 static int final_server_name(SSL *s, unsigned int context, int sent);
 #endif

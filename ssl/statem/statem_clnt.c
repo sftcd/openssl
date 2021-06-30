@@ -34,8 +34,7 @@ static MSG_PROCESS_RETURN tls_process_encrypted_extensions(SSL *s, PACKET *pkt);
 static ossl_inline int cert_req_allowed(SSL *s);
 static int key_exchange_expected(SSL *s);
 #ifndef OPENSSL_NO_ECH
-int ssl_cipher_list_to_bytes(SSL *s, STACK_OF(SSL_CIPHER) *sk,
-                                    WPACKET *pkt);
+/* moved this to statem_local.h as it's now also used by ech.c */
 #else
 static int ssl_cipher_list_to_bytes(SSL *s, STACK_OF(SSL_CIPHER) *sk,
                                     WPACKET *pkt);
@@ -1102,9 +1101,33 @@ WORK_STATE ossl_statem_client_post_process_message(SSL *s, WORK_STATE wst)
  * As needed, we'll call the existing stuff twice, once for inner
  * and then for outer, to allow for differences.
  *
- * TODO: decide what code should be here vs. in ssl/ech.c
+ * So the old tls_construct_client_hello is renamed to the _aux
+ * variant, and the new tls_construct_client_hello just calls
+ * that if there's no ECH involved, but otherwise does ECH
+ * things around calls to the _aux variant.
+ *
+ * Our basic model is that, when really attempting ECH we
+ * have an s_inner SSL struct that has the details of the
+ * inner CH, and as s_outer one for the outer. Which one
+ * we're dealing with is indicated via the ch_depth field
+ * (1 for inner, 0 for outer).
+ *
+ * After creating the fields for the inner CH, we encode
+ * those (so we can re-use existing code) then decode again 
+ * (using the existing tls_process_client_hello previously
+ * only used on servers, again to maximise code re-use.
+ * and finally re-encode but this time including the 
+ * optimisations for inner CH encoding (outer exts etc.)
+ * to produce our plaintext for encrypting.
+ *
+ * We lastly form up the AAD etc and encrypt to give us
+ * the ciphertext for inclusion in the value of the outer
+ * CH ECH extension. It seems odd to form up the outer
+ * CH before encrypting, but we need to do it that way
+ * so we get the right AAD octets.
+ *
+ * Phew!
  */
-
 static int tls_construct_client_hello_aux(SSL *s, WPACKET *pkt);
 
 int tls_construct_client_hello(SSL *s, WPACKET *pkt)
@@ -1136,8 +1159,7 @@ int tls_construct_client_hello(SSL *s, WPACKET *pkt)
 
     /*
      * ECH wrapper for original CH construction code
-     * Plan is, if not doing ECH, just call existing
-     * code.
+     * If not really attempting ECH, just call existing code.
      */
     if (s->ech==NULL) return tls_construct_client_hello_aux(s, pkt);
 
@@ -1146,7 +1168,7 @@ int tls_construct_client_hello(SSL *s, WPACKET *pkt)
      * inner CH (an optimisation) but being required to be the same
      * for both inner and outer (so that ServerHello has correct
      * value). That's a bit of a change, so we'll fix it up here
-     * before dupliating the SSL struct.
+     * before duplicating the SSL struct.
      */
     sess=s->session;
     if (sess == NULL
@@ -1184,7 +1206,8 @@ int tls_construct_client_hello(SSL *s, WPACKET *pkt)
     }
 
     /*
-     * Before we start on the outer, we copy the details for the inner
+     * Before we start on the outer, we copy the details we have so far
+     * (from the application) for the inner.
      */
     new_s=SSL_dup(s);
     if (!new_s) {
@@ -1216,11 +1239,9 @@ int tls_construct_client_hello(SSL *s, WPACKET *pkt)
     memcpy(new_s->tmp_session_id,s->session->session_id,s->session->session_id_length);
 
     /*
-     * Set a magic CH depth flag in the SSL state so that
-     * other code (e.g. extension handlers) know where we#'re
+     * Set our CH depth flag in the SSL state so that
+     * other code (e.g. extension handlers) know where we're
      * at: 1 is "inner CH", 0 is "outer CH"
-     * Also note we've yet to have succeed with a (fancy trial)
-     * decryption
      */
     new_s->ext.ch_depth=1;
 
@@ -1239,7 +1260,7 @@ int tls_construct_client_hello(SSL *s, WPACKET *pkt)
     }
 
     /*
-     * Make initial call into CH constuction. 
+     * Make initial call for inner CH constuction. 
      */
     rv=tls_construct_client_hello_aux(new_s, &inner);
     if (rv!=1) {
@@ -1248,7 +1269,7 @@ int tls_construct_client_hello(SSL *s, WPACKET *pkt)
     }
 
     /*
-     * close the inner CH
+     * close the inner CH packet
      */
     if (!WPACKET_close(&inner))  {
         WPACKET_cleanup(&inner);
@@ -1266,7 +1287,7 @@ int tls_construct_client_hello(SSL *s, WPACKET *pkt)
     }
 
     /* 
-     * we need to prepend a few octets onto that to get the encoding 
+     * We need to prepend a few octets onto that to get the encoding 
      * we can decode
      */
     innerch_full=OPENSSL_malloc(innerinnerlen);
@@ -1284,7 +1305,7 @@ int tls_construct_client_hello(SSL *s, WPACKET *pkt)
     inner_mem=NULL;
 
     /*
-     * Dump inner, client random & session id
+     * If tracing, trace out the inner, client random & session id
      */
     ech_pbuf("inner CH",new_s->ext.innerch,new_s->ext.innerch_len);
     ech_pbuf("inner, client_random",new_s->s3.client_random,SSL3_RANDOM_SIZE);
@@ -2010,8 +2031,8 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL *s, PACKET *pkt)
 
 #ifndef OPENSSL_NO_ECH
     /*
-     * Try figure out if ServerHello is for inner or outer
-     * Only do new stuff if needed - accept_confirmation version (draft-09)
+     * Now try figure out if ServerHello.ramdom indicated acceptane of inner 
+     * using the accept confirmation scheme.
      */
     if (trying_inner) {
         unsigned char acbuf[8];
