@@ -157,7 +157,13 @@ int tls_parse_ctos_server_name(SSL *s, PACKET *pkt, unsigned int context,
         }
 
 #ifndef OPENSSL_NO_ECH
+        /*
+         * Copy the inner SNI if decryption worked (we already
+         * copied the outer SNI (if present) within our ECH
+         * early decryption code
+         */
         if (s->ech && s->ext.ech_success==1) {
+            if (s->ech->inner_name) OPENSSL_free(s->ech->inner_name);
             s->ech->inner_name=OPENSSL_strdup(s->ext.hostname);
         }
 #endif
@@ -1923,7 +1929,8 @@ EXT_RETURN tls_construct_stoc_psk(SSL *s, WPACKET *pkt, unsigned int context,
 #ifndef OPENSSL_NO_ECH
 
 /**
- * @brief Decodes inbound ECH extension 
+ * @brief Real ECH handling is earlier, so this is just for edge
+ * cases (GREASE) and errors.
  */
 int tls_parse_ctos_ech(SSL *s, PACKET *pkt, unsigned int context,
                                X509 *x, size_t chainidx)
@@ -1935,7 +1942,7 @@ int tls_parse_ctos_ech(SSL *s, PACKET *pkt, unsigned int context,
         return 1;
     }
     /*
-     * Barf here - we shouldn't see this here
+     * Barf here - we shouldn't see this 
      */
     OSSL_TRACE_BEGIN(TLS) {
         BIO_printf(trc_out,"ECH shouldn't be seen here.\n");
@@ -1944,7 +1951,7 @@ int tls_parse_ctos_ech(SSL *s, PACKET *pkt, unsigned int context,
 }
 
 /**
- * @brief Answer an ECH
+ * @brief Answer an ECH, if needed
  */
 EXT_RETURN tls_construct_stoc_ech(SSL *s, WPACKET *pkt,
                                           unsigned int context, X509 *x,
@@ -1956,8 +1963,8 @@ EXT_RETURN tls_construct_stoc_ech(SSL *s, WPACKET *pkt,
 
     /*
      * If the client GREASEd, or we think it did, we
-     * return an ECHConfig, as the value of the 
-     * extension.
+     * return the first-loaded ECHConfig, as the value 
+     * of the extension.
      */
     if (s->ech==NULL || s->ech->cfg==NULL) {
         OSSL_TRACE_BEGIN(TLS) { 
@@ -1980,7 +1987,7 @@ EXT_RETURN tls_construct_stoc_ech(SSL *s, WPACKET *pkt,
     }
 
     OSSL_TRACE_BEGIN(TLS) { 
-        BIO_printf(trc_out,"ECH - sending ECHConfig back to client\n");
+        BIO_printf(trc_out,"ECH - sending first loaded ECHConfig back to client\n");
     } OSSL_TRACE_END(TLS);
 
     return EXT_RETURN_SENT;

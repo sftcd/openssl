@@ -459,6 +459,7 @@ void SSL_ECH_free(SSL_ECH *tbf)
 #define CFREE(__x__) if (tbf->__x__) { OPENSSL_free(tbf->__x__); tbf->__x__=NULL; }
 
     CFREE(inner_name);
+    /* TODO: check if that comparison below is still relevant */
     if (tbf->outer_name!=ECH_PUBLIC_NAME_OVERRIDE_NULL) {
         CFREE(outer_name);
     }

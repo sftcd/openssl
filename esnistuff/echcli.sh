@@ -27,7 +27,9 @@ GSUITESET="no"
 
 # Protocol parameters
 
-DEFALPNVAL="-alpn inner,secret,h2 -alpn-outer outer,public,http/1.1"
+# note that cloudflare do actually turn on h2 if we ask for that so
+# you might see binary cruft if that's selected
+DEFALPNVAL="-alpn inner,secret,http/1.1 -alpn-outer outer,public,h2"
 DOALPN="yes"
 
 # default port

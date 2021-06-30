@@ -69,6 +69,16 @@
 #define ECH_PCODE_NO_DEF_ALPN    0x0002
 #define ECH_PCODE_ECH            0x0005
 
+/*
+ * This is a special marker value. If set via a specific call
+ * to our external API, then we'll override use of the 
+ * ECHConfig.public_name and send no outer SNI.
+ * TODO: check if this ought be in util/libssl.num as an
+ * extern variable, or if I need to add a real function.
+ */
+extern char *ech_public_name_override_null;
+#define ECH_PUBLIC_NAME_OVERRIDE_NULL  ech_public_name_override_null
+
 
 /**
  * Exterally visible form of an ECHConfigs RR value

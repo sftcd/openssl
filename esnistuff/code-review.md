@@ -72,6 +72,10 @@ Just defines ECHCONFIG as a PEM string, so that's fine.
 
 **TODO: revisit this when more nitty ones done.**
 
+I added ``ECH_PUBLIC_NAME_OVERRIDE_NULL`` here as a const
+external variable. Not sure how that ought be reflected in
+``util/libssl.num`` so that's another TODO.
+
 ## ``./include/openssl/tls1.h``
 
 Just defines the extension type codes for TLS, so that's fine.
@@ -191,12 +195,22 @@ Was also seemingly superflously setting the ``ech_attempted``
 flag when it'd be set already so removed that code. 
 
 ## ``./ssl/statem/extensions_srvr.c``
+
+The few bits of code there seem sensible. ("Few bits" because
+we attempt ECH decryption before so most of the actul code's 
+in ech.c:-)
+
 ## ``./ssl/statem/extensions_clnt.c``
 
 **TODO** Looks like there's a missing thing - what to do when we get an
 ECHConfig back having GREASE'd (or if our attempt was considered GREASE).
 Probably needs a new API and a new error code and a new element in the SSL
 struct.
+
+**TODO** check out early data handling - that's yet to be tested.
+
+I took out a setting of ``ech_attempted`` from ``ctos_ech`` when GREASEing -
+that might break something I've forgotten but shouldn't be needed.
 
 ## ``./ssl/statem/statem_clnt.c``
 ## ``./ssl/statem/statem_lib.c``

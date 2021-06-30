@@ -13,24 +13,28 @@
 #include "statem_local.h"
 
 #ifndef OPENSSL_NO_ECH
-#ifndef OPENSSL_NO_SSL_TRACE
-#include <openssl/trace.h>
-#endif
-#endif
-
-#ifndef OPENSSL_NO_ECH
-#include <openssl/rand.h>
-
 /*
- * Handle inner/outer CH issues
- * This should be called in the _ctos_ function after
- * we have decided to send that specific extension
+ * Handle inner/outer CH issues - ech_same_ext will 
+ * (depending on compile time options) copy the 
+ * value from CH.inner to CH.outer or else 
+ * processing will continue, generating a new value
+ * for the CH.outer.
+ * This macro should be called in each _ctos_ function 
+ * that doesn't defintely need special handling. See
+ * the many examples below. 
+ *
+ * Note that the placement of this macro needs a bit
+ * of thought - it has to go after declarations (to
+ * keep the ansi-c compile happy) but also after any
+ * checks that result in the extension not being sent.
  */
 #define IOSAME if (s->ech) { \
         int __rv=ech_same_ext(s,pkt); \
         if (__rv==ECH_SAME_EXT_ERR) return(EXT_RETURN_FAIL); \
         if (__rv==ECH_SAME_EXT_DONE) return(EXT_RETURN_SENT); \
+        /* otherwise continue as normal */ \
     }
+
 #endif
 
 EXT_RETURN tls_construct_ctos_renegotiate(SSL *s, WPACKET *pkt,
@@ -61,31 +65,17 @@ EXT_RETURN tls_construct_ctos_renegotiate(SSL *s, WPACKET *pkt,
 /**
  * @brief check/handle names when doing ECH
  *
- * Check if s.ext.hostname == s.ech.config.public_name
- * and that != encservername (neither should happen
- * but who knows...)
- * If either test fails don't send server_name. 
- * That is, if we want to send SNI, then we only
- * send SNI if the clear_sni was explicitly set 
- * and is the same as the SNI (that maybe got set
- * via some weirdo application API that we couldn't
- * change when ECH enabling perhaps)
- *
- * When the name is fixed up, we record the original
- * encservername, clear_sni and public_name in the 
- * SSL_SESSION.ext so that later printing etc. can do 
- * the right thing. 
+ * We can have inner and outer SNI protocol values.
+ * We can have the inner, outer and public_name API values.
+ * If an outer SNI (!= inner SNI) is provided then that
+ * overrides the public_name.
+ * This function just sorts those out to ensure that
+ * the s->ext.hostname is fixed up correctly.
  *
  * @param s is the SSL context
- * @param pkt is seemingly unused here
- * @param context is unused here
- * @param x is the certificate associated with the session
- * @param chainidx is unused here
- * @return "send-it" (EXT_RETURN_SENT) or not
+ * @return 1 for success
  */
-static EXT_RETURN ech_server_name_fixup(SSL *s, WPACKET *pkt,
-                                          unsigned int context, X509 *x,
-                                          size_t chainidx) 
+static int ech_server_name_fixup(SSL *s)
 {
     if (s->ech != NULL) {
         char *pn=NULL;
@@ -97,21 +87,17 @@ static EXT_RETURN ech_server_name_fixup(SSL *s, WPACKET *pkt,
         if (s->ech->cfg->recs!=NULL) {
             if (s->ech->cfg->nrecs!=1) {
                 /* for now we only know how to handle one on the client */
-                return(EXT_RETURN_FAIL);
+                return(0);
             }
             pn_len=s->ech->cfg->recs[0].public_name_len;
             pn=(char*)s->ech->cfg->recs[0].public_name;
         }
-
         /* These are from the application, direct */
         in_len=(s->ech->inner_name==NULL?0:OPENSSL_strnlen(s->ech->inner_name,TLSEXT_MAXLEN_host_name));
         on_len=(s->ech->outer_name==NULL?0:OPENSSL_strnlen(s->ech->outer_name,TLSEXT_MAXLEN_host_name));
-        /* TODO: test/handle the case with session resumption */
+        /* Just in cae there's a value set already (who knows what legacy app calls may do) */
         ehn_len=(s->ext.hostname==NULL?0:OPENSSL_strnlen(s->ext.hostname,TLSEXT_MAXLEN_host_name));
 
-        /* 
-         * Set values to be used
-         */
         if (s->ext.ch_depth==1) { /* Inner CH */
             if (in_len!=0) {
                 /* we prefer this over all */
@@ -128,13 +114,13 @@ static EXT_RETURN ech_server_name_fixup(SSL *s, WPACKET *pkt,
             } else if (pn_len!=0) {
                 if (ehn_len!=0) { OPENSSL_free(s->ext.hostname); s->ext.hostname=NULL; ehn_len=0; }
                 s->ext.hostname=OPENSSL_strndup(pn,pn_len);
-            } else { /* don't send sensitive inner in outer! */
-                OPENSSL_free(s->ext.hostname); s->ext.hostname=NULL; ehn_len=0;
+            } else { /* don't send possibly sensitive inner in outer! */
+                if (ehn_len!=0) { OPENSSL_free(s->ext.hostname); s->ext.hostname=NULL; ehn_len=0; }
             }
         }
 
     } 
-    return EXT_RETURN_SENT;
+    return 1;
 }
 #endif /* END_OPENSSL_NO_ECH */
 /* ECH_DOXY_END */
@@ -153,10 +139,10 @@ EXT_RETURN tls_construct_ctos_server_name(SSL *s, WPACKET *pkt,
         if (s->ext.ch_depth==0 && s->ech->outer_name==ECH_PUBLIC_NAME_OVERRIDE_NULL) {
             return EXT_RETURN_NOT_SENT;
         }
-        echrv=ech_server_name_fixup(s,pkt,context,x,chainidx);
-        if (echrv!=EXT_RETURN_SENT) {
+        echrv=ech_server_name_fixup(s);
+        if (echrv!=1) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-            return echrv;
+            return EXT_RETURN_FAIL;
         }
     }
 #endif
@@ -567,7 +553,7 @@ EXT_RETURN tls_construct_ctos_alpn(SSL *s, WPACKET *pkt, unsigned int context,
     /*
      * If we have different alpn and alpn_outer values, then we set
      * the appropriate one for inner and outer. 
-     * If no alpn is set (for inner or ouer), we don't send any.
+     * If no alpn is set (for inner or outer), we don't send any.
      */
     if (!SSL_IS_FIRST_HANDSHAKE(s))
         return EXT_RETURN_NOT_SENT;
@@ -2218,14 +2204,7 @@ EXT_RETURN tls_construct_ctos_ech(SSL *s, WPACKET *pkt, unsigned int context,
         if (SSL_ech_send_grease(s,pkt,context,x,chainidx)!=1) {
             return EXT_RETURN_NOT_SENT;
         }
-        s->ext.ech_attempted=1;
         return EXT_RETURN_SENT;
-    }
-    if (!s->ech) {
-        return EXT_RETURN_NOT_SENT;
-    }
-    if (s->ext.ch_depth==1) {
-        return EXT_RETURN_NOT_SENT;
     }
     /*
      * We'll fake out sending this one - after the entire thing has been
@@ -2238,6 +2217,8 @@ EXT_RETURN tls_construct_ctos_ech(SSL *s, WPACKET *pkt, unsigned int context,
 
 /**
  * @brief if the server thinks we GREASE'd then we should get the right ECHConfig back
+ *
+ * TODO: store the returned ECHConfig 
  */
 int tls_parse_stoc_ech(SSL *s, PACKET *pkt, unsigned int context,
                                X509 *x, size_t chainidx)
@@ -2246,7 +2227,7 @@ int tls_parse_stoc_ech(SSL *s, PACKET *pkt, unsigned int context,
 }
 
 /**
- * @brief Add ech_is_inner if needed
+ * @brief Add ech_is_inner but only to inner CH
  */
 EXT_RETURN tls_construct_ctos_ech_is_inner(SSL *s, WPACKET *pkt, unsigned int context,
                                    X509 *x, size_t chainidx)
