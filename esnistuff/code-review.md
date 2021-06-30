@@ -48,7 +48,7 @@ In parallel, we'll be testing for agility etc. as described
 
 ## ``./include/openssl/ssl.h.in``
 
-...and off we go: there's a TODO in that:-)
+...and off we go: there's a **TODO** in that:-)
 
 This defines ECH-related flags and has prototypes for
 a few functions.
@@ -70,11 +70,11 @@ Just defines ECHCONFIG as a PEM string, so that's fine.
 
 ## ``./include/openssl/ech.h``
 
-**TODO: revisit this when more nitty ones done.**
+**TODO** revisit this when more nitty ones done.
 
 I added ``ECH_PUBLIC_NAME_OVERRIDE_NULL`` here as a const
 external variable. Not sure how that ought be reflected in
-``util/libssl.num`` so that's another TODO.
+``util/libssl.num`` so that's another **TODO**.
 
 ## ``./include/openssl/tls1.h``
 
@@ -97,7 +97,7 @@ the master branch.
 
 ## ``./ssl/ssl_sess.c``
 
-Another TODO! What to send as SNI when resuming? I guess
+Another **TODO**! What to send as SNI when resuming? I guess
 using ``public_name`` and re-doing ECH seems to be 
 what's called for, so we probably need to note that the
 session used ECH, and what ``public_name`` was used 1st
@@ -110,7 +110,7 @@ There are some questions here though, so I sent a
 to the TLS WG list. Will come back to this when
 that thread resolves.
 
-**TODO: revisit this when resumption list discussion done.**
+**TODO** revisit this when resumption list discussion done.
 
 ## ``./ssl/tls13_enc.c``
 
@@ -143,12 +143,12 @@ so I deleted (both lines of:-) the ECH code.
 This just sets ``s->ext.ech_success`` to 1 for clients if we 
 managed to decrypt something.
 
-** TODO: revisit use of ``s->ext.inner_s`` and ``s->ext.outer_s`` there,
-  those mightn't be needed any more with the ``ECH_UPFRONT_DEC`` branch. **
+** TODO** revisit use of ``s->ext.inner_s`` and ``s->ext.outer_s`` there,
+  those mightn't be needed any more with the ``ECH_UPFRONT_DEC`` branch.
 
 ## ``./ssl/ech_local.h``
 
-**TODO: revisit this when more nitty ones done.**
+**TODO** revisit this when more nitty ones done.
 
 ## ``./ssl/s3_enc.c``
 
@@ -157,7 +157,7 @@ later.
 
 ## ``./ssl/ech.c``
 
-**TODO: revisit this when more nitty ones done.**
+**TODO** revisit this when more nitty ones done.
 
 ## ``./ssl/ssl_txt.c``
 
@@ -165,7 +165,7 @@ Code here is a placeholder for printing ECH related information
 for/from a stored session. The answer here will be obvious but
 will depend on what we store in the session.
 
-**TODO: revisit this when resumption list discussion done.**
+**TODO** revisit this when resumption list discussion done.
 
 ## ``./ssl/statem/statem_local.h``
 
@@ -179,7 +179,7 @@ other ``ssl/statem/extensions*.c`` files.
 draft-10 imposed a requirment that the ECH handlers be after the 
 ``key_share`` handles in the extensions table (so that we can 
 correctly calculate the ECH accept signal). That's removed in
-draft-11, so left a TODO: in for that. 
+draft-11, so left a **TODO** in for that. 
 
 For ECH, we need a special check when we get one back in 
 an encrypted extension if we really tried ECH but used the
@@ -225,6 +225,18 @@ and what's new for ECH. Surprisingly (for me:-) the code itself
 was fairly clean.
 
 ## ``./ssl/statem/statem_lib.c``
+
+Took out a change within ``ssl_version_supported`` that seemed 
+no longer needed, at least as far as current tests indicaete.
+
+Otherwise just one change here, to avoid a double-free on the
+transscipt (``init_buf``).
+
+**TODO** consider if there's a generally better way to handle
+the transcript than messing with ``init_buf`` - do that while
+coding up HRR specifics as those will likely involve most 
+transcript munging. 
+
 ## ``./ssl/statem/statem_srvr.c``
 ## ``./ssl/ssl_local.h``
 ## ``./ssl/ssl_lib.c``

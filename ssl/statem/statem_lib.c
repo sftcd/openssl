@@ -1595,15 +1595,6 @@ int ssl_version_supported(const SSL *s, int version, const SSL_METHOD **meth)
     default:
         /* Version should match method version for non-ANY method */
         return version_cmp(s, version, s->version) == 0;
-#ifndef OPENSSL_NO_ECH
-    /*
-     * hacky hack TODO: proper fix
-     * problem is for inner CH we end up in the default above
-     * which means we don't set meth, which means we crash out
-     * in post-processing the inner CH
-     */
-    case TLS1_3_VERSION:
-#endif
     case TLS_ANY_VERSION:
         table = tls_version_table;
         break;
