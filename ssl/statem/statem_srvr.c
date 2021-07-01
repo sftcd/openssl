@@ -1390,9 +1390,8 @@ MSG_PROCESS_RETURN tls_process_client_hello(SSL *s, PACKET *pkt)
             OPENSSL_free(s->ext.innerch);
         }
         /*
-         * For backend, ensure type & 3 octer length included
-         * here. TODO: regularise this, we're doing it differently
-         * for shared and split mode, which seems wrong.
+         * For backend, ensure type & 3 octet length included
+         * here. 
          */
         s->ext.innerch_len=pkt->remaining;
         s->ext.innerch=OPENSSL_malloc(s->ext.innerch_len+4);
@@ -1940,10 +1939,11 @@ static int tls_early_post_process_client_hello(SSL *s)
 
 #ifndef OPENSSL_NO_ECH
     /*
-     * This is naff, but we'll refuse to handle the session_secret_cb
+     * We'll refuse to call the session_secret_cb
      * for now because we'll need to re-calculate the server random
      * later to include the ECH magic (can't do it now as we don't
      * yet have the SH encoding)
+     * TODO: This will change in draft-x where x>10.
      */
     if ((s->ech && s->ext.ech_success) || !s->ech) 
 #endif
@@ -2495,7 +2495,6 @@ int tls_construct_server_hello(SSL *s, WPACKET *pkt)
         unsigned char *p=NULL;
 
         memset(acbuf,0,8);
-        /* HACK HACK */
         if (!pkt || !pkt->buf) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             return 0;

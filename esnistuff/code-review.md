@@ -143,7 +143,7 @@ so I deleted (both lines of:-) the ECH code.
 This just sets ``s->ext.ech_success`` to 1 for clients if we 
 managed to decrypt something.
 
-** TODO** revisit use of ``s->ext.inner_s`` and ``s->ext.outer_s`` there,
+**TODO** revisit use of ``s->ext.inner_s`` and ``s->ext.outer_s`` there,
   those mightn't be needed any more with the ``ECH_UPFRONT_DEC`` branch.
 
 ## ``./ssl/ech_local.h``
@@ -238,6 +238,15 @@ coding up HRR specifics as those will likely involve most
 transcript munging. 
 
 ## ``./ssl/statem/statem_srvr.c``
+
+This has a couple of TODOs that should be attended to,
+likely when draft-12 is implemented. (The particularly
+hacky write of the accept signal into the packet 
+probably should be a new ``WPACKET_foo`` API.
+
+**TODO**: Replace ``SSL_ech_print`` with something
+more lasting.
+
 ## ``./ssl/ssl_local.h``
 ## ``./ssl/ssl_lib.c``
 ## ``./esnistuff/haproxy.html``
