@@ -248,6 +248,12 @@ probably should be a new ``WPACKET_foo`` API.
 more lasting.
 
 ## ``./ssl/ssl_local.h``
+
+* Removed a couple of no-longer used fields: ``ech_dropped_from_ch``
+(and it's length).
+* **TODO**: consider moving ``alpn_outer`` into ECHConfig, but
+first check ALPN stuff in SVCB speec.
+
 ## ``./ssl/ssl_lib.c``
 ## ``./esnistuff/haproxy.html``
 ## ``./esnistuff/haproxy.md``

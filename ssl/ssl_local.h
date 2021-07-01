@@ -1130,7 +1130,6 @@ struct ssl_ctx_st {
         SSL_ech_cb_func ech_cb; 
         unsigned char *alpn_outer;
         size_t alpn_outer_len;
-
 #endif
 
         unsigned char cookie_hmac_key[SHA256_DIGEST_LENGTH];
@@ -1605,10 +1604,6 @@ struct ssl_st {
 
 #ifndef OPENSSL_NO_ECH
         /*
-         * ECH stuff...
-         */
-
-        /*
          * inner CH encodings for the client
          * and maybe now server too...
          */
@@ -1617,7 +1612,7 @@ struct ssl_st {
         unsigned char *encoded_innerch;
         size_t encoded_innerch_len;
         /*
-         * Compression related nonsense
+         * outer-exts compression related fields
          */
         int n_outer_only;
         uint16_t outer_only[ECH_OUTERS_MAX];
@@ -1635,8 +1630,6 @@ struct ssl_st {
         int ech_backend;
         char* ech_grease_suite;
         int ch_depth;
-        int ech_dropped_from_ch_len; /* length of CH if you dropped ECH extension: <=0 if not present */
-        unsigned char *ech_dropped_from_ch; /* ptr to buffer with CH minus ECH buffer */
         unsigned char *alpn_outer;
         size_t alpn_outer_len;
 

@@ -1349,7 +1349,6 @@ void SSL_free(SSL *s)
 #ifndef OPENSSL_NO_ECH
     OPENSSL_free(s->ext.innerch);
     OPENSSL_free(s->ext.encoded_innerch);
-    OPENSSL_free(s->ext.ech_dropped_from_ch); 
     if (s->nechs>0 && s->ech!=NULL) {
         int n=0;
         for (n=0;n!=s->nechs;n++) {
