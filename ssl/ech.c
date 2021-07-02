@@ -2839,12 +2839,12 @@ err:
     return(0);
 }
 
-void SSL_set_ech_callback(SSL *s, SSL_ech_cb_func f)
+void SSL_ech_set_callback(SSL *s, SSL_ech_cb_func f)
 {
     s->ech_cb=f;
 }
 
-void SSL_CTX_set_ech_callback(SSL_CTX *s, SSL_ech_cb_func f)
+void SSL_CTX_ech_set_callback(SSL_CTX *s, SSL_ech_cb_func f)
 {
     s->ext.ech_cb=f;
 }
@@ -4191,6 +4191,48 @@ int SSL_CTX_ech_raw_decrypt(SSL_CTX *ctx,
 err:
     if (s) SSL_free(s);
     if (inner_buf) OPENSSL_free(inner_buf);
+    return 0;
+}
+
+/**
+ * @brief set the ALPN values for the outer ClientHello 
+ *
+ * @param s is the SSL_CTX
+ * @param protos encodes the ALPN values 
+ * @param protos_len is the length of protos
+ * @return 1 for success, error otherwise
+ */
+int SSL_CTX_ech_set_outer_alpn_protos(SSL_CTX *ctx, const unsigned char *protos,
+                            const size_t protos_len)
+{
+    OPENSSL_free(ctx->ext.alpn_outer);
+    ctx->ext.alpn_outer = OPENSSL_memdup(protos, protos_len);
+    if (ctx->ext.alpn_outer == NULL) {
+        ERR_raise(ERR_LIB_SSL, ERR_R_MALLOC_FAILURE);
+        return 1;
+    }
+    ctx->ext.alpn_outer_len = protos_len;
+    return 0;
+}
+
+/**
+ * @brief set the ALPN values for the outer ClientHello 
+ *
+ * @param s is the SSL session
+ * @param protos encodes the ALPN values 
+ * @param protos_len is the length of protos
+ * @return 1 for success, error otherwise
+ */
+int SSL_ech_set_outer_alpn_protos(SSL *ssl, const unsigned char *protos,
+                        unsigned int protos_len)
+{
+    OPENSSL_free(ssl->ext.alpn_outer);
+    ssl->ext.alpn_outer = OPENSSL_memdup(protos, protos_len);
+    if (ssl->ext.alpn_outer == NULL) {
+        ERR_raise(ERR_LIB_SSL, ERR_R_MALLOC_FAILURE);
+        return 1;
+    }
+    ssl->ext.alpn_outer_len = protos_len;
     return 0;
 }
 

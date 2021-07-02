@@ -1998,7 +1998,7 @@ int s_client_main(int argc, char **argv)
             goto end;
         }
         /* Returns 0 on success! */
-        if (SSL_CTX_set_ech_alpn_protos(ctx, alpn_outer, alpn_outer_len) != 0) {
+        if (SSL_CTX_ech_set_outer_alpn_protos(ctx, alpn_outer, alpn_outer_len) != 0) {
             BIO_printf(bio_err, "Error setting ALPN-OUTER\n");
             goto end;
         }

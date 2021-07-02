@@ -2573,8 +2573,8 @@ int s_server_main(int argc, char *argv[])
         SSL_CTX_set_tlsext_servername_arg(ctx2, &tlsextcbp);
         SSL_CTX_set_tlsext_servername_callback(ctx, ssl_ech_servername_cb);
         SSL_CTX_set_tlsext_servername_arg(ctx, &tlsextcbp);
-        SSL_CTX_set_ech_callback(ctx2, ech_print_cb);
-        SSL_CTX_set_ech_callback(ctx, ech_print_cb);
+        SSL_CTX_ech_set_callback(ctx2, ech_print_cb);
+        SSL_CTX_ech_set_callback(ctx, ech_print_cb);
 #ifndef OPENSSL_NO_SSL_TRACE
         if (s_msg==2) {
             OSSL_trace_set_callback(OSSL_TRACE_CATEGORY_TLS, ech_trace_cb, bio_s_out);

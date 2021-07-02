@@ -196,7 +196,7 @@ int SSL_ech_set_outer_server_name(SSL *s, const char *outer_name);
  * @param protos_len is the length of protos
  * @return 1 for success, error otherwise
  */
-int SSL_CTX_set_ech_alpn_protos(SSL_CTX *ctx, const unsigned char *protos,
+int SSL_CTX_ech_set_outer_alpn_protos(SSL_CTX *ctx, const unsigned char *protos,
                             const size_t protos_len);
 
 /**
@@ -207,7 +207,7 @@ int SSL_CTX_set_ech_alpn_protos(SSL_CTX *ctx, const unsigned char *protos,
  * @param protos_len is the length of protos
  * @return 1 for success, error otherwise
  */
-int SSL_set_ech_alpn_protos(SSL *ssl, const unsigned char *protos,
+int SSL_ech_set_outer_alpn_protos(SSL *ssl, const unsigned char *protos,
                         unsigned int protos_len);
 
 /**
@@ -393,7 +393,7 @@ typedef unsigned int (*SSL_ech_cb_func)(SSL *ssl, char *str);
  * At that point, e.g. SSL_ech_get_status() could be called
  * so the application can find out what happened.
  */ 
-void SSL_set_ech_callback(SSL *s, SSL_ech_cb_func f);
+void SSL_ech_set_callback(SSL *s, SSL_ech_cb_func f);
 
 
 /**
@@ -406,7 +406,7 @@ void SSL_set_ech_callback(SSL *s, SSL_ech_cb_func f);
  * At that point, e.g. SSL_ech_get_status() could be called
  * so the application can find out what happened.
  */ 
-void SSL_CTX_set_ech_callback(SSL_CTX *s, SSL_ech_cb_func f);
+void SSL_CTX_ech_set_callback(SSL_CTX *s, SSL_ech_cb_func f);
 
 #endif
 #endif

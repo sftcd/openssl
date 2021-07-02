@@ -805,16 +805,6 @@ SSL *SSL_new(SSL_CTX *ctx)
         s->ext.alpn_len = s->ctx->ext.alpn_len;
     }
 
-#ifndef OPENSSL_NO_ECH
-    if (s->ctx->ext.alpn_outer) {
-        s->ext.alpn_outer = OPENSSL_malloc(s->ctx->ext.alpn_outer_len);
-        if (s->ext.alpn_outer == NULL)
-            goto err;
-        memcpy(s->ext.alpn_outer, s->ctx->ext.alpn_outer, s->ctx->ext.alpn_outer_len);
-        s->ext.alpn_outer_len = s->ctx->ext.alpn_outer_len;
-    }
-#endif
-
     s->verified_chain = NULL;
     s->verify_result = X509_V_OK;
 
@@ -883,6 +873,14 @@ SSL *SSL_new(SSL_CTX *ctx)
         s->ext.ech_grease=ECH_IS_GREASE;
     } else {
         s->ext.ech_grease=ECH_NOT_GREASE;
+    }
+
+    if (s->ctx->ext.alpn_outer) {
+        s->ext.alpn_outer = OPENSSL_malloc(s->ctx->ext.alpn_outer_len);
+        if (s->ext.alpn_outer == NULL)
+            goto err;
+        memcpy(s->ext.alpn_outer, s->ctx->ext.alpn_outer, s->ctx->ext.alpn_outer_len);
+        s->ext.alpn_outer_len = s->ctx->ext.alpn_outer_len;
     }
 
 #endif
@@ -1225,9 +1223,19 @@ void SSL_free(SSL *s)
     dane_final(&s->dane);
 #ifndef OPENSSL_NO_ECH
     /* 
-     * Tricksy way to only free this once
+     * Tricksy way to only free something a) on a server
+     * or b) on a client that's greasing or has an inner_s
+     * allocated (i.e. in process of attempting ECH) or
+     * that has no ECH config.
+     * That test was just derived via trian and error
+     * with various success and failure case tests.
      */
-#define INOUTFREE if ( s->server || (!s->server && (s->ext.ech_grease==ECH_IS_GREASE || s->ext.inner_s!=NULL || s->ech==NULL)))
+#define INOUTFREE \
+    if ( s->server || \
+       (!s->server && \
+           (s->ext.ech_grease==ECH_IS_GREASE || \
+            s->ext.inner_s!=NULL || \
+            s->ech==NULL)))
     INOUTFREE
 #endif
     CRYPTO_free_ex_data(CRYPTO_EX_INDEX_SSL, s, &s->ex_data);
@@ -1261,7 +1269,6 @@ void SSL_free(SSL *s)
     sk_SSL_CIPHER_free(s->tls13_ciphersuites);
     sk_SSL_CIPHER_free(s->peer_ciphers);
 
-    /* Make the next call work :-) */
 #ifndef OPENSSL_NO_ECH
     /* only do this one if... */
     if (    s->server ||
@@ -1305,16 +1312,8 @@ void SSL_free(SSL *s)
 #endif
     OPENSSL_free(s->ext.ocsp.resp);
     OPENSSL_free(s->ext.alpn);
-#ifndef OPENSSL_NO_ECH
-    OPENSSL_free(s->ext.alpn_outer);
-    OPENSSL_free(s->ext.ech_grease_suite);
-#endif
     OPENSSL_free(s->ext.tls13_cookie);
 #ifndef OPENSSL_NO_ECH
-    /* 
-     * s_server seems to not need this, but lighttpd may need it
-     * TODO: reconcile that!
-     */
     if (s->ext.inner_s==NULL && s->ext.outer_s!=NULL) 
 #endif
     if (s->clienthello != NULL)
@@ -1347,6 +1346,8 @@ void SSL_free(SSL *s)
 #endif
 
 #ifndef OPENSSL_NO_ECH
+    OPENSSL_free(s->ext.alpn_outer);
+    OPENSSL_free(s->ext.ech_grease_suite);
     OPENSSL_free(s->ext.innerch);
     OPENSSL_free(s->ext.encoded_innerch);
     if (s->nechs>0 && s->ech!=NULL) {
@@ -1384,10 +1385,6 @@ void SSL_free(SSL *s)
         s->ext.inner_s=NULL;
     } 
 
-
-    /*
-     * We also seem to leave this behind....
-     */
     if (s->s3.handshake_buffer) {
         (void)BIO_set_close(s->s3.handshake_buffer, BIO_CLOSE);
         BIO_free(s->s3.handshake_buffer);
@@ -1403,6 +1400,9 @@ void SSL_free(SSL *s)
 
 void SSL_set0_rbio(SSL *s, BIO *rbio)
 {
+#ifndef OPENSSL_NO_ECH
+    if (s->rbio)
+#endif
     BIO_free_all(s->rbio);
     s->rbio = rbio;
 }
@@ -3168,45 +3168,6 @@ int SSL_CTX_set_alpn_protos(SSL_CTX *ctx, const unsigned char *protos,
     return 0;
 }
 
-#ifndef OPENSSL_NO_ECH
-/*
- * SSL_CTX_set_ech_alpn_protos sets the ALPN protocol list for use in
- * the ECH outer CH, on |ctx| to |protos|.
- * |protos| must be in wire-format (i.e. a series of non-empty, 8-bit
- * length-prefixed strings). Returns 0 on success.
- */
-int SSL_CTX_set_ech_alpn_protos(SSL_CTX *ctx, const unsigned char *protos,
-                            const size_t protos_len)
-{
-    OPENSSL_free(ctx->ext.alpn_outer);
-    ctx->ext.alpn_outer = OPENSSL_memdup(protos, protos_len);
-    if (ctx->ext.alpn_outer == NULL) {
-        ERR_raise(ERR_LIB_SSL, ERR_R_MALLOC_FAILURE);
-        return 1;
-    }
-    ctx->ext.alpn_outer_len = protos_len;
-    return 0;
-}
-
-/*
- * SSL_set_ech_alpn_protos sets the outer CH ALPN protocol list on |ssl| to |protos|.
- * |protos| must be in wire-format (i.e. a series of non-empty, 8-bit
- * length-prefixed strings). Returns 0 on success.
- */
-int SSL_set_ech_alpn_protos(SSL *ssl, const unsigned char *protos,
-                        unsigned int protos_len)
-{
-    OPENSSL_free(ssl->ext.alpn_outer);
-    ssl->ext.alpn_outer = OPENSSL_memdup(protos, protos_len);
-    if (ssl->ext.alpn_outer == NULL) {
-        ERR_raise(ERR_LIB_SSL, ERR_R_MALLOC_FAILURE);
-        return 1;
-    }
-    ssl->ext.alpn_outer_len = protos_len;
-    return 0;
-}
-#endif
-
 /*
  * SSL_set_alpn_protos sets the ALPN protocol list on |ssl| to |protos|.
  * |protos| must be in wire-format (i.e. a series of non-empty, 8-bit
@@ -3534,6 +3495,9 @@ SSL_CTX *SSL_CTX_new_ex(OSSL_LIB_CTX *libctx, const char *propq,
 #ifndef OPENSSL_NO_ECH
 	ret->ext.nechs=0;
 	ret->ext.ech=NULL;
+    ret->ext.ech_cb=NULL; 
+    ret->ext.alpn_outer=NULL;
+    ret->ext.alpn_outer_len=0;
 #endif
 
     return ret;
@@ -3618,9 +3582,6 @@ void SSL_CTX_free(SSL_CTX *a)
     OPENSSL_free(a->ext.supportedgroups);
     OPENSSL_free(a->ext.supported_groups_default);
     OPENSSL_free(a->ext.alpn);
-#ifndef OPENSSL_NO_ECH
-    OPENSSL_free(a->ext.alpn_outer);
-#endif
     OPENSSL_secure_free(a->ext.secure);
 
     ssl_evp_md_free(a->md5);
@@ -3650,6 +3611,7 @@ void SSL_CTX_free(SSL_CTX *a)
 		a->ext.ech=NULL;
 		a->ext.nechs=0;
 	}
+    OPENSSL_free(a->ext.alpn_outer);
 #endif
 
     CRYPTO_THREAD_lock_free(a->lock);
@@ -4313,6 +4275,22 @@ SSL *SSL_dup(SSL *s)
         }
     } 
     ret->ech_cb=s->ech_cb;
+    if (s->ext.alpn_outer && s->ext.alpn_outer_len >0) {
+        if (ret->ext.alpn_outer!=NULL) OPENSSL_free(ret->ext.alpn_outer);
+        ret->ext.alpn_outer=OPENSSL_malloc(s->ext.alpn_outer_len);
+        if (!ret->ext.alpn_outer) {
+            goto err;
+        }
+        ret->ext.alpn_outer_len=s->ext.alpn_outer_len;
+        memcpy(ret->ext.alpn_outer,s->ext.alpn_outer,s->ext.alpn_outer_len);
+    } else {
+        ret->ext.alpn_outer=NULL;
+        ret->ext.alpn_outer_len=0;
+    }
+    if (s->ext.ech_grease_suite) {
+        if (ret->ext.ech_grease_suite) OPENSSL_free(ret->ext.ech_grease_suite);
+        ret->ext.ech_grease_suite=OPENSSL_strdup(s->ext.ech_grease_suite);
+    }
     ret->ext.inner_s=s->ext.inner_s;
     ret->ext.outer_s=s->ext.outer_s;
     ret->ext.ech_done=s->ext.ech_done;

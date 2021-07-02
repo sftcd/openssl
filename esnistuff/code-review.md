@@ -251,10 +251,31 @@ more lasting.
 
 * Removed a couple of no-longer used fields: ``ech_dropped_from_ch``
 (and it's length).
+* **TODO**: move "More ECH details" fields into within ext
+  substructure same as others, e.g. ``s->ech --> s->ext.ech``
+  same for ``s->nechs`` and ``s->ech_cb`` - only reason to 
+  not do it yet is pressed for time right now and it affects
+  9 c files.
 * **TODO**: consider moving ``alpn_outer`` into ECHConfig, but
 first check ALPN stuff in SVCB speec.
 
 ## ``./ssl/ssl_lib.c``
+
+* **TODO**: At the expense of making the diff vs. upstream worse, we could
+collect together the various ECH specific tests in ``SSL_free`` (e.g.
+``INOUTFREE`` and friends).  That might make upstream merges harder though to
+leave it for later.
+* Moved ``SSL_CTX_set_ech_alpn_protos`` and ``SSL_set_ech_alpn_protos``
+from here to ``ssl/ech.c`` where they belong better (for now), and
+also re-named 'em to ``SSL_CTX_ech_set_outer_alpn_protos`` and
+``SSL_ech_set_outer_alpn_protos`` for better consistency and clarity.
+(Did a similar naming improvement with ``SSL_ech_set_callback`` 
+becomming ``SSL_ech_set_callback`` and same for ``SSL_CTX``
+version.)
+* Some tidy-up of copies within ``SSL_dup()`` and similar for
+``alpn_outer`` and ``ech_grease_suite``.
+
+
 ## ``./esnistuff/haproxy.html``
 ## ``./esnistuff/haproxy.md``
 ## ``./esnistuff/README.md``

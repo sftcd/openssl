@@ -1123,7 +1123,7 @@ struct ssl_ctx_st {
 
 #ifndef OPENSSL_NO_ECH
         /*
-         * Encrypted ClientHello details
+         * Encrypted ClientHello details for SSL_CTX
          */
         int nechs;
         SSL_ECH *ech;
@@ -1604,6 +1604,7 @@ struct ssl_st {
 
 #ifndef OPENSSL_NO_ECH
         /*
+         * ECH details for SSL struct
          * inner CH encodings for the client
          * and maybe now server too...
          */
@@ -1747,6 +1748,9 @@ struct ssl_st {
      */
     int servername_done;
 #ifndef OPENSSL_NO_ECH
+    /*
+     * More ECH details for SSL struct
+     */
     int nechs;
     SSL_ECH *ech;
     SSL_ech_cb_func ech_cb; 
