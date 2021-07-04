@@ -1995,6 +1995,7 @@ static int ech_outer_config[]={
 #ifndef OPENSSL_NO_ECH
      /*TLSEXT_IDX_ech */ 0,
      /*TLSEXT_IDX_outer_extensions */ 0,
+     /*TLSEXT_IDX_ech_is_inner */ 0,
 #endif
      /*TLSEXT_IDX_padding */ 0,
      /*TLSEXT_IDX_psk */ 0,
