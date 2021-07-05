@@ -1712,6 +1712,19 @@ int tls_psk_do_binder(SSL *s, const EVP_MD *md, const unsigned char *msgstart,
         }
     }
 
+#ifndef OPENSSL_NO_ECH
+    /* 
+     * hacky hack to test if overall length is the only
+     * difference causing binder check to fail
+     * TODO: put in place a real transcript API maybe?
+     */
+    if (s->server && s->ext.ech_success) {
+        unsigned char *rwm=(unsigned char*)msgstart;
+        rwm[2]=((binderoffset+0x33-4)>>8%256);
+        rwm[3]=((binderoffset+0x33-4)%256);
+    }
+#endif
+
     if (EVP_DigestUpdate(mctx, msgstart, binderoffset) <= 0
             || EVP_DigestFinal_ex(mctx, hash, NULL) <= 0) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);

@@ -196,6 +196,12 @@ flag when it'd be set already so removed that code.
 
 ``final_server_name`` prototype moved to ``statem_local.h``
 
+**TODO**: added a new hacky bit of code to fix up the
+transcript when calculating binders - shows up the need
+for some kind of more generic transcript API probably
+(as we had to fix the overall CH 3-octet length which
+isn't really writable for that code) 
+
 ## ``./ssl/statem/extensions_srvr.c``
 
 The few bits of code there seem sensible. ("Few bits" because
@@ -275,12 +281,33 @@ version.)
 * Some tidy-up of copies within ``SSL_dup()`` and similar for
 ``alpn_outer`` and ``ech_grease_suite``.
 
-
-## ``./esnistuff/haproxy.html``
 ## ``./esnistuff/haproxy.md``
+
+N/A
+
 ## ``./esnistuff/README.md``
+
+N/A
+
 ## ``./test/buildtest_ech.c``
+
+N/A
+
 ## ``./apps/lib/s_cb.c``
+
+Only new code here added strings for the new extension types, so
+all's good.
+
 ## ``./apps/ech.c``
+
+**TODO** will come back to this @ end.
+
 ## ``./apps/s_client.c``
+
+* tweaked ``new_session_cb`` - that needs testing (it's been a while
+since I tried out session storage/resumption)
+* made a few changes for session storage/resumption (leading to
+a new added temporary hack to ``ssl/statem/extensions.c``)
+
+
 ## ``./apps/s_server.c``

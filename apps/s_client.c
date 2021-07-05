@@ -18,7 +18,7 @@
 
 #ifndef OPENSSL_NO_ECH
 # include <openssl/ech.h>
-#define ECH_NAME_NONE "NONE"
+
 #endif
 
 #ifndef OPENSSL_NO_SOCK
@@ -72,6 +72,13 @@ static int c_quiet = 0;
 static char *sess_out = NULL;
 
 #ifndef OPENSSL_NO_ECH
+/*
+ * ECH_NAME_NONE provides a command line way to indicate that e.g.
+ * the outer SNI ought not be sent, thus overriding a public_name
+ * from an ECHConfig.
+ */
+#define ECH_NAME_NONE "NONE"
+
 static const char *ech_inner_name=NULL; 
 static const char *sni_outer_name=NULL; 
 static int ech_grease=0;
@@ -470,9 +477,6 @@ typedef enum OPTION_choice {
     OPT_DTLS1_2, OPT_SCTP, OPT_TIMEOUT, OPT_MTU, OPT_KEYFORM, OPT_PASS,
     OPT_CERT_CHAIN, OPT_KEY, OPT_RECONNECT, OPT_BUILD_CHAIN,
     OPT_NEXTPROTONEG, OPT_ALPN,
-#ifndef OPENSSL_NO_ECH
-    OPT_ALPN_OUTER,
-#endif
     OPT_CAPATH, OPT_NOCAPATH, OPT_CHAINCAPATH, OPT_VERIFYCAPATH,
     OPT_CAFILE, OPT_NOCAFILE, OPT_CHAINCAFILE, OPT_VERIFYCAFILE,
     OPT_CASTORE, OPT_NOCASTORE, OPT_CHAINCASTORE, OPT_VERIFYCASTORE,
@@ -491,11 +495,9 @@ typedef enum OPTION_choice {
     OPT_DANE_TLSA_RRDATA, OPT_DANE_EE_NO_NAME,
     OPT_ENABLE_PHA,
 #ifndef OPENSSL_NO_ECH
-    OPT_SNIOUTER,
-    OPT_ECHCONFIGS,
-    OPT_SVCB,
-    OPT_ECH_GREASE,
-    OPT_ECH_GREASE_SUITE,
+    OPT_SNIOUTER, OPT_ALPN_OUTER,
+    OPT_ECHCONFIGS, OPT_SVCB,
+    OPT_ECH_GREASE, OPT_ECH_GREASE_SUITE,
 #endif
     OPT_SCTP_LABEL_BUG,
     OPT_R_ENUM, OPT_PROV_ENUM
@@ -640,10 +642,6 @@ const OPTIONS s_client_options[] = {
      "types  Send empty ClientHello extensions (comma-separated numbers)"},
     {"alpn", OPT_ALPN, 's',
      "Enable ALPN extension, considering named protocols supported (comma-separated list)"},
-#ifndef OPENSSL_NO_ECH
-    {"alpn-outer", OPT_ALPN_OUTER, 's',
-     "Specify outer ALPN value, when using ECH (comma-separated list, or \"NONE\"))"},
-#endif
     {"async", OPT_ASYNC, '-', "Support asynchronous operation"},
     {"nbio", OPT_NBIO, '-', "Use non-blocking IO"},
 
@@ -687,11 +685,13 @@ const OPTIONS s_client_options[] = {
     {"enable_pha", OPT_ENABLE_PHA, '-', "Enable post-handshake-authentication"},
 #ifndef OPENSSL_NO_ECH
     {"sni-outer", OPT_SNIOUTER, 's',
-     "The name to put in the outer CH overriding the server's choice, or \"NONE\""},
+     "The name to put in the outer CH when overriding the server's choice, or \"NONE\""},
+    {"alpn-outer", OPT_ALPN_OUTER, 's',
+     "Specify outer ALPN value, when using ECH (comma-separated list, or \"NONE\"))"},
     {"echconfigs", OPT_ECHCONFIGS, 's',
-     "Set ECHConfigs, value is b64, ASCII-HEX or binary encoded ECHConfigs"},
+     "Set ECHConfigs, value is b64 or ASCII-HEX encoded ECHConfigs"},
     {"svcb", OPT_SVCB, 's',
-     "Set ECHConfigs and possibly ALPN vis an SVCB RData, b64, ASCII-HEX or binary encoded"},
+     "Set ECHConfigs and possibly ALPN vis an SVCB RData, b64 or ASCII-HEX encoded"},
     {"ech_grease",OPT_ECH_GREASE,'-',
      "Send GREASE values when not really using ECH"},
     {"ech_grease_suite",OPT_ECH_GREASE_SUITE,'s',
@@ -815,25 +815,32 @@ static int new_session_cb(SSL *s, SSL_SESSION *sess)
 	        BIO_printf(bio_c_out,"Existing session hostname is %s\n",hn_1);
 	    }
         rv=SSL_ech_get_status(s,&inner,&outer);
-        if (rv==SSL_ECH_STATUS_SUCCESS) {
-            if (c_debug) {
-                BIO_printf(bio_err, "ECH Succeeded\n");
-                ERR_print_errors(bio_err);
-            }
-        } else {
-            if (c_debug) {
-                BIO_printf(bio_err, "ECH did not succeed\n");
-                ERR_print_errors(bio_err);
-            }
+        switch (rv) {
+            case SSL_ECH_STATUS_SUCCESS:
+                if (c_debug) { BIO_printf(bio_err, "ECH Succeeded\n"); ERR_print_errors(bio_err); break; }
+            case SSL_ECH_STATUS_GREASE:
+                if (c_debug) { BIO_printf(bio_err, "ECH sent GREASE\n"); ERR_print_errors(bio_err); break; }
+            case SSL_ECH_STATUS_NOT_TRIED:
+                if (c_debug) { BIO_printf(bio_err, "ECH not attempted\n"); ERR_print_errors(bio_err); break; }
+            case SSL_ECH_STATUS_NOT_CONFIGURED:
+                if (c_debug) { BIO_printf(bio_err, "ECH not configured\n"); ERR_print_errors(bio_err); break; }
             /*
-             * Don't save session 
+             * Error cases so we don't save session 
              */
-            return 0;
-        }
-	    if (c_debug) {
-	        BIO_printf(bio_err,"---\nECH stuff so far:\n");
-	        SSL_SESSION_print(bio_err, sess);
+            case SSL_ECH_STATUS_BACKEND:
+                if (c_debug) { BIO_printf(bio_err, "ECH failed\n"); ERR_print_errors(bio_err); return 0; }
+            case SSL_ECH_STATUS_FAILED:
+                if (c_debug) { BIO_printf(bio_err, "ECH failed\n"); ERR_print_errors(bio_err); return 0; }
+            case SSL_ECH_STATUS_BAD_CALL:
+                if (c_debug) { BIO_printf(bio_err, "ECH failed\n"); ERR_print_errors(bio_err); return 0; }
+            case SSL_ECH_STATUS_BAD_NAME:
+                if (c_debug) { BIO_printf(bio_err, "ECH failed\n"); ERR_print_errors(bio_err); return 0; }
+            case SSL_ECH_STATUS_TOOMANY:
+                if (c_debug) { BIO_printf(bio_err, "ECH failed\n"); ERR_print_errors(bio_err); return 0; }
+            default:
+                if (c_debug) { BIO_printf(bio_err, "ECH unexpected status %d\n",rv); ERR_print_errors(bio_err); return 0; }
 	    }
+        SSL_SESSION_print(bio_err, sess);
     }
 #endif
 
@@ -2137,11 +2144,8 @@ int s_client_main(int argc, char **argv)
 #ifndef OPENSSL_NO_ECH
         {
 	        /*
-	         * As per RFC8446, 4.6.1 check that the cert in the session covers
-	         * the server name we want (preferring the inner name (if set) over 
-	         * the outer (if set).
-	         * At this point it doesn't really matter what the old names in
-	         * the session were, those are just informative.
+	         * Check that the cert in the session covers
+	         * the server name we want 
 	         */
 	        const char *thisname=NULL;
 	        if (ech_inner_name!=NULL) {

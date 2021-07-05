@@ -13,6 +13,7 @@
 #include "statem_local.h"
 
 #ifndef OPENSSL_NO_ECH
+#include <openssl/rand.h>
 /*
  * Handle inner/outer CH issues - ech_same_ext will 
  * (depending on compile time options) copy the 
@@ -28,7 +29,7 @@
  * keep the ansi-c compile happy) but also after any
  * checks that result in the extension not being sent.
  */
-#define IOSAME if (s->ech) { \
+#define IOSAME if (s->ech && !s->ext.ech_grease) { \
         int __rv=ech_same_ext(s,pkt); \
         if (__rv==ECH_SAME_EXT_ERR) return(EXT_RETURN_FAIL); \
         if (__rv==ECH_SAME_EXT_DONE) return(EXT_RETURN_SENT); \
@@ -1208,9 +1209,6 @@ EXT_RETURN tls_construct_ctos_psk(SSL *s, WPACKET *pkt, unsigned int context,
     if (s->session->ssl_version != TLS1_3_VERSION
             || (s->session->ext.ticklen == 0 && s->psksession == NULL))
         return EXT_RETURN_NOT_SENT;
-#ifndef OPENSSL_NO_ECH
-    IOSAME
-#endif
 
     if (s->hello_retry_request == SSL_HRR_PENDING)
         handmd = ssl_handshake_md(s);
@@ -1324,6 +1322,75 @@ EXT_RETURN tls_construct_ctos_psk(SSL *s, WPACKET *pkt, unsigned int context,
         return EXT_RETURN_FAIL;
     }
 
+#ifndef OPENSSL_NO_ECH
+    /*
+     * For ECH if we're processing the outer CH and the inner CH
+     * has a PSK, then we want to send a GREASE PSK in the outer.
+     * We'll do that by just replacing the ticket value itself
+     * with a random value of the same length.
+     */ 
+    {
+        unsigned char *ltick=s->session->ext.tick;
+        unsigned char *rndbuf=NULL;
+
+        if (s->ech && s->ext.ch_depth==0) { /* outer CH */
+            /* allocate a similar sized random value */
+            rndbuf=OPENSSL_malloc(s->session->ext.ticklen);
+            if (!rndbuf) return EXT_RETURN_FAIL;
+            if (RAND_bytes_ex(s->ctx->libctx, rndbuf, 
+                        s->session->ext.ticklen, RAND_DRBG_STRENGTH) <= 0) {
+                OPENSSL_free(rndbuf);
+                return EXT_RETURN_FAIL;
+            }
+            ltick=rndbuf;
+        }
+
+        if (dores) {
+            if (!WPACKET_sub_memcpy_u16(pkt, ltick,
+                                            s->session->ext.ticklen)
+                    || !WPACKET_put_bytes_u32(pkt, agems)) {
+                SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+                if (rndbuf!=NULL) OPENSSL_free(rndbuf);
+                return EXT_RETURN_FAIL;
+            }
+        }
+
+        if (s->psksession != NULL) {
+            if (!WPACKET_sub_memcpy_u16(pkt, s->psksession_id,
+                                        s->psksession_id_len)
+                    || !WPACKET_put_bytes_u32(pkt, 0)) {
+                SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+                if (rndbuf!=NULL) OPENSSL_free(rndbuf);
+                return EXT_RETURN_FAIL;
+            }
+            s->ext.tick_identity++;
+        }
+
+        if (!WPACKET_close(pkt)
+                || !WPACKET_get_total_written(pkt, &binderoffset)
+                || !WPACKET_start_sub_packet_u16(pkt)
+                || (dores
+                    && !WPACKET_sub_allocate_bytes_u8(pkt, reshashsize, &resbinder))
+                || (s->psksession != NULL
+                    && !WPACKET_sub_allocate_bytes_u8(pkt, pskhashsize, &pskbinder))
+                || !WPACKET_close(pkt)
+                || !WPACKET_close(pkt)
+                || !WPACKET_get_total_written(pkt, &msglen)
+                /*
+                    * We need to fill in all the sub-packet lengths now so we can
+                    * calculate the HMAC of the message up to the binders
+                */
+                || !WPACKET_fill_lengths(pkt)) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+            if (rndbuf!=NULL) OPENSSL_free(rndbuf);
+            return EXT_RETURN_FAIL;
+        }
+
+        if (rndbuf!=NULL) OPENSSL_free(rndbuf);
+    
+    }
+#else
+
     if (dores) {
         if (!WPACKET_sub_memcpy_u16(pkt, s->session->ext.tick,
                                            s->session->ext.ticklen)
@@ -1361,6 +1428,8 @@ EXT_RETURN tls_construct_ctos_psk(SSL *s, WPACKET *pkt, unsigned int context,
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return EXT_RETURN_FAIL;
     }
+
+#endif /* OPENSSL_NO_ECH */
 
     msgstart = WPACKET_get_curr(pkt) - msglen;
 
