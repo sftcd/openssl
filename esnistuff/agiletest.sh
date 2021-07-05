@@ -26,6 +26,13 @@ AEAD_STRINGS=(aes-123-gcm aes-256-gcm chacha20poly1305 bogus-aead)
 AEAD_IDS=(0x01 0x02 0x03 0xa2)
 NAEADS=${#AEAD_IDS[*]}
 
+# set which tests to skip - set to "yes" to skip or "no" to do tests
+# the basic good tests
+skipgood="no"
+# the basic bad tests
+skipbad="no"
+# the session re-use tests
+skipsess="no"
 
 verbose="no"
 if [[ "$VERBOSE" != "" ]]
@@ -160,7 +167,6 @@ then
     kill $pids
 fi
 
-skipgood="no"
 if [[ "$skipgood" == "no" ]]
 then
 for file in *.pem 
@@ -227,6 +233,8 @@ done
 fi
 
 # Try out some deliberate failure cases
+if [[ "$skipbad" == "no" ]]
+then
 for file in *.pem 
 do
     kem=${file:0:4}
@@ -306,7 +314,111 @@ do
         exit 21
     fi
 done
+fi
 
+# Do some session resumption checks
+# It'd be better to do fewer of these but with more complex
+# setups. One for later.
+if [[ "$skipsess" == "no" ]]
+then
+for file in *.pem 
+do
+    kem=${file:0:4}
+    kdf=${file:5:4}
+    aead=${file:10:4}
+    sessfile="$kem,$kdf,$aead.sess"
+    echo "s_client/s_server resumption test for kem: $kem, kdf: $kdf, aead; $aead"
+    # start server
+    if [[ "$verbose" == "yes" ]]
+    then
+        CFGTOP=$scratchdir $CODETOP/esnistuff/echsvr.sh -w -k $scratchdir/$file $vparm &
+    else
+        CFGTOP=$scratchdir $CODETOP/esnistuff/echsvr.sh -w -k $scratchdir/$file $vparm >/dev/null 2>&1 &
+    fi
+    # wait a bit
+    sleep $sleepb4
+    pids=`ps -ef | grep s_server | grep -v grep | awk '{print $2}'`
+    if [[ "$pids" == "" ]]
+    then
+        echo "No sign of s_server - exiting (before client)"
+        # exiting without cleanup
+        exit 19
+    fi
+    # Try an 'aul initial client...
+    # wait a bit
+    if [ -f $sessfile ]
+    then
+        echo "Removing old $sessfile"
+        rm $sessfile
+    fi
+    sleep $sleepb4
+
+    # first go 'round, acquire the session
+    if [[ "$verbose" == "yes" ]]
+    then
+        $CODETOP/esnistuff/echcli.sh -P `$CODETOP/esnistuff/pem2rr.sh -p $file` -s localhost -p 8443 -H foo.example.com $vparm -f index.html -S $sessfile
+    else
+        $CODETOP/esnistuff/echcli.sh -P `$CODETOP/esnistuff/pem2rr.sh -p $file` -s localhost -p 8443 -H foo.example.com $vparm -f index.html -S $sessfile >/dev/null 2>&1
+    fi
+    cret=$?
+    if [ ! -f $sessfile ]
+    then
+        echo "No sign of $sessfile - exiting"
+        exit 87
+    fi
+    if [[ "$cret" != "0" ]]
+    then
+        echo "Client failed acquiring session for $file - exiting"
+        exit 21
+    fi
+
+    # second go 'round, re-use the session
+    if [[ "$verbose" == "yes" ]]
+    then
+        $CODETOP/esnistuff/echcli.sh -P `$CODETOP/esnistuff/pem2rr.sh -p $file` -s localhost -p 8443 -H foo.example.com $vparm -f index.html -S $sessfile
+    else
+        $CODETOP/esnistuff/echcli.sh -P `$CODETOP/esnistuff/pem2rr.sh -p $file` -s localhost -p 8443 -H foo.example.com $vparm -f index.html -S $sessfile >/dev/null 2>&1
+    fi
+    cret=$?
+    if [ ! -f $sessfile ]
+    then
+        echo "No sign of $sessfile - exiting"
+        exit 88
+    fi
+    if [[ "$cret" != "0" ]]
+    then
+        echo "Client failed re-using session for $file - exiting"
+        exit 21
+    fi
+
+    # kill server
+    pids=`ps -ef | grep s_server | grep -v grep | awk '{print $2}'`
+    if [[ "$pids" == "" ]]
+    then
+        echo "No sign of s_server - exiting (after client)"
+        # exiting without cleanup
+        exit 19
+    fi
+    kill $pids
+    portpid=`netstat -anp 2>/dev/null | grep 8443 | grep openssl | awk '{print $7}' | sed -e 's#/.*##' 2>/dev/null`
+    if [[ "$portpid" != "" ]]
+    then
+        kill $portpid
+    fi
+    # sleep a bit
+    sleep $sleepaftr
+    pids=`ps -ef | grep s_server | grep -v grep | awk '{print $2}'`
+    if [[ "$pids" != "" ]]
+    then
+        echo "hmm... $pids still running - exiting"
+        # exiting without cleanup
+        exit 20
+    fi
+
+done
+fi
+
+# cleanup
 cd $startdir
 # clear up unless asked, to re-use
 if [[ "$KEEP" == "" && "$SCRATCHDIR" == "" ]]
