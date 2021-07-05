@@ -817,28 +817,38 @@ static int new_session_cb(SSL *s, SSL_SESSION *sess)
         rv=SSL_ech_get_status(s,&inner,&outer);
         switch (rv) {
             case SSL_ECH_STATUS_SUCCESS:
-                if (c_debug) { BIO_printf(bio_err, "ECH Succeeded\n"); ERR_print_errors(bio_err); break; }
+                if (c_debug) { BIO_printf(bio_err, "ECH Succeeded\n"); ERR_print_errors(bio_err); } 
+                break;
             case SSL_ECH_STATUS_GREASE:
-                if (c_debug) { BIO_printf(bio_err, "ECH sent GREASE\n"); ERR_print_errors(bio_err); break; }
+                if (c_debug) { BIO_printf(bio_err, "ECH sent GREASE\n"); ERR_print_errors(bio_err); } 
+                break;
             case SSL_ECH_STATUS_NOT_TRIED:
-                if (c_debug) { BIO_printf(bio_err, "ECH not attempted\n"); ERR_print_errors(bio_err); break; }
+                if (c_debug) { BIO_printf(bio_err, "ECH not attempted\n"); ERR_print_errors(bio_err); } 
+                break;
             case SSL_ECH_STATUS_NOT_CONFIGURED:
-                if (c_debug) { BIO_printf(bio_err, "ECH not configured\n"); ERR_print_errors(bio_err); break; }
+                if (c_debug) { BIO_printf(bio_err, "ECH not configured\n"); ERR_print_errors(bio_err); } 
+                break;
             /*
              * Error cases so we don't save session 
              */
             case SSL_ECH_STATUS_BACKEND:
-                if (c_debug) { BIO_printf(bio_err, "ECH failed\n"); ERR_print_errors(bio_err); return 0; }
+                if (c_debug) { BIO_printf(bio_err, "ECH failed\n"); ERR_print_errors(bio_err); } 
+                return 0;
             case SSL_ECH_STATUS_FAILED:
-                if (c_debug) { BIO_printf(bio_err, "ECH failed\n"); ERR_print_errors(bio_err); return 0; }
+                if (c_debug) { BIO_printf(bio_err, "ECH failed\n"); ERR_print_errors(bio_err); } 
+                return 0;
             case SSL_ECH_STATUS_BAD_CALL:
-                if (c_debug) { BIO_printf(bio_err, "ECH failed\n"); ERR_print_errors(bio_err); return 0; }
+                if (c_debug) { BIO_printf(bio_err, "ECH failed\n"); ERR_print_errors(bio_err); } 
+                return 0;
             case SSL_ECH_STATUS_BAD_NAME:
-                if (c_debug) { BIO_printf(bio_err, "ECH failed\n"); ERR_print_errors(bio_err); return 0; }
+                if (c_debug) { BIO_printf(bio_err, "ECH failed\n"); ERR_print_errors(bio_err); } 
+                return 0;
             case SSL_ECH_STATUS_TOOMANY:
-                if (c_debug) { BIO_printf(bio_err, "ECH failed\n"); ERR_print_errors(bio_err); return 0; }
+                if (c_debug) { BIO_printf(bio_err, "ECH failed\n"); ERR_print_errors(bio_err); } 
+                return 0;
             default:
-                if (c_debug) { BIO_printf(bio_err, "ECH unexpected status %d\n",rv); ERR_print_errors(bio_err); return 0; }
+                if (c_debug) { BIO_printf(bio_err, "ECH unexpected status %d\n",rv); ERR_print_errors(bio_err); } 
+                return 0;
 	    }
         SSL_SESSION_print(bio_err, sess);
     }
@@ -3574,8 +3584,16 @@ static void print_stuff(BIO *bio, SSL *s, int full)
             char *outer=NULL;
             switch (SSL_ech_get_status(s,&inner,&outer)) {
             case SSL_ECH_STATUS_NOT_CONFIGURED:
+                BIO_printf(bio,"ECH: not configured\n");
                 break;
             case SSL_ECH_STATUS_NOT_TRIED: 
+                BIO_printf(bio,"ECH: not tried\n");
+                break;
+            case SSL_ECH_STATUS_BACKEND: 
+                BIO_printf(bio,"ECH: I think I'm a backend!!! (how? no idea;-)\n");
+                break;
+            case SSL_ECH_STATUS_TOOMANY: 
+                BIO_printf(bio,"ECH: Too many ECH keys\n");
                 break;
             case SSL_ECH_STATUS_FAILED: 
                 BIO_printf(bio,"ECH: tried but failed\n");
