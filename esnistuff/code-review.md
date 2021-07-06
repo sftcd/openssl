@@ -8,7 +8,15 @@ All code changes are protected via ``#ifndef OPENSSL_NO_ECH`` so
 running a find for that we get the list below. (We'll do a cross
 check vs. the master branch too later.)
 
+A similar exercise will be needed for our [HPKE code](https://github.com/sftcd/happykey).
+
 ## Pass-2
+
+[Pass-1](#Pass-1) generated a bunch of TODOs and I also left
+a few of the core files to consider after I'd sorted out a
+pile of the more trivial changes. We'll see how many of those
+I fix properly in this pass. (There will be a few that need
+to wait until the IETF standardisation process is done.)
 
             $ find . -type f -exec grep -l OPENSSL_NO_ECH {} \;
             ./include/openssl/ssl.h.in
@@ -43,48 +51,52 @@ check vs. the master branch too later.)
             ./apps/s_client.c
             ./apps/s_server.c
 
-### ./include/openssl/ssl.h.in
+### ``./include/openssl/ssl.h.in``
 
 Clean (enough). We could add an option related to padding
 I guess but given there are APIs for that already that's
 fine to leave for now.
 
-### ./include/openssl/pem.h
+### ``./include/openssl/pem.h``
 
 Clean.
 
-### ./include/openssl/ech.h
+### ``./include/openssl/ech.h``
 
-* working on this now.
+* Explained ``HPKE_MAXSIZE`` usage
+* Found some better OpenSSL constants where I'd #define'd new ones.
+* Moved strings used in ECH key derivation to ``ssl/ech_local.h``
+* **TODO:** re-test the various RR value input formats (binary, ascii-hex, b64
+  etc.)
 
-### ./include/openssl/tls1.h
-### ./include/openssl/ssl.h
-### ./ssl/ssl_sess.c
-### ./ssl/tls13_enc.c
-### ./ssl/t1_trce.c
-### ./ssl/record/ssl3_record_tls13.c
-### ./ssl/ech_local.h
-### ./ssl/s3_enc.c
-### ./ssl/ech.c
-### ./ssl/ssl_txt.c
-### ./ssl/statem/statem_local.h
-### ./ssl/statem/extensions.c
-### ./ssl/statem/extensions_srvr.c
-### ./ssl/statem/extensions_clnt.c
-### ./ssl/statem/statem_clnt.c
-### ./ssl/statem/statem_lib.c
-### ./ssl/statem/statem_srvr.c
-### ./ssl/ssl_local.h
-### ./ssl/ssl_lib.c
-### ./esnistuff/haproxy.html
-### ./esnistuff/haproxy.md
-### ./esnistuff/README.md
-### ./esnistuff/code-review.md
-### ./test/buildtest_ech.c
-### ./apps/lib/s_cb.c
-### ./apps/ech.c
-### ./apps/s_client.c
-### ./apps/s_server.c
+### ``./include/openssl/tls1.h``
+### ``./include/openssl/ssl.h``
+### ``./ssl/ssl_sess.c``
+### ``./ssl/tls13_enc.c``
+### ``./ssl/t1_trce.c``
+### ``./ssl/record/ssl3_record_tls13.c``
+### ``./ssl/ech_local.h``
+### ``./ssl/s3_enc.c``
+### ``./ssl/ech.c``
+### ``./ssl/ssl_txt.c``
+### ``./ssl/statem/statem_local.h``
+### ``./ssl/statem/extensions.c``
+### ``./ssl/statem/extensions_srvr.c``
+### ``./ssl/statem/extensions_clnt.c``
+### ``./ssl/statem/statem_clnt.c``
+### ``./ssl/statem/statem_lib.c``
+### ``./ssl/statem/statem_srvr.c``
+### ``./ssl/ssl_local.h``
+### ``./ssl/ssl_lib.c``
+### ``./esnistuff/haproxy.html``
+### ``./esnistuff/haproxy.md``
+### ``./esnistuff/README.md``
+### ``./esnistuff/code-review.md``
+### ``./test/buildtest_ech.c``
+### ``./apps/lib/s_cb.c``
+### ``./apps/ech.c``
+### ``./apps/s_client.c``
+### ``./apps/s_server.c``
 
 ## Pass-1
 

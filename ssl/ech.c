@@ -751,7 +751,7 @@ static ECHConfigs *ECHConfigs_from_binary(unsigned char *binbuf, size_t binblen,
 	            if (!PACKET_get_net_2(&exts,&exttype)) {
 	                goto err;
 	            }
-	            if (extlen>=ECH_MAX_RRVALUE_LEN) {
+	            if (extlen>=ECH_MAX_ECHCONFIGEXT_LEN) {
 	                goto err;
 	            }
 	            if (!PACKET_get_net_2(&exts,&extlen)) {
@@ -900,7 +900,7 @@ static ECHConfigs *ECHConfigs_from_binary(unsigned char *binbuf, size_t binblen,
 	            if (!PACKET_get_net_2(&exts,&exttype)) {
 	                goto err;
 	            }
-	            if (extlen>=ECH_MAX_RRVALUE_LEN) {
+	            if (extlen>=ECH_MAX_ECHCONFIGEXT_LEN) {
 	                goto err;
 	            }
 	            if (!PACKET_get_net_2(&exts,&extlen)) {
@@ -1152,7 +1152,7 @@ static int local_decode_rdata_name(unsigned char **buf,size_t *remaining,char **
     if (!buf) return(0);
     if (!remaining) return(0);
     if (!dnsname) return(0);
-    thename=OPENSSL_malloc(ECH_MAX_DNSNAME);
+    thename=OPENSSL_malloc(TLSEXT_MAXLEN_host_name);
     if (thename==NULL) {
         return(0);
     }

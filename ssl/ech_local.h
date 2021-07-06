@@ -41,6 +41,13 @@
 #define ECH_NOT_GREASE 0 /**< value for s->ext.ech_grease when decryption worked */
 #define ECH_IS_GREASE 1 /**< value for s->ext.ech_grease when decryption failed */
 
+/*
+ * Strings used in ECH crypto derivations
+ */
+#define ECH_CONFIG_ID_STRING (char*) "tls ech config id"
+#define ECH_CONTEXT_STRING (char*) "tls ech"
+#define ECH_ACCEPT_CONFIRM_STRING (char*) "ech accept confirmation"
+
 /** 
  * @brief Representation of what goes in DNS for draft-10
  *

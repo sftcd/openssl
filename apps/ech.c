@@ -26,7 +26,7 @@
 
 #ifndef OPENSSL_NO_ECH
 
-#define ECH_MAX_MAXNAMELENGTH 255
+#define ECH_MAX_ECHCONFIGS_BUFLEN 2000  /**< max PEM encoded ECHConfigs we'll emit */
 
 typedef enum OPTION_choice {
     /* 
@@ -453,8 +453,10 @@ int ech_main(int argc, char **argv)
             goto end;
     }
 
-    if (max_name_length>ECH_MAX_MAXNAMELENGTH) {
-        BIO_printf(bio_err, "Weird max name length (0x%04x) - biggest is (0x%04x) - exiting\n",max_name_length,ECH_MAX_MAXNAMELENGTH);
+    if (max_name_length>TLSEXT_MAXLEN_host_name) {
+        BIO_printf(bio_err, 
+                "Weird max name length (0x%04x) - biggest is (0x%04x) - exiting\n",
+                max_name_length,TLSEXT_MAXLEN_host_name);
         ERR_print_errors(bio_err);
         goto end;
     }

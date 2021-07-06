@@ -25,29 +25,24 @@
  * do that, since we don't need such large buffers. (HPKE uses
  * a bunch of stack buffers.)
  * If this were 0x280 it'd not be big enough for larger curves
- * when doing sessio resumption.
+ * when doing session resumption. If some server's tickets are
+ * much bigger then we might need to revisit using stack buffers
+ * for this.
  */
 #define HPKE_MAXSIZE 0x300
 
-/*
- * Strings used in crypto derivations
- */
-#define ECH_CONFIG_ID_STRING (char*) "tls ech config id"
-#define ECH_CONTEXT_STRING (char*) "tls ech"
-#define ECH_ACCEPT_CONFIRM_STRING (char*) "ech accept confirmation"
-
-#define ECH_MAX_ECHCONFIGS_BUFLEN 2000  /**< max PEM encoded ECHConfigs we'll emit */
-#define ECH_MAX_RRVALUE_LEN 2000 /**< Max size of a collection of ECH RR values */
+#define ECH_MAX_RRVALUE_LEN 2000 /**< Max size of a collection of ECH RR values, as presented to API */
+#define ECH_MAX_ECHCONFIGEXT_LEN 100 /**< Max size of an ECHConfig extension */
 #define ECH_PBUF_SIZE 8*1024 /**<  8K buffer used for print string sent to application via ech_cb */
-#define ECH_MAX_DNSNAME 255 /**< max size of a DNS name string (+1 for null and one for luck!) */
 
 /*
- * Known text input formats for ECHKeys RR values
- * - can be TXT containing base64 encoded value (draft-02)
+ * Supported input formats for ECHKeys RR values
  * - can be TYPE65439 containing ascii-hex string(s)
  * - can be TYPE65439 formatted as output from dig +short (multi-line)
+ * - can be base64 encoded TYPE65439 
+ * - can be a binary (wireform) RRVALUE
  */
-#define ECH_FMT_GUESS     0  /**< try guess which it is */
+#define ECH_FMT_GUESS     0  /**< API implementation will try guess which it is */
 #define ECH_FMT_BIN       1  /**< binary blob with one or more catenated encoded ECHConfigs */
 #define ECH_FMT_B64TXT    2  /**< base64 encoded ECHConfigs (semi-colon separated if >1) */
 #define ECH_FMT_ASCIIHEX  3  /**< ascii-hex encoded ECHConfigs (semi-colon separated if >1) */
