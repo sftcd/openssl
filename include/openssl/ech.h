@@ -18,23 +18,17 @@
 #ifndef HEADER_ECH_H
 # define HEADER_ECH_H
 
-/*
- * Temporary symbol for code that is/isn't used
- * when we do up-front ECH decryption on a server
- * that's not part of normal extension handling.
- * (That "up-front" approach is likely what'll be
- * needed long term.)
- * undef this to get back to previously-tested
- * state
- */
-#define ECH_UPFRONT_DEC
+# include <openssl/ssl.h>
 
 /*
- * Default for this in hpke.h can be overridden so let's do that
+ * Default for this in hpke.h (40KB) can be overridden so let's 
+ * do that, since we don't need such large buffers. (HPKE uses
+ * a bunch of stack buffers.)
+ * If this were 0x280 it'd not be big enough for larger curves
+ * when doing sessio resumption.
  */
 #define HPKE_MAXSIZE 0x300
 
-# include <openssl/ssl.h>
 /*
  * Strings used in crypto derivations
  */

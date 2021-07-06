@@ -22,6 +22,7 @@ The things that might vary include:
 * multiple (kdf,aead) choices per ECHConfig
 * use of invalid code-points and some from GREASEy ranges as 
   appropriate
+* session storage and resumption
 * maybe some fuzz tests, with bogus encodings of e.g. ECHConfig
   (could be a mixture of random and hand-crafted)
 
@@ -32,14 +33,21 @@ Ideally, all of the above should be easy(ish) to port to the
 
 The [agiletest.sh](agiletest.sh) script does this.
 
-So far (20210623) that tests key generation and starting
-an ``openssl s_server`` and doing a nominal ``s_client`` ECH
-test with each combination of kem/kdf and aead, and all
-seems well so far, i.e. tests pass as expected.
+So far (20210706) that run a test for each kem/kdf/aead algorithm
+combination (45 in total):
+
+- key generation 
+- starting an ``openssl s_server`` and doing a nominal ``s_client`` ECH test 
+- starting an ``openssl s_server`` and doing an intended to fail ``s_client``
+  ECH test with the wrong ECHConfig 
+- testing nominal session storage/resumption 
+
+All seems well so far, i.e. tests pass as expected.
 
 The script creates a temporary directory below /tmp where
-PEM files for each kem, kdf and aead are created, as are
-fake-CA keys and TLS server certs. There are a few environment
+PEM ECHConfig files for each kem, kdf and aead are created, as are
+fake-CA keys and TLS server certs. Stored session files are also
+created for each combination. There are a few environment
 variables that can be set before running it:
 
 - ``KEEP``: if set this won't delete the tmp dir at the 

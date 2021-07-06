@@ -2337,8 +2337,6 @@ err:
  * This will produce the ClientHelloInner from the EncodedClientHelloInner, which
  * is the result of successful decryption 
  *
- * This is the ECH_UPFRONT_DEC version.
- *
  * @param s is the SSL session
  * @return 1 for success, error otherwise
  */
