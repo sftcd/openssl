@@ -34,13 +34,13 @@
 #include <openssl/trace.h>
 #endif
 #if !defined(_WIN32)
-/* for sockaddr stuff - not portable!!!  */
+/* for what's otherwise sockaddr stuff  */
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <netdb.h>
 #endif
-/* for timing in TRACE */
+/* for timing in some TRACE statements */
 #include <time.h>
 #endif
 
@@ -98,23 +98,26 @@ static size_t ech_trace_cb(const char *buf, size_t cnt,
 #endif
 
 /**
- * Padding size info
+ * ECH padding size info, var of this type is passed via callback 
  */
 typedef struct {
     size_t certpad; /**< Certificate messages to be a multiple of this size */
     size_t certverifypad; /**< CertificateVerify messages to be a multiple of this size */
     size_t eepad; /**< EncryptedExtensions are padded to be a multiple of this size */
 } ech_padding_sizes;
+
 /**
  * passed as an argument to callback
  */
 static ech_padding_sizes *ech_ps=NULL;
+
 /** 
  * @ brief pad Certificate and CertificateVerify messages
  *
  * This is passed to SSL_CTX_set_record_padding_callback
- * and pads the Certificate and CertificateVerify handshake
- * messages to a size derived from the argument arg
+ * and pads the Certificate, CertificateVerify and
+ * EncryptedExtensions handshake messages to a size derived 
+ * from the argument arg
  *
  * @param s is the SSL connection
  * @param len is the plaintext length before padding
@@ -123,7 +126,6 @@ static ech_padding_sizes *ech_ps=NULL;
  */
 static size_t ech_padding_cb(SSL *s, int type, size_t len, void *arg)
 {
-    /* hard coded for now*/
     ech_padding_sizes *ps=(ech_padding_sizes*)arg;
     int state=SSL_get_state(s);
     if (state==TLS_ST_SW_CERT) {
@@ -478,6 +480,10 @@ typedef struct tlsextctx_st {
     BIO *biodebug;
     int extension_error;
 #ifndef OPENSSL_NO_ECH 
+    /*
+     * Not an ECH thing really, but for ECH we really need
+     * a 2nd cert for testing 
+     */
     X509* scert;
 #endif
 } tlsextctx;
@@ -539,13 +545,16 @@ static size_t ech_trace_cb(const char *buf, size_t cnt,
  * either and serve whichever is appropriate.
  * X509_check_host is the way to do that, given an X509* pointer.
  *
- * We default to the "main" ctx if the client-supplied (E)SNI does not
+ * We default to the "main" ctx if the client-supplied SNI does not
  * match the ctx2 certificate.
- * We don't fail if the client-supplied (E)SNI matches neither, but
+ * We don't fail if the client-supplied SNI matches neither, but
  * just continue with the "main" ctx.
- * If the client-supplied (E)SNI matches both ctx and ctx2, then we'll
+ * If the client-supplied SNI matches both ctx and ctx2, then we'll
  * switch to ctx2 anyway - we don't try for a "best" match in that
  * case.
+ *
+ * Note that since we attempt ECH decryption whenever configured to
+ * do that, the only way to get the "outer" SNI is via SSL_ech_get_status.
  *
  * @param s is the SSL connection
  * @param ad is dunno
@@ -556,7 +565,7 @@ static int ssl_ech_servername_cb(SSL *s, int *ad, void *arg)
 {
     tlsextctx *p = (tlsextctx *) arg;
     /*
-     * Basic logging
+     * Add a bit of basic logging
      */
     time_t now=time(0);
     struct tm *tnow=gmtime(&now);
@@ -652,18 +661,13 @@ static int ssl_ech_servername_cb(SSL *s, int *ad, void *arg)
     if (p->scert == NULL )
         return SSL_TLSEXT_ERR_NOACK;
     /*
-     * This is a bit limiting but ok for testing via s_server:
+     * This is a bit limiting but fine for testing via s_server:
      * We only switch to the 2nd context if ECH worked
      */
     if (echrv==SSL_ECH_STATUS_SUCCESS && servername != NULL) {
         if (ctx2 != NULL) {
             int mrv;
             X509_VERIFY_PARAM *vpm = NULL;
-            /*
-             * TODO: Check if strlen is really safe here - think it should be as
-             * internally will have checked there are no embedded NUL bytes but
-             * make sure.
-             */
             BIO_printf(p->biodebug, "ssl_ech_servername_cb: TLS servername: %s.\n",servername);
             BIO_printf(p->biodebug, "ssl_ech_servername_cb: Cert servername: %s.\n",p->servername);
             vpm = X509_VERIFY_PARAM_new();
@@ -687,8 +691,11 @@ static int ssl_ech_servername_cb(SSL *s, int *ad, void *arg)
 
 #endif
 
-/* ECH_DOXY_END */
+/*
+ * Below is the "original" ssl_servernae_cb, before ECH
+ */
 
+/* ECH_DOXY_END */
 
 #ifdef OPENSSL_NO_ECH
 static int ssl_servername_cb(SSL *s, int *ad, void *arg)
@@ -2144,12 +2151,6 @@ int s_server_main(int argc, char *argv[])
         goto end;
     }
 
-#ifndef OPENSSL_NO_ECH
-    if (echtrialdecrypt!=0) {
-        SSL_CTX_set_options(ctx,SSL_OP_ECH_TRIALDECRYPT);
-    }
-#endif
-
     SSL_CTX_clear_mode(ctx, SSL_MODE_AUTO_RETRY);
 
     if (sdebug)
@@ -2269,6 +2270,10 @@ int s_server_main(int argc, char *argv[])
     }
 
 #ifndef OPENSSL_NO_ECH
+    if (echtrialdecrypt!=0) {
+        SSL_CTX_set_options(ctx,SSL_OP_ECH_TRIALDECRYPT);
+    }
+
     if (echkeyfile!= NULL) {
         if (SSL_CTX_ech_server_enable(ctx,echkeyfile)!=1) {
             BIO_printf(bio_err,"Failed to add ECHConfig/Key from: %s\n",echkeyfile);
@@ -2327,6 +2332,10 @@ int s_server_main(int argc, char *argv[])
 #ifndef OPENSSL_NO_ECH
         if (echtrialdecrypt!=0) {
             SSL_CTX_set_options(ctx2,SSL_OP_ECH_TRIALDECRYPT);
+        }
+        if (echspecificpad) {
+            SSL_CTX_set_record_padding_callback_arg(ctx2,(void*)ech_ps);
+            SSL_CTX_set_record_padding_callback(ctx2,ech_padding_cb);
         }
 #endif
 
@@ -2475,7 +2484,7 @@ int s_server_main(int argc, char *argv[])
      * FIXME: This is a hack just to test. See if giving the same chain to the 2nd key pair works
      * Better workaround is to supply s_chain_file2 as a new CLA in case the paths are very different 
      * but maybe wanna check with maintainers first
-     * I kept it from ESNI -> ECH transition and looking againm, it's still a valid FIXME - I should
+     * I kept it from ESNI -> ECH transition and looking again, it's still a valid FIXME - I should
      * add a 2nd chain file.
      */
     if (ctx2 != NULL
@@ -3510,7 +3519,7 @@ static int www_body(int s, int stype, int prot, unsigned char *context)
             char *ech_outer=NULL;
             int echrv=0;
             /*
-             * This isn't an ECH related change really. Seems like
+             * The next on isn't an ECH related change really. Seems like
              * s_server hangs in some way if we get to this code
              * with www=1, so maybe only do it if renego is 
              * actually supported. Try it anyway
@@ -3561,7 +3570,6 @@ static int www_body(int s, int stype, int prot, unsigned char *context)
 #ifndef OPENSSL_NO_ECH
             /*
              * Customise output a bit to show ECH info at top
-             * Note: unlikely to want to integrate this upstream
              */
             BIO_puts(io, "<h1>OpenSSL with ECH</h1>\n");
             BIO_puts(io, "<h2>\n");
@@ -3575,6 +3583,21 @@ static int www_body(int s, int stype, int prot, unsigned char *context)
                 break;
             case SSL_ECH_STATUS_BAD_NAME: 
                 BIO_puts(io,"ECH worked but bad name\n");
+                break;
+            case SSL_ECH_STATUS_BACKEND: 
+                BIO_printf(io,"ECH acting as backend, got ech_is_inner\n");
+                break;
+            case SSL_ECH_STATUS_NOT_CONFIGURED: 
+                BIO_printf(io,"ECH not configured\n");
+                break;
+            case SSL_ECH_STATUS_GREASE: 
+                BIO_printf(io,"ECH attempt we interpret as GREASE\n");
+                break;
+            case SSL_ECH_STATUS_BAD_CALL: 
+                BIO_printf(io,"ECH bad input to API\n");
+                break;
+            case SSL_ECH_STATUS_TOOMANY: 
+                BIO_printf(io,"ECH Too many names (I wish I remembered what this error means!)\n");
                 break;
             case SSL_ECH_STATUS_SUCCESS:
                 BIO_printf(io,"ECH success: outer sni: %s, inner sni: %s\n",
@@ -3755,7 +3778,6 @@ static int www_body(int s, int stype, int prot, unsigned char *context)
              * Again, not really an ECH change but serve up index.html
              * (if one exists) as a default pathname if none was provided
              */
-
             opmode = (http_server_binmode == 1) ? "rb" : "r";
             if (*p=='\0') {
                 if ((file = BIO_new_file("index.html", "r")) == NULL) {
@@ -3806,7 +3828,7 @@ static int www_body(int s, int stype, int prot, unsigned char *context)
                              "HTTP/1.0 200 ok\r\nContent-type: text/html\r\n\r\n");
 #ifndef OPENSSL_NO_ECH
                 /* 
-                 * same comment as last time
+                 * same comment as last time - not really an ECH change
                  */
                 else if (i==0 && file != NULL) {
                     /*

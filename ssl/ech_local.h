@@ -35,7 +35,7 @@
 
 #define MAX_ECH_CONFIG_ID_LEN 0x30 /**< max size of ENC-CH config id we'll decode */
 #define MAX_ECH_ENC_LEN 0x100 /**< max size of ENC-CH peer key share we'll decode */
-#define MAX_ECH_PAYLOAD_LEN 0x280 /**< max size of ENC-CH ciphertext we'll decode */
+#define MAX_ECH_PAYLOAD_LEN HPKE_MAXSIZE /**< max size of ENC-CH ciphertext we'll decode */
 
 #define ECH_GREASE_UNKNOWN -1 /**< value for s->ext.ech_grease when we're not yet sure */
 #define ECH_NOT_GREASE 0 /**< value for s->ext.ech_grease when decryption worked */

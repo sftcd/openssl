@@ -309,5 +309,11 @@ since I tried out session storage/resumption)
 * made a few changes for session storage/resumption (leading to
 a new added temporary hack to ``ssl/statem/extensions.c``)
 
-
 ## ``./apps/s_server.c``
+
+* **TODO**: do some confirmatory testing on padding - added code
+to pad ``ctx2`` as needed.
+* **TODO**: not really ECH specific, but if ``ctx2`` is set then 
+it ought also be possible to set a second ``schain`` file that
+has a different set of CA certs for ``ctx2`` 
+* Bits of tidy-up around ``SSL_ech_get_status`` handling.

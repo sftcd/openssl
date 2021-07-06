@@ -3025,7 +3025,7 @@ int ech_swaperoo(SSL *s)
         if (cbrv != 1) {
 #ifndef OPENSSL_NO_SSL_TRACE
             OSSL_TRACE_BEGIN(TLS) {
-                BIO_printf(trc_out,"Exiting tls_parse_ctos_ech at %d\n",__LINE__);
+                BIO_printf(trc_out,"Exiting ech_swaperoo at %d\n",__LINE__);
             } OSSL_TRACE_END(TLS);
 #endif
             return 0;

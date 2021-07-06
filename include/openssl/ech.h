@@ -32,7 +32,7 @@
 /*
  * Default for this in hpke.h can be overridden so let's do that
  */
-#define HPKE_MAXSIZE 0x280
+#define HPKE_MAXSIZE 0x300
 
 # include <openssl/ssl.h>
 /*
