@@ -177,11 +177,11 @@ static int ech_base64_decode(char *in, unsigned char **out)
     size_t overallfraglen=0;
 
     if (!in || !out) return(0);
+    inlen = strlen(in);
     if (inlen == 0) {
         *out = NULL;
         return 0;
     }
-    inlen = strlen(in);
     /*
      * overestimate of space but easier than base64 finding padding right now
      */
@@ -189,6 +189,7 @@ static int ech_base64_decode(char *in, unsigned char **out)
     if (outbuf == NULL) {
         goto err;
     }
+    outp=outbuf;
     while (overallfraglen<inlen) {
         /* find length of 1st b64 string */
         int ofraglen=0;
@@ -1757,7 +1758,13 @@ static int local_svcb_add(int rrfmt, size_t rrlen, char *rrval, int *num_echs, S
         if (rv==0) {
             return(rv);
         }
+    } else if (detfmt==ECH_FMT_B64TXT) {
+        binlen=ech_base64_decode(rrval,&binbuf);
+        if (binlen<=0) {
+            return(rv);
+        }
     }
+
     /*
      * Now we have a binary encoded RData so we'll skip the
      * name, and then walk through the SvcParamKey binary

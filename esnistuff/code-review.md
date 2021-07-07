@@ -66,8 +66,9 @@ Clean.
 * Explained ``HPKE_MAXSIZE`` usage
 * Found some better OpenSSL constants where I'd #define'd new ones.
 * Moved strings used in ECH key derivation to ``ssl/ech_local.h``
-* **TODO:** re-test the various RR value input formats (binary, ascii-hex, b64
-  etc.)
+* Re-tested the ``-svcb`` command line with ascii-hex and base64
+* **TODO:** test ALPN/SVCB stuff
+* **TODO:** re-test ``-echconfigs`` input formats (ascii-hex, b64)
 
 ### ``./include/openssl/tls1.h``
 ### ``./include/openssl/ssl.h``

@@ -691,7 +691,7 @@ const OPTIONS s_client_options[] = {
     {"echconfigs", OPT_ECHCONFIGS, 's',
      "Set ECHConfigs, value is b64 or ASCII-HEX encoded ECHConfigs"},
     {"svcb", OPT_SVCB, 's',
-     "Set ECHConfigs and possibly ALPN vis an SVCB RData, b64 or ASCII-HEX encoded"},
+     "Set ECHConfigs and possibly ALPN via an SVCB RData, b64 or ASCII-HEX encoded"},
     {"ech_grease",OPT_ECH_GREASE,'-',
      "Send GREASE values when not really using ECH"},
     {"ech_grease_suite",OPT_ECH_GREASE_SUITE,'s',

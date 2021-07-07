@@ -27,8 +27,10 @@ AEAD_IDS=(0x01 0x02 0x03 0xa2)
 NAEADS=${#AEAD_IDS[*]}
 
 # set which tests to skip - set to "yes" to skip or "no" to do tests
-# the basic good tests
+# the basic good client/server tests
 skipgood="no"
+# the tests of various forms of RR/ECHConfig
+skiprrs="no"
 # the basic bad tests
 skipbad="no"
 # the session re-use tests
@@ -201,6 +203,97 @@ do
         $CODETOP/esnistuff/echcli.sh -P `$CODETOP/esnistuff/pem2rr.sh -p $file` -s localhost -p 8443 -H foo.example.com $vparm -f index.html >/dev/null 2>&1
     fi
     cret=$?
+    # kill server
+    pids=`ps -ef | grep s_server | grep -v grep | awk '{print $2}'`
+    if [[ "$pids" == "" ]]
+    then
+        echo "No sign of s_server - exiting (after client)"
+        # exiting without cleanup
+        exit 19
+    fi
+    kill $pids
+    portpid=`netstat -anp 2>/dev/null | grep 8443 | grep openssl | awk '{print $7}' | sed -e 's#/.*##' 2>/dev/null`
+    if [[ "$portpid" != "" ]]
+    then
+        kill $portpid
+    fi
+    # sleep a bit
+    sleep $sleepaftr
+    pids=`ps -ef | grep s_server | grep -v grep | awk '{print $2}'`
+    if [[ "$pids" != "" ]]
+    then
+        echo "hmm... $pids still running - exiting"
+        # exiting without cleanup
+        exit 20
+    fi
+    if [[ "$cret" != "0" ]]
+    then
+        echo "Client failed for $file - exiting"
+        exit 21
+    fi
+done
+fi
+
+# TBD: test client loading various formats of public key/RR
+if [[ "$skiprrs" == "no" ]]
+then
+for file in *.pem 
+do
+    kem=${file:0:4}
+    kdf=${file:5:4}
+    aead=${file:10:4}
+    echo "s_client input format tests for kem: $kem, kdf: $kdf, aead; $aead"
+    # start server
+    if [[ "$verbose" == "yes" ]]
+    then
+        CFGTOP=$scratchdir $CODETOP/esnistuff/echsvr.sh -w -k $scratchdir/$file $vparm &
+    else
+        CFGTOP=$scratchdir $CODETOP/esnistuff/echsvr.sh -w -k $scratchdir/$file $vparm >/dev/null 2>&1 &
+    fi
+    # wait a bit
+    sleep $sleepb4
+    pids=`ps -ef | grep s_server | grep -v grep | awk '{print $2}'`
+    if [[ "$pids" == "" ]]
+    then
+        echo "No sign of s_server - exiting (before client)"
+        # exiting without cleanup
+        exit 19
+    fi
+    # Try a few more 'aul clients...
+
+    # wait a bit
+    # this is the one we did above, the ECHConfig is supplied in ascii-hex
+    sleep $sleepb4
+    if [[ "$verbose" == "yes" ]]
+    then
+        $CODETOP/esnistuff/echcli.sh -P `$CODETOP/esnistuff/pem2rr.sh -p $file` -s localhost -p 8443 -H foo.example.com $vparm -f index.html
+    else
+        $CODETOP/esnistuff/echcli.sh -P `$CODETOP/esnistuff/pem2rr.sh -p $file` -s localhost -p 8443 -H foo.example.com $vparm -f index.html >/dev/null 2>&1
+    fi
+    cret=$?
+    if [[ "$cret" != "0" ]]
+    then
+        echo "Client failed for ascii-hex input from $file - exiting"
+        exit 21
+    fi
+
+    # wait a bit
+    sleep $sleepb4
+    # this time the RR value is supplied base64 encoded
+    echb64str=`$CODETOP/esnistuff/pem2rr.sh -p $file | xxd -r -p | base64 -w0`
+    if [[ "$verbose" == "yes" ]]
+    then
+        $CODETOP/esnistuff/echcli.sh -P $echb64str -s localhost -p 8443 -H foo.example.com $vparm -f index.html
+    else
+        $CODETOP/esnistuff/echcli.sh -P $echb64str -s localhost -p 8443 -H foo.example.com $vparm -f index.html >/dev/null 2>&1
+    fi
+    cret=$?
+    if [[ "$cret" != "0" ]]
+    then
+        echo "Client failed for base64 encoded input from $file - exiting"
+        exit 21
+    fi
+
     # kill server
     pids=`ps -ef | grep s_server | grep -v grep | awk '{print $2}'`
     if [[ "$pids" == "" ]]
