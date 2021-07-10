@@ -206,14 +206,14 @@ then
 		if [ ! -f $SUPPLIEDECH ]
 		then
 			echo "Assuming supplied ECH is RR value"
-			ECH="$SUPPLIEDECH"
+			ECH=" -svcb $SUPPLIEDECH "
         else
 		    # check if file suffix is .pem (base64 encoding) 
 		    # and react accordingly, don't take any other file extensions
 		    ssfname=`basename $SUPPLIEDECH`
 		    if [ `basename "$ssfname" .pem` != "$ssfname" ]
 		    then
-			    ECH=`tail -2 $SUPPLIEDECH | head -1` 
+			    ECH=" -echconfigs `tail -2 $SUPPLIEDECH | head -1`" 
 		    else
 			    echo "Not sure of file type of $SUPPLIEDECH - try make a PEM file to help me"
 			    exit 8
@@ -251,7 +251,7 @@ then
 fi
 
 # normally the inner SNI is what we want to hide
-echstr="-servername $hidden -svcb $ECH "
+echstr="-servername $hidden $ECH "
 if [[ "$NOECH" == "yes" ]]
 then
     echo "Not trying ECH"
@@ -280,10 +280,10 @@ else
         echstr=" -servername $hidden $grease_str "
     elif [[ "$GREASE" == "no" && "$hidden" != "NONE" ]]
     then
-        echstr=" -servername $hidden -svcb $ECH "
+        echstr=" -servername $hidden $ECH "
     elif [[ "$GREASE" == "no" && "$hidden" == "NONE" ]]
     then
-        echstr=" -noservername -svcb $ECH "
+        echstr=" -noservername $ECH "
     fi
 fi
 

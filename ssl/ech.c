@@ -1168,7 +1168,7 @@ static int local_decode_rdata_name(unsigned char **buf,size_t *remaining,char **
         thename[1]=0x00;
     }
     while(clen!=0) {
-        if (clen>rem) return(1);
+        if (clen>rem) { OPENSSL_free(thename); return(1); }
         memcpy(tp,cp,clen);
         tp+=clen;
         *tp='.'; tp++;
@@ -1761,7 +1761,7 @@ static int local_svcb_add(int rrfmt, size_t rrlen, char *rrval, int *num_echs, S
     } else if (detfmt==ECH_FMT_B64TXT) {
         binlen=ech_base64_decode(rrval,&binbuf);
         if (binlen<=0) {
-            return(rv);
+            return(0);
         }
     }
 
@@ -1779,9 +1779,9 @@ static int local_svcb_add(int rrfmt, size_t rrlen, char *rrval, int *num_echs, S
     cp+=2; remaining-=2;
     rv=local_decode_rdata_name(&cp,&remaining,&dnsname);
     if (rv!=1) {
-        return(0);
+        goto err;
     }
-    OPENSSL_free(dnsname);
+    OPENSSL_free(dnsname); dnsname=NULL;
 
     while (!done && remaining>=4) {
         pcode=(*cp<<8)+(*(cp+1)); cp+=2;
@@ -1805,6 +1805,9 @@ static int local_svcb_add(int rrfmt, size_t rrlen, char *rrval, int *num_echs, S
         }
     } 
     if (no_def_alpn==1) {
+        /*
+         * TODO: FIXME: what? a printf!!
+         */
         printf("Got no-def-ALPN\n");
     }
     if (alpn_len>0 && alpn_val!=NULL) {
@@ -1824,6 +1827,8 @@ static int local_svcb_add(int rrfmt, size_t rrlen, char *rrval, int *num_echs, S
     }
     if (!done) {
         *num_echs=0;
+        OPENSSL_free(dnsname);
+        OPENSSL_free(binbuf);
         return(1);
     }
     /*
@@ -1831,11 +1836,9 @@ static int local_svcb_add(int rrfmt, size_t rrlen, char *rrval, int *num_echs, S
      */
     rv=local_ech_add(ECH_FMT_BIN,eklen,ekval,num_echs,echs);
     if (rv!=1) {
-        return(0);
+        goto err;
     } 
-    if (detfmt==ECH_FMT_ASCIIHEX) {
-        OPENSSL_free(binbuf);
-    }
+    OPENSSL_free(binbuf);
     /*
      * Whack in ALPN info to ECHs
      */
@@ -1845,9 +1848,8 @@ static int local_svcb_add(int rrfmt, size_t rrlen, char *rrval, int *num_echs, S
     }
     return(1);
 err:
-    if (detfmt==ECH_FMT_ASCIIHEX) {
-        OPENSSL_free(binbuf);
-    }
+    OPENSSL_free(dnsname);
+    OPENSSL_free(binbuf);
     return(0);
 }
 

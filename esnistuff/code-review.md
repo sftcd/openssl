@@ -67,8 +67,7 @@ Clean.
 * Found some better OpenSSL constants where I'd #define'd new ones.
 * Moved strings used in ECH key derivation to ``ssl/ech_local.h``
 * Re-tested the ``-svcb`` command line with ascii-hex and base64
-* **TODO:** test ALPN/SVCB stuff
-* **TODO:** re-test ``-echconfigs`` input formats (ascii-hex, b64)
+* Re-tested the ``-echconfigs`` input formats (ascii-hex, b64)
 
 ### ``./include/openssl/tls1.h``
 ### ``./include/openssl/ssl.h``
@@ -79,6 +78,10 @@ Clean.
 ### ``./ssl/ech_local.h``
 ### ``./ssl/s3_enc.c``
 ### ``./ssl/ech.c``
+
+* **TODO**: fix the TODOs here;-)
+* **TODO:** fix DEF-ALPN stuff
+
 ### ``./ssl/ssl_txt.c``
 ### ``./ssl/statem/statem_local.h``
 ### ``./ssl/statem/extensions.c``
