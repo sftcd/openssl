@@ -855,6 +855,11 @@ SSL *SSL_new(SSL_CTX *ctx)
         if (!s->ech) {
             goto err;
         }
+        if (ctx->ext.ech->outer_name) {
+            s->ech->outer_name = OPENSSL_strdup(ctx->ext.ech->outer_name);
+            if (s->ech->outer_name == NULL)
+                goto err;
+        }
     } else {
         s->ech=NULL;
     }
@@ -880,7 +885,7 @@ SSL *SSL_new(SSL_CTX *ctx)
         if (s->ext.alpn_outer == NULL)
             goto err;
         memcpy(s->ext.alpn_outer, s->ctx->ext.alpn_outer, s->ctx->ext.alpn_outer_len);
-        s->ext.alpn_outer_len = s->ctx->ext.alpn_outer_len;
+        s->ext.alpn_outer_len = ctx->ext.alpn_outer_len;
     }
 
 #endif

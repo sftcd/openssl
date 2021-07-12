@@ -174,6 +174,21 @@ int SSL_ech_server_name(SSL *s, const char *inner_name, const char *outer_name);
 /**
  * @brief Set the outer SNI
  * 
+ * @param s is the SSL_CTX
+ * @param outer_name is the (to be) hidden service name
+ * @return 1 for success, error otherwise
+ *
+ * Providing a NULL or empty outer_name has a special effect - that means we 
+ * won't send the ECHConfig.public_name (which is the default). If you prefer 
+ * the default, then don't call this. If you supply a non-NULL value and
+ * do ECH then the value supplied here will override the ECHConfig.public_name
+ * 
+ */
+int SSL_CTX_ech_set_outer_server_name(SSL_CTX *s, const char *outer_name);
+
+/**
+ * @brief Set the outer SNI
+ * 
  * @param s is the SSL context
  * @param outer_name is the (to be) hidden service name
  * @return 1 for success, error otherwise
