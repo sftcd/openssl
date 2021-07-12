@@ -52,7 +52,7 @@ typedef enum OPTION_choice {
     /*
      * key print/select
      */
-    OPT_PEMIN, OPT_SELECT,
+    OPT_PEMIN, OPT_SELECT
     
 } OPTION_CHOICE;
 
@@ -556,6 +556,7 @@ int ech_main(int argc, char **argv)
 
     if (mode==ECH_SELPRINT_MODE) {
         int nechs=0;
+        ECH_DIFF *ed=NULL;
         
         if (inpemfile==NULL) {
             BIO_printf(bio_err,"no input PEM file supplied - exiting\n");
@@ -581,6 +582,7 @@ int ech_main(int argc, char **argv)
             unsigned char *pdata=NULL;
             long plen;
             BIO *pem_in=NULL;
+
 
             pem_in = BIO_new(BIO_s_file());
             if (pem_in==NULL) {
@@ -626,8 +628,6 @@ int ech_main(int argc, char **argv)
             if (!s) goto end;
             BIO_printf(bio_err,"Loaded Key+ECHConfig from: %s\n",inpemfile);
         }
-
-        ECH_DIFF *ed=NULL;
 
         rv=SSL_ech_query(s, &ed, &nechs);
         if (rv!=1) goto end; 

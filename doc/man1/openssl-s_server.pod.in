@@ -145,7 +145,6 @@ B<openssl> B<s_server>
 {- $OpenSSL::safe::opt_r_synopsis -}
 {- $OpenSSL::safe::opt_engine_synopsis -}{- $OpenSSL::safe::opt_provider_synopsis -}
 [B<-echdir>]
-[B<-echhardfail>]
 [B<-echkey>]
 [B<-echspecificpad>]
 [B<-echtrialdecrypt>]
@@ -828,10 +827,6 @@ verification errors are displayed, for debugging, but the command will
 proceed unless the B<-verify_return_error> option is used.
 
 =item B<-echdir>
-
-TBD
-
-=item B<-echhardfail>
 
 TBD
 

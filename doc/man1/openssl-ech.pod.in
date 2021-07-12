@@ -18,6 +18,7 @@ B<openssl> B<s_client>
 [B<-suite>]
 [B<-ech_version>]
 [B<-extfile>]
+[B<-select>]
 
 =head1 DESCRIPTION
 
@@ -71,6 +72,11 @@ TBD
 =item B<-extfile>
 
 TBD
+
+=item B<-select>
+
+TBD
+
 
 =back
 
