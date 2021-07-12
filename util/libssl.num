@@ -527,7 +527,7 @@ SSL_ech_add                             527	3_0_0	EXIST::FUNCTION:
 SSL_CTX_ech_add                         528	3_0_0	EXIST::FUNCTION:
 SSL_ech_server_name                     529	3_0_0	EXIST::FUNCTION:
 SSL_ech_set_outer_server_name           530	3_0_0	EXIST::FUNCTION:
-SSL_ech_query                           ?	3_0_0	EXIST::FUNCTION:
+SSL_ech_query                           531	3_0_0	EXIST::FUNCTION:
 SSL_ECH_DIFF_free                       532	3_0_0	EXIST::FUNCTION:
 SSL_ECH_DIFF_print                      533	3_0_0	EXIST::FUNCTION:
 SSL_ech_reduce                          534	3_0_0	EXIST::FUNCTION:
@@ -541,5 +541,5 @@ SSL_CTX_ech_set_callback                541	3_0_0	EXIST::FUNCTION:
 SSL_CTX_ech_set_outer_alpn_protos       542	3_0_0	EXIST::FUNCTION:
 SSL_ech_set_grease_suite                543	3_0_0	EXIST::FUNCTION:
 SSL_CTX_ech_readpemdir                  544	3_0_0	EXIST::FUNCTION:
-SSL_CTX_ech_raw_decrypt                 ?	3_0_0	EXIST::FUNCTION:
-SSL_CTX_ech_set_outer_server_name       ?   3_0_0   EXIST::FUNCTION:
+SSL_CTX_ech_raw_decrypt                 545	3_0_0	EXIST::FUNCTION:
+SSL_CTX_ech_set_outer_server_name       546	3_0_0	EXIST::FUNCTION:
