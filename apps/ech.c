@@ -555,12 +555,15 @@ int ech_main(int argc, char **argv)
     }
 
     if (mode==ECH_SELPRINT_MODE) {
-        int rv=0;
         int nechs=0;
         
         if (inpemfile==NULL) {
             BIO_printf(bio_err,"no input PEM file supplied - exiting\n");
             goto end;
+        }
+       
+        if (pemselect!=ECH_PEMSELECT_ALL) {
+            BIO_printf(bio_err,"selecting confg %d\n",pemselect);
         }
 
         con = SSL_CTX_new_ex(app_get0_libctx(), app_get0_propq(), meth);
