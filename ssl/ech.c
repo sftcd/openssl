@@ -1314,14 +1314,70 @@ int SSL_ech_set_outer_server_name(SSL *s, const char *outer_name)
  * library), and can then choose which of the RR value options
  * the application would prefer to use.
  *
- * @param in is the SSL session
+ * @param s is the SSL session
  * @param out is the returned externally visible detailed form of the SSL_ECH structure
  * @param nindices is an output saying how many indices are in the ECH_DIFF structure 
  * @return 1 for success, error otherwise
  */
-int SSL_ech_query(SSL *in, ECH_DIFF **out, int *nindices)
+int SSL_ech_query(SSL *s, ECH_DIFF **out, int *nindices)
 {
+    ECH_DIFF *rdiff=NULL;
+    int i=0;
+    int indices=0;
+
+    if (!s || !out || !nindices) goto err;
+    indices=s->nechs;
+    if (!s->ech || s->nechs<=0) {
+        *out=NULL; 
+        *nindices=0;
+        return 1;
+    }
+    rdiff=OPENSSL_zalloc(s->nechs*sizeof(ECH_DIFF));
+    if (rdiff==NULL) goto err;
+    for (i=0;i!=s->nechs;i++) {
+        ECH_DIFF *inst=&rdiff[i];
+        if (s->ech->inner_name) {
+            inst->inner_name=OPENSSL_strdup(s->ech->inner_name);
+            if (!inst->inner_name) goto err;
+        }
+        if (s->ech->outer_name) {
+            inst->public_name=OPENSSL_strdup(s->ech->outer_name);
+            if (!inst->public_name) goto err;
+        }
+        if (s->ext.alpn) {
+            inst->inner_alpns=OPENSSL_malloc(s->ext.alpn_len+1);
+            if (!inst->inner_alpns) goto err;
+            memcpy(inst->inner_alpns,s->ext.alpn,s->ext.alpn_len);
+            inst->inner_alpns[s->ext.alpn_len]='\0';
+        }
+        if (s->ext.alpn_outer) {
+            inst->outer_alpns=OPENSSL_malloc(s->ext.alpn_outer_len+1);
+            if (!inst->outer_alpns) goto err;
+            memcpy(inst->outer_alpns,s->ext.alpn_outer,s->ext.alpn_outer_len);
+            inst->outer_alpns[s->ext.alpn_outer_len]='\0';
+        }
+    }
+    *nindices=indices;
+    *out=rdiff;
     return 1;
+err:
+    SSL_ECH_DIFF_free(rdiff,indices);
+    return 0;
+}
+
+/**
+ * @brief free an ECH_DIFF
+ * @param in the thing to free
+ * @return void
+ */
+void ECH_DIFF_free(ECH_DIFF *in)
+{
+    if (!in) return;
+    OPENSSL_free(in->public_name);
+    OPENSSL_free(in->inner_name);
+    OPENSSL_free(in->outer_alpns);
+    OPENSSL_free(in->inner_alpns);
+    return;
 }
 
 /** 
@@ -1332,6 +1388,13 @@ int SSL_ech_query(SSL *in, ECH_DIFF **out, int *nindices)
  */
 void SSL_ECH_DIFF_free(ECH_DIFF *in, int size)
 {
+    int i=0;
+    if (!in) return;
+    if (size<=0) return;
+    for(i=0;i!=size;i++) { 
+        ECH_DIFF_free(&in[i]);
+    }
+    OPENSSL_free(in);
     return;
 }
 
@@ -1345,21 +1408,54 @@ void SSL_ECH_DIFF_free(ECH_DIFF *in, int size)
  */
 int SSL_ECH_DIFF_print(BIO* out, ECH_DIFF *se, int count)
 {
+    int i=0;
+    if (!out || !se || count==0) return 0;
+    BIO_printf(out,"ECH differences (%d configs total)\n",count);
+    for (i=0;i!=count;i++) {
+        BIO_printf(out,"index: %d, SNI (inner:%s,outer:%s), ALPN (inner:%s,outer:%s)\n",
+               count,
+               se[i].inner_name?se[i].inner_name:"NULL",
+               se[i].public_name?se[i].public_name:"NULL",
+               se[i].inner_alpns?se[i].inner_alpns:"NULL",
+               se[i].outer_alpns?se[i].outer_alpns:"NULL");
+    }
     return 1;
 }
 
 /**
  * @brief down-select to use of one option with an SSL_ECH
  *
- * This allows the caller to select one of the RR values 
+ * This allows the caller to select one of the ECHConfig values 
  * within an SSL_ECH for later use.
  *
- * @param in is an SSL structure with possibly multiple RR values
+ * @param s is an SSL structure with possibly multiple ECHConfigs
  * @param index is the index value from an ECH_DIFF produced from the 'in'
  * @return 1 for success, error otherwise
  */
-int SSL_ech_reduce(SSL *in, int index)
+int SSL_ech_reduce(SSL *s, int index)
 {
+    SSL_ECH *new=NULL;
+    int i=0;
+
+    if (!s) return 0;
+    if (index<0) return 0;
+    if (!s->ech) return 0;
+    if (s->nechs<=0) return 0;
+    if ((s->nechs+1)<index) return 0;
+    /*
+     * Copy the one to keep, then zap the pointers at that element in the array
+     * free the array and fix s back up
+     */
+    new=OPENSSL_malloc(sizeof(SSL_ECH));
+    if (!new) return 0;
+    *new=s->ech[index];
+    memset(&s->ech[index],0,sizeof(SSL_ECH));
+    for(i=0;i!=s->nechs;i++) {
+        SSL_ECH_free(&s->ech[i]);
+    }
+    OPENSSL_free(s->ech);
+    s->ech=new;
+    s->nechs=1;
     return 1;
 }
 

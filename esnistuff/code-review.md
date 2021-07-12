@@ -69,6 +69,9 @@ Clean.
 * Re-tested the ``-svcb`` command line with ascii-hex and base64
 * Re-tested the ``-echconfigs`` input formats (ascii-hex, b64)
 
+In the  process of finishing up the code for the ``ECH_DIFF`` APIs
+and associated ``openssl ech`` commands for using/testing that.
+
 ### ``./include/openssl/tls1.h``
 ### ``./include/openssl/ssl.h``
 ### ``./ssl/ssl_sess.c``
@@ -99,6 +102,23 @@ Clean.
 ### ``./test/buildtest_ech.c``
 ### ``./apps/lib/s_cb.c``
 ### ``./apps/ech.c``
+
+Added a new option for printing ECHConfig files:
+
+            $ openssl ech -pemin foo.pem 
+            ...prints contents...
+
+The file ``foo.pem`` can contain a private key and ECHConfig or just an
+ECHConfig.
+
+**TODO:** We will add down selection and output once we've worked more on
+support for multi-valued ECHConfigs, at which point we'll be able do to.
+
+            $ openssl ech -pemin foo.pem [-select 2] 
+            ...prints contents...
+            $ openssl ech -pemin foo.pem -select 2 -pemout bar.pem
+            ...write 2nd ECHConfig from foo.pem to bar.pem...
+
 ### ``./apps/s_client.c``
 ### ``./apps/s_server.c``
 

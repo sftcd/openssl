@@ -26,7 +26,16 @@
 
 #ifndef OPENSSL_NO_ECH
 
-#define ECH_MAX_ECHCONFIGS_BUFLEN 2000  /**< max PEM encoded ECHConfigs we'll emit */
+#define ECH_MAX_ECHCONFIGS_BUFLEN ECH_MAX_RRVALUE_LEN  /**< max PEM encoded ECHConfigs we'll emit */
+            
+#ifndef ECH_MAX_ECHCONFIG_LEN
+#define ECH_MAX_ECHCONFIG_LEN 512
+#endif
+
+#define ECH_KEYGEN_MODE    0 /* default mode is to generate a key pair/ECHConfig */
+#define ECH_SELPRINT_MODE  1 /* or we can print/down-select ECHConfigs */
+
+#define ECH_PEMSELECT_ALL -1 /* to select all ECHConfigs when doing sel/print */
 
 typedef enum OPTION_choice {
     /* 
@@ -39,11 +48,18 @@ typedef enum OPTION_choice {
      */
     OPT_PUBLICNAME, OPT_ECHVERSION, 
     OPT_MAXNAMELENGTH, OPT_HPKESUITE,
-    OPT_ECHEXTFILE
+    OPT_ECHEXTFILE,
+    /*
+     * key print/select
+     */
+    OPT_PEMIN, OPT_SELECT,
+    
 } OPTION_CHOICE;
 
 const OPTIONS ech_options[] = {
+    OPT_SECTION("General options"),
     {"help", OPT_HELP, '-', "Display this summary"},
+    OPT_SECTION("Key generation"),
     {"pemout", OPT_PEMOUT, '>', "PEM output file with private key and ECHConfig - default echconfig.pem"},
     {"pubout", OPT_PUBOUT, '>', "Public key output file - default unset"},
     {"privout", OPT_PRIVOUT, '>', "Private key output file - default unset"},
@@ -51,26 +67,12 @@ const OPTIONS ech_options[] = {
     {"mlen", OPT_MAXNAMELENGTH, 'n', "maximum name length value"},
     {"suite", OPT_HPKESUITE, 's', "HPKE ciphersuite: e.g. \"0x20,1,3\""},
     {"ech_version", OPT_ECHVERSION, 'n', "ECHConfig draft version(default=0xff0a (10), also supported: 0xff09 (9))"},
-    {"extfile", OPT_ECHEXTFILE, 's', "Name fo a file containing encoded extensions\n"},
+    {"extfile", OPT_ECHEXTFILE, 's', "Name of a file containing already encoded ECH extensions\n"},
+    OPT_SECTION("ECHConfig print/down-selection"),
+    {"pemin", OPT_PEMIN, '>', "PEM input file with optional private key and ECHConfig"},
+    {"select", OPT_SELECT, 'n', "Select the n-th ECHConfig from the input file"},
     {NULL}
 };
-
-/*
- * TODO: figure out how to get that much text into a help string... 
- *
- *  fprintf(stderr,"- Ciphersuites are specified using a comma-separated list of numbers\n");
- *  fprintf(stderr,"  e.g. \"-c 0x20,1,3\" or a comma-separated list of strings from:\n");
- *  fprintf(stderr,"      KEMs: %s, %s, %s, %s or %s\n",
- *          HPKE_KEMSTR_P256, HPKE_KEMSTR_P384, HPKE_KEMSTR_P521, HPKE_KEMSTR_X25519, HPKE_KEMSTR_X448);
- *  fprintf(stderr,"      KDFs: %s, %s or %s\n",
- *          HPKE_KDFSTR_256, HPKE_KDFSTR_384, HPKE_KDFSTR_512);
- *  fprintf(stderr,"      AEADs: %s, %s or %s\n",
- *          HPKE_AEADSTR_AES128GCM, HPKE_AEADSTR_AES256GCM, HPKE_AEADSTR_CP);
- *  fprintf(stderr,"  For example \"-c %s,%s,%s\" (the default)\n",
- *          HPKE_KEMSTR_X25519, HPKE_KDFSTR_256, HPKE_AEADSTR_AES128GCM);
- *
- *  The above is code from the usage() function in happykey/hpkemain.c
- */
 
 /**
  * @brief map version string like 0xff01 or 65291 to uint16_t
@@ -196,7 +198,7 @@ static int mk_echconfig(
             return 0;
     }
 
-    /* new private key please... */
+
     if (priv==NULL) { return (__LINE__); }
 
     rv=hpke_kg(
@@ -204,7 +206,7 @@ static int mk_echconfig(
         &publen, pub,
         privlen, priv); 
     if (rv!=1) { return(__LINE__); }
- 
+
     /*
      * This is what's in draft-09:
      * 
@@ -263,7 +265,6 @@ static int mk_echconfig(
      *   } ECHConfig;
      *
      */
-
     memset(bbuf,0,ECH_MAX_ECHCONFIGS_BUFLEN);
     *bp++=0x00; /* leave space for overall length */
     *bp++=0x00; /* leave space for overall length */
@@ -298,7 +299,6 @@ static int mk_echconfig(
             memcpy(bp,public_name,pnlen); bp+=pnlen;
         }
     }
-
     if (ekversion==ECH_DRAFT_09_VERSION) {
         if (pnlen > 0 ) {
             *bp++=(pnlen>>8)%256;
@@ -323,7 +323,6 @@ static int mk_echconfig(
         *bp++=(max_name_length>>8)%256;
         *bp++=(max_name_length%256);
     }
-
     if (extlen==0) {
         *bp++=0x00;
         *bp++=0x00; /* no extensions */
@@ -336,7 +335,6 @@ static int mk_echconfig(
         memcpy(bp,extvals,extlen); bp+=extlen;
     }
     bblen=bp-bbuf;
-
     /*
      * Add back in the length
      */
@@ -344,7 +342,6 @@ static int mk_echconfig(
     bbuf[1]=(bblen-2)%256;
     bbuf[4]=(bblen-6)/256;
     bbuf[5]=(bblen-6)%256;
-
     b64len = EVP_EncodeBlock((unsigned char*)echconfig, (unsigned char *)bbuf, bblen);
     if (b64len >=(*echconfig_len-1)) {
         return(__LINE__);
@@ -360,7 +357,8 @@ int ech_main(int argc, char **argv)
     BIO *pemf=NULL;
     char *prog=NULL;
     OPTION_CHOICE o;
-    char *echconfig_file = NULL, *keyfile = NULL, *pemfile=NULL;
+    char *echconfig_file = NULL, *keyfile = NULL, *pemfile=NULL, *inpemfile=NULL;
+    int pemselect=ECH_PEMSELECT_ALL;
     char *public_name=NULL;
     char *suitestr=NULL;
     char *extfile=NULL;
@@ -373,6 +371,10 @@ int ech_main(int argc, char **argv)
     unsigned char echconfig[ECH_MAX_ECHCONFIGS_BUFLEN];
     size_t privlen=HPKE_MAXSIZE; unsigned char priv[HPKE_MAXSIZE];
     int rv=0;
+    int mode=ECH_KEYGEN_MODE; /* key generation */
+    SSL_CTX *con=NULL;
+    SSL *s=NULL;
+    const SSL_METHOD *meth = TLS_client_method();
 
     prog = opt_init(argc, argv, ech_options);
     while ((o = opt_next()) != OPT_EOF) {
@@ -393,6 +395,13 @@ int ech_main(int argc, char **argv)
             break;
         case OPT_PEMOUT:
             pemfile = opt_arg();
+            break;
+        case OPT_PEMIN:
+            inpemfile = opt_arg();
+            mode=ECH_SELPRINT_MODE; /* print/select */
+            break;
+        case OPT_SELECT:
+            pemselect=atoi(opt_arg());
             break;
         case OPT_PUBLICNAME:
             public_name = opt_arg();
@@ -494,55 +503,148 @@ int ech_main(int argc, char **argv)
         pemfile="echconfig.pem";
     }
 
-    /*
-     * Generate a new ECHConfig and spit that out
-     */
-
-    rv=mk_echconfig(ech_version, max_name_length, public_name, hpke_suite, extlen, extvals, &echconfig_len, echconfig, &privlen, priv);
-    if (rv!=1) {
-        BIO_printf(bio_err,"mk_echconfig error: %d\n",rv);
-        goto end;
-    }
+    if (mode==ECH_KEYGEN_MODE) {
     
-    /*
-     * Write stuff to files, "proper" OpenSSL code needed
-     */
-    if (echconfig_file!=NULL) {
-        BIO *ecf=BIO_new_file(echconfig_file,"w");
-        if (ecf==NULL) goto end;
-        BIO_write(ecf,echconfig,echconfig_len);
-        BIO_printf(ecf,"\n");
-        BIO_free_all(ecf);
-        BIO_printf(bio_err,"Wrote ECHConfig to %s\n",echconfig_file);
+        /*
+         * Generate a new ECHConfig and spit that out
+         */
+        rv=mk_echconfig(ech_version, max_name_length, public_name, hpke_suite, extlen, extvals, &echconfig_len, echconfig, &privlen, priv);
+        if (rv!=1) {
+            BIO_printf(bio_err,"mk_echconfig error: %d\n",rv);
+            goto end;
+        }
+        /*
+         * Write stuff to files, "proper" OpenSSL code needed
+         */
+        if (echconfig_file!=NULL) {
+            BIO *ecf=BIO_new_file(echconfig_file,"w");
+            if (ecf==NULL) goto end;
+            BIO_write(ecf,echconfig,echconfig_len);
+            BIO_printf(ecf,"\n");
+            BIO_free_all(ecf);
+            BIO_printf(bio_err,"Wrote ECHConfig to %s\n",echconfig_file);
+        }
+        if (keyfile!=NULL) {
+            BIO *kf=BIO_new_file(keyfile,"w");
+            if (kf==NULL) goto end;
+            BIO_write(kf,priv,privlen);
+            BIO_free_all(kf);
+            BIO_printf(bio_err,"Wrote ECH private key to %s\n",keyfile);
+        }
+        /*
+         * If we didn't write out either of the above then
+         * we'll create a PEM file
+         */
+        if (keyfile==NULL && echconfig_file==NULL) {
+            if ((pemf = BIO_new_file(pemfile, "w")) == NULL) goto end;
+            BIO_write(pemf,priv,privlen);
+            BIO_printf(pemf,"-----BEGIN ECHCONFIG-----\n");
+            BIO_write(pemf,echconfig,echconfig_len);
+            BIO_printf(pemf,"\n");
+            BIO_printf(pemf,"-----END ECHCONFIG-----\n");
+            BIO_free_all(pemf);
+            BIO_printf(bio_err,"Wrote ECH key pair to %s\n",pemfile);
+        } else {
+            if (keyfile==NULL) 
+                BIO_printf(bio_err,"Didn't write private key anywhere! That's a bit silly\n");
+            if (echconfig_file==NULL) 
+                BIO_printf(bio_err,"Didn't write ECHConfig anywhere! That's a bit silly\n");
+        }
+        return(1);
+    
     }
-    if (keyfile!=NULL) {
-        BIO *kf=BIO_new_file(keyfile,"w");
-        if (kf==NULL) goto end;
-        BIO_write(kf,priv,privlen);
-        BIO_free_all(kf);
-        BIO_printf(bio_err,"Wrote ECH private key to %s\n",keyfile);
+
+    if (mode==ECH_SELPRINT_MODE) {
+        int rv=0;
+        int nechs=0;
+        
+        if (inpemfile==NULL) {
+            BIO_printf(bio_err,"no input PEM file supplied - exiting\n");
+            goto end;
+        }
+
+        con = SSL_CTX_new_ex(app_get0_libctx(), app_get0_propq(), meth);
+        if (!con) goto end;
+        /*
+         * Input could be key pair 
+         */
+        rv=SSL_CTX_ech_server_enable(con,inpemfile);
+        if (rv!=1) {
+            /*
+             * Or it could be just an encoded ECHConfig 
+             */
+            char *pname=NULL;
+            char *pheader=NULL;
+            unsigned char *pdata=NULL;
+            long plen;
+            BIO *pem_in=NULL;
+
+            pem_in = BIO_new(BIO_s_file());
+            if (pem_in==NULL) {
+                goto err;
+            }
+            if (BIO_read_filename(pem_in,inpemfile)<=0) {
+                goto err;
+            }
+            if (PEM_read_bio(pem_in,&pname,&pheader,&pdata,&plen)<=0) {
+                goto err;
+            }
+            if (!pname) {
+                goto err;
+            }
+            if (strlen(pname)==0) {
+                goto err;
+            }
+            if (strncmp(PEM_STRING_ECHCONFIG,pname,strlen(pname))) {
+                goto err;
+            }
+            OPENSSL_free(pname);  pname=NULL;
+            if (pheader) {
+                OPENSSL_free(pheader); pheader=NULL;
+            }
+            if (plen>=ECH_MAX_ECHCONFIG_LEN) {
+                goto err;
+            }
+
+            s=SSL_new(con);
+            if (!s) goto end;
+
+            /*
+             * Now decode that ECHConfigs
+             */
+            rv=SSL_ech_add(s,ECH_FMT_GUESS,plen,(char*)pdata,&nechs);
+            if (rv!=1) {
+                BIO_printf(bio_err,"Failed to load ECHConfig/Key from: %s\n",inpemfile);
+                goto end;
+            }
+            BIO_printf(bio_err,"Loaded ECHConfig from: %s\n",inpemfile);
+        } else {
+            s=SSL_new(con);
+            if (!s) goto end;
+            BIO_printf(bio_err,"Loaded Key+ECHConfig from: %s\n",inpemfile);
+        }
+
+        ECH_DIFF *ed=NULL;
+
+        rv=SSL_ech_query(s, &ed, &nechs);
+        if (rv!=1) goto end; 
+        if (!ed) goto end;
+
+        SSL_ECH_DIFF_free(ed, nechs);
+        
+        rv=SSL_ECH_DIFF_print(bio_err, ed, nechs);
+        if (rv!=1) goto end; 
+
+        SSL_free(s);
+        SSL_CTX_free(con);
+
+        return(1);
     }
-    /*
-     * If we didn't write out either of the above then
-     * we'll create a PEM file
-     */
-    if (keyfile==NULL && echconfig_file==NULL) {
-        if ((pemf = BIO_new_file(pemfile, "w")) == NULL) goto end;
-        BIO_write(pemf,priv,privlen);
-        BIO_printf(pemf,"-----BEGIN ECHCONFIG-----\n");
-        BIO_write(pemf,echconfig,echconfig_len);
-        BIO_printf(pemf,"\n");
-        BIO_printf(pemf,"-----END ECHCONFIG-----\n");
-        BIO_free_all(pemf);
-        BIO_printf(bio_err,"Wrote ECH key pair to %s\n",pemfile);
-    } else {
-        if (keyfile==NULL) 
-            BIO_printf(bio_err,"Didn't write private key anywhere! That's a bit silly\n");
-        if (echconfig_file==NULL) 
-            BIO_printf(bio_err,"Didn't write ECHConfig anywhere! That's a bit silly\n");
-    }
-    return(1);
+
+err:
 end:
+    if (s) SSL_free(s);
+    if (con) SSL_CTX_free(con);
     return(0);
 }
 

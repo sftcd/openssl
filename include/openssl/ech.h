@@ -48,8 +48,17 @@
 #define ECH_FMT_ASCIIHEX  3  /**< ascii-hex encoded ECHConfigs (semi-colon separated if >1) */
 #define ECH_FMT_HTTPSSVC  4  /**< presentation form of HTTPSSVC */
 
+/*
+ * Draft version values. We only really support draft-10 as of now.
+ * Draft-09 was supported in earlier version (see commit history).
+ * Draft-11 won't ever be suppored but is here just for completeness
+ * (that draft had a spec-bug). The next one to support will be
+ * draft-12, but that coding isn't started yet (won't be long:-).
+ */
 #define ECH_DRAFT_09_VERSION 0xfe09 /**< ECHConfig version from draft-09 */
 #define ECH_DRAFT_10_VERSION 0xfe0a /**< ECHConfig version from draft-10 */
+#define ECH_DRAFT_11_VERSION 0xfe0b /**< ECHConfig version from draft-11 */
+#define ECH_DRAFT_12_VERSION 0xfe0c /**< ECHConfig version from draft-12 */
 
 /* 
  * the wire-format code for ECH within an SVCB or HTTPS RData
@@ -62,8 +71,8 @@
  * This is a special marker value. If set via a specific call
  * to our external API, then we'll override use of the 
  * ECHConfig.public_name and send no outer SNI.
- * TODO: check if this ought be in util/libssl.num as an
- * extern variable, or if I need to add a real function.
+ * This is also mentioned in util/libssl.num as an
+ * extern variable.
  */
 extern char *ech_public_name_override_null;
 #define ECH_PUBLIC_NAME_OVERRIDE_NULL  ech_public_name_override_null
@@ -323,8 +332,6 @@ int SSL_ech_print(BIO* out, SSL *con, int selector);
  * This is intended to be called by applications after the TLS handshake
  * is complete. This works for both client and server. The caller does
  * not have to (and shouldn't) free the inner_sni or outer_sni strings.
- * TODO: Those are pointers into the SSL struct though so maybe better
- * to allocate fresh ones.
  *
  * @param s The SSL context (if that's the right term)
  * @param inner_sni will be set to the SNI from the inner CH (if any)
