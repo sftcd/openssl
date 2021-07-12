@@ -62,6 +62,13 @@
  */
 static int local_ech_add( int ekfmt, size_t eklen, unsigned char *ekval, int *num_echs, SSL_ECH **echs);
 
+/**
+ * @brief free an ECH_DIFF
+ * @param in the thing to free
+ * @return void
+ */
+static void ECH_DIFF_free(ECH_DIFF *in);
+
 /*
  * Yes, global vars! 
  * For decoding input strings with public keys (aka ECHConfig) we'll accept
@@ -1304,6 +1311,21 @@ int SSL_ech_set_outer_server_name(SSL *s, const char *outer_name)
 }
 
 /**
+ * @brief free an ECH_DIFF
+ * @param in the thing to free
+ * @return void
+ */
+static void ECH_DIFF_free(ECH_DIFF *in)
+{
+    if (!in) return;
+    OPENSSL_free(in->public_name);
+    OPENSSL_free(in->inner_name);
+    OPENSSL_free(in->outer_alpns);
+    OPENSSL_free(in->inner_alpns);
+    return;
+}
+
+/**
  * @brief query the content of an SSL_ECH structure
  *
  * This function allows the application to examine some internals
@@ -1363,21 +1385,6 @@ int SSL_ech_query(SSL *s, ECH_DIFF **out, int *nindices)
 err:
     SSL_ECH_DIFF_free(rdiff,indices);
     return 0;
-}
-
-/**
- * @brief free an ECH_DIFF
- * @param in the thing to free
- * @return void
- */
-void ECH_DIFF_free(ECH_DIFF *in)
-{
-    if (!in) return;
-    OPENSSL_free(in->public_name);
-    OPENSSL_free(in->inner_name);
-    OPENSSL_free(in->outer_alpns);
-    OPENSSL_free(in->inner_alpns);
-    return;
 }
 
 /** 
