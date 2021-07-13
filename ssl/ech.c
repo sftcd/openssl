@@ -1757,7 +1757,7 @@ static int ECHConfig_dup(ECHConfig *old, ECHConfig *new)
  * A macro to check we have __n__ allocated octets left before we
  * write to the 'alen' sized string buffer 'str' using pointer 'cp'
  */
-#define STILLLEFT(__n__) if (((cp-str)+(__n__))>alen) return(NULL);
+#define STILLLEFT(__n__) if (((size_t)(cp-str)+(size_t)(__n__))>alen) return(NULL);
 
 static char *ECHConfigs_print(ECHConfigs *c)
 {
