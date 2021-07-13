@@ -1773,7 +1773,7 @@ static char *ECHConfigs_print(ECHConfigs *c)
     if (!str) return(str);
     cp=str;
     for (i=0;i!=c->nrecs;i++) {
-        int j=0;
+        unsigned int j=0;
         STILLLEFT(1);
         *cp++='['; 
         /* version */
