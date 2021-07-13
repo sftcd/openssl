@@ -6,12 +6,12 @@ SSL_CTX_svcb_add, SSL_svcb_add, SSL_ech_add, SSL_CTX_ech_add,
 SSL_ech_server_name, SSL_ech_query,
 SSL_ech_set_outer_server_name, SSL_CTX_ech_set_outer_server_name, 
 SSL_CTX_ech_set_outer_alpn_protos, SSL_ech_set_outer_alpn_protos,
-SSL_ECH_DIFF_print, SSL_ech_reduce, SSL_CTX_ech_server_key_status,
+SSL_ECH_DETS_print, SSL_ech_reduce, SSL_CTX_ech_server_key_status,
 SSL_CTX_ech_server_flush_keys, SSL_CTX_ech_server_enable,
 SSL_CTX_ech_readpemdir, SSL_ech_print,
 SSL_ech_get_status, SSL_ech_set_grease_suite,
 SSL_CTX_ech_set_callback, SSL_ech_set_callback,
-SSL_ECH_DIFF_free,SSL_CTX_ech_raw_decrypt
+SSL_ECH_DETS_free,SSL_CTX_ech_raw_decrypt
 - Encrypted Client Helllo (ECH) support - client, server and commmon functions 
 
 =head1 SYNOPSIS
@@ -22,8 +22,8 @@ SSL_ECH_DIFF_free,SSL_CTX_ech_raw_decrypt
  int SSL_ech_add(SSL *con, int ekfmt, size_t eklen, char *echkeys, int *num_echs);
  int SSL_CTX_ech_add(SSL_CTX *ctx, short ekfmt, size_t eklen, char *echkeys, int *num_echs);
  int SSL_ech_server_name(SSL *s, const char *inner_name, const char *outer_name);
- int SSL_ech_query(SSL *in, ECH_DIFF **out, int *nindices);
- int SSL_ECH_DIFF_print(BIO* out, ECH_DIFF *se, int count);
+ int SSL_ech_query(SSL *in, ECH_DETS **out, int *nindices);
+ int SSL_ECH_DETS_print(BIO* out, ECH_DETS *se, int count);
  int SSL_ech_reduce(SSL *in, int index);
  int SSL_CTX_ech_server_key_status(SSL_CTX *s, int *numkeys);
  int SSL_CTX_ech_server_flush_keys(SSL_CTX *s, int age);
@@ -38,7 +38,7 @@ SSL_ECH_DIFF_free,SSL_CTX_ech_raw_decrypt
  int SSL_ech_set_outer_alpn_protos(SSL_CTX *ctx, const unsigned char *protos, const size_t protos_len);
  void SSL_CTX_ech_set_callback(SSL *s, SSL_ech_cb_func f);
  void SSL_ech_set_callback(SSL *s, SSL_ech_cb_func f);
- void SSL_ECH_DIFF_free(ECH_DIFF *in, int size);
+ void SSL_ECH_DETS_free(ECH_DETS *in, int size);
  int SSL_CTX_ech_raw_decrypt(SSL_CTX *ctx, unsigned char *outer_ch, size_t outer_len, unsigned char *inner_ch, size_t *inner_len, char **inner_sni, char **outer_sni, int *decrypted_ok);
 
 =head1 DESCRIPTION

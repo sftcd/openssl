@@ -63,11 +63,13 @@
 static int local_ech_add( int ekfmt, size_t eklen, unsigned char *ekval, int *num_echs, SSL_ECH **echs);
 
 /**
- * @brief free an ECH_DIFF
+ * @brief free an ECH_DETS
  * @param in the thing to free
  * @return void
  */
-static void ECH_DIFF_free(ECH_DIFF *in);
+static void ECH_DETS_free(ECH_DETS *in);
+
+static char *ECHConfigs_print(ECHConfigs *c);
 
 /*
  * Yes, global vars! 
@@ -1334,17 +1336,18 @@ int SSL_CTX_ech_set_outer_server_name(SSL_CTX *s, const char *outer_name)
 
 
 /**
- * @brief free an ECH_DIFF
+ * @brief free an ECH_DETS
  * @param in the thing to free
  * @return void
  */
-static void ECH_DIFF_free(ECH_DIFF *in)
+static void ECH_DETS_free(ECH_DETS *in)
 {
     if (!in) return;
     OPENSSL_free(in->public_name);
     OPENSSL_free(in->inner_name);
     OPENSSL_free(in->outer_alpns);
     OPENSSL_free(in->inner_alpns);
+    OPENSSL_free(in->echconfig);
     return;
 }
 
@@ -1361,12 +1364,12 @@ static void ECH_DIFF_free(ECH_DIFF *in)
  *
  * @param s is the SSL session
  * @param out is the returned externally visible detailed form of the SSL_ECH structure
- * @param nindices is an output saying how many indices are in the ECH_DIFF structure 
+ * @param nindices is an output saying how many indices are in the ECH_DETS structure 
  * @return 1 for success, error otherwise
  */
-int SSL_ech_query(SSL *s, ECH_DIFF **out, int *nindices)
+int SSL_ech_query(SSL *s, ECH_DETS **out, int *nindices)
 {
-    ECH_DIFF *rdiff=NULL;
+    ECH_DETS *rdiff=NULL;
     int i=0;
     int indices=0;
 
@@ -1377,10 +1380,10 @@ int SSL_ech_query(SSL *s, ECH_DIFF **out, int *nindices)
         *nindices=0;
         return 1;
     }
-    rdiff=OPENSSL_zalloc(s->nechs*sizeof(ECH_DIFF));
+    rdiff=OPENSSL_zalloc(s->nechs*sizeof(ECH_DETS));
     if (rdiff==NULL) goto err;
     for (i=0;i!=s->nechs;i++) {
-        ECH_DIFF *inst=&rdiff[i];
+        ECH_DETS *inst=&rdiff[i];
         if (s->ech->inner_name) {
             inst->inner_name=OPENSSL_strdup(s->ech->inner_name);
             if (!inst->inner_name) goto err;
@@ -1401,53 +1404,60 @@ int SSL_ech_query(SSL *s, ECH_DIFF **out, int *nindices)
             memcpy(inst->outer_alpns,s->ext.alpn_outer,s->ext.alpn_outer_len);
             inst->outer_alpns[s->ext.alpn_outer_len]='\0';
         }
+        /* 
+         * Now print the ECHConfig(s) 
+         */
+        if (s->ech->cfg) {
+            inst->echconfig=ECHConfigs_print(s->ech->cfg);
+        }
     }
     *nindices=indices;
     *out=rdiff;
     return 1;
 err:
-    SSL_ECH_DIFF_free(rdiff,indices);
+    SSL_ECH_DETS_free(rdiff,indices);
     return 0;
 }
 
 /** 
- * @brief free up memory for an ECH_DIFF
+ * @brief free up memory for an ECH_DETS
  *
  * @param in is the structure to free up
  * @param size says how many indices are in in
  */
-void SSL_ECH_DIFF_free(ECH_DIFF *in, int size)
+void SSL_ECH_DETS_free(ECH_DETS *in, int size)
 {
     int i=0;
     if (!in) return;
     if (size<=0) return;
     for(i=0;i!=size;i++) { 
-        ECH_DIFF_free(&in[i]);
+        ECH_DETS_free(&in[i]);
     }
     OPENSSL_free(in);
     return;
 }
 
 /**
- * @brief utility fnc for application that wants to print an ECH_DIFF
+ * @brief utility fnc for application that wants to print an ECH_DETS
  *
  * @param out is the BIO to use (e.g. stdout/whatever)
- * @param se is a pointer to an ECH_DIFF struture
+ * @param se is a pointer to an ECH_DETS struture
  * @param count is the number of elements in se
  * @return 1 for success, error othewise
  */
-int SSL_ECH_DIFF_print(BIO* out, ECH_DIFF *se, int count)
+int SSL_ECH_DETS_print(BIO* out, ECH_DETS *se, int count)
 {
     int i=0;
     if (!out || !se || count==0) return 0;
     BIO_printf(out,"ECH differences (%d configs total)\n",count);
     for (i=0;i!=count;i++) {
-        BIO_printf(out,"index: %d, SNI (inner:%s,outer:%s), ALPN (inner:%s,outer:%s)\n",
+        BIO_printf(out,"index: %d, SNI (inner:%s,outer:%s), ALPN (inner:%s,outer:%s)\n\t%s\n",
                count,
                se[i].inner_name?se[i].inner_name:"NULL",
                se[i].public_name?se[i].public_name:"NULL",
                se[i].inner_alpns?se[i].inner_alpns:"NULL",
-               se[i].outer_alpns?se[i].outer_alpns:"NULL");
+               se[i].outer_alpns?se[i].outer_alpns:"NULL",
+               se[i].echconfig?se[i].echconfig:"NULL");
     }
     return 1;
 }
@@ -1459,7 +1469,7 @@ int SSL_ECH_DIFF_print(BIO* out, ECH_DIFF *se, int count)
  * within an SSL_ECH for later use.
  *
  * @param s is an SSL structure with possibly multiple ECHConfigs
- * @param index is the index value from an ECH_DIFF produced from the 'in'
+ * @param index is the index value from an ECH_DETS produced from the 'in'
  * @return 1 for success, error otherwise
  */
 int SSL_ech_reduce(SSL *s, int index)
@@ -1741,6 +1751,76 @@ static int ECHConfig_dup(ECHConfig *old, ECHConfig *new)
         memcpy(new->ciphersuites,old->ciphersuites,old->nsuites*sizeof(ech_ciphersuite_t));
     }
     return 1;
+}
+
+/*
+ * A macro to check we have __n__ allocated octets left before we
+ * write to the 'alen' sized string buffer 'str' using pointer 'cp'
+ */
+#define STILLLEFT(__n__) if (((cp-str)+(__n__))>alen) return(NULL);
+
+static char *ECHConfigs_print(ECHConfigs *c)
+{
+    int i=0;
+    char *str=NULL; /* final string */
+    size_t alen=0;  /* allocated len = 3*encoded_len + overhead */
+    char *cp=NULL; /* current string pointer */
+    if (!c) return(str);
+    if (!c->recs) return(str);
+    alen=c->encoded_len*3+80;
+    str=OPENSSL_malloc(alen);
+    memset(str,0,alen);
+    if (!str) return(str);
+    cp=str;
+    for (i=0;i!=c->nrecs;i++) {
+        int j=0;
+        STILLLEFT(1);
+        *cp++='['; 
+        /* version */
+        STILLLEFT(5);
+        snprintf(cp,(alen-(cp-str)),"%04x,",c->recs[i].version); cp+=5;
+        /* config_id */
+        STILLLEFT(3);
+        snprintf(cp,(alen-(cp-str)),"%02x,",c->recs[i].config_id[0]); cp+=3;
+        /* public_name */
+        STILLLEFT(c->recs[i].public_name_len+1);
+        snprintf(cp,(alen-(cp-str)),"%s,",c->recs[i].public_name); 
+        cp+=(c->recs[i].public_name_len+1);
+        /* ciphersuites */
+        STILLLEFT(6);
+        snprintf(cp,(alen-(cp-str)),"%04x,[",c->recs[i].kem_id); cp+=6;
+        for (j=0;j!=c->recs[i].nsuites;j++) {
+            unsigned char *es=(unsigned char*)&c->recs[i].ciphersuites[j];
+            uint16_t kdf_id=es[0]*256+es[1];
+            uint16_t aead_id=es[2]*256+es[3];
+            STILLLEFT(5);
+            snprintf(cp,(alen-(cp-str)),"%04x,",kdf_id); cp+=5;
+            STILLLEFT(4);
+            snprintf(cp,(alen-(cp-str)),"%04x",aead_id); cp+=4;
+            if (j<(c->recs[i].nsuites-1)) {
+                STILLLEFT(1);
+                *cp++=',';
+            }
+        }
+        STILLLEFT(1); *cp++=']';
+        STILLLEFT(1); *cp++=',';
+        /* public key */
+        for (j=0;j!=c->recs[i].pub_len;j++) {
+            STILLLEFT(2);
+            snprintf(cp,(alen-(cp-str)),"%02x",c->recs[i].pub[j]); cp+=2;
+        }
+        /* max name length */
+        STILLLEFT(6);
+        snprintf(cp,(alen-(cp-str)),",%04x,",c->recs[i].maximum_name_length); cp+=6;
+        /* just number of extensions */
+        STILLLEFT(2);
+        snprintf(cp,(alen-(cp-str)),"%02x",c->recs[i].nexts); cp+=2;
+        STILLLEFT(1);
+        *cp++=']';
+    }
+    STILLLEFT(1);
+    *cp++='\0'; 
+    return(str);
 }
 
 static int ECHConfigs_dup(ECHConfigs *old, ECHConfigs *new)

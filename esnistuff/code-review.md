@@ -68,9 +68,7 @@ Clean.
 * Moved strings used in ECH key derivation to ``ssl/ech_local.h``
 * Re-tested the ``-svcb`` command line with ascii-hex and base64
 * Re-tested the ``-echconfigs`` input formats (ascii-hex, b64)
-
-In the  process of finishing up the code for the ``ECH_DIFF`` APIs
-and associated ``openssl ech`` commands for using/testing that.
+* Fleshed out ``SSL_ech_query`` and associated.
 
 ### ``./include/openssl/tls1.h``
 ### ``./include/openssl/ssl.h``

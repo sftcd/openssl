@@ -556,7 +556,7 @@ int ech_main(int argc, char **argv)
 
     if (mode==ECH_SELPRINT_MODE) {
         int nechs=0;
-        ECH_DIFF *ed=NULL;
+        ECH_DETS *ed=NULL;
         
         if (inpemfile==NULL) {
             BIO_printf(bio_err,"no input PEM file supplied - exiting\n");
@@ -582,7 +582,6 @@ int ech_main(int argc, char **argv)
             unsigned char *pdata=NULL;
             long plen;
             BIO *pem_in=NULL;
-
 
             pem_in = BIO_new(BIO_s_file());
             if (pem_in==NULL) {
@@ -633,10 +632,9 @@ int ech_main(int argc, char **argv)
         if (rv!=1) goto end; 
         if (!ed) goto end;
 
-        SSL_ECH_DIFF_free(ed, nechs);
-        
-        rv=SSL_ECH_DIFF_print(bio_err, ed, nechs);
+        rv=SSL_ECH_DETS_print(bio_err, ed, nechs);
         if (rv!=1) goto end; 
+        SSL_ECH_DETS_free(ed, nechs);
 
         SSL_free(s);
         SSL_CTX_free(con);

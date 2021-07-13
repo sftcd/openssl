@@ -83,11 +83,12 @@ extern char *ech_public_name_override_null;
  */
 typedef struct ech_diff_st {
     int index; /**< externally re-usable reference to this value */
-    char *public_name; /**< public_name from ECHKeys */
+    char *public_name; /**< public_name from API */
     char *inner_name; /**< server-name for inner CH */
     char *outer_alpns; /**< outer ALPN string */
     char *inner_alpns; /**< inner ALPN string */
-} ECH_DIFF;
+    char *echconfig; /**< the associated ECHConfig */
+} ECH_DETS;
 
 
 /*
@@ -236,28 +237,28 @@ int SSL_ech_set_outer_alpn_protos(SSL *ssl, const unsigned char *protos,
  *
  * @param in is the SSL session
  * @param out is the returned externally visible detailed form of the SSL_ECH structure
- * @param nindices is an output saying how many indices are in the ECH_DIFF structure 
+ * @param nindices is an output saying how many indices are in the ECH_DETS structure 
  * @return 1 for success, error otherwise
  */
-int SSL_ech_query(SSL *in, ECH_DIFF **out, int *nindices);
+int SSL_ech_query(SSL *in, ECH_DETS **out, int *nindices);
 
 /** 
- * @brief free up memory for an ECH_DIFF
+ * @brief free up memory for an ECH_DETS
  *
  * @param in is the structure to free up
  * @param size says how many indices are in in
  */
-void SSL_ECH_DIFF_free(ECH_DIFF *in, int size);
+void SSL_ECH_DETS_free(ECH_DETS *in, int size);
 
 /**
- * @brief utility fnc for application that wants to print an ECH_DIFF
+ * @brief utility fnc for application that wants to print an ECH_DETS
  *
  * @param out is the BIO to use (e.g. stdout/whatever)
- * @param se is a pointer to an ECH_DIFF struture
+ * @param se is a pointer to an ECH_DETS struture
  * @param count is the number of elements in se
  * @return 1 for success, error othewise
  */
-int SSL_ECH_DIFF_print(BIO* out, ECH_DIFF *se, int count);
+int SSL_ECH_DETS_print(BIO* out, ECH_DETS *se, int count);
 
 /**
  * @brief down-select to use of one option with an SSL_ECH
@@ -266,7 +267,7 @@ int SSL_ECH_DIFF_print(BIO* out, ECH_DIFF *se, int count);
  * within an SSL_ECH for later use.
  *
  * @param in is an SSL structure with possibly multiple RR values
- * @param index is the index value from an ECH_DIFF produced from the 'in'
+ * @param index is the index value from an ECH_DETS produced from the 'in'
  * @return 1 for success, error otherwise
  */
 int SSL_ech_reduce(SSL *in, int index);
