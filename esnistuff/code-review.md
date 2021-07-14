@@ -74,11 +74,31 @@ Generally seems ok now. (Might still see some changes when I do
 more on multi-valued ECHConfigs.)
 
 ### ``./include/openssl/tls1.h``
+
+Good. No real change in pass#2.
+
 ### ``./include/openssl/ssl.h``
+
+Good. No change in pass#2.
+
 ### ``./ssl/ssl_sess.c``
+
+Had a placeholder comment there but seems like we don't really
+need ECH specific changes there (for now at least).
+
 ### ``./ssl/tls13_enc.c``
+
+No change since pass#1 the only ECH code here is added tracing.
+
 ### ``./ssl/t1_trce.c``
+
+No change since pass#1.
+
 ### ``./ssl/record/ssl3_record_tls13.c``
+
+No change since pass#1. Only ECH code here sets the ``s->ext.ech_success``
+for the client once some decryption has happened well.
+
 ### ``./ssl/ech_local.h``
 ### ``./ssl/s3_enc.c``
 ### ``./ssl/ech.c``

@@ -887,12 +887,6 @@ const char *SSL_SESSION_get0_hostname(const SSL_SESSION *s)
     return s->ext.hostname;
 }
 
-#ifndef OPENSSL_NO_ECH
-/* 
- * TODO: set/get as per the above 
- */
-#endif
-
 int SSL_SESSION_set1_hostname(SSL_SESSION *s, const char *hostname)
 {
     OPENSSL_free(s->ext.hostname);
