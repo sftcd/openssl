@@ -100,6 +100,11 @@ No change since pass#1. Only ECH code here sets the ``s->ext.ech_success``
 for the client once some decryption has happened well.
 
 ### ``./ssl/ech_local.h``
+
+* Turned off ``ECH_SUPERVEBOSE`` for now.
+* Removed ``config_id_len`` field and fixed ``config_id`` as one octet
+* **TODO**: do something with ``dns_alpns``
+
 ### ``./ssl/s3_enc.c``
 ### ``./ssl/ech.c``
 

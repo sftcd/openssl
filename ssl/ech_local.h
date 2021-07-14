@@ -9,8 +9,8 @@
 
 /**
  * @file 
- * This has the data structures and prototypes (both internal and external)
- * for internal handling of Encrypted ClientHEllo (ECH)
+ * This has the internal data structures and prototypes 
+ * for handling of Encrypted ClientHello (ECH)
  */
 
 #ifndef OPENSSL_NO_ECH
@@ -22,9 +22,7 @@
 # include <openssl/ech.h>
 # include <crypto/hpke.h>
 
-#define ECH_SUPERVERBOSE  /**< to get bazillions more lines of tracing */
-
-#define ECH_RRTYPE 65439 /**< experimental (as per draft-03, and draft-04) ECH RRTYPE */
+#undef ECH_SUPERVERBOSE  /**< to get bazillions more lines of tracing */
 
 #define ECH_MIN_ECHCONFIG_LEN 32 /**< just for a sanity check */
 #define ECH_MAX_ECHCONFIG_LEN 512 /**< just for a sanity check */
@@ -102,8 +100,7 @@ typedef struct ech_config_st {
     unsigned char **exts;
     size_t encoding_length;         /* these fields will disappear in -10 */
     unsigned char *encoding_start; /* as they're only needed to calc config_id */
-    unsigned int config_id_len;
-    unsigned char *config_id;
+    uint8_t config_id;
 } ECHConfig;
 
 typedef struct ech_configs_st {
@@ -146,8 +143,7 @@ typedef struct ech_configs_st {
 typedef struct ech_encch_st {
 	uint16_t kdf_id; /**< ciphersuite  */
 	uint16_t aead_id; /**< ciphersuite  */
-    size_t config_id_len; /**< identifies DNS RR used */
-    unsigned char *config_id; /**< identifies DNS RR used */
+    uint8_t config_id; /**< identifies DNS RR used */
     size_t enc_len; /**< public share */
     unsigned char *enc; /**< public share */
     size_t payload_len; /**< ciphertext  */
@@ -174,7 +170,7 @@ typedef struct ssl_ech_st {
     char *inner_name;
     char *outer_name;
     /* 
-     * File load information servers - if identical filenames not modified since
+     * File load information - if identical filenames not modified since
      * loadtime are added via SSL_ech_serve_enable then we'll ignore the new
      * data. If identical file names that are more recently modified are loaded
      * to a server we'll overwrite this entry.
@@ -205,8 +201,7 @@ typedef struct ssl_ech_st {
 void SSL_ECH_free(SSL_ECH *tbf);
 
 /**
- *
- * Free stuff
+ * Free an ECHConfigs
  * @param tbf is the thing to be free'd
  */
 void ECHConfigs_free(ECHConfigs *tbf);

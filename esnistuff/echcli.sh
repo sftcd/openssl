@@ -227,7 +227,7 @@ then
         then
             qname="_$PORT._https.$hidden"
         fi
-        ECH=`dig +short -t TYPE65 $qname | tail -1 | cut -f 3- -d' ' | sed -e 's/ //g' | sed -e 'N;s/\n//'`
+        ECH=" -svcb `dig +short -t TYPE65 $qname | tail -1 | cut -f 3- -d' ' | sed -e 's/ //g' | sed -e 'N;s/\n//'`"
         if [[ "$ECH" == "" ]]
         then
             # TODO: do the parsing biz

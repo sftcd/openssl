@@ -374,7 +374,6 @@ void ECHConfig_free(ECHConfig *tbf)
     if (tbf->ciphersuites) OPENSSL_free(tbf->ciphersuites);
     if (tbf->exttypes) OPENSSL_free(tbf->exttypes);
     if (tbf->extlens) OPENSSL_free(tbf->extlens);
-    if (tbf->config_id) OPENSSL_free(tbf->config_id);
     for (i=0;i!=tbf->nexts;i++) {
         if (tbf->exts[i]) OPENSSL_free(tbf->exts[i]);
     }
@@ -429,7 +428,6 @@ static void *ech_len_field_dup(void *old, unsigned int len)
 void ECH_ENCCH_free(ECH_ENCCH *ev)
 {
     if (!ev) return;
-    if (ev->config_id!=NULL) OPENSSL_free(ev->config_id);
     if (ev->enc!=NULL) OPENSSL_free(ev->enc);
     if (ev->payload!=NULL) OPENSSL_free(ev->payload);
     return;
@@ -467,71 +465,6 @@ void SSL_ECH_free(SSL_ECH *tbf)
 
     memset(tbf,0,sizeof(SSL_ECH));
     return;
-}
-
-/*
- * @brief client-side calculation of config_id as per draft-09
- *
- * @param cfg is the ECHConfigs structure
- * @param cind is the index of the ECHConfig we want
- * @param olen is buffer size of out on inpuit and actual size on success 
- * @param out is a caller-allocated buffer for the result
- * @return 1 for success, error otherwise
- */
-static int ech_calc_config_id(ECHConfigs *cfg, int cind)
-{
-    ECHConfig *thecfg=NULL;
-    size_t encodedechlen=0;
-    unsigned char *encodedech=NULL;
-    hpke_suite_t suite = HPKE_SUITE_DEFAULT;
-    int mode5869=0;
-    size_t s1len=HPKE_MAXSIZE;
-    unsigned char s1[HPKE_MAXSIZE];
-    size_t s2len=8;
-    unsigned char s2[8];
-    int erv=1;
-
-    if (!cfg) return 0;
-    if (cind>cfg->nrecs) return 0;
-
-    thecfg=&cfg->recs[cind];
-    if (thecfg->config_id!=NULL) return 1; /* already done */
-    encodedechlen=thecfg->encoding_length;
-    encodedech=thecfg->encoding_start;
-
-    erv=hpke_extract(
-        suite, mode5869,
-        (const unsigned char*) "", 0, /* const unsigned char *salt, const size_t saltlen, */
-        ECH_CONFIG_ID_STRING, strlen(ECH_CONFIG_ID_STRING),
-        encodedech, encodedechlen, /* unsigned char *ikm, const size_t ikmlen, */
-        s1, &s1len);
-    if (erv!=1) return 0;
-
-    /*
-     * It was not at all clear from the spec that the same label
-     * should be provided to both calls, but no need to fix as 
-     * the calculated config_id idea will go away.
-     */
-    erv=hpke_expand(
-        suite, mode5869, 
-        s1, s1len, /* unsigned char *prk, size_t prklen, */
-        ECH_CONFIG_ID_STRING, strlen(ECH_CONFIG_ID_STRING), /* const unsigned char *label, const size_t labellen, */
-        NULL, 0, /* unsigned char *info, size_t infolen */
-        8, /* uint32_t L, */
-        s2, &s2len); 
-    if (erv!=1) return 0;
-
-    thecfg->config_id=OPENSSL_malloc(s2len);
-    if (!thecfg->config_id) {
-        return 0;
-    }
-    thecfg->config_id_len=s2len;
-    memcpy(thecfg->config_id,s2,thecfg->config_id_len);
-
-    ech_pbuf("calculated config id input",thecfg->encoding_start,thecfg->encoding_length);
-    ech_pbuf("calculated config id",s2,s2len);
-
-    return 1;
 }
 
 /**
@@ -655,14 +588,9 @@ static ECHConfigs *ECHConfigs_from_binary(unsigned char *binbuf, size_t binblen,
 	        PACKET exts;
 
             /*
-             * read config_id
+             * read config_id - a fixed single byte
              */
-            ec->config_id_len=1; /* a bit hard-coded but there's a chance it may change later */
-	        ec->config_id=OPENSSL_malloc(ec->config_id_len+1);
-	        if (ec->config_id==NULL) {
-	            goto err;
-	        }
-	        if (!PACKET_copy_bytes(&pkt,ec->config_id,ec->config_id_len)) {
+	        if (!PACKET_copy_bytes(&pkt,&ec->config_id,1)) {
 	            goto err;
 	        }
 
@@ -811,12 +739,6 @@ static ECHConfigs *ECHConfigs_from_binary(unsigned char *binbuf, size_t binblen,
 	        unsigned char cipher[ECH_CIPHER_LEN];
 	        int ci=0;
 	        PACKET exts;
-
-            /*
-             * Set config_id to zero - value will be calculated later
-             */
-            ec->config_id_len=0;
-            ec->config_id=NULL;
 
 	        /* 
 	         * read public_name 
@@ -974,21 +896,6 @@ static ECHConfigs *ECHConfigs_from_binary(unsigned char *binbuf, size_t binblen,
     te=NULL;
     er->encoded_len=binblen;
     er->encoded=binbuf;
-
-    /*
-     * Any additional checks/work to do
-     * For now, only draft-09 config id
-     */
-    for (rind=0;rind!=er->nrecs;rind++) {
-        if (er->recs[rind].version==ECH_DRAFT_09_VERSION) {
-            /*
-             * Caclculate config_id values - draft-09 only!!!
-             */
-            if (ech_calc_config_id(er,rind)!=1) {
-                goto err;
-            }
-        }
-    }
 
     return er;
 
@@ -1742,7 +1649,7 @@ static int ECHConfig_dup(ECHConfig *old, ECHConfig *new)
     *new=*old; /* shallow copy, followed by deep copies */
     ECHFDUP(pub,pub_len);
     ECHFDUP(public_name,public_name_len);
-    ECHFDUP(config_id,config_id_len);
+    new->config_id=old->config_id;
     if (old->ciphersuites) {
         new->ciphersuites=OPENSSL_malloc(old->nsuites*sizeof(ech_ciphersuite_t));
         if (!new->ciphersuites) return(0);
@@ -1779,7 +1686,7 @@ static char *ECHConfigs_print(ECHConfigs *c)
         snprintf(cp,(alen-(cp-str)),"%04x,",c->recs[i].version); cp+=5;
         /* config_id */
         STILLLEFT(3);
-        snprintf(cp,(alen-(cp-str)),"%02x,",c->recs[i].config_id[0]); cp+=3;
+        snprintf(cp,(alen-(cp-str)),"%02x,",c->recs[i].config_id); cp+=3;
         /* public_name */
         STILLLEFT(c->recs[i].public_name_len+1);
         snprintf(cp,(alen-(cp-str)),"%s,",c->recs[i].public_name); 
@@ -3414,8 +3321,6 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
     unsigned int onlen=0;
     int prefind=-1;
     ECHConfig *firstmatch=NULL;
-    unsigned char *config_id=NULL;
-    size_t config_id_len=0;
     unsigned char *cp=NULL;
     unsigned char info[HPKE_MAXSIZE];
     size_t info_len=HPKE_MAXSIZE;
@@ -3514,11 +3419,8 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
     }
     ech_pbuf("EAAE: my pub",mypub,mypub_len);
 
-    config_id=tc->config_id;
-    config_id_len=tc->config_id_len;
-
     ech_pbuf("EAAE: config id input",tc->encoding_start,tc->encoding_length);
-    ech_pbuf("EAAE: config_id",config_id,config_id_len);
+    ech_pbuf("EAAE: config_id",&tc->config_id,1);
 
     aad_len=4+1+2+mypub_len+3+pkt->written-4;
     aad=OPENSSL_malloc(aad_len);
@@ -3532,10 +3434,7 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
     *cp++=((hpke_suite.kdf_id&0xffff)%256);
     *cp++=((hpke_suite.aead_id&0xffff)/256);
     *cp++=((hpke_suite.aead_id&0xffff)%256);
-    if (config_id_len!=1) {
-        goto err;
-    }
-    *cp++=config_id[0];
+    *cp++=tc->config_id;
     *cp++=((mypub_len&0xffff)/256);
     *cp++=((mypub_len&0xffff)%256);
     memcpy(cp,mypub,mypub_len); cp+=mypub_len;
@@ -3578,7 +3477,7 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
         || !WPACKET_start_sub_packet_u16(pkt)
         || !WPACKET_put_bytes_u16(pkt, hpke_suite.kdf_id)
         || !WPACKET_put_bytes_u16(pkt, hpke_suite.aead_id)
-        || !WPACKET_put_bytes_u8(pkt, config_id[0])
+        || !WPACKET_put_bytes_u8(pkt, tc->config_id)
         || !WPACKET_sub_memcpy_u16(pkt, mypub, mypub_len)
         || !WPACKET_sub_memcpy_u16(pkt, cipher, cipherlen)
         || !WPACKET_close(pkt)
@@ -3622,7 +3521,7 @@ err:
 static int ech_srv_get_aad(SSL *s,
         uint16_t kdf_id, uint16_t aead_id,
         size_t pub_len, unsigned char *pub,
-        size_t config_id_len, unsigned char *config_id, 
+        uint8_t config_id,
         size_t de_len, unsigned char *de, 
         size_t *aad_len,unsigned char *aad)
 {
@@ -3640,7 +3539,7 @@ static int ech_srv_get_aad(SSL *s,
     CPCHECK
     *cp++=((aead_id&0xffff)%256);
     CPCHECK
-    *cp++=((config_id[0]&0xff)%256);
+    *cp++=config_id&0xff;
     CPCHECK
     *cp++=((pub_len&0xffff)/256);
     CPCHECK
@@ -3985,13 +3884,7 @@ int ech_early_decrypt(SSL *s, PACKET *outerpkt, PACKET *newpkt)
     extval->aead_id=tmp&0xffff;
 
     /* config id */
-    extval->config_id_len=1;
-    extval->config_id=OPENSSL_malloc(1);
-    if (extval->config_id_len!=0 && extval->config_id==NULL) {
-        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
-        goto err;
-    }
-    if (extval->config_id_len>0 && !PACKET_copy_bytes(pkt, extval->config_id, 1)) {
+    if (!PACKET_copy_bytes(pkt, &extval->config_id, 1)) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         goto err;
     }
@@ -4064,12 +3957,12 @@ int ech_early_decrypt(SSL *s, PACKET *outerpkt, PACKET *newpkt)
     memcpy(de+startofexts+2+beforeECH,ch+startofexts+2+beforeECH+echlen,afterECH);
     de_len=ch_len-echlen-4;
 
-    ech_pbuf("EARLY config id",extval->config_id,extval->config_id_len);
+    ech_pbuf("EARLY config id",&extval->config_id,1);
 
     if (ech_srv_get_aad(s,
                 extval->kdf_id, extval->aead_id,
                 extval->enc_len, extval->enc, 
-                extval->config_id_len, extval->config_id, 
+                extval->config_id,
                 de_len,de,
                 &aad_len,aad)!=1) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
@@ -4083,7 +3976,7 @@ int ech_early_decrypt(SSL *s, PACKET *outerpkt, PACKET *newpkt)
      * we need to trial decrypt
      */
     s->ext.ech_grease=ECH_GREASE_UNKNOWN;
-    if (extval->config_id_len!=0) {
+    
         if (s->ech->cfg==NULL || s->ech->cfg->nrecs==0) {
             /* shouldn't happen if assume_grease */
             SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
@@ -4093,12 +3986,11 @@ int ech_early_decrypt(SSL *s, PACKET *outerpkt, PACKET *newpkt)
             ECHConfig *e=&s->ech[cfgind].cfg->recs[0];
 #ifndef OPENSSL_NO_SSL_TRACE
             OSSL_TRACE_BEGIN(TLS) {
-                BIO_printf(trc_out,"EARLY: comparing rx'd config id (%x,%zu) vs. %d-th configured (%x,%u)\n",
-                        extval->config_id[0],extval->config_id_len,cfgind, e->config_id[0],e->config_id_len);
+                BIO_printf(trc_out,"EARLY: comparing rx'd config id (%x) vs. %d-th configured (%x)\n",
+                        extval->config_id,cfgind,e->config_id);
             } OSSL_TRACE_END(TLS);
 #endif
-            if (extval->config_id_len==e->config_id_len
-                    && !memcmp(extval->config_id,e->config_id,e->config_id_len)) {
+            if (extval->config_id==e->config_id) {
                 foundcfg=1;
                 break;
             }
@@ -4109,7 +4001,7 @@ int ech_early_decrypt(SSL *s, PACKET *outerpkt, PACKET *newpkt)
                 s->ext.ech_grease=ECH_IS_GREASE;
             }
         } 
-    }
+
     /*
      * Trial decrypt, if still needed
      */
@@ -4156,8 +4048,8 @@ int ech_early_decrypt(SSL *s, PACKET *outerpkt, PACKET *newpkt)
      */
     if (foundcfg==1) {
         ECHConfig *e=&s->ech[cfgind].cfg->recs[cfgind];
-        ech_pbuf("local config_id",e->config_id,e->config_id_len);
-        ech_pbuf("remote config_id",extval->config_id,extval->config_id_len);
+        ech_pbuf("local config_id",&e->config_id,1);
+        ech_pbuf("remote config_id",&extval->config_id,1);
         ech_pbuf("clear",clear,clearlen);
     }
 
