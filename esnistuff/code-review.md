@@ -70,6 +70,9 @@ Clean.
 * Re-tested the ``-echconfigs`` input formats (ascii-hex, b64)
 * Fleshed out ``SSL_ech_query`` and associated.
 
+Generally seems ok now. (Might still see some changes when I do
+more on multi-valued ECHConfigs.)
+
 ### ``./include/openssl/tls1.h``
 ### ``./include/openssl/ssl.h``
 ### ``./ssl/ssl_sess.c``

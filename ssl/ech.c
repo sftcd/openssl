@@ -1664,8 +1664,6 @@ int SSL_ech_print(BIO* out, SSL *s, int selector)
     BIO_printf(out,"ech_grease=%d\n",s->ext.ech_grease);
     BIO_printf(out,"ech_success=%d\n",s->ext.ech_success);
     BIO_printf(out,"*** SSL_ech_print ***\n");
-
-
     return 1;
 }
 

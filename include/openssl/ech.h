@@ -21,9 +21,9 @@
 # include <openssl/ssl.h>
 
 /*
- * Default for this in hpke.h (40KB) can be overridden so let's 
- * do that, since we don't need such large buffers. (HPKE uses
- * a bunch of stack buffers.)
+ * Default for this is in hpke.h (40KB) but can be overridden so 
+ * let's do that, since we don't need such large buffers. (HPKE uses
+ * a bunch of such stack buffers.)
  * If this were 0x280 it'd not be big enough for larger curves
  * when doing session resumption. If some server's tickets are
  * much bigger then we might need to revisit using stack buffers
@@ -80,6 +80,9 @@ extern char *ech_public_name_override_null;
 
 /**
  * Exterally visible form of an ECHConfigs RR value
+ *
+ * The middle four values are associated with the SSL data structure
+ * and not the more static ECHConfig (or SVCB/HTTPS RR value).
  */
 typedef struct ech_diff_st {
     int index; /**< externally re-usable reference to this value */
@@ -87,14 +90,13 @@ typedef struct ech_diff_st {
     char *inner_name; /**< server-name for inner CH */
     char *outer_alpns; /**< outer ALPN string */
     char *inner_alpns; /**< inner ALPN string */
-    char *echconfig; /**< the associated ECHConfig */
+    char *echconfig; /**< a JSON-like version of the associated ECHConfig */
 } ECH_DETS;
 
 
 /*
  * Externally visible Prototypes
  */
-
 
 /**
  * @brief Decode/store SVCB/HTTPS RR value provided as (binary or ascii-hex encoded) 
@@ -125,7 +127,6 @@ int SSL_CTX_svcb_add(SSL_CTX *ctx, short rrfmt, size_t rrlen, char *rrval, int *
  * @return is 1 for success, error otherwise
  */
 int SSL_svcb_add(SSL *con, int rrfmt, size_t rrlen, char *rrval, int *num_echs);
-
 
 /**
  * @brief Decode/store ECHConfigs provided as (binary, base64 or ascii-hex encoded) 
