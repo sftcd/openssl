@@ -2275,7 +2275,7 @@ int s_server_main(int argc, char *argv[])
     }
 
     if (echkeyfile!= NULL) {
-#define TESTBUFFERAPI
+#undef TESTBUFFERAPI
 #ifndef TESTBUFFERAPI
         /*
          * Normal case - give the filename to libary

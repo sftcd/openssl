@@ -174,9 +174,11 @@ static int ech_check_filenames(SSL_CTX *ctx, const char *pemfname,int *index)
  * @brief Decode from TXT RR to binary buffer
  *
  * This is like ct_base64_decode from crypto/ct/ct_b64.c
- * but a) isn't static and b) is extended to allow a set of 
- * semi-colon separated strings as the input to handle
- * multivalued RRs.
+ * but a) that's static and b) we extend here to allow a 
+ * sequence of semi-colon separated strings as the input 
+ * to handle multivalued RRs. If the latter extension
+ * were ok (it probably isn't) then we could merge these
+ * functions, but better to not do that for now.
  *
  * Decodes the base64 string |in| into |out|.
  * A new string will be malloc'd and assigned to |out|. This will be owned by
@@ -243,7 +245,23 @@ err:
 }
 
 /**
- * @brief Read an ECHConfigs (better only have 1) and single private key from pemfile
+ * @brief Read an ECHConfig (only 1) and 1 private key from pemfile
+ *
+ * The file content should look as below. Note that as github barfs
+ * if I provide an actual private key in PEM format, I've reversed
+ * the string PRIVATE in the PEM header;-)
+ *
+ * -----BEGIN ETAVRIP KEY-----
+ * MC4CAQAwBQYDK2VuBCIEIEiVgUq4FlrMNX3lH5osEm1yjqtVcQfeu3hY8VOFortE
+ * -----END ETAVRIP KEY-----
+ * -----BEGIN ECHCONFIG-----
+ * AEP/CQBBAAtleGFtcGxlLmNvbQAkAB0AIF8i/TRompaA6Uoi1H3xqiqzq6IuUqFjT2GNT4wzWmF6ACAABAABAAEAAAAA
+ * -----END ECHCONFIG-----
+ *
+ * There are two sensible ways to call this, either supply just a
+ * filename (and inputIsFile=1) or else provide a pesudo-filename,
+ * a buffer and the buffer length with inputIsFile=0. The buffer
+ * should have contents like the PEM strings above.
  *
  * @param pemfile is the name of the file
  * @param ctx is the SSL context
@@ -261,18 +279,6 @@ static int ech_readpemfile(
         size_t inlen,
         SSL_ECH **sechs)
 {
-    /*
-     * The file content should look as below. Note that as github barfs
-     * if I provide an actual private key in PEM format, I've reversed
-     * the string PRIVATE in the PEM header;-)
-     *
-     * -----BEGIN ETAVRIP KEY-----
-     * MC4CAQAwBQYDK2VuBCIEIEiVgUq4FlrMNX3lH5osEm1yjqtVcQfeu3hY8VOFortE
-     * -----END ETAVRIP KEY-----
-     * -----BEGIN ECHCONFIG-----
-     * AEP/CQBBAAtleGFtcGxlLmNvbQAkAB0AIF8i/TRompaA6Uoi1H3xqiqzq6IuUqFjT2GNT4wzWmF6ACAABAABAAEAAAAA
-     * -----END ECHCONFIG-----
-     */
     BIO *pem_in=NULL;
     char *pname=NULL;
     char *pheader=NULL;
@@ -313,7 +319,6 @@ static int ech_readpemfile(
     if (!priv) {
         goto err;
     }
-
     if (PEM_read_bio(pem_in,&pname,&pheader,&pdata,&plen)<=0) {
         goto err;
     }
@@ -364,7 +369,15 @@ err:
 }
 
 /**
- * Try figure out ECHConfig encodng
+ * @brief Try figure out ECHConfig encodng by looking for telltales 
+ *
+ * We try check from most to least restrictive  to avoid wrong
+ * answers. IOW we try from most constrained to least in that 
+ * order.
+ *
+ * The wrong answer could be derived with a low probability.
+ * If the application can't handle that, then it ought not use
+ * the ECH_FMT_GUESS value.
  *
  * @param eklen is the length of rrval
  * @param rrval is encoded thing
@@ -378,10 +391,6 @@ static int ech_guess_fmt(size_t eklen,
     if (!guessedfmt || eklen <=0 || !rrval) {
         return(0);
     }
-
-    /*
-     * Try from most constrained to least in that order
-     */
     if (strstr((char*)rrval,httpssvc_telltale)) {
         *guessedfmt=ECH_FMT_HTTPSSVC;
     } else if (eklen<=strspn((char*)rrval,AH_alphabet)) {
@@ -434,28 +443,6 @@ void ECHConfigs_free(ECHConfigs *tbf)
 }
 
 /*
- * Copy a field old->foo based on old->foo_len to new->foo
- * We allocate one extra octet in case the value is a
- * string and NUL that out.
- */
-static void *ech_len_field_dup(void *old, unsigned int len)
-{
-    void *new=NULL;
-    if (!old || len==0) return NULL;
-    new=(void*)OPENSSL_malloc(len+1);
-    if (!new) return 0;
-    memcpy(new,old,len);
-    memset((unsigned char*)new+len,0,1);
-    return new;
-} 
-
-#define ECHFDUP(__f__,__flen__) \
-    if (old->__flen__!=0) { \
-        new->__f__=ech_len_field_dup((void*)old->__f__,old->__flen__); \
-        if (new->__f__==NULL) return 0; \
-    }
-
-/*
  * @brief free an ECH_ENCCH
  * @param tbf is a ptr to an SSL_ECH structure
  */
@@ -498,6 +485,36 @@ void SSL_ECH_free(SSL_ECH *tbf)
     memset(tbf,0,sizeof(SSL_ECH));
     return;
 }
+
+/** 
+ * @brief  utility field-copy function (used by macro below)
+ *
+ * Copy a field old->foo based on old->foo_len to new->foo
+ * We allocate one extra octet in case the value is a
+ * string and NUL that out.
+ * 
+ * @param old is the source buffer
+ * @param len is the source buffer size
+ * @return is NULL or the copied buffer
+ */
+static void *ech_len_field_dup(void *old, unsigned int len)
+{
+    void *new=NULL;
+    if (!old || len==0) return NULL;
+    new=(void*)OPENSSL_malloc(len+1);
+    if (!new) return 0;
+    memcpy(new,old,len);
+    memset((unsigned char*)new+len,0,1);
+    return new;
+} 
+/**
+ * @brief Copy old->f (with length flen) to new->f
+ */
+#define ECHFDUP(__f__,__flen__) \
+    if (old->__flen__!=0) { \
+        new->__f__=ech_len_field_dup((void*)old->__f__,old->__flen__); \
+        if (new->__f__==NULL) return 0; \
+    }
 
 /**
  * @brief Decode the first ECHConfigs from a binary buffer (and say how may octets not consumed)
@@ -1606,7 +1623,7 @@ int SSL_CTX_ech_server_enable_buffer(SSL_CTX *ctx, const unsigned char *buf, con
     int rv=1;
     EVP_MD_CTX *mdctx;
     const EVP_MD *md=NULL;
-    int i=0;
+    unsigned int i=0;
     unsigned char hashval[EVP_MAX_MD_SIZE];
     unsigned int hashlen;
     char ah_hash[2*EVP_MAX_MD_SIZE+1];
