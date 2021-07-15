@@ -75,6 +75,15 @@
 extern char *ech_public_name_override_null;
 #define ECH_PUBLIC_NAME_OVERRIDE_NULL  ech_public_name_override_null
 
+/*
+ * A failure return value from SSL_CTX_ech_server_enable for the
+ * case where the input file can't be read. We have a separate
+ * return value as that could happen due to a disk error but
+ * perhaps the application could continue if some keys were
+ * previously loaded
+ */
+#define ECH_FILEMISSING 2
+
 
 /**
  * Exterally visible form of an ECHConfigs RR value
@@ -281,7 +290,7 @@ int SSL_ech_reduce(SSL *in, int index);
 int SSL_CTX_ech_server_key_status(SSL_CTX *s, int *numkeys);
 
 /**
- * Zap the set of stored ECH Keys to allow a re-load without hogging memory
+ * @brief Zap the set of stored ECH Keys to allow a re-load without hogging memory
  *
  * Supply a zero or negative age to delete all keys. Providing age=3600 will
  * keep keys loaded in the last hour.
@@ -293,16 +302,32 @@ int SSL_CTX_ech_server_key_status(SSL_CTX *s, int *numkeys);
 int SSL_CTX_ech_server_flush_keys(SSL_CTX *s, int age);
 
 /**
- * Turn on ECH server-side
+ * @brief Turn on ECH server-side
  *
  * When this works, the server will decrypt any ECH seen in ClientHellos and
  * subsequently treat those as if they had been send in cleartext SNI.
+ * There's a special return value for the case where the input file can't
+ * be read, as that could happen in a way that allows the server to 
+ * continue anyway.
  *
  * @param s is the SSL server context
  * @param echcfgfile has the relevant ECHConfig(s) and private key in PEM format
  * @return 1 for success, other otherwise
  */
 int SSL_CTX_ech_server_enable(SSL_CTX *s, const char *echcfgfile);
+
+/**
+ * @brief Turn on ECH server-side, with input a buffer rather than file
+ *
+ * When this works, the server will decrypt any ECH seen in ClientHellos and
+ * subsequently treat those as if they had been send in cleartext SNI.
+ *
+ * @param s is the SSL server context
+ * @param buf has the relevant ECHConfig(s) and private key in PEM format in a buffer
+ * @param blen is the length of buf
+ * @return 1 for success, other otherwise
+ */
+int SSL_CTX_ech_server_enable_buffer(SSL_CTX *s, const unsigned char *buf, const size_t blen);
 
 /*!
  * @brief API to load all the keys found in a directory

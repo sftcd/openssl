@@ -2275,10 +2275,42 @@ int s_server_main(int argc, char *argv[])
     }
 
     if (echkeyfile!= NULL) {
+#define TESTBUFFERAPI
+#ifndef TESTBUFFERAPI
+        /*
+         * Normal case - give the filename to libary
+         */
         if (SSL_CTX_ech_server_enable(ctx,echkeyfile)!=1) {
             BIO_printf(bio_err,"Failed to add ECHConfig/Key from: %s\n",echkeyfile);
             goto end;
         }
+
+#else
+        /*
+         * Some test code for the buffer API - that API is needed
+         * for the likes of haproxy that don't want to (re-)read
+         * the disk after startup but where keys are being rotated.
+         * As test code, the literal size is ok.
+         */
+        unsigned char buffer[8000];
+        size_t blen=8000;
+        int frv=0;
+        FILE *fp=NULL;
+        if ((fp=fopen(echkeyfile,"rb"))==NULL) {
+            BIO_printf(bio_err,"Failed to open: %s\n",echkeyfile);
+            goto end;
+        }
+        if ((frv=fread(buffer,1,8000,fp))<=0) {
+            BIO_printf(bio_err,"Failed to read from: %s, ret=%d\n",echkeyfile,frv);
+            goto end;
+        }
+        fclose(fp);
+        blen=frv;
+        if (SSL_CTX_ech_server_enable_buffer(ctx,buffer,blen)!=1) {
+            BIO_printf(bio_err,"Failed to add ECHConfig/Key via buffer from: %s\n",echkeyfile);
+            goto end;
+        }
+#endif
         if (bio_s_out != NULL) {
             BIO_printf(bio_s_out,"Added ECH key pair from: %s\n",echkeyfile);
         }

@@ -69,18 +69,29 @@ static int local_ech_add( int ekfmt, size_t eklen, unsigned char *ekval, int *nu
  */
 static void ECH_DETS_free(ECH_DETS *in);
 
+/**
+ * @brief produce a printable string form of an ECHConfigs
+ *
+ * Note - the caller has to free the string returned if not NULL
+ * @param c is the ECHConfigs
+ * @return a printable string (or NULL)
+ */
 static char *ECHConfigs_print(ECHConfigs *c);
 
+/**
+ * @brief make up HPKE "info" input as per spec
+ * @param tc is the ECHconfig being used
+ * @param info is a caller-allocated buffer for results
+ * @param info_len is the buffer size on input, used-length on output
+ * @return 1 for success, other otherwise
+ */
 static int ech_make_enc_info(ECHConfig *tc,unsigned char *info,size_t *info_len);
 
 /*
- * Yes, global vars! 
- * For decoding input strings with public keys (aka ECHConfig) we'll accept
- * semi-colon separated lists of strings via the API just in case that makes
- * sense.
+ * Telltales we use when guessing which form of encoded input we've
+ * been given for an RR value or ECHConfig
  */
-
-/* asci hex is easy:-) either case allowed*/
+/* asci hex is easy:-) either case allowed, plus a semi-colon separator*/
 static const char *AH_alphabet="0123456789ABCDEFabcdef;";
 /* we actually add a semi-colon here as we accept multiple semi-colon separated values */
 static const char *B64_alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=;";
@@ -95,19 +106,16 @@ static const char *httpssvc_telltale="ech=";
 char *ech_public_name_override_null="DON'T SEND ANY OUTER NAME";
 
 /*
- * Ancilliary definintions
+ * return values used to decide if a keypair needs reloading or not
  */
-
 #define ECH_KEYPAIR_ERROR          0
 #define ECH_KEYPAIR_NEW            1
 #define ECH_KEYPAIR_UNMODIFIED     2
 #define ECH_KEYPAIR_MODIFIED       3
+#define ECH_KEYPAIR_FILEMISSING    4
 
 /**
- * Check if key pair needs to be (re-)loaded or not
- *
- * We go through the keys we have and see what we find
- *
+ * @brief Check if a key pair needs to be (re-)loaded or not
  * @param ctx is the SSL server context
  * @param pemfname is the PEM key filename
  * @param index is the index if we find a match
@@ -123,8 +131,12 @@ static int ech_check_filenames(SSL_CTX *ctx, const char *pemfname,int *index)
     if (ctx==NULL || pemfname==NULL || index==NULL) return(ECH_KEYPAIR_ERROR);
     /* if we have none, then it is new */
     if (ctx->ext.ech==NULL || ctx->ext.nechs==0) return(ECH_KEYPAIR_NEW);
-    /* if no file info, crap out */
-    if (stat(pemfname,&pemstat) < 0) return(ECH_KEYPAIR_ERROR);
+    /* 
+     * if no file info, crap out... hmm, that could happen if the
+     * disk fails hence different return value - the application may
+     * be able to continue anyway...
+     */
+    if (stat(pemfname,&pemstat) < 0) return(ECH_KEYPAIR_FILEMISSING);
 
     /* check the time info - we're only gonna do 1s precision on purpose */
 #if defined(__APPLE__)
@@ -235,10 +247,19 @@ err:
  *
  * @param pemfile is the name of the file
  * @param ctx is the SSL context
+ * @param inputIsFile is 1 if input a filename, 0 if a buffer
+ * @param input is a filename or buffer
+ * @param inlen is the length of input
  * @param sechs an (output) pointer to the SSL_ECH output
  * @return 1 for success, otherwise error
  */
-static int ech_readpemfile(SSL_CTX *ctx, const char *pemfile, SSL_ECH **sechs)
+static int ech_readpemfile(
+        SSL_CTX *ctx, 
+        int inputIsFile,
+        const char *pemfile,
+        const unsigned char *input, 
+        size_t inlen,
+        SSL_ECH **sechs)
 {
     /*
      * The file content should look as below. Note that as github barfs
@@ -252,7 +273,6 @@ static int ech_readpemfile(SSL_CTX *ctx, const char *pemfile, SSL_ECH **sechs)
      * AEP/CQBBAAtleGFtcGxlLmNvbQAkAB0AIF8i/TRompaA6Uoi1H3xqiqzq6IuUqFjT2GNT4wzWmF6ACAABAABAAEAAAAA
      * -----END ECHCONFIG-----
      */
-
     BIO *pem_in=NULL;
     char *pname=NULL;
     char *pheader=NULL;
@@ -262,19 +282,31 @@ static int ech_readpemfile(SSL_CTX *ctx, const char *pemfile, SSL_ECH **sechs)
     int num_echs=0;
     int rv=1;
 
-    if (ctx==NULL || pemfile==NULL || sechs==NULL) return(0);
-    if (strlen(pemfile)==0) return(0);
+    if (ctx==NULL || input==NULL || sechs==NULL) return(0);
+    if (inputIsFile!=0 && inputIsFile!=1) return(0);
+
+    if (inputIsFile==1) {
+        if (strlen(pemfile)==0) return(0);
+        pem_in = BIO_new(BIO_s_file());
+        if (pem_in==NULL) {
+            goto err;
+        }
+        if (BIO_read_filename(pem_in,pemfile)<=0) {
+            goto err;
+        }
+    } else {
+        pem_in = BIO_new(BIO_s_mem());
+        if (pem_in==NULL) {
+            goto err;
+        }
+        if (BIO_write(pem_in, (void *)input, (int)inlen)<=0) {
+            goto err;
+        }
+    }
 
     /*
      * Now check and parse inputs
      */
-    pem_in = BIO_new(BIO_s_file());
-    if (pem_in==NULL) {
-        goto err;
-    }
-    if (BIO_read_filename(pem_in,pemfile)<=0) {
-        goto err;
-    }
     if (!PEM_read_bio_PrivateKey(pem_in,&priv,NULL,NULL)) {
         goto err;
     }
@@ -1470,7 +1502,7 @@ int SSL_CTX_ech_server_flush_keys(SSL_CTX *s, int age)
  *
  * @param ctx is the SSL connection (can be NULL)
  * @param pemfile has the relevant ECHConfig(s) and private key in PEM format
- * @return 1 for success, other otherwise
+ * @return 1 for success, 2 (SSL_ECH_FILEMISSING) if can't read file, other otherwise
  */
 int SSL_CTX_ech_server_enable(SSL_CTX *ctx, const char *pemfile)
 {
@@ -1491,6 +1523,16 @@ int SSL_CTX_ech_server_enable(SSL_CTX *ctx, const char *pemfile)
         case ECH_KEYPAIR_UNMODIFIED:
             /* nothing to do */
             return(1);
+        case ECH_KEYPAIR_FILEMISSING:
+            /* nothing to do, but trace this and let caller handle it */
+#ifndef OPENSSL_NO_SSL_TRACE
+            OSSL_TRACE_BEGIN(TLS) {
+                BIO_printf(trc_out,"Returning ECH_FILEMISSING from SSL_CTX_ech_server_enable for %s\n",pemfile);
+                BIO_printf(trc_out,"That's unexpected and likely indicates a problem, but the application might"
+                        " be able to continue\n");
+            } OSSL_TRACE_END(TLS);
+#endif
+            return(ECH_FILEMISSING);
         case ECH_KEYPAIR_ERROR:
             return(0);
     }
@@ -1498,7 +1540,7 @@ int SSL_CTX_ech_server_enable(SSL_CTX *ctx, const char *pemfile)
     /*
      * Load up the file content
      */
-    rv=ech_readpemfile(ctx,pemfile,&sechs);
+    rv=ech_readpemfile(ctx,1,pemfile,NULL,0,&sechs);
     if (rv!=1) {
         return(rv);
     }
@@ -1547,6 +1589,106 @@ int SSL_CTX_ech_server_enable(SSL_CTX *ctx, const char *pemfile)
 
     return 0;
 }
+
+/**
+ * Turn on ECH server-side, with a buffer input
+ *
+ * When this works, the server will decrypt any ECH seen in ClientHellos and
+ * subsequently treat those as if they had been send in cleartext SNI.
+ *
+ * @param ctx is the SSL connection (can be NULL)
+ * @param pemfile has the relevant ECHConfig(s) and private key in PEM format
+ * @return 1 for success, 2 (SSL_ECH_FILEMISSING) if can't read file, other otherwise
+ */
+int SSL_CTX_ech_server_enable_buffer(SSL_CTX *ctx, const unsigned char *buf, const size_t blen)
+{
+    SSL_ECH *sechs=NULL;
+    int rv=1;
+    EVP_MD_CTX *mdctx;
+    const EVP_MD *md=NULL;
+    int i=0;
+    unsigned char hashval[EVP_MAX_MD_SIZE];
+    unsigned int hashlen;
+    char ah_hash[2*EVP_MAX_MD_SIZE+1];
+    SSL_ECH *re_ec=NULL;
+    SSL_ECH *new_ec=NULL;
+
+    /*
+     * Pseudo-filename is hash of input buffer 
+     */
+    md=ctx->ssl_digest_methods[SSL_HANDSHAKE_MAC_SHA256];
+    mdctx = EVP_MD_CTX_new();
+    if (mdctx == NULL) return(0);
+    if (EVP_DigestInit_ex(mdctx, md, NULL) <= 0
+        || EVP_DigestUpdate(mdctx, buf, blen) <= 0
+        || EVP_DigestFinal_ex(mdctx, hashval, &hashlen) <= 0) {
+        if (mdctx) EVP_MD_CTX_free(mdctx);
+        return(0);
+    }
+    if (mdctx) EVP_MD_CTX_free(mdctx);
+    /* 
+     * AH encode hashval to be a string, as replacement for 
+     * file name 
+     */
+    for (i=0;i!=hashlen;i++) {
+        uint8_t tn=(hashval[i]>>4)&0x0f;
+        uint8_t bn=(hashval[i]&0x0f);
+        ah_hash[2*i]=(tn<10?tn+'0':(tn-10+'A'));
+        ah_hash[2*i+1]=(bn<10?bn+'0':(bn-10+'A'));
+    }
+    ah_hash[i]='\0';
+
+    /*
+     * Check if we have that buffer loaded already
+     * If we did, we're done 
+     */
+    for (i=0;i!=ctx->ext.nechs;i++) {
+        SSL_ECH *se=&ctx->ext.ech[i];
+        if (se->pemfname 
+            && strlen(se->pemfname)==strlen(ah_hash)
+            && !memcpy(se->pemfname,ah_hash,strlen(ah_hash))) {
+            /*
+             * we're done here
+             */
+            return(1);
+        }
+    }
+
+    /*
+     * Load up the buffer content
+     */
+    rv=ech_readpemfile(ctx,0,ah_hash,buf,blen,&sechs);
+    if (rv!=1) {
+        return(rv);
+    }
+
+    /*
+     * This is a restriction of our PEM file scheme - we only accept
+     * one public key per PEM file
+     */
+    if (!sechs || ! sechs->cfg || sechs->cfg->nrecs!=1) {
+        return(0);
+    }
+
+    /*
+     * Now store the keypair in a new or current place
+     */
+    re_ec=OPENSSL_realloc(ctx->ext.ech,(ctx->ext.nechs+1)*sizeof(SSL_ECH));
+    if (re_ec==NULL) {
+        SSL_ECH_free(sechs);
+        OPENSSL_free(sechs);
+        return(0);
+    }
+    ctx->ext.ech=re_ec;
+    new_ec=&ctx->ext.ech[ctx->ext.nechs];
+    memset(new_ec,0,sizeof(SSL_ECH));
+    *new_ec=*sechs;
+    ctx->ext.nechs++;
+    OPENSSL_free(sechs);
+    return(1);
+
+}
+
 
 /** 
  * Print the content of an SSL_ECH
@@ -1664,6 +1806,14 @@ static int ECHConfig_dup(ECHConfig *old, ECHConfig *new)
  */
 #define STILLLEFT(__n__) if (((size_t)(cp-str)+(size_t)(__n__))>alen) return(NULL);
 
+
+/**
+ * @brief produce a printable string form of an ECHConfigs
+ *
+ * Note - the caller has to free the string returned if not NULL
+ * @param c is the ECHConfigs
+ * @return a printable string (or NULL)
+ */
 static char *ECHConfigs_print(ECHConfigs *c)
 {
     int i=0;
@@ -3218,6 +3368,13 @@ int ech_send_grease(SSL *s, WPACKET *pkt, unsigned int context,
     return 1;
 }
 
+/**
+ * @brief make up HPKE "info" input as per spec
+ * @param tc is the ECHconfig being used
+ * @param info is a caller-allocated buffer for results
+ * @param info_len is the buffer size on input, used-length on output
+ * @return 1 for success, other otherwise
+ */
 static int ech_make_enc_info(ECHConfig *tc,unsigned char *info,size_t *info_len) 
 {
     unsigned char *ip=info;

@@ -112,10 +112,21 @@ for the client once some decryption has happened well.
 * Removed some no longer needed prototypes and tidied up others.
 
 ### ``./ssl/s3_enc.c``
+
+Only tracing. All good.
+
 ### ``./ssl/ech.c``
 
 * Removed ``dns_alpns`` and ``dns_no_def_alpn`` from ``SSL_ECH`` as those 
   are better handled outside the library.
+* Added new return value to handle case where server tries to (re)load
+  a key pair but the file isn't readable - could happen if the server
+  periodically calls ``SSL_CTX_ech_server_enable`` which is expected
+  behaviour
+* Added a buffer input equivalent of ``SSL_CTX_ech_server_enable``
+  (oddly called ``SSL_CTX_ech_server_enable_buffer``:-) so that haproxy 
+  doesn't have to read disk after startup. (Also added test code for 
+  that to ``apps/s_server.c``.)
 * **TODO**: fix the TODOs here;-)
 
 ### ``./ssl/ssl_txt.c``

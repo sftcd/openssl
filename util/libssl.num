@@ -543,3 +543,4 @@ SSL_ech_set_grease_suite                543	3_0_0	EXIST::FUNCTION:
 SSL_CTX_ech_readpemdir                  544	3_0_0	EXIST::FUNCTION:
 SSL_CTX_ech_raw_decrypt                 545	3_0_0	EXIST::FUNCTION:
 SSL_CTX_ech_set_outer_server_name       546	3_0_0	EXIST::FUNCTION:
+SSL_CTX_ech_server_enable_buffer        547	3_0_0	EXIST::FUNCTION:
