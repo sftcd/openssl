@@ -103,13 +103,15 @@ for the client once some decryption has happened well.
 
 * Turned off ``ECH_SUPERVEBOSE`` for now.
 * Removed ``config_id_len`` field and fixed ``config_id`` as one octet
-* **TODO**: do something with ``dns_alpns``
+* Removed ``dns_alpns`` and ``dns_no_def_alpn`` from ``SSL_ECH`` as those 
+  are better handled outside the library.
 
 ### ``./ssl/s3_enc.c``
 ### ``./ssl/ech.c``
 
+* Removed ``dns_alpns`` and ``dns_no_def_alpn`` from ``SSL_ECH`` as those 
+  are better handled outside the library.
 * **TODO**: fix the TODOs here;-)
-* **TODO:** fix DEF-ALPN stuff
 
 ### ``./ssl/ssl_txt.c``
 ### ``./ssl/statem/statem_local.h``

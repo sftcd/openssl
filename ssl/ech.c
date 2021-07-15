@@ -82,8 +82,8 @@ static char *ECHConfigs_print(ECHConfigs *c);
 static const char *AH_alphabet="0123456789ABCDEFabcdef;";
 /* we actually add a semi-colon here as we accept multiple semi-colon separated values */
 static const char *B64_alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=;";
-/* telltale for HTTPSSVC in presentation format */
-static const char *httpssvc_telltale="echconfig=";
+/* telltale for ECH HTTPS/SVCB in presentation format, as per svcb draft-06 */
+static const char *httpssvc_telltale="ech=";
 
 /*
  * This is a special marker value. If set via a specific call
@@ -455,13 +455,11 @@ void SSL_ECH_free(SSL_ECH *tbf)
 #define CFREE(__x__) if (tbf->__x__) { OPENSSL_free(tbf->__x__); tbf->__x__=NULL; }
 
     CFREE(inner_name);
-    /* TODO: check if that comparison below is still relevant */
     if (tbf->outer_name!=ECH_PUBLIC_NAME_OVERRIDE_NULL) {
         CFREE(outer_name);
     }
     CFREE(pemfname);
     if (tbf->keyshare!=NULL) { EVP_PKEY_free(tbf->keyshare); tbf->keyshare=NULL; }
-    CFREE(dns_alpns);
 
     memset(tbf,0,sizeof(SSL_ECH));
     return;
@@ -1799,10 +1797,6 @@ SSL_ECH* SSL_ECH_dup(SSL_ECH* orig, size_t nech, int selector)
             new_se[i].keyshare=orig[i].keyshare;
             EVP_PKEY_up_ref(orig[i].keyshare);
         }
-        if (orig[i].dns_alpns!=NULL) {
-            new_se[i].dns_alpns=OPENSSL_strdup(orig[i].dns_alpns);
-        }
-        new_se[i].dns_no_def_alpn=orig[i].dns_no_def_alpn;
 
     }
 
@@ -1845,14 +1839,9 @@ static int local_svcb_add(int rrfmt, size_t rrlen, char *rrval, int *num_echs, S
     unsigned char *cp=NULL;
     size_t remaining=0;
     char *dnsname=NULL;
-    int no_def_alpn=0;
-    size_t alpn_len=0;
-    unsigned char *alpn_val=NULL;
     unsigned short pcode=0;
     unsigned short plen=0;
     int done=0;
-    SSL_ECH *lechs=NULL;
-    int i=0;
 
     if (rrfmt==ECH_FMT_ASCIIHEX) {
         detfmt=rrfmt;
@@ -1903,39 +1892,11 @@ static int local_svcb_add(int rrfmt, size_t rrlen, char *rrval, int *num_echs, S
             ekval=cp;
             done=1;
         }
-        if (pcode==ECH_PCODE_ALPN) {
-            alpn_len=(size_t)plen;
-            alpn_val=cp;
-        }
-        if (pcode==ECH_PCODE_NO_DEF_ALPN) {
-            no_def_alpn=1;
-        }
         if (plen!=0 && plen <= remaining) {
             cp+=plen;
             remaining-=plen;
         }
     } 
-    if (no_def_alpn==1) {
-        /*
-         * TODO: FIXME: what? a printf!!
-         */
-        printf("Got no-def-ALPN\n");
-    }
-    if (alpn_len>0 && alpn_val!=NULL) {
-        size_t aid_len=0;
-        char aid_buf[255];
-        unsigned char *ap=alpn_val;
-        int ind=0;
-        while (((alpn_val+alpn_len)-ap)>0) {
-            ind++;
-            aid_len=*ap++;
-            if (aid_len>0 && aid_len<255) {
-                memcpy(aid_buf,ap,aid_len);
-                aid_buf[aid_len]=0x00;
-                ap+=aid_len;
-            }        
-        }
-    }
     if (!done) {
         *num_echs=0;
         OPENSSL_free(dnsname);
@@ -1950,13 +1911,6 @@ static int local_svcb_add(int rrfmt, size_t rrlen, char *rrval, int *num_echs, S
         goto err;
     } 
     OPENSSL_free(binbuf);
-    /*
-     * Whack in ALPN info to ECHs
-     */
-    lechs=*echs;
-    for (i=0;i!=*num_echs;i++) {
-        lechs[i].dns_no_def_alpn=no_def_alpn;
-    }
     return(1);
 err:
     OPENSSL_free(dnsname);

@@ -113,17 +113,6 @@ typedef struct ech_configs_st {
 /**
  * What we send in the ech CH extension:
  *
- * The draft-09 TLS presentation language version is:
- *
- * <pre>
- *     struct {
- *       ECHCipherSuite cipher_suite;
- *       opaque config_id<0..255>;
- *       opaque enc<1..2^16-1>;
- *       opaque payload<1..2^16-1>;
- *    } ClientECH;
- * </pre>
- *
  * For draft-10, we get:
  *
  * <pre>
@@ -178,13 +167,6 @@ typedef struct ssl_ech_st {
     char *pemfname; /**< name of PEM file from which this was loaded */
     time_t loadtime; /**< time public and private key were loaded from file */
     EVP_PKEY *keyshare; /**< my own private keyshare to use as a server */
-    /*
-     * Stuff about inner/outer diffs for extensions other than SNI
-     * TODO: code that up:-)
-     */
-    char *dns_alpns; /**< ALPN values from SVCB/HTTPS RR (as comma-sep string) */
-    int dns_no_def_alpn; /**< no_def_alpn if set in DNS RR */
-
 } SSL_ECH;
 
 /**

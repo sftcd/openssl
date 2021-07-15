@@ -63,8 +63,6 @@
 /* 
  * the wire-format code for ECH within an SVCB or HTTPS RData
  */
-#define ECH_PCODE_ALPN           0x0001
-#define ECH_PCODE_NO_DEF_ALPN    0x0002
 #define ECH_PCODE_ECH            0x0005
 
 /*
