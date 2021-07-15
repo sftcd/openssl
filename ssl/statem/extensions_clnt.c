@@ -2270,7 +2270,7 @@ EXT_RETURN tls_construct_ctos_ech(SSL *s, WPACKET *pkt, unsigned int context,
                                    X509 *x, size_t chainidx)
 {
     if (s->ext.ech_grease==ECH_IS_GREASE || (s->options & SSL_OP_ECH_GREASE) ) {
-        if (SSL_ech_send_grease(s,pkt,context,x,chainidx)!=1) {
+        if (ech_send_grease(s,pkt,context,x,chainidx)!=1) {
             return EXT_RETURN_NOT_SENT;
         }
         return EXT_RETURN_SENT;

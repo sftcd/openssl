@@ -170,10 +170,10 @@ typedef struct ssl_ech_st {
 } SSL_ECH;
 
 /**
- * Memory management - free an SSL_ECH
+ * @brief Free an SSL_ECH
  *
  * Free everything within an SSL_ECH. Note that the
- * caller has to free the top level SSL_ECH, IOW the
+ * caller has to also free the top level SSL_ECH, IOW the
  * pattern here is: 
  *      SSL_ECH_free(echkeys);
  *      OPENSSL_free(echkeys);
@@ -183,19 +183,30 @@ typedef struct ssl_ech_st {
 void SSL_ECH_free(SSL_ECH *tbf);
 
 /**
- * Free an ECHConfigs
+ * @brief Free an ECHConfigs
  * @param tbf is the thing to be free'd
  */
 void ECHConfigs_free(ECHConfigs *tbf);
+
+/**
+ * @brief Free an ECHConfig structure's internals
+ * @param tbf is the thing to be free'd
+ */
+void ECHConfig_free(ECHConfig *tbf);
+
+/**
+ * @brief Free an ECH_ENCCH
+ * @param tbf is a ptr to an SSL_ECH structure
+ */
+void ECH_ENCCH_free(ECH_ENCCH *ev);
 
 /**
  * @brief Duplicate the configuration related fields of an SSL_ECH
  *
  * This is needed to handle the SSL_CTX->SSL factory model in the
  * server. Clients don't need this.  There aren't too many fields 
- * populated when this is called - essentially just the ECHKeys and
- * the server private value. For the moment, we actually only
- * deep-copy those.
+ * populated when this is called - essentially just the ECHConfigs and
+ * the server private value. 
  *
  * @param orig is the input array of SSL_ECH to be partly deep-copied
  * @param nech is the number of elements in the array
@@ -207,8 +218,8 @@ SSL_ECH* SSL_ECH_dup(SSL_ECH* orig, size_t nech, int selector);
 /**
  * @brief Decode and check the value retieved from DNS (binary, base64 or ascii-hex encoded)
  *
- * The esnnikeys value here may be the catenation of multiple encoded ECHKeys RR values 
- * (or TXT values for draft-02), we'll internally try decode and handle those and (later)
+ * The echkeys value here may be the catenation of multiple encoded ECHKeys RR values. 
+ * We'll internally try decode and handle those and (later)
  * use whichever is relevant/best. The fmt parameter can be e.g. ECH_FMT_ASCII_HEX
  *
  * @param ctx is the parent SSL_CTX
@@ -221,9 +232,9 @@ SSL_ECH* SSL_ECH_dup(SSL_ECH* orig, size_t nech, int selector);
 SSL_ECH* SSL_ECH_new_from_buffer(SSL_CTX *ctx, SSL *con, const short ekfmt, const size_t eklen, const char *echkeys, int *num_echs);
 
 /**
- * @brief After "normal" 1st pass CH is done, fix encoding as needed
+ * @brief After "normal" 1st pass client CH handling is done, fix encoding as needed
  *
- * This will make up the ClientHelloInner and EncodedClientHelloInner buffes
+ * This will make up the ClientHelloInner and EncodedClientHelloInner buffers
  *
  * @param s is the SSL session
  * @return 1 for success, error otherwise
@@ -238,13 +249,7 @@ int ech_encode_inner(SSL *s);
 #define ECH_SAME_EXT_CONTINUE 2
 
 /**
- * @brief Free an ECHConfig structure's internals
- * @param tbf is the thing to be free'd
- */
-void ECHConfig_free(ECHConfig *tbf);
-
-/**
- * @brief repeat extension value from inner ch in outer ch and handle outer compression
+ * @brief Replicate extension value from inner ch into outer ch and setup for later outer compression
  * @param s is the SSL session
  * @param pkt is the packet containing extensions
  * @return 0: error, 1: copied existing and done, 2: ignore existing
@@ -252,19 +257,8 @@ void ECHConfig_free(ECHConfig *tbf);
 int ech_same_ext(SSL *s, WPACKET* pkt);
 
 /**
- * @brief print a buffer nicely
+ * @brief Calculate ECH acceptance signal.
  *
- * This is used in SSL_ECH_print
- */
-void ech_pbuf(const char *msg,const unsigned char *buf,const size_t blen);
-
-/**
- * @brief free an ECH_ENCCH
- * @param tbf is a ptr to an SSL_ECH structure
- */
-void ECH_ENCCH_free(ECH_ENCCH *ev);
-
-/*
  * Handling for the ECH accept_confirmation (see
  * spec, section 7.2) - this is a magic value in
  * the ServerHello.random lower 8 octets that is
@@ -284,54 +278,47 @@ void ECH_ENCCH_free(ECH_ENCCH *ev);
  */
 int ech_calc_accept_confirm(SSL *s, unsigned char *acbuf, const unsigned char *shbuf, const size_t shlen);
 
-/*
- * Swap the inner and outer.
+/**
+ * @brief Swap the inner and outer CH structures as needed..
+ *
  * The only reason to make this a function is because it's
  * likely very brittle - if we need any other fields to be
  * handled specially (e.g. because of some so far untested
  * combination of extensions), then this may fail, so good
  * to keep things in one place as we find that out.
+ *
+ * @param s is the SSL struct
+ * @return 1 for success, other value otherwise
  */
 int ech_swaperoo(SSL *s);
 
-/*
- * @brief if we had inner CH cleartext, try parse and process
- * that and then decide whether to swap it for the current 
- * SSL *s - if we decide to, the big swaperoo happens inside
- * here (for now)
- * 
- * @param s is the SSL session
- * @return 1 for success, 0 for failure
-int ech_process_inner_if_present(SSL *s); 
+/**
+ * @brief Send grease
+ * @param s is the SSL struct
+ * @param pkt is the packet to send
+ * @param context isn't used but preserves API pattern
+ * @param x isn't used but preserves API pattern
+ * @param chainidx isn't used but preserves API pattern
+ * @return 1 for success, other otherwise
  */
-
-void ech_ptranscript(const char* msg,SSL *s);
-
-/*
- * Send grease
- */
-int SSL_ech_send_grease(SSL *s, WPACKET *pkt, unsigned int context,
+int ech_send_grease(SSL *s, WPACKET *pkt, unsigned int context,
                                    X509 *x, size_t chainidx);
-
-/*
- * Calc AAD and encrypt
+/**
+ * @brief Calculate AAD and then do ECH encryption
+ *
+ * 1. Make up the AAD:
+ *      - the HPKE suite
+ *      - my HPKE ephemeral public key
+ *      - the encoded outer, minus the ECH
+ * 2. Do the encryption
+ * 3. Put the ECH back into the encoding
+ * 4. Encode the outer (again!)
+ *
+ * @param s is the SSL struct
+ * @param pkt is the packet to send
+ * @return 1 for success, other otherwise
  */
 int ech_aad_and_encrypt(SSL *s, WPACKET *pkt);
-
-/*
- * Given CH encoding, return CH minus the ECH value (if present)
- *
- * @param s: SSL session stuff
- * @param ch_len: length of original encoded CH 
- * @param ch: buffer with original encoded CH
- * @param de_len: zero if no ECH present, otherwise length of buffer with CH after ECH taken out
- * @param de: NULL or the above buffer (caller-allocated)
- * @return 1 for success, zero otherwise
- */
-int drop_ech_from_ch(SSL *s, const size_t ch_len, const unsigned char *ch,
-        size_t *de_len, unsigned char *de);
-
-int ech_make_enc_info(ECHConfig *tc,unsigned char *info,size_t *info_len);
 
 /*
  * @brief reset the handshake buffer for transcript after ECH is good
@@ -344,13 +331,18 @@ int ech_make_enc_info(ECHConfig *tc,unsigned char *info,size_t *info_len);
 int ech_reset_hs_buffer(SSL *s, unsigned char *buf, size_t blen);
 
 /*
- * If an ECH is present, attempt decryption
- *
+ * @brief If an ECH is present, attempt decryption
  * @param s: SSL session stuff
  * @param pkt: the received CH that might include an ECH
  * @param newpkt: the plaintext from ECH 
  */
 int ech_early_decrypt(SSL *s, PACKET *pkt, PACKET *newpkt);
+
+/**
+ * @brief Used in tracing 
+ */
+void ech_pbuf(const char *msg,const unsigned char *buf,const size_t blen);
+void ech_ptranscript(const char* msg,SSL *s);
 
 #endif
 #endif

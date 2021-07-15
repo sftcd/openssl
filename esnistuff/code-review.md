@@ -69,8 +69,12 @@ Clean.
 * Re-tested the ``-svcb`` command line with ascii-hex and base64
 * Re-tested the ``-echconfigs`` input formats (ascii-hex, b64)
 * Fleshed out ``SSL_ech_query`` and associated.
+* **TODO**: ``ech_pbuf`` and ``ech_ptranscript`` are sometimes
+  inside, and sometimes outside ``#ifndef OPENSSL_NO_SSL_TRACE``
+  protection. Fix that by moving them all inside. Better to do
+  that after draft-12 interop success, so one for later.
 
-Generally seems ok now. (Might still see some changes when I do
+Otherwise seems ok. (Might still see some changes when I do
 more on multi-valued ECHConfigs.)
 
 ### ``./include/openssl/tls1.h``
@@ -105,6 +109,7 @@ for the client once some decryption has happened well.
 * Removed ``config_id_len`` field and fixed ``config_id`` as one octet
 * Removed ``dns_alpns`` and ``dns_no_def_alpn`` from ``SSL_ECH`` as those 
   are better handled outside the library.
+* Removed some no longer needed prototypes and tidied up others.
 
 ### ``./ssl/s3_enc.c``
 ### ``./ssl/ech.c``

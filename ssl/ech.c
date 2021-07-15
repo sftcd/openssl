@@ -3138,7 +3138,7 @@ void ech_ptranscript(const char *msg, SSL *s)
 /*
  * Send grease
  */
-int SSL_ech_send_grease(SSL *s, WPACKET *pkt, unsigned int context,
+int ech_send_grease(SSL *s, WPACKET *pkt, unsigned int context,
                                    X509 *x, size_t chainidx)
 {
     /*
@@ -3230,24 +3230,24 @@ int ech_make_enc_info(ECHConfig *tc,unsigned char *info,size_t *info_len)
     return 1;
 }
 
-/*
- * Calc AAD and encrypt
+/**
+ * @brief Calculate AAD and then do ECH encryption
+ *
+ * 1. Make up the AAD:
+ *      - the HPKE suite
+ *      - my HPKE ephemeral public key
+ *      - the encoded outer, minus the ECH
+ * 2. Do the encryption
+ * 3. Put the ECH back into the encoding
+ * 4. Encode the outer (again!)
+ *
+ * @param s is the SSL struct
+ * @param pkt is the packet to send
+ * @return 1 for success, other otherwise
+ *
  */
 int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
 {
-    /*
-     * 1. Make up the AAD:
-     *      - the HPKE suite
-     *      - my HPKE ephemeral public key
-     *      - the encoded outer, minus the ECH
-     * 2. Do the encryption
-     * 3. Put the ECH back into the encoding
-     * 4. Encode the outer (again!)
-     *
-     * There'll be "fixing up lengths" involved at various places as we
-     * go probaby.
-     */ 
-
     int hpke_mode=HPKE_MODE_BASE;
     hpke_suite_t hpke_suite = HPKE_SUITE_DEFAULT;
     size_t cipherlen=HPKE_MAXSIZE; 
