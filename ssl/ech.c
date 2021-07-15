@@ -71,6 +71,8 @@ static void ECH_DETS_free(ECH_DETS *in);
 
 static char *ECHConfigs_print(ECHConfigs *c);
 
+static int ech_make_enc_info(ECHConfig *tc,unsigned char *info,size_t *info_len);
+
 /*
  * Yes, global vars! 
  * For decoding input strings with public keys (aka ECHConfig) we'll accept
@@ -3216,7 +3218,7 @@ int ech_send_grease(SSL *s, WPACKET *pkt, unsigned int context,
     return 1;
 }
 
-int ech_make_enc_info(ECHConfig *tc,unsigned char *info,size_t *info_len) 
+static int ech_make_enc_info(ECHConfig *tc,unsigned char *info,size_t *info_len) 
 {
     unsigned char *ip=info;
 
