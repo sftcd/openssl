@@ -1624,6 +1624,7 @@ int SSL_CTX_ech_server_enable_buffer(SSL_CTX *ctx, const unsigned char *buf, con
     EVP_MD_CTX *mdctx;
     const EVP_MD *md=NULL;
     unsigned int i=0;
+    int j=0;
     unsigned char hashval[EVP_MAX_MD_SIZE];
     unsigned int hashlen;
     char ah_hash[2*EVP_MAX_MD_SIZE+1];
@@ -1659,8 +1660,8 @@ int SSL_CTX_ech_server_enable_buffer(SSL_CTX *ctx, const unsigned char *buf, con
      * Check if we have that buffer loaded already
      * If we did, we're done 
      */
-    for (i=0;i!=ctx->ext.nechs;i++) {
-        SSL_ECH *se=&ctx->ext.ech[i];
+    for (j=0;j!=ctx->ext.nechs;j++) {
+        SSL_ECH *se=&ctx->ext.ech[j];
         if (se->pemfname 
             && strlen(se->pemfname)==strlen(ah_hash)
             && !memcpy(se->pemfname,ah_hash,strlen(ah_hash))) {
