@@ -50,6 +50,119 @@
  */
 #include <crypto/hpke.h>
 
+/* 
+ * When doing ECH, this array specifies which inner CH extensions (if 
+ * any) are to be "compressed" using the (ickky) outer extensions
+ * trickery.
+ * Basically, we store a 0 for "don't" and a 1 for "do" and the index
+ * is the same as the index of the extension itself. 
+ *
+ * This is likely to disappear before submitting a PR to upstream. If
+ * anyone else implements the outer extension stuff, then I'll need to
+ * test it on the server-side, so I'll need to be able to do various
+ * tests of correct (and incorrect!) uses of that. In reality, when
+ * or if this feature reaches upstream, my guess is there'll not be 
+ * a need for such configuration flexibility on the client side at 
+ * all, and if any such compression is needed that can be hard-coded
+ * into the extension-specific ctos functions, if it really saves 
+ * useful space (could do if we don't break an MTU as a result) or
+ * helps somehow with not standing out (if it makes a reach use of
+ * ECH look more like GREASEd ones).
+ *
+ * As with ext_defs in extensions.c: NOTE: Changes in the number or order
+ * of these extensions should be mirrored with equivalent changes to the
+ * indexes ( TLSEXT_IDX_* ) defined in ssl_local.h.
+ *
+ * Lotsa notes, eh - that's because I'm not sure this is sane:-)
+ */
+static int ech_outer_config[]={
+     /*TLSEXT_IDX_renegotiate */ 0,
+     /*TLSEXT_IDX_server_name */ 0,
+#define DOCOMPRESS
+#ifdef DOCOMPRESS
+     /*TLSEXT_IDX_max_fragment_length */ 1,
+     /*TLSEXT_IDX_srp */ 1,
+     /*TLSEXT_IDX_ec_point_formats */ 1,
+     /*TLSEXT_IDX_supported_groups */ 1,
+#else
+     /*TLSEXT_IDX_max_fragment_length */ 0,
+     /*TLSEXT_IDX_srp */ 0,
+     /*TLSEXT_IDX_ec_point_formats */ 0,
+     /*TLSEXT_IDX_supported_groups */ 0,
+#endif
+     /*TLSEXT_IDX_session_ticket */ 0,
+     /*TLSEXT_IDX_status_request */ 0,
+     /*TLSEXT_IDX_next_proto_neg */ 0,
+     /*TLSEXT_IDX_application_layer_protocol_negotiation */ 0,
+     /*TLSEXT_IDX_use_srtp */ 0,
+     /*TLSEXT_IDX_encrypt_then_mac */ 0,
+     /*TLSEXT_IDX_signed_certificate_timestamp */ 0,
+     /*TLSEXT_IDX_extended_master_secret */ 0,
+     /*TLSEXT_IDX_signature_algorithms_cert */ 0,
+     /*TLSEXT_IDX_post_handshake_auth */ 0,
+     /*TLSEXT_IDX_signature_algorithms */ 0,
+     /*TLSEXT_IDX_supported_versions */ 0,
+     /*TLSEXT_IDX_psk_kex_modes */ 0,
+     /*TLSEXT_IDX_key_share */ 0,
+     /*TLSEXT_IDX_cookie */ 0,
+     /*TLSEXT_IDX_cryptopro_bug */ 0,
+     /*TLSEXT_IDX_early_data */ 0,
+     /*TLSEXT_IDX_certificate_authorities */ 0,
+#ifndef OPENSSL_NO_ECH
+     /*TLSEXT_IDX_ech */ 0,
+     /*TLSEXT_IDX_outer_extensions */ 0,
+     /*TLSEXT_IDX_ech_is_inner */ 0,
+#endif
+     /*TLSEXT_IDX_padding */ 0,
+     /*TLSEXT_IDX_psk */ 0,
+    }; 
+
+/* 
+ * When doing ECH, this array specifies whether, when we're not
+ * compressing, to re-use the inner value in the outer CH  ("0")
+ * or whether to generate an independently new value for the
+ * outer ("1")
+ *
+ * As above this is likely to disappear before submitting a PR to 
+ * upstream. 
+ *
+ * As with ext_defs in extensions.c: NOTE: Changes in the number or order
+ * of these extensions should be mirrored with equivalent changes to the
+ * indexes ( TLSEXT_IDX_* ) defined in ssl_local.h.
+ */
+static int ech_outer_indep[]={
+     /*TLSEXT_IDX_renegotiate */ 0,
+     /*TLSEXT_IDX_server_name */ 1,
+     /*TLSEXT_IDX_max_fragment_length */ 0,
+     /*TLSEXT_IDX_srp */ 0,
+     /*TLSEXT_IDX_ec_point_formats */ 0,
+     /*TLSEXT_IDX_supported_groups */ 0,
+     /*TLSEXT_IDX_session_ticket */ 0,
+     /*TLSEXT_IDX_status_request */ 0,
+     /*TLSEXT_IDX_next_proto_neg */ 0,
+     /*TLSEXT_IDX_application_layer_protocol_negotiation */ 1,
+     /*TLSEXT_IDX_use_srtp */ 0,
+     /*TLSEXT_IDX_encrypt_then_mac */ 0,
+     /*TLSEXT_IDX_signed_certificate_timestamp */ 0,
+     /*TLSEXT_IDX_extended_master_secret */ 0,
+     /*TLSEXT_IDX_signature_algorithms_cert */ 0,
+     /*TLSEXT_IDX_post_handshake_auth */ 0,
+     /*TLSEXT_IDX_signature_algorithms */ 0,
+     /*TLSEXT_IDX_supported_versions */ 0,
+     /*TLSEXT_IDX_psk_kex_modes */ 0,
+     /*TLSEXT_IDX_key_share */ 1,
+     /*TLSEXT_IDX_cookie */ 0,
+     /*TLSEXT_IDX_cryptopro_bug */ 0,
+     /*TLSEXT_IDX_early_data */ 0,
+     /*TLSEXT_IDX_certificate_authorities */ 0,
+#ifndef OPENSSL_NO_ECH
+     /*TLSEXT_IDX_ech */ 0,
+     /*TLSEXT_IDX_outer_extensions */ 0,
+#endif
+     /*TLSEXT_IDX_padding */ 0,
+     /*TLSEXT_IDX_psk */ 0,
+}; 
+
 /*
  * @brief Decode/check the value from DNS (binary, base64 or ascii-hex encoded)
  * 
@@ -2332,119 +2445,6 @@ int SSL_svcb_add(SSL *con, int rrfmt, size_t rrlen, char *rrval, int *num_echs)
     *num_echs=con->nechs;
     return 1;
 }
-
-/* 
- * When doing ECH, this array specifies which inner CH extensions (if 
- * any) are to be "compressed" using the (ickky) outer extensions
- * trickery.
- * Basically, we store a 0 for "don't" and a 1 for "do" and the index
- * is the same as the index of the extension itself. 
- *
- * This is likely to disappear before submitting a PR to upstream. If
- * anyone else implements the outer extension stuff, then I'll need to
- * test it on the server-side, so I'll need to be able to do various
- * tests of correct (and incorrect!) uses of that. In reality, when
- * or if this feature reaches upstream, my guess is there'll not be 
- * a need for such configuration flexibility on the client side at 
- * all, and if any such compression is needed that can be hard-coded
- * into the extension-specific ctos functions, if it really saves 
- * useful space (could do if we don't break an MTU as a result) or
- * helps somehow with not standing out (if it makes a reach use of
- * ECH look more like GREASEd ones).
- *
- * As with ext_defs in extensions.c: NOTE: Changes in the number or order
- * of these extensions should be mirrored with equivalent changes to the
- * indexes ( TLSEXT_IDX_* ) defined in ssl_local.h.
- *
- * Lotsa notes, eh - that's because I'm not sure this is sane:-)
- */
-static int ech_outer_config[]={
-     /*TLSEXT_IDX_renegotiate */ 0,
-     /*TLSEXT_IDX_server_name */ 0,
-#define DOCOMPRESS
-#ifdef DOCOMPRESS
-     /*TLSEXT_IDX_max_fragment_length */ 1,
-     /*TLSEXT_IDX_srp */ 1,
-     /*TLSEXT_IDX_ec_point_formats */ 1,
-     /*TLSEXT_IDX_supported_groups */ 1,
-#else
-     /*TLSEXT_IDX_max_fragment_length */ 0,
-     /*TLSEXT_IDX_srp */ 0,
-     /*TLSEXT_IDX_ec_point_formats */ 0,
-     /*TLSEXT_IDX_supported_groups */ 0,
-#endif
-     /*TLSEXT_IDX_session_ticket */ 0,
-     /*TLSEXT_IDX_status_request */ 0,
-     /*TLSEXT_IDX_next_proto_neg */ 0,
-     /*TLSEXT_IDX_application_layer_protocol_negotiation */ 0,
-     /*TLSEXT_IDX_use_srtp */ 0,
-     /*TLSEXT_IDX_encrypt_then_mac */ 0,
-     /*TLSEXT_IDX_signed_certificate_timestamp */ 0,
-     /*TLSEXT_IDX_extended_master_secret */ 0,
-     /*TLSEXT_IDX_signature_algorithms_cert */ 0,
-     /*TLSEXT_IDX_post_handshake_auth */ 0,
-     /*TLSEXT_IDX_signature_algorithms */ 0,
-     /*TLSEXT_IDX_supported_versions */ 0,
-     /*TLSEXT_IDX_psk_kex_modes */ 0,
-     /*TLSEXT_IDX_key_share */ 0,
-     /*TLSEXT_IDX_cookie */ 0,
-     /*TLSEXT_IDX_cryptopro_bug */ 0,
-     /*TLSEXT_IDX_early_data */ 0,
-     /*TLSEXT_IDX_certificate_authorities */ 0,
-#ifndef OPENSSL_NO_ECH
-     /*TLSEXT_IDX_ech */ 0,
-     /*TLSEXT_IDX_outer_extensions */ 0,
-     /*TLSEXT_IDX_ech_is_inner */ 0,
-#endif
-     /*TLSEXT_IDX_padding */ 0,
-     /*TLSEXT_IDX_psk */ 0,
-    }; 
-
-/* 
- * When doing ECH, this array specifies whether, when we're not
- * compressing, to re-use the inner value in the outer CH  ("0")
- * or whether to generate an independently new value for the
- * outer ("1")
- *
- * As above this is likely to disappear before submitting a PR to 
- * upstream. 
- *
- * As with ext_defs in extensions.c: NOTE: Changes in the number or order
- * of these extensions should be mirrored with equivalent changes to the
- * indexes ( TLSEXT_IDX_* ) defined in ssl_local.h.
- */
-static int ech_outer_indep[]={
-     /*TLSEXT_IDX_renegotiate */ 0,
-     /*TLSEXT_IDX_server_name */ 1,
-     /*TLSEXT_IDX_max_fragment_length */ 0,
-     /*TLSEXT_IDX_srp */ 0,
-     /*TLSEXT_IDX_ec_point_formats */ 0,
-     /*TLSEXT_IDX_supported_groups */ 0,
-     /*TLSEXT_IDX_session_ticket */ 0,
-     /*TLSEXT_IDX_status_request */ 0,
-     /*TLSEXT_IDX_next_proto_neg */ 0,
-     /*TLSEXT_IDX_application_layer_protocol_negotiation */ 1,
-     /*TLSEXT_IDX_use_srtp */ 0,
-     /*TLSEXT_IDX_encrypt_then_mac */ 0,
-     /*TLSEXT_IDX_signed_certificate_timestamp */ 0,
-     /*TLSEXT_IDX_extended_master_secret */ 0,
-     /*TLSEXT_IDX_signature_algorithms_cert */ 0,
-     /*TLSEXT_IDX_post_handshake_auth */ 0,
-     /*TLSEXT_IDX_signature_algorithms */ 0,
-     /*TLSEXT_IDX_supported_versions */ 0,
-     /*TLSEXT_IDX_psk_kex_modes */ 0,
-     /*TLSEXT_IDX_key_share */ 1,
-     /*TLSEXT_IDX_cookie */ 0,
-     /*TLSEXT_IDX_cryptopro_bug */ 0,
-     /*TLSEXT_IDX_early_data */ 0,
-     /*TLSEXT_IDX_certificate_authorities */ 0,
-#ifndef OPENSSL_NO_ECH
-     /*TLSEXT_IDX_ech */ 0,
-     /*TLSEXT_IDX_outer_extensions */ 0,
-#endif
-     /*TLSEXT_IDX_padding */ 0,
-     /*TLSEXT_IDX_psk */ 0,
-}; 
 
 /**
  * @brief repeat extension value from inner ch in outer ch and handle outer compression
