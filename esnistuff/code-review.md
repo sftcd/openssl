@@ -132,7 +132,10 @@ Only tracing. All good.
   has an unsupported version
 * Fixed semantics of ``public_name`` override in 
   ``SSL_ech_server_name`` and related functions.
-* Tidied as far as``SSL_ech_print`` which needs a bit of work.
+* Output more information from ``SSL_ech_print`` and added
+  call to ``s_client``.
+* Fixed semantics of ``SSL_CTX_svcb_add`` and ``SSL_svcb_add`` to be 
+  additive if multiple calls made.
 * **TODO**: fix the TODOs here;-)
 
 ### ``./ssl/ssl_txt.c``

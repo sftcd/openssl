@@ -3613,6 +3613,8 @@ static void print_stuff(BIO *bio, SSL *s, int full)
                  BIO_printf(bio,"ECH: Error trying ECH\n");
                 break;
             }
+
+            SSL_ech_print(bio,s,ECH_SELECT_ALL);
         }
 #endif
 

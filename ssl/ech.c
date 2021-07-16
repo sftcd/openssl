@@ -568,6 +568,7 @@ static void *ech_len_field_dup(void *old, unsigned int len)
     memset((unsigned char*)new+len,0,1);
     return new;
 } 
+
 /**
  * @brief Copy old->f (with length flen) to new->f
  */
@@ -576,6 +577,57 @@ static void *ech_len_field_dup(void *old, unsigned int len)
         new->__f__=ech_len_field_dup((void*)old->__f__,old->__flen__); \
         if (new->__f__==NULL) return 0; \
     }
+
+/**
+ * @brief deep copy an ECHConfig
+ * @param old is the one to copy
+ * @param new is the (called allocated) place to copy-to
+ * @return 1 for sucess, other otherwise
+ */
+static int ECHConfig_dup(ECHConfig *old, ECHConfig *new)
+{
+    if (!new || !old) return 0;
+    *new=*old; /* shallow copy, followed by deep copies */
+    ECHFDUP(pub,pub_len);
+    ECHFDUP(public_name,public_name_len);
+    new->config_id=old->config_id;
+    if (old->ciphersuites) {
+        new->ciphersuites=
+            OPENSSL_malloc(old->nsuites*sizeof(ech_ciphersuite_t));
+        if (!new->ciphersuites) return(0);
+        memcpy(new->ciphersuites,old->ciphersuites,
+                old->nsuites*sizeof(ech_ciphersuite_t));
+    }
+    return 1;
+}
+
+/**
+ * @brief deep copy an ECHConfigs
+ * @param old is the one to copy
+ * @param new is the (called allocated) place to copy-to
+ * @return 1 for sucess, other otherwise
+ */
+static int ECHConfigs_dup(ECHConfigs *old, ECHConfigs *new)
+{
+    int i=0;
+    if (!new || !old) return 0;
+    if (old->encoded_len!=0) {
+        if (old->encoded_len!=0) {
+            new->encoded=
+                ech_len_field_dup((void*)old->encoded,old->encoded_len);
+            if (new->encoded==NULL) return 0;
+        }
+        new->encoded_len=old->encoded_len;
+    }
+    new->recs=OPENSSL_malloc(old->nrecs*sizeof(ECHConfig)); 
+    if (!new->recs) return(0);
+    new->nrecs=old->nrecs;
+    memset(new->recs,0,old->nrecs*sizeof(ECHConfig)); 
+    for (i=0;i!=old->nrecs;i++) {
+        if (ECHConfig_dup(&old->recs[i],&new->recs[i])!=1) return(0);
+    }
+    return(1);
+}
 
 /**
  * @brief Decode the first ECHConfigs from a binary buffer 
@@ -1817,29 +1869,47 @@ int SSL_CTX_ech_server_enable_buffer(
 
 }
 
-
 /** 
- * Print the content of an SSL_ECH
+ * @brief Print the status/content of an SSL session wrt ECH
  *
  * @param out is the BIO to use (e.g. stdout/whatever)
  * @param con is an SSL session strucutre
- * @param selector allows for picking all (ECH_SELECT_ALL==-1) or just one of the RR values in orig
+ * @param selector all (ECH_SELECT_ALL==-1) or just one of the SSL_ECH values
  * @return 1 for success, anything else for failure
  * 
  */
 int SSL_ech_print(BIO* out, SSL *s, int selector)
 {
-    /*
-     * Ignore details for now and just print state
-     */
+    char *cfg=NULL;
     BIO_printf(out,"*** SSL_ech_print ***\n");
+#ifdef ECH_SUPERVERBOSE
     BIO_printf(out,"s=%p\n",(void*)s);
     BIO_printf(out,"inner_s=%p\n",(void*)s->ext.inner_s);
     BIO_printf(out,"outer_s=%p\n",(void*)s->ext.outer_s);
+#endif
     BIO_printf(out,"ech_attempted=%d\n",s->ext.ech_attempted);
     BIO_printf(out,"ech_done=%d\n",s->ext.ech_done);
     BIO_printf(out,"ech_grease=%d\n",s->ext.ech_grease);
     BIO_printf(out,"ech_success=%d\n",s->ext.ech_success);
+    if (s->ech) {
+        int i=0;
+        for (i=0;i!=s->nechs;i++) {
+            if (selector==ECH_SELECT_ALL || selector==i) {
+                cfg=ECHConfigs_print(s->ech[i].cfg);
+                BIO_printf(out,"ECHConfig %d\n\t%s\n",i,cfg);
+                OPENSSL_free(cfg);
+                if (s->ech[i].keyshare) {
+                    struct tm *local;
+                    local=gmtime(&s->ech[i].loadtime);
+                    BIO_printf(out,"\tpriv=%s\n\t%s\n",
+                        s->ech[i].pemfname,
+                        asctime(local));
+                }
+            }
+        }
+    } else {
+        BIO_printf(out,"cfg=NONE\n");
+    }
     BIO_printf(out,"*** SSL_ech_print ***\n");
     return 1;
 }
@@ -1850,10 +1920,8 @@ int SSL_ech_print(BIO* out, SSL *s, int selector)
  * This is intended to be called by applications after the TLS handshake
  * is complete. This works for both client and server. The caller does
  * not have to (and shouldn't) free the inner_sni or outer_sni strings.
- * TODO: Those are pointers into the SSL struct though so maybe better
- * to allocate fresh ones.
  *
- * @param s The SSL context (if that's the right term)
+ * @param s The SSL session
  * @param inner_sni will be set to the SNI from the inner CH (if any)
  * @param outer_sni will be set to the SNI from the outer CH (if any)
  * @return 1 for success, other otherwise
@@ -1893,7 +1961,8 @@ int SSL_ech_get_status(SSL *s, char **inner_sni, char **outer_sni)
         }
     }
 
-    if (s->ech!=NULL && s->ext.ech_attempted==1 && s->ext.ech_grease!=ECH_IS_GREASE) {
+    if (s->ech!=NULL && s->ext.ech_attempted==1 && 
+            s->ext.ech_grease!=ECH_IS_GREASE) {
         long vr=X509_V_OK;
         vr=SSL_get_verify_result(s);
         *inner_sni=sinner;
@@ -1911,21 +1980,6 @@ int SSL_ech_get_status(SSL *s, char **inner_sni, char **outer_sni)
         return SSL_ECH_STATUS_GREASE;
     } 
     return SSL_ECH_STATUS_NOT_TRIED;
-}
-
-static int ECHConfig_dup(ECHConfig *old, ECHConfig *new)
-{
-    if (!new || !old) return 0;
-    *new=*old; /* shallow copy, followed by deep copies */
-    ECHFDUP(pub,pub_len);
-    ECHFDUP(public_name,public_name_len);
-    new->config_id=old->config_id;
-    if (old->ciphersuites) {
-        new->ciphersuites=OPENSSL_malloc(old->nsuites*sizeof(ech_ciphersuite_t));
-        if (!new->ciphersuites) return(0);
-        memcpy(new->ciphersuites,old->ciphersuites,old->nsuites*sizeof(ech_ciphersuite_t));
-    }
-    return 1;
 }
 
 /*
@@ -2006,40 +2060,15 @@ static char *ECHConfigs_print(ECHConfigs *c)
     return(str);
 }
 
-static int ECHConfigs_dup(ECHConfigs *old, ECHConfigs *new)
-{
-    int i=0;
-    if (!new || !old) return 0;
-    if (old->encoded_len!=0) {
-        if (old->encoded_len!=0) {
-            new->encoded=ech_len_field_dup((void*)old->encoded,old->encoded_len);
-            if (new->encoded==NULL) return 0;
-        }
-        new->encoded_len=old->encoded_len;
-    }
-    new->recs=OPENSSL_malloc(old->nrecs*sizeof(ECHConfig)); 
-    if (!new->recs) return(0);
-    new->nrecs=old->nrecs;
-    memset(new->recs,0,old->nrecs*sizeof(ECHConfig)); 
-    for (i=0;i!=old->nrecs;i++) {
-        if (ECHConfig_dup(&old->recs[i],&new->recs[i])!=1) return(0);
-    }
-    return(1);
-}
-
 /**
  * @brief Duplicate the configuration related fields of an SSL_ECH
  *
- * This is needed to handle the SSL_CTX->SSL factory model in the
- * server. Clients don't need this.  There aren't too many fields 
- * populated when this is called - essentially just the ECHKeys and
- * the server private value. For the moment, we actually only
- * deep-copy those.
+ * This is needed to handle the SSL_CTX->SSL factory model.
  *
  * @param orig is the input array of SSL_ECH to be partly deep-copied
  * @param nech is the number of elements in the array
- * @param selector allows for picking all (ECH_SELECT_ALL==-1) or just one of the RR values in orig
- * @return a partial deep-copy array or NULL if errors occur
+ * @param selector dup all (ECH_SELECT_ALL==-1) or just one 
+ * @return a deep-copy array or NULL if errors occur
  */
 SSL_ECH* SSL_ECH_dup(SSL_ECH* orig, size_t nech, int selector)
 {
@@ -2089,11 +2118,13 @@ err:
 }
 
 /**
- * @brief Decode SVCB/HTTPS RR value provided as (binary or ascii-hex encoded) 
+ * @brief Decode SVCB/HTTPS RR value provided as binary or ascii-hex 
  *
- * rrval may be the catenation of multiple encoded ECHConfigs.
+ * The rrval may be the catenation of multiple encoded ECHConfigs.
  * We internally try decode and handle those and (later)
- * use whichever is relevant/best. The fmt parameter can be e.g. ECH_FMT_ASCII_HEX
+ * use whichever is relevant/best. The fmt parameter can be e.g. 
+ * ECH_FMT_ASCII_HEX.
+ *
  * Note that we "succeed" even if there is no ECHConfigs in the input - some
  * callers might download the RR from DNS and pass it here without looking 
  * inside, and there are valid uses of such RRs. The caller can check though
@@ -2105,11 +2136,13 @@ err:
  * @param echs is the returned array of SSL_ECH
  * @return is 1 for success, error otherwise
  */
-static int local_svcb_add(int rrfmt, size_t rrlen, char *rrval, int *num_echs, SSL_ECH **echs)
+static int local_svcb_add(
+        int rrfmt, 
+        size_t rrlen, 
+        char *rrval, 
+        int *num_echs, 
+        SSL_ECH **echs)
 {
-    /*
-     * Extract eklen,ekval from RR if possible
-     */
     int detfmt=ECH_FMT_GUESS;
     int rv=0;
     size_t binlen=0; /* the RData */
@@ -2150,11 +2183,13 @@ static int local_svcb_add(int rrfmt, size_t rrlen, char *rrval, int *num_echs, S
      * name, and then walk through the SvcParamKey binary
      * codes 'till we find what we want
      */
-
     cp=binbuf;
     remaining=binlen;
 
-    /* skip 2 octet priority */
+    /* 
+     * skip 2 octet priority and TargetName as those are the
+     * application's responsibility, not the library's
+     */
     if (remaining<=2) goto err;
     cp+=2; remaining-=2;
     rv=local_decode_rdata_name(&cp,&remaining,&dnsname);
@@ -2179,12 +2214,11 @@ static int local_svcb_add(int rrfmt, size_t rrlen, char *rrval, int *num_echs, S
     } 
     if (!done) {
         *num_echs=0;
-        OPENSSL_free(dnsname);
         OPENSSL_free(binbuf);
         return(1);
     }
     /*
-     * Deposit ECHConfigs that we found
+     * Parse & load any ECHConfigs that we found
      */
     rv=local_ech_add(ECH_FMT_BIN,eklen,ekval,num_echs,echs);
     if (rv!=1) {
@@ -2201,56 +2235,64 @@ err:
 /**
  * @brief Decode/store SVCB/HTTPS RR value provided as (binary or ascii-hex encoded) 
  *
- * rrval may be the catenation of multiple encoded ECHConfigs.
+ * The input rrval may be the catenation of multiple encoded ECHConfigs.
  * We internally try decode and handle those and (later)
  * use whichever is relevant/best. The fmt parameter can be e.g. ECH_FMT_ASCII_HEX
+ * This API is additive, i.e. values from multiple calls will be merged, but
+ * not that the merge isn't clever so the application would need to take that
+ * into account if it cared about priority.
+ * In the case of decoding error, any existing ECHConfigs are unaffected.
  *
  * @param ctx is the parent SSL_CTX
  * @param rrlen is the length of the rrval
  * @param rrval is the binary, base64 or ascii-hex encoded RData
- * @param num_echs says how many SSL_ECH structures are in the returned array
+ * @param num_echs says how many SSL_ECH structures are loaded in total
  * @return is 1 for success, error otherwise
  */
 int SSL_CTX_svcb_add(SSL_CTX *ctx, short rrfmt, size_t rrlen, char *rrval, int *num_echs)
 {
-    SSL_ECH *echs=NULL;
-    /*
-     * Sanity checks on inputs
-     */
-    if (!ctx) {
-        return(0);
-    }
-    /*
-     * If ECHs were previously set we'll free 'em first
-     */
-    if (ctx->ext.nechs && ctx->ext.ech) {
-        int i;
-        for (i=0;i!=ctx->ext.nechs;i++) {
-            SSL_ECH_free(&ctx->ext.ech[i]);
-        }
-        OPENSSL_free(ctx->ext.ech);
-        ctx->ext.ech=NULL;
-        ctx->ext.nechs=0;
-    }
-
-    if (local_svcb_add(rrfmt,rrlen,rrval,num_echs,&echs)!=1) {
+    SSL_ECH *new_echs=NULL;
+    int num_new=0;
+    SSL_ECH *all_echs=NULL;
+    int i;
+    if (!ctx || !rrval || !num_echs || rrlen==0) return(0);
+    if (local_svcb_add(rrfmt,rrlen,rrval,&num_new,&new_echs)!=1) {
         return 0;
     }
-    ctx->ext.ech=echs;
-    ctx->ext.nechs=*num_echs;
+    if (num_new==0) {
+        *num_echs=ctx->ext.nechs;
+        return(1);
+    }
+    /* merge new and old */
+    all_echs=OPENSSL_realloc(ctx->ext.ech,(ctx->ext.nechs+num_new)*sizeof(SSL_ECH));
+    if (!all_echs) {
+        for (i=0;i!=num_new;i++) {
+            SSL_ECH_free(&new_echs[i]);
+        }
+        OPENSSL_free(new_echs);
+        return(0);
+    }
+    ctx->ext.ech=all_echs;
+    for (i=0;i!=num_new;i++) {
+        ctx->ext.ech[ctx->ext.nechs+i]=new_echs[i]; /* struct  copy */
+    }
+    OPENSSL_free(new_echs);
+    ctx->ext.nechs+=num_new;
+    *num_echs=ctx->ext.nechs;
     return 1;
+
 }
 
 /**
  * @brief Decode/store SVCB/HTTPS RR value provided as (binary or ascii-hex encoded) 
  *
- * rrval may be the catenation of multiple encoded ECHConfigs.
+ * The input rrval may be the catenation of multiple encoded ECHConfigs.
  * We internally try decode and handle those and (later)
  * use whichever is relevant/best. The fmt parameter can be e.g. ECH_FMT_ASCII_HEX
- * Note that we "succeed" even if there is no ECHConfigs in the input - some
- * callers might download the RR from DNS and pass it here without looking 
- * inside, and there are valid uses of such RRs. The caller can check though
- * using the num_echs output.
+ * This API is additive, i.e. values from multiple calls will be merged, but
+ * not that the merge isn't clever so the application would need to take that
+ * into account if it cared about priority.
+ * In the case of decoding error, any existing ECHConfigs are unaffected.
  *
  * @param con is the SSL connection 
  * @param rrlen is the length of the rrval
@@ -2260,32 +2302,35 @@ int SSL_CTX_svcb_add(SSL_CTX *ctx, short rrfmt, size_t rrlen, char *rrval, int *
  */
 int SSL_svcb_add(SSL *con, int rrfmt, size_t rrlen, char *rrval, int *num_echs)
 {
-    SSL_ECH *echs=NULL;
-    /*
-     * Sanity checks on inputs
-     */
-    if (!con) {
-        return(0);
-    }
-    /*
-     * If ECHs were previously set we'll free 'em first
-     */
-    if (con->nechs && con->ech) {
-        int i;
-        for (i=0;i!=con->nechs;i++) {
-            SSL_ECH_free(&con->ech[i]);
-        }
-        OPENSSL_free(con->ech);
-        con->ech=NULL;
-        con->nechs=0;
-    }
-
-    if (local_svcb_add(rrfmt,rrlen,rrval,num_echs,&echs)!=1) {
+    SSL_ECH *new_echs=NULL;
+    int num_new=0;
+    SSL_ECH *all_echs=NULL;
+    int i;
+    if (!con || !rrval || !num_echs || rrlen==0) return(0);
+    if (local_svcb_add(rrfmt,rrlen,rrval,&num_new,&new_echs)!=1) {
         return 0;
     }
-    con->ech=echs;
-    con->nechs=*num_echs;
-    return(1);
+    if (num_new==0) {
+        *num_echs=con->nechs;
+        return(1);
+    }
+    /* merge new and old */
+    all_echs=OPENSSL_realloc(con->ech,(con->nechs+num_new)*sizeof(SSL_ECH));
+    if (!all_echs) {
+        for (i=0;i!=num_new;i++) {
+            SSL_ECH_free(&new_echs[i]);
+        }
+        OPENSSL_free(new_echs);
+        return(0);
+    }
+    con->ech=all_echs;
+    for (i=0;i!=num_new;i++) {
+        con->ech[con->nechs+i]=new_echs[i]; /* struct  copy */
+    }
+    OPENSSL_free(new_echs);
+    con->nechs+=num_new;
+    *num_echs=con->nechs;
+    return 1;
 }
 
 /* 

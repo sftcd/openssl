@@ -46,9 +46,25 @@ startdir=`/bin/pwd`
 
 # catch the ctrl-C used to stop the server and do any clean up needed
 cleanup() {
+    echo ""
     echo "Cleaning up after ctrl-c"
+    # kill off any server running from a previous test
+    pids=`ps -ef | grep s_server | grep -v grep | awk '{print $2}'`
+    if [[ "$pids" != "" ]]
+    then
+        # exiting without cleanup
+        kill $pids
+    fi
+    # kill off any client running from a previous test
+    pids=`ps -ef | grep s_client | grep -v grep | awk '{print $2}'`
+    if [[ "$pids" != "" ]]
+    then
+        # exiting without cleanup
+        kill $pids
+    fi
     cd $startdir
     rm -rf $scratchdir
+    exit 0
 }
 
 if [[ "$SCRATCHDIR" != "" && -d $SCRATCHDIR ]]
