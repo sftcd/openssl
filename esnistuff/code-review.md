@@ -130,7 +130,9 @@ Only tracing. All good.
 * **TODO:** When testing for >1 ECHConfig in an ECHConfigList we
   need to include a case where we skip over a "middle" value that
   has an unsupported version
-* Tidied as far as ``SSL_ech_server_name``
+* Fixed semantics of ``public_name`` override in 
+  ``SSL_ech_server_name`` and related functions.
+* Tidied as far as``SSL_ech_print`` which needs a bit of work.
 * **TODO**: fix the TODOs here;-)
 
 ### ``./ssl/ssl_txt.c``

@@ -44,11 +44,22 @@ fi
 
 startdir=`/bin/pwd`
 
+# catch the ctrl-C used to stop the server and do any clean up needed
+cleanup() {
+    echo "Cleaning up after ctrl-c"
+    cd $startdir
+    rm -rf $scratchdir
+}
+
 if [[ "$SCRATCHDIR" != "" && -d $SCRATCHDIR ]]
 then
     scratchdir="$SCRATCHDIR"
 else
     scratchdir=`/bin/mktemp -d`
+    if [[ "$KEEP" == "" ]]
+    then
+        trap cleanup SIGINT
+    fi
 fi
 
 if [[ "$verbose" == "yes" ]]

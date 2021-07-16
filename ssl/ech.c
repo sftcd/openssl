@@ -499,7 +499,9 @@ void SSL_ECH_free(SSL_ECH *tbf)
         ECHConfigs_free(tbf->cfg);
         OPENSSL_free(tbf->cfg);
     }
-    CFREE(inner_name);
+    if (tbf->inner_name!=ECH_PUBLIC_NAME_OVERRIDE_NULL) {
+        CFREE(inner_name);
+    }
     if (tbf->outer_name!=ECH_PUBLIC_NAME_OVERRIDE_NULL) {
         CFREE(outer_name);
     }
@@ -508,6 +510,40 @@ void SSL_ECH_free(SSL_ECH *tbf)
         EVP_PKEY_free(tbf->keyshare); tbf->keyshare=NULL; 
     }
     memset(tbf,0,sizeof(SSL_ECH));
+    return;
+}
+
+/**
+ * @brief free an ECH_DETS
+ * @param in the thing to free
+ * @return void
+ */
+static void ECH_DETS_free(ECH_DETS *in)
+{
+    if (!in) return;
+    OPENSSL_free(in->public_name);
+    OPENSSL_free(in->inner_name);
+    OPENSSL_free(in->outer_alpns);
+    OPENSSL_free(in->inner_alpns);
+    OPENSSL_free(in->echconfig);
+    return;
+}
+
+/** 
+ * @brief free up memory for an ECH_DETS
+ *
+ * @param in is the structure to free up
+ * @param size says how many indices are in in
+ */
+void SSL_ECH_DETS_free(ECH_DETS *in, int size)
+{
+    int i=0;
+    if (!in) return;
+    if (size<=0) return;
+    for(i=0;i!=size;i++) { 
+        ECH_DETS_free(&in[i]);
+    }
+    OPENSSL_free(in);
     return;
 }
 
@@ -1280,10 +1316,22 @@ int SSL_CTX_ech_add(
 
 /**
  * @brief Try turn on ECH for an (upcoming) TLS session on a client
+ *
+ * If outer_name is provided via this API as NULL, then
+ * we'll use the ECHConfig.public_name. 
+ * If outer_name is ECH_PUBLIC_NAME_OVERRIDE_NULL then
+ * no outer SNI will be sent.
+ * If outer_name is not NULL then that value will override 
+ * the ECHConfig.public_name.
+ *
+ * For inner_name, a non-NULL value set will be sent as
+ * the inner SNI (if things work). 
+ * If the inner_name is NULL, then no SNI will be sent
+ * in the inner CH.
  * 
  * @param s is the SSL context
- * @param inner_name is the (to be) hidden service name
- * @param outer_name is the cleartext SNI name to use
+ * @param inner_name is NULL or the hidden service name
+ * @param outer_name is NULL or the the cleartext SNI to use
  * @return 1 for success, error otherwise
  * 
  */
@@ -1291,12 +1339,22 @@ int SSL_ech_server_name(SSL *s, const char *inner_name, const char *outer_name)
 {
     if (s==NULL) return(0);
     if (s->ech==NULL) return(0);
-    if (inner_name==NULL) return(0);
-    if (s->ech->inner_name!=NULL) OPENSSL_free(s->ech->inner_name);
-    s->ech->inner_name=OPENSSL_strdup(inner_name);
-    if (s->ech->outer_name!=NULL) OPENSSL_free(s->ech->outer_name);
-    if (outer_name!=NULL && strlen(outer_name)>0) s->ech->outer_name=OPENSSL_strdup(outer_name);
-    else s->ech->outer_name=ECH_PUBLIC_NAME_OVERRIDE_NULL;
+
+    if (s->ech->inner_name!=NULL)
+        OPENSSL_free(s->ech->outer_name);
+    if (inner_name!=NULL && strlen(inner_name)>0) 
+        s->ech->inner_name=OPENSSL_strdup(inner_name);
+    else s->ech->inner_name=NULL;
+
+    if (s->ech->outer_name!=NULL && 
+            s->ech->outer_name!=ECH_PUBLIC_NAME_OVERRIDE_NULL) 
+        OPENSSL_free(s->ech->outer_name);
+    if (outer_name!=NULL && strlen(outer_name)>0 &&
+            outer_name!=ECH_PUBLIC_NAME_OVERRIDE_NULL) 
+        s->ech->outer_name=OPENSSL_strdup(outer_name);
+    else if (outer_name==ECH_PUBLIC_NAME_OVERRIDE_NULL) 
+        s->ech->outer_name=ECH_PUBLIC_NAME_OVERRIDE_NULL;
+    else s->ech->outer_name=NULL;
 
     s->ext.ech_attempted=1; 
     return 1;
@@ -1304,24 +1362,32 @@ int SSL_ech_server_name(SSL *s, const char *inner_name, const char *outer_name)
 
 /**
  * @brief Set the outer SNI
+ *
+ * If outer_name is provided via this API as NULL, then
+ * we'll use the ECHConfig.public_name. 
+ * If outer_name is ECH_PUBLIC_NAME_OVERRIDE_NULL then
+ * no outer SNI will be sent.
+ * If outer_name is not NULL then that value will override 
+ * the ECHConfig.public_name.
  * 
  * @param s is the SSL context
  * @param outer_name is the (to be) hidden service name
  * @return 1 for success, error otherwise
- *
- * Providing a NULL or empty outer_name has a special effect - that means we 
- * won't send the ECHConfig.public_name (which is the default). If you prefer 
- * the default, then don't call this. If you supply a non-NULL value and
- * do ECH then the value supplied here will override the ECHConfig.public_name
- * 
  */
 int SSL_ech_set_outer_server_name(SSL *s, const char *outer_name)
 {
     if (s==NULL) return(0);
     if (s->ech==NULL) return(0);
-    if (s->ech->outer_name!=NULL) OPENSSL_free(s->ech->outer_name);
-    if (outer_name!=NULL && strlen(outer_name)>0) s->ech->outer_name=OPENSSL_strdup(outer_name);
-    else s->ech->outer_name=ECH_PUBLIC_NAME_OVERRIDE_NULL;
+    if (s->ech->outer_name!=NULL &&
+            s->ech->outer_name!=ECH_PUBLIC_NAME_OVERRIDE_NULL) 
+        OPENSSL_free(s->ech->outer_name);
+    if (outer_name!=NULL && strlen(outer_name)>0 &&
+            outer_name!=ECH_PUBLIC_NAME_OVERRIDE_NULL) 
+        s->ech->outer_name=OPENSSL_strdup(outer_name);
+    else if (outer_name==ECH_PUBLIC_NAME_OVERRIDE_NULL) 
+        s->ech->outer_name=ECH_PUBLIC_NAME_OVERRIDE_NULL;
+    else s->ech->outer_name=NULL;
+
     s->ext.ech_attempted=1; 
     return 1;
 }
@@ -1329,41 +1395,32 @@ int SSL_ech_set_outer_server_name(SSL *s, const char *outer_name)
 /**
  * @brief Set the outer SNI
  * 
+ * If outer_name is provided via this API as NULL, then
+ * we'll use the ECHConfig.public_name. 
+ * If outer_name is ECH_PUBLIC_NAME_OVERRIDE_NULL then
+ * no outer SNI will be sent.
+ * If outer_name is not NULL then that value will override 
+ * the ECHConfig.public_name.
+ * 
  * @param s is the SSL_CTX
  * @param outer_name is the (to be) hidden service name
  * @return 1 for success, error otherwise
- *
- * Providing a NULL or empty outer_name has a special effect - that means we 
- * won't send the ECHConfig.public_name (which is the default). If you prefer 
- * the default, then don't call this. If you supply a non-NULL value and
- * do ECH then the value supplied here will override the ECHConfig.public_name
- * 
  */
 int SSL_CTX_ech_set_outer_server_name(SSL_CTX *s, const char *outer_name)
 {
     if (s==NULL) return(0);
     if (s->ext.ech==NULL) return(0);
-    if (s->ext.ech->outer_name!=NULL) OPENSSL_free(s->ext.ech->outer_name);
-    if (outer_name!=NULL && strlen(outer_name)>0) s->ext.ech->outer_name=OPENSSL_strdup(outer_name);
-    else s->ext.ech->outer_name=ECH_PUBLIC_NAME_OVERRIDE_NULL;
+    if (s->ext.ech->outer_name!=NULL &&
+            s->ext.ech->outer_name!=ECH_PUBLIC_NAME_OVERRIDE_NULL) 
+        OPENSSL_free(s->ext.ech->outer_name);
+    if (outer_name!=NULL && strlen(outer_name)>0 &&
+            outer_name!=ECH_PUBLIC_NAME_OVERRIDE_NULL) 
+        s->ext.ech->outer_name=OPENSSL_strdup(outer_name);
+    else if (outer_name==ECH_PUBLIC_NAME_OVERRIDE_NULL) 
+        s->ext.ech->outer_name=ECH_PUBLIC_NAME_OVERRIDE_NULL;
+    else s->ext.ech->outer_name=NULL;
+
     return 1;
-}
-
-
-/**
- * @brief free an ECH_DETS
- * @param in the thing to free
- * @return void
- */
-static void ECH_DETS_free(ECH_DETS *in)
-{
-    if (!in) return;
-    OPENSSL_free(in->public_name);
-    OPENSSL_free(in->inner_name);
-    OPENSSL_free(in->outer_alpns);
-    OPENSSL_free(in->inner_alpns);
-    OPENSSL_free(in->echconfig);
-    return;
 }
 
 /**
@@ -1378,8 +1435,8 @@ static void ECH_DETS_free(ECH_DETS *in)
  * the application would prefer to use.
  *
  * @param s is the SSL session
- * @param out is the returned externally visible detailed form of the SSL_ECH structure
- * @param nindices is an output saying how many indices are in the ECH_DETS structure 
+ * @param out is the externally visible form of the SSL_ECH structure
+ * @param nindices says how many entries are in the ECH_DETS structure 
  * @return 1 for success, error otherwise
  */
 int SSL_ech_query(SSL *s, ECH_DETS **out, int *nindices)
@@ -1420,7 +1477,7 @@ int SSL_ech_query(SSL *s, ECH_DETS **out, int *nindices)
             inst->outer_alpns[s->ext.alpn_outer_len]='\0';
         }
         /* 
-         * Now print the ECHConfig(s) 
+         * Now "print" the ECHConfig(s) 
          */
         if (s->ech->cfg) {
             inst->echconfig=ECHConfigs_print(s->ech->cfg);
@@ -1432,24 +1489,6 @@ int SSL_ech_query(SSL *s, ECH_DETS **out, int *nindices)
 err:
     SSL_ECH_DETS_free(rdiff,indices);
     return 0;
-}
-
-/** 
- * @brief free up memory for an ECH_DETS
- *
- * @param in is the structure to free up
- * @param size says how many indices are in in
- */
-void SSL_ECH_DETS_free(ECH_DETS *in, int size)
-{
-    int i=0;
-    if (!in) return;
-    if (size<=0) return;
-    for(i=0;i!=size;i++) { 
-        ECH_DETS_free(&in[i]);
-    }
-    OPENSSL_free(in);
-    return;
 }
 
 /**
@@ -1464,9 +1503,10 @@ int SSL_ECH_DETS_print(BIO* out, ECH_DETS *se, int count)
 {
     int i=0;
     if (!out || !se || count==0) return 0;
-    BIO_printf(out,"ECH differences (%d configs total)\n",count);
+    BIO_printf(out,"ECH details (%d configs total)\n",count);
     for (i=0;i!=count;i++) {
-        BIO_printf(out,"index: %d, SNI (inner:%s,outer:%s), ALPN (inner:%s,outer:%s)\n\t%s\n",
+        BIO_printf(out,
+        "index: %d, SNI (inner:%s,outer:%s), ALPN (inner:%s,outer:%s)\n\t%s\n",
                count,
                se[i].inner_name?se[i].inner_name:"NULL",
                se[i].public_name?se[i].public_name:"NULL",
@@ -1496,7 +1536,7 @@ int SSL_ech_reduce(SSL *s, int index)
     if (index<0) return 0;
     if (!s->ech) return 0;
     if (s->nechs<=0) return 0;
-    if ((s->nechs+1)<index) return 0;
+    if (s->nechs<=index) return 0;
     /*
      * Copy the one to keep, then zap the pointers at that element in the array
      * free the array and fix s back up
@@ -1515,7 +1555,7 @@ int SSL_ech_reduce(SSL *s, int index)
 }
 
 /**
- * Report on the number of ECH key RRs currently loaded
+ * @brief Report on the number of ECH key RRs currently loaded
  *
  * @param s is the SSL server context
  * @param numkeys returns the number currently loaded
@@ -1530,7 +1570,7 @@ int SSL_CTX_ech_server_key_status(SSL_CTX *s, int *numkeys)
 }
 
 /**
- * Zap the set of stored ECH Keys to allow a re-load without hogging memory
+ * @brief Zap the stored ECH Keys to allow a re-load without hogging memory
  *
  * Supply a zero or negative age to delete all keys. Providing age=3600 will
  * keep keys loaded in the last hour.
@@ -1571,14 +1611,16 @@ int SSL_CTX_ech_server_flush_keys(SSL_CTX *s, int age)
 }
 
 /**
- * Turn on ECH server-side
+ * @brief Turn on ECH server-side
  *
  * When this works, the server will decrypt any ECH seen in ClientHellos and
  * subsequently treat those as if they had been send in cleartext SNI.
+ * If we already loaded the file, and the file modification time isn't
+ * newer than the load time, then we'll do nothing.
  *
  * @param ctx is the SSL connection (can be NULL)
  * @param pemfile has the relevant ECHConfig(s) and private key in PEM format
- * @return 1 for success, 2 (SSL_ECH_FILEMISSING) if can't read file, other otherwise
+ * @return success:1, SSL_ECH_FILEMISSING/2 if can't read file, other otherwise
  */
 int SSL_CTX_ech_server_enable(SSL_CTX *ctx, const char *pemfile)
 {
@@ -1603,9 +1645,12 @@ int SSL_CTX_ech_server_enable(SSL_CTX *ctx, const char *pemfile)
             /* nothing to do, but trace this and let caller handle it */
 #ifndef OPENSSL_NO_SSL_TRACE
             OSSL_TRACE_BEGIN(TLS) {
-                BIO_printf(trc_out,"Returning ECH_FILEMISSING from SSL_CTX_ech_server_enable for %s\n",pemfile);
-                BIO_printf(trc_out,"That's unexpected and likely indicates a problem, but the application might"
-                        " be able to continue\n");
+                BIO_printf(trc_out,
+                    "Returning ECH_FILEMISSING from SSL_CTX_ech_server_enable "
+                    "for %s\n",
+                    pemfile);
+                BIO_printf(trc_out,"That's unexpected and likely indicates a "
+                    "problem, but the application might be able to continue\n");
             } OSSL_TRACE_END(TLS);
 #endif
             return(ECH_FILEMISSING);
@@ -1647,7 +1692,8 @@ int SSL_CTX_ech_server_enable(SSL_CTX *ctx, const char *pemfile)
         return(1);
     } 
     if (fnamestat==ECH_KEYPAIR_NEW) {
-        SSL_ECH *re_ec=OPENSSL_realloc(ctx->ext.ech,(ctx->ext.nechs+1)*sizeof(SSL_ECH));
+        SSL_ECH *re_ec=OPENSSL_realloc(ctx->ext.ech,
+                            (ctx->ext.nechs+1)*sizeof(SSL_ECH));
         SSL_ECH *new_ec=NULL;
         if (re_ec==NULL) {
             SSL_ECH_free(sechs);
@@ -1671,12 +1717,17 @@ int SSL_CTX_ech_server_enable(SSL_CTX *ctx, const char *pemfile)
  *
  * When this works, the server will decrypt any ECH seen in ClientHellos and
  * subsequently treat those as if they had been send in cleartext SNI.
+ * If we have exactly that buffer already loaded, we'll do nothing.
  *
  * @param ctx is the SSL connection (can be NULL)
- * @param pemfile has the relevant ECHConfig(s) and private key in PEM format
- * @return 1 for success, 2 (SSL_ECH_FILEMISSING) if can't read file, other otherwise
+ * @param buf has the relevant ECHConfig(s) and private key in PEM format
+ * @param blen is the length of buf
+ * @return success:1, other otherwise
  */
-int SSL_CTX_ech_server_enable_buffer(SSL_CTX *ctx, const unsigned char *buf, const size_t blen)
+int SSL_CTX_ech_server_enable_buffer(
+        SSL_CTX *ctx, 
+        const unsigned char *buf, 
+        const size_t blen)
 {
     SSL_ECH *sechs=NULL;
     int rv=1;
