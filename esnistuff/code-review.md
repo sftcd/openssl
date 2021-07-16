@@ -127,6 +127,10 @@ Only tracing. All good.
   (oddly called ``SSL_CTX_ech_server_enable_buffer``:-) so that haproxy 
   doesn't have to read disk after startup. (Also added test code for 
   that to ``apps/s_server.c``.)
+* **TODO:** When testing for >1 ECHConfig in an ECHConfigList we
+  need to include a case where we skip over a "middle" value that
+  has an unsupported version
+* Tidied as far as ``SSL_ech_server_name``
 * **TODO**: fix the TODOs here;-)
 
 ### ``./ssl/ssl_txt.c``

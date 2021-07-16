@@ -2281,7 +2281,8 @@ int s_server_main(int argc, char *argv[])
          * Normal case - give the filename to libary
          */
         if (SSL_CTX_ech_server_enable(ctx,echkeyfile)!=1) {
-            BIO_printf(bio_err,"Failed to add ECHConfig/Key from: %s\n",echkeyfile);
+            BIO_printf(bio_err,"Failed to add ECHConfig/Key from: %s\n",
+                    echkeyfile);
             goto end;
         }
 
@@ -2301,13 +2302,16 @@ int s_server_main(int argc, char *argv[])
             goto end;
         }
         if ((frv=fread(buffer,1,8000,fp))<=0) {
-            BIO_printf(bio_err,"Failed to read from: %s, ret=%d\n",echkeyfile,frv);
+            BIO_printf(bio_err,"Failed to read from: %s, ret=%d\n",
+                    echkeyfile,frv);
             goto end;
         }
         fclose(fp);
         blen=frv;
         if (SSL_CTX_ech_server_enable_buffer(ctx,buffer,blen)!=1) {
-            BIO_printf(bio_err,"Failed to add ECHConfig/Key via buffer from: %s\n",echkeyfile);
+            BIO_printf(bio_err,
+                    "Failed to add ECHConfig/Key via buffer from: %s\n",
+                    echkeyfile);
             goto end;
         }
 #endif

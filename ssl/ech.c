@@ -51,16 +51,18 @@
 #include <crypto/hpke.h>
 
 /*
- * @brief Decode and check the value retieved from DNS (binary, base64 or ascii-hex encoded)
+ * @brief Decode/check the value from DNS (binary, base64 or ascii-hex encoded)
  * 
  * This does the real work, can be called to add to a context or a connection
- * @param eklen is the length of the binary, base64 or ascii-hex encoded value from DNS
+ * @param eklen length of the binary, base64 or ascii-hex encoded value from DNS
  * @param ekval is the binary, base64 or ascii-hex encoded value from DNS
  * @param num_echs says how many SSL_ECH structures are in the returned array
  * @param echs is a pointer to an array of decoded SSL_ECH
  * @return is 1 for success, error otherwise
  */
-static int local_ech_add( int ekfmt, size_t eklen, unsigned char *ekval, int *num_echs, SSL_ECH **echs);
+static int local_ech_add(
+        int ekfmt, size_t eklen, unsigned char *ekval, 
+        int *num_echs, SSL_ECH **echs);
 
 /**
  * @brief free an ECH_DETS
@@ -85,7 +87,8 @@ static char *ECHConfigs_print(ECHConfigs *c);
  * @param info_len is the buffer size on input, used-length on output
  * @return 1 for success, other otherwise
  */
-static int ech_make_enc_info(ECHConfig *tc,unsigned char *info,size_t *info_len);
+static int ech_make_enc_info(
+        ECHConfig *tc,unsigned char *info,size_t *info_len);
 
 /*
  * Telltales we use when guessing which form of encoded input we've
@@ -93,8 +96,9 @@ static int ech_make_enc_info(ECHConfig *tc,unsigned char *info,size_t *info_len)
  */
 /* asci hex is easy:-) either case allowed, plus a semi-colon separator*/
 static const char *AH_alphabet="0123456789ABCDEFabcdef;";
-/* we actually add a semi-colon here as we accept multiple semi-colon separated values */
-static const char *B64_alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=;";
+/* b64 plus a semi-colon - we accept multiple semi-colon separated values */
+static const char *B64_alphabet=
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=;";
 /* telltale for ECH HTTPS/SVCB in presentation format, as per svcb draft-06 */
 static const char *httpssvc_telltale="ech=";
 
@@ -119,7 +123,7 @@ char *ech_public_name_override_null="DON'T SEND ANY OUTER NAME";
  * @param ctx is the SSL server context
  * @param pemfname is the PEM key filename
  * @param index is the index if we find a match
- * @return zero for error, otherwise one of: ECH_KEYPAIR_UNMODIFIED ECH_KEYPAIR_MODIFIED ECH_KEYPAIR_NEW
+ * @return zero, ECH_KEYPAIR_UNMODIFIED ECH_KEYPAIR_MODIFIED ECH_KEYPAIR_NEW
  */
 static int ech_check_filenames(SSL_CTX *ctx, const char *pemfname,int *index)
 {
@@ -147,13 +151,14 @@ static int ech_check_filenames(SSL_CTX *ctx, const char *pemfname,int *index)
     pemmod=pemstat.st_mtim.tv_sec;
 #endif
 
-    /* now search list of existing key pairs to see if we have that one already */
+    /* search list of existing key pairs to see if we have that one already */
     pemlen=strlen(pemfname);
     for(ind=0;ind!=ctx->ext.nechs;ind++) {
         size_t llen=0;
         if (ctx->ext.ech[ind].pemfname==NULL) return(ECH_KEYPAIR_ERROR);
         llen=strlen(ctx->ext.ech[ind].pemfname);
-        if (llen==pemlen && !strncmp(ctx->ext.ech[ind].pemfname,pemfname,pemlen)) {
+        if (llen==pemlen && 
+                !strncmp(ctx->ext.ech[ind].pemfname,pemfname,pemlen)) {
             /* matching files! */
             if (ctx->ext.ech[ind].loadtime<pemmod) {
                 /* aha! load it up so */
@@ -288,8 +293,16 @@ static int ech_readpemfile(
     int num_echs=0;
     int rv=1;
 
-    if (ctx==NULL || input==NULL || sechs==NULL) return(0);
-    if (inputIsFile!=0 && inputIsFile!=1) return(0);
+    if (ctx==NULL || pemfile==NULL || sechs==NULL) return(0);
+    switch (inputIsFile) {
+        case 1:
+            /* no additional check */
+            break;
+        case 0:
+            if (input==NULL || inlen==0) return(0);
+        default:
+            return(0);
+    }
 
     if (inputIsFile==1) {
         if (strlen(pemfile)==0) return(0);
@@ -454,6 +467,19 @@ void ECH_ENCCH_free(ECH_ENCCH *ev)
     return;
 }
 
+
+/**
+ * @brief Free and NULL a simple malloc'd item
+ *
+ * Macro to free tbf->X if it's non NULL, 
+ * and then set it to NULL - that last is
+ * sometimes needed if inner and outer CH
+ * have common structures so we don't try
+ * free twice.
+ */
+#define CFREE(__x__) \
+    if (tbf->__x__) { OPENSSL_free(tbf->__x__); tbf->__x__=NULL; }
+
 /**
  * @brief free an SSL_ECH
  *
@@ -472,22 +498,20 @@ void SSL_ECH_free(SSL_ECH *tbf)
         ECHConfigs_free(tbf->cfg);
         OPENSSL_free(tbf->cfg);
     }
-
-#define CFREE(__x__) if (tbf->__x__) { OPENSSL_free(tbf->__x__); tbf->__x__=NULL; }
-
     CFREE(inner_name);
     if (tbf->outer_name!=ECH_PUBLIC_NAME_OVERRIDE_NULL) {
         CFREE(outer_name);
     }
     CFREE(pemfname);
-    if (tbf->keyshare!=NULL) { EVP_PKEY_free(tbf->keyshare); tbf->keyshare=NULL; }
-
+    if (tbf->keyshare!=NULL) { 
+        EVP_PKEY_free(tbf->keyshare); tbf->keyshare=NULL; 
+    }
     memset(tbf,0,sizeof(SSL_ECH));
     return;
 }
 
 /** 
- * @brief  utility field-copy function (used by macro below)
+ * @brief Utility field-copy function (used by macro below)
  *
  * Copy a field old->foo based on old->foo_len to new->foo
  * We allocate one extra octet in case the value is a
@@ -517,14 +541,19 @@ static void *ech_len_field_dup(void *old, unsigned int len)
     }
 
 /**
- * @brief Decode the first ECHConfigs from a binary buffer (and say how may octets not consumed)
+ * @brief Decode the first ECHConfigs from a binary buffer 
+ *
+ * (and say how may octets not consumed)
  *
  * @param binbuf is the buffer with the encoding
  * @param binblen is the length of binbunf
  * @param leftover is the number of unused octets from the input
  * @return NULL on error, or a pointer to an ECHConfigs structure 
  */
-static ECHConfigs *ECHConfigs_from_binary(unsigned char *binbuf, size_t binblen, int *leftover)
+static ECHConfigs *ECHConfigs_from_binary(
+        unsigned char *binbuf, 
+        size_t binblen, 
+        int *leftover)
 {
     ECHConfigs *er=NULL; /* ECHConfigs record */
     ECHConfig  *te=NULL; /* Array of ECHConfig to be embedded in that */
@@ -535,17 +564,18 @@ static ECHConfigs *ECHConfigs_from_binary(unsigned char *binbuf, size_t binblen,
     unsigned int ooffset=0;
     size_t not_to_consume=0;
 
-    /* sanity check: version + checksum + KeyShareEntry have to be there - min len >= 10 */
+    if (!leftover || !binbuf || !binblen) {
+        goto err;
+    }
+    /* 
+     * sanity check: version + checksum + 
+     * KeyShareEntry have to be there 
+     * so min len >= 10 
+     */
     if (binblen < ECH_MIN_ECHCONFIG_LEN) {
         goto err;
     }
     if (binblen >= ECH_MAX_ECHCONFIG_LEN) {
-        goto err;
-    }
-    if (leftover==NULL) {
-        goto err;
-    }
-    if (binbuf==NULL) {
         goto err;
     }
     
@@ -565,13 +595,13 @@ static ECHConfigs *ECHConfigs_from_binary(unsigned char *binbuf, size_t binblen,
     if (olen < ECH_MIN_ECHCONFIG_LEN || olen > (binblen-2)) {
         goto err;
     }
-
     if (binblen<=olen) {
         goto err;
     }
-    not_to_consume=binblen-olen;
 
+    not_to_consume=binblen-olen;
     remaining=PACKET_remaining(&pkt);
+
     while (remaining>not_to_consume) {
         ECHConfig *ec=NULL;
         unsigned int ech_content_length;
@@ -597,7 +627,8 @@ static ECHConfigs *ECHConfigs_from_binary(unsigned char *binbuf, size_t binblen,
         /*
          * Grab length of contents, needed in case we
          * want to skip over it, if it's a version we
-         * don't support.
+         * don't support, or if >1 ECHConfig is in the
+         * list.
          */
         if (!PACKET_get_net_2(&pkt,&ech_content_length)) {
             goto err;
@@ -614,7 +645,8 @@ static ECHConfigs *ECHConfigs_from_binary(unsigned char *binbuf, size_t binblen,
             case ECH_DRAFT_09_VERSION:
             case ECH_DRAFT_10_VERSION:
                 break;
-            default: /* skip over those octets in case we get something we can handle later */
+            default: 
+                /* skip over in case we get something we can handle later */
                 {
                     unsigned char *foo=OPENSSL_malloc(ech_content_length);
                     if (!foo) goto err;
@@ -623,6 +655,7 @@ static ECHConfigs *ECHConfigs_from_binary(unsigned char *binbuf, size_t binblen,
                         goto err;
                     }
                     OPENSSL_free(foo);
+                    remaining=PACKET_remaining(&pkt);
                     continue;
                 }
         }
@@ -677,7 +710,8 @@ static ECHConfigs *ECHConfigs_from_binary(unsigned char *binbuf, size_t binblen,
 		        goto err;
 		    }
 		    ec->nsuites=suiteoctets/ECH_CIPHER_LEN;
-		    ec->ciphersuites=OPENSSL_malloc(ec->nsuites*sizeof(ech_ciphersuite_t));
+		    ec->ciphersuites=
+                OPENSSL_malloc(ec->nsuites*sizeof(ech_ciphersuite_t));
 		    if (ec->ciphersuites==NULL) {
 		        goto err;
 		    }
@@ -701,21 +735,24 @@ static ECHConfigs *ECHConfigs_from_binary(unsigned char *binbuf, size_t binblen,
 	            goto err;
 	        }
 	        ec->public_name_len=PACKET_remaining(&public_name_pkt);
-	        if (ec->public_name_len<=1||ec->public_name_len>TLSEXT_MAXLEN_host_name) {
+	        if (ec->public_name_len<=1 ||
+                    ec->public_name_len>TLSEXT_MAXLEN_host_name) {
 	            goto err;
 	        }
 	        ec->public_name=OPENSSL_malloc(ec->public_name_len+1);
 	        if (ec->public_name==NULL) {
 	            goto err;
 	        }
-	        if (PACKET_copy_bytes(&public_name_pkt,ec->public_name,ec->public_name_len)!=1) {
+	        if (PACKET_copy_bytes(&public_name_pkt,
+                        ec->public_name,ec->public_name_len)!=1) {
                 goto err;
             }
 	        ec->public_name[ec->public_name_len]='\0';
 
 	        /*
-	         * Extensions: we'll just store 'em for now and try parse any
-	         * we understand a little later
+	         * Extensions: we'll just store 'em for now and maybe parse any
+	         * we understand later (there are no well defined extensions
+             * as of now).
 	         */
 	        if (!PACKET_get_length_prefixed_2(&pkt, &exts)) {
 	            goto err;
@@ -755,21 +792,24 @@ static ECHConfigs *ECHConfigs_from_binary(unsigned char *binbuf, size_t binblen,
 	                }
 	            }
 	            /* assign fields to lists, have to realloc */
-	            tip=(unsigned int*)OPENSSL_realloc(ec->exttypes,ec->nexts*sizeof(ec->exttypes[0]));
+	            tip=(unsigned int*)OPENSSL_realloc(
+                        ec->exttypes,ec->nexts*sizeof(ec->exttypes[0]));
 	            if (tip==NULL) {
 	                if (extval!=NULL) OPENSSL_free(extval);
 	                goto err;
 	            }
 	            ec->exttypes=tip;
 	            ec->exttypes[ec->nexts-1]=exttype;
-	            lip=(unsigned int*)OPENSSL_realloc(ec->extlens,ec->nexts*sizeof(ec->extlens[0]));
+	            lip=(unsigned int*)OPENSSL_realloc(
+                        ec->extlens,ec->nexts*sizeof(ec->extlens[0]));
 	            if (lip==NULL) {
 	                if (extval!=NULL) OPENSSL_free(extval);
 	                goto err;
 	            }
 	            ec->extlens=lip;
 	            ec->extlens[ec->nexts-1]=extlen;
-	            vip=(unsigned char**)OPENSSL_realloc(ec->exts,ec->nexts*sizeof(unsigned char*));
+	            vip=(unsigned char**)OPENSSL_realloc(
+                        ec->exts,ec->nexts*sizeof(unsigned char*));
 	            if (vip==NULL) {
 	                if (extval!=NULL) OPENSSL_free(extval);
 	                goto err;
@@ -796,14 +836,16 @@ static ECHConfigs *ECHConfigs_from_binary(unsigned char *binbuf, size_t binblen,
 	            goto err;
 	        }
 	        ec->public_name_len=PACKET_remaining(&public_name_pkt);
-	        if (ec->public_name_len<=1||ec->public_name_len>TLSEXT_MAXLEN_host_name) {
+	        if (ec->public_name_len<=1||
+                    ec->public_name_len>TLSEXT_MAXLEN_host_name) {
 	            goto err;
 	        }
 	        ec->public_name=OPENSSL_malloc(ec->public_name_len+1);
 	        if (ec->public_name==NULL) {
 	            goto err;
 	        }
-	        if (PACKET_copy_bytes(&public_name_pkt,ec->public_name,ec->public_name_len)!=1) {
+	        if (PACKET_copy_bytes(&public_name_pkt,
+                        ec->public_name,ec->public_name_len)!=1) {
                 goto err;
             }
 	        ec->public_name[ec->public_name_len]='\0';
@@ -840,7 +882,8 @@ static ECHConfigs *ECHConfigs_from_binary(unsigned char *binbuf, size_t binblen,
 		        goto err;
 		    }
 		    ec->nsuites=suiteoctets/ECH_CIPHER_LEN;
-		    ec->ciphersuites=OPENSSL_malloc(ec->nsuites*sizeof(ech_ciphersuite_t));
+		    ec->ciphersuites=OPENSSL_malloc(
+                    ec->nsuites*sizeof(ech_ciphersuite_t));
 		    if (ec->ciphersuites==NULL) {
 		        goto err;
 		    }
@@ -898,21 +941,24 @@ static ECHConfigs *ECHConfigs_from_binary(unsigned char *binbuf, size_t binblen,
 	                }
 	            }
 	            /* assign fields to lists, have to realloc */
-	            tip=(unsigned int*)OPENSSL_realloc(ec->exttypes,ec->nexts*sizeof(ec->exttypes[0]));
+	            tip=(unsigned int*)OPENSSL_realloc(
+                        ec->exttypes,ec->nexts*sizeof(ec->exttypes[0]));
 	            if (tip==NULL) {
 	                if (extval!=NULL) OPENSSL_free(extval);
 	                goto err;
 	            }
 	            ec->exttypes=tip;
 	            ec->exttypes[ec->nexts-1]=exttype;
-	            lip=(unsigned int*)OPENSSL_realloc(ec->extlens,ec->nexts*sizeof(ec->extlens[0]));
+	            lip=(unsigned int*)OPENSSL_realloc(
+                        ec->extlens,ec->nexts*sizeof(ec->extlens[0]));
 	            if (lip==NULL) {
 	                if (extval!=NULL) OPENSSL_free(extval);
 	                goto err;
 	            }
 	            ec->extlens=lip;
 	            ec->extlens[ec->nexts-1]=extlen;
-	            vip=(unsigned char**)OPENSSL_realloc(ec->exts,ec->nexts*sizeof(unsigned char*));
+	            vip=(unsigned char**)OPENSSL_realloc(
+                        ec->exts,ec->nexts*sizeof(unsigned char*));
 	            if (vip==NULL) {
 	                if (extval!=NULL) OPENSSL_free(extval);
 	                goto err;
@@ -962,10 +1008,11 @@ err:
 }
 
 /*
- * @brief Decode and check the value retieved from DNS (binary, base64 or ascii-hex encoded)
+ * @brief Decode/check the value from DNS (binary, base64 or ascii-hex encoded)
  * 
  * This does the real work, can be called to add to a context or a connection
- * @param eklen is the length of the binary, base64 or ascii-hex encoded value from DNS
+ *
+ * @param eklen length of the binary, base64 or ascii-hex encoded value from DNS
  * @param ekval is the binary, base64 or ascii-hex encoded value from DNS
  * @param num_echs says how many SSL_ECH structures are in the returned array
  * @param echs is a pointer to an array of decoded SSL_ECH
@@ -983,8 +1030,8 @@ static int local_ech_add(
      */
     int detfmt=ECH_FMT_GUESS;
     int rv=0;
-    unsigned char *outbuf = NULL;   /* a binary representation of a sequence of ECHConfigs */
-    size_t declen=0;                /* length of the above */
+    unsigned char *outbuf = NULL; /* sequence of ECHConfigs (binary) */
+    size_t declen=0; /* length of the above */
     char *ekcpy=(char*)ekval;
     int done=0;
     unsigned char *outp=outbuf;
@@ -1033,7 +1080,7 @@ static int local_ech_add(
     if (detfmt==ECH_FMT_B64TXT) {
         /* need an int to get -1 return for failure case */
         int tdeclen = ech_base64_decode(ekcpy, &outbuf);
-        if (tdeclen < 0) {
+        if (tdeclen <= 0) {
             goto err;
         }
         declen=tdeclen;
@@ -1054,7 +1101,8 @@ static int local_ech_add(
         memcpy(outbuf,ekcpy,declen);
     }
     /*
-     * Now try decode each binary encoding if we can
+     * Now try decode the catenated binary encodings if we can
+     * (But we'll probably only get one:-)
      */
 
     outp=outbuf;
@@ -1099,7 +1147,7 @@ err:
 }
 
 /**
- * @brief decode the DNS name in a binary RData
+ * @brief decode the DNS name in a binary RRData
  *
  * Encoding as defined in https://tools.ietf.org/html/rfc1035#section-3.1
  *
@@ -1108,7 +1156,10 @@ err:
  * @param dnsname returns the string form name on success
  * @return is 1 for success, error otherwise
  */
-static int local_decode_rdata_name(unsigned char **buf,size_t *remaining,char **dnsname)
+static int local_decode_rdata_name(
+        unsigned char **buf,
+        size_t *remaining,
+        char **dnsname)
 {
     unsigned char *cp=*buf;
     size_t rem=*remaining;
@@ -1148,11 +1199,12 @@ static int local_decode_rdata_name(unsigned char **buf,size_t *remaining,char **
 }
 
 /**
- * @brief Decode/store ECHConfigs provided as (binary, base64 or ascii-hex encoded) 
+ * @brief Decode/store ECHConfigs (binary, base64, or ascii-hex encoded) 
  *
  * ekval may be the catenation of multiple encoded ECHConfigs.
  * We internally try decode and handle those and (later)
- * use whichever is relevant/best. The fmt parameter can be e.g. ECH_FMT_ASCII_HEX
+ * use whichever is relevant/best. The fmt parameter can be 
+ * e.g. ECH_FMT_ASCII_HEX, or ECH_FMT_GUESS
  *
  * @param con is the SSL connection 
  * @param eklen is the length of the ekval
@@ -1188,11 +1240,12 @@ int SSL_ech_add(
 }
 
 /**
- * @brief Decode/store ECHConfigs provided as (binary, base64 or ascii-hex encoded) 
+ * @brief Decode/store ECHConfigs (binary, base64 or ascii-hex encoded) 
  *
  * ekval may be the catenation of multiple encoded ECHConfigs.
  * We internally try decode and handle those and (later)
- * use whichever is relevant/best. The fmt parameter can be e.g. ECH_FMT_ASCII_HEX
+ * use whichever is relevant/best. The fmt parameter can be 
+ * e.g. ECH_FMT_ASCII_HEX, or ECH_FMT_GUESS
  *
  * @param ctx is the parent SSL_CTX
  * @param eklen is the length of the ekval
@@ -1200,7 +1253,12 @@ int SSL_ech_add(
  * @param num_echs says how many SSL_ECH structures are in the returned array
  * @return is 1 for success, error otherwise
  */
-int SSL_CTX_ech_add(SSL_CTX *ctx, short ekfmt, size_t eklen, char *ekval, int *num_echs)
+int SSL_CTX_ech_add(
+        SSL_CTX *ctx, 
+        short ekfmt, 
+        size_t eklen, 
+        char *ekval, 
+        int *num_echs)
 {
     SSL_ECH *echs=NULL;
     int rv=1;
