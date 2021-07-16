@@ -300,6 +300,7 @@ static int ech_readpemfile(
             break;
         case 0:
             if (input==NULL || inlen==0) return(0);
+            break;
         default:
             return(0);
     }
