@@ -52,69 +52,61 @@
 
 /* 
  * When doing ECH, this array specifies which inner CH extensions (if 
- * any) are to be "compressed" using the (ickky) outer extensions
- * trickery.
- * Basically, we store a 0 for "don't" and a 1 for "do" and the index
- * is the same as the index of the extension itself. 
+ * any) are to be "compressed" using the outer extensions scheme.
  *
- * This is likely to disappear before submitting a PR to upstream. If
- * anyone else implements the outer extension stuff, then I'll need to
- * test it on the server-side, so I'll need to be able to do various
- * tests of correct (and incorrect!) uses of that. In reality, when
- * or if this feature reaches upstream, my guess is there'll not be 
- * a need for such configuration flexibility on the client side at 
- * all, and if any such compression is needed that can be hard-coded
- * into the extension-specific ctos functions, if it really saves 
- * useful space (could do if we don't break an MTU as a result) or
- * helps somehow with not standing out (if it makes a reach use of
- * ECH look more like GREASEd ones).
+ * Basically, we store a 0 for "don't compress" and a 1 for "do compress" 
+ * and the index is the same as the index of the extension itself. 
+ *
+ * This is likely to disappear before submitting a PR to upstream as
+ * it'd make more sense to make this a new field in the ext_defs table 
+ * in  ssl/statem/extensions.c 
+ * 
+ * For now however, we'll keep it separate as it's still possible that
+ * we might develop a better way to handle this. (Or maybe upstream devs
+ * will have better ideas, or maybe the standards process will come to
+ * its senses and kill the compression idea:-)
+ *
+ * Reasons this could change include: wanting better than compile-time
+ * or handling custom extensions.
  *
  * As with ext_defs in extensions.c: NOTE: Changes in the number or order
  * of these extensions should be mirrored with equivalent changes to the
  * indexes ( TLSEXT_IDX_* ) defined in ssl_local.h.
  *
+ * TODO: some more tests.
+ *
  * Lotsa notes, eh - that's because I'm not sure this is sane:-)
  */
 static int ech_outer_config[]={
-     /*TLSEXT_IDX_renegotiate */ 0,
-     /*TLSEXT_IDX_server_name */ 0,
-#define DOCOMPRESS
-#ifdef DOCOMPRESS
-     /*TLSEXT_IDX_max_fragment_length */ 1,
-     /*TLSEXT_IDX_srp */ 1,
-     /*TLSEXT_IDX_ec_point_formats */ 1,
-     /*TLSEXT_IDX_supported_groups */ 1,
-#else
-     /*TLSEXT_IDX_max_fragment_length */ 0,
-     /*TLSEXT_IDX_srp */ 0,
-     /*TLSEXT_IDX_ec_point_formats */ 0,
-     /*TLSEXT_IDX_supported_groups */ 0,
-#endif
-     /*TLSEXT_IDX_session_ticket */ 0,
-     /*TLSEXT_IDX_status_request */ 0,
-     /*TLSEXT_IDX_next_proto_neg */ 0,
-     /*TLSEXT_IDX_application_layer_protocol_negotiation */ 0,
-     /*TLSEXT_IDX_use_srtp */ 0,
-     /*TLSEXT_IDX_encrypt_then_mac */ 0,
-     /*TLSEXT_IDX_signed_certificate_timestamp */ 0,
-     /*TLSEXT_IDX_extended_master_secret */ 0,
-     /*TLSEXT_IDX_signature_algorithms_cert */ 0,
-     /*TLSEXT_IDX_post_handshake_auth */ 0,
-     /*TLSEXT_IDX_signature_algorithms */ 0,
-     /*TLSEXT_IDX_supported_versions */ 0,
-     /*TLSEXT_IDX_psk_kex_modes */ 0,
-     /*TLSEXT_IDX_key_share */ 0,
-     /*TLSEXT_IDX_cookie */ 0,
-     /*TLSEXT_IDX_cryptopro_bug */ 0,
-     /*TLSEXT_IDX_early_data */ 0,
-     /*TLSEXT_IDX_certificate_authorities */ 0,
-#ifndef OPENSSL_NO_ECH
-     /*TLSEXT_IDX_ech */ 0,
-     /*TLSEXT_IDX_outer_extensions */ 0,
-     /*TLSEXT_IDX_ech_is_inner */ 0,
-#endif
-     /*TLSEXT_IDX_padding */ 0,
-     /*TLSEXT_IDX_psk */ 0,
+     /*TLSEXT_IDX_renegotiate, 0xff01 */ 0,
+     /*TLSEXT_IDX_server_name, 0 */ 0,
+     /*TLSEXT_IDX_max_fragment_length, 1 */ 1,
+     /*TLSEXT_IDX_srp, 12 */ 1,
+     /*TLSEXT_IDX_ec_point_formats, 11 */ 1,
+     /*TLSEXT_IDX_supported_groups, 10 */ 1,
+     /*TLSEXT_IDX_session_ticket, 35 */ 1,
+     /*TLSEXT_IDX_status_request, 5 */ 1,
+     /*TLSEXT_IDX_next_proto_neg, 13172 */ 1,
+     /*TLSEXT_IDX_application_layer_protocol_negotiation, 16 */ 0,
+     /*TLSEXT_IDX_use_srtp, 14 */ 1,
+     /*TLSEXT_IDX_encrypt_then_mac, 22 */ 1,
+     /*TLSEXT_IDX_signed_certificate_timestamp, 18 */ 0,
+     /*TLSEXT_IDX_extended_master_secret, 23 */ 1,
+     /*TLSEXT_IDX_signature_algorithms_cert, 50 */ 0,
+     /*TLSEXT_IDX_post_handshake_auth, 49 */ 0,
+     /*TLSEXT_IDX_signature_algorithms, 13 */ 1,
+     /*TLSEXT_IDX_supported_versions, 43 */ 1,
+     /*TLSEXT_IDX_psk_kex_modes, 45 */ 0,
+     /*TLSEXT_IDX_key_share, 51 */ 0,
+     /*TLSEXT_IDX_cookie, 44 */ 0,
+     /*TLSEXT_IDX_cryptopro_bug, 0xfde8 */ 0,
+     /*TLSEXT_IDX_early_data, 42 */ 0,
+     /*TLSEXT_IDX_certificate_authorities, 47 */ 0,
+     /*TLSEXT_IDX_ech, 0xfe0a */ 0,
+     /*TLSEXT_IDX_outer_extensions, 0xfd00 */ 0,
+     /*TLSEXT_IDX_ech_is_inner, 0xda09 */ 0,
+     /*TLSEXT_IDX_padding, 21 */ 0,
+     /*TLSEXT_IDX_psk, 41 */ 0,
     }; 
 
 /* 
@@ -155,10 +147,9 @@ static int ech_outer_indep[]={
      /*TLSEXT_IDX_cryptopro_bug */ 0,
      /*TLSEXT_IDX_early_data */ 0,
      /*TLSEXT_IDX_certificate_authorities */ 0,
-#ifndef OPENSSL_NO_ECH
      /*TLSEXT_IDX_ech */ 0,
      /*TLSEXT_IDX_outer_extensions */ 0,
-#endif
+     /*TLSEXT_IDX_ech_is_inner */ 0,
      /*TLSEXT_IDX_padding */ 0,
      /*TLSEXT_IDX_psk */ 0,
 }; 
@@ -2447,7 +2438,19 @@ int SSL_svcb_add(SSL *con, int rrfmt, size_t rrlen, char *rrval, int *num_echs)
 }
 
 /**
- * @brief repeat extension value from inner ch in outer ch and handle outer compression
+ * @brief say if extension at index i in ext_defs is to be ECH compressed
+ * @param ind is the index of this extension in ext_defs (and ech_outer_config)
+ * @return 1 if this one is to be compressed, 0 if not, -1 for error
+ */
+int ech_2bcompressed(int ind)
+{
+    int nexts=sizeof(ech_outer_config)/sizeof(int);
+    if (ind <0 || ind>=nexts) return(-1);
+    return(ech_outer_config[ind]);
+}
+
+/**
+ * @brief repeat extension from inner in outer and handle compression
  *
  * @param s is the SSL session
  * @param pkt is the packet containing extensions
@@ -2460,6 +2463,9 @@ int ech_same_ext(SSL *s, WPACKET* pkt)
     unsigned int nexts=0;
     int tind=0;
 
+/*
+ * DUPEMALL is handy for testing
+ */
 #undef DUPEMALL
 #ifdef DUPEMALL
     /*
@@ -2468,81 +2474,101 @@ int ech_same_ext(SSL *s, WPACKET* pkt)
     return(ECH_SAME_EXT_CONTINUE);
 #endif
     if (!s->ech) return(ECH_SAME_EXT_CONTINUE); /* nothing to do */
-    if (s->ext.ch_depth==0) return(ECH_SAME_EXT_CONTINUE); /* nothing to do for outer */
     inner=s->ext.inner_s;
     type=s->ext.etype;
     nexts=sizeof(ech_outer_config)/sizeof(int);
     tind=ech_map_ext_type_to_ind(type);
 
+    /*
+     * If this index'd extension won't be compressed, we're done
+     */
     if (tind==-1) return(ECH_SAME_EXT_ERR);
     if (tind>=(int)nexts) return(ECH_SAME_EXT_ERR);
 
-    /*
-     * When doing the inner CH, just note what will later be
-     * compressed, if we want to compress
-     */
-    if (s->ext.ch_depth==1 && !ech_outer_config[tind]) {
-        return(ECH_SAME_EXT_CONTINUE);
-    }
-    if (s->ext.ch_depth==1 && ech_outer_config[tind]) {
-        if (s->ext.n_outer_only>=ECH_OUTERS_MAX) {
-	        return ECH_SAME_EXT_ERR;
+    if (s->ext.ch_depth==1) {
+        /* inner CH - just note compression as configured */
+        if (!ech_outer_config[tind]) {
+            return(ECH_SAME_EXT_CONTINUE);
         }
+        if (s->ext.n_outer_only>=ECH_OUTERS_MAX) {
+            return ECH_SAME_EXT_ERR;
+        }
+        /* mark this one to be "compressed" */
         s->ext.outer_only[s->ext.n_outer_only]=type;
         s->ext.n_outer_only++;
 #ifndef OPENSSL_NO_SSL_TRACE
         OSSL_TRACE_BEGIN(TLS) {
-            BIO_printf(trc_out,"Marking ext type %x for compression\n",s->ext.etype);
+            BIO_printf(trc_out, 
+                "ech_same_ext: Marking ext (type %x,ind %d) for compression\n",
+                s->ext.etype,tind);
         } OSSL_TRACE_END(TLS);
 #endif
         return(ECH_SAME_EXT_CONTINUE);
     }
 
     /* 
-     * From here on we're in 2nd call, meaning the outer CH 
+     * Copy value from inner to outer, or indicate a new value needed
      */
-    if (!inner->clienthello) return(ECH_SAME_EXT_ERR); 
-    if (!pkt) return(ECH_SAME_EXT_ERR);
-    if (ech_outer_indep[tind]) {
-        return(ECH_SAME_EXT_CONTINUE);
-    } else {
-
-	    size_t ind=0;
-	    RAW_EXTENSION *myext=NULL;
-	    RAW_EXTENSION *raws=inner->clienthello->pre_proc_exts;
-	    size_t nraws=0;
-	    if (raws==NULL) {
-	        return ECH_SAME_EXT_ERR;
-	    }
-	    nraws=inner->clienthello->pre_proc_exts_len;
-	    for (ind=0;ind!=nraws;ind++) {
-	        if (raws[ind].type==type) {
-	            myext=&raws[ind];
-	            break;
-	        }
-	    }
-	    if (myext==NULL) {
-	        /*
-	         * This one wasn't in inner, so don't send
-	         */
-	        return ECH_SAME_EXT_CONTINUE;
-	    }
-	    if (myext->data.curr!=NULL && myext->data.remaining>0) {
-	        if (!WPACKET_put_bytes_u16(pkt, type)
-	            || !WPACKET_sub_memcpy_u16(pkt, myext->data.curr, myext->data.remaining)) {
+    if (s->ext.ch_depth==0) {
+        if (!inner->clienthello) return(ECH_SAME_EXT_ERR); 
+        if (!pkt) return(ECH_SAME_EXT_ERR);
+        if (ech_outer_indep[tind]) {
+            /* continue processing, meaning get a new value */
+#ifndef OPENSSL_NO_SSL_TRACE
+            OSSL_TRACE_BEGIN(TLS) {
+                BIO_printf(trc_out, 
+                    "ech_same_ext: New outer value for ext (type %x,ind %d)\n",
+                    s->ext.etype,tind);
+            } OSSL_TRACE_END(TLS);
+#endif
+            return(ECH_SAME_EXT_CONTINUE);
+        } else {
+            /* copy inner to outer */
+#ifndef OPENSSL_NO_SSL_TRACE
+            OSSL_TRACE_BEGIN(TLS) {
+                BIO_printf(trc_out, 
+                    "ech_same_ext: Copying ext (type %x,ind %d) to outer\n",
+                    s->ext.etype,tind);
+            } OSSL_TRACE_END(TLS);
+#endif
+	        size_t ind=0;
+	        RAW_EXTENSION *myext=NULL;
+	        RAW_EXTENSION *raws=inner->clienthello->pre_proc_exts;
+	        size_t nraws=0;
+	        if (raws==NULL) {
 	            return ECH_SAME_EXT_ERR;
 	        }
-	    } else {
-	        /*
-	         * empty extension
-	         */
-	        if (!WPACKET_put_bytes_u16(pkt, type)
-	                || !WPACKET_put_bytes_u16(pkt, 0)) {
-	            return ECH_SAME_EXT_ERR;
+	        nraws=inner->clienthello->pre_proc_exts_len;
+	        for (ind=0;ind!=nraws;ind++) {
+	            if (raws[ind].type==type) {
+	                myext=&raws[ind];
+	                break;
+	            }
 	        }
-	    }
-        return(ECH_SAME_EXT_DONE);
+	        if (myext==NULL) {
+	            /* This one wasn't in inner, so re-do processing */
+	            return ECH_SAME_EXT_CONTINUE;
+	        }
+            /* copy inner value to outer */
+	        if (myext->data.curr!=NULL && myext->data.remaining>0) {
+	            if (!WPACKET_put_bytes_u16(pkt, type)
+	                || !WPACKET_sub_memcpy_u16(pkt, 
+                        myext->data.curr, myext->data.remaining)) {
+	                return ECH_SAME_EXT_ERR;
+	            }
+	        } else {
+	            /* empty extension */
+	            if (!WPACKET_put_bytes_u16(pkt, type)
+	                    || !WPACKET_put_bytes_u16(pkt, 0)) {
+	                return ECH_SAME_EXT_ERR;
+	            }
+	        }
+            /* we've done the copy so we're done */
+            return(ECH_SAME_EXT_DONE);
+        }
     }
+    /* just in case - shouldn't happen */
+    return ECH_SAME_EXT_ERR;
 }
 
 /**
@@ -2562,7 +2588,6 @@ int ech_encode_inner(SSL *s)
     RAW_EXTENSION *raws=NULL;
     size_t nraws=0;
     size_t ind=0;
-    int compression_done=0;
     size_t innerinnerlen=0;
 
     /*
@@ -2587,7 +2612,6 @@ int ech_encode_inner(SSL *s)
      * This depends on us having made the call to process
      * client hello before.
      */
-
     if ((inner_mem = BUF_MEM_new()) == NULL) {
         goto err;
     }
@@ -2595,7 +2619,7 @@ int ech_encode_inner(SSL *s)
         goto err;
     }
     if (!WPACKET_init(&inner,inner_mem)
-                || !ssl_set_handshake_header(s, &inner, mt)) {
+            || !ssl_set_handshake_header(s, &inner, mt)) {
         goto err;
     }
     /*
@@ -2642,51 +2666,43 @@ int ech_encode_inner(SSL *s)
     raws=s->clienthello->pre_proc_exts;
     nraws=s->clienthello->pre_proc_exts_len;
 
-    for (ind=0;ind!=nraws;ind++) {
-        int present=raws[ind].present;
-        int tobecompressed=0;
-        int ooi=0;
-        if (!present) continue;
-        for (ooi=0;!tobecompressed && ooi!=s->ext.n_outer_only;ooi++) {
-            if (raws[ind].type==s->ext.outer_only[ooi]) {
-                tobecompressed=1;
-#ifndef OPENSSL_NO_SSL_TRACE
-                OSSL_TRACE_BEGIN(TLS) {
-                    BIO_printf(trc_out,"Going to compress something\n");
-                } OSSL_TRACE_END(TLS);
-#endif
+    /*  
+     *  We're putting compressed stuff 1st 
+     */
+    if (s->ext.n_outer_only>0) {
+        int iind=0;
+        if (!WPACKET_put_bytes_u16(&inner, TLSEXT_TYPE_outer_extensions) ||
+            !WPACKET_put_bytes_u16(&inner, 2*s->ext.n_outer_only+1)) {
+            goto err;
+        }
+        if (!WPACKET_put_bytes_u8(&inner, 2*s->ext.n_outer_only)) {
+            goto err;
+        }
+        for (iind=0;iind!=s->ext.n_outer_only;iind++) {
+            if (!WPACKET_put_bytes_u16(&inner, s->ext.outer_only[iind])) {
+                goto err;
             }
         }
-        if (!compression_done && tobecompressed) {
-            int iind=0;
-            if (!WPACKET_put_bytes_u16(&inner, TLSEXT_TYPE_outer_extensions) ||
-                !WPACKET_put_bytes_u16(&inner, 2*s->ext.n_outer_only+1)) {
+    }
+
+    for (ind=0;ind!=nraws;ind++) {
+        int present=raws[ind].present;
+        if (!present) continue;
+        if (ech_2bcompressed(ind)==1) continue;
+
+        if (raws[ind].data.curr!=NULL) {
+            if (!WPACKET_put_bytes_u16(&inner, raws[ind].type)
+                || !WPACKET_sub_memcpy_u16(&inner, 
+                    raws[ind].data.curr, raws[ind].data.remaining)) {
                 goto err;
             }
-            if (!WPACKET_put_bytes_u8(&inner, 2*s->ext.n_outer_only)) {
+        } else {
+            /*
+            * empty extension
+            */
+            if (!WPACKET_put_bytes_u16(&inner, raws[ind].type)
+                    || !WPACKET_put_bytes_u16(&inner, 0)) {
                 goto err;
-            }
-            for (iind=0;iind!=s->ext.n_outer_only;iind++) {
-                if (!WPACKET_put_bytes_u16(&inner, s->ext.outer_only[iind])) {
-                    goto err;
-                }
-            }
-            compression_done=1;
-        } 
-        if (!tobecompressed) {
-            if (raws[ind].data.curr!=NULL) {
-                if (!WPACKET_put_bytes_u16(&inner, raws[ind].type)
-                    || !WPACKET_sub_memcpy_u16(&inner, raws[ind].data.curr, raws[ind].data.remaining)) {
-                    goto err;
-                }
-            } else {
-                /*
-                * empty extension
-                */
-                if (!WPACKET_put_bytes_u16(&inner, raws[ind].type)
-                        || !WPACKET_put_bytes_u16(&inner, 0)) {
-                    goto err;
-                }
             }
         }
     }
@@ -2731,15 +2747,19 @@ err:
 }
 
 /**
- * @brief After "normal" 1st pass CH receipt (of outer) is done, fix encoding as needed
- *
- * This will produce the ClientHelloInner from the EncodedClientHelloInner, which
- * is the result of successful decryption 
+ * @brief After successful ECH decrypt, decode, decompress etc.
  *
  * @param s is the SSL session
+ * @param ob is the cleartext buffer
+ * @param ob_len is the size of the above
+ * @param outer_startofexts is the offset of exts in outer
  * @return 1 for success, error otherwise
  */
-static int ech_decode_inner(SSL *s, const unsigned char *ob, size_t ob_len, size_t outer_startofexts)
+static int ech_decode_inner(
+        SSL *s, 
+        const unsigned char *ob, 
+        size_t ob_len, 
+        size_t outer_startofexts)
 {
     /*
      * So we'll try a sort-of decode of s->ext.encoded_innerch into
@@ -2766,14 +2786,14 @@ static int ech_decode_inner(SSL *s, const unsigned char *ob, size_t ob_len, size
     uint16_t etype=0;
     size_t elen=0;
     int n_outers=0;
-    uint16_t outers[ECH_OUTERS_MAX]; /* the extension types that were compressed */
+    uint16_t outers[ECH_OUTERS_MAX]; /* extension types that were compressed */
     uint8_t slen=0;
     const unsigned char *oval_buf=NULL;
     int i=0;
     int iind=0;
     size_t tot_outer_lens=0; /* total length of outers (incl. type+len+val) */
-    size_t outer_sizes[ECH_OUTERS_MAX]; /* the sizes, in same order as in "outers" */
-    int outer_offsets[ECH_OUTERS_MAX]; /* the offsets in outer-CH, in same order as in "outers" */
+    size_t outer_sizes[ECH_OUTERS_MAX]; /* sizes, in same order of "outers" */
+    int outer_offsets[ECH_OUTERS_MAX]; /* offsets in same order of "outers" */
     const unsigned char *exts_start=NULL;
     size_t exts_len=0;
     const unsigned char *ep=NULL;
@@ -2792,7 +2812,6 @@ static int ech_decode_inner(SSL *s, const unsigned char *ob, size_t ob_len, size
      * minus the length of an empty session ID (1)
      */
     initial_decomp_len=s->ext.encoded_innerch_len;
-
     initial_decomp_len+=s->tmp_session_id_len+1-1;
     initial_decomp=OPENSSL_malloc(initial_decomp_len);
     if (!initial_decomp) {
@@ -2826,7 +2845,7 @@ static int ech_decode_inner(SSL *s, const unsigned char *ob, size_t ob_len, size
         } OSSL_TRACE_END(TLS);
 #endif
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_MALLOC_FAILURE);
-        return(0);
+        goto err;
     }
     ech_pbuf("start of exts",&initial_decomp[startofexts],initial_decomp_len-startofexts);
     /*
@@ -2861,7 +2880,7 @@ static int ech_decode_inner(SSL *s, const unsigned char *ob, size_t ob_len, size
         final_decomp=OPENSSL_malloc(final_decomp_len);
         if (!final_decomp) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_MALLOC_FAILURE);
-            return(0);
+            goto err;
         }
         final_decomp[0]=0x01;
         final_decomp[1]=((initial_decomp_len)>>16)%256;
@@ -3692,8 +3711,8 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
         goto err;
     }
     ech_pbuf("EAAE: peer pub",peerpub,peerpub_len);
-    ech_pbuf("EAAE: clear",s->ext.inner_s->ext.encoded_innerch, s->ext.inner_s->ext.encoded_innerch_len);
-
+    ech_pbuf("EAAE: clear",s->ext.inner_s->ext.encoded_innerch, 
+            s->ext.inner_s->ext.encoded_innerch_len);
 
     if (hpke_kg_evp(hpke_mode, hpke_suite, &mypub_len, mypub, &mypriv_evp)!=1) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
@@ -3704,7 +3723,6 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
         goto err;
     }
     ech_pbuf("EAAE: my pub",mypub,mypub_len);
-
     ech_pbuf("EAAE: config id input",tc->encoding_start,tc->encoding_length);
     ech_pbuf("EAAE: config_id",&tc->config_id,1);
 
@@ -3742,7 +3760,8 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
         NULL, 0, NULL, /* pskid, psk */
         peerpub_len,peerpub,
         0, NULL, /* priv */
-        s->ext.inner_s->ext.encoded_innerch_len, s->ext.inner_s->ext.encoded_innerch, /* clear */
+        s->ext.inner_s->ext.encoded_innerch_len, 
+            s->ext.inner_s->ext.encoded_innerch, /* clear */
         aad_len, aad, 
         info_len, info, 
         mypub_len, mypub, mypriv_evp,
@@ -3755,10 +3774,12 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
 
     ech_pbuf("EAAE: hpke mypub",mypub,mypub_len);
     ech_pbuf("EAAE: cipher",cipher,cipherlen);
+
     OPENSSL_free(aad); aad=NULL;
     EVP_PKEY_free(mypriv_evp); mypriv_evp=NULL;
 
     ech_pbuf("EAAE pkt b4",(unsigned char*) pkt->buf->data,pkt->written);
+
     if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_ech) 
         || !WPACKET_start_sub_packet_u16(pkt)
         || !WPACKET_put_bytes_u16(pkt, hpke_suite.kdf_id)
@@ -3774,6 +3795,7 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
 
     /* length to include */
     newlen=6+2+2+3+mypub_len+cipherlen;
+
     /*
      * Jump over the ciphersuites and (MUST be NULL) compression to
      * the start of extensions
@@ -3790,7 +3812,8 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
     startofmessage[startofexts]=(newextlens&0xffff)/256; 
     startofmessage[startofexts+1]=(newextlens&0xffff)%256; 
 
-    ech_pbuf("EAAE pkt to startofexts+2",(unsigned char*) pkt->buf->data,startofexts+2);
+    ech_pbuf("EAAE pkt to startofexts+2",
+            (unsigned char*) pkt->buf->data,startofexts+2);
     ech_pbuf("EAAE pkt aftr",(unsigned char*) pkt->buf->data,pkt->written);
 
     return 1;

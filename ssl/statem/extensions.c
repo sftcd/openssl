@@ -884,21 +884,74 @@ int tls_construct_extensions(SSL *s, WPACKET *pkt, unsigned int context,
         return 0;
     }
 
+#ifndef OPENSSL_NO_ECH
+    /*
+     * Two passes - we first construct the to-be-ECH-compressed
+     * extensions, and then go around again doing those that 
+     * aren't to be compressed. We need to ensure this ordering
+     * so that all the ECH-compressed extensions are contiguous
+     * in the encoding. The actual compression happens later in
+     * ech_encode_inner().
+     */
     for (i = 0, thisexd = ext_defs; i < OSSL_NELEM(ext_defs); i++, thisexd++) {
         EXT_RETURN (*construct)(SSL *s, WPACKET *pkt, unsigned int context,
                                 X509 *x, size_t chainidx);
         EXT_RETURN ret;
-
+        /* skip if not to be ECH-compressed */
+        if (ech_2bcompressed(i)==0) 
+            continue;
+        if (ech_2bcompressed(i)!=1) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+            return 0;
+        }
+            
         /* Skip if not relevant for our context */
         if (!should_add_extension(s, thisexd->context, context, max_version))
             continue;
-
         construct = s->server ? thisexd->construct_stoc
                               : thisexd->construct_ctos;
-
         if (construct == NULL)
             continue;
 
+        /*
+         * This is imperfect but let's get it working before we
+         * optimise the code changes (the thing we're doing is a
+         * work-in-progress still... 
+         */
+        if (s->ech) s->ext.etype=thisexd->type;
+        ret = construct(s, pkt, context, x, chainidx);
+        if (ret == EXT_RETURN_FAIL) {
+            /* SSLfatal() already called */
+            return 0;
+        }
+        if (ret == EXT_RETURN_SENT
+                && (context & (SSL_EXT_CLIENT_HELLO
+                               | SSL_EXT_TLS1_3_CERTIFICATE_REQUEST
+                               | SSL_EXT_TLS1_3_NEW_SESSION_TICKET)) != 0)
+            s->ext.extflags[i] |= SSL_EXT_FLAG_SENT;
+    }
+#endif
+
+    for (i = 0, thisexd = ext_defs; i < OSSL_NELEM(ext_defs); i++, thisexd++) {
+        EXT_RETURN (*construct)(SSL *s, WPACKET *pkt, unsigned int context,
+                                X509 *x, size_t chainidx);
+        EXT_RETURN ret;
+#ifndef OPENSSL_NO_ECH
+        /* skip if is to be ECH-compressed */
+        if (ech_2bcompressed(i)==1) 
+            continue;
+        if (ech_2bcompressed(i)!=0) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+            return 0;
+        }
+#endif
+        /* Skip if not relevant for our context */
+        if (!should_add_extension(s, thisexd->context, context, max_version))
+            continue;
+        construct = s->server ? thisexd->construct_stoc
+                              : thisexd->construct_ctos;
+        if (construct == NULL)
+            continue;
 #ifndef OPENSSL_NO_ECH
         /*
          * This is imperfect but let's get it working before we
@@ -907,7 +960,6 @@ int tls_construct_extensions(SSL *s, WPACKET *pkt, unsigned int context,
          */
         if (s->ech) s->ext.etype=thisexd->type;
 #endif
-
         ret = construct(s, pkt, context, x, chainidx);
         if (ret == EXT_RETURN_FAIL) {
             /* SSLfatal() already called */

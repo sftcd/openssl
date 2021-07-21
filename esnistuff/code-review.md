@@ -136,6 +136,9 @@ Only tracing. All good.
   call to ``s_client``.
 * Fixed semantics of ``SSL_CTX_svcb_add`` and ``SSL_svcb_add`` to be 
   additive if multiple calls made.
+* Moved outer compression tables to top of file and tidied 'em up.
+* Fixed an issue with non-contiguous to-be-ECH-compressed exts
+  in encoded inner CH.
 * **TODO**: fix the TODOs here;-)
 
 ### ``./ssl/ssl_txt.c``
@@ -144,6 +147,11 @@ Only tracing. All good.
 ### ``./ssl/statem/extensions_srvr.c``
 ### ``./ssl/statem/extensions_clnt.c``
 ### ``./ssl/statem/statem_clnt.c``
+
+* **TODO**: server hello processing has some error cases that
+  result in crashing out whilst trying to free inner CH ``SSL_SESSION``
+  structure. (``statem_clnt.c:1917`` is involved)
+
 ### ``./ssl/statem/statem_lib.c``
 ### ``./ssl/statem/statem_srvr.c``
 ### ``./ssl/ssl_local.h``

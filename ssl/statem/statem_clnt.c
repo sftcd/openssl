@@ -1234,9 +1234,13 @@ int tls_construct_client_hello(SSL *s, WPACKET *pkt)
      */
     new_s->session->session_id_length=s->session->session_id_length;
     if (new_s->session!=s->session) 
-    	memcpy(new_s->session->session_id,s->session->session_id,s->session->session_id_length);
+    	memcpy(new_s->session->session_id,
+               s->session->session_id,
+               s->session->session_id_length);
     new_s->tmp_session_id_len=s->session->session_id_length;
-    memcpy(new_s->tmp_session_id,s->session->session_id,s->session->session_id_length);
+    memcpy(new_s->tmp_session_id,
+           s->session->session_id,
+           s->session->session_id_length);
 
     /*
      * Set our CH depth flag in the SSL state so that
@@ -1309,12 +1313,15 @@ int tls_construct_client_hello(SSL *s, WPACKET *pkt)
      */
     ech_pbuf("inner CH",new_s->ext.innerch,new_s->ext.innerch_len);
     ech_pbuf("inner, client_random",new_s->s3.client_random,SSL3_RANDOM_SIZE);
-    ech_pbuf("inner, session_id",new_s->session->session_id,new_s->session->session_id_length);
+    ech_pbuf("inner, session_id",
+            new_s->session->session_id,new_s->session->session_id_length);
 
     /*
      * Decode inner so that we can make up encoded inner
      */
-    if (!PACKET_buf_init(&rpkt, (unsigned char*) new_s->ext.innerch+4, new_s->ext.innerch_len-4)) {
+    if (!PACKET_buf_init(&rpkt, 
+                (unsigned char*) new_s->ext.innerch+4, 
+                new_s->ext.innerch_len-4)) {
         WPACKET_cleanup(pkt);
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         goto err;
@@ -1343,7 +1350,8 @@ int tls_construct_client_hello(SSL *s, WPACKET *pkt)
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         goto err;
     }
-    ech_pbuf("encoded inner CH",new_s->ext.encoded_innerch,new_s->ext.encoded_innerch_len);
+    ech_pbuf("encoded inner CH",
+            new_s->ext.encoded_innerch,new_s->ext.encoded_innerch_len);
 
     /*
      * Make second call into CH constuction. 
@@ -1355,9 +1363,11 @@ int tls_construct_client_hello(SSL *s, WPACKET *pkt)
         goto err;
     }
 
-    ech_pbuf("encoded inner CH",s->ext.encoded_innerch,s->ext.encoded_innerch_len);
+    ech_pbuf("encoded inner CH",s->ext.encoded_innerch,
+            s->ext.encoded_innerch_len);
     ech_pbuf("outer, client_random",s->s3.client_random,SSL3_RANDOM_SIZE);
-    ech_pbuf("outer, session_id",s->session->session_id,s->session->session_id_length);
+    ech_pbuf("outer, session_id",s->session->session_id,
+            s->session->session_id_length);
 
     if (ech_aad_and_encrypt(s,pkt)!=1) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);

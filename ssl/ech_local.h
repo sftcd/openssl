@@ -22,22 +22,22 @@
 # include <openssl/ech.h>
 # include <crypto/hpke.h>
 
-#undef ECH_SUPERVERBOSE  /**< to get bazillions more lines of tracing */
+#define ECH_SUPERVERBOSE  /**< to get bazillions more lines of tracing */
 
 #define ECH_MIN_ECHCONFIG_LEN 32 /**< just for a sanity check */
 #define ECH_MAX_ECHCONFIG_LEN 512 /**< just for a sanity check */
 
 #define ECH_CIPHER_LEN 4 /**< length of an ECHCipher (2 for kdf, 2 for aead) */
 
-#define ECH_OUTERS_MAX 10 /**< max number of TLS extensions that can be compressed via outer-exts */
+#define ECH_OUTERS_MAX 10 /**< max TLS extensions we compress via outer-exts */
 
-#define MAX_ECH_CONFIG_ID_LEN 0x30 /**< max size of ENC-CH config id we'll decode */
-#define MAX_ECH_ENC_LEN 0x100 /**< max size of ENC-CH peer key share we'll decode */
-#define MAX_ECH_PAYLOAD_LEN HPKE_MAXSIZE /**< max size of ENC-CH ciphertext we'll decode */
+#define MAX_ECH_ENC_LEN 0x100 /**< max ENC-CH peer key share we'll decode */
+#define MAX_ECH_PAYLOAD_LEN HPKE_MAXSIZE /**< max ECH ciphertext we'll decode */
 
-#define ECH_GREASE_UNKNOWN -1 /**< value for s->ext.ech_grease when we're not yet sure */
-#define ECH_NOT_GREASE 0 /**< value for s->ext.ech_grease when decryption worked */
-#define ECH_IS_GREASE 1 /**< value for s->ext.ech_grease when decryption failed */
+/* values for s->ext.ech_grease */
+#define ECH_GREASE_UNKNOWN -1 /**< when we're not yet sure */
+#define ECH_NOT_GREASE 0 /**< when decryption worked */
+#define ECH_IS_GREASE 1 /**< when decryption failed or GREASE wanted */
 
 /*
  * Strings used in ECH crypto derivations
@@ -242,11 +242,13 @@ SSL_ECH* SSL_ECH_new_from_buffer(SSL_CTX *ctx, SSL *con, const short ekfmt, cons
 int ech_encode_inner(SSL *s);
 
 /*
- * Return values from ech_same_ext
+ * Return values from ech_same_ext, note that the CONTINUE
+ * return value might mean something new if the extension
+ * handler is ECH "aware" (other than in a trivial sense)
  */
-#define ECH_SAME_EXT_ERR 0
-#define ECH_SAME_EXT_DONE 1
-#define ECH_SAME_EXT_CONTINUE 2
+#define ECH_SAME_EXT_ERR 0 /* bummer something wrong */
+#define ECH_SAME_EXT_DONE 1 /* proceed with same value in inner/outer */
+#define ECH_SAME_EXT_CONTINUE 2 /* generate a new value for outer CH */
 
 /**
  * @brief Replicate extension value from inner ch into outer ch and setup for later outer compression
@@ -320,7 +322,7 @@ int ech_send_grease(SSL *s, WPACKET *pkt, unsigned int context,
  */
 int ech_aad_and_encrypt(SSL *s, WPACKET *pkt);
 
-/*
+/**
  * @brief reset the handshake buffer for transcript after ECH is good
  *
  * @param s is the session
@@ -330,13 +332,21 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt);
  */
 int ech_reset_hs_buffer(SSL *s, unsigned char *buf, size_t blen);
 
-/*
+/**
  * @brief If an ECH is present, attempt decryption
  * @param s: SSL session stuff
  * @param pkt: the received CH that might include an ECH
  * @param newpkt: the plaintext from ECH 
  */
 int ech_early_decrypt(SSL *s, PACKET *pkt, PACKET *newpkt);
+
+
+/**
+ * @brief say if extension at index i in ext_defs is to be ECH compressed
+ * @param ind is the index of this extension in ext_defs (and ech_outer_config)
+ * @return 1 if this one is to be compressed, 0 if not, -1 for error
+ */
+int ech_2bcompressed(int ind);
 
 /**
  * @brief Used in tracing 

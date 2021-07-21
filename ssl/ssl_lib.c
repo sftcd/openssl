@@ -1277,8 +1277,8 @@ void SSL_free(SSL *s)
 #ifndef OPENSSL_NO_ECH
     /* only do this one if... */
     if (    s->server ||
-            (!s->server && s->ext.ech_grease!=ECH_IS_GREASE) ||
-            (!s->server && s->ext.ech_grease==ECH_IS_GREASE && s->ext.ch_depth==0) 
+            (!s->server && s->ext.ech_grease!=ECH_IS_GREASE ) ||
+            (!s->server && s->ext.ech_grease==ECH_IS_GREASE && s->ext.ch_depth==0 )
        ) {
         if (s->session != NULL) {
             ssl_clear_bad_session(s);
