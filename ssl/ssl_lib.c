@@ -1282,6 +1282,7 @@ void SSL_free(SSL *s)
 #ifndef OPENSSL_NO_ECH
     /* only do this one if... */
     if (    s->server ||
+            !s->ech ||
             (   
                 !s->server && 
                 s->ext.ech_grease!=ECH_IS_GREASE &&

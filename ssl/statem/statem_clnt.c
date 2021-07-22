@@ -1929,7 +1929,6 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL *s, PACKET *pkt)
          */
         if (s->session->session_id_length > 0) {
             tsan_counter(&s->session_ctx->stats.sess_miss);
-#if 0
 #ifndef OPENSSL_NO_ECH
             if (trying_inner) { 
                 SSL_SESSION_free(s->session); 
@@ -1939,7 +1938,6 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL *s, PACKET *pkt)
                     s->ext.outer_s->session=NULL;
                 }
             }
-#endif
 #endif
             if (!ssl_get_new_session(s, 0)) {
                 /* SSLfatal() already called */

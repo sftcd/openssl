@@ -1058,8 +1058,7 @@ int ech_map_ext_type_to_ind(unsigned int type)
  */
 static int init_ech(SSL *s, unsigned int context)
 {
-    // call for CH
-    if (context==128) {
+    if (context==SSL_EXT_CLIENT_HELLO) {
         s->ext.ech_done = 0;
     }
     return 1;

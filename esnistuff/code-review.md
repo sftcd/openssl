@@ -145,6 +145,8 @@ Only tracing. All good.
   SSL struct, if ECH is was attempted but failed due to
   wrong ECH public key. (Fixed a client leak when wrong 
   public key used as a after that fix.)
+* **TODO**: ``ech_decode_inner`` could do with another read through
+  to see if any additional bounds checks are missing and needed.
 * **TODO**: fix the TODOs here;-)
 
 ### ``./ssl/ssl_txt.c``
