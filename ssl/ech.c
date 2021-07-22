@@ -3058,9 +3058,6 @@ void ech_pbuf(const char *msg, const unsigned char *buf, const size_t blen)
 /*
  * @brief reset the handshake buffer for transcript after ECH is good
  *
- * I can't believe this worked!
- * TODO: figure out why (and fix error handling)
- *
  * @param s is the session
  * @param buf is the data to put into the transcript (usuallhy inner CH)
  * @param blen is the length of buf
@@ -3068,9 +3065,6 @@ void ech_pbuf(const char *msg, const unsigned char *buf, const size_t blen)
  */
 int ech_reset_hs_buffer(SSL *s, unsigned char *buf, size_t blen)
 {
-    /*
-     * On the off-chance it'll work we'll reset the handshake_buffer
-     */
     if (s->s3.handshake_buffer) {
         (void)BIO_set_close(s->s3.handshake_buffer, BIO_CLOSE);
         BIO_free(s->s3.handshake_buffer);
@@ -3095,20 +3089,25 @@ int ech_reset_hs_buffer(SSL *s, unsigned char *buf, size_t blen)
  *                        "ech accept confirmation",
  *                        ClientHelloInner...ServerHelloECHConf)
  *
+ * This changes in draft-12, so this function
+ * will probably disappear hence there's no need
+ * to fix up the magic constants and hash alg
+ * selection below.
+ *
  * @param s is the SSL inner context
- * @param ac is (preallocated) 8 octet buffer
+ * @param ac is (a caller allocated) 8 octet buffer
  * @param shbuf is a pointer to the SH buffer (incl. the type+3-octet length)
  * @param shlen is the length of the SH buf
  * @return: 1 for success, 0 otherwise
  */
-int ech_calc_accept_confirm(SSL *s, unsigned char *acbuf, const unsigned char *shbuf, const size_t shlen)
+int ech_calc_accept_confirm(
+        SSL *s, 
+        unsigned char *acbuf, 
+        const unsigned char *shbuf, 
+        const size_t shlen)
 {
-    /*
-     * First, find the right pointers/lengths
-     */
     unsigned char *tbuf=NULL; /* local transcript buffer */
     EVP_MD_CTX *ctx = EVP_MD_CTX_new();
-
     size_t tlen=0;
     unsigned char *chbuf=NULL;
     size_t chlen=0;
@@ -3142,7 +3141,7 @@ int ech_calc_accept_confirm(SSL *s, unsigned char *acbuf, const unsigned char *s
     memcpy(tbuf,chbuf,chlen);
     /*
      * For some reason the internal 3-length of the shbuf is 
-     * bolloxed at this point. We'll fix it so, but here and
+     * wrong at this point. We'll fix it so, but here and
      * not in the actual shbuf, just in case that breaks some
      * other thing.
      */
@@ -3160,19 +3159,15 @@ int ech_calc_accept_confirm(SSL *s, unsigned char *acbuf, const unsigned char *s
         memcpy(tbuf+chlen+4,shbuf,shlen);
     }
     memset(tbuf+chlen+shoffset,0,8);
-    /*
-     * figure out  h/s hash
-     */
+    /* figure out  h/s hash */
     md=ssl_handshake_md(s);
     if (md==NULL) {
-        const unsigned char *cipherchars=&tbuf[chlen+shoffset+8+1+32]; /* the chosen ciphersuite */
+        /* fallback to one from the chosen ciphersuite */
+        const unsigned char *cipherchars=&tbuf[chlen+shoffset+8+1+32]; 
         const SSL_CIPHER *c=ssl_get_cipher_by_char(s, cipherchars, 0);
         md=ssl_md(s->ctx, c->algorithm2);
         if (md==NULL) {
-            /*
-            * TODO: FIXME: find the real h/s hash, sha256 will alomost always
-            * but *not always* be correct
-            */
+            /* ultimate fallback sha266 */
             md=s->ctx->ssl_digest_methods[SSL_HANDSHAKE_MAC_SHA256];
         }
     }
@@ -3181,9 +3176,7 @@ int ech_calc_accept_confirm(SSL *s, unsigned char *acbuf, const unsigned char *s
     ech_pbuf("calc conf : tbuf",tbuf,tlen);
 #endif
 
-    /*
-     * Next, zap the magic bits and do the keyed hashing
-     */
+    /* Next, zap the magic bits and do the keyed hashing */
     insecret=s->handshake_secret;
     label=ECH_ACCEPT_CONFIRM_STRING;
     labellen=strlen(label);
@@ -3206,17 +3199,12 @@ int ech_calc_accept_confirm(SSL *s, unsigned char *acbuf, const unsigned char *s
         goto err;
     }
 
-    /*
-     * Put back the transpript buffer as it was where we got it
-     * TODO: consider HRR
-     */
+    /* Put back the transpript buffer as it was where we got it */
 #ifdef ECH_SUPERVERBOSE
     ech_pbuf("calc conf : hoval",hoval,32);
 #endif
 
-    /*
-     * Finally, set the output
-     */
+    /* Finally, set the output */
     memcpy(acbuf,hoval,8);
 #ifdef ECH_SUPERVERBOSE
     ech_pbuf("calc conf : result",acbuf,8);
@@ -3226,28 +3214,6 @@ int ech_calc_accept_confirm(SSL *s, unsigned char *acbuf, const unsigned char *s
 
     if (tbuf) OPENSSL_free(tbuf);
     if (ctx) EVP_MD_CTX_free(ctx);
-
-    /*
-     * call ECH callback
-     */
-    if (s->ech!=NULL && s->ext.ech_done==1 && s->ech_cb != NULL) {
-        char pstr[ECH_PBUF_SIZE+1];
-        BIO *biom = BIO_new(BIO_s_mem());
-        unsigned int cbrv=0;
-        memset(pstr,0,ECH_PBUF_SIZE+1);
-        SSL_ech_print(biom,s,ECH_SELECT_ALL);
-        BIO_read(biom,pstr,ECH_PBUF_SIZE);
-        cbrv=s->ech_cb(s,pstr);
-        BIO_free(biom);
-        if (cbrv != 1) {
-#ifndef OPENSSL_NO_SSL_TRACE
-            OSSL_TRACE_BEGIN(TLS) {
-                BIO_printf(trc_out,"Exiting ech_calc_accept_confirm at %d\n",__LINE__);
-            } OSSL_TRACE_END(TLS);
-#endif
-            return 0;
-        }
-    }
 
     return(1);
 

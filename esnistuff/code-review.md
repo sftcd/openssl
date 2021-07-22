@@ -147,6 +147,8 @@ Only tracing. All good.
   public key used as a after that fix.)
 * **TODO**: ``ech_decode_inner`` could do with another read through
   to see if any additional bounds checks are missing and needed.
+* Moved call to ECH callback from accept confirm (which'll change)
+  to better place in ``tls_process_server_hello``.
 * **TODO**: fix the TODOs here;-)
 
 ### ``./ssl/ssl_txt.c``
