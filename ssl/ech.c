@@ -111,12 +111,17 @@ static int ech_outer_config[]={
 
 /* 
  * When doing ECH, this array specifies whether, when we're not
- * compressing, to re-use the inner value in the outer CH  ("0")
- * or whether to generate an independently new value for the
- * outer ("1")
+ * compressing, we want to re-use the inner value in the outer CH  
+ * ("0") or whether to generate an independently new value for the
+ * outer ("1"). That makes most sense perhaps for the key_share,
+ * but maybe also for others, hence being generic.
+ *
+ * These settings will be ignored for some extensions that don't
+ * use the IOSAME macro (in ssl/statem/extensions_clnt.c) - for
+ * example the ECH setting below is ignored as you'd imagine.
  *
  * As above this is likely to disappear before submitting a PR to 
- * upstream. 
+ * upstream.
  *
  * As with ext_defs in extensions.c: NOTE: Changes in the number or order
  * of these extensions should be mirrored with equivalent changes to the
@@ -2590,9 +2595,12 @@ int ech_encode_inner(SSL *s)
     size_t ind=0;
     size_t innerinnerlen=0;
 
+    /* barf if nothing to do */
+    if (s->ech==NULL) return(0);
+
     /*
-     * So we'll try a sort-of encode of s->ext.innerch into
-     * s->ext.encoded_innerch, modulo outers/compression
+     * So encode s->ext.innerch into s->ext.encoded_innerch, 
+     * but handling ECH-compression
      *
      * As a reminder the CH is:
      *  struct {
@@ -2604,14 +2612,7 @@ int ech_encode_inner(SSL *s)
      *    Extension extensions<8..2^16-1>;
      *  } ClientHello;
      */
-    if (s->ech==NULL) return(0);
-    
-    /*
-     * Go over the extensions, and check if we should include
-     * the value or if this one's compressed in the inner
-     * This depends on us having made the call to process
-     * client hello before.
-     */
+
     if ((inner_mem = BUF_MEM_new()) == NULL) {
         goto err;
     }
@@ -2622,22 +2623,16 @@ int ech_encode_inner(SSL *s)
             || !ssl_set_handshake_header(s, &inner, mt)) {
         goto err;
     }
-    /*
-     * Add ver/rnd/sess-id/suites to buffer
-     */
+    /* Add ver/rnd/sess-id/suites to buffer */
     if (!WPACKET_put_bytes_u16(&inner, s->client_version)
             || !WPACKET_memcpy(&inner, s->s3.client_random, SSL3_RANDOM_SIZE)) {
         goto err;
     }
-    /* 
-     * Session ID - forced to zero in the encoded inner as we
-     * gotta re-use the value from outer
-     */
+    /* Session ID is forced to zero in the encoded inner */
     if (!WPACKET_start_sub_packet_u8(&inner)
             || !WPACKET_close(&inner)) {
         return 0;
     }
-
     /* Ciphers supported */
     if (!WPACKET_start_sub_packet_u16(&inner)) {
         return 0;
@@ -2656,19 +2651,16 @@ int ech_encode_inner(SSL *s)
     if (!WPACKET_put_bytes_u8(&inner, 0) || !WPACKET_close(&inner)) {
         return 0;
     }
-    /*
-     * Now mess with extensions
-     */
+
+    /* Now handle extensions */
     if (!WPACKET_start_sub_packet_u16(&inner)) {
         return 0;
     }
-
+    /* Grab a pointer to the alraedy constructed extensions */
     raws=s->clienthello->pre_proc_exts;
     nraws=s->clienthello->pre_proc_exts_len;
 
-    /*  
-     *  We're putting compressed stuff 1st 
-     */
+    /*  We put compressed stuff first (if any), because we can */
     if (s->ext.n_outer_only>0) {
         int iind=0;
         if (!WPACKET_put_bytes_u16(&inner, TLSEXT_TYPE_outer_extensions) ||
@@ -2684,12 +2676,11 @@ int ech_encode_inner(SSL *s)
             }
         }
     }
-
+    /* now copy the rest for encoded inner */
     for (ind=0;ind!=nraws;ind++) {
         int present=raws[ind].present;
         if (!present) continue;
         if (ech_2bcompressed(ind)==1) continue;
-
         if (raws[ind].data.curr!=NULL) {
             if (!WPACKET_put_bytes_u16(&inner, raws[ind].type)
                 || !WPACKET_sub_memcpy_u16(&inner, 
@@ -2706,36 +2697,27 @@ int ech_encode_inner(SSL *s)
             }
         }
     }
-    /*
-     * close the exts sub packet
-     */
+    /* close the exts sub packet */
     if (!WPACKET_close(&inner))  {
         goto err;
     }
-    /*
-     * close the inner CH
-     */
+    /* close the inner CH */
     if (!WPACKET_close(&inner))  {
         goto err;
     }
-    /*
-     * Set pointer/len for inner CH 
-     */
+    /* Set pointer/len for inner CH */
     if (!WPACKET_get_length(&inner, &innerinnerlen)) {
         goto err;
     }
-
     innerch_full=OPENSSL_malloc(innerinnerlen);
     if (!innerch_full) {
         goto err;
     }
-    /*
-     * Finally ditch the type and 3-octet length
-     */
+    /* Finally ditch the type and 3-octet length */
     memcpy(innerch_full,inner_mem->data+4,innerinnerlen-4);
     s->ext.encoded_innerch=innerch_full;
     s->ext.encoded_innerch_len=innerinnerlen-4;
-
+    /* and clean up */
     WPACKET_cleanup(&inner);
     if (inner_mem) BUF_MEM_free(inner_mem);
     inner_mem=NULL;

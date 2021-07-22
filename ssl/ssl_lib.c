@@ -1263,8 +1263,13 @@ void SSL_free(SSL *s)
     s->rbio = NULL;
 
 #ifndef OPENSSL_NO_ECH
-    /* Hmm - this seems needed on client but not on server? */
-    if ( s->init_buf && ( (!s->server && (s->ext.inner_s || !s->ech)) || s->server))
+    /* This seems needed on client but not on server */
+    if ( s->init_buf && 
+         (
+          (!s->server && (s->ext.inner_s || !s->ech)) || 
+          s->server
+         )
+       )
 #endif
     BUF_MEM_free(s->init_buf);
 
@@ -1277,8 +1282,23 @@ void SSL_free(SSL *s)
 #ifndef OPENSSL_NO_ECH
     /* only do this one if... */
     if (    s->server ||
-            (!s->server && s->ext.ech_grease!=ECH_IS_GREASE ) ||
-            (!s->server && s->ext.ech_grease==ECH_IS_GREASE && s->ext.ch_depth==0 )
+            (   
+                !s->server && 
+                s->ext.ech_grease!=ECH_IS_GREASE &&
+                s->ext.ech_success==1 
+            )
+                ||
+            (   
+                !s->server && 
+                s->ext.ech_grease!=ECH_IS_GREASE &&
+                (s->ext.ech_done==1 && s->ext.ch_depth==0) 
+            )
+                ||
+            (
+                !s->server && 
+                s->ext.ech_grease==ECH_IS_GREASE && 
+                s->ext.inner_s==NULL
+            )
        ) {
         if (s->session != NULL) {
             ssl_clear_bad_session(s);

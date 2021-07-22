@@ -139,6 +139,12 @@ Only tracing. All good.
 * Moved outer compression tables to top of file and tidied 'em up.
 * Fixed an issue with non-contiguous to-be-ECH-compressed exts
   in encoded inner CH.
+* Noted that ``init_ech`` is also called after SH rx'd so fixed
+  that to not reset ``ech_done``.
+* Fixed a crash in ``SSL_SESSION_free`` for the inner
+  SSL struct, if ECH is was attempted but failed due to
+  wrong ECH public key. (Fixed a client leak when wrong 
+  public key used as a after that fix.)
 * **TODO**: fix the TODOs here;-)
 
 ### ``./ssl/ssl_txt.c``

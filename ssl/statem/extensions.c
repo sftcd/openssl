@@ -1058,7 +1058,10 @@ int ech_map_ext_type_to_ind(unsigned int type)
  */
 static int init_ech(SSL *s, unsigned int context)
 {
-    s->ext.ech_done = 0;
+    // call for CH
+    if (context==128) {
+        s->ext.ech_done = 0;
+    }
     return 1;
 }
 /**
@@ -1110,7 +1113,9 @@ static int final_server_name(SSL *s, unsigned int context, int sent)
      * (where done could mean it worked, wasn't attempted or was
      * GREASE)
      */
-    if (s->ext.ech_attempted==0 || s->ext.ech_grease==ECH_IS_GREASE || s->ext.ech_success==1) 
+    if (s->ext.ech_attempted==0 || 
+        s->ext.ech_grease==ECH_IS_GREASE || 
+        s->ext.ech_success==1) 
     {
 #endif
     if (s->ctx->ext.servername_cb != NULL)

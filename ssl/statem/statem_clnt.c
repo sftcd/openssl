@@ -1513,7 +1513,8 @@ int tls_construct_client_hello(SSL *s, WPACKET *pkt)
             }
 #ifndef OPENSSL_NO_ECH
         } else if (s->ech) {
-            assert(s->session->session_id_length <= sizeof(s->session->session_id));
+            assert(s->session->session_id_length <= 
+                    sizeof(s->session->session_id));
             sess_id_len = s->session->session_id_length;
             if (s->version == TLS1_3_VERSION) {
                 s->tmp_session_id_len = sess_id_len;
@@ -1724,10 +1725,14 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL *s, PACKET *pkt)
     SSL inner;
     SSL outer=*s;
     int trying_inner=0;
-    if (s->ech!=NULL && s->ext.ech_done!=1 && s->ext.ch_depth==0 && s->ext.ech_grease==ECH_NOT_GREASE) {
+    if (s->ech!=NULL && 
+        s->ext.ech_done!=1 && 
+        s->ext.ch_depth==0 && 
+        s->ext.ech_grease==ECH_NOT_GREASE) {
         /*
-         * Try process inner - if it fails to match the SH.random after processing, we'll
-         * have to come back and try outer
+         * Try process inner - if it fails to match the 
+         * SH.random after processing, we'll have to come 
+         * back and try outer
          */
         if (!s->ext.inner_s) {
             SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_LENGTH_MISMATCH);
@@ -1924,6 +1929,18 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL *s, PACKET *pkt)
          */
         if (s->session->session_id_length > 0) {
             tsan_counter(&s->session_ctx->stats.sess_miss);
+#if 0
+#ifndef OPENSSL_NO_ECH
+            if (trying_inner) { 
+                SSL_SESSION_free(s->session); 
+                s->session=NULL;
+                if (s->ext.outer_s) {
+                    SSL_SESSION_free(s->ext.outer_s->session); 
+                    s->ext.outer_s->session=NULL;
+                }
+            }
+#endif
+#endif
             if (!ssl_get_new_session(s, 0)) {
                 /* SSLfatal() already called */
                 goto err;
@@ -2094,13 +2111,14 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL *s, PACKET *pkt)
         } else {
             /*
              * Fallback to trying outer, with a bit of clean-up
-             * TODO: figure out what's right here if (as is likely) the
-             * accept confirmation calculation changes to avoid this
-             * fairly brittle clean-up
              */
             OPENSSL_free(extensions); extensions=NULL;
             EVP_PKEY_free(s->s3.peer_tmp); s->s3.peer_tmp=NULL;
             SSL_SESSION_free(s->session); s->session=NULL;
+#if 0
+            SSL_SESSION_free(s->ext.outer_s->session); 
+            s->ext.outer_s->session=NULL;
+#endif
             if (s->s3.handshake_buffer) {
                 (void)BIO_set_close(s->s3.handshake_buffer, BIO_CLOSE);
                 BIO_free(s->s3.handshake_buffer);
