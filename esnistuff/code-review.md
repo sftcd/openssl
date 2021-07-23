@@ -117,6 +117,14 @@ Only tracing. All good.
 
 ### ``./ssl/ech.c``
 
+* **TODO:** When testing for >1 ECHConfig in an ECHConfigList we
+  need to include a case where we skip over a "middle" value that
+  has an unsupported version
+* **TODO**: ``ech_decode_inner`` could do with another read through
+  to see if any additional bounds checks are missing and needed.
+* **TODO** We currently use a truly ephemeral ECH key pair but will
+  have to store that for HRR purposes when we get to that.
+
 * Removed ``dns_alpns`` and ``dns_no_def_alpn`` from ``SSL_ECH`` as those 
   are better handled outside the library.
 * Added new return value to handle case where server tries to (re)load
@@ -127,9 +135,6 @@ Only tracing. All good.
   (oddly called ``SSL_CTX_ech_server_enable_buffer``:-) so that haproxy 
   doesn't have to read disk after startup. (Also added test code for 
   that to ``apps/s_server.c``.)
-* **TODO:** When testing for >1 ECHConfig in an ECHConfigList we
-  need to include a case where we skip over a "middle" value that
-  has an unsupported version
 * Fixed semantics of ``public_name`` override in 
   ``SSL_ech_server_name`` and related functions.
 * Output more information from ``SSL_ech_print`` and added
@@ -145,8 +150,6 @@ Only tracing. All good.
   SSL struct, if ECH is was attempted but failed due to
   wrong ECH public key. (Fixed a client leak when wrong 
   public key used as a after that fix.)
-* **TODO**: ``ech_decode_inner`` could do with another read through
-  to see if any additional bounds checks are missing and needed.
 * Moved call to ECH callback from accept confirm (which'll change)
   to better place in ``ech_swaperoo``.
 * Reverted changes to how ``final_server_name`` is called as 
@@ -154,11 +157,8 @@ Only tracing. All good.
   decryption attempt on the server. (That's nice as it means
   we no longer need to special case SNI for this part of
   extension processing.)
-* **TODO** We currently use a truly ephemeral ECH key pair but will
-  have to store that for HRR purposes when we get to that.
 * Tidied up ``hpke_decrypt_encch``, ``ech_earcy_decrypt`` and a few 
   other server-side utility functions.
-* **TODO**: fix the TODOs here;-)
 
 ### ``./ssl/ssl_txt.c``
 ### ``./ssl/statem/statem_local.h``

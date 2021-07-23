@@ -4448,7 +4448,7 @@ err:
 }
 
 /*
- * @brief API to allow clients to set a preferred HPKE suite to use when GREASEing
+ * @brief API to set a preferred HPKE suite to use when GREASEing
  *
  * @param s is the SSL session
  * @param suite is the relevant suite string
@@ -4457,9 +4457,7 @@ err:
 int SSL_ech_set_grease_suite(SSL *s, const char* suite)
 {
     if (!s || !suite) return 0;
-    /*
-     * We'll just stash the value for now and interpret when/if we do GREASE
-     */
+    /* Just stash the value for now and interpret when/if we do GREASE */
     if (s->ext.ech_grease_suite) OPENSSL_free(s->ext.ech_grease_suite);
     s->ext.ech_grease_suite=OPENSSL_strdup(suite);
     return 1;
@@ -4467,7 +4465,7 @@ int SSL_ech_set_grease_suite(SSL *s, const char* suite)
 
 
 /*!
- * @brief API to load all the keys found in a directory
+ * @brief API to load all the key files found in a directory
  *
  * @param ctx is an SSL_CTX
  * @param echdir is the directory name
@@ -4479,7 +4477,6 @@ int SSL_CTX_ech_readpemdir(SSL_CTX *ctx, const char *echdir, int *number_loaded)
     OPENSSL_DIR_CTX *d = NULL;
     const char *filename;
     if (!ctx || !echdir || !number_loaded) return(0);
-    /* Note that a side effect is that the CAs will be sorted by name */
     while ((filename = OPENSSL_DIR_read(&d, echdir))) {
         char echname[PATH_MAX];
         size_t nlen=0;
@@ -4490,7 +4487,8 @@ int SSL_CTX_ech_readpemdir(SSL_CTX *ctx, const char *echdir, int *number_loaded)
         if (strlen(echdir) + strlen(filename) + 2 > sizeof(echname)) {
 #ifndef OPENSSL_NO_SSL_TRACE
             OSSL_TRACE_BEGIN(TLS) {
-                BIO_printf(trc_out,"name too long: %s/%s - skipping it \r\n",echdir,filename);
+                BIO_printf(trc_out,
+                    "name too long: %s/%s - skipping it \r\n",echdir,filename);
             } OSSL_TRACE_END(TLS);
 #endif
             continue;
@@ -4503,7 +4501,8 @@ int SSL_CTX_ech_readpemdir(SSL_CTX *ctx, const char *echdir, int *number_loaded)
         if (r <= 0 || r >= (int)sizeof(echname)) {
 #ifndef OPENSSL_NO_SSL_TRACE
             OSSL_TRACE_BEGIN(TLS) {
-                BIO_printf(trc_out,"name oddity: %s/%s - skipping it \r\n",echdir,filename);
+                BIO_printf(trc_out,"name oddity: %s/%s - skipping it \r\n",
+                        echdir,filename);
             } OSSL_TRACE_END(TLS);
 #endif
             continue;
@@ -4512,7 +4511,8 @@ int SSL_CTX_ech_readpemdir(SSL_CTX *ctx, const char *echdir, int *number_loaded)
         if (nlen <= 4 ) {
 #ifndef OPENSSL_NO_SSL_TRACE
             OSSL_TRACE_BEGIN(TLS) {
-                BIO_printf(trc_out,"name too short: %s/%s - skipping it \r\n",echdir,filename);
+                BIO_printf(trc_out,"name too short: %s/%s - skipping it \r\n",
+                        echdir,filename);
             } OSSL_TRACE_END(TLS);
 #endif
             continue;
@@ -4521,7 +4521,9 @@ int SSL_CTX_ech_readpemdir(SSL_CTX *ctx, const char *echdir, int *number_loaded)
         if (strncmp(last4,".pem",4) && strncmp(last4,".ech",4)) {
 #ifndef OPENSSL_NO_SSL_TRACE
             OSSL_TRACE_BEGIN(TLS) {
-                BIO_printf(trc_out,"name doesn't end in .pem: %s/%s - skipping it \r\n",echdir,filename);
+                BIO_printf(trc_out,
+                    "name doesn't end in .pem: %s/%s - skipping it \r\n",
+                    echdir,filename);
             } OSSL_TRACE_END(TLS);
 #endif
             continue;
@@ -4530,14 +4532,16 @@ int SSL_CTX_ech_readpemdir(SSL_CTX *ctx, const char *echdir, int *number_loaded)
             if (SSL_CTX_ech_server_enable(ctx,echname)!=1) {
 #ifndef OPENSSL_NO_SSL_TRACE
                 OSSL_TRACE_BEGIN(TLS) {
-                    BIO_printf(trc_out, "Failure establishing ECH parameters for %s\n",echname);
+                    BIO_printf(trc_out, "Failed to set ECT parameters for %s\n",
+                            echname);
                 } OSSL_TRACE_END(TLS);
 #endif
             }
             *number_loaded=*number_loaded+1;
 #ifndef OPENSSL_NO_SSL_TRACE
             OSSL_TRACE_BEGIN(TLS) {
-                BIO_printf(trc_out,"Added %d-th ECH key pair from: %s\n",*number_loaded,echname);
+                BIO_printf(trc_out,"Added %d-th ECH key pair from: %s\n",
+                        *number_loaded,echname);
             } OSSL_TRACE_END(TLS);
 #endif
         }
@@ -4551,6 +4555,8 @@ int SSL_CTX_ech_readpemdir(SSL_CTX *ctx, const char *echdir, int *number_loaded)
 /*
  * @brief provide a way to do raw ECH decryption for split-mode frontends
  *
+ * Note that the outer_ch's length is inside the TLV data
+ *
  * @param ctx is an SSL_CTX
  * @param outer_ch is the entire client hello (possibly incl. ECH)
  * @param outer_len is the length of the above (on input the buffer size)
@@ -4560,8 +4566,6 @@ int SSL_CTX_ech_readpemdir(SSL_CTX *ctx, const char *echdir, int *number_loaded)
  * @param outer_sni is the outer SNI (if present)
  * @param decrypted_ok is 0 on return if decryption failed, 1 if it worked
  * @return 1 for success (incl. failed decrypt) or 0 on error
- *
- * Note that the outer_ch's length is inside the TLV data
  */
 int SSL_CTX_ech_raw_decrypt(SSL_CTX *ctx, 
                             unsigned char *outer_ch, size_t outer_len,
@@ -4583,11 +4587,11 @@ int SSL_CTX_ech_raw_decrypt(SSL_CTX *ctx,
     if (!ctx || !outer_ch || outer_len==0 || !inner_ch || inner_len==0
                 || !inner_sni || !outer_sni || !decrypted_ok) return 0;
     s=SSL_new(ctx);
-    if (!s) return 0;
-    if (PACKET_buf_init(&pkt_outer,outer_ch+9,outer_len-9)!=1) { goto err; }
+    if (s==NULL) return 0;
+    if (PACKET_buf_init(&pkt_outer,outer_ch+9,outer_len-9)!=1) goto err;
     inner_buf=OPENSSL_malloc(inner_buf_len);
     if (inner_buf==NULL) goto err;
-    if (PACKET_buf_init(&pkt_inner,inner_buf,inner_buf_len)!=1) { goto err; }
+    if (PACKET_buf_init(&pkt_inner,inner_buf,inner_buf_len)!=1) goto err;
 
     rv=ech_early_decrypt(s,&pkt_outer,&pkt_inner);
     if (rv!=1) goto err;
@@ -4615,15 +4619,15 @@ int SSL_CTX_ech_raw_decrypt(SSL_CTX *ctx,
         memcpy(inner_ch+9,pkt_inner.curr,ilen);
         *inner_len=ilen+9;
 
-        /*
-        * Grab the inner SNI (if it's there)
-        */
-        rv=ech_get_offsets(&pkt_inner,&startofsessid,&startofexts,&echoffset,&innersnioffset);
+        /* Grab the inner SNI (if it's there) */
+        rv=ech_get_offsets(&pkt_inner,&startofsessid,&startofexts,
+                &echoffset,&innersnioffset);
         if (rv!=1) return(rv);
         if (innersnioffset>0) {
             PACKET isni;
             const unsigned char *isnibuf=&pkt_inner.curr[innersnioffset+4];
-            size_t isnilen=pkt_inner.curr[innersnioffset+2]*256+pkt_inner.curr[innersnioffset+3];
+            size_t isnilen=pkt_inner.curr[innersnioffset+2]*256+
+                           pkt_inner.curr[innersnioffset+3];
             if (PACKET_buf_init(&isni,isnibuf,isnilen)!=1) {
                 SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
                 goto err;
@@ -4632,19 +4636,15 @@ int SSL_CTX_ech_raw_decrypt(SSL_CTX *ctx,
                 SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
                 goto err;
             }
-            /* TODO: this upsets valgrind when used in haproxy FIXME: */
             if (s->ext.hostname) *inner_sni=OPENSSL_strdup(s->ext.hostname);
         }
 
-        /*
-         * Declare success to caller
-         */
+        /* Declare success to caller */
         *decrypted_ok=1;
-
     }
     if (s) SSL_free(s);
     if (inner_buf) OPENSSL_free(inner_buf);
-    return rv;
+    return 1;
 err:
     if (s) SSL_free(s);
     if (inner_buf) OPENSSL_free(inner_buf);
