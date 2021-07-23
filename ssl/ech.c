@@ -3971,7 +3971,7 @@ static int ech_get_offsets(
     extsremaining=origextlens-2;
 
     while (extsremaining>0) {
-        if (ch_len<(4+e_start-ch)) {
+        if (ch_len<(4+(size_t)(e_start-ch))) {
             return 0;
         }
         etype=e_start[0]*256+e_start[1];
@@ -4099,17 +4099,20 @@ static unsigned char *hpke_decrypt_encch(
 /*
  * If an ECH is present, attempt decryption
  *
- * @param s: SSL session stuff
- * @param pkt: the received CH that might include an ECH
- * @param newpkt: the plaintext from ECH 
- * @return 1 for success, zero otherwise
- *
  * If decryption succeeds, then we'll swap the inner and outer
  * CHs so that all further processing will only take into account
  * the inner CH.
  *
  * The fact that decryption worked is signalled to the caller
  * via s->ext.ech_success 
+ *
+ * This function is called early, (hence then name:-), before
+ * the outer CH decoding has really started
+ *
+ * @param s: SSL session stuff
+ * @param pkt: the received CH that might include an ECH
+ * @param newpkt: the plaintext from ECH 
+ * @return 1 for success, zero otherwise
  */
 int ech_early_decrypt(SSL *s, PACKET *outerpkt, PACKET *newpkt)
 {
@@ -4118,7 +4121,8 @@ int ech_early_decrypt(SSL *s, PACKET *outerpkt, PACKET *newpkt)
      * 1. check if there's an ECH
      * 2. trial-decrypt or check if config matches one loaded
      * 3. if decrypt fails tee-up GREASE
-     * 4. if decrypt worked, de-compress cleartext to make up real inner CH
+     * 4. if decrypt worked, decode and de-compress cleartext to 
+     *    make up real inner CH for later processing
      */
     int rv=0;
     ECH_ENCCH *extval=NULL;
@@ -4148,32 +4152,36 @@ int ech_early_decrypt(SSL *s, PACKET *outerpkt, PACKET *newpkt)
     size_t outersnioffset=0; /**< offset to SNI in outer */
     size_t ch_len=outerpkt->remaining; /**< overall length of outer CH */
     const unsigned char *ch=outerpkt->curr;
-    rv=ech_get_offsets(outerpkt,&startofsessid,&startofexts,&echoffset,&outersnioffset);
-    if (rv!=1) return(rv);
-    if (echoffset==0) return(1); /*< ECH not present */
-    /*
-     * Remember that we got an ECH 
-     */
+    rv=ech_get_offsets(outerpkt,&startofsessid,&startofexts,
+            &echoffset,&outersnioffset);
+    if (rv!=1) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+        return(rv);
+    }
+    if (echoffset==0) return(1); /* ECH not present */
+    OSSL_TRACE_BEGIN(TLS) {
+        BIO_printf(trc_out,"EARLY: found an ECH\n");
+    } OSSL_TRACE_END(TLS);
+
+    /* Remember that we got an ECH */
     s->ext.ech_attempted=1;
 
-    /*
-     * We need to grab the session id
-     */
+    /* We need to grab the session id */
     s->tmp_session_id_len=outerpkt->curr[startofsessid];
     if (s->tmp_session_id_len>SSL_MAX_SSL_SESSION_ID_LENGTH) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         goto err;
     }
-    memcpy(s->tmp_session_id,&outerpkt->curr[startofsessid+1],s->tmp_session_id_len);
+    memcpy(s->tmp_session_id,
+           &outerpkt->curr[startofsessid+1],
+           s->tmp_session_id_len);
 
-    /*
-     * We'd like to grab the outer SNI (for fun/profit)
-     * Maybe later we might grab outer ALPNs too
-     */
+    /* Grab the outer SNI for tracing.  */
     if (outersnioffset>0) {
         PACKET osni;
         const unsigned char *osnibuf=&outerpkt->curr[outersnioffset+4];
-        size_t osnilen=outerpkt->curr[outersnioffset+2]*256+outerpkt->curr[outersnioffset+3];
+        size_t osnilen=outerpkt->curr[outersnioffset+2]*256+
+                       outerpkt->curr[outersnioffset+3];
         if (PACKET_buf_init(&osni,osnibuf,osnilen)!=1) {
             SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
             goto err;
@@ -4204,13 +4212,11 @@ int ech_early_decrypt(SSL *s, PACKET *outerpkt, PACKET *newpkt)
      */
     startofech=&outerpkt->curr[echoffset+4];
     echlen=outerpkt->curr[echoffset+2]*256+outerpkt->curr[echoffset+3];
-
     rv=PACKET_buf_init(&echpkt,startofech,echlen);
-
     pkt=&echpkt;
+
     /*
-     * Decode the inbound value
-     * We're looking for:
+     * Tey Decode the inbound value. We're looking for:
      *
      * struct {
      *   ECHCipherSuite cipher_suite;
@@ -4225,7 +4231,6 @@ int ech_early_decrypt(SSL *s, PACKET *outerpkt, PACKET *newpkt)
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         goto err;
     }
-    memset(extval,0,sizeof(ECH_ENCCH));
     if (!PACKET_get_net_2(pkt, &tmp)) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         goto err;
@@ -4242,6 +4247,7 @@ int ech_early_decrypt(SSL *s, PACKET *outerpkt, PACKET *newpkt)
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         goto err;
     }
+    ech_pbuf("EARLY config id",&extval->config_id,1);
 
     /* enc - the client's public share */
     if (!PACKET_get_net_2(pkt, &tmp)) {
@@ -4294,12 +4300,7 @@ int ech_early_decrypt(SSL *s, PACKET *outerpkt, PACKET *newpkt)
     /*
      * Calculate AAD value
      */
-
-    /*
-     * newextlen = length of exts after taking out ech
-     *  ch_len-startofexts== oldextslen+2
-     *  newextlens=oldextlens-echlen
-     */
+    /* newextlen = length of exts after taking out ech */
     newextlens=ch_len-echlen-startofexts-6;
 
     memcpy(de,ch,startofexts);
@@ -4308,10 +4309,10 @@ int ech_early_decrypt(SSL *s, PACKET *outerpkt, PACKET *newpkt)
     beforeECH=echoffset-startofexts-2;
     afterECH=ch_len-(echoffset+echlen);
     memcpy(de+startofexts+2,ch+startofexts+2,beforeECH);
-    memcpy(de+startofexts+2+beforeECH,ch+startofexts+2+beforeECH+echlen,afterECH);
+    memcpy(de+startofexts+2+beforeECH,
+            ch+startofexts+2+beforeECH+echlen,
+            afterECH);
     de_len=ch_len-echlen-4;
-
-    ech_pbuf("EARLY config id",&extval->config_id,1);
 
     if (ech_srv_get_aad(
                 extval->kdf_id, extval->aead_id,
@@ -4322,67 +4323,62 @@ int ech_early_decrypt(SSL *s, PACKET *outerpkt, PACKET *newpkt)
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         goto err;
     }
-
     ech_pbuf("EARLY aad",aad,aad_len);
 
     /*
      * Now see which (if any) of our configs match, or whether
-     * we need to trial decrypt
+     * we want/need to trial decrypt
      */
     s->ext.ech_grease=ECH_GREASE_UNKNOWN;
     
-        if (s->ech->cfg==NULL || s->ech->cfg->nrecs==0) {
-            /* shouldn't happen if assume_grease */
-            SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
-            goto err;
-        }
-        for (cfgind=0;cfgind!=s->ech->cfg->nrecs;cfgind++) {
-            ECHConfig *e=&s->ech[cfgind].cfg->recs[0];
+    if (s->ech->cfg==NULL || s->ech->cfg->nrecs==0) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+    for (cfgind=0;cfgind!=s->ech->cfg->nrecs;cfgind++) {
+        ECHConfig *e=&s->ech[cfgind].cfg->recs[0];
 #ifndef OPENSSL_NO_SSL_TRACE
-            OSSL_TRACE_BEGIN(TLS) {
-                BIO_printf(trc_out,"EARLY: comparing rx'd config id (%x) vs. %d-th configured (%x)\n",
-                        extval->config_id,cfgind,e->config_id);
-            } OSSL_TRACE_END(TLS);
+        OSSL_TRACE_BEGIN(TLS) {
+            BIO_printf(trc_out,
+                    "EARLY: rx'd config id (%x) ==? %d-th configured (%x)\n",
+                    extval->config_id,cfgind,e->config_id);
+        } OSSL_TRACE_END(TLS);
 #endif
-            if (extval->config_id==e->config_id) {
-                foundcfg=1;
-                break;
-            }
+        if (extval->config_id==e->config_id) {
+            foundcfg=1;
+            break;
         }
-        if (foundcfg==1) {
-            clear=hpke_decrypt_encch(&s->ech[cfgind],extval,aad_len,aad,&clearlen);
-            if (clear==NULL) {
-                s->ext.ech_grease=ECH_IS_GREASE;
-            }
-        } 
+    }
+    if (foundcfg==1) {
+        clear=hpke_decrypt_encch(&s->ech[cfgind],extval,aad_len,aad,&clearlen);
+        if (clear==NULL) {
+            s->ext.ech_grease=ECH_IS_GREASE;
+        }
+    } 
 
     /*
      * Trial decrypt, if still needed
      */
     if (!foundcfg && (s->options & SSL_OP_ECH_TRIALDECRYPT)) { 
         for (cfgind=0;cfgind!=s->ech->cfg->nrecs;cfgind++) {
-            clear=hpke_decrypt_encch(&s->ech[cfgind],extval,aad_len,aad,&clearlen);
+            clear=hpke_decrypt_encch(&s->ech[cfgind],
+                    extval,aad_len,aad,&clearlen);
             if (clear!=NULL) {
                 foundcfg=1;
-                /*
-                 * TODO: maybe remove this break for better constant time?
-                 * Not clear we gain that much TBH but if >1 key loaded then timing
-                 * could reveal which one was used. That said, config_id is visible
-                 * in clear anyway. 
-                 */
                 break;
             }
         }
     } 
 
     /*
-     * 3. if decrypt fails tee-up GREASE
-     */
-    /*
      * We succeeded or failed in decrypting, but we're done
      * with that now.
      */
     s->ext.ech_done=1;
+
+    /*
+     * 3. if decrypt fails tee-up GREASE
+     */
     if (clear==NULL) {
         s->ext.ech_grease=ECH_IS_GREASE;
         s->ext.ech_success=0;
@@ -4392,8 +4388,11 @@ int ech_early_decrypt(SSL *s, PACKET *outerpkt, PACKET *newpkt)
     }
 #ifndef OPENSSL_NO_SSL_TRACE
     OSSL_TRACE_BEGIN(TLS) {
-        BIO_printf(trc_out,"EARLY: success: %d, assume_grease: %d, foundcfg: %d, cfgind: %d, clearlen: %zd, clear %p\n",
-            s->ext.ech_success,s->ext.ech_grease,foundcfg,cfgind,clearlen,(void*)clear);
+        BIO_printf(trc_out,
+            "EARLY: success: %d, assume_grease: %d, " \
+            "foundcfg: %d, cfgind: %d, clearlen: %zd, clear %p\n",
+            s->ext.ech_success,s->ext.ech_grease,foundcfg,
+            cfgind,clearlen,(void*)clear);
     } OSSL_TRACE_END(TLS);
 #endif
 

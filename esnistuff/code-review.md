@@ -156,8 +156,8 @@ Only tracing. All good.
   extension processing.)
 * **TODO** We currently use a truly ephemeral ECH key pair but will
   have to store that for HRR purposes when we get to that.
-* Tidied up ``hpke_decrypt_encch`` and a few other server-side
-  utility functions.
+* Tidied up ``hpke_decrypt_encch``, ``ech_earcy_decrypt`` and a few 
+  other server-side utility functions.
 * **TODO**: fix the TODOs here;-)
 
 ### ``./ssl/ssl_txt.c``
