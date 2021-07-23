@@ -195,7 +195,9 @@ static char *ECHConfigs_print(ECHConfigs *c);
  * @return 1 for success, other otherwise
  */
 static int ech_make_enc_info(
-        ECHConfig *tc,unsigned char *info,size_t *info_len);
+        ECHConfig *tc,
+        unsigned char *info,
+        size_t *info_len);
 
 /*
  * Telltales we use when guessing which form of encoded input we've
@@ -2810,8 +2812,6 @@ static int ech_decode_inner(
     /*
      * Jump over the ciphersuites and (MUST be NULL) compression to
      * the start of extensions
-     * We'll start genoffset at the end of the session ID, just
-     * before the ciphersuites
      */
     offset2sessid=2+32; 
     suiteslen=s->ext.encoded_innerch[offset2sessid+1]*256+
@@ -3590,7 +3590,7 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
 
     ECHConfig *tc=NULL;
     int cind=0;
-    ECHConfigs *cfgs=s->ech->cfg;
+    ECHConfigs *cfgs=NULL;
     unsigned int onlen=0;
     int prefind=-1;
     ECHConfig *firstmatch=NULL;
@@ -3598,19 +3598,24 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
     unsigned char info[HPKE_MAXSIZE];
     size_t info_len=HPKE_MAXSIZE;
     int rv=0;
-    size_t newlen=0;
+    size_t echextlen=0;
     unsigned char *startofmessage=NULL;
-    size_t genoffset=0;
+    size_t suitesoffset=0;
     size_t suiteslen=0;
     size_t startofexts=0;
     size_t origextlens=0;
     size_t newextlens=0;
 
-    if (cfgs==NULL) {
+    if (!s || !s->ech || !pkt) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+    cfgs=s->ech->cfg;
+    if (!cfgs || cfgs->nrecs==0) {
         /*
          * Treating this as an error. Note there could be 
          * some corner case with SCVB that gets us here
-         * but hopefully not
+         * with cfgs==NULL but hopefully not
          */
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         goto err;
@@ -3630,8 +3635,8 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
         ECHConfig *ltc=&cfgs->recs[cind];
         unsigned int csuite=0;
         if (s->ech->outer_name && (
-                    ltc->public_name_len!=onlen ||
-                    strncmp(s->ech->outer_name,(char*)ltc->public_name,onlen))) {
+                ltc->public_name_len!=onlen ||
+                strncmp(s->ech->outer_name,(char*)ltc->public_name,onlen))) {
             prefind=cind;
         }
         hpke_suite.kem_id=ltc->kem_id;
@@ -3640,9 +3645,7 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
             hpke_suite.kdf_id=es[0]*256+es[1];
             hpke_suite.aead_id=es[2]*256+es[3];
             if (hpke_suite_check(hpke_suite)==1) {
-                /*
-                * success if both "fit"
-                */
+                /* success if both "fit" */
                 if (prefind!=-1) {
                     tc=ltc;
                     break;
@@ -3694,7 +3697,22 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
     ech_pbuf("EAAE: config id input",tc->encoding_start,tc->encoding_length);
     ech_pbuf("EAAE: config_id",&tc->config_id,1);
 
+    /*
+     * struct {
+     *   HpkeSymmetricCipherSuite cipher_suite;
+     *   uint8 config_id;
+     *   opaque enc<1..2^16-1>;
+     *   opaque outer_hello<1..2^24-1>;
+     * } ClientHelloOuterAAD;
+     *
+     * The struct above causes the aad_len values
+     * below.
+     * The "-4" for the pkt removes the type and
+     * 3-octet length from the encoded CH as per
+     * the spec.
+     */
     aad_len=4+1+2+mypub_len+3+pkt->written-4;
+
     aad=OPENSSL_malloc(aad_len);
     if (aad==NULL) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
@@ -3744,6 +3762,10 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
     ech_pbuf("EAAE: cipher",cipher,cipherlen);
 
     OPENSSL_free(aad); aad=NULL;
+    /*
+     * We ditch the ephemeral key now.
+     * TODO: we'll need that for HRR later
+     */
     EVP_PKEY_free(mypriv_evp); mypriv_evp=NULL;
 
     ech_pbuf("EAAE pkt b4",(unsigned char*) pkt->buf->data,pkt->written);
@@ -3761,21 +3783,37 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
             goto err;
     }
 
-    /* length to include */
-    newlen=6+2+2+3+mypub_len+cipherlen;
+    /* 
+     * length of ECH to include is the usual ext
+     * type and length (2 octets each) plus...
+     *
+     *  struct {
+     *     HpkeSymmetricCipherSuite cipher_suite;
+     *     uint8 config_id;
+     *     opaque enc<1..2^16-1>;
+     *     opaque payload<1..2^16-1>;
+     *  } ClientECH;
+     *
+     */
+    echextlen=2+ /* ext type */
+              2+ /* ext len */ 
+              4+ /* cipher_suite */
+              1+ /* config id */
+              2+ /* len(enc) */
+              mypub_len+ /* enc */
+              2+ /* len(payload) */
+              cipherlen; /* payload */
 
     /*
-     * Jump over the ciphersuites and (MUST be NULL) compression to
-     * the start of extensions
-     * We'll start genoffset at the end of the session ID, just
+     * suitesoffset points to the end of the session ID, just
      * before the ciphersuites
      */
     startofmessage=(unsigned char*)pkt->buf->data;
-    genoffset=6+32+1+s->tmp_session_id_len; 
-    suiteslen=startofmessage[genoffset]*256+startofmessage[genoffset+1];
-    startofexts=genoffset+suiteslen+2+2; /* the 2 for the suites len */
+    suitesoffset=6+32+1+s->tmp_session_id_len; 
+    suiteslen=startofmessage[suitesoffset]*256+startofmessage[suitesoffset+1];
+    startofexts=suitesoffset+suiteslen+2+2; /* the 2 for the suites len */
     origextlens=startofmessage[startofexts]*256+startofmessage[startofexts+1];
-    newextlens=origextlens+newlen;
+    newextlens=origextlens+echextlen;
 
     startofmessage[startofexts]=(newextlens&0xffff)/256; 
     startofmessage[startofexts+1]=(newextlens&0xffff)%256; 
@@ -3792,10 +3830,24 @@ err:
     return 0;
 }
 
-/*
- * Server figures out AAD from state
+/**
+ * @brief Server forms up AAD from included fields
+ *
+ * The actual AAD length is returned on success.
+ * 
+ * @param kdf_id is obvious
+ * @param aead_id is obvious
+ * @param pub_len is the length of the public key
+ * @param pub is the public key
+ * @param config_id is the ECH config id
+ * @param de_len is the length of the CH minus ECH
+ * @param de is the CH minus ECH
+ * @param aad_len is the length of AAD buffer on input
+ * @param aad is the AAD buffer on input
+ * @param de is the CH minus ECH
+ * @return 1 for good, other otherwise
  */
-static int ech_srv_get_aad(SSL *s,
+static int ech_srv_get_aad(
         uint16_t kdf_id, uint16_t aead_id,
         size_t pub_len, unsigned char *pub,
         uint8_t config_id,
@@ -3804,7 +3856,7 @@ static int ech_srv_get_aad(SSL *s,
 {
     unsigned char *cp=aad;
 
-    if (s==NULL || aad_len == NULL || aad==NULL) return 0;
+    if (!pub || !de || !aad_len || !aad) return 0;
 
 #define CPCHECK if ((size_t)(cp-aad)>*aad_len) return 0;
 
@@ -3856,7 +3908,12 @@ static int ech_srv_get_aad(SSL *s,
  * those will be returned as zero.
  * Offsets are returned to the type or length field in question.
  */
-static int ech_get_offsets(PACKET *pkt, size_t *sessid, size_t *exts, size_t *echoffset, size_t *snioffset)
+static int ech_get_offsets(
+        PACKET *pkt, 
+        size_t *sessid, 
+        size_t *exts, 
+        size_t *echoffset, 
+        size_t *snioffset)
 {
     const unsigned char *ch=NULL;
     size_t ch_len=0;
@@ -3883,19 +3940,19 @@ static int ech_get_offsets(PACKET *pkt, size_t *sessid, size_t *exts, size_t *ec
     ch_len=pkt->remaining;
 
     /*
-     * Jump over the ciphersuites and (MUST be NULL) compression to
-     * the start of extensions
-     * We'll start genoffset at the end of the session ID, just
+     * We'll start genoffset at the start of the session ID, just
      * before the ciphersuites
      */
-    genoffset=2+32;
-    *sessid=genoffset; /* set output */
+    *sessid=2+32;
+    genoffset=*sessid;
+    if (ch_len<=genoffset) return 0;
     sessid_len=ch[genoffset];
     genoffset+=(1+sessid_len);
+    if (ch_len<=(genoffset+2)) return 0;
     suiteslen=ch[genoffset]*256+ch[genoffset+1];
     startofexts=genoffset+suiteslen+2+2; /* the 2 for the suites len */
     if (startofexts==ch_len) { 
-        /* no extensions present, which is theoretically ok */
+        /* no extensions present, which is fine */
         return(1);
     }
     if (startofexts>ch_len) { 
@@ -3904,16 +3961,19 @@ static int ech_get_offsets(PACKET *pkt, size_t *sessid, size_t *exts, size_t *ec
     }
     *exts=startofexts; /* set output */
     origextlens=ch[startofexts]*256+ch[startofexts+1];
-    /* 
-     * find ECH if it's there
-     */
     if ((startofexts+2)>(ch_len-startofexts)) {
          return 0;
     }
+    /* 
+     * find ECH if it's there
+     */
     e_start=&ch[startofexts+2];
     extsremaining=origextlens-2;
 
     while (extsremaining>0) {
+        if (ch_len<(4+e_start-ch)) {
+            return 0;
+        }
         etype=e_start[0]*256+e_start[1];
         elen=e_start[2]*256+e_start[3];
         if (etype==TLSEXT_TYPE_ech) {
@@ -3935,21 +3995,33 @@ static int ech_get_offsets(PACKET *pkt, size_t *sessid, size_t *exts, size_t *ec
 }
 
 /**
- * @brief wrapper for hpke_dec since we call it >1 time
+ * @brief wrapper for hpke_dec just to save code repetition
+ *
+ * The plaintext returned is allocated here and must
+ * be freed by the caller later.
+ *
+ * @param ech is the selected ECHConfig
+ * @param the_ech is the value sent by the client
+ * @param aad_len is the length of the AAD to use
+ * @param aad is the AAD to use
+ * @param innerlen points to the size of the recovered plaintext
+ * @return pointer to plaintext or NULL (if error)
  */
-static unsigned char *early_hpke_decrypt_encch(SSL_ECH *ech, ECH_ENCCH *the_ech, 
-        size_t aad_len, unsigned char *aad, size_t *innerlen)
+static unsigned char *hpke_decrypt_encch(
+        SSL_ECH *ech, 
+        ECH_ENCCH *the_ech, 
+        size_t aad_len, unsigned char *aad, 
+        size_t *innerlen)
 {
     size_t publen=0; unsigned char *pub=NULL;
     size_t cipherlen=0; unsigned char *cipher=NULL;
     size_t senderpublen=0; unsigned char *senderpub=NULL;
-    size_t clearlen=HPKE_MAXSIZE; unsigned char clear[HPKE_MAXSIZE];
+    size_t clearlen=0; unsigned char *clear=NULL;
     int hpke_mode=HPKE_MODE_BASE;
     hpke_suite_t hpke_suite = HPKE_SUITE_DEFAULT;
     unsigned char info[HPKE_MAXSIZE];
     size_t info_len=HPKE_MAXSIZE;
     int rv=0;
-    unsigned char *innerch=NULL;
 
     cipherlen=the_ech->payload_len;
     cipher=the_ech->payload;
@@ -3957,6 +4029,9 @@ static unsigned char *early_hpke_decrypt_encch(SSL_ECH *ech, ECH_ENCCH *the_ech,
     senderpub=the_ech->enc;
     hpke_suite.aead_id=the_ech->aead_id; 
     hpke_suite.kdf_id=the_ech->kdf_id; 
+    clearlen=cipherlen; /* small overestimate */
+    clear=OPENSSL_malloc(clearlen);
+    if (!clear) return NULL;
     /*
      * We only support one ECHConfig for now on the server side
      * The calling code looks after matching the ECH.config_id
@@ -3970,27 +4045,33 @@ static unsigned char *early_hpke_decrypt_encch(SSL_ECH *ech, ECH_ENCCH *the_ech,
     ech_pbuf("senderpub",senderpub,senderpublen);
     ech_pbuf("cipher",cipher,cipherlen);
     if (ech_make_enc_info(ech->cfg->recs,info,&info_len)!=1) {
+        OPENSSL_free(clear);
         return NULL; 
     }
     ech_pbuf("info",info,info_len);
     /*
-     * We may generate errors here but we'll ignore
-     * those as we might be dealing with a GREASEd
+     * We may generate externally visible OpenSSL errors 
+     * if decryption fails (which is normal) but we'll 
+     * ignore those as we might be dealing with a GREASEd
      * ECH. The way to do that is to consume all
      * errors generated internally during the attempt
-     * to decrypt. But to do that we first need to
-     * know there are no other errors in the queue
-     * that we ought not consume as the application
-     * should know about those.
+     * to decrypt. Failing to clear those errors can
+     * trigger an application to consider TLS session
+     * establishment has failed when someone just 
+     * GREASEd or used an old key.  But to do that we 
+     * first need to know there are no other errors in 
+     * the queue that we ought not consume as the application
+     * really should know about those.
      */
     if (ERR_peek_error()!=0) {
+        OPENSSL_free(clear);
         return NULL;
     }
 #ifndef OPENSSL_NO_SSL_TRACE
-        OSSL_TRACE_BEGIN(TLS) {
-            BIO_printf(trc_out,"hpke_dec suite: kem: %04x, kdf: %04x, aead: %04x\n",
-                    hpke_suite.kem_id, hpke_suite.kdf_id, hpke_suite.aead_id);
-        } OSSL_TRACE_END(TLS);
+    OSSL_TRACE_BEGIN(TLS) {
+        BIO_printf(trc_out,"hpke_dec suite: kem: %04x, kdf: %04x, aead: %04x\n",
+            hpke_suite.kem_id, hpke_suite.kdf_id, hpke_suite.aead_id);
+    } OSSL_TRACE_END(TLS);
 #endif
     rv=hpke_dec( hpke_mode, hpke_suite,
                 NULL, 0, NULL, /* pskid, psk */
@@ -4001,23 +4082,19 @@ static unsigned char *early_hpke_decrypt_encch(SSL_ECH *ech, ECH_ENCCH *the_ech,
                 aad_len,aad, 
                 info_len, info,
                 &clearlen, clear);
+    /* 
+     * clear errors from failed decryption as per the above 
+     * we do this before checking the result from hpke_dec
+     * */
     while (ERR_get_error()!=0); 
     if (rv!=1) {
+        OPENSSL_free(clear);
         return NULL;
     }
     ech_pbuf("clear",clear,clearlen);
-    /*
-     * Allocate space for that now, including msg type and 2 octet length
-     */
-    innerch=OPENSSL_malloc(clearlen);
-    if (!innerch) {
-        return NULL;
-    }
-    memcpy(innerch,clear,clearlen);
     *innerlen=clearlen;
-    return innerch;
+    return clear;
 }
-
 
 /*
  * If an ECH is present, attempt decryption
@@ -4236,7 +4313,7 @@ int ech_early_decrypt(SSL *s, PACKET *outerpkt, PACKET *newpkt)
 
     ech_pbuf("EARLY config id",&extval->config_id,1);
 
-    if (ech_srv_get_aad(s,
+    if (ech_srv_get_aad(
                 extval->kdf_id, extval->aead_id,
                 extval->enc_len, extval->enc, 
                 extval->config_id,
@@ -4273,7 +4350,7 @@ int ech_early_decrypt(SSL *s, PACKET *outerpkt, PACKET *newpkt)
             }
         }
         if (foundcfg==1) {
-            clear=early_hpke_decrypt_encch(&s->ech[cfgind],extval,aad_len,aad,&clearlen);
+            clear=hpke_decrypt_encch(&s->ech[cfgind],extval,aad_len,aad,&clearlen);
             if (clear==NULL) {
                 s->ext.ech_grease=ECH_IS_GREASE;
             }
@@ -4284,7 +4361,7 @@ int ech_early_decrypt(SSL *s, PACKET *outerpkt, PACKET *newpkt)
      */
     if (!foundcfg && (s->options & SSL_OP_ECH_TRIALDECRYPT)) { 
         for (cfgind=0;cfgind!=s->ech->cfg->nrecs;cfgind++) {
-            clear=early_hpke_decrypt_encch(&s->ech[cfgind],extval,aad_len,aad,&clearlen);
+            clear=hpke_decrypt_encch(&s->ech[cfgind],extval,aad_len,aad,&clearlen);
             if (clear!=NULL) {
                 foundcfg=1;
                 /*
