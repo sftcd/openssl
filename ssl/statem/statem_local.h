@@ -459,18 +459,5 @@ int ech_map_ext_type_to_ind(unsigned int type);
  */
 int ssl_cipher_list_to_bytes(SSL *s, STACK_OF(SSL_CIPHER) *sk,
                                     WPACKET *pkt);
-/* 
- * @brief make final SNI-related calls (callback in particular)
- * @param s is the SSL structure
- * @param context is 
- * @param sent is 
- * @return 1 for good, error otherwise 
- *
- * If ECH is attempted, we'll want to postpone calling this until
- * we know if decryption worked or not, so this can't be local 
- * anymore, so we moved this to ssl/statem/statem_local.h
- */
-int final_server_name(SSL *s, unsigned int context, int sent);
-
 #endif
 

@@ -2106,23 +2106,6 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL *s, PACKET *pkt)
             }
             OPENSSL_free(abuf);
 
-            /* ECH has now finally "worked" so call ECH callback */
-            if (s->ech!=NULL && s->ext.ech_done==1 && s->ech_cb != NULL) {
-                char pstr[ECH_PBUF_SIZE+1];
-                BIO *biom = BIO_new(BIO_s_mem());
-                unsigned int cbrv=0;
-                memset(pstr,0,ECH_PBUF_SIZE+1);
-                SSL_ech_print(biom,s,ECH_SELECT_ALL);
-                BIO_read(biom,pstr,ECH_PBUF_SIZE);
-                cbrv=s->ech_cb(s,pstr);
-                BIO_free(biom);
-                if (cbrv != 1) {
-                    SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-                    return 0;
-                }
-            }
-
-
         } else {
             /*
              * Fallback to trying outer, with a bit of clean-up

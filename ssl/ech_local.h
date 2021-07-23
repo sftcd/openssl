@@ -295,16 +295,19 @@ int ech_calc_accept_confirm(SSL *s, unsigned char *acbuf, const unsigned char *s
 int ech_swaperoo(SSL *s);
 
 /**
- * @brief Send grease
- * @param s is the SSL struct
- * @param pkt is the packet to send
- * @param context isn't used but preserves API pattern
- * @param x isn't used but preserves API pattern
- * @param chainidx isn't used but preserves API pattern
- * @return 1 for success, other otherwise
+ * @brief send a GREASy ECH
+ *
+ * We send some random stuff that we hope looks like a real ECH
+ *
+ * The unused parameters are just to match tls_construct_ctos_ech
+ * which calls this - that's in case we need 'em later.
+ *
+ * @param s is the SSL session
+ * @param pkt is the in-work CH packet
+ * @return 1 for success, 0 otherwise
  */
-int ech_send_grease(SSL *s, WPACKET *pkt, unsigned int context,
-                                   X509 *x, size_t chainidx);
+int ech_send_grease(SSL *s, WPACKET *pkt);
+
 /**
  * @brief Calculate AAD and then do ECH encryption
  *

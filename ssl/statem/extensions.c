@@ -21,15 +21,7 @@
 
 static int final_renegotiate(SSL *s, unsigned int context, int sent);
 static int init_server_name(SSL *s, unsigned int context);
-#ifndef OPENSSL_NO_ECH
-/* 
- * If ECH is attempted, we'll want to postpone calling this until
- * we know if decryption worked or not, so this can't be local 
- * anymore, so we moved this to ssl/statem/statem_local.h
- */
-#else
 static int final_server_name(SSL *s, unsigned int context, int sent);
-#endif
 static int final_ec_pt_formats(SSL *s, unsigned int context, int sent);
 static int init_session_ticket(SSL *s, unsigned int context);
 #ifndef OPENSSL_NO_OCSP
@@ -1090,11 +1082,7 @@ static int final_ech(SSL *s, unsigned int context, int sent)
 
 /* ECH_DOXY_END */
 
-#ifndef OPENSSL_NO_ECH
-int final_server_name(SSL *s, unsigned int context, int sent)
-#else
 static int final_server_name(SSL *s, unsigned int context, int sent)
-#endif
 {
     int ret = SSL_TLSEXT_ERR_NOACK;
     int altmp = SSL_AD_UNRECOGNIZED_NAME;
@@ -1105,28 +1093,12 @@ static int final_server_name(SSL *s, unsigned int context, int sent)
         return 0;
     }
 
-#ifndef OPENSSL_NO_ECH
-    /*
-     * Only do servername callback if there's no ECH in play
-     * or if we're done attempting to decrypt that ECH
-     * (where done could mean it worked, wasn't attempted or was
-     * GREASE)
-     */
-    if (s->ext.ech_attempted==0 || 
-        s->ext.ech_grease==ECH_IS_GREASE || 
-        s->ext.ech_success==1) 
-    {
-#endif
     if (s->ctx->ext.servername_cb != NULL)
         ret = s->ctx->ext.servername_cb(s, &altmp,
                                         s->ctx->ext.servername_arg);
     else if (s->session_ctx->ext.servername_cb != NULL)
         ret = s->session_ctx->ext.servername_cb(s, &altmp,
                                        s->session_ctx->ext.servername_arg);
-#ifndef OPENSSL_NO_ECH
-    /* this avoids a warning */
-    }
-#endif
 
     /*
      * For servers, propagate the SNI hostname from the temporary

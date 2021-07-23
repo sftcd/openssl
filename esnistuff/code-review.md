@@ -105,7 +105,7 @@ for the client once some decryption has happened well.
 
 ### ``./ssl/ech_local.h``
 
-* Turned off ``ECH_SUPERVEBOSE`` for now.
+* Turned off ``ECH_SUPERVEBOSE`` for now. (And then back on:-)
 * Removed ``config_id_len`` field and fixed ``config_id`` as one octet
 * Removed ``dns_alpns`` and ``dns_no_def_alpn`` from ``SSL_ECH`` as those 
   are better handled outside the library.
@@ -148,7 +148,12 @@ Only tracing. All good.
 * **TODO**: ``ech_decode_inner`` could do with another read through
   to see if any additional bounds checks are missing and needed.
 * Moved call to ECH callback from accept confirm (which'll change)
-  to better place in ``tls_process_server_hello``.
+  to better place in ``ech_swaperoo``.
+* Reverted changes to how ``final_server_name`` is called as 
+  those are no longer needed now we're doing the early ECH
+  decryption attempt on the server. (That's nice as it means
+  we no longer need to special case SNI for this part of
+  extension processing.)
 * **TODO**: fix the TODOs here;-)
 
 ### ``./ssl/ssl_txt.c``
@@ -157,11 +162,6 @@ Only tracing. All good.
 ### ``./ssl/statem/extensions_srvr.c``
 ### ``./ssl/statem/extensions_clnt.c``
 ### ``./ssl/statem/statem_clnt.c``
-
-* **TODO**: server hello processing has some error cases that
-  result in crashing out whilst trying to free inner CH ``SSL_SESSION``
-  structure. (``statem_clnt.c:1917`` is involved)
-
 ### ``./ssl/statem/statem_lib.c``
 ### ``./ssl/statem/statem_srvr.c``
 ### ``./ssl/ssl_local.h``

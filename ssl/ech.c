@@ -73,8 +73,6 @@
  * of these extensions should be mirrored with equivalent changes to the
  * indexes ( TLSEXT_IDX_* ) defined in ssl_local.h.
  *
- * TODO: some more tests.
- *
  * Lotsa notes, eh - that's because I'm not sure this is sane:-)
  */
 static int ech_outer_config[]={
@@ -3223,18 +3221,31 @@ err:
     return(0);
 }
 
+/**
+ * @brief set client callback to be called when ECH succeeded
+ *
+ * @param s is the SSL session
+ * @param f is the callback
+ */
 void SSL_ech_set_callback(SSL *s, SSL_ech_cb_func f)
 {
     s->ech_cb=f;
 }
 
+/**
+ * @brief set client callback to be called when ECH succeeded
+ *
+ * @param s is the SSL_CTX session
+ * @param f is the callback
+ */
 void SSL_CTX_ech_set_callback(SSL_CTX *s, SSL_ech_cb_func f)
 {
     s->ext.ech_cb=f;
 }
 
-/*
- * Swap the inner and outer.
+/**
+ * @brief Swap the inner and outer
+ *
  * The only reason to make this a function is because it's
  * likely very brittle - if we need any other fields to be
  * handled specially (e.g. because of some so far untested
@@ -3259,9 +3270,7 @@ int ech_swaperoo(SSL *s)
 
     ech_ptranscript("ech_swaperoo, b4",s);
 
-    /*
-     * Make some checks 
-     */
+    /* Make some checks */
     if (s==NULL) return(0);
     if (s->ext.inner_s==NULL) return(0);
     if (s->ext.inner_s->ext.outer_s==NULL) return(0);
@@ -3270,15 +3279,11 @@ int ech_swaperoo(SSL *s)
     if (!ossl_assert(outp==s))
         return(0);
 
-    /*
-     * Stash fields
-     */
+    /* Stash fields */
     tmp_outer=*s;
     tmp_inner=*s->ext.inner_s;
 
-    /*
-     * General field swap
-     */
+    /* General field swap */
     *s=tmp_inner;
     *inp=tmp_outer;
     s->ext.outer_s=inp;
@@ -3286,16 +3291,12 @@ int ech_swaperoo(SSL *s)
     s->ext.outer_s->ext.inner_s=s;
     s->ext.outer_s->ext.outer_s=NULL;
 
-    /*
-     * Copy read and writers
-     */
+    /* Copy readers and writers */
     s->wbio=tmp_outer.wbio;
     s->rbio=tmp_outer.rbio;
     s->bbio=tmp_outer.bbio;
 
-    /*
-     * Fields we (for now) need the same in both
-     */
+    /* Fields we (for now) need the same in both */
     s->rlayer=tmp_outer.rlayer;
     s->rlayer.s=s;
     s->init_buf=tmp_outer.init_buf;
@@ -3303,18 +3304,14 @@ int ech_swaperoo(SSL *s)
     s->init_off=tmp_outer.init_off;
     s->init_num=tmp_outer.init_num;
 
-    /*  
-     * lighttpd failure case implies I need this
-     */
+    /*  lighttpd failure case implies I need this */
     s->handshake_func=tmp_outer.handshake_func;
 
     s->ext.debug_cb=tmp_outer.ext.debug_cb;
     s->ext.debug_arg=tmp_outer.ext.debug_arg;
     s->statem=tmp_outer.statem;
 
-    /*
-     * Used by CH callback in lighttpd
-     */
+    /* Used by CH callback in lighttpd */
     s->ex_data=tmp_outer.ex_data;
 
     /*
@@ -3325,14 +3322,11 @@ int ech_swaperoo(SSL *s)
      * server hello following and can't lose that.
      * I don't think the outer client hello can be anwhere except
      * at the start of the buffer.
-     * TODO: consider HRR, early_data etc
      */
 
     curr_buflen = BIO_get_mem_data(tmp_outer.s3.handshake_buffer, &curr_buf);
     if (curr_buflen>0 && curr_buf[0]==SSL3_MT_CLIENT_HELLO) {
-        /*
-         * It's a client hello, presumably the outer
-         */
+        /* It's a client hello, presumably the outer */
         outer_chlen=1+curr_buf[1]*256*256+curr_buf[2]*256+curr_buf[3];
         if (outer_chlen>curr_buflen) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
@@ -3344,7 +3338,9 @@ int ech_swaperoo(SSL *s)
             new_buf=OPENSSL_malloc(new_buflen);
             if (tmp_outer.ext.innerch) /* asan check added */
                 memcpy(new_buf,tmp_outer.ext.innerch,tmp_outer.ext.innerch_len);
-            memcpy(new_buf+tmp_outer.ext.innerch_len,&curr_buf[outer_chlen],other_octets);
+            memcpy(new_buf+tmp_outer.ext.innerch_len,
+                    &curr_buf[outer_chlen],
+                    other_octets);
         } else {
             new_buf=tmp_outer.ext.innerch;
             new_buflen=tmp_outer.ext.innerch_len;
@@ -3371,7 +3367,7 @@ int ech_swaperoo(SSL *s)
         OPENSSL_free(new_buf);
     }
     /*
-     * Finally! Declare victory - in both contexts
+     * Finally! Declare victory - in both contexts.
      * The outer's ech_attempted will have been set already
      * but not the rest of 'em.
      */
@@ -3383,15 +3379,6 @@ int ech_swaperoo(SSL *s)
     s->ext.ech_done=1; 
     s->ext.outer_s->ext.ech_grease=ECH_NOT_GREASE; 
     s->ext.ech_grease=ECH_NOT_GREASE; 
-    /*
-     * Now do servername callback that we postponed earlier
-     * in case ECH worked out well.
-     */
-    if (final_server_name(s,0,1)!=1) {
-        s->ext.outer_s->ext.ech_success=0; 
-        s->ext.ech_success=0; 
-        return(0);
-    }
 
     /*
      * call ECH callback
@@ -3418,6 +3405,11 @@ int ech_swaperoo(SSL *s)
     return(1);
 }
 
+/**
+ * @brief trace out transcript
+ * @param msg pre-pend to trace lines
+ * @param s is the SSL sessions
+ */
 void ech_ptranscript(const char *msg, SSL *s)
 {
     size_t hdatalen=0;
@@ -3446,20 +3438,20 @@ void ech_ptranscript(const char *msg, SSL *s)
     return;
 }
 
-/*
- * Send grease
+/**
+ * @brief send a GREASy ECH
+ *
+ * We send some random stuff that we hope looks like a real ECH
+ *
+ * The unused parameters are just to match tls_construct_ctos_ech
+ * which calls this - that's in case we need 'em later.
+ *
+ * @param s is the SSL session
+ * @param pkt is the in-work CH packet
+ * @return 1 for success, 0 otherwise
  */
-int ech_send_grease(SSL *s, WPACKET *pkt, unsigned int context,
-                                   X509 *x, size_t chainidx)
+int ech_send_grease(SSL *s, WPACKET *pkt)
 {
-    /*
-     * Let's send some random stuff that looks like a real ECH
-     * TODO: validate this vs. other clients and configurations
-     */
-
-    /*
-     * Assign buffers of the right size, that we'll mostly randomly fill
-     */
     hpke_suite_t hpke_suite_in = HPKE_SUITE_DEFAULT;
     hpke_suite_t *hpke_suite_in_p = NULL;
     hpke_suite_t hpke_suite = HPKE_SUITE_DEFAULT;
@@ -3468,14 +3460,17 @@ int ech_send_grease(SSL *s, WPACKET *pkt, unsigned int context,
     size_t senderpub_len=MAX_ECH_ENC_LEN;
     unsigned char senderpub[MAX_ECH_ENC_LEN];
     /* 
-     * this is what I produce for a real ECH when including padding in
+     * 0x1d3 is what I produce for a real ECH when including padding in
      * the inner CH with the default/current client hello padding code
      * this value doesn't vary with at least minor changes to inner.sni
      * length.
-     * For now, we'll turn off jitter too as it seems like the default
-     * CH padding results in a fixed length CH for at least many options.
      */
     size_t cipher_len=0x1d3; 
+     /* 
+      * We can add some jitter to that size, but doing so might not be
+      * wise so for now, we turn off jitter as it seems like the default
+      * CH padding results in a fixed length CH for at least many options.
+      */
     size_t cipher_len_jitter=0;
     unsigned char cipher[MAX_ECH_PAYLOAD_LEN];
     if (s==NULL || s->ctx==NULL) {
@@ -3497,7 +3492,8 @@ int ech_send_grease(SSL *s, WPACKET *pkt, unsigned int context,
         }
         hpke_suite_in_p=&hpke_suite_in;
     }
-    if (hpke_good4grease(hpke_suite_in_p,hpke_suite,senderpub,&senderpub_len,cipher,cipher_len)!=1) {
+    if (hpke_good4grease(hpke_suite_in_p, hpke_suite,
+                senderpub,&senderpub_len,cipher,cipher_len)!=1) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
     }
@@ -3534,14 +3530,19 @@ int ech_send_grease(SSL *s, WPACKET *pkt, unsigned int context,
  * @param info_len is the buffer size on input, used-length on output
  * @return 1 for success, other otherwise
  */
-static int ech_make_enc_info(ECHConfig *tc,unsigned char *info,size_t *info_len) 
+static int ech_make_enc_info(
+        ECHConfig *tc,
+        unsigned char *info,
+        size_t *info_len) 
 {
     unsigned char *ip=info;
 
     if (!tc || !info || !info_len) return 0;
-    if (*info_len < (strlen(ECH_CONTEXT_STRING)+1+tc->encoding_length)) return 0;
+    if (*info_len < (strlen(ECH_CONTEXT_STRING)+1+tc->encoding_length)) 
+        return 0;
     
-    memcpy(ip,ECH_CONTEXT_STRING,strlen(ECH_CONTEXT_STRING)); ip+=strlen(ECH_CONTEXT_STRING);
+    memcpy(ip,ECH_CONTEXT_STRING,strlen(ECH_CONTEXT_STRING)); 
+    ip+=strlen(ECH_CONTEXT_STRING);
     *ip++=0x00;
     memcpy(ip,tc->encoding_start,tc->encoding_length);
     *info_len= strlen(ECH_CONTEXT_STRING)+1+tc->encoding_length;
