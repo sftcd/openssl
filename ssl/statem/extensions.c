@@ -63,7 +63,7 @@ static int final_psk(SSL *s, unsigned int context, int sent);
 #ifndef OPENSSL_NO_ECH
 static int init_ech(SSL *s, unsigned int context);
 static int final_ech(SSL *s, unsigned int context, int sent);
-#endif /* END_OPENSSL_NO_ECH */
+#endif 
 
 
 /* Structure to define a built-in extension */
@@ -366,9 +366,9 @@ static const EXTENSION_DEFINITION ext_defs[] = {
     },
 #ifndef OPENSSL_NO_ECH
     /* 
-     * For now, TLSEXT_TYPE_ech must be in this list after key_share as that input 
-     * is needed for ECH acceptance calculation 
-     * TODO: draft-11 will remove that requirement, but we've not coded that up yet.
+     * For now, TLSEXT_TYPE_ech must be in this list after key_share as 
+     * that input is needed for ECH acceptance calculation 
+     * draft-12 will remove that requirement, but we've not coded that up yet.
      */
     {
         TLSEXT_TYPE_ech,
@@ -904,12 +904,6 @@ int tls_construct_extensions(SSL *s, WPACKET *pkt, unsigned int context,
                               : thisexd->construct_ctos;
         if (construct == NULL)
             continue;
-
-        /*
-         * This is imperfect but let's get it working before we
-         * optimise the code changes (the thing we're doing is a
-         * work-in-progress still... 
-         */
         if (s->ech) s->ext.etype=thisexd->type;
         ret = construct(s, pkt, context, x, chainidx);
         if (ret == EXT_RETURN_FAIL) {
@@ -945,11 +939,6 @@ int tls_construct_extensions(SSL *s, WPACKET *pkt, unsigned int context,
         if (construct == NULL)
             continue;
 #ifndef OPENSSL_NO_ECH
-        /*
-         * This is imperfect but let's get it working before we
-         * optimise the code changes (the thing we're doing is a
-         * work-in-progress still... 
-         */
         if (s->ech) s->ext.etype=thisexd->type;
 #endif
         ret = construct(s, pkt, context, x, chainidx);
@@ -1024,7 +1013,6 @@ static int init_server_name(SSL *s, unsigned int context)
 
 /* ECH_DOXY_START */
 #ifndef OPENSSL_NO_ECH
-
 /*
  * @brief map from ext type to index in ext_defs table
  * @param type is the input type
@@ -1047,6 +1035,9 @@ int ech_map_ext_type_to_ind(unsigned int type)
 
 /**
  * @brief Just note that ech is not yet done
+ * @param s is the SSL session
+ * @param context determines when called
+ * @return 1 for good, 0 otherwise
  */
 static int init_ech(SSL *s, unsigned int context)
 {
@@ -1055,20 +1046,19 @@ static int init_ech(SSL *s, unsigned int context)
     }
     return 1;
 }
+
 /**
  * @brief check result of ech and return error or ok
+ * @param s is the SSL session
+ * @param context determines when called
+ * @param sent is unused
+ * @return 1 for good, 0 otherwise
  */
 static int final_ech(SSL *s, unsigned int context, int sent)
 {
-    /*
-     * Could be that cleaning up would be good, and/or 
-     * whatever's needed for handling tickets etc. etc.
-     */
     if (!s->server && s->ech && s->ext.inner_s==NULL && s->ext.outer_s!=NULL) {
         if (s->ext.ech_grease==ECH_IS_GREASE) {
-            /*
-             * If we greased, then it's ok that ech_success didn't get set
-             */
+            /* If we greased, then it's ok that ech_success didn't get set */
             return 1;
         } else if (s->ext.ech_success!=1) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
@@ -1741,15 +1731,13 @@ int tls_psk_do_binder(SSL *s, const EVP_MD *md, const unsigned char *msgstart,
     }
 
 #ifndef OPENSSL_NO_ECH
-    /* 
-     * hacky hack to test if overall length is the only
-     * difference causing binder check to fail
-     * TODO: put in place a real transcript API maybe?
-     */
     if (s->server && s->ext.ech_success) {
+        /* we need to fix up the overall 2-octet CH length here */
         unsigned char *rwm=(unsigned char*)msgstart;
-        rwm[2]=((binderoffset+0x33-4)>>8%256);
-        rwm[3]=((binderoffset+0x33-4)%256);
+        size_t olen=s->ext.innerch_len-4;
+        rwm[1]=(olen>>16)%256;
+        rwm[2]=(olen>>8)%256;
+        rwm[3]=olen%256;
     }
 #endif
 

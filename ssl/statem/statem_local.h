@@ -423,7 +423,6 @@ int tls13_save_handshake_digest_for_pha(SSL *s);
 int tls13_restore_handshake_digest_for_pha(SSL *s);
 
 #ifndef OPENSSL_NO_ECH
-__owur int tls_construct_client_hello_with_ech(SSL *s, WPACKET *pkt);
 int tls_parse_ctos_ech(SSL *s, PACKET *pkt, unsigned int context,
                                X509 *x, size_t chainidx);
 EXT_RETURN tls_construct_ctos_ech(SSL *s, WPACKET *pkt, unsigned int context,
@@ -433,7 +432,8 @@ EXT_RETURN tls_construct_stoc_ech(SSL *s, WPACKET *pkt,
                                           size_t chainidx);
 int tls_parse_stoc_ech(SSL *s, PACKET *pkt, unsigned int context,
                                X509 *x, size_t chainidx);
-EXT_RETURN tls_construct_ctos_ech_is_inner(SSL *s, WPACKET *pkt, unsigned int context,
+EXT_RETURN tls_construct_ctos_ech_is_inner(SSL *s, WPACKET *pkt, 
+                                   unsigned int context,
                                    X509 *x, size_t chainidx);
 int tls_parse_ctos_ech_is_inner(SSL *s, PACKET *pkt, unsigned int context,
                                X509 *x, size_t chainidx);

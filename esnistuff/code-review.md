@@ -117,10 +117,10 @@ Only tracing. All good.
 
 ### ``./ssl/ech.c``
 
-* **TODO:** When testing for >1 ECHConfig in an ECHConfigList we
+* **TODO** When testing for >1 ECHConfig in an ECHConfigList we
   need to include a case where we skip over a "middle" value that
   has an unsupported version
-* **TODO**: ``ech_decode_inner`` could do with another read through
+* **TODO** ``ech_decode_inner`` could do with another read through
   to see if any additional bounds checks are missing and needed.
 * **TODO** We currently use a truly ephemeral ECH key pair but will
   have to store that for HRR purposes when we get to that.
@@ -161,8 +161,21 @@ Only tracing. All good.
   other server-side utility functions.
 
 ### ``./ssl/ssl_txt.c``
+
+Nothing here yet but HRR will force something.
+
 ### ``./ssl/statem/statem_local.h``
+
+* Removed no longer needed ``tls_construct_client_hello_with_ech``
+  prototype. Otherwise seems ok.
+
 ### ``./ssl/statem/extensions.c``
+
+* Replaced the hacky way I'd been correcting the overall 3-octet
+  length of the CH when calculating binders by setting that
+  based on ``s->ext.innerch_len`` (that's in ``tls_do_psk_binder``)
+  which seems much more easily understood and even correct:-)
+
 ### ``./ssl/statem/extensions_srvr.c``
 ### ``./ssl/statem/extensions_clnt.c``
 ### ``./ssl/statem/statem_clnt.c``
