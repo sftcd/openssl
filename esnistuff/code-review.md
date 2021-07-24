@@ -177,6 +177,9 @@ Nothing here yet but HRR will force something.
   which seems much more easily understood and even correct:-)
 
 ### ``./ssl/statem/extensions_srvr.c``
+
+* Just some cosmetic tidying.
+
 ### ``./ssl/statem/extensions_clnt.c``
 ### ``./ssl/statem/statem_clnt.c``
 ### ``./ssl/statem/statem_lib.c``

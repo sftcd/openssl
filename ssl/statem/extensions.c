@@ -1011,7 +1011,6 @@ static int init_server_name(SSL *s, unsigned int context)
     return 1;
 }
 
-/* ECH_DOXY_START */
 #ifndef OPENSSL_NO_ECH
 /*
  * @brief map from ext type to index in ext_defs table
@@ -1069,8 +1068,6 @@ static int final_ech(SSL *s, unsigned int context, int sent)
 }
 
 #endif /* END_OPENSSL_NO_ECH */
-
-/* ECH_DOXY_END */
 
 static int final_server_name(SSL *s, unsigned int context, int sent)
 {
@@ -1732,7 +1729,7 @@ int tls_psk_do_binder(SSL *s, const EVP_MD *md, const unsigned char *msgstart,
 
 #ifndef OPENSSL_NO_ECH
     if (s->server && s->ext.ech_success) {
-        /* we need to fix up the overall 2-octet CH length here */
+        /* we need to fix up the overall 3-octet CH length here */
         unsigned char *rwm=(unsigned char*)msgstart;
         size_t olen=s->ext.innerch_len-4;
         rwm[1]=(olen>>16)%256;
