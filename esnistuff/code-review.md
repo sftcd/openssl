@@ -230,7 +230,7 @@ No change needed.
 
 ### ``./apps/ech.c``
 
-Added a new option for printing ECHConfig files:
+* Added a new option for printing ECHConfig files:
 
             $ openssl ech -pemin foo.pem 
             ...prints contents...
@@ -238,8 +238,14 @@ Added a new option for printing ECHConfig files:
 The file ``foo.pem`` can contain a private key and ECHConfig or just an
 ECHConfig.
 
-**TODO:** We will add down selection and output once we've worked more on
-support for multi-valued ECHConfigs, at which point we'll be able do to.
+In order to test multi-valued inputs, we created a new shell script
+[mergepems.sh](mergepems.sh) that allows us to merge ECHConfigs into one PEM
+file that we can load. As of now, that generates a decoding error.
+
+* Fixed an ECHConfig generation bug when ``public_name`` is empty
+
+**TODO:** (Maybe) We will add down selection and output once we've worked more
+on support for multi-valued ECHConfigs.
 
             $ openssl ech -pemin foo.pem [-select 2] 
             ...prints contents...

@@ -933,19 +933,21 @@ static ECHConfigs *ECHConfigs_from_binary(
 	            goto err;
 	        }
 	        ec->public_name_len=PACKET_remaining(&public_name_pkt);
-	        if (ec->public_name_len<=1 ||
-                    ec->public_name_len>TLSEXT_MAXLEN_host_name) {
-	            goto err;
-	        }
-	        ec->public_name=OPENSSL_malloc(ec->public_name_len+1);
-	        if (ec->public_name==NULL) {
-	            goto err;
-	        }
-	        if (PACKET_copy_bytes(&public_name_pkt,
-                        ec->public_name,ec->public_name_len)!=1) {
-                goto err;
+            if (ec->public_name_len!=0) {
+	            if (ec->public_name_len<=1 ||
+                        ec->public_name_len>TLSEXT_MAXLEN_host_name) {
+	                goto err;
+	            }
+	            ec->public_name=OPENSSL_malloc(ec->public_name_len+1);
+	            if (ec->public_name==NULL) {
+	                goto err;
+	            }
+	            if (PACKET_copy_bytes(&public_name_pkt,
+                            ec->public_name,ec->public_name_len)!=1) {
+                    goto err;
+                }
+	            ec->public_name[ec->public_name_len]='\0';
             }
-	        ec->public_name[ec->public_name_len]='\0';
 
 	        /*
 	         * Extensions: we'll just store 'em for now and maybe parse any
