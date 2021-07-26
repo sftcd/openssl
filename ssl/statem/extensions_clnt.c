@@ -14,14 +14,15 @@
 
 #ifndef OPENSSL_NO_ECH
 #include <openssl/rand.h>
+
 /*
- * Handle inner/outer CH issues - ech_same_ext will 
- * (depending on compile time options) copy the 
- * value from CH.inner to CH.outer or else 
- * processing will continue, generating a new value
- * for the CH.outer.
+ * Handle inner/outer CH cloning - ech_same_ext will 
+ * (depending on ech.c compile time options) copy the 
+ * value from CH.inner to CH.outer or else processing 
+ * will continue, generating a new value for the outer
+ * CH.
  * This macro should be called in each _ctos_ function 
- * that doesn't defintely need special handling. See
+ * that doesn't explicitly need special handling. See
  * the many examples below. 
  *
  * Note that the placement of this macro needs a bit
@@ -61,17 +62,22 @@ EXT_RETURN tls_construct_ctos_renegotiate(SSL *s, WPACKET *pkt,
     return EXT_RETURN_SENT;
 }
 
-/* ECH_DOXY_START */
 #ifndef OPENSSL_NO_ECH
 /**
- * @brief check/handle names when doing ECH
+ * @brief check which SNI to send when doing ECH
  *
- * We can have inner and outer SNI protocol values.
- * We can have the inner, outer and public_name API values.
- * If an outer SNI (!= inner SNI) is provided then that
- * overrides the public_name.
- * This function just sorts those out to ensure that
- * the s->ext.hostname is fixed up correctly.
+ * An application can set inner and/or outer SNIs.
+ * Or it might only set one and we may have a
+ * public_name from an ECHConfig.
+ * Or an application may say to not send an outer
+ * SNI at all.
+ *
+ * If the application states a preferece we'll 
+ * abide by that, despite the public_name from 
+ * an ECHConfig.
+ *
+ * This function fixes those up to ensure that
+ * the s->ext.hostname as desired.
  *
  * @param s is the SSL context
  * @return 1 for success
@@ -94,15 +100,22 @@ static int ech_server_name_fixup(SSL *s)
             pn=(char*)s->ech->cfg->recs[0].public_name;
         }
         /* These are from the application, direct */
-        in_len=(s->ech->inner_name==NULL?0:OPENSSL_strnlen(s->ech->inner_name,TLSEXT_MAXLEN_host_name));
-        on_len=(s->ech->outer_name==NULL?0:OPENSSL_strnlen(s->ech->outer_name,TLSEXT_MAXLEN_host_name));
-        /* Just in cae there's a value set already (who knows what legacy app calls may do) */
-        ehn_len=(s->ext.hostname==NULL?0:OPENSSL_strnlen(s->ext.hostname,TLSEXT_MAXLEN_host_name));
+        in_len=(s->ech->inner_name==NULL?0:
+                OPENSSL_strnlen(s->ech->inner_name,TLSEXT_MAXLEN_host_name));
+        on_len=(s->ech->outer_name==NULL?0:
+                OPENSSL_strnlen(s->ech->outer_name,TLSEXT_MAXLEN_host_name));
+        /* in cae there's a value set already (legacy app calls can do) */
+        ehn_len=(s->ext.hostname==NULL?0:
+                OPENSSL_strnlen(s->ext.hostname,TLSEXT_MAXLEN_host_name));
 
         if (s->ext.ch_depth==1) { /* Inner CH */
             if (in_len!=0) {
                 /* we prefer this over all */
-                if (ehn_len!=0) { OPENSSL_free(s->ext.hostname); s->ext.hostname=NULL; ehn_len=0; }
+                if (ehn_len!=0) { 
+                    OPENSSL_free(s->ext.hostname); 
+                    s->ext.hostname=NULL; 
+                    ehn_len=0; 
+                }
                 s->ext.hostname=OPENSSL_strdup(s->ech->inner_name);
             } 
             /* otherwise we leave the s->ext.hostname alone */
@@ -110,21 +123,31 @@ static int ech_server_name_fixup(SSL *s)
 
         if (s->ext.ch_depth==0) { /* Outer CH */
             if (on_len!=0) {
-                if (ehn_len!=0) { OPENSSL_free(s->ext.hostname); s->ext.hostname=NULL; ehn_len=0; }
+                if (ehn_len!=0) { 
+                    OPENSSL_free(s->ext.hostname); 
+                    s->ext.hostname=NULL; 
+                    ehn_len=0; 
+                }
                 s->ext.hostname=OPENSSL_strdup(s->ech->outer_name);
             } else if (pn_len!=0) {
-                if (ehn_len!=0) { OPENSSL_free(s->ext.hostname); s->ext.hostname=NULL; ehn_len=0; }
+                if (ehn_len!=0) { 
+                    OPENSSL_free(s->ext.hostname); 
+                    s->ext.hostname=NULL; 
+                    ehn_len=0; 
+                }
                 s->ext.hostname=OPENSSL_strndup(pn,pn_len);
             } else { /* don't send possibly sensitive inner in outer! */
-                if (ehn_len!=0) { OPENSSL_free(s->ext.hostname); s->ext.hostname=NULL; ehn_len=0; }
+                if (ehn_len!=0) { 
+                    OPENSSL_free(s->ext.hostname); 
+                    s->ext.hostname=NULL; 
+                    ehn_len=0; 
+                }
             }
         }
-
     } 
     return 1;
 }
 #endif /* END_OPENSSL_NO_ECH */
-/* ECH_DOXY_END */
 
 EXT_RETURN tls_construct_ctos_server_name(SSL *s, WPACKET *pkt,
                                           unsigned int context, X509 *x,
@@ -2261,7 +2284,6 @@ int tls_parse_stoc_psk(SSL *s, PACKET *pkt, unsigned int context, X509 *x,
     return 1;
 }
 
-/* ECH_DOXY_START */
 #ifndef OPENSSL_NO_ECH
 
 /**
@@ -2321,4 +2343,3 @@ EXT_RETURN tls_construct_ctos_ech_is_inner(SSL *s, WPACKET *pkt, unsigned int co
 
 #endif /* END_OPENSSL_NO_ECH */
 
-/* ECH_DOXY_END */

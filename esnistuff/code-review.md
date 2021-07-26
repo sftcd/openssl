@@ -178,11 +178,20 @@ Nothing here yet but HRR will force something.
 
 ### ``./ssl/statem/extensions_srvr.c``
 
-* Just some cosmetic tidying.
+* Cosmetic tidying.
 
 ### ``./ssl/statem/extensions_clnt.c``
+
+* Cosmetic tidying.
+
 ### ``./ssl/statem/statem_clnt.c``
+
+* Cosmetic tidying.
+
 ### ``./ssl/statem/statem_lib.c``
+
+* Cosmetic tidying.
+
 ### ``./ssl/statem/statem_srvr.c``
 ### ``./ssl/ssl_local.h``
 ### ``./ssl/ssl_lib.c``
