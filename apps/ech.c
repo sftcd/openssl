@@ -26,32 +26,27 @@
 
 #ifndef OPENSSL_NO_ECH
 
-#define ECH_MAX_ECHCONFIGS_BUFLEN ECH_MAX_RRVALUE_LEN  /**< max PEM encoded ECHConfigs we'll emit */
+/**< max PEM encoded ECHConfigs we'll emit */
+#define ECH_MAX_ECHCONFIGS_BUFLEN ECH_MAX_RRVALUE_LEN  
             
 #ifndef ECH_MAX_ECHCONFIG_LEN
 #define ECH_MAX_ECHCONFIG_LEN 512
 #endif
 
-#define ECH_KEYGEN_MODE    0 /* default mode is to generate a key pair/ECHConfig */
+#define ECH_KEYGEN_MODE    0 /* default is to generate a key pair/ECHConfig */
 #define ECH_SELPRINT_MODE  1 /* or we can print/down-select ECHConfigs */
 
 #define ECH_PEMSELECT_ALL -1 /* to select all ECHConfigs when doing sel/print */
 
 typedef enum OPTION_choice {
-    /* 
-     * standard openssl options
-     */
+    /* standard openssl options */
     OPT_ERR = -1, OPT_EOF = 0, OPT_HELP,
     OPT_PUBOUT, OPT_PRIVOUT, OPT_PEMOUT, 
-    /*
-     * ECHConfig specifics
-     */
+    /* ECHConfig specifics */
     OPT_PUBLICNAME, OPT_ECHVERSION, 
     OPT_MAXNAMELENGTH, OPT_HPKESUITE,
     OPT_ECHEXTFILE,
-    /*
-     * key print/select
-     */
+    /* key print/select */
     OPT_PEMIN, OPT_SELECT
     
 } OPTION_CHOICE;

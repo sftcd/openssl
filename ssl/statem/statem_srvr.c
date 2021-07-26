@@ -1389,14 +1389,11 @@ MSG_PROCESS_RETURN tls_process_client_hello(SSL *s, PACKET *pkt)
         if (s->ext.innerch!=NULL) {
             OPENSSL_free(s->ext.innerch);
         }
-        /*
-         * For backend, ensure type & 3 octet length included
-         * here. 
-         */
+        /* For backend, include msg type & 3 octet length here. */
         s->ext.innerch_len=pkt->remaining;
         s->ext.innerch=OPENSSL_malloc(s->ext.innerch_len+4);
         if (!s->ext.innerch) goto err;
-        s->ext.innerch[0]=0x01;
+        s->ext.innerch[0]=SSL3_MT_CLIENT_HELLO;
         s->ext.innerch[1]=((s->ext.innerch_len>>16)&0xff);
         s->ext.innerch[2]=((s->ext.innerch_len>>8)&0xff);
         s->ext.innerch[3]=(s->ext.innerch_len&0xff);
@@ -1939,11 +1936,11 @@ static int tls_early_post_process_client_hello(SSL *s)
 
 #ifndef OPENSSL_NO_ECH
     /*
-     * We'll refuse to call the session_secret_cb
-     * for now because we'll need to re-calculate the server random
-     * later to include the ECH magic (can't do it now as we don't
-     * yet have the SH encoding)
-     * TODO: This will change in draft-x where x>10.
+     * Unless ECH has worked or not been configured we  won't call 
+     * the session_secret_cb now because we'll need to calculate the 
+     * server random later to include the ECH accept value  
+     * (We can't do it now as we don't yet have the SH encoding)
+     * This may change in draft-12.
      */
     if ((s->ech && s->ext.ech_success) || !s->ech) 
 #endif
@@ -2484,7 +2481,7 @@ int tls_construct_server_hello(SSL *s, WPACKET *pkt)
 
 #ifndef OPENSSL_NO_ECH
     /*
-     * Calculate the magic server random to indicate that
+     * Calculate the ECH-accept server random to indicate that
      * we're accepting ECH, if that's the case
      */
     if (s->ext.ech_backend || (s->ech && s->ext.ech_success==1)) {
@@ -2508,16 +2505,14 @@ int tls_construct_server_hello(SSL *s, WPACKET *pkt)
         memcpy(s->s3.server_random+SSL3_RANDOM_SIZE-8,acbuf,8);
         /*
          * Now HACK HACK at the packet to swap those bits (sigh)
-         * TODO: consider adding a new WPACKET_foo API for this
-         * it ought not be here.
+         * But... this will disappear with draft-12 so we'll leave
+         * the hackiness for now.
          */
         shoffset=6+24;
         p=(unsigned char*) &pkt->buf->data[shoffset];
         memcpy(p,acbuf,8);
     } else if (s->ext.ech_grease==ECH_IS_GREASE && s->ech_cb!=NULL) {
-        /*
-         * call ECH callback
-         */
+        /* call ECH callback */
         char pstr[ECH_PBUF_SIZE+1];
         BIO *biom = BIO_new(BIO_s_mem());
         unsigned int cbrv=0;
@@ -2529,7 +2524,9 @@ int tls_construct_server_hello(SSL *s, WPACKET *pkt)
         if (cbrv != 1) {
 #ifndef OPENSSL_NO_SSL_TRACE
             OSSL_TRACE_BEGIN(TLS) {
-                BIO_printf(trc_out,"Error calling ech_cb from tls_construct_server_hello at %d\n",__LINE__);
+                BIO_printf(trc_out,
+                    "Error from ech_cb in tls_construct_server_hello at %d\n",
+                    __LINE__);
             } OSSL_TRACE_END(TLS);
 #endif
             return 0;

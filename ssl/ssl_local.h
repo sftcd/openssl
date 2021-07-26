@@ -1122,9 +1122,7 @@ struct ssl_ctx_st {
 # endif
 
 #ifndef OPENSSL_NO_ECH
-        /*
-         * Encrypted ClientHello details for SSL_CTX
-         */
+        /* Encrypted ClientHello details for SSL_CTX */
         int nechs;
         SSL_ECH *ech;
         SSL_ech_cb_func ech_cb; 
@@ -1603,25 +1601,15 @@ struct ssl_st {
         char *hostname;
 
 #ifndef OPENSSL_NO_ECH
-        /*
-         * ECH details for SSL struct
-         * inner CH encodings for the client
-         * and maybe now server too...
-         */
+        /* ECH details for SSL struct */
         unsigned char *innerch;
         size_t innerch_len;
         unsigned char *encoded_innerch;
         size_t encoded_innerch_len;
-        /*
-         * outer-exts compression related fields
-         */
+        /* outer-exts compression related fields */
         int n_outer_only;
         uint16_t outer_only[ECH_OUTERS_MAX];
-        /*
-         * Client side Placeholder for putting the extension type currently being
-         * processed - this is pretty naff but will do for now
-         */
-        unsigned int etype;
+        unsigned int etype; /* Client placeholder for ext type */
         SSL* inner_s; /* pointer to inner CH from outer */
         SSL* outer_s; /* pointer to outer CH from inner */
         int ech_attempted;
@@ -1748,9 +1736,7 @@ struct ssl_st {
      */
     int servername_done;
 #ifndef OPENSSL_NO_ECH
-    /*
-     * More ECH details for SSL struct
-     */
+    /* More ECH details for SSL struct */
     int nechs;
     SSL_ECH *ech;
     SSL_ech_cb_func ech_cb; 

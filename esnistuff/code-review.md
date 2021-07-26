@@ -193,14 +193,41 @@ Nothing here yet but HRR will force something.
 * Cosmetic tidying.
 
 ### ``./ssl/statem/statem_srvr.c``
+
+* Cosmetic tidying.
+
 ### ``./ssl/ssl_local.h``
+
+* Cosmetic tidying.
+
 ### ``./ssl/ssl_lib.c``
+
+* Cosmetic tidying.
+
 ### ``./esnistuff/haproxy.html``
+
+N/A.
+
 ### ``./esnistuff/haproxy.md``
+
+N/A.
+
 ### ``./esnistuff/README.md``
+
+N/A.
+
 ### ``./esnistuff/code-review.md``
+
+N/A.
+
 ### ``./test/buildtest_ech.c``
+
+N/A.
+
 ### ``./apps/lib/s_cb.c``
+
+No change needed.
+
 ### ``./apps/ech.c``
 
 Added a new option for printing ECHConfig files:

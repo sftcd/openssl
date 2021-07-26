@@ -884,7 +884,9 @@ SSL *SSL_new(SSL_CTX *ctx)
         s->ext.alpn_outer = OPENSSL_malloc(s->ctx->ext.alpn_outer_len);
         if (s->ext.alpn_outer == NULL)
             goto err;
-        memcpy(s->ext.alpn_outer, s->ctx->ext.alpn_outer, s->ctx->ext.alpn_outer_len);
+        memcpy(s->ext.alpn_outer, 
+                s->ctx->ext.alpn_outer, 
+                s->ctx->ext.alpn_outer_len);
         s->ext.alpn_outer_len = ctx->ext.alpn_outer_len;
     }
 
@@ -1232,7 +1234,7 @@ void SSL_free(SSL *s)
      * or b) on a client that's greasing or has an inner_s
      * allocated (i.e. in process of attempting ECH) or
      * that has no ECH config.
-     * That test was just derived via trian and error
+     * That test was just derived via trial and error
      * with various success and failure case tests.
      */
 #define INOUTFREE \
@@ -1387,17 +1389,12 @@ void SSL_free(SSL *s)
         s->nechs=0;
     }
 
-    /*
-     * Not sure why this is needed but seems to be
-     */
     if (s->s3.tmp.pkey!=NULL) {
         EVP_PKEY_free(s->s3.tmp.pkey);
         s->s3.tmp.pkey=NULL;
     }
 
-    /*
-     * Free up the inner or outer, as needed
-     */
+    /* Free up the inner or outer, as needed */
     if (s->ext.outer_s!=NULL && s->ext.outer_s!=s)  {
         /* Don't go around in circles forever */
         s->ext.outer_s->ext.inner_s=NULL;
