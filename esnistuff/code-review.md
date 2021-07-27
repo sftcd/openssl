@@ -119,7 +119,7 @@ Only tracing. All good.
 
 * **TODO** When testing for >1 ECHConfig in an ECHConfigList we
   need to include a case where we skip over a "middle" value that
-  has an unsupported version
+  has an unsupported version. (Made a start on that.)
 * **TODO** ``ech_decode_inner`` could do with another read through
   to see if any additional bounds checks are missing and needed.
 * **TODO** We currently use a truly ephemeral ECH key pair but will
@@ -240,7 +240,7 @@ ECHConfig.
 
 In order to test multi-valued inputs, we created a new shell script
 [mergepems.sh](mergepems.sh) that allows us to merge ECHConfigs into one PEM
-file that we can load. As of now, that generates a decoding error.
+file that we can load. 
 
 * Fixed an ECHConfig generation bug when ``public_name`` is empty
 

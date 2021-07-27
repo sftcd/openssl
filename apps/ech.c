@@ -375,6 +375,11 @@ int ech_main(int argc, char **argv)
     SSL_CTX *con=NULL;
     SSL *s=NULL;
     const SSL_METHOD *meth = TLS_client_method();
+    char *pname=NULL;
+    char *pheader=NULL;
+    unsigned char *pdata=NULL;
+    long plen;
+    BIO *pem_in=NULL;
 
     prog = opt_init(argc, argv, ech_options);
     while ((o = opt_next()) != OPT_EOF) {
@@ -581,11 +586,6 @@ opthelp:
             /*
              * Or it could be just an encoded ECHConfig 
              */
-            char *pname=NULL;
-            char *pheader=NULL;
-            unsigned char *pdata=NULL;
-            long plen;
-            BIO *pem_in=NULL;
 
             pem_in = BIO_new(BIO_s_file());
             if (pem_in==NULL) {
@@ -626,6 +626,8 @@ opthelp:
                     inpemfile);
                 goto end;
             }
+            BIO_free_all(pem_in);
+            OPENSSL_free(pdata);
             BIO_printf(bio_err,"Loaded ECHConfig from: %s\n",inpemfile);
         } else {
             s=SSL_new(con);
@@ -651,6 +653,8 @@ err:
 end:
     if (s) SSL_free(s);
     if (con) SSL_CTX_free(con);
+    if (pem_in) BIO_free_all(pem_in);
+    if (pdata) OPENSSL_free(pdata);
     return(0);
 }
 

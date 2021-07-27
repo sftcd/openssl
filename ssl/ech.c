@@ -690,7 +690,7 @@ static void *ech_len_field_dup(void *old, unsigned int len)
 /**
  * @brief deep copy an ECHConfig
  * @param old is the one to copy
- * @param new is the (called allocated) place to copy-to
+ * @param new is the (caller allocated) place to copy-to
  * @return 1 for sucess, other otherwise
  */
 static int ECHConfig_dup(ECHConfig *old, ECHConfig *new)
@@ -713,7 +713,7 @@ static int ECHConfig_dup(ECHConfig *old, ECHConfig *new)
 /**
  * @brief deep copy an ECHConfigs
  * @param old is the one to copy
- * @param new is the (called allocated) place to copy-to
+ * @param new is the (caller allocated) place to copy-to
  * @return 1 for sucess, other otherwise
  */
 static int ECHConfigs_dup(ECHConfigs *old, ECHConfigs *new)
@@ -1239,6 +1239,7 @@ static int local_ech_add(
     int nlens=0;
     SSL_ECH *retechs=NULL;
     SSL_ECH *newech=NULL;
+    int cfgind=0;
 
     if (eklen==0 || !ekval || !num_echs) {
         return(0);
@@ -1304,14 +1305,13 @@ static int local_ech_add(
      * Now try decode the catenated binary encodings if we can
      * (But we'll probably only get one:-)
      */
-
     outp=outbuf;
     oleftover=declen;
- 
     while (!done) {
         SSL_ECH *ts=NULL;
         int leftover=oleftover;
         ECHConfigs *er=NULL;
+        ECHConfig  *ec=NULL;
 
         nlens+=1;
         ts=OPENSSL_realloc(retechs,nlens*sizeof(SSL_ECH));
@@ -1327,6 +1327,59 @@ static int local_ech_add(
             goto err;
         }
         newech->cfg=er;
+
+        /*
+         * If needed, flatten the storage so each SSL_ECH has exactly 
+         * one ECHConfig which has exactly one public key, thus enabling 
+         * the application to sensibly downselect if they wish.
+         */
+        if (er->nrecs>1) {
+            /* need bit more space to flatten into */
+            ts=OPENSSL_realloc(retechs,(nlens+er->nrecs-1)*sizeof(SSL_ECH));
+            if (!ts) {
+                goto err;
+            }
+            retechs=ts;
+            /* move the cfgs up a level as needed */
+            for (cfgind=0;cfgind!=er->nrecs-1;cfgind++) {
+                if (retechs[nlens-1].inner_name) {
+                    retechs[nlens+cfgind].inner_name=
+                        OPENSSL_strdup(retechs[nlens-1].inner_name);
+                    if (!retechs[nlens+cfgind].inner_name) goto err;
+                } else
+                    retechs[nlens+cfgind].inner_name=NULL;
+                if (retechs[nlens-1].outer_name) {
+                    retechs[nlens+cfgind].outer_name=
+                        OPENSSL_strdup(retechs[nlens-1].outer_name);
+                    if (!retechs[nlens+cfgind].outer_name) goto err;
+                } else
+                    retechs[nlens+cfgind].outer_name=NULL;
+                retechs[nlens+cfgind].pemfname=NULL;
+                retechs[nlens+cfgind].loadtime=0;
+                retechs[nlens+cfgind].keyshare=NULL;
+                retechs[nlens+cfgind].cfg=
+                    OPENSSL_malloc(sizeof(ECHConfigs));
+                if (!retechs[nlens+cfgind].cfg) goto err;
+                retechs[nlens+cfgind].cfg->nrecs=1;
+                ec=OPENSSL_malloc(sizeof(ECHConfig));
+                if (!ec) goto err;
+                /* note - shallow copy is correct on next line */
+                *ec=retechs[nlens-1].cfg->recs[cfgind+1];
+                retechs[nlens+cfgind].cfg->recs=ec;
+                retechs[nlens+cfgind].cfg->encoded_len=
+                    retechs[nlens-1].cfg->encoded_len;
+                retechs[nlens+cfgind].cfg->encoded=
+                    OPENSSL_malloc(retechs[nlens-1].cfg->encoded_len);
+                if (!retechs[nlens+cfgind].cfg->encoded) goto err;
+                memcpy(retechs[nlens+cfgind].cfg->encoded,
+                       retechs[nlens-1].cfg->encoded,
+                        retechs[nlens-1].cfg->encoded_len);
+
+            }
+            nlens+=er->nrecs-1;
+            er->nrecs=1;
+        }
+
         if (leftover<=0) {
            done=1;
         }
@@ -1642,8 +1695,8 @@ int SSL_ech_query(SSL *s, ECH_DETS **out, int *nindices)
         /* 
          * Now "print" the ECHConfig(s) 
          */
-        if (s->ech->cfg) {
-            inst->echconfig=ECHConfigs_print(s->ech->cfg);
+        if (s->ech[i].cfg) {
+            inst->echconfig=ECHConfigs_print(s->ech[i].cfg);
         }
     }
     *nindices=indices;
@@ -1670,7 +1723,7 @@ int SSL_ECH_DETS_print(BIO* out, ECH_DETS *se, int count)
     for (i=0;i!=count;i++) {
         BIO_printf(out,
         "index: %d, SNI (inner:%s,outer:%s), ALPN (inner:%s,outer:%s)\n\t%s\n",
-               count,
+               i,
                se[i].inner_name?se[i].inner_name:"NULL",
                se[i].public_name?se[i].public_name:"NULL",
                se[i].inner_alpns?se[i].inner_alpns:"NULL",
@@ -2097,7 +2150,8 @@ int SSL_ech_get_status(SSL *s, char **inner_sni, char **outer_sni)
  * A macro to check we have __n__ allocated octets left before we
  * write to the 'alen' sized string buffer 'str' using pointer 'cp'
  */
-#define STILLLEFT(__n__) if (((size_t)(cp-str)+(size_t)(__n__))>alen) return(NULL);
+#define STILLLEFT(__n__) \
+    if (((size_t)(cp-str)+(size_t)(__n__))>alen) return(NULL);
 
 
 /**
