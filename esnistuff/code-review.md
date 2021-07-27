@@ -159,6 +159,8 @@ Only tracing. All good.
   extension processing.)
 * Tidied up ``hpke_decrypt_encch``, ``ech_earcy_decrypt`` and a few 
   other server-side utility functions.
+* Fixed a few issues with handling ECHConfigs that have 
+  more than one ECHConfig.
 
 ### ``./ssl/ssl_txt.c``
 
@@ -243,6 +245,7 @@ In order to test multi-valued inputs, we created a new shell script
 file that we can load. 
 
 * Fixed an ECHConfig generation bug when ``public_name`` is empty
+* Got the multiple ECHConfig in ECHConfigs stuff tested.
 
 **TODO:** (Maybe) We will add down selection and output once we've worked more
 on support for multi-valued ECHConfigs.

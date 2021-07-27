@@ -811,7 +811,7 @@ static ECHConfigs *ECHConfigs_from_binary(
         ec=&te[rind];
         memset(ec,0,sizeof(ECHConfig));
 
-        ec->encoding_length=olen;
+        /* set start of encoding of this ECHConfig */
         ooffset=pkt.curr-binbuf;
         ec->encoding_start=binbuf+ooffset;
 
@@ -1168,6 +1168,10 @@ static ECHConfigs *ECHConfigs_from_binary(
 	        }
 	
         } /* END of ECH_DRAFT_09_VERSION */
+
+        /* set length of encoding of this ECHConfig */
+        ooffset=pkt.curr-binbuf;
+        ec->encoding_length=(binbuf+ooffset)-ec->encoding_start;
 
         rind++;
         remaining=PACKET_remaining(&pkt);
