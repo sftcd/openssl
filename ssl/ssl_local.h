@@ -1621,7 +1621,8 @@ struct ssl_st {
         int ch_depth;
         unsigned char *alpn_outer;
         size_t alpn_outer_len;
-
+        unsigned char *ech_returned; /* binary ECHConfig value */
+        size_t ech_returned_len;
 #endif
         /* certificate status request info */
         /* Status type or -1 if no status type */

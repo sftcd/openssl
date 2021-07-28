@@ -63,16 +63,22 @@ Clean.
 
 ### ``./include/openssl/ech.h``
 
+* **TODO**: ``ech_pbuf`` and ``ech_ptranscript`` are sometimes
+  inside, and sometimes outside ``#ifndef OPENSSL_NO_SSL_TRACE``
+  protection. Fix that by moving them all inside. Better to do
+  that after draft-12 interop success, so one for later.
+
 * Explained ``HPKE_MAXSIZE`` usage
 * Found some better OpenSSL constants where I'd #define'd new ones.
 * Moved strings used in ECH key derivation to ``ssl/ech_local.h``
 * Re-tested the ``-svcb`` command line with ascii-hex and base64
 * Re-tested the ``-echconfigs`` input formats (ascii-hex, b64)
 * Fleshed out ``SSL_ech_query`` and associated.
-* **TODO**: ``ech_pbuf`` and ``ech_ptranscript`` are sometimes
-  inside, and sometimes outside ``#ifndef OPENSSL_NO_SSL_TRACE``
-  protection. Fix that by moving them all inside. Better to do
-  that after draft-12 interop success, so one for later.
+* Added new ``SSL_ech_get_status`` codes to indicate that an
+  ECH was returned (after GREASE or a failed attempt).
+* Added new external API ``SSL_ech_get_returned`` to allow
+  application access to that ECHConfig, e.g. so it could
+  be used in a subsequent attempt.
 
 Otherwise seems ok. (Might still see some changes when I do
 more on multi-valued ECHConfigs.)
@@ -110,6 +116,7 @@ for the client once some decryption has happened well.
 * Removed ``dns_alpns`` and ``dns_no_def_alpn`` from ``SSL_ECH`` as those 
   are better handled outside the library.
 * Removed some no longer needed prototypes and tidied up others.
+* Added ``s->ext.ech_returned`` and length.
 
 ### ``./ssl/s3_enc.c``
 
@@ -257,7 +264,7 @@ No change needed.
 
 ### ``./apps/s_client.c``
 
-* Added a downs selection ``s_client`` command line input 
+* Added a down selection ``s_client`` command line input 
   (``-select``) as per ``-pemin`` above.
 
 ### ``./apps/s_server.c``

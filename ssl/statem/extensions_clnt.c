@@ -2308,13 +2308,37 @@ EXT_RETURN tls_construct_ctos_ech(SSL *s, WPACKET *pkt, unsigned int context,
 }
 
 /**
- * @brief if the server thinks we GREASE'd then we should get the right ECHConfig back
+ * @brief if the server thinks we GREASE'd then we should get an ECHConfig back
  *
- * TODO: store the returned ECHConfig 
  */
 int tls_parse_stoc_ech(SSL *s, PACKET *pkt, unsigned int context,
                                X509 *x, size_t chainidx)
 {
+    unsigned int rlen=0;
+    const unsigned char *rval=NULL;
+    unsigned char *srval=NULL;
+
+    if (!PACKET_get_net_2(pkt, &rlen)) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_LENGTH_MISMATCH);
+        return 0;
+    }
+    if (!PACKET_get_bytes(pkt, &rval, rlen)) {
+        SSLfatal(s, SSL_AD_ILLEGAL_PARAMETER, SSL_R_LENGTH_MISMATCH);
+        return 0;
+    }
+
+    if (s->ext.ech_returned) OPENSSL_free(s->ext.ech_returned);
+    s->ext.ech_returned=NULL;
+
+    srval=OPENSSL_malloc(rlen);
+    if (!srval) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+        return 0;
+    }
+    memcpy(srval,rval,rlen);
+    s->ext.ech_returned=srval;
+    s->ext.ech_returned_len=rlen;
+
     return 1;
 }
 

@@ -2066,6 +2066,10 @@ int SSL_ech_print(BIO* out, SSL *s, int selector)
     BIO_printf(out,"ech_attempted=%d\n",s->ext.ech_attempted);
     BIO_printf(out,"ech_done=%d\n",s->ext.ech_done);
     BIO_printf(out,"ech_grease=%d\n",s->ext.ech_grease);
+#ifdef ECH_SUPERVERBOSE
+    BIO_printf(out,"ech_returned=%p\n",s->ext.ech_returned);
+#endif
+    BIO_printf(out,"ech_returned_len=%ld\n",(long)s->ext.ech_returned_len);
     BIO_printf(out,"ech_success=%d\n",s->ext.ech_success);
     if (s->ech) {
         int i=0;
@@ -2086,6 +2090,17 @@ int SSL_ech_print(BIO* out, SSL *s, int selector)
     } else {
         BIO_printf(out,"cfg=NONE\n");
     }
+    if (s->ext.ech_returned) {
+        size_t i=0;
+        BIO_printf(out,"ret=");
+        for (i=0;i!=s->ext.ech_returned_len;i++) {
+            if ((i!=0) && (i%16==0))
+                BIO_printf(out,"\n    ");
+            BIO_printf(out,"%02x:",(unsigned)(s->ext.ech_returned[i]));
+        }
+        BIO_printf(out,"\n");
+    }
+
     BIO_printf(out,"*** SSL_ech_print ***\n");
     return 1;
 }
@@ -2113,6 +2128,8 @@ int SSL_ech_get_status(SSL *s, char **inner_sni, char **outer_sni)
     *inner_sni=NULL;
 
     if (s->ext.ech_grease==ECH_IS_GREASE) {
+        if (s->ext.ech_returned) 
+            return SSL_ECH_STATUS_GREASE_ECH;
         return SSL_ECH_STATUS_GREASE; 
     }
     if (s->ext.ech_backend) {
@@ -2150,6 +2167,8 @@ int SSL_ech_get_status(SSL *s, char **inner_sni, char **outer_sni)
                 return SSL_ECH_STATUS_BAD_NAME;
             }
         } else {
+            if (s->ext.ech_returned) 
+                return SSL_ECH_STATUS_FAILED_ECH;
             return SSL_ECH_STATUS_FAILED;
         }
     } else if (s->ext.ech_grease==ECH_IS_GREASE) {
@@ -4759,6 +4778,31 @@ int SSL_ech_set_outer_alpn_protos(SSL *ssl, const unsigned char *protos,
     }
     ssl->ext.alpn_outer_len = protos_len;
     return 0;
+}
+
+/**
+ * @brief provide access to a returned ECH value
+ *
+ * If we GREASEd, or tried and failed, and got an ECH in return
+ * the application can access the ECHConfig returned via this
+ * API. 
+ *
+ * @param s is the SSL session
+ * @param eclen is a pointer to the length of the ECHConfig (zero if none)
+ * @param ec is a pointer to the ECHConfig
+ * @return 1 for success, other othewise
+ */
+int SSL_ech_get_returned(SSL *s, size_t *eclen, const unsigned char **ec)
+{
+    if (!s || !eclen || !ec) return 0;
+    if (s->ext.ech_returned) {
+        *eclen=s->ext.ech_returned_len;
+        *ec=s->ext.ech_returned;
+    } else {
+        *eclen=0;
+        *ec=NULL;
+    }
+    return 1;
 }
 
 #endif

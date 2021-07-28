@@ -391,15 +391,17 @@ int SSL_ech_print(BIO* out, SSL *con, int selector);
  * Possible return codes from SSL_get_ech_status
  */
 
+#define SSL_ECH_STATUS_GREASE_ECH 3 /**< We GREASEd and got an ECH in return */
 #define SSL_ECH_STATUS_GREASE     2 /**< ECH GREASE happened  */
 #define SSL_ECH_STATUS_SUCCESS    1 /**< Success */
-#define SSL_ECH_STATUS_FAILED     0 /**< Some internal error */
+#define SSL_ECH_STATUS_FAILED     0 /**< Some internal or protocol error */
 #define SSL_ECH_STATUS_BAD_CALL   -100 /**< Some in/out arguments were NULL */
 #define SSL_ECH_STATUS_NOT_TRIED  -101 /**< ECH wasn't attempted  */
 #define SSL_ECH_STATUS_BAD_NAME   -102 /**< ECH ok but server cert mis-match */
 #define SSL_ECH_STATUS_TOOMANY    -103 /**< ECH ok can't figure out which! */
 #define SSL_ECH_STATUS_NOT_CONFIGURED       -104 /**< ECH wasn't configured */
 #define SSL_ECH_STATUS_BACKEND    -105 /**< ECH backend: saw an ech_is_inner */
+#define SSL_ECH_STATUS_FAILED_ECH -106 /**< We tried, failed and got an ECH */
 
 /**
  * @brief API to allow calling code know ECH outcome, post-handshake
@@ -478,6 +480,20 @@ void SSL_ech_set_callback(SSL *s, SSL_ech_cb_func f);
  * so the application can find out what happened.
  */ 
 void SSL_CTX_ech_set_callback(SSL_CTX *s, SSL_ech_cb_func f);
+
+/**
+ * @brief provide access to a returned ECH value
+ *
+ * If we GREASEd, or tried and failed, and got an ECH in return
+ * the application can access the ECHConfig returned via this
+ * API. 
+ *
+ * @param s is the SSL session
+ * @param eclen is a pointer to the length of the ECHConfig (zero if none)
+ * @param ec is a pointer to the ECHConfig
+ * @return 1 for success, other othewise
+ */
+int SSL_ech_get_returned(SSL *s, size_t *eclen, const unsigned char **ec);
 
 #endif
 #endif

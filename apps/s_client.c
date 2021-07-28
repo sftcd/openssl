@@ -3619,6 +3619,9 @@ static void print_stuff(BIO *bio, SSL *s, int full)
         {
             char *inner=NULL;
             char *outer=NULL;
+            size_t eclen=0;
+            const unsigned char *ec=NULL;
+
             switch (SSL_ech_get_status(s,&inner,&outer)) {
             case SSL_ECH_STATUS_NOT_CONFIGURED:
                 BIO_printf(bio,"ECH: not configured\n");
@@ -3635,11 +3638,41 @@ static void print_stuff(BIO *bio, SSL *s, int full)
             case SSL_ECH_STATUS_FAILED: 
                 BIO_printf(bio,"ECH: tried but failed\n");
                 break;
+            case SSL_ECH_STATUS_FAILED_ECH: 
+                BIO_printf(bio,"ECH: tried, failed and got ECH in return\n");
+                if (!SSL_ech_get_returned(s,&eclen,&ec)) {
+                    BIO_printf(bio,"Failure getting ECH returned\n");
+                } else {
+                    size_t i=0;
+                    BIO_printf(bio,"    ");
+                    for (i=0;i!=eclen;i++) {
+                        if ((i!=0) && (i%16==0))
+                            BIO_printf(bio,"\n    ");
+                        BIO_printf(bio,"%02x:",(unsigned)(ec[i]));
+                    }
+                    BIO_printf(bio,"\n");
+                }
+                break;
             case SSL_ECH_STATUS_BAD_NAME: 
                 BIO_printf(bio,"ECH: worked but bad name\n");
                 break;
             case SSL_ECH_STATUS_GREASE: 
                 BIO_printf(bio,"ECH: only greasing\n");
+                break;
+            case SSL_ECH_STATUS_GREASE_ECH: 
+                BIO_printf(bio,"ECH: only greasing, and got ECH in return:\n");
+                if (!SSL_ech_get_returned(s,&eclen,&ec)) {
+                    BIO_printf(bio,"Failure getting ECH returned\n");
+                } else {
+                    size_t i=0;
+                    BIO_printf(bio,"    ");
+                    for (i=0;i!=eclen;i++) {
+                        if ((i!=0) && (i%16==0))
+                            BIO_printf(bio,"\n    ");
+                        BIO_printf(bio,"%02x:",(unsigned)(ec[i]));
+                    }
+                    BIO_printf(bio,"\n");
+                }
                 break;
             case SSL_ECH_STATUS_SUCCESS:
                 BIO_printf(bio,"ECH: success: outer SNI: '%s', inner SNI: '%s'\n",
@@ -3652,6 +3685,7 @@ static void print_stuff(BIO *bio, SSL *s, int full)
             }
 
             SSL_ech_print(bio,s,ECH_SELECT_ALL);
+
         }
 #endif
 

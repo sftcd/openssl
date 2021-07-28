@@ -12,7 +12,7 @@ SSL_CTX_ech_readpemdir, SSL_ech_print,
 SSL_ech_get_status, SSL_ech_set_grease_suite,
 SSL_CTX_ech_set_callback, SSL_ech_set_callback,
 SSL_ECH_DETS_free,SSL_CTX_ech_raw_decrypt,
-SSL_CTX_ech_server_enable_buffer
+SSL_CTX_ech_server_enable_buffer,SSL_ech_get_returned
 - Encrypted Client Helllo (ECH) support - client, server and commmon functions 
 
 =head1 SYNOPSIS
@@ -42,6 +42,7 @@ SSL_CTX_ech_server_enable_buffer
  void SSL_ECH_DETS_free(ECH_DETS *in, int size);
  int SSL_CTX_ech_raw_decrypt(SSL_CTX *ctx, unsigned char *outer_ch, size_t outer_len, unsigned char *inner_ch, size_t *inner_len, char **inner_sni, char **outer_sni, int *decrypted_ok);
  int SSL_CTX_ech_server_enable_buffer( SSL_CTX *s, const unsigned char *buf, const size_t blen);
+ int SSL_ech_get_returned(SSL *s, size_t *eclen, const unsigned char **ec)
 
 =head1 DESCRIPTION
 
