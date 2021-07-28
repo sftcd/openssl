@@ -131,6 +131,7 @@ B<openssl> B<s_client>
 [B<-echconfigs>]
 [B<-sni-outer>]
 [B<-svcb>]
+[B<-select>]
 
 
 =head1 DESCRIPTION
@@ -823,6 +824,10 @@ TBD
 TBD
 
 =item B<-svcb>
+
+TBD
+
+=item B<-select>
 
 TBD
 

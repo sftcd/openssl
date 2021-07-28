@@ -117,13 +117,14 @@ Only tracing. All good.
 
 ### ``./ssl/ech.c``
 
-* **TODO** When testing for >1 ECHConfig in an ECHConfigList we
-  need to include a case where we skip over a "middle" value that
-  has an unsupported version. (Made a start on that.)
 * **TODO** ``ech_decode_inner`` could do with another read through
   to see if any additional bounds checks are missing and needed.
 * **TODO** We currently use a truly ephemeral ECH key pair but will
   have to store that for HRR purposes when we get to that.
+
+* **TODO** When testing for >1 ECHConfig in ECHConfigs we
+  need to include a case where we skip over a "middle" value that
+  has an unsupported version. 
 
 * Removed ``dns_alpns`` and ``dns_no_def_alpn`` from ``SSL_ECH`` as those 
   are better handled outside the library.
@@ -161,6 +162,9 @@ Only tracing. All good.
   other server-side utility functions.
 * Fixed a few issues with handling ECHConfigs that have 
   more than one ECHConfig.
+* Found and fixed (return error) an error state where client 
+  could send both GREASE and real ECH if application asked 
+  for both. (Server handled it correctly.)
 
 ### ``./ssl/ssl_txt.c``
 
@@ -237,25 +241,25 @@ No change needed.
             $ openssl ech -pemin foo.pem 
             ...prints contents...
 
-The file ``foo.pem`` can contain a private key and ECHConfig or just an
-ECHConfig.
-
-In order to test multi-valued inputs, we created a new shell script
-[mergepems.sh](mergepems.sh) that allows us to merge ECHConfigs into one PEM
-file that we can load. 
-
+  The file ``foo.pem`` can contain a private key and ECHConfig or just an
+  ECHConfig.
+  In order to test multi-valued inputs, we created a new shell script
+  [mergepems.sh](mergepems.sh) that allows us to merge ECHConfigs into one PEM
+  file that we can load. 
 * Fixed an ECHConfig generation bug when ``public_name`` is empty
 * Got the multiple ECHConfig in ECHConfigs stuff tested.
-
-**TODO:** (Maybe) We will add down selection and output once we've worked more
-on support for multi-valued ECHConfigs.
+* Added down selection to pick one for printing with ``-pemin`` when dealing
+  with multi-valued ECHConfigs. (Use the script above to marge multiple PEM
+  files.)
 
             $ openssl ech -pemin foo.pem [-select 2] 
             ...prints contents...
-            $ openssl ech -pemin foo.pem -select 2 -pemout bar.pem
-            ...write 2nd ECHConfig from foo.pem to bar.pem...
 
 ### ``./apps/s_client.c``
+
+* Added a downs selection ``s_client`` command line input 
+  (``-select``) as per ``-pemin`` above.
+
 ### ``./apps/s_server.c``
 
 ## Pass-1

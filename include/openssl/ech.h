@@ -24,12 +24,12 @@
  * Default for HPKE_MAXSIZE is in hpke.h (40KB) but can be overridden so 
  * let's do that, since we don't need such large buffers. (HPKE uses
  * a bunch of such stack buffers.)
- * If this were 0x280 it'd not be big enough for larger curves
+ * If this were 0x300 it'd not be big enough for larger curves
  * when doing session resumption. If some server's tickets are
  * much bigger then we might need to revisit using stack buffers
  * for this.
  */
-#define HPKE_MAXSIZE 0x300
+#define HPKE_MAXSIZE 1024
 
 #define ECH_MAX_RRVALUE_LEN 2000 /**< Max RR value size, as given to API */
 #define ECH_MAX_ECHCONFIGEXT_LEN 100 /**< Max for an ECHConfig extension */

@@ -1165,6 +1165,15 @@ int tls_construct_client_hello(SSL *s, WPACKET *pkt)
     if (s->ech==NULL) return tls_construct_client_hello_aux(s, pkt);
 
     /* 
+     * A sanity check - make sure the application didn't try GREASE 
+     * as well - I had a bug where that happened.
+     */
+    if (s->ext.ech_grease==ECH_IS_GREASE) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+        return 0;
+    }
+
+    /* 
      * Session ID - this is handled "oddly" by not being encoded into
      * inner CH (an optimisation) but being required to be the same
      * for both inner and outer (so that ServerHello has correct

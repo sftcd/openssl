@@ -64,6 +64,7 @@ CAPATH="/etc/ssl/certs/"
 CAFILE="./cadir/oe.csr"
 REALCERT="no" # default to fake CA for localhost
 CIPHERSUITES="" # default to internal default
+SELECTED=""
 
 function whenisitagain()
 {
@@ -77,6 +78,7 @@ function usage()
 {
     echo "$0 [-cdfgGhHPpsrnlvL] - try out encrypted client hello (ECH) via openssl s_client"
 	echo "  -c [name] specifices a name that I'll send as an outer SNI (NONE is special)"
+    echo "  -C [number] selects the n-th ECHConfig from input RR/PEM file (0 based)"
     echo "  -d means run s_client in verbose mode"
     echo "  -f [pathname] specifies the file/pathname to request (default: '/')"
     echo "  -g means GREASE (only applied with -n)"
@@ -100,7 +102,7 @@ function usage()
 }
 
 # options may be followed by one colon to indicate they have a required argument
-if ! options=$(/usr/bin/getopt -s bash -o c:df:gGhH:jnNp:P:rs:S:v -l clear_sni:,debug,filepath:,grease,greasesuite,help,hidden:,just,noech,noalpn,port:,echpub:,realcert,server:,session:,valgrind -- "$@")
+if ! options=$(/usr/bin/getopt -s bash -o C:c:df:gGhH:jnNp:P:rs:S:v -l choose:,clear_sni:,debug,filepath:,grease,greasesuite,help,hidden:,just,noech,noalpn,port:,echpub:,realcert,server:,session:,valgrind -- "$@")
 then
     # something went wrong, getopt will put out an error message for us
     exit 1
@@ -111,6 +113,7 @@ while [ $# -gt 0 ]
 do
     case "$1" in
         -c|--clear_sni) SUPPLIEDPNO=$2; shift;;
+        -C|--choose) SELECTED=$2; shift;;
         -d|--debug) DEBUG="yes" ;;
         -f|--filepath) HTTPPATH=$2; shift;;
 		-g|--grease) GREASE="yes";;
@@ -196,6 +199,12 @@ then
 	server=$SUPPLIEDSERVER
 fi
 
+selstr=""
+if [[ "$SELECTED" != "" ]]
+then
+    selstr=" -select $SELECTED "
+fi
+
 # set ciphersuites
 ciphers=$CIPHERSUITES
 
@@ -206,14 +215,14 @@ then
 		if [ ! -f $SUPPLIEDECH ]
 		then
 			echo "Assuming supplied ECH is RR value"
-			ECH=" -svcb $SUPPLIEDECH "
+			ECH=" $selstr -svcb $SUPPLIEDECH "
         else
 		    # check if file suffix is .pem (base64 encoding) 
 		    # and react accordingly, don't take any other file extensions
 		    ssfname=`basename $SUPPLIEDECH`
 		    if [ `basename "$ssfname" .pem` != "$ssfname" ]
 		    then
-			    ECH=" -echconfigs `tail -2 $SUPPLIEDECH | head -1`" 
+			    ECH=" $selstr -echconfigs `tail -2 $SUPPLIEDECH | head -1`" 
 		    else
 			    echo "Not sure of file type of $SUPPLIEDECH - try make a PEM file to help me"
 			    exit 8
@@ -227,7 +236,7 @@ then
         then
             qname="_$PORT._https.$hidden"
         fi
-        ECH=" -svcb `dig +short -t TYPE65 $qname | tail -1 | cut -f 3- -d' ' | sed -e 's/ //g' | sed -e 'N;s/\n//'`"
+        ECH=" $selstr -svcb `dig +short -t TYPE65 $qname | tail -1 | cut -f 3- -d' ' | sed -e 's/ //g' | sed -e 'N;s/\n//'`"
         if [[ "$ECH" == "" ]]
         then
             # TODO: do the parsing biz

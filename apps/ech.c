@@ -36,7 +36,7 @@
 #define ECH_KEYGEN_MODE    0 /* default is to generate a key pair/ECHConfig */
 #define ECH_SELPRINT_MODE  1 /* or we can print/down-select ECHConfigs */
 
-#define ECH_PEMSELECT_ALL -1 /* to select all ECHConfigs when doing sel/print */
+#define ECH_SELECT_ALL -1   /* to select all ECHConfigs when doing sel/print */
 
 typedef enum OPTION_choice {
     /* standard openssl options */
@@ -358,7 +358,7 @@ int ech_main(int argc, char **argv)
     char *keyfile = NULL;
     char *pemfile=NULL;
     char *inpemfile=NULL;
-    int pemselect=ECH_PEMSELECT_ALL;
+    int pemselect=ECH_SELECT_ALL;
     char *public_name=NULL;
     char *suitestr=NULL;
     char *extfile=NULL;
@@ -572,10 +572,6 @@ opthelp:
             goto end;
         }
        
-        if (pemselect!=ECH_PEMSELECT_ALL) {
-            BIO_printf(bio_err,"selecting config %d\n",pemselect);
-        }
-
         con = SSL_CTX_new_ex(app_get0_libctx(), app_get0_propq(), meth);
         if (!con) goto end;
         /*
@@ -633,6 +629,15 @@ opthelp:
             s=SSL_new(con);
             if (!s) goto end;
             BIO_printf(bio_err,"Loaded Key+ECHConfig from: %s\n",inpemfile);
+        }
+
+        if (pemselect!=ECH_SELECT_ALL) {
+            rv=SSL_ech_reduce(s,pemselect);
+            if (rv!=1) {
+                BIO_printf(bio_err,"Error selecting config %d\n",pemselect);
+                goto end;
+            }
+            BIO_printf(bio_err,"selecting config %d\n",pemselect);
         }
 
         rv=SSL_ech_query(s, &ed, &nechs);

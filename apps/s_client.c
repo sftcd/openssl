@@ -86,6 +86,7 @@ static char *ech_grease_suite = NULL;
 static int nechs=0;
 static char *ech_encoded_configs = NULL;
 static char *ech_svcb_rr = NULL;
+static int ech_select=ECH_SELECT_ALL;
 #ifndef OPENSSL_NO_SSL_TRACE
 static size_t ech_trace_cb(const char *buf, size_t cnt,
                  int category, int cmd, void *vdata);
@@ -498,6 +499,7 @@ typedef enum OPTION_choice {
     OPT_SNIOUTER, OPT_ALPN_OUTER,
     OPT_ECHCONFIGS, OPT_SVCB,
     OPT_ECH_GREASE, OPT_ECH_GREASE_SUITE,
+    OPT_ECH_SELECT,
 #endif
     OPT_SCTP_LABEL_BUG,
     OPT_R_ENUM, OPT_PROV_ENUM
@@ -687,11 +689,15 @@ const OPTIONS s_client_options[] = {
     {"sni-outer", OPT_SNIOUTER, 's',
      "The name to put in the outer CH when overriding the server's choice, or \"NONE\""},
     {"alpn-outer", OPT_ALPN_OUTER, 's',
-     "Specify outer ALPN value, when using ECH (comma-separated list, or \"NONE\"))"},
+     "Specify outer ALPN value, when using ECH (comma-separated list, or " \
+         "\"NONE\"))"},
     {"echconfigs", OPT_ECHCONFIGS, 's',
      "Set ECHConfigs, value is b64 or ASCII-HEX encoded ECHConfigs"},
     {"svcb", OPT_SVCB, 's',
-     "Set ECHConfigs and possibly ALPN via an SVCB RData, b64 or ASCII-HEX encoded"},
+     "Set ECHConfigs and possibly ALPN via an SVCB RData, b64 or ASCII-HEX " \
+         "encoded"},
+    {"select", OPT_ECH_SELECT, 'n',
+      "Select one ECHConfig from many provided via RR or PEM file"},
     {"ech_grease",OPT_ECH_GREASE,'-',
      "Send GREASE values when not really using ECH"},
     {"ech_grease_suite",OPT_ECH_GREASE_SUITE,'s',
@@ -1525,6 +1531,9 @@ int s_client_main(int argc, char **argv)
         case OPT_SVCB:
             ech_svcb_rr = opt_arg();
             break;
+        case OPT_ECH_SELECT:
+            ech_select=atoi(opt_arg());
+            break;
         case OPT_ECH_GREASE:
             ech_grease=1;
             break;
@@ -2204,20 +2213,23 @@ int s_client_main(int argc, char **argv)
 
 #ifndef OPENSSL_NO_ECH
     if (ech_encoded_configs!=NULL) {
-        int rv=SSL_ech_add(con,ECH_FMT_GUESS,strlen(ech_encoded_configs),ech_encoded_configs,&nechs);
+        int rv=SSL_ech_add(con,ECH_FMT_GUESS,strlen(ech_encoded_configs),
+                ech_encoded_configs,&nechs);
         if (rv != 1) {
             BIO_printf(bio_err, "%s: ECHConfig decode failed.\n", prog);
             goto opthelp;
         } 
         if (nechs ==0 ) {
-            BIO_printf(bio_err, "%s: ECHConfig decode provided no keys.\n", prog);
+            BIO_printf(bio_err, "%s: ECHConfig decode provided no keys.\n", 
+                    prog);
             goto opthelp;
         } 
     }
 
     if (ech_svcb_rr!=NULL) {
         int lnechs=0;
-        int rv=SSL_svcb_add(con,ECH_FMT_GUESS,strlen(ech_svcb_rr),ech_svcb_rr,&lnechs);
+        int rv=SSL_svcb_add(con,ECH_FMT_GUESS,strlen(ech_svcb_rr),
+                ech_svcb_rr,&lnechs);
         if (rv != 1) {
             BIO_printf(bio_err, "%s: SVCB decode failed.\n", prog);
             goto opthelp;
@@ -2234,7 +2246,8 @@ int s_client_main(int argc, char **argv)
     if (ech_svcb_rr != NULL && sni_outer_name!=NULL) {
         const char *outer_to_use=NULL;
         int rv=0;
-        if (sni_outer_name!=NULL && strncmp(sni_outer_name,ECH_NAME_NONE,strlen(ECH_NAME_NONE))) {
+        if (sni_outer_name!=NULL && 
+                strncmp(sni_outer_name,ECH_NAME_NONE,strlen(ECH_NAME_NONE))) {
             outer_to_use=sni_outer_name;
         }
         rv=SSL_ech_set_outer_server_name(con, outer_to_use);
@@ -2247,12 +2260,11 @@ int s_client_main(int argc, char **argv)
 
     if (ech_svcb_rr != NULL && ech_inner_name!=NULL) {
         const char *inner_to_use=NULL;
-        if (ech_inner_name!=NULL && strncmp(ech_inner_name,ECH_NAME_NONE,strlen(ECH_NAME_NONE))) {
+        if (ech_inner_name!=NULL && 
+                strncmp(ech_inner_name,ECH_NAME_NONE,strlen(ECH_NAME_NONE))) {
             inner_to_use=sni_outer_name;
         }
-        /*
-         * Set any non-NULL name to be verified
-         */
+        /* Set any non-NULL name to be verified */
         if (inner_to_use) {
             if (!X509_VERIFY_PARAM_set1_host(vpm,ech_inner_name,strlen(ech_inner_name))
                 || !SSL_CTX_set1_param(ctx, vpm)) {
@@ -2262,6 +2274,31 @@ int s_client_main(int argc, char **argv)
             }
         }
     }
+
+    if (ech_select!=ECH_SELECT_ALL) {
+        int rv=0;
+        ECH_DETS *ed=NULL;
+        /* down select */
+        if (ech_select<0 || ech_select >= nechs) {
+            BIO_printf(bio_err, "%s: downselect tp ECH (%d) failed " \
+                    "out of range (0,%d).\n", 
+                    prog, ech_select, nechs);
+            ERR_print_errors(bio_err);
+            goto end;
+        }
+        rv=SSL_ech_reduce(con,ech_select);
+        if (rv!=1) {
+            BIO_printf(bio_err,"Error down-selecting to %d\n",ech_select);
+            goto end;
+        }
+        rv=SSL_ech_query(con, &ed, &nechs);
+        if (rv!=1) goto end; 
+        if (!ed) goto end;
+        rv=SSL_ECH_DETS_print(bio_err, ed, nechs);
+        if (rv!=1) goto end; 
+        SSL_ECH_DETS_free(ed, nechs);
+    }
+
 #endif
 
     if (dane_tlsa_domain != NULL) {

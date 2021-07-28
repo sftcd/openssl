@@ -544,6 +544,7 @@ void ECHConfig_free(ECHConfig *tbf)
         if (tbf->exts[i]) OPENSSL_free(tbf->exts[i]);
     }
     if (tbf->exts) OPENSSL_free(tbf->exts);
+    if (tbf->encoding_start) OPENSSL_free(tbf->encoding_start);
     memset(tbf,0,sizeof(ECHConfig));
     return;
 }
@@ -707,6 +708,7 @@ static int ECHConfig_dup(ECHConfig *old, ECHConfig *new)
         memcpy(new->ciphersuites,old->ciphersuites,
                 old->nsuites*sizeof(ech_ciphersuite_t));
     }
+    ECHFDUP(encoding_start,encoding_length);
     return 1;
 }
 
@@ -803,6 +805,7 @@ static ECHConfigs *ECHConfigs_from_binary(
     while (remaining>not_to_consume) {
         ECHConfig *ec=NULL;
         unsigned int ech_content_length;
+        unsigned char *tmpecstart=NULL;
 
         te=OPENSSL_realloc(te,(rind+1)*sizeof(ECHConfig));
         if (!te) {
@@ -1172,6 +1175,11 @@ static ECHConfigs *ECHConfigs_from_binary(
         /* set length of encoding of this ECHConfig */
         ooffset=pkt.curr-binbuf;
         ec->encoding_length=(binbuf+ooffset)-ec->encoding_start;
+        /* copy encoding_start as it might get free'd if a reduce happens */
+        tmpecstart=OPENSSL_malloc(ec->encoding_length);
+        if (!tmpecstart) goto err;
+        memcpy(tmpecstart,ec->encoding_start,ec->encoding_length);
+        ec->encoding_start=tmpecstart;
 
         rind++;
         remaining=PACKET_remaining(&pkt);
