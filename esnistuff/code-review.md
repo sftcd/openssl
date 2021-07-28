@@ -266,6 +266,7 @@ No change needed.
 
 * Added a down selection ``s_client`` command line input 
   (``-select``) as per ``-pemin`` above.
+* Made other costmetic changes.
 
 ### ``./apps/s_server.c``
 
