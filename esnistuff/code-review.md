@@ -79,6 +79,8 @@ Clean.
 * Added new external API ``SSL_ech_get_returned`` to allow
   application access to that ECHConfig, e.g. so it could
   be used in a subsequent attempt.
+* Removed ``SSL_ECH_STATUS_TOOMANY`` as it wasn't really used.
+  (Was an ESNI hangover really.)
 
 Otherwise seems ok. (Might still see some changes when I do
 more on multi-valued ECHConfigs.)
@@ -266,9 +268,11 @@ No change needed.
 
 * Added a down selection ``s_client`` command line input 
   (``-select``) as per ``-pemin`` above.
-* Made other costmetic changes.
+* Made other cosmetic changes.
 
 ### ``./apps/s_server.c``
+
+* Cosmetic clean-ups.
 
 ## Pass-1
 

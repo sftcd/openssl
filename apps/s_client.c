@@ -874,12 +874,6 @@ static int new_session_cb(SSL *s, SSL_SESSION *sess)
                     ERR_print_errors(bio_err); 
                 } 
                 return 0;
-            case SSL_ECH_STATUS_TOOMANY:
-                if (c_debug) { 
-                    BIO_printf(bio_err, "ECH failed\n"); 
-                    ERR_print_errors(bio_err); 
-                } 
-                return 0;
             default:
                 if (c_debug) { 
                     BIO_printf(bio_err, "ECH unexpected status %d\n",rv); 
@@ -3671,9 +3665,6 @@ static void print_stuff(BIO *bio, SSL *s, int full)
             case SSL_ECH_STATUS_BACKEND: 
                 BIO_printf(bio,
                     "ECH: I think I'm a backend!!! (no idea how;-)\n");
-                break;
-            case SSL_ECH_STATUS_TOOMANY: 
-                BIO_printf(bio,"ECH: Too many ECH keys\n");
                 break;
             case SSL_ECH_STATUS_FAILED: 
                 BIO_printf(bio,"ECH: tried but failed\n");

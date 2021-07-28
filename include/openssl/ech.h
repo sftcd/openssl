@@ -391,6 +391,7 @@ int SSL_ech_print(BIO* out, SSL *con, int selector);
  * Possible return codes from SSL_get_ech_status
  */
 
+#define SSL_ECH_STATUS_BACKEND    4 /**< ECH backend: saw an ech_is_inner */
 #define SSL_ECH_STATUS_GREASE_ECH 3 /**< We GREASEd and got an ECH in return */
 #define SSL_ECH_STATUS_GREASE     2 /**< ECH GREASE happened  */
 #define SSL_ECH_STATUS_SUCCESS    1 /**< Success */
@@ -398,10 +399,8 @@ int SSL_ech_print(BIO* out, SSL *con, int selector);
 #define SSL_ECH_STATUS_BAD_CALL   -100 /**< Some in/out arguments were NULL */
 #define SSL_ECH_STATUS_NOT_TRIED  -101 /**< ECH wasn't attempted  */
 #define SSL_ECH_STATUS_BAD_NAME   -102 /**< ECH ok but server cert mis-match */
-#define SSL_ECH_STATUS_TOOMANY    -103 /**< ECH ok can't figure out which! */
-#define SSL_ECH_STATUS_NOT_CONFIGURED       -104 /**< ECH wasn't configured */
-#define SSL_ECH_STATUS_BACKEND    -105 /**< ECH backend: saw an ech_is_inner */
-#define SSL_ECH_STATUS_FAILED_ECH -106 /**< We tried, failed and got an ECH */
+#define SSL_ECH_STATUS_NOT_CONFIGURED  -103 /**< ECH wasn't configured */
+#define SSL_ECH_STATUS_FAILED_ECH -105 /**< We tried, failed and got an ECH */
 
 /**
  * @brief API to allow calling code know ECH outcome, post-handshake

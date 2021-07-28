@@ -2067,7 +2067,7 @@ int SSL_ech_print(BIO* out, SSL *s, int selector)
     BIO_printf(out,"ech_done=%d\n",s->ext.ech_done);
     BIO_printf(out,"ech_grease=%d\n",s->ext.ech_grease);
 #ifdef ECH_SUPERVERBOSE
-    BIO_printf(out,"ech_returned=%p\n",s->ext.ech_returned);
+    BIO_printf(out,"ech_returned=%p\n",(void*)s->ext.ech_returned);
 #endif
     BIO_printf(out,"ech_returned_len=%ld\n",(long)s->ext.ech_returned_len);
     BIO_printf(out,"ech_success=%d\n",s->ext.ech_success);
