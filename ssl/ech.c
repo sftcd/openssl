@@ -2910,7 +2910,7 @@ static int ech_decode_inner(
     size_t final_extslen=0;
 
     if (s->ext.encoded_innerch==NULL) return(0);
-    if (ob_len<=outer_startofexts) {
+    if (ob_len<=(outer_startofexts+2)) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         return(0);
     }
@@ -3083,7 +3083,7 @@ static int ech_decode_inner(
     while (remaining>0) {
         etype=*ep*256+*(ep+1);
         elen=*(ep+2)*256+*(ep+3);
-        if ( ((ep+4+elen)-ob) > ob_len) {
+        if ( (size_t)((ep+4+elen)-ob) > ob_len) {
 #ifndef OPENSSL_NO_SSL_TRACE
             OSSL_TRACE_BEGIN(TLS) {
                 BIO_printf(trc_out,"Oops - exts out of bounds\n");
@@ -3175,7 +3175,7 @@ static int ech_decode_inner(
         final_decomp[offset]=(osize/256)&0xff; offset++;
         final_decomp[offset]=(osize%256)&0xff; offset++;
         if (((offset+osize)>=final_decomp_len) ||
-               (((exts_start+ooffset+osize)-ob) > ob_len)) {
+               ((size_t)((exts_start+ooffset+osize)-ob) > ob_len)) {
 #ifndef OPENSSL_NO_SSL_TRACE
             OSSL_TRACE_BEGIN(TLS) {
                 BIO_printf(trc_out,"Oops - exts out of bounds\n");
