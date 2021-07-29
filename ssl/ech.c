@@ -26,9 +26,7 @@
 #endif
 #include <openssl/evp.h>
 
-/*
- * Needed to use stat for file status below in ech_check_filenames
- */
+/* Needed to use stat for file status below in ech_check_filenames */
 #include <sys/types.h>
 #include <sys/stat.h>
 #if !defined(OPENSSL_SYS_WINDOWS)
@@ -40,14 +38,10 @@
 # define PATH_MAX 4096
 #endif
 
-/*
- * For ossl_assert
- */
+/* For ossl_assert */
 #include "internal/cryptlib.h"
 
-/*
- * For HPKE APIs
- */
+/* For HPKE APIs */
 #include <crypto/hpke.h>
 
 /* 
@@ -1565,24 +1559,27 @@ int SSL_CTX_ech_add(
  */
 int SSL_ech_server_name(SSL *s, const char *inner_name, const char *outer_name)
 {
+    int nind=0;
+
     if (s==NULL) return(0);
     if (s->ech==NULL) return(0);
 
-    if (s->ech->inner_name!=NULL)
-        OPENSSL_free(s->ech->outer_name);
-    if (inner_name!=NULL && strlen(inner_name)>0) 
-        s->ech->inner_name=OPENSSL_strdup(inner_name);
-    else s->ech->inner_name=NULL;
-
-    if (s->ech->outer_name!=NULL && 
-            s->ech->outer_name!=ECH_PUBLIC_NAME_OVERRIDE_NULL) 
-        OPENSSL_free(s->ech->outer_name);
-    if (outer_name!=NULL && strlen(outer_name)>0 &&
-            outer_name!=ECH_PUBLIC_NAME_OVERRIDE_NULL) 
-        s->ech->outer_name=OPENSSL_strdup(outer_name);
-    else if (outer_name==ECH_PUBLIC_NAME_OVERRIDE_NULL) 
-        s->ech->outer_name=ECH_PUBLIC_NAME_OVERRIDE_NULL;
-    else s->ech->outer_name=NULL;
+    for (nind=0;nind!=s->nechs;nind++) {
+        if (s->ech[nind].inner_name!=NULL)
+            OPENSSL_free(s->ech[nind].outer_name);
+        if (inner_name!=NULL && strlen(inner_name)>0) 
+            s->ech[nind].inner_name=OPENSSL_strdup(inner_name);
+        else s->ech[nind].inner_name=NULL;
+        if (s->ech[nind].outer_name!=NULL && 
+                s->ech[nind].outer_name!=ECH_PUBLIC_NAME_OVERRIDE_NULL) 
+            OPENSSL_free(s->ech[nind].outer_name);
+        if (outer_name!=NULL && strlen(outer_name)>0 &&
+                outer_name!=ECH_PUBLIC_NAME_OVERRIDE_NULL) 
+            s->ech[nind].outer_name=OPENSSL_strdup(outer_name);
+        else if (outer_name==ECH_PUBLIC_NAME_OVERRIDE_NULL) 
+            s->ech[nind].outer_name=ECH_PUBLIC_NAME_OVERRIDE_NULL;
+        else s->ech[nind].outer_name=NULL;
+    }
 
     s->ext.ech_attempted=1; 
     return 1;
@@ -1604,17 +1601,28 @@ int SSL_ech_server_name(SSL *s, const char *inner_name, const char *outer_name)
  */
 int SSL_ech_set_outer_server_name(SSL *s, const char *outer_name)
 {
+    int nind=0;
     if (s==NULL) return(0);
     if (s->ech==NULL) return(0);
-    if (s->ech->outer_name!=NULL &&
-            s->ech->outer_name!=ECH_PUBLIC_NAME_OVERRIDE_NULL) 
-        OPENSSL_free(s->ech->outer_name);
-    if (outer_name!=NULL && strlen(outer_name)>0 &&
-            outer_name!=ECH_PUBLIC_NAME_OVERRIDE_NULL) 
-        s->ech->outer_name=OPENSSL_strdup(outer_name);
-    else if (outer_name==ECH_PUBLIC_NAME_OVERRIDE_NULL) 
-        s->ech->outer_name=ECH_PUBLIC_NAME_OVERRIDE_NULL;
-    else s->ech->outer_name=NULL;
+    for (nind=0;nind!=s->nechs;nind++) {
+
+        if (s->ech[nind].outer_name!=NULL &&
+                s->ech[nind].outer_name!=ECH_PUBLIC_NAME_OVERRIDE_NULL) 
+            OPENSSL_free(s->ech[nind].outer_name);
+        if (outer_name!=NULL && strlen(outer_name)>0 &&
+                outer_name!=ECH_PUBLIC_NAME_OVERRIDE_NULL) 
+            s->ech[nind].outer_name=OPENSSL_strdup(outer_name);
+        else if (outer_name==ECH_PUBLIC_NAME_OVERRIDE_NULL) 
+            s->ech[nind].outer_name=ECH_PUBLIC_NAME_OVERRIDE_NULL;
+        else s->ech[nind].outer_name=NULL;
+        /* if this is called and an SNI is set already we copy that to inner */
+        if (s->ext.hostname) {
+            if (s->ech[nind].inner_name!=NULL) 
+                OPENSSL_free(s->ech[nind].outer_name);
+            s->ech[nind].inner_name=OPENSSL_strdup(s->ext.hostname);
+        }
+    
+    }
 
     s->ext.ech_attempted=1; 
     return 1;
@@ -1636,19 +1644,53 @@ int SSL_ech_set_outer_server_name(SSL *s, const char *outer_name)
  */
 int SSL_CTX_ech_set_outer_server_name(SSL_CTX *s, const char *outer_name)
 {
+    int nind=0;
     if (s==NULL) return(0);
     if (s->ext.ech==NULL) return(0);
-    if (s->ext.ech->outer_name!=NULL &&
-            s->ext.ech->outer_name!=ECH_PUBLIC_NAME_OVERRIDE_NULL) 
-        OPENSSL_free(s->ext.ech->outer_name);
-    if (outer_name!=NULL && strlen(outer_name)>0 &&
-            outer_name!=ECH_PUBLIC_NAME_OVERRIDE_NULL) 
-        s->ext.ech->outer_name=OPENSSL_strdup(outer_name);
-    else if (outer_name==ECH_PUBLIC_NAME_OVERRIDE_NULL) 
-        s->ext.ech->outer_name=ECH_PUBLIC_NAME_OVERRIDE_NULL;
-    else s->ext.ech->outer_name=NULL;
+
+    for (nind=0;nind!=s->ext.nechs;nind++) {
+
+        if (s->ext.ech[nind].outer_name!=NULL &&
+                s->ext.ech[nind].outer_name!=ECH_PUBLIC_NAME_OVERRIDE_NULL) 
+            OPENSSL_free(s->ext.ech[nind].outer_name);
+        if (outer_name!=NULL && strlen(outer_name)>0 &&
+                outer_name!=ECH_PUBLIC_NAME_OVERRIDE_NULL) 
+            s->ext.ech[nind].outer_name=OPENSSL_strdup(outer_name);
+        else if (outer_name==ECH_PUBLIC_NAME_OVERRIDE_NULL) 
+            s->ext.ech[nind].outer_name=ECH_PUBLIC_NAME_OVERRIDE_NULL;
+        else s->ext.ech[nind].outer_name=NULL;
+
+    }
 
     return 1;
+}
+
+/**
+ * @brief return a printable form of alpn
+ *
+ * ALPNs are multi-valued, with lengths between, we 
+ * map that to a comma-sep list
+ *
+ * @param alpn is the buffer with alpns
+ * @param len is the length of the above
+ * @return buffer with string form (caller has to free)
+ */
+static char *alpn_print(unsigned char *alpn, size_t len)
+{
+    int ind=0;
+    char *vstr=NULL;
+    vstr=OPENSSL_malloc(len+1);
+    if (!vstr) return NULL;
+    if (!alpn || len==0) return NULL;
+    while (ind<len) {
+        size_t vlen=alpn[ind];
+        if (ind+vlen>(len-1)) return NULL;
+        memcpy(&vstr[ind],&alpn[ind+1],vlen);
+        vstr[ind+vlen]=',';
+        ind+=(vlen+1);
+    }
+    vstr[len-1]='\0';
+    return vstr;
 }
 
 /**
@@ -1693,16 +1735,11 @@ int SSL_ech_query(SSL *s, ECH_DETS **out, int *nindices)
             if (!inst->public_name) goto err;
         }
         if (s->ext.alpn) {
-            inst->inner_alpns=OPENSSL_malloc(s->ext.alpn_len+1);
-            if (!inst->inner_alpns) goto err;
-            memcpy(inst->inner_alpns,s->ext.alpn,s->ext.alpn_len);
-            inst->inner_alpns[s->ext.alpn_len]='\0';
+            inst->inner_alpns=alpn_print(s->ext.alpn,s->ext.alpn_len);
         }
         if (s->ext.alpn_outer) {
-            inst->outer_alpns=OPENSSL_malloc(s->ext.alpn_outer_len+1);
-            if (!inst->outer_alpns) goto err;
-            memcpy(inst->outer_alpns,s->ext.alpn_outer,s->ext.alpn_outer_len);
-            inst->outer_alpns[s->ext.alpn_outer_len]='\0';
+            inst->outer_alpns=
+                alpn_print(s->ext.alpn_outer,s->ext.alpn_outer_len);
         }
         /* 
          * Now "print" the ECHConfig(s) 
@@ -1734,7 +1771,7 @@ int SSL_ECH_DETS_print(BIO* out, ECH_DETS *se, int count)
     BIO_printf(out,"ECH details (%d configs total)\n",count);
     for (i=0;i!=count;i++) {
         BIO_printf(out,
-        "index: %d, SNI (inner:%s,outer:%s), ALPN (inner:%s,outer:%s)\n\t%s\n",
+        "index: %d: SNI (inner:%s;outer:%s), ALPN (inner:%s;outer:%s)\n\t%s\n",
                i,
                se[i].inner_name?se[i].inner_name:"NULL",
                se[i].public_name?se[i].public_name:"NULL",

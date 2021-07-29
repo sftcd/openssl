@@ -22,7 +22,7 @@
 # include <openssl/ech.h>
 # include <crypto/hpke.h>
 
-#define ECH_SUPERVERBOSE  /**< to get bazillions more lines of tracing */
+#undef ECH_SUPERVERBOSE  /**< to get bazillions more lines of tracing */
 
 #define ECH_MIN_ECHCONFIG_LEN 32 /**< just for a sanity check */
 #define ECH_MAX_ECHCONFIG_LEN 512 /**< just for a sanity check */

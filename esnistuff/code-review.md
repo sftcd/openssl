@@ -66,7 +66,7 @@ Clean.
 * **TODO**: ``ech_pbuf`` and ``ech_ptranscript`` are sometimes
   inside, and sometimes outside ``#ifndef OPENSSL_NO_SSL_TRACE``
   protection. Fix that by moving them all inside. Better to do
-  that after draft-12 interop success, so one for later.
+  that after draft-13 interop success, so one for later.
 
 * Explained ``HPKE_MAXSIZE`` usage
 * Found some better OpenSSL constants where I'd #define'd new ones.
@@ -82,8 +82,7 @@ Clean.
 * Removed ``SSL_ECH_STATUS_TOOMANY`` as it wasn't really used.
   (Was an ESNI hangover really.)
 
-Otherwise seems ok. (Might still see some changes when I do
-more on multi-valued ECHConfigs.)
+Otherwise seems ok.
 
 ### ``./include/openssl/tls1.h``
 
@@ -126,14 +125,10 @@ Only tracing. All good.
 
 ### ``./ssl/ech.c``
 
-* **TODO** ``ech_decode_inner`` could do with another read through
-  to see if any additional bounds checks are missing and needed.
 * **TODO** We currently use a truly ephemeral ECH key pair but will
   have to store that for HRR purposes when we get to that.
-
-* **TODO** When testing for >1 ECHConfig in ECHConfigs we
-  need to include a case where we skip over a "middle" value that
-  has an unsupported version. 
+* **TODO** ``ech_decode_inner`` could do with another read through
+  to see if any additional bounds checks are missing and needed.
 
 * Removed ``dns_alpns`` and ``dns_no_def_alpn`` from ``SSL_ECH`` as those 
   are better handled outside the library.
@@ -174,6 +169,9 @@ Only tracing. All good.
 * Found and fixed (return error) an error state where client 
   could send both GREASE and real ECH if application asked 
   for both. (Server handled it correctly.)
+* Various minor fixes for handling >1 ECHConfig in ECHConfigs.
+  A number of cases where we previously just initialised the
+  first ``SSL_ECH`` in the array and needed to do them all.
 
 ### ``./ssl/ssl_txt.c``
 
