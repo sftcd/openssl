@@ -1677,7 +1677,7 @@ int SSL_CTX_ech_set_outer_server_name(SSL_CTX *s, const char *outer_name)
  */
 static char *alpn_print(unsigned char *alpn, size_t len)
 {
-    int ind=0;
+    size_t ind=0;
     char *vstr=NULL;
     vstr=OPENSSL_malloc(len+1);
     if (!vstr) return NULL;
