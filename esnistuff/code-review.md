@@ -127,8 +127,6 @@ Only tracing. All good.
 
 * **TODO** We currently use a truly ephemeral ECH key pair but will
   have to store that for HRR purposes when we get to that.
-* **TODO** ``ech_decode_inner`` could do with another read through
-  to see if any additional bounds checks are missing and needed.
 
 * Removed ``dns_alpns`` and ``dns_no_def_alpn`` from ``SSL_ECH`` as those 
   are better handled outside the library.
@@ -172,6 +170,9 @@ Only tracing. All good.
 * Various minor fixes for handling >1 ECHConfig in ECHConfigs.
   A number of cases where we previously just initialised the
   first ``SSL_ECH`` in the array and needed to do them all.
+* Added many more bounds checks to ``ech_decode_inner`` to
+  void invalid memory accesses if we get random or bad 
+  plaintext after decryption.
 
 ### ``./ssl/ssl_txt.c``
 
