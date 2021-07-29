@@ -28,10 +28,11 @@ Most recent first...
 DON'T TRY ECH YET!!! The very much work-in-progress code is
 sooooo awful still...
 
-- 20210625: A new TODO: [GREASE PSK](https://tlswg.org/draft-ietf-tls-esni/draft-ietf-tls-esni.html#section-6.1.2)
-
 - 20210624: Started an internal [code review](code-review.md) of
-  all the ECH changes, that'll be ongoing for a bit.
+  all the ECH changes, that'll be ongoing for a bit. Finished 
+  two passes of that in late July having tested a bunch of stuff
+  (incl. >1 ECHConfig/ECHConfigs), fixed a small pile of things 
+  and made a lot of cosmetic/code-style changes.
 
 - 20210624: Our ``make-example-ca.sh`` script was barfing when 
   openssl is built in debug mode but working fine otherwise.
