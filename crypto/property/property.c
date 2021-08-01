@@ -273,12 +273,7 @@ int ossl_method_store_add(OSSL_METHOD_STORE *store, const OSSL_PROVIDER *prov,
     }
     impl->provider = prov;
 
-    /*
-     * Insert into the hash table if required.
-     *
-     * A write lock is used unconditionally because we wend our way down to the
-     * property string code which isn't locking friendly.
-     */
+    /* Insert into the hash table if required */
     if (!ossl_property_write_lock(store)) {
         OPENSSL_free(impl);
         return 0;
@@ -362,6 +357,42 @@ int ossl_method_store_remove(OSSL_METHOD_STORE *store, int nid,
     return 0;
 }
 
+static void alg_do_one(ALGORITHM *alg, IMPLEMENTATION *impl,
+                       void (*fn)(int id, void *method, void *fnarg),
+                       void *fnarg)
+{
+    fn(alg->nid, impl->method.method, fnarg);
+}
+
+struct alg_do_each_data_st {
+    void (*fn)(int id, void *method, void *fnarg);
+    void *fnarg;
+};
+
+static void alg_do_each(ossl_uintmax_t idx, ALGORITHM *alg, void *arg)
+{
+    struct alg_do_each_data_st *data = arg;
+    int i, end = sk_IMPLEMENTATION_num(alg->impls);
+
+    for (i = 0; i < end; i++) {
+        IMPLEMENTATION *impl = sk_IMPLEMENTATION_value(alg->impls, i);
+
+        alg_do_one(alg, impl, data->fn, data->fnarg);
+    }
+}
+
+void ossl_method_store_do_all(OSSL_METHOD_STORE *store,
+                              void (*fn)(int id, void *method, void *fnarg),
+                              void *fnarg)
+{
+    struct alg_do_each_data_st data;
+
+    data.fn = fn;
+    data.fnarg = fnarg;
+    if (store != NULL)
+        ossl_sa_ALGORITHM_doall_arg(store->algs, alg_do_each, &data);
+}
+
 int ossl_method_store_fetch(OSSL_METHOD_STORE *store, int nid,
                             const char *prop_query,
                             void **method)
@@ -376,16 +407,13 @@ int ossl_method_store_fetch(OSSL_METHOD_STORE *store, int nid,
 
 #ifndef FIPS_MODULE
     if (!OPENSSL_init_crypto(OPENSSL_INIT_LOAD_CONFIG, NULL))
-	return 0;
+        return 0;
 #endif
 
     if (nid <= 0 || method == NULL || store == NULL)
         return 0;
 
-    /*
-     * This only needs to be a read lock, because queries never create property
-     * names or value and thus don't modify any of the property string layer.
-     */
+    /* This only needs to be a read lock, because the query won't create anything */
     if (!ossl_property_read_lock(store))
         return 0;
     alg = ossl_method_store_retrieve(store, nid);

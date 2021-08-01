@@ -996,7 +996,8 @@ size_t ossl_statem_client_max_message_size(SSL *s)
         return CCS_MAX_LENGTH;
 
     case TLS_ST_CR_SESSION_TICKET:
-        return SSL3_RT_MAX_PLAIN_LENGTH;
+        return (SSL_IS_TLS13(s)) ? SESSION_TICKET_MAX_LENGTH_TLS13
+                                 : SESSION_TICKET_MAX_LENGTH_TLS12;
 
     case TLS_ST_CR_FINISHED:
         return FINISHED_MAX_LENGTH;
@@ -1883,10 +1884,6 @@ WORK_STATE tls_post_process_server_certificate(SSL *s, WORK_STATE wst)
         return WORK_ERROR;
     }
     ERR_clear_error();          /* but we keep s->verify_result */
-    if (i > 1) {
-        SSLfatal(s, SSL_AD_HANDSHAKE_FAILURE, i);
-        return WORK_ERROR;
-    }
 
     /*
      * Inconsistency alert: cert_chain does include the peer's certificate,
@@ -2510,11 +2507,8 @@ MSG_PROCESS_RETURN tls_process_new_session_ticket(SSL *s, PACKET *pkt)
         s->session = new_sess;
     }
 
-    /*
-     * Technically the cast to long here is not guaranteed by the C standard -
-     * but we use it elsewhere, so this should be ok.
-     */
-    s->session->time = (long)time(NULL);
+    s->session->time = time(NULL);
+    ssl_session_calculate_timeout(s->session);
 
     OPENSSL_free(s->session->ext.tick);
     s->session->ext.tick = NULL;

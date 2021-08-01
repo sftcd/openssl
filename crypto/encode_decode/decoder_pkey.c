@@ -57,7 +57,9 @@ DEFINE_STACK_OF(EVP_KEYMGMT)
 struct decoder_pkey_data_st {
     OSSL_LIB_CTX *libctx;
     char *propq;
+    int selection;
 
+    STACK_OF(EVP_KEYMGMT) *keymgmts;
     char *object_type;           /* recorded object data type, may be NULL */
     void **object;               /* Where the result should end up */
 };
@@ -69,7 +71,10 @@ static int decoder_construct_pkey(OSSL_DECODER_INSTANCE *decoder_inst,
     struct decoder_pkey_data_st *data = construct_data;
     OSSL_DECODER *decoder = OSSL_DECODER_INSTANCE_get_decoder(decoder_inst);
     void *decoderctx = OSSL_DECODER_INSTANCE_get_decoder_ctx(decoder_inst);
+    const OSSL_PROVIDER *decoder_prov = OSSL_DECODER_get0_provider(decoder);
     EVP_KEYMGMT *keymgmt = NULL;
+    const OSSL_PROVIDER *keymgmt_prov = NULL;
+    int i, end;
     /*
      * |object_ref| points to a provider reference to an object, its exact
      * contents entirely opaque to us, but may be passed to any provider
@@ -103,13 +108,33 @@ static int decoder_construct_pkey(OSSL_DECODER_INSTANCE *decoder_inst,
     object_ref = p->data;
     object_ref_sz = p->data_size;
 
-    keymgmt = EVP_KEYMGMT_fetch(data->libctx, data->object_type, data->propq);
+    /*
+     * First, we try to find a keymgmt that comes from the same provider as
+     * the decoder that passed the params.
+     */
+    end = sk_EVP_KEYMGMT_num(data->keymgmts);
+    for (i = 0; i < end; i++) {
+        keymgmt = sk_EVP_KEYMGMT_value(data->keymgmts, i);
+        keymgmt_prov = EVP_KEYMGMT_get0_provider(keymgmt);
+
+        if (keymgmt_prov == decoder_prov
+            && evp_keymgmt_has_load(keymgmt)
+            && EVP_KEYMGMT_is_a(keymgmt, data->object_type))
+            break;
+    }
+    if (i < end) {
+        /* To allow it to be freed further down */
+        if (!EVP_KEYMGMT_up_ref(keymgmt))
+            return 0;
+    } else if ((keymgmt = EVP_KEYMGMT_fetch(data->libctx,
+                                            data->object_type,
+                                            data->propq)) != NULL) {
+        keymgmt_prov = EVP_KEYMGMT_get0_provider(keymgmt);
+    }
 
     if (keymgmt != NULL) {
         EVP_PKEY *pkey = NULL;
         void *keydata = NULL;
-        const OSSL_PROVIDER *keymgmt_prov = EVP_KEYMGMT_get0_provider(keymgmt);
-        const OSSL_PROVIDER *decoder_prov = OSSL_DECODER_get0_provider(decoder);
 
         /*
          * If the EVP_KEYMGMT and the OSSL_DECODER are from the
@@ -126,7 +151,7 @@ static int decoder_construct_pkey(OSSL_DECODER_INSTANCE *decoder_inst,
 
             import_data.keymgmt = keymgmt;
             import_data.keydata = NULL;
-            import_data.selection = OSSL_KEYMGMT_SELECT_ALL;
+            import_data.selection = data->selection;
 
             /*
              * No need to check for errors here, the value of
@@ -164,6 +189,7 @@ static void decoder_clean_pkey_construct_arg(void *construct_data)
     struct decoder_pkey_data_st *data = construct_data;
 
     if (data != NULL) {
+        sk_EVP_KEYMGMT_pop_free(data->keymgmts, EVP_KEYMGMT_free);
         OPENSSL_free(data->propq);
         OPENSSL_free(data->object_type);
         OPENSSL_free(data);
@@ -219,6 +245,7 @@ struct collect_decoder_data_st {
     STACK_OF(OPENSSL_CSTRING) *names;
     OSSL_DECODER_CTX *ctx;
 
+    int total;
     unsigned int error_occurred:1;
 };
 
@@ -247,6 +274,15 @@ static void collect_decoder(OSSL_DECODER *decoder, void *arg)
             && !decoder->does_selection(provctx, data->ctx->selection))
         return;
 
+    OSSL_TRACE_BEGIN(DECODER) {
+        BIO_printf(trc_out,
+                   "(ctx %p) Checking out decoder %p:\n"
+                   "    %s with %s\n",
+                   (void *)data->ctx, (void *)decoder,
+                   OSSL_DECODER_get0_name(decoder),
+                   OSSL_DECODER_get0_properties(decoder));
+    } OSSL_TRACE_END(DECODER);
+
     end_i = sk_OPENSSL_CSTRING_num(data->names);
     for (i = 0; i < end_i; i++) {
         const char *name = sk_OPENSSL_CSTRING_value(data->names, i);
@@ -265,7 +301,20 @@ static void collect_decoder(OSSL_DECODER *decoder, void *arg)
                 return;
             }
 
+            OSSL_TRACE_BEGIN(DECODER) {
+                BIO_printf(trc_out,
+                           "(ctx %p) Checking out decoder %p:\n"
+                           "    %s with %s\n",
+                           (void *)data->ctx, (void *)decoder,
+                           OSSL_DECODER_get0_name(decoder),
+                           OSSL_DECODER_get0_properties(decoder));
+            } OSSL_TRACE_END(DECODER);
+
             if (!decoder_check_input_structure(data->ctx, di)) {
+                OSSL_TRACE_BEGIN(DECODER) {
+                    BIO_printf(trc_out,
+                               "    REJECTED: not the desired input structure\n");
+                } OSSL_TRACE_END(DECODER);
                 ossl_decoder_instance_free(di);
                 /* Not a fatal error. Just return */
                 return;
@@ -275,6 +324,7 @@ static void collect_decoder(OSSL_DECODER *decoder, void *arg)
                 data->error_occurred = 1;
                 return;
             }
+            data->total++;
 
             /* Success */
             return;
@@ -291,20 +341,34 @@ int ossl_decoder_ctx_setup_for_pkey(OSSL_DECODER_CTX *ctx,
                                     const char *propquery)
 {
     struct decoder_pkey_data_st *process_data = NULL;
-    STACK_OF(EVP_KEYMGMT) *keymgmts = NULL;
     STACK_OF(OPENSSL_CSTRING) *names = NULL;
+    const char *input_type = ctx->start_input_type;
+    const char *input_structure = ctx->input_structure;
     int ok = 0;
     int isecoid = 0;
+    int i, end;
 
     if (keytype != NULL
             && (strcmp(keytype, "id-ecPublicKey") == 0
                 || strcmp(keytype, "1.2.840.10045.2.1") == 0))
         isecoid = 1;
 
+    OSSL_TRACE_BEGIN(DECODER) {
+        BIO_printf(trc_out,
+                   "(ctx %p) Looking for decoders producing %s%s%s%s%s%s\n",
+                   (void *)ctx,
+                   keytype != NULL ? keytype : "",
+                   keytype != NULL ? " keys" : "keys of any type",
+                   input_type != NULL ? " from " : "",
+                   input_type != NULL ? input_type : "",
+                   input_structure != NULL ? " with " : "",
+                   input_structure != NULL ? input_structure : "");
+    } OSSL_TRACE_END(DECODER);
+
     if ((process_data = OPENSSL_zalloc(sizeof(*process_data))) == NULL
         || (propquery != NULL
             && (process_data->propq = OPENSSL_strdup(propquery)) == NULL)
-        || (keymgmts = sk_EVP_KEYMGMT_new_null()) == NULL
+        || (process_data->keymgmts = sk_EVP_KEYMGMT_new_null()) == NULL
         || (names = sk_OPENSSL_CSTRING_new_null()) == NULL) {
         ERR_raise(ERR_LIB_OSSL_DECODER, ERR_R_MALLOC_FAILURE);
         goto err;
@@ -312,13 +376,16 @@ int ossl_decoder_ctx_setup_for_pkey(OSSL_DECODER_CTX *ctx,
 
     process_data->object = (void **)pkey;
     process_data->libctx = libctx;
+    process_data->selection = ctx->selection;
 
     /* First, find all keymgmts to form goals */
-    EVP_KEYMGMT_do_all_provided(libctx, collect_keymgmt, keymgmts);
+    EVP_KEYMGMT_do_all_provided(libctx, collect_keymgmt,
+                                process_data->keymgmts);
 
     /* Then, we collect all the keymgmt names */
-    while (sk_EVP_KEYMGMT_num(keymgmts) > 0) {
-        EVP_KEYMGMT *keymgmt = sk_EVP_KEYMGMT_shift(keymgmts);
+    end = sk_EVP_KEYMGMT_num(process_data->keymgmts);
+    for (i = 0; i < end; i++) {
+        EVP_KEYMGMT *keymgmt = sk_EVP_KEYMGMT_value(process_data->keymgmts, i);
 
         /*
          * If the key type is given by the caller, we only use the matching
@@ -335,11 +402,19 @@ int ossl_decoder_ctx_setup_for_pkey(OSSL_DECODER_CTX *ctx,
                 goto err;
             }
         }
-
-        EVP_KEYMGMT_free(keymgmt);
     }
-    sk_EVP_KEYMGMT_free(keymgmts);
-    keymgmts = NULL;
+
+    OSSL_TRACE_BEGIN(DECODER) {
+        end = sk_OPENSSL_CSTRING_num(names);
+        BIO_printf(trc_out,
+                   "    Found %d keytypes (possibly with duplicates)",
+                   end);
+        for (i = 0; i < end; i++)
+            BIO_printf(trc_out, "%s%s",
+                       i == 0 ? ": " : ", ",
+                       sk_OPENSSL_CSTRING_value(names, i));
+        BIO_printf(trc_out, "\n");
+    } OSSL_TRACE_END(DECODER);
 
     /*
      * Finally, find all decoders that have any keymgmt of the collected
@@ -357,6 +432,12 @@ int ossl_decoder_ctx_setup_for_pkey(OSSL_DECODER_CTX *ctx,
 
         if (collect_decoder_data.error_occurred)
             goto err;
+
+        OSSL_TRACE_BEGIN(DECODER) {
+            BIO_printf(trc_out,
+                       "(ctx %p) Got %d decoders producing keys\n",
+                       (void *)ctx, collect_decoder_data.total);
+        } OSSL_TRACE_END(DECODER);
     }
 
     if (OSSL_DECODER_CTX_get_num_decoders(ctx) != 0) {
@@ -372,7 +453,6 @@ int ossl_decoder_ctx_setup_for_pkey(OSSL_DECODER_CTX *ctx,
     ok = 1;
  err:
     decoder_clean_pkey_construct_arg(process_data);
-    sk_EVP_KEYMGMT_pop_free(keymgmts, EVP_KEYMGMT_free);
     sk_OPENSSL_CSTRING_free(names);
 
     return ok;

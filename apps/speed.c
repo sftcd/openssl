@@ -764,24 +764,25 @@ static int EVP_Update_loop_ccm(void *args)
 
     if (decrypt) {
         for (count = 0; COND(c[D_EVP][testnum]); count++) {
-            EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_TAG, sizeof(tag), tag);
+            (void)EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_TAG, sizeof(tag),
+                                      tag);
             /* reset iv */
-            EVP_DecryptInit_ex(ctx, NULL, NULL, NULL, iv);
+            (void)EVP_DecryptInit_ex(ctx, NULL, NULL, NULL, iv);
             /* counter is reset on every update */
-            EVP_DecryptUpdate(ctx, buf, &outl, buf, lengths[testnum]);
+            (void)EVP_DecryptUpdate(ctx, buf, &outl, buf, lengths[testnum]);
         }
     } else {
         for (count = 0; COND(c[D_EVP][testnum]); count++) {
             /* restore iv length field */
-            EVP_EncryptUpdate(ctx, NULL, &outl, NULL, lengths[testnum]);
+            (void)EVP_EncryptUpdate(ctx, NULL, &outl, NULL, lengths[testnum]);
             /* counter is reset on every update */
-            EVP_EncryptUpdate(ctx, buf, &outl, buf, lengths[testnum]);
+            (void)EVP_EncryptUpdate(ctx, buf, &outl, buf, lengths[testnum]);
         }
     }
     if (decrypt)
-        EVP_DecryptFinal_ex(ctx, buf, &outl);
+        (void)EVP_DecryptFinal_ex(ctx, buf, &outl);
     else
-        EVP_EncryptFinal_ex(ctx, buf, &outl);
+        (void)EVP_EncryptFinal_ex(ctx, buf, &outl);
     return count;
 }
 
@@ -1337,6 +1338,7 @@ int speed_main(int argc, char **argv)
     const char *prog;
     const char *engine_id = NULL;
     EVP_CIPHER *evp_cipher = NULL;
+    EVP_MAC *mac = NULL;
     double d = 0.0;
     OPTION_CHOICE o;
     int async_init = 0, multiblock = 0, pr_header = 0;
@@ -1791,8 +1793,6 @@ int speed_main(int argc, char **argv)
 
     /* No parameters; turn on everything. */
     if (argc == 0 && !doit[D_EVP] && !doit[D_HMAC] && !doit[D_EVP_CMAC]) {
-        EVP_MAC *mac;
-
         memset(doit, 1, sizeof(doit));
         doit[D_EVP] = doit[D_EVP_CMAC] = 0;
         ERR_set_mark();
@@ -1804,14 +1804,20 @@ int speed_main(int argc, char **argv)
             if (!have_cipher(names[i]))
                 doit[i] = 0;
         }
-        if ((mac = EVP_MAC_fetch(NULL, "GMAC", NULL)) != NULL)
+        if ((mac = EVP_MAC_fetch(app_get0_libctx(), "GMAC",
+                                 app_get0_propq())) != NULL) {
             EVP_MAC_free(mac);
-        else
+            mac = NULL;
+        } else {
             doit[D_GHASH] = 0;
-        if ((mac = EVP_MAC_fetch(NULL, "HMAC", NULL)) != NULL)
+        }
+        if ((mac = EVP_MAC_fetch(app_get0_libctx(), "HMAC",
+                                 app_get0_propq())) != NULL) {
             EVP_MAC_free(mac);
-        else
+            mac = NULL;
+        } else {
             doit[D_HMAC] = 0;
+        }
         ERR_pop_to_mark();
         memset(rsa_doit, 1, sizeof(rsa_doit));
 #ifndef OPENSSL_NO_DH
@@ -1958,9 +1964,9 @@ int speed_main(int argc, char **argv)
     if (doit[D_HMAC]) {
         static const char hmac_key[] = "This is a key...";
         int len = strlen(hmac_key);
-        EVP_MAC *mac = EVP_MAC_fetch(NULL, "HMAC", NULL);
         OSSL_PARAM params[3];
 
+        mac = EVP_MAC_fetch(app_get0_libctx(), "HMAC", app_get0_propq());
         if (mac == NULL || evp_mac_mdname == NULL)
             goto end;
 
@@ -1998,6 +2004,7 @@ int speed_main(int argc, char **argv)
         for (i = 0; i < loopargs_len; i++)
             EVP_MAC_CTX_free(loopargs[i].mctx);
         EVP_MAC_free(mac);
+        mac = NULL;
     }
 
     if (doit[D_CBC_DES]) {
@@ -2121,9 +2128,9 @@ int speed_main(int argc, char **argv)
     }
     if (doit[D_GHASH]) {
         static const char gmac_iv[] = "0123456789ab";
-        EVP_MAC *mac = EVP_MAC_fetch(NULL, "GMAC", NULL);
         OSSL_PARAM params[3];
 
+        mac = EVP_MAC_fetch(app_get0_libctx(), "GMAC", app_get0_propq());
         if (mac == NULL)
             goto end;
 
@@ -2155,6 +2162,7 @@ int speed_main(int argc, char **argv)
         for (i = 0; i < loopargs_len; i++)
             EVP_MAC_CTX_free(loopargs[i].mctx);
         EVP_MAC_free(mac);
+        mac = NULL;
     }
 
     if (doit[D_RAND]) {
@@ -2224,8 +2232,8 @@ int speed_main(int argc, char **argv)
 
                     /* SIV mode only allows for a single Update operation */
                     if (EVP_CIPHER_get_mode(evp_cipher) == EVP_CIPH_SIV_MODE)
-                        EVP_CIPHER_CTX_ctrl(loopargs[k].ctx, EVP_CTRL_SET_SPEED,
-                                            1, NULL);
+                        (void)EVP_CIPHER_CTX_ctrl(loopargs[k].ctx,
+                                                  EVP_CTRL_SET_SPEED, 1, NULL);
                 }
 
                 Time_F(START);
@@ -2252,10 +2260,10 @@ int speed_main(int argc, char **argv)
     }
 
     if (doit[D_EVP_CMAC]) {
-        EVP_MAC *mac = EVP_MAC_fetch(NULL, "CMAC", NULL);
         OSSL_PARAM params[3];
         EVP_CIPHER *cipher = NULL;
 
+        mac = EVP_MAC_fetch(app_get0_libctx(), "CMAC", app_get0_propq());
         if (mac == NULL || evp_mac_ciphername == NULL)
             goto end;
         if (!opt_cipher(evp_mac_ciphername, &cipher))
@@ -2300,6 +2308,7 @@ int speed_main(int argc, char **argv)
         for (i = 0; i < loopargs_len; i++)
             EVP_MAC_CTX_free(loopargs[i].mctx);
         EVP_MAC_free(mac);
+        mac = NULL;
     }
 
     for (i = 0; i < loopargs_len; i++)
@@ -3319,6 +3328,7 @@ int speed_main(int argc, char **argv)
     OPENSSL_free(loopargs);
     release_engine(e);
     EVP_CIPHER_free(evp_cipher);
+    EVP_MAC_free(mac);
     return ret;
 }
 
@@ -3619,8 +3629,9 @@ static void multiblock_speed(const EVP_CIPHER *evp_cipher, int lengths_single,
                 mb_param.out = out;
                 mb_param.inp = inp;
                 mb_param.len = len;
-                EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_TLS1_1_MULTIBLOCK_ENCRYPT,
-                                    sizeof(mb_param), &mb_param);
+                (void)EVP_CIPHER_CTX_ctrl(ctx,
+                                          EVP_CTRL_TLS1_1_MULTIBLOCK_ENCRYPT,
+                                          sizeof(mb_param), &mb_param);
             } else {
                 int pad;
 

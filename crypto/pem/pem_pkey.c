@@ -11,7 +11,6 @@
 #define OPENSSL_SUPPRESS_DEPRECATED
 
 #include <stdio.h>
-#include "internal/cryptlib.h"
 #include <openssl/buffer.h>
 #include <openssl/objects.h>
 #include <openssl/evp.h>
@@ -22,7 +21,10 @@
 #include <openssl/dh.h>
 #include <openssl/decoder.h>
 #include <openssl/ui.h>
+#include "internal/cryptlib.h"
+#include "internal/passphrase.h"
 #include "crypto/asn1.h"
+#include "crypto/x509.h"
 #include "crypto/evp.h"
 #include "pem_local.h"
 
@@ -54,11 +56,24 @@ static EVP_PKEY *pem_read_bio_key_decoder(BIO *bp, EVP_PKEY **x,
     if (!OSSL_DECODER_CTX_set_pem_password_cb(dctx, cb, u))
         goto err;
 
+    ERR_set_mark();
     while (!OSSL_DECODER_from_bio(dctx, bp) || pkey == NULL)
-        if (BIO_eof(bp) != 0 || (newpos = BIO_tell(bp)) < 0 || newpos <= pos)
+        if (BIO_eof(bp) != 0 || (newpos = BIO_tell(bp)) < 0 || newpos <= pos) {
+            ERR_clear_last_mark();
             goto err;
-        else
+        } else {
+            if (ERR_GET_REASON(ERR_peek_error()) == ERR_R_UNSUPPORTED) {
+                /* unsupported PEM data, try again */
+                ERR_pop_to_mark();
+                ERR_set_mark();
+            } else {
+                /* other error, bail out */
+                ERR_clear_last_mark();
+                goto err;
+            }
             pos = newpos;
+        }
+    ERR_pop_to_mark();
 
     if (!evp_keymgmt_util_has(pkey, selection)) {
         EVP_PKEY_free(pkey);
@@ -157,9 +172,10 @@ static EVP_PKEY *pem_read_bio_key_legacy(BIO *bp, EVP_PKEY **x,
         ameth = EVP_PKEY_asn1_find_str(NULL, nm, slen);
         if (ameth == NULL || ameth->old_priv_decode == NULL)
             goto p8err;
-        ret = d2i_PrivateKey(ameth->pkey_id, x, &p, len);
+        ret = ossl_d2i_PrivateKey_legacy(ameth->pkey_id, x, &p, len, libctx,
+                                         propq);
     } else if (selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY) {
-        ret = d2i_PUBKEY(x, &p, len);
+        ret = ossl_d2i_PUBKEY_legacy(x, &p, len);
     } else if ((slen = ossl_pem_check_suffix(nm, "PARAMETERS")) > 0) {
         ret = EVP_PKEY_new();
         if (ret == NULL)
@@ -193,9 +209,10 @@ static EVP_PKEY *pem_read_bio_key(BIO *bp, EVP_PKEY **x,
                                   const char *propq,
                                   int selection)
 {
-    EVP_PKEY *ret;
+    EVP_PKEY *ret = NULL;
     BIO *new_bio = NULL;
     int pos;
+    struct ossl_passphrase_data_st pwdata = { 0 };
 
     if ((pos = BIO_tell(bp)) < 0) {
         new_bio = BIO_new(BIO_f_readbuffer());
@@ -205,17 +222,28 @@ static EVP_PKEY *pem_read_bio_key(BIO *bp, EVP_PKEY **x,
         pos = BIO_tell(bp);
     }
 
+    if (cb == NULL)
+        cb = PEM_def_callback;
+
+    if (!ossl_pw_set_pem_password_cb(&pwdata, cb, u)
+        || !ossl_pw_enable_passphrase_caching(&pwdata))
+        goto err;
+
     ERR_set_mark();
-    ret = pem_read_bio_key_decoder(bp, x, cb, u, libctx, propq, selection);
+    ret = pem_read_bio_key_decoder(bp, x, ossl_pw_pem_password, &pwdata,
+                                   libctx, propq, selection);
     if (ret == NULL
         && (BIO_seek(bp, pos) < 0
-            || (ret = pem_read_bio_key_legacy(bp, x, cb, u,
+            || (ret = pem_read_bio_key_legacy(bp, x,
+                                              ossl_pw_pem_password, &pwdata,
                                               libctx, propq,
                                               selection)) == NULL))
         ERR_clear_last_mark();
     else
         ERR_pop_to_mark();
 
+ err:
+    ossl_pw_clear_passphrase_data(&pwdata);
     if (new_bio != NULL) {
         BIO_pop(new_bio);
         BIO_free(new_bio);

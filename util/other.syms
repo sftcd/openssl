@@ -234,7 +234,6 @@ DTLS_get_link_min_mtu                   define
 DTLS_set_link_mtu                       define
 ENGINE_cleanup                          define deprecated 1.1.0
 ERR_FATAL_ERROR                         define
-ERR_GET_FUNC                            define
 ERR_GET_LIB                             define
 ERR_GET_REASON                          define
 ERR_PACK                                define
@@ -447,11 +446,6 @@ PEM_FLAG_EAY_COMPATIBLE                 define
 PEM_FLAG_ONLY_B64                       define
 PEM_FLAG_SECURE                         define
 RAND_cleanup                            define deprecated 1.1.0
-SHA1                                    define
-SHA224                                  define
-SHA256                                  define
-SHA384                                  define
-SHA512                                  define
 SSL_COMP_free_compression_methods       define deprecated 1.1.0
 SSL_CTX_add0_chain_cert                 define
 SSL_CTX_add1_chain_cert                 define

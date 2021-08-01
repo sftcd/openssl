@@ -78,7 +78,8 @@ static void *decoder_store_new(OSSL_LIB_CTX *ctx)
 
 
 static const OSSL_LIB_CTX_METHOD decoder_store_method = {
-    OSSL_LIB_CTX_METHOD_DEFAULT_PRIORITY,
+    /* We want decoder_store to be cleaned up before the provider store */
+    OSSL_LIB_CTX_METHOD_PRIORITY_2,
     decoder_store_new,
     decoder_store_free,
 };
@@ -86,10 +87,11 @@ static const OSSL_LIB_CTX_METHOD decoder_store_method = {
 /* Data to be passed through ossl_method_construct() */
 struct decoder_data_st {
     OSSL_LIB_CTX *libctx;
-    OSSL_METHOD_CONSTRUCT_METHOD *mcm;
     int id;                      /* For get_decoder_from_store() */
     const char *names;           /* For get_decoder_from_store() */
     const char *propquery;       /* For get_decoder_from_store() */
+
+    OSSL_METHOD_STORE *tmp_store; /* For get_tmp_decoder_store() */
 
     unsigned int flag_construct_error_occurred : 1;
 };
@@ -100,9 +102,13 @@ struct decoder_data_st {
  */
 
 /* Temporary decoder method store, constructor and destructor */
-static void *alloc_tmp_decoder_store(OSSL_LIB_CTX *ctx)
+static void *get_tmp_decoder_store(void *data)
 {
-    return ossl_method_store_new(ctx);
+    struct decoder_data_st *methdata = data;
+
+    if (methdata->tmp_store == NULL)
+        methdata->tmp_store = ossl_method_store_new(methdata->libctx);
+    return methdata->tmp_store;
 }
 
 static void dealloc_tmp_decoder_store(void *store)
@@ -119,21 +125,33 @@ static OSSL_METHOD_STORE *get_decoder_store(OSSL_LIB_CTX *libctx)
 }
 
 /* Get decoder methods from a store, or put one in */
-static void *get_decoder_from_store(OSSL_LIB_CTX *libctx, void *store,
-                                    void *data)
+static void *get_decoder_from_store(void *store, void *data)
 {
     struct decoder_data_st *methdata = data;
     void *method = NULL;
     int id;
 
-    if ((id = methdata->id) == 0) {
-        OSSL_NAMEMAP *namemap = ossl_namemap_stored(libctx);
+    /*
+     * get_decoder_from_store() is only called to try and get the method
+     * that OSSL_DECODER_fetch() is asking for, and the name or name id are
+     * passed via methdata.
+     */
+    if ((id = methdata->id) == 0 && methdata->names != NULL) {
+        OSSL_NAMEMAP *namemap = ossl_namemap_stored(methdata->libctx);
+        const char *names = methdata->names;
+        const char *q = strchr(names, NAME_SEPARATOR);
+        size_t l = (q == NULL ? strlen(names) : (size_t)(q - names));
 
-        id = ossl_namemap_name2num(namemap, methdata->names);
+        if (namemap == 0)
+            return NULL;
+        id = ossl_namemap_name2num_n(namemap, names, l);
     }
 
+    if (id == 0)
+        return NULL;
+
     if (store == NULL
-        && (store = get_decoder_store(libctx)) == NULL)
+        && (store = get_decoder_store(methdata->libctx)) == NULL)
         return NULL;
 
     if (!ossl_method_store_fetch(store, id, methdata->propquery, &method))
@@ -141,19 +159,33 @@ static void *get_decoder_from_store(OSSL_LIB_CTX *libctx, void *store,
     return method;
 }
 
-static int put_decoder_in_store(OSSL_LIB_CTX *libctx, void *store,
-                                void *method, const OSSL_PROVIDER *prov,
-                                int operation_id, const char *names,
-                                const char *propdef, void *unused)
+static int put_decoder_in_store(void *store, void *method,
+                                const OSSL_PROVIDER *prov,
+                                const char *names, const char *propdef,
+                                void *data)
 {
+    struct decoder_data_st *methdata = data;
     OSSL_NAMEMAP *namemap;
     int id;
+    size_t l = 0;
 
-    if ((namemap = ossl_namemap_stored(libctx)) == NULL
-        || (id = ossl_namemap_name2num(namemap, names)) == 0)
+    /*
+     * put_decoder_in_store() is only called with an OSSL_DECODER method that
+     * was successfully created by construct_decoder() below, which means that
+     * all the names should already be stored in the namemap with the same
+     * numeric identity, so just use the first to get that identity.
+     */
+    if (names != NULL) {
+        const char *q = strchr(names, NAME_SEPARATOR);
+
+        l = (q == NULL ? strlen(names) : (size_t)(q - names));
+    }
+
+    if ((namemap = ossl_namemap_stored(methdata->libctx)) == NULL
+        || (id = ossl_namemap_name2num_n(namemap, names, l)) == 0)
         return 0;
 
-    if (store == NULL && (store = get_decoder_store(libctx)) == NULL)
+    if (store == NULL && (store = get_decoder_store(methdata->libctx)) == NULL)
         return 0;
 
     return ossl_method_store_add(store, prov, id, propdef, method,
@@ -176,8 +208,7 @@ void *ossl_decoder_from_algorithm(int id, const OSSL_ALGORITHM *algodef,
         OSSL_DECODER_free(decoder);
         return NULL;
     }
-    decoder->base.propdef = algodef->property_definition;
-    decoder->base.description = algodef->algorithm_description;
+    decoder->base.algodef = algodef;
     decoder->base.parsed_propdef
         = ossl_parse_property(libctx, algodef->property_definition);
 
@@ -301,12 +332,12 @@ static void free_decoder(void *method)
 }
 
 /* Fetching support.  Can fetch by numeric identity or by name */
-static OSSL_DECODER *inner_ossl_decoder_fetch(OSSL_LIB_CTX *libctx, int id,
-                                              const char *name,
-                                              const char *properties)
+static OSSL_DECODER *
+inner_ossl_decoder_fetch(struct decoder_data_st *methdata, int id,
+                         const char *name, const char *properties)
 {
-    OSSL_METHOD_STORE *store = get_decoder_store(libctx);
-    OSSL_NAMEMAP *namemap = ossl_namemap_stored(libctx);
+    OSSL_METHOD_STORE *store = get_decoder_store(methdata->libctx);
+    OSSL_NAMEMAP *namemap = ossl_namemap_stored(methdata->libctx);
     void *method = NULL;
     int unsupported = 0;
 
@@ -316,15 +347,15 @@ static OSSL_DECODER *inner_ossl_decoder_fetch(OSSL_LIB_CTX *libctx, int id,
     }
 
     /*
-     * If we have been passed neither a name_id or a name, we have an
+     * If we have been passed both an id and a name, we have an
      * internal programming error.
      */
-    if (!ossl_assert(id != 0 || name != NULL)) {
+    if (!ossl_assert(id == 0 || name == NULL)) {
         ERR_raise(ERR_LIB_OSSL_DECODER, ERR_R_INTERNAL_ERROR);
         return NULL;
     }
 
-    if (id == 0)
+    if (id == 0 && name != NULL)
         id = ossl_namemap_name2num(namemap, name);
 
     /*
@@ -337,51 +368,48 @@ static OSSL_DECODER *inner_ossl_decoder_fetch(OSSL_LIB_CTX *libctx, int id,
     if (id == 0
         || !ossl_method_store_cache_get(store, id, properties, &method)) {
         OSSL_METHOD_CONSTRUCT_METHOD mcm = {
-            alloc_tmp_decoder_store,
-            dealloc_tmp_decoder_store,
+            get_tmp_decoder_store,
             get_decoder_from_store,
             put_decoder_in_store,
             construct_decoder,
             destruct_decoder
         };
-        struct decoder_data_st mcmdata;
 
-        mcmdata.libctx = libctx;
-        mcmdata.mcm = &mcm;
-        mcmdata.id = id;
-        mcmdata.names = name;
-        mcmdata.propquery = properties;
-        mcmdata.flag_construct_error_occurred = 0;
-        if ((method = ossl_method_construct(libctx, OSSL_OP_DECODER,
+        methdata->id = id;
+        methdata->names = name;
+        methdata->propquery = properties;
+        methdata->flag_construct_error_occurred = 0;
+        if ((method = ossl_method_construct(methdata->libctx, OSSL_OP_DECODER,
                                             0 /* !force_cache */,
-                                            &mcm, &mcmdata)) != NULL) {
+                                            &mcm, methdata)) != NULL) {
             /*
              * If construction did create a method for us, we know that
              * there is a correct name_id and meth_id, since those have
              * already been calculated in get_decoder_from_store() and
              * put_decoder_in_store() above.
              */
-            if (id == 0)
+            if (id == 0 && name != NULL)
                 id = ossl_namemap_name2num(namemap, name);
-            ossl_method_store_cache_set(store, id, properties, method,
-                                        up_ref_decoder, free_decoder);
+            if (id != 0)
+                ossl_method_store_cache_set(store, id, properties, method,
+                                            up_ref_decoder, free_decoder);
         }
 
         /*
          * If we never were in the constructor, the algorithm to be fetched
          * is unsupported.
          */
-        unsupported = !mcmdata.flag_construct_error_occurred;
+        unsupported = !methdata->flag_construct_error_occurred;
     }
 
-    if (method == NULL) {
+    if ((id != 0 || name != NULL) && method == NULL) {
         int code = unsupported ? ERR_R_UNSUPPORTED : ERR_R_FETCH_FAILED;
 
         if (name == NULL)
             name = ossl_namemap_num2name(namemap, id, 0);
         ERR_raise_data(ERR_LIB_OSSL_DECODER, code,
                        "%s, Name (%s : %d), Properties (%s)",
-                       ossl_lib_ctx_get_descriptor(libctx),
+                       ossl_lib_ctx_get_descriptor(methdata->libctx),
                        name = NULL ? "<null>" : name, id,
                        properties == NULL ? "<null>" : properties);
     }
@@ -392,13 +420,27 @@ static OSSL_DECODER *inner_ossl_decoder_fetch(OSSL_LIB_CTX *libctx, int id,
 OSSL_DECODER *OSSL_DECODER_fetch(OSSL_LIB_CTX *libctx, const char *name,
                                  const char *properties)
 {
-    return inner_ossl_decoder_fetch(libctx, 0, name, properties);
+    struct decoder_data_st methdata;
+    void *method;
+
+    methdata.libctx = libctx;
+    methdata.tmp_store = NULL;
+    method = inner_ossl_decoder_fetch(&methdata, 0, name, properties);
+    dealloc_tmp_decoder_store(methdata.tmp_store);
+    return method;
 }
 
 OSSL_DECODER *ossl_decoder_fetch_by_number(OSSL_LIB_CTX *libctx, int id,
                                            const char *properties)
 {
-    return inner_ossl_decoder_fetch(libctx, id, NULL, properties);
+    struct decoder_data_st methdata;
+    void *method;
+
+    methdata.libctx = libctx;
+    methdata.tmp_store = NULL;
+    method = inner_ossl_decoder_fetch(&methdata, id, NULL, properties);
+    dealloc_tmp_decoder_store(methdata.tmp_store);
+    return method;
 }
 
 /*
@@ -422,7 +464,7 @@ const char *OSSL_DECODER_get0_properties(const OSSL_DECODER *decoder)
         return 0;
     }
 
-    return decoder->base.propdef;
+    return decoder->base.algodef->property_definition;
 }
 
 const OSSL_PROPERTY_LIST *
@@ -453,7 +495,7 @@ const char *OSSL_DECODER_get0_name(const OSSL_DECODER *decoder)
 
 const char *OSSL_DECODER_get0_description(const OSSL_DECODER *decoder)
 {
-    return decoder->base.description;
+    return decoder->base.algodef->algorithm_description;
 }
 
 int OSSL_DECODER_is_a(const OSSL_DECODER *decoder, const char *name)
@@ -467,42 +509,36 @@ int OSSL_DECODER_is_a(const OSSL_DECODER *decoder, const char *name)
     return 0;
 }
 
-struct decoder_do_all_data_st {
-    void (*user_fn)(void *method, void *arg);
+struct do_one_data_st {
+    void (*user_fn)(OSSL_DECODER *decoder, void *arg);
     void *user_arg;
 };
 
-static void decoder_do_one(OSSL_PROVIDER *provider,
-                           const OSSL_ALGORITHM *algodef,
-                           int no_store, void *vdata)
+static void do_one(ossl_unused int id, void *method, void *arg)
 {
-    struct decoder_do_all_data_st *data = vdata;
-    OSSL_LIB_CTX *libctx = ossl_provider_libctx(provider);
-    OSSL_NAMEMAP *namemap = ossl_namemap_stored(libctx);
-    const char *names = algodef->algorithm_names;
-    int id = ossl_namemap_add_names(namemap, 0, names, NAME_SEPARATOR);
-    void *method = NULL;
+    struct do_one_data_st *data = arg;
 
-    if (id != 0)
-        method = ossl_decoder_from_algorithm(id, algodef, provider);
-
-    if (method != NULL) {
-        data->user_fn(method, data->user_arg);
-        OSSL_DECODER_free(method);
-    }
+    data->user_fn(method, data->user_arg);
 }
 
 void OSSL_DECODER_do_all_provided(OSSL_LIB_CTX *libctx,
-                                  void (*fn)(OSSL_DECODER *decoder, void *arg),
-                                  void *arg)
+                                  void (*user_fn)(OSSL_DECODER *decoder,
+                                                  void *arg),
+                                  void *user_arg)
 {
-    struct decoder_do_all_data_st data;
+    struct decoder_data_st methdata;
+    struct do_one_data_st data;
 
-    data.user_fn = (void (*)(void *, void *))fn;
-    data.user_arg = arg;
-    ossl_algorithm_do_all(libctx, OSSL_OP_DECODER, NULL,
-                          NULL, decoder_do_one, NULL,
-                          &data);
+    methdata.libctx = libctx;
+    methdata.tmp_store = NULL;
+    (void)inner_ossl_decoder_fetch(&methdata, 0, NULL, NULL /* properties */);
+
+    data.user_fn = user_fn;
+    data.user_arg = user_arg;
+    if (methdata.tmp_store != NULL)
+        ossl_method_store_do_all(methdata.tmp_store, &do_one, &data);
+    ossl_method_store_do_all(get_decoder_store(libctx), &do_one, &data);
+    dealloc_tmp_decoder_store(methdata.tmp_store);
 }
 
 int OSSL_DECODER_names_do_all(const OSSL_DECODER *decoder,
