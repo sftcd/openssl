@@ -2652,6 +2652,10 @@ int ech_same_ext(SSL *s, WPACKET* pkt)
 #endif
             return(ECH_SAME_EXT_CONTINUE);
         } else {
+	        size_t ind=0;
+	        RAW_EXTENSION *myext=NULL;
+	        RAW_EXTENSION *raws=inner->clienthello->pre_proc_exts;
+	        size_t nraws=0;
             /* copy inner to outer */
 #ifndef OPENSSL_NO_SSL_TRACE
             OSSL_TRACE_BEGIN(TLS) {
@@ -2660,10 +2664,6 @@ int ech_same_ext(SSL *s, WPACKET* pkt)
                     s->ext.etype,tind);
             } OSSL_TRACE_END(TLS);
 #endif
-	        size_t ind=0;
-	        RAW_EXTENSION *myext=NULL;
-	        RAW_EXTENSION *raws=inner->clienthello->pre_proc_exts;
-	        size_t nraws=0;
 	        if (raws==NULL) {
 	            return ECH_SAME_EXT_ERR;
 	        }
@@ -3274,8 +3274,8 @@ void ech_pbuf(const char *msg, const unsigned char *buf, const size_t blen)
     } else if (blen==0) {
         BIO_printf(trc_out,"%s: blen is zero\n",msg);
     } else {
-        BIO_printf(trc_out,"%s (%lu):\n    ",msg,(unsigned long)blen);
         size_t i;
+        BIO_printf(trc_out,"%s (%lu):\n    ",msg,(unsigned long)blen);
         for (i=0;i<blen;i++) {
             if ((i!=0) && (i%16==0))
                 BIO_printf(trc_out,"\n    ");
