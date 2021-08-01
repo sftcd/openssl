@@ -1185,9 +1185,6 @@ int s_client_main(int argc, char **argv)
         case OPT_BRIEF:
             c_brief = verify_args.quiet = c_quiet = 1;
             break;
-        case OPT_S_IMMEDIATE_RENEG:
-            /* Option ignored on client. */
-            break;
         case OPT_S_CASES:
             if (ssl_args == NULL)
                 ssl_args = sk_OPENSSL_STRING_new_null();
@@ -3370,7 +3367,6 @@ int s_client_main(int argc, char **argv)
         }
     }
 
-    ret = 0;
  shut:
     if (in_init)
         print_stuff(bio_c_out, con, full_log);

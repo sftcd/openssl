@@ -1,5 +1,5 @@
 /*
- * Copyright 1995-2020 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 1995-2021 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -37,9 +37,7 @@ typedef struct {
 # if defined(AES_ASM) && (defined(__sparc) || defined(__sparc__))
 /* ----------^^^ this is not a typo, just a way to detect that
  * assembler support was in general requested... */
-#  include "sparc_arch.h"
-
-extern unsigned int OPENSSL_sparcv9cap_P[];
+#  include "crypto/sparc_arch.h"
 
 #  define SPARC_DES_CAPABLE       (OPENSSL_sparcv9cap_P[1] & CFR_DES)
 

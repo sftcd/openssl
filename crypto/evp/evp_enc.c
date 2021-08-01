@@ -16,7 +16,9 @@
 #include <openssl/evp.h>
 #include <openssl/err.h>
 #include <openssl/rand.h>
-#include <openssl/engine.h>
+#ifndef FIPS_MODULE
+# include <openssl/engine.h>
+#endif
 #include <openssl/params.h>
 #include <openssl/core_names.h>
 #include "internal/cryptlib.h"
@@ -1649,5 +1651,6 @@ void EVP_CIPHER_do_all_provided(OSSL_LIB_CTX *libctx,
 {
     evp_generic_do_all(libctx, OSSL_OP_CIPHER,
                        (void (*)(void *, void *))fn, arg,
-                       evp_cipher_from_algorithm, evp_cipher_free);
+                       evp_cipher_from_algorithm, evp_cipher_up_ref,
+                       evp_cipher_free);
 }

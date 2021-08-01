@@ -15,6 +15,12 @@
 # define _POSIX_C_SOURCE 2
 #endif
 
+#ifndef OPENSSL_NO_ENGINE
+/* We need to use some deprecated APIs */
+# define OPENSSL_SUPPRESS_DEPRECATED
+# include <openssl/engine.h>
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -69,12 +75,18 @@ typedef struct {
     unsigned long mask;
 } NAME_EX_TBL;
 
-static OSSL_LIB_CTX *app_libctx = NULL;
-
 static int set_table_opts(unsigned long *flags, const char *arg,
                           const NAME_EX_TBL * in_tbl);
 static int set_multi_opts(unsigned long *flags, const char *arg,
                           const NAME_EX_TBL * in_tbl);
+static
+int load_key_certs_crls_suppress(const char *uri, int format, int maybe_stdin,
+                                 const char *pass, const char *desc,
+                                 EVP_PKEY **ppkey, EVP_PKEY **ppubkey,
+                                 EVP_PKEY **pparams,
+                                 X509 **pcert, STACK_OF(X509) **pcerts,
+                                 X509_CRL **pcrl, STACK_OF(X509_CRL) **pcrls,
+                                 int suppress_decode_errors);
 
 int app_init(long mesgwin);
 
@@ -328,50 +340,13 @@ static char *app_get_pass(const char *arg, int keepbio)
     return OPENSSL_strdup(tpass);
 }
 
-OSSL_LIB_CTX *app_get0_libctx(void)
-{
-    return app_libctx;
-}
-
-static const char *app_propq = NULL;
-
-int app_set_propq(const char *arg)
-{
-    app_propq = arg;
-    return 1;
-}
-
-const char *app_get0_propq(void)
-{
-    return app_propq;
-}
-
-OSSL_LIB_CTX *app_create_libctx(void)
-{
-    /*
-     * Load the NULL provider into the default library context and create a
-     * library context which will then be used for any OPT_PROV options.
-     */
-    if (app_libctx == NULL) {
-
-        if (!app_provider_load(NULL, "null")) {
-            BIO_puts(bio_err, "Failed to create null provider\n");
-            return NULL;
-        }
-        app_libctx = OSSL_LIB_CTX_new();
-    }
-    if (app_libctx == NULL)
-        BIO_puts(bio_err, "Failed to create library context\n");
-    return app_libctx;
-}
-
 CONF *app_load_config_bio(BIO *in, const char *filename)
 {
     long errorline = -1;
     CONF *conf;
     int i;
 
-    conf = NCONF_new_ex(app_libctx, NULL);
+    conf = NCONF_new_ex(app_get0_libctx(), NULL);
     i = NCONF_load_bio(conf, in, &errorline);
     if (i > 0)
         return conf;
@@ -414,7 +389,7 @@ CONF *app_load_config_internal(const char *filename, int quiet)
         BIO_free(in);
     } else {
         /* Return empty config if filename is empty string. */
-        conf = NCONF_new_ex(app_libctx, NULL);
+        conf = NCONF_new_ex(app_get0_libctx(), NULL);
     }
     return conf;
 }
@@ -605,25 +580,35 @@ EVP_PKEY *load_pubkey(const char *uri, int format, int maybe_stdin,
     return pkey;
 }
 
-EVP_PKEY *load_keyparams(const char *uri, int format, int maybe_stdin,
-                         const char *keytype, const char *desc)
+EVP_PKEY *load_keyparams_suppress(const char *uri, int format, int maybe_stdin,
+                                 const char *keytype, const char *desc,
+                                 int suppress_decode_errors)
 {
     EVP_PKEY *params = NULL;
 
     if (desc == NULL)
         desc = "key parameters";
 
-    (void)load_key_certs_crls(uri, format, maybe_stdin, NULL, desc,
-                              NULL, NULL, &params, NULL, NULL, NULL, NULL);
+    (void)load_key_certs_crls_suppress(uri, format, maybe_stdin, NULL, desc,
+                                       NULL, NULL, &params, NULL, NULL, NULL,
+                                       NULL, suppress_decode_errors);
     if (params != NULL && keytype != NULL && !EVP_PKEY_is_a(params, keytype)) {
-        BIO_printf(bio_err,
-                   "Unable to load %s from %s (unexpected parameters type)\n",
-                   desc, uri);
-        ERR_print_errors(bio_err);
+        if (!suppress_decode_errors) {
+            BIO_printf(bio_err,
+                       "Unable to load %s from %s (unexpected parameters type)\n",
+                       desc, uri);
+            ERR_print_errors(bio_err);
+        }
         EVP_PKEY_free(params);
         params = NULL;
     }
     return params;
+}
+
+EVP_PKEY *load_keyparams(const char *uri, int format, int maybe_stdin,
+                         const char *keytype, const char *desc)
+{
+    return load_keyparams_suppress(uri, format, maybe_stdin, keytype, desc, 0);
 }
 
 void app_bail_out(char *fmt, ...)
@@ -866,12 +851,14 @@ static const char *format2string(int format)
  * In any case (also on error) the caller is responsible for freeing all members
  * of *pcerts and *pcrls (as far as they are not NULL).
  */
-int load_key_certs_crls(const char *uri, int format, int maybe_stdin,
-                        const char *pass, const char *desc,
-                        EVP_PKEY **ppkey, EVP_PKEY **ppubkey,
-                        EVP_PKEY **pparams,
-                        X509 **pcert, STACK_OF(X509) **pcerts,
-                        X509_CRL **pcrl, STACK_OF(X509_CRL) **pcrls)
+static
+int load_key_certs_crls_suppress(const char *uri, int format, int maybe_stdin,
+                                 const char *pass, const char *desc,
+                                 EVP_PKEY **ppkey, EVP_PKEY **ppubkey,
+                                 EVP_PKEY **pparams,
+                                 X509 **pcert, STACK_OF(X509) **pcerts,
+                                 X509_CRL **pcrl, STACK_OF(X509_CRL) **pcrls,
+                                 int suppress_decode_errors)
 {
     PW_CB_DATA uidata;
     OSSL_STORE_CTX *ctx = NULL;
@@ -987,10 +974,6 @@ int load_key_certs_crls(const char *uri, int format, int maybe_stdin,
          * certificate in it. We just retry until eof.
          */
         if (info == NULL) {
-            if (OSSL_STORE_error(ctx)) {
-                ERR_print_errors(bio_err);
-                ERR_clear_error();
-            }
             continue;
         }
 
@@ -1074,12 +1057,14 @@ int load_key_certs_crls(const char *uri, int format, int maybe_stdin,
                 any = 1;
             failed = "CRL";
         }
-        if (failed != NULL)
-            BIO_printf(bio_err, "Could not read");
-        if (any)
-            BIO_printf(bio_err, " any");
+        if (!suppress_decode_errors) {
+            if (failed != NULL)
+                BIO_printf(bio_err, "Could not read");
+            if (any)
+                BIO_printf(bio_err, " any");
+        }
     }
-    if (failed != NULL) {
+    if (!suppress_decode_errors && failed != NULL) {
         if (desc != NULL && strstr(desc, failed) != NULL) {
             BIO_printf(bio_err, " %s", desc);
         } else {
@@ -1092,9 +1077,23 @@ int load_key_certs_crls(const char *uri, int format, int maybe_stdin,
         BIO_printf(bio_err, "\n");
         ERR_print_errors(bio_err);
     }
+    if (suppress_decode_errors || failed == NULL)
+        /* clear any spurious errors */
+        ERR_clear_error();
     return failed == NULL;
 }
 
+int load_key_certs_crls(const char *uri, int format, int maybe_stdin,
+                        const char *pass, const char *desc,
+                        EVP_PKEY **ppkey, EVP_PKEY **ppubkey,
+                        EVP_PKEY **pparams,
+                        X509 **pcert, STACK_OF(X509) **pcerts,
+                        X509_CRL **pcrl, STACK_OF(X509_CRL) **pcrls)
+{
+    return load_key_certs_crls_suppress(uri, format, maybe_stdin, pass, desc,
+                                        ppkey, ppubkey, pparams, pcert, pcerts,
+                                        pcrl, pcrls, 0);
+}
 
 #define X509V3_EXT_UNKNOWN_MASK         (0xfL << 16)
 /* Return error for unknown extensions */
@@ -1174,6 +1173,15 @@ int set_name_ex(unsigned long *flags, const char *arg)
         && (*flags & XN_FLAG_SEP_MASK) == 0)
         *flags |= XN_FLAG_SEP_CPLUS_SPC;
     return 1;
+}
+
+int set_dateopt(unsigned long *dateopt, const char *arg)
+{
+    if (strcasecmp(arg, "rfc_822") == 0)
+        *dateopt = ASN1_DTFLGS_RFC822;
+    else if (strcasecmp(arg, "iso_8601") == 0)
+        *dateopt = ASN1_DTFLGS_ISO8601;
+    return 0;
 }
 
 int set_ext_copy(int *copy_type, const char *arg)
@@ -2954,28 +2962,32 @@ BIO *bio_open_owner(const char *filename, int format, int private)
 {
     FILE *fp = NULL;
     BIO *b = NULL;
-    int fd = -1, bflags, mode, textmode;
+    int textmode, bflags;
+#ifndef OPENSSL_NO_POSIX_IO
+    int fd = -1, mode;
+#endif
 
     if (!private || filename == NULL || strcmp(filename, "-") == 0)
         return bio_open_default(filename, 'w', format);
 
-    mode = O_WRONLY;
-#ifdef O_CREAT
-    mode |= O_CREAT;
-#endif
-#ifdef O_TRUNC
-    mode |= O_TRUNC;
-#endif
     textmode = FMT_istext(format);
+#ifndef OPENSSL_NO_POSIX_IO
+    mode = O_WRONLY;
+# ifdef O_CREAT
+    mode |= O_CREAT;
+# endif
+# ifdef O_TRUNC
+    mode |= O_TRUNC;
+# endif
     if (!textmode) {
-#ifdef O_BINARY
+# ifdef O_BINARY
         mode |= O_BINARY;
-#elif defined(_O_BINARY)
+# elif defined(_O_BINARY)
         mode |= _O_BINARY;
-#endif
+# endif
     }
 
-#ifdef OPENSSL_SYS_VMS
+# ifdef OPENSSL_SYS_VMS
     /* VMS doesn't have O_BINARY, it just doesn't make sense.  But,
      * it still needs to know that we're going binary, or fdopen()
      * will fail with "invalid argument"...  so we tell VMS what the
@@ -2984,18 +2996,22 @@ BIO *bio_open_owner(const char *filename, int format, int private)
     if (!textmode)
         fd = open(filename, mode, 0600, "ctx=bin");
     else
-#endif
+# endif
         fd = open(filename, mode, 0600);
     if (fd < 0)
         goto err;
     fp = fdopen(fd, modestr('w', format));
+#else   /* OPENSSL_NO_POSIX_IO */
+    /* Have stdio but not Posix IO, do the best we can */
+    fp = fopen(filename, modestr('w', format));
+#endif  /* OPENSSL_NO_POSIX_IO */
     if (fp == NULL)
         goto err;
     bflags = BIO_CLOSE;
     if (textmode)
         bflags |= BIO_FP_TEXT;
     b = BIO_new_fp(fp, bflags);
-    if (b)
+    if (b != NULL)
         return b;
 
  err:
@@ -3003,10 +3019,12 @@ BIO *bio_open_owner(const char *filename, int format, int private)
                opt_getprog(), filename, strerror(errno));
     ERR_print_errors(bio_err);
     /* If we have fp, then fdopen took over fd, so don't close both. */
-    if (fp)
+    if (fp != NULL)
         fclose(fp);
+#ifndef OPENSSL_NO_POSIX_IO
     else if (fd >= 0)
         close(fd);
+#endif
     return NULL;
 }
 
@@ -3292,4 +3310,30 @@ EVP_PKEY *app_paramgen(EVP_PKEY_CTX *ctx, const char *alg)
         app_bail_out("%s: Generating %s key parameters failed\n",
                      opt_getprog(), alg != NULL ? alg : "asymmetric");
     return res;
+}
+
+/*
+ * Return non-zero if the legacy path is still an option.
+ * This decision is based on the global command line operations and the
+ * behaviour thus far.
+ */
+int opt_legacy_okay(void)
+{
+    int provider_options = opt_provider_option_given();
+    int libctx = app_get0_libctx() != NULL || app_get0_propq() != NULL;
+#ifndef OPENSSL_NO_ENGINE
+    ENGINE *e = ENGINE_get_first();
+
+    if (e != NULL) {
+        ENGINE_free(e);
+        return 1;
+    }
+#endif
+    /*
+     * Having a provider option specified or a custom library context or
+     * property query, is a sure sign we're not using legacy.
+     */
+    if (provider_options || libctx)
+        return 0;
+    return 1;
 }

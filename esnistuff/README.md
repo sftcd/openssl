@@ -1,3 +1,4 @@
+# This is just an Encrypted Client Hello (ECH) placeholder
 
 # This is a temporary place for ESNI content ...
 
@@ -27,6 +28,8 @@ Most recent first...
 
 DON'T TRY ECH YET!!! The very much work-in-progress code is
 sooooo awful still...
+
+- 20210801: resync'd with upstream
 
 - 20210624: Started an internal [code review](code-review.md) of
   all the ECH changes, that'll be ongoing for a bit. Finished 

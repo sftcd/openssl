@@ -7,13 +7,9 @@
  * https://www.openssl.org/source/license.html
  */
 
-#include <openssl/evp.h>
-
 #include <stdio.h>
 #include <stdlib.h>
-#include <openssl/engine.h>
 #include <openssl/evp.h>
-#include <openssl/x509v3.h>
 #include <openssl/rand.h>
 #include <openssl/core.h>
 #include <openssl/core_names.h>
@@ -22,7 +18,6 @@
 #include "internal/numbers.h"
 #include "internal/provider.h"
 #include "internal/core.h"
-#include "crypto/asn1.h"
 #include "crypto/evp.h"
 #include "evp_local.h"
 
@@ -489,7 +484,8 @@ void EVP_RAND_do_all_provided(OSSL_LIB_CTX *libctx,
 {
     evp_generic_do_all(libctx, OSSL_OP_RAND,
                        (void (*)(void *, void *))fn, arg,
-                       evp_rand_from_algorithm, evp_rand_free);
+                       evp_rand_from_algorithm, evp_rand_up_ref,
+                       evp_rand_free);
 }
 
 int EVP_RAND_names_do_all(const EVP_RAND *rand,
