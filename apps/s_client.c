@@ -3756,6 +3756,7 @@ static size_t ech_trace_cb(const char *buf, size_t cnt,
 {
      BIO *bio = vdata;
      const char *label = NULL;
+     size_t brv=0;
      switch (cmd) {
      case OSSL_TRACE_CTRL_BEGIN:
          label = "ECH TRACE BEGIN";
@@ -3765,7 +3766,8 @@ static size_t ech_trace_cb(const char *buf, size_t cnt,
          break;
      }
      if (label != NULL) {
-#ifdef OPENSSL_THREADS
+#if defined(OPENSSL_THREADS) && !defined(OPENSSL_SYS_WINDOWS) \
+         && !defined(OPENSSL_SYS_MSDOS)
          union {
              pthread_t tid;
              unsigned long ltid;
@@ -3774,11 +3776,11 @@ static size_t ech_trace_cb(const char *buf, size_t cnt,
          BIO_printf(bio, "%s TRACE[%s]:%lx\n",
                     label, OSSL_trace_get_category_name(category), tid.ltid);
 #else
-         BIO_printf(bio, "%s TRACE[%s]:%lx\n",
-                    label, OSSL_trace_get_category_name(category), 0);
+         BIO_printf(bio, "%s TRACE[%s]:0\n",
+                    label, OSSL_trace_get_category_name(category));
 #endif
      }
-     size_t brv=(size_t)BIO_puts(bio, buf);
+     brv=(size_t)BIO_puts(bio, buf);
      (void)BIO_flush(bio);
      return brv;
 }

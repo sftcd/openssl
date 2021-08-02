@@ -3955,17 +3955,17 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
     }
 
     cp=aad;
-    *cp++=((hpke_suite.kdf_id&0xffff)/256);
-    *cp++=((hpke_suite.kdf_id&0xffff)%256);
-    *cp++=((hpke_suite.aead_id&0xffff)/256);
-    *cp++=((hpke_suite.aead_id&0xffff)%256);
-    *cp++=tc->config_id;
+    *cp++=(unsigned char)((hpke_suite.kdf_id&0xffff)/256);
+    *cp++=(unsigned char)((hpke_suite.kdf_id&0xffff)%256);
+    *cp++=(unsigned char)((hpke_suite.aead_id&0xffff)/256);
+    *cp++=(unsigned char)((hpke_suite.aead_id&0xffff)%256);
+    *cp++=(unsigned char)tc->config_id;
     *cp++=(unsigned char)((mypub_len&0xffff)/256);
     *cp++=(unsigned char)((mypub_len&0xffff)%256);
     memcpy(cp,mypub,mypub_len); cp+=mypub_len;
-    *cp++=(((pkt->written-4)&0xffffff)/(256*256));
-    *cp++=(((pkt->written-4)&0xffffff)/256);
-    *cp++=((pkt->written-4)%256);
+    *cp++=(unsigned char)(((pkt->written-4)&0xffffff)/(256*256));
+    *cp++=(unsigned char)(((pkt->written-4)&0xffffff)/256);
+    *cp++=(unsigned char)((pkt->written-4)%256);
     memcpy(cp,pkt->buf->data+4,pkt->written-4);
 
     ech_pbuf("EAAE: aad",aad,aad_len);
