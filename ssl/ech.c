@@ -326,7 +326,7 @@ static int ech_base64_decode(char *in, unsigned char **out)
     while (overallfraglen<inlen) {
         /* find length of 1st b64 string */
         int ofraglen=0;
-        int thisfraglen=strcspn(inp,sepstr);
+        size_t thisfraglen=strcspn(inp,sepstr);
 
         inp[thisfraglen]='\0';
         overallfraglen+=(thisfraglen+1);
