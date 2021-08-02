@@ -2963,7 +2963,7 @@ static int ech_decode_inner(
         goto err;
     }
     memcpy(initial_decomp,s->ext.encoded_innerch,offset2sessid);
-    initial_decomp[offset2sessid]=s->tmp_session_id_len;
+    initial_decomp[offset2sessid]=(unsigned char)(s->tmp_session_id_len&0xff);
     memcpy(initial_decomp+offset2sessid+1,
                 s->tmp_session_id,
                 s->tmp_session_id_len);
@@ -3960,8 +3960,8 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
     *cp++=((hpke_suite.aead_id&0xffff)/256);
     *cp++=((hpke_suite.aead_id&0xffff)%256);
     *cp++=tc->config_id;
-    *cp++=((mypub_len&0xffff)/256);
-    *cp++=((mypub_len&0xffff)%256);
+    *cp++=(unsigned char)((mypub_len&0xffff)/256);
+    *cp++=(unsigned char)((mypub_len&0xffff)%256);
     memcpy(cp,mypub,mypub_len); cp+=mypub_len;
     *cp++=(((pkt->written-4)&0xffffff)/(256*256));
     *cp++=(((pkt->written-4)&0xffffff)/256);
@@ -4050,8 +4050,8 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
     origextlens=startofmessage[startofexts]*256+startofmessage[startofexts+1];
     newextlens=origextlens+echextlen;
 
-    startofmessage[startofexts]=(newextlens&0xffff)/256; 
-    startofmessage[startofexts+1]=(newextlens&0xffff)%256; 
+    startofmessage[startofexts]=(unsigned char)(newextlens&0xffff)/256; 
+    startofmessage[startofexts+1]=(unsigned char)(newextlens&0xffff)%256; 
 
     ech_pbuf("EAAE pkt to startofexts+2",
             (unsigned char*) pkt->buf->data,startofexts+2);
@@ -4105,18 +4105,18 @@ static int ech_srv_get_aad(
     CPCHECK
     *cp++=config_id&0xff;
     CPCHECK
-    *cp++=((pub_len&0xffff)/256);
+    *cp++=(unsigned char)((pub_len&0xffff)/256);
     CPCHECK
-    *cp++=((pub_len&0xffff)%256);
+    *cp++=(unsigned char)((pub_len&0xffff)%256);
     CPCHECK
     memcpy(cp,pub,pub_len); cp+=pub_len;
     CPCHECK
 
-    *cp++=((de_len&0xffffff)/(256*256));
+    *cp++=(unsigned char)((de_len&0xffffff)/(256*256));
     CPCHECK
-    *cp++=((de_len&0xffff)/256);
+    *cp++=(unsigned char)((de_len&0xffff)/256);
     CPCHECK
-    *cp++=((de_len&0xffff)%256);
+    *cp++=(unsigned char)((de_len&0xffff)%256);
     CPCHECK
     memcpy(cp,de,de_len); cp+=de_len;
     CPCHECK
@@ -4539,8 +4539,8 @@ int ech_early_decrypt(SSL *s, PACKET *outerpkt, PACKET *newpkt)
     newextlens=ch_len-echlen-startofexts-6;
 
     memcpy(de,ch,startofexts);
-    de[startofexts]=(newextlens&0xffff)/256; 
-    de[startofexts+1]=(newextlens&0xffff)%256; 
+    de[startofexts]=(unsigned char)(newextlens&0xffff)/256; 
+    de[startofexts+1]=(unsigned char)(newextlens&0xffff)%256; 
     beforeECH=echoffset-startofexts-2;
     afterECH=ch_len-(echoffset+echlen);
     memcpy(de+startofexts+2,ch+startofexts+2,beforeECH);

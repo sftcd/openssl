@@ -894,17 +894,17 @@ static int ssl_print_extension(BIO *bio, int indent, int server,
 #ifndef OPENSSL_NO_ECH
     case TLSEXT_TYPE_ech:
         BIO_indent(bio, indent + 2, 80);
-        BIO_printf(bio,"ECH of length (%ld)\n",extlen);
+        BIO_printf(bio,"ECH of length (%d)\n",(int)extlen);
         ssl_print_hex(bio, indent + 4, "ECH", ext, extlen);
         break;
     case TLSEXT_TYPE_outer_extensions:
         BIO_indent(bio, indent + 2, 80);
-        BIO_printf(bio,"Outer extensions (%ld)\n",extlen);
+        BIO_printf(bio,"Outer extensions (%d)\n",(int)extlen);
         ssl_print_hex(bio, indent + 4, "OUTER_CH", ext, extlen);
         break;
     case TLSEXT_TYPE_ech_is_inner:
         BIO_indent(bio, indent + 2, 80);
-        BIO_printf(bio,"ech_is_inner: length (%ld)\n",extlen);
+        BIO_printf(bio,"ech_is_inner: length (%d)\n",(int)extlen);
         break;
 #endif
 

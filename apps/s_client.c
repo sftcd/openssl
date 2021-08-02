@@ -3765,6 +3765,7 @@ static size_t ech_trace_cb(const char *buf, size_t cnt,
          break;
      }
      if (label != NULL) {
+#ifdef OPENSSL_THREADS
          union {
              pthread_t tid;
              unsigned long ltid;
@@ -3772,6 +3773,10 @@ static size_t ech_trace_cb(const char *buf, size_t cnt,
          tid.tid = pthread_self();
          BIO_printf(bio, "%s TRACE[%s]:%lx\n",
                     label, OSSL_trace_get_category_name(category), tid.ltid);
+#else
+         BIO_printf(bio, "%s TRACE[%s]:%lx\n",
+                    label, OSSL_trace_get_category_name(category), 0);
+#endif
      }
      size_t brv=(size_t)BIO_puts(bio, buf);
      (void)BIO_flush(bio);
