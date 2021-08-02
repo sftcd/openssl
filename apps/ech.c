@@ -260,34 +260,34 @@ static int mk_echconfig(
     memset(bbuf,0,ECH_MAX_ECHCONFIGS_BUFLEN);
     *bp++=0x00; /* leave space for overall length */
     *bp++=0x00; /* leave space for overall length */
-    *bp++=(ekversion>>8)%256; 
-    *bp++=(ekversion%256); 
+    *bp++=(unsigned char)(ekversion>>8)%256; 
+    *bp++=(unsigned char)(ekversion%256); 
     *bp++=0x00; /* leave space for almost-overall length */
     *bp++=0x00; /* leave space for almost-overall length */
     if (ekversion==ECH_DRAFT_10_VERSION) {
         uint8_t config_id=0;
         RAND_bytes(&config_id,1);
-        *bp++=config_id;
-        *bp++=(hpke_suite.kem_id>>8)%256;
-        *bp++=(hpke_suite.kem_id%256);
+        *bp++=(unsigned char)config_id;
+        *bp++=(unsigned char)(hpke_suite.kem_id>>8)%256;
+        *bp++=(unsigned char)(hpke_suite.kem_id%256);
         /* keys */
-        *bp++=(publen>>8)%256;
-        *bp++=(publen%256);
+        *bp++=(unsigned char)(publen>>8)%256;
+        *bp++=(unsigned char)(publen%256);
         memcpy(bp,pub,publen); bp+=publen;
         /* cipher_suite */
         *bp++=0x00;
         *bp++=0x04;
-        *bp++=(hpke_suite.kdf_id>>8)%256;
-        *bp++=(hpke_suite.kdf_id%256);
-        *bp++=(hpke_suite.aead_id>>8)%256;
-        *bp++=(hpke_suite.aead_id%256);
+        *bp++=(unsigned char)(hpke_suite.kdf_id>>8)%256;
+        *bp++=(unsigned char)(hpke_suite.kdf_id%256);
+        *bp++=(unsigned char)(hpke_suite.aead_id>>8)%256;
+        *bp++=(unsigned char)(hpke_suite.aead_id%256);
         /* maximum_name_length */
-        *bp++=(max_name_length>>8)%256;
-        *bp++=(max_name_length%256);
+        *bp++=(unsigned char)(max_name_length>>8)%256;
+        *bp++=(unsigned char)(max_name_length%256);
         /* public_name */
         if (pnlen > 0 ) {
-            *bp++=(pnlen>>8)%256;
-            *bp++=pnlen%256;
+            *bp++=(unsigned char)(pnlen>>8)%256;
+            *bp++=(unsigned char)(pnlen%256);
             memcpy(bp,public_name,pnlen); bp+=pnlen;
         } else {
             *bp++=0x00;
@@ -296,27 +296,27 @@ static int mk_echconfig(
     }
     if (ekversion==ECH_DRAFT_09_VERSION) {
         if (pnlen > 0 ) {
-            *bp++=(pnlen>>8)%256;
-            *bp++=pnlen%256;
+            *bp++=(unsigned char)(pnlen>>8)%256;
+            *bp++=(unsigned char)(pnlen%256);
             memcpy(bp,public_name,pnlen); bp+=pnlen;
         }
         /* keys */
-        *bp++=(publen>>8)%256;
-        *bp++=(publen%256);
+        *bp++=(unsigned char)(publen>>8)%256;
+        *bp++=(unsigned char)(publen%256);
         memcpy(bp,pub,publen); bp+=publen;
         /* HPKE KEM id */
-        *bp++=(hpke_suite.kem_id>>8)%256;
-        *bp++=(hpke_suite.kem_id%256);
+        *bp++=(unsigned char)(hpke_suite.kem_id>>8)%256;
+        *bp++=(unsigned char)(hpke_suite.kem_id%256);
         /* cipher_suite */
         *bp++=0x00;
         *bp++=0x04;
-        *bp++=(hpke_suite.kdf_id>>8)%256;
-        *bp++=(hpke_suite.kdf_id%256);
-        *bp++=(hpke_suite.aead_id>>8)%256;
-        *bp++=(hpke_suite.aead_id%256);
+        *bp++=(unsigned char)(hpke_suite.kdf_id>>8)%256;
+        *bp++=(unsigned char)(hpke_suite.kdf_id%256);
+        *bp++=(unsigned char)(hpke_suite.aead_id>>8)%256;
+        *bp++=(unsigned char)(hpke_suite.aead_id%256);
         /* maximum_name_length */
-        *bp++=(max_name_length>>8)%256;
-        *bp++=(max_name_length%256);
+        *bp++=(unsigned char)(max_name_length>>8)%256;
+        *bp++=(unsigned char)(max_name_length%256);
     }
     if (extlen==0) {
         *bp++=0x00;
@@ -325,18 +325,18 @@ static int mk_echconfig(
         if (!extvals) {
             return(__LINE__);
         }
-        *bp++=(extlen>>8)%256;
-        *bp++=(extlen%256);
+        *bp++=(unsigned char)((extlen>>8)%256);
+        *bp++=(unsigned char)(extlen%256);
         memcpy(bp,extvals,extlen); bp+=extlen;
     }
     bblen=bp-bbuf;
     /*
      * Add back in the length
      */
-    bbuf[0]=(bblen-2)/256;
-    bbuf[1]=(bblen-2)%256;
-    bbuf[4]=(bblen-6)/256;
-    bbuf[5]=(bblen-6)%256;
+    bbuf[0]=(unsigned char)(bblen-2)/256;
+    bbuf[1]=(unsigned char)(bblen-2)%256;
+    bbuf[4]=(unsigned char)(bblen-6)/256;
+    bbuf[5]=(unsigned char)(bblen-6)%256;
     b64len = EVP_EncodeBlock(
                     (unsigned char*)echconfig, 
                     (unsigned char *)bbuf, bblen);

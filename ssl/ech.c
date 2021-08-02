@@ -304,9 +304,9 @@ static int ech_base64_decode(char *in, unsigned char **out)
     size_t inlen = 0;
     int i=0;
     int outlen=0;
-    unsigned char *outbuf = NULL;
+    unsigned char *outbuf=NULL;
     char *inp=in;
-    unsigned char *outp=outbuf;
+    unsigned char *outp=NULL;
     size_t overallfraglen=0;
 
     if (!in || !out) return(0);
@@ -324,17 +324,24 @@ static int ech_base64_decode(char *in, unsigned char **out)
     }
     outp=outbuf;
     while (overallfraglen<inlen) {
-        /* find length of 1st b64 string */
         int ofraglen=0;
+        /* find length of 1st b64 string */
         size_t thisfraglen=strcspn(inp,sepstr);
 
+        /* For ECH we'll never see this but just so we have bounds */
+        if (thisfraglen<=4 || thisfraglen >HPKE_MAXSIZE) {
+            goto err;
+        }
+        if (thisfraglen>=inlen) {
+            goto err;
+        }
         inp[thisfraglen]='\0';
         overallfraglen+=(thisfraglen+1);
         ofraglen = EVP_DecodeBlock(outp, (unsigned char *)inp, thisfraglen);
         if (ofraglen < 0) {
             goto err;
         }
-        /* Subtract padding bytes from |outlen|.  Any more than 2 is malformed. */
+        /* Subtract padding bytes from |outlen|.  More than 2 is malformed. */
         i = 0;
         while (inp[thisfraglen-i-1] == '=') {
             if (++i > 2) {
@@ -4050,8 +4057,8 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
     origextlens=startofmessage[startofexts]*256+startofmessage[startofexts+1];
     newextlens=origextlens+echextlen;
 
-    startofmessage[startofexts]=(unsigned char)(newextlens&0xffff)/256; 
-    startofmessage[startofexts+1]=(unsigned char)(newextlens&0xffff)%256; 
+    startofmessage[startofexts]=(unsigned char)((newextlens&0xffff)/256); 
+    startofmessage[startofexts+1]=(unsigned char)((newextlens&0xffff)%256); 
 
     ech_pbuf("EAAE pkt to startofexts+2",
             (unsigned char*) pkt->buf->data,startofexts+2);
