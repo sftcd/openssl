@@ -4413,7 +4413,7 @@ int ech_early_decrypt(SSL *s, PACKET *outerpkt, PACKET *newpkt)
     s->tmp_session_id_len=outerpkt->curr[startofsessid];
     if (s->tmp_session_id_len>SSL_MAX_SSL_SESSION_ID_LENGTH) {
         OSSL_TRACE_BEGIN(TLS) {
-            BIO_printf(trc_out,"EARLY: bad sess id len %lu vs max %d\n",
+            BIO_printf(trc_out,"EARLY: bad sess id len %zu vs max %d\n",
                 s->tmp_session_id_len,SSL_MAX_SSL_SESSION_ID_LENGTH);
         } OSSL_TRACE_END(TLS);
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
