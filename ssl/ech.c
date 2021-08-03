@@ -4124,7 +4124,7 @@ static int ech_srv_get_aad(
     CPCHECK
     *cp++=(unsigned char)((de_len&0xffff)/256);
     CPCHECK
-    *cp++=(unsigned char)((de_len&0xffff)%256);
+    *cp++=(unsigned char)((de_len&0xff)%256);
     CPCHECK
     memcpy(cp,de,de_len); cp+=de_len;
     CPCHECK
@@ -4140,7 +4140,7 @@ static int ech_srv_get_aad(
  * Given a CH find the offsets of the session id, extensions and ECH 
  *
  * @param: pkt is the CH
- * @param: sessid points to offset of session_id
+ * @param: sessid points to offset of session_id length
  * @param: exts points to offset of extensions
  * @param: echoffset points to offset of ECH
  * @param: snioffset points to offset of (outer) SNI
@@ -4186,7 +4186,7 @@ static int ech_get_offsets(
      * We'll start genoffset at the start of the session ID, just
      * before the ciphersuites
      */
-    *sessid=2+32;
+    *sessid=2+32; /* point to length of sessid */
     genoffset=*sessid;
     if (ch_len<=genoffset) return 0;
     sessid_len=ch[genoffset];
@@ -4230,7 +4230,7 @@ static int ech_get_offsets(
         extsremaining-=(4+elen);
     }
     ech_pbuf("orig CH",(unsigned char*) ch,ch_len);
-    ech_pbuf("orig CH session_id",(unsigned char*) ch+*sessid,sessid_len);
+    ech_pbuf("orig CH session_id",(unsigned char*) ch+*sessid+1,sessid_len);
     ech_pbuf("orig CH exts",(unsigned char*) ch+*exts,origextlens);
     ech_pbuf("orig CH/ECH",(unsigned char*) ch+*echoffset,echlen);
     ech_pbuf("orig CH SNI",(unsigned char*) ch+*snioffset,snilen);
@@ -4412,6 +4412,10 @@ int ech_early_decrypt(SSL *s, PACKET *outerpkt, PACKET *newpkt)
     /* We need to grab the session id */
     s->tmp_session_id_len=outerpkt->curr[startofsessid];
     if (s->tmp_session_id_len>SSL_MAX_SSL_SESSION_ID_LENGTH) {
+        OSSL_TRACE_BEGIN(TLS) {
+            BIO_printf(trc_out,"EARLY: bad sess id len %lu vs max %d\n",
+                s->tmp_session_id_len,SSL_MAX_SSL_SESSION_ID_LENGTH);
+        } OSSL_TRACE_END(TLS);
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         goto err;
     }
@@ -4547,8 +4551,8 @@ int ech_early_decrypt(SSL *s, PACKET *outerpkt, PACKET *newpkt)
     newextlens=ch_len-echlen-startofexts-6;
 
     memcpy(de,ch,startofexts);
-    de[startofexts]=(unsigned char)(newextlens&0xffff)/256; 
-    de[startofexts+1]=(unsigned char)(newextlens&0xffff)%256; 
+    de[startofexts]=(unsigned char)((newextlens&0xffff)/256); 
+    de[startofexts+1]=(unsigned char)((newextlens&0xffff)%256);
     beforeECH=echoffset-startofexts-2;
     afterECH=ch_len-(echoffset+echlen);
     memcpy(de+startofexts+2,ch+startofexts+2,beforeECH);

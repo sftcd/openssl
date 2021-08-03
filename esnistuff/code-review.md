@@ -1,8 +1,8 @@
 
 # Code review of OpenSSL ECH Changes
 
-[Pass-1](#Pass-1) started, 20210624, ended 20210705
-[Pass-2](#Pass-2) started, 20210706
+[Pass-1](#Pass-1) started, 20210624, ended 20210705.
+[Pass-2](#Pass-2) started, 20210706, ended 20210803.
 
 All code changes are protected via ``#ifndef OPENSSL_NO_ECH`` so 
 running a find for that we get the list below. (We'll do a cross
@@ -216,6 +216,10 @@ Nothing here yet but HRR will force something.
 
 ### ``./ssl/ssl_lib.c``
 
+* **TODO**: re-examine the ECH parts of ``SSL_free`` - some
+  of the cases where we do/don't deep-copy ECH fields is too 
+  ad-hoc - the worry being that give rise to leaks in error
+  cases.
 * Cosmetic tidying.
 
 ### ``./esnistuff/haproxy.html``
