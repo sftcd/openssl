@@ -332,7 +332,7 @@ static int ech_base64_decode(char *in, unsigned char **out)
         if (thisfraglen<=4 || thisfraglen >HPKE_MAXSIZE) {
             goto err;
         }
-        if (thisfraglen>=inlen) {
+        if (thisfraglen>inlen) {
             goto err;
         }
         inp[thisfraglen]='\0';
@@ -1427,7 +1427,7 @@ static int local_decode_rdata_name(
         size_t *remaining,
         char **dnsname)
 {
-    unsigned char *cp=*buf;
+    unsigned char *cp=NULL;
     size_t rem=*remaining;
     char *thename=NULL,*tp=NULL;
     unsigned char clen=0; /* chunk len */
@@ -1439,6 +1439,7 @@ static int local_decode_rdata_name(
     if (thename==NULL) {
         return(0);
     }
+    cp=*buf;
     tp=thename;
 
     clen=*cp++;
