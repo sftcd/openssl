@@ -122,7 +122,9 @@ struct err_state_st {
 # define ERR_LIB_OSSL_ENCODER    59
 # define ERR_LIB_OSSL_DECODER    60
 # define ERR_LIB_HTTP            61
+#ifndef OPENSSL_NO_ECH
 # define ERR_LIB_ECH             101
+#endif
 
 # define ERR_LIB_USER            128
 

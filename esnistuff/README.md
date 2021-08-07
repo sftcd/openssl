@@ -26,8 +26,15 @@ There's a [TODO list](#todos) at the end.
 
 Most recent first...
 
-DON'T TRY ECH YET!!! The very much work-in-progress code is
-sooooo awful still...
+DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
+
+- 20210807: checking build/test with ``-no-ech`` and aligning code 
+  with upstream that git merge gets wrong. (A few non-ECH bits of
+  code that'd been deleted from upstream - we added a [script](scanem.sh)
+  to help with that). As of now, the no-ech build
+  seems fine, but the no-ech ``make test`` isn't, so we probably have
+  some ECH code that's not properly protected via the #ifndef.
+  Fixing that is current work-in-progress.
 
 - 20210801: resync'd with upstream
 

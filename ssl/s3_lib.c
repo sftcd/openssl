@@ -3368,7 +3368,6 @@ void ssl3_free(SSL *s)
 #ifndef OPENSSL_NO_SRP
     ssl_srp_ctx_free_intern(s);
 #endif
-
     memset(&s->s3, 0, sizeof(s->s3));
 }
 

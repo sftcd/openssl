@@ -1940,7 +1940,7 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL *s, PACKET *pkt)
         /*
          * In TLSv1.2 and below we save the session id we were sent so we can
          * resume it later. In TLSv1.3 the session id we were sent is just an
-         * ech of what we originally sent in the ClientHello and should not be
+         * echo of what we originally sent in the ClientHello and should not be
          * used for resumption.
          */
         if (!SSL_IS_TLS13(s)) {
