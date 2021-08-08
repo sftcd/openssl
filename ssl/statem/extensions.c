@@ -396,9 +396,18 @@ static const EXTENSION_DEFINITION ext_defs[] = {
         NULL
     },
 #else /* OPENSSL_NO_ECH */
+#if 0
+    /* 
+     * Not sure why - other ext types add to the array if not defined
+     * but doing so for ECH generates an error. Could be I updated some
+     * other bit of code that's sensitive to the size of the array 
+     * in a code fragment protected by the usual #ifndef but I don't
+     * recall right now. TODO: check
+     */
     INVALID_EXTENSION,
     INVALID_EXTENSION,
     INVALID_EXTENSION,
+#endif
 #endif /* END_OPENSSL_NO_ECH */
     {
         TLSEXT_TYPE_certificate_authorities,

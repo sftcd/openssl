@@ -28,13 +28,15 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
+- 20210808: ``make test`` now works for ``-no-ech`` build but
+  with a couple of low priority things to check later
+
 - 20210807: checking build/test with ``-no-ech`` and aligning code 
   with upstream that git merge gets wrong. (A few non-ECH bits of
   code that'd been deleted from upstream - we added a [script](scanem.sh)
   to help with that). As of now, the no-ech build
   seems fine, but the no-ech ``make test`` isn't, so we probably have
   some ECH code that's not properly protected via the #ifndef.
-  Fixing that is current work-in-progress.
 
 - 20210801: resync'd with upstream
 

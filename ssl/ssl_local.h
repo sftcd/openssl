@@ -1701,7 +1701,7 @@ struct ssl_st {
         /* Is the session suitable for early data? */
         int early_data_ok;
 
-        /* May be sent by a server in HRR. Must be eched back in ClientHello */
+        /* May be sent by a server in HRR. Must be echoed back in ClientHello */
         unsigned char *tls13_cookie;
         size_t tls13_cookie_len;
         /* Have we received a cookie from the client? */

@@ -1068,12 +1068,9 @@ WORK_STATE tls_finish_handshake(SSL *s, ossl_unused WORK_STATE wst,
                     s->ext.inner_s->init_buf==s->init_buf) {
                 s->ext.inner_s->init_buf=NULL;
             } 
-            BUF_MEM_free(s->init_buf);
-            s->init_buf = NULL;
-#else
-            BUF_MEM_free(s->init_buf);
-            s->init_buf = NULL;
 #endif
+            BUF_MEM_free(s->init_buf);
+            s->init_buf = NULL;
         }
 
         if (!ssl_free_wbio_buffer(s)) {
