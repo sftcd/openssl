@@ -1716,7 +1716,8 @@ static unsigned char *esni_hkdf_extract(unsigned char *secret,size_t slen,size_t
      * TODO: The EVP_MAX_MD_SIZE here may not be generally correct, 
      * so could check what's better...
      */
-    tmpolen=EVP_MAX_MD_SIZE; 
+    //tmpolen=EVP_MAX_MD_SIZE; 
+    tmpolen = EVP_MD_size(md);
     outsecret=OPENSSL_zalloc(tmpolen);
     if (outsecret==NULL) {
         EVP_PKEY_CTX_free(pctx);
