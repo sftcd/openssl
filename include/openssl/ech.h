@@ -58,8 +58,7 @@
  */
 #define ECH_DRAFT_09_VERSION 0xfe09 /**< ECHConfig version from draft-09 */
 #define ECH_DRAFT_10_VERSION 0xfe0a /**< ECHConfig version from draft-10 */
-#define ECH_DRAFT_11_VERSION 0xfe0b /**< ECHConfig version from draft-11 */
-#define ECH_DRAFT_12_VERSION 0xfe0c /**< ECHConfig version from draft-12 */
+#define ECH_DRAFT_13_VERSION 0xfe0d /**< ECHConfig version from draft-12 */
 
 /* 
  * the wire-format code for ECH within an SVCB or HTTPS RData

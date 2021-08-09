@@ -29,6 +29,14 @@ Most recent first...
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
 - 20210809: Moved the development branch to "ECH-draft-13"
+  First addition there is the key generation stuff but to
+  also play with cat picture extensions (even small cat pics 
+  are big enough to exercise code not otherwise tested:-)
+  Part of that is a script [makecatexts.sh](makecatexts.sh)
+  to prepare a file containing encoded extensions to provide 
+  to ``openssl ech``. The file [cat.ext](cat.ext) is a case
+  in point and contains two cat pictures (with a dog:-) as
+  an example.
 
 - 20210808: ``make test`` now works for ``-no-ech`` build.  
   ALso had to tweak ech.h so that libssl.num is ok with a 

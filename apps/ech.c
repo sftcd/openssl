@@ -26,11 +26,16 @@
 
 #ifndef OPENSSL_NO_ECH
 
+/* a max suitestr len just for sanity checking */
+#define ECH_MAXSUITESTR 32 
+/* a max extensions len - this is HUGE to allow cat pics */
+#define ECH_MAXEXTLEN 60000 
+
 /**< max PEM encoded ECHConfigs we'll emit */
-#define ECH_MAX_ECHCONFIGS_BUFLEN ECH_MAX_RRVALUE_LEN  
+#define ECH_MAX_ECHCONFIGS_LEN ECH_MAXEXTLEN+1000
             
 #ifndef ECH_MAX_ECHCONFIG_LEN
-#define ECH_MAX_ECHCONFIG_LEN 512
+#define ECH_MAX_ECHCONFIG_LEN ECH_MAX_ECHCONFIGS_LEN
 #endif
 
 #define ECH_KEYGEN_MODE    0 /* default is to generate a key pair/ECHConfig */
@@ -40,7 +45,7 @@
 
 typedef enum OPTION_choice {
     /* standard openssl options */
-    OPT_ERR = -1, OPT_EOF = 0, OPT_HELP,
+    OPT_ERR = -1, OPT_EOF = 0, OPT_HELP, OPT_VERBOSE,
     OPT_PUBOUT, OPT_PRIVOUT, OPT_PEMOUT, 
     /* ECHConfig specifics */
     OPT_PUBLICNAME, OPT_ECHVERSION, 
@@ -54,6 +59,7 @@ typedef enum OPTION_choice {
 const OPTIONS ech_options[] = {
     OPT_SECTION("General options"),
     {"help", OPT_HELP, '-', "Display this summary"},
+    {"verbose", OPT_VERBOSE, '-', "Provide additional output (though not much:-)"},
     OPT_SECTION("Key generation"),
     {"pemout", OPT_PEMOUT, '>', "Private key and ECHConfig [echconfig.pem]"},
     {"pubout", OPT_PUBOUT, '>', "Public key output file"},
@@ -87,9 +93,6 @@ static uint16_t verstr2us(char *arg)
 /* brief string matching for suites */
 #define HPKE_MSMATCH(inp,known) \
     (strlen(inp)==strlen(known) && !strcasecmp(inp,known))
-
-#define ECH_MAXSUITESTR 32 /* a max suitestr len just for sanity checking */
-#define ECH_MAXEXTLEN 513 /* a max extensions len just for sanity checking */
 
 /**
  * @brief parse a string into an HPKE ciphersuite
@@ -177,14 +180,14 @@ static int mk_echconfig(
     int hpke_mode=HPKE_MODE_BASE;
     size_t publen=HPKE_MAXSIZE; unsigned char pub[HPKE_MAXSIZE];
     int rv=0;
-    unsigned char bbuf[ECH_MAX_ECHCONFIGS_BUFLEN]; 
+    unsigned char bbuf[ECH_MAX_ECHCONFIGS_LEN]; 
     unsigned char *bp=bbuf;
     size_t bblen=0;
     unsigned int b64len = 0;
 
     switch(ekversion) {
-        case ECH_DRAFT_09_VERSION: 
         case ECH_DRAFT_10_VERSION: 
+        case ECH_DRAFT_13_VERSION: 
             pnlen=(public_name==NULL?0:strlen(public_name));
             break;
         default:
@@ -200,33 +203,7 @@ static int mk_echconfig(
     if (rv!=1) { return(__LINE__); }
 
     /*
-     * This is what's in draft-09:
-     * 
-     *   opaque HpkePublicKey<1..2^16-1>;
-     *   uint16 HpkeKemId;  // Defined in I-D.irtf-cfrg-hpke
-     *   uint16 HpkeKdfId;  // Defined in I-D.irtf-cfrg-hpke
-     *   uint16 HpkeAeadId; // Defined in I-D.irtf-cfrg-hpke
-     *   struct {
-     *       HpkeKdfId kdf_id;
-     *       HpkeAeadId aead_id;
-     *   } ECHCipherSuite;
-     *   struct {
-     *       opaque public_name<1..2^16-1>;
-     *       HpkePublicKey public_key;
-     *       HpkeKemId kem_id;
-     *       ECHCipherSuite cipher_suites<4..2^16-4>;
-     *       uint16 maximum_name_length;
-     *       Extension extensions<0..2^16-1>;
-     *   } ECHConfigContents;
-     *   struct {
-     *       uint16 version;
-     *       uint16 length;
-     *       select (ECHConfig.version) {
-     *         case 0xfe09: ECHConfigContents contents;
-     *       }
-     *   } ECHConfig;
-     *
-     * And in draft-10 we find:
+     * In draft-10 we find:
      *
      *   opaque HpkePublicKey<1..2^16-1>;
      *   uint16 HpkeKemId;  // Defined in I-D.irtf-cfrg-hpke
@@ -256,8 +233,42 @@ static int mk_echconfig(
      *       }
      *   } ECHConfig;
      *
+     *   And in draft-13 (to-be) we get:
+     *
+     *   opaque HpkePublicKey<1..2^16-1>;
+     *   uint16 HpkeKemId;  // Defined in I-D.irtf-cfrg-hpke
+     *   uint16 HpkeKdfId;  // Defined in I-D.irtf-cfrg-hpke
+     *   uint16 HpkeAeadId; // Defined in I-D.irtf-cfrg-hpke
+     *
+     *   struct {
+     *       HpkeKdfId kdf_id;
+     *       HpkeAeadId aead_id;
+     *   } HpkeSymmetricCipherSuite;
+     *
+     *   struct {
+     *       uint8 config_id;
+     *       HpkeKemId kem_id;
+     *       HpkePublicKey public_key;
+     *       HpkeSymmetricCipherSuite cipher_suites<4..2^16-4>;
+     *   } HpkeKeyConfig;
+     *
+     *   struct {
+     *       HpkeKeyConfig key_config;
+     *       uint8 maximum_name_length;
+     *       opaque public_name<1..255>;
+     *       Extension extensions<0..2^16-1>;
+     *   } ECHConfigContents;
+     *
+     *   struct {
+     *       uint16 version;
+     *       uint16 length;
+     *       select (ECHConfig.version) {
+     *         case 0xfe0d: ECHConfigContents contents;
+     *       }
+     *   } ECHConfig;
+     *
      */
-    memset(bbuf,0,ECH_MAX_ECHCONFIGS_BUFLEN);
+    memset(bbuf,0,ECH_MAX_ECHCONFIGS_LEN);
     *bp++=0x00; /* leave space for overall length */
     *bp++=0x00; /* leave space for overall length */
     *bp++=(unsigned char)(ekversion>>8)%256; 
@@ -293,20 +304,18 @@ static int mk_echconfig(
             *bp++=0x00;
             *bp++=0x00;
         }
+
     }
-    if (ekversion==ECH_DRAFT_09_VERSION) {
-        if (pnlen > 0 ) {
-            *bp++=(unsigned char)(pnlen>>8)%256;
-            *bp++=(unsigned char)(pnlen%256);
-            memcpy(bp,public_name,pnlen); bp+=pnlen;
-        }
+    if (ekversion==ECH_DRAFT_13_VERSION) {
+        uint8_t config_id=0;
+        RAND_bytes(&config_id,1);
+        *bp++=(unsigned char)config_id;
+        *bp++=(unsigned char)(hpke_suite.kem_id>>8)%256;
+        *bp++=(unsigned char)(hpke_suite.kem_id%256);
         /* keys */
         *bp++=(unsigned char)(publen>>8)%256;
         *bp++=(unsigned char)(publen%256);
         memcpy(bp,pub,publen); bp+=publen;
-        /* HPKE KEM id */
-        *bp++=(unsigned char)(hpke_suite.kem_id>>8)%256;
-        *bp++=(unsigned char)(hpke_suite.kem_id%256);
         /* cipher_suite */
         *bp++=0x00;
         *bp++=0x04;
@@ -317,6 +326,15 @@ static int mk_echconfig(
         /* maximum_name_length */
         *bp++=(unsigned char)(max_name_length>>8)%256;
         *bp++=(unsigned char)(max_name_length%256);
+        /* public_name */
+        if (pnlen > 0 ) {
+            *bp++=(unsigned char)(pnlen>>8)%256;
+            *bp++=(unsigned char)(pnlen%256);
+            memcpy(bp,public_name,pnlen); bp+=pnlen;
+        } else {
+            *bp++=0x00;
+            *bp++=0x00;
+        }
     }
     if (extlen==0) {
         *bp++=0x00;
@@ -354,6 +372,8 @@ int ech_main(int argc, char **argv)
     BIO *pemf=NULL;
     char *prog=NULL;
     OPTION_CHOICE o;
+    int verbose=0;
+    int filedone=0;
     char *echconfig_file = NULL; 
     char *keyfile = NULL;
     char *pemfile=NULL;
@@ -367,8 +387,9 @@ int ech_main(int argc, char **argv)
     uint16_t ech_version=ECH_DRAFT_10_VERSION;
     uint16_t max_name_length=0;
     hpke_suite_t hpke_suite = HPKE_SUITE_DEFAULT;
-    size_t echconfig_len=ECH_MAX_ECHCONFIGS_BUFLEN;
-    unsigned char echconfig[ECH_MAX_ECHCONFIGS_BUFLEN];
+    /* bigger size because of base64 */
+    size_t echconfig_len=2*ECH_MAX_ECHCONFIGS_LEN;
+    unsigned char echconfig[2*ECH_MAX_ECHCONFIGS_LEN];
     size_t privlen=HPKE_MAXSIZE; unsigned char priv[HPKE_MAXSIZE];
     int rv=0;
     int mode=ECH_KEYGEN_MODE; /* key generation */
@@ -392,6 +413,9 @@ opthelp:
         case OPT_HELP:
             opt_help(ech_options);
             goto end;
+        case OPT_VERBOSE:
+            verbose=1;
+            break;
         case OPT_PUBOUT:
             echconfig_file = opt_arg();
             break;
@@ -448,21 +472,23 @@ opthelp:
     switch (ech_version) {
         case 0xff01: /* ESNI precursors */
         case 0xff02: /* ESNI precursors */
+        case 0xff09: /* Early ECH */
         case 1:
         case 2:
+        case 9:
             BIO_printf(bio_err, 
                 "Un-supported older version (0x%04x)\n",
                 ech_version);
             goto end;
-        case ECH_DRAFT_09_VERSION:
-            break;
-        case 9:
-            ech_version=0xfe09;
-            break;
         case ECH_DRAFT_10_VERSION:
             break;
         case 10:
             ech_version=0xfe0a;
+            break;
+        case ECH_DRAFT_13_VERSION:
+            break;
+        case 13:
+            ech_version=0xfe0d;
             break;
         default:
             BIO_printf(bio_err, 
@@ -582,7 +608,6 @@ opthelp:
             /*
              * Or it could be just an encoded ECHConfig 
              */
-
             pem_in = BIO_new(BIO_s_file());
             if (pem_in==NULL) {
                 goto err;
@@ -611,7 +636,7 @@ opthelp:
             }
 
             s=SSL_new(con);
-            if (!s) goto end;
+            if (!s) goto err;
 
             /*
              * Now decode that ECHConfigs
@@ -622,10 +647,12 @@ opthelp:
                     inpemfile);
                 goto end;
             }
+            filedone=1;
             BIO_free_all(pem_in);
             OPENSSL_free(pdata);
             BIO_printf(bio_err,"Loaded ECHConfig from: %s\n",inpemfile);
         } else {
+            filedone=1;
             s=SSL_new(con);
             if (!s) goto end;
             BIO_printf(bio_err,"Loaded Key+ECHConfig from: %s\n",inpemfile);
@@ -656,6 +683,9 @@ opthelp:
 
 err:
 end:
+    if (filedone==0 && verbose==1) {
+            BIO_printf(bio_err,"failed to load %s\n",inpemfile);
+    }
     if (s) SSL_free(s);
     if (con) SSL_CTX_free(con);
     if (pem_in) BIO_free_all(pem_in);

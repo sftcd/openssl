@@ -699,20 +699,44 @@ static void *ech_len_field_dup(void *old, unsigned int len)
  */
 static int ECHConfig_dup(ECHConfig *old, ECHConfig *new)
 {
+    int i=0;
     if (!new || !old) return 0;
     *new=*old; /* shallow copy, followed by deep copies */
+    /* but before deep copy make sure we don't free twice */
+    new->ciphersuites=NULL;
+    new->exttypes=NULL;
+    new->extlens=NULL;
+    new->exts=NULL;
     ECHFDUP(pub,pub_len);
     ECHFDUP(public_name,public_name_len);
     new->config_id=old->config_id;
+    ECHFDUP(encoding_start,encoding_length);
     if (old->ciphersuites) {
         new->ciphersuites=
             OPENSSL_malloc(old->nsuites*sizeof(ech_ciphersuite_t));
-        if (!new->ciphersuites) return(0);
+        if (!new->ciphersuites) goto err;
         memcpy(new->ciphersuites,old->ciphersuites,
                 old->nsuites*sizeof(ech_ciphersuite_t));
     }
-    ECHFDUP(encoding_start,encoding_length);
+    if (old->nexts) {
+        new->exttypes=OPENSSL_malloc(old->nexts*sizeof(old->exttypes[0]));
+        if (!new->exttypes) goto err;
+        memcpy(new->exttypes,old->exttypes,old->nexts*sizeof(old->exttypes[0]));
+        new->extlens=OPENSSL_malloc(old->nexts*sizeof(old->extlens[0]));
+        if (!new->extlens) goto err;
+        memcpy(new->extlens,old->extlens,old->nexts*sizeof(old->extlens[0]));
+        new->exts=OPENSSL_zalloc(old->nexts*sizeof(old->exts[0]));
+        if (!new->exts) goto err;
+    }
+    for (i=0;i!=old->nexts;i++) {
+        new->exts[i]=OPENSSL_malloc(old->extlens[i]);
+        if (!new->exts) goto err;
+        memcpy(new->exts[i],old->exts[i],old->extlens[i]);
+    }
     return 1;
+err:
+    ECHConfig_free(new);
+    return(0);
 }
 
 /**
@@ -981,10 +1005,10 @@ static ECHConfigs *ECHConfigs_from_binary(
 	            if (!PACKET_get_net_2(&exts,&exttype)) {
 	                goto err;
 	            }
-	            if (extlen>=ECH_MAX_ECHCONFIGEXT_LEN) {
+	            if (!PACKET_get_net_2(&exts,&extlen)) {
 	                goto err;
 	            }
-	            if (!PACKET_get_net_2(&exts,&extlen)) {
+	            if (extlen>=ECH_MAX_ECHCONFIGEXT_LEN) {
 	                goto err;
 	            }
 	            if (extlen != 0 ) {
