@@ -78,7 +78,6 @@ static int accept_socket = -1;
 static int s_nbio = 0;
 static int s_nbio_test = 0;
 static int s_crlf = 0;
-static int immediate_reneg = 0;
 static SSL_CTX *ctx = NULL;
 static SSL_CTX *ctx2 = NULL;
 static int www = 0;
@@ -131,6 +130,17 @@ static unsigned int psk_server_cb(SSL *ssl, const char *identity,
 
     if (s_debug)
         BIO_printf(bio_s_out, "psk_server_cb\n");
+
+    if (SSL_version(ssl) >= TLS1_3_VERSION) {
+        /*
+         * This callback is designed for use in TLSv1.2. It is possible to use
+         * a single callback for all protocol versions - but it is preferred to
+         * use a dedicated callback for TLSv1.3. For TLSv1.3 we have
+         * psk_find_session_cb.
+         */
+        return 0;
+    }
+
     if (identity == NULL) {
         BIO_printf(bio_err, "Error: client did not send PSK identity\n");
         goto out_err;
@@ -857,7 +867,7 @@ const OPTIONS s_server_options[] = {
     {"brief", OPT_BRIEF, '-',
      "Restrict output to brief summary of connection parameters"},
     {"rev", OPT_REV, '-',
-     "act as a simple test server which just sends back with the received text reversed"},
+     "act as an echo server that sends back received text reversed"},
     {"debug", OPT_DEBUG, '-', "Print more output"},
     {"msg", OPT_MSG, '-', "Show protocol messages"},
     {"msgfile", OPT_MSGFILE, '>',
@@ -1269,9 +1279,6 @@ int s_server_main(int argc, char *argv[])
         case OPT_CRLFORM:
             if (!opt_format(opt_arg(), OPT_FMT_PEMDER, &crl_format))
                 goto opthelp;
-            break;
-        case OPT_S_IMMEDIATE_RENEG:
-            immediate_reneg = 1;
             break;
         case OPT_S_CASES:
         case OPT_S_NUM_TICKETS:
@@ -2003,7 +2010,8 @@ int s_server_main(int argc, char *argv[])
         if (dhfile != NULL)
             dhpkey = load_keyparams(dhfile, FORMAT_UNDEF, 0, "DH", "DH parameters");
         else if (s_cert_file != NULL)
-            dhpkey = load_keyparams(s_cert_file, FORMAT_UNDEF, 0, "DH", "DH parameters");
+            dhpkey = load_keyparams_suppress(s_cert_file, FORMAT_UNDEF, 0, "DH",
+                                             "DH parameters", 1);
 
         if (dhpkey != NULL) {
             BIO_printf(bio_s_out, "Setting temp DH parameters\n");
@@ -2035,9 +2043,10 @@ int s_server_main(int argc, char *argv[])
 
         if (ctx2 != NULL) {
             if (dhfile != NULL) {
-                EVP_PKEY *dhpkey2 = load_keyparams(s_cert_file2, FORMAT_UNDEF,
-                                                   0, "DH",
-                                                   "DH parameters");
+                EVP_PKEY *dhpkey2 = load_keyparams_suppress(s_cert_file2,
+                                                            FORMAT_UNDEF,
+                                                            0, "DH",
+                                                            "DH parameters", 1);
 
                 if (dhpkey2 != NULL) {
                     BIO_printf(bio_s_out, "Setting temp DH parameters\n");
@@ -2809,8 +2818,6 @@ static int init_ssl_connection(SSL *con)
     } else {
         do {
             i = SSL_accept(con);
-            if (immediate_reneg)
-                SSL_renegotiate(con);
 
             if (i <= 0)
                 retry = is_retryable(con, i);
@@ -3020,6 +3027,7 @@ static int www_body(int s, int stype, int prot, unsigned char *context)
     /* No need to free |con| after this. Done by BIO_free(ssl_bio) */
     BIO_set_ssl(ssl_bio, con, BIO_CLOSE);
     BIO_push(io, ssl_bio);
+    ssl_bio = NULL;
 #ifdef CHARSET_EBCDIC
     io = BIO_push(BIO_new(BIO_f_ebcdic_filter()), io);
 #endif
@@ -3380,6 +3388,7 @@ static int www_body(int s, int stype, int prot, unsigned char *context)
 
  err:
     OPENSSL_free(buf);
+    BIO_free(ssl_bio);
     BIO_free_all(io);
     return ret;
 }
@@ -3424,6 +3433,7 @@ static int rev_body(int s, int stype, int prot, unsigned char *context)
     /* No need to free |con| after this. Done by BIO_free(ssl_bio) */
     BIO_set_ssl(ssl_bio, con, BIO_CLOSE);
     BIO_push(io, ssl_bio);
+    ssl_bio = NULL;
 #ifdef CHARSET_EBCDIC
     io = BIO_push(BIO_new(BIO_f_ebcdic_filter()), io);
 #endif
@@ -3521,6 +3531,7 @@ static int rev_body(int s, int stype, int prot, unsigned char *context)
  err:
 
     OPENSSL_free(buf);
+    BIO_free(ssl_bio);
     BIO_free_all(io);
     return ret;
 }

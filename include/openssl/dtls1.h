@@ -1,5 +1,5 @@
 /*
- * Copyright 2005-2020 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2005-2021 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -48,10 +48,6 @@ extern "C" {
 # define DTLS1_CCS_HEADER_LENGTH                  1
 
 # define DTLS1_AL_HEADER_LENGTH                   2
-
-/* Timeout multipliers */
-# define DTLS1_TMO_READ_COUNT                      2
-# define DTLS1_TMO_WRITE_COUNT                     2
 
 # define DTLS1_TMO_ALERT_COUNT                     12
 

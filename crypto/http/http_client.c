@@ -23,15 +23,13 @@
 #include "internal/sockets.h"
 #include "internal/cryptlib.h" /* for ossl_assert() */
 
-#include "http_local.h"
-
+#define HAS_PREFIX(str, prefix) (strncmp(str, prefix, sizeof(prefix) - 1) == 0)
 #define HTTP_PREFIX "HTTP/"
 #define HTTP_VERSION_PATT "1." /* allow 1.x */
+#define HTTP_VERSION_STR_LEN sizeof(HTTP_VERSION_PATT) /* == strlen("1.0") */
 #define HTTP_PREFIX_VERSION HTTP_PREFIX""HTTP_VERSION_PATT
 #define HTTP_1_0 HTTP_PREFIX_VERSION"0" /* "HTTP/1.0" */
-#define HTTP_VERSION_PATT_LEN strlen(HTTP_PREFIX_VERSION)
-#define HTTP_VERSION_STR_LEN (HTTP_VERSION_PATT_LEN + 1)
-#define HTTP_LINE1_MINLEN ((int)strlen(HTTP_PREFIX_VERSION "x 200\n"))
+#define HTTP_LINE1_MINLEN (sizeof(HTTP_PREFIX_VERSION "x 200\n") - 1)
 #define HTTP_VERSION_MAX_REDIRECTIONS 50
 
 #define HTTP_STATUS_CODE_OK                200
@@ -126,7 +124,8 @@ void OSSL_HTTP_REQ_CTX_free(OSSL_HTTP_REQ_CTX *rctx)
     if (rctx->free_wbio)
         BIO_free_all(rctx->wbio);
     /* do not free rctx->rbio */
-    BIO_free(rctx->mem); /* this may indirectly call ERR_clear_error() */
+    BIO_free(rctx->mem);
+    BIO_free(rctx->req);
     OPENSSL_free(rctx->buf);
     OPENSSL_free(rctx->proxy);
     OPENSSL_free(rctx->server);
@@ -199,9 +198,13 @@ int OSSL_HTTP_REQ_CTX_set_request_line(OSSL_HTTP_REQ_CTX *rctx, int method_POST,
         path = "/";
     if (path[0] != '/' && BIO_printf(rctx->mem, "/") <= 0)
         return 0;
-
+    /*
+     * Add (the rest of) the path and the HTTP version,
+     * which is fixed to 1.0 for straightforward implementation of keep-alive
+     */
     if (BIO_printf(rctx->mem, "%s "HTTP_1_0"\r\n", path) <= 0)
         return 0;
+
     rctx->resp_len = 0;
     rctx->state = OHS_ADD_HEADERS;
     return 1;
@@ -254,14 +257,14 @@ int OSSL_HTTP_REQ_CTX_set_expected(OSSL_HTTP_REQ_CTX *rctx,
     rctx->expect_asn1 = asn1;
     if (timeout >= 0)
         rctx->max_time = timeout > 0 ? time(NULL) + timeout : 0;
-    else
+    else /* take over any |overall_timeout| arg of OSSL_HTTP_open(), else 0 */
         rctx->max_time = rctx->max_total_time;
     rctx->keep_alive = keep_alive;
     return 1;
 }
 
-static int set_content(OSSL_HTTP_REQ_CTX *rctx,
-                       const char *content_type, BIO *req)
+static int set1_content(OSSL_HTTP_REQ_CTX *rctx,
+                        const char *content_type, BIO *req)
 {
     long req_len;
 
@@ -274,6 +277,8 @@ static int set_content(OSSL_HTTP_REQ_CTX *rctx,
             && !OSSL_HTTP_REQ_CTX_add1_header(rctx, "Connection", "keep-alive"))
         return 0;
 
+    BIO_free(rctx->req);
+    rctx->req = NULL;
     if (req == NULL)
         return 1;
     if (!rctx->method_POST) {
@@ -285,25 +290,25 @@ static int set_content(OSSL_HTTP_REQ_CTX *rctx,
             && BIO_printf(rctx->mem, "Content-Type: %s\r\n", content_type) <= 0)
         return 0;
 
-    rctx->req = req;
-    if ((req_len = BIO_ctrl(req, BIO_CTRL_INFO, 0, NULL)) <= 0)
-        return 1; /* streaming BIO may not support querying size */
-    return BIO_printf(rctx->mem, "Content-Length: %ld\r\n", req_len) > 0;
+    /* streaming BIO may not support querying size */
+    if (((req_len = BIO_ctrl(req, BIO_CTRL_INFO, 0, NULL)) <= 0
+         || BIO_printf(rctx->mem, "Content-Length: %ld\r\n", req_len) > 0)
+        && BIO_up_ref(req)) {
+        rctx->req = req;
+        return 1;
+    }
+    return 0;
 }
 
 int OSSL_HTTP_REQ_CTX_set1_req(OSSL_HTTP_REQ_CTX *rctx, const char *content_type,
                                const ASN1_ITEM *it, const ASN1_VALUE *req)
 {
-    BIO *mem;
-    int res;
+    BIO *mem = NULL;
+    int res = 1;
 
-    if (rctx == NULL || it == NULL || req == NULL) {
-        ERR_raise(ERR_LIB_HTTP, ERR_R_PASSED_NULL_PARAMETER);
-        return 0;
-    }
-
-    res = (mem = ASN1_item_i2d_mem_bio(it, req)) != NULL
-        && set_content(rctx, content_type, mem);
+    if (req != NULL)
+        res = (mem = ASN1_item_i2d_mem_bio(it, req)) != NULL;
+    res = res && set1_content(rctx, content_type, mem);
     BIO_free(mem);
     return res;
 }
@@ -372,10 +377,10 @@ static int parse_http_line1(char *line, int *found_keep_alive)
     int i, retcode;
     char *code, *reason, *end;
 
-    if (strncmp(line, HTTP_PREFIX_VERSION, HTTP_VERSION_PATT_LEN) != 0)
+    if (!HAS_PREFIX(line, HTTP_PREFIX_VERSION))
         goto err;
     /* above HTTP 1.0, connection persistence is the default */
-    *found_keep_alive = line[HTTP_VERSION_PATT_LEN] > '0';
+    *found_keep_alive = line[strlen(HTTP_PREFIX_VERSION)] > '0';
 
     /* Skip to first whitespace (past protocol info) */
     for (code = line; *code != '\0' && !ossl_isspace(*code); code++)
@@ -430,10 +435,10 @@ static int parse_http_line1(char *line, int *found_keep_alive)
         else
             retcode = HTTP_R_RECEIVED_ERROR;
         if (*reason == '\0')
-            ERR_raise_data(ERR_LIB_HTTP, retcode, "Code=%s", code);
+            ERR_raise_data(ERR_LIB_HTTP, retcode, "code=%s", code);
         else
             ERR_raise_data(ERR_LIB_HTTP, retcode,
-                           "Code=%s, Reason=%s", code, reason);
+                           "code=%s, reason=%s", code, reason);
         return 0;
     }
 
@@ -890,7 +895,7 @@ OSSL_HTTP_REQ_CTX *OSSL_HTTP_open(const char *server, const char *port,
             port = NULL;
         if (port == NULL && strchr(server, ':') == NULL)
             port = use_ssl ? OSSL_HTTPS_PORT : OSSL_HTTP_PORT;
-        proxy = ossl_http_adapt_proxy(proxy, no_proxy, server, use_ssl);
+        proxy = OSSL_HTTP_adapt_proxy(proxy, no_proxy, server, use_ssl);
         if (proxy != NULL
             && !OSSL_HTTP_parse_url(proxy, NULL /* use_ssl */, NULL /* user */,
                                     &proxy_host, &proxy_port, NULL /* num */,
@@ -921,7 +926,8 @@ OSSL_HTTP_REQ_CTX *OSSL_HTTP_open(const char *server, const char *port,
 
         cbio = (*bio_update_fn)(cbio, arg, 1 /* connect */, use_ssl);
         if (cbio == NULL) {
-            cbio = orig_bio;
+            if (bio == NULL) /* cbio was not provided by caller */
+                BIO_free_all(orig_bio);
             goto end;
         }
     }
@@ -940,11 +946,11 @@ OSSL_HTTP_REQ_CTX *OSSL_HTTP_open(const char *server, const char *port,
     return rctx;
 }
 
-int OSSL_HTTP_set_request(OSSL_HTTP_REQ_CTX *rctx, const char *path,
-                          const STACK_OF(CONF_VALUE) *headers,
-                          const char *content_type, BIO *req,
-                          const char *expected_content_type, int expect_asn1,
-                          size_t max_resp_len, int timeout, int keep_alive)
+int OSSL_HTTP_set1_request(OSSL_HTTP_REQ_CTX *rctx, const char *path,
+                           const STACK_OF(CONF_VALUE) *headers,
+                           const char *content_type, BIO *req,
+                           const char *expected_content_type, int expect_asn1,
+                           size_t max_resp_len, int timeout, int keep_alive)
 {
     int use_http_proxy;
 
@@ -965,7 +971,7 @@ int OSSL_HTTP_set_request(OSSL_HTTP_REQ_CTX *rctx, const char *path,
         && add1_headers(rctx, headers, rctx->server)
         && OSSL_HTTP_REQ_CTX_set_expected(rctx, expected_content_type,
                                           expect_asn1, timeout, keep_alive)
-        && set_content(rctx, content_type, req);
+        && set1_content(rctx, content_type, req);
 }
 
 /*-
@@ -1033,16 +1039,14 @@ BIO *OSSL_HTTP_exchange(OSSL_HTTP_REQ_CTX *rctx, char **redirection_url)
 
 static int redirection_ok(int n_redir, const char *old_url, const char *new_url)
 {
-    size_t https_len = strlen(OSSL_HTTPS_NAME":");
-
     if (n_redir >= HTTP_VERSION_MAX_REDIRECTIONS) {
         ERR_raise(ERR_LIB_HTTP, HTTP_R_TOO_MANY_REDIRECTIONS);
         return 0;
     }
     if (*new_url == '/') /* redirection to same server => same protocol */
         return 1;
-    if (strncmp(old_url, OSSL_HTTPS_NAME":", https_len) == 0 &&
-        strncmp(new_url, OSSL_HTTPS_NAME":", https_len) != 0) {
+    if (HAS_PREFIX(old_url, OSSL_HTTPS_NAME":") &&
+        !HAS_PREFIX(new_url, OSSL_HTTPS_NAME":")) {
         ERR_raise(ERR_LIB_HTTP, HTTP_R_REDIRECTION_FROM_HTTPS_TO_HTTP);
         return 0;
     }
@@ -1083,12 +1087,12 @@ BIO *OSSL_HTTP_get(const char *url, const char *proxy, const char *no_proxy,
                               buf_size, timeout);
     new_rpath:
         if (rctx != NULL) {
-            if (!OSSL_HTTP_set_request(rctx, path, headers,
-                                       NULL /* content_type */,
-                                       NULL /* req */,
-                                       expected_ct, expect_asn1, max_resp_len,
-                                       -1 /* use same max time (timeout) */,
-                                       0 /* no keep_alive */))
+            if (!OSSL_HTTP_set1_request(rctx, path, headers,
+                                        NULL /* content_type */,
+                                        NULL /* req */,
+                                        expected_ct, expect_asn1, max_resp_len,
+                                        -1 /* use same max time (timeout) */,
+                                        0 /* no keep_alive */))
                 OSSL_HTTP_REQ_CTX_free(rctx);
             else
                 resp = OSSL_HTTP_exchange(rctx, &redirection_url);
@@ -1145,9 +1149,9 @@ BIO *OSSL_HTTP_transfer(OSSL_HTTP_REQ_CTX **prctx,
         timeout = -1; /* Already set during opening the connection */
     }
     if (rctx != NULL) {
-        if (OSSL_HTTP_set_request(rctx, path, headers, content_type, req,
-                                  expected_ct, expect_asn1,
-                                  max_resp_len, timeout, keep_alive))
+        if (OSSL_HTTP_set1_request(rctx, path, headers, content_type, req,
+                                   expected_ct, expect_asn1,
+                                   max_resp_len, timeout, keep_alive))
             resp = OSSL_HTTP_exchange(rctx, NULL);
         if (resp == NULL || !OSSL_HTTP_is_alive(rctx)) {
             if (!OSSL_HTTP_close(rctx, resp != NULL)) {
@@ -1285,15 +1289,15 @@ int OSSL_HTTP_proxy_connect(BIO *bio, const char *server, const char *port,
         /*-
          * The first line is the HTTP response.
          * According to RFC 7230, it is formatted exactly like this:
-         * HTTP/d.d ddd Reason text\r\n
+         * HTTP/d.d ddd reason text\r\n
          */
         read_len = BIO_gets(fbio, mbuf, BUF_SIZE);
         /* the BIO may not block, so we must wait for the 1st line to come in */
-        if (read_len < HTTP_LINE1_MINLEN)
+        if (read_len < (int)HTTP_LINE1_MINLEN)
             continue;
 
         /* Check for HTTP/1.x */
-        if (strncmp(mbuf, HTTP_PREFIX, strlen(HTTP_PREFIX)) != 0) {
+        if (!HAS_PREFIX(mbuf, HTTP_PREFIX) != 0) {
             ERR_raise(ERR_LIB_HTTP, HTTP_R_HEADER_PARSE_ERROR);
             BIO_printf(bio_err, "%s: HTTP CONNECT failed, non-HTTP response\n",
                        prog);
@@ -1301,7 +1305,7 @@ int OSSL_HTTP_proxy_connect(BIO *bio, const char *server, const char *port,
             goto end;
         }
         mbufp = mbuf + strlen(HTTP_PREFIX);
-        if (strncmp(mbufp, HTTP_VERSION_PATT, HTTP_VERSION_PATT_LEN) != 0) {
+        if (!HAS_PREFIX(mbufp, HTTP_VERSION_PATT) != 0) {
             ERR_raise(ERR_LIB_HTTP, HTTP_R_RECEIVED_WRONG_HTTP_VERSION);
             BIO_printf(bio_err,
                        "%s: HTTP CONNECT failed, bad HTTP version %.*s\n",
@@ -1311,15 +1315,14 @@ int OSSL_HTTP_proxy_connect(BIO *bio, const char *server, const char *port,
         mbufp += HTTP_VERSION_STR_LEN;
 
         /* RFC 7231 4.3.6: any 2xx status code is valid */
-        if (strncmp(mbufp, " 2", strlen(" 2")) != 0) {
-            mbufp += 1;
+        if (!HAS_PREFIX(mbufp, " 2")) {
             /* chop any trailing whitespace */
             while (read_len > 0 && ossl_isspace(mbuf[read_len - 1]))
                 read_len--;
             mbuf[read_len] = '\0';
             ERR_raise_data(ERR_LIB_HTTP, HTTP_R_CONNECT_FAILURE,
-                           "Reason=%s", mbufp);
-            BIO_printf(bio_err, "%s: HTTP CONNECT failed, Reason=%s\n",
+                           "reason=%s", mbufp);
+            BIO_printf(bio_err, "%s: HTTP CONNECT failed, reason=%s\n",
                        prog, mbufp);
             goto end;
         }

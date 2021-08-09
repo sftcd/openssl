@@ -18,6 +18,10 @@ setup("test_x509");
 
 plan tests => 18;
 
+# Prevent MSys2 filename munging for arguments that look like file paths but
+# aren't
+$ENV{MSYS2_ARG_CONV_EXCL} = "/CN=";
+
 require_ok(srctop_file("test", "recipes", "tconversion.pl"));
 
 my @certs = qw(test certs);
@@ -40,6 +44,7 @@ is(cmp_text($out_utf8, $utf),
 
 SKIP: {
     skip "DES disabled", 1 if disabled("des");
+    skip "Platform doesn't support command line UTF-8", 1 if $^O =~ /^(VMS|msys)$/;
 
     my $p12 = srctop_file("test", "shibboleth.pfx");
     my $p12pass = "σύνθημα γνώρισμα";
@@ -127,6 +132,6 @@ ok(test_errors("RC2-40-CBC", "v3-certs-RC2.p12", '-passin', 'pass:v3-certs'),
 SKIP: {
     skip "sm2 not disabled", 1 if !disabled("sm2");
 
-    ok(test_errors("unknown group|unsupported algorithm", "sm2.pem", '-text'),
+    ok(test_errors("Unable to load Public Key", "sm2.pem", '-text'),
        "error loading unsupported sm2 cert");
 }

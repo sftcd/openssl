@@ -70,6 +70,7 @@ B<openssl> B<s_server>
 [B<-verify_quiet>]
 [B<-ign_eof>]
 [B<-no_ign_eof>]
+[B<-no_etm>]
 [B<-status>]
 [B<-status_verbose>]
 [B<-status_timeout> I<int>]
@@ -487,6 +488,10 @@ Ignore input EOF (default: when B<-quiet>).
 
 Do not ignore input EOF.
 
+=item B<-no_etm>
+
+Disable Encrypt-then-MAC negotiation.
+
 =item B<-status>
 
 Enables certificate status request support (aka OCSP stapling).
@@ -536,8 +541,7 @@ Configure SSL_CTX using the given configuration value.
 
 =item B<-trace>
 
-Show verbose trace output of protocol messages. OpenSSL needs to be compiled
-with B<enable-ssl-trace> for this option to work.
+Show verbose trace output of protocol messages.
 
 =item B<-brief>
 
@@ -546,9 +550,8 @@ output.
 
 =item B<-rev>
 
-Simple test server which just reverses the text received from the client
-and sends it back to the server. Also sets B<-brief>. Cannot be used in
-conjunction with B<-early_data>.
+Simple echo server that sends back received text reversed. Also sets B<-brief>.
+Cannot be used in conjunction with B<-early_data>.
 
 =item B<-async>
 

@@ -28,7 +28,7 @@ sub verify {
     run(app([@args]));
 }
 
-plan tests => 156;
+plan tests => 157;
 
 # Canonical success
 ok(verify("ee-cert", "sslserver", ["root-cert"], ["ca-cert"]),
@@ -371,10 +371,11 @@ ok(!verify("badalt10-cert", "", ["root-cert"], ["ncca1-cert", "ncca3-cert"], ),
 
 #Check that we get the expected failure return code
 with({ exit_checker => sub { return shift == 2; } },
-   sub {
-      ok(verify("bad-othername-namec", "", ["bad-othername-namec-inter"], [], "-partial_chain"),
-         "Name constraints bad othername name constraint");
-   });
+     sub {
+         ok(verify("bad-othername-namec", "", ["bad-othername-namec-inter"], [],
+                   "-partial_chain", "-attime", "1623060000"),
+            "Name constraints bad othername name constraint");
+     });
 
 ok(verify("ee-pss-sha1-cert", "", ["root-cert"], ["ca-cert"], "-auth_level", "0"),
     "Accept PSS signature using SHA1 at auth level 0");
@@ -411,10 +412,12 @@ ok(verify("root-cert-rsa2", "", ["root-cert-rsa2"], [], "-check_ss_sig"),
 
 ok(verify("ee-self-signed", "", ["ee-self-signed"], [], "-attime", "1593565200"),
    "accept trusted self-signed EE cert excluding key usage keyCertSign");
+ok(verify("ee-ss-with-keyCertSign", "", ["ee-ss-with-keyCertSign"], []),
+   "accept trusted self-signed EE cert with key usage keyCertSign also when strict");
 
 SKIP: {
     skip "Ed25519 is not supported by this OpenSSL build", 6
-	      if disabled("ec");
+        if disabled("ec");
 
     # ED25519 certificate from draft-ietf-curdle-pkix-04
     ok(verify("ee-ed25519", "", ["root-ed25519"], []),
