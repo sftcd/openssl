@@ -13,10 +13,11 @@
  * for handling Encrypted ClientHello (ECH)
  */
 
-#ifndef OPENSSL_NO_ECH
 
-#ifndef HEADER_ECH_H
-# define HEADER_ECH_H
+#ifndef OPENSSL_ECH_H
+#define OPENSSL_ECH_H
+
+#ifndef OPENSSL_NO_ECH
 
 # include <openssl/ssl.h>
 

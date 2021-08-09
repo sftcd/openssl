@@ -67,6 +67,15 @@ cleanup() {
     exit 0
 }
 
+# check if our build supports ech or not
+$CODETOP/apps/openssl ech -help >/dev/null 2>&1
+res=$?
+if [[ "$res" != "0" ]]
+then
+    echo "OpenSSL appears to have been build without ECH support - maybe re-build? - exiting"
+    exit $res
+fi
+
 if [[ "$SCRATCHDIR" != "" && -d $SCRATCHDIR ]]
 then
     scratchdir="$SCRATCHDIR"
