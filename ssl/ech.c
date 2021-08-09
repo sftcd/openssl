@@ -699,7 +699,7 @@ static void *ech_len_field_dup(void *old, unsigned int len)
  */
 static int ECHConfig_dup(ECHConfig *old, ECHConfig *new)
 {
-    int i=0;
+    unsigned int i=0;
     if (!new || !old) return 0;
     *new=*old; /* shallow copy, followed by deep copies */
     /* but before deep copy make sure we don't free twice */
