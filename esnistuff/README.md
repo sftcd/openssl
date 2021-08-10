@@ -28,6 +28,10 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
+- 20210810: updated boringSSL, re-built and verified that
+  ``bssl s_client`` works with cloudflare and (with a bit
+  of welcome bug fixing) against my ``openssl s_server``.
+
 - 20210810: added ``-ech_ignore_cid`` option to ``s_client``
   to allow client to send random ``ECH.config_id`` instead
   of server's chosen value. (Requires server to accept

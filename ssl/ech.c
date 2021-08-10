@@ -2878,13 +2878,13 @@ static int ech_decode_inner(
     while (!found && remaining>0) {
         etype=initial_decomp[oneextstart]*256+initial_decomp[oneextstart+1];
         elen=initial_decomp[oneextstart+2]*256+initial_decomp[oneextstart+3];
-        if ((oneextstart+4+elen)>=initial_decomp_len) {
+        if ((oneextstart+4+elen)>initial_decomp_len) {
 #ifndef OPENSSL_NO_SSL_TRACE
             OSSL_TRACE_BEGIN(TLS) {
                 BIO_printf(trc_out,"Oops - exts out of bounds\n");
             } OSSL_TRACE_END(TLS);
 #endif
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_MALLOC_FAILURE);
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             goto err;
         }
         if (etype==TLSEXT_TYPE_outer_extensions) {
@@ -3056,7 +3056,7 @@ static int ech_decode_inner(
         final_decomp[offset]=(outers[iind]%256)&0xff; offset++;
         final_decomp[offset]=(osize/256)&0xff; offset++;
         final_decomp[offset]=(osize%256)&0xff; offset++;
-        if (((offset+osize)>=final_decomp_len) ||
+        if (((offset+osize)>final_decomp_len) ||
                ((size_t)((exts_start+ooffset+osize)-ob) > ob_len)) {
 #ifndef OPENSSL_NO_SSL_TRACE
             OSSL_TRACE_BEGIN(TLS) {
@@ -4438,7 +4438,7 @@ int ech_early_decrypt(SSL *s, PACKET *outerpkt, PACKET *newpkt)
     afterECH=ch_len-(echoffset+echlen);
     memcpy(de+startofexts+2,ch+startofexts+2,beforeECH);
     memcpy(de+startofexts+2+beforeECH,
-            ch+startofexts+2+beforeECH+echlen,
+            ch+startofexts+2+beforeECH+echlen+4,
             afterECH);
     de_len=ch_len-echlen-4;
 
