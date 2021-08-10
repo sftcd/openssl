@@ -28,6 +28,8 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
+- 20210810: made a [boringssl test script](bssl-oss-test.sh).
+
 - 20210810: updated boringSSL, re-built and verified that
   ``bssl s_client`` works with cloudflare and (with a bit
   of welcome bug fixing) against my ``openssl s_server``.
