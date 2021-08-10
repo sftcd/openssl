@@ -18,10 +18,11 @@
 
 #ifndef OPENSSL_NO_ECH
 
-# include <openssl/ech.h>
-# include "ssl_local.h"
-# include "ech_local.h"
-# include "statem/statem_local.h"
+#include <openssl/ssl.h>
+#include <openssl/ech.h>
+#include "ssl_local.h"
+#include "ech_local.h"
+#include "statem/statem_local.h"
 #include <openssl/rand.h>
 #ifndef OPENSSL_NO_SSL_TRACE
 #include <openssl/trace.h>
