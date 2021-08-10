@@ -65,6 +65,7 @@ CAFILE="./cadir/oe.csr"
 REALCERT="no" # default to fake CA for localhost
 CIPHERSUITES="" # default to internal default
 SELECTED=""
+IGNORE_CID="no"
 
 function whenisitagain()
 {
@@ -85,6 +86,7 @@ function usage()
     echo "  -G means set GREASE suite to default rather than randomly pick"
     echo "  -h means print this"
     echo "  -H means try connect to that hidden server"
+    echo "  -I means to ignore the server's chosen config_id and send random"
     echo "  -j just use 0x1301 ciphersuite"
     echo "  -n means don't trigger ech at all"
     echo "  -N means don't send specific inner/outer alpns"
@@ -102,7 +104,7 @@ function usage()
 }
 
 # options may be followed by one colon to indicate they have a required argument
-if ! options=$(/usr/bin/getopt -s bash -o C:c:df:gGhH:jnNp:P:rs:S:v -l choose:,clear_sni:,debug,filepath:,grease,greasesuite,help,hidden:,just,noech,noalpn,port:,echpub:,realcert,server:,session:,valgrind -- "$@")
+if ! options=$(/usr/bin/getopt -s bash -o C:c:df:gGhH:IjnNp:P:rs:S:v -l choose:,clear_sni:,debug,filepath:,grease,greasesuite,help,hidden:,ignore_cid,just,noech,noalpn,port:,echpub:,realcert,server:,session:,valgrind -- "$@")
 then
     # something went wrong, getopt will put out an error message for us
     exit 1
@@ -120,6 +122,7 @@ do
 		-G|--greasesuite) GSUITESET="yes";;
         -h|--help) usage;;
         -H|--hidden) SUPPLIEDHIDDEN=$2; shift;;
+        -I|--ignore_cid) IGNORE_CID="yes" ;;
         -j|--just) CIPHERSUITES=" -ciphersuites TLS_AES_128_GCM_SHA256 " ;;
         -n|--noech) NOECH="yes" ;;
         -N|--noalpn) DOALPN="no" ;;
@@ -259,40 +262,46 @@ then
     grease_str=" -ech_grease -ech_grease_suite=$GSUITE"
 fi
 
+ignore_str=" "
+if [[ "$IGNORE_CID" == "yes" ]]
+then
+    ignore_str=" -ech_ignore_cid "
+fi
+
 # normally the inner SNI is what we want to hide
-echstr="-servername $hidden $ECH "
+echstr="-servername $hidden $ECH $ignore_str "
 if [[ "$NOECH" == "yes" ]]
 then
     echo "Not trying ECH"
     if [[ "$SUPPLIEDPNO" != "" ]]
     then
-        echstr="-servername $SUPPLIEDPNO "
+        echstr="-servername $SUPPLIEDPNO $ignore_str "
     elif [[ "$SUPPLIEDPNO" == "" && "$hidden" != "" ]]
     then
-        echstr="-servername $hidden "
+        echstr="-servername $hidden $ignore_str "
     elif [[ "$hidden" == "" || "$SUPPLIEDPNO" == "NONE" ]]
     then
-        echstr=" -noservername"
+        echstr=" -noservername $ignore_str"
     fi
     if [[ "$GREASE" == "yes" ]]
     then
         echo "Trying to GREASE though"
-        echstr=" $echstr $grease_str "
+        echstr=" $echstr $grease_str $ignore_str "
     fi
 else
     if [[ "$GREASE" == "yes" && "$hidden" == "NONE" ]]
     then
         echo "Trying to GREASE"
-        echstr=" -noservername $grease_str "
+        echstr=" -noservername $grease_str $ignore_str "
     elif [[ "$GREASE" == "yes" && "$hidden" != "NONE" ]]
     then
-        echstr=" -servername $hidden $grease_str "
+        echstr=" -servername $hidden $grease_str $ignore_str "
     elif [[ "$GREASE" == "no" && "$hidden" != "NONE" ]]
     then
-        echstr=" -servername $hidden $ECH "
+        echstr=" -servername $hidden $ECH $ignore_str "
     elif [[ "$GREASE" == "no" && "$hidden" == "NONE" ]]
     then
-        echstr=" -noservername $ECH "
+        echstr=" -noservername $ECH $ignore_str "
     fi
 fi
 

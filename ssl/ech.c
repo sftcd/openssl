@@ -794,11 +794,6 @@ static ECHConfigs *ECHConfigs_from_binary(
     if (!leftover || !binbuf || !binblen) {
         goto err;
     }
-    /* 
-     * sanity check: version + checksum + 
-     * KeyShareEntry have to be there 
-     * so min len >= 10 
-     */
     if (binblen < ECH_MIN_ECHCONFIG_LEN) {
         goto err;
     }
@@ -3694,6 +3689,7 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
     unsigned char cipher[HPKE_MAXSIZE];
     unsigned char *aad=NULL;
     size_t aad_len=0;
+    unsigned char config_id_to_use=0x00; /* we might replace with random */
     /*
      * My ephemeral key pair for HPKE encryption
      * Has to be externally generated so public can be part of AAD (sigh)
@@ -3816,7 +3812,13 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
     }
     ech_pbuf("EAAE: my pub",mypub,mypub_len);
     ech_pbuf("EAAE: config id input",tc->encoding_start,tc->encoding_length);
-    ech_pbuf("EAAE: config_id",&tc->config_id,1);
+    if (s->ctx && (s->ctx->options & SSL_OP_ECH_IGNORE_CID)) { 
+        RAND_bytes(&config_id_to_use,1);
+        ech_pbuf("EAAE: random config_id",&config_id_to_use,1);
+    } else {
+        config_id_to_use=tc->config_id;
+        ech_pbuf("EAAE: config_id",&config_id_to_use,1);
+    }
 
     /*
      * struct {
@@ -3845,7 +3847,7 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
     *cp++=(unsigned char)((hpke_suite.kdf_id&0xffff)%256);
     *cp++=(unsigned char)((hpke_suite.aead_id&0xffff)/256);
     *cp++=(unsigned char)((hpke_suite.aead_id&0xffff)%256);
-    *cp++=(unsigned char)tc->config_id;
+    *cp++=(unsigned char)config_id_to_use;
     *cp++=(unsigned char)((mypub_len&0xffff)/256);
     *cp++=(unsigned char)((mypub_len&0xffff)%256);
     memcpy(cp,mypub,mypub_len); cp+=mypub_len;
@@ -3895,7 +3897,7 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
         || !WPACKET_start_sub_packet_u16(pkt)
         || !WPACKET_put_bytes_u16(pkt, hpke_suite.kdf_id)
         || !WPACKET_put_bytes_u16(pkt, hpke_suite.aead_id)
-        || !WPACKET_put_bytes_u8(pkt, tc->config_id)
+        || !WPACKET_put_bytes_u8(pkt, config_id_to_use)
         || !WPACKET_sub_memcpy_u16(pkt, mypub, mypub_len)
         || !WPACKET_sub_memcpy_u16(pkt, cipher, cipherlen)
         || !WPACKET_close(pkt)

@@ -9,6 +9,7 @@ openssl-ech - ECH key generation programme
 
 B<openssl> B<s_client>
 [B<-help>]
+[B<-verbose>]
 [B<-pemout>]
 [B<-pemin>]
 [B<-pubout>]
@@ -36,6 +37,10 @@ manual page.
 =item B<-help>
 
 Print out a usage message.
+
+=item B<-verbose>
+
+Print more verbosely.
 
 =item B<-pemout>
 

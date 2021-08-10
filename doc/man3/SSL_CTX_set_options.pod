@@ -313,6 +313,11 @@ ECH key pairs. By default, servers will only attempt decryption using
 an ECH key pair that matches the config_id in the ECH extension value
 received.
 
+=item SSL_OP_ECH_IGNORED_CID
+
+If set, TLS ClientHello messages emitted by the client will ignore the
+ECHConfig config_id chosen by the server and use a random octet.
+
 =back
 
 The following options no longer have any effect but their identifiers are

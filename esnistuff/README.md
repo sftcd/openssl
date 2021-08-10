@@ -28,6 +28,11 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
+- 20210810: added ``-ech_ignore_cid`` option to ``s_client``
+  to allow client to send random ``ECH.config_id`` instead
+  of server's chosen value. (Requires server to accept
+  trial decryption.)
+
 - 20210809: Moved the development branch to "ECH-draft-13"
   First addition there is the key generation stuff but to
   also play with cat picture extensions (even small cat pics 

@@ -83,6 +83,7 @@ static const char *ech_inner_name=NULL;
 static const char *sni_outer_name=NULL; 
 static int ech_grease=0;
 static char *ech_grease_suite = NULL;
+static int ech_ignore_cid=0;
 static int nechs=0;
 static char *ech_encoded_configs = NULL;
 static char *ech_svcb_rr = NULL;
@@ -499,7 +500,7 @@ typedef enum OPTION_choice {
     OPT_SNIOUTER, OPT_ALPN_OUTER,
     OPT_ECHCONFIGS, OPT_SVCB,
     OPT_ECH_GREASE, OPT_ECH_GREASE_SUITE,
-    OPT_ECH_SELECT,
+    OPT_ECH_SELECT, OPT_ECH_IGNORE_CONFIG_ID,
 #endif
     OPT_SCTP_LABEL_BUG,
     OPT_R_ENUM, OPT_PROV_ENUM
@@ -703,6 +704,8 @@ const OPTIONS s_client_options[] = {
      "Send GREASE values when not really using ECH"},
     {"ech_grease_suite",OPT_ECH_GREASE_SUITE,'s',
      "Use this HPKE suite for GREASE values when not really using ECH"},
+    {"ech_ignore_cid",OPT_ECH_IGNORE_CONFIG_ID,'-',
+     "Ignore the server-chosen ECH config ID and send a random value"},
 #endif
 #ifndef OPENSSL_NO_SRTP
     {"use_srtp", OPT_USE_SRTP, 's',
@@ -1562,6 +1565,9 @@ int s_client_main(int argc, char **argv)
         case OPT_ECH_GREASE_SUITE:
             ech_grease_suite=opt_arg();
             break;
+        case OPT_ECH_IGNORE_CONFIG_ID:
+            ech_ignore_cid=1;
+            break;
 #endif
 
         case OPT_NOSERVERNAME:
@@ -1868,6 +1874,9 @@ int s_client_main(int argc, char **argv)
 #ifndef OPENSSL_NO_ECH
     if (ech_grease!=0) {
         SSL_CTX_set_options(ctx,SSL_OP_ECH_GREASE);
+    }
+    if (ech_ignore_cid!=0) {
+        SSL_CTX_set_options(ctx,SSL_OP_ECH_IGNORE_CID);
     }
 #endif
 
