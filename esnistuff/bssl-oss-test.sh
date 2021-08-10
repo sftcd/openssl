@@ -26,6 +26,11 @@ httpreq="GET /stats HTTP/1.1\\r\\nConnection: close\\r\\nHost: $httphost\\r\\n\\
 cfhost="crypto.cloudflare.com"
 cfhttpreq="GET / HTTP/1.1\\r\\nConnection: close\\r\\nHost: $cfhost\\r\\n\\r\\n"
 
+KEYFILE1=$CFGTOP/cadir/$clear_sni.priv
+CERTFILE1=$CFGTOP/cadir/$clear_sni.crt
+KEYFILE2=$CFGTOP/cadir/$httphost.priv
+CERTFILE2=$CFGTOP/cadir/$httphost.crt
+
 todo="l" 
 # debugstr=" -debug "
 debugstr=""
@@ -125,10 +130,35 @@ fi
 
 if [[ "$todo" == "g" ]]
 then
-    echo "Generating bssl s_server ECH keys"
+    echo "Running a bssl s_server (hit ctrl-c to exit)"
     $BTOOL/bssl generate-ech -out-ech-config-list $BFILES/bs.list \
         -out-ech-config $BFILES/bs.ech -out-private-key $BFILES/bs.key \
         -public-name example.com -config-id 222 -max-name-length 0
+    res=$?
+    # the b64 form is friendlier for echcli.sh
+    cat $BFILES/bs.list | base64 -w0 >$BFILES/bs.pem
+    if [[ "$res" != "0" ]]
+    then
+        echo "Error from bssl ($res)"
+    fi
+    exit $res
+fi
+
+# catch the ctrl-C used to stop the server and do any clean up needed
+cleanup() {
+    echo "Cleaning up after ctrl-c"
+    exit 0
+}
+trap cleanup SIGINT
+
+if [[ "$todo" == "s" ]]
+then
+    echo "Running bssl s_server with ECH keys"
+    $BTOOL/bssl s_server \
+        -accept 8443 \
+        -key $KEYFILE2 -cert $CERTFILE2 \
+        -ech-config $BFILES/bs.ech -ech-key $BFILES/bs.key \
+        -www -loop $debugstr
     res=$?
     if [[ "$res" != "0" ]]
     then
