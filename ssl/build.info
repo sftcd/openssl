@@ -1,5 +1,4 @@
 LIBS=../libssl
-
 #Needed for the multiblock code in rec_layer_s3.c
 IF[{- !$disabled{asm} -}]
   $AESDEF_x86=AES_ASM
@@ -29,6 +28,7 @@ SOURCE[../libssl]=\
         bio_ssl.c ssl_err.c ssl_err_legacy.c tls_srp.c t1_trce.c ssl_utst.c \
         record/ssl3_buffer.c record/ssl3_record.c record/dtls1_bitmap.c \
         statem/statem.c record/ssl3_record_tls13.c \
+        ech.c \
         tls_depr.c $KTLSSRC
 # For shared builds we need to include the libcrypto packet.c and sources
 # needed in providers (s3_cbc.c and record/tls_pad.c) in libssl as well.

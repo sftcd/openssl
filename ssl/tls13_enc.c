@@ -16,12 +16,66 @@
 #include <openssl/kdf.h>
 #include <openssl/core_names.h>
 
+#ifndef OPENSSL_NO_ECH
+/* temp tracing */
+#include <openssl/trace.h>
+#include "ech_local.h"
+#endif
+
 #define TLS13_MAX_LABEL_LEN     249
 
 #ifdef CHARSET_EBCDIC
 static const unsigned char label_prefix[] = { 0x74, 0x6C, 0x73, 0x31, 0x33, 0x20, 0x00 };
 #else
 static const unsigned char label_prefix[] = "tls13 ";
+#endif
+
+#ifndef OPENSSL_NO_ECH
+#ifdef ECH_SUPERVERBOSE
+
+/* 
+ * There is an ech_pbuf in ssl/ech.c, but one of the test
+ * binaries needs this file but doesn't have the object
+ * file ech.o so I'll re-define here as this is temporary
+ * and even then rarely needed (only when I get an interop
+ * issue related to transcripts).
+ */
+static void tls13_pbuf(const char *msg, const unsigned char *buf, const size_t blen)
+{
+#ifndef OPENSSL_NO_SSL_TRACE
+    OSSL_TRACE_BEGIN(TLS) {
+    if (msg==NULL) {
+        BIO_printf(trc_out,"msg is NULL\n");
+    } else if (buf==NULL) {
+        BIO_printf(trc_out,"%s: buf is NULL\n",msg);
+    } else if (blen==0) {
+        BIO_printf(trc_out,"%s: blen is zero\n",msg);
+    } else {
+        BIO_printf(trc_out,"%s (%lu):\n    ",msg,(unsigned long)blen);
+        size_t i;
+        for (i=0;i<blen;i++) {
+            if ((i!=0) && (i%16==0))
+                BIO_printf(trc_out,"\n    ");
+            BIO_printf(trc_out,"%02x:",(unsigned)(buf[i]));
+        }
+        BIO_printf(trc_out,"\n");
+        }
+    } OSSL_TRACE_END(TLS);
+#endif
+    return;
+}
+
+static void ptranscript(const char *msg, SSL *s)
+{
+    size_t hdatalen=0;
+    unsigned char *hdata=NULL;
+    if (s->s3.handshake_buffer) {
+        hdatalen = BIO_get_mem_data(s->s3.handshake_buffer, &hdata);
+        tls13_pbuf(msg,hdata,hdatalen);
+    }
+    return;
+}
+#endif
 #endif
 
 /*
@@ -44,6 +98,20 @@ int tls13_hkdf_expand(SSL *s, const EVP_MD *md, const unsigned char *secret,
     const char *mdname = EVP_MD_get0_name(md);
     int ret;
     size_t hashlen;
+
+#ifndef OPENSSL_NO_ECH
+#ifdef ECH_SUPERVERBOSE
+    OSSL_TRACE_BEGIN(TLS) {
+        BIO_printf(trc_out,"hkdf inputs:\n");
+    } OSSL_TRACE_END(TLS);
+    {
+        size_t secretlen=EVP_MD_size(md);
+        tls13_pbuf("\tsecret",secret,secretlen);
+        tls13_pbuf("\tlabel",label,labellen);
+        tls13_pbuf("\tdata",data,datalen);
+    }
+#endif
+#endif
 
     kctx = EVP_KDF_CTX_new(kdf);
     EVP_KDF_free(kdf);
@@ -92,6 +160,15 @@ int tls13_hkdf_expand(SSL *s, const EVP_MD *md, const unsigned char *secret,
 
     ret = EVP_KDF_derive(kctx, out, outlen, params) <= 0;
     EVP_KDF_CTX_free(kctx);
+
+#ifndef OPENSSL_NO_ECH
+#ifdef ECH_SUPERVERBOSE
+    OSSL_TRACE_BEGIN(TLS) {
+        BIO_printf(trc_out,"hkdf output:\n");
+    } OSSL_TRACE_END(TLS);
+    tls13_pbuf("\tout",out,outlen);
+#endif
+#endif
 
     if (ret != 0) {
         if (fatal)
@@ -435,6 +512,17 @@ int tls13_change_cipher_state(SSL *s, int which)
 #if !defined(OPENSSL_NO_KTLS) && defined(OPENSSL_KTLS_TLS13)
     ktls_crypto_info_t crypto_info;
     BIO *bio;
+#endif
+
+#ifndef OPENSSL_NO_ECH
+#ifdef ECH_SUPERVERBOSE
+    OSSL_TRACE_BEGIN(TLS) {
+        BIO_printf(trc_out,"SSL*=%p, inner=%p, outer=%p, which=%02x\n",
+                (void*)s, (void*)s->ext.inner_s, (void*)s->ext.outer_s,which);
+        BIO_printf(trc_out,"handshake_dgst is %p\n",(void*)s->s3.handshake_dgst);
+    } OSSL_TRACE_END(TLS);
+    ptranscript("gen_hs",s);
+#endif
 #endif
 
     if (which & SSL3_CC_READ) {

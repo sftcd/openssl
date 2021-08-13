@@ -81,6 +81,14 @@ int SSL_SESSION_print(BIO *bp, const SSL_SESSION *x)
         if (BIO_printf(bp, "%02X", x->master_key[i]) <= 0)
             goto err;
     }
+
+#ifndef OPENSSL_NO_ECH
+	/*
+	 * (TODO:) This is not ECH related but we should do something
+	 */
+    BIO_printf(bp,"\n    Will print ECH stuff in a bit");
+#endif
+
 #ifndef OPENSSL_NO_PSK
     if (BIO_puts(bp, "\n    PSK identity: ") <= 0)
         goto err;

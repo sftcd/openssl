@@ -1379,6 +1379,51 @@ MSG_PROCESS_RETURN tls_process_client_hello(SSL *s, PACKET *pkt)
     static const unsigned char null_compression = 0;
     CLIENTHELLO_MSG *clienthello = NULL;
 
+#ifndef OPENSSL_NO_ECH
+    /*
+     * For split-mode we want to have a way to point at the CH octets
+     * for the accept-confirmation calculation.
+     */
+    if (!pkt) goto err;
+    if (s->server && pkt->remaining) {
+        if (s->ext.innerch!=NULL) {
+            OPENSSL_free(s->ext.innerch);
+        }
+        /* For backend, include msg type & 3 octet length here. */
+        s->ext.innerch_len=pkt->remaining;
+        s->ext.innerch=OPENSSL_malloc(s->ext.innerch_len+4);
+        if (!s->ext.innerch) goto err;
+        s->ext.innerch[0]=SSL3_MT_CLIENT_HELLO;
+        s->ext.innerch[1]=((s->ext.innerch_len>>16)&0xff);
+        s->ext.innerch[2]=((s->ext.innerch_len>>8)&0xff);
+        s->ext.innerch[3]=(s->ext.innerch_len&0xff);
+        memcpy(s->ext.innerch+4,pkt->curr,s->ext.innerch_len);
+        s->ext.innerch_len+=4;
+    }
+
+    if (s->server && s->ech!=NULL) {
+        PACKET newpkt;
+        if (ech_early_decrypt(s,pkt,&newpkt)!=1) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+            goto err;
+        }
+        if (s->ext.ech_success==1) {
+            /* 
+             * If ECH worked, the inner CH MUST be smaller so we can
+             * overwrite the outer packet, but no harm to check anyway
+             * I just happen to know that pkt->curr == s->init_msg
+             */
+            if (newpkt.remaining>pkt->remaining) {
+                SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+                goto err;
+            }
+            memcpy(s->init_msg,newpkt.curr,newpkt.remaining);
+            pkt->remaining=newpkt.remaining;
+        } 
+    }
+
+#endif
+
     /* Check if this is actually an unexpected renegotiation ClientHello */
     if (s->renegotiate == 0 && !SSL_IS_FIRST_HANDSHAKE(s)) {
         if (!ossl_assert(!SSL_IS_TLS13(s))) {
@@ -1580,6 +1625,14 @@ MSG_PROCESS_RETURN tls_process_client_hello(SSL *s, PACKET *pkt)
     if (clienthello != NULL)
         OPENSSL_free(clienthello->pre_proc_exts);
     OPENSSL_free(clienthello);
+#ifndef OPENSSL_NO_ECH
+    s->clienthello=NULL;
+    if (s->ext.innerch!=NULL) {
+        OPENSSL_free(s->ext.innerch);
+        s->ext.innerch=NULL;
+        s->ext.innerch_len=0;
+    }
+#endif
 
     return MSG_PROCESS_ERROR;
 }
@@ -1636,6 +1689,7 @@ static int tls_early_post_process_client_hello(SSL *s)
         /* SSLv3/TLS */
         s->client_version = clienthello->legacy_version;
     }
+
     /*
      * Do SSL/TLS version negotiation if applicable. For DTLS we just check
      * versions are potentially compatible. Version negotiation comes later.
@@ -1880,6 +1934,17 @@ static int tls_early_post_process_client_hello(SSL *s)
         }
     }
 
+#ifndef OPENSSL_NO_ECH
+    /*
+     * Unless ECH has worked or not been configured we  won't call 
+     * the session_secret_cb now because we'll need to calculate the 
+     * server random later to include the ECH accept value  
+     * (We can't do it now as we don't yet have the SH encoding)
+     * This may change in draft-12.
+     */
+    if ((s->ech && s->ext.ech_success) || !s->ech) 
+#endif
+
     if (!s->hit
             && s->version >= TLS1_VERSION
             && !SSL_IS_TLS13(s)
@@ -2040,14 +2105,23 @@ static int tls_early_post_process_client_hello(SSL *s)
     sk_SSL_CIPHER_free(ciphers);
     sk_SSL_CIPHER_free(scsvs);
     OPENSSL_free(clienthello->pre_proc_exts);
+#ifndef OPENSSL_NO_ECH
+    clienthello->pre_proc_exts=NULL;
+#endif
     OPENSSL_free(s->clienthello);
     s->clienthello = NULL;
     return 1;
  err:
     sk_SSL_CIPHER_free(ciphers);
     sk_SSL_CIPHER_free(scsvs);
+#ifndef OPENSSL_NO_ECH
+    if (clienthello) OPENSSL_free(clienthello->pre_proc_exts);
+    OPENSSL_free(clienthello);
+    s->clienthello=NULL;
+#else
     OPENSSL_free(clienthello->pre_proc_exts);
     OPENSSL_free(s->clienthello);
+#endif
     s->clienthello = NULL;
 
     return 0;
@@ -2403,6 +2477,62 @@ int tls_construct_server_hello(SSL *s, WPACKET *pkt)
         /* SSLfatal() already called */;
         return 0;
     }
+
+#ifndef OPENSSL_NO_ECH
+    /*
+     * Calculate the ECH-accept server random to indicate that
+     * we're accepting ECH, if that's the case
+     */
+    if (s->ext.ech_backend || (s->ech && s->ext.ech_success==1)) {
+        unsigned char acbuf[8];
+        unsigned char *shbuf=NULL;
+        size_t shlen=0;
+        size_t shoffset=0;
+        unsigned char *p=NULL;
+
+        memset(acbuf,0,8);
+        if (!pkt || !pkt->buf) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+            return 0;
+        }
+        shbuf=(unsigned char *)pkt->buf->data;
+        shlen=pkt->written;
+        if (ech_calc_accept_confirm(s,acbuf,shbuf,shlen)!=1) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+            return 0;
+        }
+        memcpy(s->s3.server_random+SSL3_RANDOM_SIZE-8,acbuf,8);
+        /*
+         * Now HACK HACK at the packet to swap those bits (sigh)
+         * But... this will disappear with draft-12 so we'll leave
+         * the hackiness for now.
+         */
+        shoffset=6+24;
+        p=(unsigned char*) &pkt->buf->data[shoffset];
+        memcpy(p,acbuf,8);
+    } else if (s->ext.ech_grease==ECH_IS_GREASE && s->ech_cb!=NULL) {
+        /* call ECH callback */
+        char pstr[ECH_PBUF_SIZE+1];
+        BIO *biom = BIO_new(BIO_s_mem());
+        unsigned int cbrv=0;
+        memset(pstr,0,ECH_PBUF_SIZE+1);
+        SSL_ech_print(biom,s,ECH_SELECT_ALL);
+        BIO_read(biom,pstr,ECH_PBUF_SIZE);
+        cbrv=s->ech_cb(s,pstr);
+        BIO_free(biom);
+        if (cbrv != 1) {
+#ifndef OPENSSL_NO_SSL_TRACE
+            OSSL_TRACE_BEGIN(TLS) {
+                BIO_printf(trc_out,
+                    "Error from ech_cb in tls_construct_server_hello at %d\n",
+                    __LINE__);
+            } OSSL_TRACE_END(TLS);
+#endif
+            return 0;
+        }
+    }
+
+#endif
 
     return 1;
 }
