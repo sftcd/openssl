@@ -1,4 +1,4 @@
-# This is a temporary place for ESNI content ...
+# This is just an Encrypted Client Hello (ECH) placeholder
 
 Stephen Farrell, stephen.farrell@cs.tcd.ie, 20210615-ish
 
@@ -16,7 +16,7 @@ An ``s_client`` works with the ``s_server`` but also with
 
 There's some (well out of date) doxygen-generated documentation [here](api.html).
 
-**We haven't that done much testing. Use at your own risk.**
+**We haven't done much testing. Use at your own risk.**
 
 # State-of-play...
 
@@ -1527,8 +1527,18 @@ seemed unkeen on. Decided to not bother with that.
 
 I'm sure there's more but some collected so far:
 
-- Integration with wget
+- If we do end up with >1 ESNIKeys version that needs to be supported, 
+  consider some kind of local "any" version value that a 
+  server can use to force use of a public share regardless of the
+  the ESNIKeys.version used by the client. That more easily allows
+  multiple $hidden sites to hide behind one key pair belonging to
+  some operator.
+- What do we want/need to do to support the split backend approach? (separate
+  fronting server from hosting server)
+- Integration with haproxy, wget
 - Adding/moving tests to the OpenSSL test suites
+- Continuous integration for these patches that aim to keep the patch series
+  current against OpenSSL master as it evolves
 - Once we've integrated with some real client/server test the effect of our
   crude padding scheme.
 - Security review: identify which parts of the code e.g. need to be constant
