@@ -1,0 +1,65 @@
+=pod
+
+=head1 NAME
+
+hpke_enc, hpke_enc_evp, hpke_enc_raw, hpke_dec, 
+hpke_kg, hpke_kg_evp, 
+hpke_ah_decode, hpke_suite_check,
+hpke_extract, hpke_expand,
+hpke_prbuf2evp, hpke_good4grease,
+hpke_str2suite
+- Hybrid Public Key Encryption (HPKE) functions
+
+=head1 SYNOPSIS
+
+ #include <crypto/hpke.h>
+ int hpke_enc( unsigned int mode, hpke_suite_t suite, char *pskid, size_t psklen, unsigned char *psk, size_t publen, unsigned char *pub, size_t privlen, unsigned char *priv, size_t clearlen, unsigned char *clear, size_t aadlen, unsigned char *aad, size_t infolen, unsigned char *info, size_t *senderpublen, unsigned char *senderpub, size_t *cipherlen, unsigned char *cipher);
+ int hpke_enc_evp( unsigned int mode, hpke_suite_t suite, char *pskid, size_t psklen, unsigned char *psk, size_t publen, unsigned char *pub, size_t privlen, unsigned char *priv, size_t clearlen, unsigned char *clear, size_t aadlen, unsigned char *aad, size_t infolen, unsigned char *info, size_t senderpublen, unsigned char *senderpub, EVP_PKEY *senderpriv, size_t *cipherlen, unsigned char *cipher);
+ int hpke_enc_raw( unsigned int mode, hpke_suite_t suite, char *pskid, size_t psklen, unsigned char *psk, size_t publen, unsigned char *pub, size_t privlen, unsigned char *priv, size_t clearlen, unsigned char *clear, size_t aadlen, unsigned char *aad, size_t infolen, unsigned char *info, size_t extsenderpublen, unsigned char *extsenderpub, size_t rawsenderprivlen,  unsigned char *rawsenderpriv, size_t *cipherlen, unsigned char *cipher);
+ int hpke_dec( unsigned int mode, hpke_suite_t suite, char *pskid, size_t psklen, unsigned char *psk, size_t publen, unsigned char *pub, size_t privlen, unsigned char *priv, EVP_PKEY *evppriv, size_t enclen, unsigned char *enc, size_t cipherlen, unsigned char *cipher, size_t aadlen, unsigned char *aad, size_t infolen, unsigned char *info, size_t *clearlen, unsigned char *clear);
+ int hpke_kg( unsigned int mode, hpke_suite_t suite, size_t *publen, unsigned char *pub, size_t *privlen, unsigned char *priv); 
+ int hpke_kg_evp( unsigned int mode, hpke_suite_t suite, size_t *publen, unsigned char *pub, EVP_PKEY **priv);
+ int hpke_ah_decode(size_t ahlen, const char *ah, size_t *blen, unsigned char **buf);
+ int hpke_suite_check(hpke_suite_t suite);
+ int hpke_extract( const hpke_suite_t suite, const int mode5869, const unsigned char *salt, const size_t saltlen, const char *label, const size_t labellen, const unsigned char *ikm, const size_t ikmlen, unsigned char *secret, size_t *secretlen);
+ int hpke_expand(const hpke_suite_t suite, const int mode5869, const unsigned char *prk, const size_t prklen, const char *label, const size_t labellen, const unsigned char *info, const size_t infolen, const uint32_t L, unsigned char *out, size_t *outlen);
+ int hpke_prbuf2evp( unsigned int kem_id, unsigned char *prbuf, size_t prbuf_len, unsigned char *pubuf, size_t pubuf_len, EVP_PKEY **priv);
+ int hpke_good4grease( hpke_suite_t *suite_in, hpke_suite_t suite, unsigned char *pub, size_t *pub_len, unsigned char *cipher, size_t cipher_len);
+ int hpke_str2suite(char *str, hpke_suite_t suite);
+
+
+=head1 DESCRIPTION
+
+These functions handle HPKE.
+
+The rest is TBD for now, sorry;-)
+
+=head1 RETURN VALUES
+
+Unless otherwise stated all functions return 1 for success.
+
+=head1 SEE ALSO
+
+The draft specification: https://tools.ietf.org/html/draft-irtf-cfrg-hpke
+
+I have a standalone HPKE repot at https://github.com/sftcd/happykey
+
+My ECH enabled fork has it's README at: https://github.com/sftcd/openssl/tree/master/esnistuff
+(that README is just a re-direct to the relevant branch) and also includes these HPKE 
+functions.
+
+=head1 HISTORY
+
+Initially developed by Stephen Farrell. Subsequently supported by OTF via
+the DEfO project: https://defo.ie/
+
+=head1 COPYRIGHT
+
+Copyright 2019-2021 The OpenSSL Project Authors. All Rights Reserved.
+
+Licensed under the Apache License 2.0 (the "License").  You may not use
+this file except in compliance with the License.  You can obtain a copy
+in the file LICENSE in the source distribution or at
+L<https://www.openssl.org/source/license.html>.
+
+=cut

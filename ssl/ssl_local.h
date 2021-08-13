@@ -34,6 +34,9 @@
 # include "internal/refcount.h"
 # include "internal/tsan_assist.h"
 # include "internal/bio.h"
+#ifndef OPENSSL_NO_ECH
+#include "ech_local.h"
+#endif
 # include "internal/ktls.h"
 # include "internal/time.h"
 # include "internal/ssl.h"
@@ -550,6 +553,13 @@ struct ssl_session_st {
 
     struct {
         char *hostname;
+
+# ifndef OPENSSL_NO_EC
+        size_t ecpointformats_len;
+        unsigned char *ecpointformats; /* peer's list */
+# endif                         /* OPENSSL_NO_EC */
+        size_t supportedgroups_len;
+        uint16_t *supportedgroups; /* peer's list */
         /* RFC4507 info */
         unsigned char *tick; /* Session ticket */
         size_t ticklen;      /* Session ticket length */
@@ -707,6 +717,9 @@ typedef enum tlsext_index_en {
     TLSEXT_IDX_compress_certificate,
     TLSEXT_IDX_early_data,
     TLSEXT_IDX_certificate_authorities,
+    TLSEXT_IDX_ech,
+    TLSEXT_IDX_outer_extensions,
+    TLSEXT_IDX_ech_is_inner,
     TLSEXT_IDX_padding,
     TLSEXT_IDX_psk,
     /* Dummy index - must always be the last entry */
@@ -1080,6 +1093,15 @@ struct ssl_ctx_st {
         SSL_CTX_npn_select_cb_func npn_select_cb;
         void *npn_select_cb_arg;
 # endif
+
+#ifndef OPENSSL_NO_ECH
+        /* Encrypted ClientHello details for SSL_CTX */
+        int nechs;
+        SSL_ECH *ech;
+        SSL_ech_cb_func ech_cb; 
+        unsigned char *alpn_outer;
+        size_t alpn_outer_len;
+#endif
 
         unsigned char cookie_hmac_key[SHA256_DIGEST_LENGTH];
     } ext;
@@ -1576,6 +1598,31 @@ struct ssl_connection_st {
                          const unsigned char *data, int len, void *arg);
         void *debug_arg;
         char *hostname;
+
+#ifndef OPENSSL_NO_ECH
+        /* ECH details for SSL struct */
+        unsigned char *innerch;
+        size_t innerch_len;
+        unsigned char *encoded_innerch;
+        size_t encoded_innerch_len;
+        /* outer-exts compression related fields */
+        int n_outer_only;
+        uint16_t outer_only[ECH_OUTERS_MAX];
+        unsigned int etype; /* Client placeholder for ext type */
+        SSL_CONNECTION* inner_s; /* pointer to inner CH from outer */
+        SSL_CONNECTION* outer_s; /* pointer to outer CH from inner */
+        int ech_attempted;
+        int ech_done;
+        int ech_success;
+        int ech_grease;
+        int ech_backend;
+        char* ech_grease_suite;
+        int ch_depth;
+        unsigned char *alpn_outer;
+        size_t alpn_outer_len;
+        unsigned char *ech_returned; /* binary ECHConfig value */
+        size_t ech_returned_len;
+#endif
         /* certificate status request info */
         /* Status type or -1 if no status type */
         int status_type;
@@ -1628,6 +1675,7 @@ struct ssl_connection_st {
          */
         unsigned char *alpn;
         size_t alpn_len;
+
         /*
          * Next protocol negotiation. For the client, this is the protocol that
          * we sent in NextProtocol and is set when handling ServerHello
@@ -1697,6 +1745,13 @@ struct ssl_connection_st {
      * 2 : don't call servername callback, no ack in server hello
      */
     int servername_done;
+#ifndef OPENSSL_NO_ECH
+    /* More ECH details for SSL struct */
+    int nechs;
+    SSL_ECH *ech;
+    SSL_ech_cb_func ech_cb; 
+#endif
+
 # ifndef OPENSSL_NO_CT
     /*
      * Validates that the SCTs (Signed Certificate Timestamps) are sufficient.

@@ -497,6 +497,11 @@ static const ssl_trace_tbl ssl_exts_tbl[] = {
 # ifndef OPENSSL_NO_NEXTPROTONEG
     {TLSEXT_TYPE_next_proto_neg, "next_proto_neg"},
 # endif
+#ifndef OPENSSL_NO_ECH
+    {TLSEXT_TYPE_ech,"encrypted_client_hello"},
+    {TLSEXT_TYPE_outer_extensions,"outer_extension"},
+    {TLSEXT_TYPE_ech_is_inner,"ech_is_inner"},
+#endif
 };
 
 static const ssl_trace_tbl ssl_groups_tbl[] = {
@@ -939,6 +944,22 @@ static int ssl_print_extension(BIO *bio, int indent, int server,
         if (extlen != xlen + 1)
             return 0;
         return ssl_trace_list(bio, indent + 2, ext + 1, xlen, 1, ssl_cert_type_tbl);
+#ifndef OPENSSL_NO_ECH
+    case TLSEXT_TYPE_ech:
+        BIO_indent(bio, indent + 2, 80);
+        BIO_printf(bio,"ECH of length (%d)\n",(int)extlen);
+        ssl_print_hex(bio, indent + 4, "ECH", ext, extlen);
+        break;
+    case TLSEXT_TYPE_outer_extensions:
+        BIO_indent(bio, indent + 2, 80);
+        BIO_printf(bio,"Outer extensions (%d)\n",(int)extlen);
+        ssl_print_hex(bio, indent + 4, "OUTER_CH", ext, extlen);
+        break;
+    case TLSEXT_TYPE_ech_is_inner:
+        BIO_indent(bio, indent + 2, 80);
+        BIO_printf(bio,"ech_is_inner: length (%d)\n",(int)extlen);
+        break;
+#endif
 
     default:
         BIO_dump_indent(bio, (const char *)ext, extlen, indent + 2);

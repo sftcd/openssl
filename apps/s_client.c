@@ -17,6 +17,11 @@
 #include <openssl/e_os2.h>
 #include "internal/nelem.h"
 
+#ifndef OPENSSL_NO_ECH
+# include <openssl/ech.h>
+
+#endif
+
 #ifndef OPENSSL_NO_SOCK
 
 /*
@@ -106,12 +111,37 @@ static int keymatexportlen = 20;
 static BIO *bio_c_out = NULL;
 static int c_quiet = 0;
 static char *sess_out = NULL;
+
+#ifndef OPENSSL_NO_ECH
+/*
+ * ECH_NAME_NONE provides a command line way to indicate that e.g.
+ * the outer SNI ought not be sent, thus overriding a public_name
+ * from an ECHConfig.
+ */
+#define ECH_NAME_NONE "NONE"
+
+static const char *ech_inner_name=NULL; 
+static const char *sni_outer_name=NULL; 
+static int ech_grease=0;
+static char *ech_grease_suite = NULL;
+static int ech_ignore_cid=0;
+static int nechs=0;
+static char *ech_encoded_configs = NULL;
+static char *ech_svcb_rr = NULL;
+static int ech_select=ECH_SELECT_ALL;
+#ifndef OPENSSL_NO_SSL_TRACE
+static size_t ech_trace_cb(const char *buf, size_t cnt,
+                 int category, int cmd, void *vdata);
+#endif
+#endif
+
 static SSL_SESSION *psksess = NULL;
 
 static void print_stuff(BIO *berr, SSL *con, int full);
 #ifndef OPENSSL_NO_OCSP
 static int ocsp_resp_cb(SSL *s, void *arg);
 #endif
+
 static int ldap_ExtendedResponse_parse(const char *buf, long rem);
 static int is_dNS_name(const char *host);
 
@@ -513,6 +543,12 @@ typedef enum OPTION_choice {
     OPT_ENABLE_PHA,
     OPT_ENABLE_SERVER_RPK,
     OPT_ENABLE_CLIENT_RPK,
+#ifndef OPENSSL_NO_ECH
+    OPT_SNIOUTER, OPT_ALPN_OUTER,
+    OPT_ECHCONFIGS, OPT_SVCB,
+    OPT_ECH_GREASE, OPT_ECH_GREASE_SUITE,
+    OPT_ECH_SELECT, OPT_ECH_IGNORE_CONFIG_ID,
+#endif
     OPT_SCTP_LABEL_BUG,
     OPT_KTLS,
     OPT_R_ENUM, OPT_PROV_ENUM
@@ -707,6 +743,28 @@ const OPTIONS s_client_options[] = {
     {"enable_pha", OPT_ENABLE_PHA, '-', "Enable post-handshake-authentication"},
     {"enable_server_rpk", OPT_ENABLE_SERVER_RPK, '-', "Enable raw public keys (RFC7250) from the server"},
     {"enable_client_rpk", OPT_ENABLE_CLIENT_RPK, '-', "Enable raw public keys (RFC7250) from the client"},
+#ifndef OPENSSL_NO_ECH
+    {"sni-outer", OPT_SNIOUTER, 's',
+     "The name to put in the outer CH when overriding the server's choice," \
+         " or \"NONE\""},
+    {"alpn-outer", OPT_ALPN_OUTER, 's',
+     "Specify outer ALPN value, when using ECH (comma-separated list, or " \
+         "\"NONE\"))"},
+    {"echconfigs", OPT_ECHCONFIGS, 's',
+     "Set ECHConfigs, value is b64 or ASCII-HEX encoded ECHConfigs"},
+    {"svcb", OPT_SVCB, 's',
+     "Set ECHConfigs and possibly ALPN via an SVCB RData, b64 or ASCII-HEX " \
+         "encoded"},
+    {"select", OPT_ECH_SELECT, 'n',
+      "Select one ECHConfig from many provided via RR or PEM file"},
+    {"ech_grease",OPT_ECH_GREASE,'-',
+     "Send GREASE values when not really using ECH"},
+    {"ech_grease_suite",OPT_ECH_GREASE_SUITE,'s',
+     "Use this HPKE suite for GREASE values when not really using ECH"},
+    {"ech_ignore_cid",OPT_ECH_IGNORE_CONFIG_ID,'-',
+     "Ignore the server-chosen ECH config ID and send a random value"},
+#endif
+>>>>>>> 8cddd3254a (ECH draft 13)
 #ifndef OPENSSL_NO_SRTP
     {"use_srtp", OPT_USE_SRTP, 's',
      "Offer SRTP key management with a colon-separated profile list"},
@@ -811,11 +869,92 @@ static void freeandcopy(char **dest, const char *source)
 static int new_session_cb(SSL *s, SSL_SESSION *sess)
 {
 
+#ifndef OPENSSL_NO_ECH
+    if (nechs>0) {
+	    const char *hn_1=NULL;
+        char *inner=NULL;
+        char *outer=NULL;
+        int rv;
+
+	    if (c_debug) {
+	        BIO_printf(bio_c_out,"new_session_cb called ech flavour\n");
+	    }
+	    hn_1=SSL_SESSION_get0_hostname(sess);
+	    if (hn_1==NULL && c_debug) {
+	        BIO_printf(bio_c_out,"Existing session hostname is NULL\n");
+	    } else if (c_debug) {
+	        BIO_printf(bio_c_out,"Existing session hostname is %s\n",hn_1);
+	    }
+        rv=SSL_ech_get_status(s,&inner,&outer);
+        switch (rv) {
+            case SSL_ECH_STATUS_SUCCESS:
+                if (c_debug) { 
+                    BIO_printf(bio_err, "ECH Succeeded\n"); 
+                    ERR_print_errors(bio_err); 
+                } 
+                break;
+            case SSL_ECH_STATUS_GREASE:
+                if (c_debug) { 
+                    BIO_printf(bio_err, "ECH sent GREASE\n"); 
+                    ERR_print_errors(bio_err); 
+                } 
+                break;
+            case SSL_ECH_STATUS_NOT_TRIED:
+                if (c_debug) { 
+                    BIO_printf(bio_err, "ECH not attempted\n"); 
+                    ERR_print_errors(bio_err); 
+                } 
+                break;
+            case SSL_ECH_STATUS_NOT_CONFIGURED:
+                if (c_debug) { 
+                    BIO_printf(bio_err, "ECH not configured\n"); 
+                    ERR_print_errors(bio_err); 
+                } 
+                break;
+            /*
+             * Error cases so we don't save session 
+             */
+            case SSL_ECH_STATUS_BACKEND:
+                if (c_debug) { 
+                    BIO_printf(bio_err, "ECH failed\n"); 
+                    ERR_print_errors(bio_err); 
+                } 
+                return 0;
+            case SSL_ECH_STATUS_FAILED:
+                if (c_debug) { 
+                    BIO_printf(bio_err, "ECH failed\n"); 
+                    ERR_print_errors(bio_err); 
+                } 
+                return 0;
+            case SSL_ECH_STATUS_BAD_CALL:
+                if (c_debug) { 
+                    BIO_printf(bio_err, "ECH failed\n"); 
+                    ERR_print_errors(bio_err); 
+                } 
+                return 0;
+            case SSL_ECH_STATUS_BAD_NAME:
+                if (c_debug) { 
+                    BIO_printf(bio_err, "ECH failed\n"); 
+                    ERR_print_errors(bio_err); 
+                } 
+                return 0;
+            default:
+                if (c_debug) { 
+                    BIO_printf(bio_err, "ECH unexpected status %d\n",rv); 
+                    ERR_print_errors(bio_err); 
+                } 
+                return 0;
+	    }
+        SSL_SESSION_print(bio_err, sess);
+    }
+#endif
+
     if (sess_out != NULL) {
         BIO *stmp = BIO_new_file(sess_out, "w");
 
         if (stmp == NULL) {
-            BIO_printf(bio_err, "Error writing session file %s\n", sess_out);
+            if (c_debug) 
+                BIO_printf(bio_err, "Error writing session file %s\n", sess_out);
         } else {
             PEM_write_bio_SSL_SESSION(stmp, sess);
             BIO_free(stmp);
@@ -826,7 +965,7 @@ static int new_session_cb(SSL *s, SSL_SESSION *sess)
      * Session data gets dumped on connection for TLSv1.2 and below, and on
      * arrival of the NewSessionTicket for TLSv1.3.
      */
-    if (SSL_version(s) == TLS1_3_VERSION) {
+    if (SSL_version(s) == TLS1_3_VERSION && c_debug) {
         BIO_printf(bio_c_out,
                    "---\nPost-Handshake New Session Ticket arrived:\n");
         SSL_SESSION_print(bio_c_out, sess);
@@ -909,6 +1048,9 @@ int s_client_main(int argc, char **argv)
     char *sname_alloc = NULL;
     int noservername = 0;
     const char *alpn_in = NULL;
+#ifndef OPENSSL_NO_ECH
+    const char *alpn_outer_in = NULL;
+#endif
     tlsextctx tlsextcbp = { NULL, 0 };
     const char *ssl_config = NULL;
 #define MAX_SI_TYPES 100
@@ -1478,6 +1620,11 @@ int s_client_main(int argc, char **argv)
         case OPT_ALPN:
             alpn_in = opt_arg();
             break;
+#ifndef OPENSSL_NO_ECH
+        case OPT_ALPN_OUTER:
+            alpn_outer_in = opt_arg();
+            break;
+#endif
         case OPT_SERVERINFO:
             p = opt_arg();
             len = strlen(p);
@@ -1499,7 +1646,34 @@ int s_client_main(int argc, char **argv)
             break;
         case OPT_SERVERNAME:
             servername = opt_arg();
+#ifndef OPENSSL_NO_ECH
+            ech_inner_name = servername;
+#endif
             break;
+#ifndef OPENSSL_NO_ECH
+        case OPT_SNIOUTER:
+            sni_outer_name = opt_arg();
+            break;
+        case OPT_ECHCONFIGS:
+            ech_encoded_configs= opt_arg();
+            break;
+        case OPT_SVCB:
+            ech_svcb_rr = opt_arg();
+            break;
+        case OPT_ECH_SELECT:
+            ech_select=atoi(opt_arg());
+            break;
+        case OPT_ECH_GREASE:
+            ech_grease=1;
+            break;
+        case OPT_ECH_GREASE_SUITE:
+            ech_grease_suite=opt_arg();
+            break;
+        case OPT_ECH_IGNORE_CONFIG_ID:
+            ech_ignore_cid=1;
+            break;
+#endif
+
         case OPT_NOSERVERNAME:
             noservername = 1;
             break;
@@ -1611,6 +1785,35 @@ int s_client_main(int argc, char **argv)
                prog);
             goto opthelp;
         }
+    }
+
+#ifndef OPENSSL_NO_ECH
+    if (alpn_outer_in !=NULL || sni_outer_name != NULL) {
+        if (ech_encoded_configs == NULL && ech_svcb_rr == NULL) {
+            BIO_printf(bio_err,
+               "%s: Can't use -sni-outer nor -alpn-outer without -echconfigs" \
+               " or -svcb \n", prog);
+            goto opthelp;
+        }
+    }
+#endif
+
+    argc = opt_num_rest();
+    if (argc == 1) {
+        /* If there's a positional argument, it's the equivalent of
+         * OPT_CONNECT.
+         * Don't allow -connect and a separate argument.
+         */
+        if (connectstr != NULL) {
+            BIO_printf(bio_err,
+                       "%s: must not provide both -connect option and target parameter\n",
+                       prog);
+            goto opthelp;
+        }
+        connect_type = use_inet;
+        freeandcopy(&connectstr, *opt_rest());
+    } else if (argc != 0) {
+        goto opthelp;
     }
 
 #ifndef OPENSSL_NO_NEXTPROTONEG
@@ -1811,6 +2014,15 @@ int s_client_main(int argc, char **argv)
         goto end;
     }
 
+#ifndef OPENSSL_NO_ECH
+    if (ech_grease!=0) {
+        SSL_CTX_set_options(ctx,SSL_OP_ECH_GREASE);
+    }
+    if (ech_ignore_cid!=0) {
+        SSL_CTX_set_options(ctx,SSL_OP_ECH_IGNORE_CID);
+    }
+#endif
+
     SSL_CTX_clear_mode(ctx, SSL_MODE_AUTO_RETRY);
 
     if (sdebug)
@@ -1980,6 +2192,25 @@ int s_client_main(int argc, char **argv)
         }
         OPENSSL_free(alpn);
     }
+ 
+#ifndef OPENSSL_NO_ECH
+    if (alpn_outer_in) {
+        size_t alpn_outer_len;
+        unsigned char *alpn_outer = 
+            next_protos_parse(&alpn_outer_len, alpn_outer_in);
+        if (alpn_outer == NULL) {
+            BIO_printf(bio_err, "Error parsing -alpn_outer argument\n");
+            goto end;
+        }
+        /* Returns 0 on success! */
+        if (SSL_CTX_ech_set_outer_alpn_protos(
+                    ctx, alpn_outer, alpn_outer_len) != 0) {
+            BIO_printf(bio_err, "Error setting ALPN-OUTER\n");
+            goto end;
+        }
+        OPENSSL_free(alpn_outer);
+    }
+#endif
 
     for (i = 0; i < serverinfo_count; i++) {
         if (!SSL_CTX_add_client_custom_ext(ctx,
@@ -2060,6 +2291,7 @@ int s_client_main(int argc, char **argv)
      */
     SSL_CTX_set_session_cache_mode(ctx, SSL_SESS_CACHE_CLIENT
                                         | SSL_SESS_CACHE_NO_INTERNAL_STORE);
+    BIO_printf(bio_err,"Setting new_session_cb\n");
     SSL_CTX_sess_set_new_cb(ctx, new_session_cb);
 
     if (set_keylog_file(ctx, keylog_file))
@@ -2083,6 +2315,14 @@ int s_client_main(int argc, char **argv)
             goto end;
         }
     }
+#ifndef OPENSSL_NO_ECH
+    if (ech_grease_suite!=NULL) {
+        if (SSL_ech_set_grease_suite(con,ech_grease_suite)!=1) {
+            ERR_print_errors(bio_err);
+            goto end;
+        }
+    }
+#endif
 
     if (sess_in != NULL) {
         SSL_SESSION *sess;
@@ -2100,10 +2340,52 @@ int s_client_main(int argc, char **argv)
             goto end;
         }
         if (!SSL_set_session(con, sess)) {
+#ifndef OPENSSL_NO_ECH
+            /* 
+             * Nothing to do with ECH, but a missing free here
+             */
+            SSL_SESSION_free(sess);
+#endif
             BIO_printf(bio_err, "Can't set session\n");
             ERR_print_errors(bio_err);
             goto end;
         }
+
+#ifndef OPENSSL_NO_ECH
+        {
+	        /*
+	         * Check that the cert in the session covers
+	         * the server name we want 
+	         */
+	        const char *thisname=NULL;
+	        if (ech_inner_name!=NULL) {
+	            thisname=ech_inner_name;
+	            BIO_printf(bio_err, 
+                    "ech_inner_name is set to %s\n",ech_inner_name);
+	        } else if (sni_outer_name!=NULL && 
+                       strncmp(sni_outer_name,
+                           ECH_NAME_NONE,strlen(ECH_NAME_NONE))) {
+	            BIO_printf(bio_err, 
+                    "ech_inner_name is NULL, using outer %s\n",sni_outer_name);
+	            thisname=sni_outer_name;
+	        }
+	        if (sni_outer_name==NULL) {
+	            BIO_printf(bio_err, "sni_outer_name is NULL\n");
+	        } else {
+	            BIO_printf(bio_err, 
+                    "sni_outer_name is set to %s\n",sni_outer_name);
+	        }
+	        if (thisname!=NULL) {
+	            /* check matching of name and session */
+	            const char *hn=SSL_SESSION_get0_hostname(sess);
+	            if (hn!=NULL) {
+	                BIO_printf(bio_err, "Stored session hostname is %s\n",hn);
+	            } else { 
+	                BIO_printf(bio_err, "Stored session hostname is missing\n");
+	            }
+	        }
+        }
+#endif
 
         SSL_SESSION_free(sess);
     }
@@ -2122,6 +2404,99 @@ int s_client_main(int argc, char **argv)
             goto end;
         }
     }
+
+#ifndef OPENSSL_NO_ECH
+    if (ech_encoded_configs!=NULL) {
+        int rv=SSL_ech_add(con,ECH_FMT_GUESS,strlen(ech_encoded_configs),
+                ech_encoded_configs,&nechs);
+        if (rv != 1) {
+            BIO_printf(bio_err, "%s: ECHConfig decode failed.\n", prog);
+            goto opthelp;
+        } 
+        if (nechs ==0 ) {
+            BIO_printf(bio_err, "%s: ECHConfig decode provided no keys.\n", 
+                    prog);
+            goto opthelp;
+        } 
+    }
+
+    if (ech_svcb_rr!=NULL) {
+        int lnechs=0;
+        int rv=SSL_svcb_add(con,ECH_FMT_GUESS,strlen(ech_svcb_rr),
+                ech_svcb_rr,&lnechs);
+        if (rv != 1) {
+            BIO_printf(bio_err, "%s: SVCB decode failed.\n", prog);
+            goto opthelp;
+        } 
+        if (lnechs ==0 ) {
+            /*
+             * We'll note that we didn't get ECH keys but continue
+             */
+            BIO_printf(bio_err, "%s: SVCB decode provided no keys.\n", prog);
+        } 
+        nechs+=lnechs;
+    }
+
+    if (( ech_encoded_configs!=NULL || ech_svcb_rr != NULL) && 
+            sni_outer_name!=NULL) {
+        const char *outer_to_use=NULL;
+        int rv=0;
+        if (sni_outer_name!=NULL && 
+                strncmp(sni_outer_name,ECH_NAME_NONE,strlen(ECH_NAME_NONE))) {
+            outer_to_use=sni_outer_name;
+        }
+        rv=SSL_ech_set_outer_server_name(con, outer_to_use);
+        if (rv!=1) {
+            BIO_printf(bio_err, "%s: enabling ECH outer name failed.\n", prog);
+            ERR_print_errors(bio_err);
+            goto end;
+        }
+    }
+
+    if (( ech_encoded_configs!=NULL || ech_svcb_rr != NULL) && 
+            ech_inner_name!=NULL) {
+        const char *inner_to_use=NULL;
+        if (ech_inner_name!=NULL && 
+                strncmp(ech_inner_name,ECH_NAME_NONE,strlen(ECH_NAME_NONE))) {
+            inner_to_use=sni_outer_name;
+        }
+        /* Set any non-NULL name to be verified */
+        if (inner_to_use) {
+            if (!X509_VERIFY_PARAM_set1_host(
+                        vpm,ech_inner_name,strlen(ech_inner_name))
+                || !SSL_CTX_set1_param(ctx, vpm)) {
+                BIO_printf(bio_err, "Error setting verify params\n");
+                ERR_print_errors(bio_err);
+                goto end;
+            }
+        }
+    }
+
+    if (ech_select!=ECH_SELECT_ALL) {
+        int rv=0;
+        ECH_DETS *ed=NULL;
+        /* down select */
+        if (ech_select<0 || ech_select >= nechs) {
+            BIO_printf(bio_err, "%s: downselect tp ECH (%d) failed " \
+                    "out of range (0,%d).\n", 
+                    prog, ech_select, nechs);
+            ERR_print_errors(bio_err);
+            goto end;
+        }
+        rv=SSL_ech_reduce(con,ech_select);
+        if (rv!=1) {
+            BIO_printf(bio_err,"Error down-selecting to %d\n",ech_select);
+            goto end;
+        }
+        rv=SSL_ech_query(con, &ed, &nechs);
+        if (rv!=1) goto end; 
+        if (!ed) goto end;
+        rv=SSL_ECH_DETS_print(bio_err, ed, nechs);
+        if (rv!=1) goto end; 
+        SSL_ECH_DETS_free(ed, nechs);
+    }
+
+#endif
 
     if (dane_tlsa_domain != NULL) {
         if (SSL_dane_enable(con, dane_tlsa_domain) <= 0) {
@@ -2237,12 +2612,14 @@ int s_client_main(int argc, char **argv)
                 BIO_free(sbio);
                 goto shut;
             }
+
             SSL_set_options(con, SSL_OP_NO_QUERY_MTU);
             if (!DTLS_set_link_mtu(con, socket_mtu)) {
                 BIO_printf(bio_err, "Failed to set MTU\n");
                 BIO_free(sbio);
                 goto shut;
             }
+
         } else {
             /* want to do MTU discovery */
             BIO_ctrl(sbio, BIO_CTRL_DGRAM_MTU_DISCOVER, 0, NULL);
@@ -2297,6 +2674,17 @@ int s_client_main(int argc, char **argv)
 #endif
             SSL_set_msg_callback(con, msg_cb);
         SSL_set_msg_callback_arg(con, bio_c_msg ? bio_c_msg : bio_c_out);
+
+#ifndef OPENSSL_NO_ECH
+#ifndef OPENSSL_NO_SSL_TRACE
+        if (c_msg==2) {
+            OSSL_trace_set_callback(
+                    OSSL_TRACE_CATEGORY_TLS, ech_trace_cb, 
+                    bio_c_msg? bio_c_msg : bio_c_out);
+        }
+#endif
+#endif
+
     }
 
     if (c_tlsextdebug) {
@@ -3579,6 +3967,80 @@ static void print_stuff(BIO *bio, SSL *s, int full)
         verify_result = SSL_get_verify_result(s);
         BIO_printf(bio, "Verify return code: %ld (%s)\n", verify_result,
                    X509_verify_cert_error_string(verify_result));
+
+#ifndef OPENSSL_NO_ECH
+        {
+            char *inner=NULL;
+            char *outer=NULL;
+            size_t eclen=0;
+            const unsigned char *ec=NULL;
+
+            switch (SSL_ech_get_status(s,&inner,&outer)) {
+            case SSL_ECH_STATUS_NOT_CONFIGURED:
+                BIO_printf(bio,"ECH: not configured\n");
+                break;
+            case SSL_ECH_STATUS_NOT_TRIED: 
+                BIO_printf(bio,"ECH: not tried\n");
+                break;
+            case SSL_ECH_STATUS_BACKEND: 
+                BIO_printf(bio,
+                    "ECH: I think I'm a backend!!! (no idea how;-)\n");
+                break;
+            case SSL_ECH_STATUS_FAILED: 
+                BIO_printf(bio,"ECH: tried but failed\n");
+                break;
+            case SSL_ECH_STATUS_FAILED_ECH: 
+                BIO_printf(bio,"ECH: tried, failed and got ECH in return\n");
+                if (!SSL_ech_get_returned(s,&eclen,&ec)) {
+                    BIO_printf(bio,"Failure getting ECH returned\n");
+                } else {
+                    size_t eind=0;
+                    BIO_printf(bio,"    ");
+                    for (eind=0;eind!=eclen;eind++) {
+                        if ((eind!=0) && (eind%16==0))
+                            BIO_printf(bio,"\n    ");
+                        BIO_printf(bio,"%02x:",(unsigned)(ec[eind]));
+                    }
+                    BIO_printf(bio,"\n");
+                }
+                break;
+            case SSL_ECH_STATUS_BAD_NAME: 
+                BIO_printf(bio,"ECH: worked but bad name\n");
+                break;
+            case SSL_ECH_STATUS_GREASE: 
+                BIO_printf(bio,"ECH: only greasing\n");
+                break;
+            case SSL_ECH_STATUS_GREASE_ECH: 
+                BIO_printf(bio,"ECH: only greasing, and got ECH in return:\n");
+                if (!SSL_ech_get_returned(s,&eclen,&ec)) {
+                    BIO_printf(bio,"Failure getting ECH returned\n");
+                } else {
+                    size_t eind=0;
+                    BIO_printf(bio,"    ");
+                    for (eind=0;eind!=eclen;eind++) {
+                        if ((eind!=0) && (eind%16==0))
+                            BIO_printf(bio,"\n    ");
+                        BIO_printf(bio,"%02x:",(unsigned)(ec[eind]));
+                    }
+                    BIO_printf(bio,"\n");
+                }
+                break;
+            case SSL_ECH_STATUS_SUCCESS:
+                BIO_printf(bio,
+                    "ECH: success: outer SNI: '%s', inner SNI: '%s'\n",
+                        (outer==NULL?"none":outer),
+                        (inner==NULL?"none":inner));
+                break;
+            default:
+                 BIO_printf(bio,"ECH: Error trying ECH\n");
+                break;
+            }
+
+            SSL_ech_print(bio,s,ECH_SELECT_ALL);
+
+        }
+#endif
+
     } else {
         /* In TLSv1.3 we do this on arrival of a NewSessionTicket */
         SSL_SESSION_print(bio, SSL_get_session(s));
@@ -3607,6 +4069,45 @@ static void print_stuff(BIO *bio, SSL *s, int full)
     /* flush, or debugging output gets mixed with http response */
     (void)BIO_flush(bio);
 }
+
+#ifndef OPENSSL_NO_ECH
+#ifndef OPENSSL_NO_SSL_TRACE
+/* ECH Tracing callback */
+static size_t ech_trace_cb(const char *buf, size_t cnt,
+                 int category, int cmd, void *vdata)
+{
+     BIO *bio = vdata;
+     const char *label = NULL;
+     size_t brv=0;
+     switch (cmd) {
+     case OSSL_TRACE_CTRL_BEGIN:
+         label = "ECH TRACE BEGIN";
+         break;
+     case OSSL_TRACE_CTRL_END:
+         label = "ECH TRACE END";
+         break;
+     }
+     if (label != NULL) {
+#if defined(OPENSSL_THREADS) && !defined(OPENSSL_SYS_WINDOWS) \
+         && !defined(OPENSSL_SYS_MSDOS)
+         union {
+             pthread_t tid;
+             unsigned long ltid;
+         } tid;
+         tid.tid = pthread_self();
+         BIO_printf(bio, "%s TRACE[%s]:%lx\n",
+                    label, OSSL_trace_get_category_name(category), tid.ltid);
+#else
+         BIO_printf(bio, "%s TRACE[%s]:0\n",
+                    label, OSSL_trace_get_category_name(category));
+#endif
+     }
+     brv=(size_t)BIO_puts(bio, buf);
+     (void)BIO_flush(bio);
+     return brv;
+}
+#endif
+#endif
 
 # ifndef OPENSSL_NO_OCSP
 static int ocsp_resp_cb(SSL *s, void *arg)
