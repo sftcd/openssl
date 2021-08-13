@@ -77,6 +77,12 @@ static int init_ech(SSL_CONNECTION *s, unsigned int context);
 static int final_ech(SSL_CONNECTION *s, unsigned int context, int sent);
 #endif 
 
+#ifndef OPENSSL_NO_ECH
+static int init_ech(SSL *s, unsigned int context);
+static int final_ech(SSL *s, unsigned int context, int sent);
+#endif 
+
+
 /* Structure to define a built-in extension */
 typedef struct extensions_definition_st {
     /* The defined type for the extension */
@@ -973,7 +979,6 @@ int tls_construct_extensions(SSL_CONNECTION *s, WPACKET *pkt,
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             return 0;
         }
-           
         /* Skip if not relevant for our context */
         if (!should_add_extension(s, thisexd->context, context, max_version))
             continue;

@@ -1160,6 +1160,9 @@ EXT_RETURN tls_construct_ctos_early_data(SSL_CONNECTION *s, WPACKET *pkt,
             return EXT_RETURN_FAIL;
         }
     }
+#ifndef OPENSSL_NO_ECH
+    IOSAME
+#endif
 
     if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_early_data)
             || !WPACKET_start_sub_packet_u16(pkt)
@@ -1497,7 +1500,6 @@ EXT_RETURN tls_construct_ctos_psk(SSL_CONNECTION *s, WPACKET *pkt,
         }
 
         if (rndbuf!=NULL) OPENSSL_free(rndbuf);
-   
     }
 #else
 
@@ -2633,6 +2635,7 @@ int tls_parse_stoc_ech(SSL_CONNECTION *s, PACKET *pkt, unsigned int context,
     unsigned int rlen=0;
     const unsigned char *rval=NULL;
     unsigned char *srval=NULL;
+
     if (context==SSL_EXT_TLS1_3_HELLO_RETRY_REQUEST) {
         /* 
          * The HRR will have an ECH extension with the
