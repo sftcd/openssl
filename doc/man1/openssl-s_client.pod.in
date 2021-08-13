@@ -126,6 +126,15 @@ B<openssl> B<s_client>
 {- $OpenSSL::safe::opt_engine_synopsis -}[B<-ssl_client_engine> I<id>]
 {- $OpenSSL::safe::opt_v_synopsis -}
 [I<host>:I<port>]
+[B<-alpn-outer>]
+[B<-ech_grease>]
+[B<-ech_grease_suite>]
+[B<-ech_ignore_cid>]
+[B<-echconfigs>]
+[B<-sni-outer>]
+[B<-svcb>]
+[B<-select>]
+
 
 =head1 DESCRIPTION
 
@@ -799,6 +808,38 @@ be provided as a single positional argument after all options. If neither this
 nor B<-connect> are provided, falls back to attempting to connect to
 I<localhost> on port I<4433>.
 
+=item B<-alpn-outer>
+
+TBD
+
+=item B<-ech_grease>
+
+TBD
+
+=item B<-ech_grease_suite>
+
+TBD
+
+=item B<-ech_ignore_cid>
+
+TBD
+
+=item B<-echconfigs>
+
+TBD
+
+=item B<-sni-outer>
+
+TBD
+
+=item B<-svcb>
+
+TBD
+
+=item B<-select>
+
+TBD
+
 =back
 
 =head1 CONNECTED COMMANDS
@@ -828,6 +869,7 @@ Send a key update message to the server (TLSv1.3 only)
 =item B<K>
 
 Send a key update message to the server and request one back (TLSv1.3 only)
+
 
 =back
 

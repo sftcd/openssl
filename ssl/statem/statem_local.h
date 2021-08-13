@@ -423,3 +423,43 @@ int tls_handle_alpn(SSL *s);
 
 int tls13_save_handshake_digest_for_pha(SSL *s);
 int tls13_restore_handshake_digest_for_pha(SSL *s);
+
+#ifndef OPENSSL_NO_ECH
+int tls_parse_ctos_ech(SSL *s, PACKET *pkt, unsigned int context,
+                               X509 *x, size_t chainidx);
+EXT_RETURN tls_construct_ctos_ech(SSL *s, WPACKET *pkt, unsigned int context,
+                                   X509 *x, size_t chainidx);
+EXT_RETURN tls_construct_stoc_ech(SSL *s, WPACKET *pkt,
+                                          unsigned int context, X509 *x,
+                                          size_t chainidx);
+int tls_parse_stoc_ech(SSL *s, PACKET *pkt, unsigned int context,
+                               X509 *x, size_t chainidx);
+EXT_RETURN tls_construct_ctos_ech_is_inner(SSL *s, WPACKET *pkt, 
+                                   unsigned int context,
+                                   X509 *x, size_t chainidx);
+int tls_parse_ctos_ech_is_inner(SSL *s, PACKET *pkt, unsigned int context,
+                               X509 *x, size_t chainidx);
+/**
+ * @brief map from ext type to index in ext_defs table
+ * @param type is the input type
+ * @return the index or -1 for error
+ *
+ * This is called from ssl/ech.c:ech_same_ext when we're figuring
+ * out whether or not to copy an inner extension to the outer CH.
+ */
+int ech_map_ext_type_to_ind(unsigned int type);
+
+/**
+ * @brief map a list of ciphers to octets
+ * @param s is the SSL structure
+ * @param sk is the list of ciphers
+ * @param pkt is the packet into which we encode sk
+ * @return 1 for good, error otherwise 
+ *
+ * This used be static in ssl/statem/statem_clnt.c, but it's now
+ * also used in ssl/ech.c
+ */
+int ssl_cipher_list_to_bytes(SSL *s, STACK_OF(SSL_CIPHER) *sk,
+                                    WPACKET *pkt);
+#endif
+

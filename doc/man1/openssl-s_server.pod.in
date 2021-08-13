@@ -145,6 +145,10 @@ B<openssl> B<s_server>
 {- $OpenSSL::safe::opt_trust_synopsis -}
 {- $OpenSSL::safe::opt_r_synopsis -}
 {- $OpenSSL::safe::opt_engine_synopsis -}{- $OpenSSL::safe::opt_provider_synopsis -}
+[B<-echdir>]
+[B<-echkey>]
+[B<-echspecificpad>]
+[B<-echtrialdecrypt>]
 
 =head1 DESCRIPTION
 
@@ -824,6 +828,23 @@ data that was sent will be rejected.
 If the server requests a client certificate, then
 verification errors are displayed, for debugging, but the command will
 proceed unless the B<-verify_return_error> option is used.
+
+=item B<-echdir>
+
+TBD
+
+=item B<-echkey>
+
+TBD
+
+=item B<-echspecificpad>
+
+TBD
+
+=item B<-echtrialdecrypt>
+
+TBD
+
 
 =back
 
