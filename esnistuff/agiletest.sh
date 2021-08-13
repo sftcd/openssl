@@ -484,7 +484,6 @@ do
     fi
     # Try an 'aul initial client...
     # wait a bit
-
     if [ -f $sessfile ]
     then
         echo "Removing old $sessfile"
