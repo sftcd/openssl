@@ -629,7 +629,6 @@ opthelp:
     if (mode==ECH_SELPRINT_MODE) {
         int nechs=0;
         ECH_DETS *ed=NULL;
-
         if (inpemfile==NULL) {
             BIO_printf(bio_err,"no input PEM file supplied - exiting\n");
             goto end;

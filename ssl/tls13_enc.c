@@ -74,6 +74,54 @@ static void ptranscript(const char *msg, SSL *s)
 #endif
 #endif
 
+#ifndef OPENSSL_NO_ECH
+#ifdef ECH_SUPERVERBOSE
+
+/* 
+ * There is an ech_pbuf in ssl/ech.c, but one of the test
+ * binaries needs this file but doesn't have the object
+ * file ech.o so I'll re-define here as this is temporary
+ * and even then rarely needed (only when I get an interop
+ * issue related to transcripts).
+ */
+static void tls13_pbuf(const char *msg, const unsigned char *buf, const size_t blen)
+{
+#ifndef OPENSSL_NO_SSL_TRACE
+    OSSL_TRACE_BEGIN(TLS) {
+    if (msg==NULL) {
+        BIO_printf(trc_out,"msg is NULL\n");
+    } else if (buf==NULL) {
+        BIO_printf(trc_out,"%s: buf is NULL\n",msg);
+    } else if (blen==0) {
+        BIO_printf(trc_out,"%s: blen is zero\n",msg);
+    } else {
+        BIO_printf(trc_out,"%s (%lu):\n    ",msg,(unsigned long)blen);
+        size_t i;
+        for (i=0;i<blen;i++) {
+            if ((i!=0) && (i%16==0))
+                BIO_printf(trc_out,"\n    ");
+            BIO_printf(trc_out,"%02x:",(unsigned)(buf[i]));
+        }
+        BIO_printf(trc_out,"\n");
+        }
+    } OSSL_TRACE_END(TLS);
+#endif
+    return;
+}
+
+static void ptranscript(const char *msg, SSL *s)
+{
+    size_t hdatalen=0;
+    unsigned char *hdata=NULL;
+    if (s->s3.handshake_buffer) {
+        hdatalen = BIO_get_mem_data(s->s3.handshake_buffer, &hdata);
+        tls13_pbuf(msg,hdata,hdatalen);
+    }
+    return;
+}
+#endif
+#endif
+
 /*
  * Given a |secret|; a |label| of length |labellen|; and |data| of length
  * |datalen| (e.g. typically a hash of the handshake messages), derive a new
@@ -96,6 +144,20 @@ int tls13_hkdf_expand_ex(OSSL_LIB_CTX *libctx, const char *propq,
     const char *mdname = EVP_MD_get0_name(md);
     int ret;
     size_t hashlen;
+
+#ifndef OPENSSL_NO_ECH
+#ifdef ECH_SUPERVERBOSE
+    OSSL_TRACE_BEGIN(TLS) {
+        BIO_printf(trc_out,"hkdf inputs:\n");
+    } OSSL_TRACE_END(TLS);
+    {
+        size_t secretlen=EVP_MD_size(md);
+        tls13_pbuf("\tsecret",secret,secretlen);
+        tls13_pbuf("\tlabel",label,labellen);
+        tls13_pbuf("\tdata",data,datalen);
+    }
+#endif
+#endif
 
 #ifndef OPENSSL_NO_ECH
 #ifdef ECH_SUPERVERBOSE
