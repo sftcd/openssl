@@ -168,6 +168,13 @@ extern "C" {
 #  define TLSEXT_TYPE_next_proto_neg              13172
 # endif
 
+#ifndef OPENSSL_NO_ECH
+/* These will change some with draft-13 but for now represent draft-10 */
+#define TLSEXT_TYPE_ech                       0xfe0a
+#define TLSEXT_TYPE_outer_extensions          0xfd00
+#define TLSEXT_TYPE_ech_is_inner              0xda09
+#endif
+
 /* NameType value from RFC3546 */
 # define TLSEXT_NAMETYPE_host_name 0
 /* status request value from RFC3546 */
