@@ -912,6 +912,51 @@ SSL *ossl_ssl_connection_new_int(SSL_CTX *ctx, const SSL_METHOD *method)
 #endif
 
     s->ssl_pkey_num = SSL_PKEY_NUM + ctx->sigalg_list_len;
+#ifndef OPENSSL_NO_ECH
+    s->nechs=ctx->ext.nechs;
+    if (s->nechs>0) {
+        s->ech=SSL_ECH_dup(ctx->ext.ech,s->nechs,ECH_SELECT_ALL);
+        if (!s->ech) {
+            goto err;
+        }
+        if (ctx->ext.ech->outer_name) {
+            s->ech->outer_name = OPENSSL_strdup(ctx->ext.ech->outer_name);
+            if (s->ech->outer_name == NULL)
+                goto err;
+        }
+    } else {
+        s->ech=NULL;
+    }
+
+    s->ech_cb=ctx->ext.ech_cb;
+    s->ext.inner_s=NULL;
+    s->ext.outer_s=NULL;
+    s->ext.ech_done=0;
+    s->ext.ech_attempted=0;
+    s->ext.ech_backend=0;
+    s->ext.ech_success=0;
+    s->ext.ech_grease=0;
+    s->ext.ech_grease_suite=NULL;
+    s->ext.ch_depth=0;
+    if (ctx->options & SSL_OP_ECH_GREASE) { 
+        s->ext.ech_grease=ECH_IS_GREASE;
+    } else {
+        s->ext.ech_grease=ECH_NOT_GREASE;
+    }
+
+    if (s->ssl.ctx->ext.alpn_outer) {
+        s->ext.alpn_outer = OPENSSL_malloc(s->ssl.ctx->ext.alpn_outer_len);
+        if (s->ext.alpn_outer == NULL)
+            goto err;
+        memcpy(s->ext.alpn_outer, 
+                s->ssl.ctx->ext.alpn_outer, 
+                s->ssl.ctx->ext.alpn_outer_len);
+        s->ext.alpn_outer_len = ctx->ext.alpn_outer_len;
+    }
+
+    s->ext.ech_returned=NULL;
+    s->ext.ech_returned_len=0;
+#endif
     return ssl;
  cerr:
     ERR_raise(ERR_LIB_SSL, ERR_R_CRYPTO_LIB);
@@ -1385,6 +1430,24 @@ void SSL_free(SSL *s)
         return;
     REF_ASSERT_ISNT(i < 0);
 
+#ifndef OPENSSL_NO_ECH
+    /* 
+     * Tricksy way to only free something a) on a server
+     * or b) on a client that's greasing or has an inner_s
+     * allocated (i.e. in process of attempting ECH) or
+     * that has no ECH config.
+     * That test was just derived via trial and error
+     * with various success and failure case tests.
+     */
+#define INOUTFREE \
+    if ( s->server || \
+       (!s->server && \
+           (s->ext.ech_grease==ECH_IS_GREASE || \
+            s->ext.inner_s!=NULL || \
+            s->ech==NULL)))
+    // FIXME: check here for possible leak
+    //INOUTFREE
+#endif
     CRYPTO_free_ex_data(CRYPTO_EX_INDEX_SSL, s, &s->ex_data);
 
     if (s->method != NULL)
@@ -1409,11 +1472,24 @@ void ossl_ssl_connection_free(SSL *ssl)
     dane_final(&s->dane);
 
     /* Ignore return value */
+
+#ifndef OPENSSL_NO_ECH
+    INOUTFREE
+#endif
     ssl_free_wbio_buffer(s);
 
     /* Ignore return value */
     RECORD_LAYER_clear(&s->rlayer);
 
+#ifndef OPENSSL_NO_ECH
+    /* This seems needed on client but not on server */
+    if ( s->init_buf && 
+         (
+          (!s->server && (s->ext.inner_s || !s->ech)) || 
+          s->server
+         )
+       )
+#endif
     BUF_MEM_free(s->init_buf);
 
     /* add extra stuff */
@@ -1422,11 +1498,40 @@ void ossl_ssl_connection_free(SSL *ssl)
     sk_SSL_CIPHER_free(s->tls13_ciphersuites);
     sk_SSL_CIPHER_free(s->peer_ciphers);
 
-    /* Make the next call work :-) */
+#ifndef OPENSSL_NO_ECH
+    /* only do this one if... */
+    if (    s->server ||
+            !s->ech ||
+            (   
+                !s->server && 
+                s->ext.ech_grease!=ECH_IS_GREASE &&
+                s->ext.ech_success==1 
+            )
+                ||
+            (   
+                !s->server && 
+                s->ext.ech_grease!=ECH_IS_GREASE &&
+                (s->ext.ech_done==1 && s->ext.ch_depth==0) 
+            )
+                ||
+            (
+                !s->server && 
+                s->ext.ech_grease==ECH_IS_GREASE && 
+                s->ext.inner_s==NULL
+            )
+       ) {
+        if (s->session != NULL) {
+            ssl_clear_bad_session(s);
+            SSL_SESSION_free(s->session);
+        }
+        s->session = NULL;
+    }
+#else
     if (s->session != NULL) {
         ssl_clear_bad_session(s);
         SSL_SESSION_free(s->session);
     }
+#endif
     SSL_SESSION_free(s->psksession);
     OPENSSL_free(s->psksession_id);
 
@@ -1451,8 +1556,14 @@ void ossl_ssl_connection_free(SSL *ssl)
     OPENSSL_free(s->ext.ocsp.resp);
     OPENSSL_free(s->ext.alpn);
     OPENSSL_free(s->ext.tls13_cookie);
+#ifndef OPENSSL_NO_ECH
+    if (s->ext.inner_s==NULL && s->ext.outer_s!=NULL) 
+#endif
     if (s->clienthello != NULL)
         OPENSSL_free(s->clienthello->pre_proc_exts);
+#ifndef OPENSSL_NO_ECH
+    if (s->ext.inner_s==NULL && s->ext.outer_s!=NULL) 
+#endif
     OPENSSL_free(s->clienthello);
     OPENSSL_free(s->pha_context);
     EVP_MD_CTX_free(s->pha_dgst);
@@ -1489,6 +1600,49 @@ void ossl_ssl_connection_free(SSL *ssl)
     BIO_free_all(s->rbio);
     s->rbio = NULL;
     OPENSSL_free(s->s3.tmp.valid_flags);
+#ifndef OPENSSL_NO_ECH
+    OPENSSL_free(s->ext.alpn_outer);
+    OPENSSL_free(s->ext.ech_returned);
+    OPENSSL_free(s->ext.ech_grease_suite);
+    OPENSSL_free(s->ext.innerch);
+    OPENSSL_free(s->ext.encoded_innerch);
+    if (s->nechs>0 && s->ech!=NULL) {
+        int n=0;
+        for (n=0;n!=s->nechs;n++) {
+            SSL_ECH_free(&s->ech[n]);
+        }
+        memset(s->ech,0,s->nechs*sizeof(SSL_ECH));
+        OPENSSL_free(s->ech);
+        s->ech=NULL;
+        s->nechs=0;
+    }
+
+    if (s->s3.tmp.pkey!=NULL) {
+        EVP_PKEY_free(s->s3.tmp.pkey);
+        s->s3.tmp.pkey=NULL;
+    }
+
+    /* Free up the inner or outer, as needed */
+    if (s->ext.outer_s!=NULL && s->ext.outer_s!=s)  {
+        /* Don't go around in circles forever */
+        s->ext.outer_s->ext.inner_s=NULL;
+        SSL_free(&s->ext.outer_s->ssl);
+        s->ext.outer_s=NULL;
+    }
+    if (s->ext.inner_s!=NULL && s->ext.inner_s!=s)  {
+        /* Don't go around in circles forever */
+        s->ext.inner_s->ext.outer_s=NULL;
+        SSL_free(&s->ext.inner_s->ssl);
+        s->ext.inner_s=NULL;
+    } 
+
+    if (s->s3.handshake_buffer) {
+        (void)BIO_set_close(s->s3.handshake_buffer, BIO_CLOSE);
+        BIO_free(s->s3.handshake_buffer);
+        s->s3.handshake_buffer=NULL;
+    }
+
+#endif
 }
 
 void SSL_set0_rbio(SSL *s, BIO *rbio)
@@ -1505,6 +1659,9 @@ void SSL_set0_rbio(SSL *s, BIO *rbio)
     if (sc == NULL)
         return;
 
+#ifndef OPENSSL_NO_ECH
+    if (sc->rbio)
+#endif
     BIO_free_all(sc->rbio);
     sc->rbio = rbio;
     sc->rlayer.rrlmethod->set1_bio(sc->rlayer.rrl, sc->rbio);
@@ -3715,7 +3872,6 @@ int SSL_set_alpn_protos(SSL *ssl, const unsigned char *protos,
     OPENSSL_free(sc->ext.alpn);
     sc->ext.alpn = alpn;
     sc->ext.alpn_len = protos_len;
-
     return 0;
 }
 
@@ -4101,6 +4257,14 @@ SSL_CTX *SSL_CTX_new_ex(OSSL_LIB_CTX *libctx, const char *propq,
         goto err;
     }
 
+#ifndef OPENSSL_NO_ECH
+	ret->ext.nechs=0;
+	ret->ext.ech=NULL;
+    ret->ext.ech_cb=NULL; 
+    ret->ext.alpn_outer=NULL;
+    ret->ext.alpn_outer_len=0;
+#endif
+
     return ret;
  err:
     SSL_CTX_free(ret);
@@ -4215,6 +4379,19 @@ void SSL_CTX_free(SSL_CTX *a)
 
     OPENSSL_free(a->client_cert_type);
     OPENSSL_free(a->server_cert_type);
+#ifndef OPENSSL_NO_ECH
+	if (a->ext.ech!=NULL) {
+        int n=0;
+        for (n=0;n!=a->ext.nechs;n++) {
+            SSL_ECH_free(&a->ext.ech[n]);
+        }
+        memset(a->ext.ech,0,a->ext.nechs*sizeof(SSL_ECH));
+        OPENSSL_free(a->ext.ech);
+		a->ext.ech=NULL;
+		a->ext.nechs=0;
+	}
+    OPENSSL_free(a->ext.alpn_outer);
+#endif
 
     CRYPTO_THREAD_lock_free(a->lock);
     CRYPTO_FREE_REF(&a->references);
@@ -4905,11 +5082,21 @@ SSL *SSL_dup(SSL *s)
     if (sc == NULL)
         return NULL;
 
+#ifndef OPENSSL_NO_ECH
+    if (( !SSL_in_init(s) || !SSL_in_before(s))) {
+        /* If we're not ECH and not quiescent, just up_ref! */
+        if (!sc->ech) {
+            CRYPTO_UP_REF(&s->references, &i, s->lock);
+            return s;
+        }
+    }
+#else
     /* If we're not quiescent, just up_ref! */
     if (!SSL_in_init(s) || !SSL_in_before(s)) {
         CRYPTO_UP_REF(&s->references, &i);
         return s;
     }
+#endif
 
     /*
      * Otherwise, copy configuration state, and session if set.
@@ -4926,6 +5113,7 @@ SSL *SSL_dup(SSL *s)
          */
         if (!SSL_copy_session_id(ret, s))
             goto err;
+
     } else {
         /*
          * No session has been established yet, so we have to expect that
@@ -4998,6 +5186,49 @@ SSL *SSL_dup(SSL *s)
     if (!dup_ca_names(&retsc->ca_names, sc->ca_names)
             || !dup_ca_names(&retsc->client_ca_names, sc->client_ca_names))
         goto err;
+
+#ifndef OPENSSL_NO_ECH
+    retsc->nechs=sc->nechs;
+    retsc->ech=NULL;
+    if (sc->ech) {
+        retsc->ech=SSL_ECH_dup(sc->ech,retsc->nechs,ECH_SELECT_ALL);
+        if (!retsc->ech) {
+            goto err;
+        }
+    } 
+    retsc->ech_cb=sc->ech_cb;
+    if (sc->ext.alpn_outer && sc->ext.alpn_outer_len >0) {
+        if (retsc->ext.alpn_outer!=NULL) OPENSSL_free(retsc->ext.alpn_outer);
+        retsc->ext.alpn_outer=OPENSSL_malloc(sc->ext.alpn_outer_len);
+        if (!retsc->ext.alpn_outer) {
+            goto err;
+        }
+        retsc->ext.alpn_outer_len=sc->ext.alpn_outer_len;
+        memcpy(retsc->ext.alpn_outer,sc->ext.alpn_outer,sc->ext.alpn_outer_len);
+    } else {
+        retsc->ext.alpn_outer=NULL;
+        retsc->ext.alpn_outer_len=0;
+    }
+    if (sc->ext.ech_grease_suite) {
+        if (retsc->ext.ech_grease_suite) OPENSSL_free(retsc->ext.ech_grease_suite);
+        retsc->ext.ech_grease_suite=OPENSSL_strdup(sc->ext.ech_grease_suite);
+    }
+    retsc->ext.inner_s=sc->ext.inner_s;
+    retsc->ext.outer_s=sc->ext.outer_s;
+    retsc->ext.ech_done=sc->ext.ech_done;
+    retsc->ext.ech_attempted=sc->ext.ech_attempted;
+    retsc->ext.ech_backend=sc->ext.ech_backend;
+    retsc->ext.ech_success=sc->ext.ech_success;
+    retsc->ext.ech_grease=sc->ext.ech_grease;
+    retsc->ext.ch_depth=sc->ext.ch_depth;
+    if (sc->ext.ech_returned) {
+        retsc->ext.ech_returned=OPENSSL_malloc(sc->ext.ech_returned_len);
+        if (!retsc->ext.ech_returned) goto err;
+        memcpy(retsc->ext.ech_returned, sc->ext.ech_returned,
+                sc->ext.ech_returned_len);
+        retsc->ext.ech_returned_len=sc->ext.ech_returned_len;
+    }
+#endif
 
     return ret;
 

@@ -72,6 +72,12 @@ static int tls_parse_compress_certificate(SSL_CONNECTION *sc, PACKET *pkt,
                                           unsigned int context,
                                           X509 *x, size_t chainidx);
 
+#ifndef OPENSSL_NO_ECH
+static int init_ech(SSL_CONNECTION *s, unsigned int context);
+static int final_ech(SSL_CONNECTION *s, unsigned int context, int sent);
+#endif 
+
+
 /* Structure to define a built-in extension */
 typedef struct extensions_definition_st {
     /* The defined type for the extension */
@@ -402,6 +408,42 @@ static const EXTENSION_DEFINITION ext_defs[] = {
         tls_construct_stoc_early_data, tls_construct_ctos_early_data,
         final_early_data
     },
+#ifndef OPENSSL_NO_ECH
+    /* 
+     * For now, TLSEXT_TYPE_ech must be in this list after key_share as 
+     * that input is needed for ECH acceptance calculation 
+     * draft-12 will remove that requirement, but we've not coded that up yet.
+     */
+    {
+        TLSEXT_TYPE_ech,
+        SSL_EXT_CLIENT_HELLO | SSL_EXT_TLS1_3_ONLY | 
+        SSL_EXT_TLS1_3_ENCRYPTED_EXTENSIONS,
+        init_ech,
+        tls_parse_ctos_ech, tls_parse_stoc_ech,
+        tls_construct_stoc_ech, tls_construct_ctos_ech,
+        final_ech
+    },
+    {
+        TLSEXT_TYPE_outer_extensions,
+        SSL_EXT_CLIENT_HELLO | SSL_EXT_TLS1_3_ONLY,
+        NULL,
+        NULL, NULL,
+        NULL, NULL,
+        NULL
+    },
+    {
+        TLSEXT_TYPE_ech_is_inner,
+        SSL_EXT_CLIENT_HELLO | SSL_EXT_TLS1_3_ONLY,
+        NULL,
+        tls_parse_ctos_ech_is_inner, NULL,
+        NULL, tls_construct_ctos_ech_is_inner,
+        NULL
+    },
+#else /* OPENSSL_NO_ECH */
+    INVALID_EXTENSION,
+    INVALID_EXTENSION,
+    INVALID_EXTENSION,
+#endif /* END_OPENSSL_NO_ECH */
     {
         TLSEXT_TYPE_certificate_authorities,
         SSL_EXT_CLIENT_HELLO | SSL_EXT_TLS1_3_CERTIFICATE_REQUEST
@@ -680,6 +722,15 @@ int tls_collect_extensions(SSL_CONNECTION *s, PACKET *packet,
                 && !((context & SSL_EXT_TLS1_2_SERVER_HELLO) != 0
                      && type == TLSEXT_TYPE_cryptopro_bug)
 #endif
+#ifndef OPENSSL_NO_ECH
+                /*
+                 * ECH is a bit special here - because of the outer
+                 * compression stuff, we don't directly set the
+                 * SSL_EXT_FLAG_SENT (except when GREASEing) so we
+                 * make a special check to see if we attempted ECH
+                 */
+                && (type==TLSEXT_TYPE_ech && !s->ext.ech_attempted)
+#endif
                                                                 ) {
             SSLfatal(s, SSL_AD_UNSUPPORTED_EXTENSION,
                      SSL_R_UNSOLICITED_EXTENSION);
@@ -696,6 +747,7 @@ int tls_collect_extensions(SSL_CONNECTION *s, PACKET *packet,
                                 PACKET_remaining(&thisex->data),
                                 s->ext.debug_arg);
         }
+
     }
 
     if (init) {
@@ -888,22 +940,72 @@ int tls_construct_extensions(SSL_CONNECTION *s, WPACKET *pkt,
         return 0;
     }
 
+#ifndef OPENSSL_NO_ECH
+    /*
+     * Two passes - we first construct the to-be-ECH-compressed
+     * extensions, and then go around again doing those that 
+     * aren't to be compressed. We need to ensure this ordering
+     * so that all the ECH-compressed extensions are contiguous
+     * in the encoding. The actual compression happens later in
+     * ech_encode_inner().
+     */
     for (i = 0, thisexd = ext_defs; i < OSSL_NELEM(ext_defs); i++, thisexd++) {
         EXT_RETURN (*construct)(SSL_CONNECTION *s, WPACKET *pkt,
                                 unsigned int context,
                                 X509 *x, size_t chainidx);
         EXT_RETURN ret;
-
+        /* skip if not to be ECH-compressed */
+        if (ech_2bcompressed(i)==0) 
+            continue;
+        if (ech_2bcompressed(i)!=1) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+            return 0;
+        }
+            
         /* Skip if not relevant for our context */
         if (!should_add_extension(s, thisexd->context, context, max_version))
             continue;
-
         construct = s->server ? thisexd->construct_stoc
                               : thisexd->construct_ctos;
-
         if (construct == NULL)
             continue;
+        if (s->ech) s->ext.etype=thisexd->type;
+        ret = construct(s, pkt, context, x, chainidx);
+        if (ret == EXT_RETURN_FAIL) {
+            /* SSLfatal() already called */
+            return 0;
+        }
+        if (ret == EXT_RETURN_SENT
+                && (context & (SSL_EXT_CLIENT_HELLO
+                               | SSL_EXT_TLS1_3_CERTIFICATE_REQUEST
+                               | SSL_EXT_TLS1_3_NEW_SESSION_TICKET)) != 0)
+            s->ext.extflags[i] |= SSL_EXT_FLAG_SENT;
+    }
+#endif
 
+    for (i = 0, thisexd = ext_defs; i < OSSL_NELEM(ext_defs); i++, thisexd++) {
+        EXT_RETURN (*construct)(SSL_CONNECTION *s, WPACKET *pkt, unsigned int context,
+                                X509 *x, size_t chainidx);
+        EXT_RETURN ret;
+#ifndef OPENSSL_NO_ECH
+        /* skip if is to be ECH-compressed */
+        if (ech_2bcompressed(i)==1) 
+            continue;
+        if (ech_2bcompressed(i)!=0) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+            return 0;
+        }
+#endif
+        /* Skip if not relevant for our context */
+        if (!should_add_extension(s, thisexd->context, context, max_version))
+            continue;
+        construct = s->server ? thisexd->construct_stoc
+                              : thisexd->construct_ctos;
+        if (construct == NULL)
+            continue;
+#ifndef OPENSSL_NO_ECH
+        if (s->ech) s->ext.etype=thisexd->type;
+#endif
         ret = construct(s, pkt, context, x, chainidx);
         if (ret == EXT_RETURN_FAIL) {
             /* SSLfatal() already called */
@@ -983,6 +1085,64 @@ static int init_server_name(SSL_CONNECTION *s, unsigned int context)
 
     return 1;
 }
+
+#ifndef OPENSSL_NO_ECH
+/*
+ * @brief map from ext type to index in ext_defs table
+ * @param type is the input type
+ * @return the index or -1 for error
+ *
+ * This is called from ssl/ech.c:ech_same_ext when we're figuring
+ * out whether or not to copy an inner extension to the outer CH.
+ */
+int ech_map_ext_type_to_ind(unsigned int type)
+{
+    const EXTENSION_DEFINITION *e=ext_defs;
+    unsigned int ed_size=sizeof(ext_defs)/sizeof(EXTENSION_DEFINITION);
+    unsigned int i;
+    for (i=0;i!=ed_size;i++) {
+        if (e->type==type) return(i);
+        e++;
+    }
+    return(-1);
+}
+
+/**
+ * @brief Just note that ech is not yet done
+ * @param s is the SSL session
+ * @param context determines when called
+ * @return 1 for good, 0 otherwise
+ */
+static int init_ech(SSL_CONNECTION *s, unsigned int context)
+{
+    if (context==SSL_EXT_CLIENT_HELLO) {
+        s->ext.ech_done = 0;
+    }
+    return 1;
+}
+
+/**
+ * @brief check result of ech and return error or ok
+ * @param s is the SSL session
+ * @param context determines when called
+ * @param sent is unused
+ * @return 1 for good, 0 otherwise
+ */
+static int final_ech(SSL_CONNECTION *s, unsigned int context, int sent)
+{
+    if (!s->server && s->ech && s->ext.inner_s==NULL && s->ext.outer_s!=NULL) {
+        if (s->ext.ech_grease==ECH_IS_GREASE) {
+            /* If we greased, then it's ok that ech_success didn't get set */
+            return 1;
+        } else if (s->ext.ech_success!=1) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+            return 0;
+        } 
+    }
+    return 1;
+}
+
+#endif /* END_OPENSSL_NO_ECH */
 
 static int final_server_name(SSL_CONNECTION *s, unsigned int context, int sent)
 {
@@ -1649,6 +1809,17 @@ int tls_psk_do_binder(SSL_CONNECTION *s, const EVP_MD *md,
             goto err;
         }
     }
+
+#ifndef OPENSSL_NO_ECH
+    if (s->server && s->ext.ech_success) {
+        /* we need to fix up the overall 3-octet CH length here */
+        unsigned char *rwm=(unsigned char*)msgstart;
+        size_t olen=s->ext.innerch_len-4;
+        rwm[1]=(olen>>16)%256;
+        rwm[2]=(olen>>8)%256;
+        rwm[3]=olen%256;
+    }
+#endif
 
     if (EVP_DigestUpdate(mctx, msgstart, binderoffset) <= 0
             || EVP_DigestFinal_ex(mctx, hash, NULL) <= 0) {

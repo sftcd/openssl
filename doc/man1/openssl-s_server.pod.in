@@ -154,6 +154,10 @@ B<openssl> B<s_server>
 {- $OpenSSL::safe::opt_engine_synopsis -}{- $OpenSSL::safe::opt_provider_synopsis -}
 [B<-enable_server_rpk>]
 [B<-enable_client_rpk>]
+[B<-echdir>]
+[B<-echkey>]
+[B<-echspecificpad>]
+[B<-echtrialdecrypt>]
 
 =head1 DESCRIPTION
 
@@ -897,6 +901,21 @@ Clients that don't support raw public keys or prefer to use X.509
 certificates can still elect to send X.509 certificates as usual.
 
 Raw public keys are extracted from the configured certificate/private key.
+=item B<-echdir>
+
+TBD
+
+=item B<-echkey>
+
+TBD
+
+=item B<-echspecificpad>
+
+TBD
+
+=item B<-echtrialdecrypt>
+
+TBD
 
 =back
 

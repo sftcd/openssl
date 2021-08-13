@@ -12,6 +12,12 @@
 #include "statem_local.h"
 #include "internal/cryptlib.h"
 
+#ifndef OPENSSL_NO_ECH
+#include <openssl/rand.h>
+#include <openssl/trace.h>
+#include <time.h> /* for timing in TRACE */
+#endif
+
 #define COOKIE_STATE_FORMAT_VERSION     1
 
 /*
@@ -157,6 +163,18 @@ int tls_parse_ctos_server_name(SSL_CONNECTION *s, PACKET *pkt,
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             return 0;
         }
+
+#ifndef OPENSSL_NO_ECH
+        /*
+         * Copy the inner SNI if decryption worked (we already
+         * copied the outer SNI (if present) within our ECH
+         * early decryption code
+         */
+        if (s->ech && s->ext.ech_success==1) {
+            if (s->ech->inner_name) OPENSSL_free(s->ech->inner_name);
+            s->ech->inner_name=OPENSSL_strdup(s->ext.hostname);
+        }
+#endif
 
         s->servername_done = 1;
     } else {
@@ -2130,3 +2148,124 @@ int tls_parse_ctos_server_cert_type(SSL_CONNECTION *sc, PACKET *pkt,
     SSLfatal(sc, SSL_AD_UNSUPPORTED_CERTIFICATE, SSL_R_BAD_EXTENSION);
     return 0;
 }
+
+#ifndef OPENSSL_NO_ECH
+/**
+ * @brief ECH handling for edge cases (GREASE) and errors.
+ * 
+ * The real ECH handling (i.e. decryption) happens before
+ * but if that failed (e.g. decryption failed) then we will
+ * end up here, processing the outer CH so we need to have
+ * this coded up.
+ *
+ * @param s is the SSL session
+ * @param pkt is the packet
+ * @param context is unused
+ * @param x is unused
+ * @param chainidx is unused
+ * @return 1 for good, 0 otherwise
+ */
+int tls_parse_ctos_ech(SSL_CONNECTION *s, PACKET *pkt, unsigned int context,
+                               X509 *x, size_t chainidx)
+{
+    if (s->ext.ech_grease==ECH_IS_GREASE) {
+        /* GREASE is fine, and also catches all expected error cases */
+        return 1;
+    }
+    if (!s->ech) {
+        /* If not configured for ECH then we ignore it */
+        return 1;
+    }
+    /* Otherwise Barf - we shouldn't see this */
+    OSSL_TRACE_BEGIN(TLS) {
+        BIO_printf(trc_out,"ECH shouldn't be seen here.\n");
+    } OSSL_TRACE_END(TLS);
+    return 0;
+}
+
+/**
+ * @brief answer an ECH, as needed
+ * @param s is the SSL session
+ * @param pkt is the packet
+ * @param context is unused
+ * @param x is unused
+ * @param chainidx is unused
+ * @return 1 for good, 0 otherwise
+ */
+EXT_RETURN tls_construct_stoc_ech(SSL_CONNECTION *s, WPACKET *pkt,
+                                          unsigned int context, X509 *x,
+                                          size_t chainidx)
+{
+    /* If in some weird state we ignore and send nothing */
+    if (s->ext.ech_grease!=ECH_IS_GREASE) {
+        return EXT_RETURN_NOT_SENT;
+    }
+     * If the client GREASEd, or we think it did, we
+     * return the first-loaded ECHConfig, as the value 
+     * of the extension.
+     */
+    if (s->ech==NULL || s->ech->cfg==NULL) {
+        OSSL_TRACE_BEGIN(TLS) { 
+            BIO_printf(trc_out,
+                "ECH - not sending ECHConfigs back to client even though " \
+                "they GREASE'd as I've no loaded configs\n");
+        } OSSL_TRACE_END(TLS);
+        return EXT_RETURN_NOT_SENT;
+    }
+    if (s->ech->cfg->encoded==NULL || s->ech->cfg->encoded_len==0) {
+        OSSL_TRACE_BEGIN(TLS) { 
+            BIO_printf(trc_out,
+                "ECH - not sending ECHConfigs back to client even though " \
+                "they GREASE'd as I've a busted config loaded\n");
+        } OSSL_TRACE_END(TLS);
+        return EXT_RETURN_NOT_SENT;
+    }
+
+    if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_ech) 
+        || !WPACKET_sub_memcpy_u16(pkt, 
+                    s->ech->cfg->encoded, s->ech->cfg->encoded_len)
+            ) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+        return 0;
+    }
+
+    OSSL_TRACE_BEGIN(TLS) { 
+        BIO_printf(trc_out,"sending 1st loaded ECHConfig back to client\n");
+    } OSSL_TRACE_END(TLS);
+
+    return EXT_RETURN_SENT;
+}
+
+/**
+ * @brief handle the ext a backend should see
+ *
+ * @param s is the SSL session
+ * @param pkt is the packet
+ * @param context is unused
+ * @param x is unused
+ * @param chainidx is unused
+ * @return 1 for good, 0 otherwise
+ */
+int tls_parse_ctos_ech_is_inner(SSL_CONNECTION *s, PACKET *pkt, unsigned int context,
+                               X509 *x, size_t chainidx)
+{
+    /*
+     * If there wasn't an earlier ECH decrypt attempt, then we
+     * must be a backend. Even if a client sends a bogus is_inner,
+     * I don't think that causes a problem (other than for that
+     * client), and this changes in draft-12 anyway.
+     */
+    if (s->ext.ech_attempted!=1) {
+        s->ext.ech_backend=1;
+        OSSL_TRACE_BEGIN(TLS) {
+            BIO_printf(trc_out,"ech_is_inner seen - think we're a backend\n");
+        } OSSL_TRACE_END(TLS);
+    } else {
+        OSSL_TRACE_BEGIN(TLS) {
+            BIO_printf(trc_out,"ech_is_inner shouldn't be seen here.\n");
+        } OSSL_TRACE_END(TLS);
+    }
+    return 1;
+}
+
+#endif /* END OPENSSL_NO_ECH */
