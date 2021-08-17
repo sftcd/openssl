@@ -9,7 +9,7 @@ SSL_CTX_ech_set_outer_alpn_protos, SSL_ech_set_outer_alpn_protos,
 SSL_ECH_DETS_print, SSL_ech_reduce, SSL_CTX_ech_server_key_status,
 SSL_CTX_ech_server_flush_keys, SSL_CTX_ech_server_enable,
 SSL_CTX_ech_readpemdir, SSL_ech_print,
-SSL_ech_get_status, SSL_ech_set_grease_suite,
+SSL_ech_get_status, SSL_ech_set_grease_suite, SSL_ech_set_grease_type,
 SSL_CTX_ech_set_callback, SSL_ech_set_callback,
 SSL_ECH_DETS_free,SSL_CTX_ech_raw_decrypt,
 SSL_CTX_ech_server_enable_buffer,SSL_ech_get_returned
@@ -33,6 +33,7 @@ SSL_CTX_ech_server_enable_buffer,SSL_ech_get_returned
  int SSL_ech_print(BIO* out, SSL *con, int selector);
  int SSL_ech_get_status(SSL *s, char **inner_sni, char **outer_sni);
  int SSL_ech_set_grease_suite(SSL *s, const char* suite);
+ int SSL_ech_set_grease_suite(SSL *s, uint16_t type);
  int SSL_CTX_ech_set_outer_server_name(SSL *s, const char *outer_name);
  int SSL_ech_set_outer_server_name(SSL *s, const char *outer_name);
  int SSL_CTX_ech_set_outer_alpn_protos(SSL_CTX *ctx, const unsigned char *protos, const size_t protos_len);

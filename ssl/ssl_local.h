@@ -718,6 +718,7 @@ typedef enum tlsext_index_en {
     TLSEXT_IDX_early_data,
     TLSEXT_IDX_certificate_authorities,
     TLSEXT_IDX_ech,
+    TLSEXT_IDX_ech13,
     TLSEXT_IDX_outer_extensions,
     TLSEXT_IDX_ech_is_inner,
     TLSEXT_IDX_padding,
@@ -1612,6 +1613,7 @@ struct ssl_connection_st {
         SSL_CONNECTION* inner_s; /* pointer to inner CH from outer */
         SSL_CONNECTION* outer_s; /* pointer to outer CH from inner */
         int ech_attempted;
+        uint16_t ech_attempted_type;
         int ech_done;
         int ech_success;
         int ech_grease;

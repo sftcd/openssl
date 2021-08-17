@@ -141,6 +141,7 @@ B<openssl> B<s_client>
 [B<-alpn-outer>]
 [B<-ech_grease>]
 [B<-ech_grease_suite>]
+[B<-ech_grease_type>]
 [B<-ech_ignore_cid>]
 [B<-echconfigs>]
 [B<-sni-outer>]
@@ -884,6 +885,10 @@ TBD
 TBD
 
 =item B<-ech_grease_suite>
+
+TBD
+
+=item B<-ech_grease_type>
 
 TBD
 

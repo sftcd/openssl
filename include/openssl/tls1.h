@@ -171,8 +171,11 @@ extern "C" {
 #ifndef OPENSSL_NO_ECH
 /* These will change some with draft-13 but for now represent draft-10 */
 #define TLSEXT_TYPE_ech                       0xfe0a
+#define TLSEXT_TYPE_ech13                     0xfe0d
 #define TLSEXT_TYPE_outer_extensions          0xfd00
 #define TLSEXT_TYPE_ech_is_inner              0xda09
+/* value for uninitialised GREASE type vars*/
+#define TLSEXT_TYPE_ech_unknown               0xffff 
 #endif
 
 /* NameType value from RFC3546 */

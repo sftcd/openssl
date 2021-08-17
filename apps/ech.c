@@ -186,9 +186,19 @@ static int mk_echconfig(
     unsigned int b64len = 0;
 
     switch(ekversion) {
+        case ECH_DRAFT_09_VERSION: 
+            /* note - this version is only to test we skip 'em */
+            pnlen=(public_name==NULL?0:strlen(public_name));
+            break;
         case ECH_DRAFT_10_VERSION: 
+            pnlen=(public_name==NULL?0:strlen(public_name));
+            if (pnlen>0xffff) return 0;
+            if (max_name_length>0xffff) return 0;
+            break;
         case ECH_DRAFT_13_VERSION: 
             pnlen=(public_name==NULL?0:strlen(public_name));
+            if (pnlen>255) return 0;
+            if (max_name_length>255) return 0;
             break;
         default:
             return 0;
@@ -275,6 +285,30 @@ static int mk_echconfig(
     *bp++=(unsigned char)(ekversion%256); 
     *bp++=0x00; /* leave space for almost-overall length */
     *bp++=0x00; /* leave space for almost-overall length */
+    if (ekversion==ECH_DRAFT_09_VERSION) {
+        if (pnlen > 0 ) {
+            *bp++=(unsigned char)(pnlen>>8)%256;
+            *bp++=(unsigned char)(pnlen%256);
+            memcpy(bp,public_name,pnlen); bp+=pnlen;
+        }
+        /* keys */
+        *bp++=(unsigned char)(publen>>8)%256;
+        *bp++=(unsigned char)(publen%256);
+        memcpy(bp,pub,publen); bp+=publen;
+        /* HPKE KEM id */
+        *bp++=(unsigned char)(hpke_suite.kem_id>>8)%256;
+        *bp++=(unsigned char)(hpke_suite.kem_id%256);
+        /* cipher_suite */
+        *bp++=0x00;
+        *bp++=0x04;
+        *bp++=(unsigned char)(hpke_suite.kdf_id>>8)%256;
+        *bp++=(unsigned char)(hpke_suite.kdf_id%256);
+        *bp++=(unsigned char)(hpke_suite.aead_id>>8)%256;
+        *bp++=(unsigned char)(hpke_suite.aead_id%256);
+        /* maximum_name_length */
+        *bp++=(unsigned char)(max_name_length>>8)%256;
+        *bp++=(unsigned char)(max_name_length%256);
+    }
     if (ekversion==ECH_DRAFT_10_VERSION) {
         uint8_t config_id=0;
         RAND_bytes(&config_id,1);
@@ -324,15 +358,12 @@ static int mk_echconfig(
         *bp++=(unsigned char)(hpke_suite.aead_id>>8)%256;
         *bp++=(unsigned char)(hpke_suite.aead_id%256);
         /* maximum_name_length */
-        *bp++=(unsigned char)(max_name_length>>8)%256;
         *bp++=(unsigned char)(max_name_length%256);
         /* public_name */
         if (pnlen > 0 ) {
-            *bp++=(unsigned char)(pnlen>>8)%256;
             *bp++=(unsigned char)(pnlen%256);
             memcpy(bp,public_name,pnlen); bp+=pnlen;
         } else {
-            *bp++=0x00;
             *bp++=0x00;
         }
     }
@@ -351,10 +382,10 @@ static int mk_echconfig(
     /*
      * Add back in the length
      */
-    bbuf[0]=(unsigned char)(bblen-2)/256;
-    bbuf[1]=(unsigned char)(bblen-2)%256;
-    bbuf[4]=(unsigned char)(bblen-6)/256;
-    bbuf[5]=(unsigned char)(bblen-6)%256;
+    bbuf[0]=(unsigned char)((bblen-2)/256);
+    bbuf[1]=(unsigned char)((bblen-2)%256);
+    bbuf[4]=(unsigned char)((bblen-6)/256);
+    bbuf[5]=(unsigned char)((bblen-6)%256);
     b64len = EVP_EncodeBlock(
                     (unsigned char*)echconfig, 
                     (unsigned char *)bbuf, bblen);
@@ -472,23 +503,29 @@ opthelp:
     switch (ech_version) {
         case 0xff01: /* ESNI precursors */
         case 0xff02: /* ESNI precursors */
-        case 0xff09: /* Early ECH */
         case 1:
         case 2:
-        case 9:
             BIO_printf(bio_err, 
                 "Un-supported older version (0x%04x)\n",
                 ech_version);
             goto end;
+        case 9:
+            ech_version=ECH_DRAFT_09_VERSION;
+            /* fall through */
+        case ECH_DRAFT_09_VERSION: /* Early ECH */
+            BIO_printf(bio_err, 
+                "Warning: generating draft-09 version. That's only" \
+                " useful for testing we ignore unknown versions.\n");
+            break;
         case ECH_DRAFT_10_VERSION:
             break;
         case 10:
-            ech_version=0xfe0a;
+            ech_version=ECH_DRAFT_10_VERSION;
             break;
         case ECH_DRAFT_13_VERSION:
             break;
         case 13:
-            ech_version=0xfe0d;
+            ech_version=ECH_DRAFT_13_VERSION;
             break;
         default:
             BIO_printf(bio_err, 

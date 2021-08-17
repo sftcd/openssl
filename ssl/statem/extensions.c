@@ -414,13 +414,22 @@ static const EXTENSION_DEFINITION ext_defs[] = {
      * that input is needed for ECH acceptance calculation 
      * draft-12 will remove that requirement, but we've not coded that up yet.
      */
-    {
+    { /* this is for draft-10 */
         TLSEXT_TYPE_ech,
         SSL_EXT_CLIENT_HELLO | SSL_EXT_TLS1_3_ONLY | 
         SSL_EXT_TLS1_3_ENCRYPTED_EXTENSIONS,
         init_ech,
         tls_parse_ctos_ech, tls_parse_stoc_ech,
         tls_construct_stoc_ech, tls_construct_ctos_ech,
+        final_ech
+    },
+    { /* this is for draft-13 */
+        TLSEXT_TYPE_ech13,
+        SSL_EXT_CLIENT_HELLO | SSL_EXT_TLS1_3_ONLY | 
+        SSL_EXT_TLS1_3_ENCRYPTED_EXTENSIONS,
+        init_ech,
+        tls_parse_ctos_ech, tls_parse_stoc_ech,
+        tls_construct_stoc_ech13, tls_construct_ctos_ech13,
         final_ech
     },
     {
@@ -440,6 +449,7 @@ static const EXTENSION_DEFINITION ext_defs[] = {
         NULL
     },
 #else /* OPENSSL_NO_ECH */
+    INVALID_EXTENSION,
     INVALID_EXTENSION,
     INVALID_EXTENSION,
     INVALID_EXTENSION,

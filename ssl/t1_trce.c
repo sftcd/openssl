@@ -498,7 +498,8 @@ static const ssl_trace_tbl ssl_exts_tbl[] = {
     {TLSEXT_TYPE_next_proto_neg, "next_proto_neg"},
 # endif
 #ifndef OPENSSL_NO_ECH
-    {TLSEXT_TYPE_ech,"encrypted_client_hello"},
+    {TLSEXT_TYPE_ech,"encrypted_client_hello(draft-10)"},
+    {TLSEXT_TYPE_ech13,"encrypted_client_hello(draft-13)"},
     {TLSEXT_TYPE_outer_extensions,"outer_extension"},
     {TLSEXT_TYPE_ech_is_inner,"ech_is_inner"},
 #endif
@@ -947,7 +948,12 @@ static int ssl_print_extension(BIO *bio, int indent, int server,
 #ifndef OPENSSL_NO_ECH
     case TLSEXT_TYPE_ech:
         BIO_indent(bio, indent + 2, 80);
-        BIO_printf(bio,"ECH of length (%d)\n",(int)extlen);
+        BIO_printf(bio,"draft-10 ECH of length (%d)\n",(int)extlen);
+        ssl_print_hex(bio, indent + 4, "ECH", ext, extlen);
+        break;
+    case TLSEXT_TYPE_ech13:
+        BIO_indent(bio, indent + 2, 80);
+        BIO_printf(bio,"draft-13 ECH of length (%d)\n",(int)extlen);
         ssl_print_hex(bio, indent + 4, "ECH", ext, extlen);
         break;
     case TLSEXT_TYPE_outer_extensions:

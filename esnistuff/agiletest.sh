@@ -121,9 +121,9 @@ do
             then
                 echo "Doing $suite ${KEM_STRINGS[$kemind]},${KDF_STRINGS[$kdfind]},${AEAD_STRINGS[$aeadind]}"
                 echo "Running: $CODETOP/apps/openssl ech $pname -pemout $suite.pem -suite $suite"
-                $CODETOP/apps/openssl ech $pname -pemout $suite.pem -suite $suite >/dev/null
+                $CODETOP/apps/openssl ech $pname -pemout $suite.pem -suite $suite >/dev/null -ech_version 13
             else
-                $CODETOP/apps/openssl ech $pname -pemout $suite.pem -suite $suite >/dev/null 2>&1
+                $CODETOP/apps/openssl ech $pname -pemout $suite.pem -suite $suite >/dev/null -ech_version 13 2>&1
             fi
             res=$?
             # count good/bad and compare to expectations
