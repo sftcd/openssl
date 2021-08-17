@@ -20,7 +20,8 @@
 
 /* biggest/default buffer we use */
 #ifndef HPKE_MAXSIZE
-#define HPKE_MAXSIZE (40*1024) /**< 40k is more than enough for anyone (using this program:-) */
+/* 40k is enough for anyone (using this program:-) */
+#define HPKE_MAXSIZE (40*1024) 
 #endif
 
 /*
@@ -54,10 +55,10 @@
 #define HPKE_AEAD_ID_MAX             0x0003 /**< Chacha20-Poly1305 */
 
 /* strings for modes */
-#define HPKE_MODESTR_BASE       "base"              /**< base mode (1), no sender auth */
-#define HPKE_MODESTR_PSK        "psk"               /**< psk mode (2) */
-#define HPKE_MODESTR_AUTH       "auth"              /**< auth (3), with a sender-key pair */
-#define HPKE_MODESTR_PSKAUTH    "pskauth"           /**< psk+sender-key pair (4) */
+#define HPKE_MODESTR_BASE       "base"    /**< base mode (1), no sender auth */
+#define HPKE_MODESTR_PSK        "psk"     /**< psk mode (2) */
+#define HPKE_MODESTR_AUTH       "auth"    /**< auth (3), with a sender-key pair */
+#define HPKE_MODESTR_PSKAUTH    "pskauth" /**< psk+sender-key pair (4) */
 
 /* strings for suites */
 #define HPKE_KEMSTR_P256        "p256"              /**< KEM id 0x10 */
@@ -78,7 +79,7 @@
 typedef struct {
     uint16_t    kem_id; /**< Key Encryption Method id */
     uint16_t    kdf_id; /**< Key Derivation Function id */
-    uint16_t    aead_id; /**< Authenticated Encryption with Associated Data id */
+    uint16_t    aead_id; /**< AEAD alg id */
 } hpke_suite_t;
 
 /*!
@@ -86,8 +87,10 @@ typedef struct {
  *
  *          hpke_suite_t myvar = HPKE_SUITE_DEFAULT;
  */
-#define HPKE_SUITE_DEFAULT { HPKE_KEM_ID_25519, HPKE_KDF_ID_HKDF_SHA256, HPKE_AEAD_ID_AES_GCM_128 }
-#define HPKE_SUITE_TURNITUPTO11 { HPKE_KEM_ID_448, HPKE_KDF_ID_HKDF_SHA512, HPKE_AEAD_ID_CHACHA_POLY1305 }
+#define HPKE_SUITE_DEFAULT \
+    { HPKE_KEM_ID_25519, HPKE_KDF_ID_HKDF_SHA256, HPKE_AEAD_ID_AES_GCM_128 }
+#define HPKE_SUITE_TURNITUPTO11 \
+    { HPKE_KEM_ID_448, HPKE_KDF_ID_HKDF_SHA512, HPKE_AEAD_ID_CHACHA_POLY1305 }
 
 
 /*!
@@ -115,9 +118,9 @@ typedef struct {
  * @param aad is the encoded additional data
  * @param infolen is the lenght of the info data (can be zero)
  * @param info is the encoded info data (can be NULL)
- * @param senderpublen is the length of the input buffer for the sender's public key (length used on output)
+ * @param senderpublen length of the input buffer for sender's public key 
  * @param senderpub is the input buffer for sender public key
- * @param cipherlen is the length of the input buffer for ciphertext (length used on output)
+ * @param cipherlen is the length of the input buffer for ciphertext 
  * @param cipher is the input buffer for ciphertext
  * @return 1 for good (OpenSSL style), not-1 for error
  *
@@ -157,10 +160,10 @@ int hpke_enc(
  * @param aad is the encoded additional data
  * @param infolen is the lenght of the info data (can be zero)
  * @param info is the encoded info data (can be NULL)
- * @param senderpublen is the length of the input buffer with the sender's public key 
+ * @param senderpublen length of the input buffer with the sender's public key 
  * @param senderpub is the input buffer for sender public key
  * @param senderpriv has the handle for the sender private key
- * @param cipherlen is the length of the input buffer for ciphertext (length used on output)
+ * @param cipherlen length of the input buffer for ciphertext 
  * @param cipher is the input buffer for ciphertext
  * @return 1 for good (OpenSSL style), not-1 for error
  *
@@ -199,10 +202,10 @@ int hpke_enc_evp(
  * @param aad is the encoded additional data (can be NULL)
  * @param infolen is the lenght of the info data (can be zero)
  * @param info is the encoded info data (can be NULL)
- * @param senderpublen is the length of the input buffer with the sender's public key 
+ * @param senderpublen length of the input buffer with the sender's public key 
  * @param senderpub is the input buffer for sender public key
  * @param senderpriv has the handle for the sender private key
- * @param cipherlen is the length of the input buffer for ciphertext (length used on output)
+ * @param cipherlen length of the input buffer for ciphertext 
  * @param cipher is the input buffer for ciphertext
  * @return 1 for good (OpenSSL style), not-1 for error
  */
@@ -242,7 +245,7 @@ int hpke_enc_raw(
  * @param aad is the encoded additional data
  * @param infolen is the lenght of the info data (can be zero)
  * @param info is the encoded info data (can be NULL)
- * @param clearlen is the length of the input buffer for cleartext (octets used on output)
+ * @param clearlen length of the input buffer for cleartext 
  * @param clear is the encoded cleartext
  * @return 1 for good (OpenSSL style), not-1 for error
  */
@@ -296,7 +299,11 @@ int hpke_kg_evp(
  * @param buf is a pointer to the internally allocated binary buffer
  * @return 1 for good (OpenSSL style), not-1 for error
  */
-int hpke_ah_decode(size_t ahlen, const char *ah, size_t *blen, unsigned char **buf);
+int hpke_ah_decode(
+        size_t ahlen, 
+        const char *ah, 
+        size_t *blen, 
+        unsigned char **buf);
 
 /**
  * @brief check if a suite is supported locally
@@ -306,80 +313,8 @@ int hpke_ah_decode(size_t ahlen, const char *ah, size_t *blen, unsigned char **b
  */
 int hpke_suite_check(hpke_suite_t suite);
 
-/*
- * These are temporary and only needed for esni-draft-09
- * where we gotta call 'em from outside
- */
-
 /*!
- * brief RFC5869 HKDF-Extract
- *
- * @param suite is the ciphersuite 
- * @param mode5869 - controls labelling specifics
- * @param salt - surprisingly this is the salt;-)
- * @param saltlen - length of above
- * @param label - label for separation
- * @param labellen - length of above
- * @param zz - the initial key material (IKM)
- * @param zzlen - length of above
- * @param secret - the result of extraction (allocated inside)
- * @param secretlen - bufsize on input, used size on output
- * @return 1 for good otherwise bad
- *
- * Mode can be:
- * - HPKE_5869_MODE_PURE meaning to ignore all the
- * HPKE-specific labelling and produce an output that's 
- * RFC5869 compliant (useful for testing and maybe
- * more)
- * - HPKE_5869_MODE_KEM meaning to follow section 4.1
- * where the suite_id is used as:
- *   concat("KEM", I2OSP(kem_id, 2))
- * - HPKE_5869_MODE_FULL meaning to follow section 5.1
- * where the suite_id is used as:
- *   concat("HPKE",I2OSP(kem_id, 2),
- *          I2OSP(kdf_id, 2), I2OSP(aead_id, 2))
- *
- * Isn't that a bit of a mess!
- */
-int hpke_extract(
-        const hpke_suite_t suite, const int mode5869,
-        const unsigned char *salt, const size_t saltlen,
-        const char *label, const size_t labellen,
-        const unsigned char *ikm, const size_t ikmlen,
-        unsigned char *secret, size_t *secretlen);
-
-/*
- * 5869 modes for func below
- */
-#define HPKE_5869_MODE_PURE 0 /**< Do "pure" RFC5869 */
-#define HPKE_5869_MODE_KEM  1 /**< Abide by HPKE section 4.1 */
-#define HPKE_5869_MODE_FULL 2 /**< Abide by HPKE section 5.1 */
-
-/*!
- * brief RFC5869 HKDF-Expand
- *
- * @param suite is the ciphersuite 
- * @param mode5869 - controls labelling specifics
- * @param prk - the initial pseudo-random key material 
- * @param prk - length of above
- * @param label - label to prepend to info
- * @param labellen - label to prepend to info
- * @param context - the info
- * @param contextlen - length of above
- * @param L - the length of the output desired 
- * @param out - the result of expansion (allocated by caller)
- * @param outlen - buf size on input
- * @return 1 for good otherwise bad
- */
-int hpke_expand(const hpke_suite_t suite, const int mode5869, 
-                const unsigned char *prk, const size_t prklen,
-                const char *label, const size_t labellen,
-                const unsigned char *info, const size_t infolen,
-                const uint32_t L,
-                unsigned char *out, size_t *outlen);
-
-/*!
- * brief: map a kem_id and a private key buffer into an EVP_PKEY
+ * @brief: map a kem_id and a private key buffer into an EVP_PKEY
  *
  * @param kem_id is what'd you'd expect (using the HPKE registry values)
  * @param prbuf is the private key buffer
@@ -402,17 +337,17 @@ int hpke_prbuf2evp(
         EVP_PKEY **priv);
 
 /*!
- * brief return a (possibly) random suite, public key and ciphertext for GREASErs
+ * @brief get a (possibly) random suite, public key and ciphertext for GREASErs
+ *
+ * As usual buffers are caller allocated and lengths on input are buffer size.
  *
  * @param suite-in specifies the preferred suite or NULL for a random choice
  * @param suite is the chosen or random suite
- * @param pub is a random value of the appropriate length for a sender public value
+ * @param pub a random value of the appropriate length for a sender public value
  * @param pub_len is the length of pub (buffer size on input)
  * @param cipher is a random value of the appropriate length for a ciphertext
  * @param cipher_len is the length of cipher
  * @return 1 for success, otherwise failure
- *
- * As usual buffers are caller allocated and lengths on input are buffer size.
  */
 int hpke_good4grease(
         hpke_suite_t *suite_in,
@@ -423,13 +358,32 @@ int hpke_good4grease(
         size_t cipher_len);
 
 /*!
- * @brief map a strin to a HPKE suite
+ * @brief map a string to a HPKE suite
  *
  * @param str is the string value
  * @param suite is the resulting suite
  * @return 1 for success, otherwise failure
  */ 
 int hpke_str2suite(char *str, hpke_suite_t *suite);
+
+/*!
+ * @brief tell the caller how big the cipertext will be
+ *
+ * AEAD algorithms add a tag for data authentication.
+ * Those are almost always, but not always, 16 octets
+ * long, and who know what'll be true in the future.
+ * So this function allows a caller to find out how
+ * much data expansion they'll see with a given 
+ * suite.
+ *
+ * @param suite is the suite to be used
+ * @param clearlen is the length of plaintext
+ * @param cipherlen points to what'll be ciphertext length
+ * @return 1 for success, otherwise failure
+ */
+int hpke_expansion(hpke_suite_t suite, 
+        size_t clearlen, 
+        size_t *cipherlen);
 
 #endif
 

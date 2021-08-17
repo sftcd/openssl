@@ -32,9 +32,19 @@
  */
 #define HPKE_MAXSIZE 1024
 
+/*
+ * Various externally visible length limits
+ */
+// quite LARGE pem file test
 #define ECH_MAX_RRVALUE_LEN 2000 /**< Max RR value size, as given to API */
 #define ECH_MAX_ECHCONFIGEXT_LEN 100 /**< Max for an ECHConfig extension */
 #define ECH_PBUF_SIZE 8*1024 /**<  buffer for string returned via ech_cb */
+#define ECH_MIN_ECHCONFIG_LEN 32 /**< just for a sanity check */
+// just a quick test of a BIG pem file
+#define ECH_MAX_ECHCONFIG_LEN ECH_MAX_RRVALUE_LEN /**< just for a sanity check */
+#define ECH_OUTERS_MAX 10 /**< max TLS extensions we compress via outer-exts */
+#define ECH_MAX_ECH_LEN 0x100 /**< max ENC-CH peer key share we'll decode */
+#define ECH_MAX_PAYLOAD_LEN HPKE_MAXSIZE /**< max ECH ciphertext we'll decode */
 
 /*
  * Supported input formats for ECHKeys RR values
@@ -58,12 +68,22 @@
  */
 #define ECH_DRAFT_09_VERSION 0xfe09 /**< ECHConfig version from draft-09 */
 #define ECH_DRAFT_10_VERSION 0xfe0a /**< ECHConfig version from draft-10 */
-#define ECH_DRAFT_13_VERSION 0xfe0d /**< ECHConfig version from draft-12 */
+#define ECH_DRAFT_13_VERSION 0xfe0d /**< ECHConfig version from draft-13 */
 
 /* 
  * the wire-format code for ECH within an SVCB or HTTPS RData
  */
 #define ECH_PCODE_ECH            0x0005
+
+/*
+ * To control the number of zeros added after a draft-13 
+ * EncodedClientHello - we pad to a target number of octets 
+ * or, if there are naturally more, to a number divisible by 
+ * the defined increment (we also do the draft-13 recommended
+ * SNI padding thing first)
+ */
+#define ECH_PADDING_TARGET 256 /**< all ECH cleartext padded to at least this */
+#define ECH_PADDING_INCREMENT 32 /**< all ECH's padded to a multiple of this */
 
 /*
  * This is a special marker value. If set via a specific call
@@ -424,6 +444,15 @@ int SSL_ech_get_status(SSL *s, char **inner_sni, char **outer_sni);
  * @return 1 for success, other otherwise
  */
 int SSL_ech_set_grease_suite(SSL *s,const char* suite);
+
+/**
+ * @brief allow clients to set a preferred HPKE suite to use when GREASEing
+ *
+ * @param s is the SSL context
+ * @param type is the relevant ECH extension type
+ * @return 1 for success, other otherwise
+ */
+int SSL_ech_set_grease_type(SSL *s, uint16_t type);
 
 /**
  * @brief provide a way to do raw ECH decryption for split-mode frontends
