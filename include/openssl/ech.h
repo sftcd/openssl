@@ -30,7 +30,7 @@
  * much bigger then we might need to revisit using stack buffers
  * for this.
  */
-#define HPKE_MAXSIZE 1024
+#define HPKE_MAXSIZE 1280
 
 /*
  * Various externally visible length limits
@@ -45,6 +45,8 @@
 #define ECH_OUTERS_MAX 10 /**< max TLS extensions we compress via outer-exts */
 #define ECH_MAX_ECH_LEN 0x100 /**< max ENC-CH peer key share we'll decode */
 #define ECH_MAX_PAYLOAD_LEN HPKE_MAXSIZE /**< max ECH ciphertext we'll decode */
+#define ECH_MAX_MAXNAMELEN 255 /**< max ECHConfig max name length */
+#define ECH_MAX_PUBLICNAME 255 /**< max ECHConfig public name */
 
 /*
  * Supported input formats for ECHKeys RR values
