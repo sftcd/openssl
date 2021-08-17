@@ -545,3 +545,4 @@ SSL_CTX_ech_raw_decrypt                 545	3_0_0	EXIST::FUNCTION:ECH
 SSL_CTX_ech_set_outer_server_name       546	3_0_0	EXIST::FUNCTION:ECH
 SSL_CTX_ech_server_enable_buffer        547	3_0_0	EXIST::FUNCTION:ECH
 SSL_ech_get_returned                    548	3_0_0	EXIST::FUNCTION:ECH
+SSL_ech_set_grease_type                 549	3_0_0	EXIST::FUNCTION:ECH
