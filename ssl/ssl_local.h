@@ -1624,6 +1624,8 @@ struct ssl_connection_st {
         size_t alpn_outer_len;
         unsigned char *ech_returned; /* binary ECHConfig value */
         size_t ech_returned_len;
+        unsigned char *ech_sent; /* for GREASEy re-tx */
+        size_t ech_sent_len;
 #endif
         /* certificate status request info */
         /* Status type or -1 if no status type */
