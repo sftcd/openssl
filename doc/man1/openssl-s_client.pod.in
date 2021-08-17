@@ -909,6 +909,10 @@ AEAD values supported: aes128gcm or 0x01, aes256gcm or 0x02, chachapoly1305 or 0
 Allows the client to set the extension type for a GREASEd ECH value (which
 is currently equivalent to the ECH version number).
 
+=item B<-ech_grease_type>
+
+TBD
+
 =item B<-ech_ignore_cid>
 
 Encrypted Client Hello (ECH) extensions contain a configuration identifier (cid)
