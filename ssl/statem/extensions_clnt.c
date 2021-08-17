@@ -1141,6 +1141,19 @@ EXT_RETURN tls_construct_ctos_early_data(SSL_CONNECTION *s, WPACKET *pkt,
         }
     }
 #ifndef OPENSSL_NO_ECH
+    /*
+     * TODO: handle this spec text:
+     *
+     *   When the client offers the "early_data" extension in
+     *   ClientHelloInner, it MUST also include the "early_data" extension
+     *   in ClientHelloOuter.  This allows servers that reject ECH and use
+     *   ClientHelloOuter to safely ignore any early data sent by the
+     *   client per [RFC8446], Section 4.2.10
+     *
+     *  That's a bit ambiguous - do we send the same early
+     *  date in both inner/outer or what? (That'd be ok, but
+     *  not sure.)
+     */
     IOSAME
 #endif
 
@@ -1186,6 +1199,10 @@ EXT_RETURN tls_construct_ctos_padding(SSL_CONNECTION *s, WPACKET *pkt,
     size_t hlen;
 
 #ifndef OPENSSL_NO_ECH
+    if (s->ext.ch_depth==1 && s->ext.ech_attempted_type==ECH_DRAFT_13_VERSION && (s->options & SSL_OP_TLSEXT_PADDING) == 0) {
+        /* draft-13 pads outside the encoded inner */
+        return EXT_RETURN_NOT_SENT;
+    }
     if (!(s->ext.ech_grease==ECH_IS_GREASE) && !(s->ech && s->ext.ch_depth==1) && (s->options & SSL_OP_TLSEXT_PADDING) == 0)
         return EXT_RETURN_NOT_SENT;
 #else
@@ -2496,7 +2513,8 @@ int tls_parse_stoc_server_cert_type(SSL_CONNECTION *sc, PACKET *pkt,
 EXT_RETURN tls_construct_ctos_ech(SSL_CONNECTION *s, WPACKET *pkt, unsigned int context,
                                    X509 *x, size_t chainidx)
 {
-    if (s->ext.ech_grease==ECH_IS_GREASE || (s->options & SSL_OP_ECH_GREASE) ) {
+    if (s->ext.ech_attempted_type==TLSEXT_TYPE_ech && 
+       (s->ext.ech_grease==ECH_IS_GREASE || (s->options & SSL_OP_ECH_GREASE))) {
         if (ech_send_grease(&s->ssl,pkt)!=1) {
             return EXT_RETURN_NOT_SENT;
         }
@@ -2512,6 +2530,46 @@ EXT_RETURN tls_construct_ctos_ech(SSL_CONNECTION *s, WPACKET *pkt, unsigned int 
 }
 
 /**
+ * @brief Create the draft-13 ECH extension for the ClientHello
+ */
+EXT_RETURN tls_construct_ctos_ech13(SSL *s, WPACKET *pkt, unsigned int context,
+                                   X509 *x, size_t chainidx)
+{
+    if (s->ext.ech_attempted_type!=TLSEXT_TYPE_ech13)
+        return EXT_RETURN_NOT_SENT;
+
+    if (s->ext.ech_grease==ECH_IS_GREASE || (s->options & SSL_OP_ECH_GREASE)) {
+        if (ech_send_grease(s,pkt)!=1) {
+            return EXT_RETURN_NOT_SENT;
+        }
+        return EXT_RETURN_SENT;
+    }
+    /*
+     * We fake out sending the outer value - after the entire thing has been
+     * constructed we only then finally encode and encrypt - need to do it
+     * that way as we need the rest of the outer CH as AAD input to the
+     * encryption.
+     */
+    if (s->ext.ch_depth==0) return EXT_RETURN_NOT_SENT;
+    /*
+     * For the inner value - we simply include one of these saying "inner"
+     */
+    if (s->ext.ch_depth==1) {
+        if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_ech13) 
+            || !WPACKET_start_sub_packet_u16(pkt)
+            || !WPACKET_put_bytes_u8(pkt, ECH_INNER_CH_TYPE)
+            || !WPACKET_close(pkt)
+           ) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+            return EXT_RETURN_FAIL;
+        }
+        return EXT_RETURN_SENT;
+    }
+
+    return EXT_RETURN_FAIL;
+}
+
+/**
  * @brief if the server thinks we GREASE'd then we should get an ECHConfig back
  *
  */
@@ -2521,7 +2579,6 @@ int tls_parse_stoc_ech(SSL_CONNECTION *s, PACKET *pkt, unsigned int context,
     unsigned int rlen=0;
     const unsigned char *rval=NULL;
     unsigned char *srval=NULL;
-
     if (!PACKET_get_net_2(pkt, &rlen)) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_LENGTH_MISMATCH);
         return 0;
@@ -2530,10 +2587,8 @@ int tls_parse_stoc_ech(SSL_CONNECTION *s, PACKET *pkt, unsigned int context,
         SSLfatal(s, SSL_AD_ILLEGAL_PARAMETER, SSL_R_LENGTH_MISMATCH);
         return 0;
     }
-
     if (s->ext.ech_returned) OPENSSL_free(s->ext.ech_returned);
     s->ext.ech_returned=NULL;
-
     srval=OPENSSL_malloc(rlen);
     if (!srval) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
@@ -2542,7 +2597,6 @@ int tls_parse_stoc_ech(SSL_CONNECTION *s, PACKET *pkt, unsigned int context,
     memcpy(srval,rval,rlen);
     s->ext.ech_returned=srval;
     s->ext.ech_returned_len=rlen;
-
     return 1;
 }
 
@@ -2556,6 +2610,17 @@ EXT_RETURN tls_construct_ctos_ech_is_inner(SSL_CONNECTION *s, WPACKET *pkt, unsi
         return EXT_RETURN_NOT_SENT;
     }
     if (!s->ech) {
+        return EXT_RETURN_NOT_SENT;
+    }
+    if (!s->ech->cfg) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+        return EXT_RETURN_FAIL;
+    }
+    if (!s->ech->cfg->recs) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+        return EXT_RETURN_FAIL;
+    }
+    if (s->ech->cfg->recs[0].version!=ECH_DRAFT_10_VERSION) {
         return EXT_RETURN_NOT_SENT;
     }
     if (s->ext.ch_depth==1) {

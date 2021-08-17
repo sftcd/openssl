@@ -124,6 +124,7 @@ static const char *ech_inner_name=NULL;
 static const char *sni_outer_name=NULL; 
 static int ech_grease=0;
 static char *ech_grease_suite = NULL;
+uint16_t ech_grease_type = TLSEXT_TYPE_ech_unknown;
 static int ech_ignore_cid=0;
 static int nechs=0;
 static char *ech_encoded_configs = NULL;
@@ -546,7 +547,7 @@ typedef enum OPTION_choice {
 #ifndef OPENSSL_NO_ECH
     OPT_SNIOUTER, OPT_ALPN_OUTER,
     OPT_ECHCONFIGS, OPT_SVCB,
-    OPT_ECH_GREASE, OPT_ECH_GREASE_SUITE,
+    OPT_ECH_GREASE, OPT_ECH_GREASE_SUITE, OPT_ECH_GREASE_TYPE,
     OPT_ECH_SELECT, OPT_ECH_IGNORE_CONFIG_ID,
 #endif
     OPT_SCTP_LABEL_BUG,
@@ -761,6 +762,8 @@ const OPTIONS s_client_options[] = {
      "Send GREASE values when not really using ECH"},
     {"ech_grease_suite",OPT_ECH_GREASE_SUITE,'s',
      "Use this HPKE suite for GREASE values when not really using ECH"},
+    {"ech_grease_type",OPT_ECH_GREASE_TYPE,'n',
+     "Use this ECH ext type for GREASE values when not really using ECH"},
     {"ech_ignore_cid",OPT_ECH_IGNORE_CONFIG_ID,'-',
      "Ignore the server-chosen ECH config ID and send a random value"},
 #endif
@@ -1669,6 +1672,9 @@ int s_client_main(int argc, char **argv)
         case OPT_ECH_GREASE_SUITE:
             ech_grease_suite=opt_arg();
             break;
+        case OPT_ECH_GREASE_TYPE:
+            ech_grease_type=(uint16_t) atoi(opt_arg());
+            break;
         case OPT_ECH_IGNORE_CONFIG_ID:
             ech_ignore_cid=1;
             break;
@@ -2318,6 +2324,15 @@ int s_client_main(int argc, char **argv)
 #ifndef OPENSSL_NO_ECH
     if (ech_grease_suite!=NULL) {
         if (SSL_ech_set_grease_suite(con,ech_grease_suite)!=1) {
+            ERR_print_errors(bio_err);
+            goto end;
+        }
+    }
+    if (ech_grease_type!=TLSEXT_TYPE_ech_unknown) {
+        BIO_printf(bio_err, "Setting GREASE ECH type 0x%4x\n", ech_grease_type);
+        if (SSL_ech_set_grease_type(con,ech_grease_type)!=1) {
+            BIO_printf(bio_err, "Can't set GREASE ECH type 0x%4x\n", 
+                    ech_grease_type);
             ERR_print_errors(bio_err);
             goto end;
         }
@@ -4011,7 +4026,7 @@ static void print_stuff(BIO *bio, SSL *s, int full)
                 BIO_printf(bio,"ECH: only greasing\n");
                 break;
             case SSL_ECH_STATUS_GREASE_ECH: 
-                BIO_printf(bio,"ECH: only greasing, and got ECH in return:\n");
+                BIO_printf(bio,"ECH: only greasing, and got ECH in return\n");
                 if (!SSL_ech_get_returned(s,&eclen,&ec)) {
                     BIO_printf(bio,"Failure getting ECH returned\n");
                 } else {
