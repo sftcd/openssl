@@ -1161,6 +1161,19 @@ EXT_RETURN tls_construct_ctos_early_data(SSL_CONNECTION *s, WPACKET *pkt,
         }
     }
 #ifndef OPENSSL_NO_ECH
+    /*
+     * TODO: handle this spec text:
+     *
+     *   When the client offers the "early_data" extension in
+     *   ClientHelloInner, it MUST also include the "early_data" extension
+     *   in ClientHelloOuter.  This allows servers that reject ECH and use
+     *   ClientHelloOuter to safely ignore any early data sent by the
+     *   client per [RFC8446], Section 4.2.10
+     *
+     *  That's a bit ambiguous - do we send the same early
+     *  date in both inner/outer or what? (That'd be ok, but
+     *  not sure.)
+     */
     IOSAME
 #endif
 

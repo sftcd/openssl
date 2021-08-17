@@ -5229,6 +5229,7 @@ SSL *SSL_dup(SSL *s)
         if (retsc->ext.ech_grease_suite) OPENSSL_free(retsc->ext.ech_grease_suite);
         retsc->ext.ech_grease_suite=OPENSSL_strdup(sc->ext.ech_grease_suite);
     }
+<<<<<<< HEAD
     retsc->ext.inner_s=sc->ext.inner_s;
     retsc->ext.outer_s=sc->ext.outer_s;
     retsc->ext.ech_done=sc->ext.ech_done;
@@ -5265,6 +5266,23 @@ SSL *SSL_dup(SSL *s)
         memcpy(retsc->ext.ech_returned, sc->ext.ech_returned,
                 sc->ext.ech_returned_len);
         retsc->ext.ech_returned_len=sc->ext.ech_returned_len;
+=======
+    ret->ext.inner_s=s->ext.inner_s;
+    ret->ext.outer_s=s->ext.outer_s;
+    ret->ext.ech_done=s->ext.ech_done;
+    ret->ext.ech_attempted=s->ext.ech_attempted;
+    ret->ext.ech_attempted_type=s->ext.ech_attempted_type;
+    ret->ext.ech_backend=s->ext.ech_backend;
+    ret->ext.ech_success=s->ext.ech_success;
+    ret->ext.ech_grease=s->ext.ech_grease;
+    ret->ext.ch_depth=s->ext.ch_depth;
+    if (s->ext.ech_returned) {
+        ret->ext.ech_returned=OPENSSL_malloc(s->ext.ech_returned_len);
+        if (!ret->ext.ech_returned) goto err;
+        memcpy(ret->ext.ech_returned, s->ext.ech_returned,
+                s->ext.ech_returned_len);
+        ret->ext.ech_returned_len=s->ext.ech_returned_len;
+>>>>>>> c0de9a537c (draft-13 coded (resumption/hrrstill tbd))
     }
 #endif
 
