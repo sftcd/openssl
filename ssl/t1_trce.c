@@ -952,6 +952,11 @@ static int ssl_print_extension(BIO *bio, int indent, int server,
         ssl_print_hex(bio, indent + 4, "ECH", ext, extlen);
         break;
     case TLSEXT_TYPE_ech13:
+        BIO_indent(bio, indent + 2, 80);
+        BIO_printf(bio,"draft-13 ECH of length (%d)\n",(int)extlen);
+        ssl_print_hex(bio, indent + 4, "ECH", ext, extlen);
+        break;
+    case TLSEXT_TYPE_ech13:
         BIO_indent(bio, indent, 80);
         if (mt==SSL3_MT_CLIENT_HELLO) {
             uint8_t type;

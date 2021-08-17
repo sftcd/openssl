@@ -1671,7 +1671,6 @@ int s_client_main(int argc, char **argv)
             ech_grease_suite=opt_arg();
             break;
         case OPT_ECH_GREASE_TYPE:
-            /* cast to uint16_t even though int */
             ech_grease_type=(uint16_t) atoi(opt_arg());
             break;
         case OPT_ECH_IGNORE_CONFIG_ID:

@@ -1537,6 +1537,11 @@ int tls_construct_client_hello(SSL_CONNECTION *s, WPACKET *pkt)
         return 0;
     }
 
+    /* note version we're attempting */
+    if (s->ech && s->ech->cfg && s->ech->cfg->recs) {
+        s->ext.ech_attempted_type=s->ech->cfg->recs[0].version;
+    }
+
     /* 
      * Session ID - this is handled "oddly" by not being encoded into
      * inner CH (an optimisation) but being required to be the same
