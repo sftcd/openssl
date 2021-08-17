@@ -4635,9 +4635,13 @@ static unsigned char *hpke_decrypt_encch(
 #define CHECKZEROS
 #ifdef CHECKZEROS
         {
-            int zind=0;
-            int nonzeros=0;
-            int zeros=0;
+            size_t zind=0;
+            size_t nonzeros=0;
+            size_t zeros=0;
+            if (*innerlen<=ch_len) {
+                OPENSSL_free(clear); clear=NULL;
+                return NULL;
+            }
             for(zind=ch_len;zind!=*innerlen;zind++) {
                 if (clear[zind]==0x00) {
                     zeros++;
