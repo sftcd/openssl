@@ -24,6 +24,8 @@ GREASE="no"
 # the specific HPKE suite to use for grease, if so instructed
 GSUITE="0x20,1,1"
 GSUITESET="no"
+# GTYPE="65034" # that's 0xfe0a - for draft-10
+GTYPE="65037" # that's 0xfe0d - for draft-13
 
 # Protocol parameters
 
@@ -93,8 +95,9 @@ function usage()
     echo "  -p [port] specifices a port (default: 443)"
 	echo "  -P [filename] means read ECHConfigs public value from file and not DNS"
     echo "  -r (or --realcert) says to not use locally generated fake CA regardless"
-	echo "  -s [name] specifices a server to which I'll connect (localhost=>local certs, unless you also provide --realcert)"
+	echo "  -s [name] specifices a server to which I'll connect (localhost=>local certs, unless --realcert)"
 	echo "  -S [file] means save or resume session from <file>"
+    echo "  -t [type] means to set the TLS extension type for GREASE to <type>"
     echo "  -v means run with valgrind"
 
 	echo ""
@@ -104,7 +107,7 @@ function usage()
 }
 
 # options may be followed by one colon to indicate they have a required argument
-if ! options=$(/usr/bin/getopt -s bash -o C:c:df:gGhH:IjnNp:P:rs:S:v -l choose:,clear_sni:,debug,filepath:,grease,greasesuite,help,hidden:,ignore_cid,just,noech,noalpn,port:,echpub:,realcert,server:,session:,valgrind -- "$@")
+if ! options=$(/usr/bin/getopt -s bash -o C:c:df:gGhH:IjnNp:P:rs:S:t:v -l choose:,clear_sni:,debug,filepath:,grease,greasesuite,help,hidden:,ignore_cid,just,noech,noalpn,port:,echpub:,realcert,server:,session:,gtype:,valgrind -- "$@")
 then
     # something went wrong, getopt will put out an error message for us
     exit 1
@@ -131,6 +134,7 @@ do
         -r|--realcert) REALCERT="yes" ;;
         -s|--server) SUPPLIEDSERVER=$2; shift;;
         -S|--session) SUPPLIEDSESSION=$2; shift;;
+        -t|--gtype) GTYPE=$2; shift;;
         -v|--valgrind) VG="yes" ;;
         (--) shift; break;;
         (-*) echo "$0: error - unrecognized option $1" 1>&2; exit 1;;
@@ -256,10 +260,10 @@ then
     exit 100
 fi
 
-grease_str=" -ech_grease "
+grease_str=" -ech_grease -ech_grease_type=$GTYPE"
 if [[ "$GSUITESET" == "yes" ]]
 then
-    grease_str=" -ech_grease -ech_grease_suite=$GSUITE"
+    grease_str=" -ech_grease -ech_grease_suite=$GSUITE -ech_grease_type=$GTYPE"
 fi
 
 ignore_str=" "

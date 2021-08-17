@@ -16,7 +16,7 @@ An ``s_client`` works with the ``s_server`` but also with
 
 There's some (well out of date) doxygen-generated documentation [here](api.html).
 
-**We haven't done much testing. Use at your own risk.**
+**We haven't that done much testing. Use at your own risk.**
 
 # State-of-play...
 
@@ -25,6 +25,54 @@ There's a [TODO list](#todos) at the end.
 Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
+
+- 20210816: moved agiletest.sh up to draft-13 keys
+
+- 20210816: added the recommended ECH padding length calc 
+  from draft-13 (even though I now think the SNI part of
+  that's not really useful now)
+
+- 20210816: added an initial version of draft-13 accept
+  confirmation calculation - usually I need to see someone
+  else's code to get that right but that's ok - it works
+  for ``s_client<->s_server`` in the meantime 
+
+- 20210816: ``-no-cmp`` seems no longer needed to
+  get tracing to work which is nice, so new recipe
+  to build with tracing is:
+
+            $ cd $HOME/code/openssl
+            $ ./config enable-ssl-trace enable-trace --debug
+            ...
+            $ make clean; make
+            $ cd esnistuff
+            $ ./echsrv.sh -dvT
+            ...etc...
+
+- 20210816: added ``hpke_expansion()`` to 
+  [happykey](https://github.com/sftcd/happykey) for 
+  draft-13. Also tidied up hpke.[ch] files some.
+
+- 20210813: draft-13 ECH extension formatting, padding 
+  and AAD calculation seemingly ok (but not really doing 
+  draft-13 yet); there are some new TODOs introduced that
+  are to be adddressed.
+
+- 20210812: pre-draft-13: got GREASE working for either 
+  draft-10 or draft-13 extension types. Will probably
+  try keep both -10 and -13 working in parallel for the 
+  moment both for interop and because the differences
+  are modest.
+
+- 20210811: Added back "support" for generating draft-09
+  ECHConfigs so we can easily generate values to test we
+  properly ignore "unsupported" versions in other code.
+
+- 20210811: started to code up pre-draft-13 - first steps 
+  are to just define the extension (using the same handling 
+  functions as draft-10 for now) and ensure that draft-10
+  still works. That'll be a few steps... before anyting 
+  really different happens;-) 
 
 - 20210810: made a [boringssl test script](bssl-oss-test.sh)
   to automate doing various bssl  thing - also got my ``s_client`` 
@@ -1429,18 +1477,8 @@ seemed unkeen on. Decided to not bother with that.
 
 I'm sure there's more but some collected so far:
 
-- If we do end up with >1 ESNIKeys version that needs to be supported, 
-  consider some kind of local "any" version value that a 
-  server can use to force use of a public share regardless of the
-  the ESNIKeys.version used by the client. That more easily allows
-  multiple $hidden sites to hide behind one key pair belonging to
-  some operator.
-- What do we want/need to do to support the split backend approach? (separate
-  fronting server from hosting server)
-- Integration with haproxy, wget
+- Integration with wget
 - Adding/moving tests to the OpenSSL test suites
-- Continuous integration for these patches that aim to keep the patch series
-  current against OpenSSL master as it evolves
 - Once we've integrated with some real client/server test the effect of our
   crude padding scheme.
 - Security review: identify which parts of the code e.g. need to be constant
