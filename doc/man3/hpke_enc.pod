@@ -5,7 +5,7 @@
 hpke_enc, hpke_enc_evp, hpke_enc_raw, hpke_dec, 
 hpke_kg, hpke_kg_evp, 
 hpke_ah_decode, hpke_suite_check,
-hpke_extract, hpke_expand,
+hpke_expansion,
 hpke_prbuf2evp, hpke_good4grease,
 hpke_str2suite
 - Hybrid Public Key Encryption (HPKE) functions
@@ -21,11 +21,10 @@ hpke_str2suite
  int hpke_kg_evp( unsigned int mode, hpke_suite_t suite, size_t *publen, unsigned char *pub, EVP_PKEY **priv);
  int hpke_ah_decode(size_t ahlen, const char *ah, size_t *blen, unsigned char **buf);
  int hpke_suite_check(hpke_suite_t suite);
- int hpke_extract( const hpke_suite_t suite, const int mode5869, const unsigned char *salt, const size_t saltlen, const char *label, const size_t labellen, const unsigned char *ikm, const size_t ikmlen, unsigned char *secret, size_t *secretlen);
- int hpke_expand(const hpke_suite_t suite, const int mode5869, const unsigned char *prk, const size_t prklen, const char *label, const size_t labellen, const unsigned char *info, const size_t infolen, const uint32_t L, unsigned char *out, size_t *outlen);
  int hpke_prbuf2evp( unsigned int kem_id, unsigned char *prbuf, size_t prbuf_len, unsigned char *pubuf, size_t pubuf_len, EVP_PKEY **priv);
  int hpke_good4grease( hpke_suite_t *suite_in, hpke_suite_t suite, unsigned char *pub, size_t *pub_len, unsigned char *cipher, size_t cipher_len);
  int hpke_str2suite(char *str, hpke_suite_t suite);
+ int hpke_expansion(hpke_suite_t suite, size_t clearlen, size_t *cipherlen);
 
 
 =head1 DESCRIPTION
