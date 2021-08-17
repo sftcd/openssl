@@ -9,7 +9,7 @@ branch, that interops with others and implements [esni-draft-10](https://datatra
 Most likely, if you're interested you ought work with that for now. You'll then find details of
 the state of play, tools, integrations etc. in a [README](https://github.com/sftcd/openssl/tree/ECH_UPFRONT_DEC/esnistuff/).
 The current development for [esni-draft-13](https://github.com/tlswg/draft-ietf-tls-esni) 
-is [ECH-draft-13](https://github.com/sftcd/openssl/tree/ECH-draft-13). 
+is [ECH-draft-13a](https://github.com/sftcd/openssl/tree/ECH-draft-13a). 
 
 There is an older branch that also includes code for the earlier Encrypted
 Server Name Indication
