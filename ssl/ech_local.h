@@ -24,15 +24,7 @@
 
 #undef ECH_SUPERVERBOSE  /**< to get bazillions more lines of tracing */
 
-#define ECH_MIN_ECHCONFIG_LEN 32 /**< just for a sanity check */
-#define ECH_MAX_ECHCONFIG_LEN 512 /**< just for a sanity check */
-
 #define ECH_CIPHER_LEN 4 /**< length of an ECHCipher (2 for kdf, 2 for aead) */
-
-#define ECH_OUTERS_MAX 10 /**< max TLS extensions we compress via outer-exts */
-
-#define MAX_ECH_ENC_LEN 0x100 /**< max ENC-CH peer key share we'll decode */
-#define MAX_ECH_PAYLOAD_LEN HPKE_MAXSIZE /**< max ECH ciphertext we'll decode */
 
 /* values for s->ext.ech_grease */
 #define ECH_GREASE_UNKNOWN -1 /**< when we're not yet sure */
@@ -78,8 +70,41 @@
  *         case 0xfe0a: ECHConfigContents contents;
  *       }
  *   } ECHConfig;
- *
  * </pre>
+ *
+ * And for draft-13:
+ * <pre>
+ *     opaque HpkePublicKey<1..2^16-1>;
+ *     uint16 HpkeKemId;  // Defined in I-D.irtf-cfrg-hpke
+ *     uint16 HpkeKdfId;  // Defined in I-D.irtf-cfrg-hpke
+ *     uint16 HpkeAeadId; // Defined in I-D.irtf-cfrg-hpke
+ *     struct {
+ *         HpkeKdfId kdf_id;
+ *         HpkeAeadId aead_id;
+ *     } HpkeSymmetricCipherSuite;
+ *     struct {
+ *         uint8 config_id;
+ *         HpkeKemId kem_id;
+ *         HpkePublicKey public_key;
+ *         HpkeSymmetricCipherSuite cipher_suites<4..2^16-4>;
+ *     } HpkeKeyConfig;
+ *     struct {
+ *         HpkeKeyConfig key_config;
+ *         uint8 maximum_name_length;
+ *         opaque public_name<1..255>;
+ *         Extension extensions<0..2^16-1>;
+ *     } ECHConfigContents;
+ *     struct {
+ *         uint16 version;
+ *         uint16 length;
+ *         select (ECHConfig.version) {
+ *           case 0xfe0d: ECHConfigContents contents;
+ *         }
+ * </pre>
+ *
+ * The main diffs from -10 to -13 are that the
+ * lengths of public_name and maximum_name_length
+ * go from 2 octets (draft-10) to one.
  *
  */
 typedef unsigned char ech_ciphersuite_t[ECH_CIPHER_LEN];
@@ -114,7 +139,6 @@ typedef struct ech_configs_st {
  * What we send in the ech CH extension:
  *
  * For draft-10, we get:
- *
  * <pre>
  *     struct {
  *       HpkeSymmetricCipherSuite cipher_suite;
@@ -124,9 +148,23 @@ typedef struct ech_configs_st {
  *    } ClientECH;
  * </pre>
  *
- * The same struct below still works, we can treat
- * changing the config id to a uint8 as a TODO: for
- * now.
+ *
+ * For draft-13:
+ * <pre>
+ *     enum { outer(0), inner(1) } ECHClientHelloType;
+ *     struct {
+ *        ECHClientHelloType type;
+ *        select (ECHClientHello.type) {
+ *            case outer:
+ *                HpkeSymmetricCipherSuite cipher_suite;
+ *                uint8 config_id;
+ *                opaque enc<0..2^16-1>;
+ *                opaque payload<1..2^16-1>;
+ *            case inner:
+ *                Empty;
+ *        };
+ *     } ECHClientHello;
+ * </pre>
  *
  */
 typedef struct ech_encch_st {
@@ -138,6 +176,9 @@ typedef struct ech_encch_st {
     size_t payload_len; /**< ciphertext  */
     unsigned char *payload; /**< ciphertext  */
 } ECH_ENCCH;
+
+#define ECH_OUTER_CH_TYPE 0 /**< outer ECHClientHello enum */
+#define ECH_INNER_CH_TYPE 1 /**< inner ECHClientHello enum */
 
 /**
  * @brief The ECH data structure that's part of the SSL structure 

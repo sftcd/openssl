@@ -5431,8 +5431,7 @@ hpke_enc                                5558	3_0_0	EXIST::FUNCTION:
 hpke_enc_evp                            5559	3_0_0	EXIST::FUNCTION:
 hpke_enc_raw                            5560	3_0_0	EXIST::FUNCTION:
 hpke_dec                                5561	3_0_0	EXIST::FUNCTION:
-hpke_extract                            5562	3_0_0	EXIST::FUNCTION:
-hpke_expand                             5563	3_0_0	EXIST::FUNCTION:
+hpke_expansion                          5563	3_0_0	EXIST::FUNCTION:
 hpke_ah_decode                          5564	3_0_0	EXIST::FUNCTION:
 hpke_suite_check                        5565	3_0_0	EXIST::FUNCTION:
 hpke_good4grease                        5566	3_0_0	EXIST::FUNCTION:
