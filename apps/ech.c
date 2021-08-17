@@ -189,16 +189,17 @@ static int mk_echconfig(
         case ECH_DRAFT_09_VERSION: 
             /* note - this version is only to test we skip 'em */
             pnlen=(public_name==NULL?0:strlen(public_name));
+            if (pnlen>ECH_MAX_PUBLICNAME) return 0;
             break;
         case ECH_DRAFT_10_VERSION: 
             pnlen=(public_name==NULL?0:strlen(public_name));
-            if (pnlen>0xffff) return 0;
-            if (max_name_length>0xffff) return 0;
+            if (pnlen>ECH_MAX_PUBLICNAME) return 0;
+            if (max_name_length>ECH_MAX_MAXNAMELEN) return 0;
             break;
         case ECH_DRAFT_13_VERSION: 
             pnlen=(public_name==NULL?0:strlen(public_name));
-            if (pnlen>255) return 0;
-            if (max_name_length>255) return 0;
+            if (pnlen>ECH_MAX_PUBLICNAME) return 0;
+            if (max_name_length>ECH_MAX_MAXNAMELEN) return 0;
             break;
         default:
             return 0;
