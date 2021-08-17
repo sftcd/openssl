@@ -3762,6 +3762,13 @@ int ech_send_grease(SSL *s, WPACKET *pkt)
       */
     size_t cipher_len_jitter=0;
     unsigned char cipher[ECH_MAX_PAYLOAD_LEN];
+    /* stuff for copying to ech_sent */
+    unsigned char *pp=WPACKET_get_curr(pkt);
+    size_t pp_at_start=0;
+    size_t pp_at_end=0;
+    
+    WPACKET_get_total_written(pkt,&pp_at_start);
+
     if (s==NULL || s->ctx==NULL) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
@@ -3822,6 +3829,16 @@ int ech_send_grease(SSL *s, WPACKET *pkt)
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
     }
+
+    if (s->ext.ech_sent!=NULL) OPENSSL_free(s->ext.ech_sent);
+    WPACKET_get_total_written(pkt,&pp_at_end);
+    s->ext.ech_sent_len=pp_at_end-pp_at_start;
+    s->ext.ech_sent=OPENSSL_malloc(s->ext.ech_sent_len);
+    if (!s->ext.ech_sent) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+        return 0;
+    }
+    memcpy(s->ext.ech_sent,pp,s->ext.ech_sent_len);
 
     s->ext.ech_grease=ECH_IS_GREASE;
 #ifndef OPENSSL_NO_SSL_TRACE

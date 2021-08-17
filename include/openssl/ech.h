@@ -35,13 +35,11 @@
 /*
  * Various externally visible length limits
  */
-// quite LARGE pem file test
 #define ECH_MAX_RRVALUE_LEN 2000 /**< Max RR value size, as given to API */
 #define ECH_MAX_ECHCONFIGEXT_LEN 100 /**< Max for an ECHConfig extension */
 #define ECH_PBUF_SIZE 8*1024 /**<  buffer for string returned via ech_cb */
 #define ECH_MIN_ECHCONFIG_LEN 32 /**< just for a sanity check */
-// just a quick test of a BIG pem file
-#define ECH_MAX_ECHCONFIG_LEN ECH_MAX_RRVALUE_LEN /**< just for a sanity check */
+#define ECH_MAX_ECHCONFIG_LEN ECH_MAX_RRVALUE_LEN /**< for a sanity check */
 #define ECH_OUTERS_MAX 10 /**< max TLS extensions we compress via outer-exts */
 #define ECH_MAX_ECH_LEN 0x100 /**< max ENC-CH peer key share we'll decode */
 #define ECH_MAX_PAYLOAD_LEN HPKE_MAXSIZE /**< max ECH ciphertext we'll decode */
