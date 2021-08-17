@@ -963,6 +963,8 @@ SSL *ossl_ssl_connection_new_int(SSL_CTX *ctx, const SSL_METHOD *method)
 
     s->ext.ech_returned=NULL;
     s->ext.ech_returned_len=0;
+    s->ext.ech_sent=NULL;
+    s->ext.ech_sent_len=0;
 #endif
     return ssl;
  cerr:
@@ -1607,6 +1609,7 @@ void ossl_ssl_connection_free(SSL *ssl)
     OPENSSL_free(s->s3.tmp.valid_flags);
 #ifndef OPENSSL_NO_ECH
     OPENSSL_free(s->ext.alpn_outer);
+    OPENSSL_free(s->ext.ech_sent);
     OPENSSL_free(s->ext.ech_returned);
     OPENSSL_free(s->ext.ech_grease_suite);
     OPENSSL_free(s->ext.innerch);
@@ -5242,6 +5245,13 @@ SSL *SSL_dup(SSL *s)
     retsc->ext.ech_success=sc->ext.ech_success;
     retsc->ext.ech_grease=sc->ext.ech_grease;
     retsc->ext.ch_depth=sc->ext.ch_depth;
+    if (sc->ext.ech_sent) {
+        retsc->ext.ech_sent=OPENSSL_malloc(sc->ext.ech_sent_len);
+        if (!retsc->ext.ech_sent) goto err;
+        memcpy(retsc->ext.ech_sent, sc->ext.ech_sent,
+                sc->ext.ech_sent_len);
+        retsc->ext.ech_sent_len=sc->ext.ech_sent_len;
+    }
     if (sc->ext.ech_returned) {
         retsc->ext.ech_returned=OPENSSL_malloc(sc->ext.ech_returned_len);
         if (!retsc->ext.ech_returned) goto err;
