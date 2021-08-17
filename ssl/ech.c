@@ -4626,12 +4626,24 @@ static unsigned char *hpke_decrypt_encch(
         /* TODO: merge this, and any similar, with ech_get_offsets */
         /* TODO: add bounds checks */
         size_t suitesoffset=2+0x20+1;
+        if ((suitesoffset+1) > clearlen) {
+            OPENSSL_free(clear);
+            return NULL;
+        }
         size_t suiteslen=(unsigned char)(clear[suitesoffset])*256+
                          (unsigned char)(clear[suitesoffset+1]);
         size_t extsoffset=suitesoffset+2+suiteslen+2;
+        if ((extsoffset+1) > clearlen) {
+            OPENSSL_free(clear);
+            return NULL;
+        }
         size_t extslen=(unsigned char)(clear[extsoffset])*256+
                        (unsigned char)(clear[extsoffset+1]);
         size_t ch_len=extsoffset+2+extslen;
+        if (ch_len>clearlen) {
+            OPENSSL_free(clear);
+            return NULL;
+        }
 #define CHECKZEROS
 #ifdef CHECKZEROS
         {
@@ -4937,14 +4949,26 @@ int ech_early_decrypt(SSL *ssl, PACKET *outerpkt, PACKET *newpkt)
         size_t enclen=0;
         size_t offsetofencwithinech=0;
         offsetofencwithinech=2+2+1+2+2+1;
+        if ((echoffset+offsetofencwithinech+1)>ch_len) {
+            SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+            goto err;
+        }
         enclen=
             ch[echoffset+offsetofencwithinech]*256+
             ch[echoffset+offsetofencwithinech+1];
+        if ((echoffset+offsetofencwithinech+2+enclen+1)>ch_len) {
+            SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+            goto err;
+        }
         lenofciphertext=
             ch[echoffset+offsetofencwithinech+2+enclen]*256+
             ch[echoffset+offsetofencwithinech+2+enclen+1];
         startofciphertext=echoffset+offsetofencwithinech+2+enclen+2;
-        if (ch_len>aad_len) {
+        if ((startofciphertext+lenofciphertext)>ch_len) {
+            SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+            goto err;
+        }
+        if (ch_len>HPKE_MAXSIZE) {
             SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
             goto err;
         }
