@@ -2,14 +2,18 @@ Welcome to the OpenSSL Project
 ==============================
 
 This is sftcd's fork of OpenSSL to implement Encrypted Client Hello (ECH).
-This is not well tested. Do not use it other than for testing. 
+This is not well tested. Do not use it other than for testing.
 
-The latest code for that is in the [ECH-without-ESNI](https://github.com/sftcd/openssl/tree/ECH-without-ESNI)
-branch, which you ought checkout to work with this. You'll then find details of
-the state of play, tools, integrations etc. in a [README](https://github.com/sftcd/openssl/tree/ECH-without-ESNI/esnistuff/).
+The latest sorta-stable-ish code for that is in the [ECH_UPFRONT_DEC](https://github.com/sftcd/openssl/tree/ECH_UPFRONT_DEC)
+branch, that interops with others and implements [esni-draft-10](https://datatracker.ietf.org/doc/html/draft-ietf-tls-esni-10). 
+Most likely, if you're interested you ought work with that for now. You'll then find details of
+the state of play, tools, integrations etc. in a [README](https://github.com/sftcd/openssl/tree/ECH_UPFRONT_DEC/esnistuff/).
+The current development for [esni-draft-13](https://github.com/tlswg/draft-ietf-tls-esni) 
+is [ECH-draft-13a](https://github.com/sftcd/openssl/tree/ECH-draft-13a). 
 
-There is an older branch that also includes code for the earlier Encrypted Server Name Indication 
-[(ESNI)](https://github.com/sftcd/openssl/tree/ESNI-and-ECH/esnistuff). 
+There is an older branch that also includes code for the earlier Encrypted
+Server Name Indication
+[(ESNI)](https://github.com/sftcd/openssl/tree/ESNI-and-ECH/esnistuff).
 
 [![openssl logo]][www.openssl.org]
 
