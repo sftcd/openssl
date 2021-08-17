@@ -5419,7 +5419,6 @@ int ech_early_decrypt(SSL *ssl, PACKET *outerpkt, PACKET *newpkt)
                 goto err;
             }
         } 
-
         if ((echoffset+offsetofencwithinech+2+enclen+1)>ch_len) {
             SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
             goto err;
