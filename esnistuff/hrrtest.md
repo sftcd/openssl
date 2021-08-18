@@ -46,4 +46,4 @@ If we run the usual client...
 
             $ ./echcli.sh -dv -p 8443 -s localhost -H foo.example.com -P d13mnl.pem
 
-...we get a fine client leak! (at extensions_clnt.c:2120)
+...we get a fine error followed by client leaks! (at extensions_clnt.c:2120)
