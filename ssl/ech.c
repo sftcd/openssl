@@ -4644,6 +4644,8 @@ static unsigned char *hpke_decrypt_encch(
         size_t suitesoffset=2+0x20+1;
         size_t suiteslen=0;
         size_t extsoffset=0;
+        size_t extslen=0;
+        size_t ch_len=0;
         if ((suitesoffset+1) > clearlen) {
             OPENSSL_free(clear);
             return NULL;
@@ -4655,9 +4657,9 @@ static unsigned char *hpke_decrypt_encch(
             OPENSSL_free(clear);
             return NULL;
         }
-        size_t extslen=(unsigned char)(clear[extsoffset])*256+
+        extslen=(unsigned char)(clear[extsoffset])*256+
                        (unsigned char)(clear[extsoffset+1]);
-        size_t ch_len=extsoffset+2+extslen;
+        ch_len=extsoffset+2+extslen;
         if (ch_len>clearlen) {
             OPENSSL_free(clear);
             return NULL;
