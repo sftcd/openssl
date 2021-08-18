@@ -107,9 +107,9 @@ do
         -p|--port) SUPPLIEDPORT=$2; shift;;
         -P|--pad) ECHPAD="yes";;
         -R|--hrr) FORCEHRR="yes";;
-        -T|--trialdecrypt) TRIALDECRYPT="yes"; shift;;
-        -v|--valgrind) VG="yes" ;;
-        -w|--web) WEBSERVER=" -WWW " ;;
+        -T|--trialdecrypt) TRIALDECRYPT="yes";;
+        -v|--valgrind) VG="yes";;
+        -w|--web) WEBSERVER=" -WWW ";;
         (--) shift; break;;
         (-*) echo "$0: error - unrecognized option $1" 1>&2; exit 1;;
         (*)  break;;
@@ -150,7 +150,10 @@ fi
 hrr_cmd=""
 if [[ "$FORCEHRR" == "yes" ]]
 then
+    echo "Forcing HRR"
     hrr_cmd=" -groups P-384"
+else
+    echo "Not forcing HRR"
 fi
 
 KEYFILE1=$CFGTOP/esnistuff/cadir/$clear_sni.priv

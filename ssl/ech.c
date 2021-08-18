@@ -4642,13 +4642,15 @@ static unsigned char *hpke_decrypt_encch(
         /* TODO: merge this, and any similar, with ech_get_offsets */
         /* TODO: add bounds checks */
         size_t suitesoffset=2+0x20+1;
+        size_t suiteslen=0;
+        size_t extsoffset=0;
         if ((suitesoffset+1) > clearlen) {
             OPENSSL_free(clear);
             return NULL;
         }
-        size_t suiteslen=(unsigned char)(clear[suitesoffset])*256+
+        suiteslen=(unsigned char)(clear[suitesoffset])*256+
                          (unsigned char)(clear[suitesoffset+1]);
-        size_t extsoffset=suitesoffset+2+suiteslen+2;
+        extsoffset=suitesoffset+2+suiteslen+2;
         if ((extsoffset+1) > clearlen) {
             OPENSSL_free(clear);
             return NULL;
