@@ -1093,7 +1093,7 @@ struct ssl_ctx_st {
         /* Encrypted ClientHello details for SSL_CTX */
         int nechs;
         SSL_ECH *ech;
-        SSL_ech_cb_func ech_cb; 
+        SSL_ech_cb_func ech_cb;
         unsigned char *alpn_outer;
         size_t alpn_outer_len;
 #endif
@@ -1748,7 +1748,7 @@ struct ssl_connection_st {
     /* More ECH details for SSL struct */
     int nechs;
     SSL_ECH *ech;
-    SSL_ech_cb_func ech_cb; 
+    SSL_ech_cb_func ech_cb;
 #endif
 
 # ifndef OPENSSL_NO_CT

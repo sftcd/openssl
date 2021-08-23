@@ -8,7 +8,7 @@
  */
 
 /**
- * @file 
+ * @file
  * This implements the externally-visible functions
  * for handling Encrypted ClientHello (ECH)
  */
@@ -48,17 +48,17 @@
 /* For HPKE APIs */
 #include <crypto/hpke.h>
 
-/* 
- * When doing ECH, this array specifies which inner CH extensions (if 
+/*
+ * When doing ECH, this array specifies which inner CH extensions (if
  * any) are to be "compressed" using the outer extensions scheme.
  *
- * Basically, we store a 0 for "don't compress" and a 1 for "do compress" 
- * and the index is the same as the index of the extension itself. 
+ * Basically, we store a 0 for "don't compress" and a 1 for "do compress"
+ * and the index is the same as the index of the extension itself.
  *
  * This is likely to disappear before submitting a PR to upstream as
- * it'd make more sense to make this a new field in the ext_defs table 
- * in  ssl/statem/extensions.c 
- * 
+ * it'd make more sense to make this a new field in the ext_defs table
+ * in  ssl/statem/extensions.c
+ *
  * For now however, we'll keep it separate as it's still possible that
  * we might develop a better way to handle this. (Or maybe upstream devs
  * will have better ideas, or maybe the standards process will come to
@@ -104,11 +104,11 @@ static int ech_outer_config[]={
      /*TLSEXT_IDX_ech_is_inner, 0xda09 */ 0,
      /*TLSEXT_IDX_padding, 21 */ 0,
      /*TLSEXT_IDX_psk, 41 */ 0,
-    }; 
+    };
 
-/* 
+/*
  * When doing ECH, this array specifies whether, when we're not
- * compressing, we want to re-use the inner value in the outer CH  
+ * compressing, we want to re-use the inner value in the outer CH 
  * ("0") or whether to generate an independently new value for the
  * outer ("1"). That makes most sense perhaps for the key_share,
  * but maybe also for others, hence being generic.
@@ -117,7 +117,7 @@ static int ech_outer_config[]={
  * use the IOSAME macro (in ssl/statem/extensions_clnt.c) - for
  * example the ECH setting below is ignored as you'd imagine.
  *
- * As above this is likely to disappear before submitting a PR to 
+ * As above this is likely to disappear before submitting a PR to
  * upstream.
  *
  * As with ext_defs in extensions.c: NOTE: Changes in the number or order
@@ -155,11 +155,11 @@ static int ech_outer_indep[]={
      /*TLSEXT_IDX_ech_is_inner */ 0,
      /*TLSEXT_IDX_padding */ 0,
      /*TLSEXT_IDX_psk */ 0,
-}; 
+};
 
 /*
  * @brief Decode/check the value from DNS (binary, base64 or ascii-hex encoded)
- * 
+ *
  * This does the real work, can be called to add to a context or a connection
  * @param eklen length of the binary, base64 or ascii-hex encoded value from DNS
  * @param ekval is the binary, base64 or ascii-hex encoded value from DNS
@@ -168,7 +168,7 @@ static int ech_outer_indep[]={
  * @return is 1 for success, error otherwise
  */
 static int local_ech_add(
-        int ekfmt, size_t eklen, unsigned char *ekval, 
+        int ekfmt, size_t eklen, unsigned char *ekval,
         int *num_echs, SSL_ECH **echs);
 
 /**
@@ -213,7 +213,7 @@ static const char *httpssvc_telltale="ech=";
 
 /*
  * This is a special marker value. If set via a specific call
- * to our external API, then we'll override use of the 
+ * to our external API, then we'll override use of the
  * ECHConfig.public_name and send no outer SNI.
  */
 char *ech_public_name_override_null="DON'T SEND ANY OUTER NAME";
@@ -244,7 +244,7 @@ static int ech_check_filenames(SSL_CTX *ctx, const char *pemfname,int *index)
     if (ctx==NULL || pemfname==NULL || index==NULL) return(ECH_KEYPAIR_ERROR);
     /* if we have none, then it is new */
     if (ctx->ext.ech==NULL || ctx->ext.nechs==0) return(ECH_KEYPAIR_NEW);
-    /* 
+    /*
      * if no file info, crap out... hmm, that could happen if the
      * disk fails hence different return value - the application may
      * be able to continue anyway...
@@ -266,7 +266,7 @@ static int ech_check_filenames(SSL_CTX *ctx, const char *pemfname,int *index)
         size_t llen=0;
         if (ctx->ext.ech[ind].pemfname==NULL) return(ECH_KEYPAIR_ERROR);
         llen=strlen(ctx->ext.ech[ind].pemfname);
-        if (llen==pemlen && 
+        if (llen==pemlen &&
                 !strncmp(ctx->ext.ech[ind].pemfname,pemfname,pemlen)) {
             /* matching files! */
             if (ctx->ext.ech[ind].loadtime<pemmod) {
@@ -288,8 +288,8 @@ static int ech_check_filenames(SSL_CTX *ctx, const char *pemfname,int *index)
  * @brief Decode from TXT RR to binary buffer
  *
  * This is like ct_base64_decode from crypto/ct/ct_b64.c
- * but a) that's static and b) we extend here to allow a 
- * sequence of semi-colon separated strings as the input 
+ * but a) that's static and b) we extend here to allow a
+ * sequence of semi-colon separated strings as the input
  * to handle multivalued RRs. If the latter extension
  * were ok (it probably isn't) then we could merge these
  * functions, but better to not do that for now.
@@ -297,7 +297,7 @@ static int ech_check_filenames(SSL_CTX *ctx, const char *pemfname,int *index)
  * Decodes the base64 string |in| into |out|.
  * A new string will be malloc'd and assigned to |out|. This will be owned by
  * the caller. Do not provide a pre-allocated string in |out|.
- * The input is modified if multivalued (NULL bytes are added in 
+ * The input is modified if multivalued (NULL bytes are added in
  * place of semi-colon separators.
  *
  * @param in is the base64 encoded string
@@ -393,10 +393,10 @@ err:
  * @return 1 for success, otherwise error
  */
 static int ech_readpemfile(
-        SSL_CTX *ctx, 
+        SSL_CTX *ctx,
         int inputIsFile,
         const char *pemfile,
-        const unsigned char *input, 
+        const unsigned char *input,
         size_t inlen,
         SSL_ECH **sechs)
 {
@@ -482,27 +482,27 @@ static int ech_readpemfile(
     (*sechs)->pemfname=OPENSSL_strdup(pemfile);
     (*sechs)->loadtime=time(0);
     (*sechs)->keyshare=priv;
-    if (pheader!=NULL) OPENSSL_free(pheader); 
-    if (pname!=NULL) OPENSSL_free(pname); 
-    if (pdata!=NULL) OPENSSL_free(pdata); 
+    if (pheader!=NULL) OPENSSL_free(pheader);
+    if (pname!=NULL) OPENSSL_free(pname);
+    if (pdata!=NULL) OPENSSL_free(pdata);
 
     return(1);
 
 err:
     if (priv!=NULL) EVP_PKEY_free(priv);
-    if (pheader!=NULL) OPENSSL_free(pheader); 
-    if (pname!=NULL) OPENSSL_free(pname); 
-    if (pdata!=NULL) OPENSSL_free(pdata); 
+    if (pheader!=NULL) OPENSSL_free(pheader);
+    if (pname!=NULL) OPENSSL_free(pname);
+    if (pdata!=NULL) OPENSSL_free(pdata);
     if (pem_in!=NULL) BIO_free(pem_in);
     if (*sechs) { SSL_ECH_free(*sechs); OPENSSL_free(*sechs); *sechs=NULL;}
     return(0);
 }
 
 /**
- * @brief Try figure out ECHConfig encodng by looking for telltales 
+ * @brief Try figure out ECHConfig encodng by looking for telltales
  *
  * We try check from most to least restrictive  to avoid wrong
- * answers. IOW we try from most constrained to least in that 
+ * answers. IOW we try from most constrained to least in that
  * order.
  *
  * The wrong answer could be derived with a low probability.
@@ -514,7 +514,7 @@ err:
  * @param guessedfmt is our returned guess at the format
  * @return 1 for success, 0 for error
  */
-static int ech_guess_fmt(size_t eklen, 
+static int ech_guess_fmt(size_t eklen,
                     unsigned char *rrval,
                     int *guessedfmt)
 {
@@ -532,7 +532,7 @@ static int ech_guess_fmt(size_t eklen,
         *guessedfmt=ECH_FMT_BIN;
     }
     return(1);
-} 
+}
 
 /**
  * @brief Free an ECHConfig structure's internals
@@ -589,7 +589,7 @@ void ECH_ENCCH_free(ECH_ENCCH *ev)
 /**
  * @brief Free and NULL a simple malloc'd item
  *
- * Macro to free tbf->X if it's non NULL, 
+ * Macro to free tbf->X if it's non NULL,
  * and then set it to NULL - that last is
  * sometimes needed if inner and outer CH
  * have common structures so we don't try
@@ -603,7 +603,7 @@ void ECH_ENCCH_free(ECH_ENCCH *ev)
  *
  * Free everything within an SSL_ECH. Note that the
  * caller has to free the top level SSL_ECH, IOW the
- * pattern here is: 
+ * pattern here is:
  *      SSL_ECH_free(tbf);
  *      OPENSSL_free(tbf);
  *
@@ -623,8 +623,8 @@ void SSL_ECH_free(SSL_ECH *tbf)
         CFREE(outer_name);
     }
     CFREE(pemfname);
-    if (tbf->keyshare!=NULL) { 
-        EVP_PKEY_free(tbf->keyshare); tbf->keyshare=NULL; 
+    if (tbf->keyshare!=NULL) {
+        EVP_PKEY_free(tbf->keyshare); tbf->keyshare=NULL;
     }
     memset(tbf,0,sizeof(SSL_ECH));
     return;
@@ -646,7 +646,7 @@ static void ECH_DETS_free(ECH_DETS *in)
     return;
 }
 
-/** 
+/**
  * @brief free up memory for an ECH_DETS
  *
  * @param in is the structure to free up
@@ -657,20 +657,20 @@ void SSL_ECH_DETS_free(ECH_DETS *in, int size)
     int i=0;
     if (!in) return;
     if (size<=0) return;
-    for(i=0;i!=size;i++) { 
+    for(i=0;i!=size;i++) {
         ECH_DETS_free(&in[i]);
     }
     OPENSSL_free(in);
     return;
 }
 
-/** 
+/**
  * @brief Utility field-copy function (used by macro below)
  *
  * Copy a field old->foo based on old->foo_len to new->foo
  * We allocate one extra octet in case the value is a
  * string and NUL that out.
- * 
+ *
  * @param old is the source buffer
  * @param len is the source buffer size
  * @return is NULL or the copied buffer
@@ -684,7 +684,7 @@ static void *ech_len_field_dup(void *old, unsigned int len)
     memcpy(new,old,len);
     memset((unsigned char*)new+len,0,1);
     return new;
-} 
+}
 
 /**
  * @brief Copy old->f (with length flen) to new->f
@@ -761,10 +761,10 @@ static int ECHConfigs_dup(ECHConfigs *old, ECHConfigs *new)
         }
         new->encoded_len=old->encoded_len;
     }
-    new->recs=OPENSSL_malloc(old->nrecs*sizeof(ECHConfig)); 
+    new->recs=OPENSSL_malloc(old->nrecs*sizeof(ECHConfig));
     if (!new->recs) return(0);
     new->nrecs=old->nrecs;
-    memset(new->recs,0,old->nrecs*sizeof(ECHConfig)); 
+    memset(new->recs,0,old->nrecs*sizeof(ECHConfig));
     for (i=0;i!=old->nrecs;i++) {
         if (ECHConfig_dup(&old->recs[i],&new->recs[i])!=1) return(0);
     }
@@ -772,23 +772,23 @@ static int ECHConfigs_dup(ECHConfigs *old, ECHConfigs *new)
 }
 
 /**
- * @brief Decode the first ECHConfigs from a binary buffer 
+ * @brief Decode the first ECHConfigs from a binary buffer
  *
  * (and say how may octets not consumed)
  *
  * @param binbuf is the buffer with the encoding
  * @param binblen is the length of binbunf
  * @param leftover is the number of unused octets from the input
- * @return NULL on error, or a pointer to an ECHConfigs structure 
+ * @return NULL on error, or a pointer to an ECHConfigs structure
  */
 static ECHConfigs *ECHConfigs_from_binary(
-        unsigned char *binbuf, 
-        size_t binblen, 
+        unsigned char *binbuf,
+        size_t binblen,
         int *leftover)
 {
     ECHConfigs *er=NULL; /* ECHConfigs record */
     ECHConfig  *te=NULL; /* Array of ECHConfig to be embedded in that */
-    int rind=0; 
+    int rind=0;
     size_t remaining=0;
     PACKET pkt;
     unsigned int olen=0;
@@ -804,12 +804,12 @@ static ECHConfigs *ECHConfigs_from_binary(
     if (binblen >= ECH_MAX_ECHCONFIG_LEN) {
         goto err;
     }
-    
+   
     if (PACKET_buf_init(&pkt,binbuf,binblen)!=1) {
         goto err;
     }
 
-    /* 
+    /*
      * Overall length of this ECHConfigs (olen) still could be
      * less than the input buffer length, (binblen) if the caller has been
      * given a catenated set of binary buffers, which could happen
@@ -866,13 +866,13 @@ static ECHConfigs *ECHConfigs_from_binary(
         }
 
         /*
-         * check version 
+         * check version
          */
         switch(ec->version) {
             case ECH_DRAFT_10_VERSION:
             case ECH_DRAFT_13_VERSION:
                 break;
-            default: 
+            default:
                 /* skip over in case we get something we can handle later */
                 {
                     unsigned char *foo=OPENSSL_malloc(ech_content_length);
@@ -1068,7 +1068,7 @@ static ECHConfigs *ECHConfigs_from_binary(
                 ec->exts=vip;
                 ec->exts[ec->nexts-1]=extval;
             }
-    
+   
         } /* END of ECH_DRAFT_10_VERSION ... or 13*/
 
         /* set length of encoding of this ECHConfig */
@@ -1112,7 +1112,7 @@ err:
         er=NULL;
     }
     if (te) {
-        OPENSSL_free(te); 
+        OPENSSL_free(te);
         te=NULL;
     }
     return NULL;
@@ -1120,7 +1120,7 @@ err:
 
 /*
  * @brief Decode/check the value from DNS (binary, base64 or ascii-hex encoded)
- * 
+ *
  * This does the real work, can be called to add to a context or a connection
  *
  * @param eklen length of the binary, base64 or ascii-hex encoded value from DNS
@@ -1130,9 +1130,9 @@ err:
  * @return is 1 for success, error otherwise
  */
 static int local_ech_add(
-        int ekfmt, 
-        size_t eklen, 
-        unsigned char *ekval, 
+        int ekfmt,
+        size_t eklen,
+        unsigned char *ekval,
         int *num_echs,
         SSL_ECH **echs)
 {
@@ -1232,7 +1232,7 @@ static int local_ech_add(
         retechs=ts;
         newech=&retechs[nlens-1];
         memset(newech,0,sizeof(SSL_ECH));
-    
+   
         er=ECHConfigs_from_binary(outp,oleftover,&leftover);
         if (er==NULL) {
             goto err;
@@ -1240,8 +1240,8 @@ static int local_ech_add(
         newech->cfg=er;
 
         /*
-         * If needed, flatten the storage so each SSL_ECH has exactly 
-         * one ECHConfig which has exactly one public key, thus enabling 
+         * If needed, flatten the storage so each SSL_ECH has exactly
+         * one ECHConfig which has exactly one public key, thus enabling
          * the application to sensibly downselect if they wish.
          */
         if (er->nrecs>1) {
@@ -1342,7 +1342,7 @@ static int local_decode_rdata_name(
 
     clen=*cp++;
     if (clen==0) {
-        /* 
+        /*
          * special case - return "." as name
          */
         thename[0]='.';
@@ -1364,24 +1364,24 @@ static int local_decode_rdata_name(
 }
 
 /**
- * @brief Decode/store ECHConfigs (binary, base64, or ascii-hex encoded) 
+ * @brief Decode/store ECHConfigs (binary, base64, or ascii-hex encoded)
  *
  * ekval may be the catenation of multiple encoded ECHConfigs.
  * We internally try decode and handle those and (later)
- * use whichever is relevant/best. The fmt parameter can be 
+ * use whichever is relevant/best. The fmt parameter can be
  * e.g. ECH_FMT_ASCII_HEX, or ECH_FMT_GUESS
  *
- * @param con is the SSL connection 
+ * @param con is the SSL connection
  * @param eklen is the length of the ekval
  * @param ekval is the binary, base64 or ascii-hex encoded ECHConfigs
  * @param num_echs says how many SSL_ECH structures are in the returned array
  * @return is 1 for success, error otherwise
  */
 int SSL_ech_add(
-        SSL *s, 
-        int ekfmt, 
-        size_t eklen, 
-        char *ekval, 
+        SSL *con,
+        int ekfmt,
+        size_t eklen,
+        char *ekval,
         int *num_echs)
 {
     int rv=1;
@@ -1407,11 +1407,11 @@ int SSL_ech_add(
 }
 
 /**
- * @brief Decode/store ECHConfigs (binary, base64 or ascii-hex encoded) 
+ * @brief Decode/store ECHConfigs (binary, base64 or ascii-hex encoded)
  *
  * ekval may be the catenation of multiple encoded ECHConfigs.
  * We internally try decode and handle those and (later)
- * use whichever is relevant/best. The fmt parameter can be 
+ * use whichever is relevant/best. The fmt parameter can be
  * e.g. ECH_FMT_ASCII_HEX, or ECH_FMT_GUESS
  *
  * @param ctx is the parent SSL_CTX
@@ -1421,10 +1421,10 @@ int SSL_ech_add(
  * @return is 1 for success, error otherwise
  */
 int SSL_CTX_ech_add(
-        SSL_CTX *ctx, 
-        short ekfmt, 
-        size_t eklen, 
-        char *ekval, 
+        SSL_CTX *ctx,
+        short ekfmt,
+        size_t eklen,
+        char *ekval,
         int *num_echs)
 {
     SSL_ECH *echs=NULL;
@@ -1448,22 +1448,22 @@ int SSL_CTX_ech_add(
  * @brief Try turn on ECH for an (upcoming) TLS session on a client
  *
  * If outer_name is provided via this API as NULL, then
- * we'll use the ECHConfig.public_name. 
+ * we'll use the ECHConfig.public_name.
  * If outer_name is ECH_PUBLIC_NAME_OVERRIDE_NULL then
  * no outer SNI will be sent.
- * If outer_name is not NULL then that value will override 
+ * If outer_name is not NULL then that value will override
  * the ECHConfig.public_name.
  *
  * For inner_name, a non-NULL value set will be sent as
- * the inner SNI (if things work). 
+ * the inner SNI (if things work).
  * If the inner_name is NULL, then no SNI will be sent
  * in the inner CH.
- * 
- * @param ssl is the SSL context
+ *
+ * @param s is the SSL context
  * @param inner_name is NULL or the hidden service name
  * @param outer_name is NULL or the the cleartext SNI to use
  * @return 1 for success, error otherwise
- * 
+ *
  */
 int SSL_ech_server_name(SSL *ssl, const char *inner_name, const char *outer_name)
 {
@@ -1476,21 +1476,21 @@ int SSL_ech_server_name(SSL *ssl, const char *inner_name, const char *outer_name
     for (nind=0;nind!=s->nechs;nind++) {
         if (s->ech[nind].inner_name!=NULL)
             OPENSSL_free(s->ech[nind].outer_name);
-        if (inner_name!=NULL && strlen(inner_name)>0) 
+        if (inner_name!=NULL && strlen(inner_name)>0)
             s->ech[nind].inner_name=OPENSSL_strdup(inner_name);
         else s->ech[nind].inner_name=NULL;
-        if (s->ech[nind].outer_name!=NULL && 
-                s->ech[nind].outer_name!=ECH_PUBLIC_NAME_OVERRIDE_NULL) 
+        if (s->ech[nind].outer_name!=NULL &&
+                s->ech[nind].outer_name!=ECH_PUBLIC_NAME_OVERRIDE_NULL)
             OPENSSL_free(s->ech[nind].outer_name);
         if (outer_name!=NULL && strlen(outer_name)>0 &&
-                outer_name!=ECH_PUBLIC_NAME_OVERRIDE_NULL) 
+                outer_name!=ECH_PUBLIC_NAME_OVERRIDE_NULL)
             s->ech[nind].outer_name=OPENSSL_strdup(outer_name);
-        else if (outer_name==ECH_PUBLIC_NAME_OVERRIDE_NULL) 
+        else if (outer_name==ECH_PUBLIC_NAME_OVERRIDE_NULL)
             s->ech[nind].outer_name=ECH_PUBLIC_NAME_OVERRIDE_NULL;
         else s->ech[nind].outer_name=NULL;
     }
 
-    s->ext.ech_attempted=1; 
+    s->ext.ech_attempted=1;
     s->ext.ech_attempted_type=TLSEXT_TYPE_ech_unknown;
     return 1;
 }
@@ -1499,12 +1499,12 @@ int SSL_ech_server_name(SSL *ssl, const char *inner_name, const char *outer_name
  * @brief Set the outer SNI
  *
  * If outer_name is provided via this API as NULL, then
- * we'll use the ECHConfig.public_name. 
+ * we'll use the ECHConfig.public_name.
  * If outer_name is ECH_PUBLIC_NAME_OVERRIDE_NULL then
  * no outer SNI will be sent.
- * If outer_name is not NULL then that value will override 
+ * If outer_name is not NULL then that value will override
  * the ECHConfig.public_name.
- * 
+ *
  * @param ssl is the SSL context
  * @param outer_name is the (to be) hidden service name
  * @return 1 for success, error otherwise
@@ -1519,38 +1519,38 @@ int SSL_ech_set_outer_server_name(SSL *ssl, const char *outer_name)
     for (nind=0;nind!=s->nechs;nind++) {
 
         if (s->ech[nind].outer_name!=NULL &&
-                s->ech[nind].outer_name!=ECH_PUBLIC_NAME_OVERRIDE_NULL) 
+                s->ech[nind].outer_name!=ECH_PUBLIC_NAME_OVERRIDE_NULL)
             OPENSSL_free(s->ech[nind].outer_name);
         if (outer_name!=NULL && strlen(outer_name)>0 &&
-                outer_name!=ECH_PUBLIC_NAME_OVERRIDE_NULL) 
+                outer_name!=ECH_PUBLIC_NAME_OVERRIDE_NULL)
             s->ech[nind].outer_name=OPENSSL_strdup(outer_name);
-        else if (outer_name==ECH_PUBLIC_NAME_OVERRIDE_NULL) 
+        else if (outer_name==ECH_PUBLIC_NAME_OVERRIDE_NULL)
             s->ech[nind].outer_name=ECH_PUBLIC_NAME_OVERRIDE_NULL;
         else s->ech[nind].outer_name=NULL;
         /* if this is called and an SNI is set already we copy that to inner */
         if (s->ext.hostname) {
-            if (s->ech[nind].inner_name!=NULL) 
+            if (s->ech[nind].inner_name!=NULL)
                 OPENSSL_free(s->ech[nind].outer_name);
             s->ech[nind].inner_name=OPENSSL_strdup(s->ext.hostname);
         }
-    
+   
     }
 
-    s->ext.ech_attempted=1; 
+    s->ext.ech_attempted=1;
     s->ext.ech_attempted_type=TLSEXT_TYPE_ech_unknown;
     return 1;
 }
 
 /**
  * @brief Set the outer SNI
- * 
+ *
  * If outer_name is provided via this API as NULL, then
- * we'll use the ECHConfig.public_name. 
+ * we'll use the ECHConfig.public_name.
  * If outer_name is ECH_PUBLIC_NAME_OVERRIDE_NULL then
  * no outer SNI will be sent.
- * If outer_name is not NULL then that value will override 
+ * If outer_name is not NULL then that value will override
  * the ECHConfig.public_name.
- * 
+ *
  * @param s is the SSL_CTX
  * @param outer_name is the (to be) hidden service name
  * @return 1 for success, error otherwise
@@ -1564,12 +1564,12 @@ int SSL_CTX_ech_set_outer_server_name(SSL_CTX *s, const char *outer_name)
     for (nind=0;nind!=s->ext.nechs;nind++) {
 
         if (s->ext.ech[nind].outer_name!=NULL &&
-                s->ext.ech[nind].outer_name!=ECH_PUBLIC_NAME_OVERRIDE_NULL) 
+                s->ext.ech[nind].outer_name!=ECH_PUBLIC_NAME_OVERRIDE_NULL)
             OPENSSL_free(s->ext.ech[nind].outer_name);
         if (outer_name!=NULL && strlen(outer_name)>0 &&
-                outer_name!=ECH_PUBLIC_NAME_OVERRIDE_NULL) 
+                outer_name!=ECH_PUBLIC_NAME_OVERRIDE_NULL)
             s->ext.ech[nind].outer_name=OPENSSL_strdup(outer_name);
-        else if (outer_name==ECH_PUBLIC_NAME_OVERRIDE_NULL) 
+        else if (outer_name==ECH_PUBLIC_NAME_OVERRIDE_NULL)
             s->ext.ech[nind].outer_name=ECH_PUBLIC_NAME_OVERRIDE_NULL;
         else s->ext.ech[nind].outer_name=NULL;
 
@@ -1581,7 +1581,7 @@ int SSL_CTX_ech_set_outer_server_name(SSL_CTX *s, const char *outer_name)
 /**
  * @brief return a printable form of alpn
  *
- * ALPNs are multi-valued, with lengths between, we 
+ * ALPNs are multi-valued, with lengths between, we
  * map that to a comma-sep list
  *
  * @param alpn is the buffer with alpns
@@ -1619,7 +1619,7 @@ static char *alpn_print(unsigned char *alpn, size_t len)
  *
  * @param ssl is the SSL session
  * @param out is the externally visible form of the SSL_ECH structure
- * @param nindices says how many entries are in the ECH_DETS structure 
+ * @param nindices says how many entries are in the ECH_DETS structure
  * @return 1 for success, error otherwise
  */
 int SSL_ech_query(SSL *ssl, ECH_DETS **out, int *nindices)
@@ -1632,7 +1632,7 @@ int SSL_ech_query(SSL *ssl, ECH_DETS **out, int *nindices)
     if (!s || !out || !nindices) goto err;
     indices=s->nechs;
     if (!s->ech || s->nechs<=0) {
-        *out=NULL; 
+        *out=NULL;
         *nindices=0;
         return 1;
     }
@@ -1655,8 +1655,8 @@ int SSL_ech_query(SSL *ssl, ECH_DETS **out, int *nindices)
             inst->outer_alpns=
                 alpn_print(s->ext.alpn_outer,s->ext.alpn_outer_len);
         }
-        /* 
-         * Now "print" the ECHConfig(s) 
+        /*
+         * Now "print" the ECHConfig(s)
          */
         if (s->ech[i].cfg) {
             inst->echconfig=ECHConfigs_print(s->ech[i].cfg);
@@ -1699,7 +1699,7 @@ int SSL_ECH_DETS_print(BIO* out, ECH_DETS *se, int count)
 /**
  * @brief down-select to use of one option with an SSL_ECH
  *
- * This allows the caller to select one of the ECHConfig values 
+ * This allows the caller to select one of the ECHConfig values
  * within an SSL_ECH for later use.
  *
  * @param ssl is an SSL structure with possibly multiple ECHConfigs
@@ -1783,7 +1783,7 @@ int SSL_CTX_ech_server_flush_keys(SSL_CTX *s, int age)
             SSL_ECH_free(ep);
             deleted++;
             continue;
-        } 
+        }
         s->ext.ech[i-deleted]=s->ext.ech[i]; /* struct copy! */
     }
     s->ext.nechs -= deleted;
@@ -1870,7 +1870,7 @@ int SSL_CTX_ech_server_enable(SSL_CTX *ctx, const char *pemfile)
         *curr_ec=*sechs; /* struct copy */
         OPENSSL_free(sechs);
         return(1);
-    } 
+    }
     if (fnamestat==ECH_KEYPAIR_NEW) {
         SSL_ECH *re_ec=OPENSSL_realloc(ctx->ext.ech,
                             (ctx->ext.nechs+1)*sizeof(SSL_ECH));
@@ -1887,7 +1887,7 @@ int SSL_CTX_ech_server_enable(SSL_CTX *ctx, const char *pemfile)
         ctx->ext.nechs++;
         OPENSSL_free(sechs);
         return(1);
-    } 
+    }
 
     return 0;
 }
@@ -1905,8 +1905,8 @@ int SSL_CTX_ech_server_enable(SSL_CTX *ctx, const char *pemfile)
  * @return success:1, other otherwise
  */
 int SSL_CTX_ech_server_enable_buffer(
-        SSL_CTX *ctx, 
-        const unsigned char *buf, 
+        SSL_CTX *ctx,
+        const unsigned char *buf,
         const size_t blen)
 {
     SSL_ECH *sechs=NULL;
@@ -1922,7 +1922,7 @@ int SSL_CTX_ech_server_enable_buffer(
     SSL_ECH *new_ec=NULL;
 
     /*
-     * Pseudo-filename is hash of input buffer 
+     * Pseudo-filename is hash of input buffer
      */
     md=ctx->ssl_digest_methods[SSL_HANDSHAKE_MAC_SHA256];
     mdctx = EVP_MD_CTX_new();
@@ -1934,9 +1934,9 @@ int SSL_CTX_ech_server_enable_buffer(
         return(0);
     }
     if (mdctx) EVP_MD_CTX_free(mdctx);
-    /* 
-     * AH encode hashval to be a string, as replacement for 
-     * file name 
+    /*
+     * AH encode hashval to be a string, as replacement for
+     * file name
      */
     for (i=0;i!=hashlen;i++) {
         uint8_t tn=(hashval[i]>>4)&0x0f;
@@ -1948,11 +1948,11 @@ int SSL_CTX_ech_server_enable_buffer(
 
     /*
      * Check if we have that buffer loaded already
-     * If we did, we're done 
+     * If we did, we're done
      */
     for (j=0;j!=ctx->ext.nechs;j++) {
         SSL_ECH *se=&ctx->ext.ech[j];
-        if (se->pemfname 
+        if (se->pemfname
             && strlen(se->pemfname)==strlen(ah_hash)
             && !memcpy(se->pemfname,ah_hash,strlen(ah_hash))) {
             /*
@@ -1997,14 +1997,14 @@ int SSL_CTX_ech_server_enable_buffer(
 
 }
 
-/** 
+/**
  * @brief Print the status/content of an SSL session wrt ECH
  *
  * @param out is the BIO to use (e.g. stdout/whatever)
  * @param ssl is an SSL session strucutre
  * @param selector all (ECH_SELECT_ALL==-1) or just one of the SSL_ECH values
  * @return 1 for success, anything else for failure
- * 
+ *
  */
 int SSL_ech_print(BIO* out, SSL *ssl, int selector)
 {
@@ -2085,15 +2085,15 @@ int SSL_ech_get_status(SSL *ssl, char **inner_sni, char **outer_sni)
     *inner_sni=NULL;
 
     if (s->ext.ech_grease==ECH_IS_GREASE) {
-        if (s->ext.ech_returned) 
+        if (s->ext.ech_returned)
             return SSL_ECH_STATUS_GREASE_ECH;
-        return SSL_ECH_STATUS_GREASE; 
+        return SSL_ECH_STATUS_GREASE;
     }
     if (s->ext.ech_backend) {
-        return SSL_ECH_STATUS_BACKEND; 
+        return SSL_ECH_STATUS_BACKEND;
     }
     if (s->ech==NULL) {
-        return SSL_ECH_STATUS_NOT_CONFIGURED; 
+        return SSL_ECH_STATUS_NOT_CONFIGURED;
     }
 
     /*
@@ -2111,7 +2111,7 @@ int SSL_ech_get_status(SSL *ssl, char **inner_sni, char **outer_sni)
         }
     }
 
-    if (s->ech!=NULL && s->ext.ech_attempted==1 && 
+    if (s->ech!=NULL && s->ext.ech_attempted==1 &&
             s->ext.ech_grease!=ECH_IS_GREASE) {
         long vr=X509_V_OK;
         vr=SSL_get_verify_result(ssl);
@@ -2124,13 +2124,13 @@ int SSL_ech_get_status(SSL *ssl, char **inner_sni, char **outer_sni)
                 return SSL_ECH_STATUS_BAD_NAME;
             }
         } else {
-            if (s->ext.ech_returned) 
+            if (s->ext.ech_returned)
                 return SSL_ECH_STATUS_FAILED_ECH;
             return SSL_ECH_STATUS_FAILED;
         }
     } else if (s->ext.ech_grease==ECH_IS_GREASE) {
         return SSL_ECH_STATUS_GREASE;
-    } 
+    }
     return SSL_ECH_STATUS_NOT_TRIED;
 }
 
@@ -2165,7 +2165,7 @@ static char *ECHConfigs_print(ECHConfigs *c)
     for (i=0;i!=c->nrecs;i++) {
         unsigned int j=0;
         STILLLEFT(1);
-        *cp++='['; 
+        *cp++='[';
         /* version */
         STILLLEFT(5);
         snprintf(cp,(alen-(cp-str)),"%04x,",c->recs[i].version); cp+=5;
@@ -2174,7 +2174,7 @@ static char *ECHConfigs_print(ECHConfigs *c)
         snprintf(cp,(alen-(cp-str)),"%02x,",c->recs[i].config_id); cp+=3;
         /* public_name */
         STILLLEFT(c->recs[i].public_name_len+1);
-        snprintf(cp,(alen-(cp-str)),"%s,",c->recs[i].public_name); 
+        snprintf(cp,(alen-(cp-str)),"%s,",c->recs[i].public_name);
         cp+=(c->recs[i].public_name_len+1);
         /* ciphersuites */
         STILLLEFT(6);
@@ -2216,7 +2216,7 @@ static char *ECHConfigs_print(ECHConfigs *c)
         *cp++=']';
     }
     STILLLEFT(1);
-    *cp++='\0'; 
+    *cp++='\0';
     return(str);
 }
 
@@ -2227,7 +2227,7 @@ static char *ECHConfigs_print(ECHConfigs *c)
  *
  * @param orig is the input array of SSL_ECH to be partly deep-copied
  * @param nech is the number of elements in the array
- * @param selector dup all (ECH_SELECT_ALL==-1) or just one 
+ * @param selector dup all (ECH_SELECT_ALL==-1) or just one
  * @return a deep-copy array or NULL if errors occur
  */
 SSL_ECH* SSL_ECH_dup(SSL_ECH* orig, size_t nech, int selector)
@@ -2278,15 +2278,15 @@ err:
 }
 
 /**
- * @brief Decode SVCB/HTTPS RR value provided as binary or ascii-hex 
+ * @brief Decode SVCB/HTTPS RR value provided as binary or ascii-hex
  *
  * The rrval may be the catenation of multiple encoded ECHConfigs.
  * We internally try decode and handle those and (later)
- * use whichever is relevant/best. The fmt parameter can be e.g. 
+ * use whichever is relevant/best. The fmt parameter can be e.g.
  * ECH_FMT_ASCII_HEX.
  *
  * Note that we "succeed" even if there is no ECHConfigs in the input - some
- * callers might download the RR from DNS and pass it here without looking 
+ * callers might download the RR from DNS and pass it here without looking
  * inside, and there are valid uses of such RRs. The caller can check though
  * using the num_echs output.
  *
@@ -2297,10 +2297,10 @@ err:
  * @return is 1 for success, error otherwise
  */
 static int local_svcb_add(
-        int rrfmt, 
-        size_t rrlen, 
-        char *rrval, 
-        int *num_echs, 
+        int rrfmt,
+        size_t rrlen,
+        char *rrval,
+        int *num_echs,
         SSL_ECH **echs)
 {
     int detfmt=ECH_FMT_GUESS;
@@ -2346,7 +2346,7 @@ static int local_svcb_add(
     cp=binbuf;
     remaining=binlen;
 
-    /* 
+    /*
      * skip 2 octet priority and TargetName as those are the
      * application's responsibility, not the library's
      */
@@ -2371,7 +2371,7 @@ static int local_svcb_add(
             cp+=plen;
             remaining-=plen;
         }
-    } 
+    }
     if (!done) {
         *num_echs=0;
         OPENSSL_free(binbuf);
@@ -2383,7 +2383,7 @@ static int local_svcb_add(
     rv=local_ech_add(ECH_FMT_BIN,eklen,ekval,num_echs,echs);
     if (rv!=1) {
         goto err;
-    } 
+    }
     OPENSSL_free(binbuf);
     return(1);
 err:
@@ -2393,7 +2393,7 @@ err:
 }
 
 /**
- * @brief Decode/store SVCB/HTTPS RR value provided as (binary or ascii-hex encoded) 
+ * @brief Decode/store SVCB/HTTPS RR value provided as (binary or ascii-hex encoded)
  *
  * The input rrval may be the catenation of multiple encoded ECHConfigs.
  * We internally try decode and handle those and (later)
@@ -2444,7 +2444,7 @@ int SSL_CTX_svcb_add(SSL_CTX *ctx, short rrfmt, size_t rrlen, char *rrval, int *
 }
 
 /**
- * @brief Decode/store SVCB/HTTPS RR value provided as (binary or ascii-hex encoded) 
+ * @brief Decode/store SVCB/HTTPS RR value provided as (binary or ascii-hex encoded)
  *
  * The input rrval may be the catenation of multiple encoded ECHConfigs.
  * We internally try decode and handle those and (later)
@@ -2454,7 +2454,7 @@ int SSL_CTX_svcb_add(SSL_CTX *ctx, short rrfmt, size_t rrlen, char *rrval, int *
  * into account if it cared about priority.
  * In the case of decoding error, any existing ECHConfigs are unaffected.
  *
- * @param ssl is the SSL session 
+ * @param ssl is the SSL session
  * @param rrlen is the length of the rrval
  * @param rrval is the binary, base64 or ascii-hex encoded RData
  * @param num_echs says how many SSL_ECH structures are in the returned array
@@ -2557,7 +2557,7 @@ int ech_same_ext(SSL *ssl, WPACKET* pkt)
         s->ext.n_outer_only++;
 #ifndef OPENSSL_NO_SSL_TRACE
         OSSL_TRACE_BEGIN(TLS) {
-            BIO_printf(trc_out, 
+            BIO_printf(trc_out,
                 "ech_same_ext: Marking ext (type %x,ind %d) for compression\n",
                 s->ext.etype,tind);
         } OSSL_TRACE_END(TLS);
@@ -2565,17 +2565,17 @@ int ech_same_ext(SSL *ssl, WPACKET* pkt)
         return(ECH_SAME_EXT_CONTINUE);
     }
 
-    /* 
+    /*
      * Copy value from inner to outer, or indicate a new value needed
      */
     if (s->ext.ch_depth==0) {
-        if (!inner->clienthello) return(ECH_SAME_EXT_ERR); 
+        if (!inner->clienthello) return(ECH_SAME_EXT_ERR);
         if (!pkt) return(ECH_SAME_EXT_ERR);
         if (ech_outer_indep[tind]) {
             /* continue processing, meaning get a new value */
 #ifndef OPENSSL_NO_SSL_TRACE
             OSSL_TRACE_BEGIN(TLS) {
-                BIO_printf(trc_out, 
+                BIO_printf(trc_out,
                     "ech_same_ext: New outer value for ext (type %x,ind %d)\n",
                     s->ext.etype,tind);
             } OSSL_TRACE_END(TLS);
@@ -2589,7 +2589,7 @@ int ech_same_ext(SSL *ssl, WPACKET* pkt)
             /* copy inner to outer */
 #ifndef OPENSSL_NO_SSL_TRACE
             OSSL_TRACE_BEGIN(TLS) {
-                BIO_printf(trc_out, 
+                BIO_printf(trc_out,
                     "ech_same_ext: Copying ext (type %x,ind %d) to outer\n",
                     s->ext.etype,tind);
             } OSSL_TRACE_END(TLS);
@@ -2611,7 +2611,7 @@ int ech_same_ext(SSL *ssl, WPACKET* pkt)
             /* copy inner value to outer */
             if (myext->data.curr!=NULL && myext->data.remaining>0) {
                 if (!WPACKET_put_bytes_u16(pkt, type)
-                    || !WPACKET_sub_memcpy_u16(pkt, 
+                    || !WPACKET_sub_memcpy_u16(pkt,
                         myext->data.curr, myext->data.remaining)) {
                     return ECH_SAME_EXT_ERR;
                 }
@@ -2654,7 +2654,7 @@ int ech_encode_inner(SSL *ssl)
     if (s == NULL || s->ech==NULL) return(0);
 
     /*
-     * So encode s->ext.innerch into s->ext.encoded_innerch, 
+     * So encode s->ext.innerch into s->ext.encoded_innerch,
      * but handling ECH-compression
      *
      * As a reminder the CH is:
@@ -2752,7 +2752,7 @@ int ech_encode_inner(SSL *ssl)
         if (ech_2bcompressed(ind)==1) continue;
         if (raws[ind].data.curr!=NULL) {
             if (!WPACKET_put_bytes_u16(&inner, raws[ind].type)
-                || !WPACKET_sub_memcpy_u16(&inner, 
+                || !WPACKET_sub_memcpy_u16(&inner,
                     raws[ind].data.curr, raws[ind].data.remaining)) {
                 SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
                 goto err;
@@ -2812,7 +2812,7 @@ err:
  * That further processing includes all existing decoding
  * checks so we should be fine wrt fuzzing without having
  * to make all checks here (e.g. we can assume that the
- * protocol version, NULL compression etc are correct here - 
+ * protocol version, NULL compression etc are correct here -
  * if not, those'll be caught later).
  *
  * @param ssl is the SSL session
@@ -2823,8 +2823,8 @@ err:
  */
 static int ech_decode_inner(
         SSL *ssl, 
-        const unsigned char *ob, 
-        size_t ob_len, 
+        const unsigned char *ob,
+        size_t ob_len,
         size_t outer_startofexts)
 {
     size_t initial_decomp_len=0;
@@ -2896,7 +2896,7 @@ static int ech_decode_inner(
      * Jump over the ciphersuites and (MUST be NULL) compression to
      * the start of extensions
      */
-    offset2sessid=2+32; 
+    offset2sessid=2+32;
     suiteslen=s->ext.encoded_innerch[offset2sessid+1]*256+
               s->ext.encoded_innerch[offset2sessid+1+1];
     startofexts=offset2sessid+1+
@@ -2995,7 +2995,7 @@ static int ech_decode_inner(
      * encoded_innerch
      */
     n_outers=elen/2;
-    slen=initial_decomp[oneextstart+4]; 
+    slen=initial_decomp[oneextstart+4];
     if (!ossl_assert(n_outers==slen/2)) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         goto err;
@@ -3165,7 +3165,7 @@ static int ech_decode_inner(
         ((offset+initial_decomp_len-oneextstart-outer_exts_len)>
             final_decomp_len) ||
         ((oneextstart+outer_exts_len+initial_decomp_len-
-          oneextstart-outer_exts_len) > initial_decomp_len) 
+          oneextstart-outer_exts_len) > initial_decomp_len)
        ) {
 #ifndef OPENSSL_NO_SSL_TRACE
         OSSL_TRACE_BEGIN(TLS) {
@@ -3178,9 +3178,9 @@ static int ech_decode_inner(
     /* now copy over extensions from inner CH from after "outers" to end */
     memcpy(final_decomp+offset,
             initial_decomp+oneextstart+outer_exts_len,
-            initial_decomp_len-oneextstart-outer_exts_len); 
-    /* 
-     * the +4 and +5 are because the final_decomp has the type+3-octet length 
+            initial_decomp_len-oneextstart-outer_exts_len);
+    /*
+     * the +4 and +5 are because the final_decomp has the type+3-octet length
      * and startofexts is the offset within initial_decomp which doesn't have
      * those
      */
@@ -3228,7 +3228,7 @@ static int ech_decode_inner(
     initial_decomp=NULL;
     return(1);
 err:
-    if (initial_decomp!=NULL) { 
+    if (initial_decomp!=NULL) {
         OPENSSL_free(initial_decomp);
     }
     return(0);
@@ -3287,11 +3287,11 @@ int ech_reset_hs_buffer(SSL *ssl, unsigned char *buf, size_t blen)
 }
 
 /*
- * @brief Handling for the ECH accept_confirmation 
+ * @brief Handling for the ECH accept_confirmation
  *
  * This is a magic value in
  * the ServerHello.random lower 8 octets that is
- * used to signal that the inner worked. 
+ * used to signal that the inner worked.
  *
  * As per the draft-10 spec:
  *
@@ -3318,9 +3318,9 @@ int ech_reset_hs_buffer(SSL *ssl, unsigned char *buf, size_t blen)
  * @return: 1 for success, 0 otherwise
  */
 int ech_calc_accept_confirm(
-        SSL *ssl, 
-        unsigned char *acbuf, 
-        const unsigned char *shbuf, 
+        SSL *ssl,
+        unsigned char *acbuf,
+        const unsigned char *shbuf,
         const size_t shlen)
 {
     unsigned char *tbuf=NULL; /* local transcript buffer */
@@ -3359,7 +3359,7 @@ int ech_calc_accept_confirm(
     }
     memcpy(tbuf,chbuf,chlen);
     /*
-     * For some reason the internal 3-length of the shbuf is 
+     * For some reason the internal 3-length of the shbuf is
      * wrong at this point. We'll fix it so, but here and
      * not in the actual shbuf, just in case that breaks some
      * other thing.
@@ -3382,7 +3382,7 @@ int ech_calc_accept_confirm(
     md=ssl_handshake_md(s);
     if (md==NULL) {
         /* fallback to one from the chosen ciphersuite */
-        const unsigned char *cipherchars=&tbuf[chlen+shoffset+8+1+32]; 
+        const unsigned char *cipherchars=&tbuf[chlen+shoffset+8+1+32];
         const SSL_CIPHER *c=ssl_get_cipher_by_char(s, cipherchars, 0);
         md=ssl_md(ssl->ctx, c->algorithm2);
         if (md==NULL) {
@@ -3418,19 +3418,19 @@ int ech_calc_accept_confirm(
 #endif
         if (!tls13_hkdf_expand(s, md, insecret,
                                (const unsigned char *)label,labellen,
-                               hashval, hashlen, 
+                               hashval, hashlen,
                                hoval, hashlen, 1)) {
             goto err;
         }
-    
+   
     }
 
     if (s->ext.ech_attempted_type==ECH_DRAFT_13_VERSION) {
         /*
          * For all versions so far, I've had to see
          * someone else's code to get this correct.
-         * So we'll just get a maybe-correct version 
-         * that works locally (meaning s_client to 
+         * So we'll just get a maybe-correct version
+         * that works locally (meaning s_client to
          * s_server) for now and fix later via interop.
          * TODO: fix via interop!
          */
@@ -3439,8 +3439,8 @@ int ech_calc_accept_confirm(
 
         memset(zeros,0,EVP_MAX_MD_SIZE);
 
-        /* 
-         * We still don't have an hkdf-extract that's exposed by 
+        /*
+         * We still don't have an hkdf-extract that's exposed by
          * libcrypto (or hpke, as I took that out just a while
          * ago). Once this is done, it'll be fine though to fix
          * that or leave it as per below. No point in trying to
@@ -3463,7 +3463,7 @@ int ech_calc_accept_confirm(
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             goto err;
         }
-        if (EVP_PKEY_CTX_set1_hkdf_key(pctx, 
+        if (EVP_PKEY_CTX_set1_hkdf_key(pctx,
                s->s3.client_random, SSL3_RANDOM_SIZE)!=1) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             goto err;
@@ -3493,12 +3493,12 @@ int ech_calc_accept_confirm(
 
         if (!tls13_hkdf_expand(s, md, notsecret,
                                (const unsigned char *)label,labellen,
-                               hashval, hashlen, 
+                               hashval, hashlen,
                                hoval, hashlen, 1)) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             goto err;
         }
-    
+   
     }
 
     /* Put back the transpript buffer as it was where we got it */
@@ -3511,7 +3511,7 @@ int ech_calc_accept_confirm(
 #ifdef ECH_SUPERVERBOSE
     ech_pbuf("calc conf : result",acbuf,8);
 #endif
-    if (!s->ext.ech_backend) 
+    if (!s->ext.ech_backend)
         ech_reset_hs_buffer(ssl,s->ext.innerch,s->ext.innerch_len);
 
     if (tbuf) OPENSSL_free(tbuf);
@@ -3678,15 +3678,15 @@ int ech_swaperoo(SSL_CONNECTION *s)
      * The outer's ech_attempted will have been set already
      * but not the rest of 'em.
      */
-    s->ext.outer_s->ext.ech_attempted=1; 
-    s->ext.ech_attempted=1; 
+    s->ext.outer_s->ext.ech_attempted=1;
+    s->ext.ech_attempted=1;
     s->ext.ech_attempted_type=s->ext.outer_s->ext.ech_attempted_type;
-    s->ext.outer_s->ext.ech_success=1; 
-    s->ext.ech_success=1; 
-    s->ext.outer_s->ext.ech_done=1; 
-    s->ext.ech_done=1; 
-    s->ext.outer_s->ext.ech_grease=ECH_NOT_GREASE; 
-    s->ext.ech_grease=ECH_NOT_GREASE; 
+    s->ext.outer_s->ext.ech_success=1;
+    s->ext.ech_success=1;
+    s->ext.outer_s->ext.ech_done=1;
+    s->ext.ech_done=1;
+    s->ext.outer_s->ext.ech_grease=ECH_NOT_GREASE;
+    s->ext.ech_grease=ECH_NOT_GREASE;
 
     /*
      * call ECH callback
@@ -3768,15 +3768,14 @@ int ech_send_grease(SSL *ssl, WPACKET *pkt)
     size_t senderpub_len=MAX_ECH_ENC_LEN;
     unsigned char senderpub[MAX_ECH_ENC_LEN];
     SSL_CONNECTION *s = SSL_CONNECTION_FROM_SSL(ssl);
-
-    /* 
+    /*
      * 0x1d3 is what I produce for a real ECH when including padding in
      * the inner CH with the default/current client hello padding code
      * this value doesn't vary with at least minor changes to inner.sni
      * length.
      */
-    size_t cipher_len=0x1d3; 
-     /* 
+    size_t cipher_len=0x1d3;
+     /*
       * We can add some jitter to that size, but doing so might not be
       * wise so for now, we turn off jitter as it seems like the default
       * CH padding results in a fixed length CH for at least many options.
@@ -3787,7 +3786,7 @@ int ech_send_grease(SSL *ssl, WPACKET *pkt)
     unsigned char *pp=WPACKET_get_curr(pkt);
     size_t pp_at_start=0;
     size_t pp_at_end=0;
-    
+   
     WPACKET_get_total_written(pkt,&pp_at_start);
 
     if (ssl == NULL || s == NULL || ssl->ctx == NULL) {
@@ -3820,7 +3819,7 @@ int ech_send_grease(SSL *ssl, WPACKET *pkt)
     }
 
     if (s->ext.ech_attempted_type==ECH_DRAFT_10_VERSION) {
-        if (!WPACKET_put_bytes_u16(pkt, s->ext.ech_attempted_type) 
+        if (!WPACKET_put_bytes_u16(pkt, s->ext.ech_attempted_type)
             || !WPACKET_start_sub_packet_u16(pkt)
             || !WPACKET_put_bytes_u16(pkt, hpke_suite.kdf_id)
             || !WPACKET_put_bytes_u16(pkt, hpke_suite.aead_id)
@@ -3833,7 +3832,7 @@ int ech_send_grease(SSL *ssl, WPACKET *pkt)
             return 0;
         }
     } else if (s->ext.ech_attempted_type==ECH_DRAFT_13_VERSION) {
-        if (!WPACKET_put_bytes_u16(pkt, s->ext.ech_attempted_type) 
+        if (!WPACKET_put_bytes_u16(pkt, s->ext.ech_attempted_type)
             || !WPACKET_start_sub_packet_u16(pkt)
             || !WPACKET_put_bytes_u8(pkt, ECH_OUTER_CH_TYPE)
             || !WPACKET_put_bytes_u16(pkt, hpke_suite.kdf_id)
@@ -3863,8 +3862,8 @@ int ech_send_grease(SSL *ssl, WPACKET *pkt)
 
     s->ext.ech_grease=ECH_IS_GREASE;
 #ifndef OPENSSL_NO_SSL_TRACE
-    OSSL_TRACE_BEGIN(TLS) { 
-        if (s->ext.ech_attempted_type==TLSEXT_TYPE_ech) 
+    OSSL_TRACE_BEGIN(TLS) {
+        if (s->ext.ech_attempted_type==TLSEXT_TYPE_ech)
             BIO_printf(trc_out,"ECH - sending GREASE\n");
         else
             BIO_printf(trc_out,"ECH - sending DRAFT-13 GREASE\n");
@@ -3883,15 +3882,15 @@ int ech_send_grease(SSL *ssl, WPACKET *pkt)
 static int ech_make_enc_info(
         ECHConfig *tc,
         unsigned char *info,
-        size_t *info_len) 
+        size_t *info_len)
 {
     unsigned char *ip=info;
 
     if (!tc || !info || !info_len) return 0;
-    if (*info_len < (strlen(ECH_CONTEXT_STRING)+1+tc->encoding_length)) 
+    if (*info_len < (strlen(ECH_CONTEXT_STRING)+1+tc->encoding_length))
         return 0;
-    
-    memcpy(ip,ECH_CONTEXT_STRING,strlen(ECH_CONTEXT_STRING)); 
+   
+    memcpy(ip,ECH_CONTEXT_STRING,strlen(ECH_CONTEXT_STRING));
     ip+=strlen(ECH_CONTEXT_STRING);
     *ip++=0x00;
     memcpy(ip,tc->encoding_start,tc->encoding_length);
@@ -3922,7 +3921,7 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
 {
     int hpke_mode=HPKE_MODE_BASE;
     hpke_suite_t hpke_suite = HPKE_SUITE_DEFAULT;
-    size_t cipherlen=HPKE_MAXSIZE; 
+    size_t cipherlen=HPKE_MAXSIZE;
     unsigned char cipher[HPKE_MAXSIZE];
     unsigned char *aad=NULL;
     size_t aad_len=0;
@@ -3968,7 +3967,7 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
     cfgs=s->ech->cfg;
     if (!cfgs || cfgs->nrecs==0) {
         /*
-         * Treating this as an error. Note there could be 
+         * Treating this as an error. Note there could be
          * some corner case with SCVB that gets us here
          * with cfgs==NULL but hopefully not
          */
@@ -3978,8 +3977,8 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
 
     /*
      * Search through the ECHConfigs for one that's a best
-     * match in terms of outer_name==public_name. 
-     * If no public_name was set via API then we 
+     * match in terms of outer_name==public_name.
+     * If no public_name was set via API then we
      * just take the 1st match where we locally support
      * the HPKE suite.
      * If OTOH, a public_name was provided via API then
@@ -4013,7 +4012,7 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
     }
     if (tc==NULL && firstmatch==NULL) {
 #ifndef OPENSSL_NO_SSL_TRACE
-        OSSL_TRACE_BEGIN(TLS) { 
+        OSSL_TRACE_BEGIN(TLS) {
             BIO_printf(trc_out,"EAAE: No matching ECHConfig sadly\n");
         } OSSL_TRACE_END(TLS);
 #endif
@@ -4027,7 +4026,7 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
      * tc is our selected config
      */
 #ifndef OPENSSL_NO_SSL_TRACE
-        OSSL_TRACE_BEGIN(TLS) { 
+        OSSL_TRACE_BEGIN(TLS) {
             BIO_printf(trc_out,"EAAE: selected: version: %4x, config %2x\n",
                     tc->version,tc->config_id);
         } OSSL_TRACE_END(TLS);
@@ -4043,7 +4042,7 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
         goto err;
     }
     ech_pbuf("EAAE: peer pub",peerpub,peerpub_len);
-    ech_pbuf("EAAE: clear",s->ext.inner_s->ext.encoded_innerch, 
+    ech_pbuf("EAAE: clear",s->ext.inner_s->ext.encoded_innerch,
             s->ext.inner_s->ext.encoded_innerch_len);
 
     if (hpke_kg_evp(hpke_mode, hpke_suite, &mypub_len, mypub, &mypriv_evp)!=1) {
@@ -4056,7 +4055,7 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
     }
     ech_pbuf("EAAE: my pub",mypub,mypub_len);
     ech_pbuf("EAAE: config id input",tc->encoding_start,tc->encoding_length);
-    if (s->ssl.ctx && (s->ssl.ctx->options & SSL_OP_ECH_IGNORE_CID)) { 
+    if (s->ssl.ctx && (s->ssl.ctx->options & SSL_OP_ECH_IGNORE_CID)) {
         RAND_bytes(&config_id_to_use,1);
         ech_pbuf("EAAE: random config_id",&config_id_to_use,1);
     } else {
@@ -4075,7 +4074,7 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
          * } ClientHelloOuterAAD;
          *
          * The struct above causes the aad_len values below.
-         * The "-4" for the pkt removes the type and 3-octet 
+         * The "-4" for the pkt removes the type and 3-octet
          * length from the encoded CH as per the spec.
          */
         aad_len=4+1+2+mypub_len+3+pkt->written-4;
@@ -4109,12 +4108,12 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
             NULL, 0, NULL, /* pskid, psk */
             peerpub_len,peerpub,
             0, NULL, /* priv */
-            s->ext.inner_s->ext.encoded_innerch_len, 
+            s->ext.inner_s->ext.encoded_innerch_len,
             s->ext.inner_s->ext.encoded_innerch, /* clear */
-            aad_len, aad, 
-            info_len, info, 
+            aad_len, aad,
+            info_len, info,
             mypub_len, mypub, mypriv_evp,
-            &cipherlen, cipher 
+            &cipherlen, cipher
             );
         if (rv!=1) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
@@ -4127,12 +4126,12 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
         * We ditch the ephemeral key now.
         * We would need that for HRR, but likely we'll
         * only code up HRR for draft-13 so it'll be ok
-        * to not hang onto the private key here if 
+        * to not hang onto the private key here if
         * that's easier.
         */
         EVP_PKEY_free(mypriv_evp); mypriv_evp=NULL;
         ech_pbuf("EAAE pkt b4",(unsigned char*) pkt->buf->data,pkt->written);
-        if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_ech) 
+        if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_ech)
             || !WPACKET_start_sub_packet_u16(pkt)
             || !WPACKET_put_bytes_u16(pkt, hpke_suite.kdf_id)
             || !WPACKET_put_bytes_u16(pkt, hpke_suite.aead_id)
@@ -4145,7 +4144,7 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
                 goto err;
         }
 
-        /* 
+        /*
          * draft-10 length of ECH to include is the usual ext
          * type and length (2 octets each) plus...
          *
@@ -4158,7 +4157,7 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
          *
          */
         echextlen=2+ /* ext type */
-                  2+ /* ext len */ 
+                  2+ /* ext len */
                   4+ /* cipher_suite */
                   1+ /* config id */
                   2+ /* len(enc) */
@@ -4171,15 +4170,15 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
          * before the ciphersuites
          */
         startofmessage=(unsigned char*)pkt->buf->data;
-        suitesoffset=6+32+1+s->tmp_session_id_len; 
+        suitesoffset=6+32+1+s->tmp_session_id_len;
         suiteslen=startofmessage[suitesoffset]*256+
             startofmessage[suitesoffset+1];
         startofexts=suitesoffset+suiteslen+2+2; /* the 2 for the suites len */
         origextlens=startofmessage[startofexts]*256+
             startofmessage[startofexts+1];
         newextlens=origextlens+echextlen;
-        startofmessage[startofexts]=(unsigned char)((newextlens&0xffff)/256); 
-        startofmessage[startofexts+1]=(unsigned char)((newextlens&0xffff)%256); 
+        startofmessage[startofexts]=(unsigned char)((newextlens&0xffff)/256);
+        startofmessage[startofexts+1]=(unsigned char)((newextlens&0xffff)%256);
 
     }
 
@@ -4193,7 +4192,7 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
          * ciphertext - that'll form up the AAD for us, then after
          * we've encrypted, we'll splice in the actual ciphertext
          *
-         * Watch out for the the "4" offsets that remove the type 
+         * Watch out for the the "4" offsets that remove the type
          * and 3-octet length from the encoded CH as per the spec.
          */
         size_t lcipherlen=0;
@@ -4207,7 +4206,7 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
         size_t mnl=tc->maximum_name_length;
         int innersnipadding=0;
 
-        /* 
+        /*
          * "recommended" inner SNI padding scheme as per spec
          * might remove later - overall message padding seems
          * better really, BUT... we might want to keep this if
@@ -4249,11 +4248,11 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
         length_of_padding=31-((length_with_snipadding-1)%32);
         length_with_padding=s->ext.inner_s->ext.encoded_innerch_len+
                 length_of_padding+innersnipadding;
-        /* 
+        /*
          * finally - make sure we're longer than padding target too
          * this is a local addition - might take it out if it makesw
          * us stick out (of if we take out the above more complicated
-         * scheme, we may only need this in the end 
+         * scheme, we may only need this in the end
          */
         while(length_with_padding<ECH_PADDING_TARGET) {
             length_with_padding+=ECH_PADDING_INCREMENT;
@@ -4264,7 +4263,7 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
             BIO_printf(trc_out,"EAAE: padding: mnl: %zu, lws: %d " \
                     "lop: %d, lwp: %d, clear_len: %zu, orig: %zu\n",
                 mnl, length_with_snipadding, length_of_padding,
-                length_with_padding, clear_len, 
+                length_with_padding, clear_len,
                 s->ext.inner_s->ext.encoded_innerch_len);
         } OSSL_TRACE_END(TLS);
 #endif
@@ -4279,7 +4278,7 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             goto err;
         }
-        if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_ech13) 
+        if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_ech13)
             || !WPACKET_start_sub_packet_u16(pkt)
             || !WPACKET_put_bytes_u8(pkt, ECH_OUTER_CH_TYPE)
             || !WPACKET_put_bytes_u16(pkt, hpke_suite.kdf_id)
@@ -4298,13 +4297,13 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
         aad_len=pkt->written-4;
 
         /* fix up the overall extensions length in the aad */
-        suitesoffset=2+32+1+s->tmp_session_id_len; 
+        suitesoffset=2+32+1+s->tmp_session_id_len;
         suiteslen=aad[suitesoffset]*256+aad[suitesoffset+1];
         startofexts=suitesoffset+suiteslen+2+2; /* the 2 for the suites len */
         origextlens=aad[startofexts]*256+aad[startofexts+1];
         newextlens=origextlens+4+echlen;
-        aad[startofexts]=(unsigned char)((newextlens&0xffff)/256); 
-        aad[startofexts+1]=(unsigned char)((newextlens&0xffff)%256); 
+        aad[startofexts]=(unsigned char)((newextlens&0xffff)/256);
+        aad[startofexts+1]=(unsigned char)((newextlens&0xffff)%256);
         ech_pbuf("EAAE: aad",aad,aad_len);
 
         if (ech_make_enc_info(tc,info,&info_len)!=1) {
@@ -4328,10 +4327,10 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
             peerpub_len,peerpub,
             0, NULL, /* priv */
             clear_len,clear,
-            aad_len, aad, 
-            info_len, info, 
+            aad_len, aad,
+            info_len, info,
             mypub_len, mypub, mypriv_evp,
-            &cipherlen, cipher 
+            &cipherlen, cipher
             );
         OPENSSL_free(clear);
         if (rv!=1) {
@@ -4340,7 +4339,7 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
         }
         ech_pbuf("EAAE: hpke mypub",mypub,mypub_len);
         ech_pbuf("EAAE: cipher",cipher,cipherlen);
- 
+
         /*
         * We ditch the ephemeral key now.
         * TODO: we'll need that for HRR later
@@ -4368,7 +4367,7 @@ err:
  * @brief Server forms up AAD from included fields
  *
  * The actual AAD length is returned on success.
- * 
+ *
  * @param kdf_id is obvious
  * @param aead_id is obvious
  * @param pub_len is the length of the public key
@@ -4385,7 +4384,7 @@ static int ech_srv_get_aad(
         uint16_t kdf_id, uint16_t aead_id,
         size_t pub_len, unsigned char *pub,
         uint8_t config_id,
-        size_t de_len, unsigned char *de, 
+        size_t de_len, unsigned char *de,
         size_t *aad_len,unsigned char *aad)
 {
     unsigned char *cp=aad;
@@ -4428,7 +4427,7 @@ static int ech_srv_get_aad(
 }
 
 /*!
- * Given a CH find the offsets of the session id, extensions and ECH 
+ * Given a CH find the offsets of the session id, extensions and ECH
  *
  * @param: pkt is the CH
  * @param: sessid points to offset of session_id length
@@ -4439,15 +4438,15 @@ static int ech_srv_get_aad(
  * @return 1 for success, other otherwise
  *
  * Offsets are set to zero at start and must be non-zero to be
- * meaningful. If no ECH is present (or no extensions) then 
+ * meaningful. If no ECH is present (or no extensions) then
  * those will be returned as zero.
  * Offsets are returned to the type or length field in question.
  */
 static int ech_get_offsets(
-        PACKET *pkt, 
-        size_t *sessid, 
-        size_t *exts, 
-        size_t *echoffset, 
+        PACKET *pkt,
+        size_t *sessid,
+        size_t *exts,
+        size_t *echoffset,
         uint16_t *echtype,
         size_t *snioffset)
 {
@@ -4459,7 +4458,7 @@ static int ech_get_offsets(
     size_t startofexts=0;
     size_t origextlens=0;
     size_t echlen=0; /* length of ECH, including type & ECH-internal length */
-    size_t snilen=0; 
+    size_t snilen=0;
     const unsigned char *e_start=NULL;
     int extsremaining=0;
     uint16_t etype=0;
@@ -4488,11 +4487,11 @@ static int ech_get_offsets(
     if (ch_len<=(genoffset+2)) return 0;
     suiteslen=ch[genoffset]*256+ch[genoffset+1];
     startofexts=genoffset+suiteslen+2+2; /* the 2 for the suites len */
-    if (startofexts==ch_len) { 
+    if (startofexts==ch_len) {
         /* no extensions present, which is fine */
         return(1);
     }
-    if (startofexts>ch_len) { 
+    if (startofexts>ch_len) {
         /* oops, shouldn't happen but just in case... */
         return(0);
     }
@@ -4501,7 +4500,7 @@ static int ech_get_offsets(
     if ((startofexts+2)>(ch_len-startofexts)) {
          return 0;
     }
-    /* 
+    /*
      * find ECH if it's there
      */
     e_start=&ch[startofexts+2];
@@ -4551,9 +4550,9 @@ static int ech_get_offsets(
  * @return pointer to plaintext or NULL (if error)
  */
 static unsigned char *hpke_decrypt_encch(
-        SSL_ECH *ech, 
-        ECH_ENCCH *the_ech, 
-        size_t aad_len, unsigned char *aad, 
+        SSL_ECH *ech,
+        ECH_ENCCH *the_ech,
+        size_t aad_len, unsigned char *aad,
         size_t *innerlen)
 {
     size_t publen=0; unsigned char *pub=NULL;
@@ -4570,8 +4569,8 @@ static unsigned char *hpke_decrypt_encch(
     cipher=the_ech->payload;
     senderpublen=the_ech->enc_len;
     senderpub=the_ech->enc;
-    hpke_suite.aead_id=the_ech->aead_id; 
-    hpke_suite.kdf_id=the_ech->kdf_id; 
+    hpke_suite.aead_id=the_ech->aead_id;
+    hpke_suite.kdf_id=the_ech->kdf_id;
     clearlen=cipherlen; /* small overestimate */
     clear=OPENSSL_malloc(clearlen);
     if (!clear) return NULL;
@@ -4582,7 +4581,7 @@ static unsigned char *hpke_decrypt_encch(
      */
     publen=ech->cfg->recs[0].pub_len;
     pub=ech->cfg->recs[0].pub;
-    hpke_suite.kem_id=ech->cfg->recs[0].kem_id; 
+    hpke_suite.kem_id=ech->cfg->recs[0].kem_id;
 
     ech_pbuf("aad",aad,aad_len);
     ech_pbuf("my local pub",pub,publen);
@@ -4590,20 +4589,20 @@ static unsigned char *hpke_decrypt_encch(
     ech_pbuf("cipher",cipher,cipherlen);
     if (ech_make_enc_info(ech->cfg->recs,info,&info_len)!=1) {
         OPENSSL_free(clear);
-        return NULL; 
+        return NULL;
     }
     ech_pbuf("info",info,info_len);
     /*
-     * We may generate externally visible OpenSSL errors 
-     * if decryption fails (which is normal) but we'll 
+     * We may generate externally visible OpenSSL errors
+     * if decryption fails (which is normal) but we'll
      * ignore those as we might be dealing with a GREASEd
      * ECH. The way to do that is to consume all
      * errors generated internally during the attempt
      * to decrypt. Failing to clear those errors can
      * trigger an application to consider TLS session
-     * establishment has failed when someone just 
-     * GREASEd or used an old key.  But to do that we 
-     * first need to know there are no other errors in 
+     * establishment has failed when someone just
+     * GREASEd or used an old key.  But to do that we
+     * first need to know there are no other errors in
      * the queue that we ought not consume as the application
      * really should know about those.
      */
@@ -4622,15 +4621,15 @@ static unsigned char *hpke_decrypt_encch(
                 0, NULL, /* publen, pub, recipient public key */
                 0,NULL,ech->keyshare, /* private key in EVP_PKEY form */
                 senderpublen, senderpub, /* sender public */
-                cipherlen, cipher, 
-                aad_len,aad, 
+                cipherlen, cipher,
+                aad_len,aad,
                 info_len, info,
                 &clearlen, clear);
-    /* 
-     * clear errors from failed decryption as per the above 
+    /*
+     * clear errors from failed decryption as per the above
      * we do this before checking the result from hpke_dec
      * */
-    while (ERR_get_error()!=0); 
+    while (ERR_get_error()!=0);
     if (rv!=1) {
         OPENSSL_free(clear);
         return NULL;
@@ -4701,14 +4700,14 @@ static unsigned char *hpke_decrypt_encch(
  * the inner CH.
  *
  * The fact that decryption worked is signalled to the caller
- * via s->ext.ech_success 
+ * via s->ext.ech_success
  *
  * This function is called early, (hence then name:-), before
  * the outer CH decoding has really started
  *
  * @param ssl: SSL session stuff
  * @param pkt: the received CH that might include an ECH
- * @param newpkt: the plaintext from ECH 
+ * @param newpkt: the plaintext from ECH
  * @return 1 for success, zero otherwise
  */
 int ech_early_decrypt(SSL *ssl, PACKET *outerpkt, PACKET *newpkt)
@@ -4718,7 +4717,7 @@ int ech_early_decrypt(SSL *ssl, PACKET *outerpkt, PACKET *newpkt)
      * 1. check if there's an ECH
      * 2. trial-decrypt or check if config matches one loaded
      * 3. if decrypt fails tee-up GREASE
-     * 4. if decrypt worked, decode and de-compress cleartext to 
+     * 4. if decrypt worked, decode and de-compress cleartext to
      *    make up real inner CH for later processing
      */
     int rv=0;
@@ -4727,7 +4726,7 @@ int ech_early_decrypt(SSL *ssl, PACKET *outerpkt, PACKET *newpkt)
     PACKET *pkt=NULL;
     const unsigned char *startofech=NULL;
     size_t echlen=0;
-    size_t clearlen=0; 
+    size_t clearlen=0;
     unsigned char *clear=NULL;
     unsigned int tmp;
     unsigned char aad[HPKE_MAXSIZE];
@@ -4808,7 +4807,7 @@ int ech_early_decrypt(SSL *ssl, PACKET *outerpkt, PACKET *newpkt)
         /* clean up  */
         s->ext.hostname=NULL;
         s->servername_done=0;
-    } 
+    }
 #ifndef OPENSSL_NO_SSL_TRACE
     else
         OSSL_TRACE_BEGIN(TLS) {
@@ -4825,7 +4824,7 @@ int ech_early_decrypt(SSL *ssl, PACKET *outerpkt, PACKET *newpkt)
     pkt=&echpkt;
 
     /*
-     * Try Decode the inbound value. 
+     * Try Decode the inbound value.
      * For draft-10:
      *  struct {
      *    ECHCipherSuite cipher_suite;
@@ -4940,7 +4939,7 @@ int ech_early_decrypt(SSL *ssl, PACKET *outerpkt, PACKET *newpkt)
         /* newextlen = length of exts after taking out ech */
         newextlens=ch_len-echlen-startofexts-6;
         memcpy(de,ch,startofexts);
-        de[startofexts]=(unsigned char)((newextlens&0xffff)/256); 
+        de[startofexts]=(unsigned char)((newextlens&0xffff)/256);
         de[startofexts+1]=(unsigned char)((newextlens&0xffff)%256);
         beforeECH=echoffset-startofexts-2;
         afterECH=ch_len-(echoffset+echlen);
@@ -4951,7 +4950,7 @@ int ech_early_decrypt(SSL *ssl, PACKET *outerpkt, PACKET *newpkt)
         de_len=ch_len-echlen-4;
         if (ech_srv_get_aad(
                     extval->kdf_id, extval->aead_id,
-                    extval->enc_len, extval->enc, 
+                    extval->enc_len, extval->enc,
                     extval->config_id,
                     de_len,de,
                     &aad_len,aad)!=1) {
@@ -5003,7 +5002,7 @@ int ech_early_decrypt(SSL *ssl, PACKET *outerpkt, PACKET *newpkt)
      * we want/need to trial decrypt
      */
     s->ext.ech_grease=ECH_GREASE_UNKNOWN;
-    
+   
     if (s->ech->cfg==NULL || s->ech->cfg->nrecs==0) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         goto err;
@@ -5027,12 +5026,12 @@ int ech_early_decrypt(SSL *ssl, PACKET *outerpkt, PACKET *newpkt)
         if (clear==NULL) {
             s->ext.ech_grease=ECH_IS_GREASE;
         }
-    } 
+    }
 
     /*
      * Trial decrypt, if still needed
      */
-    if (!foundcfg && (s->options & SSL_OP_ECH_TRIALDECRYPT)) { 
+    if (!foundcfg && (s->options & SSL_OP_ECH_TRIALDECRYPT)) {
         for (cfgind=0;cfgind!=s->nechs;cfgind++) {
             clear=hpke_decrypt_encch(&s->ech[cfgind],
                     extval,aad_len,aad,&clearlen);
@@ -5041,7 +5040,7 @@ int ech_early_decrypt(SSL *ssl, PACKET *outerpkt, PACKET *newpkt)
                 break;
             }
         }
-    } 
+    }
 
     /*
      * We succeeded or failed in decrypting, but we're done
@@ -5100,7 +5099,7 @@ int ech_early_decrypt(SSL *ssl, PACKET *outerpkt, PACKET *newpkt)
     }
     ech_pbuf("Inner CH (decoded)",s->ext.innerch,s->ext.innerch_len);
     /*
-     * The +4 below is because tls_process_client_hello doesn't 
+     * The +4 below is because tls_process_client_hello doesn't
      * want to be given the message type & length, so the buffer should
      * start with the version octets (0x03 0x03)
      */
@@ -5142,14 +5141,14 @@ int SSL_ech_set_grease_suite(SSL *ssl, const char* suite)
  * @brief API to set a preferred ECH ext type to use when GREASEing
  *
  * @param s is the SSL session
- * @param type is the relevant type 
+ * @param type is the relevant type
  * @return 1 for success, other otherwise
  */
 int SSL_ech_set_grease_type(SSL *s, uint16_t type)
 {
     if (!s) return(0);
     /* Just stash the value for now and interpret when/if we do GREASE */
-    if (type!=TLSEXT_TYPE_ech && 
+    if (type!=TLSEXT_TYPE_ech &&
         type!=TLSEXT_TYPE_ech13) {
         return(0);
     }
@@ -5262,9 +5261,9 @@ int SSL_CTX_ech_readpemdir(SSL_CTX *ctx, const char *echdir, int *number_loaded)
  * @param decrypted_ok is 0 on return if decryption failed, 1 if it worked
  * @return 1 for success (incl. failed decrypt) or 0 on error
  */
-int SSL_CTX_ech_raw_decrypt(SSL_CTX *ctx, 
+int SSL_CTX_ech_raw_decrypt(SSL_CTX *ctx,
                             unsigned char *outer_ch, size_t outer_len,
-                            unsigned char *inner_ch, size_t *inner_len, 
+                            unsigned char *inner_ch, size_t *inner_len,
                             char **inner_sni, char **outer_sni,
                             int *decrypted_ok)
 {
@@ -5352,10 +5351,10 @@ err:
 }
 
 /**
- * @brief set the ALPN values for the outer ClientHello 
+ * @brief set the ALPN values for the outer ClientHello
  *
  * @param s is the SSL_CTX
- * @param protos encodes the ALPN values 
+ * @param protos encodes the ALPN values
  * @param protos_len is the length of protos
  * @return 1 for success, error otherwise
  */
@@ -5373,10 +5372,10 @@ int SSL_CTX_ech_set_outer_alpn_protos(SSL_CTX *ctx, const unsigned char *protos,
 }
 
 /**
- * @brief set the ALPN values for the outer ClientHello 
+ * @brief set the ALPN values for the outer ClientHello
  *
  * @param ssl is the SSL session
- * @param protos encodes the ALPN values 
+ * @param protos encodes the ALPN values
  * @param protos_len is the length of protos
  * @return 1 for success, error otherwise
  */
@@ -5400,7 +5399,7 @@ int SSL_ech_set_outer_alpn_protos(SSL *ssl, const unsigned char *protos,
  *
  * If we GREASEd, or tried and failed, and got an ECH in return
  * the application can access the ECHConfig returned via this
- * API. 
+ * API.
  *
  * @param ssl is the SSL session
  * @param eclen is a pointer to the length of the ECHConfig (zero if none)
