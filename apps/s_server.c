@@ -602,9 +602,6 @@ static int ssl_ech_servername_cb(SSL *s, int *ad, void *arg)
     char lstr[ECH_TIME_STR_LEN];
 #if !defined(OPENSSL_SYS_WINDOWS)
     local_p=gmtime_r(&now,&local);
-#else
-    local_p=gmtime_s(&local,&now);
-#endif
     if (local_p!=&local) {
         strcpy(lstr,"sometime");
     } 
