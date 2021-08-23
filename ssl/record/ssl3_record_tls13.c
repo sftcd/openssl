@@ -185,13 +185,13 @@ int tls13_enc(SSL_CONNECTION *s, SSL3_RECORD *recs, size_t n_recs, int sending,
 #ifndef OPENSSL_NO_ECH
     /*
      * Note that we succeeded in decrypting something...
-     * accept_confirmation signal isn't definitive 
+     * accept_confirmation signal isn't definitive
      */
-    if (!sending && !s->server && 
-            s->ech && !s->ext.ech_success && 
+    if (!sending && !s->server &&
+            s->ech && !s->ext.ech_success &&
             s->ext.inner_s==NULL && s->ext.outer_s!=NULL) {
         s->ext.ech_success=1;
-    } 
+    }
 #endif
 
     return 1;
