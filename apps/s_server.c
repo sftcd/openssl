@@ -616,7 +616,7 @@ static int ssl_ech_servername_cb(SSL *s, int *ad, void *arg)
         strcpy(lstr,"sometime");
     } 
 #else
-    errno_t grv==gmtime_s(&local,&now);
+    errno_t grv=gmtime_s(&local,&now);
     if (grv!=0) {
         strcpy(lstr,"sometime");
     } 
