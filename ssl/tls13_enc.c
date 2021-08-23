@@ -77,7 +77,7 @@ static void ptranscript(const char *msg, SSL *s)
 #ifndef OPENSSL_NO_ECH
 #ifdef ECH_SUPERVERBOSE
 
-/* 
+/*
  * There is an ech_pbuf in ssl/ech.c, but one of the test
  * binaries needs this file but doesn't have the object
  * file ech.o so I'll re-define here as this is temporary

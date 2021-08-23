@@ -2294,11 +2294,11 @@ EXT_RETURN tls_construct_stoc_ech13(SSL *s, WPACKET *pkt,
     }
     /*
      * If the client GREASEd, or we think it did, we
-     * return the first-loaded ECHConfig, as the value 
+     * return the first-loaded ECHConfig, as the value
      * of the extension.
      */
     if (s->ech==NULL || s->ech->cfg==NULL) {
-        OSSL_TRACE_BEGIN(TLS) { 
+        OSSL_TRACE_BEGIN(TLS) {
             BIO_printf(trc_out,
                 "ECH - not sending ECHConfigs back to client even though " \
                 "they GREASE'd as I've no loaded configs\n");
@@ -2306,7 +2306,7 @@ EXT_RETURN tls_construct_stoc_ech13(SSL *s, WPACKET *pkt,
         return EXT_RETURN_NOT_SENT;
     }
     if (s->ech->cfg->encoded==NULL || s->ech->cfg->encoded_len==0) {
-        OSSL_TRACE_BEGIN(TLS) { 
+        OSSL_TRACE_BEGIN(TLS) {
             BIO_printf(trc_out,
                 "ECH - not sending ECHConfigs back to client even though " \
                 "they GREASE'd as I've a busted config loaded\n");
@@ -2314,8 +2314,8 @@ EXT_RETURN tls_construct_stoc_ech13(SSL *s, WPACKET *pkt,
         return EXT_RETURN_NOT_SENT;
     }
     if (s->ext.ech_attempted_type==ECH_DRAFT_13_VERSION) {
-        if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_ech13) 
-            || !WPACKET_sub_memcpy_u16(pkt, 
+        if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_ech13)
+            || !WPACKET_sub_memcpy_u16(pkt,
                         s->ech->cfg->encoded, s->ech->cfg->encoded_len)
                 ) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);

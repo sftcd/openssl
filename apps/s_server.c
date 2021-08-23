@@ -734,7 +734,6 @@ static int ssl_ech_servername_cb(SSL *s, int *ad, void *arg)
             }
         }
     }
-
     return SSL_TLSEXT_ERR_OK;
 }
 /* Below is the "original" ssl_servername_cb, before ECH */

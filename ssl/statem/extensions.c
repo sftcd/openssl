@@ -80,7 +80,7 @@ static int final_ech(SSL_CONNECTION *s, unsigned int context, int sent);
 #ifndef OPENSSL_NO_ECH
 static int init_ech(SSL *s, unsigned int context);
 static int final_ech(SSL *s, unsigned int context, int sent);
-#endif 
+#endif
 
 
 /* Structure to define a built-in extension */
