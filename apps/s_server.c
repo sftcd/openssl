@@ -590,13 +590,14 @@ static size_t ech_trace_cb(const char *buf, size_t cnt,
  */
 static int ssl_ech_servername_cb(SSL *s, int *ad, void *arg)
 {
+/* apparently 26 is all we need */
+#define ECH_TIME_STR_LEN 32
+
     tlsextctx *p = (tlsextctx *) arg;
-    /*
-     * Add a bit of basic logging
-     */
+    /* For a bit of basic logging */
     time_t now=time(0);
-    struct tm *tnow=gmtime(&now);
-    char *anow=asctime(tnow);
+    struct tm tnow,*tnow_p=NULL;
+    char anow[ECH_TIME_STR_LEN],*anow_p=NULL;
     int sockfd=0;
     int res=0;
     struct sockaddr_storage ss;
@@ -608,6 +609,15 @@ static int ssl_ech_servername_cb(SSL *s, int *ad, void *arg)
     char *outer_sni=NULL;
     int echrv=0;
 
+    tnow_p=gmtime_r(&now,&tnow);
+    if (tnow_p!=&tnow) {
+        strcpy(anow,"sometime");
+    } else {
+        anow_p=asctime_r(&tnow,anow);
+        if (anow_p!=anow) {
+            strcpy(anow,"sometime");
+        }
+    }
     memset(clientip,0,INET6_ADDRSTRLEN);
     strncpy(clientip,"dunno",INET6_ADDRSTRLEN);
     memset(&ss,0,salen);
