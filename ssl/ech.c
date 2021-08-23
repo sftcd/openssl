@@ -1997,6 +1997,9 @@ int SSL_CTX_ech_server_enable_buffer(
 
 }
 
+/* apparently 26 is all we need */
+#define ECH_TIME_STR_LEN 32
+
 /**
  * @brief Print the status/content of an SSL session wrt ECH
  *
@@ -2034,11 +2037,19 @@ int SSL_ech_print(BIO* out, SSL *ssl, int selector)
                 BIO_printf(out,"ECHConfig %d\n\t%s\n",i,cfg);
                 OPENSSL_free(cfg);
                 if (s->ech[i].keyshare) {
-                    struct tm *local;
-                    local=gmtime(&s->ech[i].loadtime);
-                    BIO_printf(out,"\tpriv=%s\n\t%s\n",
-                        s->ech[i].pemfname,
-                        asctime(local));
+                    struct tm local,*local_p=NULL;
+                    char lstr[ECH_TIME_STR_LEN],*lstr_p=NULL;
+                    local_p=gmtime_r(&s->ech[i].loadtime,&local);
+                    if (local_p!=&local) {
+                        strcpy(lstr,"sometime");
+                    } else { 
+                        lstr_p=asctime_r(local_p,lstr);
+                        if (lstr_p!=lstr) {
+                            strcpy(lstr,"sometime");
+                        }
+                    }
+                    BIO_printf(out,"\tpriv=%s, loaded at %s\n",
+                        s->ech[i].pemfname,lstr);
                 }
             }
         }
