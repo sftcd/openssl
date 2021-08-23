@@ -2,8 +2,8 @@
 
 =head1 NAME
 
-hpke_enc, hpke_enc_evp, hpke_enc_raw, hpke_dec, 
-hpke_kg, hpke_kg_evp, 
+hpke_enc, hpke_enc_evp, hpke_enc_raw, hpke_dec,
+hpke_kg, hpke_kg_evp,
 hpke_ah_decode, hpke_suite_check,
 hpke_expansion,
 hpke_prbuf2evp, hpke_good4grease,
@@ -17,7 +17,7 @@ hpke_str2suite
  int hpke_enc_evp( unsigned int mode, hpke_suite_t suite, char *pskid, size_t psklen, unsigned char *psk, size_t publen, unsigned char *pub, size_t privlen, unsigned char *priv, size_t clearlen, unsigned char *clear, size_t aadlen, unsigned char *aad, size_t infolen, unsigned char *info, size_t senderpublen, unsigned char *senderpub, EVP_PKEY *senderpriv, size_t *cipherlen, unsigned char *cipher);
  int hpke_enc_raw( unsigned int mode, hpke_suite_t suite, char *pskid, size_t psklen, unsigned char *psk, size_t publen, unsigned char *pub, size_t privlen, unsigned char *priv, size_t clearlen, unsigned char *clear, size_t aadlen, unsigned char *aad, size_t infolen, unsigned char *info, size_t extsenderpublen, unsigned char *extsenderpub, size_t rawsenderprivlen,  unsigned char *rawsenderpriv, size_t *cipherlen, unsigned char *cipher);
  int hpke_dec( unsigned int mode, hpke_suite_t suite, char *pskid, size_t psklen, unsigned char *psk, size_t publen, unsigned char *pub, size_t privlen, unsigned char *priv, EVP_PKEY *evppriv, size_t enclen, unsigned char *enc, size_t cipherlen, unsigned char *cipher, size_t aadlen, unsigned char *aad, size_t infolen, unsigned char *info, size_t *clearlen, unsigned char *clear);
- int hpke_kg( unsigned int mode, hpke_suite_t suite, size_t *publen, unsigned char *pub, size_t *privlen, unsigned char *priv); 
+ int hpke_kg( unsigned int mode, hpke_suite_t suite, size_t *publen, unsigned char *pub, size_t *privlen, unsigned char *priv);
  int hpke_kg_evp( unsigned int mode, hpke_suite_t suite, size_t *publen, unsigned char *pub, EVP_PKEY **priv);
  int hpke_ah_decode(size_t ahlen, const char *ah, size_t *blen, unsigned char **buf);
  int hpke_suite_check(hpke_suite_t suite);
@@ -43,9 +43,9 @@ The draft specification: https://tools.ietf.org/html/draft-irtf-cfrg-hpke
 
 I have a standalone HPKE repot at https://github.com/sftcd/happykey
 
-My ECH enabled fork has it's README at: https://github.com/sftcd/openssl/tree/master/esnistuff
-(that README is just a re-direct to the relevant branch) and also includes these HPKE 
-functions.
+My ECH enabled fork has it's README at:
+https://github.com/sftcd/openssl/tree/master/esnistuff (that README is just a
+re-direct to the relevant branch) and also includes these HPKE functions.
 
 =head1 HISTORY
 

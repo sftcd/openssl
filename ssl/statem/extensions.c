@@ -77,7 +77,6 @@ static int init_ech(SSL_CONNECTION *s, unsigned int context);
 static int final_ech(SSL_CONNECTION *s, unsigned int context, int sent);
 #endif 
 
-
 /* Structure to define a built-in extension */
 typedef struct extensions_definition_st {
     /* The defined type for the extension */
@@ -409,14 +408,14 @@ static const EXTENSION_DEFINITION ext_defs[] = {
         final_early_data
     },
 #ifndef OPENSSL_NO_ECH
-    /* 
-     * For now, TLSEXT_TYPE_ech must be in this list after key_share as 
-     * that input is needed for ECH acceptance calculation 
+    /*
+     * For now, TLSEXT_TYPE_ech must be in this list after key_share as
+     * that input is needed for ECH acceptance calculation
      * draft-12 will remove that requirement, but we've not coded that up yet.
      */
     { /* this is for draft-10 */
         TLSEXT_TYPE_ech,
-        SSL_EXT_CLIENT_HELLO | SSL_EXT_TLS1_3_ONLY | 
+        SSL_EXT_CLIENT_HELLO | SSL_EXT_TLS1_3_ONLY |
         SSL_EXT_TLS1_3_ENCRYPTED_EXTENSIONS,
         init_ech,
         tls_parse_ctos_ech, tls_parse_stoc_ech,
@@ -425,7 +424,7 @@ static const EXTENSION_DEFINITION ext_defs[] = {
     },
     { /* this is for draft-13 */
         TLSEXT_TYPE_ech13,
-        SSL_EXT_CLIENT_HELLO | SSL_EXT_TLS1_3_ONLY | 
+        SSL_EXT_CLIENT_HELLO | SSL_EXT_TLS1_3_ONLY |
         SSL_EXT_TLS1_3_ENCRYPTED_EXTENSIONS,
         init_ech,
         tls_parse_ctos_ech, tls_parse_stoc_ech,
@@ -953,7 +952,7 @@ int tls_construct_extensions(SSL_CONNECTION *s, WPACKET *pkt,
 #ifndef OPENSSL_NO_ECH
     /*
      * Two passes - we first construct the to-be-ECH-compressed
-     * extensions, and then go around again doing those that 
+     * extensions, and then go around again doing those that
      * aren't to be compressed. We need to ensure this ordering
      * so that all the ECH-compressed extensions are contiguous
      * in the encoding. The actual compression happens later in
@@ -965,13 +964,13 @@ int tls_construct_extensions(SSL_CONNECTION *s, WPACKET *pkt,
                                 X509 *x, size_t chainidx);
         EXT_RETURN ret;
         /* skip if not to be ECH-compressed */
-        if (ech_2bcompressed(i)==0) 
+        if (ech_2bcompressed(i)==0)
             continue;
         if (ech_2bcompressed(i)!=1) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             return 0;
         }
-            
+           
         /* Skip if not relevant for our context */
         if (!should_add_extension(s, thisexd->context, context, max_version))
             continue;
@@ -999,7 +998,7 @@ int tls_construct_extensions(SSL_CONNECTION *s, WPACKET *pkt,
         EXT_RETURN ret;
 #ifndef OPENSSL_NO_ECH
         /* skip if is to be ECH-compressed */
-        if (ech_2bcompressed(i)==1) 
+        if (ech_2bcompressed(i)==1)
             continue;
         if (ech_2bcompressed(i)!=0) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
@@ -1147,7 +1146,7 @@ static int final_ech(SSL_CONNECTION *s, unsigned int context, int sent)
         } else if (s->ext.ech_success!=1) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             return 0;
-        } 
+        }
     }
     return 1;
 }
