@@ -518,7 +518,7 @@ static int ech_guess_fmt(size_t eklen,
                     unsigned char *rrval,
                     int *guessedfmt)
 {
-    if (!guessedfmt || eklen <=0 || !rrval) {
+    if (!guessedfmt || eklen==0 || !rrval) {
         return(0);
     }
     if (strstr((char*)rrval,httpssvc_telltale)) {
@@ -1997,8 +1997,6 @@ int SSL_CTX_ech_server_enable_buffer(
 
 }
 
-/* apparently 26 is all we need */
-#define ECH_TIME_STR_LEN 32
 
 /**
  * @brief Print the status/content of an SSL session wrt ECH
@@ -2037,6 +2035,9 @@ int SSL_ech_print(BIO* out, SSL *ssl, int selector)
                 BIO_printf(out,"ECHConfig %d\n\t%s\n",i,cfg);
                 OPENSSL_free(cfg);
                 if (s->ech[i].keyshare) {
+#if !defined(OPENSSL_SYS_WINDOWS)
+/* apparently 26 is all we need */
+#define ECH_TIME_STR_LEN 32
                     struct tm local,*local_p=NULL;
                     char lstr[ECH_TIME_STR_LEN],*lstr_p=NULL;
                     local_p=gmtime_r(&s->ech[i].loadtime,&local);
@@ -2048,6 +2049,10 @@ int SSL_ech_print(BIO* out, SSL *ssl, int selector)
                             strcpy(lstr,"sometime");
                         }
                     }
+#else
+                    struct tm *local=gmtime(&s->ech[i].loadtime);
+                    char *lstr=asctime_r(local);
+#endif
                     BIO_printf(out,"\tpriv=%s, loaded at %s\n",
                         s->ech[i].pemfname,lstr);
                 }
