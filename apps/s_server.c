@@ -582,7 +582,6 @@ static size_t ech_trace_cb(const char *buf, size_t cnt,
  */
 static int ssl_ech_servername_cb(SSL *s, int *ad, void *arg)
 {
-
     tlsextctx *p = (tlsextctx *) arg;
     /* For a bit of basic logging */
     time_t now=time(0);
