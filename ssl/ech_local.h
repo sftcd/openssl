@@ -8,8 +8,8 @@
  */
 
 /**
- * @file 
- * This has the internal data structures and prototypes 
+ * @file
+ * This has the internal data structures and prototypes
  * for handling of Encrypted ClientHello (ECH)
  */
 
@@ -38,15 +38,15 @@
 #define ECH_CONTEXT_STRING (char*) "tls ech"
 #define ECH_ACCEPT_CONFIRM_STRING (char*) "ech accept confirmation"
 
-/** 
+/**
  * @brief Representation of what goes in DNS for draft-10
  *
  * <pre>
  *  draft-10
  *   opaque HpkePublicKey<1..2^16-1>;
- *   uint16 HpkeKemId;  
- *   uint16 HpkeKdfId;  
- *   uint16 HpkeAeadId; 
+ *   uint16 HpkeKemId; 
+ *   uint16 HpkeKdfId; 
+ *   uint16 HpkeAeadId;
  *   struct {
  *       HpkeKdfId kdf_id;
  *       HpkeAeadId aead_id;
@@ -181,11 +181,11 @@ typedef struct ech_encch_st {
 #define ECH_INNER_CH_TYPE 1 /**< inner ECHClientHello enum */
 
 /**
- * @brief The ECH data structure that's part of the SSL structure 
+ * @brief The ECH data structure that's part of the SSL structure
  *
  * On the client-side, one of these is part of the SSL structure.
  * On the server-side, an array of these is part of the SSL_CTX
- * structure, and we match one of 'em to be part of the SSL 
+ * structure, and we match one of 'em to be part of the SSL
  * structure when a handshake is in progress. (Well, hopefully:-)
  *
  * Note that SSL_ECH_dup copies all these fields (when values are
@@ -199,7 +199,7 @@ typedef struct ssl_ech_st {
      */
     char *inner_name;
     char *outer_name;
-    /* 
+    /*
      * File load information - if identical filenames not modified since
      * loadtime are added via SSL_ech_serve_enable then we'll ignore the new
      * data. If identical file names that are more recently modified are loaded
@@ -215,7 +215,7 @@ typedef struct ssl_ech_st {
  *
  * Free everything within an SSL_ECH. Note that the
  * caller has to also free the top level SSL_ECH, IOW the
- * pattern here is: 
+ * pattern here is:
  *      SSL_ECH_free(echkeys);
  *      OPENSSL_free(echkeys);
  *
@@ -245,9 +245,9 @@ void ECH_ENCCH_free(ECH_ENCCH *ev);
  * @brief Duplicate the configuration related fields of an SSL_ECH
  *
  * This is needed to handle the SSL_CTX->SSL factory model in the
- * server. Clients don't need this.  There aren't too many fields 
+ * server. Clients don't need this.  There aren't too many fields
  * populated when this is called - essentially just the ECHConfigs and
- * the server private value. 
+ * the server private value.
  *
  * @param orig is the input array of SSL_ECH to be partly deep-copied
  * @param nech is the number of elements in the array
@@ -259,12 +259,12 @@ SSL_ECH* SSL_ECH_dup(SSL_ECH* orig, size_t nech, int selector);
 /**
  * @brief Decode and check the value retieved from DNS (binary, base64 or ascii-hex encoded)
  *
- * The echkeys value here may be the catenation of multiple encoded ECHKeys RR values. 
+ * The echkeys value here may be the catenation of multiple encoded ECHKeys RR values.
  * We'll internally try decode and handle those and (later)
  * use whichever is relevant/best. The fmt parameter can be e.g. ECH_FMT_ASCII_HEX
  *
  * @param ctx is the parent SSL_CTX
- * @param con is the SSL connection 
+ * @param con is the SSL connection
  * @param eklen is the length of the binary, base64 or ascii-hex encoded value from DNS
  * @param echkeys is the binary, base64 or ascii-hex encoded value from DNS
  * @param num_echs says how many SSL_ECH structures are in the returned array
@@ -380,7 +380,7 @@ int ech_reset_hs_buffer(SSL *s, unsigned char *buf, size_t blen);
  * @brief If an ECH is present, attempt decryption
  * @param s: SSL session stuff
  * @param pkt: the received CH that might include an ECH
- * @param newpkt: the plaintext from ECH 
+ * @param newpkt: the plaintext from ECH
  */
 int ech_early_decrypt(SSL *s, PACKET *pkt, PACKET *newpkt);
 
@@ -393,7 +393,7 @@ int ech_early_decrypt(SSL *s, PACKET *pkt, PACKET *newpkt);
 int ech_2bcompressed(int ind);
 
 /**
- * @brief Used in tracing 
+ * @brief Used in tracing
  */
 void ech_pbuf(const char *msg,const unsigned char *buf,const size_t blen);
 void ech_ptranscript(const char* msg, SSL_CONNECTION *s);

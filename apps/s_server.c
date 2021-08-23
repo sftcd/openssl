@@ -97,7 +97,7 @@ static size_t ech_trace_cb(const char *buf, size_t cnt,
 #endif
 
 /**
- * ECH padding size info, var of this type is passed via callback 
+ * ECH padding size info, var of this type is passed via callback
  */
 typedef struct {
     size_t certpad; /**< Certificate messages to be a multiple of this size */
@@ -110,12 +110,12 @@ typedef struct {
  */
 static ech_padding_sizes *ech_ps=NULL;
 
-/** 
+/**
  * @ brief pad Certificate and CertificateVerify messages
  *
  * This is passed to SSL_CTX_set_record_padding_callback
  * and pads the Certificate, CertificateVerify and
- * EncryptedExtensions handshake messages to a size derived 
+ * EncryptedExtensions handshake messages to a size derived
  * from the argument arg
  *
  * @param s is the SSL connection
@@ -493,10 +493,10 @@ typedef struct tlsextctx_st {
     char *servername;
     BIO *biodebug;
     int extension_error;
-#ifndef OPENSSL_NO_ECH 
+#ifndef OPENSSL_NO_ECH
     /*
      * Not an ECH thing really, but for ECH we really need
-     * a 2nd cert for testing 
+     * a 2nd cert for testing
      */
     X509* scert;
 #endif
@@ -520,7 +520,7 @@ static unsigned int ech_print_cb(SSL *s, char *str)
 
 #ifndef OPENSSL_NO_SSL_TRACE
 /**
- * @brief ECH Tracing callback 
+ * @brief ECH Tracing callback
  * @param buf is the (string) value to trace out
  * @param cnt is unused
  * @param cmd begin or end or other
@@ -565,10 +565,10 @@ static size_t ech_trace_cb(const char *buf, size_t cnt,
 /**
  * @brief a servername_cb that is ECH aware
  *
- * The server has possibly 2 names (from command line and ECHConfig) basically 
- * in ctx and ctx2. (Some other server could have N names, in different 
+ * The server has possibly 2 names (from command line and ECHConfig) basically
+ * in ctx and ctx2. (Some other server could have N names, in different
  * ECHConfigs, but s_server only handles 2.)
- * So we need to check if any client-supplied SNI in the inner/outer matches 
+ * So we need to check if any client-supplied SNI in the inner/outer matches
  * either and serve whichever is appropriate.
  * X509_check_host is the way to do that, given an X509* pointer.
  *
@@ -602,9 +602,9 @@ static int ssl_ech_servername_cb(SSL *s, int *ad, void *arg)
     struct sockaddr_storage ss;
     socklen_t salen = sizeof(ss);
     struct sockaddr *sa;
-    char clientip[INET6_ADDRSTRLEN]; 
+    char clientip[INET6_ADDRSTRLEN];
     const char *servername = NULL;
-    char *inner_sni=NULL; 
+    char *inner_sni=NULL;
     char *outer_sni=NULL;
     int echrv=0;
 
@@ -615,7 +615,7 @@ static int ssl_ech_servername_cb(SSL *s, int *ad, void *arg)
     res=BIO_get_fd(SSL_get_wbio(s),&sockfd);
     if (res!=-1) {
         res = getpeername(sockfd,sa,&salen);
-        if (res==0) 
+        if (res==0)
             res=getnameinfo(sa,salen,
                     clientip,INET6_ADDRSTRLEN,0,0,NI_NUMERICHOST);
         if (res!=0) strncpy(clientip,"dunno",INET6_ADDRSTRLEN);
@@ -625,38 +625,38 @@ static int ssl_ech_servername_cb(SSL *s, int *ad, void *arg)
     servername = SSL_get_servername(s, TLSEXT_NAMETYPE_host_name);
     echrv=SSL_ech_get_status(s,&inner_sni,&outer_sni);
     if (p->biodebug != NULL ) {
-        /* 
+        /*
          * spit out that basic logging
          */
         BIO_printf(p->biodebug,
             "ssl_ech_servername_cb: connection from %s at %s",clientip,anow);
         /* Client supplied SNI from inner and outer */
         switch (echrv) {
-        case SSL_ECH_STATUS_BACKEND: 
+        case SSL_ECH_STATUS_BACKEND:
             BIO_printf(p->biodebug,
                 "ssl_ech_servername_cb: ECH as backend, got ech_is_inner\n");
             break;
-        case SSL_ECH_STATUS_NOT_CONFIGURED: 
+        case SSL_ECH_STATUS_NOT_CONFIGURED:
             BIO_printf(p->biodebug,
                 "ssl_ech_servername_cb: ECH not configured\n");
             break;
-        case SSL_ECH_STATUS_GREASE: 
+        case SSL_ECH_STATUS_GREASE:
             BIO_printf(p->biodebug,
                 "ssl_ech_servername_cb: attempt we interpret as GREASE\n");
             break;
-        case SSL_ECH_STATUS_NOT_TRIED: 
+        case SSL_ECH_STATUS_NOT_TRIED:
             BIO_printf(p->biodebug,
                 "ssl_ech_servername_cb: not attempted\n");
             break;
-        case SSL_ECH_STATUS_FAILED: 
+        case SSL_ECH_STATUS_FAILED:
             BIO_printf(p->biodebug,
                 "ssl_ech_servername_cb: tried but failed\n");
             break;
-        case SSL_ECH_STATUS_BAD_CALL: 
+        case SSL_ECH_STATUS_BAD_CALL:
             BIO_printf(p->biodebug,
                 "ssl_ech_servername_cb: bad input to API\n");
             break;
-        case SSL_ECH_STATUS_BAD_NAME: 
+        case SSL_ECH_STATUS_BAD_NAME:
             BIO_printf(p->biodebug,
                 "ssl_ech_servername_cb: worked but bad name\n");
             break;
@@ -727,7 +727,7 @@ static int ssl_ech_servername_cb(SSL *s, int *ad, void *arg)
                 }
             }
         }
-    } 
+    }
     return SSL_TLSEXT_ERR_OK;
 }
 
@@ -758,7 +758,7 @@ static int ssl_servername_cb(SSL *s, int *ad, void *arg)
         if (OPENSSL_strcasecmp(servername, p->servername))
             return p->extension_error;
         if (ctx2 != NULL) {
-            if (p->biodebug!=NULL) 
+            if (p->biodebug!=NULL)
                 BIO_printf(p->biodebug, "Switching server context.\n");
             SSL_set_SSL_CTX(s, ctx2);
         }
@@ -1064,7 +1064,7 @@ typedef enum OPTION_choice {
     OPT_ENABLE_SERVER_RPK,
     OPT_ENABLE_CLIENT_RPK,
 #ifndef OPENSSL_NO_ECH
-    OPT_ECHCONFIG, OPT_ECHDIR, OPT_ECHSPECIFICPAD, 
+    OPT_ECHCONFIG, OPT_ECHDIR, OPT_ECHSPECIFICPAD,
     OPT_ECH_TRIALDECRYPT,
 #endif
     OPT_R_ENUM,
@@ -1316,10 +1316,10 @@ const OPTIONS s_server_options[] = {
 #ifndef OPENSSL_NO_ECH
     {"echkey", OPT_ECHCONFIG, 's', "Load ECH key pair"},
     {"echdir", OPT_ECHDIR, 's', "ECH information directory"},
-    {"echspecificpad", OPT_ECHSPECIFICPAD, '-', 
+    {"echspecificpad", OPT_ECHSPECIFICPAD, '-',
         "Specific padding of Certificate/CertificateVerify " \
         "(instead of general padding)"},
-    {"echtrialdecrypt", OPT_ECH_TRIALDECRYPT, '-', 
+    {"echtrialdecrypt", OPT_ECH_TRIALDECRYPT, '-',
         "Do trial decryption even if ECH record_digest matching fails"},
 #endif
 #ifndef OPENSSL_NO_KTLS
@@ -1422,7 +1422,7 @@ int s_server_main(int argc, char *argv[])
     int max_early_data = -1, recv_max_early_data = -1;
     char *psksessf = NULL;
 #ifndef OPENSSL_NO_ECH
-    char *echkeyfile = NULL; 
+    char *echkeyfile = NULL;
     char *echdir=NULL;
     int echspecificpad=0; /* default to general padding (512 octet multiples) */
     int echtrialdecrypt=0; /* trial decryption off by default */
@@ -2414,7 +2414,7 @@ int s_server_main(int argc, char *argv[])
     if (echkeyfile!= NULL) {
 /*
  * s_server reads key pairs from files but if you want
- * to first read the file youself and then test the buffer 
+ * to first read the file youself and then test the buffer
  * API, just switch the undef to define.
  */
 #undef TESTBUFFERAPI
@@ -2464,7 +2464,7 @@ int s_server_main(int argc, char *argv[])
 
     if (echdir != NULL ) {
         /*
-         * Try load any good looking "*.pem" files found in files 
+         * Try load any good looking "*.pem" files found in files
          * in that directory in the hope they have key pairs.
          */
         int nloaded=0;
@@ -2489,11 +2489,11 @@ int s_server_main(int argc, char *argv[])
                 nloaded,echdir);
     }
 
-    /* 
-     * Set padding sizes 
+    /*
+     * Set padding sizes
      */
     if (echspecificpad) {
-        ech_ps=OPENSSL_malloc(sizeof(ech_padding_sizes)); 
+        ech_ps=OPENSSL_malloc(sizeof(ech_padding_sizes));
         ech_ps->certpad=1800;
         ech_ps->certverifypad=500;
         ech_ps->eepad=32;
@@ -2578,8 +2578,8 @@ int s_server_main(int argc, char *argv[])
         SSL_CTX_set_alpn_select_cb(ctx, alpn_cb, &alpn_ctx);
 #ifndef OPENSSL_NO_ECH
     /*
-     * If we have a 2nd context to which we might switch, then set 
-     * the same alpn callback for that too. (Note: this isn't 
+     * If we have a 2nd context to which we might switch, then set
+     * the same alpn callback for that too. (Note: this isn't
      * really ECH-specific, it probaby ought happen in any case.)
      */
     if (s_cert2 && alpn_ctx.data) {
@@ -2664,7 +2664,7 @@ int s_server_main(int argc, char *argv[])
 #ifndef OPENSSL_NO_ECH
     /*
      * Giving the same chain to the 2nd key pair works for our tests.
-     * It would be better to supply s_chain_file2 as a new CLA in case 
+     * It would be better to supply s_chain_file2 as a new CLA in case
      * the paths are very different but as that's not needed for tests,
      * I didn't do it.
      */
@@ -2767,7 +2767,7 @@ int s_server_main(int argc, char *argv[])
         SSL_CTX_ech_set_callback(ctx, ech_print_cb);
 #ifndef OPENSSL_NO_SSL_TRACE
         if (s_msg==2) {
-            OSSL_trace_set_callback(OSSL_TRACE_CATEGORY_TLS, 
+            OSSL_trace_set_callback(OSSL_TRACE_CATEGORY_TLS,
                     ech_trace_cb, bio_s_out);
         }
 #endif
@@ -3800,13 +3800,13 @@ static int www_body(int s, int stype, int prot, unsigned char *context)
             static const char *space = "                          ";
 
 #ifndef OPENSSL_NO_ECH
-            char *ech_inner=NULL; 
+            char *ech_inner=NULL;
             char *ech_outer=NULL;
             int echrv=0;
             /*
-             * The next change isn't an ECH related change really. Seems 
+             * The next change isn't an ECH related change really. Seems
              * like s_server hangs in some way if we get to this code
-             * with www=1, so maybe only do it if renego is 
+             * with www=1, so maybe only do it if renego is
              * actually supported. Try it anyway
              */
             if (www == 1 && SSL_get_secure_renegotiation_support(con)
@@ -3858,31 +3858,31 @@ static int www_body(int s, int stype, int prot, unsigned char *context)
             BIO_puts(io, "<h2>\n");
             echrv=SSL_ech_get_status(con,&ech_inner,&ech_outer);
             switch (echrv) {
-            case SSL_ECH_STATUS_NOT_TRIED: 
+            case SSL_ECH_STATUS_NOT_TRIED:
                 BIO_puts(io,"ECH not attempted\n");
                 break;
-            case SSL_ECH_STATUS_FAILED: 
+            case SSL_ECH_STATUS_FAILED:
                 BIO_puts(io,"ECH tried but failed\n");
                 break;
-            case SSL_ECH_STATUS_FAILED_ECH: 
+            case SSL_ECH_STATUS_FAILED_ECH:
                 BIO_puts(io,"ECH tried but we got ECH which is weird\n");
                 break;
-            case SSL_ECH_STATUS_BAD_NAME: 
+            case SSL_ECH_STATUS_BAD_NAME:
                 BIO_puts(io,"ECH worked but bad name\n");
                 break;
-            case SSL_ECH_STATUS_BACKEND: 
+            case SSL_ECH_STATUS_BACKEND:
                 BIO_printf(io,"ECH acting as backend, got ech_is_inner\n");
                 break;
-            case SSL_ECH_STATUS_NOT_CONFIGURED: 
+            case SSL_ECH_STATUS_NOT_CONFIGURED:
                 BIO_printf(io,"ECH not configured\n");
                 break;
-            case SSL_ECH_STATUS_GREASE: 
+            case SSL_ECH_STATUS_GREASE:
                 BIO_printf(io,"ECH attempt we interpret as GREASE\n");
                 break;
-            case SSL_ECH_STATUS_GREASE_ECH: 
+            case SSL_ECH_STATUS_GREASE_ECH:
                 BIO_printf(io,"ECH attempt we interpret as GREASE, + ECH\n");
                 break;
-            case SSL_ECH_STATUS_BAD_CALL: 
+            case SSL_ECH_STATUS_BAD_CALL:
                 BIO_printf(io,"ECH bad input to API\n");
                 break;
             case SSL_ECH_STATUS_SUCCESS:
@@ -4100,12 +4100,12 @@ static int www_body(int s, int stype, int prot, unsigned char *context)
                     BIO_puts(io,
                              "HTTP/1.0 200 ok\r\nContent-type: text/html\r\n\r\n");
 #ifndef OPENSSL_NO_ECH
-                /* 
+                /*
                  * same comment as last time - not really an ECH change
                  */
                 else if (i==0 && file != NULL) {
                     /*
-                     * Do this if we defaulted to index.html and 
+                     * Do this if we defaulted to index.html and
                      * opening that worked
                      */
                     BIO_puts(io,
@@ -4114,7 +4114,7 @@ static int www_body(int s, int stype, int prot, unsigned char *context)
 #endif
                 else
                     BIO_puts(io,
-                             "HTTP/1.0 200 ok\r\nContent-type: text/plain\r\n\r\n");
+                        "HTTP/1.0 200 ok\r\nContent-type: text/plain\r\n\r\n");
             }
             /* send the file */
 #ifndef OPENSSL_NO_KTLS

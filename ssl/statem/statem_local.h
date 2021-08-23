@@ -600,7 +600,7 @@ int ech_map_ext_type_to_ind(unsigned int type);
  * @param s is the SSL structure
  * @param sk is the list of ciphers
  * @param pkt is the packet into which we encode sk
- * @return 1 for good, error otherwise 
+ * @return 1 for good, error otherwise
  *
  * This used be static in ssl/statem/statem_clnt.c, but it's now
  * also used in ssl/ech.c
