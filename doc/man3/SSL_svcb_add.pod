@@ -4,7 +4,7 @@
 
 SSL_CTX_svcb_add, SSL_svcb_add, SSL_ech_add, SSL_CTX_ech_add,
 SSL_ech_server_name, SSL_ech_query,
-SSL_ech_set_outer_server_name, SSL_CTX_ech_set_outer_server_name, 
+SSL_ech_set_outer_server_name, SSL_CTX_ech_set_outer_server_name,
 SSL_CTX_ech_set_outer_alpn_protos, SSL_ech_set_outer_alpn_protos,
 SSL_ECH_DETS_print, SSL_ech_reduce, SSL_CTX_ech_server_key_status,
 SSL_CTX_ech_server_flush_keys, SSL_CTX_ech_server_enable,
@@ -13,7 +13,7 @@ SSL_ech_get_status, SSL_ech_set_grease_suite, SSL_ech_set_grease_type,
 SSL_CTX_ech_set_callback, SSL_ech_set_callback,
 SSL_ECH_DETS_free,SSL_CTX_ech_raw_decrypt,
 SSL_CTX_ech_server_enable_buffer,SSL_ech_get_returned
-- Encrypted Client Helllo (ECH) support - client, server and commmon functions 
+- Encrypted Client Helllo (ECH) support - client, server and commmon functions
 
 =head1 SYNOPSIS
 

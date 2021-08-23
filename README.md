@@ -4,8 +4,8 @@ Welcome to the OpenSSL Project
 This is sftcd's fork of OpenSSL to implement Encrypted Client Hello (ECH).
 This is not well tested. Do not use it other than for testing.
 
-The latest sorta-stable-ish code for that 
-is the [ECH-draft-13a](https://github.com/sftcd/openssl/tree/ECH-draft-13a) branch. 
+The latest sorta-stable-ish code for that
+is the [ECH-draft-13a](https://github.com/sftcd/openssl/tree/ECH-draft-13a) branch.
 the state of play, tools, integrations etc. in a [README](https://github.com/sftcd/openssl/tree/ECH-draft-13a/esnistuff/).
 
 [![openssl logo]][www.openssl.org]

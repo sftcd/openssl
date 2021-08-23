@@ -8,7 +8,7 @@
  */
 
 /**
- * @file 
+ * @file
  * This has the data structures and prototypes (both internal and external)
  * for an OpenSSL-based HPKE implementation following draft-irtf-cfrg-hpke
  */
@@ -21,11 +21,11 @@
 /* biggest/default buffer we use */
 #ifndef HPKE_MAXSIZE
 /* 40k is enough for anyone (using this program:-) */
-#define HPKE_MAXSIZE (40*1024) 
+#define HPKE_MAXSIZE (40*1024)
 #endif
 
 /*
- * The HPKE modes 
+ * The HPKE modes
  */
 #define HPKE_MODE_BASE              0 /**< Base mode  */
 #define HPKE_MODE_PSK               1 /**< Pre-shared key mode */
@@ -83,7 +83,7 @@ typedef struct {
 } hpke_suite_t;
 
 /*!
- * Two suite constants, use this like: 
+ * Two suite constants, use this like:
  *
  *          hpke_suite_t myvar = HPKE_SUITE_DEFAULT;
  */
@@ -94,7 +94,7 @@ typedef struct {
 
 
 /*!
- * @brief  Map ascii to binary - utility macro used in >1 place 
+ * @brief  Map ascii to binary - utility macro used in >1 place
  */
 #define HPKE_A2B(__c__) (__c__>='0'&&__c__<='9'?(__c__-'0'):\
                         (__c__>='A'&&__c__<='F'?(__c__-'A'+10):\
@@ -107,7 +107,7 @@ typedef struct {
  * @param suite is the ciphersuite to use
  * @param pskid is the pskid string fpr a PSK mode (can be NULL)
  * @param psklen is the psk length
- * @param psk is the psk 
+ * @param psk is the psk
  * @param publen is the length of the public key
  * @param pub is the encoded public key
  * @param privlen is the length of the private (authentication) key
@@ -118,9 +118,9 @@ typedef struct {
  * @param aad is the encoded additional data
  * @param infolen is the lenght of the info data (can be zero)
  * @param info is the encoded info data (can be NULL)
- * @param senderpublen length of the input buffer for sender's public key 
+ * @param senderpublen length of the input buffer for sender's public key
  * @param senderpub is the input buffer for sender public key
- * @param cipherlen is the length of the input buffer for ciphertext 
+ * @param cipherlen is the length of the input buffer for ciphertext
  * @param cipher is the input buffer for ciphertext
  * @return 1 for good (OpenSSL style), not-1 for error
  *
@@ -149,7 +149,7 @@ int hpke_enc(
  * @param suite is the ciphersuite to use
  * @param pskid is the pskid string fpr a PSK mode (can be NULL)
  * @param psklen is the psk length
- * @param psk is the psk 
+ * @param psk is the psk
  * @param publen is the length of the public key
  * @param pub is the encoded public key
  * @param privlen is the length of the private (authentication) key
@@ -160,10 +160,10 @@ int hpke_enc(
  * @param aad is the encoded additional data
  * @param infolen is the lenght of the info data (can be zero)
  * @param info is the encoded info data (can be NULL)
- * @param senderpublen length of the input buffer with the sender's public key 
+ * @param senderpublen length of the input buffer with the sender's public key
  * @param senderpub is the input buffer for sender public key
  * @param senderpriv has the handle for the sender private key
- * @param cipherlen length of the input buffer for ciphertext 
+ * @param cipherlen length of the input buffer for ciphertext
  * @param cipher is the input buffer for ciphertext
  * @return 1 for good (OpenSSL style), not-1 for error
  *
@@ -191,7 +191,7 @@ int hpke_enc_evp(
  * @param suite is the ciphersuite to use
  * @param pskid is the pskid string fpr a PSK mode (can be NULL)
  * @param psklen is the psk length
- * @param psk is the psk 
+ * @param psk is the psk
  * @param publen is the length of the recipient public key
  * @param pub is the encoded recipient public key
  * @param privlen is the length of the private (authentication) key
@@ -202,10 +202,10 @@ int hpke_enc_evp(
  * @param aad is the encoded additional data (can be NULL)
  * @param infolen is the lenght of the info data (can be zero)
  * @param info is the encoded info data (can be NULL)
- * @param senderpublen length of the input buffer with the sender's public key 
+ * @param senderpublen length of the input buffer with the sender's public key
  * @param senderpub is the input buffer for sender public key
  * @param senderpriv has the handle for the sender private key
- * @param cipherlen length of the input buffer for ciphertext 
+ * @param cipherlen length of the input buffer for ciphertext
  * @param cipher is the input buffer for ciphertext
  * @return 1 for good (OpenSSL style), not-1 for error
  */
@@ -217,7 +217,7 @@ int hpke_enc_raw(
         size_t clearlen, unsigned char *clear,
         size_t aadlen, unsigned char *aad,
         size_t infolen, unsigned char *info,
-        size_t extsenderpublen, unsigned char *extsenderpub, 
+        size_t extsenderpublen, unsigned char *extsenderpub,
         size_t rawsenderprivlen,  unsigned char *rawsenderpriv,
         size_t *cipherlen, unsigned char *cipher
 #ifdef TESTVECTORS
@@ -231,7 +231,7 @@ int hpke_enc_raw(
  * @param suite is the ciphersuite to use
  * @param pskid is the pskid string fpr a PSK mode (can be NULL)
  * @param psklen is the psk length
- * @param psk is the psk 
+ * @param psk is the psk
  * @param publen is the length of the public (authentication) key
  * @param pub is the encoded public (authentication) key
  * @param privlen is the length of the private key
@@ -239,13 +239,13 @@ int hpke_enc_raw(
  * @param evppriv is a pointer to an internal form of private key
  * @param enclen is the length of the peer's public value
  * @param enc is the peer's public value
- * @param cipherlen is the length of the ciphertext 
+ * @param cipherlen is the length of the ciphertext
  * @param cipher is the ciphertext
  * @param aadlen is the lenght of the additional data
  * @param aad is the encoded additional data
  * @param infolen is the lenght of the info data (can be zero)
  * @param info is the encoded info data (can be NULL)
- * @param clearlen length of the input buffer for cleartext 
+ * @param clearlen length of the input buffer for cleartext
  * @param clear is the encoded cleartext
  * @return 1 for good (OpenSSL style), not-1 for error
  */
@@ -274,7 +274,7 @@ int hpke_dec(
 int hpke_kg(
         unsigned int mode, hpke_suite_t suite,
         size_t *publen, unsigned char *pub,
-        size_t *privlen, unsigned char *priv); 
+        size_t *privlen, unsigned char *priv);
 
 /*!
  * @brief generate a key pair but keep private inside API
@@ -300,9 +300,9 @@ int hpke_kg_evp(
  * @return 1 for good (OpenSSL style), not-1 for error
  */
 int hpke_ah_decode(
-        size_t ahlen, 
-        const char *ah, 
-        size_t *blen, 
+        size_t ahlen,
+        const char *ah,
+        size_t *blen,
         unsigned char **buf);
 
 /**
@@ -363,7 +363,7 @@ int hpke_good4grease(
  * @param str is the string value
  * @param suite is the resulting suite
  * @return 1 for success, otherwise failure
- */ 
+ */
 int hpke_str2suite(char *str, hpke_suite_t *suite);
 
 /*!
@@ -373,7 +373,7 @@ int hpke_str2suite(char *str, hpke_suite_t *suite);
  * Those are almost always, but not always, 16 octets
  * long, and who know what'll be true in the future.
  * So this function allows a caller to find out how
- * much data expansion they'll see with a given 
+ * much data expansion they'll see with a given
  * suite.
  *
  * @param suite is the suite to be used
@@ -381,8 +381,8 @@ int hpke_str2suite(char *str, hpke_suite_t *suite);
  * @param cipherlen points to what'll be ciphertext length
  * @return 1 for success, otherwise failure
  */
-int hpke_expansion(hpke_suite_t suite, 
-        size_t clearlen, 
+int hpke_expansion(hpke_suite_t suite,
+        size_t clearlen,
         size_t *cipherlen);
 
 #endif

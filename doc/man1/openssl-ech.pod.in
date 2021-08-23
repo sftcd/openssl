@@ -87,7 +87,7 @@ TBD
 
 =head1 NOTES
 
-Ciphersuites are specified using a comma-separated list of IANA-registered 
+Ciphersuites are specified using a comma-separated list of IANA-registered
 codes/numbers e.g. "-c 0x20,1,3" or a comma-separated list of strings from:
 - KEMs: p256, p384, p521, x25519, x448
 - KDFs: hkdf-sha256, hkdf-sha384, hkdf-sha512

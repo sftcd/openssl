@@ -860,7 +860,7 @@ SSL *SSL_new(SSL_CTX *ctx)
             if (s->ech->outer_name == NULL)
                 goto err;
         }
-        if (s->ech && s->ech->cfg && s->ech->cfg->recs) 
+        if (s->ech && s->ech->cfg && s->ech->cfg->recs)
             s->ext.ech_attempted_type=s->ech->cfg->recs[0].version;
         else
             s->ext.ech_attempted_type=TLSEXT_TYPE_ech_unknown;
@@ -879,7 +879,7 @@ SSL *SSL_new(SSL_CTX *ctx)
     s->ext.ech_grease_suite=NULL;
     s->ext.ch_depth=0;
     s->ext.encoded_innerch_len=0;
-    if (ctx->options & SSL_OP_ECH_GREASE) { 
+    if (ctx->options & SSL_OP_ECH_GREASE) {
         s->ext.ech_grease=ECH_IS_GREASE;
     } else {
         s->ext.ech_grease=ECH_NOT_GREASE;
@@ -889,8 +889,8 @@ SSL *SSL_new(SSL_CTX *ctx)
         s->ext.alpn_outer = OPENSSL_malloc(s->ctx->ext.alpn_outer_len);
         if (s->ext.alpn_outer == NULL)
             goto err;
-        memcpy(s->ext.alpn_outer, 
-                s->ctx->ext.alpn_outer, 
+        memcpy(s->ext.alpn_outer,
+                s->ctx->ext.alpn_outer,
                 s->ctx->ext.alpn_outer_len);
         s->ext.alpn_outer_len = ctx->ext.alpn_outer_len;
     }
@@ -1239,7 +1239,7 @@ void SSL_free(SSL *s)
     X509_VERIFY_PARAM_free(s->param);
     dane_final(&s->dane);
 #ifndef OPENSSL_NO_ECH
-    /* 
+    /*
      * Tricksy way to only free something a) on a server
      * or b) on a client that's greasing or has an inner_s
      * allocated (i.e. in process of attempting ECH) or
@@ -1276,9 +1276,9 @@ void SSL_free(SSL *s)
 
 #ifndef OPENSSL_NO_ECH
     /* This seems needed on client but not on server */
-    if ( s->init_buf && 
+    if ( s->init_buf &&
          (
-          (!s->server && (s->ext.inner_s || !s->ech)) || 
+          (!s->server && (s->ext.inner_s || !s->ech)) ||
           s->server
          )
        )
@@ -1295,21 +1295,21 @@ void SSL_free(SSL *s)
     /* only do this one if... */
     if (    s->server ||
             !s->ech ||
-            (   
-                !s->server && 
+            (  
+                !s->server &&
                 s->ext.ech_grease!=ECH_IS_GREASE &&
-                s->ext.ech_success==1 
+                s->ext.ech_success==1
             )
                 ||
-            (   
-                !s->server && 
+            (  
+                !s->server &&
                 s->ext.ech_grease!=ECH_IS_GREASE &&
-                (s->ext.ech_done==1 && s->ext.ch_depth==0) 
+                (s->ext.ech_done==1 && s->ext.ch_depth==0)
             )
                 ||
             (
-                !s->server && 
-                s->ext.ech_grease==ECH_IS_GREASE && 
+                !s->server &&
+                s->ext.ech_grease==ECH_IS_GREASE &&
                 s->ext.inner_s==NULL
             )
        ) {
@@ -1352,12 +1352,12 @@ void SSL_free(SSL *s)
     OPENSSL_free(s->ext.alpn);
     OPENSSL_free(s->ext.tls13_cookie);
 #ifndef OPENSSL_NO_ECH
-    if (s->ext.inner_s==NULL && s->ext.outer_s!=NULL) 
+    if (s->ext.inner_s==NULL && s->ext.outer_s!=NULL)
 #endif
     if (s->clienthello != NULL)
         OPENSSL_free(s->clienthello->pre_proc_exts);
 #ifndef OPENSSL_NO_ECH
-    if (s->ext.inner_s==NULL && s->ext.outer_s!=NULL) 
+    if (s->ext.inner_s==NULL && s->ext.outer_s!=NULL)
 #endif
     OPENSSL_free(s->clienthello);
     OPENSSL_free(s->pha_context);
@@ -1418,7 +1418,7 @@ void SSL_free(SSL *s)
         s->ext.inner_s->ext.outer_s=NULL;
         SSL_free(s->ext.inner_s);
         s->ext.inner_s=NULL;
-    } 
+    }
 
     if (s->s3.handshake_buffer) {
         (void)BIO_set_close(s->s3.handshake_buffer, BIO_CLOSE);
@@ -2972,7 +2972,7 @@ char *SSL_get_shared_ciphers(const SSL *s, char *buf, int size)
  * - if we are before or during/after the handshake,
  * - if a resumption or normal handshake is being attempted/has occurred
  * - whether we have negotiated TLSv1.2 (or below) or TLSv1.3
- * 
+ *
  * Note that only the host_name type is defined (RFC 3546).
  */
 const char *SSL_get_servername(const SSL *s, const int type)
@@ -3535,7 +3535,7 @@ SSL_CTX *SSL_CTX_new_ex(OSSL_LIB_CTX *libctx, const char *propq,
 #ifndef OPENSSL_NO_ECH
 	ret->ext.nechs=0;
 	ret->ext.ech=NULL;
-    ret->ext.ech_cb=NULL; 
+    ret->ext.ech_cb=NULL;
     ret->ext.alpn_outer=NULL;
     ret->ext.alpn_outer_len=0;
 #endif
@@ -4313,7 +4313,7 @@ SSL *SSL_dup(SSL *s)
         if (!ret->ech) {
             goto err;
         }
-    } 
+    }
     ret->ech_cb=s->ech_cb;
     if (s->ext.alpn_outer && s->ext.alpn_outer_len >0) {
         if (ret->ext.alpn_outer!=NULL) OPENSSL_free(ret->ext.alpn_outer);

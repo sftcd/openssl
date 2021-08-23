@@ -1408,7 +1408,7 @@ MSG_PROCESS_RETURN tls_process_client_hello(SSL *s, PACKET *pkt)
             goto err;
         }
         if (s->ext.ech_success==1) {
-            /* 
+            /*
              * If ECH worked, the inner CH MUST be smaller so we can
              * overwrite the outer packet, but no harm to check anyway
              * I just happen to know that pkt->curr == s->init_msg
@@ -1419,7 +1419,7 @@ MSG_PROCESS_RETURN tls_process_client_hello(SSL *s, PACKET *pkt)
             }
             memcpy(s->init_msg,newpkt.curr,newpkt.remaining);
             pkt->remaining=newpkt.remaining;
-        } 
+        }
     }
 
 #endif
@@ -1936,13 +1936,13 @@ static int tls_early_post_process_client_hello(SSL *s)
 
 #ifndef OPENSSL_NO_ECH
     /*
-     * Unless ECH has worked or not been configured we  won't call 
-     * the session_secret_cb now because we'll need to calculate the 
-     * server random later to include the ECH accept value  
+     * Unless ECH has worked or not been configured we  won't call
+     * the session_secret_cb now because we'll need to calculate the
+     * server random later to include the ECH accept value
      * (We can't do it now as we don't yet have the SH encoding)
      * This may change in draft-12.
      */
-    if ((s->ech && s->ext.ech_success) || !s->ech) 
+    if ((s->ech && s->ext.ech_success) || !s->ech)
 #endif
 
     if (!s->hit
