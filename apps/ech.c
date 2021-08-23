@@ -551,20 +551,22 @@ opthelp:
     }
 
     if (extfile!=NULL) {
+        int bio_read_rv=0;
         BIO *eb=BIO_new_file(extfile,"rb");
         if (!eb) {
             BIO_printf(bio_err, "Can't open ECH extensions file %s\n",extfile);
             ERR_print_errors(bio_err);
             goto end;
         }
-        extlen = BIO_read(eb, extvals, extlen);
+        bio_read_rv = BIO_read(eb, extvals, extlen);
         BIO_free(eb);
-        if (extlen <= 0) {
+        if (bio_read_rv <= 0) {
             BIO_printf(bio_err, "Error reading ECH extensions file %s\n",
                     extfile);
             ERR_print_errors(bio_err);
             goto end;
         }
+        extlen=(size_t) bio_read_rv;
     } else {
         extlen=0;
     }
