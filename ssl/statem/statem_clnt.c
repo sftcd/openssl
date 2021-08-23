@@ -1375,7 +1375,7 @@ CON_FUNC_RETURN tls_construct_client_hello(SSL_CONNECTION *s, WPACKET *pkt)
     new_s->ext.innerch_len=innerinnerlen;
 
     WPACKET_cleanup(&inner);
-    if (inner_mem) BUF_MEM_free(inner_mem);
+    BUF_MEM_free(inner_mem);
     inner_mem=NULL;
 
     /*
