@@ -2039,7 +2039,11 @@ int SSL_ech_print(BIO* out, SSL *ssl, int selector)
 #define ECH_TIME_STR_LEN 32
                     struct tm local,*local_p=NULL;
                     char lstr[ECH_TIME_STR_LEN];
+#if !defined(OPENSSL_SYS_WINDOWS)
                     local_p=gmtime_r(&s->ech[i].loadtime,&local);
+#else
+                    local_p=gmtime_s(&local,&s->ech[i].loadtime);
+#endif
                     if (local_p!=&local) {
                         strcpy(lstr,"sometime");
                     } else { 
