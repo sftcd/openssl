@@ -734,7 +734,7 @@ static int ECHConfig_dup(ECHConfig *old, ECHConfig *new)
     }
     for (i=0;i!=old->nexts;i++) {
         new->exts[i]=OPENSSL_malloc(old->extlens[i]);
-        if (!new->exts) goto err;
+        if (!new->exts[i]) goto err;
         memcpy(new->exts[i],old->exts[i],old->extlens[i]);
     }
     return 1;
@@ -754,11 +754,9 @@ static int ECHConfigs_dup(ECHConfigs *old, ECHConfigs *new)
     int i=0;
     if (!new || !old) return 0;
     if (old->encoded_len!=0) {
-        if (old->encoded_len!=0) {
-            new->encoded=
-                ech_len_field_dup((void*)old->encoded,old->encoded_len);
-            if (new->encoded==NULL) return 0;
-        }
+        new->encoded=
+            ech_len_field_dup((void*)old->encoded,old->encoded_len);
+        if (new->encoded==NULL) return 0;
         new->encoded_len=old->encoded_len;
     }
     new->recs=OPENSSL_malloc(old->nrecs*sizeof(ECHConfig));
@@ -928,7 +926,7 @@ static ECHConfigs *ECHConfigs_from_binary(
     	        goto err;
     	    }
     	    suiteoctets=PACKET_remaining(&cipher_suites);
-    	    if (suiteoctets<=0 || (suiteoctets % 1)) {
+    	    if (suiteoctets<=0 || (suiteoctets%2)==1) {
     	        goto err;
     	    }
     	    ec->nsuites=suiteoctets/ECH_CIPHER_LEN;
@@ -1326,13 +1324,14 @@ static int local_decode_rdata_name(
         char **dnsname)
 {
     unsigned char *cp=NULL;
-    size_t rem=*remaining;
+    size_t rem=0;
     char *thename=NULL,*tp=NULL;
     unsigned char clen=0; /* chunk len */
 
-    if (!buf) return(0);
-    if (!remaining) return(0);
-    if (!dnsname) return(0);
+    if (buf==NULL) return(0);
+    if (remaining==NULL) return(0);
+    rem=*remaining;
+    if (dnsname==NULL) return(0);
     thename=OPENSSL_malloc(TLSEXT_MAXLEN_host_name);
     if (thename==NULL) {
         return(0);
@@ -2035,26 +2034,24 @@ int SSL_ech_print(BIO* out, SSL *ssl, int selector)
                 BIO_printf(out,"ECHConfig %d\n\t%s\n",i,cfg);
                 OPENSSL_free(cfg);
                 if (s->ech[i].keyshare) {
-#if !defined(OPENSSL_SYS_WINDOWS)
+
 /* apparently 26 is all we need */
 #define ECH_TIME_STR_LEN 32
                     struct tm local,*local_p=NULL;
-                    char lstr[ECH_TIME_STR_LEN],*lstr_p=NULL;
+                    char lstr[ECH_TIME_STR_LEN];
                     local_p=gmtime_r(&s->ech[i].loadtime,&local);
                     if (local_p!=&local) {
                         strcpy(lstr,"sometime");
                     } else { 
-                        lstr_p=asctime_r(local_p,lstr);
-                        if (lstr_p!=lstr) {
+                        int srv=strftime(lstr,ECH_TIME_STR_LEN,
+                                "%c",&local);
+                        if (srv==0) {
                             strcpy(lstr,"sometime");
                         }
                     }
-#else
-                    struct tm *local=gmtime(&s->ech[i].loadtime);
-                    char *lstr=asctime_r(local);
-#endif
                     BIO_printf(out,"\tpriv=%s, loaded at %s\n",
                         s->ech[i].pemfname,lstr);
+
                 }
             }
         }
@@ -2175,8 +2172,8 @@ static char *ECHConfigs_print(ECHConfigs *c)
     if (!c->recs) return(str);
     alen=c->encoded_len*3+80;
     str=OPENSSL_malloc(alen);
-    memset(str,0,alen);
     if (!str) return(str);
+    memset(str,0,alen);
     cp=str;
     for (i=0;i!=c->nrecs;i++) {
         unsigned int j=0;
@@ -2348,10 +2345,11 @@ static int local_svcb_add(
             return(rv);
         }
     } else if (detfmt==ECH_FMT_B64TXT) {
-        binlen=ech_base64_decode(rrval,&binbuf);
-        if (binlen<=0) {
+        int ebd_rv=ech_base64_decode(rrval,&binbuf);
+        if (ebd_rv<=0) {
             return(0);
         }
+        binlen=(size_t)ebd_rv;
     }
 
     /*
@@ -2756,8 +2754,8 @@ int ech_encode_inner(SSL *ssl)
         }
         for (iind=0;iind!=s->ext.n_outer_only;iind++) {
             if (!WPACKET_put_bytes_u16(&inner, s->ext.outer_only[iind])) {
-                goto err;
                 SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+                goto err;
             }
         }
     }
@@ -2808,7 +2806,7 @@ int ech_encode_inner(SSL *ssl)
     s->ext.encoded_innerch_len=innerinnerlen-4;
     /* and clean up */
     WPACKET_cleanup(&inner);
-    if (inner_mem) BUF_MEM_free(inner_mem);
+    BUF_MEM_free(inner_mem);
     inner_mem=NULL;
     return(1);
 err:
@@ -3741,6 +3739,7 @@ void ech_ptranscript(const char *msg, SSL_CONNECTION *s)
     unsigned char ddata[1000];
     size_t ddatalen;
 
+    if (!s) return;
     hdatalen = BIO_get_mem_data(s->s3.handshake_buffer, &hdata);
     ech_pbuf(msg,hdata,hdatalen);
     if (s->s3.handshake_dgst!=NULL) {
@@ -4038,21 +4037,19 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
     if (tc==NULL && firstmatch!=NULL) {
         tc=firstmatch;
     }
-    /*
-     * tc is our selected config
-     */
+    /* tc is our selected config */
 #ifndef OPENSSL_NO_SSL_TRACE
-        OSSL_TRACE_BEGIN(TLS) {
-            BIO_printf(trc_out,"EAAE: selected: version: %4x, config %2x\n",
-                    tc->version,tc->config_id);
-        } OSSL_TRACE_END(TLS);
+    OSSL_TRACE_BEGIN(TLS) {
+        BIO_printf(trc_out,"EAAE: selected: version: %4x, config %2x\n",
+                tc->version,tc->config_id);
+    } OSSL_TRACE_END(TLS);
 #endif
-    peerpub=tc->pub;
-    peerpub_len=tc->pub_len;
-    if (peerpub_len <=0) {
+    if (tc->pub_len==0) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         goto err;
     }
+    peerpub_len=tc->pub_len;
+    peerpub=tc->pub;
     if (s->ext.inner_s==NULL || s->ext.inner_s->ech==NULL) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         goto err;
@@ -5287,7 +5284,7 @@ int SSL_CTX_ech_raw_decrypt(SSL_CTX *ctx,
     PACKET pkt_outer;
     PACKET pkt_inner;
     unsigned char *inner_buf=NULL;
-    size_t inner_buf_len=*inner_len;
+    size_t inner_buf_len=0;
     int rv=0;
     size_t startofsessid=0; /**< offset of session id within Ch */
     size_t startofexts=0; /**< offset of extensions within CH */
@@ -5296,8 +5293,9 @@ int SSL_CTX_ech_raw_decrypt(SSL_CTX *ctx,
     size_t innersnioffset=0; /**< offset to SNI in inner */
     SSL_CONNECTION *sc = NULL;
 
-    if (!ctx || !outer_ch || outer_len==0 || !inner_ch || inner_len==0
+    if (!ctx || !outer_ch || outer_len==0 || !inner_ch || !inner_len
                 || !inner_sni || !outer_sni || !decrypted_ok) return 0;
+    inner_buf_len=*inner_len;
     s=SSL_new(ctx);
     if (s==NULL) return 0;
     if (PACKET_buf_init(&pkt_outer,outer_ch+9,outer_len-9)!=1) goto err;

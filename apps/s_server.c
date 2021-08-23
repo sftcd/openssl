@@ -605,24 +605,21 @@ static int ssl_ech_servername_cb(SSL *s, int *ad, void *arg)
     char *outer_sni=NULL;
     int echrv=0;
 
-#if !defined(OPENSSL_SYS_WINDOWS)
+
 /* apparently 26 is all we need */
 #define ECH_TIME_STR_LEN 32
-    struct tm tnow,*tnow_p=NULL;
-    char anow[ECH_TIME_STR_LEN],*anow_p=NULL;
-    tnow_p=gmtime_r(&now,&tnow);
-    if (tnow_p!=&tnow) {
-        strcpy(anow,"sometime");
-    } else {
-        anow_p=asctime_r(&tnow,anow);
-        if (anow_p!=anow) {
-            strcpy(anow,"sometime");
+    struct tm local,*local_p=NULL;
+    char lstr[ECH_TIME_STR_LEN];
+    local_p=gmtime_r(&now,&local);
+    if (local_p!=&local) {
+        strcpy(lstr,"sometime");
+    } else { 
+        int srv=strftime(lstr,ECH_TIME_STR_LEN,
+                "%c",&local);
+        if (srv==0) {
+            strcpy(lstr,"sometime");
         }
     }
-#else
-    struct tm *tnow_p=gmtime_r(&now);
-    char *anow=asctime_r(&tnow);
-#endif
 
     memset(clientip,0,INET6_ADDRSTRLEN);
     strncpy(clientip,"dunno",INET6_ADDRSTRLEN);
@@ -645,7 +642,7 @@ static int ssl_ech_servername_cb(SSL *s, int *ad, void *arg)
          * spit out that basic logging
          */
         BIO_printf(p->biodebug,
-            "ssl_ech_servername_cb: connection from %s at %s",clientip,anow);
+            "ssl_ech_servername_cb: connection from %s at %s\n",clientip,lstr);
         /* Client supplied SNI from inner and outer */
         switch (echrv) {
         case SSL_ECH_STATUS_BACKEND:
