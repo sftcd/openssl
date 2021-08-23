@@ -439,7 +439,7 @@ EXT_RETURN tls_construct_stoc_ech13(SSL *s, WPACKET *pkt,
                                           size_t chainidx);
 int tls_parse_stoc_ech(SSL *s, PACKET *pkt, unsigned int context,
                                X509 *x, size_t chainidx);
-EXT_RETURN tls_construct_ctos_ech_is_inner(SSL *s, WPACKET *pkt, 
+EXT_RETURN tls_construct_ctos_ech_is_inner(SSL *s, WPACKET *pkt,
                                    unsigned int context,
                                    X509 *x, size_t chainidx);
 int tls_parse_ctos_ech_is_inner(SSL *s, PACKET *pkt, unsigned int context,
@@ -459,7 +459,7 @@ int ech_map_ext_type_to_ind(unsigned int type);
  * @param s is the SSL structure
  * @param sk is the list of ciphers
  * @param pkt is the packet into which we encode sk
- * @return 1 for good, error otherwise 
+ * @return 1 for good, error otherwise
  *
  * This used be static in ssl/statem/statem_clnt.c, but it's now
  * also used in ssl/ech.c

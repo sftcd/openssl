@@ -16,14 +16,14 @@
 #include <openssl/rand.h>
 
 /*
- * Handle inner/outer CH cloning - ech_same_ext will 
- * (depending on ech.c compile time options) copy the 
- * value from CH.inner to CH.outer or else processing 
+ * Handle inner/outer CH cloning - ech_same_ext will
+ * (depending on ech.c compile time options) copy the
+ * value from CH.inner to CH.outer or else processing
  * will continue, generating a new value for the outer
  * CH.
- * This macro should be called in each _ctos_ function 
+ * This macro should be called in each _ctos_ function
  * that doesn't explicitly need special handling. See
- * the many examples below. 
+ * the many examples below.
  *
  * Note that the placement of this macro needs a bit
  * of thought - it has to go after declarations (to
@@ -72,8 +72,8 @@ EXT_RETURN tls_construct_ctos_renegotiate(SSL *s, WPACKET *pkt,
  * Or an application may say to not send an outer
  * SNI at all.
  *
- * If the application states a preferece we'll 
- * abide by that, despite the public_name from 
+ * If the application states a preferece we'll
+ * abide by that, despite the public_name from
  * an ECHConfig.
  *
  * This function fixes those up to ensure that
@@ -111,40 +111,40 @@ static int ech_server_name_fixup(SSL *s)
         if (s->ext.ch_depth==1) { /* Inner CH */
             if (in_len!=0) {
                 /* we prefer this over all */
-                if (ehn_len!=0) { 
-                    OPENSSL_free(s->ext.hostname); 
-                    s->ext.hostname=NULL; 
-                    ehn_len=0; 
+                if (ehn_len!=0) {
+                    OPENSSL_free(s->ext.hostname);
+                    s->ext.hostname=NULL;
+                    ehn_len=0;
                 }
                 s->ext.hostname=OPENSSL_strdup(s->ech->inner_name);
-            } 
+            }
             /* otherwise we leave the s->ext.hostname alone */
         }
 
         if (s->ext.ch_depth==0) { /* Outer CH */
             if (on_len!=0) {
-                if (ehn_len!=0) { 
-                    OPENSSL_free(s->ext.hostname); 
-                    s->ext.hostname=NULL; 
-                    ehn_len=0; 
+                if (ehn_len!=0) {
+                    OPENSSL_free(s->ext.hostname);
+                    s->ext.hostname=NULL;
+                    ehn_len=0;
                 }
                 s->ext.hostname=OPENSSL_strdup(s->ech->outer_name);
             } else if (pn_len!=0) {
-                if (ehn_len!=0) { 
-                    OPENSSL_free(s->ext.hostname); 
-                    s->ext.hostname=NULL; 
-                    ehn_len=0; 
+                if (ehn_len!=0) {
+                    OPENSSL_free(s->ext.hostname);
+                    s->ext.hostname=NULL;
+                    ehn_len=0;
                 }
                 s->ext.hostname=OPENSSL_strndup(pn,pn_len);
             } else { /* don't send possibly sensitive inner in outer! */
-                if (ehn_len!=0) { 
-                    OPENSSL_free(s->ext.hostname); 
-                    s->ext.hostname=NULL; 
-                    ehn_len=0; 
+                if (ehn_len!=0) {
+                    OPENSSL_free(s->ext.hostname);
+                    s->ext.hostname=NULL;
+                    ehn_len=0;
                 }
             }
         }
-    } 
+    }
     return 1;
 }
 #endif /* END_OPENSSL_NO_ECH */
@@ -155,12 +155,12 @@ EXT_RETURN tls_construct_ctos_server_name(SSL *s, WPACKET *pkt,
 {
 
 #ifndef OPENSSL_NO_ECH
-    if (s->ech != NULL) { 
+    if (s->ech != NULL) {
         int echrv=0;
         /*
          * Don't send outer SNI if external API says that
          */
-        if (s->ext.ch_depth==0 && 
+        if (s->ext.ch_depth==0 &&
                 s->ech->outer_name==ECH_PUBLIC_NAME_OVERRIDE_NULL) {
             return EXT_RETURN_NOT_SENT;
         }
@@ -577,7 +577,7 @@ EXT_RETURN tls_construct_ctos_alpn(SSL *s, WPACKET *pkt, unsigned int context,
 #ifndef OPENSSL_NO_ECH
     /*
      * If we have different alpn and alpn_outer values, then we set
-     * the appropriate one for inner and outer. 
+     * the appropriate one for inner and outer.
      * If no alpn is set (for inner or outer), we don't send any.
      */
     if (!SSL_IS_FIRST_HANDSHAKE(s))
@@ -586,7 +586,7 @@ EXT_RETURN tls_construct_ctos_alpn(SSL *s, WPACKET *pkt, unsigned int context,
     alen=s->ext.alpn_len;
     if (s->ext.ch_depth==1 && s->ext.alpn==NULL)  /* inner */
         return EXT_RETURN_NOT_SENT;
-    if (s->ext.ch_depth==0 && !(s->ext.alpn || s->ext.alpn_outer)) /* outer */ 
+    if (s->ext.ch_depth==0 && !(s->ext.alpn || s->ext.alpn_outer)) /* outer */
         return EXT_RETURN_NOT_SENT;
     if (s->ext.ch_depth==0 && s->ext.alpn_outer!=NULL) {
         aval=s->ext.alpn_outer;
@@ -597,7 +597,7 @@ EXT_RETURN tls_construct_ctos_alpn(SSL *s, WPACKET *pkt, unsigned int context,
                 TLSEXT_TYPE_application_layer_protocol_negotiation)
                /* Sub-packet ALPN extension */
             || !WPACKET_start_sub_packet_u16(pkt)
-            || !WPACKET_sub_memcpy_u16(pkt, aval, alen) 
+            || !WPACKET_sub_memcpy_u16(pkt, aval, alen)
             || !WPACKET_close(pkt)) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return EXT_RETURN_FAIL;
@@ -813,7 +813,7 @@ static int add_key_share(SSL *s, WPACKET *pkt, unsigned int curve_id)
 
 #ifndef OPENSSL_NO_ECH
     /*
-     * With ECH we can get an outer that re-uses a share with 
+     * With ECH we can get an outer that re-uses a share with
      * it's inner, so a non-HRR case is no longer an error
      */
     if (s->ech==NULL && s->s3.tmp.pkey != NULL) {
@@ -1369,7 +1369,7 @@ EXT_RETURN tls_construct_ctos_psk(SSL *s, WPACKET *pkt, unsigned int context,
      * has a PSK, then we want to send a GREASE PSK in the outer.
      * We'll do that by just replacing the ticket value itself
      * with a random value of the same length.
-     */ 
+     */
     {
         unsigned char *ltick=s->session->ext.tick;
         unsigned char *rndbuf=NULL;
@@ -1378,7 +1378,7 @@ EXT_RETURN tls_construct_ctos_psk(SSL *s, WPACKET *pkt, unsigned int context,
             /* allocate a similar sized random value */
             rndbuf=OPENSSL_malloc(s->session->ext.ticklen);
             if (!rndbuf) return EXT_RETURN_FAIL;
-            if (RAND_bytes_ex(s->ctx->libctx, rndbuf, 
+            if (RAND_bytes_ex(s->ctx->libctx, rndbuf,
                         s->session->ext.ticklen, RAND_DRBG_STRENGTH) <= 0) {
                 OPENSSL_free(rndbuf);
                 return EXT_RETURN_FAIL;
@@ -1428,7 +1428,7 @@ EXT_RETURN tls_construct_ctos_psk(SSL *s, WPACKET *pkt, unsigned int context,
         }
 
         if (rndbuf!=NULL) OPENSSL_free(rndbuf);
-    
+   
     }
 #else
 
@@ -2309,7 +2309,7 @@ int tls_parse_stoc_psk(SSL *s, PACKET *pkt, unsigned int context, X509 *x,
 EXT_RETURN tls_construct_ctos_ech(SSL *s, WPACKET *pkt, unsigned int context,
                                    X509 *x, size_t chainidx)
 {
-    if (s->ext.ech_attempted_type==TLSEXT_TYPE_ech && 
+    if (s->ext.ech_attempted_type==TLSEXT_TYPE_ech &&
        (s->ext.ech_grease==ECH_IS_GREASE || (s->options & SSL_OP_ECH_GREASE))) {
         if (s->hello_retry_request==SSL_HRR_PENDING &&
                 s->ext.ech_sent!=NULL) {
@@ -2317,7 +2317,7 @@ EXT_RETURN tls_construct_ctos_ech(SSL *s, WPACKET *pkt, unsigned int context,
             if (WPACKET_memcpy(pkt,s->ext.ech_sent,s->ext.ech_sent_len)!=1) {
                 SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
                 return EXT_RETURN_FAIL;
-            } 
+            }
             return EXT_RETURN_NOT_SENT;
         }
         if (ech_send_grease(s,pkt)!=1) {
@@ -2350,7 +2350,7 @@ EXT_RETURN tls_construct_ctos_ech13(SSL *s, WPACKET *pkt, unsigned int context,
             if (WPACKET_memcpy(pkt,s->ext.ech_sent,s->ext.ech_sent_len)!=1) {
                 SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
                 return EXT_RETURN_FAIL;
-            } 
+            }
             return EXT_RETURN_NOT_SENT;
         }
         if (ech_send_grease(s,pkt)!=1) {
@@ -2369,7 +2369,7 @@ EXT_RETURN tls_construct_ctos_ech13(SSL *s, WPACKET *pkt, unsigned int context,
      * For the inner value - we simply include one of these saying "inner"
      */
     if (s->ext.ch_depth==1) {
-        if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_ech13) 
+        if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_ech13)
             || !WPACKET_start_sub_packet_u16(pkt)
             || !WPACKET_put_bytes_u8(pkt, ECH_INNER_CH_TYPE)
             || !WPACKET_close(pkt)

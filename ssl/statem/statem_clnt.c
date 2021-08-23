@@ -1100,7 +1100,7 @@ WORK_STATE ossl_statem_client_post_process_message(SSL *s, WORK_STATE wst)
 /*
  * Wrap the existing ClientHello construction with ECH code.
  *
- * As needed, we'll call the existing CH constructor twice, 
+ * As needed, we'll call the existing CH constructor twice,
  * first for inner, and then for outer.
  *
  * So the old tls_construct_client_hello is renamed to the _aux
@@ -1115,20 +1115,20 @@ WORK_STATE ossl_statem_client_post_process_message(SSL *s, WORK_STATE wst)
  * (1 for inner, 0 for outer).
  *
  * After creating the fields for the inner CH, we encode
- * those (so we can re-use existing code) then decode again 
+ * those (so we can re-use existing code) then decode again
  * (using the existing tls_process_client_hello previously
  * only used on servers), again to maximise code re-use.
  *
- * We next re-encode inner but this time including the 
+ * We next re-encode inner but this time including the
  * optimisations for inner CH encoding (outer exts etc.)
  * to produce our plaintext for encrypting.
  *
  * We lastly form up the AAD etc and encrypt to give us
  * the ciphertext for inclusion in the value of the outer
- * CH ECH extension. 
+ * CH ECH extension.
  *
- * It may seem odd to form up the outer CH before 
- * encrypting, but we need to do it that way so we get 
+ * It may seem odd to form up the outer CH before
+ * encrypting, but we need to do it that way so we get
  * the octets for the AAD used in encryption.
  *
  * Phew!
@@ -1165,8 +1165,8 @@ int tls_construct_client_hello(SSL *s, WPACKET *pkt)
     /* If we're not really attempting ECH, just call existing code.  */
     if (s->ech==NULL) return tls_construct_client_hello_aux(s, pkt);
 
-    /* 
-     * A sanity check - make sure the application didn't try GREASE 
+    /*
+     * A sanity check - make sure the application didn't try GREASE
      * as well - I had a bug where that happened.
      */
     if (s->ext.ech_grease==ECH_IS_GREASE) {
@@ -1179,7 +1179,7 @@ int tls_construct_client_hello(SSL *s, WPACKET *pkt)
         s->ext.ech_attempted_type=s->ech->cfg->recs[0].version;
     }
 
-    /* 
+    /*
      * Session ID - this is handled "oddly" by not being encoded into
      * inner CH (an optimisation) but being required to be the same
      * for both inner and outer (so that ServerHello has correct
@@ -1244,7 +1244,7 @@ int tls_construct_client_hello(SSL *s, WPACKET *pkt)
 
     /* The inner CH will use the same session ID as the outer */
     new_s->session->session_id_length=s->session->session_id_length;
-    if (new_s->session!=s->session) 
+    if (new_s->session!=s->session)
     	memcpy(new_s->session->session_id,
                s->session->session_id,
                s->session->session_id_length);
@@ -1319,8 +1319,8 @@ int tls_construct_client_hello(SSL *s, WPACKET *pkt)
     /*
      * Decode inner so that we can make up encoded inner
      */
-    if (!PACKET_buf_init(&rpkt, 
-                (unsigned char*) new_s->ext.innerch+4, 
+    if (!PACKET_buf_init(&rpkt,
+                (unsigned char*) new_s->ext.innerch+4,
                 new_s->ext.innerch_len-4)) {
         WPACKET_cleanup(pkt);
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
@@ -1339,7 +1339,7 @@ int tls_construct_client_hello(SSL *s, WPACKET *pkt)
     }
 
     /*
-     * Now we can make a ClientHelloInner and then 
+     * Now we can make a ClientHelloInner and then
      * EncodedClientHelloInner as per the spec.
      * We have to do it this way so the PSK binders in the inner
      * will work ok if the inner is forwarded to a split backend,
@@ -1354,7 +1354,7 @@ int tls_construct_client_hello(SSL *s, WPACKET *pkt)
             new_s->ext.encoded_innerch,new_s->ext.encoded_innerch_len);
 
     /*
-     * Make second call into CH constuction. 
+     * Make second call into CH constuction.
      */
     s->ext.ch_depth=0; /* unmark the outer after duping */
     rv=tls_construct_client_hello_aux(s, pkt);
@@ -1499,7 +1499,7 @@ int tls_construct_client_hello(SSL *s, WPACKET *pkt)
         if (s->version == TLS1_3_VERSION
 #ifndef OPENSSL_NO_ECH
                 /* same session ID is used for inner/outer when doing ECH */
-                &&  !s->ech 
+                &&  !s->ech
 #endif
                 && (s->options & SSL_OP_ENABLE_MIDDLEBOX_COMPAT) != 0) {
             sess_id_len = sizeof(s->tmp_session_id);
@@ -1513,7 +1513,7 @@ int tls_construct_client_hello(SSL *s, WPACKET *pkt)
             }
 #ifndef OPENSSL_NO_ECH
         } else if (s->ech) {
-            assert(s->session->session_id_length <= 
+            assert(s->session->session_id_length <=
                     sizeof(s->session->session_id));
             sess_id_len = s->session->session_id_length;
             if (s->version == TLS1_3_VERSION) {
@@ -1713,8 +1713,8 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL *s, PACKET *pkt)
     /*
      * What we'll do for ECH is: if we sent an ECH then we'll try
      * the inner_s first to see if it matches/works (based on the
-     * ickky ServerHello.random confirmation trick from the spec). 
-     * If that is good then good, we'll swap over the inner and 
+     * ickky ServerHello.random confirmation trick from the spec).
+     * If that is good then good, we'll swap over the inner and
      * outer contexts and proceed with inner. If confirmation fails
      * then we'll start over with another call to this function
      * with just the outer CH context and see what happens there.
@@ -1726,9 +1726,9 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL *s, PACKET *pkt)
     SSL outer=*s;
     int trying_inner=0;
 
-    if (s->ech!=NULL && 
-            s->ext.ech_done!=1 && 
-            s->ext.ch_depth==0 && 
+    if (s->ech!=NULL &&
+            s->ext.ech_done!=1 &&
+            s->ext.ch_depth==0 &&
             s->ext.ech_grease==ECH_NOT_GREASE) {
         if (!s->ext.inner_s) {
             SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_LENGTH_MISMATCH);
@@ -1926,11 +1926,11 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL *s, PACKET *pkt)
         if (s->session->session_id_length > 0) {
             tsan_counter(&s->session_ctx->stats.sess_miss);
 #ifndef OPENSSL_NO_ECH
-            if (trying_inner) { 
-                SSL_SESSION_free(s->session); 
+            if (trying_inner) {
+                SSL_SESSION_free(s->session);
                 s->session=NULL;
                 if (s->ext.outer_s) {
-                    SSL_SESSION_free(s->ext.outer_s->session); 
+                    SSL_SESSION_free(s->ext.outer_s->session);
                     s->ext.outer_s->session=NULL;
                 }
             }
@@ -2052,7 +2052,7 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL *s, PACKET *pkt)
 
 #ifndef OPENSSL_NO_ECH
     /*
-     * Figure out if ServerHello.ramdom indicated acceptance of inner 
+     * Figure out if ServerHello.ramdom indicated acceptance of inner
      * using the accept confirmation scheme.
      */
     if (trying_inner) {

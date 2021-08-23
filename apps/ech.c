@@ -27,13 +27,13 @@
 #ifndef OPENSSL_NO_ECH
 
 /* a max suitestr len just for sanity checking */
-#define ECH_MAXSUITESTR 32 
+#define ECH_MAXSUITESTR 32
 /* a max extensions len - this is HUGE to allow cat pics */
-#define ECH_MAXEXTLEN 60000 
+#define ECH_MAXEXTLEN 60000
 
 /**< max PEM encoded ECHConfigs we'll emit */
 #define ECH_MAX_ECHCONFIGS_LEN ECH_MAXEXTLEN+1000
-            
+
 #ifndef ECH_MAX_ECHCONFIG_LEN
 #define ECH_MAX_ECHCONFIG_LEN ECH_MAX_ECHCONFIGS_LEN
 #endif
@@ -46,14 +46,13 @@
 typedef enum OPTION_choice {
     /* standard openssl options */
     OPT_ERR = -1, OPT_EOF = 0, OPT_HELP, OPT_VERBOSE,
-    OPT_PUBOUT, OPT_PRIVOUT, OPT_PEMOUT, 
+    OPT_PUBOUT, OPT_PRIVOUT, OPT_PEMOUT,
     /* ECHConfig specifics */
-    OPT_PUBLICNAME, OPT_ECHVERSION, 
+    OPT_PUBLICNAME, OPT_ECHVERSION,
     OPT_MAXNAMELENGTH, OPT_HPKESUITE,
     OPT_EXTFILE,
     /* key print/select */
     OPT_PEMIN, OPT_SELECT
-    
 } OPTION_CHOICE;
 
 const OPTIONS ech_options[] = {
@@ -161,7 +160,7 @@ static int suitestr2suite(char *instr, hpke_suite_t *hpke_suite)
 }
 
 /**
- * @brief Make an X25519 key pair and ECHConfig structure 
+ * @brief Make an X25519 key pair and ECHConfig structure
  *
  * @param ekversion is the version to make
  * @param public_name is for inclusion within the ECHConfig
@@ -176,27 +175,27 @@ static int mk_echconfig(
         size_t *echconfig_len, unsigned char *echconfig,
         size_t *privlen, unsigned char *priv)
 {
-    size_t pnlen=0; 
+    size_t pnlen=0;
     int hpke_mode=HPKE_MODE_BASE;
     size_t publen=HPKE_MAXSIZE; unsigned char pub[HPKE_MAXSIZE];
     int rv=0;
-    unsigned char bbuf[ECH_MAX_ECHCONFIGS_LEN]; 
+    unsigned char bbuf[ECH_MAX_ECHCONFIGS_LEN];
     unsigned char *bp=bbuf;
     size_t bblen=0;
     unsigned int b64len = 0;
 
     switch(ekversion) {
-        case ECH_DRAFT_09_VERSION: 
+        case ECH_DRAFT_09_VERSION:
             /* note - this version is only to test we skip 'em */
             pnlen=(public_name==NULL?0:strlen(public_name));
             if (pnlen>ECH_MAX_PUBLICNAME) return 0;
             break;
-        case ECH_DRAFT_10_VERSION: 
+        case ECH_DRAFT_10_VERSION:
             pnlen=(public_name==NULL?0:strlen(public_name));
             if (pnlen>ECH_MAX_PUBLICNAME) return 0;
             if (max_name_length>ECH_MAX_MAXNAMELEN) return 0;
             break;
-        case ECH_DRAFT_13_VERSION: 
+        case ECH_DRAFT_13_VERSION:
             pnlen=(public_name==NULL?0:strlen(public_name));
             if (pnlen>ECH_MAX_PUBLICNAME) return 0;
             if (max_name_length>ECH_MAX_MAXNAMELEN) return 0;
@@ -210,7 +209,7 @@ static int mk_echconfig(
     rv=hpke_kg(
         hpke_mode, hpke_suite,
         &publen, pub,
-        privlen, priv); 
+        privlen, priv);
     if (rv!=1) { return(__LINE__); }
 
     /*
@@ -282,8 +281,8 @@ static int mk_echconfig(
     memset(bbuf,0,ECH_MAX_ECHCONFIGS_LEN);
     *bp++=0x00; /* leave space for overall length */
     *bp++=0x00; /* leave space for overall length */
-    *bp++=(unsigned char)(ekversion>>8)%256; 
-    *bp++=(unsigned char)(ekversion%256); 
+    *bp++=(unsigned char)(ekversion>>8)%256;
+    *bp++=(unsigned char)(ekversion%256);
     *bp++=0x00; /* leave space for almost-overall length */
     *bp++=0x00; /* leave space for almost-overall length */
     if (ekversion==ECH_DRAFT_09_VERSION) {
@@ -388,7 +387,7 @@ static int mk_echconfig(
     bbuf[4]=(unsigned char)((bblen-6)/256);
     bbuf[5]=(unsigned char)((bblen-6)%256);
     b64len = EVP_EncodeBlock(
-                    (unsigned char*)echconfig, 
+                    (unsigned char*)echconfig,
                     (unsigned char *)bbuf, bblen);
     if (b64len >=(*echconfig_len-1)) {
         return(__LINE__);
@@ -406,7 +405,7 @@ int ech_main(int argc, char **argv)
     OPTION_CHOICE o;
     int verbose=0;
     int filedone=0;
-    char *echconfig_file = NULL; 
+    char *echconfig_file = NULL;
     char *keyfile = NULL;
     char *pemfile=NULL;
     char *inpemfile=NULL;
@@ -474,7 +473,7 @@ opthelp:
             {
             long tmp = strtol(opt_arg(),NULL,10);
             if (tmp<0 || tmp>65535) {
-                BIO_printf(bio_err, 
+                BIO_printf(bio_err,
                     "max name length out of range [0,65553] (%ld)\n", tmp);
                 goto opthelp;
             } else {
@@ -498,7 +497,7 @@ opthelp:
         goto opthelp;
     }
 
-    /* 
+    /*
      * Check ECH-specific inputs
      */
     switch (ech_version) {
@@ -506,7 +505,7 @@ opthelp:
         case 0xff02: /* ESNI precursors */
         case 1:
         case 2:
-            BIO_printf(bio_err, 
+            BIO_printf(bio_err,
                 "Un-supported older version (0x%04x)\n",
                 ech_version);
             goto end;
@@ -514,7 +513,7 @@ opthelp:
             ech_version=ECH_DRAFT_09_VERSION;
             /* fall through */
         case ECH_DRAFT_09_VERSION: /* Early ECH */
-            BIO_printf(bio_err, 
+            BIO_printf(bio_err,
                 "Warning: generating draft-09 version. That's only" \
                 " useful for testing we ignore unknown versions.\n");
             break;
@@ -529,14 +528,14 @@ opthelp:
             ech_version=ECH_DRAFT_13_VERSION;
             break;
         default:
-            BIO_printf(bio_err, 
+            BIO_printf(bio_err,
                 "Un-supported version (0x%04x)\n",
                 ech_version);
             goto end;
     }
 
     if (max_name_length>TLSEXT_MAXLEN_host_name) {
-        BIO_printf(bio_err, 
+        BIO_printf(bio_err,
             "Weird max name length (0x%04x) - biggest is (0x%04x) - exiting\n",
             max_name_length,TLSEXT_MAXLEN_host_name);
         ERR_print_errors(bio_err);
@@ -550,7 +549,7 @@ opthelp:
             goto end;
         }
     }
- 
+
     if (extfile!=NULL) {
         BIO *eb=BIO_new_file(extfile,"rb");
         if (!eb) {
@@ -561,7 +560,7 @@ opthelp:
         extlen = BIO_read(eb, extvals, extlen);
         BIO_free(eb);
         if (extlen <= 0) {
-            BIO_printf(bio_err, "Error reading ECH extensions file %s\n", 
+            BIO_printf(bio_err, "Error reading ECH extensions file %s\n",
                     extfile);
             ERR_print_errors(bio_err);
             goto end;
@@ -578,12 +577,12 @@ opthelp:
     }
 
     if (mode==ECH_KEYGEN_MODE) {
-    
+
         /*
          * Generate a new ECHConfig and spit that out
          */
-        rv=mk_echconfig(ech_version, max_name_length, public_name, hpke_suite, 
-                extlen, extvals, &echconfig_len, echconfig, 
+        rv=mk_echconfig(ech_version, max_name_length, public_name, hpke_suite,
+                extlen, extvals, &echconfig_len, echconfig,
                 &privlen, priv);
         if (rv!=1) {
             BIO_printf(bio_err,"mk_echconfig error: %d\n",rv);
@@ -616,35 +615,35 @@ opthelp:
             BIO_free_all(pemf);
             BIO_printf(bio_err,"Wrote ECH key pair to %s\n",pemfile);
         } else {
-            if (keyfile==NULL) 
+            if (keyfile==NULL)
                 BIO_printf(bio_err,
                     "Didn't write private key anywhere! That's a bit silly\n");
-            if (echconfig_file==NULL) 
+            if (echconfig_file==NULL)
                 BIO_printf(bio_err,
                     "Didn't write ECHConfig anywhere! That's a bit silly\n");
         }
         return(1);
-    
+
     }
 
     if (mode==ECH_SELPRINT_MODE) {
         int nechs=0;
         ECH_DETS *ed=NULL;
-        
+
         if (inpemfile==NULL) {
             BIO_printf(bio_err,"no input PEM file supplied - exiting\n");
             goto end;
         }
-       
+
         con = SSL_CTX_new_ex(app_get0_libctx(), app_get0_propq(), meth);
         if (!con) goto end;
         /*
-         * Input could be key pair 
+         * Input could be key pair
          */
         rv=SSL_CTX_ech_server_enable(con,inpemfile);
         if (rv!=1) {
             /*
-             * Or it could be just an encoded ECHConfig 
+             * Or it could be just an encoded ECHConfig
              */
             pem_in = BIO_new(BIO_s_file());
             if (pem_in==NULL) {
@@ -706,11 +705,11 @@ opthelp:
         }
 
         rv=SSL_ech_query(s, &ed, &nechs);
-        if (rv!=1) goto end; 
+        if (rv!=1) goto end;
         if (!ed) goto end;
 
         rv=SSL_ECH_DETS_print(bio_err, ed, nechs);
-        if (rv!=1) goto end; 
+        if (rv!=1) goto end;
         SSL_ECH_DETS_free(ed, nechs);
 
         SSL_free(s);

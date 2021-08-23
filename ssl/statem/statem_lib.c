@@ -1064,10 +1064,10 @@ WORK_STATE tls_finish_handshake(SSL *s, ossl_unused WORK_STATE wst,
              * Figure out if we should zap another pointer to init_buf
              * before freeing
              */
-            if (!s->server && s->ext.inner_s!=NULL && 
+            if (!s->server && s->ext.inner_s!=NULL &&
                     s->ext.inner_s->init_buf==s->init_buf) {
                 s->ext.inner_s->init_buf=NULL;
-            } 
+            }
 #endif
             BUF_MEM_free(s->init_buf);
             s->init_buf = NULL;
