@@ -2196,11 +2196,11 @@ int s_client_main(int argc, char **argv)
         }
         OPENSSL_free(alpn);
     }
- 
+
 #ifndef OPENSSL_NO_ECH
     if (alpn_outer_in) {
         size_t alpn_outer_len;
-        unsigned char *alpn_outer = 
+        unsigned char *alpn_outer =
             next_protos_parse(&alpn_outer_len, alpn_outer_in);
         if (alpn_outer == NULL) {
             BIO_printf(bio_err, "Error parsing -alpn_outer argument\n");
