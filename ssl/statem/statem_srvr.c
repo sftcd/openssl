@@ -2598,8 +2598,10 @@ CON_FUNC_RETURN tls_construct_server_hello(SSL_CONNECTION *s, WPACKET *pkt)
         shoffset=6+24;
         p=(unsigned char*) &pkt->buf->data[shoffset];
         memcpy(p,acbuf,8);
-    } else if (s->ext.ech_grease==ECH_IS_GREASE && s->ech_cb!=NULL) {
-        /* call ECH callback */
+    } 
+
+    /* call ECH callback, if appropriate */
+    if (s->ech_cb!=NULL) {
         char pstr[ECH_PBUF_SIZE+1];
         BIO *biom = BIO_new(BIO_s_mem());
         unsigned int cbrv=0;
