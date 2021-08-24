@@ -2144,6 +2144,12 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL *s, PACKET *pkt)
     OPENSSL_free(extensions);
     return MSG_PROCESS_CONTINUE_READING;
  err:
+#ifndef OPENSSL_NO_ECH
+    if (trying_inner) {
+        /* swap back if needed */
+        *s=outer;
+    }
+#endif
     OPENSSL_free(extensions);
     return MSG_PROCESS_ERROR;
 }
