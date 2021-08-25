@@ -1540,6 +1540,7 @@ int tls_construct_client_hello(SSL_CONNECTION *s, WPACKET *pkt)
     /* note version we're attempting */
     if (s->ech && s->ech->cfg && s->ech->cfg->recs) {
         s->ext.ech_attempted_type=s->ech->cfg->recs[0].version;
+        s->ext.ech_attempted_cid=s->ech->cfg->recs[0].config_id;
     }
 
     /*
