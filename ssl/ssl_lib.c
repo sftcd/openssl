@@ -924,10 +924,13 @@ SSL *ossl_ssl_connection_new_int(SSL_CTX *ctx, const SSL_METHOD *method)
             if (s->ech->outer_name == NULL)
                 goto err;
         }
-        if (s->ech && s->ech->cfg && s->ech->cfg->recs)
+        if (s->ech && s->ech->cfg && s->ech->cfg->recs) {
             s->ext.ech_attempted_type=s->ech->cfg->recs[0].version;
-        else
+            s->ext.ech_attempted_cid=s->ech->cfg->recs[0].config_id;
+        } else {
             s->ext.ech_attempted_type=TLSEXT_TYPE_ech_unknown;
+            s->ext.ech_attempted_cid=0x00;
+        }
     } else {
         s->ech=NULL;
     }
@@ -5225,6 +5228,8 @@ SSL *SSL_dup(SSL *s)
     retsc->ext.outer_s=sc->ext.outer_s;
     retsc->ext.ech_done=sc->ext.ech_done;
     retsc->ext.ech_attempted=sc->ext.ech_attempted;
+    retsc->ext.ech_attempted_type=sc->ext.ech_attempted_type;
+    retsc->ext.ech_attempted_cid=sc->ext.ech_attempted_cid;
     retsc->ext.ech_backend=sc->ext.ech_backend;
     retsc->ext.ech_success=sc->ext.ech_success;
     retsc->ext.ech_grease=sc->ext.ech_grease;

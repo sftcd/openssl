@@ -2169,7 +2169,7 @@ int tls_parse_ctos_ech(SSL_CONNECTION *s, PACKET *pkt, unsigned int context,
                                X509 *x, size_t chainidx)
 {
     if (s->ext.ech_grease==ECH_IS_GREASE) {
-        /* GREASE is fine, and also catches all expected error cases */
+        /* GREASE is fine, and catches expected error cases */
         return 1;
     }
     if (!s->ech) {
@@ -2180,13 +2180,35 @@ int tls_parse_ctos_ech(SSL_CONNECTION *s, PACKET *pkt, unsigned int context,
         OSSL_TRACE_BEGIN(TLS) {
             BIO_printf(trc_out,"ECH shouldn't be seen here.\n");
         } OSSL_TRACE_END(TLS);
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         return 0;
     }
     if (s->ext.ech_attempted_type==ECH_DRAFT_13_VERSION) {
-        /* TODO: figure out parsing of inner ECH */
+        /* 
+         * we only allow "inner" which is one octet, valued 0x01 
+         * and only if we decrypted ok or are a backend
+         */
+        unsigned int echtype=0;
         OSSL_TRACE_BEGIN(TLS) {
             BIO_printf(trc_out,"draft-13 ECH seen in inner as exptected.\n");
         } OSSL_TRACE_END(TLS);
+        if (PACKET_get_1(pkt, &echtype)!=1) {
+            SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+            return 0;
+        }
+        if (echtype!=1) {
+            SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+            return 0;
+        }
+        if (PACKET_remaining(pkt)!=0) {
+            SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+            return 0;
+        }
+        if (!(s->ext.ech_success==1 || s->ext.ech_backend==1)) {
+            SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+            return 0;
+        }
+        /* yay - we're ok with this */
         return 1;
     }
     return 0;

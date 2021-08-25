@@ -1401,6 +1401,7 @@ int SSL_ech_add(
     con->nechs=*num_echs;
     con->ext.ech_attempted=1;
     con->ext.ech_attempted_type=TLSEXT_TYPE_ech_unknown;
+    con->ext.ech_attempted_cid=TLSEXT_TYPE_ech_config_id_unset;
     return(1);
 
 }
@@ -1491,6 +1492,7 @@ int SSL_ech_server_name(SSL *ssl, const char *inner_name, const char *outer_name
 
     s->ext.ech_attempted=1;
     s->ext.ech_attempted_type=TLSEXT_TYPE_ech_unknown;
+    s->ext.ech_attempted_cid=TLSEXT_TYPE_ech_config_id_unset;
     return 1;
 }
 
@@ -1537,6 +1539,7 @@ int SSL_ech_set_outer_server_name(SSL *ssl, const char *outer_name)
 
     s->ext.ech_attempted=1;
     s->ext.ech_attempted_type=TLSEXT_TYPE_ech_unknown;
+    s->ext.ech_attempted_cid=TLSEXT_TYPE_ech_config_id_unset;
     return 1;
 }
 
@@ -2017,8 +2020,13 @@ int SSL_ech_print(BIO* out, SSL *ssl, int selector)
     BIO_printf(out,"inner_s=%p\n",(void*)s->ext.inner_s);
     BIO_printf(out,"outer_s=%p\n",(void*)s->ext.outer_s);
 #endif
-    BIO_printf(out,"ech_attempted_type=0x%4x\n",s->ext.ech_attempted_type);
     BIO_printf(out,"ech_attempted=%d\n",s->ext.ech_attempted);
+    BIO_printf(out,"ech_attempted_type=0x%4x\n",s->ext.ech_attempted_type);
+    if (s->ext.ech_attempted_cid==TLSEXT_TYPE_ech_config_id_unset) {
+        BIO_printf(out,"ech_atttempted_cid is unset\n");
+    } else {
+        BIO_printf(out,"ech_atttempted_cid=0x%02x\n",s->ext.ech_attempted_cid);
+    }
     BIO_printf(out,"ech_done=%d\n",s->ext.ech_done);
     BIO_printf(out,"ech_grease=%d\n",s->ext.ech_grease);
 #ifdef ECH_SUPERVERBOSE
@@ -3704,6 +3712,7 @@ int ech_swaperoo(SSL_CONNECTION *s)
     s->ext.outer_s->ext.ech_attempted=1;
     s->ext.ech_attempted=1;
     s->ext.ech_attempted_type=s->ext.outer_s->ext.ech_attempted_type;
+    s->ext.ech_attempted_cid=s->ext.outer_s->ext.ech_attempted_cid;
     s->ext.outer_s->ext.ech_success=1;
     s->ext.ech_success=1;
     s->ext.outer_s->ext.ech_done=1;
@@ -3821,6 +3830,7 @@ int ech_send_grease(SSL *ssl, WPACKET *pkt)
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
     }
+    s->ext.ech_attempted_cid=cid;
     if (cipher_len_jitter!=0) {
         cipher_len-=cipher_len_jitter;
         cipher_len+=(cid%cipher_len_jitter);
@@ -4084,6 +4094,8 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
         config_id_to_use=tc->config_id;
         ech_pbuf("EAAE: config_id",&config_id_to_use,1);
     }
+    s->ext.ech_attempted_cid=config_id_to_use;
+    s->ext.ech_attempted_type=tc->version;
 
     if (tc->version==ECH_DRAFT_10_VERSION) {
         /*
@@ -4905,6 +4917,7 @@ int ech_early_decrypt(SSL *ssl, PACKET *outerpkt, PACKET *newpkt)
         goto err;
     }
     ech_pbuf("EARLY config id",&extval->config_id,1);
+    s->ext.ech_attempted_cid=extval->config_id;
 
     /* enc - the client's public share */
     if (!PACKET_get_net_2(pkt, &tmp)) {
