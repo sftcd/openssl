@@ -860,10 +860,13 @@ SSL *SSL_new(SSL_CTX *ctx)
             if (s->ech->outer_name == NULL)
                 goto err;
         }
-        if (s->ech && s->ech->cfg && s->ech->cfg->recs)
+        if (s->ech && s->ech->cfg && s->ech->cfg->recs) {
             s->ext.ech_attempted_type=s->ech->cfg->recs[0].version;
-        else
+            s->ext.ech_attempted_cid=s->ech->cfg->recs[0].config_id;
+        } else {
             s->ext.ech_attempted_type=TLSEXT_TYPE_ech_unknown;
+            s->ext.ech_attempted_cid=0x00;
+        }
     } else {
         s->ech=NULL;
     }
@@ -4336,6 +4339,7 @@ SSL *SSL_dup(SSL *s)
     ret->ext.ech_done=s->ext.ech_done;
     ret->ext.ech_attempted=s->ext.ech_attempted;
     ret->ext.ech_attempted_type=s->ext.ech_attempted_type;
+    ret->ext.ech_attempted_cid=s->ext.ech_attempted_cid;
     ret->ext.ech_backend=s->ext.ech_backend;
     ret->ext.ech_success=s->ext.ech_success;
     ret->ext.ech_grease=s->ext.ech_grease;
