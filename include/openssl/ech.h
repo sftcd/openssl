@@ -85,6 +85,11 @@
 #define ECH_PADDING_TARGET 256 /**< all ECH cleartext padded to at least this */
 #define ECH_PADDING_INCREMENT 32 /**< all ECH's padded to a multiple of this */
 
+/* value for uninitialised GREASE ECH version */
+#define TLSEXT_TYPE_ech_unknown               0xffff
+/* value for not yet set ECH config_id */
+#define TLSEXT_TYPE_ech_config_id_unset       -1
+
 /*
  * This is a special marker value. If set via a specific call
  * to our external API, then we'll override use of the
