@@ -2570,7 +2570,8 @@ CON_FUNC_RETURN tls_construct_server_hello(SSL_CONNECTION *s, WPACKET *pkt)
      * Calculate the ECH-accept server random to indicate that
      * we're accepting ECH, if that's the case
      */
-    if (s->ext.ech_backend || (s->ech && s->ext.ech_success==1)) {
+    if (s->hello_retry_request != SSL_HRR_PENDING && 
+            (s->ext.ech_backend || (s->ech && s->ext.ech_success==1))) {
         unsigned char acbuf[8];
         unsigned char *shbuf=NULL;
         size_t shlen=0;
@@ -2600,7 +2601,7 @@ CON_FUNC_RETURN tls_construct_server_hello(SSL_CONNECTION *s, WPACKET *pkt)
     } 
 
     /* call ECH callback, if appropriate */
-    if (s->ech_cb!=NULL) {
+    if (s->ext.ech_attempted && s->ech_cb!=NULL) {
         char pstr[ECH_PBUF_SIZE+1];
         BIO *biom = BIO_new(BIO_s_mem());
         unsigned int cbrv=0;

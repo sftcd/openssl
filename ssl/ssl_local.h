@@ -1614,6 +1614,7 @@ struct ssl_connection_st {
         SSL_CONNECTION* outer_s; /* pointer to outer CH from inner */
         int ech_attempted;
         uint16_t ech_attempted_type;
+        int ech_attempted_cid;
         int ech_done;
         int ech_success;
         int ech_grease;

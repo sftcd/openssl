@@ -47,3 +47,6 @@ If we run the usual client...
             $ ./echcli.sh -dv -p 8443 -s localhost -H foo.example.com -P d13mnl.pem
 
 ...we get a fine error followed by client leaks! (at extensions_clnt.c:2120)
+...fixed some of that leakage, but not all, and also getting a SIGABRT
+    - looks like server is crapping on last 8 octets of SH.random somehow but
+      first fix the leak/abort, then fix that...
