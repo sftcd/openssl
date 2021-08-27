@@ -2272,6 +2272,22 @@ EXT_RETURN tls_construct_stoc_ech(SSL_CONNECTION *s, WPACKET *pkt,
         } OSSL_TRACE_END(TLS);
         return EXT_RETURN_SENT;
     }
+
+    if (s->ext.ech_attempted_type==ECH_DRAFT_13_VERSION) {
+        if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_ech13)
+            || !WPACKET_sub_memcpy_u16(pkt,
+                        s->ech->cfg->encoded, s->ech->cfg->encoded_len)
+                ) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+            return 0;
+        }
+        OSSL_TRACE_BEGIN(TLS) {
+            BIO_printf(trc_out,"sending 1st loaded ECHConfig (draft-13) back " \
+                               "to client\n");
+        } OSSL_TRACE_END(TLS);
+        return EXT_RETURN_SENT;
+    }
+
     return EXT_RETURN_NOT_SENT;
 }
 
@@ -2288,10 +2304,32 @@ EXT_RETURN tls_construct_stoc_ech13(SSL *s, WPACKET *pkt,
                                           unsigned int context, X509 *x,
                                           size_t chainidx)
 {
-    /* If in some weird state we ignore and send nothing */
-    if (s->ext.ech_grease!=ECH_IS_GREASE) {
+
+    /* If doing HRR we include the confirmation value */
+    if (context==SSL_EXT_TLS1_3_HELLO_RETRY_REQUEST &&
+        s->ext.ech_attempted_type==TLSEXT_TYPE_ech13) {
+        unsigned char eightzeros[8]={0,0,0,0,0,0,0,0};
+        if (!WPACKET_put_bytes_u16(pkt, s->ext.ech_attempted_type)
+            || !WPACKET_sub_memcpy_u16(pkt,eightzeros,8)) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+            return 0;
+        }
+        OSSL_TRACE_BEGIN(TLS) {
+            BIO_printf(trc_out,"sending ECHConfig (draft-13) in HRR\n");
+        } OSSL_TRACE_END(TLS);
+        return EXT_RETURN_SENT;
+    }
+    /* for other versions don't send */
+    if (context==SSL_EXT_TLS1_3_HELLO_RETRY_REQUEST) {
         return EXT_RETURN_NOT_SENT;
     }
+
+    /* If in some weird state we ignore and send nothing */
+    if (s->ext.ech_grease!=ECH_IS_GREASE ||
+        s->ext.ech_attempted_type!=TLSEXT_TYPE_ech13) {
+        return EXT_RETURN_NOT_SENT;
+    }
+    
     /*
      * If the client GREASEd, or we think it did, we
      * return the first-loaded ECHConfig, as the value
