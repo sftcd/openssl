@@ -2490,7 +2490,6 @@ int tls_construct_server_hello(SSL *s, WPACKET *pkt)
         size_t shlen=0;
         size_t shoffset=0;
         unsigned char *p=NULL;
-
         memset(acbuf,0,8);
         if (!pkt || !pkt->buf) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
@@ -2498,23 +2497,47 @@ int tls_construct_server_hello(SSL *s, WPACKET *pkt)
         }
         shbuf=(unsigned char *)pkt->buf->data;
         shlen=pkt->written;
-        if (ech_calc_accept_confirm(s,acbuf,shbuf,shlen)!=1) {
+        if (ech_calc_ech_confirm(s,0,acbuf,shbuf,shlen)!=1) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             return 0;
         }
         memcpy(s->s3.server_random+SSL3_RANDOM_SIZE-8,acbuf,8);
         /*
          * Now HACK HACK at the packet to swap those bits (sigh)
-         * But... this will disappear with draft-12 so we'll leave
-         * the hackiness for now.
          */
         shoffset=6+24;
         p=(unsigned char*) &pkt->buf->data[shoffset];
         memcpy(p,acbuf,8);
     } 
+    if (s->hello_retry_request == SSL_HRR_PENDING && 
+            (s->ext.ech_backend || (s->ech && s->ext.ech_success==1))) {
+        unsigned char acbuf[8];
+        unsigned char *shbuf=NULL;
+        size_t shlen=0;
+        size_t hrroffset=0;
+        unsigned char *p=NULL;
+        memset(acbuf,0,8);
+        if (!pkt || !pkt->buf) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+            return 0;
+        }
+        shbuf=(unsigned char *)pkt->buf->data;
+        shlen=pkt->written;
+        if (ech_calc_ech_confirm(s,1,acbuf,shbuf,shlen)!=1) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+            return 0;
+        }
+        /*
+         * Now HACK HACK at the packet to swap those bits (sigh)
+         */
+        hrroffset=pkt->curr-8;
+        p=(unsigned char*) &pkt->buf->data[hrroffset];
+        memcpy(p,acbuf,8);
+    } 
 
     /* call ECH callback, if appropriate */
-    if (s->ext.ech_attempted && s->ech_cb!=NULL) {
+    if (s->ext.ech_attempted && s->ech_cb!=NULL && 
+            s->hello_retry_request!=SSL_HRR_PENDING) {
         char pstr[ECH_PBUF_SIZE+1];
         BIO *biom = BIO_new(BIO_s_mem());
         unsigned int cbrv=0;

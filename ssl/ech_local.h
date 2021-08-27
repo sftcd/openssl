@@ -22,7 +22,7 @@
 # include <openssl/ech.h>
 # include <crypto/hpke.h>
 
-#undef ECH_SUPERVERBOSE  /**< to get bazillions more lines of tracing */
+#define ECH_SUPERVERBOSE  /**< to get bazillions more lines of tracing */
 
 #define ECH_CIPHER_LEN 4 /**< length of an ECHCipher (2 for kdf, 2 for aead) */
 
@@ -37,6 +37,7 @@
 #define ECH_CONFIG_ID_STRING (char*) "tls ech config id"
 #define ECH_CONTEXT_STRING (char*) "tls ech"
 #define ECH_ACCEPT_CONFIRM_STRING (char*) "ech accept confirmation"
+#define ECH_HRR_CONFIRM_STRING (char*) "hrr ech accept confirmation"
 
 /**
  * @brief Representation of what goes in DNS for draft-10
@@ -314,12 +315,14 @@ int ech_same_ext(SSL *s, WPACKET* pkt);
  *                        ClientHelloInner...ServerHelloECHConf)
  *
  * @param s is the SSL inner context
+ * @oaram for_hrr is 1 if this is for an HRR, otherwise for SH
  * @param ac is (preallocated) 8 octet buffer
  * @param shbuf is a pointer to the SH buffer (incl. the type+3-octet length)
  * @param shlen is the length of the SH buf
  * @return: 1 for success, 0 otherwise
  */
-int ech_calc_accept_confirm(SSL *s, unsigned char *acbuf, const unsigned char *shbuf, const size_t shlen);
+int ech_calc_ech_confirm(SSL *s, int for_hrr, unsigned char *acbuf, 
+        const unsigned char *shbuf, const size_t shlen);
 
 /**
  * @brief Swap the inner and outer CH structures as needed..
