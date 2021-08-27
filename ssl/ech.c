@@ -2019,6 +2019,7 @@ int SSL_ech_print(BIO* out, SSL *ssl, int selector)
     BIO_printf(out,"s=%p\n",(void*)s);
     BIO_printf(out,"inner_s=%p\n",(void*)s->ext.inner_s);
     BIO_printf(out,"outer_s=%p\n",(void*)s->ext.outer_s);
+    BIO_printf(out,"HRR=%d\n", s->hello_retry_request);
 #endif
     BIO_printf(out,"ech_attempted=%d\n",s->ext.ech_attempted);
     BIO_printf(out,"ech_attempted_type=0x%4x\n",s->ext.ech_attempted_type);
@@ -3343,6 +3344,7 @@ int ech_reset_hs_buffer(SSL *ssl, unsigned char *buf, size_t blen)
  *         with last 8 octets of ServerHello.random==0x00
  *
  * @param ssl is the SSL inner context
+ * @param for_hrr is 1 if this is for an HRR, otherwise for SH
  * @param ac is (a caller allocated) 8 octet buffer
  * @param shbuf is a pointer to the SH buffer (incl. the type+3-octet length)
  * @param shlen is the length of the SH buf
@@ -3350,6 +3352,7 @@ int ech_reset_hs_buffer(SSL *ssl, unsigned char *buf, size_t blen)
  */
 int ech_calc_accept_confirm(
         SSL *ssl,
+        int for_hrr,
         unsigned char *acbuf,
         const unsigned char *shbuf,
         const size_t shlen)
@@ -3408,7 +3411,14 @@ int ech_calc_accept_confirm(
         tbuf[chlen+3]=shlen&0xff;
         memcpy(tbuf+chlen+4,shbuf,shlen);
     }
-    memset(tbuf+chlen+shoffset,0,8);
+
+    if (!for_hrr) {
+        /* zap magic octets at fixed place for SH */
+        memset(tbuf+chlen+shoffset,0,8);
+    } else {
+        /* TODO: make this independent of ECH placement in HRR */
+        memset(tbuf+tlen-8,0,8);
+    }
     /* figure out  h/s hash */
     md=ssl_handshake_md(s);
     if (md==NULL) {
@@ -3427,8 +3437,15 @@ int ech_calc_accept_confirm(
 #endif
 
     /* Next, zap the magic bits and do the keyed hashing */
-    label=ECH_ACCEPT_CONFIRM_STRING;
+    if (for_hrr) {
+        label=ECH_HRR_CONFIRM_STRING;
+    } else {
+        label=ECH_ACCEPT_CONFIRM_STRING;
+    }
     labellen=strlen(label);
+#ifdef ECH_SUPERVERBOSE
+    ech_pbuf("calc conf : label",(unsigned char*)label,labellen);
+#endif
     hashlen=EVP_MD_size(md);
     if (EVP_DigestInit_ex(ctx, md, NULL) <= 0
             || EVP_DigestUpdate(ctx, tbuf, tlen) <= 0
@@ -3641,6 +3658,9 @@ int ech_swaperoo(SSL_CONNECTION *s)
     s->init_msg=tmp_outer.init_msg;
     s->init_off=tmp_outer.init_off;
     s->init_num=tmp_outer.init_num;
+    
+    /* HRR processing */
+    s->hello_retry_request=tmp_outer.hello_retry_request;
 
     /*  lighttpd failure case implies I need this */
     s->handshake_func=tmp_outer.handshake_func;
@@ -3674,6 +3694,10 @@ int ech_swaperoo(SSL_CONNECTION *s)
         if (other_octets>0) {
             new_buflen=tmp_outer.ext.innerch_len+other_octets;
             new_buf=OPENSSL_malloc(new_buflen);
+            if (!new_buf) {
+                SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+                return(0);
+            }
             if (tmp_outer.ext.innerch) /* asan check added */
                 memcpy(new_buf,tmp_outer.ext.innerch,tmp_outer.ext.innerch_len);
             memcpy(new_buf+tmp_outer.ext.innerch_len,
@@ -3723,7 +3747,10 @@ int ech_swaperoo(SSL_CONNECTION *s)
     /*
      * call ECH callback
      */
-    if (s->ech!=NULL && s->ext.ech_done==1 && s->ech_cb != NULL) {
+    if (s->ech!=NULL && 
+        s->ext.ech_done==1 && 
+        s->hello_retry_request!=SSL_HRR_PENDING && 
+        s->ech_cb != NULL) {
         char pstr[ECH_PBUF_SIZE+1];
         BIO *biom = BIO_new(BIO_s_mem());
         unsigned int cbrv=0;
