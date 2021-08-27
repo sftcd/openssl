@@ -416,7 +416,8 @@ static const EXTENSION_DEFINITION ext_defs[] = {
     { /* this is for draft-10 */
         TLSEXT_TYPE_ech,
         SSL_EXT_CLIENT_HELLO | SSL_EXT_TLS1_3_ONLY |
-        SSL_EXT_TLS1_3_ENCRYPTED_EXTENSIONS,
+        SSL_EXT_TLS1_3_ENCRYPTED_EXTENSIONS |
+        SSL_EXT_TLS1_3_HELLO_RETRY_REQUEST,
         init_ech,
         tls_parse_ctos_ech, tls_parse_stoc_ech,
         tls_construct_stoc_ech, tls_construct_ctos_ech,
@@ -425,7 +426,8 @@ static const EXTENSION_DEFINITION ext_defs[] = {
     { /* this is for draft-13 */
         TLSEXT_TYPE_ech13,
         SSL_EXT_CLIENT_HELLO | SSL_EXT_TLS1_3_ONLY |
-        SSL_EXT_TLS1_3_ENCRYPTED_EXTENSIONS,
+        SSL_EXT_TLS1_3_ENCRYPTED_EXTENSIONS |
+        SSL_EXT_TLS1_3_HELLO_RETRY_REQUEST,
         init_ech,
         tls_parse_ctos_ech, tls_parse_stoc_ech,
         tls_construct_stoc_ech13, tls_construct_ctos_ech13,

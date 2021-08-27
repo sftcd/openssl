@@ -1793,34 +1793,11 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL_CONNECTION *s, PACKET *pkt)
     SSL_COMP *comp;
 #endif
 #ifndef OPENSSL_NO_ECH
-    /*
-     * What we'll do for ECH is: if we sent an ECH then we'll try
-     * the inner_s first to see if it matches/works (based on the
-     * ickky ServerHello.random confirmation trick from the spec).
-     * If that is good then good, we'll swap over the inner and
-     * outer contexts and proceed with inner. If confirmation fails
-     * then we'll start over with another call to this function
-     * with just the outer CH context and see what happens there.
-     * (And we'll note ECH is done and/or failed).
-     */
     const unsigned char *shbuf=pkt->curr;
     size_t shlen=pkt->remaining;
     SSL_CONNECTION inner;
     SSL_CONNECTION outer=*s;
-    int trying_inner=0;
-
-    if (s->ech!=NULL &&
-            s->ext.ech_done!=1 &&
-            s->ext.ch_depth==0 &&
-            s->ext.ech_grease==ECH_NOT_GREASE) {
-        if (!s->ext.inner_s) {
-            SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_LENGTH_MISMATCH);
-            goto err;
-        }
-        inner=*s->ext.inner_s;
-        *s=inner;
-        trying_inner=1;
-    }
+    int trying_draft10=0;
 #endif
 
     if (!PACKET_get_net_2(pkt, &sversion)) {
@@ -1877,6 +1854,118 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL_CONNECTION *s, PACKET *pkt)
         goto err;
     }
 
+#ifndef OPENSSL_NO_ECH
+    /*
+     * What we'll do for ECH: if we sent an ECH then try
+     * the inner_s first to see if it matches/works (based on the
+     * ickky ServerHello.random confirmation trick from the spec).
+     * If that is good then good, we'll swap over the inner and
+     * outer contexts and proceed with inner. If confirmation fails
+     * then we'll start over with another call to this function
+     * with just the outer CH context and see what happens there.
+     * (And we'll note ECH is done and/or failed).
+     *
+     * But - draft-10 requires knowing the shared secret before
+     * we know if ECH was accepted, so we can only tee that up
+     * for now and need to recurse if ECH failed. For draft-10
+     * we don't intend to put in effort to get HRR working but
+     * it shouldn't leak/crash of course so there's a bit of
+     * stuff to do.
+     *
+     * For draft-13 we can do the acceptance check right now. 
+     * But the check to do differs depending on whether or not 
+     * HRR happened.
+     */
+    if (s->ech!=NULL &&
+            s->ext.ech_done!=1 &&
+            s->ext.ch_depth==0 &&
+            s->ext.ech_grease==ECH_NOT_GREASE &&
+            s->ext.ech_attempted_type==TLSEXT_TYPE_ech) {
+        if (!s->ext.inner_s) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+            goto err;
+        }
+        /* might have been set above */
+        s->ext.inner_s->hello_retry_request=s->hello_retry_request;
+        memcpy(s->ext.inner_s->s3.server_random,
+               s->s3.server_random,
+               SSL3_RANDOM_SIZE);
+        outer=*s;
+        inner=*s->ext.inner_s;
+        *s=inner;
+        trying_draft10=1;
+    }
+
+    /* draft-13 code */
+    if (s->ech!=NULL &&
+            s->ext.ech_done!=1 &&
+            s->ext.ch_depth==0 &&
+            s->ext.ech_grease==ECH_NOT_GREASE &&
+            s->ext.ech_attempted_type==TLSEXT_TYPE_ech13) {
+        int do_swap=0; /* whether to swap to inner or not */
+        unsigned char acbuf[8]; /* accept signal buffer */
+        if (!s->ext.inner_s) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+            goto err;
+        }
+
+        if (hrr) {
+            /* check the HRR accept signal */
+            /* TODO: find correct place - this assumes @ end */
+            if (ech_calc_ech_confirm(s->ext.inner_s,1,acbuf,shbuf,shlen)!=1) {
+                SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+                goto err;
+            }
+            if (memcmp(shbuf+shlen-8,acbuf,8)==0) {
+                do_swap=1;
+            }
+        } else {
+            /* check the SH accept signal from the SH.random */
+            if (ech_calc_ech_confirm(s->ext.inner_s,0,acbuf,shbuf,shlen)!=1) {
+                SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+                goto err;
+            }
+            if (memcmp(s->s3.server_random+SSL3_RANDOM_SIZE-8,acbuf,8)==0) {
+                do_swap=1;
+            }
+        }
+
+        if (do_swap) {
+
+            size_t alen=0;
+            unsigned char *abuf=NULL;
+            s->ext.ech_success=1;
+            OSSL_TRACE_BEGIN(TLS) {
+                BIO_printf(trc_out, "ECH succeeded - swapping inner/outer\n");
+            } OSSL_TRACE_END(TLS);
+            if (ech_swaperoo(s)!=1) {
+                SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+                goto err;
+            }
+            alen=s->ext.innerch_len+shlen+4;
+            abuf=OPENSSL_malloc(alen);
+            if (abuf==NULL) {
+                SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+                goto err;
+            }
+            memcpy(abuf,s->ext.innerch,s->ext.innerch_len);
+            abuf[s->ext.innerch_len]=0x02;
+            abuf[s->ext.innerch_len+1]=((shlen>>16)&0xff);
+            abuf[s->ext.innerch_len+2]=((shlen>>8)&0xff);
+            abuf[s->ext.innerch_len+3]=(shlen&0xff);
+            memcpy(abuf+s->ext.innerch_len+4,shbuf,shlen);
+            ech_pbuf("Client transcript re-init",abuf,alen);
+            if (ech_reset_hs_buffer(s,abuf,alen)!=1) {
+                OPENSSL_free(abuf);
+                SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+                goto err;
+            }
+            OPENSSL_free(abuf);
+        }
+    }
+
+#endif
+
     /* TLS extensions */
     if (PACKET_remaining(pkt) == 0 && !hrr) {
         PACKET_null_init(&extpkt);
@@ -1922,6 +2011,21 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL_CONNECTION *s, PACKET *pkt)
             goto err;
         }
 
+#ifndef OPENSSL_NO_ECH
+        /* temporary code: swap back if we failed to decrypt ECH */
+        if (trying_draft10) {
+            SSL_SESSION_free(s->session);
+            /* swap back */
+            *s=outer;
+            /* note result in outer */
+            s->ext.ech_done=1;
+            /* note result in inner */
+            s->ext.inner_s->ext.ech_done=1;
+            /* reset buffer for SH */
+            pkt->remaining=shlen;
+            pkt->curr=shbuf;
+        }
+#endif
         return tls_process_as_hello_retry_request(s, &extpkt);
     }
 
@@ -2019,7 +2123,7 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL_CONNECTION *s, PACKET *pkt)
         if (s->session->session_id_length > 0) {
             ssl_tsan_counter(s->session_ctx, &s->session_ctx->stats.sess_miss);
 #ifndef OPENSSL_NO_ECH
-            if (trying_inner) {
+            if (trying_draft10) {
                 SSL_SESSION_free(s->session);
                 s->session=NULL;
                 if (s->ext.outer_s) {
@@ -2149,12 +2253,12 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL_CONNECTION *s, PACKET *pkt)
      * Figure out if ServerHello.ramdom indicated acceptance of inner
      * using the accept confirmation scheme.
      */
-    if (trying_inner) {
+    if (trying_draft10) {
+
         unsigned char acbuf[8];
-        if (ech_calc_accept_confirm(&s->ssl,acbuf,shbuf,shlen)!=1) {
+        if (ech_calc_ech_confirm(&s->ssl,0,acbuf,shbuf,shlen)!=1) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             goto err;
-            return -1;
         }
         if (memcmp(s->s3.server_random+SSL3_RANDOM_SIZE-8,acbuf,8)==0) {
             size_t alen=0;
@@ -2163,22 +2267,18 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL_CONNECTION *s, PACKET *pkt)
             OSSL_TRACE_BEGIN(TLS) {
                 BIO_printf(trc_out, "ECH succeeded - swapping inner/outer\n");
             } OSSL_TRACE_END(TLS);
-
             /* swap back before final swap */
             inner=*s; *s=outer; *s->ext.inner_s=inner;
             /* ...aaand... final swap: */
             if (ech_swaperoo(s)!=1) {
                 SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
                 goto err;
-                return -1;
             }
-
             alen=s->ext.innerch_len+shlen+4;
             abuf=OPENSSL_malloc(alen);
             if (abuf==NULL) {
                 SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
                 goto err;
-                return -1;
             }
             memcpy(abuf,s->ext.innerch,s->ext.innerch_len);
             abuf[s->ext.innerch_len]=0x02;
@@ -2191,7 +2291,6 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL_CONNECTION *s, PACKET *pkt)
                 OPENSSL_free(abuf);
                 SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
                 goto err;
-                return -1;
             }
             OPENSSL_free(abuf);
 
@@ -2209,15 +2308,14 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL_CONNECTION *s, PACKET *pkt)
 
             /* swap back */
             *s=outer;
-
             /* note result in outer */
             s->ext.ech_done=1;
             /* note result in inner */
             s->ext.inner_s->ext.ech_done=1;
-
             /* reset buffer for SH */
             pkt->remaining=shlen;
             pkt->curr=shbuf;
+
             return tls_process_server_hello(s, pkt);
         }
     }
@@ -2256,7 +2354,7 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL_CONNECTION *s, PACKET *pkt)
     return MSG_PROCESS_CONTINUE_READING;
  err:
 #ifndef OPENSSL_NO_ECH
-    if (trying_inner) {
+    if (trying_draft10) {
         /* swap back if needed */
         *s=outer;
     }
