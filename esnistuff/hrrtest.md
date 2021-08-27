@@ -44,9 +44,22 @@ is [here](https://github.com/tlswg/draft-ietf-tls-esni/issues/358).
 
 If we run the usual client...
 
-            $ ./echcli.sh -dv -p 8443 -s localhost -H foo.example.com -P d13mnl.pem
+            $ ./echcli.sh -dv -p 8443 -s localhost -H foo.example.com -P d13.pem
+            ... fail
 
-...we get a fine error followed by client leaks! (at extensions_clnt.c:2120)
-...fixed some of that leakage, but not all, and also getting a SIGABRT
-    - looks like server is crapping on last 8 octets of SH.random somehow but
-      first fix the leak/abort, then fix that...
+            $ ./echcli.sh -dv -p 8443 -s localhost -H foo.example.com -P badkey.pem
+            ... fails less bad
+
+STATE:
+- most but not all code coded up
+- HRR accept calc now same on both sides
+- client is sending 2nd CH
+- 2nd CH seems not to be using correct group
+  (probably swaperoo needs to tweak it)
+
+TODO:
+- server & client to figure where HRR accept lies inside HRR
+  (currently assuming last ext)
+- re-use HPKE context for 2nd CH
+- testing 
+- remove leaks

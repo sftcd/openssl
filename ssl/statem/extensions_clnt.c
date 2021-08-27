@@ -2384,7 +2384,8 @@ EXT_RETURN tls_construct_ctos_ech13(SSL *s, WPACKET *pkt, unsigned int context,
 }
 
 /**
- * @brief if the server thinks we GREASE'd then we should get an ECHConfig back
+ * @brief if the server thinks we GREASE'd then we should get an ECHConfig 
+ * or HRR confirmation back
  *
  */
 int tls_parse_stoc_ech(SSL *s, PACKET *pkt, unsigned int context,
@@ -2393,6 +2394,10 @@ int tls_parse_stoc_ech(SSL *s, PACKET *pkt, unsigned int context,
     unsigned int rlen=0;
     const unsigned char *rval=NULL;
     unsigned char *srval=NULL;
+    if (context==SSL_EXT_TLS1_3_HELLO_RETRY_REQUEST) {
+        /* TODO: add code! */
+        return 1;
+    }
     if (!PACKET_get_net_2(pkt, &rlen)) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_LENGTH_MISMATCH);
         return 0;
