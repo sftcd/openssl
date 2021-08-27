@@ -2414,6 +2414,21 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL_CONNECTION *s, PACKET *pkt)
             goto err;
         }
 
+#ifndef OPENSSL_NO_ECH
+        /* temporary code: swap back if we failed to decrypt ECH */
+        if (trying_draft10) {
+            SSL_SESSION_free(s->session);
+            /* swap back */
+            *s=outer;
+            /* note result in outer */
+            s->ext.ech_done=1;
+            /* note result in inner */
+            s->ext.inner_s->ext.ech_done=1;
+            /* reset buffer for SH */
+            pkt->remaining=shlen;
+            pkt->curr=shbuf;
+        }
+#endif
         return tls_process_as_hello_retry_request(s, &extpkt);
     }
 
@@ -2702,6 +2717,7 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL_CONNECTION *s, PACKET *pkt)
             /* reset buffer for SH */
             pkt->remaining=shlen;
             pkt->curr=shbuf;
+
             return tls_process_server_hello(s, pkt);
         }
     }
