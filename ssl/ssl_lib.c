@@ -945,6 +945,7 @@ SSL *ossl_ssl_connection_new_int(SSL_CTX *ctx, const SSL_METHOD *method)
     s->ext.ech_grease=0;
     s->ext.ech_grease_suite=NULL;
     s->ext.ch_depth=0;
+    s->ext.hrr_depth=-1;
     s->ext.encoded_innerch_len=0;
     if (ctx->options & SSL_OP_ECH_GREASE) {
         s->ext.ech_grease=ECH_IS_GREASE;
@@ -5224,6 +5225,7 @@ SSL *SSL_dup(SSL *s)
         if (retsc->ext.ech_grease_suite) OPENSSL_free(retsc->ext.ech_grease_suite);
         retsc->ext.ech_grease_suite=OPENSSL_strdup(sc->ext.ech_grease_suite);
     }
+<<<<<<< HEAD
     retsc->ext.inner_s=sc->ext.inner_s;
     retsc->ext.outer_s=sc->ext.outer_s;
     retsc->ext.ech_done=sc->ext.ech_done;
@@ -5234,6 +5236,7 @@ SSL *SSL_dup(SSL *s)
     retsc->ext.ech_success=sc->ext.ech_success;
     retsc->ext.ech_grease=sc->ext.ech_grease;
     retsc->ext.ch_depth=sc->ext.ch_depth;
+    retsc->ext.hrr_depth=sc->ext.hrr_depth;
     if (sc->ext.ech_sent) {
         retsc->ext.ech_sent=OPENSSL_malloc(sc->ext.ech_sent_len);
         if (!retsc->ext.ech_sent) goto err;

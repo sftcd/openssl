@@ -2172,6 +2172,27 @@ int tls_parse_stoc_key_share(SSL_CONNECTION *s, PACKET *pkt,
             return 0;
         }
 
+#ifndef OPENSSL_NO_ECH
+        /* 
+         * if we tried ECH and got HRR then we need to fix/check
+         * group in inner and outer as well 
+         */
+        if (s->ech && s->ext.outer_s!=NULL) {
+            if (group_id == s->ext.outer_s->s3.group_id) {
+                SSLfatal(s, SSL_AD_ILLEGAL_PARAMETER, SSL_R_BAD_KEY_SHARE);
+                return 0;
+            }
+            s->ext.outer_s->s3.group_id=group_id;
+        }
+        if (s->ech && s->ext.inner_s!=NULL) {
+            if (group_id == s->ext.inner_s->s3.group_id) {
+                SSLfatal(s, SSL_AD_ILLEGAL_PARAMETER, SSL_R_BAD_KEY_SHARE);
+                return 0;
+            }
+            s->ext.inner_s->s3.group_id=group_id;
+        }
+#endif
+
         /* Validate the selected group is one we support */
         tls1_get_supported_groups(s, &pgroups, &num_groups);
         for (i = 0; i < num_groups; i++) {
