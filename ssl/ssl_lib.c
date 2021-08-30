@@ -881,6 +881,7 @@ SSL *SSL_new(SSL_CTX *ctx)
     s->ext.ech_grease=0;
     s->ext.ech_grease_suite=NULL;
     s->ext.ch_depth=0;
+    s->ext.hrr_depth=-1;
     s->ext.encoded_innerch_len=0;
     if (ctx->options & SSL_OP_ECH_GREASE) {
         s->ext.ech_grease=ECH_IS_GREASE;
@@ -4344,6 +4345,7 @@ SSL *SSL_dup(SSL *s)
     ret->ext.ech_success=s->ext.ech_success;
     ret->ext.ech_grease=s->ext.ech_grease;
     ret->ext.ch_depth=s->ext.ch_depth;
+    ret->ext.hrr_depth=s->ext.hrr_depth;
 
     if (s->ext.ech_sent) {
         ret->ext.ech_sent=OPENSSL_malloc(s->ext.ech_sent_len);

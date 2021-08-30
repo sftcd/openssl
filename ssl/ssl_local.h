@@ -1622,7 +1622,8 @@ struct ssl_st {
         int ech_grease;
         int ech_backend;
         char* ech_grease_suite;
-        int ch_depth;
+        int ch_depth; /* 0 => outer, 1 => inner */
+        int hrr_depth; /* -1 => dunno, 0=> outer, 1 => inner */
         unsigned char *alpn_outer;
         size_t alpn_outer_len;
         unsigned char *ech_returned; /* binary ECHConfig value */
