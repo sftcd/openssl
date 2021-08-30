@@ -2011,7 +2011,6 @@ int SSL_ech_print(BIO* out, SSL *s, int selector)
     BIO_printf(out,"s=%p\n",(void*)s);
     BIO_printf(out,"inner_s=%p\n",(void*)s->ext.inner_s);
     BIO_printf(out,"outer_s=%p\n",(void*)s->ext.outer_s);
-    BIO_printf(out,"HRR=%d\n", s->hello_retry_request);
 #endif
     BIO_printf(out,"ech_attempted=%d\n",s->ext.ech_attempted);
     BIO_printf(out,"ech_attempted_type=0x%4x\n",s->ext.ech_attempted_type);
@@ -2022,6 +2021,8 @@ int SSL_ech_print(BIO* out, SSL *s, int selector)
     }
     BIO_printf(out,"ech_done=%d\n",s->ext.ech_done);
     BIO_printf(out,"ech_grease=%d\n",s->ext.ech_grease);
+    BIO_printf(out,"HRR=%d\n", s->hello_retry_request);
+    BIO_printf(out,"hrr_depth=%d\n", s->ext.hrr_depth);
 #ifdef ECH_SUPERVERBOSE
     BIO_printf(out,"ech_returned=%p\n",(void*)s->ext.ech_returned);
 #endif
