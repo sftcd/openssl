@@ -1526,7 +1526,7 @@ int tls_construct_client_hello(SSL_CONNECTION *s, WPACKET *pkt)
     }
 
     /* If we're not really attempting ECH, just call existing code.  */
-    if (s->ech==NULL) return tls_construct_client_hello_aux(s, pkt);
+    if (s->ech==NULL || s->ext.hrr_depth==0) return tls_construct_client_hello_aux(s, pkt);
 
     /*
      * A sanity check - make sure the application didn't try GREASE
@@ -1587,23 +1587,57 @@ int tls_construct_client_hello(SSL_CONNECTION *s, WPACKET *pkt)
 
     /*
      * Before we start on the outer, we copy the all details we have so far
+     * unless we're in the middle of HRR handling
      */
-    new_s=SSL_dup(s);
-    if (!new_s) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, protverr);
-        goto err;
-    }
-    s->ext.inner_s=new_s;
-    new_s->ext.outer_s=s;
-    new_s->init_buf=s->init_buf;
-    new_s->init_msg=s->init_msg;
-    new_s->init_off=s->init_off;
-    new_s->init_num=s->init_num;
-    new_s->version=TLS1_3_VERSION;
-    /* move any hostname/SNI already set from the outer to the inner */
-    if (s->ext.hostname!=NULL) {
-        new_s->ext.hostname=s->ext.hostname;
-        s->ext.hostname=NULL;
+    if (s->ext.hrr_depth==-1) {
+        /* doing 1st CH, as we've not seen an HRR */
+        new_s=SSL_dup(s);
+        if (!new_s) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, protverr);
+            goto err;
+        }
+        s->ext.inner_s=new_s;
+        new_s->ext.outer_s=s;
+        new_s->init_buf=s->init_buf;
+        new_s->init_msg=s->init_msg;
+        new_s->init_off=s->init_off;
+        new_s->init_num=s->init_num;
+        new_s->version=TLS1_3_VERSION;
+        /* move any hostname/SNI already set from the outer to the inner */
+        if (s->ext.hostname!=NULL) {
+            new_s->ext.hostname=s->ext.hostname;
+            s->ext.hostname=NULL;
+        }
+    } else if (s->ext.hrr_depth==1) {
+        /* we already saw an HRR with a good accept for inner */
+        new_s=s->ext.inner_s;
+        new_s->hello_retry_request=s->hello_retry_request;
+        s->ext.n_outer_only=0; /* reset count of "comressed" exts */
+        new_s->ext.n_outer_only=0; /* reset count of "comressed" exts */
+        if (s->ext.encoded_innerch) {
+            OPENSSL_free(s->ext.encoded_innerch);
+            s->ext.encoded_innerch=NULL;
+            s->ext.encoded_innerch_len=0;
+        }
+        if (new_s->ext.encoded_innerch) {
+            OPENSSL_free(new_s->ext.encoded_innerch);
+            new_s->ext.encoded_innerch=NULL;
+            new_s->ext.encoded_innerch_len=0;
+        }
+        if (s->ext.innerch) {
+            OPENSSL_free(s->ext.innerch);
+            s->ext.innerch=NULL;
+            s->ext.innerch_len=0;
+        }
+        if (new_s->ext.innerch) {
+            OPENSSL_free(new_s->ext.innerch);
+            new_s->ext.innerch=NULL;
+            new_s->ext.innerch_len=0;
+        }
+        if (new_s->s3.tmp.pkey!=NULL) {
+            EVP_PKEY_free(new_s->s3.tmp.pkey);
+            new_s->s3.tmp.pkey=NULL;
+        }
     }
 
     /* The inner CH will use the same session ID as the outer */
@@ -2168,7 +2202,6 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL_CONNECTION *s, PACKET *pkt)
      * The check to do differs depending on whether or not HRR happened.
      * We only support HRR for draft-13.
      */
-
     /* draft-10 code to setup later possible swap */
     if (s->ech!=NULL &&
             s->ext.ech_done!=1 &&
@@ -2414,21 +2447,6 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL_CONNECTION *s, PACKET *pkt)
             goto err;
         }
 
-#ifndef OPENSSL_NO_ECH
-        /* temporary code: swap back if we failed to decrypt ECH */
-        if (trying_draft10) {
-            SSL_SESSION_free(s->session);
-            /* swap back */
-            *s=outer;
-            /* note result in outer */
-            s->ext.ech_done=1;
-            /* note result in inner */
-            s->ext.inner_s->ext.ech_done=1;
-            /* reset buffer for SH */
-            pkt->remaining=shlen;
-            pkt->curr=shbuf;
-        }
-#endif
         return tls_process_as_hello_retry_request(s, &extpkt);
     }
 
