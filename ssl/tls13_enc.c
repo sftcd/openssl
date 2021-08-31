@@ -43,13 +43,12 @@ static void tls13_pbuf(const char *msg, const unsigned char *buf, const size_t b
     OSSL_TRACE_BEGIN(TLS) {
     if (msg==NULL) {
         BIO_printf(trc_out,"msg is NULL\n");
-    } else if (buf==NULL) {
-        BIO_printf(trc_out,"%s: buf is NULL\n",msg);
-    } else if (blen==0) {
-        BIO_printf(trc_out,"%s: blen is zero\n",msg);
+    } else if (buf==NULL || blen==0) {
+        BIO_printf(trc_out,"%s: buf is %p\n",msg,(void*)buf);
+        BIO_printf(trc_out,"%s: blen is %lu\n",msg,(unsigned long)blen);
     } else {
-        BIO_printf(trc_out,"%s (%lu):\n    ",msg,(unsigned long)blen);
         size_t i;
+        BIO_printf(trc_out,"%s (%lu):\n    ",msg,(unsigned long)blen);
         for (i=0;i<blen;i++) {
             if ((i!=0) && (i%16==0))
                 BIO_printf(trc_out,"\n    ");
