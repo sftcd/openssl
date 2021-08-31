@@ -2203,6 +2203,7 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL_CONNECTION *s, PACKET *pkt)
      * We only support HRR for draft-13.
      */
     /* draft-10 code to setup later possible swap */
+    outer=*s; /* avoids a "possibly unitialised" warning */
     if (s->ech!=NULL &&
             s->ext.ech_done!=1 &&
             s->ext.ch_depth==0 &&
