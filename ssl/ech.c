@@ -3276,10 +3276,9 @@ void ech_pbuf(const char *msg, const unsigned char *buf, const size_t blen)
     OSSL_TRACE_BEGIN(TLS) {
     if (msg==NULL) {
         BIO_printf(trc_out,"msg is NULL\n");
-    } else if (buf==NULL) {
-        BIO_printf(trc_out,"%s: buf is NULL\n",msg);
-    } else if (blen==0) {
-        BIO_printf(trc_out,"%s: blen is zero\n",msg);
+    } else if (buf==NULL || blen==0) {
+        BIO_printf(trc_out,"%s: buf is %p\n",msg,buf);
+        BIO_printf(trc_out,"%s: blen is %zu\n",msg,blen);
     } else {
         size_t i;
         BIO_printf(trc_out,"%s (%lu):\n    ",msg,(unsigned long)blen);
@@ -3306,6 +3305,12 @@ void ech_pbuf(const char *msg, const unsigned char *buf, const size_t blen)
 int ech_reset_hs_buffer(SSL *ssl, unsigned char *buf, size_t blen)
 {
     SSL_CONNECTION *s = SSL_CONNECTION_FROM_SSL(ssl);
+
+#ifndef OPENSSL_NO_SSL_TRACE
+    OSSL_TRACE_BEGIN(TLS) {
+        BIO_printf(trc_out,"ech_reset_hs_buffer len: %zu\n",blen);
+    } OSSL_TRACE_END(TLS);
+#endif
 
     if (s->s3.handshake_buffer) {
         (void)BIO_set_close(s->s3.handshake_buffer, BIO_CLOSE);
@@ -3550,7 +3555,6 @@ int ech_calc_accept_confirm(
    
     }
 
-    /* Put back the transpript buffer as it was where we got it */
 #ifdef ECH_SUPERVERBOSE
     ech_pbuf("calc conf : hoval",hoval,hashlen);
 #endif
@@ -3560,8 +3564,8 @@ int ech_calc_accept_confirm(
 #ifdef ECH_SUPERVERBOSE
     ech_pbuf("calc conf : result",acbuf,8);
 #endif
-    if (!s->ext.ech_backend)
-        ech_reset_hs_buffer(ssl,s->ext.innerch,s->ext.innerch_len);
+    if (!for_hrr && !s->ext.ech_backend)
+        ech_reset_hs_buffer(s,s->ext.innerch,s->ext.innerch_len);
 
     if (tbuf) OPENSSL_free(tbuf);
     if (ctx) EVP_MD_CTX_free(ctx);
@@ -3674,6 +3678,7 @@ int ech_swaperoo(SSL_CONNECTION *s)
     s->ssl.ex_data=tmp_outer.ssl.ex_data;
 
     /*
+     * When not doing HRR...
      * Fix up the transcript to reflect the inner CH
      * If there's a cilent hello at the start of the buffer, then
      * it's likely that's the outer CH and we want to replace that
@@ -3681,49 +3686,55 @@ int ech_swaperoo(SSL_CONNECTION *s)
      * server hello following and can't lose that.
      * I don't think the outer client hello can be anwhere except
      * at the start of the buffer.
+     *
+     * For HRR... we'll try leave it alone as (I think) 
+     * the HRR processing code has already fixed up the
+     * buffer.
      */
-
-    curr_buflen = BIO_get_mem_data(tmp_outer.s3.handshake_buffer, &curr_buf);
-    if (curr_buflen>0 && curr_buf[0]==SSL3_MT_CLIENT_HELLO) {
-        /* It's a client hello, presumably the outer */
-        outer_chlen=1+curr_buf[1]*256*256+curr_buf[2]*256+curr_buf[3];
-        if (outer_chlen>curr_buflen) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-            return(0);
-        }
-        other_octets=curr_buflen-outer_chlen;
-        if (other_octets>0) {
-            new_buflen=tmp_outer.ext.innerch_len+other_octets;
-            new_buf=OPENSSL_malloc(new_buflen);
-            if (!new_buf) {
+    if (!s->hello_retry_request) {
+        curr_buflen = BIO_get_mem_data(tmp_outer.s3.handshake_buffer, 
+                            &curr_buf);
+        if (curr_buflen>0 && curr_buf[0]==SSL3_MT_CLIENT_HELLO) {
+            /* It's a client hello, presumably the outer */
+            outer_chlen=1+curr_buf[1]*256*256+curr_buf[2]*256+curr_buf[3];
+            if (outer_chlen>curr_buflen) {
                 SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
                 return(0);
             }
-            if (tmp_outer.ext.innerch) /* asan check added */
-                memcpy(new_buf,tmp_outer.ext.innerch,tmp_outer.ext.innerch_len);
-            memcpy(new_buf+tmp_outer.ext.innerch_len,
-                    &curr_buf[outer_chlen],
-                    other_octets);
+            other_octets=curr_buflen-outer_chlen;
+            if (other_octets>0) {
+                new_buflen=tmp_outer.ext.innerch_len+other_octets;
+                new_buf=OPENSSL_malloc(new_buflen);
+                if (!new_buf) {
+                    SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+                    return(0);
+                }
+                if (tmp_outer.ext.innerch) /* asan check added */
+                    memcpy(new_buf,tmp_outer.ext.innerch,
+                            tmp_outer.ext.innerch_len);
+                memcpy(new_buf+tmp_outer.ext.innerch_len,
+                    &curr_buf[outer_chlen], other_octets);
+            } else {
+                new_buf=tmp_outer.ext.innerch;
+                new_buflen=tmp_outer.ext.innerch_len;
+            }
         } else {
             new_buf=tmp_outer.ext.innerch;
             new_buflen=tmp_outer.ext.innerch_len;
         }
-    } else {
-        new_buf=tmp_outer.ext.innerch;
-        new_buflen=tmp_outer.ext.innerch_len;
-    }
-    /*
-     * And now reset the handshake transcript to our buffer
-     * Note ssl3_finish_mac isn't that great a name - that one just
-     * adds to the transcript but doesn't actually "finish" anything
-     */
-    if (!ssl3_init_finished_mac(s)) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-        return(0);
-    }
-    if (!ssl3_finish_mac(s, new_buf, new_buflen)) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-        return(0);
+        /*
+        * And now reset the handshake transcript to our buffer
+        * Note ssl3_finish_mac isn't that great a name - that one just
+        * adds to the transcript but doesn't actually "finish" anything
+        */
+        if (!ssl3_init_finished_mac(s)) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+            return(0);
+        }
+        if (!ssl3_finish_mac(s, new_buf, new_buflen)) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+            return(0);
+        }
     }
     ech_ptranscript("ech_swaperoo, after",s);
     if (other_octets>0) {
@@ -4860,6 +4871,10 @@ int ech_early_decrypt(SSL *ssl, PACKET *outerpkt, PACKET *newpkt)
             SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
             goto err;
         }
+        if (s->ech->outer_name!=NULL) {
+            /* can happen with HRR */
+            OPENSSL_free(s->ech->outer_name);
+        }
         s->ech->outer_name=s->ext.hostname;
 #ifndef OPENSSL_NO_SSL_TRACE
         OSSL_TRACE_BEGIN(TLS) {
@@ -5083,6 +5098,12 @@ int ech_early_decrypt(SSL *ssl, PACKET *outerpkt, PACKET *newpkt)
             foundcfg=1;
             break;
         }
+    }
+    if (s->ext.encoded_innerch!=NULL) {
+        /* this happens with HRR */
+        OPENSSL_free(s->ext.encoded_innerch);
+        s->ext.encoded_innerch=NULL;
+        s->ext.encoded_innerch_len=0;
     }
     if (foundcfg==1) {
         clear=hpke_decrypt_encch(&s->ech[cfgind],extval,aad_len,aad,&clearlen);
