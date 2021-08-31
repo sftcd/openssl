@@ -48,18 +48,14 @@ If we run the usual client...
             ... fail
 
             $ ./echcli.sh -dv -p 8443 -s localhost -H foo.example.com -P badkey.pem
-            ... fails less bad
+            ... currently working
 
 STATE:
-- most but not all code coded up
-- HRR accept calc now same on both sides
-- client is sending 2nd CH
-- 2nd CH seems not to be using correct group
-  (probably swaperoo needs to tweak it)
+- both sides appear to work
 
 TODO:
+- check transcript really as expected
 - server & client to figure where HRR accept lies inside HRR
   (currently assuming last ext)
 - re-use HPKE context for 2nd CH
 - testing 
-- remove leaks
