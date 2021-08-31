@@ -1750,6 +1750,7 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL *s, PACKET *pkt)
     SSL inner;
     SSL outer;
     int trying_draft10=0;
+    outer=*s; /* avoids a "possibly unitialised" warning */
 #endif
 
     if (!PACKET_get_net_2(pkt, &sversion)) {
@@ -1820,7 +1821,6 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL *s, PACKET *pkt)
      * HRR happened.
      */
     /* draft-10 code to setup later possible swap */
-    outer=*s; /* avoids a "possibly unitialised" warning */
     if (s->ech!=NULL &&
             s->ext.ech_done!=1 &&
             s->ext.ch_depth==0 &&
