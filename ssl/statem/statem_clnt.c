@@ -1643,7 +1643,7 @@ int tls_construct_client_hello(SSL_CONNECTION *s, WPACKET *pkt)
     /* The inner CH will use the same session ID as the outer */
     new_s->session->session_id_length=s->session->session_id_length;
     if (new_s->session!=s->session)
-    	memcpy(new_s->session->session_id,
+        memcpy(new_s->session->session_id,
                s->session->session_id,
                s->session->session_id_length);
     new_s->tmp_session_id_len=s->session->session_id_length;
