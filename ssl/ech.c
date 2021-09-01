@@ -3503,14 +3503,15 @@ int ech_calc_accept_confirm(
         /* zap magic octets at fixed place for SH */
         memset(tbuf+chlen+shoffset,0,8);
     } else {
-        int rv;
-        size_t extoffset=0;
-        size_t echoffset=0;
-        uint16_t echtype;
 
         if (s->server) {
-            echoffset=tlen-8; /* we get to say where we put ECH:-) */
+            /* we get to say where we put ECH:-) */
+            memset(tbuf+tlen-8,0,8);
         } else {
+            int rv;
+            size_t extoffset=0;
+            size_t echoffset=0;
+            uint16_t echtype;
             rv=ech_get_sh_offsets(shbuf,shlen,&extoffset,&echoffset,&echtype);
             if (rv!=1) {
                 SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
@@ -3520,8 +3521,12 @@ int ech_calc_accept_confirm(
                 SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
                 goto err;
             }
+            if (tlen<(chlen+4+echoffset+4+8)) {
+                SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+                goto err;
+            }
+            memset(tbuf+chlen+4+echoffset+4,0,8);
         }
-        memset(tbuf+chlen+4+echoffset+4,0,8);
     }
     /* figure out  h/s hash */
     md=ssl_handshake_md(s);
@@ -3667,6 +3672,16 @@ int ech_calc_accept_confirm(
 
     if (tbuf) OPENSSL_free(tbuf);
     if (ctx) EVP_MD_CTX_free(ctx);
+#ifdef ECH_SUPERVERBOSE
+#ifndef OPENSSL_NO_SSL_TRACE
+    OSSL_TRACE_BEGIN(TLS) {
+        if (SSL_ech_print(trc_out,s,ECH_SELECT_ALL)!=1) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+            goto err;
+        }
+    } OSSL_TRACE_END(TLS);
+#endif
+#endif
 
     return(1);
 
@@ -4101,8 +4116,8 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
      * My ephemeral key pair for HPKE encryption
      * Has to be externally generated so public can be part of AAD (sigh)
      */
-    unsigned char mypub[HPKE_MAXSIZE];
-    size_t mypub_len=HPKE_MAXSIZE;
+    unsigned char *mypub;
+    size_t mypub_len=0;
     EVP_PKEY *mypriv_evp=NULL;
 
     /*
@@ -4214,9 +4229,37 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
     ech_pbuf("EAAE: clear",s->ext.inner_s->ext.encoded_innerch,
             s->ext.inner_s->ext.encoded_innerch_len);
 
-    if (hpke_kg_evp(hpke_mode, hpke_suite, &mypub_len, mypub, &mypriv_evp)!=1) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-        goto err;
+    if (s->ext.ech_priv!=NULL) {
+#ifndef OPENSSL_NO_SSL_TRACE
+        OSSL_TRACE_BEGIN(TLS) {
+            BIO_printf(trc_out,"EAAE: re-using ECH key pair\n");
+        } OSSL_TRACE_END(TLS);
+#endif
+        /* re-use in case of HRR */
+        mypriv_evp=s->ext.ech_priv;
+        if (s->ext.ech_pub==NULL || s->ext.ech_pub_len==0) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+            goto err;
+        }
+        mypub=s->ext.ech_pub;
+        mypub_len=s->ext.ech_pub_len;
+    } else {
+#ifndef OPENSSL_NO_SSL_TRACE
+        OSSL_TRACE_BEGIN(TLS) {
+            BIO_printf(trc_out,"EAAE: generate new ECH key pair\n");
+        } OSSL_TRACE_END(TLS);
+#endif
+        mypub=OPENSSL_malloc(HPKE_MAXSIZE);
+        if (!mypub) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+            goto err;
+        }
+        mypub_len=HPKE_MAXSIZE;
+        if (hpke_kg_evp(hpke_mode, hpke_suite, &mypub_len, mypub, 
+                    &mypriv_evp)!=1) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+            goto err;
+        }
     }
     if (mypub_len>HPKE_MAXSIZE || mypriv_evp==NULL) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
@@ -4295,10 +4338,8 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
         OPENSSL_free(aad); aad=NULL;
         /*
         * We ditch the ephemeral key now.
-        * We would need that for HRR, but likely we'll
-        * only code up HRR for draft-13 so it'll be ok
-        * to not hang onto the private key here if
-        * that's easier.
+        * We would need that for HRR, but we'll
+        * only code up HRR for draft-13 
         */
         EVP_PKEY_free(mypriv_evp); mypriv_evp=NULL;
         ech_pbuf("EAAE pkt b4",(unsigned char*) pkt->buf->data,pkt->written);
@@ -4511,11 +4552,10 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
         ech_pbuf("EAAE: hpke mypub",mypub,mypub_len);
         ech_pbuf("EAAE: cipher",cipher,cipherlen);
 
-        /*
-        * We ditch the ephemeral key now.
-        * TODO: we'll need that for HRR later
-        */
-        EVP_PKEY_free(mypriv_evp); mypriv_evp=NULL;
+        /* Keep ECH key pair in case of HRR */
+        s->ext.ech_priv=mypriv_evp; mypriv_evp=NULL;
+        s->ext.ech_pub=mypub; 
+        s->ext.ech_pub_len=mypub_len; 
 
         /* splice real ciphertext back in now */
         memcpy(aad+aad_len-cipherlen,cipher,cipherlen);
@@ -4530,7 +4570,9 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
 
 err:
     if (aad!=NULL) OPENSSL_free(aad);
-    if (mypriv_evp!=NULL) EVP_PKEY_free(mypriv_evp);
+    if (mypriv_evp!=NULL && mypriv_evp!=s->ext.ech_priv) 
+        EVP_PKEY_free(mypriv_evp);
+    if (mypub!=NULL) OPENSSL_free(mypub);
     return 0;
 }
 
