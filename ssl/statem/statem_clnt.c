@@ -1413,7 +1413,8 @@ int tls_construct_client_hello(SSL *s, WPACKET *pkt)
     s->ext.ech_attempted=1;
 
     /* Free up raw exts as needed (happens like this on real server */
-    if (new_s->clienthello!=NULL && new_s->clienthello->pre_proc_exts!=NULL) {
+    if (new_s->clienthello!=NULL && 
+            new_s->clienthello->pre_proc_exts!=NULL) {
         OPENSSL_free(new_s->clienthello->pre_proc_exts);
         OPENSSL_free(new_s->clienthello);
         new_s->clienthello=NULL;
