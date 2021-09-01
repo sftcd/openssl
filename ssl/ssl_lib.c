@@ -903,6 +903,9 @@ SSL *SSL_new(SSL_CTX *ctx)
     s->ext.ech_returned_len=0;
     s->ext.ech_sent=NULL;
     s->ext.ech_sent_len=0;
+    s->ext.ech_priv=NULL;
+    s->ext.ech_pub=NULL;
+    s->ext.ech_pub_len=NULL;
 
 #endif
 
@@ -1390,6 +1393,8 @@ void SSL_free(SSL *s)
 #ifndef OPENSSL_NO_ECH
     OPENSSL_free(s->ext.alpn_outer);
     OPENSSL_free(s->ext.ech_sent);
+    OPENSSL_free(s->ext.ech_pub);
+    EVP_PKEY_free(s->ext.ech_priv);
     OPENSSL_free(s->ext.ech_returned);
     OPENSSL_free(s->ext.ech_grease_suite);
     OPENSSL_free(s->ext.innerch);
@@ -4353,6 +4358,18 @@ SSL *SSL_dup(SSL *s)
         memcpy(ret->ext.ech_sent, s->ext.ech_sent,
                 s->ext.ech_sent_len);
         ret->ext.ech_sent_len=s->ext.ech_sent_len;
+    }
+
+    if (s->ext.ech_pub) {
+        ret->ext.ech_pub=OPENSSL_malloc(s->ext.ech_pub_len);
+        if (!ret->ext.ech_pub) goto err;
+        memcpy(ret->ext.ech_pub, s->ext.ech_pub,
+                s->ext.ech_pub_len);
+        ret->ext.ech_pub_len=s->ext.ech_pub_len;
+    }
+
+    if (s->ext.ech_priv) {
+        ret->ext.ech_priv=EVP_PKEY_dup(s->ext.ech_priv);
     }
 
     if (s->ext.ech_returned) {
