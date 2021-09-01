@@ -4116,7 +4116,7 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
      * My ephemeral key pair for HPKE encryption
      * Has to be externally generated so public can be part of AAD (sigh)
      */
-    unsigned char *mypub;
+    unsigned char *mypub=NULL;
     size_t mypub_len=0;
     EVP_PKEY *mypriv_evp=NULL;
 
@@ -4490,18 +4490,44 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             goto err;
         }
-        if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_ech13)
-            || !WPACKET_start_sub_packet_u16(pkt)
-            || !WPACKET_put_bytes_u8(pkt, ECH_OUTER_CH_TYPE)
-            || !WPACKET_put_bytes_u16(pkt, hpke_suite.kdf_id)
-            || !WPACKET_put_bytes_u16(pkt, hpke_suite.aead_id)
-            || !WPACKET_put_bytes_u8(pkt, config_id_to_use)
-            || !WPACKET_sub_memcpy_u16(pkt, mypub, mypub_len)
-            || !WPACKET_sub_memcpy_u16(pkt, zeros, lcipherlen)
-            || !WPACKET_close(pkt)
-           ) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-            goto err;
+        if (s->hello_retry_request==SSL_HRR_PENDING) {
+            /* 
+             * TODO: Check if the AAD for a CH in response
+             * to an HRR should/should-not contain the ECH
+             * public.
+             * For now, we omit it and adjust length
+             * accordingly.
+             */
+            if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_ech13)
+                || !WPACKET_start_sub_packet_u16(pkt)
+                || !WPACKET_put_bytes_u8(pkt, ECH_OUTER_CH_TYPE)
+                || !WPACKET_put_bytes_u16(pkt, hpke_suite.kdf_id)
+                || !WPACKET_put_bytes_u16(pkt, hpke_suite.aead_id)
+                || !WPACKET_put_bytes_u8(pkt, config_id_to_use)
+                || !WPACKET_put_bytes_u16(pkt, 0x00)
+                || !WPACKET_sub_memcpy_u16(pkt, zeros, lcipherlen)
+                || !WPACKET_close(pkt)
+            ) {
+                SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+                goto err;
+            }
+            echlen-=mypub_len;
+        } else {
+
+            if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_ech13)
+                || !WPACKET_start_sub_packet_u16(pkt)
+                || !WPACKET_put_bytes_u8(pkt, ECH_OUTER_CH_TYPE)
+                || !WPACKET_put_bytes_u16(pkt, hpke_suite.kdf_id)
+                || !WPACKET_put_bytes_u16(pkt, hpke_suite.aead_id)
+                || !WPACKET_put_bytes_u8(pkt, config_id_to_use)
+                || !WPACKET_sub_memcpy_u16(pkt, mypub, mypub_len)
+                || !WPACKET_sub_memcpy_u16(pkt, zeros, lcipherlen)
+                || !WPACKET_close(pkt)
+            ) {
+                SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+                goto err;
+            }
+
         }
         OPENSSL_free(zeros); zeros=NULL;
 
@@ -5111,15 +5137,42 @@ int ech_early_decrypt(SSL *ssl, PACKET *outerpkt, PACKET *newpkt)
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         goto err;
     }
-    extval->enc_len=tmp;
-    extval->enc=OPENSSL_malloc(tmp);
-    if (extval->enc==NULL) {
+    if (tmp==0 && s->hello_retry_request!=SSL_HRR_PENDING) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         goto err;
-    }
-    if (!PACKET_copy_bytes(pkt, extval->enc, tmp)) {
-        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
-        goto err;
+    } else  if (tmp==0 && s->hello_retry_request==SSL_HRR_PENDING) {
+        if (s->ext.ech_pub==NULL || s->ext.ech_pub_len==0) {
+            SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+            goto err;
+        }
+        extval->enc_len=s->ext.ech_pub_len;
+        extval->enc=OPENSSL_malloc(extval->enc_len);
+        if (extval->enc==NULL) {
+            SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+            goto err;
+        }
+        memcpy(extval->enc,s->ext.ech_pub,extval->enc_len);
+    } else {
+        extval->enc_len=tmp;
+        extval->enc=OPENSSL_malloc(tmp);
+        if (extval->enc==NULL) {
+            SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+            goto err;
+        }
+        if (!PACKET_copy_bytes(pkt, extval->enc, tmp)) {
+            SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+            goto err;
+        }
+        /* squirrel away that value in case of future HRR */
+        if (s->ext.ech_pub!=NULL) OPENSSL_free(s->ext.ech_pub);
+        s->ext.ech_pub_len=extval->enc_len;
+        s->ext.ech_pub_len=extval->enc_len;
+        s->ext.ech_pub=OPENSSL_malloc(extval->enc_len);
+        if (!s->ext.ech_pub) {
+            SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+            goto err;
+        }
+        memcpy(s->ext.ech_pub,extval->enc,extval->enc_len);
     }
 
     /* payload - the encrypted CH */
@@ -5189,6 +5242,19 @@ int ech_early_decrypt(SSL *ssl, PACKET *outerpkt, PACKET *newpkt)
         enclen=
             ch[echoffset+offsetofencwithinech]*256+
             ch[echoffset+offsetofencwithinech+1];
+        /*
+         * TODO: check handling of enc in post-HRR AAD
+         */
+        if (enclen==0 && s->hello_retry_request!=SSL_HRR_PENDING) {
+            SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+            goto err;
+        } else if (enclen==0 && s->hello_retry_request==SSL_HRR_PENDING) {
+            if (s->ext.ech_pub==NULL || s->ext.ech_pub_len==0) {
+                SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+                goto err;
+            }
+        } 
+
         if ((echoffset+offsetofencwithinech+2+enclen+1)>ch_len) {
             SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
             goto err;
