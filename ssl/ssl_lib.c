@@ -967,6 +967,9 @@ SSL *ossl_ssl_connection_new_int(SSL_CTX *ctx, const SSL_METHOD *method)
     s->ext.ech_returned_len=0;
     s->ext.ech_sent=NULL;
     s->ext.ech_sent_len=0;
+    s->ext.ech_priv=NULL;
+    s->ext.ech_pub=NULL;
+    s->ext.ech_pub_len=NULL;
 #endif
     return ssl;
  cerr:
@@ -1614,6 +1617,8 @@ void ossl_ssl_connection_free(SSL *ssl)
 #ifndef OPENSSL_NO_ECH
     OPENSSL_free(s->ext.alpn_outer);
     OPENSSL_free(s->ext.ech_sent);
+    OPENSSL_free(s->ext.ech_pub);
+    EVP_PKEY_free(s->ext.ech_priv);
     OPENSSL_free(s->ext.ech_returned);
     OPENSSL_free(s->ext.ech_grease_suite);
     OPENSSL_free(s->ext.innerch);
@@ -5244,6 +5249,18 @@ SSL *SSL_dup(SSL *s)
                 sc->ext.ech_sent_len);
         retsc->ext.ech_sent_len=sc->ext.ech_sent_len;
     }
+    if (sc->ext.ech_pub) {
+        retsc->ext.ech_pub=OPENSSL_malloc(sc->ext.ech_pub_len);
+        if (!retsc->ext.ech_pub) goto err;
+        memcpy(retsc->ext.ech_pub, sc->ext.ech_pub,
+                sc->ext.ech_pub_len);
+        retsc->ext.ech_pub_len=sc->ext.ech_pub_len;
+    }
+
+    if (sc->ext.ech_priv) {
+        retsc->ext.ech_priv=EVP_PKEY_dup(sc->ext.ech_priv);
+    }
+
     if (sc->ext.ech_returned) {
         retsc->ext.ech_returned=OPENSSL_malloc(sc->ext.ech_returned_len);
         if (!retsc->ext.ech_returned) goto err;
