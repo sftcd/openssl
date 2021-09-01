@@ -3324,6 +3324,87 @@ int ech_reset_hs_buffer(SSL *ssl, unsigned char *buf, size_t blen)
     return 1;
 }
 
+/*!
+ * Given a SH (or HRR) find the offsets of the ECH (if any)
+ *
+ * Offsets are returned to the type or length field in question.
+ * Offsets are set to zero if relevant thing not found.
+ *
+ * @param: sh is the SH buffer
+ * @paramL sh_len is the length of the SH
+ * @param: exts points to offset of extensions
+ * @param: echoffset points to offset of ECH
+ * @param: echtype points to the ext type of the ECH
+ * @return 1 for success, other otherwise
+ */
+static int ech_get_sh_offsets(
+        const unsigned char *sh,
+        size_t sh_len,
+        size_t *exts,
+        size_t *echoffset,
+        uint16_t *echtype)
+{
+    size_t sessid_offset=0; 
+    size_t sessid_len=0;
+    size_t startofexts=0; 
+    size_t origextlens=0;
+    size_t echlen=0; /* length of ECH, including type & ECH-internal length */
+    const unsigned char *e_start=NULL;
+    int extsremaining=0;
+    uint16_t etype=0;
+    size_t elen=0;
+    if (!sh || sh_len==0 || !exts || !echoffset || !echtype) return(0);
+    *exts=0;
+    *echoffset=0;
+    *echtype=TLSEXT_TYPE_ech_unknown;
+    sessid_offset=
+        2+ /* version */
+        32+ /* random */
+        1; /* sess_id_len */
+    if (sh_len<=sessid_offset) return(0);
+    sessid_len=(size_t)sh[sessid_offset-1];
+    startofexts=
+        sessid_offset+ /* up to & incl. sessid_len */
+        sessid_len+ /* sessid_len */
+        2+ /* ciphersuite */
+        1; /* legacy compression */
+    if (sh_len<startofexts) return(0);
+    if (sh_len==startofexts) return(1); /* no exts */
+    *exts=startofexts;
+    if (sh_len<(startofexts+6)) return(0); /* needs at least len+one-ext */
+    origextlens=sh[startofexts]*256+sh[startofexts+1];
+    if (sh_len<(startofexts+2+origextlens)) return(0); /* needs at least len+one-ext */
+    /*
+     * find ECH if it's there
+     */
+    e_start=&sh[startofexts+2];
+    extsremaining=origextlens-2;
+    while (extsremaining>0) {
+        if (sh_len<(4+(size_t)(e_start-sh))) {
+            return 0;
+        }
+        etype=e_start[0]*256+e_start[1];
+        elen=e_start[2]*256+e_start[3];
+        if (etype==TLSEXT_TYPE_ech || etype==TLSEXT_TYPE_ech13) {
+            echlen=elen+4; /* type and length included */
+            *echtype=etype;
+            *echoffset=(e_start-sh); /* set output */
+        } 
+        e_start+=(4+elen);
+        extsremaining-=(4+elen);
+    }
+    ech_pbuf("orig SH",(unsigned char*) sh,sh_len);
+    ech_pbuf("orig SH session_id",(unsigned char*) sh+sessid_offset,sessid_len);
+    ech_pbuf("orig SH exts",(unsigned char*) sh+*exts,origextlens);
+#ifndef OPENSSL_NO_SSL_TRACE
+    OSSL_TRACE_BEGIN(TLS) {
+        BIO_printf(trc_out,"orig SH/ECH type: %4x\n",*echtype);
+    } OSSL_TRACE_END(TLS);
+#endif
+    ech_pbuf("orig SH/ECH",(unsigned char*) sh+*echoffset,echlen);
+    return(1);
+}
+
 /*
  * @brief Handling for the ECH accept_confirmation
  *
@@ -3422,8 +3503,25 @@ int ech_calc_accept_confirm(
         /* zap magic octets at fixed place for SH */
         memset(tbuf+chlen+shoffset,0,8);
     } else {
-        /* TODO: make this independent of ECH placement in HRR */
-        memset(tbuf+tlen-8,0,8);
+        int rv;
+        size_t extoffset=0;
+        size_t echoffset=0;
+        uint16_t echtype;
+
+        if (s->server) {
+            echoffset=tlen-8; /* we get to say where we put ECH:-) */
+        } else {
+            rv=ech_get_sh_offsets(shbuf,shlen,&extoffset,&echoffset,&echtype);
+            if (rv!=1) {
+                SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+                goto err;
+            }
+            if (!echoffset || !extoffset || !echtype) {
+                SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+                goto err;
+            }
+        }
+        memset(tbuf+chlen+4+echoffset+4,0,8);
     }
     /* figure out  h/s hash */
     md=ssl_handshake_md(s);
@@ -4502,6 +4600,9 @@ static int ech_srv_get_aad(
 /*!
  * Given a CH find the offsets of the session id, extensions and ECH
  *
+ * Offsets are set to zero if relevant thing not found.
+ * Offsets are returned to the type or length field in question.
+ *
  * @param: pkt is the CH
  * @param: sessid points to offset of session_id length
  * @param: exts points to offset of extensions
@@ -4509,13 +4610,8 @@ static int ech_srv_get_aad(
  * @param: echtype points to the ext type of the ECH
  * @param: snioffset points to offset of (outer) SNI
  * @return 1 for success, other otherwise
- *
- * Offsets are set to zero at start and must be non-zero to be
- * meaningful. If no ECH is present (or no extensions) then
- * those will be returned as zero.
- * Offsets are returned to the type or length field in question.
  */
-static int ech_get_offsets(
+static int ech_get_ch_offsets(
         PACKET *pkt,
         size_t *sessid,
         size_t *exts,
@@ -4570,15 +4666,13 @@ static int ech_get_offsets(
     }
     *exts=startofexts; /* set output */
     origextlens=ch[startofexts]*256+ch[startofexts+1];
-    if ((startofexts+2)>(ch_len-startofexts)) {
-         return 0;
-    }
+    if (ch_len<(startofexts+2+origextlens)) return(0); /* needs at least len+one-ext */
+
     /*
      * find ECH if it's there
      */
     e_start=&ch[startofexts+2];
     extsremaining=origextlens-2;
-
     while (extsremaining>0) {
         if (ch_len<(4+(size_t)(e_start-ch))) {
             return 0;
@@ -4711,7 +4805,7 @@ static unsigned char *hpke_decrypt_encch(
     *innerlen=clearlen;
     if (ech->cfg->recs[0].version==ECH_DRAFT_13_VERSION) {
         /* draft-13 pads after the encoded CH with zeros */
-        /* TODO: merge this, and any similar, with ech_get_offsets */
+        /* TODO: merge this, and any similar, with ech_get_ch_offsets */
         /* TODO: add bounds checks */
         size_t suitesoffset=2+0x20+1;
         size_t suiteslen=0;
@@ -4828,7 +4922,7 @@ int ech_early_decrypt(SSL *ssl, PACKET *outerpkt, PACKET *newpkt)
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         return(rv);
     }
-    rv=ech_get_offsets(outerpkt,&startofsessid,&startofexts,
+    rv=ech_get_ch_offsets(outerpkt,&startofsessid,&startofexts,
             &echoffset,&echtype,&outersnioffset);
     if (rv!=1) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
@@ -5040,7 +5134,7 @@ int ech_early_decrypt(SSL *ssl, PACKET *outerpkt, PACKET *newpkt)
 
     if (echtype==ECH_DRAFT_13_VERSION) {
         /* AAD in draft-13 is rx'd packet with ciphertext zero'd */
-        /* TODO: merge with ech_get_offsets */
+        /* TODO: merge with ech_get_ch_offsets */
         size_t startofciphertext=0;
         size_t lenofciphertext=0;
         size_t enclen=0;
@@ -5404,7 +5498,7 @@ int SSL_CTX_ech_raw_decrypt(SSL_CTX *ctx,
         *inner_len=ilen+9;
 
         /* Grab the inner SNI (if it's there) */
-        rv=ech_get_offsets(&pkt_inner,&startofsessid,&startofexts,
+        rv=ech_get_ch_offsets(&pkt_inner,&startofsessid,&startofexts,
                 &echoffset,&echtype,&innersnioffset);
         if (rv!=1) return(rv);
         if (innersnioffset>0) {

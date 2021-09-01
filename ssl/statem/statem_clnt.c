@@ -1349,7 +1349,7 @@ CON_FUNC_RETURN tls_construct_client_hello(SSL_CONNECTION *s, WPACKET *pkt)
     /* The inner CH will use the same session ID as the outer */
     new_s->session->session_id_length=s->session->session_id_length;
     if (new_s->session!=s->session)
-    	memcpy(new_s->session->session_id,
+        memcpy(new_s->session->session_id,
                s->session->session_id,
                s->session->session_id_length);
     new_s->tmp_session_id_len=s->session->session_id_length;
@@ -1949,7 +1949,6 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL_CONNECTION *s, PACKET *pkt)
 
         if (hrr) {
             /* check the HRR accept signal */
-            /* TODO: find correct place - this assumes @ end */
             if (ech_calc_ech_confirm(s->ext.inner_s,1,acbuf,shbuf,shlen)!=1) {
                 SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
                 goto err;
@@ -1981,40 +1980,45 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL_CONNECTION *s, PACKET *pkt)
                 OSSL_TRACE_BEGIN(TLS) {
                     BIO_printf(trc_out, "ECH SH accept check ok\n");
                 } OSSL_TRACE_END(TLS);
+                s->ext.ech_success=1;
             } else {
                 OSSL_TRACE_BEGIN(TLS) {
                     BIO_printf(trc_out, "ECH SH accept check failed\n");
                 } OSSL_TRACE_END(TLS);
+                s->ext.ech_success=0;
             }
 
 
-            s->ext.ech_success=1;
-            OSSL_TRACE_BEGIN(TLS) {
-                BIO_printf(trc_out, "ECH succeeded - swapping inner/outer\n");
-            } OSSL_TRACE_END(TLS);
-            if (ech_swaperoo(s)!=1) {
-                SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-                goto err;
-            }
-            alen=s->ext.innerch_len+shlen+4;
-            abuf=OPENSSL_malloc(alen);
-            if (abuf==NULL) {
-                SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-                goto err;
-            }
-            memcpy(abuf,s->ext.innerch,s->ext.innerch_len);
-            abuf[s->ext.innerch_len]=0x02;
-            abuf[s->ext.innerch_len+1]=((shlen>>16)&0xff);
-            abuf[s->ext.innerch_len+2]=((shlen>>8)&0xff);
-            abuf[s->ext.innerch_len+3]=(shlen&0xff);
-            memcpy(abuf+s->ext.innerch_len+4,shbuf,shlen);
-            ech_pbuf("Client transcript re-init",abuf,alen);
-            if (ech_reset_hs_buffer(s,abuf,alen)!=1) {
+            if (s->ext.ech_success==1) {
+    
+                OSSL_TRACE_BEGIN(TLS) {
+                    BIO_printf(trc_out, "ECH succeeded - swapping inner/outer\n");
+                } OSSL_TRACE_END(TLS);
+                if (ech_swaperoo(s)!=1) {
+                    SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+                    goto err;
+                }
+                alen=s->ext.innerch_len+shlen+4;
+                abuf=OPENSSL_malloc(alen);
+                if (abuf==NULL) {
+                    SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+                    goto err;
+                }
+                memcpy(abuf,s->ext.innerch,s->ext.innerch_len);
+                abuf[s->ext.innerch_len]=0x02;
+                abuf[s->ext.innerch_len+1]=((shlen>>16)&0xff);
+                abuf[s->ext.innerch_len+2]=((shlen>>8)&0xff);
+                abuf[s->ext.innerch_len+3]=(shlen&0xff);
+                memcpy(abuf+s->ext.innerch_len+4,shbuf,shlen);
+                ech_pbuf("Client transcript re-init",abuf,alen);
+                if (ech_reset_hs_buffer(s,abuf,alen)!=1) {
+                    OPENSSL_free(abuf);
+                    SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+                    goto err;
+                }
                 OPENSSL_free(abuf);
-                SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-                goto err;
+    
             }
-            OPENSSL_free(abuf);
         }
     }
 
