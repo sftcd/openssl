@@ -52,8 +52,4 @@ If we run the usual client...
 
 STATE:
 - both sides appear to work
-
-TODO:
-- check transcript really as expected
-- re-use HPKE context for 2nd CH
-- testing 
+- interop - check transcript really as expected etc.
