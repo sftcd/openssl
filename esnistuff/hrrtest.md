@@ -55,7 +55,5 @@ STATE:
 
 TODO:
 - check transcript really as expected
-- server & client to figure where HRR accept lies inside HRR
-  (currently assuming last ext)
 - re-use HPKE context for 2nd CH
 - testing 
