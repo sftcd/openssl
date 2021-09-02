@@ -3662,7 +3662,7 @@ int ech_calc_accept_confirm(
     }
 
 #ifdef ECH_SUPERVERBOSE
-    ech_pbuf("calc conf : hoval",hoval,hashlen);
+    ech_pbuf("calc conf : hoval",hoval,8);
 #endif
 
     /* Finally, set the output */
