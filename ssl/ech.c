@@ -3648,14 +3648,17 @@ int ech_calc_accept_confirm(
         ech_pbuf("calc conf : notsecret",notsecret,hashlen);
 #endif
 
-        if (!tls13_hkdf_expand(s, md, notsecret,
-                               (const unsigned char *)label,labellen,
-                               hashval, hashlen,
-                               hoval, hashlen, 1)) {
+        if (hashlen<8) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             goto err;
         }
-   
+        if (!tls13_hkdf_expand(s, md, notsecret,
+                               (const unsigned char *)label,labellen,
+                               hashval, hashlen,
+                               hoval, 8, 1)) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+            goto err;
+        }
     }
 
 #ifdef ECH_SUPERVERBOSE
