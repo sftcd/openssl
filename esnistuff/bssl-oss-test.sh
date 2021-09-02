@@ -18,6 +18,8 @@ export LD_LIBRARY_PATH=$CODETOP
 : ${CFGTOP:=$HOME/code/openssl/esnistuff}
 # to pick up the boringssl build
 : ${BTOP:=$HOME/code/boringssl}
+# to pickup a different ECH config file
+: ${ECHCONFIGFILE="$CFGTOP/echconfig.pem"}
 
 BTOOL="$BTOP/build/tool"
 BFILES="$CFGTOP/bssl"
@@ -31,9 +33,10 @@ CERTFILE1=$CFGTOP/cadir/$clear_sni.crt
 KEYFILE2=$CFGTOP/cadir/$httphost.priv
 CERTFILE2=$CFGTOP/cadir/$httphost.crt
 
+
 todo="l" 
-# debugstr=" -debug "
-debugstr=""
+debugstr=" -debug "
+# debugstr=""
 
 # options may be followed by one colon to indicate they have a required argument
 if ! options=$(/usr/bin/getopt -s bash -o cgls -l cloudflare,generate,localhost,server  -- "$@")
@@ -78,12 +81,12 @@ then
     if [ ! -f $BFILES/os.ech ]
     then
         # make it
-        if [ ! -f $CFGTOP/echconfig.pem ]
+        if [ ! -f $ECHCONFIGILE ]
         then
             echo "Missing ECHConfig - exiting"
             exit 3
         fi
-        cat $CFGTOP/echconfig.pem | tail -2 | head -1 | base64 -d >$BFILES/os.ech
+        cat $ECHCONFIGFILE | tail -2 | head -1 | base64 -d >$BFILES/os.ech
     fi
     echo "Running bssl s_client against localhost"
     ( echo -e $httpreq ; sleep 2) | $BTOOL/bssl s_client -connect localhost:8443 \

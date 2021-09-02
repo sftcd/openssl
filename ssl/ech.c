@@ -4904,7 +4904,7 @@ static unsigned char *hpke_decrypt_encch(
             size_t zind=0;
             size_t nonzeros=0;
             size_t zeros=0;
-            if (*innerlen<=ch_len) {
+            if (*innerlen<ch_len) {
                 OPENSSL_free(clear); clear=NULL;
                 return NULL;
             }
