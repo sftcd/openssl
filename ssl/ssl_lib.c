@@ -1512,40 +1512,10 @@ void ossl_ssl_connection_free(SSL *ssl)
     sk_SSL_CIPHER_free(s->tls13_ciphersuites);
     sk_SSL_CIPHER_free(s->peer_ciphers);
 
-#ifndef OPENSSL_NO_ECH
-    /* only do this one if... */
-    if (    s->server ||
-            !s->ech ||
-            (  
-                !s->server &&
-                s->ext.ech_grease!=ECH_IS_GREASE &&
-                s->ext.ech_success==1
-            )
-                ||
-            (  
-                !s->server &&
-                s->ext.ech_grease!=ECH_IS_GREASE &&
-                (s->ext.ech_done==1 && s->ext.ch_depth==0)
-            )
-                ||
-            (
-                !s->server &&
-                s->ext.ech_grease==ECH_IS_GREASE &&
-                s->ext.inner_s==NULL
-            )
-       ) {
-        if (s->session != NULL) {
-            ssl_clear_bad_session(s);
-            SSL_SESSION_free(s->session);
-        }
-        s->session = NULL;
-    }
-#else
     if (s->session != NULL) {
         ssl_clear_bad_session(s);
         SSL_SESSION_free(s->session);
     }
-#endif
     SSL_SESSION_free(s->psksession);
     OPENSSL_free(s->psksession_id);
 
