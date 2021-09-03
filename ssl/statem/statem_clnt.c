@@ -1968,6 +1968,8 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL_CONNECTION *s, PACKET *pkt)
                 OSSL_TRACE_BEGIN(TLS) {
                     BIO_printf(trc_out, "ECH HRR accept check failed\n");
                 } OSSL_TRACE_END(TLS);
+                ech_pbuf("ECH HRR acbuf",acbuf,8);
+                ech_pbuf("ECH HRR shval",shbuf+shlen-8,8);
             }
         } else {
             size_t alen=0;
@@ -1987,13 +1989,15 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL_CONNECTION *s, PACKET *pkt)
                     BIO_printf(trc_out, "ECH SH accept check failed\n");
                 } OSSL_TRACE_END(TLS);
                 s->ext.ech_success=0;
+                ech_pbuf("ECH SH acbuf",acbuf,8);
+                ech_pbuf("ECH SH shval",
+                        s->s3.server_random+SSL3_RANDOM_SIZE-8,8);
             }
-
 
             if (s->ext.ech_success==1) {
     
                 OSSL_TRACE_BEGIN(TLS) {
-                    BIO_printf(trc_out, "ECH succeeded - swapping inner/outer\n");
+                    BIO_printf(trc_out, "Accepted ECH - swapping inner/outer\n");
                 } OSSL_TRACE_END(TLS);
                 if (ech_swaperoo(s)!=1) {
                     SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
@@ -2019,7 +2023,14 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL_CONNECTION *s, PACKET *pkt)
                 }
                 OPENSSL_free(abuf);
     
+            } else {
+                OSSL_TRACE_BEGIN(TLS) {
+                    BIO_printf(trc_out, "ECH not accepted - cleaning some\n");
+                } OSSL_TRACE_END(TLS);
+                SSL_SESSION_free(s->ext.inner_s->session);
+                s->ext.inner_s->session=NULL;
             }
+
         }
     }
 
@@ -2309,7 +2320,7 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL_CONNECTION *s, PACKET *pkt)
             unsigned char *abuf=NULL;
             s->ext.ech_success=1;
             OSSL_TRACE_BEGIN(TLS) {
-                BIO_printf(trc_out, "ECH succeeded - swapping inner/outer\n");
+                BIO_printf(trc_out, "Accepted ECH - swapping inner/outer\n");
             } OSSL_TRACE_END(TLS);
             /* swap back before final swap */
             inner=*s; *s=outer; *s->ext.inner_s=inner;

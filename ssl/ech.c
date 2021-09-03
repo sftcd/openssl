@@ -3459,12 +3459,55 @@ int ech_calc_accept_confirm(
     SSL_CONNECTION *s = SSL_CONNECTION_FROM_SSL(ssl);
     unsigned char zeros[EVP_MAX_MD_SIZE];
     EVP_PKEY_CTX *pctx=NULL;
+    unsigned char digestedCH[4+EVP_MAX_MD_SIZE];
 
-    chbuf=s->ext.innerch;
-    chlen=s->ext.innerch_len;
+    /* TODO: replace literal numbers with more sensible things */
+
+    /* first figure out  h/s hash */
+    md=ssl_handshake_md(s);
+    if (md==NULL) {
+        /* fallback to one from the chosen ciphersuite */
+        const unsigned char *cipherchars=NULL;
+        if (s->server) {
+            cipherchars=&shbuf[4+2+32+1+32];
+        } else {
+            cipherchars=&shbuf[2+32+1+32];
+        }
+        const SSL_CIPHER *c=ssl_get_cipher_by_char(s, cipherchars, 0);
+        md=ssl_md(s->ctx, c->algorithm2);
+        if (md==NULL) {
+            /* ultimate fallback sha266 */
+            md=s->ctx->ssl_digest_methods[SSL_HANDSHAKE_MAC_SHA256];
+        }
+    }
+
+    if (!for_hrr) {
+        chbuf=s->ext.innerch;
+        chlen=s->ext.innerch_len;
+    } else {
+        hashlen=EVP_MD_size(md);
+        if (hashlen>EVP_MAX_MD_SIZE) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+            goto err;
+        }
+        if (EVP_DigestInit_ex(ctx, md, NULL) <= 0
+            || EVP_DigestUpdate(ctx, s->ext.innerch, s->ext.innerch_len) <= 0
+            || EVP_DigestFinal_ex(ctx, digestedCH+4, &hashlen) <= 0) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+            goto err;
+        }
+        digestedCH[0]=SSL3_MT_MESSAGE_HASH;
+        digestedCH[1]=0x00;
+        digestedCH[2]=0x00;
+        digestedCH[3]=hashlen&0xff;
+        chbuf=digestedCH;
+        chlen=hashlen+4;
+    }
 
 #ifdef ECH_SUPERVERBOSE
-    ech_pbuf("calc conf : innerch",chbuf,chlen);
+    ech_pbuf("calc conf : innerch",s->ext.innerch,s->ext.innerch_len);
+    if (for_hrr)
+        ech_pbuf("calc conf : digested innerch",chbuf,chlen);
     ech_pbuf("calc conf : SH",shbuf,shlen);
 #endif
 
@@ -3528,18 +3571,6 @@ int ech_calc_accept_confirm(
             memset(tbuf+chlen+4+echoffset+4,0,8);
         }
     }
-    /* figure out  h/s hash */
-    md=ssl_handshake_md(s);
-    if (md==NULL) {
-        /* fallback to one from the chosen ciphersuite */
-        const unsigned char *cipherchars=&tbuf[chlen+shoffset+8+1+32];
-        const SSL_CIPHER *c=ssl_get_cipher_by_char(s, cipherchars, 0);
-        md=ssl_md(ssl->ctx, c->algorithm2);
-        if (md==NULL) {
-            /* ultimate fallback sha266 */
-            md=ssl->ctx->ssl_digest_methods[SSL_HANDSHAKE_MAC_SHA256];
-        }
-    }
 
 #ifdef ECH_SUPERVERBOSE
     ech_pbuf("calc conf : tbuf",tbuf,tlen);
@@ -3583,14 +3614,6 @@ int ech_calc_accept_confirm(
     }
 
     if (s->ext.ech_attempted_type==ECH_DRAFT_13_VERSION) {
-        /*
-         * For all versions so far, I've had to see
-         * someone else's code to get this correct.
-         * So we'll just get a maybe-correct version
-         * that works locally (meaning s_client to
-         * s_server) for now and fix later via interop.
-         * TODO: fix via interop!
-         */
         unsigned char notsecret[EVP_MAX_MD_SIZE];
         size_t retlen=0;
 
@@ -4114,6 +4137,7 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
     /*
      * My ephemeral key pair for HPKE encryption
      * Has to be externally generated so public can be part of AAD (sigh)
+     * and in case of HRR.
      */
     unsigned char *mypub=NULL;
     size_t mypub_len=0;
@@ -4259,6 +4283,10 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             goto err;
         }
+        /* Keep ECH key pair in case of HRR */
+        s->ext.ech_priv=mypriv_evp;
+        s->ext.ech_pub=mypub; 
+        s->ext.ech_pub_len=mypub_len; 
     }
     if (mypub_len>HPKE_MAXSIZE || mypriv_evp==NULL) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
@@ -4335,12 +4363,6 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
         ech_pbuf("EAAE: hpke mypub",mypub,mypub_len);
         ech_pbuf("EAAE: cipher",cipher,cipherlen);
         OPENSSL_free(aad); aad=NULL;
-        /*
-        * We ditch the ephemeral key now.
-        * We would need that for HRR, but we'll
-        * only code up HRR for draft-13 
-        */
-        EVP_PKEY_free(mypriv_evp); mypriv_evp=NULL;
         ech_pbuf("EAAE pkt b4",(unsigned char*) pkt->buf->data,pkt->written);
         if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_ech)
             || !WPACKET_start_sub_packet_u16(pkt)
@@ -4577,14 +4599,8 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
         ech_pbuf("EAAE: hpke mypub",mypub,mypub_len);
         ech_pbuf("EAAE: cipher",cipher,cipherlen);
 
-        /* Keep ECH key pair in case of HRR */
-        s->ext.ech_priv=mypriv_evp; mypriv_evp=NULL;
-        s->ext.ech_pub=mypub; 
-        s->ext.ech_pub_len=mypub_len; 
-
         /* splice real ciphertext back in now */
         memcpy(aad+aad_len-cipherlen,cipher,cipherlen);
-
     }
 
     ech_pbuf("EAAE pkt to startofexts+6 (startofexts is 4 offset so +2 really)",

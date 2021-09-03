@@ -952,9 +952,49 @@ static int ssl_print_extension(BIO *bio, int indent, int server,
         ssl_print_hex(bio, indent + 4, "ECH", ext, extlen);
         break;
     case TLSEXT_TYPE_ech13:
-        BIO_indent(bio, indent + 2, 80);
-        BIO_printf(bio,"draft-13 ECH of length (%d)\n",(int)extlen);
-        ssl_print_hex(bio, indent + 4, "ECH", ext, extlen);
+        BIO_indent(bio, indent, 80);
+        if (mt==SSL3_MT_CLIENT_HELLO) {
+            uint8_t type;
+            uint16_t kdf_id;
+            uint16_t aead_id;
+            uint8_t config_id;
+            size_t enclen;
+            size_t payloadlen;
+
+            type=ext[0];
+            if (type==1) {
+                BIO_printf(bio,"ECH-type is inner\n");
+                ssl_print_hex(bio, indent + 4, "ECH", ext, extlen);
+            } else if (type==0 && extlen>10) {
+                BIO_printf(bio,"ECH-type is outer\n");
+                kdf_id=ext[1]*256+ext[2];
+                aead_id=ext[3]*256+ext[4];
+                config_id=ext[5];
+                enclen=ext[6]*256+ext[7];
+                BIO_indent(bio, indent + 2, 80);
+                BIO_printf(bio,"kdf %u, aead: %u, config_id: 0x%02x\n",kdf_id,aead_id,config_id);
+                if (extlen<(8+enclen)) {
+                    ssl_print_hex(bio, indent + 2, "Dodgy Full ECH", ext, extlen);
+                } else {
+                    ssl_print_hex(bio, indent + 2, "enc", ext+8, enclen);
+                }
+                if (extlen<(8+enclen+2+2)) {
+                    ssl_print_hex(bio, indent + 2, "Dodgy Full ECH", ext, extlen);
+                } else {
+                    payloadlen=ext[8+enclen]*256+ext[8+enclen+1];
+                    if (extlen<(8+enclen+2+payloadlen)) {
+                        ssl_print_hex(bio, indent + 2, "Dodgy Full ECH", ext, extlen);
+                    } else {
+                        ssl_print_hex(bio, indent + 2, "payload", ext+8+enclen+2, payloadlen);
+                    }
+                }
+            } else {
+                BIO_indent(bio, indent + 2, 80);
+                ssl_print_hex(bio, indent + 2, "Dodgy Full ECH", ext, extlen);
+            }
+        } if (mt==SSL3_MT_SERVER_HELLO) {
+            ssl_print_hex(bio, indent + 2, "ECH accept value:", ext, extlen);
+        }
         break;
     case TLSEXT_TYPE_outer_extensions:
         BIO_indent(bio, indent + 2, 80);
