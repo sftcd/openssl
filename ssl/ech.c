@@ -3644,10 +3644,6 @@ int ech_calc_ech_confirm(
         }
     }
 
-#ifdef ECH_SUPERVERBOSE
-    ech_pbuf("calc conf : hoval",hoval,8);
-#endif
-
     /* Finally, set the output */
     memcpy(acbuf,hoval,8);
 #ifdef ECH_SUPERVERBOSE
