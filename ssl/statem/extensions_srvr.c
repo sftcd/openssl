@@ -2307,6 +2307,7 @@ EXT_RETURN tls_construct_stoc_ech13(SSL *s, WPACKET *pkt,
 
     /* If doing HRR we include the confirmation value */
     if (context==SSL_EXT_TLS1_3_HELLO_RETRY_REQUEST &&
+        s->ext.ech_success==1 && 
         s->ext.ech_attempted_type==TLSEXT_TYPE_ech13) {
         unsigned char eightzeros[8]={0,0,0,0,0,0,0,0};
         if (!WPACKET_put_bytes_u16(pkt, s->ext.ech_attempted_type)
