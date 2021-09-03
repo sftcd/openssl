@@ -2484,6 +2484,7 @@ int tls_construct_server_hello(SSL *s, WPACKET *pkt)
      * we're accepting ECH, if that's the case
      */
     if (s->hello_retry_request != SSL_HRR_PENDING && 
+            s->ext.ech_attempted_type==TLSEXT_TYPE_ech13 && 
             (s->ext.ech_backend || (s->ech && s->ext.ech_success==1))) {
         unsigned char acbuf[8];
         unsigned char *shbuf=NULL;
@@ -2510,6 +2511,7 @@ int tls_construct_server_hello(SSL *s, WPACKET *pkt)
         memcpy(p,acbuf,8);
     } 
     if (s->hello_retry_request == SSL_HRR_PENDING && 
+            s->ext.ech_attempted_type==TLSEXT_TYPE_ech13 && 
             (s->ext.ech_backend || (s->ech && s->ext.ech_success==1))) {
         unsigned char acbuf[8];
         unsigned char *shbuf=NULL;
