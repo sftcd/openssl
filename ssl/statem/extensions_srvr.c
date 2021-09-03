@@ -2228,21 +2228,7 @@ EXT_RETURN tls_construct_stoc_ech(SSL_CONNECTION *s, WPACKET *pkt,
                                           size_t chainidx)
 {
 
-    /* If doing HRR we include the confirmation value */
-    if (context==SSL_EXT_TLS1_3_HELLO_RETRY_REQUEST && 
-        s->ext.ech_attempted_type==TLSEXT_TYPE_ech) {
-        unsigned char eightzeros[8]={0,0,0,0,0,0,0,0};
-        if (!WPACKET_put_bytes_u16(pkt, s->ext.ech_attempted_type)
-            || !WPACKET_sub_memcpy_u16(pkt,eightzeros,8)) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-            return 0;
-        }
-        OSSL_TRACE_BEGIN(TLS) {
-            BIO_printf(trc_out,"sending ECHConfig (draft-13) in HRR\n");
-        } OSSL_TRACE_END(TLS);
-        return EXT_RETURN_SENT;
-    }
-    /* for other versions don't send */
+    /* We don't do HRR for draft-10 */
     if (context==SSL_EXT_TLS1_3_HELLO_RETRY_REQUEST) {
         return EXT_RETURN_NOT_SENT;
     }
@@ -2323,6 +2309,7 @@ EXT_RETURN tls_construct_stoc_ech13(SSL *s, WPACKET *pkt,
 
     /* If doing HRR we include the confirmation value */
     if (context==SSL_EXT_TLS1_3_HELLO_RETRY_REQUEST &&
+        s->ext.ech_success==1 && 
         s->ext.ech_attempted_type==TLSEXT_TYPE_ech13) {
         unsigned char eightzeros[8]={0,0,0,0,0,0,0,0};
         if (!WPACKET_put_bytes_u16(pkt, s->ext.ech_attempted_type)
