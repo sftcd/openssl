@@ -1,8 +1,8 @@
 #!/bin/bash
 
-set -x
+# set -x
 
-# Do one of 4 things:
+# Do one of 5 things:
 # 1. (g) generate ECH credentials for boringssl 
 # 2. (l) run a boringssl s_client against localhost:8443 (default)
 # 3. (c) run a boringssl s_client against cloudflare
@@ -47,8 +47,8 @@ debugstr=" -debug "
 
 # Turn this on to have a server trigger HRR from any 
 # (reasonable:-) client
-# hrrstr=" -curves P-384 "
-hrrstr=""
+hrrstr=" -curves P-384 "
+# hrrstr=""
 
 # options may be followed by one colon to indicate they have a required argument
 if ! options=$(/usr/bin/getopt -s bash -o cdgls -l cloudflare,defo,generate,localhost,server  -- "$@")
@@ -176,7 +176,7 @@ fi
 
 if [[ "$todo" == "g" ]]
 then
-    echo "Running a bssl s_server (hit ctrl-c to exit)"
+    echo "Generating ECH keys for a bssl s_server."
     $BTOOL/bssl generate-ech -out-ech-config-list $BFILES/bs.list \
         -out-ech-config $BFILES/bs.ech -out-private-key $BFILES/bs.key \
         -public-name example.com -config-id 222 -max-name-length 0
@@ -200,6 +200,10 @@ trap cleanup SIGINT
 if [[ "$todo" == "s" ]]
 then
     echo "Running bssl s_server with ECH keys"
+    if [[ "$hrrstr" != "" ]]
+    then
+        echo "*** We're set to generate HRR ($hrrstr) ***"
+    fi
     $BTOOL/bssl s_server \
         -accept 8443 \
         -key $KEYFILE2 -cert $CERTFILE2 \
