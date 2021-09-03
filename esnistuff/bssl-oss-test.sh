@@ -1,12 +1,13 @@
 #!/bin/bash
 
-# set -x
+set -x
 
 # Do one of 4 things:
 # 1. (g) generate ECH credentials for boringssl 
 # 2. (l) run a boringssl s_client against localhost:8443 (default)
 # 3. (c) run a boringssl s_client against cloudflare
 # 4. (s) run a boringssl s_server on localhost:8443
+# 5. (d) run a boringssl s_client against draft-13.esni.defo.ie:8413
 
 # The setup here depends on me having generated keys etc in
 # my ususal $HOME/code/openssl/esnistuff setup.
@@ -28,6 +29,10 @@ httpreq="GET /stats HTTP/1.1\\r\\nConnection: close\\r\\nHost: $httphost\\r\\n\\
 cfhost="crypto.cloudflare.com"
 cfhttpreq="GET / HTTP/1.1\\r\\nConnection: close\\r\\nHost: $cfhost\\r\\n\\r\\n"
 
+defohost="draft-13.esni.defo.ie"
+defoport="8413"
+defohttpreq="GET /stats HTTP/1.1\\r\\nConnection: close\\r\\nHost: $defohost\\r\\n\\r\\n"
+
 KEYFILE1=$CFGTOP/cadir/$clear_sni.priv
 CERTFILE1=$CFGTOP/cadir/$clear_sni.crt
 KEYFILE2=$CFGTOP/cadir/$httphost.priv
@@ -35,11 +40,18 @@ CERTFILE2=$CFGTOP/cadir/$httphost.crt
 
 
 todo="l" 
+
+# turn this on for a little more tracing
 debugstr=" -debug "
 # debugstr=""
 
+# Turn this on to have a server trigger HRR from any 
+# (reasonable:-) client
+# hrrstr=" -curves P-384 "
+hrrstr=""
+
 # options may be followed by one colon to indicate they have a required argument
-if ! options=$(/usr/bin/getopt -s bash -o cgls -l cloudflare,generate,localhost,server  -- "$@")
+if ! options=$(/usr/bin/getopt -s bash -o cdgls -l cloudflare,defo,generate,localhost,server  -- "$@")
 then
     # something went wrong, getopt will put out an error message for us
     exit 1
@@ -50,6 +62,7 @@ while [ $# -gt 0 ]
 do
     case "$1" in
         -c|--cloudflare) todo="c" ;;
+        -d|--defo) todo="d" ;;
         -g|--generate) todo="g" ;;
         -l|--localhost) todo="l" ;;
         -s|--server) todo="s" ;;
@@ -101,12 +114,42 @@ then
     exit $res
 fi
 
+if [[ "$todo" == "d" ]]
+then
+    # Grab a fresh ECHConfigList from the DNS
+    # An example SVCB we get would be the catenation of the next 2 lines:
+    #     00010000050042
+    #     0040FE0D003C0200200020AE5F0D36FE5516C60322C21859CE390FD752F1A13C22E132F10C7FE032D54121000400010001000D636F7665722E6465666F2E69650000
+    # The 2nd one is what we want and we'll grab it based purely on known
+    # lengths for now - if defo.ie (me:-) change things we'll need to adjust
+    ECH=`dig +short -t TYPE65 "_$defoport._https.$defohost" | \
+        tail -1 | cut -f 3- -d' ' | sed -e 's/ //g' | sed -e 'N;s/\n//'`
+    if [[ "$ECH" == "" ]]
+    then
+        echo "Can't read ECHConfigList for $defohost:$defoport"
+        exit 2
+    fi
+    ah_ech=${ECH:14}
+    echo $ah_ech | xxd -p -r >$BFILES/defo.ech
+    echo "Running bssl s_client against $defohost:$defoport"
+    ( echo -e $defohttpreq ; sleep 2) | $BTOOL/bssl s_client \
+        -connect $defohost:$defoport \
+        -ech-config-list $BFILES/defo.ech \
+        -server-name $defohost $debugstr
+    res=$?
+    if [[ "$res" != "0" ]]
+    then
+        echo "Error from bssl ($res)"
+    fi
+    exit $res
+fi
+
 if [[ "$todo" == "c" ]]
 then
     # Grab a fresh ECHConfigList from the DNS
     # An example SVCB we get would be the catenation of the next 3 lines:
-    # 0001000001000302683200040008A29F874FA29F884F0005004A
-    # 0048FE0A00440600200020E87CEF9B50B96C706CD5A5DA75801F2C6850CD3D0403A08D019A452873305B4900040001000100000013636C6F7564666C6172652D65736E692E636F6D0000
+    # 0001000001000302683200040008A29F874FA29F884F00050048
+    # 0046FE0D0042470020002049581350C8875700D27847CE0D826A25B5420B61AE7CAC9FE84D3259B05EAE690004000100010013636C6F7564666C6172652D65736E692E636F6D0000
     # 00060020260647000007000000000000A29F874F260647000007000000000000A29F884F
     # The middle one is what we want and we'll grab it based purely on known
     # lengths for now - if CF change things we'll need to adjust
@@ -116,7 +159,7 @@ then
         echo "Can't read ECHConfigList for $cfhost"
         exit 2
     fi
-    ah_ech=${ECH:52:148}
+    ah_ech=${ECH:52:144}
     echo $ah_ech | xxd -p -r >$BFILES/cf.ech
     echo "Running bssl s_client against cloudflare"
     ( echo -e $cfhttpreq ; sleep 2) | $BTOOL/bssl s_client \
@@ -161,7 +204,7 @@ then
         -accept 8443 \
         -key $KEYFILE2 -cert $CERTFILE2 \
         -ech-config $BFILES/bs.ech -ech-key $BFILES/bs.key \
-        -www -loop $debugstr
+        -www -loop $hrrstr $debugstr
     res=$?
     if [[ "$res" != "0" ]]
     then
