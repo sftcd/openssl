@@ -47,8 +47,8 @@ debugstr=" -debug "
 
 # Turn this on to have a server trigger HRR from any 
 # (reasonable:-) client
-hrrstr=" -curves P-384 "
-# hrrstr=""
+# hrrstr=" -curves P-384 "
+hrrstr=""
 
 # options may be followed by one colon to indicate they have a required argument
 if ! options=$(/usr/bin/getopt -s bash -o cdgls -l cloudflare,defo,generate,localhost,server  -- "$@")

@@ -2117,6 +2117,27 @@ int hpke_dec(
     if (noncelen!=12) {
         erv=__LINE__; goto err;
     }
+
+    /*
+     * XOR sequence with nonce as needed
+     */
+    if (seq!=NULL && seqlen>0) {
+        size_t sind;
+        if (seqlen>noncelen) {
+            erv=__LINE__; goto err;
+        }
+        /* non constant time - does it matter? maybe no */
+        for (sind=0;sind!=noncelen;sind++) {
+            unsigned char cv;
+            if (sind<seqlen) {
+                cv=seq[seqlen-1-(sind%seqlen)];
+            } else {
+                cv=0x00;
+            }
+            nonce[noncelen-1-sind] ^= cv;
+        }
+    }
+
     keylen=hpke_aead_tab[suite.aead_id].Nk;
     if (hpke_expand(suite,HPKE_5869_MODE_FULL,
                     secret,secretlen,
@@ -2131,17 +2152,6 @@ int hpke_dec(
                     HPKE_EXP_LABEL,strlen(HPKE_EXP_LABEL),
                     ks_context,ks_contextlen,
                     exporterlen,exporter,&exporterlen)!=1) {
-        erv=__LINE__; goto err;
-    }
-    noncelen=hpke_aead_tab[suite.aead_id].Nn;
-    if (hpke_expand(suite,HPKE_5869_MODE_FULL,
-                    secret,secretlen,
-                    HPKE_NONCE_LABEL,strlen(HPKE_NONCE_LABEL),
-                    ks_context,ks_contextlen,
-                    noncelen,nonce,&noncelen)!=1) {
-        erv=__LINE__; goto err;
-    }
-    if (noncelen!=12) {
         erv=__LINE__; goto err;
     }
 
