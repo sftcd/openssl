@@ -3473,13 +3473,14 @@ int ech_calc_accept_confirm(
     md=ssl_handshake_md(s);
     if (md==NULL) {
         /* fallback to one from the chosen ciphersuite */
+        const SSL_CIPHER *c=NULL;
         const unsigned char *cipherchars=NULL;
         if (s->server) {
             cipherchars=&shbuf[4+2+32+1+32];
         } else {
             cipherchars=&shbuf[2+32+1+32];
         }
-        const SSL_CIPHER *c=ssl_get_cipher_by_char(s, cipherchars, 0);
+        c=ssl_get_cipher_by_char(s, cipherchars, 0);
         md=ssl_md(s->ctx, c->algorithm2);
         if (md==NULL) {
             /* ultimate fallback sha266 */
@@ -3490,7 +3491,8 @@ int ech_calc_accept_confirm(
     if (!for_hrr && s->hello_retry_request==SSL_HRR_NONE) {
         chbuf=s->ext.innerch;
         chlen=s->ext.innerch_len;
-    } else if (!for_hrr && s->hello_retry_request==SSL_HRR_PENDING) {
+    } else if (!for_hrr && (s->hello_retry_request==SSL_HRR_PENDING ||
+                s->hello_retry_request==SSL_HRR_COMPLETE)) {
         /* make up mad odd transcript manually, for now */
         hashlen=EVP_MD_size(md);
         if (hashlen>EVP_MAX_MD_SIZE) {
@@ -3515,14 +3517,26 @@ int ech_calc_accept_confirm(
             goto err;
         }
         memcpy(longtrans,digestedCH,4+hashlen);
-        longtrans[4+hashlen]=SSL3_MT_SERVER_HELLO,
-        longtrans[4+hashlen+1]=(s->ext.kepthrr_len>>16)&0xff;
-        longtrans[4+hashlen+2]=(s->ext.kepthrr_len>>8)&0xff;
-        longtrans[4+hashlen+3]=s->ext.kepthrr_len&0xff;
-        memcpy(longtrans+4+hashlen+4,
-                s->ext.kepthrr,s->ext.kepthrr_len);
-        memcpy(longtrans+4+hashlen+4+s->ext.kepthrr_len,
-                s->ext.innerch,s->ext.innerch_len);
+        if (!s->server) {
+            longtrans[4+hashlen]=SSL3_MT_SERVER_HELLO,
+            longtrans[4+hashlen+1]=(s->ext.kepthrr_len>>16)&0xff;
+            longtrans[4+hashlen+2]=(s->ext.kepthrr_len>>8)&0xff;
+            longtrans[4+hashlen+3]=s->ext.kepthrr_len&0xff;
+            memcpy(longtrans+4+hashlen+4,
+                    s->ext.kepthrr,s->ext.kepthrr_len);
+            memcpy(longtrans+4+hashlen+4+s->ext.kepthrr_len,
+                    s->ext.innerch,s->ext.innerch_len);
+        } else {
+            chlen-=4;
+            longtrans[hashlen]=SSL3_MT_SERVER_HELLO,
+            longtrans[hashlen+1]=(s->ext.kepthrr_len>>16)&0xff;
+            longtrans[hashlen+2]=(s->ext.kepthrr_len>>8)&0xff;
+            longtrans[hashlen+3]=s->ext.kepthrr_len&0xff;
+            memcpy(longtrans+hashlen+4,
+                    s->ext.kepthrr,s->ext.kepthrr_len);
+            memcpy(longtrans+hashlen+4+s->ext.kepthrr_len,
+                    s->ext.innerch,s->ext.innerch_len);
+        }
         chbuf=longtrans;
 
     } else {
