@@ -4353,6 +4353,7 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
             s->ext.inner_s->ext.encoded_innerch, /* clear */
             aad_len, aad,
             info_len, info,
+            0, NULL, /* seq */
             mypub_len, mypub, mypriv_evp,
             &cipherlen, cipher
             );
@@ -4438,6 +4439,8 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
         size_t clear_len=0;
         size_t mnl=tc->maximum_name_length;
         int innersnipadding=0;
+        unsigned char seq[1]={0x00};
+        size_t seqlen=1;
 
         /*
          * "recommended" inner SNI padding scheme as per spec
@@ -4512,13 +4515,6 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
             goto err;
         }
         if (s->hello_retry_request==SSL_HRR_PENDING) {
-            /* 
-             * TODO: Check if the AAD for a CH in response
-             * to an HRR should/should-not contain the ECH
-             * public.
-             * For now, we omit it and adjust length
-             * accordingly.
-             */
             if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_ech13)
                 || !WPACKET_start_sub_packet_u16(pkt)
                 || !WPACKET_put_bytes_u8(pkt, ECH_OUTER_CH_TYPE)
@@ -4533,6 +4529,7 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
                 goto err;
             }
             echlen-=mypub_len;
+            seq[0]=1;
         } else {
 
             if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_ech13)
@@ -4588,6 +4585,7 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
             clear_len,clear,
             aad_len, aad,
             info_len, info,
+            seqlen, seq, /* seq */
             mypub_len, mypub, mypriv_evp,
             &cipherlen, cipher
             );
@@ -4796,6 +4794,7 @@ static int ech_get_ch_offsets(
  * @param the_ech is the value sent by the client
  * @param aad_len is the length of the AAD to use
  * @param aad is the AAD to use
+ * @param forhrr is 0 if not hrr, 1 if this is for 2nd CH
  * @param innerlen points to the size of the recovered plaintext
  * @return pointer to plaintext or NULL (if error)
  */
@@ -4803,6 +4802,7 @@ static unsigned char *hpke_decrypt_encch(
         SSL_ECH *ech,
         ECH_ENCCH *the_ech,
         size_t aad_len, unsigned char *aad,
+        int forhrr,
         size_t *innerlen)
 {
     size_t publen=0; unsigned char *pub=NULL;
@@ -4814,6 +4814,8 @@ static unsigned char *hpke_decrypt_encch(
     unsigned char info[HPKE_MAXSIZE];
     size_t info_len=HPKE_MAXSIZE;
     int rv=0;
+    unsigned char seq[1]={0x00};
+    size_t seqlen=1;
 
     cipherlen=the_ech->payload_len;
     cipher=the_ech->payload;
@@ -4866,6 +4868,9 @@ static unsigned char *hpke_decrypt_encch(
             hpke_suite.kem_id, hpke_suite.kdf_id, hpke_suite.aead_id);
     } OSSL_TRACE_END(TLS);
 #endif
+    if (forhrr==1) {
+        seq[0]=1;
+    }
     rv=hpke_dec( hpke_mode, hpke_suite,
                 NULL, 0, NULL, /* pskid, psk */
                 0, NULL, /* publen, pub, recipient public key */
@@ -4874,6 +4879,7 @@ static unsigned char *hpke_decrypt_encch(
                 cipherlen, cipher,
                 aad_len,aad,
                 info_len, info,
+                seqlen, seq, /* seq */
                 &clearlen, clear);
     /*
      * clear errors from failed decryption as per the above
@@ -4988,6 +4994,7 @@ int ech_early_decrypt(SSL *ssl, PACKET *outerpkt, PACKET *newpkt)
     size_t afterECH=0;
     int cfgind=-1;
     int foundcfg=0;
+    int forhrr=0;
 
     /*
      * 1. check if there's an ECH
@@ -5019,6 +5026,11 @@ int ech_early_decrypt(SSL *ssl, PACKET *outerpkt, PACKET *newpkt)
     /* Remember that we got an ECH */
     s->ext.ech_attempted=1;
     s->ext.ech_attempted_type=echtype;
+
+    /* set forhrr if that's correct */
+    if (s->hello_retry_request==SSL_HRR_PENDING) {
+        forhrr=1;
+    }
 
     /* We need to grab the session id */
     s->tmp_session_id_len=outerpkt->curr[startofsessid];
@@ -5323,7 +5335,8 @@ int ech_early_decrypt(SSL *ssl, PACKET *outerpkt, PACKET *newpkt)
         s->ext.encoded_innerch_len=0;
     }
     if (foundcfg==1) {
-        clear=hpke_decrypt_encch(&s->ech[cfgind],extval,aad_len,aad,&clearlen);
+        clear=hpke_decrypt_encch(&s->ech[cfgind],extval,aad_len,aad,
+                forhrr,&clearlen);
         if (clear==NULL) {
             s->ext.ech_grease=ECH_IS_GREASE;
         }
@@ -5335,7 +5348,8 @@ int ech_early_decrypt(SSL *ssl, PACKET *outerpkt, PACKET *newpkt)
     if (!foundcfg && (s->options & SSL_OP_ECH_TRIALDECRYPT)) {
         for (cfgind=0;cfgind!=s->nechs;cfgind++) {
             clear=hpke_decrypt_encch(&s->ech[cfgind],
-                    extval,aad_len,aad,&clearlen);
+                    extval,aad_len,aad,forhrr,
+                    &clearlen);
             if (clear!=NULL) {
                 foundcfg=1;
                 break;

@@ -1318,6 +1318,8 @@ static int hpke_psk_check(
  * @param aad is the encoded additional data (can be NULL)
  * @param infolen is the lenght of the info data (can be zero)
  * @param info is the encoded info data (can be NULL)
+ * @param seqlen is the length of the info data (can be zero)
+ * @param seq is the encoded info data (can be NULL)
  * @param extsenderpublen length of the input buffer for sender's public key
  * @param extsenderpub is the input buffer for sender public key
  * @param extsenderpriv has the handle for the sender private key
@@ -1335,6 +1337,7 @@ static int hpke_enc_int(
         size_t clearlen, unsigned char *clear,
         size_t aadlen, unsigned char *aad,
         size_t infolen, unsigned char *info,
+        size_t seqlen, unsigned char *seq,
         size_t extsenderpublen, unsigned char *extsenderpub,
         EVP_PKEY *extsenderpriv,
         size_t rawsenderprivlen,  unsigned char *rawsenderpriv,
@@ -1604,6 +1607,30 @@ static int hpke_enc_int(
     if (noncelen!=12) {
         erv=__LINE__; goto err;
     }
+
+    /*
+     * XOR sequence with nonce as needed
+     */
+    if (seq!=NULL && seqlen>0) {
+        int sind;
+        if (seqlen>noncelen) {
+            erv=__LINE__; goto err;
+        }
+        /* probably half-assed contant time attempt, fix another constant time */
+        for (sind=0;sind!=noncelen;sind++) {
+            unsigned char cv;
+            unsigned char xv;
+            if (sind<seqlen) {
+                cv=seq[seqlen-1-(sind%seqlen)];
+                xv=0x00;
+            } else {
+                xv=seq[seqlen-1-(sind%seqlen)];
+                cv=0x00;
+            }
+            nonce[noncelen-1-sind] ^= (cv ^ xv ^ xv);
+        }
+    }
+
     keylen=hpke_aead_tab[suite.aead_id].Nk;
     if (hpke_expand(suite,HPKE_5869_MODE_FULL,
                     secret,secretlen,
@@ -1724,6 +1751,8 @@ err:
  * @param aad is the encoded additional data (can be NULL)
  * @param infolen is the lenght of the info data (can be zero)
  * @param info is the encoded info data (can be NULL)
+ * @param seqlen is the length of the info data (can be zero)
+ * @param seq is the encoded info data (can be NULL)
  * @param senderpublen length of the input buffer for the sender's public key
  * @param senderpub is the input buffer for ciphertext
  * @param cipherlen length of the input buffer for ciphertext
@@ -1738,6 +1767,7 @@ int hpke_enc(
         size_t clearlen, unsigned char *clear,
         size_t aadlen, unsigned char *aad,
         size_t infolen, unsigned char *info,
+        size_t seqlen, unsigned char *seq,
         size_t *senderpublen, unsigned char *senderpub,
         size_t *cipherlen, unsigned char *cipher
 #ifdef TESTVECTORS
@@ -1752,6 +1782,7 @@ int hpke_enc(
             clearlen,clear,
             aadlen,aad,
             infolen,info,
+            seqlen,seq,
             0,NULL,
             NULL,0,NULL,
             senderpublen,senderpub,
@@ -1779,6 +1810,8 @@ int hpke_enc(
  * @param aad is the encoded additional data (can be NULL)
  * @param infolen is the lenght of the info data (can be zero)
  * @param info is the encoded info data (can be NULL)
+ * @param seqlen is the length of the info data (can be zero)
+ * @param seq is the encoded info data (can be NULL)
  * @param senderpublen length of the input buffer with the sender's public key
  * @param senderpub is the input buffer for sender public key
  * @param senderpriv has the handle for the sender private key
@@ -1794,6 +1827,7 @@ int hpke_enc_evp(
         size_t clearlen, unsigned char *clear,
         size_t aadlen, unsigned char *aad,
         size_t infolen, unsigned char *info,
+        size_t seqlen, unsigned char *seq,
         size_t extsenderpublen, unsigned char *extsenderpub,
         EVP_PKEY *extsenderpriv,
         size_t *cipherlen, unsigned char *cipher
@@ -1809,6 +1843,7 @@ int hpke_enc_evp(
             clearlen,clear,
             aadlen,aad,
             infolen,info,
+            seqlen,seq,
             extsenderpublen,extsenderpub,
             extsenderpriv, 0, NULL,
             0,NULL,
@@ -1836,6 +1871,8 @@ int hpke_enc_evp(
  * @param aad is the encoded additional data (can be NULL)
  * @param infolen is the lenght of the info data (can be zero)
  * @param info is the encoded info data (can be NULL)
+ * @param seqlen is the length of the info data (can be zero)
+ * @param seq is the encoded info data (can be NULL)
  * @param senderpublen length of the input buffer with the sender's public key
  * @param senderpub is the input buffer for sender public key
  * @param senderpriv has the handle for the sender private key
@@ -1851,6 +1888,7 @@ int hpke_enc_raw(
         size_t clearlen, unsigned char *clear,
         size_t aadlen, unsigned char *aad,
         size_t infolen, unsigned char *info,
+        size_t seqlen, unsigned char *seq,
         size_t extsenderpublen, unsigned char *extsenderpub,
         size_t rawsenderprivlen,  unsigned char *rawsenderpriv,
         size_t *cipherlen, unsigned char *cipher
@@ -1866,6 +1904,7 @@ int hpke_enc_raw(
             clearlen,clear,
             aadlen,aad,
             infolen,info,
+            seqlen,seq,
             extsenderpublen,extsenderpub,
             NULL, rawsenderprivlen, rawsenderpriv,
             0,NULL,
@@ -1896,6 +1935,8 @@ int hpke_enc_raw(
  * @param aad is the encoded additional data
  * @param infolen is the lenght of the info data (can be zero)
  * @param info is the encoded info data (can be NULL)
+ * @param seqlen is the length of the info data (can be zero)
+ * @param seq is the encoded info data (can be NULL)
  * @param clearlen length of the input buffer for cleartext
  * @param clear is the encoded cleartext
  * @return 1 for good (OpenSSL style), not-1 for error
@@ -1910,6 +1951,7 @@ int hpke_dec(
         size_t cipherlen, unsigned char *cipher,
         size_t aadlen, unsigned char *aad,
         size_t infolen, unsigned char *info,
+        size_t seqlen, unsigned char *seq,
         size_t *clearlen, unsigned char *clear)
 {
     int erv=1;
