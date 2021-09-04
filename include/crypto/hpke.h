@@ -114,10 +114,12 @@ typedef struct {
  * @param priv is the encoded private (authentication) key
  * @param clearlen is the length of the cleartext
  * @param clear is the encoded cleartext
- * @param aadlen is the lenght of the additional data
+ * @param aadlen is the length of the additional data
  * @param aad is the encoded additional data
- * @param infolen is the lenght of the info data (can be zero)
+ * @param infolen is the length of the info data (can be zero)
  * @param info is the encoded info data (can be NULL)
+ * @param seqlen is the length of the info data (can be zero)
+ * @param seq is the encoded info data (can be NULL)
  * @param senderpublen length of the input buffer for sender's public key
  * @param senderpub is the input buffer for sender public key
  * @param cipherlen is the length of the input buffer for ciphertext
@@ -135,6 +137,7 @@ int hpke_enc(
         size_t clearlen, unsigned char *clear,
         size_t aadlen, unsigned char *aad,
         size_t infolen, unsigned char *info,
+        size_t seqlen, unsigned char *seq,
         size_t *senderpublen, unsigned char *senderpub,
         size_t *cipherlen, unsigned char *cipher
 #ifdef TESTVECTORS
@@ -156,10 +159,12 @@ int hpke_enc(
  * @param priv is the encoded private (authentication) key
  * @param clearlen is the length of the cleartext
  * @param clear is the encoded cleartext
- * @param aadlen is the lenght of the additional data
+ * @param aadlen is the length of the additional data
  * @param aad is the encoded additional data
- * @param infolen is the lenght of the info data (can be zero)
+ * @param infolen is the length of the info data (can be zero)
  * @param info is the encoded info data (can be NULL)
+ * @param seqlen is the length of the info data (can be zero)
+ * @param seq is the encoded info data (can be NULL)
  * @param senderpublen length of the input buffer with the sender's public key
  * @param senderpub is the input buffer for sender public key
  * @param senderpriv has the handle for the sender private key
@@ -178,6 +183,7 @@ int hpke_enc_evp(
         size_t clearlen, unsigned char *clear,
         size_t aadlen, unsigned char *aad,
         size_t infolen, unsigned char *info,
+        size_t seqlen, unsigned char *seq,
         size_t senderpublen, unsigned char *senderpub, EVP_PKEY *senderpriv,
         size_t *cipherlen, unsigned char *cipher
 #ifdef TESTVECTORS
@@ -198,10 +204,12 @@ int hpke_enc_evp(
  * @param priv is the encoded private (authentication) key
  * @param clearlen is the length of the cleartext
  * @param clear is the encoded cleartext
- * @param aadlen is the lenght of the additional data (can be zero)
+ * @param aadlen is the length of the additional data (can be zero)
  * @param aad is the encoded additional data (can be NULL)
- * @param infolen is the lenght of the info data (can be zero)
+ * @param infolen is the length of the info data (can be zero)
  * @param info is the encoded info data (can be NULL)
+ * @param seqlen is the length of the info data (can be zero)
+ * @param seq is the encoded info data (can be NULL)
  * @param senderpublen length of the input buffer with the sender's public key
  * @param senderpub is the input buffer for sender public key
  * @param senderpriv has the handle for the sender private key
@@ -217,6 +225,7 @@ int hpke_enc_raw(
         size_t clearlen, unsigned char *clear,
         size_t aadlen, unsigned char *aad,
         size_t infolen, unsigned char *info,
+        size_t seqlen, unsigned char *seq,
         size_t extsenderpublen, unsigned char *extsenderpub,
         size_t rawsenderprivlen,  unsigned char *rawsenderpriv,
         size_t *cipherlen, unsigned char *cipher
@@ -241,10 +250,12 @@ int hpke_enc_raw(
  * @param enc is the peer's public value
  * @param cipherlen is the length of the ciphertext
  * @param cipher is the ciphertext
- * @param aadlen is the lenght of the additional data
+ * @param aadlen is the length of the additional data
  * @param aad is the encoded additional data
- * @param infolen is the lenght of the info data (can be zero)
+ * @param infolen is the length of the info data (can be zero)
  * @param info is the encoded info data (can be NULL)
+ * @param seqlen is the length of the info data (can be zero)
+ * @param seq is the encoded info data (can be NULL)
  * @param clearlen length of the input buffer for cleartext
  * @param clear is the encoded cleartext
  * @return 1 for good (OpenSSL style), not-1 for error
@@ -259,6 +270,7 @@ int hpke_dec(
         size_t cipherlen, unsigned char *cipher,
         size_t aadlen, unsigned char *aad,
         size_t infolen, unsigned char *info,
+        size_t seqlen, unsigned char *seq,
         size_t *clearlen, unsigned char *clear);
 
 /*!
