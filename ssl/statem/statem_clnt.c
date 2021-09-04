@@ -1331,12 +1331,20 @@ CON_FUNC_RETURN tls_construct_client_hello(SSL_CONNECTION *s, WPACKET *pkt)
             new_s->ext.encoded_innerch_len=0;
         }
         if (s->ext.innerch) {
-            OPENSSL_free(s->ext.innerch);
-            s->ext.innerch=NULL;
+            if (s->ext.innerch1) {
+                OPENSSL_free(s->ext.innerch1);
+            }
+            s->ext.innerch1=s->ext.innerch;
+            s->ext.innerch1_len=s->ext.innerch_len;
             s->ext.innerch_len=0;
+            s->ext.innerch=NULL;
         }
         if (new_s->ext.innerch) {
-            OPENSSL_free(new_s->ext.innerch);
+            if (new_s->ext.innerch1) {
+                OPENSSL_free(new_s->ext.innerch1);
+            }
+            new_s->ext.innerch1=new_s->ext.innerch;
+            new_s->ext.innerch1_len=new_s->ext.innerch_len;
             new_s->ext.innerch=NULL;
             new_s->ext.innerch_len=0;
         }

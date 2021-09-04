@@ -1606,6 +1606,17 @@ struct ssl_connection_st {
         size_t innerch_len;
         unsigned char *encoded_innerch;
         size_t encoded_innerch_len;
+        /* 
+         * As a v. temporary thing, we'll record all transcript messages
+         * so we can independently generate the accept confirmation esp
+         * in the HRR case. Once this works, we'll move to updating the 
+         * handshake_buffer properly for inner_s and outer_s and that
+         * should make things more sensible
+         */
+        unsigned char *innerch1;
+        size_t innerch1_len;
+        unsigned char *kepthrr;
+        size_t kepthrr_len;
         /* outer-exts compression related fields */
         int n_outer_only;
         uint16_t outer_only[ECH_OUTERS_MAX];
