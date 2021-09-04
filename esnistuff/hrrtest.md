@@ -54,8 +54,7 @@ STATE:
 - both sides appear to work locally
 - interop - check transcript really as expected etc.
     - in the process of checking that with boringssl...
-    - added seq input to HPKE APIs to enable incrementing
-      nonce for 2nd CH encryption/decryption - doesn't yet
-      make HRR interop work, but does seem to move it along
-      a bit, suspect the transrcipt/AAD handling needs a
-      change too...
+    - ECH accept signal from 2nd SH now being accepted but
+      finished etc not correct - need to figure how  to 
+      inject correct inner CH1 digest I guess...
+    

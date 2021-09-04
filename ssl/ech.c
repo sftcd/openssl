@@ -3414,6 +3414,12 @@ static int ech_get_sh_offsets(
  * transcript_ech_conf = ClientHelloInner..ServerHello
  *         with last 8 octets of ServerHello.random==0x00
  *
+ * and with differences due to HRR
+ *
+ * TODO: For now, this'll be "standalone" but we want to merge
+ * this with the other transcript hash code once we're at the
+ * final version. 
+ *
  * @param s is the SSL inner context
  * @oaram for_hrr is 1 if this is for an HRR, otherwise for SH
  * @param ac is (a caller allocated) 8 octet buffer
@@ -3443,9 +3449,9 @@ int ech_calc_ech_confirm(
     unsigned char zeros[EVP_MAX_MD_SIZE];
     EVP_PKEY_CTX *pctx=NULL;
     unsigned char digestedCH[4+EVP_MAX_MD_SIZE];
+    unsigned char *longtrans=NULL;
 
     /* TODO: replace literal numbers with more sensible things */
-
     /* first figure out  h/s hash */
     md=ssl_handshake_md(s);
     if (md==NULL) {
@@ -3464,10 +3470,54 @@ int ech_calc_ech_confirm(
         }
     }
 
-    if (!for_hrr) {
+    if (!for_hrr && s->hello_retry_request==SSL_HRR_NONE) {
         chbuf=s->ext.innerch;
         chlen=s->ext.innerch_len;
+    } else if (!for_hrr && s->hello_retry_request==SSL_HRR_PENDING) {
+        /* make up mad odd transcript manually, for now */
+        hashlen=EVP_MD_size(md);
+        if (hashlen>EVP_MAX_MD_SIZE) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+            goto err;
+        }
+        if (EVP_DigestInit_ex(ctx, md, NULL) <= 0
+            || EVP_DigestUpdate(ctx, s->ext.innerch1, s->ext.innerch1_len) <= 0
+            || EVP_DigestFinal_ex(ctx, digestedCH+4, &hashlen) <= 0) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+            goto err;
+        }
+        digestedCH[0]=SSL3_MT_MESSAGE_HASH;
+        digestedCH[1]=0x00;
+        digestedCH[2]=0x00;
+        digestedCH[3]=hashlen&0xff;
+
+        chlen=4+hashlen+4+s->ext.kepthrr_len+s->ext.innerch_len;
+        longtrans=OPENSSL_malloc(chlen);
+        if (!longtrans) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+            goto err;
+        }
+        memcpy(longtrans,digestedCH,4+hashlen);
+        longtrans[4+hashlen]=SSL3_MT_SERVER_HELLO,
+        longtrans[4+hashlen+1]=(s->ext.kepthrr_len>>16)&0xff;
+        longtrans[4+hashlen+2]=(s->ext.kepthrr_len>>8)&0xff;
+        longtrans[4+hashlen+3]=s->ext.kepthrr_len&0xff;
+        memcpy(longtrans+4+hashlen+4,
+                s->ext.kepthrr,s->ext.kepthrr_len);
+        memcpy(longtrans+4+hashlen+4+s->ext.kepthrr_len,
+                s->ext.innerch,s->ext.innerch_len);
+        chbuf=longtrans;
+
     } else {
+        /* stash HRR for later */
+        s->ext.kepthrr=OPENSSL_malloc(shlen);
+        if (!s->ext.kepthrr) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+            goto err;
+        }
+        memcpy(s->ext.kepthrr,shbuf,shlen);
+        s->ext.kepthrr_len=shlen;
+
         hashlen=EVP_MD_size(md);
         if (hashlen>EVP_MAX_MD_SIZE) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
@@ -3483,6 +3533,7 @@ int ech_calc_ech_confirm(
         digestedCH[1]=0x00;
         digestedCH[2]=0x00;
         digestedCH[3]=hashlen&0xff;
+
         chbuf=digestedCH;
         chlen=hashlen+4;
     }
@@ -3505,6 +3556,7 @@ int ech_calc_ech_confirm(
         goto err;
     }
     memcpy(tbuf,chbuf,chlen);
+
     /*
      * For some reason the internal 3-length of the shbuf is
      * wrong at this point. We'll fix it so, but here and
@@ -3688,9 +3740,11 @@ int ech_calc_ech_confirm(
 #endif
 #endif
 
+    if (longtrans) OPENSSL_free(longtrans);
     return(1);
 
 err:
+    if (longtrans) OPENSSL_free(longtrans);
     if (tbuf) OPENSSL_free(tbuf);
     if (ctx) EVP_MD_CTX_free(ctx);
     if (pctx) EVP_PKEY_CTX_free(pctx);

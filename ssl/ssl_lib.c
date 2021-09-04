@@ -906,6 +906,10 @@ SSL *SSL_new(SSL_CTX *ctx)
     s->ext.ech_priv=NULL;
     s->ext.ech_pub=NULL;
     s->ext.ech_pub_len=0;
+    s->ext.innerch=NULL;
+    s->ext.innerch1=NULL;
+    s->ext.encoded_innerch=NULL;
+    s->ext.kepthrr=NULL;
 
 #endif
 
@@ -1368,6 +1372,8 @@ void SSL_free(SSL *s)
     OPENSSL_free(s->ext.ech_returned);
     OPENSSL_free(s->ext.ech_grease_suite);
     OPENSSL_free(s->ext.innerch);
+    OPENSSL_free(s->ext.innerch1);
+    OPENSSL_free(s->ext.kepthrr);
     OPENSSL_free(s->ext.encoded_innerch);
     if (s->nechs>0 && s->ech!=NULL) {
         int n=0;
