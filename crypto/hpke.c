@@ -1612,22 +1612,19 @@ static int hpke_enc_int(
      * XOR sequence with nonce as needed
      */
     if (seq!=NULL && seqlen>0) {
-        int sind;
+        size_t sind;
         if (seqlen>noncelen) {
             erv=__LINE__; goto err;
         }
-        /* probably half-assed contant time attempt, fix another constant time */
+        /* non constant time - does it matter? maybe no */
         for (sind=0;sind!=noncelen;sind++) {
             unsigned char cv;
-            unsigned char xv;
             if (sind<seqlen) {
                 cv=seq[seqlen-1-(sind%seqlen)];
-                xv=0x00;
             } else {
-                xv=seq[seqlen-1-(sind%seqlen)];
                 cv=0x00;
             }
-            nonce[noncelen-1-sind] ^= (cv ^ xv ^ xv);
+            nonce[noncelen-1-sind] ^= cv;
         }
     }
 
