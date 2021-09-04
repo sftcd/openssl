@@ -26,6 +26,10 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
+- 20210904: have basic interop with boringssl working ok
+  in both directions, now working on HRR interop... (do
+  we hate HRR? yes we do! ;-)
+
 - 20210817: added notes on [HRR testing](hrrtest.md)
 
 - 20210816: moved agiletest.sh up to draft-13 keys
