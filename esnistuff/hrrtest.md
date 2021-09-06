@@ -57,4 +57,6 @@ STATE:
     - ECH accept signal from 2nd SH now being accepted but
       finished etc not correct - need to figure how  to 
       inject correct inner CH1 digest I guess...
+      ...still... (but 2nd SH accept now interopping 
+      well, and local back working)
     
