@@ -442,5 +442,29 @@ int ech_get_ch_offsets(
 void ech_pbuf(const char *msg,const unsigned char *buf,const size_t blen);
 void ech_ptranscript(const char* msg,SSL *s);
 
+/*!
+ * Given a CH find the offsets of the session id, extensions and ECH
+ *
+ * Offsets are set to zero if relevant thing not found.
+ * Offsets are returned to the type or length field in question.
+ *
+ * @param: pkt is the CH
+ * @param: sessid points to offset of session_id length
+ * @param: exts points to offset of extensions
+ * @param: echoffset points to offset of ECH
+ * @param: echtype points to the ext type of the ECH
+ * @param: inner 1 if the ECH is marked as an inner, 0 for outer
+ * @param: snioffset points to offset of (outer) SNI
+ * @return 1 for success, other otherwise
+ */
+int ech_get_ch_offsets(
+        PACKET *pkt,
+        size_t *sessid,
+        size_t *exts,
+        size_t *echoffset,
+        uint16_t *echtype,
+        int *inner,
+        size_t *snioffset);
+
 #endif
 #endif
