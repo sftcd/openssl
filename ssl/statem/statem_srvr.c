@@ -1479,19 +1479,36 @@ MSG_PROCESS_RETURN tls_process_client_hello(SSL_CONNECTION *s, PACKET *pkt)
      */
     if (!pkt) goto err;
     if (s->server && pkt->remaining) {
-        if (s->ext.innerch!=NULL) {
-            OPENSSL_free(s->ext.innerch);
+        int rv=0;
+        size_t startofsessid=0; /**< offset of session id within Ch */
+        size_t startofexts=0; /**< offset of extensions within CH */
+        size_t echoffset=0; /**< offset of start of ECH within CH */
+        uint16_t echtype=TLSEXT_TYPE_ech_unknown; /**< type of ECH seen */
+        size_t outersnioffset=0; /**< offset to SNI in outer */
+        int innerflag=-1;
+
+        rv=ech_get_ch_offsets(pkt,&startofsessid,&startofexts,
+            &echoffset,&echtype,&innerflag,&outersnioffset);
+        if (rv!=1) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+            goto err;
         }
-        /* For backend, include msg type & 3 octet length here. */
-        s->ext.innerch_len=pkt->remaining;
-        s->ext.innerch=OPENSSL_malloc(s->ext.innerch_len+4);
-        if (!s->ext.innerch) goto err;
-        s->ext.innerch[0]=SSL3_MT_CLIENT_HELLO;
-        s->ext.innerch[1]=((s->ext.innerch_len>>16)&0xff);
-        s->ext.innerch[2]=((s->ext.innerch_len>>8)&0xff);
-        s->ext.innerch[3]=(s->ext.innerch_len&0xff);
-        memcpy(s->ext.innerch+4,pkt->curr,s->ext.innerch_len);
-        s->ext.innerch_len+=4;
+        if (innerflag==1) {
+            if (s->ext.innerch!=NULL) {
+                OPENSSL_free(s->ext.innerch);
+                s->ext.innerch=NULL;
+            }
+            /* For backend, include msg type & 3 octet length here. */
+            s->ext.innerch_len=pkt->remaining;
+            s->ext.innerch=OPENSSL_malloc(s->ext.innerch_len+4);
+            if (!s->ext.innerch) goto err;
+            s->ext.innerch[0]=SSL3_MT_CLIENT_HELLO;
+            s->ext.innerch[1]=((s->ext.innerch_len>>16)&0xff);
+            s->ext.innerch[2]=((s->ext.innerch_len>>8)&0xff);
+            s->ext.innerch[3]=(s->ext.innerch_len&0xff);
+            memcpy(s->ext.innerch+4,pkt->curr,s->ext.innerch_len);
+            s->ext.innerch_len+=4;
+        }
     }
 
     if (s->server && s->ech!=NULL) {

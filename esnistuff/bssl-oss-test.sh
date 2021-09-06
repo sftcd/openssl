@@ -45,13 +45,11 @@ todo="l"
 debugstr=" -debug "
 # debugstr=""
 
-# Turn this on to have a server trigger HRR from any 
-# (reasonable:-) client
-# hrrstr=" -curves P-384 "
+# Turn HRR on via -R
 hrrstr=""
 
 # options may be followed by one colon to indicate they have a required argument
-if ! options=$(/usr/bin/getopt -s bash -o cdgls -l cloudflare,defo,generate,localhost,server  -- "$@")
+if ! options=$(/usr/bin/getopt -s bash -o Rcdgls -l HRR,cloudflare,defo,generate,localhost,server  -- "$@")
 then
     # something went wrong, getopt will put out an error message for us
     exit 1
@@ -66,6 +64,7 @@ do
         -g|--generate) todo="g" ;;
         -l|--localhost) todo="l" ;;
         -s|--server) todo="s" ;;
+        -R|--HRR) hrrstr=" -curves P-384 ";;
         (--) shift; break;;
         (-*) echo "$0: error - unrecognized option $1" 1>&2; exit 1;;
         (*)  break;;
