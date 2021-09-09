@@ -2314,7 +2314,6 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL_CONNECTION *s, PACKET *pkt)
                         BIO_printf(trc_out,"Adding in digest of CH1/HRR\n");
                     } OSSL_TRACE_END(TLS);
                     ech_pbuf("innerch",s->ext.innerch1,s->ext.innerch1_len);
-
                     md=ssl_handshake_md(s);
                     if (!md) {
                         /* fallback to one from the chosen ciphersuite */
