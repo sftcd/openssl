@@ -2485,6 +2485,58 @@ int tls_construct_server_hello(SSL *s, WPACKET *pkt)
          * Re-initialise the Transcript Hash. We're going to prepopulate it with
          * a synthetic message_hash in place of ClientHello1.
          */
+#ifndef OPENSSL_NO_ECH
+        /* 
+         * if we're sending 2nd SH after HRR and we did ECH
+         * then we want to inject the hash of the inner CH1 
+         * and not the outer (which is the default)
+         */
+#ifndef OPENSSL_NO_SSL_TRACE
+        OSSL_TRACE_BEGIN(TLS) {
+            BIO_printf(trc_out,"Checking success (%d)/innerCH (%p)\n",
+                    s->ext.ech_success,s->ext.innerch);
+        } OSSL_TRACE_END(TLS);
+#endif
+        if (s->ext.ech_success==1 && s->ext.innerch!=NULL) {
+            /* hash that value */
+            /* do pre-existing HRR stuff */
+            /* TODO - if this works, add checks */
+            /* Oddly, this seems to make no difference at all! */
+            unsigned char hashval[EVP_MAX_MD_SIZE];
+            unsigned int hashlen;
+            EVP_MD_CTX *ctx = EVP_MD_CTX_new();
+            const EVP_MD *md=NULL;
+
+#ifndef OPENSSL_NO_SSL_TRACE
+            OSSL_TRACE_BEGIN(TLS) {
+                BIO_printf(trc_out,"Adding in digest of ClientHello\n");
+            } OSSL_TRACE_END(TLS);
+            ech_pbuf("innerch",s->ext.innerch,s->ext.innerch_len);
+#endif
+
+            md=ssl_handshake_md(s);
+            if (!md) {
+                SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+                return 0;
+            }
+            if (EVP_DigestInit_ex(ctx, md, NULL) <= 0
+                || EVP_DigestUpdate(ctx, s->ext.innerch, 
+                    s->ext.innerch_len) <= 0
+                || EVP_DigestFinal_ex(ctx, hashval, &hashlen) <= 0) {
+                SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+                return 0;
+            }
+#ifndef OPENSSL_NO_SSL_TRACE
+            ech_pbuf("digested CH",hashval,hashlen);
+#endif
+            EVP_MD_CTX_free(ctx);
+
+            if (!create_synthetic_message_hash(s, hashval, hashlen, NULL, 0)) {
+                /* SSLfatal() already called */
+                return 0;
+            }
+        } else
+#endif
         if (!create_synthetic_message_hash(s, NULL, 0, NULL, 0)) {
             /* SSLfatal() already called */
             return 0;
