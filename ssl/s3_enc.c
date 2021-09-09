@@ -255,6 +255,9 @@ int ssl3_finish_mac(SSL_CONNECTION *s, const unsigned char *buf, size_t len)
 
 #ifndef OPENSSL_NO_ECH
 #ifdef ECH_SUPERVERBOSE
+    OSSL_TRACE_BEGIN(TLS) {
+        BIO_printf(trc_out,"Updating transcript for s=%p\n",s);
+    } OSSL_TRACE_END(TLS);
     ech_pbuf("Adding this to transcript",buf,len);
 #endif
 #endif

@@ -3330,7 +3330,9 @@ int ech_reset_hs_buffer(SSL *ssl, unsigned char *buf, size_t blen)
     EVP_MD_CTX_free(s->s3.handshake_dgst);
     s->s3.handshake_dgst=NULL;
     s->s3.handshake_buffer = BIO_new(BIO_s_mem());
-    BIO_write(s->s3.handshake_buffer, (void *)buf, (int)blen);
+    if (buf!=NULL && blen>0) {
+        BIO_write(s->s3.handshake_buffer, (void *)buf, (int)blen);
+    }
     return 1;
 }
 
@@ -3478,6 +3480,7 @@ int ech_calc_accept_confirm(
     unsigned char digestedCH[4+EVP_MAX_MD_SIZE];
     size_t digestedCH_len=0;
     unsigned char *longtrans=NULL;
+    unsigned char *conf_loc=NULL;
 
     memset(digestedCH,0,4+EVP_MAX_MD_SIZE);
 
@@ -3635,12 +3638,14 @@ int ech_calc_accept_confirm(
 
     if (!for_hrr) {
         /* zap magic octets at fixed place for SH */
-        memset(tbuf+chlen+shoffset,0,8);
+        conf_loc=tbuf+chlen+shoffset;
+        memset(conf_loc,0,8);
     } else {
 
         if (s->server) {
             /* we get to say where we put ECH:-) */
-            memset(tbuf+tlen-8,0,8);
+            conf_loc=tbuf+tlen-8;
+            memset(conf_loc,0,8);
         } else {
             int rv;
             size_t extoffset=0;
@@ -3659,7 +3664,8 @@ int ech_calc_accept_confirm(
                 SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
                 goto err;
             }
-            memset(tbuf+chlen+4+echoffset+4,0,8);
+            conf_loc=tbuf+chlen+4+echoffset+4;
+            memset(conf_loc,0,8);
         }
     }
 
@@ -3780,12 +3786,19 @@ int ech_calc_accept_confirm(
 #ifdef ECH_SUPERVERBOSE
     ech_pbuf("calc conf : result",acbuf,8);
 #endif
-    if (!for_hrr && !s->ext.ech_backend)
+    if (s->hello_retry_request==SSL_HRR_NONE && !s->ext.ech_backend)
         ech_reset_hs_buffer(s,s->ext.innerch,s->ext.innerch_len);
 
     if (for_hrr) {
         /* whack confirm value into stored version of hrr */
         memcpy(s->ext.kepthrr+s->ext.kepthrr_len-8,acbuf,8);
+    }
+
+    /* whack result back into tbuf */
+    memcpy(conf_loc,acbuf,8);
+
+    if (s->hello_retry_request==SSL_HRR_COMPLETE) {
+        ech_reset_hs_buffer(s,tbuf,tlen-shlen);
     }
 
     if (tbuf) OPENSSL_free(tbuf);
