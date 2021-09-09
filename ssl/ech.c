@@ -3317,8 +3317,9 @@ int ech_reset_hs_buffer(SSL *ssl, unsigned char *buf, size_t blen)
 
 #ifndef OPENSSL_NO_SSL_TRACE
     OSSL_TRACE_BEGIN(TLS) {
-        BIO_printf(trc_out,"ech_reset_hs_buffer len: %zu\n",blen);
+        BIO_printf(trc_out,"Adding this to transcript: RESET!\n");
     } OSSL_TRACE_END(TLS);
+    ech_pbuf("Adding this to transcript",buf,blen);
 #endif
 
     if (s->s3.handshake_buffer) {
