@@ -26,6 +26,11 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
+- 20210909: Got HRR working between boringssl and OpenSSL
+  clients/servers in both directions, but with mega-hack
+  code in places - will tidy that after we have broader
+  interop with others.
+
 - 20210904: have basic interop with boringssl working ok
   in both directions, now working on HRR interop... (do
   we hate HRR? yes we do! ;-)

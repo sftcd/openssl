@@ -2501,7 +2501,6 @@ int tls_construct_server_hello(SSL *s, WPACKET *pkt)
             /* hash that value */
             /* do pre-existing HRR stuff */
             /* TODO - if this works, add checks */
-            /* Oddly, this seems to make no difference at all! */
             unsigned char hashval[EVP_MAX_MD_SIZE];
             unsigned int hashlen;
             EVP_MD_CTX *ctx = EVP_MD_CTX_new();
@@ -2513,7 +2512,6 @@ int tls_construct_server_hello(SSL *s, WPACKET *pkt)
             } OSSL_TRACE_END(TLS);
             ech_pbuf("innerch",s->ext.innerch,s->ext.innerch_len);
 #endif
-
             md=ssl_handshake_md(s);
             if (!md) {
                 SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
@@ -2530,6 +2528,11 @@ int tls_construct_server_hello(SSL *s, WPACKET *pkt)
             ech_pbuf("digested CH",hashval,hashlen);
 #endif
             EVP_MD_CTX_free(ctx);
+            
+            if (ech_reset_hs_buffer(s,NULL,0)!=1) {
+                SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+                return 0;
+            }
 
             if (!create_synthetic_message_hash(s, hashval, hashlen, NULL, 0)) {
                 /* SSLfatal() already called */
