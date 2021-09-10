@@ -26,6 +26,10 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
+- 20210910: deployed an HRR-forcing server (P-384 only)
+  on port 8414 of draft-13.esni.defo.ie. Normal server
+  is on port 8413 of same host.
+
 - 20210909: Got HRR working between boringssl and OpenSSL
   clients/servers in both directions, but with mega-hack
   code in places - will tidy that after we have broader
