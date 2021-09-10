@@ -4839,8 +4839,6 @@ int ech_get_ch_offsets(
     *echtype=TLSEXT_TYPE_ech_unknown;
     *snioffset=0;
 
-    if (!SSL_IS_TLS13(s)) return(1);
-
     ch=pkt->curr;
     ch_len=pkt->remaining;
 
@@ -4848,6 +4846,8 @@ int ech_get_ch_offsets(
      * We'll start genoffset at the start of the session ID, just
      * before the ciphersuites
      */
+    /* make sure we're at least tlsv1.2 */
+    if (ch_len<2 || ch[0]!=0x03 || ch[1]!=0x03) return(1);
     *sessid=2+32; /* point to length of sessid */
     genoffset=*sessid;
     if (ch_len<=genoffset) return 0;
