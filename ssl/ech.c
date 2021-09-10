@@ -4795,6 +4795,7 @@ static int ech_srv_get_aad(
  * Offsets are set to zero if relevant thing not found.
  * Offsets are returned to the type or length field in question.
  *
+ * @param: s is the SSL session
  * @param: pkt is the CH
  * @param: sessid points to offset of session_id length
  * @param: exts points to offset of extensions
@@ -4805,6 +4806,7 @@ static int ech_srv_get_aad(
  * @return 1 for success, other otherwise
  */
 int ech_get_ch_offsets(
+        SSL *s,
         PACKET *pkt,
         size_t *sessid,
         size_t *exts,
@@ -4823,18 +4825,21 @@ int ech_get_ch_offsets(
     size_t origextlens=0;
     size_t echlen=0; /* length of ECH, including type & ECH-internal length */
     size_t snilen=0;
+    size_t legacy_compress_len; /* length of legacy_compression */
     const unsigned char *e_start=NULL;
     int extsremaining=0;
     uint16_t etype=0;
     size_t elen=0;
 
-    if (!pkt || !sessid || !exts || !echoffset || !echtype) return(0);
+    if (!s || !pkt || !sessid || !exts || !echoffset || !echtype) return(0);
 
     *sessid=0;
     *exts=0;
     *echoffset=0;
     *echtype=TLSEXT_TYPE_ech_unknown;
     *snioffset=0;
+
+    if (!SSL_IS_TLS13(s)) return(1);
 
     ch=pkt->curr;
     ch_len=pkt->remaining;
@@ -4847,21 +4852,41 @@ int ech_get_ch_offsets(
     genoffset=*sessid;
     if (ch_len<=genoffset) return 0;
     sessid_len=ch[genoffset];
+    if (sessid_len==0) {
+        return(1);
+    }
     genoffset+=(1+sessid_len);
     if (ch_len<=(genoffset+2)) return 0;
     suiteslen=ch[genoffset]*256+ch[genoffset+1];
+
+    if ((genoffset+suiteslen+2+2)>ch_len){
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+        return(0);
+    }
+    legacy_compress_len=ch[genoffset+suiteslen+2];
+    if (legacy_compress_len!=1) {
+        return(1); 
+    }
+    if (ch[genoffset+suiteslen+2+1]!=0x00) {
+        return(1); 
+    }
+
     startofexts=genoffset+suiteslen+2+2; /* the 2 for the suites len */
     if (startofexts==ch_len) {
         /* no extensions present, which is fine */
         return(1);
     }
     if (startofexts>ch_len) {
-        /* oops, shouldn't happen but just in case... */
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return(0);
     }
     *exts=startofexts; /* set output */
     origextlens=ch[startofexts]*256+ch[startofexts+1];
-    if (ch_len<(startofexts+2+origextlens)) return(0); /* needs at least len+one-ext */
+    if (ch_len<(startofexts+2+origextlens)) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+        return(0); 
+    }
+        /* needs at least len+one-ext */
 
     /*
      * find ECH if it's there
@@ -4870,6 +4895,7 @@ int ech_get_ch_offsets(
     extsremaining=origextlens-2;
     while (extsremaining>0) {
         if (ch_len<(4+(size_t)(e_start-ch))) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             return 0;
         }
         etype=e_start[0]*256+e_start[1];
@@ -5132,7 +5158,7 @@ int ech_early_decrypt(SSL *ssl, PACKET *outerpkt, PACKET *newpkt)
         return(rv);
     }
 
-    rv=ech_get_ch_offsets(outerpkt,&startofsessid,&startofexts,
+    rv=ech_get_ch_offsets(&s->ssl,outerpkt,&startofsessid,&startofexts,
             &echoffset,&echtype,&innerflag,&outersnioffset);
     if (rv!=1) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
@@ -5756,7 +5782,7 @@ int SSL_CTX_ech_raw_decrypt(SSL_CTX *ctx,
         *inner_len=ilen+9;
 
         /* Grab the inner SNI (if it's there) */
-        rv=ech_get_ch_offsets(&pkt_inner,&startofsessid,&startofexts,
+        rv=ech_get_ch_offsets(s,&pkt_inner,&startofsessid,&startofexts,
                 &echoffset,&echtype,&innerflag,&innersnioffset);
         if (rv!=1) return(rv);
         if (innersnioffset>0) {
