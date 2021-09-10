@@ -2029,13 +2029,13 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL_CONNECTION *s, PACKET *pkt)
                     if (!md) {
                         /* fallback to one from the chosen ciphersuite */
                         const SSL_CIPHER *c=NULL;
-                        const unsigned char *cipherchars=NULL;
+                        const unsigned char *lcipherchars=NULL;
                         if (s->server) {
-                            cipherchars=&shbuf[4+2+32+1+32];
+                            lcipherchars=&shbuf[4+2+32+1+32];
                         } else {
-                            cipherchars=&shbuf[2+32+1+32];
+                            lcipherchars=&shbuf[2+32+1+32];
                         }
-                        c=ssl_get_cipher_by_char(s, cipherchars, 0);
+                        c=ssl_get_cipher_by_char(s, lcipherchars, 0);
                         md=ssl_md(s->ctx, c->algorithm2);
                         if (md==NULL) {
                             /* ultimate fallback sha266 */
