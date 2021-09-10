@@ -2494,7 +2494,7 @@ int tls_construct_server_hello(SSL *s, WPACKET *pkt)
 #ifndef OPENSSL_NO_SSL_TRACE
         OSSL_TRACE_BEGIN(TLS) {
             BIO_printf(trc_out,"Checking success (%d)/innerCH (%p)\n",
-                    s->ext.ech_success,s->ext.innerch);
+                    s->ext.ech_success,(void*)s->ext.innerch);
         } OSSL_TRACE_END(TLS);
 #endif
         if (s->ext.ech_success==1 && s->ext.innerch!=NULL) {
