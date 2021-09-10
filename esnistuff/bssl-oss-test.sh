@@ -121,6 +121,13 @@ then
     #     0040FE0D003C0200200020AE5F0D36FE5516C60322C21859CE390FD752F1A13C22E132F10C7FE032D54121000400010001000D636F7665722E6465666F2E69650000
     # The 2nd one is what we want and we'll grab it based purely on known
     # lengths for now - if defo.ie (me:-) change things we'll need to adjust
+    # 
+    # If httstr isn't empty we'll switch port to 8414 where a
+    # P-384 only server runs
+    if [[ "$hrrstr" != "" ]]
+    then
+        defoport="8414"
+    fi
     ECH=`dig +short -t TYPE65 "_$defoport._https.$defohost" | \
         tail -1 | cut -f 3- -d' ' | sed -e 's/ //g' | sed -e 'N;s/\n//'`
     if [[ "$ECH" == "" ]]
