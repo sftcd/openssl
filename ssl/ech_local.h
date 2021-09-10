@@ -407,6 +407,7 @@ void ech_ptranscript(const char* msg, SSL_CONNECTION *s);
  * Offsets are set to zero if relevant thing not found.
  * Offsets are returned to the type or length field in question.
  *
+ * @param: s is the SSL session
  * @param: pkt is the CH
  * @param: sessid points to offset of session_id length
  * @param: exts points to offset of extensions
@@ -417,6 +418,7 @@ void ech_ptranscript(const char* msg, SSL_CONNECTION *s);
  * @return 1 for success, other otherwise
  */
 int ech_get_ch_offsets(
+        SSL *s,
         PACKET *pkt,
         size_t *sessid,
         size_t *exts,

@@ -1487,7 +1487,7 @@ MSG_PROCESS_RETURN tls_process_client_hello(SSL_CONNECTION *s, PACKET *pkt)
         size_t outersnioffset=0; /**< offset to SNI in outer */
         int innerflag=-1;
 
-        rv=ech_get_ch_offsets(pkt,&startofsessid,&startofexts,
+        rv=ech_get_ch_offsets(s,pkt,&startofsessid,&startofexts,
             &echoffset,&echtype,&innerflag,&outersnioffset);
         if (rv!=1) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
