@@ -1,6 +1,45 @@
 
 # Playing with lighttpd for ECH
 
+## September 2021 vesion: draft-13 of ECH
+
+### Housekeeping, Clone and build
+
+- I took the 2019 ESNI `code and put that into an ECH-and-ESNI branch.
+- I added [gstrauss'](https://github.com/gstrauss/lighttpd1.4) fork as
+  upstream
+- So from now on, I'll be psusing any minor changes of mine to that
+  branch.
+- You should build this against the [ECH-draft-13a](https://github.com/sftcd/openssl/tree/ECH-draft-13a)
+  branch of my OpenSSL fork, if that's built in ``$HOME/code/openssl`` then all should be well. If not,
+  you'll need to adjust stuff.
+
+
+            $ git clone https://github.com/sftd/lighttpd1.4 
+            ...
+            $ cd lighttpd1.4
+            $ git checkout ECH-experimental
+            Branch 'ECH-experimental' set up to track remote branch 'ECH-experimental' from 'origin'.
+            Switched to a new branch 'ECH-experimental'
+            $ ./autogen.sh 
+            ... stuff ...
+            # I don't have bzip2 dev/headers and want my own openssl build so...
+            # The below may also need --without-zlib
+            $ ./configure --with-openssl=$HOME/code/openssl --with-openssl-libs=$HOME/code/openssl --without-bzip2
+            ... stuff ...
+            $ make
+            ... stuff ...
+
+
+### Configure
+
+I configured a lighthttpd running on draft-13.esni.defo.ie:9413
+
+The lightttpd configuration is unchanged from the draft-10 case described below
+except for the hostname and port having changed to that above.
+
+## April 2021 version (outdated now)
+
 Notes on ECH-enabling lighttpd-1.4 starting 20210404.  (Followed by earlier
 notes about how I [ESNI-enabled](#ESNI-version) lighttpd-1.4 back in 2019.).
 
