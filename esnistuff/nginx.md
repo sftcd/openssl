@@ -5,19 +5,14 @@ The earlier ESNI details (from late 2019 are [below](#ESNI).
 
 ## Clone and Build 
 
-It looks (from [here](https://github.com/openssl/openssl/issues/12703)) like the latest nginx
-and OpenSSL 3.0.0 has a build problem, namely that some functions that are deprecated in 
-the latest OpenSSL are used by nginx. So we need to define ``OPENSSL_SUPPRESS_DEPRECATED``
-to buid (for now).
-
 First, you need a separate clone of our OpenSSL build (because nginx's build, in this
 instantiation, re-builds OpenSSL and links static libraries, so we put that in a new
 directory in order to avoid disturbing other builds):
 
             $ cd $HOME/code
-            $ git clone https://github.com/sftcd/openssl.git openssl-for-nginx-draft-10
-            $ cd openssl-for-nginx-draft-10
-            $ git checkout ECH-without-ESNI
+            $ git clone https://github.com/sftcd/openssl.git openssl-for-nginx-draft-13
+            $ cd openssl-for-nginx-draft-13
+            $ git checkout ECH-draft-13a
             $ ./config -d
             ...stuff...
             $ make
@@ -26,10 +21,10 @@ directory in order to avoid disturbing other builds):
 Then you need nginx, and to switch to our ``ECH-experimental`` branch:
 
             $ cd $HOME/code
-            $ git clone https://github.com/sftcd/nginx.git nginx-draft-10
-            $ cd nginx-draft-10
+            $ git clone https://github.com/sftcd/nginx.git nginx-draft-13
+            $ cd nginx-draft-13
             $ git checkout ECH-experimental
-            $ CFLAGS="-DOPENSSL_SUPPRESS_DEPRECATED" ./auto/configure --with-debug --prefix=nginx --with-http_ssl_module --with-openssl=$HOME/code/openssl-for-nginx-draft-10  --with-openssl-opt="--debug"
+            $ ./auto/configure --with-debug --prefix=nginx --with-http_ssl_module --with-openssl=$HOME/code/openssl-for-nginx-draft-13  --with-openssl-opt="--debug"
             $ make
             ... go for coffee ...
 
@@ -50,31 +45,34 @@ directory. It attempts to load all files matching ``<foo>.ech``
 It skips any files that don't match that naming pattern or don't parse correctly.  
 
 You can see that configuration setting, called ``ssl_echkeydir`` in our
-test [nginxmin-draft-10.confg](nginxmin-draft-10.conf).
+test [nginxmin-draft-13.confg](nginxmin-draft-13.conf).
 
-            $ ./testnginx-draft-10.sh
+            $ ./testnginx-draft-13.sh
             ... stuff ...
-            $ ./echcli.sh -p 5443 -s localhost -H foo.example.com  -P `./pem2rr.sh -p echconfig.pem`
-            Running ./echcli.sh at 20210420-001300
-            Assuming supplied ECH is RR value
+            $ ./echcli.sh -p 5443 -s localhost -H foo.example.com  -P d13.pem 
+            Running ./echcli.sh at 20210912-204750
             ./echcli.sh Summary: 
             Looks like it worked ok
             ECH: success: outer SNI: 'example.com', inner SNI: 'foo.example.com'
 
 We log when keys are loaded or re-loaded. That's in the error log and looks like:
 
-            2021/04/19 23:39:53 [notice] 50568#0: load_echkeys, worked for: /home/stephen/code/openssl/esnistuff/echkeydir/foo.example.com.ech
-            2021/04/19 23:39:53 [notice] 50568#0: load_echkeys, total keys loaded: 1
+            2021/09/12 21:46:50 [notice] 164558#0: load_echkeys, worked for: /home/stephen/code/openssl/esnistuff/echkeydir/echconfig.pem.ech
+            2021/09/12 21:46:50 [notice] 164558#0: load_echkeys, worked for: /home/stephen/code/openssl/esnistuff/echkeydir/d13.pem.ech
+            2021/09/12 21:46:50 [notice] 164558#0: load_echkeys, total keys loaded: 2
 
 We log when ECH is attempted, and works or fails, or if it's not tried. The
 success case is at the NOTICE log level, whereas other events are just logged
 at the INFO level. The success case in ``error.log`` looks like:
 
-            2021/04/20 01:13:00 [notice] 50570#0: *2 ECH success outer_sni: example.com inner_sni: foo.example.com while SSL handshaking, client: 127.0.0.1, server: 0.0.0.0:5443
+            2021/09/12 21:47:50 [notice] 164560#0: *1 ECH success outer_sni: example.com inner_sni: foo.example.com while SSL handshaking, client: 127.0.0.1, server: 0.0.0.0:5443
+
 
 ## Deployment 
 
-We have an nginx instance running at [https://draft-10.esni.defo.ie:10410/](https://draft-10.esni.defo.ie:10410/)
+We have an ECH draft-13 nginx instance running at [https://draft-13.esni.defo.ie:10413/](https://draft-13.esni.defo.ie:10413/)
+
+We have an ECH draft-10 nginx instance running at [https://draft-10.esni.defo.ie:10410/](https://draft-10.esni.defo.ie:10410/)
 
 # ESNI
 
