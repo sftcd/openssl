@@ -3,7 +3,7 @@
 # set -x
 
 OSSL="$HOME/code/openssl"
-NGINX="$HOME/code/nginx-draft-10"
+NGINX="$HOME/code/nginx-draft-13"
 
 # nginx build seems to statically link openssl for now (ickky)
 # export LD_LIBRARY_PATH=$OSSL
@@ -17,7 +17,7 @@ mkdir -p $OSSL/esnistuff/nginx/www
 mkdir -p $OSSL/esnistuff/nginx/baz
 
 # in case we wanna dump core and get a backtrace, make a place for
-# that (dir name is also in nginxmin-draft-10.conf)
+# that (dir name is also in nginxmin-draft-13.conf)
 mkdir -p /tmp/cores
 
 # check for/make a home page for example.com and other virtual hosts
@@ -71,8 +71,8 @@ fi
 # VALGRIND="valgrind --leak-check=full "
 VALGRIND=""
 
-echo "Executing: $VALGRIND $NGINX/objs/nginx -c $OSSL/esnistuff/nginxmin-draft-10.conf"
+echo "Executing: $VALGRIND $NGINX/objs/nginx -c $OSSL/esnistuff/nginxmin-draft-13.conf"
 # move over there to run code, so config file can have relative paths
 cd $OSSL/esnistuff
-$VALGRIND $NGINX/objs/nginx -c $OSSL/esnistuff/nginxmin-draft-10.conf 
+$VALGRIND $NGINX/objs/nginx -c $OSSL/esnistuff/nginxmin-draft-13.conf 
 cd - 
