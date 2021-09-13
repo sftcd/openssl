@@ -38,6 +38,17 @@ As of 20210912 that build generates some deprecated warnings and
 one code change was needed due to the API name change to
 ``SSL_CTX_ech_set_callback`` from ``SSL_CTX_set_ech_callback``.
 
+    - An Ubuntu 18.04 server required an additional ``sudo apt install libxml2-dev``
+    and adding ``--with-libxml2`` to the configure command line above and adding
+    and include path to CFLAGS to get that to work.
+
+            $ export CFLAGS="-I$HOME/code/openssl/include -I/usr/include/libxml2"
+            $ export LDFLAGS="-L$HOME/code/openssl"
+            $ ./configure --enable-ssl --with-ssl=$HOME/code/openssl --with-libxml2
+            ... loads of stuff ...
+            $ make -j8
+            ... lotsa lotsa stuff ...
+
 ## Generate TLS and ECH keys
 
 This should be the same as for [nginx](nginx.md#generate), et al.
