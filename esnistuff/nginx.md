@@ -5,6 +5,8 @@ The earlier ESNI details (from late 2019 are [below](#ESNI).
 
 ## Clone and Build 
 
+These are the updated notes from 20210912 for ECH draft-13.
+
 First, you need a separate clone of our OpenSSL build (because nginx's build, in this
 instantiation, re-builds OpenSSL and links static libraries, so we put that in a new
 directory in order to avoid disturbing other builds):

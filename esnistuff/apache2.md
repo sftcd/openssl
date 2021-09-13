@@ -3,6 +3,89 @@
 
 We earlier did all this for [ESNI](#ESNI), a precursor to ECH.
 
+## Clone and Build for ECH draft-13
+
+Continuing to use my fork of https://github.com/apache/httpd but now
+with a branch for ECH draft-13.
+
+That's apache 2.5 - whereas 2.4 is probably what's widely used.
+Might want to revert to that later, but we'll see (also later:-). 
+
+Turns out that needs the Apache Portable Runtime (APR) to build. (That name
+rings a bell from the distant past;-) As recommended, my httpd build has the
+APR stuff in a ``srclib`` sub-directory of the httpd source directory.
+
+            $ cd $HOME/code
+            $ git clone https://github.com/sftcd/httpd httpd-draft-13
+            $ cd httpd-draft-13
+            $ git checkout ECH-experimental
+            $ cd srclib
+            $ git clone https://github.com/apache/apr.git
+            $ cd ..
+            $ ./buildconf
+            ... stuff ...
+
+And off we go with configure and make ...
+
+            $ export CFLAGS="-I$HOME/code/openssl/include"
+            $ export LDFLAGS="-L$HOME/code/openssl"
+            $ ./configure --enable-ssl --with-ssl=$HOME/code/openssl
+            ... loads of stuff ...
+            $ make -j8
+            ... lotsa lotsa stuff ...
+
+As of 20210912 that build generates some deprecated warnings and
+one code change was needed due to the API name change to
+``SSL_CTX_ech_set_callback`` from ``SSL_CTX_set_ech_callback``.
+
+## Generate TLS and ECH keys
+
+This should be the same as for [nginx](nginx.md#generate), et al.
+
+At least, I'm using the same keys for now and that seems ok.
+
+## ECH Configuration in Apache
+
+I added a server-wide ``SSLECHKeyDir`` setting (as with
+[lighttpd](lightttpd.md) that ought have the directory where ECH key pair
+files are stored, and we then load those keys as before using a
+``load_echkeys()`` function in ``ssl_module_init.c``.  That seems to load keys
+ok. There's an example in [apachemin-draft-13.conf](apachemin-draft-13.conf). 
+
+## Run
+
+I created a [testapache-draft-13.sh](testapache-draft-13.sh) script to start a
+local instance of apache for example.com and foo.example.com on port 9443. That
+uses (what I hope is) a pretty minimal configuration that can be found in
+[apachemin-draft-13.conf](apachemin-draft-13.conf).  That starts an instance of
+httpd listening on port 9443 with VirtualServers for example.com (default) and
+foo.example.com. 
+
+When that's running then you can use curl to access web pages:
+
+            $ cd $HOME/code/openssl/esnistuff
+            $ ./testapache-draft-13.sh 
+            Killing old httpd in process 303611
+            Executing:  /home/stephen/code/httpd-draft-13/httpd -f /home/stephen/code/openssl/esnistuff/apachemin-draft-13.conf
+            $
+
+Then you can use ``echcli.sh`` to request a web page while using ECH:
+
+            $ ./echcli.sh -p 9443 -s localhost -H foo.example.com  -P d13.pem -f index.html
+            Running ./echcli.sh at 20210913-001916
+            ./echcli.sh Summary: 
+            Looks like it worked ok
+            ECH: success: outer SNI: 'example.com', inner SNI: 'foo.example.com'
+            $
+
+For the above ``error.log`` should contain a line like:
+
+            [Mon Sep 13 00:19:16.722021 2021] [ssl:info] [pid 209841:tid 140548152501824] [client 127.0.0.1:56556] AH10240: ECH success outer_sni: example.com inner_sni: foo.example.com
+
+And ``access.log`` should contain something like:
+
+            127.0.0.1 - - [13/Sep/2021:00:19:16 +0000] foo.example.com "GET /index.html HTTP/1.1" 200 "-" "-"
+
 ## Clone and Build for ECH draft-10
 
 Continuing to use my fork of https://github.com/apache/httpd but now
