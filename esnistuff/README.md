@@ -26,6 +26,11 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
+- 20210914: git haproxy split mode working again for draft-13 
+
+- 20210914: deployed a bunch of services on [defo.ie](https://defo.ie/) - 
+  see the web page there for details
+
 - 20210910: deployed an HRR-forcing server (P-384 only)
   on port 8414 of draft-13.esni.defo.ie. Normal server
   is on port 8413 of same host.

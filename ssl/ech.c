@@ -5165,6 +5165,12 @@ int ech_early_decrypt(SSL *ssl, PACKET *outerpkt, PACKET *newpkt)
         return(rv);
     }
     if (echoffset==0) return(1); /* ECH not present */
+    if (innerflag==1) {
+        OSSL_TRACE_BEGIN(TLS) {
+            BIO_printf(trc_out,"EARLY: found in INNER ECH - that's bad\n");
+        } OSSL_TRACE_END(TLS);
+        return(0); /* inner ECH present - that's bad */ 
+    }
     OSSL_TRACE_BEGIN(TLS) {
         BIO_printf(trc_out,"EARLY: found an ECH\n");
     } OSSL_TRACE_END(TLS);
@@ -5740,6 +5746,7 @@ int SSL_CTX_ech_raw_decrypt(SSL_CTX *ctx,
     uint16_t echtype=TLSEXT_TYPE_ech_unknown; /**< type of ECH seen */
     size_t innersnioffset=0; /**< offset to SNI in inner */
     SSL_CONNECTION *sc = NULL;
+    int innerflag=-1;
 
     if (!ctx || !outer_ch || outer_len==0 || !inner_ch || !inner_len
                 || !inner_sni || !outer_sni || !decrypted_ok) return 0;
@@ -5750,6 +5757,31 @@ int SSL_CTX_ech_raw_decrypt(SSL_CTX *ctx,
     inner_buf=OPENSSL_malloc(inner_buf_len);
     if (inner_buf==NULL) goto err;
     if (PACKET_buf_init(&pkt_inner,inner_buf,inner_buf_len)!=1) goto err;
+
+    /* 
+     * Check if there's any ECH and if so, whether it's an outer 
+     * (that might need decrypting) or an inner
+     */
+    rv=ech_get_ch_offsets(s,&pkt_outer,&startofsessid,&startofexts,
+                &echoffset,&echtype,&innerflag,&innersnioffset);
+    if (rv!=1) return(rv);
+    if (echoffset==0) {
+        /* no ECH present */
+        if (s) SSL_free(s);
+        if (inner_buf) OPENSSL_free(inner_buf);
+        *decrypted_ok=0;
+        return 1;
+    }
+    /*
+     * Check if it's already an inner 
+     * TODO: figure out if that exposes anything for haproxy
+     */
+    if (innerflag==1) {
+        if (s) SSL_free(s);
+        if (inner_buf) OPENSSL_free(inner_buf);
+        *decrypted_ok=0;
+        return 1;
+    }
 
     rv=ech_early_decrypt(s,&pkt_outer,&pkt_inner);
     if (rv!=1) goto err;
@@ -5763,7 +5795,6 @@ int SSL_CTX_ech_raw_decrypt(SSL_CTX *ctx,
         *decrypted_ok=0;
     } else {
         size_t ilen=pkt_inner.remaining;
-        int innerflag=-1;
 
         /* make sure there's space */
         if ((ilen+9)>inner_buf_len) goto err;
