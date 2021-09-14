@@ -1,6 +1,6 @@
 # Notes on building/integrating with haproxy
 
-These notes are from May/June 2021.
+These notes are from September 2021.
 
 ## Clone and build
 
@@ -9,7 +9,7 @@ First you need my ECH-enabled OpenSSL fork:
             $ cd $HOME/code
             $ git clone https://github.com/sftcd/openssl.git
             $ cd openssl
-            $ git checkout ECH_UPFRONT_DEC
+            $ git checkout ECH-draft-13a
             $ ./config
             ...
             $ make
@@ -46,16 +46,6 @@ optimisation (to make gdb "pleasant":-), I built using:
                 DEFINE="-DOPENSSL_SUPPRESS_DEPRECATED \
                 -DDEBUG -O0"
 
-That still needed a couple of tweaks to work, there're a couple of lines
-in ``src/ssl_sock.c`` like this:
-
-            #if SSL_OP_NO_TLSv1_3
-
-but that causes a compile problem for some reason, not sure why, didn't really
-look;-) ... because a simple change to
-
-            #ifdef SSL_OP_NO_TLSv1_3
-
 All my code code changes, are protected using ``#ifndef OPENSSL_NO_ECH``
 
 ## Shared-mode ECH Configuration in haproxy
@@ -76,7 +66,7 @@ A typical haproxy config will include lines like:
 Our first plan (which we've implemented) is to simply extend that to add the
 ECH keypair filename to that list, e.g.:
 
-            bind :7443 ech echconfig.pem ssl crt cadir/foo.example.com.pem
+            bind :7443 ech d13.pem ssl crt cadir/foo.example.com.pem
 
 Code for that is in ``src/cfgparse-ssl.c`` and the new code to read in the ECH
 pem file is in ``src/ssl-sock.c``; the header files I changed were
@@ -115,6 +105,19 @@ Executing:  /home/stephen/code/haproxy/haproxy -f /home/stephen/code/openssl/esn
 $
 ```
 
+We can use our test client script (that uses ``s_client``) to
+make that visible:
+
+            $ cd $HOME/code/openssl/esnistuff
+            $ ./echcli.sh -s localhost -H foo.example.com -p 7443 -P d13.pem -f index.html
+            Running ./echcli.sh at 20210913-163811
+            ./echcli.sh Summary: 
+            Looks like it worked ok
+            ECH: success: outer SNI: 'example.com', inner SNI: 'foo.example.com'
+            $
+
+Note: we've not yet built/tested curl for draft-13 so this text will
+need rechecking when we do.
 A basic test using our [ECH-enabled curl](building-curl-openssl-with-ech.md):
 
             $ cd $HOME/code/curl
@@ -204,17 +207,7 @@ A basic test using our [ECH-enabled curl](building-curl-openssl-with-ech.md):
 
 The ``SERVERUSED`` cookie was added by haproxy and the file served by lighttpd,
 as can be seen from the lighttpd logs. That did use ECH even if it's not
-visible. But we can also use our test client script (that uses ``s_client``) to
-make that visible:
-
-            $ cd $HOME/code/openssl/esnistuff
-            $ ./echcli.sh -s localhost -H foo.example.com -p 7443 -P `./pem2rr.sh echconfig.pem` -f index.html
-            Running ./echcli.sh at 20210602-201418
-            Assuming supplied ECH is RR value
-            ./echcli.sh Summary:
-            Looks like it worked ok
-            ECH: success: outer SNI: 'example.com', inner SNI: 'foo.example.com'
-            $
+visible. 
 
 [testhaproxy.sh](testhaproxy.sh) does pretty minimal logging in
 ``$HOME/code/openssl/esnistuff/haproxy/logs/haproxy.log`` but you
