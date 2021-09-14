@@ -13,9 +13,11 @@
 # Replace the bas64 encoded stuff abouve with the right public key as
 # needed.
 
-OSSL="$HOME/code/openssl"
-LIGHTY="$HOME/code/lighttpd1.4-gstrauss"
-HAPPY="$HOME/code/haproxy/haproxy"
+: ${OSSL:="$HOME/code/openssl"}
+: ${LIGHTY:="$HOME/code/lighttpd1.4"}
+: ${HAPPY:="$HOME/code/haproxy/haproxy"}
+: ${ECHCONFIG:="echconfig.pem"}
+# to pick up correct executables and .so's  
 export TOP=$OSSL
 export LD_LIBRARY_PATH=$OSSL
 
@@ -165,14 +167,30 @@ then
                 -c example.com -s localhost -f index.html"
         $OSSL/esnistuff/echcli.sh $clilog -gn -p $port \
                 -c example.com -s localhost -f index.html
+        echo "**** Above was Greasing: $OSSL/esnistuff/echcli.sh $clilog -gn -p $port \
+                -c example.com -s localhost -f index.html"
         # do real ECH case
         echo "**** Real ECH: $OSSL/esnistuff/echcli.sh $clilog -s localhost -H foo.example.com  \
                 -p $port \
-                -P `$OSSL/esnistuff/pem2rr.sh echconfig.pem` \
+                -P $ECHCONFIG \
                 -f index.html -N "
         $OSSL/esnistuff/echcli.sh $clilog -s localhost -H foo.example.com  \
                 -p $port \
-                -P `$OSSL/esnistuff/pem2rr.sh echconfig.pem` \
+                -P $ECHCONFIG \
                 -f index.html -N
+        res=$?
+        if [[ "$res" == "0" ]]
+        then
+            echo "**** This worked: : $OSSL/esnistuff/echcli.sh $clilog -s localhost -H foo.example.com  \
+                -p $port \
+                -P $ECHCONFIG \
+                -f index.html -N "
+        else
+            echo "**** This failed ($res): : $OSSL/esnistuff/echcli.sh $clilog -s localhost -H foo.example.com  \
+                -p $port \
+                -P $ECHCONFIG \
+                -f index.html -N "
+        fi
+
     done
 fi

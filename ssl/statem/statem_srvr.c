@@ -1498,7 +1498,15 @@ MSG_PROCESS_RETURN tls_process_client_hello(SSL_CONNECTION *s, PACKET *pkt)
                 OPENSSL_free(s->ext.innerch);
                 s->ext.innerch=NULL;
             }
+#ifndef OPENSSL_NO_SSL_TRACE
+            OSSL_TRACE_BEGIN(TLS) {
+                BIO_printf(trc_out,"Got inner ECH so setting backend\n");
+            } OSSL_TRACE_END(TLS);
+#endif
             /* For backend, include msg type & 3 octet length here. */
+            s->ext.ech_backend=1;
+            /* we'll only support draft-13 for split mode */
+            s->ext.ech_attempted_type=TLSEXT_TYPE_ech13;
             s->ext.innerch_len=pkt->remaining;
             s->ext.innerch=OPENSSL_malloc(s->ext.innerch_len+4);
             if (!s->ext.innerch) goto err;
@@ -1508,27 +1516,25 @@ MSG_PROCESS_RETURN tls_process_client_hello(SSL_CONNECTION *s, PACKET *pkt)
             s->ext.innerch[3]=(s->ext.innerch_len&0xff);
             memcpy(s->ext.innerch+4,pkt->curr,s->ext.innerch_len);
             s->ext.innerch_len+=4;
-        }
-    }
-
-    if (s->server && s->ech!=NULL) {
-        PACKET newpkt;
-        if (ech_early_decrypt(&s->ssl,pkt,&newpkt)!=1) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-            goto err;
-        }
-        if (s->ext.ech_success==1) {
-            /*
-             * If ECH worked, the inner CH MUST be smaller so we can
-             * overwrite the outer packet, but no harm to check anyway
-             * I just happen to know that pkt->curr == s->init_msg
-             */
-            if (newpkt.remaining>pkt->remaining) {
+        } else if (s->ech!=NULL) {
+            PACKET newpkt;
+            if (ech_early_decrypt(s,pkt,&newpkt)!=1) {
                 SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
                 goto err;
             }
-            memcpy(s->init_msg,newpkt.curr,newpkt.remaining);
-            pkt->remaining=newpkt.remaining;
+            if (s->ext.ech_success==1) {
+                /*
+                * If ECH worked, the inner CH MUST be smaller so we can
+                * overwrite the outer packet, but no harm to check anyway
+                * I just happen to know that pkt->curr == s->init_msg
+                */
+                if (newpkt.remaining>pkt->remaining) {
+                    SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+                    goto err;
+                }
+                memcpy(s->init_msg,newpkt.curr,newpkt.remaining);
+                pkt->remaining=newpkt.remaining;
+            }
         }
     }
 
