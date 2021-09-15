@@ -2,7 +2,7 @@
 
 # Building OpenSSL and curl with ECH support
 
-April 28th 2021
+September 15th 2021.
 
 Notes on an earlier version of this with Encrypted Server Name Indication
 (ESNI), which is the precursor to ECH, are [below](#Notes).
@@ -17,7 +17,7 @@ To build our OpenSSL fork:
 
             $ cd $HOME/code
             $ git clone https://github.com/sftcd/openssl
-            $ git checkout ECH-without-ESNI
+            $ git checkout ECH-draft-13a
             $ ./config 
             ... stuff ...
             $ make -j8
@@ -31,7 +31,7 @@ To test that worked:
             ... lots of debug output...
             ./echcli.sh Summary: 
             Looks like it worked ok
-            Binary file /tmp/echtesthUwq matches
+            ECH: success: outer SNI: 'cloudflare-esni.com', inner SNI: 'crypto.cloudflare.com'
             $
 
 To build curl: clone the repo, checkout the branch, then run buildconf and
@@ -44,7 +44,7 @@ run this build of curl, e.g. after a logout/login, or a new shell.)
             $ cd $HOME/code
             $ git clone https://github.com/niallor/curl.git
             $ cd curl
-            $ git checkout ECH-WIP
+            $ git checkout draft-13a
             $ ./buildconf
             $ export LD_LIBRARY_PATH=$HOME/code/openssl
             $ LDFLAGS="-L$HOME/code/openssl" ./configure --with-ssl=$HOME/code/openssl --enable-ech 
@@ -56,13 +56,18 @@ run this build of curl, e.g. after a logout/login, or a new shell.)
 If you don't get that warning at the end then ECH isn't enabled so go back some steps
 and re-do whatever needs re-doing:-)
 
-To test curl, using our draft-10 nginx server on defo.ie:
+To test curl, using our draft-13 nginx server on defo.ie:
 
-            $ src/curl --echconfig AEL+CgA+8QAgACCsEiogyYobxSGHLGd6uSDbuIbW05M41U37vsypEWdqZQAEAAEAAQAAAA1jb3Zlci5kZWZvLmllAAA= https://draft-10.esni.defo.ie:10410/
+            $ src/curl -k --echconfig AED+DQA8AgAgACCuXw02/lUWxgMiwhhZzjkP11LxoTwi4TLxDH/gMtVBIQAEAAEAAQANY292ZXIuZGVmby5pZQAA https://draft-13.esni.defo.ie:10413/
             ... HTML output that includes: ...
             SSL_ECH_STATUS: success <img src="greentick-small.png" alt="good" /> <br/>
             ...
             $ 
+
+The ``-k`` above tells curl to ignore the TLS server cert check result.
+For some reason curl locally doesn't like the LetsEncrypt intermediate
+our server is sending or something. (Will fix later, but it's not an
+ECH issue.)
 
 # Notes on Building OpenSSl and curl with ESNI support
 

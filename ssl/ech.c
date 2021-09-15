@@ -2035,6 +2035,7 @@ int SSL_ech_print(BIO* out, SSL *ssl, int selector)
     BIO_printf(out,"ech_returned=%p\n",(void*)s->ext.ech_returned);
 #endif
     BIO_printf(out,"ech_returned_len=%ld\n",(long)s->ext.ech_returned_len);
+    BIO_printf(out,"ech_backend=%d\n",s->ext.ech_backend);
     BIO_printf(out,"ech_success=%d\n",s->ext.ech_success);
     if (s->ech) {
         int i=0;
