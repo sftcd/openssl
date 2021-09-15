@@ -58,16 +58,16 @@ and re-do whatever needs re-doing:-)
 
 To test curl, using our draft-13 nginx server on defo.ie:
 
-            $ src/curl -k --echconfig AED+DQA8AgAgACCuXw02/lUWxgMiwhhZzjkP11LxoTwi4TLxDH/gMtVBIQAEAAEAAQANY292ZXIuZGVmby5pZQAA https://draft-13.esni.defo.ie:10413/
+            $ src/curl --echconfig AED+DQA8AgAgACCuXw02/lUWxgMiwhhZzjkP11LxoTwi4TLxDH/gMtVBIQAEAAEAAQANY292ZXIuZGVmby5pZQAA https://draft-13.esni.defo.ie:10413/
             ... HTML output that includes: ...
             SSL_ECH_STATUS: success <img src="greentick-small.png" alt="good" /> <br/>
             ...
             $ 
 
-The ``-k`` above tells curl to ignore the TLS server cert check result.
-For some reason curl locally doesn't like the LetsEncrypt intermediate
-our server is sending or something. (Will fix later, but it's not an
-ECH issue.)
+Some of our test configurations may require adding a ``-k`` to the above to
+tell curl to ignore the TLS server cert check result.  For some reason curl
+locally someetimes doesn't like the LetsEncrypt intermediate our server is
+sending or something. (Will fix later, but it's not an ECH issue.)
 
 # Notes on Building OpenSSl and curl with ESNI support
 
