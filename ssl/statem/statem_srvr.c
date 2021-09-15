@@ -2503,7 +2503,8 @@ int tls_construct_server_hello(SSL *s, WPACKET *pkt)
                     s->ext.ech_success,(void*)s->ext.innerch);
         } OSSL_TRACE_END(TLS);
 #endif
-        if (s->ext.ech_success==1 && s->ext.innerch!=NULL) {
+        if ( (s->ext.ech_backend || s->ext.ech_success==1) && 
+                s->ext.innerch!=NULL) {
             /* hash that value */
             /* do pre-existing HRR stuff */
             /* TODO - if this works, add checks */
