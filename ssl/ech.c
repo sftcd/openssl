@@ -3414,7 +3414,7 @@ static int ech_get_sh_offsets(
         BIO_printf(trc_out,"orig SH/ECH type: %4x\n",*echtype);
     } OSSL_TRACE_END(TLS);
 #endif
-    ech_pbuf("orig SH/ECH",(unsigned char*) sh+*echoffset,echlen);
+    ech_pbuf("orig SH/ECH ",(unsigned char*) sh+*echoffset,echlen);
     return(1);
 }
 
@@ -3445,7 +3445,7 @@ static int ech_get_sh_offsets(
  *
  * and with differences due to HRR
  *
- * TODO: For now, this'll be "standalone" but we want to merge
+ * For now, this'll be "standalone" but we want to merge
  * this with the other transcript hash code once we're at the
  * final version. 
  *
@@ -3485,18 +3485,43 @@ int ech_calc_accept_confirm(
 
     memset(digestedCH,0,4+EVP_MAX_MD_SIZE);
 
-    /* TODO: replace literal numbers with more sensible things */
-    /* first figure out  h/s hash */
     md=ssl_handshake_md(s);
     if (md==NULL) {
+        int rv;
+        size_t extoffset=0;
+        size_t echoffset=0;
+        uint16_t echtype;
+        size_t cipheroffset=0;
         /* fallback to one from the chosen ciphersuite */
         const SSL_CIPHER *c=NULL;
         const unsigned char *cipherchars=NULL;
+
         if (s->server) {
-            cipherchars=&shbuf[4+2+32+1+32];
+            rv=ech_get_sh_offsets(shbuf+4,shlen-4,&extoffset,&echoffset,&echtype);
+            if (rv!=1) {
+                SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+                goto err;
+            }
+            if (extoffset < 3 ) {
+                SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+                goto err;
+            }
+            cipheroffset=extoffset-3;
+            cipherchars=&shbuf[cipheroffset];
         } else {
-            cipherchars=&shbuf[2+32+1+32];
+            rv=ech_get_sh_offsets(shbuf,shlen,&extoffset,&echoffset,&echtype);
+            if (rv!=1) {
+                SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+                goto err;
+            }
+            if (extoffset < 3 ) {
+                SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+                goto err;
+            }
+            cipheroffset=extoffset-3;
+            cipherchars=&shbuf[cipheroffset];
         }
+
         c=ssl_get_cipher_by_char(s, cipherchars, 0);
         md=ssl_md(s->ctx, c->algorithm2);
         if (md==NULL) {
@@ -3526,8 +3551,8 @@ int ech_calc_accept_confirm(
             goto err;
         }
         digestedCH[0]=SSL3_MT_MESSAGE_HASH;
-        digestedCH[1]=0x00;
-        digestedCH[2]=0x00;
+        digestedCH[1]=(hashlen>>16)&0xff;;
+        digestedCH[2]=(hashlen>>8)&0xff;;
         digestedCH[3]=hashlen&0xff;
         digestedCH_len=hashlen+4;
 
@@ -4853,9 +4878,7 @@ int ech_get_ch_offsets(
     genoffset=*sessid;
     if (ch_len<=genoffset) return 0;
     sessid_len=ch[genoffset];
-    if (sessid_len==0) {
-        return(1);
-    }
+    /* sessid_len can be zero in encoded inner CH */
     genoffset+=(1+sessid_len);
     if (ch_len<=(genoffset+2)) return 0;
     suiteslen=ch[genoffset]*256+ch[genoffset+1];
@@ -4935,6 +4958,7 @@ int ech_get_ch_offsets(
  * The plaintext returned is allocated here and must
  * be freed by the caller later.
  *
+ * @param s is the SSL session
  * @param ech is the selected ECHConfig
  * @param the_ech is the value sent by the client
  * @param aad_len is the length of the AAD to use
@@ -4944,6 +4968,7 @@ int ech_get_ch_offsets(
  * @return pointer to plaintext or NULL (if error)
  */
 static unsigned char *hpke_decrypt_encch(
+        SSL *s,
         SSL_ECH *ech,
         ECH_ENCCH *the_ech,
         size_t aad_len, unsigned char *aad,
@@ -5039,31 +5064,45 @@ static unsigned char *hpke_decrypt_encch(
     *innerlen=clearlen;
     if (ech->cfg->recs[0].version==ECH_DRAFT_13_VERSION) {
         /* draft-13 pads after the encoded CH with zeros */
-        /* TODO: merge this, and any similar, with ech_get_ch_offsets */
-        /* TODO: add bounds checks */
-        size_t suitesoffset=2+0x20+1;
-        size_t suiteslen=0;
         size_t extsoffset=0;
         size_t extslen=0;
         size_t ch_len=0;
-        if ((suitesoffset+1) > clearlen) {
+        size_t startofsessid=0;
+        size_t echoffset=0; /**< offset of start of ECH within CH */
+        uint16_t echtype=TLSEXT_TYPE_ech_unknown; /**< type of ECH seen */
+        size_t outersnioffset=0; /**< offset to SNI in outer */
+        int innerflag=-1;
+        PACKET innerchpkt;
+
+        if (PACKET_buf_init(&innerchpkt,clear,clearlen)!=1) {
+            SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
             OPENSSL_free(clear);
             return NULL;
         }
-        suiteslen=(unsigned char)(clear[suitesoffset])*256+
-                         (unsigned char)(clear[suitesoffset+1]);
-        extsoffset=suitesoffset+2+suiteslen+2;
+
+        rv=ech_get_ch_offsets(s,&innerchpkt,&startofsessid,&extsoffset,
+            &echoffset,&echtype,&innerflag,&outersnioffset);
+        if (rv!=1) {
+            SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+            OPENSSL_free(clear);
+            return NULL;
+        }
+
         if ((extsoffset+1) > clearlen) {
+            SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
             OPENSSL_free(clear);
             return NULL;
         }
         extslen=(unsigned char)(clear[extsoffset])*256+
                        (unsigned char)(clear[extsoffset+1]);
+
         ch_len=extsoffset+2+extslen;
         if (ch_len>clearlen) {
+            SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
             OPENSSL_free(clear);
             return NULL;
         }
+
 #define CHECKZEROS
 #ifdef CHECKZEROS
         {
@@ -5488,7 +5527,7 @@ int ech_early_decrypt(SSL *ssl, PACKET *outerpkt, PACKET *newpkt)
         s->ext.encoded_innerch_len=0;
     }
     if (foundcfg==1) {
-        clear=hpke_decrypt_encch(&s->ech[cfgind],extval,aad_len,aad,
+        clear=hpke_decrypt_encch(s,&s->ech[cfgind],extval,aad_len,aad,
                 forhrr,&clearlen);
         if (clear==NULL) {
             s->ext.ech_grease=ECH_IS_GREASE;
@@ -5500,7 +5539,7 @@ int ech_early_decrypt(SSL *ssl, PACKET *outerpkt, PACKET *newpkt)
      */
     if (!foundcfg && (s->options & SSL_OP_ECH_TRIALDECRYPT)) {
         for (cfgind=0;cfgind!=s->nechs;cfgind++) {
-            clear=hpke_decrypt_encch(&s->ech[cfgind],
+            clear=hpke_decrypt_encch(s,&s->ech[cfgind],
                     extval,aad_len,aad,forhrr,
                     &clearlen);
             if (clear!=NULL) {
