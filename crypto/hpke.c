@@ -2521,7 +2521,6 @@ int hpke_prbuf2evp(
         if (!lpriv) {
             /*
              * if not done, prepend/append PEM header/footer and try again
-             * TODO: re=-use PEM defined symbols from elsewhere
              */
             unsigned char hf_prbuf[HPKE_MAXSIZE];
             size_t hf_prbuf_len=0;
