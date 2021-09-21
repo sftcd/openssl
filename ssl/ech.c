@@ -2930,7 +2930,16 @@ static int ech_decode_inner(
      * Jump over the ciphersuites and (MUST be NULL) compression to
      * the start of extensions
      */
-    offset2sessid=2+32;
+    offset2sessid=2+SSL3_RANDOM_SIZE;
+    if (s->ext.encoded_innerch_len<(offset2sessid+2)) {
+#ifndef OPENSSL_NO_SSL_TRACE
+        OSSL_TRACE_BEGIN(TLS) {
+            BIO_printf(trc_out,"Oops - exts out of bounds\n");
+        } OSSL_TRACE_END(TLS);
+#endif
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+        goto err;
+    }
     suiteslen=s->ext.encoded_innerch[offset2sessid+1]*256+
               s->ext.encoded_innerch[offset2sessid+1+1];
     startofexts=offset2sessid+1+
@@ -2958,9 +2967,7 @@ static int ech_decode_inner(
             initial_decomp,initial_decomp_len);
     ech_pbuf("start of exts",&initial_decomp[startofexts],
             initial_decomp_len-startofexts);
-    /*
-     * Now skip over exts until we do/don't see outers
-     */
+    /* Now skip over exts until we do/don't see outers */
     found=0;
     remaining=initial_decomp[startofexts]*256+initial_decomp[startofexts+1];
     oneextstart=startofexts+2; /* 1st ext type, skip the overall exts len */
@@ -4541,7 +4548,7 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
          * before the ciphersuites
          */
         startofmessage=(unsigned char*)pkt->buf->data;
-        suitesoffset=6+32+1+s->tmp_session_id_len;
+        suitesoffset=6+SSL3_RANDOM_SIZE+1+s->tmp_session_id_len;
         suiteslen=startofmessage[suitesoffset]*256+
             startofmessage[suitesoffset+1];
         startofexts=suitesoffset+suiteslen+2+2; /* the 2 for the suites len */
@@ -4690,7 +4697,7 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
         aad_len=pkt->written-4;
 
         /* fix up the overall extensions length in the aad */
-        suitesoffset=2+32+1+s->tmp_session_id_len;
+        suitesoffset=2+SSL3_RANDOM_SIZE+1+s->tmp_session_id_len;
         suiteslen=aad[suitesoffset]*256+aad[suitesoffset+1];
         startofexts=suitesoffset+suiteslen+2+2; /* the 2 for the suites len */
         origextlens=aad[startofexts]*256+aad[startofexts+1];
@@ -4874,7 +4881,7 @@ int ech_get_ch_offsets(
      */
     /* make sure we're at least tlsv1.2 */
     if (ch_len<2 || ch[0]!=0x03 || ch[1]!=0x03) return(1);
-    *sessid=2+32; /* point to length of sessid */
+    *sessid=2+SSL3_RANDOM_SIZE; /* point to length of sessid */
     genoffset=*sessid;
     if (ch_len<=genoffset) return 0;
     sessid_len=ch[genoffset];
@@ -5448,7 +5455,6 @@ int ech_early_decrypt(SSL *ssl, PACKET *outerpkt, PACKET *newpkt)
 
     if (echtype==ECH_DRAFT_13_VERSION) {
         /* AAD in draft-13 is rx'd packet with ciphertext zero'd */
-        /* TODO: merge with ech_get_ch_offsets */
         size_t startofciphertext=0;
         size_t lenofciphertext=0;
         size_t enclen=0;
@@ -5461,9 +5467,7 @@ int ech_early_decrypt(SSL *ssl, PACKET *outerpkt, PACKET *newpkt)
         enclen=
             ch[echoffset+offsetofencwithinech]*256+
             ch[echoffset+offsetofencwithinech+1];
-        /*
-         * TODO: check handling of enc in post-HRR AAD
-         */
+        /* HRR enclen can be zero if we're handling HRR */
         if (enclen==0 && s->hello_retry_request!=SSL_HRR_PENDING) {
             SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
             goto err;
@@ -5813,8 +5817,8 @@ int SSL_CTX_ech_raw_decrypt(SSL_CTX *ctx,
         return 1;
     }
     /*
-     * Check if it's already an inner 
-     * TODO: figure out if that exposes anything for haproxy
+     * If we're asked to decrypt an inner, then we may be ok
+     * but we did not decrypt.
      */
     if (innerflag==1) {
         if (s) SSL_free(s);

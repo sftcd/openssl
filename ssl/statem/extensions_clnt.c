@@ -2611,7 +2611,6 @@ EXT_RETURN tls_construct_ctos_ech13(SSL *s, WPACKET *pkt, unsigned int context,
 /**
  * @brief if the server thinks we GREASE'd then we should get an ECHConfig 
  * or HRR confirmation back
- *
  */
 int tls_parse_stoc_ech(SSL_CONNECTION *s, PACKET *pkt, unsigned int context,
                                X509 *x, size_t chainidx)
@@ -2620,7 +2619,11 @@ int tls_parse_stoc_ech(SSL_CONNECTION *s, PACKET *pkt, unsigned int context,
     const unsigned char *rval=NULL;
     unsigned char *srval=NULL;
     if (context==SSL_EXT_TLS1_3_HELLO_RETRY_REQUEST) {
-        /* TODO: add code! */
+        /* 
+         * The HRR will have an ECH extension with the
+         * 8-octet confirmation value but it's processed
+         * elsewhere, so just return ok.
+         */
         return 1;
     }
     if (!PACKET_get_net_2(pkt, &rlen)) {

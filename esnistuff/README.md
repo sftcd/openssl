@@ -26,6 +26,10 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
+- 20210919: haproxy split-mode plus HRR doesn't work as haproxy
+  doesn't provide a way (that I can see) to decrypt the 2nd CH,
+  asked haproxy devs for advice, but will park that for now.
+
 - 20210914: git haproxy split mode working again for draft-13 
 
 - 20210914: deployed a bunch of services on [defo.ie](https://defo.ie/) - 
