@@ -2,12 +2,14 @@
 
 # set -x
 
-# Do one of 5 things:
+# Do one of these things:
 # 1. (g) generate ECH credentials for boringssl 
 # 2. (l) run a boringssl s_client against localhost:8443 (default)
 # 3. (c) run a boringssl s_client against cloudflare
 # 4. (s) run a boringssl s_server on localhost:8443
 # 5. (d) run a boringssl s_client against draft-13.esni.defo.ie:8413
+# 6. (e) run a boringssl s_server accepting early data on localbost:8443
+# 7. (E) run a boringssl s_client sending early data to localhost:8443
 
 # The setup here depends on me having generated keys etc in
 # my ususal $HOME/code/openssl/esnistuff setup.
@@ -33,11 +35,16 @@ defohost="draft-13.esni.defo.ie"
 defoport="8413"
 defohttpreq="GET /stats HTTP/1.1\\r\\nConnection: close\\r\\nHost: $defohost\\r\\n\\r\\n"
 
-KEYFILE1=$CFGTOP/cadir/$clear_sni.priv
-CERTFILE1=$CFGTOP/cadir/$clear_sni.crt
+# KEYFILE1=$CFGTOP/cadir/$clear_sni.priv
+# CERTFILE1=$CFGTOP/cadir/$clear_sni.crt
 KEYFILE2=$CFGTOP/cadir/$httphost.priv
 CERTFILE2=$CFGTOP/cadir/$httphost.crt
+CHAINFILE2=$CFGTOP/cadir/$httphost.chain
 
+if [ ! -f $CHAINFILE2 ]
+then
+    cat $CERTFILE2 $CFGTOP/cadir/oe.csr >$CHAINFILE2
+fi
 
 todo="l" 
 
@@ -49,7 +56,7 @@ debugstr=" -debug "
 hrrstr=""
 
 # options may be followed by one colon to indicate they have a required argument
-if ! options=$(/usr/bin/getopt -s bash -o Rcdgls -l HRR,cloudflare,defo,generate,localhost,server  -- "$@")
+if ! options=$(/usr/bin/getopt -s bash -o ERcdegls -l early_cient,HRR,cloudflare,defo,early_server,generate,localhost,server  -- "$@")
 then
     # something went wrong, getopt will put out an error message for us
     exit 1
@@ -61,6 +68,8 @@ do
     case "$1" in
         -c|--cloudflare) todo="c" ;;
         -d|--defo) todo="d" ;;
+        -e|--early_server) todo="e";;
+        -E|--early_client) todo="E";;
         -g|--generate) todo="g" ;;
         -l|--localhost) todo="l" ;;
         -s|--server) todo="s" ;;
@@ -90,6 +99,11 @@ then
         echo "Missing root CA public key - exiting"
         exit 4
     fi
+    # for now the ECHConfiList is too "sticky" so if switching
+    # (which is needed when swapping between openssl and boringssl
+    # servers) then you need to remember to manually delete the
+    # $BFILES/os.ech file. I may fix that later, but it's a rare
+    # thing to do, so I'll leave it for the moment.
     if [ ! -f $BFILES/os.ech ]
     then
         # make it
@@ -109,6 +123,77 @@ then
     if [[ "$res" != "0" ]]
     then
         echo "Error from bssl ($res)"
+    fi
+    exit $res
+fi
+
+if [[ "$todo" == "E" ]]
+then
+    if [ ! -f $CFGTOP/cadir/oe.csr ]
+    then
+        echo "Missing root CA public key - exiting"
+        exit 4
+    fi
+    # for now the ECHConfiList is too "sticky" so if switching
+    # (which is needed when swapping between openssl and boringssl
+    # servers) then you need to remember to manually delete the
+    # $BFILES/os.ech file. I may fix that later, but it's a rare
+    # thing to do, so I'll leave it for the moment.
+    if [ ! -f $BFILES/os.ech ]
+    then
+        # make it
+        if [ ! -f $ECHCONFIGILE ]
+        then
+            echo "Missing ECHConfig - exiting"
+            exit 3
+        fi
+        cat $ECHCONFIGFILE | tail -2 | head -1 | base64 -d >$BFILES/os.ech
+    fi
+    if [ ! -f $CFGTOP/ed_file ]
+    then
+        cat >$CFGTOP/ed_file <<EOF
+GET /index.html HTTP/1.1
+Connection: close
+Host: foo.example.com
+
+
+EOF
+    fi
+    # we need to make 2 calls, 1 to get a session and 2nd to send early data
+    echo "Running bssl s_client sending early_data to localhost"
+    # remove old session
+    rm -f $BFILES/bssl.sess
+    # get session
+    ( echo -e $httpreq ; sleep 2) | $BTOOL/bssl s_client -connect localhost:8443 \
+        -session-out $BFILES/bssl.sess \
+        -ech-config-list $BFILES/os.ech \
+        -server-name $httphost $debugstr \
+        -root-certs $CFGTOP/cadir/oe.csr
+    res=$?
+    if [[ "$res" != "0" ]]
+    then
+        echo "Error from 1st call to bssl establishing session ($res)"
+        # don't exit - that's probably just an EOF error
+    fi
+    if [ ! -f $BFILES/bssl.sess ]
+    then
+        echo "1st call to bssl didn't establish session"
+        exit 65
+    else
+        echo "1st call to bssl established session"
+    fi
+    sleep 2
+    # 2nd to try send early data
+    (echo -e "" ; sleep 2) | $BTOOL/bssl s_client -connect localhost:8443 \
+        -session-in $BFILES/bssl.sess \
+        -early-data @$CFGTOP/ed_file \
+        -ech-config-list $BFILES/os.ech \
+        -server-name $httphost $debugstr \
+        -root-certs $CFGTOP/cadir/oe.csr
+    res=$?
+    if [[ "$res" != "0" ]]
+    then
+        echo "Error from 2nd call to bssl sending early data ($res)"
     fi
     exit $res
 fi
@@ -211,6 +296,27 @@ then
         echo "*** We're set to generate HRR ($hrrstr) ***"
     fi
     $BTOOL/bssl s_server \
+        -accept 8443 \
+        -key $KEYFILE2 -cert $CHAINFILE2 \
+        -ech-config $BFILES/bs.ech -ech-key $BFILES/bs.key \
+        -www -loop $hrrstr $debugstr
+    res=$?
+    if [[ "$res" != "0" ]]
+    then
+        echo "Error from bssl ($res)"
+    fi
+    exit $res
+fi
+
+if [[ "$todo" == "e" ]]
+then
+    echo "Running bssl s_server with ECH keys allowing early_data"
+    if [[ "$hrrstr" != "" ]]
+    then
+        echo "*** We're set to generate HRR ($hrrstr) ***"
+    fi
+    $BTOOL/bssl s_server \
+        -early-data \
         -accept 8443 \
         -key $KEYFILE2 -cert $CERTFILE2 \
         -ech-config $BFILES/bs.ech -ech-key $BFILES/bs.key \

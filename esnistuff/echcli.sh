@@ -57,6 +57,9 @@ SUPPLIEDCADIR=""
 
 # stored session
 SUPPLIEDSESSION=""
+# re-using a session allows early data, so note that, if so
+REUSINGSESSION="no"
+
 
 # default values
 HIDDEN="crypto.cloudflare.com"
@@ -68,6 +71,8 @@ REALCERT="no" # default to fake CA for localhost
 CIPHERSUITES="" # default to internal default
 SELECTED=""
 IGNORE_CID="no"
+EARLY_DATA="no"
+
 
 function whenisitagain()
 {
@@ -83,6 +88,7 @@ function usage()
 	echo "  -c [name] specifices a name that I'll send as an outer SNI (NONE is special)"
     echo "  -C [number] selects the n-th ECHConfig from input RR/PEM file (0 based)"
     echo "  -d means run s_client in verbose mode"
+    echo "  -e measns send HTTP request (in ./ed_file) as early_data"
     echo "  -f [pathname] specifies the file/pathname to request (default: '/')"
     echo "  -g means GREASE (only applied with -n)"
     echo "  -G means set GREASE suite to default rather than randomly pick"
@@ -107,7 +113,7 @@ function usage()
 }
 
 # options may be followed by one colon to indicate they have a required argument
-if ! options=$(/usr/bin/getopt -s bash -o C:c:df:gGhH:IjnNp:P:rs:S:t:v -l choose:,clear_sni:,debug,filepath:,grease,greasesuite,help,hidden:,ignore_cid,just,noech,noalpn,port:,echpub:,realcert,server:,session:,gtype:,valgrind -- "$@")
+if ! options=$(/usr/bin/getopt -s bash -o C:c:def:gGhH:IjnNp:P:rs:S:t:v -l choose:,clear_sni:,debug,early,filepath:,grease,greasesuite,help,hidden:,ignore_cid,just,noech,noalpn,port:,echpub:,realcert,server:,session:,gtype:,valgrind -- "$@")
 then
     # something went wrong, getopt will put out an error message for us
     exit 1
@@ -120,6 +126,7 @@ do
         -c|--clear_sni) SUPPLIEDPNO=$2; shift;;
         -C|--choose) SELECTED=$2; shift;;
         -d|--debug) DEBUG="yes" ;;
+        -e|--early) EARLY_DATA="yes" ;;
         -f|--filepath) HTTPPATH=$2; shift;;
 		-g|--grease) GREASE="yes";;
 		-G|--greasesuite) GSUITESET="yes";;
@@ -169,7 +176,7 @@ if [[ "$DEBUG" == "yes" ]]
 then
     #dbgstr="-msg -debug $TRACING -security_debug_verbose -state -tlsextdebug -keylogfile cli.keys"
     #dbgstr="-msg -debug $TRACING"
-    dbgstr="-msg -debug $TRACING -tlsextdebug "
+    dbgstr="-msg -debug $TRACING -tlsextdebug -keylogfile keys.cli"
 fi
 
 vgcmd=""
@@ -361,6 +368,7 @@ then
 	else
 		# resuming 
 		session=" -sess_in $SUPPLIEDSESSION"
+        REUSINGSESSION="yes"
 	fi
 fi
 
@@ -372,11 +380,32 @@ fi
 
 TMPF=`mktemp /tmp/echtestXXXX`
 
+earlystr=""
+if [[ "$EARLY_DATA" == "yes" ]]
+then
+    if [[ "$REUSINGSESSION" != "yes" ]]
+    then
+        echo "Can't sent early data unless re-using a session"
+        exit 87
+    fi
+    if [ ! -f ed_file ]
+    then
+        echo -e "$httpreq\n" >ed_file
+    fi
+    earlystr=" --early_data ed_file "
+fi
+
 if [[ "$DEBUG" == "yes" ]]
 then
-    echo "Running: $CODETOP/apps/openssl s_client $dbgstr $certsdb $force13 $target $echstr $snioutercmd $session $alpn $ciphers"
+    echo "Running: $CODETOP/apps/openssl s_client $dbgstr $certsdb $force13 $target $echstr $snioutercmd $session $alpn $ciphers $earlystr"
 fi
-( echo -e "$httpreq" ; sleep 2) | $vgcmd $CODETOP/apps/openssl s_client $dbgstr $certsdb $force13 $target $echstr $snioutercmd $session $alpn $ciphers >$TMPF 2>&1
+
+if [[ "$EARLY_DATA" == "yes" ]]
+then
+    ( echo -e "" ; sleep 2) | $vgcmd $CODETOP/apps/openssl s_client $dbgstr $certsdb $force13 $target $echstr $snioutercmd $session $alpn $ciphers $earlystr >$TMPF 2>&1
+else
+    ( echo -e "$httpreq" ; sleep 2) | $vgcmd $CODETOP/apps/openssl s_client $dbgstr $certsdb $force13 $target $echstr $snioutercmd $session $alpn $ciphers >$TMPF 2>&1
+fi
 
 c200=`grep -c "200 OK" $TMPF`
 csucc=`grep -c "ECH: success" $TMPF`

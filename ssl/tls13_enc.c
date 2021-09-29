@@ -603,6 +603,148 @@ int tls13_change_cipher_state(SSL *s, int which)
         RECORD_LAYER_reset_write_sequence(&s->rlayer);
     }
 
+#ifndef OPENSSL_NO_ECH
+    /*
+     * If doing early data and ECH then we're a special
+     * case. TODO: Once working, figure out how best to
+     * merge this into the code below.
+     */
+    if ( s->ext.ech_attempted==1 &&
+         s->ext.ch_depth==0 &&
+         which & SSL3_CC_CLIENT && 
+         which & SSL3_CC_WRITE &&
+         which & SSL3_CC_EARLY) {
+
+        EVP_MD_CTX *mdctx = NULL;
+        size_t hdatalen=0;;
+        unsigned char* hdata=NULL;
+        unsigned int hashlenui;
+        const SSL_CIPHER *sslcipher = NULL;
+        SSL *inner=s->ext.inner_s;
+
+        /* 
+         * Basically, we want to produce early data based on the inner 
+         * and not outer CH
+         */
+        if (inner==NULL) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_R_BAD_HANDSHAKE_LENGTH);
+            goto err;
+        }
+
+        hdatalen=inner->ext.innerch_len;
+        hdata=OPENSSL_malloc(hdatalen);
+        if (!hdata) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_R_BAD_HANDSHAKE_LENGTH);
+            goto err;
+        }
+        memcpy(hdata,inner->ext.innerch,hdatalen);
+
+        sslcipher = SSL_SESSION_get0_cipher(inner->session);
+        insecret = inner->early_secret;
+        label = client_early_traffic;
+        labellen = sizeof(client_early_traffic) - 1;
+        log_label = CLIENT_EARLY_LABEL;
+
+        if (inner->early_data_state == SSL_EARLY_DATA_CONNECTING
+                && inner->max_early_data > 0
+                && inner->session->ext.max_early_data == 0) {
+            /*
+             * If we are attempting to send early data, and we've decided to
+             * actually do it but max_early_data in s->session is 0 then we
+             * must be using an external PSK.
+             */
+            if (!ossl_assert(inner->psksession != NULL
+                    && inner->max_early_data ==
+                       inner->psksession->ext.max_early_data)) {
+                OPENSSL_free(hdata);
+                SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+                goto err;
+            }
+            sslcipher = SSL_SESSION_get0_cipher(inner->psksession);
+        }
+
+        if (sslcipher == NULL) {
+            OPENSSL_free(hdata);
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_R_BAD_PSK);
+            goto err;
+        }
+
+        /*
+         * We need to calculate the handshake digest using the digest from
+         * the session. We haven't yet selected our ciphersuite so we can't
+         * use ssl_handshake_md().
+         */
+        mdctx = EVP_MD_CTX_new();
+        if (mdctx == NULL) {
+            OPENSSL_free(hdata);
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_MALLOC_FAILURE);
+            goto err;
+        }
+
+        /*
+         * This ups the ref count on cipher so we better make sure we free
+         * it again
+         */
+        if (!ssl_cipher_get_evp_cipher(inner->ctx, sslcipher, &cipher)) {
+            OPENSSL_free(hdata);
+            /* Error is already recorded */
+            SSLfatal_alert(s, SSL_AD_INTERNAL_ERROR);
+            EVP_MD_CTX_free(mdctx);
+            goto err;
+        }
+
+        md = ssl_md(inner->ctx, sslcipher->algorithm2);
+        if (md == NULL || !EVP_DigestInit_ex(mdctx, md, NULL)
+                || !EVP_DigestUpdate(mdctx, hdata, hdatalen)
+                || !EVP_DigestFinal_ex(mdctx, hashval, &hashlenui)) {
+            OPENSSL_free(hdata);
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+            EVP_MD_CTX_free(mdctx);
+            goto err;
+        }
+        hashlen = hashlenui;
+        EVP_MD_CTX_free(mdctx);
+        OPENSSL_free(hdata); hdata=NULL;
+
+        if (!tls13_hkdf_expand(inner, md, insecret,
+                               early_exporter_master_secret,
+                               sizeof(early_exporter_master_secret) - 1,
+                               hashval, hashlen,
+                               inner->early_exporter_master_secret, hashlen,
+                               1)) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+            goto err;
+        }
+
+        if (!ssl_log_secret(inner, EARLY_EXPORTER_SECRET_LABEL,
+                            s->early_exporter_master_secret, hashlen)) {
+            /* SSLfatal() already called */
+            goto err;
+        }
+
+        /* these lines copied from below after the branch above */
+        if(!ossl_assert(cipher != NULL))
+            goto err;
+
+        if (!derive_secret_key_and_iv(inner, which & SSL3_CC_WRITE, md, cipher,
+                                  insecret, hash, label, labellen, secret, key,
+                                  iv, ciph_ctx)) {
+            /* SSLfatal() already called */
+            goto err;
+        }
+
+        if (!ssl_log_secret(inner, log_label, secret, hashlen)) {
+            /* SSLfatal() already called */
+            goto err;
+        }
+
+        inner->statem.enc_write_state = ENC_WRITE_STATE_WRITE_PLAIN_ALERTS;
+
+        s->statem.enc_write_state = ENC_WRITE_STATE_WRITE_PLAIN_ALERTS;
+        return 1;
+    }
+#endif
+
     if (((which & SSL3_CC_CLIENT) && (which & SSL3_CC_WRITE))
             || ((which & SSL3_CC_SERVER) && (which & SSL3_CC_READ))) {
         if (which & SSL3_CC_EARLY) {

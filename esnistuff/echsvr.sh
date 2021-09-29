@@ -40,6 +40,7 @@ SUPPLIEDHIDDEN=""
 SUPPLIEDCLEAR_SNI=""
 SUPPLIEDDIR=""
 CAPATH="$CFGTOP/esnistuff/cadir/"
+EARLY_DATA="no"
 
 # whether we feed a bad key pair to server for testing
 BADKEY="no"
@@ -62,6 +63,7 @@ function usage()
 	echo "  -c [name] specifices a name that I'll accept as a cleartext SNI (NONE is special)"
     echo "  -D means find ech config files in that directory"
     echo "  -d means run s_server in verbose mode"
+    echo "  -e means allow default amount of early data"
 	echo "  -F says to hard fail if ECH attempted but fails"
     echo "  -H means serve that hidden server"
     echo "  -h means print this"
@@ -84,7 +86,7 @@ function usage()
 }
 
 # options may be followed by one colon to indicate they have a required argument
-if ! options=$(/usr/bin/getopt -s bash -o k:BTFc:D:H:p:PRKdlvnhw -l keyfile,badkey,trialdecrypt,hardfail,dir:,clear_sni:,hidden:,port:,pad,hrr,keygen,debug,stale,valgrind,noech,help,web -- "$@")
+if ! options=$(/usr/bin/getopt -s bash -o k:BTFc:D:eH:p:PRKdlvnhw -l keyfile,badkey,trialdecrypt,hardfail,dir:,early,clear_sni:,hidden:,port:,pad,hrr,keygen,debug,stale,valgrind,noech,help,web -- "$@")
 then
     # something went wrong, getopt will put out an error message for us
     exit 1
@@ -96,8 +98,9 @@ do
     case "$1" in
         -B|--badkey) BADKEY="yes";;
         -c|--clear_sni) SUPPLIEDCLEAR_SNI=$2; shift;;
-        -d|--debug) DEBUG="yes" ;;
         -D|--dir) SUPPLIEDDIR=$2; shift;;
+        -d|--debug) DEBUG="yes" ;;
+        -e|--early) EARLY_DATA="yes";; 
         -F|--hardfail) HARDFAIL="yes"; shift;;
         -h|--help) usage;;
         -H|--hidden) SUPPLIEDHIDDEN=$2; shift;;
@@ -192,7 +195,7 @@ dbgstr=" -quiet"
 if [[ "$DEBUG" == "yes" ]]
 then
     #dbgstr="-msg $TRACING -debug -security_debug_verbose -state -tlsextdebug -keylogfile srv.keys"
-    dbgstr="-msg $TRACING -tlsextdebug "
+    dbgstr="-msg $TRACING -tlsextdebug -ign_eof "
 fi
 
 vgcmd=""
@@ -261,6 +264,17 @@ fi
 # tell it where CA stuff is...
 certsdb=" -CApath $CAPATH"
 
+# handle early data
+earlystr=""
+if [[ "$EARLY_DATA" == "yes" ]]
+then
+    # if we're debugging and want to use a single session a few
+    # times then we need -no_anti_replay
+    earlystr=" -early_data -no_anti_replay "
+    # if not, then use this...
+    # earlystr=" -early_data "
+fi
+
 # force tls13
 #force13="-no_ssl3 -no_tls1 -no_tls1_1 -no_tls1_2"
 #force13="-cipher TLS13-AES-128-GCM-SHA256 -no_ssl3 -no_tls1 -no_tls1_1 -no_tls1_2"
@@ -279,8 +293,8 @@ trap cleanup SIGINT
 
 if [[ "$DEBUG" == "yes" ]]
 then
-    echo "Running: $vgcmd $CODETOP/apps/openssl s_server $dbgstr $keyfile1 $keyfile2 $certsdb $portstr $force13 $echstr $snicmd $hardfail $trialdecrypt $alpn_cmd $echpad_cmd $hrr_cmd $WEBSERVER"
+    echo "Running: $vgcmd $CODETOP/apps/openssl s_server $dbgstr $keyfile1 $keyfile2 $certsdb $portstr $force13 $echstr $snicmd $hardfail $trialdecrypt $alpn_cmd $echpad_cmd $hrr_cmd $WEBSERVER $earlystr"
 fi
-$vgcmd $CODETOP/apps/openssl s_server $dbgstr $keyfile1 $keyfile2 $certsdb $portstr $force13 $echstr $snicmd $hardfail $trialdecrypt $alpn_cmd $echpad_cmd $hrr_cmd $WEBSERVER
+$vgcmd $CODETOP/apps/openssl s_server $dbgstr $keyfile1 $keyfile2 $certsdb $portstr $force13 $echstr $snicmd $hardfail $trialdecrypt $alpn_cmd $echpad_cmd $hrr_cmd $WEBSERVER $earlystr
 
 
