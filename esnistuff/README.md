@@ -26,6 +26,21 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
+- 20210929: ``early_data`` working now between openssl client and
+  boringssl server. More testing TBD but good to check this in.
+
+- 20210921: adding early data options to echcli.sh and echsrv.sh but not
+  yet working (or I don't know how to properly ask:-) - could be that
+  the stored session isn't quite right for early data, checking...
+  ... to run a test:
+
+            $ ./echsrv.sh -dev
+            ...stuff...
+            $ ./echcli.sh -s localhost -H foo.example.com -p 8443 -P d13.pem -f index.html -dv -S foo.sess
+            ...stuff...
+            $ ./echcli.sh -s localhost -H foo.example.com -p 8443 -P d13.pem -f index.html -dv -S foo.sess -e 
+            ...stuff...
+
 - 20210919: haproxy split-mode plus HRR doesn't work as haproxy
   doesn't provide a way (that I can see) to decrypt the 2nd CH,
   asked haproxy devs for advice, but will park that for now.

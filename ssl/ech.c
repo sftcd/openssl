@@ -3300,7 +3300,7 @@ void ech_pbuf(const char *msg, const unsigned char *buf, const size_t blen)
  * @brief reset the handshake buffer for transcript after ECH is good
  *
  * @param s is the session
- * @param buf is the data to put into the transcript (usuallhy inner CH)
+ * @param buf is the data to put into the transcript (usually inner CH)
  * @param blen is the length of buf
  * @return 1 for success
  */
