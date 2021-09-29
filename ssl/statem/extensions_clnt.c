@@ -1018,6 +1018,35 @@ EXT_RETURN tls_construct_ctos_early_data(SSL_CONNECTION *s, WPACKET *pkt,
     const EVP_MD *handmd = NULL;
     SSL *ssl = SSL_CONNECTION_GET_SSL(s);
 
+#ifndef OPENSSL_NO_ECH
+    /*
+     * TODO: handle this spec text:
+     *
+     *   When the client offers the "early_data" extension in
+     *   ClientHelloInner, it MUST also include the "early_data" extension
+     *   in ClientHelloOuter.  This allows servers that reject ECH and use
+     *   ClientHelloOuter to safely ignore any early data sent by the
+     *   client per [RFC8446], Section 4.2.10
+     *
+     *  That's a bit ambiguous - do we send the same early
+     *  date in both inner/outer or what? (That'd be ok, but
+     *  not sure.)
+     */
+    if (s->ext.ch_depth==0 &&
+            s->ext.inner_s!=NULL &&
+            s->ext.inner_s->ext.early_data==SSL_EARLY_DATA_REJECTED &&
+            s->ext.inner_s->ext.early_data_ok==1
+       ) {
+        s->ext.early_data = SSL_EARLY_DATA_REJECTED;
+        s->ext.early_data_ok = 1;
+        s->psksession = s->ext.inner_s->psksession;
+        s->psksession_id = s->ext.inner_s->psksession_id;
+        s->max_early_data=s->ext.inner_s->max_early_data;
+        s->early_data_state=s->ext.inner_s->early_data_state;
+    }
+    IOSAME
+#endif
+
     if (s->hello_retry_request == SSL_HRR_PENDING)
         handmd = ssl_handshake_md(s);
 
@@ -1140,22 +1169,6 @@ EXT_RETURN tls_construct_ctos_early_data(SSL_CONNECTION *s, WPACKET *pkt,
             return EXT_RETURN_FAIL;
         }
     }
-#ifndef OPENSSL_NO_ECH
-    /*
-     * TODO: handle this spec text:
-     *
-     *   When the client offers the "early_data" extension in
-     *   ClientHelloInner, it MUST also include the "early_data" extension
-     *   in ClientHelloOuter.  This allows servers that reject ECH and use
-     *   ClientHelloOuter to safely ignore any early data sent by the
-     *   client per [RFC8446], Section 4.2.10
-     *
-     *  That's a bit ambiguous - do we send the same early
-     *  date in both inner/outer or what? (That'd be ok, but
-     *  not sure.)
-     */
-    IOSAME
-#endif
 
     if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_early_data)
             || !WPACKET_start_sub_packet_u16(pkt)
