@@ -7016,6 +7016,20 @@ int ssl_log_secret(SSL_CONNECTION *sc,
                    const uint8_t *secret,
                    size_t secret_len)
 {
+#ifndef OPENSSL_NO_ECH
+    /* 
+     * Possible TODO: but likely not.
+     * For the client early secret label the cilent_random that
+     * would be useful to log is from the inner CH and not the
+     * outer (which is what'd be done here). There's not that
+     * much point in changing now though as the ability to
+     * use the client early secret may depend on knowing the 
+     * inner CH content and we don't yet log anything related
+     * to that.
+     * Likely revisit this once we have early data working with
+     * ECH properly.
+     */
+#endif
     return nss_keylog_int(label,
                           sc,
                           sc->s3.client_random,

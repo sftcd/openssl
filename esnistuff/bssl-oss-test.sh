@@ -307,6 +307,27 @@ then
     fi
     $BTOOL/bssl s_server \
         -accept 8443 \
+        -key $KEYFILE2 -cert $CHAINFILE2 \
+        -ech-config $BFILES/bs.ech -ech-key $BFILES/bs.key \
+        -www -loop $hrrstr $debugstr
+    res=$?
+    if [[ "$res" != "0" ]]
+    then
+        echo "Error from bssl ($res)"
+    fi
+    exit $res
+fi
+
+if [[ "$todo" == "e" ]]
+then
+    echo "Running bssl s_server with ECH keys allowing early_data"
+    if [[ "$hrrstr" != "" ]]
+    then
+        echo "*** We're set to generate HRR ($hrrstr) ***"
+    fi
+    $BTOOL/bssl s_server \
+        -early-data \
+        -accept 8443 \
         -key $KEYFILE2 -cert $CERTFILE2 \
         -ech-config $BFILES/bs.ech -ech-key $BFILES/bs.key \
         -www -loop $hrrstr $debugstr
