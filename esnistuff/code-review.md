@@ -3,6 +3,7 @@
 
 [Pass-1](#Pass-1) started, 20210624, ended 20210705.
 [Pass-2](#Pass-2) started, 20210706, ended 20210803.
+[Pass-3](#Pass-3) started, 20210921 (paused while working on early data)
 
 All code changes are protected via ``#ifndef OPENSSL_NO_ECH`` so 
 running a find for that we get the list below. (We'll do a cross
@@ -10,6 +11,90 @@ check vs. the master branch too later.)
 
 A similar exercise will be needed for our [HPKE code](https://github.com/sftcd/happykey).
 
+## Pass-3
+
+The code in this pass now supports draft-13 and HRR and interops
+with Cloudflare and BoringSSL so is nearing functionlly complete
+with few TODOs. Goals for this pass include:
+
+- better handling of the transcript
+- reducing LOC if possible to help ease upstreaming
+
+Hopefully, many files will need no change. We'll check anyway
+and note that as we go.
+
+As usual, we'll start with seeing what files to consider:
+
+			$ find . -type f -exec grep -l OPENSSL_NO_ECH {} \;
+			./include/openssl/ssl.h.in
+			./include/openssl/ech.h
+			./include/openssl/tls1.h
+			./include/openssl/ssl.h
+			./ssl/tls13_enc.c
+			./ssl/t1_trce.c
+			./ssl/record/ssl3_record_tls13.c
+			./ssl/ech_local.h
+			./ssl/s3_enc.c
+			./ssl/ech.c
+			./ssl/ssl_txt.c
+			./ssl/statem/statem_local.h
+			./ssl/statem/extensions.c
+			./ssl/statem/extensions_srvr.c
+			./ssl/statem/extensions_clnt.c
+			./ssl/statem/statem_clnt.c
+			./ssl/statem/statem_lib.c
+			./ssl/statem/statem_srvr.c
+			./ssl/ssl_local.h
+			./ssl/ssl_lib.c
+			./esnistuff/haproxy.html
+			./esnistuff/haproxy.md
+			./esnistuff/README.md
+			./esnistuff/code-review.md
+			./test/buildtest_ech.c
+			./apps/lib/s_cb.c
+			./apps/progs.c
+			./apps/ech.c
+			./apps/s_client.c
+			./apps/s_server.c
+
+### ``./include/openssl/ssl.h.in``
+
+No change needed.
+
+Paused review here - started testing early data as better to get that working 1at.
+
+### ``./include/openssl/ech.h``
+### ``./include/openssl/tls1.h``
+### ``./include/openssl/ssl.h``
+### ``./ssl/tls13_enc.c``
+### ``./ssl/t1_trce.c``
+### ``./ssl/record/ssl3_record_tls13.c``
+### ``./ssl/ech_local.h``
+### ``./ssl/s3_enc.c``
+### ``./ssl/ech.c``
+### ``./ssl/ssl_txt.c``
+### ``./ssl/statem/statem_local.h``
+### ``./ssl/statem/extensions.c``
+### ``./ssl/statem/extensions_srvr.c``
+### ``./ssl/statem/extensions_clnt.c``
+### ``./ssl/statem/statem_clnt.c``
+### ``./ssl/statem/statem_lib.c``
+### ``./ssl/statem/statem_srvr.c``
+### ``./ssl/ssl_local.h``
+### ``./ssl/ssl_lib.c``
+### ``./esnistuff/haproxy.html``
+### ``./esnistuff/haproxy.md``
+### ``./esnistuff/README.md``
+### ``./esnistuff/code-review.md``
+### ``./test/buildtest_ech.c``
+### ``./apps/lib/s_cb.c``
+### ``./apps/progs.c``
+### ``./apps/ech.c``
+### ``./apps/s_client.c``
+### ``./apps/s_server.c``
+
+## Pass-2
+			
 ## Pass-2
 
 [Pass-1](#Pass-1) generated a bunch of TODOs and I also left

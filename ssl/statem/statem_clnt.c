@@ -1232,7 +1232,8 @@ CON_FUNC_RETURN tls_construct_client_hello(SSL_CONNECTION *s, WPACKET *pkt)
     }
 
     /* If we're not really attempting ECH, just call existing code.  */
-    if (s->ech==NULL || s->ext.hrr_depth==0) return tls_construct_client_hello_aux(s, pkt);
+    if (s->ech==NULL || s->ext.hrr_depth==0) 
+        return tls_construct_client_hello_aux(s, pkt);
 
     /*
      * A sanity check - make sure the application didn't try GREASE
@@ -1314,6 +1315,8 @@ CON_FUNC_RETURN tls_construct_client_hello(SSL_CONNECTION *s, WPACKET *pkt)
             new_s->ext.hostname=s->ext.hostname;
             s->ext.hostname=NULL;
         }
+        /* inherit the early_data_state from outer */
+        new_s->early_data_state=s->early_data_state;
     } else if (s->ext.hrr_depth==1) {
         /* we already saw an HRR with a good accept for inner */
         new_s=s->ext.inner_s;
