@@ -2827,6 +2827,12 @@ int s_server_main(int argc, char *argv[])
 #endif
     if (set_keylog_file(ctx, keylog_file))
         goto end;
+#ifndef OPENSSL_NO_ECH
+    /* not really an ECH issue but needed */
+    if (ctx2 && set_keylog_file(ctx2, keylog_file))
+        goto end;
+
+#endif
 
     if (max_early_data >= 0)
         SSL_CTX_set_max_early_data(ctx, max_early_data);
