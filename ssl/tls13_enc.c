@@ -561,7 +561,6 @@ int tls13_change_cipher_state(SSL *s, int which)
      */
     if ( !s->server &&
          s->ext.ech_attempted==1 &&
-         //s->ext.ch_depth==0 &&
          which & SSL3_CC_CLIENT && 
          which & SSL3_CC_WRITE &&
          which & SSL3_CC_EARLY) {
