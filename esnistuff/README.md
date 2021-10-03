@@ -26,8 +26,8 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
-- 20210929: ``early_data`` working now between openssl client and
-  boringssl server. More testing TBD but good to check this in.
+- 20211003: ``early_data`` working now between openssl and
+  boringssl. 
 
 - 20210921: adding early data options to echcli.sh and echsrv.sh but not
   yet working (or I don't know how to properly ask:-) - could be that
