@@ -605,18 +605,17 @@ int tls13_change_cipher_state(SSL *s, int which)
 
 #ifndef OPENSSL_NO_ECH
     /*
-     * If doing early data and ECH then we're a special
-     * case. TODO: Once working, figure out how best to
-     * merge this into the code below.
+     * If doing early data and ECH then we're a special case. 
      */
-    if ( s->ext.ech_attempted==1 &&
-         s->ext.ch_depth==0 &&
+    if ( !s->server &&
+         s->ext.ech_attempted==1 &&
+         //s->ext.ch_depth==0 &&
          which & SSL3_CC_CLIENT && 
          which & SSL3_CC_WRITE &&
          which & SSL3_CC_EARLY) {
 
         EVP_MD_CTX *mdctx = NULL;
-        size_t hdatalen=0;;
+        size_t hdatalen=0;
         unsigned char* hdata=NULL;
         unsigned int hashlenui;
         const SSL_CIPHER *sslcipher = NULL;
@@ -632,12 +631,7 @@ int tls13_change_cipher_state(SSL *s, int which)
         }
 
         hdatalen=inner->ext.innerch_len;
-        hdata=OPENSSL_malloc(hdatalen);
-        if (!hdata) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_R_BAD_HANDSHAKE_LENGTH);
-            goto err;
-        }
-        memcpy(hdata,inner->ext.innerch,hdatalen);
+        hdata=inner->ext.innerch;
 
         sslcipher = SSL_SESSION_get0_cipher(inner->session);
         insecret = inner->early_secret;
@@ -656,7 +650,6 @@ int tls13_change_cipher_state(SSL *s, int which)
             if (!ossl_assert(inner->psksession != NULL
                     && inner->max_early_data ==
                        inner->psksession->ext.max_early_data)) {
-                OPENSSL_free(hdata);
                 SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
                 goto err;
             }
@@ -664,7 +657,6 @@ int tls13_change_cipher_state(SSL *s, int which)
         }
 
         if (sslcipher == NULL) {
-            OPENSSL_free(hdata);
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_R_BAD_PSK);
             goto err;
         }
@@ -676,7 +668,6 @@ int tls13_change_cipher_state(SSL *s, int which)
          */
         mdctx = EVP_MD_CTX_new();
         if (mdctx == NULL) {
-            OPENSSL_free(hdata);
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_MALLOC_FAILURE);
             goto err;
         }
@@ -686,7 +677,6 @@ int tls13_change_cipher_state(SSL *s, int which)
          * it again
          */
         if (!ssl_cipher_get_evp_cipher(inner->ctx, sslcipher, &cipher)) {
-            OPENSSL_free(hdata);
             /* Error is already recorded */
             SSLfatal_alert(s, SSL_AD_INTERNAL_ERROR);
             EVP_MD_CTX_free(mdctx);
@@ -697,14 +687,12 @@ int tls13_change_cipher_state(SSL *s, int which)
         if (md == NULL || !EVP_DigestInit_ex(mdctx, md, NULL)
                 || !EVP_DigestUpdate(mdctx, hdata, hdatalen)
                 || !EVP_DigestFinal_ex(mdctx, hashval, &hashlenui)) {
-            OPENSSL_free(hdata);
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             EVP_MD_CTX_free(mdctx);
             goto err;
         }
         hashlen = hashlenui;
         EVP_MD_CTX_free(mdctx);
-        OPENSSL_free(hdata); hdata=NULL;
 
         if (!tls13_hkdf_expand(inner, md, insecret,
                                early_exporter_master_secret,
@@ -739,7 +727,6 @@ int tls13_change_cipher_state(SSL *s, int which)
         }
 
         inner->statem.enc_write_state = ENC_WRITE_STATE_WRITE_PLAIN_ALERTS;
-
         s->statem.enc_write_state = ENC_WRITE_STATE_WRITE_PLAIN_ALERTS;
         return 1;
     }
@@ -759,11 +746,31 @@ int tls13_change_cipher_state(SSL *s, int which)
             labellen = sizeof(client_early_traffic) - 1;
             log_label = CLIENT_EARLY_LABEL;
 
+#ifndef OPENSSL_NO_ECH
+            /* if ECH worked then use the innerch and not the h/s buffer here */
+            if (s->server && s->ext.ech_success==1) {
+                if (s->ext.innerch==NULL) {
+                    SSLfatal(s, SSL_AD_INTERNAL_ERROR,
+                            SSL_R_BAD_HANDSHAKE_LENGTH);
+                    goto err;
+                }
+                handlen=s->ext.innerch_len;
+                hdata=s->ext.innerch;
+            } else {
+                handlen = BIO_get_mem_data(s->s3.handshake_buffer, &hdata);
+                if (handlen <= 0) {
+                    SSLfatal(s, SSL_AD_INTERNAL_ERROR, 
+                            SSL_R_BAD_HANDSHAKE_LENGTH);
+                    goto err;
+                }
+            }
+#else
             handlen = BIO_get_mem_data(s->s3.handshake_buffer, &hdata);
             if (handlen <= 0) {
                 SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_R_BAD_HANDSHAKE_LENGTH);
                 goto err;
             }
+#endif
 
             if (s->early_data_state == SSL_EARLY_DATA_CONNECTING
                     && s->max_early_data > 0

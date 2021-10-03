@@ -8,7 +8,7 @@ export LD_LIBRARY_PATH=$CODETOP
 # to pick up the relevant configuration
 : ${CFGTOP:=$HOME/code/openssl}
 
-ECHKEYFILE="$CFGTOP/esnistuff/echconfig.pem"
+: ${ECHKEYFILE:="$CFGTOP/esnistuff/echconfig.pem"}
 ECH10KEYFILE="$CFGTOP/esnistuff/echconfig-10.pem"
 # prefer the draft-10 file if it's there
 if [ -f $ECH10KEYFILE ]
@@ -195,7 +195,7 @@ dbgstr=" -quiet"
 if [[ "$DEBUG" == "yes" ]]
 then
     #dbgstr="-msg $TRACING -debug -security_debug_verbose -state -tlsextdebug -keylogfile srv.keys"
-    dbgstr="-msg $TRACING -tlsextdebug -ign_eof "
+    dbgstr="-msg $TRACING -tlsextdebug -ign_eof -keylogfile keys.srv"
 fi
 
 vgcmd=""

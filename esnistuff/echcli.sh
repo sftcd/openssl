@@ -402,7 +402,8 @@ fi
 
 if [[ "$EARLY_DATA" == "yes" ]]
 then
-    ( echo -e "" ; sleep 2) | $vgcmd $CODETOP/apps/openssl s_client $dbgstr $certsdb $force13 $target $echstr $snioutercmd $session $alpn $ciphers $earlystr >$TMPF 2>&1
+    httpreq1=${httpreq/foo.example.com/barbar.example.com}
+    ( echo -e "$httpreq1" ; sleep 2) | $vgcmd $CODETOP/apps/openssl s_client $dbgstr $certsdb $force13 $target $echstr $snioutercmd $session $alpn $ciphers $earlystr >$TMPF 2>&1
 else
     ( echo -e "$httpreq" ; sleep 2) | $vgcmd $CODETOP/apps/openssl s_client $dbgstr $certsdb $force13 $target $echstr $snioutercmd $session $alpn $ciphers >$TMPF 2>&1
 fi
