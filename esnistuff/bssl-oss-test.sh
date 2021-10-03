@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# set -x
+set -x
 
 # Do one of these things:
 # 1. (g) generate ECH credentials for boringssl 
@@ -307,7 +307,7 @@ then
     fi
     $BTOOL/bssl s_server \
         -accept 8443 \
-        -key $KEYFILE2 -cert $CHAINFILE2 \
+        -key $KEYFILE2 -cert $CERTFILE2 \
         -ech-config $BFILES/bs.ech -ech-key $BFILES/bs.key \
         -www -loop $hrrstr $debugstr
     res=$?
