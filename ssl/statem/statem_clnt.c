@@ -2439,7 +2439,6 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL_CONNECTION *s, PACKET *pkt)
                 (void)BIO_set_close(s->s3.handshake_buffer, BIO_CLOSE);
                 BIO_free(s->s3.handshake_buffer);
             }
-
             /* swap back */
             *s=outer;
             /* note result in outer */
@@ -2449,7 +2448,6 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL_CONNECTION *s, PACKET *pkt)
             /* reset buffer for SH */
             pkt->remaining=shlen;
             pkt->curr=shbuf;
-
             return tls_process_server_hello(s, pkt);
         }
     }

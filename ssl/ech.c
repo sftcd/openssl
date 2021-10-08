@@ -3959,8 +3959,9 @@ int ech_swaperoo(SSL_CONNECTION *s)
     /* early data */
     s->early_data_state=tmp_outer.early_data_state;
     s->early_data_count=tmp_outer.early_data_count;
-    s->enc_write_ctx=tmp_outer.enc_write_ctx;
     memcpy(s->write_iv,tmp_outer.write_iv,EVP_MAX_IV_LENGTH);
+    s->enc_write_ctx=tmp_outer.enc_write_ctx;
+    s->ext.outer_s->enc_write_ctx=NULL;
 
     /*
      * When not doing HRR...
