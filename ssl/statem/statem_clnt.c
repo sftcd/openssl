@@ -2746,7 +2746,6 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL_CONNECTION *s, PACKET *pkt)
             /* reset buffer for SH */
             pkt->remaining=shlen;
             pkt->curr=shbuf;
-
             return tls_process_server_hello(s, pkt);
         }
     }
