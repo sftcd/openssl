@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -x
+# set -x
 
 # Do one of these things:
 # 1. (g) generate ECH credentials for boringssl 

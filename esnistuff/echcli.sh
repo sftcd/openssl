@@ -399,13 +399,26 @@ if [[ "$DEBUG" == "yes" ]]
 then
     echo "Running: $CODETOP/apps/openssl s_client $dbgstr $certsdb $force13 $target $echstr $snioutercmd $session $alpn $ciphers $earlystr"
 fi
+# seconds to sleep after firing up client so that tickets might arrive
+sleepaftr=2
+
+if [[ "$DEBUG" == "yes" ]]
+then
+    # bit slower so sleep a bit more
+    sleepaftr=3
+fi
+if [[ "$VG" == "yes" ]]
+then
+    # bit slower so sleep a bit more
+    sleepaftr=6
+fi
 
 if [[ "$EARLY_DATA" == "yes" ]]
 then
     httpreq1=${httpreq/foo.example.com/barbar.example.com}
-    ( echo -e "$httpreq1" ; sleep 2) | $vgcmd $CODETOP/apps/openssl s_client $dbgstr $certsdb $force13 $target $echstr $snioutercmd $session $alpn $ciphers $earlystr >$TMPF 2>&1
+    ( echo -e "$httpreq1" ; sleep $sleepaftr) | $vgcmd $CODETOP/apps/openssl s_client $dbgstr $certsdb $force13 $target $echstr $snioutercmd $session $alpn $ciphers $earlystr >$TMPF 2>&1
 else
-    ( echo -e "$httpreq" ; sleep 2) | $vgcmd $CODETOP/apps/openssl s_client $dbgstr $certsdb $force13 $target $echstr $snioutercmd $session $alpn $ciphers >$TMPF 2>&1
+    ( echo -e "$httpreq" ; sleep $sleepaftr) | $vgcmd $CODETOP/apps/openssl s_client $dbgstr $certsdb $force13 $target $echstr $snioutercmd $session $alpn $ciphers >$TMPF 2>&1
 fi
 
 c200=`grep -c "200 OK" $TMPF`
@@ -425,6 +438,7 @@ then
 	echo "$vgout"
 	echo ""
 fi
+
 goodresult=`grep -c "ECH: success" $TMPF`
 echo "$0 Summary: "
 allresult=`grep "ECH: " $TMPF`
