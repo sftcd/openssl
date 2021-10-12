@@ -391,7 +391,8 @@ static EVP_PKEY* hpke_EVP_PKEY_new_raw_nist_public_key(
         erv=__LINE__; goto err;
     }
     if (EVP_PKEY_set1_encoded_public_key(ret,buf,buflen)!=1) {
-        if (ret) EVP_PKEY_free(ret); ret=NULL;
+        if (ret) EVP_PKEY_free(ret); 
+        ret=NULL;
         erv=__LINE__; goto err;
     }
 err:
