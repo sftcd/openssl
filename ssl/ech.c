@@ -2001,7 +2001,7 @@ int SSL_CTX_ech_server_enable_buffer(
 
 
 /**
- * @brief Print the status/content of an SSL session wrt ECH
+ * @brief Print info about the status of an SSL session wrt ECH
  *
  * @param out is the BIO to use (e.g. stdout/whatever)
  * @param ssl is an SSL session strucutre
@@ -2029,9 +2029,9 @@ int SSL_ech_print(BIO* out, SSL *ssl, int selector)
     }
     BIO_printf(out,"ech_done=%d\n",s->ext.ech_done);
     BIO_printf(out,"ech_grease=%d\n",s->ext.ech_grease);
+#ifdef ECH_SUPERVERBOSE
     BIO_printf(out,"HRR=%d\n", s->hello_retry_request);
     BIO_printf(out,"hrr_depth=%d\n", s->ext.hrr_depth);
-#ifdef ECH_SUPERVERBOSE
     BIO_printf(out,"ech_returned=%p\n",(void*)s->ext.ech_returned);
 #endif
     BIO_printf(out,"ech_returned_len=%ld\n",(long)s->ext.ech_returned_len);
@@ -2039,15 +2039,14 @@ int SSL_ech_print(BIO* out, SSL *ssl, int selector)
     BIO_printf(out,"ech_success=%d\n",s->ext.ech_success);
     if (s->ech) {
         int i=0;
+        BIO_printf(out,"%d ECHConfig values loaded\n",s->nechs);
         for (i=0;i!=s->nechs;i++) {
             if (selector==ECH_SELECT_ALL || selector==i) {
                 cfg=ECHConfigs_print(s->ech[i].cfg);
                 BIO_printf(out,"ECHConfig %d\n\t%s\n",i,cfg);
                 OPENSSL_free(cfg);
                 if (s->ech[i].keyshare) {
-
-/* apparently 26 is all we need */
-#define ECH_TIME_STR_LEN 32
+#define ECH_TIME_STR_LEN 32 /* apparently 26 is all we need */
                     struct tm local,*local_p=NULL;
                     char lstr[ECH_TIME_STR_LEN];
 #if !defined(OPENSSL_SYS_WINDOWS)
@@ -2071,7 +2070,6 @@ int SSL_ech_print(BIO* out, SSL *ssl, int selector)
                     }
                     BIO_printf(out,"\tpriv=%s, loaded at %s\n",
                         s->ech[i].pemfname,lstr);
-
                 }
             }
         }
@@ -2088,7 +2086,6 @@ int SSL_ech_print(BIO* out, SSL *ssl, int selector)
         }
         BIO_printf(out,"\n");
     }
-
     BIO_printf(out,"*** SSL_ech_print ***\n");
     return 1;
 }
@@ -5548,13 +5545,14 @@ int ech_early_decrypt(SSL *ssl, PACKET *outerpkt, PACKET *newpkt)
     /*
      * Trial decrypt, if still needed
      */
-    if (!foundcfg && (s->options & SSL_OP_ECH_TRIALDECRYPT)) {
+    if (clear==NULL && (s->options & SSL_OP_ECH_TRIALDECRYPT)) {
         for (cfgind=0;cfgind!=s->nechs;cfgind++) {
             clear=hpke_decrypt_encch(s,&s->ech[cfgind],
                     extval,aad_len,aad,forhrr,
                     &clearlen);
             if (clear!=NULL) {
                 foundcfg=1;
+                s->ext.ech_grease=ECH_NOT_GREASE;
                 break;
             }
         }
