@@ -434,6 +434,7 @@ typedef int (*SSL_async_callback_fn)(SSL *s, void *arg);
 /* If this is set then the server side will attempt trial decryption */
 /* of ECHs even if there is no matching record_digest. That's a bit  */
 /* inefficient, but more privacy friendly */
+
 #define SSL_OP_ECH_TRIALDECRYPT                         SSL_OP_BIT(37)
 /* IF set, clients will ignore the supplied ECH config_id and replace 
  * that with a random value */
