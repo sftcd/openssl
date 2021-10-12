@@ -382,19 +382,16 @@ static EVP_PKEY* hpke_EVP_PKEY_new_raw_nist_public_key(
         erv=__LINE__; goto err;
     }
     if (EVP_PKEY_paramgen_init(cctx) <= 0) {
-        EVP_PKEY_CTX_free(cctx);
         erv=__LINE__; goto err;
     }
     if (EVP_PKEY_CTX_set_ec_paramgen_curve_nid(cctx, curve) <= 0) {
-        EVP_PKEY_CTX_free(cctx);
         erv=__LINE__; goto err;
     }
     if (EVP_PKEY_paramgen(cctx, &ret) <= 0) {
-        EVP_PKEY_CTX_free(cctx);
         erv=__LINE__; goto err;
     }
     if (EVP_PKEY_set1_encoded_public_key(ret,buf,buflen)!=1) {
-        EVP_PKEY_CTX_free(cctx);
+        if (ret) EVP_PKEY_free(ret); ret=NULL;
         erv=__LINE__; goto err;
     }
 err:

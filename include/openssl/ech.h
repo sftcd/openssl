@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2020-2021 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the OpenSSL license (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -25,7 +25,7 @@
  * Default for HPKE_MAXSIZE is in hpke.h (40KB) but can be overridden so
  * let's do that, since we don't need such large buffers. (HPKE uses
  * a bunch of such stack buffers.)
- * If this were 0x300 it'd not be big enough for larger curves
+ * If this were 0x300 (768) it'd not be big enough for larger curves
  * when doing session resumption. If some server's tickets are
  * much bigger then we might need to revisit using stack buffers
  * for this.
