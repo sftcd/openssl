@@ -169,6 +169,13 @@ then
 fi
 rm -f $tmpf
 
+# check we have dig
+if [[ "``which dig``" == "" ]]
+then
+    echo "Can't find the dig command - exiting"
+    exit 12
+fi
+
 #dbgstr=" -verify_quiet"
 dbgstr=" "
 #dbgstr=" "
@@ -250,14 +257,19 @@ then
         then
             qname="_$PORT._https.$hidden"
         fi
-        ECH=" $selstr -svcb `dig +short -t TYPE65 $qname | tail -1 | cut -f 3- -d' ' | sed -e 's/ //g' | sed -e 'N;s/\n//'`"
-        if [[ "$ECH" == "" ]]
+        digval="`dig +short -t TYPE65 $qname | tail -1 | cut -f 3- -d' ' | sed -e 's/ //g' `"
+        # digval used have one more sed command as per below...
+        # digval="`dig +short -t TYPE65 $qname | tail -1 | cut -f 3- -d' ' | sed -e 's/ //g' | sed -e 'N;s/\n//'`"
+        # I think that's a hangover from some other script that had to merge lines, e.g. if the RR value is 
+        # very very big - but since we're doing a tail -1 here (ignoring all but one RR value) that shouldn't
+        # be needed (and it caused a problem for someone who didn't have GNU sed)
+
+        if [[ "$digval" == "" ]]
         then
-            # TODO: do the parsing biz
-            echo "Can't parse ECH from HTTPSSVC"
-        #else
-            #echo "ECH from DNS is : $ECH"
+            echo "Didn't get any HTTPS RR value for $qname - exiting"
+            exit 22
         fi
+        ECH=" $selstr -svcb $digval "
 	fi
 fi
 
