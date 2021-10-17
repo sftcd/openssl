@@ -31,6 +31,12 @@
 #define ECH_NOT_GREASE 0 /**< when decryption worked */
 #define ECH_IS_GREASE 1 /**< when decryption failed or GREASE wanted */
 
+/* value for uninitialised GREASE ECH version */
+#define TLSEXT_TYPE_ech_unknown               0xffff
+
+/* value for not yet set ECH config_id */
+#define TLSEXT_TYPE_ech_config_id_unset       -1
+
 /*
  * Strings used in ECH crypto derivations
  */
