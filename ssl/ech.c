@@ -1802,7 +1802,7 @@ int SSL_CTX_ech_server_flush_keys(SSL_CTX *s, int age)
  *
  * @param ctx is the SSL connection (can be NULL)
  * @param pemfile has the relevant ECHConfig(s) and private key in PEM format
- * @return success:1, SSL_ECH_FILEMISSING/2 if can't read file, other otherwise
+ * @return success:1, ECH_FILEMISSING:2 if can't read file, other otherwise
  */
 int SSL_CTX_ech_server_enable(SSL_CTX *ctx, const char *pemfile)
 {
