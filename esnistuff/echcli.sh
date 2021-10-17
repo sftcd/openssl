@@ -11,6 +11,7 @@
 export LD_LIBRARY_PATH=$CODETOP
 # to pick up the relevant configuration
 : ${CFGTOP:=$HOME/code/openssl}
+: ${GETOPTDIR:=/usr/bin}
 
 # variables/settings
 # use Valgrind or not
@@ -112,8 +113,22 @@ function usage()
     exit 99
 }
 
+# check we have what looks like a good getopt (the native version on macOS 
+# seems to not be good)
+if [ ! -f $GETOPTDIR/getopt ]
+then
+    echo "No sign of $GETOPTDIR/getopt - exiting"
+    exit 32
+fi
+getoptcnt=`$GETOPTDIR/getopt --version | grep -c "util-linux"`
+if [[ "$getoptcnt" != "1" ]]
+then
+    echo "$GETOPTDIR/getopt doesn't seem to be gnu-getopt - exiting"
+    exit 32
+fi
+
 # options may be followed by one colon to indicate they have a required argument
-if ! options=$(/usr/bin/getopt -s bash -o C:c:def:gGhH:IjnNp:P:rs:S:t:v -l choose:,clear_sni:,debug,early,filepath:,grease,greasesuite,help,hidden:,ignore_cid,just,noech,noalpn,port:,echpub:,realcert,server:,session:,gtype:,valgrind -- "$@")
+if ! options=$($GETOPTDIR/getopt -s bash -o C:c:def:gGhH:IjnNp:P:rs:S:t:v -l choose:,clear_sni:,debug,early,filepath:,grease,greasesuite,help,hidden:,ignore_cid,just,noech,noalpn,port:,echpub:,realcert,server:,session:,gtype:,valgrind -- "$@")
 then
     # something went wrong, getopt will put out an error message for us
     exit 1
