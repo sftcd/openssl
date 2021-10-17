@@ -124,7 +124,7 @@ static const char *ech_inner_name=NULL;
 static const char *sni_outer_name=NULL;
 static int ech_grease=0;
 static char *ech_grease_suite = NULL;
-static uint16_t ech_grease_type = TLSEXT_TYPE_ech_unknown;
+static int ech_grease_type = -1;
 static int ech_ignore_cid=0;
 static int nechs=0;
 static char *ech_encoded_configs = NULL;
@@ -1673,6 +1673,7 @@ int s_client_main(int argc, char **argv)
             ech_grease_suite=opt_arg();
             break;
         case OPT_ECH_GREASE_TYPE:
+            /* cast to uint16_t even though int */
             ech_grease_type=(uint16_t) atoi(opt_arg());
             break;
         case OPT_ECH_IGNORE_CONFIG_ID:
@@ -2328,7 +2329,7 @@ int s_client_main(int argc, char **argv)
             goto end;
         }
     }
-    if (ech_grease_type!=TLSEXT_TYPE_ech_unknown) {
+    if (ech_grease_type!=-1) {
         BIO_printf(bio_err, "Setting GREASE ECH type 0x%4x\n", ech_grease_type);
         if (SSL_ech_set_grease_type(con,ech_grease_type)!=1) {
             BIO_printf(bio_err, "Can't set GREASE ECH type 0x%4x\n",
