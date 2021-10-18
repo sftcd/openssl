@@ -1235,19 +1235,25 @@ CON_FUNC_RETURN tls_construct_client_hello(SSL_CONNECTION *s, WPACKET *pkt)
     if (s->ech==NULL || s->ext.hrr_depth==0) 
         return tls_construct_client_hello_aux(s, pkt);
 
-    /*
-     * A sanity check - make sure the application didn't try GREASE
-     * as well - I had a bug where that happened.
-     */
-    if (s->ext.ech_grease==ECH_IS_GREASE) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-        return 0;
-    }
-
     /* note version we're attempting */
     if (s->ech && s->ech->cfg && s->ech->cfg->recs) {
         s->ext.ech_attempted_type=s->ech->cfg->recs[0].version;
         s->ext.ech_attempted_cid=s->ech->cfg->recs[0].config_id;
+        /* note that we've attempted ECH */
+        s->ext.ech_attempted=1;
+    }
+
+    /*
+     * A sanity check - make sure the application didn't try GREASE
+     * as well - I had a bug where that happened.
+     */
+    if (s->ext.ech_grease==ECH_IS_GREASE &&
+        s->ext.ech_attempted==1) {
+        s->ext.ech_grease=ECH_NOT_GREASE;
+        /* override the GREASE option as we're really trying ECH */
+        OSSL_TRACE_BEGIN(TLS) {
+            BIO_printf(trc_out, "ECH Over-ride GREASE for real ECH\n");
+        } OSSL_TRACE_END(TLS);
     }
 
     /*
@@ -1488,9 +1494,6 @@ CON_FUNC_RETURN tls_construct_client_hello(SSL_CONNECTION *s, WPACKET *pkt)
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         goto err;
     }
-
-    /* note that we've attempted ECH */
-    s->ext.ech_attempted=1;
 
     /* Free up raw exts as needed (happens like this on real server */
     if (new_s->clienthello!=NULL && 
