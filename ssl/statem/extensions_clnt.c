@@ -1212,11 +1212,15 @@ EXT_RETURN tls_construct_ctos_padding(SSL_CONNECTION *s, WPACKET *pkt,
     size_t hlen;
 
 #ifndef OPENSSL_NO_ECH
-    if (s->ext.ch_depth==1 && s->ext.ech_attempted_type==ECH_DRAFT_13_VERSION && (s->options & SSL_OP_TLSEXT_PADDING) == 0) {
+    if (s->ext.ch_depth==1 &&
+        s->ext.ech_attempted_type==ECH_DRAFT_13_VERSION &&
+        (s->options & SSL_OP_TLSEXT_PADDING) == 0) {
         /* draft-13 pads outside the encoded inner */
         return EXT_RETURN_NOT_SENT;
     }
-    if (!(s->ext.ech_grease==ECH_IS_GREASE) && !(s->ech && s->ext.ch_depth==1) && (s->options & SSL_OP_TLSEXT_PADDING) == 0)
+    if (!(s->ext.ech_grease==ECH_IS_GREASE) &&
+        !(s->ech && s->ext.ch_depth==1) &&
+        (s->options & SSL_OP_TLSEXT_PADDING) == 0)
         return EXT_RETURN_NOT_SENT;
 #else
     if ((s->options & SSL_OP_TLSEXT_PADDING) == 0)
@@ -2556,7 +2560,7 @@ EXT_RETURN tls_construct_ctos_ech(SSL_CONNECTION *s, WPACKET *pkt, unsigned int 
                 SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
                 return EXT_RETURN_FAIL;
             }
-            return EXT_RETURN_NOT_SENT;
+            return EXT_RETURN_SENT;
         }
         if (ech_send_grease(&s->ssl,pkt)!=1) {
             return EXT_RETURN_NOT_SENT;
@@ -2581,20 +2585,23 @@ EXT_RETURN tls_construct_ctos_ech13(SSL *s, WPACKET *pkt, unsigned int context,
     if (s->ext.ech_attempted_type!=TLSEXT_TYPE_ech13)
         return EXT_RETURN_NOT_SENT;
 
-    if (s->ext.ech_grease==ECH_IS_GREASE || (s->options & SSL_OP_ECH_GREASE)) {
-        if (s->hello_retry_request==SSL_HRR_PENDING &&
-                s->ext.ech_sent!=NULL) {
-            /* re-tx already sent GREASEy ECH*/
-            if (WPACKET_memcpy(pkt,s->ext.ech_sent,s->ext.ech_sent_len)!=1) {
-                SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-                return EXT_RETURN_FAIL;
+    /* don't send grease if really attempting ECH */
+    if (s->ext.ech_attempted==0) {
+        if (s->ext.ech_grease==ECH_IS_GREASE || (s->options & SSL_OP_ECH_GREASE)) {
+            if (s->hello_retry_request==SSL_HRR_PENDING &&
+                    s->ext.ech_sent!=NULL) {
+                /* re-tx already sent GREASEy ECH*/
+                if (WPACKET_memcpy(pkt,s->ext.ech_sent,s->ext.ech_sent_len)!=1) {
+                    SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+                    return EXT_RETURN_FAIL;
+                }
+                return EXT_RETURN_SENT;
             }
-            return EXT_RETURN_NOT_SENT;
+            if (ech_send_grease(s,pkt)!=1) {
+                return EXT_RETURN_NOT_SENT;
+            }
+            return EXT_RETURN_SENT;
         }
-        if (ech_send_grease(s,pkt)!=1) {
-            return EXT_RETURN_NOT_SENT;
-        }
-        return EXT_RETURN_SENT;
     }
     /*
      * We fake out sending the outer value - after the entire thing has been

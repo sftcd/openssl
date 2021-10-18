@@ -2350,6 +2350,12 @@ static int local_svcb_add(
         detfmt=rrfmt;
     } else if (rrfmt==ECH_FMT_BIN) {
         detfmt=rrfmt;
+        binlen=rrlen;
+        binbuf=OPENSSL_malloc(binlen);
+        if (!binbuf) {
+            return(0);
+        }
+        memcpy(binbuf,rrval,binlen);
     } else {
         rv=ech_guess_fmt(rrlen,(unsigned char*)rrval,&detfmt);
         if (rv==0)  {
