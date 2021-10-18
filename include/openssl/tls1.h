@@ -169,7 +169,7 @@ extern "C" {
 # endif
 
 #ifndef OPENSSL_NO_ECH
-/* These will change some with draft-13 but for now represent draft-10 */
+/* These will change some when we remove draft-10 support */
 #define TLSEXT_TYPE_ech                       0xfe0a
 #define TLSEXT_TYPE_ech13                     0xfe0d
 #define TLSEXT_TYPE_outer_extensions          0xfd00
