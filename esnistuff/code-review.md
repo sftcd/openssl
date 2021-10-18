@@ -59,7 +59,12 @@ As usual, we'll start with seeing what files to consider:
 
 ### ``./include/openssl/ssl.h.in``
 
-No change needed (for now).
+- changed behaviour of GREASE flag so that even if it is
+set, an attempt to do a "real" ECH (by supplying an
+ECHConfig to the client) will over-ride GREASEing. That
+allows an application to set the GREASE option on as a
+default, but still do "real" ECH when an ECHConfig is
+found.
 
 ### ``./include/openssl/ech.h``
 
@@ -78,7 +83,13 @@ library (i.e. into ``ssl/ech_local.h``) Same thing for
 - updated many comments
 
 ### ``./include/openssl/tls1.h``
+
+- minor tweak to comments
+
 ### ``./include/openssl/ssl.h``
+
+Generated from ssl.h.in so no change here.
+
 ### ``./ssl/tls13_enc.c``
 ### ``./ssl/t1_trce.c``
 ### ``./ssl/record/ssl3_record_tls13.c``
@@ -109,6 +120,11 @@ not really needed for ECH. (For now.)
 ### ``./apps/lib/s_cb.c``
 ### ``./apps/progs.c``
 ### ``./apps/ech.c``
+
+- Fixed bug in ``local_svcb_add()`` when binary form input
+provided (thanks to code review for Java stuff Hans-Christoph
+is doing.)
+
 ### ``./apps/s_client.c``
 ### ``./apps/s_server.c``
 
