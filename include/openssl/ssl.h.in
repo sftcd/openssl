@@ -409,7 +409,8 @@ typedef int (*SSL_async_callback_fn)(SSL *s, void *arg);
 # define SSL_OP_CRYPTOPRO_TLSEXT_BUG                     SSL_OP_BIT(31)
 
 #ifndef OPENSSL_NO_ECH
-/* set this to tell client to emit greased ECH values */
+/* set this to tell client to emit greased ECH values when not doing
+ * "real" ECH */
 #define SSL_OP_ECH_GREASE                               SSL_OP_BIT(32)
 /* If this is set then the server side will attempt trial decryption */
 /* of ECHs even if there is no matching record_digest. That's a bit  */
