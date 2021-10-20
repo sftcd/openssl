@@ -34,9 +34,17 @@
 /**< max PEM encoded ECHConfigs we'll emit */
 #define ECH_MAX_ECHCONFIGS_LEN ECH_MAXEXTLEN+1000
 
-#ifndef ECH_MAX_ECHCONFIG_LEN
-#define ECH_MAX_ECHCONFIG_LEN ECH_MAX_ECHCONFIGS_LEN
-#endif
+/*
+ * Max ECH config file we want to handle. This
+ * is bigger than ECH_MAX_ECHCONFIG_LEN as we 
+ * want to be able to test files with large extensions
+ * whilst there is no (currently) defined extension
+ * in real use. The extensions idea here is IMO
+ * broken and better never used, so we're more
+ * conservative with the RR lengths we accept from
+ * DNS. Time will tell what's right here.
+ */
+#define ECH_MAX_FILE_ECHCONFIG_LEN ECH_MAX_ECHCONFIGS_LEN
 
 #define ECH_KEYGEN_MODE    0 /* default is to generate a key pair/ECHConfig */
 #define ECH_SELPRINT_MODE  1 /* or we can print/down-select ECHConfigs */
@@ -670,7 +678,7 @@ opthelp:
             if (pheader) {
                 OPENSSL_free(pheader); pheader=NULL;
             }
-            if (plen>=ECH_MAX_ECHCONFIG_LEN) {
+            if (plen>=ECH_MAX_FILE_ECHCONFIG_LEN) {
                 goto err;
             }
 

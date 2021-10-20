@@ -55,23 +55,15 @@
  * Basically, we store a 0 for "don't compress" and a 1 for "do compress"
  * and the index is the same as the index of the extension itself.
  *
- * This is likely to disappear before submitting a PR to upstream as
- * it'd make more sense to make this a new field in the ext_defs table
- * in  ssl/statem/extensions.c
- *
- * For now however, we'll keep it separate as it's still possible that
- * we might develop a better way to handle this. (Or maybe upstream devs
- * will have better ideas, or maybe the standards process will come to
- * its senses and kill the compression idea:-)
- *
- * Reasons this could change include: wanting better than compile-time
- * or handling custom extensions.
+ * This might disappear before submitting a PR to upstream as it may
+ * make more sense for this to be a new field in the ext_defs table
+ * in ssl/statem/extensions.c For now however, we'll keep it separate, 
+ * in case it changes. Reasons this could change include: wanting better 
+ * than compile-time or handling custom extensions.
  *
  * As with ext_defs in extensions.c: NOTE: Changes in the number or order
  * of these extensions should be mirrored with equivalent changes to the
  * indexes ( TLSEXT_IDX_* ) defined in ssl_local.h.
- *
- * Lotsa notes, eh - that's because I'm not sure this is sane:-)
  */
 static int ech_outer_config[]={
      /*TLSEXT_IDX_renegotiate, 0xff01 */ 0,
@@ -117,8 +109,7 @@ static int ech_outer_config[]={
  * use the IOSAME macro (in ssl/statem/extensions_clnt.c) - for
  * example the ECH setting below is ignored as you'd imagine.
  *
- * As above this is likely to disappear before submitting a PR to
- * upstream.
+ * As above this could disappear before submitting a PR to upstream.
  *
  * As with ext_defs in extensions.c: NOTE: Changes in the number or order
  * of these extensions should be mirrored with equivalent changes to the
@@ -159,13 +150,13 @@ static int ech_outer_indep[]={
 
 /*
  * @brief Decode/check the value from DNS (binary, base64 or ascii-hex encoded)
- *
- * This does the real work, can be called to add to a context or a connection
  * @param eklen length of the binary, base64 or ascii-hex encoded value from DNS
  * @param ekval is the binary, base64 or ascii-hex encoded value from DNS
  * @param num_echs says how many SSL_ECH structures are in the returned array
  * @param echs is a pointer to an array of decoded SSL_ECH
  * @return is 1 for success, error otherwise
+ *
+ * This does the real work, can be called to add to a context or a connection
  */
 static int local_ech_add(
         int ekfmt, size_t eklen, unsigned char *ekval,
@@ -180,10 +171,10 @@ static void ECH_DETS_free(ECH_DETS *in);
 
 /**
  * @brief produce a printable string form of an ECHConfigs
- *
- * Note - the caller has to free the string returned if not NULL
  * @param c is the ECHConfigs
  * @return a printable string (or NULL)
+ *
+ * Note - the caller has to free the string returned if not NULL
  */
 static char *ECHConfigs_print(ECHConfigs *c);
 
@@ -286,23 +277,18 @@ static int ech_check_filenames(SSL_CTX *ctx, const char *pemfname,int *index)
 
 /**
  * @brief Decode from TXT RR to binary buffer
- *
- * This is like ct_base64_decode from crypto/ct/ct_b64.c
- * but a) that's static and b) we extend here to allow a
- * sequence of semi-colon separated strings as the input
- * to handle multivalued RRs. If the latter extension
- * were ok (it probably isn't) then we could merge these
- * functions, but better to not do that for now.
- *
- * Decodes the base64 string |in| into |out|.
- * A new string will be malloc'd and assigned to |out|. This will be owned by
- * the caller. Do not provide a pre-allocated string in |out|.
- * The input is modified if multivalued (NULL bytes are added in
- * place of semi-colon separators.
- *
  * @param in is the base64 encoded string
  * @param out is the binary equivalent
  * @return is the number of octets in |out| if successful, <=0 for failure
+ *
+ * This is like ct_base64_decode from crypto/ct/ct_b64.c but a) that's static 
+ * and b) we extend here to allow a sequence of semi-colon separated strings 
+ * as the input to support multivalued RRs. If the latter were ok for both
+ * functions (it probably isn't) then we could merge the two functions, but 
+ * better to not do that for now.
+ *
+ * The input is modified if multivalued (NULL bytes are added in place of 
+ * semi-colon separators) so the caller should copy that if that's an issue.
  */
 static int ech_base64_decode(char *in, unsigned char **out)
 {
@@ -321,9 +307,7 @@ static int ech_base64_decode(char *in, unsigned char **out)
         *out = NULL;
         return 0;
     }
-    /*
-     * overestimate of space but easier than base64 finding padding right now
-     */
+    /* overestimate of space but easier */
     outbuf = OPENSSL_malloc(inlen);
     if (outbuf == NULL) {
         goto err;
@@ -335,7 +319,7 @@ static int ech_base64_decode(char *in, unsigned char **out)
         size_t thisfraglen=strcspn(inp,sepstr);
 
         /* For ECH we'll never see this but just so we have bounds */
-        if (thisfraglen<=4 || thisfraglen >HPKE_MAXSIZE) {
+        if (thisfraglen<=4 || thisfraglen >ECH_MAX_RRVALUE_LEN) {
             goto err;
         }
         if (thisfraglen>inlen) {
@@ -367,6 +351,13 @@ err:
 
 /**
  * @brief Read an ECHConfig (only 1) and 1 private key from pemfile
+ * @param pemfile is the name of the file
+ * @param ctx is the SSL context
+ * @param inputIsFile is 1 if input a filename, 0 if a buffer
+ * @param input is a filename or buffer
+ * @param inlen is the length of input
+ * @param sechs an (output) pointer to the SSL_ECH output
+ * @return 1 for success, otherwise error
  *
  * The file content should look as below. Note that as github barfs
  * if I provide an actual private key in PEM format, I've reversed
@@ -384,13 +375,6 @@ err:
  * a buffer and the buffer length with inputIsFile=0. The buffer
  * should have contents like the PEM strings above.
  *
- * @param pemfile is the name of the file
- * @param ctx is the SSL context
- * @param inputIsFile is 1 if input a filename, 0 if a buffer
- * @param input is a filename or buffer
- * @param inlen is the length of input
- * @param sechs an (output) pointer to the SSL_ECH output
- * @return 1 for success, otherwise error
  */
 static int ech_readpemfile(
         SSL_CTX *ctx,
@@ -409,10 +393,10 @@ static int ech_readpemfile(
     int num_echs=0;
     int rv=1;
 
-    if (ctx==NULL || pemfile==NULL || sechs==NULL) return(0);
+    if (ctx==NULL || sechs==NULL) return(0);
     switch (inputIsFile) {
         case 1:
-            /* no additional check */
+            if (pemfile==NULL) return(0);
             break;
         case 0:
             if (input==NULL || inlen==0) return(0);
@@ -500,6 +484,10 @@ err:
 
 /**
  * @brief Try figure out ECHConfig encodng by looking for telltales
+ * @param eklen is the length of rrval
+ * @param rrval is encoded thing
+ * @param guessedfmt is our returned guess at the format
+ * @return 1 for success, 0 for error
  *
  * We try check from most to least restrictive  to avoid wrong
  * answers. IOW we try from most constrained to least in that
@@ -508,11 +496,6 @@ err:
  * The wrong answer could be derived with a low probability.
  * If the application can't handle that, then it ought not use
  * the ECH_FMT_GUESS value.
- *
- * @param eklen is the length of rrval
- * @param rrval is encoded thing
- * @param guessedfmt is our returned guess at the format
- * @return 1 for success, 0 for error
  */
 static int ech_guess_fmt(size_t eklen,
                     unsigned char *rrval,
@@ -536,7 +519,7 @@ static int ech_guess_fmt(size_t eklen,
 
 /**
  * @brief Free an ECHConfig structure's internals
- * @param tbf is the thing to be free'd
+ * @param tbf is the thing to be freed
  */
 void ECHConfig_free(ECHConfig *tbf)
 {
@@ -600,14 +583,13 @@ void ECH_ENCCH_free(ECH_ENCCH *ev)
 
 /**
  * @brief free an SSL_ECH
+ * @param tbf is a ptr to an SSL_ECH structure
  *
  * Free everything within an SSL_ECH. Note that the
  * caller has to free the top level SSL_ECH, IOW the
  * pattern here is:
  *      SSL_ECH_free(tbf);
  *      OPENSSL_free(tbf);
- *
- * @param tbf is a ptr to an SSL_ECH structure
  */
 void SSL_ECH_free(SSL_ECH *tbf)
 {
@@ -647,7 +629,7 @@ static void ECH_DETS_free(ECH_DETS *in)
 }
 
 /**
- * @brief free up memory for an ECH_DETS
+ * @brief free up an arryay of ECH_DETS
  *
  * @param in is the structure to free up
  * @param size says how many indices are in in
@@ -666,14 +648,13 @@ void SSL_ECH_DETS_free(ECH_DETS *in, int size)
 
 /**
  * @brief Utility field-copy function (used by macro below)
+ * @param old is the source buffer
+ * @param len is the source buffer size
+ * @return is NULL or the copied buffer
  *
  * Copy a field old->foo based on old->foo_len to new->foo
  * We allocate one extra octet in case the value is a
  * string and NUL that out.
- *
- * @param old is the source buffer
- * @param len is the source buffer size
- * @return is NULL or the copied buffer
  */
 static void *ech_len_field_dup(void *old, unsigned int len)
 {
@@ -771,9 +752,6 @@ static int ECHConfigs_dup(ECHConfigs *old, ECHConfigs *new)
 
 /**
  * @brief Decode the first ECHConfigs from a binary buffer
- *
- * (and say how may octets not consumed)
- *
  * @param binbuf is the buffer with the encoding
  * @param binblen is the length of binbunf
  * @param leftover is the number of unused octets from the input
@@ -799,7 +777,7 @@ static ECHConfigs *ECHConfigs_from_binary(
     if (binblen < ECH_MIN_ECHCONFIG_LEN) {
         goto err;
     }
-    if (binblen >= ECH_MAX_ECHCONFIG_LEN) {
+    if (binblen >= ECH_MAX_RRVALUE_LEN) {
         goto err;
     }
    
@@ -1118,14 +1096,13 @@ err:
 
 /*
  * @brief Decode/check the value from DNS (binary, base64 or ascii-hex encoded)
- *
- * This does the real work, can be called to add to a context or a connection
- *
  * @param eklen length of the binary, base64 or ascii-hex encoded value from DNS
  * @param ekval is the binary, base64 or ascii-hex encoded value from DNS
  * @param num_echs says how many SSL_ECH structures are in the returned array
  * @param echs is a pointer to an array of decoded SSL_ECH
  * @return is 1 for success, error otherwise
+ *
+ * This does the real work, can be called to add to a context or a connection
  */
 static int local_ech_add(
         int ekfmt,
@@ -1310,13 +1287,12 @@ err:
 
 /**
  * @brief decode the DNS name in a binary RRData
- *
- * Encoding as defined in https://tools.ietf.org/html/rfc1035#section-3.1
- *
  * @param buf points to the buffer (in/out)
  * @param remaining points to the remaining buffer length (in/out)
  * @param dnsname returns the string form name on success
  * @return is 1 for success, error otherwise
+ *
+ * Encoding as defined in https://tools.ietf.org/html/rfc1035#section-3.1
  */
 static int local_decode_rdata_name(
         unsigned char **buf,
@@ -1364,20 +1340,19 @@ static int local_decode_rdata_name(
 
 /**
  * @brief Decode/store ECHConfigs (binary, base64, or ascii-hex encoded)
+ * @param s is the SSL session
+ * @param eklen is the length of the ekval
+ * @param ekval is the binary, base64 or ascii-hex encoded ECHConfigs
+ * @param num_echs says how many SSL_ECH structures are in the returned array
+ * @return is 1 for success, error otherwise
  *
  * ekval may be the catenation of multiple encoded ECHConfigs.
  * We internally try decode and handle those and (later)
  * use whichever is relevant/best. The fmt parameter can be
  * e.g. ECH_FMT_ASCII_HEX, or ECH_FMT_GUESS
- *
- * @param con is the SSL connection
- * @param eklen is the length of the ekval
- * @param ekval is the binary, base64 or ascii-hex encoded ECHConfigs
- * @param num_echs says how many SSL_ECH structures are in the returned array
- * @return is 1 for success, error otherwise
  */
 int SSL_ech_add(
-        SSL *con,
+        SSL *s,
         int ekfmt,
         size_t eklen,
         char *ekval,
@@ -1408,17 +1383,16 @@ int SSL_ech_add(
 
 /**
  * @brief Decode/store ECHConfigs (binary, base64 or ascii-hex encoded)
- *
- * ekval may be the catenation of multiple encoded ECHConfigs.
- * We internally try decode and handle those and (later)
- * use whichever is relevant/best. The fmt parameter can be
- * e.g. ECH_FMT_ASCII_HEX, or ECH_FMT_GUESS
- *
  * @param ctx is the parent SSL_CTX
  * @param eklen is the length of the ekval
  * @param ekval is the binary, base64 or ascii-hex encoded ECHConfigs
  * @param num_echs says how many SSL_ECH structures are in the returned array
  * @return is 1 for success, error otherwise
+ *
+ * ekval may be the catenation of multiple encoded ECHConfigs.
+ * We internally try decode and handle those and (later)
+ * use whichever is relevant/best. The fmt parameter can be
+ * e.g. ECH_FMT_ASCII_HEX, or ECH_FMT_GUESS
  */
 int SSL_CTX_ech_add(
         SSL_CTX *ctx,
@@ -1429,9 +1403,6 @@ int SSL_CTX_ech_add(
 {
     SSL_ECH *echs=NULL;
     int rv=1;
-    /*
-     * Sanity checks on inputs
-     */
     if (!ctx) {
         return(0);
     }
@@ -1446,6 +1417,10 @@ int SSL_CTX_ech_add(
 
 /**
  * @brief Try turn on ECH for an (upcoming) TLS session on a client
+ * @param s is the SSL context
+ * @param inner_name is NULL or the hidden service name
+ * @param outer_name is NULL or the the cleartext SNI to use
+ * @return 1 for success, error otherwise
  *
  * If outer_name is provided via this API as NULL, then
  * we'll use the ECHConfig.public_name.
@@ -1458,12 +1433,6 @@ int SSL_CTX_ech_add(
  * the inner SNI (if things work).
  * If the inner_name is NULL, then no SNI will be sent
  * in the inner CH.
- *
- * @param s is the SSL context
- * @param inner_name is NULL or the hidden service name
- * @param outer_name is NULL or the the cleartext SNI to use
- * @return 1 for success, error otherwise
- *
  */
 int SSL_ech_server_name(SSL *ssl, const char *inner_name, const char *outer_name)
 {
@@ -1489,7 +1458,6 @@ int SSL_ech_server_name(SSL *ssl, const char *inner_name, const char *outer_name
             s->ech[nind].outer_name=ECH_PUBLIC_NAME_OVERRIDE_NULL;
         else s->ech[nind].outer_name=NULL;
     }
-
     s->ext.ech_attempted=1;
     s->ext.ech_attempted_type=TLSEXT_TYPE_ech_unknown;
     s->ext.ech_attempted_cid=TLSEXT_TYPE_ech_config_id_unset;
@@ -1536,7 +1504,6 @@ int SSL_ech_set_outer_server_name(SSL *ssl, const char *outer_name)
         }
    
     }
-
     s->ext.ech_attempted=1;
     s->ext.ech_attempted_type=TLSEXT_TYPE_ech_unknown;
     s->ext.ech_attempted_cid=TLSEXT_TYPE_ech_config_id_unset;
@@ -1545,6 +1512,9 @@ int SSL_ech_set_outer_server_name(SSL *ssl, const char *outer_name)
 
 /**
  * @brief Set the outer SNI
+ * @param s is the SSL_CTX
+ * @param outer_name is the (to be) hidden service name
+ * @return 1 for success, error otherwise
  *
  * If outer_name is provided via this API as NULL, then
  * we'll use the ECHConfig.public_name.
@@ -1552,19 +1522,13 @@ int SSL_ech_set_outer_server_name(SSL *ssl, const char *outer_name)
  * no outer SNI will be sent.
  * If outer_name is not NULL then that value will override
  * the ECHConfig.public_name.
- *
- * @param s is the SSL_CTX
- * @param outer_name is the (to be) hidden service name
- * @return 1 for success, error otherwise
  */
 int SSL_CTX_ech_set_outer_server_name(SSL_CTX *s, const char *outer_name)
 {
     int nind=0;
     if (s==NULL) return(0);
     if (s->ext.ech==NULL) return(0);
-
     for (nind=0;nind!=s->ext.nechs;nind++) {
-
         if (s->ext.ech[nind].outer_name!=NULL &&
                 s->ext.ech[nind].outer_name!=ECH_PUBLIC_NAME_OVERRIDE_NULL)
             OPENSSL_free(s->ext.ech[nind].outer_name);
@@ -1574,9 +1538,7 @@ int SSL_CTX_ech_set_outer_server_name(SSL_CTX *s, const char *outer_name)
         else if (outer_name==ECH_PUBLIC_NAME_OVERRIDE_NULL)
             s->ext.ech[nind].outer_name=ECH_PUBLIC_NAME_OVERRIDE_NULL;
         else s->ext.ech[nind].outer_name=NULL;
-
     }
-
     return 1;
 }
 
