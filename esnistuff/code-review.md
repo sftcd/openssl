@@ -118,6 +118,17 @@ think (ECH+early-data handling)..
 - No change.
 
 ### ``./ssl/ech.c``
+
+- Fixed bug in ``local_svcb_add()`` when binary form input
+provided (thanks to code review for Java stuff Hans-Christoph
+is doing.)
+
+- Fixed use of a "wrong" constant (``HPKE_MAXSIZE->ECH_MAX_RRVALUE_LEN``)
+
+- Many more comment tweaks/clarifications.
+
+GOT TO ``alpn_print``
+
 ### ``./ssl/ssl_txt.c``
 
 Removed the ECH code. When doing ESNI there was a
@@ -143,9 +154,11 @@ not really needed for ECH. (For now.)
 ### ``./apps/progs.c``
 ### ``./apps/ech.c``
 
-- Fixed bug in ``local_svcb_add()`` when binary form input
-provided (thanks to code review for Java stuff Hans-Christoph
-is doing.)
+- Change maxima to allow large extenions from command line
+even though those won't work for real ECH use. Might revisit
+but it doesn't make much sense to allow HUGE ECHConfig sizes
+from DNS. (It does a little bit for testing how the command
+line tool handles extensions.)
 
 ### ``./apps/s_client.c``
 ### ``./apps/s_server.c``
