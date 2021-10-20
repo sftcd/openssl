@@ -91,10 +91,32 @@ library (i.e. into ``ssl/ech_local.h``) Same thing for
 Generated from ssl.h.in so no change here.
 
 ### ``./ssl/tls13_enc.c``
+
+- Just tweaked comments for now. There is scope to reduec hte
+lines of code some maybe for early-data handling. That doesn't
+seem worthwhile though as it'd be a small gain likely at the
+expense of a lot less clarity in what's an already-complex 
+think (ECH+early-data handling)..
+
 ### ``./ssl/t1_trce.c``
+
+- No change.
+
 ### ``./ssl/record/ssl3_record_tls13.c``
+
+- No change.
+
 ### ``./ssl/ech_local.h``
+
+- turned off ``ECH_SUPERVERBOSE`` for now - it adds many more
+  lines of tracing to help with interop.
+
+- changed many comments and fixed some line lengths.
+
 ### ``./ssl/s3_enc.c``
+
+- No change.
+
 ### ``./ssl/ech.c``
 ### ``./ssl/ssl_txt.c``
 

@@ -604,9 +604,7 @@ int tls13_change_cipher_state(SSL *s, int which)
     }
 
 #ifndef OPENSSL_NO_ECH
-    /*
-     * If doing early data and ECH then we're a special case. 
-     */
+    /* If doing early data and ECH then we're a special case.  */
     if ( !s->server &&
          s->ext.ech_attempted==1 &&
          which & SSL3_CC_CLIENT && 
@@ -620,10 +618,7 @@ int tls13_change_cipher_state(SSL *s, int which)
         const SSL_CIPHER *sslcipher = NULL;
         SSL *inner=s->ext.inner_s;
 
-        /* 
-         * Basically, we want to produce early data based on the inner 
-         * and not outer CH
-         */
+        /* we need to produce early data based on the inner and not outer CH */
         if (inner==NULL) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_R_BAD_HANDSHAKE_LENGTH);
             goto err;
