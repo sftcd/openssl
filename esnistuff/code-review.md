@@ -125,9 +125,13 @@ is doing.)
 
 - Fixed use of a "wrong" constant (``HPKE_MAXSIZE->ECH_MAX_RRVALUE_LEN``)
 
+- Changed output of ``SSL_ech_print`` some
+
+- ``ech_decode_inner`` needs a bit of work to remove literal offsets
+
 - Many more comment tweaks/clarifications.
 
-GOT TO ``alpn_print``
+GOT TO ``ech_early_decrypt``
 
 ### ``./ssl/ssl_txt.c``
 
