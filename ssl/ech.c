@@ -2786,6 +2786,10 @@ err:
  * to make all checks here (e.g. we can assume that the
  * protocol version, NULL compression etc are correct here -
  * if not, those'll be caught later).
+ * Note: there are a lot of literal values here, but it's
+ * not clear that changing those to #define'd symbols will
+ * help much - a change to the length of a type or from a
+ * 2 octet length to longer would seem unlikely.
  */
 static int ech_decode_inner(
         SSL *ssl, 
@@ -2852,7 +2856,7 @@ static int ech_decode_inner(
      * that was there already
      */
     initial_decomp_len=s->ext.encoded_innerch_len;
-    initial_decomp_len+=s->tmp_session_id_len+1-1;
+    initial_decomp_len+=s->tmp_session_id_len;
     initial_decomp=OPENSSL_malloc(initial_decomp_len);
     if (!initial_decomp) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_MALLOC_FAILURE);
@@ -2862,7 +2866,7 @@ static int ech_decode_inner(
      * Jump over the ciphersuites and (MUST be NULL) compression to
      * the start of extensions
      */
-    offset2sessid=2+SSL3_RANDOM_SIZE;
+    offset2sessid=CLIENT_VERSION_LEN+SSL3_RANDOM_SIZE;
     if (s->ext.encoded_innerch_len<(offset2sessid+2)) {
 #ifndef OPENSSL_NO_SSL_TRACE
         OSSL_TRACE_BEGIN(TLS) {
@@ -2873,7 +2877,7 @@ static int ech_decode_inner(
         goto err;
     }
     suiteslen=s->ext.encoded_innerch[offset2sessid+1]*256+
-              s->ext.encoded_innerch[offset2sessid+1+1];
+              s->ext.encoded_innerch[offset2sessid+2];
     startofexts=offset2sessid+1+
                 s->tmp_session_id_len +  /* skipping session id */
                 2+suiteslen +            /* skipping suites */
@@ -3303,7 +3307,7 @@ static int ech_get_sh_offsets(
     *echoffset=0;
     *echtype=TLSEXT_TYPE_ech_unknown;
     sessid_offset=
-        2+ /* version */
+        CLIENT_VERSION_LEN + /* version */
         32+ /* random */
         1; /* sess_id_len */
     if (sh_len<=sessid_offset) return(0);
@@ -4612,7 +4616,7 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
         aad_len=pkt->written-4;
 
         /* fix up the overall extensions length in the aad */
-        suitesoffset=2+SSL3_RANDOM_SIZE+1+s->tmp_session_id_len;
+        suitesoffset=CLIENT_VERSION_LEN+SSL3_RANDOM_SIZE+1+s->tmp_session_id_len;
         suiteslen=aad[suitesoffset]*256+aad[suitesoffset+1];
         startofexts=suitesoffset+suiteslen+2+2; /* the 2 for the suites len */
         origextlens=aad[startofexts]*256+aad[startofexts+1];
@@ -4794,7 +4798,7 @@ int ech_get_ch_offsets(
      */
     /* make sure we're at least tlsv1.2 */
     if (ch_len<2 || ch[0]!=0x03 || ch[1]!=0x03) return(1);
-    *sessid=2+SSL3_RANDOM_SIZE; /* point to length of sessid */
+    *sessid=CLIENT_VERSION_LEN+SSL3_RANDOM_SIZE; /* point to length of sessid */
     genoffset=*sessid;
     if (ch_len<=genoffset) return 0;
     sessid_len=ch[genoffset];
@@ -5537,7 +5541,7 @@ err:
     return(0);
 }
 
-/*
+/**
  * @brief API to set a preferred HPKE suite to use when GREASEing
  *
  * @param ssl is the SSL session
@@ -5555,9 +5559,8 @@ int SSL_ech_set_grease_suite(SSL *ssl, const char* suite)
     return 1;
 }
 
-/*
+/**
  * @brief API to set a preferred ECH ext type to use when GREASEing
- *
  * @param s is the SSL session
  * @param type is the relevant type
  * @return 1 for success, other otherwise
@@ -5575,9 +5578,8 @@ int SSL_ech_set_grease_type(SSL *s, uint16_t type)
 }
 
 
-/*!
+/**
  * @brief API to load all the key files found in a directory
- *
  * @param ctx is an SSL_CTX
  * @param echdir is the directory name
  * @oaram number_loaded returns the number of key pairs successfully loaded
@@ -5664,11 +5666,8 @@ int SSL_CTX_ech_readpemdir(SSL_CTX *ctx, const char *echdir, int *number_loaded)
     return 1;
 }
 
-/*
+/**
  * @brief provide a way to do raw ECH decryption for split-mode frontends
- *
- * Note that the outer_ch's length is inside the TLV data
- *
  * @param ctx is an SSL_CTX
  * @param outer_ch is the entire client hello (possibly incl. ECH)
  * @param outer_len is the length of the above (on input the buffer size)
@@ -5678,6 +5677,8 @@ int SSL_CTX_ech_readpemdir(SSL_CTX *ctx, const char *echdir, int *number_loaded)
  * @param outer_sni is the outer SNI (if present)
  * @param decrypted_ok is 0 on return if decryption failed, 1 if it worked
  * @return 1 for success (incl. failed decrypt) or 0 on error
+ *
+ * Note that the outer_ch's length is inside the TLV data
  */
 int SSL_CTX_ech_raw_decrypt(SSL_CTX *ctx,
                             unsigned char *outer_ch, size_t outer_len,
@@ -5797,7 +5798,6 @@ err:
 
 /**
  * @brief set the ALPN values for the outer ClientHello
- *
  * @param s is the SSL_CTX
  * @param protos encodes the ALPN values
  * @param protos_len is the length of protos
@@ -5841,15 +5841,15 @@ int SSL_ech_set_outer_alpn_protos(SSL *ssl, const unsigned char *protos,
 
 /**
  * @brief provide access to a returned ECH value
+ * @param ssl is the SSL session
+ * @param eclen is a pointer to the length of the ECHConfig (zero if none)
+ * @param ec is a pointer to the ECHConfig
+ * @return 1 for success, other othewise
  *
  * If we GREASEd, or tried and failed, and got an ECH in return
  * the application can access the ECHConfig returned via this
  * API.
  *
- * @param ssl is the SSL session
- * @param eclen is a pointer to the length of the ECHConfig (zero if none)
- * @param ec is a pointer to the ECHConfig
- * @return 1 for success, other othewise
  */
 int SSL_ech_get_returned(SSL *ssl, size_t *eclen, const unsigned char **ec)
 {
