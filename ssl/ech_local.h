@@ -24,6 +24,15 @@
 
 #undef ECH_SUPERVERBOSE  /**< define to get bazillions more lines of tracing */
 
+#ifndef CLIENT_VERSION_LEN
+/*
+ * This is the legacy version length, i.e. len(0x0303). The same
+ * label is used in e.g. test/sslapitest.c and elsewhere but not
+ * defined in a header file I could find.
+ */
+#define CLIENT_VERSION_LEN 2
+#endif
+
 #define ECH_CIPHER_LEN 4 /**< length of an ECHCipher (2 for kdf, 2 for aead) */
 
 /* values for s->ext.ech_grease */
