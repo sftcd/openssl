@@ -127,11 +127,9 @@ is doing.)
 
 - Changed output of ``SSL_ech_print`` some
 
-- ``ech_decode_inner`` needs a bit of work to remove literal offsets
+- Removed a few (but not all) literal offsets/values from``ech_decode_inner`` 
 
 - Many more comment tweaks/clarifications.
-
-GOT TO ``ech_early_decrypt``
 
 ### ``./ssl/ssl_txt.c``
 
