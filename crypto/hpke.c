@@ -1381,8 +1381,6 @@ static int hpke_enc_int(
     BIO *bfp=NULL;
     size_t halflen=0;
     size_t pskidlen=0;
-    size_t lcipherlen=HPKE_MAXSIZE;
-    unsigned char lcipher[HPKE_MAXSIZE];
 
     if ((crv=hpke_mode_check(mode))!=1) return(crv);
     if ((crv=hpke_psk_check(mode,pskid,psklen,psk))!=1) return(crv);
@@ -1650,18 +1648,13 @@ static int hpke_enc_int(
                 nonce,noncelen,
                 aad,aadlen,
                 clear,clearlen,
-                lcipher,&lcipherlen);
+                cipher,cipherlen);
     if (arv!=1) {
         erv=arv; goto err;
-    }
-    if (lcipherlen > *cipherlen) {
-        erv=__LINE__; goto err;
     }
     /*
      * finish up
      */
-    memcpy(cipher,lcipher,lcipherlen);
-    *cipherlen=lcipherlen;
     if (!evpcaller && !rawcaller) {
         if (enclen>*senderpublen) {
             erv=__LINE__; goto err;
@@ -1976,8 +1969,6 @@ int hpke_dec(
     BIO *bfp=NULL;
     size_t halflen=0;
     size_t pskidlen=0;
-    size_t lclearlen=HPKE_MAXSIZE;
-    unsigned char lclear[HPKE_MAXSIZE];
 
     if ((crv=hpke_mode_check(mode))!=1) return(crv);
     if ((crv=hpke_psk_check(mode,pskid,psklen,psk))!=1) return(crv);
@@ -2160,18 +2151,10 @@ int hpke_dec(
                 nonce,noncelen,
                 aad,aadlen,
                 cipher,cipherlen,
-                lclear,&lclearlen);
+                clear,clearlen);
     if (arv!=1) {
         erv=arv; goto err;
     }
-    if (lclearlen > *clearlen) {
-        erv=__LINE__; goto err;
-    }
-    /*
-     * finish up
-     */
-    memcpy(clear,lclear,lclearlen);
-    *clearlen=lclearlen;
 
 err:
 
