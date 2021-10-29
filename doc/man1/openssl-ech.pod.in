@@ -23,14 +23,13 @@ B<openssl> B<s_client>
 
 =head1 DESCRIPTION
 
-ECH stuff. Moar TBD.
+The L<openssl-ech(1)> command generates Encrypted Client Hello (ECH) private keys 
+and public keys in the ECHConfig format. They can be converted between
+various forms and their components printed out. B<Note> OpenSSL uses the
+private key format specified in 'SEC 1: Elliptic Curve Cryptography'
+(http://www.secg.org/). 
 
 =head1 OPTIONS
-
-In addition to the options below, this command also supports the
-common and client only options documented
-in the "Supported Command Line Commands" section of the L<SSL_CONF_cmd(3)>
-manual page.
 
 =over 4
 
@@ -44,44 +43,46 @@ Print more verbosely.
 
 =item B<-pemout>
 
-TBD
+Specify the name of the output PEM file.
 
 =item B<-pemin>
 
-TBD
+Specify the name of the input PEM file.
 
 =item B<-pubout>
 
-TBD
+Specify the name of the output raw public key file.
 
 =item B<-privout>
 
-TBD
+Specify the name of the output PEM private key file.
 
 =item B<-public_name>
 
-TBD
+Specify the DNS name to use in the public_name field of the ECHConfig.
 
 =item B<-mlen>
 
-TBD
+Specify the maximum name length field value to use in the ECHConfig.
 
 =item B<-suite>
 
-TBD
+Specify the HPKE cipher details to use in the ECHConfig.
 
 =item B<-ech_version>
 
-TBD
+Specify the ECH version to use in the ECHConfig.
 
 =item B<-extfile>
 
-TBD
+Specify a file name that should contain an encoded set of ECH extensions
+for use in the ECHConfig.
 
 =item B<-select>
 
-TBD
-
+When a PEM input file contains multiple ECHConfig values in it's ECHConfigList
+then this allows selecting one of those for printing (the source demonstrates
+the <SSL_ech_reduce(3)> API).
 
 =back
 
@@ -97,30 +98,21 @@ For example the default is: x25518, hkdf-sha256, aes128gcm
 
 =head1 BUGS
 
-Because this program has a lot of options and also because some of the
-techniques used are rather old, the C source for this command is rather
-hard to read and not a model of how things should be done.
-A typical SSL client program would be much simpler.
+Those'll happen.
 
 =head1 SEE ALSO
 
 L<openssl(1)>,
-L<openssl-sess_id(1)>,
+L<openssl-s_client(1)>,
 L<openssl-s_server(1)>,
-L<openssl-ciphers(1)>,
-L<SSL_CONF_cmd(3)>,
-L<SSL_CTX_set_max_send_fragment(3)>,
-L<SSL_CTX_set_split_send_fragment(3)>,
-L<SSL_CTX_set_max_pipelines(3)>,
-L<ossl_store-file(7)>
 
 =head1 HISTORY
 
-TBD
+Initially developed as part of the DEfO project (https://defo.ie/)
 
 =head1 COPYRIGHT
 
-Copyright 2000-2021 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2021 The OpenSSL Project Authors. All Rights Reserved.
 
 Licensed under the Apache License 2.0 (the "License").  You may not use
 this file except in compliance with the License.  You can obtain a copy
