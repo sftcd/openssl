@@ -24,13 +24,22 @@
 /*
  * Default for HPKE_MAXSIZE is in hpke.h (40KB) but can be overridden so
  * let's do that, since we don't need such large buffers. (HPKE uses
- * a bunch of such stack buffers.)
+ * a bunch of such stack buffers for keys and .)
  * If this were 0x300 (768) it'd not be big enough for larger curves
  * when doing session resumption. If some server's tickets are
  * much bigger then we might need to revisit using stack buffers
  * for this.
  */
 #define HPKE_MAXSIZE 1280
+
+/*
+ * The minimum lengths to which to pad the Certificate, CertificateVerify and
+ * EncryptedExtensions handshake messages from a server if the ECH specific
+ * padding option is enabled.
+ */
+#define ECH_CERTSPECIFIC_MIN 1808
+#define ECH_CERTVERSPECIFIC_MIN 480
+#define ECH_ENCEXTSPECIFIC_MIN 32
 
 /*
  * Various externally visible length limits
