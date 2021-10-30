@@ -22,9 +22,9 @@
 # include <openssl/ssl.h>
 
 /*
- * Default for HPKE_MAXSIZE is in hpke.h (40KB) but can be overridden so
+ * Default for HPKE_MAXSIZE is in hpke.h (2KB) but can be overridden so
  * let's do that, since we don't need such large buffers. (HPKE uses
- * a bunch of such stack buffers for keys and .)
+ * a bunch of such stack buffers for keys and intermediate results.)
  * If this were 0x300 (768) it'd not be big enough for larger curves
  * when doing session resumption. If some server's tickets are
  * much bigger then we might need to revisit using stack buffers
