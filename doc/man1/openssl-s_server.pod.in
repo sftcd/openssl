@@ -156,6 +156,8 @@ B<openssl> B<s_server>
 [B<-enable_client_rpk>]
 [B<-echdir>]
 [B<-echkey>]
+[B<-echdir> I<dirname>]
+[B<-echkey> I<filename>]
 [B<-echspecificpad>]
 [B<-echtrialdecrypt>]
 
@@ -901,21 +903,32 @@ Clients that don't support raw public keys or prefer to use X.509
 certificates can still elect to send X.509 certificates as usual.
 
 Raw public keys are extracted from the configured certificate/private key.
-=item B<-echdir>
 
-TBD
+=item B<-echdir> I<dir>
 
-=item B<-echkey>
+Load all new/modified Encrypted Client Hello (ECH) PEM files from the relevant directory.
+A file is considered modified if it's modification time is one second or more younger
+than the time a file of that same name was loaded.
 
-TBD
+=item B<-echkey> I<filename>
+
+Load one Encrypted Client Hello (ECH) key pair.
 
 =item B<-echspecificpad>
 
-TBD
+Turn on padding that is specific to Encrypted Client Hello (ECH).
+That padding will apply to the Certificate, CertificateVerify and
+EncryptedExtensions handshake messages emitted by the server and
+will ensure those are at least a minimum length, (currently 1808, 
+480 and 32 octet minima respectively). The value will also be
+padded to a multiple of 16 octets long if longer than the minimum.
 
 =item B<-echtrialdecrypt>
 
-TBD
+When an Encrypted Client Hello (ECH) extension is seen in a ClientHello, 
+attempt to decrypt with all known ECH private keys if necessary. Without
+this, the ECH "config_id" is used to match against the loaded ECH private
+keys and decryption is only attempted when there's a match.
 
 =back
 

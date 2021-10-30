@@ -80,6 +80,9 @@ this case.
 library (i.e. into ``ssl/ech_local.h``) Same thing for
 ``TLSEXT_TYPE_ech_config_id_unset``
 
+- Moved ECH specific padding minima from ``apps/s_server.c`` 
+  to #define'd symbols here.
+
 - updated many comments
 
 ### ``./include/openssl/tls1.h``
@@ -164,6 +167,8 @@ line tool handles extensions.)
 
 ### ``./apps/s_client.c``
 ### ``./apps/s_server.c``
+
+- Moved ECH specific padding minima to #define'd symbols in ech.h 
 
 ## Pass-2
 

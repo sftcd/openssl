@@ -112,16 +112,15 @@ static ech_padding_sizes *ech_ps=NULL;
 
 /**
  * @ brief pad Certificate and CertificateVerify messages
+ * @param s is the SSL connection
+ * @param len is the plaintext length before padding
+ * @param arg is a pointer to an esni_padding_sizes struct
+ * @return is the number of bytes of padding to add to the plaintext
  *
  * This is passed to SSL_CTX_set_record_padding_callback
  * and pads the Certificate, CertificateVerify and
  * EncryptedExtensions handshake messages to a size derived
  * from the argument arg
- *
- * @param s is the SSL connection
- * @param len is the plaintext length before padding
- * @param arg is a pointer to an esni_padding_sizes struct
- * @return is the number of bytes of padding to add to the plaintext
  */
 static size_t ech_padding_cb(SSL *s, int type, size_t len, void *arg)
 {
@@ -2515,9 +2514,9 @@ int s_server_main(int argc, char *argv[])
      */
     if (echspecificpad) {
         ech_ps=OPENSSL_malloc(sizeof(ech_padding_sizes));
-        ech_ps->certpad=1800;
-        ech_ps->certverifypad=500;
-        ech_ps->eepad=32;
+        ech_ps->certpad=ECH_CERTSPECIFIC_MIN;
+        ech_ps->certverifypad=ECH_CERTVERSPECIFIC_MIN ;
+        ech_ps->eepad=ECH_ENCEXTSPECIFIC_MIN ;
         SSL_CTX_set_record_padding_callback_arg(ctx,(void*)ech_ps);
         SSL_CTX_set_record_padding_callback(ctx,ech_padding_cb);
     }
