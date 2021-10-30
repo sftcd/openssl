@@ -18,10 +18,14 @@
 
 #include <openssl/ssl.h>
 
-/* biggest/default buffer we use */
+/** default plaintext/ciphertext buffer size e.g. if processing stdin */
+#ifndef HPKE_DEFSIZE
+#define HPKE_DEFSIZE (40*1024)
+#endif
+
+/** biggest/default buffer for keys and internal buffers we use */
 #ifndef HPKE_MAXSIZE
-/* 40k is enough for anyone (using this program:-) */
-#define HPKE_MAXSIZE (40*1024)
+#define HPKE_MAXSIZE 2*1024 /* 2k is enough for anyone (using this program:-) */
 #endif
 
 /*
