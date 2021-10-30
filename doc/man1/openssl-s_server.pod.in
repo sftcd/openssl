@@ -145,8 +145,8 @@ B<openssl> B<s_server>
 {- $OpenSSL::safe::opt_trust_synopsis -}
 {- $OpenSSL::safe::opt_r_synopsis -}
 {- $OpenSSL::safe::opt_engine_synopsis -}{- $OpenSSL::safe::opt_provider_synopsis -}
-[B<-echdir>]
-[B<-echkey>]
+[B<-echdir> I<dirname>]
+[B<-echkey> I<filename>]
 [B<-echspecificpad>]
 [B<-echtrialdecrypt>]
 
@@ -829,21 +829,31 @@ If the server requests a client certificate, then
 verification errors are displayed, for debugging, but the command will
 proceed unless the B<-verify_return_error> option is used.
 
-=item B<-echdir>
+=item B<-echdir> I<dir>
 
-TBD
+Load all new/modified Encrypted Client Hello (ECH) PEM files from the relevant directory.
+A file is considered modified if it's modification time is one second or more younger
+than the time a file of that same name was loaded.
 
-=item B<-echkey>
+=item B<-echkey> I<filename>
 
-TBD
+Load one Encrypted Client Hello (ECH) key pair.
 
 =item B<-echspecificpad>
 
-TBD
+Turn on padding that is specific to Encrypted Client Hello (ECH).
+That padding will apply to the Certificate, CertificateVerify and
+EncryptedExtensions handshake messages emitted by the server and
+will ensure those are at least a minimum length, (currently 1808, 
+480 and 32 octet minima respectively). The value will also be
+padded to a multiple of 16 octets long if longer than the minimum.
 
 =item B<-echtrialdecrypt>
 
-TBD
+When an Encrypted Client Hello (ECH) extension is seen in a ClientHello, 
+attempt to decrypt with all known ECH private keys if necessary. Without
+this, the ECH "config_id" is used to match against the loaded ECH private
+keys and decryption is only attempted when there's a match.
 
 
 =back
