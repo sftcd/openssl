@@ -2292,7 +2292,7 @@ EXT_RETURN tls_construct_stoc_ech(SSL_CONNECTION *s, WPACKET *pkt,
 }
 
 /**
- * @brief answer an ECH, as needed
+ * @brief answer a draft-13 ECH, as needed
  * @param s is the SSL session
  * @param pkt is the packet
  * @param context is unused
@@ -2304,8 +2304,12 @@ EXT_RETURN tls_construct_stoc_ech13(SSL *s, WPACKET *pkt,
                                           unsigned int context, X509 *x,
                                           size_t chainidx)
 {
-
-    /* If doing HRR we include the confirmation value */
+    /* 
+     * If doing HRR we include the confirmation value, but
+     * for now, we'll just add the zeros - the real octets
+     * will be added later via ech_calc_ech_confirm() which
+     * is called when constructing the server hello
+     */
     if (context==SSL_EXT_TLS1_3_HELLO_RETRY_REQUEST &&
         (s->ext.ech_success==1 || s->ext.ech_backend) && 
         s->ext.ech_attempted_type==TLSEXT_TYPE_ech13) {
@@ -2333,13 +2337,13 @@ EXT_RETURN tls_construct_stoc_ech13(SSL *s, WPACKET *pkt,
     
     /*
      * If the client GREASEd, or we think it did, we
-     * return the first-loaded ECHConfig, as the value
+     * return the first-loaded ECHConfigList, as the value
      * of the extension.
      */
     if (s->ech==NULL || s->ech->cfg==NULL) {
         OSSL_TRACE_BEGIN(TLS) {
             BIO_printf(trc_out,
-                "ECH - not sending ECHConfigs back to client even though " \
+                "ECH - not sending ECHConfigList back to client even though " \
                 "they GREASE'd as I've no loaded configs\n");
         } OSSL_TRACE_END(TLS);
         return EXT_RETURN_NOT_SENT;
@@ -2347,7 +2351,7 @@ EXT_RETURN tls_construct_stoc_ech13(SSL *s, WPACKET *pkt,
     if (s->ech->cfg->encoded==NULL || s->ech->cfg->encoded_len==0) {
         OSSL_TRACE_BEGIN(TLS) {
             BIO_printf(trc_out,
-                "ECH - not sending ECHConfigs back to client even though " \
+                "ECH - not sending ECHConfigList back to client even though " \
                 "they GREASE'd as I've a busted config loaded\n");
         } OSSL_TRACE_END(TLS);
         return EXT_RETURN_NOT_SENT;
