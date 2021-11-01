@@ -96,18 +96,17 @@ static size_t ech_trace_cb(const char *buf, size_t cnt,
                  int category, int cmd, void *vdata);
 #endif
 
-/**
- * ECH padding size info, var of this type is passed via callback
- */
+/* ECH padding size info, var of this type is passed via callback */
 typedef struct {
-    size_t certpad; /**< Certificate messages to be a multiple of this size */
-    size_t certverifypad; /**< CertificateVerify messages to be a multiple of this size */
-    size_t eepad; /**< EncryptedExtensions are padded to be a multiple of this size */
+    /* Certificate messages to be a multiple of this size */
+    size_t certpad; 
+    /* CertificateVerify messages to be a multiple of this size */
+    size_t certverifypad; 
+    /* EncryptedExtensions are padded to be a multiple of this size */
+    size_t eepad; 
 } ech_padding_sizes;
 
-/**
- * passed as an argument to callback
- */
+/* passed as an argument to callback */
 static ech_padding_sizes *ech_ps=NULL;
 
 /**
@@ -143,7 +142,6 @@ static size_t ech_padding_cb(SSL *s, int type, size_t len, void *arg)
     }
     return 0;
 }
-
 #endif
 
 static const int bufsize = 16 * 1024;
@@ -493,10 +491,7 @@ typedef struct tlsextctx_st {
     BIO *biodebug;
     int extension_error;
 #ifndef OPENSSL_NO_ECH
-    /*
-     * Not an ECH thing really, but for ECH we really need
-     * a 2nd cert for testing
-     */
+    /* Not an ECH thing really, but ECH really needs a 2nd cert for testing */
     X509* scert;
 #endif
 } tlsextctx;
@@ -563,12 +558,15 @@ static size_t ech_trace_cb(const char *buf, size_t cnt,
 
 /**
  * @brief a servername_cb that is ECH aware
+ * @param s is the SSL connection
+ * @param ad is dunno
+ * @param arg is a pointer to a tlsext
+ * @return 1 or error
  *
- * The server has possibly 2 names (from command line and ECHConfig) basically
- * in ctx and ctx2. (Some other server could have N names, in different
- * ECHConfigs, but s_server only handles 2.)
- * So we need to check if any client-supplied SNI in the inner/outer matches
- * either and serve whichever is appropriate.
+ * The server has possibly 2 TLS server names basically in ctx and ctx2. 
+ * (Other servers can have N names, in different configs, but s_server only 
+ * handles 2.) So we need to check if any client-supplied SNI in the 
+ * inner/outer matches either and serve whichever is appropriate.
  * X509_check_host is the way to do that, given an X509* pointer.
  *
  * We default to the "main" ctx if the client-supplied SNI does not
@@ -581,11 +579,6 @@ static size_t ech_trace_cb(const char *buf, size_t cnt,
  *
  * Note that since we attempt ECH decryption whenever configured to
  * do that, the only way to get the "outer" SNI is via SSL_ech_get_status.
- *
- * @param s is the SSL connection
- * @param ad is dunno
- * @param arg is a pointer to a tlsext
- * @return 1 or error
  */
 static int ssl_ech_servername_cb(SSL *s, int *ad, void *arg)
 {
@@ -603,7 +596,6 @@ static int ssl_ech_servername_cb(SSL *s, int *ad, void *arg)
     char *inner_sni=NULL;
     char *outer_sni=NULL;
     int echrv=0;
-
 
 /* apparently 26 is all we need */
 #define ECH_TIME_STR_LEN 32
@@ -645,9 +637,7 @@ static int ssl_ech_servername_cb(SSL *s, int *ad, void *arg)
     servername = SSL_get_servername(s, TLSEXT_NAMETYPE_host_name);
     echrv=SSL_ech_get_status(s,&inner_sni,&outer_sni);
     if (p->biodebug != NULL ) {
-        /*
-         * spit out that basic logging
-         */
+        /* spit out basic logging */
         BIO_printf(p->biodebug,
             "ssl_ech_servername_cb: connection from %s at %s\n",clientip,lstr);
         /* Client supplied SNI from inner and outer */
@@ -717,11 +707,7 @@ static int ssl_ech_servername_cb(SSL *s, int *ad, void *arg)
         return SSL_TLSEXT_ERR_NOACK;
     if (p->scert == NULL )
         return SSL_TLSEXT_ERR_NOACK;
-    /*
-     * This is a bit limiting but fine for testing via s_server:
-     * We only switch to the 2nd context if ECH worked
-     */
-    if (echrv==SSL_ECH_STATUS_SUCCESS && servername != NULL) {
+    if (servername != NULL) {
         if (ctx2 != NULL) {
             int mrv;
             X509_VERIFY_PARAM *vpm = NULL;
@@ -748,11 +734,10 @@ static int ssl_ech_servername_cb(SSL *s, int *ad, void *arg)
             }
         }
     }
+
     return SSL_TLSEXT_ERR_OK;
 }
-
 /* Below is the "original" ssl_servername_cb, before ECH */
-
 #else
 
 static int ssl_servername_cb(SSL *s, int *ad, void *arg)

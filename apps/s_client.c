@@ -914,9 +914,7 @@ static int new_session_cb(SSL *s, SSL_SESSION *sess)
                     ERR_print_errors(bio_err);
                 }
                 break;
-            /*
-             * Error cases so we don't save session
-             */
+            /* Error cases so we don't save session */
             case SSL_ECH_STATUS_BACKEND:
                 if (c_debug) {
                     BIO_printf(bio_err, "ECH failed\n");
@@ -2357,9 +2355,7 @@ int s_client_main(int argc, char **argv)
         }
         if (!SSL_set_session(con, sess)) {
 #ifndef OPENSSL_NO_ECH
-            /*
-             * Nothing to do with ECH, but a missing free here
-             */
+            /* Nothing to do with ECH, but a missing free here */
             SSL_SESSION_free(sess);
 #endif
             BIO_printf(bio_err, "Can't set session\n");
@@ -2369,10 +2365,7 @@ int s_client_main(int argc, char **argv)
 
 #ifndef OPENSSL_NO_ECH
         {
-	        /*
-	         * Check that the cert in the session covers
-	         * the server name we want
-	         */
+	        /* print the names in the session and from command line */
 	        const char *thisname=NULL;
 	        if (ech_inner_name!=NULL) {
 	            thisname=ech_inner_name;
@@ -2429,10 +2422,9 @@ int s_client_main(int argc, char **argv)
             BIO_printf(bio_err, "%s: ECHConfig decode failed.\n", prog);
             goto opthelp;
         }
-        if (nechs ==0 ) {
-            BIO_printf(bio_err, "%s: ECHConfig decode provided no keys.\n",
-                    prog);
-            goto opthelp;
+        if (nechs==0) {
+            /* We'll note that we didn't get ECH keys but continue */
+            BIO_printf(bio_err, "%s: ECHConfig decode provided no keys.\n", prog);
         }
     }
 
@@ -2444,13 +2436,17 @@ int s_client_main(int argc, char **argv)
             BIO_printf(bio_err, "%s: SVCB decode failed.\n", prog);
             goto opthelp;
         }
-        if (lnechs ==0 ) {
-            /*
-             * We'll note that we didn't get ECH keys but continue
-             */
+        if (lnechs==0) {
+            /* We'll note that we didn't get ECH keys but continue */
             BIO_printf(bio_err, "%s: SVCB decode provided no keys.\n", prog);
         }
         nechs+=lnechs;
+    }
+
+    if (( ech_encoded_configs!=NULL || ech_svcb_rr != NULL) && nechs==0) {
+        /* neither avenue got us keys, so that's an error now */
+        BIO_printf(bio_err, "%s: no ECH decode provided no keys.\n", prog);
+        goto opthelp;
     }
 
     if (( ech_encoded_configs!=NULL || ech_svcb_rr != NULL) &&
