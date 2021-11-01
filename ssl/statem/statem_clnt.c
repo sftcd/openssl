@@ -1166,7 +1166,7 @@ WORK_STATE ossl_statem_client_post_process_message(SSL_CONNECTION *s,
 }
 
 #ifndef OPENSSL_NO_ECH
-/*
+/**
  * Wrap the existing ClientHello construction with ECH code.
  *
  * As needed, we'll call the existing CH constructor twice,
@@ -1189,8 +1189,11 @@ WORK_STATE ossl_statem_client_post_process_message(SSL_CONNECTION *s,
  * only used on servers), again to maximise code re-use.
  *
  * We next re-encode inner but this time including the
- * optimisations for inner CH encoding (outer exts etc.)
+ * optimisations for inner CH "compression" (outer exts etc.)
  * to produce our plaintext for encrypting.
+ *
+ * We then process the outer CH in more or less the
+ * usual manner.
  *
  * We lastly form up the AAD etc and encrypt to give us
  * the ciphertext for inclusion in the value of the outer
@@ -1206,13 +1209,6 @@ static int tls_construct_client_hello_aux(SSL_CONNECTION *s, WPACKET *pkt);
 
 CON_FUNC_RETURN tls_construct_client_hello(SSL_CONNECTION *s, WPACKET *pkt)
 {
-
-    /*
-     * If doing ECH, we'll create a "fake" packet for the inner CH
-     * call the existing code with that, then "finish" that
-     * fake packet, stash it and call the existing code a 2nd time
-     * for the outer CH
-     */
     unsigned char *innerch_full=NULL;
     WPACKET inner; /* "fake" pkt for inner */
     BUF_MEM *inner_mem=NULL;
@@ -1243,14 +1239,9 @@ CON_FUNC_RETURN tls_construct_client_hello(SSL_CONNECTION *s, WPACKET *pkt)
         s->ext.ech_attempted=1;
     }
 
-    /*
-     * A sanity check - make sure the application didn't try GREASE
-     * as well - I had a bug where that happened.
-     */
-    if (s->ext.ech_grease==ECH_IS_GREASE &&
-        s->ext.ech_attempted==1) {
+    /* If doing real ECH and application requested GREASE too, over-ride that */
+    if (s->ext.ech_grease==ECH_IS_GREASE && s->ext.ech_attempted==1) {
         s->ext.ech_grease=ECH_NOT_GREASE;
-        /* override the GREASE option as we're really trying ECH */
         OSSL_TRACE_BEGIN(TLS) {
             BIO_printf(trc_out, "ECH Over-ride GREASE for real ECH\n");
         } OSSL_TRACE_END(TLS);
@@ -1327,8 +1318,8 @@ CON_FUNC_RETURN tls_construct_client_hello(SSL_CONNECTION *s, WPACKET *pkt)
         /* we already saw an HRR with a good accept for inner */
         new_s=s->ext.inner_s;
         new_s->hello_retry_request=s->hello_retry_request;
-        s->ext.n_outer_only=0; /* reset count of "comressed" exts */
-        new_s->ext.n_outer_only=0; /* reset count of "comressed" exts */
+        s->ext.n_outer_only=0; /* reset count of "compressed" exts */
+        new_s->ext.n_outer_only=0; /* reset count of "compressed" exts */
         if (s->ext.encoded_innerch) {
             OPENSSL_free(s->ext.encoded_innerch);
             s->ext.encoded_innerch=NULL;
@@ -1363,7 +1354,7 @@ CON_FUNC_RETURN tls_construct_client_hello(SSL_CONNECTION *s, WPACKET *pkt)
         }
     }
 
-    /* The inner CH will use the same session ID as the outer */
+    /* The inner CH uses the same session ID as the outer */
     new_s->session->session_id_length=s->session->session_id_length;
     if (new_s->session!=s->session)
         memcpy(new_s->session->session_id,
@@ -1429,17 +1420,13 @@ CON_FUNC_RETURN tls_construct_client_hello(SSL_CONNECTION *s, WPACKET *pkt)
     BUF_MEM_free(inner_mem);
     inner_mem=NULL;
 
-    /*
-     * If tracing, trace out the inner, client random & session id
-     */
+    /* If tracing, trace out the inner, client random & session id */
     ech_pbuf("inner CH",new_s->ext.innerch,new_s->ext.innerch_len);
     ech_pbuf("inner, client_random",new_s->s3.client_random,SSL3_RANDOM_SIZE);
     ech_pbuf("inner, session_id",
             new_s->session->session_id,new_s->session->session_id_length);
 
-    /*
-     * Decode inner so that we can make up encoded inner
-     */
+    /* Decode inner so that we can make up encoded inner */
     if (!PACKET_buf_init(&rpkt,
                 (unsigned char*) new_s->ext.innerch+4,
                 new_s->ext.innerch_len-4)) {
@@ -1459,14 +1446,7 @@ CON_FUNC_RETURN tls_construct_client_hello(SSL_CONNECTION *s, WPACKET *pkt)
         goto err;
     }
 
-    /*
-     * Now we can make a ClientHelloInner and then
-     * EncodedClientHelloInner as per the spec.
-     * We have to do it this way so the PSK binders in the inner
-     * will work ok if the inner is forwarded to a split backend,
-     * pretty gruesome but I guess...
-     *
-     */
+    /* Make ClientHelloInner and EncodedClientHelloInner as per spec. */
     if (ech_encode_inner(&new_s->ssl)!=1) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         goto err;
@@ -1474,10 +1454,8 @@ CON_FUNC_RETURN tls_construct_client_hello(SSL_CONNECTION *s, WPACKET *pkt)
     ech_pbuf("encoded inner CH",
             new_s->ext.encoded_innerch,new_s->ext.encoded_innerch_len);
 
-    /*
-     * Make second call into CH constuction.
-     */
-    s->ext.ch_depth=0; /* unmark the outer after duping */
+    /* Make second call into CH constuction for outer CH. */
+    s->ext.ch_depth=0; 
     rv=tls_construct_client_hello_aux(s, pkt);
     if (rv!=1) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, protverr);
@@ -1490,6 +1468,7 @@ CON_FUNC_RETURN tls_construct_client_hello(SSL_CONNECTION *s, WPACKET *pkt)
     ech_pbuf("outer, session_id",s->session->session_id,
             s->session->session_id_length);
 
+    /* Finall, we're ready to caculate AAD and to encrypt using HPKE */ 
     if (ech_aad_and_encrypt(&s->ssl,pkt)!=1) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         goto err;
@@ -1619,7 +1598,7 @@ int tls_construct_client_hello(SSL_CONNECTION *s, WPACKET *pkt)
         if (s->version == TLS1_3_VERSION
 #ifndef OPENSSL_NO_ECH
                 /* same session ID is used for inner/outer when doing ECH */
-                &&  !s->ech
+                && !s->ech
 #endif
                 && (s->options & SSL_OP_ENABLE_MIDDLEBOX_COMPAT) != 0) {
             sess_id_len = sizeof(s->tmp_session_id);
@@ -1905,26 +1884,25 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL_CONNECTION *s, PACKET *pkt)
 
 #ifndef OPENSSL_NO_ECH
     /*
-     * What we'll do for ECH: if we sent an ECH then try
-     * the inner_s first to see if it matches/works (based on the
-     * ickky ServerHello.random confirmation trick from the spec).
-     * If that is good then good, we'll swap over the inner and
-     * outer contexts and proceed with inner. If confirmation fails
-     * then we'll start over with another call to this function
-     * with just the outer CH context and see what happens there.
-     * (And we'll note ECH is done and/or failed).
+     * If we sent an ECH then try the inner_s first to see if it 
+     * matches/works (based on the ickky ServerHello.random 
+     * confirmation trick from the spec).  If that is good then we'll 
+     * swap over the inner and outer contexts and proceed with inner. 
      *
-     * But - draft-10 requires knowing the shared secret before
-     * we know if ECH was accepted, so we can only tee that up
-     * for now and need to recurse if ECH failed. For draft-10
-     * we don't intend to put in effort to get HRR working but
-     * it shouldn't leak/crash of course so there's a bit of
-     * stuff to do.
+     * To check confirmation for draft-10 we need to derive the keys
+     * before we start over with another call to this function (at the 
+     * end of the body of the function) with just the outer CH context 
+     * and see what happens there, noting that ECH is done and failed.
+     * So the initial draft-10 block of code really just notes that
+     * we're in the process of checking ECH confirmation.
      *
-     * For draft-13 we can do the acceptance check right now. 
-     * But the check to do differs depending on whether or not 
-     * HRR happened.
+     * For draft-13 we can do the acceptance check up front without 
+     * recursing and without deriving the session keys.
+     *
+     * The check to do differs depending on whether or not HRR happened.
+     * We only support HRR for draft-13.
      */
+
     /* draft-10 code to setup later possible swap */
     if (s->ech!=NULL &&
             s->ext.ech_done!=1 &&
@@ -1935,8 +1913,7 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL_CONNECTION *s, PACKET *pkt)
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             goto err;
         }
-        if (hrr) {
-            /* We don't support HRR for draft-10 */
+        if (hrr) { /* We don't support HRR for draft-10 */
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             goto err;
         }
@@ -2025,43 +2002,53 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL_CONNECTION *s, PACKET *pkt)
                     EVP_MD_CTX *ctx = EVP_MD_CTX_new();
                     const EVP_MD *md=NULL;
 
-#ifndef OPENSSL_NO_SSL_TRACE
                     OSSL_TRACE_BEGIN(TLS) {
                         BIO_printf(trc_out,"Adding in digest of CH1/HRR\n");
                     } OSSL_TRACE_END(TLS);
                     ech_pbuf("innerch",s->ext.innerch1,s->ext.innerch1_len);
-#endif
+
                     md=ssl_handshake_md(s);
                     if (!md) {
                         /* fallback to one from the chosen ciphersuite */
                         const SSL_CIPHER *c=NULL;
                         const unsigned char *lcipherchars=NULL;
+                        size_t ciphercharoffset=
+                            CLIENT_VERSION_LEN + /* 2 */
+                            SSL3_RANDOM_SIZE + /* 32 */
+                            1 + /* len of session id */
+                            session_id_len; /* 32 */;
                         if (s->server) {
-                            lcipherchars=&shbuf[4+2+32+1+32];
-                        } else {
-                            lcipherchars=&shbuf[2+32+1+32];
+                            /* add the msg type + 3-octet length */
+                            ciphercharoffset += SSL3_HM_HEADER_LENGTH; /* 4 */
+                        } 
+                        if ((ciphercharoffset+TLS_CIPHER_LEN)>=shlen) {
+                            SSLfatal(s, SSL_AD_INTERNAL_ERROR, 
+                                            ERR_R_INTERNAL_ERROR);
+                            goto err;
                         }
+                        lcipherchars=&shbuf[ciphercharoffset];
                         c=ssl_get_cipher_by_char(s, lcipherchars, 0);
                         md=ssl_md(s->ctx, c->algorithm2);
                         if (md==NULL) {
                             /* ultimate fallback sha266 */
-                            md=s->ctx->ssl_digest_methods[SSL_HANDSHAKE_MAC_SHA256];
+                            md=s->ctx->ssl_digest_methods
+                                            [SSL_HANDSHAKE_MAC_SHA256];
                         }
                     }
                     if (EVP_DigestInit_ex(ctx, md, NULL) <= 0
                         || EVP_DigestUpdate(ctx, s->ext.innerch1, 
                             s->ext.innerch1_len) <= 0
                         || EVP_DigestFinal_ex(ctx, hashval, &hashlen) <= 0) {
-                        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-                        return 0;
+                            SSLfatal(s, SSL_AD_INTERNAL_ERROR, 
+                                    ERR_R_INTERNAL_ERROR);
+                            return 0;
                     }
-#ifndef OPENSSL_NO_SSL_TRACE
                     ech_pbuf("digested CH",hashval,hashlen);
-#endif
                     EVP_MD_CTX_free(ctx);
 
-                    alen=4+hashlen+4+s->ext.kepthrr_len+
-                        4+s->ext.innerch_len+shlen;
+                    alen= SSL3_HM_HEADER_LENGTH+hashlen+
+                          SSL3_HM_HEADER_LENGTH+s->ext.kepthrr_len+
+                          SSL3_HM_HEADER_LENGTH+s->ext.innerch_len+shlen;
                     abuf=OPENSSL_malloc(alen);
                     if (abuf==NULL) {
                         SSLfatal(s,SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
@@ -2083,7 +2070,7 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL_CONNECTION *s, PACKET *pkt)
                     memcpy(aptr,s->ext.kepthrr,s->ext.kepthrr_len); 
                     aptr+=s->ext.kepthrr_len;
                 } else {
-                    alen=s->ext.innerch_len+shlen+4;
+                    alen=s->ext.innerch_len+SSL3_HM_HEADER_LENGTH+shlen;
                     abuf=OPENSSL_malloc(alen);
                     if (abuf==NULL) {
                         SSLfatal(s,SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
@@ -2112,10 +2099,8 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL_CONNECTION *s, PACKET *pkt)
                 SSL_SESSION_free(s->ext.inner_s->session);
                 s->ext.inner_s->session=NULL;
             }
-
         }
     }
-
 #endif
 
     /* TLS extensions */
@@ -2387,8 +2372,8 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL_CONNECTION *s, PACKET *pkt)
 
 #ifndef OPENSSL_NO_ECH
     /*
-     * Figure out if ServerHello.ramdom indicated acceptance of inner
-     * using the accept confirmation scheme.
+     * draft-10 way to figure out if ServerHello.ramdom indicated 
+     * acceptance of inner using the accept confirmation scheme.
      */
     if (trying_draft10) {
 

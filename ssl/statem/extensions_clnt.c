@@ -65,12 +65,14 @@ EXT_RETURN tls_construct_ctos_renegotiate(SSL_CONNECTION *s, WPACKET *pkt,
 #ifndef OPENSSL_NO_ECH
 /**
  * @brief check which SNI to send when doing ECH
+ * @param s is the SSL context
+ * @return 1 for success
  *
  * An application can set inner and/or outer SNIs.
  * Or it might only set one and we may have a
  * public_name from an ECHConfig.
  * Or an application may say to not send an outer
- * SNI at all.
+ * or inner SNI at all.
  *
  * If the application states a preferece we'll
  * abide by that, despite the public_name from
@@ -149,7 +151,7 @@ static int ech_server_name_fixup(SSL *ssl)
     }
     return 1;
 }
-#endif /* END_OPENSSL_NO_ECH */
+#endif /* END OPENSSL_NO_ECH */
 
 EXT_RETURN tls_construct_ctos_server_name(SSL_CONNECTION *s, WPACKET *pkt,
                                           unsigned int context, X509 *x,
@@ -159,9 +161,7 @@ EXT_RETURN tls_construct_ctos_server_name(SSL_CONNECTION *s, WPACKET *pkt,
 #ifndef OPENSSL_NO_ECH
     if (s->ech != NULL) {
         int echrv=0;
-        /*
-         * Don't send outer SNI if external API says that
-         */
+        /* Don't send outer SNI if external API says that */
         if (s->ext.ch_depth==0 &&
                 s->ech->outer_name==ECH_PUBLIC_NAME_OVERRIDE_NULL) {
             return EXT_RETURN_NOT_SENT;
@@ -822,15 +822,11 @@ static int add_key_share(SSL_CONNECTION *s, WPACKET *pkt, unsigned int curve_id)
     EVP_PKEY *key_share_key = NULL;
     size_t encodedlen;
 
+    if (
 #ifndef OPENSSL_NO_ECH
-    /*
-     * With ECH we can get an outer that re-uses a share with
-     * it's inner, so a non-HRR case is no longer an error
-     */
-    if (s->ech==NULL && s->s3.tmp.pkey != NULL) {
-#else
-    if (s->s3.tmp.pkey != NULL) {
+        s->ech==NULL && /* with ECH a non-NULL, non-HRR tmp.pkey can be ok */
 #endif
+        s->s3.tmp.pkey != NULL) {
         if (!ossl_assert(s->hello_retry_request == SSL_HRR_PENDING)) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             return 0;
@@ -993,17 +989,12 @@ EXT_RETURN tls_construct_ctos_early_data(SSL_CONNECTION *s, WPACKET *pkt,
 
 #ifndef OPENSSL_NO_ECH
     /*
-     * TODO: handle this spec text:
-     *
+     * Spec text:
      *   When the client offers the "early_data" extension in
      *   ClientHelloInner, it MUST also include the "early_data" extension
      *   in ClientHelloOuter.  This allows servers that reject ECH and use
      *   ClientHelloOuter to safely ignore any early data sent by the
      *   client per [RFC8446], Section 4.2.10
-     *
-     *  That's a bit ambiguous - do we send the same early
-     *  date in both inner/outer or what? (That'd be ok, but
-     *  not sure.)
      */
     if (s->ext.ch_depth==0 &&
             s->ext.inner_s!=NULL &&
@@ -1449,16 +1440,18 @@ EXT_RETURN tls_construct_ctos_psk(SSL_CONNECTION *s, WPACKET *pkt,
                 || !WPACKET_get_total_written(pkt, &binderoffset)
                 || !WPACKET_start_sub_packet_u16(pkt)
                 || (dores
-                    && !WPACKET_sub_allocate_bytes_u8(pkt, reshashsize, &resbinder))
+                    && !WPACKET_sub_allocate_bytes_u8(pkt, reshashsize, 
+                        &resbinder))
                 || (s->psksession != NULL
-                    && !WPACKET_sub_allocate_bytes_u8(pkt, pskhashsize, &pskbinder))
+                    && !WPACKET_sub_allocate_bytes_u8(pkt, pskhashsize, 
+                        &pskbinder))
                 || !WPACKET_close(pkt)
                 || !WPACKET_close(pkt)
                 || !WPACKET_get_total_written(pkt, &msglen)
                 /*
-                    * We need to fill in all the sub-packet lengths now so we can
-                    * calculate the HMAC of the message up to the binders
-                */
+                 * We need to fill in all the sub-packet lengths now so we can
+                 * calculate the HMAC of the message up to the binders
+                 */
                 || !WPACKET_fill_lengths(pkt)) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             if (rndbuf!=NULL) OPENSSL_free(rndbuf);
@@ -2508,7 +2501,7 @@ int tls_parse_stoc_server_cert_type(SSL_CONNECTION *sc, PACKET *pkt,
 #ifndef OPENSSL_NO_ECH
 
 /**
- * @brief Create the ECH extension for the ClientHello
+ * @brief Create the draft-10 ECH extension for the ClientHello
  */
 EXT_RETURN tls_construct_ctos_ech(SSL_CONNECTION *s, WPACKET *pkt, unsigned int context,
                                    X509 *x, size_t chainidx)
@@ -2549,11 +2542,13 @@ EXT_RETURN tls_construct_ctos_ech13(SSL *s, WPACKET *pkt, unsigned int context,
 
     /* don't send grease if really attempting ECH */
     if (s->ext.ech_attempted==0) {
-        if (s->ext.ech_grease==ECH_IS_GREASE || (s->options & SSL_OP_ECH_GREASE)) {
+        if (s->ext.ech_grease==ECH_IS_GREASE || 
+                 (s->options & SSL_OP_ECH_GREASE)) {
             if (s->hello_retry_request==SSL_HRR_PENDING &&
                     s->ext.ech_sent!=NULL) {
                 /* re-tx already sent GREASEy ECH*/
-                if (WPACKET_memcpy(pkt,s->ext.ech_sent,s->ext.ech_sent_len)!=1) {
+                if (WPACKET_memcpy(pkt,s->ext.ech_sent,
+                            s->ext.ech_sent_len)!=1) {
                     SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
                     return EXT_RETURN_FAIL;
                 }
@@ -2572,9 +2567,7 @@ EXT_RETURN tls_construct_ctos_ech13(SSL *s, WPACKET *pkt, unsigned int context,
      * encryption.
      */
     if (s->ext.ch_depth==0) return EXT_RETURN_NOT_SENT;
-    /*
-     * For the inner value - we simply include one of these saying "inner"
-     */
+    /* For the inner CH - we simply include one of these saying "inner" */
     if (s->ext.ch_depth==1) {
         if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_ech13)
             || !WPACKET_start_sub_packet_u16(pkt)
@@ -2591,8 +2584,10 @@ EXT_RETURN tls_construct_ctos_ech13(SSL *s, WPACKET *pkt, unsigned int context,
 }
 
 /**
- * @brief if the server thinks we GREASE'd then we should get an ECHConfig 
- * or HRR confirmation back
+ * @brief if the server thinks we GREASE'd then we may get an ECHConfigList
+ * 
+ * A similar thing can happen with an HRR confirmation, but we don't
+ * really process that here.
  */
 int tls_parse_stoc_ech(SSL_CONNECTION *s, PACKET *pkt, unsigned int context,
                                X509 *x, size_t chainidx)
@@ -2630,12 +2625,13 @@ int tls_parse_stoc_ech(SSL_CONNECTION *s, PACKET *pkt, unsigned int context,
 }
 
 /**
- * @brief Add ech_is_inner but only to inner CH
+ * @brief Add ech_is_inner but only to inner CH for draft-10
  */
 EXT_RETURN tls_construct_ctos_ech_is_inner(SSL_CONNECTION *s, WPACKET *pkt, unsigned int context,
                                    X509 *x, size_t chainidx)
 {
-    if (s->ext.ech_grease==ECH_IS_GREASE || (s->options & SSL_OP_ECH_GREASE) ) {
+    if (s->ext.ech_grease==ECH_IS_GREASE || 
+            (s->options & SSL_OP_ECH_GREASE) ) {
         return EXT_RETURN_NOT_SENT;
     }
     if (!s->ech) {

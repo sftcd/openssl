@@ -2149,18 +2149,17 @@ int tls_parse_ctos_server_cert_type(SSL_CONNECTION *sc, PACKET *pkt,
 #ifndef OPENSSL_NO_ECH
 /**
  * @brief ECH handling for edge cases (GREASE) and errors.
- *
- * The real ECH handling (i.e. decryption) happens before
- * but if that failed (e.g. decryption failed) then we will
- * end up here, processing the outer CH so we need to have
- * this coded up.
- *
  * @param s is the SSL session
  * @param pkt is the packet
  * @param context is unused
  * @param x is unused
  * @param chainidx is unused
  * @return 1 for good, 0 otherwise
+ *
+ * Real ECH handling (i.e. decryption) happens before, via
+ * ech_early_decrypt(), but if that failed (e.g. decryption 
+ * failed) then we end up here, processing the ECH from the 
+ * outer CH.
  */
 int tls_parse_ctos_ech(SSL_CONNECTION *s, PACKET *pkt, unsigned int context,
                                X509 *x, size_t chainidx)
@@ -2212,7 +2211,7 @@ int tls_parse_ctos_ech(SSL_CONNECTION *s, PACKET *pkt, unsigned int context,
 }
 
 /**
- * @brief answer an ECH, as needed
+ * @brief answer a draft-10 ECH, as needed
  * @param s is the SSL session
  * @param pkt is the packet
  * @param context is unused
@@ -2224,7 +2223,6 @@ EXT_RETURN tls_construct_stoc_ech(SSL_CONNECTION *s, WPACKET *pkt,
                                           unsigned int context, X509 *x,
                                           size_t chainidx)
 {
-
     /* We don't do HRR for draft-10 */
     if (context==SSL_EXT_TLS1_3_HELLO_RETRY_REQUEST) {
         return EXT_RETURN_NOT_SENT;
@@ -2291,7 +2289,7 @@ EXT_RETURN tls_construct_stoc_ech(SSL_CONNECTION *s, WPACKET *pkt,
 }
 
 /**
- * @brief answer an ECH, as needed
+ * @brief answer a draft-13 ECH, as needed
  * @param s is the SSL session
  * @param pkt is the packet
  * @param context is unused
@@ -2303,8 +2301,12 @@ EXT_RETURN tls_construct_stoc_ech13(SSL *s, WPACKET *pkt,
                                           unsigned int context, X509 *x,
                                           size_t chainidx)
 {
-
-    /* If doing HRR we include the confirmation value */
+    /* 
+     * If doing HRR we include the confirmation value, but
+     * for now, we'll just add the zeros - the real octets
+     * will be added later via ech_calc_ech_confirm() which
+     * is called when constructing the server hello
+     */
     if (context==SSL_EXT_TLS1_3_HELLO_RETRY_REQUEST &&
         (s->ext.ech_success==1 || s->ext.ech_backend) && 
         s->ext.ech_attempted_type==TLSEXT_TYPE_ech13) {
@@ -2332,13 +2334,13 @@ EXT_RETURN tls_construct_stoc_ech13(SSL *s, WPACKET *pkt,
     
     /*
      * If the client GREASEd, or we think it did, we
-     * return the first-loaded ECHConfig, as the value
+     * return the first-loaded ECHConfigList, as the value
      * of the extension.
      */
     if (s->ech==NULL || s->ech->cfg==NULL) {
         OSSL_TRACE_BEGIN(TLS) {
             BIO_printf(trc_out,
-                "ECH - not sending ECHConfigs back to client even though " \
+                "ECH - not sending ECHConfigList back to client even though " \
                 "they GREASE'd as I've no loaded configs\n");
         } OSSL_TRACE_END(TLS);
         return EXT_RETURN_NOT_SENT;
@@ -2346,7 +2348,7 @@ EXT_RETURN tls_construct_stoc_ech13(SSL *s, WPACKET *pkt,
     if (s->ech->cfg->encoded==NULL || s->ech->cfg->encoded_len==0) {
         OSSL_TRACE_BEGIN(TLS) {
             BIO_printf(trc_out,
-                "ECH - not sending ECHConfigs back to client even though " \
+                "ECH - not sending ECHConfigList back to client even though " \
                 "they GREASE'd as I've a busted config loaded\n");
         } OSSL_TRACE_END(TLS);
         return EXT_RETURN_NOT_SENT;
@@ -2360,7 +2362,7 @@ EXT_RETURN tls_construct_stoc_ech13(SSL *s, WPACKET *pkt,
             return 0;
         }
         OSSL_TRACE_BEGIN(TLS) {
-          BIO_printf(trc_out,"sending 1st loaded ECHConfig (draft-13) back " \
+          BIO_printf(trc_out,"sending 1st loaded ECHConfigList (draft-13) " \
                              "to client\n");
         } OSSL_TRACE_END(TLS);
         return EXT_RETURN_SENT;
@@ -2370,13 +2372,14 @@ EXT_RETURN tls_construct_stoc_ech13(SSL *s, WPACKET *pkt,
 
 /**
  * @brief handle the ext a backend should see
- *
  * @param s is the SSL session
  * @param pkt is the packet
  * @param context is unused
  * @param x is unused
  * @param chainidx is unused
  * @return 1 for good, 0 otherwise
+ *
+ * This is draft-10 only.
  */
 int tls_parse_ctos_ech_is_inner(SSL_CONNECTION *s, PACKET *pkt, unsigned int context,
                                X509 *x, size_t chainidx)
