@@ -142,7 +142,16 @@ of those (the code that was removed) but that is
 not really needed for ECH. (For now.)
 
 ### ``./ssl/statem/statem_local.h``
+
+No change needed.
+
 ### ``./ssl/statem/extensions.c``
+
+- noted one #ifdef'd clause is draft-10 specific and not needed
+  for draft-13
+
+- GOT HERE
+
 ### ``./ssl/statem/extensions_srvr.c``
 ### ``./ssl/statem/extensions_clnt.c``
 ### ``./ssl/statem/statem_clnt.c``
