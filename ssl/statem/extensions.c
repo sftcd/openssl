@@ -1099,7 +1099,7 @@ static int init_server_name(SSL_CONNECTION *s, unsigned int context)
 }
 
 #ifndef OPENSSL_NO_ECH
-/*
+/**
  * @brief map from ext type to index in ext_defs table
  * @param type is the input type
  * @return the index or -1 for error
