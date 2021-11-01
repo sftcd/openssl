@@ -37,6 +37,8 @@ skipbad="no"
 skipsess="no"
 # the HRR checks
 skiphrr="no"
+# the early-data checks
+skiped="no"
 
 verbose="no"
 if [[ "$VERBOSE" != "" ]]
@@ -477,6 +479,7 @@ do
     fi
     # Try an 'aul initial client...
     # wait a bit
+
     if [ -f $sessfile ]
     then
         echo "Removing old $sessfile"
@@ -542,6 +545,7 @@ do
         # exiting without cleanup
         exit 20
     fi
+
 done
 fi
 
@@ -609,6 +613,96 @@ do
         # exiting without cleanup
         exit 20
     fi
+done
+fi
+
+# Do some early-data checks
+if [[ "$skiped" == "no" ]]
+then
+for file in *.pem 
+do
+    kem=${file:0:4}
+    kdf=${file:5:4}
+    aead=${file:10:4}
+    sessfile="$kem,$kdf,$aead.sess"
+    if [ -f $sessfile ]
+    then
+        echo "Removing old $sessfile"
+        rm $sessfile
+    fi
+    echo "s_client/s_server early-data test for kem: $kem, kdf: $kdf, aead; $aead"
+    # start server
+    if [[ "$verbose" == "yes" ]]
+    then
+        CFGTOP=$scratchdir $CODETOP/esnistuff/echsvr.sh -e -k $scratchdir/$file $vparm &
+    else
+        CFGTOP=$scratchdir $CODETOP/esnistuff/echsvr.sh -e -k $scratchdir/$file $vparm >/dev/null 2>&1 &
+    fi
+    # wait a bit
+    sleep $sleepb4
+    pids=`ps -ef | grep s_server | grep -v grep | awk '{print $2}'`
+    if [[ "$pids" == "" ]]
+    then
+        echo "No sign of s_server - exiting (before client)"
+        # exiting without cleanup
+        exit 19
+    fi
+    # Try client...
+    # first go 'round, acquire the session
+    if [[ "$verbose" == "yes" ]]
+    then
+        $CODETOP/esnistuff/echcli.sh -P `$CODETOP/esnistuff/pem2rr.sh -p $file` -s localhost -p 8443 -H foo.example.com $vparm -f index.html -S $sessfile
+    else
+        $CODETOP/esnistuff/echcli.sh -P `$CODETOP/esnistuff/pem2rr.sh -p $file` -s localhost -p 8443 -H foo.example.com $vparm -f index.html -S $sessfile >/dev/null 2>&1
+    fi
+    cret=$?
+    if [ ! -f $sessfile ]
+    then
+        echo "No sign of $sessfile - exiting"
+        exit 87
+    fi
+    if [[ "$cret" != "0" ]]
+    then
+        echo "Client failed acquiring session for $file - exiting"
+        exit 21
+    fi
+    # second go 'round, re-use the session
+    if [[ "$verbose" == "yes" ]]
+    then
+        $CODETOP/esnistuff/echcli.sh -P `$CODETOP/esnistuff/pem2rr.sh -p $file` -s localhost -p 8443 -H foo.example.com $vparm -f index.html -S $sessfile -e
+    else
+        $CODETOP/esnistuff/echcli.sh -P `$CODETOP/esnistuff/pem2rr.sh -p $file` -s localhost -p 8443 -H foo.example.com $vparm -f index.html -S $sessfile -e >/dev/null 2>&1
+    fi
+    cret=$?
+    if [[ "$cret" != "0" ]]
+    then
+        echo "Client failed sending early-data for $file - exiting"
+        exit 21
+    fi
+    # kill server
+    pids=`ps -ef | grep s_server | grep -v grep | awk '{print $2}'`
+    if [[ "$pids" == "" ]]
+    then
+        echo "No sign of s_server - exiting (after client)"
+        # exiting without cleanup
+        exit 19
+    fi
+    kill $pids
+    portpid=`netstat -anp 2>/dev/null | grep 8443 | grep openssl | awk '{print $7}' | sed -e 's#/.*##' 2>/dev/null`
+    if [[ "$portpid" != "" ]]
+    then
+        kill $portpid
+    fi
+    # sleep a bit
+    sleep $sleepaftr
+    pids=`ps -ef | grep s_server | grep -v grep | awk '{print $2}'`
+    if [[ "$pids" != "" ]]
+    then
+        echo "hmm... $pids still running - exiting"
+        # exiting without cleanup
+        exit 20
+    fi
+
 done
 fi
 
