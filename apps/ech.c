@@ -1,5 +1,5 @@
 /*
- * Copyright 1995-2020 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2021 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -28,10 +28,11 @@
 
 /* a max suitestr len just for sanity checking */
 #define ECH_MAXSUITESTR 32
+
 /* a max extensions len - this is HUGE to allow cat pics */
 #define ECH_MAXEXTLEN 60000
 
-/**< max PEM encoded ECHConfigs we'll emit */
+/* max PEM encoded ECHConfigs we'll emit */
 #define ECH_MAX_ECHCONFIGS_LEN ECH_MAXEXTLEN+1000
 
 /*
@@ -48,8 +49,6 @@
 
 #define ECH_KEYGEN_MODE    0 /* default is to generate a key pair/ECHConfig */
 #define ECH_SELPRINT_MODE  1 /* or we can print/down-select ECHConfigs */
-
-#define ECH_SELECT_ALL -1   /* to select all ECHConfigs when doing sel/print */
 
 typedef enum OPTION_choice {
     /* standard openssl options */
@@ -168,8 +167,7 @@ static int suitestr2suite(char *instr, hpke_suite_t *hpke_suite)
 }
 
 /**
- * @brief Make an X25519 key pair and ECHConfig structure
- *
+ * @brief Make an ECH key pair and ECHConfigList structure
  * @param ekversion is the version to make
  * @param public_name is for inclusion within the ECHConfig
  * @return 1 for success, error otherwise
@@ -579,18 +577,14 @@ opthelp:
         extlen=0;
     }
 
-    /*
-     * Set default if needed
-     */
+    /* Set default if needed */
     if (pemfile==NULL) {
         pemfile="echconfig.pem";
     }
 
     if (mode==ECH_KEYGEN_MODE) {
 
-        /*
-         * Generate a new ECHConfig and spit that out
-         */
+        /* Generate a new key/ECHConfigList and spit that out */
         rv=mk_echconfig(ech_version, max_name_length, public_name, hpke_suite,
                 extlen, extvals, &echconfig_len, echconfig,
                 &privlen, priv);
@@ -633,7 +627,6 @@ opthelp:
                     "Didn't write ECHConfig anywhere! That's a bit silly\n");
         }
         return(1);
-
     }
 
     if (mode==ECH_SELPRINT_MODE) {
@@ -647,14 +640,10 @@ opthelp:
 
         con = SSL_CTX_new_ex(app_get0_libctx(), app_get0_propq(), meth);
         if (!con) goto end;
-        /*
-         * Input could be key pair
-         */
+        /* Input could be key pair */
         rv=SSL_CTX_ech_server_enable(con,inpemfile);
         if (rv!=1) {
-            /*
-             * Or it could be just an encoded ECHConfig
-             */
+            /* Or it could be just an encoded ECHConfigList */
             pem_in = BIO_new(BIO_s_file());
             if (pem_in==NULL) {
                 goto err;
@@ -685,9 +674,7 @@ opthelp:
             s=SSL_new(con);
             if (!s) goto err;
 
-            /*
-             * Now decode that ECHConfigs
-             */
+            /* Now decode that ECHConfigList */
             rv=SSL_ech_add(s,ECH_FMT_GUESS,plen,(char*)pdata,&nechs);
             if (rv!=1) {
                 BIO_printf(bio_err,"Failed loading ECHConfig/Key from: %s\n",
@@ -741,4 +728,3 @@ end:
 }
 
 #endif
-

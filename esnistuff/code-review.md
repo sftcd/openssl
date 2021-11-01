@@ -182,15 +182,36 @@ No change needed.
 
 ### ``./ssl/ssl_lib.c``
 
-GOT HERE
+- Minor comment tweaks.
 
 ### ``./esnistuff/haproxy.html``
+
+N/A
+
 ### ``./esnistuff/haproxy.md``
+
+N/A
+
 ### ``./esnistuff/README.md``
+
+N/A
+
 ### ``./esnistuff/code-review.md``
+
+N/A
+
 ### ``./test/buildtest_ech.c``
+
+N/A
+
 ### ``./apps/lib/s_cb.c``
+
+No change needed.
+
 ### ``./apps/progs.c``
+
+No change needed.
+
 ### ``./apps/ech.c``
 
 - Change maxima to allow large extenions from command line
@@ -199,10 +220,20 @@ but it doesn't make much sense to allow HUGE ECHConfig sizes
 from DNS. (It does a little bit for testing how the command
 line tool handles extensions.)
 
+- Other comments improved.
+
 ### ``./apps/s_client.c``
+
+- Better handling of cases where one or both of ``-echconfig`` or 
+  ``-svcb`` produce no keys
+
 ### ``./apps/s_server.c``
 
 - Moved ECH specific padding minima to #define'd symbols in ech.h 
+
+- Made ``ech_servername_cb`` less picky about ECH working before
+swapping context (seems better if one considers ``s_server`` as
+a utility rather than just a way for me to test ECH).
 
 ## Pass-2
 
