@@ -433,7 +433,7 @@ static const EXTENSION_DEFINITION ext_defs[] = {
         tls_construct_stoc_ech13, tls_construct_ctos_ech13,
         final_ech
     },
-    {
+    { /* this is for draft-13 and draft-10 */
         TLSEXT_TYPE_outer_extensions,
         SSL_EXT_CLIENT_HELLO | SSL_EXT_TLS1_3_ONLY,
         NULL,
@@ -441,7 +441,7 @@ static const EXTENSION_DEFINITION ext_defs[] = {
         NULL, NULL,
         NULL
     },
-    {
+    { /* this is for draft-10 */
         TLSEXT_TYPE_ech_is_inner,
         SSL_EXT_CLIENT_HELLO | SSL_EXT_TLS1_3_ONLY,
         NULL,
@@ -735,10 +735,11 @@ int tls_collect_extensions(SSL_CONNECTION *s, PACKET *packet,
 #endif
 #ifndef OPENSSL_NO_ECH
                 /*
-                 * ECH is a bit special here - because of the outer
-                 * compression stuff, we don't directly set the
+                 * draft-10 ECH is a bit special here - because of the 
+                 * outer compression stuff, we don't directly set the
                  * SSL_EXT_FLAG_SENT (except when GREASEing) so we
                  * make a special check to see if we attempted ECH
+                 * This can be removed for draft-13
                  */
                 && (type==TLSEXT_TYPE_ech && !s->ext.ech_attempted)
 #endif
