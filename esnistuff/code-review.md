@@ -167,12 +167,23 @@ No change needed.
 
 - Improved many comment lines
 
+### ``./ssl/statem/statem_lib.c``
+
+- Trivial comment tweak.
+
+### ``./ssl/statem/statem_srvr.c``
+
+- Replaced a bunch of literals with correct #defines
+  in SH construction
+
+### ``./ssl/ssl_local.h``
+
+- Minor comment tweaks.
+
+### ``./ssl/ssl_lib.c``
+
 GOT HERE
 
-### ``./ssl/statem/statem_lib.c``
-### ``./ssl/statem/statem_srvr.c``
-### ``./ssl/ssl_local.h``
-### ``./ssl/ssl_lib.c``
 ### ``./esnistuff/haproxy.html``
 ### ``./esnistuff/haproxy.md``
 ### ``./esnistuff/README.md``
