@@ -150,11 +150,25 @@ No change needed.
 - noted one #ifdef'd clause is draft-10 specific and not needed
   for draft-13
 
-- GOT HERE
-
 ### ``./ssl/statem/extensions_srvr.c``
+
+- Minor tweaks to comments for clarity.
+
 ### ``./ssl/statem/extensions_clnt.c``
+
+- Minor #ifdef tweak to avoid an #else 
+
+- Various other comment changes for clarity
+
 ### ``./ssl/statem/statem_clnt.c``
+
+- Replaced a bunch of literals with correct #defines
+  in SH processing
+
+- Improved many comment lines
+
+GOT HERE
+
 ### ``./ssl/statem/statem_lib.c``
 ### ``./ssl/statem/statem_srvr.c``
 ### ``./ssl/ssl_local.h``
