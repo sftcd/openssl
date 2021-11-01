@@ -1405,24 +1405,24 @@ MSG_PROCESS_RETURN tls_process_client_hello(SSL *s, PACKET *pkt)
                 OPENSSL_free(s->ext.innerch);
                 s->ext.innerch=NULL;
             }
-#ifndef OPENSSL_NO_SSL_TRACE
             OSSL_TRACE_BEGIN(TLS) {
                 BIO_printf(trc_out,"Got inner ECH so setting backend\n");
             } OSSL_TRACE_END(TLS);
-#endif
             /* For backend, include msg type & 3 octet length here. */
             s->ext.ech_backend=1;
             /* we'll only support draft-13 for split mode */
             s->ext.ech_attempted_type=TLSEXT_TYPE_ech13;
             s->ext.innerch_len=pkt->remaining;
-            s->ext.innerch=OPENSSL_malloc(s->ext.innerch_len+4);
+            s->ext.innerch=OPENSSL_malloc(s->ext.innerch_len+
+                                            SSL3_HM_HEADER_LENGTH); /* 4 */
             if (!s->ext.innerch) goto err;
             s->ext.innerch[0]=SSL3_MT_CLIENT_HELLO;
             s->ext.innerch[1]=((s->ext.innerch_len>>16)&0xff);
             s->ext.innerch[2]=((s->ext.innerch_len>>8)&0xff);
             s->ext.innerch[3]=(s->ext.innerch_len&0xff);
-            memcpy(s->ext.innerch+4,pkt->curr,s->ext.innerch_len);
-            s->ext.innerch_len+=4;
+            memcpy(s->ext.innerch+SSL3_HM_HEADER_LENGTH, pkt->curr,
+                                s->ext.innerch_len);
+            s->ext.innerch_len+=SSL3_HM_HEADER_LENGTH;
         } else if (s->ech!=NULL) {
             PACKET newpkt;
             if (ech_early_decrypt(s,pkt,&newpkt)!=1) {
@@ -1959,11 +1959,10 @@ static int tls_early_post_process_client_hello(SSL *s)
 
 #ifndef OPENSSL_NO_ECH
     /*
-     * Unless ECH has worked or not been configured we  won't call
+     * Unless ECH has worked or not been configured we won't call
      * the session_secret_cb now because we'll need to calculate the
-     * server random later to include the ECH accept value
-     * (We can't do it now as we don't yet have the SH encoding)
-     * This may change in draft-12.
+     * server random later to include the ECH accept value.
+     * We can't do it now as we don't yet have the SH encoding.
      */
     if ((s->ech && s->ext.ech_success) || !s->ech)
 #endif
@@ -2497,12 +2496,10 @@ int tls_construct_server_hello(SSL *s, WPACKET *pkt)
          * then we want to inject the hash of the inner CH1 
          * and not the outer (which is the default)
          */
-#ifndef OPENSSL_NO_SSL_TRACE
         OSSL_TRACE_BEGIN(TLS) {
             BIO_printf(trc_out,"Checking success (%d)/innerCH (%p)\n",
                     s->ext.ech_success,(void*)s->ext.innerch);
         } OSSL_TRACE_END(TLS);
-#endif
         if ( (s->ext.ech_backend || s->ext.ech_success==1) && 
                 s->ext.innerch!=NULL) {
             /* do pre-existing HRR stuff */
@@ -2511,12 +2508,10 @@ int tls_construct_server_hello(SSL *s, WPACKET *pkt)
             EVP_MD_CTX *ctx = EVP_MD_CTX_new();
             const EVP_MD *md=NULL;
 
-#ifndef OPENSSL_NO_SSL_TRACE
             OSSL_TRACE_BEGIN(TLS) {
                 BIO_printf(trc_out,"Adding in digest of ClientHello\n");
             } OSSL_TRACE_END(TLS);
             ech_pbuf("innerch",s->ext.innerch,s->ext.innerch_len);
-#endif
             md=ssl_handshake_md(s);
             if (!md) {
                 SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
@@ -2529,9 +2524,7 @@ int tls_construct_server_hello(SSL *s, WPACKET *pkt)
                 SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
                 return 0;
             }
-#ifndef OPENSSL_NO_SSL_TRACE
             ech_pbuf("digested CH",hashval,hashlen);
-#endif
             EVP_MD_CTX_free(ctx);
             if (ech_reset_hs_buffer(s,NULL,0)!=1) {
                 SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
@@ -2578,10 +2571,11 @@ int tls_construct_server_hello(SSL *s, WPACKET *pkt)
             return 0;
         }
         memcpy(s->s3.server_random+SSL3_RANDOM_SIZE-8,acbuf,8);
-        /*
-         * Now HACK HACK at the packet to swap those bits (sigh)
-         */
-        shoffset=6+24;
+        /* swap those bits (sigh) in the packet */
+        shoffset= SSL3_HM_HEADER_LENGTH + /* 4 */
+                  CLIENT_VERSION_LEN + /* 2 */
+                  SSL3_RANDOM_SIZE - /* 32 */
+                  8;
         p=(unsigned char*) &pkt->buf->data[shoffset];
         memcpy(p,acbuf,8);
     } 
@@ -2604,9 +2598,7 @@ int tls_construct_server_hello(SSL *s, WPACKET *pkt)
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             return 0;
         }
-        /*
-         * Now HACK HACK at the packet to swap those bits (sigh)
-         */
+        /* swap those bits (sigh) in the packet */
         hrroffset=pkt->curr-8;
         p=(unsigned char*) &pkt->buf->data[hrroffset];
         memcpy(p,acbuf,8);
@@ -2624,17 +2616,14 @@ int tls_construct_server_hello(SSL *s, WPACKET *pkt)
         cbrv=s->ech_cb(s,pstr);
         BIO_free(biom);
         if (cbrv != 1) {
-#ifndef OPENSSL_NO_SSL_TRACE
             OSSL_TRACE_BEGIN(TLS) {
                 BIO_printf(trc_out,
                     "Error from ech_cb in tls_construct_server_hello at %d\n",
                     __LINE__);
             } OSSL_TRACE_END(TLS);
-#endif
             return 0;
         }
     }
-
 #endif
 
     return 1;
