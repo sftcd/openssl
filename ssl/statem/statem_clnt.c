@@ -1500,13 +1500,6 @@ static int tls_construct_client_hello_aux(SSL_CONNECTION *s, WPACKET *pkt)
 int tls_construct_client_hello(SSL_CONNECTION *s, WPACKET *pkt)
 #endif
 {
-
-    /*
-     * If doing ECH, we'll create a "fake" packet for the inner CH
-     * call the existing code with that, then "finish" that
-     * fake packet, stash it and call the existing code a 2nd time
-     * for the outer CH
-     */
     unsigned char *innerch_full=NULL;
     WPACKET inner; /* "fake" pkt for inner */
     BUF_MEM *inner_mem=NULL;
@@ -1537,14 +1530,9 @@ int tls_construct_client_hello(SSL_CONNECTION *s, WPACKET *pkt)
         s->ext.ech_attempted=1;
     }
 
-    /*
-     * A sanity check - make sure the application didn't try GREASE
-     * as well - I had a bug where that happened.
-     */
-    if (s->ext.ech_grease==ECH_IS_GREASE &&
-        s->ext.ech_attempted==1) {
+    /* If doing real ECH and application requested GREASE too, over-ride that */
+    if (s->ext.ech_grease==ECH_IS_GREASE && s->ext.ech_attempted==1) {
         s->ext.ech_grease=ECH_NOT_GREASE;
-        /* override the GREASE option as we're really trying ECH */
         OSSL_TRACE_BEGIN(TLS) {
             BIO_printf(trc_out, "ECH Over-ride GREASE for real ECH\n");
         } OSSL_TRACE_END(TLS);
@@ -1621,8 +1609,8 @@ int tls_construct_client_hello(SSL_CONNECTION *s, WPACKET *pkt)
         /* we already saw an HRR with a good accept for inner */
         new_s=s->ext.inner_s;
         new_s->hello_retry_request=s->hello_retry_request;
-        s->ext.n_outer_only=0; /* reset count of "comressed" exts */
-        new_s->ext.n_outer_only=0; /* reset count of "comressed" exts */
+        s->ext.n_outer_only=0; /* reset count of "compressed" exts */
+        new_s->ext.n_outer_only=0; /* reset count of "compressed" exts */
         if (s->ext.encoded_innerch) {
             OPENSSL_free(s->ext.encoded_innerch);
             s->ext.encoded_innerch=NULL;
@@ -1657,7 +1645,7 @@ int tls_construct_client_hello(SSL_CONNECTION *s, WPACKET *pkt)
         }
     }
 
-    /* The inner CH will use the same session ID as the outer */
+    /* The inner CH uses the same session ID as the outer */
     new_s->session->session_id_length=s->session->session_id_length;
     if (new_s->session!=s->session)
         memcpy(new_s->session->session_id,
@@ -1723,17 +1711,13 @@ int tls_construct_client_hello(SSL_CONNECTION *s, WPACKET *pkt)
     BUF_MEM_free(inner_mem);
     inner_mem=NULL;
 
-    /*
-     * If tracing, trace out the inner, client random & session id
-     */
+    /* If tracing, trace out the inner, client random & session id */
     ech_pbuf("inner CH",new_s->ext.innerch,new_s->ext.innerch_len);
     ech_pbuf("inner, client_random",new_s->s3.client_random,SSL3_RANDOM_SIZE);
     ech_pbuf("inner, session_id",
             new_s->session->session_id,new_s->session->session_id_length);
 
-    /*
-     * Decode inner so that we can make up encoded inner
-     */
+    /* Decode inner so that we can make up encoded inner */
     if (!PACKET_buf_init(&rpkt,
                 (unsigned char*) new_s->ext.innerch+4,
                 new_s->ext.innerch_len-4)) {
@@ -1753,14 +1737,7 @@ int tls_construct_client_hello(SSL_CONNECTION *s, WPACKET *pkt)
         goto err;
     }
 
-    /*
-     * Now we can make a ClientHelloInner and then
-     * EncodedClientHelloInner as per the spec.
-     * We have to do it this way so the PSK binders in the inner
-     * will work ok if the inner is forwarded to a split backend,
-     * pretty gruesome but I guess...
-     *
-     */
+    /* Make ClientHelloInner and EncodedClientHelloInner as per spec. */
     if (ech_encode_inner(new_s)!=1) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         goto err;
@@ -1768,10 +1745,8 @@ int tls_construct_client_hello(SSL_CONNECTION *s, WPACKET *pkt)
     ech_pbuf("encoded inner CH",
             new_s->ext.encoded_innerch,new_s->ext.encoded_innerch_len);
 
-    /*
-     * Make second call into CH constuction.
-     */
-    s->ext.ch_depth=0; /* unmark the outer after duping */
+    /* Make second call into CH constuction for outer CH. */
+    s->ext.ch_depth=0; 
     rv=tls_construct_client_hello_aux(s, pkt);
     if (rv!=1) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, protverr);
@@ -1784,6 +1759,7 @@ int tls_construct_client_hello(SSL_CONNECTION *s, WPACKET *pkt)
     ech_pbuf("outer, session_id",s->session->session_id,
             s->session->session_id_length);
 
+    /* Finall, we're ready to caculate AAD and to encrypt using HPKE */ 
     if (ech_aad_and_encrypt(s,pkt)!=1) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         goto err;
@@ -2217,6 +2193,7 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL_CONNECTION *s, PACKET *pkt)
      * The check to do differs depending on whether or not HRR happened.
      * We only support HRR for draft-13.
      */
+
     /* draft-10 code to setup later possible swap */
     if (s->ech!=NULL &&
             s->ext.ech_done!=1 &&
@@ -2411,7 +2388,6 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL_CONNECTION *s, PACKET *pkt)
                 SSL_SESSION_free(s->ext.inner_s->session);
                 s->ext.inner_s->session=NULL;
             }
-
         }
     }
 #endif
