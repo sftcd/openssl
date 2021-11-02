@@ -9569,7 +9569,12 @@ static int test_ech_add(int idx)
       break;
 
     case OSSLTEST_ECH_B64_GUESS_XS_COUNT:
-        /* Valid echconfig, excess length */
+        /* 
+         * Valid echconfig, excess length but just by one octet
+         * which will be ok since strings have that added NUL
+         * octet. If the excess was >1 then the caller is the
+         * one making the error.
+         */
         returned = SSL_CTX_ech_add(cctx,
                ECH_FMT_GUESS, /* unspecified format */
                77, echconfig,
