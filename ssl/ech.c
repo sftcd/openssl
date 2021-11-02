@@ -1173,17 +1173,19 @@ static int local_ech_add(
         detfmt=ECH_FMT_B64TXT; /* tee up next step */
     }
     if (detfmt==ECH_FMT_B64TXT) {
+        int tdeclen=0;
         if (strlen((char*)ekcpy)!=eklen) return(0);
         /* need an int to get -1 return for failure case */
-        int tdeclen = ech_base64_decode(ekptr, &outbuf);
+        tdeclen = ech_base64_decode(ekptr, &outbuf);
         if (tdeclen <= 0) {
             goto err;
         }
         declen=tdeclen;
     }
     if (detfmt==ECH_FMT_ASCIIHEX) {
+        int adr=0;
         if (strlen((char*)ekcpy)!=eklen) return(0);
-        int adr=hpke_ah_decode(eklen,ekptr,&declen,&outbuf);
+        adr=hpke_ah_decode(eklen,ekptr,&declen,&outbuf);
         if (adr==0) {
             goto err;
         }
@@ -1294,6 +1296,10 @@ err:
         OPENSSL_free(outbuf);
     }
     OPENSSL_free(ekcpy);
+    if (retechs!=NULL) {
+        SSL_ECH_free(retechs);
+        OPENSSL_free(retechs);
+    }
     return(0);
 }
 
