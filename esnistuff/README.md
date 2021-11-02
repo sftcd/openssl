@@ -26,6 +26,12 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
+- 20211102: started to add in ECH specifics to the ``make test`` target
+  (based on stuff figured out by @niallor [here](https://github.com/niallor/openssl/tree/ECH-TEST-API-WIP)
+  Found/fixed 2 bugs as a result.
+
+- 20211101: 3rd pass of code review completed
+
 - 20211003: ``early_data`` working now between openssl and
   boringssl. 
 
