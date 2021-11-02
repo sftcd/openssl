@@ -216,7 +216,7 @@ do
     kem=${file:0:4}
     kdf=${file:5:4}
     aead=${file:10:4}
-    echo "s_client/s_server test for kem: $kem, kdf: $kdf, aead; $aead"
+    echo "s_client/s_server test for kem: $kem, kdf: $kdf, aead: $aead"
     # start server
     if [[ "$verbose" == "yes" ]]
     then
@@ -282,7 +282,7 @@ do
     kem=${file:0:4}
     kdf=${file:5:4}
     aead=${file:10:4}
-    echo "s_client input format tests for kem: $kem, kdf: $kdf, aead; $aead"
+    echo "s_client input format tests for kem: $kem, kdf: $kdf, aead: $aead"
     # start server
     if [[ "$verbose" == "yes" ]]
     then
@@ -391,7 +391,7 @@ do
         echo "Can't see a $badfile - exiting"
         exit 23
     fi
-    echo "s_client/s_server deliberate failure test for server's kem: $kem, kdf: $kdf, aead; $aead, vs client's $badfile"
+    echo "s_client/s_server deliberate failure test for server's kem: $kem, kdf: $kdf, aead: $aead, vs client's $badfile"
     # start server
     if [[ "$verbose" == "yes" ]]
     then
@@ -460,7 +460,7 @@ do
     kdf=${file:5:4}
     aead=${file:10:4}
     sessfile="$kem,$kdf,$aead.sess"
-    echo "s_client/s_server resumption test for kem: $kem, kdf: $kdf, aead; $aead"
+    echo "s_client/s_server resumption test for kem: $kem, kdf: $kdf, aead: $aead"
     # start server
     if [[ "$verbose" == "yes" ]]
     then
@@ -559,7 +559,7 @@ do
     kem=${file:0:4}
     kdf=${file:5:4}
     aead=${file:10:4}
-    echo "s_client/s_server HRR test for kem: $kem, kdf: $kdf, aead; $aead"
+    echo "s_client/s_server HRR test for kem: $kem, kdf: $kdf, aead: $aead"
     # start server
     if [[ "$verbose" == "yes" ]]
     then
@@ -630,7 +630,7 @@ do
         echo "Removing old $sessfile"
         rm $sessfile
     fi
-    echo "s_client/s_server early-data test for kem: $kem, kdf: $kdf, aead; $aead"
+    echo "s_client/s_server early-data test for kem: $kem, kdf: $kdf, aead: $aead"
     # start server
     if [[ "$verbose" == "yes" ]]
     then

@@ -325,7 +325,7 @@ static int ech_base64_decode(char *in, unsigned char **out)
         if (thisfraglen>inlen) {
             goto err;
         }
-        inp[thisfraglen]='\0';
+        if (thisfraglen<inlen) inp[thisfraglen]='\0';
         overallfraglen+=(thisfraglen+1);
         ofraglen = EVP_DecodeBlock(outp, (unsigned char *)inp, thisfraglen);
         if (ofraglen < 0) {
@@ -1111,16 +1111,15 @@ static int local_ech_add(
         int *num_echs,
         SSL_ECH **echs)
 {
-    /*
-     * Sanity checks on inputs
-     */
+    /* Sanity checks on inputs */
     int detfmt=ECH_FMT_GUESS;
     int rv=0;
     unsigned char *outbuf = NULL; /* sequence of ECHConfigs (binary) */
     size_t declen=0; /* length of the above */
-    char *ekcpy=(char*)ekval;
+    char *ekptr=NULL;
     int done=0;
     unsigned char *outp=outbuf;
+    unsigned char *ekcpy=NULL;
     int oleftover=0;
     int nlens=0;
     SSL_ECH *retechs=NULL;
@@ -1149,31 +1148,42 @@ static int local_ech_add(
         default:
             return(0);
     }
-    /*
-     * Do the various decodes
-     */
+    /* Do the various decodes on a copy of ekval */
+    ekcpy=OPENSSL_malloc(eklen+1);
+    if (ekcpy==NULL) {
+        return(0);
+    }
+    memcpy(ekcpy,ekval,eklen);
+    ekcpy[eklen]=0x00; /* a NUL in case of string value */
+    ekptr=(char*)ekcpy;
+    
     if (detfmt==ECH_FMT_HTTPSSVC) {
-        ekcpy=strstr((char*)ekval,httpssvc_telltale);
-        if (ekcpy==NULL) {
+        if (strlen((char*)ekcpy)!=eklen) return(0);
+        ekptr=strstr((char*)ekcpy,httpssvc_telltale);
+        if (ekptr==NULL) {
+            OPENSSL_free(ekcpy);
             return(rv);
         }
-        /* point ekcpy at b64 encoded value */
-        if (strlen(ekcpy)<=strlen(httpssvc_telltale)) {
+        /* point ekptr at b64 encoded value */
+        if (strlen(ekptr)<=strlen(httpssvc_telltale)) {
+            OPENSSL_free(ekcpy);
             return(rv);
         }
-        ekcpy+=strlen(httpssvc_telltale);
+        ekptr+=strlen(httpssvc_telltale);
         detfmt=ECH_FMT_B64TXT; /* tee up next step */
     }
     if (detfmt==ECH_FMT_B64TXT) {
+        if (strlen((char*)ekcpy)!=eklen) return(0);
         /* need an int to get -1 return for failure case */
-        int tdeclen = ech_base64_decode(ekcpy, &outbuf);
+        int tdeclen = ech_base64_decode(ekptr, &outbuf);
         if (tdeclen <= 0) {
             goto err;
         }
         declen=tdeclen;
     }
     if (detfmt==ECH_FMT_ASCIIHEX) {
-        int adr=hpke_ah_decode(eklen,ekcpy,&declen,&outbuf);
+        if (strlen((char*)ekcpy)!=eklen) return(0);
+        int adr=hpke_ah_decode(eklen,ekptr,&declen,&outbuf);
         if (adr==0) {
             goto err;
         }
@@ -1185,7 +1195,7 @@ static int local_ech_add(
         if (outbuf==NULL){
             goto err;
         }
-        memcpy(outbuf,ekcpy,declen);
+        memcpy(outbuf,ekptr,declen);
     }
     /*
      * Now try decode the catenated binary encodings if we can
@@ -1276,12 +1286,14 @@ static int local_ech_add(
     *num_echs=nlens;
     *echs=retechs;
 
+    OPENSSL_free(ekcpy);
     return(1);
 
 err:
     if (outbuf!=NULL) {
         OPENSSL_free(outbuf);
     }
+    OPENSSL_free(ekcpy);
     return(0);
 }
 
