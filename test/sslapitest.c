@@ -9525,8 +9525,24 @@ static int test_ech_add(int idx)
     int echcount = 0;
     int returned;
 
+#if 0
+    /*
+     * This ECHConfigList has only one entry.
+     */
     char echconfig[] =
       "ADX+CgAxLwAgACAPM+mZOcezv6GuQIQ8ZVHT+Hube8VZq+pAbXphNU3nSwAEAAEAAQAAAAAAAA==";
+#endif
+
+    /* 
+     * This ECHConfigList has 6 entries with different versions,
+     * [13,10,9,13,10,13] - since our runtime no longer supports
+     * version 9, we should see 5 configs loaded.
+     * Once we drop support for draft-10, then it'll be 3 and
+     * we'll need to change the expectd echcount below.
+     */
+    char echconfig[]=
+        "AXn+DQA6xQAgACBm54KSIPXu+pQq2oY183wt3ybx7CKbBYX0ogPq5u6FegAEAAEAAQALZXhhbXBsZS5jb20AAP4KADzSACAAIIP+0Qt0WGBF3H5fz8HuhVRTCEMuHS4Khu6ibR/6qER4AAQAAQABAAAAC2V4YW1wbGUuY29tAAD+CQA7AAtleGFtcGxlLmNvbQAgoyQr+cP8mh42znOp1bjPxpLCBi4A0ftttr8MPXRJPBcAIAAEAAEAAQAAAAD+DQA6QwAgACB3xsNUtSgipiYpUkW6OSrrg03I4zIENMFa0JR2+Mm1WwAEAAEAAQALZXhhbXBsZS5jb20AAP4KADwDACAAIH0BoAdiJCX88gv8nYpGVX5BpGBa9yT0Pac3Kwx6i8URAAQAAQABAAAAC2V4YW1wbGUuY29tAAD+DQA6QwAgACDcZIAx7OcOiQuk90VV7/DO4lFQr5I3Zw9tVbK8MGw1dgAEAAEAAQALZXhhbXBsZS5jb20AAA==";
+    size_t echconfig_len=strlen(echconfig);
 
     /* Generate fresh context pair for each test with TLSv1.3 as a minimum */
     if (!TEST_true(create_ssl_ctx_pair(libctx, TLS_server_method(),
@@ -9540,13 +9556,13 @@ static int test_ech_add(int idx)
         /* Valid echconfig */
         returned = SSL_CTX_ech_add(cctx,
                ECH_FMT_GUESS, /* unspecified format */
-               76, echconfig,
+               echconfig_len, echconfig,
                &echcount);   /* returned count of echconfigs */
         if (!TEST_int_eq(returned, 1)) {
             TEST_info("OSSLTEST_ECH_B64_GUESS: failure for valid echconfig and length\n");
             goto end;
         }
-        if (!TEST_int_eq(echcount, 1)) {
+        if (!TEST_int_eq(echcount, 5)) {
             TEST_info("OSSLTEST_ECH_B64_GUESS: incorrect ECH count\n");
             goto end;
         }
@@ -9556,13 +9572,13 @@ static int test_ech_add(int idx)
         /* Valid echconfig */
         returned = SSL_CTX_ech_add(cctx,
                ECH_FMT_B64TXT, /* BASE64 format */
-               76, echconfig,
+               echconfig_len, echconfig,
                &echcount);   /* returned count of echconfigs */
         if (!TEST_int_eq(returned, 1)) {
             TEST_info("OSSLTEST_ECH_B64_BASE64: failure for valid echconfig and length\n");
             goto end;
         }
-        if (!TEST_int_eq(echcount, 1)) {
+        if (!TEST_int_eq(echcount, 5)) {
             TEST_info("OSSLTEST_ECH_B64_BASE64: incorrect ECH count\n");
             goto end;
         }
@@ -9577,10 +9593,11 @@ static int test_ech_add(int idx)
          */
         returned = SSL_CTX_ech_add(cctx,
                ECH_FMT_GUESS, /* unspecified format */
-               77, echconfig,
+               echconfig_len+1, echconfig,
                &echcount);   /* returned count of echconfigs */
         if (!TEST_int_ne(returned, 1)) {
-            TEST_info("OSSLTEST_ECH_B64_GUESS_XS_COUNT: success despite excess length (80/76)\n");
+            TEST_info("OSSLTEST_ECH_B64_GUESS_XS_COUNT: success despite excess length (%d/%d)\n",
+              (int)echconfig_len+1, (int)echconfig_len);
             goto end;
         }
         if (!TEST_int_eq(echcount, 0)) {
@@ -9593,11 +9610,11 @@ static int test_ech_add(int idx)
         /* Valid echconfig, short length */
         returned = SSL_CTX_ech_add(cctx,
                ECH_FMT_GUESS, /* unspecified format */
-               39, echconfig,
+               echconfig_len/2, echconfig,
                &echcount);   /* returned count of echconfigs */
         if (!TEST_int_ne(returned, 1)) {
             TEST_info("OSSLTEST_ECH_B64_GUESS_LO_COUNT: success despite short length (%d/%d)\n",
-              39, 76);
+              (int)echconfig_len/2, (int)echconfig_len);
             goto end;
           }
       break;
