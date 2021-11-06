@@ -401,5 +401,12 @@ int hpke_expansion(hpke_suite_t suite,
         size_t clearlen,
         size_t *cipherlen);
 
+/*!
+ * @brief set a non-default OSSL_LIB_CTX if needed
+ * @param ctx is the context to set
+ * @return 1 for success, otherwise failure
+ */
+int hpke_setlibctx(OSSL_LIB_CTX *libctx);
+
 #endif
 

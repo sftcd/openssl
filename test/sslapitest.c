@@ -33,7 +33,9 @@
 #include <openssl/param_build.h>
 #include <openssl/x509v3.h>
 #include <openssl/dh.h>
+#ifndef OPENSSL_NO_ECH
 #include <openssl/ech.h>
+#endif
 
 #include "helpers/ssltestlib.h"
 #include "testutil.h"
@@ -152,6 +154,39 @@ static unsigned char serverinfov2[] = {
     0x00, 0x01, /* Extension length is 1 byte */
     0xff        /* Dummy extension data */
 };
+
+#ifndef OSSL_NO_USABLE_ECH
+static char *echconfiglist_from_PEM(const char *echkeyfile)
+{
+    BIO *in=NULL;
+    char *ecl_string=NULL;
+    char lnbuf[ECH_MAX_ECHCONFIG_LEN];
+    int readbytes=0;
+    if (!TEST_ptr(in = BIO_new(BIO_s_file()))
+                || !TEST_int_ge(BIO_read_filename(in, echkeyfile), 0))
+            goto out;
+    /* read 4 lines before the one we want */
+    readbytes=BIO_get_line(in,lnbuf,ECH_MAX_ECHCONFIG_LEN);
+    if (readbytes<=0 || readbytes>=ECH_MAX_ECHCONFIG_LEN) goto out;
+    readbytes=BIO_get_line(in,lnbuf,ECH_MAX_ECHCONFIG_LEN);
+    if (readbytes<=0 || readbytes>=ECH_MAX_ECHCONFIG_LEN) goto out;
+    readbytes=BIO_get_line(in,lnbuf,ECH_MAX_ECHCONFIG_LEN);
+    if (readbytes<=0 || readbytes>=ECH_MAX_ECHCONFIG_LEN) goto out;
+    readbytes=BIO_get_line(in,lnbuf,ECH_MAX_ECHCONFIG_LEN);
+    if (readbytes<=0 || readbytes>=ECH_MAX_ECHCONFIG_LEN) goto out;
+    readbytes=BIO_get_line(in,lnbuf,ECH_MAX_ECHCONFIG_LEN);
+    if (readbytes<=0 || readbytes>=ECH_MAX_ECHCONFIG_LEN) goto out;
+    ecl_string=OPENSSL_malloc(readbytes+1);
+    if (!ecl_string) goto out;
+    memcpy(ecl_string,lnbuf,readbytes);
+    /* zap the '\n' if present */
+    if (ecl_string[readbytes-1]=='\n')
+        ecl_string[readbytes-1]='\0';
+    return(ecl_string);
+out:
+    return(NULL);
+}
+#endif
 
 static int hostname_cb(SSL *s, int *al, void *arg)
 {
@@ -1876,6 +1911,45 @@ static int execute_test_session(int maxprot, int use_int_cache,
      */
     SSL_CTX_set_min_proto_version(cctx, maxprot);
     SSL_CTX_set_max_proto_version(cctx, maxprot);
+
+#ifndef OSSL_NO_USABLE_ECH
+    /* if TLSv1.3 then turn on ECH for both sides */
+    if (maxprot == TLS1_3_VERSION) {
+        char *echkeyfile=NULL;
+        char *echconfiglist=NULL;
+        int echcount=0;
+        size_t echconfig_len=0;
+
+        /* read pre-cooked ECH private/ECHConfigList */
+        echkeyfile=test_mk_file_path(certsdir, "echconfig.pem");
+        echconfiglist=echconfiglist_from_PEM(echkeyfile);
+        if (!echconfiglist) return(0);
+        echconfig_len=strlen(echconfiglist);
+
+        if (hpke_setlibctx(libctx)!=1) {
+            OPENSSL_free(echconfiglist);
+            return 0;
+        }
+
+        if (SSL_CTX_ech_server_enable(sctx,echkeyfile)!=1) {
+            OPENSSL_free(echconfiglist);
+            return 0;
+        }
+
+        if (SSL_CTX_ech_add(cctx,ECH_FMT_GUESS, 
+               echconfig_len, echconfiglist,
+               &echcount)!=1) {
+            OPENSSL_free(echconfiglist);
+            return 0;
+        }
+        if (echcount!=1) {
+            OPENSSL_free(echconfiglist);
+            return 0;
+        }
+
+        OPENSSL_free(echconfiglist);
+    }
+#endif
 
     /* Set up session cache */
     if (use_ext_cache) {
@@ -9530,7 +9604,8 @@ static int test_ech_add(int idx)
      * This ECHConfigList has only one entry.
      */
     char echconfig[] =
-      "ADX+CgAxLwAgACAPM+mZOcezv6GuQIQ8ZVHT+Hube8VZq+pAbXphNU3nSwAEAAEAAQAAAAAAAA==";
+      "ADX+CgAxLwAgACAPM+mZOcezv6GuQIQ8ZVHT+Hube8VZq+pAbXphNU3nSwAEAAE"\
+      "AAQAAAAAAAA==";
 #endif
 
     /* 
@@ -9541,7 +9616,15 @@ static int test_ech_add(int idx)
      * we'll need to change the expectd echcount below.
      */
     char echconfig[]=
-        "AXn+DQA6xQAgACBm54KSIPXu+pQq2oY183wt3ybx7CKbBYX0ogPq5u6FegAEAAEAAQALZXhhbXBsZS5jb20AAP4KADzSACAAIIP+0Qt0WGBF3H5fz8HuhVRTCEMuHS4Khu6ibR/6qER4AAQAAQABAAAAC2V4YW1wbGUuY29tAAD+CQA7AAtleGFtcGxlLmNvbQAgoyQr+cP8mh42znOp1bjPxpLCBi4A0ftttr8MPXRJPBcAIAAEAAEAAQAAAAD+DQA6QwAgACB3xsNUtSgipiYpUkW6OSrrg03I4zIENMFa0JR2+Mm1WwAEAAEAAQALZXhhbXBsZS5jb20AAP4KADwDACAAIH0BoAdiJCX88gv8nYpGVX5BpGBa9yT0Pac3Kwx6i8URAAQAAQABAAAAC2V4YW1wbGUuY29tAAD+DQA6QwAgACDcZIAx7OcOiQuk90VV7/DO4lFQr5I3Zw9tVbK8MGw1dgAEAAEAAQALZXhhbXBsZS5jb20AAA==";
+        "AXn+DQA6xQAgACBm54KSIPXu+pQq2oY183wt3ybx7CKbBYX0ogPq5u6FegAEAAE"\
+        "AAQALZXhhbXBsZS5jb20AAP4KADzSACAAIIP+0Qt0WGBF3H5fz8HuhVRTCEMuHS"\
+        "4Khu6ibR/6qER4AAQAAQABAAAAC2V4YW1wbGUuY29tAAD+CQA7AAtleGFtcGxlL"\
+        "mNvbQAgoyQr+cP8mh42znOp1bjPxpLCBi4A0ftttr8MPXRJPBcAIAAEAAEAAQAA"\
+        "AAD+DQA6QwAgACB3xsNUtSgipiYpUkW6OSrrg03I4zIENMFa0JR2+Mm1WwAEAAE"\
+        "AAQALZXhhbXBsZS5jb20AAP4KADwDACAAIH0BoAdiJCX88gv8nYpGVX5BpGBa9y"\
+        "T0Pac3Kwx6i8URAAQAAQABAAAAC2V4YW1wbGUuY29tAAD+DQA6QwAgACDcZIAx7"\
+        "OcOiQuk90VV7/DO4lFQr5I3Zw9tVbK8MGw1dgAEAAEAAQALZXhhbXBsZS5jb20A"\
+        "AA==";
     size_t echconfig_len=strlen(echconfig);
 
     /* Generate fresh context pair for each test with TLSv1.3 as a minimum */

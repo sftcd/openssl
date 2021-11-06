@@ -26,6 +26,11 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
+- 20211106: Added real use of ECH to ``sslapitest.c:execute_test_session()``
+  which is called a bunch of times in various ways. That turned up a couple
+  more issues that've been fixed now. Usage here is only nominal ECH, no
+  ECH-specific errors are tested as yet.
+
 - 20211102: started to add in ECH specifics to the ``make test`` target
   (based on stuff figured out by @niallor [here](https://github.com/niallor/openssl/tree/ECH-TEST-API-WIP)
   Found/fixed some bugs as a result.

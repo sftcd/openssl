@@ -5437,3 +5437,4 @@ hpke_suite_check                        5565	3_0_0	EXIST::FUNCTION:
 hpke_good4grease                        5566	3_0_0	EXIST::FUNCTION:
 hpke_str2suite                          5567	3_0_0	EXIST::FUNCTION:
 hpke_prbuf2evp                          5568	3_0_0	EXIST::FUNCTION:
+hpke_setlibctx                          5569	3_0_0	EXIST::FUNCTION:

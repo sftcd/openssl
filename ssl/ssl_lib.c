@@ -1255,8 +1255,8 @@ void SSL_free(SSL *s)
      * or b) on a client that's greasing or has an inner_s
      * allocated (i.e. in process of attempting ECH) or
      * that has no ECH config.
-     * That test was just derived via trial and error
-     * with various success and failure case tests.
+     * This used be used more often, but I've found better
+     * ways to handle most calls.
      */
 #define INOUTFREE \
     if ( s->server || \
@@ -1272,14 +1272,8 @@ void SSL_free(SSL *s)
 
     /* Ignore return value */
 
-#ifndef OPENSSL_NO_ECH
-    INOUTFREE
-#endif
     ssl_free_wbio_buffer(s);
 
-#ifndef OPENSSL_NO_ECH
-    INOUTFREE
-#endif
     BIO_free_all(s->wbio);
     s->wbio = NULL;
     BIO_free_all(s->rbio);
