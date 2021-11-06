@@ -59,7 +59,9 @@
 #endif
 
 #undef OSSL_NO_USABLE_ECH
-#if defined(OSSL_NO_USABLE_TLS1_3) || defined(OPENSSL_NO_ECH)
+#if defined(OSSL_NO_USABLE_TLS1_3) || \
+    defined(OPENSSL_NO_ECH) || \
+    defined(OPENSSL_NO_EC)
 # define OSSL_NO_USABLE_ECH
 #endif
 
@@ -183,8 +185,10 @@ static char *echconfiglist_from_PEM(const char *echkeyfile)
     /* zap the '\n' if present */
     if (ecl_string[readbytes-1]=='\n')
         ecl_string[readbytes-1]='\0';
+    BIO_free_all(in);
     return(ecl_string);
 out:
+    if (in) BIO_free_all(in);
     return(NULL);
 }
 #endif
@@ -2148,15 +2152,20 @@ static int execute_test_session(int maxprot, int use_int_cache,
         /* read pre-cooked ECH private/ECHConfigList */
         echkeyfile=test_mk_file_path(certsdir, "echconfig.pem");
         echconfiglist=echconfiglist_from_PEM(echkeyfile);
-        if (!echconfiglist) return(0);
+        if (!echconfiglist) {
+            OPENSSL_free(echkeyfile);
+            return(0);
+        }
         echconfig_len=strlen(echconfiglist);
 
         if (hpke_setlibctx(libctx)!=1) {
+            OPENSSL_free(echkeyfile);
             OPENSSL_free(echconfiglist);
             return 0;
         }
 
         if (SSL_CTX_ech_server_enable(sctx,echkeyfile)!=1) {
+            OPENSSL_free(echkeyfile);
             OPENSSL_free(echconfiglist);
             return 0;
         }
@@ -2164,14 +2173,17 @@ static int execute_test_session(int maxprot, int use_int_cache,
         if (SSL_CTX_ech_add(cctx,ECH_FMT_GUESS, 
                echconfig_len, echconfiglist,
                &echcount)!=1) {
+            OPENSSL_free(echkeyfile);
             OPENSSL_free(echconfiglist);
             return 0;
         }
         if (echcount!=1) {
+            OPENSSL_free(echkeyfile);
             OPENSSL_free(echconfiglist);
             return 0;
         }
 
+        OPENSSL_free(echkeyfile);
         OPENSSL_free(echconfiglist);
     }
 #endif
