@@ -4285,6 +4285,16 @@ SSL *SSL_dup(SSL *s)
         goto err;
 
 #ifndef OPENSSL_NO_ECH
+    /*
+     * The SSL_new() above will have copied s->ctx->ext.ech down to
+     * ret->ech, but the value we want is from s->ech instead so we'll
+     * free the copy of the SSL_ECH from the SSL_CTX and then copy the
+     * one from the SSL* original.
+     */
+    if (ret->ech) {
+        SSL_ECH_free(ret->ech);
+        OPENSSL_free(ret->ech);
+    }
     ret->nechs=s->nechs;
     ret->ech=NULL;
     if (s->ech) {
