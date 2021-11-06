@@ -193,7 +193,7 @@ sleepb4=4
 sleepaftr=2
 if [[ "$verbose" == "yes" ]]
 then
-    vparm=" -d "
+    vparm=" -dv "
     # the -v will also get you valgrind...
     # vparm=" -vd "
     # with valgrind you probably also need to wait longer
@@ -624,7 +624,7 @@ do
     kem=${file:0:4}
     kdf=${file:5:4}
     aead=${file:10:4}
-    sessfile="$kem,$kdf,$aead.sess"
+    sessfile="$kem,$kdf,$aead.ed-sess"
     if [ -f $sessfile ]
     then
         echo "Removing old $sessfile"

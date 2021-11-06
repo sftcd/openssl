@@ -2756,4 +2756,14 @@ int hpke_expansion(hpke_suite_t suite,
     return 1;
 }
 
-
+/*!
+ * @brief set a non-default OSSL_LIB_CTX if needed
+ * @param ctx is the context to set
+ * @return 1 for success, otherwise failure
+ */
+int hpke_setlibctx(OSSL_LIB_CTX *libctx)
+{
+    OSSL_LIB_CTX *retctx=OSSL_LIB_CTX_set0_default(libctx);
+    if (retctx==NULL) return(0);
+    return(1);
+}
