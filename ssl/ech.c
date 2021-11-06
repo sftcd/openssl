@@ -2259,6 +2259,7 @@ SSL_ECH* SSL_ECH_dup(SSL_ECH* orig, size_t nech, int selector)
 err:
     if (new_se!=NULL) {
         SSL_ECH_free(new_se);
+        OPENSSL_free(new_se);
     }
     return NULL;
 }
