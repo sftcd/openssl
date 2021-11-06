@@ -3866,10 +3866,14 @@ int ech_swaperoo(SSL_CONNECTION *s)
     s->ext.outer_s->ext.inner_s=s;
     s->ext.outer_s->ext.outer_s=NULL;
 
-    /* Copy readers and writers */
+    /* Copy and up-ref readers and writers */
     s->wbio=tmp_outer.wbio;
+    BIO_up_ref(s->wbio);
     s->rbio=tmp_outer.rbio;
-    s->bbio=tmp_outer.bbio;
+    BIO_up_ref(s->rbio);
+    /* This one doesn't seem to be needed nor up-ref'd */
+    /* but not fully sure.... */
+    /* s->bbio=tmp_outer.bbio; */
 
     /* Fields we (for now) need the same in both */
     s->rlayer=tmp_outer.rlayer;
@@ -4689,7 +4693,7 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
     return 1;
 
 err:
-    if (aad!=NULL) OPENSSL_free(aad);
+    if (tc->version==ECH_DRAFT_10_VERSION && aad!=NULL) OPENSSL_free(aad);
     if (mypriv_evp!=NULL && mypriv_evp!=s->ext.ech_priv) 
         EVP_PKEY_free(mypriv_evp);
     if (mypub!=NULL) OPENSSL_free(mypub);
