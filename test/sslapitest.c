@@ -1923,18 +1923,11 @@ static int execute_test_session(int maxprot, int use_int_cache,
         }
         echconfig_len=strlen(echconfiglist);
 
-        if (hpke_setlibctx(libctx)!=1) {
-            OPENSSL_free(echkeyfile);
-            OPENSSL_free(echconfiglist);
-            return 0;
-        }
-
         if (SSL_CTX_ech_server_enable(sctx,echkeyfile)!=1) {
             OPENSSL_free(echkeyfile);
             OPENSSL_free(echconfiglist);
             return 0;
         }
-
         if (SSL_CTX_ech_add(cctx,ECH_FMT_GUESS, 
                echconfig_len, echconfiglist,
                &echcount)!=1) {
@@ -1947,7 +1940,6 @@ static int execute_test_session(int maxprot, int use_int_cache,
             OPENSSL_free(echconfiglist);
             return 0;
         }
-
         OPENSSL_free(echkeyfile);
         OPENSSL_free(echconfiglist);
     }
@@ -9742,6 +9734,11 @@ int setup_tests(void)
     if (!TEST_true(OSSL_PROVIDER_add_builtin(libctx, "tls-provider",
                                              tls_provider_init)))
         return 0;
+
+#ifndef OPENSSL_NO_USABLE_ECH
+    if (hpke_setlibctx(libctx)!=1)
+            return 0;
+#endif
 
 
     if (getenv("OPENSSL_TEST_GETCOUNTS") != NULL) {
