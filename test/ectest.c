@@ -2861,11 +2861,11 @@ static int custom_params_test(int id)
         goto err;
 
     /* create two `EVP_PKEY`s from the `EC_KEY`s */
-    if(!TEST_ptr(pkey1 = EVP_PKEY_new())
+    if (!TEST_ptr(pkey1 = EVP_PKEY_new())
             || !TEST_int_eq(EVP_PKEY_assign_EC_KEY(pkey1, eckey1), 1))
         goto err;
     eckey1 = NULL; /* ownership passed to pkey1 */
-    if(!TEST_ptr(pkey2 = EVP_PKEY_new())
+    if (!TEST_ptr(pkey2 = EVP_PKEY_new())
             || !TEST_int_eq(EVP_PKEY_assign_EC_KEY(pkey2, eckey2), 1))
         goto err;
     eckey2 = NULL; /* ownership passed to pkey2 */
@@ -2919,11 +2919,11 @@ static int custom_params_test(int id)
     /* create two new provider-native `EVP_PKEY`s */
     EVP_PKEY_CTX_free(pctx2);
     if (!TEST_ptr(pctx2 = EVP_PKEY_CTX_new_from_name(NULL, "EC", NULL))
-            || !TEST_true(EVP_PKEY_fromdata_init(pctx2))
-            || !TEST_true(EVP_PKEY_fromdata(pctx2, &pkey1, EVP_PKEY_KEYPAIR,
-                                            params1))
-            || !TEST_true(EVP_PKEY_fromdata(pctx2, &pkey2, EVP_PKEY_PUBLIC_KEY,
-                                            params2)))
+            || !TEST_int_eq(EVP_PKEY_fromdata_init(pctx2), 1)
+            || !TEST_int_eq(EVP_PKEY_fromdata(pctx2, &pkey1, EVP_PKEY_KEYPAIR,
+                                              params1), 1)
+            || !TEST_int_eq(EVP_PKEY_fromdata(pctx2, &pkey2, EVP_PKEY_PUBLIC_KEY,
+                                              params2), 1))
         goto err;
 
     /* compute keyexchange once more using the provider keys */

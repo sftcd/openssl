@@ -28,6 +28,8 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
+- 20211108: remerged with upstream
+
 - 20211106: Added real use of ECH to ``sslapitest.c:execute_test_session()``
   which is called a bunch of times in various ways. That turned up a couple
   more issues that've been fixed now. Usage here is only nominal ECH, no
@@ -1536,5 +1538,4 @@ I'm sure there's more but some collected so far:
 - Security review: identify which parts of the code e.g. need to be constant
   time, which need to use special OpenSSL APIs, which need support for
   crypto h/w (if any)
-
 

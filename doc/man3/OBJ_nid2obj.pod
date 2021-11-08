@@ -99,7 +99,8 @@ given NID with two other NIDs - one representing the underlying signature
 algorithm and the other representing a digest algorithm to be used in
 conjunction with it. I<signid> represents the NID for the composite "Signature
 Algorithm", I<dig_id> is the NID for the digest algorithm and I<pkey_id> is the
-NID for the underlying signature algorithm.
+NID for the underlying signature algorithm. As there are signature algorithms
+that do not require a digest, NID_undef is a valid I<dig_id>.
 
 OBJ_cleanup() releases any resources allocated by creating new objects.
 
@@ -138,6 +139,8 @@ is a corresponding OBJECT IDENTIFIER by checking OBJ_length() is not zero.
 These functions cannot return B<const> because an B<ASN1_OBJECT> can
 represent both an internal, constant, OID and a dynamically-created one.
 The latter cannot be constant because it needs to be freed after use.
+
+These functions were not thread safe in OpenSSL 3.0 and before.
 
 =head1 RETURN VALUES
 
@@ -180,10 +183,6 @@ to B<NULL> to determine the amount of data that should be written.
 Instead I<buf> must point to a valid buffer and I<buf_len> should
 be set to a positive value. A buffer length of 80 should be more
 than enough to handle any OID encountered in practice.
-
-Neither OBJ_create() nor OBJ_add_sigid() do any locking and are thus not
-thread safe.  Moreover, none of the other functions should be called while
-concurrent calls to these two functions are possible.
 
 =head1 SEE ALSO
 

@@ -836,11 +836,12 @@ static int set_gennames(OSSL_CMP_CTX *ctx, char *names, const char *desc)
             continue;
         }
 
-        /* try IP address first, then URI or domain name */
+        /* try IP address first, then email/URI/domain name */
         (void)ERR_set_mark();
         n = a2i_GENERAL_NAME(NULL, NULL, NULL, GEN_IPADD, names, 0);
         if (n == NULL)
             n = a2i_GENERAL_NAME(NULL, NULL, NULL,
+                                 strchr(names, '@') != NULL ? GEN_EMAIL :
                                  strchr(names, ':') != NULL ? GEN_URI : GEN_DNS,
                                  names, 0);
         (void)ERR_pop_to_mark();
@@ -871,7 +872,7 @@ static X509_STORE *load_trusted(char *input, int for_new_cert, const char *desc)
     if (X509_STORE_set1_param(ts, vpm /* may be NULL */)
             && (for_new_cert || truststore_set_host_etc(ts, NULL)))
         return ts;
-    BIO_printf(bio_err, "error setting verification parameters\n");
+    BIO_printf(bio_err, "error setting verification parameters for %s\n", desc);
     OSSL_CMP_CTX_print_errors(cmp_ctx);
     X509_STORE_free(ts);
     return NULL;
@@ -1193,13 +1194,10 @@ static SSL_CTX *setup_ssl_ctx(OSSL_CMP_CTX *ctx, const char *host,
         return NULL;
 
     if (opt_tls_trusted != NULL) {
-        trust_store = load_certstore(opt_tls_trusted, opt_otherpass,
-                                     "trusted TLS certificates", vpm);
+        trust_store = load_trusted(opt_tls_trusted, 0, "trusted TLS certs");
         if (trust_store == NULL)
             goto err;
         SSL_CTX_set_cert_store(ssl_ctx, trust_store);
-        /* for improved diagnostics on SSL_CTX_build_cert_chain() errors: */
-        X509_STORE_set_verify_cb(trust_store, X509_STORE_CTX_print_verify_cb);
     }
 
     if (opt_tls_cert != NULL && opt_tls_key != NULL) {
@@ -1992,7 +1990,7 @@ static void print_itavs(STACK_OF(OSSL_CMP_ITAV) *itavs)
 }
 
 static char opt_item[SECTION_NAME_MAX + 1];
-/* get previous name from a comma-separated list of names */
+/* get previous name from a comma or space-separated list of names */
 static const char *prev_item(const char *opt, const char *end)
 {
     const char *beg;
@@ -2001,19 +1999,28 @@ static const char *prev_item(const char *opt, const char *end)
     if (end == opt)
         return NULL;
     beg = end;
-    while (beg != opt && beg[-1] != ',' && !isspace(beg[-1]))
-        beg--;
+    while (beg > opt) {
+        --beg;
+        if (beg[0] == ',' || isspace(beg[0])) {
+            ++beg;
+            break;
+        }
+    }
     len = end - beg;
-    if (len > SECTION_NAME_MAX)
+    if (len > SECTION_NAME_MAX) {
+        CMP_warn3("using only first %d characters of section name starting with \"%.*s\"",
+                  SECTION_NAME_MAX, SECTION_NAME_MAX, beg);
         len = SECTION_NAME_MAX;
-    strncpy(opt_item, beg, len);
-    opt_item[SECTION_NAME_MAX] = '\0'; /* avoid gcc v8 O3 stringop-truncation */
+    }
+    memcpy(opt_item, beg, len);
     opt_item[len] = '\0';
-    if (len > SECTION_NAME_MAX)
-        CMP_warn2("using only first %d characters of section name starting with \"%s\"",
-                  SECTION_NAME_MAX, opt_item);
-    while (beg != opt && (beg[-1] == ',' || isspace(beg[-1])))
-        beg--;
+    while (beg > opt) {
+        --beg;
+        if (beg[0] != ',' && !isspace(beg[0])) {
+            ++beg;
+            break;
+        }
+    }
     return beg;
 }
 

@@ -207,12 +207,12 @@ static unsigned int psk_server_cb(SSL *ssl, const char *identity,
     if (s_debug)
         BIO_printf(bio_s_out, "psk_server_cb\n");
 
-    if (SSL_version(ssl) >= TLS1_3_VERSION) {
+    if (!SSL_is_dtls(ssl) && SSL_version(ssl) >= TLS1_3_VERSION) {
         /*
-         * This callback is designed for use in TLSv1.2. It is possible to use
-         * a single callback for all protocol versions - but it is preferred to
-         * use a dedicated callback for TLSv1.3. For TLSv1.3 we have
-         * psk_find_session_cb.
+         * This callback is designed for use in (D)TLSv1.2 (or below). It is
+         * possible to use a single callback for all protocol versions - but it
+         * is preferred to use a dedicated callback for TLSv1.3. For TLSv1.3 we
+         * have psk_find_session_cb.
          */
         return 0;
     }
@@ -1047,7 +1047,7 @@ typedef enum OPTION_choice {
     OPT_ECHCONFIG, OPT_ECHDIR, OPT_ECHSPECIFICPAD,
     OPT_ECH_TRIALDECRYPT,
 #endif
-    OPT_HTTP_SERVER_BINMODE, OPT_NOCANAMES, OPT_IGNORE_UNEXPECTED_EOF,
+    OPT_HTTP_SERVER_BINMODE, OPT_NOCANAMES, OPT_IGNORE_UNEXPECTED_EOF, OPT_KTLS,
     OPT_R_ENUM,
     OPT_S_ENUM,
     OPT_V_ENUM,
@@ -1298,6 +1298,7 @@ const OPTIONS s_server_options[] = {
         "Do trial decryption even if ECH record_digest matching fails"},
 #endif
 #ifndef OPENSSL_NO_KTLS
+    {"ktls", OPT_KTLS, '-', "Enable Kernel TLS for sending and receiving"},
     {"sendfile", OPT_SENDFILE, '-', "Use sendfile to response file with -WWW"},
 #endif
     OPT_R_OPTIONS,
@@ -1403,6 +1404,9 @@ int s_server_main(int argc, char *argv[])
     int sctp_label_bug = 0;
 #endif
     int ignore_unexpected_eof = 0;
+#ifndef OPENSSL_NO_KTLS
+    int enable_ktls = 0;
+#endif
 
     /* Init of few remaining global variables */
     local_argc = argc;
@@ -1991,6 +1995,11 @@ int s_server_main(int argc, char *argv[])
         case OPT_NOCANAMES:
             no_ca_names = 1;
             break;
+        case OPT_KTLS:
+#ifndef OPENSSL_NO_KTLS
+            enable_ktls = 1;
+#endif
+            break;
         case OPT_SENDFILE:
 #ifndef OPENSSL_NO_KTLS
             use_sendfile = 1;
@@ -2058,6 +2067,11 @@ int s_server_main(int argc, char *argv[])
 #endif
 
 #ifndef OPENSSL_NO_KTLS
+    if (use_sendfile && enable_ktls == 0) {
+        BIO_printf(bio_out, "Warning: -sendfile depends on -ktls, enabling -ktls now.\n");
+        enable_ktls = 1;
+    }
+
     if (use_sendfile && www <= 1) {
         BIO_printf(bio_err, "Can't use -sendfile without -WWW or -HTTP\n");
         goto end;
@@ -2251,6 +2265,10 @@ int s_server_main(int argc, char *argv[])
 
     if (ignore_unexpected_eof)
         SSL_CTX_set_options(ctx, SSL_OP_IGNORE_UNEXPECTED_EOF);
+#ifndef OPENSSL_NO_KTLS
+    if (enable_ktls)
+        SSL_CTX_set_options(ctx, SSL_OP_ENABLE_KTLS);
+#endif
 
     if (max_send_fragment > 0
         && !SSL_CTX_set_max_send_fragment(ctx, max_send_fragment)) {
@@ -3455,8 +3473,9 @@ static void print_connection_info(SSL *con)
 #endif
     if (SSL_session_reused(con))
         BIO_printf(bio_s_out, "Reused session-id\n");
-    BIO_printf(bio_s_out, "Secure Renegotiation IS%s supported\n",
-               SSL_get_secure_renegotiation_support(con) ? "" : " NOT");
+
+    ssl_print_secure_renegotiation_notes(bio_s_out, con);
+
     if ((SSL_get_options(con) & SSL_OP_NO_RENEGOTIATION))
         BIO_printf(bio_s_out, "Renegotiation is DISABLED\n");
 
@@ -3733,10 +3752,7 @@ static int www_body(int s, int stype, int prot, unsigned char *context)
             BIO_puts(io, "\n");
 #endif
 
-            BIO_printf(io,
-                       "Secure Renegotiation IS%s supported\n",
-                       SSL_get_secure_renegotiation_support(con) ?
-                       "" : " NOT");
+            ssl_print_secure_renegotiation_notes(io, con);
 
             /*
              * The following is evil and should not really be done

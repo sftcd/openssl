@@ -944,7 +944,7 @@ static int cipher_test_enc(EVP_TEST *t, int enc,
             in += in_len - 1;
             in_len = 1;
         }
-        if (in_len > 0 ) {
+        if (in_len > 0) {
             if (!EVP_CipherUpdate(ctx, tmp + out_misalign + tmplen, &chunklen,
                                   in, 1))
                 goto err;
@@ -1848,11 +1848,17 @@ static int pderive_test_parse(EVP_TEST *t,
 
 static int pderive_test_run(EVP_TEST *t)
 {
+    EVP_PKEY_CTX *dctx = NULL;
     PKEY_DATA *expected = t->data;
     unsigned char *got = NULL;
     size_t got_len;
 
-    if (EVP_PKEY_derive(expected->ctx, NULL, &got_len) <= 0) {
+    if (!TEST_ptr(dctx = EVP_PKEY_CTX_dup(expected->ctx))) {
+        t->err = "DERIVE_ERROR";
+        goto err;
+    }
+
+    if (EVP_PKEY_derive(dctx, NULL, &got_len) <= 0) {
         t->err = "DERIVE_ERROR";
         goto err;
     }
@@ -1860,7 +1866,7 @@ static int pderive_test_run(EVP_TEST *t)
         t->err = "DERIVE_ERROR";
         goto err;
     }
-    if (EVP_PKEY_derive(expected->ctx, got, &got_len) <= 0) {
+    if (EVP_PKEY_derive(dctx, got, &got_len) <= 0) {
         t->err = "DERIVE_ERROR";
         goto err;
     }
@@ -1872,6 +1878,7 @@ static int pderive_test_run(EVP_TEST *t)
     t->err = NULL;
  err:
     OPENSSL_free(got);
+    EVP_PKEY_CTX_free(dctx);
     return 1;
 }
 
@@ -2664,7 +2671,7 @@ static int kdf_test_run(EVP_TEST *t)
         t->err = "KDF_CTRL_ERROR";
         return 1;
     }
-    if (!TEST_ptr(got = OPENSSL_malloc(got_len))) {
+    if (!TEST_ptr(got = OPENSSL_malloc(got_len == 0 ? 1 : got_len))) {
         t->err = "INTERNAL_ERROR";
         goto err;
     }
@@ -2760,7 +2767,7 @@ static int pkey_kdf_test_run(EVP_TEST *t)
     unsigned char *got = NULL;
     size_t got_len = expected->output_len;
 
-    if (!TEST_ptr(got = OPENSSL_malloc(got_len))) {
+    if (!TEST_ptr(got = OPENSSL_malloc(got_len == 0 ? 1 : got_len))) {
         t->err = "INTERNAL_ERROR";
         goto err;
     }
@@ -2872,12 +2879,12 @@ static int keypair_test_run(EVP_TEST *t)
         goto end;
     }
 
-    if ((rv = EVP_PKEY_eq(pair->privk, pair->pubk)) != 1 ) {
-        if ( 0 == rv ) {
+    if ((rv = EVP_PKEY_eq(pair->privk, pair->pubk)) != 1) {
+        if (0 == rv) {
             t->err = "KEYPAIR_MISMATCH";
-        } else if ( -1 == rv ) {
+        } else if (-1 == rv) {
             t->err = "KEYPAIR_TYPE_MISMATCH";
-        } else if ( -2 == rv ) {
+        } else if (-2 == rv) {
             t->err = "UNSUPPORTED_KEY_COMPARISON";
         } else {
             TEST_error("Unexpected error in key comparison");
@@ -3594,7 +3601,7 @@ start:
         }
         klist = &public_keys;
     } else if (strcmp(pp->key, "PrivateKeyRaw") == 0
-               || strcmp(pp->key, "PublicKeyRaw") == 0 ) {
+               || strcmp(pp->key, "PublicKeyRaw") == 0) {
         char *strnid = NULL, *keydata = NULL;
         unsigned char *keybin;
         size_t keylen;

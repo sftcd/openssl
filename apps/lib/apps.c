@@ -197,17 +197,13 @@ int set_nameopt(const char *arg)
 
 unsigned long get_nameopt(void)
 {
-    return (nmflag_set) ? nmflag : XN_FLAG_ONELINE;
+    return (nmflag_set) ? nmflag : XN_FLAG_SEP_CPLUS_SPC | ASN1_STRFLGS_UTF8_CONVERT;
 }
 
-int dump_cert_text(BIO *out, X509 *x)
+void dump_cert_text(BIO *out, X509 *x)
 {
     print_name(out, "subject=", X509_get_subject_name(x));
-    BIO_puts(out, "\n");
     print_name(out, "issuer=", X509_get_issuer_name(x));
-    BIO_puts(out, "\n");
-
-    return 0;
 }
 
 int wrap_password_callback(char *buf, int bufsiz, int verify, void *userdata)
@@ -827,7 +823,7 @@ int load_crls(const char *uri, STACK_OF(X509_CRL) **crls,
 
 static const char *format2string(int format)
 {
-    switch(format) {
+    switch (format) {
     case FORMAT_PEM:
         return "PEM";
     case FORMAT_ASN1:
@@ -1289,6 +1285,8 @@ void print_name(BIO *out, const char *title, const X509_NAME *nm)
     int indent = 0;
     unsigned long lflags = get_nameopt();
 
+    if (out == NULL)
+        return;
     if (title != NULL)
         BIO_puts(out, title);
     if ((lflags & XN_FLAG_SEP_MASK) == XN_FLAG_SEP_MULTILINE) {
@@ -1944,7 +1942,7 @@ X509_NAME *parse_name(const char *cp, int chtype, int canmulti,
             ERR_print_errors(bio_err);
             BIO_printf(bio_err,
                        "%s: Error adding %s name attribute \"/%s=%s\"\n",
-                       opt_getprog(), desc, typestr ,valstr);
+                       opt_getprog(), desc, typestr, valstr);
             goto err;
         }
     }
@@ -2847,9 +2845,9 @@ int raw_write_stdout(const void *buf, int siz)
 #   include <floss.h(floss_write)>
 #  endif
 # endif
-int raw_write_stdout(const void *buf,int siz)
+int raw_write_stdout(const void *buf, int siz)
 {
-	return write(fileno(stdout),(void*)buf,siz);
+	return write(fileno(stdout), (void*)buf, siz);
 }
 #else
 # if defined(__TANDEM)

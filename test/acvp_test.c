@@ -71,7 +71,7 @@ static int pkey_get_bn_bytes(EVP_PKEY *pkey, const char *name,
     buf = OPENSSL_zalloc(sz);
     if (buf == NULL)
         goto err;
-    if (!BN_bn2binpad(bn, buf, sz))
+    if (BN_bn2binpad(bn, buf, sz) <= 0)
         goto err;
 
     *out_len = sz;
@@ -94,6 +94,7 @@ static int sig_gen(EVP_PKEY *pkey, OSSL_PARAM *params, const char *digest_name,
     size_t sig_len;
     size_t sz = EVP_PKEY_get_size(pkey);
 
+    sig_len = sz;
     if (!TEST_ptr(sig = OPENSSL_malloc(sz))
         || !TEST_ptr(md_ctx = EVP_MD_CTX_new())
         || !TEST_int_eq(EVP_DigestSignInit_ex(md_ctx, NULL, digest_name, libctx,
@@ -164,7 +165,7 @@ static int ecdsa_create_pkey(EVP_PKEY **pkey, const char *curve_name,
                                                        pub, pub_len) > 0)
         || !TEST_ptr(params = OSSL_PARAM_BLD_to_param(bld))
         || !TEST_ptr(ctx = EVP_PKEY_CTX_new_from_name(libctx, "EC", NULL))
-        || !TEST_true(EVP_PKEY_fromdata_init(ctx))
+        || !TEST_int_eq(EVP_PKEY_fromdata_init(ctx), 1)
         || !TEST_int_eq(EVP_PKEY_fromdata(ctx, pkey, EVP_PKEY_PUBLIC_KEY,
                                           params), expected))
     goto err;
@@ -503,8 +504,9 @@ static int dsa_create_pkey(EVP_PKEY **pkey,
      }
      if (!TEST_ptr(params = OSSL_PARAM_BLD_to_param(bld))
          || !TEST_ptr(ctx = EVP_PKEY_CTX_new_from_name(libctx, "DSA", NULL))
-         || !TEST_true(EVP_PKEY_fromdata_init(ctx))
-         || !TEST_true(EVP_PKEY_fromdata(ctx, pkey, EVP_PKEY_PUBLIC_KEY, params)))
+         || !TEST_int_eq(EVP_PKEY_fromdata_init(ctx), 1)
+         || !TEST_int_eq(EVP_PKEY_fromdata(ctx, pkey, EVP_PKEY_PUBLIC_KEY,
+                                           params), 1))
          goto err;
 
     ret = 1;
@@ -924,7 +926,7 @@ static int dh_create_pkey(EVP_PKEY **pkey, const char *group_name,
 
     if (!TEST_ptr(params = OSSL_PARAM_BLD_to_param(bld))
         || !TEST_ptr(ctx = EVP_PKEY_CTX_new_from_name(libctx, "DH", NULL))
-        || !TEST_true(EVP_PKEY_fromdata_init(ctx))
+        || !TEST_int_eq(EVP_PKEY_fromdata_init(ctx), 1)
         || !TEST_int_eq(EVP_PKEY_fromdata(ctx, pkey, EVP_PKEY_KEYPAIR, params),
                         pass))
     goto err;
@@ -1033,8 +1035,9 @@ static int rsa_create_pkey(EVP_PKEY **pkey,
     }
     if (!TEST_ptr(params = OSSL_PARAM_BLD_to_param(bld))
         || !TEST_ptr(ctx = EVP_PKEY_CTX_new_from_name(libctx, "RSA", NULL))
-        || !TEST_true(EVP_PKEY_fromdata_init(ctx))
-        || !TEST_true(EVP_PKEY_fromdata(ctx, pkey, EVP_PKEY_KEYPAIR, params)))
+        || !TEST_int_eq(EVP_PKEY_fromdata_init(ctx), 1)
+        || !TEST_int_eq(EVP_PKEY_fromdata(ctx, pkey, EVP_PKEY_KEYPAIR, params),
+                        1))
         goto err;
 
     ret = 1;
