@@ -1540,6 +1540,10 @@ int speed_main(int argc, char **argv)
         case OPT_MULTI:
 #ifndef NO_FORK
             multi = atoi(opt_arg());
+            if ((size_t)multi >= SIZE_MAX / sizeof(int)) {
+                BIO_printf(bio_err, "%s: multi argument too large\n", prog);
+                return 0;
+            }
 #endif
             break;
         case OPT_ASYNCJOBS:
@@ -3092,10 +3096,9 @@ int speed_main(int argc, char **argv)
 #endif
     if (!mr) {
         printf("version: %s\n", OpenSSL_version(OPENSSL_FULL_VERSION_STRING));
-        printf("built on: %s\n", OpenSSL_version(OPENSSL_BUILT_ON));
-        printf("options:");
-        printf("%s ", BN_options());
-        printf("\n%s\n", OpenSSL_version(OPENSSL_CFLAGS));
+        printf("%s\n", OpenSSL_version(OPENSSL_BUILT_ON));
+        printf("options: %s\n", BN_options());
+        printf("%s\n", OpenSSL_version(OPENSSL_CFLAGS));
         printf("%s\n", OpenSSL_version(OPENSSL_CPU_INFO));
     }
 

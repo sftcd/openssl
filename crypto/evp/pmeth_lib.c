@@ -265,7 +265,20 @@ static EVP_PKEY_CTX *int_ctx_new(OSSL_LIB_CTX *libctx,
      * fetching a provider implementation.
      */
     if (e == NULL && app_pmeth == NULL && keytype != NULL) {
-        keymgmt = EVP_KEYMGMT_fetch(libctx, keytype, propquery);
+        /*
+         * If |pkey| is given and is provided, we take a reference to its
+         * keymgmt.  Otherwise, we fetch one for the keytype we got. This
+         * is to ensure that operation init functions can access what they
+         * need through this single pointer.
+         */
+        if (pkey != NULL && pkey->keymgmt != NULL) {
+            if (!EVP_KEYMGMT_up_ref(pkey->keymgmt))
+                ERR_raise(ERR_LIB_EVP, EVP_R_INITIALIZATION_ERROR);
+            else
+                keymgmt = pkey->keymgmt;
+        } else {
+            keymgmt = EVP_KEYMGMT_fetch(libctx, keytype, propquery);
+        }
         if (keymgmt == NULL)
             return NULL;   /* EVP_KEYMGMT_fetch() recorded an error */
 
@@ -500,6 +513,7 @@ EVP_PKEY_CTX *EVP_PKEY_CTX_dup(const EVP_PKEY_CTX *pctx)
                 = pctx->op.kex.exchange->dupctx(pctx->op.kex.algctx);
             if (rctx->op.kex.algctx == NULL) {
                 EVP_KEYEXCH_free(rctx->op.kex.exchange);
+                rctx->op.kex.exchange = NULL;
                 goto err;
             }
             return rctx;
@@ -517,6 +531,7 @@ EVP_PKEY_CTX *EVP_PKEY_CTX_dup(const EVP_PKEY_CTX *pctx)
                 = pctx->op.sig.signature->dupctx(pctx->op.sig.algctx);
             if (rctx->op.sig.algctx == NULL) {
                 EVP_SIGNATURE_free(rctx->op.sig.signature);
+                rctx->op.sig.signature = NULL;
                 goto err;
             }
             return rctx;
@@ -534,6 +549,7 @@ EVP_PKEY_CTX *EVP_PKEY_CTX_dup(const EVP_PKEY_CTX *pctx)
                 = pctx->op.ciph.cipher->dupctx(pctx->op.ciph.algctx);
             if (rctx->op.ciph.algctx == NULL) {
                 EVP_ASYM_CIPHER_free(rctx->op.ciph.cipher);
+                rctx->op.ciph.cipher = NULL;
                 goto err;
             }
             return rctx;
@@ -551,6 +567,7 @@ EVP_PKEY_CTX *EVP_PKEY_CTX_dup(const EVP_PKEY_CTX *pctx)
                 = pctx->op.encap.kem->dupctx(pctx->op.encap.algctx);
             if (rctx->op.encap.algctx == NULL) {
                 EVP_KEM_free(rctx->op.encap.kem);
+                rctx->op.encap.kem = NULL;
                 goto err;
             }
             return rctx;
@@ -597,7 +614,7 @@ int EVP_PKEY_meth_add0(const EVP_PKEY_METHOD *pmeth)
 {
     if (app_pkey_methods == NULL) {
         app_pkey_methods = sk_EVP_PKEY_METHOD_new(pmeth_cmp);
-        if (app_pkey_methods == NULL){
+        if (app_pkey_methods == NULL) {
             ERR_raise(ERR_LIB_EVP, ERR_R_MALLOC_FAILURE);
             return 0;
         }
@@ -849,7 +866,7 @@ int evp_pkey_ctx_set_params_strict(EVP_PKEY_CTX *ctx, OSSL_PARAM *params)
 
         for (p = params; p->key != NULL; p++) {
             /* Check the ctx actually understands this parameter */
-            if (OSSL_PARAM_locate_const(settable, p->key) == NULL )
+            if (OSSL_PARAM_locate_const(settable, p->key) == NULL)
                 return -2;
         }
     }
@@ -872,9 +889,9 @@ int evp_pkey_ctx_get_params_strict(EVP_PKEY_CTX *ctx, OSSL_PARAM *params)
         const OSSL_PARAM *gettable = EVP_PKEY_CTX_gettable_params(ctx);
         const OSSL_PARAM *p;
 
-        for (p = params; p->key != NULL; p++ ) {
+        for (p = params; p->key != NULL; p++) {
             /* Check the ctx actually understands this parameter */
-            if (OSSL_PARAM_locate_const(gettable, p->key) == NULL )
+            if (OSSL_PARAM_locate_const(gettable, p->key) == NULL)
                 return -2;
         }
     }

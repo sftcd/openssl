@@ -812,7 +812,7 @@ static void ssl_cipher_apply_rule(uint32_t cipher_id, uint32_t alg_mkey,
     const SSL_CIPHER *cp;
     int reverse = 0;
 
-    OSSL_TRACE_BEGIN(TLS_CIPHER){
+    OSSL_TRACE_BEGIN(TLS_CIPHER) {
         BIO_printf(trc_out,
                    "Applying rule %d with %08x/%08x/%08x/%08x/%08x %08x (%d)\n",
                    rule, alg_mkey, alg_auth, alg_enc, alg_mac, min_tls,
@@ -1001,7 +1001,7 @@ static int ssl_cipher_process_rulestr(const char *rule_str,
 
     retval = 1;
     l = rule_str;
-    for ( ; ; ) {
+    for (;;) {
         ch = *l;
 
         if (ch == '\0')
@@ -1042,9 +1042,9 @@ static int ssl_cipher_process_rulestr(const char *rule_str,
             while (((ch >= 'A') && (ch <= 'Z')) ||
                    ((ch >= '0') && (ch <= '9')) ||
                    ((ch >= 'a') && (ch <= 'z')) ||
-                   (ch == '-') || (ch == '.') || (ch == '='))
+                   (ch == '-') || (ch == '_') || (ch == '.') || (ch == '='))
 #else
-            while (isalnum((unsigned char)ch) || (ch == '-') || (ch == '.')
+            while (isalnum((unsigned char)ch) || (ch == '-') || (ch == '_') || (ch == '.')
                    || (ch == '='))
 #endif
             {
@@ -1093,6 +1093,11 @@ static int ssl_cipher_process_rulestr(const char *rule_str,
             while (ca_list[j]) {
                 if (strncmp(buf, ca_list[j]->name, buflen) == 0
                     && (ca_list[j]->name[buflen] == '\0')) {
+                    found = 1;
+                    break;
+                } else if (ca_list[j]->stdname != NULL
+                           && strncmp(buf, ca_list[j]->stdname, buflen) == 0
+                           && ca_list[j]->stdname[buflen] == '\0') {
                     found = 1;
                     break;
                 } else
@@ -1638,6 +1643,7 @@ STACK_OF(SSL_CIPHER) *ssl_create_cipher_list(SSL_CTX *ctx,
         }
 
         if (!sk_SSL_CIPHER_push(cipherstack, sslc)) {
+            OPENSSL_free(co_list);
             sk_SSL_CIPHER_free(cipherstack);
             return NULL;
         }

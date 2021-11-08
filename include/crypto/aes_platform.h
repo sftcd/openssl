@@ -92,7 +92,7 @@ void AES_xts_decrypt(const unsigned char *inp, unsigned char *out, size_t len,
 #    define HWAES_decrypt aes_v8_decrypt
 #    define HWAES_cbc_encrypt aes_v8_cbc_encrypt
 #    define HWAES_ecb_encrypt aes_v8_ecb_encrypt
-#    if __ARM_MAX_ARCH__>=8
+#    if __ARM_MAX_ARCH__>=8 && defined(__aarch64__)
 #     define HWAES_xts_encrypt aes_v8_xts_encrypt
 #     define HWAES_xts_decrypt aes_v8_xts_decrypt
 #    endif
@@ -100,7 +100,7 @@ void AES_xts_decrypt(const unsigned char *inp, unsigned char *out, size_t len,
 #    define AES_PMULL_CAPABLE ((OPENSSL_armcap_P & ARMV8_PMULL) && (OPENSSL_armcap_P & ARMV8_AES))
 #    define AES_GCM_ENC_BYTES 512
 #    define AES_GCM_DEC_BYTES 512
-#    if __ARM_MAX_ARCH__>=8
+#    if __ARM_MAX_ARCH__>=8 && defined(__aarch64__)
 #     define AES_gcm_encrypt armv8_aes_gcm_encrypt
 #     define AES_gcm_decrypt armv8_aes_gcm_decrypt
 #     define AES_GCM_ASM(gctx) ((gctx)->ctr==aes_v8_ctr32_encrypt_blocks && \
