@@ -2208,7 +2208,6 @@ static int execute_test_session(int maxprot, int use_int_cache,
             OPENSSL_free(echconfiglist);
             return 0;
         }
-#endif
         if (SSL_CTX_ech_add(cctx,ECH_FMT_GUESS, 
                echconfig_len, echconfiglist,
                &echcount)!=1) {
@@ -12724,6 +12723,11 @@ int setup_tests(void)
     if (!TEST_true(OSSL_PROVIDER_add_builtin(libctx, "tls-provider",
                                              tls_provider_init)))
         return 0;
+
+#ifndef OPENSSL_NO_USABLE_ECH
+    if (hpke_setlibctx(libctx)!=1)
+            return 0;
+#endif
 
 
     if (getenv("OPENSSL_TEST_GETCOUNTS") != NULL) {
