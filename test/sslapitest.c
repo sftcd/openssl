@@ -11830,11 +11830,6 @@ int setup_tests(void)
                                              tls_provider_init)))
         return 0;
 
-#ifndef OSSL_NO_USABLE_ECH
-    if (hpke_setlibctx(libctx)!=1)
-            return 0;
-#endif
-
 
     if (getenv("OPENSSL_TEST_GETCOUNTS") != NULL) {
 #ifdef OPENSSL_NO_CRYPTO_MDEBUG
