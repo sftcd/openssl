@@ -1925,6 +1925,9 @@ static int execute_test_session(int maxprot, int use_int_cache,
         int echcount=0;
         size_t echconfig_len=0;
 
+        if (hpke_setlibctx(libctx)!=1)
+            return 0;
+
         /* read pre-cooked ECH private/ECHConfigList */
         echkeyfile=test_mk_file_path(certsdir, "echconfig.pem");
         echconfiglist=echconfiglist_from_PEM(echkeyfile);
@@ -9791,11 +9794,6 @@ int setup_tests(void)
     if (!TEST_true(OSSL_PROVIDER_add_builtin(libctx, "tls-provider",
                                              tls_provider_init)))
         return 0;
-
-#ifndef OSSL_NO_USABLE_ECH
-    if (hpke_setlibctx(libctx)!=1)
-            return 0;
-#endif
 
 
     if (getenv("OPENSSL_TEST_GETCOUNTS") != NULL) {
