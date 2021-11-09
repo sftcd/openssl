@@ -35,6 +35,7 @@
 #include <openssl/dh.h>
 #ifndef OPENSSL_NO_ECH
 #include <openssl/ech.h>
+#include <crypto/hpke.h>
 #endif
 
 #include "helpers/ssltestlib.h"
@@ -9791,7 +9792,7 @@ int setup_tests(void)
                                              tls_provider_init)))
         return 0;
 
-#ifndef OPENSSL_NO_USABLE_ECH
+#ifndef OSSL_NO_USABLE_ECH
     if (hpke_setlibctx(libctx)!=1)
             return 0;
 #endif
