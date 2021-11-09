@@ -197,7 +197,6 @@ out:
 #endif
 #endif
 
-
 static int hostname_cb(SSL *s, int *al, void *arg)
 {
     const char *hostname = SSL_get_servername(s, TLSEXT_NAMETYPE_host_name);
@@ -2203,6 +2202,7 @@ static int execute_test_session(int maxprot, int use_int_cache,
             OPENSSL_free(echconfiglist);
             return 0;
         }
+#endif
         if (SSL_CTX_ech_add(cctx,ECH_FMT_GUESS, 
                echconfig_len, echconfiglist,
                &echcount)!=1) {
