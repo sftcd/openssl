@@ -5312,9 +5312,7 @@ int ech_early_decrypt(SSL *s, PACKET *outerpkt, PACKET *newpkt)
         goto err;
     }
 
-    /*
-     * Calculate AAD value
-     */
+    /* Calculate AAD value */
     if (echtype==ECH_DRAFT_10_VERSION) {
         /* newextlen = length of exts after taking out ech */
         newextlens=ch_len-echlen-startofexts-6;
@@ -5399,13 +5397,11 @@ int ech_early_decrypt(SSL *s, PACKET *outerpkt, PACKET *newpkt)
     }
     for (cfgind=0;cfgind!=s->nechs;cfgind++) {
         ECHConfig *e=&s->ech[cfgind].cfg->recs[0];
-#ifndef OPENSSL_NO_SSL_TRACE
         OSSL_TRACE_BEGIN(TLS) {
             BIO_printf(trc_out,
                     "EARLY: rx'd config id (%x) ==? %d-th configured (%x)\n",
                     extval->config_id,cfgind,e->config_id);
         } OSSL_TRACE_END(TLS);
-#endif
         if (extval->config_id==e->config_id) {
             foundcfg=1;
             break;
@@ -5425,10 +5421,9 @@ int ech_early_decrypt(SSL *s, PACKET *outerpkt, PACKET *newpkt)
         }
     }
 
-    /*
-     * Trial decrypt, if still needed
-     */
+    /* Trial decrypt, if still needed */
     if (clear==NULL && (s->options & SSL_OP_ECH_TRIALDECRYPT)) {
+        foundcfg=0; /* reset as we're trying again */
         for (cfgind=0;cfgind!=s->nechs;cfgind++) {
             clear=hpke_decrypt_encch(s,&s->ech[cfgind],
                     extval,aad_len,aad,forhrr,
@@ -5447,9 +5442,7 @@ int ech_early_decrypt(SSL *s, PACKET *outerpkt, PACKET *newpkt)
      */
     s->ext.ech_done=1;
 
-    /*
-     * 3. if decrypt fails tee-up GREASE
-     */
+    /* 3. if decrypt fails tee-up GREASE */
     if (clear==NULL) {
         s->ext.ech_grease=ECH_IS_GREASE;
         s->ext.ech_success=0;
@@ -5457,7 +5450,6 @@ int ech_early_decrypt(SSL *s, PACKET *outerpkt, PACKET *newpkt)
         s->ext.ech_grease=ECH_NOT_GREASE;
         s->ext.ech_success=1;
     }
-#ifndef OPENSSL_NO_SSL_TRACE
     OSSL_TRACE_BEGIN(TLS) {
         BIO_printf(trc_out,
             "EARLY: success: %d, assume_grease: %d, " \
@@ -5465,13 +5457,12 @@ int ech_early_decrypt(SSL *s, PACKET *outerpkt, PACKET *newpkt)
             s->ext.ech_success,s->ext.ech_grease,foundcfg,
             cfgind,clearlen,(void*)clear);
     } OSSL_TRACE_END(TLS);
-#endif
 
-    /*
-     * Bit more logging
-     */
-    if (foundcfg==1) {
-        ECHConfig *e=&s->ech[cfgind].cfg->recs[0];
+    /* Bit more logging */
+    if (foundcfg==1 && clear!=NULL) {
+        SSL_ECH *se=&s->ech[cfgind];
+        ECHConfigs *seg=se->cfg;
+        ECHConfig *e=&seg->recs[0];
         ech_pbuf("local config_id",&e->config_id,1);
         ech_pbuf("remote config_id",&extval->config_id,1);
         ech_pbuf("clear",clear,clearlen);
