@@ -2218,7 +2218,6 @@ static int execute_test_session(int maxprot, int use_int_cache,
         OPENSSL_free(echkeyfile);
         OPENSSL_free(echconfiglist);
     }
-    EVP_PKEY_CTX_free(xctx);
 #endif
 
     /* Set up session cache */
