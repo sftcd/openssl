@@ -223,6 +223,11 @@ const char *hpke_kdf_strtab[]={
     HPKE_KDFSTR_512};
 #endif
 
+#define HPKE_LIB_CTX
+#ifdef HPKE_LIB_CTX
+static OSSL_LIB_CTX *hpke_libctx=NULL;
+#endif
+
 /*!
  * <pre>
  * Since I always have to reconstruct this again in my head...
@@ -2246,6 +2251,9 @@ int hpke_kg(
     if (!bfp) {
         erv=__LINE__; goto err;
     }
+#ifdef HPKE_LIB_CTX
+    /* func below has an _ex variant that could take a OSSL_LIB_CTX* */
+#endif
     if (!PEM_write_bio_PrivateKey(bfp,skR,NULL,NULL,0,NULL,NULL)) {
         erv=__LINE__; goto err;
     }
@@ -2472,7 +2480,11 @@ int hpke_prbuf2evp(
         if (!params) {
             erv=__LINE__; goto err;
         }
+#ifdef HPKE_LIB_CTX
+        ctx = EVP_PKEY_CTX_new_from_name(hpke_libctx,keytype, NULL);
+#else
         ctx = EVP_PKEY_CTX_new_from_name(NULL,keytype, NULL);
+#endif
         if (ctx == NULL) {
             erv=__LINE__; goto err;
         }
@@ -2491,6 +2503,9 @@ int hpke_prbuf2evp(
             return(__LINE__);
         }
         BIO_write(bfp,prbuf,prbuf_len);
+#ifdef HPKE_LIB_CTX
+        /* func below has an _ex variant that could take a OSSL_LIB_CTX* */
+#endif
         if (!PEM_read_bio_PrivateKey(bfp,&lpriv,NULL,NULL)) {
             BIO_free_all(bfp); bfp=NULL;
             return(__LINE__);
@@ -2568,6 +2583,9 @@ static int hpke_random_suite(hpke_suite_t *suite)
     int nkdfs=sizeof(hpke_kdf_tab)/sizeof(hpke_kdf_info_t)-1;
     int naeads=sizeof(hpke_aead_tab)/sizeof(hpke_aead_info_t)-1;
 
+#ifdef HPKE_LIB_CTX
+    /* func below has an _ex variant that could take a OSSL_LIB_CTX* */
+#endif
     if (RAND_bytes(&rval, sizeof(rval)) <= 0) return(__LINE__);
     nthkem=(rval%5+1); /* ok the "5" is magic!!! */
     while(found<nthkem && entry<nkems) {
@@ -2578,10 +2596,16 @@ static int hpke_random_suite(hpke_suite_t *suite)
     }
     suite->kem_id=hpke_kem_tab[entry-1].kem_id;
 
+#ifdef HPKE_LIB_CTX
+    /* func below has an _ex variant that could take a OSSL_LIB_CTX* */
+#endif
     /* check kdf */
     if (RAND_bytes(&rval, sizeof(rval)) <= 0) return(__LINE__);
     suite->kdf_id=hpke_kdf_tab[(rval%nkdfs+1)].kdf_id;
 
+#ifdef HPKE_LIB_CTX
+    /* func below has an _ex variant that could take a OSSL_LIB_CTX* */
+#endif
     /* check aead */
     if (RAND_bytes(&rval, sizeof(rval)) <= 0) return(__LINE__);
     suite->aead_id=hpke_aead_tab[(rval%naeads+1)].aead_id;
@@ -2633,8 +2657,14 @@ int hpke_good4grease(
     /* publen */
     plen=hpke_kem_tab[chosen.kem_id].Npk;
     if (plen>*pub_len) return(__LINE__);
+#ifdef HPKE_LIB_CTX
+    /* func below has an _ex variant that could take a OSSL_LIB_CTX* */
+#endif
     if (RAND_bytes(pub, plen) <= 0) return(__LINE__);
     *pub_len=plen;
+#ifdef HPKE_LIB_CTX
+    /* func below has an _ex variant that could take a OSSL_LIB_CTX* */
+#endif
     if (RAND_bytes(cipher, cipher_len) <= 0) return(__LINE__);
 
 #ifdef SUPERVERBOSE
@@ -2763,7 +2793,12 @@ int hpke_expansion(hpke_suite_t suite,
  */
 int hpke_setlibctx(OSSL_LIB_CTX *libctx)
 {
+#ifndef HPKE_LIB_CTX
     OSSL_LIB_CTX *retctx=OSSL_LIB_CTX_set0_default(libctx);
     if (retctx==NULL) return(0);
+#else
+    hpke_libctx=libctx;
+#endif
     return(1);
 }
+
