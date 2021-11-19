@@ -158,7 +158,7 @@ static unsigned char serverinfov2[] = {
     0xff        /* Dummy extension data */
 };
 
-#define HARDCODED
+#undef HARDCODED
 #ifndef HARDCODED
 #ifndef OSSL_NO_USABLE_ECH
 static char *echconfiglist_from_PEM(const char *echkeyfile)
@@ -1921,8 +1921,12 @@ static int execute_test_session(int maxprot, int use_int_cache,
     SSL_CTX_set_max_proto_version(cctx, maxprot);
 
 #ifndef OSSL_NO_USABLE_ECH
-    /* if TLSv1.3 then turn on ECH for both sides */
-    if (maxprot == TLS1_3_VERSION) {
+    /* 
+     * if TLSv1.3 and we can use 25519 turn on ECH for both sides 
+     * otherwise, skip ECH
+     */
+    EVP_PKEY_CTX *xctx = EVP_PKEY_CTX_new_id(EVP_PKEY_X25519, NULL);
+    if (maxprot == TLS1_3_VERSION && xctx) {
 #ifdef HARDCODED
         const char *echkeypair="-----BEGIN PRIVATE KEY-----\n" \
            "MC4CAQAwBQYDK2VuBCIEICjd4yGRdsoP9gU7YT7My8DHx1Tjme8GYDXrOMCi8v1V\n" \
@@ -1937,8 +1941,7 @@ static int execute_test_session(int maxprot, int use_int_cache,
         int echcount=0;
         size_t echconfig_len=0;
 
-        if (hpke_setlibctx(libctx)!=1)
-            return 0;
+        test_printf_stdout("Running real ECH, fips=%d\n",is_fips);
 
 #ifdef HARDCODED
         echkeypair_len=strlen(echkeypair);
@@ -1981,6 +1984,7 @@ static int execute_test_session(int maxprot, int use_int_cache,
         OPENSSL_free(echkeyfile);
         OPENSSL_free(echconfiglist);
     }
+    EVP_PKEY_CTX_free(xctx);
 #endif
 
     /* Set up session cache */
@@ -9631,6 +9635,9 @@ static int test_ech_add(int idx)
     int echcount = 0;
     int returned;
 
+    /* No ECH for FIPS for now */
+    if (is_fips) return 1;
+
 #if 0
     /*
      * This ECHConfigList has only one entry.
@@ -9645,7 +9652,7 @@ static int test_ech_add(int idx)
      * [13,10,9,13,10,13] - since our runtime no longer supports
      * version 9, we should see 5 configs loaded.
      * Once we drop support for draft-10, then it'll be 3 and
-     * we'll need to change the expectd echcount below.
+     * we'll need to change the expected echcount below.
      */
     char echconfig[]=
         "AXn+DQA6xQAgACBm54KSIPXu+pQq2oY183wt3ybx7CKbBYX0ogPq5u6FegAEAAE"\
@@ -9810,6 +9817,13 @@ int setup_tests(void)
 
     if (strcmp(modulename, "fips") == 0)
         is_fips = 1;
+
+#if 0
+#ifndef OPENSSL_NO_USABLE_ECH
+    if (!is_fips && hpke_setlibctx(libctx)!=1)
+        return 0;
+#endif
+#endif
 
     /*
      * We add, but don't load the test "tls-provider". We'll load it when we
