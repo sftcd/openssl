@@ -1901,6 +1901,9 @@ static int execute_test_session(int maxprot, int use_int_cache,
 # endif
     SSL_SESSION *sess1 = NULL, *sess2 = NULL;
     int testresult = 0, numnewsesstick = 1;
+#ifndef OSSL_NO_USABLE_ECH
+    int have25519=0;
+#endif
 
     new_called = remove_called = 0;
 
@@ -1925,8 +1928,15 @@ static int execute_test_session(int maxprot, int use_int_cache,
      * if TLSv1.3 and we can use 25519 turn on ECH for both sides 
      * otherwise, skip ECH
      */
-    EVP_PKEY_CTX *xctx = EVP_PKEY_CTX_new_id(EVP_PKEY_X25519, NULL);
-    if (maxprot == TLS1_3_VERSION && xctx) {
+    {
+        /* check if 25519 usable */
+        EVP_PKEY_CTX *xctx = EVP_PKEY_CTX_new_id(EVP_PKEY_X25519, NULL);
+        if (xctx!=NULL) {
+            have25519=1;
+            EVP_PKEY_CTX_free(xctx);
+        }
+    }
+    if (maxprot == TLS1_3_VERSION && have25519) {
 #ifdef HARDCODED
         const char *echkeypair="-----BEGIN PRIVATE KEY-----\n" \
            "MC4CAQAwBQYDK2VuBCIEICjd4yGRdsoP9gU7YT7My8DHx1Tjme8GYDXrOMCi8v1V\n" \
@@ -1984,7 +1994,6 @@ static int execute_test_session(int maxprot, int use_int_cache,
         OPENSSL_free(echkeyfile);
         OPENSSL_free(echconfiglist);
     }
-    EVP_PKEY_CTX_free(xctx);
 #endif
 
     /* Set up session cache */
@@ -9817,13 +9826,6 @@ int setup_tests(void)
 
     if (strcmp(modulename, "fips") == 0)
         is_fips = 1;
-
-#if 0
-#ifndef OPENSSL_NO_USABLE_ECH
-    if (!is_fips && hpke_setlibctx(libctx)!=1)
-        return 0;
-#endif
-#endif
 
     /*
      * We add, but don't load the test "tls-provider". We'll load it when we
