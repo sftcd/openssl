@@ -2217,6 +2217,7 @@ static int execute_test_session(int maxprot, int use_int_cache,
         OPENSSL_free(echkeyfile);
         OPENSSL_free(echconfiglist);
     }
+    EVP_PKEY_CTX_free(xctx);
 #endif
 
     /* Set up session cache */
@@ -11620,6 +11621,9 @@ static int test_ech_add(int idx)
     int testresult = 0;        /* assume failure */
     int echcount = 0;
     int returned;
+
+    /* No ECH for FIPS for now */
+    if (is_fips) return 1;
 
 #if 0
     /*
