@@ -670,9 +670,9 @@ static void *ech_len_field_dup(void *old, unsigned int len)
 /**
  * @brief Copy old->f (with length flen) to new->f
  */
-#define ECHFDUP(__f__,__flen__) \
+#define ECHFDUP(__f__,__flen__,__type__) \
     if (old->__flen__!=0) { \
-        new->__f__=ech_len_field_dup((void*)old->__f__,old->__flen__); \
+        new->__f__=(__type__)ech_len_field_dup((__type__)old->__f__,old->__flen__); \
         if (new->__f__==NULL) return 0; \
     }
 
@@ -692,10 +692,10 @@ static int ECHConfig_dup(ECHConfig *old, ECHConfig *new)
     new->exttypes=NULL;
     new->extlens=NULL;
     new->exts=NULL;
-    ECHFDUP(pub,pub_len);
-    ECHFDUP(public_name,public_name_len);
+    ECHFDUP(pub,pub_len,unsigned char*);
+    ECHFDUP(public_name,public_name_len,unsigned char *);
     new->config_id=old->config_id;
-    ECHFDUP(encoding_start,encoding_length);
+    ECHFDUP(encoding_start,encoding_length, unsigned char*);
     if (old->ciphersuites) {
         new->ciphersuites=
             OPENSSL_malloc(old->nsuites*sizeof(ech_ciphersuite_t));
@@ -735,7 +735,7 @@ static int ECHConfigs_dup(ECHConfigs *old, ECHConfigs *new)
     int i=0;
     if (!new || !old) return 0;
     if (old->encoded_len!=0) {
-        new->encoded=
+        new->encoded=(unsigned char*)
             ech_len_field_dup((void*)old->encoded,old->encoded_len);
         if (new->encoded==NULL) return 0;
         new->encoded_len=old->encoded_len;

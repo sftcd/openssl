@@ -23,6 +23,8 @@ export LD_LIBRARY_PATH=$CODETOP
 : ${BTOP:=$HOME/code/boringssl}
 # to pickup a different ECH config file
 : ${ECHCONFIGFILE="$CFGTOP/echconfig.pem"}
+# to pick up correct .so's - maybe note 
+: ${VERBOSE:="no"}
 
 BTOOL="$BTOP/build/tool"
 BFILES="$CFGTOP/bssl"
@@ -115,6 +117,14 @@ then
         cat $ECHCONFIGFILE | tail -2 | head -1 | base64 -d >$BFILES/os.ech
     fi
     echo "Running bssl s_client against localhost"
+    if [[ "$VERBOSE" == "yes" ]]
+    then
+        echo "Command to run: " \
+        " ( echo -e $httpreq ; sleep 2) | $BTOOL/bssl s_client -connect localhost:8443 " \
+        "-ech-config-list $BFILES/os.ech " \
+        "-server-name $httphost $debugstr " \
+        "-root-certs $CFGTOP/cadir/oe.csr" 
+    fi
     ( echo -e $httpreq ; sleep 2) | $BTOOL/bssl s_client -connect localhost:8443 \
         -ech-config-list $BFILES/os.ech \
         -server-name $httphost $debugstr \
