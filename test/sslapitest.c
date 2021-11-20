@@ -9644,9 +9644,6 @@ static int test_ech_add(int idx)
     int echcount = 0;
     int returned;
 
-    /* No ECH for FIPS for now */
-    if (is_fips) return 1;
-
 #if 0
     /*
      * This ECHConfigList has only one entry.
