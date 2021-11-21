@@ -73,7 +73,7 @@ const OPTIONS ech_options[] = {
     {"public_name", OPT_PUBLICNAME, 's', "public_name value"},
     {"mlen", OPT_MAXNAMELENGTH, 'n', "Maximum name length value"},
     {"suite", OPT_HPKESUITE, 's', "HPKE ciphersuite: e.g. \"0x20,1,3\""},
-    {"ech_version", OPT_ECHVERSION, 'n', "ECHConfig version [0xff0a (10)]"},
+    {"ech_version", OPT_ECHVERSION, 'n', "ECHConfig version [0xff0d (13)]"},
     {"extfile", OPT_EXTFILE, 's', "Input file with encoded ECH extensions\n"},
     OPT_SECTION("ECHConfig print/down-selection"),
     {"pemin", OPT_PEMIN, '>', "File with optional private key and ECHConfig"},
@@ -421,7 +421,7 @@ int ech_main(int argc, char **argv)
     char *extfile=NULL;
     unsigned char extvals[ECH_MAXEXTLEN];
     size_t extlen=ECH_MAXEXTLEN;
-    uint16_t ech_version=ECH_DRAFT_10_VERSION;
+    uint16_t ech_version=ECH_DRAFT_13_VERSION;
     uint16_t max_name_length=0;
     hpke_suite_t hpke_suite = HPKE_SUITE_DEFAULT;
     /* bigger size because of base64 */
@@ -516,20 +516,17 @@ opthelp:
                 ech_version);
             goto end;
         case 9:
-            ech_version=ECH_DRAFT_09_VERSION;
-            /* fall through */
+            ech_version=ECH_DRAFT_09_VERSION; /* fall through */
         case ECH_DRAFT_09_VERSION: /* Early ECH */
             BIO_printf(bio_err,
                 "Warning: generating draft-09 version. That's only" \
                 " useful for testing we ignore unknown versions.\n");
             break;
-        case ECH_DRAFT_10_VERSION:
-            break;
+        case ECH_DRAFT_10_VERSION: /* fall through */
         case 10:
             ech_version=ECH_DRAFT_10_VERSION;
             break;
-        case ECH_DRAFT_13_VERSION:
-            break;
+        case ECH_DRAFT_13_VERSION: /* fall through */
         case 13:
             ech_version=ECH_DRAFT_13_VERSION;
             break;
