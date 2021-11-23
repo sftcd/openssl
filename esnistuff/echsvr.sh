@@ -195,7 +195,8 @@ dbgstr=" -quiet"
 if [[ "$DEBUG" == "yes" ]]
 then
     #dbgstr="-msg $TRACING -debug -security_debug_verbose -state -tlsextdebug -keylogfile srv.keys"
-    dbgstr="-msg $TRACING -tlsextdebug -ign_eof -keylogfile keys.srv"
+    #dbgstr="-msg $TRACING -tlsextdebug -ign_eof -keylogfile keys.srv"
+    dbgstr="-msg $TRACING -tlsextdebug -ign_eof"
 fi
 
 vgcmd=""
