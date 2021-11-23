@@ -250,8 +250,18 @@ then
 	then
 		if [ ! -f $SUPPLIEDECH ]
 		then
-			echo "Assuming supplied ECH is RR value"
-			ECH=" $selstr -svcb $SUPPLIEDECH "
+            # if that value appears to be good base64 encoded, we'll assume it's an
+            # ECHConfigList, if not, we'll assume it's an RR (maybe AH encoded)
+            echo $SUPPLIEDECH | base64 -d >/dev/null 2>&1
+            bres=$?
+            if [[ "$bres" == "0" ]]
+            then
+                echo "Assuming supplied ECH is base64 encoded ECHConfigList"
+                ECH=" $selstr -echconfigs $SUPPLIEDECH "
+            else
+                echo "Assuming supplied ECH is RR value"
+                ECH=" $selstr -svcb $SUPPLIEDECH "
+            fi
         else
 		    # check if file suffix is .pem (base64 encoding) 
 		    # and react accordingly, don't take any other file extensions
@@ -265,7 +275,7 @@ then
 		    fi
 		fi
 	else
-        # try draft-09 only for now, i.e. HTTPSSVC
+        # try draft-13 only for now, i.e. HTTPS
         # kill the spaces and joing the lines if multi-valued seen 
         qname=$hidden
         if [[ "$PORT" != "" && "$PORT" != "443" ]]
