@@ -197,8 +197,8 @@ dbgstr=" "
 if [[ "$DEBUG" == "yes" ]]
 then
     #dbgstr="-msg -debug $TRACING -security_debug_verbose -state -tlsextdebug -keylogfile cli.keys"
-    #dbgstr="-msg -debug $TRACING"
-    dbgstr="-msg -debug $TRACING -tlsextdebug -keylogfile keys.cli"
+    dbgstr="-msg -debug $TRACING"
+    #dbgstr="-msg -debug $TRACING -tlsextdebug -keylogfile keys.cli"
 fi
 
 vgcmd=""
