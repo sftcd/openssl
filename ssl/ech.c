@@ -815,10 +815,10 @@ static ECHConfigs *ECHConfigs_from_binary(
         }
         ec=&te[rind];
         memset(ec,0,sizeof(ECHConfig));
+        rind++;
 
-        /* set start of encoding of this ECHConfig */
+        /* note start of encoding of this ECHConfig */
         ooffset=pkt.curr-binbuf;
-        ec->encoding_start=binbuf+ooffset;
 
         /*
          * Version
@@ -1048,6 +1048,7 @@ static ECHConfigs *ECHConfigs_from_binary(
         } /* END of ECH_DRAFT_10_VERSION ... or 13*/
 
         /* set length of encoding of this ECHConfig */
+        ec->encoding_start=binbuf+ooffset;
         ooffset=pkt.curr-binbuf;
         ec->encoding_length=(binbuf+ooffset)-ec->encoding_start;
         /* copy encoding_start as it might get free'd if a reduce happens */
@@ -1056,7 +1057,6 @@ static ECHConfigs *ECHConfigs_from_binary(
         memcpy(tmpecstart,ec->encoding_start,ec->encoding_length);
         ec->encoding_start=tmpecstart;
 
-        rind++;
         remaining=PACKET_remaining(&pkt);
     }
 
@@ -1088,6 +1088,10 @@ err:
         er=NULL;
     }
     if (te) {
+        int teind;
+        for (teind=0;teind!=rind;teind++) {
+            ECHConfig_free(&te[teind]);
+        }
         OPENSSL_free(te);
         te=NULL;
     }
