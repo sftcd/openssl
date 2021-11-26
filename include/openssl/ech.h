@@ -44,7 +44,7 @@
 /*
  * Various externally visible length limits
  */
-#define ECH_MAX_RRVALUE_LEN 2000 /**< Max RR value size, as given to API */
+#define ECH_MAX_RRVALUE_LEN 10000 /**< Max RR value size, as given to API */
 #define ECH_MAX_ECHCONFIGEXT_LEN 100 /**< Max for an ECHConfig extension */
 #define ECH_PBUF_SIZE 8*1024 /**<  buffer for string returned via ech_cb */
 #define ECH_MIN_ECHCONFIG_LEN 32 /**< just for a sanity check */
