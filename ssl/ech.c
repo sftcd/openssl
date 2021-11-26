@@ -859,6 +859,10 @@ static ECHConfigs *ECHConfigs_from_binary(
                     }
                     OPENSSL_free(foo);
                     remaining=PACKET_remaining(&pkt);
+
+                    /* we need to "unallocate" one */
+                    rind--;
+
                     continue;
                 }
         }
@@ -1053,7 +1057,10 @@ static ECHConfigs *ECHConfigs_from_binary(
         ec->encoding_length=(binbuf+ooffset)-ec->encoding_start;
         /* copy encoding_start as it might get free'd if a reduce happens */
         tmpecstart=OPENSSL_malloc(ec->encoding_length);
-        if (!tmpecstart) goto err;
+        if (!tmpecstart) {
+            ec->encoding_start=NULL; /* don't free twice in this case*/
+            goto err;
+        }
         memcpy(tmpecstart,ec->encoding_start,ec->encoding_length);
         ec->encoding_start=tmpecstart;
 
