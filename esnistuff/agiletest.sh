@@ -13,6 +13,8 @@ export LD_LIBRARY_PATH=$CODETOP
 : ${KEEP:=""}
 # in case you'd like more detailed gibberish-like output:-)
 : ${VERBOSE:=""}
+# in case you'd like this public name in ECHConfigs
+: ${PNAME:=""}
 
 KEM_STRINGS=(p256 p284 p521 x5519 x448 bogus-kem)
 KEM_IDS=(0x10 0x11 0x12 0x20 0x21 0xa0)
@@ -99,6 +101,10 @@ cd $scratchdir
 
 # the same public_name for all test cases
 pname="-public_name example.com"
+if [[ "$PNAME" != "" ]]
+then
+    pname="-public_name $PNAME"
+fi
 
 # 
 # Stage 1 generate keys as needed
@@ -319,13 +325,12 @@ do
 
     # wait a bit
     sleep $sleepb4
-    # this time the RR value is supplied base64 encoded
-    echb64str=`$CODETOP/esnistuff/pem2rr.sh -p $file | xxd -r -p | base64 -w0`
+    # this time the RR value is supplied base64 encoded, so just give the file
     if [[ "$verbose" == "yes" ]]
     then
-        $CODETOP/esnistuff/echcli.sh -P $echb64str -s localhost -p 8443 -H foo.example.com $vparm -f index.html
+        $CODETOP/esnistuff/echcli.sh -P $file -s localhost -p 8443 -H foo.example.com $vparm -f index.html
     else
-        $CODETOP/esnistuff/echcli.sh -P $echb64str -s localhost -p 8443 -H foo.example.com $vparm -f index.html >/dev/null 2>&1
+        $CODETOP/esnistuff/echcli.sh -P $file -s localhost -p 8443 -H foo.example.com $vparm -f index.html >/dev/null 2>&1
     fi
     cret=$?
     if [[ "$cret" != "0" ]]

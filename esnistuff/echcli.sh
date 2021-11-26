@@ -250,17 +250,26 @@ then
 	then
 		if [ ! -f $SUPPLIEDECH ]
 		then
-            # if that value appears to be good base64 encoded, we'll assume it's an
-            # ECHConfigList, if not, we'll assume it's an RR (maybe AH encoded)
+            # if that value appears to be good ascii hex encoded, we'll assume it's an
+            # HTTPS RR value 
+            ignore=$((16#$SUPPLIEDECH))
+            ahres=$?
+            # if however it's base64 we'll guess it's a b64'd ECHConfigList 
             echo $SUPPLIEDECH | base64 -d >/dev/null 2>&1
             bres=$?
-            if [[ "$bres" == "0" ]]
+            # note: the same string can pass both tests in which case
+            # we go for the HTTPS RR option
+            if [[ "$ahres" == "0" ]]
+            then
+                echo "Assuming supplied ECH is RR value"
+                ECH=" $selstr -svcb $SUPPLIEDECH "
+            elif [[ "$bres" == "0" ]]
             then
                 echo "Assuming supplied ECH is base64 encoded ECHConfigList"
                 ECH=" $selstr -echconfigs $SUPPLIEDECH "
             else
-                echo "Assuming supplied ECH is RR value"
-                ECH=" $selstr -svcb $SUPPLIEDECH "
+                echo "Supplied ECH is neither ascii-hex nor base64 - exiting "
+                exit 44
             fi
         else
 		    # check if file suffix is .pem (base64 encoding) 
