@@ -12,6 +12,8 @@ export LD_LIBRARY_PATH=$CODETOP
 # to pick up the relevant configuration
 : ${CFGTOP:=$HOME/code/openssl}
 : ${GETOPTDIR:=/usr/bin}
+# DNS recursive to use (don't ask:-)
+: ${DNSRECURSIVE=""}
 
 # variables/settings
 # use Valgrind or not
@@ -27,6 +29,7 @@ GSUITE="0x20,1,1"
 GSUITESET="no"
 # GTYPE="65034" # that's 0xfe0a - for draft-10
 GTYPE="65037" # that's 0xfe0d - for draft-13
+
 
 # Protocol parameters
 
@@ -291,7 +294,12 @@ then
         then
             qname="_$PORT._https.$hidden"
         fi
-        digval="`dig +short -t TYPE65 $qname | tail -1 | cut -f 3- -d' ' | sed -e 's/ //g' `"
+        recursivestr=""
+        if [[ "$DNSRECURSIVE" != "" ]]
+        then
+            recursivestr=" @$DNSRECURSIVE "
+        fi
+        digval="`dig +short $recursivestr -t TYPE65 $qname | tail -1 | cut -f 3- -d' ' | sed -e 's/ //g' `"
         # digval used have one more sed command as per below...
         # digval="`dig +short -t TYPE65 $qname | tail -1 | cut -f 3- -d' ' | sed -e 's/ //g' | sed -e 'N;s/\n//'`"
         # I think that's a hangover from some other script that had to merge lines, e.g. if the RR value is 
