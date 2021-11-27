@@ -297,6 +297,7 @@ then
         recursivestr=""
         if [[ "$DNSRECURSIVE" != "" ]]
         then
+            echo "Using DNS recursive: $DNSRECURSIVE"
             recursivestr=" @$DNSRECURSIVE "
         fi
         digval="`dig +short $recursivestr -t TYPE65 $qname | tail -1 | cut -f 3- -d' ' | sed -e 's/ //g' `"
