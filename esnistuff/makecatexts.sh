@@ -9,7 +9,13 @@
 # add that anyway). Extension type is made up.
 
 OUTFILE="cat.ext" # default output
-CATPICTYPE=65482  # 0xffcz is the 1st extension type - we'll incrememt after
+CATPICTYPE=65482  # 0xffca is the 1st extension type - we'll incrememt after
+
+function usage()
+{
+    echo "Read the code, sorry"
+    exit 99
+}
 
 # options may be followed by one colon to indicate they have a required argument
 if ! options=$(/usr/bin/getopt -s bash -o o:h -l output:,help -- "$@")
