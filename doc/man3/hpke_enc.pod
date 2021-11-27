@@ -2,46 +2,84 @@
 
 =head1 NAME
 
-hpke_enc, hpke_enc_evp, hpke_enc_raw, hpke_dec,
-hpke_kg, hpke_kg_evp,
-hpke_ah_decode, hpke_suite_check,
-hpke_expansion,
-hpke_prbuf2evp, hpke_good4grease,
-hpke_str2suite
+hpke_ah_decode, hpke_suite_check, hpke_str2suite,
+hpke_kg, hpke_kg_evp, hpke_prbuf2evp, 
+hpke_enc, hpke_enc_evp, hpke_dec,
+hpke_expansion, hpke_good4grease,
+hpke_setlibctx
 - Hybrid Public Key Encryption (HPKE) functions
 
 =head1 SYNOPSIS
 
  #include <crypto/hpke.h>
- int hpke_enc( unsigned int mode, hpke_suite_t suite, char *pskid, size_t psklen, unsigned char *psk, size_t publen, unsigned char *pub, size_t privlen, unsigned char *priv, size_t clearlen, unsigned char *clear, size_t aadlen, unsigned char *aad, size_t infolen, unsigned char *info, size_t *senderpublen, unsigned char *senderpub, size_t *cipherlen, unsigned char *cipher);
- int hpke_enc_evp( unsigned int mode, hpke_suite_t suite, char *pskid, size_t psklen, unsigned char *psk, size_t publen, unsigned char *pub, size_t privlen, unsigned char *priv, size_t clearlen, unsigned char *clear, size_t aadlen, unsigned char *aad, size_t infolen, unsigned char *info, size_t senderpublen, unsigned char *senderpub, EVP_PKEY *senderpriv, size_t *cipherlen, unsigned char *cipher);
- int hpke_enc_raw( unsigned int mode, hpke_suite_t suite, char *pskid, size_t psklen, unsigned char *psk, size_t publen, unsigned char *pub, size_t privlen, unsigned char *priv, size_t clearlen, unsigned char *clear, size_t aadlen, unsigned char *aad, size_t infolen, unsigned char *info, size_t extsenderpublen, unsigned char *extsenderpub, size_t rawsenderprivlen,  unsigned char *rawsenderpriv, size_t *cipherlen, unsigned char *cipher);
- int hpke_dec( unsigned int mode, hpke_suite_t suite, char *pskid, size_t psklen, unsigned char *psk, size_t publen, unsigned char *pub, size_t privlen, unsigned char *priv, EVP_PKEY *evppriv, size_t enclen, unsigned char *enc, size_t cipherlen, unsigned char *cipher, size_t aadlen, unsigned char *aad, size_t infolen, unsigned char *info, size_t *clearlen, unsigned char *clear);
- int hpke_kg( unsigned int mode, hpke_suite_t suite, size_t *publen, unsigned char *pub, size_t *privlen, unsigned char *priv);
- int hpke_kg_evp( unsigned int mode, hpke_suite_t suite, size_t *publen, unsigned char *pub, EVP_PKEY **priv);
  int hpke_ah_decode(size_t ahlen, const char *ah, size_t *blen, unsigned char **buf);
  int hpke_suite_check(hpke_suite_t suite);
- int hpke_prbuf2evp( unsigned int kem_id, unsigned char *prbuf, size_t prbuf_len, unsigned char *pubuf, size_t pubuf_len, EVP_PKEY **priv);
- int hpke_good4grease( hpke_suite_t *suite_in, hpke_suite_t suite, unsigned char *pub, size_t *pub_len, unsigned char *cipher, size_t cipher_len);
  int hpke_str2suite(char *str, hpke_suite_t suite);
- int hpke_expansion(hpke_suite_t suite, size_t clearlen, size_t *cipherlen);
 
+ int hpke_kg( unsigned int mode, hpke_suite_t suite, size_t *publen, unsigned char *pub, size_t *privlen, unsigned char *priv);
+ int hpke_kg_evp( unsigned int mode, hpke_suite_t suite, size_t *publen, unsigned char *pub, EVP_PKEY **priv);
+ int hpke_prbuf2evp( unsigned int kem_id, unsigned char *prbuf, size_t prbuf_len, unsigned char *pubuf, size_t pubuf_len, EVP_PKEY **priv);
+
+ int hpke_enc( unsigned int mode, hpke_suite_t suite, char *pskid, size_t psklen, unsigned char *psk, size_t publen, unsigned char *pub, size_t privlen, unsigned char *priv, size_t clearlen, unsigned char *clear, size_t aadlen, unsigned char *aad, size_t infolen, unsigned char *info, size_t *senderpublen, unsigned char *senderpub, size_t *cipherlen, unsigned char *cipher);
+ int hpke_enc_evp( unsigned int mode, hpke_suite_t suite, char *pskid, size_t psklen, unsigned char *psk, size_t publen, unsigned char *pub, size_t privlen, unsigned char *priv, size_t clearlen, unsigned char *clear, size_t aadlen, unsigned char *aad, size_t infolen, unsigned char *info, size_t senderpublen, unsigned char *senderpub, EVP_PKEY *senderpriv, size_t *cipherlen, unsigned char *cipher);
+
+ int hpke_dec( unsigned int mode, hpke_suite_t suite, char *pskid, size_t psklen, unsigned char *psk, size_t publen, unsigned char *pub, size_t privlen, unsigned char *priv, EVP_PKEY *evppriv, size_t enclen, unsigned char *enc, size_t cipherlen, unsigned char *cipher, size_t aadlen, unsigned char *aad, size_t infolen, unsigned char *info, size_t *clearlen, unsigned char *clear);
+
+ int hpke_expansion(hpke_suite_t suite, size_t clearlen, size_t *cipherlen);
+ int hpke_good4grease( hpke_suite_t *suite_in, hpke_suite_t suite, unsigned char *pub, size_t *pub_len, unsigned char *cipher, size_t cipher_len);
+ int hpke_setlibctx(OSSL_LIB_CTX *libctx);
 
 =head1 DESCRIPTION
 
-These functions handle HPKE.
+These functions provide an API for using the form of Hybrid Public Key
+Encryption (HPKE) defined in
+https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-hpke which has passed all
+review stages in the IRTF and IETF and is now in the RFC editor's queue so will
+soon become an RFC. Understanding the HPKE specification is likely required before
+using these APIs. 
 
-The rest is TBD for now, sorry;-)
+HPKE is used by various other IETF specificiations,
+including the draft TLS Encrypted Client Hello (ECH) specification.
+
+hpke_ah_decode() is a utility function that decodes an ascii-hex encoded string
+and returns the (internally allocated) matching binary form.  
+
+hpke_suite_check() checks if a specific HPKE cipher suite (a combination of
+KEM, KDF and AEAD functions) is supported.
+
+hpke_str2suite() attempts to map a string to an HPKE cipher suite.
+Strings are defined in hpke.h. The suite strings recognised are comma-separated
+KEM, KDF and AEAD names in that order, e.g. "x25519,hkdf-sha256,aes128gcm".
+
+hpke_kg() and hpke_kg_evp() generate an ECDH private value for use with the
+given suite. The former returns the private key in clear, the latter as an
+EVP. hpke_prbuf2evp() allows the caller to map from a buffer containing a
+private value to an EVP for that same value.
+
+hpke_enc() and hpke_enc_evp() carry out HPKE encryption. hpke_dec() carries
+out the inverse decryption operation. All these functions take many inputs
+in order to support the various modes in which HPKE can be used.
+
+hpke_expansion() provides a way for the caller to know by how much cipertext
+is longer than plaintext.
+
+hpke_good4grease() produces values of the appropriate length (for the given
+ciphersuite) so that a protocol using HPKE can send so-called GREASE values
+that are harder to distinguish from a real use of HPKE.
+
+hpke_setlibctx() allows the caller to use a nondefault OSSL_LIB_CTX.
+
 
 =head1 RETURN VALUES
 
-Unless otherwise stated all functions return 1 for success.
+All functions return 1 for success. Functions may return a negative 
+number, zero or a positive number in the event of an error.
 
 =head1 SEE ALSO
 
 The draft specification: https://tools.ietf.org/html/draft-irtf-cfrg-hpke
 
-I have a standalone HPKE repot at https://github.com/sftcd/happykey
+I have a standalone HPKE repo at https://github.com/sftcd/happykey
 
 My ECH enabled fork has it's README at:
 https://github.com/sftcd/openssl/tree/master/esnistuff (that README is just a
