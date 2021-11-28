@@ -1123,7 +1123,7 @@ static int hpke_test_expand_extract(void)
 #endif
 
 /*!
- * @brief run the KEM with two keys as per draft-05
+ * @brief run the KEM with two keys as required
  *
  * @param encrypting is 1 if we're encrypting, 0 for decrypting
  * @param suite is the ciphersuite
