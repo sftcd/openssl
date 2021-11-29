@@ -107,6 +107,9 @@ typedef struct {
 /*
  * @brief HPKE single-shot encryption function
  *
+ * This function generates an ephemeral ECDH value internally and
+ * provides the public component as an output.
+ *
  * @param mode is the HPKE mode
  * @param suite is the ciphersuite to use
  * @param pskid is the pskid string fpr a PSK mode (can be NULL)
@@ -114,8 +117,9 @@ typedef struct {
  * @param psk is the psk
  * @param publen is the length of the public key
  * @param pub is the encoded public key
- * @param privlen is the length of the private (authentication) key
- * @param priv is the encoded private (authentication) key
+ * @param authprivlen is the length of the private (authentication) key
+ * @param authpriv is the encoded private (authentication) key
+ * @param authpriv_evp is the EVP_PKEY* form of private (authentication) key
  * @param clearlen is the length of the cleartext
  * @param clear is the encoded cleartext
  * @param aadlen is the length of the additional data
@@ -137,7 +141,7 @@ int hpke_enc(
         unsigned int mode, hpke_suite_t suite,
         char *pskid, size_t psklen, unsigned char *psk,
         size_t publen, unsigned char *pub,
-        size_t privlen, unsigned char *priv,
+        size_t authprivlen, unsigned char *authpriv, EVP_PKEY *authpriv_evp,
         size_t clearlen, unsigned char *clear,
         size_t aadlen, unsigned char *aad,
         size_t infolen, unsigned char *info,
@@ -150,7 +154,10 @@ int hpke_enc(
         );
 
 /*
- * @brief HPKE single-shot encryption function, with externally supplied sender key pair
+ * @brief HPKE encryption function, with externally supplied sender key pair
+ *
+ * This function is provided with an ECDH key pair that is used for
+ * HPKE encryption.
  *
  * @param mode is the HPKE mode
  * @param suite is the ciphersuite to use
@@ -159,8 +166,9 @@ int hpke_enc(
  * @param psk is the psk
  * @param publen is the length of the public key
  * @param pub is the encoded public key
- * @param privlen is the length of the private (authentication) key
- * @param priv is the encoded private (authentication) key
+ * @param authprivlen is the length of the private (authentication) key
+ * @param authpriv is the encoded private (authentication) key
+ * @param authpriv_evp is the EVP_PKEY* form of private (authentication) key
  * @param clearlen is the length of the cleartext
  * @param clear is the encoded cleartext
  * @param aadlen is the length of the additional data
@@ -183,7 +191,7 @@ int hpke_enc_evp(
         unsigned int mode, hpke_suite_t suite,
         char *pskid, size_t psklen, unsigned char *psk,
         size_t publen, unsigned char *pub,
-        size_t privlen, unsigned char *priv,
+        size_t authprivlen, unsigned char *authpriv, EVP_PKEY *authpriv_evp,
         size_t clearlen, unsigned char *clear,
         size_t aadlen, unsigned char *aad,
         size_t infolen, unsigned char *info,
