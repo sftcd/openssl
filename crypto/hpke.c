@@ -1310,8 +1310,9 @@ static int hpke_psk_check(
  * @param psk is the psk
  * @param publen is the length of the recipient public key
  * @param pub is the encoded recipient public key
- * @param privlen is the length of the private (authentication) key
- * @param priv is the encoded private (authentication) key
+ * @param authprivlen is the length of the private (authentication) key
+ * @param authpriv is the encoded private (authentication) key
+ * @param authpriv_evp is the EVP_PKEY* form of private (authentication) key
  * @param clearlen is the length of the cleartext
  * @param clear is the encoded cleartext
  * @param aadlen is the lenght of the additional data (can be zero)
@@ -1333,7 +1334,7 @@ static int hpke_enc_int(
         unsigned int mode, hpke_suite_t suite,
         char *pskid, size_t psklen, unsigned char *psk,
         size_t publen, unsigned char *pub,
-        size_t privlen, unsigned char *priv,
+        size_t authprivlen, unsigned char *authpriv, EVP_PKEY* authpriv_evp,
         size_t clearlen, unsigned char *clear,
         size_t aadlen, unsigned char *aad,
         size_t infolen, unsigned char *info,
@@ -1388,7 +1389,7 @@ static int hpke_enc_int(
     if ((crv=hpke_psk_check(mode,pskid,psklen,psk))!=1) return(crv);
     if ((crv=hpke_suite_check(suite))!=1) return(crv);
     /*
-     * Depending on who called us, we may want to generated this key pair
+     * Depending on who called us, we may want to generate this key pair
      * or we may have had it handed to us via extsender* inputs
      */
     if (extsenderpublen>0 && extsenderpub!=NULL && extsenderpriv!=NULL) {
@@ -1409,7 +1410,7 @@ static int hpke_enc_int(
         (!pub || !clear || !extsenderpublen || !extsenderpub ||
          !rawsenderpriv || !cipherlen  || !cipher)) return(__LINE__);
     if ((mode==HPKE_MODE_AUTH || mode==HPKE_MODE_PSKAUTH) &&
-        (!priv || privlen==0)) return(__LINE__);
+        ((!authpriv || authprivlen==0) && (!authpriv_evp))) return(__LINE__);
     if ((mode==HPKE_MODE_PSK || mode==HPKE_MODE_PSKAUTH) &&
         (!psk || psklen==0 || !pskid)) return(__LINE__);
 
@@ -1443,7 +1444,6 @@ static int hpke_enc_int(
     }
 
     /* step 1. generate or import sender's key pair: skE, pkE */
-
     if (!evpcaller && !rawcaller) {
         pctx = EVP_PKEY_CTX_new(pkR, NULL);
         if (pctx == NULL) {
@@ -1515,15 +1515,22 @@ static int hpke_enc_int(
                         &bin_pkSlen,&bin_pkS)) {
                 erv=__LINE__; goto err;
             }
-            erv=hpke_prbuf2evp(suite.kem_id,priv,privlen,
+            erv=hpke_prbuf2evp(suite.kem_id,authpriv,authprivlen,
                     bin_pkS,bin_pkSlen,&skI);
         } else {
-            erv=hpke_prbuf2evp(suite.kem_id,priv,privlen,pub,publen,&skI);
+            erv=hpke_prbuf2evp(suite.kem_id,authpriv,authprivlen,
+                    pub,publen,&skI);
         }
-#else
-        erv=hpke_prbuf2evp(suite.kem_id,priv,privlen,pub,publen,&skI);
-#endif
         if (erv!=1) goto err;
+#else
+        if (authpriv_evp!=NULL) {
+            skI=authpriv_evp;
+        } else {
+            erv=hpke_prbuf2evp(suite.kem_id,authpriv,authprivlen,
+                pub,publen,&skI);
+            if (erv!=1) goto err;
+        }
+#endif
 
         if (!skI) {
             erv=__LINE__;goto err;
@@ -1534,8 +1541,9 @@ static int hpke_enc_int(
         }
     }
 
-    erv=hpke_do_kem(1,suite,pkE,enclen,enc,pkR,
-            publen,pub,skI,mypublen,mypub,&shared_secret,&shared_secretlen);
+    erv=hpke_do_kem(1,suite,pkE,enclen,enc,
+            pkR, publen,pub,
+            skI,mypublen,mypub,&shared_secret,&shared_secretlen);
     if (erv!=1) {
         goto err;
     }
@@ -1733,8 +1741,9 @@ err:
  * @param psk is the psk
  * @param publen is the length of the recipient public key
  * @param pub is the encoded recipient public key
- * @param privlen is the length of the private (authentication) key
- * @param priv is the encoded private (authentication) key
+ * @param authprivlen is the length of the private (authentication) key
+ * @param authpriv is the encoded private (authentication) key
+ * @param authpriv_evp is the EVP_PKEY* form of private (authentication) key
  * @param clearlen is the length of the cleartext
  * @param clear is the encoded cleartext
  * @param aadlen is the lenght of the additional data (can be zero)
@@ -1753,7 +1762,7 @@ int hpke_enc(
         unsigned int mode, hpke_suite_t suite,
         char *pskid, size_t psklen, unsigned char *psk,
         size_t publen, unsigned char *pub,
-        size_t privlen, unsigned char *priv,
+        size_t authprivlen, unsigned char *authpriv, EVP_PKEY* authpriv_evp,
         size_t clearlen, unsigned char *clear,
         size_t aadlen, unsigned char *aad,
         size_t infolen, unsigned char *info,
@@ -1768,7 +1777,7 @@ int hpke_enc(
     return hpke_enc_int(mode,suite,
             pskid,psklen,psk,
             publen,pub,
-            privlen,priv,
+            authprivlen,authpriv,authpriv_evp,
             clearlen,clear,
             aadlen,aad,
             infolen,info,
@@ -1792,8 +1801,9 @@ int hpke_enc(
  * @param psk is the psk
  * @param publen is the length of the recipient public key
  * @param pub is the encoded recipient public key
- * @param privlen is the length of the private (authentication) key
- * @param priv is the encoded private (authentication) key
+ * @param authprivlen is the length of the private (authentication) key
+ * @param authpriv is the encoded private (authentication) key
+ * @param authpriv_evp is the EVP_PKEY* form of private (authentication) key
  * @param clearlen is the length of the cleartext
  * @param clear is the encoded cleartext
  * @param aadlen is the lenght of the additional data (can be zero)
@@ -1813,7 +1823,7 @@ int hpke_enc_evp(
         unsigned int mode, hpke_suite_t suite,
         char *pskid, size_t psklen, unsigned char *psk,
         size_t publen, unsigned char *pub,
-        size_t privlen, unsigned char *priv,
+        size_t authprivlen, unsigned char *authpriv, EVP_PKEY *authpriv_evp,
         size_t clearlen, unsigned char *clear,
         size_t aadlen, unsigned char *aad,
         size_t infolen, unsigned char *info,
@@ -1829,7 +1839,7 @@ int hpke_enc_evp(
     return hpke_enc_int(mode,suite,
             pskid,psklen,psk,
             publen,pub,
-            privlen,priv,
+            authprivlen,authpriv,authpriv_evp,
             clearlen,clear,
             aadlen,aad,
             infolen,info,
@@ -1873,7 +1883,7 @@ int hpke_enc_evp(
 int hpke_dec(
         unsigned int mode, hpke_suite_t suite,
         char *pskid, size_t psklen, unsigned char *psk,
-        size_t publen, unsigned char *pub,
+        size_t authpublen, unsigned char *authpub,
         size_t privlen, unsigned char *priv,
         EVP_PKEY *evppriv,
         size_t enclen, unsigned char *enc,
@@ -1916,7 +1926,7 @@ int hpke_dec(
     if ((crv=hpke_suite_check(suite))!=1) return(crv);
     if (!(priv||evppriv) || !clearlen || !clear || !cipher) return(__LINE__);
     if ((mode==HPKE_MODE_AUTH || mode==HPKE_MODE_PSKAUTH) &&
-            (!pub || publen==0)) return(__LINE__);
+            (!authpub || authpublen==0)) return(__LINE__);
     if ((mode==HPKE_MODE_PSK || mode==HPKE_MODE_PSKAUTH) &&
             (!psk || psklen==0 || !pskid)) return(__LINE__);
 
@@ -1946,13 +1956,13 @@ int hpke_dec(
     if (pkE == NULL) {
         erv=__LINE__; goto err;
     }
-    if (publen!=0 && pub!=NULL) {
+    if (authpublen!=0 && authpub!=NULL) {
         if (hpke_kem_id_nist_curve(suite.kem_id)==1) {
             pkI = hpke_EVP_PKEY_new_raw_nist_public_key(
-                    hpke_kem_tab[suite.kem_id].groupid,pub,publen);
+                    hpke_kem_tab[suite.kem_id].groupid,authpub,authpublen);
         } else {
             pkI = EVP_PKEY_new_raw_public_key(
-                    hpke_kem_tab[suite.kem_id].groupid,NULL,pub,publen);
+                    hpke_kem_tab[suite.kem_id].groupid,NULL,authpub,authpublen);
         }
         if (pkI == NULL) {
             erv=__LINE__; goto err;
@@ -1976,8 +1986,8 @@ int hpke_dec(
         erv=__LINE__; goto err;
     }
 
-    erv=hpke_do_kem(0,suite,skR,mypublen,mypub,pkE,
-            enclen,enc,pkI,publen,pub,&shared_secret,&shared_secretlen);
+    erv=hpke_do_kem(0,suite,skR,mypublen,mypub,pkE, enclen,enc,
+            pkI,authpublen,authpub,&shared_secret,&shared_secretlen);
     if (erv!=1) {
         goto err;
     }
