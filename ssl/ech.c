@@ -4445,7 +4445,7 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
             hpke_mode, hpke_suite, /* mode, suite */
             NULL, 0, NULL, /* pskid, psk */
             peerpub_len,peerpub,
-            0, NULL, /* priv */
+            0, NULL, NULL, /* priv */
             s->ext.inner_s->ext.encoded_innerch_len,
             s->ext.inner_s->ext.encoded_innerch, /* clear */
             aad_len, aad,
@@ -4678,7 +4678,7 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
             hpke_mode, hpke_suite, /* mode, suite */
             NULL, 0, NULL, /* pskid, psk */
             peerpub_len,peerpub,
-            0, NULL, /* priv */
+            0, NULL, NULL, /* priv */
             clear_len,clear,
             aad_len, aad,
             info_len, info,
