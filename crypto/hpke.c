@@ -67,6 +67,7 @@ static const char *hpke_mode_strtab[]={
 typedef struct {
     uint16_t            aead_id; /**< code point for aead alg */
     const EVP_CIPHER*   (*aead_init_func)(void); /**< the aead we're using */
+    const char *name;   /* alg name */
     size_t              taglen; /**< aead tag len */
     size_t              Nk; /**< size of a key for this aead */
     size_t              Nn; /**< length of a nonce for this aead */
@@ -76,12 +77,13 @@ typedef struct {
  * @brief table of AEADs
  */
 static hpke_aead_info_t hpke_aead_tab[]={
-    { 0, NULL, 0, 0, 0 }, /* keep indexing correct */
-    { HPKE_AEAD_ID_AES_GCM_128, EVP_aes_128_gcm, 16, 16, 12 },
-    { HPKE_AEAD_ID_AES_GCM_256, EVP_aes_256_gcm, 16, 32, 12 },
+    { 0, NULL, NULL, 0, 0, 0 }, /* keep indexing correct */
+    { HPKE_AEAD_ID_AES_GCM_128, EVP_aes_128_gcm, "AES-128-GCM", 16, 16, 12 },
+    { HPKE_AEAD_ID_AES_GCM_256, EVP_aes_256_gcm, "AES-256-GCM", 16, 32, 12 },
 #ifndef OPENSSL_NO_CHACHA20
 #ifndef OPENSSL_NO_POLY1305
-    { HPKE_AEAD_ID_CHACHA_POLY1305, EVP_chacha20_poly1305, 16, 32, 12 }
+    { HPKE_AEAD_ID_CHACHA_POLY1305, EVP_chacha20_poly1305, 
+        "chacha20-poly1305", 16, 32, 12 }
 #endif
 #endif
 };
@@ -102,9 +104,9 @@ static const char *hpke_aead_strtab[]={
  */
 typedef struct {
     uint16_t      kem_id; /**< code point for key encipherment method */
-    const char    *keytype; /**< string form of alg type "EC"/"X25519"/"X448" */
+    const char    *keytype; /**< string form of algtype "EC"/"X25519"/"X448" */
     const char    *groupname; /**< string form of EC group for NIST curves  */
-    int                 groupid; /**< NID of KEM */
+    int           groupid; /**< NID of KEM */
     const EVP_MD* (*hash_init_func)(void); /**< hash alg for the HKDF */
     size_t        Nsecret; /**< size of secrets */
     size_t        Nenc; /**< length of encapsulated key */
@@ -464,7 +466,7 @@ static int hpke_aead_dec(
         erv=__LINE__; goto err;
     }
     /* Initialise the encryption operation. */
-    enc=hpke_aead_tab[suite.aead_id].aead_init_func();
+    enc=EVP_CIPHER_fetch(hpke_libctx, hpke_aead_tab[suite.aead_id].name, NULL);
     if (enc == NULL) {
         erv=__LINE__; goto err;
     }
@@ -570,7 +572,7 @@ static int hpke_aead_enc(
         erv=__LINE__; goto err;
     }
     /* Initialise the encryption operation. */
-    enc=hpke_aead_tab[suite.aead_id].aead_init_func();
+    enc=EVP_CIPHER_fetch(hpke_libctx, hpke_aead_tab[suite.aead_id].name, NULL);
     if (enc == NULL) {
         erv=__LINE__; goto err;
     }
@@ -763,7 +765,7 @@ static int hpke_extract(
             erv=__LINE__; goto err;
     }
 
-    pctx = EVP_PKEY_CTX_new_id(EVP_PKEY_HKDF, NULL);
+    pctx = EVP_PKEY_CTX_new_from_name(hpke_libctx, "HKDF", NULL);
     if (!pctx) {
         erv=__LINE__; goto err;
     }
@@ -919,7 +921,7 @@ static int hpke_expand(const hpke_suite_t suite, const int mode5869,
             erv=__LINE__; goto err;
     }
 
-    pctx = EVP_PKEY_CTX_new_id(EVP_PKEY_HKDF, NULL);
+    pctx = EVP_PKEY_CTX_new_from_name(hpke_libctx, "HKDF", NULL);
     if (!pctx) {
         erv=__LINE__; goto err;
     }
@@ -1157,7 +1159,7 @@ static int hpke_do_kem(
     unsigned char lss[HPKE_MAXSIZE];
 
     /* step 2 run DH KEM to get zz */
-    pctx = EVP_PKEY_CTX_new(key1,NULL);
+    pctx = EVP_PKEY_CTX_new_from_pkey(hpke_libctx,key1,NULL);
     if (pctx == NULL) {
         erv=__LINE__; goto err;
     }
@@ -1319,8 +1321,8 @@ static int hpke_psk_check(
  * @param aad is the encoded additional data (can be NULL)
  * @param infolen is the lenght of the info data (can be zero)
  * @param info is the encoded info data (can be NULL)
- * @param seqlen is the length of the info data (can be zero)
- * @param seq is the encoded info data (can be NULL)
+ * @param seqlen is the length of the sequence data (can be zero)
+ * @param seq is the encoded sequence data (can be NULL)
  * @param extsenderpublen length of the input buffer for sender's public key
  * @param extsenderpub is the input buffer for sender public key
  * @param extsenderpriv has the handle for the sender private key
@@ -1436,8 +1438,8 @@ static int hpke_enc_int(
         pkR = hpke_EVP_PKEY_new_raw_nist_public_key(
                 hpke_kem_tab[suite.kem_id].groupid,pub,publen);
     } else {
-        pkR = EVP_PKEY_new_raw_public_key(
-                hpke_kem_tab[suite.kem_id].groupid,NULL,pub,publen);
+        pkR = EVP_PKEY_new_raw_public_key_ex(hpke_libctx,
+                hpke_kem_tab[suite.kem_id].keytype,NULL,pub,publen);
     }
     if (pkR == NULL) {
         erv=__LINE__; goto err;
@@ -1614,9 +1616,7 @@ static int hpke_enc_int(
         erv=__LINE__; goto err;
     }
 
-    /*
-     * XOR sequence with nonce as needed
-     */
+    /* XOR sequence with nonce as needed */
     if (seq!=NULL && seqlen>0) {
         size_t sind;
         if (seqlen>noncelen) {
@@ -1750,8 +1750,8 @@ err:
  * @param aad is the encoded additional data (can be NULL)
  * @param infolen is the lenght of the info data (can be zero)
  * @param info is the encoded info data (can be NULL)
- * @param seqlen is the length of the info data (can be zero)
- * @param seq is the encoded info data (can be NULL)
+ * @param seqlen is the length of the sequence data (can be zero)
+ * @param seq is the encoded sequence data (can be NULL)
  * @param senderpublen length of the input buffer for the sender's public key
  * @param senderpub is the input buffer for ciphertext
  * @param cipherlen length of the input buffer for ciphertext
@@ -1810,8 +1810,8 @@ int hpke_enc(
  * @param aad is the encoded additional data (can be NULL)
  * @param infolen is the lenght of the info data (can be zero)
  * @param info is the encoded info data (can be NULL)
- * @param seqlen is the length of the info data (can be zero)
- * @param seq is the encoded info data (can be NULL)
+ * @param seqlen is the length of the sequence data (can be zero)
+ * @param seq is the encoded sequence data (can be NULL)
  * @param senderpublen length of the input buffer with the sender's public key
  * @param senderpub is the input buffer for sender public key
  * @param senderpriv has the handle for the sender private key
@@ -1874,8 +1874,8 @@ int hpke_enc_evp(
  * @param aad is the encoded additional data
  * @param infolen is the lenght of the info data (can be zero)
  * @param info is the encoded info data (can be NULL)
- * @param seqlen is the length of the info data (can be zero)
- * @param seq is the encoded info data (can be NULL)
+ * @param seqlen is the length of the sequence data (can be zero)
+ * @param seq is the encoded sequence data (can be NULL)
  * @param clearlen length of the input buffer for cleartext
  * @param clear is the encoded cleartext
  * @return 1 for good (OpenSSL style), not-1 for error
@@ -1950,8 +1950,8 @@ int hpke_dec(
         pkE = hpke_EVP_PKEY_new_raw_nist_public_key(
                 hpke_kem_tab[suite.kem_id].groupid,enc,enclen);
     } else {
-        pkE = EVP_PKEY_new_raw_public_key(
-                hpke_kem_tab[suite.kem_id].groupid,NULL,enc,enclen);
+        pkE = EVP_PKEY_new_raw_public_key_ex(hpke_libctx,
+                hpke_kem_tab[suite.kem_id].keytype,NULL,enc,enclen);
     }
     if (pkE == NULL) {
         erv=__LINE__; goto err;
@@ -2058,9 +2058,7 @@ int hpke_dec(
         erv=__LINE__; goto err;
     }
 
-    /*
-     * XOR sequence with nonce as needed
-     */
+    /* XOR sequence with nonce as needed */
     if (seq!=NULL && seqlen>0) {
         size_t sind;
         if (seqlen>noncelen) {
@@ -2256,7 +2254,8 @@ int hpke_kg_evp(
             erv=__LINE__; goto err;
         }
     } else {
-        pctx = EVP_PKEY_CTX_new_id(hpke_kem_tab[suite.kem_id].groupid, NULL);
+        pctx = EVP_PKEY_CTX_new_from_name(hpke_libctx,
+                hpke_kem_tab[suite.kem_id].keytype, NULL);
         if (pctx == NULL) {
             erv=__LINE__; goto err;
         }

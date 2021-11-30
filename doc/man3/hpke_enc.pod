@@ -20,10 +20,41 @@ hpke_setlibctx
  int hpke_kg_evp( unsigned int mode, hpke_suite_t suite, size_t *publen, unsigned char *pub, EVP_PKEY **priv);
  int hpke_prbuf2evp( unsigned int kem_id, unsigned char *prbuf, size_t prbuf_len, unsigned char *pubuf, size_t pubuf_len, EVP_PKEY **priv);
 
- int hpke_enc( unsigned int mode, hpke_suite_t suite, char *pskid, size_t psklen, unsigned char *psk, size_t publen, unsigned char *pub, size_t privlen, unsigned char *priv, size_t clearlen, unsigned char *clear, size_t aadlen, unsigned char *aad, size_t infolen, unsigned char *info, size_t *senderpublen, unsigned char *senderpub, size_t *cipherlen, unsigned char *cipher);
- int hpke_enc_evp( unsigned int mode, hpke_suite_t suite, char *pskid, size_t psklen, unsigned char *psk, size_t publen, unsigned char *pub, size_t privlen, unsigned char *priv, size_t clearlen, unsigned char *clear, size_t aadlen, unsigned char *aad, size_t infolen, unsigned char *info, size_t senderpublen, unsigned char *senderpub, EVP_PKEY *senderpriv, size_t *cipherlen, unsigned char *cipher);
+ int hpke_enc( unsigned int mode, hpke_suite_t suite, 
+               char *pskid, size_t psklen, unsigned char *psk, 
+               size_t publen, unsigned char *pub, 
+               size_t authprivlen, unsigned char *authpriv, 
+               EVP_PKEY *authpriv_evp,
+               size_t clearlen, unsigned char *clear, 
+               size_t aadlen, unsigned char *aad, 
+               size_t infolen, unsigned char *info, 
+               size_t seqlen, unsigned char *seq,
+               size_t *senderpublen, unsigned char *senderpub, 
+               size_t *cipherlen, unsigned char *cipher);
 
- int hpke_dec( unsigned int mode, hpke_suite_t suite, char *pskid, size_t psklen, unsigned char *psk, size_t publen, unsigned char *pub, size_t privlen, unsigned char *priv, EVP_PKEY *evppriv, size_t enclen, unsigned char *enc, size_t cipherlen, unsigned char *cipher, size_t aadlen, unsigned char *aad, size_t infolen, unsigned char *info, size_t *clearlen, unsigned char *clear);
+ int hpke_enc_evp( unsigned int mode, hpke_suite_t suite, 
+               char *pskid, size_t psklen, unsigned char *psk, 
+               size_t publen, unsigned char *pub, 
+               size_t authprivlen, unsigned char *authpriv, 
+               EVP_PKEY *authpriv_evp,
+               size_t clearlen, unsigned char *clear, 
+               size_t aadlen, unsigned char *aad, 
+               size_t infolen, unsigned char *info, 
+               size_t seqlen, unsigned char *seq,
+               size_t senderpublen, unsigned char *senderpub, 
+               EVP_PKEY *senderpriv, 
+               size_t *cipherlen, unsigned char *cipher);
+
+ int hpke_dec( unsigned int mode, hpke_suite_t suite, 
+               char *pskid, size_t psklen, unsigned char *psk, 
+               size_t authpublen, unsigned char *authpub, 
+               size_t privlen, unsigned char *priv, EVP_PKEY *evppriv, 
+               size_t enclen, unsigned char *enc, 
+               size_t cipherlen, unsigned char *cipher, 
+               size_t aadlen, unsigned char *aad, 
+               size_t infolen, unsigned char *info, 
+               size_t seqlen, unsigned char *seq,
+               size_t *clearlen, unsigned char *clear);
 
  int hpke_expansion(hpke_suite_t suite, size_t clearlen, size_t *cipherlen);
  int hpke_good4grease( hpke_suite_t *suite_in, hpke_suite_t suite, unsigned char *pub, size_t *pub_len, unsigned char *cipher, size_t cipher_len);
@@ -35,30 +66,86 @@ These functions provide an API for using the form of Hybrid Public Key
 Encryption (HPKE) defined in
 https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-hpke which has passed all
 review stages in the IRTF and IETF and is now in the RFC editor's queue so will
-soon become an RFC. Understanding the HPKE specification is likely required before
-using these APIs. 
-
-HPKE is used by various other IETF specificiations,
-including the draft TLS Encrypted Client Hello (ECH) specification.
+soon become an RFC. Understanding the HPKE specification is likely required
+before using these APIs.  HPKE is used by various other IETF specifications,
+including the draft TLS Encrypted Client Hello (ECH) specification and others.
 
 hpke_ah_decode() is a utility function that decodes an ascii-hex encoded string
-and returns the (internally allocated) matching binary form.  
+and returns the (internally allocated, so to be free'd via OPENSSL_free())
+matching binary form.  
 
 hpke_suite_check() checks if a specific HPKE cipher suite (a combination of
 KEM, KDF and AEAD functions) is supported.
 
-hpke_str2suite() attempts to map a string to an HPKE cipher suite.
-Strings are defined in hpke.h. The suite strings recognised are comma-separated
-KEM, KDF and AEAD names in that order, e.g. "x25519,hkdf-sha256,aes128gcm".
+hpke_str2suite() attempts to map a string to an HPKE cipher suite.  Strings are
+defined in hpke.h. The suite strings recognised are comma-separated KEM, KDF
+and AEAD names in that order, e.g. "x25519,hkdf-sha256,aes128gcm".
 
 hpke_kg() and hpke_kg_evp() generate an ECDH private value for use with the
 given suite. The former returns the private key in clear, the latter as an
-EVP. hpke_prbuf2evp() allows the caller to map from a buffer containing a
-private value to an EVP for that same value.
+EVP_PKEY*. hpke_prbuf2evp() allows the caller to map from a buffer containing an
+ECDH private value to an EVP_PKEY* for that same value.
 
-hpke_enc() and hpke_enc_evp() carry out HPKE encryption. hpke_dec() carries
-out the inverse decryption operation. All these functions take many inputs
-in order to support the various modes in which HPKE can be used.
+hpke_enc() and hpke_enc_evp() carry out HPKE encryption. The former is a
+one-shot API that generates an ephemeral ECDH value internally and provides the
+public component as an output. The latter allows for non-ephemeral ECDH values
+to be provided as input. 
+
+hpke_dec() carries out the decryption operation, and can handle the private
+ECDH value being passed as a buffer or as an EVP_PKEY*. 
+
+HPKE functions take many inputs in order to support the various modes in which
+HPKE can be used, the use of additional authenticated data (AAD), of additional
+"information" to be bound to key derivation and for sequencing, when the same
+ECDH private value is used to decrypt multiple ciphertexts. The various inputs
+and outputs are described below. Consult the HPKE specification for full 
+details.
+
+- mode: one of HPKE_MODE_BASE, HPKE_MODE_PSK, HPKE_MODE_AUTH or 
+HPKE_MODE_PSKAUTH
+
+- suite: an hpke_suite_t value, with a kem_id, kdf_id and aead_id
+
+- buffers: all buffers are presented to these APIs using a size_t length value
+called <foo>len) and an unsigned char* pointer <foo>. For outputs buffers,
+the length on input is the caller-allocated buffer size, and the size-used on
+successful output.  Buffers for plaintexts and ciphertexts can be any size, all
+other buffers (e.g. for key material, aad, etc.) can be at most HPKE_MAXSIZE.
+
+- authpub is a buffer for the HPKE public value to be used for AUTH modes 
+
+- authpriv is a buffer for the HPKE private value to be used for AUTH modes
+
+- authpriv_evp in an EVP_PKEY* equivalent of authpriv (either can be supplied,
+if both are, authpriv_evp is preferred)
+
+- pskid is a char* containing a string identifying a PSK
+
+- psk is a buffer containing a pre-shared key
+
+- clear is a buffer for input cleartext to be encrypted or a buffer for 
+recovered plaintext, after decryption
+
+- aad is a buffer for additional authenticated data
+
+- info is a buffer for information to be bound to the HPKE exchange (generally
+to "fold in" identity information)
+
+- senderpub is a buffer for the ECDH public value generated by the 
+sender (encryptor) and to be used by the recipient (decryptor) 
+
+- senderpriv is the EVP_PKEY* form of the private value corresponding to
+senderpub
+
+- pub is the receiver's non-ephemeral ECDH public value for encryption
+
+- priv is the receiver's non-ephemeral ECDH private value for decryption
+
+- seq is a buffer representing the sequencing of encryptions when multiple
+calls are made (to be XOR'd with an internal nonce)
+
+- cipher is a buffer for ciphertext (not including the recipient's public
+value)
 
 hpke_expansion() provides a way for the caller to know by how much cipertext
 is longer than plaintext.
@@ -75,15 +162,67 @@ hpke_setlibctx() allows the caller to use a nondefault OSSL_LIB_CTX.
 All functions return 1 for success. Functions may return a negative 
 number, zero or a positive number in the event of an error.
 
+=head1 EXAMPLES
+
+This example does a minimal round-trip encryption using HPKE.
+
+
+    #include <crypto/hpke.h>
+    /* we'll do a round-trip, generating a key, encrypting and decrypting */
+    int hpke_mode=HPKE_MODE_BASE;
+    hpke_suite_t hpke_suite = HPKE_SUITE_DEFAULT;
+    /* we'll alloc all these on the stack for simplicity */
+    size_t publen=HPKE_MAXSIZE; unsigned char pub[HPKE_MAXSIZE];
+    size_t privlen=HPKE_MAXSIZE; unsigned char priv[HPKE_MAXSIZE];
+    size_t senderpublen=HPKE_MAXSIZE; unsigned char senderpub[HPKE_MAXSIZE];
+    size_t plainlen=HPKE_MAXSIZE; unsigned char plain[HPKE_MAXSIZE];
+    size_t cipherlen=HPKE_MAXSIZE; unsigned char cipher[HPKE_MAXSIZE];
+    size_t clearlen=HPKE_MAXSIZE; unsigned char clear[HPKE_MAXSIZE];
+    memset(plain,0,HPKE_MAXSIZE);
+    strcpy((char*)plain,"a message not in a bottle");
+    plainlen=strlen((char*)plain);
+    if (hpke_kg(hpke_mode, hpke_suite,&publen, pub,&privlen, priv)!=1)
+        goto err;
+    if (hpke_enc(hpke_mode, hpke_suite,
+                NULL, 0, NULL, /* psk */
+                publen, pub,
+                0, NULL, NULL, /* priv */
+                plainlen, plain,
+                0, NULL, /* aad */
+                0, NULL, /* info */
+                0, NULL, /* seq */
+                &senderpublen, senderpub,
+                &cipherlen, cipher)!=1)
+        goto err;
+    if (hpke_dec( hpke_mode, hpke_suite,
+                NULL, 0, NULL, /* psk */
+                0, NULL, /* auth pub */
+                privlen, priv, NULL,
+                senderpublen, senderpub,
+                cipherlen, cipher,
+                0, NULL, /* aad */
+                0, NULL, /* info */
+                0, NULL, /* seq */
+                &clearlen, clear)!=1)
+        goto err;
+    /* check output */
+    if (clearlen!=plainlen)
+        goto err;
+    if (memcmp(clear,plain,plainlen))
+        goto err;
+    /* yay, success */
+    testresult = 1;
+
 =head1 SEE ALSO
 
 The draft specification: https://tools.ietf.org/html/draft-irtf-cfrg-hpke
 
-I have a standalone HPKE repo at https://github.com/sftcd/happykey
+There is a standalone HPKE repo with additional test vector handling and a
+command line tool at https://github.com/sftcd/happykey
 
-My ECH enabled fork has it's README at:
+The ECH enabled fork for which this was developed has it's README at:
 https://github.com/sftcd/openssl/tree/master/esnistuff (that README is just a
-re-direct to the relevant branch) and also includes these HPKE functions.
+re-direct to the relevant latest development branch) and also includes these HPKE functions.
 
 =head1 HISTORY
 

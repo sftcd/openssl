@@ -126,8 +126,8 @@ typedef struct {
  * @param aad is the encoded additional data
  * @param infolen is the length of the info data (can be zero)
  * @param info is the encoded info data (can be NULL)
- * @param seqlen is the length of the info data (can be zero)
- * @param seq is the encoded info data (can be NULL)
+ * @param seqlen is the length of the sequence data (can be zero)
+ * @param seq is the encoded sequence data (can be NULL)
  * @param senderpublen length of the input buffer for sender's public key
  * @param senderpub is the input buffer for sender public key
  * @param cipherlen is the length of the input buffer for ciphertext
@@ -175,8 +175,8 @@ int hpke_enc(
  * @param aad is the encoded additional data
  * @param infolen is the length of the info data (can be zero)
  * @param info is the encoded info data (can be NULL)
- * @param seqlen is the length of the info data (can be zero)
- * @param seq is the encoded info data (can be NULL)
+ * @param seqlen is the length of the sequence data (can be zero)
+ * @param seq is the encoded sequence data (can be NULL)
  * @param senderpublen length of the input buffer with the sender's public key
  * @param senderpub is the input buffer for sender public key
  * @param senderpriv has the handle for the sender private key
@@ -223,8 +223,8 @@ int hpke_enc_evp(
  * @param aad is the encoded additional data
  * @param infolen is the length of the info data (can be zero)
  * @param info is the encoded info data (can be NULL)
- * @param seqlen is the length of the info data (can be zero)
- * @param seq is the encoded info data (can be NULL)
+ * @param seqlen is the length of the sequence data (can be zero)
+ * @param seq is the encoded sequence data (can be NULL)
  * @param clearlen length of the input buffer for cleartext
  * @param clear is the encoded cleartext
  * @return 1 for good (OpenSSL style), not-1 for error
