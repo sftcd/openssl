@@ -455,7 +455,7 @@ static int hpke_aead_dec(
     size_t plaintextlen=0;
     unsigned char *plaintext=NULL;
     size_t taglen=hpke_aead_tab[suite.aead_id].taglen;
-    const EVP_CIPHER *enc = NULL;
+    EVP_CIPHER *enc = NULL;
 
     plaintext=OPENSSL_malloc(cipherlen);
     if (plaintext==NULL) {
@@ -473,6 +473,7 @@ static int hpke_aead_dec(
     if(1 != EVP_DecryptInit_ex(ctx, enc, NULL, NULL, NULL)) {
         erv=__LINE__; goto err;
     }
+    EVP_CIPHER_free(enc); enc=NULL;
     if(1 != EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_IVLEN, ivlen, NULL)) {
         erv=__LINE__; goto err;
     }
@@ -516,6 +517,7 @@ static int hpke_aead_dec(
     memcpy(plain,plaintext,plaintextlen);
 err:
     if (ctx) EVP_CIPHER_CTX_free(ctx);
+    if (enc) EVP_CIPHER_free(enc);
     if (plaintext!=NULL) OPENSSL_free(plaintext);
     return erv;
     return(0);
@@ -551,7 +553,7 @@ static int hpke_aead_enc(
     size_t ciphertextlen;
     unsigned char *ciphertext=NULL;
     size_t taglen=hpke_aead_tab[suite.aead_id].taglen;
-    const EVP_CIPHER *enc = NULL;
+    EVP_CIPHER *enc = NULL;
     unsigned char tag[16];
     if (taglen!=16) {
         erv=__LINE__; goto err;
@@ -579,6 +581,7 @@ static int hpke_aead_enc(
     if(1 != EVP_EncryptInit_ex(ctx, enc, NULL, NULL, NULL)) {
         erv=__LINE__; goto err;
     }
+    EVP_CIPHER_free(enc); enc=NULL;
     if(1 != EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_IVLEN, ivlen, NULL)) {
         erv=__LINE__; goto err;
     }
@@ -624,6 +627,7 @@ static int hpke_aead_enc(
     memcpy(cipher,ciphertext,ciphertextlen);
 err:
     if (ctx) EVP_CIPHER_CTX_free(ctx);
+    if (enc) EVP_CIPHER_free(enc);
     if (ciphertext!=NULL) OPENSSL_free(ciphertext);
     return erv;
 
