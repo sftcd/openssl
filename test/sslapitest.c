@@ -1337,7 +1337,7 @@ static int execute_test_ktls_sendfile(int tls_version, const char *cipher)
         goto end;
     }
 
-    if (!TEST_true(RAND_bytes_ex(libctx, buf, SENDFILE_SZ, 0)))
+    if (!TEST_int_gt(RAND_bytes_ex(libctx, buf, SENDFILE_SZ, 0), 0))
         goto end;
 
     out = BIO_new_file(tmpfilename, "wb");
@@ -6802,7 +6802,7 @@ static int create_new_vfile(char *userid, char *password, const char *filename)
 
     row = NULL;
 
-    if (!TXT_DB_write(out, db))
+    if (TXT_DB_write(out, db) <= 0)
         goto end;
 
     ret = 1;
@@ -7994,7 +7994,7 @@ static int cert_cb(SSL *s, void *arg)
         if (!TEST_ptr(chain))
             goto out;
         if (!TEST_ptr(in = BIO_new(BIO_s_file()))
-                || !TEST_int_ge(BIO_read_filename(in, rootfile), 0)
+                || !TEST_int_gt(BIO_read_filename(in, rootfile), 0)
                 || !TEST_ptr(rootx = X509_new_ex(libctx, NULL))
                 || !TEST_ptr(PEM_read_bio_X509(in, &rootx, NULL, NULL))
                 || !TEST_true(sk_X509_push(chain, rootx)))
@@ -8002,13 +8002,13 @@ static int cert_cb(SSL *s, void *arg)
         rootx = NULL;
         BIO_free(in);
         if (!TEST_ptr(in = BIO_new(BIO_s_file()))
-                || !TEST_int_ge(BIO_read_filename(in, ecdsacert), 0)
+                || !TEST_int_gt(BIO_read_filename(in, ecdsacert), 0)
                 || !TEST_ptr(x509 = X509_new_ex(libctx, NULL))
                 || !TEST_ptr(PEM_read_bio_X509(in, &x509, NULL, NULL)))
             goto out;
         BIO_free(in);
         if (!TEST_ptr(in = BIO_new(BIO_s_file()))
-                || !TEST_int_ge(BIO_read_filename(in, ecdsakey), 0)
+                || !TEST_int_gt(BIO_read_filename(in, ecdsakey), 0)
                 || !TEST_ptr(pkey = PEM_read_bio_PrivateKey_ex(in, NULL,
                                                                NULL, NULL,
                                                                libctx, NULL)))
