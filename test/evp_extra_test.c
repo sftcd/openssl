@@ -37,6 +37,10 @@
 #include "internal/sizes.h"
 #include "crypto/evp.h"
 #include "fake_rsaprov.h"
+#include "../e_os.h" /* strcasecmp */
+#ifndef OPENSSL_NO_EC
+#include "crypto/hpke.h"
+#endif
 
 #ifdef STATIC_LEGACY
 OSSL_provider_init_fn ossl_legacy_provider_init;
@@ -5232,6 +5236,64 @@ static int test_ecx_short_keys(int tst)
 
     return 1;
 }
+
+#ifndef OPENSSL_NO_EC
+static int test_hpke(void)
+{
+    int testresult = 0;
+    /* we'll do a round-trip, generating a key, encrypting and decrypting */
+    int hpke_mode=HPKE_MODE_BASE;
+    hpke_suite_t hpke_suite = HPKE_SUITE_DEFAULT;
+    /* we'll alloc all these on the stack for simplicity */
+    size_t publen=HPKE_MAXSIZE; unsigned char pub[HPKE_MAXSIZE];
+    size_t privlen=HPKE_MAXSIZE; unsigned char priv[HPKE_MAXSIZE];
+    size_t senderpublen=HPKE_MAXSIZE; unsigned char senderpub[HPKE_MAXSIZE];
+    size_t plainlen=HPKE_MAXSIZE; unsigned char plain[HPKE_MAXSIZE];
+    size_t cipherlen=HPKE_MAXSIZE; unsigned char cipher[HPKE_MAXSIZE];
+    size_t clearlen=HPKE_MAXSIZE; unsigned char clear[HPKE_MAXSIZE];
+
+    if (testctx != NULL && hpke_setlibctx(testctx)!=1)
+        goto err;
+
+    memset(plain,0,HPKE_MAXSIZE);
+    strcpy((char*)plain,"a message not in a bottle");
+    plainlen=strlen((char*)plain);
+
+    if (hpke_kg(hpke_mode, hpke_suite,&publen, pub,&privlen, priv)!=1)
+        goto err;
+    if (hpke_enc(hpke_mode, hpke_suite,
+                NULL, 0, NULL, /* psk */
+                publen, pub, 
+                0, NULL, NULL, /* auth priv */
+                plainlen, plain,
+                0, NULL, /* aad */
+                0, NULL, /* info */
+                0, NULL, /* seq */
+                &senderpublen, senderpub,
+                &cipherlen, cipher)!=1)
+        goto err;
+    if (hpke_dec( hpke_mode, hpke_suite,
+                NULL, 0, NULL, /* psk */
+                0, NULL, /* auth pub */
+                privlen, priv, NULL,
+                senderpublen, senderpub,
+                cipherlen, cipher,
+                0, NULL, /* aad */
+                0, NULL, /* info */
+                0, NULL, /* seq */
+                &clearlen, clear)!=1)
+        goto err;
+    /* check output */
+    if (clearlen!=plainlen)
+        goto err;
+    if (memcmp(clear,plain,plainlen))
+        goto err;
+
+    /* yay, success */
+    testresult = 1;
+err:
+    return testresult;
+}
 #endif
 
 typedef enum OPTION_choice {
@@ -5780,6 +5842,9 @@ int setup_tests(void)
         ADD_TEST(test_cipher_with_engine);
     }
 # endif
+#endif
+#ifndef OPENSSL_NO_EC
+    ADD_TEST(test_hpke);
 #endif
 
 #ifndef OPENSSL_NO_ECX
