@@ -99,11 +99,11 @@ static size_t ech_trace_cb(const char *buf, size_t cnt,
 /* ECH padding size info, var of this type is passed via callback */
 typedef struct {
     /* Certificate messages to be a multiple of this size */
-    size_t certpad; 
+    size_t certpad;
     /* CertificateVerify messages to be a multiple of this size */
-    size_t certverifypad; 
+    size_t certverifypad;
     /* EncryptedExtensions are padded to be a multiple of this size */
-    size_t eepad; 
+    size_t eepad;
 } ech_padding_sizes;
 
 /* passed as an argument to callback */
@@ -563,9 +563,9 @@ static size_t ech_trace_cb(const char *buf, size_t cnt,
  * @param arg is a pointer to a tlsext
  * @return 1 or error
  *
- * The server has possibly 2 TLS server names basically in ctx and ctx2. 
- * (Other servers can have N names, in different configs, but s_server only 
- * handles 2.) So we need to check if any client-supplied SNI in the 
+ * The server has possibly 2 TLS server names basically in ctx and ctx2.
+ * (Other servers can have N names, in different configs, but s_server only
+ * handles 2.) So we need to check if any client-supplied SNI in the
  * inner/outer matches either and serve whichever is appropriate.
  * X509_check_host is the way to do that, given an X509* pointer.
  *
@@ -604,14 +604,14 @@ static int ssl_ech_servername_cb(SSL *s, int *ad, void *arg)
     local_p=gmtime_r(&now,&local);
     if (local_p!=&local) {
         strcpy(lstr,"sometime");
-    } 
+    }
 #else
     errno_t grv=gmtime_s(&local,&now);
     if (grv!=0) {
         strcpy(lstr,"sometime");
-    } 
+    }
 #endif
-    else { 
+    else {
         int srv=strftime(lstr,ECH_TIME_STR_LEN,
                 "%c",&local);
         if (srv==0) {
