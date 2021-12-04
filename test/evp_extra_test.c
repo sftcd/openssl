@@ -37,7 +37,7 @@
 #include "crypto/evp.h"
 #include "../e_os.h" /* strcasecmp */
 #ifndef OPENSSL_NO_EC
-#include "crypto/hpke.h"
+#include "openssl/hpke.h"
 #endif
 
 static OSSL_LIB_CTX *testctx = NULL;

@@ -46,7 +46,7 @@
 #include "internal/cryptlib.h"
 
 /* For HPKE APIs */
-#include <crypto/hpke.h>
+#include <openssl/hpke.h>
 
 /*
  * When doing ECH, this array specifies which inner CH extensions (if

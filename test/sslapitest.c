@@ -35,7 +35,7 @@
 #include <openssl/dh.h>
 #ifndef OPENSSL_NO_ECH
 #include <openssl/ech.h>
-#include <crypto/hpke.h>
+#include <openssl/hpke.h>
 #endif
 
 #include "helpers/ssltestlib.h"
