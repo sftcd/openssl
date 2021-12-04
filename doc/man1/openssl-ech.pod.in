@@ -75,7 +75,7 @@ Specify the ECH version to use in the ECHConfig.
 
 =item B<-extfile>
 
-Specify a file name that should contain an encoded set of ECH extensions
+Specify a filename that should contain an encoded set of ECH extensions
 for use in the ECHConfig.
 
 =item B<-select>
