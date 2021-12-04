@@ -20,7 +20,7 @@
 
 # include <openssl/ssl.h>
 # include <openssl/ech.h>
-# include <crypto/hpke.h>
+# include <openssl/hpke.h>
 
 #undef ECH_SUPERVERBOSE  /**< define to get bazillions more lines of tracing */
 
