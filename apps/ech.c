@@ -19,7 +19,7 @@
 #include <openssl/pem.h>
 #include <openssl/rand.h>
 #include <openssl/ech.h>
-#include <crypto/hpke.h>
+#include <openssl/hpke.h>
 
 #include <openssl/objects.h>
 #include <openssl/x509.h>
