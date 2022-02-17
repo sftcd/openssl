@@ -4,11 +4,12 @@
 
 # 2022-02-17 - got basic interop for my NSS build with CF and defo
 # services
-# - something up with port 8414 (forced HRR), not sure what's what yet
+# - something up with port 8414 (server-forced HRR), not sure what's 
+#   what there yet
 # - need to re-do the localhost stuff still (didn't try that at all and 
 #   the cadir I have from a year ago has a now-outdated format). Some of
 # - the HTTP respsonse content that this gets back is confusing and 
-#   should be updated
+#   should be updated in the servers
 
 LDIR=/home/stephen/code/dist/Debug/
 RDIR=/home/stephen/code/openssl/esnistuff
@@ -53,6 +54,46 @@ function b64_ech_from_DNS()
 }
 
 
+# parse command line
+
+# whether to run a localhost test
+LOCAL="no"
+# whether a port was provided on command line
+CLIPORT=""
+VERBOSE="no"
+
+function usage()
+{
+    echo "$0 [-pr] - run interop tests using local NSS build vs. localhost, CF or defo.ie"
+    echo "  -l to run a localhost test"
+    echo "  -p port - specifies a specific listening port to test, all others skipped"
+    echo "  -h means print this"
+    echo "  -v means be more verbose"
+    exit 99
+}
+
+# options may be followed by one colon to indicate they have a required argument
+if ! options=$(/usr/bin/getopt -s bash -o hl:p:v -l help,local,port:,verbose -- "$@")
+then
+    # something went wrong, getopt will put out an error message for us
+    exit 1
+fi
+#echo "|$options|"
+eval set -- "$options"
+while [ $# -gt 0 ]
+do
+    case "$1" in
+        -h|--help) usage;;
+        -l|--local) LOCAL="yes";;
+        -p|--port) CLIPORT=$2; shift;;
+        -v|--verbosel) VERBOSE="yes";;
+        (--) shift; break;;
+        (-*) echo "$0: error - unrecognized option $1" 1>&2; exit 1;;
+        (*)  break;;
+    esac
+    shift
+done
+
 if [ ! -f $LDIR/bin/tstclnt ]
 then
 	echo "You need an NSS build first - can't find  $LDIR/bin/tstclnt"
@@ -73,6 +114,7 @@ then
 fi
 
 # service specific details as CSVs...
+# hostname for DNS,sni for inner CH/HTTP Host: header field,port,URI path
 cfdets="crypto.cloudflare.com,encryptedsni.com,443,cdn-cgi/trace"
 cfrte="crypto.cloudflare.com,rte.ie,443,cdn-cgi/trace"
 defo8413="draft-13.esni.defo.ie,draft-13.esni.defo.ie,8413,stats"
@@ -88,22 +130,42 @@ services="$cfdets $cfrte \
     $defo9413 \
     $defo10413 $defo11413 \
     $defo12413 $defo12414"
-items=${#services[@]}
+
+# no longer needed but I'll forget HOWTO so leave it here:-)
+# items=${#services[@]}
 
 for item in $services
 do
-    echo "Doing $item"
+    if [[ "$VERBOSE" == "yes" ]]
+    then
+        echo "-----------------------" 
+        echo "Doing $item"
+    fi
     host=`echo $item | awk -F, '{print $1}'`
     innerhost=`echo $item | awk -F, '{print $2}'`
     port=`echo $item | awk -F, '{print $3}'`
     path=`echo $item | awk -F, '{print $4}'`
+    if [[ "$CLIPORT" != "" ]]
+    then
+        if [[ "$port" != "$CLIPORT" ]]
+        then
+            if [[ "$VERBOSE" == "yes" ]]
+            then
+                echo "Skipping... port $port != $CLIPORT"
+                echo "-----------------------" 
+            fi
+            continue
+        fi
+    fi
     httpreq="GET /$path HTTP/1.1\\r\\nConnection: close\\r\\nHost: $innerhost\\r\\n\\r\\n"
     ECH=`b64_ech_from_DNS $host $port`
     echo "Running: echo -e $httpreq | $LDIR/bin/tstclnt $NSSPARAMS -h $host -p $port -a $innerhost -N $ECH "
     echo -e $httpreq | timeout 1s $LDIR/bin/tstclnt $NSSPARAMS -h $host -p $port -a $innerhost -N $ECH 
     res=$?
-    echo "res is: $res"
-    echo "-----------------------" 
-    echo "-----------------------" 
+    if [[ "$port" != "$CLIPORT" ]]
+    then
+        echo "res is: $res"
+        echo "-----------------------" 
+    fi
 done
 
