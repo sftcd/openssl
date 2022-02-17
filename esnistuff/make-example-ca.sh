@@ -136,7 +136,7 @@ do
 done
 
 # If we have an NSS build, create an NSS DB for our fake root so we can 
-# use NSS' tstclnt (via nssdoit.sh) to talk to our s_server.
+# use NSS' tstclnt (via nssdoech.sh) to talk to our s_server.
 # Note: values below (LDIR and nssca dir) need to sync with nssdoit.sh 
 # content and with your NSS code build (and I suspect it needs to be a 
 # build as ESNI support in NSS isn't afaik released)

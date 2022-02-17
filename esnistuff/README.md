@@ -26,6 +26,8 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
+- 20220216: starting to test with FF again, see [ff13a.md](ff13a.md)
+
 - 20211108: remerged with upstream
 
 - 20211106: Added real use of ECH to ``sslapitest.c:execute_test_session()``
