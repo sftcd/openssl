@@ -2,14 +2,13 @@
 
 # set -x
 
-# 2022-02-17 - got basic interop for my NSS build with CF and defo
-# services
-# - something up with port 8414 (server-forced HRR), not sure what's 
-#   what there yet
-# - need to re-do the localhost stuff still (didn't try that at all and 
-#   the cadir I have from a year ago has a now-outdated format). Some of
-# - the HTTP respsonse content that this gets back is confusing and 
-#   should be updated in the servers
+# 2022-02-18 
+# - basic interop for my NSS build with CF and defo services ok
+# - something up with port 8414 (server-forced HRR), server thinks
+#   all's good, but NSS' tstclnt doesn't like 2nd SH (could be bug 
+#   on NSS's side according to moz person)
+# - the HTTP respsonse content returned from defo instances is 
+#   confusing and should be cleaned up in the servers
 
 LDIR=/home/stephen/code/dist/Debug/
 RDIR=/home/stephen/code/openssl/esnistuff
@@ -73,7 +72,7 @@ function usage()
 }
 
 # options may be followed by one colon to indicate they have a required argument
-if ! options=$(/usr/bin/getopt -s bash -o hl:p:v -l help,local,port:,verbose -- "$@")
+if ! options=$(/usr/bin/getopt -s bash -o hlp:v -l help,local,port:,verbose -- "$@")
 then
     # something went wrong, getopt will put out an error message for us
     exit 1
@@ -105,11 +104,14 @@ fi
 # to care though, so we can just do IPv4 for now
 NSSPARAMS=" -4 -D -b "
 
-if [[ "$1" == "localhost" ]]
+if [[ "$LOCAL" == "yes" ]]
 then
-	ECH=`cat d13.pem | tail -2 | head -1`
-	echo "Running: $LDIR/bin/tstclnt -b -h localhost -p 8443 -a foo.example.com -d cadir/nssca/ -N $ECH $*"
-	$LDIR/bin/tstclnt -b -h localhost -p 8443 -a foo.example.com -d cadir/nssca/ -N $ECH $*
+    # a server needs to be listening on localhost:8413 - just
+    # running ``./echsrv.sh -d`` should do the trick
+	ECH=`cat echconfig.pem | tail -2 | head -1`
+	echo "Running: $LDIR/bin/tstclnt -Q -b -h localhost -p 8443 \
+        -a foo.example.com -d cadir/nssca/ -N $ECH $*"
+    $LDIR/bin/tstclnt -Q -b -h localhost -p 8443 -a foo.example.com -d cadir/nssca/ -N $ECH $* 
     exit $?
 fi
 
