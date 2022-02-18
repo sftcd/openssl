@@ -7,8 +7,7 @@
 # - something up with port 8414 (server-forced HRR), server thinks
 #   all's good, but NSS' tstclnt doesn't like 2nd SH (could be bug 
 #   on NSS's side according to moz person)
-# - the HTTP respsonse content returned from defo instances is 
-#   confusing and should be cleaned up in the servers
+# - tstclnt (used here) works with a test page for which FF fails
 
 LDIR=/home/stephen/code/dist/Debug/
 RDIR=/home/stephen/code/openssl/esnistuff
@@ -117,6 +116,7 @@ fi
 
 # service specific details as CSVs...
 # hostname for DNS,sni for inner CH/HTTP Host: header field,port,URI path
+defo443="defo.ie,defo.ie,443,ech-check.php"
 cfdets="crypto.cloudflare.com,encryptedsni.com,443,cdn-cgi/trace"
 cfrte="crypto.cloudflare.com,rte.ie,443,cdn-cgi/trace"
 defo8413="draft-13.esni.defo.ie,draft-13.esni.defo.ie,8413,stats"
@@ -127,7 +127,8 @@ defo11413="draft-13.esni.defo.ie,draft-13.esni.defo.ie,11413,"
 defo12413="draft-13.esni.defo.ie,draft-13.esni.defo.ie,12413," 
 defo12414="draft-13.esni.defo.ie,draft-13.esni.defo.ie,12414," 
 
-services="$cfdets $cfrte \
+services="$defo443 \
+    $cfdets $cfrte \
     $defo8413 $defo8414 \
     $defo9413 \
     $defo10413 $defo11413 \
