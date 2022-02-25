@@ -213,7 +213,7 @@ EVP_KDF_CTX *ossl_kdf_ctx_create(const char *kdfname, const char *mdname,
 /**
  * @file
  * This has the data structures and prototypes (both internal and external)
- * for an OpenSSL-based HPKE implementation following draft-irtf-cfrg-hpke
+ * for an OpenSSL-based HPKE implementation of RFC9180
  */
 
 #ifndef HPKE_H_INCLUDED
