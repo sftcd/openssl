@@ -672,15 +672,27 @@ end:
     return ret;
 }
 
+static int get_password_cb(char *buf, int size, int rw_flag, void *userdata)
+{
+    static const char pass[] = "testpass";
+
+    if (!TEST_int_eq(size, PEM_BUFSIZE))
+        return -1;
+
+    memcpy(buf, pass, sizeof(pass) - 1);
+    return sizeof(pass) - 1;
+}
+
 static int test_ssl_ctx_build_cert_chain(void)
 {
     int ret = 0;
     SSL_CTX *ctx = NULL;
-    char *skey = test_mk_file_path(certsdir, "leaf.key");
+    char *skey = test_mk_file_path(certsdir, "leaf-encrypted.key");
     char *leaf_chain = test_mk_file_path(certsdir, "leaf-chain.pem");
 
     if (!TEST_ptr(ctx = SSL_CTX_new_ex(libctx, NULL, TLS_server_method())))
         goto end;
+    SSL_CTX_set_default_passwd_cb(ctx, get_password_cb);
     /* leaf_chain contains leaf + subinterCA + interCA + rootCA */
     if (!TEST_int_eq(SSL_CTX_use_certificate_chain_file(ctx, leaf_chain), 1)
         || !TEST_int_eq(SSL_CTX_use_PrivateKey_file(ctx, skey,
@@ -844,7 +856,7 @@ static int test_ccs_change_cipher(void)
     size_t readbytes;
 
     /*
-     * Create a conection so we can resume and potentially (but not) use
+     * Create a connection so we can resume and potentially (but not) use
      * a different cipher in the second connection.
      */
     if (!TEST_true(create_ssl_ctx_pair(libctx, TLS_server_method(),
@@ -8038,7 +8050,7 @@ static int cert_cb(SSL *s, void *arg)
     EVP_PKEY_free(pkey);
     X509_free(x509);
     X509_free(rootx);
-    sk_X509_pop_free(chain, X509_free);
+    OSSL_STACK_OF_X509_free(chain);
     return ret;
 }
 
@@ -8078,8 +8090,12 @@ static int test_cert_cb_int(int prot, int tst)
     else
         cert_cb_cnt = 0;
 
-    if (tst == 2)
-        snictx = SSL_CTX_new(TLS_server_method());
+    if (tst == 2) {
+        snictx = SSL_CTX_new_ex(libctx, NULL, TLS_server_method());
+        if (!TEST_ptr(snictx))
+            goto end;
+    }
+
     SSL_CTX_set_cert_cb(sctx, cert_cb, snictx);
 
     if (!TEST_true(create_ssl_objects(sctx, cctx, &serverssl, &clientssl,

@@ -206,7 +206,7 @@ If anything in this step fails, the next step is used as a fallback.
 
 As a fallback, try to fetch the operation type implementation from the same
 provider as the original L<EVP_PKEY(3)>'s L<EVP_KEYMGMT(3)>, still using the
-propery string from the B<EVP_PKEY_CTX>.
+property string from the B<EVP_PKEY_CTX>.
 
 =back
 
@@ -380,6 +380,7 @@ encryption/decryption, signatures, message authentication codes, etc.
  #include <stdio.h>
  #include <openssl/evp.h>
  #include <openssl/bio.h>
+ #include <openssl/err.h>
 
  int main(void)
  {
@@ -390,6 +391,7 @@ encryption/decryption, signatures, message authentication codes, etc.
      };
      unsigned int len = 0;
      unsigned char *outdigest = NULL;
+     int ret = 1;
 
      /* Create a context for the digest operation */
      ctx = EVP_MD_CTX_new();
@@ -430,11 +432,16 @@ encryption/decryption, signatures, message authentication codes, etc.
      /* Print out the digest result */
      BIO_dump_fp(stdout, outdigest, len);
 
+     ret = 0;
+
   err:
      /* Clean up all the resources we allocated */
      OPENSSL_free(outdigest);
      EVP_MD_free(sha256);
      EVP_MD_CTX_free(ctx);
+     if (ret != 0)
+        ERR_print_errors_fp(stderr);
+     return ret;
  }
 
 =head1 CONFIGURATION

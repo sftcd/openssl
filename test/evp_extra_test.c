@@ -35,7 +35,7 @@
 #include "internal/nelem.h"
 #include "internal/sizes.h"
 #include "crypto/evp.h"
-#include "../e_os.h" /* strcasecmp */
+#include "internal/e_os.h" /* strcasecmp */
 
 static OSSL_LIB_CTX *testctx = NULL;
 static char *testpropq = NULL;
@@ -679,25 +679,35 @@ err:
 }
 
 #if !defined(OPENSSL_NO_DH) || !defined(OPENSSL_NO_DSA) || !defined(OPENSSL_NO_EC)
-static int test_fromdata(char *keytype, int selection, OSSL_PARAM *params)
+static EVP_PKEY *make_key_fromdata(char *keytype, OSSL_PARAM *params)
 {
     EVP_PKEY_CTX *pctx = NULL;
-    EVP_PKEY *pkey = NULL;
-    int testresult = 0;
-    int ret;
-    BIO *bio = BIO_new(BIO_s_mem());
+    EVP_PKEY *tmp_pkey = NULL, *pkey = NULL;
 
     if (!TEST_ptr(pctx = EVP_PKEY_CTX_new_from_name(testctx, keytype, testpropq)))
         goto err;
     if (!TEST_int_gt(EVP_PKEY_fromdata_init(pctx), 0)
-        || !TEST_int_gt(EVP_PKEY_fromdata(pctx, &pkey, EVP_PKEY_KEYPAIR,
+        || !TEST_int_gt(EVP_PKEY_fromdata(pctx, &tmp_pkey, EVP_PKEY_KEYPAIR,
                                           params), 0))
         goto err;
 
-    if (!TEST_ptr(pkey))
+    if (!TEST_ptr(tmp_pkey))
         goto err;
 
-    /* Check we can use the resulting key */
+    pkey = tmp_pkey;
+    tmp_pkey = NULL;
+ err:
+    EVP_PKEY_free(tmp_pkey);
+    EVP_PKEY_CTX_free(pctx);
+    return pkey;
+}
+
+static int test_selection(EVP_PKEY *pkey, int selection)
+{
+    int testresult = 0;
+    int ret;
+    BIO *bio = BIO_new(BIO_s_mem());
+
     ret = PEM_write_bio_PUBKEY(bio, pkey);
     if ((selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY) != 0) {
         if (!TEST_true(ret))
@@ -718,8 +728,6 @@ static int test_fromdata(char *keytype, int selection, OSSL_PARAM *params)
 
     testresult = 1;
  err:
-    EVP_PKEY_free(pkey);
-    EVP_PKEY_CTX_free(pctx);
     BIO_free(bio);
 
     return testresult;
@@ -735,6 +743,10 @@ static int test_EVP_PKEY_ffc_priv_pub(char *keytype)
 {
     OSSL_PARAM_BLD *bld = NULL;
     OSSL_PARAM *params = NULL;
+    EVP_PKEY *just_params = NULL;
+    EVP_PKEY *params_and_priv = NULL;
+    EVP_PKEY *params_and_pub = NULL;
+    EVP_PKEY *params_and_keypair = NULL;
     BIGNUM *p = NULL, *q = NULL, *g = NULL, *pub = NULL, *priv = NULL;
     int ret = 0;
 
@@ -755,14 +767,18 @@ static int test_EVP_PKEY_ffc_priv_pub(char *keytype)
         || !TEST_true(OSSL_PARAM_BLD_push_BN(bld, OSSL_PKEY_PARAM_FFC_Q, q))
         || !TEST_true(OSSL_PARAM_BLD_push_BN(bld, OSSL_PKEY_PARAM_FFC_G, g)))
         goto err;
-    if (!TEST_ptr(params = OSSL_PARAM_BLD_to_param(bld)))
+    if (!TEST_ptr(params = OSSL_PARAM_BLD_to_param(bld))
+        || !TEST_ptr(just_params = make_key_fromdata(keytype, params)))
         goto err;
 
-    if (!test_fromdata(keytype, OSSL_KEYMGMT_SELECT_ALL_PARAMETERS, params))
-        goto err;
     OSSL_PARAM_free(params);
-    params = NULL;
     OSSL_PARAM_BLD_free(bld);
+    params = NULL;
+    bld = NULL;
+
+    if (!test_selection(just_params, OSSL_KEYMGMT_SELECT_ALL_PARAMETERS)
+        || test_selection(just_params, OSSL_KEYMGMT_SELECT_KEYPAIR))
+        goto err;
 
     /* Test priv and !pub */
     if (!TEST_ptr(bld = OSSL_PARAM_BLD_new())
@@ -772,14 +788,18 @@ static int test_EVP_PKEY_ffc_priv_pub(char *keytype)
         || !TEST_true(OSSL_PARAM_BLD_push_BN(bld, OSSL_PKEY_PARAM_PRIV_KEY,
                                              priv)))
         goto err;
-    if (!TEST_ptr(params = OSSL_PARAM_BLD_to_param(bld)))
+    if (!TEST_ptr(params = OSSL_PARAM_BLD_to_param(bld))
+        || !TEST_ptr(params_and_priv = make_key_fromdata(keytype, params)))
         goto err;
 
-    if (!test_fromdata(keytype, OSSL_KEYMGMT_SELECT_PRIVATE_KEY, params))
-        goto err;
     OSSL_PARAM_free(params);
-    params = NULL;
     OSSL_PARAM_BLD_free(bld);
+    params = NULL;
+    bld = NULL;
+
+    if (!test_selection(params_and_priv, OSSL_KEYMGMT_SELECT_PRIVATE_KEY)
+        || test_selection(params_and_priv, OSSL_KEYMGMT_SELECT_PUBLIC_KEY))
+        goto err;
 
     /* Test !priv and pub */
     if (!TEST_ptr(bld = OSSL_PARAM_BLD_new())
@@ -789,14 +809,18 @@ static int test_EVP_PKEY_ffc_priv_pub(char *keytype)
         || !TEST_true(OSSL_PARAM_BLD_push_BN(bld, OSSL_PKEY_PARAM_PUB_KEY,
                                              pub)))
         goto err;
-    if (!TEST_ptr(params = OSSL_PARAM_BLD_to_param(bld)))
+    if (!TEST_ptr(params = OSSL_PARAM_BLD_to_param(bld))
+        || !TEST_ptr(params_and_pub = make_key_fromdata(keytype, params)))
         goto err;
 
-    if (!test_fromdata(keytype, OSSL_KEYMGMT_SELECT_PUBLIC_KEY, params))
-        goto err;
     OSSL_PARAM_free(params);
-    params = NULL;
     OSSL_PARAM_BLD_free(bld);
+    params = NULL;
+    bld = NULL;
+
+    if (!test_selection(params_and_pub, OSSL_KEYMGMT_SELECT_PUBLIC_KEY)
+        || test_selection(params_and_pub, OSSL_KEYMGMT_SELECT_PRIVATE_KEY))
+        goto err;
 
     /* Test priv and pub */
     if (!TEST_ptr(bld = OSSL_PARAM_BLD_new())
@@ -808,16 +832,21 @@ static int test_EVP_PKEY_ffc_priv_pub(char *keytype)
         || !TEST_true(OSSL_PARAM_BLD_push_BN(bld, OSSL_PKEY_PARAM_PRIV_KEY,
                                              priv)))
         goto err;
-    if (!TEST_ptr(params = OSSL_PARAM_BLD_to_param(bld)))
+    if (!TEST_ptr(params = OSSL_PARAM_BLD_to_param(bld))
+        || !TEST_ptr(params_and_keypair = make_key_fromdata(keytype, params)))
         goto err;
 
-    if (!test_fromdata(keytype, EVP_PKEY_KEYPAIR, params))
+    if (!test_selection(params_and_keypair, EVP_PKEY_KEYPAIR))
         goto err;
 
     ret = 1;
  err:
     OSSL_PARAM_free(params);
     OSSL_PARAM_BLD_free(bld);
+    EVP_PKEY_free(just_params);
+    EVP_PKEY_free(params_and_priv);
+    EVP_PKEY_free(params_and_pub);
+    EVP_PKEY_free(params_and_keypair);
     BN_free(p);
     BN_free(q);
     BN_free(g);
@@ -851,6 +880,10 @@ static int test_EC_priv_pub(void)
 {
     OSSL_PARAM_BLD *bld = NULL;
     OSSL_PARAM *params = NULL;
+    EVP_PKEY *just_params = NULL;
+    EVP_PKEY *params_and_priv = NULL;
+    EVP_PKEY *params_and_pub = NULL;
+    EVP_PKEY *params_and_keypair = NULL;
     BIGNUM *priv = NULL;
     int ret = 0;
 
@@ -867,14 +900,18 @@ static int test_EC_priv_pub(void)
                                                       OSSL_PKEY_PARAM_GROUP_NAME,
                                                       "P-256", 0)))
         goto err;
-    if (!TEST_ptr(params = OSSL_PARAM_BLD_to_param(bld)))
+    if (!TEST_ptr(params = OSSL_PARAM_BLD_to_param(bld))
+        || !TEST_ptr(just_params = make_key_fromdata("EC", params)))
         goto err;
 
-    if (!test_fromdata("EC", OSSL_KEYMGMT_SELECT_ALL_PARAMETERS, params))
-        goto err;
     OSSL_PARAM_free(params);
-    params = NULL;
     OSSL_PARAM_BLD_free(bld);
+    params = NULL;
+    bld = NULL;
+
+    if (!test_selection(just_params, OSSL_KEYMGMT_SELECT_ALL_PARAMETERS)
+        || test_selection(just_params, OSSL_KEYMGMT_SELECT_KEYPAIR))
+        goto err;
 
     /* Test priv and !pub */
     if (!TEST_ptr(bld = OSSL_PARAM_BLD_new())
@@ -884,20 +921,24 @@ static int test_EC_priv_pub(void)
         || !TEST_true(OSSL_PARAM_BLD_push_BN(bld, OSSL_PKEY_PARAM_PRIV_KEY,
                                              priv)))
         goto err;
-    if (!TEST_ptr(params = OSSL_PARAM_BLD_to_param(bld)))
+    if (!TEST_ptr(params = OSSL_PARAM_BLD_to_param(bld))
+        || !TEST_ptr(params_and_priv = make_key_fromdata("EC", params)))
         goto err;
 
-    /*
-     * We indicate only parameters here. The "EVP_PKEY_fromdata" call will do
-     * the private key anyway, but the subsequent PEM_write_bio_PrivateKey_ex
-     * call is expected to fail because PEM_write_bio_PrivateKey_ex does not
-     * support exporting a private EC key without a corresponding public key
-     */
-    if (!test_fromdata("EC", OSSL_KEYMGMT_SELECT_ALL_PARAMETERS, params))
-        goto err;
     OSSL_PARAM_free(params);
-    params = NULL;
     OSSL_PARAM_BLD_free(bld);
+    params = NULL;
+    bld = NULL;
+
+    /*
+     * We indicate only parameters here, in spite of having built a key that
+     * has a private part, because the PEM_write_bio_PrivateKey_ex call is
+     * expected to fail because it does not support exporting a private EC
+     * key without a corresponding public key
+     */
+    if (!test_selection(params_and_priv, OSSL_KEYMGMT_SELECT_ALL_PARAMETERS)
+        || test_selection(params_and_priv, OSSL_KEYMGMT_SELECT_PUBLIC_KEY))
+        goto err;
 
     /* Test !priv and pub */
     if (!TEST_ptr(bld = OSSL_PARAM_BLD_new())
@@ -908,14 +949,18 @@ static int test_EC_priv_pub(void)
                                                        OSSL_PKEY_PARAM_PUB_KEY,
                                                        ec_pub, sizeof(ec_pub))))
         goto err;
-    if (!TEST_ptr(params = OSSL_PARAM_BLD_to_param(bld)))
+    if (!TEST_ptr(params = OSSL_PARAM_BLD_to_param(bld))
+        || !TEST_ptr(params_and_pub = make_key_fromdata("EC", params)))
         goto err;
 
-    if (!test_fromdata("EC", OSSL_KEYMGMT_SELECT_PUBLIC_KEY, params))
-        goto err;
     OSSL_PARAM_free(params);
-    params = NULL;
     OSSL_PARAM_BLD_free(bld);
+    params = NULL;
+    bld = NULL;
+
+    if (!test_selection(params_and_pub, OSSL_KEYMGMT_SELECT_PUBLIC_KEY)
+        || test_selection(params_and_pub, OSSL_KEYMGMT_SELECT_PRIVATE_KEY))
+        goto err;
 
     /* Test priv and pub */
     if (!TEST_ptr(bld = OSSL_PARAM_BLD_new())
@@ -928,16 +973,35 @@ static int test_EC_priv_pub(void)
         || !TEST_true(OSSL_PARAM_BLD_push_BN(bld, OSSL_PKEY_PARAM_PRIV_KEY,
                                              priv)))
         goto err;
-    if (!TEST_ptr(params = OSSL_PARAM_BLD_to_param(bld)))
+    if (!TEST_ptr(params = OSSL_PARAM_BLD_to_param(bld))
+        || !TEST_ptr(params_and_keypair = make_key_fromdata("EC", params)))
         goto err;
 
-    if (!test_fromdata("EC", EVP_PKEY_KEYPAIR, params))
+    if (!test_selection(params_and_keypair, EVP_PKEY_KEYPAIR))
+        goto err;
+
+    /* Try key equality */
+    if (!TEST_int_gt(EVP_PKEY_parameters_eq(just_params, just_params), 0)
+        || !TEST_int_gt(EVP_PKEY_parameters_eq(just_params, params_and_pub),
+                        0)
+        || !TEST_int_gt(EVP_PKEY_parameters_eq(just_params, params_and_priv),
+                        0)
+        || !TEST_int_gt(EVP_PKEY_parameters_eq(just_params, params_and_keypair),
+                        0)
+        || !TEST_int_gt(EVP_PKEY_eq(params_and_pub, params_and_pub), 0)
+        || !TEST_int_gt(EVP_PKEY_eq(params_and_priv, params_and_priv), 0)
+        || !TEST_int_gt(EVP_PKEY_eq(params_and_keypair, params_and_pub), 0)
+        || !TEST_int_gt(EVP_PKEY_eq(params_and_keypair, params_and_priv), 0))
         goto err;
 
     ret = 1;
  err:
     OSSL_PARAM_free(params);
     OSSL_PARAM_BLD_free(bld);
+    EVP_PKEY_free(just_params);
+    EVP_PKEY_free(params_and_priv);
+    EVP_PKEY_free(params_and_pub);
+    EVP_PKEY_free(params_and_keypair);
     BN_free(priv);
 
     return ret;
@@ -2865,9 +2929,9 @@ static int test_pkey_ctx_fail_without_provider(int tst)
 
     /*
      * We check for certain algos in the null provider.
-     * If an algo is expected to have a provider keymgmt, contructing an
+     * If an algo is expected to have a provider keymgmt, constructing an
      * EVP_PKEY_CTX is expected to fail (return NULL).
-     * Otherwise, if it's expected to have legacy support, contructing an
+     * Otherwise, if it's expected to have legacy support, constructing an
      * EVP_PKEY_CTX is expected to succeed (return non-NULL).
      */
     switch (tst) {
@@ -4115,6 +4179,90 @@ static int test_evp_md_cipher_meth(void)
     return testresult;
 }
 
+typedef struct {
+        int data;
+} custom_dgst_ctx;
+
+static int custom_md_init_called = 0;
+static int custom_md_cleanup_called = 0;
+
+static int custom_md_init(EVP_MD_CTX *ctx)
+{
+    custom_dgst_ctx *p = EVP_MD_CTX_md_data(ctx);
+
+    if (p == NULL)
+        return 0;
+
+    custom_md_init_called++;
+    return 1;
+}
+
+static int custom_md_cleanup(EVP_MD_CTX *ctx)
+{
+    custom_dgst_ctx *p = EVP_MD_CTX_md_data(ctx);
+
+    if (p == NULL)
+        /* Nothing to do */
+        return 1;
+
+    custom_md_cleanup_called++;
+    return 1;
+}
+
+static int test_custom_md_meth(void)
+{
+    EVP_MD_CTX *mdctx = NULL;
+    EVP_MD *tmp = NULL;
+    char mess[] = "Test Message\n";
+    unsigned char md_value[EVP_MAX_MD_SIZE];
+    unsigned int md_len;
+    int testresult = 0;
+    int nid;
+
+    /*
+     * We are testing deprecated functions. We don't support a non-default
+     * library context in this test.
+     */
+    if (testctx != NULL)
+        return 1;
+
+    custom_md_init_called = custom_md_cleanup_called = 0;
+
+    nid = OBJ_create("1.3.6.1.4.1.16604.998866.1", "custom-md", "custom-md");
+    if (!TEST_int_ne(nid, NID_undef))
+        goto err;
+    tmp = EVP_MD_meth_new(nid, NID_undef);
+    if (!TEST_ptr(tmp))
+        goto err;
+
+    if (!TEST_true(EVP_MD_meth_set_init(tmp, custom_md_init))
+            || !TEST_true(EVP_MD_meth_set_cleanup(tmp, custom_md_cleanup))
+            || !TEST_true(EVP_MD_meth_set_app_datasize(tmp,
+                                                       sizeof(custom_dgst_ctx))))
+        goto err;
+
+    mdctx = EVP_MD_CTX_new();
+    if (!TEST_ptr(mdctx)
+               /*
+                * Initing our custom md and then initing another md should
+                * result in the init and cleanup functions of the custom md
+                * from being called.
+                */
+            || !TEST_true(EVP_DigestInit_ex(mdctx, tmp, NULL))
+            || !TEST_true(EVP_DigestInit_ex(mdctx, EVP_sha256(), NULL))
+            || !TEST_true(EVP_DigestUpdate(mdctx, mess, strlen(mess)))
+            || !TEST_true(EVP_DigestFinal_ex(mdctx, md_value, &md_len))
+            || !TEST_int_eq(custom_md_init_called, 1)
+            || !TEST_int_eq(custom_md_cleanup_called, 1))
+        goto err;
+
+    testresult = 1;
+ err:
+    EVP_MD_CTX_free(mdctx);
+    EVP_MD_meth_free(tmp);
+    return testresult;
+}
+
 # ifndef OPENSSL_NO_DYNAMIC_ENGINE
 /* Test we can create a signature keys with an associated ENGINE */
 static int test_signatures_with_engine(int tst)
@@ -4409,6 +4557,7 @@ int setup_tests(void)
 #ifndef OPENSSL_NO_DEPRECATED_3_0
     ADD_ALL_TESTS(test_custom_pmeth, 12);
     ADD_TEST(test_evp_md_cipher_meth);
+    ADD_TEST(test_custom_md_meth);
 
 # ifndef OPENSSL_NO_DYNAMIC_ENGINE
     /* Tests only support the default libctx */

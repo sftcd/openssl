@@ -50,9 +50,9 @@ EVP_PKEY_get_raw_public_key
  int EVP_PKEY_get_raw_public_key(const EVP_PKEY *pkey, unsigned char *pub,
                                  size_t *len);
 
-Deprecated since OpenSSL 3.0, can be hidden entirely by defining
-B<OPENSSL_API_COMPAT> with a suitable version value, see
-L<openssl_user_macros(7)>:
+The following function has been deprecated since OpenSSL 3.0, and can be
+hidden entirely by defining B<OPENSSL_API_COMPAT> with a suitable version value,
+see L<openssl_user_macros(7)>:
 
  EVP_PKEY *EVP_PKEY_new_CMAC_key(ENGINE *e, const unsigned char *priv,
                                  size_t len, const EVP_CIPHER *cipher);
@@ -62,7 +62,7 @@ L<openssl_user_macros(7)>:
 B<EVP_PKEY> is a generic structure to hold diverse types of asymmetric keys
 (also known as "key pairs"), and can be used for diverse operations, like
 signing, verifying signatures, key derivation, etc.  The asymmetric keys
-themselves are often refered to as the "internal key", and are handled by
+themselves are often referred to as the "internal key", and are handled by
 backends, such as providers (through L<EVP_KEYMGMT(3)>) or B<ENGINE>s.
 
 Conceptually, an B<EVP_PKEY> internal key may hold a private key, a public

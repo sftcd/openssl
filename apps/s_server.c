@@ -1007,7 +1007,7 @@ int s_server_main(int argc, char *argv[])
     int socket_family = AF_UNSPEC, socket_type = SOCK_STREAM, protocol = 0;
     int state = 0, crl_format = FORMAT_UNDEF, crl_download = 0;
     char *host = NULL;
-    char *port = OPENSSL_strdup(PORT);
+    char *port = NULL;
     unsigned char *context = NULL;
     OPTION_CHOICE o;
     EVP_PKEY *s_key2 = NULL;
@@ -1073,9 +1073,10 @@ int s_server_main(int argc, char *argv[])
     async = 0;
     use_sendfile = 0;
 
+    port = OPENSSL_strdup(PORT);
     cctx = SSL_CONF_CTX_new();
     vpm = X509_VERIFY_PARAM_new();
-    if (cctx == NULL || vpm == NULL)
+    if (port == NULL || cctx == NULL || vpm == NULL)
         goto end;
     SSL_CONF_CTX_set_flags(cctx,
                            SSL_CONF_FLAG_SERVER | SSL_CONF_FLAG_CMDLINE);
@@ -1648,8 +1649,7 @@ int s_server_main(int argc, char *argv[])
     }
 
     /* No extra arguments. */
-    argc = opt_num_rest();
-    if (argc != 0)
+    if (!opt_check_rest_arg(NULL))
         goto opthelp;
 
     if (!app_RAND_load())
@@ -1817,10 +1817,13 @@ int s_server_main(int argc, char *argv[])
             if (s_msg && bio_s_msg == NULL)
                 bio_s_msg = dup_bio_out(FORMAT_TEXT);
         } else {
-            if (bio_s_out == NULL)
-                bio_s_out = dup_bio_out(FORMAT_TEXT);
+            bio_s_out = dup_bio_out(FORMAT_TEXT);
         }
     }
+
+    if (bio_s_out == NULL)
+        goto end;
+
     if (nocert) {
         s_cert_file = NULL;
         s_key_file = NULL;
@@ -2241,8 +2244,8 @@ int s_server_main(int argc, char *argv[])
     X509_free(s_dcert);
     EVP_PKEY_free(s_key);
     EVP_PKEY_free(s_dkey);
-    sk_X509_pop_free(s_chain, X509_free);
-    sk_X509_pop_free(s_dchain, X509_free);
+    OSSL_STACK_OF_X509_free(s_chain);
+    OSSL_STACK_OF_X509_free(s_dchain);
     OPENSSL_free(pass);
     OPENSSL_free(dpass);
     OPENSSL_free(host);
@@ -2362,6 +2365,11 @@ static int sv_body(int s, int stype, int prot, unsigned char *context)
         else
 # endif
             sbio = BIO_new_dgram(s, BIO_NOCLOSE);
+        if (sbio == NULL) {
+            BIO_printf(bio_err, "Unable to create BIO\n");
+            ERR_print_errors(bio_err);
+            goto err;
+        }
 
         if (enable_timeouts) {
             timeout.tv_sec = 0;
@@ -2411,6 +2419,13 @@ static int sv_body(int s, int stype, int prot, unsigned char *context)
         BIO *test;
 
         test = BIO_new(BIO_f_nbio_test());
+        if (test == NULL) {
+            BIO_printf(bio_err, "Unable to create BIO\n");
+            ret = -1;
+            BIO_free(sbio);
+            goto err;
+        }
+
         sbio = BIO_push(test, sbio);
     }
 
@@ -2997,11 +3012,16 @@ static int www_body(int s, int stype, int prot, unsigned char *context)
     int width;
     fd_set readfds;
     const char *opmode;
+#ifdef CHARSET_EBCDIC
+    BIO *filter;
+#endif
 
     /* Set width for a select call if needed */
     width = s + 1;
 
-    p = buf = app_malloc(bufsize, "server www buffer");
+    /* as we use BIO_gets(), and it always null terminates data, we need
+     * to allocate 1 byte longer buffer to fit the full 2^14 byte record */
+    p = buf = app_malloc(bufsize + 1, "server www buffer");
     io = BIO_new(BIO_f_buffer());
     ssl_bio = BIO_new(BIO_f_ssl());
     if ((io == NULL) || (ssl_bio == NULL))
@@ -3034,10 +3054,21 @@ static int www_body(int s, int stype, int prot, unsigned char *context)
     }
 
     sbio = BIO_new_socket(s, BIO_NOCLOSE);
+    if (sbio == NULL) {
+        SSL_free(con);
+        goto err;
+    }
+
     if (s_nbio_test) {
         BIO *test;
 
         test = BIO_new(BIO_f_nbio_test());
+        if (test == NULL) {
+            SSL_free(con);
+            BIO_free(sbio);
+            goto err;
+        }
+
         sbio = BIO_push(test, sbio);
     }
     SSL_set_bio(con, sbio, sbio);
@@ -3048,7 +3079,11 @@ static int www_body(int s, int stype, int prot, unsigned char *context)
     BIO_push(io, ssl_bio);
     ssl_bio = NULL;
 #ifdef CHARSET_EBCDIC
-    io = BIO_push(BIO_new(BIO_f_ebcdic_filter()), io);
+    filter = BIO_new(BIO_f_ebcdic_filter());
+    if (filter == NULL)
+        goto err;
+
+    io = BIO_push(filter, io);
 #endif
 
     if (s_debug) {
@@ -3066,7 +3101,7 @@ static int www_body(int s, int stype, int prot, unsigned char *context)
     }
 
     for (;;) {
-        i = BIO_gets(io, buf, bufsize - 1);
+        i = BIO_gets(io, buf, bufsize + 1);
         if (i < 0) {            /* error */
             if (!BIO_should_retry(io) && !SSL_waiting_for_async(con)) {
                 if (!s_quiet)
@@ -3130,7 +3165,7 @@ static int www_body(int s, int stype, int prot, unsigned char *context)
                  * we're expecting to come from the client. If they haven't
                  * sent one there's not much we can do.
                  */
-                BIO_gets(io, buf, bufsize - 1);
+                BIO_gets(io, buf, bufsize + 1);
             }
 
             BIO_puts(io,
@@ -3221,7 +3256,7 @@ static int www_body(int s, int stype, int prot, unsigned char *context)
             }
             BIO_puts(io, "</pre></BODY></HTML>\r\n\r\n");
             break;
-        } else if ((www == 2 || www == 3) && HAS_PREFIX(p, "GET /")) {
+        } else if ((www == 2 || www == 3) && CHECK_AND_SKIP_PREFIX(p, "GET /")) {
             BIO *file;
             char *e;
             static const char *text =
@@ -3412,8 +3447,13 @@ static int rev_body(int s, int stype, int prot, unsigned char *context)
     int ret = 1;
     SSL *con;
     BIO *io, *ssl_bio, *sbio;
+#ifdef CHARSET_EBCDIC
+    BIO *filter;
+#endif
 
-    buf = app_malloc(bufsize, "server rev buffer");
+    /* as we use BIO_gets(), and it always null terminates data, we need
+     * to allocate 1 byte longer buffer to fit the full 2^14 byte record */
+    buf = app_malloc(bufsize + 1, "server rev buffer");
     io = BIO_new(BIO_f_buffer());
     ssl_bio = BIO_new(BIO_f_ssl());
     if ((io == NULL) || (ssl_bio == NULL))
@@ -3439,6 +3479,12 @@ static int rev_body(int s, int stype, int prot, unsigned char *context)
     }
 
     sbio = BIO_new_socket(s, BIO_NOCLOSE);
+    if (sbio == NULL) {
+        SSL_free(con);
+        ERR_print_errors(bio_err);
+        goto err;
+    }
+
     SSL_set_bio(con, sbio, sbio);
     SSL_set_accept_state(con);
 
@@ -3447,7 +3493,11 @@ static int rev_body(int s, int stype, int prot, unsigned char *context)
     BIO_push(io, ssl_bio);
     ssl_bio = NULL;
 #ifdef CHARSET_EBCDIC
-    io = BIO_push(BIO_new(BIO_f_ebcdic_filter()), io);
+    filter = BIO_new(BIO_f_ebcdic_filter());
+    if (filter == NULL)
+        goto err;
+
+    io = BIO_push(filter, io);
 #endif
 
     if (s_debug) {
@@ -3488,7 +3538,7 @@ static int rev_body(int s, int stype, int prot, unsigned char *context)
     print_ssl_summary(con);
 
     for (;;) {
-        i = BIO_gets(io, buf, bufsize - 1);
+        i = BIO_gets(io, buf, bufsize + 1);
         if (i < 0) {            /* error */
             if (!BIO_should_retry(io)) {
                 if (!s_quiet)

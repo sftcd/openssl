@@ -48,6 +48,7 @@ B<openssl> B<s_client>
 [B<-reconnect>]
 [B<-showcerts>]
 [B<-prexit>]
+[B<-no-interactive>]
 [B<-debug>]
 [B<-trace>]
 [B<-nocommands>]
@@ -57,6 +58,7 @@ B<openssl> B<s_client>
 [B<-timeout>]
 [B<-mtu> I<size>]
 [B<-no_etm>]
+[B<-no_ems>]
 [B<-keymatexport> I<label>]
 [B<-keymatexportlen> I<len>]
 [B<-msgfile> I<filename>]
@@ -274,7 +276,7 @@ See L<openssl-format-options(1)> for details.
 
 =item B<-pass> I<arg>
 
-the private key and certifiate file password source.
+the private key and certificate file password source.
 For more information about the format of I<arg>
 see L<openssl-passphrase-options(1)>.
 
@@ -418,6 +420,10 @@ attempt is made to access a certain URL. Note: the output produced by this
 option is not always accurate because a connection might never have been
 established.
 
+=item B<-no-interactive>
+
+This flag can be used to run the client in a non-interactive mode.
+
 =item B<-state>
 
 Prints out the SSL session states.
@@ -453,6 +459,10 @@ Set MTU of the link layer to the specified size.
 =item B<-no_etm>
 
 Disable Encrypt-then-MAC negotiation.
+
+=item B<-no_ems>
+
+Disable Extended master secret negotiation.
 
 =item B<-keymatexport> I<label>
 

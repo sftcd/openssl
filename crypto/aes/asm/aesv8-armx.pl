@@ -417,7 +417,7 @@ ___
 # If lsize < 3*16 bytes, treat them as the tail, interleave the
 # two blocks AES instructions.
 # There is one special case, if the original input data size dsize
-# = 16 bytes, we will treat it seperately to improve the
+# = 16 bytes, we will treat it separately to improve the
 # performance: one independent code block without LR, FP load and
 # store, just looks like what the original ECB implementation does.
 
@@ -2162,7 +2162,7 @@ ___
 # will be processed specially, which be integrated into the 5*16 bytes
 # loop to improve the efficiency.
 # There is one special case, if the original input data size dsize
-# = 16 bytes, we will treat it seperately to improve the
+# = 16 bytes, we will treat it separately to improve the
 # performance: one independent code block without LR, FP load and
 # store.
 # Encryption will process the (length -tailcnt) bytes as mentioned
@@ -3495,7 +3495,7 @@ $code.=<<___	if ($flavour =~ /64/);
 	cbnz	x2,.Lxts_dec_1st_done
 	vld1.32	{$dat0},[$inp],#16
 
-	// Decrypt the last secod block to get the last plain text block
+	// Decrypt the last second block to get the last plain text block
 .Lxts_dec_1st_done:
 	eor	$tmpin,$dat0,$iv1
 	ldr	$rounds,[$key1,#240]
@@ -3612,6 +3612,9 @@ if ($flavour =~ /64/) {			######## 64-bit code
 	s/\.[ui]?32//o and s/\.16b/\.4s/go;
 	s/\.[ui]?64//o and s/\.16b/\.2d/go;
 	s/\.[42]([sd])\[([0-3])\]/\.$1\[$2\]/o;
+
+	# Switch preprocessor checks to aarch64 versions.
+	s/__ARME([BL])__/__AARCH64E$1__/go;
 
 	print $_,"\n";
     }

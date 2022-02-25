@@ -573,7 +573,7 @@ static int serverinfo_find_extension(const unsigned char *serverinfo,
 
         if (type == extension_type) {
             *extension_data = PACKET_data(&data);
-            *extension_length = PACKET_remaining(&data);;
+            *extension_length = PACKET_remaining(&data);
             return 1;           /* Success */
         }
     }
@@ -955,7 +955,7 @@ static int ssl_set_cert_and_key(SSL *ssl, SSL_CTX *ctx, X509 *x509, EVP_PKEY *pr
         }
     }
 
-    sk_X509_pop_free(c->pkeys[i].chain, X509_free);
+    OSSL_STACK_OF_X509_free(c->pkeys[i].chain);
     c->pkeys[i].chain = dup_chain;
 
     X509_free(c->pkeys[i].x509);

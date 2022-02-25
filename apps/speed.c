@@ -29,6 +29,7 @@
 #include <math.h>
 #include "apps.h"
 #include "progs.h"
+#include "internal/numbers.h"
 #include <openssl/crypto.h>
 #include <openssl/rand.h>
 #include <openssl/err.h>
@@ -214,7 +215,11 @@ typedef enum OPTION_choice {
 } OPTION_CHOICE;
 
 const OPTIONS speed_options[] = {
-    {OPT_HELP_STR, 1, '-', "Usage: %s [options] [algorithm...]\n"},
+    {OPT_HELP_STR, 1, '-',
+     "Usage: %s [options] [algorithm...]\n"
+     "All +int options consider prefix '0' as base-8 input, "
+     "prefix '0x'/'0X' as base-16 input.\n"
+    },
 
     OPT_SECTION("General"),
     {"help", OPT_HELP, '-', "Display this summary"},
@@ -451,7 +456,7 @@ static const OPT_PAIR sm2_choices[SM2_NUM] = {
 static double sm2_results[SM2_NUM][2];    /* 2 ops: sign then verify */
 #endif /* OPENSSL_NO_SM2 */
 
-#define COND(unused_cond) (run && count < 0x7fffffff)
+#define COND(unused_cond) (run && count < INT_MAX)
 #define COUNT(d) (count)
 
 typedef struct loopargs_st {
@@ -1462,7 +1467,7 @@ int speed_main(int argc, char **argv)
     uint8_t ecdh_doit[EC_NUM] = { 0 };
     uint8_t eddsa_doit[EdDSA_NUM] = { 0 };
 
-    /* checks declarated curves against choices list. */
+    /* checks declared curves against choices list. */
     OPENSSL_assert(ed_curves[EdDSA_NUM - 1].nid == NID_ED448);
     OPENSSL_assert(strcmp(eddsa_choices[EdDSA_NUM - 1].name, "ed448") == 0);
 
@@ -1543,7 +1548,7 @@ int speed_main(int argc, char **argv)
             break;
         case OPT_MULTI:
 #ifndef NO_FORK
-            multi = atoi(opt_arg());
+            multi = opt_int_arg();
             if ((size_t)multi >= SIZE_MAX / sizeof(int)) {
                 BIO_printf(bio_err, "%s: multi argument too large\n", prog);
                 return 0;
@@ -1552,7 +1557,7 @@ int speed_main(int argc, char **argv)
             break;
         case OPT_ASYNCJOBS:
 #ifndef OPENSSL_NO_ASYNC
-            async_jobs = atoi(opt_arg());
+            async_jobs = opt_int_arg();
             if (!ASYNC_is_capable()) {
                 BIO_printf(bio_err,
                            "%s: async_jobs specified but async not supported\n",
@@ -1599,10 +1604,10 @@ int speed_main(int argc, char **argv)
         case OPT_SECONDS:
             seconds.sym = seconds.rsa = seconds.dsa = seconds.ecdsa
                         = seconds.ecdh = seconds.eddsa
-                        = seconds.sm2 = seconds.ffdh = atoi(opt_arg());
+                        = seconds.sm2 = seconds.ffdh = opt_int_arg();
             break;
         case OPT_BYTES:
-            lengths_single = atoi(opt_arg());
+            lengths_single = opt_int_arg();
             lengths = &lengths_single;
             size_num = 1;
             break;
@@ -1774,6 +1779,10 @@ int speed_main(int argc, char **argv)
         buflen = lengths[size_num - 1];
         if (buflen < 36)    /* size of random vector in RSA benchmark */
             buflen = 36;
+        if (INT_MAX - (MAX_MISALIGNMENT + 1) < buflen) {
+            BIO_printf(bio_err, "Error: buffer size too large\n");
+            goto end;
+        }
         buflen += MAX_MISALIGNMENT + 1;
         loopargs[i].buf_malloc = app_malloc(buflen, "input buffer");
         loopargs[i].buf2_malloc = app_malloc(buflen, "input buffer");
@@ -3551,9 +3560,7 @@ static int do_multi(int multi, int size_num)
                 d = atof(sstrsep(&p, sep));
                 ffdh_results[k][0] += d;
 # endif /* OPENSSL_NO_DH */
-            } else if (HAS_PREFIX(buf, "+H:")) {
-                ;
-            } else {
+            } else if (!HAS_PREFIX(buf, "+H:")) {
                 BIO_printf(bio_err, "Unknown type '%s' from child %d\n", buf,
                            n);
             }
@@ -3610,7 +3617,7 @@ static void multiblock_speed(const EVP_CIPHER *evp_cipher, int lengths_single,
     for (j = 0; j < num; j++) {
         print_message(alg_name, 0, mblengths[j], seconds->sym);
         Time_F(START);
-        for (count = 0; run && count < 0x7fffffff; count++) {
+        for (count = 0; run && count < INT_MAX; count++) {
             unsigned char aad[EVP_AEAD_TLS1_AAD_LEN];
             EVP_CTRL_TLS1_1_MULTIBLOCK_PARAM mb_param;
             size_t len = mblengths[j];

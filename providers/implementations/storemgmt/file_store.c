@@ -9,7 +9,7 @@
 
 /* This file has quite some overlap with engines/e_loader_attic.c */
 
-#include "e_os.h"                /* To get strncasecmp() on Windows */
+#include "internal/e_os.h"                /* To get strncasecmp() on Windows */
 
 #include <string.h>
 #include <sys/stat.h>
@@ -175,7 +175,7 @@ static void *file_open_dir(const char *path, const char *uri, void *provctx)
 
     if ((ctx = new_file_ctx(IS_DIR, uri, provctx)) == NULL) {
         ERR_raise(ERR_LIB_PROV, ERR_R_MALLOC_FAILURE);
-        goto err;
+        return NULL;
     }
 
     ctx->_.dir.last_entry = OPENSSL_DIR_read(&ctx->_.dir.ctx, path);

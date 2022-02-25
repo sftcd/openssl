@@ -292,7 +292,12 @@ static void *dh_dupctx(void *vpdhctx)
         if (dstctx->kdf_ukm == NULL)
             goto err;
     }
-    dstctx->kdf_cekalg = OPENSSL_strdup(srcctx->kdf_cekalg);
+
+    if (srcctx->kdf_cekalg != NULL) {
+        dstctx->kdf_cekalg = OPENSSL_strdup(srcctx->kdf_cekalg);
+        if (dstctx->kdf_cekalg == NULL)
+            goto err;
+    }
 
     return dstctx;
 err:
@@ -345,12 +350,13 @@ static int dh_set_ctx_params(void *vpdhctx, const OSSL_PARAM params[])
 
         EVP_MD_free(pdhctx->kdf_md);
         pdhctx->kdf_md = EVP_MD_fetch(pdhctx->libctx, name, mdprops);
+        if (pdhctx->kdf_md == NULL)
+            return 0;
         if (!ossl_digest_is_allowed(pdhctx->libctx, pdhctx->kdf_md)) {
             EVP_MD_free(pdhctx->kdf_md);
             pdhctx->kdf_md = NULL;
-        }
-        if (pdhctx->kdf_md == NULL)
             return 0;
+        }
     }
 
     p = OSSL_PARAM_locate_const(params, OSSL_EXCHANGE_PARAM_KDF_OUTLEN);
@@ -389,9 +395,16 @@ static int dh_set_ctx_params(void *vpdhctx, const OSSL_PARAM params[])
     p = OSSL_PARAM_locate_const(params, OSSL_KDF_PARAM_CEK_ALG);
     if (p != NULL) {
         str = name;
-        if (!OSSL_PARAM_get_utf8_string(p, &str, sizeof(name)))
-            return 0;
-        pdhctx->kdf_cekalg = OPENSSL_strdup(name);
+
+        OPENSSL_free(pdhctx->kdf_cekalg);
+        pdhctx->kdf_cekalg = NULL;
+        if (p->data != NULL && p->data_size != 0) {
+            if (!OSSL_PARAM_get_utf8_string(p, &str, sizeof(name)))
+                return 0;
+            pdhctx->kdf_cekalg = OPENSSL_strdup(name);
+            if (pdhctx->kdf_cekalg == NULL)
+                return 0;
+        }
     }
     return 1;
 }
@@ -414,12 +427,12 @@ static const OSSL_PARAM *dh_settable_ctx_params(ossl_unused void *vpdhctx,
 }
 
 static const OSSL_PARAM known_gettable_ctx_params[] = {
-    OSSL_PARAM_int(OSSL_EXCHANGE_PARAM_EC_ECDH_COFACTOR_MODE, NULL),
     OSSL_PARAM_utf8_string(OSSL_EXCHANGE_PARAM_KDF_TYPE, NULL, 0),
     OSSL_PARAM_utf8_string(OSSL_EXCHANGE_PARAM_KDF_DIGEST, NULL, 0),
     OSSL_PARAM_size_t(OSSL_EXCHANGE_PARAM_KDF_OUTLEN, NULL),
     OSSL_PARAM_DEFN(OSSL_EXCHANGE_PARAM_KDF_UKM, OSSL_PARAM_OCTET_PTR,
                     NULL, 0),
+    OSSL_PARAM_utf8_string(OSSL_KDF_PARAM_CEK_ALG, NULL, 0),
     OSSL_PARAM_END
 };
 

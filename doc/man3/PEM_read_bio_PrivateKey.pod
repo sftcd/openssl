@@ -134,9 +134,9 @@ PEM_write_bio_PKCS7, PEM_write_PKCS7 - PEM routines
  int PEM_write_bio_PKCS7(BIO *bp, PKCS7 *x);
  int PEM_write_PKCS7(FILE *fp, PKCS7 *x);
 
-Deprecated since OpenSSL 3.0, can be hidden entirely by defining
-B<OPENSSL_API_COMPAT> with a suitable version value, see
-L<openssl_user_macros(7)>:
+The following functions have been deprecated since OpenSSL 3.0, and can be
+hidden entirely by defining B<OPENSSL_API_COMPAT> with a suitable version value,
+see L<openssl_user_macros(7)>:
 
  RSA *PEM_read_bio_RSAPrivateKey(BIO *bp, RSA **x,
                                  pem_password_cb *cb, void *u);
@@ -335,7 +335,7 @@ I<klen> bytes at I<kstr> are used as the passphrase and I<cb> is
 ignored.
 
 If the I<cb> parameters is set to NULL and the I<u> parameter is not
-NULL then the I<u> parameter is interpreted as a null terminated string
+NULL then the I<u> parameter is interpreted as a NUL terminated string
 to use as the passphrase. If both I<cb> and I<u> are NULL then the
 default callback routine is used which will typically prompt for the
 passphrase on the current terminal with echoing turned off.
@@ -355,7 +355,8 @@ value as the I<u> parameter passed to the PEM routine. It allows
 arbitrary data to be passed to the callback by the application
 (for example a window handle in a GUI application). The callback
 I<must> return the number of characters in the passphrase or -1 if
-an error occurred.
+an error occurred. The passphrase can be arbitrary data; in the case where it
+is a string, it is not NUL terminated. See the L</EXAMPLES> section below.
 
 Some implementations may need to use cryptographic algorithms during their
 operation. If this is the case and I<libctx> and I<propq> parameters have been

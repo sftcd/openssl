@@ -14,7 +14,7 @@
 /* We need to use some engine deprecated APIs */
 #define OPENSSL_SUPPRESS_DEPRECATED
 
-#include "../e_os.h" /* for stat and strncasecmp */
+#include "internal/e_os.h" /* for stat and strncasecmp */
 #include <string.h>
 #include <sys/stat.h>
 #include <ctype.h>
@@ -375,7 +375,7 @@ static OSSL_STORE_INFO *try_decode_PKCS12(const char *pem_name,
                 }
                 EVP_PKEY_free(pkey);
                 X509_free(cert);
-                sk_X509_pop_free(chain, X509_free);
+                OSSL_STACK_OF_X509_free(chain);
                 store_info_free(osi_pkey);
                 store_info_free(osi_cert);
                 store_info_free(osi_ca);

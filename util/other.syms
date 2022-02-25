@@ -362,7 +362,7 @@ OPENSSL_MSTR                            define
 OPENSSL_MSTR_HELPER                     define
 OPENSSL_VERSION_MAJOR                   define
 OPENSSL_VERSION_MINOR                   define
-OPENSSL_VERSION_NUMBER                  define deprecated 3.0.0
+OPENSSL_VERSION_NUMBER                  define
 OPENSSL_VERSION_PATCH                   define
 OPENSSL_VERSION_PRE_RELEASE             define
 OPENSSL_VERSION_PREREQ                  define
@@ -396,6 +396,8 @@ OSSL_CMP_exec_IR_ses                    define
 OSSL_CMP_exec_CR_ses                    define
 OSSL_CMP_exec_P10CR_ses                 define
 OSSL_CMP_exec_KUR_ses                   define
+OSSL_CMP_CTX_get0_trusted               define
+OSSL_CMP_CTX_set0_trusted               define
 OSSL_CMP_CTX_set_log_verbosity          define
 OSSL_CMP_CR                             define
 OSSL_CMP_IR                             define
@@ -530,6 +532,7 @@ SSL_clear_chain_certs                   define
 SSL_clear_mode                          define
 SSL_disable_ct                          define
 SSL_get0_chain_certs                    define
+SSL_get0_iana_groups                    define
 SSL_get0_session                        define
 SSL_get1_curves                         define
 SSL_get1_groups                         define

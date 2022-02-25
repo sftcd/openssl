@@ -17,6 +17,7 @@
 #include <sys/sysctl.h>
 #endif
 #include "internal/cryptlib.h"
+#include <unistd.h>
 
 #include "arm_arch.h"
 
@@ -52,8 +53,41 @@ void _armv8_sha1_probe(void);
 void _armv8_sha256_probe(void);
 void _armv8_pmull_probe(void);
 # ifdef __aarch64__
+void _armv8_sm3_probe(void);
+void _armv8_sm4_probe(void);
 void _armv8_sha512_probe(void);
 unsigned int _armv8_cpuid_probe(void);
+void _armv8_rng_probe(void);
+
+size_t OPENSSL_rndr_asm(unsigned char *buf, size_t len);
+size_t OPENSSL_rndrrs_asm(unsigned char *buf, size_t len);
+
+size_t OPENSSL_rndr_bytes(unsigned char *buf, size_t len);
+size_t OPENSSL_rndrrs_bytes(unsigned char *buf, size_t len);
+
+static size_t OPENSSL_rndr_wrapper(size_t (*func)(unsigned char *, size_t), unsigned char *buf, size_t len)
+{
+    size_t buffer_size = 0;
+    int i;
+
+    for (i = 0; i < 8; i++) {
+        buffer_size = func(buf, len);
+        if (buffer_size == len)
+            break;
+        usleep(5000);  /* 5000 microseconds (5 milliseconds) */
+    }
+    return buffer_size;
+}
+
+size_t OPENSSL_rndr_bytes(unsigned char *buf, size_t len)
+{
+    return OPENSSL_rndr_wrapper(OPENSSL_rndr_asm, buf, len);
+}
+
+size_t OPENSSL_rndrrs_bytes(unsigned char *buf, size_t len)
+{
+    return OPENSSL_rndr_wrapper(OPENSSL_rndrrs_asm, buf, len);
+}
 # endif
 uint32_t _armv7_tick(void);
 
@@ -137,7 +171,13 @@ static unsigned long getauxval(unsigned long key)
 #  define HWCAP_CE_SHA1          (1 << 5)
 #  define HWCAP_CE_SHA256        (1 << 6)
 #  define HWCAP_CPUID            (1 << 11)
+#  define HWCAP_SHA3             (1 << 17)
+#  define HWCAP_CE_SM3           (1 << 18)
+#  define HWCAP_CE_SM4           (1 << 19)
 #  define HWCAP_CE_SHA512        (1 << 21)
+                                  /* AT_HWCAP2 */
+#  define HWCAP2                 26
+#  define HWCAP2_RNG             (1 << 16)
 # endif
 
 void OPENSSL_cpuid_setup(void)
@@ -177,11 +217,20 @@ void OPENSSL_cpuid_setup(void)
      */
 #   else
     {
-        unsigned int sha512;
-        size_t len = sizeof(sha512);
+        unsigned int feature;
+        size_t len = sizeof(feature);
+        char uarch[64];
 
-        if (sysctlbyname("hw.optional.armv8_2_sha512", &sha512, &len, NULL, 0) == 0 && sha512 == 1)
+        if (sysctlbyname("hw.optional.armv8_2_sha512", &feature, &len, NULL, 0) == 0 && feature == 1)
             OPENSSL_armcap_P |= ARMV8_SHA512;
+        feature = 0;
+        if (sysctlbyname("hw.optional.armv8_2_sha3", &feature, &len, NULL, 0) == 0 && feature == 1) {
+            OPENSSL_armcap_P |= ARMV8_SHA3;
+            len = sizeof(uarch);
+            if ((sysctlbyname("machdep.cpu.brand_string", uarch, &len, NULL, 0) == 0) &&
+                (strncmp(uarch, "Apple M1", 8) == 0))
+                OPENSSL_armcap_P |= ARMV8_UNROLL8_EOR3;
+        }
     }
 #   endif
 # endif
@@ -205,13 +254,25 @@ void OPENSSL_cpuid_setup(void)
             OPENSSL_armcap_P |= ARMV8_SHA256;
 
 #  ifdef __aarch64__
+        if (hwcap & HWCAP_CE_SM4)
+            OPENSSL_armcap_P |= ARMV8_SM4;
+
         if (hwcap & HWCAP_CE_SHA512)
             OPENSSL_armcap_P |= ARMV8_SHA512;
 
         if (hwcap & HWCAP_CPUID)
             OPENSSL_armcap_P |= ARMV8_CPUID;
+
+        if (hwcap & HWCAP_CE_SM3)
+            OPENSSL_armcap_P |= ARMV8_SM3;
+        if (hwcap & HWCAP_SHA3)
+            OPENSSL_armcap_P |= ARMV8_SHA3;
 #  endif
     }
+#  ifdef __aarch64__
+        if (getauxval(HWCAP2) & HWCAP2_RNG)
+            OPENSSL_armcap_P |= ARMV8_RNG;
+#  endif
 # endif
 
     sigfillset(&all_masked);
@@ -250,11 +311,30 @@ void OPENSSL_cpuid_setup(void)
         }
 #  if defined(__aarch64__) && !defined(__APPLE__)
         if (sigsetjmp(ill_jmp, 1) == 0) {
+            _armv8_sm4_probe();
+            OPENSSL_armcap_P |= ARMV8_SM4;
+        }
+
+        if (sigsetjmp(ill_jmp, 1) == 0) {
             _armv8_sha512_probe();
             OPENSSL_armcap_P |= ARMV8_SHA512;
         }
+
+        if (sigsetjmp(ill_jmp, 1) == 0) {
+            _armv8_sm3_probe();
+            OPENSSL_armcap_P |= ARMV8_SM3;
+        if (sigsetjmp(ill_jmp, 1) == 0) {
+            _armv8_eor3_probe();
+            OPENSSL_armcap_P |= ARMV8_SHA3;
+        }
 #  endif
     }
+#  ifdef __aarch64__
+    if (sigsetjmp(ill_jmp, 1) == 0) {
+        _armv8_rng_probe();
+        OPENSSL_armcap_P |= ARMV8_RNG;
+    }
+#  endif
 # endif
 
     /* Things that getauxval didn't tell us */
@@ -275,6 +355,9 @@ void OPENSSL_cpuid_setup(void)
         (OPENSSL_armcap_P & ARMV7_NEON)) {
             OPENSSL_armv8_rsa_neonized = 1;
     }
+    if ((MIDR_IS_CPU_MODEL(OPENSSL_arm_midr, ARM_CPU_IMP_ARM, ARM_CPU_PART_V1)) &&
+        (OPENSSL_armcap_P & ARMV8_SHA3))
+        OPENSSL_armcap_P |= ARMV8_UNROLL8_EOR3;
 # endif
 }
 #endif

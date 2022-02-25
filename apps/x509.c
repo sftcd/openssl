@@ -302,6 +302,7 @@ int x509_main(int argc, char **argv)
         goto err;
     X509_STORE_set_verify_cb(ctx, callb);
 
+    opt_set_unknown_name("digest");
     prog = opt_init(argc, argv, x509_options);
     while ((o = opt_next()) != OPT_EOF) {
         switch (o) {
@@ -592,14 +593,15 @@ int x509_main(int argc, char **argv)
             break;
         }
     }
-
     /* No extra arguments. */
-    argc = opt_num_rest();
-    if (argc != 0)
+    if (!opt_check_rest_arg(NULL))
         goto opthelp;
 
     if (!app_RAND_load())
         goto end;
+
+    if (!opt_check_md(digest))
+        goto opthelp;
 
     if (preserve_dates && days != UNSET_DAYS) {
         BIO_printf(bio_err, "Cannot use -preserve_dates with -days option\n");
@@ -709,9 +711,9 @@ int x509_main(int argc, char **argv)
                        : "Certificate request self-signature did not match the contents\n");
             goto err;
         }
-        BIO_printf(out, "Certificate request self-signature ok\n");
+        BIO_printf(bio_err, "Certificate request self-signature ok\n");
 
-        print_name(out, "subject=", X509_REQ_get_subject_name(req));
+        print_name(bio_err, "subject=", X509_REQ_get_subject_name(req));
     } else if (!x509toreq && ext_copy != EXT_COPY_UNSET) {
         BIO_printf(bio_err, "Warning: ignoring -copy_extensions since neither -x509toreq nor -req is given\n");
     }

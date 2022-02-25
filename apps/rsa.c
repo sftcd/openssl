@@ -139,6 +139,7 @@ int rsa_main(int argc, char **argv)
     int selection = 0;
     OSSL_ENCODER_CTX *ectx = NULL;
 
+    opt_set_unknown_name("cipher");
     prog = opt_init(argc, argv, rsa_options);
     while ((o = opt_next()) != OPT_EOF) {
         switch (o) {
@@ -217,14 +218,11 @@ int rsa_main(int argc, char **argv)
     }
 
     /* No extra arguments. */
-    argc = opt_num_rest();
-    if (argc != 0)
+    if (!opt_check_rest_arg(NULL))
         goto opthelp;
 
-    if (ciphername != NULL) {
-        if (!opt_cipher(ciphername, &enc))
-            goto opthelp;
-    }
+    if (!opt_cipher(ciphername, &enc))
+        goto opthelp;
     private = (text && !pubin) || (!pubout && !noout) ? 1 : 0;
 
     if (!app_passwd(passinarg, passoutarg, &passin, &passout)) {

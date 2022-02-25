@@ -234,8 +234,8 @@ static OSSL_CMP_MSG *process_cert_request(OSSL_CMP_SRV_CTX *srv_ctx,
  err:
     OSSL_CMP_PKISI_free(si);
     X509_free(certOut);
-    sk_X509_pop_free(chainOut, X509_free);
-    sk_X509_pop_free(caPubs, X509_free);
+    OSSL_STACK_OF_X509_free(chainOut);
+    OSSL_STACK_OF_X509_free(caPubs);
     return msg;
 }
 
@@ -481,10 +481,8 @@ OSSL_CMP_MSG *OSSL_CMP_SRV_process_request(OSSL_CMP_SRV_CTX *srv_ctx,
     case OSSL_CMP_PKIBODY_GENM:
     case OSSL_CMP_PKIBODY_ERROR:
         if (ctx->transactionID != NULL) {
-            char *tid;
+            char *tid = i2s_ASN1_OCTET_STRING(NULL, ctx->transactionID);
 
-            tid = OPENSSL_buf2hexstr(ctx->transactionID->data,
-                                     ctx->transactionID->length);
             if (tid != NULL)
                 ossl_cmp_log1(WARN, ctx,
                               "Assuming that last transaction with ID=%s got aborted",

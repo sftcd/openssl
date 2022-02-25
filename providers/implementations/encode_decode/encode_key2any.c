@@ -168,7 +168,7 @@ static X509_PUBKEY *key_to_pubkey(const void *key, int key_nid,
  * EncryptedPrivateKeyInfo structure (defined by PKCS#8).  They require
  * that there's an intent to encrypt, anything else is an error.
  *
- * key_to_pki_* primarly produce encoded output with the private key data
+ * key_to_pki_* primarily produce encoded output with the private key data
  * in a PrivateKeyInfo structure (also defined by PKCS#8).  However, if
  * there is an intent to encrypt the data, the corresponding key_to_epki_*
  * function is used instead.
@@ -401,7 +401,7 @@ static int key_to_type_specific_pem_bio_cb(BIO *out, const void *key,
 {
     return
         PEM_ASN1_write_bio(k2d, pemname, out, key, ctx->cipher,
-                           NULL, 0, ossl_pw_pem_password, &ctx->pwdata) > 0;
+                           NULL, 0, cb, cbarg) > 0;
 }
 
 static int key_to_type_specific_pem_priv_bio(BIO *out, const void *key,

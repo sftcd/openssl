@@ -44,9 +44,9 @@
 #include "prov/provider_util.h"
 #include "prov/providercommon.h"
 
-#include "e_os.h"
+#include "internal/e_os.h"
 
-#define MIN(a, b) ((a) < (b)) ? (a) : (b)
+#define ossl_min(a, b) ((a) < (b)) ? (a) : (b)
 
 typedef enum {
     COUNTER = 0,
@@ -75,6 +75,7 @@ typedef struct {
 
 /* Definitions needed for typechecking. */
 static OSSL_FUNC_kdf_newctx_fn kbkdf_new;
+static OSSL_FUNC_kdf_newctx_fn kbkdf_dup;
 static OSSL_FUNC_kdf_freectx_fn kbkdf_free;
 static OSSL_FUNC_kdf_reset_fn kbkdf_reset;
 static OSSL_FUNC_kdf_derive_fn kbkdf_derive;
@@ -149,6 +150,36 @@ static void kbkdf_reset(void *vctx)
     init(ctx);
 }
 
+static void *kbkdf_dup(void *vctx)
+{
+    const KBKDF *src = (const KBKDF *)vctx;
+    KBKDF *dest;
+
+    dest = kbkdf_new(src->provctx);
+    if (dest != NULL) {
+        dest->ctx_init = EVP_MAC_CTX_dup(src->ctx_init);
+        if (dest->ctx_init == NULL
+                || !ossl_prov_memdup(src->ki, src->ki_len,
+                                     &dest->ki, &dest->ki_len)
+                || !ossl_prov_memdup(src->label, src->label_len,
+                                     &dest->label, &dest->label_len)
+                || !ossl_prov_memdup(src->context, src->context_len,
+                                     &dest->context, &dest->context_len)
+                || !ossl_prov_memdup(src->iv, src->iv_len,
+                                     &dest->iv, &dest->iv_len))
+            goto err;
+        dest->mode = src->mode;
+        dest->r = src->r;
+        dest->use_l = src->use_l;
+        dest->use_separator = src->use_separator;
+    }
+    return dest;
+
+ err:
+    kbkdf_free(dest);
+    return NULL;
+}
+
 /* SP800-108 section 5.1 or section 5.2 depending on mode. */
 static int derive(EVP_MAC_CTX *ctx_init, kbkdf_mode mode, unsigned char *iv,
                   size_t iv_len, unsigned char *label, size_t label_len,
@@ -197,7 +228,7 @@ static int derive(EVP_MAC_CTX *ctx_init, kbkdf_mode mode, unsigned char *iv,
             goto done;
 
         to_write = ko_len - written;
-        memcpy(ko + written, k_i, MIN(to_write, h));
+        memcpy(ko + written, k_i, ossl_min(to_write, h));
         written += h;
 
         k_i_len = h;
@@ -405,6 +436,7 @@ static const OSSL_PARAM *kbkdf_gettable_ctx_params(ossl_unused void *ctx,
 
 const OSSL_DISPATCH ossl_kdf_kbkdf_functions[] = {
     { OSSL_FUNC_KDF_NEWCTX, (void(*)(void))kbkdf_new },
+    { OSSL_FUNC_KDF_DUPCTX, (void(*)(void))kbkdf_dup },
     { OSSL_FUNC_KDF_FREECTX, (void(*)(void))kbkdf_free },
     { OSSL_FUNC_KDF_RESET, (void(*)(void))kbkdf_reset },
     { OSSL_FUNC_KDF_DERIVE, (void(*)(void))kbkdf_derive },
