@@ -9,7 +9,7 @@
 
 /*
  * ECDSA low level APIs are deprecated for public use, but still ok for
- * internal use - SM2 implemetation uses ECDSA_size() function.
+ * internal use - SM2 implementation uses ECDSA_size() function.
  */
 #include "internal/deprecated.h"
 
@@ -27,6 +27,7 @@
 #include "internal/cryptlib.h"
 #include "internal/sm3.h"
 #include "prov/implementations.h"
+#include "prov/providercommon.h"
 #include "prov/provider_ctx.h"
 #include "crypto/ec.h"
 #include "crypto/sm2.h"
@@ -65,9 +66,9 @@ typedef struct {
     EC_KEY *ec;
 
     /*
-     * Flag to termine if the 'z' digest needs to be computed and fed to the
+     * Flag to determine if the 'z' digest needs to be computed and fed to the
      * hash function.
-     * This flag should be set on initialization and the compuation should
+     * This flag should be set on initialization and the computation should
      * be performed only once, on first update.
      */
     unsigned int flag_compute_z_digest : 1;
@@ -96,6 +97,9 @@ static int sm2sig_set_mdname(PROV_SM2_CTX *psm2ctx, const char *mdname)
                                    psm2ctx->propq);
     if (psm2ctx->md == NULL)
         return 0;
+
+    if (mdname == NULL)
+        return 1;
 
     if (strlen(mdname) >= sizeof(psm2ctx->mdname)
         || !EVP_MD_is_a(psm2ctx->md, mdname)) {
@@ -131,10 +135,22 @@ static int sm2sig_signature_init(void *vpsm2ctx, void *ec,
 {
     PROV_SM2_CTX *psm2ctx = (PROV_SM2_CTX *)vpsm2ctx;
 
-    if (psm2ctx == NULL || ec == NULL || !EC_KEY_up_ref(ec))
+    if (!ossl_prov_is_running()
+            || psm2ctx == NULL)
         return 0;
-    EC_KEY_free(psm2ctx->ec);
-    psm2ctx->ec = ec;
+
+    if (ec == NULL && psm2ctx->ec == NULL) {
+        ERR_raise(ERR_LIB_PROV, PROV_R_NO_KEY_SET);
+        return 0;
+    }
+
+    if (ec != NULL) {
+        if (!EC_KEY_up_ref(ec))
+            return 0;
+        EC_KEY_free(psm2ctx->ec);
+        psm2ctx->ec = ec;
+    }
+
     return sm2sig_set_ctx_params(psm2ctx, params);
 }
 
@@ -197,10 +213,11 @@ static int sm2sig_digest_signverify_init(void *vpsm2ctx, const char *mdname,
         || !sm2sig_set_mdname(ctx, mdname))
         return ret;
 
-    EVP_MD_CTX_free(ctx->mdctx);
-    ctx->mdctx = EVP_MD_CTX_new();
-    if (ctx->mdctx == NULL)
-        goto error;
+    if (ctx->mdctx == NULL) {
+        ctx->mdctx = EVP_MD_CTX_new();
+        if (ctx->mdctx == NULL)
+            goto error;
+    }
 
     md_nid = EVP_MD_get_type(ctx->md);
 
@@ -228,8 +245,6 @@ static int sm2sig_digest_signverify_init(void *vpsm2ctx, const char *mdname,
     ret = 1;
 
  error:
-    if (!ret)
-        free_md(ctx);
     return ret;
 }
 

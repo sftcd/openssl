@@ -19,7 +19,7 @@
 #include "internal/thread_once.h"
 #include "crypto/lhash.h"
 #include "obj_local.h"
-#include "e_os.h"
+#include "internal/e_os.h"
 
 /*
  * We define this wrapper for two reasons. Firstly, later versions of
@@ -66,8 +66,14 @@ static int obj_name_cmp(const OBJ_NAME *a, const OBJ_NAME *b);
 static CRYPTO_ONCE init = CRYPTO_ONCE_STATIC_INIT;
 DEFINE_RUN_ONCE_STATIC(o_names_init)
 {
-    names_lh = lh_OBJ_NAME_new(obj_name_hash, obj_name_cmp);
+    names_lh = NULL;
     obj_lock = CRYPTO_THREAD_lock_new();
+    if (obj_lock != NULL)
+        names_lh = lh_OBJ_NAME_new(obj_name_hash, obj_name_cmp);
+    if (names_lh == NULL) {
+        CRYPTO_THREAD_lock_free(obj_lock);
+        obj_lock = NULL;
+    }
     return names_lh != NULL && obj_lock != NULL;
 }
 

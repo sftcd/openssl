@@ -1,6 +1,6 @@
 # This is a temporary place for ESNI content ...
 
-Stephen Farrell, stephen.farrell@cs.tcd.ie, 20210817-ish
+Stephen Farrell, stephen.farrell@cs.tcd.ie, 20220225-ish
 
 I'll put stuff here that'll likely disappear as this matures. The plan is
 to delete all this before submitting PRs to the openssl folks. Over time,
@@ -25,6 +25,8 @@ There's a [TODO list](#todos) at the end.
 Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
+
+- 20220225: noted HPKE is now RFC9180 and re-merged with upstream
 
 - 20220216: starting to test with FF again, see [ff13a.md](ff13a.md)
 

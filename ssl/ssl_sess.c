@@ -502,7 +502,7 @@ SSL_SESSION *lookup_sess_in_cache(SSL *s, const unsigned char *sess_id,
         }
         CRYPTO_THREAD_unlock(s->session_ctx->lock);
         if (ret == NULL)
-            tsan_counter(&s->session_ctx->stats.sess_miss);
+            ssl_tsan_counter(s->session_ctx, &s->session_ctx->stats.sess_miss);
     }
 
     if (ret == NULL && s->session_ctx->get_session_cb != NULL) {
@@ -511,7 +511,8 @@ SSL_SESSION *lookup_sess_in_cache(SSL *s, const unsigned char *sess_id,
         ret = s->session_ctx->get_session_cb(s, sess_id, sess_id_len, &copy);
 
         if (ret != NULL) {
-            tsan_counter(&s->session_ctx->stats.sess_cb_hit);
+            ssl_tsan_counter(s->session_ctx,
+                             &s->session_ctx->stats.sess_cb_hit);
 
             /*
              * Increment reference count now if the session callback asks us
@@ -642,7 +643,7 @@ int ssl_get_prev_session(SSL *s, CLIENTHELLO_MSG *hello)
     }
 
     if (sess_timedout(time(NULL), ret)) {
-        tsan_counter(&s->session_ctx->stats.sess_timeout);
+        ssl_tsan_counter(s->session_ctx, &s->session_ctx->stats.sess_timeout);
         if (try_session_cache) {
             /* session was from the cache, so remove it */
             SSL_CTX_remove_session(s->session_ctx, ret);
@@ -669,7 +670,7 @@ int ssl_get_prev_session(SSL *s, CLIENTHELLO_MSG *hello)
         s->session = ret;
     }
 
-    tsan_counter(&s->session_ctx->stats.sess_hit);
+    ssl_tsan_counter(s->session_ctx, &s->session_ctx->stats.sess_hit);
     s->verify_result = s->session->verify_result;
     return 1;
 
@@ -769,7 +770,7 @@ int SSL_CTX_add_session(SSL_CTX *ctx, SSL_SESSION *c)
                 if (!remove_session_lock(ctx, ctx->session_cache_tail, 0))
                     break;
                 else
-                    tsan_counter(&ctx->stats.sess_cache_full);
+                    ssl_tsan_counter(ctx, &ctx->stats.sess_cache_full);
             }
         }
     }
@@ -828,7 +829,7 @@ void SSL_SESSION_free(SSL_SESSION *ss)
     OPENSSL_cleanse(ss->master_key, sizeof(ss->master_key));
     OPENSSL_cleanse(ss->session_id, sizeof(ss->session_id));
     X509_free(ss->peer);
-    sk_X509_pop_free(ss->peer_chain, X509_free);
+    OSSL_STACK_OF_X509_free(ss->peer_chain);
     OPENSSL_free(ss->ext.hostname);
     OPENSSL_free(ss->ext.tick);
 #ifndef OPENSSL_NO_PSK

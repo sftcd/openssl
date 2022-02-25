@@ -181,6 +181,7 @@ int ts_main(int argc, char **argv)
     if ((vpm = X509_VERIFY_PARAM_new()) == NULL)
         goto end;
 
+    opt_set_unknown_name("digest");
     prog = opt_init(argc, argv, ts_options);
     while ((o = opt_next()) != OPT_EOF) {
         switch (o) {
@@ -204,8 +205,10 @@ int ts_main(int argc, char **argv)
         case OPT_QUERY:
         case OPT_REPLY:
         case OPT_VERIFY:
-            if (mode != OPT_ERR)
+            if (mode != OPT_ERR) {
+                BIO_printf(bio_err, "%s: Must give only one of -query, -reply, or -verify\n", prog);
                 goto opthelp;
+            }
             mode = o;
             break;
         case OPT_DATA:
@@ -288,17 +291,18 @@ int ts_main(int argc, char **argv)
     }
 
     /* No extra arguments. */
-    argc = opt_num_rest();
-    if (argc != 0 || mode == OPT_ERR)
+    if (!opt_check_rest_arg(NULL))
         goto opthelp;
+    if (mode == OPT_ERR) {
+        BIO_printf(bio_err, "%s: Must give one of -query, -reply, or -verify\n", prog);
+        goto opthelp;
+    }
 
     if (!app_RAND_load())
         goto end;
 
-    if (digestname != NULL) {
-        if (!opt_md(digestname, &md))
-            goto opthelp;
-    }
+    if (!opt_md(digestname, &md))
+        goto opthelp;
     if (mode == OPT_REPLY && passin &&
         !app_passwd(passin, NULL, &password, NULL)) {
         BIO_printf(bio_err, "Error getting password.\n");

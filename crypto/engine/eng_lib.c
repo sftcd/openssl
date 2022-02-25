@@ -7,7 +7,7 @@
  * https://www.openssl.org/source/license.html
  */
 
-#include "e_os.h"
+#include "internal/e_os.h"
 #include "eng_local.h"
 #include <openssl/rand.h>
 #include "internal/refcount.h"
@@ -65,6 +65,7 @@ void engine_set_all_null(ENGINE *e)
     e->load_pubkey = NULL;
     e->cmd_defns = NULL;
     e->flags = 0;
+    e->dynamic_id = NULL;
 }
 
 int engine_free_util(ENGINE *e, int not_locked)
@@ -90,6 +91,7 @@ int engine_free_util(ENGINE *e, int not_locked)
      */
     if (e->destroy)
         e->destroy(e);
+    engine_remove_dynamic_id(e, not_locked);
     CRYPTO_free_ex_data(CRYPTO_EX_INDEX_ENGINE, e, &e->ex_data);
     OPENSSL_free(e);
     return 1;

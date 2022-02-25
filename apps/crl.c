@@ -98,6 +98,7 @@ int crl_main(int argc, char **argv)
     int hash_old = 0;
 #endif
 
+    opt_set_unknown_name("digest");
     prog = opt_init(argc, argv, crl_options);
     while ((o = opt_next()) != OPT_EOF) {
         switch (o) {
@@ -209,14 +210,11 @@ int crl_main(int argc, char **argv)
     }
 
     /* No remaining args. */
-    argc = opt_num_rest();
-    if (argc != 0)
+    if (!opt_check_rest_arg(NULL))
         goto opthelp;
 
-    if (digestname != NULL) {
-        if (!opt_md(digestname, &digest))
-            goto opthelp;
-    }
+    if (!opt_md(digestname, &digest))
+        goto opthelp;
     x = load_crl(infile, informat, 1, "CRL");
     if (x == NULL)
         goto end;

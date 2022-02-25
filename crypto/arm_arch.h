@@ -21,11 +21,6 @@
 #  elif defined(__GNUC__)
 #   if   defined(__aarch64__)
 #    define __ARM_ARCH__ 8
-#    if __BYTE_ORDER__==__ORDER_BIG_ENDIAN__
-#     define __ARMEB__
-#    else
-#     define __ARMEL__
-#    endif
   /*
    * Why doesn't gcc define __ARM_ARCH__? Instead it defines
    * bunch of below macros. See all_architectures[] table in
@@ -83,6 +78,11 @@ extern unsigned int OPENSSL_armv8_rsa_neonized;
 # define ARMV8_PMULL     (1<<5)
 # define ARMV8_SHA512    (1<<6)
 # define ARMV8_CPUID     (1<<7)
+# define ARMV8_RNG       (1<<8)
+# define ARMV8_SM3       (1<<9)
+# define ARMV8_SM4       (1<<10)
+# define ARMV8_SHA3      (1<<11)
+# define ARMV8_UNROLL8_EOR3      (1<<12)
 
 /*
  * MIDR_EL1 system register
@@ -98,6 +98,7 @@ extern unsigned int OPENSSL_armv8_rsa_neonized;
 
 # define ARM_CPU_PART_CORTEX_A72   0xD08
 # define ARM_CPU_PART_N1           0xD0C
+# define ARM_CPU_PART_V1           0xD40
 
 # define MIDR_PARTNUM_SHIFT       4
 # define MIDR_PARTNUM_MASK        (0xfff << MIDR_PARTNUM_SHIFT)
@@ -183,5 +184,8 @@ extern unsigned int OPENSSL_armv8_rsa_neonized;
 #  endif
 
 # endif  /* defined __ASSEMBLER__ */
+
+# define IS_CPU_SUPPORT_UNROLL8_EOR3() \
+           (OPENSSL_armcap_P & ARMV8_UNROLL8_EOR3)
 
 #endif

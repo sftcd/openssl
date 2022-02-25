@@ -7,7 +7,7 @@
  * https://www.openssl.org/source/license.html
  */
 
-#include "e_os.h"                /* strcasecmp */
+#include "internal/e_os.h"                /* strcasecmp */
 #include "internal/namemap.h"
 #include <openssl/lhash.h>
 #include "crypto/lhash.h"      /* ossl_lh_strcasehash */
@@ -37,11 +37,7 @@ struct ossl_namemap_st {
     CRYPTO_RWLOCK *lock;
     LHASH_OF(NAMENUM_ENTRY) *namenum;  /* Name->number mapping */
 
-#ifdef tsan_ld_acq
-    TSAN_QUALIFIER int max_number;     /* Current max number TSAN version */
-#else
-    int max_number;                    /* Current max number plain version */
-#endif
+    TSAN_QUALIFIER int max_number;     /* Current max number */
 };
 
 /* LHASH callbacks */
@@ -99,10 +95,7 @@ static const OSSL_LIB_CTX_METHOD stored_namemap_method = {
 
 int ossl_namemap_empty(OSSL_NAMEMAP *namemap)
 {
-#ifdef tsan_ld_acq
-    /* Have TSAN support */
-    return namemap == NULL || tsan_load(&namemap->max_number) == 0;
-#else
+#ifdef TSAN_REQUIRES_LOCKING
     /* No TSAN support */
     int rv;
 
@@ -114,6 +107,9 @@ int ossl_namemap_empty(OSSL_NAMEMAP *namemap)
     rv = namemap->max_number == 0;
     CRYPTO_THREAD_unlock(namemap->lock);
     return rv;
+#else
+    /* Have TSAN support */
+    return namemap == NULL || tsan_load(&namemap->max_number) == 0;
 #endif
 }
 
@@ -260,6 +256,7 @@ static int namemap_add_name_n(OSSL_NAMEMAP *namemap, int number,
         || (namenum->name = OPENSSL_strndup(name, name_len)) == NULL)
         goto err;
 
+    /* The tsan_counter use here is safe since we're under lock */
     namenum->number =
         number != 0 ? number : 1 + tsan_counter(&namemap->max_number);
     (void)lh_NAMENUM_ENTRY_insert(namemap->namenum, namenum);
@@ -397,7 +394,7 @@ static void get_legacy_evp_names(int base_nid, int nid, const char *pem_name,
         if ((obj = OBJ_nid2obj(nid)) != NULL) {
             char txtoid[OSSL_MAX_NAME_SIZE];
 
-            if (OBJ_obj2txt(txtoid, sizeof(txtoid), obj, 1))
+            if (OBJ_obj2txt(txtoid, sizeof(txtoid), obj, 1) > 0)
                 num = ossl_namemap_add_name(arg, num, txtoid);
         }
     }
@@ -409,14 +406,16 @@ static void get_legacy_cipher_names(const OBJ_NAME *on, void *arg)
 {
     const EVP_CIPHER *cipher = (void *)OBJ_NAME_get(on->name, on->type);
 
-    get_legacy_evp_names(NID_undef, EVP_CIPHER_get_type(cipher), NULL, arg);
+    if (cipher != NULL)
+        get_legacy_evp_names(NID_undef, EVP_CIPHER_get_type(cipher), NULL, arg);
 }
 
 static void get_legacy_md_names(const OBJ_NAME *on, void *arg)
 {
     const EVP_MD *md = (void *)OBJ_NAME_get(on->name, on->type);
 
-    get_legacy_evp_names(0, EVP_MD_get_type(md), NULL, arg);
+    if (md != NULL)
+        get_legacy_evp_names(0, EVP_MD_get_type(md), NULL, arg);
 }
 
 static void get_legacy_pkey_meth_names(const EVP_PKEY_ASN1_METHOD *ameth,

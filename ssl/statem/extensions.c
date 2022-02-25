@@ -1012,6 +1012,15 @@ static int final_renegotiate(SSL *s, unsigned int context, int sent)
     return 1;
 }
 
+static ossl_inline void ssl_tsan_decr(const SSL_CTX *ctx,
+                                      TSAN_QUALIFIER int *stat)
+{
+    if (ssl_tsan_lock(ctx)) {
+        tsan_decr(stat);
+        ssl_tsan_unlock(ctx);
+    }
+}
+
 static int init_server_name(SSL *s, unsigned int context)
 {
     if (s->server) {
@@ -1127,8 +1136,8 @@ static int final_server_name(SSL *s, unsigned int context, int sent)
      */
     if (SSL_IS_FIRST_HANDSHAKE(s) && s->ctx != s->session_ctx
             && s->hello_retry_request == SSL_HRR_NONE) {
-        tsan_counter(&s->ctx->stats.sess_accept);
-        tsan_decr(&s->session_ctx->stats.sess_accept);
+        ssl_tsan_counter(s->ctx, &s->ctx->stats.sess_accept);
+        ssl_tsan_decr(s->session_ctx, &s->session_ctx->stats.sess_accept);
     }
 
     /*
@@ -1542,7 +1551,7 @@ static int final_key_share(SSL *s, unsigned int context, int sent)
                     group_id = pgroups[i];
 
                     if (check_in_list(s, group_id, clntgroups, clnt_num_groups,
-                                      1))
+                                      2))
                         break;
                 }
 

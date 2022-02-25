@@ -30,7 +30,6 @@
 /*
  * Things in boring, not in openssl.
  */
-#define HAVE_BN_PADDED 0
 #define HAVE_BN_SQRT 0
 
 typedef struct filetest_st {
@@ -630,6 +629,51 @@ static int test_modexp_mont5(void)
     BN_zero(d);
     if (!TEST_BN_eq(c, d))
         goto err;
+
+    /*
+     * Regression test for overflow bug in bn_sqr_comba4/8 for
+     * mips-linux-gnu and mipsel-linux-gnu 32bit targets.
+     */
+    {
+        static const char *ehex[] = {
+            "95564994a96c45954227b845a1e99cb939d5a1da99ee91acc962396ae999a9ee",
+            "38603790448f2f7694c242a875f0cad0aae658eba085f312d2febbbd128dd2b5",
+            "8f7d1149f03724215d704344d0d62c587ae3c5939cba4b9b5f3dc5e8e911ef9a",
+            "5ce1a5a749a4989d0d8368f6e1f8cdf3a362a6c97fb02047ff152b480a4ad985",
+            "2d45efdf0770542992afca6a0590d52930434bba96017afbc9f99e112950a8b1",
+            "a359473ec376f329bdae6a19f503be6d4be7393c4e43468831234e27e3838680",
+            "b949390d2e416a3f9759e5349ab4c253f6f29f819a6fe4cbfd27ada34903300e",
+            "da021f62839f5878a36f1bc3085375b00fd5fa3e68d316c0fdace87a97558465",
+            NULL};
+        static const char *phex[] = {
+            "f95dc0f980fbd22e90caa5a387cc4a369f3f830d50dd321c40db8c09a7e1a241",
+            "a536e096622d3280c0c1ba849c1f4a79bf490f60006d081e8cf69960189f0d31",
+            "2cd9e17073a3fba7881b21474a13b334116cb2f5dbf3189a6de3515d0840f053",
+            "c776d3982d391b6d04d642dda5cc6d1640174c09875addb70595658f89efb439",
+            "dc6fbd55f903aadd307982d3f659207f265e1ec6271b274521b7a5e28e8fd7a5",
+            "5df089292820477802a43cf5b6b94e999e8c9944ddebb0d0e95a60f88cb7e813",
+            "ba110d20e1024774107dd02949031864923b3cb8c3f7250d6d1287b0a40db6a4",
+            "7bd5a469518eb65aa207ddc47d8c6e5fc8e0c105be8fc1d4b57b2e27540471d5",
+            NULL};
+        static const char *mhex[] = {
+            "fef15d5ce4625f1bccfbba49fc8439c72bf8202af039a2259678941b60bb4a8f",
+            "2987e965d58fd8cf86a856674d519763d0e1211cc9f8596971050d56d9b35db3",
+            "785866cfbca17cfdbed6060be3629d894f924a89fdc1efc624f80d41a22f1900",
+            "9503fcc3824ef62ccb9208430c26f2d8ceb2c63488ec4c07437aa4c96c43dd8b",
+            "9289ed00a712ff66ee195dc71f5e4ead02172b63c543d69baf495f5fd63ba7bc",
+            "c633bd309c016e37736da92129d0b053d4ab28d21ad7d8b6fab2a8bbdc8ee647",
+            "d2fbcf2cf426cf892e6f5639e0252993965dfb73ccd277407014ea784aaa280c",
+            "b7b03972bc8b0baa72360bdb44b82415b86b2f260f877791cd33ba8f2d65229b",
+            NULL};
+
+        if (!TEST_true(parse_bigBN(&e, ehex))
+                || !TEST_true(parse_bigBN(&p, phex))
+                || !TEST_true(parse_bigBN(&m, mhex))
+                || !TEST_true(BN_mod_exp_mont_consttime(d, e, p, m, ctx, NULL))
+                || !TEST_true(BN_mod_exp_simple(a, e, p, m, ctx))
+                || !TEST_BN_eq(a, d))
+            goto err;
+    }
 
     /* Zero input */
     if (!TEST_true(BN_bntest_rand(p, 1024, 0, 0)))
@@ -1734,52 +1778,52 @@ static int file_gcd(STANZA *s)
 
 static int test_bn2padded(void)
 {
-#if HAVE_BN_PADDED
     uint8_t zeros[256], out[256], reference[128];
-    BIGNUM *n = BN_new();
+    size_t bytes;
+    BIGNUM *n;
     int st = 0;
 
     /* Test edge case at 0. */
-    if (n == NULL)
+    if (!TEST_ptr((n = BN_new())))
         goto err;
-    if (!TEST_true(BN_bn2bin_padded(NULL, 0, n)))
+    if (!TEST_int_eq(BN_bn2binpad(n, NULL, 0), 0))
         goto err;
     memset(out, -1, sizeof(out));
-    if (!TEST_true(BN_bn2bin_padded(out, sizeof(out)), n))
+    if (!TEST_int_eq(BN_bn2binpad(n, out, sizeof(out)), sizeof(out)))
         goto err;
     memset(zeros, 0, sizeof(zeros));
     if (!TEST_mem_eq(zeros, sizeof(zeros), out, sizeof(out)))
         goto err;
 
     /* Test a random numbers at various byte lengths. */
-    for (size_t bytes = 128 - 7; bytes <= 128; bytes++) {
+    for (bytes = 128 - 7; bytes <= 128; bytes++) {
 # define TOP_BIT_ON 0
 # define BOTTOM_BIT_NOTOUCH 0
         if (!TEST_true(BN_rand(n, bytes * 8, TOP_BIT_ON, BOTTOM_BIT_NOTOUCH)))
             goto err;
-        if (!TEST_int_eq(BN_num_bytes(n), A) bytes
-                || TEST_int_eq(BN_bn2bin(n, reference), bytes))
+        if (!TEST_int_eq(BN_num_bytes(n), bytes)
+                || !TEST_int_eq(BN_bn2bin(n, reference), bytes))
             goto err;
         /* Empty buffer should fail. */
-        if (!TEST_int_eq(BN_bn2bin_padded(NULL, 0, n)), 0)
+        if (!TEST_int_eq(BN_bn2binpad(n, NULL, 0), -1))
             goto err;
         /* One byte short should fail. */
-        if (BN_bn2bin_padded(out, bytes - 1, n))
+        if (!TEST_int_eq(BN_bn2binpad(n, out, bytes - 1), -1))
             goto err;
         /* Exactly right size should encode. */
-        if (!TEST_true(BN_bn2bin_padded(out, bytes, n))
-                || TEST_mem_eq(out, bytes, reference, bytes))
+        if (!TEST_int_eq(BN_bn2binpad(n, out, bytes), bytes)
+                || !TEST_mem_eq(out, bytes, reference, bytes))
             goto err;
         /* Pad up one byte extra. */
-        if (!TEST_true(BN_bn2bin_padded(out, bytes + 1, n))
+        if (!TEST_int_eq(BN_bn2binpad(n, out, bytes + 1), bytes + 1)
                 || !TEST_mem_eq(out + 1, bytes, reference, bytes)
                 || !TEST_mem_eq(out, 1, zeros, 1))
             goto err;
         /* Pad up to 256. */
-        if (!TEST_true(BN_bn2bin_padded(out, sizeof(out)), n)
+        if (!TEST_int_eq(BN_bn2binpad(n, out, sizeof(out)), sizeof(out))
                 || !TEST_mem_eq(out + sizeof(out) - bytes, bytes,
                                 reference, bytes)
-                || !TEST_mem_eq(out, sizseof(out) - bytes,
+                || !TEST_mem_eq(out, sizeof(out) - bytes,
                                 zeros, sizeof(out) - bytes))
             goto err;
     }
@@ -1788,9 +1832,137 @@ static int test_bn2padded(void)
  err:
     BN_free(n);
     return st;
-#else
-    return ctx != NULL;
-#endif
+}
+
+static const MPITEST kSignedTests_BE[] = {
+    {"-1", "\xff", 1},
+    {"0", "", 0},
+    {"1", "\x01", 1},
+    /*
+     * The above cover the basics, now let's go for possible bignum
+     * chunk edges and other word edges (for a broad definition of
+     * "word", i.e. 1 byte included).
+     */
+    /* 1 byte edge */
+    {"127", "\x7f", 1},
+    {"-127", "\x81", 1},
+    {"128", "\x00\x80", 2},
+    {"-128", "\x80", 1},
+    {"129", "\x00\x81", 2},
+    {"-129", "\xff\x7f", 2},
+    {"255", "\x00\xff", 2},
+    {"-255", "\xff\x01", 2},
+    {"256", "\x01\x00", 2},
+    {"-256", "\xff\x00", 2},
+    /* 2 byte edge */
+    {"32767", "\x7f\xff", 2},
+    {"-32767", "\x80\x01", 2},
+    {"32768", "\x00\x80\x00", 3},
+    {"-32768", "\x80\x00", 2},
+    {"32769", "\x00\x80\x01", 3},
+    {"-32769", "\xff\x7f\xff", 3},
+    {"65535", "\x00\xff\xff", 3},
+    {"-65535", "\xff\x00\x01", 3},
+    {"65536", "\x01\x00\x00", 3},
+    {"-65536", "\xff\x00\x00", 3},
+    /* 4 byte edge */
+    {"2147483647", "\x7f\xff\xff\xff", 4},
+    {"-2147483647", "\x80\x00\x00\x01", 4},
+    {"2147483648", "\x00\x80\x00\x00\x00", 5},
+    {"-2147483648", "\x80\x00\x00\x00", 4},
+    {"2147483649", "\x00\x80\x00\x00\x01", 5},
+    {"-2147483649", "\xff\x7f\xff\xff\xff", 5},
+    {"4294967295", "\x00\xff\xff\xff\xff", 5},
+    {"-4294967295", "\xff\x00\x00\x00\x01", 5},
+    {"4294967296", "\x01\x00\x00\x00\x00", 5},
+    {"-4294967296", "\xff\x00\x00\x00\x00", 5},
+    /* 8 byte edge */
+    {"9223372036854775807", "\x7f\xff\xff\xff\xff\xff\xff\xff", 8},
+    {"-9223372036854775807", "\x80\x00\x00\x00\x00\x00\x00\x01", 8},
+    {"9223372036854775808", "\x00\x80\x00\x00\x00\x00\x00\x00\x00", 9},
+    {"-9223372036854775808", "\x80\x00\x00\x00\x00\x00\x00\x00", 8},
+    {"9223372036854775809", "\x00\x80\x00\x00\x00\x00\x00\x00\x01", 9},
+    {"-9223372036854775809", "\xff\x7f\xff\xff\xff\xff\xff\xff\xff", 9},
+    {"18446744073709551615", "\x00\xff\xff\xff\xff\xff\xff\xff\xff", 9},
+    {"-18446744073709551615", "\xff\x00\x00\x00\x00\x00\x00\x00\x01", 9},
+    {"18446744073709551616", "\x01\x00\x00\x00\x00\x00\x00\x00\x00", 9},
+    {"-18446744073709551616", "\xff\x00\x00\x00\x00\x00\x00\x00\x00", 9},
+};
+
+static int copy_reversed(uint8_t *dst, uint8_t *src, size_t len)
+{
+    for (dst += len - 1; len > 0; src++, dst--, len--)
+        *dst = *src;
+    return 1;
+}
+
+static int test_bn2signed(int i)
+{
+    uint8_t scratch[10], reversed[10];
+    const MPITEST *test = &kSignedTests_BE[i];
+    BIGNUM *bn = NULL, *bn2 = NULL;
+    int st = 0;
+
+    if (!TEST_ptr(bn = BN_new())
+        || !TEST_true(BN_asc2bn(&bn, test->base10)))
+        goto err;
+
+    /*
+     * Check BN_signed_bn2bin() / BN_signed_bin2bn()
+     * The interesting stuff happens in the last bytes of the buffers,
+     * the beginning is just padding (i.e. sign extension).
+     */
+    i = sizeof(scratch) - test->mpi_len;
+    if (!TEST_int_eq(BN_signed_bn2bin(bn, scratch, sizeof(scratch)),
+                     sizeof(scratch))
+        || !TEST_true(copy_reversed(reversed, scratch, sizeof(scratch)))
+        || !TEST_mem_eq(test->mpi, test->mpi_len, scratch + i, test->mpi_len))
+        goto err;
+
+    if (!TEST_ptr(bn2 = BN_signed_bin2bn(scratch, sizeof(scratch), NULL))
+        || !TEST_BN_eq(bn, bn2))
+        goto err;
+
+    BN_free(bn2);
+    bn2 = NULL;
+
+    /* Check that a parse of the reversed buffer works too */
+    if (!TEST_ptr(bn2 = BN_signed_lebin2bn(reversed, sizeof(reversed), NULL))
+        || !TEST_BN_eq(bn, bn2))
+        goto err;
+
+    BN_free(bn2);
+    bn2 = NULL;
+
+    /*
+     * Check BN_signed_bn2lebin() / BN_signed_lebin2bn()
+     * The interesting stuff happens in the first bytes of the buffers,
+     * the end is just padding (i.e. sign extension).
+     */
+    i = sizeof(reversed) - test->mpi_len;
+    if (!TEST_int_eq(BN_signed_bn2lebin(bn, scratch, sizeof(scratch)),
+                     sizeof(scratch))
+        || !TEST_true(copy_reversed(reversed, scratch, sizeof(scratch)))
+        || !TEST_mem_eq(test->mpi, test->mpi_len, reversed + i, test->mpi_len))
+        goto err;
+
+    if (!TEST_ptr(bn2 = BN_signed_lebin2bn(scratch, sizeof(scratch), NULL))
+        || !TEST_BN_eq(bn, bn2))
+        goto err;
+
+    BN_free(bn2);
+    bn2 = NULL;
+
+    /* Check that a parse of the reversed buffer works too */
+    if (!TEST_ptr(bn2 = BN_signed_bin2bn(reversed, sizeof(reversed), NULL))
+        || !TEST_BN_eq(bn, bn2))
+        goto err;
+
+    st = 1;
+ err:
+    BN_free(bn2);
+    BN_free(bn);
+    return st;
 }
 
 static int test_dec2bn(void)
@@ -2957,6 +3129,7 @@ int setup_tests(void)
         ADD_TEST(test_hex2bn);
         ADD_TEST(test_asc2bn);
         ADD_ALL_TESTS(test_mpi, (int)OSSL_NELEM(kMPITests));
+        ADD_ALL_TESTS(test_bn2signed, (int)OSSL_NELEM(kSignedTests_BE));
         ADD_TEST(test_negzero);
         ADD_TEST(test_badmod);
         ADD_TEST(test_expmodzero);

@@ -174,7 +174,7 @@ static int client_hello_select_server_ctx(SSL *s, void *arg, int ignore)
     remaining = len;
     servername = (const char *)p;
 
-    if (len == strlen("server2") && strncmp(servername, "server2", len) == 0) {
+    if (len == strlen("server2") && HAS_PREFIX(servername, "server2")) {
         SSL_CTX *new_ctx = arg;
         SSL_set_SSL_CTX(s, new_ctx);
         /*
@@ -188,7 +188,7 @@ static int client_hello_select_server_ctx(SSL *s, void *arg, int ignore)
         ex_data->servername = SSL_TEST_SERVERNAME_SERVER2;
         return 1;
     } else if (len == strlen("server1") &&
-               strncmp(servername, "server1", len) == 0) {
+               HAS_PREFIX(servername, "server1")) {
         ex_data->servername = SSL_TEST_SERVERNAME_SERVER1;
         return 1;
     } else if (ignore) {
@@ -633,6 +633,8 @@ static int configure_handshake_ctx(SSL_CTX *server_ctx, SSL_CTX *server2_ctx,
     if (extra->server.session_ticket_app_data != NULL) {
         server_ctx_data->session_ticket_app_data =
             OPENSSL_strdup(extra->server.session_ticket_app_data);
+        if (!TEST_ptr(server_ctx_data->session_ticket_app_data))
+            goto err;
         SSL_CTX_set_session_ticket_cb(server_ctx, generate_session_ticket_cb,
                                       decrypt_session_ticket_cb, server_ctx_data);
     }
@@ -641,6 +643,8 @@ static int configure_handshake_ctx(SSL_CTX *server_ctx, SSL_CTX *server2_ctx,
             goto err;
         server2_ctx_data->session_ticket_app_data =
             OPENSSL_strdup(extra->server2.session_ticket_app_data);
+        if (!TEST_ptr(server2_ctx_data->session_ticket_app_data))
+            goto err;
         SSL_CTX_set_session_ticket_cb(server2_ctx, NULL,
                                       decrypt_session_ticket_cb, server2_ctx_data);
     }

@@ -354,6 +354,7 @@ CMS_SignerInfo *CMS_add1_signer(CMS_ContentInfo *cms,
 
     if (md == NULL) {
         int def_nid;
+
         if (EVP_PKEY_get_default_digest_nid(pk, &def_nid) <= 0)
             goto err;
         md = EVP_get_digestbynid(def_nid);
@@ -361,11 +362,6 @@ CMS_SignerInfo *CMS_add1_signer(CMS_ContentInfo *cms,
             ERR_raise(ERR_LIB_CMS, CMS_R_NO_DEFAULT_DIGEST);
             goto err;
         }
-    }
-
-    if (!md) {
-        ERR_raise(ERR_LIB_CMS, CMS_R_NO_DIGEST_SET);
-        goto err;
     }
 
     if (md == NULL) {
@@ -388,8 +384,7 @@ CMS_SignerInfo *CMS_add1_signer(CMS_ContentInfo *cms,
     }
 
     if (i == sk_X509_ALGOR_num(sd->digestAlgorithms)) {
-        alg = X509_ALGOR_new();
-        if (alg == NULL)
+        if ((alg = X509_ALGOR_new()) == NULL)
             goto merr;
         X509_ALGOR_set_md(alg, md);
         if (!sk_X509_ALGOR_push(sd->digestAlgorithms, alg)) {
@@ -784,8 +779,8 @@ int CMS_SignerInfo_sign(CMS_SignerInfo *si)
     const CMS_CTX *ctx = si->cms_ctx;
     char md_name[OSSL_MAX_NAME_SIZE];
 
-    if (!OBJ_obj2txt(md_name, sizeof(md_name),
-                     si->digestAlgorithm->algorithm, 0))
+    if (OBJ_obj2txt(md_name, sizeof(md_name),
+                     si->digestAlgorithm->algorithm, 0) <= 0)
         return 0;
 
     if (CMS_signed_get_attr_by_NID(si, NID_pkcs9_signingTime, -1) < 0) {
@@ -1039,14 +1034,13 @@ int CMS_add_simple_smimecap(STACK_OF(X509_ALGOR) **algs,
             return 0;
         }
     }
-    alg = X509_ALGOR_new();
+    alg = ossl_X509_ALGOR_from_nid(algnid, key != NULL ? V_ASN1_INTEGER :
+                                   V_ASN1_UNDEF, key);
     if (alg == NULL) {
         ASN1_INTEGER_free(key);
         return 0;
     }
 
-    X509_ALGOR_set0(alg, OBJ_nid2obj(algnid),
-                    key ? V_ASN1_INTEGER : V_ASN1_UNDEF, key);
     if (*algs == NULL)
         *algs = sk_X509_ALGOR_new_null();
     if (*algs == NULL || !sk_X509_ALGOR_push(*algs, alg)) {

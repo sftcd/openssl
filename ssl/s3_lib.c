@@ -3448,7 +3448,11 @@ long ssl3_ctrl(SSL *s, int cmd, long larg, void *parg)
                 ERR_raise(ERR_LIB_SSL, ERR_R_MALLOC_FAILURE);
                 return 0;
             }
-            return SSL_set0_tmp_dh_pkey(s, pkdh);
+            if (!SSL_set0_tmp_dh_pkey(s, pkdh)) {
+                EVP_PKEY_free(pkdh);
+                return 0;
+            }
+            return 1;
         }
         break;
     case SSL_CTRL_SET_TMP_DH_CB:
@@ -3607,8 +3611,11 @@ long ssl3_ctrl(SSL *s, int cmd, long larg, void *parg)
                 int *cptr = parg;
 
                 for (i = 0; i < clistlen; i++) {
+                    uint16_t cid = SSL_IS_TLS13(s)
+                                   ? ssl_group_id_tls13_to_internal(clist[i])
+                                   : clist[i];
                     const TLS_GROUP_INFO *cinf
-                        = tls1_group_id_lookup(s->ctx, clist[i]);
+                        = tls1_group_id_lookup(s->ctx, cid);
 
                     if (cinf != NULL)
                         cptr[i] = tls1_group_id2nid(cinf->group_id, 1);
@@ -3722,6 +3729,14 @@ long ssl3_ctrl(SSL *s, int cmd, long larg, void *parg)
             return (int)s->ext.peer_ecpointformats_len;
         }
 
+    case SSL_CTRL_GET_IANA_GROUPS:
+        {
+            if (parg != NULL) {
+                *(uint16_t **)parg = (uint16_t *)s->ext.peer_supportedgroups;
+            }
+            return (int)s->ext.peer_supportedgroups_len;
+        }
+
     default:
         break;
     }
@@ -3771,7 +3786,11 @@ long ssl3_ctx_ctrl(SSL_CTX *ctx, int cmd, long larg, void *parg)
                 ERR_raise(ERR_LIB_SSL, ERR_R_MALLOC_FAILURE);
                 return 0;
             }
-            return SSL_CTX_set0_tmp_dh_pkey(ctx, pkdh);
+            if (!SSL_CTX_set0_tmp_dh_pkey(ctx, pkdh)) {
+                EVP_PKEY_free(pkdh);
+                return 0;
+            }
+            return 1;
         }
     case SSL_CTRL_SET_TMP_DH_CB:
         {
@@ -3945,7 +3964,7 @@ long ssl3_ctx_ctrl(SSL_CTX *ctx, int cmd, long larg, void *parg)
         break;
 
     case SSL_CTRL_CLEAR_EXTRA_CHAIN_CERTS:
-        sk_X509_pop_free(ctx->extra_certs, X509_free);
+        OSSL_STACK_OF_X509_free(ctx->extra_certs);
         ctx->extra_certs = NULL;
         break;
 

@@ -24,12 +24,35 @@ OpenSSL 3.1
 
 ### Changes between 3.0 and 3.1 [xx XXX xxxx]
 
+ * Add new SSL APIs to aid in efficiently implementing TLS/SSL fingerprinting.  The
+   SSL_CTRL_GET_IANA_GROUPS control code, exposed as the SSL_get0_iana_groups()
+   function-like macro, retrieves the list of supported groups sent by the peer,
+   and the function SSL_client_hello_get_extension_order() populates a caller-supplied
+   array with the list of extension types present in the ClientHello, in order of
+   appearance.
+
+   *Phus Lu*
+
+ * Fixed PEM_write_bio_PKCS8PrivateKey() and PEM_write_bio_PKCS8PrivateKey_nid()
+   to make it possible to use empty passphrase strings.
+
+   *Darshan Sen*
+
+ * RNDR and RNDRRS support in provider functions to provide
+   random number generation for Arm CPUs (aarch64).
+
+   *Orr Toledano*
+
  * s_client and s_server apps now explicitly say when the TLS version
    does not include the renegotiation mechanism. This avoids confusion
    between that scenario versus when the TLS version includes secure
    renegotiation but the peer lacks support for it.
 
    *Felipe Gasper*
+
+ * AES-GCM enabled with AVX512 vAES and vPCLMULQDQ.
+
+   *Tomasz Kantecki, Andrey Matyukov*
 
  * The default SSL/TLS security level has been changed from 1 to 2. RSA,
    DSA and DH keys of 1024 bits and above and less than 2048 bits and ECC keys
@@ -65,6 +88,11 @@ OpenSSL 3.1
 
    *Dmitry Belyavskiy*
 
+ * Parallel dual-prime 1536/2048-bit modular exponentiation for
+   AVX512_IFMA capable processors.
+
+   *Sergey Kirillov, Andrey Matyukov (Intel Corp)*
+
 OpenSSL 3.0
 -----------
 
@@ -75,7 +103,90 @@ breaking changes, and mappings for the large list of deprecated functions.
 
 [Migration guide]: https://github.com/openssl/openssl/tree/master/doc/man7/migration_guide.pod
 
-### Changes between 1.1.1 and 3.0 [xx XXX xxxx]
+### Changes between 3.0.1 and 3.0.2 [xx XXX xxxx]
+
+ * Made the AES constant time code for no-asm configurations
+   optional due to the resulting 95% performance degradation.
+   The AES constant time code can be enabled, for no assembly
+   builds, with: ./config no-asm -DOPENSSL_AES_CONST_TIME
+
+   *Paul Dale*
+
+### Changes between 3.0.0 and 3.0.1 [14 dec 2021]
+
+ * Fixed invalid handling of X509_verify_cert() internal errors in libssl
+   Internally libssl in OpenSSL calls X509_verify_cert() on the client side to
+   verify a certificate supplied by a server. That function may return a
+   negative return value to indicate an internal error (for example out of
+   memory). Such a negative return value is mishandled by OpenSSL and will cause
+   an IO function (such as SSL_connect() or SSL_do_handshake()) to not indicate
+   success and a subsequent call to SSL_get_error() to return the value
+   SSL_ERROR_WANT_RETRY_VERIFY. This return value is only supposed to be
+   returned by OpenSSL if the application has previously called
+   SSL_CTX_set_cert_verify_callback(). Since most applications do not do this
+   the SSL_ERROR_WANT_RETRY_VERIFY return value from SSL_get_error() will be
+   totally unexpected and applications may not behave correctly as a result. The
+   exact behaviour will depend on the application but it could result in
+   crashes, infinite loops or other similar incorrect responses.
+
+   This issue is made more serious in combination with a separate bug in OpenSSL
+   3.0 that will cause X509_verify_cert() to indicate an internal error when
+   processing a certificate chain. This will occur where a certificate does not
+   include the Subject Alternative Name extension but where a Certificate
+   Authority has enforced name constraints. This issue can occur even with valid
+   chains.
+   ([CVE-2021-4044])
+
+   *Matt Caswell*
+
+ * Corrected a few file name and file reference bugs in the build,
+   installation and setup scripts, which lead to installation verification
+   failures.  Slightly enhanced the installation verification script.
+
+   *Richard Levitte*
+
+ * Fixed EVP_PKEY_eq() to make it possible to use it with strictly private
+   keys.
+
+   *Richard Levitte*
+
+ * Fixed PVK encoder to properly query for the passphrase.
+
+   *Tomáš Mráz*
+
+ * Multiple fixes in the OSSL_HTTP API functions.
+
+   *David von Oheimb*
+
+ * Allow sign extension in OSSL_PARAM_allocate_from_text() for the
+   OSSL_PARAM_INTEGER data type and return error on negative numbers
+   used with the OSSL_PARAM_UNSIGNED_INTEGER data type. Make
+   OSSL_PARAM_BLD_push_BN{,_pad}() return an error on negative numbers.
+
+   *Richard Levitte*
+
+ * Allow copying uninitialized digest contexts with EVP_MD_CTX_copy_ex.
+
+   *Tomáš Mráz*
+
+ * Fixed detection of ARMv7 and ARM64 CPU features on FreeBSD.
+
+   *Allan Jude*
+
+ * Multiple threading fixes.
+
+   *Matt Caswell*
+
+ * Added NULL digest implementation to keep compatibility with 1.1.1 version.
+
+   *Tomáš Mráz*
+
+ * Allow fetching an operation from the provider that owns an unexportable key
+   as a fallback if that is still allowed by the property query.
+
+   *Richard Levitte*
+
+### Changes between 1.1.1 and 3.0.0 [7 sep 2021]
 
  * TLS_MAX_VERSION, DTLS_MAX_VERSION and DTLS_MIN_VERSION constants are now
    deprecated.
@@ -1499,6 +1610,24 @@ breaking changes, and mappings for the large list of deprecated functions.
 
 OpenSSL 1.1.1
 -------------
+
+### Changes between 1.1.1m and 1.1.1n [xx XXX xxxx]
+
+### Changes between 1.1.1l and 1.1.1m [14 Dec 2021]
+
+ * Avoid loading of a dynamic engine twice.
+
+   *Bernd Edlinger*
+
+ * Prioritise DANE TLSA issuer certs over peer certs
+
+   *Viktor Dukhovni*
+
+ * Fixed random API for MacOS prior to 10.12
+
+   These MacOS versions don't support the CommonCrypto APIs
+
+   *Lenny Primak*
 
 ### Changes between 1.1.1k and 1.1.1l [24 Aug 2021]
 

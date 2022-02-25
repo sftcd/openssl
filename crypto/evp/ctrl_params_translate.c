@@ -37,7 +37,7 @@
 #include "crypto/dh.h"
 #include "crypto/ec.h"
 
-#include "e_os.h"                /* strcasecmp() for Windows */
+#include "internal/e_os.h"                /* strcasecmp() for Windows */
 
 struct translation_ctx_st;       /* Forwarding */
 struct translation_st;           /* Forwarding */
@@ -1004,8 +1004,11 @@ static int fix_dh_nid(enum state state,
         return 0;
 
     if (state == PRE_CTRL_TO_PARAMS) {
-        ctx->p2 = (char *)ossl_ffc_named_group_get_name
-            (ossl_ffc_uid_to_dh_named_group(ctx->p1));
+        if ((ctx->p2 = (char *)ossl_ffc_named_group_get_name
+             (ossl_ffc_uid_to_dh_named_group(ctx->p1))) == NULL) {
+            ERR_raise(ERR_LIB_EVP, EVP_R_INVALID_VALUE);
+            return 0;
+        }
         ctx->p1 = 0;
     }
 
@@ -1028,16 +1031,24 @@ static int fix_dh_nid5114(enum state state,
 
     switch (state) {
     case PRE_CTRL_TO_PARAMS:
-        ctx->p2 = (char *)ossl_ffc_named_group_get_name
-            (ossl_ffc_uid_to_dh_named_group(ctx->p1));
+        if ((ctx->p2 = (char *)ossl_ffc_named_group_get_name
+             (ossl_ffc_uid_to_dh_named_group(ctx->p1))) == NULL) {
+            ERR_raise(ERR_LIB_EVP, EVP_R_INVALID_VALUE);
+            return 0;
+        }
+
         ctx->p1 = 0;
         break;
 
     case PRE_CTRL_STR_TO_PARAMS:
         if (ctx->p2 == NULL)
             return 0;
-        ctx->p2 = (char *)ossl_ffc_named_group_get_name
-            (ossl_ffc_uid_to_dh_named_group(atoi(ctx->p2)));
+        if ((ctx->p2 = (char *)ossl_ffc_named_group_get_name
+             (ossl_ffc_uid_to_dh_named_group(atoi(ctx->p2)))) == NULL) {
+            ERR_raise(ERR_LIB_EVP, EVP_R_INVALID_VALUE);
+            return 0;
+        }
+
         ctx->p1 = 0;
         break;
 
@@ -1392,21 +1403,23 @@ static int fix_rsa_pss_saltlen(enum state state,
     if ((ctx->action_type == SET && state == PRE_PARAMS_TO_CTRL)
         || (ctx->action_type == GET && state == POST_CTRL_TO_PARAMS)) {
         size_t i;
+        int val;
 
         for (i = 0; i < OSSL_NELEM(str_value_map); i++) {
             if (strcmp(ctx->p2, str_value_map[i].ptr) == 0)
                 break;
         }
-        if (i == OSSL_NELEM(str_value_map)) {
-            ctx->p1 = atoi(ctx->p2);
-        } else if (state == POST_CTRL_TO_PARAMS) {
+
+        val = i == OSSL_NELEM(str_value_map) ? atoi(ctx->p2)
+                                             : (int)str_value_map[i].id;
+        if (state == POST_CTRL_TO_PARAMS) {
             /*
              * EVP_PKEY_CTRL_GET_RSA_PSS_SALTLEN weirdness explained further
              * up
              */
-            *(int *)ctx->orig_p2 = str_value_map[i].id;
+            *(int *)ctx->orig_p2 = val;
         } else {
-            ctx->p1 = (int)str_value_map[i].id;
+            ctx->p1 = val;
         }
         ctx->p2 = NULL;
     }
@@ -2151,7 +2164,7 @@ static const struct translation_st evp_pkey_ctx_translations[] = {
       OSSL_ASYM_CIPHER_PARAM_OAEP_DIGEST, OSSL_PARAM_UTF8_STRING, fix_md },
     /*
      * The "rsa_oaep_label" ctrl_str expects the value to always be hex.
-     * This is accomodated by default_fixup_args() above, which mimics that
+     * This is accommodated by default_fixup_args() above, which mimics that
      * expectation for any translation item where |ctrl_str| is NULL and
      * |ctrl_hexstr| is non-NULL.
      */

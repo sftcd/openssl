@@ -234,8 +234,8 @@ static OSSL_CMP_MSG *process_cert_request(OSSL_CMP_SRV_CTX *srv_ctx,
  err:
     OSSL_CMP_PKISI_free(si);
     X509_free(certOut);
-    sk_X509_pop_free(chainOut, X509_free);
-    sk_X509_pop_free(caPubs, X509_free);
+    OSSL_STACK_OF_X509_free(chainOut);
+    OSSL_STACK_OF_X509_free(caPubs);
     return msg;
 }
 
@@ -457,6 +457,9 @@ OSSL_CMP_MSG *OSSL_CMP_SRV_process_request(OSSL_CMP_SRV_CTX *srv_ctx,
     }
     ctx = srv_ctx->ctx;
     backup_secret = ctx->secretValue;
+    req_type = OSSL_CMP_MSG_get_bodytype(req);
+    ossl_cmp_log1(DEBUG, ctx,
+                  "received %s", ossl_cmp_bodytype_to_string(req_type));
 
     /*
      * Some things need to be done already before validating the message in
@@ -469,7 +472,6 @@ OSSL_CMP_MSG *OSSL_CMP_SRV_process_request(OSSL_CMP_SRV_CTX *srv_ctx,
     if (!OSSL_CMP_CTX_set1_recipient(ctx, hdr->sender->d.directoryName))
         goto err;
 
-    req_type = OSSL_CMP_MSG_get_bodytype(req);
     switch (req_type) {
     case OSSL_CMP_PKIBODY_IR:
     case OSSL_CMP_PKIBODY_CR:
@@ -479,10 +481,8 @@ OSSL_CMP_MSG *OSSL_CMP_SRV_process_request(OSSL_CMP_SRV_CTX *srv_ctx,
     case OSSL_CMP_PKIBODY_GENM:
     case OSSL_CMP_PKIBODY_ERROR:
         if (ctx->transactionID != NULL) {
-            char *tid;
+            char *tid = i2s_ASN1_OCTET_STRING(NULL, ctx->transactionID);
 
-            tid = OPENSSL_buf2hexstr(ctx->transactionID->data,
-                                     ctx->transactionID->length);
             if (tid != NULL)
                 ossl_cmp_log1(WARN, ctx,
                               "Assuming that last transaction with ID=%s got aborted",
@@ -503,8 +503,6 @@ OSSL_CMP_MSG *OSSL_CMP_SRV_process_request(OSSL_CMP_SRV_CTX *srv_ctx,
 #endif
         }
     }
-    ossl_cmp_log1(DEBUG, ctx,
-                  "received %s", ossl_cmp_bodytype_to_string(req_type));
 
     res = ossl_cmp_msg_check_update(ctx, req, unprotected_exception,
                                     srv_ctx->acceptUnprotected);

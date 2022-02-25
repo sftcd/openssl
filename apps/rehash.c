@@ -168,6 +168,12 @@ static int add_entry(enum Type type, unsigned int hash, const char *filename,
         *ep = nilhentry;
         ep->old_id = ~0;
         ep->filename = OPENSSL_strdup(filename);
+        if (ep->filename == NULL) {
+            OPENSSL_free(ep);
+            ep = NULL;
+            BIO_printf(bio_err, "out of memory\n");
+            return 1;
+        }
         if (bp->last_entry)
             bp->last_entry->next = ep;
         if (bp->first_entry == NULL)
@@ -206,11 +212,10 @@ static int handle_symlink(const char *filename, const char *fullpath)
     }
     if (filename[i++] != '.')
         return -1;
-    for (type = OSSL_NELEM(suffixes) - 1; type > 0; type--) {
-        const char *suffix = suffixes[type];
-        if (strncasecmp(suffix, &filename[i], strlen(suffix)) == 0)
+    for (type = OSSL_NELEM(suffixes) - 1; type > 0; type--)
+        if (strncasecmp(&filename[i],
+                        suffixes[type], strlen(suffixes[type])) == 0)
             break;
-    }
     i += strlen(suffixes[type]);
 
     id = strtoul(&filename[i], &endptr, 10);

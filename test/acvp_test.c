@@ -218,7 +218,7 @@ static int get_ecdsa_sig_rs_bytes(const unsigned char *sig, size_t sig_len,
     r1 = ECDSA_SIG_get0_r(sign);
     s1 = ECDSA_SIG_get0_s(sign);
     if (r1 == NULL || s1 == NULL)
-        return 0;
+        goto err;
 
     r1_len = BN_num_bytes(r1);
     s1_len = BN_num_bytes(s1);
@@ -340,7 +340,7 @@ static EVP_PKEY *dsa_paramgen(int L, int N)
     EVP_PKEY *param_key = NULL;
 
     if (!TEST_ptr(paramgen_ctx = EVP_PKEY_CTX_new_from_name(libctx, "DSA", NULL))
-        || !TEST_true(EVP_PKEY_paramgen_init(paramgen_ctx))
+        || !TEST_int_gt(EVP_PKEY_paramgen_init(paramgen_ctx), 0)
         || !TEST_true(EVP_PKEY_CTX_set_dsa_paramgen_bits(paramgen_ctx, L))
         || !TEST_true(EVP_PKEY_CTX_set_dsa_paramgen_q_bits(paramgen_ctx, N))
         || !TEST_true(EVP_PKEY_paramgen(paramgen_ctx, &param_key)))
@@ -416,7 +416,7 @@ static int dsa_paramgen_test(int id)
     const struct dsa_paramgen_st *tst = &dsa_paramgen_data[id];
 
     if (!TEST_ptr(paramgen_ctx = EVP_PKEY_CTX_new_from_name(libctx, "DSA", NULL))
-        || !TEST_true(EVP_PKEY_paramgen_init(paramgen_ctx))
+        || !TEST_int_gt(EVP_PKEY_paramgen_init(paramgen_ctx), 0)
         || !TEST_true(EVP_PKEY_CTX_set_dsa_paramgen_bits(paramgen_ctx, tst->L))
         || !TEST_true(EVP_PKEY_CTX_set_dsa_paramgen_q_bits(paramgen_ctx, tst->N))
         || !TEST_true(EVP_PKEY_paramgen(paramgen_ctx, &param_key))
@@ -560,7 +560,7 @@ static int get_dsa_sig_rs_bytes(const unsigned char *sig, size_t sig_len,
         return 0;
     DSA_SIG_get0(sign, &r1, &s1);
     if (r1 == NULL || s1 == NULL)
-        return 0;
+        goto err;
 
     r1_len = BN_num_bytes(r1);
     s1_len = BN_num_bytes(s1);
@@ -1261,7 +1261,7 @@ static int rsa_decryption_primitive_test(int id)
 
     test_output_memory("n", n, n_len);
     test_output_memory("e", e, e_len);
-    if (!EVP_PKEY_decrypt(ctx, pt, &pt_len, tst->ct, tst->ct_len))
+    if (EVP_PKEY_decrypt(ctx, pt, &pt_len, tst->ct, tst->ct_len) <= 0)
         TEST_note("Decryption Failed");
     else
         test_output_memory("pt", pt, pt_len);

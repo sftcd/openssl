@@ -12,7 +12,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <ctype.h>
-#include "../e_os.h" /* strcasecmp */
+#include "internal/e_os.h" /* strcasecmp and strncasecmp */
 #include <openssl/evp.h>
 #include <openssl/pem.h>
 #include <openssl/err.h>
@@ -396,6 +396,26 @@ static int digest_update_fn(void *ctx, const unsigned char *buf, size_t buflen)
     return EVP_DigestUpdate(ctx, buf, buflen);
 }
 
+static int test_duplicate_md_ctx(EVP_TEST *t, EVP_MD_CTX *mctx)
+{
+    char dont[] = "touch";
+
+    if (!TEST_ptr(mctx))
+        return 0;
+    if (!EVP_DigestFinalXOF(mctx, (unsigned char *)dont, 0)) {
+        EVP_MD_CTX_free(mctx);
+        t->err = "DIGESTFINALXOF_ERROR";
+        return 0;
+    }
+    if (!TEST_str_eq(dont, "touch")) {
+        EVP_MD_CTX_free(mctx);
+        t->err = "DIGESTFINALXOF_ERROR";
+        return 0;
+    }
+    EVP_MD_CTX_free(mctx);
+    return 1;
+}
+
 static int digest_test_run(EVP_TEST *t)
 {
     DIGEST_DATA *expected = t->data;
@@ -407,6 +427,7 @@ static int digest_test_run(EVP_TEST *t)
     int xof = 0;
     OSSL_PARAM params[2];
 
+    printf("test %s (%d %d)\n", t->name, t->s.start, t->s.curr);
     t->err = "TEST_FAILURE";
     if (!TEST_ptr(mctx = EVP_MD_CTX_new()))
         goto err;
@@ -437,26 +458,19 @@ static int digest_test_run(EVP_TEST *t)
     xof = (EVP_MD_get_flags(expected->digest) & EVP_MD_FLAG_XOF) != 0;
     if (xof) {
         EVP_MD_CTX *mctx_cpy;
-        char dont[] = "touch";
 
         if (!TEST_ptr(mctx_cpy = EVP_MD_CTX_new())) {
             goto err;
         }
-        if (!EVP_MD_CTX_copy(mctx_cpy, mctx)) {
+        if (!TEST_true(EVP_MD_CTX_copy(mctx_cpy, mctx))) {
             EVP_MD_CTX_free(mctx_cpy);
             goto err;
-        }
-        if (!EVP_DigestFinalXOF(mctx_cpy, (unsigned char *)dont, 0)) {
-            EVP_MD_CTX_free(mctx_cpy);
-            t->err = "DIGESTFINALXOF_ERROR";
+        } else if (!test_duplicate_md_ctx(t, mctx_cpy)) {
             goto err;
         }
-        if (!TEST_str_eq(dont, "touch")) {
-            EVP_MD_CTX_free(mctx_cpy);
-            t->err = "DIGESTFINALXOF_ERROR";
+
+        if (!test_duplicate_md_ctx(t, EVP_MD_CTX_dup(mctx)))
             goto err;
-        }
-        EVP_MD_CTX_free(mctx_cpy);
 
         got_len = expected->output_len;
         if (!EVP_DigestFinalXOF(mctx, got, got_len)) {
@@ -574,7 +588,9 @@ static int cipher_test_init(EVP_TEST *t, const char *alg)
     }
     ERR_clear_last_mark();
 
-    cdat = OPENSSL_zalloc(sizeof(*cdat));
+    if (!TEST_ptr(cdat = OPENSSL_zalloc(sizeof(*cdat))))
+        return 0;
+
     cdat->cipher = cipher;
     cdat->fetched_cipher = fetched_cipher;
     cdat->enc = -1;
@@ -694,7 +710,7 @@ static int cipher_test_enc(EVP_TEST *t, int enc,
     size_t in_len, out_len, donelen = 0;
     int ok = 0, tmplen, chunklen, tmpflen, i;
     EVP_CIPHER_CTX *ctx_base = NULL;
-    EVP_CIPHER_CTX *ctx = NULL;
+    EVP_CIPHER_CTX *ctx = NULL, *duped;
 
     t->err = "TEST_FAILURE";
     if (!TEST_ptr(ctx_base = EVP_CIPHER_CTX_new()))
@@ -831,6 +847,12 @@ static int cipher_test_enc(EVP_TEST *t, int enc,
     } else {
         EVP_CIPHER_CTX_free(ctx);
         ctx = ctx_base;
+    }
+    /* Likewise for dup */
+    duped = EVP_CIPHER_CTX_dup(ctx);
+    if (duped != NULL) {
+        EVP_CIPHER_CTX_free(ctx);
+        ctx = duped;
     }
     ERR_pop_to_mark();
 
@@ -1175,11 +1197,22 @@ static int mac_test_init(EVP_TEST *t, const char *alg)
             return 0;
     }
 
-    mdat = OPENSSL_zalloc(sizeof(*mdat));
+    if (!TEST_ptr(mdat = OPENSSL_zalloc(sizeof(*mdat))))
+        return 0;
+
     mdat->type = type;
-    mdat->mac_name = OPENSSL_strdup(alg);
+    if (!TEST_ptr(mdat->mac_name = OPENSSL_strdup(alg))) {
+        OPENSSL_free(mdat);
+        return 0;
+    }
+
     mdat->mac = mac;
-    mdat->controls = sk_OPENSSL_STRING_new_null();
+    if (!TEST_ptr(mdat->controls = sk_OPENSSL_STRING_new_null())) {
+        OPENSSL_free(mdat->mac_name);
+        OPENSSL_free(mdat);
+        return 0;
+    }
+
     mdat->output_size = mdat->block_size = -1;
     t->data = mdat;
     return 1;
@@ -2382,33 +2415,27 @@ static int rand_test_parse(EVP_TEST *t,
         if (n > rdata->n)
             rdata->n = n;
         item = rdata->data + n;
-        if (strncmp(keyword, "Entropy.", sizeof("Entropy")) == 0)
+        if (HAS_PREFIX(keyword, "Entropy."))
             return parse_bin(value, &item->entropy, &item->entropy_len);
-        if (strncmp(keyword, "ReseedEntropy.", sizeof("ReseedEntropy")) == 0)
+        if (HAS_PREFIX(keyword, "ReseedEntropy."))
             return parse_bin(value, &item->reseed_entropy,
                              &item->reseed_entropy_len);
-        if (strncmp(keyword, "Nonce.", sizeof("Nonce")) == 0)
+        if (HAS_PREFIX(keyword, "Nonce."))
             return parse_bin(value, &item->nonce, &item->nonce_len);
-        if (strncmp(keyword, "PersonalisationString.",
-                    sizeof("PersonalisationString")) == 0)
+        if (HAS_PREFIX(keyword, "PersonalisationString."))
             return parse_bin(value, &item->pers, &item->pers_len);
-        if (strncmp(keyword, "ReseedAdditionalInput.",
-                    sizeof("ReseedAdditionalInput")) == 0)
+        if (HAS_PREFIX(keyword, "ReseedAdditionalInput."))
             return parse_bin(value, &item->reseed_addin,
                              &item->reseed_addin_len);
-        if (strncmp(keyword, "AdditionalInputA.",
-                    sizeof("AdditionalInputA")) == 0)
+        if (HAS_PREFIX(keyword, "AdditionalInputA."))
             return parse_bin(value, &item->addinA, &item->addinA_len);
-        if (strncmp(keyword, "AdditionalInputB.",
-                    sizeof("AdditionalInputB")) == 0)
+        if (HAS_PREFIX(keyword, "AdditionalInputB."))
             return parse_bin(value, &item->addinB, &item->addinB_len);
-        if (strncmp(keyword, "EntropyPredictionResistanceA.",
-                    sizeof("EntropyPredictionResistanceA")) == 0)
+        if (HAS_PREFIX(keyword, "EntropyPredictionResistanceA."))
             return parse_bin(value, &item->pr_entropyA, &item->pr_entropyA_len);
-        if (strncmp(keyword, "EntropyPredictionResistanceB.",
-                    sizeof("EntropyPredictionResistanceB")) == 0)
+        if (HAS_PREFIX(keyword, "EntropyPredictionResistanceB."))
             return parse_bin(value, &item->pr_entropyB, &item->pr_entropyB_len);
-        if (strncmp(keyword, "Output.", sizeof("Output")) == 0)
+        if (HAS_PREFIX(keyword, "Output."))
             return parse_bin(value, &item->output, &item->output_len);
     } else {
         if (strcmp(keyword, "Cipher") == 0)
@@ -2516,7 +2543,7 @@ static int rand_test_run(EVP_TEST *t)
                             item->pr_entropyB_len);
             params[1] = OSSL_PARAM_construct_end();
             if (!TEST_true(EVP_RAND_CTX_set_params(expected->parent, params)))
-                return 0;
+                goto err;
         }
         if (!TEST_true(EVP_RAND_generate
                            (expected->ctx, got, got_len,
@@ -2624,6 +2651,13 @@ static int kdf_test_ctrl(EVP_TEST *t, EVP_KDF_CTX *kctx,
     if (p != NULL)
         *p++ = '\0';
 
+    if (strcmp(name, "r") == 0
+        && OSSL_PARAM_locate_const(defs, name) == NULL) {
+        TEST_info("skipping, setting 'r' is unsupported");
+        t->skip = 1;
+        goto end;
+    }
+
     rv = OSSL_PARAM_allocate_from_text(kdata->p, defs, name, p,
                                        p != NULL ? strlen(p) : 0, NULL);
     *++kdata->p = OSSL_PARAM_construct_end();
@@ -2637,6 +2671,7 @@ static int kdf_test_ctrl(EVP_TEST *t, EVP_KDF_CTX *kctx,
             TEST_info("skipping, '%s' is disabled", p);
             t->skip = 1;
         }
+        goto end;
     }
     if (p != NULL
         && (strcmp(name, "cipher") == 0
@@ -2644,7 +2679,15 @@ static int kdf_test_ctrl(EVP_TEST *t, EVP_KDF_CTX *kctx,
         && is_cipher_disabled(p)) {
         TEST_info("skipping, '%s' is disabled", p);
         t->skip = 1;
+        goto end;
     }
+    if (p != NULL
+        && (strcmp(name, "mac") == 0)
+        && is_mac_disabled(p)) {
+        TEST_info("skipping, '%s' is disabled", p);
+        t->skip = 1;
+    }
+ end:
     OPENSSL_free(name);
     return 1;
 }
@@ -2656,7 +2699,7 @@ static int kdf_test_parse(EVP_TEST *t,
 
     if (strcmp(keyword, "Output") == 0)
         return parse_bin(value, &kdata->output, &kdata->output_len);
-    if (strncmp(keyword, "Ctrl", 4) == 0)
+    if (HAS_PREFIX(keyword, "Ctrl"))
         return kdf_test_ctrl(t, kdata->ctx, value);
     return 0;
 }
@@ -2666,6 +2709,7 @@ static int kdf_test_run(EVP_TEST *t)
     KDF_DATA *expected = t->data;
     unsigned char *got = NULL;
     size_t got_len = expected->output_len;
+    EVP_KDF_CTX *ctx;
 
     if (!EVP_KDF_CTX_set_params(expected->ctx, expected->params)) {
         t->err = "KDF_CTRL_ERROR";
@@ -2674,6 +2718,10 @@ static int kdf_test_run(EVP_TEST *t)
     if (!TEST_ptr(got = OPENSSL_malloc(got_len == 0 ? 1 : got_len))) {
         t->err = "INTERNAL_ERROR";
         goto err;
+    }
+    if ((ctx = EVP_KDF_CTX_dup(expected->ctx)) != NULL) {
+        EVP_KDF_CTX_free(expected->ctx);
+        expected->ctx = ctx;
     }
     if (EVP_KDF_derive(expected->ctx, got, got_len, NULL) <= 0) {
         t->err = "KDF_DERIVE_ERROR";
@@ -2756,7 +2804,7 @@ static int pkey_kdf_test_parse(EVP_TEST *t,
 
     if (strcmp(keyword, "Output") == 0)
         return parse_bin(value, &kdata->output, &kdata->output_len);
-    if (strncmp(keyword, "Ctrl", 4) == 0)
+    if (HAS_PREFIX(keyword, "Ctrl"))
         return pkey_test_ctrl(t, kdata->ctx, value);
     return 0;
 }
@@ -3827,14 +3875,10 @@ void cleanup_tests(void)
     OSSL_LIB_CTX_free(libctx);
 }
 
-#define STR_STARTS_WITH(str, pre) strncasecmp(pre, str, strlen(pre)) == 0
-#define STR_ENDS_WITH(str, pre)                                                \
-strlen(str) < strlen(pre) ? 0 : (strcasecmp(pre, str + strlen(str) - strlen(pre)) == 0)
-
 static int is_digest_disabled(const char *name)
 {
 #ifdef OPENSSL_NO_BLAKE2
-    if (STR_STARTS_WITH(name, "BLAKE"))
+    if (HAS_CASE_PREFIX(name, "BLAKE"))
         return 1;
 #endif
 #ifdef OPENSSL_NO_MD2
@@ -3871,15 +3915,15 @@ static int is_digest_disabled(const char *name)
 static int is_pkey_disabled(const char *name)
 {
 #ifdef OPENSSL_NO_EC
-    if (STR_STARTS_WITH(name, "EC"))
+    if (HAS_CASE_PREFIX(name, "EC"))
         return 1;
 #endif
 #ifdef OPENSSL_NO_DH
-    if (STR_STARTS_WITH(name, "DH"))
+    if (HAS_CASE_PREFIX(name, "DH"))
         return 1;
 #endif
 #ifdef OPENSSL_NO_DSA
-    if (STR_STARTS_WITH(name, "DSA"))
+    if (HAS_CASE_PREFIX(name, "DSA"))
         return 1;
 #endif
     return 0;
@@ -3888,20 +3932,20 @@ static int is_pkey_disabled(const char *name)
 static int is_mac_disabled(const char *name)
 {
 #ifdef OPENSSL_NO_BLAKE2
-    if (STR_STARTS_WITH(name, "BLAKE2BMAC")
-        || STR_STARTS_WITH(name, "BLAKE2SMAC"))
+    if (HAS_CASE_PREFIX(name, "BLAKE2BMAC")
+        || HAS_CASE_PREFIX(name, "BLAKE2SMAC"))
         return 1;
 #endif
 #ifdef OPENSSL_NO_CMAC
-    if (STR_STARTS_WITH(name, "CMAC"))
+    if (HAS_CASE_PREFIX(name, "CMAC"))
         return 1;
 #endif
 #ifdef OPENSSL_NO_POLY1305
-    if (STR_STARTS_WITH(name, "Poly1305"))
+    if (HAS_CASE_PREFIX(name, "Poly1305"))
         return 1;
 #endif
 #ifdef OPENSSL_NO_SIPHASH
-    if (STR_STARTS_WITH(name, "SipHash"))
+    if (HAS_CASE_PREFIX(name, "SipHash"))
         return 1;
 #endif
     return 0;
@@ -3909,7 +3953,7 @@ static int is_mac_disabled(const char *name)
 static int is_kdf_disabled(const char *name)
 {
 #ifdef OPENSSL_NO_SCRYPT
-    if (STR_ENDS_WITH(name, "SCRYPT"))
+    if (HAS_CASE_SUFFIX(name, "SCRYPT"))
         return 1;
 #endif
     return 0;
@@ -3918,65 +3962,65 @@ static int is_kdf_disabled(const char *name)
 static int is_cipher_disabled(const char *name)
 {
 #ifdef OPENSSL_NO_ARIA
-    if (STR_STARTS_WITH(name, "ARIA"))
+    if (HAS_CASE_PREFIX(name, "ARIA"))
         return 1;
 #endif
 #ifdef OPENSSL_NO_BF
-    if (STR_STARTS_WITH(name, "BF"))
+    if (HAS_CASE_PREFIX(name, "BF"))
         return 1;
 #endif
 #ifdef OPENSSL_NO_CAMELLIA
-    if (STR_STARTS_WITH(name, "CAMELLIA"))
+    if (HAS_CASE_PREFIX(name, "CAMELLIA"))
         return 1;
 #endif
 #ifdef OPENSSL_NO_CAST
-    if (STR_STARTS_WITH(name, "CAST"))
+    if (HAS_CASE_PREFIX(name, "CAST"))
         return 1;
 #endif
 #ifdef OPENSSL_NO_CHACHA
-    if (STR_STARTS_WITH(name, "CHACHA"))
+    if (HAS_CASE_PREFIX(name, "CHACHA"))
         return 1;
 #endif
 #ifdef OPENSSL_NO_POLY1305
-    if (STR_ENDS_WITH(name, "Poly1305"))
+    if (HAS_CASE_SUFFIX(name, "Poly1305"))
         return 1;
 #endif
 #ifdef OPENSSL_NO_DES
-    if (STR_STARTS_WITH(name, "DES"))
+    if (HAS_CASE_PREFIX(name, "DES"))
         return 1;
-    if (STR_ENDS_WITH(name, "3DESwrap"))
+    if (HAS_CASE_SUFFIX(name, "3DESwrap"))
         return 1;
 #endif
 #ifdef OPENSSL_NO_OCB
-    if (STR_ENDS_WITH(name, "OCB"))
+    if (HAS_CASE_SUFFIX(name, "OCB"))
         return 1;
 #endif
 #ifdef OPENSSL_NO_IDEA
-    if (STR_STARTS_WITH(name, "IDEA"))
+    if (HAS_CASE_PREFIX(name, "IDEA"))
         return 1;
 #endif
 #ifdef OPENSSL_NO_RC2
-    if (STR_STARTS_WITH(name, "RC2"))
+    if (HAS_CASE_PREFIX(name, "RC2"))
         return 1;
 #endif
 #ifdef OPENSSL_NO_RC4
-    if (STR_STARTS_WITH(name, "RC4"))
+    if (HAS_CASE_PREFIX(name, "RC4"))
         return 1;
 #endif
 #ifdef OPENSSL_NO_RC5
-    if (STR_STARTS_WITH(name, "RC5"))
+    if (HAS_CASE_PREFIX(name, "RC5"))
         return 1;
 #endif
 #ifdef OPENSSL_NO_SEED
-    if (STR_STARTS_WITH(name, "SEED"))
+    if (HAS_CASE_PREFIX(name, "SEED"))
         return 1;
 #endif
 #ifdef OPENSSL_NO_SIV
-    if (STR_ENDS_WITH(name, "SIV"))
+    if (HAS_CASE_SUFFIX(name, "SIV"))
         return 1;
 #endif
 #ifdef OPENSSL_NO_SM4
-    if (STR_STARTS_WITH(name, "SM4"))
+    if (HAS_CASE_PREFIX(name, "SM4"))
         return 1;
 #endif
     return 0;

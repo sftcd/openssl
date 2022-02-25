@@ -62,7 +62,6 @@ static int add_attribute_object(X509_REQ *req, char *text, const char *def,
 static int add_DN_object(X509_NAME *n, char *text, const char *def,
                          char *value, int nid, int n_min, int n_max,
                          unsigned long chtype, int mval);
-static int genpkey_cb(EVP_PKEY_CTX *ctx);
 static int build_data(char *text, const char *def, char *value,
                       int n_min, int n_max, char *buf, const int buf_size,
                       const char *desc1, const char *desc2);
@@ -241,7 +240,6 @@ int req_main(int argc, char **argv)
     X509 *new_x509 = NULL, *CAcert = NULL;
     X509_REQ *req = NULL;
     EVP_CIPHER *cipher = NULL;
-    EVP_MD *md = NULL;
     int ext_copy = EXT_COPY_UNSET;
     BIO *addext_bio = NULL;
     char *extsect = NULL;
@@ -267,6 +265,7 @@ int req_main(int argc, char **argv)
     cipher = (EVP_CIPHER *)EVP_des_ede3_cbc();
 #endif
 
+    opt_set_unknown_name("digest");
     prog = opt_init(argc, argv, req_options);
     while ((o = opt_next()) != OPT_EOF) {
         switch (o) {
@@ -473,8 +472,7 @@ int req_main(int argc, char **argv)
     }
 
     /* No extra arguments. */
-    argc = opt_num_rest();
-    if (argc != 0)
+    if (!opt_check_rest_arg(NULL))
         goto opthelp;
 
     if (!app_RAND_load())
@@ -533,11 +531,8 @@ int req_main(int argc, char **argv)
 
     /* Check that any specified digest is fetchable */
     if (digest != NULL) {
-        if (!opt_md(digest, &md)) {
-            ERR_clear_error();
+        if (!opt_check_md(digest))
             goto opthelp;
-        }
-        EVP_MD_free(md);
     } else {
         /* No digest specified, default to configuration */
         p = NCONF_get_string(req_conf, section, "default_md");
@@ -667,7 +662,7 @@ int req_main(int argc, char **argv)
             }
         }
 
-        EVP_PKEY_CTX_set_cb(genctx, genpkey_cb);
+        EVP_PKEY_CTX_set_cb(genctx, progress_cb);
         EVP_PKEY_CTX_set_app_data(genctx, bio_err);
 
         pkey = app_keygen(genctx, keyalgstr, newkey_len, verbose);
@@ -838,11 +833,9 @@ int req_main(int argc, char **argv)
             if (CAcert == NULL) {
                 if (!X509V3_set_issuer_pkey(&ext_ctx, issuer_key))
                     goto end;
-                ERR_set_mark();
-                if (!X509_check_private_key(new_x509, issuer_key))
+                if (!cert_matches_key(new_x509, issuer_key))
                     BIO_printf(bio_err,
                                "Warning: Signature key and public key of cert do not match\n");
-                ERR_pop_to_mark();
             }
             X509V3_set_nconf(&ext_ctx, req_conf);
 
@@ -1655,21 +1648,3 @@ static EVP_PKEY_CTX *set_keygen_ctx(const char *gstr,
     return gctx;
 }
 
-static int genpkey_cb(EVP_PKEY_CTX *ctx)
-{
-    char c = '*';
-    BIO *b = EVP_PKEY_CTX_get_app_data(ctx);
-    int p;
-    p = EVP_PKEY_CTX_get_keygen_info(ctx, 0);
-    if (p == 0)
-        c = '.';
-    if (p == 1)
-        c = '+';
-    if (p == 2)
-        c = '*';
-    if (p == 3)
-        c = '\n';
-    BIO_write(b, &c, 1);
-    (void)BIO_flush(b);
-    return 1;
-}

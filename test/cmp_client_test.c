@@ -62,6 +62,7 @@ static CMP_SES_TEST_FIXTURE *set_up(const char *const test_case_name)
     fixture->test_case_name = test_case_name;
     if (!TEST_ptr(fixture->srv_ctx = ossl_cmp_mock_srv_new(libctx, NULL))
             || !OSSL_CMP_SRV_CTX_set_accept_unprotected(fixture->srv_ctx, 1)
+            || !ossl_cmp_mock_srv_set1_refCert(fixture->srv_ctx, client_cert)
             || !ossl_cmp_mock_srv_set1_certOut(fixture->srv_ctx, client_cert)
             || (srv_cmp_ctx =
                 OSSL_CMP_SRV_CTX_get0_cmp_ctx(fixture->srv_ctx)) == NULL
@@ -116,7 +117,7 @@ static int execute_exec_certrequest_ses_test(CMP_SES_TEST_FIXTURE *fixture)
         STACK_OF(X509) *caPubs = OSSL_CMP_CTX_get1_caPubs(fixture->cmp_ctx);
         int ret = TEST_int_eq(STACK_OF_X509_cmp(fixture->caPubs, caPubs), 0);
 
-        sk_X509_pop_free(caPubs, X509_free);
+        OSSL_STACK_OF_X509_free(caPubs);
         return ret;
     }
     return 1;

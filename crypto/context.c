@@ -93,10 +93,8 @@ static int context_init(OSSL_LIB_CTX *ctx)
     exdata_done = 1;
 
     if (!ossl_crypto_new_ex_data_ex(ctx, CRYPTO_EX_INDEX_OSSL_LIB_CTX, NULL,
-                                    &ctx->data)) {
-        ossl_crypto_cleanup_all_ex_data_int(ctx);
+                                    &ctx->data))
         goto err;
-    }
 
     /* Everything depends on properties, so we also pre-initialise that */
     if (!ossl_property_parse_init(ctx))
@@ -106,9 +104,11 @@ static int context_init(OSSL_LIB_CTX *ctx)
  err:
     if (exdata_done)
         ossl_crypto_cleanup_all_ex_data_int(ctx);
+    for (i = 0; i < OSSL_LIB_CTX_MAX_INDEXES; i++)
+        CRYPTO_THREAD_lock_free(ctx->index_locks[i]);
     CRYPTO_THREAD_lock_free(ctx->oncelock);
     CRYPTO_THREAD_lock_free(ctx->lock);
-    ctx->lock = NULL;
+    memset(ctx, '\0', sizeof(*ctx));
     return 0;
 }
 
@@ -156,6 +156,7 @@ DEFINE_RUN_ONCE_STATIC(default_context_do_init)
 void ossl_lib_ctx_default_deinit(void)
 {
     context_deinit(&default_context_int);
+    CRYPTO_THREAD_cleanup_local(&default_context_thread_local);
 }
 
 static OSSL_LIB_CTX *get_thread_default_context(void)
@@ -189,7 +190,7 @@ OSSL_LIB_CTX *OSSL_LIB_CTX_new(void)
     OSSL_LIB_CTX *ctx = OPENSSL_zalloc(sizeof(*ctx));
 
     if (ctx != NULL && !context_init(ctx)) {
-        OSSL_LIB_CTX_free(ctx);
+        OPENSSL_free(ctx);
         ctx = NULL;
     }
     return ctx;
@@ -240,6 +241,10 @@ void OSSL_LIB_CTX_free(OSSL_LIB_CTX *ctx)
     if (ossl_lib_ctx_is_default(ctx))
         return;
 
+#ifndef FIPS_MODULE
+    if (ctx->ischild)
+        ossl_provider_deinit_child(ctx);
+#endif
     context_deinit(ctx);
     OPENSSL_free(ctx);
 }
@@ -398,7 +403,7 @@ void *ossl_lib_ctx_get_data(OSSL_LIB_CTX *ctx, int index,
      * The alloc call ensures there's a value there. We release the ctx->lock
      * for this, because the allocation itself may recursively call
      * ossl_lib_ctx_get_data for other indexes (never this one). The allocation
-     * will itself aquire the ctx->lock when it actually comes to store the
+     * will itself acquire the ctx->lock when it actually comes to store the
      * allocated data (see ossl_lib_ctx_generic_new() above). We call
      * ossl_crypto_alloc_ex_data_intern() here instead of CRYPTO_alloc_ex_data().
      * They do the same thing except that the latter calls CRYPTO_get_ex_data()

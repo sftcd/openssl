@@ -50,7 +50,7 @@
 #include "internal/provider.h"
 #include "evp_local.h"
 
-#include "e_os.h"                /* strcasecmp on Windows */
+#include "internal/e_os.h"                /* strcasecmp on Windows */
 
 static int pkey_set_type(EVP_PKEY *pkey, ENGINE *e, int type, const char *str,
                          int len, EVP_KEYMGMT *keymgmt);
@@ -343,7 +343,7 @@ int EVP_PKEY_eq(const EVP_PKEY *a, const EVP_PKEY *b)
 
     if (a->keymgmt != NULL || b->keymgmt != NULL)
         return evp_pkey_cmp_any(a, b, (SELECT_PARAMETERS
-                                       | OSSL_KEYMGMT_SELECT_PUBLIC_KEY));
+                                       | OSSL_KEYMGMT_SELECT_KEYPAIR));
 
     /* All legacy keys */
     if (a->type != b->type)

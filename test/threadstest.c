@@ -30,7 +30,7 @@
 #include "threadstest.h"
 
 /* Limit the maximum number of threads */
-#define MAXIMUM_THREADS     3
+#define MAXIMUM_THREADS     10
 
 /* Limit the maximum number of providers loaded into a library context */
 #define MAXIMUM_PROVIDERS   4
@@ -44,7 +44,11 @@ static const char *default_provider[] = { "default", NULL };
 static const char *fips_provider[] = { "fips", NULL };
 static const char *fips_and_default_providers[] = { "default", "fips", NULL };
 
-/* Grab a globally unique integer value */
+#ifdef TSAN_REQUIRES_LOCKING
+static CRYPTO_RWLOCK *tsan_lock;
+#endif
+
+/* Grab a globally unique integer value, return 0 on failure */
 static int get_new_uid(void)
 {
     /*
@@ -52,8 +56,19 @@ static int get_new_uid(void)
      * we generate a new OID.
      */
     static TSAN_QUALIFIER int current_uid = 1 << (sizeof(int) * 8 - 2);
+#ifdef TSAN_REQUIRES_LOCKING
+    int r;
 
+    if (!TEST_true(CRYPTO_THREAD_write_lock(tsan_lock)))
+        return 0;
+    r = ++current_uid;
+    if (!TEST_true(CRYPTO_THREAD_unlock(tsan_lock)))
+        return 0;
+    return r;
+
+#else
     return tsan_counter(&current_uid);
+#endif
 }
 
 static int test_lock(void)
@@ -62,6 +77,8 @@ static int test_lock(void)
     int res;
 
     res = TEST_true(CRYPTO_THREAD_read_lock(lock))
+          && TEST_true(CRYPTO_THREAD_unlock(lock))
+          && TEST_true(CRYPTO_THREAD_write_lock(lock))
           && TEST_true(CRYPTO_THREAD_unlock(lock));
 
     CRYPTO_THREAD_lock_free(lock);
@@ -410,7 +427,7 @@ static void thread_shared_evp_pkey(void)
     char *msg = "Hello World";
     unsigned char ctbuf[256];
     unsigned char ptbuf[256];
-    size_t ptlen = sizeof(ptbuf), ctlen = sizeof(ctbuf);
+    size_t ptlen, ctlen = sizeof(ctbuf);
     EVP_PKEY_CTX *ctx = NULL;
     int success = 0;
     int i;
@@ -436,8 +453,9 @@ static void thread_shared_evp_pkey(void)
         if (!TEST_ptr(ctx))
             goto err;
 
+        ptlen = sizeof(ptbuf);
         if (!TEST_int_ge(EVP_PKEY_decrypt_init(ctx), 0)
-                || !TEST_int_ge(EVP_PKEY_decrypt(ctx, ptbuf, &ptlen, ctbuf, ctlen),
+                || !TEST_int_gt(EVP_PKEY_decrypt(ctx, ptbuf, &ptlen, ctbuf, ctlen),
                                                 0)
                 || !TEST_mem_eq(msg, strlen(msg), ptbuf, ptlen))
             goto err;
@@ -558,6 +576,7 @@ static int test_multi_load_unload_provider(void)
     return testresult;
 }
 
+static char *multi_load_provider = "legacy";
 /*
  * This test attempts to load several providers at the same time, and if
  * run with a thread sanitizer, should crash if the core provider code
@@ -567,7 +586,7 @@ static void test_multi_load_worker(void)
 {
     OSSL_PROVIDER *prov;
 
-    if (!TEST_ptr(prov = OSSL_PROVIDER_load(multi_libctx, "default"))
+    if (!TEST_ptr(prov = OSSL_PROVIDER_load(multi_libctx, multi_load_provider))
             || !TEST_true(OSSL_PROVIDER_unload(prov)))
         multi_success = 0;
 }
@@ -588,6 +607,7 @@ static int test_multi_default(void)
 static int test_multi_load(void)
 {
     int res = 1;
+    OSSL_PROVIDER *prov;
 
     /* The multidefault test must run prior to this test */
     if (!multidefault_run) {
@@ -595,7 +615,21 @@ static int test_multi_load(void)
         res = test_multi_default();
     }
 
-    return thread_run_test(NULL, 3, &test_multi_load_worker, 0, NULL) && res;
+    /*
+     * We use the legacy provider in test_multi_load_worker because it uses a
+     * child libctx that might hit more codepaths that might be sensitive to
+     * threading issues. But in a no-legacy build that won't be loadable so
+     * we use the default provider instead.
+     */
+    prov = OSSL_PROVIDER_load(NULL, "legacy");
+    if (prov == NULL) {
+        TEST_info("Cannot load legacy provider - assuming this is a no-legacy build");
+        multi_load_provider = "default";
+    }
+    OSSL_PROVIDER_unload(prov);
+
+    return thread_run_test(NULL, MAXIMUM_THREADS, &test_multi_load_worker, 0,
+                          NULL) && res;
 }
 
 static void test_obj_create_one(void)
@@ -607,7 +641,8 @@ static void test_obj_create_one(void)
     BIO_snprintf(oid, sizeof(oid), "1.3.6.1.4.1.16604.%s", tids);
     BIO_snprintf(sn, sizeof(sn), "short-name-%s", tids);
     BIO_snprintf(ln, sizeof(ln), "long-name-%s", tids);
-    if (!TEST_true(id = OBJ_create(oid, sn, ln))
+    if (!TEST_int_ne(id, 0)
+            || !TEST_true(id = OBJ_create(oid, sn, ln))
             || !TEST_true(OBJ_add_sigid(id, NID_sha3_256, NID_rsa)))
         multi_success = 0;
 }
@@ -665,6 +700,11 @@ int setup_tests(void)
     if (!TEST_ptr(privkey))
         return 0;
 
+#ifdef TSAN_REQUIRES_LOCKING
+    if (!TEST_ptr(tsan_lock = CRYPTO_THREAD_lock_new()))
+        return 0;
+#endif
+
     /* Keep first to validate auto creation of default library context */
     ADD_TEST(test_multi_default);
 
@@ -688,4 +728,7 @@ int setup_tests(void)
 void cleanup_tests(void)
 {
     OPENSSL_free(privkey);
+#ifdef TSAN_REQUIRES_LOCKING
+    CRYPTO_THREAD_lock_free(tsan_lock);
+#endif
 }

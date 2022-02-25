@@ -12,11 +12,11 @@
 #ifndef OSSL_SSL_LOCAL_H
 # define OSSL_SSL_LOCAL_H
 
-# include "e_os.h"              /* struct timeval for DTLS */
+# include "internal/e_os.h"              /* struct timeval for DTLS */
 # include <stdlib.h>
 # include <time.h>
-# include <string.h>
 # include <errno.h>
+# include "internal/common.h" /* for HAS_PREFIX */
 
 # include <openssl/buffer.h>
 # include <openssl/comp.h>
@@ -825,6 +825,9 @@ int ssl_hmac_final(SSL_HMAC *ctx, unsigned char *md, size_t *len,
 size_t ssl_hmac_size(const SSL_HMAC *ctx);
 
 int ssl_get_EC_curve_nid(const EVP_PKEY *pkey);
+__owur int tls13_set_encoded_pub_key(EVP_PKEY *pkey,
+                                     const unsigned char *enckey,
+                                     size_t enckeylen);
 
 typedef struct tls_group_info_st {
     char *tlsname;           /* Curve Name as in TLS specs */
@@ -912,6 +915,9 @@ struct ssl_ctx_st {
                                                 * other processes - spooky
                                                 * :-) */
     } stats;
+#ifdef TSAN_REQUIRES_LOCKING
+    CRYPTO_RWLOCK *tsan_lock;
+#endif
 
     CRYPTO_REF_COUNT references;
 
@@ -2241,6 +2247,9 @@ typedef enum downgrade_en {
 
 #define TLSEXT_SIGALG_ed25519                                   0x0807
 #define TLSEXT_SIGALG_ed448                                     0x0808
+#define TLSEXT_SIGALG_ecdsa_brainpoolP256r1_sha256              0x081a
+#define TLSEXT_SIGALG_ecdsa_brainpoolP384r1_sha384              0x081b
+#define TLSEXT_SIGALG_ecdsa_brainpoolP512r1_sha512              0x081c
 
 /* Known PSK key exchange modes */
 #define TLSEXT_KEX_MODE_KE                                      0x00
@@ -2714,6 +2723,8 @@ __owur int ssl_check_srvr_ecc_cert_and_alg(X509 *x, SSL *s);
 
 SSL_COMP *ssl3_comp_find(STACK_OF(SSL_COMP) *sk, int n);
 
+__owur uint16_t ssl_group_id_internal_to_tls13(uint16_t curve_id);
+__owur uint16_t ssl_group_id_tls13_to_internal(uint16_t curve_id);
 __owur const TLS_GROUP_INFO *tls1_group_id_lookup(SSL_CTX *ctx, uint16_t curve_id);
 __owur int tls1_group_id2nid(uint16_t group_id, int include_unknown);
 __owur uint16_t tls1_nid2group_id(int nid);
@@ -2919,4 +2930,31 @@ void ssl_session_calculate_timeout(SSL_SESSION* ss);
 #  define ssl3_setup_buffers SSL_test_functions()->p_ssl3_setup_buffers
 
 # endif
+
+/* Some helper routines to support TSAN operations safely */
+static ossl_unused ossl_inline int ssl_tsan_lock(const SSL_CTX *ctx)
+{
+#ifdef TSAN_REQUIRES_LOCKING
+    if (!CRYPTO_THREAD_write_lock(ctx->tsan_lock))
+        return 0;
+#endif
+    return 1;
+}
+
+static ossl_unused ossl_inline void ssl_tsan_unlock(const SSL_CTX *ctx)
+{
+#ifdef TSAN_REQUIRES_LOCKING
+    CRYPTO_THREAD_unlock(ctx->tsan_lock);
+#endif
+}
+
+static ossl_unused ossl_inline void ssl_tsan_counter(const SSL_CTX *ctx,
+                                                     TSAN_QUALIFIER int *stat)
+{
+    if (ssl_tsan_lock(ctx)) {
+        tsan_counter(stat);
+        ssl_tsan_unlock(ctx);
+    }
+}
+
 #endif
