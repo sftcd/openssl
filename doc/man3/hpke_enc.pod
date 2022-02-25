@@ -63,10 +63,8 @@ hpke_setlibctx
 =head1 DESCRIPTION
 
 These functions provide an API for using the form of Hybrid Public Key
-Encryption (HPKE) defined in
-https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-hpke which has passed all
-review stages in the IRTF and IETF and is now in the RFC editor's queue so will
-soon become an RFC. Understanding the HPKE specification is likely required
+Encryption (HPKE) defined in RFC 9180.
+Understanding the HPKE specification is likely required
 before using these APIs.  HPKE is used by various other IETF specifications,
 including the draft TLS Encrypted Client Hello (ECH) specification and others.
 
@@ -178,6 +176,7 @@ This example does a minimal round-trip encryption using HPKE.
     size_t plainlen=HPKE_MAXSIZE; unsigned char plain[HPKE_MAXSIZE];
     size_t cipherlen=HPKE_MAXSIZE; unsigned char cipher[HPKE_MAXSIZE];
     size_t clearlen=HPKE_MAXSIZE; unsigned char clear[HPKE_MAXSIZE];
+
     memset(plain,0,HPKE_MAXSIZE);
     strcpy((char*)plain,"a message not in a bottle");
     plainlen=strlen((char*)plain);
@@ -215,7 +214,7 @@ This example does a minimal round-trip encryption using HPKE.
 
 =head1 SEE ALSO
 
-The draft specification: https://tools.ietf.org/html/draft-irtf-cfrg-hpke
+The specification: RFC 9180
 
 There is a standalone HPKE repo with additional test vector handling and a
 command line tool at https://github.com/sftcd/happykey
