@@ -1,5 +1,5 @@
 /*
- * Copyright 2019-2021 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2019-2022 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the OpenSSL license (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -10,7 +10,7 @@
 /**
  * @file
  * This has the data structures and prototypes (both internal and external)
- * for an OpenSSL-based HPKE implementation following draft-irtf-cfrg-hpke
+ * for an OpenSSL-based HPKE implementation of RFC9180
  */
 
 #ifndef HPKE_H_INCLUDED
