@@ -26,6 +26,11 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
+- 20220310: got interop with FF nightly back! (was my fault - I
+  wasn't allowing for enough referencing of outer extensions in
+  the inner CH;-). Also a few tweaks to test scripts used to
+  track that down.
+
 - 20220225: noted HPKE is now RFC9180 and re-merged with upstream
 
 - 20220216: starting to test with FF again, see [ff13a.md](ff13a.md)

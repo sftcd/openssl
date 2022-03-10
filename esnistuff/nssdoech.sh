@@ -62,7 +62,7 @@ VERBOSE="no"
 
 function usage()
 {
-    echo "$0 [-pr] - run interop tests using local NSS build vs. localhost, CF or defo.ie"
+    echo "$0 [-plhv] - run interop tests using local NSS build vs. localhost, CF or defo.ie"
     echo "  -l to run a localhost test"
     echo "  -p port - specifies a specific listening port to test, all others skipped"
     echo "  -h means print this"
@@ -107,10 +107,15 @@ if [[ "$LOCAL" == "yes" ]]
 then
     # a server needs to be listening on localhost:8413 - just
     # running ``./echsrv.sh -d`` should do the trick
+    port="8443"
+    if [[ "$CLIPORT" != "" ]]
+    then
+        port=$CLIPORT
+    fi
 	ECH=`cat echconfig.pem | tail -2 | head -1`
-	echo "Running: $LDIR/bin/tstclnt -Q -b -h localhost -p 8443 \
+	echo "Running: $LDIR/bin/tstclnt -Q -b -h localhost -p $port \
         -a foo.example.com -d cadir/nssca/ -N $ECH $*"
-    $LDIR/bin/tstclnt -Q -b -h localhost -p 8443 -a foo.example.com -d cadir/nssca/ -N $ECH $* 
+    $LDIR/bin/tstclnt -Q -b -h localhost -p $port -a foo.example.com -d cadir/nssca/ -N $ECH $* 
     exit $?
 fi
 
