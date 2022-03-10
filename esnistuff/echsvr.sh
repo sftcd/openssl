@@ -292,10 +292,16 @@ cleanup() {
 }
 trap cleanup SIGINT
 
+sudocmd=""
+if (( PORT < 1000 ))
+then
+    sudocmd="sudo LD_LIBRARY_PATH=$LD_LIBRARY_PATH "
+fi
+
 if [[ "$DEBUG" == "yes" ]]
 then
-    echo "Running: $vgcmd $CODETOP/apps/openssl s_server $dbgstr $keyfile1 $keyfile2 $certsdb $portstr $force13 $echstr $snicmd $hardfail $trialdecrypt $alpn_cmd $echpad_cmd $hrr_cmd $WEBSERVER $earlystr"
+    echo "Running: $sudocmd $vgcmd $CODETOP/apps/openssl s_server $dbgstr $keyfile1 $keyfile2 $certsdb $portstr $force13 $echstr $snicmd $hardfail $trialdecrypt $alpn_cmd $echpad_cmd $hrr_cmd $WEBSERVER $earlystr"
 fi
-$vgcmd $CODETOP/apps/openssl s_server $dbgstr $keyfile1 $keyfile2 $certsdb $portstr $force13 $echstr $snicmd $hardfail $trialdecrypt $alpn_cmd $echpad_cmd $hrr_cmd $WEBSERVER $earlystr
+$sudocmd $vgcmd $CODETOP/apps/openssl s_server $dbgstr $keyfile1 $keyfile2 $certsdb $portstr $force13 $echstr $snicmd $hardfail $trialdecrypt $alpn_cmd $echpad_cmd $hrr_cmd $WEBSERVER $earlystr
 
 
