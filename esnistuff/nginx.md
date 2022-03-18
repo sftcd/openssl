@@ -74,7 +74,23 @@ at the INFO level. The success case in ``error.log`` looks like:
 
 We have an ECH draft-13 nginx instance running at [https://draft-13.esni.defo.ie:10413/](https://draft-13.esni.defo.ie:10413/)
 
-We have an ECH draft-10 nginx instance running at [https://draft-10.esni.defo.ie:10410/](https://draft-10.esni.defo.ie:10410/)
+The main defo.ie web server on port 443 is now also nginx with an ECH check page at 
+[https://defo.ie/ech-check.php](https://defo.ie/ech-check.php).
+
+## PHP variables
+
+I added the following variables that are now visible to PHP code:
+
+- ``SSL_ECH_STATUS`` - ``success`` means that others also mean what they say
+- ``SSL_ECH_INNER_SNI`` - has value that was in inner CH SNI (or ``NONE``)
+- ``SSL_ECH_OUTER_SNI`` - has value that was in outer CH SNI (or ``NONE``)
+
+To see those using fastcgi you need to include the following in the relevant
+bits of nginx config:
+
+            fastcgi_param SSL_ECH_STATUS $ssl_ech_status;
+            fastcgi_param SSL_ECH_INNER_SNI $ssl_ech_inner_sni;
+            fastcgi_param SSL_ECH_OUTER_SNI $ssl_ech_outer_sni;
 
 # ESNI
 
