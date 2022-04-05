@@ -2304,6 +2304,11 @@ EXT_RETURN tls_construct_stoc_ech13(SSL *s, WPACKET *pkt,
                                           unsigned int context, X509 *x,
                                           size_t chainidx)
 {
+    /* return most-recent ECH config for retry, as needed */
+    SSL_ECH *mostrecent=NULL;
+    int echind=0;
+    time_t echloadtime=0;
+
     /* 
      * If doing HRR we include the confirmation value, but
      * for now, we'll just add the zeros - the real octets
@@ -2337,10 +2342,10 @@ EXT_RETURN tls_construct_stoc_ech13(SSL *s, WPACKET *pkt,
     
     /*
      * If the client GREASEd, or we think it did, we
-     * return the first-loaded ECHConfigList, as the value
+     * return the most-recently loaded ECHConfigList, as the value
      * of the extension.
      */
-    if (s->ech==NULL || s->ech->cfg==NULL) {
+    if (s->ech==NULL || s->nechs==0 ) {
         OSSL_TRACE_BEGIN(TLS) {
             BIO_printf(trc_out,
                 "ECH - not sending ECHConfigList back to client even though " \
@@ -2348,18 +2353,29 @@ EXT_RETURN tls_construct_stoc_ech13(SSL *s, WPACKET *pkt,
         } OSSL_TRACE_END(TLS);
         return EXT_RETURN_NOT_SENT;
     }
-    if (s->ech->cfg->encoded==NULL || s->ech->cfg->encoded_len==0) {
-        OSSL_TRACE_BEGIN(TLS) {
-            BIO_printf(trc_out,
-                "ECH - not sending ECHConfigList back to client even though " \
-                "they GREASE'd as I've a busted config loaded\n");
-        } OSSL_TRACE_END(TLS);
-        return EXT_RETURN_NOT_SENT;
+    for (echind=0; echind!=s->nechs; echind++ ) {
+        if (s->ech[echind].cfg->encoded==NULL || 
+            s->ech[echind].cfg->encoded_len==0) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+            return 0;
+        }
+        if (s->ech[echind].loadtime > echloadtime ) {
+            echloadtime = s->ech[echind].loadtime;
+            mostrecent=&s->ech[echind];
+        }
     }
+    if (mostrecent==NULL ||
+        mostrecent->cfg->encoded==NULL || 
+        mostrecent->cfg->encoded_len==0) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+        return 0;
+    }
+
     if (s->ext.ech_attempted_type==ECH_DRAFT_13_VERSION) {
         if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_ech13)
             || !WPACKET_sub_memcpy_u16(pkt,
-                        s->ech->cfg->encoded, s->ech->cfg->encoded_len)
+                        mostrecent->cfg->encoded, 
+                        mostrecent->cfg->encoded_len)
                 ) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             return 0;
