@@ -112,7 +112,7 @@ function usage()
 
 	echo ""
 	echo "The following should work:"
-	echo "    $0 -H ietf.org"
+	echo "    $0 -H defo.ie"
     exit 99
 }
 
