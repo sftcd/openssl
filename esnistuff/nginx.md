@@ -40,9 +40,9 @@ I added an ECH key directory configuration setting that can be within the
 ``http`` stanza 
 in the nginx config file. Then, with a bit of generic parameter handling
 and the addition of a ``load_echkeys()`` function that's pretty much as done
-for [lighttpd](./lighttpd).
+for [lighttpd](./lighttpd.md).
 
-The ``load_eckeys()`` function expects ECH key files to be in the configured
+The ``load_echkeys()`` function expects ECH key files to be in the configured
 directory. It attempts to load all files matching ``<foo>.ech``
 It skips any files that don't match that naming pattern or don't parse correctly.  
 
