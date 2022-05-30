@@ -26,6 +26,8 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
+- 20220530: re-merged with upstream
+
 - 20220310: got interop with FF nightly back! (was my fault - I
   wasn't allowing for enough referencing of outer extensions in
   the inner CH;-). Also a few tweaks to test scripts used to
