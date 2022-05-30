@@ -300,7 +300,7 @@ then
             echo "Using DNS recursive: $DNSRECURSIVE"
             recursivestr=" @$DNSRECURSIVE "
         fi
-        digval="`dig +short $recursivestr -t TYPE65 $qname | tail -1 | cut -f 3- -d' ' | sed -e 's/ //g' `"
+        digval="`dig +unknownformat +short $recursivestr -t TYPE65 $qname | tail -1 | cut -f 3- -d' ' | sed -e 's/ //g' `"
         # digval used have one more sed command as per below...
         # digval="`dig +short -t TYPE65 $qname | tail -1 | cut -f 3- -d' ' | sed -e 's/ //g' | sed -e 'N;s/\n//'`"
         # I think that's a hangover from some other script that had to merge lines, e.g. if the RR value is 
