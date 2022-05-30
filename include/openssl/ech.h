@@ -461,7 +461,7 @@ int SSL_ech_get_status(SSL *s, char **inner_sni, char **outer_sni);
 int SSL_ech_set_grease_suite(SSL *s,const char* suite);
 
 /**
- * @brief allow clients to set a preferred HPKE suite to use when GREASEing
+ * @brief allow clients to set a preferred ECH extension typoe when GREASEing
  *
  * @param s is the SSL context
  * @param type is the relevant ECH extension type
