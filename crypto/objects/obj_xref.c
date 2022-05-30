@@ -1,5 +1,5 @@
 /*
- * Copyright 2006-2020 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2006-2022 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -36,7 +36,14 @@ static int sigx_cmp(const nid_triple *const *a, const nid_triple *const *b)
     int ret;
 
     ret = (*a)->hash_id - (*b)->hash_id;
-    if (ret != 0)
+    /* The "b" side of the comparison carries the algorithms already
+     * registered. A NID_undef for 'hash_id' there means that the
+     * signature algorithm doesn't need a digest to operate OK. In
+     * such case, any hash_id/digest algorithm on the test side (a),
+     * incl. NID_undef, is acceptable. signature algorithm NID
+     * (pkey_id) must match in any case.
+     */
+    if ((ret != 0) && ((*b)->hash_id != NID_undef))
         return ret;
     return (*a)->pkey_id - (*b)->pkey_id;
 }
@@ -105,7 +112,8 @@ int OBJ_find_sigid_by_algs(int *psignid, int dig_nid, int pkey_nid)
     const nid_triple **rv;
     int idx;
 
-    if (dig_nid == NID_undef || pkey_nid == NID_undef)
+    /* permitting searches for sig algs without digest: */
+    if (pkey_nid == NID_undef)
         return 0;
 
     tmp.hash_id = dig_nid;

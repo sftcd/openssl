@@ -87,6 +87,7 @@ B<openssl> B<s_client>
 [B<-no_comp>]
 [B<-brief>]
 [B<-legacy_server_connect>]
+[B<-no_legacy_server_connect>]
 [B<-allow_no_dhe_kex>]
 [B<-sigalgs> I<sigalglist>]
 [B<-curves> I<curvelist>]
@@ -119,6 +120,7 @@ B<openssl> B<s_client>
 [B<-srp_moregroups>]
 [B<-srp_strength> I<number>]
 [B<-ktls>]
+[B<-tfo>]
 {- $OpenSSL::safe::opt_name_synopsis -}
 {- $OpenSSL::safe::opt_version_synopsis -}
 {- $OpenSSL::safe::opt_x_synopsis -}
@@ -792,6 +794,10 @@ Enable Kernel TLS for sending and receiving.
 This option was introduced in OpenSSL 3.1.0.
 Kernel TLS is off by default as of OpenSSL 3.1.0.
 
+=item B<-tfo>
+
+Enable creation of connections via TCP fast open (RFC7413).
+
 {- $OpenSSL::safe::opt_version_item -}
 
 {- $OpenSSL::safe::opt_name_item -}
@@ -998,9 +1004,11 @@ The B<-certform> option has become obsolete in OpenSSL 3.0.0 and has no effect.
 
 The B<-engine> option was deprecated in OpenSSL 3.0.
 
+The -tfo option was added in OpenSSL 3.1.
+
 =head1 COPYRIGHT
 
-Copyright 2000-2021 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2000-2022 The OpenSSL Project Authors. All Rights Reserved.
 
 Licensed under the Apache License 2.0 (the "License").  You may not use
 this file except in compliance with the License.  You can obtain a copy

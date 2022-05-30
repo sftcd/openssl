@@ -1,4 +1,4 @@
-# Copyright 2021 The OpenSSL Project Authors. All Rights Reserved.
+# Copyright 2021-2022 The OpenSSL Project Authors. All Rights Reserved.
 #
 # Licensed under the Apache License 2.0 (the "License").  You may not use
 # this file except in compliance with the License.  You can obtain a copy
@@ -69,6 +69,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
+    - name: localegen
+      run: sudo locale-gen tr_TR.UTF-8
     - name: config
       run: CC=gcc ./config --banner=Configured enable-fips --strict-warnings && perl configdata.pm --dump
     - name: make
@@ -216,6 +218,20 @@ jobs:
     - name: make test
       run: make test HARNESS_JOBS=${HARNESS_JOBS:-4}
 
+  enable-tfo:
+    strategy:
+      matrix:
+        os: [ ubuntu-latest, macos-latest ]
+    runs-on: ${{matrix.os}}
+    steps:
+    - uses: actions/checkout@v2
+    - name: config
+      run: CC=gcc ./config --banner=Configured enable-tfo --strict-warnings && perl configdata.pm --dump
+    - name: make
+      run: make -s -j4
+    - name: make test
+      run: make test HARNESS_JOBS=${HARNESS_JOBS:-4}
+
   buildtest:
     runs-on: ubuntu-latest
     steps:
@@ -277,6 +293,8 @@ jobs:
       run: make test TESTS="test_external_krb5"
     - name: test external_tlsfuzzer
       run: make test TESTS="test_external_tlsfuzzer"
+    - name: test external oqs-provider
+      run: make test TESTS="test_external_oqsprovider"
 
   external-test-pyca:
     runs-on: ubuntu-latest

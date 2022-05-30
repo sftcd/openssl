@@ -1,5 +1,5 @@
 /*
- * Copyright 1995-2021 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 1995-2022 The OpenSSL Project Authors. All Rights Reserved.
  * Copyright (c) 2002, Oracle and/or its affiliates. All rights reserved
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
@@ -971,6 +971,12 @@ int ssl_cert_set_cert_store(CERT *c, X509_STORE *store, int chain, int ref)
     return 1;
 }
 
+int ssl_cert_get_cert_store(CERT *c, X509_STORE **pstore, int chain)
+{
+    *pstore = (chain ? c->chain_store : c->verify_store);
+    return 1;
+}
+
 int ssl_get_security_level_bits(const SSL *s, const SSL_CTX *ctx, int *levelp)
 {
     int level;
@@ -1001,7 +1007,7 @@ static int ssl_security_default_callback(const SSL *s, const SSL_CTX *ctx,
                                          int op, int bits, int nid, void *other,
                                          void *ex)
 {
-    int level, minbits;
+    int level, minbits, pfs_mask;
 
     minbits = ssl_get_security_level_bits(s, ctx, &level);
 
@@ -1033,25 +1039,20 @@ static int ssl_security_default_callback(const SSL *s, const SSL_CTX *ctx,
             if (minbits > 160 && c->algorithm_mac & SSL_SHA1)
                 return 0;
             /* Level 3: forward secure ciphersuites only */
+            pfs_mask = SSL_kDHE | SSL_kECDHE | SSL_kDHEPSK | SSL_kECDHEPSK;
             if (level >= 3 && c->min_tls != TLS1_3_VERSION &&
-                               !(c->algorithm_mkey & (SSL_kEDH | SSL_kEECDH)))
+                               !(c->algorithm_mkey & pfs_mask))
                 return 0;
             break;
         }
     case SSL_SECOP_VERSION:
         if (!SSL_IS_DTLS(s)) {
-            /* SSLv3 not allowed at level 2 */
-            if (nid <= SSL3_VERSION && level >= 2)
-                return 0;
-            /* TLS v1.1 and above only for level 3 */
-            if (nid <= TLS1_VERSION && level >= 3)
-                return 0;
-            /* TLS v1.2 only for level 4 and above */
-            if (nid <= TLS1_1_VERSION && level >= 4)
+            /* SSLv3, TLS v1.0 and TLS v1.1 only allowed at level 0 */
+            if (nid <= TLS1_1_VERSION && level > 0)
                 return 0;
         } else {
-            /* DTLS v1.2 only for level 4 and above */
-            if (DTLS_VERSION_LT(nid, DTLS1_2_VERSION) && level >= 4)
+            /* DTLS v1.0 only allowed at level 0 */
+            if (DTLS_VERSION_LT(nid, DTLS1_2_VERSION) && level > 0)
                 return 0;
         }
         break;

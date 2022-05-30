@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2020 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2002-2022 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -153,7 +153,7 @@ UI_METHOD *UI_UTIL_wrap_read_pem_callback(pem_password_cb *cb, int rwflag)
         || UI_method_set_writer(ui_method, ui_write) < 0
         || UI_method_set_closer(ui_method, ui_close) < 0
         || !RUN_ONCE(&get_index_once, ui_method_data_index_init)
-        || UI_method_set_ex_data(ui_method, ui_method_data_index, data) < 0) {
+        || !UI_method_set_ex_data(ui_method, ui_method_data_index, data)) {
         UI_destroy_method(ui_method);
         OPENSSL_free(data);
         return NULL;

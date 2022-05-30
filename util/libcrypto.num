@@ -5434,6 +5434,12 @@ BN_signed_lebin2bn                      ?	3_1_0	EXIST::FUNCTION:
 BN_signed_bn2lebin                      ?	3_1_0	EXIST::FUNCTION:
 BN_signed_native2bn                     ?	3_1_0	EXIST::FUNCTION:
 BN_signed_bn2native                     ?	3_1_0	EXIST::FUNCTION:
+ASYNC_set_mem_functions                 ?	3_1_0	EXIST::FUNCTION:
+ASYNC_get_mem_functions                 ?	3_1_0	EXIST::FUNCTION:
+BIO_ADDR_dup                            ?	3_1_0	EXIST::FUNCTION:SOCK
+CMS_final_digest                        ?	3_1_0	EXIST::FUNCTION:CMS
+OPENSSL_strcasecmp                      ?	3_0_3	EXIST::FUNCTION:
+OPENSSL_strncasecmp                     ?	3_0_3	EXIST::FUNCTION:
 hpke_kg                                 ?	3_0_0	EXIST::FUNCTION:
 hpke_kg_evp                             ?	3_0_0	EXIST::FUNCTION:
 hpke_enc                                ?	3_0_0	EXIST::FUNCTION:
@@ -5446,3 +5452,4 @@ hpke_good4grease                        ?	3_0_0	EXIST::FUNCTION:
 hpke_str2suite                          ?	3_0_0	EXIST::FUNCTION:
 hpke_prbuf2evp                          ?	3_0_0	EXIST::FUNCTION:
 hpke_setlibctx                          ?	3_0_0	EXIST::FUNCTION:
+

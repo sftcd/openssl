@@ -1,5 +1,5 @@
 /*
- * Copyright 1995-2021 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 1995-2022 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -49,8 +49,6 @@
 #endif
 #include "internal/provider.h"
 #include "evp_local.h"
-
-#include "internal/e_os.h"                /* strcasecmp on Windows */
 
 static int pkey_set_type(EVP_PKEY *pkey, ENGINE *e, int type, const char *str,
                          int len, EVP_KEYMGMT *keymgmt);
@@ -1018,7 +1016,7 @@ int evp_pkey_name2type(const char *name)
     size_t i;
 
     for (i = 0; i < OSSL_NELEM(standard_name2type); i++) {
-        if (strcasecmp(name, standard_name2type[i].ptr) == 0)
+        if (OPENSSL_strcasecmp(name, standard_name2type[i].ptr) == 0)
             return (int)standard_name2type[i].id;
     }
 
@@ -2345,10 +2343,10 @@ int EVP_PKEY_get_params(const EVP_PKEY *pkey, OSSL_PARAM params[])
 {
     if (pkey != NULL) {
         if (evp_pkey_is_provided(pkey))
-            return evp_keymgmt_get_params(pkey->keymgmt, pkey->keydata, params);
+            return evp_keymgmt_get_params(pkey->keymgmt, pkey->keydata, params) > 0;
 #ifndef FIPS_MODULE
         else if (evp_pkey_is_legacy(pkey))
-            return evp_pkey_get_params_to_ctrl(pkey, params);
+            return evp_pkey_get_params_to_ctrl(pkey, params) > 0;
 #endif
     }
     ERR_raise(ERR_LIB_EVP, EVP_R_INVALID_KEY);

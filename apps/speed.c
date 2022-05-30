@@ -1,5 +1,5 @@
 /*
- * Copyright 1995-2021 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 1995-2022 The OpenSSL Project Authors. All Rights Reserved.
  * Copyright (c) 2002, Oracle and/or its affiliates. All rights reserved
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
@@ -695,7 +695,7 @@ static EVP_CIPHER_CTX *init_evp_cipher_ctx(const char *ciphername,
         goto end;
     }
 
-    if (!EVP_CIPHER_CTX_set_key_length(ctx, keylen)) {
+    if (EVP_CIPHER_CTX_set_key_length(ctx, keylen) <= 0) {
         EVP_CIPHER_CTX_free(ctx);
         ctx = NULL;
         goto end;
@@ -736,7 +736,7 @@ static int EVP_Update_loop(void *args)
             rc = EVP_DecryptUpdate(ctx, buf, &outl, buf, lengths[testnum]);
             if (rc != 1) {
                 /* reset iv in case of counter overflow */
-                EVP_CipherInit_ex(ctx, NULL, NULL, NULL, iv, -1);
+                (void)EVP_CipherInit_ex(ctx, NULL, NULL, NULL, iv, -1);
             }
         }
     } else {
@@ -744,7 +744,7 @@ static int EVP_Update_loop(void *args)
             rc = EVP_EncryptUpdate(ctx, buf, &outl, buf, lengths[testnum]);
             if (rc != 1) {
                 /* reset iv in case of counter overflow */
-                EVP_CipherInit_ex(ctx, NULL, NULL, NULL, iv, -1);
+                (void)EVP_CipherInit_ex(ctx, NULL, NULL, NULL, iv, -1);
             }
         }
     }
@@ -3602,14 +3602,14 @@ static void multiblock_speed(const EVP_CIPHER *evp_cipher, int lengths_single,
         goto err;
     }
     key = app_malloc(keylen, "evp_cipher key");
-    if (!EVP_CIPHER_CTX_rand_key(ctx, key))
+    if (EVP_CIPHER_CTX_rand_key(ctx, key) <= 0)
         app_bail_out("failed to generate random cipher key\n");
     if (!EVP_EncryptInit_ex(ctx, NULL, NULL, key, NULL))
         app_bail_out("failed to set cipher key\n");
     OPENSSL_clear_free(key, keylen);
 
-    if (!EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_MAC_KEY,
-                             sizeof(no_key), no_key))
+    if (EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_MAC_KEY,
+                             sizeof(no_key), no_key) <= 0)
         app_bail_out("failed to set AEAD key\n");
     if ((alg_name = EVP_CIPHER_get0_name(evp_cipher)) == NULL)
         app_bail_out("failed to get cipher name\n");

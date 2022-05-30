@@ -1,5 +1,5 @@
 /*
- * Copyright 2019-2021 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2019-2022 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -13,7 +13,6 @@
  */
 #include "internal/deprecated.h"
 
-#include "internal/e_os.h" /* strcasecmp */
 #include <openssl/core_dispatch.h>
 #include <openssl/core_names.h>
 #include <openssl/bn.h>
@@ -90,7 +89,7 @@ static int dsa_gen_type_name2id(const char *name)
     size_t i;
 
     for (i = 0; i < OSSL_NELEM(dsatype2id); ++i) {
-        if (strcasecmp(dsatype2id[i].name, name) == 0)
+        if (OPENSSL_strcasecmp(dsatype2id[i].name, name) == 0)
             return dsatype2id[i].id;
     }
     return -1;

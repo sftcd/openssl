@@ -23,9 +23,28 @@ OpenSSL 3.1
 
   * Subject or issuer names in X.509 objects are now displayed as UTF-8 strings
     by default.
+  * TCP Fast Open (RFC7413) support is available on Linux, macOS, and FreeBSD
+    where enabled and supported.
+  * SSL 3, TLS 1.0, TLS 1.1, and DTLS 1.0 only work at security level 0.
 
 OpenSSL 3.0
 -----------
+
+### Major changes between OpenSSL 3.0.2 and OpenSSL 3.0.3
+
+  * Fixed a bug in the c_rehash script which was not properly sanitising shell
+    metacharacters to prevent command injection ([CVE-2022-1292])
+  * Fixed a bug in the function `OCSP_basic_verify` that verifies the signer
+    certificate on an OCSP response ([CVE-2022-1343])
+  * Fixed a bug where the RC4-MD5 ciphersuite incorrectly used the
+    AAD data as the MAC key ([CVE-2022-1434])
+  * Fix a bug in the OPENSSL_LH_flush() function that breaks reuse of the memory
+    occuppied by the removed hash table entries ([CVE-2022-1473])
+
+### Major changes between OpenSSL 3.0.1 and OpenSSL 3.0.2
+
+  * Fixed a bug in the BN_mod_sqrt() function that can cause it to loop forever
+    for non-prime moduli ([CVE-2022-0778])
 
 ### Major changes between OpenSSL 3.0.0 and OpenSSL 3.0.1
 
@@ -104,7 +123,8 @@ OpenSSL 3.0
     RC4, RC5 and SEED cipher functions have been deprecated.
   * All of the low-level DH, DSA, ECDH, ECDSA and RSA public key functions
     have been deprecated.
-  * SSL 3, TLS 1.0, TLS 1.1, and DTLS 1.0 only work at security level 0.
+  * SSL 3, TLS 1.0, TLS 1.1, and DTLS 1.0 only work at security level 0,
+    except when RSA key exchange without SHA1 is used.
   * Added providers, a new pluggability concept that will replace the
     ENGINE API and ENGINE implementations.
 

@@ -137,6 +137,8 @@ custom_ext_free_cb                      datatype
 custom_ext_parse_cb                     datatype
 pem_password_cb                         datatype
 ssl_ct_validation_cb                    datatype
+ASYNC_stack_alloc_fn                    datatype
+ASYNC_stack_free_fn                     datatype
 #
 ASN1_BIT_STRING_digest                  define
 BIO_append_filename                     define
@@ -164,6 +166,7 @@ BIO_get_conn_address                    define
 BIO_get_conn_hostname                   define
 BIO_get_conn_port                       define
 BIO_get_conn_ip_family                  define
+BIO_get_conn_mode                       define
 BIO_get_fd                              define
 BIO_get_fp                              define
 BIO_get_indent                          define
@@ -197,6 +200,7 @@ BIO_set_conn_address                    define
 BIO_set_conn_hostname                   define
 BIO_set_conn_port                       define
 BIO_set_conn_ip_family                  define
+BIO_set_conn_mode                       define
 BIO_set_fd                              define
 BIO_set_fp                              define
 BIO_set_indent                          define
@@ -212,6 +216,8 @@ BIO_set_ssl                             define
 BIO_set_ssl_mode                        define
 BIO_set_ssl_renegotiate_bytes           define
 BIO_set_ssl_renegotiate_timeout         define
+BIO_set_tfo                             define
+BIO_set_tfo_accept                      define
 BIO_set_write_buf_size                  define
 BIO_set_write_buffer_size               define
 BIO_should_io_special                   define
@@ -461,6 +467,8 @@ SSL_CTX_decrypt_session_ticket_fn       define
 SSL_CTX_disable_ct                      define
 SSL_CTX_generate_session_ticket_fn      define
 SSL_CTX_get0_chain_certs                define
+SSL_CTX_get0_chain_cert_store           define
+SSL_CTX_get0_verify_cert_store          define
 SSL_CTX_get_default_read_ahead          define
 SSL_CTX_get_extra_chain_certs           define
 SSL_CTX_get_extra_chain_certs_only      define
@@ -534,6 +542,8 @@ SSL_disable_ct                          define
 SSL_get0_chain_certs                    define
 SSL_get0_iana_groups                    define
 SSL_get0_session                        define
+SSL_get0_chain_cert_store               define
+SSL_get0_verify_cert_store              define
 SSL_get1_curves                         define
 SSL_get1_groups                         define
 SSL_get_cipher                          define
@@ -671,3 +681,4 @@ EVP_PKEY_security_bits                  define
 EVP_PKEY_size                           define
 EVP_PKEY_id                             define
 EVP_PKEY_base_id                        define
+SSL_set_retry_verify                    define

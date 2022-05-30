@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2021 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2002-2022 The OpenSSL Project Authors. All Rights Reserved.
  * Copyright (c) 2002, Oracle and/or its affiliates. All rights reserved
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
@@ -88,6 +88,9 @@ typedef enum {
 
 const char *OSSL_EC_curve_nid2name(int nid);
 
+# ifndef OPENSSL_NO_STDIO
+#  include <stdio.h>
+# endif
 # ifndef OPENSSL_NO_EC
 #  include <openssl/asn1.h>
 #  include <openssl/symhacks.h>

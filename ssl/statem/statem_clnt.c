@@ -1,5 +1,5 @@
 /*
- * Copyright 1995-2021 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 1995-2022 The OpenSSL Project Authors. All Rights Reserved.
  * Copyright (c) 2002, Oracle and/or its affiliates. All rights reserved
  * Copyright 2005 Nokia. All rights reserved.
  *
@@ -1756,6 +1756,10 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL *s, PACKET *pkt)
             && sversion == TLS1_2_VERSION
             && PACKET_remaining(pkt) >= SSL3_RANDOM_SIZE
             && memcmp(hrrrandom, PACKET_data(pkt), SSL3_RANDOM_SIZE) == 0) {
+        if (s->hello_retry_request != SSL_HRR_NONE) {
+            SSLfatal(s, SSL_AD_UNEXPECTED_MESSAGE, SSL_R_UNEXPECTED_MESSAGE);
+            goto err;
+        }
         s->hello_retry_request = SSL_HRR_PENDING;
         hrr = 1;
         if (!PACKET_forward(pkt, SSL3_RANDOM_SIZE)) {
@@ -2528,9 +2532,10 @@ WORK_STATE tls_post_process_server_certificate(SSL *s, WORK_STATE wst)
     size_t certidx;
     int i;
 
+    if (s->rwstate == SSL_RETRY_VERIFY)
+        s->rwstate = SSL_NOTHING;
     i = ssl_verify_cert_chain(s, s->session->peer_chain);
-    if (i == -1) {
-        s->rwstate = SSL_RETRY_VERIFY;
+    if (i > 0 && s->rwstate == SSL_RETRY_VERIFY) {
         return WORK_MORE_A;
     }
     /*
@@ -2547,7 +2552,7 @@ WORK_STATE tls_post_process_server_certificate(SSL *s, WORK_STATE wst)
      * (less clean) historic behaviour of performing validation if any flag is
      * set. The *documented* interface remains the same.
      */
-    if (s->verify_mode != SSL_VERIFY_NONE && i == 0) {
+    if (s->verify_mode != SSL_VERIFY_NONE && i <= 0) {
         SSLfatal(s, ssl_x509err2alert(s->verify_result),
                  SSL_R_CERTIFICATE_VERIFY_FAILED);
         return WORK_ERROR;
@@ -3820,7 +3825,8 @@ static int tls_construct_cke_gost18(SSL *s, WPACKET *pkt)
 {
 #ifndef OPENSSL_NO_GOST
     /* GOST 2018 key exchange message creation */
-    unsigned char rnd_dgst[32], tmp[255];
+    unsigned char rnd_dgst[32];
+    unsigned char *encdata = NULL;
     EVP_PKEY_CTX *pkey_ctx = NULL;
     X509 *peer_cert;
     unsigned char *pms = NULL;
@@ -3885,18 +3891,19 @@ static int tls_construct_cke_gost18(SSL *s, WPACKET *pkt)
         goto err;
     }
 
-    msglen = 255;
-    if (EVP_PKEY_encrypt(pkey_ctx, tmp, &msglen, pms, pmslen) <= 0) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_R_LIBRARY_BUG);
+    if (EVP_PKEY_encrypt(pkey_ctx, NULL, &msglen, pms, pmslen) <= 0) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_EVP_LIB);
         goto err;
     }
 
-    if (!WPACKET_memcpy(pkt, tmp, msglen)) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+    if (!WPACKET_allocate_bytes(pkt, msglen, &encdata)
+            || EVP_PKEY_encrypt(pkey_ctx, encdata, &msglen, pms, pmslen) <= 0) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_EVP_LIB);
         goto err;
     }
 
     EVP_PKEY_CTX_free(pkey_ctx);
+    pkey_ctx = NULL;
     s->s3.tmp.pms = pms;
     s->s3.tmp.pmslen = pmslen;
 

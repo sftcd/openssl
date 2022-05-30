@@ -44,7 +44,6 @@
 #include <openssl/rand.h>
 #include <openssl/bn.h>
 #include <openssl/ssl.h>
-#include <openssl/store.h>
 #include <openssl/core_names.h>
 #include "s_apps.h"
 #include "apps.h"
@@ -285,7 +284,7 @@ static char *app_get_pass(const char *arg, int keepbio)
             i = atoi(arg);
             if (i >= 0)
                 pwdbio = BIO_new_fd(i, BIO_NOCLOSE);
-            if ((i < 0) || !pwdbio) {
+            if ((i < 0) || pwdbio == NULL) {
                 BIO_printf(bio_err, "Can't access file descriptor %s\n", arg);
                 return NULL;
             }
@@ -293,6 +292,12 @@ static char *app_get_pass(const char *arg, int keepbio)
              * Can't do BIO_gets on an fd BIO so add a buffering BIO
              */
             btmp = BIO_new(BIO_f_buffer());
+            if (btmp == NULL) {
+                BIO_free_all(pwdbio);
+                pwdbio = NULL;
+                BIO_printf(bio_err, "Out of memory\n");
+                return NULL;
+            }
             pwdbio = BIO_push(btmp, pwdbio);
 #endif
         } else if (strcmp(arg, "stdin") == 0) {
@@ -1139,20 +1144,20 @@ int set_name_ex(unsigned long *flags, const char *arg)
 
 int set_dateopt(unsigned long *dateopt, const char *arg)
 {
-    if (strcasecmp(arg, "rfc_822") == 0)
+    if (OPENSSL_strcasecmp(arg, "rfc_822") == 0)
         *dateopt = ASN1_DTFLGS_RFC822;
-    else if (strcasecmp(arg, "iso_8601") == 0)
+    else if (OPENSSL_strcasecmp(arg, "iso_8601") == 0)
         *dateopt = ASN1_DTFLGS_ISO8601;
     return 0;
 }
 
 int set_ext_copy(int *copy_type, const char *arg)
 {
-    if (strcasecmp(arg, "none") == 0)
+    if (OPENSSL_strcasecmp(arg, "none") == 0)
         *copy_type = EXT_COPY_NONE;
-    else if (strcasecmp(arg, "copy") == 0)
+    else if (OPENSSL_strcasecmp(arg, "copy") == 0)
         *copy_type = EXT_COPY_ADD;
-    else if (strcasecmp(arg, "copyall") == 0)
+    else if (OPENSSL_strcasecmp(arg, "copyall") == 0)
         *copy_type = EXT_COPY_ALL;
     else
         return 0;
@@ -1233,7 +1238,7 @@ static int set_table_opts(unsigned long *flags, const char *arg,
     }
 
     for (ptbl = in_tbl; ptbl->name; ptbl++) {
-        if (strcasecmp(arg, ptbl->name) == 0) {
+        if (OPENSSL_strcasecmp(arg, ptbl->name) == 0) {
             *flags &= ~ptbl->mask;
             if (c)
                 *flags |= ptbl->flag;

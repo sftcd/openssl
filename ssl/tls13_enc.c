@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2021 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2016-2022 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -461,9 +461,9 @@ static int derive_secret_key_and_iv(SSL *s, int sending, const EVP_MD *md,
     }
 
     if (EVP_CipherInit_ex(ciph_ctx, ciph, NULL, NULL, NULL, sending) <= 0
-        || !EVP_CIPHER_CTX_ctrl(ciph_ctx, EVP_CTRL_AEAD_SET_IVLEN, ivlen, NULL)
-        || (taglen != 0 && !EVP_CIPHER_CTX_ctrl(ciph_ctx, EVP_CTRL_AEAD_SET_TAG,
-                                                taglen, NULL))
+        || EVP_CIPHER_CTX_ctrl(ciph_ctx, EVP_CTRL_AEAD_SET_IVLEN, ivlen, NULL) <= 0
+        || (taglen != 0 && EVP_CIPHER_CTX_ctrl(ciph_ctx, EVP_CTRL_AEAD_SET_TAG,
+                                                taglen, NULL) <= 0)
         || EVP_CipherInit_ex(ciph_ctx, NULL, NULL, key, NULL, -1) <= 0) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_EVP_LIB);
         return 0;
@@ -510,6 +510,7 @@ int tls13_change_cipher_state(SSL *s, int which)
     const EVP_CIPHER *cipher = NULL;
 #if !defined(OPENSSL_NO_KTLS) && defined(OPENSSL_KTLS_TLS13)
     ktls_crypto_info_t crypto_info;
+    void *rl_sequence;
     BIO *bio;
 #endif
 
@@ -919,8 +920,7 @@ int tls13_change_cipher_state(SSL *s, int which)
         s->statem.enc_write_state = ENC_WRITE_STATE_VALID;
 #ifndef OPENSSL_NO_KTLS
 # if defined(OPENSSL_KTLS_TLS13)
-    if (!(which & SSL3_CC_WRITE)
-            || !(which & SSL3_CC_APPLICATION)
+    if (!(which & SSL3_CC_APPLICATION)
             || (s->options & SSL_OP_ENABLE_KTLS) == 0)
         goto skip_ktls;
 
@@ -936,7 +936,10 @@ int tls13_change_cipher_state(SSL *s, int which)
     if (!ktls_check_supported_cipher(s, cipher, ciph_ctx))
         goto skip_ktls;
 
-    bio = s->wbio;
+    if (which & SSL3_CC_WRITE)
+        bio = s->wbio;
+    else
+        bio = s->rbio;
 
     if (!ossl_assert(bio != NULL)) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
@@ -944,18 +947,26 @@ int tls13_change_cipher_state(SSL *s, int which)
     }
 
     /* All future data will get encrypted by ktls. Flush the BIO or skip ktls */
-    if (BIO_flush(bio) <= 0)
-        goto skip_ktls;
+    if (which & SSL3_CC_WRITE) {
+        if (BIO_flush(bio) <= 0)
+            goto skip_ktls;
+    }
 
     /* configure kernel crypto structure */
-    if (!ktls_configure_crypto(s, cipher, ciph_ctx,
-                               RECORD_LAYER_get_write_sequence(&s->rlayer),
-                               &crypto_info, NULL, iv, key, NULL, 0))
+    if (which & SSL3_CC_WRITE)
+        rl_sequence = RECORD_LAYER_get_write_sequence(&s->rlayer);
+    else
+        rl_sequence = RECORD_LAYER_get_read_sequence(&s->rlayer);
+
+    if (!ktls_configure_crypto(s, cipher, ciph_ctx, rl_sequence, &crypto_info,
+                               which & SSL3_CC_WRITE, iv, key, NULL, 0))
         goto skip_ktls;
 
     /* ktls works with user provided buffers directly */
-    if (BIO_set_ktls(bio, &crypto_info, which & SSL3_CC_WRITE))
-        ssl3_release_write_buffer(s);
+    if (BIO_set_ktls(bio, &crypto_info, which & SSL3_CC_WRITE)) {
+        if (which & SSL3_CC_WRITE)
+            ssl3_release_write_buffer(s);
+    }
 skip_ktls:
 # endif
 #endif

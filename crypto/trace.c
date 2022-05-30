@@ -1,5 +1,5 @@
 /*
- * Copyright 2019-2021 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2019-2022 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -18,8 +18,6 @@
 #include "internal/nelem.h"
 #include "internal/refcount.h"
 #include "crypto/cryptlib.h"
-
-#include "internal/e_os.h"                /* strcasecmp for Windows */
 
 #ifndef OPENSSL_NO_TRACE
 
@@ -158,7 +156,7 @@ int OSSL_trace_get_category_num(const char *name)
     size_t i;
 
     for (i = 0; i < OSSL_NELEM(trace_categories); i++)
-        if (strcasecmp(name, trace_categories[i].name) == 0)
+        if (OPENSSL_strcasecmp(name, trace_categories[i].name) == 0)
             return trace_categories[i].num;
     return -1; /* not found */
 }

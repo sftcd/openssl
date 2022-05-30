@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2021 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2020-2022 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -457,7 +457,7 @@ static int try_cert(struct extracted_param_data_st *data, OSSL_STORE_INFO **v,
 
         /* If we have a data type, it should be a PEM name */
         if (data->data_type != NULL
-            && (strcasecmp(data->data_type, PEM_STRING_X509_TRUSTED) == 0))
+            && (OPENSSL_strcasecmp(data->data_type, PEM_STRING_X509_TRUSTED) == 0))
             ignore_trusted = 0;
 
         if (d2i_X509_AUX(&cert, (const unsigned char **)&data->octet_data,

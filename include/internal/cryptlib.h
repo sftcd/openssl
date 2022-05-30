@@ -1,5 +1,5 @@
 /*
- * Copyright 1995-2021 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 1995-2022 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -117,33 +117,16 @@ typedef struct ossl_ex_data_global_st {
 # define OSSL_LIB_CTX_CHILD_PROVIDER_INDEX          18
 # define OSSL_LIB_CTX_MAX_INDEXES                   19
 
-# define OSSL_LIB_CTX_METHOD_LOW_PRIORITY          -1
-# define OSSL_LIB_CTX_METHOD_DEFAULT_PRIORITY       0
-# define OSSL_LIB_CTX_METHOD_PRIORITY_1             1
-# define OSSL_LIB_CTX_METHOD_PRIORITY_2             2
-
-typedef struct ossl_lib_ctx_method {
-    int priority;
-    void *(*new_func)(OSSL_LIB_CTX *ctx);
-    void (*free_func)(void *);
-} OSSL_LIB_CTX_METHOD;
-
 OSSL_LIB_CTX *ossl_lib_ctx_get_concrete(OSSL_LIB_CTX *ctx);
 int ossl_lib_ctx_is_default(OSSL_LIB_CTX *ctx);
 int ossl_lib_ctx_is_global_default(OSSL_LIB_CTX *ctx);
 
 /* Functions to retrieve pointers to data by index */
-void *ossl_lib_ctx_get_data(OSSL_LIB_CTX *, int /* index */,
-                            const OSSL_LIB_CTX_METHOD * ctx);
+void *ossl_lib_ctx_get_data(OSSL_LIB_CTX *, int /* index */);
 
 void ossl_lib_ctx_default_deinit(void);
 OSSL_EX_DATA_GLOBAL *ossl_lib_ctx_get_ex_data_global(OSSL_LIB_CTX *ctx);
-typedef int (ossl_lib_ctx_run_once_fn)(OSSL_LIB_CTX *ctx);
-typedef void (ossl_lib_ctx_onfree_fn)(OSSL_LIB_CTX *ctx);
 
-int ossl_lib_ctx_run_once(OSSL_LIB_CTX *ctx, unsigned int idx,
-                          ossl_lib_ctx_run_once_fn run_once_fn);
-int ossl_lib_ctx_onfree(OSSL_LIB_CTX *ctx, ossl_lib_ctx_onfree_fn onfreefn);
 const char *ossl_lib_ctx_get_descriptor(OSSL_LIB_CTX *libctx);
 
 OSSL_LIB_CTX *ossl_crypto_ex_data_get_ossl_lib_ctx(const CRYPTO_EX_DATA *ad);
@@ -174,5 +157,4 @@ char *ossl_ipaddr_to_asc(unsigned char *p, int len);
 char *ossl_buf2hexstr_sep(const unsigned char *buf, long buflen, char sep);
 unsigned char *ossl_hexstr2buf_sep(const char *str, long *buflen,
                                    const char sep);
-
 #endif

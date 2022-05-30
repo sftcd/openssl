@@ -1,5 +1,5 @@
 /*
- * Copyright 2019-2021 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2019-2022 The OpenSSL Project Authors. All Rights Reserved.
  * Copyright (c) 2019, Oracle and/or its affiliates.  All rights reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
@@ -170,7 +170,7 @@ static int der_encode_sharedinfo(WPACKET *pkt, unsigned char *buf, size_t buflen
  * |cek_oidlen| The length (in bytes) of the key wrapping algorithm oid,
  * |acvp| is the optional blob of DER data representing one or more of the
  *   OtherInfo fields related to |partyu|, |partyv|, |supp_pub| and |supp_priv|.
- *   This field should noramlly be NULL. If |acvp| is non NULL then |partyu|,
+ *   This field should normally be NULL. If |acvp| is non NULL then |partyu|,
  *   |partyv|, |supp_pub| and |supp_priv| should all be NULL.
  * |acvp_len| is the |acvp| length (in bytes).
  * |partyu| is the optional public info contributed by the initiator.

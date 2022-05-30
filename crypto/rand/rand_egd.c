@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2020 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2000-2022 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -40,11 +40,7 @@ int RAND_egd_bytes(const char *path, int bytes)
 # include <sys/types.h>
 # include <sys/socket.h>
 # ifndef NO_SYS_UN_H
-#  ifdef OPENSSL_SYS_VXWORKS
-#   include <streams/un.h>
-#  else
-#   include <sys/un.h>
-#  endif
+#  include <sys/un.h>
 # else
 struct sockaddr_un {
     short sun_family;           /* AF_UNIX */

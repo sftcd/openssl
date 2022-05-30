@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2021 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2011-2022 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -57,6 +57,8 @@ void _armv8_sm3_probe(void);
 void _armv8_sm4_probe(void);
 void _armv8_sha512_probe(void);
 unsigned int _armv8_cpuid_probe(void);
+void _armv8_sve_probe(void);
+void _armv8_sve2_probe(void);
 void _armv8_rng_probe(void);
 
 size_t OPENSSL_rndr_asm(unsigned char *buf, size_t len);
@@ -175,8 +177,10 @@ static unsigned long getauxval(unsigned long key)
 #  define HWCAP_CE_SM3           (1 << 18)
 #  define HWCAP_CE_SM4           (1 << 19)
 #  define HWCAP_CE_SHA512        (1 << 21)
+#  define HWCAP_SVE              (1 << 22)
                                   /* AT_HWCAP2 */
 #  define HWCAP2                 26
+#  define HWCAP2_SVE2            (1 << 1)
 #  define HWCAP2_RNG             (1 << 16)
 # endif
 
@@ -270,6 +274,12 @@ void OPENSSL_cpuid_setup(void)
 #  endif
     }
 #  ifdef __aarch64__
+        if (getauxval(HWCAP) & HWCAP_SVE)
+            OPENSSL_armcap_P |= ARMV8_SVE;
+
+        if (getauxval(HWCAP2) & HWCAP2_SVE2)
+            OPENSSL_armcap_P |= ARMV8_SVE2;
+
         if (getauxval(HWCAP2) & HWCAP2_RNG)
             OPENSSL_armcap_P |= ARMV8_RNG;
 #  endif
@@ -331,6 +341,16 @@ void OPENSSL_cpuid_setup(void)
     }
 #  ifdef __aarch64__
     if (sigsetjmp(ill_jmp, 1) == 0) {
+        _armv8_sve_probe();
+        OPENSSL_armcap_P |= ARMV8_SVE;
+    }
+
+    if (sigsetjmp(ill_jmp, 1) == 0) {
+        _armv8_sve2_probe();
+        OPENSSL_armcap_P |= ARMV8_SVE2;
+    }
+
+    if (sigsetjmp(ill_jmp, 1) == 0) {
         _armv8_rng_probe();
         OPENSSL_armcap_P |= ARMV8_RNG;
     }
@@ -355,7 +375,8 @@ void OPENSSL_cpuid_setup(void)
         (OPENSSL_armcap_P & ARMV7_NEON)) {
             OPENSSL_armv8_rsa_neonized = 1;
     }
-    if ((MIDR_IS_CPU_MODEL(OPENSSL_arm_midr, ARM_CPU_IMP_ARM, ARM_CPU_PART_V1)) &&
+    if ((MIDR_IS_CPU_MODEL(OPENSSL_arm_midr, ARM_CPU_IMP_ARM, ARM_CPU_PART_V1) ||
+         MIDR_IS_CPU_MODEL(OPENSSL_arm_midr, ARM_CPU_IMP_ARM, ARM_CPU_PART_N2)) &&
         (OPENSSL_armcap_P & ARMV8_SHA3))
         OPENSSL_armcap_P |= ARMV8_UNROLL8_EOR3;
 # endif

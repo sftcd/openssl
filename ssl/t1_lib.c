@@ -1,5 +1,5 @@
 /*
- * Copyright 1995-2021 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 1995-2022 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -3065,6 +3065,8 @@ int ssl_security_cert_chain(SSL *s, STACK_OF(X509) *sk, X509 *x, int vfy)
     int rv, start_idx, i;
     if (x == NULL) {
         x = sk_X509_value(sk, 0);
+        if (x == NULL)
+            return ERR_R_INTERNAL_ERROR;
         start_idx = 1;
     } else
         start_idx = 0;

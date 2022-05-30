@@ -1,5 +1,5 @@
 /*
- * Copyright 1995-2021 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 1995-2022 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -334,7 +334,7 @@ int enc_main(int argc, char **argv)
     buff = app_malloc(EVP_ENCODE_LENGTH(bsize), "evp buffer");
 
     if (infile == NULL) {
-        if (!streamable) {
+        if (!streamable && printkey != 2) {  /* if just print key and exit, it's ok */
             BIO_printf(bio_err, "Unstreamable cipher mode\n");
             goto end;
         }

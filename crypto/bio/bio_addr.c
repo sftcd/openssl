@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2021 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2016-2022 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -67,6 +67,18 @@ void BIO_ADDR_free(BIO_ADDR *ap)
     OPENSSL_free(ap);
 }
 
+BIO_ADDR *BIO_ADDR_dup(const BIO_ADDR *ap)
+{
+    BIO_ADDR *ret = NULL;
+
+    if (ap != NULL) {
+        ret = BIO_ADDR_new();
+        if (ret != NULL)
+            memcpy(ret, ap, sizeof(BIO_ADDR));
+    }
+    return ret;
+}
+
 void BIO_ADDR_clear(BIO_ADDR *ap)
 {
     memset(ap, 0, sizeof(*ap));
@@ -83,7 +95,7 @@ int BIO_ADDR_make(BIO_ADDR *ap, const struct sockaddr *sa)
         memcpy(&(ap->s_in), sa, sizeof(struct sockaddr_in));
         return 1;
     }
-#ifdef AF_INET6
+#if OPENSSL_USE_IPV6
     if (sa->sa_family == AF_INET6) {
         memcpy(&(ap->s_in6), sa, sizeof(struct sockaddr_in6));
         return 1;
@@ -122,7 +134,7 @@ int BIO_ADDR_rawmake(BIO_ADDR *ap, int family,
         ap->s_in.sin_addr = *(struct in_addr *)where;
         return 1;
     }
-#ifdef AF_INET6
+#if OPENSSL_USE_IPV6
     if (family == AF_INET6) {
         if (wherelen != sizeof(struct in6_addr))
             return 0;
@@ -151,7 +163,7 @@ int BIO_ADDR_rawaddress(const BIO_ADDR *ap, void *p, size_t *l)
         len = sizeof(ap->s_in.sin_addr);
         addrptr = &ap->s_in.sin_addr;
     }
-#ifdef AF_INET6
+#if OPENSSL_USE_IPV6
     else if (ap->sa.sa_family == AF_INET6) {
         len = sizeof(ap->s_in6.sin6_addr);
         addrptr = &ap->s_in6.sin6_addr;
@@ -180,7 +192,7 @@ unsigned short BIO_ADDR_rawport(const BIO_ADDR *ap)
 {
     if (ap->sa.sa_family == AF_INET)
         return ap->s_in.sin_port;
-#ifdef AF_INET6
+#if OPENSSL_USE_IPV6
     if (ap->sa.sa_family == AF_INET6)
         return ap->s_in6.sin6_port;
 #endif
@@ -334,7 +346,7 @@ socklen_t BIO_ADDR_sockaddr_size(const BIO_ADDR *ap)
 {
     if (ap->sa.sa_family == AF_INET)
         return sizeof(ap->s_in);
-#ifdef AF_INET6
+#if OPENSSL_USE_IPV6
     if (ap->sa.sa_family == AF_INET6)
         return sizeof(ap->s_in6);
 #endif
@@ -656,7 +668,7 @@ int BIO_lookup_ex(const char *host, const char *service, int lookup_type,
 
     switch (family) {
     case AF_INET:
-#ifdef AF_INET6
+#if OPENSSL_USE_IPV6
     case AF_INET6:
 #endif
 #ifdef AF_UNIX

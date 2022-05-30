@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2021 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2015-2022 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -1742,7 +1742,7 @@ static int ec_export_get_encoding_cb(const OSSL_PARAM params[], void *arg)
         return 0;
 
     for (i = 0; i < OSSL_NELEM(ec_encodings); i++) {
-        if (strcasecmp(enc_name, ec_encodings[i].encoding_name) == 0) {
+        if (OPENSSL_strcasecmp(enc_name, ec_encodings[i].encoding_name) == 0) {
             *enc = ec_encodings[i].encoding;
             break;
         }
@@ -1964,6 +1964,24 @@ static int test_EVP_SM2(void)
         goto done;
 
     if (!TEST_int_gt(EVP_DigestVerifyFinal(md_ctx_verify, sig, sig_len), 0))
+        goto done;
+
+    /*
+     * Try verify again with non-matching 0 length id but ensure that it can
+     * be set on the context and overrides the previous value.
+     */
+
+    if (!TEST_true(EVP_DigestVerifyInit(md_ctx_verify, NULL, check_md, NULL,
+                                        pkey)))
+        goto done;
+
+    if (!TEST_int_gt(EVP_PKEY_CTX_set1_id(sctx, NULL, 0), 0))
+        goto done;
+
+    if (!TEST_true(EVP_DigestVerifyUpdate(md_ctx_verify, kMsg, sizeof(kMsg))))
+        goto done;
+
+    if (!TEST_int_eq(EVP_DigestVerifyFinal(md_ctx_verify, sig, sig_len), 0))
         goto done;
 
     /* now check encryption/decryption */
@@ -3253,6 +3271,31 @@ err:
 }
 #endif
 
+#ifndef OPENSSL_NO_BF
+static int test_evp_bf_default_keylen(int idx)
+{
+    int ret = 0;
+    static const char *algos[4] = {
+        "bf-ecb", "bf-cbc", "bf-cfb", "bf-ofb"
+    };
+    int ivlen[4] = { 0, 8, 8, 8 };
+    EVP_CIPHER *cipher = NULL;
+
+    if (lgcyprov == NULL)
+        return TEST_skip("Test requires legacy provider to be loaded");
+
+    if (!TEST_ptr(cipher = EVP_CIPHER_fetch(testctx, algos[idx], testpropq))
+            || !TEST_int_eq(EVP_CIPHER_get_key_length(cipher), 16)
+            || !TEST_int_eq(EVP_CIPHER_get_iv_length(cipher), ivlen[idx]))
+        goto err;
+
+    ret = 1;
+err:
+    EVP_CIPHER_free(cipher);
+    return ret;
+}
+#endif
+
 #ifndef OPENSSL_NO_EC
 static int ecpub_nids[] = {
     NID_brainpoolP256r1, NID_X9_62_prime256v1,
@@ -3492,7 +3535,7 @@ static int evp_init_seq_set_iv(EVP_CIPHER_CTX *ctx, const EVP_INIT_TEST_st *t)
     int res = 0;
 
     if (t->ivlen != 0) {
-        if (!TEST_true(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_IVLEN, t->ivlen, NULL)))
+        if (!TEST_int_gt(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_IVLEN, t->ivlen, NULL), 0))
             goto err;
     }
     if (!TEST_true(EVP_CipherInit_ex(ctx, NULL, NULL, NULL, t->iv, -1)))
@@ -3558,8 +3601,8 @@ static int test_evp_init_seq(int idx)
     }
     if (t->finalenc == 0 && t->tag != NULL) {
         /* Set expected tag */
-        if (!TEST_true(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_TAG,
-                                           t->taglen, (void *)t->tag))) {
+        if (!TEST_int_gt(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_TAG,
+                                           t->taglen, (void *)t->tag), 0)) {
             errmsg = "SET_TAG";
             goto err;
         }
@@ -3573,7 +3616,7 @@ static int test_evp_init_seq(int idx)
         goto err;
     }
     if (t->finalenc != 0 && t->tag != NULL) {
-        if (!TEST_true(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_GET_TAG, taglen, tag))) {
+        if (!TEST_int_gt(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_GET_TAG, taglen, tag), 0)) {
             errmsg = "GET_TAG";
             goto err;
         }
@@ -3834,7 +3877,7 @@ static int test_gcm_reinit(int idx)
         errmsg = "ENC_INIT";
         goto err;
     }
-    if (!TEST_true(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_IVLEN, t->ivlen1, NULL))) {
+    if (!TEST_int_gt(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_IVLEN, t->ivlen1, NULL), 0)) {
         errmsg = "SET_IVLEN1";
         goto err;
     }
@@ -3860,7 +3903,7 @@ static int test_gcm_reinit(int idx)
         errmsg = "WRONG_RESULT1";
         goto err;
     }
-    if (!TEST_true(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_GET_TAG, taglen, tag))) {
+    if (!TEST_int_gt(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_GET_TAG, taglen, tag), 0)) {
         errmsg = "GET_TAG1";
         goto err;
     }
@@ -3869,7 +3912,7 @@ static int test_gcm_reinit(int idx)
         goto err;
     }
     /* Now reinit */
-    if (!TEST_true(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_IVLEN, t->ivlen2, NULL))) {
+    if (!TEST_int_gt(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_IVLEN, t->ivlen2, NULL), 0)) {
         errmsg = "SET_IVLEN2";
         goto err;
     }
@@ -3894,7 +3937,7 @@ static int test_gcm_reinit(int idx)
         errmsg = "WRONG_RESULT2";
         goto err;
     }
-    if (!TEST_true(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_GET_TAG, taglen, tag))) {
+    if (!TEST_int_gt(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_GET_TAG, taglen, tag), 0)) {
         errmsg = "GET_TAG2";
         goto err;
     }
@@ -4602,6 +4645,9 @@ int setup_tests(void)
     ADD_ALL_TESTS(test_evp_iv_aes, 12);
 #ifndef OPENSSL_NO_DES
     ADD_ALL_TESTS(test_evp_iv_des, 6);
+#endif
+#ifndef OPENSSL_NO_BF
+    ADD_ALL_TESTS(test_evp_bf_default_keylen, 4);
 #endif
     ADD_TEST(test_EVP_rsa_pss_with_keygen_bits);
     ADD_TEST(test_EVP_rsa_pss_set_saltlen);

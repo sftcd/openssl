@@ -1,5 +1,5 @@
 #! /usr/bin/env perl
-# Copyright 2014-2020 The OpenSSL Project Authors. All Rights Reserved.
+# Copyright 2014-2022 The OpenSSL Project Authors. All Rights Reserved.
 #
 # Licensed under the Apache License 2.0 (the "License").  You may not use
 # this file except in compliance with the License.  You can obtain a copy
@@ -1822,7 +1822,7 @@ $code.=<<___;
 	vorr		$dat2,$ivec,$ivec
 ___
 $code.=<<___	if ($flavour =~ /64/);
-	cmp		$len,#2
+	cmp		$len,#32
 	b.lo		.Loop3x_ctr32
 
 	add		w13,$ctr,#1

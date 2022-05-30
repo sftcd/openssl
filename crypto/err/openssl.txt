@@ -150,6 +150,8 @@ BIO_R_NO_ACCEPT_ADDR_OR_SERVICE_SPECIFIED:143:\
 BIO_R_NO_HOSTNAME_OR_SERVICE_SPECIFIED:144:no hostname or service specified
 BIO_R_NO_PORT_DEFINED:113:no port defined
 BIO_R_NO_SUCH_FILE:128:no such file
+BIO_R_TFO_DISABLED:106:tfo disabled
+BIO_R_TFO_NO_KERNEL_SUPPORT:108:tfo no kernel support
 BIO_R_TRANSFER_ERROR:104:transfer error
 BIO_R_TRANSFER_TIMEOUT:105:transfer timeout
 BIO_R_UNABLE_TO_BIND_SOCKET:117:unable to bind socket
@@ -158,6 +160,7 @@ BIO_R_UNABLE_TO_KEEPALIVE:137:unable to keepalive
 BIO_R_UNABLE_TO_LISTEN_SOCKET:119:unable to listen socket
 BIO_R_UNABLE_TO_NODELAY:138:unable to nodelay
 BIO_R_UNABLE_TO_REUSEADDR:139:unable to reuseaddr
+BIO_R_UNABLE_TO_TFO:109:unable to tfo
 BIO_R_UNAVAILABLE_IP_FAMILY:145:unavailable ip family
 BIO_R_UNINITIALIZED:120:uninitialized
 BIO_R_UNKNOWN_INFO_TYPE:140:unknown info type
@@ -340,6 +343,7 @@ CMS_R_NO_PRIVATE_KEY:133:no private key
 CMS_R_NO_PUBLIC_KEY:134:no public key
 CMS_R_NO_RECEIPT_REQUEST:168:no receipt request
 CMS_R_NO_SIGNERS:135:no signers
+CMS_R_OPERATION_UNSUPPORTED:182:operation unsupported
 CMS_R_PEER_KEY_ERROR:188:peer key error
 CMS_R_PRIVATE_KEY_DOES_NOT_MATCH_CERTIFICATE:136:\
 	private key does not match certificate
@@ -551,6 +555,7 @@ EC_R_CURVE_DOES_NOT_SUPPORT_SIGNING:159:curve does not support signing
 EC_R_DECODE_ERROR:142:decode error
 EC_R_DISCRIMINANT_IS_ZERO:118:discriminant is zero
 EC_R_EC_GROUP_NEW_BY_NAME_FAILURE:119:ec group new by name failure
+EC_R_EXPLICIT_PARAMS_NOT_SUPPORTED:127:explicit params not supported
 EC_R_FAILED_MAKING_PUBLIC_KEY:166:failed making public key
 EC_R_FIELD_TOO_LARGE:143:field too large
 EC_R_GF2M_NOT_SUPPORTED:147:gf2m not supported

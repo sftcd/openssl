@@ -1,5 +1,5 @@
 /*
- * Copyright 2019-2021 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2019-2022 The OpenSSL Project Authors. All Rights Reserved.
  * Copyright (c) 2019, Oracle and/or its affiliates.  All rights reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
@@ -1506,14 +1506,25 @@ static int get_string_ptr_internal(const OSSL_PARAM *p, const void **val,
 
 int OSSL_PARAM_get_utf8_string_ptr(const OSSL_PARAM *p, const char **val)
 {
-    return OSSL_PARAM_get_utf8_ptr(p, val)
-        || get_string_ptr_internal(p, (const void **)val, NULL,
-                                   OSSL_PARAM_UTF8_STRING);
+    int rv;
+
+    ERR_set_mark();
+    rv = OSSL_PARAM_get_utf8_ptr(p, val);
+    ERR_pop_to_mark();
+
+    return rv || get_string_ptr_internal(p, (const void **)val, NULL,
+                                         OSSL_PARAM_UTF8_STRING);
 }
 
 int OSSL_PARAM_get_octet_string_ptr(const OSSL_PARAM *p, const void **val,
                                     size_t *used_len)
 {
-    return OSSL_PARAM_get_octet_ptr(p, val, used_len)
-        || get_string_ptr_internal(p, val, used_len, OSSL_PARAM_OCTET_STRING);
+    int rv;
+
+    ERR_set_mark();
+    rv = OSSL_PARAM_get_octet_ptr(p, val, used_len);
+    ERR_pop_to_mark();
+
+    return rv || get_string_ptr_internal(p, val, used_len,
+                                         OSSL_PARAM_OCTET_STRING);
 }

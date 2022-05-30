@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2021 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2020-2022 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -26,8 +26,6 @@
 #include "internal/param_build_set.h"
 #include "crypto/rsa.h"
 #include "rsa_local.h"
-
-#include "internal/e_os.h"                /* strcasecmp for Windows() */
 
 /*
  * The intention with the "backend" source file is to offer backend support
@@ -275,8 +273,8 @@ int ossl_rsa_pss_params_30_fromdata(RSA_PSS_PARAMS_30 *pss_params,
         else if (!OSSL_PARAM_get_utf8_ptr(param_mgf, &mgfname))
             return 0;
 
-        if (strcasecmp(param_mgf->data,
-                       ossl_rsa_mgf_nid2name(default_maskgenalg_nid)) != 0)
+        if (OPENSSL_strcasecmp(param_mgf->data,
+                               ossl_rsa_mgf_nid2name(default_maskgenalg_nid)) != 0)
             return 0;
     }
 

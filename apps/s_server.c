@@ -1,5 +1,5 @@
 /*
- * Copyright 1995-2021 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 1995-2022 The OpenSSL Project Authors. All Rights Reserved.
  * Copyright (c) 2002, Oracle and/or its affiliates. All rights reserved
  * Copyright 2005 Nokia. All rights reserved.
  *
@@ -63,7 +63,6 @@ typedef unsigned int u_int;
 #include <openssl/err.h>
 #include <openssl/pem.h>
 #include <openssl/x509.h>
-#include <openssl/ssl.h>
 #include <openssl/rand.h>
 #include <openssl/ocsp.h>
 #ifndef OPENSSL_NO_DH
@@ -756,7 +755,7 @@ static int ssl_servername_cb(SSL *s, int *ad, void *arg)
         return SSL_TLSEXT_ERR_NOACK;
 
     if (servername != NULL) {
-        if (strcasecmp(servername, p->servername))
+        if (OPENSSL_strcasecmp(servername, p->servername))
             return p->extension_error;
         if (ctx2 != NULL) {
             if (p->biodebug!=NULL)
@@ -1048,6 +1047,7 @@ typedef enum OPTION_choice {
     OPT_ECH_TRIALDECRYPT,
 #endif
     OPT_HTTP_SERVER_BINMODE, OPT_NOCANAMES, OPT_IGNORE_UNEXPECTED_EOF, OPT_KTLS,
+    OPT_TFO,
     OPT_R_ENUM,
     OPT_S_ENUM,
     OPT_V_ENUM,
@@ -1078,6 +1078,9 @@ const OPTIONS s_server_options[] = {
 #endif
     {"4", OPT_4, '-', "Use IPv4 only"},
     {"6", OPT_6, '-', "Use IPv6 only"},
+#if defined(TCP_FASTOPEN) && !defined(OPENSSL_NO_TFO)
+    {"tfo", OPT_TFO, '-', "Listen for TCP Fast Open connections"},
+#endif
 
     OPT_SECTION("Identity"),
     {"context", OPT_CONTEXT, 's', "Set session ID context"},
@@ -1407,6 +1410,7 @@ int s_server_main(int argc, char *argv[])
 #ifndef OPENSSL_NO_KTLS
     int enable_ktls = 0;
 #endif
+    int tfo = 0;
 
     /* Init of few remaining global variables */
     local_argc = argc;
@@ -1744,6 +1748,10 @@ int s_server_main(int argc, char *argv[])
             break;
         case OPT_MSGFILE:
             bio_s_msg = BIO_new_file(opt_arg(), "w");
+            if (bio_s_msg == NULL) {
+                BIO_printf(bio_err, "Error writing file %s\n", opt_arg());
+                goto end;
+            }
             break;
         case OPT_TRACE:
 #ifndef OPENSSL_NO_SSL_TRACE
@@ -2009,6 +2017,9 @@ int s_server_main(int argc, char *argv[])
         case OPT_IGNORE_UNEXPECTED_EOF:
             ignore_unexpected_eof = 1;
             break;
+        case OPT_TFO:
+            tfo = 1;
+            break;
         }
     }
 
@@ -2036,6 +2047,11 @@ int s_server_main(int argc, char *argv[])
         goto end;
     }
 #endif
+
+    if (tfo && socket_type != SOCK_STREAM) {
+        BIO_printf(bio_err, "Can only use -tfo with TLS\n");
+        goto end;
+    }
 
     if (stateless && socket_type != SOCK_STREAM) {
         BIO_printf(bio_err, "Can only use --stateless with TLS\n");
@@ -2182,8 +2198,13 @@ int s_server_main(int argc, char *argv[])
     if (bio_s_out == NULL) {
         if (s_quiet && !s_debug) {
             bio_s_out = BIO_new(BIO_s_null());
-            if (s_msg && bio_s_msg == NULL)
+            if (s_msg && bio_s_msg == NULL) {
                 bio_s_msg = dup_bio_out(FORMAT_TEXT);
+                if (bio_s_msg == NULL) {
+                    BIO_printf(bio_err, "Out of memory\n");
+                    goto end;
+                }
+            }
         } else {
             bio_s_out = dup_bio_out(FORMAT_TEXT);
         }
@@ -2753,8 +2774,11 @@ int s_server_main(int argc, char *argv[])
         unlink(host);
 #endif
 
+    if (tfo)
+        BIO_printf(bio_s_out, "Listening for TFO\n");
+
     do_server(&accept_socket, host, port, socket_family, socket_type, protocol,
-              server_cb, context, naccept, bio_s_out);
+              server_cb, context, naccept, bio_s_out, tfo);
     print_stats(bio_s_out, ctx);
     ret = 0;
  end:
@@ -2827,6 +2851,30 @@ static void print_stats(BIO *bio, SSL_CTX *ssl_ctx)
     BIO_printf(bio, "%4ld cache full overflows (%ld allowed)\n",
                SSL_CTX_sess_cache_full(ssl_ctx),
                SSL_CTX_sess_get_cache_size(ssl_ctx));
+}
+
+static long int count_reads_callback(BIO *bio, int cmd, const char *argp, size_t len,
+                                 int argi, long argl, int ret, size_t *processed)
+{
+    unsigned int *p_counter = (unsigned int *)BIO_get_callback_arg(bio);
+
+    switch (cmd) {
+    case BIO_CB_READ:  /* No break here */
+    case BIO_CB_GETS:
+        if (p_counter != NULL)
+            ++*p_counter;
+        break;
+    default:
+        break;
+    }
+
+    if (s_debug) {
+        BIO_set_callback_arg(bio, (char *)bio_s_out);
+        ret = (int)bio_dump_callback(bio, cmd, argp, len, argi, argl, ret, processed);
+        BIO_set_callback_arg(bio, (char *)p_counter);
+    }
+
+    return ret;
 }
 
 static int sv_body(int s, int stype, int prot, unsigned char *context)
@@ -2950,7 +2998,6 @@ static int sv_body(int s, int stype, int prot, unsigned char *context)
             BIO_free(sbio);
             goto err;
         }
-
         sbio = BIO_push(test, sbio);
     }
 
@@ -2958,10 +3005,7 @@ static int sv_body(int s, int stype, int prot, unsigned char *context)
     SSL_set_accept_state(con);
     /* SSL_set_fd(con,s); */
 
-    if (s_debug) {
-        BIO_set_callback_ex(SSL_get_rbio(con), bio_dump_callback);
-        BIO_set_callback_arg(SSL_get_rbio(con), (char *)bio_s_out);
-    }
+    BIO_set_callback_ex(SSL_get_rbio(con), count_reads_callback);
     if (s_msg) {
 #ifndef OPENSSL_NO_SSL_TRACE
         if (s_msg == 2)
@@ -3239,8 +3283,25 @@ static int sv_body(int s, int stype, int prot, unsigned char *context)
              */
             if ((!async || !SSL_waiting_for_async(con))
                     && !SSL_is_init_finished(con)) {
-                i = init_ssl_connection(con);
+                /*
+                 * Count number of reads during init_ssl_connection.
+                 * It helps us to distinguish configuration errors from errors
+                 * caused by a client.
+                 */
+                unsigned int read_counter = 0;
 
+                BIO_set_callback_arg(SSL_get_rbio(con), (char *)&read_counter);
+                i = init_ssl_connection(con);
+                BIO_set_callback_arg(SSL_get_rbio(con), NULL);
+
+                /*
+                 * If initialization fails without reads, then
+                 * there was a fatal error in configuration.
+                 */
+                if (i <= 0 && read_counter == 0) {
+                    ret = -1;
+                    goto err;
+                }
                 if (i < 0) {
                     ret = 0;
                     goto err;
@@ -3535,6 +3596,9 @@ static int www_body(int s, int stype, int prot, unsigned char *context)
     int total_bytes = 0;
 #endif
     int width;
+#ifndef OPENSSL_NO_KTLS
+    int use_sendfile_for_req = use_sendfile;
+#endif
     fd_set readfds;
     const char *opmode;
 #ifdef CHARSET_EBCDIC
@@ -3978,7 +4042,11 @@ static int www_body(int s, int stype, int prot, unsigned char *context)
             }
             /* send the file */
 #ifndef OPENSSL_NO_KTLS
-            if (use_sendfile) {
+            if (use_sendfile_for_req && !BIO_get_ktls_send(SSL_get_wbio(con))) {
+                BIO_printf(bio_err, "Warning: sendfile requested but KTLS is not available\n");
+                use_sendfile_for_req = 0;
+            }
+            if (use_sendfile_for_req) {
                 FILE *fp = NULL;
                 int fd;
                 struct stat st;

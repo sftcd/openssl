@@ -1,5 +1,5 @@
 /*
- * Copyright 2008-2021 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2008-2022 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -895,6 +895,31 @@ err:
 
     return ret;
 
+}
+
+int CMS_final_digest(CMS_ContentInfo *cms,
+                     const unsigned char *md, unsigned int mdlen,
+                     BIO *dcont, unsigned int flags)
+{
+    BIO *cmsbio;
+    int ret = 0;
+
+    if ((cmsbio = CMS_dataInit(cms, dcont)) == NULL) {
+        ERR_raise(ERR_LIB_CMS, CMS_R_CMS_LIB);
+        return 0;
+    }
+
+    (void)BIO_flush(cmsbio);
+
+    if (!ossl_cms_DataFinal(cms, cmsbio, md, mdlen)) {
+        ERR_raise(ERR_LIB_CMS, CMS_R_CMS_DATAFINAL_ERROR);
+        goto err;
+    }
+    ret = 1;
+
+err:
+    do_free_upto(cmsbio, dcont);
+    return ret;
 }
 
 #ifdef ZLIB

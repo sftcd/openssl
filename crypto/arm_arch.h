@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2021 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2011-2022 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -83,6 +83,8 @@ extern unsigned int OPENSSL_armv8_rsa_neonized;
 # define ARMV8_SM4       (1<<10)
 # define ARMV8_SHA3      (1<<11)
 # define ARMV8_UNROLL8_EOR3      (1<<12)
+# define ARMV8_SVE       (1<<13)
+# define ARMV8_SVE2      (1<<14)
 
 /*
  * MIDR_EL1 system register
@@ -99,6 +101,7 @@ extern unsigned int OPENSSL_armv8_rsa_neonized;
 # define ARM_CPU_PART_CORTEX_A72   0xD08
 # define ARM_CPU_PART_N1           0xD0C
 # define ARM_CPU_PART_V1           0xD40
+# define ARM_CPU_PART_N2           0xD49
 
 # define MIDR_PARTNUM_SHIFT       4
 # define MIDR_PARTNUM_MASK        (0xfff << MIDR_PARTNUM_SHIFT)
