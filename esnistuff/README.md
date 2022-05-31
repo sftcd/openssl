@@ -26,7 +26,18 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
-- 20220530: re-merged with upstream
+- 20220530: re-merged with upstream; it looks like the way to
+squash my merge commits when the time comes (i.e. when it's
+time to submit a PR for ECH) will be something like the
+recipe below, but I'm not sure if there's a way to preserve
+the commit comments:
+
+            $ git checkout my-branch
+            $ git branch -m my-branch-old
+            $ git checkout master
+            $ git checkout -b my-branch
+            $ git merge --squash my-branch-old
+            $ git commit
 
 - 20220310: got interop with FF nightly back! (was my fault - I
   wasn't allowing for enough referencing of outer extensions in
