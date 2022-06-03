@@ -520,7 +520,7 @@ SSL_load_client_CA_file_ex              520	3_0_0	EXIST::FUNCTION:
 SSL_set0_tmp_dh_pkey                    521	3_0_0	EXIST::FUNCTION:
 SSL_CTX_set0_tmp_dh_pkey                522	3_0_0	EXIST::FUNCTION:
 SSL_group_to_name                       523	3_0_0	EXIST::FUNCTION:
-SSL_client_hello_get_extension_order    524	3_1_0	EXIST::FUNCTION:
+SSL_client_hello_get_extension_order    524	3_1_0	NOEXIST::FUNCTION:
 SSL_ech_set_outer_alpn_protos           525	3_0_0	EXIST::FUNCTION:ECH
 SSL_CTX_svcb_add                        526	3_0_0	EXIST::FUNCTION:ECH
 SSL_svcb_add                            527	3_0_0	EXIST::FUNCTION:ECH
@@ -547,3 +547,7 @@ SSL_CTX_ech_set_outer_server_name       547	3_0_0	EXIST::FUNCTION:ECH
 SSL_CTX_ech_server_enable_buffer        548	3_0_0	EXIST::FUNCTION:ECH
 SSL_ech_get_returned                    549	3_0_0	EXIST::FUNCTION:ECH
 SSL_ech_set_grease_type                 550	3_0_0	EXIST::FUNCTION:ECH
+SSL_client_hello_get_extension_order    551	3_1_0	EXIST::FUNCTION:
+OSSL_QUIC_client_method                 552	3_1_0	EXIST::FUNCTION:QUIC
+OSSL_QUIC_client_thread_method          553	3_1_0	EXIST::FUNCTION:QUIC
+OSSL_QUIC_server_method                 554	3_1_0	EXIST::FUNCTION:QUIC
