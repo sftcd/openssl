@@ -2,25 +2,23 @@
 
 =head1 NAME
 
-hpke_ah_decode, hpke_suite_check, hpke_str2suite,
-hpke_kg, hpke_kg_evp, hpke_prbuf2evp, 
-hpke_enc, hpke_enc_evp, hpke_dec,
-hpke_expansion, hpke_good4grease,
-hpke_setlibctx
+OSSL_HPKE_suite_check, OSSL_HPKE_str2suite,
+OSSL_HPKE_kg, OSSL_HPKE_kg_evp, OSSL_HPKE_prbuf2evp, 
+OSSL_HPKE_enc, OSSL_HPKE_enc_evp, OSSL_HPKE_dec,
+OSSL_HPKE_expansion, OSSL_HPKE_good4grease
 - Hybrid Public Key Encryption (HPKE) functions
 
 =head1 SYNOPSIS
 
  #include <crypto/hpke.h>
- int hpke_ah_decode(size_t ahlen, const char *ah, size_t *blen, unsigned char **buf);
- int hpke_suite_check(hpke_suite_t suite);
- int hpke_str2suite(char *str, hpke_suite_t suite);
+ int OSSL_HPKE_suite_check(OSSL_LIB_CTX *libctx, hpke_suite_t suite);
+ int OSSL_HPKE_str2suite(OSSL_LIB_CTX *libctx, char *str, hpke_suite_t suite);
 
- int hpke_kg( unsigned int mode, hpke_suite_t suite, size_t *publen, unsigned char *pub, size_t *privlen, unsigned char *priv);
- int hpke_kg_evp( unsigned int mode, hpke_suite_t suite, size_t *publen, unsigned char *pub, EVP_PKEY **priv);
- int hpke_prbuf2evp( unsigned int kem_id, unsigned char *prbuf, size_t prbuf_len, unsigned char *pubuf, size_t pubuf_len, EVP_PKEY **priv);
+ int OSSL_HPKE_kg(OSSL_LIB_CTX *libctx, unsigned int mode, hpke_suite_t suite, size_t *publen, unsigned char *pub, size_t *privlen, unsigned char *priv);
+ int OSSL_HPKE_kg_evp(OSSL_LIB_CTX *libctx, unsigned int mode, hpke_suite_t suite, size_t *publen, unsigned char *pub, EVP_PKEY **priv);
+ int OSSL_HPKE_prbuf2evp(OSSL_LIB_CTX *libctx, unsigned int kem_id, unsigned char *prbuf, size_t prbuf_len, unsigned char *pubuf, size_t pubuf_len, EVP_PKEY **priv);
 
- int hpke_enc( unsigned int mode, hpke_suite_t suite, 
+ int OSSL_HPKE_enc(OSSL_LIB_CTX *libctx, unsigned int mode, hpke_suite_t suite, 
                char *pskid, size_t psklen, unsigned char *psk, 
                size_t publen, unsigned char *pub, 
                size_t authprivlen, unsigned char *authpriv, 
@@ -32,7 +30,7 @@ hpke_setlibctx
                size_t *senderpublen, unsigned char *senderpub, 
                size_t *cipherlen, unsigned char *cipher);
 
- int hpke_enc_evp( unsigned int mode, hpke_suite_t suite, 
+ int OSSL_HPKE_enc_evp(OSSL_LIB_CTX *libctx, unsigned int mode, hpke_suite_t suite, 
                char *pskid, size_t psklen, unsigned char *psk, 
                size_t publen, unsigned char *pub, 
                size_t authprivlen, unsigned char *authpriv, 
@@ -45,7 +43,7 @@ hpke_setlibctx
                EVP_PKEY *senderpriv, 
                size_t *cipherlen, unsigned char *cipher);
 
- int hpke_dec( unsigned int mode, hpke_suite_t suite, 
+ int OSSL_HPKE_dec(OSSL_LIB_CTX *libctx, unsigned int mode, hpke_suite_t suite, 
                char *pskid, size_t psklen, unsigned char *psk, 
                size_t authpublen, unsigned char *authpub, 
                size_t privlen, unsigned char *priv, EVP_PKEY *evppriv, 
@@ -56,40 +54,35 @@ hpke_setlibctx
                size_t seqlen, unsigned char *seq,
                size_t *clearlen, unsigned char *clear);
 
- int hpke_expansion(hpke_suite_t suite, size_t clearlen, size_t *cipherlen);
- int hpke_good4grease( hpke_suite_t *suite_in, hpke_suite_t suite, unsigned char *pub, size_t *pub_len, unsigned char *cipher, size_t cipher_len);
- int hpke_setlibctx(OSSL_LIB_CTX *libctx);
+ int OSSL_HPKE_expansion(OSSL_LIB_CTX *libctx, hpke_suite_t suite, size_t clearlen, size_t *cipherlen);
+ int OSSL_HPKE_good4grease(OSSL_LIB_CTX *libctx,  hpke_suite_t *suite_in, hpke_suite_t suite, unsigned char *pub, size_t *pub_len, unsigned char *cipher, size_t cipher_len);
 
 =head1 DESCRIPTION
 
 These functions provide an API for using the form of Hybrid Public Key
-Encryption (HPKE) defined in RFC 9180.
-Understanding the HPKE specification is likely required
-before using these APIs.  HPKE is used by various other IETF specifications,
-including the draft TLS Encrypted Client Hello (ECH) specification and others.
+Encryption (HPKE) defined in RFC9180. Understanding the HPKE specification 
+is likely required before using these APIs.  HPKE is used by various 
+other IETF specifications, including the draft TLS Encrypted Client 
+Hello (ECH) specification and others.
 
-hpke_ah_decode() is a utility function that decodes an ascii-hex encoded string
-and returns the (internally allocated, so to be free'd via OPENSSL_free())
-matching binary form.  
-
-hpke_suite_check() checks if a specific HPKE cipher suite (a combination of
+OSSL_HPKE_suite_check() checks if a specific HPKE cipher suite (a combination of
 KEM, KDF and AEAD functions) is supported.
 
-hpke_str2suite() attempts to map a string to an HPKE cipher suite.  Strings are
+OSSL_HPKE_str2suite() attempts to map a string to an HPKE cipher suite.  Strings are
 defined in hpke.h. The suite strings recognised are comma-separated KEM, KDF
 and AEAD names in that order, e.g. "x25519,hkdf-sha256,aes128gcm".
 
-hpke_kg() and hpke_kg_evp() generate an ECDH private value for use with the
+OSSL_HPKE_kg() and OSSL_HPKE_kg_evp() generate an ECDH private value for use with the
 given suite. The former returns the private key in clear, the latter as an
-EVP_PKEY*. hpke_prbuf2evp() allows the caller to map from a buffer containing an
+EVP_PKEY*. OSSL_HPKE_prbuf2evp() allows the caller to map from a buffer containing an
 ECDH private value to an EVP_PKEY* for that same value.
 
-hpke_enc() and hpke_enc_evp() carry out HPKE encryption. The former is a
+OSSL_HPKE_enc() and OSSL_HPKE_enc_evp() carry out HPKE encryption. The former is a
 one-shot API that generates an ephemeral ECDH value internally and provides the
 public component as an output. The latter allows for non-ephemeral ECDH values
 to be provided as input. 
 
-hpke_dec() carries out the decryption operation, and can handle the private
+OSSL_HPKE_dec() carries out the decryption operation, and can handle the private
 ECDH value being passed as a buffer or as an EVP_PKEY*. 
 
 HPKE functions take many inputs in order to support the various modes in which
@@ -98,6 +91,8 @@ HPKE can be used, the use of additional authenticated data (AAD), of additional
 ECDH private value is used to decrypt multiple ciphertexts. The various inputs
 and outputs are described below. Consult the HPKE specification for full 
 details.
+
+- libctx: an OSSL_LIB_CTX pointer, but typically NULL
 
 - mode: one of HPKE_MODE_BASE, HPKE_MODE_PSK, HPKE_MODE_AUTH or 
 HPKE_MODE_PSKAUTH
@@ -145,15 +140,12 @@ calls are made (to be XOR'd with an internal nonce)
 - cipher is a buffer for ciphertext (not including the recipient's public
 value)
 
-hpke_expansion() provides a way for the caller to know by how much cipertext
+OSSL_HPKE_expansion() provides a way for the caller to know by how much cipertext
 is longer than plaintext.
 
-hpke_good4grease() produces values of the appropriate length (for the given
+OSSL_HPKE_good4grease() produces values of the appropriate length (for the given
 ciphersuite) so that a protocol using HPKE can send so-called GREASE values
 that are harder to distinguish from a real use of HPKE.
-
-hpke_setlibctx() allows the caller to use a nondefault OSSL_LIB_CTX.
-
 
 =head1 RETURN VALUES
 
@@ -180,9 +172,9 @@ This example does a minimal round-trip encryption using HPKE.
     memset(plain,0,HPKE_MAXSIZE);
     strcpy((char*)plain,"a message not in a bottle");
     plainlen=strlen((char*)plain);
-    if (hpke_kg(hpke_mode, hpke_suite,&publen, pub,&privlen, priv)!=1)
+    if (OSSL_HPKE_kg(NULL, hpke_mode, hpke_suite,&publen, pub,&privlen, priv)!=1)
         goto err;
-    if (hpke_enc(hpke_mode, hpke_suite,
+    if (OSSL_HPKE_enc(NULL, hpke_mode, hpke_suite,
                 NULL, 0, NULL, /* psk */
                 publen, pub,
                 0, NULL, NULL, /* priv */
@@ -193,7 +185,7 @@ This example does a minimal round-trip encryption using HPKE.
                 &senderpublen, senderpub,
                 &cipherlen, cipher)!=1)
         goto err;
-    if (hpke_dec( hpke_mode, hpke_suite,
+    if (OSSL_HPKE_dec(NULL, hpke_mode, hpke_suite,
                 NULL, 0, NULL, /* psk */
                 0, NULL, /* auth pub */
                 privlen, priv, NULL,
@@ -214,14 +206,7 @@ This example does a minimal round-trip encryption using HPKE.
 
 =head1 SEE ALSO
 
-The specification: RFC 9180
-
-There is a standalone HPKE repo with additional test vector handling and a
-command line tool at https://github.com/sftcd/happykey
-
-The ECH enabled fork for which this was developed has it's README at:
-https://github.com/sftcd/openssl/tree/master/esnistuff (that README is just a
-re-direct to the relevant latest development branch) and also includes these HPKE functions.
+The RFC9810 specification: https://datatracker.ietf.org/doc/rfc9180/
 
 =head1 HISTORY
 
@@ -230,7 +215,7 @@ the DEfO project: https://defo.ie/
 
 =head1 COPYRIGHT
 
-Copyright 2019-2021 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2019-2022 The OpenSSL Project Authors. All Rights Reserved.
 
 Licensed under the Apache License 2.0 (the "License").  You may not use
 this file except in compliance with the License.  You can obtain a copy
