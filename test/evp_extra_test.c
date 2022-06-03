@@ -5252,16 +5252,13 @@ static int test_hpke(void)
     size_t cipherlen=HPKE_MAXSIZE; unsigned char cipher[HPKE_MAXSIZE];
     size_t clearlen=HPKE_MAXSIZE; unsigned char clear[HPKE_MAXSIZE];
 
-    if (testctx != NULL && hpke_setlibctx(testctx)!=1)
-        goto err;
-
     memset(plain,0,HPKE_MAXSIZE);
     strcpy((char*)plain,"a message not in a bottle");
     plainlen=strlen((char*)plain);
 
-    if (hpke_kg(hpke_mode, hpke_suite,&publen, pub,&privlen, priv)!=1)
+    if (OSSL_HPKE_kg( testctx, hpke_mode, hpke_suite,&publen, pub,&privlen, priv)!=1)
         goto err;
-    if (hpke_enc(hpke_mode, hpke_suite,
+    if (OSSL_HPKE_enc( testctx, hpke_mode, hpke_suite,
                 NULL, 0, NULL, /* psk */
                 publen, pub, 
                 0, NULL, NULL, /* auth priv */
@@ -5272,7 +5269,7 @@ static int test_hpke(void)
                 &senderpublen, senderpub,
                 &cipherlen, cipher)!=1)
         goto err;
-    if (hpke_dec( hpke_mode, hpke_suite,
+    if (OSSL_HPKE_dec( testctx, hpke_mode, hpke_suite,
                 NULL, 0, NULL, /* psk */
                 0, NULL, /* auth pub */
                 privlen, priv, NULL,
