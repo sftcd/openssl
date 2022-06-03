@@ -1105,6 +1105,53 @@ err:
     return NULL;
 }
 
+/*!
+ * @brief  Map ascii to binary - utility macro used in >1 place
+ */
+#define LOCAL_A2B(__c__) ( __c__ >= '0' && __c__ <= '9' ? (__c__ -'0' ) :\
+                        ( __c__ >= 'A' && __c__ <= 'F' ? (__c__ -'A' + 10) :\
+                        ( __c__ >= 'a' && __c__ <= 'f' ? (__c__ -'a' + 10) : 0)))
+
+/*!
+ * @brief decode ascii hex to a binary buffer
+ *
+ * @param ahlen is the ascii hex string length
+ * @param ah is the ascii hex string
+ * @param blen is a pointer to the returned binary length
+ * @param buf is a pointer to the internally allocated binary buffer
+ * @return 1 for good otherwise bad
+ */
+static int ah_decode(
+        size_t ahlen, const char *ah,
+        size_t *blen, unsigned char **buf)
+{
+    size_t lblen = 0;
+    int i = 0;
+    int nibble = 0;
+    unsigned char *lbuf = NULL;
+    if (ahlen <= 0 || ah == NULL || blen == NULL || buf == NULL) {
+        return 0;
+    }
+    if (ahlen % 2 == 1) {
+        nibble = 1;
+    }
+    lblen = ahlen / 2 + nibble;
+    lbuf = OPENSSL_malloc(lblen);
+    if (lbuf == NULL) {
+        return 0;
+    }
+    for (i = ahlen - 1; i > nibble ; i -= 2) {
+        int j = i / 2;
+        lbuf[j] = LOCAL_A2B(ah[i-1]) * 16 + LOCAL_A2B(ah[i]);
+    }
+    if (nibble) {
+        lbuf[0] = LOCAL_A2B(ah[0]);
+    }
+    *blen = lblen;
+    *buf = lbuf;
+    return 1;
+}
+
 /*
  * @brief Decode/check the value from DNS (binary, base64 or ascii-hex encoded)
  * @param eklen length of the binary, base64 or ascii-hex encoded value from DNS
@@ -1196,7 +1243,7 @@ static int local_ech_add(
     if (detfmt==ECH_FMT_ASCIIHEX) {
         int adr=0;
         if (strlen((char*)ekcpy)!=eklen) return(0);
-        adr=hpke_ah_decode(eklen,ekptr,&declen,&outbuf);
+        adr=ah_decode(eklen,ekptr,&declen,&outbuf);
         if (adr==0) {
             goto err;
         }
@@ -2330,7 +2377,7 @@ static int local_svcb_add(
         }
     }
     if (detfmt==ECH_FMT_ASCIIHEX) {
-        rv=hpke_ah_decode(rrlen,rrval,&binlen,&binbuf);
+        rv=ah_decode(rrlen,rrval,&binlen,&binbuf);
         if (rv==0) {
             return(rv);
         }
@@ -4116,13 +4163,14 @@ int ech_send_grease(SSL *ssl, WPACKET *pkt)
         cipher_len+=(cid%cipher_len_jitter);
     }
     if (s->ext.ech_grease_suite) {
-        if (hpke_str2suite(s->ext.ech_grease_suite,&hpke_suite_in)!=1) {
+        if (OSSL_HPKE_str2suite(NULL, s->ext.ech_grease_suite,
+                    &hpke_suite_in)!=1) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             return 0;
         }
         hpke_suite_in_p=&hpke_suite_in;
     }
-    if (hpke_good4grease(hpke_suite_in_p, hpke_suite,
+    if (OSSL_HPKE_good4grease(NULL, hpke_suite_in_p, hpke_suite,
                 senderpub,&senderpub_len,cipher,cipher_len)!=1) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
@@ -4311,7 +4359,7 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
             unsigned char *es=(unsigned char*)&ltc->ciphersuites[csuite];
             hpke_suite.kdf_id=es[0]*256+es[1];
             hpke_suite.aead_id=es[2]*256+es[3];
-            if (hpke_suite_check(hpke_suite)==1) {
+            if (OSSL_HPKE_suite_check(NULL, hpke_suite)==1) {
                 /* success if both "fit" */
                 if (prefind!=-1) {
                     tc=ltc;
@@ -4382,7 +4430,7 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
             goto err;
         }
         mypub_len=HPKE_MAXSIZE;
-        if (hpke_kg_evp(hpke_mode, hpke_suite, &mypub_len, mypub, 
+        if (OSSL_HPKE_kg_evp(NULL, hpke_mode, hpke_suite, &mypub_len, mypub, 
                     &mypriv_evp)!=1) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             goto err;
@@ -4448,8 +4496,8 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
          goto err;
         }
         ech_pbuf("EAAE info",info,info_len);
-        rv=hpke_enc_evp(
-            hpke_mode, hpke_suite, /* mode, suite */
+        rv=OSSL_HPKE_enc_evp(
+            NULL, hpke_mode, hpke_suite, /* mode, suite */
             NULL, 0, NULL, /* pskid, psk */
             peerpub_len,peerpub,
             0, NULL, NULL, /* priv */
@@ -4607,7 +4655,7 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
                 s->ext.inner_s->ext.encoded_innerch_len);
         } OSSL_TRACE_END(TLS);
 #endif
-        if (hpke_expansion(hpke_suite,clear_len,&lcipherlen)!=1) {
+        if (OSSL_HPKE_expansion(NULL, hpke_suite,clear_len,&lcipherlen)!=1) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             goto err;
         }
@@ -4681,8 +4729,8 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
                 s->ext.inner_s->ext.encoded_innerch_len);
         ech_pbuf("EAAE: draft-13 padded clear",clear,clear_len);
 
-        rv=hpke_enc_evp(
-            hpke_mode, hpke_suite, /* mode, suite */
+        rv=OSSL_HPKE_enc_evp(
+            NULL, hpke_mode, hpke_suite, /* mode, suite */
             NULL, 0, NULL, /* pskid, psk */
             peerpub_len,peerpub,
             0, NULL, NULL, /* priv */
@@ -5002,7 +5050,7 @@ static unsigned char *hpke_decrypt_encch(
     if (forhrr==1) {
         seq[0]=1;
     }
-    rv=hpke_dec( hpke_mode, hpke_suite,
+    rv=OSSL_HPKE_dec( NULL, hpke_mode, hpke_suite,
                 NULL, 0, NULL, /* pskid, psk */
                 0, NULL, /* publen, pub, recipient public key */
                 0,NULL,ech->keyshare, /* private key in EVP_PKEY form */
