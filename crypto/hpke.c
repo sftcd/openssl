@@ -1149,7 +1149,7 @@ err:
  * @param suite is the suite to check
  * @return 1 for good/supported, not 1 otherwise
  */
-int hpke_suite_check(hpke_suite_t suite)
+static int hpke_suite_check(hpke_suite_t suite)
 {
     /*
      * Check that the fields of the suite are each
