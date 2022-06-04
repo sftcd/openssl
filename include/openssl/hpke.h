@@ -218,7 +218,7 @@ EVP_KDF_CTX *ossl_kdf_ctx_create(const char *kdfname, const char *mdname,
 
 /** biggest/default buffer for keys and internal buffers we use */
 #ifndef HPKE_MAXSIZE
-#define HPKE_MAXSIZE 2*1024 /* 2k is enough for anyone (using this program:-) */
+# define HPKE_MAXSIZE 2*1024 /* 2k is enough for anyone (using this program:-) */
 #endif
 
 /*
@@ -339,10 +339,10 @@ int OSSL_HPKE_enc(
         );
 
 /*
- * @brief HPKE encryption function, with externally supplied sender key pair
+ * @brief HPKE single-shot encryption function
  *
- * This function is provided with an ECDH key pair that is used for
- * HPKE encryption.
+ * This function generates an ephemeral ECDH value internally and
+ * provides the public component as an output.
  *
  * @param libctx is the context to use (normally NULL)
  * @param mode is the HPKE mode
@@ -363,10 +363,9 @@ int OSSL_HPKE_enc(
  * @param info is the encoded info data (can be NULL)
  * @param seqlen is the length of the sequence data (can be zero)
  * @param seq is the encoded sequence data (can be NULL)
- * @param senderpublen length of the input buffer with the sender's public key
+ * @param senderpublen length of the input buffer for sender's public key
  * @param senderpub is the input buffer for sender public key
- * @param senderpriv has the handle for the sender private key
- * @param cipherlen length of the input buffer for ciphertext
+ * @param cipherlen is the length of the input buffer for ciphertext
  * @param cipher is the input buffer for ciphertext
  * @return 1 for good (OpenSSL style), not-1 for error
  *
@@ -431,6 +430,7 @@ int OSSL_HPKE_dec(
 
 /*!
  * @brief generate a key pair
+ *
  * @param libctx is the context to use (normally NULL)
  * @param mode is the mode (currently unused)
  * @param suite is the ciphersuite (currently unused)
@@ -448,6 +448,7 @@ int OSSL_HPKE_kg(
 
 /*!
  * @brief generate a key pair but keep private inside API
+ *
  * @param libctx is the context to use (normally NULL)
  * @param mode is the mode (currently unused)
  * @param suite is the ciphersuite (currently unused)
@@ -465,12 +466,10 @@ int OSSL_HPKE_kg_evp(
 /**
  * @brief check if a suite is supported locally
  *
- * @param libctx is the context to use (normally NULL)
  * @param suite is the suite to check
  * @return 1 for good/supported, not-1 otherwise
  */
 int OSSL_HPKE_suite_check(
-        OSSL_LIB_CTX *libctx,
         hpke_suite_t suite);
 
 /*!
@@ -503,7 +502,6 @@ int OSSL_HPKE_prbuf2evp(
  *
  * As usual buffers are caller allocated and lengths on input are buffer size.
  *
- * @param libctx is the context to use (normally NULL)
  * @param suite_in specifies the preferred suite or NULL for a random choice
  * @param suite is the chosen or random suite
  * @param pub a random value of the appropriate length for a sender public value
@@ -513,7 +511,6 @@ int OSSL_HPKE_prbuf2evp(
  * @return 1 for success, otherwise failure
  */
 int OSSL_HPKE_good4grease(
-        OSSL_LIB_CTX *libctx,
         hpke_suite_t *suite_in,
         hpke_suite_t suite,
         unsigned char *pub,
@@ -524,13 +521,11 @@ int OSSL_HPKE_good4grease(
 /*!
  * @brief map a string to a HPKE suite
  *
- * @param libctx is the context to use (normally NULL)
  * @param str is the string value
  * @param suite is the resulting suite
  * @return 1 for success, otherwise failure
  */
 int OSSL_HPKE_str2suite(
-        OSSL_LIB_CTX *libctx,
         char *str, 
         hpke_suite_t *suite);
 
@@ -544,14 +539,12 @@ int OSSL_HPKE_str2suite(
  * much data expansion they'll see with a given
  * suite.
  *
- * @param libctx is the context to use (normally NULL)
  * @param suite is the suite to be used
  * @param clearlen is the length of plaintext
  * @param cipherlen points to what'll be ciphertext length
  * @return 1 for success, otherwise failure
  */
 int OSSL_HPKE_expansion(
-        OSSL_LIB_CTX *libctx,
         hpke_suite_t suite,
         size_t clearlen,
         size_t *cipherlen);
