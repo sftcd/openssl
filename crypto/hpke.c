@@ -26,9 +26,27 @@
 #include <openssl/hpke.h>
 #include <openssl/err.h>
 
+/* constants defined in RFC9180 */
+#define HPKE_VERLABEL        "HPKE-v1"  /**< version string label */
+#define HPKE_SEC41LABEL      "KEM"      /**< "suite_id" label for 4.1 */
+#define HPKE_SEC51LABEL      "HPKE"     /**< "suite_id" label for 5.1 */
+#define HPKE_EAE_PRK_LABEL   "eae_prk"  /**< label in ExtractAndExpand */
+#define HPKE_PSKIDHASH_LABEL "psk_id_hash"   /**< in key_schedule_context */
+#define HPKE_INFOHASH_LABEL  "info_hash"     /**< in key_schedule_context */
+#define HPKE_SS_LABEL        "shared_secret" /**< Yet another label */
+#define HPKE_NONCE_LABEL     "base_nonce" /**< guess? */
+#define HPKE_EXP_LABEL       "exp" /**< guess again? */
+#define HPKE_KEY_LABEL       "key" /**< guess again? */
+#define HPKE_PSK_HASH_LABEL  "psk_hash" /**< guess again? */
+#define HPKE_SECRET_LABEL    "secret" /**< guess again? */
+
+/* different RFC5869 "modes" used in RFC9180 */
+#define HPKE_5869_MODE_PURE   0 /**< Do "pure" RFC5869 */
+#define HPKE_5869_MODE_KEM    1 /**< Abide by HPKE section 4.1 */
+#define HPKE_5869_MODE_FULL   2 /**< Abide by HPKE section 5.1 */
+
 /* an error macro just to make things easier */
 #define HPKE_err { ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR); erv = __LINE__; goto err; }
-
 
 /*!
  * @brief info about an AEAD
@@ -50,13 +68,12 @@ static hpke_aead_info_t hpke_aead_tab[] = {
     { HPKE_AEAD_ID_AES_GCM_128, EVP_aes_128_gcm, "AES-128-GCM", 16, 16, 12 },
     { HPKE_AEAD_ID_AES_GCM_256, EVP_aes_256_gcm, "AES-256-GCM", 16, 32, 12 },
 #ifndef OPENSSL_NO_CHACHA20
-#ifndef OPENSSL_NO_POLY1305
+# ifndef OPENSSL_NO_POLY1305
     { HPKE_AEAD_ID_CHACHA_POLY1305, EVP_chacha20_poly1305,
         "chacha20-poly1305", 16, 32, 12 }
-#endif
+# endif
 #endif
 };
-
 
 /*!
  * @brief info about a KEM
@@ -90,8 +107,6 @@ static hpke_kem_info_t hpke_kem_tab[] = {
       64, 56, 56, 56 }
 };
 
-
-
 /*!
  * @brief info about a KDF
  */
@@ -110,7 +125,6 @@ static hpke_kdf_info_t hpke_kdf_tab[] = {
     { HPKE_KDF_ID_HKDF_SHA384, EVP_sha384, 48 },
     { HPKE_KDF_ID_HKDF_SHA512, EVP_sha512, 64 }
 };
-
 
 /*!
  * @brief map from IANA codepoint to AEAD table index
@@ -180,8 +194,6 @@ static uint16_t kdf_iana2index(uint16_t codepoint)
     }
     return(0);
 }
-
-
 
 /*!
  * @brief Check if kem_id is ok/known to us
@@ -491,24 +503,6 @@ err:
     if (ciphertext != NULL) OPENSSL_free(ciphertext);
     return erv;
 }
-
-#define HPKE_VERLABEL        "HPKE-v1"  /**< version string label */
-#define HPKE_SEC41LABEL      "KEM"      /**< "suite_id" label for 4.1 */
-#define HPKE_SEC51LABEL      "HPKE"     /**< "suite_id" label for 5.1 */
-#define HPKE_EAE_PRK_LABEL   "eae_prk"  /**< label in ExtractAndExpand */
-
-#define HPKE_PSKIDHASH_LABEL "psk_id_hash"   /**< in key_schedule_context */
-#define HPKE_INFOHASH_LABEL  "info_hash"     /**< in key_schedule_context */
-#define HPKE_SS_LABEL        "shared_secret" /**< Yet another label */
-#define HPKE_NONCE_LABEL     "base_nonce" /**< guess? */
-#define HPKE_EXP_LABEL       "exp" /**< guess again? */
-#define HPKE_KEY_LABEL       "key" /**< guess again? */
-#define HPKE_PSK_HASH_LABEL  "psk_hash" /**< guess again? */
-#define HPKE_SECRET_LABEL    "secret" /**< guess again? */
-
-#define HPKE_5869_MODE_PURE   0 /**< Do "pure" RFC5869 */
-#define HPKE_5869_MODE_KEM    1 /**< Abide by HPKE section 4.1 */
-#define HPKE_5869_MODE_FULL   2 /**< Abide by HPKE section 5.1 */
 
 /*!
  * @brief RFC5869 HKDF-Extract
@@ -1014,7 +1008,6 @@ static int hpke_do_kem(
         zzlen += zzlen2;
         EVP_PKEY_CTX_free(pctx); pctx = NULL;
     }
-
     erv = hpke_extract_and_expand(libctx, suite, HPKE_5869_MODE_KEM,
             zz, zzlen, kem_context, kem_contextlen, lss, &lsslen);
     if (erv != 1) { goto err; }
@@ -1454,7 +1447,6 @@ static int hpke_enc_int(
             HPKE_err;
         }
     }
-
     erv = hpke_do_kem(libctx, 1, suite, pkE, enclen, enc, pkR, publen, pub,
             skI, mypublen, mypub, &shared_secret, &shared_secretlen);
     if (erv != 1) goto err;
@@ -1482,7 +1474,6 @@ static int hpke_enc_int(
     ks_contextlen += 1 + halflen;
 
     /* step 4. extracts and expands as needed */
-
     /* Extract secret and Expand variously...  */
     erv = hpke_extract(libctx, suite, HPKE_5869_MODE_FULL,
                     (const unsigned char*)"", 0,
@@ -1503,7 +1494,6 @@ static int hpke_enc_int(
                     secret, &secretlen) != 1) {
         HPKE_err;
     }
-
     aead_ind=aead_iana2index(suite.aead_id);
     if (aead_ind == 0 ) { HPKE_err; }
     noncelen = hpke_aead_tab[aead_ind].Nn;
@@ -1517,7 +1507,6 @@ static int hpke_enc_int(
     if (noncelen != hpke_aead_tab[aead_ind].Nn) {
         HPKE_err;
     }
-
     /* XOR sequence with nonce as needed */
     if (seq != NULL && seqlen > 0) {
         size_t sind;
@@ -1535,7 +1524,6 @@ static int hpke_enc_int(
             nonce[noncelen - 1 - sind] ^= cv;
         }
     }
-
     keylen = hpke_aead_tab[aead_ind].Nk;
     if (hpke_expand(libctx, suite, HPKE_5869_MODE_FULL,
                     secret, secretlen,
@@ -1721,7 +1709,6 @@ static int hpke_dec_int(
     if (mypub == NULL || mypublen == 0) {
         HPKE_err;
     }
-
     erv = hpke_do_kem(libctx, 0, suite, skR, mypublen, mypub, pkE, enclen, enc,
             pkI, authpublen, authpub, &shared_secret, &shared_secretlen);
     if (erv != 1) goto err;
@@ -1767,7 +1754,6 @@ static int hpke_dec_int(
                     secret, &secretlen) != 1) {
         HPKE_err;
     }
-
     aead_ind=aead_iana2index(suite.aead_id);
     if (aead_ind == 0 ) { HPKE_err; }
     noncelen = hpke_aead_tab[aead_ind].Nn;
@@ -1781,7 +1767,6 @@ static int hpke_dec_int(
     if (noncelen != hpke_aead_tab[aead_ind].Nn) {
         HPKE_err;
     }
-
     /* XOR sequence with nonce as needed */
     if (seq != NULL && seqlen > 0) {
         size_t sind;
@@ -1799,7 +1784,6 @@ static int hpke_dec_int(
             nonce[noncelen - 1 - sind] ^= cv;
         }
     }
-
     keylen = hpke_aead_tab[aead_ind].Nk;
     if (hpke_expand(libctx, suite, HPKE_5869_MODE_FULL,
                     secret, secretlen,
@@ -1868,7 +1852,7 @@ static int hpke_kg_evp(
     if (!pub || !priv) return(__LINE__);
     kem_ind=kem_iana2index(suite.kem_id);
     if (kem_ind == 0 ) { HPKE_err; }
-    /* step 1. generate sender's key pair */
+    /* generate sender's key pair */
     if (hpke_kem_id_nist_curve(suite.kem_id) == 1) {
         pctx = EVP_PKEY_CTX_new_id(EVP_PKEY_EC, NULL);
         if (pctx == NULL) {
@@ -2006,8 +1990,6 @@ static int hpke_random_suite(hpke_suite_t *suite)
 /*!
  * @brief return a (possibly) random suite, public key, ciphertext for GREASErs
  *
- * As usual buffers are caller allocated and lengths on input are buffer size.
- *
  * @param suite-in specifies the preferred suite or NULL for a random choice
  * @param suite is the chosen or random suite
  * @param pub a random value of the appropriate length for sender public value
@@ -2119,16 +2101,6 @@ static int hpke_str2suite(char *suitestr, hpke_suite_t *suite)
     suite->kem_id = kem;
     suite->kdf_id = kdf;
     suite->aead_id = aead;
-#if 0
-    /*
-     * this line is only needed to avoid a complile error in a CI build
-     * that sets -Werror=unused-but-set-parameter
-     * TODO: See if this is still needed
-     */
-    if (suite->kem_id == 0 || suite->kdf_id == 0 || suite->aead_id == 0) {
-        erv = __LINE__; return erv;
-    }
-#endif
     return 1;
 }
 
@@ -2165,6 +2137,7 @@ static int hpke_expansion(hpke_suite_t suite,
     tlen = hpke_aead_tab[aead_ind].taglen;
     *cipherlen = tlen + clearlen;
     return 1;
+
 err:
     return erv;
 }
