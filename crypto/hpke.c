@@ -153,8 +153,6 @@ static hpke_kdf_info_t hpke_kdf_tab[] = {
 };
 
 
-static OSSL_LIB_CTX *hpke_libctx = NULL;
-
 
 
 /*!
@@ -191,6 +189,7 @@ static int hpke_kem_id_nist_curve(uint16_t kem_id)
 
 /*!
  * @brief hpke wrapper to import NIST curve public key as easily as x25519/x448
+ *
  * @param curve is the curve NID
  * @param buf is the binary buffer with the (uncompressed) public value
  * @param buflen is the length of the private key buffer
@@ -248,6 +247,7 @@ err:
 /*!
  * @brief do the AEAD decryption
  *
+ * @param libctx is the context to use (normally NULL)
  * @param suite is the ciphersuite
  * @param key is the secret
  * @param keylen is the length of the secret
@@ -262,7 +262,8 @@ err:
  * @return 1 for good otherwise bad
  */
 static int hpke_aead_dec(
-            hpke_suite_t suite,
+            OSSL_LIB_CTX  *libctx,
+            hpke_suite_t  suite,
             unsigned char *key, size_t keylen,
             unsigned char *iv, size_t ivlen,
             unsigned char *aad, size_t aadlen,
@@ -286,7 +287,7 @@ static int hpke_aead_dec(
         HPKE_err;
     }
     /* Initialise the encryption operation */
-    enc = EVP_CIPHER_fetch(hpke_libctx, hpke_aead_tab[suite.aead_id].name, 
+    enc = EVP_CIPHER_fetch(libctx, hpke_aead_tab[suite.aead_id].name, 
             NULL);
     if (enc == NULL) {
         HPKE_err;
@@ -344,6 +345,7 @@ err:
 /*!
  * @brief do AEAD encryption as per the RFC
  *
+ * @param libctx is the context to use (normally NULL)
  * @param suite is the ciphersuite
  * @param key is the secret
  * @param keylen is the length of the secret
@@ -358,7 +360,8 @@ err:
  * @return 1 for good otherwise bad
  */
 static int hpke_aead_enc(
-            hpke_suite_t   suite,
+            OSSL_LIB_CTX  *libctx,
+            hpke_suite_t  suite,
             unsigned char *key, size_t keylen,
             unsigned char *iv, size_t ivlen,
             unsigned char *aad, size_t aadlen,
@@ -393,7 +396,7 @@ static int hpke_aead_enc(
         HPKE_err;
     }
     /* Initialise the encryption operation. */
-    enc = EVP_CIPHER_fetch(hpke_libctx, hpke_aead_tab[suite.aead_id].name, NULL);
+    enc = EVP_CIPHER_fetch(libctx, hpke_aead_tab[suite.aead_id].name, NULL);
     if (enc == NULL) {
         HPKE_err;
     }
@@ -475,6 +478,7 @@ err:
 /*!
  * @brief RFC5869 HKDF-Extract
  *
+ * @param libctx is the context to use (normally NULL)
  * @param suite is the ciphersuite
  * @param mode5869 - controls labelling specifics
  * @param salt - surprisingly this is the salt;-)
@@ -503,6 +507,7 @@ err:
  * Isn't that a bit of a mess!
  */
 static int hpke_extract(
+        OSSL_LIB_CTX  *libctx,
         const hpke_suite_t suite, const int mode5869,
         const unsigned char *salt, const size_t saltlen,
         const char *label, const size_t labellen,
@@ -593,7 +598,7 @@ static int hpke_extract(
     }
 
     /* Find and allocate a context for the HKDF algorithm */
-    if ((kdf = EVP_KDF_fetch(hpke_libctx, "hkdf", NULL)) == NULL) {
+    if ((kdf = EVP_KDF_fetch(libctx, "hkdf", NULL)) == NULL) {
         HPKE_err;
     }
     kctx = EVP_KDF_CTX_new(kdf);
@@ -643,6 +648,7 @@ err:
 /*!
  * @brief RFC5869 HKDF-Expand
  *
+ * @param libctx is the context to use (normally NULL)
  * @param suite is the ciphersuite
  * @param mode5869 - controls labelling specifics
  * @param prk - the initial pseudo-random key material
@@ -656,7 +662,9 @@ err:
  * @param outlen - buf size on input
  * @return 1 for good otherwise bad
  */
-static int hpke_expand(const hpke_suite_t suite, const int mode5869,
+static int hpke_expand(
+                OSSL_LIB_CTX  *libctx,
+                const hpke_suite_t suite, const int mode5869,
                 const unsigned char *prk, const size_t prklen,
                 const char *label, const size_t labellen,
                 const unsigned char *info, const size_t infolen,
@@ -752,7 +760,7 @@ static int hpke_expand(const hpke_suite_t suite, const int mode5869,
     }
 
     /* Find and allocate a context for the HKDF algorithm */
-    if ((kdf = EVP_KDF_fetch(hpke_libctx, "hkdf", NULL)) == NULL) {
+    if ((kdf = EVP_KDF_fetch(libctx, "hkdf", NULL)) == NULL) {
         HPKE_err;
     }
     kctx = EVP_KDF_CTX_new(kdf);
@@ -796,6 +804,8 @@ err:
 
 /*!
  * @brief ExtractAndExpand
+ *
+ * @param libctx is the context to use (normally NULL)
  * @param suite is the ciphersuite
  * @param mode5869 - controls labelling specifics
  * @param shared_secret - the initial DH shared secret
@@ -807,10 +817,11 @@ err:
  * @return 1 for good otherwise bad
  */
 static int hpke_extract_and_expand(
-					hpke_suite_t suite, int mode5869,
-					unsigned char *shared_secret , size_t shared_secretlen,
-					unsigned char *context, size_t contextlen,
-					unsigned char *secret, size_t *secretlen
+                OSSL_LIB_CTX  *libctx,
+                hpke_suite_t suite, int mode5869,
+                unsigned char *shared_secret , size_t shared_secretlen,
+                unsigned char *context, size_t contextlen,
+                unsigned char *secret, size_t *secretlen
 			)
 {
 	int erv = 1;
@@ -818,13 +829,13 @@ static int hpke_extract_and_expand(
     size_t eae_prklen = HPKE_MAXSIZE;
     size_t lsecretlen = hpke_kem_tab[suite.kem_id].Nsecret;
 
-	erv = hpke_extract(suite, mode5869,
+	erv = hpke_extract(libctx, suite, mode5869,
             (const unsigned char*)"", 0,
             HPKE_EAE_PRK_LABEL, strlen(HPKE_EAE_PRK_LABEL),
 			shared_secret, shared_secretlen,
 			eae_prkbuf, &eae_prklen);
 	if (erv != 1) { goto err; }
-    erv = hpke_expand(suite, mode5869,
+    erv = hpke_expand(libctx, suite, mode5869,
             eae_prkbuf, eae_prklen,
             HPKE_SS_LABEL, strlen(HPKE_SS_LABEL),
             context, contextlen,
@@ -841,6 +852,7 @@ err:
 /*!
  * @brief run the KEM with two keys as required
  *
+ * @param libctx is the context to use (normally NULL)
  * @param encrypting is 1 if we're encrypting, 0 for decrypting
  * @param suite is the ciphersuite
  * @param key1 is the first key, for which we have the private value
@@ -857,6 +869,7 @@ err:
  * @return 1 for good, not 1 for not good
  */
 static int hpke_do_kem(
+        OSSL_LIB_CTX  *libctx,
         int encrypting, hpke_suite_t suite,
         EVP_PKEY *key1, size_t key1enclen, unsigned char *key1enc,
         EVP_PKEY *key2, size_t key2enclen, unsigned char *key2enc,
@@ -873,7 +886,7 @@ static int hpke_do_kem(
     unsigned char lss[HPKE_MAXSIZE];
 
     /* step 2 run DH KEM to get zz */
-    pctx = EVP_PKEY_CTX_new_from_pkey(hpke_libctx, key1, NULL);
+    pctx = EVP_PKEY_CTX_new_from_pkey(libctx, key1, NULL);
     if (pctx == NULL) {
         HPKE_err;
     }
@@ -951,7 +964,7 @@ static int hpke_do_kem(
         EVP_PKEY_CTX_free(pctx); pctx = NULL;
     }
 
-    erv = hpke_extract_and_expand(suite, HPKE_5869_MODE_KEM,
+    erv = hpke_extract_and_expand(libctx, suite, HPKE_5869_MODE_KEM,
             zz, zzlen, kem_context, kem_contextlen, lss, &lsslen);
     if (erv != 1) { goto err; }
     *ss = OPENSSL_malloc(lsslen);
@@ -1017,6 +1030,7 @@ static int hpke_psk_check(
  * private key, and could still have the PEM header or not, and might
  * or might not be base64 encoded. We'll try handle all those options.
  *
+ * @param libctx is the context to use (normally NULL)
  * @param kem_id is what'd you'd expect (using the HPKE registry values)
  * @param prbuf is the private key buffer
  * @param prbuf_len is the length of that buffer
@@ -1026,6 +1040,7 @@ static int hpke_psk_check(
  * @return 1 for success, otherwise failure
  */
 static int hpke_prbuf2evp(
+        OSSL_LIB_CTX  *libctx,
         unsigned int kem_id,
         unsigned char *prbuf,
         size_t prbuf_len,
@@ -1079,7 +1094,7 @@ static int hpke_prbuf2evp(
         if (!params) {
             HPKE_err;
         }
-        ctx = EVP_PKEY_CTX_new_from_name(hpke_libctx, keytype, NULL);
+        ctx = EVP_PKEY_CTX_new_from_name(libctx, keytype, NULL);
         if (ctx == NULL) {
             HPKE_err;
         }
@@ -1196,6 +1211,8 @@ static int hpke_suite_check(hpke_suite_t suite)
 
 /*!
  * @brief Internal HPKE single-shot encryption function
+ *
+ * @param libctx is the context to use (normally NULL)
  * @param mode is the HPKE mode
  * @param suite is the ciphersuite to use
  * @param pskid is the pskid string fpr a PSK mode (can be NULL)
@@ -1224,6 +1241,7 @@ static int hpke_suite_check(hpke_suite_t suite)
  * @return 1 for good (OpenSSL style), not 1 for error
  */
 static int hpke_enc_int(
+        OSSL_LIB_CTX  *libctx,
         unsigned int mode, hpke_suite_t suite,
         char *pskid, size_t psklen, unsigned char *psk,
         size_t publen, unsigned char *pub,
@@ -1319,7 +1337,7 @@ static int hpke_enc_int(
         pkR = hpke_EVP_PKEY_new_raw_nist_public_key(
                 hpke_kem_tab[suite.kem_id].groupid, pub, publen);
     } else {
-        pkR = EVP_PKEY_new_raw_public_key_ex(hpke_libctx,
+        pkR = EVP_PKEY_new_raw_public_key_ex(libctx,
                 hpke_kem_tab[suite.kem_id].keytype, NULL, pub, publen);
     }
     if (pkR == NULL) {
@@ -1345,7 +1363,7 @@ static int hpke_enc_int(
 
     } else if (rawcaller) {
 
-        if (hpke_prbuf2evp(suite.kem_id,
+        if (hpke_prbuf2evp(libctx, suite.kem_id,
                     rawsenderpriv, rawsenderprivlen, NULL, 0, &pkE) != 1) {
             HPKE_err;
         }
@@ -1364,7 +1382,7 @@ static int hpke_enc_int(
         if (authpriv_evp != NULL) {
             skI = authpriv_evp;
         } else {
-            erv = hpke_prbuf2evp(suite.kem_id, authpriv, authprivlen,
+            erv = hpke_prbuf2evp(libctx, suite.kem_id, authpriv, authprivlen,
                 pub, publen, &skI);
             if (erv != 1) goto err;
         }
@@ -1378,7 +1396,7 @@ static int hpke_enc_int(
         }
     }
 
-    erv = hpke_do_kem(1, suite, pkE, enclen, enc, pkR, publen, pub,
+    erv = hpke_do_kem(libctx, 1, suite, pkE, enclen, enc, pkR, publen, pub,
             skI, mypublen, mypub, &shared_secret, &shared_secretlen);
     if (erv != 1) goto err;
     if (mypub != NULL) { OPENSSL_free(mypub); mypub = NULL; }
@@ -1389,14 +1407,14 @@ static int hpke_enc_int(
     ks_context[0] = (unsigned char)(mode % 256); ks_contextlen--;
     halflen = ks_contextlen;
     pskidlen = (psk == NULL ? 0 : strlen(pskid));
-    erv = hpke_extract(suite, HPKE_5869_MODE_FULL,
+    erv = hpke_extract(libctx, suite, HPKE_5869_MODE_FULL,
                     (const unsigned char*)"", 0,
                     HPKE_PSKIDHASH_LABEL, strlen(HPKE_PSKIDHASH_LABEL),
                     (unsigned char*)pskid, pskidlen,
                     ks_context + 1, &halflen);
     if (erv != 1) goto err;
     ks_contextlen -= halflen;
-    erv = hpke_extract(suite, HPKE_5869_MODE_FULL,
+    erv = hpke_extract(libctx, suite, HPKE_5869_MODE_FULL,
                     (const unsigned char*)"", 0,
                     HPKE_INFOHASH_LABEL, strlen(HPKE_INFOHASH_LABEL),
                     (unsigned char*)info, infolen,
@@ -1407,7 +1425,7 @@ static int hpke_enc_int(
     /* step 4. extracts and expands as needed */
 
     /* Extract secret and Expand variously...  */
-    erv = hpke_extract(suite, HPKE_5869_MODE_FULL,
+    erv = hpke_extract(libctx, suite, HPKE_5869_MODE_FULL,
                     (const unsigned char*)"", 0,
                     HPKE_PSK_HASH_LABEL, strlen(HPKE_PSK_HASH_LABEL),
                     psk, psklen,
@@ -1417,7 +1435,7 @@ static int hpke_enc_int(
     if (secretlen > SHA512_DIGEST_LENGTH) {
         HPKE_err;
     }
-    if (hpke_extract(suite, HPKE_5869_MODE_FULL,
+    if (hpke_extract(libctx, suite, HPKE_5869_MODE_FULL,
                     shared_secret, shared_secretlen,
                     HPKE_SECRET_LABEL, strlen(HPKE_SECRET_LABEL),
                     psk, psklen,
@@ -1426,7 +1444,7 @@ static int hpke_enc_int(
     }
 
     noncelen = hpke_aead_tab[suite.aead_id].Nn;
-    if (hpke_expand(suite, HPKE_5869_MODE_FULL,
+    if (hpke_expand(libctx, suite, HPKE_5869_MODE_FULL,
                     secret, secretlen,
                     HPKE_NONCE_LABEL, strlen(HPKE_NONCE_LABEL),
                     ks_context, ks_contextlen,
@@ -1456,7 +1474,7 @@ static int hpke_enc_int(
     }
 
     keylen = hpke_aead_tab[suite.aead_id].Nk;
-    if (hpke_expand(suite, HPKE_5869_MODE_FULL,
+    if (hpke_expand(libctx, suite, HPKE_5869_MODE_FULL,
                     secret, secretlen,
                     HPKE_KEY_LABEL, strlen(HPKE_KEY_LABEL),
                     ks_context, ks_contextlen,
@@ -1464,7 +1482,7 @@ static int hpke_enc_int(
         HPKE_err;
     }
     exporterlen = hpke_kdf_tab[suite.kdf_id].Nh;
-    if (hpke_expand(suite, HPKE_5869_MODE_FULL,
+    if (hpke_expand(libctx, suite, HPKE_5869_MODE_FULL,
                     secret, secretlen,
                     HPKE_EXP_LABEL, strlen(HPKE_EXP_LABEL),
                     ks_context, ks_contextlen,
@@ -1474,7 +1492,7 @@ static int hpke_enc_int(
 
     /* step 5. call the AEAD */
     arv = hpke_aead_enc(
-                suite,
+                libctx, suite,
                 key, keylen,
                 nonce, noncelen,
                 aad, aadlen,
@@ -1507,6 +1525,7 @@ err:
 /*!
  * @brief HPKE single-shot decryption function
  *
+ * @param libctx is the context to use (normally NULL)
  * @param mode is the HPKE mode
  * @param suite is the ciphersuite
  * @param pskid is the pskid string fpr a PSK mode (can be NULL)
@@ -1532,6 +1551,7 @@ err:
  * @return 1 for good (OpenSSL style), not 1 for error
  */
 static int hpke_dec_int(
+        OSSL_LIB_CTX  *libctx,
         unsigned int mode, hpke_suite_t suite,
         char *pskid, size_t psklen, unsigned char *psk,
         size_t authpublen, unsigned char *authpub,
@@ -1597,7 +1617,7 @@ static int hpke_dec_int(
         pkE = hpke_EVP_PKEY_new_raw_nist_public_key(
                 hpke_kem_tab[suite.kem_id].groupid, enc, enclen);
     } else {
-        pkE = EVP_PKEY_new_raw_public_key_ex(hpke_libctx,
+        pkE = EVP_PKEY_new_raw_public_key_ex(libctx,
                 hpke_kem_tab[suite.kem_id].keytype, NULL , enc, enclen);
     }
     if (pkE == NULL) {
@@ -1619,7 +1639,7 @@ static int hpke_dec_int(
 
     /* step 1. load decryptors private key */
     if (!evppriv) {
-        erv = hpke_prbuf2evp(suite.kem_id, priv, privlen, NULL, 0, &skR);
+        erv = hpke_prbuf2evp(libctx, suite.kem_id, priv, privlen, NULL, 0, &skR);
         if (erv != 1) goto err;
         if (!skR) {
             erv = __LINE__;goto err;
@@ -1634,7 +1654,7 @@ static int hpke_dec_int(
         HPKE_err;
     }
 
-    erv = hpke_do_kem(0, suite, skR, mypublen, mypub, pkE, enclen, enc,
+    erv = hpke_do_kem(libctx, 0, suite, skR, mypublen, mypub, pkE, enclen, enc,
             pkI, authpublen, authpub, &shared_secret, &shared_secretlen);
     if (erv != 1) goto err;
 
@@ -1643,14 +1663,14 @@ static int hpke_dec_int(
     ks_context[0] = (unsigned char)(mode % 256); ks_contextlen--;
     halflen = ks_contextlen;
     pskidlen = (psk == NULL ? 0 : strlen(pskid));
-    erv = hpke_extract(suite, HPKE_5869_MODE_FULL,
+    erv = hpke_extract(libctx, suite, HPKE_5869_MODE_FULL,
                     (const unsigned char*)"", 0,
                     HPKE_PSKIDHASH_LABEL, strlen(HPKE_PSKIDHASH_LABEL),
                     (unsigned char*)pskid, pskidlen,
                     ks_context + 1, &halflen);
     if (erv != 1) goto err;
     ks_contextlen -= halflen;
-    erv = hpke_extract(suite, HPKE_5869_MODE_FULL,
+    erv = hpke_extract(libctx, suite, HPKE_5869_MODE_FULL,
                     (const unsigned char*)"", 0,
                     HPKE_INFOHASH_LABEL, strlen(HPKE_INFOHASH_LABEL),
                     info, infolen,
@@ -1660,7 +1680,7 @@ static int hpke_dec_int(
 
     /* step 4. extracts and expands as needed */
     /* Extract secret and Expand variously...  */
-    erv = hpke_extract(suite, HPKE_5869_MODE_FULL,
+    erv = hpke_extract(libctx, suite, HPKE_5869_MODE_FULL,
                     (const unsigned char*)"", 0,
                     HPKE_PSK_HASH_LABEL, strlen(HPKE_PSK_HASH_LABEL),
                     psk, psklen,
@@ -1670,7 +1690,7 @@ static int hpke_dec_int(
     if (secretlen > SHA512_DIGEST_LENGTH) {
         HPKE_err;
     }
-    if (hpke_extract(suite, HPKE_5869_MODE_FULL,
+    if (hpke_extract(libctx, suite, HPKE_5869_MODE_FULL,
                     shared_secret, shared_secretlen,
                     HPKE_SECRET_LABEL, strlen(HPKE_SECRET_LABEL),
                     psk, psklen,
@@ -1679,7 +1699,7 @@ static int hpke_dec_int(
     }
 
     noncelen = hpke_aead_tab[suite.aead_id].Nn;
-    if (hpke_expand(suite, HPKE_5869_MODE_FULL,
+    if (hpke_expand(libctx, suite, HPKE_5869_MODE_FULL,
                     secret, secretlen,
                     HPKE_NONCE_LABEL, strlen(HPKE_NONCE_LABEL),
                     ks_context, ks_contextlen,
@@ -1709,7 +1729,7 @@ static int hpke_dec_int(
     }
 
     keylen = hpke_aead_tab[suite.aead_id].Nk;
-    if (hpke_expand(suite, HPKE_5869_MODE_FULL,
+    if (hpke_expand(libctx, suite, HPKE_5869_MODE_FULL,
                     secret, secretlen,
                     HPKE_KEY_LABEL, strlen(HPKE_KEY_LABEL),
                     ks_context, ks_contextlen,
@@ -1717,7 +1737,7 @@ static int hpke_dec_int(
         HPKE_err;
     }
     exporterlen = hpke_kdf_tab[suite.kdf_id].Nh;
-    if (hpke_expand(suite, HPKE_5869_MODE_FULL,
+    if (hpke_expand(libctx, suite, HPKE_5869_MODE_FULL,
                     secret, secretlen,
                     HPKE_EXP_LABEL, strlen(HPKE_EXP_LABEL),
                     ks_context, ks_contextlen,
@@ -1727,7 +1747,7 @@ static int hpke_dec_int(
 
     /* step 5. call the AEAD */
     arv = hpke_aead_dec(
-                suite,
+                libctx, suite,
                 key, keylen,
                 nonce, noncelen,
                 aad, aadlen,
@@ -1751,6 +1771,7 @@ err:
 /*!
  * @brief generate a key pair keeping private inside API
  *
+ * @param libctx is the context to use (normally NULL)
  * @param mode is the mode (currently unused)
  * @param suite is the ciphersuite
  * @param publen is the size of the public key buffer (exact length on output)
@@ -1759,6 +1780,7 @@ err:
  * @return 1 for good (OpenSSL style), not 1 for error
  */
 static int hpke_kg_evp(
+        OSSL_LIB_CTX  *libctx,
         unsigned int mode, hpke_suite_t suite,
         size_t *publen, unsigned char *pub,
         EVP_PKEY **priv)
@@ -1788,7 +1810,7 @@ static int hpke_kg_evp(
             HPKE_err;
         }
     } else {
-        pctx = EVP_PKEY_CTX_new_from_name(hpke_libctx,
+        pctx = EVP_PKEY_CTX_new_from_name(libctx,
                 hpke_kem_tab[suite.kem_id].keytype, NULL);
         if (pctx == NULL) {
             HPKE_err;
@@ -1826,6 +1848,7 @@ err:
 /*!
  * @brief generate a key pair
  *
+ * @param libctx is the context to use (normally NULL)
  * @param mode is the mode (currently unused)
  * @param suite is the ciphersuite
  * @param publen is the size of the public key buffer (exact length on output)
@@ -1835,6 +1858,7 @@ err:
  * @return 1 for good (OpenSSL style), not 1 for error
  */
 static int hpke_kg(
+        OSSL_LIB_CTX  *libctx,
         unsigned int mode, hpke_suite_t suite,
         size_t *publen, unsigned char *pub,
         size_t *privlen, unsigned char *priv)
@@ -1847,7 +1871,7 @@ static int hpke_kg(
 
     if (hpke_suite_check(suite) != 1) return(__LINE__);
     if (!pub || !priv) return(__LINE__);
-    erv = hpke_kg_evp(mode, suite, publen, pub, &skR);
+    erv = hpke_kg_evp(libctx, mode, suite, publen, pub, &skR);
     if (erv != 1) {
         return(erv);
     }
@@ -2063,34 +2087,6 @@ static int hpke_expansion(hpke_suite_t suite,
     return 1;
 }
 
-/*!
- * @brief set a non-default OSSL_LIB_CTX if needed
- * @param ctx is the context to set
- * @return 1 for success, otherwise failure
- */
-static int hpke_setlibctx(OSSL_LIB_CTX *libctx)
-{
-    /*
-     * This use to call OSSL_LIB_CTX_set0_default() but that caused some
-     * *very* odd errors when this code was executed in the context of
-     * the OpenSSL test harness in an undefined behaviour sanitizer build.
-     * In the end, not calling the above (but without really understanding
-     * the issue) is where we landed.
-     */
-    hpke_libctx = libctx;
-    return(1);
-}
-
-/*
- * The same functions, but with "public" names that work for 
- * the OpenSSL project's naming conventions. Seems likely the
- * prototypes for these may change in discussion with project 
- * members, so initially, the implementations of these will be 
- * simple wrappers of the above. Once the prototypes seem ok, 
- * then we can zap the hpke_* variants and just go with the 
- * OSSL_HPKE_* ones.
- */
-
 /*
  * @brief HPKE single-shot encryption function
  *
@@ -2140,8 +2136,7 @@ int OSSL_HPKE_enc(
         size_t *cipherlen, unsigned char *cipher
         )
 {
-    if (libctx != NULL) hpke_setlibctx(libctx);
-    return hpke_enc_int(mode, suite,
+    return hpke_enc_int(libctx, mode, suite,
             pskid, psklen, psk,
             publen, pub,
             authprivlen, authpriv, authpriv_evp,
@@ -2205,8 +2200,7 @@ int OSSL_HPKE_enc_evp(
         size_t *cipherlen, unsigned char *cipher
         )
 {
-    if (libctx != NULL) hpke_setlibctx(libctx);
-    return hpke_enc_int(mode, suite,
+    return hpke_enc_int(libctx, mode, suite,
             pskid, psklen, psk,
             publen, pub,
             authprivlen, authpriv, authpriv_evp,
@@ -2263,8 +2257,7 @@ int OSSL_HPKE_dec(
         size_t seqlen, unsigned char *seq,
         size_t *clearlen, unsigned char *clear)
 {
-    if (libctx != NULL) hpke_setlibctx(libctx);
-    return(hpke_dec_int(mode, suite,
+    return(hpke_dec_int(libctx, mode, suite,
                     pskid, psklen, psk,
                     publen, pub,
                     privlen, priv, evppriv,
@@ -2293,8 +2286,7 @@ int OSSL_HPKE_kg(
         size_t *publen, unsigned char *pub,
         size_t *privlen, unsigned char *priv)
 {
-    if (libctx != NULL) hpke_setlibctx(libctx);
-    return(hpke_kg(mode, suite, publen, pub, privlen, priv));
+    return(hpke_kg(libctx, mode, suite, publen, pub, privlen, priv));
 }
 
 /*!
@@ -2313,22 +2305,18 @@ int OSSL_HPKE_kg_evp(
         size_t *publen, unsigned char *pub,
         EVP_PKEY **priv)
 {
-    if (libctx != NULL) hpke_setlibctx(libctx);
-    return(hpke_kg_evp(mode, suite, publen, pub, priv));
+    return(hpke_kg_evp(libctx, mode, suite, publen, pub, priv));
 }
 
 /**
  * @brief check if a suite is supported locally
  *
- * @param libctx is the context to use (normally NULL)
  * @param suite is the suite to check
  * @return 1 for good/supported, not-1 otherwise
  */
 int OSSL_HPKE_suite_check(
-        OSSL_LIB_CTX *libctx,
         hpke_suite_t suite)
 {
-    if (libctx != NULL) hpke_setlibctx(libctx);
     return(hpke_suite_check(suite));
 }
 
@@ -2357,8 +2345,8 @@ int OSSL_HPKE_prbuf2evp(
         size_t pubuf_len,
         EVP_PKEY **priv)
 {
-    if (libctx != NULL) hpke_setlibctx(libctx);
-    return(hpke_prbuf2evp(kem_id,prbuf,prbuf_len,pubuf,pubuf_len,priv));
+    return(hpke_prbuf2evp(libctx, kem_id, prbuf, prbuf_len, pubuf,
+                pubuf_len, priv));
 }
 
 /*!
@@ -2366,7 +2354,6 @@ int OSSL_HPKE_prbuf2evp(
  *
  * As usual buffers are caller allocated and lengths on input are buffer size.
  *
- * @param libctx is the context to use (normally NULL)
  * @param suite_in specifies the preferred suite or NULL for a random choice
  * @param suite is the chosen or random suite
  * @param pub a random value of the appropriate length for a sender public value
@@ -2376,7 +2363,6 @@ int OSSL_HPKE_prbuf2evp(
  * @return 1 for success, otherwise failure
  */
 int OSSL_HPKE_good4grease(
-        OSSL_LIB_CTX *libctx,
         hpke_suite_t *suite_in,
         hpke_suite_t suite,
         unsigned char *pub,
@@ -2384,24 +2370,20 @@ int OSSL_HPKE_good4grease(
         unsigned char *cipher,
         size_t cipher_len)
 {
-    if (libctx != NULL) hpke_setlibctx(libctx);
     return(hpke_good4grease(suite_in, suite, pub, pub_len, cipher, cipher_len));
 }
 
 /*!
  * @brief map a string to a HPKE suite
  *
- * @param libctx is the context to use (normally NULL)
  * @param str is the string value
  * @param suite is the resulting suite
  * @return 1 for success, otherwise failure
  */
 int OSSL_HPKE_str2suite(
-        OSSL_LIB_CTX *libctx,
         char *str, 
         hpke_suite_t *suite)
 {
-    if (libctx != NULL) hpke_setlibctx(libctx);
     return(hpke_str2suite(str, suite));
 }
 
@@ -2415,18 +2397,15 @@ int OSSL_HPKE_str2suite(
  * much data expansion they'll see with a given
  * suite.
  *
- * @param libctx is the context to use (normally NULL)
  * @param suite is the suite to be used
  * @param clearlen is the length of plaintext
  * @param cipherlen points to what'll be ciphertext length
  * @return 1 for success, otherwise failure
  */
 int OSSL_HPKE_expansion(
-        OSSL_LIB_CTX *libctx,
         hpke_suite_t suite,
         size_t clearlen,
         size_t *cipherlen)
 {
-    if (libctx != NULL) hpke_setlibctx(libctx);
     return(hpke_expansion(suite, clearlen, cipherlen));
 }
