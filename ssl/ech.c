@@ -4163,14 +4163,14 @@ int ech_send_grease(SSL *ssl, WPACKET *pkt)
         cipher_len+=(cid%cipher_len_jitter);
     }
     if (s->ext.ech_grease_suite) {
-        if (OSSL_HPKE_str2suite(NULL, s->ext.ech_grease_suite,
+        if (OSSL_HPKE_str2suite(s->ext.ech_grease_suite,
                     &hpke_suite_in)!=1) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             return 0;
         }
         hpke_suite_in_p=&hpke_suite_in;
     }
-    if (OSSL_HPKE_good4grease(NULL, hpke_suite_in_p, hpke_suite,
+    if (OSSL_HPKE_good4grease(hpke_suite_in_p, hpke_suite,
                 senderpub,&senderpub_len,cipher,cipher_len)!=1) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
@@ -4359,7 +4359,7 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
             unsigned char *es=(unsigned char*)&ltc->ciphersuites[csuite];
             hpke_suite.kdf_id=es[0]*256+es[1];
             hpke_suite.aead_id=es[2]*256+es[3];
-            if (OSSL_HPKE_suite_check(NULL, hpke_suite)==1) {
+            if (OSSL_HPKE_suite_check(hpke_suite)==1) {
                 /* success if both "fit" */
                 if (prefind!=-1) {
                     tc=ltc;
@@ -4655,7 +4655,7 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
                 s->ext.inner_s->ext.encoded_innerch_len);
         } OSSL_TRACE_END(TLS);
 #endif
-        if (OSSL_HPKE_expansion(NULL, hpke_suite,clear_len,&lcipherlen)!=1) {
+        if (OSSL_HPKE_expansion(hpke_suite,clear_len,&lcipherlen)!=1) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             goto err;
         }
