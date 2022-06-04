@@ -1643,6 +1643,10 @@ DEPEND[html/man3/OSSL_ESS_check_signing_certs.html]=man3/OSSL_ESS_check_signing_
 GENERATE[html/man3/OSSL_ESS_check_signing_certs.html]=man3/OSSL_ESS_check_signing_certs.pod
 DEPEND[man/man3/OSSL_ESS_check_signing_certs.3]=man3/OSSL_ESS_check_signing_certs.pod
 GENERATE[man/man3/OSSL_ESS_check_signing_certs.3]=man3/OSSL_ESS_check_signing_certs.pod
+DEPEND[html/man3/OSSL_HPKE_enc.html]=man3/OSSL_HPKE_enc.pod
+GENERATE[html/man3/OSSL_HPKE_enc.html]=man3/OSSL_HPKE_enc.pod
+DEPEND[man/man3/OSSL_HPKE_enc.3]=man3/OSSL_HPKE_enc.pod
+GENERATE[man/man3/OSSL_HPKE_enc.3]=man3/OSSL_HPKE_enc.pod
 DEPEND[html/man3/OSSL_HTTP_REQ_CTX.html]=man3/OSSL_HTTP_REQ_CTX.pod
 GENERATE[html/man3/OSSL_HTTP_REQ_CTX.html]=man3/OSSL_HTTP_REQ_CTX.pod
 DEPEND[man/man3/OSSL_HTTP_REQ_CTX.3]=man3/OSSL_HTTP_REQ_CTX.pod
@@ -2847,10 +2851,6 @@ DEPEND[html/man3/d2i_X509.html]=man3/d2i_X509.pod
 GENERATE[html/man3/d2i_X509.html]=man3/d2i_X509.pod
 DEPEND[man/man3/d2i_X509.3]=man3/d2i_X509.pod
 GENERATE[man/man3/d2i_X509.3]=man3/d2i_X509.pod
-DEPEND[html/man3/OSSL_HPKE_enc.html]=man3/OSSL_HPKE_enc.pod
-GENERATE[html/man3/OSSL_HPKE_enc.html]=man3/OSSL_HPKE_enc.pod
-DEPEND[man/man3/OSSL_HPKE_enc.3]=man3/OSSL_HPKE_enc.pod
-GENERATE[man/man3/OSSL_HPKE_enc.3]=man3/OSSL_HPKE_enc.pod
 DEPEND[html/man3/i2d_CMS_bio_stream.html]=man3/i2d_CMS_bio_stream.pod
 GENERATE[html/man3/i2d_CMS_bio_stream.html]=man3/i2d_CMS_bio_stream.pod
 DEPEND[man/man3/i2d_CMS_bio_stream.3]=man3/i2d_CMS_bio_stream.pod
@@ -3164,6 +3164,7 @@ html/man3/OSSL_ENCODER_CTX.html \
 html/man3/OSSL_ENCODER_CTX_new_for_pkey.html \
 html/man3/OSSL_ENCODER_to_bio.html \
 html/man3/OSSL_ESS_check_signing_certs.html \
+html/man3/OSSL_HPKE_enc.html \
 html/man3/OSSL_HTTP_REQ_CTX.html \
 html/man3/OSSL_HTTP_parse_url.html \
 html/man3/OSSL_HTTP_transfer.html \
@@ -3465,7 +3466,6 @@ html/man3/d2i_PrivateKey.html \
 html/man3/d2i_RSAPrivateKey.html \
 html/man3/d2i_SSL_SESSION.html \
 html/man3/d2i_X509.html \
-html/man3/OSSL_HPKE_enc.html \
 html/man3/i2d_CMS_bio_stream.html \
 html/man3/i2d_PKCS7_bio_stream.html \
 html/man3/i2d_re_X509_tbs.html \
@@ -3763,6 +3763,7 @@ man/man3/OSSL_ENCODER_CTX.3 \
 man/man3/OSSL_ENCODER_CTX_new_for_pkey.3 \
 man/man3/OSSL_ENCODER_to_bio.3 \
 man/man3/OSSL_ESS_check_signing_certs.3 \
+man/man3/OSSL_HPKE_enc.3 \
 man/man3/OSSL_HTTP_REQ_CTX.3 \
 man/man3/OSSL_HTTP_parse_url.3 \
 man/man3/OSSL_HTTP_transfer.3 \
@@ -4064,7 +4065,6 @@ man/man3/d2i_PrivateKey.3 \
 man/man3/d2i_RSAPrivateKey.3 \
 man/man3/d2i_SSL_SESSION.3 \
 man/man3/d2i_X509.3 \
-man/man3/OSSL_HPKE_enc.3 \
 man/man3/i2d_CMS_bio_stream.3 \
 man/man3/i2d_PKCS7_bio_stream.3 \
 man/man3/i2d_re_X509_tbs.3 \
