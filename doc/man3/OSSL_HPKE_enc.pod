@@ -11,8 +11,8 @@ OSSL_HPKE_expansion, OSSL_HPKE_good4grease
 =head1 SYNOPSIS
 
  #include <crypto/hpke.h>
- int OSSL_HPKE_suite_check(OSSL_LIB_CTX *libctx, hpke_suite_t suite);
- int OSSL_HPKE_str2suite(OSSL_LIB_CTX *libctx, char *str, hpke_suite_t suite);
+ int OSSL_HPKE_suite_check(hpke_suite_t suite);
+ int OSSL_HPKE_str2suite(char *str, hpke_suite_t suite);
 
  int OSSL_HPKE_kg(OSSL_LIB_CTX *libctx, unsigned int mode, hpke_suite_t suite, size_t *publen, unsigned char *pub, size_t *privlen, unsigned char *priv);
  int OSSL_HPKE_kg_evp(OSSL_LIB_CTX *libctx, unsigned int mode, hpke_suite_t suite, size_t *publen, unsigned char *pub, EVP_PKEY **priv);
@@ -54,8 +54,8 @@ OSSL_HPKE_expansion, OSSL_HPKE_good4grease
                size_t seqlen, unsigned char *seq,
                size_t *clearlen, unsigned char *clear);
 
- int OSSL_HPKE_expansion(OSSL_LIB_CTX *libctx, hpke_suite_t suite, size_t clearlen, size_t *cipherlen);
- int OSSL_HPKE_good4grease(OSSL_LIB_CTX *libctx,  hpke_suite_t *suite_in, hpke_suite_t suite, unsigned char *pub, size_t *pub_len, unsigned char *cipher, size_t cipher_len);
+ int OSSL_HPKE_expansion(hpke_suite_t suite, size_t clearlen, size_t *cipherlen);
+ int OSSL_HPKE_good4grease(hpke_suite_t *suite_in, hpke_suite_t suite, unsigned char *pub, size_t *pub_len, unsigned char *cipher, size_t cipher_len);
 
 =head1 DESCRIPTION
 
