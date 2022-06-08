@@ -55,7 +55,7 @@ OSSL_HPKE_expansion, OSSL_HPKE_good4grease
                size_t *clearlen, unsigned char *clear);
 
  int OSSL_HPKE_expansion(hpke_suite_t suite, size_t clearlen, size_t *cipherlen);
- int OSSL_HPKE_good4grease(hpke_suite_t *suite_in, hpke_suite_t suite, unsigned char *pub, size_t *pub_len, unsigned char *cipher, size_t cipher_len);
+ int OSSL_HPKE_good4grease(OSSL_LIB_CTX *libctx, hpke_suite_t *suite_in, hpke_suite_t suite, unsigned char *pub, size_t *pub_len, unsigned char *cipher, size_t cipher_len);
 
 =head1 DESCRIPTION
 
@@ -135,7 +135,9 @@ senderpub
 - priv is the receiver's non-ephemeral ECDH private value for decryption
 
 - seq is a buffer representing the sequencing of encryptions when multiple
-calls are made (to be XOR'd with an internal nonce)
+calls are made (to be XOR'd with an internal nonce) - this thereforce must
+be no longer than that nonce length (12 octets generally) specified for
+the AEAD algorithm in question
 
 - cipher is a buffer for ciphertext (not including the recipient's public
 value)
