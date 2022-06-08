@@ -4100,6 +4100,7 @@ int ech_send_grease(SSL *s, WPACKET *pkt)
     unsigned char *pp=WPACKET_get_curr(pkt);
     size_t pp_at_start=0;
     size_t pp_at_end=0;
+    OSSL_LIB_CTX *libctx = NULL;
    
     WPACKET_get_total_written(pkt,&pp_at_start);
 
@@ -4107,7 +4108,8 @@ int ech_send_grease(SSL *s, WPACKET *pkt)
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
     }
-    if (RAND_bytes_ex(s->ctx->libctx, &cid, cid_len, RAND_DRBG_STRENGTH) <= 0) {
+    if (s->ctx != NULL) libctx = s->ctx->libctx;
+    if (RAND_bytes_ex(libctx, &cid, cid_len, RAND_DRBG_STRENGTH) <= 0) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
     }
@@ -4124,7 +4126,7 @@ int ech_send_grease(SSL *s, WPACKET *pkt)
         }
         hpke_suite_in_p=&hpke_suite_in;
     }
-    if (OSSL_HPKE_good4grease(hpke_suite_in_p, hpke_suite,
+    if (OSSL_HPKE_good4grease(s->ctx->libctx, hpke_suite_in_p, &hpke_suite,
                 senderpub,&senderpub_len,cipher,cipher_len)!=1) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
