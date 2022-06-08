@@ -55,7 +55,13 @@ OSSL_HPKE_expansion, OSSL_HPKE_good4grease
                size_t *clearlen, unsigned char *clear);
 
  int OSSL_HPKE_expansion(hpke_suite_t suite, size_t clearlen, size_t *cipherlen);
- int OSSL_HPKE_good4grease(OSSL_LIB_CTX *libctx, hpke_suite_t *suite_in, hpke_suite_t suite, unsigned char *pub, size_t *pub_len, unsigned char *cipher, size_t cipher_len);
+ int OSSL_HPKE_good4grease(OSSL_LIB_CTX *libctx, 
+               hpke_suite_t *suite_in, 
+               hpke_suite_t *suite, 
+               unsigned char *pub, 
+               size_t *pub_len, 
+               unsigned char *cipher, 
+               size_t cipher_len);
 
 =head1 DESCRIPTION
 
