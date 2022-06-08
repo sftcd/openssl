@@ -321,7 +321,7 @@ typedef struct {
  * @param cipher is the input buffer for ciphertext
  * @return 1 for good (OpenSSL style), not-1 for error
  *
- * Oddity: we're passing an hpke_suit_t directly, but 48 bits is actually
+ * Oddity: we're passing an hpke_suite_t directly, but 48 bits is actually
  * smaller than a 64 bit pointer, so that's grand, if odd:-)
  */
 int OSSL_HPKE_enc(
@@ -369,7 +369,7 @@ int OSSL_HPKE_enc(
  * @param cipher is the input buffer for ciphertext
  * @return 1 for good (OpenSSL style), not-1 for error
  *
- * Oddity: we're passing an hpke_suit_t directly, but 48 bits is actually
+ * Oddity: we're passing an hpke_suite_t directly, but 48 bits is actually
  * smaller than a 64 bit pointer, so that's grand, if odd:-)
  */
 int OSSL_HPKE_enc_evp(
@@ -502,6 +502,7 @@ int OSSL_HPKE_prbuf2evp(
  *
  * As usual buffers are caller allocated and lengths on input are buffer size.
  *
+ * @param libctx is the context to use (normally NULL)
  * @param suite_in specifies the preferred suite or NULL for a random choice
  * @param suite is the chosen or random suite
  * @param pub a random value of the appropriate length for a sender public value
@@ -511,8 +512,9 @@ int OSSL_HPKE_prbuf2evp(
  * @return 1 for success, otherwise failure
  */
 int OSSL_HPKE_good4grease(
+        OSSL_LIB_CTX *libctx,
         hpke_suite_t *suite_in,
-        hpke_suite_t suite,
+        hpke_suite_t *suite,
         unsigned char *pub,
         size_t *pub_len,
         unsigned char *cipher,
