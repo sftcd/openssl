@@ -21,7 +21,7 @@
 
 /** biggest/default buffer for keys and internal buffers we use */
 # ifndef HPKE_MAXSIZE
-#  define HPKE_MAXSIZE 2*1024 /* 2k is enough for anyone (using this program:-) */
+#  define HPKE_MAXSIZE 2*1024 /* 2k is enough for anyone (for this program:-) */
 # endif
 
 /*
@@ -57,7 +57,7 @@
 /* strings for modes */
 # define HPKE_MODESTR_BASE       "base"    /**< base mode (1), no sender auth */
 # define HPKE_MODESTR_PSK        "psk"     /**< psk mode (2) */
-# define HPKE_MODESTR_AUTH       "auth"    /**< auth (3), with a sender-key pair */
+# define HPKE_MODESTR_AUTH       "auth"    /**< auth (3) with sender-key pair */
 # define HPKE_MODESTR_PSKAUTH    "pskauth" /**< psk+sender-key pair (4) */
 
 /* strings for suites */
@@ -331,7 +331,7 @@ int OSSL_HPKE_good4grease(
  * @return 1 for success, otherwise failure
  */
 int OSSL_HPKE_str2suite(
-        char *str, 
+        char *str,
         hpke_suite_t *suite);
 
 /*!
