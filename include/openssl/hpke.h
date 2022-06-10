@@ -9,8 +9,7 @@
 
 /**
  * @file
- * This has the data structures and prototypes (both internal and external)
- * for an OpenSSL-based HPKE implementation of RFC9180
+ * Data structures/prototypes for HPKE (RFC9180)
  */
 
 #ifndef HPKE_H_INCLUDED
@@ -18,10 +17,9 @@
 
 # include <openssl/ssl.h>
 
-
 /** biggest/default buffer for keys and internal buffers we use */
 # ifndef HPKE_MAXSIZE
-#  define HPKE_MAXSIZE 2*1024 /* 2k is enough for anyone (for this program:-) */
+#  define HPKE_MAXSIZE (2 * 1024) /* 2k: enough for anyone :-) */
 # endif
 
 /*
@@ -73,7 +71,7 @@
 # define HPKE_AEADSTR_AES256GCM  "aes256gcm"         /**< AEAD id 2 */
 # define HPKE_AEADSTR_CP         "chachapoly1305"    /**< AEAD id 3 */
 
-/*!
+/*
  * @brief ciphersuite combination
  */
 typedef struct {
@@ -82,15 +80,26 @@ typedef struct {
     uint16_t    aead_id; /**< AEAD alg id */
 } hpke_suite_t;
 
-/*!
- * Two suite constants, use this like:
- *
+/*
+ * Suite constants, use this like:
  *          hpke_suite_t myvar = HPKE_SUITE_DEFAULT;
  */
 # define HPKE_SUITE_DEFAULT \
-    { HPKE_KEM_ID_25519, HPKE_KDF_ID_HKDF_SHA256, HPKE_AEAD_ID_AES_GCM_128 }
+    {\
+        HPKE_KEM_ID_25519, \
+        HPKE_KDF_ID_HKDF_SHA256, \
+        HPKE_AEAD_ID_AES_GCM_128 \
+    }
+
+/*
+ * If you like your crypto turned up...
+ */
 # define HPKE_SUITE_TURNITUPTO11 \
-    { HPKE_KEM_ID_448, HPKE_KDF_ID_HKDF_SHA512, HPKE_AEAD_ID_CHACHA_POLY1305 }
+    { \
+        HPKE_KEM_ID_448, \
+        HPKE_KDF_ID_HKDF_SHA512, \
+        HPKE_AEAD_ID_CHACHA_POLY1305 \
+    }
 
 /*
  * @brief HPKE single-shot encryption function
@@ -127,19 +136,18 @@ typedef struct {
  * Oddity: we're passing an hpke_suite_t directly, but 48 bits is actually
  * smaller than a 64 bit pointer, so that's grand, if odd:-)
  */
-int OSSL_HPKE_enc(
-        OSSL_LIB_CTX *libctx,
-        unsigned int mode, hpke_suite_t suite,
-        char *pskid, size_t psklen, unsigned char *psk,
-        size_t publen, unsigned char *pub,
-        size_t authprivlen, unsigned char *authpriv, EVP_PKEY *authpriv_evp,
-        size_t clearlen, unsigned char *clear,
-        size_t aadlen, unsigned char *aad,
-        size_t infolen, unsigned char *info,
-        size_t seqlen, unsigned char *seq,
-        size_t *senderpublen, unsigned char *senderpub,
-        size_t *cipherlen, unsigned char *cipher
-        );
+int OSSL_HPKE_enc(OSSL_LIB_CTX *libctx,
+                  unsigned int mode, hpke_suite_t suite,
+                  char *pskid, size_t psklen, unsigned char *psk,
+                  size_t publen, unsigned char *pub,
+                  size_t authprivlen, unsigned char *authpriv,
+                  EVP_PKEY *authpriv_evp,
+                  size_t clearlen, unsigned char *clear,
+                  size_t aadlen, unsigned char *aad,
+                  size_t infolen, unsigned char *info,
+                  size_t seqlen, unsigned char *seq,
+                  size_t *senderpublen, unsigned char *senderpub,
+                  size_t *cipherlen, unsigned char *cipher);
 
 /*
  * @brief HPKE single-shot encryption function
@@ -175,19 +183,19 @@ int OSSL_HPKE_enc(
  * Oddity: we're passing an hpke_suite_t directly, but 48 bits is actually
  * smaller than a 64 bit pointer, so that's grand, if odd:-)
  */
-int OSSL_HPKE_enc_evp(
-        OSSL_LIB_CTX *libctx,
-        unsigned int mode, hpke_suite_t suite,
-        char *pskid, size_t psklen, unsigned char *psk,
-        size_t publen, unsigned char *pub,
-        size_t authprivlen, unsigned char *authpriv, EVP_PKEY *authpriv_evp,
-        size_t clearlen, unsigned char *clear,
-        size_t aadlen, unsigned char *aad,
-        size_t infolen, unsigned char *info,
-        size_t seqlen, unsigned char *seq,
-        size_t senderpublen, unsigned char *senderpub, EVP_PKEY *senderpriv,
-        size_t *cipherlen, unsigned char *cipher
-        );
+int OSSL_HPKE_enc_evp(OSSL_LIB_CTX *libctx,
+                      unsigned int mode, hpke_suite_t suite,
+                      char *pskid, size_t psklen, unsigned char *psk,
+                      size_t publen, unsigned char *pub,
+                      size_t authprivlen, unsigned char *authpriv,
+                      EVP_PKEY *authpriv_evp,
+                      size_t clearlen, unsigned char *clear,
+                      size_t aadlen, unsigned char *aad,
+                      size_t infolen, unsigned char *info,
+                      size_t seqlen, unsigned char *seq,
+                      size_t senderpublen, unsigned char *senderpub,
+                      EVP_PKEY *senderpriv,
+                      size_t *cipherlen, unsigned char *cipher);
 
 /*
  * @brief HPKE single-shot decryption function
@@ -217,23 +225,21 @@ int OSSL_HPKE_enc_evp(
  * @param clear is the encoded cleartext
  * @return 1 for good (OpenSSL style), not-1 for error
  */
-int OSSL_HPKE_dec(
-        OSSL_LIB_CTX *libctx,
-        unsigned int mode, hpke_suite_t suite,
-        char *pskid, size_t psklen, unsigned char *psk,
-        size_t publen, unsigned char *pub,
-        size_t privlen, unsigned char *priv,
-        EVP_PKEY *evppriv,
-        size_t enclen, unsigned char *enc,
-        size_t cipherlen, unsigned char *cipher,
-        size_t aadlen, unsigned char *aad,
-        size_t infolen, unsigned char *info,
-        size_t seqlen, unsigned char *seq,
-        size_t *clearlen, unsigned char *clear);
+int OSSL_HPKE_dec(OSSL_LIB_CTX *libctx,
+                  unsigned int mode, hpke_suite_t suite,
+                  char *pskid, size_t psklen, unsigned char *psk,
+                  size_t publen, unsigned char *pub,
+                  size_t privlen, unsigned char *priv,
+                  EVP_PKEY *evppriv,
+                  size_t enclen, unsigned char *enc,
+                  size_t cipherlen, unsigned char *cipher,
+                  size_t aadlen, unsigned char *aad,
+                  size_t infolen, unsigned char *info,
+                  size_t seqlen, unsigned char *seq,
+                  size_t *clearlen, unsigned char *clear);
 
-/*!
+/*
  * @brief generate a key pair
- *
  * @param libctx is the context to use (normally NULL)
  * @param mode is the mode (currently unused)
  * @param suite is the ciphersuite (currently unused)
@@ -243,13 +249,12 @@ int OSSL_HPKE_dec(
  * @param priv is the private key
  * @return 1 for good (OpenSSL style), not-1 for error
  */
-int OSSL_HPKE_kg(
-        OSSL_LIB_CTX *libctx,
-        unsigned int mode, hpke_suite_t suite,
-        size_t *publen, unsigned char *pub,
-        size_t *privlen, unsigned char *priv);
+int OSSL_HPKE_kg(OSSL_LIB_CTX *libctx,
+                 unsigned int mode, hpke_suite_t suite,
+                 size_t *publen, unsigned char *pub,
+                 size_t *privlen, unsigned char *priv);
 
-/*!
+/*
  * @brief generate a key pair but keep private inside API
  *
  * @param libctx is the context to use (normally NULL)
@@ -260,22 +265,20 @@ int OSSL_HPKE_kg(
  * @param priv is the private key handle
  * @return 1 for good (OpenSSL style), not-1 for error
  */
-int OSSL_HPKE_kg_evp(
-        OSSL_LIB_CTX *libctx,
-        unsigned int mode, hpke_suite_t suite,
-        size_t *publen, unsigned char *pub,
-        EVP_PKEY **priv);
+int OSSL_HPKE_kg_evp(OSSL_LIB_CTX *libctx,
+                     unsigned int mode, hpke_suite_t suite,
+                     size_t *publen, unsigned char *pub,
+                     EVP_PKEY **priv);
 
-/**
+/*
  * @brief check if a suite is supported locally
  *
  * @param suite is the suite to check
  * @return 1 for good/supported, not-1 otherwise
  */
-int OSSL_HPKE_suite_check(
-        hpke_suite_t suite);
+int OSSL_HPKE_suite_check(hpke_suite_t suite);
 
-/*!
+/*
  * @brief: map a kem_id and a private key buffer into an EVP_PKEY
  *
  * @param libctx is the context to use (normally NULL)
@@ -291,16 +294,15 @@ int OSSL_HPKE_suite_check(
  * private key, but could still have the PEM header or not, and might
  * or might not be base64 encoded. We'll try handle all those options.
  */
-int OSSL_HPKE_prbuf2evp(
-        OSSL_LIB_CTX *libctx,
-        unsigned int kem_id,
-        unsigned char *prbuf,
-        size_t prbuf_len,
-        unsigned char *pubuf,
-        size_t pubuf_len,
-        EVP_PKEY **priv);
+int OSSL_HPKE_prbuf2evp(OSSL_LIB_CTX *libctx,
+                        unsigned int kem_id,
+                        unsigned char *prbuf,
+                        size_t prbuf_len,
+                        unsigned char *pubuf,
+                        size_t pubuf_len,
+                        EVP_PKEY **priv);
 
-/*!
+/*
  * @brief get a (possibly) random suite, public key and ciphertext for GREASErs
  *
  * As usual buffers are caller allocated and lengths on input are buffer size.
@@ -314,27 +316,25 @@ int OSSL_HPKE_prbuf2evp(
  * @param cipher_len is the length of cipher
  * @return 1 for success, otherwise failure
  */
-int OSSL_HPKE_good4grease(
-        OSSL_LIB_CTX *libctx,
-        hpke_suite_t *suite_in,
-        hpke_suite_t *suite,
-        unsigned char *pub,
-        size_t *pub_len,
-        unsigned char *cipher,
-        size_t cipher_len);
+int OSSL_HPKE_good4grease(OSSL_LIB_CTX *libctx,
+                          hpke_suite_t *suite_in,
+                          hpke_suite_t *suite,
+                          unsigned char *pub,
+                          size_t *pub_len,
+                          unsigned char *cipher,
+                          size_t cipher_len);
 
-/*!
+/*
  * @brief map a string to a HPKE suite
  *
  * @param str is the string value
  * @param suite is the resulting suite
  * @return 1 for success, otherwise failure
  */
-int OSSL_HPKE_str2suite(
-        char *str,
-        hpke_suite_t *suite);
+int OSSL_HPKE_str2suite(char *str,
+                        hpke_suite_t *suite);
 
-/*!
+/*
  * @brief tell the caller how big the cipertext will be
  *
  * AEAD algorithms add a tag for data authentication.
@@ -349,10 +349,8 @@ int OSSL_HPKE_str2suite(
  * @param cipherlen points to what'll be ciphertext length
  * @return 1 for success, otherwise failure
  */
-int OSSL_HPKE_expansion(
-        hpke_suite_t suite,
-        size_t clearlen,
-        size_t *cipherlen);
+int OSSL_HPKE_expansion(hpke_suite_t suite,
+                        size_t clearlen,
+                        size_t *cipherlen);
 
 #endif
-
