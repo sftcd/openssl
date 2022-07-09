@@ -97,16 +97,16 @@ static uint16_t verstr2us(char *arg)
 }
 
 /* brief string matching for suites */
-#define HPKE_MSMATCH(inp,known) \
+#define OSSL_HPKE_MSMATCH(inp,known) \
     (strlen(inp)==strlen(known) && !strcasecmp(inp,known))
 
 /**
  * @brief parse a string into an HPKE ciphersuite
  * @param suitestr is from the command line
- * @param hpke_suite is the hpke_suite_t result
+ * @param hpke_suite is the ossl_hpke_suite_st result
  * @return 1 for success something else otherwise
  */
-static int suitestr2suite(char *instr, hpke_suite_t *hpke_suite)
+static int suitestr2suite(char *instr, ossl_hpke_suite_st *hpke_suite)
 {
     uint16_t kem=0,kdf=0,aead=0;
     char *suitestr=NULL;
@@ -121,40 +121,40 @@ static int suitestr2suite(char *instr, hpke_suite_t *hpke_suite)
     while (st!=NULL) {
         /* check if string is known or number and if so handle appropriately */
         if (kem==0) {
-            if (HPKE_MSMATCH(st,HPKE_KEMSTR_P256)) kem=HPKE_KEM_ID_P256;
-            if (HPKE_MSMATCH(st,HPKE_KEMSTR_P384)) kem=HPKE_KEM_ID_P384;
-            if (HPKE_MSMATCH(st,HPKE_KEMSTR_P521)) kem=HPKE_KEM_ID_P521;
-            if (HPKE_MSMATCH(st,HPKE_KEMSTR_X25519)) kem=HPKE_KEM_ID_25519;
-            if (HPKE_MSMATCH(st,HPKE_KEMSTR_X448)) kem=HPKE_KEM_ID_448;
-            if (HPKE_MSMATCH(st,"0x10")) kem=HPKE_KEM_ID_P256;
-            if (HPKE_MSMATCH(st,"16")) kem=HPKE_KEM_ID_P256;
-            if (HPKE_MSMATCH(st,"0x11")) kem=HPKE_KEM_ID_P384;
-            if (HPKE_MSMATCH(st,"17")) kem=HPKE_KEM_ID_P384;
-            if (HPKE_MSMATCH(st,"0x12")) kem=HPKE_KEM_ID_P521;
-            if (HPKE_MSMATCH(st,"18")) kem=HPKE_KEM_ID_P521;
-            if (HPKE_MSMATCH(st,"0x20")) kem=HPKE_KEM_ID_25519;
-            if (HPKE_MSMATCH(st,"32")) kem=HPKE_KEM_ID_25519;
-            if (HPKE_MSMATCH(st,"0x21")) kem=HPKE_KEM_ID_448;
-            if (HPKE_MSMATCH(st,"33")) kem=HPKE_KEM_ID_448;
+            if (OSSL_HPKE_MSMATCH(st,OSSL_HPKE_KEMSTR_P256)) kem=OSSL_HPKE_KEM_ID_P256;
+            if (OSSL_HPKE_MSMATCH(st,OSSL_HPKE_KEMSTR_P384)) kem=OSSL_HPKE_KEM_ID_P384;
+            if (OSSL_HPKE_MSMATCH(st,OSSL_HPKE_KEMSTR_P521)) kem=OSSL_HPKE_KEM_ID_P521;
+            if (OSSL_HPKE_MSMATCH(st,OSSL_HPKE_KEMSTR_X25519)) kem=OSSL_HPKE_KEM_ID_25519;
+            if (OSSL_HPKE_MSMATCH(st,OSSL_HPKE_KEMSTR_X448)) kem=OSSL_HPKE_KEM_ID_448;
+            if (OSSL_HPKE_MSMATCH(st,"0x10")) kem=OSSL_HPKE_KEM_ID_P256;
+            if (OSSL_HPKE_MSMATCH(st,"16")) kem=OSSL_HPKE_KEM_ID_P256;
+            if (OSSL_HPKE_MSMATCH(st,"0x11")) kem=OSSL_HPKE_KEM_ID_P384;
+            if (OSSL_HPKE_MSMATCH(st,"17")) kem=OSSL_HPKE_KEM_ID_P384;
+            if (OSSL_HPKE_MSMATCH(st,"0x12")) kem=OSSL_HPKE_KEM_ID_P521;
+            if (OSSL_HPKE_MSMATCH(st,"18")) kem=OSSL_HPKE_KEM_ID_P521;
+            if (OSSL_HPKE_MSMATCH(st,"0x20")) kem=OSSL_HPKE_KEM_ID_25519;
+            if (OSSL_HPKE_MSMATCH(st,"32")) kem=OSSL_HPKE_KEM_ID_25519;
+            if (OSSL_HPKE_MSMATCH(st,"0x21")) kem=OSSL_HPKE_KEM_ID_448;
+            if (OSSL_HPKE_MSMATCH(st,"33")) kem=OSSL_HPKE_KEM_ID_448;
         } else if (kem!=0 && kdf==0) {
-            if (HPKE_MSMATCH(st,HPKE_KDFSTR_256)) kdf=1;
-            if (HPKE_MSMATCH(st,HPKE_KDFSTR_384)) kdf=2;
-            if (HPKE_MSMATCH(st,HPKE_KDFSTR_512)) kdf=3;
-            if (HPKE_MSMATCH(st,"1")) kdf=1;
-            if (HPKE_MSMATCH(st,"2")) kdf=2;
-            if (HPKE_MSMATCH(st,"3")) kdf=3;
-            if (HPKE_MSMATCH(st,"0x01")) kdf=1;
-            if (HPKE_MSMATCH(st,"0x02")) kdf=2;
-            if (HPKE_MSMATCH(st,"0x03")) kdf=3;
+            if (OSSL_HPKE_MSMATCH(st,OSSL_HPKE_KDFSTR_256)) kdf=1;
+            if (OSSL_HPKE_MSMATCH(st,OSSL_HPKE_KDFSTR_384)) kdf=2;
+            if (OSSL_HPKE_MSMATCH(st,OSSL_HPKE_KDFSTR_512)) kdf=3;
+            if (OSSL_HPKE_MSMATCH(st,"1")) kdf=1;
+            if (OSSL_HPKE_MSMATCH(st,"2")) kdf=2;
+            if (OSSL_HPKE_MSMATCH(st,"3")) kdf=3;
+            if (OSSL_HPKE_MSMATCH(st,"0x01")) kdf=1;
+            if (OSSL_HPKE_MSMATCH(st,"0x02")) kdf=2;
+            if (OSSL_HPKE_MSMATCH(st,"0x03")) kdf=3;
         } else if (kem!=0 && kdf!=0 && aead==0) {
-            if (HPKE_MSMATCH(st,HPKE_AEADSTR_AES128GCM)) aead=1;
-            if (HPKE_MSMATCH(st,HPKE_AEADSTR_AES256GCM)) aead=2;
-            if (HPKE_MSMATCH(st,HPKE_AEADSTR_CP)) aead=3;
-            if (HPKE_MSMATCH(st,"1")) aead=1;
-            if (HPKE_MSMATCH(st,"2")) aead=2;
-            if (HPKE_MSMATCH(st,"0x01")) aead=1;
-            if (HPKE_MSMATCH(st,"0x02")) aead=2;
-            if (HPKE_MSMATCH(st,"0x03")) aead=3;
+            if (OSSL_HPKE_MSMATCH(st,OSSL_HPKE_AEADSTR_AES128GCM)) aead=1;
+            if (OSSL_HPKE_MSMATCH(st,OSSL_HPKE_AEADSTR_AES256GCM)) aead=2;
+            if (OSSL_HPKE_MSMATCH(st,OSSL_HPKE_AEADSTR_CP)) aead=3;
+            if (OSSL_HPKE_MSMATCH(st,"1")) aead=1;
+            if (OSSL_HPKE_MSMATCH(st,"2")) aead=2;
+            if (OSSL_HPKE_MSMATCH(st,"0x01")) aead=1;
+            if (OSSL_HPKE_MSMATCH(st,"0x02")) aead=2;
+            if (OSSL_HPKE_MSMATCH(st,"0x03")) aead=3;
         }
         st=strtok(NULL,",");
     }
@@ -176,14 +176,14 @@ static int mk_echconfig(
         uint16_t ekversion,
         uint16_t max_name_length,
         const char *public_name,
-        hpke_suite_t hpke_suite,
+        ossl_hpke_suite_st hpke_suite,
         size_t extlen, unsigned char *extvals,
         size_t *echconfig_len, unsigned char *echconfig,
         size_t *privlen, unsigned char *priv)
 {
     size_t pnlen=0;
-    int hpke_mode=HPKE_MODE_BASE;
-    size_t publen=HPKE_MAXSIZE; unsigned char pub[HPKE_MAXSIZE];
+    int hpke_mode=OSSL_HPKE_MODE_BASE;
+    size_t publen=OSSL_HPKE_MAXSIZE; unsigned char pub[OSSL_HPKE_MAXSIZE];
     int rv=0;
     unsigned char bbuf[ECH_MAX_ECHCONFIGS_LEN];
     unsigned char *bp=bbuf;
@@ -423,11 +423,11 @@ int ech_main(int argc, char **argv)
     size_t extlen=ECH_MAXEXTLEN;
     uint16_t ech_version=ECH_DRAFT_13_VERSION;
     uint16_t max_name_length=0;
-    hpke_suite_t hpke_suite = HPKE_SUITE_DEFAULT;
+    ossl_hpke_suite_st hpke_suite = OSSL_HPKE_SUITE_DEFAULT;
     /* bigger size because of base64 */
     size_t echconfig_len=2*ECH_MAX_ECHCONFIGS_LEN;
     unsigned char echconfig[2*ECH_MAX_ECHCONFIGS_LEN];
-    size_t privlen=HPKE_MAXSIZE; unsigned char priv[HPKE_MAXSIZE];
+    size_t privlen=OSSL_HPKE_MAXSIZE; unsigned char priv[OSSL_HPKE_MAXSIZE];
     int rv=0;
     int mode=ECH_KEYGEN_MODE; /* key generation */
     SSL_CTX *con=NULL;
@@ -547,7 +547,7 @@ opthelp:
 
     if (suitestr!=NULL) {
         if (suitestr2suite(suitestr,&hpke_suite)!=1) {
-            BIO_printf(bio_err, "Bad HPKE_SUITE (%s)\n",suitestr);
+            BIO_printf(bio_err, "Bad OSSL_HPKE_SUITE (%s)\n",suitestr);
             ERR_print_errors(bio_err);
             goto end;
         }
