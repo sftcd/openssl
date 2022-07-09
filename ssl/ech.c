@@ -4120,9 +4120,9 @@ void ech_ptranscript(const char *msg, SSL_CONNECTION *s)
  */
 int ech_send_grease(SSL *ssl, WPACKET *pkt)
 {
-    hpke_suite_t hpke_suite_in = HPKE_SUITE_DEFAULT;
-    hpke_suite_t *hpke_suite_in_p = NULL;
-    hpke_suite_t hpke_suite = HPKE_SUITE_DEFAULT;
+    ossl_hpke_suite_st hpke_suite_in = OSSL_HPKE_SUITE_DEFAULT;
+    ossl_hpke_suite_st *hpke_suite_in_p = NULL;
+    ossl_hpke_suite_st hpke_suite = OSSL_HPKE_SUITE_DEFAULT;
     size_t cid_len=1;
     unsigned char cid;
     size_t senderpub_len=MAX_ECH_ENC_LEN;
@@ -4279,10 +4279,10 @@ static int ech_make_enc_info(
  */
 int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
 {
-    int hpke_mode=HPKE_MODE_BASE;
-    hpke_suite_t hpke_suite = HPKE_SUITE_DEFAULT;
-    size_t cipherlen=HPKE_MAXSIZE;
-    unsigned char cipher[HPKE_MAXSIZE];
+    int hpke_mode=OSSL_HPKE_MODE_BASE;
+    ossl_hpke_suite_st hpke_suite = OSSL_HPKE_SUITE_DEFAULT;
+    size_t cipherlen=OSSL_HPKE_MAXSIZE;
+    unsigned char cipher[OSSL_HPKE_MAXSIZE];
     unsigned char *aad=NULL;
     size_t aad_len=0;
     unsigned char config_id_to_use=0x00; /* we might replace with random */
@@ -4309,8 +4309,8 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
     int prefind=-1;
     ECHConfig *firstmatch=NULL;
     unsigned char *cp=NULL;
-    unsigned char info[HPKE_MAXSIZE];
-    size_t info_len=HPKE_MAXSIZE;
+    unsigned char info[OSSL_HPKE_MAXSIZE];
+    size_t info_len=OSSL_HPKE_MAXSIZE;
     int rv=0;
     size_t echextlen=0;
     unsigned char *startofmessage=NULL;
@@ -4424,12 +4424,12 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
             BIO_printf(trc_out,"EAAE: generate new ECH key pair\n");
         } OSSL_TRACE_END(TLS);
 #endif
-        mypub=OPENSSL_malloc(HPKE_MAXSIZE);
+        mypub=OPENSSL_malloc(OSSL_HPKE_MAXSIZE);
         if (!mypub) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             goto err;
         }
-        mypub_len=HPKE_MAXSIZE;
+        mypub_len=OSSL_HPKE_MAXSIZE;
         if (OSSL_HPKE_kg_evp(NULL, hpke_mode, hpke_suite, &mypub_len, mypub, 
                     &mypriv_evp)!=1) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
@@ -4440,7 +4440,7 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
         s->ext.ech_pub=mypub; 
         s->ext.ech_pub_len=mypub_len; 
     }
-    if (mypub_len>HPKE_MAXSIZE || mypriv_evp==NULL) {
+    if (mypub_len>OSSL_HPKE_MAXSIZE || mypriv_evp==NULL) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         goto err;
     }
@@ -4988,10 +4988,10 @@ static unsigned char *hpke_decrypt_encch(
     size_t cipherlen=0; unsigned char *cipher=NULL;
     size_t senderpublen=0; unsigned char *senderpub=NULL;
     size_t clearlen=0; unsigned char *clear=NULL;
-    int hpke_mode=HPKE_MODE_BASE;
-    hpke_suite_t hpke_suite = HPKE_SUITE_DEFAULT;
-    unsigned char info[HPKE_MAXSIZE];
-    size_t info_len=HPKE_MAXSIZE;
+    int hpke_mode=OSSL_HPKE_MODE_BASE;
+    ossl_hpke_suite_st hpke_suite = OSSL_HPKE_SUITE_DEFAULT;
+    unsigned char info[OSSL_HPKE_MAXSIZE];
+    size_t info_len=OSSL_HPKE_MAXSIZE;
     int rv=0;
     unsigned char seq[1]={0x00};
     size_t seqlen=1;
@@ -5177,10 +5177,10 @@ int ech_early_decrypt(SSL *ssl, PACKET *outerpkt, PACKET *newpkt)
     size_t clearlen=0;
     unsigned char *clear=NULL;
     unsigned int tmp;
-    unsigned char aad[HPKE_MAXSIZE];
-    size_t aad_len=HPKE_MAXSIZE;
-    unsigned char de[HPKE_MAXSIZE];
-    size_t de_len=HPKE_MAXSIZE;
+    unsigned char aad[OSSL_HPKE_MAXSIZE];
+    size_t aad_len=OSSL_HPKE_MAXSIZE;
+    unsigned char de[OSSL_HPKE_MAXSIZE];
+    size_t de_len=OSSL_HPKE_MAXSIZE;
     size_t newextlens=0;
     size_t beforeECH=0;
     size_t afterECH=0;
@@ -5486,7 +5486,7 @@ int ech_early_decrypt(SSL *ssl, PACKET *outerpkt, PACKET *newpkt)
             SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
             goto err;
         }
-        if (ch_len>HPKE_MAXSIZE) {
+        if (ch_len>OSSL_HPKE_MAXSIZE) {
             SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
             goto err;
         }
