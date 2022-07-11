@@ -132,8 +132,8 @@
  * @file APIs and data structures for HPKE (RFC9180).
  */
 
-#ifndef OSSL_HPKE_H_INCLUDED
-# define OSSL_HPKE_H_INCLUDED
+#ifndef OSSL_HPKE_H
+# define OSSL_HPKE_H
 
 # include <openssl/ssl.h>
 
