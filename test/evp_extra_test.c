@@ -7976,10 +7976,10 @@ static int test_hpke_one_key_gen_from_priv(uint16_t kem_id,
 }
 
 /*
- * @brief call hpke_test_one_priv_gen for a couple of known test vectors
+ * @brief call test_hpke_one_priv_gen for a couple of known test vectors
  * @return 1 for good, 0 otherwise
  */
-static int hpke_test_gen_from_priv()
+static int test_hpke_gen_from_priv(void)
 {
     int res = 0;
 
@@ -8076,7 +8076,7 @@ unsigned char pubp521[] = {
  * compares the key pair values with the already-known values
  * that were input.
  */
-static int hpke_test_one_ikm_gen(uint16_t kem_id,
+static int test_hpke_one_ikm_gen(uint16_t kem_id,
                                  unsigned char *ikm, size_t ikmlen,
                                  unsigned char *pub, size_t publen)
 {
@@ -8102,23 +8102,23 @@ static int hpke_test_one_ikm_gen(uint16_t kem_id,
     return (1);
 }
 
-static int hpke_test_ikms()
+static int test_hpke_ikms(void)
 {
     int res = 1;
 
-    res = hpke_test_one_ikm_gen(0x20,
+    res = test_hpke_one_ikm_gen(0x20,
                                 ikm25519, sizeof(ikm25519),
                                 pub25519, sizeof(pub25519));
     if (res != 1)
         return (res);
 
-    res = hpke_test_one_ikm_gen(0x12,
+    res = test_hpke_one_ikm_gen(0x12,
                                 ikmp521, sizeof(ikmp521),
                                 pubp521, sizeof(pubp521));
     if (res != 1)
         return (res);
 
-    res = hpke_test_one_ikm_gen(0x10,
+    res = test_hpke_one_ikm_gen(0x10,
                                 ikmp256, sizeof(ikmp256),
                                 pubp256, sizeof(pubp256));
     if (res != 1)
@@ -8147,11 +8147,11 @@ static int test_hpke(void)
     if (res != 1)
         return (res);
 
-    res = hpke_test_gen_from_priv();
+    res = test_hpke_gen_from_priv();
     if (res != 1)
         return (res);
 
-    res = hpke_test_ikms();
+    res = test_hpke_ikms();
     if (res != 1)
         return (res);
 
