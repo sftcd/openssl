@@ -214,7 +214,7 @@ static int mk_echconfig(
 
     rv=OSSL_HPKE_kg(
         NULL, hpke_mode, hpke_suite,
-        &publen, pub,
+        0, NULL, &publen, pub,
         privlen, priv);
     if (rv!=1) { return(__LINE__); }
 

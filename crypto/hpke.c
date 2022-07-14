@@ -40,6 +40,9 @@
 #define OSSL_HPKE_KEY_LABEL       "key" /**< guess again? */
 #define OSSL_HPKE_PSK_HASH_LABEL  "psk_hash" /**< guess again? */
 #define OSSL_HPKE_SECRET_LABEL    "secret" /**< guess again? */
+#define OSSL_HPKE_DPK_LABEL       "dkp_prk" /**< DeriveKeyPair label */
+#define OSSL_HPKE_CAND_LABEL      "candidate" /**< sk label */
+#define OSSL_HPKE_SK_LABEL        "sk" /**< sk label */
 
 /* different RFC5869 "modes" used in RFC9180 */
 #define OSSL_HPKE_5869_MODE_PURE   0 /**< Do "pure" RFC5869 */
@@ -120,9 +123,9 @@ static hpke_kem_info_t hpke_kem_tab[] = {
       LN_sha384, 48, 97, 97, 48 },
     { OSSL_HPKE_KEM_ID_P521, "EC", OSSL_HPKE_KEMSTR_P521, NID_secp521r1,
       LN_sha512, 64, 133, 133, 66 },
-    { OSSL_HPKE_KEM_ID_25519, OSSL_HPKE_KEMSTR_X25519, NULL, EVP_PKEY_X25519,
+    { OSSL_HPKE_KEM_ID_25519, OSSL_HPKE_KEMSTR_X25519, NULL, NID_X25519,
       LN_sha256, 32, 32, 32, 32 },
-    { OSSL_HPKE_KEM_ID_448, OSSL_HPKE_KEMSTR_X448, NULL, EVP_PKEY_X448,
+    { OSSL_HPKE_KEM_ID_448, OSSL_HPKE_KEMSTR_X448, NULL, NID_X448,
       LN_sha512, 64, 56, 56, 56 }
 };
 
@@ -1285,6 +1288,11 @@ static int hpke_prbuf2evp(OSSL_LIB_CTX *libctx,
     OSSL_PARAM_BLD *param_bld = NULL;
     OSSL_PARAM *params = NULL;
     uint16_t kem_ind = 0;
+    int groupnid = 0;
+    size_t pubsize = 0;
+    BIGNUM *calc_priv = NULL;
+    EC_POINT *calc_pub = NULL;
+    EC_GROUP *curve = NULL;
 
     if (hpke_kem_id_check(kem_id) != 1) {
         OSSL_HPKE_err;
@@ -1297,6 +1305,8 @@ static int hpke_prbuf2evp(OSSL_LIB_CTX *libctx,
     }
     keytype = hpke_kem_tab[kem_ind].keytype;
     groupname = hpke_kem_tab[kem_ind].groupname;
+    groupnid = hpke_kem_tab[kem_ind].groupid;
+    pubsize = hpke_kem_tab[kem_ind].Npk;
     if (prbuf == NULL || prbuf_len == 0 || retpriv == NULL) {
         OSSL_HPKE_err;
         goto err;
@@ -1317,12 +1327,50 @@ static int hpke_prbuf2evp(OSSL_LIB_CTX *libctx,
             OSSL_HPKE_err;
             goto err;
         }
-        if (pubuf && pubuf_len > 0) {
+        if (pubuf != NULL && pubuf_len > 0) {
             if (OSSL_PARAM_BLD_push_octet_string(param_bld, "pub", pubuf,
                                                  pubuf_len) != 1) {
                 OSSL_HPKE_err;
                 goto err;
             }
+        } else if (hpke_kem_id_nist_curve(kem_id) == 1) {
+            /* need to calculate that public value, but we can:-) */
+            unsigned char calc_pubuf[1024];
+            size_t calc_pubuf_len = 1024;
+            point_conversion_form_t form = POINT_CONVERSION_UNCOMPRESSED;
+
+            curve = EC_GROUP_new_by_curve_name(groupnid);
+            if (curve == NULL) {
+                OSSL_HPKE_err;
+                goto err;
+            }
+            calc_priv = BN_bin2bn(prbuf, prbuf_len, NULL);
+            if (calc_priv == NULL) {
+                OSSL_HPKE_err;
+                goto err;
+            }
+            calc_pub = EC_POINT_new(curve);
+            if (calc_pub == NULL) {
+                OSSL_HPKE_err;
+                goto err;
+            }
+            if (EC_POINT_mul(curve, calc_pub, calc_priv, NULL, NULL,
+                             NULL) != 1) {
+                OSSL_HPKE_err;
+                goto err;
+            }
+            if ((calc_pubuf_len = EC_POINT_point2oct(curve, calc_pub, form,
+                                                     calc_pubuf, calc_pubuf_len,
+                                                     NULL)) != pubsize) {
+                OSSL_HPKE_err;
+                goto err;
+            }
+            if (OSSL_PARAM_BLD_push_octet_string(param_bld, "pub", calc_pubuf,
+                                                 calc_pubuf_len) != 1) {
+                OSSL_HPKE_err;
+                goto err;
+            }
+
         }
         if (strlen(keytype) == 2 && !strcmp(keytype, "EC")) {
             priv = BN_bin2bn(prbuf, prbuf_len, NULL);
@@ -1414,6 +1462,9 @@ static int hpke_prbuf2evp(OSSL_LIB_CTX *libctx,
     *retpriv = lpriv;
 
 err:
+    BN_free(calc_priv);
+    EC_POINT_free(calc_pub);
+    EC_GROUP_free(curve);
     BN_free(priv);
     EVP_PKEY_CTX_free(ctx);
     OSSL_PARAM_BLD_free(param_bld);
@@ -2166,6 +2217,84 @@ err:
 }
 
 /*
+ * @brief compare a buffer vs. the group order
+ *
+ * @param kemid specifies the group (HPKE KEM code-points)
+ * @param buflen is the size of the buffer
+ * @param buf is the buffer
+ * @param res is returned as 0 for equal, -1 if buf < order, +1 if buf > order
+ * @return 1 for good, other otherwise
+ */
+static int hpke_kg_comp2order(uint32_t kemid, size_t buflen,
+                              unsigned char *buf, int *res)
+{
+    /*
+     * P-256: ffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551
+     * P-384: ffffffffffffffffffffffffffffffffffffffffffffffffc7634d81f4372ddf
+     *        581a0db248b0a77aecec196accc52973
+     * P-521: 01ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+     *        fa51868783bf2f966b7fcc0148f709a5d03bb5c9b8899c47aebb6fb71e91386409
+     */
+    BIGNUM *bufbn = NULL;
+    BIGNUM *gorder = NULL;
+    int cres = 0;
+    unsigned char p256ord[] = {
+        0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0x00,
+        0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+        0xbc, 0xe6, 0xfa, 0xad, 0xa7, 0x17, 0x9e, 0x84,
+        0xf3, 0xb9, 0xca, 0xc2, 0xfc, 0x63, 0x25, 0x51
+    };
+    unsigned char p384ord[] = {
+        0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+        0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+        0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+        0xc7, 0x63, 0x4d, 0x81, 0xf4, 0x37, 0x2d, 0xdf,
+        0x58, 0x1a, 0x0d, 0xb2, 0x48, 0xb0, 0xa7, 0x7a,
+        0xec, 0xec, 0x19, 0x6a, 0xcc, 0xc5, 0x29, 0x73
+    };
+    unsigned char p521ord[] = {
+        0x01, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+        0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+        0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+        0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+        0xff, 0xfa, 0x51, 0x86, 0x87, 0x83, 0xbf, 0x2f,
+        0x96, 0x6b, 0x7f, 0xcc, 0x01, 0x48, 0xf7, 0x09,
+        0xa5, 0xd0, 0x3b, 0xb5, 0xc9, 0xb8, 0x89, 0x9c,
+        0x47, 0xae, 0xbb, 0x6f, 0xb7, 0x1e, 0x91, 0x38,
+        0x64, 0x09
+    };
+
+    if (res == NULL || buf == NULL || buflen == 0) {
+        return - __LINE__;
+    }
+    switch (kemid) {
+    case OSSL_HPKE_KEM_ID_P256:
+        gorder = BN_bin2bn(p256ord, sizeof(p256ord), NULL);
+        break;
+    case OSSL_HPKE_KEM_ID_P384:
+        gorder = BN_bin2bn(p384ord, sizeof(p384ord), NULL);
+        break;
+    case OSSL_HPKE_KEM_ID_P521:
+        gorder = BN_bin2bn(p521ord, sizeof(p521ord), NULL);
+        break;
+    default:
+        return - __LINE__;
+    }
+    if (gorder == NULL) {
+        return - __LINE__;
+    }
+    bufbn = BN_bin2bn(buf, buflen, NULL);
+    if (bufbn == NULL) {
+        return - __LINE__;
+    }
+    cres = BN_cmp(bufbn, gorder);
+    *res = cres;
+    BN_free(bufbn);
+    BN_free(gorder);
+    return 1;
+}
+
+/*
  * @brief generate a key pair keeping private inside API
  *
  * @param libctx is the context to use (normally NULL)
@@ -2178,6 +2307,7 @@ err:
  */
 static int hpke_kg_evp(OSSL_LIB_CTX *libctx,
                        unsigned int mode, ossl_hpke_suite_st suite,
+                       size_t ikmlen, unsigned char *ikm,
                        size_t *publen, unsigned char *pub,
                        EVP_PKEY **priv)
 {
@@ -2187,17 +2317,22 @@ static int hpke_kg_evp(OSSL_LIB_CTX *libctx,
     unsigned char *lpub = NULL;
     size_t lpublen = 0;
     uint16_t kem_ind = 0;
+    int cmp = 0;
 
     if (hpke_suite_check(suite) != 1)
         return (- __LINE__);
     if (pub == NULL || priv == NULL)
+        return (- __LINE__);
+    if (ikmlen > 0 && ikm == NULL)
+        return (- __LINE__);
+    if (ikmlen == 0 && ikm != NULL)
         return (- __LINE__);
     kem_ind = kem_iana2index(suite.kem_id);
     if (kem_ind == 0) {
         OSSL_HPKE_err;
         goto err;
     }
-    /* generate sender's key pair */
+    /* setup generation of key pair */
     if (hpke_kem_id_nist_curve(suite.kem_id) == 1) {
         pctx = EVP_PKEY_CTX_new_from_name(libctx,
                                           hpke_kem_tab[kem_ind].keytype,
@@ -2220,6 +2355,79 @@ static int hpke_kg_evp(OSSL_LIB_CTX *libctx,
             OSSL_HPKE_err;
             goto err;
         }
+        if (ikm != NULL) {
+            /* deterministic generation */
+            /*
+             *   def DeriveKeyPair(ikm):
+             *     dkp_prk = LabeledExtract("", "dkp_prk", ikm)
+             *     sk = 0
+             *     counter = 0
+             *     while sk == 0 or sk >= order:
+             *       if counter > 255:
+             *           raise DeriveKeyPairError
+             *       bytes = LabeledExpand(dkp_prk, "candidate",
+             *                           I2OSP(counter, 1), Nsk)
+             *       bytes[0] = bytes[0] & bitmask
+             *       sk = OS2IP(bytes)
+             *       counter = counter + 1
+             *     return (sk, pk(sk))
+             */
+            size_t tmplen = OSSL_HPKE_MAXSIZE;
+            unsigned char tmp[OSSL_HPKE_MAXSIZE];
+            size_t sklen = OSSL_HPKE_MAXSIZE;
+            unsigned char sk[OSSL_HPKE_MAXSIZE];
+            unsigned char counter = 0;
+
+            erv = hpke_extract(libctx, suite, OSSL_HPKE_5869_MODE_KEM,
+                               (const unsigned char *)"", 0,
+                               OSSL_HPKE_DPK_LABEL, strlen(OSSL_HPKE_DPK_LABEL),
+                               ikm, ikmlen,
+                               tmp, &tmplen);
+            if (erv != 1) { goto err; }
+            while (counter < 255) {
+
+                erv = hpke_expand(libctx, suite, OSSL_HPKE_5869_MODE_KEM,
+                                  tmp, tmplen,
+                                  OSSL_HPKE_CAND_LABEL,
+                                  strlen(OSSL_HPKE_CAND_LABEL),
+                                  &counter, 1,
+                                  hpke_kem_tab[kem_ind].Npriv,
+                                  sk, &sklen);
+                if (erv != 1) {
+                    memset(tmp, 0, tmplen);
+                    goto err;
+                }
+                switch (suite.kem_id) {
+                case OSSL_HPKE_KEM_ID_P256:
+                case OSSL_HPKE_KEM_ID_P384:
+                    /* nothing to do for those really */
+                    break;
+                case OSSL_HPKE_KEM_ID_P521:
+                    /* mask as RFC requires */
+                    sk[0] &= 0x01;
+                    break;
+                default:
+                    memset(tmp, 0, tmplen);
+                    goto err;
+                }
+                /* check sk vs. group order */
+                if (hpke_kg_comp2order(suite.kem_id, sklen, sk, &cmp) != 1) {
+                    goto err;
+                }
+                if (cmp == -1) { /* success! */
+                    break;
+                }
+            }
+            if (counter == 255) {
+                memset(tmp, 0, tmplen);
+                goto err;
+            }
+            erv = hpke_prbuf2evp(libctx, suite.kem_id, sk, sklen,
+                                 NULL, 0, &skR);
+            memset(sk, 0, sklen);
+            memset(tmp, 0, tmplen);
+            if (erv != 1) { goto err; }
+        }
     } else {
         pctx = EVP_PKEY_CTX_new_from_name(libctx,
                                           hpke_kem_tab[kem_ind].keytype, NULL);
@@ -2231,10 +2439,50 @@ static int hpke_kg_evp(OSSL_LIB_CTX *libctx,
             OSSL_HPKE_err;
             goto err;
         }
+        if (ikm != NULL) {
+            /* deterministic generation */
+            /*
+             * def DeriveKeyPair(ikm):
+             *   dkp_prk = LabeledExtract("", "dkp_prk", ikm)
+             *   sk = LabeledExpand(dkp_prk, "sk", "", Nsk)
+             *   return (sk, pk(sk))
+             */
+            size_t tmplen = OSSL_HPKE_MAXSIZE;
+            unsigned char tmp[OSSL_HPKE_MAXSIZE];
+            size_t sklen = OSSL_HPKE_MAXSIZE;
+            unsigned char sk[OSSL_HPKE_MAXSIZE];
+
+            erv = hpke_extract(libctx, suite, OSSL_HPKE_5869_MODE_KEM,
+                               (const unsigned char *)"", 0,
+                               OSSL_HPKE_DPK_LABEL, strlen(OSSL_HPKE_DPK_LABEL),
+                               ikm, ikmlen,
+                               tmp, &tmplen);
+            if (erv != 1) { goto err; }
+            erv = hpke_expand(libctx, suite, OSSL_HPKE_5869_MODE_KEM,
+                              tmp, tmplen,
+                              OSSL_HPKE_SK_LABEL, strlen(OSSL_HPKE_SK_LABEL),
+                              NULL, 0,
+                              hpke_kem_tab[kem_ind].Npriv,
+                              sk, &sklen);
+            if (erv != 1) {
+                memset(tmp, 0, tmplen);
+                goto err;
+            }
+            erv = hpke_prbuf2evp(libctx, suite.kem_id, sk, sklen,
+                                 NULL, 0, &skR);
+            memset(sk, 0, sklen);
+            memset(tmp, 0, tmplen);
+            if (erv != 1) { goto err; }
+
+        }
     }
-    if (EVP_PKEY_generate(pctx, &skR) <= 0) {
-        OSSL_HPKE_err;
-        goto err;
+    /* generate sender's key pair */
+    if (ikm == NULL) {
+        /* randomly generate, deterministic done above */
+        if (EVP_PKEY_generate(pctx, &skR) <= 0) {
+            OSSL_HPKE_err;
+            goto err;
+        }
     }
     EVP_PKEY_CTX_free(pctx);
     pctx = NULL;
@@ -2272,6 +2520,7 @@ err:
  */
 static int hpke_kg(OSSL_LIB_CTX *libctx,
                    unsigned int mode, ossl_hpke_suite_st suite,
+                   size_t ikmlen, unsigned char *ikm,
                    size_t *publen, unsigned char *pub,
                    size_t *privlen, unsigned char *priv)
 {
@@ -2285,7 +2534,7 @@ static int hpke_kg(OSSL_LIB_CTX *libctx,
         return (- __LINE__);
     if (pub == NULL || priv == NULL)
         return (- __LINE__);
-    erv = hpke_kg_evp(libctx, mode, suite, publen, pub, &skR);
+    erv = hpke_kg_evp(libctx, mode, suite, ikmlen, ikm, publen, pub, &skR);
     if (erv != 1) {
         return (erv);
     }
@@ -2740,6 +2989,8 @@ int OSSL_HPKE_dec(OSSL_LIB_CTX *libctx,
  * @param libctx is the context to use (normally NULL)
  * @param mode is the mode (currently unused)
  * @param suite is the ciphersuite (currently unused)
+ * @param ikmlen is the length of IKM, if supplied
+ * @param ikm is IKM, if supplied
  * @param publen is the size of the public key buffer (exact length on output)
  * @param pub is the public value
  * @param privlen is the size of the private key buffer (exact length on output)
@@ -2748,10 +2999,12 @@ int OSSL_HPKE_dec(OSSL_LIB_CTX *libctx,
  */
 int OSSL_HPKE_kg(OSSL_LIB_CTX *libctx,
                  unsigned int mode, ossl_hpke_suite_st suite,
+                 size_t ikmlen, unsigned char *ikm,
                  size_t *publen, unsigned char *pub,
                  size_t *privlen, unsigned char *priv)
 {
-    return (hpke_kg(libctx, mode, suite, publen, pub, privlen, priv));
+    return (hpke_kg(libctx, mode, suite, ikmlen, ikm,
+                    publen, pub, privlen, priv));
 }
 
 /*
@@ -2759,6 +3012,8 @@ int OSSL_HPKE_kg(OSSL_LIB_CTX *libctx,
  * @param libctx is the context to use (normally NULL)
  * @param mode is the mode (currently unused)
  * @param suite is the ciphersuite (currently unused)
+ * @param ikmlen is the length of IKM, if supplied
+ * @param ikm is IKM, if supplied
  * @param publen is the size of the public key buffer (exact length on output)
  * @param pub is the public value
  * @param priv is the private key handle
@@ -2766,10 +3021,11 @@ int OSSL_HPKE_kg(OSSL_LIB_CTX *libctx,
  */
 int OSSL_HPKE_kg_evp(OSSL_LIB_CTX *libctx,
                      unsigned int mode, ossl_hpke_suite_st suite,
+                     size_t ikmlen, unsigned char *ikm,
                      size_t *publen, unsigned char *pub,
                      EVP_PKEY **priv)
 {
-    return (hpke_kg_evp(libctx, mode, suite, publen, pub, priv));
+    return (hpke_kg_evp(libctx, mode, suite, ikmlen, ikm, publen, pub, priv));
 }
 
 /**
