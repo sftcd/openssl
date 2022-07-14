@@ -5240,8 +5240,8 @@ static int test_ecx_short_keys(int tst)
 #ifndef OPENSSL_NO_EC
 
 /* HPKETESTSTART */
-#  define OSSL_HPKE_TEST_true(__x__, __str__) TEST_int_eq(__x__,1)
-#  define OSSL_HPKE_TEST_false(__x__, __str__) TEST_false(__x__)
+# define OSSL_HPKE_TEST_true(__x__, __str__) TEST_int_eq(__x__, 1)
+# define OSSL_HPKE_TEST_false(__x__, __str__) TEST_false(__x__)
 
 /*
  * Randomly toss a coin
@@ -7541,7 +7541,7 @@ static int test_hpke_modes_suites(void)
             if ((hpke_mode == OSSL_HPKE_MODE_AUTH) ||
                 (hpke_mode == OSSL_HPKE_MODE_PSKAUTH)) {
                 if (OSSL_HPKE_TEST_true(OSSL_HPKE_kg(testctx, hpke_mode,
-                                                     hpke_suite,
+                                                     hpke_suite, 0, NULL,
                                                      &authpublen, authpub,
                                                      &authprivlen, authpriv),
                                         "OSS_OSSL_HPKE_kg") != 1) {
@@ -7581,6 +7581,7 @@ static int test_hpke_modes_suites(void)
                     if (COIN_IS_HEADS) {
                         if (OSSL_HPKE_TEST_true(OSSL_HPKE_kg(testctx, hpke_mode,
                                                              hpke_suite,
+                                                             0, NULL,
                                                              &publen, pub,
                                                              &privlen, priv),
                                                 "OSSL_HPKE_kg") != 1) {
@@ -7590,6 +7591,7 @@ static int test_hpke_modes_suites(void)
                         if (OSSL_HPKE_TEST_true(OSSL_HPKE_kg_evp(testctx,
                                                                  hpke_mode,
                                                                  hpke_suite,
+                                                                 0, NULL,
                                                                  &publen,
                                                                  pub, &privp),
                                                 "OSSL_HPKE_kg_evp") != 1) {
@@ -7781,6 +7783,7 @@ static int test_hpke_badcalls(void)
     unsigned char *authprivp = NULL;
 
     if (OSSL_HPKE_TEST_false(OSSL_HPKE_kg(testctx, hpke_mode, hpke_suite,
+                                          0, NULL,
                                           &publen, pub, &privlen, priv),
                              "OSSL_HPKE_kg") == 1) {
         overallresult = 0;
@@ -7816,6 +7819,7 @@ static int test_hpke_badcalls(void)
     priv = buf2;
     publen = privlen = OSSL_HPKE_MAXSIZE;
     if (OSSL_HPKE_TEST_true(OSSL_HPKE_kg(testctx, hpke_mode, hpke_suite,
+                                         0, NULL,
                                          &publen, pub, &privlen, priv),
                             "OSSL_HPKE_kg") != 1) {
         overallresult = 0;
@@ -7851,6 +7855,7 @@ static int test_hpke_badcalls(void)
     pub = priv = buf1;
     publen = privlen = OSSL_HPKE_MAXSIZE;
     if (OSSL_HPKE_TEST_true(OSSL_HPKE_kg(testctx, hpke_mode, hpke_suite,
+                                         0, NULL,
                                          &publen, pub, &privlen, priv),
                             "OSSL_HPKE_kg") != 1) {
         overallresult = 0;
@@ -7860,6 +7865,7 @@ static int test_hpke_badcalls(void)
     priv = buf2;
     publen = privlen = OSSL_HPKE_MAXSIZE;
     if (OSSL_HPKE_TEST_true(OSSL_HPKE_kg(testctx, hpke_mode, hpke_suite,
+                                         0, NULL,
                                          &publen, pub, &privlen, priv),
                             "OSSL_HPKE_kg") != 1) {
         overallresult = 0;
@@ -7887,6 +7893,240 @@ static int test_hpke_badcalls(void)
     return (overallresult);
 }
 
+/*
+ * NIST p256 key pair from HPKE-07 test vectors
+ */
+static unsigned char n256priv[] = {
+    0x03, 0xe5, 0x2d, 0x22, 0x61, 0xcb, 0x7a, 0xc9,
+    0xd6, 0x98, 0x11, 0xcd, 0xd8, 0x80, 0xee, 0xe6,
+    0x27, 0xeb, 0x9c, 0x20, 0x66, 0xd0, 0xc2, 0x4c,
+    0xfb, 0x33, 0xde, 0x82, 0xdb, 0xe2, 0x7c, 0xf5
+};
+static unsigned char n256pub[] = {
+    0x04, 0x3d, 0xa1, 0x6e, 0x83, 0x49, 0x4b, 0xb3,
+    0xfc, 0x81, 0x37, 0xae, 0x91, 0x71, 0x38, 0xfb,
+    0x7d, 0xae, 0xbf, 0x8a, 0xfb, 0xa6, 0xce, 0x73,
+    0x25, 0x47, 0x89, 0x08, 0xc6, 0x53, 0x69, 0x0b,
+    0xe7, 0x0a, 0x9c, 0x9f, 0x67, 0x61, 0x06, 0xcf,
+    0xb8, 0x7a, 0x5c, 0x3e, 0xdd, 0x12, 0x51, 0xc5,
+    0xfa, 0xe3, 0x3a, 0x12, 0xaa, 0x2c, 0x5e, 0xb7,
+    0x99, 0x14, 0x98, 0xe3, 0x45, 0xaa, 0x76, 0x60,
+    0x04
+};
+
+/*
+ * X25519 key pair from HPKE-07 test vectors
+ */
+static unsigned char x25519priv[] = {
+    0x6c, 0xee, 0x2e, 0x27, 0x55, 0x79, 0x07, 0x08,
+    0xa2, 0xa1, 0xbe, 0x22, 0x66, 0x78, 0x83, 0xa5,
+    0xe3, 0xf9, 0xec, 0x52, 0x81, 0x04, 0x04, 0xa0,
+    0xd8, 0x89, 0xa0, 0xed, 0x3e, 0x28, 0xde, 0x00
+};
+static unsigned char x25519pub[] = {
+    0x95, 0x08, 0x97, 0xe0, 0xd3, 0x7a, 0x8b, 0xdb,
+    0x0f, 0x21, 0x53, 0xed, 0xf5, 0xfa, 0x58, 0x0a,
+    0x64, 0xb3, 0x99, 0xc3, 0x9f, 0xbb, 0x3d, 0x01,
+    0x4f, 0x80, 0x98, 0x33, 0x52, 0xa6, 0x36, 0x17
+};
+
+/*
+ * @brief test generation of pair based on private key
+ * @param kem_id the KEM to use (RFC9180 code point)
+ * @priv is the private key buffer
+ * @privlen is the length of the private key
+ * @pub is the public key buffer
+ * @publen is the length of the public key
+ * @return 1 for good, 0 otherwise
+ *
+ * This calls OSSL_HPKE_prbuf2evp without specifying the
+ * public key, then extracts the public key using the
+ * standard EVP_PKEY_get1_encoded_public_key API and then
+ * compares that public value with the already-known public
+ * value that was input.
+ */
+static int test_hpke_one_key_gen_from_priv(uint16_t kem_id,
+                                           unsigned char *priv, size_t privlen,
+                                           unsigned char *pub, size_t publen)
+{
+    int res = 1;
+    EVP_PKEY *sk = NULL;
+    unsigned char *lpub = NULL;
+    size_t lpublen = 1024;
+
+    if (OSSL_HPKE_prbuf2evp(testctx, kem_id, priv, privlen, NULL, 0, &sk) != 1) {
+        res = 0;
+    }
+    if (sk == NULL) {
+        res = 0;
+    }
+    if (res == 1) {
+        lpublen = EVP_PKEY_get1_encoded_public_key(sk, &lpub);
+        if (lpub == NULL || lpublen == 0) {
+            res = 0;
+        } else {
+            if (lpublen != publen || memcmp(lpub, pub, publen)) {
+                res = 0;
+            }
+            OPENSSL_free(lpub);
+        }
+    }
+    EVP_PKEY_free(sk);
+    return (res);
+}
+
+/*
+ * @brief call hpke_test_one_priv_gen for a couple of known test vectors
+ * @return 1 for good, 0 otherwise
+ */
+static int hpke_test_gen_from_priv()
+{
+    int res = 0;
+
+    /* NIST P-256 case */
+    res = test_hpke_one_key_gen_from_priv(0x10,
+                                          n256priv, sizeof(n256priv),
+                                          n256pub, sizeof(n256pub));
+    if (res != 1) { return (res); }
+
+    /* X25519 case */
+    res = test_hpke_one_key_gen_from_priv(0x20,
+                                          x25519priv, sizeof(x25519priv),
+                                          x25519pub, sizeof(x25519pub));
+    if (res != 1) { return (res); }
+
+    return (res);
+}
+
+/* from RFC 9180 Appendix A.1.1 */
+unsigned char ikm25519[] = {
+    0x72, 0x68, 0x60, 0x0d, 0x40, 0x3f, 0xce, 0x43,
+    0x15, 0x61, 0xae, 0xf5, 0x83, 0xee, 0x16, 0x13,
+    0x52, 0x7c, 0xff, 0x65, 0x5c, 0x13, 0x43, 0xf2,
+    0x98, 0x12, 0xe6, 0x67, 0x06, 0xdf, 0x32, 0x34
+};
+unsigned char pub25519[] = {
+    0x37, 0xfd, 0xa3, 0x56, 0x7b, 0xdb, 0xd6, 0x28,
+    0xe8, 0x86, 0x68, 0xc3, 0xc8, 0xd7, 0xe9, 0x7d,
+    0x1d, 0x12, 0x53, 0xb6, 0xd4, 0xea, 0x6d, 0x44,
+    0xc1, 0x50, 0xf7, 0x41, 0xf1, 0xbf, 0x44, 0x31
+};
+
+/* from RFC9180 Appendix A.3.1 */
+unsigned char ikmp256[] = {
+    0x42, 0x70, 0xe5, 0x4f, 0xfd, 0x08, 0xd7, 0x9d,
+    0x59, 0x28, 0x02, 0x0a, 0xf4, 0x68, 0x6d, 0x8f,
+    0x6b, 0x7d, 0x35, 0xdb, 0xe4, 0x70, 0x26, 0x5f,
+    0x1f, 0x5a, 0xa2, 0x28, 0x16, 0xce, 0x86, 0x0e
+};
+unsigned char pubp256[] = {
+    0x04, 0xa9, 0x27, 0x19, 0xc6, 0x19, 0x5d, 0x50,
+    0x85, 0x10, 0x4f, 0x46, 0x9a, 0x8b, 0x98, 0x14,
+    0xd5, 0x83, 0x8f, 0xf7, 0x2b, 0x60, 0x50, 0x1e,
+    0x2c, 0x44, 0x66, 0xe5, 0xe6, 0x7b, 0x32, 0x5a,
+    0xc9, 0x85, 0x36, 0xd7, 0xb6, 0x1a, 0x1a, 0xf4,
+    0xb7, 0x8e, 0x5b, 0x7f, 0x95, 0x1c, 0x09, 0x00,
+    0xbe, 0x86, 0x3c, 0x40, 0x3c, 0xe6, 0x5c, 0x9b,
+    0xfc, 0xb9, 0x38, 0x26, 0x57, 0x22, 0x2d, 0x18,
+    0xc4
+};
+
+/* from RFC9180 Appendix A.6.1 */
+unsigned char ikmp521[] = {
+    0x7f, 0x06, 0xab, 0x82, 0x15, 0x10, 0x5f, 0xc4,
+    0x6a, 0xce, 0xeb, 0x2e, 0x3d, 0xc5, 0x02, 0x8b,
+    0x44, 0x36, 0x4f, 0x96, 0x04, 0x26, 0xeb, 0x0d,
+    0x8e, 0x40, 0x26, 0xc2, 0xf8, 0xb5, 0xd7, 0xe7,
+    0xa9, 0x86, 0x68, 0x8f, 0x15, 0x91, 0xab, 0xf5,
+    0xab, 0x75, 0x3c, 0x35, 0x7a, 0x5d, 0x6f, 0x04,
+    0x40, 0x41, 0x4b, 0x4e, 0xd4, 0xed, 0xe7, 0x13,
+    0x17, 0x77, 0x2a, 0xc9, 0x8d, 0x92, 0x39, 0xf7,
+    0x09, 0x04
+};
+unsigned char pubp521[] = {
+    0x04, 0x01, 0x38, 0xb3, 0x85, 0xca, 0x16, 0xbb,
+    0x0d, 0x5f, 0xa0, 0xc0, 0x66, 0x5f, 0xbb, 0xd7,
+    0xe6, 0x9e, 0x3e, 0xe2, 0x9f, 0x63, 0x99, 0x1d,
+    0x3e, 0x9b, 0x5f, 0xa7, 0x40, 0xaa, 0xb8, 0x90,
+    0x0a, 0xae, 0xed, 0x46, 0xed, 0x73, 0xa4, 0x90,
+    0x55, 0x75, 0x84, 0x25, 0xa0, 0xce, 0x36, 0x50,
+    0x7c, 0x54, 0xb2, 0x9c, 0xc5, 0xb8, 0x5a, 0x5c,
+    0xee, 0x6b, 0xae, 0x0c, 0xf1, 0xc2, 0x1f, 0x27,
+    0x31, 0xec, 0xe2, 0x01, 0x3d, 0xc3, 0xfb, 0x7c,
+    0x8d, 0x21, 0x65, 0x4b, 0xb1, 0x61, 0xb4, 0x63,
+    0x96, 0x2c, 0xa1, 0x9e, 0x8c, 0x65, 0x4f, 0xf2,
+    0x4c, 0x94, 0xdd, 0x28, 0x98, 0xde, 0x12, 0x05,
+    0x1f, 0x1e, 0xd0, 0x69, 0x22, 0x37, 0xfb, 0x02,
+    0xb2, 0xf8, 0xd1, 0xdc, 0x1c, 0x73, 0xe9, 0xb3,
+    0x66, 0xb5, 0x29, 0xeb, 0x43, 0x6e, 0x98, 0xa9,
+    0x96, 0xee, 0x52, 0x2a, 0xef, 0x86, 0x3d, 0xd5,
+    0x73, 0x9d, 0x2f, 0x29, 0xb0
+};
+
+/*
+ * @brief generate a key pair from an initial string and check public
+ * @param kem_id the KEM to use (RFC9180 code point)
+ * @ikm is the initial key material buffer
+ * @ikmlen is the length of ikm
+ * @pub is the public key buffer
+ * @publen is the length of the public key
+ * @return 1 for good, other otherwise
+ *
+ * This calls OSSL_HPKE_kg specifying only the IKM, then
+ * compares the key pair values with the already-known values
+ * that were input.
+ */
+static int hpke_test_one_ikm_gen(uint16_t kem_id,
+                                 unsigned char *ikm, size_t ikmlen,
+                                 unsigned char *pub, size_t publen)
+{
+    int hpke_mode = OSSL_HPKE_MODE_BASE;
+    ossl_hpke_suite_st hpke_suite = OSSL_HPKE_SUITE_DEFAULT;
+    unsigned char lpub[OSSL_HPKE_MAXSIZE];
+    size_t lpublen = OSSL_HPKE_MAXSIZE;
+    EVP_PKEY *sk = NULL;
+
+    hpke_suite.kem_id = kem_id;
+    if (OSSL_HPKE_kg_evp(testctx, hpke_mode, hpke_suite, ikmlen, ikm,
+                         &lpublen, lpub, &sk) != 1) {
+        return (- __LINE__);
+    }
+    if (sk == NULL)
+        return (- __LINE__);
+    EVP_PKEY_free(sk);
+    if (lpublen != publen)
+        return (- __LINE__);
+    if (memcmp(pub, lpub, publen))
+        return (- __LINE__);
+
+    return (1);
+}
+
+static int hpke_test_ikms()
+{
+    int res = 1;
+
+    res = hpke_test_one_ikm_gen(0x20,
+                                ikm25519, sizeof(ikm25519),
+                                pub25519, sizeof(pub25519));
+    if (res != 1)
+        return (res);
+
+    res = hpke_test_one_ikm_gen(0x12,
+                                ikmp521, sizeof(ikmp521),
+                                pubp521, sizeof(pubp521));
+    if (res != 1)
+        return (res);
+
+    res = hpke_test_one_ikm_gen(0x10,
+                                ikmp256, sizeof(ikmp256),
+                                pubp256, sizeof(pubp256));
+    if (res != 1)
+        return (res);
+
+    return (res);
+}
+
 static int test_hpke(void)
 {
     int res = 1;
@@ -7904,6 +8144,14 @@ static int test_hpke(void)
         return (res);
 
     res = test_hpke_badcalls();
+    if (res != 1)
+        return (res);
+
+    res = hpke_test_gen_from_priv();
+    if (res != 1)
+        return (res);
+
+    res = hpke_test_ikms();
     if (res != 1)
         return (res);
 
