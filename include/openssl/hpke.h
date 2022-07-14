@@ -104,8 +104,9 @@ typedef struct {
  *
  * HPKE key generation functions (``OSSL_HPKE_kg()`` and
  * ``OSSL_HPKE_kg_evp()``) require a suite as input (though
- * only the KEM is currently significant) and return
- * public and private components of the key.
+ * only the KEM is currently significant), take an optional
+ * initial key material value (if detereministic key gen is
+ * desired) and return public and private components of the key.
  *
  * HPKE (and hence our APIs) allow the caller to choose a
  * ``mode`` that can optionally bind a pre-shared key (PSK)
@@ -530,17 +531,17 @@ int OSSL_HPKE_dec(OSSL_LIB_CTX *libctx,
  * @param libctx is the context to use (normally NULL)
  * @param mode is the mode (currently unused)
  * @param suite is the ciphersuite (currently unused)
+ * @param ikmlen is the length of IKM, if supplied
+ * @param ikm is IKM, if supplied
  * @param publen is the size of the public key buffer (exact length on output)
  * @param pub is the public value
  * @param privlen is the size of the private key buffer (exact length on output)
  * @param priv is the private key
  * @return 1 for success, other for error (error returns can be non-zero)
- *
- * TODO: need to add this for RFC9180 deterministic key gen
- * size_t ikmlen, unsigned char *ikm,
  */
 int OSSL_HPKE_kg(OSSL_LIB_CTX *libctx,
                  unsigned int mode, ossl_hpke_suite_st suite,
+                 size_t ikmlen, unsigned char *ikm,
                  size_t *publen, unsigned char *pub,
                  size_t *privlen, unsigned char *priv);
 
@@ -558,6 +559,8 @@ int OSSL_HPKE_kg(OSSL_LIB_CTX *libctx,
  * @param libctx is the context to use (normally NULL)
  * @param mode is the mode (currently unused)
  * @param suite is the ciphersuite (currently unused)
+ * @param ikmlen is the length of IKM, if supplied
+ * @param ikm is IKM, if supplied
  * @param publen is the size of the public key buffer (exact length on output)
  * @param pub is the public value
  * @param priv is the private key handle
@@ -565,6 +568,7 @@ int OSSL_HPKE_kg(OSSL_LIB_CTX *libctx,
  */
 int OSSL_HPKE_kg_evp(OSSL_LIB_CTX *libctx,
                      unsigned int mode, ossl_hpke_suite_st suite,
+                     size_t ikmlen, unsigned char *ikm,
                      size_t *publen, unsigned char *pub,
                      EVP_PKEY **priv);
 

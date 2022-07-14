@@ -15,9 +15,11 @@ OSSL_HPKE_expansion, OSSL_HPKE_good4grease
  int OSSL_HPKE_str2suite(char *str, ossl_hpke_suite_st suite);
 
  int OSSL_HPKE_kg(OSSL_LIB_CTX *libctx, unsigned int mode, ossl_hpke_suite_st suite, 
+                  size_t ikmlen, unsigned char *ikm,
                   size_t *publen, unsigned char *pub, 
                   size_t *privlen, unsigned char *priv);
  int OSSL_HPKE_kg_evp(OSSL_LIB_CTX *libctx, unsigned int mode, ossl_hpke_suite_st suite, 
+                      size_t ikmlen, unsigned char *ikm,
                       size_t *publen, unsigned char *pub, 
                       EVP_PKEY **priv);
 
@@ -88,7 +90,11 @@ and AEAD names in that order, e.g. "x25519,hkdf-sha256,aes128gcm".
 
 OSSL_HPKE_kg() and OSSL_HPKE_kg_evp() generate an ECDH private value for use with the
 given suite. The former returns the private key in clear, the latter as an
-EVP_PKEY*. OSSL_HPKE_prbuf2evp() allows the caller to map from a buffer containing an
+EVP_PKEY*. Only the kem_id field of the suite input is currently used. If the
+initial key material (IKM) inputs (ikmlen/ikm) are (0/NULL) then a key pair
+will be randomly generated. If those input are nonzero/non-NULL then the 
+deterministic key generation scheme from RFC 9180 will be used.
+OSSL_HPKE_prbuf2evp() allows the caller to map from a buffer containing an
 ECDH private value to an EVP_PKEY* for that same value.
 
 OSSL_HPKE_enc() and OSSL_HPKE_enc_evp() carry out HPKE encryption. The former is a

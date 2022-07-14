@@ -4430,8 +4430,8 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
             goto err;
         }
         mypub_len=OSSL_HPKE_MAXSIZE;
-        if (OSSL_HPKE_kg_evp(NULL, hpke_mode, hpke_suite, &mypub_len, mypub, 
-                    &mypriv_evp)!=1) {
+        if (OSSL_HPKE_kg_evp(NULL, hpke_mode, hpke_suite, 0, NULL, 
+                    &mypub_len, mypub, &mypriv_evp) != 1) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             goto err;
         }
