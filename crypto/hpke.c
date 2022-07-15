@@ -877,7 +877,8 @@ static int hpke_expand(OSSL_LIB_CTX *libctx,
             OSSL_HPKE_err;
             goto err;
         }
-        memcpy(lip + concat_offset, info, infolen);
+        if (info != NULL) /* keep asan happy */
+            memcpy(lip + concat_offset, info, infolen);
         concat_offset += infolen;
         if (concat_offset >= INT_MAXSIZE) {
             OSSL_HPKE_err;
@@ -1288,11 +1289,18 @@ static int hpke_prbuf2evp(OSSL_LIB_CTX *libctx,
     OSSL_PARAM_BLD *param_bld = NULL;
     OSSL_PARAM *params = NULL;
     uint16_t kem_ind = 0;
+#ifndef OPENSSL_NO_EC
     int groupnid = 0;
     size_t pubsize = 0;
     BIGNUM *calc_priv = NULL;
     EC_POINT *calc_pub = NULL;
     EC_GROUP *curve = NULL;
+    unsigned char calc_pubuf[OSSL_HPKE_MAXSIZE];
+    size_t calc_pubuf_len = OSSL_HPKE_MAXSIZE;
+    point_conversion_form_t form = POINT_CONVERSION_UNCOMPRESSED;
+#endif
+    unsigned char hf_prbuf[OSSL_HPKE_MAXSIZE];
+    size_t hf_prbuf_len = 0;
 
     if (hpke_kem_id_check(kem_id) != 1) {
         OSSL_HPKE_err;
@@ -1305,8 +1313,6 @@ static int hpke_prbuf2evp(OSSL_LIB_CTX *libctx,
     }
     keytype = hpke_kem_tab[kem_ind].keytype;
     groupname = hpke_kem_tab[kem_ind].groupname;
-    groupnid = hpke_kem_tab[kem_ind].groupid;
-    pubsize = hpke_kem_tab[kem_ind].Npk;
     if (prbuf == NULL || prbuf_len == 0 || retpriv == NULL) {
         OSSL_HPKE_err;
         goto err;
@@ -1334,11 +1340,11 @@ static int hpke_prbuf2evp(OSSL_LIB_CTX *libctx,
                 goto err;
             }
         } else if (hpke_kem_id_nist_curve(kem_id) == 1) {
+#ifndef OPENSSL_NO_EC
             /* need to calculate that public value, but we can:-) */
-            unsigned char calc_pubuf[1024];
-            size_t calc_pubuf_len = 1024;
-            point_conversion_form_t form = POINT_CONVERSION_UNCOMPRESSED;
-
+            groupnid = hpke_kem_tab[kem_ind].groupid;
+            pubsize = hpke_kem_tab[kem_ind].Npk;
+            memset(calc_pubuf, 0, calc_pubuf_len); /* keep asan happy */
             curve = EC_GROUP_new_by_curve_name(groupnid);
             if (curve == NULL) {
                 OSSL_HPKE_err;
@@ -1370,7 +1376,11 @@ static int hpke_prbuf2evp(OSSL_LIB_CTX *libctx,
                 OSSL_HPKE_err;
                 goto err;
             }
-
+#else
+            /* can't do that if no EC support compiled in:-( */
+            OSSL_HPKE_err;
+            goto err;
+#endif
         }
         if (strlen(keytype) == 2 && !strcmp(keytype, "EC")) {
             priv = BN_bin2bn(prbuf, prbuf_len, NULL);
@@ -1429,9 +1439,6 @@ static int hpke_prbuf2evp(OSSL_LIB_CTX *libctx,
         }
         if (lpriv == NULL) {
             /* if not done, prepend/append PEM header/footer and try again */
-            unsigned char hf_prbuf[OSSL_HPKE_MAXSIZE];
-            size_t hf_prbuf_len = 0;
-
             memcpy(hf_prbuf, PEM_PRIVATEHEADER, strlen(PEM_PRIVATEHEADER));
             hf_prbuf_len += strlen(PEM_PRIVATEHEADER);
             memcpy(hf_prbuf + hf_prbuf_len, prbuf, prbuf_len);
@@ -1462,9 +1469,11 @@ static int hpke_prbuf2evp(OSSL_LIB_CTX *libctx,
     *retpriv = lpriv;
 
 err:
+#ifndef OPENSSL_NO_EC
     BN_free(calc_priv);
     EC_POINT_free(calc_pub);
     EC_GROUP_free(curve);
+#endif
     BN_free(priv);
     EVP_PKEY_CTX_free(ctx);
     OSSL_PARAM_BLD_free(param_bld);
