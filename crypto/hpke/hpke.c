@@ -2425,6 +2425,7 @@ static int hpke_kg_evp(OSSL_LIB_CTX *libctx,
                 if (cmp == -1) { /* success! */
                     break;
                 }
+                counter++;
             }
             if (counter == 255) {
                 memset(tmp, 0, tmplen);
