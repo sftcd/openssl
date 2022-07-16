@@ -4120,9 +4120,9 @@ void ech_ptranscript(const char *msg, SSL_CONNECTION *s)
  */
 int ech_send_grease(SSL *ssl, WPACKET *pkt)
 {
-    ossl_hpke_suite_st hpke_suite_in = OSSL_HPKE_SUITE_DEFAULT;
-    ossl_hpke_suite_st *hpke_suite_in_p = NULL;
-    ossl_hpke_suite_st hpke_suite = OSSL_HPKE_SUITE_DEFAULT;
+    OSSL_HPKE_SUITE hpke_suite_in = OSSL_HPKE_SUITE_DEFAULT;
+    OSSL_HPKE_SUITE *hpke_suite_in_p = NULL;
+    OSSL_HPKE_SUITE hpke_suite = OSSL_HPKE_SUITE_DEFAULT;
     size_t cid_len=1;
     unsigned char cid;
     size_t senderpub_len=MAX_ECH_ENC_LEN;
@@ -4280,7 +4280,7 @@ static int ech_make_enc_info(
 int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
 {
     int hpke_mode=OSSL_HPKE_MODE_BASE;
-    ossl_hpke_suite_st hpke_suite = OSSL_HPKE_SUITE_DEFAULT;
+    OSSL_HPKE_SUITE hpke_suite = OSSL_HPKE_SUITE_DEFAULT;
     size_t cipherlen=OSSL_HPKE_MAXSIZE;
     unsigned char cipher[OSSL_HPKE_MAXSIZE];
     unsigned char *aad=NULL;
@@ -4989,7 +4989,7 @@ static unsigned char *hpke_decrypt_encch(
     size_t senderpublen=0; unsigned char *senderpub=NULL;
     size_t clearlen=0; unsigned char *clear=NULL;
     int hpke_mode=OSSL_HPKE_MODE_BASE;
-    ossl_hpke_suite_st hpke_suite = OSSL_HPKE_SUITE_DEFAULT;
+    OSSL_HPKE_SUITE hpke_suite = OSSL_HPKE_SUITE_DEFAULT;
     unsigned char info[OSSL_HPKE_MAXSIZE];
     size_t info_len=OSSL_HPKE_MAXSIZE;
     int rv=0;

@@ -5247,7 +5247,7 @@ static int test_ecx_short_keys(int tst)
  * Randomly toss a coin
  */
 static unsigned char rb = 0;
-#define COIN_IS_HEADS (RAND_bytes_ex(testctx, &rb, 1, 10) && rb % 2)
+# define COIN_IS_HEADS (RAND_bytes_ex(testctx, &rb, 1, 10) && rb % 2)
 
 /* tables of HPKE modes and suite values */
 static int hpke_mode_list[] = {
@@ -7482,7 +7482,7 @@ static int test_hpke_modes_suites(void)
         char pskid[OSSL_HPKE_MAXSIZE];
         char *pskidp = NULL;
         EVP_PKEY *privp = NULL;
-        ossl_hpke_suite_st hpke_suite = OSSL_HPKE_SUITE_DEFAULT;
+        OSSL_HPKE_SUITE hpke_suite = OSSL_HPKE_SUITE_DEFAULT;
         size_t plainlen = OSSL_HPKE_MAXSIZE;
         unsigned char plain[OSSL_HPKE_MAXSIZE];
 
@@ -7683,7 +7683,7 @@ static int test_hpke_suite_strs(void)
 {
     int overallresult = 1;
     int sind = 0;
-    ossl_hpke_suite_st stirred;
+    OSSL_HPKE_SUITE stirred;
 
     for (sind = 0; sind != (sizeof(suite_strs) / sizeof(char *)); sind++) {
         char dstr[128];
@@ -7716,7 +7716,7 @@ static int test_hpke_suite_strs(void)
 static int test_hpke_grease(void)
 {
     int overallresult = 1;
-    ossl_hpke_suite_st g_suite;
+    OSSL_HPKE_SUITE g_suite;
     unsigned char g_pub[OSSL_HPKE_MAXSIZE];
     size_t g_pub_len = OSSL_HPKE_MAXSIZE;
     unsigned char g_cipher[OSSL_HPKE_MAXSIZE];
@@ -7724,7 +7724,7 @@ static int test_hpke_grease(void)
     size_t clearlen = 128;
     size_t expanded = 0;
 
-    memset(&g_suite, 0, sizeof(ossl_hpke_suite_st));
+    memset(&g_suite, 0, sizeof(OSSL_HPKE_SUITE));
     /* GREASEing */
     if (OSSL_HPKE_TEST_true(OSSL_HPKE_good4grease(testctx, NULL, &g_suite,
                                                   g_pub, &g_pub_len, g_cipher,
@@ -7751,7 +7751,7 @@ static int test_hpke_badcalls(void)
 {
     int overallresult = 1;
     int hpke_mode = OSSL_HPKE_MODE_BASE;
-    ossl_hpke_suite_st hpke_suite = OSSL_HPKE_SUITE_DEFAULT;
+    OSSL_HPKE_SUITE hpke_suite = OSSL_HPKE_SUITE_DEFAULT;
     unsigned char buf1[OSSL_HPKE_MAXSIZE];
     unsigned char buf2[OSSL_HPKE_MAXSIZE];
     unsigned char buf3[OSSL_HPKE_MAXSIZE];
@@ -7893,10 +7893,10 @@ static int test_hpke_badcalls(void)
     return (overallresult);
 }
 
-#ifndef OPENSSL_NO_ASM
+# ifndef OPENSSL_NO_ASM
 /*
  * NIST p256 key pair from HPKE-07 test vectors
- * FIXME: I have no idea why, but as of now building 
+ * FIXME: I have no idea why, but as of now building
  * with "no-asm" causes a file in a call to EC_POINT_mul
  * that's used in this test. That shows up in various
  * CI builds/tests so we'll avoid that for now by
@@ -7921,7 +7921,7 @@ static unsigned char n256pub[] = {
     0x99, 0x14, 0x98, 0xe3, 0x45, 0xaa, 0x76, 0x60,
     0x04
 };
-#endif
+# endif
 
 /*
  * X25519 key pair from HPKE-07 test vectors
@@ -7963,7 +7963,8 @@ static int test_hpke_one_key_gen_from_priv(uint16_t kem_id,
     unsigned char *lpub = NULL;
     size_t lpublen = 1024;
 
-    if (OSSL_HPKE_prbuf2evp(testctx, kem_id, priv, privlen, NULL, 0, &sk) != 1) {
+    if (OSSL_HPKE_prbuf2evp(testctx, kem_id, priv, privlen, NULL, 0, &sk)
+        != 1) {
         res = 0;
     }
     if (sk == NULL) {
@@ -7992,9 +7993,10 @@ static int test_hpke_gen_from_priv(void)
 {
     int res = 0;
 
-#ifndef OPENSSL_NO_ASM
-    /* NIST P-256 case 
-     * FIXME: I have no idea why, but as of now building 
+# ifndef OPENSSL_NO_ASM
+    /*
+     * NIST P-256 case
+     * FIXME: I have no idea why, but as of now building
      * with "no-asm" causes a file in a call to EC_POINT_mul
      * that's used in this test. That shows up in various
      * CI builds/tests so we'll avoid that for now by
@@ -8006,7 +8008,7 @@ static int test_hpke_gen_from_priv(void)
                                           n256priv, sizeof(n256priv),
                                           n256pub, sizeof(n256pub));
     if (res != 1) { return (res); }
-#endif
+# endif
 
     /* X25519 case */
     res = test_hpke_one_key_gen_from_priv(0x20,
@@ -8100,7 +8102,7 @@ static int test_hpke_one_ikm_gen(uint16_t kem_id,
                                  unsigned char *pub, size_t publen)
 {
     int hpke_mode = OSSL_HPKE_MODE_BASE;
-    ossl_hpke_suite_st hpke_suite = OSSL_HPKE_SUITE_DEFAULT;
+    OSSL_HPKE_SUITE hpke_suite = OSSL_HPKE_SUITE_DEFAULT;
     unsigned char lpub[OSSL_HPKE_MAXSIZE];
     size_t lpublen = OSSL_HPKE_MAXSIZE;
     EVP_PKEY *sk = NULL;
