@@ -103,10 +103,10 @@ static uint16_t verstr2us(char *arg)
 /**
  * @brief parse a string into an HPKE ciphersuite
  * @param suitestr is from the command line
- * @param hpke_suite is the ossl_hpke_suite_st result
+ * @param hpke_suite is the OSSL_HPKE_SUITE result
  * @return 1 for success something else otherwise
  */
-static int suitestr2suite(char *instr, ossl_hpke_suite_st *hpke_suite)
+static int suitestr2suite(char *instr, OSSL_HPKE_SUITE *hpke_suite)
 {
     uint16_t kem=0,kdf=0,aead=0;
     char *suitestr=NULL;
@@ -176,7 +176,7 @@ static int mk_echconfig(
         uint16_t ekversion,
         uint16_t max_name_length,
         const char *public_name,
-        ossl_hpke_suite_st hpke_suite,
+        OSSL_HPKE_SUITE hpke_suite,
         size_t extlen, unsigned char *extvals,
         size_t *echconfig_len, unsigned char *echconfig,
         size_t *privlen, unsigned char *priv)
@@ -423,7 +423,7 @@ int ech_main(int argc, char **argv)
     size_t extlen=ECH_MAXEXTLEN;
     uint16_t ech_version=ECH_DRAFT_13_VERSION;
     uint16_t max_name_length=0;
-    ossl_hpke_suite_st hpke_suite = OSSL_HPKE_SUITE_DEFAULT;
+    OSSL_HPKE_SUITE hpke_suite = OSSL_HPKE_SUITE_DEFAULT;
     /* bigger size because of base64 */
     size_t echconfig_len=2*ECH_MAX_ECHCONFIGS_LEN;
     unsigned char echconfig[2*ECH_MAX_ECHCONFIGS_LEN];

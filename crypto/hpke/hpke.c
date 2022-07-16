@@ -323,7 +323,7 @@ err:
  * @return 1 for good otherwise bad
  */
 static int hpke_aead_dec(OSSL_LIB_CTX *libctx,
-                         ossl_hpke_suite_st  suite,
+                         OSSL_HPKE_SUITE suite,
                          unsigned char *key, size_t keylen,
                          unsigned char *iv, size_t ivlen,
                          unsigned char *aad, size_t aadlen,
@@ -436,7 +436,7 @@ err:
  * @return 1 for good otherwise bad
  */
 static int hpke_aead_enc(OSSL_LIB_CTX *libctx,
-                         ossl_hpke_suite_st  suite,
+                         OSSL_HPKE_SUITE suite,
                          unsigned char *key, size_t keylen,
                          unsigned char *iv, size_t ivlen,
                          unsigned char *aad, size_t aadlen,
@@ -585,7 +585,7 @@ err:
  * Isn't that a bit of a mess!
  */
 static int hpke_extract(OSSL_LIB_CTX *libctx,
-                        const ossl_hpke_suite_st suite, const int mode5869,
+                        const OSSL_HPKE_SUITE suite, const int mode5869,
                         const unsigned char *salt, const size_t saltlen,
                         const char *label, const size_t labellen,
                         const unsigned char *ikm, const size_t ikmlen,
@@ -611,7 +611,6 @@ static int hpke_extract(OSSL_LIB_CTX *libctx,
     case OSSL_HPKE_5869_MODE_PURE:
         labeled_ikmlen = ikmlen;
         labeled_ikm = (unsigned char *)ikm;
-
         break;
 
     case OSSL_HPKE_5869_MODE_KEM:
@@ -805,7 +804,7 @@ err:
  * @return 1 for good otherwise bad
  */
 static int hpke_expand(OSSL_LIB_CTX *libctx,
-                       const ossl_hpke_suite_st suite, const int mode5869,
+                       const OSSL_HPKE_SUITE suite, const int mode5869,
                        const unsigned char *prk, const size_t prklen,
                        const char *label, const size_t labellen,
                        const unsigned char *info, const size_t infolen,
@@ -1024,7 +1023,7 @@ err:
  * @return 1 for good otherwise bad
  */
 static int hpke_extract_and_expand(OSSL_LIB_CTX *libctx,
-                                   ossl_hpke_suite_st suite, int mode5869,
+                                   OSSL_HPKE_SUITE suite, int mode5869,
                                    unsigned char *shared_secret,
                                    size_t shared_secretlen,
                                    unsigned char *context, size_t contextlen,
@@ -1080,7 +1079,7 @@ err:
  * @return 1 for good, not 1 for not good
  */
 static int hpke_do_kem(OSSL_LIB_CTX *libctx,
-                       int encrypting, ossl_hpke_suite_st suite,
+                       int encrypting, OSSL_HPKE_SUITE suite,
                        EVP_PKEY *key1,
                        size_t key1enclen, unsigned char *key1enc,
                        EVP_PKEY *key2,
@@ -1487,7 +1486,7 @@ err:
  * @param suite is the suite to check
  * @return 1 for good/supported, not 1 otherwise
  */
-static int hpke_suite_check(ossl_hpke_suite_st suite)
+static int hpke_suite_check(OSSL_HPKE_SUITE suite)
 {
     /*
      * Check that the fields of the suite are each
@@ -1562,7 +1561,7 @@ static int hpke_suite_check(ossl_hpke_suite_st suite)
  * @return 1 for good (OpenSSL style), not 1 for error
  */
 static int hpke_enc_int(OSSL_LIB_CTX *libctx,
-                        unsigned int mode, ossl_hpke_suite_st suite,
+                        unsigned int mode, OSSL_HPKE_SUITE suite,
                         char *pskid, size_t psklen, unsigned char *psk,
                         size_t publen, unsigned char *pub,
                         size_t authprivlen, unsigned char *authpriv,
@@ -1936,7 +1935,7 @@ err:
  * @return 1 for good (OpenSSL style), not 1 for error
  */
 static int hpke_dec_int(OSSL_LIB_CTX *libctx,
-                        unsigned int mode, ossl_hpke_suite_st suite,
+                        unsigned int mode, OSSL_HPKE_SUITE suite,
                         char *pskid, size_t psklen, unsigned char *psk,
                         size_t authpublen, unsigned char *authpub,
                         size_t privlen, unsigned char *priv,
@@ -2315,7 +2314,7 @@ static int hpke_kg_comp2order(uint32_t kemid, size_t buflen,
  * @return 1 for good (OpenSSL style), not 1 for error
  */
 static int hpke_kg_evp(OSSL_LIB_CTX *libctx,
-                       unsigned int mode, ossl_hpke_suite_st suite,
+                       unsigned int mode, OSSL_HPKE_SUITE suite,
                        size_t ikmlen, unsigned char *ikm,
                        size_t *publen, unsigned char *pub,
                        EVP_PKEY **priv)
@@ -2528,7 +2527,7 @@ err:
  * @return 1 for good (OpenSSL style), not 1 for error
  */
 static int hpke_kg(OSSL_LIB_CTX *libctx,
-                   unsigned int mode, ossl_hpke_suite_st suite,
+                   unsigned int mode, OSSL_HPKE_SUITE suite,
                    size_t ikmlen, unsigned char *ikm,
                    size_t *publen, unsigned char *pub,
                    size_t *privlen, unsigned char *priv)
@@ -2584,7 +2583,7 @@ err:
  * If you change the structure of the various *_tab arrays
  * then this code will also need change.
  */
-static int hpke_random_suite(OSSL_LIB_CTX *libctx, ossl_hpke_suite_st *suite)
+static int hpke_random_suite(OSSL_LIB_CTX *libctx, OSSL_HPKE_SUITE *suite)
 {
     unsigned char rval = 0;
     int nkdfs = OSSL_NELEM(hpke_kdf_tab)-1;
@@ -2621,14 +2620,14 @@ static int hpke_random_suite(OSSL_LIB_CTX *libctx, ossl_hpke_suite_st *suite)
  * @return 1 for success, otherwise failure
  */
 static int hpke_good4grease(OSSL_LIB_CTX *libctx,
-                            ossl_hpke_suite_st *suite_in,
-                            ossl_hpke_suite_st *suite,
+                            OSSL_HPKE_SUITE *suite_in,
+                            OSSL_HPKE_SUITE *suite,
                             unsigned char *pub,
                             size_t *pub_len,
                             unsigned char *cipher,
                             size_t cipher_len)
 {
-    ossl_hpke_suite_st chosen;
+    OSSL_HPKE_SUITE chosen;
     int crv = 0;
     int erv = 0;
     size_t plen = 0;
@@ -2685,7 +2684,7 @@ err:
  * @param suite is the resulting suite
  * @return 1 for success, otherwise failure
  */
-static int hpke_str2suite(char *suitestr, ossl_hpke_suite_st *suite)
+static int hpke_str2suite(char *suitestr, OSSL_HPKE_SUITE *suite)
 {
     uint16_t kem = 0, kdf = 0, aead = 0;
     char *st = NULL;
@@ -2786,7 +2785,7 @@ static int hpke_str2suite(char *suitestr, ossl_hpke_suite_st *suite)
  * @param cipherlen points to what'll be ciphertext length
  * @return 1 for success, otherwise failure
  */
-static int hpke_expansion(ossl_hpke_suite_st suite,
+static int hpke_expansion(OSSL_HPKE_SUITE suite,
                           size_t clearlen,
                           size_t *cipherlen)
 {
@@ -2851,7 +2850,7 @@ err:
  * smaller than a 64 bit pointer, so that's grand, if odd:-)
  */
 int OSSL_HPKE_enc(OSSL_LIB_CTX *libctx,
-                  unsigned int mode, ossl_hpke_suite_st suite,
+                  unsigned int mode, OSSL_HPKE_SUITE suite,
                   char *pskid, size_t psklen, unsigned char *psk,
                   size_t publen, unsigned char *pub,
                   size_t authprivlen, unsigned char *authpriv,
@@ -2913,7 +2912,7 @@ int OSSL_HPKE_enc(OSSL_LIB_CTX *libctx,
  * smaller than a 64 bit pointer, so that's grand, if odd:-)
  */
 int OSSL_HPKE_enc_evp(OSSL_LIB_CTX *libctx,
-                      unsigned int mode, ossl_hpke_suite_st suite,
+                      unsigned int mode, OSSL_HPKE_SUITE suite,
                       char *pskid, size_t psklen, unsigned char *psk,
                       size_t publen, unsigned char *pub,
                       size_t authprivlen, unsigned char *authpriv,
@@ -2969,7 +2968,7 @@ int OSSL_HPKE_enc_evp(OSSL_LIB_CTX *libctx,
  * @return 1 for good (OpenSSL style), not-1 for error
  */
 int OSSL_HPKE_dec(OSSL_LIB_CTX *libctx,
-                  unsigned int mode, ossl_hpke_suite_st suite,
+                  unsigned int mode, OSSL_HPKE_SUITE suite,
                   char *pskid, size_t psklen, unsigned char *psk,
                   size_t publen, unsigned char *pub,
                   size_t privlen, unsigned char *priv,
@@ -3007,7 +3006,7 @@ int OSSL_HPKE_dec(OSSL_LIB_CTX *libctx,
  * @return 1 for good (OpenSSL style), not-1 for error
  */
 int OSSL_HPKE_kg(OSSL_LIB_CTX *libctx,
-                 unsigned int mode, ossl_hpke_suite_st suite,
+                 unsigned int mode, OSSL_HPKE_SUITE suite,
                  size_t ikmlen, unsigned char *ikm,
                  size_t *publen, unsigned char *pub,
                  size_t *privlen, unsigned char *priv)
@@ -3029,7 +3028,7 @@ int OSSL_HPKE_kg(OSSL_LIB_CTX *libctx,
  * @return 1 for good (OpenSSL style), not-1 for error
  */
 int OSSL_HPKE_kg_evp(OSSL_LIB_CTX *libctx,
-                     unsigned int mode, ossl_hpke_suite_st suite,
+                     unsigned int mode, OSSL_HPKE_SUITE suite,
                      size_t ikmlen, unsigned char *ikm,
                      size_t *publen, unsigned char *pub,
                      EVP_PKEY **priv)
@@ -3043,7 +3042,7 @@ int OSSL_HPKE_kg_evp(OSSL_LIB_CTX *libctx,
  * @param suite is the suite to check
  * @return 1 for good/supported, not-1 otherwise
  */
-int OSSL_HPKE_suite_check(ossl_hpke_suite_st suite)
+int OSSL_HPKE_suite_check(OSSL_HPKE_SUITE suite)
 {
     return (hpke_suite_check(suite));
 }
@@ -3091,8 +3090,8 @@ int OSSL_HPKE_prbuf2evp(OSSL_LIB_CTX *libctx,
  * @return 1 for success, otherwise failure
  */
 int OSSL_HPKE_good4grease(OSSL_LIB_CTX *libctx,
-                          ossl_hpke_suite_st *suite_in,
-                          ossl_hpke_suite_st *suite,
+                          OSSL_HPKE_SUITE *suite_in,
+                          OSSL_HPKE_SUITE *suite,
                           unsigned char *pub,
                           size_t *pub_len,
                           unsigned char *cipher,
@@ -3109,7 +3108,7 @@ int OSSL_HPKE_good4grease(OSSL_LIB_CTX *libctx,
  * @param suite is the resulting suite
  * @return 1 for success, otherwise failure
  */
-int OSSL_HPKE_str2suite(char *str, ossl_hpke_suite_st *suite)
+int OSSL_HPKE_str2suite(char *str, OSSL_HPKE_SUITE *suite)
 {
     return (hpke_str2suite(str, suite));
 }
@@ -3129,7 +3128,7 @@ int OSSL_HPKE_str2suite(char *str, ossl_hpke_suite_st *suite)
  * @param cipherlen points to what'll be ciphertext length
  * @return 1 for success, otherwise failure
  */
-int OSSL_HPKE_expansion(ossl_hpke_suite_st suite,
+int OSSL_HPKE_expansion(OSSL_HPKE_SUITE suite,
                         size_t clearlen,
                         size_t *cipherlen)
 {

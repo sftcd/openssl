@@ -12,7 +12,7 @@
  * APIs and data structures for HPKE (RFC9180).
  *
  * There is only one significant data structure defined here
- * (ossl_hpke_suite_st) to represent the KEM, KDF and AEAD algs
+ * (OSSL_HPKE_SUITE) to represent the KEM, KDF and AEAD algs
  * used. Otherwise, the approach taken is to provide all the
  * API inputs using existing types (buffers, lengths and a few
  * cases of strings or EVP_PKEY pointers.
@@ -67,7 +67,7 @@
  * an HPKE suite is supported or not.
  *
  * ``OSSL_HPKE_str2suite()`` maps from comma-separated strings,
- * e.g. "x25519,hkdf-sha256,aes-128-gcm", to an ``ossl_hpke_suite_st``.
+ * e.g. "x25519,hkdf-sha256,aes-128-gcm", to an ``OSSL_HPKE_SUITE``.
  *
  * So-called GREASEing (see RFC8701) is a protocol mechanism
  * where phoney values are sent in order to make it less likely
@@ -199,11 +199,11 @@ typedef struct {
     uint16_t    kem_id; /**< Key Encryption Method id */
     uint16_t    kdf_id; /**< Key Derivation Function id */
     uint16_t    aead_id; /**< AEAD alg id */
-} ossl_hpke_suite_st;
+} OSSL_HPKE_SUITE;
 
 /**
  * Suite constants, use this like:
- *          ossl_hpke_suite_st myvar = OSSL_HPKE_SUITE_DEFAULT;
+ *          OSSL_HPKE_SUITE myvar = OSSL_HPKE_SUITE_DEFAULT;
  */
 # define OSSL_HPKE_SUITE_DEFAULT \
     {\
@@ -259,7 +259,7 @@ typedef struct {
  * @return 1 for success, other for error (error returns can be non-zero)
  */
 int OSSL_HPKE_enc(OSSL_LIB_CTX *libctx,
-                  unsigned int mode, ossl_hpke_suite_st suite,
+                  unsigned int mode, OSSL_HPKE_SUITE suite,
                   char *pskid, size_t psklen, unsigned char *psk,
                   size_t publen, unsigned char *pub,
                   size_t authprivlen, unsigned char *authpriv,
@@ -310,7 +310,7 @@ int OSSL_HPKE_enc(OSSL_LIB_CTX *libctx,
  * @return 1 for success, other for error (error returns can be non-zero)
  */
 int OSSL_HPKE_enc_evp(OSSL_LIB_CTX *libctx,
-                      unsigned int mode, ossl_hpke_suite_st suite,
+                      unsigned int mode, OSSL_HPKE_SUITE suite,
                       char *pskid, size_t psklen, unsigned char *psk,
                       size_t publen, unsigned char *pub,
                       size_t authprivlen, unsigned char *authpriv,
@@ -352,7 +352,7 @@ int OSSL_HPKE_enc_evp(OSSL_LIB_CTX *libctx,
  * @return 1 for success, other for error (error returns can be non-zero)
  */
 int OSSL_HPKE_dec(OSSL_LIB_CTX *libctx,
-                  unsigned int mode, ossl_hpke_suite_st suite,
+                  unsigned int mode, OSSL_HPKE_SUITE suite,
                   char *pskid, size_t psklen, unsigned char *psk,
                   size_t publen, unsigned char *pub,
                   size_t privlen, unsigned char *priv,
@@ -386,7 +386,7 @@ int OSSL_HPKE_dec(OSSL_LIB_CTX *libctx,
  * @return 1 for success, other for error (error returns can be non-zero)
  */
 int OSSL_HPKE_kg(OSSL_LIB_CTX *libctx,
-                 unsigned int mode, ossl_hpke_suite_st suite,
+                 unsigned int mode, OSSL_HPKE_SUITE suite,
                  size_t ikmlen, unsigned char *ikm,
                  size_t *publen, unsigned char *pub,
                  size_t *privlen, unsigned char *priv);
@@ -413,7 +413,7 @@ int OSSL_HPKE_kg(OSSL_LIB_CTX *libctx,
  * @return 1 for success, other for error (error returns can be non-zero)
  */
 int OSSL_HPKE_kg_evp(OSSL_LIB_CTX *libctx,
-                     unsigned int mode, ossl_hpke_suite_st suite,
+                     unsigned int mode, OSSL_HPKE_SUITE suite,
                      size_t ikmlen, unsigned char *ikm,
                      size_t *publen, unsigned char *pub,
                      EVP_PKEY **priv);
@@ -424,7 +424,7 @@ int OSSL_HPKE_kg_evp(OSSL_LIB_CTX *libctx,
  * @param suite is the suite to check
  * @return 1 for success, other for error (error returns can be non-zero)
  */
-int OSSL_HPKE_suite_check(ossl_hpke_suite_st suite);
+int OSSL_HPKE_suite_check(OSSL_HPKE_SUITE suite);
 
 /**
  * @brief: map a kem_id and a private key buffer into an EVP_PKEY
@@ -464,8 +464,8 @@ int OSSL_HPKE_prbuf2evp(OSSL_LIB_CTX *libctx,
  * @return 1 for success, otherwise failure
  */
 int OSSL_HPKE_good4grease(OSSL_LIB_CTX *libctx,
-                          ossl_hpke_suite_st *suite_in,
-                          ossl_hpke_suite_st *suite,
+                          OSSL_HPKE_SUITE *suite_in,
+                          OSSL_HPKE_SUITE *suite,
                           unsigned char *pub,
                           size_t *pub_len,
                           unsigned char *cipher,
@@ -486,7 +486,7 @@ int OSSL_HPKE_good4grease(OSSL_LIB_CTX *libctx,
  * @return 1 for success, otherwise failure
  */
 int OSSL_HPKE_str2suite(char *str,
-                        ossl_hpke_suite_st *suite);
+                        OSSL_HPKE_SUITE *suite);
 
 /**
  * @brief tell the caller how big the cipertext will be
@@ -496,7 +496,7 @@ int OSSL_HPKE_str2suite(char *str,
  * @param cipherlen points to what'll be ciphertext length
  * @return 1 for success, otherwise failure
  */
-int OSSL_HPKE_expansion(ossl_hpke_suite_st suite,
+int OSSL_HPKE_expansion(OSSL_HPKE_SUITE suite,
                         size_t clearlen,
                         size_t *cipherlen);
 
