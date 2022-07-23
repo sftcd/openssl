@@ -441,8 +441,6 @@ then
     alpn=$DEFALPNVAL
 fi
 
-TMPF=`mktemp /tmp/echtestXXXX`
-
 earlystr=""
 if [[ "$EARLY_DATA" == "yes" ]]
 then
@@ -457,6 +455,8 @@ then
     fi
     earlystr=" --early_data ed_file "
 fi
+
+TMPF=`mktemp /tmp/echtestXXXX`
 
 if [[ "$DEBUG" == "yes" ]]
 then
