@@ -255,9 +255,17 @@ then
 		then
             # if that value appears to be good ascii hex encoded, we'll assume it's an
             # HTTPS RR value 
-            ignore=$((16#$SUPPLIEDECH))
-            ahres=$?
-            # if however it's base64 we'll guess it's a b64'd ECHConfigList 
+            # we'll lowercase the string, then AH-decode and re-encode
+            # and if result is the same then we think it's ascii-hex
+            lse=`echo $SUPPLIEDECH | tr '[:upper:]' '[:lower:]'`
+            dcheck=`echo $lse | xxd -r -p | xxd -p | tr -d '\n'`
+            if [[ "$dcheck" == "$lse" ]]
+            then
+                ahres=0
+            else
+                ahres=1
+            fi
+            # if it's base64 we'll guess it's a b64'd ECHConfigList
             echo $SUPPLIEDECH | base64 -d >/dev/null 2>&1
             bres=$?
             # note: the same string can pass both tests in which case
