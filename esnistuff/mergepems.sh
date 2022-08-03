@@ -75,10 +75,17 @@ done
 
 # echo "incount: $incount"
 
-if ((incount <= 1))
+if ((incount < 1))
 then
     echo "Not enough existing input files provided ($incount)- exiting"
     exit 97
+fi
+
+if ((incount == 1))
+then
+    echo "Just one - Copying input to output"
+    cat $PEMFILES >$OUTFILE
+    exit 0
 fi
 
 ah_overall=""
