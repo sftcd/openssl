@@ -85,7 +85,7 @@ done
 
 if [ ! -f $BTOOL/bssl ]
 then
-    echo "You probably need to build $BTTOL/bssl - exiting"
+    echo "You probably need to build $BTOOL/bssl - exiting"
     exit 1
 fi
 
@@ -223,18 +223,20 @@ then
     then
         defoport="8414"
     fi
-    ECH=`dig +short -t TYPE65 "_$defoport._https.$defohost" | \
+    ECH=`dig +unknownformat +short -t TYPE65 "_$defoport._https.$defohost" | \
         tail -1 | cut -f 3- -d' ' | sed -e 's/ //g' | sed -e 'N;s/\n//'`
     if [[ "$ECH" == "" ]]
     then
         echo "Can't read ECHConfigList for $defohost:$defoport"
         exit 2
     fi
+    # temporarily force IPv4
+    defoip=`dig +short $defohost`
     ah_ech=${ECH:14}
     echo $ah_ech | xxd -p -r >$BFILES/defo.ech
     echo "Running bssl s_client against $defohost:$defoport"
     ( echo -e $defohttpreq ; sleep 2) | $BTOOL/bssl s_client \
-        -connect $defohost:$defoport \
+        -connect $defoip:$defoport \
         -ech-config-list $BFILES/defo.ech \
         -server-name $defohost $debugstr
     res=$?
@@ -254,7 +256,7 @@ then
     # 00060020260647000007000000000000A29F874F260647000007000000000000A29F884F
     # The middle one is what we want and we'll grab it based purely on known
     # lengths for now - if CF change things we'll need to adjust
-    ECH=`dig +short -t TYPE65 $cfhost | tail -1 | cut -f 3- -d' ' | sed -e 's/ //g' | sed -e 'N;s/\n//'`
+    ECH=`dig +unknownformat +short -t TYPE65 $cfhost | tail -1 | cut -f 3- -d' ' | sed -e 's/ //g' | sed -e 'N;s/\n//'`
     if [[ "$ECH" == "" ]]
     then
         echo "Can't read ECHConfigList for $cfhost"
