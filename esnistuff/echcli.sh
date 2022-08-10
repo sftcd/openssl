@@ -76,6 +76,7 @@ CIPHERSUITES="" # default to internal default
 SELECTED=""
 IGNORE_CID="no"
 EARLY_DATA="no"
+IP_PROTSEL=""
 
 
 function whenisitagain()
@@ -89,6 +90,8 @@ echo "Running $0 at $NOW"
 function usage()
 {
     echo "$0 [-cdfgGhHPpsrnlvL] - try out encrypted client hello (ECH) via openssl s_client"
+	echo "  -4 use IPv4"
+	echo "  -6 use IPv6"
 	echo "  -c [name] specifices a name that I'll send as an outer SNI (NONE is special)"
     echo "  -C [number] selects the n-th ECHConfig from input RR/PEM file (0 based)"
     echo "  -d means run s_client in verbose mode"
@@ -131,7 +134,7 @@ then
 fi
 
 # options may be followed by one colon to indicate they have a required argument
-if ! options=$($GETOPTDIR/getopt -s bash -o C:c:def:gGhH:IjnNp:P:rs:S:t:v -l choose:,clear_sni:,debug,early,filepath:,grease,greasesuite,help,hidden:,ignore_cid,just,noech,noalpn,port:,echpub:,realcert,server:,session:,gtype:,valgrind -- "$@")
+if ! options=$($GETOPTDIR/getopt -s bash -o 46C:c:def:gGhH:IjnNp:P:rs:S:t:v -l four,six,choose:,clear_sni:,debug,early,filepath:,grease,greasesuite,help,hidden:,ignore_cid,just,noech,noalpn,port:,echpub:,realcert,server:,session:,gtype:,valgrind -- "$@")
 then
     # something went wrong, getopt will put out an error message for us
     exit 1
@@ -141,6 +144,8 @@ eval set -- "$options"
 while [ $# -gt 0 ]
 do
     case "$1" in
+        -4|--four) IP_PROTSEL=" -4 ";;
+        -6|--six) IP_PROTSEL=" -6 ";;
         -c|--clear_sni) SUPPLIEDPNO=$2; shift;;
         -C|--choose) SELECTED=$2; shift;;
         -d|--debug) DEBUG="yes" ;;
@@ -460,7 +465,7 @@ TMPF=`mktemp /tmp/echtestXXXX`
 
 if [[ "$DEBUG" == "yes" ]]
 then
-    echo "Running: $CODETOP/apps/openssl s_client $dbgstr $certsdb $force13 $target $echstr $snioutercmd $session $alpn $ciphers $earlystr"
+    echo "Running: $CODETOP/apps/openssl s_client $IP_PROTSEL $dbgstr $certsdb $force13 $target $echstr $snioutercmd $session $alpn $ciphers $earlystr"
 fi
 # seconds to sleep after firing up client so that tickets might arrive
 sleepaftr=2
@@ -479,9 +484,9 @@ fi
 if [[ "$EARLY_DATA" == "yes" ]]
 then
     httpreq1=${httpreq/foo.example.com/barbar.example.com}
-    ( echo -e "$httpreq1" ; sleep $sleepaftr) | $vgcmd $CODETOP/apps/openssl s_client $dbgstr $certsdb $force13 $target $echstr $snioutercmd $session $alpn $ciphers $earlystr >$TMPF 2>&1
+    ( echo -e "$httpreq1" ; sleep $sleepaftr) | $vgcmd $CODETOP/apps/openssl s_client $IP_PROTSEL $dbgstr $certsdb $force13 $target $echstr $snioutercmd $session $alpn $ciphers $earlystr >$TMPF 2>&1
 else
-    ( echo -e "$httpreq" ; sleep $sleepaftr) | $vgcmd $CODETOP/apps/openssl s_client $dbgstr $certsdb $force13 $target $echstr $snioutercmd $session $alpn $ciphers >$TMPF 2>&1
+    ( echo -e "$httpreq" ; sleep $sleepaftr) | $vgcmd $CODETOP/apps/openssl s_client $IP_PROTSEL $dbgstr $certsdb $force13 $target $echstr $snioutercmd $session $alpn $ciphers >$TMPF 2>&1
 fi
 
 c200=`grep -c "200 OK" $TMPF`

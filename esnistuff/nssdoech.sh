@@ -32,7 +32,7 @@ function b64_ech_from_DNS()
     else
         qname="_$port._https.$host"
     fi
-    ECHRR=`dig +short -t TYPE65 $qname | \
+    ECHRR=`dig +unknownformat +short -t TYPE65 $qname | \
         tail -1 | cut -f 3- -d' ' | sed -e 's/ //g' | sed -e 'N;s/\n//'`
     if [[ "$ECHRR" == "" ]]
     then
@@ -132,12 +132,14 @@ defo11413="draft-13.esni.defo.ie,draft-13.esni.defo.ie,11413,"
 defo12413="draft-13.esni.defo.ie,draft-13.esni.defo.ie,12413," 
 defo12414="draft-13.esni.defo.ie,draft-13.esni.defo.ie,12414," 
 
-services="$defo443 \
-    $cfdets $cfrte \
-    $defo8413 $defo8414 \
-    $defo9413 \
-    $defo10413 $defo11413 \
-    $defo12413 $defo12414"
+#services="$defo443 \
+    #$cfdets $cfrte \
+    #$defo8413 $defo8414 \
+    #$defo9413 \
+    #$defo10413 $defo11413 \
+    #$defo12413 $defo12414"
+
+services="$defo8413"
 
 # no longer needed but I'll forget HOWTO so leave it here:-)
 # items=${#services[@]}
