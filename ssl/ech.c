@@ -1385,31 +1385,34 @@ static int local_decode_rdata_name(
     rem=*remaining;
     if (dnsname==NULL) return(0);
     thename=OPENSSL_malloc(TLSEXT_MAXLEN_host_name);
-    if (thename==NULL) {
-        return(0);
-    }
+    if (thename==NULL) return(0);
     cp=*buf;
     tp=thename;
-
     clen=*cp++;
     if (clen==0) {
-        /*
-         * special case - return "." as name
-         */
+        /* special case - return "." as name */
         thename[0]='.';
         thename[1]=0x00;
     }
     while(clen!=0) {
-        if (clen>rem) { OPENSSL_free(thename); return(1); }
+        if (clen > rem) {
+            OPENSSL_free(thename);
+            return(0);
+        }
+        if ((( tp - thename ) + clen ) > TLSEXT_MAXLEN_host_name) { 
+            OPENSSL_free(thename);
+            return(0);
+        }
         memcpy(tp,cp,clen);
         tp+=clen;
-        *tp='.'; tp++;
-        cp+=clen; rem-=clen+1;
+        *tp='.';
+        tp++;
+        cp+=clen;
+        rem -= (clen + 1);
         clen=*cp++;
     }
-
     *buf=cp;
-    *remaining=rem;
+    *remaining=rem-1;
     *dnsname=thename;
     return(1);
 }
