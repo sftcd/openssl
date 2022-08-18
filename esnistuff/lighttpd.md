@@ -1,6 +1,13 @@
 
 # Playing with lighttpd for ECH
 
+## August 2022 migration of defo.ie
+
+- running on ubuntu 22.04
+- pcre-devel package no longer there it seems, trying libpre3-dev
+- build errors - looks like a rebase needed so did that, 
+    TODO - committed changes but more testing needed
+
 ## September 2021 vesion: draft-13 of ECH
 
 ### Housekeeping, Clone and build
