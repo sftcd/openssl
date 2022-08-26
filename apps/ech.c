@@ -212,10 +212,8 @@ static int mk_echconfig(
 
     if (priv==NULL) { return (__LINE__); }
 
-    rv=OSSL_HPKE_kg(
-        NULL, hpke_mode, hpke_suite,
-        0, NULL, &publen, pub,
-        privlen, priv);
+    rv=OSSL_HPKE_keygen(NULL, NULL, hpke_mode, hpke_suite,
+                        NULL, 0, pub, &publen, priv, privlen);
     if (rv!=1) { return(__LINE__); }
 
     /*

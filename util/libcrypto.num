@@ -5440,8 +5440,8 @@ BIO_ADDR_dup                            ?	3_1_0	EXIST::FUNCTION:SOCK
 CMS_final_digest                        ?	3_1_0	EXIST::FUNCTION:CMS
 OPENSSL_strcasecmp                      ?	3_0_3	EXIST::FUNCTION:
 OPENSSL_strncasecmp                     ?	3_0_3	EXIST::FUNCTION:
-OSSL_HPKE_kg                            ?	3_0_0	EXIST::FUNCTION:
-OSSL_HPKE_kg_evp                        ?	3_0_0	EXIST::FUNCTION:
+OSSL_HPKE_keygen                        ?	3_0_0	EXIST::FUNCTION:
+OSSL_HPKE_keygen_evp                    ?	3_0_0	EXIST::FUNCTION:
 OSSL_HPKE_enc                           ?	3_0_0	EXIST::FUNCTION:
 OSSL_HPKE_enc_evp                       ?	3_0_0	EXIST::FUNCTION:
 OSSL_HPKE_dec                           ?	3_0_0	EXIST::FUNCTION:
