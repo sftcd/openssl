@@ -35,6 +35,9 @@
 /* max PEM encoded ECHConfigs we'll emit */
 #define ECH_MAX_ECHCONFIGS_LEN ECH_MAXEXTLEN+1000
 
+/* size for some local crypto vars */
+#define ECH_CRYPTO_VAR_SIZE 1024
+
 /*
  * Max ECH config file we want to handle. This
  * is bigger than ECH_MAX_ECHCONFIG_LEN as we 
@@ -183,12 +186,18 @@ static int mk_echconfig(
 {
     size_t pnlen=0;
     int hpke_mode=OSSL_HPKE_MODE_BASE;
-    size_t publen=OSSL_HPKE_MAXSIZE; unsigned char pub[OSSL_HPKE_MAXSIZE];
+    size_t publen=ECH_CRYPTO_VAR_SIZE;
+    unsigned char pub[ECH_CRYPTO_VAR_SIZE];
     int rv=0;
     unsigned char bbuf[ECH_MAX_ECHCONFIGS_LEN];
     unsigned char *bp=bbuf;
     size_t bblen=0;
     unsigned int b64len = 0;
+    EVP_PKEY *privp = NULL;
+    BIO *bfp = NULL;
+    unsigned char lpriv[ECH_CRYPTO_VAR_SIZE];
+    size_t lprivlen = 0;
+
 
     switch(ekversion) {
         case ECH_DRAFT_09_VERSION:
@@ -213,8 +222,36 @@ static int mk_echconfig(
     if (priv==NULL) { return (__LINE__); }
 
     rv=OSSL_HPKE_keygen(NULL, NULL, hpke_mode, hpke_suite,
-                        NULL, 0, pub, &publen, priv, privlen);
+                        NULL, 0, pub, &publen, &privp);
     if (rv!=1) { return(__LINE__); }
+
+    /* map that EVP_PKEY to a pem buffer */
+    bfp = BIO_new(BIO_s_mem());
+    if (bfp == NULL) {
+        EVP_PKEY_free(privp);
+        return (__LINE__);
+    }
+    if (!PEM_write_bio_PrivateKey(bfp, privp, NULL, NULL, 0, NULL, NULL)) {
+        EVP_PKEY_free(privp);
+        BIO_free_all(bfp);
+        return (__LINE__);
+    }
+    lprivlen = BIO_read(bfp, lpriv, ECH_CRYPTO_VAR_SIZE);
+    if (lprivlen <= 0) {
+        EVP_PKEY_free(privp);
+        BIO_free_all(bfp);
+        return (__LINE__);
+    }
+    if (lprivlen > *privlen) {
+        EVP_PKEY_free(privp);
+        BIO_free_all(bfp);
+        return (__LINE__);
+    }
+    *privlen = lprivlen;
+    memcpy(priv, lpriv, lprivlen);
+    EVP_PKEY_free(privp);
+    privp=NULL;
+    BIO_free_all(bfp);
 
     /*
      * In draft-10 we find:
@@ -425,7 +462,8 @@ int ech_main(int argc, char **argv)
     /* bigger size because of base64 */
     size_t echconfig_len=2*ECH_MAX_ECHCONFIGS_LEN;
     unsigned char echconfig[2*ECH_MAX_ECHCONFIGS_LEN];
-    size_t privlen=OSSL_HPKE_MAXSIZE; unsigned char priv[OSSL_HPKE_MAXSIZE];
+    size_t privlen=ECH_CRYPTO_VAR_SIZE;
+    unsigned char priv[ECH_CRYPTO_VAR_SIZE];
     int rv=0;
     int mode=ECH_KEYGEN_MODE; /* key generation */
     SSL_CTX *con=NULL;

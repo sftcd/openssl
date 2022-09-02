@@ -48,6 +48,9 @@
 /* For HPKE APIs */
 #include <openssl/hpke.h>
 
+/* a size for some crypto vars */
+#define ECH_CRYPTO_VAR_SIZE 2048
+
 /*
  * When doing ECH, this array specifies which inner CH extensions (if
  * any) are to be "compressed" using the outer extensions scheme.
@@ -4242,8 +4245,8 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
 {
     int hpke_mode=OSSL_HPKE_MODE_BASE;
     OSSL_HPKE_SUITE hpke_suite = OSSL_HPKE_SUITE_DEFAULT;
-    size_t cipherlen=OSSL_HPKE_MAXSIZE;
-    unsigned char cipher[OSSL_HPKE_MAXSIZE];
+    size_t cipherlen=ECH_CRYPTO_VAR_SIZE;
+    unsigned char cipher[ECH_CRYPTO_VAR_SIZE];
     unsigned char *aad=NULL;
     size_t aad_len=0;
     unsigned char config_id_to_use=0x00; /* we might replace with random */
@@ -4271,8 +4274,8 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
     int prefind=-1;
     ECHConfig *firstmatch=NULL;
     unsigned char *cp=NULL;
-    unsigned char info[OSSL_HPKE_MAXSIZE];
-    size_t info_len=OSSL_HPKE_MAXSIZE;
+    unsigned char info[ECH_CRYPTO_VAR_SIZE];
+    size_t info_len=ECH_CRYPTO_VAR_SIZE;
     int rv=0;
     size_t echextlen=0;
     unsigned char *startofmessage=NULL;
@@ -4385,16 +4388,15 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
             BIO_printf(trc_out,"EAAE: generate new ECH key pair\n");
         } OSSL_TRACE_END(TLS);
 #endif
-        mypub=OPENSSL_malloc(OSSL_HPKE_MAXSIZE);
+        mypub=OPENSSL_malloc(ECH_CRYPTO_VAR_SIZE);
         if (!mypub) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             goto err;
         }
-        mypub_len=OSSL_HPKE_MAXSIZE;
-        if (OSSL_HPKE_keygen_evp(NULL, NULL, hpke_mode, hpke_suite,
-                                 NULL, 0,
-                                 mypub, &mypub_len,
-                                 &mypriv_evp) != 1) {
+        mypub_len=ECH_CRYPTO_VAR_SIZE;
+        if (OSSL_HPKE_keygen(NULL, NULL, hpke_mode, hpke_suite,
+                             NULL, 0, mypub, &mypub_len,
+                             &mypriv_evp) != 1) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             goto err;
         }
@@ -4403,7 +4405,7 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
         s->ext.ech_pub=mypub; 
         s->ext.ech_pub_len=mypub_len; 
     }
-    if (mypub_len>OSSL_HPKE_MAXSIZE || mypriv_evp==NULL) {
+    if (mypub_len>ECH_CRYPTO_VAR_SIZE || mypriv_evp==NULL) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         goto err;
     }
@@ -4459,18 +4461,17 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
          goto err;
         }
         ech_pbuf("EAAE info",info,info_len);
-        rv=OSSL_HPKE_enc_evp(
+        rv=OSSL_HPKE_enc(
             NULL, NULL, hpke_mode, hpke_suite, /* mode, suite */
             NULL, NULL, 0, /* pskid, psk */
             peerpub, peerpub_len,
-            NULL, 0, NULL, /* priv */
+            NULL, 0, NULL, /* auth priv */
             s->ext.inner_s->ext.encoded_innerch, /* clear */
             s->ext.inner_s->ext.encoded_innerch_len,
             aad, aad_len,
             info, info_len,
             NULL, 0, /* seq */
-            mypub, mypub_len,
-            mypriv_evp,
+            mypub, &mypub_len, mypriv_evp,
             cipher, &cipherlen
             );
         if (rv!=1) {
@@ -4694,17 +4695,16 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt)
                 s->ext.inner_s->ext.encoded_innerch_len);
         ech_pbuf("EAAE: draft-13 padded clear",clear,clear_len);
 
-        rv=OSSL_HPKE_enc_evp(
+        rv=OSSL_HPKE_enc(
             NULL, NULL, hpke_mode, hpke_suite, /* mode, suite */
             NULL, NULL, 0, /* pskid, psk */
             peerpub, peerpub_len,
-            NULL, 0, NULL, /* priv */
+            NULL, 0, NULL, /* auth priv */
             clear, clear_len,
             aad, aad_len,
             info, info_len,
             seq, seqlen, /* seq */
-            mypub, mypub_len,
-            mypriv_evp,
+            mypub, &mypub_len, mypriv_evp,
             cipher, &cipherlen
             );
         OPENSSL_free(clear);
@@ -4956,8 +4956,8 @@ static unsigned char *hpke_decrypt_encch(
     size_t clearlen=0; unsigned char *clear=NULL;
     int hpke_mode=OSSL_HPKE_MODE_BASE;
     OSSL_HPKE_SUITE hpke_suite = OSSL_HPKE_SUITE_DEFAULT;
-    unsigned char info[OSSL_HPKE_MAXSIZE];
-    size_t info_len=OSSL_HPKE_MAXSIZE;
+    unsigned char info[ECH_CRYPTO_VAR_SIZE];
+    size_t info_len=ECH_CRYPTO_VAR_SIZE;
     int rv=0;
     unsigned char seq[1]={0x00};
     size_t seqlen=1;
@@ -5143,10 +5143,10 @@ int ech_early_decrypt(SSL *s, PACKET *outerpkt, PACKET *newpkt)
     size_t clearlen=0;
     unsigned char *clear=NULL;
     unsigned int tmp;
-    unsigned char aad[OSSL_HPKE_MAXSIZE];
-    size_t aad_len=OSSL_HPKE_MAXSIZE;
-    unsigned char de[OSSL_HPKE_MAXSIZE];
-    size_t de_len=OSSL_HPKE_MAXSIZE;
+    unsigned char aad[ECH_CRYPTO_VAR_SIZE];
+    size_t aad_len=ECH_CRYPTO_VAR_SIZE;
+    unsigned char de[ECH_CRYPTO_VAR_SIZE];
+    size_t de_len=ECH_CRYPTO_VAR_SIZE;
     size_t newextlens=0;
     size_t beforeECH=0;
     size_t afterECH=0;
@@ -5447,7 +5447,7 @@ int ech_early_decrypt(SSL *s, PACKET *outerpkt, PACKET *newpkt)
             SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
             goto err;
         }
-        if (ch_len>OSSL_HPKE_MAXSIZE) {
+        if (ch_len>ECH_CRYPTO_VAR_SIZE) {
             SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
             goto err;
         }
