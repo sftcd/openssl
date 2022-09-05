@@ -168,15 +168,12 @@ struct ossl_hpke_ctx_st
     char *propq; /**< properties */
     int mode; /**< HPKE mode */
     OSSL_HPKE_SUITE suite; /**< suite */
-    uint64_t seq;
-    unsigned char *exporter_ctx; /**< exporter string */
-    size_t exporter_ctxlen;
-    unsigned char *exportersec; /**< most recent exporter secret */
+    uint64_t seq; /**< sequence number */
+    unsigned char *exportersec; /**< exporter secret */
     size_t exporterseclen;
-    size_t expoutlen;
-    char *pskid;
+    char *pskid; /**< PSK stuff */
     unsigned char *psk;
-    size_t psklen; /**< PSK */
+    size_t psklen;
     EVP_PKEY *senderpriv; /**< sender's ephemeral private key */
     EVP_PKEY *authpriv; /**< sender's authentication private key */
     unsigned char *authpub; /**< auth public key */
@@ -825,7 +822,7 @@ static int hpke_expand(OSSL_LIB_CTX *libctx, const char *propq,
                                strlen(OSSL_HPKE_SEC41LABEL))
             || !WPACKET_put_bytes_u16(&pkt, suite.kem_id)
             || !WPACKET_memcpy(&pkt, label, labellen)
-            || !WPACKET_memcpy(&pkt, info, infolen)
+            || (info == NULL ? 0 : !WPACKET_memcpy(&pkt, info, infolen))
             || !WPACKET_get_total_written(&pkt, &concat_offset)
             || !WPACKET_finish(&pkt))
             goto err;
@@ -1497,8 +1494,6 @@ static int hpke_suite_check(OSSL_HPKE_SUITE suite)
  * @param info is the encoded info data (can be NULL)
  * @param seqlen is the length of the sequence data (can be zero)
  * @param seq is the encoded sequence data (can be NULL)
- * @param extsenderpublen length of the input buffer for sender's public key
- * @param extsenderpub is the input buffer for sender public key
  * @param extsenderpriv has the handle for the sender private key
  * @param expseclen is the length of the exportersecret buffer
  * @param expsec is the exporter secret
@@ -1519,8 +1514,6 @@ static int hpke_enc_int(OSSL_LIB_CTX *libctx, const char *propq,
                         size_t aadlen, const unsigned char *aad,
                         size_t infolen, const unsigned char *info,
                         size_t seqlen, const unsigned char *seq,
-                        size_t extsenderpublen,
-                        const unsigned char *extsenderpub,
                         EVP_PKEY *extsenderpriv,
                         size_t rawsenderprivlen,
                         const unsigned char *rawsenderpriv,
@@ -1580,10 +1573,10 @@ static int hpke_enc_int(OSSL_LIB_CTX *libctx, const char *propq,
      * Depending on who called us, we may want to generate this key pair
      * or we may have had it handed to us via extsender inputs
      */
-    if (extsenderpublen > 0 && extsenderpub != NULL && extsenderpriv != NULL) {
+    if (extsenderpriv != NULL) {
         evpcaller = 1;
     }
-    if (extsenderpublen > 0 && extsenderpub != NULL && extsenderpriv == NULL
+    if (extsenderpriv == NULL
         && rawsenderprivlen > 0 && rawsenderpriv != NULL) {
         rawcaller = 1;
     }
@@ -1597,7 +1590,7 @@ static int hpke_enc_int(OSSL_LIB_CTX *libctx, const char *propq,
     }
     if (evpcaller
         && (pub == NULL || clear == NULL
-            || !extsenderpublen || extsenderpub == NULL
+            || senderpublen == NULL || senderpub == NULL
             || extsenderpriv == NULL || !cipherlen || cipher == NULL)) {
         erv = 0;
         ERR_raise(ERR_LIB_CRYPTO, ERR_R_INTERNAL_ERROR);
@@ -1605,7 +1598,6 @@ static int hpke_enc_int(OSSL_LIB_CTX *libctx, const char *propq,
     }
     if (rawcaller
         && (pub == NULL || clear == NULL
-            || !extsenderpublen || extsenderpub == NULL
             || rawsenderpriv == NULL || !cipherlen || cipher == NULL)) {
         erv = 0;
         ERR_raise(ERR_LIB_CRYPTO, ERR_R_INTERNAL_ERROR);
@@ -1692,6 +1684,25 @@ static int hpke_enc_int(OSSL_LIB_CTX *libctx, const char *propq,
             ERR_raise(ERR_LIB_CRYPTO, ERR_R_INTERNAL_ERROR);
             goto err;
         }
+    }
+    if (evpcaller == 1 || rawcaller == 1) {
+        /* stash relevant public key for caller */
+        mypublen = EVP_PKEY_get1_encoded_public_key(pkE, &mypub);
+        if (mypub == NULL || mypublen == 0) {
+            erv = 0;
+            ERR_raise(ERR_LIB_CRYPTO, ERR_R_INTERNAL_ERROR);
+            goto err;
+        }
+        if (mypublen > *senderpublen) {
+            erv = 0;
+            ERR_raise(ERR_LIB_CRYPTO, ERR_R_INTERNAL_ERROR);
+            goto err;
+        }
+        memcpy(senderpub, mypub, mypublen);
+        *senderpublen = mypublen;
+        OPENSSL_free(mypub);
+        mypub = NULL;
+        mypublen = 0;
     }
 
     /* step 2 run DH KEM to get dh */
@@ -2894,7 +2905,6 @@ void OSSL_HPKE_CTX_free(OSSL_HPKE_CTX *ctx)
     if (ctx == NULL)
         return;
     OPENSSL_free(ctx->propq);
-    OPENSSL_free(ctx->exporter_ctx);
     OPENSSL_cleanse(ctx->exportersec, ctx->exporterseclen);
     OPENSSL_free(ctx->exportersec);
     OPENSSL_free(ctx->pskid);
@@ -3021,43 +3031,6 @@ int OSSL_HPKE_CTX_set1_authpub(OSSL_HPKE_CTX *ctx,
 }
 
 /**
- * @brief set a exporter length and context for HPKE
- * @param ctx is the pointer for the HPKE context
- * @param exp_ctx is the exporter context octets
- * @param exp_ctxlen is the size of exp_ctx
- * @param explen is the desired exporter output size
- * @return 1 for success, 0 for error
- */
-int OSSL_HPKE_CTX_set1_exporter(OSSL_HPKE_CTX *ctx,
-                                const unsigned char *exp_ctx, size_t exp_ctxlen,
-                                size_t explen)
-{
-    if (ctx == NULL)
-        return 0;
-    if (ctx->exportersec != NULL)
-        OPENSSL_cleanse(ctx->exportersec, ctx->exporterseclen);
-    OPENSSL_free(ctx->exportersec);
-    ctx->exportersec = NULL;
-    if (ctx->exporter_ctx != NULL)
-        OPENSSL_free(ctx->exporter_ctx);
-    ctx->expoutlen = explen;
-    ctx->exporter_ctx = OPENSSL_malloc(exp_ctxlen);
-    if (ctx->exporter_ctx == NULL)
-        goto err;
-    memcpy(ctx->exporter_ctx, exp_ctx, exp_ctxlen);
-    ctx->exporter_ctxlen = exp_ctxlen;
-    return 1;
-err:
-    OPENSSL_cleanse(ctx->exportersec, ctx->exporterseclen);
-    OPENSSL_free(ctx->exportersec);
-    OPENSSL_free(ctx->exporter_ctx);
-    ctx->exporter_ctxlen = 0;
-    ctx->exporterseclen = 0;
-    ctx->expoutlen = 0;
-    return 0;
-}
-
-/**
  * @brief ask for the state of the sequence of seal/open calls
  * @param ctx is the pointer for the HPKE context
  * @param seq returns the positive integer sequence number
@@ -3108,71 +3081,12 @@ static int hpke_seq2buf(uint64_t seq, unsigned char *buf, size_t blen)
 }
 
 /**
- * @brief run the final exporter calculation based on secret and state
- * @param ctx is the HPKE context
- * @param secret is the exporter secret from the latest KEM run
- * @param secretlen is the length of the above
- * @param exp is the buffer for the exporter
- * @param explen is a pointer to the size of the above (used octets on exit)
- * @return 1 for good, 0 otherwise
- */
-static int hpke_calc_exporter(OSSL_HPKE_CTX *ctx,
-                              unsigned char *secret,
-                              size_t secretlen,
-                              unsigned char *exp,
-                              size_t *explen)
-{
-    int erv = 1;
-
-    /* re-calculate the exporter if needed */
-    if (ctx == NULL || secret == NULL) {
-        ERR_raise(ERR_LIB_CRYPTO, ERR_R_INTERNAL_ERROR);
-        return 0;
-    }
-    if (ctx->exporter_ctx == NULL || (exp == NULL && explen == NULL))
-        return 1; /* not an error to not care */
-    if (ctx->expoutlen == 0) { /* oops */
-        ERR_raise(ERR_LIB_CRYPTO, ERR_R_INTERNAL_ERROR);
-        return 0;
-    }
-    if (ctx->expoutlen > *explen) { /* oops */
-        ERR_raise(ERR_LIB_CRYPTO, ERR_R_INTERNAL_ERROR);
-        return 0;
-    }
-    erv = hpke_expand(ctx->libctx, ctx->propq, ctx->suite,
-                      OSSL_HPKE_5869_MODE_FULL,
-                      secret, secretlen,
-                      OSSL_HPKE_EXP_SEC_LABEL, strlen(OSSL_HPKE_EXP_SEC_LABEL),
-                      ctx->exporter_ctx, ctx->exporter_ctxlen,
-                      ctx->expoutlen, exp, explen);
-    if (erv != 1) {
-        ERR_raise(ERR_LIB_CRYPTO, ERR_R_INTERNAL_ERROR);
-        return 0;
-    }
-    /* update state */
-    if (ctx->exportersec)
-        OPENSSL_cleanse(ctx->exportersec, ctx->exporterseclen);
-    OPENSSL_free(ctx->exportersec);
-    ctx->exportersec = OPENSSL_malloc(secretlen);
-    if (ctx->exportersec == NULL) {
-        ctx->exporterseclen = 0;
-        ERR_raise(ERR_LIB_CRYPTO, ERR_R_INTERNAL_ERROR);
-        return 0;
-    }
-    memcpy(ctx->exportersec, secret, secretlen);
-    ctx->exporterseclen = secretlen;
-    return 1;
-}
-
-/**
  * @brief sender seal function
  * @param ctx is the pointer for the HPKE context
  * @param enc is the sender's ephemeral public value
  * @param enclen is the size the above
  * @param ct is the ciphertext output
  * @param ctlen is the size the above
- * @param exp is the exporter octets
- * @param explen is the size the above
  * @param pub is the recipient public key octets
  * @param publen is the size the above
  * @param infolen is the size the above
@@ -3191,7 +3105,6 @@ static int hpke_calc_exporter(OSSL_HPKE_CTX *ctx,
 int OSSL_HPKE_sender_seal(OSSL_HPKE_CTX *ctx,
                           unsigned char *enc, size_t *enclen,
                           unsigned char *ct, size_t *ctlen,
-                          unsigned char *exp, size_t *explen,
                           unsigned char *pub, size_t publen,
                           const unsigned char *info, size_t infolen,
                           const unsigned char *aad, size_t aadlen,
@@ -3242,7 +3155,7 @@ int OSSL_HPKE_sender_seal(OSSL_HPKE_CTX *ctx,
                        aadlen, aad,
                        infolen, info,
                        seqlen, seqbuf,
-                       0, NULL, ctx->senderpriv,
+                       ctx->senderpriv,
                        0, NULL,
                        &exporterseclen, exportersec,
                        enclen, enc,
@@ -3253,11 +3166,16 @@ int OSSL_HPKE_sender_seal(OSSL_HPKE_CTX *ctx,
             ERR_raise(ERR_LIB_CRYPTO, ERR_R_INTERNAL_ERROR);
             return 0;
         }
-    }
-    erv = hpke_calc_exporter(ctx, exportersec, exporterseclen, exp, explen);
-    if (erv != 1) {
-        ERR_raise(ERR_LIB_CRYPTO, ERR_R_INTERNAL_ERROR);
-        return 0;
+        if (ctx->exportersec == NULL) {
+            /* just record once */
+            ctx->exportersec = OPENSSL_malloc(exporterseclen);
+            if (ctx->exportersec == NULL) {
+                ERR_raise(ERR_LIB_CRYPTO, ERR_R_INTERNAL_ERROR);
+                return 0;
+            }
+            memcpy(ctx->exportersec, exportersec, exporterseclen);
+            ctx->exporterseclen = exporterseclen;
+        }
     }
     return erv;
 }
@@ -3269,8 +3187,6 @@ int OSSL_HPKE_sender_seal(OSSL_HPKE_CTX *ctx,
  * @param ptlen is the size the above
  * @param enc is the sender's ephemeral public value
  * @param enclen is the size the above
- * @param exp is the exporter octets
- * @param explen is the size the above
  * @param recippriv is the EVP_PKEY form of recipient private value
  * @param info is the info parameter
  * @param infolen is the size the above
@@ -3285,14 +3201,12 @@ int OSSL_HPKE_sender_seal(OSSL_HPKE_CTX *ctx,
 int OSSL_HPKE_recipient_open(OSSL_HPKE_CTX *ctx,
                              unsigned char *pt, size_t *ptlen,
                              const unsigned char *enc, size_t enclen,
-                             unsigned char *exp, size_t *explen,
                              EVP_PKEY *recippriv,
                              const unsigned char *info, size_t infolen,
                              const unsigned char *aad, size_t aadlen,
                              const unsigned char *ct, size_t ctlen)
 {
     int erv = 1;
-    int erv1 = 1;
     unsigned char seqbuf[12];
     size_t seqlen = 1;
     unsigned char exportersec[OSSL_HPKE_MAXSIZE];
@@ -3323,139 +3237,67 @@ int OSSL_HPKE_recipient_open(OSSL_HPKE_CTX *ctx,
                        seqlen, seqbuf,
                        &exporterseclen, exportersec,
                        ptlen, pt);
-    /* FIXME: HACK HACK - ignore decrypt fail as we're doing export only!!! */
-    erv1 = hpke_calc_exporter(ctx, exportersec, exporterseclen, exp, explen);
-    if (erv1 != 1) {
-        ERR_raise(ERR_LIB_CRYPTO, ERR_R_INTERNAL_ERROR);
-        return 0;
-    }
-    if (erv != 1) {
-        ERR_raise(ERR_LIB_CRYPTO, ERR_R_INTERNAL_ERROR);
-        return 0;
-    } else {
+    if (erv == 1) {
+        if (ctx->exportersec == NULL) {
+            /* just record once */
+            ctx->exportersec = OPENSSL_malloc(exporterseclen);
+            if (ctx->exportersec == NULL) {
+                ERR_raise(ERR_LIB_CRYPTO, ERR_R_INTERNAL_ERROR);
+                return 0;
+            }
+            memcpy(ctx->exportersec, exportersec, exporterseclen);
+            ctx->exporterseclen = exporterseclen;
+        }
         ctx->seq++;
         if (ctx->seq == 0) { /* error wrap around 64 bits */
             ERR_raise(ERR_LIB_CRYPTO, ERR_R_INTERNAL_ERROR);
             return 0;
         }
     }
+    if (erv != 1) {
+        ERR_raise(ERR_LIB_CRYPTO, ERR_R_INTERNAL_ERROR);
+        return 0;
+    }
     return erv;
 }
 
 /**
- * @brief sender export-only function
- * @param ctx is the pointer for the HPKE context
- * @param enc is the sender's ephemeral public value
- * @param enclen is the size the above
- * @param exp is the exporter octets
- * @param explen is the size the above
- * @param pub is the recipient public key octets
- * @param publen is the size the above
- * @param info is the key schedule info parameter
- * @param infolen is the size the above
- * @return 1 for success, 0 for error
+ * @brief generate a given-length secret based on context and label
+ * @param ctx is the HPKE context
+ * @param secret is the resulting secret that will be of length...
+ * @param secret_len is the desired output length
+ * @param label is a buffer to provide separation between secrets
+ * @param labellen is the length of the above
+ * @return 1 for good, 0 for error
  *
- * This can be called once, or multiple, times.
+ * The context has to have been used already for one encryption
+ * or decryption for this to work (as this is based on the negotiated
+ * "exporter_secret" estabilshed via the HPKE operation.
  */
-int OSSL_HPKE_export_only_sender(OSSL_HPKE_CTX *ctx,
-                                 unsigned char *enc, size_t *enclen,
-                                 unsigned char *exp, size_t *explen,
-                                 unsigned char *pub, size_t publen,
-                                 const unsigned char *info, size_t infolen)
+int OSSL_HPKE_CTX_export(OSSL_HPKE_CTX *ctx,
+                         unsigned char *secret,
+                         size_t secret_len,
+                         const unsigned char *label,
+                         size_t labellen)
 {
-    /*
-     * we'll try bork the AEAD in the context and "seal"
-     * a fake message
-     */
     int erv = 1;
-    unsigned char fake_pt[] = "quick brown fox";
-    size_t fake_ptlen = sizeof(fake_pt);
-    unsigned char fake_ct[64];
-    size_t fake_ctlen = sizeof(fake_ct);
-    OSSL_HPKE_SUITE scpy;
+    size_t lsecretlen = secret_len;
 
-    if (ctx == NULL
-            || enc == NULL || enclen == 0
-            || pub == NULL || publen == 0) {
+    if (ctx == NULL) {
         ERR_raise(ERR_LIB_CRYPTO, ERR_R_INTERNAL_ERROR);
         return 0;
     }
-    if (ctx->exporter_ctx == NULL || ctx->expoutlen == 0) {
-        /* you should set those first */
+    if (ctx->exportersec == NULL) {
         ERR_raise(ERR_LIB_CRYPTO, ERR_R_INTERNAL_ERROR);
         return 0;
     }
-    /* fake the AEAD to the export only one for now */
-    scpy = ctx->suite;
-    ctx->suite.aead_id = OSSL_HPKE_AEAD_ID_EXPORTONLY;
-    erv = OSSL_HPKE_sender_seal(ctx, enc, enclen,
-                                fake_ct, &fake_ctlen,
-                                exp, explen, pub, publen,
-                                info, infolen, NULL, 0, /* aad */
-                                fake_pt, fake_ptlen);
-    /* put back the real AEAD */
-    ctx->suite = scpy;
-    if (erv != 1)
-        return 0;
-    return 1;
-}
-
-/**
- * @brief receiver export-only function
- * @param ctx is the pointer for the HPKE context
- * @param enc is the sender's ephemeral public value
- * @param enclen is the size the above
- * @param exp is the exporter octets
- * @param explen is the size the above
- * @param recippriv is the EVP_PKEY form of recipient private value
- * @param info is the key schedule info parameter
- * @param infolen is the size the above
- * @return 1 for success, 0 for error
- *
- * This can be called once, or multiple, times.
- */
-int OSSL_HPKE_export_only_recip(OSSL_HPKE_CTX *ctx,
-                                unsigned char *enc, size_t enclen,
-                                unsigned char *exp, size_t *explen,
-                                EVP_PKEY *recippriv,
-                                const unsigned char *info, size_t infolen)
-{
-    /*
-     * we'll try bork the AEAD in the context and "open"
-     * a fake message, while ignoring the error from the
-     * AEAD decryption (for now!, that's clearly too ugly
-     * to stand:-)
-     */
-    int erv = 1;
-    unsigned char fake_pt[64];
-    size_t fake_ptlen = sizeof(fake_pt);
-    unsigned char fake_ct[64];
-    size_t fake_ctlen = sizeof(fake_ct);
-    OSSL_HPKE_SUITE scpy;
-
-    if (ctx == NULL
-            || enc == NULL || enclen == 0
-            || recippriv == NULL) {
-        ERR_raise(ERR_LIB_CRYPTO, ERR_R_INTERNAL_ERROR);
-        return 0;
-    }
-    if (ctx->exporter_ctx == NULL || ctx->expoutlen == 0) {
-        /* you should set those first */
-        ERR_raise(ERR_LIB_CRYPTO, ERR_R_INTERNAL_ERROR);
-        return 0;
-    }
-    memset(fake_ct, 0x00, fake_ctlen);
-    memset(fake_pt, 0x00, fake_ptlen);
-    scpy = ctx->suite;
-    ctx->suite.aead_id = OSSL_HPKE_AEAD_ID_EXPORTONLY;
-    /* this will fail but fill in exp/explen before the AEAD fails */
-    erv = OSSL_HPKE_recipient_open(ctx, fake_pt, &fake_ptlen,
-                                   enc, enclen, exp, explen,
-                                   recippriv,
-                                   info, infolen, NULL, 0, /* no aad */
-                                   fake_ct, fake_ctlen);
-    ctx->suite = scpy;
-    if (erv != 0) {
+    erv = hpke_expand(ctx->libctx, ctx->propq, ctx->suite,
+                      OSSL_HPKE_5869_MODE_FULL,
+                      ctx->exportersec, ctx->exporterseclen,
+                      OSSL_HPKE_EXP_SEC_LABEL, strlen(OSSL_HPKE_EXP_SEC_LABEL),
+                      label, labellen,
+                      secret_len, secret, &lsecretlen);
+    if (erv != 1 || secret_len != lsecretlen) {
         ERR_raise(ERR_LIB_CRYPTO, ERR_R_INTERNAL_ERROR);
         return 0;
     }
@@ -3672,7 +3514,7 @@ int OSSL_HPKE_enc(OSSL_LIB_CTX *libctx, const char *propq,
                         aadlen, aad,
                         infolen, info,
                         seqlen, seq,
-                        *senderpublen, senderpub, senderpriv,
+                        senderpriv,
                         0, NULL, /* raw sender priv */
                         NULL, NULL, /* exporter sec */
                         senderpublen, senderpub,
@@ -3738,7 +3580,7 @@ int OSSL_HPKE_enc_evp(OSSL_LIB_CTX *libctx, const char *propq,
                         aadlen, aad,
                         infolen, info,
                         seqlen, seq,
-                        senderpublen, senderpub, senderpriv,
+                        senderpriv,
                         0, NULL,
                         NULL, NULL, /* exporter sec */
                         0, NULL,
