@@ -63,7 +63,7 @@ IF[{- !$disabled{tests} -}]
           keymgmt_internal_test hexstr_test provider_status_test defltfips_test \
           bio_readbuffer_test user_property_test pkcs7_test upcallstest \
           provfetchtest prov_config_test rand_test ca_internals_test \
-          bio_tfo_test
+          bio_tfo_test hpke_test
 
   IF[{- !$disabled{'deprecated-3.0'} -}]
     PROGRAMS{noinst}=enginetest
@@ -174,6 +174,10 @@ IF[{- !$disabled{tests} -}]
   SOURCE[evp_extra_test]=evp_extra_test.c
   INCLUDE[evp_extra_test]=../include ../apps/include
   DEPEND[evp_extra_test]=../libcrypto.a libtestutil.a
+
+  SOURCE[hpke_test]=hpke_test.c
+  INCLUDE[hpke_test]=../include ../apps/include
+  DEPEND[hpke_test]=../libcrypto.a libtestutil.a
 
   SOURCE[evp_extra_test2]=evp_extra_test2.c
   INCLUDE[evp_extra_test2]=../include ../apps/include
