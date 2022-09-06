@@ -520,10 +520,6 @@ int OSSL_HPKE_expansion(OSSL_HPKE_SUITE suite,
  * provides the public component as an output that can be sent to
  * the relevant private key holder along with the ciphertext.
  *
- * Note that the sender's public value is an output here in contrast
- * to the case of OSSL_HPKE_enc_evp where the sender's public value
- * is an input (along with the sender's private value).
- *
  * @param libctx is the context to use (normally NULL)
  * @param propq is a properties string
  * @param mode is the HPKE mode

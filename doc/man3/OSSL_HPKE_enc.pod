@@ -224,11 +224,14 @@ Given an OSSL_HPKE_CTX, one can then call the OSSL_HPKE_sender_seal()
 funtion to do encryption and the OSSL_HPKE_recipient_open() function to
 attempt decryption.
 
-If a senderpriv key has been associated with an OSSL_HPKE_CTX object,
+If an external senderpriv key has been provided for an OSSL_HPKE_CTX object,
 (typically one used by a client/sender/encryptor), 
 that key will be used for seal operations. If not, a new ephemeral
 key will be generated per call and then used for the lifetime of the
-OSSL_HPKE_CTX object.
+OSSL_HPKE_CTX object. In almost all cases, it is better to not provide
+an external private key but to rather use an ephemerally generated
+key, so use of OSSL_HPKE_CTX_set1_senderpriv() is discouraged. (It
+is mainly provided to allow validation of test vectors.)
 
 RFC9180 also defines a method for extracting/deriving new application
 secrets from the HPKE key exchange. That is supported via the
