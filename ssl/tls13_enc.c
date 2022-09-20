@@ -617,7 +617,7 @@ int tls13_change_cipher_state(SSL_CONNECTION *s, int which)
         unsigned char* hdata=NULL;
         unsigned int hashlenui;
         const SSL_CIPHER *sslcipher = NULL;
-        SSL *inner=s->ext.inner_s;
+        SSL_CONNECTION *inner=s->ext.inner_s;
 
         /* we need to produce early data based on the inner and not outer CH */
         if (inner==NULL) {
@@ -671,14 +671,14 @@ int tls13_change_cipher_state(SSL_CONNECTION *s, int which)
          * This ups the ref count on cipher so we better make sure we free
          * it again
          */
-        if (!ssl_cipher_get_evp_cipher(inner->ctx, sslcipher, &cipher)) {
+        if (!ssl_cipher_get_evp_cipher(inner->ssl.ctx, sslcipher, &cipher)) {
             /* Error is already recorded */
             SSLfatal_alert(s, SSL_AD_INTERNAL_ERROR);
             EVP_MD_CTX_free(mdctx);
             goto err;
         }
 
-        md = ssl_md(inner->ctx, sslcipher->algorithm2);
+        md = ssl_md(inner->ssl.ctx, sslcipher->algorithm2);
         if (md == NULL || !EVP_DigestInit_ex(mdctx, md, NULL)
                 || !EVP_DigestUpdate(mdctx, hdata, hdatalen)
                 || !EVP_DigestFinal_ex(mdctx, hashval, &hashlenui)) {
@@ -711,7 +711,7 @@ int tls13_change_cipher_state(SSL_CONNECTION *s, int which)
 
         if (!derive_secret_key_and_iv(inner, which & SSL3_CC_WRITE, md, cipher,
                                   insecret, hash, label, labellen, secret, key,
-                                  iv, ciph_ctx)) {
+                                  &keylen, iv, &ivlen, &taglen, ciph_ctx)) {
             /* SSLfatal() already called */
             goto err;
         }
