@@ -77,12 +77,6 @@ static int init_ech(SSL_CONNECTION *s, unsigned int context);
 static int final_ech(SSL_CONNECTION *s, unsigned int context, int sent);
 #endif 
 
-#ifndef OPENSSL_NO_ECH
-static int init_ech(SSL *s, unsigned int context);
-static int final_ech(SSL *s, unsigned int context, int sent);
-#endif
-
-
 /* Structure to define a built-in extension */
 typedef struct extensions_definition_st {
     /* The defined type for the extension */

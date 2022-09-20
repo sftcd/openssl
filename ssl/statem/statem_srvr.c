@@ -1519,7 +1519,7 @@ MSG_PROCESS_RETURN tls_process_client_hello(SSL_CONNECTION *s, PACKET *pkt)
             s->ext.innerch_len+=SSL3_HM_HEADER_LENGTH;
         } else if (s->ech!=NULL) {
             PACKET newpkt;
-            if (ech_early_decrypt(s,pkt,&newpkt)!=1) {
+            if (ech_early_decrypt(&s->ssl,pkt,&newpkt)!=1) {
                 SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
                 goto err;
             }
@@ -2654,7 +2654,7 @@ CON_FUNC_RETURN tls_construct_server_hello(SSL_CONNECTION *s, WPACKET *pkt)
         }
         shbuf=(unsigned char *)pkt->buf->data;
         shlen=pkt->written;
-        if (ech_calc_ech_confirm(&s->ssl,0,acbuf,shbuf,shlen)!=1) {
+        if (ech_calc_ech_confirm(s,0,acbuf,shbuf,shlen)!=1) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             return 0;
         }

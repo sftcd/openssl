@@ -2595,7 +2595,7 @@ EXT_RETURN tls_construct_ctos_ech(SSL_CONNECTION *s, WPACKET *pkt, unsigned int 
 /**
  * @brief Create the draft-13 ECH extension for the ClientHello
  */
-EXT_RETURN tls_construct_ctos_ech13(SSL *s, WPACKET *pkt, unsigned int context,
+EXT_RETURN tls_construct_ctos_ech13(SSL_CONNECTION *s, WPACKET *pkt, unsigned int context,
                                    X509 *x, size_t chainidx)
 {
     if (s->ext.ech_attempted_type!=TLSEXT_TYPE_ech13)
@@ -2615,7 +2615,7 @@ EXT_RETURN tls_construct_ctos_ech13(SSL *s, WPACKET *pkt, unsigned int context,
                 }
                 return EXT_RETURN_SENT;
             }
-            if (ech_send_grease(s,pkt)!=1) {
+            if (ech_send_grease(&s->ssl,pkt)!=1) {
                 return EXT_RETURN_NOT_SENT;
             }
             return EXT_RETURN_SENT;
