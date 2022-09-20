@@ -1,6 +1,6 @@
 # This is a temporary place for ESNI content ...
 
-Stephen Farrell, stephen.farrell@cs.tcd.ie, 20210817-ish
+Stephen Farrell, stephen.farrell@cs.tcd.ie, 20220225-ish
 
 I'll put stuff here that'll likely disappear as this matures. The plan is
 to delete all this before submitting PRs to the openssl folks. Over time,
@@ -10,13 +10,13 @@ framework.
 This builds ok on both 64 and 32 bit Ubuntus and (nominally) doesn't leak
 according to valgrind. It works e.g. when talking to crypto.cloudflare.com
 
-An ``s_client`` works with the ``s_server`` but also with 
+An ``s_client`` works with the ``s_server`` but also with
 [lighttpd](./lighttpd.md), [nginx](./nginx.md),
 [apache](./apache2.md) and, most recently, [haproxy](haproxy.md).
 
 There's some (well out of date) doxygen-generated documentation [here](api.html).
 
-**We haven't done much testing. Use at your own risk.**
+**We haven't that done much testing. Use at your own risk.**
 
 # State-of-play...
 
@@ -25,6 +25,39 @@ There's a [TODO list](#todos) at the end.
 Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
+
+- 20220920: this branch is rebased on master from a few
+  days ago, it builds and the client works, but leaks and
+  crashes due to memory changes in master (mainly down to 
+  the change from ``SSL *`` to ``SSL_CONNECTION *`` in 
+  many APIs); I'll likely use this to figure out fixes for
+  those but it's probably a short-term thing and I'll
+  move to yet another branch to re-do a bunch of this more
+  properly in a bit
+
+- 20220530: re-merged with upstream; it looks like the way to
+squash my merge commits when the time comes (i.e. when it's
+time to submit a PR for ECH) will be something like the
+recipe below, but I'm not sure if there's a way to preserve
+the commit comments:
+
+            $ git checkout my-branch
+            $ git branch -m my-branch-old
+            $ git checkout master
+            $ git checkout -b my-branch
+            $ git merge --squash my-branch-old
+            $ git commit
+
+- 20220310: got interop with FF nightly back! (was my fault - I
+  wasn't allowing for enough referencing of outer extensions in
+  the inner CH;-). Also a few tweaks to test scripts used to
+  track that down.
+
+- 20220225: noted HPKE is now RFC9180 and re-merged with upstream
+
+- 20220216: starting to test with FF again, see [ff13a.md](ff13a.md)
+
+- 20211108: remerged with upstream
 
 - 20211106: Added real use of ECH to ``sslapitest.c:execute_test_session()``
   which is called a bunch of times in various ways. That turned up a couple
@@ -38,7 +71,7 @@ DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 - 20211101: 3rd pass of code review completed
 
 - 20211003: ``early_data`` working now between openssl and
-  boringssl. 
+  boringssl.
 
 - 20210921: adding early data options to echcli.sh and echsrv.sh but not
   yet working (or I don't know how to properly ask:-) - could be that
@@ -49,16 +82,16 @@ DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
             ...stuff...
             $ ./echcli.sh -s localhost -H foo.example.com -p 8443 -P d13.pem -f index.html -dv -S foo.sess
             ...stuff...
-            $ ./echcli.sh -s localhost -H foo.example.com -p 8443 -P d13.pem -f index.html -dv -S foo.sess -e 
+            $ ./echcli.sh -s localhost -H foo.example.com -p 8443 -P d13.pem -f index.html -dv -S foo.sess -e
             ...stuff...
 
 - 20210919: haproxy split-mode plus HRR doesn't work as haproxy
   doesn't provide a way (that I can see) to decrypt the 2nd CH,
   asked haproxy devs for advice, but will park that for now.
 
-- 20210914: git haproxy split mode working again for draft-13 
+- 20210914: git haproxy split mode working again for draft-13
 
-- 20210914: deployed a bunch of services on [defo.ie](https://defo.ie/) - 
+- 20210914: deployed a bunch of services on [defo.ie](https://defo.ie/) -
   see the web page there for details
 
 - 20210910: deployed an HRR-forcing server (P-384 only)
@@ -78,14 +111,14 @@ DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
 - 20210816: moved agiletest.sh up to draft-13 keys
 
-- 20210816: added the recommended ECH padding length calc 
+- 20210816: added the recommended ECH padding length calc
   from draft-13 (even though I now think the SNI part of
   that's not really useful now)
 
 - 20210816: added an initial version of draft-13 accept
   confirmation calculation - usually I need to see someone
   else's code to get that right but that's ok - it works
-  for ``s_client<->s_server`` in the meantime 
+  for ``s_client<->s_server`` in the meantime
 
 - 20210816: ``-no-cmp`` seems no longer needed to
   get tracing to work which is nice, so new recipe
@@ -99,18 +132,18 @@ DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
             $ ./echsrv.sh -dvT
             ...etc...
 
-- 20210816: added ``hpke_expansion()`` to 
-  [happykey](https://github.com/sftcd/happykey) for 
+- 20210816: added ``hpke_expansion()`` to
+  [happykey](https://github.com/sftcd/happykey) for
   draft-13. Also tidied up hpke.[ch] files some.
 
-- 20210813: draft-13 ECH extension formatting, padding 
-  and AAD calculation seemingly ok (but not really doing 
+- 20210813: draft-13 ECH extension formatting, padding
+  and AAD calculation seemingly ok (but not really doing
   draft-13 yet); there are some new TODOs introduced that
   are to be adddressed.
 
-- 20210812: pre-draft-13: got GREASE working for either 
+- 20210812: pre-draft-13: got GREASE working for either
   draft-10 or draft-13 extension types. Will probably
-  try keep both -10 and -13 working in parallel for the 
+  try keep both -10 and -13 working in parallel for the
   moment both for interop and because the differences
   are modest.
 
@@ -118,14 +151,14 @@ DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
   ECHConfigs so we can easily generate values to test we
   properly ignore "unsupported" versions in other code.
 
-- 20210811: started to code up pre-draft-13 - first steps 
-  are to just define the extension (using the same handling 
+- 20210811: started to code up pre-draft-13 - first steps
+  are to just define the extension (using the same handling
   functions as draft-10 for now) and ensure that draft-10
-  still works. That'll be a few steps... before anyting 
-  really different happens;-) 
+  still works. That'll be a few steps... before anyting
+  really different happens;-)
 
 - 20210810: made a [boringssl test script](bssl-oss-test.sh)
-  to automate doing various bssl  thing - also got my ``s_client`` 
+  to automate doing various bssl  thing - also got my ``s_client``
   working with their ``s_server``.
 
 - 20210810: updated boringSSL, re-built and verified that
@@ -139,23 +172,23 @@ DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
 - 20210809: Moved the development branch to "ECH-draft-13"
   First addition there is the key generation stuff but to
-  also play with cat picture extensions (even small cat pics 
+  also play with cat picture extensions (even small cat pics
   are big enough to exercise code not otherwise tested:-)
   Part of that is a script [makecatexts.sh](makecatexts.sh)
-  to prepare a file containing encoded extensions to provide 
+  to prepare a file containing encoded extensions to provide
   to ``openssl ech``. The file [cat.ext](cat.ext) is a case
   in point and contains two cat pictures (with a dog:-) as
   an example.
 
-- 20210808: ``make test`` now works for ``-no-ech`` build.  
-  ALso had to tweak ech.h so that libssl.num is ok with a 
-  ``make update`` when ECH is part of the build - that 
-  required putting the ``OPENSSL_NO_ECH`` ifndef inside 
-  the ``OPENSSL_ECH_H`` ifndef to keep the ``mknum.pl`` 
-  script happy. (Well, that's just a theory from experimenting 
+- 20210808: ``make test`` now works for ``-no-ech`` build.
+  ALso had to tweak ech.h so that libssl.num is ok with a
+  ``make update`` when ECH is part of the build - that
+  required putting the ``OPENSSL_NO_ECH`` ifndef inside
+  the ``OPENSSL_ECH_H`` ifndef to keep the ``mknum.pl``
+  script happy. (Well, that's just a theory from experimenting
   and copying srtp.h;-)
 
-- 20210807: checking build/test with ``-no-ech`` and aligning code 
+- 20210807: checking build/test with ``-no-ech`` and aligning code
   with upstream that git merge gets wrong. (A few non-ECH bits of
   code that'd been deleted from upstream - we added a [script](scanem.sh)
   to help with that). As of now, the no-ech build
@@ -165,12 +198,12 @@ DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 - 20210801: resync'd with upstream
 
 - 20210624: Started an internal [code review](code-review.md) of
-  all the ECH changes, that'll be ongoing for a bit. Finished 
+  all the ECH changes, that'll be ongoing for a bit. Finished
   two passes of that in late July having tested a bunch of stuff
-  (incl. >1 ECHConfig/ECHConfigs), fixed a small pile of things 
+  (incl. >1 ECHConfig/ECHConfigs), fixed a small pile of things
   and made a lot of cosmetic/code-style changes.
 
-- 20210624: Our ``make-example-ca.sh`` script was barfing when 
+- 20210624: Our ``make-example-ca.sh`` script was barfing when
   openssl is built in debug mode but working fine otherwise.
   Changing from "-newkey rsa:4096" to just "-newkey rsa" fixed
   that and is enough for us, as that's not en ECH thing.
@@ -186,18 +219,18 @@ DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
   so won't try fix that just yet - some other changes to do first to
   more properly handle inner/outer CH's in a more generic manner.)
 
-- 20210615: got split-mode ``s_client`` to ``s_server`` via haproxy working 
+- 20210615: got split-mode ``s_client`` to ``s_server`` via haproxy working
 
 - 20210608: rebmerged with upstream
 
 - 20210607: might just have the entire CI build stuff working now
 
-- 20210602: haproxy sorta working a bit - [notes](haproxy.md) 
+- 20210602: haproxy sorta working a bit - [notes](haproxy.md)
 
 - 20210525: More work done on padding - [padding_notes.md](padding_notes.md).
   Probably ok to park that for a bit and discuss on the list or in GH.
 
-- 20210524: fixed ALPN handling on server when we have two contexts 
+- 20210524: fixed ALPN handling on server when we have two contexts
   (which we do for ECH). That's not really an ECH-specific fix though
   but needs doing anyway.
 
@@ -205,13 +238,13 @@ DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
   ECH extension match that length; padding is as-was for library (i.e.
   same alg as when padding option set)
 
-- 20210520: remerged with upstream - there's some new issue in 
+- 20210520: remerged with upstream - there's some new issue in
   reading ECH private keys - just put in a workaround for x25519
   for now, but needs checking.
 
 - 20210521: fixed the private key loading - latest library lets
-  us go back to only using the PEM function, which is better 
-  than having to delve down to the HPKE one 
+  us go back to only using the PEM function, which is better
+  than having to delve down to the HPKE one
 
 - 20210520: a bunch of improvements wrt the CI actions done on
   pushing - many now working (coupla windows changes still needed,
@@ -260,7 +293,7 @@ DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 - 20210323: created a draft-09 branch to preserve that before
   we move onto the breaking changes for draft-10.
 
-- 20210319: resolved leaks when wrong ECHConfig used by 
+- 20210319: resolved leaks when wrong ECHConfig used by
   client - probably more to be done there, in terms of
   exploring all failure modes, but as the accept confirmation
   signal is still likely to change, probably ok for now
@@ -273,7 +306,7 @@ DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
 - 20210313: added reading of draft-10 ECHConfig to library
 
-- 20210312: started to code up draft-10, first  by adding more 
+- 20210312: started to code up draft-10, first  by adding more
 options for the ``openssl ech`` command line tool so we can do more tests
 as we go.
 
@@ -294,15 +327,15 @@ level, still need to check if any callback changes needed
 
 - 20210238: cleaned up leaks at least in nominal operation
 
-- 20210227: (later:-) Now have NSS tstclnt working against 
+- 20210227: (later:-) Now have NSS tstclnt working against
 my ``openssl s_server`` and my ``openssl s_client`` working
 vs. the Cloudflare test deployment for draft-09 (which will
 not be the last draft).
 
 - 20210227: s_client works vs. CF with ciphersuite 0x1301 so
 I guess I have a bug in handling 0x1302's hash output length
-in the ECH confirmation magic bit calculation. And still 
-loads of leaks and code re-factoring needed, but can now 
+in the ECH confirmation magic bit calculation. And still
+loads of leaks and code re-factoring needed, but can now
 claim -09 interop for at least some credible setups.
 
 - 20210227: NSS tstclnt and s_client now both working against
@@ -337,7 +370,7 @@ and also proper calculation of server-random magic lower bits, but
 otherwise ok. Integrating with apps (only s_client/s_server done
 so far) with ECH differs a bit from ESNI in how and when information about
 the inner/outer is made available to the application, but we managed
-to hide that by moving the call to the application's server name callback. 
+to hide that by moving the call to the application's server name callback.
 
 - 20210210: We're using the following fields in the SSL.ext data structure:
 
@@ -386,16 +419,16 @@ to hide that by moving the call to the application's server name callback.
   died down on the pre-08 changes
 
 - Starting to do local ECH testing (ECH isn't actually happening yet,
-  but soon:-), to do that, after you have a local ESNI stup working, 
+  but soon:-), to do that, after you have a local ESNI stup working,
   then kick that off with:
 
             $ cd $HOME/code/openssl/esnistuff
             $ ./echsvr.sh -d
             ... in another window or whatever
             ... and assuming your ECHConfig is is ``echconfig.pem``
-            $ ./echcli.sh -d -p 8443 -s localhost -H foo.example.com -P `./pem2rr.sh -p echconfig.pem` 
+            $ ./echcli.sh -d -p 8443 -s localhost -H foo.example.com -P `./pem2rr.sh -p echconfig.pem`
             ... and see how it goes
-            ... for now, it works but does no ECH at all 
+            ... for now, it works but does no ECH at all
 
 - Added [echsrv.sh](echsvr.sh), to run a local test server with ECH inputs.
   (That's obviously derived from [testserver.sh](testserver.sh).) Made
@@ -405,9 +438,9 @@ to hide that by moving the call to the application's server name callback.
 - More work on adding svcb - also noted that ietf.org no longer
   appears to be a good ESNI target via CF for some reason but
   others (e.g. rte.ie) are. I guess that must be down to a CF
-  backend change of some sort. 
+  backend change of some sort.
 
-- Added new APIs (``SSL_svcb_add`` and ``SSL_CTX_svcb_add``) 
+- Added new APIs (``SSL_svcb_add`` and ``SSL_CTX_svcb_add``)
   for ingestion of SVCB/HTTPS RR values since we can't reliably
   distinguish those from ECHConfigs with the various possible
   encodings. That also means a new command line arg for the
@@ -432,12 +465,12 @@ to hide that by moving the call to the application's server name callback.
 
 - Starting to create test setups for ECHO. Again, doing that a bit in
   parallel to what I did with ESNI so the eventual contribution to
-  upstream can be better/smaller. ``esnistuff/doecho.sh`` is the 
+  upstream can be better/smaller. ``esnistuff/doecho.sh`` is the
   start of that.
     - currently decodes a draft-06 format public key from command line
 
 - Adding an "echo" (sub)command to the openssl command line tool to allow
-  for generating private keys/ECHOConfig. Added an ``apps/echo.c`` file 
+  for generating private keys/ECHOConfig. Added an ``apps/echo.c`` file
   and associated changes to ``apps/build.info``, ``apps/progs.h`` and
   ``apps/progs.c``.
     - Added ``hpke.c`` to ``libcrypto`` via ``crypto/build.info``
@@ -464,7 +497,7 @@ it survives meeting with reality:-)
 - Remerged with upstream - started on 20200320 but didn't get done 'till 20200331 as
 there were a bunch of internal changes to figure out due to upstream changes and some
 distractions as well;-) Will likely re-do this again and then start on 1) a few
-API changes to better match upstream (and that are just better:-) and 2) including the 
+API changes to better match upstream (and that are just better:-) and 2) including the
 ESNI->ECHO work in this branch of the fork. Some changes may be needed to get this to
 work with apache etc. - those havne't been done to the forks of those servers yet.
 
@@ -487,7 +520,7 @@ work with apache etc. - those havne't been done to the forks of those servers ye
   [nginx.md](nginx.md) to make it easier for others to replicate.
 
 - Started to do some work on [apache2](apache2.md). Seems to work
-in a localhost setup, and is now deployed at [https://defo.ie:9443/](https://defo.ie:9443/) 
+in a localhost setup, and is now deployed at [https://defo.ie:9443/](https://defo.ie:9443/)
 
 - TODO: revisit overriding the ``ESNIKeys.public_name`` value. When I specify
   "-c NONE" with testclient.sh script at the moment, we still get the public
@@ -502,8 +535,8 @@ disappear with a debug build, but that don't seem to affect functionality or (so
 far) cause a crash. Not fully clear what's up yet.
     - Manually editing the Makefile to use "-g -O3" allows me to see where that
       (or I guess some related error) happens
-    - Seems like the issue is related to extracting the GCM tag 
-      when calling 
+    - Seems like the issue is related to extracting the GCM tag
+      when calling
             EVP_CIPHER_CTX_ctrl(ctx,EVP_CTRL_AEAD_GET_TAG, taglen, tag)
       (See comments around ssl/esni.c:1893)
     - Looks like the problem may be in some SHA256 assembler
@@ -539,17 +572,17 @@ functions. I think I found non-deprecated alternatives for both. Those were:
   HRR stuff (above).
 
 - Added a bit more error checking to ``SSL_ESNI_dec`` - looks like some
-  [people are playing](https://github.com/sftcd/openssl/issues/7) with 
-  that in some other context that hasn't been initialised in the same 
+  [people are playing](https://github.com/sftcd/openssl/issues/7) with
+  that in some other context that hasn't been initialised in the same
   ways the ones I've tried. Apparently that was it as they closed the issue.
 
 - Re-merged with upstream on 20191105
-    - Got a compile error in CMP code when tracing on. Reported that 
+    - Got a compile error in CMP code when tracing on. Reported that
       to openssl-users. (No response so far.)
 
 - Started to make changes due to internal review of man pages. Some of
   those changes are just man page text, others change function names to
-  be more consistent, so I'll do commits one at a time. 
+  be more consistent, so I'll do commits one at a time.
     - change ``SSL_set_esnicallback_ctx`` to the more
       proper ``SSL_CTX_set_esni_callback``.
     - change ``SSL_esni_reduce`` to ``SSL_ESNI_reduce``
@@ -557,11 +590,11 @@ functions. I think I found non-deprecated alternatives for both. Those were:
     - various editorial changes to man pages
     - the various ESNI callback things are really just for print/debug;
       are only currently used by ``s_client`` and ``s_server`` and
-      probably aren't needed by real web servers or client, so I've 
+      probably aren't needed by real web servers or client, so I've
       renamed them to make that clear. That means:
         - SSL_esni_client_cb_func -> SSL_esni_print_cb_func (typedef)
         - esni_cb -> esni_print_cb (within SSL/SSL_CTX)
-        - SSL_set_esni_callback -> SSL_set_esni_print_callback 
+        - SSL_set_esni_callback -> SSL_set_esni_print_callback
         - SSL_CTX_set_esni_callback -> SSL_CTX_set_esni_print_callback,
     - "covername" (or derivitives) could be counter-productive in terms of
       acceptance and adoption, maybe better to rename that, so we'll go with
@@ -575,9 +608,9 @@ functions. I think I found non-deprecated alternatives for both. Those were:
 
 - The original 2018 [design doc](./design.md) is by now outmoded, so you should
   probably ignore that. I'll keep it about for a while in case I
-  want to re-use some text from there. 
+  want to re-use some text from there.
 
-- Added an option to cause client to produce borked ciphertext so I 
+- Added an option to cause client to produce borked ciphertext so I
 could test my server's tracing in that scenario. To get the client
 to do that you first need to have tracing compiled in (see below)
 and set an environment variable called ``OPENSSL_BREAK_ESNI``
@@ -601,7 +634,7 @@ OpenSSL trace API. Basically:
             $ ./testserver.sh -d
             ...lots and lots of output when a connection happens...
 
-I added an ``esni_trace_cb`` callback function to ``s_server`` that 
+I added an ``esni_trace_cb`` callback function to ``s_server`` that
 prints client IP, time, and lots of TLS details related to server processing
 of a received ESNI extension. I also added tracing calls at all the exit points
 of ``tls_parse_ctos_esni``. (Added even more of that, now inside ssl/esni.c,
@@ -629,7 +662,7 @@ must be first, and that should look something like this:
 I started a thread on the [TLS list](https://mailarchive.ietf.org/arch/msg/tls/hMOQpQ12IIzHfOHhQjSmjphKJ1g)
 about that.
 
-- I now have an apparently working ESNI-enabled nginx: see the [notes](./nginx.md). 
+- I now have an apparently working ESNI-enabled nginx: see the [notes](./nginx.md).
 That is deployed on [defo.ie on port 5443](https://defo.ie:5443).
 
 - I was advised to change a couple of function names from ``SSL_esni_*``
@@ -656,11 +689,11 @@ filenames were already loaded, and if so, whether the files modification time
 is newer than when the contents were previously loaded. Between the two,
 servers can, every N seconds, flush keys older than N seconds ad then (re-)load
 their set of key files (e.g.  from a directory) without having to care about
-internals of file content.  (I made the corresponding change in ligtthpd too.) 
+internals of file content.  (I made the corresponding change in ligtthpd too.)
 
 - Improving server key pair loading. We now store the private and public key
 file names provided to ``SSL_esni_server_enable`` and the time at which those
-were loaded. If a subsequent call to the same function has the same file 
+were loaded. If a subsequent call to the same function has the same file
 names, then we'll ignore the call if the files have not been modified since
 we last loaded the key pair, but if the files have been modified since then,
 we'll overwrite the already loaded key. If either file name is new, we'll
@@ -687,21 +720,21 @@ key.
 have integrated ESNI with that. The main reason
 is that it'll likely be simpler/quicker to get something working with
 that than apache or nginx and we'll likely learn better how to tackle
-the more popular web servers by first tackling a simpler one. 
+the more popular web servers by first tackling a simpler one.
 There's notes about that in [lighttpd.md](./lighttpd.md).
 
-- Belatedly noting the existence of the instructions for 
+- Belatedly noting the existence of the instructions for
   [HOWTO build openssl and curl](./building-curl-openssl-with-ech.md).
   (Was reminded to do this because I had to modify the [curl-esni](curl-esni)
   shell script.)
 
-- Added draft-04 (ESNIKeys.version==0xff03) keys to [defo.ie](https://defo.ie/) deployment 
+- Added draft-04 (ESNIKeys.version==0xff03) keys to [defo.ie](https://defo.ie/) deployment
   and [test-examples](./test-examples.md) for local use. Had to tweak server side greasing
   code (was greasing even if not asked:-) - seems ok now, but more testing of the various
-  combinations would be good. Had to modify [testclient.sh](./testclient.sh) to handle 
+  combinations would be good. Had to modify [testclient.sh](./testclient.sh) to handle
   multi-valued RRs as drafts -03 and -04 use the same experimental RRTYPE.
 
-- ``make test`` was unhappy 
+- ``make test`` was unhappy
     - `` make test TESTS=test_provider V=1`` gives details
     - fixed via re-syncing with upstream again and a ``make update``
 
@@ -712,7 +745,7 @@ There's notes about that in [lighttpd.md](./lighttpd.md).
   familiar with all the details there - I've mostly copied such code from other
   bits of TLS1.3 stuff;-) Maybe this'll force me to try understand it better.
     - re-merged with upstream on 20190912 and this problem seems to have disappeared.
-    I may still need to change code in ``ssl/esni.c`` around line 1650 to 
+    I may still need to change code in ``ssl/esni.c`` around line 1650 to
     handle the lengths better, but it seems to be back working cleanly now
     (according to valgrind).
 
@@ -760,15 +793,15 @@ There's notes about that in [lighttpd.md](./lighttpd.md).
 
 - Added a placeholder ``doc/man3/SSL_esni_enable.pod`` to keep the ``make doc-nits`` target
   happy (the CI build was complaining about it). There's no actual content in that file yet,
-  so it's just one big TODO for the moment;-) 
+  so it's just one big TODO for the moment;-)
 
 - Added code to handle changes in ESNI from server to client (``esni_retry_requested`` and
 related). Mostly in ``ssl/statem/extensions_server.c``
 and ``ssl/statem/extensions_clnt.c`` that currently includes:
-    - Move to -03/-04 ``esni_accept`` containing struct in EncryptedExtensions 
+    - Move to -03/-04 ``esni_accept`` containing struct in EncryptedExtensions
     - If greased or failed and ESNIKeys loaded, return an ESNIKeys value that should work
-    - Server-side trial decryption option, if so configured 
-        - testserver.sh new ``-T`` option, ``SSL_OP_ESNI_TRIALDECRYPT`` added along with ``s_server`` command line option  
+    - Server-side trial decryption option, if so configured
+        - testserver.sh new ``-T`` option, ``SSL_OP_ESNI_TRIALDECRYPT`` added along with ``s_server`` command line option
         - added a ``#ifdef BREAK_RECORD_DIGEST`` compile time option to ``ssl/statem/extensions_clnt.c``
           so I could test trial decryption - that really ought be part of the openssl ``make test`` setup and
           I've left a TODO in the code to that effect
@@ -782,27 +815,27 @@ and ``ssl/statem/extensions_clnt.c`` that currently includes:
 
 - Added some code to make GREASE more accurate, can now produce either
 ciphersuite 0x1301 (80% of the time), or 0x1303 with (I think) more
-accurate lengths and real public share values. 
+accurate lengths and real public share values.
 
 - Fixed GREASE error handling so that ``make update`` target works.
 
 - Finally switched around so that locally supplied covername wins over
   ``ESNIKeys.public_name``. The opposite never really made sense but I
   do do that sometimes;-)
-    - Latterly, fixed up ``SSL_get_esni_status`` to also reflect that 
+    - Latterly, fixed up ``SSL_get_esni_status`` to also reflect that
 
 - GREASE: close to done here, I hope...
     - As an aside, I already have GREASE extensions in ``mk_esnikeys``:-)
-    - Added a version value of ``ESNI_GREASE_VERSION`` (0xffff) for use in 
-      the ``SSL_ESNI`` structure. 
+    - Added a version value of ``ESNI_GREASE_VERSION`` (0xffff) for use in
+      the ``SSL_ESNI`` structure.
     - Added a function ``SSL_ESNI_grease_me`` to create the phoney value.
-      For the moment, that just hard codes x25519 and otherwise sets non-bogus 
+      For the moment, that just hard codes x25519 and otherwise sets non-bogus
       looking (but actually bogus) random crap.
     - Call out to the above on the client from ``tls_construct_ctos_esni``
     - Added an ``SSL_OP_ESNI_GREASE`` for the client (taking a reserved
       bit in a field, need to check if that's ok), and added a new CLA
       to ``s_client``: ``--esni_grease`` if you want to do greasing (so
-      client is off by default). Need to figure out how that can be 
+      client is off by default). Need to figure out how that can be
       done via config file.
     - Added an ``SSL_OP_ESNI_HARDFAIL`` server config (taking another
       reserved bit in a field) that defaults to off. So we'll fall back
@@ -811,13 +844,13 @@ accurate lengths and real public share values.
       can be done via config file.
 
 - Started coding up [draft-04](https://tools.ietf.org/html/draft-ietf-tls-esni-04).
-None of this should affect processing of earlier versions for now.  The list of 
+None of this should affect processing of earlier versions for now.  The list of
 fairly minor changes is:
     - Did the ``mk_esnikeys.c`` changes first to produce a sample
     - Added the RR value decoding into an ``SSL_ESNI`` changes (not really tested yet)
     - Fixed up structure changes in ``SSL_ESNI_print`` and ``SSL_ESNI_dup``
     - Tidied up death of ``not_before``/``not_after``
-    - Changed input bytes for ``record_digest`` 
+    - Changed input bytes for ``record_digest``
     - Switched from ServerNameList to opaque for input to ``esni_pad``
 
 - Re-merged with upstream again (20190717) since the last took a few days.
@@ -835,7 +868,7 @@ fairly minor changes is:
 
 - Fixed what looks like a case where ``s_server`` just hangs
   when started with ``-www`` and where renegotiation is
-  not supported and where the URL's pathname starts with "/reneg" 
+  not supported and where the URL's pathname starts with "/reneg"
   Also made the ``-WWW`` mode (where it acts as a teeny
   web server for files) a little better.
   None of these are really ESNI-related changes but could
@@ -843,7 +876,7 @@ fairly minor changes is:
   if anyone cares enough, but maybe when/if I make a PR for
   ``cert_chain2`` I'll include these too.
 
-- Added zone file fragment production for draft-02 TXT RRs to 
+- Added zone file fragment production for draft-02 TXT RRs to
   ``mk_esnikeys`` and a JSON format output option
   from which e.g. a ZSK holder can build the DNS
   zone file stanza(s) - we'll be using that internally
@@ -856,13 +889,13 @@ fairly minor changes is:
 - Changed ``mk_esnikeys.c`` so that DNS TTL is duration/2 and
 actual key lifetime is 1.5 times specified "main" duration.
 
-- Added a ``-V`` input to ``testclient.sh`` so caller can pick to try 
+- Added a ``-V`` input to ``testclient.sh`` so caller can pick to try
 different draft versions.
 
 - Fixed issue with ``SSL_ESNI_get_status`` where it (yet again) wasn't
 picking the right array element to report on. Did that by just checking
 that there's exactly one array element with a nonce set (only happens
-after successful decrypt or encrypt). There's TODO's in the code - I 
+after successful decrypt or encrypt). There's TODO's in the code - I
 need to go back and change all this so the array handling is better.
 (Maybe change so only one ``SSL_ESNI`` structure is passed from the
 ``SSL_CTX`` factory to the ``SSL`` session-specific structure?)
@@ -870,13 +903,13 @@ need to go back and change all this so the array handling is better.
 - Tidied up ``SSL_ESNI_print`` API documentation.
 
 - Seems like FF nightly may have an issue if I publish >1 TXT RR with
-an ESNIKeys value. Behaviour seems to be that ESNI isn't attempted. 
+an ESNIKeys value. Behaviour seems to be that ESNI isn't attempted.
 Need to check the code but guess (TBC) is that it doesn't like the two
 RR values. Likely I'll need to change to publish just one RR for the
 draft-02 key at a time, instead of two. That appears to have worked,
-so just one TXT RR at a time so;-) 
+so just one TXT RR at a time so;-)
 
-- My test client was failing sometimes - it thought the returned nonce 
+- My test client was failing sometimes - it thought the returned nonce
 length wasn't right, even though it seems to be correct from dumped values.
 Issue was having >1 ESNI RR value in client and not picking the right
 array element against which to compare. Seems fixed now.
@@ -890,7 +923,7 @@ having the application access a pointer to the ``SSL_ESNI`` structure with the
 ``SSL`` structure for the session. The problem with the latter was that the
 ``SSL_ESNI`` will be modified by each new connection.  (Recall we're storing
 and printing out much more now than we eventually will, so were this to remain
-a problem we'd have a few ways to handle it.) After various tests, seems 
+a problem we'd have a few ways to handle it.) After various tests, seems
 to be ok now, but more testing may show up problems still.
 
 - Tweaked ``testclient.sh`` to also take ESNI RR value from command
@@ -899,7 +932,7 @@ line (as well as filename for that).
 - Now that I've gotten FF nightly interop done, have tweaked the output
 from ``s-server -www`` a bit. Also changed how the ``SSL_SESSION.ext.hostname``
 is set when we do get an ESNI. Not sure yet if I've got that right. Left a
-TODO in ``ssl/statem/extensions_srvr.c`` in the ctos handler. For now, 
+TODO in ``ssl/statem/extensions_srvr.c`` in the ctos handler. For now,
 that results in a correct-looking display in FF nightly, but need to
 figure out how it might play with use of SessionTickets/resumption
 and early data. (Probably gotta go back to the spec to see what it
@@ -925,11 +958,11 @@ which ESNI key pair will be in play, nor even if ESNI is being tried (when I'm
 processing the h/s key share extension). That'll change the ``SSL_ESNI_dec``
 API a bit (though not the prototype, mostly the calling code and a bit of the
 implementation) so, a bit of work to do before I can make another useful FF
-nightly test...  
+nightly test...
     - Yay! That worked, got FF nightly interop
 
 - While doing the above, I found a leak on the server side (about 2k/session).
-I've fixed that now but need to go back an re-visit how I handle the 
+I've fixed that now but need to go back an re-visit how I handle the
 array of ``SSL_ESNI`` stuff in general - there are two levels of it,
 which is one too many:-) There's a FIXME in ssl/esni.c in the comment
 before ``SSL_esni_enable``.
@@ -944,13 +977,13 @@ before ``SSL_esni_enable``.
   Not quite done with this yet. Also notices a leak on the server that I need
   to track down.
 
-- Fixed a crash if some bad ESNI RR values supplied  - decoding bug due to 
+- Fixed a crash if some bad ESNI RR values supplied  - decoding bug due to
   signed error value treated as ``size_t``
 
 - Made some changes to testclient.sh in preparation for setting up my
   own test server (should be soonish;-). Part of that involved running
   ``s_server`` with real certs instead of my locally generated fake
-  CA. As a result I needed the server to send the intermediate CA cert 
+  CA. As a result I needed the server to send the intermediate CA cert
   to the client, but in my testserver I'm using the ``s_server`` key2/cert2
   command line arguments and it turns out that ``apps/s_server.c`` doesn't
   actually associate the ``cert_chain`` command line argument's cert
@@ -966,20 +999,20 @@ before ``SSL_esni_enable``.
   All seems fine.
 
 - Changed ``SSL_ESNI_enc`` to do the "pick longest lived" RR value
-  scheme described below. Similar change to check the returned 
+  scheme described below. Similar change to check the returned
   nonce vs. all RR value structures in EncryptedExtensions (a
   change in the ``ssl/statem/extensions_clnt.c`` file).
 
-- Added ``not_before`` and ``not_after`` fields to ``SSL_ESNI_ext`` 
+- Added ``not_before`` and ``not_after`` fields to ``SSL_ESNI_ext``
   structure. Might be that gives me a nice out that let's me avoid
   adding an X.509-like notAfter bug to the library! Logic is that
-  library code can pick the pubblic key that'll be valid longest 
-  (latest ``not_after``) as a default but that anything more (incl. 
-  comparing to wall-clock time!) is up to the application. Next 
+  library code can pick the pubblic key that'll be valid longest
+  (latest ``not_after``) as a default but that anything more (incl.
+  comparing to wall-clock time!) is up to the application. Next
   up will be to add selection of one from many RR values in the
   encryption process.
 
-- Fixed ``make update`` target and added proper error string 
+- Fixed ``make update`` target and added proper error string
   handling to new APIs.
 
 - Added new APIs for allowing application to access some (new) internals of
@@ -1024,14 +1057,14 @@ before ``SSL_esni_enable``.
   TODO: update design document when the -03 draft is more done.
 
 - Added reading of new (in -03) ``public_name`` ESNIKeys field. When present, that
-  currently takes precedence over a locally supplied covername for including in the 
+  currently takes precedence over a locally supplied covername for including in the
   cleartext SNI extension. TODO: Re-consider that, maybe move to the opposite if
   covername is locally supplied, not sure which'd be better. If we do switch that,
   then should take out use of covername as a default in test scripts.
 
 - Added support for multi-valued RR inputs. For b64, that's comma-separated. For binary,
-  or ascii-hex just a catentation is enough. (That's down to b64 padding being harder 
-  to find in the middle of a catenated input;-) 
+  or ascii-hex just a catentation is enough. (That's down to b64 padding being harder
+  to find in the middle of a catenated input;-)
   This has only been tested via the [``doit2.sh``](doit2.sh) script.
 
 - Added a ``ekfmt`` input to ``SSL_ESNI_new_from_buffer()`` with possible values as below:
@@ -1045,16 +1078,16 @@ before ``SSL_esni_enable``.
 
 - Modified [testclient.sh](./testclient.sh) script to first check the draft-03 RRTYPE
   before checking the draft-02 TXT RR. That needed a bit of mucking about within the
-  script to provide one command line arg that's just ascii-hex to ``s_client``. (Other 
+  script to provide one command line arg that's just ascii-hex to ``s_client``. (Other
   things could be possible, I chose that:-). Seems to work with multi-valued cases
-  now too. 
+  now too.
 
 - Generalised a bit from base64 encoded ESNIKeys inputs (not tested ascii-hex nor binary
   input options yet but will as we go)
 
 - Starting to work on coding up [draft-03](https://tools.ietf.org/html/draft-ietf-tls-esni-03)
   from now,  will try keep [draft-02](https://tools.ietf.org/html/draft-ietf-tls-esni-02) working
-  as the default for now, but we'll see how that goes, and will switch defaults later, depending 
+  as the default for now, but we'll see how that goes, and will switch defaults later, depending
     - Played with DNS a bit as -03 has a new ESNI RRTYPE (value 0xffdf == 65439) instead of TXT
         - to query for such a thing, published at example.com, who turn out to have two ESNIKeys RRs:
 
@@ -1064,7 +1097,7 @@ before ``SSL_esni_enable``.
 
         - to publish such a thing in example.com's zone file it'd look like:
 
-                ;;; ESNIKeys stuff, 
+                ;;; ESNIKeys stuff,
                 example.com. IN TYPE65439 \# 81 (
                              ff02 ff93 090d 000b 6578 616d 706c 652e
                              636f 6d00 2400 1d00 2028 57ef 7010 1351
@@ -1084,7 +1117,7 @@ before ``SSL_esni_enable``.
           dummy values in a zone-we-own:-)
 
 - First coding step is to kick off with the modest changes needed to [mk_esnikeys.c](./mk_esnikeys.c).
-        - added ``-V``,``-P`` and ``-A`` command lines arguments, it produces 
+        - added ``-V``,``-P`` and ``-A`` command lines arguments, it produces
         some output that could possibly be the the right encoding (but isn't
         likely to be yet, as I've not tested that:-)
 
@@ -1098,7 +1131,7 @@ before ``SSL_esni_enable``.
 - I took a look a building [wget](wget.md) with this but it seems like
   wget is a tad too far behind openssl upstream to make that easy and
   so would be more work that warranted right now, esp as integrating
-  openssl with wget2 for TLS seems to be in-work at the moment. 
+  openssl with wget2 for TLS seems to be in-work at the moment.
   (Will likely revisit this later.)
 
 - Caught up with upstream, had to tweak a few bits'n'pieces for build
@@ -1107,10 +1140,10 @@ before ``SSL_esni_enable``.
   need that at least on some OSes, not sure.)
 
 - CI folks told me ``make update`` was failing, which it was. Seems there're
-  parts of the build I'd not played with before and where I previously 
-  did manual edits but should've been configuring tool stuff. 
+  parts of the build I'd not played with before and where I previously
+  did manual edits but should've been configuring tool stuff.
   Got the ``make ordinals`` sub-target to work,
-  which updates ``util/lib[ssl|crypto].num`` more or less (but not quite) the same as I'd 
+  which updates ``util/lib[ssl|crypto].num`` more or less (but not quite) the same as I'd
   previously done manually. The ``make errors`` bit took more work.
   ``crypto/err/README`` turns out to have some advice when I stumbled
   over that:-) So I had to make all the ``ESNIerr`` macro calls use a
@@ -1124,13 +1157,13 @@ before ``SSL_esni_enable``.
   those changes from scratch again, it'll be near as much a PITA;-()
 
 - Added a call to ``SSL_esni_get_status`` to ``s_server.c`` callback for tracing
-  and cleaned up a bit of the over-verbosity of ``s_server`` generally. 
+  and cleaned up a bit of the over-verbosity of ``s_server`` generally.
 
 - Added a `-L` command line option to ``testclient.sh`` to turn off ``esni_strict``
   if desired (with ``esni_strict`` being on by default for the script but off by
   default for ``s_client``).
 
-- Surprisingly (for me:-) this works: 
+- Surprisingly (for me:-) this works:
 
             $ ./testclient.sh -H ietf.org -c 254systemlabelifikeepadding00000000000000000000000000000000000111111111111111111111111111111111122222222222222222222222222222222222244444444444444444444444444445666666666666666666666666666666666666666666666666666677777777777777777777777777777777777777776
 
@@ -1148,14 +1181,14 @@ good ESNI is present, which is reasonable, if a small surprise.
             $ git fetch upstream
             $ git merge upstream/master
             ...some mucking with merge fails...
-            $ git push -f origin master  
+            $ git push -f origin master
 
-- ``make test`` in the main openssl directory is reporting problems (thanks to 
-  @niallor for spotting that). First fail can be reproduced with: 
+- ``make test`` in the main openssl directory is reporting problems (thanks to
+  @niallor for spotting that). First fail can be reproduced with:
             make test TESTS=test_sslmessages V=1
   and indicates that there's a problem with resuming a session. As I did mess with that
   code (I changed what's stored when ESNI is used and what's checked when a session is
-  loaded for re-use), that's likely my fault. 
+  loaded for re-use), that's likely my fault.
     - Issue seems to be my ``s_client`` additions to the ``new_session_cb``
       callback is insisting that the name (whether clear or ESNI) stored in the
 session matches the peer cert in the session, which is ok if that's a "real"
@@ -1166,11 +1199,11 @@ be dealing with a self-signed cert.
 controls this (and hence has a slightly different semantic). Need to think a
 bit about that.
     - situation:
-        - We have SNI or ESNI or neither supplied on the command line 
+        - We have SNI or ESNI or neither supplied on the command line
         - If neither then we won't check any names
         - If just ESNI or both then ESNI wins over SNI and we check that name
         - If SNI then we check that
-        - The server cert is/isn't checked 
+        - The server cert is/isn't checked
     - I added an ``esni_strict`` CLA to ``s_client`` - if set then these
     name checks are done, if not, they're not and that's enough to get
     ``make test`` in the main directory to return a PASS.
@@ -1187,7 +1220,7 @@ session ticket being stored, nor received:
 
   ...whereas this one reliably does:
 
-            $ ./testclient.sh -H ietf.org -S sess 
+            $ ./testclient.sh -H ietf.org -S sess
 
   ...you'd imagine that's some fault of the script, but apparently not.  see it
 (yet).  Breaking that out some more:
@@ -1201,10 +1234,10 @@ session ticket being stored, nor received:
     line argument. Odd. So it's not the script's fault. (Note: you'll
     need to use a fresh esnirr value to see the above.)
     Not providing the ``echo "get /"`` input means ``s_client`` waits
-    for user input, in which case we do get the session tickets, so 
-    this issue could be down to timing - if for some reason 
-    ``-msg`` was that little quicker than ``-quiet`` causing 
-    the client to exit before receiving back the tickets. However, 
+    for user input, in which case we do get the session tickets, so
+    this issue could be down to timing - if for some reason
+    ``-msg`` was that little quicker than ``-quiet`` causing
+    the client to exit before receiving back the tickets. However,
     when I (temporarily) added a ``sleep(10)``
     before the call to ``do_ssl_shutdown()`` in ``s_client'' we still didn't
     get the session tickets, so it's not just timing.
@@ -1215,7 +1248,7 @@ session ticket being stored, nor received:
 
 - Fixed up client handling of ``SSL_SESSION`` to make use of
   the encservername field (via new get0/set1 APIs), and making some use of
-  those in ``s_client``. 
+  those in ``s_client``.
 
 - Android NDK build (with thanks to Michael Pöhn): Changed various loop
   counters to not assume C99 (android, sheesh!). Got build working with android
@@ -1223,7 +1256,7 @@ session ticket being stored, nor received:
   ``mk_esnikeys`` binaries (that's not produced by the openssl ``./Configure``
   sorry, so you may need to edit to get it to work, not sure). Haven't yet tried
   to run anything, just built it so who knows if it works. Here's what I did to
-  get that build: 
+  get that build:
 
             $ mkdir $HOME/code/android
             $ cd $HOME/code/android
@@ -1247,12 +1280,12 @@ session ticket being stored, nor received:
 
   That should leave you with the ``esni`` and ``mk_esnikeys`` binaries
   for Android/ARM. (Again, I've never run those, so who knows what'd happen.)
-  If you put things in some other place, you'll need to edit 
+  If you put things in some other place, you'll need to edit
   ``esnistuff/android_envvars.sh`` to match that.
 
 - Changed resumption in ``s_client`` to check HIDDEN (or COVER, if
   no HIDDEN) name vs. peer cert (subj/SAN) in stored session state
-  if resuming. 
+  if resuming.
 
 - Re-sync'd with upstream on 20181218.
 
@@ -1284,22 +1317,22 @@ session ticket being stored, nor received:
   notes again:-)
 
 - Padding now turned on (within ``SSL_esni_server_enable`` on server) in a
-  fairly crude manner. See the design notes for more. 
-  Wireshark shows that padding is happening. Didn't test 
-  it enough though yet - ``s_server`` only supports 1 HIDDEN so 
+  fairly crude manner. See the design notes for more.
+  Wireshark shows that padding is happening. Didn't test
+  it enough though yet - ``s_server`` only supports 1 HIDDEN so
   it's a bit hard to test lots of differeng lengths for now.
 
 - Starting to think about padding cert, so modified ``make-example-ca.sh``
-  to generate different length keys giving me ~1000bytes difference in 
+  to generate different length keys giving me ~1000bytes difference in
   cert lengths, instead of just a few bytes based on the names.
 
-- Did some clean-up with Makefile to help with key generation/cleaning up 
+- Did some clean-up with Makefile to help with key generation/cleaning up
   etc. ``make; make keys`` should be a good start here **after** you've
   done the main openssl build. Note that ``make keys`` will create a new
   fake CA, server keys and ESNI keys so if you've put any of those keys
   elsewhere, you need to consider that.
 
-- Neat: tried the NSS ``tstclnt`` to interop with my ``s_server`` - and it worked! 
+- Neat: tried the NSS ``tstclnt`` to interop with my ``s_server`` - and it worked!
   The ESNI processing all seems good, and the NSS client gets the right nonce
   back. I figured out how to make NSS like my fake CA - see the end of
   ``make-example-ca.sh`` and ``nssdoit.sh``. (Note to self - you need to
@@ -1316,13 +1349,13 @@ session ticket being stored, nor received:
 - Added session resumption to ``testclient.sh`` (I think!) via the ``s_client``
   ``sess_out`` and ``sess_in`` command line argument. Nominal case seems
   to work ok (where 2nd time you send no ESNI, or play the ESNI game afresh
-  with the same HIDDEN), **but** if you send a 
+  with the same HIDDEN), **but** if you send a
   different ESNI when resuming, the server sends the cert for the original
   ESNI (e.g. for foo.example.com), but the client thinks ESNI has succeeded for
-  the new ESNI (e.g. bar.example.com), which seems broken. 
+  the new ESNI (e.g. bar.example.com), which seems broken.
   That said, [RFC8446, section 4.2.11](https://tools.ietf.org/html/rfc8446#section-4.2.11)
   isn't easy to parse on this, and considering ESNI in general. It seems
-  to be saying that SNI needs to be sent on resumption, but we of 
+  to be saying that SNI needs to be sent on resumption, but we of
   course won't send the real SNI in clear, so perhaps we should always
   send ESNI (which works). Not clear that we should barf if the ESNI
   in the resumed session CH differs from the server's idea of SNI but
@@ -1332,7 +1365,7 @@ session ticket being stored, nor received:
 - Modified testserver stuff to make up a fake CA and issue required
   certs etc. End result is
   that localhost tests declare success! (Since the ``s_client``
-  can verify the name.) 
+  can verify the name.)
 
 - Works now for pub/priv from ``esnidir`` but a bit of leakage to
   fix. (Now fixed.)
@@ -1343,7 +1376,7 @@ session ticket being stored, nor received:
 
 - Added new ``esnidir`` command line arg to ``s_server`` - idea is
   to read the set of ESNIKeys/privates found in that dir. For now,
-  the last one in is active, but will change to support >1 in 
+  the last one in is active, but will change to support >1 in
   state shortly. Note that the code there likely needs changes to
   be portable (to Windows probably, at least). There's a TODO in
   the code I'll revisit later.
@@ -1354,7 +1387,7 @@ session ticket being stored, nor received:
 
 - Got the server to do the right thing for the 1st time, by skipping
   a check (that I don't yet grok!) in ``ssl_servername_cb``. Plenty
-  more to be done though before I could claim it works. 
+  more to be done though before I could claim it works.
 
 - Re-did how I handle ciphersuites in my data structures to use the 2byte
   ciphersuite IDs off the wire and just map those to ``SSL_CIPHER`` or
@@ -1363,28 +1396,28 @@ session ticket being stored, nor received:
 
 - (Now fixed) Server crashes on 2nd TLS connection though - something up with how I'm
   calling ``SSL_ESNI_free`` I bet (and the ctx/ctx2 stuff;-) (Keep this
-  @ top of list 'till fixed.) 
+  @ top of list 'till fixed.)
 
 - Fixed encoding of ESNI response, was missing extn type and length.
-  H/s working now, and nonce coming back ok, but getting name 
+  H/s working now, and nonce coming back ok, but getting name
   mismatch on client.
 
 - EncryptedExtensions with nonce being returned now, but no cert from
-  server being process on client (looks like a cert may be sent but, 
+  server being process on client (looks like a cert may be sent but,
   maybe client barfing on SH? ...)
   I guess more work is needed than just setting s->ext.hostname;-(
 
 - ``SSL_ESNI_dec`` seems to be working, neat. Next up is to
-  go back to processing the returned ESNI. 
+  go back to processing the returned ESNI.
 
 - AEAD decryption success, next up to extract encservername
 
-- Got (re-)calculation of Z (DH shared) the same on my server, 
+- Got (re-)calculation of Z (DH shared) the same on my server,
   yay! Same for ESNIContent and hash thereof (with a bit of
   re-factoring of client side code to make tha easier).
 
-- Added ``-P <esnikeysfile>`` option to ``testclient.sh`` so I 
-  can test locally (which I'd forgotten, but which nicely 
+- Added ``-P <esnikeysfile>`` option to ``testclient.sh`` so I
+  can test locally (which I'd forgotten, but which nicely
   means I've now tested the client using the wrong ESNIKeys
   with my server code:-)
 
@@ -1410,12 +1443,12 @@ session ticket being stored, nor received:
   testing. For now that can generate server cert keys and start
   a server, but doesn't actually do any ESNI stuff.
 
-- Added [mk_esnikeys.c](./mk_esnikeys.c), as (the start of) a command 
-  line tool to make an ESNIKeys structure and private key. I guess this 
+- Added [mk_esnikeys.c](./mk_esnikeys.c), as (the start of) a command
+  line tool to make an ESNIKeys structure and private key. I guess this
   is a start (of sorts:-) to server-side coding. Seems to generate a
-  key pair and dump out files that appear well-formatted. 
+  key pair and dump out files that appear well-formatted.
 
-- Moved error strings into libcrypto.so which required modifying a 
+- Moved error strings into libcrypto.so which required modifying a
   few more things. Not sure this is correct but seems like what
   is done in other cases. Good enough anyway, though it seems odd
   to make libcrypto depend on esni, but whatever.
@@ -1427,18 +1460,18 @@ session ticket being stored, nor received:
   down to my 18.10 upgrade zapping the previously installed repos).
   Ressulf of that is [here](./api.md). We'll see if it's any good.
 
-- Added hostname validation as an option to ``SSL_esni_enable`` - if requested 
+- Added hostname validation as an option to ``SSL_esni_enable`` - if requested
   and we don't get the
   hidden name matching the server cert then ``SSL_get_esni_status``
   returns a "bad name" error code.
-  Not quite sure this is the right thing to do (TM:-) and we're 
+  Not quite sure this is the right thing to do (TM:-) and we're
   ignoring the covername when doing it, but it seems kinda sensible
   so we'll go for it for now. ``s_client`` hardcodes this to be
   requested for now, could be added to command line later.
 
 - From NSS code: ``/* If we're not sending SNI, don't send ESNI. */``
   That should maybe be agreed upon, anything can work, but no harm
-  to pick one (default?) behaviour I reckon. For now, I don't couple 
+  to pick one (default?) behaviour I reckon. For now, I don't couple
   things so tightly, maybe ``s_client`` is different enough from
   a browser that that's correct.
 
@@ -1447,15 +1480,15 @@ session ticket being stored, nor received:
 
 - I could have had the ``s_client`` app do the ESNIKeys DNS lookup. Maybe add
 that to handle cases where the RR value isn't supplied on the command line.
-OTOH, maybe not - would require picking a DNS library which Viktor 
+OTOH, maybe not - would require picking a DNS library which Viktor
 seemed unkeen on. Decided to not bother with that.
 
 - Consistency: got rid of "frontname" everywhere -> "covername" and
-  use encservername everywhere (and never enchostname;-) 
+  use encservername everywhere (and never enchostname;-)
 
 - Tidied up the ``s_client`` display a bit so it says how things went,
-  and added ``SSL_get_esni_status()`` API for that. Also tweaked the 
-  testit.sh script a good bit so hidden, cover and server are handled 
+  and added ``SSL_get_esni_status()`` API for that. Also tweaked the
+  testit.sh script a good bit so hidden, cover and server are handled
   consistently (see the [script](./testit.sh) for details).
 
 - Re-factored the data structures and got that working again. Next
@@ -1479,11 +1512,11 @@ seemed unkeen on. Decided to not bother with that.
 
 - Slow progress matching keys with NSS - finally got the NSS
   private (exported via logging - see [nssdoit.sh](./nssdoit.sh))
-  to work when imported to OpenSSL. We now have the same 
+  to work when imported to OpenSSL. We now have the same
   key share derived on both. (Note: CF public share changes
   often, so a new build of OpenSSL will be needed - check out
   code protected via ``#ifdef ESNI_CRYPT_INTEROP`` in ssl/esni.c for
-  details 
+  details
 
 - Made a bunch of changes to be more like what the instrumented
   NSS seems to do. (Incl. issue#119); getting down to where it
@@ -1491,7 +1524,7 @@ seemed unkeen on. Decided to not bother with that.
   vector I can run through both sets of code - first though
   wireshark is calling my CH's TLSv1 and not TLSv1.3 when I
   include the ESNI, but doesn't without or for NSS's with ESNI
-  included - guess it could be that so try eliminate that 
+  included - guess it could be that so try eliminate that
   first.
     - reckon wireshark thing is spurious, it likely updates
       the protocol field for the CH after seeing answers
@@ -1527,22 +1560,11 @@ seemed unkeen on. Decided to not bother with that.
 
 I'm sure there's more but some collected so far:
 
-- If we do end up with >1 ESNIKeys version that needs to be supported, 
-  consider some kind of local "any" version value that a 
-  server can use to force use of a public share regardless of the
-  the ESNIKeys.version used by the client. That more easily allows
-  multiple $hidden sites to hide behind one key pair belonging to
-  some operator.
-- What do we want/need to do to support the split backend approach? (separate
-  fronting server from hosting server)
-- Integration with haproxy, wget
+- Integration with wget
 - Adding/moving tests to the OpenSSL test suites
-- Continuous integration for these patches that aim to keep the patch series
-  current against OpenSSL master as it evolves
 - Once we've integrated with some real client/server test the effect of our
   crude padding scheme.
 - Security review: identify which parts of the code e.g. need to be constant
   time, which need to use special OpenSSL APIs, which need support for
   crypto h/w (if any)
-
 
