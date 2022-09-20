@@ -295,7 +295,7 @@ SSL_ECH* SSL_ECH_new_from_buffer(SSL_CTX *ctx,
  *
  * Make up ClientHelloInner and EncodedClientHelloInner buffers
  */
-int ech_encode_inner(SSL *s);
+int ech_encode_inner(SSL_CONNECTION *s);
 
 /*
  * Return values from ech_same_ext, note that the CONTINUE
@@ -336,7 +336,7 @@ int ech_same_ext(SSL *s, WPACKET* pkt);
  *                        "ech accept confirmation",
  *                        ClientHelloInner...ServerHelloECHConf)
  */
-int ech_calc_ech_confirm(SSL *s, int for_hrr, unsigned char *acbuf, 
+int ech_calc_ech_confirm(SSL_CONNECTION *s, int for_hrr, unsigned char *acbuf, 
         const unsigned char *shbuf, const size_t shlen);
 
 /**
@@ -387,7 +387,7 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt);
  * @param blen is the length of buf
  * @return 1 for success
  */
-int ech_reset_hs_buffer(SSL *s, unsigned char *buf, size_t blen);
+int ech_reset_hs_buffer(SSL_CONNECTION *s, unsigned char *buf, size_t blen);
 
 /**
  * @brief If an ECH is present, attempt decryption
@@ -427,39 +427,7 @@ void ech_ptranscript(const char* msg, SSL_CONNECTION *s);
  * Offsets are returned to the type or length field in question.
  */
 int ech_get_ch_offsets(
-        SSL *s,
-        PACKET *pkt,
-        size_t *sessid,
-        size_t *exts,
-        size_t *echoffset,
-        uint16_t *echtype,
-        int *inner,
-        size_t *snioffset);
-
-/**
- * @brief Used in tracing
- */
-void ech_pbuf(const char *msg,const unsigned char *buf,const size_t blen);
-void ech_ptranscript(const char* msg,SSL *s);
-
-/*!
- * Given a CH find the offsets of the session id, extensions and ECH
- *
- * Offsets are set to zero if relevant thing not found.
- * Offsets are returned to the type or length field in question.
- *
- * @param: s is the SSL session
- * @param: pkt is the CH
- * @param: sessid points to offset of session_id length
- * @param: exts points to offset of extensions
- * @param: echoffset points to offset of ECH
- * @param: echtype points to the ext type of the ECH
- * @param: inner 1 if the ECH is marked as an inner, 0 for outer
- * @param: snioffset points to offset of (outer) SNI
- * @return 1 for success, other otherwise
- */
-int ech_get_ch_offsets(
-        SSL *s,
+        SSL_CONNECTION *s,
         PACKET *pkt,
         size_t *sessid,
         size_t *exts,

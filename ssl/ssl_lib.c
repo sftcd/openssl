@@ -1448,24 +1448,6 @@ void SSL_free(SSL *s)
         return;
     REF_ASSERT_ISNT(i < 0);
 
-#ifndef OPENSSL_NO_ECH
-    /*
-     * Tricksy way to only free something a) on a server
-     * or b) on a client that's greasing or has an inner_s
-     * allocated (i.e. in process of attempting ECH) or
-     * that has no ECH config.
-     * This used be used more often, but I've found better
-     * ways to handle most calls.
-     */
-#define INOUTFREE \
-    if ( s->server || \
-       (!s->server && \
-           (s->ext.ech_grease==ECH_IS_GREASE || \
-            s->ext.inner_s!=NULL || \
-            s->ech==NULL)))
-    // FIXME: check here for possible leak
-    //INOUTFREE
-#endif
     CRYPTO_free_ex_data(CRYPTO_EX_INDEX_SSL, s, &s->ex_data);
 
     if (s->method != NULL)

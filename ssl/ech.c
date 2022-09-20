@@ -48,6 +48,9 @@
 /* For HPKE APIs */
 #include <openssl/hpke.h>
 
+/* a size for some crypto vars */
+#define ECH_CRYPTO_VAR_SIZE 2048
+
 /*
  * When doing ECH, this array specifies which inner CH extensions (if
  * any) are to be "compressed" using the outer extensions scheme.
@@ -2686,7 +2689,7 @@ int ech_same_ext(SSL *ssl, WPACKET* pkt)
  *
  * This will make up the ClientHelloInner and EncodedClientHelloInner buffers
  */
-int ech_encode_inner(SSL *ssl)
+int ech_encode_inner(SSL_CONNECTION *s)
 {
     unsigned char *innerch_full=NULL;
     WPACKET inner; /* "fake" pkt for inner */
@@ -2696,7 +2699,6 @@ int ech_encode_inner(SSL *ssl)
     size_t nraws=0;
     size_t ind=0;
     size_t innerinnerlen=0;
-    SSL_CONNECTION *s = SSL_CONNECTION_FROM_SSL(ssl);
 
     /* barf if nothing to do */
     if (s == NULL || s->ech==NULL) return(0);
@@ -2746,7 +2748,7 @@ int ech_encode_inner(SSL *ssl)
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
     }
-    if (!ssl_cipher_list_to_bytes(s, SSL_get_ciphers(ssl), &inner)) {
+    if (!ssl_cipher_list_to_bytes(s, SSL_get_ciphers(&s->ssl), &inner)) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
     }
@@ -3329,10 +3331,8 @@ void ech_pbuf(const char *msg, const unsigned char *buf, const size_t blen)
  * @param blen is the length of buf
  * @return 1 for success
  */
-int ech_reset_hs_buffer(SSL *ssl, unsigned char *buf, size_t blen)
+int ech_reset_hs_buffer(SSL_CONNECTION *s, unsigned char *buf, size_t blen)
 {
-    SSL_CONNECTION *s = SSL_CONNECTION_FROM_SSL(ssl);
-
 #ifndef OPENSSL_NO_SSL_TRACE
     OSSL_TRACE_BEGIN(TLS) {
         BIO_printf(trc_out,"Adding this to transcript: RESET!\n");
@@ -3434,7 +3434,7 @@ static int ech_get_sh_offsets(
 
 /*
  * @brief Handling for the ECH accept_confirmation
- * @param ssl is the SSL inner context
+ * @param s is the SSL inner context
  * @oaram for_hrr is 1 if this is for an HRR, otherwise for SH
  * @param ac is (a caller allocated) 8 octet buffer
  * @param shbuf is a pointer to the SH buffer (incl. the type+3-octet length)
@@ -3464,8 +3464,8 @@ static int ech_get_sh_offsets(
  *
  * and with differences due to HRR
  */
-int ech_calc_accept_confirm(
-        SSL *ssl,
+int ech_calc_ech_confirm(
+        SSL_CONNECTION *s,
         int for_hrr,
         unsigned char *acbuf,
         const unsigned char *shbuf,
@@ -3483,7 +3483,6 @@ int ech_calc_accept_confirm(
     unsigned int hashlen=0;
     unsigned char hashval[EVP_MAX_MD_SIZE];
     unsigned char hoval[EVP_MAX_MD_SIZE];
-    SSL_CONNECTION *s = SSL_CONNECTION_FROM_SSL(ssl);
     unsigned char zeros[EVP_MAX_MD_SIZE];
     EVP_PKEY_CTX *pctx=NULL;
     unsigned char digestedCH[4+EVP_MAX_MD_SIZE];
@@ -3530,10 +3529,10 @@ int ech_calc_accept_confirm(
         }
 
         c=ssl_get_cipher_by_char(s, cipherchars, 0);
-        md=ssl_md(s->ctx, c->algorithm2);
+        md=ssl_md(s->ssl.ctx, c->algorithm2);
         if (md==NULL) {
             /* ultimate fallback sha266 */
-            md=s->ctx->ssl_digest_methods[SSL_HANDSHAKE_MAC_SHA256];
+            md=s->ssl.ctx->ssl_digest_methods[SSL_HANDSHAKE_MAC_SHA256];
         }
     }
 
@@ -4128,8 +4127,8 @@ int ech_send_grease(SSL *ssl, WPACKET *pkt)
     OSSL_HPKE_SUITE hpke_suite = OSSL_HPKE_SUITE_DEFAULT;
     size_t cid_len=1;
     unsigned char cid;
-    size_t senderpub_len=MAX_ECH_ENC_LEN;
-    unsigned char senderpub[MAX_ECH_ENC_LEN];
+    size_t senderpub_len=ECH_MAX_ECH_LEN;
+    unsigned char senderpub[ECH_MAX_ECH_LEN];
     SSL_CONNECTION *s = SSL_CONNECTION_FROM_SSL(ssl);
     /*
      * 0x1d3 is what I produce for a real ECH when including padding in
@@ -4144,7 +4143,7 @@ int ech_send_grease(SSL *ssl, WPACKET *pkt)
       * CH padding results in a fixed length CH for at least many options.
       */
     size_t cipher_len_jitter=0;
-    unsigned char cipher[MAX_ECH_PAYLOAD_LEN];
+    unsigned char cipher[ECH_MAX_PAYLOAD_LEN];
     /* stuff for copying to ech_sent */
     unsigned char *pp=WPACKET_get_curr(pkt);
     size_t pp_at_start=0;
@@ -4173,8 +4172,10 @@ int ech_send_grease(SSL *ssl, WPACKET *pkt)
         }
         hpke_suite_in_p=&hpke_suite_in;
     }
-    if (OSSL_HPKE_good4grease(hpke_suite_in_p, hpke_suite,
-                senderpub,&senderpub_len,cipher,cipher_len)!=1) {
+    if (OSSL_HPKE_good4grease(s->ssl.ctx->libctx, NULL,
+                              hpke_suite_in_p, &hpke_suite,
+                              senderpub, &senderpub_len, 
+                              cipher,cipher_len)!=1) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
     }
@@ -4289,6 +4290,8 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
     unsigned char *aad=NULL;
     size_t aad_len=0;
     unsigned char config_id_to_use=0x00; /* we might replace with random */
+    size_t lenclen = 0;
+
     /*
      * My ephemeral key pair for HPKE encryption
      * Has to be externally generated so public can be part of AAD (sigh)
@@ -4427,14 +4430,16 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
             BIO_printf(trc_out,"EAAE: generate new ECH key pair\n");
         } OSSL_TRACE_END(TLS);
 #endif
-        mypub=OPENSSL_malloc(OSSL_HPKE_MAXSIZE);
+        mypub=OPENSSL_malloc(ECH_CRYPTO_VAR_SIZE);
         if (!mypub) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             goto err;
         }
-        mypub_len=OSSL_HPKE_MAXSIZE;
-        if (OSSL_HPKE_kg_evp(NULL, hpke_mode, hpke_suite, 0, NULL, 
-                    &mypub_len, mypub, &mypriv_evp) != 1) {
+        mypub_len=ECH_CRYPTO_VAR_SIZE;
+        if (OSSL_HPKE_keygen(s->ssl.ctx->libctx, NULL,
+                             hpke_mode, hpke_suite,
+                             NULL, 0, mypub, &mypub_len,
+                             &mypriv_evp) != 1) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             goto err;
         }
@@ -4499,18 +4504,18 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
          goto err;
         }
         ech_pbuf("EAAE info",info,info_len);
-        rv=OSSL_HPKE_enc_evp(
-            NULL, hpke_mode, hpke_suite, /* mode, suite */
-            NULL, 0, NULL, /* pskid, psk */
-            peerpub_len,peerpub,
-            0, NULL, NULL, /* priv */
-            s->ext.inner_s->ext.encoded_innerch_len,
+        rv=OSSL_HPKE_enc(
+            NULL, NULL, hpke_mode, hpke_suite, /* mode, suite */
+            NULL, NULL, 0, /* pskid, psk */
+            peerpub, peerpub_len,
+            NULL, 0, NULL, /* auth priv */
             s->ext.inner_s->ext.encoded_innerch, /* clear */
-            aad_len, aad,
-            info_len, info,
-            0, NULL, /* seq */
-            mypub_len, mypub, mypriv_evp,
-            &cipherlen, cipher
+            s->ext.inner_s->ext.encoded_innerch_len,
+            aad, aad_len,
+            info, info_len,
+            NULL, 0, /* seq */
+            mypub, &mypub_len, mypriv_evp,
+            cipher, &cipherlen
             );
         if (rv!=1) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
@@ -4658,7 +4663,8 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
                 s->ext.inner_s->ext.encoded_innerch_len);
         } OSSL_TRACE_END(TLS);
 #endif
-        if (OSSL_HPKE_expansion(hpke_suite,clear_len,&lcipherlen)!=1) {
+        if (OSSL_HPKE_expansion(hpke_suite,
+                                &lenclen, clear_len, &lcipherlen)!=1) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             goto err;
         }
@@ -4732,17 +4738,17 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
                 s->ext.inner_s->ext.encoded_innerch_len);
         ech_pbuf("EAAE: draft-13 padded clear",clear,clear_len);
 
-        rv=OSSL_HPKE_enc_evp(
-            NULL, hpke_mode, hpke_suite, /* mode, suite */
-            NULL, 0, NULL, /* pskid, psk */
-            peerpub_len,peerpub,
-            0, NULL, NULL, /* priv */
-            clear_len,clear,
-            aad_len, aad,
-            info_len, info,
-            seqlen, seq, /* seq */
-            mypub_len, mypub, mypriv_evp,
-            &cipherlen, cipher
+        rv=OSSL_HPKE_enc(
+            NULL, NULL, hpke_mode, hpke_suite, /* mode, suite */
+            NULL, NULL, 0, /* pskid, psk */
+            peerpub, peerpub_len,
+            NULL, 0, NULL, /* auth priv */
+            clear, clear_len,
+            aad, aad_len,
+            info, info_len,
+            seq, seqlen, /* seq */
+            mypub, &mypub_len, mypriv_evp,
+            cipher, &cipherlen
             );
         OPENSSL_free(clear);
         if (rv!=1) {
@@ -4848,7 +4854,7 @@ static int ech_srv_get_aad(
  * Offsets are returned to the type or length field in question.
  */
 int ech_get_ch_offsets(
-        SSL *s,
+        SSL_CONNECTION *s,
         PACKET *pkt,
         size_t *sessid,
         size_t *exts,
@@ -4980,7 +4986,7 @@ int ech_get_ch_offsets(
  * be freed by the caller later.
  */
 static unsigned char *hpke_decrypt_encch(
-        SSL *s,
+        SSL_CONNECTION *s,
         SSL_ECH *ech,
         ECH_ENCCH *the_ech,
         size_t aad_len, unsigned char *aad,
@@ -5053,16 +5059,16 @@ static unsigned char *hpke_decrypt_encch(
     if (forhrr==1) {
         seq[0]=1;
     }
-    rv=OSSL_HPKE_dec( NULL, hpke_mode, hpke_suite,
-                NULL, 0, NULL, /* pskid, psk */
-                0, NULL, /* publen, pub, recipient public key */
-                0,NULL,ech->keyshare, /* private key in EVP_PKEY form */
-                senderpublen, senderpub, /* sender public */
-                cipherlen, cipher,
-                aad_len,aad,
-                info_len, info,
-                seqlen, seq, /* seq */
-                &clearlen, clear);
+    rv=OSSL_HPKE_dec( NULL, NULL, hpke_mode, hpke_suite,
+                NULL, NULL, 0, /* pskid, psk */
+                NULL, 0, /* publen, pub, recipient public key */
+                NULL, 0, ech->keyshare, /* private key in EVP_PKEY form */
+                senderpub, senderpublen, /* sender public */
+                cipher, cipherlen,
+                aad, aad_len,
+                info, info_len,
+                seq, seqlen, /* seq */
+                clear, &clearlen);
     /*
      * clear errors from failed decryption as per the above
      * we do this before checking the result from hpke_dec
@@ -5207,7 +5213,7 @@ int ech_early_decrypt(SSL *ssl, PACKET *outerpkt, PACKET *newpkt)
         return(rv);
     }
 
-    rv=ech_get_ch_offsets(&s->ssl,outerpkt,&startofsessid,&startofexts,
+    rv=ech_get_ch_offsets(s,outerpkt,&startofsessid,&startofexts,
             &echoffset,&echtype,&innerflag,&outersnioffset);
     if (rv!=1) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
@@ -5643,13 +5649,15 @@ int SSL_ech_set_grease_suite(SSL *ssl, const char* suite)
 
 /**
  * @brief API to set a preferred ECH ext type to use when GREASEing
- * @param s is the SSL session
+ * @param ssl is the SSL session
  * @param type is the relevant type
  * @return 1 for success, other otherwise
  */
-int SSL_ech_set_grease_type(SSL *s, uint16_t type)
+int SSL_ech_set_grease_type(SSL *ssl, uint16_t type)
 {
-    if (!s) return(0);
+    SSL_CONNECTION *s = SSL_CONNECTION_FROM_SSL(ssl);
+
+    if (ssl == NULL || s == NULL) return(0);
     /* Just stash the value for now and interpret when/if we do GREASE */
     if (type!=TLSEXT_TYPE_ech &&
         type!=TLSEXT_TYPE_ech13) {
@@ -5796,7 +5804,7 @@ int SSL_CTX_ech_raw_decrypt(SSL_CTX *ctx,
      * Check if there's any ECH and if so, whether it's an outer 
      * (that might need decrypting) or an inner
      */
-    rv=ech_get_ch_offsets(s,&pkt_outer,&startofsessid,&startofexts,
+    rv=ech_get_ch_offsets(sc,&pkt_outer,&startofsessid,&startofexts,
                 &echoffset,&echtype,&innerflag,&innersnioffset);
     if (rv!=1) return(rv);
     if (echoffset==0) {
@@ -5847,7 +5855,7 @@ int SSL_CTX_ech_raw_decrypt(SSL_CTX *ctx,
         *inner_len=ilen+9;
 
         /* Grab the inner SNI (if it's there) */
-        rv=ech_get_ch_offsets(s,&pkt_inner,&startofsessid,&startofexts,
+        rv=ech_get_ch_offsets(sc,&pkt_inner,&startofsessid,&startofexts,
                 &echoffset,&echtype,&innerflag,&innersnioffset);
         if (rv!=1) return(rv);
         if (innersnioffset>0) {
