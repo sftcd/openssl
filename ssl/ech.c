@@ -3932,18 +3932,12 @@ int ech_swaperoo(SSL_CONNECTION *s)
     BIO_up_ref(s->wbio);
     s->rbio=tmp_outer.rbio;
     BIO_up_ref(s->rbio);
-    /* This one doesn't seem to be needed nor up-ref'd */
-    /* but not fully sure.... */
-    /* s->bbio=tmp_outer.bbio; */
 
-    /* Fields we (for now) need the same in both */
-    s->rlayer=tmp_outer.rlayer;
-    s->rlayer.s=s;
     s->init_buf=tmp_outer.init_buf;
     s->init_msg=tmp_outer.init_msg;
     s->init_off=tmp_outer.init_off;
     s->init_num=tmp_outer.init_num;
-    
+
     /* HRR processing */
     s->hello_retry_request=tmp_outer.hello_retry_request;
 
