@@ -6,7 +6,7 @@
 # and bar.example.com
 
 : ${TOP:=$HOME/code/openssl}
-: ${LD_LIBRARY_PATH:=$HOME/code/openssl}
+: ${LD_LIBRARY_PATH:=$TOP}
 : ${OBIN:=$TOP/apps/openssl}
 export LD_LIBRARY_PATH
 

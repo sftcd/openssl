@@ -12,6 +12,7 @@
 # define OSSL_HPKE_H
 # pragma once
 
+<<<<<<< HEAD
 # include <openssl/types.h>
 
 /* HPKE modes */
@@ -78,6 +79,13 @@ typedef struct {
     uint16_t    kdf_id; /* Key Derivation Function id */
     uint16_t    aead_id; /* AEAD alg id */
 } OSSL_HPKE_SUITE;
+=======
+# ifdef __cplusplus
+extern "C" {
+# endif
+
+# include <openssl/ssl.h>
+>>>>>>> 68a4e48999 (another rebase, need to check resumption)
 
 /**
 <<<<<<< HEAD
@@ -91,16 +99,6 @@ typedef struct {
  * @file
  * APIs and data structures for HPKE (RFC9180).
  */
-
-#ifndef OSSL_HPKE_H
-# define OSSL_HPKE_H
-# pragma once
-
-# include <openssl/ssl.h>
-
-# ifdef __cplusplus
-extern "C" {
-# endif
 
 /*
  * The HPKE modes
@@ -214,7 +212,7 @@ int OSSL_HPKE_CTX_set1_authpub(OSSL_HPKE_CTX *ctx,
                                size_t publen);
 =======
 # ifndef OSSL_HPKE_MAXSIZE
-#  define OSSL_HPKE_MAXSIZE 512
+#  define OSSL_HPKE_MAXSIZE 2048
 # endif
 
 /**
