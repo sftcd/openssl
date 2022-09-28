@@ -49,6 +49,7 @@ then
 fi
 
 startdir=`/bin/pwd`
+scratchdir=""
 
 # catch the ctrl-C used to stop the server and do any clean up needed
 cleanup() {
@@ -69,7 +70,10 @@ cleanup() {
         kill $pids
     fi
     cd $startdir
-    rm -rf $scratchdir
+    if [[ "$scratchdir" != "" ]]
+    then
+        rm -rf $scratchdir
+    fi
     exit 0
 }
 
@@ -172,10 +176,10 @@ then
     then
         echo "Making keys/fake CA etc."
         #OBIN=$obin $CODETOP/esnistuff/make-example-ca.sh
-        $CODETOP/esnistuff/make-example-ca.sh
+        TOP=$CODETOP $CODETOP/esnistuff/make-example-ca.sh
     else
         #OBIN=$obin $CODETOP/esnistuff/make-example-ca.sh >/dev/null 2>&1
-        $CODETOP/esnistuff/make-example-ca.sh >/dev/null 2>&1
+        TOP=$CODETOP $CODETOP/esnistuff/make-example-ca.sh >/dev/null 2>&1
     fi
 fi
 
