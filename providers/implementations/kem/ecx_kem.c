@@ -32,7 +32,10 @@
 #include "prov/providercommon.h"
 #include "prov/ecx.h"
 #include "crypto/ecx.h"
+<<<<<<< HEAD
 #include <openssl/hpke.h>
+=======
+>>>>>>> 788a6e16af (rebased and latest HPKE (still leaks, will fix in a bit))
 #include "internal/hpke_util.h"
 #include "eckem.h"
 
@@ -306,8 +309,13 @@ static int dhkem_extract_and_expand(EVP_KDF_CTX *kctx,
     if (prklen > sizeof(prk))
         return 0;
 
+<<<<<<< HEAD
     suiteid[0] = (kemid >> 8) &0xff;
     suiteid[1] = kemid & 0xff;
+=======
+    suiteid[0] = kemid / 256;
+    suiteid[1] = kemid % 256;
+>>>>>>> 788a6e16af (rebased and latest HPKE (still leaks, will fix in a bit))
 
     ret = ossl_hpke_labeled_extract(kctx, prk, prklen,
                                     NULL, 0, LABEL_KEM, suiteid, sizeof(suiteid),
@@ -341,8 +349,17 @@ int ossl_ecx_dhkem_derive_private(ECX_KEY *ecx, unsigned char *privout,
     int ret = 0;
     EVP_KDF_CTX *kdfctx = NULL;
     unsigned char prk[EVP_MAX_MD_SIZE];
+<<<<<<< HEAD
     uint8_t suiteid[2];
     const OSSL_HPKE_KEM_INFO *info = get_kem_info(ecx);
+=======
+    uint16_t kemid;
+    const char *kdfdigestname;
+    uint8_t suiteid[2];
+    size_t prklen, keylen;
+
+    get_kem_values(ecx, &kemid, &kdfdigestname, &prklen, &keylen);
+>>>>>>> 788a6e16af (rebased and latest HPKE (still leaks, will fix in a bit))
 
     /* ikmlen should have a length of at least Nsk */
     if (ikmlen < info->Nsk) {
@@ -356,15 +373,27 @@ int ossl_ecx_dhkem_derive_private(ECX_KEY *ecx, unsigned char *privout,
     if (kdfctx == NULL)
         return 0;
 
+<<<<<<< HEAD
     suiteid[0] = info->kem_id / 256;
     suiteid[1] = info->kem_id % 256;
 
     if (!ossl_hpke_labeled_extract(kdfctx, prk, info->Nsecret,
+=======
+    // ossl_dhkem_getsuiteid(suiteid, kemid);
+    suiteid[0] = kemid / 256;
+    suiteid[1] = kemid % 256;
+
+    if (!ossl_hpke_labeled_extract(kdfctx, prk, prklen,
+>>>>>>> 788a6e16af (rebased and latest HPKE (still leaks, will fix in a bit))
                                    NULL, 0, LABEL_KEM, suiteid, sizeof(suiteid),
                                    OSSL_DHKEM_LABEL_DKP_PRK, ikm, ikmlen))
         goto err;
 
+<<<<<<< HEAD
     if (!ossl_hpke_labeled_expand(kdfctx, privout, info->Nsk, prk, info->Nsecret,
+=======
+    if (!ossl_hpke_labeled_expand(kdfctx, privout, keylen, prk, prklen,
+>>>>>>> 788a6e16af (rebased and latest HPKE (still leaks, will fix in a bit))
                                   LABEL_KEM, suiteid, sizeof(suiteid),
                                   OSSL_DHKEM_LABEL_SK, NULL, 0))
         goto err;

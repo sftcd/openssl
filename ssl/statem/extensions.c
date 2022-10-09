@@ -407,12 +407,16 @@ static const EXTENSION_DEFINITION ext_defs[] = {
         tls_construct_stoc_early_data, tls_construct_ctos_early_data,
         final_early_data
     },
+    {
+        TLSEXT_TYPE_certificate_authorities,
+        SSL_EXT_CLIENT_HELLO | SSL_EXT_TLS1_3_CERTIFICATE_REQUEST
+        | SSL_EXT_TLS1_3_ONLY,
+        init_certificate_authorities,
+        tls_parse_certificate_authorities, tls_parse_certificate_authorities,
+        tls_construct_certificate_authorities,
+        tls_construct_certificate_authorities, NULL,
+    },
 #ifndef OPENSSL_NO_ECH
-    /*
-     * For now, TLSEXT_TYPE_ech must be in this list after key_share as
-     * that input is needed for ECH acceptance calculation
-     * draft-12 will remove that requirement, but we've not coded that up yet.
-     */
     { /* this is for draft-10 */
         TLSEXT_TYPE_ech,
         SSL_EXT_CLIENT_HELLO | SSL_EXT_TLS1_3_ONLY |
@@ -455,15 +459,6 @@ static const EXTENSION_DEFINITION ext_defs[] = {
     INVALID_EXTENSION,
     INVALID_EXTENSION,
 #endif /* END_OPENSSL_NO_ECH */
-    {
-        TLSEXT_TYPE_certificate_authorities,
-        SSL_EXT_CLIENT_HELLO | SSL_EXT_TLS1_3_CERTIFICATE_REQUEST
-        | SSL_EXT_TLS1_3_ONLY,
-        init_certificate_authorities,
-        tls_parse_certificate_authorities, tls_parse_certificate_authorities,
-        tls_construct_certificate_authorities,
-        tls_construct_certificate_authorities, NULL,
-    },
     {
         /* Must be immediately before pre_shared_key */
         TLSEXT_TYPE_padding,

@@ -12037,9 +12037,6 @@ int setup_tests(void)
 #ifndef OSSL_NO_USABLE_ECH
     ADD_ALL_TESTS(test_ech_add, 5);
 #endif
-#ifndef OSSL_NO_USABLE_ECH
-    ADD_ALL_TESTS(test_ech_add, 5);
-#endif
     ADD_TEST(test_inherit_verify_param);
     ADD_TEST(test_set_alpn);
     ADD_TEST(test_set_verify_cert_store_ssl_ctx);

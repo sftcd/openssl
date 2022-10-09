@@ -30,7 +30,10 @@
 #include "prov/securitycheck.h"
 #include "prov/providercommon.h"
 
+<<<<<<< HEAD
 #include <openssl/hpke.h>
+=======
+>>>>>>> 788a6e16af (rebased and latest HPKE (still leaks, will fix in a bit))
 #include "internal/hpke_util.h"
 #include "crypto/ec.h"
 #include "prov/ecx.h"
@@ -60,8 +63,34 @@ static OSSL_FUNC_kem_freectx_fn eckem_freectx;
 static OSSL_FUNC_kem_set_ctx_params_fn eckem_set_ctx_params;
 static OSSL_FUNC_kem_settable_ctx_params_fn eckem_settable_ctx_params;
 
+<<<<<<< HEAD
 /* ASCII: "KEM", in hex for EBCDIC compatibility */
 static const char LABEL_KEM[] = "\x4b\x45\x4d";
+=======
+/* See Section 7.1 "Table 2 KEM IDs" */
+static const DHKEM_ALG dhkem_alg[] = {
+    { "P-256", "SHA256", 0x0010, 32, 65,  32, 0xFF },
+    { "P-384", "SHA384", 0x0011, 48, 97,  48, 0xFF },
+    { "P-521", "SHA512", 0x0012, 64, 133, 66, 0x01 },
+    { NULL }
+};
+
+/* ASCII: "KEM", in hex for EBCDIC compatibility */
+static const char LABEL_KEM[] = "\x4b\x45\x4d";
+
+/* Return an object containing KEM constants associated with a EC curve name */
+static const DHKEM_ALG *dhkem_ec_find_alg(const char *curve)
+{
+    int i;
+
+    for (i = 0; dhkem_alg[i].curve != NULL; ++i) {
+        if (OPENSSL_strcasecmp(curve, dhkem_alg[i].curve) == 0)
+            return &dhkem_alg[i];
+    }
+    ERR_raise(ERR_LIB_PROV, PROV_R_INVALID_CURVE);
+    return NULL;
+}
+>>>>>>> 788a6e16af (rebased and latest HPKE (still leaks, will fix in a bit))
 
 static int eckey_check(const EC_KEY *ec, int requires_privatekey)
 {
@@ -349,8 +378,13 @@ static int dhkem_extract_and_expand(EVP_KDF_CTX *kctx,
     if (prklen > sizeof(prk))
         return 0;
 
+<<<<<<< HEAD
     suiteid[0] = (kemid >> 8) & 0xff;
     suiteid[1] = kemid & 0xff;
+=======
+    suiteid[0] = kemid / 256;
+    suiteid[1] = kemid % 256;
+>>>>>>> 788a6e16af (rebased and latest HPKE (still leaks, will fix in a bit))
 
     ret = ossl_hpke_labeled_extract(kctx, prk, prklen,
                                     NULL, 0, LABEL_KEM, suiteid, sizeof(suiteid),
@@ -412,18 +446,32 @@ int ossl_ec_dhkem_derive_private(EC_KEY *ec, BIGNUM *priv,
         goto err;
     }
 
+<<<<<<< HEAD
     suiteid[0] = info->kem_id / 256;
     suiteid[1] = info->kem_id % 256;
 
     if (!ossl_hpke_labeled_extract(kdfctx, prk, info->Nsecret,
+=======
+    // ossl_dhkem_getsuiteid(suiteid, alg->kemid);
+
+    suiteid[0] = alg->kemid / 256;
+    suiteid[1] = alg->kemid % 256;
+
+    if (!ossl_hpke_labeled_extract(kdfctx, prk, alg->secretlen,
+>>>>>>> 788a6e16af (rebased and latest HPKE (still leaks, will fix in a bit))
                                    NULL, 0, LABEL_KEM, suiteid, sizeof(suiteid),
                                    OSSL_DHKEM_LABEL_DKP_PRK, ikm, ikmlen))
         goto err;
 
     order = EC_GROUP_get0_order(EC_KEY_get0_group(ec));
     do {
+<<<<<<< HEAD
         if (!ossl_hpke_labeled_expand(kdfctx, privbuf, info->Nsk,
                                       prk, info->Nsecret,
+=======
+        if (!ossl_hpke_labeled_expand(kdfctx, privbuf, alg->encodedprivlen,
+                                      prk, alg->secretlen,
+>>>>>>> 788a6e16af (rebased and latest HPKE (still leaks, will fix in a bit))
                                       LABEL_KEM, suiteid, sizeof(suiteid),
                                       OSSL_DHKEM_LABEL_CANDIDATE,
                                       &counter, 1))

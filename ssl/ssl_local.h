@@ -1639,6 +1639,8 @@ struct ssl_connection_st {
         EVP_PKEY *ech_priv; /* needs keeping by client in case of HRR */
         unsigned char *ech_pub; /* needs keeping by server in case of HRR */
         size_t ech_pub_len;
+        size_t ech_ikmelen; 
+        unsigned char *ech_ikme;
 #endif
         /* certificate status request info */
         /* Status type or -1 if no status type */

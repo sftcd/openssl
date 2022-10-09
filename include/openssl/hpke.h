@@ -12,7 +12,6 @@
 # define OSSL_HPKE_H
 # pragma once
 
-<<<<<<< HEAD
 # include <openssl/types.h>
 
 /* HPKE modes */
@@ -79,99 +78,18 @@ typedef struct {
     uint16_t    kdf_id; /* Key Derivation Function id */
     uint16_t    aead_id; /* AEAD alg id */
 } OSSL_HPKE_SUITE;
-=======
-# ifdef __cplusplus
-extern "C" {
-# endif
-
-# include <openssl/ssl.h>
->>>>>>> 68a4e48999 (another rebase, need to check resumption)
 
 /**
-<<<<<<< HEAD
  * Suite constants, use this like:
  *          OSSL_HPKE_SUITE myvar = OSSL_HPKE_SUITE_DEFAULT;
  */
 # define OSSL_HPKE_SUITE_DEFAULT \
     {\
         OSSL_HPKE_KEM_ID_X25519, \
-=======
- * @file
- * APIs and data structures for HPKE (RFC9180).
- */
-
-/*
- * The HPKE modes
- */
-# define OSSL_HPKE_MODE_BASE              0 /**< Base mode  */
-# define OSSL_HPKE_MODE_PSK               1 /**< Pre-shared key mode */
-# define OSSL_HPKE_MODE_AUTH              2 /**< Authenticated mode */
-# define OSSL_HPKE_MODE_PSKAUTH           3 /**< PSK+authenticated mode */
-
-/*
- * The (16bit) HPKE algorithn IDs
- */
-# define OSSL_HPKE_KEM_ID_RESERVED         0x0000 /**< not used */
-# define OSSL_HPKE_KEM_ID_P256             0x0010 /**< NIST P-256 */
-# define OSSL_HPKE_KEM_ID_P384             0x0011 /**< NIST P-256 */
-# define OSSL_HPKE_KEM_ID_P521             0x0012 /**< NIST P-521 */
-# define OSSL_HPKE_KEM_ID_25519            0x0020 /**< Curve25519 */
-# define OSSL_HPKE_KEM_ID_448              0x0021 /**< Curve448 */
-
-# define OSSL_HPKE_KDF_ID_RESERVED         0x0000 /**< not used */
-# define OSSL_HPKE_KDF_ID_HKDF_SHA256      0x0001 /**< HKDF-SHA256 */
-# define OSSL_HPKE_KDF_ID_HKDF_SHA384      0x0002 /**< HKDF-SHA384 */
-# define OSSL_HPKE_KDF_ID_HKDF_SHA512      0x0003 /**< HKDF-SHA512 */
-
-# define OSSL_HPKE_AEAD_ID_RESERVED        0x0000 /**< not used */
-# define OSSL_HPKE_AEAD_ID_AES_GCM_128     0x0001 /**< AES-GCM-128 */
-# define OSSL_HPKE_AEAD_ID_AES_GCM_256     0x0002 /**< AES-GCM-256 */
-# define OSSL_HPKE_AEAD_ID_CHACHA_POLY1305 0x0003 /**< Chacha20-Poly1305 */
-# define OSSL_HPKE_AEAD_ID_EXPORTONLY      0xFFFF /**< export-only fake ID */
-
-/* strings for modes */
-# define OSSL_HPKE_MODESTR_BASE       "base"    /**< base mode (1) */
-# define OSSL_HPKE_MODESTR_PSK        "psk"     /**< psk mode (2) */
-# define OSSL_HPKE_MODESTR_AUTH       "auth"    /**< sender-key pair auth (3) */
-# define OSSL_HPKE_MODESTR_PSKAUTH    "pskauth" /**< psk+sender-key pair (4) */
-
-/* strings for suite components - ideally these'd be defined elsewhere */
-# define OSSL_HPKE_KEMSTR_P256        "P-256"              /**< KEM id 0x10 */
-# define OSSL_HPKE_KEMSTR_P384        "P-384"              /**< KEM id 0x11 */
-# define OSSL_HPKE_KEMSTR_P521        "P-521"              /**< KEM id 0x12 */
-# define OSSL_HPKE_KEMSTR_X25519      SN_X25519            /**< KEM id 0x20 */
-# define OSSL_HPKE_KEMSTR_X448        SN_X448              /**< KEM id 0x21 */
-# define OSSL_HPKE_KDFSTR_256         "hkdf-sha256"        /**< KDF id 1 */
-# define OSSL_HPKE_KDFSTR_384         "hkdf-sha384"        /**< KDF id 2 */
-# define OSSL_HPKE_KDFSTR_512         "hkdf-sha512"        /**< KDF id 3 */
-# define OSSL_HPKE_AEADSTR_AES128GCM  LN_aes_128_gcm       /**< AEAD id 1 */
-# define OSSL_HPKE_AEADSTR_AES256GCM  LN_aes_256_gcm       /**< AEAD id 2 */
-# define OSSL_HPKE_AEADSTR_CP         LN_chacha20_poly1305 /**< AEAD id 3 */
-# define OSSL_HPKE_AEADSTR_EXP        "exporter"           /**< AEAD id 0xff */
-
-/**
- * @brief ciphersuite combination
- */
-typedef struct {
-    uint16_t    kem_id; /**< Key Encryption Method id */
-    uint16_t    kdf_id; /**< Key Derivation Function id */
-    uint16_t    aead_id; /**< AEAD alg id */
-} OSSL_HPKE_SUITE;
-
-/**
- * Suite constants, use this like:
- *          OSSL_HPKE_SUITE myvar = OSSL_HPKE_SUITE_DEFAULT;
- */
-# define OSSL_HPKE_SUITE_DEFAULT \
-    {\
-        OSSL_HPKE_KEM_ID_25519, \
->>>>>>> 1ceae23f08 (many minor changes based on comments in the HPKE PR)
         OSSL_HPKE_KDF_ID_HKDF_SHA256, \
         OSSL_HPKE_AEAD_ID_AES_GCM_128 \
     }
 
-<<<<<<< HEAD
-<<<<<<< HEAD
 typedef struct ossl_hpke_ctx_st OSSL_HPKE_CTX;
 
 OSSL_HPKE_CTX *OSSL_HPKE_CTX_new(int mode, OSSL_HPKE_SUITE suite, int role,
@@ -210,47 +128,10 @@ int OSSL_HPKE_CTX_set1_authpriv(OSSL_HPKE_CTX *ctx, EVP_PKEY *priv);
 int OSSL_HPKE_CTX_set1_authpub(OSSL_HPKE_CTX *ctx,
                                const unsigned char *pub,
                                size_t publen);
-=======
-# ifndef OSSL_HPKE_MAXSIZE
-#  define OSSL_HPKE_MAXSIZE 2048
-# endif
-
-/**
- * @brief opaque type for HPKE contexts
- */
-typedef struct ossl_hpke_ctx_st OSSL_HPKE_CTX;
-
-/**
- * @brief context creator
- * @param mode is the desired HPKE mode
- * @param suite specifies the KEM, KDF and AEAD to use
- * @param libctx is the library context to use
- * @param propq is a properties string for the library
- * @return pointer to new context or NULL if error
- */
-OSSL_HPKE_CTX *OSSL_HPKE_CTX_new(int mode, OSSL_HPKE_SUITE suite,
-                                 OSSL_LIB_CTX *libctx, const char *propq);
-
-/**
- * @brief free up storage for a HPKE context
- * @param ctx is the pointer to be free'd (can be NULL)
- */
-void OSSL_HPKE_CTX_free(OSSL_HPKE_CTX *ctx);
-
-/**
- * @brief set a PSK for an HPKE context
- * @param ctx is the pointer for the HPKE context
- * @param pskid is a string identifying the PSK
- * @param psk is the PSK buffer
- * @param psklen is the size of the PSK
- * @return 1 for success, 0 for error
- */
->>>>>>> 8ae1c29e3a (updated hpke with new api (though not yet using new apis))
 int OSSL_HPKE_CTX_set1_psk(OSSL_HPKE_CTX *ctx,
                            const char *pskid,
                            const unsigned char *psk, size_t psklen);
 
-<<<<<<< HEAD
 int OSSL_HPKE_CTX_set1_ikme(OSSL_HPKE_CTX *ctx,
                             const unsigned char *ikme, size_t ikmelen);
 
@@ -267,8 +148,6 @@ int OSSL_HPKE_str2suite(const char *str, OSSL_HPKE_SUITE *suite);
 size_t OSSL_HPKE_get_ciphertext_size(OSSL_HPKE_SUITE suite, size_t clearlen);
 size_t OSSL_HPKE_get_public_encap_size(OSSL_HPKE_SUITE suite);
 size_t OSSL_HPKE_get_recommended_ikmelen(OSSL_HPKE_SUITE suite);
-=======
-=======
 /**
  * @brief set a sender KEM private key for HPKE
  * @param ctx is the pointer for the HPKE context
@@ -282,6 +161,16 @@ size_t OSSL_HPKE_get_recommended_ikmelen(OSSL_HPKE_SUITE suite);
  * clients.
  */
 int OSSL_HPKE_CTX_set1_senderpriv(OSSL_HPKE_CTX *ctx, EVP_PKEY *privp);
+
+/**
+ * @brief set a sender IKM for key DHKEM generation
+ * @param ctx is the pointer for the HPKE context
+ * @param ikme is a buffer for the IKM
+ * @param ikmelen is the length of the above
+ * @return 1 for success, 0 for error
+ */
+int OSSL_HPKE_CTX_set1_ikme(OSSL_HPKE_CTX *ctx,
+                            const unsigned char *ikme, size_t ikmelen);
 
 /**
  * @brief set a sender private key for HPKE authenticated modes
@@ -302,7 +191,7 @@ int OSSL_HPKE_CTX_set1_authpriv(OSSL_HPKE_CTX *ctx, EVP_PKEY *privp);
  * private keys as passed as EVP_PKEY pointers.
  */
 int OSSL_HPKE_CTX_set1_authpub(OSSL_HPKE_CTX *ctx,
-                               unsigned char *pub,
+                               const unsigned char *pub,
                                size_t publen);
 
 /**
@@ -460,8 +349,8 @@ int OSSL_HPKE_suite_check(OSSL_HPKE_SUITE suite);
  * @param suite is the chosen or random suite
  * @param pub a random value of the appropriate length for a sender public value
  * @param pub_len is the length of pub (buffer size on input)
- * @param cipher is a random value of the appropriate length for a ciphertext
- * @param cipher_len is the length of cipher
+ * @param ciphertext is a random value of the appropriate length for ciphertext
+ * @param ciphertext_len is the length of cipher
  * @return 1 for success, otherwise failure
  *
  * If suite_in is provided that will be used (if supported). If
@@ -474,8 +363,8 @@ int OSSL_HPKE_good4grease(OSSL_LIB_CTX *libctx, const char *propq,
                           OSSL_HPKE_SUITE *suite,
                           unsigned char *pub,
                           size_t *pub_len,
-                          unsigned char *cipher,
-                          size_t cipher_len);
+                          unsigned char *ciphertext,
+                          size_t ciphertext_len);
 
 /**
  * @brief map a string to a HPKE suite
@@ -510,7 +399,6 @@ int OSSL_HPKE_expansion(OSSL_HPKE_SUITE suite,
  * dropped, once new ones work ok
  */
 
->>>>>>> 8ae1c29e3a (updated hpke with new api (though not yet using new apis))
 /**
  * @brief HPKE single-shot encryption function
  *
@@ -601,7 +489,6 @@ int OSSL_HPKE_dec(OSSL_LIB_CTX *libctx, const char *propq,
                   const unsigned char *seq, size_t seqlen,
                   unsigned char *clear, size_t *clearlen);
 
-<<<<<<< HEAD
 /**
  * @brief generate a key pair
  *
@@ -743,19 +630,4 @@ int OSSL_HPKE_expansion(OSSL_HPKE_SUITE suite,
                         size_t *enclen,
                         size_t clearlen,
                         size_t *cipherlen);
->>>>>>> 1ceae23f08 (many minor changes based on comments in the HPKE PR)
-
-int OSSL_HPKE_export(OSSL_LIB_CTX *libctx, const char *propq,
-                     OSSL_HPKE_SUITE suite,
-                     unsigned char *inp,
-                     size_t inp_len,
-                     size_t L,
-                     unsigned char *exporter,
-                     size_t *exporter_len);
-
-=======
-# ifdef __cplusplus
-}
-# endif
->>>>>>> 8ae1c29e3a (updated hpke with new api (though not yet using new apis))
 #endif
