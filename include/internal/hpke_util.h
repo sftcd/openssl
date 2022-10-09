@@ -7,14 +7,20 @@
  * https://www.openssl.org/source/license.html
  */
 
+<<<<<<< HEAD
 #ifndef OSSL_INTERNAL_HPKE_UTIL_H
 # define OSSL_INTERNAL_HPKE_UTIL_H
+=======
+#ifndef OSSL_CRYPTO_HPKE_H
+# define OSSL_CRYPTO_HPKE_H
+>>>>>>> 788a6e16af (rebased and latest HPKE (still leaks, will fix in a bit))
 # pragma once
 
 /* Constants from RFC 9180 Section 7.1 and 7.3 */
 # define OSSL_HPKE_MAX_SECRET 64
 # define OSSL_HPKE_MAX_PUBLIC 133
 # define OSSL_HPKE_MAX_PRIVATE 66
+<<<<<<< HEAD
 # define OSSL_HPKE_MAX_KDF_INPUTLEN 64
 
 /*
@@ -68,6 +74,11 @@ const OSSL_HPKE_KDF_INFO *ossl_HPKE_KDF_INFO_find_random(OSSL_LIB_CTX *ctx);
 const OSSL_HPKE_AEAD_INFO *ossl_HPKE_AEAD_INFO_find_id(uint16_t aeadid);
 const OSSL_HPKE_AEAD_INFO *ossl_HPKE_AEAD_INFO_find_random(OSSL_LIB_CTX *ctx);
 
+=======
+# define OSSL_HPKE_MAX_NONCE 12
+# define OSSL_HPKE_MAX_KDF_INPUTLEN 64
+
+>>>>>>> 788a6e16af (rebased and latest HPKE (still leaks, will fix in a bit))
 int ossl_hpke_kdf_extract(EVP_KDF_CTX *kctx,
                           unsigned char *prk, size_t prklen,
                           const unsigned char *salt, size_t saltlen,
@@ -96,5 +107,8 @@ int ossl_hpke_labeled_expand(EVP_KDF_CTX *kctx,
 EVP_KDF_CTX *ossl_kdf_ctx_create(const char *kdfname, const char *mdname,
                                  OSSL_LIB_CTX *libctx, const char *propq);
 
+<<<<<<< HEAD
 int ossl_hpke_str2suite(const char *suitestr, OSSL_HPKE_SUITE *suite);
+=======
+>>>>>>> 788a6e16af (rebased and latest HPKE (still leaks, will fix in a bit))
 #endif

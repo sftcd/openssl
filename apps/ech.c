@@ -127,18 +127,18 @@ static int suitestr2suite(char *instr, OSSL_HPKE_SUITE *hpke_suite)
             if (OSSL_HPKE_MSMATCH(st,OSSL_HPKE_KEMSTR_P256)) kem=OSSL_HPKE_KEM_ID_P256;
             if (OSSL_HPKE_MSMATCH(st,OSSL_HPKE_KEMSTR_P384)) kem=OSSL_HPKE_KEM_ID_P384;
             if (OSSL_HPKE_MSMATCH(st,OSSL_HPKE_KEMSTR_P521)) kem=OSSL_HPKE_KEM_ID_P521;
-            if (OSSL_HPKE_MSMATCH(st,OSSL_HPKE_KEMSTR_X25519)) kem=OSSL_HPKE_KEM_ID_25519;
-            if (OSSL_HPKE_MSMATCH(st,OSSL_HPKE_KEMSTR_X448)) kem=OSSL_HPKE_KEM_ID_448;
+            if (OSSL_HPKE_MSMATCH(st,OSSL_HPKE_KEMSTR_X25519)) kem=OSSL_HPKE_KEM_ID_X25519;
+            if (OSSL_HPKE_MSMATCH(st,OSSL_HPKE_KEMSTR_X448)) kem=OSSL_HPKE_KEM_ID_X448;
             if (OSSL_HPKE_MSMATCH(st,"0x10")) kem=OSSL_HPKE_KEM_ID_P256;
             if (OSSL_HPKE_MSMATCH(st,"16")) kem=OSSL_HPKE_KEM_ID_P256;
             if (OSSL_HPKE_MSMATCH(st,"0x11")) kem=OSSL_HPKE_KEM_ID_P384;
             if (OSSL_HPKE_MSMATCH(st,"17")) kem=OSSL_HPKE_KEM_ID_P384;
             if (OSSL_HPKE_MSMATCH(st,"0x12")) kem=OSSL_HPKE_KEM_ID_P521;
             if (OSSL_HPKE_MSMATCH(st,"18")) kem=OSSL_HPKE_KEM_ID_P521;
-            if (OSSL_HPKE_MSMATCH(st,"0x20")) kem=OSSL_HPKE_KEM_ID_25519;
-            if (OSSL_HPKE_MSMATCH(st,"32")) kem=OSSL_HPKE_KEM_ID_25519;
-            if (OSSL_HPKE_MSMATCH(st,"0x21")) kem=OSSL_HPKE_KEM_ID_448;
-            if (OSSL_HPKE_MSMATCH(st,"33")) kem=OSSL_HPKE_KEM_ID_448;
+            if (OSSL_HPKE_MSMATCH(st,"0x20")) kem=OSSL_HPKE_KEM_ID_X25519;
+            if (OSSL_HPKE_MSMATCH(st,"32")) kem=OSSL_HPKE_KEM_ID_X25519;
+            if (OSSL_HPKE_MSMATCH(st,"0x21")) kem=OSSL_HPKE_KEM_ID_X448;
+            if (OSSL_HPKE_MSMATCH(st,"33")) kem=OSSL_HPKE_KEM_ID_X448;
         } else if (kem!=0 && kdf==0) {
             if (OSSL_HPKE_MSMATCH(st,OSSL_HPKE_KDFSTR_256)) kdf=1;
             if (OSSL_HPKE_MSMATCH(st,OSSL_HPKE_KDFSTR_384)) kdf=2;
