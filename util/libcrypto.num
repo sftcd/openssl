@@ -5808,3 +5808,4 @@ OSSL_HPKE_str2suite                     ?	3_1_0	EXIST::FUNCTION:
 OSSL_HPKE_expansion                     ?	3_1_0	EXIST::FUNCTION:
 OSSL_HPKE_enc                           ?	3_1_0	EXIST::FUNCTION:
 OSSL_HPKE_dec                           ?	3_1_0	EXIST::FUNCTION:
+OSSL_HPKE_CTX_set1_ikme                 ?	3_1_0	EXIST::FUNCTION:
