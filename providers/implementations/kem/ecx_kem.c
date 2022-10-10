@@ -374,12 +374,15 @@ int ossl_ecx_dhkem_derive_private(ECX_KEY *ecx, unsigned char *privout,
         return 0;
 
 <<<<<<< HEAD
+<<<<<<< HEAD
     suiteid[0] = info->kem_id / 256;
     suiteid[1] = info->kem_id % 256;
 
     if (!ossl_hpke_labeled_extract(kdfctx, prk, info->Nsecret,
 =======
     // ossl_dhkem_getsuiteid(suiteid, kemid);
+=======
+>>>>>>> 8b6ce7f819 (various CI fixes)
     suiteid[0] = kemid / 256;
     suiteid[1] = kemid % 256;
 
