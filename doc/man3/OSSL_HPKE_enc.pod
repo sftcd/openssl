@@ -7,6 +7,7 @@ OSSL_HPKE_suite_check, OSSL_HPKE_str2suite,
 OSSL_HPKE_expansion,OSSL_HPKE_good4grease,
 OSSL_HPKE_CTX_new, OSSL_HPKE_CTX_free,
 OSSL_HPKE_CTX_set1_psk,
+OSSL_HPKE_CTX_set1_ikme,
 OSSL_HPKE_CTX_set1_senderpriv,
 OSSL_HPKE_CTX_set1_authpriv,
 OSSL_HPKE_CTX_set1_authpub,
@@ -35,6 +36,8 @@ OSSL_HPKE_enc, OSSL_HPKE_dec
                                 size_t publen);
  int OSSL_HPKE_CTX_get0_seq(OSSL_HPKE_CTX *ctx, uint64_t *seq);
  int OSSL_HPKE_CTX_set1_seq(OSSL_HPKE_CTX *ctx, uint64_t seq);
+ int OSSL_HPKE_CTX_set1_ikme(OSSL_HPKE_CTX *ctx,
+                            const unsigned char *ikme, size_t ikmelen);
 
  int OSSL_HPKE_sender_seal(OSSL_HPKE_CTX *ctx,
                            unsigned char *enc, size_t *enclen,
@@ -225,13 +228,15 @@ funtion to do encryption and the OSSL_HPKE_recipient_open() function to
 attempt decryption.
 
 If an external senderpriv key has been provided for an OSSL_HPKE_CTX object,
-(typically one used by a client/sender/encryptor), 
-that key will be used for seal operations. If not, a new ephemeral
-key will be generated per call and then used for the lifetime of the
-OSSL_HPKE_CTX object. In almost all cases, it is better to not provide
-an external private key but to rather use an ephemerally generated
-key, so use of OSSL_HPKE_CTX_set1_senderpriv() is discouraged. (It
-is mainly provided to allow validation of test vectors.)
+(typically one used by a client/sender/encryptor), that key will be used for
+seal operations. If not, a new ephemeral key will be generated per call and
+then used for the lifetime of the OSSL_HPKE_CTX object. In almost all cases, it
+is better to not provide an external private key but to rather use an
+ephemerally generated key, so use of OSSL_HPKE_CTX_set1_senderpriv() is
+discouraged. (This is mainly provided to allow validation of test vectors.)
+
+Sender key generation can also be based on the deterministic key generation
+scheme specified in RFC 9180 via the OSSL_HPKE_CTX_set1_ikme() function.
 
 RFC9180 also defines a method for extracting/deriving new application
 secrets from the HPKE key exchange. That is supported via the

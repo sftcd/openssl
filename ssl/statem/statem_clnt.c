@@ -1207,7 +1207,8 @@ WORK_STATE ossl_statem_client_post_process_message(SSL_CONNECTION *s,
  */
 static int tls_construct_client_hello_aux(SSL_CONNECTION *s, WPACKET *pkt);
 
-CON_FUNC_RETURN tls_construct_client_hello(SSL_CONNECTION *s, WPACKET *pkt)
+__owur CON_FUNC_RETURN tls_construct_client_hello(SSL_CONNECTION *s,
+                                                  WPACKET *pkt)
 {
     unsigned char *innerch_full=NULL;
     WPACKET inner; /* "fake" pkt for inner */

@@ -1477,12 +1477,7 @@ void ossl_ssl_connection_free(SSL *ssl)
 
 #ifndef OPENSSL_NO_ECH
     /* This seems needed on client but not on server */
-    if ( s->init_buf &&
-         (
-          (!s->server && (s->ext.inner_s || !s->ech)) ||
-          s->server
-         )
-       )
+    if ( (!s->server && (s->ext.inner_s || !s->ech)) || s->server)
 #endif
     BUF_MEM_free(s->init_buf);
 
