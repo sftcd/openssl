@@ -4,7 +4,8 @@
 
 OSSL_HPKE_keygen, 
 OSSL_HPKE_suite_check, OSSL_HPKE_str2suite,
-OSSL_HPKE_expansion,OSSL_HPKE_good4grease,
+OSSL_HPKE_get_grease_value, OSSL_HPKE_get_ciphertext_size,
+OSSL_HPKE_get_public_encap_size,
 OSSL_HPKE_CTX_new, OSSL_HPKE_CTX_free,
 OSSL_HPKE_CTX_set1_psk,
 OSSL_HPKE_CTX_set1_ikme,
@@ -13,6 +14,7 @@ OSSL_HPKE_CTX_set1_authpriv,
 OSSL_HPKE_CTX_set1_authpub,
 OSSL_HPKE_CTX_get0_seq, OSSL_HPKE_CTX_set1_seq,
 OSSL_HPKE_sender_seal, OSSL_HPKE_recipient_open,
+OSSL_HPKE_sender_export_encap, OSSL_HPKE_recipient_export_decap,
 OSSL_HPKE_CTX_export,
 OSSL_HPKE_enc, OSSL_HPKE_dec
 - Hybrid Public Key Encryption (HPKE) functions
@@ -55,6 +57,17 @@ OSSL_HPKE_enc, OSSL_HPKE_dec
                               const unsigned char *aad, size_t aadlen,
                               const unsigned char *ct, size_t ctlen);
 
+ int OSSL_HPKE_sender_export_encap(OSSL_HPKE_CTX *ctx,
+                                   unsigned char *enc, size_t *enclen,
+                                   unsigned char *pub, size_t publen,
+                                   const unsigned char *info, size_t infolen);
+
+ int OSSL_HPKE_recipient_export_decap(OSSL_HPKE_CTX *ctx,
+                                      const unsigned char *enc, size_t enclen,
+                                      EVP_PKEY *recippriv,
+                                      const unsigned char *info,
+                                      size_t infolen);
+
  int OSSL_HPKE_CTX_export(OSSL_HPKE_CTX *ctx,
                           unsigned char *secret,
                           size_t secret_len,
@@ -67,19 +80,17 @@ OSSL_HPKE_enc, OSSL_HPKE_dec
                       unsigned char *pub, size_t *publen, EVP_PKEY **priv);
 
  int OSSL_HPKE_suite_check(OSSL_HPKE_SUITE suite);
- int OSSL_HPKE_good4grease(OSSL_LIB_CTX *libctx, const char *propq,
-                           OSSL_HPKE_SUITE *suite_in,
-                           OSSL_HPKE_SUITE *suite,
-                           unsigned char *pub,
-                           size_t *pub_len,
-                           unsigned char *ct,
-                           size_t ctlen);
+ int OSSL_HPKE_get_grease_value(OSSL_LIB_CTX *libctx, const char *propq,
+                                OSSL_HPKE_SUITE *suite_in,
+                                OSSL_HPKE_SUITE *suite,
+                                unsigned char *pub,
+                                size_t *pub_len,
+                                unsigned char *ct,
+                                size_t ctlen);
 
  int OSSL_HPKE_str2suite(const char *str, OSSL_HPKE_SUITE *suite);
- int OSSL_HPKE_expansion(OSSL_HPKE_SUITE suite,
-                         size_t *enclen,
-                         size_t ptlen,
-                         size_t *ctlen);
+ size_t OSSL_HPKE_get_ciphertext_size(OSSL_HPKE_SUITE suite, size_t clearlen);
+ size_t OSSL_HPKE_get_public_encap_size(OSSL_HPKE_SUITE suite);
 
  int OSSL_HPKE_enc(OSSL_LIB_CTX *libctx, const char *propq,
                    unsigned int mode, OSSL_HPKE_SUITE suite,
@@ -186,10 +197,12 @@ of local HPKE support and algorithms.
 OSSL_HPKE_suite_check() checks if a specific HPKE cipher suite (a combination of
 KEM, KDF and AEAD functions) is supported.
 
-OSSL_HPKE_expansion() provides a way for the caller to know by how much cipertext
-is longer than plaintext.
+OSSL_HPKE_get_ciphertext_size() provides a way for the caller to know by how much
+cipertext is longer than plaintext. OSSL_HPKE_get_public_encap_size() provides a 
+way for the caller to know how big the encapsulated public value will be for a
+given HPKE suite.
 
-OSSL_HPKE_good4grease() produces values of the appropriate length (for the given
+OSSL_HPKE_get_grease_value() produces values of the appropriate length (for the given
 ciphersuite) so that a protocol using HPKE can send so-called GREASE values
 that are harder to distinguish from a real use of HPKE.
 
@@ -242,8 +255,12 @@ RFC9180 also defines a method for extracting/deriving new application
 secrets from the HPKE key exchange. That is supported via the
 OSSL_HPKE_CTX_export() API that can be used after the caller has 
 carried out one OSSL_HPKE_sender_seal() or OSSL_HPKE_recipient_open()
-call.
+call. 
 
+If the "EXPORT-ONLY" mode from RFC 9180 is desired, then OSSL_HPKE_CTX_export()
+can be used after a call to OSSL_HPKE_sender_export_encap() or
+OSSL_HPKE_recipient_export_decap() if the relevant export-only AEAD has been
+chosen (OSSL_HPKE_AEAD_ID_EXPORTONLY).
 
 =head2 All-in-one-go Encryption and Decryption
 

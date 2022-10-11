@@ -4166,10 +4166,10 @@ int ech_send_grease(SSL *ssl, WPACKET *pkt)
         }
         hpke_suite_in_p=&hpke_suite_in;
     }
-    if (OSSL_HPKE_good4grease(s->ssl.ctx->libctx, NULL,
-                              hpke_suite_in_p, &hpke_suite,
-                              senderpub, &senderpub_len,
-                              cipher,cipher_len)!=1) {
+    if (OSSL_HPKE_get_grease_value(s->ssl.ctx->libctx, NULL,
+                                   hpke_suite_in_p, &hpke_suite,
+                                   senderpub, &senderpub_len,
+                                   cipher,cipher_len)!=1) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
     }
@@ -4686,11 +4686,17 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
                 s->ext.inner_s->ext.encoded_innerch_len);
         } OSSL_TRACE_END(TLS);
 #endif
-        if (OSSL_HPKE_expansion(hpke_suite,
-                                &lenclen, clear_len, &lcipherlen)!=1) {
+        lcipherlen = OSSL_HPKE_get_ciphertext_size(hpke_suite, clear_len);
+        if (lcipherlen <= clear_len) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             goto err;
         }
+        lenclen = OSSL_HPKE_get_public_encap_size(hpke_suite);
+        if (lenclen != mypub_len) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+            goto err;
+        }
+
         echlen=1+4+1+2+mypub_len+2+lcipherlen;
 
         zeros=OPENSSL_zalloc(lcipherlen);
