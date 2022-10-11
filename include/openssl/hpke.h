@@ -228,7 +228,6 @@ int OSSL_HPKE_CTX_set1_seq(OSSL_HPKE_CTX *ctx, uint64_t seq);
  * @param ctlen is the size the above
  * @param pub is the recipient public key octets
  * @param publen is the size the above
- * @param recip is the EVP_PKEY form of recipient public value
  * @param info is the info parameter
  * @param infolen is the size the above
  * @param aad is the aad parameter
@@ -290,11 +289,47 @@ int OSSL_HPKE_recipient_open(OSSL_HPKE_CTX *ctx,
                              const unsigned char *aad, size_t aadlen,
                              const unsigned char *ct, size_t ctlen);
 
+
+/**
+ * @brief sender export-only encapsulation function
+ * @param ctx is the pointer for the HPKE context
+ * @param enc is the sender's ephemeral public value
+ * @param enclen is the size the above
+ * @param pub is the recipient public key octets
+ * @param publen is the size the above
+ * @param info is the info parameter
+ * @param infolen is the size the above
+ * @return 1 for success, 0 for error
+ *
+ * Following this, OSSL_HPKE_CTX_export can be called.
+ */
+int OSSL_HPKE_sender_export_encap(OSSL_HPKE_CTX *ctx,
+                                  unsigned char *enc, size_t *enclen,
+                                  unsigned char *pub, size_t publen,
+                                  const unsigned char *info, size_t infolen);
+
+/**
+ * @brief recipient export-only encapsulation function
+ * @param ctx is the pointer for the HPKE context
+ * @param enc is the sender's ephemeral public value
+ * @param enclen is the size the above
+ * @param recippriv is the EVP_PKEY form of recipient private value
+ * @param info is the info parameter
+ * @param infolen is the size the above
+ * @return 1 for success, 0 for error
+ *
+ * Following this, OSSL_HPKE_CTX_export can be called.
+ */
+int OSSL_HPKE_recipient_export_decap(OSSL_HPKE_CTX *ctx,
+                                     const unsigned char *enc, size_t enclen,
+                                     EVP_PKEY *recippriv,
+                                     const unsigned char *info, size_t infolen);
+
 /**
  * @brief generate a given-length secret based on context and label
  * @param ctx is the HPKE context
  * @param secret is the resulting secret that will be of length...
- * @param secret_len is the desired output length
+ * @param secretlen is the desired output length
  * @param label is a buffer to provide separation between secrets
  * @param labellen is the length of the above
  * @return 1 for good, 0 for error
@@ -305,7 +340,7 @@ int OSSL_HPKE_recipient_open(OSSL_HPKE_CTX *ctx,
  */
 int OSSL_HPKE_CTX_export(OSSL_HPKE_CTX *ctx,
                          unsigned char *secret,
-                         size_t secret_len,
+                         size_t secretlen,
                          const unsigned char *label,
                          size_t labellen);
 
@@ -358,13 +393,13 @@ int OSSL_HPKE_suite_check(OSSL_HPKE_SUITE suite);
  * be selected. In all cases the output pub and cipher values
  * will be appropriate random values for the selected suite.
  */
-int OSSL_HPKE_good4grease(OSSL_LIB_CTX *libctx, const char *propq,
-                          OSSL_HPKE_SUITE *suite_in,
-                          OSSL_HPKE_SUITE *suite,
-                          unsigned char *pub,
-                          size_t *pub_len,
-                          unsigned char *ciphertext,
-                          size_t ciphertext_len);
+int OSSL_HPKE_get_grease_value(OSSL_LIB_CTX *libctx, const char *propq,
+                               OSSL_HPKE_SUITE *suite_in,
+                               OSSL_HPKE_SUITE *suite,
+                               unsigned char *pub,
+                               size_t *pub_len,
+                               unsigned char *ciphertext,
+                               size_t ciphertext_len);
 
 /**
  * @brief map a string to a HPKE suite
@@ -381,18 +416,35 @@ int OSSL_HPKE_good4grease(OSSL_LIB_CTX *libctx, const char *propq,
  */
 int OSSL_HPKE_str2suite(const char *str, OSSL_HPKE_SUITE *suite);
 
+
 /**
  * @brief tell the caller how big the cipertext will be
  * @param suite is the suite to be used
- * @param enclen points to what'll be enc length
  * @param clearlen is the length of plaintext
- * @param cipherlen points to what'll be ciphertext length
- * @return 1 for success, otherwise failure
+ * @return the length of the related ciphertext or zero on error
+ *
+ * AEAD algorithms add a tag for data authentication.
+ * Those are almost always, but not always, 16 octets
+ * long, and who know what'll be true in the future.
+ * So this function allows a caller to find out how
+ * much data expansion they'll see with a given
+ * suite.
  */
-int OSSL_HPKE_expansion(OSSL_HPKE_SUITE suite,
-                        size_t *enclen,
-                        size_t clearlen,
-                        size_t *cipherlen);
+size_t OSSL_HPKE_get_ciphertext_size(OSSL_HPKE_SUITE suite, size_t clearlen);
+
+/**
+ * @brief tell the caller how big the public value ``enc`` will be
+ * @param suite is the suite to be used
+ * @return size of public encap or zero on error
+ *
+ * AEAD algorithms add a tag for data authentication.
+ * Those are almost always, but not always, 16 octets
+ * long, and who know what'll be true in the future.
+ * So this function allows a caller to find out how
+ * much data expansion they'll see with a given
+ * suite.
+ */
+size_t OSSL_HPKE_get_public_encap_size(OSSL_HPKE_SUITE suite);
 
 /*
  * below are the existing enc/dec APIs that will likely be
