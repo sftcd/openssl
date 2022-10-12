@@ -128,6 +128,40 @@ int OSSL_HPKE_CTX_set1_authpriv(OSSL_HPKE_CTX *ctx, EVP_PKEY *priv);
 int OSSL_HPKE_CTX_set1_authpub(OSSL_HPKE_CTX *ctx,
                                const unsigned char *pub,
                                size_t publen);
+# ifndef OSSL_HPKE_MAXSIZE
+#  define OSSL_HPKE_MAXSIZE 2048
+# endif
+
+/**
+ * @brief opaque type for HPKE contexts
+ */
+typedef struct ossl_hpke_ctx_st OSSL_HPKE_CTX;
+
+/**
+ * @brief context creator
+ * @param mode is the desired HPKE mode
+ * @param suite specifies the KEM, KDF and AEAD to use
+ * @param libctx is the library context to use
+ * @param propq is a properties string for the library
+ * @return pointer to new context or NULL if error
+ */
+OSSL_HPKE_CTX *OSSL_HPKE_CTX_new(int mode, OSSL_HPKE_SUITE suite,
+                                 OSSL_LIB_CTX *libctx, const char *propq);
+
+/**
+ * @brief free up storage for a HPKE context
+ * @param ctx is the pointer to be free'd (can be NULL)
+ */
+void OSSL_HPKE_CTX_free(OSSL_HPKE_CTX *ctx);
+
+/**
+ * @brief set a PSK for an HPKE context
+ * @param ctx is the pointer for the HPKE context
+ * @param pskid is a string identifying the PSK
+ * @param psk is the PSK buffer
+ * @param psklen is the size of the PSK
+ * @return 1 for success, 0 for error
+ */
 int OSSL_HPKE_CTX_set1_psk(OSSL_HPKE_CTX *ctx,
                            const char *pskid,
                            const unsigned char *psk, size_t psklen);

@@ -451,7 +451,7 @@ if [[ "$EARLY_DATA" == "yes" ]]
 then
     if [[ "$REUSINGSESSION" != "yes" ]]
     then
-        echo "Can't sent early data unless re-using a session"
+        echo "Can't send early data unless re-using a session"
         exit 87
     fi
     if [ ! -f ed_file ]
