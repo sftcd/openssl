@@ -446,100 +446,17 @@ size_t OSSL_HPKE_get_ciphertext_size(OSSL_HPKE_SUITE suite, size_t clearlen);
  */
 size_t OSSL_HPKE_get_public_encap_size(OSSL_HPKE_SUITE suite);
 
-/*
- * below are the existing enc/dec APIs that will likely be
- * dropped, once new ones work ok
- */
-
 /**
- * @brief HPKE single-shot encryption function
+ * @brief recommend an IKM size in octets for a given suite
+ * @param suite is the suite to be used
+ * @return the recommended size or zero on error
  *
- * This function generates an ephemeral ECDH value internally and
- * provides the public component as an output that can be sent to
- * the relevant private key holder along with the ciphertext.
- *
- * @param libctx is the context to use (normally NULL)
- * @param propq is a properties string
- * @param mode is the HPKE mode
- * @param suite is the ciphersuite to use
- * @param pskid is the pskid string for a PSK mode (can be NULL)
- * @param psk is the psk
- * @param psklen is the psk length
- * @param pub is the encoded public key
- * @param publen is the length of the public key
- * @param authpriv is the encoded private (authentication) key
- * @param authprivlen is the length of the private (authentication) key
- * @param authpriv_evp is the EVP_PKEY* form of private (authentication) key
- * @param clear is the encoded cleartext
- * @param clearlen is the length of the cleartext
- * @param aad is the encoded additional data
- * @param aadlen is the length of the additional data
- * @param info is the encoded info data (can be NULL)
- * @param infolen is the length of the info data (can be zero)
- * @param seq is the encoded sequence data (can be NULL)
- * @param seqlen is the length of the sequence data (can be zero)
- * @param senderpub is the input buffer for sender public key
- * @param senderpublen length of the input buffer for sender's public key
- * @param senderpriv is the sender's private key (if being re-used)
- * @param cipher is the input buffer for ciphertext
- * @param cipherlen is the length of the input buffer for ciphertext
- * @return 1 for success, other for error (error returns can be non-zero)
+ * Today, this really only uses the KEM to recommend
+ * the number of random octets to use based on the
+ * size of a private value. In future, it could also
+ * factor in e.g. the AEAD.
  */
-int OSSL_HPKE_enc(OSSL_LIB_CTX *libctx, const char *propq,
-                  unsigned int mode, OSSL_HPKE_SUITE suite,
-                  const char *pskid,
-                  const unsigned char *psk, size_t psklen,
-                  const unsigned char *pub, size_t publen,
-                  const unsigned char *authpriv, size_t authprivlen,
-                  EVP_PKEY *authpriv_evp,
-                  const unsigned char *clear, size_t clearlen,
-                  const unsigned char *aad, size_t aadlen,
-                  const unsigned char *info, size_t infolen,
-                  const unsigned char *seq, size_t seqlen,
-                  unsigned char *senderpub, size_t *senderpublen,
-                  EVP_PKEY *senderpriv,
-                  unsigned char *cipher, size_t *cipherlen);
-
-/**
- * @brief HPKE single-shot decryption function
- *
- * @param libctx is the context to use (normally NULL)
- * @param propq is a properties string
- * @param mode is the HPKE mode
- * @param suite is the ciphersuite to use
- * @param pskid is the pskid string for a PSK mode (can be NULL)
- * @param psk is the psk
- * @param psklen is the psk length
- * @param pub is the encoded public (authentication) key
- * @param publen is the length of the public (authentication) key
- * @param priv is the encoded private key
- * @param privlen is the length of the private key
- * @param evppriv is a pointer to an internal form of private key
- * @param enc is the peer's public value
- * @param enclen is the length of the peer's public value
- * @param cipher is the ciphertext
- * @param cipherlen is the length of the ciphertext
- * @param aad is the encoded additional data
- * @param aadlen is the length of the additional data
- * @param info is the encoded info data (can be NULL)
- * @param infolen is the length of the info data (can be zero)
- * @param seq is the encoded sequence data (can be NULL)
- * @param seqlen is the length of the sequence data (can be zero)
- * @param clear is the encoded cleartext
- * @param clearlen length of the input buffer for cleartext
- * @return 1 for success, other for error (error returns can be non-zero)
- */
-int OSSL_HPKE_dec(OSSL_LIB_CTX *libctx, const char *propq,
-                  unsigned int mode, OSSL_HPKE_SUITE suite,
-                  const char *pskid, const unsigned char *psk, size_t psklen,
-                  const unsigned char *pub, size_t publen,
-                  const unsigned char *priv, size_t privlen, EVP_PKEY *evppriv,
-                  const unsigned char *enc, size_t enclen,
-                  const unsigned char *cipher, size_t cipherlen,
-                  const unsigned char *aad, size_t aadlen,
-                  const unsigned char *info, size_t infolen,
-                  const unsigned char *seq, size_t seqlen,
-                  unsigned char *clear, size_t *clearlen);
+size_t OSSL_HPKE_recommend_ikmelen(OSSL_HPKE_SUITE suite);
 
 /**
  * @brief generate a key pair
