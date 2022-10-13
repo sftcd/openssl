@@ -78,6 +78,13 @@ typedef struct {
     uint16_t    kdf_id; /* Key Derivation Function id */
     uint16_t    aead_id; /* AEAD alg id */
 } OSSL_HPKE_SUITE;
+/**
+ * Suite constants, use this like:
+ *          OSSL_HPKE_SUITE myvar = OSSL_HPKE_SUITE_DEFAULT;
+ */
+# define OSSL_HPKE_SUITE_DEFAULT \
+    {\
+        OSSL_HPKE_KEM_ID_X25519, \
 
 /**
  * Suite constants, use this like:
@@ -323,7 +330,6 @@ int OSSL_HPKE_recipient_open(OSSL_HPKE_CTX *ctx,
                              const unsigned char *aad, size_t aadlen,
                              const unsigned char *ct, size_t ctlen);
 
-
 /**
  * @brief sender export-only encapsulation function
  * @param ctx is the pointer for the HPKE context
@@ -449,7 +455,6 @@ int OSSL_HPKE_get_grease_value(OSSL_LIB_CTX *libctx, const char *propq,
  * example.
  */
 int OSSL_HPKE_str2suite(const char *str, OSSL_HPKE_SUITE *suite);
-
 
 /**
  * @brief tell the caller how big the cipertext will be
