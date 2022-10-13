@@ -3942,10 +3942,7 @@ int ech_swaperoo(SSL_CONNECTION *s)
     s->init_num=tmp_outer.init_num;
 
     s->rlayer = tmp_outer.rlayer;
-    //RECORD_LAYER_clear(&tmp_outer.rlayer);
-    //BIO_free(tmp_outer.rlayer.rrlnext);
-    //tmp_outer.rlayer.rrlnext = NULL;
-    //RECORD_LAYER_init(&s->rlayer, s);
+    memset(&inp->rlayer,0,sizeof(tmp_outer.rlayer));
 
     /* HRR processing */
     s->hello_retry_request=tmp_outer.hello_retry_request;

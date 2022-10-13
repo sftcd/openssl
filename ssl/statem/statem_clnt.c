@@ -1490,6 +1490,11 @@ __owur CON_FUNC_RETURN tls_construct_client_hello(SSL_CONNECTION *s,
         new_s->clienthello=NULL;
     }
 
+    /* free up record layer as we'll not need that */
+    RECORD_LAYER_clear(&new_s->rlayer);
+    BIO_free(new_s->rlayer.rrlnext);
+    new_s->rlayer.rrlnext = NULL;
+
     return(1);
 
 err:
