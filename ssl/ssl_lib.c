@@ -1474,16 +1474,16 @@ void ossl_ssl_connection_free(SSL *ssl)
 
     /* Ignore return value */
 
+#ifndef OPENSSL_NO_ECH
+    if (s->ext.inner_s==NULL && s->ext.outer_s!=NULL)
+#endif
     ssl_free_wbio_buffer(s);
 
     /* Ignore return value */
     RECORD_LAYER_clear(&s->rlayer);
 
-#if 0
 #ifndef OPENSSL_NO_ECH
-    /* This seems needed on client but not on server */
-    if ( (!s->server && (s->ext.inner_s || !s->ech)) || s->server)
-#endif
+    if (s->ext.inner_s==NULL && s->ext.outer_s!=NULL)
 #endif
     BUF_MEM_free(s->init_buf);
 
@@ -1634,9 +1634,6 @@ void SSL_set0_rbio(SSL *s, BIO *rbio)
     if (sc == NULL)
         return;
 
-#ifndef OPENSSL_NO_ECH
-    if (sc->rbio)
-#endif
     BIO_free_all(sc->rbio);
     sc->rbio = rbio;
     sc->rlayer.rrlmethod->set1_bio(sc->rlayer.rrl, sc->rbio);

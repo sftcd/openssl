@@ -3941,6 +3941,12 @@ int ech_swaperoo(SSL_CONNECTION *s)
     s->init_off=tmp_outer.init_off;
     s->init_num=tmp_outer.init_num;
 
+    s->rlayer = tmp_outer.rlayer;
+    //RECORD_LAYER_clear(&tmp_outer.rlayer);
+    //BIO_free(tmp_outer.rlayer.rrlnext);
+    //tmp_outer.rlayer.rrlnext = NULL;
+    //RECORD_LAYER_init(&s->rlayer, s);
+
     /* HRR processing */
     s->hello_retry_request=tmp_outer.hello_retry_request;
 
@@ -4282,8 +4288,8 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
 {
     int hpke_mode=OSSL_HPKE_MODE_BASE;
     OSSL_HPKE_SUITE hpke_suite = OSSL_HPKE_SUITE_DEFAULT;
-    size_t cipherlen=OSSL_HPKE_MAXSIZE;
-    unsigned char cipher[OSSL_HPKE_MAXSIZE];
+    size_t cipherlen=SSL3_RT_MAX_PLAIN_LENGTH;
+    unsigned char cipher[SSL3_RT_MAX_PLAIN_LENGTH];
     unsigned char *aad=NULL;
     size_t aad_len=0;
     unsigned char config_id_to_use=0x00; /* we might replace with random */
@@ -4309,8 +4315,8 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
     int prefind=-1;
     ECHConfig *firstmatch=NULL;
     unsigned char *cp=NULL;
-    unsigned char info[OSSL_HPKE_MAXSIZE];
-    size_t info_len=OSSL_HPKE_MAXSIZE;
+    unsigned char info[SSL3_RT_MAX_PLAIN_LENGTH];
+    size_t info_len=SSL3_RT_MAX_PLAIN_LENGTH;
     int rv=0;
     size_t echextlen=0;
     unsigned char *startofmessage=NULL;
@@ -4473,7 +4479,7 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
         s->ext.ech_pub=mypub;
         s->ext.ech_pub_len=mypub_len;
     }
-    if (mypub_len>OSSL_HPKE_MAXSIZE || mypriv_evp==NULL) {
+    if (mypub_len>SSL3_RT_MAX_PLAIN_LENGTH || mypriv_evp==NULL) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         goto err;
     }
@@ -5102,8 +5108,8 @@ static unsigned char *hpke_decrypt_encch(
     size_t clearlen=0; unsigned char *clear=NULL;
     int hpke_mode=OSSL_HPKE_MODE_BASE;
     OSSL_HPKE_SUITE hpke_suite = OSSL_HPKE_SUITE_DEFAULT;
-    unsigned char info[OSSL_HPKE_MAXSIZE];
-    size_t info_len=OSSL_HPKE_MAXSIZE;
+    unsigned char info[SSL3_RT_MAX_PLAIN_LENGTH];
+    size_t info_len=SSL3_RT_MAX_PLAIN_LENGTH;
     int rv=0;
 #ifndef DHKEM
     unsigned char seq[1]={0x00};
@@ -5321,10 +5327,10 @@ int ech_early_decrypt(SSL *ssl, PACKET *outerpkt, PACKET *newpkt)
     size_t clearlen=0;
     unsigned char *clear=NULL;
     unsigned int tmp;
-    unsigned char aad[OSSL_HPKE_MAXSIZE];
-    size_t aad_len=OSSL_HPKE_MAXSIZE;
-    unsigned char de[OSSL_HPKE_MAXSIZE];
-    size_t de_len=OSSL_HPKE_MAXSIZE;
+    unsigned char aad[SSL3_RT_MAX_PLAIN_LENGTH];
+    size_t aad_len=SSL3_RT_MAX_PLAIN_LENGTH;
+    unsigned char de[SSL3_RT_MAX_PLAIN_LENGTH];
+    size_t de_len=SSL3_RT_MAX_PLAIN_LENGTH;
     size_t newextlens=0;
     size_t beforeECH=0;
     size_t afterECH=0;
@@ -5630,7 +5636,7 @@ int ech_early_decrypt(SSL *ssl, PACKET *outerpkt, PACKET *newpkt)
             SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
             goto err;
         }
-        if (ch_len>OSSL_HPKE_MAXSIZE) {
+        if (ch_len>SSL3_RT_MAX_PLAIN_LENGTH) {
             SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
             goto err;
         }
