@@ -27,17 +27,12 @@ Most recent first...
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
 - 20221013: hanged ECH code to use ``SSL3_RT_MAX_PLAIN_LENGTH``
-  instead of ``OSSL_HPKE_MAXSIZE`` for now, still have to fix
-  the yesterday stuff below
-    - I can get no leak, but at the expense of the decode error
-      below that messes up session resumption
-
-- 20221012: this branch (ECH-draft-13c) now uses the newest
-  HPKE APIs, and ECH works, but:
-    - the server is getting a decode error that prevents e.g.
-      session resuption when ECH is done, (client fault)
+  instead of ``OSSL_HPKE_MAXSIZE``, still TODO:
     - probably no point in keeping the draft-10 code about
       any longer too so that should go
+
+- 20221012: this branch (ECH-draft-13c) now uses the newest
+  HPKE APIs, and ECH works, but with leak fixes needed.
 
 - 20220920: this branch is rebased on master from a few
   days ago, it builds and the client works, but leaks and
