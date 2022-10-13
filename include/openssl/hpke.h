@@ -129,7 +129,7 @@ int OSSL_HPKE_CTX_set1_authpub(OSSL_HPKE_CTX *ctx,
                                const unsigned char *pub,
                                size_t publen);
 # ifndef OSSL_HPKE_MAXSIZE
-#  define OSSL_HPKE_MAXSIZE 2048
+#  define OSSL_HPKE_MAXSIZE 512
 # endif
 
 /**
