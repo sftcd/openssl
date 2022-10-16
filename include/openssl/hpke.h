@@ -384,8 +384,8 @@ int OSSL_HPKE_export(OSSL_HPKE_CTX *ctx,
                      const unsigned char *label,
                      size_t labellen);
 
-/* 
- * Some even newer APIs below that separate out encap/decap from 
+/*
+ * Some even newer APIs below that separate out encap/decap from
  * seal/open/export
  */
 
