@@ -963,10 +963,9 @@ SSL *ossl_ssl_connection_new_int(SSL_CTX *ctx, const SSL_METHOD *method)
     s->ext.ech_returned_len=0;
     s->ext.ech_sent=NULL;
     s->ext.ech_sent_len=0;
-    s->ext.ech_priv=NULL;
     s->ext.ech_pub=NULL;
     s->ext.ech_pub_len=0;
-    s->ext.ech_ikme=NULL;
+    s->ext.ech_ctx = NULL;
     s->ext.innerch=NULL;
     s->ext.innerch1=NULL;
     s->ext.encoded_innerch=NULL;
@@ -1565,8 +1564,7 @@ void ossl_ssl_connection_free(SSL *ssl)
     OPENSSL_free(s->ext.alpn_outer);
     OPENSSL_free(s->ext.ech_sent);
     OPENSSL_free(s->ext.ech_pub);
-    EVP_PKEY_free(s->ext.ech_priv);
-    OPENSSL_free(s->ext.ech_ikme);
+    OSSL_HPKE_CTX_free(s->ext.ech_ctx);
     OPENSSL_free(s->ext.ech_returned);
     OPENSSL_free(s->ext.ech_grease_suite);
     OPENSSL_free(s->ext.innerch);
@@ -5210,19 +5208,6 @@ SSL *SSL_dup(SSL *s)
                 sc->ext.ech_pub_len);
         retsc->ext.ech_pub_len=sc->ext.ech_pub_len;
     }
-
-    if (sc->ext.ech_priv) {
-        retsc->ext.ech_priv=EVP_PKEY_dup(sc->ext.ech_priv);
-    }
-
-    if (sc->ext.ech_ikme) {
-        retsc->ext.ech_ikme=OPENSSL_malloc(sc->ext.ech_ikmelen);
-        if (!retsc->ext.ech_ikme) goto err;
-        memcpy(retsc->ext.ech_ikme, sc->ext.ech_ikme,
-                sc->ext.ech_ikmelen);
-        retsc->ext.ech_ikmelen=sc->ext.ech_ikmelen;
-    }
-
     if (sc->ext.ech_returned) {
         retsc->ext.ech_returned=OPENSSL_malloc(sc->ext.ech_returned_len);
         if (!retsc->ext.ech_returned) goto err;
