@@ -341,7 +341,7 @@ int OSSL_HPKE_recipient_open(OSSL_HPKE_CTX *ctx,
  * @param infolen is the size the above
  * @return 1 for success, 0 for error
  *
- * Following this, OSSL_HPKE_CTX_export can be called.
+ * Following this, OSSL_HPKE_export can be called.
  */
 int OSSL_HPKE_sender_export_encap(OSSL_HPKE_CTX *ctx,
                                   unsigned char *enc, size_t *enclen,
@@ -358,7 +358,7 @@ int OSSL_HPKE_sender_export_encap(OSSL_HPKE_CTX *ctx,
  * @param infolen is the size the above
  * @return 1 for success, 0 for error
  *
- * Following this, OSSL_HPKE_CTX_export can be called.
+ * Following this, OSSL_HPKE_export can be called.
  */
 int OSSL_HPKE_recipient_export_decap(OSSL_HPKE_CTX *ctx,
                                      const unsigned char *enc, size_t enclen,
@@ -378,11 +378,89 @@ int OSSL_HPKE_recipient_export_decap(OSSL_HPKE_CTX *ctx,
  * or decryption for this to work (as this is based on the negotiated
  * "exporter_secret" estabilshed via the HPKE operation).
  */
-int OSSL_HPKE_CTX_export(OSSL_HPKE_CTX *ctx,
-                         unsigned char *secret,
-                         size_t secretlen,
-                         const unsigned char *label,
-                         size_t labellen);
+int OSSL_HPKE_export(OSSL_HPKE_CTX *ctx,
+                     unsigned char *secret,
+                     size_t secretlen,
+                     const unsigned char *label,
+                     size_t labellen);
+
+/* 
+ * Some even newer APIs below that separate out encap/decap from 
+ * seal/open/export
+ */
+
+/**
+ * @brief sender encapsulation function
+ * @param ctx is the pointer for the HPKE context
+ * @param enc is the sender's ephemeral public value
+ * @param enclen is the size the above
+ * @param pub is the recipient public key octets
+ * @param publen is the size the above
+ * @param info is the info parameter
+ * @param infolen is the size the above
+ * @return 1 for success, 0 for error
+ */
+int OSSL_HPKE_encap(OSSL_HPKE_CTX *ctx,
+                    unsigned char *enc, size_t *enclen,
+                    unsigned char *pub, size_t publen,
+                    const unsigned char *info, size_t infolen);
+
+/**
+ * @brief recipient decapsulation function
+ * @param ctx is the pointer for the HPKE context
+ * @param enc is the sender's ephemeral public value
+ * @param enclen is the size the above
+ * @param recippriv is the EVP_PKEY form of recipient private value
+ * @param info is the info parameter
+ * @param infolen is the size the above
+ * @return 1 for success, 0 for error
+ *
+ * Following this, OSSL_HPKE_CTX_export can be called.
+ */
+int OSSL_HPKE_decap(OSSL_HPKE_CTX *ctx,
+                    const unsigned char *enc, size_t enclen,
+                    EVP_PKEY *recippriv,
+                    const unsigned char *info, size_t infolen);
+
+/**
+ * @brief new sender seal function
+ * @param ctx is the pointer for the HPKE context
+ * @param ct is the ciphertext output
+ * @param ctlen is the size the above
+ * @param aad is the aad parameter
+ * @param aadlen is the size the above
+ * @param pt is the plaintext
+ * @param ptlen is the size the above
+ * @return 1 for success, 0 for error
+ *
+ * This can be called multiple times
+ */
+int OSSL_HPKE_seal(OSSL_HPKE_CTX *ctx,
+                   unsigned char *ct, size_t *ctlen,
+                   const unsigned char *aad, size_t aadlen,
+                   const unsigned char *pt, size_t ptlen);
+
+/**
+ * @brief new sender seal function
+ * @param pt is the plaintext
+ * @param ptlen is the size the above
+ * @param ctlen is the size the above
+ * @param aad is the aad parameter
+ * @param aadlen is the size the above
+ * @param ctx is the pointer for the HPKE context
+ * @param ct is the ciphertext output
+ * @return 1 for success, 0 for error
+ *
+ * This can be called multiple times
+ */
+int OSSL_HPKE_open(OSSL_HPKE_CTX *ctx,
+                   unsigned char *pt, size_t *ptlen,
+                   const unsigned char *aad, size_t aadlen,
+                   const unsigned char *ct, size_t ctlen);
+
+/*
+ * End of even-newer APIs
+ */
 
 /**
  * @brief generate a key pair
