@@ -848,7 +848,6 @@ static ECHConfigs *ECHConfigs_from_binary(
          * check version
          */
         switch(ec->version) {
-            case ECH_DRAFT_10_VERSION:
             case ECH_DRAFT_13_VERSION:
                 break;
             default:
@@ -870,8 +869,7 @@ static ECHConfigs *ECHConfigs_from_binary(
                 }
         }
 
-        if (ec->version==ECH_DRAFT_10_VERSION ||
-            ec->version==ECH_DRAFT_13_VERSION) {
+        if (ec->version==ECH_DRAFT_13_VERSION) {
             PACKET pub_pkt;
     	    PACKET cipher_suites;
     	    int suiteoctets=0;
@@ -1051,8 +1049,7 @@ static ECHConfigs *ECHConfigs_from_binary(
                 ec->exts=vip;
                 ec->exts[ec->nexts-1]=extval;
             }
-
-        } /* END of ECH_DRAFT_10_VERSION ... or 13*/
+        }
 
         /* set length of encoding of this ECHConfig */
         ec->encoding_start=binbuf+ooffset;
@@ -3070,7 +3067,7 @@ static int ech_decode_inner(
     }
     for (i=0;i!=n_outers;i++) {
         outers[i]=oval_buf[2*i]*256+oval_buf[2*i+1];
-        if (outers[i]==TLSEXT_TYPE_ech || outers[i]==TLSEXT_TYPE_ech13) {
+        if (outers[i]==TLSEXT_TYPE_ech13) {
 #ifndef OPENSSL_NO_SSL_TRACE
             OSSL_TRACE_BEGIN(TLS) {
                 BIO_printf(trc_out,"You can't de-compress ECH within an ECH\n");
@@ -3412,7 +3409,7 @@ static int ech_get_sh_offsets(
         }
         etype=e_start[0]*256+e_start[1];
         elen=e_start[2]*256+e_start[3];
-        if (etype==TLSEXT_TYPE_ech || etype==TLSEXT_TYPE_ech13) {
+        if (etype==TLSEXT_TYPE_ech13) {
             echlen=elen+4; /* type and length included */
             *echtype=etype;
             *echoffset=(e_start-sh); /* set output */
@@ -3444,14 +3441,7 @@ static int ech_get_sh_offsets(
  * This is a magic value in the ServerHello.random lower 8 octets
  * that is used to signal that the inner worked.
  *
- * As per the draft-10 spec:
- *
- * accept_confirmation =
- *          Derive-Secret(Handshake Secret,
- *                        "ech accept confirmation",
- *                        ClientHelloInner...ServerHelloECHConf)
- *
- * This changes in draft-13:
+ * In draft-13:
  *
  * accept_confirmation = HKDF-Expand-Label(
  *         HKDF-Extract(0, ClientHelloInner.random),
@@ -3725,22 +3715,6 @@ int ech_calc_ech_confirm(
 #ifdef ECH_SUPERVERBOSE
     ech_pbuf("calc conf : hashval",hashval,hashlen);
 #endif
-
-    if (s->ext.ech_attempted_type==ECH_DRAFT_10_VERSION) {
-        unsigned char *insecret=s->handshake_secret;
-
-        /* Next, do the keyed hashing */
-#ifdef ECH_SUPERVERBOSE
-        ech_pbuf("calc conf : h/s secret",insecret,EVP_MAX_MD_SIZE);
-#endif
-        if (!tls13_hkdf_expand(s, md, insecret,
-                               (const unsigned char *)label,labellen,
-                               hashval, hashlen,
-                               hoval, hashlen, 1)) {
-            goto err;
-        }
-
-    }
 
     if (s->ext.ech_attempted_type==ECH_DRAFT_13_VERSION) {
         unsigned char notsecret[EVP_MAX_MD_SIZE];
@@ -4181,20 +4155,7 @@ int ech_send_grease(SSL *ssl, WPACKET *pkt)
         return 0;
     }
 
-    if (s->ext.ech_attempted_type==ECH_DRAFT_10_VERSION) {
-        if (!WPACKET_put_bytes_u16(pkt, s->ext.ech_attempted_type)
-            || !WPACKET_start_sub_packet_u16(pkt)
-            || !WPACKET_put_bytes_u16(pkt, hpke_suite.kdf_id)
-            || !WPACKET_put_bytes_u16(pkt, hpke_suite.aead_id)
-            || !WPACKET_memcpy(pkt, &cid, cid_len)
-            || !WPACKET_sub_memcpy_u16(pkt, senderpub, senderpub_len)
-            || !WPACKET_sub_memcpy_u16(pkt, cipher, cipher_len)
-            || !WPACKET_close(pkt)
-                ) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-            return 0;
-        }
-    } else if (s->ext.ech_attempted_type==ECH_DRAFT_13_VERSION) {
+    if (s->ext.ech_attempted_type==ECH_DRAFT_13_VERSION) {
         if (!WPACKET_put_bytes_u16(pkt, s->ext.ech_attempted_type)
             || !WPACKET_start_sub_packet_u16(pkt)
             || !WPACKET_put_bytes_u8(pkt, ECH_OUTER_CH_TYPE)
@@ -4226,10 +4187,7 @@ int ech_send_grease(SSL *ssl, WPACKET *pkt)
     s->ext.ech_grease=ECH_IS_GREASE;
 #ifndef OPENSSL_NO_SSL_TRACE
     OSSL_TRACE_BEGIN(TLS) {
-        if (s->ext.ech_attempted_type==TLSEXT_TYPE_ech)
-            BIO_printf(trc_out,"ECH - sending GREASE\n");
-        else
-            BIO_printf(trc_out,"ECH - sending DRAFT-13 GREASE\n");
+        BIO_printf(trc_out,"ECH - sending DRAFT-13 GREASE\n");
     } OSSL_TRACE_END(TLS);
 #endif
     return 1;
@@ -4268,10 +4226,6 @@ static int ech_make_enc_info(
  * @return 1 for success, other otherwise
  *
  * 1. Make up the AAD:
- *   For draft-10:
- *      - the HPKE suite
- *      - my HPKE ephemeral public key
- *      - the encoded outer, minus the ECH
  *   For draft-13:
  *      - the encoded outer, with ECH ciphertext octets zero'd
  * 2. Do the encryption
@@ -4317,6 +4271,14 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
     size_t newextlens=0;
     SSL_CONNECTION *s = SSL_CONNECTION_FROM_SSL(ssl);
     OSSL_HPKE_CTX *hctx = NULL;
+    size_t echlen=0;
+    int length_of_padding=0;
+    int length_with_snipadding=0;
+    int length_with_padding=0;
+    unsigned char *clear=NULL;
+    size_t clear_len=0;
+    size_t mnl = 0;
+    int innersnipadding=0;
 
     if (!s || !s->ech || !pkt) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
@@ -4411,207 +4373,199 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
     s->ext.ech_attempted_cid=config_id_to_use;
     s->ext.ech_attempted_type=tc->version;
 
-    if (tc->version==ECH_DRAFT_10_VERSION) {
+    if (tc->version!=ECH_DRAFT_13_VERSION) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         goto err;
     }
 
-    if (tc->version==ECH_DRAFT_13_VERSION) {
-        /*
-         * For draft-13 the AAD is the full outer client hello but
-         * with the correct number of zeros for where the ciphertext
-         * octets will later be placed.
-         *
-         * Add the ECH extension to the |pkt| but with zeros for
-         * ciphertext - that'll form up the AAD for us, then after
-         * we've encrypted, we'll splice in the actual ciphertext
-         *
-         * Watch out for the the "4" offsets that remove the type
-         * and 3-octet length from the encoded CH as per the spec.
-         */
-        size_t echlen=0;
-        int length_of_padding=0;
-        int length_with_snipadding=0;
-        int length_with_padding=0;
-        unsigned char *clear=NULL;
-        size_t clear_len=0;
-        size_t mnl=tc->maximum_name_length;
-        int innersnipadding=0;
 
-        /*
-         * "recommended" inner SNI padding scheme as per spec
-         * might remove later - overall message padding seems
-         * better really, BUT... we might want to keep this if
-         * others (e.g. browsers) do it so as to not stand
-         * out compared to them
-         */
+    /*
+     * For draft-13 the AAD is the full outer client hello but
+     * with the correct number of zeros for where the ciphertext
+     * octets will later be placed.
+     *
+     * Add the ECH extension to the |pkt| but with zeros for
+     * ciphertext - that'll form up the AAD for us, then after
+     * we've encrypted, we'll splice in the actual ciphertext
+     *
+     * Watch out for the the "4" offsets that remove the type
+     * and 3-octet length from the encoded CH as per the spec.
+     */
+
+    /*
+     * "recommended" inner SNI padding scheme as per spec
+     * might remove later - overall message padding seems
+     * better really, BUT... we might want to keep this if
+     * others (e.g. browsers) do it so as to not stand
+     * out compared to them
+     */
+    mnl=tc->maximum_name_length;
+#ifndef OPENSSL_NO_SSL_TRACE
+    OSSL_TRACE_BEGIN(TLS) {
+        BIO_printf(trc_out,"EAAE: ECHConfig had max name len of %zu\n",mnl);
+    } OSSL_TRACE_END(TLS);
+#endif
+    if (mnl!=0) {
+        /* do weirder padding if SNI present in inner */
+        if (s->ext.inner_s->ext.hostname!=0) {
+            size_t isnilen=strlen(s->ext.inner_s->ext.hostname)+9;
+            innersnipadding=mnl-isnilen;
+        } else {
+            innersnipadding=mnl+9;
+        }
 #ifndef OPENSSL_NO_SSL_TRACE
         OSSL_TRACE_BEGIN(TLS) {
-            BIO_printf(trc_out,"EAAE: ECHConfig had max name len of %zu\n",mnl);
+            BIO_printf(trc_out,"EAAE: innersnipadding of %d\n",
+                    innersnipadding);
         } OSSL_TRACE_END(TLS);
 #endif
-        if (mnl!=0) {
-            /* do weirder padding if SNI present in inner */
-            if (s->ext.inner_s->ext.hostname!=0) {
-                size_t isnilen=strlen(s->ext.inner_s->ext.hostname)+9;
-                innersnipadding=mnl-isnilen;
-            } else {
-                innersnipadding=mnl+9;
-            }
+        if (innersnipadding<0) {
 #ifndef OPENSSL_NO_SSL_TRACE
             OSSL_TRACE_BEGIN(TLS) {
-                BIO_printf(trc_out,"EAAE: innersnipadding of %d\n",
-                        innersnipadding);
+                BIO_printf(trc_out,"EAAE: innersnipadding zero'd\n");
             } OSSL_TRACE_END(TLS);
 #endif
-            if (innersnipadding<0) {
-#ifndef OPENSSL_NO_SSL_TRACE
-                OSSL_TRACE_BEGIN(TLS) {
-                    BIO_printf(trc_out,"EAAE: innersnipadding zero'd\n");
-                } OSSL_TRACE_END(TLS);
-#endif
-                innersnipadding=0;
-            }
+            innersnipadding=0;
         }
-
-        /* draft-13 padding is after the encoded client hello*/
-        length_with_snipadding=innersnipadding+
-                            s->ext.inner_s->ext.encoded_innerch_len;
-        length_of_padding=31-((length_with_snipadding-1)%32);
-        length_with_padding=s->ext.inner_s->ext.encoded_innerch_len+
-                length_of_padding+innersnipadding;
-        /*
-         * finally - make sure we're longer than padding target too
-         * this is a local addition - might take it out if it makes
-         * us stick out (of if we take out the above more complicated
-         * scheme, we may only need this in the end
-         */
-        while(length_with_padding<ECH_PADDING_TARGET) {
-            length_with_padding+=ECH_PADDING_INCREMENT;
-        }
-        clear_len=length_with_padding;
-#ifndef OPENSSL_NO_SSL_TRACE
-        OSSL_TRACE_BEGIN(TLS) {
-            BIO_printf(trc_out,"EAAE: padding: mnl: %zu, lws: %d " \
-                    "lop: %d, lwp: %d, clear_len: %zu, orig: %zu\n",
-                mnl, length_with_snipadding, length_of_padding,
-                length_with_padding, clear_len,
-                s->ext.inner_s->ext.encoded_innerch_len);
-        } OSSL_TRACE_END(TLS);
-#endif
-
-        lenclen = OSSL_HPKE_get_public_encap_size(hpke_suite);
-        if (s->ext.ech_ctx == NULL) {
-            hctx = OSSL_HPKE_CTX_new(hpke_mode, hpke_suite, NULL, NULL);
-            s->ext.ech_ctx = hctx;
-        } else {
-            hctx = s->ext.ech_ctx;
-        }
-        if (hctx == NULL) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-            goto err;
-        }
-        mypub=OPENSSL_malloc(lenclen);
-        if (!mypub) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-            goto err;
-        }
-        mypub_len=lenclen;
-        if (ech_make_enc_info(tc,info,&info_len)!=1) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-            goto err;
-        }
-        ech_pbuf("EAAE info",info,info_len);
-
-        rv = OSSL_HPKE_encap(hctx, mypub, &mypub_len,
-                             peerpub, peerpub_len, info, info_len);
-        if (rv != 1) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-            goto err;
-        }
-        s->ext.ech_pub = mypub;
-        s->ext.ech_pub_len = mypub_len;
-        ech_pbuf("EAAE: mypub",mypub,mypub_len);
-        cipherlen = OSSL_HPKE_get_ciphertext_size(hpke_suite, clear_len);
-        if (cipherlen <= clear_len) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-            goto err;
-        }
-        cipher = OPENSSL_zalloc(cipherlen+1000);
-        if (cipher == NULL) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-            goto err;
-        }
-        echlen=1+4+1+2+mypub_len+2+cipherlen;
-
-        if (s->hello_retry_request==SSL_HRR_PENDING) {
-            if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_ech13)
-                || !WPACKET_start_sub_packet_u16(pkt)
-                || !WPACKET_put_bytes_u8(pkt, ECH_OUTER_CH_TYPE)
-                || !WPACKET_put_bytes_u16(pkt, hpke_suite.kdf_id)
-                || !WPACKET_put_bytes_u16(pkt, hpke_suite.aead_id)
-                || !WPACKET_put_bytes_u8(pkt, config_id_to_use)
-                || !WPACKET_put_bytes_u16(pkt, 0x00)
-                || !WPACKET_sub_memcpy_u16(pkt, cipher, cipherlen)
-                || !WPACKET_close(pkt)
-            ) {
-                SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-                goto err;
-            }
-            echlen-=mypub_len;
-        } else {
-
-            if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_ech13)
-                || !WPACKET_start_sub_packet_u16(pkt)
-                || !WPACKET_put_bytes_u8(pkt, ECH_OUTER_CH_TYPE)
-                || !WPACKET_put_bytes_u16(pkt, hpke_suite.kdf_id)
-                || !WPACKET_put_bytes_u16(pkt, hpke_suite.aead_id)
-                || !WPACKET_put_bytes_u8(pkt, config_id_to_use)
-                || !WPACKET_sub_memcpy_u16(pkt, mypub, mypub_len)
-                || !WPACKET_sub_memcpy_u16(pkt, cipher, cipherlen)
-                || !WPACKET_close(pkt)
-            ) {
-                SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-                goto err;
-            }
-
-        }
-        aad=(unsigned char*)(pkt->buf->data)+4;
-        aad_len=pkt->written-4;
-
-        /* fix up the overall extensions length in the aad */
-        suitesoffset=CLIENT_VERSION_LEN + SSL3_RANDOM_SIZE + 1
-                     + s->tmp_session_id_len;
-        suiteslen=aad[suitesoffset]*256+aad[suitesoffset+1];
-        startofexts=suitesoffset+suiteslen+2+2; /* the 2 for the suites len */
-        origextlens=aad[startofexts]*256+aad[startofexts+1];
-        newextlens=origextlens+4+echlen;
-        aad[startofexts]=(unsigned char)((newextlens&0xffff)/256);
-        aad[startofexts+1]=(unsigned char)((newextlens&0xffff)%256);
-        ech_pbuf("EAAE: aad",aad,aad_len);
-
-        clear=OPENSSL_zalloc(clear_len);
-        if (!clear) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-            goto err;
-        }
-        memcpy(clear,s->ext.inner_s->ext.encoded_innerch,
-                s->ext.inner_s->ext.encoded_innerch_len);
-        ech_pbuf("EAAE: draft-13 padded clear",clear,clear_len);
-
-        rv = OSSL_HPKE_seal(hctx, cipher, &cipherlen,
-                            aad, aad_len, clear, clear_len);
-        OPENSSL_free(clear);
-        if (rv!=1) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-            goto err;
-        }
-        ech_pbuf("EAAE: cipher",cipher,cipherlen);
-        ech_pbuf("EAAE: hpke mypub",mypub,mypub_len);
-
-        /* splice real ciphertext back in now */
-        memcpy(aad+aad_len-cipherlen,cipher,cipherlen);
     }
+
+    /* draft-13 padding is after the encoded client hello*/
+    length_with_snipadding=innersnipadding+
+                        s->ext.inner_s->ext.encoded_innerch_len;
+    length_of_padding=31-((length_with_snipadding-1)%32);
+    length_with_padding=s->ext.inner_s->ext.encoded_innerch_len+
+            length_of_padding+innersnipadding;
+    /*
+     * finally - make sure we're longer than padding target too
+     * this is a local addition - might take it out if it makes
+     * us stick out (of if we take out the above more complicated
+     * scheme, we may only need this in the end
+     */
+    while(length_with_padding<ECH_PADDING_TARGET) {
+        length_with_padding+=ECH_PADDING_INCREMENT;
+    }
+    clear_len=length_with_padding;
+#ifndef OPENSSL_NO_SSL_TRACE
+    OSSL_TRACE_BEGIN(TLS) {
+        BIO_printf(trc_out,"EAAE: padding: mnl: %zu, lws: %d " \
+                "lop: %d, lwp: %d, clear_len: %zu, orig: %zu\n",
+            mnl, length_with_snipadding, length_of_padding,
+            length_with_padding, clear_len,
+            s->ext.inner_s->ext.encoded_innerch_len);
+    } OSSL_TRACE_END(TLS);
+#endif
+
+    lenclen = OSSL_HPKE_get_public_encap_size(hpke_suite);
+    if (s->ext.ech_ctx == NULL) {
+        hctx = OSSL_HPKE_CTX_new(hpke_mode, hpke_suite, NULL, NULL);
+        s->ext.ech_ctx = hctx;
+    } else {
+        hctx = s->ext.ech_ctx;
+    }
+    if (hctx == NULL) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+    mypub=OPENSSL_malloc(lenclen);
+    if (!mypub) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+    mypub_len=lenclen;
+    if (ech_make_enc_info(tc,info,&info_len)!=1) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+    ech_pbuf("EAAE info",info,info_len);
+
+    rv = OSSL_HPKE_encap(hctx, mypub, &mypub_len,
+                         peerpub, peerpub_len, info, info_len);
+    if (rv != 1) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+    s->ext.ech_pub = mypub;
+    s->ext.ech_pub_len = mypub_len;
+    ech_pbuf("EAAE: mypub",mypub,mypub_len);
+    cipherlen = OSSL_HPKE_get_ciphertext_size(hpke_suite, clear_len);
+    if (cipherlen <= clear_len) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+    cipher = OPENSSL_zalloc(cipherlen+1000);
+    if (cipher == NULL) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+    echlen=1+4+1+2+mypub_len+2+cipherlen;
+
+    if (s->hello_retry_request==SSL_HRR_PENDING) {
+        if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_ech13)
+            || !WPACKET_start_sub_packet_u16(pkt)
+            || !WPACKET_put_bytes_u8(pkt, ECH_OUTER_CH_TYPE)
+            || !WPACKET_put_bytes_u16(pkt, hpke_suite.kdf_id)
+            || !WPACKET_put_bytes_u16(pkt, hpke_suite.aead_id)
+            || !WPACKET_put_bytes_u8(pkt, config_id_to_use)
+            || !WPACKET_put_bytes_u16(pkt, 0x00)
+            || !WPACKET_sub_memcpy_u16(pkt, cipher, cipherlen)
+            || !WPACKET_close(pkt)
+        ) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+            goto err;
+        }
+        echlen-=mypub_len;
+    } else {
+
+        if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_ech13)
+            || !WPACKET_start_sub_packet_u16(pkt)
+            || !WPACKET_put_bytes_u8(pkt, ECH_OUTER_CH_TYPE)
+            || !WPACKET_put_bytes_u16(pkt, hpke_suite.kdf_id)
+            || !WPACKET_put_bytes_u16(pkt, hpke_suite.aead_id)
+            || !WPACKET_put_bytes_u8(pkt, config_id_to_use)
+            || !WPACKET_sub_memcpy_u16(pkt, mypub, mypub_len)
+            || !WPACKET_sub_memcpy_u16(pkt, cipher, cipherlen)
+            || !WPACKET_close(pkt)
+        ) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+            goto err;
+        }
+
+    }
+    aad=(unsigned char*)(pkt->buf->data)+4;
+    aad_len=pkt->written-4;
+
+    /* fix up the overall extensions length in the aad */
+    suitesoffset=CLIENT_VERSION_LEN + SSL3_RANDOM_SIZE + 1
+                 + s->tmp_session_id_len;
+    suiteslen=aad[suitesoffset]*256+aad[suitesoffset+1];
+    startofexts=suitesoffset+suiteslen+2+2; /* the 2 for the suites len */
+    origextlens=aad[startofexts]*256+aad[startofexts+1];
+    newextlens=origextlens+4+echlen;
+    aad[startofexts]=(unsigned char)((newextlens&0xffff)/256);
+    aad[startofexts+1]=(unsigned char)((newextlens&0xffff)%256);
+    ech_pbuf("EAAE: aad",aad,aad_len);
+
+    clear=OPENSSL_zalloc(clear_len);
+    if (!clear) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+    memcpy(clear,s->ext.inner_s->ext.encoded_innerch,
+            s->ext.inner_s->ext.encoded_innerch_len);
+    ech_pbuf("EAAE: draft-13 padded clear",clear,clear_len);
+
+    rv = OSSL_HPKE_seal(hctx, cipher, &cipherlen,
+                        aad, aad_len, clear, clear_len);
+    OPENSSL_free(clear);
+    if (rv!=1) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+    ech_pbuf("EAAE: cipher",cipher,cipherlen);
+    ech_pbuf("EAAE: hpke mypub",mypub,mypub_len);
+
+    /* splice real ciphertext back in now */
+    memcpy(aad+aad_len-cipherlen,cipher,cipherlen);
 
     ech_pbuf("EAAE pkt to startofexts+6 (startofexts is 4 offset so +2 really)",
             (unsigned char*) pkt->buf->data,startofexts+6);
@@ -4621,70 +4575,7 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
 
 err:
     OPENSSL_free(cipher);
-    if (tc->version==ECH_DRAFT_10_VERSION && aad!=NULL) OPENSSL_free(aad);
     return 0;
-}
-
-/**
- * @brief Server forms up AAD from included fields
- * @param kdf_id is obvious
- * @param aead_id is obvious
- * @param pub_len is the length of the public key
- * @param pub is the public key
- * @param config_id is the ECH config id
- * @param de_len is the length of the CH minus ECH
- * @param de is the CH minus ECH
- * @param aad_len is the length of AAD buffer on input
- * @param aad is the AAD buffer on input
- * @param de is the CH minus ECH
- * @return 1 for good, other otherwise
- *
- * The actual AAD length is returned on success.
- */
-static int ech_srv_get_aad(
-        uint16_t kdf_id, uint16_t aead_id,
-        size_t pub_len, unsigned char *pub,
-        uint8_t config_id,
-        size_t de_len, unsigned char *de,
-        size_t *aad_len,unsigned char *aad)
-{
-    unsigned char *cp=aad;
-
-    if (!pub || !de || !aad_len || !aad) return 0;
-
-#define CPCHECK if ((size_t)(cp-aad)>*aad_len) return 0;
-
-    *cp++=((kdf_id&0xffff)/256);
-    CPCHECK
-    *cp++=((kdf_id&0xffff)%256);
-    CPCHECK
-    *cp++=((aead_id&0xffff)/256);
-    CPCHECK
-    *cp++=((aead_id&0xffff)%256);
-    CPCHECK
-    *cp++=config_id&0xff;
-    CPCHECK
-    *cp++=(unsigned char)((pub_len&0xffff)/256);
-    CPCHECK
-    *cp++=(unsigned char)((pub_len&0xffff)%256);
-    CPCHECK
-    memcpy(cp,pub,pub_len); cp+=pub_len;
-    CPCHECK
-
-    *cp++=(unsigned char)((de_len&0xffffff)/(256*256));
-    CPCHECK
-    *cp++=(unsigned char)((de_len&0xffff)/256);
-    CPCHECK
-    *cp++=(unsigned char)((de_len&0xff)%256);
-    CPCHECK
-    memcpy(cp,de,de_len); cp+=de_len;
-    CPCHECK
-
-    *aad_len=(size_t)(cp-aad);
-
-    ech_pbuf("SRV AAD:",aad,*aad_len);
-
-    return 1;
 }
 
 /*!
@@ -4792,7 +4683,7 @@ int ech_get_ch_offsets(
         }
         etype=e_start[0]*256+e_start[1];
         elen=e_start[2]*256+e_start[3];
-        if (etype==TLSEXT_TYPE_ech || etype==TLSEXT_TYPE_ech13) {
+        if (etype==TLSEXT_TYPE_ech13) {
             echlen=elen+4; /* type and length included */
             *echtype=etype;
             *echoffset=(e_start-ch); /* set output */
@@ -4917,7 +4808,7 @@ static unsigned char *hpke_decrypt_encch(
         goto clearerrs;
     }
     if (forhrr == 1) {
-        rv = OSSL_HPKE_CTX_set1_seq(hctx, 1);
+        rv = OSSL_HPKE_CTX_set_seq(hctx, 1);
         if (rv != 1) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             goto clearerrs;
@@ -5052,16 +4943,9 @@ int ech_early_decrypt(SSL *ssl, PACKET *outerpkt, PACKET *newpkt)
     unsigned int tmp;
     unsigned char aad[SSL3_RT_MAX_PLAIN_LENGTH];
     size_t aad_len=SSL3_RT_MAX_PLAIN_LENGTH;
-    unsigned char de[SSL3_RT_MAX_PLAIN_LENGTH];
-    size_t de_len=SSL3_RT_MAX_PLAIN_LENGTH;
-    size_t newextlens=0;
-    size_t beforeECH=0;
-    size_t afterECH=0;
     int cfgind=-1;
     int foundcfg=0;
     int forhrr=0;
-
-    /* 1. check if there's an ECH */
     size_t startofsessid=0; /**< offset of session id within Ch */
     size_t startofexts=0; /**< offset of extensions within CH */
     size_t echoffset=0; /**< offset of start of ECH within CH */
@@ -5071,7 +4955,12 @@ int ech_early_decrypt(SSL *ssl, PACKET *outerpkt, PACKET *newpkt)
     const unsigned char *ch=outerpkt->curr;
     SSL_CONNECTION *s = SSL_CONNECTION_FROM_SSL(ssl);
     int innerflag=-1;
+    size_t startofciphertext=0;
+    size_t lenofciphertext=0;
+    size_t enclen=0;
+    size_t offsetofencwithinech=0;
 
+    /* 1. check if there's an ECH */
     if (s == NULL) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         return(rv);
@@ -5162,14 +5051,6 @@ int ech_early_decrypt(SSL *ssl, PACKET *outerpkt, PACKET *newpkt)
 
     /*
      * Try Decode the inbound value.
-     * For draft-10:
-     *  struct {
-     *    ECHCipherSuite cipher_suite;
-     *    uint8 config_id;
-     *    opaque enc<1..2^16-1>;
-     *    opaque payload<1..2^16-1>;
-     *   } ClientECH;
-     *
      * For draft-13, we're only concerned with the "inner"
      * form just here:
      *  enum { outer(0), inner(1) } ECHClientHelloType;
@@ -5297,77 +5178,49 @@ int ech_early_decrypt(SSL *ssl, PACKET *outerpkt, PACKET *newpkt)
         goto err;
     }
 
-    /* Calculate AAD value */
-    if (echtype==ECH_DRAFT_10_VERSION) {
-        /* newextlen = length of exts after taking out ech */
-        newextlens=ch_len-echlen-startofexts-6;
-        memcpy(de,ch,startofexts);
-        de[startofexts]=(unsigned char)((newextlens&0xffff)/256);
-        de[startofexts+1]=(unsigned char)((newextlens&0xffff)%256);
-        beforeECH=echoffset-startofexts-2;
-        afterECH=ch_len-(echoffset+echlen);
-        memcpy(de+startofexts+2,ch+startofexts+2,beforeECH);
-        memcpy(de+startofexts+2+beforeECH,
-                ch+startofexts+2+beforeECH+echlen+4,
-                afterECH);
-        de_len=ch_len-echlen-4;
-        if (ech_srv_get_aad(
-                    extval->kdf_id, extval->aead_id,
-                    extval->enc_len, extval->enc,
-                    extval->config_id,
-                    de_len,de,
-                    &aad_len,aad)!=1) {
-            SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
-            goto err;
-        }
-        ech_pbuf("EARLY aad",aad,aad_len);
+    if (echtype!=ECH_DRAFT_13_VERSION) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+        goto err;
     }
 
-    if (echtype==ECH_DRAFT_13_VERSION) {
-        /* AAD in draft-13 is rx'd packet with ciphertext zero'd */
-        size_t startofciphertext=0;
-        size_t lenofciphertext=0;
-        size_t enclen=0;
-        size_t offsetofencwithinech=0;
-        offsetofencwithinech=2+2+1+2+2+1;
-        if ((echoffset+offsetofencwithinech+1)>ch_len) {
-            SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
-            goto err;
-        }
-        enclen=
-            ch[echoffset+offsetofencwithinech]*256+
-            ch[echoffset+offsetofencwithinech+1];
-        /* HRR enclen can be zero if we're handling HRR */
-        if (enclen==0 && s->hello_retry_request!=SSL_HRR_PENDING) {
-            SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
-            goto err;
-        } else if (enclen==0 && s->hello_retry_request==SSL_HRR_PENDING) {
-            if (s->ext.ech_pub==NULL || s->ext.ech_pub_len==0) {
-                SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
-                goto err;
-            }
-        }
-        if ((echoffset+offsetofencwithinech+2+enclen+1)>ch_len) {
-            SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
-            goto err;
-        }
-        lenofciphertext=
-            ch[echoffset+offsetofencwithinech+2+enclen]*256+
-            ch[echoffset+offsetofencwithinech+2+enclen+1];
-        startofciphertext=echoffset+offsetofencwithinech+2+enclen+2;
-        if ((startofciphertext+lenofciphertext)>ch_len) {
-            SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
-            goto err;
-        }
-        if (ch_len>SSL3_RT_MAX_PLAIN_LENGTH) {
-            SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
-            goto err;
-        }
-        aad_len=ch_len;
-        memcpy(aad,ch,aad_len);
-        memset(aad+startofciphertext,0,lenofciphertext);
-        ech_pbuf("EARLY aad",aad,aad_len);
+    /* AAD in draft-13 is rx'd packet with ciphertext zero'd */
+    offsetofencwithinech=2+2+1+2+2+1;
+    if ((echoffset+offsetofencwithinech+1)>ch_len) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+        goto err;
     }
+    enclen=ch[echoffset + offsetofencwithinech] * 256
+           + ch[echoffset + offsetofencwithinech + 1];
+    /* HRR enclen can be zero if we're handling HRR */
+    if (enclen==0 && s->hello_retry_request!=SSL_HRR_PENDING) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+        goto err;
+    } else if (enclen==0 && s->hello_retry_request==SSL_HRR_PENDING) {
+        if (s->ext.ech_pub==NULL || s->ext.ech_pub_len==0) {
+            SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+            goto err;
+        }
+    }
+    if ((echoffset+offsetofencwithinech+2+enclen+1)>ch_len) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+    lenofciphertext=
+        ch[echoffset+offsetofencwithinech+2+enclen]*256+
+        ch[echoffset+offsetofencwithinech+2+enclen+1];
+    startofciphertext=echoffset+offsetofencwithinech+2+enclen+2;
+    if ((startofciphertext+lenofciphertext)>ch_len) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+    if (ch_len>SSL3_RT_MAX_PLAIN_LENGTH) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+    aad_len=ch_len;
+    memcpy(aad,ch,aad_len);
+    memset(aad+startofciphertext,0,lenofciphertext);
+    ech_pbuf("EARLY aad",aad,aad_len);
 
     /*
      * Now see which (if any) of our configs match, or whether
@@ -5523,8 +5376,7 @@ int SSL_ech_set_grease_type(SSL *ssl, uint16_t type)
 
     if (ssl == NULL || s == NULL) return(0);
     /* Just stash the value for now and interpret when/if we do GREASE */
-    if (type!=TLSEXT_TYPE_ech &&
-        type!=TLSEXT_TYPE_ech13) {
+    if (type!=TLSEXT_TYPE_ech13) {
         return(0);
     }
     s->ext.ech_attempted_type=type;

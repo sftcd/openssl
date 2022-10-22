@@ -185,7 +185,6 @@ static int mk_echconfig(
         size_t *privlen, unsigned char *priv)
 {
     size_t pnlen=0;
-    int hpke_mode=OSSL_HPKE_MODE_BASE;
     size_t publen=ECH_CRYPTO_VAR_SIZE;
     unsigned char pub[ECH_CRYPTO_VAR_SIZE];
     int rv=0;
@@ -200,16 +199,6 @@ static int mk_echconfig(
 
 
     switch(ekversion) {
-        case ECH_DRAFT_09_VERSION:
-            /* note - this version is only to test we skip 'em */
-            pnlen=(public_name==NULL?0:strlen(public_name));
-            if (pnlen>ECH_MAX_PUBLICNAME) return 0;
-            break;
-        case ECH_DRAFT_10_VERSION:
-            pnlen=(public_name==NULL?0:strlen(public_name));
-            if (pnlen>ECH_MAX_PUBLICNAME) return 0;
-            if (max_name_length>ECH_MAX_MAXNAMELEN) return 0;
-            break;
         case ECH_DRAFT_13_VERSION:
             pnlen=(public_name==NULL?0:strlen(public_name));
             if (pnlen>ECH_MAX_PUBLICNAME) return 0;
@@ -221,8 +210,7 @@ static int mk_echconfig(
 
     if (priv==NULL) { return (__LINE__); }
 
-    rv=OSSL_HPKE_keygen(NULL, NULL, hpke_mode, hpke_suite,
-                        NULL, 0, pub, &publen, &privp);
+    rv=OSSL_HPKE_keygen(hpke_suite, NULL, 0, pub, &publen, &privp, NULL, NULL);
     if (rv!=1) { return(__LINE__); }
 
     /* map that EVP_PKEY to a pem buffer */
@@ -326,61 +314,6 @@ static int mk_echconfig(
     *bp++=(unsigned char)(ekversion%256);
     *bp++=0x00; /* leave space for almost-overall length */
     *bp++=0x00; /* leave space for almost-overall length */
-    if (ekversion==ECH_DRAFT_09_VERSION) {
-        if (pnlen > 0 ) {
-            *bp++=(unsigned char)(pnlen>>8)%256;
-            *bp++=(unsigned char)(pnlen%256);
-            memcpy(bp,public_name,pnlen); bp+=pnlen;
-        }
-        /* keys */
-        *bp++=(unsigned char)(publen>>8)%256;
-        *bp++=(unsigned char)(publen%256);
-        memcpy(bp,pub,publen); bp+=publen;
-        /* HPKE KEM id */
-        *bp++=(unsigned char)(hpke_suite.kem_id>>8)%256;
-        *bp++=(unsigned char)(hpke_suite.kem_id%256);
-        /* cipher_suite */
-        *bp++=0x00;
-        *bp++=0x04;
-        *bp++=(unsigned char)(hpke_suite.kdf_id>>8)%256;
-        *bp++=(unsigned char)(hpke_suite.kdf_id%256);
-        *bp++=(unsigned char)(hpke_suite.aead_id>>8)%256;
-        *bp++=(unsigned char)(hpke_suite.aead_id%256);
-        /* maximum_name_length */
-        *bp++=(unsigned char)(max_name_length>>8)%256;
-        *bp++=(unsigned char)(max_name_length%256);
-    }
-    if (ekversion==ECH_DRAFT_10_VERSION) {
-        uint8_t config_id=0;
-        RAND_bytes(&config_id,1);
-        *bp++=(unsigned char)config_id;
-        *bp++=(unsigned char)(hpke_suite.kem_id>>8)%256;
-        *bp++=(unsigned char)(hpke_suite.kem_id%256);
-        /* keys */
-        *bp++=(unsigned char)(publen>>8)%256;
-        *bp++=(unsigned char)(publen%256);
-        memcpy(bp,pub,publen); bp+=publen;
-        /* cipher_suite */
-        *bp++=0x00;
-        *bp++=0x04;
-        *bp++=(unsigned char)(hpke_suite.kdf_id>>8)%256;
-        *bp++=(unsigned char)(hpke_suite.kdf_id%256);
-        *bp++=(unsigned char)(hpke_suite.aead_id>>8)%256;
-        *bp++=(unsigned char)(hpke_suite.aead_id%256);
-        /* maximum_name_length */
-        *bp++=(unsigned char)(max_name_length>>8)%256;
-        *bp++=(unsigned char)(max_name_length%256);
-        /* public_name */
-        if (pnlen > 0 ) {
-            *bp++=(unsigned char)(pnlen>>8)%256;
-            *bp++=(unsigned char)(pnlen%256);
-            memcpy(bp,public_name,pnlen); bp+=pnlen;
-        } else {
-            *bp++=0x00;
-            *bp++=0x00;
-        }
-
-    }
     if (ekversion==ECH_DRAFT_13_VERSION) {
         uint8_t config_id=0;
         RAND_bytes(&config_id,1);
@@ -551,17 +484,6 @@ opthelp:
                 "Un-supported older version (0x%04x)\n",
                 ech_version);
             goto end;
-        case 9:
-            ech_version=ECH_DRAFT_09_VERSION; /* fall through */
-        case ECH_DRAFT_09_VERSION: /* Early ECH */
-            BIO_printf(bio_err,
-                "Warning: generating draft-09 version. That's only" \
-                " useful for testing we ignore unknown versions.\n");
-            break;
-        case ECH_DRAFT_10_VERSION: /* fall through */
-        case 10:
-            ech_version=ECH_DRAFT_10_VERSION;
-            break;
         case ECH_DRAFT_13_VERSION: /* fall through */
         case 13:
             ech_version=ECH_DRAFT_13_VERSION;

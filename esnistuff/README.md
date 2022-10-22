@@ -26,7 +26,17 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
-- 20221013: hanged ECH code to use ``SSL3_RT_MAX_PLAIN_LENGTH``
+- 20221022: removed all draft-10 code and updated to latest version
+  of HPKE-PR code. As of now, seems clean, but:
+    - server leak on exit, not sure if due to ctrl-c handling
+      (forget;-), valgrind says:
+                ==1638854==    by 0x48898FA: local_ech_add (ech.c:1273)
+                ==1638854==    by 0x48873EB: ech_readpemfile (ech.c:464)
+                ==1638854==    by 0x488B7B4: SSL_CTX_ech_server_enable (ech.c:1876)
+                ==1638854==    by 0x48985ED: SSL_CTX_ech_readpemdir (ech.c:5451)
+    
+
+- 20221013: changed ECH code to use ``SSL3_RT_MAX_PLAIN_LENGTH``
   instead of ``OSSL_HPKE_MAXSIZE``, still TODO:
     - probably no point in keeping the draft-10 code about
       any longer too so that should go
