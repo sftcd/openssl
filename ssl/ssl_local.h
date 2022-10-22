@@ -717,10 +717,8 @@ typedef enum tlsext_index_en {
     TLSEXT_IDX_compress_certificate,
     TLSEXT_IDX_early_data,
     TLSEXT_IDX_certificate_authorities,
-    TLSEXT_IDX_ech,
     TLSEXT_IDX_ech13,
     TLSEXT_IDX_outer_extensions,
-    TLSEXT_IDX_ech_is_inner,
     TLSEXT_IDX_padding,
     TLSEXT_IDX_psk,
     /* Dummy index - must always be the last entry */

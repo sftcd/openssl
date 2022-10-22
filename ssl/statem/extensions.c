@@ -417,16 +417,6 @@ static const EXTENSION_DEFINITION ext_defs[] = {
         tls_construct_certificate_authorities, NULL,
     },
 #ifndef OPENSSL_NO_ECH
-    { /* this is for draft-10 */
-        TLSEXT_TYPE_ech,
-        SSL_EXT_CLIENT_HELLO | SSL_EXT_TLS1_3_ONLY |
-        SSL_EXT_TLS1_3_ENCRYPTED_EXTENSIONS |
-        SSL_EXT_TLS1_3_HELLO_RETRY_REQUEST,
-        init_ech,
-        tls_parse_ctos_ech, tls_parse_stoc_ech,
-        tls_construct_stoc_ech, tls_construct_ctos_ech,
-        final_ech
-    },
     { /* this is for draft-13 */
         TLSEXT_TYPE_ech13,
         SSL_EXT_CLIENT_HELLO | SSL_EXT_TLS1_3_ONLY |
@@ -437,7 +427,7 @@ static const EXTENSION_DEFINITION ext_defs[] = {
         tls_construct_stoc_ech13, tls_construct_ctos_ech13,
         final_ech
     },
-    { /* this is for draft-13 and draft-10 */
+    { /* this is for draft-13 */
         TLSEXT_TYPE_outer_extensions,
         SSL_EXT_CLIENT_HELLO | SSL_EXT_TLS1_3_ONLY,
         NULL,
@@ -445,17 +435,7 @@ static const EXTENSION_DEFINITION ext_defs[] = {
         NULL, NULL,
         NULL
     },
-    { /* this is for draft-10 */
-        TLSEXT_TYPE_ech_is_inner,
-        SSL_EXT_CLIENT_HELLO | SSL_EXT_TLS1_3_ONLY,
-        NULL,
-        tls_parse_ctos_ech_is_inner, NULL,
-        NULL, tls_construct_ctos_ech_is_inner,
-        NULL
-    },
 #else /* OPENSSL_NO_ECH */
-    INVALID_EXTENSION,
-    INVALID_EXTENSION,
     INVALID_EXTENSION,
     INVALID_EXTENSION,
 #endif /* END_OPENSSL_NO_ECH */
@@ -728,16 +708,6 @@ int tls_collect_extensions(SSL_CONNECTION *s, PACKET *packet,
                 && !((context & SSL_EXT_TLS1_2_SERVER_HELLO) != 0
                      && type == TLSEXT_TYPE_cryptopro_bug)
 #endif
-#ifndef OPENSSL_NO_ECH
-                /*
-                 * draft-10 ECH is a bit special here - because of the 
-                 * outer compression stuff, we don't directly set the
-                 * SSL_EXT_FLAG_SENT (except when GREASEing) so we
-                 * make a special check to see if we attempted ECH
-                 * This can be removed for draft-13
-                 */
-                && (type==TLSEXT_TYPE_ech && !s->ext.ech_attempted)
-#endif
                                                                 ) {
             SSLfatal(s, SSL_AD_UNSUPPORTED_EXTENSION,
                      SSL_R_UNSOLICITED_EXTENSION);
@@ -801,6 +771,9 @@ int tls_parse_extension(SSL_CONNECTION *s, TLSEXT_INDEX idx, int context,
                   size_t chainidx) = NULL;
 
     /* Skip if the extension is not present */
+#ifndef OPENSSL_NO_ECH
+    printf("parsing %d\n",idx);
+#endif
     if (!currext->present)
         return 1;
 

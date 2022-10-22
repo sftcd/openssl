@@ -169,11 +169,8 @@ extern "C" {
 # endif
 
 #ifndef OPENSSL_NO_ECH
-/* These will change some when we remove draft-10 support */
-#define TLSEXT_TYPE_ech                       0xfe0a
 #define TLSEXT_TYPE_ech13                     0xfe0d
 #define TLSEXT_TYPE_outer_extensions          0xfd00
-#define TLSEXT_TYPE_ech_is_inner              0xda09
 #endif
 
 /* NameType value from RFC3546 */

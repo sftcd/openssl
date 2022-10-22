@@ -1916,30 +1916,6 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL_CONNECTION *s, PACKET *pkt)
      * We only support HRR for draft-13.
      */
 
-    /* draft-10 code to setup later possible swap */
-    if (s->ech!=NULL &&
-            s->ext.ech_done!=1 &&
-            s->ext.ch_depth==0 &&
-            s->ext.ech_grease==ECH_NOT_GREASE &&
-            s->ext.ech_attempted_type==TLSEXT_TYPE_ech) {
-        if (!s->ext.inner_s) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-            goto err;
-        }
-        if (hrr) { /* We don't support HRR for draft-10 */
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-            goto err;
-        }
-        /* might have been set above */
-        s->ext.inner_s->hello_retry_request=s->hello_retry_request;
-        memcpy(s->ext.inner_s->s3.server_random,
-               s->s3.server_random,
-               SSL3_RANDOM_SIZE);
-        inner=*s->ext.inner_s;
-        *s=inner;
-        trying_draft10=1;
-    }
-
     /* draft-13 code */
     if (s->ech!=NULL &&
             s->ext.ech_done!=1 &&
