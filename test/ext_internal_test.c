@@ -73,13 +73,9 @@ static EXT_LIST ext_list[] = {
     EXT_ENTRY(early_data),
     EXT_ENTRY(certificate_authorities),
 #ifndef OPENSSL_NO_ECH
-    EXT_ENTRY(ech),
     EXT_ENTRY(ech13),
     EXT_ENTRY(outer_extensions),
-    EXT_ENTRY(ech_is_inner),
 #else
-    EXT_EXCEPTION(ech),
-    EXT_EXCEPTION(ech),
     EXT_EXCEPTION(ech),
     EXT_EXCEPTION(ech),
 #endif

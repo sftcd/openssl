@@ -2562,37 +2562,6 @@ int tls_parse_stoc_server_cert_type(SSL_CONNECTION *sc, PACKET *pkt,
 #ifndef OPENSSL_NO_ECH
 
 /**
- * @brief Create the draft-10 ECH extension for the ClientHello
- */
-EXT_RETURN tls_construct_ctos_ech(SSL_CONNECTION *s, WPACKET *pkt, unsigned int context,
-                                   X509 *x, size_t chainidx)
-{
-    if (s->ext.ech_attempted_type==TLSEXT_TYPE_ech &&
-       (s->ext.ech_grease==ECH_IS_GREASE || (s->options & SSL_OP_ECH_GREASE))) {
-        if (s->hello_retry_request==SSL_HRR_PENDING &&
-                s->ext.ech_sent!=NULL) {
-            /* re-tx already sent GREASEy ECH*/
-            if (WPACKET_memcpy(pkt,s->ext.ech_sent,s->ext.ech_sent_len)!=1) {
-                SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-                return EXT_RETURN_FAIL;
-            }
-            return EXT_RETURN_SENT;
-        }
-        if (ech_send_grease(&s->ssl,pkt)!=1) {
-            return EXT_RETURN_NOT_SENT;
-        }
-        return EXT_RETURN_SENT;
-    }
-    /*
-     * We'll fake out sending this one - after the entire thing has been
-     * constructed we'll then finally encode and encrypt - need to do it
-     * that way as we need the rest of the outer CH as AAD input to the
-     * encryption (sigh!)
-     */
-    return EXT_RETURN_NOT_SENT;
-}
-
-/**
  * @brief Create the draft-13 ECH extension for the ClientHello
  */
 EXT_RETURN tls_construct_ctos_ech13(SSL_CONNECTION *s, WPACKET *pkt, unsigned int context,
@@ -2684,41 +2653,6 @@ int tls_parse_stoc_ech(SSL_CONNECTION *s, PACKET *pkt, unsigned int context,
     s->ext.ech_returned=srval;
     s->ext.ech_returned_len=rlen;
     return 1;
-}
-
-/**
- * @brief Add ech_is_inner but only to inner CH for draft-10
- */
-EXT_RETURN tls_construct_ctos_ech_is_inner(SSL_CONNECTION *s, WPACKET *pkt, unsigned int context,
-                                   X509 *x, size_t chainidx)
-{
-    if (s->ext.ech_grease==ECH_IS_GREASE || 
-            (s->options & SSL_OP_ECH_GREASE) ) {
-        return EXT_RETURN_NOT_SENT;
-    }
-    if (!s->ech) {
-        return EXT_RETURN_NOT_SENT;
-    }
-    if (!s->ech->cfg) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-        return EXT_RETURN_FAIL;
-    }
-    if (!s->ech->cfg->recs) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-        return EXT_RETURN_FAIL;
-    }
-    if (s->ech->cfg->recs[0].version!=ECH_DRAFT_10_VERSION) {
-        return EXT_RETURN_NOT_SENT;
-    }
-    if (s->ext.ch_depth==1) {
-        if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_ech_is_inner)
-                || !WPACKET_put_bytes_u16(pkt, 0)) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-            return EXT_RETURN_FAIL;
-        }
-        return EXT_RETURN_SENT;
-    }
-    return EXT_RETURN_NOT_SENT;
 }
 
 #endif /* END_OPENSSL_NO_ECH */

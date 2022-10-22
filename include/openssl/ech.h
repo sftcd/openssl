@@ -71,12 +71,8 @@
 #define ECH_FMT_HTTPSSVC  4  /**< presentation form of HTTPSSVC */
 
 /*
- * Draft version values. We only really support draft-13 as of now.
- * Draft-10 was supported in earlier version (see commit history).
- * Draft-09 was supported in earlier version (see commit history).
+ * Draft version values. We only support draft-13 as of now.
  */
-#define ECH_DRAFT_09_VERSION 0xfe09 /**< ECHConfig version from draft-09 */
-#define ECH_DRAFT_10_VERSION 0xfe0a /**< ECHConfig version from draft-10 */
 #define ECH_DRAFT_13_VERSION 0xfe0d /**< ECHConfig version from draft-13 */
 
 /*

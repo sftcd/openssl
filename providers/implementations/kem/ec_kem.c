@@ -31,9 +31,13 @@
 #include "prov/providercommon.h"
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 #include <openssl/hpke.h>
 =======
 >>>>>>> 788a6e16af (rebased and latest HPKE (still leaks, will fix in a bit))
+=======
+#include <openssl/hpke.h>
+>>>>>>> ffba35cfa5 (latest HPKE and removed draft-10 code; has small leak on server exit)
 #include "internal/hpke_util.h"
 #include "crypto/ec.h"
 #include "prov/ecx.h"
@@ -64,6 +68,7 @@ static OSSL_FUNC_kem_set_ctx_params_fn eckem_set_ctx_params;
 static OSSL_FUNC_kem_settable_ctx_params_fn eckem_settable_ctx_params;
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 /* ASCII: "KEM", in hex for EBCDIC compatibility */
 static const char LABEL_KEM[] = "\x4b\x45\x4d";
 =======
@@ -92,6 +97,11 @@ static const DHKEM_ALG *dhkem_ec_find_alg(const char *curve)
 }
 >>>>>>> 788a6e16af (rebased and latest HPKE (still leaks, will fix in a bit))
 
+=======
+/* ASCII: "KEM", in hex for EBCDIC compatibility */
+static const char LABEL_KEM[] = "\x4b\x45\x4d";
+
+>>>>>>> ffba35cfa5 (latest HPKE and removed draft-10 code; has small leak on server exit)
 static int eckey_check(const EC_KEY *ec, int requires_privatekey)
 {
     int rv = 0;
@@ -379,12 +389,17 @@ static int dhkem_extract_and_expand(EVP_KDF_CTX *kctx,
         return 0;
 
 <<<<<<< HEAD
+<<<<<<< HEAD
     suiteid[0] = (kemid >> 8) & 0xff;
     suiteid[1] = kemid & 0xff;
 =======
     suiteid[0] = kemid / 256;
     suiteid[1] = kemid % 256;
 >>>>>>> 788a6e16af (rebased and latest HPKE (still leaks, will fix in a bit))
+=======
+    suiteid[0] = (kemid >> 8) &0xff;
+    suiteid[1] = kemid & 0xff;
+>>>>>>> ffba35cfa5 (latest HPKE and removed draft-10 code; has small leak on server exit)
 
     ret = ossl_hpke_labeled_extract(kctx, prk, prklen,
                                     NULL, 0, LABEL_KEM, suiteid, sizeof(suiteid),
@@ -448,6 +463,7 @@ int ossl_ec_dhkem_derive_private(EC_KEY *ec, BIGNUM *priv,
 
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
     suiteid[0] = info->kem_id / 256;
     suiteid[1] = info->kem_id % 256;
 
@@ -462,6 +478,12 @@ int ossl_ec_dhkem_derive_private(EC_KEY *ec, BIGNUM *priv,
 
     if (!ossl_hpke_labeled_extract(kdfctx, prk, alg->secretlen,
 >>>>>>> 788a6e16af (rebased and latest HPKE (still leaks, will fix in a bit))
+=======
+    suiteid[0] = info->kem_id / 256;
+    suiteid[1] = info->kem_id % 256;
+
+    if (!ossl_hpke_labeled_extract(kdfctx, prk, info->Nsecret,
+>>>>>>> ffba35cfa5 (latest HPKE and removed draft-10 code; has small leak on server exit)
                                    NULL, 0, LABEL_KEM, suiteid, sizeof(suiteid),
                                    OSSL_DHKEM_LABEL_DKP_PRK, ikm, ikmlen))
         goto err;
@@ -469,18 +491,27 @@ int ossl_ec_dhkem_derive_private(EC_KEY *ec, BIGNUM *priv,
     order = EC_GROUP_get0_order(EC_KEY_get0_group(ec));
     do {
 <<<<<<< HEAD
+<<<<<<< HEAD
         if (!ossl_hpke_labeled_expand(kdfctx, privbuf, info->Nsk,
                                       prk, info->Nsecret,
 =======
         if (!ossl_hpke_labeled_expand(kdfctx, privbuf, alg->encodedprivlen,
                                       prk, alg->secretlen,
 >>>>>>> 788a6e16af (rebased and latest HPKE (still leaks, will fix in a bit))
+=======
+        if (!ossl_hpke_labeled_expand(kdfctx, privbuf, info->Npriv,
+                                      prk, info->Nsecret,
+>>>>>>> ffba35cfa5 (latest HPKE and removed draft-10 code; has small leak on server exit)
                                       LABEL_KEM, suiteid, sizeof(suiteid),
                                       OSSL_DHKEM_LABEL_CANDIDATE,
                                       &counter, 1))
             goto err;
         privbuf[0] &= info->bitmask;
+<<<<<<< HEAD
         if (BN_bin2bn(privbuf, info->Nsk, priv) == NULL)
+=======
+        if (BN_bin2bn(privbuf, info->Npriv, priv) == NULL)
+>>>>>>> ffba35cfa5 (latest HPKE and removed draft-10 code; has small leak on server exit)
             goto err;
         if (counter == 0xFF) {
             ERR_raise(ERR_LIB_PROV, PROV_R_FAILED_TO_GENERATE_KEY);
@@ -521,7 +552,11 @@ static EC_KEY *derivekey(PROV_EC_CTX *ctx,
 
     /* Generate a random seed if there is no input ikm */
     if (seed == NULL || seedlen == 0) {
+<<<<<<< HEAD
         seedlen = ctx->info->Nsk;
+=======
+        seedlen = ctx->info->Npriv;
+>>>>>>> ffba35cfa5 (latest HPKE and removed draft-10 code; has small leak on server exit)
         if (seedlen > sizeof(tmpbuf))
             goto err;
         if (RAND_priv_bytes_ex(ctx->libctx, tmpbuf, seedlen, 0) <= 0)
@@ -623,7 +658,11 @@ static int derive_secret(PROV_EC_CTX *ctx, unsigned char *secret,
     size_t kemctxlen = 0, dhkmlen = 0;
     const OSSL_HPKE_KEM_INFO *info = ctx->info;
     size_t encodedpublen = info->Npk;
+<<<<<<< HEAD
     size_t encodedprivlen = info->Nsk;
+=======
+    size_t encodedprivlen = info->Npriv;
+>>>>>>> ffba35cfa5 (latest HPKE and removed draft-10 code; has small leak on server exit)
     int auth = ctx->sender_authkey != NULL;
 
     if (!generate_ecdhkm(privkey1, peerkey1, dhkm, sizeof(dhkm), encodedprivlen))
