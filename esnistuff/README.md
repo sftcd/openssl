@@ -26,6 +26,11 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
+- 20221023: fixed leak below which was due to attmempting to load
+  a draft-10 ECHConfig, when that was the only offered ECHConfig.
+  Could well add more testing there as it's
+  been a long time since that was done (to the make test target.)
+
 - 20221022: removed all draft-10 code and updated to latest version
   of HPKE-PR code. As of now, seems clean, but:
     - server leak on exit, not sure if due to ctrl-c handling

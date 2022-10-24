@@ -4342,10 +4342,9 @@ void SSL_CTX_free(SSL_CTX *a)
     OPENSSL_free(a->server_cert_type);
 #ifndef OPENSSL_NO_ECH
 	if (a->ext.ech!=NULL) {
-        printf("Freeing ECHConfigs\n");
         int n=0;
+
         for (n=0;n!=a->ext.nechs;n++) {
-            printf("Freeing ECHConfig %d\n",n);
             SSL_ECH_free(&a->ext.ech[n]);
         }
         memset(a->ext.ech,0,a->ext.nechs*sizeof(SSL_ECH));
