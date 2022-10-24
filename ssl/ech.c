@@ -844,9 +844,7 @@ static ECHConfigs *ECHConfigs_from_binary(
             goto err;
         }
 
-        /*
-         * check version
-         */
+        /* check version, store and skip-over raw octets if not supported */
         switch(ec->version) {
             case ECH_DRAFT_13_VERSION:
                 break;
@@ -862,7 +860,7 @@ static ECHConfigs *ECHConfigs_from_binary(
                     OPENSSL_free(foo);
                     remaining=PACKET_remaining(&pkt);
 
-                    /* we need to "unallocate" one */
+                    /* unallocate that one */
                     rind--;
 
                     continue;
@@ -1070,6 +1068,13 @@ static ECHConfigs *ECHConfigs_from_binary(
     if (PACKET_remaining(&pkt)>binblen) {
         goto err;
     }
+
+    /* 
+     * if none of the offered ECHConfig values work (e.g. bad versions)
+     * then we should barf
+     */
+    if (rind == 0)
+        goto err;
 
     /*
      * Success - make up return value

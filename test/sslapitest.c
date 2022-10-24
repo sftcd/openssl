@@ -12131,7 +12131,7 @@ static int test_ech_add(int idx)
     /* 
      * This ECHConfigList has 6 entries with different versions,
      * [13,10,9,13,10,13] - since our runtime no longer supports
-     * version 9, we should see 5 configs loaded.
+     * version 9 or 10, we should see 3 configs loaded.
      * Once we drop support for draft-10, then it'll be 3 and
      * we'll need to change the expected echcount below.
      */
@@ -12165,7 +12165,7 @@ static int test_ech_add(int idx)
             TEST_info("OSSLTEST_ECH_B64_GUESS: failure for valid echconfig and length\n");
             goto end;
         }
-        if (!TEST_int_eq(echcount, 5)) {
+        if (!TEST_int_eq(echcount, 3)) {
             TEST_info("OSSLTEST_ECH_B64_GUESS: incorrect ECH count\n");
             goto end;
         }
@@ -12181,7 +12181,7 @@ static int test_ech_add(int idx)
             TEST_info("OSSLTEST_ECH_B64_BASE64: failure for valid echconfig and length\n");
             goto end;
         }
-        if (!TEST_int_eq(echcount, 5)) {
+        if (!TEST_int_eq(echcount, 3)) {
             TEST_info("OSSLTEST_ECH_B64_BASE64: incorrect ECH count\n");
             goto end;
         }
