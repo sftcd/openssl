@@ -210,7 +210,7 @@ static int mk_echconfig(
 
     if (priv==NULL) { return (__LINE__); }
 
-    rv=OSSL_HPKE_keygen(hpke_suite, NULL, 0, pub, &publen, &privp, NULL, NULL);
+    rv=OSSL_HPKE_keygen(hpke_suite, pub, &publen, &privp, NULL, 0, NULL, NULL);
     if (rv!=1) { return(__LINE__); }
 
     /* map that EVP_PKEY to a pem buffer */
