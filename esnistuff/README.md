@@ -26,6 +26,15 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
+- 20221024: another record layer leak, when GREASEing from client, answer
+  was to tweak the conditions for free'ing the record layer and
+  ``init_buf`` depending on the ECH conditions we see, but that's pretty
+  brittle and liable to break as other code changes. See the comment in
+  ``ssl/ssl_lib.c`` within ``ossl_ssl_connection_free()``.
+    - TODO: better automate leak-checking esp with GREASE and/or
+      deliberate use of an ECHConfig that is ok other than having the 
+      wrong public key
+
 - 20221023: fixed leak below which was due to attmempting to load
   a draft-10 ECHConfig, when that was the only offered ECHConfig.
   Could well add more testing there as it's

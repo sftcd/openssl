@@ -1474,6 +1474,11 @@ void ossl_ssl_connection_free(SSL *ssl)
     /* Ignore return value */
 
 #ifndef OPENSSL_NO_ECH
+    /*
+     * This and the following two ECH conditions aren't satisfactory
+     * and are v. brittle to changes by others. But work right now.
+     * TODO: FIXME: figure that out
+     */
     if (s->ext.inner_s==NULL && s->ext.outer_s!=NULL)
 #endif
     ssl_free_wbio_buffer(s);
@@ -1482,7 +1487,8 @@ void ossl_ssl_connection_free(SSL *ssl)
     RECORD_LAYER_clear(&s->rlayer);
 
 #ifndef OPENSSL_NO_ECH
-    if (s->ext.inner_s==NULL && s->ext.outer_s!=NULL)
+    if ((s->ext.inner_s==NULL && s->ext.outer_s!=NULL)
+        || (s->ext.ech_attempted == 1 && s->ext.ech_success == 0))
 #endif
     BUF_MEM_free(s->init_buf);
 
