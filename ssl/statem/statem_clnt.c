@@ -1510,7 +1510,7 @@ err:
 
 static int tls_construct_client_hello_aux(SSL_CONNECTION *s, WPACKET *pkt)
 #else
-_owur CON_FUNC_RETURN tls_construct_client_hello(SSL_CONNECTION *s, WPACKET *pkt)
+__owur CON_FUNC_RETURN tls_construct_client_hello(SSL_CONNECTION *s, WPACKET *pkt)
 #endif
 {
     unsigned char *p;

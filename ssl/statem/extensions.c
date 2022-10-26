@@ -771,9 +771,6 @@ int tls_parse_extension(SSL_CONNECTION *s, TLSEXT_INDEX idx, int context,
                   size_t chainidx) = NULL;
 
     /* Skip if the extension is not present */
-#ifndef OPENSSL_NO_ECH
-    printf("parsing %d\n",idx);
-#endif
     if (!currext->present)
         return 1;
 
