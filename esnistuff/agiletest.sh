@@ -29,7 +29,9 @@ AEAD_IDS=(0x01 0x02 0x03 0xa2)
 NAEADS=${#AEAD_IDS[*]}
 
 # set which tests to skip - set to "yes" to skip or "no" to do tests
-# the basic good client/server tests
+# basic client/server tests for combinations of supported/not and grease
+skipbase="no"
+# the basic good client/server tests for the range of algs
 skipgood="no"
 # the tests of various forms of RR/ECHConfig
 skiprrs="no"
@@ -217,6 +219,121 @@ if [[ "$pids" != "" ]]
 then
     # exiting without cleanup
     kill $pids
+fi
+
+if [[ "$skipbase" == "no" ]]
+then
+    tests="yes-yes no-yes yes-no no-no grease-yes grease-no"
+    for atest in $tests
+    do
+    # pick just one key file to use for this
+    file="0x20,0x01,0x01.pem"
+    case $atest in
+        "yes-yes")
+            echo "s_client/s_server base test with ECH, vs. ECH server"
+            server_params=" -w -k $scratchdir/$file $vparm "
+            client_params=" -P `$CODETOP/esnistuff/pem2rr.sh -p $file` -s localhost -p 8443 -H foo.example.com $vparm -f index.html"
+            ;;
+        "no-yes")
+            echo "s_client/s_server base test with no ECH, vs. ECH server"
+            server_params=" -w -k $scratchdir/$file $vparm "
+            client_params=" -s localhost -p 8443 -n -c example.com $vparm -f index.html"
+            ;;
+        "yes-no")
+            echo "s_client/s_server base test with ECH, vs. no-ECH server"
+            server_params=" -w $vparm "
+            client_params=" -P `$CODETOP/esnistuff/pem2rr.sh -p $file` -s localhost -p 8443 -H foo.example.com $vparm -f index.html"
+            ;;
+        "no-no")
+            echo "s_client/s_server base test with no ECH, vs. no-ECH server"
+            server_params=" -w $vparm "
+            client_params=" -s localhost -p 8443 -n -c example.com $vparm -f index.html"
+            ;;
+        "grease-yes")
+            echo "s_client/s_server base test with client-greased ECH vs. ECH server"
+            server_params=" -w -k $scratchdir/$file $vparm "
+            client_params=" -g -s localhost -p 8443 -H example.com $vparm -f index.html"
+            ;;
+        "grease-no")
+            echo "s_client/s_server base test with client-greased ECH" vs. no-ECH server
+            server_params=" -w $vparm "
+            client_params=" -g -s localhost -p 8443 -H example.com $vparm -f index.html"
+            ;;
+    esac
+    # start server
+    if [[ "$verbose" == "yes" ]]
+    then
+        CFGTOP=$scratchdir $CODETOP/esnistuff/echsvr.sh $server_params &
+    else
+        CFGTOP=$scratchdir $CODETOP/esnistuff/echsvr.sh $server_params >/dev/null 2>&1 &
+    fi
+    # wait a bit
+    sleep $sleepb4
+    pids=`ps -ef | grep s_server | grep -v grep | awk '{print $2}'`
+    if [[ "$pids" == "" ]]
+    then
+        echo "No sign of s_server - exiting (before client)"
+        # exiting without cleanup
+        exit 19
+    fi
+    # Try an 'aul client...
+    # wait a bit
+    sleep $sleepb4
+    if [[ "$verbose" == "yes" ]]
+    then
+        $CODETOP/esnistuff/echcli.sh $client_params
+    else
+        $CODETOP/esnistuff/echcli.sh $client_params >/dev/null 2>&1
+    fi
+    cret=$?
+    # kill server
+    pids=`ps -ef | grep s_server | grep -v grep | awk '{print $2}'`
+    if [[ "$pids" == "" ]]
+    then
+        echo "No sign of s_server - exiting (after client)"
+        # exiting without cleanup
+        exit 19
+    fi
+    kill $pids
+    portpid=`netstat -anp 2>/dev/null | grep 8443 | grep openssl | awk '{print $7}' | sed -e 's#/.*##' 2>/dev/null`
+    if [[ "$portpid" != "" ]]
+    then
+        kill $portpid
+    fi
+    # sleep a bit
+    sleep $sleepaftr
+    pids=`ps -ef | grep s_server | grep -v grep | awk '{print $2}'`
+    if [[ "$pids" != "" ]]
+    then
+        echo "hmm... $pids still running - exiting"
+        # exiting without cleanup
+        exit 20
+    fi
+    if [[ "$cret" != "0" ]]
+    then
+        case $atest in
+            "yes-yes")
+                ;&
+            "no-yes")
+                ;&
+            "no-no")
+                ;&
+            "grease-no")
+                ;&
+            "grease-yes")
+                echo "Client failed for $atest - exiting"
+                exit 21
+                ;;
+        esac
+    else
+        case $atest in
+            "yes-no")
+                echo "Client didn't fail for $atest - exiting"
+                exit 21
+                ;;
+        esac
+    fi
+    done
 fi
 
 if [[ "$skipgood" == "no" ]]
