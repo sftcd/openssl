@@ -76,8 +76,8 @@ static EXT_LIST ext_list[] = {
     EXT_ENTRY(ech13),
     EXT_ENTRY(outer_extensions),
 #else
-    EXT_EXCEPTION(ech),
-    EXT_EXCEPTION(ech),
+    EXT_EXCEPTION(ech13),
+    EXT_EXCEPTION(outer_extensions),
 #endif
     EXT_ENTRY(padding),
     EXT_ENTRY(psk),
