@@ -5718,6 +5718,8 @@ CMS_EnvelopedData_decrypt               ?	3_2_0	EXIST::FUNCTION:CMS
 CMS_SignedData_free                     ?	3_2_0	EXIST::FUNCTION:CMS
 CMS_SignedData_new                      ?	3_2_0	EXIST::FUNCTION:CMS
 CMS_SignedData_verify                   ?	3_2_0	EXIST::FUNCTION:CMS
+OPENSSL_strcasecmp                      5556	3_0_3	NOEXIST::FUNCTION:
+OPENSSL_strncasecmp                     5557	3_0_3	NOEXIST::FUNCTION:
 X509_PUBKEY_set0_public_key             ?	3_1_0	EXIST::FUNCTION:
 OSSL_STACK_OF_X509_free                 ?	3_1_0	EXIST::FUNCTION:
 EVP_MD_CTX_dup                          ?	3_1_0	EXIST::FUNCTION:
