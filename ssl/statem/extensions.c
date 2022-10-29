@@ -708,6 +708,15 @@ int tls_collect_extensions(SSL_CONNECTION *s, PACKET *packet,
                 && !((context & SSL_EXT_TLS1_2_SERVER_HELLO) != 0
                      && type == TLSEXT_TYPE_cryptopro_bug)
 #endif
+#ifndef OPENSSL_NO_ECH
+                /*
+                 * ECH is a bit special here - because of the outer
+                 * compression stuff, we don't directly set the
+                 * SSL_EXT_FLAG_SENT (except when GREASEing) so we
+                 * make a special check to see if we attempted ECH
+                 */
+                && (type==TLSEXT_TYPE_ech13 && !s->ext.ech_attempted)
+#endif
                                                                 ) {
             SSLfatal(s, SSL_AD_UNSUPPORTED_EXTENSION,
                      SSL_R_UNSOLICITED_EXTENSION);
