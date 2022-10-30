@@ -4464,34 +4464,40 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
     if (s->ext.ech_ctx == NULL) {
         hctx = OSSL_HPKE_CTX_new(hpke_mode, hpke_suite, NULL, NULL);
         s->ext.ech_ctx = hctx;
+
+        mypub=OPENSSL_malloc(lenclen);
+        if (!mypub) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+            goto err;
+        }
+        mypub_len=lenclen;
+        if (ech_make_enc_info(tc,info,&info_len)!=1) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+            goto err;
+        }
+        ech_pbuf("EAAE info",info,info_len);
+        rv = OSSL_HPKE_encap(hctx, mypub, &mypub_len,
+                             peerpub, peerpub_len, info, info_len);
+        if (rv != 1) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+            goto err;
+        }
+        s->ext.ech_pub = mypub;
+        s->ext.ech_pub_len = mypub_len;
+        ech_pbuf("EAAE: mypub",mypub,mypub_len);
+
     } else {
+        /* retrieve context etc */
         hctx = s->ext.ech_ctx;
+        mypub = s->ext.ech_pub;
+        mypub_len = s->ext.ech_pub_len;
+        ech_pbuf("EAAE: mypub",mypub,mypub_len);
     }
     if (hctx == NULL) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         goto err;
     }
-    mypub=OPENSSL_malloc(lenclen);
-    if (!mypub) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-        goto err;
-    }
-    mypub_len=lenclen;
-    if (ech_make_enc_info(tc,info,&info_len)!=1) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-        goto err;
-    }
-    ech_pbuf("EAAE info",info,info_len);
 
-    rv = OSSL_HPKE_encap(hctx, mypub, &mypub_len,
-                         peerpub, peerpub_len, info, info_len);
-    if (rv != 1) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-        goto err;
-    }
-    s->ext.ech_pub = mypub;
-    s->ext.ech_pub_len = mypub_len;
-    ech_pbuf("EAAE: mypub",mypub,mypub_len);
     cipherlen = OSSL_HPKE_get_ciphertext_size(hpke_suite, clear_len);
     if (cipherlen <= clear_len) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
