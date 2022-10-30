@@ -22,17 +22,6 @@
 # include <openssl/ssl.h>
 
 /*
- * Default for HPKE_MAXSIZE is in hpke.h (2KB) but can be overridden so
- * let's do that, since we don't need such large buffers. (HPKE uses
- * a bunch of such stack buffers for keys and intermediate results.)
- * If this were 0x300 (768) it'd not be big enough for larger curves
- * when doing session resumption. If some server's tickets are
- * much bigger then we might need to revisit using stack buffers
- * for this.
- */
-#define HPKE_MAXSIZE 1280
-
-/*
  * The minimum lengths to which to pad the Certificate, CertificateVerify and
  * EncryptedExtensions handshake messages from a server if the ECH specific
  * padding option is enabled.
@@ -51,7 +40,8 @@
 #define ECH_MAX_ECHCONFIG_LEN ECH_MAX_RRVALUE_LEN /**< for a sanity check */
 #define ECH_OUTERS_MAX 20 /**< max TLS extensions we compress via outer-exts */
 #define ECH_MAX_ECH_LEN 0x100 /**< max ENC-CH peer key share we'll decode */
-#define ECH_MAX_PAYLOAD_LEN HPKE_MAXSIZE /**< max ECH ciphertext we'll decode */
+#define ECH_MAX_PAYLOAD_LEN 0xfff0 /**< max ECH ciphertext we'll decode */
+#define ECH_MAX_GREASE_LEN 0x200 /**< max GREASEy ciphertext we'll emit */
 #define ECH_MAX_MAXNAMELEN 255 /**< max ECHConfig max name length */
 #define ECH_MAX_PUBLICNAME 255 /**< max ECHConfig public name */
 

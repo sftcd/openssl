@@ -4119,7 +4119,7 @@ int ech_send_grease(SSL *ssl, WPACKET *pkt)
       * CH padding results in a fixed length CH for at least many options.
       */
     size_t cipher_len_jitter=0;
-    unsigned char cipher[ECH_MAX_PAYLOAD_LEN];
+    unsigned char cipher[ECH_MAX_GREASE_LEN];
     /* stuff for copying to ech_sent */
     unsigned char *pp=WPACKET_get_curr(pkt);
     size_t pp_at_start=0;
