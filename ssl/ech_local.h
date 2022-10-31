@@ -48,6 +48,7 @@
 
 /*
  * Strings used in ECH crypto derivations
+ * TODO: handle EBCDIC!
  */
 #define ECH_CONFIG_ID_STRING (char*) "tls ech config id"
 #define ECH_CONTEXT_STRING (char*) "tls ech"
@@ -55,40 +56,7 @@
 #define ECH_HRR_CONFIRM_STRING (char*) "hrr ech accept confirmation"
 
 /**
- * @brief Representation of what goes in DNS for draft-10
- *
- * <pre>
- *  draft-10
- *   opaque HpkePublicKey<1..2^16-1>;
- *   uint16 HpkeKemId; 
- *   uint16 HpkeKdfId; 
- *   uint16 HpkeAeadId;
- *   struct {
- *       HpkeKdfId kdf_id;
- *       HpkeAeadId aead_id;
- *   } HpkeSymmetricCipherSuite;
- *   struct {
- *       uint8 config_id;
- *       HpkeKemId kem_id;
- *       HpkePublicKey public_key;
- *       HpkeSymmetricCipherSuite cipher_suites<4..2^16-4>;
- *   } HpkeKeyConfig;
- *   struct {
- *       HpkeKeyConfig key_config;
- *       uint16 maximum_name_length;
- *       opaque public_name<1..2^16-1>;
- *       Extension extensions<0..2^16-1>;
- *   } ECHConfigContents;
- *   struct {
- *       uint16 version;
- *       uint16 length;
- *       select (ECHConfig.version) {
- *         case 0xfe0a: ECHConfigContents contents;
- *       }
- *   } ECHConfig;
- * </pre>
- *
- * And for draft-13:
+ * @brief Representation of what goes in DNS for draft-13
  * <pre>
  *     opaque HpkePublicKey<1..2^16-1>;
  *     uint16 HpkeKemId;  // Defined in I-D.irtf-cfrg-hpke
