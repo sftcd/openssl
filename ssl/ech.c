@@ -52,20 +52,6 @@
 #define ECH_CRYPTO_VAR_SIZE 2048
 
 /*
- * Various externally visible length limits
- */
-#define ECH_MAX_RRVALUE_LEN 10000 /**< Max RR value size, as given to API */
-#define ECH_MAX_ECHCONFIGEXT_LEN 100 /**< Max for an ECHConfig extension */
-#define ECH_MIN_ECHCONFIG_LEN 32 /**< just for a sanity check */
-#define ECH_MAX_ECHCONFIG_LEN ECH_MAX_RRVALUE_LEN /**< for a sanity check */
-#define ECH_MAX_ECH_LEN 0x100 /**< max ENC-CH peer key share we'll decode */
-#define ECH_MAX_PAYLOAD_LEN 0xfff0 /**< max ECH ciphertext we'll decode */
-#define ECH_MAX_GREASE_LEN 0x200 /**< max GREASEy ciphertext we'll emit */
-#define ECH_MAX_MAXNAMELEN 255 /**< max ECHConfig max name length */
-#define ECH_MAX_PUBLICNAME 255 /**< max ECHConfig public name */
-#define ECH_PBUF_SIZE 8*1024 /**<  buffer for string returned via ech_cb */
-
-/*
  * To control the number of zeros added after a draft-13
  * EncodedClientHello - we pad to a target number of octets
  * or, if there are naturally more, to a number divisible by
@@ -5725,6 +5711,194 @@ int SSL_ech_get_returned(SSL *ssl, size_t *eclen, const unsigned char **ec)
         *eclen=0;
         *ec=NULL;
     }
+    return 1;
+}
+
+/**
+ * @brief Make an ECH key pair and ECHConfigList structure
+ * @param echconfig is the ECHConfigList buffer
+ * @param echconfiglen is size of that buffer (used on output)
+ * @param priv is the private key buffer
+ * @param privlen is size of that buffer (used on output)
+ * @param ekversion is the version to make
+ * @param max_name_length is the maximum name length
+ * @param public_name is for inclusion within the ECHConfig
+ * @param extlen is the length of extension
+ * @param extvals is the encoded extensions
+ * @return 1 for success, error otherwise
+ */
+int ossl_ech_make_echconfig(unsigned char *echconfig, size_t *echconfiglen,
+                            unsigned char *priv, size_t *privlen,
+                            uint16_t ekversion, uint16_t max_name_length,
+                            const char *public_name, OSSL_HPKE_SUITE suite,
+                            const unsigned char *extvals, size_t extlen)
+{
+    size_t pnlen = 0;
+    size_t publen = ECH_CRYPTO_VAR_SIZE;
+    unsigned char pub[ECH_CRYPTO_VAR_SIZE];
+    int rv = 0;
+    unsigned char bbuf[ECH_MAX_ECHCONFIGS_LEN];
+    unsigned char *bp = bbuf;
+    size_t bblen = 0;
+    unsigned int b64len = 0;
+    EVP_PKEY *privp = NULL;
+    BIO *bfp = NULL;
+    unsigned char lpriv[ECH_CRYPTO_VAR_SIZE];
+    size_t lprivlen = 0;
+    uint8_t config_id=0;
+
+    /* this used have more versions and will again in future */
+    switch(ekversion) {
+        case ECH_DRAFT_13_VERSION:
+            break;
+        default:
+            return 0;
+    }
+    pnlen = (public_name == NULL ? 0 : strlen(public_name));
+    if (pnlen > ECH_MAX_PUBLICNAME)
+        return 0;
+    if (max_name_length > ECH_MAX_MAXNAMELEN)
+        return 0;
+    if (priv==NULL)
+        return 0;
+
+    rv=OSSL_HPKE_keygen(suite, pub, &publen, &privp, NULL, 0, NULL, NULL);
+    if (rv != 1)
+        return 0;
+    bfp = BIO_new(BIO_s_mem());
+    if (bfp == NULL) {
+        EVP_PKEY_free(privp);
+        return 0;
+    }
+    if (!PEM_write_bio_PrivateKey(bfp, privp, NULL, NULL, 0, NULL, NULL)) {
+        EVP_PKEY_free(privp);
+        BIO_free_all(bfp);
+        return 0;
+    }
+    lprivlen = BIO_read(bfp, lpriv, ECH_CRYPTO_VAR_SIZE);
+    if (lprivlen <= 0) {
+        EVP_PKEY_free(privp);
+        BIO_free_all(bfp);
+        return 0;
+    }
+    if (lprivlen > *privlen) {
+        EVP_PKEY_free(privp);
+        BIO_free_all(bfp);
+        return 0;
+    }
+    *privlen = lprivlen;
+    memcpy(priv, lpriv, lprivlen);
+    EVP_PKEY_free(privp);
+    BIO_free_all(bfp);
+
+    /*
+     *   In draft-13 we get:
+     *
+     *   opaque HpkePublicKey<1..2^16-1>;
+     *   uint16 HpkeKemId;  // Defined in I-D.irtf-cfrg-hpke
+     *   uint16 HpkeKdfId;  // Defined in I-D.irtf-cfrg-hpke
+     *   uint16 HpkeAeadId; // Defined in I-D.irtf-cfrg-hpke
+     *
+     *   struct {
+     *       HpkeKdfId kdf_id;
+     *       HpkeAeadId aead_id;
+     *   } HpkeSymmetricCipherSuite;
+     *
+     *   struct {
+     *       uint8 config_id;
+     *       HpkeKemId kem_id;
+     *       HpkePublicKey public_key;
+     *       HpkeSymmetricCipherSuite cipher_suites<4..2^16-4>;
+     *   } HpkeKeyConfig;
+     *
+     *   struct {
+     *       HpkeKeyConfig key_config;
+     *       uint8 maximum_name_length;
+     *       opaque public_name<1..255>;
+     *       Extension extensions<0..2^16-1>;
+     *   } ECHConfigContents;
+     *
+     *   struct {
+     *       uint16 version;
+     *       uint16 length;
+     *       select (ECHConfig.version) {
+     *         case 0xfe0d: ECHConfigContents contents;
+     *       }
+     *   } ECHConfig;
+     *
+     */
+
+    /* check we won't overflow */
+    if ((2 /* length */
+         + 2 /* version */
+         + 2 /* more length */
+         + 1 /* config id */
+         + 2 /* kem id */
+         + 2 /* len(pub) */ + publen /* pub */
+         + 6 /* len, kdf, aead */
+         + 1 /* max name len */
+         + 1 /* pnlen */ + pnlen /* pn */
+         + 2 /* extlen */ + extlen /* exts */
+        ) > sizeof(bbuf)) 
+        return 0;
+
+    memset(bbuf, 0, sizeof(bbuf));
+    *bp++ = 0x00; /* leave space for overall length */
+    *bp++ = 0x00; /* leave space for overall length */
+    *bp++ = (unsigned char)(ekversion >> 8) % 256;
+    *bp++ = (unsigned char)(ekversion % 256);
+    *bp++ = 0x00; /* leave space for almost-overall length */
+    *bp++ = 0x00; /* leave space for almost-overall length */
+    RAND_bytes(&config_id, 1);
+    *bp++ = (unsigned char)config_id;
+    *bp++ = (unsigned char)(suite.kem_id >> 8) % 256;
+    *bp++ = (unsigned char)(suite.kem_id % 256);
+    /* keys */
+    *bp++ = (unsigned char)(publen >> 8 ) % 256;
+    *bp++ = (unsigned char)(publen % 256);
+    memcpy(bp, pub, publen);
+    bp += publen;
+    /* cipher_suite */
+    *bp++ = 0x00;
+    *bp++ = 0x04;
+    *bp++ = (unsigned char)(suite.kdf_id >> 8) % 256;
+    *bp++ = (unsigned char)(suite.kdf_id % 256);
+    *bp++ = (unsigned char)(suite.aead_id >> 8) % 256;
+    *bp++ = (unsigned char)(suite.aead_id % 256);
+    /* maximum_name_length */
+    *bp++ = (unsigned char)(max_name_length % 256);
+    /* public_name */
+    if (pnlen > 0) {
+        *bp++ = (unsigned char)(pnlen % 256);
+        memcpy(bp, public_name, pnlen);
+        bp += pnlen;
+    } else {
+        *bp++ = 0x00;
+    }
+    /* extensions */
+    if (extlen == 0) {
+        *bp++ = 0x00;
+        *bp++ = 0x00; /* no extensions */
+    } else {
+        if (extvals == NULL)
+            return 0;
+        *bp++ = (unsigned char)((extlen >> 8) % 256);
+        *bp++ = (unsigned char)(extlen % 256);
+        memcpy(bp, extvals, extlen);
+        bp += extlen;
+    }
+    bblen = bp - bbuf;
+    /* Add back in the length */
+    bbuf[0] = (unsigned char)((bblen - 2) / 256);
+    bbuf[1] = (unsigned char)((bblen - 2) % 256);
+    bbuf[4] = (unsigned char)((bblen - 6) / 256);
+    bbuf[5] = (unsigned char)((bblen - 6) % 256);
+    b64len = EVP_EncodeBlock((unsigned char*)echconfig,
+                             (unsigned char *)bbuf, bblen);
+    if (b64len >= (*echconfiglen - 1))
+        return 0;
+    echconfig[b64len] = '\0';
+    *echconfiglen = b64len;
     return 1;
 }
 
