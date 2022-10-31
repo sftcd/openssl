@@ -79,12 +79,6 @@
 #define ECH_DRAFT_13_VERSION 0xfe0d /**< ECHConfig version from draft-13 */
 
 /*
- * The wire-format type code for ECH/ECHConfiGList within an SVCB or HTTPS RR
- * value
- */
-#define ECH_PCODE_ECH            0x0005
-
-/*
  * A failure return value from SSL_CTX_ech_server_enable for the
  * case where the input file can't be read. We have a separate
  * return value as that could happen due to a disk error but
