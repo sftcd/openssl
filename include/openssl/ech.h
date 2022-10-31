@@ -22,20 +22,10 @@
 # include <openssl/ssl.h>
 
 /*
- * The minimum lengths to which to pad the Certificate, CertificateVerify and
- * EncryptedExtensions handshake messages from a server if the ECH specific
- * padding option is enabled.
- */
-#define ECH_CERTSPECIFIC_MIN 1808
-#define ECH_CERTVERSPECIFIC_MIN 480
-#define ECH_ENCEXTSPECIFIC_MIN 32
-
-/*
  * Various externally visible length limits
  */
 #define ECH_MAX_RRVALUE_LEN 10000 /**< Max RR value size, as given to API */
 #define ECH_MAX_ECHCONFIGEXT_LEN 100 /**< Max for an ECHConfig extension */
-#define ECH_PBUF_SIZE 8*1024 /**<  buffer for string returned via ech_cb */
 #define ECH_MIN_ECHCONFIG_LEN 32 /**< just for a sanity check */
 #define ECH_MAX_ECHCONFIG_LEN ECH_MAX_RRVALUE_LEN /**< for a sanity check */
 #define ECH_OUTERS_MAX 20 /**< max TLS extensions we compress via outer-exts */
@@ -44,32 +34,18 @@
 #define ECH_MAX_GREASE_LEN 0x200 /**< max GREASEy ciphertext we'll emit */
 #define ECH_MAX_MAXNAMELEN 255 /**< max ECHConfig max name length */
 #define ECH_MAX_PUBLICNAME 255 /**< max ECHConfig public name */
+#define ECH_PBUF_SIZE 8*1024 /**<  buffer for string returned via ech_cb */
 
 /*
- * Supported input formats for ECHConfigList input (usually from RR value)
- * - can be a binary (wireform) HTTPS/SVCB RRVALUE or just the ECHConfigList
- * - can be base64 encoded version of the above
- * - can be ascii-hex encoded version of the above
- * - can be (a guess at) the presentation format from a zone file
- * - can indicate the caller would like the library to guess which
- *   of the above applies
+ * A lack of padding can expose information intended to be hidden via ECH,
+ * e.g. if only two inner CH SNI values were in live use. In that case we
+ * pad * the Certificate, CertificateVerify and EncryptedExtensions handshake
+ * messages from the server. These are the  minimum lengths to which those
+ * will be padded in that case.
  */
-#define ECH_FMT_GUESS     0  /**< implementation will try guess type */
-#define ECH_FMT_BIN       1  /**< one or more catenated binary ECHConfigs */
-#define ECH_FMT_B64TXT    2  /**< base64 ECHConfigs (';' separated if >1) */
-#define ECH_FMT_ASCIIHEX  3  /**< ascii-hex ECHConfigs (';' separated if >1) */
-#define ECH_FMT_HTTPSSVC  4  /**< presentation form of HTTPSSVC */
-
-/*
- * Draft version values. We only support draft-13 as of now.
- */
-#define ECH_DRAFT_13_VERSION 0xfe0d /**< ECHConfig version from draft-13 */
-
-/*
- * The wire-format type code for ECH/ECHConfiGList within an SVCB or HTTPS RR
- * value
- */
-#define ECH_PCODE_ECH            0x0005
+#define ECH_CERTSPECIFIC_MIN 1808
+#define ECH_CERTVERSPECIFIC_MIN 480
+#define ECH_ENCEXTSPECIFIC_MIN 32
 
 /*
  * To control the number of zeros added after a draft-13
@@ -81,10 +57,32 @@
 #define ECH_PADDING_TARGET 256 /**< all ECH cleartext padded to at least this */
 #define ECH_PADDING_INCREMENT 32 /**< all ECH's padded to a multiple of this */
 
-/* value for uninitialised GREASE ECH version */
-#define TLSEXT_TYPE_ech_unknown               0xffff
-/* value for not yet set ECH config_id */
-#define TLSEXT_TYPE_ech_config_id_unset       -1
+/*
+ * Supported input formats for ECHConfigList API inputs:
+ * - can be a binary (wireform) HTTPS/SVCB RRVALUE or just the ECHConfigList
+ *   set of octets from that
+ * - can be base64 encoded version of the above
+ * - can be ascii-hex encoded version of the above
+ * - can indicate the caller would like the library to guess which
+ *   of the above applies
+ */
+#define ECH_FMT_GUESS     0  /**< implementation will try guess type */
+#define ECH_FMT_BIN       1  /**< one or more catenated binary ECHConfigs */
+#define ECH_FMT_B64TXT    2  /**< base64 ECHConfigs (';' separated if >1) */
+#define ECH_FMT_ASCIIHEX  3  /**< ascii-hex ECHConfigs (';' separated if >1) */
+#define ECH_FMT_HTTPSSVC  4  /**< presentation form of HTTPSSVC */
+
+/*
+ * Draft version values. We only support draft-13 as of now.
+ * Needs to be visible so new versions can be added for apps/ech.c
+ */
+#define ECH_DRAFT_13_VERSION 0xfe0d /**< ECHConfig version from draft-13 */
+
+/*
+ * The wire-format type code for ECH/ECHConfiGList within an SVCB or HTTPS RR
+ * value
+ */
+#define ECH_PCODE_ECH            0x0005
 
 /*
  * A failure return value from SSL_CTX_ech_server_enable for the
