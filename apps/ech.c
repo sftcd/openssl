@@ -197,7 +197,6 @@ static int mk_echconfig(
     unsigned char lpriv[ECH_CRYPTO_VAR_SIZE];
     size_t lprivlen = 0;
 
-
     switch(ekversion) {
         case ECH_DRAFT_13_VERSION:
             pnlen=(public_name==NULL?0:strlen(public_name));

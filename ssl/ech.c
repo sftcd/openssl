@@ -1845,85 +1845,93 @@ int SSL_CTX_ech_server_flush_keys(SSL_CTX *s, int age)
  */
 int SSL_CTX_ech_server_enable(SSL_CTX *ctx, const char *pemfile)
 {
-    int index=-1;
-    int fnamestat=0;
-    SSL_ECH *sechs=NULL;
-    int rv=1;
+    int index = -1;
+    int fnamestat = 0;
+    SSL_ECH *sechs = NULL;
+    int rv = 1;
 
-    if (ctx==NULL || pemfile==NULL) {
-        return(0);
+    if (ctx == NULL || pemfile == NULL) {
+        ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_NULL_PARAMETER);
+        return 0;
     }
 
     /* Check if we already loaded that one etc.  */
-    fnamestat=ech_check_filenames(ctx,pemfile,&index);
+    fnamestat = ech_check_filenames(ctx, pemfile, &index);
     switch (fnamestat) {
         case ECH_KEYPAIR_UNMODIFIED:
             /* nothing to do */
-            return(1);
+            return 1;
         case ECH_KEYPAIR_FILEMISSING:
             /* nothing to do, but trace this and let caller handle it */
 #ifndef OPENSSL_NO_SSL_TRACE
             OSSL_TRACE_BEGIN(TLS) {
-                BIO_printf(trc_out,
-                    "Returning ECH_FILEMISSING from SSL_CTX_ech_server_enable "
-                    "for %s\n",
-                    pemfile);
+                BIO_printf(trc_out, "Returning ECH_FILEMISSING from "
+                           "SSL_CTX_ech_server_enable for %s\n", pemfile);
                 BIO_printf(trc_out,"That's unexpected and likely indicates a "
-                    "problem, but the application might be able to continue\n");
+                           "problem, but the application might be able to "
+                           "continue\n");
             } OSSL_TRACE_END(TLS);
 #endif
-            return(ECH_FILEMISSING);
+            ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_INVALID_ARGUMENT);
+            return ECH_FILEMISSING ;
         case ECH_KEYPAIR_ERROR:
-            return(0);
+            ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
+            return 0 ;
     }
 
     /* Load up the file content */
-    rv=ech_readpemfile(ctx,1,pemfile,NULL,0,&sechs);
-    if (rv!=1) {
-        return(rv);
+    rv = ech_readpemfile(ctx, 1, pemfile, NULL, 0, &sechs);
+    if (rv != 1) {
+        ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
+        return rv;
     }
 
     /*
      * This is a restriction of our PEM file scheme - we only accept
      * one public key per PEM file
      */
-    if (!sechs || ! sechs->cfg || sechs->cfg->nrecs!=1) {
-        return(0);
+    if (sechs == NULL || sechs->cfg == NULL || sechs->cfg->nrecs!=1) {
+        ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
+        return 0;
     }
 
     /* Now store the keypair in a new or current place */
-    if (fnamestat==ECH_KEYPAIR_MODIFIED) {
+    if (fnamestat == ECH_KEYPAIR_MODIFIED) {
         SSL_ECH *curr_ec=NULL;
-        if (index<0 || index >=ctx->ext.nechs) {
+
+        if (index < 0 || index >= ctx->ext.nechs) {
             SSL_ECH_free(sechs);
             OPENSSL_free(sechs);
-            return(0);
+            ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
+            return 0;
         }
-        curr_ec=&ctx->ext.ech[index];
+        curr_ec = &ctx->ext.ech[index];
         SSL_ECH_free(curr_ec);
         memset(curr_ec,0,sizeof(SSL_ECH));
-        *curr_ec=*sechs; /* struct copy */
+        *curr_ec = *sechs; /* struct copy */
         OPENSSL_free(sechs);
-        return(1);
+        return 1;
     }
-    if (fnamestat==ECH_KEYPAIR_NEW) {
+    if (fnamestat == ECH_KEYPAIR_NEW) {
         SSL_ECH *re_ec=OPENSSL_realloc(ctx->ext.ech,
-                            (ctx->ext.nechs+1)*sizeof(SSL_ECH));
+                                       (ctx->ext.nechs+1)*sizeof(SSL_ECH));
         SSL_ECH *new_ec=NULL;
-        if (re_ec==NULL) {
+
+        if (re_ec == NULL) {
             SSL_ECH_free(sechs);
             OPENSSL_free(sechs);
-            return(0);
+            ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
+            return 0;
         }
-        ctx->ext.ech=re_ec;
-        new_ec=&ctx->ext.ech[ctx->ext.nechs];
+        ctx->ext.ech = re_ec;
+        new_ec = &ctx->ext.ech[ctx->ext.nechs];
         memset(new_ec,0,sizeof(SSL_ECH));
-        *new_ec=*sechs;
+        *new_ec = *sechs;
         ctx->ext.nechs++;
         OPENSSL_free(sechs);
-        return(1);
+        return 1;
     }
-
+    ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
     return 0;
 }
 
