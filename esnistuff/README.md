@@ -26,6 +26,9 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
+- 20221029: Started to tidy up ECH code in early preparation for making
+  a PR for that (now that my HPKE PR is hopefully nearing completion).
+
 - 20221024: another record layer leak, when GREASEing from client, answer
   was to tweak the conditions for free'ing the record layer and
   ``init_buf`` depending on the ECH conditions we see, but that's pretty

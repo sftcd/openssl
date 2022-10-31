@@ -66,6 +66,16 @@
 #define ECH_PBUF_SIZE 8*1024 /**<  buffer for string returned via ech_cb */
 
 /*
+ * To control the number of zeros added after a draft-13
+ * EncodedClientHello - we pad to a target number of octets
+ * or, if there are naturally more, to a number divisible by
+ * the defined increment (we also do the draft-13 recommended
+ * SNI padding thing first)
+ */
+#define ECH_PADDING_TARGET 256 /**< all ECH cleartext padded to at least this */
+#define ECH_PADDING_INCREMENT 32 /**< all ECH's padded to a multiple of this */
+
+/*
  * The wire-format type code for ECH/ECHConfiGList within an SVCB or HTTPS RR
  * value
  */
@@ -1816,39 +1826,58 @@ int SSL_CTX_ech_server_key_status(SSL_CTX *s, int *numkeys)
 
 /**
  * @brief Zap the stored ECH Keys to allow a re-load without hogging memory
- * @param s is the SSL server context
+ * @param ctx is the SSL server context
  * @param age don't flush keys loaded in the last age seconds
  * @return 1 for success, other otherwise
  *
- * Supply a zero or negative age to delete all keys. Providing age=3600 will
+ * Supply a zero value for age to delete all keys. Providing age=3600 will
  * keep keys loaded in the last hour.
  */
-int SSL_CTX_ech_server_flush_keys(SSL_CTX *s, int age)
+int SSL_CTX_ech_server_flush_keys(SSL_CTX *ctx, time_t age)
 {
-    time_t now=time(0);
-    int i=0;
-    int deleted=0; /* number deleted */
-    if (s==NULL) return 0;
-    if (s->ext.ech==NULL) return 1;
-    if (s->ext.nechs==0) return 1;
-    if (age<=0) {
-        SSL_ECH_free(s->ext.ech);
-        OPENSSL_free(s->ext.ech);
-        s->ext.ech=NULL;
-        s->ext.nechs=0;
+    time_t now = time(0);
+    int i = 0;
+    int deleted = 0; /* number deleted */
+    int orig = 0;
+
+    if (ctx == NULL) {
+        ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_NULL_PARAMETER);
+        return 0;
+    }
+    /* it's not a failure if nothing loaded yet */
+    if (ctx->ext.ech == NULL || ctx->ext.nechs == 0)
+        return 1;
+    orig = ctx->ext.nechs;
+    if (age == 0) {
+        SSL_ECH_free(ctx->ext.ech);
+        OPENSSL_free(ctx->ext.ech);
+        ctx->ext.ech = NULL;
+        ctx->ext.nechs = 0;
+#ifndef OPENSSL_NO_SSL_TRACE
+        OSSL_TRACE_BEGIN(TLS) {
+            BIO_printf(trc_out, "Flushed all %d ECH keys at %lu\n", orig, now);
+        } OSSL_TRACE_END(TLS);
+#endif
         return 1;
     }
     /* Otherwise go through them and delete as needed */
-    for (i=0;i!=s->ext.nechs;i++) {
-        SSL_ECH *ep=&s->ext.ech[i];
+    for (i = 0; i != ctx->ext.nechs; i++) {
+        SSL_ECH *ep = &ctx->ext.ech[i];
+
         if ((ep->loadtime + age) <= now ) {
             SSL_ECH_free(ep);
             deleted++;
             continue;
         }
-        s->ext.ech[i-deleted]=s->ext.ech[i]; /* struct copy! */
+        ctx->ext.ech[i-deleted] = ctx->ext.ech[i]; /* struct copy! */
     }
-    s->ext.nechs -= deleted;
+    ctx->ext.nechs -= deleted;
+#ifndef OPENSSL_NO_SSL_TRACE
+    OSSL_TRACE_BEGIN(TLS) {
+        BIO_printf(trc_out, "Flushed %d (of %d) ECH keys more than %lu "
+                   "seconds old at %lu\n", deleted, orig, age, now);
+    } OSSL_TRACE_END(TLS);
+#endif
     return 1;
 }
 
@@ -4471,7 +4500,7 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
     /*
      * finally - make sure we're longer than padding target too
      * this is a local addition - might take it out if it makes
-     * us stick out (of if we take out the above more complicated
+     * us stick out; or if we take out the above more complicated
      * scheme, we may only need this in the end
      */
     while(length_with_padding<ECH_PADDING_TARGET) {
