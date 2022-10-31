@@ -334,6 +334,8 @@ then
         esac
     fi
     done
+
+    # TODO: add a test with outer SNI == NONE
 fi
 
 if [[ "$skipgood" == "no" ]]

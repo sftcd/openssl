@@ -236,13 +236,6 @@ static const char *B64_alphabet=
 static const char *httpssvc_telltale="ech=";
 
 /*
- * This is a special marker value. If set via a specific call
- * to our external API, then we'll override use of the
- * ECHConfig.public_name and send no outer SNI.
- */
-char *ech_public_name_override_null="DON'T SEND ANY OUTER NAME";
-
-/*
  * return values used to decide if a keypair needs reloading or not
  */
 #define ECH_KEYPAIR_ERROR          0
@@ -611,9 +604,6 @@ void ECH_ENCCH_free(ECH_ENCCH *ev)
  * have common structures so we don't try
  * free twice.
  */
-#define CFREE(__x__) \
-    if (tbf->__x__) { OPENSSL_free(tbf->__x__); tbf->__x__=NULL; }
-
 /**
  * @brief free an SSL_ECH
  * @param tbf is a ptr to an SSL_ECH structure
@@ -631,13 +621,9 @@ void SSL_ECH_free(SSL_ECH *tbf)
         ECHConfigs_free(tbf->cfg);
         OPENSSL_free(tbf->cfg);
     }
-    if (tbf->inner_name!=ECH_PUBLIC_NAME_OVERRIDE_NULL) {
-        CFREE(inner_name);
-    }
-    if (tbf->outer_name!=ECH_PUBLIC_NAME_OVERRIDE_NULL) {
-        CFREE(outer_name);
-    }
-    CFREE(pemfname);
+    OPENSSL_free(tbf->inner_name);
+    OPENSSL_free(tbf->outer_name);
+    OPENSSL_free(tbf->pemfname);
     if (tbf->keyshare!=NULL) {
         EVP_PKEY_free(tbf->keyshare); tbf->keyshare=NULL;
     }
@@ -1345,6 +1331,7 @@ static int local_ech_add(
                     if (!retechs[nlens+cfgind].outer_name) goto err;
                 } else
                     retechs[nlens+cfgind].outer_name=NULL;
+                retechs[nlens+cfgind].no_outer = 0;
                 retechs[nlens+cfgind].pemfname=NULL;
                 retechs[nlens+cfgind].loadtime=0;
                 retechs[nlens+cfgind].keyshare=NULL;
@@ -1534,11 +1521,12 @@ int SSL_CTX_ech_add(
  * @param s is the SSL context
  * @param inner_name is NULL or the hidden service name
  * @param outer_name is NULL or the the cleartext SNI to use
- * @return 1 for success, error otherwise
+ * @param no_outer set to 1 to send no outer SNI
+ * @return 1 for success, 0 otherwise
  *
  * If outer_name is provided via this API as NULL, then
  * we'll use the ECHConfig.public_name.
- * If outer_name is ECH_PUBLIC_NAME_OVERRIDE_NULL then
+ * If outer_name is NULL and no_outer is 1 then
  * no outer SNI will be sent.
  * If outer_name is not NULL then that value will override
  * the ECHConfig.public_name.
@@ -1548,79 +1536,76 @@ int SSL_CTX_ech_add(
  * If the inner_name is NULL, then no SNI will be sent
  * in the inner CH.
  */
-int SSL_ech_server_name(SSL *ssl, const char *inner_name, const char *outer_name)
+int SSL_ech_server_name(SSL *ssl,
+                        const char *inner_name,
+                        const char *outer_name,
+                        int no_outer)
 {
-    int nind=0;
+    int nind = 0;
     SSL_CONNECTION *s = SSL_CONNECTION_FROM_SSL(ssl);
 
-    if (s==NULL) return(0);
-    if (s->ech==NULL) return(0);
-
-    for (nind=0;nind!=s->nechs;nind++) {
-        if (s->ech[nind].inner_name!=NULL)
-            OPENSSL_free(s->ech[nind].outer_name);
-        if (inner_name!=NULL && strlen(inner_name)>0)
-            s->ech[nind].inner_name=OPENSSL_strdup(inner_name);
-        else s->ech[nind].inner_name=NULL;
-        if (s->ech[nind].outer_name!=NULL &&
-                s->ech[nind].outer_name!=ECH_PUBLIC_NAME_OVERRIDE_NULL)
-            OPENSSL_free(s->ech[nind].outer_name);
-        if (outer_name!=NULL && strlen(outer_name)>0 &&
-                outer_name!=ECH_PUBLIC_NAME_OVERRIDE_NULL)
-            s->ech[nind].outer_name=OPENSSL_strdup(outer_name);
-        else if (outer_name==ECH_PUBLIC_NAME_OVERRIDE_NULL)
-            s->ech[nind].outer_name=ECH_PUBLIC_NAME_OVERRIDE_NULL;
-        else s->ech[nind].outer_name=NULL;
+    if (s == NULL || s->ech == NULL) {
+        ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_NULL_PARAMETER);
+        return(0);
     }
-    s->ext.ech_attempted=1;
-    s->ext.ech_attempted_type=TLSEXT_TYPE_ech_unknown;
-    s->ext.ech_attempted_cid=TLSEXT_TYPE_ech_config_id_unset;
+    for (nind = 0; nind != s->nechs; nind++) {
+        OPENSSL_free(s->ech[nind].outer_name);
+        if (inner_name != NULL && strlen(inner_name) > 0)
+            s->ech[nind].inner_name = OPENSSL_strdup(inner_name);
+        else s->ech[nind].inner_name = NULL;
+        OPENSSL_free(s->ech[nind].outer_name);
+        if (outer_name != NULL && strlen(outer_name) > 0)
+            s->ech[nind].outer_name = OPENSSL_strdup(outer_name);
+        else if (outer_name == NULL && no_outer == 1)
+            s->ech[nind].no_outer = 1;
+        else s->ech[nind].outer_name = NULL;
+    }
+    s->ext.ech_attempted = 1;
+    s->ext.ech_attempted_type = TLSEXT_TYPE_ech_unknown;
+    s->ext.ech_attempted_cid = TLSEXT_TYPE_ech_config_id_unset;
     return 1;
 }
 
 /**
  * @brief Set the outer SNI
+ * @param ssl is the SSL context
+ * @param outer_name is the (to be) hidden service name
+ * @param no_outer set to 1 to send no outer SNI
+ * @return 1 for success, error otherwise
  *
  * If outer_name is provided via this API as NULL, then
  * we'll use the ECHConfig.public_name.
- * If outer_name is ECH_PUBLIC_NAME_OVERRIDE_NULL then
+ * If outer_name is NULL and no_outer is 1 then
  * no outer SNI will be sent.
  * If outer_name is not NULL then that value will override
  * the ECHConfig.public_name.
  *
- * @param ssl is the SSL context
- * @param outer_name is the (to be) hidden service name
- * @return 1 for success, error otherwise
  */
-int SSL_ech_set_outer_server_name(SSL *ssl, const char *outer_name)
+int SSL_ech_set_outer_server_name(SSL *ssl, const char *outer_name, int no_outer)
 {
-    int nind=0;
+    int nind = 0;
     SSL_CONNECTION *s = SSL_CONNECTION_FROM_SSL(ssl);
 
-    if (s==NULL) return(0);
-    if (s->ech==NULL) return(0);
-    for (nind=0;nind!=s->nechs;nind++) {
-
-        if (s->ech[nind].outer_name!=NULL &&
-                s->ech[nind].outer_name!=ECH_PUBLIC_NAME_OVERRIDE_NULL)
-            OPENSSL_free(s->ech[nind].outer_name);
-        if (outer_name!=NULL && strlen(outer_name)>0 &&
-                outer_name!=ECH_PUBLIC_NAME_OVERRIDE_NULL)
-            s->ech[nind].outer_name=OPENSSL_strdup(outer_name);
-        else if (outer_name==ECH_PUBLIC_NAME_OVERRIDE_NULL)
-            s->ech[nind].outer_name=ECH_PUBLIC_NAME_OVERRIDE_NULL;
-        else s->ech[nind].outer_name=NULL;
+    if (s == NULL || s->ech == NULL) {
+        ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_NULL_PARAMETER);
+        return(0);
+    }
+    for (nind = 0; nind != s->nechs; nind++) {
+        OPENSSL_free(s->ech[nind].outer_name);
+        if (outer_name != NULL && strlen(outer_name) > 0)
+            s->ech[nind].outer_name = OPENSSL_strdup(outer_name);
+        else if (outer_name == NULL && no_outer == 1)
+            s->ech[nind].no_outer = 1;
+        else s->ech[nind].outer_name = NULL;
         /* if this is called and an SNI is set already we copy that to inner */
-        if (s->ext.hostname) {
-            if (s->ech[nind].inner_name!=NULL)
-                OPENSSL_free(s->ech[nind].outer_name);
+        if (s->ext.hostname != NULL) {
+            OPENSSL_free(s->ech[nind].inner_name);
             s->ech[nind].inner_name=OPENSSL_strdup(s->ext.hostname);
         }
-
     }
-    s->ext.ech_attempted=1;
-    s->ext.ech_attempted_type=TLSEXT_TYPE_ech_unknown;
-    s->ext.ech_attempted_cid=TLSEXT_TYPE_ech_config_id_unset;
+    s->ext.ech_attempted = 1;
+    s->ext.ech_attempted_type = TLSEXT_TYPE_ech_unknown;
+    s->ext.ech_attempted_cid = TLSEXT_TYPE_ech_config_id_unset;
     return 1;
 }
 
@@ -1628,6 +1613,7 @@ int SSL_ech_set_outer_server_name(SSL *ssl, const char *outer_name)
  * @brief Set the outer SNI
  * @param s is the SSL_CTX
  * @param outer_name is the (to be) hidden service name
+ * @param no_outer set to 1 to send no outer SNI
  * @return 1 for success, error otherwise
  *
  * If outer_name is provided via this API as NULL, then
@@ -1637,21 +1623,22 @@ int SSL_ech_set_outer_server_name(SSL *ssl, const char *outer_name)
  * If outer_name is not NULL then that value will override
  * the ECHConfig.public_name.
  */
-int SSL_CTX_ech_set_outer_server_name(SSL_CTX *s, const char *outer_name)
+int SSL_CTX_ech_set_outer_server_name(SSL_CTX *s, const char *outer_name,
+                                      int no_outer)
 {
-    int nind=0;
-    if (s==NULL) return(0);
-    if (s->ext.ech==NULL) return(0);
-    for (nind=0;nind!=s->ext.nechs;nind++) {
-        if (s->ext.ech[nind].outer_name!=NULL &&
-                s->ext.ech[nind].outer_name!=ECH_PUBLIC_NAME_OVERRIDE_NULL)
-            OPENSSL_free(s->ext.ech[nind].outer_name);
-        if (outer_name!=NULL && strlen(outer_name)>0 &&
-                outer_name!=ECH_PUBLIC_NAME_OVERRIDE_NULL)
-            s->ext.ech[nind].outer_name=OPENSSL_strdup(outer_name);
-        else if (outer_name==ECH_PUBLIC_NAME_OVERRIDE_NULL)
-            s->ext.ech[nind].outer_name=ECH_PUBLIC_NAME_OVERRIDE_NULL;
-        else s->ext.ech[nind].outer_name=NULL;
+    int nind = 0;
+
+    if (s == NULL || s->ext.ech == NULL) {
+        ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_NULL_PARAMETER);
+        return(0);
+    }
+    for (nind = 0; nind != s->ext.nechs; nind++) {
+        OPENSSL_free(s->ext.ech[nind].outer_name);
+        if (outer_name != NULL && strlen(outer_name) > 0) 
+            s->ext.ech[nind].outer_name = OPENSSL_strdup(outer_name);
+        else if (outer_name == NULL && no_outer == 1)
+            s->ext.ech[nind].no_outer = 1;
+        else s->ext.ech[nind].outer_name = NULL;
     }
     return 1;
 }
@@ -2368,6 +2355,7 @@ SSL_ECH* SSL_ECH_dup(SSL_ECH* orig, size_t nech, int selector)
         if (orig[i].outer_name!=NULL) {
             new_se[i].outer_name=OPENSSL_strdup(orig[i].outer_name);
         }
+        new_se[i].no_outer = orig[i].no_outer;
         if (orig[i].pemfname!=NULL) {
             new_se[i].pemfname=OPENSSL_strdup(orig[i].pemfname);
         }

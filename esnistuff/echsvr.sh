@@ -163,7 +163,7 @@ else
 fi
 
 nreq_cmd=""
-if [[ "$NREQS" != "0" ]]
+if [[ "$NREQS" != "" ]]
 then
     echo "Exiting after $NREQS requests"
     nreq_cmd=" -naccept $NREQS "
