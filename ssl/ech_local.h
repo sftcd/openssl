@@ -182,6 +182,7 @@ typedef struct ssl_ech_st {
     /* API input names, or, set on server from CH if ECH worked */
     char *inner_name;
     char *outer_name;
+    int no_outer; 
     /*
      * File load information - if identical filenames not modified since
      * loadtime are added via SSL_ech_serve_enable then we'll ignore the new

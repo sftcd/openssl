@@ -43,11 +43,11 @@
 #define ECH_DRAFT_13_VERSION 0xfe0d /**< ECHConfig version from draft-13 */
 
 /*
- * A failure return value from SSL_CTX_ech_server_enable for the
- * case where the input file can't be read. We have a separate
- * return value as that could happen due to a disk error but
- * perhaps the application could continue if some keys were
- * previously loaded
+ * A failure return value from SSL_CTX_ech_server_enable (and
+ * similar) for the case where the input file can't be read.
+ * We have a separate return value as that could happen due
+ * to a disk error but perhaps the application could continue
+ * if some keys were previously loaded.
  */
 #define ECH_FILEMISSING 2
 
@@ -84,16 +84,6 @@ typedef struct ech_dets_st {
     char *inner_alpns; /**< inner ALPN string */
     char *echconfig; /**< a JSON-like version of the associated ECHConfig */
 } ECH_DETS;
-
-/*
- * This is a special marker value. If set in a call to any of our 
- * external APIs that allow setting SNI, then we'll override use of the
- * ECHConfig.public_name and send no outer SNI.
- * This is also mentioned in util/libssl.num as an
- * extern variable.
- */
-extern char *ech_public_name_override_null;
-#define ECH_PUBLIC_NAME_OVERRIDE_NULL  ech_public_name_override_null
 
 /*
  * Externally visible Prototypes
@@ -172,45 +162,51 @@ int SSL_CTX_ech_add(SSL_CTX *ctx, short ekfmt, size_t eklen, char *echkeys,
  * @param s is the SSL context
  * @param inner_name is the (to be) hidden service name
  * @param outer_name is the cleartext SNI name to use
+ * @param no_outer set to 1 to send no outer SNI
  * @return 1 for success, error otherwise
  *
  * Providing a NULL outer_name has a special effect - that means we send the
  * ECHConfig.public_name (which is the default).  If you supply a non-NULL 
  * value and do ECH then the value supplied here will override the
- * ECHConfig.public_name If you supply ECH_PUBLIC_NAME_OVERRIDE_NULL then no
- * outer name will be sent, regardless of the ECHConfig.public_name value.
+ * ECHConfig.public_name If you supply a NULL outer_name and no_outer has
+ * the value 1, then no outer name will be sent, regardless of the
+ * ECHConfig.public_name value.
  */
-int SSL_ech_server_name(SSL *s, const char *inner_name, const char *outer_name);
+int SSL_ech_server_name(SSL *s, const char *inner_name, const char *outer_name,
+                        int no_outer);
 
 /**
  * @brief Set the outer SNI
  *
  * @param ctx is the SSL_CTX
  * @param outer_name is the (to be) hidden service name
+ * @param no_outer set to 1 to send no outer SNI
  * @return 1 for success, error otherwise
  *
  * Providing a NULL outer_name has a special effect - that means we send the
  * ECHConfig.public_name (which is the default).  If you supply a non-NULL 
  * value and do ECH then the value supplied here will override the
- * ECHConfig.public_name If you supply ECH_PUBLIC_NAME_OVERRIDE_NULL then no
+ * ECHConfig.public_name If you supply NULL and no_outer is 1 then no
  * outer name will be sent, regardless of the ECHConfig.public_name value.
  */
-int SSL_CTX_ech_set_outer_server_name(SSL_CTX *ctx, const char *outer_name);
+int SSL_CTX_ech_set_outer_server_name(SSL_CTX *ctx, const char *outer_name,
+                                      int no_outer);
 
 /**
  * @brief Set the outer SNI
  *
  * @param s is the SSL connection
  * @param outer_name is the (to be) hidden service name
+ * @param no_outer set to 1 to send no outer SNI
  * @return 1 for success, error otherwise
  *
  * Providing a NULL outer_name has a special effect - that means we send the
  * ECHConfig.public_name (which is the default).  If you supply a non-NULL 
  * value and do ECH then the value supplied here will override the
- * ECHConfig.public_name If you supply ECH_PUBLIC_NAME_OVERRIDE_NULL then no
+ * ECHConfig.public_name If you supply NULL and no_outer is 1 then no
  * outer name will be sent, regardless of the ECHConfig.public_name value.
  */
-int SSL_ech_set_outer_server_name(SSL *s, const char *outer_name);
+int SSL_ech_set_outer_server_name(SSL *s, const char *outer_name, int no_outer);
 
 /**
  * @brief set the ALPN values for the outer ClientHello
