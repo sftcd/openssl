@@ -30,6 +30,12 @@
 
 #define TICKET_NONCE_SIZE       8
 
+#ifndef OPENSSL_NO_ECH
+# ifndef ECH_PBUF_SIZE
+#  define  ECH_PBUF_SIZE 8*1024 /**<  buffer for string returned via ech_cb */
+# endif
+#endif
+
 typedef struct {
   ASN1_TYPE *kxBlob;
   ASN1_TYPE *opaqueBlob;

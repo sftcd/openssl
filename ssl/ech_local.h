@@ -35,6 +35,8 @@
 
 #define ECH_CIPHER_LEN 4 /**< length of an ECHCipher (2 for kdf, 2 for aead) */
 
+#define ECH_OUTERS_MAX 20 /**< max TLS extensions we compress via outer-exts */
+
 /* values for s->ext.ech_grease */
 #define ECH_GREASE_UNKNOWN -1 /**< when we're not yet sure */
 #define ECH_NOT_GREASE 0 /**< when decryption worked */

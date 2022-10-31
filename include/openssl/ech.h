@@ -22,21 +22,6 @@
 # include <openssl/ssl.h>
 
 /*
- * Various externally visible length limits
- */
-#define ECH_MAX_RRVALUE_LEN 10000 /**< Max RR value size, as given to API */
-#define ECH_MAX_ECHCONFIGEXT_LEN 100 /**< Max for an ECHConfig extension */
-#define ECH_MIN_ECHCONFIG_LEN 32 /**< just for a sanity check */
-#define ECH_MAX_ECHCONFIG_LEN ECH_MAX_RRVALUE_LEN /**< for a sanity check */
-#define ECH_OUTERS_MAX 20 /**< max TLS extensions we compress via outer-exts */
-#define ECH_MAX_ECH_LEN 0x100 /**< max ENC-CH peer key share we'll decode */
-#define ECH_MAX_PAYLOAD_LEN 0xfff0 /**< max ECH ciphertext we'll decode */
-#define ECH_MAX_GREASE_LEN 0x200 /**< max GREASEy ciphertext we'll emit */
-#define ECH_MAX_MAXNAMELEN 255 /**< max ECHConfig max name length */
-#define ECH_MAX_PUBLICNAME 255 /**< max ECHConfig public name */
-#define ECH_PBUF_SIZE 8*1024 /**<  buffer for string returned via ech_cb */
-
-/*
  * A lack of padding can expose information intended to be hidden via ECH,
  * e.g. if only two inner CH SNI values were in live use. In that case we
  * pad * the Certificate, CertificateVerify and EncryptedExtensions handshake
@@ -121,7 +106,6 @@ typedef struct ech_dets_st {
     char *echconfig; /**< a JSON-like version of the associated ECHConfig */
 } ECH_DETS;
 
-
 /*
  * This is a special marker value. If set in a call to any of our 
  * external APIs that allow setting SNI, then we'll override use of the
@@ -150,12 +134,8 @@ extern char *ech_public_name_override_null;
  * @param num_echs says how many SSL_ECH structures are in the returned array
  * @return is 1 for success, error otherwise
  */
-int SSL_CTX_svcb_add(
-        SSL_CTX *ctx,
-        short rrfmt,
-        size_t rrlen,
-        char *rrval,
-        int *num_echs);
+int SSL_CTX_svcb_add(SSL_CTX *ctx, short rrfmt, size_t rrlen, char *rrval,
+                     int *num_echs);
 
 /**
  * @brief ingest SVCB/HTTPS RR value provided as (binary or ascii-hex encoded)
@@ -171,12 +151,8 @@ int SSL_CTX_svcb_add(
  * @param num_echs says how many SSL_ECH structures are in the returned array
  * @return is 1 for success, error otherwise
  */
-int SSL_svcb_add(
-        SSL *con,
-        int rrfmt,
-        size_t rrlen,
-        char *rrval,
-        int *num_echs);
+int SSL_svcb_add(SSL *con, int rrfmt, size_t rrlen, char *rrval,
+                 int *num_echs);
 
 /**
  * @brief ingest ECHConfigList'ss provided as (binary, base64 or ascii-hex
@@ -193,12 +169,8 @@ int SSL_svcb_add(
  * @param num_echs says how many SSL_ECH structures are in the returned array
  * @return is 1 for success, error otherwise
  */
-int SSL_ech_add(
-        SSL *con,
-        int ekfmt,
-        size_t eklen,
-        char *echkeys,
-        int *num_echs);
+int SSL_ech_add(SSL *con, int ekfmt, size_t eklen, char *echkeys,
+                int *num_echs);
 
 /**
  * @brief ingest ECHConfigs provided as (binary, base64 or ascii-hex encoded)
@@ -214,12 +186,8 @@ int SSL_ech_add(
  * @param num_echs says how many SSL_ECH structures are in the returned array
  * @return is 1 for success, error otherwise
  */
-int SSL_CTX_ech_add(
-        SSL_CTX *ctx,
-        short ekfmt,
-        size_t eklen,
-        char *echkeys,
-        int *num_echs);
+int SSL_CTX_ech_add(SSL_CTX *ctx, short ekfmt, size_t eklen, char *echkeys,
+                    int *num_echs);
 
 /**
  * @brief Set the inner and outer SNI
@@ -235,10 +203,7 @@ int SSL_CTX_ech_add(
  * ECHConfig.public_name If you supply ECH_PUBLIC_NAME_OVERRIDE_NULL then no
  * outer name will be sent, regardless of the ECHConfig.public_name value.
  */
-int SSL_ech_server_name(
-        SSL *s,
-        const char *inner_name,
-        const char *outer_name);
+int SSL_ech_server_name(SSL *s, const char *inner_name, const char *outer_name);
 
 /**
  * @brief Set the outer SNI
@@ -278,10 +243,8 @@ int SSL_ech_set_outer_server_name(SSL *s, const char *outer_name);
  * @param protos_len is the length of protos
  * @return 1 for success, error otherwise
  */
-int SSL_CTX_ech_set_outer_alpn_protos(
-        SSL_CTX *ctx,
-        const unsigned char *protos,
-        const size_t protos_len);
+int SSL_CTX_ech_set_outer_alpn_protos(SSL_CTX *ctx, const unsigned char *protos,
+                                      const size_t protos_len);
 
 /**
  * @brief set the ALPN values for the outer ClientHello
@@ -291,10 +254,8 @@ int SSL_CTX_ech_set_outer_alpn_protos(
  * @param protos_len is the length of protos
  * @return 1 for success, error otherwise
  */
-int SSL_ech_set_outer_alpn_protos(
-        SSL *ssl,
-        const unsigned char *protos,
-        unsigned int protos_len);
+int SSL_ech_set_outer_alpn_protos(SSL *ssl, const unsigned char *protos,
+                                  unsigned int protos_len);
 
 /**
  * @brief query the content of an SSL_ECH structure
@@ -387,10 +348,8 @@ int SSL_CTX_ech_server_enable(SSL_CTX *s, const char *echcfgfile);
  *
  * When this works, the server will try decrypt ECH's from ClientHellos.
  */
-int SSL_CTX_ech_server_enable_buffer(
-        SSL_CTX *s,
-        const unsigned char *buf,
-        const size_t blen);
+int SSL_CTX_ech_server_enable_buffer(SSL_CTX *s, const unsigned char *buf,
+                                     const size_t blen);
 
 /*!
  * @brief try load all the keys in PEM files found in a directory
@@ -400,10 +359,8 @@ int SSL_CTX_ech_server_enable_buffer(
  * @oaram number_loaded returns the number of key pairs successfully loaded
  * @return 1 for success, other otherwise
  */
-int SSL_CTX_ech_readpemdir(
-        SSL_CTX *ctx,
-        const char *echdir,
-        int *number_loaded);
+int SSL_CTX_ech_readpemdir(SSL_CTX *ctx, const char *echdir,
+                           int *number_loaded);
 
 /**
  * Print the content of an SSL_ECH

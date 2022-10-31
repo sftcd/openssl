@@ -12,6 +12,7 @@
 #include <string.h>
 #include "apps.h"
 #include "progs.h"
+#include <openssl/ssl.h>
 #include <openssl/bio.h>
 #include <openssl/evp.h>
 #include <openssl/err.h>
@@ -29,8 +30,9 @@
 /* a max suitestr len just for sanity checking */
 #define ECH_MAXSUITESTR 32
 
-/* a max extensions len - this is HUGE to allow cat pics */
-#define ECH_MAXEXTLEN 60000
+#define ECH_MAXEXTLEN 60000 /**< a max extensions len - HUGE allows cat pics */
+#define ECH_MAX_MAXNAMELEN 255 /**< max ECHConfig max name length */
+#define ECH_MAX_PUBLICNAME 255 /**< max ECHConfig public name */
 
 /* max PEM encoded ECHConfigs we'll emit */
 #define ECH_MAX_ECHCONFIGS_LEN ECH_MAXEXTLEN+1000
