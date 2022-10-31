@@ -76,6 +76,19 @@ typedef unsigned int u_int;
 #endif
 #include "internal/sockets.h"
 
+#ifndef OPENSSL_NO_ECH
+/*
+ * A lack of padding can expose information intended to be hidden via ECH,
+ * e.g. if only two inner CH SNI values were in live use. In that case we
+ * pad the Certificate, CertificateVerify and EncryptedExtensions handshake
+ * messages from the server. These are the  minimum lengths to which those
+ * will be padded in that case.
+ */
+#define ECH_CERTSPECIFIC_MIN 1808
+#define ECH_CERTVERSPECIFIC_MIN 480
+#define ECH_ENCEXTSPECIFIC_MIN 32
+#endif
+
 static int not_resumable_sess_cb(SSL *s, int is_forward_secure);
 static int sv_body(int s, int stype, int prot, unsigned char *context);
 static int www_body(int s, int stype, int prot, unsigned char *context);
@@ -110,7 +123,7 @@ typedef struct {
 static ech_padding_sizes *ech_ps=NULL;
 
 /**
- * @ brief pad Certificate and CertificateVerify messages
+ * @brief pad Certificate and CertificateVerify messages
  * @param s is the SSL connection
  * @param len is the plaintext length before padding
  * @param arg is a pointer to an esni_padding_sizes struct
@@ -2858,6 +2871,10 @@ int s_server_main(int argc, char *argv[])
     print_stats(bio_s_out, ctx);
     ret = 0;
  end:
+#ifndef OPENSSL_NO_ECH
+    /* test/demo code really - flush ECH key pairs >1 second old */
+    SSL_CTX_ech_server_flush_keys(ctx, 1);
+#endif
     SSL_CTX_free(ctx);
     SSL_SESSION_free(psksess);
     set_keylog_file(NULL, NULL);
