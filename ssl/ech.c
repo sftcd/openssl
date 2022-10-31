@@ -52,6 +52,20 @@
 #define ECH_CRYPTO_VAR_SIZE 2048
 
 /*
+ * Various externally visible length limits
+ */
+#define ECH_MAX_RRVALUE_LEN 10000 /**< Max RR value size, as given to API */
+#define ECH_MAX_ECHCONFIGEXT_LEN 100 /**< Max for an ECHConfig extension */
+#define ECH_MIN_ECHCONFIG_LEN 32 /**< just for a sanity check */
+#define ECH_MAX_ECHCONFIG_LEN ECH_MAX_RRVALUE_LEN /**< for a sanity check */
+#define ECH_MAX_ECH_LEN 0x100 /**< max ENC-CH peer key share we'll decode */
+#define ECH_MAX_PAYLOAD_LEN 0xfff0 /**< max ECH ciphertext we'll decode */
+#define ECH_MAX_GREASE_LEN 0x200 /**< max GREASEy ciphertext we'll emit */
+#define ECH_MAX_MAXNAMELEN 255 /**< max ECHConfig max name length */
+#define ECH_MAX_PUBLICNAME 255 /**< max ECHConfig public name */
+#define ECH_PBUF_SIZE 8*1024 /**<  buffer for string returned via ech_cb */
+
+/*
  * The wire-format type code for ECH/ECHConfiGList within an SVCB or HTTPS RR
  * value
  */

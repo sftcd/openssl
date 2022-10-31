@@ -148,6 +148,10 @@ struct sslapitest_log_counts {
 #undef HARDCODED
 #ifndef HARDCODED
 #ifndef OSSL_NO_USABLE_ECH
+
+#ifndef ECH_MAX_ECHCONFIG_LEN
+# define ECH_MAX_ECHCONFIG_LEN 10000 /**< for a sanity check */
+#endif
 static char *echconfiglist_from_PEM(const char *echkeyfile)
 {
     BIO *in=NULL;
