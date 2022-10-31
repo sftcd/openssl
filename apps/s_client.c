@@ -2468,16 +2468,15 @@ int s_client_main(int argc, char **argv)
         goto opthelp;
     }
 
-    if (( ech_encoded_configs!=NULL || ech_svcb_rr != NULL) &&
-            sni_outer_name!=NULL) {
-        const char *outer_to_use=NULL;
+    if ((ech_encoded_configs!=NULL || ech_svcb_rr != NULL)
+        && sni_outer_name!=NULL) {
         int rv=0;
-        if (sni_outer_name!=NULL &&
-                strncmp(sni_outer_name,ECH_NAME_NONE,strlen(ECH_NAME_NONE))) {
-            outer_to_use=sni_outer_name;
-        }
-        rv=SSL_ech_set_outer_server_name(con, outer_to_use);
-        if (rv!=1) {
+
+        if (!strncmp(sni_outer_name, ECH_NAME_NONE, strlen(ECH_NAME_NONE)))
+            rv = SSL_ech_set_outer_server_name(con, NULL, 1);
+        else  
+            rv = SSL_ech_set_outer_server_name(con, sni_outer_name, 0);
+        if (rv != 1) {
             BIO_printf(bio_err, "%s: enabling ECH outer name failed.\n", prog);
             ERR_print_errors(bio_err);
             goto end;
