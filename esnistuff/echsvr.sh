@@ -41,6 +41,7 @@ SUPPLIEDCLEAR_SNI=""
 SUPPLIEDDIR=""
 CAPATH="$CFGTOP/esnistuff/cadir/"
 EARLY_DATA="no"
+NREQS=""
 
 # whether we feed a bad key pair to server for testing
 BADKEY="no"
@@ -58,7 +59,7 @@ echo "Running $0 at $NOW"
 
 function usage()
 {
-    echo "$0 [-cHpDsdnlvhKw] - try out encrypted SNI via openssl s_server"
+    echo "$0 [-cHpDsdNnlvhKw] - try out encrypted SNI via openssl s_server"
     echo "  -B to input a bad key pair to server setup, for testing"
 	echo "  -c [name] specifices a name that I'll accept as a cleartext SNI (NONE is special)"
     echo "  -D means find ech config files in that directory"
@@ -69,6 +70,7 @@ function usage()
     echo "  -h means print this"
 	echo "  -K to generate server keys "
 	echo "  -k provide ECH Key pair PEM file"
+    echo "  -N [number] means to exit after number requests"
     echo "  -n means don't trigger ech at all"
     echo "  -p [port] specifices a port (default: 8443)"
     echo "  -P turn on ECH specific padding"
@@ -86,7 +88,7 @@ function usage()
 }
 
 # options may be followed by one colon to indicate they have a required argument
-if ! options=$(/usr/bin/getopt -s bash -o k:BTFc:D:eH:p:PRKdlvnhw -l keyfile,badkey,trialdecrypt,hardfail,dir:,early,clear_sni:,hidden:,port:,pad,hrr,keygen,debug,stale,valgrind,noech,help,web -- "$@")
+if ! options=$(/usr/bin/getopt -s bash -o k:BTFc:D:eH:p:PRKdlvN:nhw -l keyfile,badkey,trialdecrypt,hardfail,dir:,early,clear_sni:,hidden:,port:,pad,hrr,keygen,debug,stale,valgrind,nreq,noech,help,web -- "$@")
 then
     # something went wrong, getopt will put out an error message for us
     exit 1
@@ -106,6 +108,7 @@ do
         -H|--hidden) SUPPLIEDHIDDEN=$2; shift;;
         -k|--keyfile) SUPPLIEDKEYFILE=$2; shift;;
         -K|--keygen) KEYGEN="yes" ;;
+        -N|--nreq) NREQS=$2; shift;;
         -n|--noech) NOECH="yes" ;;
         -p|--port) SUPPLIEDPORT=$2; shift;;
         -P|--pad) ECHPAD="yes";;
@@ -157,6 +160,13 @@ then
     hrr_cmd=" -groups P-384"
 else
     echo "Not forcing HRR"
+fi
+
+nreq_cmd=""
+if [[ "$NREQS" != "0" ]]
+then
+    echo "Exiting after $NREQS requests"
+    nreq_cmd=" -naccept $NREQS "
 fi
 
 KEYFILE1=$CFGTOP/esnistuff/cadir/$clear_sni.priv
@@ -300,8 +310,8 @@ fi
 
 if [[ "$DEBUG" == "yes" ]]
 then
-    echo "Running: $sudocmd $vgcmd $CODETOP/apps/openssl s_server $dbgstr $keyfile1 $keyfile2 $certsdb $portstr $force13 $echstr $snicmd $hardfail $trialdecrypt $alpn_cmd $echpad_cmd $hrr_cmd $WEBSERVER $earlystr"
+    echo "Running: $sudocmd $vgcmd $CODETOP/apps/openssl s_server $dbgstr $keyfile1 $keyfile2 $certsdb $portstr $force13 $echstr $snicmd $hardfail $trialdecrypt $alpn_cmd $echpad_cmd $hrr_cmd $nreq_cmd $WEBSERVER $earlystr"
 fi
-$sudocmd $vgcmd $CODETOP/apps/openssl s_server $dbgstr $keyfile1 $keyfile2 $certsdb $portstr $force13 $echstr $snicmd $hardfail $trialdecrypt $alpn_cmd $echpad_cmd $hrr_cmd $WEBSERVER $earlystr
+$sudocmd $vgcmd $CODETOP/apps/openssl s_server $dbgstr $keyfile1 $keyfile2 $certsdb $portstr $force13 $echstr $snicmd $hardfail $trialdecrypt $alpn_cmd $echpad_cmd $hrr_cmd $nreq_cmd $WEBSERVER $earlystr
 
 
