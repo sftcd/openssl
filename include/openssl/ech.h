@@ -20,6 +20,25 @@
 #ifndef OPENSSL_NO_ECH
 
 # include <openssl/ssl.h>
+# include <openssl/hpke.h>
+
+/*
+ * Various externally visible limits
+ */
+#define ECH_MAX_RRVALUE_LEN 10000 /**< Max RR value size, as given to API */
+#define ECH_MAX_ECHCONFIGEXT_LEN 100 /**< Max for an ECHConfig extension */
+#define ECH_MIN_ECHCONFIG_LEN 32 /**< just for a sanity check */
+#define ECH_MAX_ECHCONFIG_LEN ECH_MAX_RRVALUE_LEN /**< for a sanity check */
+#define ECH_MAX_ECHCONFIGS_LEN ECH_MAXEXTLEN+1000 /* max PEM encoded ECHConfigs we'll emit */
+#define ECH_MAX_ECH_LEN 0x100 /**< max ENC-CH peer key share we'll decode */
+#define ECH_MAX_PAYLOAD_LEN 0xfff0 /**< max ECH ciphertext we'll decode */
+#define ECH_MAX_GREASE_LEN 0x200 /**< max GREASEy ciphertext we'll emit */
+#define ECH_MAX_MAXNAMELEN 255 /**< max ECHConfig max name length */
+#define ECH_MAX_PUBLICNAME 255 /**< max ECHConfig public name */
+#define ECH_PBUF_SIZE 8*1024 /**<  buffer for string returned via ech_cb */
+#define ECH_MAXEXTLEN 60000 /**< a max extensions len - HUGE allows cat pics */
+#define ECH_MAX_MAXNAMELEN 255 /**< max ECHConfig max name length */
+#define ECH_MAX_PUBLICNAME 255 /**< max ECHConfig public name */
 
 /*
  * Supported input formats for ECHConfigList API inputs:
@@ -37,8 +56,9 @@
 #define ECH_FMT_HTTPSSVC  4  /**< presentation form of HTTPSSVC */
 
 /*
- * Draft version values. We only support draft-13 as of now.
- * Needs to be visible so new versions can be added for apps/ech.c
+ * ECH version values. We only support draft-13 as of now.
+ * As new versions are added, those should be noted here.
+ * (Though there is no automation checking that.)
  */
 #define ECH_DRAFT_13_VERSION 0xfe0d /**< ECHConfig version from draft-13 */
 
@@ -449,6 +469,25 @@ void SSL_CTX_ech_set_callback(SSL_CTX *ctx, SSL_ech_cb_func f);
  * API.
  */
 int SSL_ech_get_returned(SSL *s, size_t *eclen, const unsigned char **ec);
+
+/**
+ * @brief Make an ECH key pair and ECHConfigList structure
+ * @param echconfig is the ECHConfigList buffer
+ * @param echconfiglen is size of that buffer (used on output)
+ * @param priv is the private key buffer
+ * @param privlen is size of that buffer (used on output)
+ * @param ekversion is the version to make
+ * @param max_name_length is the maximum name length
+ * @param public_name is for inclusion within the ECHConfig
+ * @param extlen is the length of extension
+ * @param extvals is the encoded extensions
+ * @return 1 for success, error otherwise
+ */
+int ossl_ech_make_echconfig(unsigned char *echconfig, size_t *echconfiglen,
+                            unsigned char *priv, size_t *privlen,
+                            uint16_t ekversion, uint16_t max_name_length,
+                            const char *public_name, OSSL_HPKE_SUITE suite,
+                            const unsigned char *extvals, size_t extlen);
 
 #endif
 #endif
