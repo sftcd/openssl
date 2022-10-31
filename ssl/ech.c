@@ -52,6 +52,12 @@
 #define ECH_CRYPTO_VAR_SIZE 2048
 
 /*
+ * The wire-format type code for ECH/ECHConfiGList within an SVCB or HTTPS RR
+ * value
+ */
+#define ECH_PCODE_ECH            0x0005
+
+/*
  * When doing ECH, this array specifies which inner CH extensions (if
  * any) are to be "compressed" using the outer extensions scheme.
  *
