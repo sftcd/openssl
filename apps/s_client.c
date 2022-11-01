@@ -4021,7 +4021,7 @@ static void print_stuff(BIO *bio, SSL *s, int full)
                 break;
             case SSL_ECH_STATUS_FAILED_ECH:
                 BIO_printf(bio,"ECH: tried, failed and got ECH in return\n");
-                if (!SSL_ech_get_returned(s,&eclen,&ec)) {
+                if (!SSL_ech_get_returned(s, &ec, &eclen)) {
                     BIO_printf(bio,"Failure getting ECH returned\n");
                 } else {
                     size_t eind=0;
@@ -4042,7 +4042,7 @@ static void print_stuff(BIO *bio, SSL *s, int full)
                 break;
             case SSL_ECH_STATUS_GREASE_ECH:
                 BIO_printf(bio,"ECH: only greasing, and got ECH in return\n");
-                if (!SSL_ech_get_returned(s,&eclen,&ec)) {
+                if (!SSL_ech_get_returned(s, &ec, &eclen)) {
                     BIO_printf(bio,"Failure getting ECH returned\n");
                 } else {
                     size_t eind=0;

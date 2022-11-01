@@ -460,15 +460,15 @@ void SSL_CTX_ech_set_callback(SSL_CTX *ctx, SSL_ech_cb_func f);
  * @brief provide access to a returned ECHConfig value
  *
  * @param s is the SSL connection
- * @param eclen is a pointer to the length of the ECHConfig (zero if none)
  * @param ec is a pointer to the ECHConfig
+ * @param eclen is a pointer to the length of the ECHConfig (zero if none)
  * @return 1 for success, other othewise
  *
  * If we GREASEd, or tried and failed, and we got an ECHConfig in 
  * return, the application can access the ECHConfig returned via this
  * API.
  */
-int SSL_ech_get_returned(SSL *s, size_t *eclen, const unsigned char **ec);
+int SSL_ech_get_returned(SSL *s, const unsigned char **ec, size_t *eclen);
 
 /**
  * @brief Make an ECH key pair and ECHConfigList structure
