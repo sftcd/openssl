@@ -12,8 +12,6 @@
  * This implements the externally-visible functions
  * for handling Encrypted ClientHello (ECH)
  */
-
-
 # include <openssl/ssl.h>
 
 #ifndef OPENSSL_NO_ECH
@@ -4058,28 +4056,27 @@ int ech_swaperoo(SSL_CONNECTION *s)
     s->ext.ech_grease=ECH_NOT_GREASE;
 
     /* call ECH callback */
-    if (s->ech!=NULL &&
-        s->ext.ech_done==1 &&
-        s->hello_retry_request!=SSL_HRR_PENDING &&
-        s->ech_cb != NULL) {
-        char pstr[ECH_PBUF_SIZE+1];
+    if (s->ech != NULL && s->ext.ech_done == 1
+        && s->hello_retry_request != SSL_HRR_PENDING
+        && s->ech_cb != NULL) {
+        char pstr[ECH_PBUF_SIZE + 1];
         BIO *biom = BIO_new(BIO_s_mem());
-        unsigned int cbrv=0;
-        memset(pstr,0,ECH_PBUF_SIZE+1);
-        SSL_ech_print(biom,&s->ssl,ECH_SELECT_ALL);
-        BIO_read(biom,pstr,ECH_PBUF_SIZE);
-        cbrv=s->ech_cb(&s->ssl,pstr);
+        unsigned int cbrv = 0;
+
+        memset(pstr, 0, ECH_PBUF_SIZE + 1);
+        SSL_ech_print(biom, &s->ssl, ECH_SELECT_ALL);
+        BIO_read(biom, pstr, ECH_PBUF_SIZE);
+        cbrv = s->ech_cb(&s->ssl, pstr);
         BIO_free(biom);
         if (cbrv != 1) {
 #ifndef OPENSSL_NO_SSL_TRACE
             OSSL_TRACE_BEGIN(TLS) {
-                BIO_printf(trc_out,"Exiting ech_swaperoo at %d\n",__LINE__);
+                BIO_printf(trc_out,"Exiting ech_swaperoo at %d\n", __LINE__);
             } OSSL_TRACE_END(TLS);
 #endif
             return 0;
         }
     }
-
     return(1);
 }
 
@@ -5652,16 +5649,20 @@ err:
  * @return 1 for success, error otherwise
  */
 int SSL_CTX_ech_set_outer_alpn_protos(SSL_CTX *ctx, const unsigned char *protos,
-                            const size_t protos_len)
+                                      const size_t protos_len)
 {
+    if (ctx == NULL || protos == NULL || protos_len == 0) {
+        ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_NULL_PARAMETER);
+        return 0;
+    }
     OPENSSL_free(ctx->ext.alpn_outer);
     ctx->ext.alpn_outer = OPENSSL_memdup(protos, protos_len);
     if (ctx->ext.alpn_outer == NULL) {
         ERR_raise(ERR_LIB_SSL, ERR_R_MALLOC_FAILURE);
-        return 1;
+        return 0;
     }
     ctx->ext.alpn_outer_len = protos_len;
-    return 0;
+    return 1;
 }
 
 /**
@@ -5677,14 +5678,18 @@ int SSL_ech_set_outer_alpn_protos(SSL *ssl, const unsigned char *protos,
 {
     SSL_CONNECTION *s = SSL_CONNECTION_FROM_SSL(ssl);
 
+    if (s == NULL || protos == NULL || protos_len == 0) {
+        ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_NULL_PARAMETER);
+        return 0;
+    }
     OPENSSL_free(s->ext.alpn_outer);
     s->ext.alpn_outer = OPENSSL_memdup(protos, protos_len);
     if (s->ext.alpn_outer == NULL) {
         ERR_raise(ERR_LIB_SSL, ERR_R_MALLOC_FAILURE);
-        return 1;
+        return 0;
     }
     s->ext.alpn_outer_len = protos_len;
-    return 0;
+    return 1;
 }
 
 /**
