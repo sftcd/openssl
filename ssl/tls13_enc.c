@@ -694,8 +694,6 @@ int tls13_change_cipher_state(SSL_CONNECTION *s, int which)
             goto err;
         }
 
-        // inner->statem.enc_write_state = ENC_WRITE_STATE_WRITE_PLAIN_ALERTS;
-        // s->statem.enc_write_state = ENC_WRITE_STATE_WRITE_PLAIN_ALERTS;
         ssl_evp_cipher_free(cipher);
         return 1;
     }
