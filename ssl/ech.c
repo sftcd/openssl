@@ -5690,26 +5690,26 @@ int SSL_ech_set_outer_alpn_protos(SSL *ssl, const unsigned char *protos,
 /**
  * @brief provide access to a returned ECH value
  * @param ssl is the SSL session
- * @param eclen is a pointer to the length of the ECHConfig (zero if none)
  * @param ec is a pointer to the ECHConfig
- * @return 1 for success, other othewise
+ * @param eclen is a pointer to the length of the ECHConfig (zero if none)
+ * @return 1 for success, 0 othewise
  *
  * If we GREASEd, or tried and failed, and got an ECH in return
  * the application can access the ECHConfig returned via this
  * API.
- *
  */
-int SSL_ech_get_returned(SSL *ssl, size_t *eclen, const unsigned char **ec)
+int SSL_ech_get_returned(SSL *ssl, const unsigned char **ec, size_t *eclen)
 {
     SSL_CONNECTION *s = SSL_CONNECTION_FROM_SSL(ssl);
 
-    if (!s || !eclen || !ec) return 0;
+    if (s == NULL || eclen == NULL || ec == NULL)
+        return 0;
     if (s->ext.ech_returned) {
-        *eclen=s->ext.ech_returned_len;
-        *ec=s->ext.ech_returned;
+        *eclen = s->ext.ech_returned_len;
+        *ec = s->ext.ech_returned;
     } else {
-        *eclen=0;
-        *ec=NULL;
+        *eclen = 0;
+        *ec = NULL;
     }
     return 1;
 }
