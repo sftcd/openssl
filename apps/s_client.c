@@ -120,16 +120,16 @@ static char *sess_out = NULL;
  */
 #define ECH_NAME_NONE "NONE"
 
-static const char *ech_inner_name=NULL;
-static const char *sni_outer_name=NULL;
-static int ech_grease=0;
+static const char *ech_inner_name = NULL;
+static const char *sni_outer_name = NULL;
+static int ech_grease = 0;
 static char *ech_grease_suite = NULL;
 static int ech_grease_type = -1;
-static int ech_ignore_cid=0;
-static int nechs=0;
+static int ech_ignore_cid = 0;
+static int nechs = 0;
 static char *ech_encoded_configs = NULL;
 static char *ech_svcb_rr = NULL;
-static int ech_select=ECH_SELECT_ALL;
+static int ech_select = ECH_SELECT_ALL;
 #ifndef OPENSSL_NO_SSL_TRACE
 static size_t ech_trace_cb(const char *buf, size_t cnt,
                  int category, int cmd, void *vdata);
@@ -871,24 +871,21 @@ static void freeandcopy(char **dest, const char *source)
 
 static int new_session_cb(SSL *s, SSL_SESSION *sess)
 {
-
 #ifndef OPENSSL_NO_ECH
-    if (nechs>0) {
-	    const char *hn_1=NULL;
-        char *inner=NULL;
-        char *outer=NULL;
+    if (nechs > 0) {
+	    const char *hn_1 = NULL;
+        char *inner = NULL;
+        char *outer = NULL;
         int rv;
 
-	    if (c_debug) {
+	    if (c_debug)
 	        BIO_printf(bio_c_out,"new_session_cb called ech flavour\n");
-	    }
-	    hn_1=SSL_SESSION_get0_hostname(sess);
-	    if (hn_1==NULL && c_debug) {
+	    hn_1 = SSL_SESSION_get0_hostname(sess);
+	    if (hn_1 == NULL && c_debug) 
 	        BIO_printf(bio_c_out,"Existing session hostname is NULL\n");
-	    } else if (c_debug) {
+	    else if (c_debug)
 	        BIO_printf(bio_c_out,"Existing session hostname is %s\n",hn_1);
-	    }
-        rv=SSL_ech_get_status(s,&inner,&outer);
+        rv = SSL_ech_get_status(s, &inner, &outer);
         switch (rv) {
             case SSL_ECH_STATUS_SUCCESS:
                 if (c_debug) {
@@ -1656,26 +1653,26 @@ int s_client_main(int argc, char **argv)
             sni_outer_name = opt_arg();
             break;
         case OPT_ECHCONFIGS:
-            ech_encoded_configs= opt_arg();
+            ech_encoded_configs = opt_arg();
             break;
         case OPT_SVCB:
             ech_svcb_rr = opt_arg();
             break;
         case OPT_ECH_SELECT:
-            ech_select=atoi(opt_arg());
+            ech_select = atoi(opt_arg());
             break;
         case OPT_ECH_GREASE:
-            ech_grease=1;
+            ech_grease = 1;
             break;
         case OPT_ECH_GREASE_SUITE:
-            ech_grease_suite=opt_arg();
+            ech_grease_suite = opt_arg();
             break;
         case OPT_ECH_GREASE_TYPE:
             /* cast to uint16_t even though int */
-            ech_grease_type=(uint16_t) atoi(opt_arg());
+            ech_grease_type = (uint16_t)atoi(opt_arg());
             break;
         case OPT_ECH_IGNORE_CONFIG_ID:
-            ech_ignore_cid=1;
+            ech_ignore_cid = 1;
             break;
 #endif
 
@@ -2020,11 +2017,11 @@ int s_client_main(int argc, char **argv)
     }
 
 #ifndef OPENSSL_NO_ECH
-    if (ech_grease!=0) {
-        SSL_CTX_set_options(ctx,SSL_OP_ECH_GREASE);
+    if (ech_grease != 0) {
+        SSL_CTX_set_options(ctx, SSL_OP_ECH_GREASE);
     }
-    if (ech_ignore_cid!=0) {
-        SSL_CTX_set_options(ctx,SSL_OP_ECH_IGNORE_CID);
+    if (ech_ignore_cid != 0) {
+        SSL_CTX_set_options(ctx, SSL_OP_ECH_IGNORE_CID);
     }
 #endif
 
@@ -2199,17 +2196,17 @@ int s_client_main(int argc, char **argv)
     }
 
 #ifndef OPENSSL_NO_ECH
-    if (alpn_outer_in) {
+    if (alpn_outer_in != NULL) {
         size_t alpn_outer_len;
-        unsigned char *alpn_outer =
-            next_protos_parse(&alpn_outer_len, alpn_outer_in);
+        unsigned char *alpn_outer = NULL;
+
+        alpn_outer = next_protos_parse(&alpn_outer_len, alpn_outer_in);
         if (alpn_outer == NULL) {
             BIO_printf(bio_err, "Error parsing -alpn_outer argument\n");
             goto end;
         }
-        /* Returns 0 on success! */
-        if (SSL_CTX_ech_set_outer_alpn_protos(
-                    ctx, alpn_outer, alpn_outer_len) != 0) {
+        if (SSL_CTX_ech_set_outer_alpn_protos(ctx, alpn_outer,
+                                              alpn_outer_len) != 1) {
             BIO_printf(bio_err, "Error setting ALPN-OUTER\n");
             goto end;
         }
@@ -2226,9 +2223,8 @@ int s_client_main(int argc, char **argv)
             BIO_printf(bio_err, "Error parsing -alpn_outer argument\n");
             goto end;
         }
-        /* Returns 0 on success! */
-        if (SSL_CTX_ech_set_outer_alpn_protos(
-                    ctx, alpn_outer, alpn_outer_len) != 0) {
+        if (SSL_CTX_ech_set_outer_alpn_protos(ctx, alpn_outer,
+                                              alpn_outer_len) != 1) {
             BIO_printf(bio_err, "Error setting ALPN-OUTER\n");
             goto end;
         }
@@ -2707,11 +2703,9 @@ int s_client_main(int argc, char **argv)
 
 #ifndef OPENSSL_NO_ECH
 #ifndef OPENSSL_NO_SSL_TRACE
-        if (c_msg==2) {
-            OSSL_trace_set_callback(
-                    OSSL_TRACE_CATEGORY_TLS, ech_trace_cb,
-                    bio_c_msg? bio_c_msg : bio_c_out);
-        }
+        if (c_msg==2)
+            OSSL_trace_set_callback(OSSL_TRACE_CATEGORY_TLS, ech_trace_cb,
+                                    bio_c_msg? bio_c_msg : bio_c_out);
 #endif
 #endif
 
@@ -4103,8 +4097,8 @@ static void print_stuff(BIO *bio, SSL *s, int full)
 #ifndef OPENSSL_NO_ECH
 #ifndef OPENSSL_NO_SSL_TRACE
 /* ECH Tracing callback */
-static size_t ech_trace_cb(const char *buf, size_t cnt,
-                 int category, int cmd, void *vdata)
+static size_t ech_trace_cb(const char *buf, size_t cnt, int category,
+                           int cmd, void *vdata)
 {
      BIO *bio = vdata;
      const char *label = NULL;
@@ -4132,7 +4126,7 @@ static size_t ech_trace_cb(const char *buf, size_t cnt,
                     label, OSSL_trace_get_category_name(category));
 #endif
      }
-     brv=(size_t)BIO_puts(bio, buf);
+     brv = (size_t)BIO_puts(bio, buf);
      (void)BIO_flush(bio);
      return brv;
 }
