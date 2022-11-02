@@ -2148,6 +2148,9 @@ int SSL_ech_get_status(SSL *ssl, char **inner_sni, char **outer_sni)
     char *souter=NULL;
     SSL_CONNECTION *s = SSL_CONNECTION_FROM_SSL(ssl);
 
+    OSSL_TRACE_BEGIN(TLS) {
+        SSL_ech_print(trc_out, ssl, ECH_SELECT_ALL);
+    } OSSL_TRACE_END(TLS);
     if (s==NULL || outer_sni==NULL || inner_sni==NULL) {
         return SSL_ECH_STATUS_BAD_CALL;
     }

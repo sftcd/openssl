@@ -42,6 +42,9 @@
 #define ECH_NOT_GREASE 0 /**< when decryption worked */
 #define ECH_IS_GREASE 1 /**< when decryption failed or GREASE wanted */
 
+/* used to indicate "all" in SSL_ech_print */
+#define ECH_SELECT_ALL -1 
+
 /* value for uninitialised GREASE ECH version */
 #define TLSEXT_TYPE_ech_unknown               0xffff
 
@@ -406,6 +409,16 @@ int ech_get_ch_offsets(
         uint16_t *echtype,
         int *inner,
         size_t *snioffset);
+
+/**
+ * Print the content of an SSL_ECH
+ *
+ * @param out is the BIO to use (e.g. stdout/whatever)
+ * @param s is an SSL session strucutre
+ * @param selector allows picking all (ECH_SELECT_ALL==-1) or just one RR value
+ * @return 1 for success, anything else for failure
+ */
+int SSL_ech_print(BIO* out, SSL *s, int selector);
 
 #endif
 #endif
