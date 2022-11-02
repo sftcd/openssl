@@ -23,29 +23,24 @@
 # include <openssl/hpke.h>
 
 /*
- * Various externally visible limits
+ * Various externally visible limits - most are sanity checks that could be 
+ * a lot bigger if needed, but that's not currently needed (could be in a
+ * PQC world, but we're not there yet)
  */
-#define ECH_MAX_RRVALUE_LEN 10000 /**< Max RR value size, as given to API */
+#define ECH_MAX_PAYLOAD_LEN 1500 /**< max ECH ciphertext we'll en/decode */
+#define ECH_MIN_ECHCONFIG_LEN 32 /**< for sanity check */
+#define ECH_MAX_ECHCONFIG_LEN 1500  /**< sanity check, regardless of encoding */
 #define ECH_MAX_ECHCONFIGEXT_LEN 100 /**< Max for an ECHConfig extension */
-#define ECH_MIN_ECHCONFIG_LEN 32 /**< just for a sanity check */
-#define ECH_MAX_ECHCONFIG_LEN ECH_MAX_RRVALUE_LEN /**< for a sanity check */
-#define ECH_MAX_ECHCONFIGS_LEN ECH_MAXEXTLEN+1000 /* max PEM encoded ECHConfigs we'll emit */
-#define ECH_MAX_ECH_LEN 0x100 /**< max ENC-CH peer key share we'll decode */
-#define ECH_MAX_PAYLOAD_LEN 0xfff0 /**< max ECH ciphertext we'll decode */
-#define ECH_MAX_GREASE_LEN 0x200 /**< max GREASEy ciphertext we'll emit */
-#define ECH_MAX_MAXNAMELEN 255 /**< max ECHConfig max name length */
-#define ECH_MAX_PUBLICNAME 255 /**< max ECHConfig public name */
-#define ECH_PBUF_SIZE 8*1024 /**<  buffer for string returned via ech_cb */
-#define ECH_MAXEXTLEN 60000 /**< a max extensions len - HUGE allows cat pics */
-#define ECH_MAX_MAXNAMELEN 255 /**< max ECHConfig max name length */
-#define ECH_MAX_PUBLICNAME 255 /**< max ECHConfig public name */
+#define ECH_MAX_MAXNAMELEN 255 /**< largest ECHConfig max name length allowed */
+#define ECH_MAX_PUBLICNAME 255 /**< max ECHConfig public name length */
 
 /*
- * Supported input formats for ECHConfigList API inputs:
+ * Supported input formats for encoded ECHConfigList API inputs:
  * - can be a binary (wireform) HTTPS/SVCB RRVALUE or just the ECHConfigList
  *   set of octets from that
  * - can be base64 encoded version of the above
  * - can be ascii-hex encoded version of the above
+ * - can be a presentation-like format containing "ech=<b64-stuff>"
  * - can indicate the caller would like the library to guess which
  *   of the above applies
  */
@@ -53,12 +48,13 @@
 #define ECH_FMT_BIN       1  /**< one or more catenated binary ECHConfigs */
 #define ECH_FMT_B64TXT    2  /**< base64 ECHConfigs (';' separated if >1) */
 #define ECH_FMT_ASCIIHEX  3  /**< ascii-hex ECHConfigs (';' separated if >1) */
-#define ECH_FMT_HTTPSSVC  4  /**< presentation form of HTTPSSVC */
+#define ECH_FMT_HTTPSSVC  4  /**< presentation form with "ech=<b64-stuff>" */
 
 /*
  * ECH version values. We only support draft-13 as of now.
  * As new versions are added, those should be noted here.
- * (Though there is no automation checking that.)
+ * There's no automation checking this but other values will
+ * fail.
  */
 #define ECH_DRAFT_13_VERSION 0xfe0d /**< ECHConfig version from draft-13 */
 
