@@ -59,15 +59,6 @@
 #define ECH_DRAFT_13_VERSION 0xfe0d /**< ECHConfig version from draft-13 */
 
 /*
- * A failure return value from SSL_CTX_ech_server_enable (and
- * similar) for the case where the input file can't be read.
- * We have a separate return value as that could happen due
- * to a disk error but perhaps the application could continue
- * if some keys were previously loaded.
- */
-#define ECH_FILEMISSING 2
-
-/*
  * used to indicate "all" in SSL_ech_print etc. 
  */
 #define ECH_SELECT_ALL -1 
@@ -321,9 +312,10 @@ int SSL_CTX_ech_server_flush_keys(SSL_CTX *ctx, time_t age);
  * @return 1 for success, other otherwise
  *
  * When this works, the server will try decrypt ECH's from ClientHellos.
- * There's a special return value for the case where the input file can't
- * be read, as that could happen in a way that allows the server to
- * continue anyway if an earlier call had loaded a key pair.
+ * There's a special return value (SSL_R_FILE_OPEN_FAILED) for the case
+ * where the input file can't be read, as that could happen in a way
+ * that allows the server to continue anyway if an earlier call had
+ * loaded a key pair.
  */
 int SSL_CTX_ech_server_enable(SSL_CTX *ctx, const char *echcfgfile);
 

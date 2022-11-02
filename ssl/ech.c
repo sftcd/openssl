@@ -241,49 +241,53 @@ static int ech_check_filenames(SSL_CTX *ctx, const char *pemfname,int *index)
 {
     struct stat pemstat;
     time_t pemmod;
-    int ind=0;
-    size_t pemlen=0;
+    int ind = 0;
+    size_t pemlen = 0;
 
-    if (ctx==NULL || pemfname==NULL || index==NULL) return(ECH_KEYPAIR_ERROR);
+    if (ctx == NULL || pemfname == NULL || index == NULL)
+        return(ECH_KEYPAIR_ERROR);
     /* if we have none, then it is new */
-    if (ctx->ext.ech==NULL || ctx->ext.nechs==0) return(ECH_KEYPAIR_NEW);
+    if (ctx->ext.ech == NULL || ctx->ext.nechs == 0)
+        return(ECH_KEYPAIR_NEW);
     /*
      * if no file info, crap out... hmm, that could happen if the
      * disk fails hence different return value - the application may
      * be able to continue anyway...
      */
-    if (stat(pemfname,&pemstat) < 0) return(ECH_KEYPAIR_FILEMISSING);
+    if (stat(pemfname, &pemstat) < 0)
+        return(ECH_KEYPAIR_FILEMISSING);
 
     /* check the time info - we're only gonna do 1s precision on purpose */
 #if defined(__APPLE__)
-    pemmod=pemstat.st_mtimespec.tv_sec;
+    pemmod = pemstat.st_mtimespec.tv_sec;
 #elif defined(OPENSSL_SYS_WINDOWS)
-    pemmod=pemstat.st_mtime;
+    pemmod = pemstat.st_mtime;
 #else
-    pemmod=pemstat.st_mtim.tv_sec;
+    pemmod = pemstat.st_mtim.tv_sec;
 #endif
 
     /* search list of existing key pairs to see if we have that one already */
-    pemlen=strlen(pemfname);
-    for(ind=0;ind!=ctx->ext.nechs;ind++) {
-        size_t llen=0;
-        if (ctx->ext.ech[ind].pemfname==NULL) return(ECH_KEYPAIR_ERROR);
-        llen=strlen(ctx->ext.ech[ind].pemfname);
-        if (llen==pemlen &&
-                !strncmp(ctx->ext.ech[ind].pemfname,pemfname,pemlen)) {
+    pemlen = strlen(pemfname);
+    for(ind=0; ind != ctx->ext.nechs; ind++) {
+        size_t llen = 0;
+        if (ctx->ext.ech[ind].pemfname == NULL)
+            return(ECH_KEYPAIR_ERROR);
+        llen = strlen(ctx->ext.ech[ind].pemfname);
+        if (llen ==pemlen
+            && !strncmp(ctx->ext.ech[ind].pemfname,pemfname,pemlen)) {
             /* matching files! */
             if (ctx->ext.ech[ind].loadtime<pemmod) {
                 /* aha! load it up so */
-                *index=ind;
+                *index = ind;
                 return(ECH_KEYPAIR_MODIFIED);
             } else {
                 /* tell caller no need to bother */
-                *index=-1; /* just in case:-> */
+                *index = -1; /* just in case:-> */
                 return(ECH_KEYPAIR_UNMODIFIED);
             }
         }
     }
-    *index=-1; /* just in case:-> */
+    *index = -1; /* just in case:-> */
     return ECH_KEYPAIR_NEW;
 }
 
@@ -1867,11 +1871,11 @@ int SSL_CTX_ech_server_enable(SSL_CTX *ctx, const char *pemfile)
                            "problem, but the application might be able to "
                            "continue\n");
             } OSSL_TRACE_END(TLS);
-            ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_INVALID_ARGUMENT);
-            return ECH_FILEMISSING ;
+            ERR_raise(ERR_LIB_SSL, SSL_R_FILE_OPEN_FAILED);
+            return SSL_R_FILE_OPEN_FAILED;
         case ECH_KEYPAIR_ERROR:
             ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
-            return 0 ;
+            return 0;
     }
 
     /* Load up the file content */
@@ -2291,43 +2295,48 @@ static char *ECHConfigs_print(ECHConfigs *c)
  */
 SSL_ECH* SSL_ECH_dup(SSL_ECH* orig, size_t nech, int selector)
 {
-    SSL_ECH *new_se=NULL;
-    int min_ind=0;
-    int max_ind=nech;
-    int i=0;
-    if ((selector != ECH_SELECT_ALL) && selector<0) return(0);
-    if (selector!=ECH_SELECT_ALL) {
-        if ((unsigned int)selector>=nech) goto err;
-        min_ind=selector;
-        max_ind=selector+1;
+    SSL_ECH *new_se = NULL;
+    int min_ind = 0;
+    int max_ind = nech;
+    int i = 0;
+
+    if ((selector != ECH_SELECT_ALL) && selector < 0)
+        return NULL;
+    if (selector != ECH_SELECT_ALL) {
+        if ((unsigned int)selector >= nech)
+            goto err;
+        min_ind = selector;
+        max_ind = selector + 1;
     }
-    new_se=OPENSSL_malloc((max_ind-min_ind)*sizeof(SSL_ECH));
-    if (!new_se) goto err;
-    memset(new_se,0,(max_ind-min_ind)*sizeof(SSL_ECH));
-    for (i=min_ind;i!=max_ind;i++) {
-        new_se[i].cfg=OPENSSL_malloc(sizeof(ECHConfigs));
-        if (new_se[i].cfg==NULL) goto err;
-        if (ECHConfigs_dup(orig[i].cfg,new_se[i].cfg)!=1) goto err;
-        if (orig[i].inner_name!=NULL) {
-            new_se[i].inner_name=OPENSSL_strdup(orig[i].inner_name);
+    new_se = OPENSSL_malloc((max_ind - min_ind) * sizeof(SSL_ECH));
+    if (new_se == NULL)
+        goto err;
+    memset(new_se, 0, (max_ind - min_ind) * sizeof(SSL_ECH));
+    for (i = min_ind; i != max_ind; i++) {
+        new_se[i].cfg = OPENSSL_malloc(sizeof(ECHConfigs));
+        if (new_se[i].cfg == NULL)
+            goto err;
+        if (ECHConfigs_dup(orig[i].cfg, new_se[i].cfg) != 1)
+            goto err;
+        if (orig[i].inner_name != NULL) {
+            new_se[i].inner_name = OPENSSL_strdup(orig[i].inner_name);
         }
-        if (orig[i].outer_name!=NULL) {
-            new_se[i].outer_name=OPENSSL_strdup(orig[i].outer_name);
+        if (orig[i].outer_name != NULL) {
+            new_se[i].outer_name = OPENSSL_strdup(orig[i].outer_name);
         }
         new_se[i].no_outer = orig[i].no_outer;
-        if (orig[i].pemfname!=NULL) {
-            new_se[i].pemfname=OPENSSL_strdup(orig[i].pemfname);
+        if (orig[i].pemfname != NULL) {
+            new_se[i].pemfname = OPENSSL_strdup(orig[i].pemfname);
         }
-        new_se[i].loadtime=orig[i].loadtime;
-        if (orig[i].keyshare!=NULL) {
-            new_se[i].keyshare=orig[i].keyshare;
+        new_se[i].loadtime = orig[i].loadtime;
+        if (orig[i].keyshare != NULL) {
+            new_se[i].keyshare = orig[i].keyshare;
             EVP_PKEY_up_ref(orig[i].keyshare);
         }
-
     }
     return new_se;
 err:
-    if (new_se!=NULL) {
+    if (new_se != NULL) {
         SSL_ECH_free(new_se);
         OPENSSL_free(new_se);
     }
