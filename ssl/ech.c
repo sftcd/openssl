@@ -49,6 +49,10 @@
 /* a size for some crypto vars */
 #define ECH_CRYPTO_VAR_SIZE 2048
 
+#define ECH_PBUF_SIZE 8*1024 /**<  buffer for string returned via ech_cb */
+#define ECH_MAX_GREASE_PUB 0x100 /**< max ENC-CH peer key share we'll decode */
+#define ECH_MAX_GREASE_CT 0x200 /**< max GREASEy ciphertext we'll emit */
+
 /*
  * To control the number of zeros added after a draft-13
  * EncodedClientHello - we pad to a target number of octets
@@ -298,20 +302,22 @@ static int ech_check_filenames(SSL_CTX *ctx, const char *pemfname,int *index)
  * better to not do that for now.
  *
  * The input is modified if multivalued (NULL bytes are added in place of
- * semi-colon separators) so the caller should copy that if that's an issue.
+ * semi-colon separators) so the caller should have copied  that if that's
+ * an issue.
  */
 static int ech_base64_decode(char *in, unsigned char **out)
 {
-    const char* sepstr=";";
+    const char* sepstr = ";"; /* TODO: define a symbol for this (if kept) */
     size_t inlen = 0;
-    int i=0;
-    int outlen=0;
-    unsigned char *outbuf=NULL;
-    char *inp=in;
-    unsigned char *outp=NULL;
-    size_t overallfraglen=0;
+    int i = 0;
+    int outlen = 0;
+    unsigned char *outbuf = NULL;
+    char *inp = in;
+    unsigned char *outp = NULL;
+    size_t overallfraglen = 0;
 
-    if (!in || !out) return(0);
+    if (in == NULL || out == NULL)
+        return 0;
     inlen = strlen(in);
     if (inlen == 0) {
         *out = NULL;
@@ -319,44 +325,42 @@ static int ech_base64_decode(char *in, unsigned char **out)
     }
     /* overestimate of space but easier */
     outbuf = OPENSSL_malloc(inlen);
-    if (outbuf == NULL) {
+    if (outbuf == NULL)
         goto err;
-    }
-    outp=outbuf;
-    while (overallfraglen<inlen) {
-        int ofraglen=0;
+    outp = outbuf;
+    while (overallfraglen < inlen) {
+        int ofraglen = 0;
         /* find length of 1st b64 string */
-        size_t thisfraglen=strcspn(inp,sepstr);
+        size_t thisfraglen = strcspn(inp,sepstr);
 
         /* For ECH we'll never see this but just so we have bounds */
-        if (thisfraglen<=4 || thisfraglen >ECH_MAX_RRVALUE_LEN) {
+        if (thisfraglen <= ECH_MIN_ECHCONFIG_LEN || thisfraglen > ECH_MAX_ECHCONFIG_LEN)
             goto err;
-        }
-        if (thisfraglen>inlen) {
+        if (thisfraglen > inlen)
             goto err;
-        }
-        if (thisfraglen<inlen) inp[thisfraglen]='\0';
-        overallfraglen+=(thisfraglen+1);
+        if (thisfraglen < inlen)
+            inp[thisfraglen]='\0';
+        overallfraglen += (thisfraglen + 1);
         ofraglen = EVP_DecodeBlock(outp, (unsigned char *)inp, thisfraglen);
-        if (ofraglen < 0) {
+        if (ofraglen < 0)
             goto err;
-        }
         /* Subtract padding bytes from |outlen|.  More than 2 is malformed. */
         i = 0;
-        while (inp[thisfraglen-i-1] == '=') {
-            if (++i > 2) {
+        while (inp[thisfraglen - i - 1] == '=') {
+            if (++i > 2)
                 goto err;
-            }
         }
-        outp+=(ofraglen-i);
-        outlen+=(ofraglen-i);
-        inp+=(thisfraglen+1);
+        outp += (ofraglen - i);
+        outlen += (ofraglen - i);
+        inp += (thisfraglen + 1);
     }
     *out = outbuf;
     return outlen;
+
 err:
     OPENSSL_free(outbuf);
-    return -1;
+    *out = NULL;
+    return 0;
 }
 
 /**
@@ -780,7 +784,7 @@ static ECHConfigs *ECHConfigs_from_binary(
     if (binblen < ECH_MIN_ECHCONFIG_LEN) {
         goto err;
     }
-    if (binblen >= ECH_MAX_RRVALUE_LEN) {
+    if (binblen >= ECH_MAX_ECHCONFIG_LEN) {
         goto err;
     }
 
@@ -1166,83 +1170,74 @@ static int ah_decode(
  * @return is 1 for success, error otherwise
  *
  * This does the real work, can be called to add to a context or a connection
+ * TODO: Add test cases with good/bad inputs. (Been too long since I tested
+ * all those.)
  */
-static int local_ech_add(
-        int ekfmt,
-        size_t eklen,
-        unsigned char *ekval,
-        int *num_echs,
-        SSL_ECH **echs)
+static int local_ech_add(int ekfmt, size_t eklen, unsigned char *ekval,
+                         int *num_echs, SSL_ECH **echs)
 {
     /* Sanity checks on inputs */
-    int detfmt=ECH_FMT_GUESS;
-    int rv=0;
+    int detfmt = ECH_FMT_GUESS;
+    int rv = 0;
     unsigned char *outbuf = NULL; /* sequence of ECHConfigs (binary) */
-    size_t declen=0; /* length of the above */
-    char *ekptr=NULL;
-    int done=0;
-    unsigned char *outp=outbuf;
-    unsigned char *ekcpy=NULL;
-    int oleftover=0;
-    int nlens=0;
-    SSL_ECH *retechs=NULL;
-    SSL_ECH *newech=NULL;
-    int cfgind=0;
+    size_t declen = 0; /* length of the above */
+    char *ekptr = NULL;
+    int done = 0;
+    unsigned char *outp = outbuf;
+    unsigned char *ekcpy = NULL;
+    int oleftover = 0;
+    int nlens = 0;
+    SSL_ECH *retechs = NULL;
+    SSL_ECH *newech = NULL;
+    int cfgind = 0;
 
-    if (eklen==0 || !ekval || !num_echs) {
-        return(0);
-    }
-    if (eklen>=ECH_MAX_RRVALUE_LEN) {
-        return(0);
-    }
+    if (eklen == 0 || ekval == NULL || num_echs == NULL)
+        return 0;
+    if (eklen >= ECH_MAX_ECHCONFIG_LEN)
+        return 0;
     switch (ekfmt) {
         case ECH_FMT_GUESS:
-            rv=ech_guess_fmt(eklen,ekval,&detfmt);
-            if (rv==0)  {
-                return(rv);
-            }
+            rv = ech_guess_fmt(eklen, ekval, &detfmt);
+            if (rv == 0)
+                return 0;
             break;
         case ECH_FMT_HTTPSSVC:
         case ECH_FMT_ASCIIHEX:
         case ECH_FMT_B64TXT:
         case ECH_FMT_BIN:
-            detfmt=ekfmt;
+            detfmt = ekfmt;
             break;
         default:
-            return(0);
+            return 0;
     }
     /* Do the various decodes on a copy of ekval */
-    ekcpy=OPENSSL_malloc(eklen+1);
-    if (ekcpy==NULL) {
-        return(0);
-    }
-    memcpy(ekcpy,ekval,eklen);
-    ekcpy[eklen]=0x00; /* a NUL in case of string value */
-    ekptr=(char*)ekcpy;
+    ekcpy = OPENSSL_malloc(eklen + 1);
+    if (ekcpy == NULL)
+        return 0;
+    memcpy(ekcpy, ekval, eklen);
+    ekcpy[eklen] = 0x00; /* a NUL in case of string value */
+    ekptr = (char*)ekcpy;
 
-    if (detfmt==ECH_FMT_HTTPSSVC) {
-        if (strlen((char*)ekcpy)!=eklen) return(0);
-        ekptr=strstr((char*)ekcpy,httpssvc_telltale);
-        if (ekptr==NULL) {
-            OPENSSL_free(ekcpy);
-            return(rv);
-        }
+    if (detfmt == ECH_FMT_HTTPSSVC) {
+        if (strlen((char*)ekcpy) != eklen)
+            goto err;
+        ekptr = strstr((char*)ekcpy, httpssvc_telltale);
+        if (ekptr == NULL)
+            goto err;
         /* point ekptr at b64 encoded value */
-        if (strlen(ekptr)<=strlen(httpssvc_telltale)) {
-            OPENSSL_free(ekcpy);
-            return(rv);
-        }
-        ekptr+=strlen(httpssvc_telltale);
-        detfmt=ECH_FMT_B64TXT; /* tee up next step */
+        if (strlen(ekptr) <= strlen(httpssvc_telltale))
+            goto err;
+        ekptr += strlen(httpssvc_telltale);
+        detfmt = ECH_FMT_B64TXT; /* tee up next step */
     }
-    if (detfmt==ECH_FMT_B64TXT) {
-        int tdeclen=0;
-        if (strlen((char*)ekcpy)!=eklen) return(0);
+    if (detfmt == ECH_FMT_B64TXT) {
+        int tdeclen = 0;
+        if (strlen((char*)ekcpy) != eklen)
+            goto err;
         /* need an int to get -1 return for failure case */
         tdeclen = ech_base64_decode(ekptr, &outbuf);
-        if (tdeclen <= 0) {
+        if (tdeclen <= 0)
             goto err;
-        }
         declen=tdeclen;
     }
     if (detfmt==ECH_FMT_ASCIIHEX) {
@@ -1353,7 +1348,7 @@ static int local_ech_add(
     *echs=retechs;
 
     OPENSSL_free(ekcpy);
-    return(1);
+    return 1;
 
 err:
     if (outbuf!=NULL) {
@@ -1364,7 +1359,7 @@ err:
         SSL_ECH_free(retechs);
         OPENSSL_free(retechs);
     }
-    return(0);
+    return 0;
 }
 
 /**
@@ -1436,34 +1431,22 @@ static int local_decode_rdata_name(
  * use whichever is relevant/best. The fmt parameter can be
  * e.g. ECH_FMT_ASCII_HEX, or ECH_FMT_GUESS
  */
-int SSL_ech_add(
-        SSL *s,
-        int ekfmt,
-        size_t eklen,
-        char *ekval,
-        int *num_echs)
+int SSL_ech_add(SSL *s, int ekfmt, size_t eklen, char *ekval, int *num_echs)
 {
-    int rv=1;
-    SSL_ECH *echs=NULL;
+    SSL_ECH *echs = NULL;
     SSL_CONNECTION *con = SSL_CONNECTION_FROM_SSL(s);
 
-    /*
-     * Sanity checks on inputs
-     */
-    if (!con) {
-        return(0);
-    }
-    rv=local_ech_add(ekfmt,eklen,(unsigned char*)ekval,num_echs,&echs);
-    if (rv!=1) {
-        return(0);
-    }
-    con->ech=echs;
-    con->nechs=*num_echs;
-    con->ext.ech_attempted=1;
-    con->ext.ech_attempted_type=TLSEXT_TYPE_ech_unknown;
-    con->ext.ech_attempted_cid=TLSEXT_TYPE_ech_config_id_unset;
+    if (con == NULL)
+        return 0;
+    if (local_ech_add(ekfmt, eklen, (unsigned char*)ekval, num_echs, &echs)
+        != 1)
+        return 0;
+    con->ech = echs;
+    con->nechs = *num_echs;
+    con->ext.ech_attempted = 1;
+    con->ext.ech_attempted_type = TLSEXT_TYPE_ech_unknown;
+    con->ext.ech_attempted_cid = TLSEXT_TYPE_ech_config_id_unset;
     return(1);
-
 }
 
 /**
@@ -4131,8 +4114,8 @@ int ech_send_grease(SSL *ssl, WPACKET *pkt)
     OSSL_HPKE_SUITE hpke_suite = OSSL_HPKE_SUITE_DEFAULT;
     size_t cid_len=1;
     unsigned char cid;
-    size_t senderpub_len=ECH_MAX_ECH_LEN;
-    unsigned char senderpub[ECH_MAX_ECH_LEN];
+    size_t senderpub_len=ECH_MAX_GREASE_PUB;
+    unsigned char senderpub[ECH_MAX_GREASE_PUB];
     SSL_CONNECTION *s = SSL_CONNECTION_FROM_SSL(ssl);
     /*
      * 0x1d3 is what I produce for a real ECH when including padding in
@@ -4147,7 +4130,7 @@ int ech_send_grease(SSL *ssl, WPACKET *pkt)
       * CH padding results in a fixed length CH for at least many options.
       */
     size_t cipher_len_jitter=0;
-    unsigned char cipher[ECH_MAX_GREASE_LEN];
+    unsigned char cipher[ECH_MAX_GREASE_CT];
     /* stuff for copying to ech_sent */
     unsigned char *pp=WPACKET_get_curr(pkt);
     size_t pp_at_start=0;
@@ -4531,7 +4514,11 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         goto err;
     }
-    cipher = OPENSSL_zalloc(cipherlen+1000);
+    if (cipherlen > ECH_MAX_PAYLOAD_LEN) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+    cipher = OPENSSL_zalloc(cipherlen);
     if (cipher == NULL) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         goto err;
@@ -5147,7 +5134,7 @@ int ech_early_decrypt(SSL *ssl, PACKET *outerpkt, PACKET *newpkt)
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         goto err;
     }
-    if (tmp > ECH_MAX_ECH_LEN) {
+    if (tmp > ECH_MAX_GREASE_PUB) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         goto err;
     }
@@ -5742,7 +5729,7 @@ int ossl_ech_make_echconfig(unsigned char *echconfig, size_t *echconfiglen,
     size_t publen = ECH_CRYPTO_VAR_SIZE;
     unsigned char pub[ECH_CRYPTO_VAR_SIZE];
     int rv = 0;
-    unsigned char bbuf[ECH_MAX_ECHCONFIGS_LEN];
+    unsigned char bbuf[ECH_MAX_ECHCONFIG_LEN];
     unsigned char *bp = bbuf;
     size_t bblen = 0;
     unsigned int b64len = 0;

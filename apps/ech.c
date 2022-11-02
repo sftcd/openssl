@@ -30,15 +30,6 @@
 /* size for some local crypto vars */
 #define ECH_CRYPTO_VAR_SIZE 1024
 
-/*
- * Max ECH config file we want to handle. This
- * is bigger than ECH_MAX_ECHCONFIG_LEN as we 
- * want to be able to test files with large extensions
- * whilst there is no (currently) defined extension
- * in real use.
- */
-#define ECH_MAX_FILE_ECHCONFIG_LEN ECH_MAX_ECHCONFIGS_LEN
-
 #define ECH_KEYGEN_MODE    0 /* default is to generate a key pair/ECHConfig */
 #define ECH_SELPRINT_MODE  1 /* or we can print/down-select ECHConfigs */
 
@@ -104,13 +95,13 @@ int ech_main(int argc, char **argv)
     char *public_name = NULL;
     char *suitestr = NULL;
     char *extfile = NULL;
-    unsigned char extvals[ECH_MAXEXTLEN];
-    size_t extlen = ECH_MAXEXTLEN;
+    unsigned char extvals[ECH_MAX_ECHCONFIGEXT_LEN];
+    size_t extlen = ECH_MAX_ECHCONFIGEXT_LEN;
     uint16_t ech_version = ECH_DRAFT_13_VERSION;
     uint16_t max_name_length = 0;
     OSSL_HPKE_SUITE hpke_suite = OSSL_HPKE_SUITE_DEFAULT;
-    size_t echconfig_len = 2*ECH_MAX_ECHCONFIGS_LEN; /* bigger cause base64 */
-    unsigned char echconfig[2*ECH_MAX_ECHCONFIGS_LEN];
+    size_t echconfig_len = ECH_MAX_ECHCONFIG_LEN;
+    unsigned char echconfig[ECH_MAX_ECHCONFIG_LEN];
     unsigned char priv[ECH_CRYPTO_VAR_SIZE];
     size_t privlen = ECH_CRYPTO_VAR_SIZE;
     int rv = 0;
@@ -319,28 +310,25 @@ opthelp:
                 || pname == NULL
                 || strlen(pname) == 0
                 || strncmp(PEM_STRING_ECHCONFIG,pname,strlen(pname)))
-                goto err;
+                goto end;
             OPENSSL_free(pname);
             pname = NULL;
             OPENSSL_free(pheader);
             pheader=NULL;
-            if (plen >= ECH_MAX_FILE_ECHCONFIG_LEN)
-                goto err;
             s = SSL_new(con);
             if (s == NULL)
-                goto err;
-
-            /* Now decode that ECHConfigList */
+                goto end;
+            /* Try decode that ECHConfigList */
             rv = SSL_ech_add(s, ECH_FMT_GUESS, plen, (char*)pdata, &nechs);
             if (rv != 1) {
-                BIO_printf(bio_err, "Failed loading ECHConfig/Key from: %s\n",
+                BIO_printf(bio_err, "Failed loading ECHConfigs from: %s\n",
                            inpemfile);
                 goto end;
             }
             filedone = 1;
             BIO_free_all(pem_in);
             OPENSSL_free(pdata);
-            BIO_printf(bio_err, "Loaded ECHConfig from: %s\n", inpemfile);
+            BIO_printf(bio_err, "Loaded ECHConfigs from: %s\n", inpemfile);
         } else {
             filedone = 1;
             s = SSL_new(con);
@@ -371,7 +359,6 @@ opthelp:
         return 1;
     }
 
-err:
 end:
     if (filedone == 0 && verbose == 1) {
         BIO_printf(bio_err,"failed to load %s\n",inpemfile);
