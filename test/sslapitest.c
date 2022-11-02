@@ -149,35 +149,41 @@ struct sslapitest_log_counts {
 #ifndef HARDCODED
 #ifndef OSSL_NO_USABLE_ECH
 
-#ifndef ECH_MAX_ECHCONFIG_LEN
-# define ECH_MAX_ECHCONFIG_LEN 10000 /**< for a sanity check */
-#endif
+#define ECH_MAX_LINELEN 1000 /**< for a sanity check */
+
 static char *echconfiglist_from_PEM(const char *echkeyfile)
 {
-    BIO *in=NULL;
-    char *ecl_string=NULL;
-    char lnbuf[ECH_MAX_ECHCONFIG_LEN];
-    int readbytes=0;
+    BIO *in = NULL;
+    char *ecl_string = NULL;
+    char lnbuf[ECH_MAX_LINELEN];
+    int readbytes = 0;
+
     if (!TEST_ptr(in = BIO_new(BIO_s_file()))
-                || !TEST_int_ge(BIO_read_filename(in, echkeyfile), 0))
-            goto out;
+        || !TEST_int_ge(BIO_read_filename(in, echkeyfile), 0))
+        goto out;
     /* read 4 lines before the one we want */
-    readbytes=BIO_get_line(in,lnbuf,ECH_MAX_ECHCONFIG_LEN);
-    if (readbytes<=0 || readbytes>=ECH_MAX_ECHCONFIG_LEN) goto out;
-    readbytes=BIO_get_line(in,lnbuf,ECH_MAX_ECHCONFIG_LEN);
-    if (readbytes<=0 || readbytes>=ECH_MAX_ECHCONFIG_LEN) goto out;
-    readbytes=BIO_get_line(in,lnbuf,ECH_MAX_ECHCONFIG_LEN);
-    if (readbytes<=0 || readbytes>=ECH_MAX_ECHCONFIG_LEN) goto out;
-    readbytes=BIO_get_line(in,lnbuf,ECH_MAX_ECHCONFIG_LEN);
-    if (readbytes<=0 || readbytes>=ECH_MAX_ECHCONFIG_LEN) goto out;
-    readbytes=BIO_get_line(in,lnbuf,ECH_MAX_ECHCONFIG_LEN);
-    if (readbytes<=0 || readbytes>=ECH_MAX_ECHCONFIG_LEN) goto out;
-    ecl_string=OPENSSL_malloc(readbytes+1);
-    if (!ecl_string) goto out;
-    memcpy(ecl_string,lnbuf,readbytes);
+    readbytes = BIO_get_line(in, lnbuf, ECH_MAX_LINELEN);
+    if (readbytes <= 0 || readbytes >= ECH_MAX_LINELEN)
+        goto out;
+    readbytes = BIO_get_line(in, lnbuf, ECH_MAX_LINELEN);
+    if (readbytes <= 0 || readbytes >= ECH_MAX_LINELEN)
+        goto out;
+    readbytes = BIO_get_line(in, lnbuf, ECH_MAX_LINELEN);
+    if (readbytes <= 0 || readbytes >= ECH_MAX_LINELEN)
+        goto out;
+    readbytes = BIO_get_line(in, lnbuf, ECH_MAX_LINELEN);
+    if (readbytes <= 0 || readbytes >= ECH_MAX_LINELEN)
+        goto out;
+    readbytes = BIO_get_line(in, lnbuf, ECH_MAX_LINELEN);
+    if (readbytes <= 0 || readbytes >= ECH_MAX_LINELEN)
+        goto out;
+    ecl_string = OPENSSL_malloc(readbytes + 1);
+    if (ecl_string == NULL)
+        goto out;
+    memcpy(ecl_string, lnbuf, readbytes);
     /* zap the '\n' if present */
-    if (ecl_string[readbytes-1]=='\n')
-        ecl_string[readbytes-1]='\0';
+    if (ecl_string[readbytes - 1] == '\n')
+        ecl_string[readbytes - 1] = '\0';
     BIO_free_all(in);
     return(ecl_string);
 out:

@@ -26,6 +26,8 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
+- 20221102: more tidying up...
+
 - 20221029: Started to tidy up ECH code in early preparation for making
   a PR for that (now that my HPKE PR is hopefully nearing completion).
 
