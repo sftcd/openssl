@@ -120,6 +120,8 @@ static char *sess_out = NULL;
  */
 #define ECH_NAME_NONE "NONE"
 
+#define ECH_SELECT_ALL -1 /* when not reducing */
+
 static const char *ech_inner_name = NULL;
 static const char *sni_outer_name = NULL;
 static int ech_grease = 0;
@@ -4059,9 +4061,6 @@ static void print_stuff(BIO *bio, SSL *s, int full)
                  BIO_printf(bio,"ECH: Error trying ECH\n");
                 break;
             }
-
-            SSL_ech_print(bio,s,ECH_SELECT_ALL);
-
         }
 #endif
 
