@@ -59,11 +59,6 @@
 #define ECH_DRAFT_13_VERSION 0xfe0d /**< ECHConfig version from draft-13 */
 
 /*
- * used to indicate "all" in SSL_ech_print etc. 
- */
-#define ECH_SELECT_ALL -1 
-
-/*
  * Possible return codes from SSL_ech_get_status
  */
 #define SSL_ECH_STATUS_BACKEND    4 /**< ECH backend: saw an ech_is_inner */
@@ -341,16 +336,6 @@ int SSL_CTX_ech_server_enable_buffer(SSL_CTX *ctx, const unsigned char *buf,
  * @return 1 for success, other otherwise
  */
 int SSL_CTX_ech_readpemdir(SSL_CTX *ctx, const char *echdir, int *loaded);
-
-/**
- * Print the content of an SSL_ECH
- *
- * @param out is the BIO to use (e.g. stdout/whatever)
- * @param s is an SSL session strucutre
- * @param selector allows picking all (ECH_SELECT_ALL==-1) or just one RR value
- * @return 1 for success, anything else for failure
- */
-int SSL_ech_print(BIO* out, SSL *s, int selector);
 
 /**
  * @brief API to allow calling code know ECH outcome, post-handshake

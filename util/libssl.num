@@ -627,7 +627,6 @@ SSL_ech_reduce                          ?	3_2_0	EXIST::FUNCTION:ECH
 SSL_CTX_ech_server_key_status           ?	3_2_0	EXIST::FUNCTION:ECH
 SSL_CTX_ech_server_flush_keys           ?	3_2_0	EXIST::FUNCTION:ECH
 SSL_CTX_ech_server_enable               ?	3_2_0	EXIST::FUNCTION:ECH
-SSL_ech_print                           ?	3_2_0	EXIST::FUNCTION:ECH
 SSL_ech_get_status                      ?	3_2_0	EXIST::FUNCTION:ECH
 SSL_ech_set_callback                    ?	3_2_0	EXIST::FUNCTION:ECH
 SSL_CTX_ech_set_callback                ?	3_2_0	EXIST::FUNCTION:ECH
