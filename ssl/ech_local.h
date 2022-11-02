@@ -22,7 +22,7 @@
 # include <openssl/ech.h>
 # include <openssl/hpke.h>
 
-#undef ECH_SUPERVERBOSE  /**< define to get bazillions more lines of tracing */
+# undef ECH_SUPERVERBOSE  /**< define to get bazillions more lines of tracing */
 
 #ifndef CLIENT_VERSION_LEN
 /*

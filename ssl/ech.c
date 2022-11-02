@@ -22,9 +22,7 @@
 #include "ech_local.h"
 #include "statem/statem_local.h"
 #include <openssl/rand.h>
-#ifndef OPENSSL_NO_SSL_TRACE
 #include <openssl/trace.h>
-#endif
 #include <openssl/evp.h>
 #include <openssl/kdf.h>
 
@@ -1807,11 +1805,9 @@ int SSL_CTX_ech_server_flush_keys(SSL_CTX *ctx, time_t age)
         OPENSSL_free(ctx->ext.ech);
         ctx->ext.ech = NULL;
         ctx->ext.nechs = 0;
-#ifndef OPENSSL_NO_SSL_TRACE
         OSSL_TRACE_BEGIN(TLS) {
             BIO_printf(trc_out, "Flushed all %d ECH keys at %lu\n", orig, now);
         } OSSL_TRACE_END(TLS);
-#endif
         return 1;
     }
     /* Otherwise go through them and delete as needed */
@@ -1826,12 +1822,10 @@ int SSL_CTX_ech_server_flush_keys(SSL_CTX *ctx, time_t age)
         ctx->ext.ech[i-deleted] = ctx->ext.ech[i]; /* struct copy! */
     }
     ctx->ext.nechs -= deleted;
-#ifndef OPENSSL_NO_SSL_TRACE
     OSSL_TRACE_BEGIN(TLS) {
         BIO_printf(trc_out, "Flushed %d (of %d) ECH keys more than %lu "
                    "seconds old at %lu\n", deleted, orig, age, now);
     } OSSL_TRACE_END(TLS);
-#endif
     return 1;
 }
 
@@ -1866,7 +1860,6 @@ int SSL_CTX_ech_server_enable(SSL_CTX *ctx, const char *pemfile)
             return 1;
         case ECH_KEYPAIR_FILEMISSING:
             /* nothing to do, but trace this and let caller handle it */
-#ifndef OPENSSL_NO_SSL_TRACE
             OSSL_TRACE_BEGIN(TLS) {
                 BIO_printf(trc_out, "Returning ECH_FILEMISSING from "
                            "SSL_CTX_ech_server_enable for %s\n", pemfile);
@@ -1874,7 +1867,6 @@ int SSL_CTX_ech_server_enable(SSL_CTX *ctx, const char *pemfile)
                            "problem, but the application might be able to "
                            "continue\n");
             } OSSL_TRACE_END(TLS);
-#endif
             ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_INVALID_ARGUMENT);
             return ECH_FILEMISSING ;
         case ECH_KEYPAIR_ERROR:
@@ -2623,13 +2615,11 @@ int ech_same_ext(SSL *ssl, WPACKET* pkt)
         /* mark this one to be "compressed" */
         s->ext.outer_only[s->ext.n_outer_only]=type;
         s->ext.n_outer_only++;
-#ifndef OPENSSL_NO_SSL_TRACE
         OSSL_TRACE_BEGIN(TLS) {
             BIO_printf(trc_out,
                 "ech_same_ext: Marking ext (type %x,ind %d) for compression\n",
                 s->ext.etype,tind);
         } OSSL_TRACE_END(TLS);
-#endif
         return(ECH_SAME_EXT_CONTINUE);
     }
 
@@ -2639,13 +2629,11 @@ int ech_same_ext(SSL *ssl, WPACKET* pkt)
         if (!pkt) return(ECH_SAME_EXT_ERR);
         if (ech_outer_indep[tind]) {
             /* continue processing, meaning get a new value */
-#ifndef OPENSSL_NO_SSL_TRACE
             OSSL_TRACE_BEGIN(TLS) {
                 BIO_printf(trc_out,
                     "ech_same_ext: New outer value for ext (type %x,ind %d)\n",
                     s->ext.etype,tind);
             } OSSL_TRACE_END(TLS);
-#endif
             return(ECH_SAME_EXT_CONTINUE);
         } else {
             size_t ind=0;
@@ -2653,13 +2641,11 @@ int ech_same_ext(SSL *ssl, WPACKET* pkt)
             RAW_EXTENSION *raws=inner->clienthello->pre_proc_exts;
             size_t nraws=0;
             /* copy inner to outer */
-#ifndef OPENSSL_NO_SSL_TRACE
             OSSL_TRACE_BEGIN(TLS) {
                 BIO_printf(trc_out,
                     "ech_same_ext: Copying ext (type %x,ind %d) to outer\n",
                     s->ext.etype,tind);
             } OSSL_TRACE_END(TLS);
-#endif
             if (raws==NULL) {
                 return ECH_SAME_EXT_ERR;
             }
@@ -2964,11 +2950,9 @@ static int ech_decode_inner(
      */
     offset2sessid=CLIENT_VERSION_LEN+SSL3_RANDOM_SIZE;
     if (s->ext.encoded_innerch_len<(offset2sessid+2)) {
-#ifndef OPENSSL_NO_SSL_TRACE
         OSSL_TRACE_BEGIN(TLS) {
             BIO_printf(trc_out,"Oops - exts out of bounds\n");
         } OSSL_TRACE_END(TLS);
-#endif
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         goto err;
     }
@@ -2979,11 +2963,9 @@ static int ech_decode_inner(
                 2+suiteslen +            /* skipping suites */
                 2;                       /* skipping NULL compression */
     if (startofexts>=initial_decomp_len) {
-#ifndef OPENSSL_NO_SSL_TRACE
         OSSL_TRACE_BEGIN(TLS) {
             BIO_printf(trc_out,"Oops - exts out of bounds\n");
         } OSSL_TRACE_END(TLS);
-#endif
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         goto err;
     }
@@ -3007,11 +2989,9 @@ static int ech_decode_inner(
     elen=0;
 
     if ((startofexts+2+remaining)>initial_decomp_len) {
-#ifndef OPENSSL_NO_SSL_TRACE
         OSSL_TRACE_BEGIN(TLS) {
             BIO_printf(trc_out,"Oops - exts out of bounds\n");
         } OSSL_TRACE_END(TLS);
-#endif
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         goto err;
     }
@@ -3020,11 +3000,9 @@ static int ech_decode_inner(
         etype=initial_decomp[oneextstart]*256+initial_decomp[oneextstart+1];
         elen=initial_decomp[oneextstart+2]*256+initial_decomp[oneextstart+3];
         if ((oneextstart+4+elen)>initial_decomp_len) {
-#ifndef OPENSSL_NO_SSL_TRACE
             OSSL_TRACE_BEGIN(TLS) {
                 BIO_printf(trc_out,"Oops - exts out of bounds\n");
             } OSSL_TRACE_END(TLS);
-#endif
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             goto err;
         }
@@ -3037,11 +3015,9 @@ static int ech_decode_inner(
     }
 
     if (found==0) {
-#ifndef OPENSSL_NO_SSL_TRACE
         OSSL_TRACE_BEGIN(TLS) {
             BIO_printf(trc_out,"We had no compression\n");
         } OSSL_TRACE_END(TLS);
-#endif
         /* We still need to add msg type & 3-octet length */
         final_decomp_len=initial_decomp_len+4;
         final_decomp=OPENSSL_malloc(final_decomp_len);
@@ -3054,7 +3030,7 @@ static int ech_decode_inner(
         final_decomp[2]=((initial_decomp_len)>>8)%256;
         final_decomp[3]=(initial_decomp_len)%256;
         memcpy(final_decomp+4,initial_decomp,initial_decomp_len);
-        /* handle HRR case where we wanna (temporarily) store the old inner CH */
+        /* handle HRR case where we (temporarily) store the old inner CH */
         if (s->ext.innerch!=NULL) {
             if (s->ext.innerch1!=NULL) {
                 OPENSSL_free(s->ext.innerch1);
@@ -3085,11 +3061,9 @@ static int ech_decode_inner(
     for (i=0;i!=n_outers;i++) {
         outers[i]=oval_buf[2*i]*256+oval_buf[2*i+1];
         if (outers[i]==TLSEXT_TYPE_ech13) {
-#ifndef OPENSSL_NO_SSL_TRACE
             OSSL_TRACE_BEGIN(TLS) {
                 BIO_printf(trc_out,"You can't de-compress ECH within an ECH\n");
             } OSSL_TRACE_END(TLS);
-#endif
             SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
             goto err;
         }
@@ -3098,28 +3072,22 @@ static int ech_decode_inner(
     for (i=0;i!=n_outers;i++) {
         for (j=0;j!=n_outers;j++) {
             if (outers[i]==outers[j] && i!=j) {
-#ifndef OPENSSL_NO_SSL_TRACE
                 OSSL_TRACE_BEGIN(TLS) {
                     BIO_printf(trc_out,"Repeated outer (%d)\n",outers[i]);
                 } OSSL_TRACE_END(TLS);
-#endif
                 SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
                 goto err;
             }
         }
     }
 
-#ifndef OPENSSL_NO_SSL_TRACE
     OSSL_TRACE_BEGIN(TLS) {
         BIO_printf(trc_out,"We have %d outers compressed\n",n_outers);
     } OSSL_TRACE_END(TLS);
-#endif
     if (n_outers<=0 || n_outers > ECH_OUTERS_MAX ) {
-#ifndef OPENSSL_NO_SSL_TRACE
         OSSL_TRACE_BEGIN(TLS) {
             BIO_printf(trc_out,"Bad ECH compression (too few or too many!\n");
         } OSSL_TRACE_END(TLS);
-#endif
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         goto err;
     }
@@ -3132,11 +3100,9 @@ static int ech_decode_inner(
         etype=*ep*256+*(ep+1);
         elen=*(ep+2)*256+*(ep+3);
         if ( (size_t)((ep+4+elen)-ob) > ob_len) {
-#ifndef OPENSSL_NO_SSL_TRACE
             OSSL_TRACE_BEGIN(TLS) {
                 BIO_printf(trc_out,"Oops - exts out of bounds\n");
             } OSSL_TRACE_END(TLS);
-#endif
             SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
             goto err;
         }
@@ -3156,13 +3122,11 @@ static int ech_decode_inner(
         ep+=(elen+4);
     }
     if (found_outers!=n_outers) {
-#ifndef OPENSSL_NO_SSL_TRACE
         OSSL_TRACE_BEGIN(TLS) {
             BIO_printf(trc_out,
                 "Error found outers (%d) not same as claimed (%d)\n",
                 found_outers,n_outers);
         } OSSL_TRACE_END(TLS);
-#endif
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         goto err;
     }
@@ -3174,11 +3138,9 @@ static int ech_decode_inner(
             + tot_outer_lens; /* add back the length of spliced-in exts */
     if (outer_exts_len>=(4+initial_decomp_len+tot_outer_lens)) {
         /* that'd make final_decomp_len go zero/negative */
-#ifndef OPENSSL_NO_SSL_TRACE
         OSSL_TRACE_BEGIN(TLS) {
             BIO_printf(trc_out,"Oops - exts out of bounds\n");
         } OSSL_TRACE_END(TLS);
-#endif
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         goto err;
     }
@@ -3193,11 +3155,9 @@ static int ech_decode_inner(
     final_decomp[2]=((final_decomp_len-4)>>8)%256;
     final_decomp[3]=(final_decomp_len-4)%256;
     if (((offset+4)>=final_decomp_len) || (offset>initial_decomp_len)) {
-#ifndef OPENSSL_NO_SSL_TRACE
         OSSL_TRACE_BEGIN(TLS) {
             BIO_printf(trc_out,"Oops - exts out of bounds\n");
         } OSSL_TRACE_END(TLS);
-#endif
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         goto err;
     }
@@ -3208,11 +3168,9 @@ static int ech_decode_inner(
         int ooffset=outer_offsets[iind]+4;
         size_t osize=outer_sizes[iind];
         if ((offset+4)>=final_decomp_len) {
-#ifndef OPENSSL_NO_SSL_TRACE
             OSSL_TRACE_BEGIN(TLS) {
                 BIO_printf(trc_out,"Oops - exts out of bounds\n");
             } OSSL_TRACE_END(TLS);
-#endif
             SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
             goto err;
         }
@@ -3222,11 +3180,9 @@ static int ech_decode_inner(
         final_decomp[offset]=(osize%256)&0xff; offset++;
         if (((offset+osize)>final_decomp_len) ||
                ((size_t)((exts_start+ooffset+osize)-ob) > ob_len)) {
-#ifndef OPENSSL_NO_SSL_TRACE
             OSSL_TRACE_BEGIN(TLS) {
                 BIO_printf(trc_out,"Oops - exts out of bounds\n");
             } OSSL_TRACE_END(TLS);
-#endif
             SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
             goto err;
         }
@@ -3239,11 +3195,9 @@ static int ech_decode_inner(
         ((oneextstart+outer_exts_len+initial_decomp_len-
           oneextstart-outer_exts_len) > initial_decomp_len)
        ) {
-#ifndef OPENSSL_NO_SSL_TRACE
         OSSL_TRACE_BEGIN(TLS) {
             BIO_printf(trc_out,"Oops - exts out of bounds\n");
         } OSSL_TRACE_END(TLS);
-#endif
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         goto err;
     }
@@ -3257,11 +3211,9 @@ static int ech_decode_inner(
      * those
      */
     if ((startofexts+5)>final_decomp_len) {
-#ifndef OPENSSL_NO_SSL_TRACE
         OSSL_TRACE_BEGIN(TLS) {
             BIO_printf(trc_out,"Oops - exts out of bounds\n");
         } OSSL_TRACE_END(TLS);
-#endif
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         goto err;
     }
@@ -3270,23 +3222,19 @@ static int ech_decode_inner(
         final_decomp[startofexts+5];
 
     if ((initial_extslen+tot_outer_lens) < outer_exts_len) {
-#ifndef OPENSSL_NO_SSL_TRACE
         OSSL_TRACE_BEGIN(TLS) {
             BIO_printf(trc_out,"Oops - exts out of bounds\n");
         } OSSL_TRACE_END(TLS);
-#endif
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         goto err;
     }
 
     final_extslen=initial_extslen+tot_outer_lens-outer_exts_len;
-#ifndef OPENSSL_NO_SSL_TRACE
     OSSL_TRACE_BEGIN(TLS) {
         BIO_printf(trc_out,
            "Initial extensions length: 0x%zx, Final extensions length: 0x%zx\n",
             initial_extslen, final_extslen);
     } OSSL_TRACE_END(TLS);
-#endif
     /* the added 4 is for the type+3-octets len */
     final_decomp[startofexts+4]=(final_extslen/256)&0xff;
     final_decomp[startofexts+5]=final_extslen%256;
@@ -3316,7 +3264,6 @@ err:
  */
 void ech_pbuf(const char *msg, const unsigned char *buf, const size_t blen)
 {
-#ifndef OPENSSL_NO_SSL_TRACE
     OSSL_TRACE_BEGIN(TLS) {
     if (msg==NULL) {
         BIO_printf(trc_out,"msg is NULL\n");
@@ -3334,7 +3281,6 @@ void ech_pbuf(const char *msg, const unsigned char *buf, const size_t blen)
         BIO_printf(trc_out,"\n");
         }
     } OSSL_TRACE_END(TLS);
-#endif
     return;
 }
 
@@ -3347,12 +3293,10 @@ void ech_pbuf(const char *msg, const unsigned char *buf, const size_t blen)
  */
 int ech_reset_hs_buffer(SSL_CONNECTION *s, unsigned char *buf, size_t blen)
 {
-#ifndef OPENSSL_NO_SSL_TRACE
     OSSL_TRACE_BEGIN(TLS) {
         BIO_printf(trc_out,"Adding this to transcript: RESET!\n");
     } OSSL_TRACE_END(TLS);
     ech_pbuf("Adding this to transcript",buf,blen);
-#endif
 
     if (s->s3.handshake_buffer) {
         (void)BIO_set_close(s->s3.handshake_buffer, BIO_CLOSE);
@@ -3437,11 +3381,9 @@ static int ech_get_sh_offsets(
     ech_pbuf("orig SH",(unsigned char*) sh,sh_len);
     ech_pbuf("orig SH session_id",(unsigned char*) sh+sessid_offset,sessid_len);
     ech_pbuf("orig SH exts",(unsigned char*) sh+*exts,origextlens);
-#ifndef OPENSSL_NO_SSL_TRACE
     OSSL_TRACE_BEGIN(TLS) {
         BIO_printf(trc_out,"orig SH/ECH type: %4x\n",*echtype);
     } OSSL_TRACE_END(TLS);
-#endif
     ech_pbuf("orig SH/ECH ",(unsigned char*) sh+*echoffset,echlen);
     return(1);
 }
@@ -3827,14 +3769,12 @@ int ech_calc_ech_confirm(
     if (tbuf) OPENSSL_free(tbuf);
     if (ctx) EVP_MD_CTX_free(ctx);
 #ifdef ECH_SUPERVERBOSE
-#ifndef OPENSSL_NO_SSL_TRACE
     OSSL_TRACE_BEGIN(TLS) {
-        if (SSL_ech_print(trc_out,s,ECH_SELECT_ALL)!=1) {
+        if (SSL_ech_print(trc_out, &s->ssl, ECH_SELECT_ALL)!=1) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             goto err;
         }
     } OSSL_TRACE_END(TLS);
-#endif
 #endif
 
     if (longtrans) OPENSSL_free(longtrans);
@@ -4052,11 +3992,9 @@ int ech_swaperoo(SSL_CONNECTION *s)
         cbrv = s->ech_cb(&s->ssl, pstr);
         BIO_free(biom);
         if (cbrv != 1) {
-#ifndef OPENSSL_NO_SSL_TRACE
             OSSL_TRACE_BEGIN(TLS) {
                 BIO_printf(trc_out,"Exiting ech_swaperoo at %d\n", __LINE__);
             } OSSL_TRACE_END(TLS);
-#endif
             return 0;
         }
     }
@@ -4080,19 +4018,15 @@ void ech_ptranscript(const char *msg, SSL_CONNECTION *s)
     ech_pbuf(msg,hdata,hdatalen);
     if (s->s3.handshake_dgst!=NULL) {
         if (!ssl_handshake_hash(s,ddata,1000,&ddatalen)) {
-#ifndef OPENSSL_NO_SSL_TRACE
             OSSL_TRACE_BEGIN(TLS) {
                 BIO_printf(trc_out,"ssl_handshake_hash failed\n");
             } OSSL_TRACE_END(TLS);
-#endif
         }
         ech_pbuf(msg,ddata,ddatalen);
     } else {
-#ifndef OPENSSL_NO_SSL_TRACE
         OSSL_TRACE_BEGIN(TLS) {
             BIO_printf(trc_out,"handshake_dgst is NULL\n");
         } OSSL_TRACE_END(TLS);
-#endif
     }
     return;
 }
@@ -4201,11 +4135,9 @@ int ech_send_grease(SSL *ssl, WPACKET *pkt)
     memcpy(s->ext.ech_sent,pp,s->ext.ech_sent_len);
 
     s->ext.ech_grease=ECH_IS_GREASE;
-#ifndef OPENSSL_NO_SSL_TRACE
     OSSL_TRACE_BEGIN(TLS) {
         BIO_printf(trc_out,"ECH - sending DRAFT-13 GREASE\n");
     } OSSL_TRACE_END(TLS);
-#endif
     return 1;
 }
 
@@ -4347,11 +4279,9 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
         }
     }
     if (tc==NULL && firstmatch==NULL) {
-#ifndef OPENSSL_NO_SSL_TRACE
         OSSL_TRACE_BEGIN(TLS) {
             BIO_printf(trc_out,"EAAE: No matching ECHConfig sadly\n");
         } OSSL_TRACE_END(TLS);
-#endif
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         goto err;
     }
@@ -4359,12 +4289,10 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
         tc=firstmatch;
     }
     /* tc is our selected config */
-#ifndef OPENSSL_NO_SSL_TRACE
     OSSL_TRACE_BEGIN(TLS) {
         BIO_printf(trc_out,"EAAE: selected: version: %4x, config %2x\n",
                 tc->version,tc->config_id);
     } OSSL_TRACE_END(TLS);
-#endif
     if (tc->pub_len==0) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         goto err;
@@ -4416,11 +4344,9 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
      * out compared to them
      */
     mnl=tc->maximum_name_length;
-#ifndef OPENSSL_NO_SSL_TRACE
     OSSL_TRACE_BEGIN(TLS) {
         BIO_printf(trc_out,"EAAE: ECHConfig had max name len of %zu\n",mnl);
     } OSSL_TRACE_END(TLS);
-#endif
     if (mnl!=0) {
         /* do weirder padding if SNI present in inner */
         if (s->ext.inner_s->ext.hostname!=0) {
@@ -4429,18 +4355,14 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
         } else {
             innersnipadding=mnl+9;
         }
-#ifndef OPENSSL_NO_SSL_TRACE
         OSSL_TRACE_BEGIN(TLS) {
             BIO_printf(trc_out,"EAAE: innersnipadding of %d\n",
                     innersnipadding);
         } OSSL_TRACE_END(TLS);
-#endif
         if (innersnipadding<0) {
-#ifndef OPENSSL_NO_SSL_TRACE
             OSSL_TRACE_BEGIN(TLS) {
                 BIO_printf(trc_out,"EAAE: innersnipadding zero'd\n");
             } OSSL_TRACE_END(TLS);
-#endif
             innersnipadding=0;
         }
     }
@@ -4461,7 +4383,6 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
         length_with_padding+=ECH_PADDING_INCREMENT;
     }
     clear_len=length_with_padding;
-#ifndef OPENSSL_NO_SSL_TRACE
     OSSL_TRACE_BEGIN(TLS) {
         BIO_printf(trc_out,"EAAE: padding: mnl: %zu, lws: %d " \
                 "lop: %d, lwp: %d, clear_len: %zu, orig: %zu\n",
@@ -4469,7 +4390,6 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
             length_with_padding, clear_len,
             s->ext.inner_s->ext.encoded_innerch_len);
     } OSSL_TRACE_END(TLS);
-#endif
 
     lenclen = OSSL_HPKE_get_public_encap_size(hpke_suite);
     if (s->ext.ech_ctx == NULL) {
@@ -4727,11 +4647,9 @@ int ech_get_ch_offsets(
     ech_pbuf("orig CH",(unsigned char*) ch,ch_len);
     ech_pbuf("orig CH session_id",(unsigned char*) ch+*sessid+1,sessid_len);
     ech_pbuf("orig CH exts",(unsigned char*) ch+*exts,origextlens);
-#ifndef OPENSSL_NO_SSL_TRACE
     OSSL_TRACE_BEGIN(TLS) {
         BIO_printf(trc_out,"orig CH/ECH type: %4x\n",*echtype);
     } OSSL_TRACE_END(TLS);
-#endif
     ech_pbuf("orig CH/ECH",(unsigned char*) ch+*echoffset,echlen);
     ech_pbuf("orig CH SNI",(unsigned char*) ch+*snioffset,snilen);
     return(1);
@@ -4797,12 +4715,10 @@ static unsigned char *hpke_decrypt_encch(
         return NULL;
     }
     ech_pbuf("info",info,info_len);
-#ifndef OPENSSL_NO_SSL_TRACE
     OSSL_TRACE_BEGIN(TLS) {
         BIO_printf(trc_out,"hpke_dec suite: kem: %04x, kdf: %04x, aead: %04x\n",
             hpke_suite.kem_id, hpke_suite.kdf_id, hpke_suite.aead_id);
     } OSSL_TRACE_END(TLS);
-#endif
     /*
      * We may generate externally visible OpenSSL errors
      * if decryption fails (which is normal) but we'll
@@ -5051,21 +4967,17 @@ int ech_early_decrypt(SSL *ssl, PACKET *outerpkt, PACKET *newpkt)
             OPENSSL_free(s->ech->outer_name);
         }
         s->ech->outer_name=s->ext.hostname;
-#ifndef OPENSSL_NO_SSL_TRACE
         OSSL_TRACE_BEGIN(TLS) {
             BIO_printf(trc_out,"EARLY: outer SNI of %s\n",s->ext.hostname);
         } OSSL_TRACE_END(TLS);
-#endif
         /* clean up  */
         s->ext.hostname=NULL;
         s->servername_done=0;
     }
-#ifndef OPENSSL_NO_SSL_TRACE
     else
         OSSL_TRACE_BEGIN(TLS) {
             BIO_printf(trc_out,"EARLY: no sign of an outer SNI\n");
         } OSSL_TRACE_END(TLS);
-#endif
 
     /*
      * 2. trial-decrypt or check if config matches one loaded
@@ -5430,12 +5342,10 @@ int SSL_CTX_ech_readpemdir(SSL_CTX *ctx, const char *echdir, int *number_loaded)
         struct stat thestat;
 
         if (strlen(echdir) + strlen(filename) + 2 > sizeof(echname)) {
-#ifndef OPENSSL_NO_SSL_TRACE
             OSSL_TRACE_BEGIN(TLS) {
                 BIO_printf(trc_out,
                     "name too long: %s/%s - skipping it \r\n",echdir,filename);
             } OSSL_TRACE_END(TLS);
-#endif
             continue;
         }
 #ifdef OPENSSL_SYS_VMS
@@ -5444,52 +5354,42 @@ int SSL_CTX_ech_readpemdir(SSL_CTX *ctx, const char *echdir, int *number_loaded)
         r = BIO_snprintf(echname, sizeof(echname), "%s/%s", echdir, filename);
 #endif
         if (r <= 0 || r >= (int)sizeof(echname)) {
-#ifndef OPENSSL_NO_SSL_TRACE
             OSSL_TRACE_BEGIN(TLS) {
                 BIO_printf(trc_out,"name oddity: %s/%s - skipping it \r\n",
                         echdir,filename);
             } OSSL_TRACE_END(TLS);
-#endif
             continue;
         }
         nlen=strlen(filename);
         if (nlen <= 4 ) {
-#ifndef OPENSSL_NO_SSL_TRACE
             OSSL_TRACE_BEGIN(TLS) {
                 BIO_printf(trc_out,"name too short: %s/%s - skipping it \r\n",
                         echdir,filename);
             } OSSL_TRACE_END(TLS);
-#endif
             continue;
         }
         last4=filename+nlen-4;
         if (strncmp(last4,".pem",4) && strncmp(last4,".ech",4)) {
-#ifndef OPENSSL_NO_SSL_TRACE
             OSSL_TRACE_BEGIN(TLS) {
                 BIO_printf(trc_out,
                     "name doesn't end in .pem: %s/%s - skipping it \r\n",
                     echdir,filename);
             } OSSL_TRACE_END(TLS);
-#endif
             continue;
         }
         if (stat(echname,&thestat)==0) {
             if (SSL_CTX_ech_server_enable(ctx,echname)==1) {
                 *number_loaded=*number_loaded+1;
-#ifndef OPENSSL_NO_SSL_TRACE
             } else {
                 OSSL_TRACE_BEGIN(TLS) {
                     BIO_printf(trc_out, "Failed to set ECT parameters for %s\n",
                             echname);
                 } OSSL_TRACE_END(TLS);
-#endif
             }
-#ifndef OPENSSL_NO_SSL_TRACE
             OSSL_TRACE_BEGIN(TLS) {
                 BIO_printf(trc_out,"Added %d-th ECH key pair from: %s\n",
                         *number_loaded,echname);
             } OSSL_TRACE_END(TLS);
-#endif
         }
     }
     if (d)

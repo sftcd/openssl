@@ -28,8 +28,7 @@
 static const unsigned char label_prefix[] = "\x74\x6C\x73\x31\x33\x20";
 
 #ifndef OPENSSL_NO_ECH
-#ifdef ECH_SUPERVERBOSE
-
+# ifdef ECH_SUPERVERBOSE
 /*
  * There is an ech_pbuf in ssl/ech.c, but one of the test
  * binaries needs this file but doesn't have the object
@@ -37,9 +36,9 @@ static const unsigned char label_prefix[] = "\x74\x6C\x73\x31\x33\x20";
  * and even then rarely needed (only when I get an interop
  * issue related to transcripts).
  */
-static void tls13_pbuf(const char *msg, const unsigned char *buf, const size_t blen)
+static void tls13_pbuf(const char *msg,
+                       const unsigned char *buf, const size_t blen)
 {
-#ifndef OPENSSL_NO_SSL_TRACE
     OSSL_TRACE_BEGIN(TLS) {
     if (msg==NULL) {
         BIO_printf(trc_out,"msg is NULL\n");
@@ -57,11 +56,10 @@ static void tls13_pbuf(const char *msg, const unsigned char *buf, const size_t b
         BIO_printf(trc_out,"\n");
         }
     } OSSL_TRACE_END(TLS);
-#endif
     return;
 }
 
-static void ptranscript(const char *msg, SSL *s)
+static void ptranscript(const char *msg, SSL_CONNECTION *s)
 {
     size_t hdatalen=0;
     unsigned char *hdata=NULL;
@@ -71,7 +69,7 @@ static void ptranscript(const char *msg, SSL *s)
     }
     return;
 }
-#endif
+# endif
 #endif
 
 /*
