@@ -618,8 +618,6 @@ SSL_CTX_ech_add                         ?	3_2_0	EXIST::FUNCTION:ECH
 SSL_ech_server_name                     ?	3_2_0	EXIST::FUNCTION:ECH
 SSL_ech_set_outer_server_name           ?	3_2_0	EXIST::FUNCTION:ECH
 SSL_ech_query                           ?	3_2_0	EXIST::FUNCTION:ECH
-SSL_ECH_DETS_free                       ?	3_2_0	EXIST::FUNCTION:ECH
-SSL_ECH_DETS_print                      ?	3_2_0	EXIST::FUNCTION:ECH
 SSL_ech_reduce                          ?	3_2_0	EXIST::FUNCTION:ECH
 SSL_CTX_ech_server_key_status           ?	3_2_0	EXIST::FUNCTION:ECH
 SSL_CTX_ech_server_flush_keys           ?	3_2_0	EXIST::FUNCTION:ECH
@@ -636,3 +634,5 @@ SSL_CTX_ech_server_enable_buffer        ?	3_2_0	EXIST::FUNCTION:ECH
 SSL_ech_get_returned                    ?	3_2_0	EXIST::FUNCTION:ECH
 SSL_ech_set_grease_type                 ?	3_2_0	EXIST::FUNCTION:ECH
 ossl_ech_make_echconfig                 ?	3_2_0	EXIST::FUNCTION:ECH
+OSSL_ECH_DETS_free                      ?	3_2_0	EXIST::FUNCTION:ECH
+OSSL_ECH_DETS_print                     ?	3_2_0	EXIST::FUNCTION:ECH

@@ -1116,7 +1116,7 @@ static int init_ech(SSL_CONNECTION *s, unsigned int context)
 static int final_ech(SSL_CONNECTION *s, unsigned int context, int sent)
 {
     if (!s->server && s->ech && s->ext.inner_s==NULL && s->ext.outer_s!=NULL) {
-        if (s->ext.ech_grease==ECH_IS_GREASE) {
+        if (s->ext.ech_grease== OSSL_ECH_IS_GREASE) {
             /* If we greased, then it's ok that ech_success didn't get set */
             return 1;
         } else if (s->ext.ech_success!=1) {

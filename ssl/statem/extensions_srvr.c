@@ -2167,7 +2167,7 @@ int tls_parse_ctos_server_cert_type(SSL_CONNECTION *sc, PACKET *pkt,
 int tls_parse_ctos_ech(SSL_CONNECTION *s, PACKET *pkt, unsigned int context,
                                X509 *x, size_t chainidx)
 {
-    if (s->ext.ech_grease==ECH_IS_GREASE) {
+    if (s->ext.ech_grease== OSSL_ECH_IS_GREASE) {
         /* GREASE is fine, and catches expected error cases */
         return 1;
     }
@@ -2175,14 +2175,14 @@ int tls_parse_ctos_ech(SSL_CONNECTION *s, PACKET *pkt, unsigned int context,
         /* If not configured for ECH then we ignore it */
         return 1;
     }
-    if (s->ext.ech_attempted_type!=ECH_DRAFT_13_VERSION) {
+    if (s->ext.ech_attempted_type!= OSSL_ECH_DRAFT_13_VERSION) {
         OSSL_TRACE_BEGIN(TLS) {
             BIO_printf(trc_out,"ECH shouldn't be seen here.\n");
         } OSSL_TRACE_END(TLS);
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         return 0;
     }
-    if (s->ext.ech_attempted_type==ECH_DRAFT_13_VERSION) {
+    if (s->ext.ech_attempted_type== OSSL_ECH_DRAFT_13_VERSION) {
         /* 
          * we only allow "inner" which is one octet, valued 0x01 
          * and only if we decrypted ok or are a backend
@@ -2257,7 +2257,7 @@ EXT_RETURN tls_construct_stoc_ech13(SSL_CONNECTION *s, WPACKET *pkt,
     }
 
     /* If in some weird state we ignore and send nothing */
-    if (s->ext.ech_grease!=ECH_IS_GREASE ||
+    if (s->ext.ech_grease!= OSSL_ECH_IS_GREASE ||
         s->ext.ech_attempted_type!=TLSEXT_TYPE_ech13) {
         return EXT_RETURN_NOT_SENT;
     }
@@ -2293,7 +2293,7 @@ EXT_RETURN tls_construct_stoc_ech13(SSL_CONNECTION *s, WPACKET *pkt,
         return 0;
     }
 
-    if (s->ext.ech_attempted_type==ECH_DRAFT_13_VERSION) {
+    if (s->ext.ech_attempted_type== OSSL_ECH_DRAFT_13_VERSION) {
         if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_ech13)
             || !WPACKET_sub_memcpy_u16(pkt,
                         mostrecent->cfg->encoded, 

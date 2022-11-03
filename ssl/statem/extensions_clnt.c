@@ -32,8 +32,8 @@
  */
 #define IOSAME if (s->ech && !s->ext.ech_grease) { \
         int __rv=ech_same_ext(&s->ssl,pkt); \
-        if (__rv==ECH_SAME_EXT_ERR) return(EXT_RETURN_FAIL); \
-        if (__rv==ECH_SAME_EXT_DONE) return(EXT_RETURN_SENT); \
+        if (__rv== OSSL_ECH_SAME_EXT_ERR) return(EXT_RETURN_FAIL); \
+        if (__rv== OSSL_ECH_SAME_EXT_DONE) return(EXT_RETURN_SENT); \
         /* otherwise continue as normal */ \
     }
 
@@ -1226,12 +1226,12 @@ EXT_RETURN tls_construct_ctos_padding(SSL_CONNECTION *s, WPACKET *pkt,
 
 #ifndef OPENSSL_NO_ECH
     if (s->ext.ch_depth==1 &&
-        s->ext.ech_attempted_type==ECH_DRAFT_13_VERSION &&
+        s->ext.ech_attempted_type== OSSL_ECH_DRAFT_13_VERSION &&
         (s->options & SSL_OP_TLSEXT_PADDING) == 0) {
         /* draft-13 pads outside the encoded inner */
         return EXT_RETURN_NOT_SENT;
     }
-    if (!(s->ext.ech_grease==ECH_IS_GREASE) &&
+    if (!(s->ext.ech_grease== OSSL_ECH_IS_GREASE) &&
         !(s->ech && s->ext.ch_depth==1) &&
         (s->options & SSL_OP_TLSEXT_PADDING) == 0)
         return EXT_RETURN_NOT_SENT;
@@ -2570,7 +2570,7 @@ EXT_RETURN tls_construct_ctos_ech13(SSL_CONNECTION *s, WPACKET *pkt, unsigned in
 
     /* don't send grease if really attempting ECH */
     if (s->ext.ech_attempted==0) {
-        if (s->ext.ech_grease==ECH_IS_GREASE || 
+        if (s->ext.ech_grease== OSSL_ECH_IS_GREASE || 
                  (s->options & SSL_OP_ECH_GREASE)) {
             if (s->hello_retry_request==SSL_HRR_PENDING &&
                     s->ext.ech_sent!=NULL) {
@@ -2599,7 +2599,7 @@ EXT_RETURN tls_construct_ctos_ech13(SSL_CONNECTION *s, WPACKET *pkt, unsigned in
     if (s->ext.ch_depth==1) {
         if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_ech13)
             || !WPACKET_start_sub_packet_u16(pkt)
-            || !WPACKET_put_bytes_u8(pkt, ECH_INNER_CH_TYPE)
+            || !WPACKET_put_bytes_u8(pkt,  OSSL_ECH_INNER_CH_TYPE)
             || !WPACKET_close(pkt)
            ) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
