@@ -12,27 +12,25 @@
  * This has the externally-visible data structures and prototypes
  * for handling Encrypted ClientHello (ECH)
  */
-
-
 #ifndef OPENSSL_ECH_H
-#define OPENSSL_ECH_H
+# define OPENSSL_ECH_H
 
-#ifndef OPENSSL_NO_ECH
+# ifndef OPENSSL_NO_ECH
 
-# include <openssl/ssl.h>
-# include <openssl/hpke.h>
+#  include <openssl/ssl.h>
+#  include <openssl/hpke.h>
 
 /*
- * Various externally visible limits - most are sanity checks that could be 
+ * Various externally visible limits - most are sanity checks that could be
  * a lot bigger if needed, but that's not currently needed (could be in a
  * PQC world, but we're not there yet)
  */
-#define OSSL_ECH_MAX_PAYLOAD_LEN 1500 /**< max ECH ciphertext we'll en/decode */
-#define OSSL_ECH_MIN_ECHCONFIG_LEN 32 /**< for sanity check */
-#define OSSL_ECH_MAX_ECHCONFIG_LEN 1500  /**< sanity check, regardless of encoding */
-#define OSSL_ECH_MAX_ECHCONFIGEXT_LEN 100 /**< Max for an ECHConfig extension */
-#define OSSL_ECH_MAX_MAXNAMELEN 255 /**< largest ECHConfig max name length allowed */
-#define OSSL_ECH_MAX_PUBLICNAME 255 /**< max ECHConfig public name length */
+#  define OSSL_ECH_MAX_PAYLOAD_LEN 1500 /**< max ECH ciphertext to en/decode */
+#  define OSSL_ECH_MIN_ECHCONFIG_LEN 32 /**< sanity check */
+#  define OSSL_ECH_MAX_ECHCONFIG_LEN 1500 /**< sanity check for all encodings */
+#  define OSSL_ECH_MAX_ECHCONFIGEXT_LEN 100 /**< ECHConfig extension max */
+#  define OSSL_ECH_MAX_MAXNAMELEN 255 /**< ECHConfig max name length allowed */
+#  define OSSL_ECH_MAX_PUBLICNAME 255 /**< max ECHConfig public name length */
 
 /*
  * Supported input formats for encoded ECHConfigList API inputs:
@@ -43,11 +41,11 @@
  * - can be ascii-hex encoded version of the above
  * - can be a presentation-like format containing "ech=<b64-stuff>"
  */
-#define OSSL_ECH_FMT_GUESS     0  /**< implementation will try guess type */
-#define OSSL_ECH_FMT_BIN       1  /**< one or more catenated binary ECHConfigs */
-#define OSSL_ECH_FMT_B64TXT    2  /**< base64 ECHConfigs (';' separated if >1) */
-#define OSSL_ECH_FMT_ASCIIHEX  3  /**< ascii-hex ECHConfigs (';' separated if >1) */
-#define OSSL_ECH_FMT_HTTPSSVC  4  /**< presentation form with "ech=<b64-stuff>" */
+#  define OSSL_ECH_FMT_GUESS     0  /**< implementation will try guess type */
+#  define OSSL_ECH_FMT_BIN       1  /**< catenated binary ECHConfigs */
+#  define OSSL_ECH_FMT_B64TXT    2  /**< base64 ECHConfigs (';' separated) */
+#  define OSSL_ECH_FMT_ASCIIHEX  3  /**< ascii-hex ECHConfigs (';' separated */
+#  define OSSL_ECH_FMT_HTTPSSVC  4  /**< presentation form with "ech=<b64>" */
 
 /*
  * ECH version values. We only support draft-13 as of now.
@@ -55,21 +53,21 @@
  * There's no automation checking this but other values will
  * fail.
  */
-#define OSSL_ECH_DRAFT_13_VERSION 0xfe0d /**< ECHConfig version from draft-13 */
+#  define OSSL_ECH_DRAFT_13_VERSION 0xfe0d /**< version from draft-13 */
 
 /*
  * Possible return codes from SSL_ech_get_status
  */
-#define SSL_ECH_STATUS_BACKEND    4 /**< ECH backend: saw an ech_is_inner */
-#define SSL_ECH_STATUS_GREASE_ECH 3 /**< We GREASEd and got an ECH in return */
-#define SSL_ECH_STATUS_GREASE     2 /**< ECH GREASE happened  */
-#define SSL_ECH_STATUS_SUCCESS    1 /**< Success */
-#define SSL_ECH_STATUS_FAILED     0 /**< Some internal or protocol error */
-#define SSL_ECH_STATUS_BAD_CALL   -100 /**< Some in/out arguments were NULL */
-#define SSL_ECH_STATUS_NOT_TRIED  -101 /**< ECH wasn't attempted  */
-#define SSL_ECH_STATUS_BAD_NAME   -102 /**< ECH ok but server cert mis-match */
-#define SSL_ECH_STATUS_NOT_CONFIGURED -103 /**< ECH wasn't configured */
-#define SSL_ECH_STATUS_FAILED_ECH -105 /**< We tried, failed and got an ECH */
+#  define SSL_ECH_STATUS_BACKEND    4 /**< ECH backend: saw an ech_is_inner */
+#  define SSL_ECH_STATUS_GREASE_ECH 3 /**< GREASEd and got an ECH in return */
+#  define SSL_ECH_STATUS_GREASE     2 /**< ECH GREASE happened  */
+#  define SSL_ECH_STATUS_SUCCESS    1 /**< Success */
+#  define SSL_ECH_STATUS_FAILED     0 /**< Some internal or protocol error */
+#  define SSL_ECH_STATUS_BAD_CALL   -100 /**< Some in/out arguments were NULL */
+#  define SSL_ECH_STATUS_NOT_TRIED  -101 /**< ECH wasn't attempted  */
+#  define SSL_ECH_STATUS_BAD_NAME   -102 /**< ECH ok but server cert bad */
+#  define SSL_ECH_STATUS_NOT_CONFIGURED -103 /**< ECH wasn't configured */
+#  define SSL_ECH_STATUS_FAILED_ECH -105 /**< We tried, failed and got an ECH */
 
 /**
  * Exterally visible form of an ECHConfigList from an RR value
@@ -167,7 +165,7 @@ int SSL_CTX_ech_add(SSL_CTX *ctx, short ekfmt, size_t eklen, char *echkeys,
  * @return 1 for success, error otherwise
  *
  * Providing a NULL outer_name has a special effect - that means we send the
- * ECHConfig.public_name (which is the default).  If you supply a non-NULL 
+ * ECHConfig.public_name (which is the default).  If you supply a non-NULL
  * value and do ECH then the value supplied here will override the
  * ECHConfig.public_name If you supply a NULL outer_name and no_outer has
  * the value 1, then no outer name will be sent, regardless of the
@@ -185,7 +183,7 @@ int SSL_ech_server_name(SSL *s, const char *inner_name, const char *outer_name,
  * @return 1 for success, error otherwise
  *
  * Providing a NULL outer_name has a special effect - that means we send the
- * ECHConfig.public_name (which is the default).  If you supply a non-NULL 
+ * ECHConfig.public_name (which is the default).  If you supply a non-NULL
  * value and do ECH then the value supplied here will override the
  * ECHConfig.public_name If you supply NULL and no_outer is 1 then no
  * outer name will be sent, regardless of the ECHConfig.public_name value.
@@ -202,7 +200,7 @@ int SSL_CTX_ech_set_outer_server_name(SSL_CTX *ctx, const char *outer_name,
  * @return 1 for success, error otherwise
  *
  * Providing a NULL outer_name has a special effect - that means we send the
- * ECHConfig.public_name (which is the default).  If you supply a non-NULL 
+ * ECHConfig.public_name (which is the default).  If you supply a non-NULL
  * value and do ECH then the value supplied here will override the
  * ECHConfig.public_name If you supply NULL and no_outer is 1 then no
  * outer name will be sent, regardless of the ECHConfig.public_name value.
@@ -263,7 +261,7 @@ void OSSL_ECH_DETS_free(OSSL_ECH_DETS *dets, int count);
  * @param count is the number of elements in dets
  * @return 1 for success, error othewise
  */
-int OSSL_ECH_DETS_print(BIO* out, OSSL_ECH_DETS *dets, int count);
+int OSSL_ECH_DETS_print(BIO *out, OSSL_ECH_DETS *dets, int count);
 
 /**
  * @brief down-select to choose a specific ECHConfig
@@ -357,7 +355,7 @@ int SSL_ech_get_status(SSL *s, char **inner_sni, char **outer_sni);
  * @param suite is the relevant suite string
  * @return 1 for success, other otherwise
  */
-int SSL_ech_set_grease_suite(SSL *s, const char* suite);
+int SSL_ech_set_grease_suite(SSL *s, const char *suite);
 
 /**
  * @brief allow clients to set a preferred ECH extension type when GREASEing
@@ -436,7 +434,7 @@ void SSL_CTX_ech_set_callback(SSL_CTX *ctx, SSL_ech_cb_func f);
  * @param eclen is a pointer to the length of the ECHConfig (zero if none)
  * @return 1 for success, other othewise
  *
- * If we GREASEd, or tried and failed, and we got an ECHConfig in 
+ * If we GREASEd, or tried and failed, and we got an ECHConfig in
  * return, the application can access the ECHConfig returned via this
  * API.
  */
@@ -461,5 +459,5 @@ int ossl_ech_make_echconfig(unsigned char *echconfig, size_t *echconfiglen,
                             const char *public_name, OSSL_HPKE_SUITE suite,
                             const unsigned char *extvals, size_t extlen);
 
-#endif
+# endif
 #endif
