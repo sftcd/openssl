@@ -149,33 +149,33 @@ struct sslapitest_log_counts {
 #ifndef HARDCODED
 #ifndef OSSL_NO_USABLE_ECH
 
-#define ECH_MAX_LINELEN 1000 /**< for a sanity check */
+#define OSSL_ECH_MAX_LINELEN 1000 /**< for a sanity check */
 
 static char *echconfiglist_from_PEM(const char *echkeyfile)
 {
     BIO *in = NULL;
     char *ecl_string = NULL;
-    char lnbuf[ECH_MAX_LINELEN];
+    char lnbuf[OSSL_ECH_MAX_LINELEN];
     int readbytes = 0;
 
     if (!TEST_ptr(in = BIO_new(BIO_s_file()))
         || !TEST_int_ge(BIO_read_filename(in, echkeyfile), 0))
         goto out;
     /* read 4 lines before the one we want */
-    readbytes = BIO_get_line(in, lnbuf, ECH_MAX_LINELEN);
-    if (readbytes <= 0 || readbytes >= ECH_MAX_LINELEN)
+    readbytes = BIO_get_line(in, lnbuf, OSSL_ECH_MAX_LINELEN);
+    if (readbytes <= 0 || readbytes >= OSSL_ECH_MAX_LINELEN)
         goto out;
-    readbytes = BIO_get_line(in, lnbuf, ECH_MAX_LINELEN);
-    if (readbytes <= 0 || readbytes >= ECH_MAX_LINELEN)
+    readbytes = BIO_get_line(in, lnbuf, OSSL_ECH_MAX_LINELEN);
+    if (readbytes <= 0 || readbytes >= OSSL_ECH_MAX_LINELEN)
         goto out;
-    readbytes = BIO_get_line(in, lnbuf, ECH_MAX_LINELEN);
-    if (readbytes <= 0 || readbytes >= ECH_MAX_LINELEN)
+    readbytes = BIO_get_line(in, lnbuf, OSSL_ECH_MAX_LINELEN);
+    if (readbytes <= 0 || readbytes >= OSSL_ECH_MAX_LINELEN)
         goto out;
-    readbytes = BIO_get_line(in, lnbuf, ECH_MAX_LINELEN);
-    if (readbytes <= 0 || readbytes >= ECH_MAX_LINELEN)
+    readbytes = BIO_get_line(in, lnbuf, OSSL_ECH_MAX_LINELEN);
+    if (readbytes <= 0 || readbytes >= OSSL_ECH_MAX_LINELEN)
         goto out;
-    readbytes = BIO_get_line(in, lnbuf, ECH_MAX_LINELEN);
-    if (readbytes <= 0 || readbytes >= ECH_MAX_LINELEN)
+    readbytes = BIO_get_line(in, lnbuf, OSSL_ECH_MAX_LINELEN);
+    if (readbytes <= 0 || readbytes >= OSSL_ECH_MAX_LINELEN)
         goto out;
     ecl_string = OPENSSL_malloc(readbytes + 1);
     if (ecl_string == NULL)
@@ -2204,7 +2204,7 @@ static int execute_test_session(int maxprot, int use_int_cache,
             return 0;
         }
 #endif
-        if (SSL_CTX_ech_add(cctx,ECH_FMT_GUESS, 
+        if (SSL_CTX_ech_add(cctx, OSSL_ECH_FMT_GUESS, 
                echconfig_len, echconfiglist,
                &echcount)!=1) {
             OPENSSL_free(echkeyfile);
@@ -12550,7 +12550,7 @@ static int test_ech_add(int idx)
     case OSSLTEST_ECH_B64_GUESS:
         /* Valid echconfig */
         returned = SSL_CTX_ech_add(cctx,
-               ECH_FMT_GUESS, /* unspecified format */
+               OSSL_ECH_FMT_GUESS, /* unspecified format */
                echconfig_len, echconfig,
                &echcount);   /* returned count of echconfigs */
         if (!TEST_int_eq(returned, 1)) {
@@ -12566,7 +12566,7 @@ static int test_ech_add(int idx)
     case OSSLTEST_ECH_B64_BASE64:
         /* Valid echconfig */
         returned = SSL_CTX_ech_add(cctx,
-               ECH_FMT_B64TXT, /* BASE64 format */
+               OSSL_ECH_FMT_B64TXT, /* BASE64 format */
                echconfig_len, echconfig,
                &echcount);   /* returned count of echconfigs */
         if (!TEST_int_eq(returned, 1)) {
@@ -12587,7 +12587,7 @@ static int test_ech_add(int idx)
          * one making the error.
          */
         returned = SSL_CTX_ech_add(cctx,
-               ECH_FMT_GUESS, /* unspecified format */
+               OSSL_ECH_FMT_GUESS, /* unspecified format */
                echconfig_len+1, echconfig,
                &echcount);   /* returned count of echconfigs */
         if (!TEST_int_ne(returned, 1)) {
@@ -12604,7 +12604,7 @@ static int test_ech_add(int idx)
     case OSSLTEST_ECH_B64_GUESS_LO_COUNT:
         /* Valid echconfig, short length */
         returned = SSL_CTX_ech_add(cctx,
-               ECH_FMT_GUESS, /* unspecified format */
+               OSSL_ECH_FMT_GUESS, /* unspecified format */
                echconfig_len/2, echconfig,
                &echcount);   /* returned count of echconfigs */
         if (!TEST_int_ne(returned, 1)) {
@@ -12617,7 +12617,7 @@ static int test_ech_add(int idx)
     case OSSLTEST_ECH_B64_JUNK_GUESS:
         /* Junk echconfig */
         returned = SSL_CTX_ech_add(cctx,
-               ECH_FMT_GUESS, /* unspecified format */
+               OSSL_ECH_FMT_GUESS, /* unspecified format */
                18, "DUMMDUMM;DUMMYDUMM",
                &echcount);   /* returned count of echconfigs */
         if (!TEST_int_ne(returned, 1)) {

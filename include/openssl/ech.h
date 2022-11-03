@@ -27,28 +27,27 @@
  * a lot bigger if needed, but that's not currently needed (could be in a
  * PQC world, but we're not there yet)
  */
-#define ECH_MAX_PAYLOAD_LEN 1500 /**< max ECH ciphertext we'll en/decode */
-#define ECH_MIN_ECHCONFIG_LEN 32 /**< for sanity check */
-#define ECH_MAX_ECHCONFIG_LEN 1500  /**< sanity check, regardless of encoding */
-#define ECH_MAX_ECHCONFIGEXT_LEN 100 /**< Max for an ECHConfig extension */
-#define ECH_MAX_MAXNAMELEN 255 /**< largest ECHConfig max name length allowed */
-#define ECH_MAX_PUBLICNAME 255 /**< max ECHConfig public name length */
+#define OSSL_ECH_MAX_PAYLOAD_LEN 1500 /**< max ECH ciphertext we'll en/decode */
+#define OSSL_ECH_MIN_ECHCONFIG_LEN 32 /**< for sanity check */
+#define OSSL_ECH_MAX_ECHCONFIG_LEN 1500  /**< sanity check, regardless of encoding */
+#define OSSL_ECH_MAX_ECHCONFIGEXT_LEN 100 /**< Max for an ECHConfig extension */
+#define OSSL_ECH_MAX_MAXNAMELEN 255 /**< largest ECHConfig max name length allowed */
+#define OSSL_ECH_MAX_PUBLICNAME 255 /**< max ECHConfig public name length */
 
 /*
  * Supported input formats for encoded ECHConfigList API inputs:
+ * - can indicate the caller would like the library to guess which
  * - can be a binary (wireform) HTTPS/SVCB RRVALUE or just the ECHConfigList
  *   set of octets from that
  * - can be base64 encoded version of the above
  * - can be ascii-hex encoded version of the above
  * - can be a presentation-like format containing "ech=<b64-stuff>"
- * - can indicate the caller would like the library to guess which
- *   of the above applies
  */
-#define ECH_FMT_GUESS     0  /**< implementation will try guess type */
-#define ECH_FMT_BIN       1  /**< one or more catenated binary ECHConfigs */
-#define ECH_FMT_B64TXT    2  /**< base64 ECHConfigs (';' separated if >1) */
-#define ECH_FMT_ASCIIHEX  3  /**< ascii-hex ECHConfigs (';' separated if >1) */
-#define ECH_FMT_HTTPSSVC  4  /**< presentation form with "ech=<b64-stuff>" */
+#define OSSL_ECH_FMT_GUESS     0  /**< implementation will try guess type */
+#define OSSL_ECH_FMT_BIN       1  /**< one or more catenated binary ECHConfigs */
+#define OSSL_ECH_FMT_B64TXT    2  /**< base64 ECHConfigs (';' separated if >1) */
+#define OSSL_ECH_FMT_ASCIIHEX  3  /**< ascii-hex ECHConfigs (';' separated if >1) */
+#define OSSL_ECH_FMT_HTTPSSVC  4  /**< presentation form with "ech=<b64-stuff>" */
 
 /*
  * ECH version values. We only support draft-13 as of now.
@@ -56,7 +55,7 @@
  * There's no automation checking this but other values will
  * fail.
  */
-#define ECH_DRAFT_13_VERSION 0xfe0d /**< ECHConfig version from draft-13 */
+#define OSSL_ECH_DRAFT_13_VERSION 0xfe0d /**< ECHConfig version from draft-13 */
 
 /*
  * Possible return codes from SSL_ech_get_status
@@ -69,7 +68,7 @@
 #define SSL_ECH_STATUS_BAD_CALL   -100 /**< Some in/out arguments were NULL */
 #define SSL_ECH_STATUS_NOT_TRIED  -101 /**< ECH wasn't attempted  */
 #define SSL_ECH_STATUS_BAD_NAME   -102 /**< ECH ok but server cert mis-match */
-#define SSL_ECH_STATUS_NOT_CONFIGURED  -103 /**< ECH wasn't configured */
+#define SSL_ECH_STATUS_NOT_CONFIGURED -103 /**< ECH wasn't configured */
 #define SSL_ECH_STATUS_FAILED_ECH -105 /**< We tried, failed and got an ECH */
 
 /**
@@ -78,18 +77,14 @@
  * The middle four values are associated with the SSL data structure
  * and not the more static ECHConfigList (or SVCB/HTTPS RR value).
  */
-typedef struct ech_dets_st {
+typedef struct ossl_ech_dets_st {
     int index; /**< externally re-usable reference to this value */
     char *public_name; /**< public_name from API */
     char *inner_name; /**< server-name for inner CH */
     char *outer_alpns; /**< outer ALPN string */
     char *inner_alpns; /**< inner ALPN string */
     char *echconfig; /**< a JSON-like version of the associated ECHConfig */
-} ECH_DETS;
-
-/*
- * Externally visible Prototypes
- */
+} OSSL_ECH_DETS;
 
 /**
  * @brief ingest SVCB/HTTPS RR value provided as (binary or ascii-hex encoded)
@@ -97,9 +92,10 @@ typedef struct ech_dets_st {
  * rrval may be the catenation of multiple encoded ECHConfigList's.
  * We internally try decode and handle those and (later)
  * use whichever is relevant/best. The fmt parameter can be e.g.
- * ECH_FMT_ASCII_HEX
+ * OSSL_ECH_FMT_ASCII_HEX
  *
  * @param ctx is the parent SSL_CTX
+ * @param rrfmt is the provided format or OSSL_ECH_FMT_GUESS
  * @param rrlen is the length of the rrval
  * @param rrval is the binary, base64 or ascii-hex encoded RData
  * @param num_echs says how many SSL_ECH structures are in the returned array
@@ -114,9 +110,10 @@ int SSL_CTX_svcb_add(SSL_CTX *ctx, short rrfmt, size_t rrlen, char *rrval,
  * rrval may be the catenation of multiple encoded ECHConfigList's.
  * We internally try decode and handle those and (later)
  * use whichever is relevant/best. The fmt parameter can be e.g.
- * ECH_FMT_ASCII_HEX
+ * OSSL_ECH_FMT_ASCII_HEX
  *
  * @param s is the SSL connection
+ * @param rrfmt is the provided format or OSSL_ECH_FMT_GUESS
  * @param rrlen is the length of the rrval
  * @param rrval is the binary, base64 or ascii-hex encoded RData
  * @param num_echs says how many SSL_ECH structures are in the returned array
@@ -131,9 +128,10 @@ int SSL_svcb_add(SSL *s, int rrfmt, size_t rrlen, char *rrval, int *num_echs);
  * ekval may be the catenation of multiple encoded ECHConfigList's.
  * We internally try decode and handle those and (later)
  * use whichever is relevant/best. The fmt parameter can be e.g.
- * ECH_FMT_ASCII_HEX
+ * OSSL_ECH_FMT_ASCII_HEX
  *
  * @param s is the SSL connection
+ * @param ekfmt is the provided format or OSSL_ECH_FMT_GUESS
  * @param eklen is the length of the ekval
  * @param ekval is the binary, base64 or ascii-hex encoded ECHConfigs
  * @param num_echs says how many SSL_ECH structures are in the returned array
@@ -147,9 +145,10 @@ int SSL_ech_add(SSL *s, int ekfmt, size_t eklen, char *echkeys, int *num_echs);
  * ekval may be the catenation of multiple encoded ECHConfigList's.
  * We internally try decode and handle those and (later)
  * use whichever is relevant/best. The fmt parameter can be e.g.
- * ECH_FMT_ASCII_HEX
+ * OSSL_ECH_FMT_ASCII_HEX
  *
  * @param ctx is the parent SSL_CTX
+ * @param ekfmt is the provided format or OSSL_ECH_FMT_GUESS
  * @param eklen is the length of the ekval
  * @param ekval is the binary, base64 or ascii-hex encoded ECHConfigs
  * @param num_echs says how many SSL_ECH structures are in the returned array
@@ -236,8 +235,8 @@ int SSL_ech_set_outer_alpn_protos(SSL *s, const unsigned char *protos,
  * @brief query the content of an SSL_ECH structure
  *
  * @param s is the SSL session
- * @param dets returned externally visible detailed form of the SSL_ECH structure
- * @param count says how many indices are in the ECH_DETS structure
+ * @param dets returned array of visible form of the ECH details
+ * @param count says how many indices are in the OSSL_ECH_DETS structure
  * @return 1 for success, error otherwise
  *
  * This function allows the application to examine some internals of an SSL_ECH
@@ -246,31 +245,31 @@ int SSL_ech_set_outer_alpn_protos(SSL *s, const unsigned char *protos,
  * ECHConfig value (after decoding and initial checking within the library),
  * which allows the application to choose which it would prefer to use.
  */
-int SSL_ech_query(SSL *s, ECH_DETS **dets, int *count);
+int SSL_ech_query(SSL *s, OSSL_ECH_DETS **dets, int *count);
 
 /**
- * @brief free up memory for an ECH_DETS
+ * @brief free up memory for an OSSL_ECH_DETS
  *
  * @param dets is the structure to free up
  * @param count says how many indices are in dets
  */
-void SSL_ECH_DETS_free(ECH_DETS *dets, int count);
+void OSSL_ECH_DETS_free(OSSL_ECH_DETS *dets, int count);
 
 /**
- * @brief utility fnc for application that wants to print an ECH_DETS
+ * @brief utility fnc for application that wants to print an OSSL_ECH_DETS
  *
  * @param out is the BIO to use (e.g. stdout/whatever)
- * @param dets is a pointer to an ECH_DETS struture
+ * @param dets is a pointer to an OSSL_ECH_DETS struture
  * @param count is the number of elements in dets
  * @return 1 for success, error othewise
  */
-int SSL_ECH_DETS_print(BIO* out, ECH_DETS *dets, int count);
+int OSSL_ECH_DETS_print(BIO* out, OSSL_ECH_DETS *dets, int count);
 
 /**
  * @brief down-select to choose a specific ECHConfig
  *
  * @param s is an SSL structure with possibly multiple SSL_ECH values
- * @param index is the index value from an ECH_DETS
+ * @param index is the index value from an OSSL_ECH_DETS
  * @return 1 for success, error otherwise
  *
  * This allows the caller to select one of the SSL_ECH to use
