@@ -114,13 +114,13 @@ static char *sess_out = NULL;
 
 #ifndef OPENSSL_NO_ECH
 /*
- * ECH_NAME_NONE provides a command line way to indicate that e.g.
+ * OSSL_ECH_NAME_NONE provides a command line way to indicate that e.g.
  * the outer SNI ought not be sent, thus overriding a public_name
  * from an ECHConfig.
  */
-#define ECH_NAME_NONE "NONE"
+#define OSSL_ECH_NAME_NONE "NONE"
 
-#define ECH_SELECT_ALL -1 /* when not reducing */
+#define OSSL_ECH_SELECT_ALL -1 /* when not reducing */
 
 static const char *ech_inner_name = NULL;
 static const char *sni_outer_name = NULL;
@@ -131,7 +131,7 @@ static int ech_ignore_cid = 0;
 static int nechs = 0;
 static char *ech_encoded_configs = NULL;
 static char *ech_svcb_rr = NULL;
-static int ech_select = ECH_SELECT_ALL;
+static int ech_select = OSSL_ECH_SELECT_ALL;
 #ifndef OPENSSL_NO_SSL_TRACE
 static size_t ech_trace_cb(const char *buf, size_t cnt,
                  int category, int cmd, void *vdata);
@@ -2390,7 +2390,7 @@ int s_client_main(int argc, char **argv)
                     "ech_inner_name is set to %s\n",ech_inner_name);
 	        } else if (sni_outer_name!=NULL &&
                        strncmp(sni_outer_name,
-                           ECH_NAME_NONE,strlen(ECH_NAME_NONE))) {
+                           OSSL_ECH_NAME_NONE,strlen(OSSL_ECH_NAME_NONE))) {
 	            BIO_printf(bio_err,
                     "ech_inner_name is NULL, using outer %s\n",sni_outer_name);
 	            thisname=sni_outer_name;
@@ -2433,7 +2433,7 @@ int s_client_main(int argc, char **argv)
 
 #ifndef OPENSSL_NO_ECH
     if (ech_encoded_configs!=NULL) {
-        int rv=SSL_ech_add(con,ECH_FMT_GUESS,strlen(ech_encoded_configs),
+        int rv=SSL_ech_add(con,OSSL_ECH_FMT_GUESS,strlen(ech_encoded_configs),
                 ech_encoded_configs,&nechs);
         if (rv != 1) {
             BIO_printf(bio_err, "%s: ECHConfig decode failed.\n", prog);
@@ -2447,7 +2447,7 @@ int s_client_main(int argc, char **argv)
 
     if (ech_svcb_rr!=NULL) {
         int lnechs=0;
-        int rv=SSL_svcb_add(con,ECH_FMT_GUESS,strlen(ech_svcb_rr),
+        int rv=SSL_svcb_add(con,OSSL_ECH_FMT_GUESS,strlen(ech_svcb_rr),
                 ech_svcb_rr,&lnechs);
         if (rv != 1) {
             BIO_printf(bio_err, "%s: SVCB decode failed.\n", prog);
@@ -2470,7 +2470,7 @@ int s_client_main(int argc, char **argv)
         && sni_outer_name!=NULL) {
         int rv=0;
 
-        if (!strncmp(sni_outer_name, ECH_NAME_NONE, strlen(ECH_NAME_NONE)))
+        if (!strncmp(sni_outer_name, OSSL_ECH_NAME_NONE, strlen(OSSL_ECH_NAME_NONE)))
             rv = SSL_ech_set_outer_server_name(con, NULL, 1);
         else  
             rv = SSL_ech_set_outer_server_name(con, sni_outer_name, 0);
@@ -2485,7 +2485,7 @@ int s_client_main(int argc, char **argv)
             ech_inner_name!=NULL) {
         const char *inner_to_use=NULL;
         if (ech_inner_name!=NULL &&
-                strncmp(ech_inner_name,ECH_NAME_NONE,strlen(ECH_NAME_NONE))) {
+                strncmp(ech_inner_name,OSSL_ECH_NAME_NONE,strlen(OSSL_ECH_NAME_NONE))) {
             inner_to_use=sni_outer_name;
         }
         /* Set any non-NULL name to be verified */
@@ -2500,9 +2500,9 @@ int s_client_main(int argc, char **argv)
         }
     }
 
-    if (ech_select!=ECH_SELECT_ALL) {
+    if (ech_select!=OSSL_ECH_SELECT_ALL) {
         int rv=0;
-        ECH_DETS *ed=NULL;
+        OSSL_ECH_DETS *ed=NULL;
         /* down select */
         if (ech_select<0 || ech_select >= nechs) {
             BIO_printf(bio_err, "%s: downselect tp ECH (%d) failed " \
@@ -2519,9 +2519,9 @@ int s_client_main(int argc, char **argv)
         rv=SSL_ech_query(con, &ed, &nechs);
         if (rv!=1) goto end;
         if (!ed) goto end;
-        rv=SSL_ECH_DETS_print(bio_err, ed, nechs);
+        rv=OSSL_ECH_DETS_print(bio_err, ed, nechs);
         if (rv!=1) goto end;
-        SSL_ECH_DETS_free(ed, nechs);
+        OSSL_ECH_DETS_free(ed, nechs);
     }
 
 #endif

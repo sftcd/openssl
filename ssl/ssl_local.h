@@ -1614,7 +1614,7 @@ struct ssl_connection_st {
         unsigned char *kepthrr;
         size_t kepthrr_len;
         int n_outer_only; /* outer-exts compression related fields */
-        uint16_t outer_only[ECH_OUTERS_MAX];
+        uint16_t outer_only[OSSL_ECH_OUTERS_MAX];
         unsigned int etype; /* Client placeholder for ext type */
         SSL_CONNECTION* inner_s; /* pointer to inner CH from outer */
         SSL_CONNECTION* outer_s; /* pointer to outer CH from inner */

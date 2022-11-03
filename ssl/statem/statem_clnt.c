@@ -1241,8 +1241,8 @@ __owur CON_FUNC_RETURN tls_construct_client_hello(SSL_CONNECTION *s,
     }
 
     /* If doing real ECH and application requested GREASE too, over-ride that */
-    if (s->ext.ech_grease==ECH_IS_GREASE && s->ext.ech_attempted==1) {
-        s->ext.ech_grease=ECH_NOT_GREASE;
+    if (s->ext.ech_grease== OSSL_ECH_IS_GREASE && s->ext.ech_attempted==1) {
+        s->ext.ech_grease= OSSL_ECH_NOT_GREASE;
         OSSL_TRACE_BEGIN(TLS) {
             BIO_printf(trc_out, "ECH Over-ride GREASE for real ECH\n");
         } OSSL_TRACE_END(TLS);
@@ -1920,7 +1920,7 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL_CONNECTION *s, PACKET *pkt)
     if (s->ech!=NULL &&
             s->ext.ech_done!=1 &&
             s->ext.ch_depth==0 &&
-            s->ext.ech_grease==ECH_NOT_GREASE &&
+            s->ext.ech_grease== OSSL_ECH_NOT_GREASE &&
             s->ext.ech_attempted_type==TLSEXT_TYPE_ech13) {
         unsigned char acbuf[8]; /* accept signal buffer */
         if (!s->ext.inner_s) {

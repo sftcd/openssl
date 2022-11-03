@@ -28,10 +28,10 @@
 #ifndef OPENSSL_NO_ECH
 
 /* size for some local crypto vars */
-#define ECH_CRYPTO_VAR_SIZE 1024
+#define OSSL_ECH_CRYPTO_VAR_SIZE 1024
 
-#define ECH_KEYGEN_MODE    0 /* default is to generate a key pair/ECHConfig */
-#define ECH_SELPRINT_MODE  1 /* or we can print/down-select ECHConfigs */
+#define OSSL_ECH_KEYGEN_MODE    0 /* default is to generate a key pair/ECHConfig */
+#define OSSL_ECH_SELPRINT_MODE  1 /* or we can print/down-select ECHConfigs */
 
 #define PEM_SELECT_ALL    -1 /* to indicate we're not downselecting another */
 
@@ -97,17 +97,17 @@ int ech_main(int argc, char **argv)
     char *public_name = NULL;
     char *suitestr = NULL;
     char *extfile = NULL;
-    unsigned char extvals[ECH_MAX_ECHCONFIGEXT_LEN];
-    size_t extlen = ECH_MAX_ECHCONFIGEXT_LEN;
-    uint16_t ech_version = ECH_DRAFT_13_VERSION;
+    unsigned char extvals[OSSL_ECH_MAX_ECHCONFIGEXT_LEN];
+    size_t extlen = OSSL_ECH_MAX_ECHCONFIGEXT_LEN;
+    uint16_t ech_version = OSSL_ECH_DRAFT_13_VERSION;
     uint16_t max_name_length = 0;
     OSSL_HPKE_SUITE hpke_suite = OSSL_HPKE_SUITE_DEFAULT;
-    size_t echconfig_len = ECH_MAX_ECHCONFIG_LEN;
-    unsigned char echconfig[ECH_MAX_ECHCONFIG_LEN];
-    unsigned char priv[ECH_CRYPTO_VAR_SIZE];
-    size_t privlen = ECH_CRYPTO_VAR_SIZE;
+    size_t echconfig_len = OSSL_ECH_MAX_ECHCONFIG_LEN;
+    unsigned char echconfig[OSSL_ECH_MAX_ECHCONFIG_LEN];
+    unsigned char priv[OSSL_ECH_CRYPTO_VAR_SIZE];
+    size_t privlen = OSSL_ECH_CRYPTO_VAR_SIZE;
     int rv = 0;
-    int mode = ECH_KEYGEN_MODE; /* key generation */
+    int mode = OSSL_ECH_KEYGEN_MODE; /* key generation */
     SSL_CTX *con = NULL;
     SSL *s = NULL;
     const SSL_METHOD *meth = TLS_client_method();
@@ -142,7 +142,7 @@ opthelp:
             break;
         case OPT_PEMIN:
             inpemfile = opt_arg();
-            mode = ECH_SELPRINT_MODE; /* print/select */
+            mode = OSSL_ECH_SELPRINT_MODE; /* print/select */
             break;
         case OPT_SELECT:
             pemselect = atoi(opt_arg());
@@ -187,9 +187,9 @@ opthelp:
      * Check ECH-specific inputs
      */
     switch (ech_version) {
-        case ECH_DRAFT_13_VERSION: /* fall through */
+        case OSSL_ECH_DRAFT_13_VERSION: /* fall through */
         case 13:
-            ech_version = ECH_DRAFT_13_VERSION;
+            ech_version = OSSL_ECH_DRAFT_13_VERSION;
             break;
         default:
             BIO_printf(bio_err,
@@ -241,7 +241,7 @@ opthelp:
         pemfile = "echconfig.pem";
     }
 
-    if (mode == ECH_KEYGEN_MODE) {
+    if (mode == OSSL_ECH_KEYGEN_MODE) {
         /* Generate a new key/ECHConfigList and spit that out */
         rv = ossl_ech_make_echconfig(echconfig, &echconfig_len, priv, &privlen,
                                      ech_version, max_name_length, public_name,
@@ -290,9 +290,9 @@ opthelp:
         return 1;
     }
 
-    if (mode == ECH_SELPRINT_MODE) {
+    if (mode == OSSL_ECH_SELPRINT_MODE) {
         int nechs = 0;
-        ECH_DETS *ed = NULL;
+        OSSL_ECH_DETS *ed = NULL;
 
         if (inpemfile == NULL) {
             BIO_printf(bio_err,"no input PEM file supplied - exiting\n");
@@ -321,7 +321,7 @@ opthelp:
             if (s == NULL)
                 goto end;
             /* Try decode that ECHConfigList */
-            rv = SSL_ech_add(s, ECH_FMT_GUESS, plen, (char*)pdata, &nechs);
+            rv = SSL_ech_add(s, OSSL_ECH_FMT_GUESS, plen, (char*)pdata, &nechs);
             if (rv != 1) {
                 BIO_printf(bio_err, "Failed loading ECHConfigs from: %s\n",
                            inpemfile);
@@ -352,10 +352,10 @@ opthelp:
         if (rv != 1 || ed == NULL)
             goto end;
 
-        rv = SSL_ECH_DETS_print(bio_err, ed, nechs);
+        rv = OSSL_ECH_DETS_print(bio_err, ed, nechs);
         if (rv != 1)
             goto end;
-        SSL_ECH_DETS_free(ed, nechs);
+        OSSL_ECH_DETS_free(ed, nechs);
         SSL_free(s);
         SSL_CTX_free(con);
         return 1;

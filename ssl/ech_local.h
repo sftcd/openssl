@@ -22,7 +22,7 @@
 # include <openssl/ech.h>
 # include <openssl/hpke.h>
 
-# undef ECH_SUPERVERBOSE  /**< define to get bazillions more lines of tracing */
+# undef OSSL_ECH_SUPERVERBOSE  /**< define to get bazillions more lines of tracing */
 
 #ifndef CLIENT_VERSION_LEN
 /*
@@ -33,17 +33,17 @@
 #define CLIENT_VERSION_LEN 2
 #endif
 
-#define ECH_CIPHER_LEN 4 /**< length of an ECHCipher (2 for kdf, 2 for aead) */
+#define OSSL_ECH_CIPHER_LEN 4 /**< length of an ECHCipher (2 for kdf, 2 for aead) */
 
-#define ECH_OUTERS_MAX 20 /**< max TLS extensions we compress via outer-exts */
+#define OSSL_ECH_OUTERS_MAX 20 /**< max TLS extensions we compress via outer-exts */
 
 /* values for s->ext.ech_grease */
-#define ECH_GREASE_UNKNOWN -1 /**< when we're not yet sure */
-#define ECH_NOT_GREASE 0 /**< when decryption worked */
-#define ECH_IS_GREASE 1 /**< when decryption failed or GREASE wanted */
+#define OSSL_ECH_GREASE_UNKNOWN -1 /**< when we're not yet sure */
+#define OSSL_ECH_NOT_GREASE 0 /**< when decryption worked */
+#define OSSL_ECH_IS_GREASE 1 /**< when decryption failed or GREASE wanted */
 
 /* used to indicate "all" in SSL_ech_print */
-#define ECH_SELECT_ALL -1 
+#define OSSL_ECH_SELECT_ALL -1 
 
 /* value for uninitialised GREASE ECH version */
 #define TLSEXT_TYPE_ech_unknown               0xffff
@@ -55,10 +55,10 @@
  * Strings used in ECH crypto derivations
  * TODO: handle EBCDIC!
  */
-#define ECH_CONFIG_ID_STRING (char*) "tls ech config id"
-#define ECH_CONTEXT_STRING (char*) "tls ech"
-#define ECH_ACCEPT_CONFIRM_STRING (char*) "ech accept confirmation"
-#define ECH_HRR_CONFIRM_STRING (char*) "hrr ech accept confirmation"
+#define OSSL_ECH_CONFIG_ID_STRING (char*) "tls ech config id"
+#define OSSL_ECH_CONTEXT_STRING (char*) "tls ech"
+#define OSSL_ECH_ACCEPT_CONFIRM_STRING (char*) "ech accept confirmation"
+#define OSSL_ECH_HRR_CONFIRM_STRING (char*) "hrr ech accept confirmation"
 
 /**
  * @brief Representation of what goes in DNS for draft-13
@@ -95,7 +95,7 @@
  * fine for both.
  *
  */
-typedef unsigned char ech_ciphersuite_t[ECH_CIPHER_LEN];
+typedef unsigned char ech_ciphersuite_t[OSSL_ECH_CIPHER_LEN];
 
 typedef struct ech_config_st {
     unsigned int version; /**< 0xff08 for draft-08 */
@@ -163,10 +163,10 @@ typedef struct ech_encch_st {
     unsigned char *enc; /**< public share */
     size_t payload_len; /**< ciphertext  */
     unsigned char *payload; /**< ciphertext  */
-} ECH_ENCCH;
+} OSSL_ECH_ENCCH;
 
-#define ECH_OUTER_CH_TYPE 0 /**< outer ECHClientHello enum */
-#define ECH_INNER_CH_TYPE 1 /**< inner ECHClientHello enum */
+#define OSSL_ECH_OUTER_CH_TYPE 0 /**< outer ECHClientHello enum */
+#define OSSL_ECH_INNER_CH_TYPE 1 /**< inner ECHClientHello enum */
 
 /**
  * @brief The ECH data structure that's part of the SSL structure
@@ -222,10 +222,10 @@ void ECHConfigs_free(ECHConfigs *tbf);
 void ECHConfig_free(ECHConfig *tbf);
 
 /**
- * @brief Free an ECH_ENCCH
+ * @brief Free an OSSL_ECH_ENCCH
  * @param tbf is a ptr to an SSL_ECH structure
  */
-void ECH_ENCCH_free(ECH_ENCCH *ev);
+void OSSL_ECH_ENCCH_free(OSSL_ECH_ENCCH *ev);
 
 /**
  * @brief Duplicate the configuration related fields of an SSL_ECH
@@ -253,7 +253,7 @@ SSL_ECH* SSL_ECH_dup(SSL_ECH* orig, size_t nech, int selector);
  * The ekval value here may be the catenation of multiple encoded 
  * ECHConfigList. We internally decode and handle those and (later)
  * use whichever is relevant/best. The fmt parameter can be e.g. 
- * ECH_FMT_ASCII_HEX or ECH_FMT_GUESS.
+ * OSSL_ECH_FMT_ASCII_HEX or OSSL_ECH_FMT_GUESS.
  */
 SSL_ECH* SSL_ECH_new_from_buffer(SSL_CTX *ctx, 
                                  SSL *con, 
@@ -276,9 +276,9 @@ int ech_encode_inner(SSL_CONNECTION *s);
  * return value might mean something new if the extension
  * handler is ECH "aware" (other than in a trivial sense)
  */
-#define ECH_SAME_EXT_ERR 0 /* bummer something wrong */
-#define ECH_SAME_EXT_DONE 1 /* proceed with same value in inner/outer */
-#define ECH_SAME_EXT_CONTINUE 2 /* generate a new value for outer CH */
+#define OSSL_ECH_SAME_EXT_ERR 0 /* bummer something wrong */
+#define OSSL_ECH_SAME_EXT_DONE 1 /* proceed with same value in inner/outer */
+#define OSSL_ECH_SAME_EXT_CONTINUE 2 /* generate a new value for outer CH */
 
 /**
  * @brief Replicate ext value from inner ch into outer ch 

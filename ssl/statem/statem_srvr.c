@@ -31,8 +31,8 @@
 #define TICKET_NONCE_SIZE       8
 
 #ifndef OPENSSL_NO_ECH
-# ifndef ECH_PBUF_SIZE
-#  define  ECH_PBUF_SIZE 8*1024 /**<  buffer for string returned via ech_cb */
+# ifndef  OSSL_ECH_PBUF_SIZE
+#  define   OSSL_ECH_PBUF_SIZE 8*1024 /**<  buffer for string returned via ech_cb */
 # endif
 #endif
 
@@ -2700,12 +2700,12 @@ CON_FUNC_RETURN tls_construct_server_hello(SSL_CONNECTION *s, WPACKET *pkt)
     /* call ECH callback, if appropriate */
     if (s->ext.ech_attempted && s->ech_cb!=NULL && 
             s->hello_retry_request!=SSL_HRR_PENDING) {
-        char pstr[ECH_PBUF_SIZE+1];
+        char pstr[OSSL_ECH_PBUF_SIZE+1];
         BIO *biom = BIO_new(BIO_s_mem());
         unsigned int cbrv=0;
-        memset(pstr,0,ECH_PBUF_SIZE+1);
-        SSL_ech_print(biom,&s->ssl,ECH_SELECT_ALL);
-        BIO_read(biom,pstr,ECH_PBUF_SIZE);
+        memset(pstr,0,OSSL_ECH_PBUF_SIZE+1);
+        SSL_ech_print(biom,&s->ssl,OSSL_ECH_SELECT_ALL);
+        BIO_read(biom,pstr,OSSL_ECH_PBUF_SIZE);
         cbrv=s->ech_cb(&s->ssl,pstr);
         BIO_free(biom);
         if (cbrv != 1) {

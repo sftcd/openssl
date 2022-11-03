@@ -911,7 +911,7 @@ SSL *ossl_ssl_connection_new_int(SSL_CTX *ctx, const SSL_METHOD *method)
 #ifndef OPENSSL_NO_ECH
     s->nechs=ctx->ext.nechs;
     if (s->nechs>0) {
-        s->ech=SSL_ECH_dup(ctx->ext.ech,s->nechs,ECH_SELECT_ALL);
+        s->ech=SSL_ECH_dup(ctx->ext.ech,s->nechs, OSSL_ECH_SELECT_ALL);
         if (!s->ech) {
             goto err;
         }
@@ -944,9 +944,9 @@ SSL *ossl_ssl_connection_new_int(SSL_CTX *ctx, const SSL_METHOD *method)
     s->ext.hrr_depth=-1;
     s->ext.encoded_innerch_len=0;
     if (ctx->options & SSL_OP_ECH_GREASE) {
-        s->ext.ech_grease=ECH_IS_GREASE;
+        s->ext.ech_grease= OSSL_ECH_IS_GREASE;
     } else {
-        s->ext.ech_grease=ECH_NOT_GREASE;
+        s->ext.ech_grease= OSSL_ECH_NOT_GREASE;
     }
 
     if (s->ssl.ctx->ext.alpn_outer) {
@@ -5168,7 +5168,7 @@ SSL *SSL_dup(SSL *s)
     retsc->nechs=sc->nechs;
     retsc->ech=NULL;
     if (sc->ech) {
-        retsc->ech=SSL_ECH_dup(sc->ech,retsc->nechs,ECH_SELECT_ALL);
+        retsc->ech=SSL_ECH_dup(sc->ech,retsc->nechs, OSSL_ECH_SELECT_ALL);
         if (!retsc->ech) {
             goto err;
         }
