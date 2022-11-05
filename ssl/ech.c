@@ -309,7 +309,7 @@ static int ech_check_filenames(SSL_CTX *ctx, const char *pemfname,int *index)
  */
 static int ech_base64_decode(char *in, unsigned char **out)
 {
-    const char* sepstr = ";"; /* TODO: define a symbol for this (if kept) */
+    const char* sepstr = OSSL_ECH_FMT_SEPARATOR;
     size_t inlen = 0;
     int i = 0;
     int outlen = 0;
