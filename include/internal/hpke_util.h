@@ -85,7 +85,7 @@ const OSSL_HPKE_AEAD_INFO *ossl_HPKE_AEAD_INFO_find_random(OSSL_LIB_CTX *ctx);
  * max length of a base-nonce (the Nn field from OSSL_HPKE_AEAD_INFO), this
  * is used for a local stack array size
  */
-#define OSSL_HPKE_MAX_NONCELEN 12
+# define OSSL_HPKE_MAX_NONCELEN 12
 
 /*
  * @brief info about a KEM
@@ -100,7 +100,7 @@ typedef struct {
     size_t        Nsecret; /* size of secrets */
     size_t        Nenc; /* length of encapsulated key */
     size_t        Npk; /* length of public key */
-    size_t        Npriv; /* length of raw private key */
+    size_t        Nsk; /* length of raw private key */
     uint8_t       bitmask;
 } OSSL_HPKE_KEM_INFO;
 

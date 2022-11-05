@@ -78,6 +78,7 @@ typedef struct {
     uint16_t    kdf_id; /* Key Derivation Function id */
     uint16_t    aead_id; /* AEAD alg id */
 } OSSL_HPKE_SUITE;
+
 /**
  * Suite constants, use this like:
  *          OSSL_HPKE_SUITE myvar = OSSL_HPKE_SUITE_DEFAULT;
