@@ -25,12 +25,12 @@
  * a lot bigger if needed, but that's not currently needed (could be in a
  * PQC world, but we're not there yet)
  */
-#  define OSSL_ECH_MAX_PAYLOAD_LEN 1500 /**< max ECH ciphertext to en/decode */
-#  define OSSL_ECH_MIN_ECHCONFIG_LEN 32 /**< sanity check */
-#  define OSSL_ECH_MAX_ECHCONFIG_LEN 1500 /**< sanity check for all encodings */
-#  define OSSL_ECH_MAX_ECHCONFIGEXT_LEN 100 /**< ECHConfig extension max */
-#  define OSSL_ECH_MAX_MAXNAMELEN 255 /**< ECHConfig max name length allowed */
-#  define OSSL_ECH_MAX_PUBLICNAME 255 /**< max ECHConfig public name length */
+#  define OSSL_ECH_MAX_PAYLOAD_LEN 1500 /* max ECH ciphertext to en/decode */
+#  define OSSL_ECH_MIN_ECHCONFIG_LEN 32 /* min for all encodings */
+#  define OSSL_ECH_MAX_ECHCONFIG_LEN 1500 /* max for all encodings */
+#  define OSSL_ECH_MAX_ECHCONFIGEXT_LEN 100 /* ECHConfig extension max */
+#  define OSSL_ECH_MAX_MAXNAMELEN 255 /* ECHConfig max for max name length */
+#  define OSSL_ECH_MAX_PUBLICNAME 255 /* max ECHConfig public name length */
 
 /*
  * Supported input formats for encoded ECHConfigList API inputs:
@@ -40,12 +40,19 @@
  * - can be base64 encoded version of the above
  * - can be ascii-hex encoded version of the above
  * - can be a presentation-like format containing "ech=<b64-stuff>"
+ *
+ * The code supports catenated values (which makes it easier to feed 
+ * values from a script). Catenated binary values need no separator
+ * as there is internal length information. Catenated ascii-hex or
+ * base64 values need a separator semi-colon.
  */
-#  define OSSL_ECH_FMT_GUESS     0  /**< implementation will try guess type */
-#  define OSSL_ECH_FMT_BIN       1  /**< catenated binary ECHConfigs */
-#  define OSSL_ECH_FMT_B64TXT    2  /**< base64 ECHConfigs (';' separated) */
-#  define OSSL_ECH_FMT_ASCIIHEX  3  /**< ascii-hex ECHConfigs (';' separated */
-#  define OSSL_ECH_FMT_HTTPSSVC  4  /**< presentation form with "ech=<b64>" */
+#  define OSSL_ECH_FMT_GUESS     0  /* implementation will guess */
+#  define OSSL_ECH_FMT_BIN       1  /* catenated binary ECHConfigs */
+#  define OSSL_ECH_FMT_B64TXT    2  /* base64 ECHConfigs (';' separated) */
+#  define OSSL_ECH_FMT_ASCIIHEX  3  /* ascii-hex ECHConfigs (';' separated */
+#  define OSSL_ECH_FMT_HTTPSSVC  4  /* presentation form with "ech=<b64>" */
+
+#  define OSSL_ECH_FMT_SEPARATOR ";" /* separator str for catenation  */
 
 /*
  * ECH version values. We only support draft-13 as of now.
@@ -53,21 +60,21 @@
  * There's no automation checking this but other values will
  * fail.
  */
-#  define OSSL_ECH_DRAFT_13_VERSION 0xfe0d /**< version from draft-13 */
+#  define OSSL_ECH_DRAFT_13_VERSION 0xfe0d /* version from draft-13 */
 
 /*
  * Possible return codes from SSL_ech_get_status
  */
-#  define SSL_ECH_STATUS_BACKEND    4 /**< ECH backend: saw an ech_is_inner */
-#  define SSL_ECH_STATUS_GREASE_ECH 3 /**< GREASEd and got an ECH in return */
-#  define SSL_ECH_STATUS_GREASE     2 /**< ECH GREASE happened  */
-#  define SSL_ECH_STATUS_SUCCESS    1 /**< Success */
-#  define SSL_ECH_STATUS_FAILED     0 /**< Some internal or protocol error */
-#  define SSL_ECH_STATUS_BAD_CALL   -100 /**< Some in/out arguments were NULL */
-#  define SSL_ECH_STATUS_NOT_TRIED  -101 /**< ECH wasn't attempted  */
-#  define SSL_ECH_STATUS_BAD_NAME   -102 /**< ECH ok but server cert bad */
-#  define SSL_ECH_STATUS_NOT_CONFIGURED -103 /**< ECH wasn't configured */
-#  define SSL_ECH_STATUS_FAILED_ECH -105 /**< We tried, failed and got an ECH */
+#  define SSL_ECH_STATUS_BACKEND    4 /* ECH backend: saw an ech_is_inner */
+#  define SSL_ECH_STATUS_GREASE_ECH 3 /* GREASEd and got an ECH in return */
+#  define SSL_ECH_STATUS_GREASE     2 /* ECH GREASE happened  */
+#  define SSL_ECH_STATUS_SUCCESS    1 /* Success */
+#  define SSL_ECH_STATUS_FAILED     0 /* Some internal or protocol error */
+#  define SSL_ECH_STATUS_BAD_CALL   -100 /* Some in/out arguments were NULL */
+#  define SSL_ECH_STATUS_NOT_TRIED  -101 /* ECH wasn't attempted  */
+#  define SSL_ECH_STATUS_BAD_NAME   -102 /* ECH ok but server cert bad */
+#  define SSL_ECH_STATUS_NOT_CONFIGURED -103 /* ECH wasn't configured */
+#  define SSL_ECH_STATUS_FAILED_ECH -105 /* We tried, failed and got an ECH */
 
 /**
  * Application-visible form of an ECHConfigList from an RR value
@@ -77,12 +84,12 @@
  * TODO: Add test and example.
  */
 typedef struct ossl_ech_dets_st {
-    int index; /**< externally re-usable reference to this value */
-    char *public_name; /**< public_name from API or ECHConfig */
-    char *inner_name; /**< server-name (for inner CH if doing ECH) */
-    char *outer_alpns; /**< outer ALPN string */
-    char *inner_alpns; /**< inner ALPN string */
-    char *echconfig; /**< a JSON-like version of the associated ECHConfig */
+    int index; /* externally re-usable reference to this value */
+    char *public_name; /* public_name from API or ECHConfig */
+    char *inner_name; /* server-name (for inner CH if doing ECH) */
+    char *outer_alpns; /* outer ALPN string */
+    char *inner_alpns; /* inner ALPN string */
+    char *echconfig; /* a JSON-like version of the associated ECHConfig */
 } OSSL_ECH_DETS;
 
 /**
