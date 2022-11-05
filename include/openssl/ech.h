@@ -70,22 +70,23 @@
 #  define SSL_ECH_STATUS_FAILED_ECH -105 /**< We tried, failed and got an ECH */
 
 /**
- * Exterally visible form of an ECHConfigList from an RR value
+ * Application-visible form of an ECHConfigList from an RR value
  *
  * The middle four values are associated with the SSL data structure
  * and not the more static ECHConfigList (or SVCB/HTTPS RR value).
+ * TODO: Add test and example.
  */
 typedef struct ossl_ech_dets_st {
     int index; /**< externally re-usable reference to this value */
-    char *public_name; /**< public_name from API */
-    char *inner_name; /**< server-name for inner CH */
+    char *public_name; /**< public_name from API or ECHConfig */
+    char *inner_name; /**< server-name (for inner CH if doing ECH) */
     char *outer_alpns; /**< outer ALPN string */
     char *inner_alpns; /**< inner ALPN string */
     char *echconfig; /**< a JSON-like version of the associated ECHConfig */
 } OSSL_ECH_DETS;
 
 /**
- * @brief ingest SVCB/HTTPS RR value provided as (binary or ascii-hex encoded)
+ * @brief ingest binary or ascii-hex encoded SVCB/HTTPS RR value
  *
  * rrval may be the catenation of multiple encoded ECHConfigList's.
  * We internally try decode and handle those and (later)
@@ -99,11 +100,11 @@ typedef struct ossl_ech_dets_st {
  * @param num_echs says how many SSL_ECH structures are in the returned array
  * @return is 1 for success, error otherwise
  */
-int SSL_CTX_svcb_add(SSL_CTX *ctx, short rrfmt, size_t rrlen, char *rrval,
+int SSL_CTX_svcb_add(SSL_CTX *ctx, int rrfmt, size_t rrlen, char *rrval,
                      int *num_echs);
 
 /**
- * @brief ingest SVCB/HTTPS RR value provided as (binary or ascii-hex encoded)
+ * @brief ingest binary or ascii-hex encoded SVCB/HTTPS RR value
  *
  * rrval may be the catenation of multiple encoded ECHConfigList's.
  * We internally try decode and handle those and (later)
@@ -120,8 +121,7 @@ int SSL_CTX_svcb_add(SSL_CTX *ctx, short rrfmt, size_t rrlen, char *rrval,
 int SSL_svcb_add(SSL *s, int rrfmt, size_t rrlen, char *rrval, int *num_echs);
 
 /**
- * @brief ingest ECHConfigList'ss provided as (binary, base64 or ascii-hex
- * encoded)
+ * @brief ingest SVCB/HTTPS RR value provided as (binary or ascii-hex encoded)
  *
  * ekval may be the catenation of multiple encoded ECHConfigList's.
  * We internally try decode and handle those and (later)
@@ -135,11 +135,10 @@ int SSL_svcb_add(SSL *s, int rrfmt, size_t rrlen, char *rrval, int *num_echs);
  * @param num_echs says how many SSL_ECH structures are in the returned array
  * @return is 1 for success, error otherwise
  */
-int SSL_ech_add(SSL *s, int ekfmt, size_t eklen, char *echkeys, int *num_echs);
+int SSL_ech_add(SSL *s, int ekfmt, size_t eklen, char *ekval, int *num_echs);
 
 /**
- * @brief ingest ECHConfigs provided as (binary, base64 or ascii-hex encoded)
- *
+ * @brief ingest SVCB/HTTPS RR value provided as (binary or ascii-hex encoded)
  * ekval may be the catenation of multiple encoded ECHConfigList's.
  * We internally try decode and handle those and (later)
  * use whichever is relevant/best. The fmt parameter can be e.g.
@@ -152,12 +151,11 @@ int SSL_ech_add(SSL *s, int ekfmt, size_t eklen, char *echkeys, int *num_echs);
  * @param num_echs says how many SSL_ECH structures are in the returned array
  * @return is 1 for success, error otherwise
  */
-int SSL_CTX_ech_add(SSL_CTX *ctx, short ekfmt, size_t eklen, char *echkeys,
+int SSL_CTX_ech_add(SSL_CTX *ctx, int ekfmt, size_t eklen, char *ekval,
                     int *num_echs);
 
 /**
  * @brief Set the inner and outer SNI
- *
  * @param s is the SSL context
  * @param inner_name is the (to be) hidden service name
  * @param outer_name is the cleartext SNI name to use
@@ -176,7 +174,6 @@ int SSL_ech_server_name(SSL *s, const char *inner_name, const char *outer_name,
 
 /**
  * @brief Set the outer SNI
- *
  * @param ctx is the SSL_CTX
  * @param outer_name is the (to be) hidden service name
  * @param no_outer set to 1 to send no outer SNI
@@ -193,7 +190,6 @@ int SSL_CTX_ech_set_outer_server_name(SSL_CTX *ctx, const char *outer_name,
 
 /**
  * @brief Set the outer SNI
- *
  * @param s is the SSL connection
  * @param outer_name is the (to be) hidden service name
  * @param no_outer set to 1 to send no outer SNI
@@ -209,7 +205,6 @@ int SSL_ech_set_outer_server_name(SSL *s, const char *outer_name, int no_outer);
 
 /**
  * @brief set the ALPN values for the outer ClientHello
- *
  * @param ctx is the SSL_CTX
  * @param protos encodes the ALPN values
  * @param protos_len is the length of protos
@@ -220,7 +215,6 @@ int SSL_CTX_ech_set_outer_alpn_protos(SSL_CTX *ctx, const unsigned char *protos,
 
 /**
  * @brief set the ALPN values for the outer ClientHello
- *
  * @param s is the SSL session
  * @param protos encodes the ALPN values
  * @param protos_len is the length of protos
@@ -231,7 +225,6 @@ int SSL_ech_set_outer_alpn_protos(SSL *s, const unsigned char *protos,
 
 /**
  * @brief query the content of an SSL_ECH structure
- *
  * @param s is the SSL session
  * @param dets returned array of visible form of the ECH details
  * @param count says how many indices are in the OSSL_ECH_DETS structure
@@ -244,6 +237,17 @@ int SSL_ech_set_outer_alpn_protos(SSL *s, const unsigned char *protos,
  * which allows the application to choose which it would prefer to use.
  */
 int SSL_ech_query(SSL *s, OSSL_ECH_DETS **dets, int *count);
+
+/**
+ * @brief down-select to choose a specific ECHConfig
+ * @param s is an SSL structure with possibly multiple SSL_ECH values
+ * @param index is the index value from an OSSL_ECH_DETS
+ * @return 1 for success, error otherwise
+ *
+ * This allows the caller to select one of the loaded ECHConfig values
+ * to use for the TLS session.
+ */
+int SSL_ech_reduce(SSL *s, int index);
 
 /**
  * @brief free up memory for an OSSL_ECH_DETS
@@ -264,20 +268,7 @@ void OSSL_ECH_DETS_free(OSSL_ECH_DETS *dets, int count);
 int OSSL_ECH_DETS_print(BIO *out, OSSL_ECH_DETS *dets, int count);
 
 /**
- * @brief down-select to choose a specific ECHConfig
- *
- * @param s is an SSL structure with possibly multiple SSL_ECH values
- * @param index is the index value from an OSSL_ECH_DETS
- * @return 1 for success, error otherwise
- *
- * This allows the caller to select one of the SSL_ECH to use
- * for a TLS session.
- */
-int SSL_ech_reduce(SSL *s, int index);
-
-/**
  * Report on the number of ECHConfig values currently loaded
- *
  * @param ctx is the SSL server context
  * @param numkeys returns the number currently loaded
  * @return 1 for success, other otherwise
@@ -286,7 +277,6 @@ int SSL_CTX_ech_server_key_status(SSL_CTX *ctx, int *numkeys);
 
 /**
  * @brief remove some or all stored ECH Keys to allow clean re-loads
- *
  * @param ctx is the SSL server context
  * @param age keep keys loaded in the last age seconds
  * @return 1 for success, other otherwise
@@ -298,7 +288,6 @@ int SSL_CTX_ech_server_flush_keys(SSL_CTX *ctx, time_t age);
 
 /**
  * @brief Turn on ECH server-side
- *
  * @param ctx is the SSL server context
  * @param echcfgfile the relevant ECHConfig plus private key file name
  * @return 1 for success, other otherwise
@@ -313,20 +302,19 @@ int SSL_CTX_ech_server_enable(SSL_CTX *ctx, const char *echcfgfile);
 
 /**
  * @brief Turn on ECH server-side, with input a buffer rather than file
- *
  * @param ctx is the SSL server context
  * @param buf ECHConfig(s) and private key in PEM format in a buffer
  * @param blen is the length of buf
  * @return 1 for success, other otherwise
  *
- * When this works, the server will try decrypt ECH's from ClientHellos.
+ * This is needed for e.g. rekeying haproxy, which doesn't like to
+ * read from disk after start up.
  */
 int SSL_CTX_ech_server_enable_buffer(SSL_CTX *ctx, const unsigned char *buf,
                                      const size_t blen);
 
 /*!
  * @brief try load all the keys in PEM files found in a directory
- *
  * @param ctx is an SSL_CTX
  * @param echdir is the directory name
  * @oaram loaded returns the number of key pairs successfully loaded
@@ -336,7 +324,6 @@ int SSL_CTX_ech_readpemdir(SSL_CTX *ctx, const char *echdir, int *loaded);
 
 /**
  * @brief API to allow calling code know ECH outcome, post-handshake
- *
  * @param s The SSL context (if that's the right term)
  * @param inner_sni will be set to the SNI from the inner CH (if any)
  * @param outer_sni will be set to the SNI from the outer CH (if any)
@@ -350,7 +337,6 @@ int SSL_ech_get_status(SSL *s, char **inner_sni, char **outer_sni);
 
 /**
  * @brief allow clients to set a preferred HPKE suite to use when GREASEing
- *
  * @param s is the SSL context
  * @param suite is the relevant suite string
  * @return 1 for success, other otherwise
@@ -359,7 +345,6 @@ int SSL_ech_set_grease_suite(SSL *s, const char *suite);
 
 /**
  * @brief allow clients to set a preferred ECH extension type when GREASEing
- *
  * @param s is the SSL context
  * @param type is the relevant ECH extension type
  * @return 1 for success, other otherwise
@@ -374,7 +359,6 @@ int SSL_ech_set_grease_type(SSL *s, uint16_t type);
 
 /**
  * @brief provide a way to do raw ECH decryption for split-mode frontends
- *
  * @param ctx is an SSL_CTX
  * @param outer_ch is the entire client hello (possibly incl. ECH)
  * @param outer_len is the length of the above (on input the buffer size)
@@ -384,8 +368,6 @@ int SSL_ech_set_grease_type(SSL *s, uint16_t type);
  * @param outer_sni is the outer SNI (if present)
  * @param decrypted_ok is 0 on return if decryption failed, 1 if it worked
  * @return 1 for success (incl. failed decrypt) or 0 on error
- *
- * Note that the outer_ch's length is inside the TLV data
  */
 int SSL_CTX_ech_raw_decrypt(SSL_CTX *ctx,
                             unsigned char *outer_ch, size_t outer_len,
@@ -395,46 +377,42 @@ int SSL_CTX_ech_raw_decrypt(SSL_CTX *ctx,
 
 /**
  * @brief prototype for an ECH callback
- *
  * @param s is the SSL connection
- * @param str is a string representation of the ECH details
+ * @param str is for a string representation of the ECH details
  * @return 1 for success, other otherwise
  */
 typedef unsigned int (*SSL_ech_cb_func)(SSL *s, char *str);
 
 /**
- * @brief set an ECH callback for the SSL session
- *
+ * @brief set an ECH callback for the SSL connection
  * @param s is the SSL session
  * @param f is the callback function
  *
  * This will be called once an ECH value has been processed.
- * At that point, e.g. SSL_ech_get_status() could be called
+ * At that point, e.g. SSL_ech_get_status() can be called
  * so the application can find out what happened.
  */
 void SSL_ech_set_callback(SSL *s, SSL_ech_cb_func f);
 
 /**
- * @brief set an ECH callback for the SSL session
- *
+ * @brief set an ECH callback for the SSL context
  * @param ctx is the SSL_CTX
  * @param f is the callback function
  *
  * This will be called once an ECH value has been processed.
- * At that point, e.g. SSL_ech_get_status() could be called
+ * At that point, e.g. SSL_ech_get_status() can be called
  * so the application can find out what happened.
  */
 void SSL_CTX_ech_set_callback(SSL_CTX *ctx, SSL_ech_cb_func f);
 
 /**
  * @brief provide access to a returned ECHConfig value
- *
  * @param s is the SSL connection
  * @param ec is a pointer to the ECHConfig
  * @param eclen is a pointer to the length of the ECHConfig (zero if none)
  * @return 1 for success, other othewise
  *
- * If we GREASEd, or tried and failed, and we got an ECHConfig in
+ * If we GREASEd, or tried ECH and failed, and we got an ECHConfig in
  * return, the application can access the ECHConfig returned via this
  * API.
  */

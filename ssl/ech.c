@@ -1466,7 +1466,7 @@ int SSL_ech_add(SSL *s, int ekfmt, size_t eklen, char *ekval, int *num_echs)
  */
 int SSL_CTX_ech_add(
         SSL_CTX *ctx,
-        short ekfmt,
+        int ekfmt,
         size_t eklen,
         char *ekval,
         int *num_echs)
@@ -2380,8 +2380,8 @@ static int local_svcb_add(
     unsigned char *cp=NULL;
     size_t remaining=0;
     char *dnsname=NULL;
-    unsigned short pcode=0;
-    unsigned short plen=0;
+    uint16_t pcode=0;
+    uint16_t plen=0;
     int done=0;
 
     if (rrfmt==OSSL_ECH_FMT_ASCIIHEX) {
@@ -2483,7 +2483,7 @@ err:
  *
  * In the case of decoding error, any existing ECHConfigs are unaffected.
  */
-int SSL_CTX_svcb_add(SSL_CTX *ctx, short rrfmt, size_t rrlen, char *rrval, int *num_echs)
+int SSL_CTX_svcb_add(SSL_CTX *ctx, int rrfmt, size_t rrlen, char *rrval, int *num_echs)
 {
     SSL_ECH *new_echs=NULL;
     int num_new=0;
