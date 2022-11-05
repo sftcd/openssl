@@ -381,11 +381,15 @@ int ossl_ecx_dhkem_derive_private(ECX_KEY *ecx, unsigned char *privout,
     const OSSL_HPKE_KEM_INFO *info = get_kem_info(ecx);
 
     /* ikmlen should have a length of at least Nsk */
-    if (ikmlen < info->Npriv) {
+    if (ikmlen < info->Nsk) {
         ERR_raise_data(ERR_LIB_PROV, PROV_R_INVALID_INPUT_LENGTH,
                        "ikm length is :%zu, should be at least %zu",
+<<<<<<< HEAD
                        ikmlen, info->Npriv);
 >>>>>>> ffba35cfa5 (latest HPKE and removed draft-10 code; has small leak on server exit)
+=======
+                       ikmlen, info->Nsk);
+>>>>>>> acb9e0072e (latest HPKE PR commits included)
         goto err;
     }
 
@@ -421,6 +425,7 @@ int ossl_ecx_dhkem_derive_private(ECX_KEY *ecx, unsigned char *privout,
 
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
     if (!ossl_hpke_labeled_expand(kdfctx, privout, info->Nsk, prk, info->Nsecret,
 =======
     if (!ossl_hpke_labeled_expand(kdfctx, privout, keylen, prk, prklen,
@@ -428,6 +433,9 @@ int ossl_ecx_dhkem_derive_private(ECX_KEY *ecx, unsigned char *privout,
 =======
     if (!ossl_hpke_labeled_expand(kdfctx, privout, info->Npriv, prk, info->Nsecret,
 >>>>>>> ffba35cfa5 (latest HPKE and removed draft-10 code; has small leak on server exit)
+=======
+    if (!ossl_hpke_labeled_expand(kdfctx, privout, info->Nsk, prk, info->Nsecret,
+>>>>>>> acb9e0072e (latest HPKE PR commits included)
                                   LABEL_KEM, suiteid, sizeof(suiteid),
                                   OSSL_DHKEM_LABEL_SK, NULL, 0))
         goto err;
@@ -467,6 +475,7 @@ static ECX_KEY *derivekey(PROV_ECX_CTX *ctx,
     /* Generate a random seed if there is no input ikm */
     if (seed == NULL || seedlen == 0) {
 <<<<<<< HEAD
+<<<<<<< HEAD
         if (info->Nsk > sizeof(tmpbuf))
             goto err;
         if (RAND_priv_bytes_ex(ctx->libctx, tmpbuf, info->Nsk, 0) <= 0)
@@ -475,12 +484,19 @@ static ECX_KEY *derivekey(PROV_ECX_CTX *ctx,
         seedlen = info->Nsk;
 =======
         if (info->Npriv > sizeof(tmpbuf))
+=======
+        if (info->Nsk > sizeof(tmpbuf))
+>>>>>>> acb9e0072e (latest HPKE PR commits included)
             goto err;
-        if (RAND_priv_bytes_ex(ctx->libctx, tmpbuf, info->Npriv, 0) <= 0)
+        if (RAND_priv_bytes_ex(ctx->libctx, tmpbuf, info->Nsk, 0) <= 0)
             goto err;
         seed = tmpbuf;
+<<<<<<< HEAD
         seedlen = info->Npriv;
 >>>>>>> ffba35cfa5 (latest HPKE and removed draft-10 code; has small leak on server exit)
+=======
+        seedlen = info->Nsk;
+>>>>>>> acb9e0072e (latest HPKE PR commits included)
     }
     if (!ossl_ecx_dhkem_derive_private(key, privkey, seed, seedlen))
         goto err;
