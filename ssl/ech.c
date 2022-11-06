@@ -177,9 +177,8 @@ static int ech_outer_indep[]={
  *
  * This does the real work, can be called to add to a context or a connection
  */
-static int local_ech_add(
-        int ekfmt, size_t eklen, unsigned char *ekval,
-        int *num_echs, SSL_ECH **echs);
+static int local_ech_add(int ekfmt, size_t eklen, unsigned char *ekval,
+                         int *num_echs, SSL_ECH **echs);
 
 /**
  * @brief free an OSSL_ECH_DETS
@@ -392,13 +391,9 @@ err:
  * should have contents like the PEM strings above.
  *
  */
-static int ech_readpemfile(
-        SSL_CTX *ctx,
-        int inputIsFile,
-        const char *pemfile,
-        const unsigned char *input,
-        size_t inlen,
-        SSL_ECH **sechs)
+static int ech_readpemfile(SSL_CTX *ctx, int inputIsFile, const char *pemfile,
+                           const unsigned char *input, size_t inlen,
+                           SSL_ECH **sechs)
 {
     BIO *pem_in=NULL;
     char *pname=NULL;
@@ -1425,29 +1420,47 @@ static int local_decode_rdata_name(
  * @param s is the SSL session
  * @param eklen is the length of the ekval
  * @param ekval is the binary, base64 or ascii-hex encoded ECHConfigs
- * @param num_echs says how many SSL_ECH structures are in the returned array
+ * @param num_echs says how many SSL_ECH structures are in the session
  * @return is 1 for success, error otherwise
  *
  * ekval may be the catenation of multiple encoded ECHConfigs.
  * We internally try decode and handle those and (later)
  * use whichever is relevant/best. The fmt parameter can be
  * e.g. OSSL_ECH_FMT_ASCII_HEX, or OSSL_ECH_FMT_GUESS
+ *
+ * This is an additive function - num_echs will be the total number
+ * of ECHConfig values including those from previous calls to this
+ * function.
  */
 int SSL_ech_add(SSL *s, int ekfmt, size_t eklen, char *ekval, int *num_echs)
 {
     SSL_ECH *echs = NULL;
     SSL_CONNECTION *con = SSL_CONNECTION_FROM_SSL(s);
+    SSL_ECH *tmp = NULL;
 
     if (con == NULL)
         return 0;
     if (local_ech_add(ekfmt, eklen, (unsigned char*)ekval, num_echs, &echs)
         != 1)
         return 0;
-    con->ech = echs;
-    con->nechs = *num_echs;
-    con->ext.ech_attempted = 1;
-    con->ext.ech_attempted_type = TLSEXT_TYPE_ech_unknown;
-    con->ext.ech_attempted_cid = TLSEXT_TYPE_ech_config_id_unset;
+    if (con->ech == NULL) {
+        con->ech = echs;
+        con->nechs = *num_echs;
+        con->ext.ech_attempted = 1;
+        con->ext.ech_attempted_type = TLSEXT_TYPE_ech_unknown;
+        con->ext.ech_attempted_cid = TLSEXT_TYPE_ech_config_id_unset;
+        return(1);
+    }
+    /* otherwise accumulate */
+    tmp = OPENSSL_realloc(con->ech, (con->nechs + *num_echs) * sizeof(SSL_ECH));
+    if (tmp == NULL) 
+        return 0;
+    con->ech = tmp;
+    /* shallow copy top level, keeping lower levels */
+    memcpy(&con->ech[con->nechs], echs, *num_echs * sizeof(SSL_ECH));
+    con->nechs += *num_echs;
+    *num_echs = con->nechs;
+    OPENSSL_free(echs);
     return(1);
 }
 
