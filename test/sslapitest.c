@@ -145,8 +145,6 @@ struct sslapitest_log_counts {
     unsigned int exporter_secret_count;
 };
 
-#undef HARDCODED
-#ifndef HARDCODED
 #ifndef OSSL_NO_USABLE_ECH
 
 #define OSSL_ECH_MAX_LINELEN 1000 /**< for a sanity check */
@@ -190,7 +188,6 @@ out:
     if (in) BIO_free_all(in);
     return(NULL);
 }
-#endif
 #endif
 
 static int hostname_cb(SSL *s, int *al, void *arg)
@@ -2162,34 +2159,12 @@ static int execute_test_session(int maxprot, int use_int_cache,
         }
     }
     if (maxprot == TLS1_3_VERSION && have25519) {
-#ifdef HARDCODED
-        const char *echkeypair="-----BEGIN PRIVATE KEY-----\n" \
-           "MC4CAQAwBQYDK2VuBCIEICjd4yGRdsoP9gU7YT7My8DHx1Tjme8GYDXrOMCi8v1V\n" \
-           "-----END PRIVATE KEY-----\n" \
-           "-----BEGIN ECHCONFIG-----\n" \
-           "AD7+DQA65wAgACA8wVN2BtscOl3vQheUzHeIkVmKIiydUhDCliA4iyQRCwAEAAEAAQALZXhhbXBsZS5jb20AAA==\n" \
-           "-----END ECHCONFIG-----";
-        size_t echkeypair_len=0;
-#endif
         char *echkeyfile=NULL;
         char *echconfiglist=NULL;
         int echcount=0;
         size_t echconfig_len=0;
 
         test_printf_stdout("Running real ECH, fips=%d\n",is_fips);
-
-#ifdef HARDCODED
-        echkeypair_len=strlen(echkeypair);
-        echconfiglist=strdup("AD7+DQA65wAgACA8wVN2BtscOl3vQheUzHeIkVmKIiydUhDCliA4iyQRCwAEAAEAAQALZXhhbXBsZS5jb20AAA==");
-        echconfig_len=strlen(echconfiglist);
-        if (SSL_CTX_ech_server_enable_buffer(sctx,
-                    (const unsigned char*) echkeypair,
-                    echkeypair_len)!=1) {
-            OPENSSL_free(echkeyfile);
-            OPENSSL_free(echconfiglist);
-            return 0;
-        }
-#else
         /* read pre-cooked ECH private/ECHConfigList */
         echkeyfile=test_mk_file_path(certsdir, "echconfig.pem");
         echconfiglist=echconfiglist_from_PEM(echkeyfile);
@@ -2203,7 +2178,6 @@ static int execute_test_session(int maxprot, int use_int_cache,
             OPENSSL_free(echconfiglist);
             return 0;
         }
-#endif
         if (SSL_CTX_ech_add(cctx, OSSL_ECH_FMT_GUESS, 
                echconfig_len, echconfiglist,
                &echcount)!=1) {
@@ -12939,9 +12913,6 @@ int setup_tests(void)
 #ifndef OSSL_NO_USABLE_TLS1_3
     ADD_TEST(test_sni_tls13);
     ADD_ALL_TESTS(test_ticket_lifetime, 2);
-#endif
-#ifndef OSSL_NO_USABLE_ECH
-    ADD_ALL_TESTS(test_ech_add, 5);
 #endif
     ADD_TEST(test_inherit_verify_param);
     ADD_TEST(test_set_alpn);
