@@ -533,10 +533,12 @@ int tls13_change_cipher_state(SSL_CONNECTION *s, int which)
 #endif
 #endif
 
+#if 0
     if (which & SSL3_CC_READ)
         iv = s->read_iv;
     else
         iv = s->write_iv;
+#endif
 
 #ifndef OPENSSL_NO_ECH
     /* If doing early data and ECH then we're a special case.  */
