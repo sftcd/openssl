@@ -26,6 +26,8 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
+- 20221115: rebased again, HPKE-PR nearing done
+
 - 20221106: Adding new ECH tests in OpenSSL test harness mode, e.g.
   try: ``make test TESTS=test_ech V=1``, code in ``test/ech_test.c``
 
