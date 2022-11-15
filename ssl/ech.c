@@ -4424,6 +4424,7 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
         hctx = OSSL_HPKE_CTX_new(hpke_mode, hpke_suite, NULL, NULL);
         s->ext.ech_ctx = hctx;
 
+        /* FIXME: this can leak if HPKE encap fails in a bit */
         mypub=OPENSSL_malloc(lenclen);
         if (!mypub) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
