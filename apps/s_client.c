@@ -2433,8 +2433,8 @@ int s_client_main(int argc, char **argv)
 
 #ifndef OPENSSL_NO_ECH
     if (ech_encoded_configs!=NULL) {
-        int rv=SSL_ech_add(con,OSSL_ECH_FMT_GUESS,strlen(ech_encoded_configs),
-                ech_encoded_configs,&nechs);
+        int rv=SSL_ech_add(con, &nechs, OSSL_ECH_FMT_GUESS,
+                           ech_encoded_configs, strlen(ech_encoded_configs));
         if (rv != 1) {
             BIO_printf(bio_err, "%s: ECHConfig decode failed.\n", prog);
             goto opthelp;
@@ -2447,8 +2447,8 @@ int s_client_main(int argc, char **argv)
 
     if (ech_svcb_rr!=NULL) {
         int lnechs=0;
-        int rv=SSL_svcb_add(con,OSSL_ECH_FMT_GUESS,strlen(ech_svcb_rr),
-                ech_svcb_rr,&lnechs);
+        int rv=SSL_svcb_add(con, &lnechs, OSSL_ECH_FMT_GUESS,
+                            ech_svcb_rr, strlen(ech_svcb_rr));
         if (rv != 1) {
             BIO_printf(bio_err, "%s: SVCB decode failed.\n", prog);
             goto opthelp;
