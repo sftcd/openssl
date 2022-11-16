@@ -58,7 +58,7 @@
  * ECH version values. We only support draft-13 as of now.
  * As new versions are added, those should be noted here.
  * There's no automation checking this but other values will
- * fail.
+ * mostly fail or be ignored.
  */
 #  define OSSL_ECH_DRAFT_13_VERSION 0xfe0d /* version from draft-13 */
 
@@ -101,14 +101,14 @@ typedef struct ossl_ech_dets_st {
  * OSSL_ECH_FMT_ASCII_HEX
  *
  * @param ctx is the parent SSL_CTX
+ * @param num_echs number of ECH details in the context on return
  * @param rrfmt is the provided format or OSSL_ECH_FMT_GUESS
- * @param rrlen is the length of the rrval
  * @param rrval is the binary, base64 or ascii-hex encoded RData
- * @param num_echs says how many SSL_ECH structures are in the returned array
+ * @param rrlen is the length of the rrval
  * @return is 1 for success, error otherwise
  */
-int SSL_CTX_svcb_add(SSL_CTX *ctx, int rrfmt, size_t rrlen, char *rrval,
-                     int *num_echs);
+int SSL_CTX_svcb_add(SSL_CTX *ctx, int *num_echs,
+                     int rrfmt, char *rrval, size_t rrlen);
 
 /**
  * @brief ingest binary or ascii-hex encoded SVCB/HTTPS RR value
@@ -119,13 +119,13 @@ int SSL_CTX_svcb_add(SSL_CTX *ctx, int rrfmt, size_t rrlen, char *rrval,
  * OSSL_ECH_FMT_ASCII_HEX
  *
  * @param s is the SSL connection
- * @param rrfmt is the provided format or OSSL_ECH_FMT_GUESS
- * @param rrlen is the length of the rrval
- * @param rrval is the binary, base64 or ascii-hex encoded RData
  * @param num_echs says how many SSL_ECH structures are in the returned array
+ * @param rrfmt is the provided format or OSSL_ECH_FMT_GUESS
+ * @param rrval is the binary, base64 or ascii-hex encoded RData
+ * @param rrlen is the length of the rrval
  * @return is 1 for success, error otherwise
  */
-int SSL_svcb_add(SSL *s, int rrfmt, size_t rrlen, char *rrval, int *num_echs);
+int SSL_svcb_add(SSL *s, int *num_echs, int rrfmt, char *rrval, size_t rrlen);
 
 /**
  * @brief ingest SVCB/HTTPS RR value provided as (binary or ascii-hex encoded)
@@ -136,13 +136,14 @@ int SSL_svcb_add(SSL *s, int rrfmt, size_t rrlen, char *rrval, int *num_echs);
  * OSSL_ECH_FMT_ASCII_HEX
  *
  * @param s is the SSL connection
- * @param ekfmt is the provided format or OSSL_ECH_FMT_GUESS
- * @param eklen is the length of the ekval
- * @param ekval is the binary, base64 or ascii-hex encoded ECHConfigs
  * @param num_echs says how many SSL_ECH structures are in the returned array
+ * @param ekfmt is the provided format or OSSL_ECH_FMT_GUESS
+ * @param ekval is the binary, base64 or ascii-hex encoded ECHConfigs
+ * @param eklen is the length of the ekval
  * @return is 1 for success, error otherwise
  */
-int SSL_ech_add(SSL *s, int ekfmt, size_t eklen, char *ekval, int *num_echs);
+int SSL_ech_add(SSL *s, int *num_echs,
+                int ekfmt, char *ekval, size_t eklen);
 
 /**
  * @brief ingest SVCB/HTTPS RR value provided as (binary or ascii-hex encoded)
@@ -275,7 +276,7 @@ void OSSL_ECH_DETS_free(OSSL_ECH_DETS *dets, int count);
 int OSSL_ECH_DETS_print(BIO *out, OSSL_ECH_DETS *dets, int count);
 
 /**
- * Report on the number of ECHConfig values currently loaded
+ * @brief report on the number of ECHConfig values currently loaded
  * @param ctx is the SSL server context
  * @param numkeys returns the number currently loaded
  * @return 1 for success, other otherwise
@@ -294,7 +295,7 @@ int SSL_CTX_ech_server_key_status(SSL_CTX *ctx, int *numkeys);
 int SSL_CTX_ech_server_flush_keys(SSL_CTX *ctx, time_t age);
 
 /**
- * @brief Turn on ECH server-side
+ * @brief turn on ECH server-side
  * @param ctx is the SSL server context
  * @param echcfgfile the relevant ECHConfig plus private key file name
  * @return 1 for success, other otherwise
@@ -323,11 +324,11 @@ int SSL_CTX_ech_server_enable_buffer(SSL_CTX *ctx, const unsigned char *buf,
 /*!
  * @brief try load all the keys in PEM files found in a directory
  * @param ctx is an SSL_CTX
- * @param echdir is the directory name
  * @oaram loaded returns the number of key pairs successfully loaded
+ * @param echdir is the directory name
  * @return 1 for success, other otherwise
  */
-int SSL_CTX_ech_readpemdir(SSL_CTX *ctx, const char *echdir, int *loaded);
+int SSL_CTX_ech_readpemdir(SSL_CTX *ctx, int *loaded, const char *echdir);
 
 /**
  * @brief API to allow calling code know ECH outcome, post-handshake
@@ -367,20 +368,20 @@ int SSL_ech_set_grease_type(SSL *s, uint16_t type);
 /**
  * @brief provide a way to do raw ECH decryption for split-mode frontends
  * @param ctx is an SSL_CTX
+ * @param decrypted_ok is 0 on return if decryption failed, 1 if it worked
+ * @param inner_sni is the inner SNI (if present)
+ * @param outer_sni is the outer SNI (if present)
  * @param outer_ch is the entire client hello (possibly incl. ECH)
  * @param outer_len is the length of the above (on input the buffer size)
  * @param inner is the resulting plaintext CH, if all went well
  * @param inner_len is the length of the above (on input the buffer size)
- * @param inner_sni is the inner SNI (if present)
- * @param outer_sni is the outer SNI (if present)
- * @param decrypted_ok is 0 on return if decryption failed, 1 if it worked
  * @return 1 for success (incl. failed decrypt) or 0 on error
  */
 int SSL_CTX_ech_raw_decrypt(SSL_CTX *ctx,
-                            unsigned char *outer_ch, size_t outer_len,
-                            unsigned char *inner_ch, size_t *inner_len,
+                            int *decrypted_ok,
                             char **inner_sni, char **outer_sni,
-                            int *decrypted_ok);
+                            unsigned char *outer_ch, size_t outer_len,
+                            unsigned char *inner_ch, size_t *inner_len);
 
 /**
  * @brief prototype for an ECH callback

@@ -26,6 +26,11 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
+- 20221115: finished changing external prototypes to match project prefs
+  (outputs 1st etc.) Will need to get around to changing web server and
+  client integrations accordingly in a while. (Maybe next, or maybe do 
+  more on implementation internals first, we'll see.)
+
 - 20221115: rebased again, HPKE-PR nearing done
 
 - 20221106: Adding new ECH tests in OpenSSL test harness mode, e.g.

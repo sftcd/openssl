@@ -2497,7 +2497,7 @@ int s_server_main(int argc, char *argv[])
             BIO_printf(bio_err, "'%s' not a directory - exiting \r\n", echdir);
             goto end;
         }
-        erc=SSL_CTX_ech_readpemdir(ctx,echdir,&nloaded);
+        erc=SSL_CTX_ech_readpemdir(ctx, &nloaded, echdir);
         if (erc!=1) {
             BIO_printf(bio_err, "Failure reading ECH keys from %s\n",echdir);
             goto end;

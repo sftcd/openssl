@@ -1415,24 +1415,24 @@ static int local_decode_rdata_name(
     return(1);
 }
 
+
 /**
- * @brief Decode/store ECHConfigs (binary, base64, or ascii-hex encoded)
- * @param s is the SSL session
- * @param eklen is the length of the ekval
- * @param ekval is the binary, base64 or ascii-hex encoded ECHConfigs
- * @param num_echs says how many SSL_ECH structures are in the session
- * @return is 1 for success, error otherwise
+ * @brief ingest SVCB/HTTPS RR value provided as (binary or ascii-hex encoded)
  *
- * ekval may be the catenation of multiple encoded ECHConfigs.
+ * ekval may be the catenation of multiple encoded ECHConfigList's.
  * We internally try decode and handle those and (later)
- * use whichever is relevant/best. The fmt parameter can be
- * e.g. OSSL_ECH_FMT_ASCII_HEX, or OSSL_ECH_FMT_GUESS
+ * use whichever is relevant/best. The fmt parameter can be e.g.
+ * OSSL_ECH_FMT_ASCII_HEX
  *
- * This is an additive function - num_echs will be the total number
- * of ECHConfig values including those from previous calls to this
- * function.
+ * @param s is the SSL connection
+ * @param num_echs says how many SSL_ECH structures are in the returned array
+ * @param ekfmt is the provided format or OSSL_ECH_FMT_GUESS
+ * @param ekval is the binary, base64 or ascii-hex encoded ECHConfigs
+ * @param eklen is the length of the ekval
+ * @return is 1 for success, error otherwise
  */
-int SSL_ech_add(SSL *s, int ekfmt, size_t eklen, char *ekval, int *num_echs)
+int SSL_ech_add(SSL *s, int *num_echs,
+                int ekfmt, char *ekval, size_t eklen)
 {
     SSL_ECH *echs = NULL;
     SSL_CONNECTION *con = SSL_CONNECTION_FROM_SSL(s);
@@ -2479,24 +2479,25 @@ err:
     return(0);
 }
 
+
+#if 0
 /**
- * @brief Decode/store SVCB/HTTPS RR value provided as (binary or ascii-hex encoded)
- * @param ctx is the parent SSL_CTX
- * @param rrlen is the length of the rrval
- * @param rrval is the binary, base64 or ascii-hex encoded RData
- * @param num_echs says how many SSL_ECH structures are loaded in total
+ * @brief ingest SVCB/HTTPS RR value provided as (binary or ascii-hex encoded)
+ *
+ * ekval may be the catenation of multiple encoded ECHConfigList's.
+ * We internally try decode and handle those and (later)
+ * use whichever is relevant/best. The fmt parameter can be e.g.
+ * OSSL_ECH_FMT_ASCII_HEX
+ *
+ * @param s is the SSL connection
+ * @param num_echs says how many SSL_ECH structures are in the returned array
+ * @param ekfmt is the provided format or OSSL_ECH_FMT_GUESS
+ * @param ekval is the binary, base64 or ascii-hex encoded ECHConfigs
+ * @param eklen is the length of the ekval
  * @return is 1 for success, error otherwise
- *
- * The input rrval may be the catenation of multiple encoded ECHConfigs.
- * We internally try decode and handle those and (later) * use whichever
- * is relevant/best. The fmt parameter can be e.g. OSSL_ECH_FMT_ASCII_HEX
- * This API is additive, i.e. values from multiple calls will be merged, but
- * note that the merge isn't clever so the application would need to take that
- * into account if it cared about priority.
- *
- * In the case of decoding error, any existing ECHConfigs are unaffected.
  */
-int SSL_CTX_svcb_add(SSL_CTX *ctx, int rrfmt, size_t rrlen, char *rrval, int *num_echs)
+int SSL_ech_add(SSL *s, int *num_echs,
+                int ekfmt, size_t eklen, char *ekval)
 {
     SSL_ECH *new_echs=NULL;
     int num_new=0;
@@ -2529,13 +2530,14 @@ int SSL_CTX_svcb_add(SSL_CTX *ctx, int rrfmt, size_t rrlen, char *rrval, int *nu
     return 1;
 
 }
+#endif
 
 /**
  * @brief Decode/store SVCB/HTTPS RR value provided as (binary or ascii-hex encoded)
- * @param ssl is the SSL session
- * @param rrlen is the length of the rrval
- * @param rrval is the binary, base64 or ascii-hex encoded RData
  * @param num_echs says how many SSL_ECH structures are in the returned array
+ * @param ssl is the SSL session
+ * @param rrval is the binary, base64 or ascii-hex encoded RData
+ * @param rrlen is the length of the rrval
  * @return is 1 for success, error otherwise
  *
  * The input rrval may be the catenation of multiple encoded ECHConfigs.
@@ -2548,7 +2550,7 @@ int SSL_CTX_svcb_add(SSL_CTX *ctx, int rrfmt, size_t rrlen, char *rrval, int *nu
  *
  * In the case of decoding error, any existing ECHConfigs are unaffected.
  */
-int SSL_svcb_add(SSL *ssl, int rrfmt, size_t rrlen, char *rrval, int *num_echs)
+int SSL_svcb_add(SSL *ssl, int *num_echs, int rrfmt, char *rrval, size_t rrlen)
 {
     SSL_ECH *new_echs=NULL;
     int num_new=0;
@@ -5354,11 +5356,11 @@ int SSL_ech_set_grease_type(SSL *ssl, uint16_t type)
 /**
  * @brief API to load all the key files found in a directory
  * @param ctx is an SSL_CTX
- * @param echdir is the directory name
  * @oaram number_loaded returns the number of key pairs successfully loaded
+ * @param echdir is the directory name
  * @return 1 for success, other otherwise
  */
-int SSL_CTX_ech_readpemdir(SSL_CTX *ctx, const char *echdir, int *number_loaded)
+int SSL_CTX_ech_readpemdir(SSL_CTX *ctx, int *number_loaded, const char *echdir)
 {
     OPENSSL_DIR_CTX *d = NULL;
     const char *filename;
@@ -5430,22 +5432,22 @@ int SSL_CTX_ech_readpemdir(SSL_CTX *ctx, const char *echdir, int *number_loaded)
 /**
  * @brief provide a way to do raw ECH decryption for split-mode frontends
  * @param ctx is an SSL_CTX
+ * @param decrypted_ok is 0 on return if decryption failed, 1 if it worked
+ * @param inner_sni is the inner SNI (if present)
+ * @param outer_sni is the outer SNI (if present)
  * @param outer_ch is the entire client hello (possibly incl. ECH)
  * @param outer_len is the length of the above (on input the buffer size)
  * @param inner is the resulting plaintext CH, if all went well
  * @param inner_len is the length of the above (on input the buffer size)
- * @param inner_sni is the inner SNI (if present)
- * @param outer_sni is the outer SNI (if present)
- * @param decrypted_ok is 0 on return if decryption failed, 1 if it worked
  * @return 1 for success (incl. failed decrypt) or 0 on error
  *
  * Note that the outer_ch's length is inside the TLV data
  */
 int SSL_CTX_ech_raw_decrypt(SSL_CTX *ctx,
-                            unsigned char *outer_ch, size_t outer_len,
-                            unsigned char *inner_ch, size_t *inner_len,
+                            int *decrypted_ok,
                             char **inner_sni, char **outer_sni,
-                            int *decrypted_ok)
+                            unsigned char *outer_ch, size_t outer_len,
+                            unsigned char *inner_ch, size_t *inner_len)
 {
     SSL *s=NULL;
     PACKET pkt_outer;

@@ -102,13 +102,13 @@ static int basic_echconfig_gen(void)
         return 0;
     if (!TEST_ptr(ssl = SSL_new(ctx)))
         return 0;
-    res = SSL_ech_add(ssl, OSSL_ECH_FMT_GUESS, echconfig_len, (char *)echconfig,
-                      &num_echs);
+    res = SSL_ech_add(ssl, &num_echs, OSSL_ECH_FMT_GUESS,
+                      (char *)echconfig, echconfig_len);
     if (!TEST_int_eq(res,1))
         return 0;
     /* add same one a 2nd time for fun, should work even if silly */
-    res = SSL_ech_add(ssl, OSSL_ECH_FMT_GUESS, echconfig_len, (char *)echconfig,
-                      &num_echs);
+    res = SSL_ech_add(ssl, &num_echs, OSSL_ECH_FMT_GUESS,
+                      (char *)echconfig, echconfig_len);
     if (!TEST_int_eq(res,1))
         return 0;
     res = SSL_ech_query(ssl, &details, &num_dets);
