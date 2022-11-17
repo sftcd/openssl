@@ -21,6 +21,7 @@
 # define OSSL_HPKE_MAX_PUBLIC 133
 # define OSSL_HPKE_MAX_PRIVATE 66
 <<<<<<< HEAD
+<<<<<<< HEAD
 # define OSSL_HPKE_MAX_KDF_INPUTLEN 64
 
 /*
@@ -76,6 +77,8 @@ const OSSL_HPKE_AEAD_INFO *ossl_HPKE_AEAD_INFO_find_random(OSSL_LIB_CTX *ctx);
 
 =======
 # define OSSL_HPKE_MAX_NONCE 12
+=======
+>>>>>>> fabc0ea89d (more PR nits)
 # define OSSL_HPKE_MAX_KDF_INPUTLEN 64
 
 <<<<<<< HEAD
