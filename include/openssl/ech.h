@@ -100,24 +100,6 @@ typedef struct ossl_ech_dets_st {
  * use whichever is relevant/best. The fmt parameter can be e.g.
  * OSSL_ECH_FMT_ASCII_HEX
  *
- * @param ctx is the parent SSL_CTX
- * @param num_echs number of ECH details in the context on return
- * @param rrfmt is the provided format or OSSL_ECH_FMT_GUESS
- * @param rrval is the binary, base64 or ascii-hex encoded RData
- * @param rrlen is the length of the rrval
- * @return is 1 for success, error otherwise
- */
-int SSL_CTX_svcb_add(SSL_CTX *ctx, int *num_echs,
-                     int rrfmt, char *rrval, size_t rrlen);
-
-/**
- * @brief ingest binary or ascii-hex encoded SVCB/HTTPS RR value
- *
- * rrval may be the catenation of multiple encoded ECHConfigList's.
- * We internally try decode and handle those and (later)
- * use whichever is relevant/best. The fmt parameter can be e.g.
- * OSSL_ECH_FMT_ASCII_HEX
- *
  * @param s is the SSL connection
  * @param num_echs says how many SSL_ECH structures are in the returned array
  * @param rrfmt is the provided format or OSSL_ECH_FMT_GUESS
