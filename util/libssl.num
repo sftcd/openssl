@@ -608,7 +608,6 @@ SSL_CTX_ech_server_enable_buffer        ?	3_1_0	EXIST::FUNCTION:ECH
 SSL_ech_get_returned                    ?	3_1_0	EXIST::FUNCTION:ECH
 SSL_ech_set_grease_type                 ?	3_1_0	EXIST::FUNCTION:ECH
 SSL_ech_set_outer_alpn_protos           ?	3_2_0	EXIST::FUNCTION:ECH
-SSL_CTX_svcb_add                        ?	3_2_0	EXIST::FUNCTION:ECH
 SSL_svcb_add                            ?	3_2_0	EXIST::FUNCTION:ECH
 SSL_ech_add                             ?	3_2_0	EXIST::FUNCTION:ECH
 SSL_CTX_ech_add                         ?	3_2_0	EXIST::FUNCTION:ECH
