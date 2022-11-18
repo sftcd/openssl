@@ -13,22 +13,17 @@
 #include "testutil.h"
 #include "helpers/ssltestlib.h"
 
-#undef OSSL_NO_USABLE_ECH
-#if defined(OSSL_NO_USABLE_TLS1_3) || \
-    defined(OPENSSL_NO_ECH) || \
-    defined(OPENSSL_NO_EC)
-# define OSSL_NO_USABLE_ECH
-#endif
-
 #define OSSL_ECH_MAX_LINELEN 1000 /**< for a sanity check */
 
 static OSSL_LIB_CTX *libctx = NULL;
 static OSSL_LIB_CTX *testctx = NULL;
 static char *testpropq = NULL;
 static BIO *bio_stdout = NULL;
+static BIO *bio_null = NULL;
 
 static char *cert = NULL;
 static char *privkey = NULL;
+static int verbose = 0;
 
 #if 0
 /* may need this later */
@@ -117,9 +112,15 @@ static int basic_echconfig_gen(void)
     /* we should have two sets of details */
     if (!TEST_int_eq(num_dets,2))
         return 0;
-    res = OSSL_ECH_DETS_print(bio_stdout, details, num_dets);
-    if (!TEST_int_eq(res,1))
-        return 0;
+    if (verbose) {
+        res = OSSL_ECH_DETS_print(bio_stdout, details, num_dets);
+        if (!TEST_int_eq(res,1))
+            return 0;
+    } else {
+        res = OSSL_ECH_DETS_print(bio_null, details, num_dets);
+        if (!TEST_int_eq(res,1))
+            return 0;
+    }
     OSSL_ECH_DETS_free(details, num_dets);
     SSL_free(ssl);
     SSL_CTX_free(ctx);
@@ -279,9 +280,43 @@ end:
     return testresult;
 }
 
+typedef enum OPTION_choice {
+    OPT_ERR = -1,
+    OPT_EOF = 0,
+    OPT_VERBOSE,
+    OPT_TEST_ENUM
+} OPTION_CHOICE;
+
+const OPTIONS *test_get_options(void)
+{
+    static const OPTIONS test_options[] = {
+        OPT_TEST_OPTIONS_DEFAULT_USAGE,
+        { "v", OPT_VERBOSE, '-', "Enable verbose mode" },
+        { OPT_HELP_STR, 1, '-', "Run ECH tests\n" },
+        { NULL }
+    };
+    return test_options;
+}
+
+
 int setup_tests(void)
 {
+    OPTION_CHOICE o;
+
+    while ((o = opt_next()) != OPT_EOF) {
+        switch (o) {
+        case OPT_VERBOSE:
+            verbose = 1; /* Print progress dots */
+            break;
+        case OPT_TEST_CASES:
+            break;
+        default:
+            return 0;
+        }
+    }
+
     bio_stdout = BIO_new_fp(stdout, BIO_NOCLOSE | BIO_FP_TEXT);
+    bio_null = BIO_new(BIO_s_mem());
 #ifndef OSSL_NO_USABLE_ECH
     ADD_TEST(basic_echconfig_gen);
     ADD_ALL_TESTS(test_ech_add, 5);
@@ -291,5 +326,6 @@ int setup_tests(void)
 
 void cleanup_tests(void)
 {
+    BIO_free(bio_null);
     BIO_free(bio_stdout);
 }
