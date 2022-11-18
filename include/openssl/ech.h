@@ -15,7 +15,6 @@
 #ifndef OPENSSL_ECH_H
 # define OPENSSL_ECH_H
 
-# ifndef OPENSSL_NO_ECH
 
 #  include <openssl/ssl.h>
 #  include <openssl/hpke.h>
@@ -427,5 +426,4 @@ int ossl_ech_make_echconfig(unsigned char *echconfig, size_t *echconfiglen,
                             const char *public_name, OSSL_HPKE_SUITE suite,
                             const unsigned char *extvals, size_t extlen);
 
-# endif
 #endif

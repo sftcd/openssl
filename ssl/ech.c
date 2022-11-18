@@ -12,8 +12,6 @@
  * This implements the externally-visible functions
  * for handling Encrypted ClientHello (ECH)
  */
-# include <openssl/ssl.h>
-
 #ifndef OPENSSL_NO_ECH
 
 #include <openssl/ssl.h>
