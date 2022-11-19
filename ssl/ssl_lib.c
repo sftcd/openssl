@@ -1475,22 +1475,26 @@ void ossl_ssl_connection_free(SSL *ssl)
 
 #ifndef OPENSSL_NO_ECH
     /*
-     * This and the following two ECH conditions aren't satisfactory
-     * and are v. brittle to changes by others. But work right now.
+     * This isn't satisfactory and is v. brittle to changes by others.
+     * But works right now.
      * TODO: FIXME: figure that out
      */
-    if (s->ext.inner_s==NULL && s->ext.outer_s!=NULL)
-#endif
+    if (s->server == 1
+        || s->ext.ech_attempted == 0
+        || s->ext.ech_grease == 1
+        || ( s->ext.ech_attempted == 1 && s->ext.inner_s==NULL
+             && s->ext.outer_s != NULL)) {
+        ssl_free_wbio_buffer(s);
+        RECORD_LAYER_clear(&s->rlayer);
+        BUF_MEM_free(s->init_buf);
+    }
+#else
     ssl_free_wbio_buffer(s);
 
     /* Ignore return value */
     RECORD_LAYER_clear(&s->rlayer);
-
-#ifndef OPENSSL_NO_ECH
-    if ((s->ext.inner_s==NULL && s->ext.outer_s!=NULL)
-        || (s->ext.ech_attempted == 1 && s->ext.ech_success == 0))
-#endif
     BUF_MEM_free(s->init_buf);
+#endif
 
     /* add extra stuff */
     sk_SSL_CIPHER_free(s->cipher_list);
