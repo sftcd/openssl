@@ -1,5 +1,5 @@
 /*
- * Copyright 2021 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2022 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -28,12 +28,12 @@
 #ifndef OPENSSL_NO_ECH
 
 /* size for some local crypto vars */
-#define OSSL_ECH_CRYPTO_VAR_SIZE 1024
+# define OSSL_ECH_CRYPTO_VAR_SIZE 1024
 
-#define OSSL_ECH_KEYGEN_MODE    0 /* default is to generate a key pair/ECHConfig */
-#define OSSL_ECH_SELPRINT_MODE  1 /* or we can print/down-select ECHConfigs */
+# define OSSL_ECH_KEYGEN_MODE    0 /* default: generate a key pair/ECHConfig */
+# define OSSL_ECH_SELPRINT_MODE  1 /* or we can print/down-select ECHConfigs */
 
-#define PEM_SELECT_ALL    -1 /* to indicate we're not downselecting another */
+# define PEM_SELECT_ALL    -1 /* to indicate we're not downselecting another */
 
 typedef enum OPTION_choice {
     /* standard openssl options */
@@ -50,7 +50,8 @@ typedef enum OPTION_choice {
 const OPTIONS ech_options[] = {
     OPT_SECTION("General options"),
     {"help", OPT_HELP, '-', "Display this summary"},
-    {"verbose", OPT_VERBOSE, '-', "Provide additional output (though not much:-)"},
+    {"verbose", OPT_VERBOSE, '-',
+     "Provide additional output (though not much:-)"},
     OPT_SECTION("Key generation"),
     {"pemout", OPT_PEMOUT, '>', "Private key and ECHConfig [echconfig.pem]"},
     {"pubout", OPT_PUBOUT, '>', "Public key output file"},
@@ -76,7 +77,7 @@ static uint16_t verstr2us(char *arg)
     long lv = strtol(arg, NULL, 0);
     uint16_t rv = 0;
 
-    if (lv < 0xffff && lv > 0 ) {
+    if (lv < 0xffff && lv > 0) {
         rv = (uint16_t)lv;
     }
     return rv;
@@ -122,7 +123,6 @@ int ech_main(int argc, char **argv)
         switch (o) {
         case OPT_EOF:
         case OPT_ERR:
-opthelp:
             BIO_printf(bio_err, "%s: Use -help for summary.\n", prog);
             goto end;
         case OPT_HELP:
@@ -187,15 +187,13 @@ opthelp:
      * Check ECH-specific inputs
      */
     switch (ech_version) {
-        case OSSL_ECH_DRAFT_13_VERSION: /* fall through */
-        case 13:
-            ech_version = OSSL_ECH_DRAFT_13_VERSION;
-            break;
-        default:
-            BIO_printf(bio_err,
-                "Un-supported version (0x%04x)\n",
-                ech_version);
-            goto end;
+    case OSSL_ECH_DRAFT_13_VERSION: /* fall through */
+    case 13:
+        ech_version = OSSL_ECH_DRAFT_13_VERSION;
+        break;
+    default:
+        BIO_printf(bio_err, "Un-supported version (0x%04x)\n", ech_version);
+        goto end;
     }
 
     if (max_name_length > TLSEXT_MAXLEN_host_name) {
@@ -207,7 +205,7 @@ opthelp:
     }
 
     if (suitestr != NULL) {
-        if (OSSL_HPKE_str2suite(suitestr, &hpke_suite)!=1) {
+        if (OSSL_HPKE_str2suite(suitestr, &hpke_suite) != 1) {
             BIO_printf(bio_err, "Bad OSSL_HPKE_SUITE (%s)\n", suitestr);
             ERR_print_errors(bio_err);
             goto end;
@@ -216,7 +214,7 @@ opthelp:
 
     if (extfile != NULL) {
         int bio_read_rv = 0;
-        BIO *eb = BIO_new_file(extfile,"rb");
+        BIO *eb = BIO_new_file(extfile, "rb");
 
         if (eb == NULL) {
             BIO_printf(bio_err, "Can't open ECH extensions file %s\n", extfile);
@@ -252,7 +250,7 @@ opthelp:
         }
         /* Write stuff to files */
         if (echconfig_file != NULL) {
-            BIO *ecf = BIO_new_file(echconfig_file,"w");
+            BIO *ecf = BIO_new_file(echconfig_file, "w");
 
             if (ecf == NULL)
                 goto end;
@@ -295,7 +293,7 @@ opthelp:
         OSSL_ECH_DETS *ed = NULL;
 
         if (inpemfile == NULL) {
-            BIO_printf(bio_err,"no input PEM file supplied - exiting\n");
+            BIO_printf(bio_err, "no input PEM file supplied - exiting\n");
             goto end;
         }
         con = SSL_CTX_new_ex(app_get0_libctx(), app_get0_propq(), meth);
@@ -307,21 +305,22 @@ opthelp:
             /* Or it could be just an encoded ECHConfigList */
             pem_in = BIO_new(BIO_s_file());
             if (pem_in == NULL
-                || BIO_read_filename(pem_in,inpemfile) <= 0
-                || PEM_read_bio(pem_in,&pname,&pheader,&pdata,&plen) <= 0
+                || BIO_read_filename(pem_in, inpemfile) <= 0
+                || PEM_read_bio(pem_in, &pname, &pheader, &pdata, &plen) <= 0
                 || pname == NULL
                 || strlen(pname) == 0
-                || strncmp(PEM_STRING_ECHCONFIG,pname,strlen(pname)))
+                || strncmp(PEM_STRING_ECHCONFIG, pname, strlen(pname)))
                 goto end;
             OPENSSL_free(pname);
             pname = NULL;
             OPENSSL_free(pheader);
-            pheader=NULL;
+            pheader = NULL;
             s = SSL_new(con);
             if (s == NULL)
                 goto end;
             /* Try decode that ECHConfigList */
-            rv = SSL_ech_add(s, &nechs, OSSL_ECH_FMT_GUESS, (char*)pdata, plen);
+            rv = SSL_ech_add(s, &nechs, OSSL_ECH_FMT_GUESS,
+                             (char *)pdata, plen);
             if (rv != 1) {
                 BIO_printf(bio_err, "Failed loading ECHConfigs from: %s\n",
                            inpemfile);
@@ -361,9 +360,13 @@ opthelp:
         return 1;
     }
 
+opthelp:
+    BIO_printf(bio_err, "%s: Use -help for summary.\n", prog);
+    goto end;
+
 end:
     if (filedone == 0 && verbose == 1) {
-        BIO_printf(bio_err,"failed to load %s\n",inpemfile);
+        BIO_printf(bio_err, "failed to load %s\n", inpemfile);
     }
     SSL_free(s);
     SSL_CTX_free(con);
