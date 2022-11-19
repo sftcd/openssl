@@ -268,7 +268,8 @@ static int test_ech_add(int idx)
         goto end;
     }
 
-    TEST_info("test_ech_add: success\n");
+    if (verbose) 
+        TEST_info("test_ech_add: success\n");
     testresult = 1;        /* explicit success */
 
 end:
