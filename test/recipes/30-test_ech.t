@@ -15,6 +15,6 @@ use OpenSSL::Test::Utils;
 setup("test_ech");
 
 plan skip_all => "This test is unsupported in a no-ec build"
-    if disabled("ec");
+    if disabled("ec") || disabled("ech");
 
 simple_test("test_ech", "ech_test");
