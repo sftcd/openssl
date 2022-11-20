@@ -31,9 +31,6 @@
 #endif
 #include "internal/o_dir.h"
 
-#ifdef OPENSSL_NO_ECH
-# warning "NO_ECH defined"
-#endif
 #ifndef OPENSSL_NO_ECH
 
 #ifndef PATH_MAX
