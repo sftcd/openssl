@@ -40,20 +40,21 @@ static void tls13_pbuf(const char *msg,
                        const unsigned char *buf, const size_t blen)
 {
     OSSL_TRACE_BEGIN(TLS) {
-    if (msg==NULL) {
-        BIO_printf(trc_out,"msg is NULL\n");
-    } else if (buf==NULL || blen==0) {
-        BIO_printf(trc_out,"%s: buf is %p\n",msg,(void*)buf);
-        BIO_printf(trc_out,"%s: blen is %lu\n",msg,(unsigned long)blen);
+    if (msg == NULL) {
+        BIO_printf(trc_out, "msg is NULL\n");
+    } else if (buf == NULL || blen == 0) {
+        BIO_printf(trc_out, "%s: buf is %p\n", msg, (void *)buf);
+        BIO_printf(trc_out, "%s: blen is %lu\n", msg, (unsigned long)blen);
     } else {
         size_t i;
-        BIO_printf(trc_out,"%s (%lu):\n    ",msg,(unsigned long)blen);
-        for (i=0;i<blen;i++) {
-            if ((i!=0) && (i%16==0))
-                BIO_printf(trc_out,"\n    ");
-            BIO_printf(trc_out,"%02x:",(unsigned)(buf[i]));
+
+        BIO_printf(trc_out, "%s (%lu):\n    ", msg, (unsigned long)blen);
+        for (i = 0; i < blen; i++) {
+            if ((i != 0) && (i % 16 == 0))
+                BIO_printf(trc_out, "\n    ");
+            BIO_printf(trc_out, "%02x:", (unsigned)(buf[i]));
         }
-        BIO_printf(trc_out,"\n");
+        BIO_printf(trc_out, "\n");
         }
     } OSSL_TRACE_END(TLS);
     return;
@@ -61,11 +62,12 @@ static void tls13_pbuf(const char *msg,
 
 static void ptranscript(const char *msg, SSL_CONNECTION *s)
 {
-    size_t hdatalen=0;
-    unsigned char *hdata=NULL;
-    if (s->s3.handshake_buffer) {
+    size_t hdatalen = 0;
+    unsigned char *hdata = NULL;
+
+    if (s->s3.handshake_buffer != NULL) {
         hdatalen = BIO_get_mem_data(s->s3.handshake_buffer, &hdata);
-        tls13_pbuf(msg,hdata,hdatalen);
+        tls13_pbuf(msg, hdata, hdatalen);
     }
     return;
 }
@@ -98,13 +100,14 @@ int tls13_hkdf_expand_ex(OSSL_LIB_CTX *libctx, const char *propq,
 #ifndef OPENSSL_NO_ECH
 #ifdef ECH_SUPERVERBOSE
     OSSL_TRACE_BEGIN(TLS) {
-        BIO_printf(trc_out,"hkdf inputs:\n");
+        BIO_printf(trc_out, "hkdf inputs:\n");
     } OSSL_TRACE_END(TLS);
     {
-        size_t secretlen=EVP_MD_size(md);
-        tls13_pbuf("\tsecret",secret,secretlen);
-        tls13_pbuf("\tlabel",label,labellen);
-        tls13_pbuf("\tdata",data,datalen);
+        size_t secretlen = EVP_MD_size(md);
+
+        tls13_pbuf("\tsecret", secret, secretlen);
+        tls13_pbuf("\tlabel", label, labellen);
+        tls13_pbuf("\tdata", data, datalen);
     }
 #endif
 #endif
@@ -156,9 +159,9 @@ int tls13_hkdf_expand_ex(OSSL_LIB_CTX *libctx, const char *propq,
 #ifndef OPENSSL_NO_ECH
 #ifdef ECH_SUPERVERBOSE
     OSSL_TRACE_BEGIN(TLS) {
-        BIO_printf(trc_out,"hkdf output:\n");
+        BIO_printf(trc_out, "hkdf output:\n");
     } OSSL_TRACE_END(TLS);
-    tls13_pbuf("\tout",out,outlen);
+    tls13_pbuf("\tout", out, outlen);
 #endif
 #endif
 
@@ -525,11 +528,13 @@ int tls13_change_cipher_state(SSL_CONNECTION *s, int which)
 #ifndef OPENSSL_NO_ECH
 #ifdef ECH_SUPERVERBOSE
     OSSL_TRACE_BEGIN(TLS) {
-        BIO_printf(trc_out,"SSL*=%p, inner=%p, outer=%p, which=%02x\n",
-                (void*)s, (void*)s->ext.inner_s, (void*)s->ext.outer_s,which);
-        BIO_printf(trc_out,"handshake_dgst is %p\n",(void*)s->s3.handshake_dgst);
+        BIO_printf(trc_out, "SSL*=%p, inner=%p, outer=%p, which=%02x\n",
+                   (void *)s, (void *)s->ext.inner_s,
+                   (void *)s->ext.outer_s,which);
+        BIO_printf(trc_out, "handshake_dgst is %p\n",
+                   (void *)s->s3.handshake_dgst);
     } OSSL_TRACE_END(TLS);
-    ptranscript("gen_hs",s);
+    ptranscript("gen_hs", s);
 #endif
 #endif
 
@@ -542,27 +547,26 @@ int tls13_change_cipher_state(SSL_CONNECTION *s, int which)
 
 #ifndef OPENSSL_NO_ECH
     /* If doing early data and ECH then we're a special case.  */
-    if ( !s->server &&
-         s->ext.ech_attempted==1 &&
-         which & SSL3_CC_CLIENT && 
-         which & SSL3_CC_WRITE &&
-         which & SSL3_CC_EARLY) {
-
+    if (s->server == 0
+        && s->ext.ech_attempted==1
+        && which & SSL3_CC_CLIENT
+        && which & SSL3_CC_WRITE
+        && which & SSL3_CC_EARLY) {
         EVP_MD_CTX *mdctx = NULL;
-        size_t hdatalen=0;
-        unsigned char* hdata=NULL;
+        size_t hdatalen = 0;
+        unsigned char* hdata = NULL;
         unsigned int hashlenui;
         const SSL_CIPHER *sslcipher = NULL;
-        SSL_CONNECTION *inner=s->ext.inner_s;
+        SSL_CONNECTION *inner = s->ext.inner_s;
 
         /* we need to produce early data based on the inner and not outer CH */
-        if (inner==NULL) {
+        if (inner == NULL) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_R_BAD_HANDSHAKE_LENGTH);
             goto err;
         }
 
-        hdatalen=inner->ext.innerch_len;
-        hdata=inner->ext.innerch;
+        hdatalen = inner->ext.innerch_len;
+        hdata = inner->ext.innerch;
 
         sslcipher = SSL_SESSION_get0_cipher(inner->session);
         insecret = inner->early_secret;
@@ -571,16 +575,16 @@ int tls13_change_cipher_state(SSL_CONNECTION *s, int which)
         log_label = CLIENT_EARLY_LABEL;
 
         if (inner->early_data_state == SSL_EARLY_DATA_CONNECTING
-                && inner->max_early_data > 0
-                && inner->session->ext.max_early_data == 0) {
+            && inner->max_early_data > 0
+            && inner->session->ext.max_early_data == 0) {
             /*
              * If we are attempting to send early data, and we've decided to
              * actually do it but max_early_data in s->session is 0 then we
              * must be using an external PSK.
              */
             if (!ossl_assert(inner->psksession != NULL
-                    && inner->max_early_data ==
-                       inner->psksession->ext.max_early_data)) {
+                && inner->max_early_data
+                   == inner->psksession->ext.max_early_data)) {
                 SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
                 goto err;
             }
@@ -678,14 +682,14 @@ int tls13_change_cipher_state(SSL_CONNECTION *s, int which)
 
 #ifndef OPENSSL_NO_ECH
             /* if ECH worked then use the innerch and not the h/s buffer here */
-            if (s->server && s->ext.ech_success==1) {
-                if (s->ext.innerch==NULL) {
+            if (s->server == 1 && s->ext.ech_success==1) {
+                if (s->ext.innerch == NULL) {
                     SSLfatal(s, SSL_AD_INTERNAL_ERROR,
-                            SSL_R_BAD_HANDSHAKE_LENGTH);
+                             SSL_R_BAD_HANDSHAKE_LENGTH);
                     goto err;
                 }
-                handlen=s->ext.innerch_len;
-                hdata=s->ext.innerch;
+                handlen = s->ext.innerch_len;
+                hdata = s->ext.innerch;
             } else {
                 handlen = BIO_get_mem_data(s->s3.handshake_buffer, &hdata);
                 if (handlen <= 0) {
