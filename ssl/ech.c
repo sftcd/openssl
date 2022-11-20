@@ -12,7 +12,6 @@
  * This implements the externally-visible functions
  * for handling Encrypted ClientHello (ECH)
  */
-#ifndef OPENSSL_NO_ECH
 
 #include <openssl/ssl.h>
 #include <openssl/ech.h>
@@ -31,6 +30,11 @@
 #include <unistd.h>
 #endif
 #include "internal/o_dir.h"
+
+#ifdef OPENSSL_NO_ECH
+# warning "NO_ECH defined"
+#endif
+#ifndef OPENSSL_NO_ECH
 
 #ifndef PATH_MAX
 # define PATH_MAX 4096

@@ -13,6 +13,8 @@
 #include "testutil.h"
 #include "helpers/ssltestlib.h"
 
+#ifndef OPENSSL_NO_ECH
+
 #define OSSL_ECH_MAX_LINELEN 1000 /**< for a sanity check */
 
 static OSSL_LIB_CTX *libctx = NULL;
@@ -299,9 +301,11 @@ const OPTIONS *test_get_options(void)
     return test_options;
 }
 
+#endif
 
 int setup_tests(void)
 {
+#ifndef OPENSSL_NO_ECH
     OPTION_CHOICE o;
 
     while ((o = opt_next()) != OPT_EOF) {
@@ -318,7 +322,6 @@ int setup_tests(void)
 
     bio_stdout = BIO_new_fp(stdout, BIO_NOCLOSE | BIO_FP_TEXT);
     bio_null = BIO_new(BIO_s_mem());
-#ifndef OSSL_NO_USABLE_ECH
     ADD_TEST(basic_echconfig_gen);
     ADD_ALL_TESTS(test_ech_add, 5);
 #endif
@@ -327,6 +330,8 @@ int setup_tests(void)
 
 void cleanup_tests(void)
 {
+#ifndef OPENSSL_NO_ECH
     BIO_free(bio_null);
     BIO_free(bio_stdout);
+#endif
 }
