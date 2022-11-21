@@ -215,7 +215,7 @@ int OSSL_HPKE_CTX_get_seq(OSSL_HPKE_CTX *ctx, uint64_t *seq);
 
 int OSSL_HPKE_suite_check(OSSL_HPKE_SUITE suite);
 int OSSL_HPKE_get_grease_value(OSSL_LIB_CTX *libctx, const char *propq,
-                               OSSL_HPKE_SUITE *suite_in,
+                               const OSSL_HPKE_SUITE *suite_in,
                                OSSL_HPKE_SUITE *suite,
                                unsigned char *enc,
                                size_t *enclen,

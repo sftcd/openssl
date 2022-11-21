@@ -8,12 +8,17 @@
  */
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 #ifndef OSSL_INTERNAL_HPKE_UTIL_H
 # define OSSL_INTERNAL_HPKE_UTIL_H
 =======
 #ifndef OSSL_CRYPTO_HPKE_H
 # define OSSL_CRYPTO_HPKE_H
 >>>>>>> 788a6e16af (rebased and latest HPKE (still leaks, will fix in a bit))
+=======
+#ifndef OSSL_INTERNAL_HPKE_UTIL_H
+# define OSSL_INTERNAL_HPKE_UTIL_H
+>>>>>>> f94c4f04a1 (more PR comments)
 # pragma once
 
 /* Constants from RFC 9180 Section 7.1 and 7.3 */
