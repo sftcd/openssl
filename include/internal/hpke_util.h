@@ -72,6 +72,7 @@ typedef struct {
     size_t         Nn; /* length of a nonce for this aead */
 } OSSL_HPKE_AEAD_INFO;
 
+<<<<<<< HEAD
 const OSSL_HPKE_KEM_INFO *ossl_HPKE_KEM_INFO_find_curve(const char *curve);
 const OSSL_HPKE_KEM_INFO *ossl_HPKE_KEM_INFO_find_id(uint16_t kemid);
 const OSSL_HPKE_KEM_INFO *ossl_HPKE_KEM_INFO_find_random(OSSL_LIB_CTX *ctx);
@@ -143,6 +144,8 @@ typedef struct OSSL_HPKE_synonymtab_str {
     char *synonyms[4];
 } synonymttab_t;
 
+=======
+>>>>>>> efa6ee118c (try new ossl_hpke_str2suite())
 const OSSL_HPKE_KEM_INFO *ossl_HPKE_KEM_INFO_find_curve(const char *curve);
 const OSSL_HPKE_KEM_INFO *ossl_HPKE_KEM_INFO_find_id(uint16_t kemid);
 const OSSL_HPKE_KEM_INFO *ossl_HPKE_KEM_INFO_find_random(OSSL_LIB_CTX *ctx);
