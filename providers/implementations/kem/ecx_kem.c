@@ -32,14 +32,7 @@
 #include "prov/providercommon.h"
 #include "prov/ecx.h"
 #include "crypto/ecx.h"
-<<<<<<< HEAD
-<<<<<<< HEAD
 #include <openssl/hpke.h>
-=======
->>>>>>> 788a6e16af (rebased and latest HPKE (still leaks, will fix in a bit))
-=======
-#include <openssl/hpke.h>
->>>>>>> ffba35cfa5 (latest HPKE and removed draft-10 code; has small leak on server exit)
 #include "internal/hpke_util.h"
 #include "eckem.h"
 
@@ -313,18 +306,8 @@ static int dhkem_extract_and_expand(EVP_KDF_CTX *kctx,
     if (prklen > sizeof(prk))
         return 0;
 
-<<<<<<< HEAD
-<<<<<<< HEAD
     suiteid[0] = (kemid >> 8) &0xff;
     suiteid[1] = kemid & 0xff;
-=======
-    suiteid[0] = kemid / 256;
-    suiteid[1] = kemid % 256;
->>>>>>> 788a6e16af (rebased and latest HPKE (still leaks, will fix in a bit))
-=======
-    suiteid[0] = (kemid >> 8) &0xff;
-    suiteid[1] = kemid & 0xff;
->>>>>>> ffba35cfa5 (latest HPKE and removed draft-10 code; has small leak on server exit)
 
     ret = ossl_hpke_labeled_extract(kctx, prk, prklen,
                                     NULL, 0, LABEL_KEM, suiteid, sizeof(suiteid),
@@ -358,25 +341,6 @@ int ossl_ecx_dhkem_derive_private(ECX_KEY *ecx, unsigned char *privout,
     int ret = 0;
     EVP_KDF_CTX *kdfctx = NULL;
     unsigned char prk[EVP_MAX_MD_SIZE];
-<<<<<<< HEAD
-<<<<<<< HEAD
-    uint8_t suiteid[2];
-    const OSSL_HPKE_KEM_INFO *info = get_kem_info(ecx);
-=======
-    uint16_t kemid;
-    const char *kdfdigestname;
-    uint8_t suiteid[2];
-    size_t prklen, keylen;
-
-    get_kem_values(ecx, &kemid, &kdfdigestname, &prklen, &keylen);
->>>>>>> 788a6e16af (rebased and latest HPKE (still leaks, will fix in a bit))
-
-    /* ikmlen should have a length of at least Nsk */
-    if (ikmlen < info->Nsk) {
-        ERR_raise_data(ERR_LIB_PROV, PROV_R_INVALID_INPUT_LENGTH,
-                       "ikm length is :%zu, should be at least %zu",
-                       ikmlen, info->Nsk);
-=======
     uint8_t suiteid[2];
     const OSSL_HPKE_KEM_INFO *info = get_kem_info(ecx);
 
@@ -384,12 +348,7 @@ int ossl_ecx_dhkem_derive_private(ECX_KEY *ecx, unsigned char *privout,
     if (ikmlen < info->Nsk) {
         ERR_raise_data(ERR_LIB_PROV, PROV_R_INVALID_INPUT_LENGTH,
                        "ikm length is :%zu, should be at least %zu",
-<<<<<<< HEAD
-                       ikmlen, info->Npriv);
->>>>>>> ffba35cfa5 (latest HPKE and removed draft-10 code; has small leak on server exit)
-=======
                        ikmlen, info->Nsk);
->>>>>>> acb9e0072e (latest HPKE PR commits included)
         goto err;
     }
 
@@ -397,45 +356,15 @@ int ossl_ecx_dhkem_derive_private(ECX_KEY *ecx, unsigned char *privout,
     if (kdfctx == NULL)
         return 0;
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
     suiteid[0] = info->kem_id / 256;
     suiteid[1] = info->kem_id % 256;
 
     if (!ossl_hpke_labeled_extract(kdfctx, prk, info->Nsecret,
-=======
-    // ossl_dhkem_getsuiteid(suiteid, kemid);
-=======
->>>>>>> 8b6ce7f819 (various CI fixes)
-    suiteid[0] = kemid / 256;
-    suiteid[1] = kemid % 256;
-
-    if (!ossl_hpke_labeled_extract(kdfctx, prk, prklen,
->>>>>>> 788a6e16af (rebased and latest HPKE (still leaks, will fix in a bit))
-=======
-    suiteid[0] = info->kem_id / 256;
-    suiteid[1] = info->kem_id % 256;
-
-    if (!ossl_hpke_labeled_extract(kdfctx, prk, info->Nsecret,
->>>>>>> ffba35cfa5 (latest HPKE and removed draft-10 code; has small leak on server exit)
                                    NULL, 0, LABEL_KEM, suiteid, sizeof(suiteid),
                                    OSSL_DHKEM_LABEL_DKP_PRK, ikm, ikmlen))
         goto err;
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
     if (!ossl_hpke_labeled_expand(kdfctx, privout, info->Nsk, prk, info->Nsecret,
-=======
-    if (!ossl_hpke_labeled_expand(kdfctx, privout, keylen, prk, prklen,
->>>>>>> 788a6e16af (rebased and latest HPKE (still leaks, will fix in a bit))
-=======
-    if (!ossl_hpke_labeled_expand(kdfctx, privout, info->Npriv, prk, info->Nsecret,
->>>>>>> ffba35cfa5 (latest HPKE and removed draft-10 code; has small leak on server exit)
-=======
-    if (!ossl_hpke_labeled_expand(kdfctx, privout, info->Nsk, prk, info->Nsecret,
->>>>>>> acb9e0072e (latest HPKE PR commits included)
                                   LABEL_KEM, suiteid, sizeof(suiteid),
                                   OSSL_DHKEM_LABEL_SK, NULL, 0))
         goto err;
@@ -474,29 +403,12 @@ static ECX_KEY *derivekey(PROV_ECX_CTX *ctx,
 
     /* Generate a random seed if there is no input ikm */
     if (seed == NULL || seedlen == 0) {
-<<<<<<< HEAD
-<<<<<<< HEAD
         if (info->Nsk > sizeof(tmpbuf))
             goto err;
         if (RAND_priv_bytes_ex(ctx->libctx, tmpbuf, info->Nsk, 0) <= 0)
             goto err;
         seed = tmpbuf;
         seedlen = info->Nsk;
-=======
-        if (info->Npriv > sizeof(tmpbuf))
-=======
-        if (info->Nsk > sizeof(tmpbuf))
->>>>>>> acb9e0072e (latest HPKE PR commits included)
-            goto err;
-        if (RAND_priv_bytes_ex(ctx->libctx, tmpbuf, info->Nsk, 0) <= 0)
-            goto err;
-        seed = tmpbuf;
-<<<<<<< HEAD
-        seedlen = info->Npriv;
->>>>>>> ffba35cfa5 (latest HPKE and removed draft-10 code; has small leak on server exit)
-=======
-        seedlen = info->Nsk;
->>>>>>> acb9e0072e (latest HPKE PR commits included)
     }
     if (!ossl_ecx_dhkem_derive_private(key, privkey, seed, seedlen))
         goto err;
