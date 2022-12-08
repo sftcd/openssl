@@ -634,6 +634,7 @@ Use of an IKM value for deterministic key generation (via
 OSSL_HPKE_CTX_set1_ikme() or OSSL_HPKE_keygen()) creates the potential for
 leaking keys (or IKM values). Only use that if really needed and if you
 understand how keys or IKM values could be abused.
+
 Encryption (HPKE) defined in RFC9180. Understanding the HPKE specification 
 is likely required before using these APIs.  HPKE is used by various 
 other IETF specifications, including the (draft) TLS Encrypted Client 
