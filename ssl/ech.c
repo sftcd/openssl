@@ -4416,7 +4416,8 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
 
     lenclen = OSSL_HPKE_get_public_encap_size(hpke_suite);
     if (s->ext.ech_ctx == NULL) {
-        hctx = OSSL_HPKE_CTX_new(hpke_mode, hpke_suite, NULL, NULL);
+        hctx = OSSL_HPKE_CTX_new(hpke_mode, hpke_suite, OSSL_HPKE_ROLE_SENDER,
+                                 NULL, NULL);
         s->ext.ech_ctx = hctx;
 
         /* FIXME: this can leak if HPKE encap fails in a bit */
@@ -4762,7 +4763,8 @@ static unsigned char *hpke_decrypt_encch(
         OPENSSL_free(clear);
         return NULL;
     }
-    hctx = OSSL_HPKE_CTX_new(hpke_mode, hpke_suite, NULL, NULL);
+    hctx = OSSL_HPKE_CTX_new(hpke_mode, hpke_suite, OSSL_HPKE_ROLE_RECEIVER,
+                             NULL, NULL);
     if (hctx == NULL) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         goto clearerrs;
