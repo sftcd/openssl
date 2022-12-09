@@ -1,5 +1,5 @@
 /*
- * Copyright 2020,2021 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2022 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the OpenSSL license (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -27,28 +27,28 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #if !defined(OPENSSL_SYS_WINDOWS)
-#include <unistd.h>
+# include <unistd.h>
 #endif
 #include "internal/o_dir.h"
 
 #ifndef OPENSSL_NO_ECH
 
-#ifndef PATH_MAX
-# define PATH_MAX 4096
-#endif
+# ifndef PATH_MAX
+#  define PATH_MAX 4096
+# endif
 
 /* For ossl_assert */
-#include "internal/cryptlib.h"
+# include "internal/cryptlib.h"
 
 /* For HPKE APIs */
-#include <openssl/hpke.h>
+# include <openssl/hpke.h>
 
 /* a size for some crypto vars */
-#define OSSL_ECH_CRYPTO_VAR_SIZE 2048
+# define OSSL_ECH_CRYPTO_VAR_SIZE 2048
 
-#define OSSL_ECH_PBUF_SIZE 8*1024 /**<  buffer for string returned via ech_cb */
-#define OSSL_ECH_MAX_GREASE_PUB 0x100 /**< max ENC-CH peer key share we'll decode */
-#define OSSL_ECH_MAX_GREASE_CT 0x200 /**< max GREASEy ciphertext we'll emit */
+# define OSSL_ECH_PBUF_SIZE 8 * 1024 /* buffer for string returned via ech_cb */
+# define OSSL_ECH_MAX_GREASE_PUB 0x100 /* max  peer key share we'll decode */
+# define OSSL_ECH_MAX_GREASE_CT 0x200 /* max GREASEy ciphertext we'll emit */
 
 /*
  * To control the number of zeros added after a draft-13
@@ -57,14 +57,24 @@
  * the defined increment (we also do the draft-13 recommended
  * SNI padding thing first)
  */
-#define OSSL_ECH_PADDING_TARGET 256 /**< all ECH cleartext padded to at least this */
-#define OSSL_ECH_PADDING_INCREMENT 32 /**< all ECH's padded to a multiple of this */
+# define OSSL_ECH_PADDING_TARGET 256 /* ECH cleartext padded to at least this */
+# define OSSL_ECH_PADDING_INCREMENT 32 /* ECH padded to a multiple of this */
 
 /*
  * The wire-format type code for ECH/ECHConfiGList within an SVCB or HTTPS RR
  * value
  */
-#define OSSL_ECH_PCODE_ECH            0x0005
+# define OSSL_ECH_PCODE_ECH 0x0005
+
+/*
+ * return values from ech_check_filenames() used to decide if a keypair
+ * needs reloading or not
+ */
+# define OSSL_ECH_KEYPAIR_ERROR          0
+# define OSSL_ECH_KEYPAIR_NEW            1
+# define OSSL_ECH_KEYPAIR_UNMODIFIED     2
+# define OSSL_ECH_KEYPAIR_MODIFIED       3
+# define OSSL_ECH_KEYPAIR_FILEMISSING    4
 
 /*
  * When doing ECH, this array specifies which inner CH extensions (if
@@ -83,38 +93,38 @@
  * of these extensions should be mirrored with equivalent changes to the
  * indexes ( TLSEXT_IDX_* ) defined in ssl_local.h.
  */
-static int ech_outer_config[]={
-     /*TLSEXT_IDX_renegotiate, 0xff01 */ 0,
-     /*TLSEXT_IDX_server_name, 0 */ 0,
-     /*TLSEXT_IDX_max_fragment_length, 1 */ 1,
-     /*TLSEXT_IDX_srp, 12 */ 1,
-     /*TLSEXT_IDX_ec_point_formats, 11 */ 1,
-     /*TLSEXT_IDX_supported_groups, 10 */ 1,
-     /*TLSEXT_IDX_session_ticket, 35 */ 1,
-     /*TLSEXT_IDX_status_request, 5 */ 1,
-     /*TLSEXT_IDX_next_proto_neg, 13172 */ 1,
-     /*TLSEXT_IDX_application_layer_protocol_negotiation, 16 */ 0,
-     /*TLSEXT_IDX_use_srtp, 14 */ 1,
-     /*TLSEXT_IDX_encrypt_then_mac, 22 */ 1,
-     /*TLSEXT_IDX_signed_certificate_timestamp, 18 */ 0,
-     /*TLSEXT_IDX_extended_master_secret, 23 */ 1,
-     /*TLSEXT_IDX_signature_algorithms_cert, 50 */ 0,
-     /*TLSEXT_IDX_post_handshake_auth, 49 */ 0,
-     /*TLSEXT_IDX_signature_algorithms, 13 */ 1,
-     /*TLSEXT_IDX_supported_versions, 43 */ 1,
-     /*TLSEXT_IDX_psk_kex_modes, 45 */ 0,
-     /*TLSEXT_IDX_key_share, 51 */ 0,
-     /*TLSEXT_IDX_cookie, 44 */ 0,
-     /*TLSEXT_IDX_cryptopro_bug, 0xfde8 */ 0,
-     /*TLSEXT_IDX_early_data, 42 */ 0,
-     /*TLSEXT_IDX_certificate_authorities, 47 */ 0,
-     /*TLSEXT_IDX_ech, 0xfe0a */ 0,
-     /*TLSEXT_IDX_ech13, 0xfe0d */ 0,
-     /*TLSEXT_IDX_outer_extensions, 0xfd00 */ 0,
-     /*TLSEXT_IDX_ech_is_inner, 0xda09 */ 0,
-     /*TLSEXT_IDX_padding, 21 */ 0,
-     /*TLSEXT_IDX_psk, 41 */ 0,
-    };
+static const int ech_outer_config[] = {
+     /* TLSEXT_IDX_renegotiate, 0xff01 */ 0,
+     /* TLSEXT_IDX_server_name, 0 */ 0,
+     /* TLSEXT_IDX_max_fragment_length, 1 */ 1,
+     /* TLSEXT_IDX_srp, 12 */ 1,
+     /* TLSEXT_IDX_ec_point_formats, 11 */ 1,
+     /* TLSEXT_IDX_supported_groups, 10 */ 1,
+     /* TLSEXT_IDX_session_ticket, 35 */ 1,
+     /* TLSEXT_IDX_status_request, 5 */ 1,
+     /* TLSEXT_IDX_next_proto_neg, 13172 */ 1,
+     /* TLSEXT_IDX_application_layer_protocol_negotiation, 16 */ 0,
+     /* TLSEXT_IDX_use_srtp, 14 */ 1,
+     /* TLSEXT_IDX_encrypt_then_mac, 22 */ 1,
+     /* TLSEXT_IDX_signed_certificate_timestamp, 18 */ 0,
+     /* TLSEXT_IDX_extended_master_secret, 23 */ 1,
+     /* TLSEXT_IDX_signature_algorithms_cert, 50 */ 0,
+     /* TLSEXT_IDX_post_handshake_auth, 49 */ 0,
+     /* TLSEXT_IDX_signature_algorithms, 13 */ 1,
+     /* TLSEXT_IDX_supported_versions, 43 */ 1,
+     /* TLSEXT_IDX_psk_kex_modes, 45 */ 0,
+     /* TLSEXT_IDX_key_share, 51 */ 0,
+     /* TLSEXT_IDX_cookie, 44 */ 0,
+     /* TLSEXT_IDX_cryptopro_bug, 0xfde8 */ 0,
+     /* TLSEXT_IDX_early_data, 42 */ 0,
+     /* TLSEXT_IDX_certificate_authorities, 47 */ 0,
+     /* TLSEXT_IDX_ech, 0xfe0a */ 0,
+     /* TLSEXT_IDX_ech13, 0xfe0d */ 0,
+     /* TLSEXT_IDX_outer_extensions, 0xfd00 */ 0,
+     /* TLSEXT_IDX_ech_is_inner, 0xda09 */ 0,
+     /* TLSEXT_IDX_padding, 21 */ 0,
+     /* TLSEXT_IDX_psk, 41 */ 0,
+};
 
 /*
  * When doing ECH, this array specifies whether, when we're not
@@ -133,38 +143,51 @@ static int ech_outer_config[]={
  * of these extensions should be mirrored with equivalent changes to the
  * indexes ( TLSEXT_IDX_* ) defined in ssl_local.h.
  */
-static int ech_outer_indep[]={
-     /*TLSEXT_IDX_renegotiate */ 0,
-     /*TLSEXT_IDX_server_name */ 1,
-     /*TLSEXT_IDX_max_fragment_length */ 0,
-     /*TLSEXT_IDX_srp */ 0,
-     /*TLSEXT_IDX_ec_point_formats */ 0,
-     /*TLSEXT_IDX_supported_groups */ 0,
-     /*TLSEXT_IDX_session_ticket */ 0,
-     /*TLSEXT_IDX_status_request */ 0,
-     /*TLSEXT_IDX_next_proto_neg */ 0,
-     /*TLSEXT_IDX_application_layer_protocol_negotiation */ 1,
-     /*TLSEXT_IDX_use_srtp */ 0,
-     /*TLSEXT_IDX_encrypt_then_mac */ 0,
-     /*TLSEXT_IDX_signed_certificate_timestamp */ 0,
-     /*TLSEXT_IDX_extended_master_secret */ 0,
-     /*TLSEXT_IDX_signature_algorithms_cert */ 0,
-     /*TLSEXT_IDX_post_handshake_auth */ 0,
-     /*TLSEXT_IDX_signature_algorithms */ 0,
-     /*TLSEXT_IDX_supported_versions */ 0,
-     /*TLSEXT_IDX_psk_kex_modes */ 0,
-     /*TLSEXT_IDX_key_share */ 1,
-     /*TLSEXT_IDX_cookie */ 0,
-     /*TLSEXT_IDX_cryptopro_bug */ 0,
-     /*TLSEXT_IDX_early_data */ 0,
-     /*TLSEXT_IDX_certificate_authorities */ 0,
-     /*TLSEXT_IDX_ech */ 0,
-     /*TLSEXT_IDX_ech13 */ 0,
-     /*TLSEXT_IDX_outer_extensions */ 0,
-     /*TLSEXT_IDX_ech_is_inner */ 0,
-     /*TLSEXT_IDX_padding */ 0,
-     /*TLSEXT_IDX_psk */ 0,
+static const int ech_outer_indep[] = {
+     /* TLSEXT_IDX_renegotiate */ 0,
+     /* TLSEXT_IDX_server_name */ 1,
+     /* TLSEXT_IDX_max_fragment_length */ 0,
+     /* TLSEXT_IDX_srp */ 0,
+     /* TLSEXT_IDX_ec_point_formats */ 0,
+     /* TLSEXT_IDX_supported_groups */ 0,
+     /* TLSEXT_IDX_session_ticket */ 0,
+     /* TLSEXT_IDX_status_request */ 0,
+     /* TLSEXT_IDX_next_proto_neg */ 0,
+     /* TLSEXT_IDX_application_layer_protocol_negotiation */ 1,
+     /* TLSEXT_IDX_use_srtp */ 0,
+     /* TLSEXT_IDX_encrypt_then_mac */ 0,
+     /* TLSEXT_IDX_signed_certificate_timestamp */ 0,
+     /* TLSEXT_IDX_extended_master_secret */ 0,
+     /* TLSEXT_IDX_signature_algorithms_cert */ 0,
+     /* TLSEXT_IDX_post_handshake_auth */ 0,
+     /* TLSEXT_IDX_signature_algorithms */ 0,
+     /* TLSEXT_IDX_supported_versions */ 0,
+     /* TLSEXT_IDX_psk_kex_modes */ 0,
+     /* TLSEXT_IDX_key_share */ 1,
+     /* TLSEXT_IDX_cookie */ 0,
+     /* TLSEXT_IDX_cryptopro_bug */ 0,
+     /* TLSEXT_IDX_early_data */ 0,
+     /* TLSEXT_IDX_certificate_authorities */ 0,
+     /* TLSEXT_IDX_ech */ 0,
+     /* TLSEXT_IDX_ech13 */ 0,
+     /* TLSEXT_IDX_outer_extensions */ 0,
+     /* TLSEXT_IDX_ech_is_inner */ 0,
+     /* TLSEXT_IDX_padding */ 0,
+     /* TLSEXT_IDX_psk */ 0,
 };
+
+/*
+ * Telltales we use when guessing which form of encoded input we've
+ * been given for an RR value or ECHConfig
+ */
+
+/* asci hex is easy:-) either case allowed, plus a semi-colon separator */
+static const char *AH_alphabet = "0123456789ABCDEFabcdef;";
+/* b64 plus a semi-colon - we accept multiple semi-colon separated values */
+static const char *B64_alphabet =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=;";
+/* telltale for ECH HTTPS/SVCB in presentation format, as per svcb spec */
+static const char *httpssvc_telltale = "ech=";
 
 /*
  * @brief Decode/check the value from DNS (binary, base64 or ascii-hex encoded)
@@ -202,40 +225,17 @@ static char *ECHConfigs_print(ECHConfigs *c);
  * @param info_len is the buffer size on input, used-length on output
  * @return 1 for success, other otherwise
  */
-static int ech_make_enc_info(
-        ECHConfig *tc,
-        unsigned char *info,
-        size_t *info_len);
-
-/*
- * Telltales we use when guessing which form of encoded input we've
- * been given for an RR value or ECHConfig
- */
-/* asci hex is easy:-) either case allowed, plus a semi-colon separator*/
-static const char *AH_alphabet="0123456789ABCDEFabcdef;";
-/* b64 plus a semi-colon - we accept multiple semi-colon separated values */
-static const char *B64_alphabet=
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=;";
-/* telltale for ECH HTTPS/SVCB in presentation format, as per svcb draft-06 */
-static const char *httpssvc_telltale="ech=";
-
-/*
- * return values used to decide if a keypair needs reloading or not
- */
-#define OSSL_ECH_KEYPAIR_ERROR          0
-#define OSSL_ECH_KEYPAIR_NEW            1
-#define OSSL_ECH_KEYPAIR_UNMODIFIED     2
-#define OSSL_ECH_KEYPAIR_MODIFIED       3
-#define OSSL_ECH_KEYPAIR_FILEMISSING    4
+static int ech_make_enc_info(ECHConfig *tc,
+                             unsigned char *info, size_t *info_len);
 
 /**
  * @brief Check if a key pair needs to be (re-)loaded or not
  * @param ctx is the SSL server context
  * @param pemfname is the PEM key filename
  * @param index is the index if we find a match
- * @return zero, OSSL_ECH_KEYPAIR_UNMODIFIED OSSL_ECH_KEYPAIR_MODIFIED OSSL_ECH_KEYPAIR_NEW
+ * @return OSSL_ECH_KEYPAIR_*
  */
-static int ech_check_filenames(SSL_CTX *ctx, const char *pemfname,int *index)
+static int ech_check_filenames(SSL_CTX *ctx, const char *pemfname, int *index)
 {
     struct stat pemstat;
     time_t pemmod;
@@ -243,45 +243,46 @@ static int ech_check_filenames(SSL_CTX *ctx, const char *pemfname,int *index)
     size_t pemlen = 0;
 
     if (ctx == NULL || pemfname == NULL || index == NULL)
-        return(OSSL_ECH_KEYPAIR_ERROR);
+        return OSSL_ECH_KEYPAIR_ERROR;
     /* if we have none, then it is new */
     if (ctx->ext.ech == NULL || ctx->ext.nechs == 0)
-        return(OSSL_ECH_KEYPAIR_NEW);
+        return OSSL_ECH_KEYPAIR_NEW;
     /*
      * if no file info, crap out... hmm, that could happen if the
      * disk fails hence different return value - the application may
      * be able to continue anyway...
      */
     if (stat(pemfname, &pemstat) < 0)
-        return(OSSL_ECH_KEYPAIR_FILEMISSING);
+        return OSSL_ECH_KEYPAIR_FILEMISSING;
 
     /* check the time info - we're only gonna do 1s precision on purpose */
-#if defined(__APPLE__)
+# if defined(__APPLE__)
     pemmod = pemstat.st_mtimespec.tv_sec;
-#elif defined(OPENSSL_SYS_WINDOWS)
+# elif defined(OPENSSL_SYS_WINDOWS)
     pemmod = pemstat.st_mtime;
-#else
+# else
     pemmod = pemstat.st_mtim.tv_sec;
-#endif
+# endif
 
     /* search list of existing key pairs to see if we have that one already */
     pemlen = strlen(pemfname);
-    for(ind=0; ind != ctx->ext.nechs; ind++) {
+    for (ind = 0; ind != ctx->ext.nechs; ind++) {
         size_t llen = 0;
+
         if (ctx->ext.ech[ind].pemfname == NULL)
-            return(OSSL_ECH_KEYPAIR_ERROR);
+            return OSSL_ECH_KEYPAIR_ERROR;
         llen = strlen(ctx->ext.ech[ind].pemfname);
-        if (llen ==pemlen
-            && !strncmp(ctx->ext.ech[ind].pemfname,pemfname,pemlen)) {
+        if (llen == pemlen
+            && !strncmp(ctx->ext.ech[ind].pemfname, pemfname, pemlen)) {
             /* matching files! */
-            if (ctx->ext.ech[ind].loadtime<pemmod) {
+            if (ctx->ext.ech[ind].loadtime < pemmod) {
                 /* aha! load it up so */
                 *index = ind;
-                return(OSSL_ECH_KEYPAIR_MODIFIED);
+                return OSSL_ECH_KEYPAIR_MODIFIED;
             } else {
                 /* tell caller no need to bother */
                 *index = -1; /* just in case:-> */
-                return(OSSL_ECH_KEYPAIR_UNMODIFIED);
+                return OSSL_ECH_KEYPAIR_UNMODIFIED;
             }
         }
     }
@@ -307,7 +308,7 @@ static int ech_check_filenames(SSL_CTX *ctx, const char *pemfname,int *index)
  */
 static int ech_base64_decode(char *in, unsigned char **out)
 {
-    const char* sepstr = OSSL_ECH_FMT_SEPARATOR;
+    const char *sepstr = OSSL_ECH_FMT_SEPARATOR;
     size_t inlen = 0;
     int i = 0;
     int outlen = 0;
@@ -331,15 +332,16 @@ static int ech_base64_decode(char *in, unsigned char **out)
     while (overallfraglen < inlen) {
         int ofraglen = 0;
         /* find length of 1st b64 string */
-        size_t thisfraglen = strcspn(inp,sepstr);
+        size_t thisfraglen = strcspn(inp, sepstr);
 
         /* For ECH we'll never see this but just so we have bounds */
-        if (thisfraglen <= OSSL_ECH_MIN_ECHCONFIG_LEN || thisfraglen > OSSL_ECH_MAX_ECHCONFIG_LEN)
+        if (thisfraglen <= OSSL_ECH_MIN_ECHCONFIG_LEN
+            || thisfraglen > OSSL_ECH_MAX_ECHCONFIG_LEN)
             goto err;
         if (thisfraglen > inlen)
             goto err;
         if (thisfraglen < inlen)
-            inp[thisfraglen]='\0';
+            inp[thisfraglen] = '\0';
         overallfraglen += (thisfraglen + 1);
         ofraglen = EVP_DecodeBlock(outp, (unsigned char *)inp, thisfraglen);
         if (ofraglen < 0)
@@ -394,102 +396,88 @@ static int ech_readpemfile(SSL_CTX *ctx, int inputIsFile, const char *pemfile,
                            const unsigned char *input, size_t inlen,
                            SSL_ECH **sechs)
 {
-    BIO *pem_in=NULL;
-    char *pname=NULL;
-    char *pheader=NULL;
-    unsigned char *pdata=NULL;
-    long plen;
-    EVP_PKEY *priv=NULL;
-    int num_echs=0;
-    int rv=1;
+    BIO *pem_in = NULL;
+    char *pname = NULL;
+    char *pheader = NULL;
+    unsigned char *pdata = NULL;
+    long plen = 0;
+    EVP_PKEY *priv = NULL;
+    int num_echs = 0;
 
-    if (ctx==NULL || sechs==NULL) return(0);
+    if (ctx == NULL || sechs == NULL)
+        return 0;
     switch (inputIsFile) {
-        case 1:
-            if (pemfile==NULL) return(0);
-            break;
-        case 0:
-            if (input==NULL || inlen==0) return(0);
-            break;
-        default:
-            return(0);
+    case 1:
+        if (pemfile == NULL || strlen(pemfile) == 0)
+            return 0;
+        break;
+    case 0:
+        if (input == NULL || inlen == 0)
+            return 0;
+        break;
+    default:
+        return 0;
     }
 
-    if (inputIsFile==1) {
-        if (strlen(pemfile)==0) return(0);
+    if (inputIsFile == 1) {
         pem_in = BIO_new(BIO_s_file());
-        if (pem_in==NULL) {
+        if (pem_in == NULL)
             goto err;
-        }
-        if (BIO_read_filename(pem_in,pemfile)<=0) {
+        if (BIO_read_filename(pem_in, pemfile) <= 0)
             goto err;
-        }
     } else {
         pem_in = BIO_new(BIO_s_mem());
-        if (pem_in==NULL) {
+        if (pem_in == NULL)
             goto err;
-        }
-        if (BIO_write(pem_in, (void *)input, (int)inlen)<=0) {
+        if (BIO_write(pem_in, (void *)input, (int)inlen) <= 0)
             goto err;
-        }
     }
 
-    /*
-     * Now check and parse inputs
-     */
-    if (!PEM_read_bio_PrivateKey(pem_in,&priv,NULL,NULL)) {
+    /* Now check and parse inputs */
+    if (PEM_read_bio_PrivateKey(pem_in, &priv, NULL, NULL) == 0)
         goto err;
-    }
-    if (!priv) {
+    if (priv == NULL)
         goto err;
-    }
-    if (PEM_read_bio(pem_in,&pname,&pheader,&pdata,&plen)<=0) {
+    if (PEM_read_bio(pem_in, &pname, &pheader, &pdata, &plen) <= 0)
         goto err;
-    }
-    if (!pname) {
+    if (pname == NULL || strlen(pname) == 0)
         goto err;
-    }
-    if (strlen(pname)==0) {
+    if (strncmp(PEM_STRING_ECHCONFIG, pname, strlen(pname)))
         goto err;
-    }
-    if (strncmp(PEM_STRING_ECHCONFIG,pname,strlen(pname))) {
+    OPENSSL_free(pname);
+    pname = NULL;
+    OPENSSL_free(pheader);
+    pheader = NULL;
+    if (plen >= OSSL_ECH_MAX_ECHCONFIG_LEN)
         goto err;
-    }
-    OPENSSL_free(pname);  pname=NULL;
-    if (pheader) {
-        OPENSSL_free(pheader); pheader=NULL;
-    }
-    if (plen>=OSSL_ECH_MAX_ECHCONFIG_LEN) {
-        goto err;
-    }
     BIO_free(pem_in);
-    pem_in=NULL;
+    pem_in = NULL;
 
-    /*
-     * Now decode that ECHConfigs
-     */
-    rv=local_ech_add(OSSL_ECH_FMT_GUESS,plen,pdata,&num_echs,sechs);
-    if (rv!=1) {
+    /* Now decode that ECHConfigs */
+    if (local_ech_add(OSSL_ECH_FMT_GUESS, plen, pdata, &num_echs, sechs) != 1)
         goto err;
-    }
 
-    (*sechs)->pemfname=OPENSSL_strdup(pemfile);
-    (*sechs)->loadtime=time(0);
-    (*sechs)->keyshare=priv;
-    if (pheader!=NULL) OPENSSL_free(pheader);
-    if (pname!=NULL) OPENSSL_free(pname);
-    if (pdata!=NULL) OPENSSL_free(pdata);
-
-    return(1);
+    (*sechs)->pemfname = OPENSSL_strdup(pemfile);
+    (*sechs)->loadtime = time(0);
+    (*sechs)->keyshare = priv;
+    OPENSSL_free(pheader);
+    OPENSSL_free(pname);
+    OPENSSL_free(pdata);
+    return 1;
 
 err:
-    if (priv!=NULL) EVP_PKEY_free(priv);
-    if (pheader!=NULL) OPENSSL_free(pheader);
-    if (pname!=NULL) OPENSSL_free(pname);
-    if (pdata!=NULL) OPENSSL_free(pdata);
-    if (pem_in!=NULL) BIO_free(pem_in);
-    if (*sechs) { SSL_ECH_free(*sechs); OPENSSL_free(*sechs); *sechs=NULL;}
-    return(0);
+    EVP_PKEY_free(priv);
+    OPENSSL_free(pheader);
+    OPENSSL_free(pname);
+    OPENSSL_free(pdata);
+    if (pem_in != NULL)
+        BIO_free(pem_in);
+    if (*sechs != NULL) {
+        SSL_ECH_free(*sechs);
+        OPENSSL_free(*sechs);
+        *sechs = NULL;
+    }
+    return 0;
 }
 
 /**
@@ -507,24 +495,21 @@ err:
  * If the application can't handle that, then it ought not use
  * the OSSL_ECH_FMT_GUESS value.
  */
-static int ech_guess_fmt(size_t eklen,
-                    unsigned char *rrval,
-                    int *guessedfmt)
+static int ech_guess_fmt(size_t eklen, unsigned char *rrval, int *guessedfmt)
 {
-    if (!guessedfmt || eklen==0 || !rrval) {
-        return(0);
-    }
-    if (strstr((char*)rrval,httpssvc_telltale)) {
-        *guessedfmt=OSSL_ECH_FMT_HTTPSSVC;
-    } else if (eklen<=strspn((char*)rrval,AH_alphabet)) {
-        *guessedfmt=OSSL_ECH_FMT_ASCIIHEX;
-    } else if (eklen<=strspn((char*)rrval,B64_alphabet)) {
-        *guessedfmt=OSSL_ECH_FMT_B64TXT;
+    if (guessedfmt == NULL || eklen == 0 || rrval == NULL)
+        return 0;
+    if (strstr((char *)rrval, httpssvc_telltale)) {
+        *guessedfmt = OSSL_ECH_FMT_HTTPSSVC;
+    } else if (eklen <= strspn((char *)rrval, AH_alphabet)) {
+        *guessedfmt = OSSL_ECH_FMT_ASCIIHEX;
+    } else if (eklen <= strspn((char *)rrval, B64_alphabet)) {
+        *guessedfmt = OSSL_ECH_FMT_B64TXT;
     } else {
         /* fallback - try binary */
-        *guessedfmt=OSSL_ECH_FMT_BIN;
+        *guessedfmt = OSSL_ECH_FMT_BIN;
     }
-    return(1);
+    return 1;
 }
 
 /**
@@ -533,19 +518,20 @@ static int ech_guess_fmt(size_t eklen,
  */
 void ECHConfig_free(ECHConfig *tbf)
 {
-    unsigned int i=0;
-    if (!tbf) return;
-    if (tbf->public_name) OPENSSL_free(tbf->public_name);
-    if (tbf->pub) OPENSSL_free(tbf->pub);
-    if (tbf->ciphersuites) OPENSSL_free(tbf->ciphersuites);
-    if (tbf->exttypes) OPENSSL_free(tbf->exttypes);
-    if (tbf->extlens) OPENSSL_free(tbf->extlens);
-    for (i=0;i!=tbf->nexts;i++) {
-        if (tbf->exts[i]) OPENSSL_free(tbf->exts[i]);
-    }
-    if (tbf->exts) OPENSSL_free(tbf->exts);
-    if (tbf->encoding_start) OPENSSL_free(tbf->encoding_start);
-    memset(tbf,0,sizeof(ECHConfig));
+    unsigned int i = 0;
+
+    if (tbf == NULL)
+        return;
+    OPENSSL_free(tbf->public_name);
+    OPENSSL_free(tbf->pub);
+    OPENSSL_free(tbf->ciphersuites);
+    OPENSSL_free(tbf->exttypes);
+    OPENSSL_free(tbf->extlens);
+    for (i = 0; i != tbf->nexts; i++)
+        OPENSSL_free(tbf->exts[i]);
+    OPENSSL_free(tbf->exts);
+    OPENSSL_free(tbf->encoding_start);
+    memset(tbf, 0, sizeof(ECHConfig));
     return;
 }
 
@@ -556,13 +542,14 @@ void ECHConfig_free(ECHConfig *tbf)
 void ECHConfigs_free(ECHConfigs *tbf)
 {
     int i;
-    if (!tbf) return;
-    if (tbf->encoded) OPENSSL_free(tbf->encoded);
-    for (i=0;i!=tbf->nrecs;i++) {
+
+    if (tbf == NULL)
+        return;
+    OPENSSL_free(tbf->encoded);
+    for (i = 0; i != tbf->nrecs; i++)
         ECHConfig_free(&tbf->recs[i]);
-    }
-    if (tbf->recs) OPENSSL_free(tbf->recs);
-    memset(tbf,0,sizeof(ECHConfigs));
+    OPENSSL_free(tbf->recs);
+    memset(tbf, 0, sizeof(ECHConfigs));
     return;
 }
 
@@ -572,12 +559,12 @@ void ECHConfigs_free(ECHConfigs *tbf)
  */
 void OSSL_ECH_ENCCH_free(OSSL_ECH_ENCCH *ev)
 {
-    if (!ev) return;
-    if (ev->enc!=NULL) OPENSSL_free(ev->enc);
-    if (ev->payload!=NULL) OPENSSL_free(ev->payload);
+    if (ev == NULL)
+        return;
+    OPENSSL_free(ev->enc);
+    OPENSSL_free(ev->payload);
     return;
 }
-
 
 /**
  * @brief Free and NULL a simple malloc'd item
@@ -600,18 +587,17 @@ void OSSL_ECH_ENCCH_free(OSSL_ECH_ENCCH *ev)
  */
 void SSL_ECH_free(SSL_ECH *tbf)
 {
-    if (!tbf) return;
-    if (tbf->cfg) {
+    if (tbf == NULL)
+        return;
+    if (tbf->cfg != NULL) {
         ECHConfigs_free(tbf->cfg);
         OPENSSL_free(tbf->cfg);
     }
     OPENSSL_free(tbf->inner_name);
     OPENSSL_free(tbf->outer_name);
     OPENSSL_free(tbf->pemfname);
-    if (tbf->keyshare!=NULL) {
-        EVP_PKEY_free(tbf->keyshare); tbf->keyshare=NULL;
-    }
-    memset(tbf,0,sizeof(SSL_ECH));
+    EVP_PKEY_free(tbf->keyshare);
+    memset(tbf, 0, sizeof(SSL_ECH));
     return;
 }
 
@@ -622,7 +608,8 @@ void SSL_ECH_free(SSL_ECH *tbf)
  */
 static void local_OSSL_ECH_DETS_free(OSSL_ECH_DETS *in)
 {
-    if (!in) return;
+    if (in == NULL)
+        return;
     OPENSSL_free(in->public_name);
     OPENSSL_free(in->inner_name);
     OPENSSL_free(in->outer_alpns);
@@ -639,12 +626,12 @@ static void local_OSSL_ECH_DETS_free(OSSL_ECH_DETS *in)
  */
 void OSSL_ECH_DETS_free(OSSL_ECH_DETS *in, int size)
 {
-    int i=0;
-    if (!in) return;
-    if (size<=0) return;
-    for(i=0;i!=size;i++) {
+    int i = 0;
+
+    if (in == NULL || size <= 0)
+        return;
+    for (i = 0; i != size; i++)
         local_OSSL_ECH_DETS_free(&in[i]);
-    }
     OPENSSL_free(in);
     return;
 }
@@ -661,22 +648,27 @@ void OSSL_ECH_DETS_free(OSSL_ECH_DETS *in, int size)
  */
 static void *ech_len_field_dup(void *old, unsigned int len)
 {
-    void *new=NULL;
-    if (!old || len==0) return NULL;
-    new=(void*)OPENSSL_malloc(len+1);
-    if (!new) return 0;
-    memcpy(new,old,len);
-    memset((unsigned char*)new+len,0,1);
+    void *new = NULL;
+
+    if (old == NULL || len == 0)
+        return NULL;
+    new = (void *)OPENSSL_malloc(len + 1);
+    if (new == NULL)
+        return NULL;
+    memcpy(new, old, len);
+    memset(new + len, 0, 1);
     return new;
 }
 
 /**
  * @brief Copy old->f (with length flen) to new->f
  */
-#define ECHFDUP(__f__,__flen__,__type__) \
-    if (old->__flen__!=0) { \
-        new->__f__=(__type__)ech_len_field_dup((__type__)old->__f__,old->__flen__); \
-        if (new->__f__==NULL) return 0; \
+# define ECHFDUP(__f__, __flen__, __type__) \
+    if (old->__flen__ != 0) { \
+        new->__f__ = (__type__)ech_len_field_dup((__type__)old->__f__, \
+                                                 old->__flen__); \
+        if (new->__f__ == NULL) \
+            return 0; \
     }
 
 /**
@@ -687,44 +679,53 @@ static void *ech_len_field_dup(void *old, unsigned int len)
  */
 static int ECHConfig_dup(ECHConfig *old, ECHConfig *new)
 {
-    unsigned int i=0;
-    if (!new || !old) return 0;
-    *new=*old; /* shallow copy, followed by deep copies */
+    unsigned int i = 0;
+
+    if (new == NULL || old == NULL)
+        return 0;
+    *new = *old; /* shallow copy, followed by deep copies */
     /* but before deep copy make sure we don't free twice */
-    new->ciphersuites=NULL;
-    new->exttypes=NULL;
-    new->extlens=NULL;
-    new->exts=NULL;
-    ECHFDUP(pub,pub_len,unsigned char*);
-    ECHFDUP(public_name,public_name_len,unsigned char *);
-    new->config_id=old->config_id;
-    ECHFDUP(encoding_start,encoding_length, unsigned char*);
+    new->ciphersuites = NULL;
+    new->exttypes = NULL;
+    new->extlens = NULL;
+    new->exts = NULL;
+    ECHFDUP(pub, pub_len, unsigned char *);
+    ECHFDUP(public_name, public_name_len, unsigned char *);
+    new->config_id = old->config_id;
+    ECHFDUP(encoding_start, encoding_length, unsigned char *);
     if (old->ciphersuites) {
-        new->ciphersuites=
-            OPENSSL_malloc(old->nsuites*sizeof(ech_ciphersuite_t));
-        if (!new->ciphersuites) goto err;
-        memcpy(new->ciphersuites,old->ciphersuites,
-                old->nsuites*sizeof(ech_ciphersuite_t));
+        new->ciphersuites = OPENSSL_malloc(old->nsuites
+                                           * sizeof(ech_ciphersuite_t));
+        if (new->ciphersuites == NULL)
+            goto err;
+        memcpy(new->ciphersuites, old->ciphersuites,
+               old->nsuites * sizeof(ech_ciphersuite_t));
     }
-    if (old->nexts) {
-        new->exttypes=OPENSSL_malloc(old->nexts*sizeof(old->exttypes[0]));
-        if (!new->exttypes) goto err;
-        memcpy(new->exttypes,old->exttypes,old->nexts*sizeof(old->exttypes[0]));
-        new->extlens=OPENSSL_malloc(old->nexts*sizeof(old->extlens[0]));
-        if (!new->extlens) goto err;
-        memcpy(new->extlens,old->extlens,old->nexts*sizeof(old->extlens[0]));
-        new->exts=OPENSSL_zalloc(old->nexts*sizeof(old->exts[0]));
-        if (!new->exts) goto err;
+    if (old->nexts != 0) {
+        new->exttypes = OPENSSL_malloc(old->nexts * sizeof(old->exttypes[0]));
+        if (new->exttypes == NULL)
+            goto err;
+        memcpy(new->exttypes, old->exttypes,
+               old->nexts * sizeof(old->exttypes[0]));
+        new->extlens = OPENSSL_malloc(old->nexts * sizeof(old->extlens[0]));
+        if (new->extlens == NULL)
+            goto err;
+        memcpy(new->extlens, old->extlens,
+               old->nexts * sizeof(old->extlens[0]));
+        new->exts = OPENSSL_zalloc(old->nexts * sizeof(old->exts[0]));
+        if (new->exts == NULL)
+            goto err;
     }
-    for (i=0;i!=old->nexts;i++) {
-        new->exts[i]=OPENSSL_malloc(old->extlens[i]);
-        if (!new->exts[i]) goto err;
-        memcpy(new->exts[i],old->exts[i],old->extlens[i]);
+    for (i = 0; i != old->nexts; i++) {
+        new->exts[i] = OPENSSL_malloc(old->extlens[i]);
+        if (new->exts[i] == NULL)
+            goto err;
+        memcpy(new->exts[i], old->exts[i], old->extlens[i]);
     }
     return 1;
 err:
     ECHConfig_free(new);
-    return(0);
+    return 0;
 }
 
 /**
@@ -735,22 +736,26 @@ err:
  */
 static int ECHConfigs_dup(ECHConfigs *old, ECHConfigs *new)
 {
-    int i=0;
-    if (!new || !old) return 0;
-    if (old->encoded_len!=0) {
-        new->encoded=(unsigned char*)
-            ech_len_field_dup((void*)old->encoded,old->encoded_len);
-        if (new->encoded==NULL) return 0;
-        new->encoded_len=old->encoded_len;
+    int i = 0;
+
+    if (new == NULL || old == NULL)
+        return 0;
+    if (old->encoded_len != 0) {
+        new->encoded = (unsigned char *)ech_len_field_dup((void *)old->encoded,
+                                                          old->encoded_len);
+        if (new->encoded == NULL)
+            return 0;
+        new->encoded_len = old->encoded_len;
     }
-    new->recs=OPENSSL_malloc(old->nrecs*sizeof(ECHConfig));
-    if (!new->recs) return(0);
-    new->nrecs=old->nrecs;
-    memset(new->recs,0,old->nrecs*sizeof(ECHConfig));
-    for (i=0;i!=old->nrecs;i++) {
-        if (ECHConfig_dup(&old->recs[i],&new->recs[i])!=1) return(0);
-    }
-    return(1);
+    new->recs = OPENSSL_malloc(old->nrecs * sizeof(ECHConfig));
+    if (new->recs == NULL)
+        return 0;
+    new->nrecs = old->nrecs;
+    memset(new->recs, 0, old->nrecs * sizeof(ECHConfig));
+    for (i = 0; i != old->nrecs; i++)
+        if (ECHConfig_dup(&old->recs[i], &new->recs[i]) != 1)
+            return 0;
+    return 1;
 }
 
 /**
@@ -760,33 +765,24 @@ static int ECHConfigs_dup(ECHConfigs *old, ECHConfigs *new)
  * @param leftover is the number of unused octets from the input
  * @return NULL on error, or a pointer to an ECHConfigs structure
  */
-static ECHConfigs *ECHConfigs_from_binary(
-        unsigned char *binbuf,
-        size_t binblen,
-        int *leftover)
+static ECHConfigs *ECHConfigs_from_binary(unsigned char *binbuf,
+                                          size_t binblen, int *leftover)
 {
-    ECHConfigs *er=NULL; /* ECHConfigs record */
-    ECHConfig  *te=NULL; /* Array of ECHConfig to be embedded in that */
-    int rind=0;
-    size_t remaining=0;
+    ECHConfigs *er = NULL; /* ECHConfigs record */
+    ECHConfig  *te = NULL; /* Array of ECHConfig to be embedded in that */
+    int rind = 0;
+    size_t remaining = 0;
     PACKET pkt;
-    unsigned int olen=0;
-    unsigned int ooffset=0;
-    size_t not_to_consume=0;
+    unsigned int olen = 0;
+    unsigned int ooffset = 0;
+    size_t not_to_consume = 0;
 
-    if (!leftover || !binbuf || !binblen) {
+    if (leftover == NULL || binbuf == NULL || binblen == 0)
         goto err;
-    }
-    if (binblen < OSSL_ECH_MIN_ECHCONFIG_LEN) {
+    if (binblen < OSSL_ECH_MIN_ECHCONFIG_LEN)
         goto err;
-    }
-    if (binblen >= OSSL_ECH_MAX_ECHCONFIG_LEN) {
+    if (binblen >= OSSL_ECH_MAX_ECHCONFIG_LEN)
         goto err;
-    }
-
-    if (PACKET_buf_init(&pkt,binbuf,binblen)!=1) {
-        goto err;
-    }
 
     /*
      * Overall length of this ECHConfigs (olen) still could be
@@ -794,188 +790,165 @@ static ECHConfigs *ECHConfigs_from_binary(
      * given a catenated set of binary buffers, which could happen
      * and which we will support
      */
-    if (!PACKET_get_net_2(&pkt,&olen)) {
+    if (PACKET_buf_init(&pkt, binbuf, binblen) != 1)
         goto err;
-    }
-    if (olen < OSSL_ECH_MIN_ECHCONFIG_LEN || olen > (binblen-2)) {
+    if (!PACKET_get_net_2(&pkt, &olen))
         goto err;
-    }
-    if (binblen<=olen) {
+    if (olen < OSSL_ECH_MIN_ECHCONFIG_LEN || olen > (binblen - 2))
         goto err;
-    }
+    if (binblen <= olen)
+        goto err;
 
-    not_to_consume=binblen-olen;
-    remaining=PACKET_remaining(&pkt);
+    not_to_consume = binblen - olen;
+    remaining = PACKET_remaining(&pkt);
 
-    while (remaining>not_to_consume) {
-        ECHConfig *ec=NULL;
-        unsigned int ech_content_length;
-        unsigned char *tmpecstart=NULL;
+    while (remaining > not_to_consume) {
+        ECHConfig *ec = NULL;
+        unsigned int ech_content_length = 0;
+        unsigned char *tmpecstart = NULL;
 
-        te=OPENSSL_realloc(te,(rind+1)*sizeof(ECHConfig));
-        if (!te) {
+        te = OPENSSL_realloc(te, (rind + 1) * sizeof(ECHConfig));
+        if (te == NULL)
             goto err;
-        }
-        ec=&te[rind];
-        memset(ec,0,sizeof(ECHConfig));
+        ec = &te[rind];
+        memset(ec, 0, sizeof(ECHConfig));
         rind++;
 
         /* note start of encoding of this ECHConfig */
-        ooffset=pkt.curr-binbuf;
-
-        /*
-         * Version
-         */
-        if (!PACKET_get_net_2(&pkt,&ec->version)) {
+        ooffset = pkt.curr - binbuf;
+        /* Version */
+        if (!PACKET_get_net_2(&pkt, &ec->version))
             goto err;
-        }
-
         /*
          * Grab length of contents, needed in case we
          * want to skip over it, if it's a version we
          * don't support, or if >1 ECHConfig is in the
          * list.
          */
-        if (!PACKET_get_net_2(&pkt,&ech_content_length)) {
+        if (!PACKET_get_net_2(&pkt, &ech_content_length))
             goto err;
-        }
-        remaining=PACKET_remaining(&pkt);
-        if ((ech_content_length-2) > remaining) {
+        remaining = PACKET_remaining(&pkt);
+        if ((ech_content_length - 2) > remaining)
             goto err;
-        }
-
         /* check version, store and skip-over raw octets if not supported */
-        switch(ec->version) {
-            case OSSL_ECH_DRAFT_13_VERSION:
-                break;
-            default:
-                /* skip over in case we get something we can handle later */
-                {
-                    unsigned char *foo=OPENSSL_malloc(ech_content_length);
-                    if (!foo) goto err;
-                    if (!PACKET_copy_bytes(&pkt, foo, ech_content_length)) {
-                        OPENSSL_free(foo);
-                        goto err;
-                    }
+        switch (ec->version) {
+        case OSSL_ECH_DRAFT_13_VERSION:
+            break;
+        default:
+            /* skip over in case we get something we can handle later */
+            {
+                unsigned char *foo = OPENSSL_malloc(ech_content_length);
+
+                if (foo == NULL)
+                    goto err;
+                if (!PACKET_copy_bytes(&pkt, foo, ech_content_length)) {
                     OPENSSL_free(foo);
-                    remaining=PACKET_remaining(&pkt);
-
-                    /* unallocate that one */
-                    rind--;
-
-                    continue;
+                    goto err;
                 }
+                OPENSSL_free(foo);
+                remaining = PACKET_remaining(&pkt);
+                /* unallocate that one */
+                rind--;
+                continue;
+            }
         }
 
-        if (ec->version==OSSL_ECH_DRAFT_13_VERSION) {
+        if (ec->version == OSSL_ECH_DRAFT_13_VERSION) {
             PACKET pub_pkt;
-    	    PACKET cipher_suites;
-    	    int suiteoctets=0;
+            PACKET cipher_suites;
+            int suiteoctets = 0;
             unsigned char cipher[OSSL_ECH_CIPHER_LEN];
-            int ci=0;
+            int ci = 0;
             PACKET public_name_pkt;
             PACKET exts;
 
             /* read config_id - a fixed single byte */
-            if (!PACKET_copy_bytes(&pkt,&ec->config_id,1)) {
+            if (!PACKET_copy_bytes(&pkt, &ec->config_id, 1))
                 goto err;
-            }
-
             /* Kem ID */
-            if (!PACKET_get_net_2(&pkt,&ec->kem_id)) {
+            if (!PACKET_get_net_2(&pkt, &ec->kem_id))
                 goto err;
-            }
-
             /* read HPKE public key - just a blob */
-            if (!PACKET_get_length_prefixed_2(&pkt, &pub_pkt)) {
+            if (!PACKET_get_length_prefixed_2(&pkt, &pub_pkt))
                 goto err;
-            }
-            ec->pub_len=PACKET_remaining(&pub_pkt);
-            ec->pub=OPENSSL_malloc(ec->pub_len);
-            if (ec->pub==NULL) {
+            ec->pub_len = PACKET_remaining(&pub_pkt);
+            ec->pub = OPENSSL_malloc(ec->pub_len);
+            if (ec->pub == NULL)
                 goto err;
-            }
-            if (PACKET_copy_bytes(&pub_pkt,ec->pub,ec->pub_len)!=1) {
+            if (PACKET_copy_bytes(&pub_pkt, ec->pub, ec->pub_len) != 1)
                 goto err;
-            }
+            /*
+             * List of ciphersuites - 2 byte len + 2 bytes per ciphersuite
+             * Code here inspired by ssl/ssl_lib.c:bytes_to_cipher_list
+             */
+            if (!PACKET_get_length_prefixed_2(&pkt, &cipher_suites))
+                goto err;
+            suiteoctets = PACKET_remaining(&cipher_suites);
+            if (suiteoctets <= 0 || (suiteoctets % 2) == 1)
+                goto err;
+            ec->nsuites = suiteoctets / OSSL_ECH_CIPHER_LEN;
+            ec->ciphersuites = OPENSSL_malloc(ec->nsuites
+                                              * sizeof(ech_ciphersuite_t));
+            if (ec->ciphersuites == NULL)
+                goto err;
 
-    	    /*
-    	     * List of ciphersuites - 2 byte len + 2 bytes per ciphersuite
-    	     * Code here inspired by ssl/ssl_lib.c:bytes_to_cipher_list
-    	     */
-    	    if (!PACKET_get_length_prefixed_2(&pkt, &cipher_suites)) {
-    	        goto err;
-    	    }
-    	    suiteoctets=PACKET_remaining(&cipher_suites);
-    	    if (suiteoctets<=0 || (suiteoctets%2)==1) {
-    	        goto err;
-    	    }
-    	    ec->nsuites=suiteoctets/OSSL_ECH_CIPHER_LEN;
-    	    ec->ciphersuites=
-                OPENSSL_malloc(ec->nsuites*sizeof(ech_ciphersuite_t));
-    	    if (ec->ciphersuites==NULL) {
-    	        goto err;
-    	    }
-            while (PACKET_copy_bytes(&cipher_suites, cipher, OSSL_ECH_CIPHER_LEN)) {
-                memcpy(ec->ciphersuites[ci++],cipher, OSSL_ECH_CIPHER_LEN);
-            }
-            if (PACKET_remaining(&cipher_suites) > 0) {
+            while (PACKET_copy_bytes(&cipher_suites,
+                                     cipher, OSSL_ECH_CIPHER_LEN))
+                memcpy(ec->ciphersuites[ci++], cipher, OSSL_ECH_CIPHER_LEN);
+            if (PACKET_remaining(&cipher_suites) > 0)
                 goto err;
-            }
             /* Maximum name length */
-            if (ec->version==OSSL_ECH_DRAFT_13_VERSION) {
+            if (ec->version == OSSL_ECH_DRAFT_13_VERSION) {
                 unsigned char dat;
-                if (!PACKET_copy_bytes(&pkt,&dat,1)) {
+
+                if (!PACKET_copy_bytes(&pkt, &dat, 1))
                     goto err;
-                }
-                ec->maximum_name_length=dat;
+                ec->maximum_name_length = dat;
             } else {
-                if (!PACKET_get_net_2(&pkt,&ec->maximum_name_length)) {
+                if (!PACKET_get_net_2(&pkt, &ec->maximum_name_length))
                     goto err;
-                }
             }
 
             /* read public_name */
-            if (ec->version==OSSL_ECH_DRAFT_13_VERSION) {
-                if (!PACKET_get_length_prefixed_1(&pkt, &public_name_pkt)) {
+            if (ec->version == OSSL_ECH_DRAFT_13_VERSION) {
+                if (!PACKET_get_length_prefixed_1(&pkt, &public_name_pkt))
                     goto err;
-                }
-                ec->public_name_len=PACKET_remaining(&public_name_pkt);
-                if (ec->public_name_len!=0) {
-                    if (ec->public_name_len<=1 ||
-                        ec->public_name_len>TLSEXT_MAXLEN_host_name) {
+                ec->public_name_len = PACKET_remaining(&public_name_pkt);
+                if (ec->public_name_len != 0) {
+                    if (ec->public_name_len <= 1 ||
+                        ec->public_name_len > TLSEXT_MAXLEN_host_name)
                         goto err;
-                    }
-                    ec->public_name=OPENSSL_malloc(ec->public_name_len+1);
-                    if (ec->public_name==NULL) {
+                    ec->public_name = OPENSSL_malloc(ec->public_name_len + 1);
+                    if (ec->public_name == NULL)
                         goto err;
-                    }
                     if (PACKET_copy_bytes(&public_name_pkt,
-                                ec->public_name,ec->public_name_len)!=1) {
+                                          ec->public_name,
+                                          ec->public_name_len) != 1)
                         goto err;
-                    }
-                    ec->public_name[ec->public_name_len]='\0';
+                    ec->public_name[ec->public_name_len] = '\0';
                 }
 
             } else {
-                if (!PACKET_get_length_prefixed_2(&pkt, &public_name_pkt)) {
+                /*
+                 * FIXME: This is the same as above, probably a holdover
+                 * from some previous version and can be removed but needs
+                 * a check
+                 */
+                if (!PACKET_get_length_prefixed_2(&pkt, &public_name_pkt))
                     goto err;
-                }
-                ec->public_name_len=PACKET_remaining(&public_name_pkt);
-                if (ec->public_name_len!=0) {
-                    if (ec->public_name_len<=1 ||
-                            ec->public_name_len>TLSEXT_MAXLEN_host_name) {
+                ec->public_name_len = PACKET_remaining(&public_name_pkt);
+                if (ec->public_name_len != 0) {
+                    if (ec->public_name_len <= 1
+                        || ec->public_name_len > TLSEXT_MAXLEN_host_name)
                         goto err;
-                    }
-                    ec->public_name=OPENSSL_malloc(ec->public_name_len+1);
-                    if (ec->public_name==NULL) {
+                    ec->public_name = OPENSSL_malloc(ec->public_name_len + 1);
+                    if (ec->public_name == NULL)
                         goto err;
-                    }
                     if (PACKET_copy_bytes(&public_name_pkt,
-                                ec->public_name,ec->public_name_len)!=1) {
+                                          ec->public_name,
+                                          ec->public_name_len) != 1)
                         goto err;
-                    }
-                    ec->public_name[ec->public_name_len]='\0';
+                    ec->public_name[ec->public_name_len] = '\0';
                 }
             }
 
@@ -984,90 +957,86 @@ static ECHConfigs *ECHConfigs_from_binary(
              * we understand later (there are no well defined extensions
              * as of now).
              */
-            if (!PACKET_get_length_prefixed_2(&pkt, &exts)) {
+            if (!PACKET_get_length_prefixed_2(&pkt, &exts))
                 goto err;
-            }
             while (PACKET_remaining(&exts) > 0) {
-                unsigned int exttype=0;
-                unsigned int extlen=0;
-                unsigned char *extval=NULL;
-                unsigned int *tip=NULL;
-                unsigned int *lip=NULL;
-                unsigned char **vip=NULL;
+                unsigned int exttype = 0;
+                unsigned int extlen = 0;
+                unsigned char *extval = NULL;
+                unsigned int *tip = NULL;
+                unsigned int *lip = NULL;
+                unsigned char **vip = NULL;
 
-                ec->nexts+=1;
+                ec->nexts += 1;
                 /*
                  * a two-octet length prefixed list of:
                  * two octet extension type
                  * two octet extension length
                  * length octets
                  */
-                if (!PACKET_get_net_2(&exts,&exttype)) {
+                if (!PACKET_get_net_2(&exts,&exttype))
                     goto err;
-                }
-                if (!PACKET_get_net_2(&exts,&extlen)) {
+                if (!PACKET_get_net_2(&exts,&extlen))
                     goto err;
-                }
-                if (extlen>=OSSL_ECH_MAX_ECHCONFIGEXT_LEN) {
+                if (extlen>=OSSL_ECH_MAX_ECHCONFIGEXT_LEN)
                     goto err;
-                }
-                if (extlen != 0 ) {
-                    extval=(unsigned char*)OPENSSL_malloc(extlen);
-                    if (extval==NULL) {
+                if (extlen != 0) {
+                    extval = (unsigned char *)OPENSSL_malloc(extlen);
+                    if (extval == NULL)
                         goto err;
-                    }
-                    if (!PACKET_copy_bytes(&exts,extval,extlen)) {
+                    if (!PACKET_copy_bytes(&exts, extval, extlen)) {
                         OPENSSL_free(extval);
                         goto err;
                     }
                 }
                 /* assign fields to lists, have to realloc */
-                tip=(unsigned int*)OPENSSL_realloc(
-                        ec->exttypes,ec->nexts*sizeof(ec->exttypes[0]));
-                if (tip==NULL) {
-                    if (extval!=NULL) OPENSSL_free(extval);
+                tip = (unsigned int*)OPENSSL_realloc(ec->exttypes,
+                                                     ec->nexts 
+                                                     * sizeof(ec->exttypes[0]));
+                if (tip == NULL) {
+                    OPENSSL_free(extval);
                     goto err;
                 }
-                ec->exttypes=tip;
-                ec->exttypes[ec->nexts-1]=exttype;
-                lip=(unsigned int*)OPENSSL_realloc(
-                        ec->extlens,ec->nexts*sizeof(ec->extlens[0]));
-                if (lip==NULL) {
-                    if (extval!=NULL) OPENSSL_free(extval);
+                ec->exttypes = tip;
+                ec->exttypes[ec->nexts - 1] = exttype;
+                lip = (unsigned int *)OPENSSL_realloc(ec->extlens,
+                                                     ec->nexts
+                                                     * sizeof(ec->extlens[0]));
+                if (lip == NULL) {
+                    OPENSSL_free(extval);
                     goto err;
                 }
-                ec->extlens=lip;
-                ec->extlens[ec->nexts-1]=extlen;
-                vip=(unsigned char**)OPENSSL_realloc(
-                        ec->exts,ec->nexts*sizeof(unsigned char*));
-                if (vip==NULL) {
-                    if (extval!=NULL) OPENSSL_free(extval);
+                ec->extlens = lip;
+                ec->extlens[ec->nexts - 1] = extlen;
+                vip = (unsigned char **)OPENSSL_realloc(ec->exts,
+                                                        ec->nexts
+                                                        * sizeof(unsigned char *));
+                if (vip == NULL) {
+                    OPENSSL_free(extval);
                     goto err;
                 }
-                ec->exts=vip;
-                ec->exts[ec->nexts-1]=extval;
+                ec->exts = vip;
+                ec->exts[ec->nexts - 1] = extval;
             }
         }
 
         /* set length of encoding of this ECHConfig */
-        ec->encoding_start=binbuf+ooffset;
-        ooffset=pkt.curr-binbuf;
-        ec->encoding_length=(binbuf+ooffset)-ec->encoding_start;
+        ec->encoding_start = binbuf + ooffset;
+        ooffset = pkt.curr - binbuf;
+        ec->encoding_length = (binbuf + ooffset) - ec->encoding_start;
         /* copy encoding_start as it might get free'd if a reduce happens */
-        tmpecstart=OPENSSL_malloc(ec->encoding_length);
-        if (!tmpecstart) {
-            ec->encoding_start=NULL; /* don't free twice in this case*/
+        tmpecstart = OPENSSL_malloc(ec->encoding_length);
+        if (tmpecstart == NULL) {
+            ec->encoding_start = NULL; /* don't free twice in this case*/
             goto err;
         }
-        memcpy(tmpecstart,ec->encoding_start,ec->encoding_length);
-        ec->encoding_start=tmpecstart;
-
-        remaining=PACKET_remaining(&pkt);
+        memcpy(tmpecstart, ec->encoding_start, ec->encoding_length);
+        ec->encoding_start = tmpecstart;
+        remaining = PACKET_remaining(&pkt);
     }
 
-    if (PACKET_remaining(&pkt)>binblen) {
+    if (PACKET_remaining(&pkt)>binblen)
         goto err;
-    }
 
     /* 
      * if none of the offered ECHConfig values work (e.g. bad versions)
@@ -1076,20 +1045,17 @@ static ECHConfigs *ECHConfigs_from_binary(
     if (rind == 0)
         goto err;
 
-    /*
-     * Success - make up return value
-     */
-    *leftover=PACKET_remaining(&pkt);
-    er=(ECHConfigs*)OPENSSL_malloc(sizeof(ECHConfigs));
-    if (er==NULL) {
+    /* Success - make up return value */
+    *leftover = PACKET_remaining(&pkt);
+    er = (ECHConfigs *)OPENSSL_malloc(sizeof(ECHConfigs));
+    if (er == NULL)
         goto err;
-    }
-    memset(er,0,sizeof(ECHConfigs));
-    er->nrecs=rind;
-    er->recs=te;
-    te=NULL;
-    er->encoded_len=binblen;
-    er->encoded=binbuf;
+    memset(er, 0, sizeof(ECHConfigs));
+    er->nrecs = rind;
+    er->recs = te;
+    te = NULL;
+    er->encoded_len = binblen;
+    er->encoded = binbuf;
 
     return er;
 
@@ -1097,15 +1063,15 @@ err:
     if (er) {
         ECHConfigs_free(er);
         OPENSSL_free(er);
-        er=NULL;
+        er = NULL;
     }
     if (te) {
         int teind;
-        for (teind=0;teind!=rind;teind++) {
+
+        for (teind = 0; teind != rind; teind++)
             ECHConfig_free(&te[teind]);
-        }
         OPENSSL_free(te);
-        te=NULL;
+        te = NULL;
     }
     return NULL;
 }

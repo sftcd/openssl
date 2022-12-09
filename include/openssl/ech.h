@@ -1,5 +1,5 @@
 /*
- * Copyright 2020,2021 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2022 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the OpenSSL license (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -41,7 +41,7 @@
  * - can be ascii-hex encoded version of the above
  * - can be a presentation-like format containing "ech=<b64-stuff>"
  *
- * The code supports catenated values (which makes it easier to feed 
+ * The code supports catenated values (which makes it easier to feed
  * values from a script). Catenated binary values need no separator
  * as there is internal length information. Catenated ascii-hex or
  * base64 values need a separator semi-colon.
