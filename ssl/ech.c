@@ -3267,13 +3267,17 @@ void ech_pbuf(const char *msg, const unsigned char *buf, const size_t blen)
  * @param blen is the length of buf
  * @return 1 for success
  */
-int ech_reset_hs_buffer(SSL_CONNECTION *s, unsigned char *buf, size_t blen)
+int ech_reset_hs_buffer(SSL_CONNECTION *s, const unsigned char *buf,
+                        size_t blen)
 {
     OSSL_TRACE_BEGIN(TLS) {
         BIO_printf(trc_out, "Adding this to transcript: RESET!\n");
     } OSSL_TRACE_END(TLS);
     ech_pbuf("Adding this to transcript", buf, blen);
 
+    if (buf == NULL || blen == 0) {
+        return 0;
+    }
     if (s->s3.handshake_buffer != NULL) {
         (void)BIO_set_close(s->s3.handshake_buffer, BIO_CLOSE);
         BIO_free(s->s3.handshake_buffer);
@@ -3282,9 +3286,10 @@ int ech_reset_hs_buffer(SSL_CONNECTION *s, unsigned char *buf, size_t blen)
     EVP_MD_CTX_free(s->s3.handshake_dgst);
     s->s3.handshake_dgst = NULL;
     s->s3.handshake_buffer = BIO_new(BIO_s_mem());
-    if (buf != NULL && blen > 0) {
-        BIO_write(s->s3.handshake_buffer, (void *)buf, (int)blen);
+    if (s->s3.handshake_buffer == NULL) {
+        return 0;
     }
+    BIO_write(s->s3.handshake_buffer, (void *)buf, (int)blen);
     return 1;
 }
 
@@ -3718,6 +3723,9 @@ int ech_calc_ech_confirm(SSL_CONNECTION *s, int for_hrr,
     ech_pbuf("calc conf : result", acbuf, 8);
 # endif
     if (s->hello_retry_request == SSL_HRR_NONE && s->ext.ech_backend != 0)
+        ech_reset_hs_buffer(s, s->ext.innerch, s->ext.innerch_len);
+
+    if (s->hello_retry_request == SSL_HRR_NONE && s->ext.ech_backend == 0)
         ech_reset_hs_buffer(s, s->ext.innerch, s->ext.innerch_len);
 
     if (for_hrr == 1) {
