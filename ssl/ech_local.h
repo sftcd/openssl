@@ -361,7 +361,8 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt);
  * @param blen is the length of buf
  * @return 1 for success
  */
-int ech_reset_hs_buffer(SSL_CONNECTION *s, unsigned char *buf, size_t blen);
+int ech_reset_hs_buffer(SSL_CONNECTION *s, const unsigned char *buf,
+                        size_t blen);
 
 /**
  * @brief If an ECH is present, attempt decryption

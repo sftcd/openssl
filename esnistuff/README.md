@@ -27,13 +27,12 @@ Most recent first...
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
 - 20221212: many changes to tidy up formatting according to OpenSSL
-  project guidelines. That or related rebasing has left us in a state
-  where ECH server side is failing because we're not getting the 
-  right transcript around ``tls13_enc.c:829``. So investigating that now.
-  Fix is likely in ``ssl/statem/statem_srvr.c:1536`` just after ECH
-  decrypt has worked, but not got it yet.
-  (Again, don't use this 'till later - the ECH-draft-13a branch does
-  work, though is older.)
+  project guidelines. That or related rebasing left us in a state
+  where ECH server side was failing because of not getting the 
+  right transcript before sending the ServerHello. Put in a fix for 
+  that (into the end of ``ech_calc_ech_confirm()`` for now, but 
+  needs re-working). Just pushing this now, so there's a working
+  thing in the repo. (But still have to test HRR/early-data etc.)
 
 - 20221115: finished changing external prototypes to match project prefs
   (outputs 1st etc.) Will need to get around to changing web server and
