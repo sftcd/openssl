@@ -1531,6 +1531,9 @@ MSG_PROCESS_RETURN tls_process_client_hello(SSL_CONNECTION *s, PACKET *pkt)
                 goto err;
             }
             if (s->ext.ech_success == 1) {
+                int ret;
+                BIO *buf = NULL;
+
                 /*
                 * If ECH worked, the inner CH MUST be smaller so we can
                 * overwrite the outer packet, but no harm to check anyway
@@ -1542,6 +1545,20 @@ MSG_PROCESS_RETURN tls_process_client_hello(SSL_CONNECTION *s, PACKET *pkt)
                 }
                 memcpy(s->init_msg, newpkt.curr, newpkt.remaining);
                 pkt->remaining = newpkt.remaining;
+                /* try fixup of handshake buffer here FIXME: this isn't right! */
+                BIO_free(s->s3.handshake_buffer);
+                buf = BIO_new(BIO_s_mem());
+                if (buf == NULL) {
+                    SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+                    goto err;
+                }
+                s->s3.handshake_buffer = buf;
+                ret = BIO_write(s->s3.handshake_buffer, newpkt.curr,
+                                newpkt.remaining);
+                if (ret <= 0 || ret != (int)newpkt.remaining) {
+                    SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+                    goto err;
+                }
             }
         }
     }
@@ -2644,7 +2661,7 @@ CON_FUNC_RETURN tls_construct_server_hello(SSL_CONNECTION *s, WPACKET *pkt)
      * we're accepting ECH, if that's the case
      */
     if (s->hello_retry_request != SSL_HRR_PENDING
-        && s->ext.ech_attempted_type==TLSEXT_TYPE_ech13
+        && s->ext.ech_attempted_type == TLSEXT_TYPE_ech13
         && (s->ext.ech_backend == 1
             || (s->ech != NULL && s->ext.ech_success == 1))) {
         unsigned char acbuf[8];
@@ -2699,7 +2716,6 @@ CON_FUNC_RETURN tls_construct_server_hello(SSL_CONNECTION *s, WPACKET *pkt)
         p = (unsigned char *)&pkt->buf->data[hrroffset];
         memcpy(p, acbuf, 8);
     } 
-
     /* call ECH callback, if appropriate */
     if (s->ext.ech_attempted == 1 && s->ech_cb != NULL
         && s->hello_retry_request != SSL_HRR_PENDING) {
@@ -2721,7 +2737,6 @@ CON_FUNC_RETURN tls_construct_server_hello(SSL_CONNECTION *s, WPACKET *pkt)
         }
     }
 #endif
-
     return CON_FUNC_SUCCESS;
 }
 

@@ -28,7 +28,10 @@ DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
 - 20221212: many changes to tidy up formatting according to OpenSSL
   project guidelines. That or related rebasing has left us in a state
-  where ECH server side tests are failing. So investigating that now.
+  where ECH server side is failing because we're not getting the 
+  right transcript around ``tls13_enc.c:829``. So investigating that now.
+  Fix is likely in ``ssl/statem/statem_srvr.c:1536`` just after ECH
+  decrypt has worked, but not got it yet.
   (Again, don't use this 'till later - the ECH-draft-13a branch does
   work, though is older.)
 
