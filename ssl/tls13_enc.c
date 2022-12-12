@@ -68,6 +68,10 @@ static void ptranscript(const char *msg, SSL_CONNECTION *s)
     if (s->s3.handshake_buffer != NULL) {
         hdatalen = BIO_get_mem_data(s->s3.handshake_buffer, &hdata);
         tls13_pbuf(msg, hdata, hdatalen);
+    } else {
+        OSSL_TRACE_BEGIN(TLS) {
+            BIO_printf(trc_out, "%s: handshake_buffer is NULL\n", msg);
+        } OSSL_TRACE_END(TLS);
     }
     return;
 }
@@ -537,14 +541,6 @@ int tls13_change_cipher_state(SSL_CONNECTION *s, int which)
     ptranscript("gen_hs", s);
 # endif
 #endif
-
-#if 0
-    if (which & SSL3_CC_READ)
-        iv = s->read_iv;
-    else
-        iv = s->write_iv;
-#endif
-
 #ifndef OPENSSL_NO_ECH
     /* If doing early data and ECH then we're a special case.  */
     if (s->server == 0
