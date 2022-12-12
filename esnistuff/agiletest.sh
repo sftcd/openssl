@@ -30,13 +30,13 @@ NAEADS=${#AEAD_IDS[*]}
 
 # set which tests to skip - set to "yes" to skip or "no" to do tests
 # basic client/server tests for combinations of supported/not and grease
-skipbase="no"
+skipbase="yes"
 # the basic good client/server tests for the range of algs
-skipgood="no"
+skipgood="yes"
 # the tests of various forms of RR/ECHConfig
-skiprrs="no"
+skiprrs="yes"
 # the basic bad tests
-skipbad="no"
+skipbad="yes"
 # the session re-use tests
 skipsess="no"
 # the HRR checks
