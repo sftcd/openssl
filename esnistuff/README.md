@@ -26,6 +26,12 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
+- 20221212: many changes to tidy up formatting according to OpenSSL
+  project guidelines. That or related rebasing has left us in a state
+  where ECH server side tests are failing. So investigating that now.
+  (Again, don't use this 'till later - the ECH-draft-13a branch does
+  work, though is older.)
+
 - 20221115: finished changing external prototypes to match project prefs
   (outputs 1st etc.) Will need to get around to changing web server and
   client integrations accordingly in a while. (Maybe next, or maybe do 
