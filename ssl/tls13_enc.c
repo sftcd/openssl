@@ -28,7 +28,7 @@
 static const unsigned char label_prefix[] = "\x74\x6C\x73\x31\x33\x20";
 
 #ifndef OPENSSL_NO_ECH
-# ifdef ECH_SUPERVERBOSE
+# ifdef OSSL_ECH_SUPERVERBOSE
 /*
  * There is an ech_pbuf in ssl/ech.c, but one of the test
  * binaries needs this file but doesn't have the object
@@ -98,7 +98,7 @@ int tls13_hkdf_expand_ex(OSSL_LIB_CTX *libctx, const char *propq,
     size_t hashlen;
 
 #ifndef OPENSSL_NO_ECH
-#ifdef ECH_SUPERVERBOSE
+#ifdef OSSL_ECH_SUPERVERBOSE
     OSSL_TRACE_BEGIN(TLS) {
         BIO_printf(trc_out, "hkdf inputs:\n");
     } OSSL_TRACE_END(TLS);
@@ -157,7 +157,7 @@ int tls13_hkdf_expand_ex(OSSL_LIB_CTX *libctx, const char *propq,
     EVP_KDF_CTX_free(kctx);
 
 #ifndef OPENSSL_NO_ECH
-#ifdef ECH_SUPERVERBOSE
+#ifdef OSSL_ECH_SUPERVERBOSE
     OSSL_TRACE_BEGIN(TLS) {
         BIO_printf(trc_out, "hkdf output:\n");
     } OSSL_TRACE_END(TLS);
@@ -563,7 +563,7 @@ int tls13_change_cipher_state(SSL_CONNECTION *s, int which)
                                                 : OSSL_RECORD_DIRECTION_WRITE;
 
 #ifndef OPENSSL_NO_ECH
-#ifdef ECH_SUPERVERBOSE
+# ifdef OSSL_ECH_SUPERVERBOSE
     OSSL_TRACE_BEGIN(TLS) {
         BIO_printf(trc_out, "SSL*=%p, inner=%p, outer=%p, which=%02x\n",
                    (void *)s, (void *)s->ext.inner_s,
@@ -572,7 +572,7 @@ int tls13_change_cipher_state(SSL_CONNECTION *s, int which)
                    (void *)s->s3.handshake_dgst);
     } OSSL_TRACE_END(TLS);
     ptranscript("gen_hs", s);
-#endif
+# endif
 #endif
 
 #if 0
@@ -585,7 +585,7 @@ int tls13_change_cipher_state(SSL_CONNECTION *s, int which)
 #ifndef OPENSSL_NO_ECH
     /* If doing early data and ECH then we're a special case.  */
     if (s->server == 0
-        && s->ext.ech_attempted==1
+        && s->ext.ech_attempted == 1
         && which & SSL3_CC_CLIENT
         && which & SSL3_CC_WRITE
         && which & SSL3_CC_EARLY) {
@@ -719,7 +719,7 @@ int tls13_change_cipher_state(SSL_CONNECTION *s, int which)
 
 #ifndef OPENSSL_NO_ECH
             /* if ECH worked then use the innerch and not the h/s buffer here */
-            if (s->server == 1 && s->ext.ech_success==1) {
+            if (s->server == 1 && s->ext.ech_success == 1) {
                 if (s->ext.innerch == NULL) {
                     SSLfatal(s, SSL_AD_INTERNAL_ERROR,
                              SSL_R_BAD_HANDSHAKE_LENGTH);
