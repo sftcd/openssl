@@ -3731,7 +3731,9 @@ int ech_calc_ech_confirm(SSL_CONNECTION *s, int for_hrr,
     }
 
     OPENSSL_free(tbuf);
+    tbuf = NULL;
     EVP_MD_CTX_free(ctx);
+    ctx = NULL;
 # ifdef OSSL_ECH_SUPERVERBOSE
     OSSL_TRACE_BEGIN(TLS) {
         if (SSL_ech_print(trc_out, &s->ssl, OSSL_ECH_SELECT_ALL) != 1) {

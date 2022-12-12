@@ -510,10 +510,11 @@ fi
 goodresult=`grep -c "ECH: success" $TMPF`
 echo "$0 Summary: "
 allresult=`grep "ECH: " $TMPF`
+sslerror=`grep ":error:" $TMPF`
 rm -f $TMPF
 if (( $goodresult > 0 ))
 then
-    echo "Looks like it worked ok"
+    echo "Looks like ECH worked ok"
     res=0
 else
     if [[ "$NOECH" != "yes" && "$GREASE" != "yes" ]]
@@ -529,6 +530,12 @@ else
         echo "Only greased"
         res=0
     fi
+fi
+if [[ "$sslerror" != "" ]]
+then
+    echo "Got an SSL error though:"
+    echo "$sslerror"
+    res=1
 fi
 echo $allresult
 exit $res
