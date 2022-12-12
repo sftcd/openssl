@@ -13,9 +13,9 @@
 #include "internal/cryptlib.h"
 
 #ifndef OPENSSL_NO_ECH
-#include <openssl/rand.h>
-#include <openssl/trace.h>
-#include <time.h> /* for timing in TRACE */
+# include <openssl/rand.h>
+# include <openssl/trace.h>
+# include <time.h> /* for timing in TRACE */
 #endif
 
 #define COOKIE_STATE_FORMAT_VERSION     1
@@ -170,9 +170,9 @@ int tls_parse_ctos_server_name(SSL_CONNECTION *s, PACKET *pkt,
          * copied the outer SNI (if present) within our ECH
          * early decryption code
          */
-        if (s->ech && s->ext.ech_success==1) {
-            if (s->ech->inner_name) OPENSSL_free(s->ech->inner_name);
-            s->ech->inner_name=OPENSSL_strdup(s->ext.hostname);
+        if (s->ech != NULL && s->ext.ech_success == 1) {
+            OPENSSL_free(s->ech->inner_name);
+            s->ech->inner_name = OPENSSL_strdup(s->ext.hostname);
         }
 #endif
 
@@ -2165,45 +2165,46 @@ int tls_parse_ctos_server_cert_type(SSL_CONNECTION *sc, PACKET *pkt,
  * outer CH.
  */
 int tls_parse_ctos_ech(SSL_CONNECTION *s, PACKET *pkt, unsigned int context,
-                               X509 *x, size_t chainidx)
+                       X509 *x, size_t chainidx)
 {
-    if (s->ext.ech_grease== OSSL_ECH_IS_GREASE) {
+    if (s->ext.ech_grease == OSSL_ECH_IS_GREASE) {
         /* GREASE is fine, and catches expected error cases */
         return 1;
     }
-    if (!s->ech) {
+    if (s->ech == NULL) {
         /* If not configured for ECH then we ignore it */
         return 1;
     }
-    if (s->ext.ech_attempted_type!= OSSL_ECH_DRAFT_13_VERSION) {
+    if (s->ext.ech_attempted_type != OSSL_ECH_DRAFT_13_VERSION) {
         OSSL_TRACE_BEGIN(TLS) {
             BIO_printf(trc_out,"ECH shouldn't be seen here.\n");
         } OSSL_TRACE_END(TLS);
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         return 0;
     }
-    if (s->ext.ech_attempted_type== OSSL_ECH_DRAFT_13_VERSION) {
+    if (s->ext.ech_attempted_type == OSSL_ECH_DRAFT_13_VERSION) {
         /* 
          * we only allow "inner" which is one octet, valued 0x01 
          * and only if we decrypted ok or are a backend
          */
-        unsigned int echtype=0;
+        unsigned int echtype = 0;
+
         OSSL_TRACE_BEGIN(TLS) {
             BIO_printf(trc_out,"draft-13 ECH seen in inner as exptected.\n");
         } OSSL_TRACE_END(TLS);
-        if (PACKET_get_1(pkt, &echtype)!=1) {
+        if (PACKET_get_1(pkt, &echtype) != 1) {
             SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
             return 0;
         }
-        if (echtype!=1) {
+        if (echtype != 1) {
             SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
             return 0;
         }
-        if (PACKET_remaining(pkt)!=0) {
+        if (PACKET_remaining(pkt) != 0) {
             SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
             return 0;
         }
-        if (!(s->ext.ech_success==1 || s->ext.ech_backend==1)) {
+        if (!(s->ext.ech_success == 1 || s->ext.ech_backend == 1)) {
             SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
             return 0;
         }
@@ -2227,9 +2228,9 @@ EXT_RETURN tls_construct_stoc_ech13(SSL_CONNECTION *s, WPACKET *pkt,
                                     size_t chainidx)
 {
     /* return most-recent ECH config for retry, as needed */
-    SSL_ECH *mostrecent=NULL;
-    int echind=0;
-    time_t echloadtime=0;
+    SSL_ECH *mostrecent = NULL;
+    int echind = 0;
+    time_t echloadtime = 0;
 
     /* 
      * If doing HRR we include the confirmation value, but
@@ -2237,12 +2238,13 @@ EXT_RETURN tls_construct_stoc_ech13(SSL_CONNECTION *s, WPACKET *pkt,
      * will be added later via ech_calc_ech_confirm() which
      * is called when constructing the server hello
      */
-    if (context==SSL_EXT_TLS1_3_HELLO_RETRY_REQUEST &&
-        (s->ext.ech_success==1 || s->ext.ech_backend) && 
-        s->ext.ech_attempted_type==TLSEXT_TYPE_ech13) {
+    if (context == SSL_EXT_TLS1_3_HELLO_RETRY_REQUEST
+        && (s->ext.ech_success == 1 || s->ext.ech_backend)
+        && s->ext.ech_attempted_type == TLSEXT_TYPE_ech13) {
         unsigned char eightzeros[8]={0,0,0,0,0,0,0,0};
+
         if (!WPACKET_put_bytes_u16(pkt, s->ext.ech_attempted_type)
-            || !WPACKET_sub_memcpy_u16(pkt,eightzeros,8)) {
+            || !WPACKET_sub_memcpy_u16(pkt, eightzeros, 8)) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             return 0;
         }
@@ -2252,13 +2254,13 @@ EXT_RETURN tls_construct_stoc_ech13(SSL_CONNECTION *s, WPACKET *pkt,
         return EXT_RETURN_SENT;
     }
     /* for other versions don't send */
-    if (context==SSL_EXT_TLS1_3_HELLO_RETRY_REQUEST) {
+    if (context == SSL_EXT_TLS1_3_HELLO_RETRY_REQUEST) {
         return EXT_RETURN_NOT_SENT;
     }
 
     /* If in some weird state we ignore and send nothing */
-    if (s->ext.ech_grease!= OSSL_ECH_IS_GREASE ||
-        s->ext.ech_attempted_type!=TLSEXT_TYPE_ech13) {
+    if (s->ext.ech_grease != OSSL_ECH_IS_GREASE ||
+        s->ext.ech_attempted_type != TLSEXT_TYPE_ech13) {
         return EXT_RETURN_NOT_SENT;
     }
     
@@ -2267,48 +2269,45 @@ EXT_RETURN tls_construct_stoc_ech13(SSL_CONNECTION *s, WPACKET *pkt,
      * return the most-recently loaded ECHConfigList, as the value
      * of the extension.
      */
-    if (s->ech==NULL || s->nechs==0 ) {
+    if (s->ech == NULL || s->nechs == 0) {
         OSSL_TRACE_BEGIN(TLS) {
-            BIO_printf(trc_out,
-                "ECH - not sending ECHConfigList back to client even though " \
-                "they GREASE'd as I've no loaded configs\n");
+            BIO_printf(trc_out, "ECH - not sending ECHConfigList to client " 
+                       "even though they GREASE'd as I've no loaded configs\n");
         } OSSL_TRACE_END(TLS);
         return EXT_RETURN_NOT_SENT;
     }
-    for (echind=0; echind!=s->nechs; echind++ ) {
-        if (s->ech[echind].cfg->encoded==NULL || 
-            s->ech[echind].cfg->encoded_len==0) {
+    for (echind = 0; echind != s->nechs; echind++) {
+        if (s->ech[echind].cfg->encoded == NULL
+            || s->ech[echind].cfg->encoded_len == 0) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             return 0;
         }
         if (s->ech[echind].loadtime > echloadtime ) {
             echloadtime = s->ech[echind].loadtime;
-            mostrecent=&s->ech[echind];
+            mostrecent = &s->ech[echind];
         }
     }
-    if (mostrecent==NULL ||
-        mostrecent->cfg->encoded==NULL || 
-        mostrecent->cfg->encoded_len==0) {
+    if (mostrecent == NULL
+        || mostrecent->cfg->encoded == NULL
+        || mostrecent->cfg->encoded_len == 0) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
     }
 
-    if (s->ext.ech_attempted_type== OSSL_ECH_DRAFT_13_VERSION) {
+    if (s->ext.ech_attempted_type == OSSL_ECH_DRAFT_13_VERSION) {
         if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_ech13)
-            || !WPACKET_sub_memcpy_u16(pkt,
-                        mostrecent->cfg->encoded, 
-                        mostrecent->cfg->encoded_len)
+            || !WPACKET_sub_memcpy_u16(pkt, mostrecent->cfg->encoded, 
+                                       mostrecent->cfg->encoded_len)
                 ) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             return 0;
         }
         OSSL_TRACE_BEGIN(TLS) {
-            BIO_printf(trc_out,"sending 1st loaded ECHConfig (draft-13) back " \
-                               "to client\n");
+            BIO_printf(trc_out, "sending 1st loaded ECHConfig (draft-13) back "
+                       "to client\n");
         } OSSL_TRACE_END(TLS);
         return EXT_RETURN_SENT;
     }
-
     return EXT_RETURN_NOT_SENT;
 }
 
@@ -2323,8 +2322,9 @@ EXT_RETURN tls_construct_stoc_ech13(SSL_CONNECTION *s, WPACKET *pkt,
  *
  * This is draft-10 only.
  */
-int tls_parse_ctos_ech_is_inner(SSL_CONNECTION *s, PACKET *pkt, unsigned int context,
-                               X509 *x, size_t chainidx)
+int tls_parse_ctos_ech_is_inner(SSL_CONNECTION *s, PACKET *pkt,
+                                unsigned int context,
+                                X509 *x, size_t chainidx)
 {
     /*
      * If there wasn't an earlier ECH decrypt attempt, then we
@@ -2332,17 +2332,16 @@ int tls_parse_ctos_ech_is_inner(SSL_CONNECTION *s, PACKET *pkt, unsigned int con
      * I don't think that causes a problem (other than for that
      * client), and this changes in draft-12 anyway.
      */
-    if (s->ext.ech_attempted!=1) {
-        s->ext.ech_backend=1;
+    if (s->ext.ech_attempted != 1) {
+        s->ext.ech_backend = 1;
         OSSL_TRACE_BEGIN(TLS) {
-            BIO_printf(trc_out,"ech_is_inner seen - think we're a backend\n");
+            BIO_printf(trc_out, "ech_is_inner seen - think we're a backend\n");
         } OSSL_TRACE_END(TLS);
     } else {
         OSSL_TRACE_BEGIN(TLS) {
-            BIO_printf(trc_out,"ech_is_inner shouldn't be seen here.\n");
+            BIO_printf(trc_out, "ech_is_inner shouldn't be seen here.\n");
         } OSSL_TRACE_END(TLS);
     }
     return 1;
 }
-
 #endif /* END OPENSSL_NO_ECH */

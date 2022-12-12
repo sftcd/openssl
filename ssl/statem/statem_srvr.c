@@ -33,7 +33,7 @@
 
 #ifndef OPENSSL_NO_ECH
 # ifndef  OSSL_ECH_PBUF_SIZE
-#  define   OSSL_ECH_PBUF_SIZE 8*1024 /**<  buffer for string returned via ech_cb */
+#  define   OSSL_ECH_PBUF_SIZE 8*1024 /*  string buffer returned from ech_cb */
 # endif
 #endif
 
@@ -1484,63 +1484,65 @@ MSG_PROCESS_RETURN tls_process_client_hello(SSL_CONNECTION *s, PACKET *pkt)
      * For split-mode we want to have a way to point at the CH octets
      * for the accept-confirmation calculation.
      */
-    if (!pkt) goto err;
-    if (s->server && pkt->remaining) {
-        int rv=0;
-        size_t startofsessid=0; /**< offset of session id within Ch */
-        size_t startofexts=0; /**< offset of extensions within CH */
-        size_t echoffset=0; /**< offset of start of ECH within CH */
-        uint16_t echtype=TLSEXT_TYPE_ech_unknown; /**< type of ECH seen */
-        size_t outersnioffset=0; /**< offset to SNI in outer */
-        int innerflag=-1;
+    if (pkt == NULL)
+        goto err;
+    if (s->server == 1 && pkt->remaining != 0) {
+        int rv = 0;
+        size_t startofsessid = 0; /**< offset of session id within Ch */
+        size_t startofexts = 0; /**< offset of extensions within CH */
+        size_t echoffset = 0; /**< offset of start of ECH within CH */
+        uint16_t echtype = TLSEXT_TYPE_ech_unknown; /**< type of ECH seen */
+        size_t outersnioffset = 0; /**< offset to SNI in outer */
+        int innerflag = -1;
 
-        rv=ech_get_ch_offsets(s,pkt,&startofsessid,&startofexts,
-            &echoffset,&echtype,&innerflag,&outersnioffset);
-        if (rv!=1) {
+        rv = ech_get_ch_offsets(s, pkt, &startofsessid, &startofexts,
+                                &echoffset, &echtype, &innerflag,
+                                &outersnioffset);
+        if (rv != 1) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             goto err;
         }
-        if (innerflag==1) {
-            if (s->ext.innerch!=NULL) {
-                OPENSSL_free(s->ext.innerch);
-                s->ext.innerch=NULL;
-            }
+        if (innerflag == 1) {
+            OPENSSL_free(s->ext.innerch);
+            s->ext.innerch=NULL;
             OSSL_TRACE_BEGIN(TLS) {
                 BIO_printf(trc_out,"Got inner ECH so setting backend\n");
             } OSSL_TRACE_END(TLS);
             /* For backend, include msg type & 3 octet length here. */
-            s->ext.ech_backend=1;
+            s->ext.ech_backend = 1;
             /* we'll only support draft-13 for split mode */
-            s->ext.ech_attempted_type=TLSEXT_TYPE_ech13;
-            s->ext.innerch_len=pkt->remaining;
-            s->ext.innerch=OPENSSL_malloc(s->ext.innerch_len+
+            s->ext.ech_attempted_type = TLSEXT_TYPE_ech13;
+            s->ext.innerch_len = pkt->remaining;
+            s->ext.innerch = OPENSSL_malloc(s->ext.innerch_len +
                                             SSL3_HM_HEADER_LENGTH); /* 4 */
-            if (!s->ext.innerch) goto err;
-            s->ext.innerch[0]=SSL3_MT_CLIENT_HELLO;
-            s->ext.innerch[1]=((s->ext.innerch_len>>16)&0xff);
-            s->ext.innerch[2]=((s->ext.innerch_len>>8)&0xff);
-            s->ext.innerch[3]=(s->ext.innerch_len&0xff);
-            memcpy(s->ext.innerch+SSL3_HM_HEADER_LENGTH, pkt->curr,
-                                s->ext.innerch_len);
-            s->ext.innerch_len+=SSL3_HM_HEADER_LENGTH;
-        } else if (s->ech!=NULL) {
+            if (s->ext.innerch == NULL)
+                goto err;
+            s->ext.innerch[0] = SSL3_MT_CLIENT_HELLO;
+            s->ext.innerch[1] = ((s->ext.innerch_len >> 16) & 0xff);
+            s->ext.innerch[2] = ((s->ext.innerch_len >> 8) & 0xff);
+            s->ext.innerch[3] = (s->ext.innerch_len & 0xff);
+            memcpy(s->ext.innerch + SSL3_HM_HEADER_LENGTH, pkt->curr,
+                   s->ext.innerch_len);
+            s->ext.innerch_len += SSL3_HM_HEADER_LENGTH;
+        } else if (s->ech != NULL) {
             PACKET newpkt;
-            if (ech_early_decrypt(&s->ssl,pkt,&newpkt)!=1) {
+
+            if (ech_early_decrypt(&s->ssl, pkt, &newpkt) != 1) {
                 SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
                 goto err;
             }
-            if (s->ext.ech_success==1) {
+            if (s->ext.ech_success == 1) {
                 /*
                 * If ECH worked, the inner CH MUST be smaller so we can
                 * overwrite the outer packet, but no harm to check anyway
                 * I just happen to know that pkt->curr == s->init_msg
                 */
-                if (newpkt.remaining>pkt->remaining) {
+                if (newpkt.remaining > pkt->remaining) {
                     SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
                     goto err;
                 }
-                memcpy(s->init_msg,newpkt.curr,newpkt.remaining);
-                pkt->remaining=newpkt.remaining;
+                memcpy(s->init_msg, newpkt.curr, newpkt.remaining);
+                pkt->remaining = newpkt.remaining;
             }
         }
     }
@@ -1749,12 +1751,10 @@ MSG_PROCESS_RETURN tls_process_client_hello(SSL_CONNECTION *s, PACKET *pkt)
         OPENSSL_free(clienthello->pre_proc_exts);
     OPENSSL_free(clienthello);
 #ifndef OPENSSL_NO_ECH
-    s->clienthello=NULL;
-    if (s->ext.innerch!=NULL) {
-        OPENSSL_free(s->ext.innerch);
-        s->ext.innerch=NULL;
-        s->ext.innerch_len=0;
-    }
+    s->clienthello = NULL;
+    OPENSSL_free(s->ext.innerch);
+    s->ext.innerch=NULL;
+    s->ext.innerch_len=0;
 #endif
 
     return MSG_PROCESS_ERROR;
@@ -2054,7 +2054,7 @@ static int tls_early_post_process_client_hello(SSL_CONNECTION *s)
      * server random later to include the ECH accept value.
      * We can't do it now as we don't yet have the SH encoding.
      */
-    if ((s->ech && s->ext.ech_success) || !s->ech)
+    if ((s->ech != NULL && s->ext.ech_success == 1) || s->ech == NULL)
 #endif
 
     if (!s->hit
@@ -2214,7 +2214,7 @@ static int tls_early_post_process_client_hello(SSL_CONNECTION *s)
     sk_SSL_CIPHER_free(scsvs);
     OPENSSL_free(clienthello->pre_proc_exts);
 #ifndef OPENSSL_NO_ECH
-    clienthello->pre_proc_exts=NULL;
+    clienthello->pre_proc_exts = NULL;
 #endif
     OPENSSL_free(s->clienthello);
     s->clienthello = NULL;
@@ -2223,13 +2223,12 @@ static int tls_early_post_process_client_hello(SSL_CONNECTION *s)
     sk_SSL_CIPHER_free(ciphers);
     sk_SSL_CIPHER_free(scsvs);
 #ifndef OPENSSL_NO_ECH
-    if (clienthello) OPENSSL_free(clienthello->pre_proc_exts);
-    OPENSSL_free(clienthello);
-    s->clienthello=NULL;
+    if (clienthello != NULL)
+        OPENSSL_free(clienthello->pre_proc_exts);
 #else
     OPENSSL_free(clienthello->pre_proc_exts);
-    OPENSSL_free(s->clienthello);
 #endif
+    OPENSSL_free(s->clienthello);
     s->clienthello = NULL;
 
     return 0;
@@ -2591,36 +2590,36 @@ CON_FUNC_RETURN tls_construct_server_hello(SSL_CONNECTION *s, WPACKET *pkt)
          * and not the outer (which is the default)
          */
         OSSL_TRACE_BEGIN(TLS) {
-            BIO_printf(trc_out,"Checking success (%d)/innerCH (%p)\n",
-                    s->ext.ech_success,(void*)s->ext.innerch);
+            BIO_printf(trc_out," Checking success (%d)/innerCH (%p)\n",
+                       s->ext.ech_success, (void *)s->ext.innerch);
         } OSSL_TRACE_END(TLS);
-        if ( (s->ext.ech_backend || s->ext.ech_success==1) && 
-                s->ext.innerch!=NULL) {
+        if ( (s->ext.ech_backend == 1 || s->ext.ech_success == 1)
+              && s->ext.innerch != NULL) {
             /* do pre-existing HRR stuff */
             unsigned char hashval[EVP_MAX_MD_SIZE];
             unsigned int hashlen;
             EVP_MD_CTX *ctx = EVP_MD_CTX_new();
-            const EVP_MD *md=NULL;
+            const EVP_MD *md = NULL;
 
             OSSL_TRACE_BEGIN(TLS) {
-                BIO_printf(trc_out,"Adding in digest of ClientHello\n");
+                BIO_printf(trc_out, "Adding in digest of ClientHello\n");
             } OSSL_TRACE_END(TLS);
-            ech_pbuf("innerch",s->ext.innerch,s->ext.innerch_len);
-            md=ssl_handshake_md(s);
-            if (!md) {
+            ech_pbuf("innerch", s->ext.innerch, s->ext.innerch_len);
+            md = ssl_handshake_md(s);
+            if (md == NULL) {
                 SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
                 return 0;
             }
             if (EVP_DigestInit_ex(ctx, md, NULL) <= 0
                 || EVP_DigestUpdate(ctx, s->ext.innerch, 
-                    s->ext.innerch_len) <= 0
+                                    s->ext.innerch_len) <= 0
                 || EVP_DigestFinal_ex(ctx, hashval, &hashlen) <= 0) {
                 SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
                 return 0;
             }
-            ech_pbuf("digested CH",hashval,hashlen);
+            ech_pbuf("digested CH", hashval, hashlen);
             EVP_MD_CTX_free(ctx);
-            if (ech_reset_hs_buffer(s,NULL,0)!=1) {
+            if (ech_reset_hs_buffer(s ,NULL, 0) != 1) {
                 SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
                 return 0;
             }
@@ -2645,75 +2644,79 @@ CON_FUNC_RETURN tls_construct_server_hello(SSL_CONNECTION *s, WPACKET *pkt)
      * Calculate the ECH-accept server random to indicate that
      * we're accepting ECH, if that's the case
      */
-    if (s->hello_retry_request != SSL_HRR_PENDING && 
-            s->ext.ech_attempted_type==TLSEXT_TYPE_ech13 && 
-            (s->ext.ech_backend || (s->ech && s->ext.ech_success==1))) {
+    if (s->hello_retry_request != SSL_HRR_PENDING
+        && s->ext.ech_attempted_type==TLSEXT_TYPE_ech13
+        && (s->ext.ech_backend == 1
+            || (s->ech != NULL && s->ext.ech_success == 1))) {
         unsigned char acbuf[8];
-        unsigned char *shbuf=NULL;
-        size_t shlen=0;
-        size_t shoffset=0;
-        unsigned char *p=NULL;
-        memset(acbuf,0,8);
-        if (!pkt || !pkt->buf) {
+        unsigned char *shbuf = NULL;
+        size_t shlen = 0;
+        size_t shoffset = 0;
+        unsigned char *p = NULL;
+
+        memset(acbuf, 0, 8);
+        if (pkt == NULL || pkt->buf == NULL) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             return 0;
         }
-        shbuf=(unsigned char *)pkt->buf->data;
-        shlen=pkt->written;
-        if (ech_calc_ech_confirm(s,0,acbuf,shbuf,shlen)!=1) {
+        shbuf = (unsigned char *)pkt->buf->data;
+        shlen = pkt->written;
+        if (ech_calc_ech_confirm(s, 0, acbuf, shbuf, shlen) != 1) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             return 0;
         }
-        memcpy(s->s3.server_random+SSL3_RANDOM_SIZE-8,acbuf,8);
+        memcpy(s->s3.server_random + SSL3_RANDOM_SIZE - 8, acbuf, 8);
         /* swap those bits (sigh) in the packet */
-        shoffset= SSL3_HM_HEADER_LENGTH + /* 4 */
-                  CLIENT_VERSION_LEN + /* 2 */
-                  SSL3_RANDOM_SIZE - /* 32 */
-                  8;
-        p=(unsigned char*) &pkt->buf->data[shoffset];
-        memcpy(p,acbuf,8);
+        shoffset= SSL3_HM_HEADER_LENGTH /* 4 */
+                  + CLIENT_VERSION_LEN /* 2 */
+                  + SSL3_RANDOM_SIZE /* 32 */
+                  - 8;
+        p = (unsigned char *)&pkt->buf->data[shoffset];
+        memcpy(p, acbuf, 8);
     } 
-    if (s->hello_retry_request == SSL_HRR_PENDING && 
-            s->ext.ech_attempted_type==TLSEXT_TYPE_ech13 && 
-            (s->ext.ech_backend || (s->ech && s->ext.ech_success==1))) {
+    if (s->hello_retry_request == SSL_HRR_PENDING
+        && s->ext.ech_attempted_type == TLSEXT_TYPE_ech13
+        && (s->ext.ech_backend == 1
+            || (s->ech != NULL && s->ext.ech_success == 1))) {
         unsigned char acbuf[8];
-        unsigned char *shbuf=NULL;
-        size_t shlen=0;
-        size_t hrroffset=0;
-        unsigned char *p=NULL;
-        memset(acbuf,0,8);
-        if (!pkt || !pkt->buf) {
+        unsigned char *shbuf = NULL;
+        size_t shlen = 0;
+        size_t hrroffset = 0;
+        unsigned char *p = NULL;
+
+        memset(acbuf, 0, 8);
+        if (pkt == NULL || pkt->buf == NULL) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             return 0;
         }
-        shbuf=(unsigned char *)pkt->buf->data;
-        shlen=pkt->written;
-        if (ech_calc_ech_confirm(s,1,acbuf,shbuf,shlen)!=1) {
+        shbuf = (unsigned char *)pkt->buf->data;
+        shlen = pkt->written;
+        if (ech_calc_ech_confirm(s, 1, acbuf, shbuf, shlen) != 1) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             return 0;
         }
         /* swap those bits (sigh) in the packet */
-        hrroffset=pkt->curr-8;
-        p=(unsigned char*) &pkt->buf->data[hrroffset];
-        memcpy(p,acbuf,8);
+        hrroffset = pkt->curr - 8;
+        p = (unsigned char *)&pkt->buf->data[hrroffset];
+        memcpy(p, acbuf, 8);
     } 
 
     /* call ECH callback, if appropriate */
-    if (s->ext.ech_attempted && s->ech_cb!=NULL && 
-            s->hello_retry_request!=SSL_HRR_PENDING) {
-        char pstr[OSSL_ECH_PBUF_SIZE+1];
+    if (s->ext.ech_attempted == 1 && s->ech_cb != NULL
+        && s->hello_retry_request != SSL_HRR_PENDING) {
+        char pstr[OSSL_ECH_PBUF_SIZE + 1];
         BIO *biom = BIO_new(BIO_s_mem());
-        unsigned int cbrv=0;
-        memset(pstr,0,OSSL_ECH_PBUF_SIZE+1);
-        SSL_ech_print(biom,&s->ssl,OSSL_ECH_SELECT_ALL);
-        BIO_read(biom,pstr,OSSL_ECH_PBUF_SIZE);
-        cbrv=s->ech_cb(&s->ssl,pstr);
+        unsigned int cbrv = 0;
+
+        memset(pstr, 0, OSSL_ECH_PBUF_SIZE + 1);
+        SSL_ech_print(biom, &s->ssl, OSSL_ECH_SELECT_ALL);
+        BIO_read(biom, pstr, OSSL_ECH_PBUF_SIZE);
+        cbrv = s->ech_cb(&s->ssl, pstr);
         BIO_free(biom);
         if (cbrv != 1) {
             OSSL_TRACE_BEGIN(TLS) {
-                BIO_printf(trc_out,
-                    "Error from ech_cb in tls_construct_server_hello at %d\n",
-                    __LINE__);
+                BIO_printf(trc_out, "Error from ech_cb in "
+                           "tls_construct_server_hello at %d\n", __LINE__);
             } OSSL_TRACE_END(TLS);
             return 0;
         }
