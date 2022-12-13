@@ -26,6 +26,11 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
+- 20221213: HRR and early-data tests now back working. So back to
+  tidy-up, before heading down the path of making this code more
+  likely attractive to upstream devs (based on lessons learned from
+  our earlier HPKE PR).
+
 - 20221212: many changes to tidy up formatting according to OpenSSL
   project guidelines. That or related rebasing left us in a state
   where ECH server side was failing because of not getting the 
