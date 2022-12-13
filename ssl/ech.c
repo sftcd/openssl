@@ -3275,9 +3275,6 @@ int ech_reset_hs_buffer(SSL_CONNECTION *s, const unsigned char *buf,
     } OSSL_TRACE_END(TLS);
     ech_pbuf("Adding this to transcript", buf, blen);
 
-    if (buf == NULL || blen == 0) {
-        return 0;
-    }
     if (s->s3.handshake_buffer != NULL) {
         (void)BIO_set_close(s->s3.handshake_buffer, BIO_CLOSE);
         BIO_free(s->s3.handshake_buffer);
@@ -3289,7 +3286,10 @@ int ech_reset_hs_buffer(SSL_CONNECTION *s, const unsigned char *buf,
     if (s->s3.handshake_buffer == NULL) {
         return 0;
     }
-    BIO_write(s->s3.handshake_buffer, (void *)buf, (int)blen);
+    if (buf != NULL || blen > 0) {
+        /* providing nothing at all is a real use (mid-HRR) */
+        BIO_write(s->s3.handshake_buffer, (void *)buf, (int)blen);
+    }
     return 1;
 }
 

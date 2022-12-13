@@ -510,7 +510,11 @@ fi
 goodresult=`grep -c "ECH: success" $TMPF`
 echo "$0 Summary: "
 allresult=`grep "ECH: " $TMPF`
-sslerror=`grep ":error:" $TMPF`
+# check if we saw any OpenSSL Errors, except we ignore
+# any related to fopen that can happen if/when we ask
+# an openssl s_server, for a file it doesn't have or if
+# the server's running in the wrong mode
+sslerror=`grep ":error:" $TMPF | grep -v BIO_new_file`
 rm -f $TMPF
 if (( $goodresult > 0 ))
 then
