@@ -42,6 +42,8 @@ DOALPN="yes"
 PORT="443"
 # port from commeand line
 SUPPLIEDPORT=""
+# outer SNI to use
+SUPPLIEDOUTER=""
 # HTTPPATH="index.html"
 HTTPPATH=""
 
@@ -95,16 +97,17 @@ function usage()
 	echo "  -c [name] specifices a name that I'll send as an outer SNI (NONE is special)"
     echo "  -C [number] selects the n-th ECHConfig from input RR/PEM file (0 based)"
     echo "  -d means run s_client in verbose mode"
-    echo "  -e measns send HTTP request (in ./ed_file) as early_data"
+    echo "  -e means send HTTP request (in ./ed_file) as early_data"
     echo "  -f [pathname] specifies the file/pathname to request (default: '/')"
     echo "  -g means GREASE (only applied with -n)"
     echo "  -G means set GREASE suite to default rather than randomly pick"
     echo "  -h means print this"
-    echo "  -H means try connect to that hidden server"
+    echo "  -H [name] means try connect to that hidden server"
     echo "  -I means to ignore the server's chosen config_id and send random"
     echo "  -j just use 0x1301 ciphersuite"
     echo "  -n means don't trigger ech at all"
     echo "  -N means don't send specific inner/outer alpns"
+    echo "  -O [name} means to use that name as the outer SNI"
     echo "  -p [port] specifices a port (default: 443)"
 	echo "  -P [filename] means read ECHConfigs public value from file and not DNS"
     echo "  -r (or --realcert) says to not use locally generated fake CA regardless"
@@ -134,7 +137,7 @@ then
 fi
 
 # options may be followed by one colon to indicate they have a required argument
-if ! options=$($GETOPTDIR/getopt -s bash -o 46C:c:def:gGhH:IjnNp:P:rs:S:t:v -l four,six,choose:,clear_sni:,debug,early,filepath:,grease,greasesuite,help,hidden:,ignore_cid,just,noech,noalpn,port:,echpub:,realcert,server:,session:,gtype:,valgrind -- "$@")
+if ! options=$($GETOPTDIR/getopt -s bash -o 46C:c:def:gGhH:IjnNO:p:P:rs:S:t:v -l four,six,choose:,clear_sni:,debug,early,filepath:,grease,greasesuite,help,hidden:,ignore_cid,just,noech,noalpn,outer:,port:,echpub:,realcert,server:,session:,gtype:,valgrind -- "$@")
 then
     # something went wrong, getopt will put out an error message for us
     exit 1
@@ -159,6 +162,7 @@ do
         -j|--just) CIPHERSUITES=" -ciphersuites TLS_AES_128_GCM_SHA256 " ;;
         -n|--noech) NOECH="yes" ;;
         -N|--noalpn) DOALPN="no" ;;
+        -O|--outer) SUPPLIEDOUTER=$2; shift;;
         -p|--port) SUPPLIEDPORT=$2; shift;;
 		-P|--echpub) SUPPLIEDECH=$2; shift;;
         -r|--realcert) REALCERT="yes" ;;
@@ -382,6 +386,13 @@ else
     then
         echstr=" -noservername $ECH $ignore_str "
     fi
+fi
+
+if [[ "$SUPPLIEDOUTER" != "" ]]
+then
+    # add that parameter to echstr - not all cases will make
+    # sense but that's ok
+    echstr="$echstr -sni-outer $SUPPLIEDOUTER"
 fi
 
 if [[ "$DOECH" == "yes" && "$SUPPLIEDHIDDEN" == "" && "$HTTPPATH" == "" ]]
