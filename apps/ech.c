@@ -290,7 +290,7 @@ int ech_main(int argc, char **argv)
 
     if (mode == OSSL_ECH_SELPRINT_MODE) {
         int nechs = 0;
-        OSSL_ECH_DETS *ed = NULL;
+        OSSL_ECH_INFO *ed = NULL;
 
         if (inpemfile == NULL) {
             BIO_printf(bio_err, "no input PEM file supplied - exiting\n");
@@ -347,14 +347,14 @@ int ech_main(int argc, char **argv)
             BIO_printf(bio_err, "selecting config %d\n", pemselect);
         }
 
-        rv = SSL_ech_query(s, &ed, &nechs);
+        rv = SSL_ech_get_info(s, &ed, &nechs);
         if (rv != 1 || ed == NULL)
             goto end;
 
-        rv = OSSL_ECH_DETS_print(bio_err, ed, nechs);
+        rv = OSSL_ECH_INFO_print(bio_err, ed, nechs);
         if (rv != 1)
             goto end;
-        OSSL_ECH_DETS_free(ed, nechs);
+        OSSL_ECH_INFO_free(ed, nechs);
         SSL_free(s);
         SSL_CTX_free(con);
         return 1;

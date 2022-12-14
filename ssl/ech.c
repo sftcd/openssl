@@ -205,11 +205,11 @@ static int local_ech_add(int ekfmt, size_t eklen, unsigned char *ekval,
                          int *num_echs, SSL_ECH **echs);
 
 /**
- * @brief free an OSSL_ECH_DETS
+ * @brief free an OSSL_ECH_INFO
  * @param in the thing to free
  * @return void
  */
-static void local_OSSL_ECH_DETS_free(OSSL_ECH_DETS *in);
+static void local_OSSL_ECH_INFO_free(OSSL_ECH_INFO *in);
 
 /**
  * @brief produce a printable string form of an ECHConfigs
@@ -605,11 +605,11 @@ void SSL_ECH_free(SSL_ECH *tbf)
 }
 
 /**
- * @brief free an OSSL_ECH_DETS
+ * @brief free an OSSL_ECH_INFO
  * @param in the thing to free
  * @return void
  */
-static void local_OSSL_ECH_DETS_free(OSSL_ECH_DETS *in)
+static void local_OSSL_ECH_INFO_free(OSSL_ECH_INFO *in)
 {
     if (in == NULL)
         return;
@@ -622,19 +622,19 @@ static void local_OSSL_ECH_DETS_free(OSSL_ECH_DETS *in)
 }
 
 /**
- * @brief free up an arryay of OSSL_ECH_DETS
+ * @brief free up an arryay of OSSL_ECH_INFO
  *
  * @param in is the structure to free up
  * @param size says how many indices are in in
  */
-void OSSL_ECH_DETS_free(OSSL_ECH_DETS *in, int size)
+void OSSL_ECH_INFO_free(OSSL_ECH_INFO *in, int size)
 {
     int i = 0;
 
     if (in == NULL || size <= 0)
         return;
     for (i = 0; i != size; i++)
-        local_OSSL_ECH_DETS_free(&in[i]);
+        local_OSSL_ECH_INFO_free(&in[i]);
     OPENSSL_free(in);
     return;
 }
@@ -1481,8 +1481,8 @@ int SSL_CTX_ech_set1_echconfig(SSL_CTX *ctx, int *num_echs,
  * If the inner_name is NULL, then no SNI will be sent
  * in the inner CH.
  */
-int SSL_ech_server_name(SSL *ssl, const char *inner_name,
-                        const char *outer_name, int no_outer)
+int SSL_ech_set_server_names(SSL *ssl, const char *inner_name,
+                             const char *outer_name, int no_outer)
 {
     int nind = 0;
     SSL_CONNECTION *s = SSL_CONNECTION_FROM_SSL(ssl);
@@ -1644,9 +1644,9 @@ static char *alpn_print(unsigned char *alpn, size_t len)
  * @param out is the externally visible form of the SSL_ECH structure
  * @return 1 for success
  */
-int SSL_ech_query(SSL *ssl, OSSL_ECH_DETS **out, int *nindices)
+int SSL_ech_get_info(SSL *ssl, OSSL_ECH_INFO **out, int *nindices)
 {
-    OSSL_ECH_DETS *rdiff = NULL;
+    OSSL_ECH_INFO *rdiff = NULL;
     int i = 0;
     int indices = 0;
     SSL_CONNECTION *s = SSL_CONNECTION_FROM_SSL(ssl);
@@ -1659,11 +1659,11 @@ int SSL_ech_query(SSL *ssl, OSSL_ECH_DETS **out, int *nindices)
         *nindices = 0;
         return 1;
     }
-    rdiff = OPENSSL_zalloc(s->nechs * sizeof(OSSL_ECH_DETS));
+    rdiff = OPENSSL_zalloc(s->nechs * sizeof(OSSL_ECH_INFO));
     if (rdiff == NULL)
         goto err;
     for (i = 0; i != s->nechs; i++) {
-        OSSL_ECH_DETS *inst = &rdiff[i];
+        OSSL_ECH_INFO *inst = &rdiff[i];
 
         if (s->ech->inner_name != NULL) {
             inst->inner_name = OPENSSL_strdup(s->ech->inner_name);
@@ -1691,18 +1691,18 @@ int SSL_ech_query(SSL *ssl, OSSL_ECH_DETS **out, int *nindices)
     return 1;
 
 err:
-    OSSL_ECH_DETS_free(rdiff, indices);
+    OSSL_ECH_INFO_free(rdiff, indices);
     return 0;
 }
 
 /**
- * @brief utility fnc for application that wants to print an OSSL_ECH_DETS
+ * @brief utility fnc for application that wants to print an OSSL_ECH_INFO
  * @param out is the BIO to use (e.g. stdout/whatever)
- * @param se is a pointer to an OSSL_ECH_DETS struture
+ * @param se is a pointer to an OSSL_ECH_INFO struture
  * @param count is the number of elements in se
  * @return 1 for success, error othewise
  */
-int OSSL_ECH_DETS_print(BIO *out, OSSL_ECH_DETS *se, int count)
+int OSSL_ECH_INFO_print(BIO *out, OSSL_ECH_INFO *se, int count)
 {
     int i = 0;
 
@@ -1729,7 +1729,7 @@ int OSSL_ECH_DETS_print(BIO *out, OSSL_ECH_DETS *se, int count)
  * within an SSL_ECH for later use.
  *
  * @param ssl is an SSL structure with possibly multiple ECHConfigs
- * @param index is the index value from an OSSL_ECH_DETS produced from the 'in'
+ * @param index is the index value from an OSSL_ECH_INFO produced from the 'in'
  * @return 1 for success, error otherwise
  *
  * This allows the caller to select one of the ECHConfig values
@@ -5574,7 +5574,7 @@ int SSL_ech_set_outer_alpn_protos(SSL *ssl, const unsigned char *protos,
  * the application can access the ECHConfig returned via this
  * API.
  */
-int SSL_ech_get_returned(SSL *ssl, const unsigned char **ec, size_t *eclen)
+int SSL_ech_get_retry_config(SSL *ssl, const unsigned char **ec, size_t *eclen)
 {
     SSL_CONNECTION *s = SSL_CONNECTION_FROM_SSL(ssl);
 

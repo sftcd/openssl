@@ -88,14 +88,14 @@
  * Application-visible form of ECH information from the DNS, from config
  * files, or from earlier API calls. APIs produce/process an array of these.
  */
-typedef struct ossl_ech_dets_st {
+typedef struct ossl_ech_info_st {
     int index; /* externally re-usable reference to this value */
     char *public_name; /* public_name from API or ECHConfig */
     char *inner_name; /* server-name (for inner CH if doing ECH) */
     char *outer_alpns; /* outer ALPN string */
     char *inner_alpns; /* inner ALPN string */
     char *echconfig; /* a JSON-like version of the associated ECHConfig */
-} OSSL_ECH_DETS;
+} OSSL_ECH_INFO;
 
 /*
  * API calls based around SSL* values - basically for clients
@@ -153,8 +153,8 @@ int SSL_ech_set1_echconfig(SSL *s, int *num_echs,
  * the value 1, then no outer name will be sent, regardless of the
  * ECHConfig.public_name value.
  */
-int SSL_ech_server_name(SSL *s, const char *inner_name, const char *outer_name,
-                        int no_outer);
+int SSL_ech_set_server_names(SSL *s, const char *inner_name,
+                             const char *outer_name, int no_outer);
 
 /**
  * @brief Set the outer SNI
@@ -182,28 +182,28 @@ int SSL_ech_set_outer_alpn_protos(SSL *s, const unsigned char *protos,
                                   unsigned int protos_len);
 
 /**
- * @brief free up memory for an OSSL_ECH_DETS
+ * @brief free up memory for an OSSL_ECH_INFO
  *
- * @param dets is the structure to free up
- * @param count says how many indices are in dets
+ * @param info is the structure to free up
+ * @param count says how many indices are in info
  */
-void OSSL_ECH_DETS_free(OSSL_ECH_DETS *dets, int count);
+void OSSL_ECH_INFO_free(OSSL_ECH_INFO *info, int count);
 
 /**
- * @brief utility fnc for application that wants to print an OSSL_ECH_DETS
+ * @brief utility fnc for application that wants to print an OSSL_ECH_INFO
  *
  * @param out is the BIO to use (e.g. stdout/whatever)
- * @param dets is a pointer to an OSSL_ECH_DETS struture
- * @param count is the number of elements in dets
+ * @param info is a pointer to an OSSL_ECH_INFO struture
+ * @param count is the number of elements in info
  * @return 1 for success, error othewise
  */
-int OSSL_ECH_DETS_print(BIO *out, OSSL_ECH_DETS *dets, int count);
+int OSSL_ECH_INFO_print(BIO *out, OSSL_ECH_INFO *info, int count);
 
 /**
  * @brief query the content of an SSL_ECH structure
  * @param s is the SSL session
- * @param dets returned array of visible form of the ECH details
- * @param count says how many indices are in the OSSL_ECH_DETS structure
+ * @param info returned array of visible form of the ECH details
+ * @param count says how many indices are in the OSSL_ECH_INFO structure
  * @return 1 for success, error otherwise
  *
  * This function allows the application to examine some internals of an SSL_ECH
@@ -212,12 +212,12 @@ int OSSL_ECH_DETS_print(BIO *out, OSSL_ECH_DETS *dets, int count);
  * ECHConfig value (after decoding and initial checking within the library),
  * which allows the application to choose which it would prefer to use.
  */
-int SSL_ech_query(SSL *s, OSSL_ECH_DETS **dets, int *count);
+int SSL_ech_get_info(SSL *s, OSSL_ECH_INFO **info, int *count);
 
 /**
  * @brief down-select to choose a specific ECHConfig
  * @param s is an SSL structure with possibly multiple SSL_ECH values
- * @param index is the index value from an OSSL_ECH_DETS
+ * @param index is the index value from an OSSL_ECH_INFO
  * @return 1 for success, error otherwise
  *
  * This allows the caller to select one of the loaded ECHConfig values
@@ -280,7 +280,7 @@ typedef unsigned int (*SSL_ech_cb_func)(SSL *s, char *str);
 void SSL_ech_set_callback(SSL *s, SSL_ech_cb_func f);
 
 /**
- * @brief provide access to a returned ECHConfig value
+ * @brief provide access to a returned retry ECHConfig value
  * @param s is the SSL connection
  * @param ec is a pointer to the ECHConfig
  * @param eclen is a pointer to the length of the ECHConfig (zero if none)
@@ -290,7 +290,7 @@ void SSL_ech_set_callback(SSL *s, SSL_ech_cb_func f);
  * return, the application can access the ECHConfig returned via this
  * API.
  */
-int SSL_ech_get_returned(SSL *s, const unsigned char **ec, size_t *eclen);
+int SSL_ech_get_retry_config(SSL *s, const unsigned char **ec, size_t *eclen);
 
 /*
  * API calls based around SSL_CTX* values - basically for servers
