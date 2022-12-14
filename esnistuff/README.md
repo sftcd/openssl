@@ -26,6 +26,11 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
+- 20221213: renamed the ``_ech_add()`` APIs to be more aligned with
+  project patterns, e.g. ``SSL_ech_add()`` -> ``SSL_ech_set1_echconfig()``
+  Note that this breaks integrations with applications e.g. nginx etc.
+  but we'll get back to fix those in a short-ish while.
+
 - 20221213: HRR and early-data tests now back working. So back to
   tidy-up, before heading down the path of making this code more
   likely attractive to upstream devs (based on lessons learned from

@@ -614,9 +614,6 @@ SSL_CTX_ech_server_enable_buffer        ?	3_1_0	EXIST::FUNCTION:ECH
 SSL_ech_get_returned                    ?	3_1_0	EXIST::FUNCTION:ECH
 SSL_ech_set_grease_type                 ?	3_1_0	EXIST::FUNCTION:ECH
 SSL_ech_set_outer_alpn_protos           ?	3_2_0	EXIST::FUNCTION:ECH
-SSL_svcb_add                            ?	3_2_0	EXIST::FUNCTION:ECH
-SSL_ech_add                             ?	3_2_0	EXIST::FUNCTION:ECH
-SSL_CTX_ech_add                         ?	3_2_0	EXIST::FUNCTION:ECH
 SSL_ech_server_name                     ?	3_2_0	EXIST::FUNCTION:ECH
 SSL_ech_set_outer_server_name           ?	3_2_0	EXIST::FUNCTION:ECH
 SSL_ech_query                           ?	3_2_0	EXIST::FUNCTION:ECH
@@ -627,14 +624,15 @@ SSL_CTX_ech_server_enable               ?	3_2_0	EXIST::FUNCTION:ECH
 SSL_ech_get_status                      ?	3_2_0	EXIST::FUNCTION:ECH
 SSL_ech_set_callback                    ?	3_2_0	EXIST::FUNCTION:ECH
 SSL_CTX_ech_set_callback                ?	3_2_0	EXIST::FUNCTION:ECH
-SSL_CTX_ech_set_outer_alpn_protos       ?	3_2_0	EXIST::FUNCTION:ECH
 SSL_ech_set_grease_suite                ?	3_2_0	EXIST::FUNCTION:ECH
 SSL_CTX_ech_readpemdir                  ?	3_2_0	EXIST::FUNCTION:ECH
 SSL_CTX_ech_raw_decrypt                 ?	3_2_0	EXIST::FUNCTION:ECH
-SSL_CTX_ech_set_outer_server_name       ?	3_2_0	EXIST::FUNCTION:ECH
 SSL_CTX_ech_server_enable_buffer        ?	3_2_0	EXIST::FUNCTION:ECH
 SSL_ech_get_returned                    ?	3_2_0	EXIST::FUNCTION:ECH
 SSL_ech_set_grease_type                 ?	3_2_0	EXIST::FUNCTION:ECH
 ossl_ech_make_echconfig                 ?	3_2_0	EXIST::FUNCTION:ECH
 OSSL_ECH_DETS_free                      ?	3_2_0	EXIST::FUNCTION:ECH
 OSSL_ECH_DETS_print                     ?	3_2_0	EXIST::FUNCTION:ECH
+SSL_ech_set1_svcb                       ?	3_2_0	EXIST::FUNCTION:ECH
+SSL_ech_set1_echconfig                  ?	3_2_0	EXIST::FUNCTION:ECH
+SSL_CTX_ech_set1_echconfig              ?	3_2_0	EXIST::FUNCTION:ECH
