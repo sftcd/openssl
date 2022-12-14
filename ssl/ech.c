@@ -1768,7 +1768,7 @@ int SSL_ech_reduce(SSL *ssl, int index)
  * @param numkeys returns the number currently loaded
  * @return 1 for success, other otherwise
  */
-int SSL_CTX_ech_server_key_status(SSL_CTX *s, int *numkeys)
+int SSL_CTX_ech_server_get_key_status(SSL_CTX *s, int *numkeys)
 {
     if (s == NULL || numkeys == NULL)
         return 0;
@@ -1843,7 +1843,7 @@ int SSL_CTX_ech_server_flush_keys(SSL_CTX *ctx, time_t age)
  * file modification time isn't newer than the load time, then we'll do
  * nothing.
  */
-int SSL_CTX_ech_server_enable(SSL_CTX *ctx, const char *pemfile)
+int SSL_CTX_ech_server_enable_file(SSL_CTX *ctx, const char *pemfile)
 {
     int index = -1;
     int fnamestat = 0;
@@ -1865,7 +1865,7 @@ int SSL_CTX_ech_server_enable(SSL_CTX *ctx, const char *pemfile)
         /* nothing to do, but trace this and let caller handle it */
         OSSL_TRACE_BEGIN(TLS) {
             BIO_printf(trc_out, "Returning OSSL_ECH_FILEMISSING from "
-                       "SSL_CTX_ech_server_enable for %s\n", pemfile);
+                       "SSL_CTX_ech_server_enable_file for %s\n", pemfile);
             BIO_printf(trc_out, "That's unexpected and likely indicates a "
                        "problem, but the application might be able to "
                        "continue\n");
@@ -5291,8 +5291,8 @@ int SSL_ech_set_grease_type(SSL *ssl, uint16_t type)
  * @param echdir is the directory name
  * @return 1 for success, other otherwise
  */
-int SSL_CTX_ech_readpemdir(SSL_CTX *ctx, int *number_loaded,
-                           const char *echdir)
+int SSL_CTX_ech_server_enable_dir(SSL_CTX *ctx, int *number_loaded,
+                                  const char *echdir)
 {
     OPENSSL_DIR_CTX *d = NULL;
     const char *filename;
@@ -5343,7 +5343,7 @@ int SSL_CTX_ech_readpemdir(SSL_CTX *ctx, int *number_loaded,
             continue;
         }
         if (stat(echname, &thestat) == 0) {
-            if (SSL_CTX_ech_server_enable(ctx, echname) == 1) {
+            if (SSL_CTX_ech_server_enable_file(ctx, echname) == 1) {
                 *number_loaded = *number_loaded + 1;
             } else {
                 OSSL_TRACE_BEGIN(TLS) {
