@@ -2362,32 +2362,33 @@ int s_client_main(int argc, char **argv)
 #ifndef OPENSSL_NO_ECH
         {
 	        /* print the names in the session and from command line */
-	        const char *thisname=NULL;
-	        if (ech_inner_name!=NULL) {
-	            thisname=ech_inner_name;
-	            BIO_printf(bio_err,
-                    "ech_inner_name is set to %s\n",ech_inner_name);
-	        } else if (sni_outer_name!=NULL &&
-                       strncmp(sni_outer_name,
-                           OSSL_ECH_NAME_NONE,strlen(OSSL_ECH_NAME_NONE))) {
-	            BIO_printf(bio_err,
-                    "ech_inner_name is NULL, using outer %s\n",sni_outer_name);
-	            thisname=sni_outer_name;
+	        const char *thisname = NULL;
+
+	        if (ech_inner_name != NULL) {
+	            thisname = ech_inner_name;
+	            BIO_printf(bio_err, "ech_inner_name is set to %s\n",
+                           ech_inner_name);
+	        } else if (sni_outer_name != NULL
+                       && strncmp(sni_outer_name, OSSL_ECH_NAME_NONE,
+                                  strlen(OSSL_ECH_NAME_NONE))) {
+	            BIO_printf(bio_err, "ech_inner_name is NULL, using outer %s\n",
+                           sni_outer_name);
+	            thisname = sni_outer_name;
 	        }
-	        if (sni_outer_name==NULL) {
+	        if (sni_outer_name == NULL) {
 	            BIO_printf(bio_err, "sni_outer_name is NULL\n");
 	        } else {
-	            BIO_printf(bio_err,
-                    "sni_outer_name is set to %s\n",sni_outer_name);
+	            BIO_printf(bio_err, "sni_outer_name is set to %s\n",
+                           sni_outer_name);
 	        }
-	        if (thisname!=NULL) {
+	        if (thisname != NULL) {
 	            /* check matching of name and session */
-	            const char *hn=SSL_SESSION_get0_hostname(sess);
-	            if (hn!=NULL) {
+	            const char *hn = SSL_SESSION_get0_hostname(sess);
+
+	            if (hn != NULL)
 	                BIO_printf(bio_err, "Stored session hostname is %s\n",hn);
-	            } else {
+	            else
 	                BIO_printf(bio_err, "Stored session hostname is missing\n");
-	            }
 	        }
         }
 #endif
@@ -2411,21 +2412,25 @@ int s_client_main(int argc, char **argv)
     }
 
 #ifndef OPENSSL_NO_ECH
-    if (ech_encoded_configs!=NULL) {
-        int rv=SSL_ech_set1_echconfig(con, &nechs, OSSL_ECH_FMT_GUESS,
-                                      ech_encoded_configs, strlen(ech_encoded_configs));
+    if (ech_encoded_configs != NULL) {
+        int rv;
+
+        rv=SSL_ech_set1_echconfig(con, &nechs, OSSL_ECH_FMT_GUESS,
+                                  ech_encoded_configs,
+                                  strlen(ech_encoded_configs));
         if (rv != 1) {
             BIO_printf(bio_err, "%s: ECHConfig decode failed.\n", prog);
             goto opthelp;
         }
-        if (nechs==0) {
+        if (nechs == 0) {
             /* We'll note that we didn't get ECH keys but continue */
-            BIO_printf(bio_err, "%s: ECHConfig decode provided no keys.\n", prog);
+            BIO_printf(bio_err, "%s: ECHConfig decode provided no keys.\n",
+                       prog);
         }
     }
 
-    if (ech_svcb_rr!=NULL) {
-        int lnechs=0;
+    if (ech_svcb_rr != NULL) {
+        int lnechs = 0;
         int rv;
 
         rv = SSL_ech_set1_svcb(con, &lnechs, OSSL_ECH_FMT_GUESS,
@@ -2434,45 +2439,50 @@ int s_client_main(int argc, char **argv)
             BIO_printf(bio_err, "%s: SVCB decode failed.\n", prog);
             goto opthelp;
         }
-        if (lnechs==0) {
+        if (lnechs == 0) {
             /* We'll note that we didn't get ECH keys but continue */
             BIO_printf(bio_err, "%s: SVCB decode provided no keys.\n", prog);
         }
-        nechs+=lnechs;
+        nechs += lnechs;
     }
 
-    if (( ech_encoded_configs!=NULL || ech_svcb_rr != NULL) && nechs==0) {
+    if ((ech_encoded_configs != NULL || ech_svcb_rr != NULL) && nechs == 0) {
         /* neither avenue got us keys, so that's an error now */
         BIO_printf(bio_err, "%s: no ECH decode provided no keys.\n", prog);
         goto opthelp;
     }
 
-    if ((ech_encoded_configs!=NULL || ech_svcb_rr != NULL)
-        && sni_outer_name!=NULL) {
-        int rv=0;
+    if ((ech_encoded_configs != NULL || ech_svcb_rr != NULL)
+        && sni_outer_name != NULL) {
+        int rv = 0;
 
-        if (!strncmp(sni_outer_name, OSSL_ECH_NAME_NONE, strlen(OSSL_ECH_NAME_NONE)))
+        if (!strncmp(sni_outer_name, OSSL_ECH_NAME_NONE,
+                     strlen(OSSL_ECH_NAME_NONE)))
             rv = SSL_ech_set_outer_server_name(con, NULL, 1);
         else
             rv = SSL_ech_set_outer_server_name(con, sni_outer_name, 0);
         if (rv != 1) {
-            BIO_printf(bio_err, "%s: enabling ECH outer name failed.\n", prog);
+            BIO_printf(bio_err, "%s: setting ECH outer name failed.\n", prog);
             ERR_print_errors(bio_err);
             goto end;
         }
     }
+    if ((ech_encoded_configs != NULL || ech_svcb_rr != NULL)
+        && ech_inner_name != NULL) {
+        const char *inner_to_use = NULL;
 
-    if (( ech_encoded_configs!=NULL || ech_svcb_rr != NULL) &&
-            ech_inner_name!=NULL) {
-        const char *inner_to_use=NULL;
-        if (ech_inner_name!=NULL &&
-                strncmp(ech_inner_name,OSSL_ECH_NAME_NONE,strlen(OSSL_ECH_NAME_NONE))) {
-            inner_to_use=sni_outer_name;
+        if (ech_inner_name != NULL
+            && strncmp(ech_inner_name,OSSL_ECH_NAME_NONE,
+                       strlen(OSSL_ECH_NAME_NONE))) {
+            // TODO: this was:
+            // inner_to_use = sni_outer_name;
+            // but that can't be right?
+            inner_to_use = ech_inner_name;
         }
         /* Set any non-NULL name to be verified */
-        if (inner_to_use) {
-            if (!X509_VERIFY_PARAM_set1_host(
-                        vpm,ech_inner_name,strlen(ech_inner_name))
+        if (inner_to_use != NULL) {
+            if (!X509_VERIFY_PARAM_set1_host(vpm, ech_inner_name,
+                                             strlen(ech_inner_name))
                 || !SSL_CTX_set1_param(ctx, vpm)) {
                 BIO_printf(bio_err, "Error setting verify params\n");
                 ERR_print_errors(bio_err);
@@ -2483,7 +2493,7 @@ int s_client_main(int argc, char **argv)
 
     if (ech_select!=OSSL_ECH_SELECT_ALL) {
         int rv=0;
-        OSSL_ECH_DETS *ed=NULL;
+        OSSL_ECH_INFO *ed=NULL;
         /* down select */
         if (ech_select<0 || ech_select >= nechs) {
             BIO_printf(bio_err, "%s: downselect tp ECH (%d) failed " \
@@ -2497,12 +2507,12 @@ int s_client_main(int argc, char **argv)
             BIO_printf(bio_err,"Error down-selecting to %d\n",ech_select);
             goto end;
         }
-        rv=SSL_ech_query(con, &ed, &nechs);
+        rv=SSL_ech_get_info(con, &ed, &nechs);
         if (rv!=1) goto end;
         if (!ed) goto end;
-        rv=OSSL_ECH_DETS_print(bio_err, ed, nechs);
+        rv=OSSL_ECH_INFO_print(bio_err, ed, nechs);
         if (rv!=1) goto end;
-        OSSL_ECH_DETS_free(ed, nechs);
+        OSSL_ECH_INFO_free(ed, nechs);
     }
 
 #endif
@@ -3998,7 +4008,7 @@ static void print_stuff(BIO *bio, SSL *s, int full)
                 break;
             case SSL_ECH_STATUS_FAILED_ECH:
                 BIO_printf(bio,"ECH: tried, failed and got ECH in return\n");
-                if (!SSL_ech_get_returned(s, &ec, &eclen)) {
+                if (!SSL_ech_get_retry_config(s, &ec, &eclen)) {
                     BIO_printf(bio,"Failure getting ECH returned\n");
                 } else {
                     size_t eind=0;
@@ -4019,7 +4029,7 @@ static void print_stuff(BIO *bio, SSL *s, int full)
                 break;
             case SSL_ECH_STATUS_GREASE_ECH:
                 BIO_printf(bio,"ECH: only greasing, and got ECH in return\n");
-                if (!SSL_ech_get_returned(s, &ec, &eclen)) {
+                if (!SSL_ech_get_retry_config(s, &ec, &eclen)) {
                     BIO_printf(bio,"Failure getting ECH returned\n");
                 } else {
                     size_t eind=0;

@@ -86,7 +86,7 @@ static int basic_echconfig_gen(void)
     SSL_CTX *ctx  = NULL;
     SSL *ssl = NULL;
     int num_echs = 0;
-    OSSL_ECH_DETS *details = NULL;
+    OSSL_ECH_INFO *details = NULL;
     int num_dets = 0;
 
     res=ossl_ech_make_echconfig(echconfig, &echconfig_len, priv, &privlen,
@@ -108,22 +108,22 @@ static int basic_echconfig_gen(void)
                                  (char *)echconfig, echconfig_len);
     if (!TEST_int_eq(res,1))
         return 0;
-    res = SSL_ech_query(ssl, &details, &num_dets);
+    res = SSL_ech_get_info(ssl, &details, &num_dets);
     if (!TEST_int_eq(res,1))
         return 0;
     /* we should have two sets of details */
     if (!TEST_int_eq(num_dets,2))
         return 0;
     if (verbose) {
-        res = OSSL_ECH_DETS_print(bio_stdout, details, num_dets);
+        res = OSSL_ECH_INFO_print(bio_stdout, details, num_dets);
         if (!TEST_int_eq(res,1))
             return 0;
     } else {
-        res = OSSL_ECH_DETS_print(bio_null, details, num_dets);
+        res = OSSL_ECH_INFO_print(bio_null, details, num_dets);
         if (!TEST_int_eq(res,1))
             return 0;
     }
-    OSSL_ECH_DETS_free(details, num_dets);
+    OSSL_ECH_INFO_free(details, num_dets);
     SSL_free(ssl);
     SSL_CTX_free(ctx);
     return 1;
