@@ -883,7 +883,7 @@ static int new_session_cb(SSL *s, SSL_SESSION *sess)
 	    if (c_debug)
 	        BIO_printf(bio_c_out,"new_session_cb called ech flavour\n");
 	    hn_1 = SSL_SESSION_get0_hostname(sess);
-	    if (hn_1 == NULL && c_debug) 
+	    if (hn_1 == NULL && c_debug)
 	        BIO_printf(bio_c_out,"Existing session hostname is NULL\n");
 	    else if (c_debug)
 	        BIO_printf(bio_c_out,"Existing session hostname is %s\n",hn_1);
@@ -2197,43 +2197,6 @@ int s_client_main(int argc, char **argv)
         OPENSSL_free(alpn);
     }
 
-#ifndef OPENSSL_NO_ECH
-    if (alpn_outer_in != NULL) {
-        size_t alpn_outer_len;
-        unsigned char *alpn_outer = NULL;
-
-        alpn_outer = next_protos_parse(&alpn_outer_len, alpn_outer_in);
-        if (alpn_outer == NULL) {
-            BIO_printf(bio_err, "Error parsing -alpn_outer argument\n");
-            goto end;
-        }
-        if (SSL_CTX_ech_set_outer_alpn_protos(ctx, alpn_outer,
-                                              alpn_outer_len) != 1) {
-            BIO_printf(bio_err, "Error setting ALPN-OUTER\n");
-            goto end;
-        }
-        OPENSSL_free(alpn_outer);
-    }
-#endif
-
-#ifndef OPENSSL_NO_ECH
-    if (alpn_outer_in) {
-        size_t alpn_outer_len;
-        unsigned char *alpn_outer =
-            next_protos_parse(&alpn_outer_len, alpn_outer_in);
-        if (alpn_outer == NULL) {
-            BIO_printf(bio_err, "Error parsing -alpn_outer argument\n");
-            goto end;
-        }
-        if (SSL_CTX_ech_set_outer_alpn_protos(ctx, alpn_outer,
-                                              alpn_outer_len) != 1) {
-            BIO_printf(bio_err, "Error setting ALPN-OUTER\n");
-            goto end;
-        }
-        OPENSSL_free(alpn_outer);
-    }
-#endif
-
     for (i = 0; i < serverinfo_count; i++) {
         if (!SSL_CTX_add_client_custom_ext(ctx,
                                            serverinfo_types[i],
@@ -2353,6 +2316,22 @@ int s_client_main(int argc, char **argv)
             goto end;
         }
     }
+    if (alpn_outer_in != NULL) {
+        size_t alpn_outer_len;
+        unsigned char *alpn_outer = NULL;
+
+        alpn_outer = next_protos_parse(&alpn_outer_len, alpn_outer_in);
+        if (alpn_outer == NULL) {
+            BIO_printf(bio_err, "Error parsing -alpn_outer argument\n");
+            goto end;
+        }
+        if (SSL_ech_set_outer_alpn_protos(con, alpn_outer,
+                                          alpn_outer_len) != 1) {
+            BIO_printf(bio_err, "Error setting ALPN-OUTER\n");
+            goto end;
+        }
+        OPENSSL_free(alpn_outer);
+    }
 #endif
 
     if (sess_in != NULL) {
@@ -2433,8 +2412,8 @@ int s_client_main(int argc, char **argv)
 
 #ifndef OPENSSL_NO_ECH
     if (ech_encoded_configs!=NULL) {
-        int rv=SSL_ech_add(con, &nechs, OSSL_ECH_FMT_GUESS,
-                           ech_encoded_configs, strlen(ech_encoded_configs));
+        int rv=SSL_ech_set1_echconfig(con, &nechs, OSSL_ECH_FMT_GUESS,
+                                      ech_encoded_configs, strlen(ech_encoded_configs));
         if (rv != 1) {
             BIO_printf(bio_err, "%s: ECHConfig decode failed.\n", prog);
             goto opthelp;
@@ -2447,8 +2426,10 @@ int s_client_main(int argc, char **argv)
 
     if (ech_svcb_rr!=NULL) {
         int lnechs=0;
-        int rv=SSL_svcb_add(con, &lnechs, OSSL_ECH_FMT_GUESS,
-                            ech_svcb_rr, strlen(ech_svcb_rr));
+        int rv;
+
+        rv = SSL_ech_set1_svcb(con, &lnechs, OSSL_ECH_FMT_GUESS,
+                               ech_svcb_rr, strlen(ech_svcb_rr));
         if (rv != 1) {
             BIO_printf(bio_err, "%s: SVCB decode failed.\n", prog);
             goto opthelp;
@@ -2472,7 +2453,7 @@ int s_client_main(int argc, char **argv)
 
         if (!strncmp(sni_outer_name, OSSL_ECH_NAME_NONE, strlen(OSSL_ECH_NAME_NONE)))
             rv = SSL_ech_set_outer_server_name(con, NULL, 1);
-        else  
+        else
             rv = SSL_ech_set_outer_server_name(con, sni_outer_name, 0);
         if (rv != 1) {
             BIO_printf(bio_err, "%s: enabling ECH outer name failed.\n", prog);

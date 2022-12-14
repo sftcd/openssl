@@ -2173,9 +2173,8 @@ static int execute_test_session(int maxprot, int use_int_cache,
             OPENSSL_free(echconfiglist);
             return 0;
         }
-        if (SSL_CTX_ech_add(cctx, OSSL_ECH_FMT_GUESS, 
-               echconfig_len, echconfiglist,
-               &echcount)!=1) {
+        if (SSL_CTX_ech_set1_echconfig(cctx, &echcount, OSSL_ECH_FMT_GUESS, 
+               echconfig_len, echconfiglist)!=1) {
             OPENSSL_free(echkeyfile);
             OPENSSL_free(echconfiglist);
             return 0;

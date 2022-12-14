@@ -1398,8 +1398,8 @@ static int local_decode_rdata_name(unsigned char **buf, size_t *remaining,
  * @param eklen is the length of the ekval
  * @return is 1 for success, error otherwise
  */
-int SSL_ech_add(SSL *s, int *num_echs,
-                int ekfmt, char *ekval, size_t eklen)
+int SSL_ech_set1_echconfig(SSL *s, int *num_echs,
+                           int ekfmt, char *ekval, size_t eklen)
 {
     SSL_ECH *echs = NULL;
     SSL_CONNECTION *con = SSL_CONNECTION_FROM_SSL(s);
@@ -1434,9 +1434,10 @@ int SSL_ech_add(SSL *s, int *num_echs,
 /**
  * @brief Decode/store ECHConfigs (binary, base64 or ascii-hex encoded)
  * @param ctx is the parent SSL_CTX
+ * @param num_echs says how many SSL_ECH structures are in the returned array
+ * @param ekfmt is the provided format or OSSL_ECH_FMT_GUESS
  * @param eklen is the length of the ekval
  * @param ekval is the binary, base64 or ascii-hex encoded ECHConfigs
- * @param num_echs says how many SSL_ECH structures are in the returned array
  * @return is 1 for success, error otherwise
  *
  * ekval may be the catenation of multiple encoded ECHConfigs.
@@ -1444,8 +1445,8 @@ int SSL_ech_add(SSL *s, int *num_echs,
  * use whichever is relevant/best. The fmt parameter can be
  * e.g. OSSL_ECH_FMT_ASCII_HEX, or OSSL_ECH_FMT_GUESS
  */
-int SSL_CTX_ech_add(SSL_CTX *ctx, int ekfmt, size_t eklen, char *ekval,
-                    int *num_echs)
+int SSL_CTX_ech_set1_echconfig(SSL_CTX *ctx, int *num_echs,
+                               int ekfmt, size_t eklen, char *ekval)
 {
     SSL_ECH *echs = NULL;
     int rv = 1;
@@ -2503,7 +2504,7 @@ err:
  *
  * In the case of decoding error, any existing ECHConfigs are unaffected.
  */
-int SSL_svcb_add(SSL *ssl, int *num_echs, int rrfmt, char *rrval, size_t rrlen)
+int SSL_ech_set1_svcb(SSL *ssl, int *num_echs, int rrfmt, char *rrval, size_t rrlen)
 {
     SSL_ECH *new_echs = NULL;
     int num_new = 0;
