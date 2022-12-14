@@ -175,9 +175,11 @@ static int test_ech_add(int idx)
 
     /* Generate fresh context pair for each test with TLSv1.3 as a minimum */
     if (!TEST_true(create_ssl_ctx_pair(libctx, TLS_server_method(),
-                                       TLS_client_method(), TLS1_3_VERSION, 0,
+                                       TLS_client_method(),
+                                       TLS1_3_VERSION, 0,
                                        &sctx2, &cctx, cert, privkey))) {
-       TEST_info("test_ech_add: context creation failed for iteration %d", idx);
+       TEST_info("test_ech_add: context creation failed for iteration %d",
+                 idx);
        goto end;
     }
     if (!TEST_ptr(clientssl = SSL_new(cctx))) {

@@ -1560,6 +1560,8 @@ int SSL_ech_set_outer_server_name(SSL *ssl, const char *outer_name,
     return 1;
 }
 
+#if 0
+/* Not sure this is needed any more, but keep for now in case */
 /**
  * @brief Set the outer SNI
  * @param s is the SSL_CTX
@@ -1596,6 +1598,7 @@ int SSL_CTX_ech_set_outer_server_name(SSL_CTX *s, const char *outer_name,
     }
     return 1;
 }
+#endif
 
 /**
  * @brief return a printable form of alpn
@@ -5512,6 +5515,8 @@ err:
     return 0;
 }
 
+#if 0
+/* Not sure this is needed any more, but keep for now in case */
 /**
  * @brief set the ALPN values for the outer ClientHello
  * @param s is the SSL_CTX
@@ -5535,6 +5540,7 @@ int SSL_CTX_ech_set_outer_alpn_protos(SSL_CTX *ctx, const unsigned char *protos,
     ctx->ext.alpn_outer_len = protos_len;
     return 1;
 }
+#endif
 
 /**
  * @brief set the ALPN values for the outer ClientHello
