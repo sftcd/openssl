@@ -314,12 +314,12 @@ int SSL_CTX_ech_set1_echconfig(SSL_CTX *ctx, int *num_echs,
                                int ekfmt, size_t eklen, char *ekval);
 
 /**
- * @brief report on the number of ECHConfig values currently loaded
+ * @brief report on the number of ECHConfig keys currently loaded
  * @param ctx is the SSL server context
  * @param numkeys returns the number currently loaded
  * @return 1 for success, other otherwise
  */
-int SSL_CTX_ech_server_key_status(SSL_CTX *ctx, int *numkeys);
+int SSL_CTX_ech_server_get_key_status(SSL_CTX *ctx, int *numkeys);
 
 /**
  * @brief remove some or all stored ECH Keys to allow clean re-loads
@@ -344,7 +344,7 @@ int SSL_CTX_ech_server_flush_keys(SSL_CTX *ctx, time_t age);
  * that allows the server to continue anyway if an earlier call had
  * loaded a key pair.
  */
-int SSL_CTX_ech_server_enable(SSL_CTX *ctx, const char *echcfgfile);
+int SSL_CTX_ech_server_enable_file(SSL_CTX *ctx, const char *echcfgfile);
 
 /**
  * @brief Turn on ECH server-side, with input a buffer rather than file
@@ -366,7 +366,8 @@ int SSL_CTX_ech_server_enable_buffer(SSL_CTX *ctx, const unsigned char *buf,
  * @param echdir is the directory name
  * @return 1 for success, other otherwise
  */
-int SSL_CTX_ech_readpemdir(SSL_CTX *ctx, int *loaded, const char *echdir);
+int SSL_CTX_ech_server_enable_dir(SSL_CTX *ctx, int *loaded,
+                                  const char *echdir);
 
 /**
  * @brief provide a way to do raw ECH decryption for split-mode frontends

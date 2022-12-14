@@ -2439,7 +2439,7 @@ int s_server_main(int argc, char *argv[])
         /*
          * Normal case - give the filename to libary
          */
-        if (SSL_CTX_ech_server_enable(ctx,echkeyfile)!=1) {
+        if (SSL_CTX_ech_server_enable_file(ctx,echkeyfile)!=1) {
             BIO_printf(bio_err,"Failed to add ECHConfig/Key from: %s\n",
                     echkeyfile);
             goto end;
@@ -2497,7 +2497,7 @@ int s_server_main(int argc, char *argv[])
             BIO_printf(bio_err, "'%s' not a directory - exiting \r\n", echdir);
             goto end;
         }
-        erc=SSL_CTX_ech_readpemdir(ctx, &nloaded, echdir);
+        erc=SSL_CTX_ech_server_enable_dir(ctx, &nloaded, echdir);
         if (erc!=1) {
             BIO_printf(bio_err, "Failure reading ECH keys from %s\n",echdir);
             goto end;
