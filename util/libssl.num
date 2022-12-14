@@ -610,14 +610,11 @@ SSL_ech_set_grease_type                 ?	3_1_0	EXIST::FUNCTION:ECH
 SSL_ech_set_outer_alpn_protos           ?	3_2_0	EXIST::FUNCTION:ECH
 SSL_ech_set_outer_server_name           ?	3_2_0	EXIST::FUNCTION:ECH
 SSL_ech_reduce                          ?	3_2_0	EXIST::FUNCTION:ECH
-SSL_CTX_ech_server_key_status           ?	3_2_0	EXIST::FUNCTION:ECH
 SSL_CTX_ech_server_flush_keys           ?	3_2_0	EXIST::FUNCTION:ECH
-SSL_CTX_ech_server_enable               ?	3_2_0	EXIST::FUNCTION:ECH
 SSL_ech_get_status                      ?	3_2_0	EXIST::FUNCTION:ECH
 SSL_ech_set_callback                    ?	3_2_0	EXIST::FUNCTION:ECH
 SSL_CTX_ech_set_callback                ?	3_2_0	EXIST::FUNCTION:ECH
 SSL_ech_set_grease_suite                ?	3_2_0	EXIST::FUNCTION:ECH
-SSL_CTX_ech_readpemdir                  ?	3_2_0	EXIST::FUNCTION:ECH
 SSL_CTX_ech_raw_decrypt                 ?	3_2_0	EXIST::FUNCTION:ECH
 SSL_CTX_ech_server_enable_buffer        ?	3_2_0	EXIST::FUNCTION:ECH
 SSL_ech_set_grease_type                 ?	3_2_0	EXIST::FUNCTION:ECH
@@ -635,3 +632,6 @@ OSSL_ECH_INFO_free                      ?	3_2_0	EXIST::FUNCTION:ECH
 OSSL_ECH_INFO_print                     ?	3_2_0	EXIST::FUNCTION:ECH
 SSL_ech_get_info                        ?	3_2_0	EXIST::FUNCTION:ECH
 SSL_ech_get_retry_config                ?	3_2_0	EXIST::FUNCTION:ECH
+SSL_CTX_ech_server_get_key_status       ?	3_2_0	EXIST::FUNCTION:ECH
+SSL_CTX_ech_server_enable_file          ?	3_2_0	EXIST::FUNCTION:ECH
+SSL_CTX_ech_server_enable_dir           ?	3_2_0	EXIST::FUNCTION:ECH
