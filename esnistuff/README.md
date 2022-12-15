@@ -26,9 +26,11 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
-- 20221214: fixed a leak in ``test/ech_test`` that causes our
+- 20221215: fixed a leak in ``test/ech_test`` that causes our
   old friend double-free in echcli.sh yet again - check for
-  FIXME in ``ssl/ssl_lib.c`` - will come back to this asap
+  FIXME in ``ssl/ssl_lib.c`` - still an ickky workaround that
+  needs to go (probably when/if "shadow" ``SSL_CONNECTION`` on
+  client is ditched).
 
 - 20221214: renamed a bunch of APIs to be more aligned with
   project patterns, e.g. ``SSL_ech_add()`` -> ``SSL_ech_set1_echconfig()``
