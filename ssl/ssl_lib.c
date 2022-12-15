@@ -1480,7 +1480,7 @@ void ossl_ssl_connection_free(SSL *ssl)
         || s->ext.ech_grease == 1
         || (s->ext.ech_attempted == 1 && s->ext.inner_s==NULL 
             && s->ext.outer_s != NULL)
-        || (s->ext.outer_s == NULL && s->ext.inner_s == NULL)) {
+        || (s->ext.ech_attempted == 1 && s->ext.ech_done == 0)) {
         ssl_free_wbio_buffer(s);
         RECORD_LAYER_clear(&s->rlayer);
         BUF_MEM_free(s->init_buf);
