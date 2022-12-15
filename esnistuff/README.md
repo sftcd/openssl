@@ -26,6 +26,8 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
+- 20221215: started to re-do POD files for ECH stuff.
+
 - 20221215: fixed a leak in ``test/ech_test`` that causes our
   old friend double-free in echcli.sh yet again - check for
   FIXME in ``ssl/ssl_lib.c`` - still an ickky workaround that
