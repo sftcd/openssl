@@ -42,7 +42,7 @@ ossl_ech_make_echconfig
                                 int ekfmt, size_t eklen, char *ekval);
  int SSL_CTX_ech_server_get_key_status(SSL_CTX *ctx, int *numkeys);
  int SSL_CTX_ech_server_flush_keys(SSL_CTX *ctx, time_t age);
- int SSL_CTX_ech_server_enable_file(SSL_CTX *ctx, const char *echcfgfile);
+ int SSL_CTX_ech_server_enable_file(SSL_CTX *ctx, const char *file);
  int SSL_CTX_ech_server_enable_buffer(SSL_CTX *ctx, const unsigned char *buf,
                                       const size_t blen);
  int SSL_CTX_ech_server_enable_dir(SSL_CTX *ctx, int *loaded,
@@ -166,6 +166,53 @@ handles as for L<SSL_CTX_set_alpn_protos()>.
 SSL_ech_set_server_names(), SSL_ech_set_outer_server_name() and 
 SSL_CTX_ech_set_outer_alpn_protos() all return 1 for success and 0 for error.
 
+=head2 Enabling ECH for servers
+
+In order to enable ECH for servers it is necessary to load one or more ECH
+private keys and public values from files or buffers. The file format to be
+used is specified in https://datatracker.ietf.org/doc/draft-farrell-tls-pemesni/
+and conists of one private key in PKCS#8 format and a base64 encoded ECHConfig
+containing one matching public value.
+
+Once some ECH key pairs are loaded then the server will attempt ECH decryption
+as needed. (See also L</ECH SSL Options>.)
+
+SSL_CTX_ech_server_enable_file() will attempt to read an ECH key pair from
+I<file>.  SSL_CTX_ech_server_enable_dir() will attempt to read an ECH key pair
+from all files named "*.ech" found in the I<dir>.
+SSL_CTX_ech_server_enable_buffer() allows loading one ECH key pair (still in
+our ECHConfig PEM format) from a buffer. This can be needed if a server
+instance has no access to a file system.
+
+SSL_CTX_ech_server_get_key_status() returns the number of ECH key pairs loaded
+in I<numkeys>.  Calls to the various SSL_CTX_ech_server_enable_*() APIs will
+accumulate key pairs. The time of loading each key is recorded internally.
+SSL_CTX_ech_server_flush_keys() allows a server to remove keys that were loaded
+more than I<age> seconds ago.  This enables servers to periodically refresh the
+set of ECH key pairs that are in used.
+
+If ECH decryption fails, then the server will proceed with the TLS handshake
+for the outer ClientHello and will return an ECH retry config containing the
+ECHConfig matching the "oldest" ECH key pair still loaded.
+On the client side SSL_ech_get_retry_config() can be used to access this
+retry config value when indicated via the result of SSL_ech_get_status().
+The retry config will be placed in the I<ec> buffer - I<eclen> should be
+the buffer size on input and will be the length of the retry config on
+successful return.
+
+For servers operating in split-mode, SSL_CTX_ech_raw_decrypt() provides
+a way to only attempt the ECH decryption operation. This function
+takes the outer ClientHello in I<outer_ch> of size I<outer_len> and
+if decryption succeeds, returns the inner ClientHello in I<inner_ch>
+of size I<inner_len> (on input I<inner_len> should contain the size
+if the I<inner_ch> buffer). Note that an inner ClientHello will always
+be smaller than an outer ClientHello. If decrytpion succeds then the
+I<decryption_ok> value will be returned as 1. If decryption fails
+the I<decryption_ok> value will be returned as 0. If decryption
+succeeds, the I<inner_sni> and I<outer_sni> values will be populated
+based on the values seen. (The caller must free those strings using
+OPENSSL_free() when done.)
+
 =head2 Accessing ECH information
 
 Given multiple ECH public values can be associated with a single I<SSL>
@@ -204,6 +251,50 @@ SSL_ech_get_status() function. As SNI handling is core to ECH this will return
 the I<inner_sni> and I<outer_sni> values to be used or that were used as well
 as a status code as the return value. The various status values are as shown in 
 L</Constants>.
+
+=head2 ECH SSL Options
+
+There are three SSL options associated with ECH that can be set via 
+SSL_CTX_set_options():
+
+=over 4
+
+=item B<SSL_OP_ECH_GREASE> allows clients to enable GREASEing (see L</GREASEing>).
+
+=item B<SSL_OP_ECH_IGNORE_CID> sets the client to ignore the server-chosen ECH config ID and send a random value
+
+=item B<SSL_OP_ECH_TRIALDECRYPT> sets a server to attempt trial decryption with all loaded ECH keys
+
+=back
+
+
+=head2 GREASEing
+
+Clients can choose to send a "fake" ECH extension value when not really attempting
+ECH in order to GREASE the protocol (see RFC8701). An ECH-supporting server that
+receives such a value should return a retry-config containing an ECHConfig value
+that could be used. (A client could then retry with a new SSL connection.)
+
+Setting the B<SSL_OP_ECH_GREASE> option turns on GREASEing, which is off by
+default. (GREASEing ECH may be turned on by default in some future version of
+OpenSSL.)
+
+SSL_ech_set_grease_suite() and SSL_ech_set_grease_type() allow clients to control
+additional details of GREASEing. B<MORE TBD>
+
+SSL_ech_set_grease_suite() take a string form of HPKE suite in I<str>. See
+L<OSSL_HPKE_CTX_new> for details of string encoding of HPKE suites. This allows
+clients to control the visible HPKE suite in the GREASEd ECH value which can
+be useful if some particular value provides reduces the ability of a network
+observer to fingerprint the client. The default is "25519,hkdf-sha256,aes128gcm"
+
+SSL_ech_get_grease_type() allows a client to use a different TLS extension
+type codepoint (rather than the current 0xfe0d value, which is the default).
+This allows client to GREASE with future extension type codepoints if needed.
+
+=head2 Callback Function
+
+TBD
 
 =head2 Constants
 
