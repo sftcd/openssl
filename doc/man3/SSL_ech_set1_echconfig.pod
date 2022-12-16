@@ -61,7 +61,121 @@ ossl_ech_make_echconfig
 
 =head1 DESCRIPTION
 
-=head2 Data Structures
+ typedef unsigned int (*SSL_ech_cb_func)(SSL *s, char *str);
+
+=head2 Setting ECH public values for clients
+
+In order to use Encrypted ClientHello (ECH) in a TLS session, the client must
+first associate at least one ECH public value with an I<SSL> or I<SSL_CTX>.
+Typically, the application will read those values from the DNS (from an SVCB or
+HTTPS resource record) or from a file so we provide functions allowing the
+application to provide that information to the TLS stack.
+The SVCB and HTTPS resource records are defined in
+https://datatracker.ietf.org/doc/draft-ietf-dnsop-svcb-https/.
+
+If an ECH public value is associated with an I<SSL> session, and if
+TLS version 1.3 is used for the session then the client will attempt
+to use ECH when a new TLS session is negotiated e.g. using L<SSL_connect()>
+or L<SSL_write()>. If an ECH public value is associated with an I<SSL>
+session but a different TLS version is used for the session (e.g. TLS version
+1.2) then ECH will not be used but the SSL session will be created as usual.
+
+SSL_ech_set1_echconfig() and SSL_CTX_ech_set1_echconfig() allow clients to 
+provide a binary or encoded ECHConfigList in the I<ekval> (of size I<eklen>).
+Various encodings (binary, ascii-hex, base64) are supported via the I<ekfmt>
+as described in the L</Constants> section. If all is well, the ECHConfigList
+value (containing an ECH public value) will be associated with the SSL session
+I<s> and ECH will be attempted when a TLS session is established.
+In the case of SSL_CTX_ech_set1_echconfig(), the ECH settings will be
+inherited when a new SSL connection is formed via L<SSL_new()>.
+
+As an ECHConfigList can contain multiple public values, these functions also
+return a I<num_echs> value indicating how many public values in total are
+associated with the I<SSL> or I<SSL_CTX> input.  If multiple calls to these
+functions are made for the same I<SSL> or I<SSL_CTX> value, then the
+ECHConfigList values will be accumulated and the I<num_echs> returned will
+reflect the total number of ECH public values available.
+
+These functions support catenated input values for I<ekval>. Internal
+length fields mean no separator is needed for binary or ascii-hex encodings,
+but if catenated base64 encoded values are provided those must be separated
+using a semi-colon (see L</Constants>). This can be useful for handling
+the output of certain scripts.
+
+SSL_ech_set1_svcb() is similar to SSL_ech_set1_echconfig() except the input
+I<rrval> should be a binary, ascii-hex, base64 or zone file presentation format
+encoding of an entire or partial HTTPS or SVCB resource record value retrieved
+from the DNS. I<rrlen> is the length of the I<rrval> input. The I<num_echs>
+output reflects the total number of ECH public values associated with the
+I<s> input. Multiple calls to SSL_ech_set1_svcb() will accumulate values.
+
+If the input provided decodes correctly, then any ECHConfigList values
+contained therein will be associated with the I<SSL> session just as if those
+values had been provided via SSL_ech_set1_echconfig(). No other fields within
+the SVCB or HTTPS value will be stored (e.g., if the value contains ALPN
+information, the application needs to handle that separately). Note that it is
+entirely valid for there to be HTTPS or SVCB records published in the DNS that
+contain no ECH public values - in such cases this function will succeed (i.e.
+return 1) but the I<nun_echs> output won't reflect any newly stored ECH public
+values. As with SSL_ech_set1_echconfig() the I<rrval> provided can be a
+catenated list.
+
+SSL_ech_set1_echconfig(), SSL_CTX_ech_set1_echconfig() and SSL_ech_set1_svcb() all
+return 1 for success and 0 in the case of error.
+
+=head2 Setting Server Name Indication (SNI) and ALPN values for clients
+
+TLS sessions that use ECH can provide different values for the Server Name
+Indication (SNI) field in the inner and outer ClientHello messages. Doing so is
+the primary reason for the existence of ECH as it can provide better privacy
+for clients. We therefore provide functions to control the values used for
+SNI in the inner and outer ClientHello messages.
+
+ECHConfigList values contain a "public_name" field, which is intended (by
+the owner of the HTTPS/SVCB resource record) to be used for the outer ClientHello
+SNI value when the owner's name is used as the value for the inner SNI.
+
+By default when ECH is used, whatever SNI value would have been used in the
+ClientHello (e.g. as provided to L<SSL_set_tlsext_host_name()>) is used as the
+value for the inner SNI, and the "public_name" value from the ECHConfigList is
+used for the outer SNI value. 
+
+The Application Layer Protocol Negotiation (ALPN) extension to TLS can also
+represent a potential privacy leak, so we also support providing different
+values in the inner and out TLS ClientHello messages for this field.
+ALPN is defined in RFC 7301.
+
+SSL_ech_set_server_names() allows the caller to set explicitly set the inner
+and outer SNI values that will be used for an SSL session I<s> via the
+I<inner_name> and I<outer_name> parameters. If the application prefers to
+emit not outer SNI value at all then it should set the I<no_outer> to 1
+and a NULL value should be provided for I<outer_name>.
+
+Alternatively, if the application only wishes to control the outer SNI value,
+the SSL_ech_set_outer_server_name() can be used to specify that value (in the
+I<outer_name> parameter) or to cause no outer SNI to be sent (if the I<no_outer>
+parameter has the value 1 and I<outer_name> is NULL).
+
+Typically, applications control ALPN values via L<SSL_CTX_set_alpn_protos()> and
+the value input there will be used as the value for ALPN In the inner ClientHello. 
+If the application wishes to use a different value for the outer ClientHello
+then it can use SSL_CTX_ech_set_outer_alpn_protos() to associated the required
+values with the I<SSL> session. The I<protos> and I<protos_len> parameters are
+handles as for L<SSL_CTX_set_alpn_protos()>.
+
+SSL_ech_set_server_names(), SSL_ech_set_outer_server_name() and 
+SSL_CTX_ech_set_outer_alpn_protos() all return 1 for success and 0 for error.
+
+=head2 Accessing ECH information
+
+Given multiple ECH public values can be associated with a single I<SSL>
+session, client applications may need to be able to view and/or control which 
+values will be used when a TLS session is created. We provide a way to
+view the current ECH public values associated with an I<SSL> session
+and a way to down-select to just one of those values, if desired.
+
+SSL_ech_get_info() returns an array of B<OSSL_ECH_INFO> structures. 
+B<OSSL_ECH_INFO> is defined as:
 
  typedef struct ossl_ech_info_st {
      int index; /* externally re-usable reference to this value */
@@ -72,7 +186,24 @@ ossl_ech_make_echconfig
      char *echconfig; /* a JSON-like version of the associated ECHConfig */
  } OSSL_ECH_INFO;
 
- typedef unsigned int (*SSL_ech_cb_func)(SSL *s, char *str);
+OSSL_ECH_INFO_print() is a utility function to print an array of structures
+such as the above and OSSL_ECH_INFO_free() can be used to release associated
+memory.
+
+An example of the output from OSSL_ECH_INFO_print() is:
+
+ index: 0: SNI (inner:NULL;outer:NULL), ALPN (inner:NULL;outer:NULL)
+	 [fe0d,bb,example.com,0020,[0001,0001],62c7607bf2c5fe1108446f132ca4339cf19df1552e5a42960fd02c697360163c,00,00]
+
+If needed, the application can down-select to just one of these values before
+the TLS session is established by using the I<index> value for the value
+desired via the SSL_ech_reduce() function. 
+
+Clients and servers can query the status of ECH for a TLS session using the
+SSL_ech_get_status() function. As SNI handling is core to ECH this will return
+the I<inner_sni> and I<outer_sni> values to be used or that were used as well
+as a status code as the return value. The various status values are as shown in 
+L</Constants>.
 
 =head2 Constants
 
@@ -94,7 +225,7 @@ Some externally visible limits:
 
 =back
 
-Supported formats for encodings of ECHConfig values read from DNS
+Supported formats for encodings of ECHConfig and SVCB values read from DNS
 or from files:
 
 =over 4
@@ -152,14 +283,6 @@ Return codes from SSL_ech_get_status
 =item B<SSL_ECH_STATUS_FAILED_ECH> -105, We tried, failed and got an ECH
 
 =back
-
-=head2 Client Functions
-
-The SSL_ech_* functions are generally for clients.
-
-=head2 Server Functions
-
-The SSL_CTX_ech_* functions are generally for servers.
 
 =head1 RETURN VALUES
 
