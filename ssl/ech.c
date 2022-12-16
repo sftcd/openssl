@@ -5515,7 +5515,6 @@ err:
     return 0;
 }
 
-#if 0
 /* Not sure this is needed any more, but keep for now in case */
 /**
  * @brief set the ALPN values for the outer ClientHello
@@ -5540,8 +5539,8 @@ int SSL_CTX_ech_set_outer_alpn_protos(SSL_CTX *ctx, const unsigned char *protos,
     ctx->ext.alpn_outer_len = protos_len;
     return 1;
 }
-#endif
 
+#if 0
 /**
  * @brief set the ALPN values for the outer ClientHello
  *
@@ -5568,6 +5567,7 @@ int SSL_ech_set_outer_alpn_protos(SSL *ssl, const unsigned char *protos,
     s->ext.alpn_outer_len = protos_len;
     return 1;
 }
+#endif
 
 /**
  * @brief provide access to a returned ECH value

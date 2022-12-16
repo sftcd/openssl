@@ -129,6 +129,37 @@ static int basic_echconfig_gen(void)
     return 1;
 }
 
+/* 
+ * while adding text to the documentation I thought of some more
+ * tests to add, so just noting those here for now and will code
+ * 'em up later
+ */
+static int tls_version_test(void)
+{
+    /*
+     * TODO: check that TLSv1.2 is still ok if the client
+     * had set an ECHConfig
+     */
+    return 1;
+}
+
+static int sni_alpn_control_test(void)
+{
+    /*
+     * TODO: add tests calling SSL_ech_set_server_names() etc
+     * and validate that those work 
+     */
+    return 1;
+}
+
+static int ech_info_test(void)
+{
+    /*
+     * TODO: add tests calling OSSL_ECH_INFO_print() etc
+     */
+    return 1;
+}
+
 enum OSSLTEST_ECH_runOrder {    /* Shuffle to preferred order */
   OSSLTEST_ECH_B64_GUESS,
   OSSLTEST_ECH_B64_BASE64,
@@ -324,6 +355,9 @@ int setup_tests(void)
     bio_null = BIO_new(BIO_s_mem());
     ADD_TEST(basic_echconfig_gen);
     ADD_ALL_TESTS(test_ech_add, 5);
+    ADD_TEST(tls_version_test);
+    ADD_TEST(sni_alpn_control_test);
+    ADD_TEST(ech_info_test);
 #endif
     return 1;
 }
