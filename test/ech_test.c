@@ -160,6 +160,22 @@ static int ech_info_test(void)
     return 1;
 }
 
+static int ech_file_test(void)
+{
+    /*
+     * TODO: add tests calling SSL_CTX_ech_server_enable_file() etc
+     */
+    return 1;
+}
+
+static int ech_raw_test(void)
+{
+    /*
+     * TODO: add tests calling SSL_CTX_ech_raw_decrypt() etc
+     */
+    return 1;
+}
+
 enum OSSLTEST_ECH_runOrder {    /* Shuffle to preferred order */
   OSSLTEST_ECH_B64_GUESS,
   OSSLTEST_ECH_B64_BASE64,
@@ -358,6 +374,8 @@ int setup_tests(void)
     ADD_TEST(tls_version_test);
     ADD_TEST(sni_alpn_control_test);
     ADD_TEST(ech_info_test);
+    ADD_TEST(ech_file_test);
+    ADD_TEST(ech_raw_test);
 #endif
     return 1;
 }

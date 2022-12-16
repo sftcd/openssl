@@ -335,7 +335,7 @@ int SSL_CTX_ech_server_flush_keys(SSL_CTX *ctx, time_t age);
 /**
  * @brief turn on ECH server-side
  * @param ctx is the SSL server context
- * @param echcfgfile the relevant ECHConfig plus private key file name
+ * @param file the relevant ECHConfig plus private key file name
  * @return 1 for success, other otherwise
  *
  * When this works, the server will try decrypt ECH's from ClientHellos.
@@ -344,7 +344,7 @@ int SSL_CTX_ech_server_flush_keys(SSL_CTX *ctx, time_t age);
  * that allows the server to continue anyway if an earlier call had
  * loaded a key pair.
  */
-int SSL_CTX_ech_server_enable_file(SSL_CTX *ctx, const char *echcfgfile);
+int SSL_CTX_ech_server_enable_file(SSL_CTX *ctx, const char *file);
 
 /**
  * @brief Turn on ECH server-side, with input a buffer rather than file
