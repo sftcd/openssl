@@ -2282,6 +2282,25 @@ int s_client_main(int argc, char **argv)
     if (set_keylog_file(ctx, keylog_file))
         goto end;
 
+#ifndef OPENSSL_NO_ECH
+    if (alpn_outer_in != NULL) {
+        size_t alpn_outer_len;
+        unsigned char *alpn_outer = NULL;
+
+        alpn_outer = next_protos_parse(&alpn_outer_len, alpn_outer_in);
+        if (alpn_outer == NULL) {
+            BIO_printf(bio_err, "Error parsing -alpn_outer argument\n");
+            goto end;
+        }
+        if (SSL_CTX_ech_set_outer_alpn_protos(ctx, alpn_outer,
+                                              alpn_outer_len) != 1) {
+            BIO_printf(bio_err, "Error setting ALPN-OUTER\n");
+            goto end;
+        }
+        OPENSSL_free(alpn_outer);
+    }
+#endif
+
     con = SSL_new(ctx);
     if (con == NULL)
         goto end;
@@ -2315,22 +2334,6 @@ int s_client_main(int argc, char **argv)
             ERR_print_errors(bio_err);
             goto end;
         }
-    }
-    if (alpn_outer_in != NULL) {
-        size_t alpn_outer_len;
-        unsigned char *alpn_outer = NULL;
-
-        alpn_outer = next_protos_parse(&alpn_outer_len, alpn_outer_in);
-        if (alpn_outer == NULL) {
-            BIO_printf(bio_err, "Error parsing -alpn_outer argument\n");
-            goto end;
-        }
-        if (SSL_ech_set_outer_alpn_protos(con, alpn_outer,
-                                          alpn_outer_len) != 1) {
-            BIO_printf(bio_err, "Error setting ALPN-OUTER\n");
-            goto end;
-        }
-        OPENSSL_free(alpn_outer);
     }
 #endif
 
