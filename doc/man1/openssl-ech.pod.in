@@ -3,31 +3,34 @@
 
 =head1 NAME
 
-openssl-ech - ECH key generation programme
+openssl-ech - ECH key generation and display programme
 
 =head1 SYNOPSIS
 
-B<openssl> B<s_client>
+B<openssl> B<ech>
 [B<-help>]
 [B<-verbose>]
-[B<-pemout>]
-[B<-pemin>]
-[B<-pubout>]
-[B<-privout>]
-[B<-public_name>]
-[B<-mlen>]
-[B<-suite>]
-[B<-ech_version>]
-[B<-extfile>]
-[B<-select>]
+[B<-pemout> I<file>]
+[B<-pemin> I<file>]
+[B<-pubout> I<file>]
+[B<-privout> I<file>]
+[B<-public_name> I<name>]
+[B<-mlen> I<len>]
+[B<-suite> I<suite_str>]
+[B<-ech_version> I<version>]
+[B<-extfile> I<file>]
+[B<-select> I<number>]
 
 =head1 DESCRIPTION
 
 The L<openssl-ech(1)> command generates Encrypted Client Hello (ECH) private keys 
 and public keys in the ECHConfig format. They can be converted between
-various forms and their components printed out. B<Note> OpenSSL uses the
-private key format specified in 'SEC 1: Elliptic Curve Cryptography'
-(http://www.secg.org/). 
+various forms and their components displayed.
+
+The "ECHConfig PEM file" format mentioned below is specified in
+L<https://datatracker.ietf.org/doc/draft-farrell-tls-pemesni/> and conists of
+one private key in PKCS#8 format and a base64 encoded ECHConfig containing one
+matching public value.
 
 =head1 OPTIONS
 
@@ -41,48 +44,47 @@ Print out a usage message.
 
 Print more verbosely.
 
-=item B<-pemout>
+=item B<-pemout> I<file> 
 
-Specify the name of the output PEM file.
+Name of output ECHConfig PEM file.
 
-=item B<-pemin>
+=item B<-pemin> I<file>
 
-Specify the name of the input PEM file.
+Name of input ECHConfig PEM file.
 
-=item B<-pubout>
+=item B<-pubout> I<file>
 
-Specify the name of the output raw public key file.
+Name of output base64 encoded public key file.
 
-=item B<-privout>
+=item B<-privout> I<file>
 
-Specify the name of the output PEM private key file.
+Name of output PKCS#8 private key file.
 
-=item B<-public_name>
+=item B<-public_name> I<name>
 
-Specify the DNS name to use in the public_name field of the ECHConfig.
+The DNS name to use in the "public_name" field of the ECHConfig.
 
-=item B<-mlen>
+=item B<-mlen> I<num>
 
-Specify the maximum name length field value to use in the ECHConfig.
+Maximum name length field value to use in the ECHConfig.
 
-=item B<-suite>
+=item B<-suite> I<str>
 
-Specify the HPKE cipher details to use in the ECHConfig.
+HPKE suite to use in the ECHConfig.
 
-=item B<-ech_version>
+=item B<-ech_version> I<version>
 
-Specify the ECH version to use in the ECHConfig.
+The ECH version to use in the ECHConfig. Only 0xfe0d is supported in this version.
 
-=item B<-extfile>
+=item B<-extfile> I<file>
 
-Specify a filename that should contain an encoded set of ECH extensions
+File containing a TLS-encoded set of ECH extensions
 for use in the ECHConfig.
 
-=item B<-select>
+=item B<-select> I<num>
 
 When a PEM input file contains multiple ECHConfig values in it's ECHConfigList
-then this allows selecting one of those for printing (the source demonstrates
-the <SSL_ech_reduce(3)> API).
+then this allows selecting one of those for display.
 
 =back
 
@@ -95,26 +97,26 @@ codes/numbers e.g. "-c 0x20,1,3" or a comma-separated list of strings from:
 - AEADs: aes128gcm, aes256gcm, chachapoly1305
 
 For example the default is: x25518, hkdf-sha256, aes128gcm
-
-=head1 BUGS
-
-Those'll happen.
+See L<OSSL_HPKE_CTX_new(3)> for details.
 
 =head1 SEE ALSO
 
 L<openssl(1)>,
 L<openssl-s_client(1)>,
 L<openssl-s_server(1)>,
+L<SSL_ech_set1_echconfig(3)>
 
 =head1 HISTORY
 
-Initially developed as part of the DEfO project (https://defo.ie/)
+This functionality described here was added in OpenSSL 3.2.
 
 =head1 COPYRIGHT
 
-Copyright 2021 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2023 The OpenSSL Project Authors. All Rights Reserved.
 
 Licensed under the Apache License 2.0 (the "License").  You may not use
 this file except in compliance with the License.  You can obtain a copy
 in the file LICENSE in the source distribution or at
+L<https://www.openssl.org/source/license.html>.
+
 =cut

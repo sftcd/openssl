@@ -26,7 +26,9 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
-- 20221217: re-did POD file for ECH stuff see ``doc/man3/SSL_ech_set1_echconfig.pod``k
+- 20221217: re-did POD files for ECH stuff see
+  ``doc/man3/SSL_ech_set1_echconfig.pod`` (same for command line tools). There
+  was also a few accompanying code chnages.
 
 - 20221215: fixed a leak in ``test/ech_test`` that causes our
   old friend double-free in echcli.sh yet again - check for

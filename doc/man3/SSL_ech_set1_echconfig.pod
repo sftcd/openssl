@@ -70,13 +70,13 @@ ossl_ech_make_echconfig
 =head1 DESCRIPTION
 
 Encrypted ClientHello (ECH) is defined in
-https://datatracker.ietf.org/doc/draft-ietf-tls-esni/ and defines a way to
+L<https://datatracker.ietf.org/doc/draft-ietf-tls-esni/> and defines a way to
 encrypt the (interesting) content of the TLS ClientHello message so that the
 encrypted version is sent in an encrypted inner ClientHello contained within an
 outer ClientHello that contains the less sensitive data required for the TLS
 exchange.  This page describes the ECH APIs defined for clients and servers.
 Additional information about ECH can be found on the manual pages for
-L<openssl-s_client>, L<openssl-s_server> and L<openssl-ech>.
+L<openssl-s_client(1)>, L<openssl-s_server(1)> and L<openssl-ech(1)>.
 
 =head2 Setting ECH public values for clients
 
@@ -86,12 +86,12 @@ Typically, the application will read those values from the DNS (from an SVCB or
 HTTPS resource record) or from a file so we provide functions allowing the
 application to provide that information to the TLS stack.
 The SVCB and HTTPS resource records are defined in
-https://datatracker.ietf.org/doc/draft-ietf-dnsop-svcb-https/.
+L<https://datatracker.ietf.org/doc/draft-ietf-dnsop-svcb-https/>.
 
 If an ECH public value is associated with an I<SSL> session, and if
 TLS version 1.3 is used for the session then the client will attempt
-to use ECH when a new TLS session is negotiated e.g. using L<SSL_connect()>
-or L<SSL_write()>. If an ECH public value is associated with an I<SSL>
+to use ECH when a new TLS session is negotiated e.g. using L<SSL_connect(3)>
+or L<SSL_write(3)>. If an ECH public value is associated with an I<SSL>
 session but a different TLS version is used for the session (e.g. TLS version
 1.2) then ECH will not be used but the SSL session will be created as usual.
 
@@ -102,7 +102,7 @@ as described in the L</Constants> section. If all is well, the ECHConfigList
 value (containing an ECH public value) will be associated with the SSL session
 I<s> and ECH will be attempted when a TLS session is established.
 In the case of SSL_CTX_ech_set1_echconfig(), the ECH settings will be
-inherited when a new SSL connection is formed via L<SSL_new()>.
+inherited when a new SSL connection is formed via L<SSL_new(3)>.
 
 As an ECHConfigList can contain multiple public values, these functions also
 return a I<num_echs> value indicating how many public values in total are
@@ -151,7 +151,7 @@ the owner of the HTTPS/SVCB resource record) to be used for the outer ClientHell
 SNI value when the owner's name is used as the value for the inner SNI.
 
 By default when ECH is used, whatever SNI value would have been used in the
-ClientHello (e.g. as provided to L<SSL_set_tlsext_host_name()>) is used as the
+ClientHello (e.g. as provided to L<SSL_set_tlsext_host_name(3)>) is used as the
 value for the inner SNI, and the "public_name" value from the ECHConfigList is
 used for the outer SNI value. 
 
@@ -174,12 +174,12 @@ parameter has the value 1 and I<outer_name> is NULL).
 Outer SNI name values provided via these APIs will override the "public_name"
 from the relevant ECHConfigList, HTTPS or SVCB resource record.
 
-Typically, applications control ALPN values via L<SSL_CTX_set_alpn_protos()> and
+Typically, applications control ALPN values via L<SSL_CTX_set_alpn_protos(3)> and
 the value input there will be used as the value for ALPN In the inner ClientHello. 
 If the application wishes to use a different value for the outer ClientHello
 then it can use SSL_CTX_ech_set_outer_alpn_protos() to associated the required
 values with the I<SSL> session. The I<protos> and I<protos_len> parameters are
-handles as for L<SSL_CTX_set_alpn_protos()>.
+handles as for L<SSL_CTX_set_alpn_protos(3)>.
 
 SSL_ech_set_server_names(), SSL_ech_set_outer_server_name() and 
 SSL_CTX_ech_set_outer_alpn_protos() all return 1 for success and 0 for error.
@@ -204,7 +204,7 @@ The other inputs control the ECHConfig options:
 
 =item - I<public_name> is a string containing the name to use in the outer SNI
 
-=item - I<suite> is an OSSL_HPKE_SUITE value (OSSL_HPKE_SUITE_DEFAULT is a good default, see L<OSSL_HPKE_CTX_new> for details)
+=item - I<suite> is an OSSL_HPKE_SUITE value (OSSL_HPKE_SUITE_DEFAULT is a good default, see L<OSSL_HPKE_CTX_new(3)> for details)
 
 =item - I<extvals> is a buffer of already TLS-encoded ECH extension values (NULL is a good value)
 
@@ -216,14 +216,14 @@ Note that at the time of writing there are no known implementations that
 make use of ECH extensions.
 
 ossl_ech_make_echconfig() is intended for use by applications that generate
-ECH configuration data, such as L<openssl-ech>.
+ECH configuration data, such as L<openssl-ech(1)>.
 
 
 =head2 Enabling ECH for servers
 
 In order to enable ECH for servers it is necessary to load one or more ECH
 private keys and public values from files or buffers. The file format to be
-used is specified in https://datatracker.ietf.org/doc/draft-farrell-tls-pemesni/
+used is specified in L<https://datatracker.ietf.org/doc/draft-farrell-tls-pemesni/>
 and conists of one private key in PKCS#8 format and a base64 encoded ECHConfig
 containing one matching public value.
 
@@ -340,7 +340,7 @@ SSL_ech_set_grease_suite() and SSL_ech_set_grease_type() allow clients to contro
 additional details of GREASEing.
 
 SSL_ech_set_grease_suite() take a string form of HPKE suite in I<str>. See
-L<OSSL_HPKE_CTX_new> for details of string encoding of HPKE suites. This allows
+L<OSSL_HPKE_CTX_new(3)> for details of string encoding of HPKE suites. This allows
 clients to control the visible HPKE suite in the GREASEd ECH value which can
 be useful if some particular value provides reduces the ability of a network
 observer to fingerprint the client. The default is "25519,hkdf-sha256,aes128gcm"
@@ -490,7 +490,7 @@ SSL_ech_get_status() returns one of the B<OSSL_ECH_STATUS_*> values.
 
 =head1 SEE ALSO
 
-The Encrypted ClientHello specification: https://datatracker.ietf.org/doc/draft-ietf-tls-esni/
+The Encrypted ClientHello specification: L<https://datatracker.ietf.org/doc/draft-ietf-tls-esni/>
 
 =head1 HISTORY
 
@@ -498,7 +498,7 @@ This functionality described here was added in OpenSSL 3.2.
 
 =head1 COPYRIGHT
 
-Copyright 2022 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2023 The OpenSSL Project Authors. All Rights Reserved.
 
 Licensed under the Apache License 2.0 (the "License").  You may not use
 this file except in compliance with the License.  You can obtain a copy

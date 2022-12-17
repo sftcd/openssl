@@ -880,6 +880,8 @@ be abused.
 
 The RFC9180 specification: https://datatracker.ietf.org/doc/rfc9180/
 
+L<SSL_ech_set1_echconfig(3)>, L<openssl-ech(1)>
+
 =head1 HISTORY
 
 This functionality described here was added in OpenSSL 3.2.
