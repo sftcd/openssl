@@ -19,16 +19,18 @@
 # include <openssl/ssl.h>
 # include <openssl/hpke.h>
 
+# ifndef OPENSSL_NO_ECH
+
 /*
  * Some externally visible limits - most used for sanity checks that could be
  * bigger if needed, but that work for now
  */
-# define OSSL_ECH_MAX_PAYLOAD_LEN 1500 /* max ECH ciphertext to en/decode */
-# define OSSL_ECH_MIN_ECHCONFIG_LEN 32 /* min for all encodings */
-# define OSSL_ECH_MAX_ECHCONFIG_LEN 1500 /* max for all encodings */
-# define OSSL_ECH_MAX_ECHCONFIGEXT_LEN 100 /* ECHConfig extension max */
-# define OSSL_ECH_MAX_MAXNAMELEN 255 /* ECHConfig max for max name length */
-# define OSSL_ECH_MAX_PUBLICNAME 255 /* max ECHConfig public name length */
+#  define OSSL_ECH_MAX_PAYLOAD_LEN 1500 /* max ECH ciphertext to en/decode */
+#  define OSSL_ECH_MIN_ECHCONFIG_LEN 32 /* min for all encodings */
+#  define OSSL_ECH_MAX_ECHCONFIG_LEN 1500 /* max for all encodings */
+#  define OSSL_ECH_MAX_ECHCONFIGEXT_LEN 100 /* ECHConfig extension max */
+#  define OSSL_ECH_MAX_MAXNAMELEN 255 /* ECHConfig max for max name length */
+#  define OSSL_ECH_MAX_PUBLICNAME 255 /* max ECHConfig public name length */
 
 /*
  * To meet the needs of script-based tools (likely to deal with
@@ -51,13 +53,13 @@
  * All catenated values passed in a single call must use the same
  * encoding method.
  */
-# define OSSL_ECH_FMT_GUESS     0  /* implementation will guess */
-# define OSSL_ECH_FMT_BIN       1  /* catenated binary ECHConfigs */
-# define OSSL_ECH_FMT_B64TXT    2  /* base64 ECHConfigs (';' separated) */
-# define OSSL_ECH_FMT_ASCIIHEX  3  /* ascii-hex ECHConfigs (';' separated */
-# define OSSL_ECH_FMT_HTTPSSVC  4  /* presentation form with "ech=<b64>" */
+#  define OSSL_ECH_FMT_GUESS     0  /* implementation will guess */
+#  define OSSL_ECH_FMT_BIN       1  /* catenated binary ECHConfigs */
+#  define OSSL_ECH_FMT_B64TXT    2  /* base64 ECHConfigs (';' separated) */
+#  define OSSL_ECH_FMT_ASCIIHEX  3  /* ascii-hex ECHConfigs (';' separated */
+#  define OSSL_ECH_FMT_HTTPSSVC  4  /* presentation form with "ech=<b64>" */
 
-# define OSSL_ECH_FMT_SEPARATOR ";" /* separator str for catenation  */
+#  define OSSL_ECH_FMT_SEPARATOR ";" /* separator str for catenation  */
 
 /*
  * ECH version. We only support draft-13 as of now.  As/if new versions
@@ -67,19 +69,19 @@
  * each substantive revision of the draft specification (and will likely
  * change at the last moment when an RFC is issued).
  */
-# define OSSL_ECH_DRAFT_13_VERSION 0xfe0d /* version from draft-13 */
+#  define OSSL_ECH_DRAFT_13_VERSION 0xfe0d /* version from draft-13 */
 
 /* Return codes from SSL_ech_get_status */
-# define SSL_ECH_STATUS_BACKEND    4 /* ECH backend: saw an ech_is_inner */
-# define SSL_ECH_STATUS_GREASE_ECH 3 /* GREASEd and got an ECH in return */
-# define SSL_ECH_STATUS_GREASE     2 /* ECH GREASE happened  */
-# define SSL_ECH_STATUS_SUCCESS    1 /* Success */
-# define SSL_ECH_STATUS_FAILED     0 /* Some internal or protocol error */
-# define SSL_ECH_STATUS_BAD_CALL   -100 /* Some in/out arguments were NULL */
-# define SSL_ECH_STATUS_NOT_TRIED  -101 /* ECH wasn't attempted  */
-# define SSL_ECH_STATUS_BAD_NAME   -102 /* ECH ok but server cert bad */
-# define SSL_ECH_STATUS_NOT_CONFIGURED -103 /* ECH wasn't configured */
-# define SSL_ECH_STATUS_FAILED_ECH -105 /* We tried, failed and got an ECH */
+#  define SSL_ECH_STATUS_BACKEND    4 /* ECH backend: saw an ech_is_inner */
+#  define SSL_ECH_STATUS_GREASE_ECH 3 /* GREASEd and got an ECH in return */
+#  define SSL_ECH_STATUS_GREASE     2 /* ECH GREASE happened  */
+#  define SSL_ECH_STATUS_SUCCESS    1 /* Success */
+#  define SSL_ECH_STATUS_FAILED     0 /* Some internal or protocol error */
+#  define SSL_ECH_STATUS_BAD_CALL   -100 /* Some in/out arguments were NULL */
+#  define SSL_ECH_STATUS_NOT_TRIED  -101 /* ECH wasn't attempted  */
+#  define SSL_ECH_STATUS_BAD_NAME   -102 /* ECH ok but server cert bad */
+#  define SSL_ECH_STATUS_NOT_CONFIGURED -103 /* ECH wasn't configured */
+#  define SSL_ECH_STATUS_FAILED_ECH -105 /* We tried, failed and got an ECH */
 
 /*
  * Application-visible form of ECH information from the DNS, from config
@@ -154,4 +156,5 @@ int ossl_ech_make_echconfig(unsigned char *echconfig, size_t *echconfiglen,
                             const char *public_name, OSSL_HPKE_SUITE suite,
                             const unsigned char *extvals, size_t extlen);
 
+# endif
 #endif
