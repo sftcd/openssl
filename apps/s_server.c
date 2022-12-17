@@ -103,7 +103,7 @@ static void free_sessions(void);
 static void print_connection_info(SSL *con);
 
 #ifndef OPENSSL_NO_ECH
-static unsigned int ech_print_cb(SSL *s, char *str);
+static unsigned int ech_print_cb(SSL *s, const char *str);
 #ifndef OPENSSL_NO_SSL_TRACE
 static size_t ech_trace_cb(const char *buf, size_t cnt,
                  int category, int cmd, void *vdata);
@@ -517,7 +517,7 @@ typedef struct tlsextctx_st {
  * @param stri shte string to print
  * @return 1 for good
  */
-static unsigned int ech_print_cb(SSL *s, char *str)
+static unsigned int ech_print_cb(SSL *s, const char *str)
 {
     if (str!=NULL) {
         BIO_printf(bio_s_out,"ECH Server callback printing: \n%s\n",str);
