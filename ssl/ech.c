@@ -2037,49 +2037,49 @@ int SSL_ech_print(BIO *out, SSL *ssl, int selector)
     char *cfg = NULL;
     SSL_CONNECTION *s = SSL_CONNECTION_FROM_SSL(ssl);
 
-    BIO_printf(out, "*** SSL_ech_print ***\n");
 # ifdef OSSL_ECH_SUPERVERBOSE
-    BIO_printf(out, "SSL_ech_print: s=%p\n", (void *)s);
-    BIO_printf(out, "SSL_ech_print: inner_s=%p\n", (void *)s->ext.inner_s);
-    BIO_printf(out, "SSL_ech_print: outer_s=%p\n", (void *)s->ext.outer_s);
+    BIO_printf(out, "SSL_ech_print\n");
+    BIO_printf(out, "s=%p\n", (void *)s);
+    BIO_printf(out, "inner_s=%p\n", (void *)s->ext.inner_s);
+    BIO_printf(out, "outer_s=%p\n", (void *)s->ext.outer_s);
 # endif
-    BIO_printf(out, "SSL_ech_print: ech_attempted=%d\n", s->ext.ech_attempted);
-    BIO_printf(out, "SSL_ech_print: ech_attempted_type=0x%4x\n",
+    BIO_printf(out, "ech_attempted=%d\n", s->ext.ech_attempted);
+    BIO_printf(out, "ech_attempted_type=0x%4x\n",
                s->ext.ech_attempted_type);
     if (s->ext.ech_attempted_cid == TLSEXT_TYPE_ech_config_id_unset)
-        BIO_printf(out, "SSL_ech_print: ech_atttempted_cid is unset\n");
+        BIO_printf(out, "ech_atttempted_cid is unset\n");
     else
-        BIO_printf(out, "SSL_ech_print: ech_atttempted_cid=0x%02x\n",
+        BIO_printf(out, "ech_atttempted_cid=0x%02x\n",
                    s->ext.ech_attempted_cid);
-    BIO_printf(out, "SSL_ech_print: ech_done=%d\n", s->ext.ech_done);
-    BIO_printf(out, "SSL_ech_print: ech_grease=%d\n", s->ext.ech_grease);
+    BIO_printf(out, "ech_done=%d\n", s->ext.ech_done);
+    BIO_printf(out, "ech_grease=%d\n", s->ext.ech_grease);
 # ifdef OSSL_ECH_SUPERVERBOSE
-    BIO_printf(out, "SSL_ech_print: HRR=%d\n", s->hello_retry_request);
-    BIO_printf(out, "SSL_ech_print: hrr_depth=%d\n", s->ext.hrr_depth);
-    BIO_printf(out, "SSL_ech_print: ech_returned=%p\n",
+    BIO_printf(out, "HRR=%d\n", s->hello_retry_request);
+    BIO_printf(out, "hrr_depth=%d\n", s->ext.hrr_depth);
+    BIO_printf(out, "ech_returned=%p\n",
                (void *)s->ext.ech_returned);
 # endif
-    BIO_printf(out, "SSL_ech_print: ech_returned_len=%ld\n",
+    BIO_printf(out, "ech_returned_len=%ld\n",
                (long)s->ext.ech_returned_len);
-    BIO_printf(out, "SSL_ech_print: ech_backend=%d\n", s->ext.ech_backend);
-    BIO_printf(out, "SSL_ech_print: ech_success=%d\n", s->ext.ech_success);
+    BIO_printf(out, "ech_backend=%d\n", s->ext.ech_backend);
+    BIO_printf(out, "ech_success=%d\n", s->ext.ech_success);
     if (s->ech != NULL) {
         int i = 0;
 
         if (s->nechs == 1) {
-            BIO_printf(out, "SSL_ech_print: 1 ECHConfig value loaded\n");
+            BIO_printf(out, "1 ECHConfig value loaded\n");
         } else {
-            BIO_printf(out, "SSL_ech_print: %d ECHConfig values loaded\n",
+            BIO_printf(out, "%d ECHConfig values loaded\n",
                        s->nechs);
         }
         for (i = 0; i != s->nechs; i++) {
             if (selector == OSSL_ECH_SELECT_ALL || selector == i) {
                 cfg = ECHConfigs_print(s->ech[i].cfg);
                 if (cfg != NULL) {
-                    BIO_printf(out, "SSL_ech_print: cfg(%d): %s\n", i, cfg);
+                    BIO_printf(out, "cfg(%d): %s\n", i, cfg);
                     OPENSSL_free(cfg);
                 } else {
-                    BIO_printf(out, "SSL_ech_print: cfg(%d): NULL (huh?)\n", i);
+                    BIO_printf(out, "cfg(%d): NULL (huh?)\n", i);
                 }
                 if (s->ech[i].keyshare != NULL) {
 # define OSSL_ECH_TIME_STR_LEN 32 /* apparently 26 is all we need */
@@ -2112,18 +2112,18 @@ int SSL_ech_print(BIO *out, SSL *ssl, int selector)
                             strcpy(lstr, "sometime");
                     }
 # endif
-                    BIO_printf(out, "SSL_ech_print: \tpriv=%s, loaded at %s\n",
+                    BIO_printf(out, "\tpriv=%s, loaded at %s\n",
                                s->ech[i].pemfname, lstr);
                 }
             }
         }
     } else {
-        BIO_printf(out, "SSL_ech_print: cfg=NONE\n");
+        BIO_printf(out, "cfg=NONE\n");
     }
     if (s->ext.ech_returned) {
         size_t i = 0;
 
-        BIO_printf(out, "SSL_ech_print: ret=");
+        BIO_printf(out, "ret=");
         for (i = 0; i != s->ext.ech_returned_len; i++) {
             if ((i != 0) && (i % 16 == 0))
                 BIO_printf(out, "\n    ");

@@ -351,8 +351,13 @@ This allows clients to GREASE with future extension type codepoints if needed.
 
 =head2 Callback Function
 
-Applications can set a callback function that will be called when a real
-attempt at ECH has succeeded. The callback won't be called if ECH fails.
+Applications can set a callback function that will be called when the
+outcome from an attempt at ECH has been determined. On the server, 
+that happens early, as part of construction of the ServerHello message.
+On the client, the callback will happen after the SeverHello has 
+been processed. In the event of HelloRetryRequest, the callback will
+only be triggered when processing the second ServerHello. The callback
+function will be triggered even if the client is only GREASEing.
 
 The callback function prototype is:
 
@@ -363,28 +368,26 @@ SSL_CTX_ech_set_callback() - the I<f> input should match the
 above prototype. 
 
 When the callback function is called, the I<str> will point at a string
-that describes the state of ECH. The application should not modify the
-string value which is intended for deugging/logging.
+intended for logging describing the state of ECH processing.
+Applications should not attempt to parse that string as the value depends
+on compile time settings, local configuration and the specific processing
+that happened prior to the callback. Applications that need to branch based
+on the outcome of ECH processing should instead make a call to 
+SSL_ech_get_status() from within their callback function.
 
 An example string I<str> as seen on a client might be:
 
- *** SSL_ech_print ***
- SSL_ech_print: s=0x52c2340
- SSL_ech_print: inner_s=0x0
- SSL_ech_print: outer_s=0x52f4210
- SSL_ech_print: ech_attempted=1
- SSL_ech_print: ech_attempted_type=0xfe0d
- SSL_ech_print: ech_atttempted_cid=0x66
- SSL_ech_print: ech_done=1
- SSL_ech_print: ech_grease=0
- SSL_ech_print: HRR=0
- SSL_ech_print: hrr_depth=-1
- SSL_ech_print: ech_returned=0x0
- SSL_ech_print: ech_returned_len=0
- SSL_ech_print: ech_backend=0
- SSL_ech_print: ech_success=1
- SSL_ech_print: 1 ECHConfig value loaded
- SSL_ech_print: cfg(0): [fe0d,66,cloudflare-esni.com,0020,[0001,0001],5c6559512bba3150800aa5fb4c88b6d4b6e7e1a57f2f9b0cba409b6e474b874d,00,00]
+ ech_attempted=1
+ ech_attempted_type=0xfe0d
+ ech_atttempted_cid=0x5d
+ ech_done=1
+ ech_grease=0
+ ech_returned_len=0
+ ech_backend=0
+ ech_success=1
+ 2 ECHConfig values loaded
+ cfg(0): [fe0d,5d,cover.defo.ie,0020,[0001,0001],190984309c1a24cb944c005eb79d9c72ca9a4a979194b553dfd0bffc6b5c152d,00,00]
+ cfg(1): [fe0d,fd,cover.defo.ie,0020,[0001,0001],46dd4e2c81bb15ef9d194c99b86983844e2a1387e4fb7e7d3b8d368c8e1b4d2a,00,00]
 
 =head2 Constants
 
