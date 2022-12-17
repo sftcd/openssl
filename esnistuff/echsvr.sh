@@ -29,7 +29,6 @@ NOECH="no"
 DEBUG="no"
 KEYGEN="no"
 PORT="8443"
-HARDFAIL="no"
 TRIALDECRYPT="no"
 SUPPLIEDPORT=""
 WEBSERVER=""
@@ -88,7 +87,7 @@ function usage()
 }
 
 # options may be followed by one colon to indicate they have a required argument
-if ! options=$(/usr/bin/getopt -s bash -o k:BTFc:D:eH:p:PRKdlvN:nhw -l keyfile,badkey,trialdecrypt,hardfail,dir:,early,clear_sni:,hidden:,port:,pad,hrr,keygen,debug,stale,valgrind,nreq,noech,help,web -- "$@")
+if ! options=$(/usr/bin/getopt -s bash -o k:BTc:D:eH:p:PRKdlvN:nhw -l keyfile,badkey,trialdecrypt,dir:,early,clear_sni:,hidden:,port:,pad,hrr,keygen,debug,stale,valgrind,nreq,noech,help,web -- "$@")
 then
     # something went wrong, getopt will put out an error message for us
     exit 1
@@ -103,7 +102,6 @@ do
         -D|--dir) SUPPLIEDDIR=$2; shift;;
         -d|--debug) DEBUG="yes" ;;
         -e|--early) EARLY_DATA="yes";; 
-        -F|--hardfail) HARDFAIL="yes"; shift;;
         -h|--help) usage;;
         -H|--hidden) SUPPLIEDHIDDEN=$2; shift;;
         -k|--keyfile) SUPPLIEDKEYFILE=$2; shift;;
@@ -150,7 +148,7 @@ alpn_cmd=" -alpn http/1.1,h2 "
 echpad_cmd=""
 if [[ "$ECHPAD" == "yes" ]]
 then
-    echpad_cmd=" -echspecificpad "
+    echpad_cmd=" -ech_specificpad "
 fi
 
 hrr_cmd=""
@@ -247,12 +245,12 @@ fi
 if [ -f $ECHKEYFILE ]
 then
     echo "Using key pair from $ECHKEYFILE"
-    echstr="$echstr -echkey $ECHKEYFILE "
+    echstr="$echstr -ech_key $ECHKEYFILE "
 fi
 if [ -d $echdir ]
 then
     echo "Using all key pairs found in $echdir "
-	echstr="$echstr -echdir $echdir"
+	echstr="$echstr -ech_dir $echdir"
 fi
 
 if [[ "$NOECH" == "yes" ]]
@@ -261,15 +259,10 @@ then
     echstr=""
 fi
 
-hardfail=""
-if [[ "$HARDFAIL" == "yes" ]]
-then
-    hardfail=" -echhardfail"
-fi
 trialdecrypt=""
 if [[ "$TRIALDECRYPT" == "yes" ]]
 then
-    trialdecrypt=" -echtrialdecrypt"
+    trialdecrypt=" -ech_trialdecrypt"
 fi
 
 # tell it where CA stuff is...
@@ -310,8 +303,8 @@ fi
 
 if [[ "$DEBUG" == "yes" ]]
 then
-    echo "Running: $sudocmd $vgcmd $CODETOP/apps/openssl s_server $dbgstr $keyfile1 $keyfile2 $certsdb $portstr $force13 $echstr $snicmd $hardfail $trialdecrypt $alpn_cmd $echpad_cmd $hrr_cmd $nreq_cmd $WEBSERVER $earlystr"
+    echo "Running: $sudocmd $vgcmd $CODETOP/apps/openssl s_server $dbgstr $keyfile1 $keyfile2 $certsdb $portstr $force13 $echstr $snicmd $trialdecrypt $alpn_cmd $echpad_cmd $hrr_cmd $nreq_cmd $WEBSERVER $earlystr"
 fi
-$sudocmd $vgcmd $CODETOP/apps/openssl s_server $dbgstr $keyfile1 $keyfile2 $certsdb $portstr $force13 $echstr $snicmd $hardfail $trialdecrypt $alpn_cmd $echpad_cmd $hrr_cmd $nreq_cmd $WEBSERVER $earlystr
+$sudocmd $vgcmd $CODETOP/apps/openssl s_server $dbgstr $keyfile1 $keyfile2 $certsdb $portstr $force13 $echstr $snicmd $trialdecrypt $alpn_cmd $echpad_cmd $hrr_cmd $nreq_cmd $WEBSERVER $earlystr
 
 

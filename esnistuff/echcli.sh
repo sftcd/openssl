@@ -35,7 +35,7 @@ GTYPE="65037" # that's 0xfe0d - for draft-13
 
 # note that cloudflare do actually turn on h2 if we ask for that so
 # you might see binary cruft if that's selected
-DEFALPNVAL="-alpn inner,secret,http/1.1 -alpn-outer outer,public,h2"
+DEFALPNVAL="-alpn inner,secret,http/1.1 -ech_alpn_outer outer,public,h2"
 DOALPN="yes"
 
 # default port
@@ -250,7 +250,7 @@ fi
 selstr=""
 if [[ "$SELECTED" != "" ]]
 then
-    selstr=" -select $SELECTED "
+    selstr=" -ech_select $SELECTED "
 fi
 
 # set ciphersuites
@@ -282,11 +282,11 @@ then
             if [[ "$ahres" == "0" ]]
             then
                 echo "Assuming supplied ECH is RR value"
-                ECH=" $selstr -svcb $SUPPLIEDECH "
+                ECH=" $selstr -ech_svcb $SUPPLIEDECH "
             elif [[ "$bres" == "0" ]]
             then
                 echo "Assuming supplied ECH is base64 encoded ECHConfigList"
-                ECH=" $selstr -echconfigs $SUPPLIEDECH "
+                ECH=" $selstr -ech_configs $SUPPLIEDECH "
             else
                 echo "Supplied ECH is neither ascii-hex nor base64 - exiting "
                 exit 44
@@ -297,7 +297,7 @@ then
 		    ssfname=`basename $SUPPLIEDECH`
 		    if [ `basename "$ssfname" .pem` != "$ssfname" ]
 		    then
-			    ECH=" $selstr -echconfigs `tail -2 $SUPPLIEDECH | head -1`" 
+			    ECH=" $selstr -ech_configs `tail -2 $SUPPLIEDECH | head -1`" 
 		    else
 			    echo "Not sure of file type of $SUPPLIEDECH - try make a PEM file to help me"
 			    exit 8
@@ -329,7 +329,7 @@ then
             echo "Didn't get any HTTPS RR value for $qname - exiting"
             exit 22
         fi
-        ECH=" $selstr -svcb $digval "
+        ECH=" $selstr -ech_svcb $digval "
 	fi
 fi
 
