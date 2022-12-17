@@ -29,15 +29,21 @@ ossl_ech_make_echconfig
  int SSL_ech_set_outer_server_name(SSL *s, const char *outer_name, int no_outer);
  int SSL_ech_set_outer_alpn_protos(SSL *s, const unsigned char *protos,
                                   unsigned int protos_len);
+
  void OSSL_ECH_INFO_free(OSSL_ECH_INFO *info, int count);
  int OSSL_ECH_INFO_print(BIO *out, OSSL_ECH_INFO *info, int count);
  int SSL_ech_get_info(SSL *s, OSSL_ECH_INFO **info, int *count);
  int SSL_ech_reduce(SSL *s, int index);
+
  int SSL_ech_get_status(SSL *s, char **inner_sni, char **outer_sni);
+
  int SSL_ech_set_grease_suite(SSL *s, const char *suite);
  int SSL_ech_set_grease_type(SSL *s, uint16_t type);
+
  void SSL_ech_set_callback(SSL *s, SSL_ech_cb_func f);
+
  int SSL_ech_get_retry_config(SSL *s, const unsigned char **ec, size_t *eclen);
+
  int SSL_CTX_ech_set1_echconfig(SSL_CTX *ctx, int *num_echs,
                                 int ekfmt, size_t eklen, char *ekval);
  int SSL_CTX_ech_server_get_key_status(SSL_CTX *ctx, int *numkeys);
@@ -52,7 +58,9 @@ ossl_ech_make_echconfig
                              char **inner_sni, char **outer_sni,
                              unsigned char *outer_ch, size_t outer_len,
                              unsigned char *inner_ch, size_t *inner_len);
+
  void SSL_CTX_ech_set_callback(SSL_CTX *ctx, SSL_ech_cb_func f);
+
  int ossl_ech_make_echconfig(unsigned char *echconfig, size_t *echconfiglen,
                              unsigned char *priv, size_t *privlen,
                              uint16_t ekversion, uint16_t max_name_length,
@@ -61,7 +69,14 @@ ossl_ech_make_echconfig
 
 =head1 DESCRIPTION
 
- typedef unsigned int (*SSL_ech_cb_func)(SSL *s, char *str);
+Encrypted ClientHello (ECH) is defined in
+https://datatracker.ietf.org/doc/draft-ietf-tls-esni/ and defines a way to
+encrypt the (interesting) content of the TLS ClientHello message so that the
+encrypted version is sent in an encrypted inner ClientHello contained within an
+outer ClientHello that contains the less sensitive data required for the TLS
+exchange.  This page describes the ECH APIs defined for clients and servers.
+Additional information about ECH can be found on the manual pages for
+L<openssl-s_client>, L<openssl-s_server> and L<openssl-ech>.
 
 =head2 Setting ECH public values for clients
 
@@ -148,13 +163,16 @@ ALPN is defined in RFC 7301.
 SSL_ech_set_server_names() allows the caller to set explicitly set the inner
 and outer SNI values that will be used for an SSL session I<s> via the
 I<inner_name> and I<outer_name> parameters. If the application prefers to
-emit not outer SNI value at all then it should set the I<no_outer> to 1
+emit no outer SNI value at all then it should set the I<no_outer> to 1
 and a NULL value should be provided for I<outer_name>.
 
 Alternatively, if the application only wishes to control the outer SNI value,
 the SSL_ech_set_outer_server_name() can be used to specify that value (in the
 I<outer_name> parameter) or to cause no outer SNI to be sent (if the I<no_outer>
 parameter has the value 1 and I<outer_name> is NULL).
+
+Outer SNI name values provided via these APIs will override the "public_name"
+from the relevant ECHConfigList, HTTPS or SVCB resource record.
 
 Typically, applications control ALPN values via L<SSL_CTX_set_alpn_protos()> and
 the value input there will be used as the value for ALPN In the inner ClientHello. 
@@ -165,6 +183,41 @@ handles as for L<SSL_CTX_set_alpn_protos()>.
 
 SSL_ech_set_server_names(), SSL_ech_set_outer_server_name() and 
 SSL_CTX_ech_set_outer_alpn_protos() all return 1 for success and 0 for error.
+
+=head2 Generating ECH key pairs and ECHconfigs
+
+ossl_ech_make_echconfig() allows applications to generate an ECH key pair
+and create a matching binary encoded ECHConfigList in the I<echconfig> buffer.
+That buffer has size I<echconfiglen> on input. On output I<echconfiglen> has
+the length of the actual ECHConfigList. The private key will be written in 
+PKCS#8 format in the I<priv> buffer. On input the I<privlen> parameter has
+the size of the I<priv> buffer. On output I<privlen> contains the length
+of the actual encoded private key.
+
+The other inputs control the ECHConfig options:
+
+=over 4
+
+=item - I<ekversion> is the ECH version to use (should be 0xfe0d)
+
+=item - I<max_name_length> is the maximum length of inner SNI name (0 is a good default)
+
+=item - I<public_name> is a string containing the name to use in the outer SNI
+
+=item - I<suite> is an OSSL_HPKE_SUITE value (OSSL_HPKE_SUITE_DEFAULT is a good default, see L<OSSL_HPKE_CTX_new> for details)
+
+=item - I<extvals> is a buffer of already TLS-encoded ECH extension values (NULL is a good value)
+
+=item - I<extlen> is the length of I<extvals>
+
+=back
+ 
+Note that at the time of writing there are no known implementations that
+make use of ECH extensions.
+
+ossl_ech_make_echconfig() is intended for use by applications that generate
+ECH configuration data, such as L<openssl-ech>.
+
 
 =head2 Enabling ECH for servers
 
@@ -206,7 +259,11 @@ takes the outer ClientHello in I<outer_ch> of size I<outer_len> and
 if decryption succeeds, returns the inner ClientHello in I<inner_ch>
 of size I<inner_len> (on input I<inner_len> should contain the size
 if the I<inner_ch> buffer). Note that an inner ClientHello will always
-be smaller than an outer ClientHello. If decrytpion succeds then the
+be smaller than an outer ClientHello. The encoding of both I<outer_ch>
+and I<inner_ch> begins with the TLS message type and 3-octet length
+(i.e. the initials octet are [0x16, 0x03, 0x01] followed by a 2-octet length).
+
+If decrytpion succeeds in SSL_CTX_ech_raw_decrypt() then the
 I<decryption_ok> value will be returned as 1. If decryption fails
 the I<decryption_ok> value will be returned as 0. If decryption
 succeeds, the I<inner_sni> and I<outer_sni> values will be populated
@@ -221,7 +278,7 @@ values will be used when a TLS session is created. We provide a way to
 view the current ECH public values associated with an I<SSL> session
 and a way to down-select to just one of those values, if desired.
 
-SSL_ech_get_info() returns an array of B<OSSL_ECH_INFO> structures. 
+SSL_ech_get_info() returns an array of I<count> B<OSSL_ECH_INFO> structures. 
 B<OSSL_ECH_INFO> is defined as:
 
  typedef struct ossl_ech_info_st {
@@ -280,7 +337,7 @@ default. (GREASEing ECH may be turned on by default in some future version of
 OpenSSL.)
 
 SSL_ech_set_grease_suite() and SSL_ech_set_grease_type() allow clients to control
-additional details of GREASEing. B<MORE TBD>
+additional details of GREASEing.
 
 SSL_ech_set_grease_suite() take a string form of HPKE suite in I<str>. See
 L<OSSL_HPKE_CTX_new> for details of string encoding of HPKE suites. This allows
@@ -290,11 +347,44 @@ observer to fingerprint the client. The default is "25519,hkdf-sha256,aes128gcm"
 
 SSL_ech_get_grease_type() allows a client to use a different TLS extension
 type codepoint (rather than the current 0xfe0d value, which is the default).
-This allows client to GREASE with future extension type codepoints if needed.
+This allows clients to GREASE with future extension type codepoints if needed.
 
 =head2 Callback Function
 
-TBD
+Applications can set a callback function that will be called when a real
+attempt at ECH has succeeded. The callback won't be called if ECH fails.
+
+The callback function prototype is:
+
+ typedef unsigned int (*SSL_ech_cb_func)(SSL *s, const char *str);
+
+To set a callback function use SSL_ech_set_callback() or
+SSL_CTX_ech_set_callback() - the I<f> input should match the
+above prototype. 
+
+When the callback function is called, the I<str> will point at a string
+that describes the state of ECH. The application should not modify the
+string value which is intended for deugging/logging.
+
+An example string I<str> as seen on a client might be:
+
+ *** SSL_ech_print ***
+ SSL_ech_print: s=0x52c2340
+ SSL_ech_print: inner_s=0x0
+ SSL_ech_print: outer_s=0x52f4210
+ SSL_ech_print: ech_attempted=1
+ SSL_ech_print: ech_attempted_type=0xfe0d
+ SSL_ech_print: ech_atttempted_cid=0x66
+ SSL_ech_print: ech_done=1
+ SSL_ech_print: ech_grease=0
+ SSL_ech_print: HRR=0
+ SSL_ech_print: hrr_depth=-1
+ SSL_ech_print: ech_returned=0x0
+ SSL_ech_print: ech_returned_len=0
+ SSL_ech_print: ech_backend=0
+ SSL_ech_print: ech_success=1
+ SSL_ech_print: 1 ECHConfig value loaded
+ SSL_ech_print: cfg(0): [fe0d,66,cloudflare-esni.com,0020,[0001,0001],5c6559512bba3150800aa5fb4c88b6d4b6e7e1a57f2f9b0cba409b6e474b874d,00,00]
 
 =head2 Constants
 
@@ -377,7 +467,23 @@ Return codes from SSL_ech_get_status
 
 =head1 RETURN VALUES
 
-Mostly 1 for success.
+SSL_ech_set1_echconfig(), SSL_ech_set1_svcb(),
+SSL_ech_set_server_names(), SSL_ech_set_outer_server_name(),
+SSL_ech_set_outer_alpn_protos(),
+OSSL_ECH_INFO_print(),
+SSL_ech_get_info(), SSL_ech_reduce(),
+SSL_ech_set_grease_suite(), SSL_ech_set_grease_type(),
+SSL_ech_get_retry_config(),
+SSL_CTX_ech_set1_echconfig(), SSL_CTX_ech_server_get_key_status(),
+SSL_CTX_ech_server_flush_keys(), SSL_CTX_ech_server_enable_file(),
+SSL_CTX_ech_server_enable_buffer(), SSL_CTX_ech_server_enable_dir(),
+SSL_CTX_ech_raw_decrypt() and ossl_ech_make_echconfig()
+all return 1 for success and 0 in the case of failure.
+
+SSL_ech_set_callback(), SSL_CTX_ech_set_callback() and
+OSSL_ECH_INFO_free() have no return.
+
+SSL_ech_get_status() returns one of the B<OSSL_ECH_STATUS_*> values.
 
 =head1 SEE ALSO
 
