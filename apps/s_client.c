@@ -750,15 +750,15 @@ const OPTIONS s_client_options[] = {
     {"sni-outer", OPT_SNIOUTER, 's',
      "The name to put in the outer CH when overriding the server's choice," \
          " or \"NONE\""},
-    {"alpn-outer", OPT_ALPN_OUTER, 's',
+    {"ech_alpn_outer", OPT_ALPN_OUTER, 's',
      "Specify outer ALPN value, when using ECH (comma-separated list, or " \
          "\"NONE\"))"},
-    {"echconfigs", OPT_ECHCONFIGS, 's',
+    {"ech_configs", OPT_ECHCONFIGS, 's',
      "Set ECHConfigs, value is b64 or ASCII-HEX encoded ECHConfigs"},
-    {"svcb", OPT_SVCB, 's',
+    {"ech_svcb", OPT_SVCB, 's',
      "Set ECHConfigs and possibly ALPN via an SVCB RData, b64 or ASCII-HEX " \
          "encoded"},
-    {"select", OPT_ECH_SELECT, 'n',
+    {"ech_select", OPT_ECH_SELECT, 'n',
       "Select one ECHConfig from many provided via RR or PEM file"},
     {"ech_grease",OPT_ECH_GREASE,'-',
      "Send GREASE values when not really using ECH"},
@@ -2477,9 +2477,6 @@ int s_client_main(int argc, char **argv)
         if (ech_inner_name != NULL
             && strncmp(ech_inner_name,OSSL_ECH_NAME_NONE,
                        strlen(OSSL_ECH_NAME_NONE))) {
-            // TODO: this was:
-            // inner_to_use = sni_outer_name;
-            // but that can't be right?
             inner_to_use = ech_inner_name;
         }
         /* Set any non-NULL name to be verified */

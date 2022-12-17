@@ -1331,12 +1331,12 @@ const OPTIONS s_server_options[] = {
     {"alpn", OPT_ALPN, 's',
      "Set the advertised protocols for the ALPN extension (comma-separated list)"},
 #ifndef OPENSSL_NO_ECH
-    {"echkey", OPT_ECHCONFIG, 's', "Load ECH key pair"},
-    {"echdir", OPT_ECHDIR, 's', "ECH information directory"},
-    {"echspecificpad", OPT_ECHSPECIFICPAD, '-',
+    {"ech_key", OPT_ECHCONFIG, 's', "Load ECH key pair"},
+    {"ech_dir", OPT_ECHDIR, 's', "ECH information directory"},
+    {"ech_specificpad", OPT_ECHSPECIFICPAD, '-',
         "Specific padding of Certificate/CertificateVerify " \
         "(instead of general padding)"},
-    {"echtrialdecrypt", OPT_ECH_TRIALDECRYPT, '-',
+    {"ech_trialdecrypt", OPT_ECH_TRIALDECRYPT, '-',
         "Do trial decryption even if ECH record_digest matching fails"},
 #endif
 #ifndef OPENSSL_NO_KTLS

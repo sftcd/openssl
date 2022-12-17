@@ -1,5 +1,5 @@
 /*
- * Copyright 2022 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2023 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the OpenSSL license (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -7,9 +7,8 @@
  * https://www.openssl.org/source/license.html
  */
 
-/**
- * @file
- * This implements the externally-visible functions
+/*
+ * Implements the externally-visible functions
  * for handling Encrypted ClientHello (ECH)
  */
 
