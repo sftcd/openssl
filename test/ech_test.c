@@ -202,6 +202,8 @@ static int ech_roundtrip_test(void)
     }
     res = 1;
 end:
+    OPENSSL_free(echkeyfile);
+    OPENSSL_free(echconfig);
     SSL_free(clientssl);
     SSL_free(serverssl);
     SSL_CTX_free(cctx);
