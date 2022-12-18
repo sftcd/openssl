@@ -15,7 +15,7 @@
 
 #ifndef OPENSSL_NO_ECH
 
-#define OSSL_ECH_MAX_LINELEN 1000 /**< for a sanity check */
+# define OSSL_ECH_MAX_LINELEN 1000 /**< for a sanity check */
 
 static OSSL_LIB_CTX *libctx = NULL;
 static OSSL_LIB_CTX *testctx = NULL;
@@ -27,6 +27,15 @@ static char *cert = NULL;
 static char *privkey = NULL;
 static int verbose = 0;
 
+/*
+ * return the bas64 encoded ECHConfigList from an ECH PEM file
+ *
+ * note - this isn't really needed as an offical API because
+ * real clients will use DNS or scripting clients who need
+ * this can do it easier with shell commands
+ *
+ * the caller should free the returned string
+ */
 static char *echconfiglist_from_PEM(const char *echkeyfile)
 {
     BIO *in = NULL;
@@ -61,12 +70,13 @@ static char *echconfiglist_from_PEM(const char *echkeyfile)
     if (ecl_string[readbytes - 1] == '\n')
         ecl_string[readbytes - 1] = '\0';
     BIO_free_all(in);
-    return(ecl_string);
+    return ecl_string;
 out:
-    if (in) BIO_free_all(in);
-    return(NULL);
+    BIO_free_all(in);
+    return NULL;
 }
 
+/* various echconfig generation calls */
 static int basic_echconfig_gen(void)
 {
     int res = 1;
@@ -86,10 +96,10 @@ static int basic_echconfig_gen(void)
     OSSL_ECH_INFO *details = NULL;
     int num_dets = 0;
 
-    res=ossl_ech_make_echconfig(echconfig, &echconfiglen, priv, &privlen,
-                                     ech_version, max_name_length, public_name,
-                                     hpke_suite, extvals, extlen);
-    if (!TEST_int_eq(res,1))
+    res = ossl_ech_make_echconfig(echconfig, &echconfiglen, priv, &privlen,
+                                  ech_version, max_name_length, public_name,
+                                  hpke_suite, extvals, extlen);
+    if (!TEST_int_eq(res, 1))
         return 0;
     if (!TEST_ptr(ctx = SSL_CTX_new_ex(testctx, testpropq,
                                        TLS_server_method())))
@@ -98,26 +108,26 @@ static int basic_echconfig_gen(void)
         return 0;
     res = SSL_ech_set1_echconfig(ssl, &num_echs, OSSL_ECH_FMT_GUESS,
                                  (char *)echconfig, echconfiglen);
-    if (!TEST_int_eq(res,1))
+    if (!TEST_int_eq(res, 1))
         return 0;
     /* add same one a 2nd time for fun, should work even if silly */
     res = SSL_ech_set1_echconfig(ssl, &num_echs, OSSL_ECH_FMT_GUESS,
                                  (char *)echconfig, echconfiglen);
-    if (!TEST_int_eq(res,1))
+    if (!TEST_int_eq(res, 1))
         return 0;
     res = SSL_ech_get_info(ssl, &details, &num_dets);
-    if (!TEST_int_eq(res,1))
+    if (!TEST_int_eq(res, 1))
         return 0;
     /* we should have two sets of details */
-    if (!TEST_int_eq(num_dets,2))
+    if (!TEST_int_eq(num_dets, 2))
         return 0;
     if (verbose) {
         res = OSSL_ECH_INFO_print(bio_stdout, details, num_dets);
-        if (!TEST_int_eq(res,1))
+        if (!TEST_int_eq(res, 1))
             return 0;
     } else {
         res = OSSL_ECH_INFO_print(bio_null, details, num_dets);
-        if (!TEST_int_eq(res,1))
+        if (!TEST_int_eq(res, 1))
             return 0;
     }
     OSSL_ECH_INFO_free(details, num_dets);
@@ -126,31 +136,27 @@ static int basic_echconfig_gen(void)
     return 1;
 }
 
-/* 
- * Test a basic roundtrip with ECH
- */
+/* Test a basic roundtrip with ECH */
 static int ech_roundtrip_test(void)
 {
     int res = 0;
+    char *echkeyfile = NULL;
     char *echconfig = NULL;
     size_t echconfiglen = 0;
     SSL_CTX *cctx = NULL, *sctx = NULL;
     SSL *clientssl = NULL, *serverssl = NULL;
     int num_echs = 0;
-    int clientstatus;
-    char *cinner, *couter;
-    int serverstatus;
-    char *sinner, *souter;
-    char *echkeyfile=NULL;
+    int clientstatus, serverstatus;
+    char *cinner, *couter, *sinner, *souter;
 
-    /* read pre-cooked ECH private/ECHConfigList */
+    /* read our pre-cooked ECH PEM file */
     echkeyfile = test_mk_file_path(certsdir, "echconfig.pem");
     if (!TEST_ptr(echkeyfile))
         goto end;
     echconfig = echconfiglist_from_PEM(echkeyfile);
     if (!TEST_ptr(echconfig))
         goto end;
-    echconfiglen=strlen(echconfig);
+    echconfiglen = strlen(echconfig);
     if (!TEST_true(create_ssl_ctx_pair(libctx, TLS_server_method(),
                                        TLS_client_method(),
                                        TLS1_3_VERSION, 0,
@@ -171,12 +177,12 @@ static int ech_roundtrip_test(void)
     if (!TEST_true(SSL_set_tlsext_host_name(clientssl, "server.example")))
         goto end;
     if (!TEST_true(create_ssl_connection(serverssl, clientssl,
-                                            SSL_ERROR_NONE)))
+                                         SSL_ERROR_NONE)))
         goto end;
     serverstatus = SSL_ech_get_status(serverssl, &sinner, &souter);
     if (verbose) {
         TEST_info("ech_roundtrip_test: server status %d, %s, %s",
-                   serverstatus, sinner, souter);
+                  serverstatus, sinner, souter);
     }
     if (!TEST_int_eq(serverstatus, SSL_ECH_STATUS_SUCCESS)) {
         goto end;
@@ -186,20 +192,12 @@ static int ech_roundtrip_test(void)
     clientstatus = SSL_ech_get_status(clientssl, &cinner, &couter);
     if (verbose) {
         TEST_info("ech_roundtrip_test: client status %d, %s, %s",
-                   clientstatus, cinner, couter);
+                  clientstatus, cinner, couter);
     }
     if (!TEST_int_eq(clientstatus, SSL_ECH_STATUS_SUCCESS)) {
         goto end;
     }
-
     /* all good */
-    if (verbose)  {
-        TEST_info("ech_roundtrip_test: success\n");
-        TEST_info("ech_roundtrip_test: client %d, %s, %s\n",
-                  clientstatus, cinner, couter);
-        TEST_info("ech_roundtrip_test: server %d, %s, %s\n",
-                  serverstatus, sinner, souter);
-    }
     res = 1;
 end:
     OPENSSL_free(echkeyfile);
@@ -211,7 +209,7 @@ end:
     return res;
 }
 
-/* 
+/*
  * Test that setting an echconfig doesn't disturb a TLS1.2 connection
  */
 static int tls_version_test(void)
@@ -236,7 +234,7 @@ static int tls_version_test(void)
                                        TLS_client_method(),
                                        TLS1_2_VERSION, 0,
                                        &sctx, &cctx, cert, privkey)))
-       goto end;
+        goto end;
     if (!TEST_true(SSL_CTX_ech_set1_echconfig(cctx, &num_echs,
                                               OSSL_ECH_FMT_GUESS,
                                               (char *)echconfig,
@@ -250,7 +248,7 @@ static int tls_version_test(void)
         goto end;
 
     /* all good */
-    if (verbose) 
+    if (verbose)
         TEST_info("tls_version_test: success\n");
     res = 1;
 end:
@@ -265,7 +263,7 @@ static int sni_alpn_control_test(void)
 {
     /*
      * TODO: add tests calling SSL_ech_set_server_names() etc
-     * and validate that those work 
+     * and validate that those work
      */
     return 1;
 }
@@ -294,15 +292,17 @@ static int ech_raw_test(void)
     return 1;
 }
 
-enum OSSLTEST_ECH_runOrder {    /* Shuffle to preferred order */
-  OSSLTEST_ECH_B64_GUESS,
-  OSSLTEST_ECH_B64_BASE64,
-  OSSLTEST_ECH_B64_GUESS_XS_COUNT,
-  OSSLTEST_ECH_B64_GUESS_LO_COUNT,
-  OSSLTEST_ECH_B64_JUNK_GUESS,
+/* Shuffle to preferred order */
+enum OSSLTEST_ECH_runOrder
+    {
+     OSSLTEST_ECH_B64_GUESS,
+     OSSLTEST_ECH_B64_BASE64,
+     OSSLTEST_ECH_B64_GUESS_XS_COUNT,
+     OSSLTEST_ECH_B64_GUESS_LO_COUNT,
+     OSSLTEST_ECH_B64_JUNK_GUESS,
 
-  OSSLTEST_ECH_NTESTS        /* Keep NTESTS last */
-};
+     OSSLTEST_ECH_NTESTS        /* Keep NTESTS last */
+    };
 
 static int test_ech_add(int idx)
 {
@@ -311,32 +311,33 @@ static int test_ech_add(int idx)
     int testresult = 0;        /* assume failure */
     int echcount = 0;
     int returned;
-
-    /* 
+    /*
      * This ECHConfigList has 6 entries with different versions,
      * [13,10,9,13,10,13] - since our runtime no longer supports
      * version 9 or 10, we should see 3 configs loaded.
      */
-    char echconfig[]=
-        "AXn+DQA6xQAgACBm54KSIPXu+pQq2oY183wt3ybx7CKbBYX0ogPq5u6FegAEAAE"\
-        "AAQALZXhhbXBsZS5jb20AAP4KADzSACAAIIP+0Qt0WGBF3H5fz8HuhVRTCEMuHS"\
-        "4Khu6ibR/6qER4AAQAAQABAAAAC2V4YW1wbGUuY29tAAD+CQA7AAtleGFtcGxlL"\
-        "mNvbQAgoyQr+cP8mh42znOp1bjPxpLCBi4A0ftttr8MPXRJPBcAIAAEAAEAAQAA"\
-        "AAD+DQA6QwAgACB3xsNUtSgipiYpUkW6OSrrg03I4zIENMFa0JR2+Mm1WwAEAAE"\
-        "AAQALZXhhbXBsZS5jb20AAP4KADwDACAAIH0BoAdiJCX88gv8nYpGVX5BpGBa9y"\
-        "T0Pac3Kwx6i8URAAQAAQABAAAAC2V4YW1wbGUuY29tAAD+DQA6QwAgACDcZIAx7"\
-        "OcOiQuk90VV7/DO4lFQr5I3Zw9tVbK8MGw1dgAEAAEAAQALZXhhbXBsZS5jb20A"\
+    size_t echconfiglen;
+    char echconfig[] =
+        "AXn+DQA6xQAgACBm54KSIPXu+pQq2oY183wt3ybx7CKbBYX0ogPq5u6FegAEAAE"
+        "AAQALZXhhbXBsZS5jb20AAP4KADzSACAAIIP+0Qt0WGBF3H5fz8HuhVRTCEMuHS"
+        "4Khu6ibR/6qER4AAQAAQABAAAAC2V4YW1wbGUuY29tAAD+CQA7AAtleGFtcGxlL"
+        "mNvbQAgoyQr+cP8mh42znOp1bjPxpLCBi4A0ftttr8MPXRJPBcAIAAEAAEAAQAA"
+        "AAD+DQA6QwAgACB3xsNUtSgipiYpUkW6OSrrg03I4zIENMFa0JR2+Mm1WwAEAAE"
+        "AAQALZXhhbXBsZS5jb20AAP4KADwDACAAIH0BoAdiJCX88gv8nYpGVX5BpGBa9y"
+        "T0Pac3Kwx6i8URAAQAAQABAAAAC2V4YW1wbGUuY29tAAD+DQA6QwAgACDcZIAx7"
+        "OcOiQuk90VV7/DO4lFQr5I3Zw9tVbK8MGw1dgAEAAEAAQALZXhhbXBsZS5jb20A"
         "AA==";
-    size_t echconfiglen=strlen(echconfig);
+
+    echconfiglen = strlen(echconfig);
 
     /* Generate fresh context pair for each test with TLSv1.3 as a minimum */
     if (!TEST_true(create_ssl_ctx_pair(libctx, TLS_server_method(),
                                        TLS_client_method(),
                                        TLS1_3_VERSION, 0,
                                        &sctx2, &cctx, cert, privkey))) {
-       TEST_info("test_ech_add: context creation failed for iteration %d",
-                 idx);
-       goto end;
+        TEST_info("test_ech_add: context creation failed for iteration %d",
+                  idx);
+        goto end;
     }
     if (!TEST_ptr(clientssl = SSL_new(cctx))) {
         TEST_info("test_ech_add: clientssl createion failed");
@@ -372,10 +373,10 @@ static int test_ech_add(int idx)
             TEST_info("OSSLTEST_ECH_B64_BASE64: incorrect ECH count\n");
             goto end;
         }
-      break;
+        break;
 
     case OSSLTEST_ECH_B64_GUESS_XS_COUNT:
-        /* 
+        /*
          * Valid echconfig, excess length but just by one octet
          * which will be ok since strings have that added NUL
          * octet. If the excess was >1 then the caller is the
@@ -383,11 +384,11 @@ static int test_ech_add(int idx)
          */
         returned = SSL_ech_set1_echconfig(clientssl, &echcount,
                                           OSSL_ECH_FMT_GUESS,
-                                          echconfig, echconfiglen+1);
+                                          echconfig, echconfiglen + 1);
         if (!TEST_int_ne(returned, 1)) {
             TEST_info("OSSLTEST_ECH_B64_GUESS_XS_COUNT: success despite excess "
                       "length (%d/%d)\n",
-                      (int)echconfiglen+1, (int)echconfiglen);
+                      (int)echconfiglen + 1, (int)echconfiglen);
             goto end;
         }
         if (!TEST_int_eq(echcount, 0)) {
@@ -395,38 +396,38 @@ static int test_ech_add(int idx)
                       "be zero\n", echcount);
             goto end;
         }
-      break;
+        break;
 
     case OSSLTEST_ECH_B64_GUESS_LO_COUNT:
         /* Valid echconfig, short length */
-        returned = SSL_ech_set1_echconfig(clientssl, &echcount, 
+        returned = SSL_ech_set1_echconfig(clientssl, &echcount,
                                           OSSL_ECH_FMT_GUESS,
-                                          echconfig, echconfiglen/2);
+                                          echconfig, echconfiglen / 2);
         if (!TEST_int_ne(returned, 1)) {
             TEST_info("OSSLTEST_ECH_B64_GUESS_LO_COUNT: success despite short "
                       "length (%d/%d)\n",
-                       (int)echconfiglen/2, (int)echconfiglen);
+                      (int)echconfiglen / 2, (int)echconfiglen);
             goto end;
-          }
-      break;
+        }
+        break;
 
     case OSSLTEST_ECH_B64_JUNK_GUESS:
         /* Junk echconfig */
-        returned = SSL_ech_set1_echconfig(clientssl, &echcount, 
+        returned = SSL_ech_set1_echconfig(clientssl, &echcount,
                                           OSSL_ECH_FMT_GUESS,
                                           "DUMMDUMM;DUMMYDUMM", 18);
         if (!TEST_int_ne(returned, 1)) {
             TEST_info("OSSLTEST_ECH_B64_JUNK_GUESS: junk config success\n");
             goto end;
         }
-      break;
+        break;
 
     default:
         TEST_error("Bad test index\n");
         goto end;
     }
 
-    if (verbose) 
+    if (verbose)
         TEST_info("test_ech_add: success\n");
     testresult = 1;        /* explicit success */
 
