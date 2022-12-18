@@ -8,13 +8,19 @@
 # https://www.openssl.org/source/license.html
 
 use strict;
-use OpenSSL::Test;              # get 'plan'
-use OpenSSL::Test::Simple;
+#use OpenSSL::Test;              # get 'plan'
+#use OpenSSL::Test::Simple;
 use OpenSSL::Test::Utils;
+use OpenSSL::Test qw/:DEFAULT srctop_file srctop_dir bldtop_dir bldtop_file/;
 
 setup("test_ech");
 
 plan skip_all => "This test is unsupported in a no-ec build"
     if disabled("ec") || disabled("ech");
 
-simple_test("test_ech", "ech_test");
+plan tests => 1;
+
+ok(run(test(["ech_test", srctop_dir("test", "certs")])))
+
+    # simple_test("test_ech", "ech_test ../test/certs");
+

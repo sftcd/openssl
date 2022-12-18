@@ -1445,7 +1445,7 @@ int SSL_ech_set1_echconfig(SSL *s, int *num_echs,
  * e.g. OSSL_ECH_FMT_ASCII_HEX, or OSSL_ECH_FMT_GUESS
  */
 int SSL_CTX_ech_set1_echconfig(SSL_CTX *ctx, int *num_echs,
-                               int ekfmt, size_t eklen, char *ekval)
+                               int ekfmt, char *ekval, size_t eklen)
 {
     SSL_ECH *echs = NULL;
     int rv = 1;

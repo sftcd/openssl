@@ -128,7 +128,7 @@ int SSL_ech_get_retry_config(SSL *s, const unsigned char **ec, size_t *eclen);
  */
 
 int SSL_CTX_ech_set1_echconfig(SSL_CTX *ctx, int *num_echs,
-                               int ekfmt, size_t eklen, char *ekval);
+                               int ekfmt, char *ekval, size_t eklen);
 int SSL_CTX_ech_set_outer_alpn_protos(SSL_CTX *s, const unsigned char *protos,
                                       const size_t protos_len);
 
