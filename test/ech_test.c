@@ -22,53 +22,10 @@ static OSSL_LIB_CTX *testctx = NULL;
 static char *testpropq = NULL;
 static BIO *bio_stdout = NULL;
 static BIO *bio_null = NULL;
-
+static char *certsdir = NULL;
 static char *cert = NULL;
 static char *privkey = NULL;
 static int verbose = 0;
-
-#if 0
-/* may need this later */
-static char *echconfiglist_from_PEM(const char *echkeyfile)
-{
-    BIO *in = NULL;
-    char *ecl_string = NULL;
-    char lnbuf[OSSL_ECH_MAX_LINELEN];
-    int readbytes = 0;
-
-    if (!TEST_ptr(in = BIO_new(BIO_s_file()))
-        || !TEST_int_ge(BIO_read_filename(in, echkeyfile), 0))
-        goto out;
-    /* read 4 lines before the one we want */
-    readbytes = BIO_get_line(in, lnbuf, OSSL_ECH_MAX_LINELEN);
-    if (readbytes <= 0 || readbytes >= OSSL_ECH_MAX_LINELEN)
-        goto out;
-    readbytes = BIO_get_line(in, lnbuf, OSSL_ECH_MAX_LINELEN);
-    if (readbytes <= 0 || readbytes >= OSSL_ECH_MAX_LINELEN)
-        goto out;
-    readbytes = BIO_get_line(in, lnbuf, OSSL_ECH_MAX_LINELEN);
-    if (readbytes <= 0 || readbytes >= OSSL_ECH_MAX_LINELEN)
-        goto out;
-    readbytes = BIO_get_line(in, lnbuf, OSSL_ECH_MAX_LINELEN);
-    if (readbytes <= 0 || readbytes >= OSSL_ECH_MAX_LINELEN)
-        goto out;
-    readbytes = BIO_get_line(in, lnbuf, OSSL_ECH_MAX_LINELEN);
-    if (readbytes <= 0 || readbytes >= OSSL_ECH_MAX_LINELEN)
-        goto out;
-    ecl_string = OPENSSL_malloc(readbytes + 1);
-    if (ecl_string == NULL)
-        goto out;
-    memcpy(ecl_string, lnbuf, readbytes);
-    /* zap the '\n' if present */
-    if (ecl_string[readbytes - 1] == '\n')
-        ecl_string[readbytes - 1] = '\0';
-    BIO_free_all(in);
-    return(ecl_string);
-out:
-    if (in) BIO_free_all(in);
-    return(NULL);
-}
-#endif
 
 static int basic_echconfig_gen(void)
 {
@@ -136,11 +93,49 @@ static int basic_echconfig_gen(void)
  */
 static int tls_version_test(void)
 {
-    /*
-     * TODO: check that TLSv1.2 is still ok if the client
-     * had set an ECHConfig
-     */
-    return 1;
+    int res = 0;
+    unsigned char echconfig[400];
+    size_t echconfig_len = sizeof(echconfig);
+    unsigned char priv[200];
+    size_t privlen = sizeof(priv);
+    uint16_t ech_version = OSSL_ECH_DRAFT_13_VERSION;
+    OSSL_HPKE_SUITE hpke_suite = OSSL_HPKE_SUITE_DEFAULT;
+    SSL_CTX *cctx = NULL, *sctx = NULL;
+    SSL *clientssl = NULL, *serverssl = NULL;
+    int num_echs = 0;
+
+    if (!TEST_true(ossl_ech_make_echconfig(echconfig, &echconfig_len,
+                                           priv, &privlen,
+                                           ech_version, 0, "example.com",
+                                           hpke_suite, NULL, 0)))
+        goto end;
+    if (!TEST_true(create_ssl_ctx_pair(libctx, TLS_server_method(),
+                                       TLS_client_method(),
+                                       TLS1_2_VERSION, 0,
+                                       &sctx, &cctx, cert, privkey)))
+       goto end;
+    if (!TEST_true(SSL_CTX_ech_set1_echconfig(cctx, &num_echs,
+                                              OSSL_ECH_FMT_GUESS,
+                                              (char *)echconfig,
+                                              echconfig_len)))
+        goto end;
+    /* Now do a handshake */
+    if (!TEST_true(create_ssl_objects(sctx, cctx, &serverssl,
+                                      &clientssl, NULL, NULL))
+        || !TEST_true(create_ssl_connection(serverssl, clientssl,
+                                            SSL_ERROR_NONE)))
+        goto end;
+
+    /* all good */
+    if (verbose) 
+        TEST_info("tls_version_test: success\n");
+    res = 1;
+end:
+    SSL_free(clientssl);
+    SSL_free(serverssl);
+    SSL_CTX_free(cctx);
+    SSL_CTX_free(sctx);
+    return res;
 }
 
 static int sni_alpn_control_test(void)
@@ -193,15 +188,6 @@ static int test_ech_add(int idx)
     int testresult = 0;        /* assume failure */
     int echcount = 0;
     int returned;
-
-#if 0
-    /*
-     * This ECHConfigList has only one entry.
-     */
-    char echconfig[] =
-      "ADX+CgAxLwAgACAPM+mZOcezv6GuQIQ8ZVHT+Hube8VZq+pAbXphNU3nSwAEAAE"\
-      "AAQAAAAAAAA==";
-#endif
 
     /* 
      * This ECHConfigList has 6 entries with different versions,
@@ -326,7 +312,7 @@ end:
     SSL_free(clientssl);
     SSL_CTX_free(sctx2);
     SSL_CTX_free(sctx);
-    SSL_CTX_free(cctx);        /* TBD: ensure that this frees any echconfig storage */
+    SSL_CTX_free(cctx);
     return testresult;
 }
 
@@ -358,7 +344,7 @@ int setup_tests(void)
     while ((o = opt_next()) != OPT_EOF) {
         switch (o) {
         case OPT_VERBOSE:
-            verbose = 1; /* Print progress dots */
+            verbose = 1;
             break;
         case OPT_TEST_CASES:
             break;
@@ -366,6 +352,17 @@ int setup_tests(void)
             return 0;
         }
     }
+
+    if (!TEST_ptr(certsdir = test_get_argument(0)))
+        return 0;
+
+    cert = test_mk_file_path(certsdir, "servercert.pem");
+    if (cert == NULL)
+        goto err;
+
+    privkey = test_mk_file_path(certsdir, "serverkey.pem");
+    if (privkey == NULL)
+        goto err;
 
     bio_stdout = BIO_new_fp(stdout, BIO_NOCLOSE | BIO_FP_TEXT);
     bio_null = BIO_new(BIO_s_mem());
@@ -378,6 +375,8 @@ int setup_tests(void)
     ADD_TEST(ech_raw_test);
 #endif
     return 1;
+err:
+    return 0;
 }
 
 void cleanup_tests(void)
@@ -385,5 +384,7 @@ void cleanup_tests(void)
 #ifndef OPENSSL_NO_ECH
     BIO_free(bio_null);
     BIO_free(bio_stdout);
+    OPENSSL_free(cert);
+    OPENSSL_free(privkey);
 #endif
 }
