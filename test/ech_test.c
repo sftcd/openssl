@@ -373,10 +373,11 @@ int setup_tests(void)
     ADD_TEST(ech_info_test);
     ADD_TEST(ech_file_test);
     ADD_TEST(ech_raw_test);
-#endif
     return 1;
 err:
     return 0;
+#endif
+    return 1;
 }
 
 void cleanup_tests(void)
