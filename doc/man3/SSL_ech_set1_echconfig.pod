@@ -109,7 +109,10 @@ return a I<num_echs> value indicating how many public values in total are
 associated with the I<SSL> or I<SSL_CTX> input.  If multiple calls to these
 functions are made for the same I<SSL> or I<SSL_CTX> value, then the
 ECHConfigList values will be accumulated and the I<num_echs> returned will
-reflect the total number of ECH public values available.
+reflect the total number of ECH public values available. Similarly, if
+some ECH public values are associated with an I<SSL_CTX> and an I<SSL>
+is derived from that, those public values will be carried over into the
+latter data structure.
 
 These functions support catenated input values for I<ekval>. Internal
 length fields mean no separator is needed for binary or ascii-hex encodings,
@@ -134,6 +137,21 @@ contain no ECH public values - in such cases this function will succeed (i.e.
 return 1) but the I<nun_echs> output won't reflect any newly stored ECH public
 values. As with SSL_ech_set1_echconfig() the I<rrval> provided can be a
 catenated list.
+
+ECH public values can contain a list of versioned values, and not
+all versions are supported. Versions that are unsupported will be
+skipped over - the relevant function will succeed, but the I<num_echs>
+value returned will only reflect the ECH public values for supported
+versions.
+
+There is no attempt to de-duplicate ECH public values provided via these
+APIs - if the same value is provided twice, then the relevant I<SSL> or
+I<SSL_CTX> structure with have two more public values associated.
+When an I<SSL> object is derived from an I<SSL_CTX> object, the ECH
+public values associated with the latter are deep-copied to the former.
+
+Internal copies of ECH public values associated with an I<SSL> or I<SSL_CTX>
+object will be freed when the I<SSL> or I<SSL_CTX> object is freed.
 
 SSL_ech_set1_echconfig(), SSL_CTX_ech_set1_echconfig() and SSL_ech_set1_svcb() all
 return 1 for success and 0 in the case of error.
