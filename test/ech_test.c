@@ -96,44 +96,42 @@ static int basic_echconfig_gen(void)
     OSSL_ECH_INFO *details = NULL;
     int num_dets = 0;
 
-    res = ossl_ech_make_echconfig(echconfig, &echconfiglen, priv, &privlen,
-                                  ech_version, max_name_length, public_name,
-                                  hpke_suite, extvals, extlen);
-    if (!TEST_int_eq(res, 1))
-        return 0;
+    if (!TEST_true(ossl_ech_make_echconfig(echconfig, &echconfiglen,
+                                           priv, &privlen,
+                                           ech_version, max_name_length,
+                                           public_name, hpke_suite,
+                                           extvals, extlen)))
+        goto err;
     if (!TEST_ptr(ctx = SSL_CTX_new_ex(testctx, testpropq,
                                        TLS_server_method())))
-        return 0;
+        goto err;
     if (!TEST_ptr(ssl = SSL_new(ctx)))
-        return 0;
-    res = SSL_ech_set1_echconfig(ssl, &num_echs, OSSL_ECH_FMT_GUESS,
-                                 (char *)echconfig, echconfiglen);
-    if (!TEST_int_eq(res, 1))
-        return 0;
+        goto err;
+    if (!TEST_true(SSL_ech_set1_echconfig(ssl, &num_echs, OSSL_ECH_FMT_GUESS,
+                                          (char *)echconfig, echconfiglen)))
+        goto err;
     /* add same one a 2nd time for fun, should work even if silly */
-    res = SSL_ech_set1_echconfig(ssl, &num_echs, OSSL_ECH_FMT_GUESS,
-                                 (char *)echconfig, echconfiglen);
-    if (!TEST_int_eq(res, 1))
-        return 0;
-    res = SSL_ech_get_info(ssl, &details, &num_dets);
-    if (!TEST_int_eq(res, 1))
-        return 0;
+    if (!TEST_true(SSL_ech_set1_echconfig(ssl, &num_echs, OSSL_ECH_FMT_GUESS,
+                                          (char *)echconfig, echconfiglen)))
+        goto err;
+    if (!TEST_true(SSL_ech_get_info(ssl, &details, &num_dets)))
+        goto err;
     /* we should have two sets of details */
     if (!TEST_int_eq(num_dets, 2))
-        return 0;
+        goto err;
     if (verbose) {
-        res = OSSL_ECH_INFO_print(bio_stdout, details, num_dets);
-        if (!TEST_int_eq(res, 1))
-            return 0;
+        if (!TEST_true(OSSL_ECH_INFO_print(bio_stdout, details, num_dets)))
+            goto err;
     } else {
-        res = OSSL_ECH_INFO_print(bio_null, details, num_dets);
-        if (!TEST_int_eq(res, 1))
-            return 0;
+        if (!TEST_true(OSSL_ECH_INFO_print(bio_null, details, num_dets)))
+            goto err;
     }
+    res = 1;
+err:
     OSSL_ECH_INFO_free(details, num_dets);
     SSL_free(ssl);
     SSL_CTX_free(ctx);
-    return 1;
+    return res;
 }
 
 /* Test a basic roundtrip with ECH */
@@ -164,7 +162,7 @@ static int ech_roundtrip_test(void)
         goto end;
     if (!TEST_true(SSL_CTX_ech_set1_echconfig(cctx, &num_echs,
                                               OSSL_ECH_FMT_GUESS,
-                                              (char *)echconfig,
+                                              echconfig,
                                               echconfiglen)))
         goto end;
     if (!TEST_int_eq(num_echs, 1))
@@ -180,23 +178,19 @@ static int ech_roundtrip_test(void)
                                          SSL_ERROR_NONE)))
         goto end;
     serverstatus = SSL_ech_get_status(serverssl, &sinner, &souter);
-    if (verbose) {
+    if (verbose)
         TEST_info("ech_roundtrip_test: server status %d, %s, %s",
                   serverstatus, sinner, souter);
-    }
-    if (!TEST_int_eq(serverstatus, SSL_ECH_STATUS_SUCCESS)) {
+    if (!TEST_int_eq(serverstatus, SSL_ECH_STATUS_SUCCESS))
         goto end;
-    }
     /* override cert verification */
     SSL_set_verify_result(clientssl, X509_V_OK);
     clientstatus = SSL_ech_get_status(clientssl, &cinner, &couter);
-    if (verbose) {
+    if (verbose)
         TEST_info("ech_roundtrip_test: client status %d, %s, %s",
                   clientstatus, cinner, couter);
-    }
-    if (!TEST_int_eq(clientstatus, SSL_ECH_STATUS_SUCCESS)) {
+    if (!TEST_int_eq(clientstatus, SSL_ECH_STATUS_SUCCESS))
         goto end;
-    }
     /* all good */
     res = 1;
 end:
@@ -209,9 +203,7 @@ end:
     return res;
 }
 
-/*
- * Test that setting an echconfig doesn't disturb a TLS1.2 connection
- */
+/* Test that setting an echconfig doesn't disturb a TLS1.2 connection */
 static int tls_version_test(void)
 {
     int res = 0;
@@ -257,39 +249,6 @@ end:
     SSL_CTX_free(cctx);
     SSL_CTX_free(sctx);
     return res;
-}
-
-static int sni_alpn_control_test(void)
-{
-    /*
-     * TODO: add tests calling SSL_ech_set_server_names() etc
-     * and validate that those work
-     */
-    return 1;
-}
-
-static int ech_info_test(void)
-{
-    /*
-     * TODO: add tests calling OSSL_ECH_INFO_print() etc
-     */
-    return 1;
-}
-
-static int ech_file_test(void)
-{
-    /*
-     * TODO: add tests calling SSL_CTX_ech_server_enable_file() etc
-     */
-    return 1;
-}
-
-static int ech_raw_test(void)
-{
-    /*
-     * TODO: add tests calling SSL_CTX_ech_raw_decrypt() etc
-     */
-    return 1;
 }
 
 /* Shuffle to preferred order */
@@ -494,10 +453,6 @@ int setup_tests(void)
     ADD_ALL_TESTS(test_ech_add, 5);
     ADD_TEST(ech_roundtrip_test);
     ADD_TEST(tls_version_test);
-    ADD_TEST(sni_alpn_control_test);
-    ADD_TEST(ech_info_test);
-    ADD_TEST(ech_file_test);
-    ADD_TEST(ech_raw_test);
     return 1;
 err:
     return 0;
