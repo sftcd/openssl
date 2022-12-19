@@ -204,13 +204,6 @@ static int local_ech_add(int ekfmt, size_t eklen, unsigned char *ekval,
                          int *num_echs, SSL_ECH **echs);
 
 /**
- * @brief free an OSSL_ECH_INFO
- * @param in the thing to free
- * @return void
- */
-static void local_OSSL_ECH_INFO_free(OSSL_ECH_INFO *in);
-
-/**
  * @brief produce a printable string form of an ECHConfigs
  * @param c is the ECHConfigs
  * @return a printable string (or NULL)
@@ -569,15 +562,6 @@ void OSSL_ECH_ENCCH_free(OSSL_ECH_ENCCH *ev)
 }
 
 /**
- * @brief Free and NULL a simple malloc'd item
- *
- * Macro to free tbf->X if it's non NULL,
- * and then set it to NULL - that last is
- * sometimes needed if inner and outer CH
- * have common structures so we don't try
- * free twice.
- */
-/**
  * @brief free an SSL_ECH
  * @param tbf is a ptr to an SSL_ECH structure
  *
@@ -604,23 +588,6 @@ void SSL_ECH_free(SSL_ECH *tbf)
 }
 
 /**
- * @brief free an OSSL_ECH_INFO
- * @param in the thing to free
- * @return void
- */
-static void local_OSSL_ECH_INFO_free(OSSL_ECH_INFO *in)
-{
-    if (in == NULL)
-        return;
-    OPENSSL_free(in->public_name);
-    OPENSSL_free(in->inner_name);
-    OPENSSL_free(in->outer_alpns);
-    OPENSSL_free(in->inner_alpns);
-    OPENSSL_free(in->echconfig);
-    return;
-}
-
-/**
  * @brief free up an arryay of OSSL_ECH_INFO
  *
  * @param in is the structure to free up
@@ -632,8 +599,13 @@ void OSSL_ECH_INFO_free(OSSL_ECH_INFO *in, int size)
 
     if (in == NULL || size <= 0)
         return;
-    for (i = 0; i != size; i++)
-        local_OSSL_ECH_INFO_free(&in[i]);
+    for (i = 0; i != size; i++) {
+        OPENSSL_free(in[i].public_name);
+        OPENSSL_free(in[i].inner_name);
+        OPENSSL_free(in[i].outer_alpns);
+        OPENSSL_free(in[i].inner_alpns);
+        OPENSSL_free(in[i].echconfig);
+    }
     OPENSSL_free(in);
     return;
 }
@@ -855,6 +827,7 @@ static ECHConfigs *ECHConfigs_from_binary(unsigned char *binbuf,
             }
         }
 
+        /* this check's a bit redundant at the moment with only one version */
         if (ec->version == OSSL_ECH_DRAFT_13_VERSION) {
             PACKET pub_pkt;
             PACKET cipher_suites;
@@ -912,46 +885,21 @@ static ECHConfigs *ECHConfigs_from_binary(unsigned char *binbuf,
             }
 
             /* read public_name */
-            if (ec->version == OSSL_ECH_DRAFT_13_VERSION) {
-                if (!PACKET_get_length_prefixed_1(&pkt, &public_name_pkt))
+            if (!PACKET_get_length_prefixed_1(&pkt, &public_name_pkt))
+                goto err;
+            ec->public_name_len = PACKET_remaining(&public_name_pkt);
+            if (ec->public_name_len != 0) {
+                if (ec->public_name_len <= 1 ||
+                    ec->public_name_len > TLSEXT_MAXLEN_host_name)
                     goto err;
-                ec->public_name_len = PACKET_remaining(&public_name_pkt);
-                if (ec->public_name_len != 0) {
-                    if (ec->public_name_len <= 1 ||
-                        ec->public_name_len > TLSEXT_MAXLEN_host_name)
-                        goto err;
-                    ec->public_name = OPENSSL_malloc(ec->public_name_len + 1);
-                    if (ec->public_name == NULL)
-                        goto err;
-                    if (PACKET_copy_bytes(&public_name_pkt,
-                                          ec->public_name,
-                                          ec->public_name_len) != 1)
-                        goto err;
-                    ec->public_name[ec->public_name_len] = '\0';
-                }
-
-            } else {
-                /*
-                 * FIXME: This is the same as above, probably a holdover
-                 * from some previous version and can be removed but needs
-                 * a check
-                 */
-                if (!PACKET_get_length_prefixed_2(&pkt, &public_name_pkt))
+                ec->public_name = OPENSSL_malloc(ec->public_name_len + 1);
+                if (ec->public_name == NULL)
                     goto err;
-                ec->public_name_len = PACKET_remaining(&public_name_pkt);
-                if (ec->public_name_len != 0) {
-                    if (ec->public_name_len <= 1
-                        || ec->public_name_len > TLSEXT_MAXLEN_host_name)
-                        goto err;
-                    ec->public_name = OPENSSL_malloc(ec->public_name_len + 1);
-                    if (ec->public_name == NULL)
-                        goto err;
-                    if (PACKET_copy_bytes(&public_name_pkt,
-                                          ec->public_name,
-                                          ec->public_name_len) != 1)
-                        goto err;
-                    ec->public_name[ec->public_name_len] = '\0';
-                }
+                if (PACKET_copy_bytes(&public_name_pkt,
+                                      ec->public_name,
+                                      ec->public_name_len) != 1)
+                    goto err;
+                ec->public_name[ec->public_name_len] = '\0';
             }
 
             /*
@@ -1060,7 +1008,6 @@ static ECHConfigs *ECHConfigs_from_binary(unsigned char *binbuf,
     te = NULL;
     er->encoded_len = binblen;
     er->encoded = binbuf;
-
     return er;
 
 err:
@@ -1136,8 +1083,6 @@ static int ah_decode(size_t ahlen, const char *ah,
  * @return is 1 for success, error otherwise
  *
  * This does the real work, can be called to add to a context or a connection
- * TODO: Add test cases with good/bad inputs. (Been too long since I tested
- * all those.)
  */
 static int local_ech_add(int ekfmt, size_t eklen, unsigned char *ekval,
                          int *num_echs, SSL_ECH **echs)
@@ -1449,14 +1394,28 @@ int SSL_CTX_ech_set1_echconfig(SSL_CTX *ctx, int *num_echs,
 {
     SSL_ECH *echs = NULL;
     int rv = 1;
+    SSL_ECH *tmp = NULL;
 
     if (ctx == NULL || ekval == NULL || eklen == 0 || num_echs == NULL)
         return 0;
     rv = local_ech_add(ekfmt, eklen, (unsigned char *)ekval, num_echs, &echs);
     if (rv != 1)
         return 0;
-    ctx->ext.ech = echs;
-    ctx->ext.nechs = *num_echs;
+    if (ctx->ext.ech == NULL) {
+        ctx->ext.ech = echs;
+        ctx->ext.nechs = *num_echs;
+        return 1;
+    }
+    /* otherwise accumulate */
+    tmp = OPENSSL_realloc(ctx->ext.ech, (ctx->ext.nechs + *num_echs) * sizeof(SSL_ECH));
+    if (tmp == NULL)
+        return 0;
+    ctx->ext.ech = tmp;
+    /* shallow copy top level, keeping lower levels */
+    memcpy(&ctx->ext.ech[ctx->ext.nechs], echs, *num_echs * sizeof(SSL_ECH));
+    ctx->ext.nechs += *num_echs;
+    *num_echs = ctx->ext.nechs;
+    OPENSSL_free(echs);
     return 1;
 }
 

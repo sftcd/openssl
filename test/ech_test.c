@@ -76,8 +76,8 @@ out:
     return NULL;
 }
 
-/* various echconfig generation calls */
-static int basic_echconfig_gen(void)
+/* various echconfig handling calls */
+static int basic_echconfig(void)
 {
     int res = 1;
     unsigned char echconfig[400];
@@ -105,19 +105,30 @@ static int basic_echconfig_gen(void)
     if (!TEST_ptr(ctx = SSL_CTX_new_ex(testctx, testpropq,
                                        TLS_server_method())))
         goto err;
+    /* add that to ctx to start */
+    if (!TEST_true(SSL_CTX_ech_set1_echconfig(ctx, &num_echs, OSSL_ECH_FMT_GUESS,
+                                              (char *)echconfig, echconfiglen)))
+        goto err;
+    if (!TEST_int_eq(num_echs, 1))
+        goto err;
     if (!TEST_ptr(ssl = SSL_new(ctx)))
         goto err;
+    /* repeat add that to ssl to make 2*/
     if (!TEST_true(SSL_ech_set1_echconfig(ssl, &num_echs, OSSL_ECH_FMT_GUESS,
                                           (char *)echconfig, echconfiglen)))
         goto err;
-    /* add same one a 2nd time for fun, should work even if silly */
+    if (!TEST_int_eq(num_echs, 2))
+        goto err;
+    /* add a 2nd time for fun, works even if silly */
     if (!TEST_true(SSL_ech_set1_echconfig(ssl, &num_echs, OSSL_ECH_FMT_GUESS,
                                           (char *)echconfig, echconfiglen)))
+        goto err;
+    if (!TEST_int_eq(num_echs, 3))
         goto err;
     if (!TEST_true(SSL_ech_get_info(ssl, &details, &num_dets)))
         goto err;
-    /* we should have two sets of details */
-    if (!TEST_int_eq(num_dets, 2))
+    /* we should have 3 sets of details */
+    if (!TEST_int_eq(num_dets, 3))
         goto err;
     if (verbose) {
         if (!TEST_true(OSSL_ECH_INFO_print(bio_stdout, details, num_dets)))
@@ -449,7 +460,7 @@ int setup_tests(void)
 
     bio_stdout = BIO_new_fp(stdout, BIO_NOCLOSE | BIO_FP_TEXT);
     bio_null = BIO_new(BIO_s_mem());
-    ADD_TEST(basic_echconfig_gen);
+    ADD_TEST(basic_echconfig);
     ADD_ALL_TESTS(test_ech_add, 5);
     ADD_TEST(ech_roundtrip_test);
     ADD_TEST(tls_version_test);
