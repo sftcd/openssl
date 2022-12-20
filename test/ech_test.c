@@ -188,7 +188,7 @@ static int ech_roundtrip_test(void)
                                               echconfiglen))) {
         TEST_info("Failed SSL_CTX_ech_set1_echconfig adding %s (len = %lu)"
                   " to SSL_CTX: %p, wanted result in : %p\n",
-                  echconfig, echconfiglen, cctx, &num_echs);
+                  echconfig, echconfiglen, (void *)cctx, (void *)&num_echs);
         goto end;
     }
     if (!TEST_int_eq(num_echs, 1))
