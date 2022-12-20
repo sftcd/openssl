@@ -2465,7 +2465,8 @@ err:
  *
  * In the case of decoding error, any existing ECHConfigs are unaffected.
  */
-int SSL_ech_set1_svcb(SSL *ssl, int *num_echs, int rrfmt, char *rrval, size_t rrlen)
+int SSL_ech_set1_svcb(SSL *ssl, int *num_echs,
+                      int rrfmt, char *rrval, size_t rrlen)
 {
     SSL_ECH *new_echs = NULL;
     int num_new = 0;
@@ -2507,7 +2508,7 @@ int SSL_ech_set1_svcb(SSL *ssl, int *num_echs, int rrfmt, char *rrval, size_t rr
  */
 int ech_2bcompressed(int ind)
 {
-    int nexts = sizeof(ech_outer_config) / sizeof(int);
+    int nexts = OSSL_NELEM(ech_outer_config);
 
     if (ind < 0 || ind >= nexts)
         return -1;
@@ -2516,7 +2517,6 @@ int ech_2bcompressed(int ind)
 
 /**
  * @brief repeat extension from inner in outer and handle compression
- *
  * @param ssl is the SSL session
  * @param pkt is the packet containing extensions
  * @return 0: error, 1: copied existing and done, 2: ignore existing
@@ -2542,7 +2542,7 @@ int ech_same_ext(SSL *ssl, WPACKET *pkt)
         return OSSL_ECH_SAME_EXT_CONTINUE; /* nothing to do */
     inner = s->ext.inner_s;
     type = s->ext.etype;
-    nexts = sizeof(ech_outer_config) / sizeof(int);
+    nexts = OSSL_NELEM(ech_outer_config);
     tind = ech_map_ext_type_to_ind(type);
 
     /* If this index'd extension won't be compressed, we're done */
@@ -2658,7 +2658,6 @@ int ech_encode_inner(SSL_CONNECTION *s)
      *    Extension extensions<8..2^16-1>;
      *  } ClientHello;
      */
-
     if ((inner_mem = BUF_MEM_new()) == NULL) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         goto err;
@@ -2680,7 +2679,7 @@ int ech_encode_inner(SSL_CONNECTION *s)
     }
     /* Session ID is forced to zero in the encoded inner */
     if (!WPACKET_start_sub_packet_u8(&inner)
-            || !WPACKET_close(&inner)) {
+        || !WPACKET_close(&inner)) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
     }
@@ -2707,7 +2706,6 @@ int ech_encode_inner(SSL_CONNECTION *s)
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
     }
-
     /* Now handle extensions */
     if (!WPACKET_start_sub_packet_u16(&inner)) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
@@ -2721,8 +2719,8 @@ int ech_encode_inner(SSL_CONNECTION *s)
     if (s->ext.n_outer_only > 0) {
         int iind = 0;
 
-        if (!WPACKET_put_bytes_u16(&inner, TLSEXT_TYPE_outer_extensions) ||
-            !WPACKET_put_bytes_u16(&inner, 2 * s->ext.n_outer_only + 1)) {
+        if (!WPACKET_put_bytes_u16(&inner, TLSEXT_TYPE_outer_extensions)
+            || !WPACKET_put_bytes_u16(&inner, 2 * s->ext.n_outer_only + 1)) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             goto err;
         }
@@ -2763,7 +2761,7 @@ int ech_encode_inner(SSL_CONNECTION *s)
         }
     }
     /* close the exts sub packet */
-    if (!WPACKET_close(&inner))  {
+    if (!WPACKET_close(&inner)) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         goto err;
     }
@@ -2787,8 +2785,7 @@ int ech_encode_inner(SSL_CONNECTION *s)
     return 1;
 err:
     WPACKET_cleanup(&inner);
-    if (inner_mem != NULL)
-        BUF_MEM_free(inner_mem);
+    BUF_MEM_free(inner_mem);
     return 0;
 }
 
