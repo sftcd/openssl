@@ -19,7 +19,6 @@
 
 #ifndef OPENSSL_NO_ECH
 # include <openssl/ech.h>
-
 #endif
 
 #ifndef OPENSSL_NO_SOCK
@@ -118,9 +117,8 @@ static char *sess_out = NULL;
  * the outer SNI ought not be sent, thus overriding a public_name
  * from an ECHConfig.
  */
-#define OSSL_ECH_NAME_NONE "NONE"
-
-#define OSSL_ECH_SELECT_ALL -1 /* when not reducing */
+# define OSSL_ECH_NAME_NONE "NONE"
+# define OSSL_ECH_SELECT_ALL -1 /* when not reducing */
 
 static const char *ech_inner_name = NULL;
 static const char *sni_outer_name = NULL;
@@ -132,10 +130,10 @@ static int nechs = 0;
 static char *ech_encoded_configs = NULL;
 static char *ech_svcb_rr = NULL;
 static int ech_select = OSSL_ECH_SELECT_ALL;
-#ifndef OPENSSL_NO_SSL_TRACE
+# ifndef OPENSSL_NO_SSL_TRACE
 static size_t ech_trace_cb(const char *buf, size_t cnt,
                  int category, int cmd, void *vdata);
-#endif
+# endif
 #endif
 
 static SSL_SESSION *psksess = NULL;
@@ -881,12 +879,12 @@ static int new_session_cb(SSL *s, SSL_SESSION *sess)
         int rv;
 
 	    if (c_debug)
-	        BIO_printf(bio_c_out,"new_session_cb called ech flavour\n");
+	        BIO_printf(bio_c_out, "new_session_cb called ech flavour\n");
 	    hn_1 = SSL_SESSION_get0_hostname(sess);
 	    if (hn_1 == NULL && c_debug)
-	        BIO_printf(bio_c_out,"Existing session hostname is NULL\n");
+	        BIO_printf(bio_c_out, "Existing session hostname is NULL\n");
 	    else if (c_debug)
-	        BIO_printf(bio_c_out,"Existing session hostname is %s\n",hn_1);
+	        BIO_printf(bio_c_out, "Existing session hostname is %s\n",hn_1);
         rv = SSL_ech_get_status(s, &inner, &outer);
         switch (rv) {
             case SSL_ECH_STATUS_SUCCESS:
@@ -1792,7 +1790,7 @@ int s_client_main(int argc, char **argv)
     }
 
 #ifndef OPENSSL_NO_ECH
-    if (alpn_outer_in !=NULL || sni_outer_name != NULL) {
+    if (alpn_outer_in != NULL || sni_outer_name != NULL) {
         if (ech_encoded_configs == NULL && ech_svcb_rr == NULL) {
             BIO_printf(bio_err,
                "%s: Can't use -sni-outer nor -alpn-outer without -echconfigs" \
@@ -2320,15 +2318,15 @@ int s_client_main(int argc, char **argv)
         }
     }
 #ifndef OPENSSL_NO_ECH
-    if (ech_grease_suite!=NULL) {
-        if (SSL_ech_set_grease_suite(con,ech_grease_suite)!=1) {
+    if (ech_grease_suite != NULL) {
+        if (SSL_ech_set_grease_suite(con, ech_grease_suite) != 1) {
             ERR_print_errors(bio_err);
             goto end;
         }
     }
-    if (ech_grease_type!=-1) {
+    if (ech_grease_type != -1) {
         BIO_printf(bio_err, "Setting GREASE ECH type 0x%4x\n", ech_grease_type);
-        if (SSL_ech_set_grease_type(con,ech_grease_type)!=1) {
+        if (SSL_ech_set_grease_type(con, ech_grease_type) != 1) {
             BIO_printf(bio_err, "Can't set GREASE ECH type 0x%4x\n",
                     ech_grease_type);
             ERR_print_errors(bio_err);
@@ -2491,30 +2489,33 @@ int s_client_main(int argc, char **argv)
         }
     }
 
-    if (ech_select!=OSSL_ECH_SELECT_ALL) {
+    if (ech_select != OSSL_ECH_SELECT_ALL) {
         int rv=0;
         OSSL_ECH_INFO *ed=NULL;
+
         /* down select */
-        if (ech_select<0 || ech_select >= nechs) {
+        if (ech_select < 0 || ech_select >= nechs) {
             BIO_printf(bio_err, "%s: downselect tp ECH (%d) failed " \
                     "out of range (0,%d).\n",
                     prog, ech_select, nechs);
             ERR_print_errors(bio_err);
             goto end;
         }
-        rv=SSL_ech_reduce(con,ech_select);
-        if (rv!=1) {
+        rv = SSL_ech_reduce(con, ech_select);
+        if (rv != 1) {
             BIO_printf(bio_err,"Error down-selecting to %d\n",ech_select);
             goto end;
         }
-        rv=SSL_ech_get_info(con, &ed, &nechs);
-        if (rv!=1) goto end;
-        if (!ed) goto end;
-        rv=OSSL_ECH_INFO_print(bio_err, ed, nechs);
-        if (rv!=1) goto end;
+        rv = SSL_ech_get_info(con, &ed, &nechs);
+        if (rv != 1)
+            goto end;
+        if (ed == NULL)
+            goto end;
+        rv = OSSL_ECH_INFO_print(bio_err, ed, nechs);
+        if (rv != 1)
+            goto end;
         OSSL_ECH_INFO_free(ed, nechs);
     }
-
 #endif
 
     if (dane_tlsa_domain != NULL) {
@@ -2695,15 +2696,14 @@ int s_client_main(int argc, char **argv)
         SSL_set_msg_callback_arg(con, bio_c_msg ? bio_c_msg : bio_c_out);
 
 #ifndef OPENSSL_NO_ECH
-#ifndef OPENSSL_NO_SSL_TRACE
-        if (c_msg==2)
+# ifndef OPENSSL_NO_SSL_TRACE
+        if (c_msg == 2)
             OSSL_trace_set_callback(OSSL_TRACE_CATEGORY_TLS, ech_trace_cb,
                                     bio_c_msg? bio_c_msg : bio_c_out);
-#endif
+# endif
 #endif
 
     }
-
     if (c_tlsextdebug) {
         SSL_set_tlsext_debug_callback(con, tlsext_cb);
         SSL_set_tlsext_debug_arg(con, bio_c_out);
@@ -3987,69 +3987,71 @@ static void print_stuff(BIO *bio, SSL *s, int full)
 
 #ifndef OPENSSL_NO_ECH
         {
-            char *inner=NULL;
-            char *outer=NULL;
-            size_t eclen=0;
-            const unsigned char *ec=NULL;
+            char *inner = NULL;
+            char *outer = NULL;
+            size_t eclen = 0;
+            const unsigned char *ec = NULL;
 
-            switch (SSL_ech_get_status(s,&inner,&outer)) {
+            switch (SSL_ech_get_status(s, &inner, &outer)) {
             case SSL_ECH_STATUS_NOT_CONFIGURED:
-                BIO_printf(bio,"ECH: not configured\n");
+                BIO_printf(bio, "ECH: not configured\n");
                 break;
             case SSL_ECH_STATUS_NOT_TRIED:
-                BIO_printf(bio,"ECH: not tried\n");
+                BIO_printf(bio, "ECH: not tried\n");
                 break;
             case SSL_ECH_STATUS_BACKEND:
                 BIO_printf(bio,
-                    "ECH: I think I'm a backend!!! (no idea how;-)\n");
+                           "ECH: I think I'm a backend!!! (no idea how;-)\n");
                 break;
             case SSL_ECH_STATUS_FAILED:
-                BIO_printf(bio,"ECH: tried but failed\n");
+                BIO_printf(bio, "ECH: tried but failed\n");
                 break;
             case SSL_ECH_STATUS_FAILED_ECH:
-                BIO_printf(bio,"ECH: tried, failed and got ECH in return\n");
+                BIO_printf(bio, "ECH: tried, failed and got ECH in return\n");
                 if (!SSL_ech_get_retry_config(s, &ec, &eclen)) {
-                    BIO_printf(bio,"Failure getting ECH returned\n");
+                    BIO_printf(bio, "Failure getting ECH returned\n");
                 } else {
-                    size_t eind=0;
+                    size_t eind = 0;
+
                     BIO_printf(bio,"    ");
-                    for (eind=0;eind!=eclen;eind++) {
-                        if ((eind!=0) && (eind%16==0))
-                            BIO_printf(bio,"\n    ");
-                        BIO_printf(bio,"%02x:",(unsigned)(ec[eind]));
+                    for (eind = 0; eind != eclen; eind++) {
+                        if ((eind != 0) && (eind % 16 == 0))
+                            BIO_printf(bio, "\n    ");
+                        BIO_printf(bio, "%02x:",(unsigned)(ec[eind]));
                     }
-                    BIO_printf(bio,"\n");
+                    BIO_printf(bio, "\n");
                 }
                 break;
             case SSL_ECH_STATUS_BAD_NAME:
-                BIO_printf(bio,"ECH: worked but bad name\n");
+                BIO_printf(bio, "ECH: worked but bad name\n");
                 break;
             case SSL_ECH_STATUS_GREASE:
-                BIO_printf(bio,"ECH: only greasing\n");
+                BIO_printf(bio, "ECH: only greasing\n");
                 break;
             case SSL_ECH_STATUS_GREASE_ECH:
-                BIO_printf(bio,"ECH: only greasing, and got ECH in return\n");
+                BIO_printf(bio, "ECH: only greasing, and got ECH in return\n");
                 if (!SSL_ech_get_retry_config(s, &ec, &eclen)) {
-                    BIO_printf(bio,"Failure getting ECH returned\n");
+                    BIO_printf(bio, "Failure getting ECH returned\n");
                 } else {
-                    size_t eind=0;
-                    BIO_printf(bio,"    ");
-                    for (eind=0;eind!=eclen;eind++) {
-                        if ((eind!=0) && (eind%16==0))
-                            BIO_printf(bio,"\n    ");
-                        BIO_printf(bio,"%02x:",(unsigned)(ec[eind]));
+                    size_t eind = 0;
+
+                    BIO_printf(bio, "    ");
+                    for (eind = 0; eind != eclen; eind++) {
+                        if ((eind != 0) && (eind % 16 ==0))
+                            BIO_printf(bio, "\n    ");
+                        BIO_printf(bio, "%02x:",(unsigned)(ec[eind]));
                     }
-                    BIO_printf(bio,"\n");
+                    BIO_printf(bio, "\n");
                 }
                 break;
             case SSL_ECH_STATUS_SUCCESS:
                 BIO_printf(bio,
-                    "ECH: success: outer SNI: '%s', inner SNI: '%s'\n",
-                        (outer==NULL?"none":outer),
-                        (inner==NULL?"none":inner));
+                           "ECH: success: outer SNI: '%s', inner SNI: '%s'\n",
+                           (outer==NULL?"none":outer),
+                           (inner==NULL?"none":inner));
                 break;
             default:
-                 BIO_printf(bio,"ECH: Error trying ECH\n");
+                 BIO_printf(bio, "ECH: Error trying ECH\n");
                 break;
             }
         }
@@ -4085,14 +4087,15 @@ static void print_stuff(BIO *bio, SSL *s, int full)
 }
 
 #ifndef OPENSSL_NO_ECH
-#ifndef OPENSSL_NO_SSL_TRACE
+# ifndef OPENSSL_NO_SSL_TRACE
 /* ECH Tracing callback */
 static size_t ech_trace_cb(const char *buf, size_t cnt, int category,
                            int cmd, void *vdata)
 {
      BIO *bio = vdata;
      const char *label = NULL;
-     size_t brv=0;
+     size_t brv = 0;
+
      switch (cmd) {
      case OSSL_TRACE_CTRL_BEGIN:
          label = "ECH TRACE BEGIN";
@@ -4102,25 +4105,26 @@ static size_t ech_trace_cb(const char *buf, size_t cnt, int category,
          break;
      }
      if (label != NULL) {
-#if defined(OPENSSL_THREADS) && !defined(OPENSSL_SYS_WINDOWS) \
-         && !defined(OPENSSL_SYS_MSDOS)
+#  if defined(OPENSSL_THREADS) && !defined(OPENSSL_SYS_WINDOWS) \
+      && !defined(OPENSSL_SYS_MSDOS)
          union {
              pthread_t tid;
              unsigned long ltid;
          } tid;
+
          tid.tid = pthread_self();
          BIO_printf(bio, "%s TRACE[%s]:%lx\n",
                     label, OSSL_trace_get_category_name(category), tid.ltid);
-#else
+#  else
          BIO_printf(bio, "%s TRACE[%s]:0\n",
                     label, OSSL_trace_get_category_name(category));
-#endif
+#  endif
      }
      brv = (size_t)BIO_puts(bio, buf);
      (void)BIO_flush(bio);
      return brv;
 }
-#endif
+# endif
 #endif
 
 # ifndef OPENSSL_NO_OCSP
