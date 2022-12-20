@@ -1349,7 +1349,7 @@ int SSL_ech_set1_echconfig(SSL *s, int *num_echs,
     SSL_CONNECTION *con = SSL_CONNECTION_FROM_SSL(s);
     SSL_ECH *tmp = NULL;
 
-    if (con == NULL)
+    if (con == NULL || ekval == NULL || eklen == 0 || num_echs == NULL)
         return 0;
     if (local_ech_add(ekfmt, eklen, (unsigned char *)ekval,
                       num_echs, &echs) != 1)
@@ -1363,7 +1363,8 @@ int SSL_ech_set1_echconfig(SSL *s, int *num_echs,
         return 1;
     }
     /* otherwise accumulate */
-    tmp = OPENSSL_realloc(con->ech, (con->nechs + *num_echs) * sizeof(SSL_ECH));
+    tmp = OPENSSL_realloc(con->ech,
+                          (con->nechs + *num_echs) * sizeof(SSL_ECH));
     if (tmp == NULL)
         return 0;
     con->ech = tmp;
@@ -1393,13 +1394,12 @@ int SSL_CTX_ech_set1_echconfig(SSL_CTX *ctx, int *num_echs,
                                int ekfmt, char *ekval, size_t eklen)
 {
     SSL_ECH *echs = NULL;
-    int rv = 1;
     SSL_ECH *tmp = NULL;
 
     if (ctx == NULL || ekval == NULL || eklen == 0 || num_echs == NULL)
         return 0;
-    rv = local_ech_add(ekfmt, eklen, (unsigned char *)ekval, num_echs, &echs);
-    if (rv != 1)
+    if (local_ech_add(ekfmt, eklen, (unsigned char *)ekval,
+                      num_echs, &echs) != 1)
         return 0;
     if (ctx->ext.ech == NULL) {
         ctx->ext.ech = echs;
@@ -1407,7 +1407,8 @@ int SSL_CTX_ech_set1_echconfig(SSL_CTX *ctx, int *num_echs,
         return 1;
     }
     /* otherwise accumulate */
-    tmp = OPENSSL_realloc(ctx->ext.ech, (ctx->ext.nechs + *num_echs) * sizeof(SSL_ECH));
+    tmp = OPENSSL_realloc(ctx->ext.ech,
+                          (ctx->ext.nechs + *num_echs) * sizeof(SSL_ECH));
     if (tmp == NULL)
         return 0;
     ctx->ext.ech = tmp;
