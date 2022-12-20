@@ -60,7 +60,7 @@ static void tls13_pbuf(const char *msg,
     return;
 }
 
-static void ptranscript(const char *msg, SSL_CONNECTION *s)
+static void tls13_ptranscript(const char *msg, SSL_CONNECTION *s)
 {
     size_t hdatalen = 0;
     unsigned char *hdata = NULL;
@@ -538,7 +538,7 @@ int tls13_change_cipher_state(SSL_CONNECTION *s, int which)
         BIO_printf(trc_out, "handshake_dgst is %p\n",
                    (void *)s->s3.handshake_dgst);
     } OSSL_TRACE_END(TLS);
-    ptranscript("gen_hs", s);
+    tls13_ptranscript("gen_hs", s);
 # endif
 #endif
 #ifndef OPENSSL_NO_ECH

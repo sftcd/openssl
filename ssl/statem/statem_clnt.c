@@ -1428,11 +1428,13 @@ __owur CON_FUNC_RETURN tls_construct_client_hello(SSL_CONNECTION *s,
     BUF_MEM_free(inner_mem);
     inner_mem=NULL;
 
+# ifdef OSSL_ECH_SUPERVERBOSE
     /* If tracing, trace out the inner, client random & session id */
     ech_pbuf("inner CH",new_s->ext.innerch,new_s->ext.innerch_len);
     ech_pbuf("inner, client_random",new_s->s3.client_random,SSL3_RANDOM_SIZE);
     ech_pbuf("inner, session_id",
             new_s->session->session_id,new_s->session->session_id_length);
+# endif
 
     /* Decode inner so that we can make up encoded inner */
     if (!PACKET_buf_init(&rpkt,
@@ -1459,8 +1461,10 @@ __owur CON_FUNC_RETURN tls_construct_client_hello(SSL_CONNECTION *s,
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         goto err;
     }
+# ifdef OSSL_ECH_SUPERVERBOSE
     ech_pbuf("encoded inner CH",
             new_s->ext.encoded_innerch,new_s->ext.encoded_innerch_len);
+# endif
 
     /* Make second call into CH constuction for outer CH. */
     s->ext.ch_depth=0; 
@@ -1470,11 +1474,13 @@ __owur CON_FUNC_RETURN tls_construct_client_hello(SSL_CONNECTION *s,
         goto err;
     }
 
+# ifdef OSSL_ECH_SUPERVERBOSE
     ech_pbuf("encoded inner CH",s->ext.encoded_innerch,
             s->ext.encoded_innerch_len);
     ech_pbuf("outer, client_random",s->s3.client_random,SSL3_RANDOM_SIZE);
     ech_pbuf("outer, session_id",s->session->session_id,
             s->session->session_id_length);
+# endif
 
     /* Finally, we're ready to calculate AAD and to encrypt using HPKE */
     if (ech_aad_and_encrypt(&s->ssl,pkt)!=1) {
@@ -1948,8 +1954,10 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL_CONNECTION *s, PACKET *pkt)
                 OSSL_TRACE_BEGIN(TLS) {
                     BIO_printf(trc_out, "ECH HRR accept check failed\n");
                 } OSSL_TRACE_END(TLS);
+# ifdef OSSL_ECH_SUPERVERBOSE
                 ech_pbuf("ECH HRR acbuf",acbuf,8);
                 ech_pbuf("ECH HRR shval",shbuf+shlen-8,8);
+# endif
             }
         } else {
             size_t alen=0;
@@ -1969,9 +1977,11 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL_CONNECTION *s, PACKET *pkt)
                     BIO_printf(trc_out, "ECH SH accept check failed\n");
                 } OSSL_TRACE_END(TLS);
                 s->ext.ech_success=0;
+# ifdef OSSL_ECH_SUPERVERBOSE
                 ech_pbuf("ECH SH acbuf",acbuf,8);
                 ech_pbuf("ECH SH shval",
                         s->s3.server_random+SSL3_RANDOM_SIZE-8,8);
+# endif
             }
 
             if (s->ext.ech_success==1) {
@@ -1994,7 +2004,9 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL_CONNECTION *s, PACKET *pkt)
                     OSSL_TRACE_BEGIN(TLS) {
                         BIO_printf(trc_out,"Adding in digest of CH1/HRR\n");
                     } OSSL_TRACE_END(TLS);
+# ifdef OSSL_ECH_SUPERVERBOSE
                     ech_pbuf("innerch",s->ext.innerch1,s->ext.innerch1_len);
+# endif
                     md=ssl_handshake_md(s);
                     if (!md) {
                         /* fallback to one from the chosen ciphersuite */
@@ -2031,7 +2043,9 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL_CONNECTION *s, PACKET *pkt)
                                     ERR_R_INTERNAL_ERROR);
                             return 0;
                     }
+# ifdef OSSL_ECH_SUPERVERBOSE
                     ech_pbuf("digested CH",hashval,hashlen);
+# endif
                     EVP_MD_CTX_free(ctx);
 
                     alen= SSL3_HM_HEADER_LENGTH+hashlen+
@@ -2072,7 +2086,9 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL_CONNECTION *s, PACKET *pkt)
                 aptr[s->ext.innerch_len+2]=((shlen>>8)&0xff);
                 aptr[s->ext.innerch_len+3]=(shlen&0xff);
                 memcpy(aptr+s->ext.innerch_len+4,shbuf,shlen);
+# ifdef OSSL_ECH_SUPERVERBOSE
                 ech_pbuf("Client transcript re-init",abuf,alen);
+# endif
                 if (ech_reset_hs_buffer(s,abuf,alen)!=1) {
                     OPENSSL_free(abuf);
                     SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
@@ -2395,7 +2411,9 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL_CONNECTION *s, PACKET *pkt)
             abuf[s->ext.innerch_len+2]=((shlen>>8)&0xff);
             abuf[s->ext.innerch_len+3]=(shlen&0xff);
             memcpy(abuf+s->ext.innerch_len+4,shbuf,shlen);
+# ifdef OSSL_ECH_SUPERVERBOSE
             ech_pbuf("Client transcript re-init",abuf,alen);
+# endif
             if (ech_reset_hs_buffer(s,abuf,alen)!=1) {
                 OPENSSL_free(abuf);
                 SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);

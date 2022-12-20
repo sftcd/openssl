@@ -2603,7 +2603,9 @@ CON_FUNC_RETURN tls_construct_server_hello(SSL_CONNECTION *s, WPACKET *pkt)
             OSSL_TRACE_BEGIN(TLS) {
                 BIO_printf(trc_out, "Adding in digest of ClientHello\n");
             } OSSL_TRACE_END(TLS);
+# ifdef OSSL_ECH_SUPERVERBOSE
             ech_pbuf("innerch", s->ext.innerch, s->ext.innerch_len);
+# endif
             md = ssl_handshake_md(s);
             if (md == NULL) {
                 SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
@@ -2616,7 +2618,9 @@ CON_FUNC_RETURN tls_construct_server_hello(SSL_CONNECTION *s, WPACKET *pkt)
                 SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
                 return 0;
             }
+# ifdef OSSL_ECH_SUPERVERBOSE
             ech_pbuf("digested CH", hashval, hashlen);
+# endif
             EVP_MD_CTX_free(ctx);
             if (ech_reset_hs_buffer(s ,NULL, 0) != 1) {
                 SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
