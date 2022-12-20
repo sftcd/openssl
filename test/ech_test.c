@@ -106,7 +106,8 @@ static int basic_echconfig(void)
                                        TLS_server_method())))
         goto err;
     /* add that to ctx to start */
-    if (!TEST_true(SSL_CTX_ech_set1_echconfig(ctx, &num_echs, OSSL_ECH_FMT_GUESS,
+    if (!TEST_true(SSL_CTX_ech_set1_echconfig(ctx, &num_echs,
+                                              OSSL_ECH_FMT_GUESS,
                                               (char *)echconfig, echconfiglen)))
         goto err;
     if (!TEST_int_eq(num_echs, 1))
@@ -185,8 +186,9 @@ static int ech_roundtrip_test(void)
                                               OSSL_ECH_FMT_GUESS,
                                               echconfig,
                                               echconfiglen))) {
-        TEST_info("Failed to add %s vis %s\n", "SSL_CTX_ech_set1_echconfig", 
-                  echconfig);
+        TEST_info("Failed SSL_CTX_ech_set1_echconfig adding %s (len = %lu)"
+                  " to SSL_CTX: %p, wanted result in : %p\n",
+                  echconfig, echconfiglen, cctx, &num_echs);
         goto end;
     }
     if (!TEST_int_eq(num_echs, 1))

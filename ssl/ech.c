@@ -76,6 +76,16 @@
 # define OSSL_ECH_KEYPAIR_FILEMISSING    4
 
 /*
+ * Strings used in ECH crypto derivations (odd format for EBCDIC goodness)
+ */
+/* "tls ech" */
+static const char OSSL_ECH_CONTEXT_STRING[] = "\x74\x6c\x73\x20\x65\x63\x68";
+/* "ech accept confirmation" */
+static char OSSL_ECH_ACCEPT_CONFIRM_STRING[] = "\x65\x63\x68\x20\x61\x63\x63\x65\x70\x74\x20\x63\x6f\x6e\x66\x69\x72\x6d\x61\x74\x69\x6f\x6e";
+/* "hrr ech accept confirmation" */
+static const char OSSL_ECH_HRR_CONFIRM_STRING[] = "\x68\x72\x72\x20\x65\x63\x68\x20\x61\x63\x63\x65\x70\x74\x20\x63\x6f\x6e\x66\x69\x72\x6d\x61\x74\x69\x6f\x6e";
+
+/*
  * When doing ECH, this array specifies which inner CH extensions (if
  * any) are to be "compressed" using the outer extensions scheme.
  *
@@ -3369,7 +3379,7 @@ int ech_calc_ech_confirm(SSL_CONNECTION *s, int for_hrr,
     size_t chlen = 0;
     size_t shoffset = 6 + 24; /* offset to magic bits in SH.random in shbuf */
     const EVP_MD *md = NULL;
-    char *label = NULL;
+    const char *label = NULL;
     size_t labellen = 0;
     unsigned int hashlen = 0;
     unsigned char hashval[EVP_MAX_MD_SIZE];
