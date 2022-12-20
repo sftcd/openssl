@@ -2802,6 +2802,11 @@ int s_server_main(int argc, char *argv[])
             OSSL_trace_set_callback(OSSL_TRACE_CATEGORY_TLS, ech_trace_cb,
                                     bio_s_out);
 # endif
+#else
+        SSL_CTX_set_tlsext_servername_callback(ctx2, ssl_servername_cb);
+        SSL_CTX_set_tlsext_servername_arg(ctx2, &tlsextcbp);
+        SSL_CTX_set_tlsext_servername_callback(ctx, ssl_servername_cb);
+        SSL_CTX_set_tlsext_servername_arg(ctx, &tlsextcbp);
 #endif
     }
 
