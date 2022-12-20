@@ -184,8 +184,11 @@ static int ech_roundtrip_test(void)
     if (!TEST_true(SSL_CTX_ech_set1_echconfig(cctx, &num_echs,
                                               OSSL_ECH_FMT_GUESS,
                                               echconfig,
-                                              echconfiglen)))
+                                              echconfiglen))) {
+        TEST_info("Failed to add %s vis %s\n", "SSL_CTX_ech_set1_echconfig", 
+                  echconfig);
         goto end;
+    }
     if (!TEST_int_eq(num_echs, 1))
         goto end;
     if (!TEST_true(SSL_CTX_ech_server_enable_file(sctx, echkeyfile)))
