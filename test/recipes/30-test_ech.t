@@ -8,15 +8,13 @@
 # https://www.openssl.org/source/license.html
 
 use strict;
-#use OpenSSL::Test;              # get 'plan'
-#use OpenSSL::Test::Simple;
 use OpenSSL::Test::Utils;
 use OpenSSL::Test qw/:DEFAULT srctop_file srctop_dir bldtop_dir bldtop_file/;
 
 setup("test_ech");
 
 plan skip_all => "ECH tests not supported in this build"
-    if disabled("ech") || disabled("tls1_3") || disabled("ec") || disabled("tls1_2");
+    if !disabled("fips") || disabled("ech") || disabled("tls1_3") || disabled("ec") || disabled("tls1_2");
 
 plan tests => 1;
 

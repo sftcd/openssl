@@ -24,24 +24,23 @@
 #include <openssl/decoder.h>
 
 #ifndef OPENSSL_NO_ECH
-
-#ifndef PATH_MAX
-# define PATH_MAX 4096
-#endif
-#include <openssl/ech.h>
+# ifndef PATH_MAX
+#  define PATH_MAX 4096
+# endif
+# include <openssl/ech.h>
 /* to use tracing, if configured and requested */
-#ifndef OPENSSL_NO_SSL_TRACE
-#include <openssl/trace.h>
-#endif
-#if !defined(_WIN32)
+# ifndef OPENSSL_NO_SSL_TRACE
+#  include <openssl/trace.h>
+# endif
+# if !defined(_WIN32)
 /* for what's otherwise sockaddr stuff  */
-#include <netinet/in.h>
-#include <sys/socket.h>
-#include <arpa/inet.h>
-#include <netdb.h>
-#endif
+# include <netinet/in.h>
+# include <sys/socket.h>
+# include <arpa/inet.h>
+# include <netdb.h>
+# endif
 /* for timing in some TRACE statements */
-#include <time.h>
+# include <time.h>
 #endif
 
 #ifndef OPENSSL_NO_SOCK
@@ -84,9 +83,9 @@ typedef unsigned int u_int;
  * messages from the server. These are the  minimum lengths to which those
  * will be padded in that case.
  */
-#define ECH_CERTSPECIFIC_MIN 1808
-#define ECH_CERTVERSPECIFIC_MIN 480
-#define ECH_ENCEXTSPECIFIC_MIN 32
+# define ECH_CERTSPECIFIC_MIN 1808
+# define ECH_CERTVERSPECIFIC_MIN 480
+# define ECH_ENCEXTSPECIFIC_MIN 32
 #endif
 
 static int not_resumable_sess_cb(SSL *s, int is_forward_secure);
@@ -104,10 +103,10 @@ static void print_connection_info(SSL *con);
 
 #ifndef OPENSSL_NO_ECH
 static unsigned int ech_print_cb(SSL *s, const char *str);
-#ifndef OPENSSL_NO_SSL_TRACE
+# ifndef OPENSSL_NO_SSL_TRACE
 static size_t ech_trace_cb(const char *buf, size_t cnt,
                  int category, int cmd, void *vdata);
-#endif
+# endif
 
 /* ECH padding size info, var of this type is passed via callback */
 typedef struct {
@@ -136,22 +135,29 @@ static ech_padding_sizes *ech_ps=NULL;
  */
 static size_t ech_padding_cb(SSL *s, int type, size_t len, void *arg)
 {
-    ech_padding_sizes *ps=(ech_padding_sizes*)arg;
-    int state=SSL_get_state(s);
-    if (state==TLS_ST_SW_CERT) {
-        int newlen=ps->certpad-(len%ps->certpad)-16;
-        if (newlen<0) newlen+=ps->certpad;
-        return (newlen>0?newlen:0);
+    ech_padding_sizes *ps = (ech_padding_sizes *)arg;
+    int state = SSL_get_state(s);
+
+    if (state == TLS_ST_SW_CERT) {
+        int newlen = ps->certpad - (len % ps->certpad) - 16;
+
+        if (newlen < 0)
+            newlen += ps->certpad;
+        return (newlen > 0 ? newlen : 0);
     }
-    if (state==TLS_ST_SW_CERT_VRFY) {
-        int newlen=ps->certverifypad-(len%ps->certverifypad)-16;
-        if (newlen<0) newlen+=ps->certverifypad;
-        return (newlen>0?newlen:0);
+    if (state == TLS_ST_SW_CERT_VRFY) {
+        int newlen = ps->certverifypad - (len % ps->certverifypad) - 16;
+
+        if (newlen < 0)
+            newlen += ps->certverifypad;
+        return (newlen > 0 ? newlen : 0);
     }
-    if (state==TLS_ST_SW_ENCRYPTED_EXTENSIONS) {
-        int newlen=ps->eepad-(len%ps->eepad)-16;
-        if (newlen<0) newlen+=ps->eepad;
-        return (newlen>0?newlen:0);
+    if (state == TLS_ST_SW_ENCRYPTED_EXTENSIONS) {
+        int newlen = ps->eepad - (len % ps->eepad) - 16;
+
+        if (newlen < 0)
+            newlen += ps->eepad;
+        return (newlen > 0 ? newlen : 0);
     }
     return 0;
 }
@@ -510,7 +516,6 @@ typedef struct tlsextctx_st {
 } tlsextctx;
 
 #ifndef OPENSSL_NO_ECH
-
 /**
  * @brief print an ECH structure string, thread safely
  * @param s is the SSL session
@@ -519,13 +524,13 @@ typedef struct tlsextctx_st {
  */
 static unsigned int ech_print_cb(SSL *s, const char *str)
 {
-    if (str!=NULL) {
-        BIO_printf(bio_s_out,"ECH Server callback printing: \n%s\n",str);
+    if (str != NULL) {
+        BIO_printf(bio_s_out, "ECH Server callback printing: \n%s\n",str);
     }
     return 1;
 }
 
-#ifndef OPENSSL_NO_SSL_TRACE
+# ifndef OPENSSL_NO_SSL_TRACE
 /**
  * @brief ECH Tracing callback
  * @param buf is the (string) value to trace out
@@ -535,11 +540,12 @@ static unsigned int ech_print_cb(SSL *s, const char *str)
  * @return 1 for good, other otherwise
  */
 static size_t ech_trace_cb(const char *buf, size_t cnt,
-                 int category, int cmd, void *vdata)
+                           int category, int cmd, void *vdata)
 {
      BIO *bio = vdata;
      const char *label = NULL;
      size_t brv=0;
+
      switch (cmd) {
      case OSSL_TRACE_CTRL_BEGIN:
          label = "ECH TRACE BEGIN";
@@ -549,25 +555,26 @@ static size_t ech_trace_cb(const char *buf, size_t cnt,
          break;
      }
      if (label != NULL) {
-#if defined(OPENSSL_THREADS) && !defined(OPENSSL_SYS_WINDOWS) \
-         && !defined(OPENSSL_SYS_MSDOS)
+#  if defined(OPENSSL_THREADS) && !defined(OPENSSL_SYS_WINDOWS) \
+      && !defined(OPENSSL_SYS_MSDOS)
          union {
              pthread_t tid;
              unsigned long ltid;
          } tid;
+
          tid.tid = pthread_self();
          BIO_printf(bio, "%s TRACE[%s]:%lx\n",
                     label, OSSL_trace_get_category_name(category), tid.ltid);
-#else
+#  else
          BIO_printf(bio, "%s TRACE[%s]:0\n",
                     label, OSSL_trace_get_category_name(category));
-#endif
+#  endif
      }
      brv=(size_t)BIO_puts(bio, buf);
      (void)BIO_flush(bio);
      return brv;
 }
-#endif
+# endif
 
 /**
  * @brief a servername_cb that is ECH aware
@@ -597,123 +604,126 @@ static int ssl_ech_servername_cb(SSL *s, int *ad, void *arg)
 {
     tlsextctx *p = (tlsextctx *) arg;
     /* For a bit of basic logging */
-    time_t now=time(0);
-    int sockfd=0;
-    int res=0;
+    time_t now = time(0);
+    int sockfd = 0;
+    int res = 0;
     struct sockaddr_storage ss;
     socklen_t salen = sizeof(ss);
     struct sockaddr *sa;
     char clientip[INET6_ADDRSTRLEN];
     const char *servername = NULL;
-    char *inner_sni=NULL;
-    char *outer_sni=NULL;
-    int echrv=0;
+    char *inner_sni = NULL;
+    char *outer_sni = NULL;
+    int echrv = 0;
 
 /* apparently 26 is all we need */
-#define ECH_TIME_STR_LEN 32
-    struct tm local,*local_p=NULL;
+# define ECH_TIME_STR_LEN 32
+    struct tm local, *local_p = NULL;
     char lstr[ECH_TIME_STR_LEN];
-#if !defined(OPENSSL_SYS_WINDOWS)
-    local_p=gmtime_r(&now,&local);
-    if (local_p!=&local) {
-        strcpy(lstr,"sometime");
+# if !defined(OPENSSL_SYS_WINDOWS)
+    local_p = gmtime_r(&now, &local);
+    if (local_p != &local) {
+        strcpy(lstr, "sometime");
     }
-#else
-    errno_t grv=gmtime_s(&local,&now);
-    if (grv!=0) {
-        strcpy(lstr,"sometime");
+# else
+    errno_t grv = gmtime_s(&local, &now);
+
+    if (grv != 0) {
+        strcpy(lstr, "sometime");
     }
-#endif
+# endif
     else {
-        int srv=strftime(lstr,ECH_TIME_STR_LEN,
-                "%c",&local);
-        if (srv==0) {
-            strcpy(lstr,"sometime");
+        int srv = strftime(lstr,ECH_TIME_STR_LEN, "%c",&local);
+
+        if (srv == 0) {
+            strcpy(lstr, "sometime");
         }
     }
 
-    memset(clientip,0,INET6_ADDRSTRLEN);
-    strncpy(clientip,"dunno",INET6_ADDRSTRLEN);
-    memset(&ss,0,salen);
+    memset(clientip, 0, INET6_ADDRSTRLEN);
+    strncpy(clientip, "dunno", INET6_ADDRSTRLEN);
+    memset(&ss, 0, salen);
     sa = (struct sockaddr *)&ss;
-    res=BIO_get_fd(SSL_get_wbio(s),&sockfd);
-    if (res!=-1) {
-        res = getpeername(sockfd,sa,&salen);
-        if (res==0)
-            res=getnameinfo(sa,salen,
-                    clientip,INET6_ADDRSTRLEN,0,0,NI_NUMERICHOST);
-        if (res!=0) strncpy(clientip,"dunno",INET6_ADDRSTRLEN);
+    res = BIO_get_fd(SSL_get_wbio(s), &sockfd);
+    if (res != -1) {
+        res = getpeername(sockfd, sa, &salen);
+        if (res == 0)
+            res = getnameinfo(sa, salen, clientip, INET6_ADDRSTRLEN,
+                              0, 0, NI_NUMERICHOST);
+        if (res != 0)
+            strncpy(clientip, "dunno", INET6_ADDRSTRLEN);
     }
 
     /* Name that matches "main" ctx */
     servername = SSL_get_servername(s, TLSEXT_NAMETYPE_host_name);
-    echrv=SSL_ech_get_status(s,&inner_sni,&outer_sni);
+    echrv = SSL_ech_get_status(s, &inner_sni, &outer_sni);
     if (p->biodebug != NULL ) {
         /* spit out basic logging */
         BIO_printf(p->biodebug,
-            "ssl_ech_servername_cb: connection from %s at %s\n",clientip,lstr);
+                   "ssl_ech_servername_cb: connection from %s at %s\n",
+                   clientip, lstr);
         /* Client supplied SNI from inner and outer */
         switch (echrv) {
         case SSL_ECH_STATUS_BACKEND:
             BIO_printf(p->biodebug,
-                "ssl_ech_servername_cb: ECH as backend, got inner ECH\n");
+                      "ssl_ech_servername_cb: ECH as backend, got inner ECH\n");
             break;
         case SSL_ECH_STATUS_NOT_CONFIGURED:
             BIO_printf(p->biodebug,
-                "ssl_ech_servername_cb: ECH not configured\n");
+                       "ssl_ech_servername_cb: ECH not configured\n");
             break;
         case SSL_ECH_STATUS_GREASE:
             BIO_printf(p->biodebug,
-                "ssl_ech_servername_cb: attempt we interpret as GREASE\n");
+                       "ssl_ech_servername_cb: attempt we think is GREASE\n");
             break;
         case SSL_ECH_STATUS_NOT_TRIED:
             BIO_printf(p->biodebug,
-                "ssl_ech_servername_cb: not attempted\n");
+                       "ssl_ech_servername_cb: not attempted\n");
             break;
         case SSL_ECH_STATUS_FAILED:
             BIO_printf(p->biodebug,
-                "ssl_ech_servername_cb: tried but failed\n");
+                       "ssl_ech_servername_cb: tried but failed\n");
             break;
         case SSL_ECH_STATUS_BAD_CALL:
             BIO_printf(p->biodebug,
-                "ssl_ech_servername_cb: bad input to API\n");
+                       "ssl_ech_servername_cb: bad input to API\n");
             break;
         case SSL_ECH_STATUS_BAD_NAME:
             BIO_printf(p->biodebug,
-                "ssl_ech_servername_cb: worked but bad name\n");
+                       "ssl_ech_servername_cb: worked but bad name\n");
             break;
         case SSL_ECH_STATUS_SUCCESS:
             BIO_printf(p->biodebug,
-                "ssl_ech_servername_cb: success: outer %s, inner: %s\n",
-                    (outer_sni==NULL?"none":outer_sni),
-                    (inner_sni==NULL?"none":inner_sni));
+                       "ssl_ech_servername_cb: success: outer %s, inner: %s\n",
+                       (outer_sni==NULL?"none":outer_sni),
+                       (inner_sni==NULL?"none":inner_sni));
             break;
         default:
             BIO_printf(p->biodebug,
-                    "ssl_ech_servername_cb: Error getting ECH status\n");
+                       "ssl_ech_servername_cb: Error getting ECH status\n");
             break;
         }
     }
     if (servername != NULL && p->biodebug != NULL) {
         const char *cp = servername;
         unsigned char uc;
+
         BIO_printf(p->biodebug,
-            "ssl_ech_servername_cb: Hostname in TLS extension: \"");
+                   "ssl_ech_servername_cb: Hostname in TLS extension: \"");
         while ((uc = *cp++) != 0)
             BIO_printf(p->biodebug,
                        isascii(uc) && isprint(uc) ? "%c" : "\\x%02x", uc);
         BIO_printf(p->biodebug, "\"\n");
-        if (p->servername!=NULL) {
+        if (p->servername != NULL)
             BIO_printf(p->biodebug,
-                "ssl_ech_servername_cb: ctx servername: %s\n",p->servername);
-        } else {
+                       "ssl_ech_servername_cb: ctx servername: %s\n",
+                       p->servername);
+        else
             BIO_printf(p->biodebug,
-                "ssl_ech_servername_cb: ctx servername is NULL\n");
-        }
-        if (p->scert == NULL ) {
+                       "ssl_ech_servername_cb: ctx servername is NULL\n");
+        if (p->scert == NULL )
             BIO_printf(p->biodebug,
-                "ssl_ech_servername_cb: No 2nd cert! Things won't go well.\n");
-        }
+                       "ssl_ech_servername_cb: No 2nd cert! That's bad.\n");
     }
     if (p->servername == NULL)
         return SSL_TLSEXT_ERR_NOACK;
@@ -723,26 +733,29 @@ static int ssl_ech_servername_cb(SSL *s, int *ad, void *arg)
         if (ctx2 != NULL) {
             int mrv;
             X509_VERIFY_PARAM *vpm = NULL;
+
             BIO_printf(p->biodebug,
-                "ssl_ech_servername_cb: TLS servername: %s.\n",servername);
+                       "ssl_ech_servername_cb: TLS servername: %s.\n",
+                       servername);
             BIO_printf(p->biodebug,
-                "ssl_ech_servername_cb: Cert servername: %s.\n",p->servername);
+                       "ssl_ech_servername_cb: Cert servername: %s.\n",
+                       p->servername);
             vpm = X509_VERIFY_PARAM_new();
-            if (!vpm) return SSL_TLSEXT_ERR_NOACK;
-            mrv=X509_VERIFY_PARAM_set1_host(vpm,servername,strlen(servername));
+            if (vpm == NULL)
+                return SSL_TLSEXT_ERR_NOACK;
+            mrv = X509_VERIFY_PARAM_set1_host(vpm, servername,
+                                              strlen(servername));
             X509_VERIFY_PARAM_free(vpm);
-            if (mrv==1) {
-                if (p->biodebug!=NULL) {
+            if (mrv == 1) {
+                if (p->biodebug != NULL)
                      BIO_printf(p->biodebug,
-                         "ssl_ech_servername_cb: Switching context.\n");
-                }
+                                "ssl_ech_servername_cb: Switching context.\n");
                 SSL_set_SSL_CTX(s, ctx2);
             } else {
-                if (p->biodebug!=NULL) {
+                if (p->biodebug!=NULL)
                      BIO_printf(p->biodebug,
-                         "ssl_ech_servername_cb: Not switching context " \
-                         "- no name match (%d).\n",mrv);
-                }
+                                "ssl_ech_servername_cb: Not switching context "\
+                                "- no name match (%d).\n",mrv);
             }
         }
     }
@@ -1440,9 +1453,9 @@ int s_server_main(int argc, char *argv[])
     char *psksessf = NULL;
 #ifndef OPENSSL_NO_ECH
     char *echkeyfile = NULL;
-    char *echdir=NULL;
-    int echspecificpad=0; /* default to general padding (512 octet multiples) */
-    int echtrialdecrypt=0; /* trial decryption off by default */
+    char *echdir = NULL;
+    int echspecificpad = 0; /* default to general padding (multiples of 512) */
+    int echtrialdecrypt = 0; /* trial decryption off by default */
 #endif
     int no_ca_names = 0;
 #ifndef OPENSSL_NO_SCTP
@@ -2033,16 +2046,16 @@ int s_server_main(int argc, char *argv[])
             break;
 #ifndef OPENSSL_NO_ECH
         case OPT_ECHCONFIG:
-            echkeyfile=opt_arg();
+            echkeyfile = opt_arg();
             break;
         case OPT_ECHDIR:
-            echdir=opt_arg();
+            echdir = opt_arg();
             break;
         case OPT_ECHSPECIFICPAD:
-            echspecificpad=1;
+            echspecificpad = 1;
             break;
         case OPT_ECH_TRIALDECRYPT:
-            echtrialdecrypt=1;
+            echtrialdecrypt = 1;
             break;
 #endif
         case OPT_HTTP_SERVER_BINMODE:
@@ -2209,7 +2222,7 @@ int s_server_main(int argc, char *argv[])
                 goto end;
 
 #ifndef OPENSSL_NO_ECH
-            tlsextcbp.scert=s_cert2;
+            tlsextcbp.scert = s_cert2;
 #endif
         }
     }
@@ -2424,28 +2437,28 @@ int s_server_main(int argc, char *argv[])
     }
 
 #ifndef OPENSSL_NO_ECH
-    if (echtrialdecrypt!=0) {
-        SSL_CTX_set_options(ctx,SSL_OP_ECH_TRIALDECRYPT);
+    if (echtrialdecrypt != 0) {
+        SSL_CTX_set_options(ctx, SSL_OP_ECH_TRIALDECRYPT);
     }
 
-    if (echkeyfile!= NULL) {
+    if (echkeyfile != NULL) {
 /*
  * s_server reads key pairs from files but if you want
  * to first read the file youself and then test the buffer
  * API, just switch the undef to define.
  */
-#undef TESTBUFFERAPI
-#ifndef TESTBUFFERAPI
+# undef TESTBUFFERAPI
+# ifndef TESTBUFFERAPI
         /*
          * Normal case - give the filename to libary
          */
-        if (SSL_CTX_ech_server_enable_file(ctx,echkeyfile)!=1) {
-            BIO_printf(bio_err,"Failed to add ECHConfig/Key from: %s\n",
-                    echkeyfile);
+        if (SSL_CTX_ech_server_enable_file(ctx, echkeyfile) != 1) {
+            BIO_printf(bio_err, "Failed to add ECHConfig/Key from: %s\n",
+                       echkeyfile);
             goto end;
         }
 
-#else
+# else
         /*
          * Some test code for the buffer API - that API is needed
          * for the likes of haproxy that don't want to (re-)read
@@ -2453,27 +2466,28 @@ int s_server_main(int argc, char *argv[])
          * As test code, the literal size is ok.
          */
         unsigned char buffer[8000];
-        size_t blen=8000;
-        int frv=0;
-        FILE *fp=NULL;
-        if ((fp=fopen(echkeyfile,"rb"))==NULL) {
-            BIO_printf(bio_err,"Failed to open: %s\n",echkeyfile);
+        size_t blen = 8000;
+        int frv = 0;
+        FILE *fp = NULL;
+
+        if ((fp = fopen(echkeyfile, "rb")) == NULL) {
+            BIO_printf(bio_err, "Failed to open: %s\n", echkeyfile);
             goto end;
         }
-        if ((frv=fread(buffer,1,8000,fp))<=0) {
-            BIO_printf(bio_err,"Failed to read from: %s, ret=%d\n",
-                    echkeyfile,frv);
+        if ((frv = fread(buffer, 1, 8000, fp)) <= 0) {
+            BIO_printf(bio_err, "Failed to read from: %s, ret=%d\n",
+                       echkeyfile,frv);
             goto end;
         }
         fclose(fp);
-        blen=frv;
-        if (SSL_CTX_ech_server_enable_buffer(ctx,buffer,blen)!=1) {
+        blen = frv;
+        if (SSL_CTX_ech_server_enable_buffer(ctx, buffer, blen) != 1) {
             BIO_printf(bio_err,
-                    "Failed to add ECHConfig/Key via buffer from: %s\n",
-                    echkeyfile);
+                       "Failed to add ECHConfig/Key via buffer from: %s\n",
+                       echkeyfile);
             goto end;
         }
-#endif
+# endif
         if (bio_s_out != NULL) {
             BIO_printf(bio_s_out,"Added ECH key pair from: %s\n",echkeyfile);
         }
@@ -2484,10 +2498,11 @@ int s_server_main(int argc, char *argv[])
          * Try load any good looking "*.pem" files found in files
          * in that directory in the hope they have key pairs.
          */
-        int nloaded=0;
-        size_t elen=strlen(echdir);
-        int erc=0;
-        if ((elen+7) >= PATH_MAX) {
+        int nloaded = 0;
+        size_t elen = strlen(echdir);
+        int erc = 0;
+
+        if ((elen + 7) >= PATH_MAX) {
             /* too long, go away */
             BIO_printf(bio_err, "'%s' too long - exiting \r\n", echdir);
             goto end;
@@ -2497,25 +2512,25 @@ int s_server_main(int argc, char *argv[])
             BIO_printf(bio_err, "'%s' not a directory - exiting \r\n", echdir);
             goto end;
         }
-        erc=SSL_CTX_ech_server_enable_dir(ctx, &nloaded, echdir);
-        if (erc!=1) {
-            BIO_printf(bio_err, "Failure reading ECH keys from %s\n",echdir);
+        erc = SSL_CTX_ech_server_enable_dir(ctx, &nloaded, echdir);
+        if (erc != 1) {
+            BIO_printf(bio_err, "Failure reading ECH keys from %s\n", echdir);
             goto end;
         }
-        BIO_printf(bio_s_out,"Added %d ECH key pairs from: %s\n",
-                nloaded,echdir);
+        BIO_printf(bio_s_out, "Added %d ECH key pairs from: %s\n",
+                   nloaded, echdir);
     }
 
     /*
      * Set padding sizes
      */
-    if (echspecificpad) {
-        ech_ps=OPENSSL_malloc(sizeof(ech_padding_sizes));
-        ech_ps->certpad=ECH_CERTSPECIFIC_MIN;
-        ech_ps->certverifypad=ECH_CERTVERSPECIFIC_MIN ;
-        ech_ps->eepad=ECH_ENCEXTSPECIFIC_MIN ;
-        SSL_CTX_set_record_padding_callback_arg(ctx,(void*)ech_ps);
-        SSL_CTX_set_record_padding_callback(ctx,ech_padding_cb);
+    if (echspecificpad != 0) {
+        ech_ps = OPENSSL_malloc(sizeof(ech_padding_sizes));
+        ech_ps->certpad = ECH_CERTSPECIFIC_MIN;
+        ech_ps->certverifypad = ECH_CERTVERSPECIFIC_MIN ;
+        ech_ps->eepad = ECH_ENCEXTSPECIFIC_MIN ;
+        SSL_CTX_set_record_padding_callback_arg(ctx, (void *)ech_ps);
+        SSL_CTX_set_record_padding_callback(ctx, ech_padding_cb);
     }
 #endif
 
@@ -2527,12 +2542,12 @@ int s_server_main(int argc, char *argv[])
         }
 
 #ifndef OPENSSL_NO_ECH
-        if (echtrialdecrypt!=0) {
-            SSL_CTX_set_options(ctx2,SSL_OP_ECH_TRIALDECRYPT);
+        if (echtrialdecrypt != 0) {
+            SSL_CTX_set_options(ctx2, SSL_OP_ECH_TRIALDECRYPT);
         }
-        if (echspecificpad) {
-            SSL_CTX_set_record_padding_callback_arg(ctx2,(void*)ech_ps);
-            SSL_CTX_set_record_padding_callback(ctx2,ech_padding_cb);
+        if (echspecificpad != 0) {
+            SSL_CTX_set_record_padding_callback_arg(ctx2, (void *)ech_ps);
+            SSL_CTX_set_record_padding_callback(ctx2, ech_padding_cb);
         }
 #endif
 
@@ -2782,19 +2797,11 @@ int s_server_main(int argc, char *argv[])
         SSL_CTX_set_tlsext_servername_arg(ctx, &tlsextcbp);
         SSL_CTX_ech_set_callback(ctx2, ech_print_cb);
         SSL_CTX_ech_set_callback(ctx, ech_print_cb);
-#ifndef OPENSSL_NO_SSL_TRACE
-        if (s_msg==2) {
-            OSSL_trace_set_callback(OSSL_TRACE_CATEGORY_TLS,
-                    ech_trace_cb, bio_s_out);
-        }
-#endif
-#endif
-
-#if defined(OPENSSL_NO_ECH)
-        SSL_CTX_set_tlsext_servername_callback(ctx2, ssl_servername_cb);
-        SSL_CTX_set_tlsext_servername_arg(ctx2, &tlsextcbp);
-        SSL_CTX_set_tlsext_servername_callback(ctx, ssl_servername_cb);
-        SSL_CTX_set_tlsext_servername_arg(ctx, &tlsextcbp);
+# ifndef OPENSSL_NO_SSL_TRACE
+        if (s_msg == 2)
+            OSSL_trace_set_callback(OSSL_TRACE_CATEGORY_TLS, ech_trace_cb,
+                                    bio_s_out);
+# endif
 #endif
     }
 
@@ -3827,9 +3834,10 @@ static int www_body(int s, int stype, int prot, unsigned char *context)
             static const char *space = "                          ";
 
 #ifndef OPENSSL_NO_ECH
-            char *ech_inner=NULL;
-            char *ech_outer=NULL;
-            int echrv=0;
+            char *ech_inner = NULL;
+            char *ech_outer = NULL;
+            int echrv = 0;
+
             /*
              * The next change isn't an ECH related change really. Seems
              * like s_server hangs in some way if we get to this code
@@ -3883,39 +3891,39 @@ static int www_body(int s, int stype, int prot, unsigned char *context)
             /* Customise output a bit to show ECH info at top */
             BIO_puts(io, "<h1>OpenSSL with ECH</h1>\n");
             BIO_puts(io, "<h2>\n");
-            echrv=SSL_ech_get_status(con,&ech_inner,&ech_outer);
+            echrv = SSL_ech_get_status(con, &ech_inner, &ech_outer);
             switch (echrv) {
             case SSL_ECH_STATUS_NOT_TRIED:
-                BIO_puts(io,"ECH not attempted\n");
+                BIO_puts(io, "ECH not attempted\n");
                 break;
             case SSL_ECH_STATUS_FAILED:
-                BIO_puts(io,"ECH tried but failed\n");
+                BIO_puts(io, "ECH tried but failed\n");
                 break;
             case SSL_ECH_STATUS_FAILED_ECH:
-                BIO_puts(io,"ECH tried but we got ECH which is weird\n");
+                BIO_puts(io, "ECH tried but we got ECH which is weird\n");
                 break;
             case SSL_ECH_STATUS_BAD_NAME:
-                BIO_puts(io,"ECH worked but bad name\n");
+                BIO_puts(io, "ECH worked but bad name\n");
                 break;
             case SSL_ECH_STATUS_BACKEND:
-                BIO_printf(io,"ECH acting as backend, got ech_is_inner\n");
+                BIO_printf(io, "ECH acting as backend, got ech_is_inner\n");
                 break;
             case SSL_ECH_STATUS_NOT_CONFIGURED:
-                BIO_printf(io,"ECH not configured\n");
+                BIO_printf(io, "ECH not configured\n");
                 break;
             case SSL_ECH_STATUS_GREASE:
-                BIO_printf(io,"ECH attempt we interpret as GREASE\n");
+                BIO_printf(io, "ECH attempt we interpret as GREASE\n");
                 break;
             case SSL_ECH_STATUS_GREASE_ECH:
-                BIO_printf(io,"ECH attempt we interpret as GREASE, + ECH\n");
+                BIO_printf(io, "ECH attempt we interpret as GREASE, + ECH\n");
                 break;
             case SSL_ECH_STATUS_BAD_CALL:
-                BIO_printf(io,"ECH bad input to API\n");
+                BIO_printf(io, "ECH bad input to API\n");
                 break;
             case SSL_ECH_STATUS_SUCCESS:
-                BIO_printf(io,"ECH success: outer sni: %s, inner sni: %s\n",
-                                (ech_outer==NULL?"none":ech_outer),
-                            (ech_inner==NULL?"none":ech_inner));
+                BIO_printf(io, "ECH success: outer sni: %s, inner sni: %s\n",
+                           (ech_outer == NULL ? "none" : ech_outer),
+                           (ech_inner == NULL ? "none" : ech_inner));
                 break;
             default:
                 BIO_printf(io," Error getting ECH status\n");
@@ -4080,7 +4088,7 @@ static int www_body(int s, int stype, int prot, unsigned char *context)
              * (if one exists) as a default pathname if none was provided
              */
             opmode = (http_server_binmode == 1) ? "rb" : "r";
-            if (*p=='\0') {
+            if (*p == '\0') {
                 if ((file = BIO_new_file("index.html", "r")) == NULL) {
                     BIO_puts(io, text);
                     BIO_printf(io, "Error opening defaulted index.html\r\n");
@@ -4093,7 +4101,7 @@ static int www_body(int s, int stype, int prot, unsigned char *context)
                 ERR_print_errors(io);
                 break;
             }
-            if (file==NULL) {
+            if (file == NULL) {
                 BIO_puts(io, text);
                 BIO_printf(io, "Weird - shouldn't get here '%s'\r\n", p);
                 ERR_print_errors(io);
@@ -4136,7 +4144,8 @@ static int www_body(int s, int stype, int prot, unsigned char *context)
                      * opening that worked
                      */
                     BIO_puts(io,
-                        "HTTP/1.0 200 ok\r\nContent-type: text/html\r\n\r\n");
+                             "HTTP/1.0 200 ok\r\nContent-type: "\
+                             "text/html\r\n\r\n");
                 }
 #endif
                 else

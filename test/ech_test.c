@@ -113,7 +113,7 @@ static int basic_echconfig(void)
         goto err;
     if (!TEST_ptr(ssl = SSL_new(ctx)))
         goto err;
-    /* repeat add that to ssl to make 2*/
+    /* repeat add that to ssl to make 2 */
     if (!TEST_true(SSL_ech_set1_echconfig(ssl, &num_echs, OSSL_ECH_FMT_GUESS,
                                           (char *)echconfig, echconfiglen)))
         goto err;
@@ -137,6 +137,16 @@ static int basic_echconfig(void)
         if (!TEST_true(OSSL_ECH_INFO_print(bio_null, details, num_dets)))
             goto err;
     }
+    /* reduce to one */
+    if (!TEST_true(SSL_ech_reduce(ssl, 1)))
+        goto err;
+    OSSL_ECH_INFO_free(details, num_dets);
+    details = NULL;
+    if (!TEST_true(SSL_ech_get_info(ssl, &details, &num_dets)))
+        goto err;
+    /* we should only have 1 sets of details left */
+    if (!TEST_int_eq(num_dets, 1))
+        goto err;
     res = 1;
 err:
     OSSL_ECH_INFO_free(details, num_dets);
