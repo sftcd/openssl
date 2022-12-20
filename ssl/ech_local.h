@@ -1,5 +1,5 @@
 /*
- * Copyright 2020, 2021 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2023 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the OpenSSL license (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -8,8 +8,7 @@
  */
 
 /**
- * @file
- * This has the internal data structures and prototypes
+ * Internal data structures and prototypes
  * for handling of Encrypted ClientHello (ECH)
  */
 
@@ -22,43 +21,34 @@
 # include <openssl/ech.h>
 # include <openssl/hpke.h>
 
-# undef OSSL_ECH_SUPERVERBOSE  /**< define to get bazillions more lines of tracing */
+# undef OSSL_ECH_SUPERVERBOSE  /* define to get loads more lines of tracing */
 
-#ifndef CLIENT_VERSION_LEN
+# ifndef CLIENT_VERSION_LEN
 /*
  * This is the legacy version length, i.e. len(0x0303). The same
  * label is used in e.g. test/sslapitest.c and elsewhere but not
  * defined in a header file I could find.
  */
-#define CLIENT_VERSION_LEN 2
-#endif
+# define CLIENT_VERSION_LEN 2
+# endif
 
-#define OSSL_ECH_CIPHER_LEN 4 /**< length of an ECHCipher (2 for kdf, 2 for aead) */
+# define OSSL_ECH_CIPHER_LEN 4 /* ECHCipher length (2 for kdf, 2 for aead) */
 
-#define OSSL_ECH_OUTERS_MAX 20 /**< max TLS extensions we compress via outer-exts */
+# define OSSL_ECH_OUTERS_MAX 20 /* max extensions we compress via outer-exts */
 
 /* values for s->ext.ech_grease */
-#define OSSL_ECH_GREASE_UNKNOWN -1 /**< when we're not yet sure */
-#define OSSL_ECH_NOT_GREASE 0 /**< when decryption worked */
-#define OSSL_ECH_IS_GREASE 1 /**< when decryption failed or GREASE wanted */
+# define OSSL_ECH_GREASE_UNKNOWN -1 /* when we're not yet sure */
+# define OSSL_ECH_NOT_GREASE 0 /* when decryption worked */
+# define OSSL_ECH_IS_GREASE 1 /* when decryption failed or GREASE wanted */
 
 /* used to indicate "all" in SSL_ech_print */
-#define OSSL_ECH_SELECT_ALL -1 
+# define OSSL_ECH_SELECT_ALL -1 
 
 /* value for uninitialised GREASE ECH version */
-#define TLSEXT_TYPE_ech_unknown               0xffff
+# define TLSEXT_TYPE_ech_unknown               0xffff
 
 /* value for not yet set ECH config_id */
-#define TLSEXT_TYPE_ech_config_id_unset       -1
-
-/*
- * Strings used in ECH crypto derivations
- * TODO: handle EBCDIC!
- */
-#define OSSL_ECH_CONFIG_ID_STRING (char*) "tls ech config id"
-#define OSSL_ECH_CONTEXT_STRING (char*) "tls ech"
-#define OSSL_ECH_ACCEPT_CONFIRM_STRING (char*) "ech accept confirmation"
-#define OSSL_ECH_HRR_CONFIRM_STRING (char*) "hrr ech accept confirmation"
+# define TLSEXT_TYPE_ech_config_id_unset       -1
 
 /**
  * @brief Representation of what goes in DNS for draft-13
