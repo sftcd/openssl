@@ -11,48 +11,67 @@
  * Internal data structures and prototypes
  * for handling of Encrypted ClientHello (ECH)
  */
-
 #ifndef OPENSSL_NO_ECH
 
-#ifndef HEADER_ECH_LOCAL_H
-# define HEADER_ECH_LOCAL_H
+# ifndef HEADER_ECH_LOCAL_H
+#  define HEADER_ECH_LOCAL_H
 
-# include <openssl/ssl.h>
-# include <openssl/ech.h>
-# include <openssl/hpke.h>
+#  include <openssl/ssl.h>
+#  include <openssl/ech.h>
+#  include <openssl/hpke.h>
 
-# undef OSSL_ECH_SUPERVERBOSE  /* define to get loads more lines of tracing */
+/* 
+ * Define this to get loads more lines of tracing.
+ * This also needs tracing enabled at build time, e.g.:
+ *          $ ./config enable-ssl-trace endable-trace
+ * This will finally (mostly) disappear once the ECH RFC
+ * has issued, but is very useful for interop testing so
+ * some of it might be retained.
+ */
+#  undef OSSL_ECH_SUPERVERBOSE
 
-# ifndef CLIENT_VERSION_LEN
+#  ifndef CLIENT_VERSION_LEN
 /*
  * This is the legacy version length, i.e. len(0x0303). The same
  * label is used in e.g. test/sslapitest.c and elsewhere but not
  * defined in a header file I could find.
  */
-# define CLIENT_VERSION_LEN 2
-# endif
+#   define CLIENT_VERSION_LEN 2
+#  endif
 
-# define OSSL_ECH_CIPHER_LEN 4 /* ECHCipher length (2 for kdf, 2 for aead) */
+#  define OSSL_ECH_CIPHER_LEN 4 /* ECHCipher length (2 for kdf, 2 for aead) */
 
-# define OSSL_ECH_OUTERS_MAX 20 /* max extensions we compress via outer-exts */
+#  define OSSL_ECH_OUTERS_MAX 20 /* max extensions we compress via outer-exts */
 
 /* values for s->ext.ech_grease */
-# define OSSL_ECH_GREASE_UNKNOWN -1 /* when we're not yet sure */
-# define OSSL_ECH_NOT_GREASE 0 /* when decryption worked */
-# define OSSL_ECH_IS_GREASE 1 /* when decryption failed or GREASE wanted */
+#  define OSSL_ECH_GREASE_UNKNOWN -1 /* when we're not yet sure */
+#  define OSSL_ECH_NOT_GREASE 0 /* when decryption worked */
+#  define OSSL_ECH_IS_GREASE 1 /* when decryption failed or GREASE wanted */
 
 /* used to indicate "all" in SSL_ech_print */
-# define OSSL_ECH_SELECT_ALL -1 
+#  define OSSL_ECH_SELECT_ALL -1
 
 /* value for uninitialised GREASE ECH version */
-# define TLSEXT_TYPE_ech_unknown               0xffff
+#  define TLSEXT_TYPE_ech_unknown 0xffff
 
 /* value for not yet set ECH config_id */
-# define TLSEXT_TYPE_ech_config_id_unset       -1
+#  define TLSEXT_TYPE_ech_config_id_unset -1
 
-/**
- * @brief Representation of what goes in DNS for draft-13
- * <pre>
+#  define OSSL_ECH_OUTER_CH_TYPE 0 /* outer ECHClientHello enum */
+#  define OSSL_ECH_INNER_CH_TYPE 1 /* inner ECHClientHello enum */
+
+/*
+ * Return values from ech_same_ext, note that the CONTINUE
+ * return value might mean something new if the extension
+ * handler is ECH "aware" (other than in a trivial sense)
+ */
+#  define OSSL_ECH_SAME_EXT_ERR 0 /* bummer something wrong */
+#  define OSSL_ECH_SAME_EXT_DONE 1 /* proceed with same value in inner/outer */
+#  define OSSL_ECH_SAME_EXT_CONTINUE 2 /* generate a new value for outer CH */
+
+/*
+ * Reminder of what goes in DNS for draft-13
+ *
  *     opaque HpkePublicKey<1..2^16-1>;
  *     uint16 HpkeKemId;  // Defined in I-D.irtf-cfrg-hpke
  *     uint16 HpkeKdfId;  // Defined in I-D.irtf-cfrg-hpke
@@ -79,56 +98,39 @@
  *         select (ECHConfig.version) {
  *           case 0xfe0d: ECHConfigContents contents;
  *         }
- * </pre>
- *
- * Even though the TLS structures differ the C struct is
- * fine for both.
- *
  */
 typedef unsigned char ech_ciphersuite_t[OSSL_ECH_CIPHER_LEN];
 
 typedef struct ech_config_st {
-    unsigned int version; /**< 0xff08 for draft-08 */
-    unsigned int public_name_len; /**< public_name */
-    unsigned char *public_name; /**< public_name */
-    unsigned int kem_id; /**< HPKE KEM ID to use */
-    unsigned int pub_len; /**< HPKE public */
+    unsigned int version; /* 0xff0d for draft-13 */
+    unsigned int public_name_len;
+    unsigned char *public_name;
+    unsigned int kem_id;
+    unsigned int pub_len;
     unsigned char *pub;
-	unsigned int nsuites;
-	ech_ciphersuite_t *ciphersuites;
+    unsigned int nsuites;
+    ech_ciphersuite_t *ciphersuites;
     unsigned int maximum_name_length;
     unsigned int nexts;
     unsigned int *exttypes;
     unsigned int *extlens;
     unsigned char **exts;
-    size_t encoding_length;
-    unsigned char *encoding_start;
+    size_t encoding_length; /* used for OSSL_ECH_INFO output */
+    unsigned char *encoding_start; /* used for OSSL_ECH_INFO output */
     uint8_t config_id;
 } ECHConfig;
 
 typedef struct ech_configs_st {
-    unsigned int encoded_len; /**< length of overall encoded content */
-    unsigned char *encoded; /**< overall encoded content */
-    int nrecs; /**< Number of records  */
-    ECHConfig *recs; /**< array of individual records */
+    unsigned int encoded_len; /* length of overall encoded content */
+    unsigned char *encoded; /* overall encoded content */
+    int nrecs; /* Number of records  */
+    ECHConfig *recs; /* array of individual records */
 } ECHConfigs;
 
 /**
  * What we send in the ech CH extension:
  *
- * For draft-10, we get:
- * <pre>
- *     struct {
- *       HpkeSymmetricCipherSuite cipher_suite;
- *       uint8 config_id;
- *       opaque enc<1..2^16-1>;
- *       opaque payload<1..2^16-1>;
- *    } ClientECH;
- * </pre>
- *
- *
  * For draft-13:
- * <pre>
  *     enum { outer(0), inner(1) } ECHClientHelloType;
  *     struct {
  *        ECHClientHelloType type;
@@ -142,21 +144,17 @@ typedef struct ech_configs_st {
  *                Empty;
  *        };
  *     } ECHClientHello;
- * </pre>
  *
  */
 typedef struct ech_encch_st {
-	uint16_t kdf_id; /**< ciphersuite  */
-	uint16_t aead_id; /**< ciphersuite  */
-    uint8_t config_id; /**< identifies DNS RR used */
-    size_t enc_len; /**< public share */
-    unsigned char *enc; /**< public share */
-    size_t payload_len; /**< ciphertext  */
-    unsigned char *payload; /**< ciphertext  */
+    uint16_t kdf_id; /* ciphersuite  */
+    uint16_t aead_id; /* ciphersuite  */
+    uint8_t config_id; /* (maybe) identifies DNS RR value used */
+    size_t enc_len; /* public share */
+    unsigned char *enc; /* public share for sender */
+    size_t payload_len; /* ciphertext  */
+    unsigned char *payload; /* ciphertext  */
 } OSSL_ECH_ENCCH;
-
-#define OSSL_ECH_OUTER_CH_TYPE 0 /**< outer ECHClientHello enum */
-#define OSSL_ECH_INNER_CH_TYPE 1 /**< inner ECHClientHello enum */
 
 /**
  * @brief The ECH data structure that's part of the SSL structure
@@ -171,20 +169,20 @@ typedef struct ech_encch_st {
  * need to modify that (in ssl/ech.c)
  */
 typedef struct ssl_ech_st {
-    ECHConfigs *cfg; /**< ptr to underlying ECHConfigs */
+    ECHConfigs *cfg; /* ptr to underlying ECHConfigs */
     /* API input names, or, set on server from CH if ECH worked */
     char *inner_name;
     char *outer_name;
-    int no_outer; 
+    int no_outer;
     /*
      * File load information - if identical filenames not modified since
-     * loadtime are added via SSL_ech_serve_enable then we'll ignore the new
+     * loadtime are added via SSL_ech_server_enable_file then we ignore the new
      * data. If identical file names that are more recently modified are loaded
      * to a server we'll overwrite this entry.
      */
-    char *pemfname; /**< name of PEM file from which this was loaded */
-    time_t loadtime; /**< time public and private key were loaded from file */
-    EVP_PKEY *keyshare; /**< long(ish) term ECH private keyshare on a server */
+    char *pemfname; /* name of PEM file from which this was loaded */
+    time_t loadtime; /* time public and private key were loaded from file */
+    EVP_PKEY *keyshare; /* long(ish) term ECH private keyshare on a server */
 } SSL_ECH;
 
 /**
@@ -229,30 +227,9 @@ void OSSL_ECH_ENCCH_free(OSSL_ECH_ENCCH *ev);
  * populated when this is called - essentially just the ECHConfigs and
  * the server private value.
  */
-SSL_ECH* SSL_ECH_dup(SSL_ECH* orig, size_t nech, int selector);
+SSL_ECH *SSL_ECH_dup(SSL_ECH *orig, size_t nech, int selector);
 
-/**
- * @brief Decode/check value from DNS (binary, b64 or ascii-hex encoded)
- * @param ctx is the parent SSL_CTX
- * @param con is the SSL connection
- * @param eklen is the length of the encoded value from DNS
- * @param ekval is the binary, base64 or ascii-hex encoded value from DNS
- * @param num_echs says how many SSL_ECH structures are in the returned array
- * @return is an SSL_ECH structure
- *
- * The ekval value here may be the catenation of multiple encoded 
- * ECHConfigList. We internally decode and handle those and (later)
- * use whichever is relevant/best. The fmt parameter can be e.g. 
- * OSSL_ECH_FMT_ASCII_HEX or OSSL_ECH_FMT_GUESS.
- */
-SSL_ECH* SSL_ECH_new_from_buffer(SSL_CTX *ctx, 
-                                 SSL *con, 
-                                 const short ekfmt, 
-                                 const size_t eklen, 
-                                 const char *ekval, 
-                                 int *num_echs);
-
-/**
+/*
  * @brief After "normal" 1st pass client CH handling, encode that
  * @param s is the SSL session
  * @return 1 for success, error otherwise
@@ -262,25 +239,16 @@ SSL_ECH* SSL_ECH_new_from_buffer(SSL_CTX *ctx,
 int ech_encode_inner(SSL_CONNECTION *s);
 
 /*
- * Return values from ech_same_ext, note that the CONTINUE
- * return value might mean something new if the extension
- * handler is ECH "aware" (other than in a trivial sense)
- */
-#define OSSL_ECH_SAME_EXT_ERR 0 /* bummer something wrong */
-#define OSSL_ECH_SAME_EXT_DONE 1 /* proceed with same value in inner/outer */
-#define OSSL_ECH_SAME_EXT_CONTINUE 2 /* generate a new value for outer CH */
-
-/**
- * @brief Replicate ext value from inner ch into outer ch 
+ * @brief Replicate ext value from inner ch into outer ch
  * @param s is the SSL session
  * @param pkt is the packet containing extensions
  * @return 0: error, 1: copied existing and done, 2: ignore existing
  *
  * This also sets us up for later outer compression.
  */
-int ech_same_ext(SSL *s, WPACKET* pkt);
+int ech_same_ext(SSL *s, WPACKET *pkt);
 
-/**
+/*
  * @brief Calculate ECH acceptance signal.
  * @param s is the SSL inner context
  * @oaram for_hrr is 1 if this is for an HRR, otherwise for SH
@@ -300,10 +268,10 @@ int ech_same_ext(SSL *s, WPACKET* pkt);
  *                        "ech accept confirmation",
  *                        ClientHelloInner...ServerHelloECHConf)
  */
-int ech_calc_ech_confirm(SSL_CONNECTION *s, int for_hrr, unsigned char *acbuf, 
-        const unsigned char *shbuf, const size_t shlen);
+int ech_calc_ech_confirm(SSL_CONNECTION *s, int for_hrr, unsigned char *acbuf,
+                         const unsigned char *shbuf, const size_t shlen);
 
-/**
+/*
  * @brief Swap the inner and outer CH structures as needed..
  * @param s is the SSL struct
  * @return 1 for success, other value otherwise
@@ -316,7 +284,7 @@ int ech_calc_ech_confirm(SSL_CONNECTION *s, int for_hrr, unsigned char *acbuf,
  */
 int ech_swaperoo(SSL_CONNECTION *s);
 
-/**
+/*
  * @brief send a GREASy ECH
  * @param s is the SSL session
  * @param pkt is the in-work CH packet
@@ -328,7 +296,7 @@ int ech_swaperoo(SSL_CONNECTION *s);
  */
 int ech_send_grease(SSL *s, WPACKET *pkt);
 
-/**
+/*
  * @brief Calculate AAD and then do ECH encryption
  * @param s is the SSL struct
  * @param pkt is the packet to send
@@ -344,7 +312,7 @@ int ech_send_grease(SSL *s, WPACKET *pkt);
  */
 int ech_aad_and_encrypt(SSL *s, WPACKET *pkt);
 
-/**
+/*
  * @brief reset the handshake buffer for transcript after ECH is good
  * @param s is the session
  * @param buf is the data to put into the transcript (usuallhy inner CH)
@@ -354,7 +322,7 @@ int ech_aad_and_encrypt(SSL *s, WPACKET *pkt);
 int ech_reset_hs_buffer(SSL_CONNECTION *s, const unsigned char *buf,
                         size_t blen);
 
-/**
+/*
  * @brief If an ECH is present, attempt decryption
  * @param s: SSL session stuff
  * @param pkt: the received CH that might include an ECH
@@ -362,21 +330,14 @@ int ech_reset_hs_buffer(SSL_CONNECTION *s, const unsigned char *buf,
  */
 int ech_early_decrypt(SSL *s, PACKET *pkt, PACKET *newpkt);
 
-
-/**
+/*
  * @brief say if extension at index i in ext_defs is to be ECH compressed
  * @param ind is the index of this extension in ext_defs (and ech_outer_config)
  * @return 1 if this one is to be compressed, 0 if not, -1 for error
  */
 int ech_2bcompressed(int ind);
 
-/**
- * @brief Used in tracing
- */
-void ech_pbuf(const char *msg,const unsigned char *buf,const size_t blen);
-void ech_ptranscript(const char* msg, SSL_CONNECTION *s);
-
-/*!
+/*
  * @brief Given a CH find the offsets of the session id, extensions and ECH
  * @param: s is the SSL session
  * @param: pkt is the CH
@@ -391,25 +352,25 @@ void ech_ptranscript(const char* msg, SSL_CONNECTION *s);
  * Offsets are set to zero if relevant thing not found.
  * Offsets are returned to the type or length field in question.
  */
-int ech_get_ch_offsets(
-        SSL_CONNECTION *s,
-        PACKET *pkt,
-        size_t *sessid,
-        size_t *exts,
-        size_t *echoffset,
-        uint16_t *echtype,
-        int *inner,
-        size_t *snioffset);
+int ech_get_ch_offsets(SSL_CONNECTION *s, PACKET *pkt, size_t *sessid,
+                       size_t *exts, size_t *echoffset, uint16_t *echtype,
+                       int *inner, size_t *snioffset);
 
-/**
- * Print the content of an SSL_ECH
- *
+/*
+ * @brief Print the content of an SSL_ECH (for callback logging)
  * @param out is the BIO to use (e.g. stdout/whatever)
  * @param s is an SSL session strucutre
  * @param selector allows picking all (ECH_SELECT_ALL==-1) or just one RR value
  * @return 1 for success, anything else for failure
  */
-int SSL_ech_print(BIO* out, SSL *s, int selector);
+int SSL_ech_print(BIO *out, SSL *s, int selector);
 
-#endif
+#  ifdef OSSL_ECH_SUPERVERBOSE
+/*
+ * @brief Used in tracing
+ */
+void ech_pbuf(const char *msg, const unsigned char *buf, const size_t blen);
+void ech_ptranscript(const char *msg, SSL_CONNECTION *s);
+#  endif
+# endif
 #endif

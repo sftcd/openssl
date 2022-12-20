@@ -1529,7 +1529,7 @@ int SSL_ech_set_outer_server_name(SSL *ssl, const char *outer_name,
     return 1;
 }
 
-#if 0
+# if 0
 /* Not sure this is needed any more, but keep for now in case */
 /**
  * @brief Set the outer SNI
@@ -1567,7 +1567,7 @@ int SSL_CTX_ech_set_outer_server_name(SSL_CTX *s, const char *outer_name,
     }
     return 1;
 }
-#endif
+# endif
 
 /**
  * @brief return a printable form of alpn
@@ -2921,10 +2921,12 @@ static int ech_decode_inner(SSL *ssl, const unsigned char *ob,
     memcpy(initial_decomp + offset2sessid + 1 + s->tmp_session_id_len,
            s->ext.encoded_innerch + offset2sessid + 1,
            s->ext.encoded_innerch_len - offset2sessid - 1);
+# ifdef OSSL_ECH_SUPERVERBOSE
     ech_pbuf("Inner CH (session-id-added but no decompression)",
              initial_decomp, initial_decomp_len);
     ech_pbuf("start of exts", &initial_decomp[startofexts],
              initial_decomp_len - startofexts);
+# endif
     /* Now skip over exts until we do/don't see outers */
     found = 0;
     remaining = initial_decomp[startofexts] * 256
@@ -3186,7 +3188,9 @@ static int ech_decode_inner(SSL *ssl, const unsigned char *ob,
     /* the added 4 is for the type+3-octets len */
     final_decomp[startofexts + 4] = (final_extslen / 256) & 0xff;
     final_decomp[startofexts + 5] = final_extslen % 256;
+# ifdef OSSL_ECH_SUPERVERBOSE
     ech_pbuf("final_decomp", final_decomp, final_decomp_len);
+# endif
     /* handle HRR case where we wanna (temporarily) store the old inner CH */
     if (s->ext.innerch != NULL) {
         if (s->ext.innerch1 != NULL)
@@ -3204,6 +3208,7 @@ err:
     return 0;
 }
 
+# ifdef OSSL_ECH_SUPERVERBOSE
 /**
  * @brief print a buffer nicely for debug/interop purposes
  */
@@ -3229,6 +3234,7 @@ void ech_pbuf(const char *msg, const unsigned char *buf, const size_t blen)
     } OSSL_TRACE_END(TLS);
     return;
 }
+# endif
 
 /*
  * @brief reset the handshake buffer for transcript after ECH is good
@@ -3243,7 +3249,9 @@ int ech_reset_hs_buffer(SSL_CONNECTION *s, const unsigned char *buf,
     OSSL_TRACE_BEGIN(TLS) {
         BIO_printf(trc_out, "Adding this to transcript: RESET!\n");
     } OSSL_TRACE_END(TLS);
+# ifdef OSSL_ECH_SUPERVERBOSE
     ech_pbuf("Adding this to transcript", buf, blen);
+# endif
 
     if (s->s3.handshake_buffer != NULL) {
         (void)BIO_set_close(s->s3.handshake_buffer, BIO_CLOSE);
@@ -3283,7 +3291,9 @@ static int ech_get_sh_offsets(const unsigned char *sh, size_t sh_len,
     size_t sessid_len = 0;
     size_t startofexts = 0;
     size_t origextlens = 0;
+# ifdef OSSL_ECH_SUPERVERBOSE
     size_t echlen = 0; /* length of ECH, including type & ECH-internal length */
+# endif
     const unsigned char *e_start = NULL;
     int extsremaining = 0;
     uint16_t etype = 0;
@@ -3324,21 +3334,25 @@ static int ech_get_sh_offsets(const unsigned char *sh, size_t sh_len,
         etype = e_start[0] * 256 + e_start[1];
         elen = e_start[2] * 256 + e_start[3];
         if (etype == TLSEXT_TYPE_ech13) {
+# ifdef OSSL_ECH_SUPERVERBOSE
             echlen = elen + 4; /* type and length included */
+# endif
             *echtype = etype;
             *echoffset = (e_start - sh); /* set output */
         }
         e_start += (4 + elen);
         extsremaining -= (4 + elen);
     }
+# ifdef OSSL_ECH_SUPERVERBOSE
     ech_pbuf("orig SH", (unsigned char *)sh, sh_len);
     ech_pbuf("orig SH session_id", (unsigned char *)sh + sessid_offset,
              sessid_len);
     ech_pbuf("orig SH exts", (unsigned char *)sh + *exts, origextlens);
+    ech_pbuf("orig SH/ECH ", (unsigned char *)sh + *echoffset, echlen);
+# endif
     OSSL_TRACE_BEGIN(TLS) {
         BIO_printf(trc_out, "orig SH/ECH type: %4x\n", *echtype);
     } OSSL_TRACE_END(TLS);
-    ech_pbuf("orig SH/ECH ", (unsigned char *)sh + *echoffset, echlen);
     return 1;
 }
 
@@ -3782,7 +3796,9 @@ int ech_swaperoo(SSL_CONNECTION *s)
     size_t outer_chlen = 0;
     size_t other_octets = 0;
 
+# ifdef OSSL_ECH_SUPERVERBOSE
     ech_ptranscript("ech_swaperoo, b4", s);
+# endif
 
     /* Make some checks */
     if (s == NULL)
@@ -3904,7 +3920,9 @@ int ech_swaperoo(SSL_CONNECTION *s)
             return 0;
         }
     }
+# ifdef OSSL_ECH_SUPERVERBOSE
     ech_ptranscript("ech_swaperoo, after", s);
+# endif
     if (other_octets > 0) {
         OPENSSL_free(new_buf);
     }
@@ -3947,6 +3965,7 @@ int ech_swaperoo(SSL_CONNECTION *s)
     return 1;
 }
 
+# ifdef OSSL_ECH_SUPERVERBOSE
 /**
  * @brief trace out transcript
  * @param msg pre-pend to trace lines
@@ -3977,6 +3996,7 @@ void ech_ptranscript(const char *msg, SSL_CONNECTION *s)
     }
     return;
 }
+# endif
 
 /**
  * @brief send a GREASy ECH
@@ -4251,16 +4271,22 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         goto err;
     }
+# ifdef OSSL_ECH_SUPERVERBOSE
     ech_pbuf("EAAE: peer pub", peerpub, peerpub_len);
     ech_pbuf("EAAE: clear", s->ext.inner_s->ext.encoded_innerch,
              s->ext.inner_s->ext.encoded_innerch_len);
-    ech_pbuf("EAAE: config id input", tc->encoding_start, tc->encoding_length);
+    ech_pbuf("EAAE: ECHConfig", tc->encoding_start, tc->encoding_length);
+# endif
     if (s->ssl.ctx != NULL && (s->ssl.ctx->options & SSL_OP_ECH_IGNORE_CID)) {
         RAND_bytes(&config_id_to_use, 1);
+# ifdef OSSL_ECH_SUPERVERBOSE
         ech_pbuf("EAAE: random config_id", &config_id_to_use, 1);
+# endif
     } else {
         config_id_to_use = tc->config_id;
+# ifdef OSSL_ECH_SUPERVERBOSE
         ech_pbuf("EAAE: config_id", &config_id_to_use, 1);
+# endif
     }
     s->ext.ech_attempted_cid = config_id_to_use;
     s->ext.ech_attempted_type = tc->version;
@@ -4352,7 +4378,9 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             goto err;
         }
+# ifdef OSSL_ECH_SUPERVERBOSE
         ech_pbuf("EAAE info", info, info_len);
+# endif
         rv = OSSL_HPKE_encap(hctx, mypub, &mypub_len,
                              peerpub, peerpub_len, info, info_len);
         if (rv != 1) {
@@ -4361,14 +4389,18 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
         }
         s->ext.ech_pub = mypub;
         s->ext.ech_pub_len = mypub_len;
+# ifdef OSSL_ECH_SUPERVERBOSE
         ech_pbuf("EAAE: mypub", mypub, mypub_len);
+# endif
 
     } else {
         /* retrieve context etc */
         hctx = s->ext.ech_ctx;
         mypub = s->ext.ech_pub;
         mypub_len = s->ext.ech_pub_len;
+# ifdef OSSL_ECH_SUPERVERBOSE
         ech_pbuf("EAAE: mypub", mypub, mypub_len);
+# endif
     }
     if (hctx == NULL) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
@@ -4433,14 +4465,18 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
     newextlens = origextlens + 4 + echlen;
     aad[startofexts] = (unsigned char)((newextlens & 0xffff) / 256);
     aad[startofexts + 1] = (unsigned char)((newextlens & 0xffff) % 256);
+# ifdef OSSL_ECH_SUPERVERBOSE
     ech_pbuf("EAAE: aad", aad, aad_len);
+# endif
 
     clear = OPENSSL_zalloc(clear_len);
     if (clear == NULL)
         goto err;
     memcpy(clear, s->ext.inner_s->ext.encoded_innerch,
            s->ext.inner_s->ext.encoded_innerch_len);
+# ifdef OSSL_ECH_SUPERVERBOSE
     ech_pbuf("EAAE: draft-13 padded clear", clear, clear_len);
+# endif
 
     rv = OSSL_HPKE_seal(hctx, cipher, &cipherlen,
                         aad, aad_len, clear, clear_len);
@@ -4449,15 +4485,19 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         goto err;
     }
+# ifdef OSSL_ECH_SUPERVERBOSE
     ech_pbuf("EAAE: cipher", cipher, cipherlen);
     ech_pbuf("EAAE: hpke mypub", mypub, mypub_len);
+# endif
 
     /* splice real ciphertext back in now */
     memcpy(aad + aad_len - cipherlen, cipher, cipherlen);
 
+# ifdef OSSL_ECH_SUPERVERBOSE
     ech_pbuf("EAAE pkt to startofexts+6 (startofexts is 4 offset so +2 really)",
              (unsigned char *) pkt->buf->data, startofexts + 6);
     ech_pbuf("EAAE pkt aftr", (unsigned char *)pkt->buf->data, pkt->written);
+# endif
     OPENSSL_free(cipher);
     return 1;
 err:
@@ -4491,8 +4531,10 @@ int ech_get_ch_offsets(SSL_CONNECTION *s, PACKET *pkt, size_t *sessid,
     size_t suiteslen = 0;
     size_t startofexts = 0;
     size_t origextlens = 0;
+# ifdef OSSL_ECH_SUPERVERBOSE
     size_t echlen = 0; /* length of ECH, including type & ECH-internal length */
     size_t snilen = 0;
+# endif
     size_t legacy_compress_len; /* length of legacy_compression */
     const unsigned char *e_start = NULL;
     int extsremaining = 0;
@@ -4564,7 +4606,9 @@ int ech_get_ch_offsets(SSL_CONNECTION *s, PACKET *pkt, size_t *sessid,
         etype = e_start[0] * 256 + e_start[1];
         elen = e_start[2] * 256 + e_start[3];
         if (etype == TLSEXT_TYPE_ech13) {
+# ifdef OSSL_ECH_SUPERVERBOSE
             echlen = elen + 4; /* type and length included */
+# endif
             *echtype = etype;
             *echoffset = (e_start - ch); /* set output */
             if (etype == TLSEXT_TYPE_ech13) {
@@ -4572,21 +4616,25 @@ int ech_get_ch_offsets(SSL_CONNECTION *s, PACKET *pkt, size_t *sessid,
                 *inner = e_start[4];
             }
         } else if (etype == TLSEXT_TYPE_server_name) {
+# ifdef OSSL_ECH_SUPERVERBOSE
             snilen = elen + 4; /* type and length included */
+# endif
             *snioffset = (e_start - ch); /* set output */
         }
         e_start += (4 + elen);
         extsremaining -= (4 + elen);
     }
+    OSSL_TRACE_BEGIN(TLS) {
+        BIO_printf(trc_out, "orig CH/ECH type: %4x\n", *echtype);
+    } OSSL_TRACE_END(TLS);
+# ifdef OSSL_ECH_SUPERVERBOSE
     ech_pbuf("orig CH", (unsigned char *)ch, ch_len);
     ech_pbuf("orig CH session_id", (unsigned char *)ch + *sessid + 1,
              sessid_len);
     ech_pbuf("orig CH exts", (unsigned char *)ch + *exts, origextlens);
-    OSSL_TRACE_BEGIN(TLS) {
-        BIO_printf(trc_out, "orig CH/ECH type: %4x\n", *echtype);
-    } OSSL_TRACE_END(TLS);
     ech_pbuf("orig CH/ECH", (unsigned char *)ch + *echoffset, echlen);
     ech_pbuf("orig CH SNI", (unsigned char *)ch + *snioffset, snilen);
+# endif
     return 1;
 }
 
@@ -4609,8 +4657,10 @@ static unsigned char *hpke_decrypt_encch(SSL_CONNECTION *s, SSL_ECH *ech,
                                          size_t aad_len, unsigned char *aad,
                                          int forhrr, size_t *innerlen)
 {
+# ifdef OSSL_ECH_SUPERVERBOSE
     size_t publen = 0;
     unsigned char *pub = NULL;
+# endif
     size_t cipherlen = 0;
     unsigned char *cipher = NULL;
     size_t senderpublen = 0;
@@ -4639,19 +4689,22 @@ static unsigned char *hpke_decrypt_encch(SSL_CONNECTION *s, SSL_ECH *ech,
      * The calling code looks after matching the ECH.config_id
      * and/or trial decryption.
      */
+    hpke_suite.kem_id = ech->cfg->recs[0].kem_id;
+# ifdef OSSL_ECH_SUPERVERBOSE
     publen = ech->cfg->recs[0].pub_len;
     pub = ech->cfg->recs[0].pub;
-    hpke_suite.kem_id = ech->cfg->recs[0].kem_id;
-
     ech_pbuf("aad", aad, aad_len);
     ech_pbuf("my local pub", pub, publen);
     ech_pbuf("senderpub", senderpub, senderpublen);
     ech_pbuf("cipher", cipher, cipherlen);
+# endif
     if (ech_make_enc_info(ech->cfg->recs, info, &info_len) != 1) {
         OPENSSL_free(clear);
         return NULL;
     }
+# ifdef OSSL_ECH_SUPERVERBOSE
     ech_pbuf("info", info, info_len);
+# endif
     OSSL_TRACE_BEGIN(TLS) {
         BIO_printf(trc_out,
                    "hpke_dec suite: kem: %04x, kdf: %04x, aead: %04x\n",
@@ -4714,7 +4767,9 @@ clearerrs:
         OPENSSL_free(clear);
         return NULL;
     }
+# ifdef OSSL_ECH_SUPERVERBOSE
     ech_pbuf("clear", clear, clearlen);
+# endif
     *innerlen = clearlen;
     if (ech->cfg->recs[0].version == OSSL_ECH_DRAFT_13_VERSION) {
         /* draft-13 pads after the encoded CH with zeros */
@@ -4783,7 +4838,9 @@ clearerrs:
         }
 # endif
         *innerlen = ch_len;
+# ifdef OSSL_ECH_SUPERVERBOSE
         ech_pbuf("unpadded clear", clear, *innerlen);
+# endif
     }
     return clear;
 }
@@ -4978,7 +5035,9 @@ int ech_early_decrypt(SSL *ssl, PACKET *outerpkt, PACKET *newpkt)
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         goto err;
     }
+# ifdef OSSL_ECH_SUPERVERBOSE
     ech_pbuf("EARLY config id", &extval->config_id, 1);
+# endif
     s->ext.ech_attempted_cid = extval->config_id;
 
     /* enc - the client's public share */
@@ -5088,7 +5147,9 @@ int ech_early_decrypt(SSL *ssl, PACKET *outerpkt, PACKET *newpkt)
     aad_len = ch_len;
     memcpy(aad, ch, aad_len);
     memset(aad + startofciphertext, 0, lenofciphertext);
+# ifdef OSSL_ECH_SUPERVERBOSE
     ech_pbuf("EARLY aad", aad, aad_len);
+# endif
 
     /*
      * Now see which (if any) of our configs match, or whether
@@ -5163,6 +5224,7 @@ int ech_early_decrypt(SSL *ssl, PACKET *outerpkt, PACKET *newpkt)
                    cfgind, clearlen, (void *)clear);
     } OSSL_TRACE_END(TLS);
 
+# ifdef OSSL_ECH_SUPERVERBOSE
     /* Bit more logging */
     if (foundcfg == 1 && clear != NULL) {
         SSL_ECH *se = &s->ech[cfgind];
@@ -5173,6 +5235,7 @@ int ech_early_decrypt(SSL *ssl, PACKET *outerpkt, PACKET *newpkt)
         ech_pbuf("remote config_id", &extval->config_id, 1);
         ech_pbuf("clear", clear, clearlen);
     }
+# endif
 
     if (extval != NULL) {
         OSSL_ECH_ENCCH_free(extval);
@@ -5192,7 +5255,9 @@ int ech_early_decrypt(SSL *ssl, PACKET *outerpkt, PACKET *newpkt)
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         goto err;
     }
+# ifdef OSSL_ECH_SUPERVERBOSE
     ech_pbuf("Inner CH (decoded)", s->ext.innerch, s->ext.innerch_len);
+# endif
     /*
      * The +4 below is because tls_process_client_hello doesn't
      * want to be given the message type & length, so the buffer should
@@ -5506,7 +5571,7 @@ int SSL_CTX_ech_set_outer_alpn_protos(SSL_CTX *ctx, const unsigned char *protos,
     return 1;
 }
 
-#if 0
+# if 0
 /**
  * @brief set the ALPN values for the outer ClientHello
  *
@@ -5533,7 +5598,7 @@ int SSL_ech_set_outer_alpn_protos(SSL *ssl, const unsigned char *protos,
     s->ext.alpn_outer_len = protos_len;
     return 1;
 }
-#endif
+# endif
 
 /**
  * @brief provide access to a returned ECH value
