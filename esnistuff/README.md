@@ -26,6 +26,12 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
+- 20221221: looked a bit at error handling in split-mode and 
+  figured out yet more work is needed, e.g. if a client sends
+  a GREASEd ECH the frontend ought finish the h/s which won't
+  happen with my haproxy PoC - basically more work TBD. (Also
+  cleaned up ``ossl_ech_make_echconfig()`` a lot.
+
 - 20221217: re-did POD files for ECH stuff see
   ``doc/man3/SSL_ech_set1_echconfig.pod`` (same for command line tools). There
   was also a few accompanying code chnages.

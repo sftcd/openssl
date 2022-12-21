@@ -95,7 +95,7 @@ or L<SSL_write(3)>. If an ECH public value is associated with an I<SSL>
 session but a different TLS version is used for the session (e.g. TLS version
 1.2) then ECH will not be used but the SSL session will be created as usual.
 
-SSL_ech_set1_echconfig() and SSL_CTX_ech_set1_echconfig() allow clients to 
+SSL_ech_set1_echconfig() and SSL_CTX_ech_set1_echconfig() allow clients to
 provide a binary or encoded ECHConfigList in the I<ekval> (of size I<eklen>).
 Various encodings (binary, ascii-hex, base64) are supported via the I<ekfmt>
 as described in the L</Constants> section. If all is well, the ECHConfigList
@@ -171,7 +171,7 @@ SNI value when the owner's name is used as the value for the inner SNI.
 By default when ECH is used, whatever SNI value would have been used in the
 ClientHello (e.g. as provided to L<SSL_set_tlsext_host_name(3)>) is used as the
 value for the inner SNI, and the "public_name" value from the ECHConfigList is
-used for the outer SNI value. 
+used for the outer SNI value.
 
 The Application Layer Protocol Negotiation (ALPN) extension to TLS can also
 represent a potential privacy leak, so we also support providing different
@@ -193,13 +193,13 @@ Outer SNI name values provided via these APIs will override the "public_name"
 from the relevant ECHConfigList, HTTPS or SVCB resource record.
 
 Typically, applications control ALPN values via L<SSL_CTX_set_alpn_protos(3)> and
-the value input there will be used as the value for ALPN In the inner ClientHello. 
+the value input there will be used as the value for ALPN In the inner ClientHello.
 If the application wishes to use a different value for the outer ClientHello
 then it can use SSL_CTX_ech_set_outer_alpn_protos() to associated the required
 values with the I<SSL> session. The I<protos> and I<protos_len> parameters are
 handles as for L<SSL_CTX_set_alpn_protos(3)>.
 
-SSL_ech_set_server_names(), SSL_ech_set_outer_server_name() and 
+SSL_ech_set_server_names(), SSL_ech_set_outer_server_name() and
 SSL_CTX_ech_set_outer_alpn_protos() all return 1 for success and 0 for error.
 
 =head2 Generating ECH key pairs and ECHconfigs
@@ -207,7 +207,7 @@ SSL_CTX_ech_set_outer_alpn_protos() all return 1 for success and 0 for error.
 ossl_ech_make_echconfig() allows applications to generate an ECH key pair
 and create a matching binary encoded ECHConfigList in the I<echconfig> buffer.
 That buffer has size I<echconfiglen> on input. On output I<echconfiglen> has
-the length of the actual ECHConfigList. The private key will be written in 
+the length of the actual ECHConfigList. The private key will be written in
 PKCS#8 format in the I<priv> buffer. On input the I<privlen> parameter has
 the size of the I<priv> buffer. On output I<privlen> contains the length
 of the actual encoded private key.
@@ -229,7 +229,7 @@ The other inputs control the ECHConfig options:
 =item - I<extlen> is the length of I<extvals>
 
 =back
- 
+
 Note that at the time of writing there are no known implementations that
 make use of ECH extensions.
 
@@ -276,14 +276,16 @@ a way to only attempt the ECH decryption operation. This function
 takes the outer ClientHello in I<outer_ch> of size I<outer_len> and
 if decryption succeeds, returns the inner ClientHello in I<inner_ch>
 of size I<inner_len> (on input I<inner_len> should contain the size
-if the I<inner_ch> buffer). Note that an inner ClientHello will always
-be smaller than an outer ClientHello. The encoding of both I<outer_ch>
-and I<inner_ch> begins with the TLS message type and 3-octet length
-(i.e. the initials octet are [0x16, 0x03, 0x01] followed by a 2-octet length).
+if the I<inner_ch> buffer) and sets I<decrypted_ok> to 1. Note that
+an inner ClientHello will always be smaller than an outer ClientHello.
+The encoding of both I<outer_ch> and I<inner_ch> begins with the
+TLS message type and 3-octet length (i.e. the initials octet are
+[0x16, 0x03, 0x01] followed by a 2-octet length).
 
 If decrytpion succeeds in SSL_CTX_ech_raw_decrypt() then the
-I<decryption_ok> value will be returned as 1. If decryption fails
-the I<decryption_ok> value will be returned as 0. If decryption
+I<decrypted_ok> value will be returned as 1. If no ECH is present,
+SSL_CTX_ech_raw_decrypt() will return 1 but
+I<decryption_ok> will be 0. If decryption
 succeeds, the I<inner_sni> and I<outer_sni> values will be populated
 based on the values seen. (The caller must free those strings using
 OPENSSL_free() when done.)
@@ -291,12 +293,12 @@ OPENSSL_free() when done.)
 =head2 Accessing ECH information
 
 Given multiple ECH public values can be associated with a single I<SSL>
-session, client applications may need to be able to view and/or control which 
+session, client applications may need to be able to view and/or control which
 values will be used when a TLS session is created. We provide a way to
 view the current ECH public values associated with an I<SSL> session
 and a way to down-select to just one of those values, if desired.
 
-SSL_ech_get_info() returns an array of I<count> B<OSSL_ECH_INFO> structures. 
+SSL_ech_get_info() returns an array of I<count> B<OSSL_ECH_INFO> structures.
 B<OSSL_ECH_INFO> is defined as:
 
  typedef struct ossl_ech_info_st {
@@ -319,17 +321,17 @@ An example of the output from OSSL_ECH_INFO_print() is:
 
 If needed, the application can down-select to just one of these values before
 the TLS session is established by using the I<index> value for the value
-desired via the SSL_ech_reduce() function. 
+desired via the SSL_ech_reduce() function.
 
 Clients and servers can query the status of ECH for a TLS session using the
 SSL_ech_get_status() function. As SNI handling is core to ECH this will return
 the I<inner_sni> and I<outer_sni> values to be used or that were used as well
-as a status code as the return value. The various status values are as shown in 
+as a status code as the return value. The various status values are as shown in
 L</Constants>.
 
 =head2 ECH SSL Options
 
-There are three SSL options associated with ECH that can be set via 
+There are three SSL options associated with ECH that can be set via
 SSL_CTX_set_options():
 
 =over 4
@@ -370,9 +372,9 @@ This allows clients to GREASE with future extension type codepoints if needed.
 =head2 Callback Function
 
 Applications can set a callback function that will be called when the
-outcome from an attempt at ECH has been determined. On the server, 
+outcome from an attempt at ECH has been determined. On the server,
 that happens early, as part of construction of the ServerHello message.
-On the client, the callback will happen after the SeverHello has 
+On the client, the callback will happen after the SeverHello has
 been processed. In the event of HelloRetryRequest, the callback will
 only be triggered when processing the second ServerHello. The callback
 function will be triggered even if the client is only GREASEing.
@@ -383,14 +385,14 @@ The callback function prototype is:
 
 To set a callback function use SSL_ech_set_callback() or
 SSL_CTX_ech_set_callback() - the I<f> input should match the
-above prototype. 
+above prototype.
 
 When the callback function is called, the I<str> will point at a string
 intended for logging describing the state of ECH processing.
 Applications should not attempt to parse that string as the value depends
 on compile time settings, local configuration and the specific processing
 that happened prior to the callback. Applications that need to branch based
-on the outcome of ECH processing should instead make a call to 
+on the outcome of ECH processing should instead make a call to
 SSL_ech_get_status() from within their callback function.
 
 An example string I<str> as seen on a client might be:
@@ -413,7 +415,7 @@ Some externally visible limits:
 
 =over 4
 
-=item B<OSSL_ECH_MAX_PAYLOAD_LEN> 1500, max ECH ciphertext to en/decode 
+=item B<OSSL_ECH_MAX_PAYLOAD_LEN> 1500, max ECH ciphertext to en/decode
 
 =item B<OSSL_ECH_MIN_ECHCONFIG_LEN> 32, min for all encodings
 
@@ -463,7 +465,7 @@ change at the last moment when an RFC is issued).
 Return codes from SSL_ech_get_status
 
 =over 4
- 
+
 =item B<SSL_ECH_STATUS_BACKEND>    4, ECH backend: saw an ech_is_inner
 
 =item B<SSL_ECH_STATUS_GREASE_ECH> 3, GREASEd and got an ECH in return

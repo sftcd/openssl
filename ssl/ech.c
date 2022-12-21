@@ -5432,20 +5432,28 @@ int SSL_CTX_ech_raw_decrypt(SSL_CTX *ctx,
 
     if (ctx == NULL || outer_ch == NULL || outer_len == 0
         || inner_ch == NULL || inner_len == NULL || inner_sni == NULL
-        || outer_sni == NULL || decrypted_ok == NULL)
+        || outer_sni == NULL || decrypted_ok == NULL) {
+        ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_NULL_PARAMETER);
         return 0;
+    }
 
     inner_buf_len = *inner_len;
     s = SSL_new(ctx);
-    if (s == NULL)
+    if (s == NULL) {
+        ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
         return 0;
-    if (PACKET_buf_init(&pkt_outer, outer_ch + 9, outer_len - 9) != 1)
+    }
+    if (PACKET_buf_init(&pkt_outer, outer_ch + 9, outer_len - 9) != 1) {
+        ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
         goto err;
+    }
     inner_buf = OPENSSL_malloc(inner_buf_len);
     if (inner_buf == NULL)
         goto err;
-    if (PACKET_buf_init(&pkt_inner, inner_buf, inner_buf_len) != 1)
+    if (PACKET_buf_init(&pkt_inner, inner_buf, inner_buf_len) != 1) {
+        ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
         goto err;
+    }
 
     /*
      * Check if there's any ECH and if so, whether it's an outer
@@ -5453,38 +5461,46 @@ int SSL_CTX_ech_raw_decrypt(SSL_CTX *ctx,
      */
     rv = ech_get_ch_offsets(sc, &pkt_outer, &startofsessid, &startofexts,
                             &echoffset, &echtype, &innerflag, &innersnioffset);
-    if (rv != 1)
+    if (rv != 1) {
+        ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_INVALID_ARGUMENT);
         return rv;
+    }
     if (echoffset == 0) {
         /* no ECH present */
-        if (s != NULL)
-            SSL_free(s);
+        SSL_free(s);
         OPENSSL_free(inner_buf);
         *decrypted_ok = 0;
         return 1;
     }
-    /*
-     * If we're asked to decrypt an inner, then we may be ok
-     * but we did not decrypt.
-     */
+    /* If we're asked to decrypt an inner, that's not ok */
     if (innerflag == 1) {
-        if (s)
-            SSL_free(s);
+        ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_INVALID_ARGUMENT);
+        SSL_free(s);
         OPENSSL_free(inner_buf);
         *decrypted_ok = 0;
-        return 1;
+        return 0;
     }
 
     rv = ech_early_decrypt(s, &pkt_outer, &pkt_inner);
-    if (rv != 1)
+    if (rv != 1) {
+        /* that could've been GREASE, but we've no idea */
+        ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_INVALID_ARGUMENT);
         goto err;
+    }
 
     sc = SSL_CONNECTION_FROM_SSL(s);
-    if (sc == NULL)
+    if (sc == NULL) {
+        ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
         return 0;
+    }
 
-    if (sc->ech != NULL && sc->ech->outer_name != NULL)
+    if (sc->ech != NULL && sc->ech->outer_name != NULL) {
         *outer_sni = OPENSSL_strdup(sc->ech->outer_name);
+        if (*outer_sni == NULL) {
+            ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
+            return 0;
+        }
+    }
 
     if (sc->ext.ech_success == 0) {
         *decrypted_ok = 0;
@@ -5492,8 +5508,10 @@ int SSL_CTX_ech_raw_decrypt(SSL_CTX *ctx,
         size_t ilen = pkt_inner.remaining;
 
         /* make sure there's space */
-        if ((ilen + 9) > inner_buf_len)
+        if ((ilen + 9) > inner_buf_len) {
+            ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_INVALID_ARGUMENT);
             goto err;
+        }
 
         /* Fix up header and length of inner CH */
         inner_ch[0] = 0x16;
@@ -5512,8 +5530,10 @@ int SSL_CTX_ech_raw_decrypt(SSL_CTX *ctx,
         rv = ech_get_ch_offsets(sc, &pkt_inner, &startofsessid, &startofexts,
                                 &echoffset, &echtype, &innerflag,
                                 &innersnioffset);
-        if (rv != 1)
+        if (rv != 1) {
+            ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_INVALID_ARGUMENT);
             return rv;
+        }
         if (innersnioffset > 0) {
             PACKET isni;
             const unsigned char *isnibuf = &pkt_inner.curr[innersnioffset + 4];
@@ -5521,27 +5541,30 @@ int SSL_CTX_ech_raw_decrypt(SSL_CTX *ctx,
                 + pkt_inner.curr[innersnioffset + 3];
 
             if (PACKET_buf_init(&isni, isnibuf, isnilen) != 1) {
-                SSLfatal(sc, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+                ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_INVALID_ARGUMENT);
                 goto err;
             }
             if (tls_parse_ctos_server_name(sc, &isni, 0, NULL, 0) != 1) {
-                SSLfatal(sc, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+                ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_INVALID_ARGUMENT);
                 goto err;
             }
-            if (sc->ext.hostname != NULL)
+            if (sc->ext.hostname != NULL) {
                 *inner_sni = OPENSSL_strdup(sc->ext.hostname);
+                if (*inner_sni == NULL) {
+                    ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
+                    goto err;
+                }
+            }
         }
 
         /* Declare success to caller */
         *decrypted_ok = 1;
     }
-    if (s)
-        SSL_free(s);
+    SSL_free(s);
     OPENSSL_free(inner_buf);
     return 1;
 err:
-    if (s)
-        SSL_free(s);
+    SSL_free(s);
     OPENSSL_free(inner_buf);
     return 0;
 }
@@ -5586,15 +5609,13 @@ int SSL_ech_set_outer_alpn_protos(SSL *ssl, const unsigned char *protos,
     SSL_CONNECTION *s = SSL_CONNECTION_FROM_SSL(ssl);
 
     if (ssl == NULL || s == NULL || protos == NULL || protos_len == 0) {
-        ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_NULL_PARAMETER);
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_PASSED_NULL_PARAMETER);
         return 0;
     }
     OPENSSL_free(s->ext.alpn_outer);
     s->ext.alpn_outer = OPENSSL_memdup(protos, protos_len);
-    if (s->ext.alpn_outer == NULL) {
-        ERR_raise(ERR_LIB_SSL, ERR_R_MALLOC_FAILURE);
+    if (s->ext.alpn_outer == NULL)
         return 0;
-    }
     s->ext.alpn_outer_len = protos_len;
     return 1;
 }
@@ -5615,8 +5636,10 @@ int SSL_ech_get_retry_config(SSL *ssl, const unsigned char **ec, size_t *eclen)
 {
     SSL_CONNECTION *s = SSL_CONNECTION_FROM_SSL(ssl);
 
-    if (s == NULL || eclen == NULL || ec == NULL)
+    if (s == NULL || eclen == NULL || ec == NULL) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_PASSED_NULL_PARAMETER);
         return 0;
+    }
     if (s->ext.ech_returned) {
         *eclen = s->ext.ech_returned_len;
         *ec = s->ext.ech_returned;
