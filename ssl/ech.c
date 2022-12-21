@@ -5650,8 +5650,7 @@ int ossl_ech_make_echconfig(unsigned char *echconfig, size_t *echconfiglen,
     size_t publen = OSSL_ECH_CRYPTO_VAR_SIZE;
     unsigned char pub[OSSL_ECH_CRYPTO_VAR_SIZE];
     int rv = 0;
-    unsigned char bbuf[OSSL_ECH_MAX_ECHCONFIG_LEN];
-    unsigned char *bp = bbuf;
+    unsigned char *bp = NULL;
     size_t bblen = 0;
     unsigned int b64len = 0;
     EVP_PKEY *privp = NULL;
@@ -5659,50 +5658,62 @@ int ossl_ech_make_echconfig(unsigned char *echconfig, size_t *echconfiglen,
     unsigned char lpriv[OSSL_ECH_CRYPTO_VAR_SIZE];
     size_t lprivlen = 0;
     uint8_t config_id = 0;
+    WPACKET epkt;
+    BUF_MEM *epkt_mem = NULL;
+
+    /* basic checks */
+    if (echconfig == NULL || echconfiglen == NULL
+        || priv == NULL || privlen == NULL) {
+        ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_NULL_PARAMETER);
+        return 0;
+    }
+    pnlen = (public_name == NULL ? 0 : strlen(public_name));
+    if (pnlen > OSSL_ECH_MAX_PUBLICNAME) {
+        ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_INVALID_ARGUMENT);
+        return 0;
+    }
+    if (max_name_length > OSSL_ECH_MAX_MAXNAMELEN) {
+        ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_INVALID_ARGUMENT);
+        return 0;
+    }
 
     /* this used have more versions and will again in future */
     switch (ekversion) {
     case OSSL_ECH_DRAFT_13_VERSION:
         break;
     default:
+        ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_INVALID_ARGUMENT);
         return 0;
     }
-    pnlen = (public_name == NULL ? 0 : strlen(public_name));
-    if (pnlen > OSSL_ECH_MAX_PUBLICNAME)
-        return 0;
-    if (max_name_length > OSSL_ECH_MAX_MAXNAMELEN)
-        return 0;
-    if (priv == NULL)
-        return 0;
 
-    rv = OSSL_HPKE_keygen(suite, pub, &publen, &privp, NULL, 0, NULL, NULL);
-    if (rv != 1)
-        return 0;
+    /* so WPAKCET_cleanup() won't go wrong */
+    memset(&epkt, 0, sizeof(epkt));
+
+    if (OSSL_HPKE_keygen(suite, pub, &publen, &privp, NULL, 0, NULL, NULL)
+        != 1) {
+        ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_INVALID_ARGUMENT);
+        goto err;
+    }
     bfp = BIO_new(BIO_s_mem());
     if (bfp == NULL) {
-        EVP_PKEY_free(privp);
-        return 0;
+        ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
+        goto err;
     }
     if (!PEM_write_bio_PrivateKey(bfp, privp, NULL, NULL, 0, NULL, NULL)) {
-        EVP_PKEY_free(privp);
-        BIO_free_all(bfp);
-        return 0;
+        ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
+        goto err;
     }
     lprivlen = BIO_read(bfp, lpriv, OSSL_ECH_CRYPTO_VAR_SIZE);
     if (lprivlen <= 0) {
-        EVP_PKEY_free(privp);
-        BIO_free_all(bfp);
-        return 0;
+        ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
+        goto err;
     }
     if (lprivlen > *privlen) {
-        EVP_PKEY_free(privp);
-        BIO_free_all(bfp);
-        return 0;
+        ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_INVALID_ARGUMENT);
+        goto err;
     }
     *privlen = lprivlen;
     memcpy(priv, lpriv, lprivlen);
-    EVP_PKEY_free(privp);
-    BIO_free_all(bfp);
 
     /*
      *   In draft-13 we get:
@@ -5741,78 +5752,55 @@ int ossl_ech_make_echconfig(unsigned char *echconfig, size_t *echconfiglen,
      *
      */
 
-    /* check we won't overflow */
-    if ((2 /* length */
-         + 2 /* version */
-         + 2 /* more length */
-         + 1 /* config id */
-         + 2 /* kem id */
-         + 2 /* len(pub) */ + publen /* pub */
-         + 6 /* len, kdf, aead */
-         + 1 /* max name len */
-         + 1 /* pnlen */ + pnlen /* pn */
-         + 2 /* extlen */ + extlen /* exts */
-         ) > sizeof(bbuf))
-        return 0;
-
-    memset(bbuf, 0, sizeof(bbuf));
-    *bp++ = 0x00; /* leave space for overall length */
-    *bp++ = 0x00; /* leave space for overall length */
-    *bp++ = (unsigned char)(ekversion >> 8) % 256;
-    *bp++ = (unsigned char)(ekversion % 256);
-    *bp++ = 0x00; /* leave space for almost-overall length */
-    *bp++ = 0x00; /* leave space for almost-overall length */
-    RAND_bytes(&config_id, 1);
-    *bp++ = (unsigned char)config_id;
-    *bp++ = (unsigned char)(suite.kem_id >> 8) % 256;
-    *bp++ = (unsigned char)(suite.kem_id % 256);
-    /* keys */
-    *bp++ = (unsigned char)(publen >> 8) % 256;
-    *bp++ = (unsigned char)(publen % 256);
-    memcpy(bp, pub, publen);
-    bp += publen;
-    /* cipher_suite */
-    *bp++ = 0x00;
-    *bp++ = 0x04;
-    *bp++ = (unsigned char)(suite.kdf_id >> 8) % 256;
-    *bp++ = (unsigned char)(suite.kdf_id % 256);
-    *bp++ = (unsigned char)(suite.aead_id >> 8) % 256;
-    *bp++ = (unsigned char)(suite.aead_id % 256);
-    /* maximum_name_length */
-    *bp++ = (unsigned char)(max_name_length % 256);
-    /* public_name */
-    if (pnlen > 0) {
-        *bp++ = (unsigned char)(pnlen % 256);
-        memcpy(bp, public_name, pnlen);
-        bp += pnlen;
-    } else {
-        *bp++ = 0x00;
+    if ((epkt_mem = BUF_MEM_new()) == NULL
+        || !BUF_MEM_grow(epkt_mem, OSSL_ECH_MAX_ECHCONFIG_LEN)) {
+        ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
+        goto err;
     }
-    /* extensions */
-    if (extlen == 0) {
-        *bp++ = 0x00;
-        *bp++ = 0x00; /* no extensions */
-    } else {
-        if (extvals == NULL)
-            return 0;
-        *bp++ = (unsigned char)((extlen >> 8) % 256);
-        *bp++ = (unsigned char)(extlen % 256);
-        memcpy(bp, extvals, extlen);
-        bp += extlen;
+    /* config id, KEM, public, KDF, AEAD, max name len, public_name, exts */
+    if (!WPACKET_init(&epkt, epkt_mem)
+        || (bp = WPACKET_get_curr(&epkt)) == NULL
+        || !WPACKET_start_sub_packet_u16(&epkt)
+        || !WPACKET_put_bytes_u16(&epkt, ekversion)
+        || !WPACKET_start_sub_packet_u16(&epkt)
+        || !WPACKET_put_bytes_u8(&epkt, config_id)
+        || !WPACKET_put_bytes_u16(&epkt, suite.kem_id)
+        || !WPACKET_start_sub_packet_u16(&epkt)
+        || !WPACKET_memcpy(&epkt, pub, publen)
+        || !WPACKET_close(&epkt)
+        || !WPACKET_start_sub_packet_u16(&epkt)
+        || !WPACKET_put_bytes_u16(&epkt, suite.kdf_id)
+        || !WPACKET_put_bytes_u16(&epkt, suite.aead_id)
+        || !WPACKET_close(&epkt)
+        || !WPACKET_put_bytes_u8(&epkt, max_name_length)
+        || !WPACKET_start_sub_packet_u8(&epkt)
+        || !WPACKET_memcpy(&epkt, public_name, pnlen)
+        || !WPACKET_close(&epkt)
+        || !WPACKET_start_sub_packet_u16(&epkt)
+        || !WPACKET_memcpy(&epkt, extvals, extlen)
+        || !WPACKET_close(&epkt)
+        || !WPACKET_close(&epkt)
+        || !WPACKET_close(&epkt)) {
+        ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
+        goto err;
     }
-    bblen = bp - bbuf;
-    /* Add back in the length */
-    bbuf[0] = (unsigned char)((bblen - 2) / 256);
-    bbuf[1] = (unsigned char)((bblen - 2) % 256);
-    bbuf[4] = (unsigned char)((bblen - 6) / 256);
-    bbuf[5] = (unsigned char)((bblen - 6) % 256);
+    WPACKET_get_total_written(&epkt, &bblen);
     b64len = EVP_EncodeBlock((unsigned char *)echconfig,
-                             (unsigned char *)bbuf, bblen);
-    if (b64len >= (*echconfiglen - 1))
-        return 0;
+                             (unsigned char *)bp, bblen);
+    if (b64len >= (*echconfiglen - 1)) {
+        ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_INVALID_ARGUMENT);
+        goto err;
+    }
     echconfig[b64len] = '\0';
     *echconfiglen = b64len;
-    return 1;
+    rv = 1; 
+
+err:
+    EVP_PKEY_free(privp);
+    BIO_free_all(bfp);
+    WPACKET_cleanup(&epkt);
+    BUF_MEM_free(epkt_mem);
+    return rv;
 }
 
 #endif
