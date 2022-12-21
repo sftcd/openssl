@@ -89,6 +89,7 @@ static int basic_echconfig(void)
     char *public_name = "example.com";
     OSSL_HPKE_SUITE hpke_suite = OSSL_HPKE_SUITE_DEFAULT;
     unsigned char *extvals = NULL;
+    unsigned char badexts[8000];
     size_t extlen = 0;
     SSL_CTX *ctx  = NULL;
     SSL *ssl = NULL;
@@ -96,6 +97,68 @@ static int basic_echconfig(void)
     OSSL_ECH_INFO *details = NULL;
     int num_dets = 0;
 
+    /* test verious dodgy key gens */
+    if (!TEST_false(ossl_ech_make_echconfig(NULL, NULL,
+                                            NULL, NULL,
+                                            ech_version, max_name_length,
+                                            public_name, hpke_suite,
+                                            extvals, extlen)))
+        goto err;
+    echconfiglen = 80; /* too short */
+    privlen = sizeof(priv);
+    if (!TEST_false(ossl_ech_make_echconfig(echconfig, &echconfiglen,
+                                            priv, &privlen,
+                                            ech_version, max_name_length,
+                                            public_name, hpke_suite,
+                                            extvals, extlen)))
+        goto err;
+    echconfiglen = sizeof(echconfig);
+    privlen = 10; /* to short */
+    if (!TEST_false(ossl_ech_make_echconfig(echconfig, &echconfiglen,
+                                            priv, &privlen,
+                                            ech_version, max_name_length,
+                                            public_name, hpke_suite,
+                                            extvals, extlen)))
+        goto err;
+    echconfiglen = sizeof(echconfig);
+    privlen = sizeof(priv);
+    /* dodgy KEM */
+    hpke_suite.kem_id = 0xbad;
+    if (!TEST_false(ossl_ech_make_echconfig(echconfig, &echconfiglen,
+                                            priv, &privlen,
+                                            ech_version, max_name_length,
+                                            public_name, hpke_suite,
+                                            extvals, extlen)))
+        goto err;
+    echconfiglen = sizeof(echconfig);
+    privlen = sizeof(priv);
+    hpke_suite.kem_id = OSSL_HPKE_KEM_ID_X25519;
+    /* bad version */
+    if (!TEST_false(ossl_ech_make_echconfig(echconfig, &echconfiglen,
+                                            priv, &privlen,
+                                            0xbad, max_name_length,
+                                            public_name, hpke_suite,
+                                            extvals, extlen)))
+        goto err;
+    /* bad max name length */
+    if (!TEST_false(ossl_ech_make_echconfig(echconfig, &echconfiglen,
+                                            priv, &privlen,
+                                            ech_version, 1024,
+                                            public_name, hpke_suite,
+                                            extvals, extlen)))
+        goto err;
+    /* bad extensions */
+    memset(badexts, 0xAA, sizeof(badexts));
+    if (!TEST_false(ossl_ech_make_echconfig(echconfig, &echconfiglen,
+                                            priv, &privlen,
+                                            ech_version, 1024,
+                                            public_name, hpke_suite,
+                                            badexts, sizeof(badexts))))
+        goto err;
+    echconfiglen = sizeof(echconfig);
+    privlen = sizeof(priv);
+
+    /* now a good key gen */
     if (!TEST_true(ossl_ech_make_echconfig(echconfig, &echconfiglen,
                                            priv, &privlen,
                                            ech_version, max_name_length,
@@ -186,9 +249,9 @@ static int ech_roundtrip_test(void)
                                               OSSL_ECH_FMT_GUESS,
                                               echconfig,
                                               echconfiglen))) {
-        TEST_info("Failed SSL_CTX_ech_set1_echconfig adding %s (len = %lu)"
+        TEST_info("Failed SSL_CTX_ech_set1_echconfig adding %s (len = %d)"
                   " to SSL_CTX: %p, wanted result in : %p\n",
-                  echconfig, echconfiglen, (void *)cctx, (void *)&num_echs);
+                  echconfig, (int)echconfiglen, (void *)cctx, (void *)&num_echs);
         goto end;
     }
     if (!TEST_int_eq(num_echs, 1))
