@@ -233,7 +233,7 @@ static const char *httpssvc_telltale = "ech=";
 
 /* SECTION: Local functions */
 
-/**
+/*
  * @brief Check if a key pair needs to be (re-)loaded or not
  * @param ctx is the SSL server context
  * @param pemfname is the PEM key filename
@@ -295,7 +295,7 @@ static int ech_check_filenames(SSL_CTX *ctx, const char *pemfname, int *index)
     return OSSL_ECH_KEYPAIR_NEW;
 }
 
-/**
+/*
  * @brief Decode from TXT RR to binary buffer
  * @param in is the base64 encoded string
  * @param out is the binary equivalent
@@ -370,7 +370,7 @@ err:
     return 0;
 }
 
-/**
+/*
  * @brief Try figure out ECHConfig encodng by looking for telltales
  * @param eklen is the length of rrval
  * @param rrval is encoded thing
@@ -438,7 +438,7 @@ static int ah_decode(size_t ahlen, const char *ah,
     return 1;
 }
 
-/**
+/*
  * @brief Decode the first ECHConfigs from a binary buffer
  * @param binbuf is the buffer with the encoding
  * @param binblen is the length of binbunf
@@ -932,7 +932,7 @@ err:
     return 0;
 }
 
-/**
+/*
  * @brief Read an ECHConfig (only 1) and 1 private key from pemfile
  * @param pemfile is the name of the file
  * @param ctx is the SSL context
@@ -1048,7 +1048,7 @@ err:
     return 0;
 }
 
-/**
+/*
  * @brief Utility field-copy function (used by macro below)
  * @param old is the source buffer
  * @param len is the source buffer size
@@ -1072,7 +1072,7 @@ static void *ech_len_field_dup(void *old, unsigned int len)
     return new;
 }
 
-/**
+/*
  * @brief deep copy an ECHConfig
  * @param old is the one to copy
  * @param new is the (caller allocated) place to copy-to
@@ -1129,7 +1129,7 @@ err:
     return 0;
 }
 
-/**
+/*
  * @brief deep copy an ECHConfigs
  * @param old is the one to copy
  * @param new is the (caller allocated) place to copy-to
@@ -1159,7 +1159,7 @@ static int ECHConfigs_dup(ECHConfigs *old, ECHConfigs *new)
     return 1;
 }
 
-/**
+/*
  * @brief decode the DNS name in a binary RRData
  * @param buf points to the buffer (in/out)
  * @param remaining points to the remaining buffer length (in/out)
@@ -1213,7 +1213,7 @@ static int local_decode_rdata_name(unsigned char **buf, size_t *remaining,
     return 1;
 }
 
-/**
+/*
  * @brief return a printable form of alpn
  * @param alpn is the buffer with alpns
  * @param len is the length of the above
@@ -1245,7 +1245,7 @@ static char *alpn_print(unsigned char *alpn, size_t len)
     return vstr;
 }
 
-/**
+/*
  * @brief produce a printable string form of an ECHConfigs
  * @param c is the ECHConfigs
  * @return a printable string (or NULL)
@@ -1339,7 +1339,7 @@ static char *ECHConfigs_print(ECHConfigs *c)
     return str;
 }
 
-/**
+/*
  * @brief Decode SVCB/HTTPS RR value provided as binary or ascii-hex
  * @param rrlen is the length of the rrval
  * @param rrval is the binary, base64 or ascii-hex encoded RData
@@ -1456,7 +1456,7 @@ err:
     return 0;
 }
 
-/**
+/*
  * @brief After successful ECH decrypt, decode, decompress etc.
  * @param ssl is the SSL session
  * @param ob is the outer CH as a buffer
@@ -1949,7 +1949,7 @@ static int ech_get_sh_offsets(const unsigned char *sh, size_t sh_len,
     return 1;
 }
 
-/**
+/*
  * @brief make up HPKE "info" input as per spec
  * @param tc is the ECHconfig being used
  * @param info is a caller-allocated buffer for results
@@ -1974,7 +1974,7 @@ static int ech_make_enc_info(ECHConfig *tc, unsigned char *info,
     return 1;
 }
 
-/**
+/*
  * @brief wrapper for hpke_dec just to save code repetition
  * @param s is the SSL session
  * @param ech is the selected ECHConfig
@@ -2113,9 +2113,9 @@ clearerrs:
         size_t extslen = 0;
         size_t ch_len = 0;
         size_t startofsessid = 0;
-        size_t echoffset = 0; /**< offset of start of ECH within CH */
-        uint16_t echtype = TLSEXT_TYPE_ech_unknown; /**< type of ECH seen */
-        size_t outersnioffset = 0; /**< offset to SNI in outer */
+        size_t echoffset = 0; /* offset of start of ECH within CH */
+        uint16_t echtype = TLSEXT_TYPE_ech_unknown; /* type of ECH seen */
+        size_t outersnioffset = 0; /* offset to SNI in outer */
         int innerflag = -1;
         PACKET innerchpkt;
 
@@ -2184,7 +2184,7 @@ clearerrs:
 /* SECTION: Non-public functions used elsewhere in the library */
 
 # ifdef OSSL_ECH_SUPERVERBOSE
-/**
+/*
  * @brief print a buffer nicely for debug/interop purposes
  */
 void ech_pbuf(const char *msg, const unsigned char *buf, const size_t blen)
@@ -2210,7 +2210,7 @@ void ech_pbuf(const char *msg, const unsigned char *buf, const size_t blen)
     return;
 }
 
-/**
+/*
  * @brief trace out transcript
  * @param msg pre-pend to trace lines
  * @param s is the SSL sessions
@@ -2265,7 +2265,7 @@ void ECHConfig_free(ECHConfig *tbf)
     return;
 }
 
-/**
+/*
  * @brief Free an ECHConfigs structure's internals
  * @param tbf is the thing to be free'd
  */
@@ -2296,7 +2296,7 @@ void OSSL_ECH_ENCCH_free(OSSL_ECH_ENCCH *ev)
     return;
 }
 
-/**
+/*
  * @brief free an SSL_ECH
  * @param tbf is a ptr to an SSL_ECH structure
  *
@@ -4447,17 +4447,13 @@ err:
 
 /* SECTION: Public APIs */
 
-/*
- * @brief free up an arryay of OSSL_ECH_INFO
- *
- * @param in is the structure to free up
- * @param size says how many indices are in in
- */
+/* Documentation in doc/man3/SSL_ech_set1_echconfig.pod */
+
 void OSSL_ECH_INFO_free(OSSL_ECH_INFO *in, int size)
 {
     int i = 0;
 
-    if (in == NULL || size <= 0)
+    if (in == NULL)
         return;
     for (i = 0; i != size; i++) {
         OPENSSL_free(in[i].public_name);
@@ -4470,21 +4466,28 @@ void OSSL_ECH_INFO_free(OSSL_ECH_INFO *in, int size)
     return;
 }
 
-/**
- * @brief ingest SVCB/HTTPS RR value provided as (binary or ascii-hex encoded)
- *
- * ekval may be the catenation of multiple encoded ECHConfigList's.
- * We internally try decode and handle those and (later)
- * use whichever is relevant/best. The fmt parameter can be e.g.
- * OSSL_ECH_FMT_ASCII_HEX
- *
- * @param s is the SSL connection
- * @param num_echs says how many SSL_ECH structures are in the returned array
- * @param ekfmt is the provided format or OSSL_ECH_FMT_GUESS
- * @param ekval is the binary, base64 or ascii-hex encoded ECHConfigs
- * @param eklen is the length of the ekval
- * @return is 1 for success, error otherwise
- */
+int OSSL_ECH_INFO_print(BIO *out, OSSL_ECH_INFO *se, int count)
+{
+    int i = 0;
+
+    if (out == NULL || se == NULL || count == 0) {
+        ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_NULL_PARAMETER);
+        return 0;
+    }
+    BIO_printf(out, "ECH details (%d configs total)\n", count);
+    for (i = 0; i != count; i++) {
+        BIO_printf(out, "index: %d: SNI (inner:%s;outer:%s), "
+                   "ALPN (inner:%s;outer:%s)\n\t%s\n",
+                   i,
+                   se[i].inner_name ? se[i].inner_name : "NULL",
+                   se[i].public_name ? se[i].public_name : "NULL",
+                   se[i].inner_alpns ? se[i].inner_alpns : "NULL",
+                   se[i].outer_alpns ? se[i].outer_alpns : "NULL",
+                   se[i].echconfig ? se[i].echconfig : "NULL");
+    }
+    return 1;
+}
+
 int SSL_ech_set1_echconfig(SSL *s, int *num_echs,
                            int ekfmt, char *ekval, size_t eklen)
 {
@@ -4492,11 +4495,15 @@ int SSL_ech_set1_echconfig(SSL *s, int *num_echs,
     SSL_CONNECTION *con = SSL_CONNECTION_FROM_SSL(s);
     SSL_ECH *tmp = NULL;
 
-    if (con == NULL || ekval == NULL || eklen == 0 || num_echs == NULL)
+    if (con == NULL || ekval == NULL || eklen == 0 || num_echs == NULL) {
+        SSLfatal(con, SSL_AD_INTERNAL_ERROR, ERR_R_PASSED_NULL_PARAMETER);
         return 0;
+    }
     if (local_ech_add(ekfmt, eklen, (unsigned char *)ekval,
-                      num_echs, &echs) != 1)
+                      num_echs, &echs) != 1) {
+        SSLfatal(con, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
+    }
     if (con->ech == NULL) {
         con->ech = echs;
         con->nechs = *num_echs;
@@ -4519,31 +4526,21 @@ int SSL_ech_set1_echconfig(SSL *s, int *num_echs,
     return 1;
 }
 
-/**
- * @brief Decode/store ECHConfigs (binary, base64 or ascii-hex encoded)
- * @param ctx is the parent SSL_CTX
- * @param num_echs says how many SSL_ECH structures are in the returned array
- * @param ekfmt is the provided format or OSSL_ECH_FMT_GUESS
- * @param eklen is the length of the ekval
- * @param ekval is the binary, base64 or ascii-hex encoded ECHConfigs
- * @return is 1 for success, error otherwise
- *
- * ekval may be the catenation of multiple encoded ECHConfigs.
- * We internally try decode and handle those and (later)
- * use whichever is relevant/best. The fmt parameter can be
- * e.g. OSSL_ECH_FMT_ASCII_HEX, or OSSL_ECH_FMT_GUESS
- */
 int SSL_CTX_ech_set1_echconfig(SSL_CTX *ctx, int *num_echs,
                                int ekfmt, char *ekval, size_t eklen)
 {
     SSL_ECH *echs = NULL;
     SSL_ECH *tmp = NULL;
 
-    if (ctx == NULL || ekval == NULL || eklen == 0 || num_echs == NULL)
+    if (ctx == NULL || ekval == NULL || eklen == 0 || num_echs == NULL) {
+        ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_NULL_PARAMETER);
         return 0;
+    }
     if (local_ech_add(ekfmt, eklen, (unsigned char *)ekval,
-                      num_echs, &echs) != 1)
+                      num_echs, &echs) != 1) {
+        ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
         return 0;
+    }
     if (ctx->ext.ech == NULL) {
         ctx->ext.ech = echs;
         ctx->ext.nechs = *num_echs;
@@ -4564,33 +4561,78 @@ int SSL_CTX_ech_set1_echconfig(SSL_CTX *ctx, int *num_echs,
 }
 
 /**
- * @brief Try turn on ECH for an (upcoming) TLS session on a client
- * @param s is the SSL context
- * @param inner_name is NULL or the hidden service name
- * @param outer_name is NULL or the the cleartext SNI to use
- * @param no_outer set to 1 to send no outer SNI
- * @return 1 for success, 0 otherwise
+ * @brief Decode/store SVCB/HTTPS RR binary or ascii-hex encoded value
+ * @param num_echs says how many SSL_ECH structures are in the returned array
+ * @param ssl is the SSL session
+ * @param rrval is the binary, base64 or ascii-hex encoded RData
+ * @param rrlen is the length of the rrval
+ * @return is 1 for success, error otherwise
  *
- * If outer_name is provided via this API as NULL, then
- * we'll use the ECHConfig.public_name.
- * If outer_name is NULL and no_outer is 1 then
- * no outer SNI will be sent.
- * If outer_name is not NULL then that value will override
- * the ECHConfig.public_name.
+ * The input rrval may be the catenation of multiple encoded ECHConfigs.
+ * We internally try decode and handle those and (later) use whichever is
+ * relevant/best. The fmt parameter can be e.g. OSSL_ECH_FMT_ASCII_HEX
  *
- * For inner_name, a non-NULL value set will be sent as
- * the inner SNI (if things work).
- * If the inner_name is NULL, then no SNI will be sent
- * in the inner CH.
+ * This API is additive, i.e. values from multiple calls will be merged, but
+ * not that the merge isn't clever so the application would need to take that
+ * into account if it cared about priority.
+ *
+ * In the case of decoding error, any existing ECHConfigs are unaffected.
  */
+int SSL_ech_set1_svcb(SSL *ssl, int *num_echs,
+                      int rrfmt, char *rrval, size_t rrlen)
+{
+    SSL_ECH *new_echs = NULL;
+    int num_new = 0;
+    SSL_ECH *all_echs = NULL;
+    int i = 0;
+    SSL_CONNECTION *con = SSL_CONNECTION_FROM_SSL(ssl);
+
+    if (ssl == NULL || con == NULL || rrval == NULL || num_echs == NULL
+        || rrlen == 0) {
+        SSLfatal(con, SSL_AD_INTERNAL_ERROR, ERR_R_PASSED_NULL_PARAMETER);
+        return 0;
+    }
+    if (local_svcb_add(rrfmt, rrlen, rrval, &num_new, &new_echs) != 1) {
+        SSLfatal(con, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+        return 0;
+    }
+    if (num_new == 0) {
+        *num_echs = con->nechs;
+        return 1;
+    }
+    /* merge new and old */
+    all_echs = OPENSSL_realloc(con->ech,
+                               (con->nechs + num_new) * sizeof(SSL_ECH));
+    if (all_echs == NULL) {
+        for (i = 0; i != num_new; i++)
+            SSL_ECH_free(&new_echs[i]);
+        OPENSSL_free(new_echs);
+        return 0;
+    }
+    con->ech = all_echs;
+    for (i = 0; i != num_new; i++)
+        con->ech[con->nechs + i] = new_echs[i]; /* struct  copy */
+    OPENSSL_free(new_echs);
+    con->nechs += num_new;
+    *num_echs = con->nechs;
+    return 1;
+}
+
 int SSL_ech_set_server_names(SSL *ssl, const char *inner_name,
                              const char *outer_name, int no_outer)
 {
     int nind = 0;
     SSL_CONNECTION *s = SSL_CONNECTION_FROM_SSL(ssl);
 
+    /*
+     * Note: we could not require s->ech to be set already here but
+     * seems just as reasonable to impose an ordering on the sequence
+     * of calls. (And it means we don't need somewhere to stash the
+     * names outside of the s->ech array.)
+     * Same applies to SSL_ech_set_outer_server_name()
+     */
     if (s == NULL || s->ech == NULL) {
-        ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_NULL_PARAMETER);
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_PASSED_NULL_PARAMETER);
         return 0;
     }
     for (nind = 0; nind != s->nechs; nind++) {
@@ -4615,29 +4657,21 @@ int SSL_ech_set_server_names(SSL *ssl, const char *inner_name,
     return 1;
 }
 
-/**
- * @brief Set the outer SNI
- * @param ssl is the SSL context
- * @param outer_name is the (to be) hidden service name
- * @param no_outer set to 1 to send no outer SNI
- * @return 1 for success, error otherwise
- *
- * If outer_name is provided via this API as NULL, then
- * we'll use the ECHConfig.public_name.
- * If outer_name is NULL and no_outer is 1 then
- * no outer SNI will be sent.
- * If outer_name is not NULL then that value will override
- * the ECHConfig.public_name.
- *
- */
 int SSL_ech_set_outer_server_name(SSL *ssl, const char *outer_name,
                                   int no_outer)
 {
     int nind = 0;
     SSL_CONNECTION *s = SSL_CONNECTION_FROM_SSL(ssl);
 
+    /*
+     * Note: we could not require s->ech to be set already here but
+     * seems just as reasonable to impose an ordering on the sequence
+     * of calls. (And it means we don't need somewhere to stash the
+     * names outside of the s->ech array.)
+     * Same applies to SSL_ech_set_server_names()
+     */
     if (s == NULL || s->ech == NULL) {
-        ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_NULL_PARAMETER);
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_PASSED_NULL_PARAMETER);
         return 0;
     }
     for (nind = 0; nind != s->nechs; nind++) {
@@ -4662,61 +4696,6 @@ int SSL_ech_set_outer_server_name(SSL *ssl, const char *outer_name,
     return 1;
 }
 
-# if 0
-/* Not sure this is needed any more, but keep for now in case */
-/**
- * @brief Set the outer SNI
- * @param s is the SSL_CTX
- * @param outer_name is the (to be) hidden service name
- * @param no_outer set to 1 to send no outer SNI
- * @return 1 for success, error otherwise
- *
- * If outer_name is provided via this API as NULL, then
- * we'll use the ECHConfig.public_name.
- * If outer_name is OSSL_ECH_PUBLIC_NAME_OVERRIDE_NULL then
- * no outer SNI will be sent.
- * If outer_name is not NULL then that value will override
- * the ECHConfig.public_name.
- */
-int SSL_CTX_ech_set_outer_server_name(SSL_CTX *s, const char *outer_name,
-                                      int no_outer)
-{
-    int nind = 0;
-
-    if (s == NULL || s->ext.ech == NULL) {
-        ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_NULL_PARAMETER);
-        return 0;
-    }
-    for (nind = 0; nind != s->ext.nechs; nind++) {
-        OPENSSL_free(s->ext.ech[nind].outer_name);
-        if (outer_name != NULL && strlen(outer_name) > 0) {
-            s->ext.ech[nind].outer_name = OPENSSL_strdup(outer_name);
-        } else {
-            if (outer_name == NULL && no_outer == 1)
-                s->ext.ech[nind].no_outer = 1;
-            else
-                s->ext.ech[nind].outer_name = NULL;
-        }
-    }
-    return 1;
-}
-# endif
-
-/**
- * @brief query the content of an SSL_ECH structure
- *
- * This function allows the application to examine some internals
- * of an SSL_ECH structure so that it can then down-select some
- * options. In particular, the caller can see the public_name and
- * IP address related information associated with each ECHKeys
- * RR value (after decoding and initial checking within the
- * library), and can then choose which of the RR value options
- * the application would prefer to use.
- *
- * @param ssl is the SSL session
- * @param out is the externally visible form of the SSL_ECH structure
- * @return 1 for success
- */
 int SSL_ech_get_info(SSL *ssl, OSSL_ECH_INFO **out, int *nindices)
 {
     OSSL_ECH_INFO *rdiff = NULL;
@@ -4724,8 +4703,10 @@ int SSL_ech_get_info(SSL *ssl, OSSL_ECH_INFO **out, int *nindices)
     int indices = 0;
     SSL_CONNECTION *s = SSL_CONNECTION_FROM_SSL(ssl);
 
-    if (s == NULL || out == NULL || nindices == NULL)
+    if (s == NULL || out == NULL || nindices == NULL) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_PASSED_NULL_PARAMETER);
         return 0;
+    }
     indices = s->nechs;
     if (s->ech == NULL || s->nechs <= 0) {
         *out = NULL;
@@ -4768,56 +4749,20 @@ err:
     return 0;
 }
 
-/**
- * @brief utility fnc for application that wants to print an OSSL_ECH_INFO
- * @param out is the BIO to use (e.g. stdout/whatever)
- * @param se is a pointer to an OSSL_ECH_INFO struture
- * @param count is the number of elements in se
- * @return 1 for success, error othewise
- */
-int OSSL_ECH_INFO_print(BIO *out, OSSL_ECH_INFO *se, int count)
-{
-    int i = 0;
-
-    if (out == NULL || se == NULL || count == 0)
-        return 0;
-    BIO_printf(out, "ECH details (%d configs total)\n", count);
-    for (i = 0; i != count; i++) {
-        BIO_printf(out, "index: %d: SNI (inner:%s;outer:%s), "
-                   "ALPN (inner:%s;outer:%s)\n\t%s\n",
-                   i,
-                   se[i].inner_name ? se[i].inner_name : "NULL",
-                   se[i].public_name ? se[i].public_name : "NULL",
-                   se[i].inner_alpns ? se[i].inner_alpns : "NULL",
-                   se[i].outer_alpns ? se[i].outer_alpns : "NULL",
-                   se[i].echconfig ? se[i].echconfig : "NULL");
-    }
-    return 1;
-}
-
-/**
- * @brief down-select to use of one option with an SSL_ECH
- *
- * This allows the caller to select one of the ECHConfig values
- * within an SSL_ECH for later use.
- *
- * @param ssl is an SSL structure with possibly multiple ECHConfigs
- * @param index is the index value from an OSSL_ECH_INFO produced from the 'in'
- * @return 1 for success, error otherwise
- *
- * This allows the caller to select one of the ECHConfig values
- * within an SSL_ECH for later use.
- */
 int SSL_ech_reduce(SSL *ssl, int index)
 {
     SSL_ECH *new = NULL;
     SSL_CONNECTION *s = SSL_CONNECTION_FROM_SSL(ssl);
     int i = 0;
 
-    if (s == NULL || index < 0 || s->ech == NULL || s->nechs <= 0)
+    if (s == NULL || index < 0 || s->ech == NULL || s->nechs <= 0) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_PASSED_NULL_PARAMETER);
         return 0;
-    if (s->nechs <= index)
+    }
+    if (s->nechs <= index) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_PASSED_INVALID_ARGUMENT);
         return 0;
+    }
     /*
      * Copy the one to keep, then zap the pointers at that element in the array
      * free the array and fix s back up
@@ -4835,16 +4780,12 @@ int SSL_ech_reduce(SSL *ssl, int index)
     return 1;
 }
 
-/**
- * @brief Report on the number of ECH key RRs currently loaded
- * @param s is the SSL server context
- * @param numkeys returns the number currently loaded
- * @return 1 for success, other otherwise
- */
 int SSL_CTX_ech_server_get_key_status(SSL_CTX *s, int *numkeys)
 {
-    if (s == NULL || numkeys == NULL)
+    if (s == NULL || numkeys == NULL) {
+        ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_NULL_PARAMETER);
         return 0;
+    }
     if (s->ext.ech)
         *numkeys = s->ext.nechs;
     else
@@ -4852,15 +4793,6 @@ int SSL_CTX_ech_server_get_key_status(SSL_CTX *s, int *numkeys)
     return 1;
 }
 
-/**
- * @brief Zap the stored ECH Keys to allow a re-load without hogging memory
- * @param ctx is the SSL server context
- * @param age don't flush keys loaded in the last age seconds
- * @return 1 for success, other otherwise
- *
- * Supply a zero value for age to delete all keys. Providing age=3600 will
- * keep keys loaded in the last hour.
- */
 int SSL_CTX_ech_server_flush_keys(SSL_CTX *ctx, time_t age)
 {
     time_t now = time(0);
@@ -4905,17 +4837,6 @@ int SSL_CTX_ech_server_flush_keys(SSL_CTX *ctx, time_t age)
     return 1;
 }
 
-/**
- * @brief Turn on ECH server-side
- * @param ctx is the SSL connection (can be NULL)
- * @param pemfile has one ECHConfig and private key in PEM format
- * @return success:1, OSSL_ECH_FILEMISSING:2 if can't read file, other otherwise
- *
- * When this works, the server will attempt decryption of any ECH seen
- * in ClientHellos.  If we have already loaded that specific file, and the
- * file modification time isn't newer than the load time, then we'll do
- * nothing.
- */
 int SSL_CTX_ech_server_enable_file(SSL_CTX *ctx, const char *pemfile)
 {
     int index = -1;
@@ -4931,6 +4852,11 @@ int SSL_CTX_ech_server_enable_file(SSL_CTX *ctx, const char *pemfile)
     /* Check if we already loaded that one etc.  */
     fnamestat = ech_check_filenames(ctx, pemfile, &index);
     switch (fnamestat) {
+    case OSSL_ECH_KEYPAIR_NEW:
+        /* fall through */
+    case OSSL_ECH_KEYPAIR_MODIFIED:
+        /* processed below */
+        break;
     case OSSL_ECH_KEYPAIR_UNMODIFIED:
         /* nothing to do */
         return 1;
@@ -4948,25 +4874,26 @@ int SSL_CTX_ech_server_enable_file(SSL_CTX *ctx, const char *pemfile)
     case OSSL_ECH_KEYPAIR_ERROR:
         ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
         return 0;
+    default:
+        ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
+        return 0;
     }
-
     /* Load up the file content */
     rv = ech_readpemfile(ctx, 1, pemfile, NULL, 0, &sechs);
     if (rv != 1) {
         ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
-        return rv;
-    }
-
-    /*
-     * This is a restriction of our PEM file scheme - we only accept
-     * one public key per PEM file
-     */
-    if (sechs == NULL || sechs->cfg == NULL || sechs->cfg->nrecs != 1) {
-        ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
         return 0;
     }
-
-    /* Now store the keypair in a new or current place */
+    /*
+     * This is a restriction of our PEM file scheme - we only accept
+     * one public key per PEM file.
+     * (Well, simplification would be more accurate than restriction:-)
+     */
+    if (sechs == NULL || sechs->cfg == NULL || sechs->cfg->nrecs != 1) {
+        ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_INVALID_ARGUMENT);
+        return 0;
+    }
+    /* Now store the keypair in a new or current slot */
     if (fnamestat == OSSL_ECH_KEYPAIR_MODIFIED) {
         SSL_ECH *curr_ec = NULL;
 
@@ -5003,20 +4930,11 @@ int SSL_CTX_ech_server_enable_file(SSL_CTX *ctx, const char *pemfile)
         OPENSSL_free(sechs);
         return 1;
     }
+    /* shouldn't ever happen, but hey... */
     ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
     return 0;
 }
 
-/**
- * @brief Turn on ECH server-side, with a buffer input
- * @param ctx is the SSL connection (can be NULL)
- * @param buf has one ECHConfig and private key in PEM format
- * @param blen is the length of buf
- * @return success:1, other otherwise
- *
- * When this works, the server will attempt decryption of any ECH seen
- * in ClientHellos.
- */
 int SSL_CTX_ech_server_enable_buffer(SSL_CTX *ctx, const unsigned char *buf,
                                      const size_t blen)
 {
@@ -5032,15 +4950,23 @@ int SSL_CTX_ech_server_enable_buffer(SSL_CTX *ctx, const unsigned char *buf,
     SSL_ECH *re_ec = NULL;
     SSL_ECH *new_ec = NULL;
 
+    if (ctx == NULL || buf == NULL || blen == 0) {
+        ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_NULL_PARAMETER);
+        return 0;
+    }
+
     /* Pseudo-filename is hash of input buffer */
     md = ctx->ssl_digest_methods[SSL_HANDSHAKE_MAC_SHA256];
     mdctx = EVP_MD_CTX_new();
-    if (mdctx == NULL)
+    if (mdctx == NULL) {
+        ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
         return 0;
+    }
     if (EVP_DigestInit_ex(mdctx, md, NULL) <= 0
         || EVP_DigestUpdate(mdctx, buf, blen) <= 0
         || EVP_DigestFinal_ex(mdctx, hashval, &hashlen) <= 0) {
         EVP_MD_CTX_free(mdctx);
+        ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
         return 0;
     }
     EVP_MD_CTX_free(mdctx);
@@ -5068,15 +4994,19 @@ int SSL_CTX_ech_server_enable_buffer(SSL_CTX *ctx, const unsigned char *buf,
 
     /* Load up the buffer content */
     rv = ech_readpemfile(ctx, 0, ah_hash, buf, blen, &sechs);
-    if (rv != 1)
-        return rv;
+    if (rv != 1) {
+        ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
+        return 0;
+    }
 
     /*
      * This is a restriction of our PEM file scheme - we only accept
      * one public key per PEM file
      */
-    if (sechs == NULL || sechs->cfg == NULL || sechs->cfg->nrecs != 1)
+    if (sechs == NULL || sechs->cfg == NULL || sechs->cfg->nrecs != 1) {
+        ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
         return 0;
+    }
 
     /* Now store the keypair in a new or current place */
     re_ec = OPENSSL_realloc(ctx->ext.ech,
@@ -5095,217 +5025,16 @@ int SSL_CTX_ech_server_enable_buffer(SSL_CTX *ctx, const unsigned char *buf,
     return 1;
 }
 
-/**
- * @brief API to allow calling code know ECH outcome, post-handshake
- *
- * This is intended to be called by applications after the TLS handshake
- * is complete. This works for both client and server. The caller does
- * not have to (and shouldn't) free the inner_sni or outer_sni strings.
- *
- * @param ssl The SSL session
- * @param inner_sni will be set to the SNI from the inner CH (if any)
- * @param outer_sni will be set to the SNI from the outer CH (if any)
- * @return 1 for success, other otherwise
- *
- * This can be called by applications after the TLS handshake is complete.
- * This works for both client and server. The caller does not have to (and
- * mustn't) free the inner_sni or outer_sni strings.
- */
-int SSL_ech_get_status(SSL *ssl, char **inner_sni, char **outer_sni)
-{
-    char *sinner = NULL;
-    char *souter = NULL;
-    SSL_CONNECTION *s = SSL_CONNECTION_FROM_SSL(ssl);
-
-    if (ssl == NULL || s == NULL || outer_sni == NULL || inner_sni == NULL)
-        return SSL_ECH_STATUS_BAD_CALL;
-    OSSL_TRACE_BEGIN(TLS) {
-        SSL_ech_print(trc_out, ssl, OSSL_ECH_SELECT_ALL);
-    } OSSL_TRACE_END(TLS);
-    *outer_sni = NULL;
-    *inner_sni = NULL;
-    if (s->ext.ech_grease == OSSL_ECH_IS_GREASE) {
-        if (s->ext.ech_returned != NULL)
-            return SSL_ECH_STATUS_GREASE_ECH;
-        return SSL_ECH_STATUS_GREASE;
-    }
-    if (s->ext.ech_backend == 1)
-        return SSL_ECH_STATUS_BACKEND;
-    if (s->ech == NULL)
-        return SSL_ECH_STATUS_NOT_CONFIGURED;
-    /* set output vars - note we may be pointing to NULL which is fine */
-    if (s->server == 0) {
-        if (s->ext.inner_s != NULL)
-            sinner = s->ext.inner_s->ext.hostname;
-        else
-            sinner = s->ext.hostname;
-        if (s->ext.outer_s != NULL)
-            souter = s->ext.outer_s->ext.hostname;
-        else
-            souter = s->ext.hostname;
-    } else {
-        if (s->ech != NULL && s->ext.ech_success == 1) {
-            sinner = s->ech->inner_name;
-            souter = s->ech->outer_name;
-        }
-    }
-    if (s->ech != NULL && s->ext.ech_attempted == 1
-        && s->ext.ech_grease != OSSL_ECH_IS_GREASE) {
-        long vr = X509_V_OK;
-
-        vr = SSL_get_verify_result(ssl);
-        *inner_sni = sinner;
-        *outer_sni = souter;
-        if (s->ext.ech_success == 1) {
-            if (vr == X509_V_OK)
-                return SSL_ECH_STATUS_SUCCESS;
-            else
-                return SSL_ECH_STATUS_BAD_NAME;
-        } else {
-            if (s->ext.ech_returned != NULL)
-                return SSL_ECH_STATUS_FAILED_ECH;
-            return SSL_ECH_STATUS_FAILED;
-        }
-    } else if (s->ext.ech_grease == OSSL_ECH_IS_GREASE) {
-        return SSL_ECH_STATUS_GREASE;
-    }
-    return SSL_ECH_STATUS_NOT_TRIED;
-}
-
-/**
- * @brief Decode/store SVCB/HTTPS RR binary or ascii-hex encoded value
- * @param num_echs says how many SSL_ECH structures are in the returned array
- * @param ssl is the SSL session
- * @param rrval is the binary, base64 or ascii-hex encoded RData
- * @param rrlen is the length of the rrval
- * @return is 1 for success, error otherwise
- *
- * The input rrval may be the catenation of multiple encoded ECHConfigs.
- * We internally try decode and handle those and (later) use whichever is
- * relevant/best. The fmt parameter can be e.g. OSSL_ECH_FMT_ASCII_HEX
- *
- * This API is additive, i.e. values from multiple calls will be merged, but
- * not that the merge isn't clever so the application would need to take that
- * into account if it cared about priority.
- *
- * In the case of decoding error, any existing ECHConfigs are unaffected.
- */
-int SSL_ech_set1_svcb(SSL *ssl, int *num_echs,
-                      int rrfmt, char *rrval, size_t rrlen)
-{
-    SSL_ECH *new_echs = NULL;
-    int num_new = 0;
-    SSL_ECH *all_echs = NULL;
-    int i = 0;
-    SSL_CONNECTION *con = SSL_CONNECTION_FROM_SSL(ssl);
-
-    if (ssl == NULL || con == NULL || rrval == NULL || num_echs == NULL
-        || rrlen == 0)
-        return 0;
-    if (local_svcb_add(rrfmt, rrlen, rrval, &num_new, &new_echs) != 1)
-        return 0;
-    if (num_new == 0) {
-        *num_echs = con->nechs;
-        return 1;
-    }
-    /* merge new and old */
-    all_echs = OPENSSL_realloc(con->ech,
-                               (con->nechs + num_new) * sizeof(SSL_ECH));
-    if (all_echs == NULL) {
-        for (i = 0; i != num_new; i++)
-            SSL_ECH_free(&new_echs[i]);
-        OPENSSL_free(new_echs);
-        return 0;
-    }
-    con->ech = all_echs;
-    for (i = 0; i != num_new; i++)
-        con->ech[con->nechs + i] = new_echs[i]; /* struct  copy */
-    OPENSSL_free(new_echs);
-    con->nechs += num_new;
-    *num_echs = con->nechs;
-    return 1;
-}
-
-/**
- * @brief set client callback to be called when ECH succeeded
- * @param ssl is the SSL session
- * @param f is the callback
- */
-void SSL_ech_set_callback(SSL *ssl, SSL_ech_cb_func f)
-{
-    SSL_CONNECTION *s = SSL_CONNECTION_FROM_SSL(ssl);
-
-    if (ssl == NULL || s == NULL || f == NULL)
-        return;
-    s->ech_cb = f;
-}
-
-/**
- * @brief set client callback to be called when ECH succeeded
- * @param s is the SSL_CTX session
- * @param f is the callback
- */
-void SSL_CTX_ech_set_callback(SSL_CTX *s, SSL_ech_cb_func f)
-{
-    if (s == NULL || f == NULL)
-        return;
-    s->ext.ech_cb = f;
-}
-
-/**
- * @brief API to set a preferred HPKE suite to use when GREASEing
- *
- * @param ssl is the SSL session
- * @param suite is the relevant suite string
- * @return 1 for success, other otherwise
- */
-int SSL_ech_set_grease_suite(SSL *ssl, const char *suite)
-{
-    SSL_CONNECTION *s = SSL_CONNECTION_FROM_SSL(ssl);
-
-    if (ssl == NULL || s == NULL || suite == NULL)
-        return 0;
-    /* Just stash the value for now and interpret when/if we do GREASE */
-    OPENSSL_free(s->ext.ech_grease_suite);
-    s->ext.ech_grease_suite = OPENSSL_strdup(suite);
-    return 1;
-}
-
-/**
- * @brief API to set a preferred ECH ext type to use when GREASEing
- * @param ssl is the SSL session
- * @param type is the relevant type
- * @return 1 for success, other otherwise
- */
-int SSL_ech_set_grease_type(SSL *ssl, uint16_t type)
-{
-    SSL_CONNECTION *s = SSL_CONNECTION_FROM_SSL(ssl);
-
-    if (ssl == NULL || s == NULL)
-        return 0;
-    /* Just stash the value for now and interpret when/if we do GREASE */
-    if (type != TLSEXT_TYPE_ech13) {
-        return 0;
-    }
-    s->ext.ech_attempted_type = type;
-    return 1;
-}
-
-/**
- * @brief API to load all the key files found in a directory
- * @param ctx is an SSL_CTX
- * @oaram number_loaded returns the number of key pairs successfully loaded
- * @param echdir is the directory name
- * @return 1 for success, other otherwise
- */
 int SSL_CTX_ech_server_enable_dir(SSL_CTX *ctx, int *number_loaded,
                                   const char *echdir)
 {
     OPENSSL_DIR_CTX *d = NULL;
     const char *filename;
 
-    if (ctx == NULL || echdir == NULL || number_loaded == NULL)
+    if (ctx == NULL || echdir == NULL || number_loaded == NULL) {
+        ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_NULL_PARAMETER);
         return 0;
+    }
     while ((filename = OPENSSL_DIR_read(&d, echdir))) {
         char echname[PATH_MAX];
         size_t nlen = 0;
@@ -5352,16 +5081,16 @@ int SSL_CTX_ech_server_enable_dir(SSL_CTX *ctx, int *number_loaded,
         if (stat(echname, &thestat) == 0) {
             if (SSL_CTX_ech_server_enable_file(ctx, echname) == 1) {
                 *number_loaded = *number_loaded + 1;
+                OSSL_TRACE_BEGIN(TLS) {
+                    BIO_printf(trc_out, "Added %d-th ECH key pair from: %s\n",
+                               *number_loaded, echname);
+                } OSSL_TRACE_END(TLS);
             } else {
                 OSSL_TRACE_BEGIN(TLS) {
-                    BIO_printf(trc_out, "Failed to set ECT parameters for %s\n",
+                    BIO_printf(trc_out, "Failed to set ECH parameters for %s\n",
                                echname);
                 } OSSL_TRACE_END(TLS);
             }
-            OSSL_TRACE_BEGIN(TLS) {
-                BIO_printf(trc_out, "Added %d-th ECH key pair from: %s\n",
-                           *number_loaded, echname);
-            } OSSL_TRACE_END(TLS);
         }
     }
     if (d)
@@ -5369,20 +5098,114 @@ int SSL_CTX_ech_server_enable_dir(SSL_CTX *ctx, int *number_loaded,
     return 1;
 }
 
-/**
- * @brief provide a way to do raw ECH decryption for split-mode frontends
- * @param ctx is an SSL_CTX
- * @param decrypted_ok is 0 on return if decryption failed, 1 if it worked
- * @param inner_sni is the inner SNI (if present)
- * @param outer_sni is the outer SNI (if present)
- * @param outer_ch is the entire client hello (possibly incl. ECH)
- * @param outer_len is the length of the above (on input the buffer size)
- * @param inner is the resulting plaintext CH, if all went well
- * @param inner_len is the length of the above (on input the buffer size)
- * @return 1 for success (incl. failed decrypt) or 0 on error
- *
- * Note that the outer_ch's length is inside the TLV data
- */
+int SSL_ech_get_status(SSL *ssl, char **inner_sni, char **outer_sni)
+{
+    char *sinner = NULL;
+    char *souter = NULL;
+    SSL_CONNECTION *s = SSL_CONNECTION_FROM_SSL(ssl);
+
+    if (s == NULL || outer_sni == NULL || inner_sni == NULL) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_PASSED_NULL_PARAMETER);
+        return SSL_ECH_STATUS_FAILED;
+    }
+    *outer_sni = NULL;
+    *inner_sni = NULL;
+    if (s->ext.ech_grease == OSSL_ECH_IS_GREASE) {
+        if (s->ext.ech_returned != NULL)
+            return SSL_ECH_STATUS_GREASE_ECH;
+        return SSL_ECH_STATUS_GREASE;
+    }
+    if (s->ext.ech_backend == 1)
+        return SSL_ECH_STATUS_BACKEND;
+    if (s->ech == NULL)
+        return SSL_ECH_STATUS_NOT_CONFIGURED;
+    /* set output vars - note we may be pointing to NULL which is fine */
+    if (s->server == 0) {
+        if (s->ext.inner_s != NULL)
+            sinner = s->ext.inner_s->ext.hostname;
+        else
+            sinner = s->ext.hostname;
+        if (s->ext.outer_s != NULL)
+            souter = s->ext.outer_s->ext.hostname;
+        else
+            souter = s->ext.hostname;
+    } else {
+        if (s->ech != NULL && s->ext.ech_success == 1) {
+            sinner = s->ech->inner_name;
+            souter = s->ech->outer_name;
+        }
+    }
+    if (s->ech != NULL && s->ext.ech_attempted == 1
+        && s->ext.ech_grease != OSSL_ECH_IS_GREASE) {
+        long vr = X509_V_OK;
+
+        vr = SSL_get_verify_result(ssl);
+        *inner_sni = sinner;
+        *outer_sni = souter;
+        if (s->ext.ech_success == 1) {
+            if (vr == X509_V_OK)
+                return SSL_ECH_STATUS_SUCCESS;
+            else
+                return SSL_ECH_STATUS_BAD_NAME;
+        } else {
+            if (s->ext.ech_returned != NULL)
+                return SSL_ECH_STATUS_FAILED_ECH;
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+            return SSL_ECH_STATUS_FAILED;
+        }
+    } else if (s->ext.ech_grease == OSSL_ECH_IS_GREASE) {
+        return SSL_ECH_STATUS_GREASE;
+    }
+    return SSL_ECH_STATUS_NOT_TRIED;
+}
+
+void SSL_ech_set_callback(SSL *ssl, SSL_ech_cb_func f)
+{
+    SSL_CONNECTION *s = SSL_CONNECTION_FROM_SSL(ssl);
+
+    if (s == NULL || f == NULL) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_PASSED_NULL_PARAMETER);
+        return;
+    }
+    s->ech_cb = f;
+}
+
+void SSL_CTX_ech_set_callback(SSL_CTX *s, SSL_ech_cb_func f)
+{
+    if (s == NULL || f == NULL) {
+        ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_NULL_PARAMETER);
+        return;
+    }
+    s->ext.ech_cb = f;
+}
+
+int SSL_ech_set_grease_suite(SSL *ssl, const char *suite)
+{
+    SSL_CONNECTION *s = SSL_CONNECTION_FROM_SSL(ssl);
+
+    if (s == NULL) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_PASSED_NULL_PARAMETER);
+        return 0;
+    }
+    /* Just stash the value for now and interpret when/if we do GREASE */
+    OPENSSL_free(s->ext.ech_grease_suite);
+    s->ext.ech_grease_suite = OPENSSL_strdup(suite);
+    return 1;
+}
+
+int SSL_ech_set_grease_type(SSL *ssl, uint16_t type)
+{
+    SSL_CONNECTION *s = SSL_CONNECTION_FROM_SSL(ssl);
+
+    if (ssl == NULL || s == NULL) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_PASSED_NULL_PARAMETER);
+        return 0;
+    }
+    /* Just stash the value for now and interpret when/if we do GREASE */
+    s->ext.ech_attempted_type = type;
+    return 1;
+}
+
 int SSL_CTX_ech_raw_decrypt(SSL_CTX *ctx,
                             int *decrypted_ok,
                             char **inner_sni, char **outer_sni,
@@ -5542,14 +5365,6 @@ err:
     return 0;
 }
 
-/* Not sure this is needed any more, but keep for now in case */
-/**
- * @brief set the ALPN values for the outer ClientHello
- * @param s is the SSL_CTX
- * @param protos encodes the ALPN values
- * @param protos_len is the length of protos
- * @return 1 for success, error otherwise
- */
 int SSL_CTX_ech_set_outer_alpn_protos(SSL_CTX *ctx, const unsigned char *protos,
                                       const size_t protos_len)
 {
@@ -5560,51 +5375,12 @@ int SSL_CTX_ech_set_outer_alpn_protos(SSL_CTX *ctx, const unsigned char *protos,
     OPENSSL_free(ctx->ext.alpn_outer);
     ctx->ext.alpn_outer = OPENSSL_memdup(protos, protos_len);
     if (ctx->ext.alpn_outer == NULL) {
-        ERR_raise(ERR_LIB_SSL, ERR_R_MALLOC_FAILURE);
         return 0;
     }
     ctx->ext.alpn_outer_len = protos_len;
     return 1;
 }
 
-# if 0
-/**
- * @brief set the ALPN values for the outer ClientHello
- *
- * @param ssl is the SSL session
- * @param protos encodes the ALPN values
- * @param protos_len is the length of protos
- * @return 1 for success, error otherwise
- */
-int SSL_ech_set_outer_alpn_protos(SSL *ssl, const unsigned char *protos,
-                                  unsigned int protos_len)
-{
-    SSL_CONNECTION *s = SSL_CONNECTION_FROM_SSL(ssl);
-
-    if (ssl == NULL || s == NULL || protos == NULL || protos_len == 0) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_PASSED_NULL_PARAMETER);
-        return 0;
-    }
-    OPENSSL_free(s->ext.alpn_outer);
-    s->ext.alpn_outer = OPENSSL_memdup(protos, protos_len);
-    if (s->ext.alpn_outer == NULL)
-        return 0;
-    s->ext.alpn_outer_len = protos_len;
-    return 1;
-}
-# endif
-
-/**
- * @brief provide access to a returned ECH value
- * @param ssl is the SSL session
- * @param ec is a pointer to the ECHConfig
- * @param eclen is a pointer to the length of the ECHConfig (zero if none)
- * @return 1 for success, 0 othewise
- *
- * If we GREASEd, or tried and failed, and got an ECH in return
- * the application can access the ECHConfig returned via this
- * API.
- */
 int SSL_ech_get_retry_config(SSL *ssl, const unsigned char **ec, size_t *eclen)
 {
     SSL_CONNECTION *s = SSL_CONNECTION_FROM_SSL(ssl);
@@ -5623,19 +5399,6 @@ int SSL_ech_get_retry_config(SSL *ssl, const unsigned char **ec, size_t *eclen)
     return 1;
 }
 
-/**
- * @brief Make an ECH key pair and ECHConfigList structure
- * @param echconfig is the ECHConfigList buffer
- * @param echconfiglen is size of that buffer (used on output)
- * @param priv is the private key buffer
- * @param privlen is size of that buffer (used on output)
- * @param ekversion is the version to make
- * @param max_name_length is the maximum name length
- * @param public_name is for inclusion within the ECHConfig
- * @param extlen is the length of extension
- * @param extvals is the encoded extensions
- * @return 1 for success, error otherwise
- */
 int ossl_ech_make_echconfig(unsigned char *echconfig, size_t *echconfiglen,
                             unsigned char *priv, size_t *privlen,
                             uint16_t ekversion, uint16_t max_name_length,
