@@ -51,6 +51,14 @@
 # define OSSL_ECH_MAX_GREASE_PUB 0x100 /* max  peer key share we'll decode */
 # define OSSL_ECH_MAX_GREASE_CT 0x200 /* max GREASEy ciphertext we'll emit */
 
+# ifndef TLSEXT_MINLEN_host_name
+/*
+ * the shortest DNS name we allow, e.g. "a.bc" - maybe that should be defined
+ * elsewhere?
+ */
+#  define TLSEXT_MINLEN_host_name 4
+# endif
+
 /*
  * To control the number of zeros added after a draft-13
  * EncodedClientHello - we pad to a target number of octets
@@ -221,6 +229,7 @@ static const int ech_outer_indep[] =
 /*
  * Telltales we use when guessing which form of encoded input we've
  * been given for an RR value or ECHConfig
+ * TODO: check if these need the EBCDIC treatment as per the above.
  */
 
 /* ascii hex is easy:-) either case allowed, plus a semi-colon separator */
@@ -304,8 +313,7 @@ static int ech_check_filenames(SSL_CTX *ctx, const char *pemfname, int *index)
  * This is like ct_base64_decode from crypto/ct/ct_b64.c but a) that's static
  * and b) we extend here to allow a sequence of semi-colon separated strings
  * as the input to support multivalued RRs. If the latter were ok for both
- * functions (it probably isn't) then we could merge the two functions, but
- * better to not do that for now.
+ * functions (it probably isn't) then we could merge the two functions.
  *
  * The input is modified if multivalued (NULL bytes are added in place of
  * semi-colon separators) so the caller should have copied  that if that's
@@ -474,7 +482,7 @@ static ECHConfigs *ECHConfigs_from_binary(unsigned char *binbuf,
         goto err;
     if (!PACKET_get_net_2(&pkt, &olen))
         goto err;
-    if (olen < OSSL_ECH_MIN_ECHCONFIG_LEN || olen > (binblen - 2))
+    if (olen < (OSSL_ECH_MIN_ECHCONFIG_LEN - 2) || olen > (binblen - 2))
         goto err;
     if (binblen <= olen)
         goto err;
@@ -533,7 +541,11 @@ static ECHConfigs *ECHConfigs_from_binary(unsigned char *binbuf,
             }
         }
 
-        /* this check's a bit redundant at the moment with only one version */
+        /*
+         * This check's a bit redundant at the moment with only one version
+         * But, when we (again) support >1 version, the indentation will end
+         * up like this anyway so may as well keep it.
+         */
         if (ec->version == OSSL_ECH_DRAFT_13_VERSION) {
             PACKET pub_pkt;
             PACKET cipher_suites;
@@ -542,6 +554,7 @@ static ECHConfigs *ECHConfigs_from_binary(unsigned char *binbuf,
             int ci = 0;
             PACKET public_name_pkt;
             PACKET exts;
+            unsigned char max_name_len;
 
             /* read config_id - a fixed single byte */
             if (!PACKET_copy_bytes(&pkt, &ec->config_id, 1))
@@ -573,29 +586,21 @@ static ECHConfigs *ECHConfigs_from_binary(unsigned char *binbuf,
             if (ec->ciphersuites == NULL)
                 goto err;
 
-            while (PACKET_copy_bytes(&cipher_suites,
-                                     cipher, OSSL_ECH_CIPHER_LEN))
+            while (PACKET_copy_bytes(&cipher_suites, cipher,
+                                     OSSL_ECH_CIPHER_LEN))
                 memcpy(ec->ciphersuites[ci++], cipher, OSSL_ECH_CIPHER_LEN);
             if (PACKET_remaining(&cipher_suites) > 0)
                 goto err;
             /* Maximum name length */
-            if (ec->version == OSSL_ECH_DRAFT_13_VERSION) {
-                unsigned char dat;
-
-                if (!PACKET_copy_bytes(&pkt, &dat, 1))
-                    goto err;
-                ec->maximum_name_length = dat;
-            } else {
-                if (!PACKET_get_net_2(&pkt, &ec->maximum_name_length))
-                    goto err;
-            }
-
+            if (!PACKET_copy_bytes(&pkt, &max_name_len, 1))
+                goto err;
+            ec->maximum_name_length = max_name_len;
             /* read public_name */
             if (!PACKET_get_length_prefixed_1(&pkt, &public_name_pkt))
                 goto err;
             ec->public_name_len = PACKET_remaining(&public_name_pkt);
             if (ec->public_name_len != 0) {
-                if (ec->public_name_len <= 1 ||
+                if (ec->public_name_len < TLSEXT_MINLEN_host_name ||
                     ec->public_name_len > TLSEXT_MAXLEN_host_name)
                     goto err;
                 ec->public_name = OPENSSL_malloc(ec->public_name_len + 1);
@@ -607,7 +612,6 @@ static ECHConfigs *ECHConfigs_from_binary(unsigned char *binbuf,
                     goto err;
                 ec->public_name[ec->public_name_len] = '\0';
             }
-
             /*
              * Extensions: we'll just store 'em for now and maybe parse any
              * we understand later (there are no well defined extensions
@@ -677,7 +681,6 @@ static ECHConfigs *ECHConfigs_from_binary(unsigned char *binbuf,
                 ec->exts[ec->nexts - 1] = extval;
             }
         }
-
         /* set length of encoding of this ECHConfig */
         ec->encoding_start = binbuf + ooffset;
         ooffset = pkt.curr - binbuf;
@@ -692,17 +695,15 @@ static ECHConfigs *ECHConfigs_from_binary(unsigned char *binbuf,
         ec->encoding_start = tmpecstart;
         remaining = PACKET_remaining(&pkt);
     }
-
     if (PACKET_remaining(&pkt) > binblen)
         goto err;
 
     /*
      * if none of the offered ECHConfig values work (e.g. bad versions)
-     * then we should barf
+     * then that's broken
      */
     if (rind == 0)
         goto err;
-
     /* Success - make up return value */
     *leftover = PACKET_remaining(&pkt);
     er = (ECHConfigs *)OPENSSL_malloc(sizeof(ECHConfigs));
@@ -717,18 +718,14 @@ static ECHConfigs *ECHConfigs_from_binary(unsigned char *binbuf,
     return er;
 
 err:
-    if (er) {
-        ECHConfigs_free(er);
-        OPENSSL_free(er);
-        er = NULL;
-    }
+    ECHConfigs_free(er);
+    OPENSSL_free(er);
     if (te) {
         int teind;
 
         for (teind = 0; teind != rind; teind++)
             ECHConfig_free(&te[teind]);
         OPENSSL_free(te);
-        te = NULL;
     }
     return NULL;
 }
@@ -746,7 +743,6 @@ err:
 static int local_ech_add(int ekfmt, size_t eklen, unsigned char *ekval,
                          int *num_echs, SSL_ECH **echs)
 {
-    /* Sanity checks on inputs */
     int detfmt = OSSL_ECH_FMT_GUESS;
     int rv = 0;
     unsigned char *outbuf = NULL; /* sequence of ECHConfigs (binary) */
@@ -5552,7 +5548,7 @@ int ossl_ech_make_echconfig(unsigned char *echconfig, size_t *echconfiglen,
     }
     echconfig[b64len] = '\0';
     *echconfiglen = b64len;
-    rv = 1; 
+    rv = 1;
 
 err:
     EVP_PKEY_free(privp);
