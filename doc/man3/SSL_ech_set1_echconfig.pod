@@ -189,6 +189,10 @@ the SSL_ech_set_outer_server_name() can be used to specify that value (in the
 I<outer_name> parameter) or to cause no outer SNI to be sent (if the I<no_outer>
 parameter has the value 1 and I<outer_name> is NULL).
 
+An ECH public value must have been associated (via SSL_ech_set1_echconfig() or
+SSL_CTX_ech_set1_echconfig()) prior to calls to SSL_ech_set_server_names() 
+or SSL_ech_set_outer_server_name().
+
 Outer SNI name values provided via these APIs will override the "public_name"
 from the relevant ECHConfigList, HTTPS or SVCB resource record.
 
@@ -249,7 +253,10 @@ Once some ECH key pairs are loaded then the server will attempt ECH decryption
 as needed. (See also L</ECH SSL Options>.)
 
 SSL_CTX_ech_server_enable_file() will attempt to read an ECH key pair from
-I<file>.  SSL_CTX_ech_server_enable_dir() will attempt to read an ECH key pair
+I<file>. If opening/reading the file fails this function will return
+B<SSL_R_FILE_OPEN_FAILED>.
+
+SSL_CTX_ech_server_enable_dir() will attempt to read an ECH key pair
 from all files named "*.ech" found in the I<dir>.
 SSL_CTX_ech_server_enable_buffer() allows loading one ECH key pair (still in
 our ECHConfig PEM format) from a buffer. This can be needed if a server
@@ -498,10 +505,14 @@ SSL_ech_get_info(), SSL_ech_reduce(),
 SSL_ech_set_grease_suite(), SSL_ech_set_grease_type(),
 SSL_ech_get_retry_config(),
 SSL_CTX_ech_set1_echconfig(), SSL_CTX_ech_server_get_key_status(),
-SSL_CTX_ech_server_flush_keys(), SSL_CTX_ech_server_enable_file(),
+SSL_CTX_ech_server_flush_keys(),
 SSL_CTX_ech_server_enable_buffer(), SSL_CTX_ech_server_enable_dir(),
 SSL_CTX_ech_raw_decrypt() and ossl_ech_make_echconfig()
 all return 1 for success and 0 in the case of failure.
+
+SSL_CTX_ech_server_enable_file() returns 1 for success, zero
+for general failure and B<SSL_R_FILE_OPEN_FAILED> if checking the
+status of file (via L<stat(3)>) fails.
 
 SSL_ech_set_callback(), SSL_CTX_ech_set_callback() and
 OSSL_ECH_INFO_free() have no return.
