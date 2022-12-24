@@ -109,8 +109,10 @@
  * Used in ECHConfigs_print()
  */
 # define STILLLEFT(__n__) \
-    if (((size_t)(cp - str) + (size_t)(__n__)) > alen) \
-        return NULL;
+    if (((size_t)(cp - str) + (size_t)(__n__)) > alen) { \
+        OPENSSL_free(str); \
+        return NULL; \
+    }
 
 /* SECTION: local vars */
 
@@ -1361,13 +1363,17 @@ static char *ECHConfigs_print(ECHConfigs *c)
 {
     int i = 0;
     char *str = NULL; /* final string */
-    size_t alen = 0;  /* allocated len = 3*encoded_len + overhead */
+    size_t alen = 0;  /* allocated len = 2*encoded_len + overhead */
     char *cp = NULL; /* current string pointer */
 
     if (c == NULL || c->recs == NULL)
         return NULL;
 
-    alen = c->encoded_len * 3 + 80;
+    /*
+     * the main binary -> string expansion is due to ascii-hex so we'll
+     * double the size, and allow for the few separators as well
+     */
+    alen = c->encoded_len * 2 + 12;
     str = OPENSSL_malloc(alen);
     if (str == NULL)
         return NULL;
@@ -1376,6 +1382,19 @@ static char *ECHConfigs_print(ECHConfigs *c)
     for (i = 0; i != c->nrecs; i++) {
         unsigned int j = 0;
 
+        /*
+         * the STILLLEFT macro is a bit anal about space-left but it's a
+         * classic way to fail, so no harm being a bit OTT on checking
+         * Someone will probably point out a better way to do this
+         * which is fine.
+         */
+        if (c->recs[i].version != OSSL_ECH_DRAFT_13_VERSION) {
+            /* just note we don't support that one today */
+            STILLLEFT(29);
+            snprintf(cp, (alen - (cp - str)), "[Unsupported version (%04x)]",
+                     c->recs[i].version);
+            continue;
+        }
         STILLLEFT(1);
         *cp++ = '[';
         /* version */
@@ -1390,7 +1409,7 @@ static char *ECHConfigs_print(ECHConfigs *c)
         STILLLEFT(c->recs[i].public_name_len + 1);
         snprintf(cp, (alen - (cp - str)), "%s,", c->recs[i].public_name);
         cp += (c->recs[i].public_name_len + 1);
-        /* ciphersuites */
+        /* kem and ciphersuites */
         STILLLEFT(6);
         snprintf(cp, (alen - (cp - str)), "%04x,[", c->recs[i].kem_id);
         cp += 6;
@@ -1421,17 +1440,10 @@ static char *ECHConfigs_print(ECHConfigs *c)
             cp += 2;
         }
         /* max name length */
-        if (c->recs[i].version == OSSL_ECH_DRAFT_13_VERSION) {
-            STILLLEFT(4);
-            snprintf(cp, (alen - (cp - str)), ",%02x,",
-                     c->recs[i].maximum_name_length);
-            cp += 4;
-        } else {
-            STILLLEFT(6);
-            snprintf(cp, (alen - (cp - str)), ",%04x,",
-                     c->recs[i].maximum_name_length);
-            cp += 6;
-        }
+        STILLLEFT(4);
+        snprintf(cp, (alen - (cp - str)), ",%02x,",
+                 c->recs[i].maximum_name_length);
+        cp += 4;
         /* just number of extensions */
         STILLLEFT(2);
         snprintf(cp, (alen - (cp - str)), "%02x", c->recs[i].nexts);
@@ -1467,7 +1479,7 @@ static char *ECHConfigs_print(ECHConfigs *c)
  * help much - a change to the length of a type or from a
  * 2 octet length to longer would seem unlikely.
  */
-static int ech_decode_inner(SSL *ssl, const unsigned char *ob,
+static int ech_decode_inner(SSL_CONNECTION *s, const unsigned char *ob,
                             size_t ob_len, size_t outer_startofexts)
 {
     size_t initial_decomp_len = 0;
@@ -1498,7 +1510,6 @@ static int ech_decode_inner(SSL *ssl, const unsigned char *ob,
     size_t offset = 0;
     size_t initial_extslen = 0;
     size_t final_extslen = 0;
-    SSL_CONNECTION *s = SSL_CONNECTION_FROM_SSL(ssl);
 
     if (s->ext.encoded_innerch == NULL)
         return 0;
@@ -4405,7 +4416,7 @@ int ech_early_decrypt(SSL *ssl, PACKET *outerpkt, PACKET *newpkt)
      */
     s->ext.encoded_innerch = clear;
     s->ext.encoded_innerch_len = clearlen;
-    if (ech_decode_inner(&s->ssl, ch, ch_len, startofexts) != 1) {
+    if (ech_decode_inner(s, ch, ch_len, startofexts) != 1) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         goto err;
     }
