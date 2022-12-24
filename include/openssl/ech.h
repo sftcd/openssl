@@ -31,6 +31,7 @@
 #  define OSSL_ECH_MAX_ECHCONFIGEXT_LEN 100 /* ECHConfig extension max */
 #  define OSSL_ECH_MAX_MAXNAMELEN 255 /* ECHConfig max for max name length */
 #  define OSSL_ECH_MAX_PUBLICNAME 255 /* max ECHConfig public name length */
+#  define OSSL_ECH_MAX_ALPNLEN 255 /* max alpn length */
 
 /*
  * To meet the needs of script-based tools (likely to deal with
