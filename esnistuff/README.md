@@ -26,6 +26,11 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
+- 20221224: bit more tidying, next up will be to re-check all 
+  the (still untrusted) outer CH fields in ``ech_decode_inner()``
+  as it could be I'm not doing enough checks on those (need to
+  re-check as stated:-)
+
 - 20221221: looked a bit at error handling in split-mode and 
   figured out yet more work is needed, e.g. if a client sends
   a GREASEd ECH the frontend ought finish the h/s which won't
