@@ -731,6 +731,65 @@ err:
 }
 
 /*
+ * @brief decode the DNS name in a binary RRData
+ * @param buf points to the buffer (in/out)
+ * @param remaining points to the remaining buffer length (in/out)
+ * @param dnsname returns the string form name on success
+ * @return is 1 for success, error otherwise
+ *
+ * The encoding here is defined in
+ * https://tools.ietf.org/html/rfc1035#section-3.1
+ *
+ * The input buffer pointer will be modified so it points to
+ * just after the end of the DNS name encoding on output. (And
+ * that's why it's an "unsigned char **" :-)
+ */
+static int local_decode_rdata_name(unsigned char **buf, size_t *remaining,
+                                   char **dnsname)
+{
+    unsigned char *cp = NULL;
+    size_t rem = 0;
+    char *thename = NULL, *tp = NULL;
+    unsigned char clen = 0; /* chunk len */
+
+    if (buf == NULL || remaining == NULL || dnsname == NULL)
+        return 0;
+    rem = *remaining;
+    thename = OPENSSL_malloc(TLSEXT_MAXLEN_host_name);
+    if (thename == NULL)
+        return 0;
+    cp = *buf;
+    tp = thename;
+    clen = *cp++;
+    if (clen == 0) {
+        /* special case - return "." as name */
+        thename[0] = '.';
+        thename[1] = 0x00;
+    }
+    while (clen != 0) {
+        if (clen > rem) {
+            OPENSSL_free(thename);
+            return 0;
+        }
+        if (((tp - thename) + clen) > TLSEXT_MAXLEN_host_name) {
+            OPENSSL_free(thename);
+            return 0;
+        }
+        memcpy(tp, cp, clen);
+        tp += clen;
+        *tp = '.';
+        tp++;
+        cp += clen;
+        rem -= (clen + 1);
+        clen = *cp++;
+    }
+    *buf = cp;
+    *remaining = rem - 1;
+    *dnsname = thename;
+    return 1;
+}
+
+/*
  * @brief Decode/check the value from DNS (binary, base64 or ascii-hex encoded)
  * @param eklen length of the binary, base64 or ascii-hex encoded value from DNS
  * @param ekval is the binary, base64 or ascii-hex encoded value from DNS
@@ -826,7 +885,7 @@ static int local_ech_add(int ekfmt, size_t eklen, unsigned char *ekval,
     }
     /*
      * Now try decode the catenated binary encodings if we can
-     * (But we'll probably only get one:-)
+     * We'll probably only get one, but there could be more.
      */
     outp = outbuf;
     oleftover = declen;
@@ -855,7 +914,7 @@ static int local_ech_add(int ekfmt, size_t eklen, unsigned char *ekval,
          * the application to sensibly downselect if they wish.
          */
         if (er->nrecs > 1) {
-            /* need bit more space to flatten into */
+            /* need another slot (or more) to flatten into */
             ts = OPENSSL_realloc(retechs,
                                  (nlens + er->nrecs - 1) * sizeof(SSL_ECH));
             if (ts == NULL)
@@ -907,7 +966,6 @@ static int local_ech_add(int ekfmt, size_t eklen, unsigned char *ekval,
             nlens += er->nrecs - 1;
             er->nrecs = 1;
         }
-
         if (leftover <= 0)
             done = 1;
         oleftover = leftover;
@@ -921,19 +979,130 @@ static int local_ech_add(int ekfmt, size_t eklen, unsigned char *ekval,
 err:
     OPENSSL_free(outbuf);
     OPENSSL_free(ekcpy);
-    if (retechs != NULL) {
-        SSL_ECH_free(retechs);
-        OPENSSL_free(retechs);
-    }
+    SSL_ECH_free(retechs);
+    OPENSSL_free(retechs);
     return 0;
 }
 
 /*
- * @brief Read an ECHConfig (only 1) and 1 private key from pemfile
+ * @brief Decode SVCB/HTTPS RR value provided as binary or ascii-hex
+ * @param rrlen is the length of the rrval
+ * @param rrval is the binary, base64 or ascii-hex encoded RData
+ * @param num_echs says how many SSL_ECH structures are in the returned array
+ * @param echs is the returned array of SSL_ECH
+ * @return is 1 for success, error otherwise
+ *
+ * The rrval may be the catenation of multiple encoded ECHConfigs.
+ * We internally try decode and handle those and (later)
+ * use whichever is relevant/best. The fmt parameter can be e.g.
+ * OSSL_ECH_FMT_ASCII_HEX.
+ *
+ * Note that we "succeed" even if there is no ECHConfigs in the input - some
+ * callers might download the RR from DNS and pass it here without looking
+ * inside, and there are valid uses of such RRs. The caller can check though
+ * using the num_echs output.
+ */
+static int local_svcb_add(int rrfmt, size_t rrlen, char *rrval,
+                          int *num_echs, SSL_ECH **echs)
+{
+    int detfmt = OSSL_ECH_FMT_GUESS;
+    int rv = 0;
+    size_t binlen = 0; /* the RData */
+    unsigned char *binbuf = NULL;
+    size_t eklen = 0; /* the ECHConfigs, within the above */
+    unsigned char *ekval = NULL;
+    unsigned char *cp = NULL;
+    size_t remaining = 0;
+    char *dnsname = NULL;
+    uint16_t pcode = 0;
+    uint16_t plen = 0;
+    int done = 0;
+
+    if (rrfmt == OSSL_ECH_FMT_ASCIIHEX) {
+        detfmt = rrfmt;
+    } else if (rrfmt == OSSL_ECH_FMT_BIN) {
+        detfmt = rrfmt;
+        binlen = rrlen;
+        binbuf = OPENSSL_malloc(binlen);
+        if (binbuf == NULL) {
+            return 0;
+        }
+        memcpy(binbuf, rrval, binlen);
+    } else {
+        rv = ech_guess_fmt(rrlen, (unsigned char *)rrval, &detfmt);
+        if (rv == 0)
+            return rv;
+    }
+    if (detfmt == OSSL_ECH_FMT_ASCIIHEX) {
+        rv = ah_decode(rrlen, rrval, &binlen, &binbuf);
+        if (rv == 0)
+            return rv;
+    } else if (detfmt == OSSL_ECH_FMT_B64TXT) {
+        int ebd_rv = ech_base64_decode(rrval, &binbuf);
+
+        if (ebd_rv <= 0)
+            return 0;
+        binlen = (size_t)ebd_rv;
+    }
+    /*
+     * Now we have a binary encoded RData so we'll skip the
+     * name, and then walk through the SvcParamKey binary
+     * codes 'till we find what we want
+     */
+    cp = binbuf;
+    remaining = binlen;
+    /*
+     * skip 2 octet priority and TargetName as those are the
+     * application's responsibility, not the library's
+     */
+    if (remaining <= 2)
+        goto err;
+    cp += 2;
+    remaining -= 2;
+    rv = local_decode_rdata_name(&cp, &remaining, &dnsname);
+    if (rv != 1)
+        goto err;
+    OPENSSL_free(dnsname);
+    dnsname = NULL;
+    while (done != 1 && remaining >= 4) {
+        pcode = (*cp << 8) + (*(cp + 1));
+        cp += 2;
+        plen = (*cp << 8) + (*(cp + 1));
+        cp += 2;
+        remaining -= 4;
+        if (pcode == OSSL_ECH_PCODE_ECH) {
+            eklen = (size_t)plen;
+            ekval = cp;
+            done = 1;
+        }
+        if (plen != 0 && plen <= remaining) {
+            cp += plen;
+            remaining -= plen;
+        }
+    }
+    if (done == 0) {
+        *num_echs = 0;
+        OPENSSL_free(binbuf);
+        return 1;
+    }
+    /* Parse & load any ECHConfigs that we found */
+    rv = local_ech_add(OSSL_ECH_FMT_BIN, eklen, ekval, num_echs, echs);
+    if (rv != 1)
+        goto err;
+    OPENSSL_free(binbuf);
+    return 1;
+err:
+    OPENSSL_free(dnsname);
+    OPENSSL_free(binbuf);
+    return 0;
+}
+
+/*
+ * @brief read an ECHConfigList (with only 1 entry) and a private key from a file
  * @param pemfile is the name of the file
  * @param ctx is the SSL context
  * @param inputIsFile is 1 if input a filename, 0 if a buffer
- * @param input is a filename or buffer
+ * @param input is the filename or buffer
  * @param inlen is the length of input
  * @param sechs an (output) pointer to the SSL_ECH output
  * @return 1 for success, otherwise error
@@ -982,7 +1151,6 @@ static int ech_readpemfile(SSL_CTX *ctx, int inputIsFile, const char *pemfile,
     default:
         return 0;
     }
-
     if (inputIsFile == 1) {
         pem_in = BIO_new(BIO_s_file());
         if (pem_in == NULL)
@@ -996,7 +1164,6 @@ static int ech_readpemfile(SSL_CTX *ctx, int inputIsFile, const char *pemfile,
         if (BIO_write(pem_in, (void *)input, (int)inlen) <= 0)
             goto err;
     }
-
     /* Now check and parse inputs */
     if (PEM_read_bio_PrivateKey(pem_in, &priv, NULL, NULL) == 0)
         goto err;
@@ -1012,15 +1179,13 @@ static int ech_readpemfile(SSL_CTX *ctx, int inputIsFile, const char *pemfile,
     pname = NULL;
     OPENSSL_free(pheader);
     pheader = NULL;
-    if (plen >= OSSL_ECH_MAX_ECHCONFIG_LEN)
+    if (plen >= OSSL_ECH_MAX_ECHCONFIG_LEN || plen < OSSL_ECH_MIN_ECHCONFIG_LEN)
         goto err;
     BIO_free(pem_in);
     pem_in = NULL;
-
     /* Now decode that ECHConfigs */
     if (local_ech_add(OSSL_ECH_FMT_GUESS, plen, pdata, &num_echs, sechs) != 1)
         goto err;
-
     (*sechs)->pemfname = OPENSSL_strdup(pemfile);
     (*sechs)->loadtime = time(0);
     (*sechs)->keyshare = priv;
@@ -1034,18 +1199,14 @@ err:
     OPENSSL_free(pheader);
     OPENSSL_free(pname);
     OPENSSL_free(pdata);
-    if (pem_in != NULL)
-        BIO_free(pem_in);
-    if (*sechs != NULL) {
-        SSL_ECH_free(*sechs);
-        OPENSSL_free(*sechs);
-        *sechs = NULL;
-    }
+    BIO_free(pem_in);
+    SSL_ECH_free(*sechs);
+    OPENSSL_free(*sechs);
     return 0;
 }
 
 /*
- * @brief Utility field-copy function (used by macro below)
+ * @brief utility field-copy fnc used by ECHFDUP macro and ECHConfig_dup
  * @param old is the source buffer
  * @param len is the source buffer size
  * @return is NULL or the copied buffer
@@ -1156,60 +1317,6 @@ static int ECHConfigs_dup(ECHConfigs *old, ECHConfigs *new)
 }
 
 /*
- * @brief decode the DNS name in a binary RRData
- * @param buf points to the buffer (in/out)
- * @param remaining points to the remaining buffer length (in/out)
- * @param dnsname returns the string form name on success
- * @return is 1 for success, error otherwise
- *
- * Encoding as defined in https://tools.ietf.org/html/rfc1035#section-3.1
- */
-static int local_decode_rdata_name(unsigned char **buf, size_t *remaining,
-                                   char **dnsname)
-{
-    unsigned char *cp = NULL;
-    size_t rem = 0;
-    char *thename = NULL, *tp = NULL;
-    unsigned char clen = 0; /* chunk len */
-
-    if (buf == NULL || remaining == NULL || dnsname == NULL)
-        return 0;
-    rem = *remaining;
-    thename = OPENSSL_malloc(TLSEXT_MAXLEN_host_name);
-    if (thename == NULL)
-        return 0;
-    cp = *buf;
-    tp = thename;
-    clen = *cp++;
-    if (clen == 0) {
-        /* special case - return "." as name */
-        thename[0] = '.';
-        thename[1] = 0x00;
-    }
-    while (clen != 0) {
-        if (clen > rem) {
-            OPENSSL_free(thename);
-            return 0;
-        }
-        if (((tp - thename) + clen) > TLSEXT_MAXLEN_host_name) {
-            OPENSSL_free(thename);
-            return 0;
-        }
-        memcpy(tp, cp, clen);
-        tp += clen;
-        *tp = '.';
-        tp++;
-        cp += clen;
-        rem -= (clen + 1);
-        clen = *cp++;
-    }
-    *buf = cp;
-    *remaining = rem - 1;
-    *dnsname = thename;
-    return 1;
-}
-
-/*
  * @brief return a printable form of alpn
  * @param alpn is the buffer with alpns
  * @param len is the length of the above
@@ -1224,6 +1331,8 @@ static char *alpn_print(unsigned char *alpn, size_t len)
     char *vstr = NULL;
 
     if (alpn == NULL || len == 0)
+        return NULL;
+    if (len > OSSL_ECH_MAX_ALPNLEN)
         return NULL;
     vstr = OPENSSL_malloc(len + 1);
     if (vstr == NULL)
@@ -1333,123 +1442,6 @@ static char *ECHConfigs_print(ECHConfigs *c)
     STILLLEFT(1);
     *cp++ = '\0';
     return str;
-}
-
-/*
- * @brief Decode SVCB/HTTPS RR value provided as binary or ascii-hex
- * @param rrlen is the length of the rrval
- * @param rrval is the binary, base64 or ascii-hex encoded RData
- * @param num_echs says how many SSL_ECH structures are in the returned array
- * @param echs is the returned array of SSL_ECH
- * @return is 1 for success, error otherwise
- *
- * The rrval may be the catenation of multiple encoded ECHConfigs.
- * We internally try decode and handle those and (later)
- * use whichever is relevant/best. The fmt parameter can be e.g.
- * OSSL_ECH_FMT_ASCII_HEX.
- *
- * Note that we "succeed" even if there is no ECHConfigs in the input - some
- * callers might download the RR from DNS and pass it here without looking
- * inside, and there are valid uses of such RRs. The caller can check though
- * using the num_echs output.
- */
-static int local_svcb_add(int rrfmt, size_t rrlen, char *rrval,
-                          int *num_echs, SSL_ECH **echs)
-{
-    int detfmt = OSSL_ECH_FMT_GUESS;
-    int rv = 0;
-    size_t binlen = 0; /* the RData */
-    unsigned char *binbuf = NULL;
-    size_t eklen = 0; /* the ECHConfigs, within the above */
-    unsigned char *ekval = NULL;
-    unsigned char *cp = NULL;
-    size_t remaining = 0;
-    char *dnsname = NULL;
-    uint16_t pcode = 0;
-    uint16_t plen = 0;
-    int done = 0;
-
-    if (rrfmt == OSSL_ECH_FMT_ASCIIHEX) {
-        detfmt = rrfmt;
-    } else if (rrfmt == OSSL_ECH_FMT_BIN) {
-        detfmt = rrfmt;
-        binlen = rrlen;
-        binbuf = OPENSSL_malloc(binlen);
-        if (binbuf == NULL) {
-            return 0;
-        }
-        memcpy(binbuf, rrval, binlen);
-    } else {
-        rv = ech_guess_fmt(rrlen, (unsigned char *)rrval, &detfmt);
-        if (rv == 0)
-            return rv;
-    }
-    if (detfmt == OSSL_ECH_FMT_ASCIIHEX) {
-        rv = ah_decode(rrlen, rrval, &binlen, &binbuf);
-        if (rv == 0)
-            return rv;
-    } else if (detfmt == OSSL_ECH_FMT_B64TXT) {
-        int ebd_rv = ech_base64_decode(rrval, &binbuf);
-
-        if (ebd_rv <= 0)
-            return 0;
-        binlen = (size_t)ebd_rv;
-    }
-
-    /*
-     * Now we have a binary encoded RData so we'll skip the
-     * name, and then walk through the SvcParamKey binary
-     * codes 'till we find what we want
-     */
-    cp = binbuf;
-    remaining = binlen;
-
-    /*
-     * skip 2 octet priority and TargetName as those are the
-     * application's responsibility, not the library's
-     */
-    if (remaining <= 2)
-        goto err;
-    cp += 2;
-    remaining -= 2;
-    rv = local_decode_rdata_name(&cp, &remaining, &dnsname);
-    if (rv != 1)
-        goto err;
-    OPENSSL_free(dnsname);
-    dnsname = NULL;
-
-    while (done != 1 && remaining >= 4) {
-        pcode = (*cp << 8) + (*(cp + 1));
-        cp += 2;
-        plen = (*cp << 8) + (*(cp + 1));
-        cp += 2;
-        remaining -= 4;
-        if (pcode == OSSL_ECH_PCODE_ECH) {
-            eklen = (size_t)plen;
-            ekval = cp;
-            done = 1;
-        }
-        if (plen != 0 && plen <= remaining) {
-            cp += plen;
-            remaining -= plen;
-        }
-    }
-    if (done == 0) {
-        *num_echs = 0;
-        OPENSSL_free(binbuf);
-        return 1;
-    }
-
-    /* Parse & load any ECHConfigs that we found */
-    rv = local_ech_add(OSSL_ECH_FMT_BIN, eklen, ekval, num_echs, echs);
-    if (rv != 1)
-        goto err;
-    OPENSSL_free(binbuf);
-    return 1;
-err:
-    OPENSSL_free(dnsname);
-    OPENSSL_free(binbuf);
-    return 0;
 }
 
 /*

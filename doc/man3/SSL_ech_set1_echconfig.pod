@@ -434,6 +434,8 @@ Some externally visible limits:
 
 =item B<OSSL_ECH_MAX_PUBLICNAME> 255, max ECHConfig public name length
 
+=item B<OSSL_ECH_MAX_ALPN_LEN> 255, max alpn overall length
+
 =back
 
 Supported formats for encodings of ECHConfig and SVCB values read from DNS
