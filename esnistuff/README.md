@@ -26,6 +26,9 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
+- 20221229: back at it:-) changed the printing stuff (for ECHConfigs)
+  to use ``BIO*`` instead of home-grown stuff.
+
 - 20221224: bit more tidying, next up will be to re-check all 
   the (still untrusted) outer CH fields in ``ech_decode_inner()``
   as it could be I'm not doing enough checks on those (need to
