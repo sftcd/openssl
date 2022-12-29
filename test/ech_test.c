@@ -15,7 +15,15 @@
 
 #ifndef OPENSSL_NO_ECH
 
-# define OSSL_ECH_MAX_LINELEN 1000 /**< for a sanity check */
+# define OSSL_ECH_MAX_LINELEN 1000 /* for a sanity check */
+
+/*
+ * The command line argument one can provide is the location
+ * of test certificates etc, which would be in $TOPDIR/test/certs
+ * so if one runs "test/ech_test" from $TOPDIR, then we don't
+ * need the command line argument at all.
+ */
+# define DEF_CERTS_DIR "test/certs"
 
 static OSSL_LIB_CTX *libctx = NULL;
 static OSSL_LIB_CTX *testctx = NULL;
@@ -250,8 +258,8 @@ static int ech_roundtrip_test(void)
                                               echconfig,
                                               echconfiglen))) {
         TEST_info("Failed SSL_CTX_ech_set1_echconfig adding %s (len = %d)"
-                  " to SSL_CTX: %p, wanted result in : %p\n",
-                  echconfig, (int)echconfiglen, (void *)cctx, (void *)&num_echs);
+                  " to SSL_CTX: %p, wanted result in : %p\n", echconfig,
+                  (int)echconfiglen, (void *)cctx, (void *)&num_echs);
         goto end;
     }
     if (!TEST_int_eq(num_echs, 1))
@@ -525,8 +533,9 @@ int setup_tests(void)
         }
     }
 
-    if (!TEST_ptr(certsdir = test_get_argument(0)))
-        return 0;
+    certsdir = test_get_argument(0);
+    if (certsdir == NULL)
+        certsdir = DEF_CERTS_DIR;
 
     cert = test_mk_file_path(certsdir, "servercert.pem");
     if (cert == NULL)

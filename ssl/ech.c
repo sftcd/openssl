@@ -103,17 +103,6 @@
                                  ? (__c__ - 'a' + 10) \
                                  : 0)))
 
-/*
- * A macro to check we have __n__ allocated octets left before we
- * write to the 'alen' sized string buffer 'str' using pointer 'cp'
- * Used in ECHConfigs_print()
- */
-# define STILLLEFT(__n__) \
-    if (((size_t)(cp - str) + (size_t)(__n__)) > alen) { \
-        OPENSSL_free(str); \
-        return NULL; \
-    }
-
 /* SECTION: local vars */
 
 /*
@@ -1100,7 +1089,7 @@ err:
 }
 
 /*
- * @brief read an ECHConfigList (with only 1 entry) and a private key from a file
+ * @brief read ECHConfigList (with only 1 entry) and private key from a file
  * @param pemfile is the name of the file
  * @param ctx is the SSL context
  * @param inputIsFile is 1 if input a filename, 0 if a buffer
@@ -1354,106 +1343,46 @@ static char *alpn_print(unsigned char *alpn, size_t len)
 
 /*
  * @brief produce a printable string form of an ECHConfigs
+ * @param out is where we print
  * @param c is the ECHConfigs
- * @return a printable string (or NULL)
- *
- * Note - the caller has to free the string returned if not NULL
+ * @return 1 for good, 0 for fail
  */
-static char *ECHConfigs_print(ECHConfigs *c)
+static int ECHConfigs_print(BIO *out, ECHConfigs *c)
 {
-    int i = 0;
-    char *str = NULL; /* final string */
-    size_t alen = 0;  /* allocated len = 2*encoded_len + overhead */
-    char *cp = NULL; /* current string pointer */
+    int i, j;
 
-    if (c == NULL || c->recs == NULL)
-        return NULL;
-
-    /*
-     * the main binary -> string expansion is due to ascii-hex so we'll
-     * double the size, and allow for the few separators as well
-     */
-    alen = c->encoded_len * 2 + 12;
-    str = OPENSSL_malloc(alen);
-    if (str == NULL)
-        return NULL;
-    memset(str, 0, alen);
-    cp = str;
+    if (out == NULL || c == NULL || c->recs == NULL)
+        return 0;
     for (i = 0; i != c->nrecs; i++) {
-        unsigned int j = 0;
-
-        /*
-         * the STILLLEFT macro is a bit anal about space-left but it's a
-         * classic way to fail, so no harm being a bit OTT on checking
-         * Someone will probably point out a better way to do this
-         * which is fine.
-         */
         if (c->recs[i].version != OSSL_ECH_DRAFT_13_VERSION) {
             /* just note we don't support that one today */
-            STILLLEFT(29);
-            snprintf(cp, (alen - (cp - str)), "[Unsupported version (%04x)]",
-                     c->recs[i].version);
+            BIO_printf(out, "[Unsupported version (%04x)]", c->recs[i].version);
             continue;
         }
-        STILLLEFT(1);
-        *cp++ = '[';
-        /* version */
-        STILLLEFT(5);
-        snprintf(cp, (alen - (cp - str)), "%04x,", c->recs[i].version);
-        cp += 5;
-        /* config_id */
-        STILLLEFT(3);
-        snprintf(cp, (alen - (cp - str)), "%02x,", c->recs[i].config_id);
-        cp += 3;
-        /* public_name */
-        STILLLEFT(c->recs[i].public_name_len + 1);
-        snprintf(cp, (alen - (cp - str)), "%s,", c->recs[i].public_name);
-        cp += (c->recs[i].public_name_len + 1);
-        /* kem and ciphersuites */
-        STILLLEFT(6);
-        snprintf(cp, (alen - (cp - str)), "%04x,[", c->recs[i].kem_id);
-        cp += 6;
+        /* version, config_id, public_name, and kem */
+        BIO_printf(out, "[%04x,%02x,%s,%04x,[", c->recs[i].version,
+                   c->recs[i].config_id, c->recs[i].public_name,
+                   c->recs[i].kem_id);
+        /* ciphersuites */
         for (j = 0; j != c->recs[i].nsuites; j++) {
             unsigned char *es = (unsigned char *)&c->recs[i].ciphersuites[j];
             uint16_t kdf_id = es[0] * 256 + es[1];
             uint16_t aead_id = es[2] * 256 + es[3];
 
-            STILLLEFT(5);
-            snprintf(cp, (alen - (cp - str)), "%04x,", kdf_id);
-            cp += 5;
-            STILLLEFT(4);
-            snprintf(cp, (alen - (cp - str)), "%04x", aead_id);
-            cp += 4;
+            BIO_printf(out, "%04x,%04x", kdf_id, aead_id);
             if (j < (c->recs[i].nsuites - 1)) {
-                STILLLEFT(1);
-                *cp++ = ',';
+                BIO_printf(out, ",");
             }
         }
-        STILLLEFT(1);
-        *cp++ = ']';
-        STILLLEFT(1);
-        *cp++ = ',';
+        BIO_printf(out, "],");
         /* public key */
-        for (j = 0; j != c->recs[i].pub_len; j++) {
-            STILLLEFT(2);
-            snprintf(cp, (alen - (cp - str)), "%02x", c->recs[i].pub[j]);
-            cp += 2;
-        }
-        /* max name length */
-        STILLLEFT(4);
-        snprintf(cp, (alen - (cp - str)), ",%02x,",
-                 c->recs[i].maximum_name_length);
-        cp += 4;
-        /* just number of extensions */
-        STILLLEFT(2);
-        snprintf(cp, (alen - (cp - str)), "%02x", c->recs[i].nexts);
-        cp += 2;
-        STILLLEFT(1);
-        *cp++ = ']';
+        for (j = 0; j != c->recs[i].pub_len; j++)
+            BIO_printf(out, "%02x", c->recs[i].pub[j]);
+        /* max name length and (only) number of extensions */
+        BIO_printf(out, ",%02x,%02x]", c->recs[i].maximum_name_length,
+                   c->recs[i].nexts);
     }
-    STILLLEFT(1);
-    *cp++ = '\0';
-    return str;
+    return 1;
 }
 
 /*
@@ -2330,7 +2259,6 @@ void SSL_ECH_free(SSL_ECH *tbf)
  */
 int SSL_ech_print(BIO *out, SSL *ssl, int selector)
 {
-    char *cfg = NULL;
     SSL_CONNECTION *s = SSL_CONNECTION_FROM_SSL(ssl);
 
 # ifdef OSSL_ECH_SUPERVERBOSE
@@ -2370,13 +2298,11 @@ int SSL_ech_print(BIO *out, SSL *ssl, int selector)
         }
         for (i = 0; i != s->nechs; i++) {
             if (selector == OSSL_ECH_SELECT_ALL || selector == i) {
-                cfg = ECHConfigs_print(s->ech[i].cfg);
-                if (cfg != NULL) {
-                    BIO_printf(out, "cfg(%d): %s\n", i, cfg);
-                    OPENSSL_free(cfg);
-                } else {
-                    BIO_printf(out, "cfg(%d): NULL (huh?)\n", i);
-                }
+                BIO_printf(out, "cfg(%d): ", i);
+                if (ECHConfigs_print(out, s->ech[i].cfg) == 1)
+                    BIO_printf(out, "\n");
+                else
+                    BIO_printf(out, "NULL (huh?)\n");
                 if (s->ech[i].keyshare != NULL) {
 # define OSSL_ECH_TIME_STR_LEN 32 /* apparently 26 is all we need */
                     struct tm local, *local_p = NULL;
@@ -4007,7 +3933,7 @@ int ech_get_ch_offsets(SSL_CONNECTION *s, PACKET *pkt, size_t *sessid,
     ech_pbuf("orig CH/ECH", (unsigned char *)ch + *echoffset, echlen);
     ech_pbuf("orig CH SNI", (unsigned char *)ch + *snioffset, snilen);
 # endif
-        return 1;
+    return 1;
 }
 
 /**
@@ -4701,6 +4627,7 @@ int SSL_ech_get_info(SSL *ssl, OSSL_ECH_INFO **out, int *nindices)
     int i = 0;
     int indices = 0;
     SSL_CONNECTION *s = SSL_CONNECTION_FROM_SSL(ssl);
+    BIO *tbio = NULL;
 
     if (s == NULL || out == NULL || nindices == NULL) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_PASSED_NULL_PARAMETER);
@@ -4736,14 +4663,27 @@ int SSL_ech_get_info(SSL *ssl, OSSL_ECH_INFO **out, int *nindices)
                                            s->ext.alpn_outer_len);
         }
         /* Now "print" the ECHConfig(s) */
-        if (s->ech[i].cfg != NULL)
-            inst->echconfig = ECHConfigs_print(s->ech[i].cfg);
+        if (s->ech[i].cfg != NULL) {
+            tbio = BIO_new(BIO_s_mem());
+            if (tbio == NULL)
+                goto err;
+            if (ECHConfigs_print(tbio, s->ech[i].cfg) != 1)
+                goto err;
+            inst->echconfig = OPENSSL_malloc(OSSL_ECH_PBUF_SIZE);
+            if (inst->echconfig == NULL)
+                goto err;
+            if (BIO_read(tbio, inst->echconfig, OSSL_ECH_PBUF_SIZE) <= 0)
+                goto err;
+            BIO_free(tbio);
+            tbio = NULL;
+        }
     }
     *nindices = indices;
     *out = rdiff;
     return 1;
 
 err:
+    BIO_free(tbio);
     OSSL_ECH_INFO_free(rdiff, indices);
     return 0;
 }
