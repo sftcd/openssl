@@ -1839,12 +1839,18 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL_CONNECTION *s, PACKET *pkt)
     SSL_COMP *comp;
 #endif
 #ifndef OPENSSL_NO_ECH
-    const unsigned char *shbuf=pkt->curr;
-    size_t shlen=pkt->remaining;
+    const unsigned char *shbuf = NULL;
+    size_t shlen = pkt->remaining;
     SSL_CONNECTION inner;
-    SSL_CONNECTION outer=*s;
-    int trying_draft10=0;
-    outer=*s; /* avoids a "possibly unitialised" warning */
+    SSL_CONNECTION outer = *s;
+    int trying_draft10 = 0;
+
+    outer = *s; /* avoids a "possibly unitialised" warning */
+    shlen = PACKET_remaining(pkt);
+    if (PACKET_peek_bytes(pkt, &shbuf, shlen) != 1) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_LENGTH_MISMATCH);
+        goto err;
+    }
 #endif
 
     if (!PACKET_get_net_2(pkt, &sversion)) {
