@@ -20,7 +20,7 @@
 #  include <openssl/ech.h>
 #  include <openssl/hpke.h>
 
-/* 
+/*
  * Define this to get loads more lines of tracing.
  * This also needs tracing enabled at build time, e.g.:
  *          $ ./config enable-ssl-trace endable-trace
@@ -40,8 +40,6 @@
 #  endif
 
 #  define OSSL_ECH_CIPHER_LEN 4 /* ECHCipher length (2 for kdf, 2 for aead) */
-
-#  define OSSL_ECH_OUTERS_MAX 20 /* max extensions we compress via outer-exts */
 
 /* values for s->ext.ech_grease */
 #  define OSSL_ECH_GREASE_UNKNOWN -1 /* when we're not yet sure */
