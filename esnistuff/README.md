@@ -26,6 +26,9 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
+- 20221230: fixed up ``ech_decode_inner`` a good bit; might re-do
+  that entirely
+
 - 20221229: back at it:-) changed the printing stuff (for ECHConfigs)
   to use ``BIO*`` instead of home-grown stuff.
 
