@@ -2712,7 +2712,7 @@ int ech_encode_inner(SSL_CONNECTION *s)
     size_t ind = 0;
     size_t innerinnerlen = 0;
 
-    /* barf if nothing to do */
+    /* basic checks */
     if (s == NULL || s->ech == NULL)
         return 0;
 
@@ -2730,53 +2730,26 @@ int ech_encode_inner(SSL_CONNECTION *s)
      *    Extension extensions<8..2^16-1>;
      *  } ClientHello;
      */
-    if ((inner_mem = BUF_MEM_new()) == NULL) {
+    if ((inner_mem = BUF_MEM_new()) == NULL
+        || !BUF_MEM_grow(inner_mem, SSL3_RT_MAX_PLAIN_LENGTH)
+        || !WPACKET_init(&inner, inner_mem)
+        || !ssl_set_handshake_header(s, &inner, mt)
+        /* Add ver/rnd/sess-id/suites to buffer */
+        || !WPACKET_put_bytes_u16(&inner, s->client_version)
+        || !WPACKET_memcpy(&inner, s->s3.client_random, SSL3_RANDOM_SIZE)
+        /* Session ID is forced to zero in the encoded inner */
+        || !WPACKET_start_sub_packet_u8(&inner)
+        || !WPACKET_close(&inner)
+        /* Ciphers supported */
+        || !WPACKET_start_sub_packet_u16(&inner)
+        || !ssl_cipher_list_to_bytes(s, SSL_get_ciphers(&s->ssl), &inner)
+        | !WPACKET_close(&inner)
+        /* COMPRESSION */
+        || !WPACKET_start_sub_packet_u8(&inner)
+        /* Add the NULL compression method */
+        || !WPACKET_put_bytes_u8(&inner, 0) || !WPACKET_close(&inner)) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         goto err;
-    }
-    if (!BUF_MEM_grow(inner_mem, SSL3_RT_MAX_PLAIN_LENGTH)) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-        goto err;
-    }
-    if (!WPACKET_init(&inner, inner_mem)
-        || !ssl_set_handshake_header(s, &inner, mt)) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-        goto err;
-    }
-    /* Add ver/rnd/sess-id/suites to buffer */
-    if (!WPACKET_put_bytes_u16(&inner, s->client_version)
-        || !WPACKET_memcpy(&inner, s->s3.client_random, SSL3_RANDOM_SIZE)) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-        goto err;
-    }
-    /* Session ID is forced to zero in the encoded inner */
-    if (!WPACKET_start_sub_packet_u8(&inner)
-        || !WPACKET_close(&inner)) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-        return 0;
-    }
-    /* Ciphers supported */
-    if (!WPACKET_start_sub_packet_u16(&inner)) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-        return 0;
-    }
-    if (!ssl_cipher_list_to_bytes(s, SSL_get_ciphers(&s->ssl), &inner)) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-        return 0;
-    }
-    if (!WPACKET_close(&inner)) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-        return 0;
-    }
-    /* COMPRESSION */
-    if (!WPACKET_start_sub_packet_u8(&inner)) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-        return 0;
-    }
-    /* Add the NULL compression method */
-    if (!WPACKET_put_bytes_u8(&inner, 0) || !WPACKET_close(&inner)) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-        return 0;
     }
     /* Now handle extensions */
     if (!WPACKET_start_sub_packet_u16(&inner)) {
@@ -2787,31 +2760,26 @@ int ech_encode_inner(SSL_CONNECTION *s)
     raws = s->clienthello->pre_proc_exts;
     nraws = s->clienthello->pre_proc_exts_len;
 
-    /*  We put compressed stuff first (if any), because we can */
+    /*  We put ECH-compressed stuff first (if any), because we can */
     if (s->ext.n_outer_only > 0) {
-        int iind = 0;
-
         if (!WPACKET_put_bytes_u16(&inner, TLSEXT_TYPE_outer_extensions)
-            || !WPACKET_put_bytes_u16(&inner, 2 * s->ext.n_outer_only + 1)) {
+            || !WPACKET_put_bytes_u16(&inner, 2 * s->ext.n_outer_only + 1)
+            /* redundant encoding of more-or-less the same thing */
+            || !WPACKET_put_bytes_u8(&inner, 2 * s->ext.n_outer_only)) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             goto err;
         }
-        if (!WPACKET_put_bytes_u8(&inner, 2 * s->ext.n_outer_only)) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-            goto err;
-        }
-        for (iind = 0; iind != s->ext.n_outer_only; iind++) {
-            if (!WPACKET_put_bytes_u16(&inner, s->ext.outer_only[iind])) {
+        /* add the types for each of the compressed extensions now */
+        for (ind = 0; ind != s->ext.n_outer_only; ind++) {
+            if (!WPACKET_put_bytes_u16(&inner, s->ext.outer_only[ind])) {
                 SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
                 goto err;
             }
         }
     }
-    /* now copy the rest for encoded inner */
+    /* now copy the rest, as "proper" exts, into encoded inner */
     for (ind = 0; ind != nraws; ind++) {
-        int present = raws[ind].present;
-
-        if (present == 0)
+        if (raws[ind].present == 0)
             continue;
         if (ech_2bcompressed(ind) == 1)
             continue;
