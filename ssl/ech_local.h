@@ -244,7 +244,7 @@ int ech_encode_inner(SSL_CONNECTION *s);
  *
  * This also sets us up for later outer compression.
  */
-int ech_same_ext(SSL *s, WPACKET *pkt);
+int ech_same_ext(SSL_CONNECTION *s, WPACKET *pkt);
 
 /*
  * @brief Calculate ECH acceptance signal.
