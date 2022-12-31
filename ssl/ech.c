@@ -2264,7 +2264,10 @@ end:
 
 # ifdef OSSL_ECH_SUPERVERBOSE
 /*
- * @brief print a buffer nicely for debug/interop purposes
+ * @brief ascii-hex print a buffer nicely for debug/interop purposes
+ * @param msg pre-pend to trace lines
+ * @param buf points to the buffer to print
+ * @param blen is the length of buffer to print
  */
 void ech_pbuf(const char *msg, const unsigned char *buf, const size_t blen)
 {
@@ -2292,7 +2295,7 @@ void ech_pbuf(const char *msg, const unsigned char *buf, const size_t blen)
 /*
  * @brief trace out transcript
  * @param msg pre-pend to trace lines
- * @param s is the SSL sessions
+ * @param s is the SSL connection
  */
 void ech_ptranscript(const char *msg, SSL_CONNECTION *s)
 {
@@ -2364,20 +2367,20 @@ void ECHConfigs_free(ECHConfigs *tbf)
 
 /*
  * @brief free an OSSL_ECH_ENCCH
- * @param tbf is a ptr to an SSL_ECH structure
+ * @param tbf is the thing to be free'd
  */
-void OSSL_ECH_ENCCH_free(OSSL_ECH_ENCCH *ev)
+void OSSL_ECH_ENCCH_free(OSSL_ECH_ENCCH *tbf)
 {
-    if (ev == NULL)
+    if (tbf == NULL)
         return;
-    OPENSSL_free(ev->enc);
-    OPENSSL_free(ev->payload);
+    OPENSSL_free(tbf->enc);
+    OPENSSL_free(tbf->payload);
     return;
 }
 
 /*
  * @brief free an SSL_ECH
- * @param tbf is a ptr to an SSL_ECH structure
+ * @param tbf is the thing to be free'd
  *
  * Free everything within an SSL_ECH. Note that the
  * caller has to free the top level SSL_ECH, IOW the
@@ -2402,7 +2405,7 @@ void SSL_ECH_free(SSL_ECH *tbf)
 }
 
 /**
- * @brief Print info about the status of an SSL session wrt ECH
+ * @brief print info about the ECH-status of an SSL connection
  * @param out is the BIO to use (e.g. stdout/whatever)
  * @param ssl is an SSL session strucutre
  * @param selector OSSL_ECH_SELECT_ALL or just one of the SSL_ECH values
@@ -2508,11 +2511,12 @@ int SSL_ech_print(BIO *out, SSL *ssl, int selector)
 }
 
 /*
- * @brief Duplicate an SSL_ECH
- * @param orig is the input array of SSL_ECH to be partly deep-copied
+ * @brief deep-copy an array of SSL_ECH
+ * @param orig is the input array of SSL_ECH to be deep-copied
  * @param nech is the number of elements in the array
- * @param selector dup all (if OSSL_ECH_SELECT_ALL==-1) or just one
- * @return a deep-copy array or NULL if errors occur
+ * @param selector means dup all (if OSSL_ECH_SELECT_ALL==-1) or just the
+ *        one nominated
+ * @return a deep-copy same-sized array or NULL if errors occur
  *
  * This is needed to handle the SSL_CTX->SSL factory model.
  */
@@ -2543,13 +2547,19 @@ SSL_ECH *SSL_ECH_dup(SSL_ECH *orig, size_t nech, int selector)
             goto err;
         if (orig[i].inner_name != NULL) {
             new_se[i].inner_name = OPENSSL_strdup(orig[i].inner_name);
+            if (new_se[i].inner_name == NULL)
+                goto err;
         }
         if (orig[i].outer_name != NULL) {
             new_se[i].outer_name = OPENSSL_strdup(orig[i].outer_name);
+            if (new_se[i].outer_name == NULL)
+                goto err;
         }
         new_se[i].no_outer = orig[i].no_outer;
         if (orig[i].pemfname != NULL) {
             new_se[i].pemfname = OPENSSL_strdup(orig[i].pemfname);
+            if (new_se[i].pemfname == NULL)
+                goto err;
         }
         new_se[i].loadtime = orig[i].loadtime;
         if (orig[i].keyshare != NULL) {
@@ -2559,10 +2569,8 @@ SSL_ECH *SSL_ECH_dup(SSL_ECH *orig, size_t nech, int selector)
     }
     return new_se;
 err:
-    if (new_se != NULL) {
-        SSL_ECH_free(new_se);
-        OPENSSL_free(new_se);
-    }
+    SSL_ECH_free(new_se);
+    OPENSSL_free(new_se);
     return NULL;
 }
 
@@ -2582,17 +2590,16 @@ int ech_2bcompressed(int ind)
 
 /**
  * @brief repeat extension from inner in outer and handle compression
- * @param ssl is the SSL session
+ * @param s is the SSL connection
  * @param pkt is the packet containing extensions
  * @return 0: error, 1: copied existing and done, 2: ignore existing
  */
-int ech_same_ext(SSL *ssl, WPACKET *pkt)
+int ech_same_ext(SSL_CONNECTION *s, WPACKET *pkt)
 {
     SSL_CONNECTION *inner = NULL;
     unsigned int type = 0;
     unsigned int nexts = 0;
     int tind = 0;
-    SSL_CONNECTION *s = SSL_CONNECTION_FROM_SSL(ssl);
 
 # undef DUPEMALL
 # ifdef DUPEMALL
@@ -2603,7 +2610,7 @@ int ech_same_ext(SSL *ssl, WPACKET *pkt)
     return OSSL_ECH_SAME_EXT_CONTINUE;
 # endif
 
-    if (ssl == NULL || s == NULL || s->ech == NULL)
+    if (s == NULL || s->ech == NULL)
         return OSSL_ECH_SAME_EXT_CONTINUE; /* nothing to do */
     inner = s->ext.inner_s;
     type = s->ext.etype;
@@ -2689,7 +2696,7 @@ int ech_same_ext(SSL *ssl, WPACKET *pkt)
 
 /**
  * @brief After "normal" 1st pass CH is done, fix encoding as needed
- * @param ssl is the SSL session
+ * @param ssl is the SSL connection
  * @return 1 for success, error otherwise
  *
  * This will make up the ClientHelloInner and EncodedClientHelloInner buffers

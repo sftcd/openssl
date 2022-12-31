@@ -31,11 +31,14 @@
  * checks that result in the extension not being sent.
  */
 #define IOSAME if (s->ech && !s->ext.ech_grease) { \
-        int __rv=ech_same_ext(&s->ssl,pkt); \
-        if (__rv== OSSL_ECH_SAME_EXT_ERR) return(EXT_RETURN_FAIL); \
-        if (__rv== OSSL_ECH_SAME_EXT_DONE) return(EXT_RETURN_SENT); \
-        /* otherwise continue as normal */ \
-    }
+                   int __rv = ech_same_ext(s, pkt); \
+                   \
+                   if (__rv == OSSL_ECH_SAME_EXT_ERR) \
+                       return(EXT_RETURN_FAIL); \
+                   if (__rv == OSSL_ECH_SAME_EXT_DONE) \
+                       return(EXT_RETURN_SENT); \
+                   /* otherwise continue as normal */ \
+                }
 
 #endif
 
