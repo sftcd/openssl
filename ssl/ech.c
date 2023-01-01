@@ -2865,7 +2865,7 @@ int ech_reset_hs_buffer(SSL_CONNECTION *s, const unsigned char *buf,
 }
 
 /*
- * @brief Handling for the ECH accept_confirmation
+ * @brief ECH accept_confirmation calculation
  * @param s is the SSL inner context
  * @oaram for_hrr is 1 if this is for an HRR, otherwise for SH
  * @param ac is (a caller allocated) 8 octet buffer
@@ -2888,6 +2888,10 @@ int ech_reset_hs_buffer(SSL_CONNECTION *s, const unsigned char *buf,
  *         with last 8 octets of ServerHello.random==0x00
  *
  * and with differences due to HRR
+ *
+ * We can re-factor this some more (e.g. make one call for
+ * SH offsets) but we'll hold on that a bit 'till we get to
+ * refactoring transcripts generally.
  */
 int ech_calc_ech_confirm(SSL_CONNECTION *s, int for_hrr,
                          unsigned char *acbuf,
@@ -2916,6 +2920,10 @@ int ech_calc_ech_confirm(SSL_CONNECTION *s, int for_hrr,
     memset(digestedCH, 0, 4 + EVP_MAX_MD_SIZE);
     md = ssl_handshake_md(s);
     if (md == NULL) {
+        /*
+         * this does happen, on clients at least, might be better to set
+         * the h/s md earlier perhaps rather than the rigmarole below
+         */
         int rv;
         size_t extoffset = 0;
         size_t echoffset = 0;
@@ -2925,7 +2933,14 @@ int ech_calc_ech_confirm(SSL_CONNECTION *s, int for_hrr,
         const SSL_CIPHER *c = NULL;
         const unsigned char *cipherchars = NULL;
 
-        if (s->server != 0) {
+        if (s->server == 1) {
+            /*
+             * Not sure if this server-specific code is ever run.
+             * Doesn't seem hit even with HRR.
+             */
+            OSSL_TRACE_BEGIN(TLS) {
+                BIO_printf(trc_out, "server finding MD from SH\n");
+            } OSSL_TRACE_END(TLS);
             rv = ech_get_sh_offsets(shbuf + 4, shlen - 4, &extoffset,
                                     &echoffset, &echtype);
             if (rv != 1) {
@@ -2939,6 +2954,9 @@ int ech_calc_ech_confirm(SSL_CONNECTION *s, int for_hrr,
             cipheroffset = extoffset - 3;
             cipherchars = &shbuf[cipheroffset];
         } else {
+            OSSL_TRACE_BEGIN(TLS) {
+                BIO_printf(trc_out, "client finding MD from SH\n");
+            } OSSL_TRACE_END(TLS);
             rv = ech_get_sh_offsets(shbuf, shlen, &extoffset, &echoffset,
                                     &echtype);
             if (rv != 1) {
@@ -2955,9 +2973,14 @@ int ech_calc_ech_confirm(SSL_CONNECTION *s, int for_hrr,
         c = ssl_get_cipher_by_char(s, cipherchars, 0);
         md = ssl_md(s->ssl.ctx, c->algorithm2);
         if (md == NULL) {
-            /* ultimate fallback sha266 */
-            md = s->ssl.ctx->ssl_digest_methods[SSL_HANDSHAKE_MAC_SHA256];
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+            goto err;
         }
+    }
+    hashlen = EVP_MD_size(md);
+    if (hashlen > EVP_MAX_MD_SIZE) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+        goto err;
     }
 
     if (for_hrr == 0 && s->hello_retry_request == SSL_HRR_NONE) {
@@ -2968,12 +2991,10 @@ int ech_calc_ech_confirm(SSL_CONNECTION *s, int for_hrr,
 # ifdef OSSL_ECH_SUPERVERBOSE
         ech_pbuf("calc conf : innerch1", s->ext.innerch1, s->ext.innerch1_len);
 # endif
-        /* make up mad odd transcript manually, for now */
-        hashlen = EVP_MD_size(md);
-        if (hashlen > EVP_MAX_MD_SIZE) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-            goto err;
-        }
+        /*
+         * make up mad odd transcript manually, for now: that's
+         * hashed-inner-CH1, then (non-hashed) HRR and inner-CH2
+         */
         if (EVP_DigestInit_ex(ctx, md, NULL) <= 0
             || EVP_DigestUpdate(ctx, s->ext.innerch1, s->ext.innerch1_len) <= 0
             || EVP_DigestFinal_ex(ctx, digestedCH + 4, &hashlen) <= 0) {
@@ -3026,12 +3047,6 @@ int ech_calc_ech_confirm(SSL_CONNECTION *s, int for_hrr,
 # ifdef OSSL_ECH_SUPERVERBOSE
         ech_pbuf("calc conf : kepthrr", s->ext.kepthrr, s->ext.kepthrr_len);
 # endif
-
-        hashlen = EVP_MD_size(md);
-        if (hashlen > EVP_MAX_MD_SIZE) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-            goto err;
-        }
         if (EVP_DigestInit_ex(ctx, md, NULL) <= 0
             || EVP_DigestUpdate(ctx, s->ext.innerch, s->ext.innerch_len) <= 0
             || EVP_DigestFinal_ex(ctx, digestedCH + 4, &hashlen) <= 0) {
@@ -3065,7 +3080,7 @@ int ech_calc_ech_confirm(SSL_CONNECTION *s, int for_hrr,
 
     /*
      * For some reason the internal 3-length of the shbuf is
-     * wrong at this point. We'll fix it so, but here and
+     * wrong at this point. We'll fix it so, but in tbuf and
      * not in the actual shbuf, just in case that breaks some
      * other thing.
      */
