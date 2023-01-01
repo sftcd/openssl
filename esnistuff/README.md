@@ -26,6 +26,9 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
+- 20230101: fixed up ``ech_send_grease()`` some, and related code
+  in ``ssl/statem/extensions_clnt.c``
+
 - 20221230: fixed up ``ech_decode_inner`` a good bit; might re-do
   that entirely later (I should make an attempt to properly use
   or extend the PACKET/WPACKET APIs for that and elsewhere). Got
