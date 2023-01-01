@@ -2565,27 +2565,27 @@ int tls_parse_stoc_server_cert_type(SSL_CONNECTION *sc, PACKET *pkt,
 /**
  * @brief Create the draft-13 ECH extension for the ClientHello
  */
-EXT_RETURN tls_construct_ctos_ech13(SSL_CONNECTION *s, WPACKET *pkt, unsigned int context,
-                                   X509 *x, size_t chainidx)
+EXT_RETURN tls_construct_ctos_ech13(SSL_CONNECTION *s, WPACKET *pkt,
+                                    unsigned int context, X509 *x,
+                                    size_t chainidx)
 {
-    if (s->ext.ech_attempted_type!=TLSEXT_TYPE_ech13)
+    if (s->ext.ech_attempted_type != TLSEXT_TYPE_ech13)
         return EXT_RETURN_NOT_SENT;
-
     /* don't send grease if really attempting ECH */
-    if (s->ext.ech_attempted==0) {
-        if (s->ext.ech_grease== OSSL_ECH_IS_GREASE || 
-                 (s->options & SSL_OP_ECH_GREASE)) {
-            if (s->hello_retry_request==SSL_HRR_PENDING &&
-                    s->ext.ech_sent!=NULL) {
+    if (s->ext.ech_attempted == 0) {
+        if (s->ext.ech_grease == OSSL_ECH_IS_GREASE
+            || (s->options & SSL_OP_ECH_GREASE)) {
+            if (s->hello_retry_request == SSL_HRR_PENDING
+                && s->ext.ech_sent != NULL) {
                 /* re-tx already sent GREASEy ECH*/
-                if (WPACKET_memcpy(pkt,s->ext.ech_sent,
-                            s->ext.ech_sent_len)!=1) {
+                if (WPACKET_memcpy(pkt, s->ext.ech_sent,
+                                   s->ext.ech_sent_len)!=1) {
                     SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
                     return EXT_RETURN_FAIL;
                 }
                 return EXT_RETURN_SENT;
             }
-            if (ech_send_grease(&s->ssl,pkt)!=1) {
+            if (ech_send_grease(s, pkt) != 1) {
                 return EXT_RETURN_NOT_SENT;
             }
             return EXT_RETURN_SENT;
@@ -2597,20 +2597,19 @@ EXT_RETURN tls_construct_ctos_ech13(SSL_CONNECTION *s, WPACKET *pkt, unsigned in
      * that way as we need the rest of the outer CH as AAD input to the
      * encryption.
      */
-    if (s->ext.ch_depth==0) return EXT_RETURN_NOT_SENT;
+    if (s->ext.ch_depth == 0)
+        return EXT_RETURN_NOT_SENT;
     /* For the inner CH - we simply include one of these saying "inner" */
-    if (s->ext.ch_depth==1) {
+    if (s->ext.ch_depth == 1) {
         if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_ech13)
             || !WPACKET_start_sub_packet_u16(pkt)
             || !WPACKET_put_bytes_u8(pkt,  OSSL_ECH_INNER_CH_TYPE)
-            || !WPACKET_close(pkt)
-           ) {
+            || !WPACKET_close(pkt)) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             return EXT_RETURN_FAIL;
         }
         return EXT_RETURN_SENT;
     }
-
     return EXT_RETURN_FAIL;
 }
 

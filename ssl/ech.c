@@ -48,8 +48,26 @@
 # define OSSL_ECH_CRYPTO_VAR_SIZE 2048
 
 # define OSSL_ECH_PBUF_SIZE 8 * 1024 /* buffer for string returned via ech_cb */
-# define OSSL_ECH_MAX_GREASE_PUB 0x100 /* max  peer key share we'll decode */
+# define OSSL_ECH_MAX_GREASE_PUB 0x100 /* max peer key share we'll decode */
 # define OSSL_ECH_MAX_GREASE_CT 0x200 /* max GREASEy ciphertext we'll emit */
+/*
+ * 272 is the size I produce for a real ECH when including padding in
+ * the inner CH with the default/current client hello padding code
+ * this value doesn't vary with at least minor changes to inner SNI
+ * length.
+ */
+# define OSSL_ECH_DEF_CIPHER_LEN 272
+/*
+ * We can add/subtract a few octets if jitter is desirable - if set then
+ * we'll add or subtract a random number of octets less than the max jitter
+ * setting. If the default value is set to zero, we won't bother. It is
+ * probably better for now at least to not bother with jitter at all but
+ * keeping the compile-time capability for now is probably worthwhile in
+ * case experiments indicate such jitter is useful. To turn off jitter
+ * just set the default to zero, as is currently done below.
+ */
+# define OSSL_ECH_MAX_CIPHER_LEN_JITTER 32 /* max jitter in cipher len */
+# define OSSL_ECH_DEF_CIPHER_LEN_JITTER 0 /* default jitter in cipher len */
 
 # ifndef TLSEXT_MINLEN_host_name
 /*
@@ -3278,7 +3296,6 @@ err:
  * handled specially (e.g. because of some so far untested
  * combination of extensions), then this may fail, so good
  * to keep things in one place as we find that out.
- *
  */
 int ech_swaperoo(SSL_CONNECTION *s)
 {
@@ -3298,12 +3315,10 @@ int ech_swaperoo(SSL_CONNECTION *s)
 # endif
 
     /* Make some checks */
-    if (s == NULL)
+    if (s == NULL || s->ext.inner_s == NULL) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
-    if (s->ext.inner_s == NULL)
-        return 0;
-    if (s->ext.inner_s->ext.outer_s == NULL)
-        return 0;
+    }
     inp = s->ext.inner_s;
     outp = s->ext.inner_s->ext.outer_s;
     if (!ossl_assert(outp == s))
@@ -3311,11 +3326,12 @@ int ech_swaperoo(SSL_CONNECTION *s)
 
     /* Stash fields */
     tmp_outer = *s;
-    tmp_inner = *s->ext.inner_s;
+    tmp_inner = *inp;
 
     /* General field swap */
     *s = tmp_inner;
     *inp = tmp_outer;
+    /* fix up new inner/outer pointers */
     s->ext.outer_s = inp;
     s->ext.inner_s = NULL;
     s->ext.outer_s->ext.inner_s = s;
@@ -3326,15 +3342,13 @@ int ech_swaperoo(SSL_CONNECTION *s)
     BIO_up_ref(s->wbio);
     s->rbio = tmp_outer.rbio;
     BIO_up_ref(s->rbio);
-    /* This one doesn't seem to be needed nor up-ref'd */
-    /* but not fully sure.... */
     s->bbio = tmp_outer.bbio;
 
+    /* fix buffers and record layers */
     s->init_buf = tmp_outer.init_buf;
     s->init_msg = tmp_outer.init_msg;
     s->init_off = tmp_outer.init_off;
     s->init_num = tmp_outer.init_num;
-
     s->rlayer = tmp_outer.rlayer;
     memset(&inp->rlayer, 0, sizeof(tmp_outer.rlayer));
 
@@ -3344,16 +3358,13 @@ int ech_swaperoo(SSL_CONNECTION *s)
     /*  lighttpd failure case implies I need this */
     s->handshake_func = tmp_outer.handshake_func;
 
+    /* fix callbacks and state */
     s->ext.debug_cb = tmp_outer.ext.debug_cb;
     s->ext.debug_arg = tmp_outer.ext.debug_arg;
     s->statem = tmp_outer.statem;
 
     /* Used by CH callback in lighttpd */
     s->ssl.ex_data = tmp_outer.ssl.ex_data;
-
-    /* early data */
-    s->early_data_state = tmp_outer.early_data_state;
-    s->early_data_count = tmp_outer.early_data_count;
 
     /* early data */
     s->early_data_state = tmp_outer.early_data_state;
@@ -3376,7 +3387,7 @@ int ech_swaperoo(SSL_CONNECTION *s)
     if (s->hello_retry_request == 0) {
         curr_buflen = BIO_get_mem_data(tmp_outer.s3.handshake_buffer,
                                        &curr_buf);
-        if (curr_buflen > 0 && curr_buf[0] == SSL3_MT_CLIENT_HELLO) {
+        if (curr_buflen > 4 && curr_buf[0] == SSL3_MT_CLIENT_HELLO) {
             /* It's a client hello, presumably the outer */
             outer_chlen = 1 + curr_buf[1] * 256 * 256
                 + curr_buf[2] * 256 + curr_buf[3];
@@ -3409,20 +3420,26 @@ int ech_swaperoo(SSL_CONNECTION *s)
          * adds to the transcript but doesn't actually "finish" anything
          */
         if (ssl3_init_finished_mac(s) == 0) {
+            if (other_octets > 0) {
+                OPENSSL_free(new_buf);
+            }
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             return 0;
         }
         if (ssl3_finish_mac(s, new_buf, new_buflen) == 0) {
+            if (other_octets > 0) {
+                OPENSSL_free(new_buf);
+            }
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             return 0;
+        }
+        if (other_octets > 0) {
+            OPENSSL_free(new_buf);
         }
     }
 # ifdef OSSL_ECH_SUPERVERBOSE
     ech_ptranscript("ech_swaperoo, after", s);
 # endif
-    if (other_octets > 0) {
-        OPENSSL_free(new_buf);
-    }
     /*
      * Finally! Declare victory - in both contexts.
      * The outer's ech_attempted will have been set already
@@ -3453,18 +3470,16 @@ int ech_swaperoo(SSL_CONNECTION *s)
         cbrv = s->ech_cb(&s->ssl, pstr);
         BIO_free(biom);
         if (cbrv != 1) {
-            OSSL_TRACE_BEGIN(TLS) {
-                BIO_printf(trc_out, "Exiting ech_swaperoo at %d\n", __LINE__);
-            } OSSL_TRACE_END(TLS);
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             return 0;
         }
     }
     return 1;
 }
 
-/**
+/*
  * @brief send a GREASy ECH
- * @param ssl is the SSL session
+ * @param ssl is the SSL connection
  * @param pkt is the in-work CH packet
  * @return 1 for success, 0 otherwise
  *
@@ -3472,7 +3487,7 @@ int ech_swaperoo(SSL_CONNECTION *s)
  * The unused parameters are just to match tls_construct_ctos_ech
  * which calls this - that's in case we need 'em later.
  */
-int ech_send_grease(SSL *ssl, WPACKET *pkt)
+int ech_send_grease(SSL_CONNECTION *s, WPACKET *pkt)
 {
     OSSL_HPKE_SUITE hpke_suite_in = OSSL_HPKE_SUITE_DEFAULT;
     OSSL_HPKE_SUITE *hpke_suite_in_p = NULL;
@@ -3481,41 +3496,39 @@ int ech_send_grease(SSL *ssl, WPACKET *pkt)
     unsigned char cid;
     size_t senderpub_len = OSSL_ECH_MAX_GREASE_PUB;
     unsigned char senderpub[OSSL_ECH_MAX_GREASE_PUB];
-    SSL_CONNECTION *s = SSL_CONNECTION_FROM_SSL(ssl);
-    /*
-     * 0x1d3 is what I produce for a real ECH when including padding in
-     * the inner CH with the default/current client hello padding code
-     * this value doesn't vary with at least minor changes to inner.sni
-     * length.
-     */
-    size_t cipher_len = 0x1d3;
-    /*
-     * We can add some jitter to that size, but doing so might not be
-     * wise so for now, we turn off jitter as it seems like the default
-     * CH padding results in a fixed length CH for at least many options.
-     */
-    size_t cipher_len_jitter = 0;
+    size_t cipher_len = OSSL_ECH_DEF_CIPHER_LEN;
+    size_t cipher_len_jitter = OSSL_ECH_DEF_CIPHER_LEN_JITTER;
     unsigned char cipher[OSSL_ECH_MAX_GREASE_CT];
     /* stuff for copying to ech_sent */
     unsigned char *pp = WPACKET_get_curr(pkt);
     size_t pp_at_start = 0;
     size_t pp_at_end = 0;
 
-    if (ssl == NULL || s == NULL || ssl->ctx == NULL) {
+    if (s == NULL || s->ssl.ctx == NULL) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
     }
     WPACKET_get_total_written(pkt, &pp_at_start);
-
+    /* generate a random (1 octet) client id */
     if (RAND_bytes_ex(s->ssl.ctx->libctx, &cid, cid_len,
                       RAND_DRBG_STRENGTH) <= 0) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
     }
     s->ext.ech_attempted_cid = cid;
+    /*
+     * if adding jitter, we adjust cipher length by some random
+     * number between +/- cipher_len_jitter
+     */
     if (cipher_len_jitter != 0) {
+        cipher_len_jitter = cipher_len_jitter % OSSL_ECH_MAX_CIPHER_LEN_JITTER;
+        if (cipher_len < cipher_len_jitter) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+            return 0;
+        }
         cipher_len -= cipher_len_jitter;
-        cipher_len += (cid % cipher_len_jitter);
+        /* the cid is random enough */
+        cipher_len += 2 * (cid % cipher_len_jitter);
     }
     if (s->ext.ech_grease_suite != NULL) {
         if (OSSL_HPKE_str2suite(s->ext.ech_grease_suite, &hpke_suite_in) != 1) {
@@ -3531,12 +3544,6 @@ int ech_send_grease(SSL *ssl, WPACKET *pkt)
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
     }
-    if (RAND_bytes_ex(s->ssl.ctx->libctx, &cid, cid_len,
-                      RAND_DRBG_STRENGTH) <= 0) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-        return 0;
-    }
-
     if (s->ext.ech_attempted_type == OSSL_ECH_DRAFT_13_VERSION) {
         if (!WPACKET_put_bytes_u16(pkt, s->ext.ech_attempted_type)
             || !WPACKET_start_sub_packet_u16(pkt)
@@ -3555,7 +3562,7 @@ int ech_send_grease(SSL *ssl, WPACKET *pkt)
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
     }
-
+    /* record the ECH sent so we can re-tx same if we hit an HRR */
     OPENSSL_free(s->ext.ech_sent);
     WPACKET_get_total_written(pkt, &pp_at_end);
     s->ext.ech_sent_len = pp_at_end - pp_at_start;
@@ -3563,7 +3570,6 @@ int ech_send_grease(SSL *ssl, WPACKET *pkt)
     if (s->ext.ech_sent == NULL)
         return 0;
     memcpy(s->ext.ech_sent, pp, s->ext.ech_sent_len);
-
     s->ext.ech_grease = OSSL_ECH_IS_GREASE;
     OSSL_TRACE_BEGIN(TLS) {
         BIO_printf(trc_out, "ECH - sending DRAFT-13 GREASE\n");
@@ -4672,15 +4678,19 @@ int SSL_ech_get_info(SSL *ssl, OSSL_ECH_INFO **out, int *nindices)
         }
         /* Now "print" the ECHConfig(s) */
         if (s->ech[i].cfg != NULL) {
+            size_t ehlen;
+            unsigned char *ignore = NULL;
+
             tbio = BIO_new(BIO_s_mem());
             if (tbio == NULL)
                 goto err;
             if (ECHConfigs_print(tbio, s->ech[i].cfg) != 1)
                 goto err;
-            inst->echconfig = OPENSSL_malloc(OSSL_ECH_PBUF_SIZE);
+            ehlen = BIO_get_mem_data(tbio, &ignore);
+            inst->echconfig = OPENSSL_malloc(ehlen+1);
             if (inst->echconfig == NULL)
                 goto err;
-            if (BIO_read(tbio, inst->echconfig, OSSL_ECH_PBUF_SIZE) <= 0)
+            if (BIO_read(tbio, inst->echconfig, ehlen+1) <= 0)
                 goto err;
             BIO_free(tbio);
             tbio = NULL;

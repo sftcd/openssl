@@ -284,7 +284,7 @@ int ech_swaperoo(SSL_CONNECTION *s);
 
 /*
  * @brief send a GREASy ECH
- * @param s is the SSL session
+ * @param s is the SSL connection
  * @param pkt is the in-work CH packet
  * @return 1 for success, 0 otherwise
  *
@@ -292,7 +292,7 @@ int ech_swaperoo(SSL_CONNECTION *s);
  * The unused parameters are just to match tls_construct_ctos_ech
  * which calls this - that's in case we need 'em later.
  */
-int ech_send_grease(SSL *s, WPACKET *pkt);
+int ech_send_grease(SSL_CONNECTION *s, WPACKET *pkt);
 
 /*
  * @brief Calculate AAD and then do ECH encryption
