@@ -525,7 +525,10 @@ allresult=`grep "ECH: " $TMPF`
 # any related to fopen that can happen if/when we ask
 # an openssl s_server, for a file it doesn't have or if
 # the server's running in the wrong mode
-sslerror=`grep ":error:" $TMPF | grep -v BIO_new_file`
+sslerror=`grep ":error:" $TMPF \
+             | grep -v BIO_new_file \
+             | grep -v NCONF_get_string \
+             | grep -v "error:8000000" `
 rm -f $TMPF
 if (( $goodresult > 0 ))
 then
