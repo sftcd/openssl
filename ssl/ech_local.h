@@ -296,7 +296,7 @@ int ech_send_grease(SSL_CONNECTION *s, WPACKET *pkt);
 
 /*
  * @brief Calculate AAD and then do ECH encryption
- * @param s is the SSL struct
+ * @param s is the SSL connection
  * @param pkt is the packet to send
  * @return 1 for success, other otherwise
  *
@@ -308,7 +308,7 @@ int ech_send_grease(SSL_CONNECTION *s, WPACKET *pkt);
  * 3. Put the ECH back into the encoding
  * 4. Encode the outer (again!)
  */
-int ech_aad_and_encrypt(SSL *s, WPACKET *pkt);
+int ech_aad_and_encrypt(SSL_CONNECTION *s, WPACKET *pkt);
 
 /*
  * @brief reset the handshake buffer for transcript after ECH is good
