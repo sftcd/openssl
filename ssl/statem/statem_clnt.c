@@ -1483,7 +1483,7 @@ __owur CON_FUNC_RETURN tls_construct_client_hello(SSL_CONNECTION *s,
 # endif
 
     /* Finally, we're ready to calculate AAD and to encrypt using HPKE */
-    if (ech_aad_and_encrypt(&s->ssl,pkt)!=1) {
+    if (ech_aad_and_encrypt(s, pkt) != 1) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         goto err;
     }
