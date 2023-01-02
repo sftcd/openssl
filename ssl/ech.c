@@ -2278,6 +2278,80 @@ end:
     return NULL;
 }
 
+/*
+ * @brief pick an ECHConfig to use
+ * @param s is the SSL connection
+ * @param tc is the ECHConfig to use (if found)
+ * @param suite is the HPKE suite to use (if found)
+ *
+ * Search through the ECHConfigs for one that's a best
+ * match in terms of outer_name vs. public_name.
+ * If no public_name was set via API then we
+ * just take the 1st match where we locally support
+ * the HPKE suite.
+ * If OTOH, a public_name was provided via API then
+ * we prefer the first that matches that. We only try
+ * for case-insensitive exact matches.
+ * If no outer was provided, any will do.
+ */
+static int ech_pick_matching_cfg(SSL_CONNECTION *s, ECHConfig **tc,
+                                 OSSL_HPKE_SUITE *suite)
+{
+    unsigned int onlen = 0;
+    int namematch = 0;
+    int suitematch = 0;
+    int cind = 0;
+    unsigned int csuite = 0;
+    ECHConfig *ltc = NULL;
+    ECHConfigs *cfgs = NULL;
+
+    if (s == NULL || s->ech == NULL || tc == NULL || suite == NULL)
+        return 0;
+    cfgs = s->ech->cfg;
+    if (cfgs == NULL || cfgs->nrecs == 0) {
+        return 0;
+    }
+    onlen = (s->ech->outer_name == NULL ? 0 : strlen(s->ech->outer_name));
+    for (cind = 0;
+         cind != cfgs->nrecs && suitematch == 0 && namematch == 0;
+         cind++) {
+        ltc = &cfgs->recs[cind];
+        if (ltc->version != OSSL_ECH_DRAFT_13_VERSION)
+            continue;
+        namematch = 0;
+        if (onlen == 0
+            || (ltc->public_name_len == onlen
+                && !OPENSSL_strncasecmp(s->ech->outer_name,
+                                        (char *)ltc->public_name, onlen))) {
+            namematch = 1;
+        }
+        suite->kem_id = ltc->kem_id;
+        suitematch = 0;
+        for (csuite = 0;
+             csuite != ltc->nsuites && suitematch == 0;
+             csuite++) {
+            unsigned char *es = (unsigned char *)&ltc->ciphersuites[csuite];
+
+            suite->kdf_id = es[0] * 256 + es[1];
+            suite->aead_id = es[2] * 256 + es[3];
+            if (OSSL_HPKE_suite_check(*suite) == 1) {
+                suitematch = 1;
+                /* pick this one if both "fit" */
+                if (namematch == 1) {
+                    *tc = ltc;
+                    break;
+                }
+            }
+        }
+    }
+    if (namematch == 0 || suitematch == 0) {
+        return 0;
+    }
+    if (*tc == NULL || (*tc)->pub_len == 0 || (*tc)->pub == NULL)
+        return 0;
+    return 1;
+}
+
 /* SECTION: Non-public functions used elsewhere in the library */
 
 # ifdef OSSL_ECH_SUPERVERBOSE
@@ -3479,7 +3553,7 @@ int ech_swaperoo(SSL_CONNECTION *s)
 
 /*
  * @brief send a GREASy ECH
- * @param ssl is the SSL connection
+ * @param s is the SSL connection
  * @param pkt is the in-work CH packet
  * @return 1 for success, 0 otherwise
  *
@@ -3579,18 +3653,17 @@ int ech_send_grease(SSL_CONNECTION *s, WPACKET *pkt)
 
 /**
  * @brief Calculate AAD and then do ECH encryption
- * @param ssl is the SSL struct
+ * @param s is the SSL connection
  * @param pkt is the packet to send
  * @return 1 for success, other otherwise
  *
  * 1. Make up the AAD:
- *   For draft-13:
- *      - the encoded outer, with ECH ciphertext octets zero'd
+ *        For draft-13: the encoded outer, with ECH ciphertext octets zero'd
  * 2. Do the encryption
  * 3. Put the ECH back into the encoding
  * 4. Encode the outer (again!)
  */
-int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
+int ech_aad_and_encrypt(SSL_CONNECTION *s, WPACKET *pkt)
 {
     int hpke_mode = OSSL_HPKE_MODE_BASE;
     OSSL_HPKE_SUITE hpke_suite = OSSL_HPKE_SUITE_DEFAULT;
@@ -3601,24 +3674,14 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
     unsigned char config_id_to_use = 0x00; /* we might replace with random */
     size_t lenclen = 0;
     /*
-     * My ephemeral key pair for HPKE encryption
+     * client's ephemeral public value for HPKE encryption ("enc")
      * Has to be externally generated so public can be part of AAD (sigh)
      * and in case of HRR.
      */
     unsigned char *mypub = NULL;
     size_t mypub_len = 0;
-    /*
-     * Pick a matching public key from the Config (if we can)
-     * We'll just take the 1st matching.
-     */
-    unsigned char *peerpub = NULL;
-    size_t peerpub_len = 0;
+    /* a matching server public key from the Config (if it exists) */
     ECHConfig *tc = NULL;
-    int cind = 0;
-    ECHConfigs *cfgs = NULL;
-    unsigned int onlen = 0;
-    int prefind = -1;
-    ECHConfig *firstmatch = NULL;
     unsigned char info[SSL3_RT_MAX_PLAIN_LENGTH];
     size_t info_len = SSL3_RT_MAX_PLAIN_LENGTH;
     int rv = 0;
@@ -3627,7 +3690,6 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
     size_t startofexts = 0;
     size_t origextlens = 0;
     size_t newextlens = 0;
-    SSL_CONNECTION *s = SSL_CONNECTION_FROM_SSL(ssl);
     OSSL_HPKE_CTX *hctx = NULL;
     size_t echlen = 0;
     int length_of_padding = 0;
@@ -3638,111 +3700,49 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
     size_t mnl = 0;
     int innersnipadding = 0;
 
-    if (ssl == NULL || s == NULL || s->ech == NULL || pkt == NULL) {
+    if (s == NULL || s->ech == NULL || pkt == NULL || s->ssl.ctx == NULL) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         goto err;
     }
-    cfgs = s->ech->cfg;
-    if (cfgs == NULL || cfgs->nrecs == 0) {
-        /*
-         * Treating this as an error. Note there could be
-         * some corner case with SCVB that gets us here
-         * with cfgs == NULL but hopefully not
-         */
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-        goto err;
-    }
-
-    /*
-     * Search through the ECHConfigs for one that's a best
-     * match in terms of outer_name==public_name.
-     * If no public_name was set via API then we
-     * just take the 1st match where we locally support
-     * the HPKE suite.
-     * If OTOH, a public_name was provided via API then
-     * we prefer the first that matches that.
-     */
-    onlen = (s->ech->outer_name == NULL ? 0 : strlen(s->ech->outer_name));
-    for (cind = 0; cind != cfgs->nrecs; cind++) {
-        ECHConfig *ltc = &cfgs->recs[cind];
-        unsigned int csuite = 0;
-
-        if (s->ech->outer_name != NULL
-            && (ltc->public_name_len != onlen
-                || strncmp(s->ech->outer_name, (char *)ltc->public_name,
-                           onlen))) {
-            prefind = cind;
-        }
-        hpke_suite.kem_id = ltc->kem_id;
-        for (csuite = 0; csuite != ltc->nsuites; csuite++) {
-            unsigned char *es = (unsigned char *)&ltc->ciphersuites[csuite];
-
-            hpke_suite.kdf_id = es[0] * 256 + es[1];
-            hpke_suite.aead_id = es[2] * 256 + es[3];
-            if (OSSL_HPKE_suite_check(hpke_suite) == 1) {
-                /* success if both "fit" */
-                if (prefind != -1) {
-                    tc = ltc;
-                    break;
-                }
-                if (firstmatch == NULL) {
-                    firstmatch = ltc;
-                }
-            }
-        }
-    }
-    if (tc == NULL && firstmatch == NULL) {
-        OSSL_TRACE_BEGIN(TLS) {
-            BIO_printf(trc_out, "EAAE: No matching ECHConfig sadly\n");
-        } OSSL_TRACE_END(TLS);
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-        goto err;
-    }
-    if (tc == NULL && firstmatch != NULL) {
-        tc = firstmatch;
-    }
-    /* tc is our selected config */
-    OSSL_TRACE_BEGIN(TLS) {
-        BIO_printf(trc_out, "EAAE: selected: version: %4x, config %2x\n",
-                   tc->version, tc->config_id);
-    } OSSL_TRACE_END(TLS);
-    if (tc->pub_len == 0) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-        goto err;
-    }
-    peerpub_len = tc->pub_len;
-    peerpub = tc->pub;
+    /* do this check separately for now as it may well change */
     if (s->ext.inner_s == NULL || s->ext.inner_s->ech == NULL) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         goto err;
     }
-# ifdef OSSL_ECH_SUPERVERBOSE
-    ech_pbuf("EAAE: peer pub", peerpub, peerpub_len);
-    ech_pbuf("EAAE: clear", s->ext.inner_s->ext.encoded_innerch,
-             s->ext.inner_s->ext.encoded_innerch_len);
-    ech_pbuf("EAAE: ECHConfig", tc->encoding_start, tc->encoding_length);
-# endif
-    if (s->ssl.ctx != NULL && (s->ssl.ctx->options & SSL_OP_ECH_IGNORE_CID)) {
-        RAND_bytes(&config_id_to_use, 1);
+    rv = ech_pick_matching_cfg(s, &tc, &hpke_suite);
+    if (rv != 1 || tc == NULL) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+    s->ext.ech_attempted_type = tc->version;
+    OSSL_TRACE_BEGIN(TLS) {
+        BIO_printf(trc_out, "EAAE: selected: version: %4x, config %2x\n",
+                   tc->version, tc->config_id);
+    } OSSL_TRACE_END(TLS);
+    /* if requested, use a random config_id */
+    if (s->ssl.ctx->options & SSL_OP_ECH_IGNORE_CID) {
+        if (RAND_bytes_ex(s->ssl.ctx->libctx, &config_id_to_use, 1,
+                          RAND_DRBG_STRENGTH) <= 0) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+            return 0;
+        }
 # ifdef OSSL_ECH_SUPERVERBOSE
         ech_pbuf("EAAE: random config_id", &config_id_to_use, 1);
 # endif
     } else {
         config_id_to_use = tc->config_id;
-# ifdef OSSL_ECH_SUPERVERBOSE
-        ech_pbuf("EAAE: config_id", &config_id_to_use, 1);
-# endif
     }
     s->ext.ech_attempted_cid = config_id_to_use;
-    s->ext.ech_attempted_type = tc->version;
-    if (tc->version != OSSL_ECH_DRAFT_13_VERSION) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-        goto err;
-    }
+# ifdef OSSL_ECH_SUPERVERBOSE
+    ech_pbuf("EAAE: peer pub", tc->pub, tc->pub_len);
+    ech_pbuf("EAAE: clear", s->ext.inner_s->ext.encoded_innerch,
+             s->ext.inner_s->ext.encoded_innerch_len);
+    ech_pbuf("EAAE: ECHConfig", tc->encoding_start, tc->encoding_length);
+# endif
 
     /*
      * For draft-13 the AAD is the full outer client hello but
-     * with the correct number of zeros for where the ciphertext
+     * with the correct number of zeros for where the ECH ciphertext
      * octets will later be placed.
      *
      * Add the ECH extension to the |pkt| but with zeros for
@@ -3752,6 +3752,8 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
      * Watch out for the the "4" offsets that remove the type
      * and 3-octet length from the encoded CH as per the spec.
      */
+
+    /* GOT HERE */
 
     /*
      * "recommended" inner SNI padding scheme as per spec
@@ -3766,7 +3768,7 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
     } OSSL_TRACE_END(TLS);
     if (mnl != 0) {
         /* do weirder padding if SNI present in inner */
-        if (s->ext.inner_s->ext.hostname != 0) {
+        if (s->ext.inner_s->ext.hostname != NULL) {
             size_t isnilen = strlen(s->ext.inner_s->ext.hostname) + 9;
 
             innersnipadding = mnl - isnilen;
@@ -3827,7 +3829,7 @@ int ech_aad_and_encrypt(SSL *ssl, WPACKET *pkt)
         ech_pbuf("EAAE info", info, info_len);
 # endif
         rv = OSSL_HPKE_encap(hctx, mypub, &mypub_len,
-                             peerpub, peerpub_len, info, info_len);
+                             tc->pub, tc->pub_len, info, info_len);
         if (rv != 1) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             goto err;
@@ -4687,10 +4689,10 @@ int SSL_ech_get_info(SSL *ssl, OSSL_ECH_INFO **out, int *nindices)
             if (ECHConfigs_print(tbio, s->ech[i].cfg) != 1)
                 goto err;
             ehlen = BIO_get_mem_data(tbio, &ignore);
-            inst->echconfig = OPENSSL_malloc(ehlen+1);
+            inst->echconfig = OPENSSL_malloc(ehlen + 1);
             if (inst->echconfig == NULL)
                 goto err;
-            if (BIO_read(tbio, inst->echconfig, ehlen+1) <= 0)
+            if (BIO_read(tbio, inst->echconfig, ehlen + 1) <= 0)
                 goto err;
             BIO_free(tbio);
             tbio = NULL;

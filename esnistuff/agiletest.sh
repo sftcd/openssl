@@ -223,7 +223,7 @@ fi
 
 if [[ "$skipbase" == "no" ]]
 then
-    tests="yes-yes no-yes yes-no no-no grease-yes grease-no"
+    tests="yes-yes no-yes yes-no no-no grease-yes grease-no ignore-trial ignore-yes"
     for atest in $tests
     do
     # pick just one key file to use for this
@@ -258,6 +258,16 @@ then
             echo "s_client/s_server base test with client-greased ECH" vs. no-ECH server
             server_params=" -w $vparm "
             client_params=" -g -s localhost -p 8443 -H example.com $vparm -f index.html"
+            ;;
+        "ignore-yes")
+            echo "s_client/s_server base test with client random ID ECH vs. ECH server"
+            server_params=" -w -k $scratchdir/$file $vparm "
+            client_params=" -I -P `$CODETOP/esnistuff/pem2rr.sh -p $file` -s localhost -p 8443 -H foo.example.com $vparm -f index.html"
+            ;;
+        "ignore-trial")
+            echo "s_client/s_server base test with client random ID ECH vs. ECH server with trial decrypt"
+            server_params=" -T -w -k $scratchdir/$file $vparm "
+            client_params=" -I -P `$CODETOP/esnistuff/pem2rr.sh -p $file` -s localhost -p 8443 -H foo.example.com $vparm -f index.html"
             ;;
     esac
     # start server
@@ -321,6 +331,8 @@ then
             "grease-no")
                 ;&
             "grease-yes")
+                ;&
+            "ignore-trial")
                 echo "Client failed for $atest - exiting"
                 exit 21
                 ;;
@@ -328,6 +340,8 @@ then
     else
         case $atest in
             "yes-no")
+                ;&
+            "ignore-yes")
                 echo "Client didn't fail for $atest - exiting"
                 exit 21
                 ;;
