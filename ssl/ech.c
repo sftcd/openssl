@@ -2280,80 +2280,6 @@ end:
 }
 
 /*
- * @brief pick an ECHConfig to use
- * @param s is the SSL connection
- * @param tc is the ECHConfig to use (if found)
- * @param suite is the HPKE suite to use (if found)
- *
- * Search through the ECHConfigs for one that's a best
- * match in terms of outer_name vs. public_name.
- * If no public_name was set via API then we
- * just take the 1st match where we locally support
- * the HPKE suite.
- * If OTOH, a public_name was provided via API then
- * we prefer the first that matches that. We only try
- * for case-insensitive exact matches.
- * If no outer was provided, any will do.
- */
-static int ech_pick_matching_cfg(SSL_CONNECTION *s, ECHConfig **tc,
-                                 OSSL_HPKE_SUITE *suite)
-{
-    unsigned int onlen = 0;
-    int namematch = 0;
-    int suitematch = 0;
-    int cind = 0;
-    unsigned int csuite = 0;
-    ECHConfig *ltc = NULL;
-    ECHConfigs *cfgs = NULL;
-
-    if (s == NULL || s->ech == NULL || tc == NULL || suite == NULL)
-        return 0;
-    cfgs = s->ech->cfg;
-    if (cfgs == NULL || cfgs->nrecs == 0) {
-        return 0;
-    }
-    onlen = (s->ech->outer_name == NULL ? 0 : strlen(s->ech->outer_name));
-    for (cind = 0;
-         cind != cfgs->nrecs && suitematch == 0 && namematch == 0;
-         cind++) {
-        ltc = &cfgs->recs[cind];
-        if (ltc->version != OSSL_ECH_DRAFT_13_VERSION)
-            continue;
-        namematch = 0;
-        if (onlen == 0
-            || (ltc->public_name_len == onlen
-                && !OPENSSL_strncasecmp(s->ech->outer_name,
-                                        (char *)ltc->public_name, onlen))) {
-            namematch = 1;
-        }
-        suite->kem_id = ltc->kem_id;
-        suitematch = 0;
-        for (csuite = 0;
-             csuite != ltc->nsuites && suitematch == 0;
-             csuite++) {
-            unsigned char *es = (unsigned char *)&ltc->ciphersuites[csuite];
-
-            suite->kdf_id = es[0] * 256 + es[1];
-            suite->aead_id = es[2] * 256 + es[3];
-            if (OSSL_HPKE_suite_check(*suite) == 1) {
-                suitematch = 1;
-                /* pick this one if both "fit" */
-                if (namematch == 1) {
-                    *tc = ltc;
-                    break;
-                }
-            }
-        }
-    }
-    if (namematch == 0 || suitematch == 0) {
-        return 0;
-    }
-    if (*tc == NULL || (*tc)->pub_len == 0 || (*tc)->pub == NULL)
-        return 0;
-    return 1;
-}
-
-/*
  * @brief figure out how much padding for cleartext (on client)
  * @param s is the SSL connection
  * @param tc is the chosen ECHConfig
@@ -3726,6 +3652,80 @@ int ech_send_grease(SSL_CONNECTION *s, WPACKET *pkt)
     OSSL_TRACE_BEGIN(TLS) {
         BIO_printf(trc_out, "ECH - sending DRAFT-13 GREASE\n");
     } OSSL_TRACE_END(TLS);
+    return 1;
+}
+
+/*
+ * @brief pick an ECHConfig to use
+ * @param s is the SSL connection
+ * @param tc is the ECHConfig to use (if found)
+ * @param suite is the HPKE suite to use (if found)
+ *
+ * Search through the ECHConfigs for one that's a best
+ * match in terms of outer_name vs. public_name.
+ * If no public_name was set via API then we
+ * just take the 1st match where we locally support
+ * the HPKE suite.
+ * If OTOH, a public_name was provided via API then
+ * we prefer the first that matches that. We only try
+ * for case-insensitive exact matches.
+ * If no outer was provided, any will do.
+ */
+int ech_pick_matching_cfg(SSL_CONNECTION *s, ECHConfig **tc,
+                          OSSL_HPKE_SUITE *suite)
+{
+    unsigned int onlen = 0;
+    int namematch = 0;
+    int suitematch = 0;
+    int cind = 0;
+    unsigned int csuite = 0;
+    ECHConfig *ltc = NULL;
+    ECHConfigs *cfgs = NULL;
+    unsigned char *es = NULL;
+
+    if (s == NULL || s->ech == NULL || tc == NULL || suite == NULL)
+        return 0;
+    cfgs = s->ech->cfg;
+    if (cfgs == NULL || cfgs->nrecs == 0) {
+        return 0;
+    }
+    onlen = (s->ech->outer_name == NULL ? 0 : strlen(s->ech->outer_name));
+    for (cind = 0;
+         cind != cfgs->nrecs && suitematch == 0 && namematch == 0;
+         cind++) {
+        ltc = &cfgs->recs[cind];
+        if (ltc->version != OSSL_ECH_DRAFT_13_VERSION)
+            continue;
+        namematch = 0;
+        if (onlen == 0
+            || (ltc->public_name_len == onlen
+                && !OPENSSL_strncasecmp(s->ech->outer_name,
+                                        (char *)ltc->public_name, onlen))) {
+            namematch = 1;
+        }
+        suite->kem_id = ltc->kem_id;
+        suitematch = 0;
+        for (csuite = 0;
+             csuite != ltc->nsuites && suitematch == 0;
+             csuite++) {
+            es = (unsigned char *)&ltc->ciphersuites[csuite];
+            suite->kdf_id = es[0] * 256 + es[1];
+            suite->aead_id = es[2] * 256 + es[3];
+            if (OSSL_HPKE_suite_check(*suite) == 1) {
+                suitematch = 1;
+                /* pick this one if both "fit" */
+                if (namematch == 1) {
+                    *tc = ltc;
+                    break;
+                }
+            }
+        }
+    }
+    if (namematch == 0 || suitematch == 0) {
+        return 0;
+    }
+    if (*tc == NULL || (*tc)->pub_len == 0 || (*tc)->pub == NULL)
+        return 0;
     return 1;
 }
 
