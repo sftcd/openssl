@@ -4389,6 +4389,88 @@ err:
     return 0;
 }
 
+/**
+ * @brief check which SNI to send when doing ECH
+ * @param s is the SSL context
+ * @return 1 for success
+ *
+ * An application can set inner and/or outer SNIs.
+ * Or it might only set one and we may have a
+ * public_name from an ECHConfig.
+ * Or an application may say to not send an outer
+ * or inner SNI at all.
+ *
+ * If the application states a preferece we'll
+ * abide by that, despite the public_name from
+ * an ECHConfig.
+ *
+ * This function fixes those up to ensure that
+ * the s->ext.hostname as desired for a client.
+ */
+int ech_server_name_fixup(SSL_CONNECTION *s)
+{
+    char *pn = NULL;
+    size_t pn_len = 0;
+    size_t in_len = 0;
+    size_t on_len = 0;
+    size_t ehn_len = 0;
+
+    if (s == NULL || s->ech == NULL)
+        return 0;
+
+    if (s->ech->cfg->recs != NULL) {
+        /* at this point we only handle one on the client */
+        if (s->ech->cfg->nrecs != 1)
+            return 0;
+        pn_len = s->ech->cfg->recs[0].public_name_len;
+        pn = (char *)s->ech->cfg->recs[0].public_name;
+    }
+    /* These are from the application, direct */
+    in_len = (s->ech->inner_name == NULL ? 0 :
+              OPENSSL_strnlen(s->ech->inner_name, TLSEXT_MAXLEN_host_name));
+    on_len = (s->ech->outer_name == NULL ? 0 :
+              OPENSSL_strnlen(s->ech->outer_name, TLSEXT_MAXLEN_host_name));
+    /* in cae there's a value set already (legacy app calls can do) */
+    ehn_len = (s->ext.hostname == NULL ? 0 :
+               OPENSSL_strnlen(s->ext.hostname, TLSEXT_MAXLEN_host_name));
+    if (s->ext.ch_depth == 1) { /* Inner CH */
+        if (in_len != 0) {
+            /* we prefer this over all */
+            if (ehn_len != 0) {
+                OPENSSL_free(s->ext.hostname);
+                s->ext.hostname = NULL;
+                ehn_len = 0;
+            }
+            s->ext.hostname = OPENSSL_strdup(s->ech->inner_name);
+        }
+        /* otherwise we leave the s->ext.hostname alone */
+    }
+    if (s->ext.ch_depth == 0) { /* Outer CH */
+        if (on_len != 0) {
+            if (ehn_len != 0) {
+                OPENSSL_free(s->ext.hostname);
+                s->ext.hostname = NULL;
+                ehn_len = 0;
+            }
+            s->ext.hostname = OPENSSL_strdup(s->ech->outer_name);
+        } else if (pn_len != 0) {
+            if (ehn_len != 0) {
+                OPENSSL_free(s->ext.hostname);
+                s->ext.hostname = NULL;
+                ehn_len = 0;
+            }
+            s->ext.hostname = OPENSSL_strndup(pn, pn_len);
+        } else { /* don't send possibly sensitive inner in outer! */
+            if (ehn_len != 0) {
+                OPENSSL_free(s->ext.hostname);
+                s->ext.hostname = NULL;
+                ehn_len = 0;
+            }
+        }
+    }
+    return 1;
+}
+
 /* SECTION: Public APIs */
 
 /* Documentation in doc/man3/SSL_ech_set1_echconfig.pod */
