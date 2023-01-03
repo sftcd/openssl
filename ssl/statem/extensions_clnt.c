@@ -30,7 +30,7 @@
  * keep the ansi-c compile happy) but also after any
  * checks that result in the extension not being sent.
  */
-#define IOSAME if (s->ech && !s->ext.ech_grease) { \
+#define IOSAME if (s->ech != NULL && s->ext.ech_grease == 0) { \
                    int __rv = ech_same_ext(s, pkt); \
                    \
                    if (__rv == OSSL_ECH_SAME_EXT_ERR) \
@@ -65,97 +65,6 @@ EXT_RETURN tls_construct_ctos_renegotiate(SSL_CONNECTION *s, WPACKET *pkt,
     return EXT_RETURN_SENT;
 }
 
-#ifndef OPENSSL_NO_ECH
-/**
- * @brief check which SNI to send when doing ECH
- * @param s is the SSL context
- * @return 1 for success
- *
- * An application can set inner and/or outer SNIs.
- * Or it might only set one and we may have a
- * public_name from an ECHConfig.
- * Or an application may say to not send an outer
- * or inner SNI at all.
- *
- * If the application states a preferece we'll
- * abide by that, despite the public_name from
- * an ECHConfig.
- *
- * This function fixes those up to ensure that
- * the s->ext.hostname as desired.
- *
- * @param ssl is the SSL context
- * @return 1 for success
- */
-static int ech_server_name_fixup(SSL *ssl)
-{
-    SSL_CONNECTION *s = SSL_CONNECTION_FROM_SSL(ssl);
-
-    if (s != NULL && s->ech != NULL) {
-        char *pn=NULL;
-        size_t pn_len=0;
-        size_t in_len=0;
-        size_t on_len=0;
-        size_t ehn_len=0;
-        /* This from the ECHConfig */
-        if (s->ech->cfg->recs!=NULL) {
-            if (s->ech->cfg->nrecs!=1) {
-                /* for now we only know how to handle one on the client */
-                return(0);
-            }
-            pn_len=s->ech->cfg->recs[0].public_name_len;
-            pn=(char*)s->ech->cfg->recs[0].public_name;
-        }
-        /* These are from the application, direct */
-        in_len=(s->ech->inner_name==NULL?0:
-                OPENSSL_strnlen(s->ech->inner_name,TLSEXT_MAXLEN_host_name));
-        on_len=(s->ech->outer_name==NULL?0:
-                OPENSSL_strnlen(s->ech->outer_name,TLSEXT_MAXLEN_host_name));
-        /* in cae there's a value set already (legacy app calls can do) */
-        ehn_len=(s->ext.hostname==NULL?0:
-                OPENSSL_strnlen(s->ext.hostname,TLSEXT_MAXLEN_host_name));
-
-        if (s->ext.ch_depth==1) { /* Inner CH */
-            if (in_len!=0) {
-                /* we prefer this over all */
-                if (ehn_len!=0) {
-                    OPENSSL_free(s->ext.hostname);
-                    s->ext.hostname=NULL;
-                    ehn_len=0;
-                }
-                s->ext.hostname=OPENSSL_strdup(s->ech->inner_name);
-            }
-            /* otherwise we leave the s->ext.hostname alone */
-        }
-
-        if (s->ext.ch_depth==0) { /* Outer CH */
-            if (on_len!=0) {
-                if (ehn_len!=0) {
-                    OPENSSL_free(s->ext.hostname);
-                    s->ext.hostname=NULL;
-                    ehn_len=0;
-                }
-                s->ext.hostname=OPENSSL_strdup(s->ech->outer_name);
-            } else if (pn_len!=0) {
-                if (ehn_len!=0) {
-                    OPENSSL_free(s->ext.hostname);
-                    s->ext.hostname=NULL;
-                    ehn_len=0;
-                }
-                s->ext.hostname=OPENSSL_strndup(pn,pn_len);
-            } else { /* don't send possibly sensitive inner in outer! */
-                if (ehn_len!=0) {
-                    OPENSSL_free(s->ext.hostname);
-                    s->ext.hostname=NULL;
-                    ehn_len=0;
-                }
-            }
-        }
-    }
-    return 1;
-}
-#endif /* END OPENSSL_NO_ECH */
-
 EXT_RETURN tls_construct_ctos_server_name(SSL_CONNECTION *s, WPACKET *pkt,
                                           unsigned int context, X509 *x,
                                           size_t chainidx)
@@ -163,12 +72,12 @@ EXT_RETURN tls_construct_ctos_server_name(SSL_CONNECTION *s, WPACKET *pkt,
 
 #ifndef OPENSSL_NO_ECH
     if (s->ech != NULL) {
-        int echrv=0;
+        int echrv = 0;
         /* Don't send outer SNI if external API says that */
-        if (s->ext.ch_depth==0 && s->ech->no_outer == 1)
+        if (s->ext.ch_depth ==0 && s->ech->no_outer == 1)
             return EXT_RETURN_NOT_SENT;
-        echrv=ech_server_name_fixup(&s->ssl);
-        if (echrv!=1) {
+        echrv = ech_server_name_fixup(s);
+        if (echrv != 1) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             return EXT_RETURN_FAIL;
         }
@@ -590,29 +499,27 @@ EXT_RETURN tls_construct_ctos_alpn(SSL_CONNECTION *s, WPACKET *pkt,
      */
     if (!SSL_IS_FIRST_HANDSHAKE(s))
         return EXT_RETURN_NOT_SENT;
-    aval=s->ext.alpn;
-    alen=s->ext.alpn_len;
-    if (s->ext.ch_depth==1 && s->ext.alpn==NULL)  /* inner */
+    aval = s->ext.alpn;
+    alen = s->ext.alpn_len;
+    if (s->ext.ch_depth == 1 && s->ext.alpn == NULL)  /* inner */
         return EXT_RETURN_NOT_SENT;
-    if (s->ext.ch_depth==0 && !(s->ext.alpn || s->ext.alpn_outer)) /* outer */
+    if (s->ext.ch_depth == 0
+        && !(s->ext.alpn != NULL || s->ext.alpn_outer != NULL)) /* outer */
         return EXT_RETURN_NOT_SENT;
-    if (s->ext.ch_depth==0 && s->ext.alpn_outer!=NULL) {
-        aval=s->ext.alpn_outer;
-        alen=s->ext.alpn_outer_len;
+    if (s->ext.ch_depth == 0 && s->ext.alpn_outer != NULL) {
+        aval = s->ext.alpn_outer;
+        alen = s->ext.alpn_outer_len;
     }
-
     if (!WPACKET_put_bytes_u16(pkt,
-                TLSEXT_TYPE_application_layer_protocol_negotiation)
+           TLSEXT_TYPE_application_layer_protocol_negotiation)
                /* Sub-packet ALPN extension */
-            || !WPACKET_start_sub_packet_u16(pkt)
-            || !WPACKET_sub_memcpy_u16(pkt, aval, alen)
-            || !WPACKET_close(pkt)) {
+           || !WPACKET_start_sub_packet_u16(pkt)
+           || !WPACKET_sub_memcpy_u16(pkt, aval, alen)
+           || !WPACKET_close(pkt)) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return EXT_RETURN_FAIL;
     }
-
 #else
-
     if (s->ext.alpn == NULL || !SSL_IS_FIRST_HANDSHAKE(s))
         return EXT_RETURN_NOT_SENT;
 
@@ -825,7 +732,7 @@ static int add_key_share(SSL_CONNECTION *s, WPACKET *pkt, unsigned int curve_id)
 
     if (
 #ifndef OPENSSL_NO_ECH
-        s->ech==NULL && /* with ECH a non-NULL, non-HRR tmp.pkey can be ok */
+        s->ech == NULL && /* with ECH a non-NULL, non-HRR tmp.pkey can be ok */
 #endif
         s->s3.tmp.pkey != NULL) {
         if (!ossl_assert(s->hello_retry_request == SSL_HRR_PENDING)) {
@@ -997,45 +904,20 @@ EXT_RETURN tls_construct_ctos_early_data(SSL_CONNECTION *s, WPACKET *pkt,
      *   ClientHelloOuter to safely ignore any early data sent by the
      *   client per [RFC8446], Section 4.2.10
      */
-    if (s->ext.ch_depth==0 &&
-            s->ext.inner_s!=NULL &&
-            s->ext.inner_s->ext.early_data==SSL_EARLY_DATA_REJECTED &&
-            s->ext.inner_s->ext.early_data_ok==1
+    if (s->ext.ch_depth == 0
+        && s->ext.inner_s != NULL
+        && s->ext.inner_s->ext.early_data == SSL_EARLY_DATA_REJECTED
+        && s->ext.inner_s->ext.early_data_ok == 1
        ) {
         s->ext.early_data = SSL_EARLY_DATA_REJECTED;
         s->ext.early_data_ok = 1;
         s->psksession = s->ext.inner_s->psksession;
         s->psksession_id = s->ext.inner_s->psksession_id;
-        s->max_early_data=s->ext.inner_s->max_early_data;
-        s->early_data_state=s->ext.inner_s->early_data_state;
+        s->max_early_data = s->ext.inner_s->max_early_data;
+        s->early_data_state = s->ext.inner_s->early_data_state;
     }
     IOSAME
 #endif
-
-#ifndef OPENSSL_NO_ECH
-    /*
-     * Spec text:
-     *   When the client offers the "early_data" extension in
-     *   ClientHelloInner, it MUST also include the "early_data" extension
-     *   in ClientHelloOuter.  This allows servers that reject ECH and use
-     *   ClientHelloOuter to safely ignore any early data sent by the
-     *   client per [RFC8446], Section 4.2.10
-     */
-    if (s->ext.ch_depth==0 &&
-            s->ext.inner_s!=NULL &&
-            s->ext.inner_s->ext.early_data==SSL_EARLY_DATA_REJECTED &&
-            s->ext.inner_s->ext.early_data_ok==1
-       ) {
-        s->ext.early_data = SSL_EARLY_DATA_REJECTED;
-        s->ext.early_data_ok = 1;
-        s->psksession = s->ext.inner_s->psksession;
-        s->psksession_id = s->ext.inner_s->psksession_id;
-        s->max_early_data=s->ext.inner_s->max_early_data;
-        s->early_data_state=s->ext.inner_s->early_data_state;
-    }
-    IOSAME
-#endif
-
     if (s->hello_retry_request == SSL_HRR_PENDING)
         handmd = ssl_handshake_md(s);
 
@@ -1201,15 +1083,15 @@ EXT_RETURN tls_construct_ctos_padding(SSL_CONNECTION *s, WPACKET *pkt,
     size_t hlen;
 
 #ifndef OPENSSL_NO_ECH
-    if (s->ext.ch_depth==1 &&
-        s->ext.ech_attempted_type== OSSL_ECH_DRAFT_13_VERSION &&
-        (s->options & SSL_OP_TLSEXT_PADDING) == 0) {
+    if (s->ext.ch_depth == 1
+        && s->ext.ech_attempted_type == OSSL_ECH_DRAFT_13_VERSION
+        && (s->options & SSL_OP_TLSEXT_PADDING) == 0) {
         /* draft-13 pads outside the encoded inner */
         return EXT_RETURN_NOT_SENT;
     }
-    if (!(s->ext.ech_grease== OSSL_ECH_IS_GREASE) &&
-        !(s->ech && s->ext.ch_depth==1) &&
-        (s->options & SSL_OP_TLSEXT_PADDING) == 0)
+    if (s->ext.ech_grease != OSSL_ECH_IS_GREASE
+        && !(s->ech != NULL && s->ext.ch_depth == 1)
+        && (s->options & SSL_OP_TLSEXT_PADDING) == 0)
         return EXT_RETURN_NOT_SENT;
 #else
     if ((s->options & SSL_OP_TLSEXT_PADDING) == 0)
@@ -1425,46 +1307,45 @@ EXT_RETURN tls_construct_ctos_psk(SSL_CONNECTION *s, WPACKET *pkt,
      * with a random value of the same length.
      */
     {
-        unsigned char *ltick=s->session->ext.tick;
-        unsigned char *rndbuf=NULL;
+        unsigned char *ltick = s->session->ext.tick;
+        unsigned char *rndbuf = NULL;
 
-        if (s->ech && s->ext.ch_depth==0) { /* outer CH */
+        if (s->ech != NULL && s->ext.ch_depth == 0) { /* outer CH */
             /* allocate a similar sized random value */
-            rndbuf=OPENSSL_malloc(s->session->ext.ticklen);
-            if (!rndbuf) return EXT_RETURN_FAIL;
+            rndbuf = OPENSSL_malloc(s->session->ext.ticklen);
+            if (rndbuf == NULL)
+                return EXT_RETURN_FAIL;
             if (RAND_bytes_ex(s->ssl.ctx->libctx, rndbuf,
-                        s->session->ext.ticklen, RAND_DRBG_STRENGTH) <= 0) {
+                              s->session->ext.ticklen,
+                              RAND_DRBG_STRENGTH) <= 0) {
                 OPENSSL_free(rndbuf);
                 return EXT_RETURN_FAIL;
             }
-            ltick=rndbuf;
+            ltick = rndbuf;
         }
-
-        if (dores) {
+        if (dores != 0) {
             if (!WPACKET_sub_memcpy_u16(pkt, ltick,
-                                            s->session->ext.ticklen)
-                    || !WPACKET_put_bytes_u32(pkt, agems)) {
+                                        s->session->ext.ticklen)
+                || !WPACKET_put_bytes_u32(pkt, agems)) {
                 SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-                if (rndbuf!=NULL) OPENSSL_free(rndbuf);
+                OPENSSL_free(rndbuf);
                 return EXT_RETURN_FAIL;
             }
         }
-
         if (s->psksession != NULL) {
             if (!WPACKET_sub_memcpy_u16(pkt, s->psksession_id,
                                         s->psksession_id_len)
-                    || !WPACKET_put_bytes_u32(pkt, 0)) {
+                || !WPACKET_put_bytes_u32(pkt, 0)) {
                 SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-                if (rndbuf!=NULL) OPENSSL_free(rndbuf);
+                OPENSSL_free(rndbuf);
                 return EXT_RETURN_FAIL;
             }
             s->ext.tick_identity++;
         }
-
         if (!WPACKET_close(pkt)
                 || !WPACKET_get_total_written(pkt, &binderoffset)
                 || !WPACKET_start_sub_packet_u16(pkt)
-                || (dores
+                || (dores == 1
                     && !WPACKET_sub_allocate_bytes_u8(pkt, reshashsize, 
                         &resbinder))
                 || (s->psksession != NULL
@@ -1479,11 +1360,10 @@ EXT_RETURN tls_construct_ctos_psk(SSL_CONNECTION *s, WPACKET *pkt,
                  */
                 || !WPACKET_fill_lengths(pkt)) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-            if (rndbuf!=NULL) OPENSSL_free(rndbuf);
+            OPENSSL_free(rndbuf);
             return EXT_RETURN_FAIL;
         }
-
-        if (rndbuf!=NULL) OPENSSL_free(rndbuf);
+        OPENSSL_free(rndbuf);
     }
 #else
 
@@ -2173,19 +2053,19 @@ int tls_parse_stoc_key_share(SSL_CONNECTION *s, PACKET *pkt,
          * if we tried ECH and got HRR then we need to fix/check
          * group in inner and outer as well 
          */
-        if (s->ech && s->ext.outer_s!=NULL) {
+        if (s->ech != NULL && s->ext.outer_s != NULL) {
             if (group_id == s->ext.outer_s->s3.group_id) {
                 SSLfatal(s, SSL_AD_ILLEGAL_PARAMETER, SSL_R_BAD_KEY_SHARE);
                 return 0;
             }
-            s->ext.outer_s->s3.group_id=group_id;
+            s->ext.outer_s->s3.group_id = group_id;
         }
-        if (s->ech && s->ext.inner_s!=NULL) {
+        if (s->ech != NULL && s->ext.inner_s != NULL) {
             if (group_id == s->ext.inner_s->s3.group_id) {
                 SSLfatal(s, SSL_AD_ILLEGAL_PARAMETER, SSL_R_BAD_KEY_SHARE);
                 return 0;
             }
-            s->ext.inner_s->s3.group_id=group_id;
+            s->ext.inner_s->s3.group_id = group_id;
         }
 #endif
 
@@ -2523,7 +2403,6 @@ int tls_parse_stoc_server_cert_type(SSL_CONNECTION *sc, PACKET *pkt,
 }
 
 #ifndef OPENSSL_NO_ECH
-
 /**
  * @brief Create the draft-13 ECH extension for the ClientHello
  */
@@ -2541,7 +2420,7 @@ EXT_RETURN tls_construct_ctos_ech13(SSL_CONNECTION *s, WPACKET *pkt,
                 && s->ext.ech_sent != NULL) {
                 /* re-tx already sent GREASEy ECH*/
                 if (WPACKET_memcpy(pkt, s->ext.ech_sent,
-                                   s->ext.ech_sent_len)!=1) {
+                                   s->ext.ech_sent_len) != 1) {
                     SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
                     return EXT_RETURN_FAIL;
                 }
@@ -2582,20 +2461,19 @@ EXT_RETURN tls_construct_ctos_ech13(SSL_CONNECTION *s, WPACKET *pkt,
  * really process that here.
  */
 int tls_parse_stoc_ech(SSL_CONNECTION *s, PACKET *pkt, unsigned int context,
-                               X509 *x, size_t chainidx)
+                       X509 *x, size_t chainidx)
 {
-    unsigned int rlen=0;
-    const unsigned char *rval=NULL;
-    unsigned char *srval=NULL;
+    unsigned int rlen = 0;
+    const unsigned char *rval = NULL;
+    unsigned char *srval = NULL;
 
-    if (context==SSL_EXT_TLS1_3_HELLO_RETRY_REQUEST) {
-        /* 
-         * The HRR will have an ECH extension with the
-         * 8-octet confirmation value but it's processed
-         * elsewhere, so just return ok.
-         */
+    /* 
+     * The HRR will have an ECH extension with the
+     * 8-octet confirmation value but it's processed
+     * elsewhere, so just return ok in that case.
+     */
+    if (context == SSL_EXT_TLS1_3_HELLO_RETRY_REQUEST)
         return 1;
-    }
     if (!PACKET_get_net_2(pkt, &rlen)) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_LENGTH_MISMATCH);
         return 0;
@@ -2604,16 +2482,14 @@ int tls_parse_stoc_ech(SSL_CONNECTION *s, PACKET *pkt, unsigned int context,
         SSLfatal(s, SSL_AD_ILLEGAL_PARAMETER, SSL_R_LENGTH_MISMATCH);
         return 0;
     }
-    if (s->ext.ech_returned) OPENSSL_free(s->ext.ech_returned);
-    s->ext.ech_returned=NULL;
-    srval=OPENSSL_malloc(rlen);
-    if (!srval) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+    OPENSSL_free(s->ext.ech_returned);
+    s->ext.ech_returned = NULL;
+    srval = OPENSSL_malloc(rlen);
+    if (srval == NULL)
         return 0;
-    }
     memcpy(srval,rval,rlen);
-    s->ext.ech_returned=srval;
-    s->ext.ech_returned_len=rlen;
+    s->ext.ech_returned = srval;
+    s->ext.ech_returned_len = rlen;
     return 1;
 }
 

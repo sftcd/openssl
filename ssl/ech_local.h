@@ -363,6 +363,26 @@ int ech_get_ch_offsets(SSL_CONNECTION *s, PACKET *pkt, size_t *sessid,
  */
 int SSL_ech_print(BIO *out, SSL *s, int selector);
 
+/**
+ * @brief check which SNI to send when doing ECH
+ * @param s is the SSL context
+ * @return 1 for success
+ *
+ * An application can set inner and/or outer SNIs.
+ * Or it might only set one and we may have a
+ * public_name from an ECHConfig.
+ * Or an application may say to not send an outer
+ * or inner SNI at all.
+ *
+ * If the application states a preferece we'll
+ * abide by that, despite the public_name from
+ * an ECHConfig.
+ *
+ * This function fixes those up to ensure that
+ * the s->ext.hostname as desired for a client.
+ */
+int ech_server_name_fixup(SSL_CONNECTION *s);
+
 #  ifdef OSSL_ECH_SUPERVERBOSE
 /*
  * @brief Used in tracing

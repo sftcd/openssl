@@ -684,8 +684,8 @@ int tls_parse_ctos_key_share(SSL_CONNECTION *s, PACKET *pkt,
          * we requested, and must be the only key_share sent.
          */
         if (s->s3.group_id != 0
-                && (group_id != s->s3.group_id
-                    || PACKET_remaining(&key_share_list) != 0)) {
+            && (group_id != s->s3.group_id
+                || PACKET_remaining(&key_share_list) != 0)) {
             SSLfatal(s, SSL_AD_ILLEGAL_PARAMETER, SSL_R_BAD_KEY_SHARE);
             return 0;
         }
