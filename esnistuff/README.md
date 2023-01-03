@@ -26,7 +26,8 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
-- 20230103: tidied up ``ssl/statem/extensions_clnt.c`` some
+- 20230103: tidied up ``ssl/statem/extensions_clnt.c`` and 
+  ``ssl/statem/statem_clnt.c`` a good bit
 
 - 20230101: fixed up ``ech_send_grease()`` some, and related code
   in ``ssl/statem/extensions_clnt.c``
