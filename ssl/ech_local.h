@@ -383,6 +383,25 @@ int SSL_ech_print(BIO *out, SSL *s, int selector);
  */
 int ech_server_name_fixup(SSL_CONNECTION *s);
 
+/*
+ * @brief pick an ECHConfig to use
+ * @param s is the SSL connection
+ * @param tc is the ECHConfig to use (if found)
+ * @param suite is the HPKE suite to use (if found)
+ *
+ * Search through the ECHConfigs for one that's a best
+ * match in terms of outer_name vs. public_name.
+ * If no public_name was set via API then we
+ * just take the 1st match where we locally support
+ * the HPKE suite.
+ * If OTOH, a public_name was provided via API then
+ * we prefer the first that matches that. We only try
+ * for case-insensitive exact matches.
+ * If no outer was provided, any will do.
+ */
+int ech_pick_matching_cfg(SSL_CONNECTION *s, ECHConfig **tc,
+                          OSSL_HPKE_SUITE *suite);
+
 #  ifdef OSSL_ECH_SUPERVERBOSE
 /*
  * @brief Used in tracing
