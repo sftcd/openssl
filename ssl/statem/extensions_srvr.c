@@ -2150,9 +2150,9 @@ int tls_parse_ctos_server_cert_type(SSL_CONNECTION *sc, PACKET *pkt,
 }
 
 #ifndef OPENSSL_NO_ECH
-/**
+/*
  * @brief ECH handling for edge cases (GREASE) and errors.
- * @param s is the SSL session
+ * @param s is the SSL connection
  * @param pkt is the packet
  * @param context is unused
  * @param x is unused
@@ -2163,10 +2163,14 @@ int tls_parse_ctos_server_cert_type(SSL_CONNECTION *sc, PACKET *pkt,
  * ech_early_decrypt(), but if that failed (e.g. decryption 
  * failed) then we end up here, processing the ECH from the 
  * outer CH.
+ * Otherwise, we only expect to see an inner ECH with a fixed
+ * value.
  */
 int tls_parse_ctos_ech(SSL_CONNECTION *s, PACKET *pkt, unsigned int context,
                        X509 *x, size_t chainidx)
 {
+    unsigned int echtype = 0;
+
     if (s->ext.ech_grease == OSSL_ECH_IS_GREASE) {
         /* GREASE is fine, and catches expected error cases */
         return 1;
@@ -2176,42 +2180,35 @@ int tls_parse_ctos_ech(SSL_CONNECTION *s, PACKET *pkt, unsigned int context,
         return 1;
     }
     if (s->ext.ech_attempted_type != OSSL_ECH_DRAFT_13_VERSION) {
-        OSSL_TRACE_BEGIN(TLS) {
-            BIO_printf(trc_out,"ECH shouldn't be seen here.\n");
-        } OSSL_TRACE_END(TLS);
+        /* the server really only knows draft-13, so this is an error */
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         return 0;
     }
-    if (s->ext.ech_attempted_type == OSSL_ECH_DRAFT_13_VERSION) {
-        /* 
-         * we only allow "inner" which is one octet, valued 0x01 
-         * and only if we decrypted ok or are a backend
-         */
-        unsigned int echtype = 0;
-
-        OSSL_TRACE_BEGIN(TLS) {
-            BIO_printf(trc_out,"draft-13 ECH seen in inner as exptected.\n");
-        } OSSL_TRACE_END(TLS);
-        if (PACKET_get_1(pkt, &echtype) != 1) {
-            SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
-            return 0;
-        }
-        if (echtype != 1) {
-            SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
-            return 0;
-        }
-        if (PACKET_remaining(pkt) != 0) {
-            SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
-            return 0;
-        }
-        if (!(s->ext.ech_success == 1 || s->ext.ech_backend == 1)) {
-            SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
-            return 0;
-        }
-        /* yay - we're ok with this */
-        return 1;
+    /* 
+     * we only allow "inner" which is one octet, valued 0x01 
+     * and only if we decrypted ok or are a backend
+     */
+    OSSL_TRACE_BEGIN(TLS) {
+        BIO_printf(trc_out,"draft-13 ECH seen in inner as exptected.\n");
+    } OSSL_TRACE_END(TLS);
+    if (PACKET_get_1(pkt, &echtype) != 1) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+        return 0;
     }
-    return 0;
+    if (echtype != 1) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+        return 0;
+    }
+    if (PACKET_remaining(pkt) != 0) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+        return 0;
+    }
+    if (!(s->ext.ech_success == 1 || s->ext.ech_backend == 1)) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+        return 0;
+    }
+    /* yay - we're ok with this */
+    return 1;
 }
 
 /**
@@ -2239,9 +2236,9 @@ EXT_RETURN tls_construct_stoc_ech13(SSL_CONNECTION *s, WPACKET *pkt,
      * is called when constructing the server hello
      */
     if (context == SSL_EXT_TLS1_3_HELLO_RETRY_REQUEST
-        && (s->ext.ech_success == 1 || s->ext.ech_backend)
+        && (s->ext.ech_success == 1 || s->ext.ech_backend == 1)
         && s->ext.ech_attempted_type == TLSEXT_TYPE_ech13) {
-        unsigned char eightzeros[8]={0,0,0,0,0,0,0,0};
+        unsigned char eightzeros[8] = {0, 0, 0, 0, 0, 0, 0, 0};
 
         if (!WPACKET_put_bytes_u16(pkt, s->ext.ech_attempted_type)
             || !WPACKET_sub_memcpy_u16(pkt, eightzeros, 8)) {
@@ -2249,25 +2246,25 @@ EXT_RETURN tls_construct_stoc_ech13(SSL_CONNECTION *s, WPACKET *pkt,
             return 0;
         }
         OSSL_TRACE_BEGIN(TLS) {
-            BIO_printf(trc_out,"sending ECHConfig (draft-13) in HRR\n");
+            BIO_printf(trc_out,"set 8 zeros for ECH acccpt confirm in HRR\n");
         } OSSL_TRACE_END(TLS);
         return EXT_RETURN_SENT;
     }
-    /* for other versions don't send */
+    /* in other HRR circumstances: don't set */
     if (context == SSL_EXT_TLS1_3_HELLO_RETRY_REQUEST) {
         return EXT_RETURN_NOT_SENT;
     }
-
     /* If in some weird state we ignore and send nothing */
     if (s->ext.ech_grease != OSSL_ECH_IS_GREASE ||
         s->ext.ech_attempted_type != TLSEXT_TYPE_ech13) {
         return EXT_RETURN_NOT_SENT;
     }
-    
     /*
-     * If the client GREASEd, or we think it did, we
-     * return the most-recently loaded ECHConfigList, as the value
-     * of the extension.
+     * If the client GREASEd, or we think it did, * return the 
+     * most-recently loaded ECHConfigList, as the value of the 
+     * extension. (Where most-recently mean the first we come
+     * across, which can depend on changing or non-changing 
+     * file names as well as load times.
      */
     if (s->ech == NULL || s->nechs == 0) {
         OSSL_TRACE_BEGIN(TLS) {
@@ -2303,8 +2300,8 @@ EXT_RETURN tls_construct_stoc_ech13(SSL_CONNECTION *s, WPACKET *pkt,
             return 0;
         }
         OSSL_TRACE_BEGIN(TLS) {
-            BIO_printf(trc_out, "sending 1st loaded ECHConfig (draft-13) back "
-                       "to client\n");
+            BIO_printf(trc_out, "sending ECHConfig back loaded at %zu"
+                       "from %s", echloadtime, mostrecent->pemfname);
         } OSSL_TRACE_END(TLS);
         return EXT_RETURN_SENT;
     }
@@ -2329,8 +2326,7 @@ int tls_parse_ctos_ech_is_inner(SSL_CONNECTION *s, PACKET *pkt,
     /*
      * If there wasn't an earlier ECH decrypt attempt, then we
      * must be a backend. Even if a client sends a bogus is_inner,
-     * I don't think that causes a problem (other than for that
-     * client), and this changes in draft-12 anyway.
+     * that doesn't cause a problem (other than for that client).
      */
     if (s->ext.ech_attempted != 1) {
         s->ext.ech_backend = 1;

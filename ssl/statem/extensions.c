@@ -715,7 +715,7 @@ int tls_collect_extensions(SSL_CONNECTION *s, PACKET *packet,
                  * SSL_EXT_FLAG_SENT (except when GREASEing) so we
                  * make a special check to see if we attempted ECH
                  */
-                && (type==TLSEXT_TYPE_ech13 && !s->ext.ech_attempted)
+                && (type == TLSEXT_TYPE_ech13 && s->ext.ech_attempted == 0)
 #endif
                                                                 ) {
             SSLfatal(s, SSL_AD_UNSUPPORTED_EXTENSION,
@@ -940,10 +940,12 @@ int tls_construct_extensions(SSL_CONNECTION *s, WPACKET *pkt,
                                 unsigned int context,
                                 X509 *x, size_t chainidx);
         EXT_RETURN ret;
+
         /* skip if not to be ECH-compressed */
-        if (ech_2bcompressed(i)==0)
+        if (ech_2bcompressed(i) == 0)
             continue;
-        if (ech_2bcompressed(i)!=1) {
+        /* check against sloppy coding */
+        if (ech_2bcompressed(i) != 1) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             return 0;
         }
@@ -954,7 +956,9 @@ int tls_construct_extensions(SSL_CONNECTION *s, WPACKET *pkt,
                               : thisexd->construct_ctos;
         if (construct == NULL)
             continue;
-        if (s->ech) s->ext.etype=thisexd->type;
+        /* stash type to help ECH compression */
+        if (s->ech != NULL)
+            s->ext.etype = thisexd->type;
         ret = construct(s, pkt, context, x, chainidx);
         if (ret == EXT_RETURN_FAIL) {
             /* SSLfatal() already called */
@@ -974,9 +978,10 @@ int tls_construct_extensions(SSL_CONNECTION *s, WPACKET *pkt,
         EXT_RETURN ret;
 #ifndef OPENSSL_NO_ECH
         /* skip if is to be ECH-compressed */
-        if (ech_2bcompressed(i)==1)
+        if (ech_2bcompressed(i) == 1)
             continue;
-        if (ech_2bcompressed(i)!=0) {
+        /* check against sloppy coding */
+        if (ech_2bcompressed(i) != 0) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             return 0;
         }
@@ -989,7 +994,9 @@ int tls_construct_extensions(SSL_CONNECTION *s, WPACKET *pkt,
         if (construct == NULL)
             continue;
 #ifndef OPENSSL_NO_ECH
-        if (s->ech) s->ext.etype=thisexd->type;
+        /* stash type to help ECH compression */
+        if (s->ech != NULL)
+            s->ext.etype = thisexd->type;
 #endif
         ret = construct(s, pkt, context, x, chainidx);
         if (ret == EXT_RETURN_FAIL) {
@@ -1082,14 +1089,16 @@ static int init_server_name(SSL_CONNECTION *s, unsigned int context)
  */
 int ech_map_ext_type_to_ind(unsigned int type)
 {
-    const EXTENSION_DEFINITION *e=ext_defs;
-    unsigned int ed_size=sizeof(ext_defs)/sizeof(EXTENSION_DEFINITION);
+    const EXTENSION_DEFINITION *e = ext_defs;
+    unsigned int ed_size = sizeof(ext_defs)/sizeof(EXTENSION_DEFINITION);
     unsigned int i;
-    for (i=0;i!=ed_size;i++) {
-        if (e->type==type) return(i);
+
+    for (i = 0; i != ed_size; i++) {
+        if (e->type==type)
+            return i;
         e++;
     }
-    return(-1);
+    return -1;
 }
 
 /**
@@ -1100,7 +1109,7 @@ int ech_map_ext_type_to_ind(unsigned int type)
  */
 static int init_ech(SSL_CONNECTION *s, unsigned int context)
 {
-    if (context==SSL_EXT_CLIENT_HELLO) {
+    if (context == SSL_EXT_CLIENT_HELLO) {
         s->ext.ech_done = 0;
     }
     return 1;
@@ -1115,19 +1124,19 @@ static int init_ech(SSL_CONNECTION *s, unsigned int context)
  */
 static int final_ech(SSL_CONNECTION *s, unsigned int context, int sent)
 {
-    if (!s->server && s->ech && s->ext.inner_s==NULL && s->ext.outer_s!=NULL) {
-        if (s->ext.ech_grease== OSSL_ECH_IS_GREASE) {
+    if (!s->server && s->ech != NULL && s->ext.inner_s == NULL
+        && s->ext.outer_s != NULL) {
+        if (s->ext.ech_grease == OSSL_ECH_IS_GREASE) {
             /* If we greased, then it's ok that ech_success didn't get set */
             return 1;
-        } else if (s->ext.ech_success!=1) {
+        } else if (s->ext.ech_success != 1) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             return 0;
         }
     }
     return 1;
 }
-
-#endif /* END_OPENSSL_NO_ECH */
+#endif /* OPENSSL_NO_ECH */
 
 static int final_server_name(SSL_CONNECTION *s, unsigned int context, int sent)
 {
@@ -1796,13 +1805,14 @@ int tls_psk_do_binder(SSL_CONNECTION *s, const EVP_MD *md,
     }
 
 #ifndef OPENSSL_NO_ECH
-    if (s->server && s->ext.ech_success) {
+    if (s->server && s->ext.ech_success == 1) {
         /* we need to fix up the overall 3-octet CH length here */
-        unsigned char *rwm=(unsigned char*)msgstart;
-        size_t olen=s->ext.innerch_len-4;
-        rwm[1]=(olen>>16)%256;
-        rwm[2]=(olen>>8)%256;
-        rwm[3]=olen%256;
+        unsigned char *rwm = (unsigned char *)msgstart;
+        size_t olen = s->ext.innerch_len - 4;
+
+        rwm[1] = (olen >> 16) % 256;
+        rwm[2] = (olen >> 8) % 256;
+        rwm[3] = olen % 256;
     }
 #endif
 

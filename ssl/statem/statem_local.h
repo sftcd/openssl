@@ -572,24 +572,24 @@ int tls_parse_stoc_server_cert_type(SSL_CONNECTION *s, PACKET *pkt,
                                     X509 *x, size_t chainidx);
 #ifndef OPENSSL_NO_ECH
 int tls_parse_ctos_ech(SSL_CONNECTION *s, PACKET *pkt, unsigned int context,
-                               X509 *x, size_t chainidx);
+                       X509 *x, size_t chainidx);
 EXT_RETURN tls_construct_ctos_ech(SSL_CONNECTION *s, WPACKET *pkt, unsigned int context,
-                                   X509 *x, size_t chainidx);
+                                  X509 *x, size_t chainidx);
 EXT_RETURN tls_construct_ctos_ech13(SSL_CONNECTION *s, WPACKET *pkt, unsigned int context,
-                                   X509 *x, size_t chainidx);
+                                    X509 *x, size_t chainidx);
 EXT_RETURN tls_construct_stoc_ech(SSL_CONNECTION *s, WPACKET *pkt,
-                                          unsigned int context, X509 *x,
-                                          size_t chainidx);
+                                  unsigned int context, X509 *x,
+                                  size_t chainidx);
 EXT_RETURN tls_construct_stoc_ech13(SSL_CONNECTION *s, WPACKET *pkt,
-                                          unsigned int context, X509 *x,
-                                          size_t chainidx);
+                                    unsigned int context, X509 *x,
+                                    size_t chainidx);
 int tls_parse_stoc_ech(SSL_CONNECTION *s, PACKET *pkt, unsigned int context,
-                               X509 *x, size_t chainidx);
+                       X509 *x, size_t chainidx);
 EXT_RETURN tls_construct_ctos_ech_is_inner(SSL_CONNECTION *s, WPACKET *pkt, 
-                                   unsigned int context,
-                                   X509 *x, size_t chainidx);
+                                           unsigned int context,
+                                           X509 *x, size_t chainidx);
 int tls_parse_ctos_ech_is_inner(SSL_CONNECTION *s, PACKET *pkt, unsigned int context,
-                               X509 *x, size_t chainidx);
+                                X509 *x, size_t chainidx);
 /**
  * @brief map from ext type to index in ext_defs table
  * @param type is the input type
@@ -611,5 +611,5 @@ int ech_map_ext_type_to_ind(unsigned int type);
  * also used in ssl/ech.c
  */
 int ssl_cipher_list_to_bytes(SSL_CONNECTION *s, STACK_OF(SSL_CIPHER) *sk,
-                                    WPACKET *pkt);
+                             WPACKET *pkt);
 #endif
