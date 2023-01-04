@@ -270,13 +270,20 @@ more than I<age> seconds ago.  This enables servers to periodically refresh the
 set of ECH key pairs that are in used.
 
 If ECH decryption fails, then the server will proceed with the TLS handshake
-for the outer ClientHello and will return an ECH retry config containing the
-ECHConfig matching the "oldest" ECH key pair still loaded.
+for the outer ClientHello and will return an ECH retry config containing an
+ECHConfig.
+
 On the client side SSL_ech_get_retry_config() can be used to access this
 retry config value when indicated via the result of SSL_ech_get_status().
 The retry config will be placed in the I<ec> buffer - I<eclen> should be
 the buffer size on input and will be the length of the retry config on
 successful return.
+
+In this server implementation, the retry config returned will be the
+public component of the most recently loaded ECH configuration (with
+a one second granularity). If more than one ECH configuration was loaded
+during that second, there are no guarantees as to which one will be 
+selected.
 
 For servers operating in split-mode, SSL_CTX_ech_raw_decrypt() provides
 a way to only attempt the ECH decryption operation. This function

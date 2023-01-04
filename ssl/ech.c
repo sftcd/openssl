@@ -47,7 +47,6 @@
 /* a size for some crypto vars */
 # define OSSL_ECH_CRYPTO_VAR_SIZE 2048
 
-# define OSSL_ECH_PBUF_SIZE 8 * 1024 /* buffer for string returned via ech_cb */
 # define OSSL_ECH_MAX_GREASE_PUB 0x100 /* max peer key share we'll decode */
 # define OSSL_ECH_MAX_GREASE_CT 0x200 /* max GREASEy ciphertext we'll emit */
 /*
