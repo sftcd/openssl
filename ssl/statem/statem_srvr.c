@@ -1510,7 +1510,6 @@ MSG_PROCESS_RETURN tls_process_client_hello(SSL_CONNECTION *s, PACKET *pkt)
             } OSSL_TRACE_END(TLS);
             /* For backend, include msg type & 3 octet length */
             s->ext.ech_backend = 1;
-            /* we only support draft-13 for split mode */
             s->ext.ech_attempted_type = TLSEXT_TYPE_ech13;
             s->ext.innerch_len = PACKET_remaining(pkt);
             if (PACKET_peek_bytes(pkt, &pbuf, s->ext.innerch_len) != 1) {

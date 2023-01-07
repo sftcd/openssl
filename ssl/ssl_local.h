@@ -34,9 +34,9 @@
 # include "internal/refcount.h"
 # include "internal/tsan_assist.h"
 # include "internal/bio.h"
-#ifndef OPENSSL_NO_ECH
-#include "ech_local.h"
-#endif
+# ifndef OPENSSL_NO_ECH
+#  include "ech_local.h"
+# endif
 # include "internal/ktls.h"
 # include "internal/time.h"
 # include "internal/ssl.h"
@@ -1092,7 +1092,6 @@ struct ssl_ctx_st {
         SSL_CTX_npn_select_cb_func npn_select_cb;
         void *npn_select_cb_arg;
 # endif
-
 #ifndef OPENSSL_NO_ECH
         /* Encrypted ClientHello details for SSL_CTX */
         int nechs;
@@ -1101,7 +1100,6 @@ struct ssl_ctx_st {
         unsigned char *alpn_outer;
         size_t alpn_outer_len;
 #endif
-
         unsigned char cookie_hmac_key[SHA256_DIGEST_LENGTH];
     } ext;
 
@@ -1597,7 +1595,6 @@ struct ssl_connection_st {
                          const unsigned char *data, int len, void *arg);
         void *debug_arg;
         char *hostname;
-
 #ifndef OPENSSL_NO_ECH
         /* ECH details for SSL struct */
         unsigned char *innerch;

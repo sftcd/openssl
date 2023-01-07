@@ -18,8 +18,8 @@
 
 #ifndef OPENSSL_NO_ECH
 /* temp tracing */
-#include <openssl/trace.h>
-#include "ech_local.h"
+# include <openssl/trace.h>
+# include "ech_local.h"
 #endif
 
 #define TLS13_MAX_LABEL_LEN     249
@@ -102,7 +102,7 @@ int tls13_hkdf_expand_ex(OSSL_LIB_CTX *libctx, const char *propq,
     size_t hashlen;
 
 #ifndef OPENSSL_NO_ECH
-#ifdef OSSL_ECH_SUPERVERBOSE
+# ifdef OSSL_ECH_SUPERVERBOSE
     OSSL_TRACE_BEGIN(TLS) {
         BIO_printf(trc_out, "hkdf inputs:\n");
     } OSSL_TRACE_END(TLS);
@@ -113,7 +113,7 @@ int tls13_hkdf_expand_ex(OSSL_LIB_CTX *libctx, const char *propq,
         tls13_pbuf("\tlabel", label, labellen);
         tls13_pbuf("\tdata", data, datalen);
     }
-#endif
+# endif
 #endif
 
     kctx = EVP_KDF_CTX_new(kdf);
@@ -161,12 +161,12 @@ int tls13_hkdf_expand_ex(OSSL_LIB_CTX *libctx, const char *propq,
     EVP_KDF_CTX_free(kctx);
 
 #ifndef OPENSSL_NO_ECH
-#ifdef OSSL_ECH_SUPERVERBOSE
+# ifdef OSSL_ECH_SUPERVERBOSE
     OSSL_TRACE_BEGIN(TLS) {
         BIO_printf(trc_out, "hkdf output:\n");
     } OSSL_TRACE_END(TLS);
     tls13_pbuf("\tout", out, outlen);
-#endif
+# endif
 #endif
 
     if (ret != 0) {
@@ -534,19 +534,16 @@ int tls13_change_cipher_state(SSL_CONNECTION *s, int which)
     OSSL_TRACE_BEGIN(TLS) {
         BIO_printf(trc_out, "SSL*=%p, inner=%p, outer=%p, which=%02x\n",
                    (void *)s, (void *)s->ext.inner_s,
-                   (void *)s->ext.outer_s,which);
+                   (void *)s->ext.outer_s, which);
         BIO_printf(trc_out, "handshake_dgst is %p\n",
                    (void *)s->s3.handshake_dgst);
     } OSSL_TRACE_END(TLS);
     tls13_ptranscript("gen_hs", s);
 # endif
-#endif
-#ifndef OPENSSL_NO_ECH
+
     /* If doing early data and ECH then we're a special case.  */
-    if (s->server == 0
-        && s->ext.ech_attempted == 1
-        && which & SSL3_CC_CLIENT
-        && which & SSL3_CC_WRITE
+    if (s->server == 0 && s->ext.ech_attempted == 1
+        && which & SSL3_CC_CLIENT && which & SSL3_CC_WRITE
         && which & SSL3_CC_EARLY) {
         EVP_MD_CTX *mdctx = NULL;
         size_t hdatalen = 0;
@@ -560,16 +557,13 @@ int tls13_change_cipher_state(SSL_CONNECTION *s, int which)
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_R_BAD_HANDSHAKE_LENGTH);
             goto err;
         }
-
         hdatalen = inner->ext.innerch_len;
         hdata = inner->ext.innerch;
-
         sslcipher = SSL_SESSION_get0_cipher(inner->session);
         insecret = inner->early_secret;
         label = client_early_traffic;
         labellen = sizeof(client_early_traffic) - 1;
         log_label = CLIENT_EARLY_LABEL;
-
         if (inner->early_data_state == SSL_EARLY_DATA_CONNECTING
             && inner->max_early_data > 0
             && inner->session->ext.max_early_data == 0) {
@@ -586,12 +580,10 @@ int tls13_change_cipher_state(SSL_CONNECTION *s, int which)
             }
             sslcipher = SSL_SESSION_get0_cipher(inner->psksession);
         }
-
         if (sslcipher == NULL) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_R_BAD_PSK);
             goto err;
         }
-
         /*
          * We need to calculate the handshake digest using the digest from
          * the session. We haven't yet selected our ciphersuite so we can't
@@ -602,7 +594,6 @@ int tls13_change_cipher_state(SSL_CONNECTION *s, int which)
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_MALLOC_FAILURE);
             goto err;
         }
-
         /*
          * This ups the ref count on cipher so we better make sure we free
          * it again
@@ -613,18 +604,16 @@ int tls13_change_cipher_state(SSL_CONNECTION *s, int which)
             EVP_MD_CTX_free(mdctx);
             goto err;
         }
-
         md = ssl_md(inner->ssl.ctx, sslcipher->algorithm2);
         if (md == NULL || !EVP_DigestInit_ex(mdctx, md, NULL)
-                || !EVP_DigestUpdate(mdctx, hdata, hdatalen)
-                || !EVP_DigestFinal_ex(mdctx, hashval, &hashlenui)) {
+            || !EVP_DigestUpdate(mdctx, hdata, hdatalen)
+            || !EVP_DigestFinal_ex(mdctx, hashval, &hashlenui)) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             EVP_MD_CTX_free(mdctx);
             goto err;
         }
         hashlen = hashlenui;
         EVP_MD_CTX_free(mdctx);
-
         if (!tls13_hkdf_expand(inner, md, insecret,
                                early_exporter_master_secret,
                                sizeof(early_exporter_master_secret) - 1,
@@ -634,29 +623,24 @@ int tls13_change_cipher_state(SSL_CONNECTION *s, int which)
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             goto err;
         }
-
         if (!ssl_log_secret(inner, EARLY_EXPORTER_SECRET_LABEL,
                             s->early_exporter_master_secret, hashlen)) {
             /* SSLfatal() already called */
             goto err;
         }
-
         /* these lines copied from below after the branch above */
         if(!ossl_assert(cipher != NULL))
             goto err;
-
         if (!derive_secret_key_and_iv(inner, which & SSL3_CC_WRITE, md, cipher,
-                                  insecret, hash, label, labellen, secret, key,
-                                  &keylen, iv, &ivlen, &taglen)) {
+                                      insecret, hash, label, labellen, secret,
+                                      key, &keylen, iv, &ivlen, &taglen)) {
             /* SSLfatal() already called */
             goto err;
         }
-
         if (!ssl_log_secret(inner, log_label, secret, hashlen)) {
             /* SSLfatal() already called */
             goto err;
         }
-
         ssl_evp_cipher_free(cipher);
         return 1;
     }

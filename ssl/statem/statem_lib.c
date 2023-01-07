@@ -1428,7 +1428,7 @@ WORK_STATE tls_finish_handshake(SSL_CONNECTION *s, ossl_unused WORK_STATE wst,
              */
 #ifndef OPENSSL_NO_ECH
             /* zap inner pointer to init_buf before freeing */
-            if (!s->server && s->ext.inner_s!=NULL
+            if (!s->server && s->ext.inner_s != NULL
                 && s->ext.inner_s->init_buf == s->init_buf) {
                 s->ext.inner_s->init_buf = NULL;
             }

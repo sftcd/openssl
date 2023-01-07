@@ -1079,7 +1079,7 @@ static int init_server_name(SSL_CONNECTION *s, unsigned int context)
 }
 
 #ifndef OPENSSL_NO_ECH
-/**
+/*
  * @brief map from ext type to index in ext_defs table
  * @param type is the input type
  * @return the index or -1 for error
@@ -1090,18 +1090,18 @@ static int init_server_name(SSL_CONNECTION *s, unsigned int context)
 int ech_map_ext_type_to_ind(unsigned int type)
 {
     const EXTENSION_DEFINITION *e = ext_defs;
-    unsigned int ed_size = sizeof(ext_defs)/sizeof(EXTENSION_DEFINITION);
+    size_t num_exts = OSSL_NELEM(ext_defs);
     unsigned int i;
 
-    for (i = 0; i != ed_size; i++) {
-        if (e->type==type)
+    for (i = 0; i != num_exts; i++) {
+        if (e->type == type)
             return i;
         e++;
     }
     return -1;
 }
 
-/**
+/*
  * @brief Just note that ech is not yet done
  * @param s is the SSL session
  * @param context determines when called
@@ -1115,7 +1115,7 @@ static int init_ech(SSL_CONNECTION *s, unsigned int context)
     return 1;
 }
 
-/**
+/*
  * @brief check result of ech and return error or ok
  * @param s is the SSL session
  * @param context determines when called
