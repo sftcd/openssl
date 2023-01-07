@@ -16,8 +16,8 @@
 #include "internal/cryptlib.h"
 
 #ifndef OPENSSL_NO_ECH
-#include <openssl/trace.h>
-#include "ech_local.h"
+# include <openssl/trace.h>
+# include "ech_local.h"
 #endif
 
 static int ssl3_generate_key_block(SSL_CONNECTION *s, unsigned char *km, int num)

@@ -26,11 +26,13 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
+- 20230107: tidied up the rest of the code that's protected via ``#ifndef
+  OPENSSL_NP_ECH``. Next up will be to fix my remaining abuses of the PACKET
+  APIs and play with getting rid of the ``SSL_CONNECCTION *inner_s`` on the
+  client.
+
 - 20230104: tidied up ``ssl/statem/extensions_srvr.c`` and 
   ``ssl/statem/statem_srvr.c`` and a couple more a good bit
-  (next up will be to fix my abuses of the PACKET APIs and
-  play with getting rid of the ``SSL_CONNECCTION *inner_s``
-  on the client).
 
 - 20230103: tidied up ``ssl/statem/extensions_clnt.c`` and 
   ``ssl/statem/statem_clnt.c`` a good bit

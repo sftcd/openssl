@@ -24,20 +24,20 @@
 #include <openssl/decoder.h>
 
 #ifndef OPENSSL_NO_ECH
+# include <openssl/ech.h>
 # ifndef PATH_MAX
 #  define PATH_MAX 4096
 # endif
-# include <openssl/ech.h>
 /* to use tracing, if configured and requested */
 # ifndef OPENSSL_NO_SSL_TRACE
 #  include <openssl/trace.h>
 # endif
 # if !defined(_WIN32)
 /* for what's otherwise sockaddr stuff  */
-# include <netinet/in.h>
-# include <sys/socket.h>
-# include <arpa/inet.h>
-# include <netdb.h>
+#  include <netinet/in.h>
+#  include <sys/socket.h>
+#  include <arpa/inet.h>
+#  include <netdb.h>
 # endif
 /* for timing in some TRACE statements */
 # include <time.h>
@@ -105,7 +105,7 @@ static void print_connection_info(SSL *con);
 static unsigned int ech_print_cb(SSL *s, const char *str);
 # ifndef OPENSSL_NO_SSL_TRACE
 static size_t ech_trace_cb(const char *buf, size_t cnt,
-                 int category, int cmd, void *vdata);
+                           int category, int cmd, void *vdata);
 # endif
 
 /* ECH padding size info, var of this type is passed via callback */
@@ -121,7 +121,7 @@ typedef struct {
 /* passed as an argument to callback */
 static ech_padding_sizes *ech_ps=NULL;
 
-/**
+/*
  * @brief pad Certificate and CertificateVerify messages
  * @param s is the SSL connection
  * @param len is the plaintext length before padding
@@ -511,27 +511,27 @@ typedef struct tlsextctx_st {
     int extension_error;
 #ifndef OPENSSL_NO_ECH
     /* Not an ECH thing really, but ECH really needs a 2nd cert for testing */
-    X509* scert;
+    X509 *scert;
 #endif
 } tlsextctx;
 
 #ifndef OPENSSL_NO_ECH
-/**
+/*
  * @brief print an ECH structure string, thread safely
  * @param s is the SSL session
- * @param stri shte string to print
+ * @param str is the string to print
  * @return 1 for good
  */
 static unsigned int ech_print_cb(SSL *s, const char *str)
 {
     if (str != NULL) {
-        BIO_printf(bio_s_out, "ECH Server callback printing: \n%s\n",str);
+        BIO_printf(bio_s_out, "ECH Server callback printing: \n%s\n", str);
     }
     return 1;
 }
 
 # ifndef OPENSSL_NO_SSL_TRACE
-/**
+/*
  * @brief ECH Tracing callback
  * @param buf is the (string) value to trace out
  * @param cnt is unused
@@ -544,7 +544,7 @@ static size_t ech_trace_cb(const char *buf, size_t cnt,
 {
      BIO *bio = vdata;
      const char *label = NULL;
-     size_t brv=0;
+     size_t brv = 0;
 
      switch (cmd) {
      case OSSL_TRACE_CTRL_BEGIN:
@@ -563,14 +563,14 @@ static size_t ech_trace_cb(const char *buf, size_t cnt,
          } tid;
 
          tid.tid = pthread_self();
-         BIO_printf(bio, "%s TRACE[%s]:%lx\n",
-                    label, OSSL_trace_get_category_name(category), tid.ltid);
+         BIO_printf(bio, "%s TRACE[%s]:%lx\n", label,
+                    OSSL_trace_get_category_name(category), tid.ltid);
 #  else
-         BIO_printf(bio, "%s TRACE[%s]:0\n",
-                    label, OSSL_trace_get_category_name(category));
+         BIO_printf(bio, "%s TRACE[%s]:0\n", label,
+                    OSSL_trace_get_category_name(category));
 #  endif
      }
-     brv=(size_t)BIO_puts(bio, buf);
+     brv = (size_t)BIO_puts(bio, buf);
      (void)BIO_flush(bio);
      return brv;
 }
@@ -2442,11 +2442,11 @@ int s_server_main(int argc, char *argv[])
     }
 
     if (echkeyfile != NULL) {
-/*
- * s_server reads key pairs from files but if you want
- * to first read the file youself and then test the buffer
- * API, just switch the undef to define.
- */
+        /*
+         * s_server reads key pairs from files but if you want
+         * to first read the file youself and then test the buffer
+         * API, just switch the undef to define.
+         */
 # undef TESTBUFFERAPI
 # ifndef TESTBUFFERAPI
         /*
@@ -2457,7 +2457,6 @@ int s_server_main(int argc, char *argv[])
                        echkeyfile);
             goto end;
         }
-
 # else
         /*
          * Some test code for the buffer API - that API is needed
@@ -2492,10 +2491,9 @@ int s_server_main(int argc, char *argv[])
             BIO_printf(bio_s_out,"Added ECH key pair from: %s\n",echkeyfile);
         }
     }
-
-    if (echdir != NULL ) {
+    if (echdir != NULL) {
         /*
-         * Try load any good looking "*.pem" files found in files
+         * Try load any good looking "*.ech" PEM files found 
          * in that directory in the hope they have key pairs.
          */
         int nloaded = 0;
@@ -2520,7 +2518,6 @@ int s_server_main(int argc, char *argv[])
         BIO_printf(bio_s_out, "Added %d ECH key pairs from: %s\n",
                    nloaded, echdir);
     }
-
     /*
      * Set padding sizes
      */
@@ -2550,7 +2547,6 @@ int s_server_main(int argc, char *argv[])
             SSL_CTX_set_record_padding_callback(ctx2, ech_padding_cb);
         }
 #endif
-
     }
 
     if (ctx2 != NULL) {
@@ -2614,7 +2610,7 @@ int s_server_main(int argc, char *argv[])
      * the same alpn callback for that too. (Note: this isn't
      * really ECH-specific, it probaby ought happen in any case.)
      */
-    if (s_cert2 && alpn_ctx.data) {
+    if (s_cert2 != NULL && alpn_ctx.data != NULL) {
         SSL_CTX_set_alpn_select_cb(ctx2, alpn_cb, &alpn_ctx);
     }
 #endif
@@ -2837,7 +2833,7 @@ int s_server_main(int argc, char *argv[])
         goto end;
 #ifndef OPENSSL_NO_ECH
     /* not really an ECH issue but needed */
-    if (ctx2 && set_keylog_file(ctx2, keylog_file))
+    if (ctx2 != NULL && set_keylog_file(ctx2, keylog_file))
         goto end;
 
 #endif
@@ -3846,8 +3842,7 @@ static int www_body(int s, int stype, int prot, unsigned char *context)
             /*
              * The next change isn't an ECH related change really. Seems
              * like s_server hangs in some way if we get to this code
-             * with www=1, so maybe only do it if renego is
-             * actually supported. Try it anyway
+             * with www=1, so only do it if renego is actually supported.
              */
             if (www == 1 && SSL_get_secure_renegotiation_support(con)
                     && strncmp("GET /reneg", buf, 10) == 0) {
@@ -3935,7 +3930,6 @@ static int www_body(int s, int stype, int prot, unsigned char *context)
                 break;
             }
             BIO_puts(io, "</h2>\n");
-
             BIO_puts(io, "<h2>TLS Session details</h2>\n");
             BIO_puts(io, "<pre>\n");
             /*
@@ -3966,7 +3960,6 @@ static int www_body(int s, int stype, int prot, unsigned char *context)
             }
             BIO_puts(io, "\n");
 #endif
-
             ssl_print_secure_renegotiation_notes(io, con);
 
             /*
@@ -4143,13 +4136,12 @@ static int www_body(int s, int stype, int prot, unsigned char *context)
                 /*
                  * same comment as last time - not really an ECH change
                  */
-                else if (i==0 && file != NULL) {
+                else if (i == 0 && file != NULL) {
                     /*
                      * Do this if we defaulted to index.html and
                      * opening that worked
                      */
-                    BIO_puts(io,
-                             "HTTP/1.0 200 ok\r\nContent-type: "\
+                    BIO_puts(io, "HTTP/1.0 200 ok\r\nContent-type: "\
                              "text/html\r\n\r\n");
                 }
 #endif
