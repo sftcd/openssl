@@ -174,11 +174,14 @@ int tls13_enc(SSL_CONNECTION *s, SSL3_RECORD *recs, size_t n_recs, int sending,
     /*
      * Note that we succeeded in decrypting something...
      * accept_confirmation signal isn't definitive
+     *
+     * This seems to be a defunct file, at least in my local
+     * builds. So could be we can drop this code.
      */
-    if (sending ==0 && s->server == 0
+    if (sending == 0 && s->server == 0
         && s->ech != NULL && s->ext.ech_success == 0
         && s->ext.inner_s == NULL && s->ext.outer_s != NULL) {
-        s->ext.ech_success=1;
+        s->ext.ech_success = 1;
     }
 #endif
 

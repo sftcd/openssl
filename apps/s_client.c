@@ -132,7 +132,7 @@ static char *ech_svcb_rr = NULL;
 static int ech_select = OSSL_ECH_SELECT_ALL;
 # ifndef OPENSSL_NO_SSL_TRACE
 static size_t ech_trace_cb(const char *buf, size_t cnt,
-                 int category, int cmd, void *vdata);
+                           int category, int cmd, void *vdata);
 # endif
 #endif
 
@@ -758,13 +758,13 @@ const OPTIONS s_client_options[] = {
          "encoded"},
     {"ech_select", OPT_ECH_SELECT, 'n',
       "Select one ECHConfig from many provided via RR or PEM file"},
-    {"ech_grease",OPT_ECH_GREASE,'-',
+    {"ech_grease", OPT_ECH_GREASE, '-',
      "Send GREASE values when not really using ECH"},
-    {"ech_grease_suite",OPT_ECH_GREASE_SUITE,'s',
+    {"ech_grease_suite", OPT_ECH_GREASE_SUITE, 's',
      "Use this HPKE suite for GREASE values when not really using ECH"},
-    {"ech_grease_type",OPT_ECH_GREASE_TYPE,'n',
+    {"ech_grease_type", OPT_ECH_GREASE_TYPE, 'n',
      "Use this ECH ext type for GREASE values when not really using ECH"},
-    {"ech_ignore_cid",OPT_ECH_IGNORE_CONFIG_ID,'-',
+    {"ech_ignore_cid", OPT_ECH_IGNORE_CONFIG_ID, '-',
      "Ignore the server-chosen ECH config ID and send a random value"},
 #endif
 >>>>>>> 8cddd3254a (ECH draft 13)
@@ -911,7 +911,6 @@ static int new_session_cb(SSL *s, SSL_SESSION *sess)
                     ERR_print_errors(bio_err);
                 }
                 break;
-            /* Error cases so we don't save session */
             case SSL_ECH_STATUS_BACKEND:
                 if (c_debug) {
                     BIO_printf(bio_err, "ECH failed\n");
@@ -2328,7 +2327,7 @@ int s_client_main(int argc, char **argv)
         BIO_printf(bio_err, "Setting GREASE ECH type 0x%4x\n", ech_grease_type);
         if (SSL_ech_set_grease_type(con, ech_grease_type) != 1) {
             BIO_printf(bio_err, "Can't set GREASE ECH type 0x%4x\n",
-                    ech_grease_type);
+                       ech_grease_type);
             ERR_print_errors(bio_err);
             goto end;
         }
@@ -2429,7 +2428,6 @@ int s_client_main(int argc, char **argv)
                        prog);
         }
     }
-
     if (ech_svcb_rr != NULL) {
         int lnechs = 0;
         int rv;
@@ -2446,7 +2444,6 @@ int s_client_main(int argc, char **argv)
         }
         nechs += lnechs;
     }
-
     if ((ech_encoded_configs != NULL || ech_svcb_rr != NULL) && nechs == 0) {
         /* neither avenue got us keys, so that's an error now */
         BIO_printf(bio_err, "%s: no ECH decode provided no keys.\n", prog);
@@ -4000,8 +3997,7 @@ static void print_stuff(BIO *bio, SSL *s, int full)
                 BIO_printf(bio, "ECH: not tried\n");
                 break;
             case SSL_ECH_STATUS_BACKEND:
-                BIO_printf(bio,
-                           "ECH: I think I'm a backend!!! (no idea how;-)\n");
+                BIO_printf(bio, "ECH: I'm a backend!!! (no idea how;-)\n");
                 break;
             case SSL_ECH_STATUS_FAILED:
                 BIO_printf(bio, "ECH: tried but failed\n");
@@ -4017,7 +4013,7 @@ static void print_stuff(BIO *bio, SSL *s, int full)
                     for (eind = 0; eind != eclen; eind++) {
                         if ((eind != 0) && (eind % 16 == 0))
                             BIO_printf(bio, "\n    ");
-                        BIO_printf(bio, "%02x:",(unsigned)(ec[eind]));
+                        BIO_printf(bio, "%02x:", (unsigned)(ec[eind]));
                     }
                     BIO_printf(bio, "\n");
                 }
@@ -4039,7 +4035,7 @@ static void print_stuff(BIO *bio, SSL *s, int full)
                     for (eind = 0; eind != eclen; eind++) {
                         if ((eind != 0) && (eind % 16 ==0))
                             BIO_printf(bio, "\n    ");
-                        BIO_printf(bio, "%02x:",(unsigned)(ec[eind]));
+                        BIO_printf(bio, "%02x:", (unsigned)(ec[eind]));
                     }
                     BIO_printf(bio, "\n");
                 }
@@ -4047,11 +4043,11 @@ static void print_stuff(BIO *bio, SSL *s, int full)
             case SSL_ECH_STATUS_SUCCESS:
                 BIO_printf(bio,
                            "ECH: success: outer SNI: '%s', inner SNI: '%s'\n",
-                           (outer==NULL?"none":outer),
-                           (inner==NULL?"none":inner));
+                           (outer == NULL ? "none" : outer),
+                           (inner == NULL ? "none" : inner));
                 break;
             default:
-                 BIO_printf(bio, "ECH: Error trying ECH\n");
+                BIO_printf(bio, "ECH: Error trying ECH\n");
                 break;
             }
         }
@@ -4113,11 +4109,11 @@ static size_t ech_trace_cb(const char *buf, size_t cnt, int category,
          } tid;
 
          tid.tid = pthread_self();
-         BIO_printf(bio, "%s TRACE[%s]:%lx\n",
-                    label, OSSL_trace_get_category_name(category), tid.ltid);
+         BIO_printf(bio, "%s TRACE[%s]:%lx\n", label,
+                    OSSL_trace_get_category_name(category), tid.ltid);
 #  else
-         BIO_printf(bio, "%s TRACE[%s]:0\n",
-                    label, OSSL_trace_get_category_name(category));
+         BIO_printf(bio, "%s TRACE[%s]:0\n", label,
+                    OSSL_trace_get_category_name(category));
 #  endif
      }
      brv = (size_t)BIO_puts(bio, buf);

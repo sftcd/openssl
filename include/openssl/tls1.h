@@ -168,10 +168,10 @@ extern "C" {
 #  define TLSEXT_TYPE_next_proto_neg              13172
 # endif
 
-#ifndef OPENSSL_NO_ECH
-# define TLSEXT_TYPE_ech13                     0xfe0d
-# define TLSEXT_TYPE_outer_extensions          0xfd00
-#endif
+# ifndef OPENSSL_NO_ECH
+#  define TLSEXT_TYPE_ech13                     0xfe0d
+#  define TLSEXT_TYPE_outer_extensions          0xfd00
+# endif
 
 /* NameType value from RFC3546 */
 # define TLSEXT_NAMETYPE_host_name 0

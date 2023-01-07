@@ -13,7 +13,7 @@
 #include "statem_local.h"
 
 #ifndef OPENSSL_NO_ECH
-#include <openssl/rand.h>
+# include <openssl/rand.h>
 
 /*
  * Handle inner/outer CH cloning - ech_same_ext will
@@ -30,15 +30,15 @@
  * keep the ansi-c compile happy) but also after any
  * checks that result in the extension not being sent.
  */
-#define IOSAME if (s->ech != NULL && s->ext.ech_grease == 0) { \
-                   int __rv = ech_same_ext(s, pkt); \
-                   \
-                   if (__rv == OSSL_ECH_SAME_EXT_ERR) \
-                       return(EXT_RETURN_FAIL); \
-                   if (__rv == OSSL_ECH_SAME_EXT_DONE) \
-                       return(EXT_RETURN_SENT); \
-                   /* otherwise continue as normal */ \
-                }
+# define IOSAME if (s->ech != NULL && s->ext.ech_grease == 0) { \
+                    int __rv = ech_same_ext(s, pkt); \
+                    \
+                    if (__rv == OSSL_ECH_SAME_EXT_ERR) \
+                        return(EXT_RETURN_FAIL); \
+                    if (__rv == OSSL_ECH_SAME_EXT_DONE) \
+                        return(EXT_RETURN_SENT); \
+                    /* otherwise continue as normal */ \
+                 }
 
 #endif
 
@@ -96,15 +96,12 @@ EXT_RETURN tls_construct_ctos_server_name(SSL_CONNECTION *s, WPACKET *pkt,
                                           unsigned int context, X509 *x,
                                           size_t chainidx)
 {
-
 #ifndef OPENSSL_NO_ECH
     if (s->ech != NULL) {
-        int echrv = 0;
         /* Don't send outer SNI if external API says that */
-        if (s->ext.ch_depth ==0 && s->ech->no_outer == 1)
+        if (s->ext.ch_depth == 0 && s->ech->no_outer == 1)
             return EXT_RETURN_NOT_SENT;
-        echrv = ech_server_name_fixup(s);
-        if (echrv != 1) {
+        if (ech_server_name_fixup(s) != 1) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             return EXT_RETURN_FAIL;
         }
@@ -513,11 +510,11 @@ EXT_RETURN tls_construct_ctos_alpn(SSL_CONNECTION *s, WPACKET *pkt,
                                    X509 *x, size_t chainidx)
 {
 #ifndef OPENSSL_NO_ECH
-    unsigned char *aval=NULL;
-    size_t alen=0;
+    unsigned char *aval = NULL;
+    size_t alen = 0;
 #endif
-    s->s3.alpn_sent = 0;
 
+    s->s3.alpn_sent = 0;
 #ifndef OPENSSL_NO_ECH
     /*
      * If we have different alpn and alpn_outer values, then we set
@@ -531,7 +528,7 @@ EXT_RETURN tls_construct_ctos_alpn(SSL_CONNECTION *s, WPACKET *pkt,
     if (s->ext.ch_depth == 1 && s->ext.alpn == NULL)  /* inner */
         return EXT_RETURN_NOT_SENT;
     if (s->ext.ch_depth == 0
-        && !(s->ext.alpn != NULL || s->ext.alpn_outer != NULL)) /* outer */
+        && s->ext.alpn == NULL && s->ext.alpn_outer == NULL) /* outer */
         return EXT_RETURN_NOT_SENT;
     if (s->ext.ch_depth == 0 && s->ext.alpn_outer != NULL) {
         aval = s->ext.alpn_outer;
@@ -931,11 +928,9 @@ EXT_RETURN tls_construct_ctos_early_data(SSL_CONNECTION *s, WPACKET *pkt,
      *   ClientHelloOuter to safely ignore any early data sent by the
      *   client per [RFC8446], Section 4.2.10
      */
-    if (s->ext.ch_depth == 0
-        && s->ext.inner_s != NULL
+    if (s->ext.ch_depth == 0 && s->ext.inner_s != NULL
         && s->ext.inner_s->ext.early_data == SSL_EARLY_DATA_REJECTED
-        && s->ext.inner_s->ext.early_data_ok == 1
-       ) {
+        && s->ext.inner_s->ext.early_data_ok == 1) {
         s->ext.early_data = SSL_EARLY_DATA_REJECTED;
         s->ext.early_data_ok = 1;
         s->psksession = s->ext.inner_s->psksession;
@@ -2441,7 +2436,7 @@ int tls_parse_stoc_server_cert_type(SSL_CONNECTION *sc, PACKET *pkt,
 }
 
 #ifndef OPENSSL_NO_ECH
-/**
+/*
  * @brief Create the draft-13 ECH extension for the ClientHello
  */
 EXT_RETURN tls_construct_ctos_ech13(SSL_CONNECTION *s, WPACKET *pkt,
@@ -2492,11 +2487,8 @@ EXT_RETURN tls_construct_ctos_ech13(SSL_CONNECTION *s, WPACKET *pkt,
     return EXT_RETURN_FAIL;
 }
 
-/**
+/*
  * @brief if the server thinks we GREASE'd then we may get an ECHConfigList
- * 
- * A similar thing can happen with an HRR confirmation, but we don't
- * really process that here.
  */
 int tls_parse_stoc_ech(SSL_CONNECTION *s, PACKET *pkt, unsigned int context,
                        X509 *x, size_t chainidx)
@@ -2525,10 +2517,9 @@ int tls_parse_stoc_ech(SSL_CONNECTION *s, PACKET *pkt, unsigned int context,
     srval = OPENSSL_malloc(rlen);
     if (srval == NULL)
         return 0;
-    memcpy(srval,rval,rlen);
+    memcpy(srval, rval, rlen);
     s->ext.ech_returned = srval;
     s->ext.ech_returned_len = rlen;
     return 1;
 }
-
 #endif /* END_OPENSSL_NO_ECH */

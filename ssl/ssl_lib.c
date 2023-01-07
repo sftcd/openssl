@@ -1610,7 +1610,6 @@ void ossl_ssl_connection_free(SSL *ssl)
         SSL_free(&s->ext.inner_s->ssl);
         s->ext.inner_s = NULL;
     }
-
     if (s->s3.handshake_buffer != NULL) {
         (void)BIO_set_close(s->s3.handshake_buffer, BIO_CLOSE);
         BIO_free(s->s3.handshake_buffer);

@@ -2151,7 +2151,7 @@ int tls_parse_ctos_server_cert_type(SSL_CONNECTION *sc, PACKET *pkt,
 
 #ifndef OPENSSL_NO_ECH
 /*
- * @brief ECH handling for edge cases (GREASE) and errors.
+ * @brief ECH handling for edge cases (GREASE/inner) and errors.
  * @param s is the SSL connection
  * @param pkt is the packet
  * @param context is unused
@@ -2161,10 +2161,10 @@ int tls_parse_ctos_server_cert_type(SSL_CONNECTION *sc, PACKET *pkt,
  *
  * Real ECH handling (i.e. decryption) happens before, via
  * ech_early_decrypt(), but if that failed (e.g. decryption 
- * failed) then we end up here, processing the ECH from the 
- * outer CH.
+ * failed, which may be down to GREASE) then we end up here,
+ * processing the ECH from the outer CH.
  * Otherwise, we only expect to see an inner ECH with a fixed
- * value.
+ * value here.
  */
 int tls_parse_ctos_ech(SSL_CONNECTION *s, PACKET *pkt, unsigned int context,
                        X509 *x, size_t chainidx)
@@ -2172,7 +2172,7 @@ int tls_parse_ctos_ech(SSL_CONNECTION *s, PACKET *pkt, unsigned int context,
     unsigned int echtype = 0;
 
     if (s->ext.ech_grease == OSSL_ECH_IS_GREASE) {
-        /* GREASE is fine, and catches expected error cases */
+        /* GREASE is fine */
         return 1;
     }
     if (s->ech == NULL) {
@@ -2180,7 +2180,11 @@ int tls_parse_ctos_ech(SSL_CONNECTION *s, PACKET *pkt, unsigned int context,
         return 1;
     }
     if (s->ext.ech_attempted_type != OSSL_ECH_DRAFT_13_VERSION) {
-        /* the server really only knows draft-13, so this is an error */
+        /*
+         * the server really only knows draft-13 for ech_early_decrypt
+         * so it's an error to get here for any other version (for
+         * now)
+         */
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         return 0;
     }
@@ -2203,7 +2207,7 @@ int tls_parse_ctos_ech(SSL_CONNECTION *s, PACKET *pkt, unsigned int context,
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         return 0;
     }
-    if (!(s->ext.ech_success == 1 || s->ext.ech_backend == 1)) {
+    if (s->ext.ech_success != 1 && s->ext.ech_backend != 1) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         return 0;
     }
@@ -2211,7 +2215,7 @@ int tls_parse_ctos_ech(SSL_CONNECTION *s, PACKET *pkt, unsigned int context,
     return 1;
 }
 
-/**
+/*
  * @brief answer a draft-13 ECH, as needed
  * @param s is the SSL session
  * @param pkt is the packet
@@ -2219,22 +2223,22 @@ int tls_parse_ctos_ech(SSL_CONNECTION *s, PACKET *pkt, unsigned int context,
  * @param x is unused
  * @param chainidx is unused
  * @return 1 for good, 0 otherwise
+ *
+ * Return most-recent ECH config for retry, as needed.
+ *
+ * If doing HRR we include the confirmation value, but
+ * for now, we'll just add the zeros - the real octets
+ * will be added later via ech_calc_ech_confirm() which
+ * is called when constructing the server hello.
  */
 EXT_RETURN tls_construct_stoc_ech13(SSL_CONNECTION *s, WPACKET *pkt,
                                     unsigned int context, X509 *x,
                                     size_t chainidx)
 {
-    /* return most-recent ECH config for retry, as needed */
     SSL_ECH *mostrecent = NULL;
     int echind = 0;
     time_t echloadtime = 0;
 
-    /* 
-     * If doing HRR we include the confirmation value, but
-     * for now, we'll just add the zeros - the real octets
-     * will be added later via ech_calc_ech_confirm() which
-     * is called when constructing the server hello
-     */
     if (context == SSL_EXT_TLS1_3_HELLO_RETRY_REQUEST
         && (s->ext.ech_success == 1 || s->ext.ech_backend == 1)
         && s->ext.ech_attempted_type == TLSEXT_TYPE_ech13) {
@@ -2255,14 +2259,14 @@ EXT_RETURN tls_construct_stoc_ech13(SSL_CONNECTION *s, WPACKET *pkt,
         return EXT_RETURN_NOT_SENT;
     }
     /* If in some weird state we ignore and send nothing */
-    if (s->ext.ech_grease != OSSL_ECH_IS_GREASE ||
-        s->ext.ech_attempted_type != TLSEXT_TYPE_ech13) {
+    if (s->ext.ech_grease != OSSL_ECH_IS_GREASE
+        || s->ext.ech_attempted_type != TLSEXT_TYPE_ech13) {
         return EXT_RETURN_NOT_SENT;
     }
     /*
-     * If the client GREASEd, or we think it did, * return the 
+     * If the client GREASEd, or we think it did, return the 
      * most-recently loaded ECHConfigList, as the value of the 
-     * extension. (Where most-recently mean the first we come
+     * extension. (Where most-recently means the first we come
      * across, which can depend on changing or non-changing 
      * file names as well as load times.
      */
@@ -2306,38 +2310,5 @@ EXT_RETURN tls_construct_stoc_ech13(SSL_CONNECTION *s, WPACKET *pkt,
         return EXT_RETURN_SENT;
     }
     return EXT_RETURN_NOT_SENT;
-}
-
-/**
- * @brief handle the ext a backend should see
- * @param s is the SSL session
- * @param pkt is the packet
- * @param context is unused
- * @param x is unused
- * @param chainidx is unused
- * @return 1 for good, 0 otherwise
- *
- * This is draft-10 only.
- */
-int tls_parse_ctos_ech_is_inner(SSL_CONNECTION *s, PACKET *pkt,
-                                unsigned int context,
-                                X509 *x, size_t chainidx)
-{
-    /*
-     * If there wasn't an earlier ECH decrypt attempt, then we
-     * must be a backend. Even if a client sends a bogus is_inner,
-     * that doesn't cause a problem (other than for that client).
-     */
-    if (s->ext.ech_attempted != 1) {
-        s->ext.ech_backend = 1;
-        OSSL_TRACE_BEGIN(TLS) {
-            BIO_printf(trc_out, "ech_is_inner seen - think we're a backend\n");
-        } OSSL_TRACE_END(TLS);
-    } else {
-        OSSL_TRACE_BEGIN(TLS) {
-            BIO_printf(trc_out, "ech_is_inner shouldn't be seen here.\n");
-        } OSSL_TRACE_END(TLS);
-    }
-    return 1;
 }
 #endif /* END OPENSSL_NO_ECH */

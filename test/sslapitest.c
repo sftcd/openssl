@@ -35,8 +35,8 @@
 #include <openssl/dh.h>
 #include <openssl/engine.h>
 #ifndef OPENSSL_NO_ECH
-#include <openssl/ech.h>
-#include <openssl/hpke.h>
+# include <openssl/ech.h>
+# include <openssl/hpke.h>
 #endif
 
 #include "helpers/ssltestlib.h"
@@ -147,7 +147,7 @@ struct sslapitest_log_counts {
 
 #ifndef OSSL_NO_USABLE_ECH
 
-#define OSSL_ECH_MAX_LINELEN 1000 /**< for a sanity check */
+# define OSSL_ECH_MAX_LINELEN 1000 /* for a sanity check */
 
 static char *echconfiglist_from_PEM(const char *echkeyfile)
 {
@@ -2119,7 +2119,8 @@ static int execute_test_session(int maxprot, int use_int_cache,
     SSL_SESSION *sess1 = NULL, *sess2 = NULL;
     int testresult = 0, numnewsesstick = 1;
 #ifndef OSSL_NO_USABLE_ECH
-    int have25519=0;
+    int have25519 = 0;
+    EVP_PKEY_CTX *xctx = NULL;
 #endif
 
     new_called = remove_called = 0;
@@ -2145,41 +2146,38 @@ static int execute_test_session(int maxprot, int use_int_cache,
      * if TLSv1.3 and we can use 25519 turn on ECH for both sides 
      * otherwise, skip ECH
      */
-    {
-        /* check if 25519 usable */
-        EVP_PKEY_CTX *xctx = EVP_PKEY_CTX_new_id(EVP_PKEY_X25519, NULL);
-        if (xctx!=NULL) {
-            have25519=1;
-            EVP_PKEY_CTX_free(xctx);
-        }
+    xctx = EVP_PKEY_CTX_new_id(EVP_PKEY_X25519, NULL);
+    if (xctx != NULL) {
+        have25519 = 1;
+        EVP_PKEY_CTX_free(xctx);
     }
     if (maxprot == TLS1_3_VERSION && have25519) {
-        char *echkeyfile=NULL;
-        char *echconfiglist=NULL;
-        int echcount=0;
-        size_t echconfig_len=0;
+        char *echkeyfile = NULL;
+        char *echconfiglist = NULL;
+        int echcount = 0;
+        size_t echconfig_len = 0;
 
-        test_printf_stdout("Running real ECH, fips=%d\n",is_fips);
+        test_printf_stdout("Running real ECH, fips=%d\n", is_fips);
         /* read pre-cooked ECH private/ECHConfigList */
-        echkeyfile=test_mk_file_path(certsdir, "echconfig.pem");
-        echconfiglist=echconfiglist_from_PEM(echkeyfile);
-        if (!echconfiglist) {
+        echkeyfile = test_mk_file_path(certsdir, "echconfig.pem");
+        echconfiglist = echconfiglist_from_PEM(echkeyfile);
+        if (echconfiglist == NULL) {
             OPENSSL_free(echkeyfile);
-            return(0);
+            return 0;
         }
-        echconfig_len=strlen(echconfiglist);
-        if (SSL_CTX_ech_server_enable_file(sctx, echkeyfile)!=1) {
+        echconfig_len = strlen(echconfiglist);
+        if (SSL_CTX_ech_server_enable_file(sctx, echkeyfile) != 1) {
             OPENSSL_free(echkeyfile);
             OPENSSL_free(echconfiglist);
             return 0;
         }
         if (SSL_CTX_ech_set1_echconfig(cctx, &echcount, OSSL_ECH_FMT_GUESS, 
-                                       echconfiglist, echconfig_len)!=1) {
+                                       echconfiglist, echconfig_len) != 1) {
             OPENSSL_free(echkeyfile);
             OPENSSL_free(echconfiglist);
             return 0;
         }
-        if (echcount!=1) {
+        if (echcount != 1) {
             OPENSSL_free(echkeyfile);
             OPENSSL_free(echconfiglist);
             return 0;
