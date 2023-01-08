@@ -7,11 +7,6 @@
  * https://www.openssl.org/source/license.html
  */
 
-/*
- * Implements the externally-visible functions
- * for handling Encrypted ClientHello (ECH)
- */
-
 #include <openssl/ssl.h>
 #include <openssl/ech.h>
 #include "ssl_local.h"
@@ -472,7 +467,6 @@ static ECHConfigs *ECHConfigs_from_binary(unsigned char *binbuf,
     size_t remaining = 0;
     PACKET pkt;
     unsigned int olen = 0;
-    unsigned int ooffset = 0;
     size_t not_to_consume = 0;
 
     if (leftover == NULL || binbuf == NULL || binblen == 0)
@@ -481,7 +475,6 @@ static ECHConfigs *ECHConfigs_from_binary(unsigned char *binbuf,
         goto err;
     if (binblen >= OSSL_ECH_MAX_ECHCONFIG_LEN)
         goto err;
-
     /*
      * Overall length of this ECHConfigs (olen) still could be
      * less than the input buffer length, (binblen) if the caller has been
@@ -496,14 +489,14 @@ static ECHConfigs *ECHConfigs_from_binary(unsigned char *binbuf,
         goto err;
     if (binblen <= olen)
         goto err;
-
     not_to_consume = binblen - olen;
     remaining = PACKET_remaining(&pkt);
-
     while (remaining > not_to_consume) {
         ECHConfig *ec = NULL;
         unsigned int ech_content_length = 0;
         unsigned char *tmpecstart = NULL;
+        const unsigned char *tmpecp = NULL;
+        size_t tmpeclen = 0;
 
         te = OPENSSL_realloc(te, (rind + 1) * sizeof(ECHConfig));
         if (te == NULL)
@@ -511,9 +504,13 @@ static ECHConfigs *ECHConfigs_from_binary(unsigned char *binbuf,
         ec = &te[rind];
         memset(ec, 0, sizeof(ECHConfig));
         rind++;
-
-        /* note start of encoding of this ECHConfig */
-        ooffset = pkt.curr - binbuf;
+        /*
+         * note start of encoding of this ECHConfig, so we can make a copy
+         * later
+         */
+        tmpeclen = PACKET_remaining(&pkt);
+        if (PACKET_peek_bytes(&pkt, &tmpecp, tmpeclen) != 1)
+            goto err;
         /* Version */
         if (!PACKET_get_net_2(&pkt, &ec->version))
             goto err;
@@ -692,9 +689,11 @@ static ECHConfigs *ECHConfigs_from_binary(unsigned char *binbuf,
             }
         }
         /* set length of encoding of this ECHConfig */
-        ec->encoding_start = binbuf + ooffset;
-        ooffset = pkt.curr - binbuf;
-        ec->encoding_length = (binbuf + ooffset) - ec->encoding_start;
+        ec->encoding_start = (unsigned char *)tmpecp;
+        tmpeclen = PACKET_remaining(&pkt);
+        if (PACKET_peek_bytes(&pkt, &tmpecp, tmpeclen) != 1) 
+            goto err;
+        ec->encoding_length = tmpecp - ec->encoding_start;
         /* copy encoding_start as it might get free'd if a reduce happens */
         tmpecstart = OPENSSL_malloc(ec->encoding_length);
         if (tmpecstart == NULL) {
@@ -2770,10 +2769,10 @@ int ech_same_ext(SSL_CONNECTION *s, WPACKET *pkt)
                 return OSSL_ECH_SAME_EXT_CONTINUE;
             }
             /* copy inner value to outer */
-            if (myext->data.curr != NULL && myext->data.remaining > 0) {
+            if (PACKET_data(&myext->data) != NULL && PACKET_remaining(&myext->data) > 0) {
                 if (!WPACKET_put_bytes_u16(pkt, type)
-                    || !WPACKET_sub_memcpy_u16(pkt, myext->data.curr,
-                                               myext->data.remaining))
+                    || !WPACKET_sub_memcpy_u16(pkt, PACKET_data(&myext->data),
+                                               PACKET_remaining(&myext->data)))
                     return OSSL_ECH_SAME_EXT_ERR;
             } else {
                 /* empty extension */
@@ -2878,11 +2877,10 @@ int ech_encode_inner(SSL_CONNECTION *s)
             continue;
         if (ech_2bcompressed(ind) == 1)
             continue;
-        if (raws[ind].data.curr != NULL) {
+        if (PACKET_data(&raws[ind].data) != NULL) {
             if (!WPACKET_put_bytes_u16(&inner, raws[ind].type)
-                || !WPACKET_sub_memcpy_u16(&inner,
-                                           raws[ind].data.curr,
-                                           raws[ind].data.remaining)) {
+                || !WPACKET_sub_memcpy_u16(&inner, PACKET_data(&raws[ind].data),
+                                           PACKET_remaining(&raws[ind].data))) {
                 SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
                 goto err;
             }
@@ -4004,13 +4002,13 @@ int ech_early_decrypt(SSL *ssl, PACKET *outerpkt, PACKET *newpkt)
     int cfgind = -1;
     int foundcfg = 0;
     int forhrr = 0;
-    size_t startofsessid = 0; /**< offset of session id within Ch */
-    size_t startofexts = 0; /**< offset of extensions within CH */
-    size_t echoffset = 0; /**< offset of start of ECH within CH */
-    uint16_t echtype = TLSEXT_TYPE_ech_unknown; /**< type of ECH seen */
-    size_t outersnioffset = 0; /**< offset to SNI in outer */
-    size_t ch_len = outerpkt->remaining; /**< overall length of outer CH */
-    const unsigned char *ch = outerpkt->curr;
+    size_t startofsessid = 0; /* offset of session id within Ch */
+    size_t startofexts = 0; /* offset of extensions within CH */
+    size_t echoffset = 0; /* offset of start of ECH within CH */
+    uint16_t echtype = TLSEXT_TYPE_ech_unknown; /* type of ECH seen */
+    size_t outersnioffset = 0; /* offset to SNI in outer */
+    size_t ch_len = 0; /* overall length of outer CH */
+    const unsigned char *ch = NULL;
     SSL_CONNECTION *s = SSL_CONNECTION_FROM_SSL(ssl);
     int innerflag = -1;
     size_t startofciphertext = 0;
@@ -4018,6 +4016,8 @@ int ech_early_decrypt(SSL *ssl, PACKET *outerpkt, PACKET *newpkt)
     size_t enclen = 0;
     size_t offsetofencwithinech = 0;
     unsigned char innerorouter = 0xff;
+    const unsigned char *opd = NULL;
+    size_t opl = 0;
 
     if (s == NULL || outerpkt == NULL || newpkt == NULL) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
@@ -4047,8 +4047,10 @@ int ech_early_decrypt(SSL *ssl, PACKET *outerpkt, PACKET *newpkt)
     if (s->hello_retry_request == SSL_HRR_PENDING) {
         forhrr = 1;
     }
+    opl = PACKET_remaining(outerpkt);
+    opd = PACKET_data(outerpkt);
     /* We need to grab the session id */
-    s->tmp_session_id_len = outerpkt->curr[startofsessid];
+    s->tmp_session_id_len = opd[startofsessid];
     if (s->tmp_session_id_len > SSL_MAX_SSL_SESSION_ID_LENGTH) {
         OSSL_TRACE_BEGIN(TLS) {
             BIO_printf(trc_out, "EARLY: bad sess id len %zu vs max %d\n",
@@ -4057,15 +4059,17 @@ int ech_early_decrypt(SSL *ssl, PACKET *outerpkt, PACKET *newpkt)
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         goto err;
     }
-    memcpy(s->tmp_session_id, &outerpkt->curr[startofsessid + 1],
+    memcpy(s->tmp_session_id, &opd[startofsessid + 1],
            s->tmp_session_id_len);
     /* Grab the outer SNI for tracing.  */
     if (outersnioffset > 0) {
         PACKET osni;
-        const unsigned char *osnibuf = &outerpkt->curr[outersnioffset + 4];
-        size_t osnilen = outerpkt->curr[outersnioffset + 2] * 256
-            + outerpkt->curr[outersnioffset + 3];
+        const unsigned char *osnibuf = &opd[outersnioffset + 4];
+        size_t osnilen = opd[outersnioffset + 2] * 256
+            + opd[outersnioffset + 3];
 
+        if (osnilen > opl - outersnioffset - 4)
+            goto err;
         if (PACKET_buf_init(&osni, osnibuf, osnilen) != 1) {
             SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
             goto err;
@@ -4093,9 +4097,12 @@ int ech_early_decrypt(SSL *ssl, PACKET *outerpkt, PACKET *newpkt)
     /*
      * 2. trial-decrypt or check if config matches one loaded
      */
-    startofech = &outerpkt->curr[echoffset + 4];
-    echlen = outerpkt->curr[echoffset + 2] * 256
-        + outerpkt->curr[echoffset + 3];
+    if (echoffset > opl - 4)
+        goto err;
+    startofech = &opd[echoffset + 4];
+    echlen = opd[echoffset + 2] * 256 + opd[echoffset + 3];
+    if (echlen > opl - echoffset - 4)
+        goto err;
     rv = PACKET_buf_init(&echpkt, startofech, echlen);
     pkt = &echpkt;
     /*
@@ -4219,7 +4226,8 @@ int ech_early_decrypt(SSL *ssl, PACKET *outerpkt, PACKET *newpkt)
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         goto err;
     }
-
+    ch_len = PACKET_remaining(outerpkt);
+    ch = PACKET_data(outerpkt);
     /* AAD in draft-13 is rx'd packet with ciphertext zero'd */
     offsetofencwithinech = 2 + 2 + 1 +2 + 2 + 1;
     if ((echoffset + offsetofencwithinech + 1) > ch_len) {
@@ -5261,11 +5269,11 @@ int SSL_CTX_ech_raw_decrypt(SSL_CTX *ctx,
     unsigned char *inner_buf = NULL;
     size_t inner_buf_len = 0;
     int rv = 0;
-    size_t startofsessid = 0; /**< offset of session id within Ch */
-    size_t startofexts = 0; /**< offset of extensions within CH */
-    size_t echoffset = 0; /**< offset of start of ECH within CH */
-    uint16_t echtype = TLSEXT_TYPE_ech_unknown; /**< type of ECH seen */
-    size_t innersnioffset = 0; /**< offset to SNI in inner */
+    size_t startofsessid = 0; /* offset of session id within Ch */
+    size_t startofexts = 0; /* offset of extensions within CH */
+    size_t echoffset = 0; /* offset of start of ECH within CH */
+    uint16_t echtype = TLSEXT_TYPE_ech_unknown; /* type of ECH seen */
+    size_t innersnioffset = 0; /* offset to SNI in inner */
     SSL_CONNECTION *sc = NULL;
     int innerflag = -1;
 
@@ -5344,14 +5352,18 @@ int SSL_CTX_ech_raw_decrypt(SSL_CTX *ctx,
     if (sc->ext.ech_success == 0) {
         *decrypted_ok = 0;
     } else {
-        size_t ilen = pkt_inner.remaining;
+        size_t ilen = PACKET_remaining(&pkt_inner);
+        const unsigned char *iptr = NULL;
 
         /* make sure there's space */
         if ((ilen + 9) > inner_buf_len) {
             ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_INVALID_ARGUMENT);
             goto err;
         }
-
+        if ((iptr = PACKET_data(&pkt_inner)) != NULL) {
+            ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_INVALID_ARGUMENT);
+            goto err;
+        }
         /* Fix up header and length of inner CH */
         inner_ch[0] = 0x16;
         inner_ch[1] = 0x03;
@@ -5362,7 +5374,7 @@ int SSL_CTX_ech_raw_decrypt(SSL_CTX *ctx,
         inner_ch[6] = (ilen >> 16) & 0xff;
         inner_ch[7] = (ilen >> 8) & 0xff;
         inner_ch[8] = ilen & 0xff;
-        memcpy(inner_ch + 9, pkt_inner.curr, ilen);
+        memcpy(inner_ch + 9, iptr, ilen);
         *inner_len = ilen + 9;
 
         /* Grab the inner SNI (if it's there) */
@@ -5375,10 +5387,21 @@ int SSL_CTX_ech_raw_decrypt(SSL_CTX *ctx,
         }
         if (innersnioffset > 0) {
             PACKET isni;
-            const unsigned char *isnibuf = &pkt_inner.curr[innersnioffset + 4];
-            size_t isnilen = pkt_inner.curr[innersnioffset + 2] * 256
-                + pkt_inner.curr[innersnioffset + 3];
+            size_t plen;
+            const unsigned char *isnipeek = NULL;
+            const unsigned char *isnibuf = NULL;
+            size_t isnilen = 0;
 
+            plen = PACKET_remaining(&pkt_inner);
+            if (PACKET_peek_bytes(&pkt_inner,&isnipeek,plen) != 1) 
+                goto err;
+            if (plen <= 4)
+                goto err;
+            isnibuf = &(isnipeek[innersnioffset + 4]);
+            isnilen = isnipeek[innersnioffset + 2] * 256
+                + isnipeek[innersnioffset + 3];
+            if (isnilen >= plen - 4)
+                goto err;
             if (PACKET_buf_init(&isni, isnibuf, isnilen) != 1) {
                 ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_INVALID_ARGUMENT);
                 goto err;

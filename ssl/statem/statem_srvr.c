@@ -1541,12 +1541,18 @@ MSG_PROCESS_RETURN tls_process_client_hello(SSL_CONNECTION *s, PACKET *pkt)
                 * overwrite the outer packet, but no harm to check anyway
                 * I just happen to know that pkt->curr == s->init_msg
                 */
-                if (newpkt.remaining > pkt->remaining) {
+                if (PACKET_remaining(&newpkt)> PACKET_remaining(pkt)) {
                     SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
                     goto err;
                 }
-                memcpy(s->init_msg, newpkt.curr, newpkt.remaining);
-                pkt->remaining = newpkt.remaining;
+                memcpy(s->init_msg, PACKET_data(&newpkt), PACKET_remaining(&newpkt));
+                /* 
+                 * ok so this is cheating the API, I guess we could add a
+                 * new PACKET_replace() instead or something, but not sure
+                 * if that'd be any better
+                 * TODO: check with whomever maintains the PACKET APIs
+                 */
+                pkt->remaining = PACKET_remaining(&newpkt);
             }
         }
     }
@@ -2652,62 +2658,49 @@ CON_FUNC_RETURN tls_construct_server_hello(SSL_CONNECTION *s, WPACKET *pkt)
      * Calculate the ECH-accept server random to indicate that
      * we're accepting ECH, if that's the case
      */
-    if (s->hello_retry_request != SSL_HRR_PENDING
-        && s->ext.ech_attempted_type == TLSEXT_TYPE_ech13
+    if (s->ext.ech_attempted_type == TLSEXT_TYPE_ech13
         && (s->ext.ech_backend == 1
             || (s->ech != NULL && s->ext.ech_success == 1))) {
         unsigned char acbuf[8];
         unsigned char *shbuf = NULL;
         size_t shlen = 0;
         size_t shoffset = 0;
-        unsigned char *p = NULL;
+        int hrr = 0;
 
+        /* 
+         * calculate and swap the magic bits into the packet - this would
+         * probably better be done if we had WPAKCET_get_start() and
+         * WPACKET_replace_bytes() APIs maybe 
+         * TODO: check with whomever maintains the PACKET APIs
+         */
+        if (s->hello_retry_request == SSL_HRR_PENDING)
+            hrr = 1;
         memset(acbuf, 0, 8);
-        if (pkt == NULL || pkt->buf == NULL) {
+        if (WPACKET_get_total_written(pkt, &shlen) != 1) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             return CON_FUNC_ERROR;
         }
-        shbuf = (unsigned char *)pkt->buf->data;
-        shlen = pkt->written;
-        if (ech_calc_ech_confirm(s, 0, acbuf, shbuf, shlen) != 1) {
+        shbuf = WPACKET_get_curr(pkt) - shlen;
+        if (ech_calc_ech_confirm(s, hrr, acbuf, shbuf, shlen) != 1) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             return CON_FUNC_ERROR;
         }
         memcpy(s->s3.server_random + SSL3_RANDOM_SIZE - 8, acbuf, 8);
-        /* swap those bits (sigh) in the packet */
-        shoffset= SSL3_HM_HEADER_LENGTH /* 4 */
+        /*
+         * TODO: check if there's a better way to handle both HRR
+         * and non-HRR cases here. I need to go back to the specs
+         * to do that.
+         */
+        if (hrr == 0) {
+            shoffset= SSL3_HM_HEADER_LENGTH /* 4 */
                   + CLIENT_VERSION_LEN /* 2 */
                   + SSL3_RANDOM_SIZE /* 32 */
                   - 8;
-        p = (unsigned char *)&pkt->buf->data[shoffset];
-        memcpy(p, acbuf, 8);
-    } 
-    if (s->hello_retry_request == SSL_HRR_PENDING
-        && s->ext.ech_attempted_type == TLSEXT_TYPE_ech13
-        && (s->ext.ech_backend == 1
-            || (s->ech != NULL && s->ext.ech_success == 1))) {
-        unsigned char acbuf[8];
-        unsigned char *shbuf = NULL;
-        size_t shlen = 0;
-        size_t hrroffset = 0;
-        unsigned char *p = NULL;
-
-        memset(acbuf, 0, 8);
-        if (pkt == NULL || pkt->buf == NULL) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-            return CON_FUNC_ERROR;
+            memcpy(shbuf + shoffset, acbuf, 8);
+        } else {
+            memcpy(WPACKET_get_curr(pkt) - 8, acbuf, 8);
         }
-        shbuf = (unsigned char *)pkt->buf->data;
-        shlen = pkt->written;
-        if (ech_calc_ech_confirm(s, 1, acbuf, shbuf, shlen) != 1) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-            return CON_FUNC_ERROR;
-        }
-        /* swap those bits (sigh) in the packet */
-        hrroffset = pkt->curr - 8;
-        p = (unsigned char *)&pkt->buf->data[hrroffset];
-        memcpy(p, acbuf, 8);
-    } 
+    }
     /* call ECH callback, if appropriate */
     if (s->ext.ech_attempted == 1 && s->ech_cb != NULL
         && s->hello_retry_request != SSL_HRR_PENDING) {
