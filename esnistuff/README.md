@@ -26,6 +26,10 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
+- 20230109: added a new ``PACKET_replace()`` API to avoid abusing PACKET APIs
+  when server replaces outer CH with inner and did a scan of other modified
+  files to get rid of a couple of other (W)PACKET API abuses.
+
 - 20230107: tidied up the rest of the code that's protected via ``#ifndef
   OPENSSL_NP_ECH``. Next up will be to fix my remaining abuses of the PACKET
   APIs and play with getting rid of the ``SSL_CONNECCTION *inner_s`` on the

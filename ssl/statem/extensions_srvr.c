@@ -2266,9 +2266,8 @@ EXT_RETURN tls_construct_stoc_ech13(SSL_CONNECTION *s, WPACKET *pkt,
     /*
      * If the client GREASEd, or we think it did, return the 
      * most-recently loaded ECHConfigList, as the value of the 
-     * extension. (Where most-recently means the first we come
-     * across, which can depend on changing or non-changing 
-     * file names as well as load times.
+     * extension. Most-recently loaded can be anywhere in the
+     * list, depending on changing or non-changing file names.
      */
     if (s->ech == NULL || s->nechs == 0) {
         OSSL_TRACE_BEGIN(TLS) {
@@ -2294,7 +2293,6 @@ EXT_RETURN tls_construct_stoc_ech13(SSL_CONNECTION *s, WPACKET *pkt,
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
     }
-
     if (s->ext.ech_attempted_type == OSSL_ECH_DRAFT_13_VERSION) {
         if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_ech13)
             || !WPACKET_sub_memcpy_u16(pkt, mostrecent->cfg->encoded, 

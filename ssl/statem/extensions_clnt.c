@@ -1111,10 +1111,6 @@ EXT_RETURN tls_construct_ctos_padding(SSL_CONNECTION *s, WPACKET *pkt,
         /* draft-13 pads outside the encoded inner */
         return EXT_RETURN_NOT_SENT;
     }
-    if (s->ext.ech_grease != OSSL_ECH_IS_GREASE
-        && !(s->ech != NULL && s->ext.ch_depth == 1)
-        && (s->options & SSL_OP_TLSEXT_PADDING) == 0)
-        return EXT_RETURN_NOT_SENT;
 #else
     if ((s->options & SSL_OP_TLSEXT_PADDING) == 0)
         return EXT_RETURN_NOT_SENT;

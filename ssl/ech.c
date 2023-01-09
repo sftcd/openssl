@@ -691,7 +691,7 @@ static ECHConfigs *ECHConfigs_from_binary(unsigned char *binbuf,
         /* set length of encoding of this ECHConfig */
         ec->encoding_start = (unsigned char *)tmpecp;
         tmpeclen = PACKET_remaining(&pkt);
-        if (PACKET_peek_bytes(&pkt, &tmpecp, tmpeclen) != 1) 
+        if (PACKET_peek_bytes(&pkt, &tmpecp, tmpeclen) != 1)
             goto err;
         ec->encoding_length = tmpecp - ec->encoding_start;
         /* copy encoding_start as it might get free'd if a reduce happens */
@@ -2769,7 +2769,8 @@ int ech_same_ext(SSL_CONNECTION *s, WPACKET *pkt)
                 return OSSL_ECH_SAME_EXT_CONTINUE;
             }
             /* copy inner value to outer */
-            if (PACKET_data(&myext->data) != NULL && PACKET_remaining(&myext->data) > 0) {
+            if (PACKET_data(&myext->data) != NULL
+                && PACKET_remaining(&myext->data) > 0) {
                 if (!WPACKET_put_bytes_u16(pkt, type)
                     || !WPACKET_sub_memcpy_u16(pkt, PACKET_data(&myext->data),
                                                PACKET_remaining(&myext->data)))
@@ -5393,7 +5394,7 @@ int SSL_CTX_ech_raw_decrypt(SSL_CTX *ctx,
             size_t isnilen = 0;
 
             plen = PACKET_remaining(&pkt_inner);
-            if (PACKET_peek_bytes(&pkt_inner,&isnipeek,plen) != 1) 
+            if (PACKET_peek_bytes(&pkt_inner, &isnipeek, plen) != 1)
                 goto err;
             if (plen <= 4)
                 goto err;

@@ -1486,7 +1486,7 @@ MSG_PROCESS_RETURN tls_process_client_hello(SSL_CONNECTION *s, PACKET *pkt)
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         goto err;
     }
-    if (s->server == 1 && pkt->remaining != 0) {
+    if (s->server == 1 && PACKET_remaining(pkt) != 0) {
         int rv = 0;
         size_t startofsessid = 0; /* offset of session id within Ch */
         size_t startofexts = 0; /* offset of extensions within CH */
@@ -1536,23 +1536,11 @@ MSG_PROCESS_RETURN tls_process_client_hello(SSL_CONNECTION *s, PACKET *pkt)
                 goto err;
             }
             if (s->ext.ech_success == 1) {
-                /*
-                * If ECH worked, the inner CH MUST be smaller so we can
-                * overwrite the outer packet, but no harm to check anyway
-                * I just happen to know that pkt->curr == s->init_msg
-                */
-                if (PACKET_remaining(&newpkt)> PACKET_remaining(pkt)) {
+                /* Replace the outer CH with the inner */
+                if (PACKET_replace(pkt, &newpkt) != 1) {
                     SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
                     goto err;
                 }
-                memcpy(s->init_msg, PACKET_data(&newpkt), PACKET_remaining(&newpkt));
-                /* 
-                 * ok so this is cheating the API, I guess we could add a
-                 * new PACKET_replace() instead or something, but not sure
-                 * if that'd be any better
-                 * TODO: check with whomever maintains the PACKET APIs
-                 */
-                pkt->remaining = PACKET_remaining(&newpkt);
             }
         }
     }
@@ -2667,12 +2655,6 @@ CON_FUNC_RETURN tls_construct_server_hello(SSL_CONNECTION *s, WPACKET *pkt)
         size_t shoffset = 0;
         int hrr = 0;
 
-        /* 
-         * calculate and swap the magic bits into the packet - this would
-         * probably better be done if we had WPAKCET_get_start() and
-         * WPACKET_replace_bytes() APIs maybe 
-         * TODO: check with whomever maintains the PACKET APIs
-         */
         if (s->hello_retry_request == SSL_HRR_PENDING)
             hrr = 1;
         memset(acbuf, 0, 8);
@@ -2686,18 +2668,18 @@ CON_FUNC_RETURN tls_construct_server_hello(SSL_CONNECTION *s, WPACKET *pkt)
             return CON_FUNC_ERROR;
         }
         memcpy(s->s3.server_random + SSL3_RANDOM_SIZE - 8, acbuf, 8);
-        /*
-         * TODO: check if there's a better way to handle both HRR
-         * and non-HRR cases here. I need to go back to the specs
-         * to do that.
-         */
         if (hrr == 0) {
+            /* confirm value hacked into SH.random rightmost octets */
             shoffset= SSL3_HM_HEADER_LENGTH /* 4 */
                   + CLIENT_VERSION_LEN /* 2 */
                   + SSL3_RANDOM_SIZE /* 32 */
                   - 8;
             memcpy(shbuf + shoffset, acbuf, 8);
         } else {
+            /*
+             * confirm value is in extension in HRR case as the SH.random
+             * is already hacked to be a specific value in a HRR
+             */
             memcpy(WPACKET_get_curr(pkt) - 8, acbuf, 8);
         }
     }
