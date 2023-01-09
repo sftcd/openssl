@@ -627,6 +627,59 @@ __owur static ossl_inline int PACKET_get_length_prefixed_3(PACKET *pkt,
     return 1;
 }
 
+# ifndef OPENSSL_NO_QUIC
+
+/*
+ * Reads a variable-length vector prefixed with a QUIC variable-length integer
+ * denoting the length, and stores the contents in |subpkt|. |pkt| can equal
+ * |subpkt|. Data is not copied: the |subpkt| packet will share its underlying
+ * buffer with the original |pkt|, so data wrapped by |pkt| must outlive the
+ * |subpkt|. Upon failure, the original |pkt| and |subpkt| are not modified.
+ */
+__owur static ossl_inline int PACKET_get_quic_length_prefixed(PACKET *pkt,
+                                                              PACKET *subpkt)
+{
+    uint64_t length;
+    const unsigned char *data;
+    PACKET tmp = *pkt;
+
+    if (!PACKET_get_quic_vlint(&tmp, &length) ||
+        length > SIZE_MAX ||
+        !PACKET_get_bytes(&tmp, &data, (size_t)length)) {
+        return 0;
+    }
+
+    *pkt = tmp;
+    subpkt->curr = data;
+    subpkt->remaining = (size_t)length;
+
+    return 1;
+}
+# endif
+
+# ifndef OPENSSL_NO_ECH
+/*
+ * New ECH API allowing replacement of outer client hello on server
+ * with inner.
+ */
+__owur static ossl_inline int PACKET_replace(PACKET *pkt, PACKET *newpkt)
+{
+    const unsigned char *data;
+
+    if (pkt == NULL || newpkt == NULL)
+        return 0;
+    if (newpkt->remaining > pkt->remaining) {
+        data = OPENSSL_realloc((unsigned char *)pkt->curr, newpkt->remaining);
+        if (data == NULL)
+            return 0;
+        pkt->curr = data;
+    }
+    memcpy((unsigned char *)pkt->curr, newpkt->curr, newpkt->remaining);
+    pkt->remaining = newpkt -> remaining;
+    return 1;
+}
+# endif
+
 /* Writeable packets */
 
 typedef struct wpacket_sub WPACKET_SUB;

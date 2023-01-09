@@ -1817,7 +1817,7 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL_CONNECTION *s, PACKET *pkt)
 #endif
 #ifndef OPENSSL_NO_ECH
     const unsigned char *shbuf = NULL;
-    size_t shlen = pkt->remaining;
+    size_t shlen;
 
     shlen = PACKET_remaining(pkt);
     if (PACKET_peek_bytes(pkt, &shbuf, shlen) != 1) {
@@ -1883,22 +1883,10 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL_CONNECTION *s, PACKET *pkt)
 #ifndef OPENSSL_NO_ECH
     /*
      * If we sent an ECH then try the inner_s first to see if it 
-     * matches/works (based on the ickky ServerHello.random 
-     * confirmation trick from the spec).  If that is good then we'll 
-     * swap over the inner and outer contexts and proceed with inner. 
-     *
-     * To check confirmation for draft-10 we need to derive the keys
-     * before we start over with another call to this function (at the 
-     * end of the body of the function) with just the outer CH context 
-     * and see what happens there, noting that ECH is done and failed.
-     * So the initial draft-10 block of code really just notes that
-     * we're in the process of checking ECH confirmation.
-     *
-     * For draft-13 we can do the acceptance check up front without 
-     * recursing and without deriving the session keys.
-     *
+     * matches/works (based on the ServerHello.random confirmation
+     * trick from the spec). If that is good then we'll swap over
+     * the inner and outer contexts and proceed with inner. 
      * The check to do differs depending on whether or not HRR happened.
-     * We only support HRR for draft-13.
      */
     if (s->ech != NULL && s->ext.ech_done != 1 && s->ext.ch_depth == 0
         && s->ext.ech_grease == OSSL_ECH_NOT_GREASE
@@ -1995,6 +1983,7 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL_CONNECTION *s, PACKET *pkt)
                             SSL3_RANDOM_SIZE + /* 32 */
                             1 + /* len of session id */
                             session_id_len; /* 32 */;
+
                         if (s->server) {
                             /* add the msg type + 3-octet length */
                             ciphercharoffset += SSL3_HM_HEADER_LENGTH; /* 4 */
