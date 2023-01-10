@@ -1614,7 +1614,7 @@ struct ssl_connection_st {
          * extensions are "outer-only" if the value is only sent in the
          * outer CH with only the type in the inner CH (i.e. compressed)
          */
-        int n_outer_only;
+        size_t n_outer_only;
         uint16_t outer_only[OSSL_ECH_OUTERS_MAX];
         unsigned int etype; /* Client placeholder for ext type */
         SSL_CONNECTION* inner_s; /* pointer to inner CH from outer */
