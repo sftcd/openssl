@@ -2302,8 +2302,9 @@ EXT_RETURN tls_construct_stoc_ech13(SSL_CONNECTION *s, WPACKET *pkt,
             return 0;
         }
         OSSL_TRACE_BEGIN(TLS) {
-            BIO_printf(trc_out, "sending ECHConfig back loaded at %zu"
-                       "from %s", echloadtime, mostrecent->pemfname);
+            BIO_printf(trc_out, "sending ECHConfig back loaded at %lu"
+                       "from %s", (unsigned long)echloadtime,
+                       mostrecent->pemfname);
         } OSSL_TRACE_END(TLS);
         return EXT_RETURN_SENT;
     }
