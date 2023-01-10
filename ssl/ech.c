@@ -825,15 +825,21 @@ static int local_ech_add(int ekfmt, size_t eklen, unsigned char *ekval,
     SSL_ECH *newech = NULL;
     int cfgind = 0;
 
-    if (eklen == 0 || ekval == NULL || num_echs == NULL)
+    if (eklen == 0 || ekval == NULL || num_echs == NULL) {
+        ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
         return 0;
-    if (eklen >= OSSL_ECH_MAX_ECHCONFIG_LEN)
+    }
+    if (eklen >= OSSL_ECH_MAX_ECHCONFIG_LEN) {
+        ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
         return 0;
+    }
     switch (ekfmt) {
     case OSSL_ECH_FMT_GUESS:
         rv = ech_guess_fmt(eklen, ekval, &detfmt);
-        if (rv == 0)
+        if (rv == 0) {
+            ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
             return 0;
+        }
         break;
     case OSSL_ECH_FMT_HTTPSSVC:
     case OSSL_ECH_FMT_ASCIIHEX:
@@ -842,6 +848,7 @@ static int local_ech_add(int ekfmt, size_t eklen, unsigned char *ekval,
         detfmt = ekfmt;
         break;
     default:
+        ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
         return 0;
     }
     /* Do the various decodes on a copy of ekval */
@@ -853,36 +860,50 @@ static int local_ech_add(int ekfmt, size_t eklen, unsigned char *ekval,
     ekptr = (char *)ekcpy;
 
     if (detfmt == OSSL_ECH_FMT_HTTPSSVC) {
-        if (strlen((char *)ekcpy) != eklen)
+        if (strlen((char *)ekcpy) != eklen) {
+            ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
             goto err;
+        }
         ekptr = strstr((char *)ekcpy, httpssvc_telltale);
-        if (ekptr == NULL)
+        if (ekptr == NULL) {
+            ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
             goto err;
+        }
         /* point ekptr at b64 encoded value */
-        if (strlen(ekptr) <= strlen(httpssvc_telltale))
+        if (strlen(ekptr) <= strlen(httpssvc_telltale)) {
+            ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
             goto err;
+        }
         ekptr += strlen(httpssvc_telltale);
         detfmt = OSSL_ECH_FMT_B64TXT; /* tee up next step */
     }
     if (detfmt == OSSL_ECH_FMT_B64TXT) {
         int tdeclen = 0;
 
-        if (strlen((char *)ekcpy) != eklen)
+        if (strlen((char *)ekcpy) != eklen) {
+            ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
             goto err;
+        }
         /* need an int to get -1 return for failure case */
         tdeclen = ech_base64_decode(ekptr, &outbuf);
-        if (tdeclen <= 0)
+        if (tdeclen <= 0) {
+            ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
             goto err;
+        }
         declen = tdeclen;
     }
     if (detfmt == OSSL_ECH_FMT_ASCIIHEX) {
         int adr = 0;
 
-        if (strlen((char *)ekcpy) != eklen)
-            return 0;
-        adr = ah_decode(eklen, ekptr, &declen, &outbuf);
-        if (adr == 0)
+        if (strlen((char *)ekcpy) != eklen) {
+            ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
             goto err;
+        }
+        adr = ah_decode(eklen, ekptr, &declen, &outbuf);
+        if (adr == 0) {
+            ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
+            goto err;
+        }
     }
     if (detfmt == OSSL_ECH_FMT_BIN) {
         /* just copy over the input to where we'd expect it */
@@ -913,8 +934,10 @@ static int local_ech_add(int ekfmt, size_t eklen, unsigned char *ekval,
         memset(newech, 0, sizeof(SSL_ECH));
 
         er = ECHConfigs_from_binary(outp, oleftover, &leftover);
-        if (er == NULL)
+        if (er == NULL) {
+            ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
             goto err;
+        }
         newech->cfg = er;
 
         /*
