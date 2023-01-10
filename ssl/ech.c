@@ -2808,7 +2808,7 @@ int ech_encode_inner(SSL_CONNECTION *s)
     int mt = SSL3_MT_CLIENT_HELLO;
     RAW_EXTENSION *raws = NULL;
     size_t nraws = 0;
-    int ind = 0;
+    size_t ind = 0;
     size_t innerinnerlen = 0;
 
     /* basic checks */
@@ -2842,7 +2842,7 @@ int ech_encode_inner(SSL_CONNECTION *s)
         /* Ciphers supported */
         || !WPACKET_start_sub_packet_u16(&inner)
         || !ssl_cipher_list_to_bytes(s, SSL_get_ciphers(&s->ssl), &inner)
-        | !WPACKET_close(&inner)
+        || !WPACKET_close(&inner)
         /* COMPRESSION */
         || !WPACKET_start_sub_packet_u8(&inner)
         /* Add the NULL compression method */
