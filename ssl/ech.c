@@ -4789,8 +4789,9 @@ int SSL_ech_get_info(SSL *ssl, OSSL_ECH_INFO **out, int *nindices)
             inst->echconfig = OPENSSL_malloc(ehlen + 1);
             if (inst->echconfig == NULL)
                 goto err;
-            if (BIO_read(tbio, inst->echconfig, ehlen + 1) <= 0)
+            if (BIO_read(tbio, inst->echconfig, ehlen) <= 0)
                 goto err;
+            inst->echconfig[ehlen] = '\0';
             BIO_free(tbio);
             tbio = NULL;
         }
