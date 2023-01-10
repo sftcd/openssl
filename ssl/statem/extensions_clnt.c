@@ -1104,17 +1104,8 @@ EXT_RETURN tls_construct_ctos_padding(SSL_CONNECTION *s, WPACKET *pkt,
     unsigned char *padbytes;
     size_t hlen;
 
-#ifndef OPENSSL_NO_ECH
-    if (s->ext.ch_depth == 1
-        && s->ext.ech_attempted_type == OSSL_ECH_DRAFT_13_VERSION
-        && (s->options & SSL_OP_TLSEXT_PADDING) == 0) {
-        /* draft-13 pads outside the encoded inner */
-        return EXT_RETURN_NOT_SENT;
-    }
-#else
     if ((s->options & SSL_OP_TLSEXT_PADDING) == 0)
         return EXT_RETURN_NOT_SENT;
-#endif
 
     /*
      * Add padding to workaround bugs in F5 terminators. See RFC7685.
