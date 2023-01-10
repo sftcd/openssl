@@ -248,6 +248,11 @@ static int ech_roundtrip_test(void)
     if (!TEST_ptr(echconfig))
         goto end;
     echconfiglen = strlen(echconfig);
+    /* funny Windows tweak (or could be more generic) */
+    while (echconfiglen > 0 && echconfig[echconfiglen - 1] == '\0')
+        echconfiglen--;
+    if (TEST_int_eq(echconfiglen, 0))
+        goto end;
     if (!TEST_true(create_ssl_ctx_pair(libctx, TLS_server_method(),
                                        TLS_client_method(),
                                        TLS1_3_VERSION, 0,
