@@ -251,7 +251,7 @@ static int ech_roundtrip_test(void)
     /* funny Windows tweak (or could be more generic) */
     while (echconfiglen > 0 && echconfig[echconfiglen - 1] == '\0')
         echconfiglen--;
-    if (TEST_int_eq(echconfiglen, 0))
+    if (!TEST_int_ne(echconfiglen, 0))
         goto end;
     if (!TEST_true(create_ssl_ctx_pair(libctx, TLS_server_method(),
                                        TLS_client_method(),
