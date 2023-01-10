@@ -1367,7 +1367,8 @@ static char *alpn_print(unsigned char *alpn, size_t len)
  */
 static int ECHConfigs_print(BIO *out, ECHConfigs *c)
 {
-    int i, j;
+    int i;
+    unsigned int j;
 
     if (out == NULL || c == NULL || c->recs == NULL)
         return 0;
@@ -1486,10 +1487,13 @@ int ech_get_ch_offsets(SSL_CONNECTION *s, PACKET *pkt, size_t *sessid,
         return 0;
     }
     /* make sure we're at least tlsv1.2 */
-    if (ch_len < 2 || ch[0] != 0x03 || ch[1] != 0x03) {
+    if (ch_len < 2) { 
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
     }
+    /* if we're not TLSv1.3 then we can bail, but it's not an error */
+    if (ch[0] != 0x03 || ch[1] != 0x03)
+        return 1;
     /*
      * We'll start genoffset at the start of the session ID, just
      * before the ciphersuites
@@ -2804,7 +2808,7 @@ int ech_encode_inner(SSL_CONNECTION *s)
     int mt = SSL3_MT_CLIENT_HELLO;
     RAW_EXTENSION *raws = NULL;
     size_t nraws = 0;
-    size_t ind = 0;
+    int ind = 0;
     size_t innerinnerlen = 0;
 
     /* basic checks */
