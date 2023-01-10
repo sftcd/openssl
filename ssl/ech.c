@@ -402,7 +402,7 @@ static int ech_guess_fmt(size_t eklen, unsigned char *rrval, int *guessedfmt)
 {
     size_t span = 0;
 
-    /* 
+    /*
      * This could be more terse, but this is better for
      * debugging corner cases for now
      */
@@ -411,17 +411,17 @@ static int ech_guess_fmt(size_t eklen, unsigned char *rrval, int *guessedfmt)
     if (strstr((char *)rrval, httpssvc_telltale)) {
         *guessedfmt = OSSL_ECH_FMT_HTTPSSVC;
         return 1;
-    } 
+    }
     span = strspn((char *)rrval, AH_alphabet);
     if (eklen <= span) {
         *guessedfmt = OSSL_ECH_FMT_ASCIIHEX;
         return 1;
-    } 
+    }
     span = strspn((char *)rrval, B64_alphabet);
     if (eklen <= span) {
         *guessedfmt = OSSL_ECH_FMT_B64TXT;
         return 1;
-    } 
+    }
     /* fallback - try binary */
     *guessedfmt = OSSL_ECH_FMT_BIN;
     return 1;
@@ -511,9 +511,7 @@ static ECHConfigs *ECHConfigs_from_binary(unsigned char *binbuf,
         ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
         goto err;
     }
-    printf("olen: %u, binblen: %lu\n", olen, binblen);
     if (olen > (binblen - 2)) {
-        printf("olen: %u, binblen: %lu\n", olen, binblen);
         ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
         goto err;
     }
