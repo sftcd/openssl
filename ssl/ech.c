@@ -495,11 +495,11 @@ static ECHConfigs *ECHConfigs_from_binary(unsigned char *binbuf,
         ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
         goto err;
     }
-    if (olen < (OSSL_ECH_MIN_ECHCONFIG_LEN - 2) || olen > (binblen - 2)) {
+    if (olen < (OSSL_ECH_MIN_ECHCONFIG_LEN - 2)) {
         ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
         goto err;
     }
-    if (binblen <= olen) {
+    if (olen > (binblen - 2)) {
         ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
         goto err;
     }
