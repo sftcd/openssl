@@ -254,28 +254,6 @@ static int ech_roundtrip_test(void)
     if (!TEST_ptr(echconfig))
         goto end;
     echconfiglen = strlen(echconfig);
-
-    /*
-     * funny Windows tweak (or could be more generic?)
-     * get rid of this in a bit
-     */
-    TEST_info("End of echconfig (%c, 0x%02x)",
-              (char)echconfig[echconfiglen - 1],
-              (int)echconfig[echconfiglen - 1]);
-    TEST_info("Initial echconfiglen (%d)", (int)echconfiglen);
-    if (echconfig[echconfiglen - 1] == '\n') {
-        TEST_info("Decrementing echconfiglen (%d) for CR", (int)echconfiglen);
-        echconfiglen--;
-    }
-    while (echconfiglen > 0 && echconfig[echconfiglen - 1] == '\0') {
-        TEST_info("Decrementing echconfiglen (%d) for NULL",
-                  (int)echconfiglen);
-        echconfiglen--;
-    }
-    TEST_info("Final echconfiglen (%d)", (int)echconfiglen);
-    if (!TEST_int_ne(echconfiglen, 0))
-        goto end;
-
     if (!TEST_true(create_ssl_ctx_pair(libctx, TLS_server_method(),
                                        TLS_client_method(),
                                        TLS1_3_VERSION, 0,
