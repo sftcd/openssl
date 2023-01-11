@@ -248,9 +248,18 @@ static int ech_roundtrip_test(void)
     if (!TEST_ptr(echconfig))
         goto end;
     echconfiglen = strlen(echconfig);
-    /* funny Windows tweak (or could be more generic) */
-    while (echconfiglen > 0 && echconfig[echconfiglen - 1] == '\0')
+    /* funny Windows tweak (or could be more generic?) */
+    TEST_info("Initial echconfiglen (%d)", (int)echconfiglen);
+    if (echconfig[echconfiglen - 1] == '\n') {
+        TEST_info("Decrementing echconfiglen (%d) for CR", (int)echconfiglen);
         echconfiglen--;
+    }
+    while (echconfiglen > 0 && echconfig[echconfiglen - 1] == '\0') {
+        TEST_info("Decrementing echconfiglen (%d) for NULL",
+                  (int)echconfiglen);
+        echconfiglen--;
+    }
+    TEST_info("Final echconfiglen (%d)", (int)echconfiglen);
     if (!TEST_int_ne(echconfiglen, 0))
         goto end;
     if (!TEST_true(create_ssl_ctx_pair(libctx, TLS_server_method(),
