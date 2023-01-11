@@ -74,9 +74,15 @@ static char *echconfiglist_from_PEM(const char *echkeyfile)
     if (ecl_string == NULL)
         goto out;
     memcpy(ecl_string, lnbuf, readbytes);
-    /* zap the '\n' if present */
-    if (ecl_string[readbytes - 1] == '\n')
+    /* zap any '\n' or '\r' at the end if present */
+    while (readbytes >= 0
+           && (ecl_string[readbytes - 1] == '\n'
+               || ecl_string[readbytes - 1] == '\r')) {
         ecl_string[readbytes - 1] = '\0';
+        readbytes--;
+    }
+    if (readbytes == 0) 
+        goto out;
     BIO_free_all(in);
     return ecl_string;
 out:
@@ -248,7 +254,11 @@ static int ech_roundtrip_test(void)
     if (!TEST_ptr(echconfig))
         goto end;
     echconfiglen = strlen(echconfig);
-    /* funny Windows tweak (or could be more generic?) */
+
+    /*
+     * funny Windows tweak (or could be more generic?)
+     * get rid of this in a bit
+     */
     TEST_info("End of echconfig (%c, 0x%02x)",
               (char)echconfig[echconfiglen - 1],
               (int)echconfig[echconfiglen - 1]);
@@ -265,6 +275,7 @@ static int ech_roundtrip_test(void)
     TEST_info("Final echconfiglen (%d)", (int)echconfiglen);
     if (!TEST_int_ne(echconfiglen, 0))
         goto end;
+
     if (!TEST_true(create_ssl_ctx_pair(libctx, TLS_server_method(),
                                        TLS_client_method(),
                                        TLS1_3_VERSION, 0,
