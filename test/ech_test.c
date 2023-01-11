@@ -249,6 +249,9 @@ static int ech_roundtrip_test(void)
         goto end;
     echconfiglen = strlen(echconfig);
     /* funny Windows tweak (or could be more generic?) */
+    TEST_info("End of echconfig (%c, 0x%02x)",
+              (char)echconfig[echconfiglen - 1],
+              (int)echconfig[echconfiglen - 1]);
     TEST_info("Initial echconfiglen (%d)", (int)echconfiglen);
     if (echconfig[echconfiglen - 1] == '\n') {
         TEST_info("Decrementing echconfiglen (%d) for CR", (int)echconfiglen);
