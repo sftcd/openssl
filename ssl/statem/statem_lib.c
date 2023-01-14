@@ -1426,13 +1426,6 @@ WORK_STATE tls_finish_handshake(SSL_CONNECTION *s, ossl_unused WORK_STATE wst,
              * We don't do this in DTLS over UDP because we may still need the init_buf
              * in case there are any unexpected retransmits
              */
-#ifndef OPENSSL_NO_ECH
-            /* zap inner pointer to init_buf before freeing */
-            if (!s->server && s->ext.inner_s != NULL
-                && s->ext.inner_s->init_buf == s->init_buf) {
-                s->ext.inner_s->init_buf = NULL;
-            }
-#endif
             BUF_MEM_free(s->init_buf);
             s->init_buf = NULL;
         }

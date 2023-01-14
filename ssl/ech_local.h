@@ -243,11 +243,13 @@ int ech_encode_inner(SSL_CONNECTION *s);
  * @brief Replicate ext value from inner ch into outer ch
  * @param s is the SSL session
  * @param pkt is the packet containing extensions
+ * @param depth is 0 for outer CH, 1 for inner
  * @return 0: error, 1: copied existing and done, 2: ignore existing
  *
  * This also sets us up for later outer compression.
+ * Return value is one of OSSL_ECH_SAME_EXT_ERR_*
  */
-int ech_same_ext(SSL_CONNECTION *s, WPACKET *pkt);
+int ech_same_ext(SSL_CONNECTION *s, WPACKET *pkt, int depth);
 
 /*
  * @brief Calculate ECH acceptance signal.
@@ -365,26 +367,6 @@ int ech_get_ch_offsets(SSL_CONNECTION *s, PACKET *pkt, size_t *sessid,
  * @return 1 for success, anything else for failure
  */
 int SSL_ech_print(BIO *out, SSL *s, int selector);
-
-/**
- * @brief check which SNI to send when doing ECH
- * @param s is the SSL context
- * @return 1 for success
- *
- * An application can set inner and/or outer SNIs.
- * Or it might only set one and we may have a
- * public_name from an ECHConfig.
- * Or an application may say to not send an outer
- * or inner SNI at all.
- *
- * If the application states a preferece we'll
- * abide by that, despite the public_name from
- * an ECHConfig.
- *
- * This function fixes those up to ensure that
- * the s->ext.hostname as desired for a client.
- */
-int ech_server_name_fixup(SSL_CONNECTION *s);
 
 /*
  * @brief pick an ECHConfig to use

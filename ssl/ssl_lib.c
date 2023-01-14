@@ -931,8 +931,6 @@ SSL *ossl_ssl_connection_new_int(SSL_CTX *ctx, const SSL_METHOD *method)
         s->ech = NULL;
     }
     s->ech_cb = ctx->ext.ech_cb;
-    s->ext.inner_s = NULL;
-    s->ext.outer_s = NULL;
     s->ext.ech_done = 0;
     s->ext.ech_attempted = 0;
     s->ext.ech_backend = 0;
@@ -1465,29 +1463,11 @@ void ossl_ssl_connection_free(SSL *ssl)
 
     /* Ignore return value */
 
-#ifndef OPENSSL_NO_ECH
-    /*
-     * This isn't satisfactory and is v. brittle to changes by others.
-     * But works right now. Absent this check we leak or double-free.
-     * TODO: FIXME: figure that out
-     */
-    if (s->server == 1
-        || s->ext.ech_attempted == 0
-        || s->ext.ech_grease == 1
-        || (s->ext.ech_attempted == 1 && s->ext.inner_s==NULL 
-            && s->ext.outer_s != NULL)
-        || (s->ext.ech_attempted == 1 && s->ext.ech_done == 0)) {
-        ssl_free_wbio_buffer(s);
-        RECORD_LAYER_clear(&s->rlayer);
-        BUF_MEM_free(s->init_buf);
-    }
-#else
     ssl_free_wbio_buffer(s);
 
     /* Ignore return value */
     RECORD_LAYER_clear(&s->rlayer);
     BUF_MEM_free(s->init_buf);
-#endif
 
     /* add extra stuff */
     sk_SSL_CIPHER_free(s->cipher_list);
@@ -1523,14 +1503,8 @@ void ossl_ssl_connection_free(SSL *ssl)
     OPENSSL_free(s->ext.ocsp.resp);
     OPENSSL_free(s->ext.alpn);
     OPENSSL_free(s->ext.tls13_cookie);
-#ifndef OPENSSL_NO_ECH
-    if (s->ext.inner_s == NULL && s->ext.outer_s != NULL)
-#endif
     if (s->clienthello != NULL)
         OPENSSL_free(s->clienthello->pre_proc_exts);
-#ifndef OPENSSL_NO_ECH
-    if (s->ext.inner_s == NULL && s->ext.outer_s != NULL)
-#endif
     OPENSSL_free(s->clienthello);
     OPENSSL_free(s->pha_context);
     EVP_MD_CTX_free(s->pha_dgst);
@@ -1578,6 +1552,7 @@ void ossl_ssl_connection_free(SSL *ssl)
     OPENSSL_free(s->ext.innerch1);
     OPENSSL_free(s->ext.kepthrr);
     OPENSSL_free(s->ext.encoded_innerch);
+    OPENSSL_free(s->ext.inner_hostname);
     if (s->nechs > 0 && s->ech != NULL) {
         int n = 0;
 
@@ -1589,23 +1564,7 @@ void ossl_ssl_connection_free(SSL *ssl)
         s->nechs = 0;
     }
     EVP_PKEY_free(s->s3.tmp.pkey);
-    /* Free up the inner or outer, as needed */
-    if (s->ext.outer_s != NULL && s->ext.outer_s != s)  {
-        if (s->init_buf == s->ext.outer_s->init_buf)
-            s->ext.outer_s->init_buf = NULL;
-        /* Don't go around in circles forever */
-        s->ext.outer_s->ext.inner_s = NULL;
-        SSL_free(&s->ext.outer_s->ssl);
-        s->ext.outer_s = NULL;
-    }
-    if (s->ext.inner_s != NULL && s->ext.inner_s != s)  {
-        if (s->init_buf == s->ext.inner_s->init_buf)
-            s->ext.inner_s->init_buf = NULL;
-        /* Don't go around in circles forever */
-        s->ext.inner_s->ext.outer_s = NULL;
-        SSL_free(&s->ext.inner_s->ssl);
-        s->ext.inner_s = NULL;
-    }
+    EVP_PKEY_free(s->ext.ech_tmp_pkey);
     if (s->s3.handshake_buffer != NULL) {
         (void)BIO_set_close(s->s3.handshake_buffer, BIO_CLOSE);
         BIO_free(s->s3.handshake_buffer);
@@ -5183,8 +5142,6 @@ SSL *SSL_dup(SSL *s)
             OPENSSL_free(retsc->ext.ech_grease_suite);
         retsc->ext.ech_grease_suite = OPENSSL_strdup(sc->ext.ech_grease_suite);
     }
-    retsc->ext.inner_s = sc->ext.inner_s;
-    retsc->ext.outer_s = sc->ext.outer_s;
     retsc->ext.ech_done = sc->ext.ech_done;
     retsc->ext.ech_attempted = sc->ext.ech_attempted;
     retsc->ext.ech_attempted_type = sc->ext.ech_attempted_type;

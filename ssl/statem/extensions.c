@@ -75,7 +75,7 @@ static int tls_parse_compress_certificate(SSL_CONNECTION *sc, PACKET *pkt,
 #ifndef OPENSSL_NO_ECH
 static int init_ech(SSL_CONNECTION *s, unsigned int context);
 static int final_ech(SSL_CONNECTION *s, unsigned int context, int sent);
-#endif 
+#endif
 
 /* Structure to define a built-in extension */
 typedef struct extensions_definition_st {
@@ -1124,8 +1124,7 @@ static int init_ech(SSL_CONNECTION *s, unsigned int context)
  */
 static int final_ech(SSL_CONNECTION *s, unsigned int context, int sent)
 {
-    if (!s->server && s->ech != NULL && s->ext.inner_s == NULL
-        && s->ext.outer_s != NULL) {
+    if (!s->server && s->ech != NULL) {
         if (s->ext.ech_grease == OSSL_ECH_IS_GREASE) {
             /* If we greased, then it's ok that ech_success didn't get set */
             return 1;

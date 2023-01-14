@@ -532,9 +532,7 @@ int tls13_change_cipher_state(SSL_CONNECTION *s, int which)
 #ifndef OPENSSL_NO_ECH
 # ifdef OSSL_ECH_SUPERVERBOSE
     OSSL_TRACE_BEGIN(TLS) {
-        BIO_printf(trc_out, "SSL*=%p, inner=%p, outer=%p, which=%02x\n",
-                   (void *)s, (void *)s->ext.inner_s,
-                   (void *)s->ext.outer_s, which);
+        BIO_printf(trc_out, "SSL*=%p, which=%02x\n", (void *)s, which);
         BIO_printf(trc_out, "handshake_dgst is %p\n",
                    (void *)s->s3.handshake_dgst);
     } OSSL_TRACE_END(TLS);
@@ -550,35 +548,29 @@ int tls13_change_cipher_state(SSL_CONNECTION *s, int which)
         unsigned char* hdata = NULL;
         unsigned int hashlenui;
         const SSL_CIPHER *sslcipher = NULL;
-        SSL_CONNECTION *inner = s->ext.inner_s;
 
-        /* we need to produce early data based on the inner and not outer CH */
-        if (inner == NULL) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_R_BAD_HANDSHAKE_LENGTH);
-            goto err;
-        }
-        hdatalen = inner->ext.innerch_len;
-        hdata = inner->ext.innerch;
-        sslcipher = SSL_SESSION_get0_cipher(inner->session);
-        insecret = inner->early_secret;
+        hdatalen = s->ext.innerch_len;
+        hdata = s->ext.innerch;
+        sslcipher = SSL_SESSION_get0_cipher(s->session);
+        insecret = s->early_secret;
         label = client_early_traffic;
         labellen = sizeof(client_early_traffic) - 1;
         log_label = CLIENT_EARLY_LABEL;
-        if (inner->early_data_state == SSL_EARLY_DATA_CONNECTING
-            && inner->max_early_data > 0
-            && inner->session->ext.max_early_data == 0) {
+        if (s->early_data_state == SSL_EARLY_DATA_CONNECTING
+            && s->max_early_data > 0
+            && s->session->ext.max_early_data == 0) {
             /*
              * If we are attempting to send early data, and we've decided to
              * actually do it but max_early_data in s->session is 0 then we
              * must be using an external PSK.
              */
-            if (!ossl_assert(inner->psksession != NULL
-                && inner->max_early_data
-                   == inner->psksession->ext.max_early_data)) {
+            if (!ossl_assert(s->psksession != NULL
+                && s->max_early_data
+                   == s->psksession->ext.max_early_data)) {
                 SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
                 goto err;
             }
-            sslcipher = SSL_SESSION_get0_cipher(inner->psksession);
+            sslcipher = SSL_SESSION_get0_cipher(s->psksession);
         }
         if (sslcipher == NULL) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_R_BAD_PSK);
@@ -598,13 +590,13 @@ int tls13_change_cipher_state(SSL_CONNECTION *s, int which)
          * This ups the ref count on cipher so we better make sure we free
          * it again
          */
-        if (!ssl_cipher_get_evp_cipher(inner->ssl.ctx, sslcipher, &cipher)) {
+        if (!ssl_cipher_get_evp_cipher(s->ssl.ctx, sslcipher, &cipher)) {
             /* Error is already recorded */
             SSLfatal_alert(s, SSL_AD_INTERNAL_ERROR);
             EVP_MD_CTX_free(mdctx);
             goto err;
         }
-        md = ssl_md(inner->ssl.ctx, sslcipher->algorithm2);
+        md = ssl_md(s->ssl.ctx, sslcipher->algorithm2);
         if (md == NULL || !EVP_DigestInit_ex(mdctx, md, NULL)
             || !EVP_DigestUpdate(mdctx, hdata, hdatalen)
             || !EVP_DigestFinal_ex(mdctx, hashval, &hashlenui)) {
@@ -614,16 +606,16 @@ int tls13_change_cipher_state(SSL_CONNECTION *s, int which)
         }
         hashlen = hashlenui;
         EVP_MD_CTX_free(mdctx);
-        if (!tls13_hkdf_expand(inner, md, insecret,
+        if (!tls13_hkdf_expand(s, md, insecret,
                                early_exporter_master_secret,
                                sizeof(early_exporter_master_secret) - 1,
                                hashval, hashlen,
-                               inner->early_exporter_master_secret, hashlen,
+                               s->early_exporter_master_secret, hashlen,
                                1)) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             goto err;
         }
-        if (!ssl_log_secret(inner, EARLY_EXPORTER_SECRET_LABEL,
+        if (!ssl_log_secret(s, EARLY_EXPORTER_SECRET_LABEL,
                             s->early_exporter_master_secret, hashlen)) {
             /* SSLfatal() already called */
             goto err;
@@ -631,13 +623,13 @@ int tls13_change_cipher_state(SSL_CONNECTION *s, int which)
         /* these lines copied from below after the branch above */
         if(!ossl_assert(cipher != NULL))
             goto err;
-        if (!derive_secret_key_and_iv(inner, which & SSL3_CC_WRITE, md, cipher,
+        if (!derive_secret_key_and_iv(s, which & SSL3_CC_WRITE, md, cipher,
                                       insecret, hash, label, labellen, secret,
                                       key, &keylen, iv, &ivlen, &taglen)) {
             /* SSLfatal() already called */
             goto err;
         }
-        if (!ssl_log_secret(inner, log_label, secret, hashlen)) {
+        if (!ssl_log_secret(s, log_label, secret, hashlen)) {
             /* SSLfatal() already called */
             goto err;
         }
