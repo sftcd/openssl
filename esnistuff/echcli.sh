@@ -9,8 +9,6 @@
 # to pick up correct .so's - maybe note 
 : ${CODETOP:=$HOME/code/openssl}
 export LD_LIBRARY_PATH=$CODETOP
-# to pick up the relevant configuration
-: ${CFGTOP:=$HOME/code/openssl}
 : ${GETOPTDIR:=/usr/bin}
 # DNS recursive to use (don't ask:-)
 : ${DNSRECURSIVE=""}

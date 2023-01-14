@@ -1,11 +1,9 @@
 # This is a temporary place for ESNI content ...
 
-Stephen Farrell, stephen.farrell@cs.tcd.ie, 20220225-ish
+Stephen Farrell, stephen.farrell@cs.tcd.ie, 20230114-ish
 
 I'll put stuff here that'll likely disappear as this matures. The plan is
-to delete all this before submitting PRs to the openssl folks. Over time,
-I'll likely move any documentation, test code etc into the proper openssl test
-framework.
+to delete all this before submitting PRs to the openssl folks.
 
 This builds ok on both 64 and 32 bit Ubuntus and (nominally) doesn't leak
 according to valgrind. It works e.g. when talking to crypto.cloudflare.com
@@ -13,8 +11,6 @@ according to valgrind. It works e.g. when talking to crypto.cloudflare.com
 An ``s_client`` works with the ``s_server`` but also with
 [lighttpd](./lighttpd.md), [nginx](./nginx.md),
 [apache](./apache2.md) and, most recently, [haproxy](haproxy.md).
-
-There's some (well out of date) doxygen-generated documentation [here](api.html).
 
 **We haven't that done much testing. Use at your own risk.**
 
@@ -26,6 +22,11 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
+- 20230112: removed the (sort of recursive) ``SSL_CONNECTION *inner_s`` 
+  and ``SSL_CONNECTION *outer_s`` fields from within an ``SSL_CONNECTION``,
+  i.e. flattened out the structure, hopefully improving resilliency.
+  Seems to be working, at least for the ``agiletest.sh`` script.
+
 - 20230109: added a new ``PACKET_replace()`` API to avoid abusing PACKET APIs
   when server replaces outer CH with inner and did a scan of other modified
   files to get rid of a couple of other (W)PACKET API abuses.
@@ -35,7 +36,7 @@ DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
   APIs and play with getting rid of the ``SSL_CONNECCTION *inner_s`` on the
   client.
 
-- 20230104: tidied up ``ssl/statem/extensions_srvr.c`` and 
+- 20230104: tidied up ``ssl/statem/extensions_srvr.c`` and
   ``ssl/statem/statem_srvr.c`` and a couple more a good bit
 
 - 20230103: tidied up ``ssl/statem/extensions_clnt.c`` and 

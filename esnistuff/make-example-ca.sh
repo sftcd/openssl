@@ -2,8 +2,8 @@
 
 # set -x
 
-# Make key pairs for a fake local CA, example.com, foo.example.com
-# and bar.example.com
+# Make key pairs for a fake local CA and a few example.com 
+# names with the latter's certs also covering *.example.com
 
 : ${TOP:=$HOME/code/openssl}
 : ${LD_LIBRARY_PATH:=$TOP}
@@ -14,8 +14,7 @@ export LD_LIBRARY_PATH
 DSTR=`date -u --rfc-3339=s | sed -e 's/ /T/' | sed -e 's/:/-/g'`
 echo "Running $0 at $DSTR"
 
-#
-# The keys we need are, done below. Figure it out:-)
+# The keys we need are done below. Figure it out:-)
 
 # this is where all the various files live
 CADIR=./cadir
@@ -78,11 +77,8 @@ fi
 # make sure we blindly copy extensions (DANGER - don't do in any real uses!)
 sed -i '/^#.* copy_extensions /s/^# //' openssl.cnf
 
-
-
-# this isn't quite obfuscation, I think we'll delete the
-# CA private key when done:-) So this means it'll not have
-# been in clear on disk
+# this isn't quite obfuscation, as we'll delete the CA private key when
+# done:-) So this means it'll not have been in clear on disk
 PASS=$RANDOM$RANDOM$RANDOM$RANDOM
 echo $PASS >pass
 
@@ -106,7 +102,7 @@ NLENGTHS=${#LENGTHS[*]}
 $OBIN req -batch -new -x509 -days 3650 -extensions v3_ca \
 	-newkey rsa -keyout oe.priv  -out oe.csr  \
 	-config openssl.cnf -passin pass:$PASS \
-	-subj "/C=IE/ST=Laighin/O=openssl-esni/CN=ca" \
+	-subj "/C=IE/ST=Laighin/O=openssl-ech/CN=ca" \
 	-passout pass:$PASS
 
 if [ ! -f oe.priv ]
@@ -124,7 +120,7 @@ do
 	echo "Doing name $index, at $length"
 	$OBIN req -new -newkey rsa -days 3650 -keyout $host.priv \
 		-out $host.csr -nodes -config openssl.cnf \
-		-subj "/C=IE/ST=Laighin/L=dublin/O=openssl-esni/CN=$host" \
+		-subj "/C=IE/ST=Laighin/L=dublin/O=openssl-ech/CN=$host" \
 		-addext "subjectAltName = DNS:*.$host,DNS:$host"
 	$OBIN ca -batch -in $host.csr -out $host.crt \
 		-days 3650 -keyfile oe.priv -cert oe.csr \
@@ -138,8 +134,7 @@ done
 # If we have an NSS build, create an NSS DB for our fake root so we can 
 # use NSS' tstclnt (via nssdoech.sh) to talk to our s_server.
 # Note: values below (LDIR and nssca dir) need to sync with nssdoit.sh 
-# content and with your NSS code build (and I suspect it needs to be a 
-# build as ESNI support in NSS isn't afaik released)
+# content and with your NSS code build
 LDIR=$HOME/code/dist/Debug/
 if [ -f $LDIR/bin/certutil ]
 then
