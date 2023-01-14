@@ -31,7 +31,7 @@
  * checks that result in the extension not being sent.
  */
 # define IOSAME if (s->ech != NULL && s->ext.ech_grease == 0) { \
-                    int __rv = ech_same_ext(s, pkt); \
+                    int __rv = ech_same_ext(s, pkt, s->ext.ch_depth); \
                     \
                     if (__rv == OSSL_ECH_SAME_EXT_ERR) \
                         return(EXT_RETURN_FAIL); \
@@ -97,17 +97,55 @@ EXT_RETURN tls_construct_ctos_server_name(SSL_CONNECTION *s, WPACKET *pkt,
                                           size_t chainidx)
 {
 #ifndef OPENSSL_NO_ECH
+    char *chosen = s->ext.hostname; /* legacy default */
+
     if (s->ech != NULL) {
+        OSSL_HPKE_SUITE suite;
+        ECHConfig *tc;
+        char *public_name = NULL;
+
+        if (ech_pick_matching_cfg(s, &tc, &suite) != 1) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+            return EXT_RETURN_NOT_SENT;
+        }
+        public_name = (char *)tc->public_name;
+
         /* Don't send outer SNI if external API says that */
         if (s->ext.ch_depth == 0 && s->ech->no_outer == 1)
             return EXT_RETURN_NOT_SENT;
-        if (ech_server_name_fixup(s) != 1) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-            return EXT_RETURN_FAIL;
+        /* we may have something to send */
+        if (s->ext.ch_depth == 1) { /* inner */
+            if (s->ech->inner_name != NULL) /* prefer specific API */
+                chosen = s->ech->inner_name;
+            else
+                chosen = s->ext.inner_hostname;
+        }
+        if (s->ext.ch_depth == 0) { /* outer */
+            if (s->ech->outer_name != NULL) /* prefer specific API */
+                chosen = s->ech->outer_name;
+            else if (public_name != NULL)
+                chosen = public_name;
+            else
+                chosen = s->ext.hostname;
         }
     }
-#endif
-
+    if (chosen == NULL)
+        return EXT_RETURN_NOT_SENT;
+    /* Add TLS extension servername to the Client Hello message */
+    if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_server_name)
+               /* Sub-packet for server_name extension */
+            || !WPACKET_start_sub_packet_u16(pkt)
+               /* Sub-packet for servername list (always 1 hostname)*/
+            || !WPACKET_start_sub_packet_u16(pkt)
+            || !WPACKET_put_bytes_u8(pkt, TLSEXT_NAMETYPE_host_name)
+            || !WPACKET_sub_memcpy_u16(pkt, chosen, strlen(chosen))
+            || !WPACKET_close(pkt)
+            || !WPACKET_close(pkt)) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+        return EXT_RETURN_FAIL;
+    }
+    return EXT_RETURN_SENT;
+#else
     if (s->ext.hostname == NULL)
         return EXT_RETURN_NOT_SENT;
 
@@ -127,6 +165,7 @@ EXT_RETURN tls_construct_ctos_server_name(SSL_CONNECTION *s, WPACKET *pkt,
     }
 
     return EXT_RETURN_SENT;
+#endif
 }
 
 /* Push a Max Fragment Len extension into ClientHello */
@@ -754,11 +793,7 @@ static int add_key_share(SSL_CONNECTION *s, WPACKET *pkt, unsigned int curve_id)
     EVP_PKEY *key_share_key = NULL;
     size_t encodedlen;
 
-    if (
-#ifndef OPENSSL_NO_ECH
-        s->ech == NULL && /* with ECH a non-NULL, non-HRR tmp.pkey can be ok */
-#endif
-        s->s3.tmp.pkey != NULL) {
+    if (s->s3.tmp.pkey != NULL) {
         if (!ossl_assert(s->hello_retry_request == SSL_HRR_PENDING)) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             return 0;
@@ -795,6 +830,13 @@ static int add_key_share(SSL_CONNECTION *s, WPACKET *pkt, unsigned int curve_id)
      * going to need to be able to save more than one EVP_PKEY. For now
      * we reuse the existing tmp.pkey
      */
+#ifndef OPENSSL_NO_ECH
+    if (s->ext.ch_depth == 1) { /* stash inner */
+        EVP_PKEY_up_ref(key_share_key);
+        s->ext.ech_tmp_pkey = key_share_key;
+        s->ext.ech_group_id = curve_id;
+    }
+#endif
     s->s3.tmp.pkey = key_share_key;
     s->s3.group_id = curve_id;
     OPENSSL_free(encoded_point);
@@ -920,24 +962,6 @@ EXT_RETURN tls_construct_ctos_early_data(SSL_CONNECTION *s, WPACKET *pkt,
     SSL *ssl = SSL_CONNECTION_GET_SSL(s);
 
 #ifndef OPENSSL_NO_ECH
-    /*
-     * Spec text:
-     *   When the client offers the "early_data" extension in
-     *   ClientHelloInner, it MUST also include the "early_data" extension
-     *   in ClientHelloOuter.  This allows servers that reject ECH and use
-     *   ClientHelloOuter to safely ignore any early data sent by the
-     *   client per [RFC8446], Section 4.2.10
-     */
-    if (s->ext.ch_depth == 0 && s->ext.inner_s != NULL
-        && s->ext.inner_s->ext.early_data == SSL_EARLY_DATA_REJECTED
-        && s->ext.inner_s->ext.early_data_ok == 1) {
-        s->ext.early_data = SSL_EARLY_DATA_REJECTED;
-        s->ext.early_data_ok = 1;
-        s->psksession = s->ext.inner_s->psksession;
-        s->psksession_id = s->ext.inner_s->psksession_id;
-        s->max_early_data = s->ext.inner_s->max_early_data;
-        s->early_data_state = s->ext.inner_s->early_data_state;
-    }
     IOSAME
 #endif
     if (s->hello_retry_request == SSL_HRR_PENDING)
@@ -1366,10 +1390,10 @@ EXT_RETURN tls_construct_ctos_psk(SSL_CONNECTION *s, WPACKET *pkt,
                 || !WPACKET_get_total_written(pkt, &binderoffset)
                 || !WPACKET_start_sub_packet_u16(pkt)
                 || (dores == 1
-                    && !WPACKET_sub_allocate_bytes_u8(pkt, reshashsize, 
+                    && !WPACKET_sub_allocate_bytes_u8(pkt, reshashsize,
                         &resbinder))
                 || (s->psksession != NULL
-                    && !WPACKET_sub_allocate_bytes_u8(pkt, pskhashsize, 
+                    && !WPACKET_sub_allocate_bytes_u8(pkt, pskhashsize,
                         &pskbinder))
                 || !WPACKET_close(pkt)
                 || !WPACKET_close(pkt)
@@ -2069,24 +2093,16 @@ int tls_parse_stoc_key_share(SSL_CONNECTION *s, PACKET *pkt,
         }
 
 #ifndef OPENSSL_NO_ECH
-        /* 
+        /*
          * if we tried ECH and got HRR then we need to fix/check
-         * group in inner and outer as well 
+         * group - might be more TODO: here, perhaps we'll need
+         * an "outer_group_id" field
          */
-        if (s->ech != NULL && s->ext.outer_s != NULL) {
-            if (group_id == s->ext.outer_s->s3.group_id) {
-                SSLfatal(s, SSL_AD_ILLEGAL_PARAMETER, SSL_R_BAD_KEY_SHARE);
-                return 0;
-            }
-            s->ext.outer_s->s3.group_id = group_id;
+        if (group_id == s->s3.group_id) {
+            SSLfatal(s, SSL_AD_ILLEGAL_PARAMETER, SSL_R_BAD_KEY_SHARE);
+            return 0;
         }
-        if (s->ech != NULL && s->ext.inner_s != NULL) {
-            if (group_id == s->ext.inner_s->s3.group_id) {
-                SSLfatal(s, SSL_AD_ILLEGAL_PARAMETER, SSL_R_BAD_KEY_SHARE);
-                return 0;
-            }
-            s->ext.inner_s->s3.group_id = group_id;
-        }
+        s->s3.group_id = group_id;
 #endif
 
         /* Validate the selected group is one we support */
@@ -2484,7 +2500,7 @@ int tls_parse_stoc_ech(SSL_CONNECTION *s, PACKET *pkt, unsigned int context,
     const unsigned char *rval = NULL;
     unsigned char *srval = NULL;
 
-    /* 
+    /*
      * The HRR will have an ECH extension with the
      * 8-octet confirmation value but it's processed
      * elsewhere, so just return ok in that case.
