@@ -81,7 +81,7 @@ static char *echconfiglist_from_PEM(const char *echkeyfile)
         ecl_string[readbytes - 1] = '\0';
         readbytes--;
     }
-    if (readbytes == 0) 
+    if (readbytes == 0)
         goto out;
     BIO_free_all(in);
     return ecl_string;
@@ -306,7 +306,7 @@ end:
     return res;
 }
 
-/* Test that setting an echconfig doesn't disturb a TLS1.2 connection */
+/* Test that ECH doesn't work with a TLS1.2 connection */
 static int tls_version_test(void)
 {
     int res = 0;
@@ -325,21 +325,27 @@ static int tls_version_test(void)
                                            ech_version, 0, "example.com",
                                            hpke_suite, NULL, 0)))
         goto end;
+    /* setup contexts, initially for tlsv1.3 */
     if (!TEST_true(create_ssl_ctx_pair(libctx, TLS_server_method(),
                                        TLS_client_method(),
-                                       TLS1_2_VERSION, 0,
+                                       TLS1_3_VERSION, 0,
                                        &sctx, &cctx, cert, privkey)))
+        goto end;
+
+    /* set client to max tls v1.2 and check setting ech config barfs */
+    if (!TEST_true(SSL_CTX_set_max_proto_version(cctx, TLS1_2_VERSION)))
         goto end;
     if (!TEST_true(SSL_CTX_ech_set1_echconfig(cctx, &num_echs,
                                               OSSL_ECH_FMT_GUESS,
                                               (char *)echconfig,
                                               echconfiglen)))
         goto end;
-    /* Now do a handshake */
     if (!TEST_true(create_ssl_objects(sctx, cctx, &serverssl,
-                                      &clientssl, NULL, NULL))
-        || !TEST_true(create_ssl_connection(serverssl, clientssl,
-                                            SSL_ERROR_NONE)))
+                                      &clientssl, NULL, NULL)))
+        goto end;
+    /* Now see a handshake fail */
+    if (!TEST_false(create_ssl_connection(serverssl, clientssl,
+                                          SSL_ERROR_NONE)))
         goto end;
 
     /* all good */
