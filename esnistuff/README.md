@@ -22,6 +22,10 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
+- 20230117: Problem with early-data test in ``agiletest.sh`` - not sure why but
+  could be an issue with the test script itself - the cadir setting isn't right
+  between that script and ``echcli.sh`` and ``echsrv.sh``
+
 - 20230112: removed the (sort of recursive) ``SSL_CONNECTION *inner_s`` 
   and ``SSL_CONNECTION *outer_s`` fields from within an ``SSL_CONNECTION``,
   i.e. flattened out the structure, hopefully improving resilliency.

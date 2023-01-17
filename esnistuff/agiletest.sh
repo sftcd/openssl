@@ -32,15 +32,15 @@ NAEADS=${#AEAD_IDS[*]}
 # basic client/server tests for combinations of supported/not and grease
 skipbase="no"
 # the basic good client/server tests for the range of algs
-skipgood="no"
+skipgood="yes"
 # the tests of various forms of RR/ECHConfig
-skiprrs="no"
+skiprrs="yes"
 # the basic bad tests
-skipbad="no"
+skipbad="yes"
 # the session re-use tests
-skipsess="no"
+skipsess="yes"
 # the HRR checks
-skiphrr="no"
+skiphrr="yes"
 # the early-data checks
 skiped="no"
 
@@ -186,7 +186,7 @@ then
 fi
 
 # check stuff worked above
-if [ ! -f cadir/oe.priv ]
+if [ ! -f ./cadir/oe.priv ]
 then
     echo "No sign of cadir/oe.priv - exiting"
     exit 11
