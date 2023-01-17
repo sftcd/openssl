@@ -1046,6 +1046,22 @@ EXT_RETURN tls_construct_ctos_early_data(SSL_CONNECTION *s, WPACKET *pkt,
     edsess = s->session->ext.max_early_data != 0 ? s->session : psksess;
     s->max_early_data = edsess->ext.max_early_data;
 
+#ifndef OPENSSL_NO_ECH
+    /* check inner name first, if ECH attempted */
+    if (s->ext.ech_attempted == 1) {
+        if (edsess->ext.hostname != NULL) {
+            if (s->ext.inner_hostname == NULL
+                    || (s->ext.inner_hostname != NULL
+                        && strcmp(s->ext.inner_hostname,
+                                  edsess->ext.hostname) != 0)) {
+                SSLfatal(s, SSL_AD_INTERNAL_ERROR,
+                         SSL_R_INCONSISTENT_EARLY_DATA_SNI);
+                return EXT_RETURN_FAIL;
+            }
+        }
+    }
+    else /* existing check */
+#endif
     if (edsess->ext.hostname != NULL) {
         if (s->ext.hostname == NULL
                 || (s->ext.hostname != NULL
