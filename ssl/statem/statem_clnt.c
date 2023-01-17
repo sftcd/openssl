@@ -1462,7 +1462,7 @@ __owur CON_FUNC_RETURN tls_construct_client_hello(SSL_CONNECTION *s, WPACKET *pk
         return CON_FUNC_ERROR;
     }
 
-#ifndef OPENSL_NO_ECH
+#ifndef OPENSSL_NO_ECH
     /* if we're doing ECH, re-use session ID setup earlier */
     if (s->ech == NULL)
 #endif
