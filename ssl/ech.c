@@ -233,17 +233,31 @@ static const int ech_outer_indep[] =
 
 /*
  * Telltales we use when guessing which form of encoded input we've
- * been given for an RR value or ECHConfig
- * TODO: check if these need the EBCDIC treatment as per the above.
+ * been given for an RR value or ECHConfig.
+ * We give these the EBCDIC treatment as well - why not? :-)
  */
 
-/* ascii hex is easy:-) either case allowed, plus a semi-colon separator */
-static const char *AH_alphabet = "0123456789ABCDEFabcdef;";
-/* b64 plus a semi-colon - we accept multiple semi-colon separated values */
+/*
+ * ascii hex with either case allowed, plus a semi-colon separator
+ * "0123456789ABCDEFabcdef;"
+ */
+static const char *AH_alphabet = 
+    "\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39\x41\x42\x43\x44\x45\x46\x61\x62"
+    "\x63\x64\x65\x66\x3b";
+/*
+ * b64 plus a semi-colon - we accept multiple semi-colon separated values
+ * "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=;"
+ */
 static const char *B64_alphabet =
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=;";
-/* telltale for ECH HTTPS/SVCB in presentation format, as per svcb spec */
-static const char *httpssvc_telltale = "ech=";
+    "\x41\x42\x43\x44\x45\x46\x47\x48\x49\x4a\x4b\x4c\x4d\x4e\x4f\x50\x51\x52"
+    "\x53\x54\x55\x56\x57\x58\x59\x5a\x61\x62\x63\x64\x65\x66\x67\x68\x69\x6a"
+    "\x6b\x6c\x6d\x6e\x6f\x70\x71\x72\x73\x74\x75\x76\x77\x78\x79\x7a\x30\x31"
+    "\x32\x33\x34\x35\x36\x37\x38\x39\x2b\x2f\x3d\x3b";
+/*
+ * telltale for ECH HTTPS/SVCB in presentation format, as per svcb spec
+ * "ech="
+ */
+static const char *httpssvc_telltale = "\x65\x63\x68\x3d";
 
 /* SECTION: Local functions */
 
