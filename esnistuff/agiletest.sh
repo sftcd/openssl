@@ -15,6 +15,10 @@ export LD_LIBRARY_PATH=$CODETOP
 : ${VERBOSE:=""}
 # in case you'd like this public name in ECHConfigs
 : ${PNAME:=""}
+# to shortcut the loops over all kem,kdf,aead options to just the 1st
+# we'll default to doing that for now as different algs v. rarely show
+# up anything of interest
+: ${SHORTCUT:="yes"}
 
 KEM_STRINGS=(p256 p284 p521 x5519 x448 bogus-kem)
 KEM_IDS=(0x10 0x11 0x12 0x20 0x21 0xa0)
@@ -32,15 +36,15 @@ NAEADS=${#AEAD_IDS[*]}
 # basic client/server tests for combinations of supported/not and grease
 skipbase="no"
 # the basic good client/server tests for the range of algs
-skipgood="yes"
+skipgood="no"
 # the tests of various forms of RR/ECHConfig
-skiprrs="yes"
+skiprrs="no"
 # the basic bad tests
-skipbad="yes"
+skipbad="no"
 # the session re-use tests
-skipsess="yes"
+skipsess="no"
 # the HRR checks
-skiphrr="yes"
+skiphrr="no"
 # the early-data checks
 skiped="no"
 
@@ -92,7 +96,7 @@ if [[ "$SCRATCHDIR" != "" && -d $SCRATCHDIR ]]
 then
     scratchdir="$SCRATCHDIR"
 else
-    scratchdir=`/bin/mktemp -d`
+    scratchdir=`/bin/mktemp -d /tmp/ech-agile-XXXX`
     if [[ "$KEEP" == "" ]]
     then
         trap cleanup SIGINT
@@ -205,7 +209,7 @@ sleepb4=4
 sleepaftr=2
 if [[ "$verbose" == "yes" ]]
 then
-    vparm=" -dv "
+    vparm=" -d "
     # the -v will also get you valgrind...
     # vparm=" -vd "
     # with valgrind you probably also need to wait longer
@@ -414,6 +418,11 @@ do
         echo "Client failed for $file - exiting"
         exit 21
     fi
+    # jump out after 1st time round the loop if desired
+    if [[ "$SHORTCUT" == "yes" ]]
+    then
+        break
+    fi
 done
 fi
 
@@ -504,6 +513,11 @@ do
         echo "Client failed for $file - exiting"
         exit 21
     fi
+    # jump out after 1st time round the loop if desired
+    if [[ "$SHORTCUT" == "yes" ]]
+    then
+        break
+    fi
 done
 fi
 
@@ -587,6 +601,11 @@ do
     then
         echo "Client didn't fail as expected for server's $file vs. client's $badfile - exiting"
         exit 21
+    fi
+    # jump out after 1st time round the loop if desired
+    if [[ "$SHORTCUT" == "yes" ]]
+    then
+        break
     fi
 done
 fi
@@ -686,7 +705,11 @@ do
         # exiting without cleanup
         exit 20
     fi
-
+    # jump out after 1st time round the loop if desired
+    if [[ "$SHORTCUT" == "yes" ]]
+    then
+        break
+    fi
 done
 fi
 
@@ -754,6 +777,11 @@ do
         # exiting without cleanup
         exit 20
     fi
+    # jump out after 1st time round the loop if desired
+    if [[ "$SHORTCUT" == "yes" ]]
+    then
+        break
+    fi
 done
 fi
 
@@ -797,15 +825,15 @@ do
         $CODETOP/esnistuff/echcli.sh -P `$CODETOP/esnistuff/pem2rr.sh -p $file` -s localhost -p 8443 -H foo.example.com $vparm -f index.html -S $sessfile >/dev/null 2>&1
     fi
     cret=$?
+    if [[ "$cret" != "0" ]]
+    then
+        echo "Client failed acquiring session for $file (ret = $cret) - exiting"
+        exit 21
+    fi
     if [ ! -f $sessfile ]
     then
         echo "No sign of $sessfile - exiting"
         exit 87
-    fi
-    if [[ "$cret" != "0" ]]
-    then
-        echo "Client failed acquiring session for $file - exiting"
-        exit 21
     fi
     # second go 'round, re-use the session
     if [[ "$verbose" == "yes" ]]
@@ -817,7 +845,7 @@ do
     cret=$?
     if [[ "$cret" != "0" ]]
     then
-        echo "Client failed sending early-data for $file - exiting"
+        echo "Client failed sending early-data for $file (ret=$cret) - exiting"
         exit 21
     fi
     # kill server
@@ -843,7 +871,11 @@ do
         # exiting without cleanup
         exit 20
     fi
-
+    # jump out after 1st time round the loop if desired
+    if [[ "$SHORTCUT" == "yes" ]]
+    then
+        break
+    fi
 done
 fi
 
