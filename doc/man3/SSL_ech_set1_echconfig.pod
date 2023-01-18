@@ -4,7 +4,6 @@
 
 SSL_ech_set1_echconfig, SSL_ech_set1_svcb,
 SSL_ech_set_server_names, SSL_ech_set_outer_server_name,
-SSL_ech_set_outer_alpn_protos,
 OSSL_ECH_INFO_free, OSSL_ECH_INFO_print,
 SSL_ech_get_info, SSL_ech_reduce, SSL_ech_get_status,
 SSL_ech_set_grease_suite, SSL_ech_set_grease_type,
@@ -13,6 +12,7 @@ SSL_CTX_ech_set1_echconfig, SSL_CTX_ech_server_get_key_status,
 SSL_CTX_ech_server_flush_keys, SSL_CTX_ech_server_enable_file,
 SSL_CTX_ech_server_enable_buffer, SSL_CTX_ech_server_enable_dir,
 SSL_CTX_ech_raw_decrypt, SSL_CTX_ech_set_callback,
+SSL_CTX_ech_set_outer_alpn_protos,
 ossl_ech_make_echconfig
 - Encrypted ClientHello (ECH) functions
 
@@ -27,8 +27,6 @@ ossl_ech_make_echconfig
  int SSL_ech_set_server_names(SSL *s, const char *inner_name,
                               const char *outer_name, int no_outer);
  int SSL_ech_set_outer_server_name(SSL *s, const char *outer_name, int no_outer);
- int SSL_ech_set_outer_alpn_protos(SSL *s, const unsigned char *protos,
-                                  unsigned int protos_len);
 
  void OSSL_ECH_INFO_free(OSSL_ECH_INFO *info, int count);
  int OSSL_ECH_INFO_print(BIO *out, OSSL_ECH_INFO *info, int count);
@@ -58,8 +56,9 @@ ossl_ech_make_echconfig
                              char **inner_sni, char **outer_sni,
                              unsigned char *outer_ch, size_t outer_len,
                              unsigned char *inner_ch, size_t *inner_len);
-
  void SSL_CTX_ech_set_callback(SSL_CTX *ctx, SSL_ech_cb_func f);
+ int SSL_CTX_ech_set_outer_alpn_protos(SSL *s, const unsigned char *protos,
+                                       unsigned int protos_len);
 
  int ossl_ech_make_echconfig(unsigned char *echconfig, size_t *echconfiglen,
                              unsigned char *priv, size_t *privlen,
@@ -201,7 +200,7 @@ the value input there will be used as the value for ALPN In the inner ClientHell
 If the application wishes to use a different value for the outer ClientHello
 then it can use SSL_CTX_ech_set_outer_alpn_protos() to associated the required
 values with the I<SSL> session. The I<protos> and I<protos_len> parameters are
-handles as for L<SSL_CTX_set_alpn_protos(3)>.
+handled as for L<SSL_CTX_set_alpn_protos(3)>.
 
 SSL_ech_set_server_names(), SSL_ech_set_outer_server_name() and
 SSL_CTX_ech_set_outer_alpn_protos() all return 1 for success and 0 for error.
@@ -260,7 +259,7 @@ SSL_CTX_ech_server_enable_dir() will attempt to read an ECH key pair
 from all files named "*.ech" found in the I<dir>.
 SSL_CTX_ech_server_enable_buffer() allows loading one ECH key pair (still in
 our ECHConfig PEM format) from a buffer. This can be needed if a server
-instance has no access to a file system.
+instance has no access to a filesystem.
 
 SSL_CTX_ech_server_get_key_status() returns the number of ECH key pairs loaded
 in I<numkeys>.  Calls to the various SSL_CTX_ech_server_enable_*() APIs will
@@ -521,7 +520,7 @@ all return 1 for success and 0 in the case of failure.
 
 SSL_CTX_ech_server_enable_file() returns 1 for success, zero
 for general failure and B<SSL_R_FILE_OPEN_FAILED> if checking the
-status of file (via L<stat(3)>) fails.
+status of file (via stat(3) fails.
 
 SSL_ech_set_callback(), SSL_CTX_ech_set_callback() and
 OSSL_ECH_INFO_free() have no return.

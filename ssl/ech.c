@@ -3231,10 +3231,10 @@ int ech_calc_ech_confirm(SSL_CONNECTION *s, int for_hrr,
         memcpy(longtrans, digestedCH, digestedCH_len);
         if (s->server == 0) {
             longtrans[digestedCH_len] = SSL3_MT_SERVER_HELLO;
-            longtrans[digestedCH_len + 1]
-                = (s->ext.ech.kepthrr_len >> 16) & 0xff;
-            longtrans[digestedCH_len + 2]
-                = (s->ext.ech.kepthrr_len >> 8) & 0xff;
+            longtrans[digestedCH_len + 1] =
+                (s->ext.ech.kepthrr_len >> 16) & 0xff;
+            longtrans[digestedCH_len + 2] =
+                (s->ext.ech.kepthrr_len >> 8) & 0xff;
             longtrans[digestedCH_len + 3] = s->ext.ech.kepthrr_len & 0xff;
             memcpy(longtrans + digestedCH_len + 4,
                    s->ext.ech.kepthrr, s->ext.ech.kepthrr_len);
@@ -3265,7 +3265,8 @@ int ech_calc_ech_confirm(SSL_CONNECTION *s, int for_hrr,
                  s->ext.ech.kepthrr_len);
 # endif
         if (EVP_DigestInit_ex(ctx, md, NULL) <= 0
-            || EVP_DigestUpdate(ctx, s->ext.ech.innerch, s->ext.ech.innerch_len) <= 0
+            || EVP_DigestUpdate(ctx, s->ext.ech.innerch,
+                                s->ext.ech.innerch_len) <= 0
             || EVP_DigestFinal_ex(ctx, digestedCH + 4, &hashlen) <= 0) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             goto err;
@@ -3851,7 +3852,8 @@ int ech_aad_and_encrypt(SSL_CONNECTION *s, WPACKET *pkt)
     size_t clear_len = 0;
     int rv = 0;
 
-    if (s == NULL || s->ext.ech.cfgs == NULL || pkt == NULL || s->ssl.ctx == NULL) {
+    if (s == NULL || s->ext.ech.cfgs == NULL
+        || pkt == NULL || s->ssl.ctx == NULL) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         goto err;
     }
@@ -4376,8 +4378,8 @@ int ech_early_decrypt(SSL *ssl, PACKET *outerpkt, PACKET *newpkt)
         s->ext.ech.encoded_innerch_len = 0;
     }
     if (foundcfg == 1) {
-        clear = hpke_decrypt_encch(s, &s->ext.ech.cfgs[cfgind], extval, aad_len, aad,
-                                   forhrr, &clearlen);
+        clear = hpke_decrypt_encch(s, &s->ext.ech.cfgs[cfgind], extval,
+                                   aad_len, aad, forhrr, &clearlen);
         if (clear == NULL) {
             s->ext.ech.grease = OSSL_ECH_IS_GREASE;
         }
@@ -4633,7 +4635,7 @@ int SSL_ech_set1_svcb(SSL *ssl, int *num_echs,
     /* merge new and old */
     all_echs = OPENSSL_realloc(con->ext.ech.cfgs,
                                (con->ext.ech.ncfgs
-                               + num_new) * sizeof(SSL_ECH));
+                                + num_new) * sizeof(SSL_ECH));
     if (all_echs == NULL) {
         for (i = 0; i != num_new; i++)
             SSL_ECH_free(&new_echs[i]);
@@ -4805,7 +4807,8 @@ int SSL_ech_reduce(SSL *ssl, int index)
     SSL_CONNECTION *s = SSL_CONNECTION_FROM_SSL(ssl);
     int i = 0;
 
-    if (s == NULL || index < 0 || s->ext.ech.cfgs == NULL || s->ext.ech.ncfgs <= 0) {
+    if (s == NULL || index < 0 || s->ext.ech.cfgs == NULL
+        || s->ext.ech.ncfgs <= 0) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_PASSED_NULL_PARAMETER);
         return 0;
     }
