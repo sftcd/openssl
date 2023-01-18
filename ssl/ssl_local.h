@@ -1094,10 +1094,10 @@ struct ssl_ctx_st {
 # endif
 #ifndef OPENSSL_NO_ECH
         /* Encrypted ClientHello details for SSL_CTX */
-        int nechs;
-        SSL_ECH *ech;
-        SSL_ech_cb_func ech_cb;
-        unsigned char *alpn_outer;
+        SSL_ECH *ech; /* array of ECH configurations */
+        int nechs; /* number of elements of the above array */
+        SSL_ech_cb_func ech_cb; /* ECH call back */
+        unsigned char *alpn_outer; /* Outer ALPN (if any) */
         size_t alpn_outer_len;
 #endif
         unsigned char cookie_hmac_key[SHA256_DIGEST_LENGTH];
