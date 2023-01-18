@@ -1596,61 +1596,7 @@ struct ssl_connection_st {
         void *debug_arg;
         char *hostname;
 #ifndef OPENSSL_NO_ECH
-        /*
-         * TODO: regularise all these names to inner_* or ech_*
-         */
-        /* ECH details for SSL struct */
-        char *inner_hostname;
-        /* inner ClientHello representations */
-        /* before compression */
-        unsigned char *innerch;
-        size_t innerch_len;
-        /* after compression */
-        unsigned char *encoded_innerch;
-        size_t encoded_innerch_len;
-        /* 
-         * We need to newly record some "inner" transcript messages
-         * so we can independently generate the accept confirmation esp
-         * in the HRR case. 
-         */
-        unsigned char *innerch1;
-        size_t innerch1_len;
-        unsigned char *kepthrr;
-        size_t kepthrr_len;
-        /*
-         * extensions are "outer-only" if the value is only sent in the
-         * outer CH with only the type in the inner CH (i.e. compressed)
-         */
-        size_t n_outer_only;
-        uint16_t outer_only[OSSL_ECH_OUTERS_MAX];
-        unsigned int etype; /* Client placeholder for ext type */
-        /*
-         * ECH status vars
-         */
-        int ech_attempted;
-        uint16_t ech_attempted_type;
-        int ech_attempted_cid;
-        int ech_done;
-        int ech_success;
-        int ech_grease;
-        int ech_backend;
-        char* ech_grease_suite;
-        int ch_depth; /* 0 => outer, 1 => inner */
-        int hrr_depth; /* -1 => dunno yet, 0=> outer, 1 => inner */
-        unsigned char *alpn_outer;
-        size_t alpn_outer_len;
-        unsigned char *ech_returned; /* binary ECHConfig retry value */
-        size_t ech_returned_len;
-        unsigned char *ech_sent; /* for GREASEy re-tx */
-        size_t ech_sent_len;
-        unsigned char *ech_pub; /* needs keeping by server in case of HRR */
-        size_t ech_pub_len;
-        /* crypto things */
-        OSSL_HPKE_CTX *ech_ctx;
-        /* client's key share for inner */
-        EVP_PKEY *ech_tmp_pkey;
-        int ech_group_id;
-        unsigned char ech_client_random[SSL3_RANDOM_SIZE];
+        SSL_CONNECTION_ECH ech;
 #endif
         /* certificate status request info */
         /* Status type or -1 if no status type */
@@ -1774,13 +1720,6 @@ struct ssl_connection_st {
      * 2 : don't call servername callback, no ack in server hello
      */
     int servername_done;
-#ifndef OPENSSL_NO_ECH
-    /* More ECH details for SSL struct */
-    int nechs;
-    SSL_ECH *ech;
-    SSL_ech_cb_func ech_cb;
-#endif
-
 # ifndef OPENSSL_NO_CT
     /*
      * Validates that the SCTs (Signed Certificate Timestamps) are sufficient.

@@ -540,7 +540,7 @@ int tls13_change_cipher_state(SSL_CONNECTION *s, int which)
 # endif
 
     /* If doing early data and ECH then we're a special case.  */
-    if (s->server == 0 && s->ext.ech_attempted == 1
+    if (s->server == 0 && s->ext.ech.attempted == 1
         && which & SSL3_CC_CLIENT && which & SSL3_CC_WRITE
         && which & SSL3_CC_EARLY) {
         EVP_MD_CTX *mdctx = NULL;
@@ -549,8 +549,8 @@ int tls13_change_cipher_state(SSL_CONNECTION *s, int which)
         unsigned int hashlenui;
         const SSL_CIPHER *sslcipher = NULL;
 
-        hdatalen = s->ext.innerch_len;
-        hdata = s->ext.innerch;
+        hdatalen = s->ext.ech.innerch_len;
+        hdata = s->ext.ech.innerch;
         sslcipher = SSL_SESSION_get0_cipher(s->session);
         insecret = s->early_secret;
         label = client_early_traffic;
@@ -654,18 +654,18 @@ int tls13_change_cipher_state(SSL_CONNECTION *s, int which)
 
 #ifndef OPENSSL_NO_ECH
             /* if ECH worked then use the innerch and not the h/s buffer here */
-            if (s->server == 1 && s->ext.ech_success == 1) {
-                if (s->ext.innerch == NULL) {
+            if (s->server == 1 && s->ext.ech.success == 1) {
+                if (s->ext.ech.innerch == NULL) {
                     SSLfatal(s, SSL_AD_INTERNAL_ERROR,
                              SSL_R_BAD_HANDSHAKE_LENGTH);
                     goto err;
                 }
-                handlen = s->ext.innerch_len;
-                hdata = s->ext.innerch;
+                handlen = s->ext.ech.innerch_len;
+                hdata = s->ext.ech.innerch;
             } else {
                 handlen = BIO_get_mem_data(s->s3.handshake_buffer, &hdata);
                 if (handlen <= 0) {
-                    SSLfatal(s, SSL_AD_INTERNAL_ERROR, 
+                    SSLfatal(s, SSL_AD_INTERNAL_ERROR,
                             SSL_R_BAD_HANDSHAKE_LENGTH);
                     goto err;
                 }

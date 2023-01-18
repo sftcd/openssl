@@ -1225,10 +1225,10 @@ __owur CON_FUNC_RETURN tls_construct_client_hello(SSL_CONNECTION *s,
         return 0;
     }
     /* If we're not really attempting ECH, just call existing code.  */
-    if (s->ech == NULL || s->ext.hrr_depth == 0)
+    if (s->ext.ech.cfgs == NULL || s->ext.ech.hrr_depth == 0)
         return tls_construct_client_hello_aux(s, pkt);
     /* note version we're attempting and that an attempt is being made */
-    if (s->ech != NULL && s->ech->cfg != NULL && s->ech->cfg->recs != NULL) {
+    if (s->ext.ech.cfgs->cfg != NULL && s->ext.ech.cfgs->cfg->recs != NULL) {
         ECHConfig *tc = NULL;
         OSSL_HPKE_SUITE suite;
 
@@ -1240,13 +1240,13 @@ __owur CON_FUNC_RETURN tls_construct_client_hello(SSL_CONNECTION *s,
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, protverr);
             return 0;
         }
-        s->ext.ech_attempted_type = tc->version;
-        s->ext.ech_attempted_cid = tc->config_id;
-        s->ext.ech_attempted = 1;
+        s->ext.ech.attempted_type = tc->version;
+        s->ext.ech.attempted_cid = tc->config_id;
+        s->ext.ech.attempted = 1;
     }
     /* If doing real ECH and application requested GREASE too, over-ride that */
-    if (s->ext.ech_grease == OSSL_ECH_IS_GREASE && s->ext.ech_attempted == 1) {
-        s->ext.ech_grease = OSSL_ECH_NOT_GREASE;
+    if (s->ext.ech.grease == OSSL_ECH_IS_GREASE && s->ext.ech.attempted == 1) {
+        s->ext.ech.grease = OSSL_ECH_NOT_GREASE;
         OSSL_TRACE_BEGIN(TLS) {
             BIO_printf(trc_out, "ECH Over-ride GREASE for real ECH\n");
         } OSSL_TRACE_END(TLS);
@@ -1295,24 +1295,24 @@ __owur CON_FUNC_RETURN tls_construct_client_hello(SSL_CONNECTION *s,
      * Before we start on the outer, we copy details we have so far
      * unless we're in the middle of HRR handling
      */
-    if (s->ext.hrr_depth == -1) {
+    if (s->ext.ech.hrr_depth == -1) {
         /* doing 1st CH, as we've not seen an HRR */
         /* move any hostname/SNI already set from the outer to the inner */
         if (s->ext.hostname != NULL) {
-            s->ext.inner_hostname = s->ext.hostname;
+            s->ext.ech.inner_hostname = s->ext.hostname;
             s->ext.hostname = NULL;
         }
-    } else if (s->ext.hrr_depth == 1) {
-        s->ext.n_outer_only = 0; /* reset count of "compressed" exts */
-        OPENSSL_free(s->ext.encoded_innerch);
-        s->ext.encoded_innerch = NULL;
-        s->ext.encoded_innerch_len = 0;
-        if (s->ext.innerch != NULL) {
-            OPENSSL_free(s->ext.innerch1);
-            s->ext.innerch1 = s->ext.innerch;
-            s->ext.innerch1_len = s->ext.innerch_len;
-            s->ext.innerch_len = 0;
-            s->ext.innerch = NULL;
+    } else if (s->ext.ech.hrr_depth == 1) {
+        s->ext.ech.n_outer_only = 0; /* reset count of "compressed" exts */
+        OPENSSL_free(s->ext.ech.encoded_innerch);
+        s->ext.ech.encoded_innerch = NULL;
+        s->ext.ech.encoded_innerch_len = 0;
+        if (s->ext.ech.innerch != NULL) {
+            OPENSSL_free(s->ext.ech.innerch1);
+            s->ext.ech.innerch1 = s->ext.ech.innerch;
+            s->ext.ech.innerch1_len = s->ext.ech.innerch_len;
+            s->ext.ech.innerch_len = 0;
+            s->ext.ech.innerch = NULL;
         }
     }
     /*
@@ -1320,7 +1320,7 @@ __owur CON_FUNC_RETURN tls_construct_client_hello(SSL_CONNECTION *s,
      * other code (e.g. extension handlers) know where we're
      * at: 1 is "inner CH", 0 is "outer CH"
      */
-    s->ext.ch_depth = 1;
+    s->ext.ech.ch_depth = 1;
     if ((inner_mem = BUF_MEM_new()) == NULL) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, protverr);
         goto err;
@@ -1358,21 +1358,21 @@ __owur CON_FUNC_RETURN tls_construct_client_hello(SSL_CONNECTION *s,
         goto err;
     }
     memcpy(innerch_full, inner_mem->data, innerinnerlen);
-    s->ext.innerch = innerch_full;
-    s->ext.innerch_len = innerinnerlen;
+    s->ext.ech.innerch = innerch_full;
+    s->ext.ech.innerch_len = innerinnerlen;
     WPACKET_cleanup(&inner);
     BUF_MEM_free(inner_mem);
     inner_mem = NULL;
 # ifdef OSSL_ECH_SUPERVERBOSE
     /* If tracing, trace out the inner, client random & session id */
-    ech_pbuf("inner CH", s->ext.innerch, s->ext.innerch_len);
-    ech_pbuf("inner, client_random", s->ext.ech_client_random, SSL3_RANDOM_SIZE);
+    ech_pbuf("inner CH", s->ext.ech.innerch, s->ext.ech.innerch_len);
+    ech_pbuf("inner, client_random", s->ext.ech.client_random, SSL3_RANDOM_SIZE);
     ech_pbuf("inner, session_id", s->session->session_id,
              s->session->session_id_length);
 # endif
     /* Decode inner so that we can make up encoded inner */
-    if (!PACKET_buf_init(&rpkt, (unsigned char*) s->ext.innerch + 4,
-                         s->ext.innerch_len - 4)) {
+    if (!PACKET_buf_init(&rpkt, (unsigned char*) s->ext.ech.innerch + 4,
+                         s->ext.ech.innerch_len - 4)) {
         WPACKET_cleanup(pkt);
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         goto err;
@@ -1393,11 +1393,11 @@ __owur CON_FUNC_RETURN tls_construct_client_hello(SSL_CONNECTION *s,
         goto err;
     }
 # ifdef OSSL_ECH_SUPERVERBOSE
-    ech_pbuf("encoded inner CH", s->ext.encoded_innerch,
-             s->ext.encoded_innerch_len);
+    ech_pbuf("encoded inner CH", s->ext.ech.encoded_innerch,
+             s->ext.ech.encoded_innerch_len);
 # endif
     /* re-set a couple of things */
-    s->ext.ch_depth = 0;
+    s->ext.ech.ch_depth = 0;
     EVP_PKEY_free(s->s3.tmp.pkey);
     s->s3.tmp.pkey = NULL;
     /* Make second call into CH constuction for outer CH. */
@@ -1407,8 +1407,8 @@ __owur CON_FUNC_RETURN tls_construct_client_hello(SSL_CONNECTION *s,
         goto err;
     }
 # ifdef OSSL_ECH_SUPERVERBOSE
-    ech_pbuf("encoded inner CH", s->ext.encoded_innerch,
-             s->ext.encoded_innerch_len);
+    ech_pbuf("encoded inner CH", s->ext.ech.encoded_innerch,
+             s->ext.ech.encoded_innerch_len);
     ech_pbuf("outer, client_random", s->s3.client_random, SSL3_RANDOM_SIZE);
     ech_pbuf("outer, session_id", s->session->session_id,
              s->session->session_id_length);
@@ -1464,7 +1464,7 @@ __owur CON_FUNC_RETURN tls_construct_client_hello(SSL_CONNECTION *s, WPACKET *pk
 
 #ifndef OPENSSL_NO_ECH
     /* if we're doing ECH, re-use session ID setup earlier */
-    if (s->ech == NULL)
+    if (s->ext.ech.cfgs == NULL)
 #endif
     if (sess == NULL
             || !ssl_version_supported(s, sess->ssl_version, NULL)
@@ -1479,8 +1479,8 @@ __owur CON_FUNC_RETURN tls_construct_client_hello(SSL_CONNECTION *s, WPACKET *pk
 
 #ifndef OPENSSL_NO_ECH
     /* use different client_random fields for inner and outer */
-    if (s->ech != NULL && s->ext.ch_depth == 1)
-        p = s->ext.ech_client_random;
+    if (s->ext.ech.cfgs != NULL && s->ext.ech.ch_depth == 1)
+        p = s->ext.ech.client_random;
     else
 #endif
     p = s->s3.client_random;
@@ -1559,7 +1559,7 @@ __owur CON_FUNC_RETURN tls_construct_client_hello(SSL_CONNECTION *s, WPACKET *pk
     session_id = s->session->session_id;
 #ifndef OPENSSL_NO_ECH
     /* same session ID is used for inner/outer when doing ECH */
-    if (s->ech != NULL)
+    if (s->ext.ech.cfgs != NULL)
         sess_id_len = sizeof(s->tmp_session_id);
     else
 #endif
@@ -1847,9 +1847,10 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL_CONNECTION *s, PACKET *pkt)
      * the inner and outer contexts and proceed with inner.
      * The check to do differs depending on whether or not HRR happened.
      */
-    if (s->ech != NULL && s->ext.ech_done != 1 && s->ext.ch_depth == 0
-        && s->ext.ech_grease == OSSL_ECH_NOT_GREASE
-        && s->ext.ech_attempted_type == TLSEXT_TYPE_ech13) {
+    if (s->ext.ech.cfgs != NULL
+        && s->ext.ech.done != 1 && s->ext.ech.ch_depth == 0
+        && s->ext.ech.grease == OSSL_ECH_NOT_GREASE
+        && s->ext.ech.attempted_type == TLSEXT_TYPE_ech13) {
         unsigned char acbuf[8]; /* accept signal buffer */
 
         if (hrr) {
@@ -1859,22 +1860,23 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL_CONNECTION *s, PACKET *pkt)
                 goto err;
             }
             if (memcmp(shbuf + shlen - 8, acbuf ,8) == 0) {
-                s->ext.ech_success = 1;
-                s->ext.hrr_depth = 1;
+                s->ext.ech.success = 1;
+                s->ext.ech.hrr_depth = 1;
                 OPENSSL_free(s->ext.hostname);
-                if (s->ext.inner_hostname != NULL)
-                    s->ext.hostname = OPENSSL_strdup(s->ext.inner_hostname);
+                if (s->ext.ech.inner_hostname != NULL)
+                    s->ext.hostname = OPENSSL_strdup(s->ext.ech.inner_hostname);
                 else
                     s->ext.hostname = NULL;
                 OSSL_TRACE_BEGIN(TLS) {
                     BIO_printf(trc_out, "ECH HRR accept check ok\n");
                     BIO_printf(trc_out, "ECH set session hostname to %s\n",
-                               s->ext.inner_hostname ? s->ext.inner_hostname 
+                               s->ext.ech.inner_hostname
+                               ? s->ext.ech.inner_hostname
                                : "NULL");
                 } OSSL_TRACE_END(TLS);
             } else {
-                s->ext.ech_success = 0;
-                s->ext.hrr_depth = 0;
+                s->ext.ech.success = 0;
+                s->ext.ech.hrr_depth = 0;
                 OSSL_TRACE_BEGIN(TLS) {
                     BIO_printf(trc_out, "ECH HRR accept check failed\n");
                 } OSSL_TRACE_END(TLS);
@@ -1897,28 +1899,29 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL_CONNECTION *s, PACKET *pkt)
                 OSSL_TRACE_BEGIN(TLS) {
                     BIO_printf(trc_out, "ECH SH accept check ok\n");
                 } OSSL_TRACE_END(TLS);
-                s->ext.ech_success = 1;
-                if (s->ext.inner_hostname != NULL)
-                    s->ext.hostname = OPENSSL_strdup(s->ext.inner_hostname);
+                s->ext.ech.success = 1;
+                if (s->ext.ech.inner_hostname != NULL)
+                    s->ext.hostname = OPENSSL_strdup(s->ext.ech.inner_hostname);
                 else
                     s->ext.hostname = NULL;
                 OSSL_TRACE_BEGIN(TLS) {
                     BIO_printf(trc_out, "ECH set session hostname to %s\n",
-                               s->ext.inner_hostname ? s->ext.inner_hostname 
+                               s->ext.ech.inner_hostname
+                               ? s->ext.ech.inner_hostname
                                : "NULL");
                 } OSSL_TRACE_END(TLS);
             } else {
                 OSSL_TRACE_BEGIN(TLS) {
                     BIO_printf(trc_out, "ECH SH accept check failed\n");
                 } OSSL_TRACE_END(TLS);
-                s->ext.ech_success = 0;
+                s->ext.ech.success = 0;
 # ifdef OSSL_ECH_SUPERVERBOSE
                 ech_pbuf("ECH SH acbuf", acbuf, 8);
                 ech_pbuf("ECH SH shval",
                          s->s3.server_random + SSL3_RANDOM_SIZE - 8, 8);
 # endif
             }
-            if (s->ext.ech_success == 1) {
+            if (s->ext.ech.success == 1) {
                 unsigned char *aptr = NULL;
 
                 OSSL_TRACE_BEGIN(TLS) {
@@ -1939,7 +1942,8 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL_CONNECTION *s, PACKET *pkt)
                         BIO_printf(trc_out,"Adding in digest of CH1/HRR\n");
                     } OSSL_TRACE_END(TLS);
 # ifdef OSSL_ECH_SUPERVERBOSE
-                    ech_pbuf("innerch", s->ext.innerch1 ,s->ext.innerch1_len);
+                    ech_pbuf("innerch", s->ext.ech.innerch1,
+                             s->ext.ech.innerch1_len);
 # endif
                     md = ssl_handshake_md(s);
                     if (!md) {
@@ -1971,8 +1975,8 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL_CONNECTION *s, PACKET *pkt)
                         }
                     }
                     if (EVP_DigestInit_ex(ctx, md, NULL) <= 0
-                        || EVP_DigestUpdate(ctx, s->ext.innerch1,
-                            s->ext.innerch1_len) <= 0
+                        || EVP_DigestUpdate(ctx, s->ext.ech.innerch1,
+                            s->ext.ech.innerch1_len) <= 0
                         || EVP_DigestFinal_ex(ctx, hashval, &hashlen) <= 0) {
                             SSLfatal(s, SSL_AD_INTERNAL_ERROR,
                                     ERR_R_INTERNAL_ERROR);
@@ -1983,8 +1987,8 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL_CONNECTION *s, PACKET *pkt)
 # endif
                     EVP_MD_CTX_free(ctx);
                     alen = SSL3_HM_HEADER_LENGTH + hashlen
-                           + SSL3_HM_HEADER_LENGTH + s->ext.kepthrr_len
-                           + SSL3_HM_HEADER_LENGTH + s->ext.innerch_len
+                           + SSL3_HM_HEADER_LENGTH + s->ext.ech.kepthrr_len
+                           + SSL3_HM_HEADER_LENGTH + s->ext.ech.innerch_len
                            + shlen;
                     abuf = OPENSSL_malloc(alen);
                     if (abuf==NULL)
@@ -1998,25 +2002,26 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL_CONNECTION *s, PACKET *pkt)
                     memcpy(aptr, hashval, hashlen);
                     aptr += hashlen;
                     aptr[0] = SSL3_MT_SERVER_HELLO;
-                    aptr[1] = ((s->ext.kepthrr_len >> 16) & 0xff);
-                    aptr[2] = ((s->ext.kepthrr_len >> 8) & 0xff);
-                    aptr[3] = (s->ext.kepthrr_len & 0xff);
+                    aptr[1] = ((s->ext.ech.kepthrr_len >> 16) & 0xff);
+                    aptr[2] = ((s->ext.ech.kepthrr_len >> 8) & 0xff);
+                    aptr[3] = (s->ext.ech.kepthrr_len & 0xff);
                     aptr += 4;
-                    memcpy(aptr, s->ext.kepthrr, s->ext.kepthrr_len);
-                    aptr += s->ext.kepthrr_len;
+                    memcpy(aptr, s->ext.ech.kepthrr, s->ext.ech.kepthrr_len);
+                    aptr += s->ext.ech.kepthrr_len;
                 } else {
-                    alen = s->ext.innerch_len + SSL3_HM_HEADER_LENGTH + shlen;
+                    alen = s->ext.ech.innerch_len + SSL3_HM_HEADER_LENGTH
+                           + shlen;
                     abuf = OPENSSL_malloc(alen);
                     if (abuf==NULL)
                         goto err;
                     aptr = abuf;
                 }
-                memcpy(aptr, s->ext.innerch, s->ext.innerch_len);
-                aptr[s->ext.innerch_len] = SSL3_MT_SERVER_HELLO;
-                aptr[s->ext.innerch_len+1] = ((shlen >> 16) & 0xff);
-                aptr[s->ext.innerch_len+2] = ((shlen >> 8) & 0xff);
-                aptr[s->ext.innerch_len+3] = (shlen & 0xff);
-                memcpy(aptr + s->ext.innerch_len + 4, shbuf, shlen);
+                memcpy(aptr, s->ext.ech.innerch, s->ext.ech.innerch_len);
+                aptr[s->ext.ech.innerch_len] = SSL3_MT_SERVER_HELLO;
+                aptr[s->ext.ech.innerch_len+1] = ((shlen >> 16) & 0xff);
+                aptr[s->ext.ech.innerch_len+2] = ((shlen >> 8) & 0xff);
+                aptr[s->ext.ech.innerch_len+3] = (shlen & 0xff);
+                memcpy(aptr + s->ext.ech.innerch_len + 4, shbuf, shlen);
 # ifdef OSSL_ECH_SUPERVERBOSE
                 ech_pbuf("Client transcript re-init", abuf, alen);
 # endif
