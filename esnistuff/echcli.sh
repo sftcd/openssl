@@ -226,7 +226,7 @@ fi
 snioutercmd=" "
 if [[ "$SUPPLIEDPNO" != "" && "$NOECH" != "yes" ]] 
 then
-    snioutercmd="-sni-outer $SUPPLIEDPNO"
+    snioutercmd="-sni_outer $SUPPLIEDPNO"
 fi
 
 # Set address of target 
@@ -390,7 +390,7 @@ if [[ "$SUPPLIEDOUTER" != "" ]]
 then
     # add that parameter to echstr - not all cases will make
     # sense but that's ok
-    echstr="$echstr -sni-outer $SUPPLIEDOUTER"
+    echstr="$echstr -sni_outer $SUPPLIEDOUTER"
 fi
 
 if [[ "$DOECH" == "yes" && "$SUPPLIEDHIDDEN" == "" && "$HTTPPATH" == "" ]]

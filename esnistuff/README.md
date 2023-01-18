@@ -22,6 +22,8 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
+- 20230118: rebased with master, cleaned up some doc-nits stuff
+
 - 20230117: Fixed issue with early-data (session name vs. 
   inner SNI check needed a tweak).
 
