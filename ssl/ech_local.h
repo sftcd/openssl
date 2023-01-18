@@ -58,7 +58,7 @@
 #  define OSSL_ECH_OUTER_CH_TYPE 0 /* outer ECHClientHello enum */
 #  define OSSL_ECH_INNER_CH_TYPE 1 /* inner ECHClientHello enum */
 
-/* size for sgtring buffer returned via ech_cb */
+/* size for sgtring buffer returned via ech callback */
 #  define OSSL_ECH_PBUF_SIZE 8 * 1024
 
 /*
@@ -185,6 +185,92 @@ typedef struct ssl_ech_st {
     time_t loadtime; /* time public and private key were loaded from file */
     EVP_PKEY *keyshare; /* long(ish) term ECH private keyshare on a server */
 } SSL_ECH;
+
+/**
+ * @brief The ECH details associated with an SSL_CONNECTION structure
+ */
+typedef struct ssl_connection_ech_st {
+    /*
+     * SNI for inner CH, ALPN for outer, as used (i.e. after we handle
+     * no_outer/public_name/overrides etc.)
+     *
+     * TODO: consider swapping roles of s->ext.ech.inner_hostname
+     * and s->ext.hostname (while obviously renaming the former to
+     * s->ext.ech.public_name) - having the inner SNI here is inherited
+     * as we started from ESNI where it made more sense, but it could
+     * be changed. OTOH, this works:-)
+     */
+    char *inner_hostname;
+    unsigned char *alpn_outer;
+    size_t alpn_outer_len;
+    /*
+     * inner ClientHello representations, the compression here
+     * is complex but basically to avoid repeating the same
+     * ext val in the outer and inner
+     */
+    unsigned char *innerch; /* before compression */
+    size_t innerch_len;
+    unsigned char *encoded_innerch; /* after compression */
+    size_t encoded_innerch_len;
+    /*
+     * extensions are "outer-only" if the value is only sent in the
+     * outer CH with only the type in the inner CH (i.e. compressed)
+     */
+    size_t n_outer_only;
+    uint16_t outer_only[OSSL_ECH_OUTERS_MAX];
+    /*
+     * Client placeholder for CH extension type - added here to avoid need
+     * to break APIs - we need this to setup the compression
+     */
+    unsigned int etype;
+    /*
+     * We need to also record some "inner" messages so we can independently
+     * generate the trancsript and accept confirmation for the HRR case
+     */
+    unsigned char *innerch1;
+    size_t innerch1_len;
+    unsigned char *kepthrr;
+    size_t kepthrr_len;
+    /*
+     * ECH status vars
+     */
+    int attempted; /* 1 if ECH was/is being attempted, 0 otherwise */
+    uint16_t attempted_type; /* ECH version used */
+    int attempted_cid; /* ECH config id sent/rx'd */
+    int done; /* 1 if we've finished ECH calculations, 0 otherwise */
+    /*
+     * ``success`` is 1 if ECH succeeded, 0 otherwise, on the server this
+     * is known early, on the client we need to wait for the ECH confirm
+     * calculation based on the SH (or 2nd SH in case of HRR)
+     */
+    int success;
+    int grease; /* 1 if we're GREASEing, 0 otherwise */
+    char* grease_suite; /* HPKE suite string for GREASEing */
+    unsigned char *sent; /* GREASEy value sent, in case needed for re-tx */
+    size_t sent_len;
+    int backend; /* 1 if we're a server backend in split-mode, 0 otherwise */
+    int ch_depth; /* 0 => outer, 1 => inner */
+    int hrr_depth; /* -1 => dunno yet, 0=> outer, 1 => inner */
+    unsigned char *returned; /* binary ECHConfig retry value */
+    size_t returned_len;
+    unsigned char *pub; /* client ephemeral public kept by server in case HRR */
+    size_t pub_len;
+    OSSL_HPKE_CTX *hpke_ctx; /* HPKE context */
+    /*
+     * Fields that differ on client between inner and outer that we need to
+     * keep and swap over IFF ECH has succeeded
+     */
+    EVP_PKEY *tmp_pkey; /* client's key share for inner */
+    int group_id; /*  key share group */
+    unsigned char client_random[SSL3_RANDOM_SIZE]; /* CH random */
+    /*
+     * Fields copied down from SSL_CTX in most cases, but that can be set
+     * on the SSL connection too
+     */
+    SSL_ECH *cfgs; /* an array of configured ECH stuff */
+    int ncfgs; /* number of elements in array */
+    SSL_ech_cb_func cb; /* callback function for when ECH "done" */
+} SSL_CONNECTION_ECH;
 
 /**
  * @brief Free an SSL_ECH

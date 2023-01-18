@@ -170,9 +170,9 @@ int tls_parse_ctos_server_name(SSL_CONNECTION *s, PACKET *pkt,
          * copied the outer SNI (if present) within our ECH
          * early decryption code
          */
-        if (s->ech != NULL && s->ext.ech_success == 1) {
-            OPENSSL_free(s->ech->inner_name);
-            s->ech->inner_name = OPENSSL_strdup(s->ext.hostname);
+        if (s->ext.ech.cfgs != NULL && s->ext.ech.success == 1) {
+            OPENSSL_free(s->ext.ech.cfgs->inner_name);
+            s->ext.ech.cfgs->inner_name = OPENSSL_strdup(s->ext.hostname);
         }
 #endif
 
@@ -2160,7 +2160,7 @@ int tls_parse_ctos_server_cert_type(SSL_CONNECTION *sc, PACKET *pkt,
  * @return 1 for good, 0 otherwise
  *
  * Real ECH handling (i.e. decryption) happens before, via
- * ech_early_decrypt(), but if that failed (e.g. decryption 
+ * ech_early_decrypt(), but if that failed (e.g. decryption
  * failed, which may be down to GREASE) then we end up here,
  * processing the ECH from the outer CH.
  * Otherwise, we only expect to see an inner ECH with a fixed
@@ -2171,15 +2171,15 @@ int tls_parse_ctos_ech(SSL_CONNECTION *s, PACKET *pkt, unsigned int context,
 {
     unsigned int echtype = 0;
 
-    if (s->ext.ech_grease == OSSL_ECH_IS_GREASE) {
+    if (s->ext.ech.grease == OSSL_ECH_IS_GREASE) {
         /* GREASE is fine */
         return 1;
     }
-    if (s->ech == NULL) {
+    if (s->ext.ech.cfgs == NULL) {
         /* If not configured for ECH then we ignore it */
         return 1;
     }
-    if (s->ext.ech_attempted_type != OSSL_ECH_DRAFT_13_VERSION) {
+    if (s->ext.ech.attempted_type != OSSL_ECH_DRAFT_13_VERSION) {
         /*
          * the server really only knows draft-13 for ech_early_decrypt
          * so it's an error to get here for any other version (for
@@ -2188,8 +2188,8 @@ int tls_parse_ctos_ech(SSL_CONNECTION *s, PACKET *pkt, unsigned int context,
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         return 0;
     }
-    /* 
-     * we only allow "inner" which is one octet, valued 0x01 
+    /*
+     * we only allow "inner" which is one octet, valued 0x01
      * and only if we decrypted ok or are a backend
      */
     OSSL_TRACE_BEGIN(TLS) {
@@ -2207,7 +2207,7 @@ int tls_parse_ctos_ech(SSL_CONNECTION *s, PACKET *pkt, unsigned int context,
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         return 0;
     }
-    if (s->ext.ech_success != 1 && s->ext.ech_backend != 1) {
+    if (s->ext.ech.success != 1 && s->ext.ech.backend != 1) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         return 0;
     }
@@ -2240,11 +2240,11 @@ EXT_RETURN tls_construct_stoc_ech13(SSL_CONNECTION *s, WPACKET *pkt,
     time_t echloadtime = 0;
 
     if (context == SSL_EXT_TLS1_3_HELLO_RETRY_REQUEST
-        && (s->ext.ech_success == 1 || s->ext.ech_backend == 1)
-        && s->ext.ech_attempted_type == TLSEXT_TYPE_ech13) {
+        && (s->ext.ech.success == 1 || s->ext.ech.backend == 1)
+        && s->ext.ech.attempted_type == TLSEXT_TYPE_ech13) {
         unsigned char eightzeros[8] = {0, 0, 0, 0, 0, 0, 0, 0};
 
-        if (!WPACKET_put_bytes_u16(pkt, s->ext.ech_attempted_type)
+        if (!WPACKET_put_bytes_u16(pkt, s->ext.ech.attempted_type)
             || !WPACKET_sub_memcpy_u16(pkt, eightzeros, 8)) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             return 0;
@@ -2259,32 +2259,32 @@ EXT_RETURN tls_construct_stoc_ech13(SSL_CONNECTION *s, WPACKET *pkt,
         return EXT_RETURN_NOT_SENT;
     }
     /* If in some weird state we ignore and send nothing */
-    if (s->ext.ech_grease != OSSL_ECH_IS_GREASE
-        || s->ext.ech_attempted_type != TLSEXT_TYPE_ech13) {
+    if (s->ext.ech.grease != OSSL_ECH_IS_GREASE
+        || s->ext.ech.attempted_type != TLSEXT_TYPE_ech13) {
         return EXT_RETURN_NOT_SENT;
     }
     /*
-     * If the client GREASEd, or we think it did, return the 
-     * most-recently loaded ECHConfigList, as the value of the 
+     * If the client GREASEd, or we think it did, return the
+     * most-recently loaded ECHConfigList, as the value of the
      * extension. Most-recently loaded can be anywhere in the
      * list, depending on changing or non-changing file names.
      */
-    if (s->ech == NULL || s->nechs == 0) {
+    if (s->ext.ech.cfgs == NULL || s->ext.ech.ncfgs == 0) {
         OSSL_TRACE_BEGIN(TLS) {
-            BIO_printf(trc_out, "ECH - not sending ECHConfigList to client " 
+            BIO_printf(trc_out, "ECH - not sending ECHConfigList to client "
                        "even though they GREASE'd as I've no loaded configs\n");
         } OSSL_TRACE_END(TLS);
         return EXT_RETURN_NOT_SENT;
     }
-    for (echind = 0; echind != s->nechs; echind++) {
-        if (s->ech[echind].cfg->encoded == NULL
-            || s->ech[echind].cfg->encoded_len == 0) {
+    for (echind = 0; echind != s->ext.ech.ncfgs; echind++) {
+        if (s->ext.ech.cfgs[echind].cfg->encoded == NULL
+            || s->ext.ech.cfgs[echind].cfg->encoded_len == 0) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             return 0;
         }
-        if (s->ech[echind].loadtime > echloadtime ) {
-            echloadtime = s->ech[echind].loadtime;
-            mostrecent = &s->ech[echind];
+        if (s->ext.ech.cfgs[echind].loadtime > echloadtime ) {
+            echloadtime = s->ext.ech.cfgs[echind].loadtime;
+            mostrecent = &s->ext.ech.cfgs[echind];
         }
     }
     if (mostrecent == NULL
@@ -2293,9 +2293,9 @@ EXT_RETURN tls_construct_stoc_ech13(SSL_CONNECTION *s, WPACKET *pkt,
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
     }
-    if (s->ext.ech_attempted_type == OSSL_ECH_DRAFT_13_VERSION) {
+    if (s->ext.ech.attempted_type == OSSL_ECH_DRAFT_13_VERSION) {
         if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_ech13)
-            || !WPACKET_sub_memcpy_u16(pkt, mostrecent->cfg->encoded, 
+            || !WPACKET_sub_memcpy_u16(pkt, mostrecent->cfg->encoded,
                                        mostrecent->cfg->encoded_len)
                 ) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
