@@ -745,7 +745,7 @@ const OPTIONS s_client_options[] = {
     {"enable_server_rpk", OPT_ENABLE_SERVER_RPK, '-', "Enable raw public keys (RFC7250) from the server"},
     {"enable_client_rpk", OPT_ENABLE_CLIENT_RPK, '-', "Enable raw public keys (RFC7250) from the client"},
 #ifndef OPENSSL_NO_ECH
-    {"sni-outer", OPT_SNIOUTER, 's',
+    {"sni_outer", OPT_SNIOUTER, 's',
      "The name to put in the outer CH when overriding the server's choice," \
          " or \"NONE\""},
     {"ech_alpn_outer", OPT_ALPN_OUTER, 's',
@@ -1792,7 +1792,7 @@ int s_client_main(int argc, char **argv)
     if (alpn_outer_in != NULL || sni_outer_name != NULL) {
         if (ech_encoded_configs == NULL && ech_svcb_rr == NULL) {
             BIO_printf(bio_err,
-               "%s: Can't use -sni-outer nor -alpn-outer without -echconfigs" \
+               "%s: Can't use -sni_outer nor -ech_alpn_outer without -echconfigs" \
                " or -svcb \n", prog);
             goto opthelp;
         }

@@ -627,6 +627,29 @@ __owur static ossl_inline int PACKET_get_length_prefixed_3(PACKET *pkt,
     return 1;
 }
 
+# ifndef OPENSSL_NO_ECH
+/*
+ * New ECH API allowing replacement of outer client hello on server
+ * with inner.
+ */
+__owur static ossl_inline int PACKET_replace(PACKET *pkt, PACKET *newpkt)
+{
+    const unsigned char *data;
+
+    if (pkt == NULL || newpkt == NULL)
+        return 0;
+    if (newpkt->remaining > pkt->remaining) {
+        data = OPENSSL_realloc((unsigned char *)pkt->curr, newpkt->remaining);
+        if (data == NULL)
+            return 0;
+        pkt->curr = data;
+    }
+    memcpy((unsigned char *)pkt->curr, newpkt->curr, newpkt->remaining);
+    pkt->remaining = newpkt -> remaining;
+    return 1;
+}
+# endif
+
 # ifndef OPENSSL_NO_QUIC
 
 /*

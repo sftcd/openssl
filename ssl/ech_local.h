@@ -245,7 +245,7 @@ typedef struct ssl_connection_ech_st {
      */
     int success;
     int grease; /* 1 if we're GREASEing, 0 otherwise */
-    char* grease_suite; /* HPKE suite string for GREASEing */
+    char *grease_suite; /* HPKE suite string for GREASEing */
     unsigned char *sent; /* GREASEy value sent, in case needed for re-tx */
     size_t sent_len;
     int backend; /* 1 if we're a server backend in split-mode, 0 otherwise */
