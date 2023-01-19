@@ -751,11 +751,11 @@ const OPTIONS s_client_options[] = {
     {"ech_alpn_outer", OPT_ALPN_OUTER, 's',
      "Specify outer ALPN value, when using ECH (comma-separated list, or " \
          "\"NONE\"))"},
-    {"ech_configs", OPT_ECHCONFIGS, 's',
-     "Set ECHConfigs, value is b64 or ASCII-HEX encoded ECHConfigs"},
+    {"ech_config_list", OPT_ECHCONFIGS, 's',
+     "Set ECHConfigList, value is b64 or ASCII-HEX encoded ECHConfigList"},
     {"ech_svcb", OPT_SVCB, 's',
-     "Set ECHConfigs and possibly ALPN via an SVCB RData, b64 or ASCII-HEX " \
-         "encoded"},
+     "Set ECHConfigLists and possibly ALPN via an SVCB RData, "
+     "b64 or ASCII-HEX encoded"},
     {"ech_select", OPT_ECH_SELECT, 'n',
       "Select one ECHConfig from many provided via RR or PEM file"},
     {"ech_grease", OPT_ECH_GREASE, '-',
@@ -1792,7 +1792,7 @@ int s_client_main(int argc, char **argv)
     if (alpn_outer_in != NULL || sni_outer_name != NULL) {
         if (ech_encoded_configs == NULL && ech_svcb_rr == NULL) {
             BIO_printf(bio_err,
-               "%s: Can't use -sni_outer nor -ech_alpn_outer without -echconfigs" \
+               "%s: Can't use -sni_outer nor -ech_alpn_outer without -ech_onfig_list" \
                " or -svcb \n", prog);
             goto opthelp;
         }
