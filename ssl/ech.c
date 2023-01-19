@@ -2329,7 +2329,6 @@ end:
             OPENSSL_free(clear);
             return NULL;
         }
-
         rv = ech_get_ch_offsets(s, &innerchpkt, &startofsessid, &extsoffset,
                                 &echoffset, &echtype, &innerflag,
                                 &outersnioffset);
@@ -5249,7 +5248,7 @@ int SSL_ech_set_grease_type(SSL *ssl, uint16_t type)
 {
     SSL_CONNECTION *s = SSL_CONNECTION_FROM_SSL(ssl);
 
-    if (ssl == NULL || s == NULL) {
+    if (s == NULL) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_PASSED_NULL_PARAMETER);
         return 0;
     }
@@ -5284,7 +5283,6 @@ int SSL_CTX_ech_raw_decrypt(SSL_CTX *ctx,
         ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_NULL_PARAMETER);
         return 0;
     }
-
     inner_buf_len = *inner_len;
     s = SSL_new(ctx);
     if (s == NULL) {
@@ -5302,7 +5300,6 @@ int SSL_CTX_ech_raw_decrypt(SSL_CTX *ctx,
         ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
         goto err;
     }
-
     /*
      * Check if there's any ECH and if so, whether it's an outer
      * (that might need decrypting) or an inner
@@ -5335,13 +5332,11 @@ int SSL_CTX_ech_raw_decrypt(SSL_CTX *ctx,
         ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_INVALID_ARGUMENT);
         goto err;
     }
-
     sc = SSL_CONNECTION_FROM_SSL(s);
     if (sc == NULL) {
         ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
         return 0;
     }
-
     if (sc->ext.ech.cfgs != NULL && sc->ext.ech.cfgs->outer_name != NULL) {
         *outer_sni = OPENSSL_strdup(sc->ext.ech.cfgs->outer_name);
         if (*outer_sni == NULL) {
@@ -5349,7 +5344,6 @@ int SSL_CTX_ech_raw_decrypt(SSL_CTX *ctx,
             return 0;
         }
     }
-
     if (sc->ext.ech.success == 0) {
         *decrypted_ok = 0;
     } else {
@@ -5366,18 +5360,18 @@ int SSL_CTX_ech_raw_decrypt(SSL_CTX *ctx,
             goto err;
         }
         /* Fix up header and length of inner CH */
-        inner_ch[0] = 0x16;
-        inner_ch[1] = 0x03;
-        inner_ch[2] = 0x01;
+        inner_ch[0] = SSL3_RT_HANDSHAKE;
+        /* legacy version exception: RFC8446, 5.1 says 0x0301 is ok */
+        inner_ch[1] = (TLS1_VERSION >> 8) & 0xff;
+        inner_ch[2] = TLS1_VERSION  & 0xff;
         inner_ch[3] = ((ilen + 4) >> 8) & 0xff;
         inner_ch[4] = (ilen + 4) & 0xff;
-        inner_ch[5] = 0x01;
+        inner_ch[5] = SSL3_MT_CLIENT_HELLO;
         inner_ch[6] = (ilen >> 16) & 0xff;
         inner_ch[7] = (ilen >> 8) & 0xff;
         inner_ch[8] = ilen & 0xff;
         memcpy(inner_ch + 9, iptr, ilen);
         *inner_len = ilen + 9;
-
         /* Grab the inner SNI (if it's there) */
         rv = ech_get_ch_offsets(sc, &pkt_inner, &startofsessid, &startofexts,
                                 &echoffset, &echtype, &innerflag,
@@ -5394,15 +5388,21 @@ int SSL_CTX_ech_raw_decrypt(SSL_CTX *ctx,
             size_t isnilen = 0;
 
             plen = PACKET_remaining(&pkt_inner);
-            if (PACKET_peek_bytes(&pkt_inner, &isnipeek, plen) != 1)
+            if (PACKET_peek_bytes(&pkt_inner, &isnipeek, plen) != 1) {
+                ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_INVALID_ARGUMENT);
                 goto err;
-            if (plen <= 4)
+            }
+            if (plen <= 4) {
+                ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_INVALID_ARGUMENT);
                 goto err;
+            }
             isnibuf = &(isnipeek[innersnioffset + 4]);
             isnilen = isnipeek[innersnioffset + 2] * 256
                 + isnipeek[innersnioffset + 3];
-            if (isnilen >= plen - 4)
+            if (isnilen >= plen - 4) {
+                ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_INVALID_ARGUMENT);
                 goto err;
+            }
             if (PACKET_buf_init(&isni, isnibuf, isnilen) != 1) {
                 ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_INVALID_ARGUMENT);
                 goto err;
