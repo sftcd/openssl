@@ -478,17 +478,17 @@ static int ah_decode(size_t ahlen, const char *ah,
 }
 
 /*
- * @brief Decode the first ECHConfigs from a binary buffer
+ * @brief Decode the first ECHConfigList from a binary buffer
  * @param binbuf is the buffer with the encoding
  * @param binblen is the length of binbunf
  * @param leftover is the number of unused octets from the input
- * @return NULL on error, or a pointer to an ECHConfigs structure
+ * @return NULL on error, or a pointer to an ECHConfigList structure
  */
-static ECHConfigs *ECHConfigs_from_binary(unsigned char *binbuf,
+static ECHConfigList *ECHConfigList_from_binary(unsigned char *binbuf,
                                           size_t binblen, int *leftover)
 {
-    ECHConfigs *er = NULL; /* ECHConfigs record */
-    ECHConfig  *te = NULL; /* Array of ECHConfig to be embedded in that */
+    ECHConfigList *er = NULL; /* ECHConfigList record */
+    ECHConfig *te = NULL; /* Array of ECHConfig to be embedded in that */
     int rind = 0;
     size_t remaining = 0;
     PACKET pkt;
@@ -508,7 +508,7 @@ static ECHConfigs *ECHConfigs_from_binary(unsigned char *binbuf,
         goto err;
     }
     /*
-     * Overall length of this ECHConfigs (olen) still could be
+     * Overall length of this ECHConfigList (olen) still could be
      * less than the input buffer length, (binblen) if the caller has been
      * given a catenated set of binary buffers, which could happen
      * and which we will support
@@ -803,10 +803,10 @@ static ECHConfigs *ECHConfigs_from_binary(unsigned char *binbuf,
     }
     /* Success - make up return value */
     *leftover = PACKET_remaining(&pkt);
-    er = (ECHConfigs *)OPENSSL_malloc(sizeof(ECHConfigs));
+    er = (ECHConfigList *)OPENSSL_malloc(sizeof(ECHConfigList));
     if (er == NULL)
         goto err;
-    memset(er, 0, sizeof(ECHConfigs));
+    memset(er, 0, sizeof(ECHConfigList));
     er->nrecs = rind;
     er->recs = te;
     te = NULL;
@@ -815,7 +815,7 @@ static ECHConfigs *ECHConfigs_from_binary(unsigned char *binbuf,
     return er;
 
 err:
-    ECHConfigs_free(er);
+    ECHConfigList_free(er);
     OPENSSL_free(er);
     if (te) {
         int teind;
@@ -901,7 +901,7 @@ static int local_ech_add(int ekfmt, size_t eklen, unsigned char *ekval,
 {
     int detfmt = OSSL_ECH_FMT_GUESS;
     int rv = 0;
-    unsigned char *outbuf = NULL; /* sequence of ECHConfigs (binary) */
+    unsigned char *outbuf = NULL; /* sequence of ECHConfigList (binary) */
     size_t declen = 0; /* length of the above */
     char *ekptr = NULL;
     int done = 0;
@@ -1010,8 +1010,8 @@ static int local_ech_add(int ekfmt, size_t eklen, unsigned char *ekval,
     while (done == 0) {
         SSL_ECH *ts = NULL;
         int leftover = oleftover;
-        ECHConfigs *er = NULL;
-        ECHConfig  *ec = NULL;
+        ECHConfigList *er = NULL;
+        ECHConfig *ec = NULL;
 
         nlens += 1;
         ts = OPENSSL_realloc(retechs, nlens * sizeof(SSL_ECH));
@@ -1021,7 +1021,7 @@ static int local_ech_add(int ekfmt, size_t eklen, unsigned char *ekval,
         newech = &retechs[nlens - 1];
         memset(newech, 0, sizeof(SSL_ECH));
 
-        er = ECHConfigs_from_binary(outp, oleftover, &leftover);
+        er = ECHConfigList_from_binary(outp, oleftover, &leftover);
         if (er == NULL) {
             ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
             goto err;
@@ -1063,7 +1063,7 @@ static int local_ech_add(int ekfmt, size_t eklen, unsigned char *ekval,
                 retechs[nlens + cfgind].loadtime = 0;
                 retechs[nlens + cfgind].keyshare = NULL;
                 retechs[nlens + cfgind].cfg =
-                    OPENSSL_malloc(sizeof(ECHConfigs));
+                    OPENSSL_malloc(sizeof(ECHConfigList));
                 if (retechs[nlens + cfgind].cfg == NULL)
                     goto err;
                 retechs[nlens + cfgind].cfg->nrecs = 1;
@@ -1112,12 +1112,12 @@ err:
  * @param echs is the returned array of SSL_ECH
  * @return is 1 for success, error otherwise
  *
- * The rrval may be the catenation of multiple encoded ECHConfigs.
+ * The rrval may be the catenation of multiple encoded ECHConfigList.
  * We internally try decode and handle those and (later)
  * use whichever is relevant/best. The fmt parameter can be e.g.
  * OSSL_ECH_FMT_ASCII_HEX.
  *
- * Note that we "succeed" even if there is no ECHConfigs in the input - some
+ * Note that we "succeed" even if there is no ECHConfigList in the input - some
  * callers might download the RR from DNS and pass it here without looking
  * inside, and there are valid uses of such RRs. The caller can check though
  * using the num_echs output.
@@ -1129,7 +1129,7 @@ static int local_svcb_add(int rrfmt, size_t rrlen, char *rrval,
     int rv = 0;
     size_t binlen = 0; /* the RData */
     unsigned char *binbuf = NULL;
-    size_t eklen = 0; /* the ECHConfigs, within the above */
+    size_t eklen = 0; /* the ECHConfigList, within the above */
     unsigned char *ekval = NULL;
     unsigned char *cp = NULL;
     size_t remaining = 0;
@@ -1205,7 +1205,7 @@ static int local_svcb_add(int rrfmt, size_t rrlen, char *rrval,
         OPENSSL_free(binbuf);
         return 1;
     }
-    /* Parse & load any ECHConfigs that we found */
+    /* Parse & load any ECHConfigList that we found */
     rv = local_ech_add(OSSL_ECH_FMT_BIN, eklen, ekval, num_echs, echs);
     if (rv != 1)
         goto err;
@@ -1303,7 +1303,7 @@ static int ech_readpemfile(SSL_CTX *ctx, int inputIsFile, const char *pemfile,
         goto err;
     BIO_free(pem_in);
     pem_in = NULL;
-    /* Now decode that ECHConfigs */
+    /* Now decode that ECHConfigList */
     if (local_ech_add(OSSL_ECH_FMT_GUESS, plen, pdata, &num_echs, sechs) != 1)
         goto err;
     (*sechs)->pemfname = OPENSSL_strdup(pemfile);
@@ -1407,12 +1407,12 @@ err:
 }
 
 /*
- * @brief deep copy an ECHConfigs
+ * @brief deep copy an ECHConfigList
  * @param old is the one to copy
  * @param new is the (caller allocated) place to copy-to
  * @return 1 for sucess, other otherwise
  */
-static int ECHConfigs_dup(ECHConfigs *old, ECHConfigs *new)
+static int ECHConfigList_dup(ECHConfigList *old, ECHConfigList *new)
 {
     int i = 0;
 
@@ -1471,12 +1471,12 @@ static char *alpn_print(unsigned char *alpn, size_t len)
 }
 
 /*
- * @brief produce a printable string form of an ECHConfigs
+ * @brief produce a printable string form of an ECHConfigList
  * @param out is where we print
- * @param c is the ECHConfigs
+ * @param c is the ECHConfigList
  * @return 1 for good, 0 for fail
  */
-static int ECHConfigs_print(BIO *out, ECHConfigs *c)
+static int ECHConfigList_print(BIO *out, ECHConfigList *c)
 {
     int i;
     unsigned int j;
@@ -2557,10 +2557,10 @@ void ECHConfig_free(ECHConfig *tbf)
 }
 
 /*
- * @brief Free an ECHConfigs structure's internals
+ * @brief Free an ECHConfigList structure's internals
  * @param tbf is the thing to be free'd
  */
-void ECHConfigs_free(ECHConfigs *tbf)
+void ECHConfigList_free(ECHConfigList *tbf)
 {
     int i;
 
@@ -2570,7 +2570,7 @@ void ECHConfigs_free(ECHConfigs *tbf)
     for (i = 0; i != tbf->nrecs; i++)
         ECHConfig_free(&tbf->recs[i]);
     OPENSSL_free(tbf->recs);
-    memset(tbf, 0, sizeof(ECHConfigs));
+    memset(tbf, 0, sizeof(ECHConfigList));
     return;
 }
 
@@ -2602,7 +2602,7 @@ void SSL_ECH_free(SSL_ECH *tbf)
     if (tbf == NULL)
         return;
     if (tbf->cfg != NULL) {
-        ECHConfigs_free(tbf->cfg);
+        ECHConfigList_free(tbf->cfg);
         OPENSSL_free(tbf->cfg);
     }
     OPENSSL_free(tbf->inner_name);
@@ -2660,7 +2660,7 @@ int SSL_ech_print(BIO *out, SSL *ssl, int selector)
         for (i = 0; i != s->ext.ech.ncfgs; i++) {
             if (selector == OSSL_ECH_SELECT_ALL || selector == i) {
                 BIO_printf(out, "cfg(%d): ", i);
-                if (ECHConfigs_print(out, s->ext.ech.cfgs[i].cfg) == 1)
+                if (ECHConfigList_print(out, s->ext.ech.cfgs[i].cfg) == 1)
                     BIO_printf(out, "\n");
                 else
                     BIO_printf(out, "NULL (huh?)\n");
@@ -2747,10 +2747,10 @@ SSL_ECH *SSL_ECH_dup(SSL_ECH *orig, size_t nech, int selector)
         goto err;
     memset(new_se, 0, (max_ind - min_ind) * sizeof(SSL_ECH));
     for (i = min_ind; i != max_ind; i++) {
-        new_se[i].cfg = OPENSSL_malloc(sizeof(ECHConfigs));
+        new_se[i].cfg = OPENSSL_malloc(sizeof(ECHConfigList));
         if (new_se[i].cfg == NULL)
             goto err;
-        if (ECHConfigs_dup(orig[i].cfg, new_se[i].cfg) != 1)
+        if (ECHConfigList_dup(orig[i].cfg, new_se[i].cfg) != 1)
             goto err;
         if (orig[i].inner_name != NULL) {
             new_se[i].inner_name = OPENSSL_strdup(orig[i].inner_name);
@@ -3740,7 +3740,7 @@ int ech_send_grease(SSL_CONNECTION *s, WPACKET *pkt)
  * @param tc is the ECHConfig to use (if found)
  * @param suite is the HPKE suite to use (if found)
  *
- * Search through the ECHConfigs for one that's a best
+ * Search through the ECHConfigList for one that's a best
  * match in terms of outer_name vs. public_name.
  * If no public_name was set via API then we
  * just take the 1st match where we locally support
@@ -3759,7 +3759,7 @@ int ech_pick_matching_cfg(SSL_CONNECTION *s, ECHConfig **tc,
     int cind = 0;
     unsigned int csuite = 0;
     ECHConfig *ltc = NULL;
-    ECHConfigs *cfgs = NULL;
+    ECHConfigList *cfgs = NULL;
     unsigned char *es = NULL;
 
     if (s == NULL || s->ext.ech.cfgs == NULL || tc == NULL || suite == NULL)
@@ -4166,7 +4166,7 @@ int ech_early_decrypt(SSL *ssl, PACKET *outerpkt, PACKET *newpkt)
         OSSL_TRACE_BEGIN(TLS) {
             BIO_printf(trc_out, "EARLY: outer SNI of %s\n", s->ext.hostname);
         } OSSL_TRACE_END(TLS);
-        /* clean up  */
+        /* clean up */
         s->ext.hostname = NULL;
         s->servername_done = 0;
     } else {
@@ -4425,7 +4425,7 @@ int ech_early_decrypt(SSL *ssl, PACKET *outerpkt, PACKET *newpkt)
     /* Bit more logging */
     if (foundcfg == 1 && clear != NULL) {
         SSL_ECH *se = &s->ext.ech.cfgs[cfgind];
-        ECHConfigs *seg = se->cfg;
+        ECHConfigList *seg = se->cfg;
         ECHConfig *e = &seg->recs[0];
 
         ech_pbuf("local config_id", &e->config_id, 1);
@@ -4600,7 +4600,7 @@ int SSL_CTX_ech_set1_echconfig(SSL_CTX *ctx, int *num_echs,
  * @param rrlen is the length of the rrval
  * @return is 1 for success, error otherwise
  *
- * The input rrval may be the catenation of multiple encoded ECHConfigs.
+ * The input rrval may be the catenation of multiple encoded ECHConfigList.
  * We internally try decode and handle those and (later) use whichever is
  * relevant/best. The fmt parameter can be e.g. OSSL_ECH_FMT_ASCII_HEX
  *
@@ -4608,7 +4608,7 @@ int SSL_CTX_ech_set1_echconfig(SSL_CTX *ctx, int *num_echs,
  * not that the merge isn't clever so the application would need to take that
  * into account if it cared about priority.
  *
- * In the case of decoding error, any existing ECHConfigs are unaffected.
+ * In the case of decoding error, any existing ECHConfigList are unaffected.
  */
 int SSL_ech_set1_svcb(SSL *ssl, int *num_echs,
                       int rrfmt, char *rrval, size_t rrlen)
@@ -4778,7 +4778,7 @@ int SSL_ech_get_info(SSL *ssl, OSSL_ECH_INFO **out, int *nindices)
             tbio = BIO_new(BIO_s_mem());
             if (tbio == NULL)
                 goto err;
-            if (ECHConfigs_print(tbio, s->ext.ech.cfgs[i].cfg) != 1)
+            if (ECHConfigList_print(tbio, s->ext.ech.cfgs[i].cfg) != 1)
                 goto err;
             ehlen = BIO_get_mem_data(tbio, &ignore);
             inst->echconfig = OPENSSL_malloc(ehlen + 1);

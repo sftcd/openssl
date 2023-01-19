@@ -284,7 +284,7 @@ then
             elif [[ "$bres" == "0" ]]
             then
                 echo "Assuming supplied ECH is base64 encoded ECHConfigList"
-                ECH=" $selstr -ech_configs $SUPPLIEDECH "
+                ECH=" $selstr -ech_config_list $SUPPLIEDECH "
             else
                 echo "Supplied ECH is neither ascii-hex nor base64 - exiting "
                 exit 44
@@ -295,7 +295,7 @@ then
 		    ssfname=`basename $SUPPLIEDECH`
 		    if [ `basename "$ssfname" .pem` != "$ssfname" ]
 		    then
-			    ECH=" $selstr -ech_configs `tail -2 $SUPPLIEDECH | head -1`" 
+			    ECH=" $selstr -ech_config_list `tail -2 $SUPPLIEDECH | head -1`" 
 		    else
 			    echo "Not sure of file type of $SUPPLIEDECH - try make a PEM file to help me"
 			    exit 8
