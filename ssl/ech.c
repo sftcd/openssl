@@ -485,7 +485,7 @@ static int ah_decode(size_t ahlen, const char *ah,
  * @return NULL on error, or a pointer to an ECHConfigList structure
  */
 static ECHConfigList *ECHConfigList_from_binary(unsigned char *binbuf,
-                                          size_t binblen, int *leftover)
+                                                size_t binblen, int *leftover)
 {
     ECHConfigList *er = NULL; /* ECHConfigList record */
     ECHConfig *te = NULL; /* Array of ECHConfig to be embedded in that */
@@ -5456,7 +5456,7 @@ int SSL_ech_get_retry_config(SSL *ssl, const unsigned char **ec, size_t *eclen)
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_PASSED_NULL_PARAMETER);
         return 0;
     }
-    if (s->ext.ech.returned) {
+    if (s->ext.ech.returned != NULL) {
         *eclen = s->ext.ech.returned_len;
         *ec = s->ext.ech.returned;
     } else {
@@ -5481,7 +5481,6 @@ int ossl_ech_make_echconfig(unsigned char *echconfig, size_t *echconfiglen,
     unsigned int b64len = 0;
     EVP_PKEY *privp = NULL;
     BIO *bfp = NULL;
-    unsigned char lpriv[OSSL_ECH_CRYPTO_VAR_SIZE];
     size_t lprivlen = 0;
     uint8_t config_id = 0;
     WPACKET epkt;
@@ -5529,7 +5528,7 @@ int ossl_ech_make_echconfig(unsigned char *echconfig, size_t *echconfiglen,
         ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
         goto err;
     }
-    lprivlen = BIO_read(bfp, lpriv, OSSL_ECH_CRYPTO_VAR_SIZE);
+    lprivlen = BIO_read(bfp, priv, *privlen);
     if (lprivlen <= 0) {
         ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
         goto err;
@@ -5539,35 +5538,30 @@ int ossl_ech_make_echconfig(unsigned char *echconfig, size_t *echconfiglen,
         goto err;
     }
     *privlen = lprivlen;
-    memcpy(priv, lpriv, lprivlen);
 
     /*
-     *   In draft-13 we get:
+     *   Reminder, for draft-13 we want this:
      *
      *   opaque HpkePublicKey<1..2^16-1>;
      *   uint16 HpkeKemId;  // Defined in I-D.irtf-cfrg-hpke
      *   uint16 HpkeKdfId;  // Defined in I-D.irtf-cfrg-hpke
      *   uint16 HpkeAeadId; // Defined in I-D.irtf-cfrg-hpke
-     *
      *   struct {
      *       HpkeKdfId kdf_id;
      *       HpkeAeadId aead_id;
      *   } HpkeSymmetricCipherSuite;
-     *
      *   struct {
      *       uint8 config_id;
      *       HpkeKemId kem_id;
      *       HpkePublicKey public_key;
      *       HpkeSymmetricCipherSuite cipher_suites<4..2^16-4>;
      *   } HpkeKeyConfig;
-     *
      *   struct {
      *       HpkeKeyConfig key_config;
      *       uint8 maximum_name_length;
      *       opaque public_name<1..255>;
      *       Extension extensions<0..2^16-1>;
      *   } ECHConfigContents;
-     *
      *   struct {
      *       uint16 version;
      *       uint16 length;
@@ -5575,7 +5569,7 @@ int ossl_ech_make_echconfig(unsigned char *echconfig, size_t *echconfiglen,
      *         case 0xfe0d: ECHConfigContents contents;
      *       }
      *   } ECHConfig;
-     *
+     *   ECHConfig ECHConfigList<1..2^16-1>;
      */
 
     if ((epkt_mem = BUF_MEM_new()) == NULL
