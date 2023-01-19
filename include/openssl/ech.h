@@ -56,9 +56,9 @@
  * encoding method.
  */
 #  define OSSL_ECH_FMT_GUESS     0  /* implementation will guess */
-#  define OSSL_ECH_FMT_BIN       1  /* catenated binary ECHConfigs */
-#  define OSSL_ECH_FMT_B64TXT    2  /* base64 ECHConfigs (';' separated) */
-#  define OSSL_ECH_FMT_ASCIIHEX  3  /* ascii-hex ECHConfigs (';' separated */
+#  define OSSL_ECH_FMT_BIN       1  /* catenated binary ECHConfigList */
+#  define OSSL_ECH_FMT_B64TXT    2  /* base64 ECHConfigList (';' separated) */
+#  define OSSL_ECH_FMT_ASCIIHEX  3  /* ascii-hex ECHConfigList (';' separated */
 #  define OSSL_ECH_FMT_HTTPSSVC  4  /* presentation form with "ech=<b64>" */
 
 #  define OSSL_ECH_FMT_SEPARATOR ";" /* separator str for catenation  */

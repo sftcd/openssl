@@ -31,7 +31,7 @@
 # define OSSL_ECH_CRYPTO_VAR_SIZE 1024
 
 # define OSSL_ECH_KEYGEN_MODE    0 /* default: generate a key pair/ECHConfig */
-# define OSSL_ECH_SELPRINT_MODE  1 /* or we can print/down-select ECHConfigs */
+# define OSSL_ECH_SELPRINT_MODE  1 /* we can print/down-select ECHConfigList */
 
 # define PEM_SELECT_ALL    -1 /* to indicate we're not downselecting another */
 
@@ -322,20 +322,21 @@ int ech_main(int argc, char **argv)
             rv = SSL_ech_set1_echconfig(s, &nechs, OSSL_ECH_FMT_GUESS,
                                         (char *)pdata, plen);
             if (rv != 1) {
-                BIO_printf(bio_err, "Failed loading ECHConfigs from: %s\n",
+                BIO_printf(bio_err, "Failed loading ECHConfigList from: %s\n",
                            inpemfile);
                 goto end;
             }
             filedone = 1;
             BIO_free_all(pem_in);
             OPENSSL_free(pdata);
-            BIO_printf(bio_err, "Loaded ECHConfigs from: %s\n", inpemfile);
+            BIO_printf(bio_err, "Loaded ECHConfigList from: %s\n", inpemfile);
         } else {
             filedone = 1;
             s = SSL_new(con);
             if (s == NULL)
                 goto end;
-            BIO_printf(bio_err, "Loaded Key+ECHConfig from: %s\n", inpemfile);
+            BIO_printf(bio_err, "Loaded Key+ECHConfigList from: %s\n",
+                       inpemfile);
         }
 
         if (pemselect != PEM_SELECT_ALL) {

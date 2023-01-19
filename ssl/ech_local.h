@@ -7,9 +7,9 @@
  * https://www.openssl.org/source/license.html
  */
 
-/**
- * Internal data structures and prototypes
- * for handling of Encrypted ClientHello (ECH)
+/*
+ * Internal data structures and prototypes for handling
+ * Encrypted ClientHello (ECH)
  */
 #ifndef OPENSSL_NO_ECH
 
@@ -21,12 +21,13 @@
 #  include <openssl/hpke.h>
 
 /*
- * Define this to get loads more lines of tracing.
- * This also needs tracing enabled at build time, e.g.:
+ * Define this to get loads more lines of tracing which is
+ * very useful for interop.
+ * This needs tracing enabled at build time, e.g.:
  *          $ ./config enable-ssl-trace endable-trace
- * This will finally (mostly) disappear once the ECH RFC
- * has issued, but is very useful for interop testing so
- * some of it might be retained.
+ * This added tracing will finally (mostly) disappear once the ECH RFC
+ * has issued, but is very useful for interop testing so some of it might
+ * be retained.
  */
 #  define OSSL_ECH_SUPERVERBOSE
 
@@ -41,7 +42,7 @@
 
 #  define OSSL_ECH_CIPHER_LEN 4 /* ECHCipher length (2 for kdf, 2 for aead) */
 
-/* values for s->ext.ech_grease */
+/* values for s->ext.ech.grease */
 #  define OSSL_ECH_GREASE_UNKNOWN -1 /* when we're not yet sure */
 #  define OSSL_ECH_NOT_GREASE 0 /* when decryption worked */
 #  define OSSL_ECH_IS_GREASE 1 /* when decryption failed or GREASE wanted */
@@ -58,14 +59,10 @@
 #  define OSSL_ECH_OUTER_CH_TYPE 0 /* outer ECHClientHello enum */
 #  define OSSL_ECH_INNER_CH_TYPE 1 /* inner ECHClientHello enum */
 
-/* size for sgtring buffer returned via ech callback */
+/* size of string buffer returned via ECH callback */
 #  define OSSL_ECH_PBUF_SIZE 8 * 1024
 
-/*
- * Return values from ech_same_ext, note that the CONTINUE
- * return value might mean something new if the extension
- * handler is ECH "aware" (other than in a trivial sense)
- */
+/* Return values from ech_same_ext */
 #  define OSSL_ECH_SAME_EXT_ERR 0 /* bummer something wrong */
 #  define OSSL_ECH_SAME_EXT_DONE 1 /* proceed with same value in inner/outer */
 #  define OSSL_ECH_SAME_EXT_CONTINUE 2 /* generate a new value for outer CH */
@@ -99,6 +96,8 @@
  *         select (ECHConfig.version) {
  *           case 0xfe0d: ECHConfigContents contents;
  *         }
+ *     } ECHConfig;
+ *     ECHConfig ECHConfigList<1..2^16-1>;
  */
 typedef unsigned char ech_ciphersuite_t[OSSL_ECH_CIPHER_LEN];
 
@@ -126,7 +125,7 @@ typedef struct ech_configs_st {
     unsigned char *encoded; /* overall encoded content */
     int nrecs; /* Number of records  */
     ECHConfig *recs; /* array of individual records */
-} ECHConfigs;
+} ECHConfigList;
 
 /**
  * What we send in the ech CH extension:
@@ -170,7 +169,7 @@ typedef struct ech_encch_st {
  * need to modify that (in ssl/ech.c)
  */
 typedef struct ssl_ech_st {
-    ECHConfigs *cfg; /* ptr to underlying ECHConfigs */
+    ECHConfigList *cfg; /* ptr to underlying ECHConfigList */
     /* API input names, or, set on server from CH if ECH worked */
     char *inner_name;
     char *outer_name;
@@ -194,19 +193,22 @@ typedef struct ssl_connection_ech_st {
      * SNI for inner CH, ALPN for outer, as used (i.e. after we handle
      * no_outer/public_name/overrides etc.)
      *
-     * TODO: consider swapping roles of s->ext.ech.inner_hostname
-     * and s->ext.hostname (while obviously renaming the former to
-     * s->ext.ech.public_name) - having the inner SNI here is inherited
-     * as we started from ESNI where it made more sense, but it could
-     * be changed. OTOH, this works:-)
+     * TODO(ECH): consider swapping roles of s->ext.ech.inner_hostname
+     * and s->ext.hostname (if so, obviously renaming the former to
+     * s->ext.ech.public_name) - having the inner SNI here is because
+     * we started from ESNI, where it made sense, but it could be changed.
+     * OTOH, this works:-) Also: the change is non-trivial and having
+     * ECH-unaware code that deals with an s->ext.hostname field that
+     * only contains a public_name may be safer overall.
+     * So not a no-brainer to make that change.
      */
     char *inner_hostname;
     unsigned char *alpn_outer;
     size_t alpn_outer_len;
     /*
-     * inner ClientHello representations, the compression here
-     * is complex but basically to avoid repeating the same
-     * ext val in the outer and inner
+     * inner ClientHello representations, the compression here is
+     * nitty/complex and is to avoid repeating the same extenstion value
+     * in the outer and inner, this saving bandwidth
      */
     unsigned char *innerch; /* before compression */
     size_t innerch_len;
@@ -216,16 +218,20 @@ typedef struct ssl_connection_ech_st {
      * extensions are "outer-only" if the value is only sent in the
      * outer CH with only the type in the inner CH (i.e. compressed)
      */
-    size_t n_outer_only;
     uint16_t outer_only[OSSL_ECH_OUTERS_MAX];
+    size_t n_outer_only; /* the number of outer_only extensions so far */
     /*
-     * Client placeholder for CH extension type - added here to avoid need
-     * to break APIs - we need this to setup the compression
+     * client copy of CH extension type - added here to avoid need
+     * to break APIs, when doing the compression stuff where the
+     * extension handler needs to know the relevant TLS codepoint
+     * TODO(ECH): check if there's another way to get that value 
      */
     unsigned int etype;
     /*
-     * We need to also record some "inner" messages so we can independently
-     * generate the trancsript and accept confirmation for the HRR case
+     * in case of HRR, we need to record the 1st inner client hello, and
+     * the first server hello (aka the HRR) so we can independently
+     * generate the trancsript and accept confirmation when making the
+     * 2nd server hello
      */
     unsigned char *innerch1;
     size_t innerch1_len;
@@ -234,10 +240,10 @@ typedef struct ssl_connection_ech_st {
     /*
      * ECH status vars
      */
-    int attempted; /* 1 if ECH was/is being attempted, 0 otherwise */
+    int attempted; /* 1 if ECH was or is being attempted, 0 otherwise */
+    int done; /* 1 if we've finished ECH calculations, 0 otherwise */
     uint16_t attempted_type; /* ECH version used */
     int attempted_cid; /* ECH config id sent/rx'd */
-    int done; /* 1 if we've finished ECH calculations, 0 otherwise */
     /*
      * ``success`` is 1 if ECH succeeded, 0 otherwise, on the server this
      * is known early, on the client we need to wait for the ECH confirm
@@ -258,16 +264,17 @@ typedef struct ssl_connection_ech_st {
     OSSL_HPKE_CTX *hpke_ctx; /* HPKE context */
     /*
      * Fields that differ on client between inner and outer that we need to
-     * keep and swap over IFF ECH has succeeded
+     * keep and swap over IFF ECH has succeeded. Same names chosen as are
+     * used in SSL_CONNECTION
      */
     EVP_PKEY *tmp_pkey; /* client's key share for inner */
     int group_id; /*  key share group */
     unsigned char client_random[SSL3_RANDOM_SIZE]; /* CH random */
     /*
-     * Fields copied down from SSL_CTX in most cases, but that can be set
-     * on the SSL connection too
+     * Fields copied down from SSL_CTX in most cases, but that can be changed
+     * on the SSL connection too.
      */
-    SSL_ECH *cfgs; /* an array of configured ECH stuff */
+    SSL_ECH *cfgs; /* array of configured ECH configurations */
     int ncfgs; /* number of elements in array */
     SSL_ech_cb_func cb; /* callback function for when ECH "done" */
 } SSL_CONNECTION_ECH;
@@ -285,10 +292,10 @@ typedef struct ssl_connection_ech_st {
 void SSL_ECH_free(SSL_ECH *tbf);
 
 /**
- * @brief Free an ECHConfigs
+ * @brief Free an ECHConfigList
  * @param tbf is the thing to be free'd
  */
-void ECHConfigs_free(ECHConfigs *tbf);
+void ECHConfigList_free(ECHConfigList *tbf);
 
 /**
  * @brief Free an ECHConfig structure's internals
@@ -311,7 +318,7 @@ void OSSL_ECH_ENCCH_free(OSSL_ECH_ENCCH *ev);
  *
  * This is needed to handle the SSL_CTX->SSL factory model in the
  * server. Clients don't need this.  There aren't too many fields
- * populated when this is called - essentially just the ECHConfigs and
+ * populated when this is called - essentially just the ECHConfigList and
  * the server private value.
  */
 SSL_ECH *SSL_ECH_dup(SSL_ECH *orig, size_t nech, int selector);
@@ -460,7 +467,7 @@ int SSL_ech_print(BIO *out, SSL *s, int selector);
  * @param tc is the ECHConfig to use (if found)
  * @param suite is the HPKE suite to use (if found)
  *
- * Search through the ECHConfigs for one that's a best
+ * Search through the ECHConfigList for one that's a best
  * match in terms of outer_name vs. public_name.
  * If no public_name was set via API then we
  * just take the 1st match where we locally support
