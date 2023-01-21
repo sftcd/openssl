@@ -477,6 +477,33 @@ static int ah_decode(size_t ahlen, const char *ah,
     return 1;
 }
 
+/*!
+ * @brief encode binary buffer as ascii hex
+ *
+ * @param out is an allocated buffer for the ascii hex string
+ * @param outsize is the size of the buffer
+ * @param in is the input binary buffer
+ * @param inlen is the size of the binary buffer
+ * @return 1 for good otherwise bad
+ */
+static int ah_encode(char *out, size_t outsize,
+                     const unsigned char *in, size_t inlen)
+{
+    int i;
+
+    if (outsize < 2 * inlen + 1)
+        return 0;
+    for (i = 0; i != inlen; i++) {
+        uint8_t tn = (in[i] >> 4) & 0x0f;
+        uint8_t bn = (in[i] & 0x0f);
+
+        out[2 * i] = (tn < 10 ? tn + '0' : (tn - 10 + 'A'));
+        out[2 * i + 1] = (bn < 10 ? bn + '0' : (bn - 10 + 'A'));
+    }
+    out[2 * i] = '\0';
+    return 1;
+}
+
 /*
  * @brief Decode the first ECHConfigList from a binary buffer
  * @param binbuf is the buffer with the encoding
@@ -4518,41 +4545,41 @@ int OSSL_ECH_INFO_print(BIO *out, OSSL_ECH_INFO *se, int count)
     return 1;
 }
 
-int SSL_ech_set1_echconfig(SSL *s, int *num_echs,
+int SSL_ech_set1_echconfig(SSL *ssl, int *num_echs,
                            int ekfmt, char *ekval, size_t eklen)
 {
     SSL_ECH *echs = NULL;
-    SSL_CONNECTION *con = SSL_CONNECTION_FROM_SSL(s);
+    SSL_CONNECTION *s = SSL_CONNECTION_FROM_SSL(ssl);
     SSL_ECH *tmp = NULL;
 
-    if (con == NULL || ekval == NULL || eklen == 0 || num_echs == NULL) {
-        SSLfatal(con, SSL_AD_INTERNAL_ERROR, ERR_R_PASSED_NULL_PARAMETER);
+    if (s == NULL || ekval == NULL || eklen == 0 || num_echs == NULL) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_PASSED_NULL_PARAMETER);
         return 0;
     }
     if (local_ech_add(ekfmt, eklen, (unsigned char *)ekval,
                       num_echs, &echs) != 1) {
-        SSLfatal(con, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
     }
-    if (con->ext.ech.cfgs == NULL) {
-        con->ext.ech.cfgs = echs;
-        con->ext.ech.ncfgs = *num_echs;
-        con->ext.ech.attempted = 1;
-        con->ext.ech.attempted_type = TLSEXT_TYPE_ech_unknown;
-        con->ext.ech.attempted_cid = TLSEXT_TYPE_ech_config_id_unset;
+    if (s->ext.ech.cfgs == NULL) {
+        s->ext.ech.cfgs = echs;
+        s->ext.ech.ncfgs = *num_echs;
+        s->ext.ech.attempted = 1;
+        s->ext.ech.attempted_type = TLSEXT_TYPE_ech_unknown;
+        s->ext.ech.attempted_cid = TLSEXT_TYPE_ech_config_id_unset;
         return 1;
     }
     /* otherwise accumulate */
-    tmp = OPENSSL_realloc(con->ext.ech.cfgs,
-                          (con->ext.ech.ncfgs + *num_echs) * sizeof(SSL_ECH));
+    tmp = OPENSSL_realloc(s->ext.ech.cfgs,
+                          (s->ext.ech.ncfgs + *num_echs) * sizeof(SSL_ECH));
     if (tmp == NULL)
         return 0;
-    con->ext.ech.cfgs = tmp;
+    s->ext.ech.cfgs = tmp;
     /* shallow copy top level, keeping lower levels */
-    memcpy(&con->ext.ech.cfgs[con->ext.ech.ncfgs], echs,
+    memcpy(&s->ext.ech.cfgs[s->ext.ech.ncfgs], echs,
            *num_echs * sizeof(SSL_ECH));
-    con->ext.ech.ncfgs += *num_echs;
-    *num_echs = con->ext.ech.ncfgs;
+    s->ext.ech.ncfgs += *num_echs;
+    *num_echs = s->ext.ech.ncfgs;
     OPENSSL_free(echs);
     return 1;
 }
@@ -4591,24 +4618,6 @@ int SSL_CTX_ech_set1_echconfig(SSL_CTX *ctx, int *num_echs,
     return 1;
 }
 
-/**
- * @brief Decode/store SVCB/HTTPS RR binary or ascii-hex encoded value
- * @param num_echs says how many SSL_ECH structures are in the returned array
- * @param ssl is the SSL session
- * @param rrval is the binary, base64 or ascii-hex encoded RData
- * @param rrlen is the length of the rrval
- * @return is 1 for success, error otherwise
- *
- * The input rrval may be the catenation of multiple encoded ECHConfigList.
- * We internally try decode and handle those and (later) use whichever is
- * relevant/best. The fmt parameter can be e.g. OSSL_ECH_FMT_ASCII_HEX
- *
- * This API is additive, i.e. values from multiple calls will be merged, but
- * not that the merge isn't clever so the application would need to take that
- * into account if it cared about priority.
- *
- * In the case of decoding error, any existing ECHConfigList are unaffected.
- */
 int SSL_ech_set1_svcb(SSL *ssl, int *num_echs,
                       int rrfmt, char *rrval, size_t rrlen)
 {
@@ -4616,37 +4625,35 @@ int SSL_ech_set1_svcb(SSL *ssl, int *num_echs,
     int num_new = 0;
     SSL_ECH *all_echs = NULL;
     int i = 0;
-    SSL_CONNECTION *con = SSL_CONNECTION_FROM_SSL(ssl);
+    SSL_CONNECTION *s = SSL_CONNECTION_FROM_SSL(ssl);
 
-    if (ssl == NULL || con == NULL || rrval == NULL || num_echs == NULL
-        || rrlen == 0) {
-        SSLfatal(con, SSL_AD_INTERNAL_ERROR, ERR_R_PASSED_NULL_PARAMETER);
+    if (s == NULL || rrval == NULL || num_echs == NULL || rrlen == 0) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_PASSED_NULL_PARAMETER);
         return 0;
     }
     if (local_svcb_add(rrfmt, rrlen, rrval, &num_new, &new_echs) != 1) {
-        SSLfatal(con, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
     }
     if (num_new == 0) {
-        *num_echs = con->ext.ech.ncfgs;
+        *num_echs = s->ext.ech.ncfgs;
         return 1;
     }
     /* merge new and old */
-    all_echs = OPENSSL_realloc(con->ext.ech.cfgs,
-                               (con->ext.ech.ncfgs
-                                + num_new) * sizeof(SSL_ECH));
+    all_echs = OPENSSL_realloc(s->ext.ech.cfgs,
+                               (s->ext.ech.ncfgs + num_new) * sizeof(SSL_ECH));
     if (all_echs == NULL) {
         for (i = 0; i != num_new; i++)
             SSL_ECH_free(&new_echs[i]);
         OPENSSL_free(new_echs);
         return 0;
     }
-    con->ext.ech.cfgs = all_echs;
+    s->ext.ech.cfgs = all_echs;
     for (i = 0; i != num_new; i++) /* struct  copy */
-        con->ext.ech.cfgs[con->ext.ech.ncfgs + i] = new_echs[i];
+        s->ext.ech.cfgs[s->ext.ech.ncfgs + i] = new_echs[i];
     OPENSSL_free(new_echs);
-    con->ext.ech.ncfgs += num_new;
-    *num_echs = con->ext.ech.ncfgs;
+    s->ext.ech.ncfgs += num_new;
+    *num_echs = s->ext.ech.ncfgs;
     return 1;
 }
 
@@ -4656,6 +4663,10 @@ int SSL_ech_set_server_names(SSL *ssl, const char *inner_name,
     int nind = 0;
     SSL_CONNECTION *s = SSL_CONNECTION_FROM_SSL(ssl);
 
+    if (s == NULL) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_PASSED_NULL_PARAMETER);
+        return 0;
+    }
     /*
      * Note: we could not require s->ext.ech.cfgs to be set already here but
      * seems just as reasonable to impose an ordering on the sequence
@@ -4663,7 +4674,7 @@ int SSL_ech_set_server_names(SSL *ssl, const char *inner_name,
      * names outside of the s->ext.ech.cfgs array.)
      * Same applies to SSL_ech_set_outer_server_name()
      */
-    if (s == NULL || s->ext.ech.cfgs == NULL) {
+    if (s->ext.ech.cfgs == NULL) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_PASSED_NULL_PARAMETER);
         return 0;
     }
@@ -4695,6 +4706,10 @@ int SSL_ech_set_outer_server_name(SSL *ssl, const char *outer_name,
     int nind = 0;
     SSL_CONNECTION *s = SSL_CONNECTION_FROM_SSL(ssl);
 
+    if (s == NULL) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_PASSED_NULL_PARAMETER);
+        return 0;
+    }
     /*
      * Note: we could not require s->ext.ech.cfgs to be set already here but
      * seems just as reasonable to impose an ordering on the sequence
@@ -4702,7 +4717,7 @@ int SSL_ech_set_outer_server_name(SSL *ssl, const char *outer_name,
      * names outside of the s->ext.ech.cfgs array.)
      * Same applies to SSL_ech_set_server_names()
      */
-    if (s == NULL || s->ext.ech.cfgs == NULL) {
+    if (s->ext.ech.cfgs == NULL) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_PASSED_NULL_PARAMETER);
         return 0;
     }
@@ -4769,22 +4784,28 @@ int SSL_ech_get_info(SSL *ssl, OSSL_ECH_INFO **out, int *nindices)
             inst->outer_alpns = alpn_print(s->ext.ech.alpn_outer,
                                            s->ext.ech.alpn_outer_len);
         }
-        /* Now "print" the ECHConfig(s) */
+        /* Now "print" the ECHConfigList */
         if (s->ext.ech.cfgs[i].cfg != NULL) {
             size_t ehlen;
             unsigned char *ignore = NULL;
 
             tbio = BIO_new(BIO_s_mem());
-            if (tbio == NULL)
+            if (tbio == NULL) {
+                SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
                 goto err;
-            if (ECHConfigList_print(tbio, s->ext.ech.cfgs[i].cfg) != 1)
+            }
+            if (ECHConfigList_print(tbio, s->ext.ech.cfgs[i].cfg) != 1) {
+                SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
                 goto err;
+            }
             ehlen = BIO_get_mem_data(tbio, &ignore);
             inst->echconfig = OPENSSL_malloc(ehlen + 1);
             if (inst->echconfig == NULL)
                 goto err;
-            if (BIO_read(tbio, inst->echconfig, ehlen) <= 0)
+            if (BIO_read(tbio, inst->echconfig, ehlen) <= 0) {
+                SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
                 goto err;
+            }
             inst->echconfig[ehlen] = '\0';
             BIO_free(tbio);
             tbio = NULL;
@@ -4900,7 +4921,6 @@ int SSL_CTX_ech_server_enable_file(SSL_CTX *ctx, const char *pemfile)
         ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_NULL_PARAMETER);
         return 0;
     }
-
     /* Check if we already loaded that one etc.  */
     fnamestat = ech_check_filenames(ctx, pemfile, &index);
     switch (fnamestat) {
@@ -4933,7 +4953,7 @@ int SSL_CTX_ech_server_enable_file(SSL_CTX *ctx, const char *pemfile)
     /* Load up the file content */
     rv = ech_readpemfile(ctx, 1, pemfile, NULL, 0, &sechs);
     if (rv != 1) {
-        ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
+        ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_INVALID_ARGUMENT);
         return 0;
     }
     /*
@@ -4994,7 +5014,6 @@ int SSL_CTX_ech_server_enable_buffer(SSL_CTX *ctx, const unsigned char *buf,
     int rv = 1;
     EVP_MD_CTX *mdctx = NULL;
     const EVP_MD *md = NULL;
-    unsigned int i = 0;
     int j = 0;
     unsigned char hashval[EVP_MAX_MD_SIZE];
     unsigned int hashlen;
@@ -5006,7 +5025,6 @@ int SSL_CTX_ech_server_enable_buffer(SSL_CTX *ctx, const unsigned char *buf,
         ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_NULL_PARAMETER);
         return 0;
     }
-
     /* Pseudo-filename is hash of input buffer */
     md = ctx->ssl_digest_methods[SSL_HANDSHAKE_MAC_SHA256];
     mdctx = EVP_MD_CTX_new();
@@ -5023,15 +5041,8 @@ int SSL_CTX_ech_server_enable_buffer(SSL_CTX *ctx, const unsigned char *buf,
     }
     EVP_MD_CTX_free(mdctx);
     /* AH encode hashval to be a string, as replacement for file name */
-    for (i = 0; i != hashlen; i++) {
-        uint8_t tn = (hashval[i] >> 4) & 0x0f;
-        uint8_t bn = (hashval[i] & 0x0f);
-
-        ah_hash[2 * i] = (tn < 10 ? tn + '0' : (tn - 10 + 'A'));
-        ah_hash[2 * i + 1] = (bn < 10 ? bn + '0' : (bn - 10 + 'A'));
-    }
-    ah_hash[i] = '\0';
-
+    if (ah_encode(ah_hash, sizeof(ah_hash), hashval, hashlen) != 1)
+        return 0;
     /* Check if we have that buffer loaded already, if we did, we're done */
     for (j = 0; j != ctx->ext.nechs; j++) {
         SSL_ECH *se = &ctx->ext.ech[j];
@@ -5043,14 +5054,12 @@ int SSL_CTX_ech_server_enable_buffer(SSL_CTX *ctx, const unsigned char *buf,
             return 1;
         }
     }
-
     /* Load up the buffer content */
     rv = ech_readpemfile(ctx, 0, ah_hash, buf, blen, &sechs);
     if (rv != 1) {
         ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
         return 0;
     }
-
     /*
      * This is a restriction of our PEM file scheme - we only accept
      * one public key per PEM file
@@ -5059,7 +5068,6 @@ int SSL_CTX_ech_server_enable_buffer(SSL_CTX *ctx, const unsigned char *buf,
         ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
         return 0;
     }
-
     /* Now store the keypair in a new or current place */
     re_ec = OPENSSL_realloc(ctx->ext.ech,
                             (ctx->ext.nechs + 1) * sizeof(SSL_ECH));
@@ -5087,6 +5095,7 @@ int SSL_CTX_ech_server_enable_dir(SSL_CTX *ctx, int *number_loaded,
         ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_NULL_PARAMETER);
         return 0;
     }
+    *number_loaded = 0;
     while ((filename = OPENSSL_DIR_read(&d, echdir))) {
         char echname[PATH_MAX];
         size_t nlen = 0;

@@ -257,6 +257,8 @@ B<SSL_R_FILE_OPEN_FAILED>.
 
 SSL_CTX_ech_server_enable_dir() will attempt to read an ECH key pair
 from all files named "*.ech" found in the I<dir>.
+On success, I<loaded> parameter will contain the number of ECH key pairs
+successfully loaded.
 SSL_CTX_ech_server_enable_buffer() allows loading one ECH key pair (still in
 our ECHConfig PEM format) from a buffer. This can be needed if a server
 instance has no access to a filesystem.
