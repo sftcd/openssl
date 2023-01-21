@@ -143,8 +143,8 @@ B<openssl> B<s_client>
 [B<-ech_grease_suite> I<suite>]
 [B<-ech_grease_type> I<type>]
 [B<-ech_ignore_cid>]
-[B<-ech_configs> I<value>]
-[B<-ech_sni_outer> I<value>]
+[B<-ech_config_list> I<value>]
+[B<-sni_outer> I<value>]
 [B<-ech_svcb> I<value>]
 [B<-ech_select> I<config-index>]
 
@@ -917,12 +917,12 @@ taken from the ECHConfigList found in, e.g. the domain name system (DNS). As tho
 identifiers could be revealing, the client has the option to use a random value
 instead.
 
-=item B<-ech_configs> I<value>
+=item B<-ech_config_list> I<value>
 
 Specifies the ECHConfigList value to use for Encrypted Client Hello (ECH) for
 the TLS session. The value may be a base64 or ascii-hex encoded ECHConfigList.
 
-=item B<-ech_sni_outer> I<value>
+=item B<-sni_outer> I<value>
 
 When doing Encrypted Client Hello (ECH), this allows the caller to specify
 an subject name indication (SNI) value to use in the outer ClientHello. (A "normal" SNI value
