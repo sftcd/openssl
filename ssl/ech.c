@@ -489,7 +489,7 @@ static int ah_decode(size_t ahlen, const char *ah,
 static int ah_encode(char *out, size_t outsize,
                      const unsigned char *in, size_t inlen)
 {
-    int i;
+    size_t i;
 
     if (outsize < 2 * inlen + 1)
         return 0;
