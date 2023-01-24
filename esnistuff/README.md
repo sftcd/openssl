@@ -22,6 +22,13 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
+- 20230124: swapped storage choice for inner/outer SNI; as a hangover
+  from ESNI we used store the inner SNI in a newly defined field, but that
+  didn't fit so well with ECH, so ``s->ext.hostname`` will now hold the
+  inner SNI value and the outer will be in ``s->ext.ech.cfgs->outer_name``
+  (if being overridden) or ``s->ext.ech.outer_hostname`` (if using the
+  ``ECHConfig.public_name``
+
 - 20230119: bit more tidying up of data structures
 
 - 20230118: rebased with master, cleaned up some doc-nits stuff

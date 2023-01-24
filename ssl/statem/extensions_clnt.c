@@ -115,18 +115,15 @@ EXT_RETURN tls_construct_ctos_server_name(SSL_CONNECTION *s, WPACKET *pkt,
             return EXT_RETURN_NOT_SENT;
         /* we may have something to send */
         if (s->ext.ech.ch_depth == 1) { /* inner */
-            if (s->ext.ech.cfgs->inner_name != NULL) /* prefer specific API */
-                chosen = s->ext.ech.cfgs->inner_name;
-            else
-                chosen = s->ext.ech.inner_hostname;
+            chosen = s->ext.hostname;
         }
         if (s->ext.ech.ch_depth == 0) { /* outer */
             if (s->ext.ech.cfgs->outer_name != NULL) /* prefer specific API */
                 chosen = s->ext.ech.cfgs->outer_name;
+            else if (s->ext.ech.outer_hostname != NULL) 
+                chosen = s->ext.ech.outer_hostname;
             else if (public_name != NULL)
                 chosen = public_name;
-            else
-                chosen = s->ext.hostname;
         }
     }
     if (chosen == NULL)
@@ -1046,22 +1043,6 @@ EXT_RETURN tls_construct_ctos_early_data(SSL_CONNECTION *s, WPACKET *pkt,
     edsess = s->session->ext.max_early_data != 0 ? s->session : psksess;
     s->max_early_data = edsess->ext.max_early_data;
 
-#ifndef OPENSSL_NO_ECH
-    /* check inner name first, if ECH attempted */
-    if (s->ext.ech.attempted == 1) {
-        if (edsess->ext.hostname != NULL) {
-            if (s->ext.ech.inner_hostname == NULL
-                    || (s->ext.ech.inner_hostname != NULL
-                        && strcmp(s->ext.ech.inner_hostname,
-                                  edsess->ext.hostname) != 0)) {
-                SSLfatal(s, SSL_AD_INTERNAL_ERROR,
-                         SSL_R_INCONSISTENT_EARLY_DATA_SNI);
-                return EXT_RETURN_FAIL;
-            }
-        }
-    }
-    else /* existing check */
-#endif
     if (edsess->ext.hostname != NULL) {
         if (s->ext.hostname == NULL
                 || (s->ext.hostname != NULL
@@ -1619,6 +1600,36 @@ int tls_parse_stoc_server_name(SSL_CONNECTION *s, PACKET *pkt,
                                unsigned int context,
                                X509 *x, size_t chainidx)
 {
+#ifndef OPENSSL_NO_ECH
+    char *eff_sni = NULL;
+
+    eff_sni = s->ext.hostname;
+    /* if we tried ECH and failed, the outer is what's expected */
+    if (s->ext.ech.cfgs != NULL && s->ext.ech.success == 0) {
+        eff_sni = s->ext.ech.cfgs->outer_name;
+        if (eff_sni == NULL)
+            eff_sni = s->ext.ech.outer_hostname;
+    }
+    if (eff_sni == NULL) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+        return 0;
+    }
+    if (PACKET_remaining(pkt) > 0) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+        return 0;
+    }
+    if (!s->hit) {
+        if (s->session->ext.hostname != NULL) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+            return 0;
+        }
+        s->session->ext.hostname = OPENSSL_strdup(eff_sni);
+        if (s->session->ext.hostname == NULL) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+            return 0;
+        }
+    }
+#else
     if (s->ext.hostname == NULL) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
@@ -1640,6 +1651,7 @@ int tls_parse_stoc_server_name(SSL_CONNECTION *s, PACKET *pkt,
             return 0;
         }
     }
+#endif
 
     return 1;
 }

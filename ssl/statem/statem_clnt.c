@@ -1244,6 +1244,15 @@ __owur CON_FUNC_RETURN tls_construct_client_hello(SSL_CONNECTION *s,
         s->ext.ech.attempted_type = tc->version;
         s->ext.ech.attempted_cid = tc->config_id;
         s->ext.ech.attempted = 1;
+        OPENSSL_free(s->ext.ech.outer_hostname);
+        if (s->ext.ech.cfgs->outer_name != NULL)
+            s->ext.ech.outer_hostname = OPENSSL_strdup(s->ext.ech.cfgs->outer_name);
+        else 
+            s->ext.ech.outer_hostname = OPENSSL_strdup((char *)tc->public_name);
+        if (s->ext.ech.outer_hostname == NULL) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, protverr);
+            return 0;
+        }
     }
     /* If doing real ECH and application requested GREASE too, over-ride that */
     if (s->ext.ech.grease == OSSL_ECH_IS_GREASE && s->ext.ech.attempted == 1) {
@@ -1299,10 +1308,6 @@ __owur CON_FUNC_RETURN tls_construct_client_hello(SSL_CONNECTION *s,
     if (s->ext.ech.hrr_depth == -1) {
         /* doing 1st CH, as we've not seen an HRR */
         /* move any hostname/SNI already set from the outer to the inner */
-        if (s->ext.hostname != NULL) {
-            s->ext.ech.inner_hostname = s->ext.hostname;
-            s->ext.hostname = NULL;
-        }
     } else if (s->ext.ech.hrr_depth == 1) {
         s->ext.ech.n_outer_only = 0; /* reset count of "compressed" exts */
         OPENSSL_free(s->ext.ech.encoded_innerch);
@@ -1863,17 +1868,10 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL_CONNECTION *s, PACKET *pkt)
             if (memcmp(shbuf + shlen - 8, acbuf ,8) == 0) {
                 s->ext.ech.success = 1;
                 s->ext.ech.hrr_depth = 1;
-                OPENSSL_free(s->ext.hostname);
-                if (s->ext.ech.inner_hostname != NULL)
-                    s->ext.hostname = OPENSSL_strdup(s->ext.ech.inner_hostname);
-                else
-                    s->ext.hostname = NULL;
                 OSSL_TRACE_BEGIN(TLS) {
                     BIO_printf(trc_out, "ECH HRR accept check ok\n");
                     BIO_printf(trc_out, "ECH set session hostname to %s\n",
-                               s->ext.ech.inner_hostname
-                               ? s->ext.ech.inner_hostname
-                               : "NULL");
+                               s->ext.hostname ? s->ext.hostname : "NULL");
                 } OSSL_TRACE_END(TLS);
             } else {
                 s->ext.ech.success = 0;
@@ -1901,15 +1899,9 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL_CONNECTION *s, PACKET *pkt)
                     BIO_printf(trc_out, "ECH SH accept check ok\n");
                 } OSSL_TRACE_END(TLS);
                 s->ext.ech.success = 1;
-                if (s->ext.ech.inner_hostname != NULL)
-                    s->ext.hostname = OPENSSL_strdup(s->ext.ech.inner_hostname);
-                else
-                    s->ext.hostname = NULL;
                 OSSL_TRACE_BEGIN(TLS) {
                     BIO_printf(trc_out, "ECH set session hostname to %s\n",
-                               s->ext.ech.inner_hostname
-                               ? s->ext.ech.inner_hostname
-                               : "NULL");
+                               s->ext.hostname ? s->ext.hostname : "NULL");
                 } OSSL_TRACE_END(TLS);
             } else {
                 OSSL_TRACE_BEGIN(TLS) {
