@@ -190,19 +190,10 @@ typedef struct ssl_ech_st {
  */
 typedef struct ssl_connection_ech_st {
     /*
-     * SNI for inner CH, ALPN for outer, as used (i.e. after we handle
+     * SNI for outer CH, ALPN for outer, as used (i.e. after we handle
      * no_outer/public_name/overrides etc.)
-     *
-     * TODO(ECH): consider swapping roles of s->ext.ech.inner_hostname
-     * and s->ext.hostname (if so, obviously renaming the former to
-     * s->ext.ech.public_name) - having the inner SNI here is because
-     * we started from ESNI, where it made sense, but it could be changed.
-     * OTOH, this works:-) Also: the change is non-trivial and having
-     * ECH-unaware code that deals with an s->ext.hostname field that
-     * only contains a public_name may be safer overall.
-     * So not a no-brainer to make that change.
      */
-    char *inner_hostname;
+    char *outer_hostname;
     unsigned char *alpn_outer;
     size_t alpn_outer_len;
     /*
@@ -224,7 +215,7 @@ typedef struct ssl_connection_ech_st {
      * client copy of CH extension type - added here to avoid need
      * to break APIs, when doing the compression stuff where the
      * extension handler needs to know the relevant TLS codepoint
-     * TODO(ECH): check if there's another way to get that value 
+     * TODO(ECH): check if there's another way to get that value
      */
     unsigned int etype;
     /*
