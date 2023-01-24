@@ -2452,8 +2452,8 @@ static size_t ech_calc_padding(SSL_CONNECTION *s, ECHConfig *tc)
     } OSSL_TRACE_END(TLS);
     if (mnl != 0) {
         /* do weirder padding if SNI present in inner */
-        if (s->ext.ech.inner_hostname != NULL) {
-            isnilen = strlen(s->ext.ech.inner_hostname) + 9;
+        if (s->ext.hostname != NULL) {
+            isnilen = strlen(s->ext.hostname) + 9;
             innersnipadding = mnl - isnilen;
         } else {
             innersnipadding = mnl + 9;
@@ -3779,7 +3779,6 @@ int ech_send_grease(SSL_CONNECTION *s, WPACKET *pkt)
 int ech_pick_matching_cfg(SSL_CONNECTION *s, ECHConfig **tc,
                           OSSL_HPKE_SUITE *suite)
 {
-    unsigned int onlen = 0;
     int namematch = 0;
     int suitematch = 0;
     int cind = 0;
@@ -3787,6 +3786,8 @@ int ech_pick_matching_cfg(SSL_CONNECTION *s, ECHConfig **tc,
     ECHConfig *ltc = NULL;
     ECHConfigList *cfgs = NULL;
     unsigned char *es = NULL;
+    char *hn = NULL;
+    unsigned int hnlen = 0;
 
     if (s == NULL || s->ext.ech.cfgs == NULL || tc == NULL || suite == NULL)
         return 0;
@@ -3794,8 +3795,14 @@ int ech_pick_matching_cfg(SSL_CONNECTION *s, ECHConfig **tc,
     if (cfgs == NULL || cfgs->nrecs == 0) {
         return 0;
     }
-    onlen = (s->ext.ech.cfgs->outer_name == NULL
-             ? 0 : strlen(s->ext.ech.cfgs->outer_name));
+    /* allow API-set pref to override */
+    hn = s->ext.ech.cfgs->outer_name;
+    hnlen = (hn == NULL ? 0 : strlen(hn));
+    if (hnlen == 0) {
+        /* fallback to outer hostname, if set */
+        hn = s->ext.ech.outer_hostname;
+        hnlen = (hn == NULL ? 0 : strlen(hn));
+    }
     for (cind = 0;
          cind != cfgs->nrecs && suitematch == 0 && namematch == 0;
          cind++) {
@@ -3803,10 +3810,9 @@ int ech_pick_matching_cfg(SSL_CONNECTION *s, ECHConfig **tc,
         if (ltc->version != OSSL_ECH_DRAFT_13_VERSION)
             continue;
         namematch = 0;
-        if (onlen == 0
-            || (ltc->public_name_len == onlen
-                && !OPENSSL_strncasecmp(s->ext.ech.cfgs->outer_name,
-                                        (char *)ltc->public_name, onlen))) {
+        if (hnlen == 0
+            || (ltc->public_name_len == hnlen
+                && !OPENSSL_strncasecmp(hn, (char *)ltc->public_name, hnlen))) {
             namematch = 1;
         }
         suite->kem_id = ltc->kem_id;
@@ -5182,13 +5188,8 @@ int SSL_ech_get_status(SSL *ssl, char **inner_sni, char **outer_sni)
         return SSL_ECH_STATUS_NOT_CONFIGURED;
     /* set output vars - note we may be pointing to NULL which is fine */
     if (s->server == 0) {
-        if (s->ext.ech.inner_hostname != NULL) {
-            sinner = s->ext.ech.inner_hostname;
-            souter = s->ext.hostname;
-        } else {
-            sinner = s->ext.hostname;
-            souter = NULL;
-        }
+        sinner = s->ext.hostname;
+        souter = s->ext.ech.outer_hostname;
     } else {
         if (s->ext.ech.cfgs != NULL && s->ext.ech.success == 1) {
             sinner = s->ext.ech.cfgs->inner_name;
