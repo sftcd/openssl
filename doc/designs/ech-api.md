@@ -23,6 +23,8 @@ formal and provide some justification for the API design.
 Unless otherwise stated all APIs return 1 in the case of success and 0 for
 error.
 
+Prototypes are mostly in ``include/openssl/ech.h`` for now.
+
 Specification
 -------------
 
@@ -315,4 +317,94 @@ a ``no-ech`` option to build without this code.
 
 BoringSSL APIs
 --------------
+
+Brief descriptions of boringssl APIs are below together with initial comments
+comparing those to the above.
+
+Just as this fork is under development, boring's ``include/openssl/ssl.h``
+says: "ECH support in BoringSSL is still experimental and under development."
+
+### GREASE
+
+Boring uses an API to enable GREASEing rather than an option.
+
+```c
+OPENSSL_EXPORT void SSL_set_enable_ech_grease(SSL *ssl, int enable);
+```
+
+This could work as well for our fork, or boring could probably change to use an
+option, unless there's some reason to prefer not adding new options.
+
+### Setting an ECHConfigList
+
+```c
+OPENSSL_EXPORT int SSL_set1_ech_config_list(SSL *ssl,
+                                            const uint8_t *ech_config_list,
+                                            size_t ech_config_list_len);
+```
+
+This provides a subset of the equivalent client capabilities from our fork.
+
+### Verifying the outer CH rather than inner
+
+Boring seems to use this API to change the DNS name being verified in order to
+validate a ``retry_config``.
+
+```c
+OPENSSL_EXPORT void SSL_get0_ech_name_override(const SSL *ssl,
+                                               const char **out_name,
+                                               size_t *out_name_len);
+```
+
+I'm not sure how this compares. Need to investigate.
+
+### Create an ECHConfigList
+
+The first function below outputs an ECHConfig, the second adds one of those to
+an ``SSL_ECH_KEYS`` structure, the last emits an ECHConfigList from that
+structure. There are other APIs for managing memory for ``SSL_ECH_KEYS``
+
+These APIs also expose HPKE to the application via ``EVP_HPKE_KEY`` which is
+defined in ``include/openssl/hpke.h``. HPKE handling differs quite a bit from
+the HPKE APIs merged to OpenSSL.
+
+
+```c
+OPENSSL_EXPORT int SSL_marshal_ech_config(uint8_t **out, size_t *out_len,
+                                          uint8_t config_id,
+                                          const EVP_HPKE_KEY *key,
+                                          const char *public_name,
+                                          size_t max_name_len);
+OPENSSL_EXPORT int SSL_ECH_KEYS_add(SSL_ECH_KEYS *keys, int is_retry_config,
+                                    const uint8_t *ech_config,
+                                    size_t ech_config_len,
+                                    const EVP_HPKE_KEY *key);
+OPENSSL_EXPORT int SSL_ECH_KEYS_marshal_retry_configs(const SSL_ECH_KEYS *keys,
+                                                      uint8_t **out,
+                                                      size_t *out_len);
+
+```
+
+Collectively these are similar to ``ossl_ech_make_echconfig()``.
+
+### Setting ECH keys on a server
+
+Again using the ``SSL_ECH_KEYS`` type and APIs, servers can build up a set of
+ECH keys using:
+
+```c
+OPENSSL_EXPORT int SSL_CTX_set1_ech_keys(SSL_CTX *ctx, SSL_ECH_KEYS *keys);
+```
+
+This is similar to the ``SSL_CTX_ech_server_enable_*()`` APIs.
+
+### Getting status
+
+Boring has:
+
+```c
+OPENSSL_EXPORT int SSL_ech_accepted(const SSL *ssl);
+```
+
+That seems to be a subset of ``SSL_ech_get_status()``.
 
