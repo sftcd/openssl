@@ -208,7 +208,7 @@ SSL_CTX_ech_set_outer_alpn_protos() all return 1 for success and 0 for error.
 =head2 Generating ECH key pairs and ECHconfigs
 
 ossl_ech_make_echconfig() allows applications to generate an ECH key pair
-and create a matching binary encoded ECHConfigList in the I<echconfig> buffer.
+and create a matching base64 encoded ECHConfigList in the I<echconfig> buffer.
 That buffer has size I<echconfiglen> on input. On output I<echconfiglen> has
 the length of the actual ECHConfigList. The private key will be written in
 PKCS#8 format in the I<priv> buffer. On input the I<privlen> parameter has
