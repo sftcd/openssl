@@ -74,7 +74,7 @@ with the allocated size on input and the used-size on output. On output,
 the ``echconfig`` contains the base64 encoded ECHConfigList and the 
 ``priv`` value contains the PEM encoded PKCS#8 private value.
 
-The ``ekversion`` should be 0xff0d or 13 for the current version.
+The ``ekversion`` should be 0xfe0d or 13 for the current version.
 
 The ``max_name_length`` is an element of the ECHConfigList that is used
 by clients as part of a padding algorithm. (That design is part of the
@@ -112,10 +112,10 @@ so for some services at defo.ie).
 
 ```c
 int SSL_CTX_ech_server_enable_file(SSL_CTX *ctx, const char *file);
-int SSL_CTX_ech_server_enable_buffer(SSL_CTX *ctx, const unsigned char *buf,
-                                     const size_t blen);
 int SSL_CTX_ech_server_enable_dir(SSL_CTX *ctx, int *loaded,
                                   const char *echdir);
+int SSL_CTX_ech_server_enable_buffer(SSL_CTX *ctx, const unsigned char *buf,
+                                     const size_t blen);
 ```
 
 The three functions above support loading keys, the first attempts to load a
