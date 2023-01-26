@@ -17,7 +17,8 @@ encryption of the inner CH. HPKE code was merged to the master branch in
 November 2022.
 
 The current APIs implemented in this fork are also documented
-[here](../man3/SSL_ech_set1_echconfig.pod).
+[here](../man3/SSL_ech_set1_echconfig.pod). The descriptions here are less
+formal and provide some justification for the API design.
 
 Unless otherwise stated all APIs return 1 in the case of success and 0 for
 error.
@@ -33,8 +34,14 @@ in August 2021.  The latest draft can be found
 Once browsers and others have done sufficient testing the plan is to
 proceed to publishing ECH as an RFC. That will likely include a change
 of version code-points which have been tracking Internet-Draft version
-numbers during the course of spec development. (The current version used
-is 0xff0d where the 0d reflects draft-13.)
+numbers during the course of spec development. 
+
+The current version used is 0xfe0d where the 0d reflects draft-13 with
+the following symbol defined for this version:
+
+```c
+#  define OSSL_ECH_DRAFT_13_VERSION 0xfe0d /* version from draft-13 */
+```
 
 Server-side APIs
 ----------------
@@ -88,7 +95,7 @@ that that file format is not an "adopted" work item for the IETF TLS WG (but
 should be:-). ``openssl ech`` also allows the two values to be output to
 two separate files.
 
-### Key Loading
+### Server Key Management
 
 The APIs here are mainly designed for web servers and have been used in PoC
 implementations of nginx, apache, lighttpd and haproxy in addition to the
@@ -99,13 +106,88 @@ fairly frequently update the ECH key pairs in use, to provide something more
 akin to forward secrecy. So it is a goal to make it easy for web servers to
 re-load keys without complicating their configuration file handling.
 
-Cloudflare's test ECH service in the past rotated published ECH public keys
-hourly.  Currently checking if that's still the case...
+Cloudflare's test ECH service rotates published ECH public keys hourly
+(re-verified on 2023-01-26). We expect other services to do similarly (and do
+so for some services at defo.ie). 
+
+```c
+int SSL_CTX_ech_server_enable_file(SSL_CTX *ctx, const char *file);
+int SSL_CTX_ech_server_enable_buffer(SSL_CTX *ctx, const unsigned char *buf,
+                                     const size_t blen);
+int SSL_CTX_ech_server_enable_dir(SSL_CTX *ctx, int *loaded,
+                                  const char *echdir);
+```
+
+The three functions above support loading keys, the first attempts to load a
+key based on an individual file name. The second attempts to load all files
+from a directory that have a ``.ech`` file extension - this allows web server
+configurations to simply name that directory and then trigger a configuration
+reload periodically as keys in that directory have been updated by some
+external key management process (likely managed via a cronjob).  The last
+allows the application to load keys from a buffer (that should contain the same
+content as a file) and was added for haproxy which prefers not to do disk reads
+after initial startup (for resilience reasons apparently).
+
+There are also functions to allow a server to see how many keys are currently
+loaded and one to flush keys that are older than ``age`` seconds.
+
+```c
+int SSL_CTX_ech_server_get_key_status(SSL_CTX *ctx, int *numkeys);
+int SSL_CTX_ech_server_flush_keys(SSL_CTX *ctx, time_t age);
+```
 
 ### Split-mode handling
 
+ECH split mode involves a server that only does ECH decryption and then passes
+on the inner CH to another TLS server that actually negotiates the TLS session
+with the client, based on the inner CH content. The function to support this
+simply takes the outer CH and returns the inner CH and SNI values (allowing
+routing to the correct backend) and whether or not decryption succeedd.
+
+This has been tested in a PoC implementation with haproxy, which works for
+nomimal operation but that can't handle the combination of split-mode with  HRR
+as haproxy only supports examining the first (outer) CH seen, whereas ECH +
+split-mode + HRR requires processing both outer CHs.
+
+```c
+int SSL_CTX_ech_raw_decrypt(SSL_CTX *ctx,
+                            int *decrypted_ok,
+                            char **inner_sni, char **outer_sni,
+                            unsigned char *outer_ch, size_t outer_len,
+                            unsigned char *inner_ch, size_t *inner_len);
+```
+
 Client-side APIs
 ----------------
+
+ECH Status API
+--------------
+
+Clients and servers can check the status of ECH processing
+on an SSL connection using this API:
+
+```c
+int SSL_ech_get_status(SSL *s, char **inner_sni, char **outer_sni);
+
+/* Return codes from SSL_ech_get_status */
+#  define SSL_ECH_STATUS_BACKEND    4 /* ECH backend: saw an ech_is_inner */
+#  define SSL_ECH_STATUS_GREASE_ECH 3 /* GREASEd and got an ECH in return */
+#  define SSL_ECH_STATUS_GREASE     2 /* ECH GREASE happened  */
+#  define SSL_ECH_STATUS_SUCCESS    1 /* Success */
+#  define SSL_ECH_STATUS_FAILED     0 /* Some internal or protocol error */
+#  define SSL_ECH_STATUS_BAD_CALL   -100 /* Some in/out arguments were NULL */
+#  define SSL_ECH_STATUS_NOT_TRIED  -101 /* ECH wasn't attempted  */
+#  define SSL_ECH_STATUS_BAD_NAME   -102 /* ECH ok but server cert bad */
+#  define SSL_ECH_STATUS_NOT_CONFIGURED -103 /* ECH wasn't configured */
+#  define SSL_ECH_STATUS_FAILED_ECH -105 /* We tried, failed and got an ECH */
+```
+
+The ``inner_sni`` and ``outer_sni`` values point at strings
+with the relevant values. (They aren't allocated or free'd by the
+caller.)
+
+The function returns one of the status values above.
+
 
 Call-backs and options
 ----------------------
