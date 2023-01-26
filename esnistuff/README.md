@@ -22,6 +22,9 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
+- 20230126: added ``doc/designs/ech-api.md`` - that's just a starter
+  for that doc as of now.
+
 - 20230124: swapped storage choice for inner/outer SNI; as a hangover
   from ESNI we used store the inner SNI in a newly defined field, but that
   didn't fit so well with ECH, so ``s->ext.hostname`` will now hold the
