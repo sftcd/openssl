@@ -142,7 +142,7 @@ ECH split mode involves a server that only does ECH decryption and then passes
 on the inner CH to another TLS server that actually negotiates the TLS session
 with the client, based on the inner CH content. The function to support this
 simply takes the outer CH and returns the inner CH and SNI values (allowing
-routing to the correct backend) and whether or not decryption succeedd.
+routing to the correct backend) and whether or not decryption succeeded.
 
 This has been tested in a PoC implementation with haproxy, which works for
 nomimal operation but that can't handle the combination of split-mode with  HRR
@@ -159,6 +159,93 @@ int SSL_CTX_ech_raw_decrypt(SSL_CTX *ctx,
 
 Client-side APIs
 ----------------
+
+Clients will generally provide an ECHConfigList or an HTTPS/SVCB resource
+record value in order to enable ECH for an SSL connection.
+
+Those may be provided in various encodings (base64, ascii hex or binary)
+each of which may suit different applications. The APIs below can consume
+each of these (via the ``ekfmt`` input) or the implementation can guess
+based on the value provided.
+
+``SSL_ech_set1_svcb`` additionally supports inputs in zone file presentation
+format, i.e., extracting the ECHConfigList from the ``ech=`` value if one is
+present.
+
+If an HTTPS/SVCB resource record is provided then ``SSL_ech_set1_svcb`` will
+only extract the ECHConfigList from that value and any ALPN information has
+to be separtely extract by the client.
+
+In each case the function returns the number of ECHConfig elements from
+the list successfully decoded  in the ``num_echs`` output.
+
+```c
+int SSL_ech_set1_echconfig(SSL *s, int *num_echs,
+                           int ekfmt, char *ekval, size_t eklen);
+int SSL_ech_set1_svcb(SSL *s, int *num_echs,
+                      int rrfmt, char *rrval, size_t rrlen);
+int SSL_CTX_ech_set1_echconfig(SSL_CTX *ctx, int *num_echs,
+                               int ekfmt, char *ekval, size_t eklen);
+```
+
+Clients can also more directly control the values to be used for
+inner and outer SNI and ALPN values via specific APIs. This allows a client
+to over-ride the ``public_name`` present in an ECHConfigList that will
+by default be used for the outer SNI. The ``no_outer`` input allows a
+client to emit an outer CH with no SNI at all.
+
+```c
+int SSL_ech_set_server_names(SSL *s, const char *inner_name,
+                             const char *outer_name, int no_outer);
+int SSL_ech_set_outer_server_name(SSL *s, const char *outer_name, int no_outer);
+int SSL_CTX_ech_set_outer_alpn_protos(SSL *s, const unsigned char *protos,
+                                       unsigned int protos_len);
+```
+
+If a client attempts ECH but that fails, or sends an ECH-GREASE'd CH, to 
+an ECH-supporting server, then that server may return an ECH "retry-config"
+value that the client could choose to use in a subsequent connection. The
+client can detect this situation via the ``SSL_ech_get_status()`` API and
+can access the retry config value via:
+
+```c
+int SSL_ech_get_retry_config(SSL *s, const unsigned char **ec, size_t *eclen);
+```
+
+Clients that need fine control over which ECHConfig (from those available) will
+be used can query the SSL connection and down-select to one of those, e.g.,
+based on the ``public_name`` that will be used. This could help a client that
+selects the server address to use based on IP address hints that can also be
+present in an HTTPS/SCVB resource record.
+
+```c
+/*
+ * Application-visible form of ECH information from the DNS, from config
+ * files, or from earlier API calls. APIs produce/process an array of these.
+ */
+typedef struct ossl_ech_info_st {
+    int index; /* externally re-usable reference to this value */
+    char *public_name; /* public_name from API or ECHConfig */
+    char *inner_name; /* server-name (for inner CH if doing ECH) */
+    char *outer_alpns; /* outer ALPN string */
+    char *inner_alpns; /* inner ALPN string */
+    char *echconfig; /* a JSON-like version of the associated ECHConfig */
+} OSSL_ECH_INFO;
+
+void OSSL_ECH_INFO_free(OSSL_ECH_INFO *info, int count);
+int OSSL_ECH_INFO_print(BIO *out, OSSL_ECH_INFO *info, int count);
+int SSL_ech_get_info(SSL *s, OSSL_ECH_INFO **info, int *count);
+int SSL_ech_reduce(SSL *s, int index);
+```
+
+If a client wishes to GREASE ECH using a specific HPKE suite or
+ECH version (represented by the TLS extension type code-point) then
+it can set those values via:
+
+```c
+int SSL_ech_set_grease_suite(SSL *s, const char *suite);
+int SSL_ech_set_grease_type(SSL *s, uint16_t type);
+```
 
 ECH Status API
 --------------
@@ -192,14 +279,39 @@ The function returns one of the status values above.
 Call-backs and options
 ----------------------
 
+Clients and servers can set a callback that will be triggered when
+ECH is attempted and the result of ECH processing is known. The
+callback function can access a string (``str``) that can be used
+for logging (but not for branching). Callback functions might 
+typically call ``SSL_ech_get_status()`` if branching is required.
+
+```c
+typedef unsigned int (*SSL_ech_cb_func)(SSL *s, const char *str);
+
+void SSL_ech_set_callback(SSL *s, SSL_ech_cb_func f);
+void SSL_CTX_ech_set_callback(SSL_CTX *ctx, SSL_ech_cb_func f);
+```
+
+The following options are defined for ECH:
+
+```c
+/* set this to tell client to emit greased ECH values when not doing
+ * "real" ECH */
+#define SSL_OP_ECH_GREASE                               SSL_OP_BIT(34)
+/* If this is set then the server side will attempt trial decryption */
+/* of ECHs even if there is no matching record_digest. That's a bit  */
+/* inefficient, but more privacy friendly */
+#define SSL_OP_ECH_TRIALDECRYPT                         SSL_OP_BIT(35)
+/* If set, clients will ignore the supplied ECH config_id and replace
+ * that with a random value */
+#define SSL_OP_ECH_IGNORE_CID                           SSL_OP_BIT(36)
+```
+
 Build Options
 -------------
 
 All ECH code is protected via ``#ifndef OPENSSL_NO_ECH`` and there is
 a ``no-ech`` option to build without this code.
-
-Internals
----------
 
 BoringSSL APIs
 --------------
