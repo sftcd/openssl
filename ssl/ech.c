@@ -1586,7 +1586,12 @@ static int ech_make_enc_info(ECHConfig *tc, unsigned char *info,
  * Offsets are set to zero if relevant thing not found.
  * Offsets are returned to the type or length field in question.
  *
- * Note: input here can be untrusted!
+ * Note: input here is untrusted!
+ *
+ * TODO: consider the impact of a session id length that is not
+ * 0 or 32. In principle, that could lead to an error elsewhere.
+ * For the CH, maybe add a test that session id length is zero
+ * for inner, and 32 for outer.
  */
 int ech_get_ch_offsets(SSL_CONNECTION *s, PACKET *pkt, size_t *sessid,
                        size_t *exts, size_t *echoffset, uint16_t *echtype,
@@ -1598,7 +1603,7 @@ int ech_get_ch_offsets(SSL_CONNECTION *s, PACKET *pkt, size_t *sessid,
     size_t sessid_len = 0;
     size_t suiteslen = 0;
     size_t startofexts = 0;
-    size_t origextlens = 0;
+    size_t extlens = 0;
     size_t legacy_compress_len; /* length of legacy_compression */
     const unsigned char *e_start = NULL;
     int extsremaining = 0;
@@ -1629,19 +1634,19 @@ int ech_get_ch_offsets(SSL_CONNECTION *s, PACKET *pkt, size_t *sessid,
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
     }
-    /* if we're not TLSv1.3 then we can bail, but it's not an error */
-    if (ch[0] != 0x03 || ch[1] != 0x03)
+    /* if we're not TLSv1.2+ then we can bail, but it's not an error */
+    if (ch[0] * 256 + ch [1] != TLS1_2_VERSION)
         return 1;
     /*
      * We'll start genoffset at the start of the session ID, just
      * before the ciphersuites
      */
-    *sessid = CLIENT_VERSION_LEN + SSL3_RANDOM_SIZE; /* point to len sessid */
-    genoffset = *sessid;
+    genoffset = CLIENT_VERSION_LEN + SSL3_RANDOM_SIZE; /* point to len sessid */
     if (ch_len <= genoffset) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
     }
+    *sessid = genoffset;
     sessid_len = ch[genoffset];
     /* sessid_len can be zero in encoded inner CH */
     genoffset += (1 + sessid_len);
@@ -1650,8 +1655,7 @@ int ech_get_ch_offsets(SSL_CONNECTION *s, PACKET *pkt, size_t *sessid,
         return 0;
     }
     suiteslen = ch[genoffset] * 256 + ch[genoffset + 1];
-
-    if ((genoffset + suiteslen + 2 + 2) > ch_len) {
+    if ((genoffset + 2 + suiteslen + 2) > ch_len) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
     }
@@ -1665,24 +1669,25 @@ int ech_get_ch_offsets(SSL_CONNECTION *s, PACKET *pkt, size_t *sessid,
     if (ch[genoffset + suiteslen + 2 + 1] != 0x00)
         return 1;
 
-    startofexts = genoffset + suiteslen + 2 + 2; /* the 2 for the suites len */
+    startofexts = genoffset + 2 + suiteslen + 2; /* the 2 for the suites len */
     if (startofexts == ch_len)
-        return 1; /* no extensions present, which is in theory fine */
+        return 1; /* no extensions present, which is fine, but not for ECH */
     if (startofexts > ch_len) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
     }
     *exts = startofexts; /* set output */
-    origextlens = ch[startofexts] * 256 + ch[startofexts + 1];
-    if (ch_len < (startofexts + 2 + origextlens)) {
+
+    extlens = ch[startofexts] * 256 + ch[startofexts + 1];
+    if (ch_len < (startofexts + 2 + extlens)) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
     }
-
     /* find ECH if it's there */
     e_start = &ch[startofexts + 2];
-    extsremaining = origextlens - 2;
+    extsremaining = extlens - 2;
     while (extsremaining > 0 && (*echoffset == 0 || *snioffset == 0)) {
+        /* 4 is for 2-octet type and 2-octet length */
         if (ch_len < (4 + (size_t)(e_start - ch))) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             return 0;
@@ -1693,20 +1698,19 @@ int ech_get_ch_offsets(SSL_CONNECTION *s, PACKET *pkt, size_t *sessid,
 # ifdef OSSL_ECH_SUPERVERBOSE
             echlen = elen + 4; /* type and length included */
 # endif
+            if (ch_len < (5 + (size_t)(e_start - ch))) {
+                SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+                return 0;
+            }
+            /* set outputs */
             *echtype = etype;
             *echoffset = (e_start - ch); /* set output */
-            if (etype == TLSEXT_TYPE_ech13) {
-                if (ch_len < (5 + (size_t)(e_start - ch))) {
-                    SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-                    return 0;
-                }
-                /* check if inner or outer type set */
-                *inner = e_start[4];
-            }
+            *inner = e_start[4];
         } else if (etype == TLSEXT_TYPE_server_name) {
 # ifdef OSSL_ECH_SUPERVERBOSE
             snilen = elen + 4; /* type and length included */
 # endif
+            /* set output */
             *snioffset = (e_start - ch); /* set output */
         }
         e_start += (4 + elen);
@@ -1719,7 +1723,7 @@ int ech_get_ch_offsets(SSL_CONNECTION *s, PACKET *pkt, size_t *sessid,
     ech_pbuf("orig CH", (unsigned char *)ch, ch_len);
     ech_pbuf("orig CH session_id", (unsigned char *)ch + *sessid + 1,
              sessid_len);
-    ech_pbuf("orig CH exts", (unsigned char *)ch + *exts, origextlens);
+    ech_pbuf("orig CH exts", (unsigned char *)ch + *exts, extlens);
     ech_pbuf("orig CH/ECH", (unsigned char *)ch + *echoffset, echlen);
     ech_pbuf("orig CH SNI", (unsigned char *)ch + *snioffset, snilen);
 # endif
@@ -1737,6 +1741,13 @@ int ech_get_ch_offsets(SSL_CONNECTION *s, PACKET *pkt, size_t *sessid,
  *
  * Offsets are returned to the type or length field in question.
  * Offsets are set to zero if relevant thing not found.
+ *
+ * Note: input here is untrusted!
+ *
+ * TODO: consider the impact of a session id length that is not
+ * 0 or 32. In principle, that could lead to an error elsewhere.
+ * For the SH, that could lead to checking the wrong bits for
+ * the ECH success signal (which differs in non-HRR and HRR cases). 
  */
 static int ech_get_sh_offsets(const unsigned char *sh, size_t sh_len,
                               size_t *exts, size_t *echoffset,
@@ -1745,7 +1756,7 @@ static int ech_get_sh_offsets(const unsigned char *sh, size_t sh_len,
     size_t sessid_offset = 0;
     size_t sessid_len = 0;
     size_t startofexts = 0;
-    size_t origextlens = 0;
+    size_t extlens = 0;
     const unsigned char *e_start = NULL;
     int extsremaining = 0;
     uint16_t etype = 0;
@@ -1755,37 +1766,58 @@ static int ech_get_sh_offsets(const unsigned char *sh, size_t sh_len,
 # endif
 
     if (sh == NULL || sh_len == 0 || exts == NULL || echoffset == NULL
-        || echtype == NULL)
+        || echtype == NULL) {
+        ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_NULL_PARAMETER);
         return 0;
+    }
+    /* make sure we're at least tlsv1.2 */
+    if (sh_len < 2) {
+        ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
+        return 0;
+    }
+    /* if we're not TLSv1.2+ then we can bail, but it's not an error */
+    if (sh[0] * 256 + sh [1] != TLS1_2_VERSION)
+        return 1;
     *exts = 0;
     *echoffset = 0;
     *echtype = TLSEXT_TYPE_ech_unknown;
+
     sessid_offset = CLIENT_VERSION_LEN /* version */
-        + 32                           /* random */
+        + SSL3_RANDOM_SIZE             /* random */
         + 1;                           /* sess_id_len */
-    if (sh_len <= sessid_offset)
+    if (sh_len <= sessid_offset) {
+        ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
         return 0;
+    }
     sessid_len = (size_t)sh[sessid_offset - 1];
     startofexts = sessid_offset /* up to & incl. sessid_len */
         + sessid_len            /* sessid_len */
         + 2                     /* ciphersuite */
         + 1;                    /* legacy compression */
-    if (sh_len < startofexts)
+    if (sh_len < startofexts) {
+        ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
         return 0;
+    }
     if (sh_len == startofexts)
         return 1; /* no exts */
     *exts = startofexts;
-    if (sh_len < (startofexts + 6))
+    if (sh_len < (startofexts + 6)) {
+        ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
         return 0; /* needs at least len+one-ext */
-    origextlens = sh[startofexts] * 256 + sh[startofexts + 1];
-    if (sh_len < (startofexts + 2 + origextlens))
-        return 0; /* needs at least len+one-ext */
+    }
+    extlens = sh[startofexts] * 256 + sh[startofexts + 1];
+    if (sh_len < (startofexts + 2 + extlens)) {
+        ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
+        return 0;
+    }
     /* find ECH if it's there */
     e_start = &sh[startofexts + 2];
-    extsremaining = origextlens - 2;
+    extsremaining = extlens - 2;
     while (extsremaining > 0 && *echoffset == 0) {
-        if (sh_len < (4 + (size_t)(e_start - sh)))
+        if (sh_len < (4 + (size_t)(e_start - sh))) {
+            ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
             return 0;
+        }
         etype = e_start[0] * 256 + e_start[1];
         elen = e_start[2] * 256 + e_start[3];
         if (etype == TLSEXT_TYPE_ech13) {
@@ -1805,7 +1837,7 @@ static int ech_get_sh_offsets(const unsigned char *sh, size_t sh_len,
     ech_pbuf("orig SH", (unsigned char *)sh, sh_len);
     ech_pbuf("orig SH session_id", (unsigned char *)sh + sessid_offset,
              sessid_len);
-    ech_pbuf("orig SH exts", (unsigned char *)sh + *exts, origextlens);
+    ech_pbuf("orig SH exts", (unsigned char *)sh + *exts, extlens);
     ech_pbuf("orig SH/ECH ", (unsigned char *)sh + *echoffset, echlen);
 # endif
     return 1;
