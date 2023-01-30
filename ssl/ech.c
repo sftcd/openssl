@@ -281,14 +281,14 @@ static int ech_check_filenames(SSL_CTX *ctx, const char *pemfname, int *index)
     if (ctx->ext.ech == NULL || ctx->ext.nechs == 0)
         return OSSL_ECH_KEYPAIR_NEW;
     /*
-     * if no file info, crap out... hmm, that could happen if the
-     * disk fails hence different return value - the application may
-     * be able to continue anyway...
+     * if no file info, exit. That could happen if the disk fails hence
+     * special return value - the application may be able to continue
+     * anyway...
      */
     if (stat(pemfname, &pemstat) < 0)
         return OSSL_ECH_KEYPAIR_FILEMISSING;
 
-    /* check the time info - we're only gonna do 1s precision on purpose */
+    /* check the time info - we're only doing 1s precision on purpose */
 # if defined(__APPLE__)
     pemmod = pemstat.st_mtimespec.tv_sec;
 # elif defined(OPENSSL_SYS_WINDOWS)
@@ -297,15 +297,15 @@ static int ech_check_filenames(SSL_CTX *ctx, const char *pemfname, int *index)
     pemmod = pemstat.st_mtim.tv_sec;
 # endif
 
-    /* search list of existing key pairs to see if we have that one already */
+    /*
+     * search list of already loaded keys to see if we have 
+     * a macthing one already
+     */
     pemlen = strlen(pemfname);
     for (ind = 0; ind != ctx->ext.nechs; ind++) {
-        size_t llen = 0;
-
         if (ctx->ext.ech[ind].pemfname == NULL)
             return OSSL_ECH_KEYPAIR_ERROR;
-        llen = strlen(ctx->ext.ech[ind].pemfname);
-        if (llen == pemlen
+        if (pemlen == strlen(ctx->ext.ech[ind].pemfname)
             && !strncmp(ctx->ext.ech[ind].pemfname, pemfname, pemlen)) {
             /* matching files! */
             if (ctx->ext.ech[ind].loadtime < pemmod) {
@@ -335,7 +335,7 @@ static int ech_check_filenames(SSL_CTX *ctx, const char *pemfname, int *index)
  * functions (it probably isn't) then we could merge the two functions.
  *
  * The input is modified if multivalued (NULL bytes are added in place of
- * semi-colon separators) so the caller should have copied  that if that's
+ * semi-colon separators) so the caller should have copied that if that's
  * an issue.
  */
 static int ech_base64_decode(char *in, unsigned char **out)
@@ -441,9 +441,8 @@ static int ech_guess_fmt(size_t eklen, unsigned char *rrval, int *guessedfmt)
     return 1;
 }
 
-/*!
+/*
  * @brief decode ascii hex to a binary buffer
- *
  * @param ahlen is the ascii hex string length
  * @param ah is the ascii hex string
  * @param blen is a pointer to the returned binary length
@@ -477,9 +476,8 @@ static int ah_decode(size_t ahlen, const char *ah,
     return 1;
 }
 
-/*!
+/*
  * @brief encode binary buffer as ascii hex
- *
  * @param out is an allocated buffer for the ascii hex string
  * @param outsize is the size of the buffer
  * @param in is the input binary buffer
@@ -901,8 +899,7 @@ static int local_decode_rdata_name(unsigned char **buf, size_t *remaining,
         }
         memcpy(tp, cp, clen);
         tp += clen;
-        *tp = '.';
-        tp++;
+        *tp++ = '.';
         cp += clen;
         rem -= (clen + 1);
         clen = *cp++;
@@ -920,8 +917,6 @@ static int local_decode_rdata_name(unsigned char **buf, size_t *remaining,
  * @param num_echs says how many SSL_ECH structures are in the returned array
  * @param echs is a pointer to an array of decoded SSL_ECH
  * @return is 1 for success, error otherwise
- *
- * This does the real work, can be called to add to a context or a connection
  */
 static int local_ech_add(int ekfmt, size_t eklen, unsigned char *ekval,
                          int *num_echs, SSL_ECH **echs)
@@ -1587,11 +1582,6 @@ static int ech_make_enc_info(ECHConfig *tc, unsigned char *info,
  * Offsets are returned to the type or length field in question.
  *
  * Note: input here is untrusted!
- *
- * TODO: consider the impact of a session id length that is not
- * 0 or 32. In principle, that could lead to an error elsewhere.
- * For the CH, maybe add a test that session id length is zero
- * for inner, and 32 for outer.
  */
 int ech_get_ch_offsets(SSL_CONNECTION *s, PACKET *pkt, size_t *sessid,
                        size_t *exts, size_t *echoffset, uint16_t *echtype,
@@ -1648,7 +1638,14 @@ int ech_get_ch_offsets(SSL_CONNECTION *s, PACKET *pkt, size_t *sessid,
     }
     *sessid = genoffset;
     sessid_len = ch[genoffset];
-    /* sessid_len can be zero in encoded inner CH */
+    /*
+     * sessid_len can be zero length in encoded inner CH but is normally 32
+     * A different length could lead to an error elsewhere.
+     */
+    if (sessid_len != 0 && sessid_len != SSL_MAX_SSL_SESSION_ID_LENGTH) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+        return 0;
+    }
     genoffset += (1 + sessid_len);
     if (ch_len <= (genoffset + 2)) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
@@ -1743,11 +1740,6 @@ int ech_get_ch_offsets(SSL_CONNECTION *s, PACKET *pkt, size_t *sessid,
  * Offsets are set to zero if relevant thing not found.
  *
  * Note: input here is untrusted!
- *
- * TODO: consider the impact of a session id length that is not
- * 0 or 32. In principle, that could lead to an error elsewhere.
- * For the SH, that could lead to checking the wrong bits for
- * the ECH success signal (which differs in non-HRR and HRR cases). 
  */
 static int ech_get_sh_offsets(const unsigned char *sh, size_t sh_len,
                               size_t *exts, size_t *echoffset,
@@ -1790,6 +1782,14 @@ static int ech_get_sh_offsets(const unsigned char *sh, size_t sh_len,
         return 0;
     }
     sessid_len = (size_t)sh[sessid_offset - 1];
+    /*
+     * If the session id isn't 32 octets long we might hit
+     * problems later/elsewhere
+     */
+    if (sessid_len != SSL_MAX_SSL_SESSION_ID_LENGTH) {
+        ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
+        return 0;
+    }
     startofexts = sessid_offset /* up to & incl. sessid_len */
         + sessid_len            /* sessid_len */
         + 2                     /* ciphersuite */
@@ -1922,12 +1922,6 @@ static int ech_decode_inner(SSL_CONNECTION *s, const unsigned char *ob,
      *    Extension extensions<8..2^16-1>;
      *  } ClientHello;
      */
-
-    /* not sure this is needed, here anyway - seems arbitrary */
-    if (ob_len <= (outer_startofexts + 2)) {
-        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
-        return 0;
-    }
 
     /*
      * add bytes for session ID and its length (1)
