@@ -4100,14 +4100,14 @@ err:
     return 0;
 }
 
-/**
+/*
  * @brief If an ECH is present, attempt decryption
- * @param ssl: SSL session stuff
+ * @param s SSL connection
  * @prarm outerpkt is the packet with the outer CH
  * @prarm newpkt is the packet with the decrypted inner CH
  * @return 1 for success, other otherwise
  *
- * If decryption succeeds, then we'll swap the inner and outer
+ * If decryption succeeds, the caller can swap the inner and outer
  * CHs so that all further processing will only take into account
  * the inner CH.
  *
@@ -4115,7 +4115,8 @@ err:
  * via s->ext.ech.success
  *
  * This function is called early, (hence then name:-), before
- * the outer CH decoding has really started
+ * the outer CH decoding has really started, so we need to be
+ * careful peeking into the packet
  *
  * The plan:
  * 1. check if there's an ECH
@@ -4124,7 +4125,7 @@ err:
  * 4. if decrypt worked, decode and de-compress cleartext to
  *    make up real inner CH for later processing
  */
-int ech_early_decrypt(SSL *ssl, PACKET *outerpkt, PACKET *newpkt)
+int ech_early_decrypt(SSL_CONNECTION *s, PACKET *outerpkt, PACKET *newpkt)
 {
     int rv = 0;
     OSSL_ECH_ENCCH *extval = NULL;
@@ -4134,7 +4135,7 @@ int ech_early_decrypt(SSL *ssl, PACKET *outerpkt, PACKET *newpkt)
     size_t echlen = 0;
     size_t clearlen = 0;
     unsigned char *clear = NULL;
-    unsigned int tmp;
+    unsigned int pval_tmp; /* tmp placeholder of value from packet */
     unsigned char aad[SSL3_RT_MAX_PLAIN_LENGTH];
     size_t aad_len = SSL3_RT_MAX_PLAIN_LENGTH;
     int cfgind = -1;
@@ -4147,7 +4148,6 @@ int ech_early_decrypt(SSL *ssl, PACKET *outerpkt, PACKET *newpkt)
     size_t outersnioffset = 0; /* offset to SNI in outer */
     size_t ch_len = 0; /* overall length of outer CH */
     const unsigned char *ch = NULL;
-    SSL_CONNECTION *s = SSL_CONNECTION_FROM_SSL(ssl);
     int innerflag = -1;
     size_t startofciphertext = 0;
     size_t lenofciphertext = 0;
@@ -4161,6 +4161,11 @@ int ech_early_decrypt(SSL *ssl, PACKET *outerpkt, PACKET *newpkt)
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         return rv;
     }
+    /* 
+     * check for placement of various things - when this works, the
+     * relevant offsets are safe to use as they're checked within
+     * the function
+     */
     rv = ech_get_ch_offsets(s, outerpkt, &startofsessid, &startofexts,
                             &echoffset, &echtype, &innerflag, &outersnioffset);
     if (rv != 1) {
@@ -4273,16 +4278,16 @@ int ech_early_decrypt(SSL *ssl, PACKET *outerpkt, PACKET *newpkt)
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         goto err;
     }
-    if (!PACKET_get_net_2(pkt, &tmp)) {
+    if (!PACKET_get_net_2(pkt, &pval_tmp)) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         goto err;
     }
-    extval->kdf_id = tmp & 0xffff;
-    if (!PACKET_get_net_2(pkt, &tmp)) {
+    extval->kdf_id = pval_tmp & 0xffff;
+    if (!PACKET_get_net_2(pkt, &pval_tmp)) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         goto err;
     }
-    extval->aead_id = tmp & 0xffff;
+    extval->aead_id = pval_tmp & 0xffff;
 
     /* config id */
     if (!PACKET_copy_bytes(pkt, &extval->config_id, 1)) {
@@ -4295,22 +4300,22 @@ int ech_early_decrypt(SSL *ssl, PACKET *outerpkt, PACKET *newpkt)
     s->ext.ech.attempted_cid = extval->config_id;
 
     /* enc - the client's public share */
-    if (!PACKET_get_net_2(pkt, &tmp)) {
+    if (!PACKET_get_net_2(pkt, &pval_tmp)) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         goto err;
     }
-    if (tmp > OSSL_ECH_MAX_GREASE_PUB) {
+    if (pval_tmp > OSSL_ECH_MAX_GREASE_PUB) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         goto err;
     }
-    if (tmp > PACKET_remaining(pkt)) {
+    if (pval_tmp > PACKET_remaining(pkt)) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         goto err;
     }
-    if (tmp == 0 && s->hello_retry_request != SSL_HRR_PENDING) {
+    if (pval_tmp == 0 && s->hello_retry_request != SSL_HRR_PENDING) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         goto err;
-    } else if (tmp == 0 && s->hello_retry_request == SSL_HRR_PENDING) {
+    } else if (pval_tmp == 0 && s->hello_retry_request == SSL_HRR_PENDING) {
         if (s->ext.ech.pub == NULL || s->ext.ech.pub_len == 0) {
             SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
             goto err;
@@ -4321,11 +4326,11 @@ int ech_early_decrypt(SSL *ssl, PACKET *outerpkt, PACKET *newpkt)
             goto err;
         memcpy(extval->enc, s->ext.ech.pub, extval->enc_len);
     } else {
-        extval->enc_len = tmp;
-        extval->enc = OPENSSL_malloc(tmp);
+        extval->enc_len = pval_tmp;
+        extval->enc = OPENSSL_malloc(pval_tmp);
         if (extval->enc == NULL)
             goto err;
-        if (!PACKET_copy_bytes(pkt, extval->enc, tmp)) {
+        if (!PACKET_copy_bytes(pkt, extval->enc, pval_tmp)) {
             SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
             goto err;
         }
@@ -4340,23 +4345,23 @@ int ech_early_decrypt(SSL *ssl, PACKET *outerpkt, PACKET *newpkt)
     }
 
     /* payload - the encrypted CH */
-    if (!PACKET_get_net_2(pkt, &tmp)) {
+    if (!PACKET_get_net_2(pkt, &pval_tmp)) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         goto err;
     }
-    if (tmp > OSSL_ECH_MAX_PAYLOAD_LEN) {
+    if (pval_tmp > OSSL_ECH_MAX_PAYLOAD_LEN) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         goto err;
     }
-    if (tmp > PACKET_remaining(pkt)) {
+    if (pval_tmp > PACKET_remaining(pkt)) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         goto err;
     }
-    extval->payload_len = tmp;
-    extval->payload = OPENSSL_malloc(tmp);
+    extval->payload_len = pval_tmp;
+    extval->payload = OPENSSL_malloc(pval_tmp);
     if (extval->payload == NULL)
         goto err;
-    if (!PACKET_copy_bytes(pkt, extval->payload, tmp)) {
+    if (!PACKET_copy_bytes(pkt, extval->payload, pval_tmp)) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         goto err;
     }
@@ -5336,6 +5341,11 @@ int SSL_CTX_ech_raw_decrypt(SSL_CTX *ctx,
         ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
         goto err;
     }
+    sc = SSL_CONNECTION_FROM_SSL(s);
+    if (sc == NULL) {
+        ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
     /*
      * Check if there's any ECH and if so, whether it's an outer
      * (that might need decrypting) or an inner
@@ -5344,7 +5354,7 @@ int SSL_CTX_ech_raw_decrypt(SSL_CTX *ctx,
                             &echoffset, &echtype, &innerflag, &innersnioffset);
     if (rv != 1) {
         ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_INVALID_ARGUMENT);
-        return rv;
+        goto err;
     }
     if (echoffset == 0) {
         /* no ECH present */
@@ -5362,22 +5372,17 @@ int SSL_CTX_ech_raw_decrypt(SSL_CTX *ctx,
         return 0;
     }
 
-    rv = ech_early_decrypt(s, &pkt_outer, &pkt_inner);
+    rv = ech_early_decrypt(sc, &pkt_outer, &pkt_inner);
     if (rv != 1) {
         /* that could've been GREASE, but we've no idea */
         ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_INVALID_ARGUMENT);
         goto err;
     }
-    sc = SSL_CONNECTION_FROM_SSL(s);
-    if (sc == NULL) {
-        ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
-        return 0;
-    }
     if (sc->ext.ech.cfgs != NULL && sc->ext.ech.cfgs->outer_name != NULL) {
         *outer_sni = OPENSSL_strdup(sc->ext.ech.cfgs->outer_name);
         if (*outer_sni == NULL) {
             ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
-            return 0;
+            goto err;
         }
     }
     if (sc->ext.ech.success == 0) {
