@@ -411,11 +411,11 @@ int ech_reset_hs_buffer(SSL_CONNECTION *s, const unsigned char *buf,
 
 /*
  * @brief If an ECH is present, attempt decryption
- * @param s: SSL session stuff
+ * @param s SSL connection
  * @param pkt: the received CH that might include an ECH
  * @param newpkt: the plaintext from ECH
  */
-int ech_early_decrypt(SSL *s, PACKET *pkt, PACKET *newpkt);
+int ech_early_decrypt(SSL_CONNECTION *s, PACKET *pkt, PACKET *newpkt);
 
 /*
  * @brief say if extension at index i in ext_defs is to be ECH compressed

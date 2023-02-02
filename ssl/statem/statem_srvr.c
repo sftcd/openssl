@@ -1530,7 +1530,7 @@ MSG_PROCESS_RETURN tls_process_client_hello(SSL_CONNECTION *s, PACKET *pkt)
         } else if (s->ext.ech.cfgs != NULL) {
             PACKET newpkt;
 
-            if (ech_early_decrypt(&s->ssl, pkt, &newpkt) != 1) {
+            if (ech_early_decrypt(s, pkt, &newpkt) != 1) {
                 SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
                 goto err;
             }
