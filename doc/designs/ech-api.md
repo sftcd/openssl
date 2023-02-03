@@ -159,6 +159,16 @@ int SSL_CTX_ech_raw_decrypt(SSL_CTX *ctx,
                             unsigned char *inner_ch, size_t *inner_len);
 ```
 
+The caller allocates the ``inner_ch`` buffer, on input ``inner_len`` should
+contain the size of the ``inner_ch`` buffer, on output the size of the actuall
+inner CH. Note that, when ECH decryption succeeds, the inner CH will always be
+smaller than the outer CH.
+
+If there is no ECH present in the outer CH then this will return 1 (i.e., the
+call will succeed) but ``decrypted_ok`` will be zero. The same wll result if a
+GREASE'd ECH is present or decryption fails for some other (indistinguishable)
+reason.
+
 Client-side APIs
 ----------------
 
@@ -179,7 +189,9 @@ only extract the ECHConfigList from that value and any ALPN information has
 to be separtely extract by the client.
 
 In each case the function returns the number of ECHConfig elements from
-the list successfully decoded  in the ``num_echs`` output.
+the list successfully decoded  in the ``num_echs`` output. If no ECHConfigList
+values are encoutered (which can happen for HTTPS RRs) then ``num_echs`` will
+be zero.
 
 ```c
 int SSL_ech_set1_echconfig(SSL *s, int *num_echs,
@@ -239,6 +251,11 @@ int OSSL_ECH_INFO_print(BIO *out, OSSL_ECH_INFO *info, int count);
 int SSL_ech_get_info(SSL *s, OSSL_ECH_INFO **info, int *count);
 int SSL_ech_reduce(SSL *s, int index);
 ```
+
+The ``SSL_ech_reduce()`` function allows the caller to reduce
+the active set of ECHConfig values to the one they prefer, based
+on the ``OSSL_ECH_INFO`` and whatever the caller uses to prefer
+one ECHConfig over another (e.g. the ``public_name``).
 
 If a client wishes to GREASE ECH using a specific HPKE suite or
 ECH version (represented by the TLS extension type code-point) then

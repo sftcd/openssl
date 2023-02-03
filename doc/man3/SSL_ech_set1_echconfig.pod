@@ -291,7 +291,7 @@ a way to only attempt the ECH decryption operation. This function
 takes the outer ClientHello in I<outer_ch> of size I<outer_len> and
 if decryption succeeds, returns the inner ClientHello in I<inner_ch>
 of size I<inner_len> (on input I<inner_len> should contain the size
-if the I<inner_ch> buffer) and sets I<decrypted_ok> to 1. Note that
+of the I<inner_ch> buffer) and sets I<decrypted_ok> to 1. Note that
 an inner ClientHello will always be smaller than an outer ClientHello.
 The encoding of both I<outer_ch> and I<inner_ch> begins with the
 TLS message type and 3-octet length (i.e. the initials octet are
