@@ -135,7 +135,7 @@ loaded and one to flush keys that are older than ``age`` seconds.
 
 ```c
 int SSL_CTX_ech_server_get_key_status(SSL_CTX *ctx, int *numkeys);
-int SSL_CTX_ech_server_flush_keys(SSL_CTX *ctx, time_t age);
+int SSL_CTX_ech_server_flush_keys(SSL_CTX *ctx, unsigned int age);
 ```
 
 ### Split-mode handling
