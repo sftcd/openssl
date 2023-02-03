@@ -45,7 +45,7 @@ ossl_ech_make_echconfig
  int SSL_CTX_ech_set1_echconfig(SSL_CTX *ctx, int *num_echs,
                                 int ekfmt, char *ekval, size_t eklen);
  int SSL_CTX_ech_server_get_key_status(SSL_CTX *ctx, int *numkeys);
- int SSL_CTX_ech_server_flush_keys(SSL_CTX *ctx, time_t age);
+ int SSL_CTX_ech_server_flush_keys(SSL_CTX *ctx, unsigned int age);
  int SSL_CTX_ech_server_enable_file(SSL_CTX *ctx, const char *file);
  int SSL_CTX_ech_server_enable_buffer(SSL_CTX *ctx, const unsigned char *buf,
                                       const size_t blen);
