@@ -4903,7 +4903,7 @@ int SSL_CTX_ech_server_get_key_status(SSL_CTX *s, int *numkeys)
     return 1;
 }
 
-int SSL_CTX_ech_server_flush_keys(SSL_CTX *ctx, time_t age)
+int SSL_CTX_ech_server_flush_keys(SSL_CTX *ctx, unsigned int age)
 {
     time_t now = time(0);
     int i = 0;
@@ -4941,7 +4941,7 @@ int SSL_CTX_ech_server_flush_keys(SSL_CTX *ctx, time_t age)
     }
     ctx->ext.nechs -= deleted;
     OSSL_TRACE_BEGIN(TLS) {
-        BIO_printf(trc_out, "Flushed %d (of %d) ECH keys more than %lu "
+        BIO_printf(trc_out, "Flushed %d (of %d) ECH keys more than %u "
                    "seconds old at %lu\n", deleted, orig, age, now);
     } OSSL_TRACE_END(TLS);
     return 1;

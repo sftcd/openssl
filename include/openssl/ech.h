@@ -140,7 +140,7 @@ int SSL_CTX_ech_server_enable_buffer(SSL_CTX *ctx, const unsigned char *buf,
 int SSL_CTX_ech_server_enable_dir(SSL_CTX *ctx, int *loaded,
                                   const char *echdir);
 int SSL_CTX_ech_server_get_key_status(SSL_CTX *ctx, int *numkeys);
-int SSL_CTX_ech_server_flush_keys(SSL_CTX *ctx, time_t age);
+int SSL_CTX_ech_server_flush_keys(SSL_CTX *ctx, unsigned int age);
 
 int SSL_CTX_ech_raw_decrypt(SSL_CTX *ctx,
                             int *decrypted_ok,
