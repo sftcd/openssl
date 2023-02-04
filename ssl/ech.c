@@ -4932,7 +4932,7 @@ int SSL_CTX_ech_server_flush_keys(SSL_CTX *ctx, unsigned int age)
     for (i = 0; i != ctx->ext.nechs; i++) {
         SSL_ECH *ep = &ctx->ext.ech[i];
 
-        if ((ep->loadtime + age) <= now) {
+        if ((ep->loadtime + (time_t) age) <= now) {
             SSL_ECH_free(ep);
             deleted++;
             continue;
