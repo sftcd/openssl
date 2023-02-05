@@ -2159,12 +2159,12 @@ static int execute_test_session(int maxprot, int use_int_cache,
         test_printf_stdout("Running real ECH, fips=%d\n", is_fips);
         /* read pre-cooked ECH private/ECHConfigList */
         echkeyfile = test_mk_file_path(certsdir, "echconfig.pem");
-        echconfiglist = echconfiglist_from_PEM(echkeyfile);
+        echconfiglist = (unsigned char*)echconfiglist_from_PEM(echkeyfile);
         if (echconfiglist == NULL) {
             OPENSSL_free(echkeyfile);
             return 0;
         }
-        echconfig_len = strlen(echconfiglist);
+        echconfig_len = strlen((char *)echconfiglist);
         if (SSL_CTX_ech_server_enable_file(sctx, echkeyfile) != 1) {
             OPENSSL_free(echkeyfile);
             OPENSSL_free(echconfiglist);
