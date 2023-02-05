@@ -101,11 +101,17 @@ typedef struct ossl_ech_info_st {
 /*
  * API calls based around SSL* values - mostly for clients
  */
-
+int SSL_ech_set1_echconfig(SSL *ssl, unsigned char *val, size_t len);
+int SSL_CTX_ech_set1_echconfig(SSL_CTX *ctx, unsigned char *val, size_t len);
+/*
 int SSL_ech_set1_svcb(SSL *s, int *num_echs,
                       int rrfmt, char *rrval, size_t rrlen);
 int SSL_ech_set1_echconfig(SSL *s, int *num_echs,
                            int ekfmt, char *ekval, size_t eklen);
+int SSL_CTX_ech_set1_echconfig(SSL_CTX *ctx, int *num_echs,
+                               int ekfmt, char *ekval, size_t eklen);
+*/
+
 int SSL_ech_set_server_names(SSL *s, const char *inner_name,
                              const char *outer_name, int no_outer);
 int SSL_ech_set_outer_server_name(SSL *s, const char *outer_name, int no_outer);
@@ -125,12 +131,8 @@ void SSL_ech_set_callback(SSL *s, SSL_ech_cb_func f);
 
 int SSL_ech_get_retry_config(SSL *s, const unsigned char **ec, size_t *eclen);
 
-/*
- * API calls based around SSL_CTX* values - mostly for servers
- */
+/* API calls based around SSL_CTX* values - mostly for servers */
 
-int SSL_CTX_ech_set1_echconfig(SSL_CTX *ctx, int *num_echs,
-                               int ekfmt, char *ekval, size_t eklen);
 int SSL_CTX_ech_set_outer_alpn_protos(SSL_CTX *s, const unsigned char *protos,
                                       const size_t protos_len);
 
@@ -149,14 +151,16 @@ int SSL_CTX_ech_raw_decrypt(SSL_CTX *ctx,
                             unsigned char *inner_ch, size_t *inner_len);
 void SSL_CTX_ech_set_callback(SSL_CTX *ctx, SSL_ech_cb_func f);
 
-/*
- * API calls for management tools, mostly for server tooling
- */
+/* Misc API calls */
 int ossl_ech_make_echconfig(unsigned char *echconfig, size_t *echconfiglen,
                             unsigned char *priv, size_t *privlen,
                             uint16_t ekversion, uint16_t max_name_length,
                             const char *public_name, OSSL_HPKE_SUITE suite,
                             const unsigned char *extvals, size_t extlen);
+
+int ossl_ech_find_echconfigs(int *num_echs,
+                             unsigned char ***echconfigs, size_t **echlens,
+                             unsigned char *val, size_t len);
 
 # endif
 #endif

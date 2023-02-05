@@ -2,7 +2,7 @@
 
 =head1 NAME
 
-SSL_ech_set1_echconfig, SSL_ech_set1_svcb,
+SSL_ech_set1_echconfig, 
 SSL_ech_set_server_names, SSL_ech_set_outer_server_name,
 OSSL_ECH_INFO_free, OSSL_ECH_INFO_print,
 SSL_ech_get_info, SSL_ech_reduce, SSL_ech_get_status,
@@ -13,17 +13,14 @@ SSL_CTX_ech_server_flush_keys, SSL_CTX_ech_server_enable_file,
 SSL_CTX_ech_server_enable_buffer, SSL_CTX_ech_server_enable_dir,
 SSL_CTX_ech_raw_decrypt, SSL_CTX_ech_set_callback,
 SSL_CTX_ech_set_outer_alpn_protos,
-ossl_ech_make_echconfig
+ossl_ech_make_echconfig, ossl_ech_find_echconfigs
 - Encrypted ClientHello (ECH) functions
 
 =head1 SYNOPSIS
 
  #include <openssl/ech.h>
 
- int SSL_ech_set1_echconfig(SSL *s, int *num_echs,
-                            int ekfmt, char *ekval, size_t eklen);
- int SSL_ech_set1_svcb(SSL *s, int *num_echs,
-                       int rrfmt, char *rrval, size_t rrlen);
+ int SSL_ech_set1_echconfig(SSL *s, unsigned char *val, size_t len);
  int SSL_ech_set_server_names(SSL *s, const char *inner_name,
                               const char *outer_name, int no_outer);
  int SSL_ech_set_outer_server_name(SSL *s, const char *outer_name, int no_outer);
@@ -42,8 +39,7 @@ ossl_ech_make_echconfig
 
  int SSL_ech_get_retry_config(SSL *s, const unsigned char **ec, size_t *eclen);
 
- int SSL_CTX_ech_set1_echconfig(SSL_CTX *ctx, int *num_echs,
-                                int ekfmt, char *ekval, size_t eklen);
+ int SSL_CTX_ech_set1_echconfig(SSL_CTX *ctx, unsigned char *val, size_t len);
  int SSL_CTX_ech_server_get_key_status(SSL_CTX *ctx, int *numkeys);
  int SSL_CTX_ech_server_flush_keys(SSL_CTX *ctx, unsigned int age);
  int SSL_CTX_ech_server_enable_file(SSL_CTX *ctx, const char *file);
@@ -65,6 +61,9 @@ ossl_ech_make_echconfig
                              uint16_t ekversion, uint16_t max_name_length,
                              const char *public_name, OSSL_HPKE_SUITE suite,
                              const unsigned char *extvals, size_t extlen);
+ int ossl_ech_find_echconfigs(int *num_echs,
+                              unsigned char ***echconfigs, size_t **echlens,
+                              unsigned char *val, size_t len);
 
 =head1 DESCRIPTION
 
@@ -95,23 +94,18 @@ session but a different TLS version is used for the session (e.g. TLS version
 1.2) then ECH will not be used but the SSL session will be created as usual.
 
 SSL_ech_set1_echconfig() and SSL_CTX_ech_set1_echconfig() allow clients to
-provide a binary or encoded ECHConfigList in the I<ekval> (of size I<eklen>).
-Various encodings (binary, ascii-hex, base64) are supported via the I<ekfmt>
-as described in the L</Constants> section. If all is well, the ECHConfigList
-value (containing an ECH public value) will be associated with the SSL session
-I<s> and ECH will be attempted when a TLS session is established.
-In the case of SSL_CTX_ech_set1_echconfig(), the ECH settings will be
-inherited when a new SSL connection is formed via L<SSL_new(3)>.
+provide a binary, ascii-hex or base64 encoded ECHConfigList in the I<val> (of
+size I<len>).  If all is well, the ECHConfig values (containing ECH public
+values) will be associated with the SSL connection I<s> and ECH will be
+attempted when a TLS session is established.  In the case of
+SSL_CTX_ech_set1_echconfig(), the ECH settings will be inherited when a new SSL
+connection is formed via L<SSL_new(3)>.
 
-As an ECHConfigList can contain multiple public values, these functions also
-return a I<num_echs> value indicating how many public values in total are
-associated with the I<SSL> or I<SSL_CTX> input.  If multiple calls to these
-functions are made for the same I<SSL> or I<SSL_CTX> value, then the
-ECHConfigList values will be accumulated and the I<num_echs> returned will
-reflect the total number of ECH public values available. Similarly, if
-some ECH public values are associated with an I<SSL_CTX> and an I<SSL>
-is derived from that, those public values will be carried over into the
-latter data structure.
+If multiple calls to SSL_ech_set1_echconfig() are made for the same I<SSL> (or
+resp. I<SSL_CTX>), then the ECHConfig values will be accumulated.  reflect the
+total number of ECH public values available.  SSL_ech_get_info() (see below)
+can be used to determine how many ECHConfig public values have been
+successfully decoded.
 
 These functions support catenated input values for I<ekval>. Internal
 length fields mean no separator is needed for binary or ascii-hex encodings,
@@ -119,29 +113,10 @@ but if catenated base64 encoded values are provided those must be separated
 using a semi-colon (see L</Constants>). This can be useful for handling
 the output of certain scripts.
 
-SSL_ech_set1_svcb() is similar to SSL_ech_set1_echconfig() except the input
-I<rrval> should be a binary, ascii-hex, base64 or zone file presentation format
-encoding of an entire or partial HTTPS or SVCB resource record value retrieved
-from the DNS. I<rrlen> is the length of the I<rrval> input. The I<num_echs>
-output reflects the total number of ECH public values associated with the
-I<s> input. Multiple calls to SSL_ech_set1_svcb() will accumulate values.
-
-If the input provided decodes correctly, then any ECHConfigList values
-contained therein will be associated with the I<SSL> session just as if those
-values had been provided via SSL_ech_set1_echconfig(). No other fields within
-the SVCB or HTTPS value will be stored (e.g., if the value contains ALPN
-information, the application needs to handle that separately). Note that it is
-entirely valid for there to be HTTPS or SVCB records published in the DNS that
-contain no ECH public values - in such cases this function will succeed (i.e.
-return 1) but the I<nun_echs> output won't reflect any newly stored ECH public
-values. As with SSL_ech_set1_echconfig() the I<rrval> provided can be a
-catenated list.
-
 ECH public values can contain a list of versioned values, and not
 all versions are supported. Versions that are unsupported will be
-skipped over - the relevant function will succeed, but the I<num_echs>
-value returned will only reflect the ECH public values for supported
-versions.
+skipped over - the relevant function will succeed even if all
+values are skipped.
 
 There is no attempt to de-duplicate ECH public values provided via these
 APIs - if the same value is provided twice, then the relevant I<SSL> or
@@ -152,8 +127,27 @@ public values associated with the latter are deep-copied to the former.
 Internal copies of ECH public values associated with an I<SSL> or I<SSL_CTX>
 object will be freed when the I<SSL> or I<SSL_CTX> object is freed.
 
-SSL_ech_set1_echconfig(), SSL_CTX_ech_set1_echconfig() and SSL_ech_set1_svcb() all
+SSL_ech_set1_echconfig() and SSL_CTX_ech_set1_echconfig()
 return 1 for success and 0 in the case of error.
+
+ECHConfig values will typically have been provided as an argument to the
+calling application or have been retrieved from DNS resource records by the
+application. ECHConfig values may be provided in various encodings (base64,
+ascii hex or binary) each of which may suit different applications.
+Additionally ECHConfig values may be provided embedded in the DNS wire encoding
+of HTTPS or SVCB resource records or in zone file presentation format, i.e.,
+extracting the ECHConfigList from the ``ech=`` value if one is present.
+Lastly, in some scenarios the application may provide a set of catenated
+encoded values, e.g. if there are multiple HTTPS resource records published for
+a given name. 
+
+ossl_ech_find_echconfigs() attempts to find and return the (possibly empty)
+set of ECHConfig values from a buffer containing one of the encoded forms
+described above. The number successfully found is returned in I<num_echs>,
+and a set of buffer pointers are returned in I<echconfigs>, each with a
+length found in the corresponding I<echlens> entry, that can be fed into
+SSL_ech_set1_echconfig(). The caller must free all those buffers 
+subsequently.
 
 =head2 Setting Server Name Indication (SNI) and ALPN values for clients
 

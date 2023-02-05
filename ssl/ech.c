@@ -4582,6 +4582,7 @@ int OSSL_ECH_INFO_print(BIO *out, OSSL_ECH_INFO *se, int count)
     return 1;
 }
 
+#if 0
 int SSL_ech_set1_echconfig(SSL *ssl, int *num_echs,
                            int ekfmt, char *ekval, size_t eklen)
 {
@@ -4693,6 +4694,76 @@ int SSL_ech_set1_svcb(SSL *ssl, int *num_echs,
     *num_echs = s->ext.ech.ncfgs;
     return 1;
 }
+#else
+int SSL_ech_set1_echconfig(SSL *ssl, unsigned char *val, size_t len)
+{
+    SSL_CONNECTION *s = SSL_CONNECTION_FROM_SSL(ssl);
+    SSL_ECH *echs = NULL;
+    SSL_ECH *tmp = NULL;
+    int num_echs = 0;
+
+    if (s == NULL || val == NULL || len == 0) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_PASSED_NULL_PARAMETER);
+        return 0;
+    }
+    if (local_ech_add(OSSL_ECH_FMT_GUESS, len, val, &num_echs, &echs) != 1) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+        return 0;
+    }
+    if (s->ext.ech.cfgs == NULL) {
+        s->ext.ech.cfgs = echs;
+        s->ext.ech.ncfgs = num_echs;
+        s->ext.ech.attempted = 1;
+        s->ext.ech.attempted_type = TLSEXT_TYPE_ech_unknown;
+        s->ext.ech.attempted_cid = TLSEXT_TYPE_ech_config_id_unset;
+        return 1;
+    }
+    /* otherwise accumulate */
+    tmp = OPENSSL_realloc(s->ext.ech.cfgs,
+                          (s->ext.ech.ncfgs + num_echs) * sizeof(SSL_ECH));
+    if (tmp == NULL)
+        return 0;
+    s->ext.ech.cfgs = tmp;
+    /* shallow copy top level, keeping lower levels */
+    memcpy(&s->ext.ech.cfgs[s->ext.ech.ncfgs], echs,
+           num_echs * sizeof(SSL_ECH));
+    s->ext.ech.ncfgs += num_echs;
+    OPENSSL_free(echs);
+    return 1;
+}
+
+int SSL_CTX_ech_set1_echconfig(SSL_CTX *ctx, unsigned char *val, size_t len)
+{
+    SSL_ECH *echs = NULL;
+    SSL_ECH *tmp = NULL;
+    int num_echs = 0;
+
+    if (ctx == NULL || val == NULL || len == 0) {
+        ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_NULL_PARAMETER);
+        return 0;
+    }
+    if (local_ech_add(OSSL_ECH_FMT_GUESS, len, val, &num_echs, &echs) != 1) {
+        ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
+        return 0;
+    }
+    if (ctx->ext.ech == NULL) {
+        ctx->ext.ech = echs;
+        ctx->ext.nechs = num_echs;
+        return 1;
+    }
+    /* otherwise accumulate */
+    tmp = OPENSSL_realloc(ctx->ext.ech,
+                          (ctx->ext.nechs + num_echs) * sizeof(SSL_ECH));
+    if (tmp == NULL)
+        return 0;
+    ctx->ext.ech = tmp;
+    /* shallow copy top level, keeping lower levels */
+    memcpy(&ctx->ext.ech[ctx->ext.nechs], echs, num_echs * sizeof(SSL_ECH));
+    ctx->ext.nechs += num_echs;
+    OPENSSL_free(echs);
+    return 1;
+}
+#endif
 
 int SSL_ech_set_server_names(SSL *ssl, const char *inner_name,
                              const char *outer_name, int no_outer)
@@ -5661,6 +5732,64 @@ err:
     BIO_free_all(bfp);
     WPACKET_cleanup(&epkt);
     BUF_MEM_free(epkt_mem);
+    return rv;
+}
+
+
+/*
+ * TODO: if we stick with the "new" approach below then these
+ * local_ functions will probably be better refactored as they're
+ * now called pretty differently. More testing to do before then 
+ * though.
+ */
+int ossl_ech_find_echconfigs(int *num_echs,
+                             unsigned char ***echconfigs, size_t **echlens,
+                             unsigned char *val, size_t len)
+{
+    SSL_ECH *new_echs = NULL;
+    int rv = 0, i, num_new = 0;
+    unsigned char **ebufs = NULL;
+    size_t *elens = NULL;
+
+    if (num_echs == NULL || echconfigs == NULL || echlens == NULL
+        || val == NULL || len == 0) {
+        ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_NULL_PARAMETER);
+        return 0;
+    }
+    if (local_svcb_add(OSSL_ECH_FMT_GUESS, len, (char *)val,
+                       &num_new, &new_echs) != 1) {
+        /* try ECHConfigList decode so */
+        if (local_ech_add(OSSL_ECH_FMT_GUESS, len, val,
+                          &num_new, &new_echs) != 1) {
+            ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
+            return 0;
+        }
+    }
+    ebufs = OPENSSL_malloc(num_new * sizeof(unsigned char*));
+    if (ebufs == NULL)
+        goto err;
+    elens = OPENSSL_malloc(num_new * sizeof(size_t));
+    if (elens == NULL)
+        goto err;
+    for (i = 0; i != num_new; i++) {
+        ebufs[i] = new_echs->cfg[i].encoded;
+        elens[i] = new_echs->cfg[i].encoded_len;
+        new_echs->cfg[i].encoded = NULL; /* so not double free'd later */ 
+    }
+    *echconfigs = ebufs;
+    *echlens = elens;
+    *num_echs = num_new;
+    rv = 1;
+err:
+    if (rv == 0) {
+        OPENSSL_free(ebufs);
+        OPENSSL_free(elens);
+    }
+    if (new_echs != NULL) {
+        for (i = 0; i != num_new; i++)
+            SSL_ECH_free(&new_echs[i]);
+        OPENSSL_free(new_echs);
+    }
     return rv;
 }
 
