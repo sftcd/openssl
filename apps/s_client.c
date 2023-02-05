@@ -2448,7 +2448,7 @@ int s_client_main(int argc, char **argv)
 #else
     /* try parse inputs that might contain some ECHConfig values */
     if (ech_encoded_configs != NULL) {
-        int i, lnechs = 0;
+        int ii, lnechs = 0;
         unsigned char **cfgs = NULL;
         size_t *cfglens = NULL;
 
@@ -2462,12 +2462,12 @@ int s_client_main(int argc, char **argv)
             /* We'll note that we didn't get ECH keys but continue */
             BIO_printf(bio_err, "%s: ECHConfig decode provided no keys.\n", prog);
         }
-        for (i = 0; i!= lnechs; i++) {
-            if (SSL_ech_set1_echconfig(con, cfgs[i], cfglens[i]) != 1) {
+        for (ii = 0; ii!= lnechs; ii++) {
+            if (SSL_ech_set1_echconfig(con, cfgs[ii], cfglens[ii]) != 1) {
                 BIO_printf(bio_err, "%s: ECHConfig decode failed.\n", prog);
                 goto opthelp;
             }
-            OPENSSL_free(cfgs[i]);
+            OPENSSL_free(cfgs[ii]);
         }
         OPENSSL_free(cfglens);
         OPENSSL_free(cfgs);
