@@ -639,3 +639,4 @@ SSL_CTX_ech_server_get_key_status       ?	3_2_0	EXIST::FUNCTION:ECH
 SSL_CTX_ech_server_enable_file          ?	3_2_0	EXIST::FUNCTION:ECH
 SSL_CTX_ech_server_enable_dir           ?	3_2_0	EXIST::FUNCTION:ECH
 SSL_CTX_ech_set_outer_alpn_protos       ?	3_2_0	EXIST::FUNCTION:ECH
+ossl_ech_find_echconfigs                ?	3_2_0	EXIST::FUNCTION:ECH

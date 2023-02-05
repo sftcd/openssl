@@ -319,8 +319,7 @@ int ech_main(int argc, char **argv)
             if (s == NULL)
                 goto end;
             /* Try decode that ECHConfigList */
-            rv = SSL_ech_set1_echconfig(s, &nechs, OSSL_ECH_FMT_GUESS,
-                                        (char *)pdata, plen);
+            rv = SSL_ech_set1_echconfig(s, pdata, plen);
             if (rv != 1) {
                 BIO_printf(bio_err, "Failed loading ECHConfigList from: %s\n",
                            inpemfile);

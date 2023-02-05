@@ -107,7 +107,6 @@ static int basic_echconfig(void)
     size_t extlen = 0;
     SSL_CTX *ctx  = NULL;
     SSL *ssl = NULL;
-    int num_echs = 0;
     OSSL_ECH_INFO *details = NULL;
     int num_dets = 0;
 
@@ -183,31 +182,21 @@ static int basic_echconfig(void)
                                        TLS_server_method())))
         goto err;
     /* add that to ctx to start */
-    if (!TEST_true(SSL_CTX_ech_set1_echconfig(ctx, &num_echs,
-                                              OSSL_ECH_FMT_GUESS,
-                                              (char *)echconfig, echconfiglen)))
-        goto err;
-    if (!TEST_int_eq(num_echs, 1))
+    if (!TEST_true(SSL_CTX_ech_set1_echconfig(ctx, echconfig, echconfiglen)))
         goto err;
     if (!TEST_ptr(ssl = SSL_new(ctx)))
         goto err;
     /* repeat add that to ssl to make 2 */
-    if (!TEST_true(SSL_ech_set1_echconfig(ssl, &num_echs, OSSL_ECH_FMT_GUESS,
-                                          (char *)echconfig, echconfiglen)))
-        goto err;
-    if (!TEST_int_eq(num_echs, 2))
+    if (!TEST_true(SSL_ech_set1_echconfig(ssl, echconfig, echconfiglen)))
         goto err;
     /* add a 2nd time for fun, works even if silly */
-    if (!TEST_true(SSL_ech_set1_echconfig(ssl, &num_echs, OSSL_ECH_FMT_GUESS,
-                                          (char *)echconfig, echconfiglen)))
-        goto err;
-    if (!TEST_int_eq(num_echs, 3))
+    if (!TEST_true(SSL_ech_set1_echconfig(ssl, echconfig, echconfiglen)))
         goto err;
     if (!TEST_true(SSL_ech_get_info(ssl, &details, &num_dets)))
         goto err;
-    /* we should have 3 sets of details */
     if (!TEST_int_eq(num_dets, 3))
         goto err;
+    /* we should have 3 sets of details */
     if (verbose) {
         if (!TEST_true(OSSL_ECH_INFO_print(bio_stdout, details, num_dets)))
             goto err;
@@ -259,17 +248,13 @@ static int ech_roundtrip_test(void)
                                        TLS1_3_VERSION, 0,
                                        &sctx, &cctx, cert, privkey)))
         goto end;
-    if (!TEST_true(SSL_CTX_ech_set1_echconfig(cctx, &num_echs,
-                                              OSSL_ECH_FMT_GUESS,
-                                              echconfig,
+    if (!TEST_true(SSL_CTX_ech_set1_echconfig(cctx, (unsigned char *)echconfig,
                                               echconfiglen))) {
         TEST_info("Failed SSL_CTX_ech_set1_echconfig adding %s (len = %d)"
                   " to SSL_CTX: %p, wanted result in : %p\n", echconfig,
                   (int)echconfiglen, (void *)cctx, (void *)&num_echs);
         goto end;
     }
-    if (!TEST_int_eq(num_echs, 1))
-        goto end;
     if (!TEST_true(SSL_CTX_ech_server_enable_file(sctx, echkeyfile)))
         goto end;
     if (!TEST_true(create_ssl_objects(sctx, cctx, &serverssl,
@@ -318,7 +303,6 @@ static int tls_version_test(void)
     OSSL_HPKE_SUITE hpke_suite = OSSL_HPKE_SUITE_DEFAULT;
     SSL_CTX *cctx = NULL, *sctx = NULL;
     SSL *clientssl = NULL, *serverssl = NULL;
-    int num_echs = 0;
 
     if (!TEST_true(ossl_ech_make_echconfig(echconfig, &echconfiglen,
                                            priv, &privlen,
@@ -335,9 +319,7 @@ static int tls_version_test(void)
     /* set client to max tls v1.2 and check setting ech config barfs */
     if (!TEST_true(SSL_CTX_set_max_proto_version(cctx, TLS1_2_VERSION)))
         goto end;
-    if (!TEST_true(SSL_CTX_ech_set1_echconfig(cctx, &num_echs,
-                                              OSSL_ECH_FMT_GUESS,
-                                              (char *)echconfig,
+    if (!TEST_true(SSL_CTX_ech_set1_echconfig(cctx, echconfig,
                                               echconfiglen)))
         goto end;
     if (!TEST_true(create_ssl_objects(sctx, cctx, &serverssl,
@@ -385,7 +367,7 @@ static int test_ech_add(int idx)
      * version 9 or 10, we should see 3 configs loaded.
      */
     size_t echconfiglen;
-    char echconfig[] =
+    unsigned char echconfig[] =
         "AXn+DQA6xQAgACBm54KSIPXu+pQq2oY183wt3ybx7CKbBYX0ogPq5u6FegAEAAE"
         "AAQALZXhhbXBsZS5jb20AAP4KADzSACAAIIP+0Qt0WGBF3H5fz8HuhVRTCEMuHS"
         "4Khu6ibR/6qER4AAQAAQABAAAAC2V4YW1wbGUuY29tAAD+CQA7AAtleGFtcGxlL"
@@ -395,8 +377,10 @@ static int test_ech_add(int idx)
         "T0Pac3Kwx6i8URAAQAAQABAAAAC2V4YW1wbGUuY29tAAD+DQA6QwAgACDcZIAx7"
         "OcOiQuk90VV7/DO4lFQr5I3Zw9tVbK8MGw1dgAEAAEAAQALZXhhbXBsZS5jb20A"
         "AA==";
+    OSSL_ECH_INFO *details = NULL;
+    int num_dets = 0;
 
-    echconfiglen = strlen(echconfig);
+    echconfiglen = strlen((char *)echconfig);
 
     /* Generate fresh context pair for each test with TLSv1.3 as a minimum */
     if (!TEST_true(create_ssl_ctx_pair(libctx, TLS_server_method(),
@@ -414,33 +398,37 @@ static int test_ech_add(int idx)
     switch (idx) {
     case OSSLTEST_ECH_B64_GUESS:
         /* Valid echconfig */
-        returned = SSL_ech_set1_echconfig(clientssl, &echcount,
-                                          OSSL_ECH_FMT_GUESS,
-                                          echconfig, echconfiglen);
+        returned = SSL_ech_set1_echconfig(clientssl, echconfig, echconfiglen);
         if (!TEST_int_eq(returned, 1)) {
             TEST_info("OSSLTEST_ECH_B64_GUESS: failure for valid echconfig "
                       " and length\n");
             goto end;
         }
-        if (!TEST_int_eq(echcount, 3)) {
+        if (!TEST_true(SSL_ech_get_info(clientssl, &details, &num_dets)))
+            goto end;
+        if (!TEST_int_eq(num_dets, 3)) {
             TEST_info("OSSLTEST_ECH_B64_GUESS: incorrect ECH count\n");
             goto end;
         }
+        OSSL_ECH_INFO_free(details, num_dets);
+        details = NULL;
         break;
 
     case OSSLTEST_ECH_B64_BASE64:
         /* Valid echconfig */
-        returned = SSL_ech_set1_echconfig(clientssl, &echcount,
-                                          OSSL_ECH_FMT_B64TXT,
-                                          echconfig, echconfiglen);
+        returned = SSL_ech_set1_echconfig(clientssl, echconfig, echconfiglen);
         if (!TEST_int_eq(returned, 1)) {
             TEST_info("OSSLTEST_ECH_B64_BASE64: failure for valid echconfig\n");
             goto end;
         }
-        if (!TEST_int_eq(echcount, 3)) {
+        if (!TEST_true(SSL_ech_get_info(clientssl, &details, &num_dets)))
+            goto end;
+        if (!TEST_int_eq(num_dets, 3)) {
             TEST_info("OSSLTEST_ECH_B64_BASE64: incorrect ECH count\n");
             goto end;
         }
+        OSSL_ECH_INFO_free(details, num_dets);
+        details = NULL;
         break;
 
     case OSSLTEST_ECH_B64_GUESS_XS_COUNT:
@@ -450,16 +438,17 @@ static int test_ech_add(int idx)
          * octet. If the excess was >1 then the caller is the
          * one making the error.
          */
-        returned = SSL_ech_set1_echconfig(clientssl, &echcount,
-                                          OSSL_ECH_FMT_GUESS,
-                                          echconfig, echconfiglen + 1);
+        returned = SSL_ech_set1_echconfig(clientssl, echconfig,
+                                          echconfiglen + 1);
         if (!TEST_int_ne(returned, 1)) {
             TEST_info("OSSLTEST_ECH_B64_GUESS_XS_COUNT: success despite excess "
                       "length (%d/%d)\n",
                       (int)echconfiglen + 1, (int)echconfiglen);
             goto end;
         }
-        if (!TEST_int_eq(echcount, 0)) {
+        if (!TEST_true(SSL_ech_get_info(clientssl, &details, &num_dets)))
+            goto end;
+        if (!TEST_int_eq(num_dets, 0)) {
             TEST_info("OSSLTEST_ECH_B64_GUESS_XS_COUNT: ECH count (%d) should "
                       "be zero\n", echcount);
             goto end;
@@ -468,9 +457,8 @@ static int test_ech_add(int idx)
 
     case OSSLTEST_ECH_B64_GUESS_LO_COUNT:
         /* Valid echconfig, short length */
-        returned = SSL_ech_set1_echconfig(clientssl, &echcount,
-                                          OSSL_ECH_FMT_GUESS,
-                                          echconfig, echconfiglen / 2);
+        returned = SSL_ech_set1_echconfig(clientssl, echconfig,
+                                          echconfiglen / 2);
         if (!TEST_int_ne(returned, 1)) {
             TEST_info("OSSLTEST_ECH_B64_GUESS_LO_COUNT: success despite short "
                       "length (%d/%d)\n",
@@ -481,9 +469,9 @@ static int test_ech_add(int idx)
 
     case OSSLTEST_ECH_B64_JUNK_GUESS:
         /* Junk echconfig */
-        returned = SSL_ech_set1_echconfig(clientssl, &echcount,
-                                          OSSL_ECH_FMT_GUESS,
-                                          "DUMMDUMM;DUMMYDUMM", 18);
+        returned = SSL_ech_set1_echconfig(clientssl,
+                                          (unsigned char *)"DUMMDUMM;DUMMYDUMM",
+                                          18);
         if (!TEST_int_ne(returned, 1)) {
             TEST_info("OSSLTEST_ECH_B64_JUNK_GUESS: junk config success\n");
             goto end;

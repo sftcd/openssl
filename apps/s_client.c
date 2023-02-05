@@ -2412,6 +2412,7 @@ int s_client_main(int argc, char **argv)
     }
 
 #ifndef OPENSSL_NO_ECH
+#if 0
     if (ech_encoded_configs != NULL) {
         int rv;
 
@@ -2444,6 +2445,61 @@ int s_client_main(int argc, char **argv)
         }
         nechs += lnechs;
     }
+#else
+    /* try parse inputs that might contain some ECHConfig values */
+    if (ech_encoded_configs != NULL) {
+        int i, lnechs = 0;
+        unsigned char **cfgs = NULL;
+        size_t *cfglens = NULL;
+
+        if (ossl_ech_find_echconfigs(&lnechs, &cfgs, &cfglens,
+                                     (unsigned char*)ech_encoded_configs,
+                                     strlen(ech_encoded_configs)) != 1) {
+            BIO_printf(bio_err, "%s: ECHConfig decode failed.\n", prog);
+            goto opthelp;
+        }
+        if (lnechs == 0) {
+            /* We'll note that we didn't get ECH keys but continue */
+            BIO_printf(bio_err, "%s: ECHConfig decode provided no keys.\n", prog);
+        }
+        for (i = 0; i!= lnechs; i++) {
+            if (SSL_ech_set1_echconfig(con, cfgs[i], cfglens[i]) != 1) {
+                BIO_printf(bio_err, "%s: ECHConfig decode failed.\n", prog);
+                goto opthelp;
+            }
+            OPENSSL_free(cfgs[i]);
+        }
+        OPENSSL_free(cfglens);
+        OPENSSL_free(cfgs);
+        nechs += lnechs;
+    }
+    if (ech_svcb_rr != NULL) {
+        int i, lnechs = 0;
+        unsigned char **cfgs = NULL;
+        size_t *cfglens = NULL;
+
+        if (ossl_ech_find_echconfigs(&lnechs, &cfgs, &cfglens,
+                                     (unsigned char*)ech_svcb_rr,
+                                     strlen(ech_svcb_rr)) != 1) {
+            BIO_printf(bio_err, "%s: SVCB decode failed.\n", prog);
+            goto opthelp;
+        }
+        if (lnechs == 0) {
+            /* We'll note that we didn't get ECH keys but continue */
+            BIO_printf(bio_err, "%s: SVCB decode provided no keys.\n", prog);
+        }
+        for (i = 0; i!= lnechs; i++) {
+            if (SSL_ech_set1_echconfig(con, cfgs[i], cfglens[i]) != 1) {
+                BIO_printf(bio_err, "%s: SVCB decode failed.\n", prog);
+                goto opthelp;
+            }
+            OPENSSL_free(cfgs[i]);
+        }
+        OPENSSL_free(cfglens);
+        OPENSSL_free(cfgs);
+        nechs += lnechs;
+    }
+#endif
     if ((ech_encoded_configs != NULL || ech_svcb_rr != NULL) && nechs == 0) {
         /* neither avenue got us keys, so that's an error now */
         BIO_printf(bio_err, "%s: no ECH decode provided no keys.\n", prog);

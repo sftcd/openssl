@@ -172,41 +172,53 @@ reason.
 Client-side APIs
 ----------------
 
-Clients will generally provide an ECHConfigList or an HTTPS/SVCB resource
-record value in order to enable ECH for an SSL connection.
+Clients needs to provide one or more ECHConfig values in order to enable ECH
+for an SSL connection. ``SSL_ech_set1_echconfig()`` allows the client to
+provide these to the library in binary, ascii-hex or base64 encoded format.
 
-Those may be provided in various encodings (base64, ascii hex or binary)
-each of which may suit different applications. The APIs below can consume
-each of these (via the ``ekfmt`` input) or the implementation can guess
-based on the value provided.
+ECHConfig values contain algorithm parameters, the public key to use for HPKE
+encryption and the ``public_name`` that is by default used for the outer SNI
+when ECH is attempted.  The ``SSL_CTX_set1_echconfig()`` API provides the same
+functionality for an SSL context; SSL connections derived from that context
+will have ECH enabled.
 
-``SSL_ech_set1_svcb`` additionally supports inputs in zone file presentation
-format, i.e., extracting the ECHConfigList from the ``ech=`` value if one is
-present.
+ECHConfig values will typically have been provided as an argument to the
+calling application or have been retrieved from DNS resource records by the
+application. ECHConfig values may be provided in various encodings (base64,
+ascii hex or binary) each of which may suit different applications.
+Additionally ECHConfig values may be provided embedded in the DNS wire encoding
+of HTTPS or SVCB resource records or in zone file presentation format, i.e.,
+extracting the ECHConfigList from the ``ech=`` value if one is present.
+Lastly, in some scenarios the application may provide a set of catenated
+encoded values, e.g. if there are multiple HTTPS resource records published for
+a given name. 
 
-If an HTTPS/SVCB resource record is provided then ``SSL_ech_set1_svcb`` will
-only extract the ECHConfigList from that value and any ALPN information has
-to be separtely extract by the client.
-
-In each case the function returns the number of ECHConfig elements from
-the list successfully decoded  in the ``num_echs`` output. If no ECHConfigList
-values are encoutered (which can happen for HTTPS RRs) then ``num_echs`` will
-be zero.
+``ossl_ech_find_echconfigs()`` attempts to find and return the (possibly empty)
+set of ECHConfig values from a buffer containing one of the encoded forms
+described above.
 
 ```c
-int SSL_ech_set1_echconfig(SSL *s, int *num_echs,
-                           int ekfmt, char *ekval, size_t eklen);
-int SSL_ech_set1_svcb(SSL *s, int *num_echs,
-                      int rrfmt, char *rrval, size_t rrlen);
-int SSL_CTX_ech_set1_echconfig(SSL_CTX *ctx, int *num_echs,
-                               int ekfmt, char *ekval, size_t eklen);
+int SSL_ech_set1_echconfig(SSL *s, unsigned char *val, size_t len);
+int SSL_CTX_ech_set1_echconfig(SSL_CTX *ctx, unsigned char *val, size_t len);
+int ossl_ech_find_echconfigs(int *num_echs,
+                             unsigned char ***echconfigs, size_t **echlens,
+                             unsigned char *val, size_t len);
 ```
 
-Clients can also more directly control the values to be used for
-inner and outer SNI and ALPN values via specific APIs. This allows a client
-to over-ride the ``public_name`` present in an ECHConfigList that will
-by default be used for the outer SNI. The ``no_outer`` input allows a
-client to emit an outer CH with no SNI at all.
+``ossl_ech_find_echconfigs()`` returns the number of ECHConfig values from the
+input (``val``/``len``) successfully decoded  in the ``num_echs`` output.  If
+no ECHConfig values values are encoutered (which can happen for good HTTPS RR
+ivalues) then ``num_echs`` will be zero but the function return 1.  After a
+call to ``ossl_ech_find_echconfigs()``, the application can make a sequence of
+calls to ``SSL_ech_set1_echconfig()`` for each of the ECHConfig values found.
+(The various output buffers must be freed by the client afterwards, see the
+example code in ``test/ech_test.c``.)
+
+Clients can additionally more directly control the values to be used for inner
+and outer SNI and ALPN values via specific APIs. This allows a client to
+over-ride the ``public_name`` present in an ECHConfigList that will by default
+be used for the outer SNI. The ``no_outer`` input allows a client to emit an
+outer CH with no SNI at all.
 
 ```c
 int SSL_ech_set_server_names(SSL *s, const char *inner_name,

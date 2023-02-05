@@ -2153,8 +2153,7 @@ static int execute_test_session(int maxprot, int use_int_cache,
     }
     if (maxprot == TLS1_3_VERSION && have25519) {
         char *echkeyfile = NULL;
-        char *echconfiglist = NULL;
-        int echcount = 0;
+        unsigned char *echconfiglist = NULL;
         size_t echconfig_len = 0;
 
         test_printf_stdout("Running real ECH, fips=%d\n", is_fips);
@@ -2171,13 +2170,8 @@ static int execute_test_session(int maxprot, int use_int_cache,
             OPENSSL_free(echconfiglist);
             return 0;
         }
-        if (SSL_CTX_ech_set1_echconfig(cctx, &echcount, OSSL_ECH_FMT_GUESS, 
-                                       echconfiglist, echconfig_len) != 1) {
-            OPENSSL_free(echkeyfile);
-            OPENSSL_free(echconfiglist);
-            return 0;
-        }
-        if (echcount != 1) {
+        if (SSL_CTX_ech_set1_echconfig(cctx, echconfiglist,
+                                       echconfig_len) != 1) {
             OPENSSL_free(echkeyfile);
             OPENSSL_free(echconfiglist);
             return 0;
