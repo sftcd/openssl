@@ -172,34 +172,39 @@ reason.
 Client-side APIs
 ----------------
 
-Clients needs to provide one or more ECHConfig values in order to enable ECH
-for an SSL connection. ``SSL_ech_set1_echconfig()`` allows the client to
-provide these to the library in binary, ascii-hex or base64 encoded format.
+ECHConfig values contain a version, algorithm parameters, the public key to use
+for HPKE encryption and the ``public_name`` that is by default used for the
+outer SNI when ECH is attempted.
 
-ECHConfig values contain algorithm parameters, the public key to use for HPKE
-encryption and the ``public_name`` that is by default used for the outer SNI
-when ECH is attempted.  The ``SSL_CTX_set1_echconfig()`` API provides the same
-functionality for an SSL context; SSL connections derived from that context
-will have ECH enabled.
+Clients need to provide one or more ECHConfig values in order to enable ECH
+for an SSL connection. ``SSL_ech_set1_echconfig()`` and
+``SSL_CTX_set1_echconfig()`` allow clients to provide these to the library in
+binary, ascii-hex or base64 encoded format. Multiple calls to these functions
+will accumulate the set of ECHConfig values available for a connection. If
+the input value provided contains no suitable ECHConfig values (e.g. if it
+only contains ECHConfig versions that are not supported), then these functions
+will fail and return zero.
 
-ECHConfig values will typically have been provided as an argument to the
-calling application or have been retrieved from DNS resource records by the
-application. ECHConfig values may be provided in various encodings (base64,
-ascii hex or binary) each of which may suit different applications.
-Additionally ECHConfig values may be provided embedded in the DNS wire encoding
-of HTTPS or SVCB resource records or in zone file presentation format, i.e.,
-extracting the ECHConfigList from the ``ech=`` value if one is present.
-Lastly, in some scenarios the application may provide a set of catenated
-encoded values, e.g. if there are multiple HTTPS resource records published for
-a given name. 
+```c
+int SSL_ech_set1_echconfig(SSL *s, unsigned char *val, size_t len);
+int SSL_CTX_ech_set1_echconfig(SSL_CTX *ctx, unsigned char *val, size_t len);
+```
+
+ECHConfig values will typically have been provided via a command line argument
+to the calling application or have been retrieved from DNS resource records by
+the application. ECHConfig values may be provided in various encodings (base64,
+ascii hex or binary) each of which may suit different applications.  ECHConfig
+values may also be provided embedded in the DNS wire encoding of HTTPS or SVCB
+resource records or in the equivalent zone file presentation format.  Lastly,
+in some scenarios the application may provide a set of catenated encoded
+values, e.g. if there are multiple HTTPS resource records published for a given
+name. 
 
 ``ossl_ech_find_echconfigs()`` attempts to find and return the (possibly empty)
 set of ECHConfig values from a buffer containing one of the encoded forms
 described above.
 
 ```c
-int SSL_ech_set1_echconfig(SSL *s, unsigned char *val, size_t len);
-int SSL_CTX_ech_set1_echconfig(SSL_CTX *ctx, unsigned char *val, size_t len);
 int ossl_ech_find_echconfigs(int *num_echs,
                              unsigned char ***echconfigs, size_t **echlens,
                              unsigned char *val, size_t len);
