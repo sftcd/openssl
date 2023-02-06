@@ -128,7 +128,6 @@ static int ech_grease_type = -1;
 static int ech_ignore_cid = 0;
 static int nechs = 0;
 static char *ech_encoded_configs = NULL;
-static char *ech_svcb_rr = NULL;
 static int ech_select = OSSL_ECH_SELECT_ALL;
 # ifndef OPENSSL_NO_SSL_TRACE
 static size_t ech_trace_cb(const char *buf, size_t cnt,
@@ -546,9 +545,8 @@ typedef enum OPTION_choice {
     OPT_ENABLE_CLIENT_RPK,
 #ifndef OPENSSL_NO_ECH
     OPT_SNIOUTER, OPT_ALPN_OUTER,
-    OPT_ECHCONFIGS, OPT_SVCB,
+    OPT_ECHCONFIGS, OPT_ECH_SELECT, OPT_ECH_IGNORE_CONFIG_ID,
     OPT_ECH_GREASE, OPT_ECH_GREASE_SUITE, OPT_ECH_GREASE_TYPE,
-    OPT_ECH_SELECT, OPT_ECH_IGNORE_CONFIG_ID,
 #endif
     OPT_SCTP_LABEL_BUG,
     OPT_KTLS,
@@ -753,9 +751,6 @@ const OPTIONS s_client_options[] = {
          "\"NONE\"))"},
     {"ech_config_list", OPT_ECHCONFIGS, 's',
      "Set ECHConfigList, value is b64 or ASCII-HEX encoded ECHConfigList"},
-    {"ech_svcb", OPT_SVCB, 's',
-     "Set ECHConfigLists and possibly ALPN via an SVCB RData, "
-     "b64 or ASCII-HEX encoded"},
     {"ech_select", OPT_ECH_SELECT, 'n',
       "Select one ECHConfig from many provided via RR or PEM file"},
     {"ech_grease", OPT_ECH_GREASE, '-',
@@ -1654,9 +1649,6 @@ int s_client_main(int argc, char **argv)
         case OPT_ECHCONFIGS:
             ech_encoded_configs = opt_arg();
             break;
-        case OPT_SVCB:
-            ech_svcb_rr = opt_arg();
-            break;
         case OPT_ECH_SELECT:
             ech_select = atoi(opt_arg());
             break;
@@ -1790,10 +1782,10 @@ int s_client_main(int argc, char **argv)
 
 #ifndef OPENSSL_NO_ECH
     if (alpn_outer_in != NULL || sni_outer_name != NULL) {
-        if (ech_encoded_configs == NULL && ech_svcb_rr == NULL) {
+        if (ech_encoded_configs == NULL) {
             BIO_printf(bio_err,
-               "%s: Can't use -sni_outer nor -ech_alpn_outer without -ech_onfig_list" \
-               " or -svcb \n", prog);
+               "%s: Can't use -sni_outer nor -ech_alpn_outer without" \
+               "-ech_config_list\n", prog);
             goto opthelp;
         }
     }
@@ -2412,57 +2404,23 @@ int s_client_main(int argc, char **argv)
     }
 
 #ifndef OPENSSL_NO_ECH
-#if 0
-    if (ech_encoded_configs != NULL) {
-        int rv;
-
-        rv=SSL_ech_set1_echconfig(con, &nechs, OSSL_ECH_FMT_GUESS,
-                                  ech_encoded_configs,
-                                  strlen(ech_encoded_configs));
-        if (rv != 1) {
-            BIO_printf(bio_err, "%s: ECHConfig decode failed.\n", prog);
-            goto opthelp;
-        }
-        if (nechs == 0) {
-            /* We'll note that we didn't get ECH keys but continue */
-            BIO_printf(bio_err, "%s: ECHConfig decode provided no keys.\n",
-                       prog);
-        }
-    }
-    if (ech_svcb_rr != NULL) {
-        int lnechs = 0;
-        int rv;
-
-        rv = SSL_ech_set1_svcb(con, &lnechs, OSSL_ECH_FMT_GUESS,
-                               ech_svcb_rr, strlen(ech_svcb_rr));
-        if (rv != 1) {
-            BIO_printf(bio_err, "%s: SVCB decode failed.\n", prog);
-            goto opthelp;
-        }
-        if (lnechs == 0) {
-            /* We'll note that we didn't get ECH keys but continue */
-            BIO_printf(bio_err, "%s: SVCB decode provided no keys.\n", prog);
-        }
-        nechs += lnechs;
-    }
-#else
     /* try parse inputs that might contain some ECHConfig values */
     if (ech_encoded_configs != NULL) {
-        int ii, lnechs = 0;
+        int ii;
         unsigned char **cfgs = NULL;
         size_t *cfglens = NULL;
 
-        if (ossl_ech_find_echconfigs(&lnechs, &cfgs, &cfglens,
+        if (ossl_ech_find_echconfigs(&nechs, &cfgs, &cfglens,
                                      (unsigned char*)ech_encoded_configs,
                                      strlen(ech_encoded_configs)) != 1) {
             BIO_printf(bio_err, "%s: ECHConfig decode failed.\n", prog);
             goto opthelp;
         }
-        if (lnechs == 0) {
-            /* We'll note that we didn't get ECH keys but continue */
-            BIO_printf(bio_err, "%s: ECHConfig decode provided no keys.\n", prog);
+        if (nechs == 0) {
+            BIO_printf(bio_err, "%s: no ECH decode provided no keys.\n", prog);
+            goto opthelp;
         }
-        for (ii = 0; ii!= lnechs; ii++) {
+        for (ii = 0; ii!= nechs; ii++) {
             if (SSL_ech_set1_echconfig(con, cfgs[ii], cfglens[ii]) != 1) {
                 BIO_printf(bio_err, "%s: ECHConfig decode failed.\n", prog);
                 goto opthelp;
@@ -2471,43 +2429,8 @@ int s_client_main(int argc, char **argv)
         }
         OPENSSL_free(cfglens);
         OPENSSL_free(cfgs);
-        nechs += lnechs;
     }
-    if (ech_svcb_rr != NULL) {
-        int ii, lnechs = 0;
-        unsigned char **cfgs = NULL;
-        size_t *cfglens = NULL;
-
-        if (ossl_ech_find_echconfigs(&lnechs, &cfgs, &cfglens,
-                                     (unsigned char*)ech_svcb_rr,
-                                     strlen(ech_svcb_rr)) != 1) {
-            BIO_printf(bio_err, "%s: SVCB decode failed.\n", prog);
-            goto opthelp;
-        }
-        if (lnechs == 0) {
-            /* We'll note that we didn't get ECH keys but continue */
-            BIO_printf(bio_err, "%s: SVCB decode provided no keys.\n", prog);
-        }
-        for (ii = 0; ii!= lnechs; ii++) {
-            if (SSL_ech_set1_echconfig(con, cfgs[ii], cfglens[ii]) != 1) {
-                BIO_printf(bio_err, "%s: SVCB decode failed.\n", prog);
-                goto opthelp;
-            }
-            OPENSSL_free(cfgs[ii]);
-        }
-        OPENSSL_free(cfglens);
-        OPENSSL_free(cfgs);
-        nechs += lnechs;
-    }
-#endif
-    if ((ech_encoded_configs != NULL || ech_svcb_rr != NULL) && nechs == 0) {
-        /* neither avenue got us keys, so that's an error now */
-        BIO_printf(bio_err, "%s: no ECH decode provided no keys.\n", prog);
-        goto opthelp;
-    }
-
-    if ((ech_encoded_configs != NULL || ech_svcb_rr != NULL)
-        && sni_outer_name != NULL) {
+    if (ech_encoded_configs != NULL && sni_outer_name != NULL) {
         int rv = 0;
 
         if (!strncmp(sni_outer_name, OSSL_ECH_NAME_NONE,
@@ -2521,8 +2444,7 @@ int s_client_main(int argc, char **argv)
             goto end;
         }
     }
-    if ((ech_encoded_configs != NULL || ech_svcb_rr != NULL)
-        && ech_inner_name != NULL) {
+    if (ech_encoded_configs != NULL && ech_inner_name != NULL) {
         const char *inner_to_use = NULL;
 
         if (ech_inner_name != NULL

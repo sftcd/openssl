@@ -260,35 +260,8 @@ then
 	then
 		if [ ! -f $SUPPLIEDECH ]
 		then
-            # if that value appears to be good ascii hex encoded, we'll assume it's an
-            # HTTPS RR value 
-            # we'll lowercase the string, then AH-decode and re-encode
-            # and if result is the same then we think it's ascii-hex
-            lse=`echo $SUPPLIEDECH | tr '[:upper:]' '[:lower:]'`
-            dcheck=`echo $lse | xxd -r -p | xxd -p | tr -d '\n'`
-            if [[ "$dcheck" == "$lse" ]]
-            then
-                ahres=0
-            else
-                ahres=1
-            fi
-            # if it's base64 we'll guess it's a b64'd ECHConfigList
-            echo $SUPPLIEDECH | base64 -d >/dev/null 2>&1
-            bres=$?
-            # note: the same string can pass both tests in which case
-            # we go for the HTTPS RR option
-            if [[ "$ahres" == "0" ]]
-            then
-                echo "Assuming supplied ECH is RR value"
-                ECH=" $selstr -ech_svcb $SUPPLIEDECH "
-            elif [[ "$bres" == "0" ]]
-            then
-                echo "Assuming supplied ECH is base64 encoded ECHConfigList"
-                ECH=" $selstr -ech_config_list $SUPPLIEDECH "
-            else
-                echo "Supplied ECH is neither ascii-hex nor base64 - exiting "
-                exit 44
-            fi
+            echo "Assuming supplied ECH is encoded ECHConfigList or SVCB"
+            ECH=" $selstr -ech_config_list $SUPPLIEDECH "
         else
 		    # check if file suffix is .pem (base64 encoding) 
 		    # and react accordingly, don't take any other file extensions
@@ -327,7 +300,7 @@ then
             echo "Didn't get any HTTPS RR value for $qname - exiting"
             exit 22
         fi
-        ECH=" $selstr -ech_svcb $digval "
+        ECH=" $selstr -ech_config_list $digval "
 	fi
 fi
 

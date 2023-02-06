@@ -103,14 +103,6 @@ typedef struct ossl_ech_info_st {
  */
 int SSL_ech_set1_echconfig(SSL *ssl, unsigned char *val, size_t len);
 int SSL_CTX_ech_set1_echconfig(SSL_CTX *ctx, unsigned char *val, size_t len);
-/*
-int SSL_ech_set1_svcb(SSL *s, int *num_echs,
-                      int rrfmt, char *rrval, size_t rrlen);
-int SSL_ech_set1_echconfig(SSL *s, int *num_echs,
-                           int ekfmt, char *ekval, size_t eklen);
-int SSL_CTX_ech_set1_echconfig(SSL_CTX *ctx, int *num_echs,
-                               int ekfmt, char *ekval, size_t eklen);
-*/
 
 int SSL_ech_set_server_names(SSL *s, const char *inner_name,
                              const char *outer_name, int no_outer);
