@@ -2665,6 +2665,22 @@ void SSL_ECH_free(SSL_ECH *tbf)
     return;
 }
 
+/*
+ * @brief Free an array of SSL_ECH
+ * @param tbf is the thing to be free'd
+ * @param elems is the number of elements to free
+ */
+void SSL_ECH_free_arr(SSL_ECH *tbf, size_t elems)
+{
+    size_t i;
+
+    if (tbf == NULL)
+        return;
+    for (i = 0; i != elems; i++)
+        SSL_ECH_free(&tbf[i]);
+    return;
+}
+
 /**
  * @brief print info about the ECH-status of an SSL connection
  * @param out is the BIO to use (e.g. stdout/whatever)
@@ -4612,8 +4628,11 @@ int SSL_ech_set1_echconfig(SSL *ssl, unsigned char *val, size_t len)
     /* otherwise accumulate */
     tmp = OPENSSL_realloc(s->ext.ech.cfgs,
                           (s->ext.ech.ncfgs + num_echs) * sizeof(SSL_ECH));
-    if (tmp == NULL)
+    if (tmp == NULL) {
+        SSL_ECH_free_arr(echs, num_echs);
+        OPENSSL_free(echs);
         return 0;
+    }
     s->ext.ech.cfgs = tmp;
     /* shallow copy top level, keeping lower levels */
     memcpy(&s->ext.ech.cfgs[s->ext.ech.ncfgs], echs,
@@ -4649,12 +4668,16 @@ int SSL_CTX_ech_set1_echconfig(SSL_CTX *ctx, unsigned char *val, size_t len)
     /* otherwise accumulate */
     tmp = OPENSSL_realloc(ctx->ext.ech,
                           (ctx->ext.nechs + num_echs) * sizeof(SSL_ECH));
-    if (tmp == NULL)
+    if (tmp == NULL) {
+        SSL_ECH_free_arr(echs, num_echs);
+        OPENSSL_free(echs);
         return 0;
+    }
     ctx->ext.ech = tmp;
     /* shallow copy top level, keeping lower levels */
     memcpy(&ctx->ext.ech[ctx->ext.nechs], echs, num_echs * sizeof(SSL_ECH));
     ctx->ext.nechs += num_echs;
+    /* top level can now be free'd */
     OPENSSL_free(echs);
     return 1;
 }
@@ -4827,7 +4850,6 @@ int SSL_ech_reduce(SSL *ssl, int index)
 {
     SSL_ECH *new = NULL;
     SSL_CONNECTION *s = SSL_CONNECTION_FROM_SSL(ssl);
-    int i = 0;
 
     if (s == NULL || index < 0 || s->ext.ech.cfgs == NULL
         || s->ext.ech.ncfgs <= 0) {
@@ -4847,8 +4869,7 @@ int SSL_ech_reduce(SSL *ssl, int index)
         return 0;
     *new = s->ext.ech.cfgs[index];
     memset(&s->ext.ech.cfgs[index], 0, sizeof(SSL_ECH));
-    for (i = 0; i != s->ext.ech.ncfgs; i++)
-        SSL_ECH_free(&s->ext.ech.cfgs[i]);
+    SSL_ECH_free_arr(s->ext.ech.cfgs, s->ext.ech.ncfgs);
     OPENSSL_free(s->ext.ech.cfgs);
     s->ext.ech.cfgs = new;
     s->ext.ech.ncfgs = 1;
@@ -4884,7 +4905,7 @@ int SSL_CTX_ech_server_flush_keys(SSL_CTX *ctx, unsigned int age)
         return 1;
     orig = ctx->ext.nechs;
     if (age == 0) {
-        SSL_ECH_free(ctx->ext.ech);
+        SSL_ECH_free_arr(ctx->ext.ech, ctx->ext.nechs);
         OPENSSL_free(ctx->ext.ech);
         ctx->ext.ech = NULL;
         ctx->ext.nechs = 0;
@@ -5629,12 +5650,6 @@ err:
     return rv;
 }
 
-/*
- * TODO: if we stick with the "new" approach below then these
- * local_ functions will probably be better refactored as they're
- * now called pretty differently. More testing to do before then
- * though.
- */
 int ossl_ech_find_echconfigs(int *num_echs,
                              unsigned char ***echconfigs, size_t **echlens,
                              unsigned char *val, size_t len)
@@ -5651,12 +5666,17 @@ int ossl_ech_find_echconfigs(int *num_echs,
     }
     if (local_svcb_add(OSSL_ECH_FMT_GUESS, len, (char *)val,
                        &num_new, &new_echs) != 1) {
-        /* try ECHConfigList decode so */
+        /* we'll allow a fail there and try ECHConfigList */
         if (local_ech_add(OSSL_ECH_FMT_GUESS, len, val,
                           &num_new, &new_echs) != 1) {
             ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
             return 0;
         }
+    }
+    if (num_new == 0) {
+        /* that's not a fail, just an empty set result */
+        *num_echs = num_new;
+        return 1;
     }
     ebufs = OPENSSL_malloc(num_new * sizeof(unsigned char *));
     if (ebufs == NULL)
@@ -5667,7 +5687,7 @@ int ossl_ech_find_echconfigs(int *num_echs,
     for (i = 0; i != num_new; i++) {
         ebufs[i] = new_echs->cfg[i].encoded;
         elens[i] = new_echs->cfg[i].encoded_len;
-        new_echs->cfg[i].encoded = NULL; /* so not double free'd later */
+        new_echs->cfg[i].encoded = NULL; /* so we don't double free later */
     }
     *echconfigs = ebufs;
     *echlens = elens;
@@ -5678,11 +5698,9 @@ err:
         OPENSSL_free(ebufs);
         OPENSSL_free(elens);
     }
-    if (new_echs != NULL) {
-        for (i = 0; i != num_new; i++)
-            SSL_ECH_free(&new_echs[i]);
-        OPENSSL_free(new_echs);
-    }
+    /* this free is ok as we've NULL'd the encoded version above */
+    SSL_ECH_free_arr(new_echs, num_new);
+    OPENSSL_free(new_echs);
     return rv;
 }
 
