@@ -282,6 +282,13 @@ typedef struct ssl_connection_ech_st {
  */
 void SSL_ECH_free(SSL_ECH *tbf);
 
+/*
+ * @brief Free an array of SSL_ECH
+ * @param tbf is the thing to be free'd
+ * @param elems is the number of elements to free
+ */
+void SSL_ECH_free_arr(SSL_ECH *tbf, size_t elems);
+
 /**
  * @brief Free an ECHConfigList
  * @param tbf is the thing to be free'd
