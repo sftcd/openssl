@@ -1554,10 +1554,7 @@ void ossl_ssl_connection_free(SSL *ssl)
     OPENSSL_free(s->ext.ech.encoded_innerch);
     OPENSSL_free(s->ext.ech.outer_hostname);
     if (s->ext.ech.ncfgs > 0 && s->ext.ech.cfgs != NULL) {
-        int n = 0;
-
-        for (n = 0;n != s->ext.ech.ncfgs; n++)
-            SSL_ECH_free(&s->ext.ech.cfgs[n]);
+        SSL_ECH_free_arr(s->ext.ech.cfgs, s->ext.ech.ncfgs);
         memset(s->ext.ech.cfgs, 0, s->ext.ech.ncfgs * sizeof(SSL_ECH));
         OPENSSL_free(s->ext.ech.cfgs);
         s->ext.ech.cfgs = NULL;
@@ -4300,10 +4297,7 @@ void SSL_CTX_free(SSL_CTX *a)
     OPENSSL_free(a->server_cert_type);
 #ifndef OPENSSL_NO_ECH
 	if (a->ext.ech != NULL) {
-        int n = 0;
-
-        for (n = 0; n != a->ext.nechs; n++)
-            SSL_ECH_free(&a->ext.ech[n]);
+        SSL_ECH_free_arr(a->ext.ech, a->ext.nechs);
         memset(a->ext.ech, 0, a->ext.nechs * sizeof(SSL_ECH));
         OPENSSL_free(a->ext.ech);
 		a->ext.ech = NULL;
@@ -5113,7 +5107,7 @@ SSL *SSL_dup(SSL *s)
      * one from the SSL* original.
      */
     if (retsc->ext.ech.cfgs != NULL) {
-        SSL_ECH_free(retsc->ext.ech.cfgs);
+        SSL_ECH_free_arr(retsc->ext.ech.cfgs, retsc->ext.ech.ncfgs);
         OPENSSL_free(retsc->ext.ech.cfgs);
     }
     retsc->ext.ech.ncfgs = sc->ext.ech.ncfgs;
