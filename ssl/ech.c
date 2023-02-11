@@ -970,6 +970,8 @@ static int local_ech_add(int ekfmt, size_t eklen, unsigned char *ekval,
     ekptr = (char *)ekcpy;
 
     if (detfmt == OSSL_ECH_FMT_HTTPSSVC) {
+        char *ekend = NULL;
+
         if (strlen((char *)ekcpy) != eklen) {
             ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
             goto err;
@@ -985,6 +987,11 @@ static int local_ech_add(int ekfmt, size_t eklen, unsigned char *ekval,
             goto err;
         }
         ekptr += strlen(httpssvc_telltale);
+        ekend = strstr(ekptr, " ");
+        if (ekend != NULL) { /* truncate */
+            *ekend = '\0';
+            eklen -= ((char *)ekcpy + eklen) - ekend;
+        }
         detfmt = OSSL_ECH_FMT_B64TXT; /* tee up next step */
     }
     if (detfmt == OSSL_ECH_FMT_B64TXT) {
