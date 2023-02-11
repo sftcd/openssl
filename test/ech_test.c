@@ -343,7 +343,79 @@ end:
 }
 
 /* Shuffle to preferred order */
-enum OSSLTEST_ECH_runOrder
+enum OSSLTEST_ECH_FIND_runOrder
+    {
+     OSSLTEST_ECH_FIND_B64,
+
+     OSSLTEST_ECH_FIND_NTESTS        /* Keep NTESTS last */
+    };
+
+/*
+ * This ECHConfigList has 6 entries with different versions,
+ * [13,10,9,13,10,13] - since our runtime no longer supports
+ * version 9 or 10, we should see 3 configs loaded.
+ */
+static unsigned char echconfig_b64_6_to_3[] =
+    "AXn+DQA6xQAgACBm54KSIPXu+pQq2oY183wt3ybx7CKbBYX0ogPq5u6FegAEAAE"
+    "AAQALZXhhbXBsZS5jb20AAP4KADzSACAAIIP+0Qt0WGBF3H5fz8HuhVRTCEMuHS"
+    "4Khu6ibR/6qER4AAQAAQABAAAAC2V4YW1wbGUuY29tAAD+CQA7AAtleGFtcGxlL"
+    "mNvbQAgoyQr+cP8mh42znOp1bjPxpLCBi4A0ftttr8MPXRJPBcAIAAEAAEAAQAA"
+    "AAD+DQA6QwAgACB3xsNUtSgipiYpUkW6OSrrg03I4zIENMFa0JR2+Mm1WwAEAAE"
+    "AAQALZXhhbXBsZS5jb20AAP4KADwDACAAIH0BoAdiJCX88gv8nYpGVX5BpGBa9y"
+    "T0Pac3Kwx6i8URAAQAAQABAAAAC2V4YW1wbGUuY29tAAD+DQA6QwAgACDcZIAx7"
+    "OcOiQuk90VV7/DO4lFQr5I3Zw9tVbK8MGw1dgAEAAEAAQALZXhhbXBsZS5jb20A"
+    "AA==";
+
+static int test_ech_find(int idx)
+{
+    int i, nechs = 0, echtarg = 0;
+    SSL_CTX *con = NULL;
+    unsigned char *enc_cfgs = NULL;
+    size_t enc_cfgs_len = 0;
+    unsigned char **cfgs = NULL;
+    size_t *cfglens = NULL;
+
+    if (!TEST_ptr(con = SSL_CTX_new_ex(testctx, testpropq,
+                                       TLS_server_method())))
+        return 0;
+
+    switch (idx) {
+    case OSSLTEST_ECH_FIND_B64:
+       enc_cfgs = echconfig_b64_6_to_3;
+       enc_cfgs_len = strlen((char *)enc_cfgs);
+       echtarg = 3;
+       break;
+    default:
+        TEST_info("unknown option %d.",idx);
+        return 0;
+    }
+
+    if (ossl_ech_find_echconfigs(&nechs, &cfgs, &cfglens,
+                                 enc_cfgs, enc_cfgs_len) != 1) {
+        TEST_info("ossl_ech_find_echconfigs call %d failed.",idx);
+        return 0;
+    }
+    if (nechs != echtarg) {
+        TEST_info("ossl_ech_find_echconfigs call %d failed to return ECHs",idx);
+        return 0;
+    }
+    for (i = 0; i!= nechs; i++) {
+        if (SSL_CTX_ech_set1_echconfig(con, cfgs[i], cfglens[i]) != 1) {
+            TEST_info("SSL_ech_set1_echconifg call %d failed.",idx);
+            return 0;
+        }
+        OPENSSL_free(cfgs[i]);
+    }
+    OPENSSL_free(cfglens);
+    OPENSSL_free(cfgs);
+    SSL_CTX_free(con);
+    if (verbose)
+        TEST_info("test_ech_find: success\n");
+    return 1;
+}
+
+/* Shuffle to preferred order */
+enum OSSLTEST_ECH_ADD_runOrder
     {
      OSSLTEST_ECH_B64_GUESS,
      OSSLTEST_ECH_B64_BASE64,
@@ -549,6 +621,7 @@ int setup_tests(void)
     bio_null = BIO_new(BIO_s_mem());
     ADD_TEST(basic_echconfig);
     ADD_ALL_TESTS(test_ech_add, 5);
+    ADD_ALL_TESTS(test_ech_find, 1);
     ADD_TEST(ech_roundtrip_test);
     ADD_TEST(tls_version_test);
     return 1;
