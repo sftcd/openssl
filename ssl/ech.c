@@ -5685,9 +5685,9 @@ int ossl_ech_find_echconfigs(int *num_echs,
     if (elens == NULL)
         goto err;
     for (i = 0; i != num_new; i++) {
-        ebufs[i] = new_echs->cfg[i].encoded;
-        elens[i] = new_echs->cfg[i].encoded_len;
-        new_echs->cfg[i].encoded = NULL; /* so we don't double free later */
+        ebufs[i] = new_echs[i].cfg->encoded;
+        elens[i] = new_echs[i].cfg->encoded_len;
+        new_echs[i].cfg->encoded = NULL; /* so we don't double free later */
     }
     *echconfigs = ebufs;
     *echlens = elens;
