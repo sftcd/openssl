@@ -186,8 +186,9 @@ only contains ECHConfig versions that are not supported), then these functions
 will fail and return zero.
 
 ```c
-int SSL_ech_set1_echconfig(SSL *s, unsigned char *val, size_t len);
-int SSL_CTX_ech_set1_echconfig(SSL_CTX *ctx, unsigned char *val, size_t len);
+int SSL_ech_set1_echconfig(SSL *s, const unsigned char *val, size_t len);
+int SSL_CTX_ech_set1_echconfig(SSL_CTX *ctx, const unsigned char *val,
+                               size_t len);
 ```
 
 ECHConfig values will typically have been provided via a command line argument
@@ -207,7 +208,7 @@ described above.
 ```c
 int ossl_ech_find_echconfigs(int *num_echs,
                              unsigned char ***echconfigs, size_t **echlens,
-                             unsigned char *val, size_t len);
+                             const unsigned char *val, size_t len);
 ```
 
 ``ossl_ech_find_echconfigs()`` returns the number of ECHConfig values from the

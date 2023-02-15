@@ -35,6 +35,156 @@ static char *cert = NULL;
 static char *privkey = NULL;
 static int verbose = 0;
 
+/* test vectors */
+
+/*
+ * This ECHConfigList has 6 entries with different versions,
+ * [13,10,9,13,10,13] - since our runtime no longer supports
+ * version 9 or 10, we should see 3 configs loaded.
+ */
+static const char echconfig_b64_6_to_3[] =
+    "AXn+DQA6xQAgACBm54KSIPXu+pQq2oY183wt3ybx7CKbBYX0ogPq5u6FegAEAAE"
+    "AAQALZXhhbXBsZS5jb20AAP4KADzSACAAIIP+0Qt0WGBF3H5fz8HuhVRTCEMuHS"
+    "4Khu6ibR/6qER4AAQAAQABAAAAC2V4YW1wbGUuY29tAAD+CQA7AAtleGFtcGxlL"
+    "mNvbQAgoyQr+cP8mh42znOp1bjPxpLCBi4A0ftttr8MPXRJPBcAIAAEAAEAAQAA"
+    "AAD+DQA6QwAgACB3xsNUtSgipiYpUkW6OSrrg03I4zIENMFa0JR2+Mm1WwAEAAE"
+    "AAQALZXhhbXBsZS5jb20AAP4KADwDACAAIH0BoAdiJCX88gv8nYpGVX5BpGBa9y"
+    "T0Pac3Kwx6i8URAAQAAQABAAAAC2V4YW1wbGUuY29tAAD+DQA6QwAgACDcZIAx7"
+    "OcOiQuk90VV7/DO4lFQr5I3Zw9tVbK8MGw1dgAEAAEAAQALZXhhbXBsZS5jb20A"
+    "AA==";
+
+/* same as above but binary encoded */
+static const unsigned char echconfig_bin_6_to_3[] = {
+    0x01, 0x79, 0xfe, 0x0d, 0x00, 0x3a, 0xc5, 0x00,
+    0x20, 0x00, 0x20, 0x66, 0xe7, 0x82, 0x92, 0x20,
+    0xf5, 0xee, 0xfa, 0x94, 0x2a, 0xda, 0x86, 0x35,
+    0xf3, 0x7c, 0x2d, 0xdf, 0x26, 0xf1, 0xec, 0x22,
+    0x9b, 0x05, 0x85, 0xf4, 0xa2, 0x03, 0xea, 0xe6,
+    0xee, 0x85, 0x7a, 0x00, 0x04, 0x00, 0x01, 0x00,
+    0x01, 0x00, 0x0b, 0x65, 0x78, 0x61, 0x6d, 0x70,
+    0x6c, 0x65, 0x2e, 0x63, 0x6f, 0x6d, 0x00, 0x00,
+    0xfe, 0x0a, 0x00, 0x3c, 0xd2, 0x00, 0x20, 0x00,
+    0x20, 0x83, 0xfe, 0xd1, 0x0b, 0x74, 0x58, 0x60,
+    0x45, 0xdc, 0x7e, 0x5f, 0xcf, 0xc1, 0xee, 0x85,
+    0x54, 0x53, 0x08, 0x43, 0x2e, 0x1d, 0x2e, 0x0a,
+    0x86, 0xee, 0xa2, 0x6d, 0x1f, 0xfa, 0xa8, 0x44,
+    0x78, 0x00, 0x04, 0x00, 0x01, 0x00, 0x01, 0x00,
+    0x00, 0x00, 0x0b, 0x65, 0x78, 0x61, 0x6d, 0x70,
+    0x6c, 0x65, 0x2e, 0x63, 0x6f, 0x6d, 0x00, 0x00,
+    0xfe, 0x09, 0x00, 0x3b, 0x00, 0x0b, 0x65, 0x78,
+    0x61, 0x6d, 0x70, 0x6c, 0x65, 0x2e, 0x63, 0x6f,
+    0x6d, 0x00, 0x20, 0xa3, 0x24, 0x2b, 0xf9, 0xc3,
+    0xfc, 0x9a, 0x1e, 0x36, 0xce, 0x73, 0xa9, 0xd5,
+    0xb8, 0xcf, 0xc6, 0x92, 0xc2, 0x06, 0x2e, 0x00,
+    0xd1, 0xfb, 0x6d, 0xb6, 0xbf, 0x0c, 0x3d, 0x74,
+    0x49, 0x3c, 0x17, 0x00, 0x20, 0x00, 0x04, 0x00,
+    0x01, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0xfe,
+    0x0d, 0x00, 0x3a, 0x43, 0x00, 0x20, 0x00, 0x20,
+    0x77, 0xc6, 0xc3, 0x54, 0xb5, 0x28, 0x22, 0xa6,
+    0x26, 0x29, 0x52, 0x45, 0xba, 0x39, 0x2a, 0xeb,
+    0x83, 0x4d, 0xc8, 0xe3, 0x32, 0x04, 0x34, 0xc1,
+    0x5a, 0xd0, 0x94, 0x76, 0xf8, 0xc9, 0xb5, 0x5b,
+    0x00, 0x04, 0x00, 0x01, 0x00, 0x01, 0x00, 0x0b,
+    0x65, 0x78, 0x61, 0x6d, 0x70, 0x6c, 0x65, 0x2e,
+    0x63, 0x6f, 0x6d, 0x00, 0x00, 0xfe, 0x0a, 0x00,
+    0x3c, 0x03, 0x00, 0x20, 0x00, 0x20, 0x7d, 0x01,
+    0xa0, 0x07, 0x62, 0x24, 0x25, 0xfc, 0xf2, 0x0b,
+    0xfc, 0x9d, 0x8a, 0x46, 0x55, 0x7e, 0x41, 0xa4,
+    0x60, 0x5a, 0xf7, 0x24, 0xf4, 0x3d, 0xa7, 0x37,
+    0x2b, 0x0c, 0x7a, 0x8b, 0xc5, 0x11, 0x00, 0x04,
+    0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0x00, 0x0b,
+    0x65, 0x78, 0x61, 0x6d, 0x70, 0x6c, 0x65, 0x2e,
+    0x63, 0x6f, 0x6d, 0x00, 0x00, 0xfe, 0x0d, 0x00,
+    0x3a, 0x43, 0x00, 0x20, 0x00, 0x20, 0xdc, 0x64,
+    0x80, 0x31, 0xec, 0xe7, 0x0e, 0x89, 0x0b, 0xa4,
+    0xf7, 0x45, 0x55, 0xef, 0xf0, 0xce, 0xe2, 0x51,
+    0x50, 0xaf, 0x92, 0x37, 0x67, 0x0f, 0x6d, 0x55,
+    0xb2, 0xbc, 0x30, 0x6c, 0x35, 0x76, 0x00, 0x04,
+    0x00, 0x01, 0x00, 0x01, 0x00, 0x0b, 0x65, 0x78,
+    0x61, 0x6d, 0x70, 0x6c, 0x65, 0x2e, 0x63, 0x6f,
+    0x6d, 0x00, 0x00
+};
+
+/* output from ``dig +short https defo.ie`` */
+static const char *echconfig_dig_defo =
+    "1 . ech=AID+DQA88wAgACDhaXQ8S0pHHQ+bwApOPPDjai"
+    "YofLs24QPmmOLP8wHtKwAEAAEAAQANY292ZXIuZGVmby5p"
+    "ZQAA/g0APNsAIAAgcTC7pC/ZyxhymoL1p1oAdxfvVEgRji"
+    "68mhDE4vDZOzUABAABAAEADWNvdmVyLmRlZm8uaWUAAA==";
+
+/* output from ``dig +short https crypto.cloudflare.com`` */
+static const char *echconfig_dig_cf =
+    "1 . alpn=\"http/1.1,h2\" ipv4hint=162.159.137.85"
+    ",162.159.138.85 ech=AEX+DQBBCAAgACBsFeUbsAWR7x"
+    "WL1aB6P28ppSsj+joHhNUtj2qtwYh+NAAEAAEAAQASY2xv"
+    "dWRmbGFyZS1lY2guY29tAAA= ipv6hint=2606:4700:7:"
+    ":a29f:8955,2606:4700:7::a29f:8a55";
+
+/*
+ * output from ``dig +short https _11413._https.draft-13.esni.defo.ie``
+ * One that's not from port-443 so has a targetName
+ */
+static const char *echconfig_dig_d13 =
+    "1 draft-13.esni.defo.ie. ech=AMD+DQA8iwAgACAa9ok"
+    "y0hXrPm4WPTTxGOo4COT3xewntwtHiGRm3Bq0dAAEAAEAAQA"
+    "NY292ZXIuZGVmby5pZQAA/g0APJgAIAAg8wdx3+O2c0zcnPC"
+    "zcgSZ4dHbIZMiYEYUD0XVx3ufpEMABAABAAEADWNvdmVyLmR"
+    "lZm8uaWUAAP4NADwrACAAIG1DllvsgbEMrVtlfVU17EJog/G"
+    "aAjzTHUad6Cbh+X0wAAQAAQABAA1jb3Zlci5kZWZvLmllAAA=";
+
+/*
+ * check ASCII-hex handling via output from
+ * ``dig +short +unknownformat https _11413._https.draft-13.esni.defo.ie``
+ */
+static const char *echconfig_dig_u_d13 =
+    "\\# 223 00010864726166742D31330465736E6904646566"
+    "6F02696500000500 C200C0FE0D003C8B002000201AF689"
+    "32D215EB3E6E163D34F118EA38 08E4F7C5EC27B70B4788"
+    "6466DC1AB474000400010001000D636F7665 722E646566"
+    "6F2E69650000FE0D003C9800200020F30771DFE3B6734C "
+    "DC9CF0B3720499E1D1DB2193226046140F45D5C77B9FA44"
+    "300040001 0001000D636F7665722E6465666F2E6965000"
+    "0FE0D003C2B00200020 6D43965BEC81B10CAD5B657D553"
+    "5EC426883F19A023CD31D469DE826 E1F97D30000400010"
+    "001000D636F7665722E6465666F2E69650000";
+
+/*
+ * output from ``dig +short https defo.ie``  catenated with
+ * output from * ``dig +short https crypto.cloudflare.com``
+ */
+static const char *echconfig_dig_multi =
+    "1 . ech=AID+DQA88wAgACDhaXQ8S0pHHQ+bwApOPPDjai"
+    "YofLs24QPmmOLP8wHtKwAEAAEAAQANY292ZXIuZGVmby5p"
+    "ZQAA/g0APNsAIAAgcTC7pC/ZyxhymoL1p1oAdxfvVEgRji"
+    "68mhDE4vDZOzUABAABAAEADWNvdmVyLmRlZm8uaWUAAA==\n"
+    "1 . alpn=\"http/1.1,h2\" ipv4hint=162.159.137.85"
+    ",162.159.138.85 ech=AEX+DQBBCAAgACBsFeUbsAWR7x"
+    "WL1aB6P28ppSsj+joHhNUtj2qtwYh+NAAEAAEAAQASY2xv"
+    "dWRmbGFyZS1lY2guY29tAAA= ipv6hint=2606:4700:7:"
+    ":a29f:8955,2606:4700:7::a29f:8a55";
+
+/*
+ * format used by echcli.sh test script, ascii-hex
+ * grabbed using dig unknown format and the tidied
+ * up by removing spaces
+ */
+static const char *echconfig_echcli =
+    "0001000001000C08687474702F312E3102683200040008A"
+    "29F8955A29F8A55000500470045FE0D00410F0020002020"
+    "52D8F5B5FF684DC1009FF14AADE169B251D1F3317C81CA4"
+    "7ED24CEB08F4D040004000100010012636C6F7564666C61"
+    "72652D6563682E636F6D000000060020260647000007000"
+    "000000000A29F8955260647000007000000000000A29F8A"
+    "55";
+
+/*
+ * an HTTPS RR with no ech, e.g. acquired via:
+ * ``dig +short https rte.ie``
+ */
+static const char *echconfig_no_ech =
+    "1 . alpn=\"h3,h3-29,h2\" ipv4hint=104.18.142.17,1"
+    "04.18.143.17 ipv6hint=2606:4700::6812:8e11,2606"
+    ":4700::6812:8f11";
 /*
  * return the bas64 encoded ECHConfigList from an ECH PEM file
  *
@@ -341,145 +491,6 @@ end:
     return res;
 }
 
-/*
- * This ECHConfigList has 6 entries with different versions,
- * [13,10,9,13,10,13] - since our runtime no longer supports
- * version 9 or 10, we should see 3 configs loaded.
- */
-static unsigned char echconfig_b64_6_to_3[] =
-    "AXn+DQA6xQAgACBm54KSIPXu+pQq2oY183wt3ybx7CKbBYX0ogPq5u6FegAEAAE"
-    "AAQALZXhhbXBsZS5jb20AAP4KADzSACAAIIP+0Qt0WGBF3H5fz8HuhVRTCEMuHS"
-    "4Khu6ibR/6qER4AAQAAQABAAAAC2V4YW1wbGUuY29tAAD+CQA7AAtleGFtcGxlL"
-    "mNvbQAgoyQr+cP8mh42znOp1bjPxpLCBi4A0ftttr8MPXRJPBcAIAAEAAEAAQAA"
-    "AAD+DQA6QwAgACB3xsNUtSgipiYpUkW6OSrrg03I4zIENMFa0JR2+Mm1WwAEAAE"
-    "AAQALZXhhbXBsZS5jb20AAP4KADwDACAAIH0BoAdiJCX88gv8nYpGVX5BpGBa9y"
-    "T0Pac3Kwx6i8URAAQAAQABAAAAC2V4YW1wbGUuY29tAAD+DQA6QwAgACDcZIAx7"
-    "OcOiQuk90VV7/DO4lFQr5I3Zw9tVbK8MGw1dgAEAAEAAQALZXhhbXBsZS5jb20A"
-    "AA==";
-
-/* same as above but binary encoded */
-static unsigned char echconfig_bin_6_to_3[] = {
-    0x01, 0x79, 0xfe, 0x0d, 0x00, 0x3a, 0xc5, 0x00,
-    0x20, 0x00, 0x20, 0x66, 0xe7, 0x82, 0x92, 0x20,
-    0xf5, 0xee, 0xfa, 0x94, 0x2a, 0xda, 0x86, 0x35,
-    0xf3, 0x7c, 0x2d, 0xdf, 0x26, 0xf1, 0xec, 0x22,
-    0x9b, 0x05, 0x85, 0xf4, 0xa2, 0x03, 0xea, 0xe6,
-    0xee, 0x85, 0x7a, 0x00, 0x04, 0x00, 0x01, 0x00,
-    0x01, 0x00, 0x0b, 0x65, 0x78, 0x61, 0x6d, 0x70,
-    0x6c, 0x65, 0x2e, 0x63, 0x6f, 0x6d, 0x00, 0x00,
-    0xfe, 0x0a, 0x00, 0x3c, 0xd2, 0x00, 0x20, 0x00,
-    0x20, 0x83, 0xfe, 0xd1, 0x0b, 0x74, 0x58, 0x60,
-    0x45, 0xdc, 0x7e, 0x5f, 0xcf, 0xc1, 0xee, 0x85,
-    0x54, 0x53, 0x08, 0x43, 0x2e, 0x1d, 0x2e, 0x0a,
-    0x86, 0xee, 0xa2, 0x6d, 0x1f, 0xfa, 0xa8, 0x44,
-    0x78, 0x00, 0x04, 0x00, 0x01, 0x00, 0x01, 0x00,
-    0x00, 0x00, 0x0b, 0x65, 0x78, 0x61, 0x6d, 0x70,
-    0x6c, 0x65, 0x2e, 0x63, 0x6f, 0x6d, 0x00, 0x00,
-    0xfe, 0x09, 0x00, 0x3b, 0x00, 0x0b, 0x65, 0x78,
-    0x61, 0x6d, 0x70, 0x6c, 0x65, 0x2e, 0x63, 0x6f,
-    0x6d, 0x00, 0x20, 0xa3, 0x24, 0x2b, 0xf9, 0xc3,
-    0xfc, 0x9a, 0x1e, 0x36, 0xce, 0x73, 0xa9, 0xd5,
-    0xb8, 0xcf, 0xc6, 0x92, 0xc2, 0x06, 0x2e, 0x00,
-    0xd1, 0xfb, 0x6d, 0xb6, 0xbf, 0x0c, 0x3d, 0x74,
-    0x49, 0x3c, 0x17, 0x00, 0x20, 0x00, 0x04, 0x00,
-    0x01, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0xfe,
-    0x0d, 0x00, 0x3a, 0x43, 0x00, 0x20, 0x00, 0x20,
-    0x77, 0xc6, 0xc3, 0x54, 0xb5, 0x28, 0x22, 0xa6,
-    0x26, 0x29, 0x52, 0x45, 0xba, 0x39, 0x2a, 0xeb,
-    0x83, 0x4d, 0xc8, 0xe3, 0x32, 0x04, 0x34, 0xc1,
-    0x5a, 0xd0, 0x94, 0x76, 0xf8, 0xc9, 0xb5, 0x5b,
-    0x00, 0x04, 0x00, 0x01, 0x00, 0x01, 0x00, 0x0b,
-    0x65, 0x78, 0x61, 0x6d, 0x70, 0x6c, 0x65, 0x2e,
-    0x63, 0x6f, 0x6d, 0x00, 0x00, 0xfe, 0x0a, 0x00,
-    0x3c, 0x03, 0x00, 0x20, 0x00, 0x20, 0x7d, 0x01,
-    0xa0, 0x07, 0x62, 0x24, 0x25, 0xfc, 0xf2, 0x0b,
-    0xfc, 0x9d, 0x8a, 0x46, 0x55, 0x7e, 0x41, 0xa4,
-    0x60, 0x5a, 0xf7, 0x24, 0xf4, 0x3d, 0xa7, 0x37,
-    0x2b, 0x0c, 0x7a, 0x8b, 0xc5, 0x11, 0x00, 0x04,
-    0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0x00, 0x0b,
-    0x65, 0x78, 0x61, 0x6d, 0x70, 0x6c, 0x65, 0x2e,
-    0x63, 0x6f, 0x6d, 0x00, 0x00, 0xfe, 0x0d, 0x00,
-    0x3a, 0x43, 0x00, 0x20, 0x00, 0x20, 0xdc, 0x64,
-    0x80, 0x31, 0xec, 0xe7, 0x0e, 0x89, 0x0b, 0xa4,
-    0xf7, 0x45, 0x55, 0xef, 0xf0, 0xce, 0xe2, 0x51,
-    0x50, 0xaf, 0x92, 0x37, 0x67, 0x0f, 0x6d, 0x55,
-    0xb2, 0xbc, 0x30, 0x6c, 0x35, 0x76, 0x00, 0x04,
-    0x00, 0x01, 0x00, 0x01, 0x00, 0x0b, 0x65, 0x78,
-    0x61, 0x6d, 0x70, 0x6c, 0x65, 0x2e, 0x63, 0x6f,
-    0x6d, 0x00, 0x00
-};
-
-/* output from ``dig +short https defo.ie`` */
-static char *echconfig_dig_defo =
-    "1 . ech=AID+DQA88wAgACDhaXQ8S0pHHQ+bwApOPPDjai"
-    "YofLs24QPmmOLP8wHtKwAEAAEAAQANY292ZXIuZGVmby5p"
-    "ZQAA/g0APNsAIAAgcTC7pC/ZyxhymoL1p1oAdxfvVEgRji"
-    "68mhDE4vDZOzUABAABAAEADWNvdmVyLmRlZm8uaWUAAA==";
-
-/* output from ``dig +short https crypto.cloudflare.com`` */
-static char *echconfig_dig_cf = 
-    "1 . alpn=\"http/1.1,h2\" ipv4hint=162.159.137.85"
-    ",162.159.138.85 ech=AEX+DQBBCAAgACBsFeUbsAWR7x"
-    "WL1aB6P28ppSsj+joHhNUtj2qtwYh+NAAEAAEAAQASY2xv"
-    "dWRmbGFyZS1lY2guY29tAAA= ipv6hint=2606:4700:7:"
-    ":a29f:8955,2606:4700:7::a29f:8a55";
-
-/* 
- * output from ``dig +short https _11413._https.draft-13.esni.defo.ie``
- * One that's not from port-443 so has a targetName
- */
-static char *echconfig_dig_d13 = 
-    "1 draft-13.esni.defo.ie. ech=AMD+DQA8iwAgACAa9ok"
-    "y0hXrPm4WPTTxGOo4COT3xewntwtHiGRm3Bq0dAAEAAEAAQA"
-    "NY292ZXIuZGVmby5pZQAA/g0APJgAIAAg8wdx3+O2c0zcnPC"
-    "zcgSZ4dHbIZMiYEYUD0XVx3ufpEMABAABAAEADWNvdmVyLmR"
-    "lZm8uaWUAAP4NADwrACAAIG1DllvsgbEMrVtlfVU17EJog/G"
-    "aAjzTHUad6Cbh+X0wAAQAAQABAA1jb3Zlci5kZWZvLmllAAA=";
-
-/* 
- * check ASCII-hex handling via output from
- * ``dig +short +unknownformat https _11413._https.draft-13.esni.defo.ie``
- */
-static char *echconfig_dig_u_d13 = 
-    "\\# 223 00010864726166742D31330465736E6904646566"
-    "6F02696500000500 C200C0FE0D003C8B002000201AF689"
-    "32D215EB3E6E163D34F118EA38 08E4F7C5EC27B70B4788"
-    "6466DC1AB474000400010001000D636F7665 722E646566"
-    "6F2E69650000FE0D003C9800200020F30771DFE3B6734C "
-    "DC9CF0B3720499E1D1DB2193226046140F45D5C77B9FA44"
-    "300040001 0001000D636F7665722E6465666F2E6965000"
-    "0FE0D003C2B00200020 6D43965BEC81B10CAD5B657D553"
-    "5EC426883F19A023CD31D469DE826 E1F97D30000400010"
-    "001000D636F7665722E6465666F2E69650000";
-
-
-/*
- * output from ``dig +short https defo.ie``  catenated with
- * output from * ``dig +short https crypto.cloudflare.com``
- */
-static char *echconfig_dig_multi =
-    "1 . ech=AID+DQA88wAgACDhaXQ8S0pHHQ+bwApOPPDjai"
-    "YofLs24QPmmOLP8wHtKwAEAAEAAQANY292ZXIuZGVmby5p"
-    "ZQAA/g0APNsAIAAgcTC7pC/ZyxhymoL1p1oAdxfvVEgRji"
-    "68mhDE4vDZOzUABAABAAEADWNvdmVyLmRlZm8uaWUAAA==\n"
-    "1 . alpn=\"http/1.1,h2\" ipv4hint=162.159.137.85"
-    ",162.159.138.85 ech=AEX+DQBBCAAgACBsFeUbsAWR7x"
-    "WL1aB6P28ppSsj+joHhNUtj2qtwYh+NAAEAAEAAQASY2xv"
-    "dWRmbGFyZS1lY2guY29tAAA= ipv6hint=2606:4700:7:"
-    ":a29f:8955,2606:4700:7::a29f:8a55";
-
-/*
- * format used by echcli.sh test script
- */
-static char *echconfig_echcli = 
-    "0001000001000C08687474702F312E3102683200040008A"
-    "29F8955A29F8A55000500470045FE0D00410F0020002020"
-    "52D8F5B5FF684DC1009FF14AADE169B251D1F3317C81CA4"
-    "7ED24CEB08F4D040004000100010012636C6F7564666C61"
-    "72652D6563682E636F6D000000060020260647000007000"
-    "000000000A29F8955260647000007000000000000A29F8A"
-    "55";
-
 /* Shuffle to preferred order */
 enum OSSLTEST_ECH_FIND_runOrder
     {
@@ -491,6 +502,7 @@ enum OSSLTEST_ECH_FIND_runOrder
      OSSLTEST_ECH_FIND_DIG_U_D13,
      OSSLTEST_ECH_FIND_DIG_MULTI,
      OSSLTEST_ECH_FIND_ECHCLI,
+     OSSLTEST_ECH_FIND_NOECH,
 
      OSSLTEST_ECH_FIND_NTESTS        /* Keep NTESTS last */
     };
@@ -499,7 +511,7 @@ static int test_ech_find(int idx)
 {
     int i, nechs = 0, echtarg = 0;
     SSL_CTX *con = NULL;
-    unsigned char *enc_cfgs = NULL;
+    const unsigned char *enc_cfgs = NULL;
     size_t enc_cfgs_len = 0;
     unsigned char **cfgs = NULL;
     size_t *cfglens = NULL;
@@ -510,71 +522,79 @@ static int test_ech_find(int idx)
 
     switch (idx) {
     case OSSLTEST_ECH_FIND_B64:
-       enc_cfgs = echconfig_b64_6_to_3;
-       enc_cfgs_len = strlen((char *)enc_cfgs);
-       echtarg = 3;
-       break;
+        enc_cfgs = (const unsigned char *)echconfig_b64_6_to_3;
+        enc_cfgs_len = strlen((char *)enc_cfgs);
+        echtarg = 3;
+        break;
     case OSSLTEST_ECH_FIND_BIN:
-       enc_cfgs = echconfig_bin_6_to_3;
-       enc_cfgs_len = sizeof(echconfig_bin_6_to_3);
-       echtarg = 3;
-       break;
+        enc_cfgs = (const unsigned char *)echconfig_bin_6_to_3;
+        enc_cfgs_len = sizeof(echconfig_bin_6_to_3);
+        echtarg = 3;
+        break;
     case OSSLTEST_ECH_FIND_DIG_DEFO:
-       enc_cfgs = (unsigned char *)echconfig_dig_defo;
-       enc_cfgs_len = strlen(echconfig_dig_defo);
-       echtarg = 2;
-       break;
+        enc_cfgs = (const unsigned char *)echconfig_dig_defo;
+        enc_cfgs_len = strlen(echconfig_dig_defo);
+        echtarg = 2;
+        break;
     case OSSLTEST_ECH_FIND_DIG_CF:
-       enc_cfgs = (unsigned char *)echconfig_dig_cf;
-       enc_cfgs_len = strlen(echconfig_dig_cf);
-       echtarg = 1;
-       break;
+        enc_cfgs = (const unsigned char *)echconfig_dig_cf;
+        enc_cfgs_len = strlen(echconfig_dig_cf);
+        echtarg = 1;
+        break;
     case OSSLTEST_ECH_FIND_DIG_D13:
-       enc_cfgs = (unsigned char *)echconfig_dig_d13;
-       enc_cfgs_len = strlen(echconfig_dig_d13);
-       echtarg = 3;
-       break;
+        enc_cfgs = (const unsigned char *)echconfig_dig_d13;
+        enc_cfgs_len = strlen(echconfig_dig_d13);
+        echtarg = 3;
+        break;
     case OSSLTEST_ECH_FIND_DIG_U_D13:
-       enc_cfgs = (unsigned char *)echconfig_dig_u_d13;
-       enc_cfgs_len = strlen(echconfig_dig_u_d13);
-       echtarg = 3;
-       break;
+        enc_cfgs = (const unsigned char *)echconfig_dig_u_d13;
+        enc_cfgs_len = strlen(echconfig_dig_u_d13);
+        echtarg = 3;
+        break;
     case OSSLTEST_ECH_FIND_DIG_MULTI:
-       enc_cfgs = (unsigned char *)echconfig_dig_multi;
-       enc_cfgs_len = strlen(echconfig_dig_multi);
-       echtarg = 3;
-       break;
+        enc_cfgs = (const unsigned char *)echconfig_dig_multi;
+        enc_cfgs_len = strlen(echconfig_dig_multi);
+        echtarg = 3;
+        break;
     case OSSLTEST_ECH_FIND_ECHCLI:
-       enc_cfgs = (unsigned char *)echconfig_echcli;
-       enc_cfgs_len = strlen(echconfig_echcli);
-       echtarg = 1;
-       break;
+        enc_cfgs = (const unsigned char *)echconfig_echcli;
+        enc_cfgs_len = strlen(echconfig_echcli);
+        echtarg = 1;
+        break;
+    case OSSLTEST_ECH_FIND_NOECH:
+        enc_cfgs = (const unsigned char *)echconfig_no_ech;
+        enc_cfgs_len = strlen(echconfig_no_ech);
+        echtarg = 0;
+        break;
     default:
-        TEST_info("unknown option %d.",idx);
+        TEST_info("unknown option %d.", idx);
         SSL_CTX_free(con);
         return 0;
     }
 
     if (ossl_ech_find_echconfigs(&nechs, &cfgs, &cfglens,
                                  enc_cfgs, enc_cfgs_len) != 1) {
-        TEST_info("ossl_ech_find_echconfigs call %d failed.",idx);
+        TEST_info("ossl_ech_find_echconfigs call %d failed.", idx);
         if (verbose)
-            TEST_info("input was: %s",enc_cfgs);
+            TEST_info("input was: %s", enc_cfgs);
         SSL_CTX_free(con);
         return 0;
     }
     if (nechs != echtarg) {
-        TEST_info("ossl_ech_find_echconfigs call %d failed to return ECHs",idx);
+        TEST_info("ossl_ech_find_echconfigs call %d failed to return ECHs",
+                  idx);
         if (verbose)
-            TEST_info("input was: %s",enc_cfgs);
+            TEST_info("input was: %s", enc_cfgs);
         SSL_CTX_free(con);
         return 0;
     }
-    for (i = 0; i!= nechs; i++) {
+    if (echtarg == 0 && verbose)
+        TEST_info("No ECH found, as expected");
+    for (i = 0; i != nechs; i++) {
         if (SSL_CTX_ech_set1_echconfig(con, cfgs[i], cfglens[i]) != 1) {
-            TEST_info("SSL_ech_set1_echconifg call %d failed.",idx);
+            TEST_info("SSL_ech_set1_echconifg call %d failed.", idx);
             if (verbose)
-                TEST_info("input was: %s",enc_cfgs);
+                TEST_info("input was: %s", enc_cfgs);
             SSL_CTX_free(con);
             return 0;
         }
@@ -644,7 +664,10 @@ static int test_ech_add(int idx)
     switch (idx) {
     case OSSLTEST_ECH_B64_GUESS:
         /* Valid echconfig */
-        returned = SSL_ech_set1_echconfig(clientssl, echconfig, echconfiglen);
+        returned =
+            SSL_ech_set1_echconfig(clientssl,
+                                   (const unsigned char *)echconfig_b64_6_to_3,
+                                   strlen(echconfig_b64_6_to_3));
         if (!TEST_int_eq(returned, 1)) {
             TEST_info("OSSLTEST_ECH_B64_GUESS: failure for valid echconfig "
                       " and length\n");
@@ -662,7 +685,10 @@ static int test_ech_add(int idx)
 
     case OSSLTEST_ECH_B64_BASE64:
         /* Valid echconfig */
-        returned = SSL_ech_set1_echconfig(clientssl, echconfig, echconfiglen);
+        returned =
+            SSL_ech_set1_echconfig(clientssl,
+                                   (const unsigned char *)echconfig_b64_6_to_3,
+                                   strlen(echconfig_b64_6_to_3));
         if (!TEST_int_eq(returned, 1)) {
             TEST_info("OSSLTEST_ECH_B64_BASE64: failure for valid echconfig\n");
             goto end;
@@ -684,8 +710,10 @@ static int test_ech_add(int idx)
          * octet. If the excess was >1 then the caller is the
          * one making the error.
          */
-        returned = SSL_ech_set1_echconfig(clientssl, echconfig,
-                                          echconfiglen + 1);
+        returned =
+            SSL_ech_set1_echconfig(clientssl,
+                                   (const unsigned char *)echconfig_b64_6_to_3,
+                                   strlen(echconfig_b64_6_to_3) + 1);
         if (!TEST_int_ne(returned, 1)) {
             TEST_info("OSSLTEST_ECH_B64_GUESS_XS_COUNT: success despite excess "
                       "length (%d/%d)\n",
@@ -703,8 +731,10 @@ static int test_ech_add(int idx)
 
     case OSSLTEST_ECH_B64_GUESS_LO_COUNT:
         /* Valid echconfig, short length */
-        returned = SSL_ech_set1_echconfig(clientssl, echconfig,
-                                          echconfiglen / 2);
+        returned =
+            SSL_ech_set1_echconfig(clientssl,
+                                   (const unsigned char *)echconfig_b64_6_to_3,
+                                   strlen(echconfig_b64_6_to_3) / 2);
         if (!TEST_int_ne(returned, 1)) {
             TEST_info("OSSLTEST_ECH_B64_GUESS_LO_COUNT: success despite short "
                       "length (%d/%d)\n",
@@ -793,11 +823,15 @@ int setup_tests(void)
 
     bio_stdout = BIO_new_fp(stdout, BIO_NOCLOSE | BIO_FP_TEXT);
     bio_null = BIO_new(BIO_s_mem());
-    ADD_ALL_TESTS(basic_echconfig, 16);
+    ADD_TEST(tls_version_test);
+    /*
+     * we can iterate these ones - can be handy if there's some
+     * transient failure
+     */
+    ADD_ALL_TESTS(basic_echconfig, 2);
+    ADD_ALL_TESTS(ech_roundtrip_test, 2);
     ADD_ALL_TESTS(test_ech_add, OSSLTEST_ECH_NTESTS);
     ADD_ALL_TESTS(test_ech_find, OSSLTEST_ECH_FIND_NTESTS);
-    ADD_ALL_TESTS(ech_roundtrip_test, 32);
-    ADD_TEST(tls_version_test);
     return 1;
 err:
     return 0;
