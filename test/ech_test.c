@@ -91,7 +91,7 @@ out:
 }
 
 /* various echconfig handling calls */
-static int basic_echconfig(void)
+static int basic_echconfig(int idx)
 {
     int res = 1;
     unsigned char echconfig[400];
@@ -126,12 +126,12 @@ static int basic_echconfig(void)
                                             extvals, extlen)))
         goto err;
     echconfiglen = sizeof(echconfig);
-    privlen = 10; /* to short */
-    if (!TEST_false(ossl_ech_make_echconfig(echconfig, &echconfiglen,
-                                            priv, &privlen,
-                                            ech_version, max_name_length,
-                                            public_name, hpke_suite,
-                                            extvals, extlen)))
+    privlen = 10; /* too short */
+    if (TEST_true(ossl_ech_make_echconfig(echconfig, &echconfiglen,
+                                          priv, &privlen,
+                                          ech_version, max_name_length,
+                                          public_name, hpke_suite,
+                                          extvals, extlen)))
         goto err;
     echconfiglen = sizeof(echconfig);
     privlen = sizeof(priv);
@@ -223,7 +223,7 @@ err:
 }
 
 /* Test a basic roundtrip with ECH */
-static int ech_roundtrip_test(void)
+static int ech_roundtrip_test(int idx)
 {
     int res = 0;
     char *echkeyfile = NULL;
@@ -326,8 +326,7 @@ static int tls_version_test(void)
                                       &clientssl, NULL, NULL)))
         goto end;
     /* Now see a handshake fail */
-    if (!TEST_false(create_ssl_connection(serverssl, clientssl,
-                                          SSL_ERROR_NONE)))
+    if (!TEST_false(create_ssl_connection(serverssl, clientssl, SSL_ERROR_SSL)))
         goto end;
 
     /* all good */
@@ -425,6 +424,61 @@ static char *echconfig_dig_cf =
     "dWRmbGFyZS1lY2guY29tAAA= ipv6hint=2606:4700:7:"
     ":a29f:8955,2606:4700:7::a29f:8a55";
 
+/* 
+ * output from ``dig +short https _11413._https.draft-13.esni.defo.ie``
+ * One that's not from port-443 so has a targetName
+ */
+static char *echconfig_dig_d13 = 
+    "1 draft-13.esni.defo.ie. ech=AMD+DQA8iwAgACAa9ok"
+    "y0hXrPm4WPTTxGOo4COT3xewntwtHiGRm3Bq0dAAEAAEAAQA"
+    "NY292ZXIuZGVmby5pZQAA/g0APJgAIAAg8wdx3+O2c0zcnPC"
+    "zcgSZ4dHbIZMiYEYUD0XVx3ufpEMABAABAAEADWNvdmVyLmR"
+    "lZm8uaWUAAP4NADwrACAAIG1DllvsgbEMrVtlfVU17EJog/G"
+    "aAjzTHUad6Cbh+X0wAAQAAQABAA1jb3Zlci5kZWZvLmllAAA=";
+
+/* 
+ * check ASCII-hex handling via output from
+ * ``dig +short +unknownformat https _11413._https.draft-13.esni.defo.ie``
+ */
+static char *echconfig_dig_u_d13 = 
+    "\\# 223 00010864726166742D31330465736E6904646566"
+    "6F02696500000500 C200C0FE0D003C8B002000201AF689"
+    "32D215EB3E6E163D34F118EA38 08E4F7C5EC27B70B4788"
+    "6466DC1AB474000400010001000D636F7665 722E646566"
+    "6F2E69650000FE0D003C9800200020F30771DFE3B6734C "
+    "DC9CF0B3720499E1D1DB2193226046140F45D5C77B9FA44"
+    "300040001 0001000D636F7665722E6465666F2E6965000"
+    "0FE0D003C2B00200020 6D43965BEC81B10CAD5B657D553"
+    "5EC426883F19A023CD31D469DE826 E1F97D30000400010"
+    "001000D636F7665722E6465666F2E69650000";
+
+
+/*
+ * output from ``dig +short https defo.ie``  catenated with
+ * output from * ``dig +short https crypto.cloudflare.com``
+ */
+static char *echconfig_dig_multi =
+    "1 . ech=AID+DQA88wAgACDhaXQ8S0pHHQ+bwApOPPDjai"
+    "YofLs24QPmmOLP8wHtKwAEAAEAAQANY292ZXIuZGVmby5p"
+    "ZQAA/g0APNsAIAAgcTC7pC/ZyxhymoL1p1oAdxfvVEgRji"
+    "68mhDE4vDZOzUABAABAAEADWNvdmVyLmRlZm8uaWUAAA==\n"
+    "1 . alpn=\"http/1.1,h2\" ipv4hint=162.159.137.85"
+    ",162.159.138.85 ech=AEX+DQBBCAAgACBsFeUbsAWR7x"
+    "WL1aB6P28ppSsj+joHhNUtj2qtwYh+NAAEAAEAAQASY2xv"
+    "dWRmbGFyZS1lY2guY29tAAA= ipv6hint=2606:4700:7:"
+    ":a29f:8955,2606:4700:7::a29f:8a55";
+
+/*
+ * format used by echcli.sh test script
+ */
+static char *echconfig_echcli = 
+    "0001000001000C08687474702F312E3102683200040008A"
+    "29F8955A29F8A55000500470045FE0D00410F0020002020"
+    "52D8F5B5FF684DC1009FF14AADE169B251D1F3317C81CA4"
+    "7ED24CEB08F4D040004000100010012636C6F7564666C61"
+    "72652D6563682E636F6D000000060020260647000007000"
+    "000000000A29F8955260647000007000000000000A29F8A"
+    "55";
 
 /* Shuffle to preferred order */
 enum OSSLTEST_ECH_FIND_runOrder
@@ -433,6 +487,10 @@ enum OSSLTEST_ECH_FIND_runOrder
      OSSLTEST_ECH_FIND_BIN,
      OSSLTEST_ECH_FIND_DIG_DEFO,
      OSSLTEST_ECH_FIND_DIG_CF,
+     OSSLTEST_ECH_FIND_DIG_D13,
+     OSSLTEST_ECH_FIND_DIG_U_D13,
+     OSSLTEST_ECH_FIND_DIG_MULTI,
+     OSSLTEST_ECH_FIND_ECHCLI,
 
      OSSLTEST_ECH_FIND_NTESTS        /* Keep NTESTS last */
     };
@@ -471,23 +529,53 @@ static int test_ech_find(int idx)
        enc_cfgs_len = strlen(echconfig_dig_cf);
        echtarg = 1;
        break;
+    case OSSLTEST_ECH_FIND_DIG_D13:
+       enc_cfgs = (unsigned char *)echconfig_dig_d13;
+       enc_cfgs_len = strlen(echconfig_dig_d13);
+       echtarg = 3;
+       break;
+    case OSSLTEST_ECH_FIND_DIG_U_D13:
+       enc_cfgs = (unsigned char *)echconfig_dig_u_d13;
+       enc_cfgs_len = strlen(echconfig_dig_u_d13);
+       echtarg = 3;
+       break;
+    case OSSLTEST_ECH_FIND_DIG_MULTI:
+       enc_cfgs = (unsigned char *)echconfig_dig_multi;
+       enc_cfgs_len = strlen(echconfig_dig_multi);
+       echtarg = 3;
+       break;
+    case OSSLTEST_ECH_FIND_ECHCLI:
+       enc_cfgs = (unsigned char *)echconfig_echcli;
+       enc_cfgs_len = strlen(echconfig_echcli);
+       echtarg = 1;
+       break;
     default:
         TEST_info("unknown option %d.",idx);
+        SSL_CTX_free(con);
         return 0;
     }
 
     if (ossl_ech_find_echconfigs(&nechs, &cfgs, &cfglens,
                                  enc_cfgs, enc_cfgs_len) != 1) {
         TEST_info("ossl_ech_find_echconfigs call %d failed.",idx);
+        if (verbose)
+            TEST_info("input was: %s",enc_cfgs);
+        SSL_CTX_free(con);
         return 0;
     }
     if (nechs != echtarg) {
         TEST_info("ossl_ech_find_echconfigs call %d failed to return ECHs",idx);
+        if (verbose)
+            TEST_info("input was: %s",enc_cfgs);
+        SSL_CTX_free(con);
         return 0;
     }
     for (i = 0; i!= nechs; i++) {
         if (SSL_CTX_ech_set1_echconfig(con, cfgs[i], cfglens[i]) != 1) {
             TEST_info("SSL_ech_set1_echconifg call %d failed.",idx);
+            if (verbose)
+                TEST_info("input was: %s",enc_cfgs);
+            SSL_CTX_free(con);
             return 0;
         }
         OPENSSL_free(cfgs[i]);
@@ -705,10 +793,10 @@ int setup_tests(void)
 
     bio_stdout = BIO_new_fp(stdout, BIO_NOCLOSE | BIO_FP_TEXT);
     bio_null = BIO_new(BIO_s_mem());
-    ADD_TEST(basic_echconfig);
+    ADD_ALL_TESTS(basic_echconfig, 16);
     ADD_ALL_TESTS(test_ech_add, OSSLTEST_ECH_NTESTS);
     ADD_ALL_TESTS(test_ech_find, OSSLTEST_ECH_FIND_NTESTS);
-    ADD_TEST(ech_roundtrip_test);
+    ADD_ALL_TESTS(ech_roundtrip_test, 32);
     ADD_TEST(tls_version_test);
     return 1;
 err:

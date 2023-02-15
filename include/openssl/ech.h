@@ -35,35 +35,6 @@
 #  define OSSL_ECH_OUTERS_MAX 20 /* max extensions we compress via outer-exts */
 
 /*
- * To meet the needs of script-based tools (likely to deal with
- * base64 or ascii-hex encodings) and of libraries that might
- * handle binary values we supported various input formats for
- * encoded ECHConfigList API inputs:
- * - a binary (wireform) HTTPS/SVCB RRVALUE or just the ECHConfigList
- *   set of octets from that
- * - base64 encoded version of the above
- * - ascii-hex encoded version of the above
- * - DNS zone-file presentation-like format containing "ech=<b64-stuff>"
- * - we ccan also indicate the caller would like the library to guess
- *   which ecoding is being used
- *
- * This code supports catenated lists of such values (to make it easier
- * to feed values from scripts). Catenated binary values need no separator
- * as there is internal length information. Catenated ascii-hex or
- * base64 values need a separator semi-colon.
- *
- * All catenated values passed in a single call must use the same
- * encoding method.
- */
-#  define OSSL_ECH_FMT_GUESS     0  /* implementation will guess */
-#  define OSSL_ECH_FMT_BIN       1  /* catenated binary ECHConfigList */
-#  define OSSL_ECH_FMT_B64TXT    2  /* base64 ECHConfigList (';' separated) */
-#  define OSSL_ECH_FMT_ASCIIHEX  3  /* ascii-hex ECHConfigList (';' separated */
-#  define OSSL_ECH_FMT_HTTPSSVC  4  /* presentation form with "ech=<b64>" */
-
-#  define OSSL_ECH_FMT_SEPARATOR ";" /* separator str for catenation  */
-
-/*
  * ECH version. We only support draft-13 as of now.  As/if new versions
  * are added, those will be noted here.
  * This isn't directly used in APIs (but is present/checked-for in some

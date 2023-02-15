@@ -94,17 +94,19 @@ version is used for the session (e.g. TLS version 1.2) then ECH will not be
 used but the SSL session will be created as usual.
 
 SSL_ech_set1_echconfig() and SSL_CTX_ech_set1_echconfig() allow clients to
-provide a binary, ascii-hex or base64 encoded ECHConfigList in the I<val> (of
-size I<len>).  If all is well, the ECHConfig values (containing ECH public
-values) will be associated with the SSL connection I<s> and ECH will be
-attempted when a TLS session is established.  In the case of
-SSL_CTX_ech_set1_echconfig(), the ECH settings will be inherited when a new SSL
-connection is formed via L<SSL_new(3)>.
+provide one binary, ascii-hex or base64 encoded ECHConfigList in the I<val> (of
+size I<len>). For ascii-hex encodings, an exact number of octets must be
+provided (i.e., don't have an odd number of nibbles and do preface the value
+with a zero nibble if necessary). If all is well, the ECHConfig values
+(containing ECH public values) from the ECHConfigList will be associated with
+the SSL connection I<s> and ECH will be attempted when a TLS session is
+established.  In the case of SSL_CTX_ech_set1_echconfig(), the ECH settings
+will be inherited when a new SSL connection is formed via L<SSL_new(3)>.
 
 If multiple calls to SSL_ech_set1_echconfig() are made for the same I<SSL> (or
 resp. I<SSL_CTX>), then the ECHConfig values will be accumulated.
-SSL_ech_get_info() (see below) can be used to determine how many ECHConfig
-public values have been successfully decoded.
+SSL_ech_get_info() (see below) can be used to determine deails of the ECHConfig
+values that have been successfully decoded.
 
 ECH public values can contain a list of versioned values, and not
 all versions are supported. Versions that are unsupported will be
@@ -443,26 +445,6 @@ Some externally visible limits:
 
 =back
 
-Supported formats for encodings of ECHConfig and SVCB values read from DNS
-or from files:
-
-=over 4
-
-=item B<OSSL_ECH_FMT_GUESS>     0, implementation will guess
-
-=item B<OSSL_ECH_FMT_BIN>       1, catenated binary ECHConfigs
-
-=item B<OSSL_ECH_FMT_B64TXT>    2, base64 ECHConfigs (';' separated)
-
-=item B<OSSL_ECH_FMT_ASCIIHEX>  3, ascii-hex ECHConfigs (';' separated
-
-=item B<OSSL_ECH_FMT_HTTPSSVC>  4, presentation form with "ech=<b64>"
-
-=item B<OSSL_ECH_FMT_SEPARATOR>  ";" separator str for catenation
-
-=back
-
-
 ECH version - we only support draft-13 as of now.  As/if new versions
 are added, those will be noted here.
 This isn't directly used in APIs (but is present/checked-for in some
@@ -504,7 +486,7 @@ Return codes from SSL_ech_get_status
 
 =head1 RETURN VALUES
 
-SSL_ech_set1_echconfig(), SSL_ech_set1_svcb(),
+SSL_ech_set1_echconfig(),
 SSL_ech_set_server_names(), SSL_ech_set_outer_server_name(),
 SSL_ech_set_outer_alpn_protos(),
 OSSL_ECH_INFO_print(),
@@ -514,7 +496,8 @@ SSL_ech_get_retry_config(),
 SSL_CTX_ech_set1_echconfig(), SSL_CTX_ech_server_get_key_status(),
 SSL_CTX_ech_server_flush_keys(),
 SSL_CTX_ech_server_enable_buffer(), SSL_CTX_ech_server_enable_dir(),
-SSL_CTX_ech_raw_decrypt() and ossl_ech_make_echconfig()
+SSL_CTX_ech_raw_decrypt(),
+ossl_ech_make_echconfig() and ossl_ech_find_echconfigs()
 all return 1 for success and 0 in the case of failure.
 
 SSL_CTX_ech_server_enable_file() returns 1 for success, zero
