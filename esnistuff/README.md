@@ -22,6 +22,11 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
+- 20230215: did a fairly big refactor of the ECHConfigList
+  ingestion code, seems ok but more testing needed and 
+  the CI stuff will probably not like it. OTOH, seems like
+  an improvement:-)
+
 - 20230126: added ``doc/designs/ech-api.md`` - that's just a starter
   for that doc as of now.
 
