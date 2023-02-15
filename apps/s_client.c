@@ -2417,7 +2417,7 @@ int s_client_main(int argc, char **argv)
             goto opthelp;
         }
         if (nechs == 0) {
-            BIO_printf(bio_err, "%s: no ECH decode provided no keys.\n", prog);
+            BIO_printf(bio_err, "%s: ECH decode provided no keys.\n", prog);
             goto opthelp;
         }
         for (ii = 0; ii!= nechs; ii++) {

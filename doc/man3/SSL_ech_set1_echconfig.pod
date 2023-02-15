@@ -20,7 +20,7 @@ ossl_ech_make_echconfig, ossl_ech_find_echconfigs
 
  #include <openssl/ech.h>
 
- int SSL_ech_set1_echconfig(SSL *s, unsigned char *val, size_t len);
+ int SSL_ech_set1_echconfig(SSL *s, const unsigned char *val, size_t len);
  int SSL_ech_set_server_names(SSL *s, const char *inner_name,
                               const char *outer_name, int no_outer);
  int SSL_ech_set_outer_server_name(SSL *s, const char *outer_name, int no_outer);
@@ -39,7 +39,8 @@ ossl_ech_make_echconfig, ossl_ech_find_echconfigs
 
  int SSL_ech_get_retry_config(SSL *s, const unsigned char **ec, size_t *eclen);
 
- int SSL_CTX_ech_set1_echconfig(SSL_CTX *ctx, unsigned char *val, size_t len);
+ int SSL_CTX_ech_set1_echconfig(SSL_CTX *ctx, const unsigned char *val,
+                                size_t len);
  int SSL_CTX_ech_server_get_key_status(SSL_CTX *ctx, int *numkeys);
  int SSL_CTX_ech_server_flush_keys(SSL_CTX *ctx, unsigned int age);
  int SSL_CTX_ech_server_enable_file(SSL_CTX *ctx, const char *file);
@@ -63,7 +64,7 @@ ossl_ech_make_echconfig, ossl_ech_find_echconfigs
                              const unsigned char *extvals, size_t extlen);
  int ossl_ech_find_echconfigs(int *num_echs,
                               unsigned char ***echconfigs, size_t **echlens,
-                              unsigned char *val, size_t len);
+                              const unsigned char *val, size_t len);
 
 =head1 DESCRIPTION
 

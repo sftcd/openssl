@@ -110,6 +110,8 @@
 # define OSSL_ECH_FMT_HTTPSSVC  4  /* presentation form with "ech=<b64>" */
 # define OSSL_ECH_FMT_DIG_UNK   5  /* dig unknown format (mainly ascii-hex) */
 # define OSSL_ECH_FMT_DNS_WIRE  6  /* DNS wire format (binary + other) */
+/* special case: HTTPS RR presentation form with no "ech=<b64>" */
+# define OSSL_ECH_FMT_HTTPSSVC_NO_ECH 7
 
 # define OSSL_ECH_B64_SEPARATOR " "    /* separator str for b64 decode  */
 # define OSSL_ECH_FMT_LINESEP   "\r\n" /* separator str for lines  */
@@ -286,10 +288,13 @@ static const char *B64_alphabet =
     "\x6b\x6c\x6d\x6e\x6f\x70\x71\x72\x73\x74\x75\x76\x77\x78\x79\x7a\x30\x31"
     "\x32\x33\x34\x35\x36\x37\x38\x39\x2b\x2f\x3d\x3b";
 /*
- * telltale for ECH HTTPS/SVCB in presentation format, as per svcb spec
- * "ech="
+ * telltales for ECH HTTPS/SVCB in presentation format, as per svcb spec
+ * 1: "ech=" 2: "alpn=" 3: "ipv4hint=" 4: "ipv6hint="
  */
-static const char *httpssvc_telltale = "\x65\x63\x68\x3d";
+static const char *httpssvc_telltale1 = "\x65\x63\x68\x3d";
+static const char *httpssvc_telltale2 = "\x61\x6c\x70\x6e\x3d";
+static const char *httpssvc_telltale3 = "\x69\x70\x76\x34\x68\x69\x6e\x74\x3d";
+static const char *httpssvc_telltale4 = "\x69\x70\x76\x36\x68\x69\x6e\x74\x3d";
 
 /*
  * telltale for ECH HTTPS/SVCB in dig unknownformat (i.e. ascii-hex with a
@@ -423,7 +428,8 @@ err:
  * If the application can't handle that, then it ought not use
  * ossl_ech_find_echconfigs()
  */
-static int ech_guess_fmt(size_t eklen, unsigned char *rrval, int *guessedfmt)
+static int ech_guess_fmt(size_t eklen, const unsigned char *rrval,
+                         int *guessedfmt)
 {
     size_t span = 0;
 
@@ -440,8 +446,14 @@ static int ech_guess_fmt(size_t eklen, unsigned char *rrval, int *guessedfmt)
         *guessedfmt = OSSL_ECH_FMT_DIG_UNK;
         return 1;
     }
-    if (strstr((char *)rrval, httpssvc_telltale)) {
+    if (strstr((char *)rrval, httpssvc_telltale1)) {
         *guessedfmt = OSSL_ECH_FMT_HTTPSSVC;
+        return 1;
+    }
+    if (strstr((char *)rrval, httpssvc_telltale2)
+        || strstr((char *)rrval, httpssvc_telltale3)
+        || strstr((char *)rrval, httpssvc_telltale4)) {
+        *guessedfmt = OSSL_ECH_FMT_HTTPSSVC_NO_ECH;
         return 1;
     }
     span = strspn((char *)rrval, AH_alphabet);
@@ -528,11 +540,19 @@ static int ah_encode(char *out, size_t outsize,
  * @brief Decode the first ECHConfigList from a binary buffer
  * @param binbuf is the buffer with the encoding
  * @param binblen is the length of binbunf
+ * @param ret_er NULL on error or no ECHConfig found, or a pointer to
+ *         an ECHConfigList structure
+ * @param new_echs returns the number of ECHConfig's found
  * @param leftover is the number of unused octets from the input
- * @return NULL on error, or a pointer to an ECHConfigList structure
+ * @return 1 for success, zero for error
+ *
+ * Note that new_echs can be zero at the end and that's not an error
+ * if we got a well-formed ECHConfigList but that contained no
+ * ECHConfig versions that we support
  */
-static ECHConfigList *ECHConfigList_from_binary(unsigned char *binbuf,
-                                                size_t binblen, int *leftover)
+static int ECHConfigList_from_binary(unsigned char *binbuf, size_t binblen,
+                                     ECHConfigList **ret_er, int *new_echs,
+                                     int *leftover)
 {
     ECHConfigList *er = NULL; /* ECHConfigList record */
     ECHConfig *te = NULL; /* Array of ECHConfig to be embedded in that */
@@ -542,7 +562,8 @@ static ECHConfigList *ECHConfigList_from_binary(unsigned char *binbuf,
     unsigned int olen = 0;
     size_t not_to_consume = 0;
 
-    if (leftover == NULL || binbuf == NULL || binblen == 0) {
+    if (ret_er == NULL || new_echs == NULL || leftover == NULL
+        || binbuf == NULL || binblen == 0) {
         ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
         goto err;
     }
@@ -840,16 +861,12 @@ static ECHConfigList *ECHConfigList_from_binary(unsigned char *binbuf,
         goto err;
     }
 
-    /*
-     * if none of the offered ECHConfig values work (e.g. bad versions)
-     * then that's broken
-     */
-    if (rind == 0) {
-        ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
-        goto err;
-    }
     /* Success - make up return value */
+    *new_echs = rind;
     *leftover = PACKET_remaining(&pkt);
+    if (rind == 0) {
+        return 1;
+    }
     er = (ECHConfigList *)OPENSSL_malloc(sizeof(ECHConfigList));
     if (er == NULL)
         goto err;
@@ -862,19 +879,19 @@ static ECHConfigList *ECHConfigList_from_binary(unsigned char *binbuf,
     if (er->encoded == NULL)
         goto err;
     memcpy(er->encoded, binbuf, binblen);
-    return er;
-
+    *ret_er = er;
+    return 1;
 err:
     ECHConfigList_free(er);
     OPENSSL_free(er);
-    if (te) {
+    if (te != NULL) {
         int teind;
 
         for (teind = 0; teind != rind; teind++)
             ECHConfig_free(&te[teind]);
         OPENSSL_free(te);
     }
-    return NULL;
+    return 0;
 }
 
 /*
@@ -944,38 +961,44 @@ static int local_decode_rdata_name(unsigned char **buf, size_t *remaining,
  * @return 1 for success, 0 for error
  *
  * We may only get one ECHConfig, per list, but there can be more.
+ * We want each element of the output SSL_ECH array to contain
+ * exactly one ECHConfig so that a client could sensibly down
+ * select to the one they prefer later, and so that we have the
+ * specific encoded value of that ECHConfig for inclusion in the
+ * HPKE info parameter when finally encrypting or decrypting an
+ * inner ClientHello.
  */
 static int ech_decode_and_flatten(int *nechs_in, SSL_ECH **retech_in,
                                   unsigned char *binbuf, size_t binlen)
 {
     ECHConfigList *er = NULL;
     SSL_ECH *ts = NULL;
+    int new_echs = 0;
     int leftover = 0;
     int cfgind;
     size_t nechs = *nechs_in;
     SSL_ECH *retech = *retech_in;
 
-    er = ECHConfigList_from_binary(binbuf, binlen, &leftover);
-    if (er == NULL) {
+    if (ECHConfigList_from_binary(binbuf, binlen,
+                                  &er, &new_echs, &leftover) != 1) {
         ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
         goto err;
+    }
+    if (new_echs == 0) {
+        return 1;
     }
     ts = OPENSSL_realloc(retech, (nechs + er->nrecs) * sizeof(SSL_ECH));
     if (ts == NULL)
         goto err;
     retech = ts;
-    /*
-     * We flatten the storage so each SSL_ECH has exactly
-     * one ECHConfig which has exactly one public key, thus enabling
-     * the application to sensibly downselect if they wish.
-     */
     for (cfgind = 0; cfgind != er->nrecs; cfgind++) {
         ECHConfig *ec = NULL;
 
         /*
-         * inner and/or outer name could've been set via API
-         * as ECHConfigList valuess are being accumulated - that'd
-         * not be clever but is possible, so we better copy such
+         * inner and/or outer name and no_outer could have been set
+         * via API as ECHConfigList values are being accumulated, e.g.
+         * from a multivalued DNS RRset - that'd not be clever, or
+         * common, but is possible, so we better copy such
          */
         if (nechs > 0 && retech[nechs - 1].inner_name != NULL) {
             retech[nechs + cfgind].inner_name =
@@ -993,7 +1016,12 @@ static int ech_decode_and_flatten(int *nechs_in, SSL_ECH **retech_in,
         } else {
             retech[nechs + cfgind].outer_name = NULL;
         }
-        retech[nechs + cfgind].no_outer = 0;
+        if (nechs > 0) {
+            retech[nechs + cfgind].no_outer = retech[nechs - 1].no_outer;
+        } else {
+            retech[nechs + cfgind].no_outer = 0;
+        }
+        /* next 3 fields are really only used when private key present */
         retech[nechs + cfgind].pemfname = NULL;
         retech[nechs + cfgind].loadtime = 0;
         retech[nechs + cfgind].keyshare = NULL;
@@ -1006,8 +1034,9 @@ static int ech_decode_and_flatten(int *nechs_in, SSL_ECH **retech_in,
         if (ec == NULL)
             goto err;
         *ec = er->recs[cfgind];
+        /* avoid double free */
         memset(&er->recs[cfgind], 0, sizeof(ECHConfig));
-        /* note - shallow copy is correct on next line */
+        /* shallow copy is correct on next line */
         retech[nechs + cfgind].cfg->recs = ec;
         retech[nechs + cfgind].cfg->encoded_len =
             er->encoded_len;
@@ -1037,7 +1066,7 @@ err:
  * @param echs is a pointer to an array of decoded SSL_ECH
  * @return is 1 for success, error otherwise
  */
-static int local_ech_add(int ekfmt, size_t len, unsigned char *val,
+static int local_ech_add(int ekfmt, size_t len, const unsigned char *val,
                          int *num_echs, SSL_ECH **echs)
 {
     int detfmt = OSSL_ECH_FMT_GUESS;
@@ -1048,7 +1077,7 @@ static int local_ech_add(int ekfmt, size_t len, unsigned char *val,
     unsigned char *ekcpy = NULL;
     int nlens = 0;
     SSL_ECH *retechs = NULL;
-    unsigned char *ekval = val;
+    const unsigned char *ekval = val;
     size_t eklen = len;
 
     if (len == 0 || val == NULL || num_echs == NULL) {
@@ -1075,6 +1104,7 @@ static int local_ech_add(int ekfmt, size_t len, unsigned char *val,
         break;
         /* not supported here */
     case OSSL_ECH_FMT_HTTPSSVC:
+    case OSSL_ECH_FMT_HTTPSSVC_NO_ECH:
     case OSSL_ECH_FMT_DIG_UNK:
     default:
         ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
@@ -1131,10 +1161,10 @@ static int local_ech_add(int ekfmt, size_t len, unsigned char *val,
         goto err;
     }
 
-    if (*num_echs == 0) {
+    if (nlens > 0 && *num_echs == 0) {
         *num_echs = nlens;
         *echs = retechs;
-    } else {
+    } else if (nlens > 0) {
         SSL_ECH *tech = NULL;
 
         tech = OPENSSL_realloc(*echs, (nlens + *num_echs) * sizeof(SSL_ECH));
@@ -1167,13 +1197,13 @@ err:
  * We support the various OSSL_ECH_FMT_* type formats
  */
 static int ech_finder(int *num_echs, SSL_ECH **echs,
-                      size_t len, unsigned char *val)
+                      size_t len, const unsigned char *val)
 {
     int rv = 0;
     int detfmt = OSSL_ECH_FMT_GUESS, origfmt;
     int multiline = 0;
     int linesdone = 0;
-    unsigned char *lval = val;
+    unsigned char *lval = (unsigned char *)val;
     size_t llen = len;
     unsigned char *binbuf = NULL;
     size_t binlen = 0;
@@ -1186,6 +1216,9 @@ static int ech_finder(int *num_echs, SSL_ECH **echs,
     if (ech_guess_fmt(len, val, &detfmt) != 1) {
         ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
         return rv;
+    }
+    if (detfmt == OSSL_ECH_FMT_HTTPSSVC_NO_ECH) {
+        return 1;
     }
     origfmt = detfmt;
 
@@ -1344,16 +1377,16 @@ static int ech_finder(int *num_echs, SSL_ECH **echs,
             /* find telltale and fall through to b64 */
             char *ekstart = NULL;
 
-            ekstart = strstr((char *)lval, httpssvc_telltale);
+            ekstart = strstr((char *)lval, httpssvc_telltale1);
             if (ekstart == NULL) {
                 nonehere = 1;
             } else {
                 /* point ekstart at b64 encoded value */
-                if (strlen(ekstart) <= strlen(httpssvc_telltale)) {
+                if (strlen(ekstart) <= strlen(httpssvc_telltale1)) {
                     ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
                     goto err;
                 }
-                ekstart += strlen(httpssvc_telltale);
+                ekstart += strlen(httpssvc_telltale1);
                 llen = strcspn(ekstart, " \n");
                 lval = (unsigned char *)ekstart;
                 detfmt = OSSL_ECH_FMT_B64TXT;
@@ -4792,7 +4825,7 @@ int OSSL_ECH_INFO_print(BIO *out, OSSL_ECH_INFO *se, int count)
     return 1;
 }
 
-int SSL_ech_set1_echconfig(SSL *ssl, unsigned char *val, size_t len)
+int SSL_ech_set1_echconfig(SSL *ssl, const unsigned char *val, size_t len)
 {
     SSL_CONNECTION *s = SSL_CONNECTION_FROM_SSL(ssl);
     SSL_ECH *echs = NULL;
@@ -4836,7 +4869,8 @@ int SSL_ech_set1_echconfig(SSL *ssl, unsigned char *val, size_t len)
     return 1;
 }
 
-int SSL_CTX_ech_set1_echconfig(SSL_CTX *ctx, unsigned char *val, size_t len)
+int SSL_CTX_ech_set1_echconfig(SSL_CTX *ctx, const unsigned char *val,
+                               size_t len)
 {
     SSL_ECH *echs = NULL;
     SSL_ECH *tmp = NULL;
@@ -5846,7 +5880,7 @@ err:
 
 int ossl_ech_find_echconfigs(int *num_echs,
                              unsigned char ***echconfigs, size_t **echlens,
-                             unsigned char *val, size_t len)
+                             const unsigned char *val, size_t len)
 {
     SSL_ECH *new_echs = NULL;
     int rv = 0, i, num_new = 0;

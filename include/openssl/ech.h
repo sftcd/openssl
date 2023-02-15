@@ -72,8 +72,9 @@ typedef struct ossl_ech_info_st {
 /*
  * API calls based around SSL* values - mostly for clients
  */
-int SSL_ech_set1_echconfig(SSL *ssl, unsigned char *val, size_t len);
-int SSL_CTX_ech_set1_echconfig(SSL_CTX *ctx, unsigned char *val, size_t len);
+int SSL_ech_set1_echconfig(SSL *ssl, const unsigned char *val, size_t len);
+int SSL_CTX_ech_set1_echconfig(SSL_CTX *ctx, const unsigned char *val,
+                               size_t len);
 
 int SSL_ech_set_server_names(SSL *s, const char *inner_name,
                              const char *outer_name, int no_outer);
@@ -123,7 +124,7 @@ int ossl_ech_make_echconfig(unsigned char *echconfig, size_t *echconfiglen,
 
 int ossl_ech_find_echconfigs(int *num_echs,
                              unsigned char ***echconfigs, size_t **echlens,
-                             unsigned char *val, size_t len);
+                             const unsigned char *val, size_t len);
 
 # endif
 #endif
