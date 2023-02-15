@@ -474,17 +474,17 @@ static int ech_guess_fmt(size_t eklen, unsigned char *rrval, int *guessedfmt)
 static int ah_decode(size_t ahlen, const char *ah,
                      size_t *blen, unsigned char **buf)
 {
-    int i = 0, j = 0;
+    size_t i = 0, j = 0;
     unsigned char *lbuf = NULL;
 
-    if (ahlen == 0 || ah == NULL || blen == NULL || buf == NULL)
+    if (ahlen < 2 || ah == NULL || blen == NULL || buf == NULL)
         return 0;
     lbuf = OPENSSL_malloc(ahlen / 2 + 1);
     if (lbuf == NULL)
         return 0;
     for (i = 0; i <= (ahlen - 1); i += 2) {
         if (ah[i] == ' ') {
-            i--; /* 'cause we increment by 2 */
+            i--; /* because we increment by 2 */
             continue;
         }
         if (j >= (ahlen / 2 + 1)) {
