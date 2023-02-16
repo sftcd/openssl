@@ -261,21 +261,101 @@ static TEST_ECHCONFIG test_echconfigs[] = {
     { echconfig_ah_bad_ver, sizeof(echconfig_ah_bad_ver) -1, 0 }
 };
 
-/* the next set of samples are syntactically invalid */
-
 /*
- * An ascii-hex ECHConfigList with one ECHConfig
- * but with the wrong length for the public key
+ * The next set of samples are syntactically invalid
+ * Proper fuzzing is still needed but no harm having
+ * these too. Generally these are bad version of
+ * echconfig_ah with some octet(s) replaced by 0xFF
+ * values. Other hex letters are lowercase so you
+ * can find the altered octet(s).
  */
-static const unsigned char bad_echconfig_pklen[] =
-    "003efeff003abb0020003062c7607bf2"
+
+/* wrong oveall length (replacing 0x3e with 0xFF) */
+static const unsigned char bad_echconfig_olen[] =
+    "00FFfe0d003abb002000FF62c7607bf2"
     "c5fe1108446f132ca4339cf19df1552e"
     "5a42960fd02c697360163c0004000100"
     "01000b6578616d706c652e636f6d0000";
 
+/* wrong ECHConfig inner length (replacing 0x3a with 0xFF) */
+static const unsigned char bad_echconfig_ilen[] =
+    "003efe0d00FFbb0020002062c7607bf2"
+    "c5fe1108446f132ca4339cf19df1552e"
+    "5a42960fd02c697360163c0004000100"
+    "01000b6578616d706c652e636f6d0000";
+
+/* wrong length for public key (replaced 0x20 with 0xFF) */
+static const unsigned char bad_echconfig_pklen[] =
+    "003efe0d003abb002000FF62c7607bf2"
+    "c5fe1108446f132ca4339cf19df1552e"
+    "5a42960fd02c697360163c0004000100"
+    "01000b6578616d706c652e636f6d0000";
+
+/* wrong length for ciphersuites (replaced 0x04 with 0xFF) */
+static const unsigned char bad_echconfig_cslen[] =
+    "003efe0d003abb0020002062c7607bf2"
+    "c5fe1108446f132ca4339cf19df1552e"
+    "5a42960fd02c697360163c00FF000100"
+    "01000b6578616d706c652e636f6d0000";
+
+/* wrong length for public name (replaced 0x0b with 0xFF) */
+static const unsigned char bad_echconfig_pnlen[] =
+    "003efe0d003abb0020002062c7607bf2"
+    "c5fe1108446f132ca4339cf19df1552e"
+    "5a42960fd02c697360163c0004000100"
+    "0100FF6578616d706c652e636f6d0000";
+
+/* non-zero extension length (0xFF at end) but no extension value */
+static const unsigned char bad_echconfig_extlen[] =
+    "003efe0d003abb0020002062c7607bf2"
+    "c5fe1108446f132ca4339cf19df1552e"
+    "5a42960fd02c697360163c0004000100"
+    "01000b6578616d706c652e636f6d00FF";
+
 static TEST_ECHCONFIG bad_echconfigs[] = {
-    { bad_echconfig_pklen, sizeof(bad_echconfig_pklen) -1, 0 }
+    { bad_echconfig_olen, sizeof(bad_echconfig_olen) -1, 0 },
+    { bad_echconfig_ilen, sizeof(bad_echconfig_ilen) -1, 0 },
+    { bad_echconfig_pklen, sizeof(bad_echconfig_pklen) -1, 0 },
+    { bad_echconfig_cslen, sizeof(bad_echconfig_cslen) -1, 0 },
+    { bad_echconfig_pnlen, sizeof(bad_echconfig_pnlen) -1, 0 },
+    { bad_echconfig_extlen, sizeof(bad_echconfig_extlen) -1, 0 }
 };
+
+# ifdef NOTYET
+/* will add a test using these shortly but not yet */
+
+/*
+ * The next set have bad kem, kdf or aead values - this time with
+ * 0xAA as the replacement value
+ */
+
+/* wrong KEM ID (replaced 0x20 with 0xFF) */
+static const unsigned char bad_echconfig_kemid[] =
+    "003efe0d003abb00AA002062c7607bf2"
+    "c5fe1108446f132ca4339cf19df1552e"
+    "5a42960fd02c697360163c0004000100"
+    "01000b6578616d706c652e636f6d0000";
+
+/* wrong KDF ID (replaced 0x01 with 0xFF) */
+static const unsigned char bad_echconfig_kdfid[] =
+    "003efe0d003abb0020002062c7607bf2"
+    "c5fe1108446f132ca4339cf19df1552e"
+    "5a42960fd02c697360163c000400AA00"
+    "01000b6578616d706c652e636f6d0000";
+
+/* wrong AEAD ID (replaced 0x01 with 0xFF) */
+static const unsigned char bad_echconfig_aeadid[] =
+    "003efe0d003abb0020002062c7607bf2"
+    "c5fe1108446f132ca4339cf19df1552e"
+    "5a42960fd02c697360163c0001000100"
+    "AA000b6578616d706c652e636f6d0000";
+
+static TEST_ECHCONFIG bad_echconfigs_suites[] = {
+    { bad_echconfig_kemid, sizeof(bad_echconfig_kemid) -1, 0 },
+    { bad_echconfig_kdfid, sizeof(bad_echconfig_kdfid) -1, 0 },
+    { bad_echconfig_aeadid, sizeof(bad_echconfig_aeadid) -1, 0 },
+};
+# endif
 
 /*
  * return the bas64 encoded ECHConfigList from an ECH PEM file
@@ -598,25 +678,22 @@ static int test_ech_find(int idx)
                                        TLS_server_method())))
         goto end;
     t = &test_echconfigs[idx];
-    if (ossl_ech_find_echconfigs(&nechs, &cfgs, &cfglens,
-                                 t->encoded, t->encoded_len) != 1) {
-        TEST_info("ossl_ech_find_echconfigs call %d failed.", idx);
+    if (!TEST_true(ossl_ech_find_echconfigs(&nechs, &cfgs, &cfglens,
+                                            t->encoded, t->encoded_len))) {
         if (verbose)
             TEST_info("input was: %s", (char *)t->encoded);
         goto end;
     }
-    if (nechs != t->expected) {
-        TEST_info("ossl_ech_find_echconfigs call %d failed to return ECHs "
-                  "(got %d instead of %d)", idx, nechs, t->expected);
+    if (!TEST_int_eq(nechs, t->expected)) {
         if (verbose)
-            TEST_info("input was: %s", (char *)t->encoded);
+            TEST_info("input was: %s, (got %d instead of %d)",
+                      (char *)t->encoded, nechs, t->expected);
         goto end;
     }
     if (echtarg == 0 && verbose)
         TEST_info("No ECH found, as expected");
     for (i = 0; i != nechs; i++) {
-        if (SSL_CTX_ech_set1_echconfig(con, cfgs[i], cfglens[i]) != 1) {
-            TEST_info("SSL_ech_set1_echconifg call %d failed.", idx);
+        if (!TEST_true(SSL_CTX_ech_set1_echconfig(con, cfgs[i], cfglens[i]))) {
             if (verbose)
                 TEST_info("input was: %s", (char *)t->encoded);
             goto end;
@@ -639,7 +716,7 @@ end:
  */
 static int test_bad_find(int idx)
 {
-    int rv = 0, nechs = 0;
+    int rv = 0, i, nechs = 0;
     SSL_CTX *con = NULL;
     unsigned char **cfgs = NULL;
     size_t *cfglens = NULL;
@@ -649,20 +726,28 @@ static int test_bad_find(int idx)
                                        TLS_server_method())))
         goto end;
     t = &bad_echconfigs[idx];
-    if (ossl_ech_find_echconfigs(&nechs, &cfgs, &cfglens,
-                                 t->encoded, t->encoded_len) == 1) {
+    if (!TEST_false(ossl_ech_find_echconfigs(&nechs, &cfgs, &cfglens,
+                                             t->encoded, t->encoded_len))) {
         if (verbose)
             TEST_info("find worked for: %s", (char *)t->encoded);
         if (nechs != 0 || cfgs != NULL || cfglens != NULL) {
-            TEST_info("ossl_ech_find_echconfigs call %d produced output "
-                    "when it shouldn't!", idx);
+            TEST_info("ossl_ech_find_echconfigs call %d produced output (%d) "
+                      "when it shouldn't!", idx + 1, nechs);
+            /* free stuff we shouldn't have gotten;-( */
+            OPENSSL_free(cfglens);
+            for (i = 0; i != nechs; i++)
+                OPENSSL_free(cfgs[i]);
+            OPENSSL_free(cfgs);
             goto end;
-        } else if (verbose)
+        } else if (verbose) {
             TEST_info("no output produced though (phew!) :-)");
+        }
+    } else if (verbose) {
+        TEST_info("find failed for: %s", (char *)t->encoded);
     }
     rv = 1;
 end:
-    /* we won't try free cfgs etc - let's leak if we fail! */
+    SSL_CTX_free(con);
     if (rv == 1 && verbose)
         TEST_info("test_bad_find: success\n");
     return rv;
@@ -883,6 +968,9 @@ int setup_tests(void)
     ADD_ALL_TESTS(test_ech_add, OSSLTEST_ECH_NTESTS);
     ADD_ALL_TESTS(test_ech_find, OSSL_NELEM(test_echconfigs));
     ADD_ALL_TESTS(test_bad_find, OSSL_NELEM(bad_echconfigs));
+# ifdef NOTYET
+    ADD_ALL_TESTS(test_bad_suites, OSSL_NELEM(bad_echconfigs_suites));
+# endif
     return 1;
 err:
     return 0;
