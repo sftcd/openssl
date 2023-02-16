@@ -35,14 +35,18 @@ static char *cert = NULL;
 static char *privkey = NULL;
 static int verbose = 0;
 
-/* test vectors */
+/*
+ * ECHConfigList test vectors - the first set are
+ * syntactically valid but some have no ECHConfig
+ * values.
+ */
 
 /*
  * This ECHConfigList has 6 entries with different versions,
  * [13,10,9,13,10,13] - since our runtime no longer supports
  * version 9 or 10, we should see 3 configs loaded.
  */
-static const char echconfig_b64_6_to_3[] =
+static const unsigned char echconfig_b64_6_to_3[] =
     "AXn+DQA6xQAgACBm54KSIPXu+pQq2oY183wt3ybx7CKbBYX0ogPq5u6FegAEAAE"
     "AAQALZXhhbXBsZS5jb20AAP4KADzSACAAIIP+0Qt0WGBF3H5fz8HuhVRTCEMuHS"
     "4Khu6ibR/6qER4AAQAAQABAAAAC2V4YW1wbGUuY29tAAD+CQA7AAtleGFtcGxlL"
@@ -106,14 +110,14 @@ static const unsigned char echconfig_bin_6_to_3[] = {
 };
 
 /* output from ``dig +short https defo.ie`` */
-static const char *echconfig_dig_defo =
+static const unsigned char echconfig_dig_defo[] =
     "1 . ech=AID+DQA88wAgACDhaXQ8S0pHHQ+bwApOPPDjai"
     "YofLs24QPmmOLP8wHtKwAEAAEAAQANY292ZXIuZGVmby5p"
     "ZQAA/g0APNsAIAAgcTC7pC/ZyxhymoL1p1oAdxfvVEgRji"
     "68mhDE4vDZOzUABAABAAEADWNvdmVyLmRlZm8uaWUAAA==";
 
 /* output from ``dig +short https crypto.cloudflare.com`` */
-static const char *echconfig_dig_cf =
+static const unsigned char echconfig_dig_cf[] =
     "1 . alpn=\"http/1.1,h2\" ipv4hint=162.159.137.85"
     ",162.159.138.85 ech=AEX+DQBBCAAgACBsFeUbsAWR7x"
     "WL1aB6P28ppSsj+joHhNUtj2qtwYh+NAAEAAEAAQASY2xv"
@@ -124,7 +128,7 @@ static const char *echconfig_dig_cf =
  * output from ``dig +short https _11413._https.draft-13.esni.defo.ie``
  * One that's not from port-443 so has a targetName
  */
-static const char *echconfig_dig_d13 =
+static const unsigned char echconfig_dig_d13[] =
     "1 draft-13.esni.defo.ie. ech=AMD+DQA8iwAgACAa9ok"
     "y0hXrPm4WPTTxGOo4COT3xewntwtHiGRm3Bq0dAAEAAEAAQA"
     "NY292ZXIuZGVmby5pZQAA/g0APJgAIAAg8wdx3+O2c0zcnPC"
@@ -136,7 +140,7 @@ static const char *echconfig_dig_d13 =
  * check ASCII-hex handling via output from
  * ``dig +short +unknownformat https _11413._https.draft-13.esni.defo.ie``
  */
-static const char *echconfig_dig_u_d13 =
+static const unsigned char echconfig_dig_u_d13[] =
     "\\# 223 00010864726166742D31330465736E6904646566"
     "6F02696500000500 C200C0FE0D003C8B002000201AF689"
     "32D215EB3E6E163D34F118EA38 08E4F7C5EC27B70B4788"
@@ -152,7 +156,7 @@ static const char *echconfig_dig_u_d13 =
  * output from ``dig +short https defo.ie``  catenated with
  * output from * ``dig +short https crypto.cloudflare.com``
  */
-static const char *echconfig_dig_multi =
+static const unsigned char echconfig_dig_multi[] =
     "1 . ech=AID+DQA88wAgACDhaXQ8S0pHHQ+bwApOPPDjai"
     "YofLs24QPmmOLP8wHtKwAEAAEAAQANY292ZXIuZGVmby5p"
     "ZQAA/g0APNsAIAAgcTC7pC/ZyxhymoL1p1oAdxfvVEgRji"
@@ -168,7 +172,7 @@ static const char *echconfig_dig_multi =
  * grabbed using dig unknown format and the tidied
  * up by removing spaces
  */
-static const char *echconfig_echcli =
+static const unsigned char echconfig_echcli[] =
     "0001000001000C08687474702F312E3102683200040008A"
     "29F8955A29F8A55000500470045FE0D00410F0020002020"
     "52D8F5B5FF684DC1009FF14AADE169B251D1F3317C81CA4"
@@ -181,10 +185,61 @@ static const char *echconfig_echcli =
  * an HTTPS RR with no ech, e.g. acquired via:
  * ``dig +short https rte.ie``
  */
-static const char *echconfig_no_ech =
+static const unsigned char echconfig_no_ech[] =
     "1 . alpn=\"h3,h3-29,h2\" ipv4hint=104.18.142.17,1"
     "04.18.143.17 ipv6hint=2606:4700::6812:8e11,2606"
     ":4700::6812:8f11";
+
+/*
+ * An ECHConflgList with 2 ECHConfig values that are both
+ * of the wrong version. The versions here are 0xfe03 (we
+ * currently support 0xfe0d)
+ */
+static const unsigned char echconfig_bin_wrong_ver[] = {
+    0x00, 0x80, 0xfe, 0x03, 0x00, 0x3c, 0x00, 0x00,
+    0x20, 0x00, 0x20, 0x71, 0xa5, 0xe0, 0xb4, 0x6d,
+    0xdf, 0xa4, 0xda, 0xed, 0x69, 0xa5, 0xc7, 0x8b,
+    0x9d, 0xa5, 0x13, 0x0c, 0x36, 0x83, 0x7a, 0x03,
+    0x72, 0x1d, 0xf6, 0x1e, 0xc5, 0x83, 0x1a, 0x11,
+    0x73, 0xce, 0x2d, 0x00, 0x04, 0x00, 0x01, 0x00,
+    0x01, 0x00, 0x0d, 0x70, 0x61, 0x72, 0x74, 0x31,
+    0x2e, 0x65, 0x78, 0x61, 0x6d, 0x70, 0x6c, 0x65,
+    0x00, 0x00, 0xfe, 0x03, 0x00, 0x3c, 0x00, 0x00,
+    0x20, 0x00, 0x20, 0x69, 0x88, 0xfd, 0x8f, 0xc9,
+    0x0b, 0xb7, 0x2d, 0x96, 0x6d, 0xe0, 0x22, 0xf0,
+    0xc8, 0x1b, 0x62, 0x2b, 0x1c, 0x94, 0x96, 0xad,
+    0xef, 0x55, 0xdb, 0x9f, 0xeb, 0x0d, 0xa1, 0x4b,
+    0x0c, 0xd7, 0x36, 0x00, 0x04, 0x00, 0x01, 0x00,
+    0x01, 0x00, 0x0d, 0x70, 0x61, 0x72, 0x74, 0x32,
+    0x2e, 0x65, 0x78, 0x61, 0x6d, 0x70, 0x6c, 0x65,
+    0x00, 0x00
+};
+
+/*
+ * A struct to tie those together for tests. Note that the
+ * encoded_len should be "sizeof(x) - 1" is the encoding is
+ * a string encoding, but just "sizeof(x)" if we're dealing
+ * with a binary encoding.
+ */
+typedef struct {
+    const unsigned char *encoded; /* encoded ECHConfigList */
+    size_t encoded_len; /* the size of the above */
+    int expected; /* number of ECHConfig values we expect to decode */
+} TEST_ECHCONFIG;
+
+static TEST_ECHCONFIG test_echconfigs[] = {
+    { echconfig_b64_6_to_3, sizeof(echconfig_b64_6_to_3) - 1, 3 },
+    { echconfig_bin_6_to_3, sizeof(echconfig_bin_6_to_3), 3 },
+    { echconfig_dig_defo, sizeof(echconfig_dig_defo) - 1, 2 },
+    { echconfig_dig_cf, sizeof(echconfig_dig_cf) - 1, 1 },
+    { echconfig_dig_d13, sizeof(echconfig_dig_d13) - 1, 3 },
+    { echconfig_dig_u_d13, sizeof(echconfig_dig_u_d13) - 1, 3 },
+    { echconfig_dig_multi, sizeof(echconfig_dig_multi) - 1, 3 },
+    { echconfig_echcli, sizeof(echconfig_echcli) - 1, 1 },
+    { echconfig_no_ech, sizeof(echconfig_no_ech) - 1, 0 },
+    { echconfig_bin_wrong_ver, sizeof(echconfig_bin_wrong_ver), 0 }
+};
+
 /*
  * return the bas64 encoded ECHConfigList from an ECH PEM file
  *
@@ -491,100 +546,36 @@ end:
     return res;
 }
 
-/* Shuffle to preferred order */
-enum OSSLTEST_ECH_FIND_runOrder
-    {
-     OSSLTEST_ECH_FIND_B64,
-     OSSLTEST_ECH_FIND_BIN,
-     OSSLTEST_ECH_FIND_DIG_DEFO,
-     OSSLTEST_ECH_FIND_DIG_CF,
-     OSSLTEST_ECH_FIND_DIG_D13,
-     OSSLTEST_ECH_FIND_DIG_U_D13,
-     OSSLTEST_ECH_FIND_DIG_MULTI,
-     OSSLTEST_ECH_FIND_ECHCLI,
-     OSSLTEST_ECH_FIND_NOECH,
-
-     OSSLTEST_ECH_FIND_NTESTS        /* Keep NTESTS last */
-    };
-
+/*
+ * Test ingestion of the vectors from test_echconfigs above
+ */
 static int test_ech_find(int idx)
 {
     int i, nechs = 0, echtarg = 0;
     SSL_CTX *con = NULL;
-    const unsigned char *enc_cfgs = NULL;
-    size_t enc_cfgs_len = 0;
     unsigned char **cfgs = NULL;
     size_t *cfglens = NULL;
+    TEST_ECHCONFIG *t;
 
     if (!TEST_ptr(con = SSL_CTX_new_ex(testctx, testpropq,
                                        TLS_server_method())))
         return 0;
 
-    switch (idx) {
-    case OSSLTEST_ECH_FIND_B64:
-        enc_cfgs = (const unsigned char *)echconfig_b64_6_to_3;
-        enc_cfgs_len = strlen((char *)enc_cfgs);
-        echtarg = 3;
-        break;
-    case OSSLTEST_ECH_FIND_BIN:
-        enc_cfgs = (const unsigned char *)echconfig_bin_6_to_3;
-        enc_cfgs_len = sizeof(echconfig_bin_6_to_3);
-        echtarg = 3;
-        break;
-    case OSSLTEST_ECH_FIND_DIG_DEFO:
-        enc_cfgs = (const unsigned char *)echconfig_dig_defo;
-        enc_cfgs_len = strlen(echconfig_dig_defo);
-        echtarg = 2;
-        break;
-    case OSSLTEST_ECH_FIND_DIG_CF:
-        enc_cfgs = (const unsigned char *)echconfig_dig_cf;
-        enc_cfgs_len = strlen(echconfig_dig_cf);
-        echtarg = 1;
-        break;
-    case OSSLTEST_ECH_FIND_DIG_D13:
-        enc_cfgs = (const unsigned char *)echconfig_dig_d13;
-        enc_cfgs_len = strlen(echconfig_dig_d13);
-        echtarg = 3;
-        break;
-    case OSSLTEST_ECH_FIND_DIG_U_D13:
-        enc_cfgs = (const unsigned char *)echconfig_dig_u_d13;
-        enc_cfgs_len = strlen(echconfig_dig_u_d13);
-        echtarg = 3;
-        break;
-    case OSSLTEST_ECH_FIND_DIG_MULTI:
-        enc_cfgs = (const unsigned char *)echconfig_dig_multi;
-        enc_cfgs_len = strlen(echconfig_dig_multi);
-        echtarg = 3;
-        break;
-    case OSSLTEST_ECH_FIND_ECHCLI:
-        enc_cfgs = (const unsigned char *)echconfig_echcli;
-        enc_cfgs_len = strlen(echconfig_echcli);
-        echtarg = 1;
-        break;
-    case OSSLTEST_ECH_FIND_NOECH:
-        enc_cfgs = (const unsigned char *)echconfig_no_ech;
-        enc_cfgs_len = strlen(echconfig_no_ech);
-        echtarg = 0;
-        break;
-    default:
-        TEST_info("unknown option %d.", idx);
-        SSL_CTX_free(con);
-        return 0;
-    }
+    t = &test_echconfigs[idx];
 
     if (ossl_ech_find_echconfigs(&nechs, &cfgs, &cfglens,
-                                 enc_cfgs, enc_cfgs_len) != 1) {
+                                 t->encoded, t->encoded_len) != 1) {
         TEST_info("ossl_ech_find_echconfigs call %d failed.", idx);
         if (verbose)
-            TEST_info("input was: %s", enc_cfgs);
+            TEST_info("input was: %s", (char *)t->encoded);
         SSL_CTX_free(con);
         return 0;
     }
-    if (nechs != echtarg) {
-        TEST_info("ossl_ech_find_echconfigs call %d failed to return ECHs",
-                  idx);
+    if (nechs != t->expected) {
+        TEST_info("ossl_ech_find_echconfigs call %d failed to return ECHs "
+                  "(got %d instead of %d)", idx, nechs, t->expected);
         if (verbose)
-            TEST_info("input was: %s", enc_cfgs);
+            TEST_info("input was: %s", (char *)t->encoded);
         SSL_CTX_free(con);
         return 0;
     }
@@ -594,7 +585,7 @@ static int test_ech_find(int idx)
         if (SSL_CTX_ech_set1_echconfig(con, cfgs[i], cfglens[i]) != 1) {
             TEST_info("SSL_ech_set1_echconifg call %d failed.", idx);
             if (verbose)
-                TEST_info("input was: %s", enc_cfgs);
+                TEST_info("input was: %s", (char *)t->encoded);
             SSL_CTX_free(con);
             return 0;
         }
@@ -633,20 +624,10 @@ static int test_ech_add(int idx)
      * version 9 or 10, we should see 3 configs loaded.
      */
     size_t echconfiglen;
-    unsigned char echconfig[] =
-        "AXn+DQA6xQAgACBm54KSIPXu+pQq2oY183wt3ybx7CKbBYX0ogPq5u6FegAEAAE"
-        "AAQALZXhhbXBsZS5jb20AAP4KADzSACAAIIP+0Qt0WGBF3H5fz8HuhVRTCEMuHS"
-        "4Khu6ibR/6qER4AAQAAQABAAAAC2V4YW1wbGUuY29tAAD+CQA7AAtleGFtcGxlL"
-        "mNvbQAgoyQr+cP8mh42znOp1bjPxpLCBi4A0ftttr8MPXRJPBcAIAAEAAEAAQAA"
-        "AAD+DQA6QwAgACB3xsNUtSgipiYpUkW6OSrrg03I4zIENMFa0JR2+Mm1WwAEAAE"
-        "AAQALZXhhbXBsZS5jb20AAP4KADwDACAAIH0BoAdiJCX88gv8nYpGVX5BpGBa9y"
-        "T0Pac3Kwx6i8URAAQAAQABAAAAC2V4YW1wbGUuY29tAAD+DQA6QwAgACDcZIAx7"
-        "OcOiQuk90VV7/DO4lFQr5I3Zw9tVbK8MGw1dgAEAAEAAQALZXhhbXBsZS5jb20A"
-        "AA==";
     OSSL_ECH_INFO *details = NULL;
     int num_dets = 0;
 
-    echconfiglen = strlen((char *)echconfig);
+    echconfiglen = sizeof(echconfig_b64_6_to_3) - 1;
 
     /* Generate fresh context pair for each test with TLSv1.3 as a minimum */
     if (!TEST_true(create_ssl_ctx_pair(libctx, TLS_server_method(),
@@ -667,7 +648,7 @@ static int test_ech_add(int idx)
         returned =
             SSL_ech_set1_echconfig(clientssl,
                                    (const unsigned char *)echconfig_b64_6_to_3,
-                                   strlen(echconfig_b64_6_to_3));
+                                   sizeof(echconfig_b64_6_to_3) - 1);
         if (!TEST_int_eq(returned, 1)) {
             TEST_info("OSSLTEST_ECH_B64_GUESS: failure for valid echconfig "
                       " and length\n");
@@ -688,7 +669,7 @@ static int test_ech_add(int idx)
         returned =
             SSL_ech_set1_echconfig(clientssl,
                                    (const unsigned char *)echconfig_b64_6_to_3,
-                                   strlen(echconfig_b64_6_to_3));
+                                   sizeof(echconfig_b64_6_to_3) - 1);
         if (!TEST_int_eq(returned, 1)) {
             TEST_info("OSSLTEST_ECH_B64_BASE64: failure for valid echconfig\n");
             goto end;
@@ -713,7 +694,7 @@ static int test_ech_add(int idx)
         returned =
             SSL_ech_set1_echconfig(clientssl,
                                    (const unsigned char *)echconfig_b64_6_to_3,
-                                   strlen(echconfig_b64_6_to_3) + 1);
+                                   sizeof(echconfig_b64_6_to_3));
         if (!TEST_int_ne(returned, 1)) {
             TEST_info("OSSLTEST_ECH_B64_GUESS_XS_COUNT: success despite excess "
                       "length (%d/%d)\n",
@@ -733,8 +714,8 @@ static int test_ech_add(int idx)
         /* Valid echconfig, short length */
         returned =
             SSL_ech_set1_echconfig(clientssl,
-                                   (const unsigned char *)echconfig_b64_6_to_3,
-                                   strlen(echconfig_b64_6_to_3) / 2);
+                                   echconfig_b64_6_to_3,
+                                   sizeof(echconfig_b64_6_to_3) / 2);
         if (!TEST_int_ne(returned, 1)) {
             TEST_info("OSSLTEST_ECH_B64_GUESS_LO_COUNT: success despite short "
                       "length (%d/%d)\n",
@@ -831,7 +812,7 @@ int setup_tests(void)
     ADD_ALL_TESTS(basic_echconfig, 2);
     ADD_ALL_TESTS(ech_roundtrip_test, 2);
     ADD_ALL_TESTS(test_ech_add, OSSLTEST_ECH_NTESTS);
-    ADD_ALL_TESTS(test_ech_find, OSSLTEST_ECH_FIND_NTESTS);
+    ADD_ALL_TESTS(test_ech_find, OSSL_NELEM(test_echconfigs));
     return 1;
 err:
     return 0;
