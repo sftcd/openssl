@@ -321,7 +321,6 @@ static TEST_ECHCONFIG bad_echconfigs[] = {
     { bad_echconfig_extlen, sizeof(bad_echconfig_extlen) -1, 0 }
 };
 
-# ifdef NOTYET
 /* will add a test using these shortly but not yet */
 
 /*
@@ -329,33 +328,46 @@ static TEST_ECHCONFIG bad_echconfigs[] = {
  * 0xAA as the replacement value
  */
 
-/* wrong KEM ID (replaced 0x20 with 0xFF) */
+/* wrong KEM ID (replaced 0x20 with 0xAA) */
 static const unsigned char bad_echconfig_kemid[] =
     "003efe0d003abb00AA002062c7607bf2"
     "c5fe1108446f132ca4339cf19df1552e"
     "5a42960fd02c697360163c0004000100"
     "01000b6578616d706c652e636f6d0000";
 
-/* wrong KDF ID (replaced 0x01 with 0xFF) */
+/* wrong KDF ID (replaced 0x01 with 0xAA) */
 static const unsigned char bad_echconfig_kdfid[] =
     "003efe0d003abb0020002062c7607bf2"
     "c5fe1108446f132ca4339cf19df1552e"
     "5a42960fd02c697360163c000400AA00"
     "01000b6578616d706c652e636f6d0000";
 
-/* wrong AEAD ID (replaced 0x01 with 0xFF) */
+/* wrong AEAD ID (replaced 0x01 with 0xAA) */
 static const unsigned char bad_echconfig_aeadid[] =
     "003efe0d003abb0020002062c7607bf2"
     "c5fe1108446f132ca4339cf19df1552e"
-    "5a42960fd02c697360163c0001000100"
+    "5a42960fd02c697360163c0004000100"
     "AA000b6578616d706c652e636f6d0000";
+
+/*
+ * sorta wrong AEAD ID; replaced 0x0001 with 0xFFFF
+ * which is the "export only" pseudo-aead-id - that
+ * should not work in our test, same as the others,
+ * but worth a specific test, as it'll fail in a
+ * different manner
+ */
+static const unsigned char bad_echconfig_aeadid_ff[] =
+    "003efe0d003abb0020002062c7607bf2"
+    "c5fe1108446f132ca4339cf19df1552e"
+    "5a42960fd02c697360163c00040001FF"
+    "FF000b6578616d706c652e636f6d0000";
 
 static TEST_ECHCONFIG bad_echconfigs_suites[] = {
     { bad_echconfig_kemid, sizeof(bad_echconfig_kemid) -1, 0 },
     { bad_echconfig_kdfid, sizeof(bad_echconfig_kdfid) -1, 0 },
     { bad_echconfig_aeadid, sizeof(bad_echconfig_aeadid) -1, 0 },
+    { bad_echconfig_aeadid_ff, sizeof(bad_echconfig_aeadid_ff) -1, 0 },
 };
-# endif
 
 /*
  * return the bas64 encoded ECHConfigList from an ECH PEM file
@@ -553,7 +565,6 @@ static int ech_roundtrip_test(int idx)
     size_t echconfiglen = 0;
     SSL_CTX *cctx = NULL, *sctx = NULL;
     SSL *clientssl = NULL, *serverssl = NULL;
-    int num_echs = 0;
     int clientstatus, serverstatus;
     char *cinner, *couter, *sinner, *souter;
 
@@ -573,8 +584,8 @@ static int ech_roundtrip_test(int idx)
     if (!TEST_true(SSL_CTX_ech_set1_echconfig(cctx, (unsigned char *)echconfig,
                                               echconfiglen))) {
         TEST_info("Failed SSL_CTX_ech_set1_echconfig adding %s (len = %d)"
-                  " to SSL_CTX: %p, wanted result in : %p\n", echconfig,
-                  (int)echconfiglen, (void *)cctx, (void *)&num_echs);
+                  " to SSL_CTX: %p", echconfig, (int)echconfiglen,
+                  (void *)cctx);
         goto end;
     }
     if (!TEST_true(SSL_CTX_ech_server_enable_file(sctx, echkeyfile)))
@@ -751,6 +762,71 @@ end:
     if (rv == 1 && verbose)
         TEST_info("test_bad_find: success\n");
     return rv;
+}
+
+/* Test failure with non-supported suites */
+static int test_bad_suites(int idx)
+{
+    int res = 0;
+    char *echkeyfile = NULL;
+    char *echconfig = NULL;
+    SSL_CTX *cctx = NULL, *sctx = NULL;
+    SSL *clientssl = NULL, *serverssl = NULL;
+    int clientstatus, serverstatus;
+    char *cinner, *couter, *sinner, *souter;
+    TEST_ECHCONFIG *t;
+
+    t = &bad_echconfigs_suites[idx];
+    /* read our pre-cooked ECH PEM file */
+    echkeyfile = test_mk_file_path(certsdir, "echconfig.pem");
+    if (!TEST_ptr(echkeyfile))
+        goto end;
+    echconfig = echconfiglist_from_PEM(echkeyfile);
+    if (!TEST_ptr(echconfig))
+        goto end;
+    if (!TEST_true(create_ssl_ctx_pair(libctx, TLS_server_method(),
+                                       TLS_client_method(),
+                                       TLS1_3_VERSION, 0,
+                                       &sctx, &cctx, cert, privkey)))
+        goto end;
+    if (!TEST_true(SSL_CTX_ech_set1_echconfig(cctx, t->encoded,
+                                              t->encoded_len))) {
+        TEST_info("Failed adding %s (len = %d) to SSL_CTX",
+                  t->encoded, (int) t->encoded_len);
+        goto end;
+    }
+    if (!TEST_true(SSL_CTX_ech_server_enable_file(sctx, echkeyfile)))
+        goto end;
+    if (!TEST_true(create_ssl_objects(sctx, cctx, &serverssl,
+                                      &clientssl, NULL, NULL)))
+        goto end;
+    if (!TEST_true(SSL_set_tlsext_host_name(clientssl, "server.example")))
+        goto end;
+    /* we should start to fail now */
+    if (!TEST_false(create_ssl_connection(serverssl, clientssl, SSL_ERROR_SSL)))
+        goto end;
+    serverstatus = SSL_ech_get_status(serverssl, &sinner, &souter);
+    if (verbose)
+        TEST_info("server status %d, %s, %s", serverstatus, sinner, souter);
+    if (!TEST_int_ne(serverstatus, SSL_ECH_STATUS_SUCCESS))
+        goto end;
+    /* override cert verification */
+    SSL_set_verify_result(clientssl, X509_V_OK);
+    clientstatus = SSL_ech_get_status(clientssl, &cinner, &couter);
+    if (verbose)
+        TEST_info("client status %d, %s, %s", clientstatus, cinner, couter);
+    if (!TEST_int_ne(clientstatus, SSL_ECH_STATUS_SUCCESS))
+        goto end;
+    /* all good */
+    res = 1;
+end:
+    OPENSSL_free(echkeyfile);
+    OPENSSL_free(echconfig);
+    SSL_free(clientssl);
+    SSL_free(serverssl);
+    SSL_CTX_free(cctx);
+    SSL_CTX_free(sctx);
+    return res;
 }
 
 /* Shuffle to preferred order */
@@ -968,9 +1044,7 @@ int setup_tests(void)
     ADD_ALL_TESTS(test_ech_add, OSSLTEST_ECH_NTESTS);
     ADD_ALL_TESTS(test_ech_find, OSSL_NELEM(test_echconfigs));
     ADD_ALL_TESTS(test_bad_find, OSSL_NELEM(bad_echconfigs));
-# ifdef NOTYET
     ADD_ALL_TESTS(test_bad_suites, OSSL_NELEM(bad_echconfigs_suites));
-# endif
     return 1;
 err:
     return 0;

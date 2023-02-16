@@ -2,7 +2,7 @@
 
 =head1 NAME
 
-SSL_ech_set1_echconfig, 
+SSL_ech_set1_echconfig,
 SSL_ech_set_server_names, SSL_ech_set_outer_server_name,
 OSSL_ECH_INFO_free, OSSL_ECH_INFO_print,
 SSL_ech_get_info, SSL_ech_reduce, SSL_ech_get_status,
@@ -123,7 +123,7 @@ public values associated with the latter are deep-copied to the former.
 Internal copies of ECH public values associated with an I<SSL> or I<SSL_CTX>
 object will be freed when the I<SSL> or I<SSL_CTX> object is freed.
 
-If the I<val> supplied to this function has no usable ECH public 
+If the I<val> supplied to this function has no usable ECH public
 values (e.g. doesn't decode correctly or only has unsupported versions),
 then SSL_ech_set1_echconfig() will fail and return 0.
 
@@ -135,18 +135,19 @@ calling application or have been retrieved from DNS resource records by the
 application. ECHConfig values may be provided in various encodings (base64,
 ascii hex or binary) each of which may suit different applications.
 Additionally ECHConfig values may be provided embedded in the DNS wire encoding
-of HTTPS or SVCB resource records or in zone file presentation format, i.e.,
-extracting the ECHConfigList from the ``ech=`` value if one is present.
-Lastly, in some scenarios the application may provide a set of catenated
-encoded values, e.g. if there are multiple HTTPS resource records published for
-a given name. 
+of the RDATA of HTTPS or SVCB resource records (as defined in section 2.2 of
+L<https://datatracker.ietf.org/doc/html/draft-ietf-dnsop-svcb-https#name-rdata-wire-format>)
+or in zone file presentation format, i.e., extracting the ECHConfigList from
+the ``ech=`` value if one is present.  Lastly, in some scenarios the
+application may provide a set of catenated encoded values, e.g. if there are
+multiple HTTPS resource records published for a given name.
 
 ossl_ech_find_echconfigs() attempts to find and return the (possibly empty)
 set of ECHConfig values from a buffer containing one of the encoded forms
 described above. The number successfully found is returned in I<num_echs>,
 and a set of buffer pointers are returned in I<echconfigs>, each with a
 length found in the corresponding I<echlens> entry, that can be fed into
-SSL_ech_set1_echconfig(). The caller must free all those buffers 
+SSL_ech_set1_echconfig(). The caller must free all those buffers
 subsequently.
 
 This function supports catenated input values for I<val>. Internal
@@ -189,7 +190,7 @@ I<outer_name> parameter) or to cause no outer SNI to be sent (if the I<no_outer>
 parameter has the value 1 and I<outer_name> is NULL).
 
 An ECH public value must have been associated (via SSL_ech_set1_echconfig() or
-SSL_CTX_ech_set1_echconfig()) prior to calls to SSL_ech_set_server_names() 
+SSL_CTX_ech_set1_echconfig()) prior to calls to SSL_ech_set_server_names()
 or SSL_ech_set_outer_server_name().
 
 Outer SNI name values provided via these APIs will override the "public_name"
@@ -283,7 +284,7 @@ successful return.
 In this server implementation, the retry config returned will be the
 public component of the most recently loaded ECH configuration (with
 a one second granularity). If more than one ECH configuration was loaded
-during that second, there are no guarantees as to which one will be 
+during that second, there are no guarantees as to which one will be
 selected.
 
 For servers operating in split-mode, SSL_CTX_ech_raw_decrypt() provides
