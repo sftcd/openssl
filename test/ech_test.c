@@ -261,6 +261,22 @@ static TEST_ECHCONFIG test_echconfigs[] = {
     { echconfig_ah_bad_ver, sizeof(echconfig_ah_bad_ver) -1, 0 }
 };
 
+/* the next set of samples are syntactically invalid */
+
+/*
+ * An ascii-hex ECHConfigList with one ECHConfig
+ * but with the wrong length for the public key
+ */
+static const unsigned char bad_echconfig_pklen[] =
+    "003efeff003abb0020003062c7607bf2"
+    "c5fe1108446f132ca4339cf19df1552e"
+    "5a42960fd02c697360163c0004000100"
+    "01000b6578616d706c652e636f6d0000";
+
+static TEST_ECHCONFIG bad_echconfigs[] = {
+    { bad_echconfig_pklen, sizeof(bad_echconfig_pklen) -1, 0 }
+};
+
 /*
  * return the bas64 encoded ECHConfigList from an ECH PEM file
  *
@@ -572,7 +588,7 @@ end:
  */
 static int test_ech_find(int idx)
 {
-    int i, nechs = 0, echtarg = 0;
+    int rv = 0, i, nechs = 0, echtarg = 0;
     SSL_CTX *con = NULL;
     unsigned char **cfgs = NULL;
     size_t *cfglens = NULL;
@@ -580,25 +596,21 @@ static int test_ech_find(int idx)
 
     if (!TEST_ptr(con = SSL_CTX_new_ex(testctx, testpropq,
                                        TLS_server_method())))
-        return 0;
-
+        goto end;
     t = &test_echconfigs[idx];
-
     if (ossl_ech_find_echconfigs(&nechs, &cfgs, &cfglens,
                                  t->encoded, t->encoded_len) != 1) {
         TEST_info("ossl_ech_find_echconfigs call %d failed.", idx);
         if (verbose)
             TEST_info("input was: %s", (char *)t->encoded);
-        SSL_CTX_free(con);
-        return 0;
+        goto end;
     }
     if (nechs != t->expected) {
         TEST_info("ossl_ech_find_echconfigs call %d failed to return ECHs "
                   "(got %d instead of %d)", idx, nechs, t->expected);
         if (verbose)
             TEST_info("input was: %s", (char *)t->encoded);
-        SSL_CTX_free(con);
-        return 0;
+        goto end;
     }
     if (echtarg == 0 && verbose)
         TEST_info("No ECH found, as expected");
@@ -607,17 +619,53 @@ static int test_ech_find(int idx)
             TEST_info("SSL_ech_set1_echconifg call %d failed.", idx);
             if (verbose)
                 TEST_info("input was: %s", (char *)t->encoded);
-            SSL_CTX_free(con);
-            return 0;
+            goto end;
         }
-        OPENSSL_free(cfgs[i]);
     }
+    rv = 1;
+end:
     OPENSSL_free(cfglens);
+    for (i = 0; i != nechs; i++)
+        OPENSSL_free(cfgs[i]);
     OPENSSL_free(cfgs);
     SSL_CTX_free(con);
-    if (verbose)
+    if (rv == 1 && verbose)
         TEST_info("test_ech_find: success\n");
-    return 1;
+    return rv;
+}
+
+/*
+ * Test non-ingestion of the vectors from bad_echconfigs above
+ */
+static int test_bad_find(int idx)
+{
+    int rv = 0, nechs = 0;
+    SSL_CTX *con = NULL;
+    unsigned char **cfgs = NULL;
+    size_t *cfglens = NULL;
+    TEST_ECHCONFIG *t;
+
+    if (!TEST_ptr(con = SSL_CTX_new_ex(testctx, testpropq,
+                                       TLS_server_method())))
+        goto end;
+    t = &bad_echconfigs[idx];
+    if (ossl_ech_find_echconfigs(&nechs, &cfgs, &cfglens,
+                                 t->encoded, t->encoded_len) == 1) {
+        if (verbose)
+            TEST_info("find worked for: %s", (char *)t->encoded);
+        if (nechs != 0 || cfgs != NULL || cfglens != NULL) {
+            TEST_info("ossl_ech_find_echconfigs call %d produced output "
+                    "when it shouldn't!", idx);
+            goto end;
+        } else if (verbose)
+            TEST_info("no output produced though (phew!) :-)");
+    }
+    rv = 1;
+end:
+    /* we won't try free cfgs etc - let's leak if we fail! */
+    if (rv == 1 && verbose)
+        TEST_info("test_bad_find: success\n");
+    return rv;
 }
 
 /* Shuffle to preferred order */
@@ -834,6 +882,7 @@ int setup_tests(void)
     ADD_ALL_TESTS(ech_roundtrip_test, 2);
     ADD_ALL_TESTS(test_ech_add, OSSLTEST_ECH_NTESTS);
     ADD_ALL_TESTS(test_ech_find, OSSL_NELEM(test_echconfigs));
+    ADD_ALL_TESTS(test_bad_find, OSSL_NELEM(bad_echconfigs));
     return 1;
 err:
     return 0;
