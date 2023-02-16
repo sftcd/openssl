@@ -1309,7 +1309,7 @@ static int ech_finder(int *num_echs, SSL_ECH **echs,
                 ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
                 goto err;
             }
-            if (binbuf[0] * 256 + binbuf[1] == (binlen -2))
+            if ((size_t)(binbuf[0] * 256 + binbuf[1]) == (binlen - 2))
                 detfmt = OSSL_ECH_FMT_BIN;
             else
                 detfmt = OSSL_ECH_FMT_DNS_WIRE;
