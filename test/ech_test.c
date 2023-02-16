@@ -193,7 +193,7 @@ static const unsigned char echconfig_no_ech[] =
 /*
  * An ECHConflgList with 2 ECHConfig values that are both
  * of the wrong version. The versions here are 0xfe03 (we
- * currently support 0xfe0d)
+ * currently support only 0xfe0d)
  */
 static const unsigned char echconfig_bin_wrong_ver[] = {
     0x00, 0x80, 0xfe, 0x03, 0x00, 0x3c, 0x00, 0x00,
@@ -216,8 +216,27 @@ static const unsigned char echconfig_bin_wrong_ver[] = {
 };
 
 /*
+ * An ascii-hex ECHConfigList with one ECHConfig
+ */
+static const unsigned char echconfig_ah[] =
+    "003efe0d003abb0020002062c7607bf2"
+    "c5fe1108446f132ca4339cf19df1552e"
+    "5a42960fd02c697360163c0004000100"
+    "01000b6578616d706c652e636f6d0000";
+
+/*
+ * An ascii-hex ECHConfigList with one ECHConfig
+ * but of the wrong version
+ */
+static const unsigned char echconfig_ah_bad_ver[] =
+    "003efeff003abb0020002062c7607bf2"
+    "c5fe1108446f132ca4339cf19df1552e"
+    "5a42960fd02c697360163c0004000100"
+    "01000b6578616d706c652e636f6d0000";
+
+/*
  * A struct to tie those together for tests. Note that the
- * encoded_len should be "sizeof(x) - 1" is the encoding is
+ * encoded_len should be "sizeof(x) - 1" if the encoding is
  * a string encoding, but just "sizeof(x)" if we're dealing
  * with a binary encoding.
  */
@@ -237,7 +256,9 @@ static TEST_ECHCONFIG test_echconfigs[] = {
     { echconfig_dig_multi, sizeof(echconfig_dig_multi) - 1, 3 },
     { echconfig_echcli, sizeof(echconfig_echcli) - 1, 1 },
     { echconfig_no_ech, sizeof(echconfig_no_ech) - 1, 0 },
-    { echconfig_bin_wrong_ver, sizeof(echconfig_bin_wrong_ver), 0 }
+    { echconfig_bin_wrong_ver, sizeof(echconfig_bin_wrong_ver), 0 },
+    { echconfig_ah, sizeof(echconfig_ah) -1, 1 },
+    { echconfig_ah_bad_ver, sizeof(echconfig_ah_bad_ver) -1, 0 }
 };
 
 /*

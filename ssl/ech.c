@@ -561,6 +561,7 @@ static int ECHConfigList_from_binary(unsigned char *binbuf, size_t binblen,
     PACKET pkt;
     unsigned int olen = 0;
     size_t not_to_consume = 0;
+    int rv = 0;
 
     if (ret_er == NULL || new_echs == NULL || leftover == NULL
         || binbuf == NULL || binblen == 0) {
@@ -865,7 +866,8 @@ static int ECHConfigList_from_binary(unsigned char *binbuf, size_t binblen,
     *new_echs = rind;
     *leftover = PACKET_remaining(&pkt);
     if (rind == 0) {
-        return 1;
+        rv = 1; /* return success but free stuff */
+        goto err;
     }
     er = (ECHConfigList *)OPENSSL_malloc(sizeof(ECHConfigList));
     if (er == NULL)
@@ -891,7 +893,7 @@ err:
             ECHConfig_free(&te[teind]);
         OPENSSL_free(te);
     }
-    return 0;
+    return rv;
 }
 
 /*
@@ -1221,13 +1223,9 @@ static int ech_finder(int *num_echs, SSL_ECH **echs,
         return 1;
     }
     origfmt = detfmt;
-
-    if (detfmt == OSSL_ECH_FMT_HTTPSSVC
-        || detfmt == OSSL_ECH_FMT_DIG_UNK)
+    if (detfmt == OSSL_ECH_FMT_HTTPSSVC || detfmt == OSSL_ECH_FMT_DIG_UNK)
         multiline = 1;
-
     while (linesdone == 0) {
-
         /* if blank line, then skip */
         if (multiline == 1
             && strchr(OSSL_ECH_FMT_LINESEP, lval[0]) != NULL) {
@@ -1240,15 +1238,12 @@ static int ech_finder(int *num_echs, SSL_ECH **echs,
                 break;
             }
         }
-
         /* sanity check */
         if (llen >= OSSL_ECH_MAX_ECHCONFIG_LEN) {
             ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
             goto err;
         }
-
         detfmt = origfmt; /* restore format from before loop */
-
         /* if we already have a binary format then copy buffer */
         if (detfmt == OSSL_ECH_FMT_BIN
             || detfmt == OSSL_ECH_FMT_DNS_WIRE) {
@@ -1258,12 +1253,10 @@ static int ech_finder(int *num_echs, SSL_ECH **echs,
             memcpy(binbuf, val, len);
             binlen = len;
         }
-
         /* do decodes, some of these fall through to others */
         if (detfmt == OSSL_ECH_FMT_DIG_UNK) {
             /* decode asii-hex and fall through to DNS wire */
-            char *tmp = NULL;
-            char *lstr = NULL;
+            char *tmp = NULL, *lstr = NULL;
             size_t ldiff = 0;
 
             /* chew up header and length, e.g. "\\# 232 " */
@@ -1289,7 +1282,6 @@ static int ech_finder(int *num_echs, SSL_ECH **echs,
             }
             detfmt = OSSL_ECH_FMT_DNS_WIRE;
         }
-
         if (detfmt == OSSL_ECH_FMT_ASCIIHEX) {
             /* AH decode and fall throught to DNS wire or binary */
             if (ah_decode(llen, (char *)lval, &binlen, &binbuf) != 1) {
@@ -1299,18 +1291,25 @@ static int ech_finder(int *num_echs, SSL_ECH **echs,
             /*
              * ECHConfigList maybe can't be deterministically
              * distinguished from a DNS wire format HTTPS/SVCB
-             * RR, but given we do know we only support ECH at
-             * draft-13 for now, we can use that.
-             *
-             * Note that if an ECHConfigList has >1 ECHConfig
-             * and the first one is not draft-13, we'll get this
-             * wrong.
+             * RR, but the former starts with a 2-octet length
+             * whereas the latter starts with a 2-octet
+             * SvcPriority field. The probability that the
+             * priority is the same as the remaining length
+             * for an otherwise valid DNS wire encoding that
+             * contains an ECHConfigList should be small
+             * enough to bear, but is non-zero. (I'd guess
+             * well below 1/256, but that's still somewhat high
+             * so this deserves more consideration.)
+             * TODO: consider! We may be able to improve
+             * on this once the final ECH RFC issues with
+             * it's version set in stone - that version will
+             * be octets 3 & 4 of the ECHConfigList.
              */
-            if (binlen < 4) {
+            if (binlen < 2) {
                 ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
                 goto err;
             }
-            if (binbuf[2] * 256 + binbuf[3] == OSSL_ECH_DRAFT_13_VERSION)
+            if (binbuf[0] * 256 + binbuf[1] == (binlen -2))
                 detfmt = OSSL_ECH_FMT_BIN;
             else
                 detfmt = OSSL_ECH_FMT_DNS_WIRE;
