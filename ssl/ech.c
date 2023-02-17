@@ -1,6 +1,5 @@
 /*
  * Copyright 2023 The OpenSSL Project Authors. All Rights Reserved.
- *
  * Licensed under the OpenSSL license (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
  * in the file LICENSE in the source distribution or at
@@ -5791,6 +5790,12 @@ int ossl_ech_make_echconfig(unsigned char *echconfig, size_t *echconfiglen,
         ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_INVALID_ARGUMENT);
         goto err;
     }
+    /*
+     * if we can, add a NUL to the end of the private key string, just
+     * to be nice to users
+     */
+    if (lprivlen < *privlen)
+        priv[lprivlen] = 0x00;
     *privlen = lprivlen;
 
     /*
