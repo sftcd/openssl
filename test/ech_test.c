@@ -369,6 +369,17 @@ static TEST_ECHCONFIG bad_echconfigs_suites[] = {
     { bad_echconfig_aeadid_ff, sizeof(bad_echconfig_aeadid_ff) -1, 0 },
 };
 
+/* string from which we construct varieties of HPKE suite */
+static const char *kem_str_list[] = {
+    "P-256", "P-384", "P-521", "x25519", "x448",
+};
+static const char *kdf_str_list[] = {
+    "hkdf-sha256", "hkdf-sha384", "hkdf-sha512",
+};
+static const char *aead_str_list[] = {
+    "aes-128-gcm", "aes-256-gcm", "chacha20-poly1305",
+};
+
 /*
  * return the bas64 encoded ECHConfigList from an ECH PEM file
  *
@@ -556,7 +567,7 @@ err:
     return res;
 }
 
-/* Test a basic roundtrip with ECH */
+/* Test a basic roundtrip with ECH, with a PEM file input */
 static int ech_roundtrip_test(int idx)
 {
     int res = 0;
@@ -617,6 +628,104 @@ static int ech_roundtrip_test(int idx)
 end:
     OPENSSL_free(echkeyfile);
     OPENSSL_free(echconfig);
+    SSL_free(clientssl);
+    SSL_free(serverssl);
+    SSL_CTX_free(cctx);
+    SSL_CTX_free(sctx);
+    return res;
+}
+
+/* Test roundtrip with ECH for any suite, and buffer PEM input */
+static int ech_suite_roundtrips(int idx)
+{
+    int res = 0;
+    int kemind, kdfind, aeadind;
+    int kemsz, kdfsz, aeadsz;
+    char suitestr[100];
+    unsigned char priv[400];
+    size_t privlen = sizeof(priv);
+    unsigned char echconfig[300];
+    size_t echconfiglen = sizeof(echconfig);
+    char echkeybuf[1000];
+    size_t echkeybuflen = sizeof(echkeybuf);
+    OSSL_HPKE_SUITE hpke_suite = OSSL_HPKE_SUITE_DEFAULT;
+    uint16_t ech_version = OSSL_ECH_DRAFT_13_VERSION;
+    uint16_t max_name_length = 0;
+    char *public_name = "example.com";
+    SSL_CTX *cctx = NULL, *sctx = NULL;
+    SSL *clientssl = NULL, *serverssl = NULL;
+    int clientstatus, serverstatus;
+    char *cinner, *couter, *sinner, *souter;
+
+    /* split idx into kemind, kdfind, aeadind */
+    kemsz = OSSL_NELEM(kem_str_list);
+    kdfsz = OSSL_NELEM(kdf_str_list);
+    aeadsz = OSSL_NELEM(aead_str_list);
+    kemind = (idx / (kdfsz * aeadsz)) % kemsz;
+    kdfind = (idx / aeadsz) % kdfsz;
+    aeadind = idx % aeadsz;
+
+    snprintf(suitestr, 100, "%s,%s,%s", kem_str_list[kemind],
+             kdf_str_list[kdfind], aead_str_list[aeadind]);
+    if (verbose)
+        TEST_info("Doing: %s", suitestr);
+    if (!TEST_true(OSSL_HPKE_str2suite(suitestr, &hpke_suite)))
+        goto end;
+    if (!TEST_true(ossl_ech_make_echconfig(echconfig, &echconfiglen,
+                                           priv, &privlen,
+                                           ech_version, max_name_length,
+                                           public_name, hpke_suite,
+                                           NULL, 0)))
+        goto end;
+    if (!TEST_ptr(echconfig))
+        goto end;
+    if (!TEST_true(create_ssl_ctx_pair(libctx, TLS_server_method(),
+                                       TLS_client_method(),
+                                       TLS1_3_VERSION, 0,
+                                       &sctx, &cctx, cert, privkey)))
+        goto end;
+    if (!TEST_true(SSL_CTX_ech_set1_echconfig(cctx, (unsigned char *)echconfig,
+                                              echconfiglen))) {
+        TEST_info("Failed SSL_CTX_ech_set1_echconfig adding %s (len = %d)"
+                  " to SSL_CTX: %p", echconfig, (int)echconfiglen,
+                  (void *)cctx);
+        goto end;
+    }
+    snprintf(echkeybuf, echkeybuflen,
+             "%s-----BEGIN ECHCONFIG-----\n%s\n-----END ECHCONFIG-----\n",
+             priv, (char *)echconfig);
+    echkeybuflen = strlen(echkeybuf);
+    if (verbose)
+        TEST_info("PEM file buffer: (%d of %d) =====\n%s\n=====\n",
+                  (int) echkeybuflen, (int) sizeof(echkeybuf),
+                  echkeybuf);
+    if (!TEST_true(SSL_CTX_ech_server_enable_buffer(sctx,
+                                                    (unsigned char *)echkeybuf,
+                                                    echkeybuflen)))
+        goto end;
+    if (!TEST_true(create_ssl_objects(sctx, cctx, &serverssl,
+                                      &clientssl, NULL, NULL)))
+        goto end;
+    if (!TEST_true(SSL_set_tlsext_host_name(clientssl, "server.example")))
+        goto end;
+    if (!TEST_true(create_ssl_connection(serverssl, clientssl,
+                                         SSL_ERROR_NONE)))
+        goto end;
+    serverstatus = SSL_ech_get_status(serverssl, &sinner, &souter);
+    if (verbose)
+        TEST_info("server status %d, %s, %s", serverstatus, sinner, souter);
+    if (!TEST_int_eq(serverstatus, SSL_ECH_STATUS_SUCCESS))
+        goto end;
+    /* override cert verification */
+    SSL_set_verify_result(clientssl, X509_V_OK);
+    clientstatus = SSL_ech_get_status(clientssl, &cinner, &couter);
+    if (verbose)
+        TEST_info("client status %d, %s, %s", clientstatus, cinner, couter);
+    if (!TEST_int_eq(clientstatus, SSL_ECH_STATUS_SUCCESS))
+        goto end;
+    /* all good */
+    res = 1;
+end:
     SSL_free(clientssl);
     SSL_free(serverssl);
     SSL_CTX_free(cctx);
@@ -1036,11 +1145,20 @@ int setup_tests(void)
     bio_null = BIO_new(BIO_s_mem());
     ADD_TEST(tls_version_test);
     /*
-     * we can iterate these ones - can be handy if there's some
+     * we can iterate these two - can be handy if there's some
      * transient failure
      */
     ADD_ALL_TESTS(basic_echconfig, 2);
     ADD_ALL_TESTS(ech_roundtrip_test, 2);
+    /*
+     * test a roundtrip for all suites, the test iteration
+     * number is split into kem, kdf and aead string indices
+     * to select the specific suite for that iteration
+     */
+    ADD_ALL_TESTS(ech_suite_roundtrips,
+                  OSSL_NELEM(kem_str_list)
+                  * OSSL_NELEM(kdf_str_list)
+                  * OSSL_NELEM(aead_str_list));
     ADD_ALL_TESTS(test_ech_add, OSSLTEST_ECH_NTESTS);
     ADD_ALL_TESTS(test_ech_find, OSSL_NELEM(test_echconfigs));
     ADD_ALL_TESTS(test_bad_find, OSSL_NELEM(bad_echconfigs));
