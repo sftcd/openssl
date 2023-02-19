@@ -22,6 +22,9 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
+- 20230218: added HRR tests to ``ech/ech_test.c`` (and 
+  found/fixed a key-share leak in doing so!)
+
 - 20230217: added a bunch more tests to ``test/ech_test.c``
   including for all suites, so that's starting to head to
   where it can replace the ``agiletest.sh`` script (still

@@ -2367,7 +2367,7 @@ static int ech_decode_inner(SSL_CONNECTION *s, const unsigned char *ob,
     if (final_decomp == NULL)
         goto err;
     offset = oneextstart;
-    final_decomp[0] = 0x01;
+    final_decomp[0] = SSL3_MT_CLIENT_HELLO;
     final_decomp[1] = ((final_decomp_len - 4) >> 16) % 256;
     final_decomp[2] = ((final_decomp_len - 4) >> 8) % 256;
     final_decomp[3] = (final_decomp_len - 4) % 256;
