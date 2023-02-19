@@ -830,6 +830,7 @@ static int add_key_share(SSL_CONNECTION *s, WPACKET *pkt, unsigned int curve_id)
 #ifndef OPENSSL_NO_ECH
     if (s->ext.ech.ch_depth == 1) { /* stash inner */
         EVP_PKEY_up_ref(key_share_key);
+        EVP_PKEY_free(s->ext.ech.tmp_pkey);
         s->ext.ech.tmp_pkey = key_share_key;
         s->ext.ech.group_id = curve_id;
     }
