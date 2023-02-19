@@ -1564,7 +1564,6 @@ void ossl_ssl_connection_free(SSL *ssl)
         s->ext.ech.cfgs = NULL;
         s->ext.ech.ncfgs = 0;
     }
-    EVP_PKEY_free(s->s3.tmp.pkey);
     EVP_PKEY_free(s->ext.ech.tmp_pkey);
     if (s->s3.handshake_buffer != NULL) {
         (void)BIO_set_close(s->s3.handshake_buffer, BIO_CLOSE);
