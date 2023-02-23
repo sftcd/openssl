@@ -309,6 +309,16 @@ static int ssl_servername_cb(SSL *s, int *ad, void *arg)
     return SSL_TLSEXT_ERR_OK;
 }
 
+#ifndef OPENSSL_NO_ECH
+static unsigned int ech_print_cb(SSL *s, const char *str)
+{
+    if (str != NULL) {
+        BIO_printf(bio_c_out, "ECH client callback printing: \n%s\n", str);
+    }
+    return 1;
+}
+#endif
+
 #ifndef OPENSSL_NO_NEXTPROTONEG
 /* This the context that we pass to next_proto_cb */
 typedef struct tlsextnextprotoctx_st {
@@ -2013,6 +2023,9 @@ int s_client_main(int argc, char **argv)
     }
     if (ech_ignore_cid != 0) {
         SSL_CTX_set_options(ctx, SSL_OP_ECH_IGNORE_CID);
+    }
+    if (ech_encoded_configs != NULL) {
+        SSL_CTX_ech_set_callback(ctx, ech_print_cb);
     }
 #endif
 
