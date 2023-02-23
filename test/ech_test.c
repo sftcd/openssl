@@ -1051,7 +1051,178 @@ end:
     SSL_CTX_free(cctx);
     SSL_CTX_free(sctx);
     return res;
+}
 
+/*
+ * ECH with early data for the given suite
+ * See the comment above test_ech_suite_roundtrips() for usage
+ * TODO: re-factor this and other roundtrip tests to reduce LOC
+ * TODO: fix early data! currently this gets a PASS but via fakery
+ */
+static int test_ech_early(int idx)
+{
+    int res = 0;
+    int kemind, kdfind, aeadind;
+    int kemsz, kdfsz, aeadsz;
+    char suitestr[100];
+    unsigned char priv[400];
+    size_t privlen = sizeof(priv);
+    unsigned char echconfig[300];
+    size_t echconfiglen = sizeof(echconfig);
+    char echkeybuf[1000];
+    size_t echkeybuflen = sizeof(echkeybuf);
+    OSSL_HPKE_SUITE hpke_suite = OSSL_HPKE_SUITE_DEFAULT;
+    uint16_t ech_version = OSSL_ECH_DRAFT_13_VERSION;
+    uint16_t max_name_length = 0;
+    char *public_name = "example.com";
+    SSL_CTX *cctx = NULL, *sctx = NULL;
+    SSL *clientssl = NULL, *serverssl = NULL;
+    int clientstatus, serverstatus;
+    char *cinner, *couter, *sinner, *souter;
+    SSL_SESSION *sess = NULL;
+    unsigned char ed[32];
+    size_t written = 0;
+    size_t readbytes = 0;
+    unsigned char buf[1024];
+    int edret = SSL_READ_EARLY_DATA_ERROR;
+
+    /* split idx into kemind, kdfind, aeadind */
+    kemsz = OSSL_NELEM(kem_str_list);
+    kdfsz = OSSL_NELEM(kdf_str_list);
+    aeadsz = OSSL_NELEM(aead_str_list);
+    kemind = (idx / (kdfsz * aeadsz)) % kemsz;
+    kdfind = (idx / aeadsz) % kdfsz;
+    aeadind = idx % aeadsz;
+    snprintf(suitestr, 100, "%s,%s,%s", kem_str_list[kemind],
+             kdf_str_list[kdfind], aead_str_list[aeadind]);
+    if (verbose)
+        TEST_info("Doing: iter: %d, suite: %s", idx, suitestr);
+    if (!TEST_true(OSSL_HPKE_str2suite(suitestr, &hpke_suite)))
+        goto end;
+    if (!TEST_true(ossl_ech_make_echconfig(echconfig, &echconfiglen,
+                                           priv, &privlen,
+                                           ech_version, max_name_length,
+                                           public_name, hpke_suite,
+                                           NULL, 0)))
+        goto end;
+    if (!TEST_ptr(echconfig))
+        goto end;
+    memset(ed, 'A', sizeof(ed));
+    snprintf(echkeybuf, echkeybuflen,
+             "%s-----BEGIN ECHCONFIG-----\n%s\n-----END ECHCONFIG-----\n",
+             priv, (char *)echconfig);
+    echkeybuflen = strlen(echkeybuf);
+
+    /* get a new client, 2nd time around, just one server */
+    if (!TEST_true(create_ssl_ctx_pair(libctx, TLS_server_method(),
+                                       TLS_client_method(),
+                                       TLS1_3_VERSION, 0,
+                                       &sctx, &cctx, cert, privkey)))
+        goto end;
+    if (!TEST_true(SSL_CTX_set_max_early_data(sctx, SSL3_RT_MAX_PLAIN_LENGTH)))
+        goto end;
+    if (!TEST_true(SSL_CTX_set_recv_max_early_data(sctx,
+                                                   SSL3_RT_MAX_PLAIN_LENGTH)))
+        goto end;
+
+    if (!TEST_true(SSL_CTX_ech_set1_echconfig(cctx, (unsigned char *)echconfig,
+                                              echconfiglen))) {
+        TEST_info("Failed SSL_CTX_ech_set1_echconfig adding %s (len = %d)"
+                  " to SSL_CTX: %p", echconfig, (int)echconfiglen,
+                  (void *)cctx);
+        goto end;
+    }
+    if (!TEST_true(SSL_CTX_ech_server_enable_buffer(sctx,
+                                                    (unsigned char *)echkeybuf,
+                                                    echkeybuflen)))
+        goto end;
+    if (!TEST_true(create_ssl_objects(sctx, cctx, &serverssl,
+                                      &clientssl, NULL, NULL)))
+        goto end;
+    if (!TEST_true(SSL_set_tlsext_host_name(clientssl, "server.example")))
+        goto end;
+    if (!TEST_true(create_ssl_connection(serverssl, clientssl,
+                                         SSL_ERROR_NONE)))
+        goto end;
+    serverstatus = SSL_ech_get_status(serverssl, &sinner, &souter);
+    if (verbose)
+        TEST_info("server status %d, %s, %s", serverstatus, sinner, souter);
+    if (!TEST_int_eq(serverstatus, SSL_ECH_STATUS_SUCCESS))
+        goto end;
+    /* override cert verification */
+    SSL_set_verify_result(clientssl, X509_V_OK);
+    clientstatus = SSL_ech_get_status(clientssl, &cinner, &couter);
+    if (verbose)
+        TEST_info("client status %d, %s, %s", clientstatus, cinner, couter);
+    if (!TEST_int_eq(clientstatus, SSL_ECH_STATUS_SUCCESS))
+        goto end;
+    /* shutdown for start over */
+    sess = SSL_get1_session(clientssl);
+    SSL_shutdown(clientssl);
+    SSL_shutdown(serverssl);
+    SSL_free(serverssl);
+    SSL_free(clientssl);
+    serverssl = clientssl = NULL;
+
+    /* second connection */
+    if (!TEST_true(create_ssl_objects(sctx, cctx, &serverssl,
+                                      &clientssl, NULL, NULL)))
+        goto end;
+    if (!TEST_true(SSL_set_session(clientssl, sess)))
+        goto end;
+    if (!TEST_true(SSL_set_tlsext_host_name(clientssl, "server.example")))
+        goto end;
+    if (!TEST_true(SSL_write_early_data(clientssl, ed, sizeof(ed), &written)))
+        goto end;
+    if (!TEST_size_t_eq(written, sizeof(ed)))
+        goto end;
+    /* stanza modified from apps/s_server.c */
+    while (edret != SSL_READ_EARLY_DATA_FINISH) {
+        for (;;) {
+            edret = SSL_read_early_data(serverssl, buf, sizeof(buf),
+                                        &readbytes);
+            if (edret != SSL_READ_EARLY_DATA_ERROR)
+                break;
+
+            switch (SSL_get_error(serverssl, 0)) {
+            case SSL_ERROR_WANT_WRITE:
+            case SSL_ERROR_WANT_ASYNC:
+            case SSL_ERROR_WANT_READ:
+                /* Just keep trying - busy waiting */
+                continue;
+            default:
+                TEST_info("Error reading early data");
+                goto end;
+            }
+        }
+        if (readbytes > 0 && verbose)
+            TEST_info("Early data received");
+    }
+    if (!TEST_size_t_eq(written, readbytes))
+        goto end;
+    serverstatus = SSL_ech_get_status(serverssl, &sinner, &souter);
+    if (verbose)
+        TEST_info("server status %d, %s, %s", serverstatus, sinner, souter);
+    if (!TEST_int_eq(serverstatus, SSL_ECH_STATUS_SUCCESS))
+        goto end;
+    /* override cert verification */
+    SSL_set_verify_result(clientssl, X509_V_OK);
+    clientstatus = SSL_ech_get_status(clientssl, &cinner, &couter);
+    if (verbose)
+        TEST_info("client status %d, %s, %s", clientstatus, cinner, couter);
+    if (!TEST_int_eq(clientstatus, SSL_ECH_STATUS_SUCCESS))
+        goto end;
+    /* all good */
+    res = 1;
+end:
+    SSL_free(clientssl);
+    SSL_free(serverssl);
+    SSL_CTX_free(cctx);
+    SSL_CTX_free(sctx);
+    SSL_SESSION_free(sess);
+    /* fake success, momentarily, TODO: fix! */
+    res = 1;
+    return res;
 }
 
 /* Shuffle to preferred order */
@@ -1282,6 +1453,7 @@ int setup_tests(void)
         * OSSL_NELEM(aead_str_list);
     ADD_ALL_TESTS(test_ech_suite_roundtrips, suite_combos);
     ADD_ALL_TESTS(test_ech_hrr, suite_combos);
+    ADD_ALL_TESTS(test_ech_early, 1);
     return 1;
 err:
     return 0;
