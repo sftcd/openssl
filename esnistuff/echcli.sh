@@ -440,7 +440,7 @@ then
     then
         echo -e "$httpreq\n" >ed_file
     fi
-    earlystr=" --early_data ed_file "
+    earlystr=" -early_data ed_file "
 fi
 
 TMPF=`mktemp /tmp/echtestXXXX`
