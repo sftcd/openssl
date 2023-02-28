@@ -650,36 +650,6 @@ __owur static ossl_inline int PACKET_replace(PACKET *pkt, PACKET *newpkt)
 }
 # endif
 
-# ifndef OPENSSL_NO_QUIC
-
-/*
- * Reads a variable-length vector prefixed with a QUIC variable-length integer
- * denoting the length, and stores the contents in |subpkt|. |pkt| can equal
- * |subpkt|. Data is not copied: the |subpkt| packet will share its underlying
- * buffer with the original |pkt|, so data wrapped by |pkt| must outlive the
- * |subpkt|. Upon failure, the original |pkt| and |subpkt| are not modified.
- */
-__owur static ossl_inline int PACKET_get_quic_length_prefixed(PACKET *pkt,
-                                                              PACKET *subpkt)
-{
-    uint64_t length;
-    const unsigned char *data;
-    PACKET tmp = *pkt;
-
-    if (!PACKET_get_quic_vlint(&tmp, &length) ||
-        length > SIZE_MAX ||
-        !PACKET_get_bytes(&tmp, &data, (size_t)length)) {
-        return 0;
-    }
-
-    *pkt = tmp;
-    subpkt->curr = data;
-    subpkt->remaining = (size_t)length;
-
-    return 1;
-}
-# endif
-
 /* Writeable packets */
 
 typedef struct wpacket_sub WPACKET_SUB;

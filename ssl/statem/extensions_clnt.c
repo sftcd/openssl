@@ -1322,15 +1322,7 @@ EXT_RETURN tls_construct_ctos_psk(SSL_CONNECTION *s, WPACKET *pkt,
         agems += s->session->ext.tick_age_add;
 
         reshashsize = EVP_MD_get_size(mdres);
-        if (reshashsize <= 0)
-            goto dopsksess;
-#ifndef OPENSSL_NO_ECH
-        /* don't change state for outer CH */
-        if (s->ext.ech.cfgs != NULL && s->ext.ech.ch_depth == 0)
-             s->ext.tick_identity++;
-#else
         s->ext.tick_identity++;
-#endif
         dores = 1;
     }
 
