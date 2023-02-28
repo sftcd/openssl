@@ -203,12 +203,11 @@ static const int ech_outer_config[] =
      /* TLSEXT_IDX_key_share, 51 */ 0,
      /* TLSEXT_IDX_cookie, 44 */ 0,
      /* TLSEXT_IDX_cryptopro_bug, 0xfde8 */ 0,
+     /* TLSEXT_IDX_compress_certificate, 27 */ 0,
      /* TLSEXT_IDX_early_data, 42 */ 0,
      /* TLSEXT_IDX_certificate_authorities, 47 */ 0,
-     /* TLSEXT_IDX_ech, 0xfe0a */ 0,
      /* TLSEXT_IDX_ech13, 0xfe0d */ 0,
      /* TLSEXT_IDX_outer_extensions, 0xfd00 */ 0,
-     /* TLSEXT_IDX_ech_is_inner, 0xda09 */ 0,
      /* TLSEXT_IDX_padding, 21 */ 0,
      /* TLSEXT_IDX_psk, 41 */ 0
     };
@@ -254,14 +253,13 @@ static const int ech_outer_indep[] =
      /* TLSEXT_IDX_key_share */ 1,
      /* TLSEXT_IDX_cookie */ 0,
      /* TLSEXT_IDX_cryptopro_bug */ 0,
+     /* TLSEXT_IDX_compress_certificate, 27 */ 0,
      /* TLSEXT_IDX_early_data */ 0,
      /* TLSEXT_IDX_certificate_authorities */ 0,
-     /* TLSEXT_IDX_ech */ 0,
      /* TLSEXT_IDX_ech13 */ 0,
      /* TLSEXT_IDX_outer_extensions */ 0,
-     /* TLSEXT_IDX_ech_is_inner */ 0,
      /* TLSEXT_IDX_padding */ 0,
-     /* TLSEXT_IDX_psk */ 0,
+     /* TLSEXT_IDX_psk */ 1,
     };
 
 /*
@@ -1792,7 +1790,7 @@ static int ech_make_enc_info(ECHConfig *tc, unsigned char *info,
 }
 
 /*!
- * Given a CH find the offsets of the session id, extensions and ECH
+ * @brief Given a CH find the offsets of the session id, extensions and ECH
  * @param: s is the SSL session
  * @param: pkt is the CH
  * @param: sessid points to offset of session_id length
@@ -1938,10 +1936,10 @@ int ech_get_ch_offsets(SSL_CONNECTION *s, PACKET *pkt, size_t *sessid,
         e_start += (4 + elen);
         extsremaining -= (4 + elen);
     }
+# ifdef OSSL_ECH_SUPERVERBOSE
     OSSL_TRACE_BEGIN(TLS) {
         BIO_printf(trc_out, "orig CH/ECH type: %4x\n", *echtype);
     } OSSL_TRACE_END(TLS);
-# ifdef OSSL_ECH_SUPERVERBOSE
     ech_pbuf("orig CH", (unsigned char *)ch, ch_len);
     ech_pbuf("orig CH session_id", (unsigned char *)ch + *sessid + 1,
              sessid_len);
@@ -2055,10 +2053,10 @@ static int ech_get_sh_offsets(const unsigned char *sh, size_t sh_len,
         e_start += (4 + elen);
         extsremaining -= (4 + elen);
     }
+# ifdef OSSL_ECH_SUPERVERBOSE
     OSSL_TRACE_BEGIN(TLS) {
         BIO_printf(trc_out, "orig SH/ECH type: %4x\n", *echtype);
     } OSSL_TRACE_END(TLS);
-# ifdef OSSL_ECH_SUPERVERBOSE
     ech_pbuf("orig SH", (unsigned char *)sh, sh_len);
     ech_pbuf("orig SH session_id", (unsigned char *)sh + sessid_offset,
              sessid_len);
@@ -3134,7 +3132,7 @@ int ech_same_ext(SSL_CONNECTION *s, WPACKET *pkt, int depth)
         s->ext.ech.outer_only[s->ext.ech.n_outer_only] = type;
         s->ext.ech.n_outer_only++;
         OSSL_TRACE_BEGIN(TLS) {
-            BIO_printf(trc_out, "ech_same_ext: Marking ext (type %x,ind %d) "
+            BIO_printf(trc_out, "ech_same_ext: Marking (type %d, ind %d) "
                        "for compression\n", s->ext.ech.etype, tind);
         } OSSL_TRACE_END(TLS);
         return OSSL_ECH_SAME_EXT_CONTINUE;
@@ -3148,7 +3146,7 @@ int ech_same_ext(SSL_CONNECTION *s, WPACKET *pkt, int depth)
             /* continue processing, meaning get a new value */
             OSSL_TRACE_BEGIN(TLS) {
                 BIO_printf(trc_out, "ech_same_ext: New outer value for ext "
-                           "type %x,ind %d)\n", s->ext.ech.etype, tind);
+                           "type %d,ind %d)\n", s->ext.ech.etype, tind);
             } OSSL_TRACE_END(TLS);
             return OSSL_ECH_SAME_EXT_CONTINUE;
         } else {
@@ -3163,7 +3161,7 @@ int ech_same_ext(SSL_CONNECTION *s, WPACKET *pkt, int depth)
             /* copy inner to outer */
             OSSL_TRACE_BEGIN(TLS) {
                 BIO_printf(trc_out, "ech_same_ext: Copying ext "
-                           "(type %x,ind %d) to outer\n", s->ext.ech.etype,
+                           "(type %d,ind %d) to outer\n", s->ext.ech.etype,
                            tind);
             } OSSL_TRACE_END(TLS);
             for (ind = 0; ind != nraws; ind++) {
@@ -3259,7 +3257,7 @@ int ech_encode_inner(SSL_CONNECTION *s)
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
     }
-    /* Grab a pointer to the alraedy constructed extensions */
+    /* Grab a pointer to the already constructed extensions */
     raws = s->clienthello->pre_proc_exts;
     nraws = s->clienthello->pre_proc_exts_len;
 

@@ -1057,7 +1057,6 @@ end:
  * ECH with early data for the given suite
  * See the comment above test_ech_suite_roundtrips() for usage
  * TODO: re-factor this and other roundtrip tests to reduce LOC
- * TODO: fix early data! currently this gets a PASS but via fakery
  */
 static int test_ech_early(int idx)
 {
@@ -1080,11 +1079,10 @@ static int test_ech_early(int idx)
     int clientstatus, serverstatus;
     char *cinner, *couter, *sinner, *souter;
     SSL_SESSION *sess = NULL;
-    unsigned char ed[32];
+    unsigned char ed[21];
     size_t written = 0;
     size_t readbytes = 0;
     unsigned char buf[1024];
-    int edret = SSL_READ_EARLY_DATA_ERROR;
 
     /* split idx into kemind, kdfind, aeadind */
     kemsz = OSSL_NELEM(kem_str_list);
@@ -1107,7 +1105,8 @@ static int test_ech_early(int idx)
         goto end;
     if (!TEST_ptr(echconfig))
         goto end;
-    memset(ed, 'A', sizeof(ed));
+    memset(ed, 'X', sizeof(ed));
+    memset(buf, 0x00, sizeof(buf));
     snprintf(echkeybuf, echkeybuflen,
              "%s-----BEGIN ECHCONFIG-----\n%s\n-----END ECHCONFIG-----\n",
              priv, (char *)echconfig);
@@ -1119,19 +1118,19 @@ static int test_ech_early(int idx)
                                        TLS1_3_VERSION, 0,
                                        &sctx, &cctx, cert, privkey)))
         goto end;
+    if (!TEST_true(SSL_CTX_set_options(sctx, SSL_OP_NO_ANTI_REPLAY)))
+        goto end;
     if (!TEST_true(SSL_CTX_set_max_early_data(sctx, SSL3_RT_MAX_PLAIN_LENGTH)))
         goto end;
     if (!TEST_true(SSL_CTX_set_recv_max_early_data(sctx,
                                                    SSL3_RT_MAX_PLAIN_LENGTH)))
         goto end;
-
+# define EARLYCTX
+# ifdef EARLYCTX
     if (!TEST_true(SSL_CTX_ech_set1_echconfig(cctx, (unsigned char *)echconfig,
-                                              echconfiglen))) {
-        TEST_info("Failed SSL_CTX_ech_set1_echconfig adding %s (len = %d)"
-                  " to SSL_CTX: %p", echconfig, (int)echconfiglen,
-                  (void *)cctx);
+                                              echconfiglen)))
         goto end;
-    }
+# endif
     if (!TEST_true(SSL_CTX_ech_server_enable_buffer(sctx,
                                                     (unsigned char *)echkeybuf,
                                                     echkeybuflen)))
@@ -1139,6 +1138,11 @@ static int test_ech_early(int idx)
     if (!TEST_true(create_ssl_objects(sctx, cctx, &serverssl,
                                       &clientssl, NULL, NULL)))
         goto end;
+# ifndef EARLYCTX
+    if (!TEST_true(SSL_ech_set1_echconfig(clientssl, (unsigned char *)echconfig,
+                                          echconfiglen)))
+        goto end;
+# endif
     if (!TEST_true(SSL_set_tlsext_host_name(clientssl, "server.example")))
         goto end;
     if (!TEST_true(create_ssl_connection(serverssl, clientssl,
@@ -1168,37 +1172,33 @@ static int test_ech_early(int idx)
     if (!TEST_true(create_ssl_objects(sctx, cctx, &serverssl,
                                       &clientssl, NULL, NULL)))
         goto end;
-    if (!TEST_true(SSL_set_session(clientssl, sess)))
+# ifndef EARLYCTX
+    if (!TEST_true(SSL_ech_set1_echconfig(clientssl, (unsigned char *)echconfig,
+                                          echconfiglen)))
         goto end;
+# endif
     if (!TEST_true(SSL_set_tlsext_host_name(clientssl, "server.example")))
+        goto end;
+    if (!TEST_true(SSL_set_session(clientssl, sess)))
         goto end;
     if (!TEST_true(SSL_write_early_data(clientssl, ed, sizeof(ed), &written)))
         goto end;
     if (!TEST_size_t_eq(written, sizeof(ed)))
         goto end;
-    /* stanza modified from apps/s_server.c */
-    while (edret != SSL_READ_EARLY_DATA_FINISH) {
-        for (;;) {
-            edret = SSL_read_early_data(serverssl, buf, sizeof(buf),
-                                        &readbytes);
-            if (edret != SSL_READ_EARLY_DATA_ERROR)
-                break;
-
-            switch (SSL_get_error(serverssl, 0)) {
-            case SSL_ERROR_WANT_WRITE:
-            case SSL_ERROR_WANT_ASYNC:
-            case SSL_ERROR_WANT_READ:
-                /* Just keep trying - busy waiting */
-                continue;
-            default:
-                TEST_info("Error reading early data");
-                goto end;
-            }
-        }
-        if (readbytes > 0 && verbose)
-            TEST_info("Early data received");
-    }
+    if (!TEST_int_eq(SSL_read_early_data(serverssl, buf,
+                                         sizeof(buf), &readbytes),
+                     SSL_READ_EARLY_DATA_SUCCESS))
+        goto end;
     if (!TEST_size_t_eq(written, readbytes))
+        goto end;
+    /*
+     * Server should be able to write data, and client should be able to
+     * read it.
+     */
+    if (!TEST_true(SSL_write_early_data(serverssl, ed, sizeof(ed), &written))
+            || !TEST_size_t_eq(written, sizeof(ed))
+            || !TEST_true(SSL_read_ex(clientssl, buf, sizeof(buf), &readbytes))
+            || !TEST_mem_eq(buf, readbytes, ed, sizeof(ed)))
         goto end;
     serverstatus = SSL_ech_get_status(serverssl, &sinner, &souter);
     if (verbose)
@@ -1220,8 +1220,6 @@ end:
     SSL_CTX_free(cctx);
     SSL_CTX_free(sctx);
     SSL_SESSION_free(sess);
-    /* fake success, momentarily, TODO: fix! */
-    res = 1;
     return res;
 }
 
@@ -1453,7 +1451,7 @@ int setup_tests(void)
         * OSSL_NELEM(aead_str_list);
     ADD_ALL_TESTS(test_ech_suite_roundtrips, suite_combos);
     ADD_ALL_TESTS(test_ech_hrr, suite_combos);
-    ADD_ALL_TESTS(test_ech_early, 1);
+    ADD_ALL_TESTS(test_ech_early, suite_combos);
     return 1;
 err:
     return 0;
