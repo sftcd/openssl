@@ -1371,7 +1371,8 @@ __owur CON_FUNC_RETURN tls_construct_client_hello(SSL_CONNECTION *s,
 # ifdef OSSL_ECH_SUPERVERBOSE
     /* If tracing, trace out the inner, client random & session id */
     ech_pbuf("inner CH", s->ext.ech.innerch, s->ext.ech.innerch_len);
-    ech_pbuf("inner, client_random", s->ext.ech.client_random, SSL3_RANDOM_SIZE);
+    ech_pbuf("inner, client_random", s->ext.ech.client_random,
+             SSL3_RANDOM_SIZE);
     ech_pbuf("inner, session_id", s->session->session_id,
              s->session->session_id_length);
 # endif

@@ -1803,18 +1803,6 @@ int tls_psk_do_binder(SSL_CONNECTION *s, const EVP_MD *md,
         }
     }
 
-#ifndef OPENSSL_NO_ECH
-    if (s->server && s->ext.ech.success == 1) {
-        /* we need to fix up the overall 3-octet CH length here */
-        unsigned char *rwm = (unsigned char *)msgstart;
-        size_t olen = s->ext.ech.innerch_len - 4;
-
-        rwm[1] = (olen >> 16) % 256;
-        rwm[2] = (olen >> 8) % 256;
-        rwm[3] = olen % 256;
-    }
-#endif
-
     if (EVP_DigestUpdate(mctx, msgstart, binderoffset) <= 0
             || EVP_DigestFinal_ex(mctx, hash, NULL) <= 0) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
