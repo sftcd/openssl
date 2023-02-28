@@ -120,7 +120,7 @@ EXT_RETURN tls_construct_ctos_server_name(SSL_CONNECTION *s, WPACKET *pkt,
         if (s->ext.ech.ch_depth == 0) { /* outer */
             if (s->ext.ech.cfgs->outer_name != NULL) /* prefer specific API */
                 chosen = s->ext.ech.cfgs->outer_name;
-            else if (s->ext.ech.outer_hostname != NULL) 
+            else if (s->ext.ech.outer_hostname != NULL)
                 chosen = s->ext.ech.outer_hostname;
             else if (public_name != NULL)
                 chosen = public_name;
@@ -960,8 +960,34 @@ EXT_RETURN tls_construct_ctos_early_data(SSL_CONNECTION *s, WPACKET *pkt,
     SSL *ssl = SSL_CONNECTION_GET_SSL(s);
 
 #ifndef OPENSSL_NO_ECH
-    IOSAME
+    /*
+     * If we're attempting ECH and processing the outer CH
+     * then we only need to check if the extension is to be
+     * sent or not - any other processing (with side effects)
+     * happened already for the inner CH.
+     */
+    if (s->ext.ech.cfgs != NULL && s->ext.ech.ch_depth == 0) {
+        /*
+         * if we called this for inner and did send then
+         * the following two things were set just before
+         * returning (i.e. at the bottom of this fucntion)
+         * so we should send again in the outer CH.
+         */
+        if (s->ext.early_data == SSL_EARLY_DATA_REJECTED
+            && s->ext.early_data_ok == 1) {
+                if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_early_data)
+                        || !WPACKET_start_sub_packet_u16(pkt)
+                        || !WPACKET_close(pkt)) {
+                    SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+                    return EXT_RETURN_FAIL;
+                }
+            return EXT_RETURN_SENT;
+        } else {
+            return EXT_RETURN_NOT_SENT;
+        }
+    }
 #endif
+
     if (s->hello_retry_request == SSL_HRR_PENDING)
         handmd = ssl_handshake_md(s);
 
@@ -1298,7 +1324,13 @@ EXT_RETURN tls_construct_ctos_psk(SSL_CONNECTION *s, WPACKET *pkt,
         reshashsize = EVP_MD_get_size(mdres);
         if (reshashsize <= 0)
             goto dopsksess;
+#ifndef OPENSSL_NO_ECH
+        /* don't change state for outer CH */
+        if (s->ext.ech.cfgs != NULL && s->ext.ech.ch_depth == 0)
+             s->ext.tick_identity++;
+#else
         s->ext.tick_identity++;
+#endif
         dores = 1;
     }
 
@@ -1341,32 +1373,40 @@ EXT_RETURN tls_construct_ctos_psk(SSL_CONNECTION *s, WPACKET *pkt,
         return EXT_RETURN_FAIL;
     }
 
-#ifndef OPENSSL_NO_ECH
+# ifndef OPENSSL_NO_ECH
     /*
      * For ECH if we're processing the outer CH and the inner CH
      * has a PSK, then we want to send a GREASE PSK in the outer.
      * We'll do that by just replacing the ticket value itself
-     * with a random value of the same length.
+     * with random values of the same length.
      */
-    {
-        unsigned char *ltick = s->session->ext.tick;
+    if (s->ext.ech.cfgs != NULL && s->ext.ech.ch_depth == 0) {
         unsigned char *rndbuf = NULL;
+        size_t totalrndsize = 0;
 
-        if (s->ext.ech.cfgs != NULL && s->ext.ech.ch_depth == 0) {
-            /* outer CH allocate a similar sized random value */
-            rndbuf = OPENSSL_malloc(s->session->ext.ticklen);
-            if (rndbuf == NULL)
-                return EXT_RETURN_FAIL;
-            if (RAND_bytes_ex(s->ssl.ctx->libctx, rndbuf,
-                              s->session->ext.ticklen,
-                              RAND_DRBG_STRENGTH) <= 0) {
-                OPENSSL_free(rndbuf);
-                return EXT_RETURN_FAIL;
-            }
-            ltick = rndbuf;
+        if (s->session == NULL) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+            return EXT_RETURN_FAIL;
         }
+        totalrndsize = s->session->ext.ticklen
+                       + 4 /* agems */
+                       + s->psksession_id_len
+                       + reshashsize
+                       + pskhashsize;
+        rndbuf = OPENSSL_malloc(totalrndsize);
+        if (rndbuf == NULL)
+            return EXT_RETURN_FAIL;
+        /* outer CH allocate a similar sized random value */
+        if (RAND_bytes_ex(s->ssl.ctx->libctx, rndbuf, totalrndsize,
+                          RAND_DRBG_STRENGTH) <= 0) {
+            OPENSSL_free(rndbuf);
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+            return EXT_RETURN_FAIL;
+        }
+        /* set agems from random buffer */
+        agems = *((uint32_t *)(rndbuf + s->session->ext.ticklen));
         if (dores != 0) {
-            if (!WPACKET_sub_memcpy_u16(pkt, ltick,
+            if (!WPACKET_sub_memcpy_u16(pkt, rndbuf,
                                         s->session->ext.ticklen)
                 || !WPACKET_put_bytes_u32(pkt, agems)) {
                 SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
@@ -1375,24 +1415,29 @@ EXT_RETURN tls_construct_ctos_psk(SSL_CONNECTION *s, WPACKET *pkt,
             }
         }
         if (s->psksession != NULL) {
-            if (!WPACKET_sub_memcpy_u16(pkt, s->psksession_id,
+            if (!WPACKET_sub_memcpy_u16(pkt,
+                                        rndbuf + s->session->ext.ticklen + 4,
                                         s->psksession_id_len)
                 || !WPACKET_put_bytes_u32(pkt, 0)) {
                 SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
                 OPENSSL_free(rndbuf);
                 return EXT_RETURN_FAIL;
             }
-            s->ext.tick_identity++;
         }
         if (!WPACKET_close(pkt)
                 || !WPACKET_get_total_written(pkt, &binderoffset)
                 || !WPACKET_start_sub_packet_u16(pkt)
                 || (dores == 1
-                    && !WPACKET_sub_allocate_bytes_u8(pkt, reshashsize,
-                        &resbinder))
+                    && !WPACKET_sub_memcpy_u8(pkt,
+                                             rndbuf + s->session->ext.ticklen
+                                             + 4 + s->psksession_id_len,
+                                             reshashsize))
                 || (s->psksession != NULL
-                    && !WPACKET_sub_allocate_bytes_u8(pkt, pskhashsize,
-                        &pskbinder))
+                    && !WPACKET_sub_memcpy_u8(pkt,
+                                             rndbuf + s->session->ext.ticklen
+                                             + 4 + s->psksession_id_len
+                                             + reshashsize,
+                                             pskhashsize))
                 || !WPACKET_close(pkt)
                 || !WPACKET_close(pkt)
                 || !WPACKET_get_total_written(pkt, &msglen)
@@ -1406,8 +1451,9 @@ EXT_RETURN tls_construct_ctos_psk(SSL_CONNECTION *s, WPACKET *pkt,
             return EXT_RETURN_FAIL;
         }
         OPENSSL_free(rndbuf);
+        return EXT_RETURN_SENT;
     }
-#else
+# endif /* OPENSSL_NO_ECH */
 
     if (dores) {
         if (!WPACKET_sub_memcpy_u16(pkt, s->session->ext.tick,
@@ -1446,8 +1492,6 @@ EXT_RETURN tls_construct_ctos_psk(SSL_CONNECTION *s, WPACKET *pkt,
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return EXT_RETURN_FAIL;
     }
-
-#endif /* OPENSSL_NO_ECH */
 
     msgstart = WPACKET_get_curr(pkt) - msglen;
 

@@ -22,10 +22,10 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
-- 20230223: added early data test which shows we have a
-  server-side problem causing early data to be rejected
-  even if ECH isn't attempted. Going to rebase just in 
-  case that resovles the issue.
+- 20230228: got early data working again - problems were
+  a mix of mine (more changes related to moving away from
+  use of ``s_inner`` etc) and a bug in the underlying 
+  master branch fixed via [PR20387](https://github.com/openssl/openssl/pull/20387).
 
 - 20230218: added HRR tests to ``ech/ech_test.c`` (and 
   found/fixed a key-share leak in doing so!)

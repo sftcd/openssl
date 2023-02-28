@@ -3906,7 +3906,7 @@ static int www_body(int s, int stype, int prot, unsigned char *context)
                 BIO_puts(io, "ECH worked but bad name\n");
                 break;
             case SSL_ECH_STATUS_BACKEND:
-                BIO_printf(io, "ECH acting as backend, got ech_is_inner\n");
+                BIO_printf(io, "ECH acting as backend\n");
                 break;
             case SSL_ECH_STATUS_NOT_CONFIGURED:
                 BIO_printf(io, "ECH not configured\n");

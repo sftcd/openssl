@@ -1259,6 +1259,18 @@ int tls_parse_ctos_psk(SSL_CONNECTION *s, PACKET *pkt, unsigned int context,
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         goto err;
     }
+
+#ifndef OPENSSL_NO_ECH
+    if (s->ext.ech.success == 1) {
+        /* we need to fix up the overall 3-octet CH length here */
+        unsigned char *rwm = (unsigned char *)s->init_buf->data;
+        size_t olen = s->ext.ech.innerch_len - 4;
+
+        rwm[1] = (olen >> 16) % 256;
+        rwm[2] = (olen >> 8) % 256;
+        rwm[3] = olen % 256;
+    }
+#endif
     if (tls_psk_do_binder(s, md, (const unsigned char *)s->init_buf->data,
                           binderoffset, PACKET_data(&binder), NULL, sess, 0,
                           ext) != 1) {
