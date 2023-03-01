@@ -741,7 +741,6 @@ do
         exit 19
     fi
     # Try client...
-    # first go 'round, acquire the session
     if [[ "$verbose" == "yes" ]]
     then
         $CODETOP/esnistuff/echcli.sh -P `$CODETOP/esnistuff/pem2rr.sh -p $file` -s localhost -p 8443 -H foo.example.com $vparm -f index.html 
@@ -803,7 +802,8 @@ do
     # start server
     if [[ "$verbose" == "yes" ]]
     then
-        CFGTOP=$scratchdir $CODETOP/esnistuff/echsvr.sh -e -k $scratchdir/$file $vparm &
+        # took vparm out here - if it's there, something times out before tickets acquired
+        CFGTOP=$scratchdir $CODETOP/esnistuff/echsvr.sh -e -k $scratchdir/$file &
     else
         CFGTOP=$scratchdir $CODETOP/esnistuff/echsvr.sh -e -k $scratchdir/$file $vparm >/dev/null 2>&1 &
     fi
@@ -825,15 +825,15 @@ do
         $CODETOP/esnistuff/echcli.sh -P `$CODETOP/esnistuff/pem2rr.sh -p $file` -s localhost -p 8443 -H foo.example.com $vparm -f index.html -S $sessfile >/dev/null 2>&1
     fi
     cret=$?
-    if [[ "$cret" != "0" ]]
-    then
-        echo "Client failed acquiring session for $file (ret = $cret) - exiting"
-        exit 21
-    fi
     if [ ! -f $sessfile ]
     then
         echo "No sign of $sessfile - exiting"
         exit 87
+    fi
+    if [[ "$cret" != "0" ]]
+    then
+        echo "Client failed acquiring session for $file (ret = $cret) - exiting"
+        exit 21
     fi
     # second go 'round, re-use the session
     if [[ "$verbose" == "yes" ]]
