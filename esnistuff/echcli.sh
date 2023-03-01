@@ -455,7 +455,7 @@ sleepaftr=2
 if [[ "$DEBUG" == "yes" ]]
 then
     # bit slower so sleep a bit more
-    sleepaftr=3
+    sleepaftr=8
 fi
 if [[ "$VG" == "yes" ]]
 then

@@ -22,6 +22,10 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
+- 20230301: did a bit of testing that GREASE PSKs actually
+  look nicely random incl. the obfuscated ticket ages (as
+  called for by the ECH spec)
+
 - 20230228: got early data working again - problems were
   a mix of mine (more changes related to moving away from
   use of ``s_inner`` etc) and a bug in the underlying 
