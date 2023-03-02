@@ -1125,12 +1125,9 @@ static int test_ech_early(int idx)
     if (!TEST_true(SSL_CTX_set_recv_max_early_data(sctx,
                                                    SSL3_RT_MAX_PLAIN_LENGTH)))
         goto end;
-# define EARLYCTX
-# ifdef EARLYCTX
     if (!TEST_true(SSL_CTX_ech_set1_echconfig(cctx, (unsigned char *)echconfig,
                                               echconfiglen)))
         goto end;
-# endif
     if (!TEST_true(SSL_CTX_ech_server_enable_buffer(sctx,
                                                     (unsigned char *)echkeybuf,
                                                     echkeybuflen)))
@@ -1138,11 +1135,6 @@ static int test_ech_early(int idx)
     if (!TEST_true(create_ssl_objects(sctx, cctx, &serverssl,
                                       &clientssl, NULL, NULL)))
         goto end;
-# ifndef EARLYCTX
-    if (!TEST_true(SSL_ech_set1_echconfig(clientssl, (unsigned char *)echconfig,
-                                          echconfiglen)))
-        goto end;
-# endif
     if (!TEST_true(SSL_set_tlsext_host_name(clientssl, "server.example")))
         goto end;
     if (!TEST_true(create_ssl_connection(serverssl, clientssl,
@@ -1172,11 +1164,6 @@ static int test_ech_early(int idx)
     if (!TEST_true(create_ssl_objects(sctx, cctx, &serverssl,
                                       &clientssl, NULL, NULL)))
         goto end;
-# ifndef EARLYCTX
-    if (!TEST_true(SSL_ech_set1_echconfig(clientssl, (unsigned char *)echconfig,
-                                          echconfiglen)))
-        goto end;
-# endif
     if (!TEST_true(SSL_set_tlsext_host_name(clientssl, "server.example")))
         goto end;
     if (!TEST_true(SSL_set_session(clientssl, sess)))
