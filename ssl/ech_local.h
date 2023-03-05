@@ -29,7 +29,7 @@
  * has issued, but is very useful for interop testing so some of it might
  * be retained.
  */
-#  undef OSSL_ECH_SUPERVERBOSE
+#  define OSSL_ECH_SUPERVERBOSE
 
 #  ifndef CLIENT_VERSION_LEN
 /*
@@ -477,6 +477,21 @@ int SSL_ech_print(BIO *out, SSL *s, int selector);
  */
 int ech_pick_matching_cfg(SSL_CONNECTION *s, ECHConfig **tc,
                           OSSL_HPKE_SUITE *suite);
+
+/*
+ * @brief copy an inner extension value to outer
+ * @param s is the SSL connection
+ * @param ext_type is the extension type
+ * @param pkt is the outer packet being encoded
+ * @return the relevant OSSL_ECH_SAME_EXT_* value
+ *
+ * We assume the inner CH has been pre-decoded into
+ * s->clienthello->pre_proc_exts already
+ *
+ * The extension value could be empty (i.e. zero length)
+ * but that's ok.
+ */
+int ech_copy_inner2outer(SSL_CONNECTION *s, int ext_type, WPACKET *pkt);
 
 #  ifdef OSSL_ECH_SUPERVERBOSE
 /*

@@ -614,4 +614,11 @@ int ech_map_ext_type_to_ind(unsigned int type);
  */
 int ssl_cipher_list_to_bytes(SSL_CONNECTION *s, STACK_OF(SSL_CIPHER) *sk,
                              WPACKET *pkt);
+/*
+ * @brief return number of built-in extensions
+ * @return the number
+ *
+ * Used in handling custom extensions
+ */
+size_t ech_num_builtins(void);
 #endif

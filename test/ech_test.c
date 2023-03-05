@@ -435,6 +435,70 @@ out:
     return NULL;
 }
 
+/*
+ * The define/vars below and the 3 callback functions are copied
+ * from test/sslapitest.c
+ * TODO: move to a test library maybe
+ */
+#define TEST_EXT_TYPE1  0xff00
+#define TEST_EXT_TYPE2  0xffee
+
+static int clntaddnewcb = 0;
+static int clntparsenewcb = 0;
+static int srvaddnewcb = 0;
+static int srvparsenewcb = 0;
+
+static int new_add_cb(SSL *s, unsigned int ext_type, unsigned int context,
+                      const unsigned char **out, size_t *outlen, X509 *x,
+                      size_t chainidx, int *al, void *add_arg)
+{
+    int *server = (int *)add_arg;
+    unsigned char *data;
+
+    if (SSL_is_server(s))
+        srvaddnewcb++;
+    else
+        clntaddnewcb++;
+
+    if (*server != SSL_is_server(s)
+            || (data = OPENSSL_malloc(sizeof(*data))) == NULL)
+        return -1;
+
+    if (ext_type == TEST_EXT_TYPE1) {
+        *data = 1;
+        *out = data;
+        *outlen = sizeof(*data);
+    } else {
+        *out = NULL;
+        *outlen = 0;
+    }
+    return 1;
+}
+
+static void new_free_cb(SSL *s, unsigned int ext_type, unsigned int context,
+                        const unsigned char *out, void *add_arg)
+{
+    OPENSSL_free((unsigned char *)out);
+}
+
+static int new_parse_cb(SSL *s, unsigned int ext_type, unsigned int context,
+                        const unsigned char *in, size_t inlen, X509 *x,
+                        size_t chainidx, int *al, void *parse_arg)
+{
+    int *server = (int *)parse_arg;
+
+    if (SSL_is_server(s))
+        srvparsenewcb++;
+    else
+        clntparsenewcb++;
+
+    if (*server != SSL_is_server(s)
+            || inlen != sizeof(char) || *in != 1)
+        return -1;
+
+    return 1;
+}
+
 /* various echconfig handling calls */
 static int basic_echconfig(int idx)
 {
@@ -593,12 +657,8 @@ static int ech_roundtrip_test(int idx)
                                        &sctx, &cctx, cert, privkey)))
         goto end;
     if (!TEST_true(SSL_CTX_ech_set1_echconfig(cctx, (unsigned char *)echconfig,
-                                              echconfiglen))) {
-        TEST_info("Failed SSL_CTX_ech_set1_echconfig adding %s (len = %d)"
-                  " to SSL_CTX: %p", echconfig, (int)echconfiglen,
-                  (void *)cctx);
+                                              echconfiglen)))
         goto end;
-    }
     if (!TEST_true(SSL_CTX_ech_server_enable_file(sctx, echkeyfile)))
         goto end;
     if (!TEST_true(create_ssl_objects(sctx, cctx, &serverssl,
@@ -1364,6 +1424,94 @@ end:
     return testresult;
 }
 
+/* Test a roundtrip with ECH, and a custom CH extension */
+static int ech_custom_test(void)
+{
+    int res = 0;
+    char *echkeyfile = NULL;
+    char *echconfig = NULL;
+    size_t echconfiglen = 0;
+    SSL_CTX *cctx = NULL, *sctx = NULL;
+    SSL *clientssl = NULL, *serverssl = NULL;
+    int clientstatus, serverstatus;
+    char *cinner, *couter, *sinner, *souter;
+    static int server = 1;
+    static int client = 0;
+    unsigned int context;
+
+    /* read our pre-cooked ECH PEM file */
+    echkeyfile = test_mk_file_path(certsdir, "echconfig.pem");
+    if (!TEST_ptr(echkeyfile))
+        goto end;
+    echconfig = echconfiglist_from_PEM(echkeyfile);
+    if (!TEST_ptr(echconfig))
+        goto end;
+    echconfiglen = strlen(echconfig);
+    if (!TEST_true(create_ssl_ctx_pair(libctx, TLS_server_method(),
+                                       TLS_client_method(),
+                                       TLS1_3_VERSION, 0,
+                                       &sctx, &cctx, cert, privkey)))
+        goto end;
+    if (!TEST_true(SSL_CTX_ech_set1_echconfig(cctx, (unsigned char *)echconfig,
+                                              echconfiglen)))
+        goto end;
+    if (!TEST_true(SSL_CTX_ech_server_enable_file(sctx, echkeyfile)))
+        goto end;
+
+    /* add custom CH ext to client and server */
+    context = SSL_EXT_CLIENT_HELLO;
+    if (!TEST_true(SSL_CTX_add_custom_ext(cctx, TEST_EXT_TYPE1, context,
+                                          new_add_cb, new_free_cb,
+                                          &client, new_parse_cb, &client)))
+        goto end;
+    if (!TEST_true(SSL_CTX_add_custom_ext(sctx, TEST_EXT_TYPE1, context,
+                                          new_add_cb, new_free_cb,
+                                          &server, new_parse_cb, &server)))
+        goto end;
+    if (!TEST_true(SSL_CTX_add_custom_ext(cctx, TEST_EXT_TYPE2, context,
+                                          new_add_cb, NULL,
+                                          &client, NULL, &client)))
+        goto end;
+    if (!TEST_true(SSL_CTX_add_custom_ext(sctx, TEST_EXT_TYPE2, context,
+                                          new_add_cb, NULL,
+                                          &server, NULL, &server)))
+        goto end;
+
+    /* do roundtrip */
+    if (!TEST_true(create_ssl_objects(sctx, cctx, &serverssl,
+                                      &clientssl, NULL, NULL)))
+        goto end;
+    if (!TEST_true(SSL_set_tlsext_host_name(clientssl, "server.example")))
+        goto end;
+    if (!TEST_true(create_ssl_connection(serverssl, clientssl,
+                                         SSL_ERROR_NONE)))
+        goto end;
+    serverstatus = SSL_ech_get_status(serverssl, &sinner, &souter);
+    if (verbose)
+        TEST_info("ech_roundtrip_test: server status %d, %s, %s",
+                  serverstatus, sinner, souter);
+    if (!TEST_int_eq(serverstatus, SSL_ECH_STATUS_SUCCESS))
+        goto end;
+    /* override cert verification */
+    SSL_set_verify_result(clientssl, X509_V_OK);
+    clientstatus = SSL_ech_get_status(clientssl, &cinner, &couter);
+    if (verbose)
+        TEST_info("ech_roundtrip_test: client status %d, %s, %s",
+                  clientstatus, cinner, couter);
+    if (!TEST_int_eq(clientstatus, SSL_ECH_STATUS_SUCCESS))
+        goto end;
+    /* all good */
+    res = 1;
+end:
+    OPENSSL_free(echkeyfile);
+    OPENSSL_free(echconfig);
+    SSL_free(clientssl);
+    SSL_free(serverssl);
+    SSL_CTX_free(cctx);
+    SSL_CTX_free(sctx);
+    return res;
+}
+
 typedef enum OPTION_choice {
     OPT_ERR = -1,
     OPT_EOF = 0,
@@ -1439,6 +1587,7 @@ int setup_tests(void)
     ADD_ALL_TESTS(test_ech_suite_roundtrips, suite_combos);
     ADD_ALL_TESTS(test_ech_hrr, suite_combos);
     ADD_ALL_TESTS(test_ech_early, suite_combos);
+    ADD_TEST(ech_custom_test);
     return 1;
 err:
     return 0;

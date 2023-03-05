@@ -22,6 +22,10 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
+- 20230305: Support for custom extension handling now working with ECH.
+  Such extensions for now are always compressed in inner CH. Test code
+  added for that too.
+
 - 20230301: did a bit of testing that GREASE PSKs actually
   look nicely random incl. the obfuscated ticket ages (as
   called for by the ECH spec)
