@@ -681,6 +681,13 @@ int tls_collect_extensions(SSL_CONNECTION *s, PACKET *packet,
             SSLfatal(s, SSL_AD_ILLEGAL_PARAMETER, SSL_R_BAD_EXTENSION);
             goto err;
         }
+#ifndef OPENSSL_NO_ECH
+        /*
+         * the subtraction below seems a bit smelly as thisex will be
+         * NULL for unsupported or custom extensions
+         * Not sure what to do about that.
+         */
+#endif
         idx = thisex - raw_extensions;
         /*-
          * Check that we requested this extension (if appropriate). Requests can
@@ -733,6 +740,16 @@ int tls_collect_extensions(SSL_CONNECTION *s, PACKET *packet,
                                 PACKET_remaining(&thisex->data),
                                 s->ext.debug_arg);
         }
+#ifndef OPENSSL_NO_ECH
+        else {
+            /* use callback anyway for custom ext or one we don't support */
+            if (s->ext.debug_cb)
+                s->ext.debug_cb(SSL_CONNECTION_GET_SSL(s), !s->server,
+                                type, PACKET_data(&extension),
+                                PACKET_remaining(&extension),
+                                s->ext.debug_arg);
+        }
+#endif
 
     }
 
@@ -1134,6 +1151,17 @@ static int final_ech(SSL_CONNECTION *s, unsigned int context, int sent)
         }
     }
     return 1;
+}
+
+/*
+ * @brief return number of built-in extensions
+ * @return the number
+ *
+ * Used in handling custom extensions
+ */
+size_t ech_num_builtins(void)
+{
+    return OSSL_NELEM(ext_defs);
 }
 #endif /* OPENSSL_NO_ECH */
 
