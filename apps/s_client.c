@@ -129,6 +129,7 @@ static int ech_ignore_cid = 0;
 static int nechs = 0;
 static char *ech_encoded_configs = NULL;
 static int ech_select = OSSL_ECH_SELECT_ALL;
+static int ech_with_custom = 0;
 # ifndef OPENSSL_NO_SSL_TRACE
 static size_t ech_trace_cb(const char *buf, size_t cnt,
                            int category, int cmd, void *vdata);
@@ -317,6 +318,98 @@ static unsigned int ech_print_cb(SSL *s, const char *str)
     }
     return 1;
 }
+#endif
+
+#ifndef OPNESL_NO_ECH
+/*
+ * Temporary code to test custom extensions with ECH
+ * Doing it here for now as tracing and client/server separation
+ * are better in s_client and s_server rather than just the
+ * test code.
+ */
+
+/*
+ * The define/vars below and the 3 callback functions are copied
+ * from test/sslapitest.c
+ */
+#define TEST_EXT_TYPE1  0xffab
+#define TEST_EXT_TYPE2  0xffcd
+
+static int clntaddnewcb = 0;
+static int clntparsenewcb = 0;
+static int srvaddnewcb = 0;
+static int srvparsenewcb = 0;
+
+static int new_add_cb(SSL *s, unsigned int ext_type, unsigned int context,
+                      const unsigned char **out, size_t *outlen, X509 *x,
+                      size_t chainidx, int *al, void *add_arg)
+{
+    int *server = (int *)add_arg;
+    unsigned char *data = NULL;
+
+    if (SSL_is_server(s))
+        srvaddnewcb++;
+    else
+        clntaddnewcb++;
+
+    if (*server != SSL_is_server(s)
+            || (data = OPENSSL_malloc(sizeof(*data))) == NULL)
+        return -1;
+
+    if (ext_type == TEST_EXT_TYPE1) {
+        *data = 1;
+        *out = data;
+        *outlen = sizeof(*data);
+    } else {
+        OPENSSL_free(data);
+        *out = NULL;
+        *outlen = 0;
+    }
+    return 1;
+}
+
+static void new_free_cb(SSL *s, unsigned int ext_type, unsigned int context,
+                        const unsigned char *out, void *add_arg)
+{
+    OPENSSL_free((unsigned char *)out);
+}
+
+static int new_parse_cb(SSL *s, unsigned int ext_type, unsigned int context,
+                        const unsigned char *in, size_t inlen, X509 *x,
+                        size_t chainidx, int *al, void *parse_arg)
+{
+    int *server = (int *)parse_arg;
+
+    if (SSL_is_server(s))
+        srvparsenewcb++;
+    else
+        clntparsenewcb++;
+
+    if (*server != SSL_is_server(s)
+            || inlen != sizeof(char) || *in != 1)
+        return -1;
+
+    return 1;
+}
+static int ech_setup_client_custom_exts(SSL_CTX *cctx)
+{
+    /* add custom CH ext to client and server */
+    int context = SSL_EXT_CLIENT_HELLO;
+    static int client = 0;
+
+    if (SSL_CTX_add_custom_ext(cctx, TEST_EXT_TYPE1, context,
+                               new_add_cb, new_free_cb,
+                               &client, new_parse_cb, &client) != 1)
+        goto end;
+    if (SSL_CTX_add_custom_ext(cctx, TEST_EXT_TYPE2, context,
+                               new_add_cb, new_free_cb,
+                               &client, new_parse_cb, &client) != 1)
+        goto end;
+    return 1;
+end:
+    return 0;
+}
+
 #endif
 
 #ifndef OPENSSL_NO_NEXTPROTONEG
@@ -557,6 +650,7 @@ typedef enum OPTION_choice {
     OPT_SNIOUTER, OPT_ALPN_OUTER,
     OPT_ECHCONFIGS, OPT_ECH_SELECT, OPT_ECH_IGNORE_CONFIG_ID,
     OPT_ECH_GREASE, OPT_ECH_GREASE_SUITE, OPT_ECH_GREASE_TYPE,
+    OPT_ECH_CUSTOM,
 #endif
     OPT_SCTP_LABEL_BUG,
     OPT_KTLS,
@@ -771,6 +865,7 @@ const OPTIONS s_client_options[] = {
      "Use this ECH ext type for GREASE values when not really using ECH"},
     {"ech_ignore_cid", OPT_ECH_IGNORE_CONFIG_ID, '-',
      "Ignore the server-chosen ECH config ID and send a random value"},
+    {"ech_custom", OPT_ECH_CUSTOM, '-', "send bogus custom CH exts to test"},
 #endif
 >>>>>>> 8cddd3254a (ECH draft 13)
 #ifndef OPENSSL_NO_SRTP
@@ -1675,6 +1770,9 @@ int s_client_main(int argc, char **argv)
         case OPT_ECH_IGNORE_CONFIG_ID:
             ech_ignore_cid = 1;
             break;
+        case OPT_ECH_CUSTOM:
+            ech_with_custom = 1;
+            break;
 #endif
 
         case OPT_NOSERVERNAME:
@@ -2301,6 +2399,12 @@ int s_client_main(int argc, char **argv)
         }
         OPENSSL_free(alpn_outer);
     }
+    if (ech_encoded_configs != NULL && ech_with_custom == 1) {
+        if (ech_setup_client_custom_exts(ctx) != 1) {
+            BIO_printf(bio_err,"Error setting up custom exts\n");
+            goto end;
+        }
+    }
 #endif
 
     con = SSL_new(ctx);
@@ -2476,7 +2580,6 @@ int s_client_main(int argc, char **argv)
             }
         }
     }
-
     if (ech_select != OSSL_ECH_SELECT_ALL) {
         int rv=0;
         OSSL_ECH_INFO *ed=NULL;
@@ -2690,7 +2793,6 @@ int s_client_main(int argc, char **argv)
                                     bio_c_msg? bio_c_msg : bio_c_out);
 # endif
 #endif
-
     }
     if (c_tlsextdebug) {
         SSL_set_tlsext_debug_callback(con, tlsext_cb);

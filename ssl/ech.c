@@ -2102,12 +2102,13 @@ static int ech_decode_inner(SSL_CONNECTION *s, const unsigned char *ob,
     size_t startofexts = 0;
     int found = 0, remaining = 0;
     size_t oneextstart = 0;
+    size_t beforeexts = 0;
     uint16_t etype = 0;
     size_t elen = 0;
     int n_outers = 0;
     uint8_t slen = 0;
     const unsigned char *oval_buf = NULL;
-    int i = 0, j = 0;
+    int i = 0, j = 0, k = 0;
     int iind = 0;
     uint16_t outers[OSSL_ECH_OUTERS_MAX]; /* compressed extension types */
     size_t outer_sizes[OSSL_ECH_OUTERS_MAX]; /* sizes, same order as "outers" */
@@ -2123,6 +2124,7 @@ static int ech_decode_inner(SSL_CONNECTION *s, const unsigned char *ob,
     size_t offset = 0;
     size_t initial_extslen = 0;
     size_t final_extslen = 0;
+    uint16_t allexts[OSSL_ECH_ALLEXTS_MAX];
 
     if (s->ext.ech.encoded_innerch == NULL || ob == NULL || ob_len == 0
         || outer_startofexts == 0) {
@@ -2197,7 +2199,8 @@ static int ech_decode_inner(SSL_CONNECTION *s, const unsigned char *ob,
     }
     remaining = initial_decomp[startofexts] * 256
         + initial_decomp[startofexts + 1];
-    oneextstart = startofexts + 2; /* 1st ext type, skip the overall exts len */
+    /* 1st ext type, skip the overall exts len */
+    beforeexts = oneextstart = startofexts + 2;
     etype = 0;
     elen = 0;
 
@@ -2435,6 +2438,51 @@ static int ech_decode_inner(SSL_CONNECTION *s, const unsigned char *ob,
     /* the added 4 is for the type+3-octets len */
     final_decomp[startofexts + 4] = (final_extslen / 256) & 0xff;
     final_decomp[startofexts + 5] = final_extslen % 256;
+    /*
+     * check that we haven't ended up with more than one occurrence
+     * of any extension type; 'till now - we've not checked that we
+     * didn't have both a compressed-from-outer and duplicated-in-inner
+     * extension type.
+     */
+    etype = 0;
+    elen = 0;
+    oneextstart = beforeexts + 4;
+    remaining = final_decomp_len - beforeexts;
+    i = 0;
+    memset(allexts, 0, sizeof(allexts));
+    /* accumulate all ext types used */
+    while (oneextstart + 4 <= final_decomp_len && remaining > 0) {
+        etype = final_decomp[oneextstart] * 256
+            + final_decomp[oneextstart + 1];
+        allexts[i++] = etype;
+        if (i >= OSSL_ECH_ALLEXTS_MAX) {
+            SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+            goto err;
+        }
+        elen = final_decomp[oneextstart + 2] * 256
+            + final_decomp[oneextstart + 3];
+        if (oneextstart + 4 + elen > final_decomp_len) {
+            SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+            goto err;
+        }
+        remaining -= (elen + 4);
+        oneextstart += (elen + 4);
+    }
+    if (oneextstart != final_decomp_len) {
+        /* must be off by a few, that's bad */
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+    /* brute force check for no repeats */
+    for (j = 0; j != i; j++) {
+        etype = allexts[j];
+        for (k = j + 1; k != i; k++) {
+            if (etype == allexts[k]) {
+                SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+                goto err;
+            }
+        }
+    }
 # ifdef OSSL_ECH_SUPERVERBOSE
     ech_pbuf("final_decomp", final_decomp, final_decomp_len);
 # endif
@@ -2452,6 +2500,7 @@ static int ech_decode_inner(SSL_CONNECTION *s, const unsigned char *ob,
     return 1;
 err:
     OPENSSL_free(initial_decomp);
+    OPENSSL_free(final_decomp);
     return 0;
 }
 
@@ -3095,7 +3144,6 @@ int ech_2bcompressed(int ind)
  */
 int ech_same_ext(SSL_CONNECTION *s, WPACKET *pkt, int depth)
 {
-    SSL_CONNECTION *inner = NULL;
     unsigned int type = 0;
     unsigned int nexts = 0;
     int tind = 0;
@@ -3111,17 +3159,14 @@ int ech_same_ext(SSL_CONNECTION *s, WPACKET *pkt, int depth)
 
     if (s == NULL || s->ext.ech.cfgs == NULL)
         return OSSL_ECH_SAME_EXT_CONTINUE; /* nothing to do */
-    inner = s;
     type = s->ext.ech.etype;
     nexts = OSSL_NELEM(ech_outer_config);
     tind = ech_map_ext_type_to_ind(type);
-
     /* If this index'd extension won't be compressed, we're done */
     if (tind == -1)
         return OSSL_ECH_SAME_EXT_ERR;
     if (tind >= (int)nexts)
         return OSSL_ECH_SAME_EXT_ERR;
-
     if (depth == 1) {
         /* inner CH - just note compression as configured */
         if (ech_outer_config[tind] == 0)
@@ -3132,15 +3177,16 @@ int ech_same_ext(SSL_CONNECTION *s, WPACKET *pkt, int depth)
         s->ext.ech.outer_only[s->ext.ech.n_outer_only] = type;
         s->ext.ech.n_outer_only++;
         OSSL_TRACE_BEGIN(TLS) {
-            BIO_printf(trc_out, "ech_same_ext: Marking (type %d, ind %d) "
-                       "for compression\n", s->ext.ech.etype, tind);
+            BIO_printf(trc_out, "ech_same_ext: Marking (type %d, ind %d "
+                       "tot-comp %d) for compression\n", s->ext.ech.etype, tind,
+                       (int) s->ext.ech.n_outer_only);
         } OSSL_TRACE_END(TLS);
         return OSSL_ECH_SAME_EXT_CONTINUE;
     }
 
     /* Copy value from inner to outer, or indicate a new value needed */
     if (depth == 0) {
-        if (inner->clienthello == NULL || pkt == NULL)
+        if (s->clienthello == NULL || pkt == NULL)
             return OSSL_ECH_SAME_EXT_ERR;
         if (ech_outer_indep[tind] != 0) {
             /* continue processing, meaning get a new value */
@@ -3150,45 +3196,8 @@ int ech_same_ext(SSL_CONNECTION *s, WPACKET *pkt, int depth)
             } OSSL_TRACE_END(TLS);
             return OSSL_ECH_SAME_EXT_CONTINUE;
         } else {
-            size_t ind = 0;
-            RAW_EXTENSION *myext = NULL;
-            RAW_EXTENSION *raws = inner->clienthello->pre_proc_exts;
-            size_t nraws = 0;
-
-            if (raws == NULL)
-                return OSSL_ECH_SAME_EXT_ERR;
-            nraws = inner->clienthello->pre_proc_exts_len;
-            /* copy inner to outer */
-            OSSL_TRACE_BEGIN(TLS) {
-                BIO_printf(trc_out, "ech_same_ext: Copying ext "
-                           "(type %d,ind %d) to outer\n", s->ext.ech.etype,
-                           tind);
-            } OSSL_TRACE_END(TLS);
-            for (ind = 0; ind != nraws; ind++) {
-                if (raws[ind].type == type) {
-                    myext = &raws[ind];
-                    break;
-                }
-            }
-            if (myext == NULL) {
-                /* This one wasn't in inner, so re-do processing */
-                return OSSL_ECH_SAME_EXT_CONTINUE;
-            }
-            /* copy inner value to outer */
-            if (PACKET_data(&myext->data) != NULL
-                && PACKET_remaining(&myext->data) > 0) {
-                if (!WPACKET_put_bytes_u16(pkt, type)
-                    || !WPACKET_sub_memcpy_u16(pkt, PACKET_data(&myext->data),
-                                               PACKET_remaining(&myext->data)))
-                    return OSSL_ECH_SAME_EXT_ERR;
-            } else {
-                /* empty extension */
-                if (!WPACKET_put_bytes_u16(pkt, type)
-                    || !WPACKET_put_bytes_u16(pkt, 0))
-                    return OSSL_ECH_SAME_EXT_ERR;
-            }
-            /* we've done the copy so we're done */
-            return OSSL_ECH_SAME_EXT_DONE;
+            /* copy over (if present) and return */
+            return ech_copy_inner2outer(s, type, pkt);
         }
     }
     /* just in case - shouldn't happen */
@@ -3197,7 +3206,7 @@ int ech_same_ext(SSL_CONNECTION *s, WPACKET *pkt, int depth)
 
 /**
  * @brief After "normal" 1st pass CH is done, fix encoding as needed
- * @param ssl is the SSL connection
+ * @param s is the SSL connection
  * @return 1 for success, error otherwise
  *
  * This will make up the ClientHelloInner and EncodedClientHelloInner buffers
@@ -3212,6 +3221,7 @@ int ech_encode_inner(SSL_CONNECTION *s)
     size_t nraws = 0;
     size_t ind = 0;
     size_t innerinnerlen = 0;
+    size_t builtins = ech_num_builtins();
 
     /* basic checks */
     if (s == NULL || s->ext.ech.cfgs == NULL)
@@ -3278,8 +3288,9 @@ int ech_encode_inner(SSL_CONNECTION *s)
             }
         }
     }
+
     /* now copy the rest, as "proper" exts, into encoded inner */
-    for (ind = 0; ind != nraws; ind++) {
+    for (ind = 0; ind < builtins; ind++) {
         if (raws[ind].present == 0)
             continue;
         if (ech_2bcompressed(ind) == 1)
@@ -4776,6 +4787,63 @@ err:
         extval = NULL;
     }
     return 0;
+}
+
+/*
+ * @brief copy an inner extension value to outer
+ * @param s is the SSL connection
+ * @param ext_type is the extension type
+ * @param pkt is the outer packet being encoded
+ * @return the relevant OSSL_ECH_SAME_EXT_* value
+ *
+ * We assume the inner CH has been pre-decoded into
+ * s->clienthello->pre_proc_exts already
+ *
+ * The extension value could be empty (i.e. zero length)
+ * but that's ok.
+ */
+int ech_copy_inner2outer(SSL_CONNECTION *s, int ext_type, WPACKET *pkt)
+{
+    size_t ind = 0;
+    RAW_EXTENSION *myext = NULL;
+    RAW_EXTENSION *raws = s->clienthello->pre_proc_exts;
+    size_t nraws = 0;
+
+    if (s == NULL || s->clienthello == NULL)
+        return OSSL_ECH_SAME_EXT_ERR;
+    raws = s->clienthello->pre_proc_exts;
+    if (raws == NULL)
+        return OSSL_ECH_SAME_EXT_ERR;
+    nraws = s->clienthello->pre_proc_exts_len;
+    /* copy inner to outer */
+    OSSL_TRACE_BEGIN(TLS) {
+        BIO_printf(trc_out, "inner2outer: Copying ext type %d to outer\n",
+                   ext_type);
+    } OSSL_TRACE_END(TLS);
+    for (ind = 0; ind != nraws; ind++) {
+        if (raws[ind].type == ext_type) {
+            myext = &raws[ind];
+            break;
+        }
+    }
+    if (myext == NULL) {
+        /* This one wasn't in inner, so re-do processing */
+        return OSSL_ECH_SAME_EXT_CONTINUE;
+    }
+    /* copy inner value to outer */
+    if (PACKET_data(&myext->data) != NULL
+        && PACKET_remaining(&myext->data) > 0) {
+        if (!WPACKET_put_bytes_u16(pkt, ext_type)
+            || !WPACKET_sub_memcpy_u16(pkt, PACKET_data(&myext->data),
+                                       PACKET_remaining(&myext->data)))
+            return OSSL_ECH_SAME_EXT_ERR;
+    } else {
+        /* empty extension */
+        if (!WPACKET_put_bytes_u16(pkt, ext_type)
+            || !WPACKET_put_bytes_u16(pkt, 0))
+            return OSSL_ECH_SAME_EXT_ERR;
+    }
+    return 1;
 }
 
 /* SECTION: Public APIs */

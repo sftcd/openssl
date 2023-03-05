@@ -64,6 +64,8 @@ SUPPLIEDSESSION=""
 # re-using a session allows early data, so note that, if so
 REUSINGSESSION="no"
 
+# test with bogus custom extensions
+TESTCUST="no"
 
 # default values
 HIDDEN="crypto.cloudflare.com"
@@ -112,6 +114,7 @@ function usage()
 	echo "  -s [name] specifices a server to which I'll connect (localhost=>local certs, unless --realcert)"
 	echo "  -S [file] means save or resume session from <file>"
     echo "  -t [type] means to set the TLS extension type for GREASE to <type>"
+    echo "  -T [test_cust] means to test use of bogus CH custom exts"
     echo "  -v means run with valgrind"
 
 	echo ""
@@ -135,7 +138,7 @@ then
 fi
 
 # options may be followed by one colon to indicate they have a required argument
-if ! options=$($GETOPTDIR/getopt -s bash -o 46C:c:def:gGhH:IjnNO:p:P:rs:S:t:v -l four,six,choose:,clear_sni:,debug,early,filepath:,grease,greasesuite,help,hidden:,ignore_cid,just,noech,noalpn,outer:,port:,echpub:,realcert,server:,session:,gtype:,valgrind -- "$@")
+if ! options=$($GETOPTDIR/getopt -s bash -o 46C:c:def:gGhH:IjnNO:p:P:rs:S:t:Tv -l four,six,choose:,clear_sni:,debug,early,filepath:,grease,greasesuite,help,hidden:,ignore_cid,just,noech,noalpn,outer:,port:,echpub:,realcert,server:,session:,gtype:,test_cust,valgrind -- "$@")
 then
     # something went wrong, getopt will put out an error message for us
     exit 1
@@ -167,6 +170,7 @@ do
         -s|--server) SUPPLIEDSERVER=$2; shift;;
         -S|--session) SUPPLIEDSESSION=$2; shift;;
         -t|--gtype) GTYPE=$2; shift;;
+        -T|--test_cust) TESTCUST="yes" ;;
         -v|--valgrind) VG="yes" ;;
         (--) shift; break;;
         (-*) echo "$0: error - unrecognized option $1" 1>&2; exit 1;;
@@ -209,6 +213,11 @@ then
     dbgstr="-msg -debug $TRACING -security_debug_verbose -state -tlsextdebug -keylogfile cli.keys"
     #dbgstr="-msg -debug $TRACING"
     #dbgstr="-msg -debug $TRACING -tlsextdebug -keylogfile keys.cli"
+fi
+
+if [[ "$TESTCUST" == "yes" ]]
+then
+    tcust=" -ech_custom"
 fi
 
 vgcmd=""
@@ -466,9 +475,9 @@ fi
 if [[ "$EARLY_DATA" == "yes" ]]
 then
     httpreq1=${httpreq/foo.example.com/barbar.example.com}
-    ( echo -e "$httpreq1" ; sleep $sleepaftr) | $vgcmd $CODETOP/apps/openssl s_client $IP_PROTSEL $dbgstr $certsdb $force13 $target $echstr $snioutercmd $session $alpn $ciphers $earlystr >$TMPF 2>&1
+    ( echo -e "$httpreq1" ; sleep $sleepaftr) | $vgcmd $CODETOP/apps/openssl s_client $IP_PROTSEL $dbgstr $certsdb $force13 $target $echstr $snioutercmd $session $alpn $ciphers $earlystr $tcust >$TMPF 2>&1
 else
-    ( echo -e "$httpreq" ; sleep $sleepaftr) | $vgcmd $CODETOP/apps/openssl s_client $IP_PROTSEL $dbgstr $certsdb $force13 $target $echstr $snioutercmd $session $alpn $ciphers >$TMPF 2>&1
+    ( echo -e "$httpreq" ; sleep $sleepaftr) | $vgcmd $CODETOP/apps/openssl s_client $IP_PROTSEL $dbgstr $certsdb $force13 $target $echstr $snioutercmd $session $alpn $ciphers $tcust >$TMPF 2>&1
 fi
 
 c200=`grep -c "200 OK" $TMPF`
