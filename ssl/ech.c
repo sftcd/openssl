@@ -3270,6 +3270,10 @@ int ech_encode_inner(SSL_CONNECTION *s)
     /* Grab a pointer to the already constructed extensions */
     raws = s->clienthello->pre_proc_exts;
     nraws = s->clienthello->pre_proc_exts_len;
+    if (nraws < builtins) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
 
     /*  We put ECH-compressed stuff first (if any), because we can */
     if (s->ext.ech.n_outer_only > 0) {
@@ -4802,7 +4806,7 @@ err:
  * The extension value could be empty (i.e. zero length)
  * but that's ok.
  */
-int ech_copy_inner2outer(SSL_CONNECTION *s, int ext_type, WPACKET *pkt)
+int ech_copy_inner2outer(SSL_CONNECTION *s, uint16_t ext_type, WPACKET *pkt)
 {
     size_t ind = 0;
     RAW_EXTENSION *myext = NULL;

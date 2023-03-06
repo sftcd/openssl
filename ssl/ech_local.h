@@ -217,7 +217,7 @@ typedef struct ssl_connection_ech_st {
      * extension handler needs to know the relevant TLS codepoint
      * TODO(ECH): check if there's another way to get that value
      */
-    unsigned int etype;
+    uint16_t etype;
     /*
      * in case of HRR, we need to record the 1st inner client hello, and
      * the first server hello (aka the HRR) so we can independently
@@ -491,7 +491,7 @@ int ech_pick_matching_cfg(SSL_CONNECTION *s, ECHConfig **tc,
  * The extension value could be empty (i.e. zero length)
  * but that's ok.
  */
-int ech_copy_inner2outer(SSL_CONNECTION *s, int ext_type, WPACKET *pkt);
+int ech_copy_inner2outer(SSL_CONNECTION *s, uint16_t ext_type, WPACKET *pkt);
 
 #  ifdef OSSL_ECH_SUPERVERBOSE
 /*
