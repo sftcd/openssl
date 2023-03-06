@@ -320,7 +320,7 @@ static unsigned int ech_print_cb(SSL *s, const char *str)
 }
 #endif
 
-#ifndef OPNESSL_NO_ECH
+#ifndef OPENSSL_NO_ECH
 /*
  * Temporary code to test custom extensions with ECH
  * Doing it here for now as tracing and client/server separation
