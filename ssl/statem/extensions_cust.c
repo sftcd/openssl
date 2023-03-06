@@ -210,7 +210,7 @@ int custom_ext_add(SSL_CONNECTION *s, int context, WPACKET *pkt, X509 *x,
                                    "Too many outers to compress (max=%d)\n",
                                    OSSL_ECH_OUTERS_MAX);
                     } OSSL_TRACE_END(TLS);
-                    SSLfatal(s, al, SSL_R_BAD_EXTENSION);
+                    SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_R_BAD_EXTENSION);
                     return 0;
                 }
                 s->ext.ech.outer_only[s->ext.ech.n_outer_only] =
@@ -228,7 +228,7 @@ int custom_ext_add(SSL_CONNECTION *s, int context, WPACKET *pkt, X509 *x,
             if (ech_copy_inner2outer(s, meth->ext_type, pkt)
                     != OSSL_ECH_SAME_EXT_DONE) {
                 /* for custom exts, we really should have found it */
-                SSLfatal(s, al, SSL_R_BAD_EXTENSION);
+                SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_R_BAD_EXTENSION);
                 return 0;
             }
             /* we're done with that one now */
