@@ -469,6 +469,7 @@ static int new_add_cb(SSL *s, unsigned int ext_type, unsigned int context,
         *out = data;
         *outlen = sizeof(*data);
     } else {
+        OPENSSL_free(data);
         *out = NULL;
         *outlen = 0;
     }
