@@ -332,7 +332,7 @@ static int ech_check_filenames(SSL_CTX *ctx, const char *pemfname, int *index)
     /* check the time info - we're only doing 1s precision on purpose */
 # if defined(__APPLE__)
     pemmod = pemstat.st_mtimespec.tv_sec;
-# elif defined(OPENSSL_SYS_WINDOWS)
+# elif defined(OPENSSL_SYS_WINDOWS) || defined(OPENSSL_SYS_MSDOS)
     pemmod = pemstat.st_mtime;
 # else
     pemmod = pemstat.st_mtim.tv_sec;
@@ -5206,7 +5206,8 @@ int SSL_CTX_ech_server_flush_keys(SSL_CTX *ctx, unsigned int age)
         ctx->ext.ech = NULL;
         ctx->ext.nechs = 0;
         OSSL_TRACE_BEGIN(TLS) {
-            BIO_printf(trc_out, "Flushed all %d ECH keys at %lu\n", orig, now);
+            BIO_printf(trc_out, "Flushed all %d ECH keys at %lu\n", orig,
+                       (long unsigned int)now);
         } OSSL_TRACE_END(TLS);
         return 1;
     }
@@ -5224,7 +5225,8 @@ int SSL_CTX_ech_server_flush_keys(SSL_CTX *ctx, unsigned int age)
     ctx->ext.nechs -= deleted;
     OSSL_TRACE_BEGIN(TLS) {
         BIO_printf(trc_out, "Flushed %d (of %d) ECH keys more than %u "
-                   "seconds old at %lu\n", deleted, orig, age, now);
+                   "seconds old at %lu\n", deleted, orig, age,
+                   (long unsigned int)now);
     } OSSL_TRACE_END(TLS);
     return 1;
 }

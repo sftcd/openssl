@@ -320,7 +320,7 @@ static unsigned int ech_print_cb(SSL *s, const char *str)
 }
 #endif
 
-#ifndef OPNESL_NO_ECH
+#ifndef OPNESSL_NO_ECH
 /*
  * Temporary code to test custom extensions with ECH
  * Doing it here for now as tracing and client/server separation
@@ -391,6 +391,7 @@ static int new_parse_cb(SSL *s, unsigned int ext_type, unsigned int context,
 
     return 1;
 }
+
 static int ech_setup_client_custom_exts(SSL_CTX *cctx)
 {
     /* add custom CH ext to client and server */
