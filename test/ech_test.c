@@ -436,17 +436,11 @@ out:
 }
 
 /*
- * The define/vars below and the 3 callback functions are copied
+ * The define/vars below and the 3 callback functions are modified
  * from test/sslapitest.c
- * TODO: move to a test library maybe
  */
-#define TEST_EXT_TYPE1  0xff00
-#define TEST_EXT_TYPE2  0xffee
-
-static int clntaddnewcb = 0;
-static int clntparsenewcb = 0;
-static int srvaddnewcb = 0;
-static int srvparsenewcb = 0;
+# define TEST_EXT_TYPE1  0xffab /* custom ext type 1: has 1 octet payload */
+# define TEST_EXT_TYPE2  0xffcd /* custom ext type 2: no payload */
 
 static int new_add_cb(SSL *s, unsigned int ext_type, unsigned int context,
                       const unsigned char **out, size_t *outlen, X509 *x,
@@ -454,11 +448,6 @@ static int new_add_cb(SSL *s, unsigned int ext_type, unsigned int context,
 {
     int *server = (int *)add_arg;
     unsigned char *data;
-
-    if (SSL_is_server(s))
-        srvaddnewcb++;
-    else
-        clntaddnewcb++;
 
     if (*server != SSL_is_server(s)
             || (data = OPENSSL_malloc(sizeof(*data))) == NULL)
@@ -487,11 +476,6 @@ static int new_parse_cb(SSL *s, unsigned int ext_type, unsigned int context,
                         size_t chainidx, int *al, void *parse_arg)
 {
     int *server = (int *)parse_arg;
-
-    if (SSL_is_server(s))
-        srvparsenewcb++;
-    else
-        clntparsenewcb++;
 
     if (*server != SSL_is_server(s)
             || inlen != sizeof(char) || *in != 1)
