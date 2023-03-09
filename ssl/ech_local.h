@@ -29,7 +29,7 @@
  * has issued, but is very useful for interop testing so some of it might
  * be retained.
  */
-#  undef OSSL_ECH_SUPERVERBOSE
+#  define OSSL_ECH_SUPERVERBOSE
 
 #  ifndef CLIENT_VERSION_LEN
 /*
@@ -59,32 +59,10 @@
 #  define OSSL_ECH_OUTER_CH_TYPE 0 /* outer ECHClientHello enum */
 #  define OSSL_ECH_INNER_CH_TYPE 1 /* inner ECHClientHello enum */
 
-/*
- * Options for ECH handling of extensions when client contructing CH.
- * If an extension constructor has side-effects then it is (in general)
- * unsafe to call twice. For others, we need to be able to call twice,
- * if we do want possibly values in inner and outer. If OTOH we want
- * the inner to contain a compressed form of the value in the outer
- * then we also need to signal that.
- *
- * We have a table with one of these entries for each extension type.
- * That table is ech_ext_handling in ech.c for now, but these values
- * may be better added to a field in ext_defs (in extensions.c).
- * TODO: merge those tables or not.
- *
- * The above applies to built-in extensions - all custom extensions
- * use COMPRESS handling, but that's not table-driven.
- *
- * The RANDOM handling helps with testing by exercising the various
- * options but could also be of use in that it causes varying sizes
- * for ECH. It may be best to drop that before merging or we might
- * make it an OPTION, so we can use that variability for tests.
- * TODO: drop RANDOM or add it as an OPTION
- */
+/* ECH handling options - see the comment in ech.c for details */
 #  define OSSL_ECH_HANDLING_CALL_BOTH 1 /* call constructor both times */
 #  define OSSL_ECH_HANDLING_COMPRESS  2 /* compress outer value into inner */
 #  define OSSL_ECH_HANDLING_DUPLICATE 3 /* same value in inner and outer */
-#  define OSSL_ECH_HANDLING_RANDOM    4 /* decide randomly between 2 or 3 */
 
 #  define NEWHAND /* turn on the above */
 
@@ -95,6 +73,39 @@
 #  define OSSL_ECH_SAME_EXT_ERR 0 /* bummer something wrong */
 #  define OSSL_ECH_SAME_EXT_DONE 1 /* proceed with same value in inner/outer */
 #  define OSSL_ECH_SAME_EXT_CONTINUE 2 /* generate a new value for outer CH */
+
+/*
+ * During extension construction (in extensions_clnt.c
+ * and surprisingly also in extensions.c), we need to
+ * handle inner/outer CH cloning - ech_same_ext will
+ * (depending on ech.c compile time handling options
+ * from the ech_ext_handling table) copy the value
+ * from CH.inner to CH.outer or else processing
+ * will continue, for a 2nd call, likely generating a
+ * fresh value for the outer CH. (The fresh value
+ * could well be the same as in the inner.)
+ * This macro should be called in each _ctos_ function
+ * that doesn't explicitly have special ECH handling.
+ *
+ * Note that the placement of this macro needs a bit
+ * of thought - it has to go after declarations (to
+ * keep the ansi-c compile happy) and also after any
+ * checks that result in the extension not being sent
+ * but before any relevant state changes that would
+ * affect a possible 2nd call to the constructor.
+ * Luckily, that's usually not to hard, but it's
+ * not mechanical.
+ */
+#  define ECH_IOSAME(s) \
+    if (s->ext.ech.cfgs != NULL && s->ext.ech.grease == 0) { \
+        int __rv = ech_same_ext(s, pkt, s->ext.ech.ch_depth); \
+        \
+        if (__rv == OSSL_ECH_SAME_EXT_ERR) \
+            return EXT_RETURN_FAIL; \
+        if (__rv == OSSL_ECH_SAME_EXT_DONE) \
+            return EXT_RETURN_SENT; \
+        /* otherwise continue as normal */ \
+    }
 
 /*
  * Reminder of what goes in DNS for draft-13

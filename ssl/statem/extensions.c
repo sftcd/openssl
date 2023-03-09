@@ -973,9 +973,8 @@ int tls_construct_extensions(SSL_CONNECTION *s, WPACKET *pkt,
                               : thisexd->construct_ctos;
         if (construct == NULL)
             continue;
-        /* stash type to help ECH compression */
-        if (s->ext.ech.cfgs != NULL)
-            s->ext.ech.etype = thisexd->type;
+        /* stash type */
+        s->ext.ech.etype = thisexd->type;
         ret = construct(s, pkt, context, x, chainidx);
         if (ret == EXT_RETURN_FAIL) {
             /* SSLfatal() already called */
@@ -1011,9 +1010,8 @@ int tls_construct_extensions(SSL_CONNECTION *s, WPACKET *pkt,
         if (construct == NULL)
             continue;
 #ifndef OPENSSL_NO_ECH
-        /* stash type to help ECH compression */
-        if (s->ext.ech.cfgs != NULL)
-            s->ext.ech.etype = thisexd->type;
+        /* stash type */
+        s->ext.ech.etype = thisexd->type;
 #endif
         ret = construct(s, pkt, context, x, chainidx);
         if (ret == EXT_RETURN_FAIL) {
@@ -2002,6 +2000,9 @@ static EXT_RETURN tls_construct_compress_certificate(SSL_CONNECTION *sc, WPACKET
 
     if (sc->cert_comp_prefs[0] == TLSEXT_comp_cert_none)
         return EXT_RETURN_NOT_SENT;
+# ifndef OPENSSL_NO_ECH
+    ECH_IOSAME(sc);
+# endif
 
     if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_compress_certificate)
             || !WPACKET_start_sub_packet_u16(pkt)
