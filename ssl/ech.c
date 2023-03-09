@@ -171,15 +171,42 @@ static char OSSL_ECH_ACCEPT_CONFIRM_STRING[] = "\x65\x63\x68\x20\x61\x63\x63\x65
 /* "hrr ech accept confirmation" */
 static const char OSSL_ECH_HRR_CONFIRM_STRING[] = "\x68\x72\x72\x20\x65\x63\x68\x20\x61\x63\x63\x65\x70\x74\x20\x63\x6f\x6e\x66\x69\x72\x6d\x61\x74\x69\x6f\x6e";
 
-#ifdef NEWHAND
+# ifdef NEWHAND
 /*
- * When doing ECH this table specifies how we handle each extension type
- * See the comment in ssl/ech_local.h where we define the constants for
- * details.
+ * When doing ECH, this table specifies how we handle the encoding of
+ * each extension type in the inner and outer ClientHello.
+ *
+ * If an extension constructor has side-effects then it is (in general)
+ * unsafe to call twice. For others, we need to be able to call twice,
+ * if we do want possibly different values in inner and outer, of if
+ * the extension constructor is ECH-aware and handles side-effects
+ * specially for inner and outer. If OTOH we want the inner to contain
+ * a compressed form of the value in the outer we also need to signal
+ * that.
+ *
+ * In general, if an extension constructor is ECH-aware then you ought
+ * use the CALL_BOTH option. That currently (and perhaps unexpectedly)
+ * includes early_data due to some side-effects of the first call being
+ * specially handled in the 2nd. You should be able to select between
+ * COMPRESS or DUPLICATE for any extension that's not CALL_BOTH below.
+ *
+ * Note that the set of COMPRESSed extensions in use for this TLS session
+ * will be emitted first, in the order below, followed by those not
+ * using COMPRESS, also in the order below. That means that changing
+ * to/from COMPRESS for extensions will affect fingerprinting based on
+ * the outer ClientHello. (That's because the compression mechanism for
+ * ECH requires the compressed extensions to be a contiguous set in the
+ * outer encoding.)
+ *
+ * The above applies to built-in extensions - all custom extensions
+ * use COMPRESS handling, but that's not table-driven.
  *
  * As with ext_defs in extensions.c: NOTE: Changes in the number or order
  * of these extensions should be mirrored with equivalent changes to the
  * indexes ( TLSEXT_IDX_* ) defined in ssl_local.h.
+ *
+ * These values may be better added as a field in ext_defs (in extensions.c).
+ * TODO: merge those tables or not.
  */
 static const int ech_ext_handling[] =
     {
@@ -203,20 +230,19 @@ static const int ech_ext_handling[] =
      /* TLSEXT_IDX_post_handshake_auth, 49 */ OSSL_ECH_HANDLING_COMPRESS,
      /* TLSEXT_IDX_signature_algorithms, 13 */ OSSL_ECH_HANDLING_COMPRESS,
      /* TLSEXT_IDX_supported_versions, 43 */ OSSL_ECH_HANDLING_COMPRESS,
-     /* TLSEXT_IDX_psk_kex_modes, 45 */ OSSL_ECH_HANDLING_DUPLICATE,
+     /* TLSEXT_IDX_psk_kex_modes, 45 */ OSSL_ECH_HANDLING_COMPRESS,
      /* TLSEXT_IDX_key_share, 51 */ OSSL_ECH_HANDLING_COMPRESS,
      /* TLSEXT_IDX_cookie, 44 */ OSSL_ECH_HANDLING_COMPRESS,
      /* TLSEXT_IDX_cryptopro_bug, 0xfde8 */ OSSL_ECH_HANDLING_COMPRESS,
      /* TLSEXT_IDX_compress_certificate, 27 */ OSSL_ECH_HANDLING_COMPRESS,
-     /* if early_data below is COMPRESS it doesn't work TODO: FIXME */
-     /* TLSEXT_IDX_early_data, 42 */ OSSL_ECH_HANDLING_DUPLICATE,
+     /* TLSEXT_IDX_early_data, 42 */ OSSL_ECH_HANDLING_CALL_BOTH,
      /* TLSEXT_IDX_certificate_authorities, 47 */ OSSL_ECH_HANDLING_COMPRESS,
      /* TLSEXT_IDX_ech13, 0xfe0d */ OSSL_ECH_HANDLING_CALL_BOTH,
      /* TLSEXT_IDX_outer_extensions, 0xfd00 */ OSSL_ECH_HANDLING_CALL_BOTH,
      /* TLSEXT_IDX_padding, 21 */ OSSL_ECH_HANDLING_CALL_BOTH,
      /* TLSEXT_IDX_psk, 41 */ OSSL_ECH_HANDLING_CALL_BOTH
     };
-#else
+# else
 
 /*
  * When doing ECH, this array specifies which inner CH extensions (if
@@ -235,9 +261,6 @@ static const int ech_ext_handling[] =
  * As with ext_defs in extensions.c: NOTE: Changes in the number or order
  * of these extensions should be mirrored with equivalent changes to the
  * indexes ( TLSEXT_IDX_* ) defined in ssl_local.h.
- *
- * TODO: figure a way to test all combos for ech_compress_ext and
- * ech_outer_indep values
  */
 static const int ech_compress_ext[] =
     {
@@ -321,7 +344,7 @@ static const int ech_outer_indep[] =
      /* TLSEXT_IDX_padding */ 0,
      /* TLSEXT_IDX_psk */ 1,
     };
-#endif
+# endif
 
 /*
  * Telltales we use when guessing which form of encoded input we've
@@ -3197,19 +3220,19 @@ err:
  */
 int ech_2bcompressed(int ind)
 {
-#ifdef NEWHAND
+# ifdef NEWHAND
     int nexts = OSSL_NELEM(ech_ext_handling);
-#else
+# else
     int nexts = OSSL_NELEM(ech_compress_ext);
-#endif
+# endif
 
     if (ind < 0 || ind >= nexts)
         return -1;
-#ifdef NEWHAND
+# ifdef NEWHAND
     return ech_ext_handling[ind] == OSSL_ECH_HANDLING_COMPRESS;
-#else
+# else
     return ech_compress_ext[ind];
-#endif
+# endif
 }
 
 /**
@@ -3237,11 +3260,11 @@ int ech_same_ext(SSL_CONNECTION *s, WPACKET *pkt, int depth)
     if (s == NULL || s->ext.ech.cfgs == NULL)
         return OSSL_ECH_SAME_EXT_CONTINUE; /* nothing to do */
     type = s->ext.ech.etype;
-#ifdef NEWHAND
+# ifdef NEWHAND
     nexts = OSSL_NELEM(ech_ext_handling);
-#else
+# else
     nexts = OSSL_NELEM(ech_compress_ext);
-#endif
+# endif
     tind = ech_map_ext_type_to_ind(type);
     /* If this index'd extension won't be compressed, we're done */
     if (tind == -1)
@@ -3250,13 +3273,13 @@ int ech_same_ext(SSL_CONNECTION *s, WPACKET *pkt, int depth)
         return OSSL_ECH_SAME_EXT_ERR;
     if (depth == 1) {
         /* inner CH - just note compression as configured */
-#ifdef NEWHAND
+# ifdef NEWHAND
         if (ech_ext_handling[tind] != OSSL_ECH_HANDLING_COMPRESS)
             return OSSL_ECH_SAME_EXT_CONTINUE;
-#else
+# else
         if (ech_compress_ext[tind] == 0)
             return OSSL_ECH_SAME_EXT_CONTINUE;
-#endif
+# endif
         /* mark this one to be "compressed" */
         if (s->ext.ech.n_outer_only >= OSSL_ECH_OUTERS_MAX)
             return OSSL_ECH_SAME_EXT_ERR;
@@ -3274,12 +3297,12 @@ int ech_same_ext(SSL_CONNECTION *s, WPACKET *pkt, int depth)
     if (depth == 0) {
         if (s->clienthello == NULL || pkt == NULL)
             return OSSL_ECH_SAME_EXT_ERR;
-#ifdef NEWHAND
+# ifdef NEWHAND
         if (ech_ext_handling[tind] == OSSL_ECH_HANDLING_CALL_BOTH)
             return OSSL_ECH_SAME_EXT_CONTINUE;
         else
             return ech_copy_inner2outer(s, type, pkt);
-#else
+# else
         if (ech_compress_ext[tind] == 0 && ech_outer_indep[tind] != 0) {
             /* continue processing, meaning get a new value */
             OSSL_TRACE_BEGIN(TLS) {
@@ -3291,7 +3314,7 @@ int ech_same_ext(SSL_CONNECTION *s, WPACKET *pkt, int depth)
             /* copy over (if present) and return */
             return ech_copy_inner2outer(s, type, pkt);
         }
-#endif
+# endif
     }
     /* just in case - shouldn't happen */
     return OSSL_ECH_SAME_EXT_ERR;
@@ -3303,16 +3326,17 @@ int ech_same_ext(SSL_CONNECTION *s, WPACKET *pkt, int depth)
  */
 int ech_same_key_share(void)
 {
-#ifdef NEWHAND
-    return ech_ext_handling[TLSEXT_IDX_key_share] != OSSL_ECH_HANDLING_CALL_BOTH;
-#else
+# ifdef NEWHAND
+    return ech_ext_handling[TLSEXT_IDX_key_share]
+        != OSSL_ECH_HANDLING_CALL_BOTH;
+# else
     if (ech_compress_ext[TLSEXT_IDX_key_share] != 0)
         return 1;
     else if (ech_outer_indep[TLSEXT_IDX_key_share] == 0)
         return 1;
     else
         return 0;
-#endif
+# endif
 }
 
 /**

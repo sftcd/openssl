@@ -1245,8 +1245,9 @@ __owur CON_FUNC_RETURN tls_construct_client_hello(SSL_CONNECTION *s,
         s->ext.ech.attempted = 1;
         OPENSSL_free(s->ext.ech.outer_hostname);
         if (s->ext.ech.cfgs->outer_name != NULL)
-            s->ext.ech.outer_hostname = OPENSSL_strdup(s->ext.ech.cfgs->outer_name);
-        else 
+            s->ext.ech.outer_hostname
+                = OPENSSL_strdup(s->ext.ech.cfgs->outer_name);
+        else
             s->ext.ech.outer_hostname = OPENSSL_strdup((char *)tc->public_name);
         if (s->ext.ech.outer_hostname == NULL) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, protverr);
@@ -1406,7 +1407,7 @@ __owur CON_FUNC_RETURN tls_construct_client_hello(SSL_CONNECTION *s,
     s->ext.ech.ch_depth = 0;
     /*
      * TODO: move this somewhere better?
-     * If we want a different key share for outer, then 
+     * If we want a different key share for outer, then
      * zap the one for the inner. The inner key_share is
      * stashed in s.ext.ech.tmp_pkey already.
      */

@@ -22,6 +22,11 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
+- 20230309: refactored handling of extension compression, duplication
+  and whether to make a 2nd call to constuctor - seems to be working
+  ok, but likely a bit more tweaking needed to tidy up code more 
+  once CI is ok
+
 - 20230308: changed to compress the ``key_share`` so the ECH
   extension is smaller (and to check we don't barf on any EVP
   structures when doing so). Made a few tweaks to padding to
