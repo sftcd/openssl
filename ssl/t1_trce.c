@@ -956,10 +956,10 @@ static int ssl_print_extension(BIO *bio, int indent, int server,
 
             type = ext[0];
             if (type == 1) {
-                BIO_printf(bio, "ECH-type is inner\n");
+                BIO_printf(bio, "  ECH-type is inner\n");
                 ssl_print_hex(bio, indent + 4, "ECH", ext, extlen);
             } else if (type == 0 && extlen > 10) {
-                BIO_printf(bio, "ECH-type is outer\n");
+                BIO_printf(bio, "  ECH-type is outer\n");
                 kdf_id = ext[1] * 256 + ext[2];
                 aead_id = ext[3] * 256 + ext[4];
                 config_id = ext[5];

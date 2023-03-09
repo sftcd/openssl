@@ -1404,8 +1404,16 @@ __owur CON_FUNC_RETURN tls_construct_client_hello(SSL_CONNECTION *s,
 # endif
     /* re-set a couple of things */
     s->ext.ech.ch_depth = 0;
-    EVP_PKEY_free(s->s3.tmp.pkey);
-    s->s3.tmp.pkey = NULL;
+    /*
+     * TODO: move this somewhere better?
+     * If we want a different key share for outer, then 
+     * zap the one for the inner. The inner key_share is
+     * stashed in s.ext.ech.tmp_pkey already.
+     */
+    if (ech_same_key_share() == 0) {
+        EVP_PKEY_free(s->s3.tmp.pkey);
+        s->s3.tmp.pkey = NULL;
+    }
     /* Make second call into CH constuction for outer CH. */
     rv=tls_construct_client_hello_aux(s, pkt);
     if (rv != 1) {
