@@ -59,6 +59,35 @@
 #  define OSSL_ECH_OUTER_CH_TYPE 0 /* outer ECHClientHello enum */
 #  define OSSL_ECH_INNER_CH_TYPE 1 /* inner ECHClientHello enum */
 
+/*
+ * Options for ECH handling of extensions when client contructing CH.
+ * If an extension constructor has side-effects then it is (in general)
+ * unsafe to call twice. For others, we need to be able to call twice,
+ * if we do want possibly values in inner and outer. If OTOH we want
+ * the inner to contain a compressed form of the value in the outer
+ * then we also need to signal that.
+ *
+ * We have a table with one of these entries for each extension type.
+ * That table is ech_ext_handling in ech.c for now, but these values
+ * may be better added to a field in ext_defs (in extensions.c).
+ * TODO: merge those tables or not.
+ *
+ * The above applies to built-in extensions - all custom extensions
+ * use COMPRESS handling, but that's not table-driven.
+ *
+ * The RANDOM handling helps with testing by exercising the various
+ * options but could also be of use in that it causes varying sizes
+ * for ECH. It may be best to drop that before merging or we might
+ * make it an OPTION, so we can use that variability for tests.
+ * TODO: drop RANDOM or add it as an OPTION
+ */
+#  define OSSL_ECH_HANDLING_CALL_BOTH 1 /* call constructor both times */
+#  define OSSL_ECH_HANDLING_COMPRESS  2 /* compress outer value into inner */
+#  define OSSL_ECH_HANDLING_DUPLICATE 3 /* same value in inner and outer */
+#  define OSSL_ECH_HANDLING_RANDOM    4 /* decide randomly between 2 or 3 */
+
+#  define NEWHAND /* turn on the above */
+
 /* size of string buffer returned via ECH callback */
 #  define OSSL_ECH_PBUF_SIZE 8 * 1024
 
@@ -341,6 +370,12 @@ int ech_encode_inner(SSL_CONNECTION *s);
  * Return value is one of OSSL_ECH_SAME_EXT_ERR_*
  */
 int ech_same_ext(SSL_CONNECTION *s, WPACKET *pkt, int depth);
+
+/**
+ * @brief check if we're using the same/different key shares
+ * @return 1 if same key share in inner and outer, 0 othewise
+ */
+int ech_same_key_share(void);
 
 /*
  * @brief Calculate ECH acceptance signal.

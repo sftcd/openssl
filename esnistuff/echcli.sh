@@ -210,9 +210,11 @@ dbgstr=" "
 #dbgstr=" "
 if [[ "$DEBUG" == "yes" ]]
 then
-    dbgstr="-msg -debug $TRACING -security_debug_verbose -state -tlsextdebug -keylogfile cli.keys"
+    # least to most...
     #dbgstr="-msg -debug $TRACING"
+    dbgstr="-msg -debug $TRACING -tlsextdebug"
     #dbgstr="-msg -debug $TRACING -tlsextdebug -keylogfile keys.cli"
+    #dbgstr="-msg -debug $TRACING -security_debug_verbose -state -tlsextdebug -keylogfile cli.keys"
 fi
 
 if [[ "$TESTCUST" == "yes" ]]

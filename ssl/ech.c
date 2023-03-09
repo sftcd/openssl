@@ -44,13 +44,23 @@
 # define OSSL_ECH_MAX_GREASE_PUB 0x100 /* max peer key share we'll decode */
 # define OSSL_ECH_MAX_GREASE_CT 0x200 /* max GREASEy ciphertext we'll emit */
 /*
- * 272 is the size I produce for a real ECH when including padding in
- * the inner CH with the default/current client hello padding code.
+ * When including a different key_share in the inner CH, 256 is the
+ * size we produce for a real ECH when including padding in the inner
+ * CH with the default/current client hello padding code.
  * This value doesn't vary with at least minor changes to inner SNI
  * length. The 272 is 256 of padded cleartext plus a 16-octet AEAD
  * tag.
+ *
+ * If we compress the key_share then that brings us down to 128 for
+ * the padded inner CH and 144 for the ciphertext including AEAD
+ * tag.
+ *
+ * We'll adjust the GREASE number below to match whatever
+ * key_share handling we do.
  */
-# define OSSL_ECH_DEF_CIPHER_LEN 272
+# define OSSL_ECH_DEF_CIPHER_LEN_SMALL 144
+# define OSSL_ECH_DEF_CIPHER_LEN_LARGE 272
+
 /*
  * We can add/subtract a few octets if jitter is desirable - if set then
  * we'll add or subtract a random number of octets less than the max jitter
@@ -78,7 +88,7 @@
  * the defined increment (we also do the draft-13 recommended
  * SNI padding thing first)
  */
-# define OSSL_ECH_PADDING_TARGET 256 /* ECH cleartext padded to at least this */
+# define OSSL_ECH_PADDING_TARGET 128 /* ECH cleartext padded to at least this */
 # define OSSL_ECH_PADDING_INCREMENT 32 /* ECH padded to a multiple of this */
 
 /*
@@ -161,6 +171,53 @@ static char OSSL_ECH_ACCEPT_CONFIRM_STRING[] = "\x65\x63\x68\x20\x61\x63\x63\x65
 /* "hrr ech accept confirmation" */
 static const char OSSL_ECH_HRR_CONFIRM_STRING[] = "\x68\x72\x72\x20\x65\x63\x68\x20\x61\x63\x63\x65\x70\x74\x20\x63\x6f\x6e\x66\x69\x72\x6d\x61\x74\x69\x6f\x6e";
 
+#ifdef NEWHAND
+/*
+ * When doing ECH this table specifies how we handle each extension type
+ * See the comment in ssl/ech_local.h where we define the constants for
+ * details.
+ *
+ * As with ext_defs in extensions.c: NOTE: Changes in the number or order
+ * of these extensions should be mirrored with equivalent changes to the
+ * indexes ( TLSEXT_IDX_* ) defined in ssl_local.h.
+ */
+static const int ech_ext_handling[] =
+    {
+     /* TLSEXT_IDX_renegotiate, 0xff01 */ OSSL_ECH_HANDLING_COMPRESS,
+     /* TLSEXT_IDX_server_name, 0 */ OSSL_ECH_HANDLING_CALL_BOTH,
+     /* TLSEXT_IDX_max_fragment_length, 1 */ OSSL_ECH_HANDLING_COMPRESS,
+     /* TLSEXT_IDX_srp, 12 */ OSSL_ECH_HANDLING_COMPRESS,
+     /* TLSEXT_IDX_ec_point_formats, 11 */ OSSL_ECH_HANDLING_COMPRESS,
+     /* TLSEXT_IDX_supported_groups, 10 */ OSSL_ECH_HANDLING_COMPRESS,
+     /* TLSEXT_IDX_session_ticket, 35 */ OSSL_ECH_HANDLING_COMPRESS,
+     /* TLSEXT_IDX_status_request, 5 */ OSSL_ECH_HANDLING_COMPRESS,
+     /* TLSEXT_IDX_next_proto_neg, 13172 */ OSSL_ECH_HANDLING_COMPRESS,
+     /* TLSEXT_IDX_application_layer_protocol_negotiation, 16 */
+     OSSL_ECH_HANDLING_CALL_BOTH,
+     /* TLSEXT_IDX_use_srtp, 14 */ OSSL_ECH_HANDLING_COMPRESS,
+     /* TLSEXT_IDX_encrypt_then_mac, 22 */ OSSL_ECH_HANDLING_COMPRESS,
+     /* TLSEXT_IDX_signed_certificate_timestamp, 18 */
+     OSSL_ECH_HANDLING_COMPRESS,
+     /* TLSEXT_IDX_extended_master_secret, 23 */ OSSL_ECH_HANDLING_COMPRESS,
+     /* TLSEXT_IDX_signature_algorithms_cert, 50 */ OSSL_ECH_HANDLING_COMPRESS,
+     /* TLSEXT_IDX_post_handshake_auth, 49 */ OSSL_ECH_HANDLING_COMPRESS,
+     /* TLSEXT_IDX_signature_algorithms, 13 */ OSSL_ECH_HANDLING_COMPRESS,
+     /* TLSEXT_IDX_supported_versions, 43 */ OSSL_ECH_HANDLING_COMPRESS,
+     /* TLSEXT_IDX_psk_kex_modes, 45 */ OSSL_ECH_HANDLING_DUPLICATE,
+     /* TLSEXT_IDX_key_share, 51 */ OSSL_ECH_HANDLING_COMPRESS,
+     /* TLSEXT_IDX_cookie, 44 */ OSSL_ECH_HANDLING_COMPRESS,
+     /* TLSEXT_IDX_cryptopro_bug, 0xfde8 */ OSSL_ECH_HANDLING_COMPRESS,
+     /* TLSEXT_IDX_compress_certificate, 27 */ OSSL_ECH_HANDLING_COMPRESS,
+     /* if early_data below is COMPRESS it doesn't work TODO: FIXME */
+     /* TLSEXT_IDX_early_data, 42 */ OSSL_ECH_HANDLING_DUPLICATE,
+     /* TLSEXT_IDX_certificate_authorities, 47 */ OSSL_ECH_HANDLING_COMPRESS,
+     /* TLSEXT_IDX_ech13, 0xfe0d */ OSSL_ECH_HANDLING_CALL_BOTH,
+     /* TLSEXT_IDX_outer_extensions, 0xfd00 */ OSSL_ECH_HANDLING_CALL_BOTH,
+     /* TLSEXT_IDX_padding, 21 */ OSSL_ECH_HANDLING_CALL_BOTH,
+     /* TLSEXT_IDX_psk, 41 */ OSSL_ECH_HANDLING_CALL_BOTH
+    };
+#else
+
 /*
  * When doing ECH, this array specifies which inner CH extensions (if
  * any) are to be "compressed" using the outer extensions scheme.
@@ -178,8 +235,11 @@ static const char OSSL_ECH_HRR_CONFIRM_STRING[] = "\x68\x72\x72\x20\x65\x63\x68\
  * As with ext_defs in extensions.c: NOTE: Changes in the number or order
  * of these extensions should be mirrored with equivalent changes to the
  * indexes ( TLSEXT_IDX_* ) defined in ssl_local.h.
+ *
+ * TODO: figure a way to test all combos for ech_compress_ext and
+ * ech_outer_indep values
  */
-static const int ech_outer_config[] =
+static const int ech_compress_ext[] =
     {
      /* TLSEXT_IDX_renegotiate, 0xff01 */ 0,
      /* TLSEXT_IDX_server_name, 0 */ 0,
@@ -200,7 +260,7 @@ static const int ech_outer_config[] =
      /* TLSEXT_IDX_signature_algorithms, 13 */ 1,
      /* TLSEXT_IDX_supported_versions, 43 */ 1,
      /* TLSEXT_IDX_psk_kex_modes, 45 */ 0,
-     /* TLSEXT_IDX_key_share, 51 */ 0,
+     /* TLSEXT_IDX_key_share, 51 */ 1,
      /* TLSEXT_IDX_cookie, 44 */ 0,
      /* TLSEXT_IDX_cryptopro_bug, 0xfde8 */ 0,
      /* TLSEXT_IDX_compress_certificate, 27 */ 0,
@@ -261,6 +321,7 @@ static const int ech_outer_indep[] =
      /* TLSEXT_IDX_padding */ 0,
      /* TLSEXT_IDX_psk */ 1,
     };
+#endif
 
 /*
  * Telltales we use when guessing which form of encoded input we've
@@ -2731,6 +2792,10 @@ end:
  * The "+ 9" constant below is from the specifiation and is the
  * expansion comparing a string length to an encoded SNI extension.
  * Same is true of the 31/32 formula below.
+ *
+ * Note that the AEAD tag will be added later, so if we e.g. have
+ * a padded cleartext of 128 octets, the ciphertext will be 144
+ * octets.
  */
 static size_t ech_calc_padding(SSL_CONNECTION *s, ECHConfig *tc)
 {
@@ -2774,12 +2839,16 @@ static size_t ech_calc_padding(SSL_CONNECTION *s, ECHConfig *tc)
     length_with_padding = s->ext.ech.encoded_innerch_len
         + length_of_padding + innersnipadding;
     /*
-     * finally - make sure we're longer than padding target too
-     * this is a local addition - might take it out if it makes
+     * Finally - make sure final result is longer than padding target
+     * and a multiple of our padding increment.
+     * This is a local addition - might take it out if it makes
      * us stick out; or if we take out the above more complicated
      * scheme, we may only need this in the end (and that'd maybe
      * be better overall:-)
      */
+    if (length_with_padding % OSSL_ECH_PADDING_INCREMENT)
+        length_with_padding += OSSL_ECH_PADDING_INCREMENT
+            - (length_with_padding % OSSL_ECH_PADDING_INCREMENT);
     while (length_with_padding < OSSL_ECH_PADDING_TARGET)
         length_with_padding += OSSL_ECH_PADDING_INCREMENT;
     clear_len = length_with_padding;
@@ -3123,16 +3192,24 @@ err:
 
 /**
  * @brief say if extension at index i in ext_defs is to be ECH compressed
- * @param ind is the index of this extension in ext_defs (and ech_outer_config)
+ * @param ind is the index of this extension in ext_defs (and ech_ext_handling)
  * @return 1 if this one is to be compressed, 0 if not, -1 for error
  */
 int ech_2bcompressed(int ind)
 {
-    int nexts = OSSL_NELEM(ech_outer_config);
+#ifdef NEWHAND
+    int nexts = OSSL_NELEM(ech_ext_handling);
+#else
+    int nexts = OSSL_NELEM(ech_compress_ext);
+#endif
 
     if (ind < 0 || ind >= nexts)
         return -1;
-    return ech_outer_config[ind];
+#ifdef NEWHAND
+    return ech_ext_handling[ind] == OSSL_ECH_HANDLING_COMPRESS;
+#else
+    return ech_compress_ext[ind];
+#endif
 }
 
 /**
@@ -3160,7 +3237,11 @@ int ech_same_ext(SSL_CONNECTION *s, WPACKET *pkt, int depth)
     if (s == NULL || s->ext.ech.cfgs == NULL)
         return OSSL_ECH_SAME_EXT_CONTINUE; /* nothing to do */
     type = s->ext.ech.etype;
-    nexts = OSSL_NELEM(ech_outer_config);
+#ifdef NEWHAND
+    nexts = OSSL_NELEM(ech_ext_handling);
+#else
+    nexts = OSSL_NELEM(ech_compress_ext);
+#endif
     tind = ech_map_ext_type_to_ind(type);
     /* If this index'd extension won't be compressed, we're done */
     if (tind == -1)
@@ -3169,11 +3250,16 @@ int ech_same_ext(SSL_CONNECTION *s, WPACKET *pkt, int depth)
         return OSSL_ECH_SAME_EXT_ERR;
     if (depth == 1) {
         /* inner CH - just note compression as configured */
-        if (ech_outer_config[tind] == 0)
+#ifdef NEWHAND
+        if (ech_ext_handling[tind] != OSSL_ECH_HANDLING_COMPRESS)
             return OSSL_ECH_SAME_EXT_CONTINUE;
+#else
+        if (ech_compress_ext[tind] == 0)
+            return OSSL_ECH_SAME_EXT_CONTINUE;
+#endif
+        /* mark this one to be "compressed" */
         if (s->ext.ech.n_outer_only >= OSSL_ECH_OUTERS_MAX)
             return OSSL_ECH_SAME_EXT_ERR;
-        /* mark this one to be "compressed" */
         s->ext.ech.outer_only[s->ext.ech.n_outer_only] = type;
         s->ext.ech.n_outer_only++;
         OSSL_TRACE_BEGIN(TLS) {
@@ -3188,7 +3274,13 @@ int ech_same_ext(SSL_CONNECTION *s, WPACKET *pkt, int depth)
     if (depth == 0) {
         if (s->clienthello == NULL || pkt == NULL)
             return OSSL_ECH_SAME_EXT_ERR;
-        if (ech_outer_indep[tind] != 0) {
+#ifdef NEWHAND
+        if (ech_ext_handling[tind] == OSSL_ECH_HANDLING_CALL_BOTH)
+            return OSSL_ECH_SAME_EXT_CONTINUE;
+        else
+            return ech_copy_inner2outer(s, type, pkt);
+#else
+        if (ech_compress_ext[tind] == 0 && ech_outer_indep[tind] != 0) {
             /* continue processing, meaning get a new value */
             OSSL_TRACE_BEGIN(TLS) {
                 BIO_printf(trc_out, "ech_same_ext: New outer value for ext "
@@ -3199,9 +3291,28 @@ int ech_same_ext(SSL_CONNECTION *s, WPACKET *pkt, int depth)
             /* copy over (if present) and return */
             return ech_copy_inner2outer(s, type, pkt);
         }
+#endif
     }
     /* just in case - shouldn't happen */
     return OSSL_ECH_SAME_EXT_ERR;
+}
+
+/**
+ * @brief check if we're using the same/different key shares
+ * @return 1 if same key share in inner and outer, 0 othewise
+ */
+int ech_same_key_share(void)
+{
+#ifdef NEWHAND
+    return ech_ext_handling[TLSEXT_IDX_key_share] != OSSL_ECH_HANDLING_CALL_BOTH;
+#else
+    if (ech_compress_ext[TLSEXT_IDX_key_share] != 0)
+        return 1;
+    else if (ech_outer_indep[TLSEXT_IDX_key_share] == 0)
+        return 1;
+    else
+        return 0;
+#endif
 }
 
 /**
@@ -3959,7 +4070,7 @@ int ech_send_grease(SSL_CONNECTION *s, WPACKET *pkt)
     unsigned char cid;
     size_t senderpub_len = OSSL_ECH_MAX_GREASE_PUB;
     unsigned char senderpub[OSSL_ECH_MAX_GREASE_PUB];
-    size_t cipher_len = OSSL_ECH_DEF_CIPHER_LEN;
+    size_t cipher_len = OSSL_ECH_DEF_CIPHER_LEN_SMALL;
     size_t cipher_len_jitter = OSSL_ECH_DEF_CIPHER_LEN_JITTER;
     unsigned char cipher[OSSL_ECH_MAX_GREASE_CT];
     /* stuff for copying to ech_sent */
@@ -3971,6 +4082,8 @@ int ech_send_grease(SSL_CONNECTION *s, WPACKET *pkt)
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
     }
+    if (ech_same_key_share() == 0)
+        cipher_len = OSSL_ECH_DEF_CIPHER_LEN_LARGE;
     WPACKET_get_total_written(pkt, &pp_at_start);
     /* generate a random (1 octet) client id */
     if (RAND_bytes_ex(s->ssl.ctx->libctx, &cid, cid_len,
