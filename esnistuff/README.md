@@ -22,6 +22,16 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
+- 20230308: changed to compress the ``key_share`` so the ECH
+  extension is smaller (and to check we don't barf on any EVP
+  structures when doing so). Made a few tweaks to padding to
+  match that, so result is saving about 128 octets in the CH
+  as a result. But - important to at some point re-test the
+  setup with independent key shares in inner and outer to 
+  ensure server is ok with that, including when ECH fails and
+  we end up negotiating based on the outer CH and getting a
+  ``retry_config``.
+
 - 20230305: Support for custom extension handling now working with ECH.
   Such extensions for now are always compressed in inner CH. Test code
   added for that too.

@@ -1261,6 +1261,7 @@ int tls_parse_ctos_psk(SSL_CONNECTION *s, PACKET *pkt, unsigned int context,
     }
 
 #ifndef OPENSSL_NO_ECH
+    /* TODO: move this code somewhere better */
     if (s->ext.ech.success == 1) {
         /* we need to fix up the overall 3-octet CH length here */
         unsigned char *rwm = (unsigned char *)s->init_buf->data;
