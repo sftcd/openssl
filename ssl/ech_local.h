@@ -64,8 +64,6 @@
 #  define OSSL_ECH_HANDLING_COMPRESS  2 /* compress outer value into inner */
 #  define OSSL_ECH_HANDLING_DUPLICATE 3 /* same value in inner and outer */
 
-#  define NEWHAND /* turn on the above */
-
 /* size of string buffer returned via ECH callback */
 #  define OSSL_ECH_PBUF_SIZE 8 * 1024
 

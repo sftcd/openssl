@@ -908,6 +908,9 @@ int tls_construct_extensions(SSL_CONNECTION *s, WPACKET *pkt,
     int min_version, max_version = 0, reason;
     const EXTENSION_DEFINITION *thisexd;
     int for_comp = (context & SSL_EXT_TLS1_3_CERTIFICATE_COMPRESSION) != 0;
+#ifndef OPENSSL_NO_ECH
+    int pass;
+#endif
 
     if (!WPACKET_start_sub_packet_u16(pkt)
                /*
@@ -952,40 +955,7 @@ int tls_construct_extensions(SSL_CONNECTION *s, WPACKET *pkt,
      * in the encoding. The actual compression happens later in
      * ech_encode_inner().
      */
-    for (i = 0, thisexd = ext_defs; i < OSSL_NELEM(ext_defs); i++, thisexd++) {
-        EXT_RETURN (*construct)(SSL_CONNECTION *s, WPACKET *pkt,
-                                unsigned int context,
-                                X509 *x, size_t chainidx);
-        EXT_RETURN ret;
-
-        /* skip if not to be ECH-compressed */
-        if (ech_2bcompressed(i) == 0)
-            continue;
-        /* check against sloppy coding */
-        if (ech_2bcompressed(i) != 1) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-            return 0;
-        }
-        /* Skip if not relevant for our context */
-        if (!should_add_extension(s, thisexd->context, context, max_version))
-            continue;
-        construct = s->server ? thisexd->construct_stoc
-                              : thisexd->construct_ctos;
-        if (construct == NULL)
-            continue;
-        /* stash type */
-        s->ext.ech.etype = thisexd->type;
-        ret = construct(s, pkt, context, x, chainidx);
-        if (ret == EXT_RETURN_FAIL) {
-            /* SSLfatal() already called */
-            return 0;
-        }
-        if (ret == EXT_RETURN_SENT
-                && (context & (SSL_EXT_CLIENT_HELLO
-                               | SSL_EXT_TLS1_3_CERTIFICATE_REQUEST
-                               | SSL_EXT_TLS1_3_NEW_SESSION_TICKET)) != 0)
-            s->ext.extflags[i] |= SSL_EXT_FLAG_SENT;
-    }
+    for (pass = 0; pass <= 1; pass++)
 #endif
 
     for (i = 0, thisexd = ext_defs; i < OSSL_NELEM(ext_defs); i++, thisexd++) {
@@ -993,14 +963,11 @@ int tls_construct_extensions(SSL_CONNECTION *s, WPACKET *pkt,
                                 X509 *x, size_t chainidx);
         EXT_RETURN ret;
 #ifndef OPENSSL_NO_ECH
-        /* skip if is to be ECH-compressed */
-        if (ech_2bcompressed(i) == 1)
+        /* do compressed in pass 0, non-compressed in pass 1 */
+        if (ech_2bcompressed(i) == pass)
             continue;
-        /* check against sloppy coding */
-        if (ech_2bcompressed(i) != 0) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-            return 0;
-        }
+        /* stash type - needed for COMPRESS ECH handling */
+        s->ext.ech.etype = thisexd->type;
 #endif
         /* Skip if not relevant for our context */
         if (!should_add_extension(s, thisexd->context, context, max_version))
@@ -1009,10 +976,6 @@ int tls_construct_extensions(SSL_CONNECTION *s, WPACKET *pkt,
                               : thisexd->construct_ctos;
         if (construct == NULL)
             continue;
-#ifndef OPENSSL_NO_ECH
-        /* stash type */
-        s->ext.ech.etype = thisexd->type;
-#endif
         ret = construct(s, pkt, context, x, chainidx);
         if (ret == EXT_RETURN_FAIL) {
             /* SSLfatal() already called */
