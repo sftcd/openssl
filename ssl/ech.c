@@ -171,7 +171,6 @@ static char OSSL_ECH_ACCEPT_CONFIRM_STRING[] = "\x65\x63\x68\x20\x61\x63\x63\x65
 /* "hrr ech accept confirmation" */
 static const char OSSL_ECH_HRR_CONFIRM_STRING[] = "\x68\x72\x72\x20\x65\x63\x68\x20\x61\x63\x63\x65\x70\x74\x20\x63\x6f\x6e\x66\x69\x72\x6d\x61\x74\x69\x6f\x6e";
 
-# ifdef NEWHAND
 /*
  * When doing ECH, this table specifies how we handle the encoding of
  * each extension type in the inner and outer ClientHello.
@@ -208,143 +207,49 @@ static const char OSSL_ECH_HRR_CONFIRM_STRING[] = "\x68\x72\x72\x20\x65\x63\x68\
  * These values may be better added as a field in ext_defs (in extensions.c).
  * TODO: merge those tables or not.
  */
-static const int ech_ext_handling[] =
-    {
-     /* TLSEXT_IDX_renegotiate, 0xff01 */ OSSL_ECH_HANDLING_COMPRESS,
-     /* TLSEXT_IDX_server_name, 0 */ OSSL_ECH_HANDLING_CALL_BOTH,
-     /* TLSEXT_IDX_max_fragment_length, 1 */ OSSL_ECH_HANDLING_COMPRESS,
-     /* TLSEXT_IDX_srp, 12 */ OSSL_ECH_HANDLING_COMPRESS,
-     /* TLSEXT_IDX_ec_point_formats, 11 */ OSSL_ECH_HANDLING_COMPRESS,
-     /* TLSEXT_IDX_supported_groups, 10 */ OSSL_ECH_HANDLING_COMPRESS,
-     /* TLSEXT_IDX_session_ticket, 35 */ OSSL_ECH_HANDLING_COMPRESS,
-     /* TLSEXT_IDX_status_request, 5 */ OSSL_ECH_HANDLING_COMPRESS,
-     /* TLSEXT_IDX_next_proto_neg, 13172 */ OSSL_ECH_HANDLING_COMPRESS,
-     /* TLSEXT_IDX_application_layer_protocol_negotiation, 16 */
-     OSSL_ECH_HANDLING_CALL_BOTH,
-     /* TLSEXT_IDX_use_srtp, 14 */ OSSL_ECH_HANDLING_COMPRESS,
-     /* TLSEXT_IDX_encrypt_then_mac, 22 */ OSSL_ECH_HANDLING_COMPRESS,
-     /* TLSEXT_IDX_signed_certificate_timestamp, 18 */
-     OSSL_ECH_HANDLING_COMPRESS,
-     /* TLSEXT_IDX_extended_master_secret, 23 */ OSSL_ECH_HANDLING_COMPRESS,
-     /* TLSEXT_IDX_signature_algorithms_cert, 50 */ OSSL_ECH_HANDLING_COMPRESS,
-     /* TLSEXT_IDX_post_handshake_auth, 49 */ OSSL_ECH_HANDLING_COMPRESS,
-     /* TLSEXT_IDX_signature_algorithms, 13 */ OSSL_ECH_HANDLING_COMPRESS,
-     /* TLSEXT_IDX_supported_versions, 43 */ OSSL_ECH_HANDLING_COMPRESS,
-     /* TLSEXT_IDX_psk_kex_modes, 45 */ OSSL_ECH_HANDLING_COMPRESS,
-     /* TLSEXT_IDX_key_share, 51 */ OSSL_ECH_HANDLING_COMPRESS,
-     /* TLSEXT_IDX_cookie, 44 */ OSSL_ECH_HANDLING_COMPRESS,
-     /* TLSEXT_IDX_cryptopro_bug, 0xfde8 */ OSSL_ECH_HANDLING_COMPRESS,
-     /* TLSEXT_IDX_compress_certificate, 27 */ OSSL_ECH_HANDLING_COMPRESS,
-     /* TLSEXT_IDX_early_data, 42 */ OSSL_ECH_HANDLING_CALL_BOTH,
-     /* TLSEXT_IDX_certificate_authorities, 47 */ OSSL_ECH_HANDLING_COMPRESS,
-     /* TLSEXT_IDX_ech13, 0xfe0d */ OSSL_ECH_HANDLING_CALL_BOTH,
-     /* TLSEXT_IDX_outer_extensions, 0xfd00 */ OSSL_ECH_HANDLING_CALL_BOTH,
-     /* TLSEXT_IDX_padding, 21 */ OSSL_ECH_HANDLING_CALL_BOTH,
-     /* TLSEXT_IDX_psk, 41 */ OSSL_ECH_HANDLING_CALL_BOTH
-    };
-# else
 
-/*
- * When doing ECH, this array specifies which inner CH extensions (if
- * any) are to be "compressed" using the outer extensions scheme.
- *
- * Basically, we store a 0 for "don't compress" and a 1 for "do compress"
- * and the index is the same as the index of the extension itself.
- *
- * This might disappear before submitting a PR to upstream as it may
- * make more sense for this to be a new field in the ext_defs table
- * in ssl/statem/extensions.c For now however, we'll keep it separate,
- * in case it changes. Reasons this could change include: wanting better
- * than compile-time, handling custom extensions or a desire to look
- * the same as some extant browser.
- *
- * As with ext_defs in extensions.c: NOTE: Changes in the number or order
- * of these extensions should be mirrored with equivalent changes to the
- * indexes ( TLSEXT_IDX_* ) defined in ssl_local.h.
- */
-static const int ech_compress_ext[] =
-    {
-     /* TLSEXT_IDX_renegotiate, 0xff01 */ 0,
-     /* TLSEXT_IDX_server_name, 0 */ 0,
-     /* TLSEXT_IDX_max_fragment_length, 1 */ 1,
-     /* TLSEXT_IDX_srp, 12 */ 1,
-     /* TLSEXT_IDX_ec_point_formats, 11 */ 1,
-     /* TLSEXT_IDX_supported_groups, 10 */ 1,
-     /* TLSEXT_IDX_session_ticket, 35 */ 1,
-     /* TLSEXT_IDX_status_request, 5 */ 1,
-     /* TLSEXT_IDX_next_proto_neg, 13172 */ 1,
-     /* TLSEXT_IDX_application_layer_protocol_negotiation, 16 */ 0,
-     /* TLSEXT_IDX_use_srtp, 14 */ 1,
-     /* TLSEXT_IDX_encrypt_then_mac, 22 */ 1,
-     /* TLSEXT_IDX_signed_certificate_timestamp, 18 */ 0,
-     /* TLSEXT_IDX_extended_master_secret, 23 */ 1,
-     /* TLSEXT_IDX_signature_algorithms_cert, 50 */ 0,
-     /* TLSEXT_IDX_post_handshake_auth, 49 */ 0,
-     /* TLSEXT_IDX_signature_algorithms, 13 */ 1,
-     /* TLSEXT_IDX_supported_versions, 43 */ 1,
-     /* TLSEXT_IDX_psk_kex_modes, 45 */ 0,
-     /* TLSEXT_IDX_key_share, 51 */ 1,
-     /* TLSEXT_IDX_cookie, 44 */ 0,
-     /* TLSEXT_IDX_cryptopro_bug, 0xfde8 */ 0,
-     /* TLSEXT_IDX_compress_certificate, 27 */ 0,
-     /* TLSEXT_IDX_early_data, 42 */ 0,
-     /* TLSEXT_IDX_certificate_authorities, 47 */ 0,
-     /* TLSEXT_IDX_ech13, 0xfe0d */ 0,
-     /* TLSEXT_IDX_outer_extensions, 0xfd00 */ 0,
-     /* TLSEXT_IDX_padding, 21 */ 0,
-     /* TLSEXT_IDX_psk, 41 */ 0
-    };
-
-/*
- * When doing ECH, this array specifies whether, when we're not
- * compressing, we want to re-use the inner value in the outer CH
- * ("0") or whether to generate an independently new value for the
- * outer ("1"). That makes most sense perhaps for the key_share,
- * but maybe also for others, hence being generic.
- *
- * These settings will be ignored for some extensions that don't
- * use the IOSAME macro (in ssl/statem/extensions_clnt.c) - for
- * example the ECH setting below is ignored as you'd imagine.
- *
- * As above this could disappear before submitting a PR to upstream.
- *
- * As with ext_defs in extensions.c: NOTE: Changes in the number or order
- * of these extensions should be mirrored with equivalent changes to the
- * indexes ( TLSEXT_IDX_* ) defined in ssl_local.h.
- */
-static const int ech_outer_indep[] =
-    {
-     /* TLSEXT_IDX_renegotiate */ 0,
-     /* TLSEXT_IDX_server_name */ 1,
-     /* TLSEXT_IDX_max_fragment_length */ 0,
-     /* TLSEXT_IDX_srp */ 0,
-     /* TLSEXT_IDX_ec_point_formats */ 0,
-     /* TLSEXT_IDX_supported_groups */ 0,
-     /* TLSEXT_IDX_session_ticket */ 0,
-     /* TLSEXT_IDX_status_request */ 0,
-     /* TLSEXT_IDX_next_proto_neg */ 0,
-     /* TLSEXT_IDX_application_layer_protocol_negotiation */ 1,
-     /* TLSEXT_IDX_use_srtp */ 0,
-     /* TLSEXT_IDX_encrypt_then_mac */ 0,
-     /* TLSEXT_IDX_signed_certificate_timestamp */ 0,
-     /* TLSEXT_IDX_extended_master_secret */ 0,
-     /* TLSEXT_IDX_signature_algorithms_cert */ 0,
-     /* TLSEXT_IDX_post_handshake_auth */ 0,
-     /* TLSEXT_IDX_signature_algorithms */ 0,
-     /* TLSEXT_IDX_supported_versions */ 0,
-     /* TLSEXT_IDX_psk_kex_modes */ 0,
-     /* TLSEXT_IDX_key_share */ 1,
-     /* TLSEXT_IDX_cookie */ 0,
-     /* TLSEXT_IDX_cryptopro_bug */ 0,
-     /* TLSEXT_IDX_compress_certificate, 27 */ 0,
-     /* TLSEXT_IDX_early_data */ 0,
-     /* TLSEXT_IDX_certificate_authorities */ 0,
-     /* TLSEXT_IDX_ech13 */ 0,
-     /* TLSEXT_IDX_outer_extensions */ 0,
-     /* TLSEXT_IDX_padding */ 0,
-     /* TLSEXT_IDX_psk */ 1,
-    };
+/* defined in statem_local.h but also wanted here */
+# ifndef TLSEXT_TYPE_cryptopro_bug
+#  define TLSEXT_TYPE_cryptopro_bug 0xfde8
 # endif
+
+typedef struct {
+    uint16_t type; /* the extension code point to record for compression */
+    int handling; /* the handling to apply */
+} ECH_EXT_HANDLING_DEF;
+
+static const ECH_EXT_HANDLING_DEF ech_ext_handling[] = {
+    { TLSEXT_TYPE_renegotiate, OSSL_ECH_HANDLING_COMPRESS },
+    { TLSEXT_TYPE_server_name, OSSL_ECH_HANDLING_CALL_BOTH},
+    { TLSEXT_TYPE_max_fragment_length, OSSL_ECH_HANDLING_COMPRESS},
+    { TLSEXT_TYPE_srp, OSSL_ECH_HANDLING_COMPRESS},
+    { TLSEXT_TYPE_ec_point_formats, OSSL_ECH_HANDLING_COMPRESS},
+    { TLSEXT_TYPE_supported_groups, OSSL_ECH_HANDLING_COMPRESS},
+    { TLSEXT_TYPE_session_ticket, OSSL_ECH_HANDLING_COMPRESS},
+    { TLSEXT_TYPE_status_request, OSSL_ECH_HANDLING_COMPRESS},
+    { TLSEXT_TYPE_next_proto_neg, OSSL_ECH_HANDLING_COMPRESS},
+    { TLSEXT_TYPE_application_layer_protocol_negotiation,
+      OSSL_ECH_HANDLING_CALL_BOTH},
+    { TLSEXT_TYPE_use_srtp, OSSL_ECH_HANDLING_COMPRESS},
+    { TLSEXT_TYPE_encrypt_then_mac, OSSL_ECH_HANDLING_COMPRESS},
+    { TLSEXT_TYPE_signed_certificate_timestamp, OSSL_ECH_HANDLING_COMPRESS},
+    { TLSEXT_TYPE_extended_master_secret, OSSL_ECH_HANDLING_COMPRESS},
+    { TLSEXT_TYPE_signature_algorithms_cert, OSSL_ECH_HANDLING_COMPRESS},
+    { TLSEXT_TYPE_post_handshake_auth, OSSL_ECH_HANDLING_COMPRESS},
+    { TLSEXT_TYPE_signature_algorithms, OSSL_ECH_HANDLING_COMPRESS},
+    { TLSEXT_TYPE_supported_versions, OSSL_ECH_HANDLING_COMPRESS},
+    { TLSEXT_TYPE_psk_kex_modes, OSSL_ECH_HANDLING_COMPRESS},
+    { TLSEXT_TYPE_key_share, OSSL_ECH_HANDLING_COMPRESS},
+    { TLSEXT_TYPE_cookie, OSSL_ECH_HANDLING_COMPRESS},
+    { TLSEXT_TYPE_cryptopro_bug, OSSL_ECH_HANDLING_COMPRESS},
+    { TLSEXT_TYPE_compress_certificate, OSSL_ECH_HANDLING_COMPRESS},
+    { TLSEXT_TYPE_early_data, OSSL_ECH_HANDLING_CALL_BOTH},
+    { TLSEXT_TYPE_certificate_authorities, OSSL_ECH_HANDLING_COMPRESS},
+    { TLSEXT_TYPE_ech13, OSSL_ECH_HANDLING_CALL_BOTH},
+    { TLSEXT_TYPE_outer_extensions, OSSL_ECH_HANDLING_CALL_BOTH},
+    { TLSEXT_TYPE_padding, OSSL_ECH_HANDLING_CALL_BOTH},
+    { TLSEXT_TYPE_psk, OSSL_ECH_HANDLING_CALL_BOTH }
+};
 
 /*
  * Telltales we use when guessing which form of encoded input we've
@@ -3220,19 +3125,11 @@ err:
  */
 int ech_2bcompressed(int ind)
 {
-# ifdef NEWHAND
     int nexts = OSSL_NELEM(ech_ext_handling);
-# else
-    int nexts = OSSL_NELEM(ech_compress_ext);
-# endif
 
     if (ind < 0 || ind >= nexts)
         return -1;
-# ifdef NEWHAND
-    return ech_ext_handling[ind] == OSSL_ECH_HANDLING_COMPRESS;
-# else
-    return ech_compress_ext[ind];
-# endif
+    return ech_ext_handling[ind].handling == OSSL_ECH_HANDLING_COMPRESS;
 }
 
 /**
@@ -3260,11 +3157,7 @@ int ech_same_ext(SSL_CONNECTION *s, WPACKET *pkt, int depth)
     if (s == NULL || s->ext.ech.cfgs == NULL)
         return OSSL_ECH_SAME_EXT_CONTINUE; /* nothing to do */
     type = s->ext.ech.etype;
-# ifdef NEWHAND
     nexts = OSSL_NELEM(ech_ext_handling);
-# else
-    nexts = OSSL_NELEM(ech_compress_ext);
-# endif
     tind = ech_map_ext_type_to_ind(type);
     /* If this index'd extension won't be compressed, we're done */
     if (tind == -1)
@@ -3273,17 +3166,13 @@ int ech_same_ext(SSL_CONNECTION *s, WPACKET *pkt, int depth)
         return OSSL_ECH_SAME_EXT_ERR;
     if (depth == 1) {
         /* inner CH - just note compression as configured */
-# ifdef NEWHAND
-        if (ech_ext_handling[tind] != OSSL_ECH_HANDLING_COMPRESS)
+        if (ech_ext_handling[tind].handling != OSSL_ECH_HANDLING_COMPRESS)
             return OSSL_ECH_SAME_EXT_CONTINUE;
-# else
-        if (ech_compress_ext[tind] == 0)
-            return OSSL_ECH_SAME_EXT_CONTINUE;
-# endif
         /* mark this one to be "compressed" */
         if (s->ext.ech.n_outer_only >= OSSL_ECH_OUTERS_MAX)
             return OSSL_ECH_SAME_EXT_ERR;
-        s->ext.ech.outer_only[s->ext.ech.n_outer_only] = type;
+        s->ext.ech.outer_only[s->ext.ech.n_outer_only] =
+            ech_ext_handling[tind].type;
         s->ext.ech.n_outer_only++;
         OSSL_TRACE_BEGIN(TLS) {
             BIO_printf(trc_out, "ech_same_ext: Marking (type %d, ind %d "
@@ -3297,24 +3186,10 @@ int ech_same_ext(SSL_CONNECTION *s, WPACKET *pkt, int depth)
     if (depth == 0) {
         if (s->clienthello == NULL || pkt == NULL)
             return OSSL_ECH_SAME_EXT_ERR;
-# ifdef NEWHAND
-        if (ech_ext_handling[tind] == OSSL_ECH_HANDLING_CALL_BOTH)
+        if (ech_ext_handling[tind].handling == OSSL_ECH_HANDLING_CALL_BOTH)
             return OSSL_ECH_SAME_EXT_CONTINUE;
         else
             return ech_copy_inner2outer(s, type, pkt);
-# else
-        if (ech_compress_ext[tind] == 0 && ech_outer_indep[tind] != 0) {
-            /* continue processing, meaning get a new value */
-            OSSL_TRACE_BEGIN(TLS) {
-                BIO_printf(trc_out, "ech_same_ext: New outer value for ext "
-                           "type %d,ind %d)\n", s->ext.ech.etype, tind);
-            } OSSL_TRACE_END(TLS);
-            return OSSL_ECH_SAME_EXT_CONTINUE;
-        } else {
-            /* copy over (if present) and return */
-            return ech_copy_inner2outer(s, type, pkt);
-        }
-# endif
     }
     /* just in case - shouldn't happen */
     return OSSL_ECH_SAME_EXT_ERR;
@@ -3326,17 +3201,8 @@ int ech_same_ext(SSL_CONNECTION *s, WPACKET *pkt, int depth)
  */
 int ech_same_key_share(void)
 {
-# ifdef NEWHAND
-    return ech_ext_handling[TLSEXT_IDX_key_share]
+    return ech_ext_handling[TLSEXT_IDX_key_share].handling
         != OSSL_ECH_HANDLING_CALL_BOTH;
-# else
-    if (ech_compress_ext[TLSEXT_IDX_key_share] != 0)
-        return 1;
-    else if (ech_outer_indep[TLSEXT_IDX_key_share] == 0)
-        return 1;
-    else
-        return 0;
-# endif
 }
 
 /**
