@@ -3177,8 +3177,6 @@ int ech_same_ext(SSL_CONNECTION *s, WPACKET *pkt)
         return OSSL_ECH_SAME_EXT_ERR;
     type = ech_ext_handling[tind].type;
     /* If this index'd extension won't be compressed, we're done */
-    if (tind == -1)
-        return OSSL_ECH_SAME_EXT_ERR;
     if (tind >= (int)nexts)
         return OSSL_ECH_SAME_EXT_ERR;
     if (depth == 1) {
