@@ -3161,7 +3161,8 @@ int ech_2bcompressed(int ind)
 int ech_same_ext(SSL_CONNECTION *s, WPACKET *pkt)
 {
     unsigned int type = 0, nexts = 0;
-    int tind = 0, depth = 0;
+    size_t tind = 0;
+    int depth = 0;
 
 # ifdef DUPEMALL
     return OSSL_ECH_SAME_EXT_CONTINUE;
@@ -3191,7 +3192,7 @@ int ech_same_ext(SSL_CONNECTION *s, WPACKET *pkt)
         s->ext.ech.n_outer_only++;
         OSSL_TRACE_BEGIN(TLS) {
             BIO_printf(trc_out, "ech_same_ext: Marking (type %d, ind %d "
-                       "tot-comp %d) for compression\n", type, tind,
+                       "tot-comp %d) for compression\n", (int) type, (int) tind,
                        (int) s->ext.ech.n_outer_only);
         } OSSL_TRACE_END(TLS);
         return OSSL_ECH_SAME_EXT_CONTINUE;
