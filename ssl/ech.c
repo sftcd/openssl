@@ -3160,8 +3160,8 @@ int ech_2bcompressed(int ind)
  */
 int ech_same_ext(SSL_CONNECTION *s, WPACKET *pkt)
 {
-    unsigned int type = 0, nexts = 0;
-    size_t tind = 0;
+    unsigned int type = 0; 
+    size_t tind = 0, nexts = 0;
     int depth = 0;
 
 # ifdef DUPEMALL
@@ -3177,7 +3177,7 @@ int ech_same_ext(SSL_CONNECTION *s, WPACKET *pkt)
         return OSSL_ECH_SAME_EXT_ERR;
     type = ech_ext_handling[tind].type;
     /* If this index'd extension won't be compressed, we're done */
-    if (tind >= (int)nexts)
+    if (tind >= nexts)
         return OSSL_ECH_SAME_EXT_ERR;
     if (depth == 1) {
         /* inner CH - just note compression as configured */
