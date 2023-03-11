@@ -59,11 +59,6 @@
 #  define OSSL_ECH_OUTER_CH_TYPE 0 /* outer ECHClientHello enum */
 #  define OSSL_ECH_INNER_CH_TYPE 1 /* inner ECHClientHello enum */
 
-/* ECH handling options - see the comment in ech.c for details */
-#  define OSSL_ECH_HANDLING_CALL_BOTH 1 /* call constructor both times */
-#  define OSSL_ECH_HANDLING_COMPRESS  2 /* compress outer value into inner */
-#  define OSSL_ECH_HANDLING_DUPLICATE 3 /* same value in inner and outer */
-
 /* size of string buffer returned via ECH callback */
 #  define OSSL_ECH_PBUF_SIZE 8 * 1024
 
@@ -96,7 +91,7 @@
  */
 #  define ECH_IOSAME(s) \
     if (s->ext.ech.cfgs != NULL && s->ext.ech.grease == 0) { \
-        int __rv = ech_same_ext(s, pkt, s->ext.ech.ch_depth); \
+        int __rv = ech_same_ext(s, pkt); \
         \
         if (__rv == OSSL_ECH_SAME_EXT_ERR) \
             return EXT_RETURN_FAIL; \
@@ -250,12 +245,11 @@ typedef struct ssl_connection_ech_st {
     uint16_t outer_only[OSSL_ECH_OUTERS_MAX];
     size_t n_outer_only; /* the number of outer_only extensions so far */
     /*
-     * client copy of CH extension type - added here to avoid need
-     * to break APIs, when doing the compression stuff where the
-     * extension handler needs to know the relevant TLS codepoint
-     * TODO(ECH): check if there's another way to get that value
+     * index of the current extension's entry in ext_defs- added to
+     * avoid need to change a couple of extension APIs
+     * TODO: check if there's another way to get that value
      */
-    uint16_t etype;
+    size_t ext_ind;
     /*
      * in case of HRR, we need to record the 1st inner client hello, and
      * the first server hello (aka the HRR) so we can independently
@@ -372,13 +366,12 @@ int ech_encode_inner(SSL_CONNECTION *s);
  * @brief Replicate ext value from inner ch into outer ch
  * @param s is the SSL session
  * @param pkt is the packet containing extensions
- * @param depth is 0 for outer CH, 1 for inner
  * @return 0: error, 1: copied existing and done, 2: ignore existing
  *
  * This also sets us up for later outer compression.
  * Return value is one of OSSL_ECH_SAME_EXT_ERR_*
  */
-int ech_same_ext(SSL_CONNECTION *s, WPACKET *pkt, int depth);
+int ech_same_ext(SSL_CONNECTION *s, WPACKET *pkt);
 
 /**
  * @brief check if we're using the same/different key shares

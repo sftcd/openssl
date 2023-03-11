@@ -22,7 +22,7 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
-- 20230310: of extension compression, duplication
+- 20230310: refactoring of extension compression, duplication
   and whether to make a 2nd call to constuctor - seems to be working
   ok
 

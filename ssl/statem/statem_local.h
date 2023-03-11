@@ -593,16 +593,6 @@ EXT_RETURN tls_construct_ctos_ech_is_inner(SSL_CONNECTION *s, WPACKET *pkt,
 int tls_parse_ctos_ech_is_inner(SSL_CONNECTION *s, PACKET *pkt,
                                 unsigned int context, X509 *x, size_t chainidx);
 /*
- * @brief map from ext type to index in ext_defs table
- * @param type is the input type
- * @return the index or -1 for error
- *
- * This is called from ssl/ech.c:ech_same_ext when we're figuring
- * out whether or not to copy an inner extension to the outer CH.
- */
-int ech_map_ext_type_to_ind(unsigned int type);
-
-/*
  * @brief map a list of ciphers to octets
  * @param s is the SSL structure
  * @param sk is the list of ciphers
@@ -614,11 +604,4 @@ int ech_map_ext_type_to_ind(unsigned int type);
  */
 int ssl_cipher_list_to_bytes(SSL_CONNECTION *s, STACK_OF(SSL_CIPHER) *sk,
                              WPACKET *pkt);
-/*
- * @brief return number of built-in extensions
- * @return the number
- *
- * Used in handling custom extensions
- */
-size_t ech_num_builtins(void);
 #endif

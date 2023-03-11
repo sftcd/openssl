@@ -1406,7 +1406,6 @@ __owur CON_FUNC_RETURN tls_construct_client_hello(SSL_CONNECTION *s,
     /* re-set a couple of things */
     s->ext.ech.ch_depth = 0;
     /*
-     * TODO: move this somewhere better?
      * If we want a different key share for outer, then
      * zap the one for the inner. The inner key_share is
      * stashed in s.ext.ech.tmp_pkey already.
