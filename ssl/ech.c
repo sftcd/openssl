@@ -43,6 +43,7 @@
 
 # define OSSL_ECH_MAX_GREASE_PUB 0x100 /* max peer key share we'll decode */
 # define OSSL_ECH_MAX_GREASE_CT 0x200 /* max GREASEy ciphertext we'll emit */
+
 /*
  * When including a different key_share in the inner CH, 256 is the
  * size we produce for a real ECH when including padding in the inner
@@ -80,6 +81,13 @@
  */
 #  define TLSEXT_MINLEN_host_name 4
 # endif
+
+/*
+ * DUPEMALL is useful for testing - this turns off compression and
+ * causes two calls to each extension constructor, which'd be the same
+ * as making all entries in ext_ext_handling use the CALL_BOTH value
+ */
+# undef DUPEMALL
 
 /*
  * To control the number of zeros added after a draft-13
@@ -197,6 +205,11 @@ static const char OSSL_ECH_HRR_CONFIRM_STRING[] = "\x68\x72\x72\x20\x65\x63\x68\
  * ECH requires the compressed extensions to be a contiguous set in the
  * outer encoding.)
  *
+ * DUPLICATE handling means one call to the constructor with the
+ * value generated being in both inner and outer. There doesn't seem
+ * to be much reason for preferring that to COMPRESS, but we keep
+ * it, for now, anyway.
+ *
  * The above applies to built-in extensions - all custom extensions
  * use COMPRESS handling, but that's not table-driven.
  *
@@ -207,6 +220,11 @@ static const char OSSL_ECH_HRR_CONFIRM_STRING[] = "\x68\x72\x72\x20\x65\x63\x68\
  * These values may be better added as a field in ext_defs (in extensions.c).
  * TODO: merge those tables or not.
  */
+
+/* possible values for handling field */
+# define OSSL_ECH_HANDLING_CALL_BOTH 1 /* call constructor both times */
+# define OSSL_ECH_HANDLING_COMPRESS  2 /* compress outer value into inner */
+# define OSSL_ECH_HANDLING_DUPLICATE 3 /* same value in inner and outer */
 
 /* defined in statem_local.h but also wanted here */
 # ifndef TLSEXT_TYPE_cryptopro_bug
@@ -256,7 +274,6 @@ static const ECH_EXT_HANDLING_DEF ech_ext_handling[] = {
  * been given for an RR value or ECHConfig.
  * We give these the EBCDIC treatment as well - why not? :-)
  */
-
 /*
  * ascii hex with either case allowed, plus a semi-colon separator
  * "0123456789ABCDEFabcdef;"
@@ -3127,38 +3144,37 @@ int ech_2bcompressed(int ind)
 {
     int nexts = OSSL_NELEM(ech_ext_handling);
 
+# ifdef DUPEMALL
+    return 0;
+# endif
     if (ind < 0 || ind >= nexts)
         return -1;
     return ech_ext_handling[ind].handling == OSSL_ECH_HANDLING_COMPRESS;
 }
 
 /**
- * @brief repeat extension from inner in outer and handle compression
+ * @brief as needed, repeat extension from inner in outer handling compression
  * @param s is the SSL connection
  * @param pkt is the packet containing extensions
- * @param depth is 0 for outer CH, 1 for inner
  * @return 0: error, 1: copied existing and done, 2: ignore existing
  */
-int ech_same_ext(SSL_CONNECTION *s, WPACKET *pkt, int depth)
+int ech_same_ext(SSL_CONNECTION *s, WPACKET *pkt)
 {
-    unsigned int type = 0;
-    unsigned int nexts = 0;
-    int tind = 0;
+    unsigned int type = 0, nexts = 0;
+    int tind = 0, depth = 0;
 
-# undef DUPEMALL
 # ifdef DUPEMALL
-    /*
-     * DUPEMALL was handy for testing.
-     * Setting this means no compression at all.
-     */
     return OSSL_ECH_SAME_EXT_CONTINUE;
 # endif
 
     if (s == NULL || s->ext.ech.cfgs == NULL)
         return OSSL_ECH_SAME_EXT_CONTINUE; /* nothing to do */
-    type = s->ext.ech.etype;
+    depth = s->ext.ech.ch_depth;
     nexts = OSSL_NELEM(ech_ext_handling);
-    tind = ech_map_ext_type_to_ind(type);
+    tind = s->ext.ech.ext_ind;
+    if (tind < 0 || tind >= nexts)
+        return OSSL_ECH_SAME_EXT_ERR;
+    type = ech_ext_handling[tind].type;
     /* If this index'd extension won't be compressed, we're done */
     if (tind == -1)
         return OSSL_ECH_SAME_EXT_ERR;
@@ -3171,12 +3187,11 @@ int ech_same_ext(SSL_CONNECTION *s, WPACKET *pkt, int depth)
         /* mark this one to be "compressed" */
         if (s->ext.ech.n_outer_only >= OSSL_ECH_OUTERS_MAX)
             return OSSL_ECH_SAME_EXT_ERR;
-        s->ext.ech.outer_only[s->ext.ech.n_outer_only] =
-            ech_ext_handling[tind].type;
+        s->ext.ech.outer_only[s->ext.ech.n_outer_only] = type;
         s->ext.ech.n_outer_only++;
         OSSL_TRACE_BEGIN(TLS) {
             BIO_printf(trc_out, "ech_same_ext: Marking (type %d, ind %d "
-                       "tot-comp %d) for compression\n", s->ext.ech.etype, tind,
+                       "tot-comp %d) for compression\n", type, tind,
                        (int) s->ext.ech.n_outer_only);
         } OSSL_TRACE_END(TLS);
         return OSSL_ECH_SAME_EXT_CONTINUE;
@@ -3197,10 +3212,13 @@ int ech_same_ext(SSL_CONNECTION *s, WPACKET *pkt, int depth)
 
 /**
  * @brief check if we're using the same/different key shares
- * @return 1 if same key share in inner and outer, 0 othewise
+ * @return 1 if same key share in inner and outer, 0 otherwise
  */
 int ech_same_key_share(void)
 {
+# ifdef DUPEMALL
+    return 0;
+# endif
     return ech_ext_handling[TLSEXT_IDX_key_share].handling
         != OSSL_ECH_HANDLING_CALL_BOTH;
 }
@@ -3214,6 +3232,7 @@ int ech_same_key_share(void)
  */
 int ech_encode_inner(SSL_CONNECTION *s)
 {
+    int rv = 0;
     unsigned char *innerch_full = NULL;
     WPACKET inner; /* "fake" pkt for inner */
     BUF_MEM *inner_mem = NULL;
@@ -3222,26 +3241,11 @@ int ech_encode_inner(SSL_CONNECTION *s)
     size_t nraws = 0;
     size_t ind = 0;
     size_t innerinnerlen = 0;
-    size_t builtins = ech_num_builtins();
+    size_t builtins = OSSL_NELEM(ech_ext_handling); 
 
     /* basic checks */
     if (s == NULL || s->ext.ech.cfgs == NULL)
         return 0;
-
-    /*
-     * encode innerch into encoded_innerch, and handle ECH-compression
-     *
-     * As a reminder the CH is:
-     *  struct {
-     *    ProtocolVersion legacy_version = 0x0303;    TLS v1.2
-     *    Random random;
-     *    opaque legacy_session_id<0..32>;
-     *    CipherSuite cipher_suites<2..2^16-2>;
-     *    opaque legacy_compression_methods<1..2^8-1>;
-     *    Extension extensions<8..2^16-1>;
-     *  } ClientHello;
-     */
-
     if ((inner_mem = BUF_MEM_new()) == NULL
         || !BUF_MEM_grow(inner_mem, SSL3_RT_MAX_PLAIN_LENGTH)
         || !WPACKET_init(&inner, inner_mem)
@@ -3275,7 +3279,6 @@ int ech_encode_inner(SSL_CONNECTION *s)
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         goto err;
     }
-
     /*  We put ECH-compressed stuff first (if any), because we can */
     if (s->ext.ech.n_outer_only > 0) {
         if (!WPACKET_put_bytes_u16(&inner, TLSEXT_TYPE_outer_extensions)
@@ -3293,7 +3296,6 @@ int ech_encode_inner(SSL_CONNECTION *s)
             }
         }
     }
-
     /* now copy the rest, as "proper" exts, into encoded inner */
     for (ind = 0; ind < builtins; ind++) {
         if (raws[ind].present == 0)
@@ -3335,14 +3337,11 @@ int ech_encode_inner(SSL_CONNECTION *s)
     s->ext.ech.encoded_innerch = innerch_full;
     s->ext.ech.encoded_innerch_len = innerinnerlen - 4;
     /* and clean up */
-    WPACKET_cleanup(&inner);
-    BUF_MEM_free(inner_mem);
-    inner_mem = NULL;
-    return 1;
+    rv = 1;
 err:
     WPACKET_cleanup(&inner);
     BUF_MEM_free(inner_mem);
-    return 0;
+    return rv;
 }
 
 /*

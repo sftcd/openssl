@@ -966,8 +966,8 @@ int tls_construct_extensions(SSL_CONNECTION *s, WPACKET *pkt,
         /* do compressed in pass 0, non-compressed in pass 1 */
         if (ech_2bcompressed(i) == pass)
             continue;
-        /* stash type - needed for COMPRESS ECH handling */
-        s->ext.ech.etype = thisexd->type;
+        /* stash index - needed for COMPRESS ECH handling */
+        s->ext.ech.ext_ind = i;
 #endif
         /* Skip if not relevant for our context */
         if (!should_add_extension(s, thisexd->context, context, max_version))
@@ -1058,28 +1058,6 @@ static int init_server_name(SSL_CONNECTION *s, unsigned int context)
 
 #ifndef OPENSSL_NO_ECH
 /*
- * @brief map from ext type to index in ext_defs table
- * @param type is the input type
- * @return the index or -1 for error
- *
- * This is called from ssl/ech.c:ech_same_ext when we're figuring
- * out whether or not to copy an inner extension to the outer CH.
- */
-int ech_map_ext_type_to_ind(unsigned int type)
-{
-    const EXTENSION_DEFINITION *e = ext_defs;
-    size_t num_exts = OSSL_NELEM(ext_defs);
-    unsigned int i;
-
-    for (i = 0; i != num_exts; i++) {
-        if (e->type == type)
-            return i;
-        e++;
-    }
-    return -1;
-}
-
-/*
  * @brief Just note that ech is not yet done
  * @param s is the SSL session
  * @param context determines when called
@@ -1112,17 +1090,6 @@ static int final_ech(SSL_CONNECTION *s, unsigned int context, int sent)
         }
     }
     return 1;
-}
-
-/*
- * @brief return number of built-in extensions
- * @return the number
- *
- * Used in handling custom extensions
- */
-size_t ech_num_builtins(void)
-{
-    return OSSL_NELEM(ext_defs);
 }
 #endif /* OPENSSL_NO_ECH */
 
