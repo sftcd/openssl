@@ -22,6 +22,9 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
+- 20230314: rebased lighttpd1.4 and updated integration code
+  with recent ECH API changes, seems ok
+
 - 20230310: refactoring of extension compression, duplication
   and whether to make a 2nd call to constuctor - seems to be working
   ok
