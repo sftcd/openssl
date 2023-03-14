@@ -1,6 +1,55 @@
 
 # Playing with lighttpd for ECH
 
+## March 2023 catch up
+
+Goal is to rebase with upstream changes and ECH API changes.
+
+- running on ubuntu 22.10
+- rebased with upstream (ended up manually reapplying changes
+  to ``mod_openssl.c`` as rebasing/merging was more of a pain)
+
+            $ git clone https://github.com/sftd/lighttpd1.4 
+            ...
+            $ cd lighttpd1.4
+            $ git checkout ECH-experimental
+            Branch 'ECH-experimental' set up to track remote branch 'ECH-experimental' from 'origin'.
+            Switched to a new branch 'ECH-experimental'
+            $ ./autogen.sh 
+            ... stuff ...
+            $ ./configure --with-openssl=$HOME/code/openssl --with-openssl-libs=$HOME/code/openssl
+            ... stuff ...
+            $ make
+            ... stuff ...
+
+The script [``testlighttpd.sh``](./testlighttpd.sh) sets environment vars and
+then runs lighttpd from the build, listening (for HTTPS only) on port 3443:
+
+            $ ./testlighttpd.sh
+            ...stuff...
+
+If your lighttpd build is not in ``$HOME/code/lighttpd1.4`` then you can set the
+``$LIGHTY`` environment variable to point to top of the lighttpd build tree.
+
+``testlighthtpd.sh`` script runs the server in foreground so you'll need to ctrl-C
+out of that, when done. (Valgrind reports some seemingly fixed sized leaks on exit,
+not sure if that's my fault or not.)
+
+I also added example.com, foo.example.com, bar.example.com and bat.example.com to
+``/etc/hosts`` to match the setup in [``lighthttpdmin.conf``](lighthttpdmin.conf).
+
+You can then use our wrapper for ``openssl s_client`` to access a web page:
+
+            $ ./echcli.sh  -p 3443 -s localhost -H foo.example.com -c example.com -P `./pem2rr.sh -p d13.pem` -f index.html
+            Running ./echcli.sh at 20230314-230824
+            Assuming supplied ECH is encoded ECHConfigList or SVCB
+            ./echcli.sh Summary: 
+            Looks like ECH worked ok
+            ECH: success: outer SNI: 'example.com', inner SNI: 'foo.example.com'
+            $ 
+
+All that seems to work ok.
+
 ## August 2022 migration of defo.ie
 
 - running on ubuntu 22.04

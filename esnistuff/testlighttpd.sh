@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# set -x
+set -x
 
 # Run a lighttpd on localhost:3443 with foo.example.com accessible
 # via ECH
@@ -13,7 +13,7 @@
 # needed.
 
 OSSL="$HOME/code/openssl"
-LIGHTY="$HOME/code/lighttpd1.4-gstrauss"
+: ${LIGHTY:=$HOME/code/lighttpd1.4}
 export TOP=$OSSL
 
 export LD_LIBRARY_PATH=$OSSL
