@@ -15,8 +15,8 @@
 
 : ${OSSL:="$HOME/code/openssl"}
 : ${LIGHTY:="$HOME/code/lighttpd1.4"}
-: ${HAPPY:="$HOME/code/haproxy/haproxy"}
-: ${ECHCONFIG:="echconfig.pem"}
+: ${HAPPY:="$HOME/code/haproxy"}
+: ${ECHCONFIG:="d13.pem"}
 # to pick up correct executables and .so's  
 export TOP=$OSSL
 export LD_LIBRARY_PATH=$OSSL
@@ -152,8 +152,8 @@ fi
 
 
 # Now start up a haproxy
-echo "Executing: $VALGRIND $HAPPY -f $OSSL/esnistuff/haproxymin.conf $HAPDEBUGSTR"
-$VALGRIND $HAPPY -f $OSSL/esnistuff/haproxymin.conf $HAPDEBUGSTR
+echo "Executing: $VALGRIND $HAPPY/haproxy -f $OSSL/esnistuff/haproxymin.conf $HAPDEBUGSTR"
+$VALGRIND $HAPPY/haproxy -f $OSSL/esnistuff/haproxymin.conf $HAPDEBUGSTR
 
 if [[ "$doclient" == "yes" ]]
 then
