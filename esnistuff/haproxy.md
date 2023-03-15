@@ -1,5 +1,50 @@
 # Notes on building/integrating with haproxy
 
+## March 2023 rebase...
+
+These are the updated notes from 20230315 for haproxy with ECH.
+Will test on ubuntu 20.10, with latest haproxy code.
+
+You need my haproxy fork and to use the ``ECH-experimental``
+branch from that, so...
+
+            $ cd $HOME/code
+            $ git clone https://github.com/sftcd/haproxy.git
+            $ cd haproxy
+            $ git checkout ECH-experimental
+
+To build that with a non-standard build of OpenSSL...
+
+            $ make SSL_INC=$HOME/code/openssl/include/ \
+                SSL_LIB=$HOME/code/openssl \
+                TARGET=linux-glibc USE_OPENSSL=1
+
+Testing:
+
+            $ ./testhaproxy.sh
+            ...stuff... # hit ctrl-C to exit haproxy, killall lighttpd to kill backend
+
+            $ # split-mode test
+            $ ./echcli.sh -s localhost  -H foo.example.com -p 7446 -P `./pem2rr.sh d13.pem` -f index.html
+            Running ./echcli.sh at 20230315-154634
+            Assuming supplied ECH is encoded ECHConfigList or SVCB
+            ./echcli.sh Summary: 
+            Looks like ECH worked ok
+            ECH: success: outer SNI: 'example.com', inner SNI: 'foo.example.com'
+            $ # shared-mode test
+            $ ./echcli.sh -s localhost  -H foo.example.com -p 7445 -P `./pem2rr.sh d13.pem` -f index.html
+            Running ./echcli.sh at 20230315-154900
+            Assuming supplied ECH is encoded ECHConfigList or SVCB
+            ./echcli.sh Summary: 
+            Looks like ECH worked ok
+            ECH: success: outer SNI: 'example.com', inner SNI: 'foo.example.com'
+            $
+            $ 
+
+That seemed to work ok, but with very (very:-) little testing! 
+
+## Sep 2021 Notes
+
 These notes are from September 2021.
 
 Our integration with haproxy is more experimental that e.g. those for web
