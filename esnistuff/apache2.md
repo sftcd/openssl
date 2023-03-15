@@ -1,7 +1,55 @@
 
 # Playing about with Apache2 and ECH
 
-We earlier did all this for [ESNI](#ESNI), a precursor to ECH.
+How to build/test our proof-of-concept of apache2 httpd with ECH.
+
+## March 2023 Clone and Build for ECH draft-13
+
+These are the updated notes from 20230315 for httpd with ECH.
+(Slightly) tested on ubuntu 20.10, with latest httpd code.
+
+We're on apache 2.5.1 - whereas 2.4.x is probably what's widely used.
+Might want to revert to that later, but we'll see (also later:-). 
+
+We need the Apache Portable Runtime (APR) to build.  As recommended, my httpd
+build has the APR stuff in a ``srclib`` sub-directory of the httpd source
+directory.
+
+            $ cd $HOME/code
+            $ git clone https://github.com/sftcd/httpd
+            $ cd httpd
+            $ git checkout ECH-experimental
+            $ cd srclib
+            $ git clone https://github.com/apache/apr.git
+            $ cd ..
+            $ ./buildconf
+            ... stuff ...
+
+And off we go with configure and make ...
+
+            $ export CFLAGS="-I$HOME/code/openssl/include"
+            $ export LDFLAGS="-L$HOME/code/openssl"
+            $ ./configure --enable-ssl --with-ssl=$HOME/code/openssl
+            ... loads of stuff ...
+            $ make -j8
+            ... lotsa lotsa stuff ...
+
+As of 20230315 that build still generates many OpenSSL deprecated
+warnings.
+
+Test:
+
+            $ ./testapache-draft-13.sh
+            ...
+            $ ./echcli.sh -p 9443 -s localhost -H foo.example.com  -P d13.pem -f index.html
+            Running ./echcli.sh at 20230315-131543
+            ./echcli.sh Summary: 
+            Looks like ECH worked ok
+            ECH: success: outer SNI: 'example.com', inner SNI: 'foo.example.com'
+            $
+            $ killall httpd # kill daemon
+
+That seems to work ok. (First time too!)
 
 ## Clone and Build for ECH draft-13
 
