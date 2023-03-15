@@ -5456,7 +5456,8 @@ int SSL_CTX_ech_server_enable_dir(SSL_CTX *ctx, int *number_loaded,
         if (strncmp(last4, ".pem", 4) && strncmp(last4, ".ech", 4)) {
             OSSL_TRACE_BEGIN(TLS) {
                 BIO_printf(trc_out,
-                           "name doesn't end in .pem: %s/%s - skipping it \r\n",
+                           "name doesn't end in .pem or .ech:"
+                           " %s/%s - skipping it\n",
                            echdir, filename);
             } OSSL_TRACE_END(TLS);
             continue;
