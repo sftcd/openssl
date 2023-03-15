@@ -2,8 +2,12 @@
 
 # set -x
 
+# Pointer to your build trees...
 OSSL="$HOME/code/openssl"
-APA="$HOME/code/httpd-draft-13"
+# Note that the value for this has to match that for ATOP
+# in apachemin-draft-13.conf, so if you change this on the
+# command line, you'll need to edit the conf file
+: ${APA:=$HOME/code/httpd}
 
 # make directories for lighttpd stuff if needed
 mkdir -p $OSSL/esnistuff/apache/logs

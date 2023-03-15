@@ -6,6 +6,7 @@ Notes on our proof-of-concept nginx with ECH integration.
 ## March 2023 Clone and Build
 
 These are the updated notes from 20230315 for nginx with ECH.
+(Slightly) tested on ubuntu 20.10, with latest nginx code.
 
 First, you need a separate clone of our OpenSSL build (because nginx's build, in this
 instantiation, re-builds OpenSSL and links static libraries, so we put that in a new
@@ -43,7 +44,6 @@ To test, (configuration is in ``nginxmin-draft-13.con``):
             $ killall nginx # to stop daemon
 
 Seems to work ok again.
-
 
 ## 2021 Clone and Build 
 
