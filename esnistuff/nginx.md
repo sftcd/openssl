@@ -1,9 +1,51 @@
 
 # ECH-enabling Nginx
 
-The earlier ESNI details (from late 2019 are [below](#ESNI).
+Notes on our proof-of-concept nginx with ECH integration.
 
-## Clone and Build 
+## March 2023 Clone and Build
+
+These are the updated notes from 20230315 for nginx with ECH.
+
+First, you need a separate clone of our OpenSSL build (because nginx's build, in this
+instantiation, re-builds OpenSSL and links static libraries, so we put that in a new
+directory in order to avoid disturbing other builds):
+
+            $ cd $HOME/code
+            $ git clone https://github.com/sftcd/openssl.git openssl-for-nginx
+            $ cd openssl-for-nginx
+            $ git checkout ECH-draft-13c
+            $ ./config -d
+            ...stuff...
+            $ make
+            ...go for coffee...
+
+Then you need nginx, and to switch to our ``ECH-experimental`` branch:
+
+            $ cd $HOME/code
+            $ git clone https://github.com/sftcd/nginx.git
+            $ cd nginx
+            $ git checkout ECH-experimental
+            $ ./auto/configure --with-debug --prefix=nginx --with-http_ssl_module --with-openssl=$HOME/code/openssl-for-nginx  --with-openssl-opt="--debug"
+            $ make
+            ... go for coffee ...
+
+To test, (configuration is in ``nginxmin-draft-13.con``):
+
+            $ ./testnginx-draft-13.sh
+            ...stuff...
+            $ ./echcli.sh -p 5443 -s localhost -H foo.example.com  -P d13.pem -f index.html
+            Running ./echcli.sh at 20230315-121742
+            ./echcli.sh Summary: 
+            Looks like ECH worked ok
+            ECH: success: outer SNI: 'example.com', inner SNI: 'foo.example.com'
+            $ 
+            $ killall nginx # to stop daemon
+
+Seems to work ok again.
+
+
+## 2021 Clone and Build 
 
 These are the updated notes from 20210912 for ECH draft-13.
 

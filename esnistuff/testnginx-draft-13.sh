@@ -3,7 +3,7 @@
 # set -x
 
 OSSL="$HOME/code/openssl"
-NGINX="$HOME/code/nginx-draft-13"
+: ${NGINXH:=$HOME/code/nginx-draft-13}
 
 # nginx build seems to statically link openssl for now (ickky)
 # export LD_LIBRARY_PATH=$OSSL
@@ -71,8 +71,8 @@ fi
 # VALGRIND="valgrind --leak-check=full "
 VALGRIND=""
 
-echo "Executing: $VALGRIND $NGINX/objs/nginx -c $OSSL/esnistuff/nginxmin-draft-13.conf"
+echo "Executing: $VALGRIND $NGINXH/objs/nginx -c $OSSL/esnistuff/nginxmin-draft-13.conf"
 # move over there to run code, so config file can have relative paths
 cd $OSSL/esnistuff
-$VALGRIND $NGINX/objs/nginx -c $OSSL/esnistuff/nginxmin-draft-13.conf 
-cd - 
+$VALGRIND $NGINXH/objs/nginx -c $OSSL/esnistuff/nginxmin-draft-13.conf
+cd -
