@@ -683,6 +683,9 @@ static int ECHConfigList_from_binary(unsigned char *binbuf, size_t binblen,
             PACKET public_name_pkt;
             PACKET exts;
             unsigned char max_name_len;
+            OSSL_HPKE_SUITE hpke_suite;
+            int suiteind = 0;
+            int goodsuitefound = 0;
 
             /* read config_id - a fixed single byte */
             if (!PACKET_copy_bytes(&pkt, &ec->config_id, 1)) {
@@ -839,6 +842,36 @@ static int ECHConfigList_from_binary(unsigned char *binbuf, size_t binblen,
                 }
                 ec->exts = vip;
                 ec->exts[ec->nexts - 1] = extval;
+            }
+            /*
+             * Make a check that the kem, aead and kdf are supported here
+             * We don't fail if not, just skip this ECHConfig same as if
+             * the version had been unsupported
+             */
+            hpke_suite.kem_id = ec->kem_id;
+            for (suiteind = 0; suiteind != ec->nsuites; suiteind++) {
+                unsigned char *es = (unsigned char *)
+                    &ec->ciphersuites[suiteind];
+                uint16_t kdf_id = es[0] * 256 + es[1];
+                uint16_t aead_id = es[2] * 256 + es[3];
+
+                /*
+                 * suite_check says yes to the pseudo-aead for
+                 * export, but we don't want to see it here
+                 * coming from outside in an encoding
+                 */
+                hpke_suite.aead_id = aead_id;
+                hpke_suite.kdf_id = kdf_id;
+                if (OSSL_HPKE_suite_check(hpke_suite) == 1
+                    && aead_id != OSSL_HPKE_AEAD_ID_EXPORTONLY) {
+                    goodsuitefound = 1;
+                    break;
+                }
+            }
+            if (goodsuitefound == 0) {
+                ECHConfig_free(ec);
+                rind--;
+                continue;
             }
         }
         /* set length of encoding of this ECHConfig */
@@ -3160,7 +3193,7 @@ int ech_2bcompressed(int ind)
  */
 int ech_same_ext(SSL_CONNECTION *s, WPACKET *pkt)
 {
-    unsigned int type = 0; 
+    unsigned int type = 0;
     size_t tind = 0, nexts = 0;
     int depth = 0;
 
@@ -3240,7 +3273,7 @@ int ech_encode_inner(SSL_CONNECTION *s)
     size_t nraws = 0;
     size_t ind = 0;
     size_t innerinnerlen = 0;
-    size_t builtins = OSSL_NELEM(ech_ext_handling); 
+    size_t builtins = OSSL_NELEM(ech_ext_handling);
 
     /* basic checks */
     if (s == NULL || s->ext.ech.cfgs == NULL)
@@ -5961,8 +5994,8 @@ int ossl_ech_find_echconfigs(int *num_echs,
                              const unsigned char *val, size_t len)
 {
     SSL_ECH *new_echs = NULL;
-    int rv = 0, i, num_new = 0;
-    unsigned char **ebufs = NULL;
+    int rv = 0, i, j, num_new = 0, num_ecs = 0;
+    unsigned char **ebufs = NULL, *ep;
     size_t *elens = NULL;
 
     if (num_echs == NULL || echconfigs == NULL || echlens == NULL
@@ -5976,30 +6009,52 @@ int ossl_ech_find_echconfigs(int *num_echs,
     }
     if (num_new == 0) {
         /* that's not a fail, just an empty set result */
-        *num_echs = num_new;
+        *num_echs = 0;
         return 1;
     }
-    ebufs = OPENSSL_malloc(num_new * sizeof(unsigned char *));
-    if (ebufs == NULL)
-        goto err;
-    elens = OPENSSL_malloc(num_new * sizeof(size_t));
-    if (elens == NULL)
-        goto err;
+    /*
+     * Go through the SSL_ECH array, and each of the ECHConfig
+     * records in each element and make a singleton ECHConfigList
+     * from each ECHConfig we found
+     */
     for (i = 0; i != num_new; i++) {
-        ebufs[i] = new_echs[i].cfg->encoded;
-        elens[i] = new_echs[i].cfg->encoded_len;
-        new_echs[i].cfg->encoded = NULL; /* so we don't double free later */
+        for (j = 0; j != new_echs[i].cfg->nrecs; j++) {
+            unsigned char **tebufs;
+            size_t *telens, thislen;
+
+            num_ecs++;
+            tebufs = OPENSSL_realloc(ebufs, num_ecs * sizeof(unsigned char *));
+            if (tebufs == NULL)
+                goto err;
+            ebufs = tebufs;
+            telens = OPENSSL_realloc(elens, num_ecs * sizeof(size_t));
+            if (telens == NULL)
+                goto err;
+            elens = telens;
+            thislen = new_echs[i].cfg->recs[j].encoding_length;
+            ep = OPENSSL_malloc(thislen + 2);
+            if (ep == NULL)
+                goto err;
+            ep[0] = (thislen & 0xff) >> 8;
+            ep[1] = thislen & 0xff;
+            memcpy(ep + 2, new_echs[i].cfg->recs[j].encoding_start, thislen);
+            elens[num_ecs - 1] = thislen + 2;
+            ebufs[num_ecs - 1] = ep;
+            ep = NULL;
+        }
     }
     *echconfigs = ebufs;
     *echlens = elens;
-    *num_echs = num_new;
+    *num_echs = num_ecs;
     rv = 1;
 err:
     if (rv == 0) {
+        for (i = 0; i != num_ecs; i++)
+            OPENSSL_free(ebufs[i]);
         OPENSSL_free(ebufs);
         OPENSSL_free(elens);
+        OPENSSL_free(ep);
     }
-    /* this free is ok as we've NULL'd the encoded version above */
     SSL_ECH_free_arr(new_echs, num_new);
     OPENSSL_free(new_echs);
     return rv;

@@ -235,31 +235,15 @@ static const unsigned char echconfig_ah_bad_ver[] =
     "01000b6578616d706c652e636f6d0000";
 
 /*
- * A struct to tie those together for tests. Note that the
- * encoded_len should be "sizeof(x) - 1" if the encoding is
- * a string encoding, but just "sizeof(x)" if we're dealing
- * with a binary encoding.
+ * An ascii-hex ECHConfigList with one ECHConfig
+ * with an all-zero public value.
+ * This should be ok, for 25519, but hey, just in case:-)
  */
-typedef struct {
-    const unsigned char *encoded; /* encoded ECHConfigList */
-    size_t encoded_len; /* the size of the above */
-    int expected; /* number of ECHConfig values we expect to decode */
-} TEST_ECHCONFIG;
-
-static TEST_ECHCONFIG test_echconfigs[] = {
-    { echconfig_b64_6_to_3, sizeof(echconfig_b64_6_to_3) - 1, 3 },
-    { echconfig_bin_6_to_3, sizeof(echconfig_bin_6_to_3), 3 },
-    { echconfig_dig_defo, sizeof(echconfig_dig_defo) - 1, 2 },
-    { echconfig_dig_cf, sizeof(echconfig_dig_cf) - 1, 1 },
-    { echconfig_dig_d13, sizeof(echconfig_dig_d13) - 1, 3 },
-    { echconfig_dig_u_d13, sizeof(echconfig_dig_u_d13) - 1, 3 },
-    { echconfig_dig_multi, sizeof(echconfig_dig_multi) - 1, 3 },
-    { echconfig_echcli, sizeof(echconfig_echcli) - 1, 1 },
-    { echconfig_no_ech, sizeof(echconfig_no_ech) - 1, 0 },
-    { echconfig_bin_wrong_ver, sizeof(echconfig_bin_wrong_ver), 0 },
-    { echconfig_ah, sizeof(echconfig_ah) -1, 1 },
-    { echconfig_ah_bad_ver, sizeof(echconfig_ah_bad_ver) -1, 0 }
-};
+static const unsigned char echconfig_ah_zero[] =
+    "003efe0d003abb002000200000000000"
+    "00000000000000000000000000000000"
+    "00000000000000000000000004000100"
+    "01000b6578616d706c652e636f6d0000";
 
 /*
  * The next set of samples are syntactically invalid
@@ -312,17 +296,6 @@ static const unsigned char bad_echconfig_extlen[] =
     "5a42960fd02c697360163c0004000100"
     "01000b6578616d706c652e636f6d00FF";
 
-static TEST_ECHCONFIG bad_echconfigs[] = {
-    { bad_echconfig_olen, sizeof(bad_echconfig_olen) -1, 0 },
-    { bad_echconfig_ilen, sizeof(bad_echconfig_ilen) -1, 0 },
-    { bad_echconfig_pklen, sizeof(bad_echconfig_pklen) -1, 0 },
-    { bad_echconfig_cslen, sizeof(bad_echconfig_cslen) -1, 0 },
-    { bad_echconfig_pnlen, sizeof(bad_echconfig_pnlen) -1, 0 },
-    { bad_echconfig_extlen, sizeof(bad_echconfig_extlen) -1, 0 }
-};
-
-/* will add a test using these shortly but not yet */
-
 /*
  * The next set have bad kem, kdf or aead values - this time with
  * 0xAA as the replacement value
@@ -362,11 +335,59 @@ static const unsigned char bad_echconfig_aeadid_ff[] =
     "5a42960fd02c697360163c00040001FF"
     "FF000b6578616d706c652e636f6d0000";
 
-static TEST_ECHCONFIG bad_echconfigs_suites[] = {
-    { bad_echconfig_kemid, sizeof(bad_echconfig_kemid) -1, 0 },
-    { bad_echconfig_kdfid, sizeof(bad_echconfig_kdfid) -1, 0 },
-    { bad_echconfig_aeadid, sizeof(bad_echconfig_aeadid) -1, 0 },
-    { bad_echconfig_aeadid_ff, sizeof(bad_echconfig_aeadid_ff) -1, 0 },
+/*
+ * An ECHConfigList with a bad ECHConfig
+ * (aead is 0xFFFF), followed by a good
+ * one.
+ */
+static const unsigned char echconfig_bad_then_good[] =
+    "007cfe0d003abb0020002062c7607bf2"
+    "c5fe1108446f132ca4339cf19df1552e"
+    "5a42960fd02c697360163c00040001FF"
+    "FF000b6578616d706c652e636f6d0000"
+    "fe0d003abb0020002062c7607bf2c5fe"
+    "1108446f132ca4339cf19df1552e5a42"
+    "960fd02c697360163c00040001000100"
+    "0b6578616d706c652e636f6d0000";
+
+/*
+ * A struct to tie the above together for tests. Note that
+ * the encoded_len should be "sizeof(x) - 1" if the encoding
+ * is a string encoding, but just "sizeof(x)" if we're dealing
+ * with a binary encoding.
+ */
+typedef struct {
+    const unsigned char *encoded; /* encoded ECHConfigList */
+    size_t encoded_len; /* the size of the above */
+    int num_expected; /* number of ECHConfig values we expect to decode */
+    int rv_expected; /* expected return value from call */
+} TEST_ECHCONFIG;
+
+static TEST_ECHCONFIG test_echconfigs[] = {
+    { echconfig_b64_6_to_3, sizeof(echconfig_b64_6_to_3) - 1, 3, 1 },
+    { echconfig_bin_6_to_3, sizeof(echconfig_bin_6_to_3), 3, 1 },
+    { echconfig_dig_defo, sizeof(echconfig_dig_defo) - 1, 2, 1 },
+    { echconfig_dig_cf, sizeof(echconfig_dig_cf) - 1, 1, 1 },
+    { echconfig_dig_d13, sizeof(echconfig_dig_d13) - 1, 3, 1 },
+    { echconfig_dig_u_d13, sizeof(echconfig_dig_u_d13) - 1, 3, 1 },
+    { echconfig_dig_multi, sizeof(echconfig_dig_multi) - 1, 3, 1 },
+    { echconfig_echcli, sizeof(echconfig_echcli) - 1, 1, 1 },
+    { echconfig_no_ech, sizeof(echconfig_no_ech) - 1, 0, 1 },
+    { echconfig_bin_wrong_ver, sizeof(echconfig_bin_wrong_ver), 0, 1 },
+    { echconfig_ah, sizeof(echconfig_ah) -1, 1, 1 },
+    { echconfig_ah_bad_ver, sizeof(echconfig_ah_bad_ver) -1, 0, 1 },
+    { echconfig_ah_zero, sizeof(echconfig_ah_zero) - 1, 1, 1 },
+    { bad_echconfig_olen, sizeof(bad_echconfig_olen) -1, 0, 0 },
+    { bad_echconfig_ilen, sizeof(bad_echconfig_ilen) -1, 0, 0 },
+    { bad_echconfig_pklen, sizeof(bad_echconfig_pklen) -1, 0, 0 },
+    { bad_echconfig_cslen, sizeof(bad_echconfig_cslen) -1, 0, 0 },
+    { bad_echconfig_pnlen, sizeof(bad_echconfig_pnlen) -1, 0, 0 },
+    { bad_echconfig_extlen, sizeof(bad_echconfig_extlen) -1, 0, 0 },
+    { bad_echconfig_kemid, sizeof(bad_echconfig_kemid) -1, 0, 0 },
+    { bad_echconfig_kdfid, sizeof(bad_echconfig_kdfid) -1, 0, 0 },
+    { bad_echconfig_aeadid, sizeof(bad_echconfig_aeadid) -1, 0, 0 },
+    { bad_echconfig_aeadid_ff, sizeof(bad_echconfig_aeadid_ff) -1, 0, 0 },
+    { echconfig_bad_then_good, sizeof(echconfig_bad_then_good) -1, 1, 1 },
 };
 
 /* string from which we construct varieties of HPKE suite */
@@ -840,12 +861,10 @@ end:
     return res;
 }
 
-/*
- * Test ingestion of the vectors from test_echconfigs above
- */
+/* Test ingestion of the vectors from test_echconfigs above */
 static int test_ech_find(int idx)
 {
-    int rv = 0, i, nechs = 0, echtarg = 0;
+    int rv = 0, inner_rv = 0, i, nechs = 0;
     SSL_CTX *con = NULL;
     unsigned char **cfgs = NULL;
     size_t *cfglens = NULL;
@@ -855,19 +874,20 @@ static int test_ech_find(int idx)
                                        TLS_server_method())))
         goto end;
     t = &test_echconfigs[idx];
-    if (!TEST_true(ossl_ech_find_echconfigs(&nechs, &cfgs, &cfglens,
-                                            t->encoded, t->encoded_len))) {
+    inner_rv = ossl_ech_find_echconfigs(&nechs, &cfgs, &cfglens,
+                                        t->encoded, t->encoded_len);
+    if (!TEST_int_eq(inner_rv, t->rv_expected)) {
         if (verbose)
-            TEST_info("input was: %s", (char *)t->encoded);
+            TEST_info("unexpected return: input was: %s", (char *)t->encoded);
         goto end;
     }
-    if (!TEST_int_eq(nechs, t->expected)) {
+    if (inner_rv == 1 && !TEST_int_eq(nechs, t->num_expected)) {
         if (verbose)
-            TEST_info("input was: %s, (got %d instead of %d)",
-                      (char *)t->encoded, nechs, t->expected);
+            TEST_info("unexpected output: input: %s, (got %d instead of %d)",
+                      (char *)t->encoded, nechs, t->num_expected);
         goto end;
     }
-    if (echtarg == 0 && verbose)
+    if (nechs == 0 && verbose)
         TEST_info("No ECH found, as expected");
     for (i = 0; i != nechs; i++) {
         if (!TEST_true(SSL_CTX_ech_set1_echconfig(con, cfgs[i], cfglens[i]))) {
@@ -886,113 +906,6 @@ end:
     if (rv == 1 && verbose)
         TEST_info("test_ech_find: success\n");
     return rv;
-}
-
-/*
- * Test non-ingestion of the vectors from bad_echconfigs above
- */
-static int test_bad_find(int idx)
-{
-    int rv = 0, i, nechs = 0;
-    SSL_CTX *con = NULL;
-    unsigned char **cfgs = NULL;
-    size_t *cfglens = NULL;
-    TEST_ECHCONFIG *t;
-
-    if (!TEST_ptr(con = SSL_CTX_new_ex(testctx, testpropq,
-                                       TLS_server_method())))
-        goto end;
-    t = &bad_echconfigs[idx];
-    if (!TEST_false(ossl_ech_find_echconfigs(&nechs, &cfgs, &cfglens,
-                                             t->encoded, t->encoded_len))) {
-        if (verbose)
-            TEST_info("find worked for: %s", (char *)t->encoded);
-        if (nechs != 0 || cfgs != NULL || cfglens != NULL) {
-            TEST_info("ossl_ech_find_echconfigs call %d produced output (%d) "
-                      "when it shouldn't!", idx + 1, nechs);
-            /* free stuff we shouldn't have gotten;-( */
-            OPENSSL_free(cfglens);
-            for (i = 0; i != nechs; i++)
-                OPENSSL_free(cfgs[i]);
-            OPENSSL_free(cfgs);
-            goto end;
-        } else if (verbose) {
-            TEST_info("no output produced though (phew!) :-)");
-        }
-    } else if (verbose) {
-        TEST_info("find failed for: %s", (char *)t->encoded);
-    }
-    rv = 1;
-end:
-    SSL_CTX_free(con);
-    if (rv == 1 && verbose)
-        TEST_info("test_bad_find: success\n");
-    return rv;
-}
-
-/* Test failure with non-supported suites */
-static int test_bad_suites(int idx)
-{
-    int res = 0;
-    char *echkeyfile = NULL;
-    char *echconfig = NULL;
-    SSL_CTX *cctx = NULL, *sctx = NULL;
-    SSL *clientssl = NULL, *serverssl = NULL;
-    int clientstatus, serverstatus;
-    char *cinner, *couter, *sinner, *souter;
-    TEST_ECHCONFIG *t;
-
-    t = &bad_echconfigs_suites[idx];
-    /* read our pre-cooked ECH PEM file */
-    echkeyfile = test_mk_file_path(certsdir, "echconfig.pem");
-    if (!TEST_ptr(echkeyfile))
-        goto end;
-    echconfig = echconfiglist_from_PEM(echkeyfile);
-    if (!TEST_ptr(echconfig))
-        goto end;
-    if (!TEST_true(create_ssl_ctx_pair(libctx, TLS_server_method(),
-                                       TLS_client_method(),
-                                       TLS1_3_VERSION, 0,
-                                       &sctx, &cctx, cert, privkey)))
-        goto end;
-    if (!TEST_true(SSL_CTX_ech_set1_echconfig(cctx, t->encoded,
-                                              t->encoded_len))) {
-        TEST_info("Failed adding %s (len = %d) to SSL_CTX",
-                  t->encoded, (int) t->encoded_len);
-        goto end;
-    }
-    if (!TEST_true(SSL_CTX_ech_server_enable_file(sctx, echkeyfile)))
-        goto end;
-    if (!TEST_true(create_ssl_objects(sctx, cctx, &serverssl,
-                                      &clientssl, NULL, NULL)))
-        goto end;
-    if (!TEST_true(SSL_set_tlsext_host_name(clientssl, "server.example")))
-        goto end;
-    /* we should start to fail now */
-    if (!TEST_false(create_ssl_connection(serverssl, clientssl, SSL_ERROR_SSL)))
-        goto end;
-    serverstatus = SSL_ech_get_status(serverssl, &sinner, &souter);
-    if (verbose)
-        TEST_info("server status %d, %s, %s", serverstatus, sinner, souter);
-    if (!TEST_int_ne(serverstatus, SSL_ECH_STATUS_SUCCESS))
-        goto end;
-    /* override cert verification */
-    SSL_set_verify_result(clientssl, X509_V_OK);
-    clientstatus = SSL_ech_get_status(clientssl, &cinner, &couter);
-    if (verbose)
-        TEST_info("client status %d, %s, %s", clientstatus, cinner, couter);
-    if (!TEST_int_ne(clientstatus, SSL_ECH_STATUS_SUCCESS))
-        goto end;
-    /* all good */
-    res = 1;
-end:
-    OPENSSL_free(echkeyfile);
-    OPENSSL_free(echconfig);
-    SSL_free(clientssl);
-    SSL_free(serverssl);
-    SSL_CTX_free(cctx);
-    SSL_CTX_free(sctx);
-    return res;
 }
 
 /*
@@ -1559,8 +1472,6 @@ int setup_tests(void)
 
     ADD_ALL_TESTS(test_ech_add, OSSLTEST_ECH_NTESTS);
     ADD_ALL_TESTS(test_ech_find, OSSL_NELEM(test_echconfigs));
-    ADD_ALL_TESTS(test_bad_find, OSSL_NELEM(bad_echconfigs));
-    ADD_ALL_TESTS(test_bad_suites, OSSL_NELEM(bad_echconfigs_suites));
 
     /*
      * test a roundtrip for all suites, the test iteration
