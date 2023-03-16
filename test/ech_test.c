@@ -153,8 +153,9 @@ static const unsigned char echconfig_dig_u_d13[] =
     "001000D636F7665722E6465666F2E69650000";
 
 /*
- * output from ``dig +short https defo.ie``  catenated with
- * output from * ``dig +short https crypto.cloudflare.com``
+ * output from ``dig +short https defo.ie``  (2 ECHConfigs)
+ * catenated ``dig +short https crypto.cloudflare.com``
+ * which produces one more ECHConfig, for a total of 3
  */
 static const unsigned char echconfig_dig_multi[] =
     "1 . ech=AID+DQA88wAgACDhaXQ8S0pHHQ+bwApOPPDjai"
@@ -351,6 +352,29 @@ static const unsigned char echconfig_bad_then_good[] =
     "0b6578616d706c652e636f6d0000";
 
 /*
+ * output from ``dig +short https defo.ie``  (2 ECHConfigs)
+ * catenated ``dig +short https crypto.cloudflare.com``
+ * which produces one more ECHConfig, then plus another
+ * that has one good and one bad ECH (similar to
+ * echconfig_bad_then_good but with aead ID of 0x1401)
+ * which should give us 4 in total
+ */
+static const unsigned char echconfig_dig_multi_3[] =
+    "1 . ech=AID+DQA88wAgACDhaXQ8S0pHHQ+bwApOPPDjai"
+    "YofLs24QPmmOLP8wHtKwAEAAEAAQANY292ZXIuZGVmby5p"
+    "ZQAA/g0APNsAIAAgcTC7pC/ZyxhymoL1p1oAdxfvVEgRji"
+    "68mhDE4vDZOzUABAABAAEADWNvdmVyLmRlZm8uaWUAAA==\n"
+    "1 . alpn=\"http/1.1,h2\" ipv4hint=162.159.137.85"
+    ",162.159.138.85 ech=AEX+DQBBCAAgACBsFeUbsAWR7x"
+    "WL1aB6P28ppSsj+joHhNUtj2qtwYh+NAAEAAEAAQASY2xv"
+    "dWRmbGFyZS1lY2guY29tAAA= ipv6hint=2606:4700:7:"
+    ":a29f:8955,2606:4700:7::a29f:8a55\n"
+    "1 . ech=AHz+DQA6uwAgACBix2B78sX+EQhEbxMspDOc8Z"
+    "3xVS5aQpYP0Cxpc2AWPAAEFAEAAQALZXhhbXBsZS5jb20A"
+    "AP4NADq7ACAAIGLHYHvyxf4RCERvEyykM5zxnfFVLlpClg"
+    "/QLGlzYBY8AAQAAQABAAtleGFtcGxlLmNvbQAA";
+
+/*
  * A struct to tie the above together for tests. Note that
  * the encoded_len should be "sizeof(x) - 1" if the encoding
  * is a string encoding, but just "sizeof(x)" if we're dealing
@@ -388,6 +412,7 @@ static TEST_ECHCONFIG test_echconfigs[] = {
     { bad_echconfig_aeadid, sizeof(bad_echconfig_aeadid) -1, 0, 0 },
     { bad_echconfig_aeadid_ff, sizeof(bad_echconfig_aeadid_ff) -1, 0, 0 },
     { echconfig_bad_then_good, sizeof(echconfig_bad_then_good) -1, 1, 1 },
+    { echconfig_dig_multi_3, sizeof(echconfig_dig_multi_3) -1, 4, 1 },
 };
 
 /* string from which we construct varieties of HPKE suite */
@@ -874,6 +899,8 @@ static int test_ech_find(int idx)
                                        TLS_server_method())))
         goto end;
     t = &test_echconfigs[idx];
+    if (verbose)
+        TEST_info("test_ech_find input: %s", (char *)t->encoded);
     inner_rv = ossl_ech_find_echconfigs(&nechs, &cfgs, &cfglens,
                                         t->encoded, t->encoded_len);
     if (!TEST_int_eq(inner_rv, t->rv_expected)) {
