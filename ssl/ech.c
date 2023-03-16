@@ -684,7 +684,7 @@ static int ECHConfigList_from_binary(unsigned char *binbuf, size_t binblen,
             PACKET exts;
             unsigned char max_name_len;
             OSSL_HPKE_SUITE hpke_suite;
-            int suiteind = 0;
+            size_t suiteind = 0;
             int goodsuitefound = 0;
 
             /* read config_id - a fixed single byte */
@@ -5995,7 +5995,7 @@ int ossl_ech_find_echconfigs(int *num_echs,
 {
     SSL_ECH *new_echs = NULL;
     int rv = 0, i, j, num_new = 0, num_ecs = 0;
-    unsigned char **ebufs = NULL, *ep;
+    unsigned char **ebufs = NULL, *ep = NULL;
     size_t *elens = NULL;
 
     if (num_echs == NULL || echconfigs == NULL || echlens == NULL
