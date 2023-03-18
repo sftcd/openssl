@@ -2543,12 +2543,14 @@ int tls_parse_stoc_ech(SSL_CONNECTION *s, PACKET *pkt, unsigned int context,
     }
     OPENSSL_free(s->ext.ech.returned);
     s->ext.ech.returned = NULL;
-    srval = OPENSSL_malloc(rlen);
+    srval = OPENSSL_malloc(rlen + 2);
     if (srval == NULL)
         return 0;
-    memcpy(srval, rval, rlen);
+    srval[0] = (rlen & 0xff) >> 8;
+    srval[1] = rlen & 0xff;
+    memcpy(srval + 2, rval, rlen);
     s->ext.ech.returned = srval;
-    s->ext.ech.returned_len = rlen;
+    s->ext.ech.returned_len = rlen + 2;
     return 1;
 }
 #endif /* END_OPENSSL_NO_ECH */

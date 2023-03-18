@@ -4081,7 +4081,7 @@ static void print_stuff(BIO *bio, SSL *s, int full)
             char *inner = NULL;
             char *outer = NULL;
             size_t eclen = 0;
-            const unsigned char *ec = NULL;
+            unsigned char *ec = NULL;
 
             switch (SSL_ech_get_status(s, &inner, &outer)) {
             case SSL_ECH_STATUS_NOT_CONFIGURED:
@@ -4110,6 +4110,7 @@ static void print_stuff(BIO *bio, SSL *s, int full)
                         BIO_printf(bio, "%02x:", (unsigned)(ec[eind]));
                     }
                     BIO_printf(bio, "\n");
+                    OPENSSL_free(ec);
                 }
                 break;
             case SSL_ECH_STATUS_BAD_NAME:

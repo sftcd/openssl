@@ -913,6 +913,7 @@ SSL *ossl_ssl_connection_new_int(SSL_CTX *ctx, const SSL_METHOD *method)
 
     s->ssl_pkey_num = SSL_PKEY_NUM + ctx->sigalg_list_len;
 #ifndef OPENSSL_NO_ECH
+    s->ext.ech.attempted_type = TLSEXT_TYPE_ech13;
     s->ext.ech.ncfgs = ctx->ext.nechs;
     if (s->ext.ech.ncfgs > 0) {
         s->ext.ech.cfgs = SSL_ECH_dup(ctx->ext.ech, s->ext.ech.ncfgs, OSSL_ECH_SELECT_ALL);
@@ -928,7 +929,7 @@ SSL *ossl_ssl_connection_new_int(SSL_CTX *ctx, const SSL_METHOD *method)
             s->ext.ech.attempted_type = s->ext.ech.cfgs->cfg->recs[0].version;
             s->ext.ech.attempted_cid = s->ext.ech.cfgs->cfg->recs[0].config_id;
         } else {
-            s->ext.ech.attempted_type = TLSEXT_TYPE_ech_unknown;
+            s->ext.ech.attempted_type = TLSEXT_TYPE_ech13;
             s->ext.ech.attempted_cid = 0x00;
         }
     } else {

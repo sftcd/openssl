@@ -26,7 +26,8 @@ GREASE="no"
 GSUITE="0x20,1,1"
 GSUITESET="no"
 # GTYPE="65034" # that's 0xfe0a - for draft-10
-GTYPE="65037" # that's 0xfe0d - for draft-13
+GTYPE_DEF="65037" # that's 0xfe0d - for draft-13
+GTYPE=$GTYPE_DEF
 
 
 # Protocol parameters
@@ -321,10 +322,15 @@ then
     exit 100
 fi
 
-grease_str=" -ech_grease -ech_grease_type=$GTYPE"
+if [[ "$GTYPE" == "$GTYPE_DEF" ]]
+then
+    grease_str=" -ech_grease "
+else
+    grease_str=" -ech_grease -ech_grease_type=$GTYPE"
+fi
 if [[ "$GSUITESET" == "yes" ]]
 then
-    grease_str=" -ech_grease -ech_grease_suite=$GSUITE -ech_grease_type=$GTYPE"
+    grease_str=" $grease_str -ech_grease_suite=$GSUITE"
 fi
 
 ignore_str=" "

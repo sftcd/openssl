@@ -279,7 +279,7 @@ client can detect this situation via the ``SSL_ech_get_status()`` API and
 can access the retry config value via:
 
 ```c
-int SSL_ech_get_retry_config(SSL *s, const unsigned char **ec, size_t *eclen);
+int SSL_ech_get_retry_config(SSL *s, unsigned char **ec, size_t *eclen);
 ```
 
 Clients that need fine control over which ECHConfig (from those available) will

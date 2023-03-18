@@ -94,7 +94,7 @@ int SSL_ech_set_grease_type(SSL *s, uint16_t type);
 typedef unsigned int (*SSL_ech_cb_func)(SSL *s, const char *str);
 void SSL_ech_set_callback(SSL *s, SSL_ech_cb_func f);
 
-int SSL_ech_get_retry_config(SSL *s, const unsigned char **ec, size_t *eclen);
+int SSL_ech_get_retry_config(SSL *s, unsigned char **ec, size_t *eclen);
 
 /* API calls based around SSL_CTX* values - mostly for servers */
 
