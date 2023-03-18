@@ -830,8 +830,6 @@ end:
 # define OSSL_ECH_TEST_HRR      1
 # define OSSL_ECH_TEST_EARLY    2
 # define OSSL_ECH_TEST_CUSTOM   3
-/* the GREASE one isn't working yet */
-# define OSSL_ECH_TEST_GREASE   4
 
 /*
  * @brief ECH roundtrip test helper
@@ -884,7 +882,7 @@ static int test_ech_roundtrip_helper(int idx, int combo)
     kdfind = (idx / aeadsz) % kdfsz;
     aeadind = idx % aeadsz;
     /* initialise early data stuff, just in case */
-    memset(ed,'A',sizeof(ed));
+    memset(ed, 'A', sizeof(ed));
     snprintf(suitestr, 100, "%s,%s,%s", kem_str_list[kemind],
              kdf_str_list[kdfind], aead_str_list[aeadind]);
     if (verbose)
@@ -1106,20 +1104,20 @@ static int ech_grease_test(int idx)
         goto end;
     if (!TEST_true(SSL_CTX_ech_server_enable_file(sctx, echkeyfile)))
         goto end;
-    if (!TEST_true(SSL_CTX_set_options(cctx, SSL_OP_ECH_GREASE)))
+    /* set the flag via SSL_CTX 1st time, and via SSL* 2nd */
+    if (idx == 0 && !TEST_true(SSL_CTX_set_options(cctx, SSL_OP_ECH_GREASE)))
         goto end;
     if (!TEST_true(create_ssl_objects(sctx, cctx, &serverssl,
                                       &clientssl, NULL, NULL)))
         goto end;
     if (!TEST_true(SSL_set_tlsext_host_name(clientssl, "server.example")))
         goto end;
+    /* set the flag via SSL_CTX 1st time, and via SSL* 2nd */
+    if (idx == 1 && !TEST_true(SSL_set_options(clientssl, SSL_OP_ECH_GREASE)))
+        goto end;
     if (!TEST_true(create_ssl_connection(serverssl, clientssl,
                                          SSL_ERROR_NONE)))
         goto end;
-# ifdef TRYLATER
-    if (!TEST_true(SSL_set_options(clientssl, SSL_OP_ECH_GREASE)))
-        goto end;
-# endif
     serverstatus = SSL_ech_get_status(serverssl, &sinner, &souter);
     if (verbose)
         TEST_info("ech_grease_test: server status %d, %s, %s",
@@ -1132,22 +1130,15 @@ static int ech_grease_test(int idx)
     if (verbose)
         TEST_info("ech_grease_test: client status %d, %s, %s",
                   clientstatus, cinner, couter);
-    if (!TEST_int_eq(clientstatus, SSL_ECH_STATUS_GREASE)
-        && !TEST_int_eq(clientstatus, SSL_ECH_STATUS_GREASE_ECH))
+    if (!TEST_int_eq(clientstatus, SSL_ECH_STATUS_GREASE_ECH))
         goto end;
     if (!TEST_true(SSL_ech_get_retry_config(clientssl, &retryconfig,
                                             &retryconfiglen)))
         goto end;
-    if (TEST_ptr_null(retryconfig)) {
-        if (verbose)
-            TEST_info("ech_grease_test: NULL retry-config");
+    if (!TEST_ptr(retryconfig))
         goto end;
-    }
-    if (TEST_int_eq(retryconfiglen, 0)) {
-        if (verbose)
-            TEST_info("ech_grease_test: zero-length retry-config");
+    if (!TEST_int_ne(retryconfiglen, 0))
         goto end;
-    }
     /* cleanup */
     SSL_shutdown(clientssl);
     SSL_shutdown(serverssl);
@@ -1420,7 +1411,7 @@ int setup_tests(void)
     ADD_ALL_TESTS(test_ech_hrr, suite_combos);
     ADD_ALL_TESTS(test_ech_early, suite_combos);
     ADD_ALL_TESTS(ech_custom_test, suite_combos);
-    ADD_ALL_TESTS(ech_grease_test, 1);
+    ADD_ALL_TESTS(ech_grease_test, 2);
     return 1;
 err:
     return 0;
