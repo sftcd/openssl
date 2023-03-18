@@ -358,8 +358,12 @@ static const unsigned char echconfig_bad_then_good[] =
  * that has one good and one bad ECH (similar to
  * echconfig_bad_then_good but with aead ID of 0x1401)
  * which should give us 4 in total
+ *
+ * The 582 below is due to a CI build pedantic warning
+ * that ISO C90 compilers might only support up to 509
+ * octets if we used "[]"
  */
-static const unsigned char echconfig_dig_multi_3[] =
+static const unsigned char echconfig_dig_multi_3[582] =
     "1 . ech=AID+DQA88wAgACDhaXQ8S0pHHQ+bwApOPPDjai"
     "YofLs24QPmmOLP8wHtKwAEAAEAAQANY292ZXIuZGVmby5p"
     "ZQAA/g0APNsAIAAgcTC7pC/ZyxhymoL1p1oAdxfvVEgRji"
@@ -410,9 +414,9 @@ static TEST_ECHCONFIG test_echconfigs[] = {
     { bad_echconfig_kemid, sizeof(bad_echconfig_kemid) -1, 0, 0 },
     { bad_echconfig_kdfid, sizeof(bad_echconfig_kdfid) -1, 0, 0 },
     { bad_echconfig_aeadid, sizeof(bad_echconfig_aeadid) -1, 0, 0 },
-    { bad_echconfig_aeadid_ff, sizeof(bad_echconfig_aeadid_ff) -1, 0, 0 },
-    { echconfig_bad_then_good, sizeof(echconfig_bad_then_good) -1, 1, 1 },
-    { echconfig_dig_multi_3, sizeof(echconfig_dig_multi_3) -1, 4, 1 },
+    { bad_echconfig_aeadid_ff, sizeof(bad_echconfig_aeadid_ff) - 1, 0, 0 },
+    { echconfig_bad_then_good, sizeof(echconfig_bad_then_good) - 1, 1, 1 },
+    { echconfig_dig_multi_3, sizeof(echconfig_dig_multi_3) - 1, 4, 1 },
 };
 
 /* string from which we construct varieties of HPKE suite */
@@ -1046,10 +1050,10 @@ end:
 }
 
 /* Test roundtrip with ECH for any suite */
-static int test_ech_suite_roundtrips(int idx)
+static int test_ech_suites(int idx)
 {
     if (verbose)
-        TEST_info("Doing: func: %s", __func__);
+        TEST_info("Doing: test_ech_suites");
     return test_ech_roundtrip_helper(idx, OSSL_ECH_TEST_BASIC);
 }
 
@@ -1057,7 +1061,7 @@ static int test_ech_suite_roundtrips(int idx)
 static int test_ech_hrr(int idx)
 {
     if (verbose)
-        TEST_info("Doing: func: %s", __func__);
+        TEST_info("Doing: test_ech_hrr");
     return test_ech_roundtrip_helper(idx, OSSL_ECH_TEST_HRR);
 }
 
@@ -1065,7 +1069,7 @@ static int test_ech_hrr(int idx)
 static int test_ech_early(int idx)
 {
     if (verbose)
-        TEST_info("Doing: func: %s", __func__);
+        TEST_info("Doing: test_ech_early");
     return test_ech_roundtrip_helper(idx, OSSL_ECH_TEST_EARLY);
 }
 
@@ -1073,7 +1077,7 @@ static int test_ech_early(int idx)
 static int ech_custom_test(int idx)
 {
     if (verbose)
-        TEST_info("Doing: func: %s", __func__);
+        TEST_info("Doing: ech_custom_test");
     return test_ech_roundtrip_helper(idx, OSSL_ECH_TEST_CUSTOM);
 }
 
@@ -1407,7 +1411,7 @@ int setup_tests(void)
      */
     suite_combos = OSSL_NELEM(kem_str_list) * OSSL_NELEM(kdf_str_list)
         * OSSL_NELEM(aead_str_list);
-    ADD_ALL_TESTS(test_ech_suite_roundtrips, suite_combos);
+    ADD_ALL_TESTS(test_ech_suites, suite_combos);
     ADD_ALL_TESTS(test_ech_hrr, suite_combos);
     ADD_ALL_TESTS(test_ech_early, suite_combos);
     ADD_ALL_TESTS(ech_custom_test, suite_combos);
