@@ -22,6 +22,10 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
+- 20230318: refactored roundtrip tests and added a (not yet
+  working) set of grease tests (found a library bug I need
+  to, (and will:-), fix shortly)
+
 - 20230314: rebased lighttpd1.4 and updated integration code
   with recent ECH API changes, seems ok
 
