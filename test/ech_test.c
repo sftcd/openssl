@@ -1080,8 +1080,6 @@ static int ech_custom_test(int idx)
 }
 
 /* Test roundtrip with GREASE'd ECH, then again with retry-config */
-# define NOTYET
-# ifndef NOTYET
 static int ech_grease_test(int idx)
 {
     int res = 0;
@@ -1091,7 +1089,7 @@ static int ech_grease_test(int idx)
     SSL *clientssl = NULL, *serverssl = NULL;
     int clientstatus, serverstatus;
     char *cinner, *couter, *sinner, *souter;
-    const unsigned char *retryconfig = NULL;
+    unsigned char *retryconfig = NULL;
     size_t retryconfiglen = 0;
 
     /* read our pre-cooked ECH PEM file */
@@ -1126,7 +1124,7 @@ static int ech_grease_test(int idx)
     if (verbose)
         TEST_info("ech_grease_test: server status %d, %s, %s",
                   serverstatus, sinner, souter);
-    if (!TEST_int_eq(serverstatus, SSL_ECH_STATUS_NOT_TRIED))
+    if (!TEST_int_eq(serverstatus, SSL_ECH_STATUS_GREASE))
         goto end;
     /* override cert verification */
     SSL_set_verify_result(clientssl, X509_V_OK);
@@ -1157,11 +1155,12 @@ static int ech_grease_test(int idx)
     SSL_free(clientssl);
     serverssl = clientssl = NULL;
     /* second connection */
-    if (!TEST_true(create_ssl_objects(sctx, cctx, &serverssl,
-                                      &clientssl, NULL, NULL)))
-        goto end;
+    /* setting an ECHConfig should over-ride GREASE flag */
     if (!TEST_true(SSL_CTX_ech_set1_echconfig(cctx, retryconfig,
                                               retryconfiglen)))
+        goto end;
+    if (!TEST_true(create_ssl_objects(sctx, cctx, &serverssl,
+                                      &clientssl, NULL, NULL)))
         goto end;
     if (!TEST_true(SSL_set_tlsext_host_name(clientssl, "server.example")))
         goto end;
@@ -1185,13 +1184,13 @@ static int ech_grease_test(int idx)
 end:
     OPENSSL_free(echkeyfile);
     OPENSSL_free(echconfig);
+    OPENSSL_free(retryconfig);
     SSL_free(clientssl);
     SSL_free(serverssl);
     SSL_CTX_free(cctx);
     SSL_CTX_free(sctx);
     return res;
 }
-# endif
 
 /* Shuffle to preferred order */
 enum OSSLTEST_ECH_ADD_runOrder
@@ -1421,9 +1420,7 @@ int setup_tests(void)
     ADD_ALL_TESTS(test_ech_hrr, suite_combos);
     ADD_ALL_TESTS(test_ech_early, suite_combos);
     ADD_ALL_TESTS(ech_custom_test, suite_combos);
-# ifndef NOTYET
     ADD_ALL_TESTS(ech_grease_test, 1);
-# endif
     return 1;
 err:
     return 0;

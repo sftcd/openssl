@@ -5808,17 +5808,22 @@ int SSL_CTX_ech_set_outer_alpn_protos(SSL_CTX *ctx, const unsigned char *protos,
     return 1;
 }
 
-int SSL_ech_get_retry_config(SSL *ssl, const unsigned char **ec, size_t *eclen)
+int SSL_ech_get_retry_config(SSL *ssl, unsigned char **ec, size_t *eclen)
 {
     SSL_CONNECTION *s = SSL_CONNECTION_FROM_SSL(ssl);
+    unsigned char *rt = NULL;
 
     if (s == NULL || eclen == NULL || ec == NULL) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_PASSED_NULL_PARAMETER);
         return 0;
     }
     if (s->ext.ech.returned != NULL) {
+        rt = OPENSSL_malloc(s->ext.ech.returned_len);
+        if (rt == NULL)
+            return 0;
         *eclen = s->ext.ech.returned_len;
-        *ec = s->ext.ech.returned;
+        memcpy(rt, s->ext.ech.returned, *eclen);
+        *ec = rt;
     } else {
         *eclen = 0;
         *ec = NULL;
