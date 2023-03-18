@@ -726,116 +726,6 @@ end:
     return res;
 }
 
-/*
- * Test roundtrip with ECH for any suite, and buffer PEM input
- *
- * The idx input here is from 0..44 and is broken down into a
- * kem, kdf and aead. If you run in verbose more ("-v") then
- * there'll be a "Doing: ..." trace line that says which suite
- * is being tested in string form. To re-run a particular one
- * then run:
- *
- *   test/ech_test -test 8 -iter <foo>
- *
- * for the relevant foo where the 8 (currently) relates to this
- * test.
- */
-static int test_ech_suite_roundtrips(int idx)
-{
-    int res = 0;
-    int kemind, kdfind, aeadind;
-    int kemsz, kdfsz, aeadsz;
-    char suitestr[100];
-    unsigned char priv[400];
-    size_t privlen = sizeof(priv);
-    unsigned char echconfig[300];
-    size_t echconfiglen = sizeof(echconfig);
-    char echkeybuf[1000];
-    size_t echkeybuflen = sizeof(echkeybuf);
-    OSSL_HPKE_SUITE hpke_suite = OSSL_HPKE_SUITE_DEFAULT;
-    uint16_t ech_version = OSSL_ECH_DRAFT_13_VERSION;
-    uint16_t max_name_length = 0;
-    char *public_name = "example.com";
-    SSL_CTX *cctx = NULL, *sctx = NULL;
-    SSL *clientssl = NULL, *serverssl = NULL;
-    int clientstatus, serverstatus;
-    char *cinner, *couter, *sinner, *souter;
-
-    /* split idx into kemind, kdfind, aeadind */
-    kemsz = OSSL_NELEM(kem_str_list);
-    kdfsz = OSSL_NELEM(kdf_str_list);
-    aeadsz = OSSL_NELEM(aead_str_list);
-    kemind = (idx / (kdfsz * aeadsz)) % kemsz;
-    kdfind = (idx / aeadsz) % kdfsz;
-    aeadind = idx % aeadsz;
-    snprintf(suitestr, 100, "%s,%s,%s", kem_str_list[kemind],
-             kdf_str_list[kdfind], aead_str_list[aeadind]);
-    if (verbose)
-        TEST_info("Doing: iter: %d, suite: %s", idx, suitestr);
-    if (!TEST_true(OSSL_HPKE_str2suite(suitestr, &hpke_suite)))
-        goto end;
-    if (!TEST_true(ossl_ech_make_echconfig(echconfig, &echconfiglen,
-                                           priv, &privlen,
-                                           ech_version, max_name_length,
-                                           public_name, hpke_suite,
-                                           NULL, 0)))
-        goto end;
-    if (!TEST_ptr(echconfig))
-        goto end;
-    if (!TEST_true(create_ssl_ctx_pair(libctx, TLS_server_method(),
-                                       TLS_client_method(),
-                                       TLS1_3_VERSION, 0,
-                                       &sctx, &cctx, cert, privkey)))
-        goto end;
-    if (!TEST_true(SSL_CTX_ech_set1_echconfig(cctx, (unsigned char *)echconfig,
-                                              echconfiglen))) {
-        TEST_info("Failed SSL_CTX_ech_set1_echconfig adding %s (len = %d)"
-                  " to SSL_CTX: %p", echconfig, (int)echconfiglen,
-                  (void *)cctx);
-        goto end;
-    }
-    snprintf(echkeybuf, echkeybuflen,
-             "%s-----BEGIN ECHCONFIG-----\n%s\n-----END ECHCONFIG-----\n",
-             priv, (char *)echconfig);
-    echkeybuflen = strlen(echkeybuf);
-    if (verbose)
-        TEST_info("PEM file buffer: (%d of %d) =====\n%s\n=====\n",
-                  (int) echkeybuflen, (int) sizeof(echkeybuf),
-                  echkeybuf);
-    if (!TEST_true(SSL_CTX_ech_server_enable_buffer(sctx,
-                                                    (unsigned char *)echkeybuf,
-                                                    echkeybuflen)))
-        goto end;
-    if (!TEST_true(create_ssl_objects(sctx, cctx, &serverssl,
-                                      &clientssl, NULL, NULL)))
-        goto end;
-    if (!TEST_true(SSL_set_tlsext_host_name(clientssl, "server.example")))
-        goto end;
-    if (!TEST_true(create_ssl_connection(serverssl, clientssl,
-                                         SSL_ERROR_NONE)))
-        goto end;
-    serverstatus = SSL_ech_get_status(serverssl, &sinner, &souter);
-    if (verbose)
-        TEST_info("server status %d, %s, %s", serverstatus, sinner, souter);
-    if (!TEST_int_eq(serverstatus, SSL_ECH_STATUS_SUCCESS))
-        goto end;
-    /* override cert verification */
-    SSL_set_verify_result(clientssl, X509_V_OK);
-    clientstatus = SSL_ech_get_status(clientssl, &cinner, &couter);
-    if (verbose)
-        TEST_info("client status %d, %s, %s", clientstatus, cinner, couter);
-    if (!TEST_int_eq(clientstatus, SSL_ECH_STATUS_SUCCESS))
-        goto end;
-    /* all good */
-    res = 1;
-end:
-    SSL_free(clientssl);
-    SSL_free(serverssl);
-    SSL_CTX_free(cctx);
-    SSL_CTX_free(sctx);
-    return res;
-}
-
 /* Test that ECH doesn't work with a TLS1.2 connection */
 static int tls_version_test(void)
 {
@@ -935,115 +825,29 @@ end:
     return rv;
 }
 
-/*
- * ECH with HRR for the given suite
- * See the comment above test_ech_suite_roundtrips() for usage
- * TODO: re-factor this and other roundtrip tests to reduce LOC
- */
-static int test_ech_hrr(int idx)
-{
-    int res = 0;
-    int kemind, kdfind, aeadind;
-    int kemsz, kdfsz, aeadsz;
-    char suitestr[100];
-    unsigned char priv[400];
-    size_t privlen = sizeof(priv);
-    unsigned char echconfig[300];
-    size_t echconfiglen = sizeof(echconfig);
-    char echkeybuf[1000];
-    size_t echkeybuflen = sizeof(echkeybuf);
-    OSSL_HPKE_SUITE hpke_suite = OSSL_HPKE_SUITE_DEFAULT;
-    uint16_t ech_version = OSSL_ECH_DRAFT_13_VERSION;
-    uint16_t max_name_length = 0;
-    char *public_name = "example.com";
-    SSL_CTX *cctx = NULL, *sctx = NULL;
-    SSL *clientssl = NULL, *serverssl = NULL;
-    int clientstatus, serverstatus;
-    char *cinner, *couter, *sinner, *souter;
-
-    /* split idx into kemind, kdfind, aeadind */
-    kemsz = OSSL_NELEM(kem_str_list);
-    kdfsz = OSSL_NELEM(kdf_str_list);
-    aeadsz = OSSL_NELEM(aead_str_list);
-    kemind = (idx / (kdfsz * aeadsz)) % kemsz;
-    kdfind = (idx / aeadsz) % kdfsz;
-    aeadind = idx % aeadsz;
-    snprintf(suitestr, 100, "%s,%s,%s", kem_str_list[kemind],
-             kdf_str_list[kdfind], aead_str_list[aeadind]);
-    if (verbose)
-        TEST_info("Doing: iter: %d, suite: %s", idx, suitestr);
-    if (!TEST_true(OSSL_HPKE_str2suite(suitestr, &hpke_suite)))
-        goto end;
-    if (!TEST_true(ossl_ech_make_echconfig(echconfig, &echconfiglen,
-                                           priv, &privlen,
-                                           ech_version, max_name_length,
-                                           public_name, hpke_suite,
-                                           NULL, 0)))
-        goto end;
-    if (!TEST_ptr(echconfig))
-        goto end;
-    if (!TEST_true(create_ssl_ctx_pair(libctx, TLS_server_method(),
-                                       TLS_client_method(),
-                                       TLS1_3_VERSION, 0,
-                                       &sctx, &cctx, cert, privkey)))
-        goto end;
-    if (!TEST_true(SSL_CTX_ech_set1_echconfig(cctx, (unsigned char *)echconfig,
-                                              echconfiglen))) {
-        TEST_info("Failed SSL_CTX_ech_set1_echconfig adding %s (len = %d)"
-                  " to SSL_CTX: %p", echconfig, (int)echconfiglen,
-                  (void *)cctx);
-        goto end;
-    }
-    snprintf(echkeybuf, echkeybuflen,
-             "%s-----BEGIN ECHCONFIG-----\n%s\n-----END ECHCONFIG-----\n",
-             priv, (char *)echconfig);
-    echkeybuflen = strlen(echkeybuf);
-    if (verbose)
-        TEST_info("PEM file buffer: (%d of %d) =====\n%s\n=====\n",
-                  (int) echkeybuflen, (int) sizeof(echkeybuf),
-                  echkeybuf);
-    if (!TEST_true(SSL_CTX_ech_server_enable_buffer(sctx,
-                                                    (unsigned char *)echkeybuf,
-                                                    echkeybuflen)))
-        goto end;
-    if (!TEST_true(create_ssl_objects(sctx, cctx, &serverssl,
-                                      &clientssl, NULL, NULL)))
-        goto end;
-    if (!TEST_true(SSL_set1_groups_list(serverssl, "P-384")))
-        goto end;
-    if (!TEST_true(SSL_set_tlsext_host_name(clientssl, "server.example")))
-        goto end;
-    if (!TEST_true(create_ssl_connection(serverssl, clientssl,
-                                         SSL_ERROR_NONE)))
-        goto end;
-    serverstatus = SSL_ech_get_status(serverssl, &sinner, &souter);
-    if (verbose)
-        TEST_info("server status %d, %s, %s", serverstatus, sinner, souter);
-    if (!TEST_int_eq(serverstatus, SSL_ECH_STATUS_SUCCESS))
-        goto end;
-    /* override cert verification */
-    SSL_set_verify_result(clientssl, X509_V_OK);
-    clientstatus = SSL_ech_get_status(clientssl, &cinner, &couter);
-    if (verbose)
-        TEST_info("client status %d, %s, %s", clientstatus, cinner, couter);
-    if (!TEST_int_eq(clientstatus, SSL_ECH_STATUS_SUCCESS))
-        goto end;
-    /* all good */
-    res = 1;
-end:
-    SSL_free(clientssl);
-    SSL_free(serverssl);
-    SSL_CTX_free(cctx);
-    SSL_CTX_free(sctx);
-    return res;
-}
+/* values that can be used in helper below */
+# define OSSL_ECH_TEST_BASIC    0
+# define OSSL_ECH_TEST_HRR      1
+# define OSSL_ECH_TEST_EARLY    2
+# define OSSL_ECH_TEST_CUSTOM   3
+/* the GREASE one isn't working yet */
+# define OSSL_ECH_TEST_GREASE   4
 
 /*
- * ECH with early data for the given suite
- * See the comment above test_ech_suite_roundtrips() for usage
- * TODO: re-factor this and other roundtrip tests to reduce LOC
+ * @brief ECH roundtrip test helper
+ * @param idx specifies which ciphersuite
+ * @araam combo specifies which particular test we want to roundtrip
+ * @return 1 for good, 0 for bad
+ *
+ * The idx input here is from 0..44 and is broken down into a
+ * kem, kdf and aead. If you run in verbose more ("-v") then
+ * there'll be a "Doing: ..." trace line that says which suite
+ * is being tested in string form.
+ *
+ * The combo input is one of the #define'd OSSL_ECH_TEST_*
+ * values
  */
-static int test_ech_early(int idx)
+static int test_ech_roundtrip_helper(int idx, int combo)
 {
     int res = 0;
     int kemind, kdfind, aeadind;
@@ -1068,6 +872,9 @@ static int test_ech_early(int idx)
     size_t written = 0;
     size_t readbytes = 0;
     unsigned char buf[1024];
+    unsigned int context;
+    static int server = 1;
+    static int client = 0;
 
     /* split idx into kemind, kdfind, aeadind */
     kemsz = OSSL_NELEM(kem_str_list);
@@ -1090,35 +897,69 @@ static int test_ech_early(int idx)
         goto end;
     if (!TEST_ptr(echconfig))
         goto end;
-    memset(ed, 'X', sizeof(ed));
-    memset(buf, 0x00, sizeof(buf));
-    snprintf(echkeybuf, echkeybuflen,
-             "%s-----BEGIN ECHCONFIG-----\n%s\n-----END ECHCONFIG-----\n",
-             priv, (char *)echconfig);
-    echkeybuflen = strlen(echkeybuf);
-
-    /* get a new client, 2nd time around, just one server */
     if (!TEST_true(create_ssl_ctx_pair(libctx, TLS_server_method(),
                                        TLS_client_method(),
                                        TLS1_3_VERSION, 0,
                                        &sctx, &cctx, cert, privkey)))
         goto end;
-    if (!TEST_true(SSL_CTX_set_options(sctx, SSL_OP_NO_ANTI_REPLAY)))
-        goto end;
-    if (!TEST_true(SSL_CTX_set_max_early_data(sctx, SSL3_RT_MAX_PLAIN_LENGTH)))
-        goto end;
-    if (!TEST_true(SSL_CTX_set_recv_max_early_data(sctx,
-                                                   SSL3_RT_MAX_PLAIN_LENGTH)))
-        goto end;
+
+    if (combo == OSSL_ECH_TEST_EARLY) {
+        /* just to keep the format checker happy :-) */
+        int lrv = 0;
+
+        if (!TEST_true(SSL_CTX_set_options(sctx, SSL_OP_NO_ANTI_REPLAY)))
+            goto end;
+        if (!TEST_true(SSL_CTX_set_max_early_data(sctx,
+                                                  SSL3_RT_MAX_PLAIN_LENGTH)))
+            goto end;
+        lrv = SSL_CTX_set_recv_max_early_data(sctx, SSL3_RT_MAX_PLAIN_LENGTH);
+        if (!TEST_true(lrv))
+            goto end;
+    }
+    if (combo == OSSL_ECH_TEST_CUSTOM) {
+        /* add custom CH ext to client and server */
+        context = SSL_EXT_CLIENT_HELLO;
+        if (!TEST_true(SSL_CTX_add_custom_ext(cctx, TEST_EXT_TYPE1, context,
+                                              new_add_cb, new_free_cb,
+                                              &client, new_parse_cb, &client)))
+            goto end;
+        if (!TEST_true(SSL_CTX_add_custom_ext(sctx, TEST_EXT_TYPE1, context,
+                                              new_add_cb, new_free_cb,
+                                              &server, new_parse_cb, &server)))
+            goto end;
+        if (!TEST_true(SSL_CTX_add_custom_ext(cctx, TEST_EXT_TYPE2, context,
+                                              new_add_cb, NULL,
+                                              &client, NULL, &client)))
+            goto end;
+        if (!TEST_true(SSL_CTX_add_custom_ext(sctx, TEST_EXT_TYPE2, context,
+                                              new_add_cb, NULL,
+                                              &server, NULL, &server)))
+            goto end;
+    }
     if (!TEST_true(SSL_CTX_ech_set1_echconfig(cctx, (unsigned char *)echconfig,
-                                              echconfiglen)))
+                                              echconfiglen))) {
+        TEST_info("Failed SSL_CTX_ech_set1_echconfig adding %s (len = %d)"
+                  " to SSL_CTX: %p", echconfig, (int)echconfiglen,
+                  (void *)cctx);
         goto end;
+    }
+    snprintf(echkeybuf, echkeybuflen,
+             "%s-----BEGIN ECHCONFIG-----\n%s\n-----END ECHCONFIG-----\n",
+             priv, (char *)echconfig);
+    echkeybuflen = strlen(echkeybuf);
+    if (verbose)
+        TEST_info("PEM file buffer: (%d of %d) =====\n%s\n=====\n",
+                  (int) echkeybuflen, (int) sizeof(echkeybuf),
+                  echkeybuf);
     if (!TEST_true(SSL_CTX_ech_server_enable_buffer(sctx,
                                                     (unsigned char *)echkeybuf,
                                                     echkeybuflen)))
         goto end;
     if (!TEST_true(create_ssl_objects(sctx, cctx, &serverssl,
                                       &clientssl, NULL, NULL)))
+        goto end;
+    if (combo == OSSL_ECH_TEST_HRR
+        && !TEST_true(SSL_set1_groups_list(serverssl, "P-384")))
         goto end;
     if (!TEST_true(SSL_set_tlsext_host_name(clientssl, "server.example")))
         goto end;
@@ -1137,6 +978,16 @@ static int test_ech_early(int idx)
         TEST_info("client status %d, %s, %s", clientstatus, cinner, couter);
     if (!TEST_int_eq(clientstatus, SSL_ECH_STATUS_SUCCESS))
         goto end;
+    /* all good */
+    if (combo == OSSL_ECH_TEST_BASIC
+        || combo == OSSL_ECH_TEST_HRR
+        || combo == OSSL_ECH_TEST_CUSTOM) {
+        res = 1;
+        goto end;
+    }
+    /* continue for EARLY test */
+    if (combo != OSSL_ECH_TEST_EARLY)
+        goto end;
     /* shutdown for start over */
     sess = SSL_get1_session(clientssl);
     SSL_shutdown(clientssl);
@@ -1144,7 +995,6 @@ static int test_ech_early(int idx)
     SSL_free(serverssl);
     SSL_free(clientssl);
     serverssl = clientssl = NULL;
-
     /* second connection */
     if (!TEST_true(create_ssl_objects(sctx, cctx, &serverssl,
                                       &clientssl, NULL, NULL)))
@@ -1191,9 +1041,141 @@ end:
     SSL_free(serverssl);
     SSL_CTX_free(cctx);
     SSL_CTX_free(sctx);
-    SSL_SESSION_free(sess);
     return res;
 }
+
+/* Test roundtrip with ECH for any suite */
+static int test_ech_suite_roundtrips(int idx)
+{
+    if (verbose)
+        TEST_info("Doing: func: %s", __func__);
+    return test_ech_roundtrip_helper(idx, OSSL_ECH_TEST_BASIC);
+}
+
+/* ECH with HRR for the given suite */
+static int test_ech_hrr(int idx)
+{
+    if (verbose)
+        TEST_info("Doing: func: %s", __func__);
+    return test_ech_roundtrip_helper(idx, OSSL_ECH_TEST_HRR);
+}
+
+/* ECH with early data for the given suite */
+static int test_ech_early(int idx)
+{
+    if (verbose)
+        TEST_info("Doing: func: %s", __func__);
+    return test_ech_roundtrip_helper(idx, OSSL_ECH_TEST_EARLY);
+}
+
+/* Test a roundtrip with ECH, and a custom CH extension */
+static int ech_custom_test(int idx)
+{
+    if (verbose)
+        TEST_info("Doing: func: %s", __func__);
+    return test_ech_roundtrip_helper(idx, OSSL_ECH_TEST_CUSTOM);
+}
+
+# define NOTYET
+# ifndef NOTYET
+/* Test roundtrip with GREASE'd ECH, then again with retry-config */
+static int ech_grease_test(int idx)
+{
+    int res = 0;
+    char *echkeyfile = NULL;
+    char *echconfig = NULL;
+    SSL_CTX *cctx = NULL, *sctx = NULL;
+    SSL *clientssl = NULL, *serverssl = NULL;
+    int clientstatus, serverstatus;
+    char *cinner, *couter, *sinner, *souter;
+    const unsigned char *retryconfig = NULL;
+    size_t retryconfiglen = 0;
+
+    /* read our pre-cooked ECH PEM file */
+    echkeyfile = test_mk_file_path(certsdir, "echconfig.pem");
+    if (!TEST_ptr(echkeyfile))
+        goto end;
+    echconfig = echconfiglist_from_PEM(echkeyfile);
+    if (!TEST_ptr(echconfig))
+        goto end;
+    if (!TEST_true(create_ssl_ctx_pair(libctx, TLS_server_method(),
+                                       TLS_client_method(),
+                                       TLS1_3_VERSION, 0,
+                                       &sctx, &cctx, cert, privkey)))
+        goto end;
+    if (!TEST_true(SSL_CTX_ech_server_enable_file(sctx, echkeyfile)))
+        goto end;
+    if (!TEST_true(create_ssl_objects(sctx, cctx, &serverssl,
+                                      &clientssl, NULL, NULL)))
+        goto end;
+    if (!TEST_true(SSL_set_options(clientssl, SSL_OP_ECH_GREASE)))
+        goto end;
+    if (!TEST_true(SSL_set_tlsext_host_name(clientssl, "server.example")))
+        goto end;
+    if (!TEST_true(create_ssl_connection(serverssl, clientssl,
+                                         SSL_ERROR_NONE)))
+        goto end;
+    serverstatus = SSL_ech_get_status(serverssl, &sinner, &souter);
+    if (verbose)
+        TEST_info("ech_grease_test: server status %d, %s, %s",
+                  serverstatus, sinner, souter);
+    if (!TEST_int_eq(serverstatus, SSL_ECH_STATUS_NOT_TRIED))
+        goto end;
+    /* override cert verification */
+    SSL_set_verify_result(clientssl, X509_V_OK);
+    clientstatus = SSL_ech_get_status(clientssl, &cinner, &couter);
+    if (verbose)
+        TEST_info("ech_grease_test: client status %d, %s, %s",
+                  clientstatus, cinner, couter);
+    if (!TEST_int_eq(clientstatus, SSL_ECH_STATUS_GREASE))
+        goto end;
+    if (!TEST_true(SSL_ech_get_retry_config(clientssl, &retryconfig,
+                                            &retryconfiglen)))
+        goto end;
+    if (TEST_int_eq(retryconfiglen, 0))
+        goto end;
+    /* cleanup */
+    SSL_shutdown(clientssl);
+    SSL_shutdown(serverssl);
+    SSL_free(serverssl);
+    SSL_free(clientssl);
+    serverssl = clientssl = NULL;
+    /* second connection */
+    if (!TEST_true(create_ssl_objects(sctx, cctx, &serverssl,
+                                      &clientssl, NULL, NULL)))
+        goto end;
+    if (!TEST_true(SSL_CTX_ech_set1_echconfig(cctx, retryconfig,
+                                              retryconfiglen)))
+        goto end;
+    if (!TEST_true(SSL_set_tlsext_host_name(clientssl, "server.example")))
+        goto end;
+    if (!TEST_true(create_ssl_connection(serverssl, clientssl,
+                                         SSL_ERROR_NONE)))
+        goto end;
+    serverstatus = SSL_ech_get_status(serverssl, &sinner, &souter);
+    if (verbose)
+        TEST_info("server status %d, %s, %s", serverstatus, sinner, souter);
+    if (!TEST_int_eq(serverstatus, SSL_ECH_STATUS_SUCCESS))
+        goto end;
+    /* override cert verification */
+    SSL_set_verify_result(clientssl, X509_V_OK);
+    clientstatus = SSL_ech_get_status(clientssl, &cinner, &couter);
+    if (verbose)
+        TEST_info("client status %d, %s, %s", clientstatus, cinner, couter);
+    if (!TEST_int_eq(clientstatus, SSL_ECH_STATUS_SUCCESS))
+        goto end;
+    /* all good */
+    res = 1;
+end:
+    OPENSSL_free(echkeyfile);
+    OPENSSL_free(echconfig);
+    SSL_free(clientssl);
+    SSL_free(serverssl);
+    SSL_CTX_free(cctx);
+    SSL_CTX_free(sctx);
+    return res;
+}
+# endif
 
 /* Shuffle to preferred order */
 enum OSSLTEST_ECH_ADD_runOrder
@@ -1349,94 +1331,6 @@ end:
     return testresult;
 }
 
-/* Test a roundtrip with ECH, and a custom CH extension */
-static int ech_custom_test(void)
-{
-    int res = 0;
-    char *echkeyfile = NULL;
-    char *echconfig = NULL;
-    size_t echconfiglen = 0;
-    SSL_CTX *cctx = NULL, *sctx = NULL;
-    SSL *clientssl = NULL, *serverssl = NULL;
-    int clientstatus, serverstatus;
-    char *cinner, *couter, *sinner, *souter;
-    static int server = 1;
-    static int client = 0;
-    unsigned int context;
-
-    /* read our pre-cooked ECH PEM file */
-    echkeyfile = test_mk_file_path(certsdir, "echconfig.pem");
-    if (!TEST_ptr(echkeyfile))
-        goto end;
-    echconfig = echconfiglist_from_PEM(echkeyfile);
-    if (!TEST_ptr(echconfig))
-        goto end;
-    echconfiglen = strlen(echconfig);
-    if (!TEST_true(create_ssl_ctx_pair(libctx, TLS_server_method(),
-                                       TLS_client_method(),
-                                       TLS1_3_VERSION, 0,
-                                       &sctx, &cctx, cert, privkey)))
-        goto end;
-    if (!TEST_true(SSL_CTX_ech_set1_echconfig(cctx, (unsigned char *)echconfig,
-                                              echconfiglen)))
-        goto end;
-    if (!TEST_true(SSL_CTX_ech_server_enable_file(sctx, echkeyfile)))
-        goto end;
-
-    /* add custom CH ext to client and server */
-    context = SSL_EXT_CLIENT_HELLO;
-    if (!TEST_true(SSL_CTX_add_custom_ext(cctx, TEST_EXT_TYPE1, context,
-                                          new_add_cb, new_free_cb,
-                                          &client, new_parse_cb, &client)))
-        goto end;
-    if (!TEST_true(SSL_CTX_add_custom_ext(sctx, TEST_EXT_TYPE1, context,
-                                          new_add_cb, new_free_cb,
-                                          &server, new_parse_cb, &server)))
-        goto end;
-    if (!TEST_true(SSL_CTX_add_custom_ext(cctx, TEST_EXT_TYPE2, context,
-                                          new_add_cb, NULL,
-                                          &client, NULL, &client)))
-        goto end;
-    if (!TEST_true(SSL_CTX_add_custom_ext(sctx, TEST_EXT_TYPE2, context,
-                                          new_add_cb, NULL,
-                                          &server, NULL, &server)))
-        goto end;
-
-    /* do roundtrip */
-    if (!TEST_true(create_ssl_objects(sctx, cctx, &serverssl,
-                                      &clientssl, NULL, NULL)))
-        goto end;
-    if (!TEST_true(SSL_set_tlsext_host_name(clientssl, "server.example")))
-        goto end;
-    if (!TEST_true(create_ssl_connection(serverssl, clientssl,
-                                         SSL_ERROR_NONE)))
-        goto end;
-    serverstatus = SSL_ech_get_status(serverssl, &sinner, &souter);
-    if (verbose)
-        TEST_info("ech_roundtrip_test: server status %d, %s, %s",
-                  serverstatus, sinner, souter);
-    if (!TEST_int_eq(serverstatus, SSL_ECH_STATUS_SUCCESS))
-        goto end;
-    /* override cert verification */
-    SSL_set_verify_result(clientssl, X509_V_OK);
-    clientstatus = SSL_ech_get_status(clientssl, &cinner, &couter);
-    if (verbose)
-        TEST_info("ech_roundtrip_test: client status %d, %s, %s",
-                  clientstatus, cinner, couter);
-    if (!TEST_int_eq(clientstatus, SSL_ECH_STATUS_SUCCESS))
-        goto end;
-    /* all good */
-    res = 1;
-end:
-    OPENSSL_free(echkeyfile);
-    OPENSSL_free(echconfig);
-    SSL_free(clientssl);
-    SSL_free(serverssl);
-    SSL_CTX_free(cctx);
-    SSL_CTX_free(sctx);
-    return res;
-}
-
 typedef enum OPTION_choice {
     OPT_ERR = -1,
     OPT_EOF = 0,
@@ -1510,7 +1404,10 @@ int setup_tests(void)
     ADD_ALL_TESTS(test_ech_suite_roundtrips, suite_combos);
     ADD_ALL_TESTS(test_ech_hrr, suite_combos);
     ADD_ALL_TESTS(test_ech_early, suite_combos);
-    ADD_TEST(ech_custom_test);
+    ADD_ALL_TESTS(ech_custom_test, suite_combos);
+# ifndef NOTYET
+    ADD_ALL_TESTS(ech_grease_test, 1);
+# endif
     return 1;
 err:
     return 0;
