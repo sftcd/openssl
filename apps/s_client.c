@@ -325,7 +325,10 @@ static unsigned int ech_print_cb(SSL *s, const char *str)
  * Temporary code to test custom extensions with ECH
  * Doing it here for now as tracing and client/server separation
  * are better in s_client and s_server rather than just the
- * test code.
+ * test code. This code should likely disappear before merging,
+ * but keeping it for now makes sense in case we change the
+ * current ECH approach for custom exts (to compress 'em all
+ * in the inner and not allow for differing inner/outer values).
  */
 
 /*
