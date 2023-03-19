@@ -351,6 +351,7 @@ static const unsigned char echconfig_bad_then_good[] =
     "960fd02c697360163c00040001000100"
     "0b6578616d706c652e636f6d0000";
 
+# ifndef __STRICT_ANSI__
 /*
  * output from ``dig +short https defo.ie``  (2 ECHConfigs)
  * catenated ``dig +short https crypto.cloudflare.com``
@@ -359,11 +360,12 @@ static const unsigned char echconfig_bad_then_good[] =
  * echconfig_bad_then_good but with aead ID of 0x1401)
  * which should give us 4 in total
  *
- * The 582 below is due to a CI build pedantic warning
- * that ISO C90 compilers might only support up to 509
- * octets if we used "[]"
+ * -Werror=overlength-strings and -pedantic cause a
+ *  problem here in CI builds, so we'll omit this
+ *  test in that case, which is ok - if it passes other
+ *  tests, we're good.
  */
-static const unsigned char echconfig_dig_multi_3[582] =
+static const unsigned char echconfig_dig_multi_3[] =
     "1 . ech=AID+DQA88wAgACDhaXQ8S0pHHQ+bwApOPPDjai"
     "YofLs24QPmmOLP8wHtKwAEAAEAAQANY292ZXIuZGVmby5p"
     "ZQAA/g0APNsAIAAgcTC7pC/ZyxhymoL1p1oAdxfvVEgRji"
@@ -377,6 +379,7 @@ static const unsigned char echconfig_dig_multi_3[582] =
     "3xVS5aQpYP0Cxpc2AWPAAEFAEAAQALZXhhbXBsZS5jb20A"
     "AP4NADq7ACAAIGLHYHvyxf4RCERvEyykM5zxnfFVLlpClg"
     "/QLGlzYBY8AAQAAQABAAtleGFtcGxlLmNvbQAA";
+# endif
 
 /*
  * A struct to tie the above together for tests. Note that
@@ -416,7 +419,9 @@ static TEST_ECHCONFIG test_echconfigs[] = {
     { bad_echconfig_aeadid, sizeof(bad_echconfig_aeadid) -1, 0, 0 },
     { bad_echconfig_aeadid_ff, sizeof(bad_echconfig_aeadid_ff) - 1, 0, 0 },
     { echconfig_bad_then_good, sizeof(echconfig_bad_then_good) - 1, 1, 1 },
+# ifndef __STRICT_ANSI__
     { echconfig_dig_multi_3, sizeof(echconfig_dig_multi_3) - 1, 4, 1 },
+# endif
 };
 
 /* string from which we construct varieties of HPKE suite */
@@ -1187,6 +1192,86 @@ end:
     return res;
 }
 
+/* Test roundtrip with SNI/ALPN variations */
+static int ech_in_out_test(int idx)
+{
+    int res = 0;
+    char *echkeyfile = NULL;
+    char *echconfig = NULL;
+    SSL_CTX *cctx = NULL, *sctx = NULL;
+    SSL *clientssl = NULL, *serverssl = NULL;
+    int clientstatus, serverstatus;
+    char *cinner, *couter, *sinner, *souter;
+    size_t echconfiglen;
+    unsigned char alpn_inner[] = {
+        0x05, 0x69, 0x6e, 0x6e, 0x65, 0x72,
+        0x06, 0x73, 0x65, 0x63, 0x72, 0x65, 0x74,
+        0x08, 0x68, 0x74, 0x74, 0x70, 0x2f, 0x31, 0x2e, 0x31};
+    size_t alpn_inner_len = sizeof(alpn_inner);
+    unsigned char alpn_outer[] = {
+        0x05, 0x6f, 0x75, 0x74, 0x65, 0x72,
+        0x06, 0x70, 0x75, 0x62, 0x6c, 0x69, 0x63,
+        0x02, 0x68, 0x32};
+    size_t alpn_outer_len = sizeof(alpn_outer);
+
+    /* read our pre-cooked ECH PEM file */
+    echkeyfile = test_mk_file_path(certsdir, "echconfig.pem");
+    if (!TEST_ptr(echkeyfile))
+        goto end;
+    echconfig = echconfiglist_from_PEM(echkeyfile);
+    if (!TEST_ptr(echconfig))
+        goto end;
+    echconfiglen = strlen(echconfig);
+    if (!TEST_true(create_ssl_ctx_pair(libctx, TLS_server_method(),
+                                       TLS_client_method(),
+                                       TLS1_3_VERSION, 0,
+                                       &sctx, &cctx, cert, privkey)))
+        goto end;
+    if (!TEST_true(SSL_CTX_ech_server_enable_file(sctx, echkeyfile)))
+        goto end;
+    if (!TEST_true(SSL_CTX_ech_set1_echconfig(cctx, (unsigned char *)echconfig,
+                                              echconfiglen)))
+        goto end;
+    /* next one returns zero for success for some reason? */
+    if (!TEST_false(SSL_CTX_set_alpn_protos(cctx, alpn_inner, alpn_inner_len)))
+        goto end;
+    if (!TEST_true(SSL_CTX_ech_set_outer_alpn_protos(cctx, alpn_outer,
+                                                     alpn_outer_len)))
+        goto end;
+    if (!TEST_true(create_ssl_objects(sctx, cctx, &serverssl,
+                                      &clientssl, NULL, NULL)))
+        goto end;
+    if (!TEST_true(SSL_set_tlsext_host_name(clientssl, "server.example")))
+        goto end;
+    if (!TEST_true(create_ssl_connection(serverssl, clientssl,
+                                         SSL_ERROR_NONE)))
+        goto end;
+    serverstatus = SSL_ech_get_status(serverssl, &sinner, &souter);
+    if (verbose)
+        TEST_info("ech_grease_test: server status %d, %s, %s",
+                  serverstatus, sinner, souter);
+    if (!TEST_int_eq(serverstatus, SSL_ECH_STATUS_SUCCESS))
+        goto end;
+    /* override cert verification */
+    SSL_set_verify_result(clientssl, X509_V_OK);
+    clientstatus = SSL_ech_get_status(clientssl, &cinner, &couter);
+    if (verbose)
+        TEST_info("ech_grease_test: client status %d, %s, %s",
+                  clientstatus, cinner, couter);
+    if (!TEST_int_eq(clientstatus, SSL_ECH_STATUS_SUCCESS))
+        goto end;
+    /* all good */
+    res = 1;
+end:
+    OPENSSL_free(echkeyfile);
+    OPENSSL_free(echconfig);
+    SSL_free(clientssl);
+    SSL_free(serverssl);
+    SSL_CTX_free(cctx);
+    SSL_CTX_free(sctx);
+    return res;
+}
+
 /* Shuffle to preferred order */
 enum OSSLTEST_ECH_ADD_runOrder
     {
@@ -1416,6 +1501,7 @@ int setup_tests(void)
     ADD_ALL_TESTS(test_ech_early, suite_combos);
     ADD_ALL_TESTS(ech_custom_test, suite_combos);
     ADD_ALL_TESTS(ech_grease_test, 2);
+    ADD_ALL_TESTS(ech_in_out_test, 1);
     return 1;
 err:
     return 0;

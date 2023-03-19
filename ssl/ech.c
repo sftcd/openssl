@@ -1237,10 +1237,8 @@ err:
 static int ech_finder(int *num_echs, SSL_ECH **echs,
                       size_t len, const unsigned char *val)
 {
-    int rv = 0;
-    int detfmt = OSSL_ECH_FMT_GUESS, origfmt;
-    int multiline = 0;
-    int linesdone = 0;
+    int rv = 0, detfmt = OSSL_ECH_FMT_GUESS, origfmt;
+    int multiline = 0, linesdone = 0;
     unsigned char *lval = (unsigned char *)val;
     size_t llen = len;
     unsigned char *binbuf = NULL;
@@ -1263,15 +1261,13 @@ static int ech_finder(int *num_echs, SSL_ECH **echs,
         multiline = 1;
     while (linesdone == 0) {
         /* if blank line, then skip */
-        if (multiline == 1
-            && strchr(OSSL_ECH_FMT_LINESEP, lval[0]) != NULL) {
+        if (multiline == 1 && strchr(OSSL_ECH_FMT_LINESEP, lval[0]) != NULL) {
             if (llen > 1) {
                 lval++;
                 llen -= 1;
                 continue;
             } else {
-                /* we're done */
-                break;
+                break; /* we're done */
             }
         }
         /* sanity check */
@@ -1281,8 +1277,7 @@ static int ech_finder(int *num_echs, SSL_ECH **echs,
         }
         detfmt = origfmt; /* restore format from before loop */
         /* if we already have a binary format then copy buffer */
-        if (detfmt == OSSL_ECH_FMT_BIN
-            || detfmt == OSSL_ECH_FMT_DNS_WIRE) {
+        if (detfmt == OSSL_ECH_FMT_BIN || detfmt == OSSL_ECH_FMT_DNS_WIRE) {
             binbuf = OPENSSL_malloc(len);
             if (binbuf == NULL)
                 goto err;
@@ -1325,21 +1320,17 @@ static int ech_finder(int *num_echs, SSL_ECH **echs,
                 goto err;
             }
             /*
-             * ECHConfigList maybe can't be deterministically
-             * distinguished from a DNS wire format HTTPS/SVCB
-             * RR, but the former starts with a 2-octet length
-             * whereas the latter starts with a 2-octet
-             * SvcPriority field. The probability that the
-             * priority is the same as the remaining length
-             * for an otherwise valid DNS wire encoding that
-             * contains an ECHConfigList should be small
-             * enough to bear, but is non-zero. (I'd guess
-             * well below 1/256, but that's still somewhat high
-             * so this deserves more consideration.)
-             * TODO: consider! We may be able to improve
-             * on this once the final ECH RFC issues with
-             * it's version set in stone - that version will
-             * be octets 3 & 4 of the ECHConfigList.
+             * ECHConfigList can't be deterministically distinguished from a
+             * DNS wire format HTTPS/SVCB RR, but the former starts with a
+             * 2-octet length whereas the latter starts with a 2-octet
+             * vcPriority field. The probability that the priority is the
+             * same as the remaining length for an otherwise valid DNS wire
+             * encoding that contains an ECHConfigList should be small enough
+             * to bear, but is non-zero. (I'd guess well below 1/256, but
+             * that's still somewhat high so this deserves more consideration.)
+             * TODO: We may be able to improve once the final RFC issues with
+             * it's version set in stone - that version will be octets 3 & 4
+             * of the ECHConfigList.
              */
             if (binlen < 2) {
                 ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
@@ -1354,11 +1345,9 @@ static int ech_finder(int *num_echs, SSL_ECH **echs,
         if (detfmt == OSSL_ECH_FMT_DNS_WIRE) {
             /* decode DNS wire and fall through to binary */
             size_t remaining = binlen;
-            unsigned char *cp = binbuf;
-            unsigned char *ekval = NULL;
+            unsigned char *cp = binbuf, *ekval = NULL;
             size_t eklen = 0;
-            uint16_t pcode = 0;
-            uint16_t plen = 0;
+            uint16_t pcode = 0, plen = 0;
             int done = 0;
 
             if (remaining <= 2) {
@@ -1391,8 +1380,7 @@ static int ech_finder(int *num_echs, SSL_ECH **echs,
                 }
             }
             if (done == 0) {
-                /* not an error just didn't find an ECH here */
-                nonehere = 1;
+                nonehere = 1; /* not an error just didn't find an ECH here */
             } else {
                 unsigned char *tmp = NULL;
 
@@ -1407,7 +1395,6 @@ static int ech_finder(int *num_echs, SSL_ECH **echs,
                 detfmt = OSSL_ECH_FMT_BIN;
             }
         }
-
         if (detfmt == OSSL_ECH_FMT_HTTPSSVC) {
             /* find telltale and fall through to b64 */
             char *ekstart = NULL;
@@ -1427,7 +1414,6 @@ static int ech_finder(int *num_echs, SSL_ECH **echs,
                 detfmt = OSSL_ECH_FMT_B64TXT;
             }
         }
-
         if (detfmt == OSSL_ECH_FMT_B64TXT) {
             /* b64 decode and fall through to binary */
             int tdeclen = 0;
@@ -1441,13 +1427,10 @@ static int ech_finder(int *num_echs, SSL_ECH **echs,
             binlen = tdeclen;
             detfmt = OSSL_ECH_FMT_BIN;
         }
-
         if (nonehere != 1 && detfmt != OSSL_ECH_FMT_BIN) {
-            /* error! */
             ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
             goto err;
         }
-
         if (nonehere == 0) {
             if (ech_decode_and_flatten(&nechs, &retech, binbuf, binlen) != 1) {
                 ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
@@ -1456,7 +1439,6 @@ static int ech_finder(int *num_echs, SSL_ECH **echs,
         }
         OPENSSL_free(binbuf);
         binbuf = NULL;
-
         /* check at end if more lines to do */
         if (multiline == 0) {
             linesdone = 1;
@@ -1475,7 +1457,6 @@ static int ech_finder(int *num_echs, SSL_ECH **echs,
             }
         }
     }
-
     if (*num_echs == 0) {
         *num_echs = nechs;
         *echs = retech;
@@ -4171,29 +4152,19 @@ int ech_aad_and_encrypt(SSL_CONNECTION *s, WPACKET *pkt)
 {
     int hpke_mode = OSSL_HPKE_MODE_BASE;
     OSSL_HPKE_SUITE hpke_suite = OSSL_HPKE_SUITE_DEFAULT;
-    size_t cipherlen = 0;
     unsigned char *cipher = NULL;
+    size_t cipherlen = 0;
     unsigned char *aad = NULL;
     size_t aad_len = 0;
-    unsigned char config_id_to_use = 0x00; /* we might replace with random */
+    unsigned char config_id_to_use = 0x00;
     size_t lenclen = 0;
-    /*
-     * client's ephemeral public value for HPKE encryption ("enc")
-     * Has to be externally generated so public can be part of AAD (sigh)
-     * and in case of HRR.
-     */
-    unsigned char *mypub = NULL;
+    unsigned char *mypub = NULL; /* client's ephemeral public */
     size_t mypub_len = 0;
-    /* a matching server public key from sets given to API (if one exists) */
-    ECHConfig *tc = NULL;
+    ECHConfig *tc = NULL; /* matching server public key (if one exists) */
     unsigned char info[SSL3_RT_MAX_PLAIN_LENGTH];
     size_t info_len = SSL3_RT_MAX_PLAIN_LENGTH;
-    size_t suitesoffset = 0;
-    size_t suiteslen = 0;
-    size_t startofexts = 0;
-    size_t origextlens = 0;
-    size_t newextlens = 0;
-    size_t echlen = 0;
+    size_t suitesoffset = 0, suiteslen = 0, startofexts = 0;
+    size_t origextlens = 0, newextlens = 0, echlen = 0;
     unsigned char *clear = NULL;
     size_t clear_len = 0;
     int rv = 0;
@@ -4213,8 +4184,10 @@ int ech_aad_and_encrypt(SSL_CONNECTION *s, WPACKET *pkt)
         BIO_printf(trc_out, "EAAE: selected: version: %4x, config %2x\n",
                    tc->version, tc->config_id);
     } OSSL_TRACE_END(TLS);
-    /* if requested, use a random config_id */
-    if (s->ssl.ctx->options & SSL_OP_ECH_IGNORE_CID) {
+    config_id_to_use = tc->config_id;
+    /* if requested, use a random config_id instead */
+    if (s->ssl.ctx->options & SSL_OP_ECH_IGNORE_CID
+        || s->options & SSL_OP_ECH_IGNORE_CID) {
         if (RAND_bytes_ex(s->ssl.ctx->libctx, &config_id_to_use, 1,
                           RAND_DRBG_STRENGTH) <= 0) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
@@ -4223,8 +4196,6 @@ int ech_aad_and_encrypt(SSL_CONNECTION *s, WPACKET *pkt)
 # ifdef OSSL_ECH_SUPERVERBOSE
         ech_pbuf("EAAE: random config_id", &config_id_to_use, 1);
 # endif
-    } else {
-        config_id_to_use = tc->config_id;
     }
     s->ext.ech.attempted_cid = config_id_to_use;
 # ifdef OSSL_ECH_SUPERVERBOSE
@@ -4233,21 +4204,16 @@ int ech_aad_and_encrypt(SSL_CONNECTION *s, WPACKET *pkt)
              s->ext.ech.encoded_innerch_len);
     ech_pbuf("EAAE: ECHConfig", tc->encoding_start, tc->encoding_length);
 # endif
-
     /*
      * For draft-13 the AAD is the full outer client hello but
      * with the correct number of zeros for where the ECH ciphertext
-     * octets will later be placed.
-     *
-     * Add the ECH extension to the |pkt| but with zeros for
-     * ciphertext - that'll form up the AAD for us, then after
-     * we've encrypted, we'll splice in the actual ciphertext
-     *
+     * octets will later be placed. So we add the ECH extension to
+     * the |pkt| but with zeros for ciphertext - that'll form up the
+     * AAD for us, then after we've encrypted, we'll splice in the
+     * actual ciphertext
      * Watch out for the "4" offsets that remove the type
      * and 3-octet length from the encoded CH as per the spec.
      */
-
-    /* figure out padding */
     clear_len = ech_calc_padding(s, tc);
     if (clear_len == 0)
         goto err;
@@ -4268,9 +4234,6 @@ int ech_aad_and_encrypt(SSL_CONNECTION *s, WPACKET *pkt)
         if (mypub == NULL)
             goto err;
         mypub_len = lenclen;
-# ifdef OSSL_ECH_SUPERVERBOSE
-        ech_pbuf("EAAE info", info, info_len);
-# endif
         rv = OSSL_HPKE_encap(s->ext.ech.hpke_ctx, mypub, &mypub_len,
                              tc->pub, tc->pub_len, info, info_len);
         if (rv != 1) {
@@ -4281,9 +4244,6 @@ int ech_aad_and_encrypt(SSL_CONNECTION *s, WPACKET *pkt)
         }
         s->ext.ech.pub = mypub;
         s->ext.ech.pub_len = mypub_len;
-# ifdef OSSL_ECH_SUPERVERBOSE
-        ech_pbuf("EAAE: mypub", mypub, mypub_len);
-# endif
     } else {
         /* retrieve public */
         mypub = s->ext.ech.pub;
@@ -4292,10 +4252,11 @@ int ech_aad_and_encrypt(SSL_CONNECTION *s, WPACKET *pkt)
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             goto err;
         }
-# ifdef OSSL_ECH_SUPERVERBOSE
-        ech_pbuf("EAAE: mypub", mypub, mypub_len);
-# endif
     }
+# ifdef OSSL_ECH_SUPERVERBOSE
+    ech_pbuf("EAAE info", info, info_len);
+    ech_pbuf("EAAE: mypub", mypub, mypub_len);
+# endif
     cipherlen = OSSL_HPKE_get_ciphertext_size(hpke_suite, clear_len);
     if (cipherlen <= clear_len) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
