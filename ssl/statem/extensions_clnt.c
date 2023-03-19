@@ -528,6 +528,12 @@ EXT_RETURN tls_construct_ctos_alpn(SSL_CONNECTION *s, WPACKET *pkt,
      * If we have different alpn and alpn_outer values, then we set
      * the appropriate one for inner and outer.
      * If no alpn is set (for inner or outer), we don't send any.
+     * If only an inner is set then we send the same in both.
+     * Logic above is on the basis that alpn's aren't that sensitive,
+     * usually, so special action is needed to do better.
+     * We also don't support a way to send alpn only in the inner.
+     * If you don't want the inner value in the outer, you have to
+     * pick what to send in the outer and send that.
      */
     if (!SSL_IS_FIRST_HANDSHAKE(s))
         return EXT_RETURN_NOT_SENT;
@@ -535,9 +541,8 @@ EXT_RETURN tls_construct_ctos_alpn(SSL_CONNECTION *s, WPACKET *pkt,
     alen = s->ext.alpn_len;
     if (s->ext.ech.ch_depth == 1 && s->ext.alpn == NULL)  /* inner */
         return EXT_RETURN_NOT_SENT;
-    //if (s->ext.ech.ch_depth == 0
-        //&& s->ext.alpn == NULL && s->ext.ech.alpn_outer == NULL) /* outer */
-    if (s->ext.ech.ch_depth == 0 && s->ext.ech.alpn_outer == NULL) /* outer */
+    if (s->ext.ech.ch_depth == 0 && s->ext.alpn == NULL
+        && s->ext.ech.alpn_outer == NULL) /* outer */
         return EXT_RETURN_NOT_SENT;
     if (s->ext.ech.ch_depth == 0 && s->ext.ech.alpn_outer != NULL) {
         aval = s->ext.ech.alpn_outer;
