@@ -22,6 +22,9 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
+- 20230319: started to add some alpn/sni inner/outer tests,
+  still a work-in-progress...
+
 - 20230318: refactored roundtrip tests and added a couple of
   GREASE tests, including use of retry-config
 

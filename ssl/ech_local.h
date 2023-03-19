@@ -89,7 +89,7 @@
  * Luckily, that's usually not to hard, but it's
  * not mechanical.
  */
-#  define ECH_IOSAME(s) \
+#  define ECH_IOSAME(s, pkt) \
     if (s->ext.ech.cfgs != NULL && s->ext.ech.grease == 0) { \
         int __rv = ech_same_ext(s, pkt); \
         \
