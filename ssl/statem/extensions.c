@@ -1931,7 +1931,7 @@ static EXT_RETURN tls_construct_compress_certificate(SSL_CONNECTION *sc, WPACKET
     if (sc->cert_comp_prefs[0] == TLSEXT_comp_cert_none)
         return EXT_RETURN_NOT_SENT;
 # ifndef OPENSSL_NO_ECH
-    ECH_IOSAME(sc);
+    ECH_IOSAME(sc, pkt);
 # endif
 
     if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_compress_certificate)
