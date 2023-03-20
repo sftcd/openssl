@@ -29,7 +29,7 @@
  * has issued, but is very useful for interop testing so some of it might
  * be retained.
  */
-#  define OSSL_ECH_SUPERVERBOSE
+#  undef OSSL_ECH_SUPERVERBOSE
 
 #  ifndef CLIENT_VERSION_LEN
 /*
