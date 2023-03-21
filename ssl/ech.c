@@ -4075,6 +4075,7 @@ int ech_pick_matching_cfg(SSL_CONNECTION *s, ECHConfig **tc,
                           OSSL_HPKE_SUITE *suite)
 {
     int namematch = 0;
+    int nameoverride = 0;
     int suitematch = 0;
     int cind = 0;
     unsigned int csuite = 0;
@@ -4093,7 +4094,9 @@ int ech_pick_matching_cfg(SSL_CONNECTION *s, ECHConfig **tc,
     /* allow API-set pref to override */
     hn = s->ext.ech.cfgs->outer_name;
     hnlen = (hn == NULL ? 0 : strlen(hn));
-    if (hnlen == 0) {
+    if (hnlen != 0)
+        nameoverride = 1;
+    if (hnlen == 0 && s->ext.ech.cfgs->no_outer != 1) {
         /* fallback to outer hostname, if set */
         hn = s->ext.ech.outer_hostname;
         hnlen = (hn == NULL ? 0 : strlen(hn));
@@ -4104,11 +4107,16 @@ int ech_pick_matching_cfg(SSL_CONNECTION *s, ECHConfig **tc,
         ltc = &cfgs->recs[cind];
         if (ltc->version != OSSL_ECH_DRAFT_13_VERSION)
             continue;
-        namematch = 0;
-        if (hnlen == 0
-            || (ltc->public_name_len == hnlen
-                && !OPENSSL_strncasecmp(hn, (char *)ltc->public_name, hnlen))) {
+        if (nameoverride == 1) {
             namematch = 1;
+        } else {
+            namematch = 0;
+            if (hnlen == 0
+                || (ltc->public_name_len == hnlen
+                    && !OPENSSL_strncasecmp(hn, (char *)ltc->public_name,
+                                            hnlen))) {
+                namematch = 1;
+            }
         }
         suite->kem_id = ltc->kem_id;
         suitematch = 0;
@@ -4995,19 +5003,19 @@ int SSL_ech_set_server_names(SSL *ssl, const char *inner_name,
         return 0;
     }
     for (nind = 0; nind != s->ext.ech.ncfgs; nind++) {
-        OPENSSL_free(s->ext.ech.cfgs[nind].outer_name);
+        OPENSSL_free(s->ext.ech.cfgs[nind].inner_name);
+        s->ext.ech.cfgs[nind].inner_name = NULL;
         if (inner_name != NULL && strlen(inner_name) > 0)
             s->ext.ech.cfgs[nind].inner_name = OPENSSL_strdup(inner_name);
-        else
-            s->ext.ech.cfgs[nind].inner_name = NULL;
+        if (s->ext.hostname != NULL) {
+            OPENSSL_free(s->ext.hostname);
+            s->ext.hostname = OPENSSL_strdup(inner_name);
+        }
         OPENSSL_free(s->ext.ech.cfgs[nind].outer_name);
-        if (outer_name != NULL && strlen(outer_name) > 0) {
+        s->ext.ech.cfgs[nind].outer_name = NULL;
+        s->ext.ech.cfgs[nind].no_outer = no_outer;
+        if (no_outer == 0 && outer_name != NULL && strlen(outer_name) > 0) {
             s->ext.ech.cfgs[nind].outer_name = OPENSSL_strdup(outer_name);
-        } else {
-            if (outer_name == NULL && no_outer == 1)
-                s->ext.ech.cfgs[nind].no_outer = 1;
-            else
-                s->ext.ech.cfgs[nind].outer_name = NULL;
         }
     }
     s->ext.ech.attempted = 1;
@@ -5039,13 +5047,10 @@ int SSL_ech_set_outer_server_name(SSL *ssl, const char *outer_name,
     }
     for (nind = 0; nind != s->ext.ech.ncfgs; nind++) {
         OPENSSL_free(s->ext.ech.cfgs[nind].outer_name);
-        if (outer_name != NULL && strlen(outer_name) > 0) {
+        s->ext.ech.cfgs[nind].outer_name = NULL;
+        s->ext.ech.cfgs[nind].no_outer = no_outer;
+        if (no_outer == 0 && outer_name != NULL && strlen(outer_name) > 0) {
             s->ext.ech.cfgs[nind].outer_name = OPENSSL_strdup(outer_name);
-        } else {
-            if (outer_name == NULL && no_outer == 1)
-                s->ext.ech.cfgs[nind].no_outer = 1;
-            else
-                s->ext.ech.cfgs[nind].outer_name = NULL;
         }
         /* if this is called and an SNI is set already we copy that to inner */
         if (s->ext.hostname != NULL) {
@@ -5497,10 +5502,13 @@ int SSL_ech_get_status(SSL *ssl, char **inner_sni, char **outer_sni)
         return SSL_ECH_STATUS_BACKEND;
     if (s->ext.ech.cfgs == NULL)
         return SSL_ECH_STATUS_NOT_CONFIGURED;
-    /* set output vars - note we may be pointing to NULL which is fine */
+    /* Set output vars - note we may be pointing to NULL which is fine  */
     if (s->server == 0) {
         sinner = s->ext.hostname;
-        souter = s->ext.ech.outer_hostname;
+        if (s->ext.ech.cfgs->no_outer == 0)
+            souter = s->ext.ech.outer_hostname;
+        else
+            souter = NULL;
     } else {
         if (s->ext.ech.cfgs != NULL && s->ext.ech.success == 1) {
             sinner = s->ext.ech.cfgs->inner_name;
