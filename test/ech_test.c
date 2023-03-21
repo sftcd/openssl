@@ -1201,18 +1201,60 @@ static int ech_in_out_test(int idx)
     SSL_CTX *cctx = NULL, *sctx = NULL;
     SSL *clientssl = NULL, *serverssl = NULL;
     int clientstatus, serverstatus;
-    char *cinner, *couter, *sinner, *souter;
+    char *non_ech_sni = "server.example"; /* SNI set via non-ECH API */
+# ifdef COMINGSOON
+    char *supplied_inner = "inner.example.com"; /* inner set via ECH API */
+# endif
+    char *supplied_outer = "outer.example.com"; /* outer set via ECH API */
+    char *public_name = "example.com"; /* we know that's inside echconfig.pem */
+    /* inner, outer as provided via ECH status API */
+    char *cinner = NULL, *couter = NULL, *sinner = NULL, *souter = NULL;
     size_t echconfiglen;
+    /* value below is "inner, secret, http/1.1" */
     unsigned char alpn_inner[] = {
         0x05, 0x69, 0x6e, 0x6e, 0x65, 0x72,
         0x06, 0x73, 0x65, 0x63, 0x72, 0x65, 0x74,
         0x08, 0x68, 0x74, 0x74, 0x70, 0x2f, 0x31, 0x2e, 0x31};
     size_t alpn_inner_len = sizeof(alpn_inner);
+    /* value below is "outer, public, h2" */
     unsigned char alpn_outer[] = {
         0x05, 0x6f, 0x75, 0x74, 0x65, 0x72,
         0x06, 0x70, 0x75, 0x62, 0x6c, 0x69, 0x63,
         0x02, 0x68, 0x32};
     size_t alpn_outer_len = sizeof(alpn_outer);
+    /* what we expect to see on bothe sides after (depends on idx) */
+    char *expected_inner = NULL;
+    char *expected_outer = NULL;
+    int cres = 0, sres = 0;
+
+    /*
+     * Inner and outer names can be supplied to SSL_CTX or SSL
+     * connection via ECH APIs, and inner can be supplied via
+     * the existing non-ECH API. We can specify that no outer
+     * SNI at all be sent if we want. If an outer SNI value is
+     * supplied via the ECH API then that over-rides the
+     * public_name field from the ECHConfig, which in this
+     * cases will be example.com. We have the option of setting
+     * both inner, outer and no_outer setting via eiher:
+     *
+     * int SSL_ech_set_server_names(SSL *s, const char *inner_name,
+     *                              const char *outer_name, int no_outer);
+     * int SSL_ech_set_outer_server_name(SSL *s, const char *outer_name,
+     *                                   int no_outer);
+     *
+     * So there's a bunch of cases to test, as usual we pick
+     * between 'em using the idx parameter.
+     *
+     * idx : case
+     * 0   : set no names via ECH APIs;
+     *       set inner to inner.example.com non-ECH API
+     *       expect public_name as outer seen inner
+     * 1   : as for 0, but additionally:
+     *       set NULL and "no_outer" via set_outer API
+     * 2   : as for 1, but additionally:
+     *       set non-NULL outer and "no_outer" via set_outer API
+     * 3   : override outer via ECH API
+     */
 
     /* read our pre-cooked ECH PEM file */
     echkeyfile = test_mk_file_path(certsdir, "echconfig.pem");
@@ -1238,17 +1280,53 @@ static int ech_in_out_test(int idx)
     if (!TEST_true(SSL_CTX_ech_set_outer_alpn_protos(cctx, alpn_outer,
                                                      alpn_outer_len)))
         goto end;
+
     if (!TEST_true(create_ssl_objects(sctx, cctx, &serverssl,
                                       &clientssl, NULL, NULL)))
         goto end;
-    if (!TEST_true(SSL_set_tlsext_host_name(clientssl, "server.example")))
-        goto end;
+
+    /* setup specific SSL * tests as per comment above */
+    if (idx == 0) {
+        if (!TEST_true(SSL_set_tlsext_host_name(clientssl, non_ech_sni)))
+            goto end;
+        expected_inner = non_ech_sni;
+        expected_outer = public_name;
+    }
+    if (idx == 1) {
+        if (!TEST_true(SSL_set_tlsext_host_name(clientssl, non_ech_sni)))
+            goto end;
+        if (!TEST_true(SSL_ech_set_outer_server_name(clientssl, NULL, 1)))
+            goto end;
+        expected_inner = non_ech_sni;
+        expected_outer = NULL;
+    }
+    if (idx == 2) {
+        if (!TEST_true(SSL_set_tlsext_host_name(clientssl, non_ech_sni)))
+            goto end;
+        if (!TEST_true(SSL_ech_set_outer_server_name(clientssl, "blah", 1)))
+            goto end;
+        expected_inner = non_ech_sni;
+        expected_outer = NULL;
+    }
+    if (idx == 3) {
+        if (!TEST_true(SSL_set_tlsext_host_name(clientssl, non_ech_sni)))
+            goto end;
+        if (!TEST_true(SSL_ech_set_outer_server_name(clientssl,
+                                                     supplied_outer, 0)))
+            goto end;
+        expected_inner = non_ech_sni;
+        expected_outer = supplied_outer;
+    }
+    if (verbose)
+        TEST_info("ech_in_out_test: expected inner: %s, outer: %s",
+                  expected_inner, expected_outer);
+
     if (!TEST_true(create_ssl_connection(serverssl, clientssl,
                                          SSL_ERROR_NONE)))
         goto end;
     serverstatus = SSL_ech_get_status(serverssl, &sinner, &souter);
     if (verbose)
-        TEST_info("ech_grease_test: server status %d, %s, %s",
+        TEST_info("ech_in_out_test: server status %d, %s, %s",
                   serverstatus, sinner, souter);
     if (!TEST_int_eq(serverstatus, SSL_ECH_STATUS_SUCCESS))
         goto end;
@@ -1256,10 +1334,39 @@ static int ech_in_out_test(int idx)
     SSL_set_verify_result(clientssl, X509_V_OK);
     clientstatus = SSL_ech_get_status(clientssl, &cinner, &couter);
     if (verbose)
-        TEST_info("ech_grease_test: client status %d, %s, %s",
+        TEST_info("ech_in_out_test: client status %d, %s, %s",
                   clientstatus, cinner, couter);
     if (!TEST_int_eq(clientstatus, SSL_ECH_STATUS_SUCCESS))
         goto end;
+
+    /* check result vs. expected */
+    cres = sres = 0;
+    if ((expected_inner == NULL && cinner == NULL)
+        || (strlen(expected_inner) == strlen(cinner)
+            && !strcmp(expected_inner, cinner)))
+        cres = 1;
+    if (!TEST_int_eq(cres, 1))
+        goto end;
+    if ((expected_inner == NULL && sinner == NULL)
+        || (strlen(expected_inner) == strlen(sinner)
+            && !strcmp(expected_inner, sinner)))
+        sres = 1;
+    if (!TEST_int_eq(sres, 1))
+        goto end;
+    cres = sres = 0;
+    if ((expected_outer == NULL && couter == NULL)
+        || (strlen(expected_outer) == strlen(couter)
+            && !strcmp(expected_outer, couter)))
+        cres = 1;
+    if (!TEST_int_eq(cres, 1))
+        goto end;
+    if ((expected_outer == NULL && souter == NULL)
+        || (strlen(expected_outer) == strlen(souter)
+            && !strcmp(expected_outer, souter)))
+        sres = 1;
+    if (!TEST_int_eq(sres, 1))
+        goto end;
+
     /* all good */
     res = 1;
 end:
@@ -1501,7 +1608,7 @@ int setup_tests(void)
     ADD_ALL_TESTS(test_ech_early, suite_combos);
     ADD_ALL_TESTS(ech_custom_test, suite_combos);
     ADD_ALL_TESTS(ech_grease_test, 2);
-    ADD_ALL_TESTS(ech_in_out_test, 1);
+    ADD_ALL_TESTS(ech_in_out_test, 4);
     return 1;
 err:
     return 0;
