@@ -1201,11 +1201,9 @@ static int ech_in_out_test(int idx)
     SSL_CTX *cctx = NULL, *sctx = NULL;
     SSL *clientssl = NULL, *serverssl = NULL;
     int clientstatus, serverstatus;
-    char *non_ech_sni = "server.example"; /* SNI set via non-ECH API */
-# ifdef COMINGSOON
-    char *supplied_inner = "inner.example.com"; /* inner set via ECH API */
-# endif
-    char *supplied_outer = "outer.example.com"; /* outer set via ECH API */
+    char *non_ech_sni = "trad.example"; /* SNI set via non-ECH API */
+    char *supplied_inner = "inner.example"; /* inner set via ECH API */
+    char *supplied_outer = "outer.example"; /* outer set via ECH API */
     char *public_name = "example.com"; /* we know that's inside echconfig.pem */
     /* inner, outer as provided via ECH status API */
     char *cinner = NULL, *couter = NULL, *sinner = NULL, *souter = NULL;
@@ -1254,6 +1252,12 @@ static int ech_in_out_test(int idx)
      * 2   : as for 1, but additionally:
      *       set non-NULL outer and "no_outer" via set_outer API
      * 3   : override outer via ECH API
+     * 4   : like 1, but using set_server_names API
+     * 5   : like 2, but using set_server_names API
+     * 6   : like 3, but using set_server_names API
+     * 7   : like 4, but overriding previous call to non-ECH SNI
+     * 8   : like 5, but overriding previous call to non-ECH SNI
+     * 9   : like 6, but overriding previous call to non-ECH SNI
      */
 
     /* read our pre-cooked ECH PEM file */
@@ -1317,8 +1321,56 @@ static int ech_in_out_test(int idx)
         expected_inner = non_ech_sni;
         expected_outer = supplied_outer;
     }
+    if (idx == 4) {
+        if (!TEST_true(SSL_ech_set_server_names(clientssl,
+                                                supplied_inner, NULL, 0)))
+            goto end;
+        expected_inner = supplied_inner;
+        expected_outer = public_name;
+    }
+    if (idx == 5) {
+        if (!TEST_true(SSL_ech_set_server_names(clientssl, supplied_inner,
+                                                "blah", 1)))
+            goto end;
+        expected_inner = supplied_inner;
+        expected_outer = NULL;
+    }
+    if (idx == 6) {
+        if (!TEST_true(SSL_ech_set_server_names(clientssl, supplied_inner,
+                                                supplied_outer, 0)))
+            goto end;
+        expected_inner = supplied_inner;
+        expected_outer = supplied_outer;
+    }
+    if (idx == 7) {
+        if (!TEST_true(SSL_set_tlsext_host_name(clientssl, "blah")))
+            goto end;
+        if (!TEST_true(SSL_ech_set_server_names(clientssl,
+                                                supplied_inner, NULL, 0)))
+            goto end;
+        expected_inner = supplied_inner;
+        expected_outer = public_name;
+    }
+    if (idx == 8) {
+        if (!TEST_true(SSL_set_tlsext_host_name(clientssl, "blah")))
+            goto end;
+        if (!TEST_true(SSL_ech_set_server_names(clientssl, supplied_inner,
+                                                "blah", 1)))
+            goto end;
+        expected_inner = supplied_inner;
+        expected_outer = NULL;
+    }
+    if (idx == 9) {
+        if (!TEST_true(SSL_set_tlsext_host_name(clientssl, "blah")))
+            goto end;
+        if (!TEST_true(SSL_ech_set_server_names(clientssl, supplied_inner,
+                                                supplied_outer, 0)))
+            goto end;
+        expected_inner = supplied_inner;
+        expected_outer = supplied_outer;
+    }
     if (verbose)
-        TEST_info("ech_in_out_test: expected inner: %s, outer: %s",
+        TEST_info("ech_in_out_test: expected I: %s, O: %s",
                   expected_inner, expected_outer);
 
     if (!TEST_true(create_ssl_connection(serverssl, clientssl,
@@ -1326,7 +1378,7 @@ static int ech_in_out_test(int idx)
         goto end;
     serverstatus = SSL_ech_get_status(serverssl, &sinner, &souter);
     if (verbose)
-        TEST_info("ech_in_out_test: server status %d, %s, %s",
+        TEST_info("ech_in_out_test: server status %d, I: %s, O: %s",
                   serverstatus, sinner, souter);
     if (!TEST_int_eq(serverstatus, SSL_ECH_STATUS_SUCCESS))
         goto end;
@@ -1334,7 +1386,7 @@ static int ech_in_out_test(int idx)
     SSL_set_verify_result(clientssl, X509_V_OK);
     clientstatus = SSL_ech_get_status(clientssl, &cinner, &couter);
     if (verbose)
-        TEST_info("ech_in_out_test: client status %d, %s, %s",
+        TEST_info("ech_in_out_test: client status %d, I: %s, O: %s",
                   clientstatus, cinner, couter);
     if (!TEST_int_eq(clientstatus, SSL_ECH_STATUS_SUCCESS))
         goto end;
@@ -1342,26 +1394,30 @@ static int ech_in_out_test(int idx)
     /* check result vs. expected */
     cres = sres = 0;
     if ((expected_inner == NULL && cinner == NULL)
-        || (strlen(expected_inner) == strlen(cinner)
+        || (expected_inner != NULL && cinner != NULL
+            && strlen(expected_inner) == strlen(cinner)
             && !strcmp(expected_inner, cinner)))
         cres = 1;
     if (!TEST_int_eq(cres, 1))
         goto end;
     if ((expected_inner == NULL && sinner == NULL)
-        || (strlen(expected_inner) == strlen(sinner)
+        || (expected_inner != NULL && sinner != NULL
+            && strlen(expected_inner) == strlen(sinner)
             && !strcmp(expected_inner, sinner)))
         sres = 1;
     if (!TEST_int_eq(sres, 1))
         goto end;
     cres = sres = 0;
     if ((expected_outer == NULL && couter == NULL)
-        || (strlen(expected_outer) == strlen(couter)
+        || (expected_outer != NULL && couter != NULL
+            && strlen(expected_outer) == strlen(couter)
             && !strcmp(expected_outer, couter)))
         cres = 1;
     if (!TEST_int_eq(cres, 1))
         goto end;
     if ((expected_outer == NULL && souter == NULL)
-        || (strlen(expected_outer) == strlen(souter)
+        || (expected_outer != NULL && souter != NULL
+            && strlen(expected_outer) == strlen(souter)
             && !strcmp(expected_outer, souter)))
         sres = 1;
     if (!TEST_int_eq(sres, 1))
@@ -1608,7 +1664,7 @@ int setup_tests(void)
     ADD_ALL_TESTS(test_ech_early, suite_combos);
     ADD_ALL_TESTS(ech_custom_test, suite_combos);
     ADD_ALL_TESTS(ech_grease_test, 2);
-    ADD_ALL_TESTS(ech_in_out_test, 4);
+    ADD_ALL_TESTS(ech_in_out_test, 10);
     return 1;
 err:
     return 0;
