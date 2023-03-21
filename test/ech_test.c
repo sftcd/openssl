@@ -1258,6 +1258,9 @@ static int ech_in_out_test(int idx)
      * 7   : like 4, but overriding previous call to non-ECH SNI
      * 8   : like 5, but overriding previous call to non-ECH SNI
      * 9   : like 6, but overriding previous call to non-ECH SNI
+     * 10  : like 7, but reversing call order
+     * 11  : like 8, but reversing call order
+     * 12  : like 9, but reversing call order
      */
 
     /* read our pre-cooked ECH PEM file */
@@ -1367,6 +1370,33 @@ static int ech_in_out_test(int idx)
                                                 supplied_outer, 0)))
             goto end;
         expected_inner = supplied_inner;
+        expected_outer = supplied_outer;
+    }
+    if (idx == 10) {
+        if (!TEST_true(SSL_ech_set_server_names(clientssl,
+                                                supplied_inner, NULL, 0)))
+            goto end;
+        if (!TEST_true(SSL_set_tlsext_host_name(clientssl, non_ech_sni)))
+            goto end;
+        expected_inner = non_ech_sni;
+        expected_outer = public_name;
+    }
+    if (idx == 11) {
+        if (!TEST_true(SSL_ech_set_server_names(clientssl, supplied_inner,
+                                                "blah", 1)))
+            goto end;
+        if (!TEST_true(SSL_set_tlsext_host_name(clientssl, non_ech_sni)))
+            goto end;
+        expected_inner = non_ech_sni;
+        expected_outer = NULL;
+    }
+    if (idx == 12) {
+        if (!TEST_true(SSL_ech_set_server_names(clientssl, supplied_inner,
+                                                supplied_outer, 0)))
+            goto end;
+        if (!TEST_true(SSL_set_tlsext_host_name(clientssl, non_ech_sni)))
+            goto end;
+        expected_inner = non_ech_sni;
         expected_outer = supplied_outer;
     }
     if (verbose)
@@ -1664,7 +1694,7 @@ int setup_tests(void)
     ADD_ALL_TESTS(test_ech_early, suite_combos);
     ADD_ALL_TESTS(ech_custom_test, suite_combos);
     ADD_ALL_TESTS(ech_grease_test, 2);
-    ADD_ALL_TESTS(ech_in_out_test, 10);
+    ADD_ALL_TESTS(ech_in_out_test, 13);
     return 1;
 err:
     return 0;
