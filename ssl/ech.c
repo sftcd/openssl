@@ -5002,15 +5002,15 @@ int SSL_ech_set_server_names(SSL *ssl, const char *inner_name,
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_PASSED_NULL_PARAMETER);
         return 0;
     }
+    OPENSSL_free(s->ext.hostname);
+    s->ext.hostname = OPENSSL_strdup(inner_name);
+    if (s->ext.hostname == NULL)
+        return 0;
     for (nind = 0; nind != s->ext.ech.ncfgs; nind++) {
         OPENSSL_free(s->ext.ech.cfgs[nind].inner_name);
         s->ext.ech.cfgs[nind].inner_name = NULL;
         if (inner_name != NULL && strlen(inner_name) > 0)
             s->ext.ech.cfgs[nind].inner_name = OPENSSL_strdup(inner_name);
-        if (s->ext.hostname != NULL) {
-            OPENSSL_free(s->ext.hostname);
-            s->ext.hostname = OPENSSL_strdup(inner_name);
-        }
         OPENSSL_free(s->ext.ech.cfgs[nind].outer_name);
         s->ext.ech.cfgs[nind].outer_name = NULL;
         s->ext.ech.cfgs[nind].no_outer = no_outer;
