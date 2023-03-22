@@ -1246,7 +1246,7 @@ static int ech_in_out_test(int idx)
      * idx : case
      * 0   : set no names via ECH APIs;
      *       set inner to inner.example.com non-ECH API
-     *       expect public_name as outer seen inner
+     *       expect public_name as outer
      * 1   : as for 0, but additionally:
      *       set NULL and "no_outer" via set_outer API
      * 2   : as for 1, but additionally:
@@ -1261,6 +1261,9 @@ static int ech_in_out_test(int idx)
      * 10  : like 7, but reversing call order
      * 11  : like 8, but reversing call order
      * 12  : like 9, but reversing call order
+     * 13  : like 1, but with a NULL outer input to API
+     *       that's a bit pointless as it's more or less a NO-OP
+     *       but worth checking
      */
 
     /* read our pre-cooked ECH PEM file */
@@ -1398,6 +1401,15 @@ static int ech_in_out_test(int idx)
             goto end;
         expected_inner = non_ech_sni;
         expected_outer = supplied_outer;
+    }
+    if (idx == 13) {
+        if (!TEST_true(SSL_set_tlsext_host_name(clientssl, non_ech_sni)))
+            goto end;
+        if (!TEST_true(SSL_ech_set_outer_server_name(clientssl,
+                                                     NULL, 0)))
+            goto end;
+        expected_inner = non_ech_sni;
+        expected_outer = public_name;
     }
     if (verbose)
         TEST_info("ech_in_out_test: expected I: %s, O: %s",
@@ -1694,7 +1706,7 @@ int setup_tests(void)
     ADD_ALL_TESTS(test_ech_early, suite_combos);
     ADD_ALL_TESTS(ech_custom_test, suite_combos);
     ADD_ALL_TESTS(ech_grease_test, 2);
-    ADD_ALL_TESTS(ech_in_out_test, 13);
+    ADD_ALL_TESTS(ech_in_out_test, 14);
     return 1;
 err:
     return 0;
