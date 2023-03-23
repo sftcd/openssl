@@ -22,6 +22,10 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
+- 20230323: started adding tests that involve corrupted
+  encoded inner CH values (in ``test/echcorrupttest.c``
+  modelled on ``test/sslcorrupttest.c``).
+
 - 20230321: added more alpn/sni inner/outer tests
 
 - 20230318: refactored roundtrip tests and added a couple of
