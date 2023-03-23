@@ -693,7 +693,7 @@ static int ech_roundtrip_test(int idx)
     echconfiglen = strlen(echconfig);
     if (!TEST_true(create_ssl_ctx_pair(libctx, TLS_server_method(),
                                        TLS_client_method(),
-                                       TLS1_3_VERSION, 0,
+                                       TLS1_3_VERSION, TLS1_3_VERSION,
                                        &sctx, &cctx, cert, privkey)))
         goto end;
     if (!TEST_true(SSL_CTX_ech_set1_echconfig(cctx, (unsigned char *)echconfig,
@@ -756,15 +756,15 @@ static int tls_version_test(void)
     /* setup contexts, initially for tlsv1.3 */
     if (!TEST_true(create_ssl_ctx_pair(libctx, TLS_server_method(),
                                        TLS_client_method(),
-                                       TLS1_3_VERSION, 0,
+                                       TLS1_3_VERSION, TLS1_3_VERSION,
                                        &sctx, &cctx, cert, privkey)))
         goto end;
 
-    /* set client to max tls v1.2 and check setting ech config barfs */
-    if (!TEST_true(SSL_CTX_set_max_proto_version(cctx, TLS1_2_VERSION)))
-        goto end;
     if (!TEST_true(SSL_CTX_ech_set1_echconfig(cctx, echconfig,
                                               echconfiglen)))
+        goto end;
+    /* set client to max tls v1.2 and check setting ech config barfs */
+    if (!TEST_true(SSL_CTX_set_max_proto_version(cctx, TLS1_2_VERSION)))
         goto end;
     if (!TEST_true(create_ssl_objects(sctx, cctx, &serverssl,
                                       &clientssl, NULL, NULL)))
@@ -796,6 +796,8 @@ static int test_ech_find(int idx)
 
     if (!TEST_ptr(con = SSL_CTX_new_ex(testctx, testpropq,
                                        TLS_server_method())))
+        goto end;
+    if (!TEST_true(SSL_CTX_set_max_proto_version(con, TLS1_3_VERSION)))
         goto end;
     t = &test_echconfigs[idx];
     if (verbose)
@@ -908,7 +910,7 @@ static int test_ech_roundtrip_helper(int idx, int combo)
         goto end;
     if (!TEST_true(create_ssl_ctx_pair(libctx, TLS_server_method(),
                                        TLS_client_method(),
-                                       TLS1_3_VERSION, 0,
+                                       TLS1_3_VERSION, TLS1_3_VERSION,
                                        &sctx, &cctx, cert, privkey)))
         goto end;
 
@@ -1108,7 +1110,7 @@ static int ech_grease_test(int idx)
         goto end;
     if (!TEST_true(create_ssl_ctx_pair(libctx, TLS_server_method(),
                                        TLS_client_method(),
-                                       TLS1_3_VERSION, 0,
+                                       TLS1_3_VERSION, TLS1_3_VERSION,
                                        &sctx, &cctx, cert, privkey)))
         goto end;
     if (!TEST_true(SSL_CTX_ech_server_enable_file(sctx, echkeyfile)))
@@ -1276,7 +1278,7 @@ static int ech_in_out_test(int idx)
     echconfiglen = strlen(echconfig);
     if (!TEST_true(create_ssl_ctx_pair(libctx, TLS_server_method(),
                                        TLS_client_method(),
-                                       TLS1_3_VERSION, 0,
+                                       TLS1_3_VERSION, TLS1_3_VERSION,
                                        &sctx, &cctx, cert, privkey)))
         goto end;
     if (!TEST_true(SSL_CTX_ech_server_enable_file(sctx, echkeyfile)))
@@ -1510,7 +1512,7 @@ static int test_ech_add(int idx)
     /* Generate fresh context pair for each test with TLSv1.3 as a minimum */
     if (!TEST_true(create_ssl_ctx_pair(libctx, TLS_server_method(),
                                        TLS_client_method(),
-                                       TLS1_3_VERSION, 0,
+                                       TLS1_3_VERSION, TLS1_3_VERSION,
                                        &sctx2, &cctx, cert, privkey))) {
         TEST_info("test_ech_add: context creation failed for iteration %d",
                   idx);

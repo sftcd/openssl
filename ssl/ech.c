@@ -4902,11 +4902,26 @@ int SSL_ech_set1_echconfig(SSL *ssl, const unsigned char *val, size_t len)
     SSL_ECH *echs = NULL;
     SSL_ECH *tmp = NULL;
     int num_echs = 0;
+# ifdef SUPERSTRICT
+    /*
+     * insisting that we know already that we'll support TLSv1.3
+     * is likely a bit too strict here, but probably want to check
+     * this sometime, so TODO: check that
+     */
+    int tlsver = 0;
+# endif
 
     if (s == NULL || val == NULL || len == 0) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_PASSED_NULL_PARAMETER);
         return 0;
     }
+# ifdef SUPERSTRICT
+    tlsver = SSL_get_max_proto_version(ssl);
+    if (tlsver != TLS1_3_VERSION && tlsver != TLS_ANY_VERSION) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_R_WRONG_SSL_VERSION);
+        return 0;
+    }
+# endif
     if (local_ech_add(OSSL_ECH_FMT_GUESS, len, val, &num_echs, &echs) != 1) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
@@ -4946,11 +4961,26 @@ int SSL_CTX_ech_set1_echconfig(SSL_CTX *ctx, const unsigned char *val,
     SSL_ECH *echs = NULL;
     SSL_ECH *tmp = NULL;
     int num_echs = 0;
+# ifdef SUPERSTRICT
+    /*
+     * insisting that we know already that we'll support TLSv1.3
+     * is likely a bit too strict here, but probably want to check
+     * this sometime, so TODO: check that
+     */
+    int tlsver = 0;
+# endif
 
     if (ctx == NULL || val == NULL || len == 0) {
         ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_NULL_PARAMETER);
         return 0;
     }
+# ifdef SUPERSTRICT
+    tlsver = SSL_CTX_get_max_proto_version(ctx);
+    if (tlsver != TLS1_3_VERSION && tlsver != TLS_ANY_VERSION) {
+        ERR_raise(ERR_LIB_SSL, SSL_R_WRONG_SSL_VERSION);
+        return 0;
+    }
+# endif
     if (local_ech_add(OSSL_ECH_FMT_GUESS, len, val, &num_echs, &echs) != 1) {
         ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
         return 0;

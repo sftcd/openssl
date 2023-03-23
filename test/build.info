@@ -63,7 +63,8 @@ IF[{- !$disabled{tests} -}]
           provfetchtest prov_config_test rand_test \
           ca_internals_test bio_tfo_test membio_test bio_dgram_test list_test \
           fips_version_test x509_test hpke_test pairwise_fail_test \
-          nodefltctxtest ech_test evp_xof_test x509_load_cert_file_test
+          nodefltctxtest evp_xof_test x509_load_cert_file_test \
+          ech_test echcorrupttest
 
   IF[{- !$disabled{'rpk'} -}]
     PROGRAMS{noinst}=rpktest
@@ -576,6 +577,10 @@ IF[{- !$disabled{tests} -}]
   SOURCE[sslcorrupttest]=sslcorrupttest.c helpers/ssltestlib.c
   INCLUDE[sslcorrupttest]=../include ../apps/include
   DEPEND[sslcorrupttest]=../libcrypto ../libssl libtestutil.a
+
+  SOURCE[echcorrupttest]=echcorrupttest.c helpers/ssltestlib.c filterprov.c tls-provider.c
+  INCLUDE[echcorrupttest]=../include ../apps/include
+  DEPEND[echcorrupttest]=../libssl.a ../libcrypto.a libtestutil.a
 
   SOURCE[bio_enc_test]=bio_enc_test.c
   INCLUDE[bio_enc_test]=../include ../apps/include
