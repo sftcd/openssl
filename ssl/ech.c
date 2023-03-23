@@ -36,6 +36,8 @@
 /* For HPKE APIs */
 # include <openssl/hpke.h>
 
+# include "internal/ech_helpers.h"
+
 /* SECTION: Macros */
 
 /* a size for some crypto vars */
@@ -172,8 +174,6 @@
 /*
  * Strings used in ECH crypto derivations (odd format for EBCDIC goodness)
  */
-/* "tls ech" */
-static const char OSSL_ECH_CONTEXT_STRING[] = "\x74\x6c\x73\x20\x65\x63\x68";
 /* "ech accept confirmation" */
 static char OSSL_ECH_ACCEPT_CONFIRM_STRING[] = "\x65\x63\x68\x20\x61\x63\x63\x65\x70\x74\x20\x63\x6f\x6e\x66\x69\x72\x6d\x61\x74\x69\x6f\x6e";
 /* "hrr ech accept confirmation" */
@@ -368,52 +368,6 @@ static int ech_check_filenames(SSL_CTX *ctx, const char *pemfname, int *index)
     }
     *index = -1; /* just in case:-> */
     return OSSL_ECH_KEYPAIR_NEW;
-}
-
-/*
- * @brief Decode from TXT RR to binary buffer
- * @param in is the base64 encoded string
- * @param inlen is the length of in
- * @param out is the binary equivalent
- * @return is the number of octets in |out| if successful, <=0 for failure
- */
-static int ech_base64_decode(char *in, size_t inlen, unsigned char **out)
-{
-    int i = 0;
-    int outlen = 0;
-    unsigned char *outbuf = NULL;
-
-    if (in == NULL || out == NULL)
-        return 0;
-    if (inlen == 0) {
-        *out = NULL;
-        return 0;
-    }
-    /* overestimate of space but easier */
-    outbuf = OPENSSL_malloc(inlen);
-    if (outbuf == NULL)
-        goto err;
-    /* For ECH we'll never see this but just so we have bounds */
-    if (inlen <= OSSL_ECH_MIN_ECHCONFIG_LEN
-        || inlen > OSSL_ECH_MAX_ECHCONFIG_LEN)
-        goto err;
-    /* Check padding bytes in input.  More than 2 is malformed. */
-    i = 0;
-    while (in[inlen - i - 1] == '=') {
-        if (++i > 2)
-            goto err;
-    }
-    outlen = EVP_DecodeBlock(outbuf, (unsigned char *)in, inlen);
-    outlen -= i; /* subtract padding */
-    if (outlen < 0)
-        goto err;
-    *out = outbuf;
-    return outlen;
-
-err:
-    OPENSSL_free(outbuf);
-    *out = NULL;
-    return 0;
 }
 
 /*
@@ -1165,7 +1119,7 @@ static int local_ech_add(int ekfmt, size_t len, const unsigned char *val,
             goto err;
         }
         /* need an int to get -1 return for failure case */
-        tdeclen = ech_base64_decode(ekptr, eklen, &outbuf);
+        tdeclen = ech_helper_base64_decode(ekptr, eklen, &outbuf);
         if (tdeclen <= 0) {
             ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
             goto err;
@@ -1419,7 +1373,7 @@ static int ech_finder(int *num_echs, SSL_ECH **echs,
             int tdeclen = 0;
 
             /* need an int to get -1 return for failure case */
-            tdeclen = ech_base64_decode((char *)lval, llen, &binbuf);
+            tdeclen = ech_helper_base64_decode((char *)lval, llen, &binbuf);
             if (tdeclen <= 0) {
                 ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
                 goto err;
@@ -1780,35 +1734,6 @@ static int ECHConfigList_print(BIO *out, ECHConfigList *c)
     return 1;
 }
 
-/*
- * @brief make up HPKE "info" input as per spec
- * @param tc is the ECHconfig being used
- * @param info is a caller-allocated buffer for results
- * @param info_len is the buffer size on input, used-length on output
- * @return 1 for success, other otherwise
- */
-static int ech_make_enc_info(ECHConfig *tc, unsigned char *info,
-                             size_t *info_len)
-{
-    unsigned char *ip = info;
-
-    if (tc == NULL || info == NULL || info_len == NULL)
-        return 0;
-    /*
-     * note: we could use strlen() below but I guess sizeof is a litte
-     * better - if using strlen() then we'd have a few "+ 1"'s below
-     * as the sizeof is 1 bigger than the strlen
-     */
-    if (*info_len < (sizeof(OSSL_ECH_CONTEXT_STRING) + tc->encoding_length))
-        return 0;
-    memcpy(ip, OSSL_ECH_CONTEXT_STRING, sizeof(OSSL_ECH_CONTEXT_STRING) - 1);
-    ip += sizeof(OSSL_ECH_CONTEXT_STRING) - 1;
-    *ip++ = 0x00;
-    memcpy(ip, tc->encoding_start, tc->encoding_length);
-    *info_len = sizeof(OSSL_ECH_CONTEXT_STRING) + tc->encoding_length;
-    return 1;
-}
-
 /*!
  * @brief Given a CH find the offsets of the session id, extensions and ECH
  * @param: s is the SSL session
@@ -1832,20 +1757,9 @@ int ech_get_ch_offsets(SSL_CONNECTION *s, PACKET *pkt, size_t *sessid,
 {
     const unsigned char *ch = NULL;
     size_t ch_len = 0;
-    size_t genoffset = 0;
-    size_t sessid_len = 0;
-    size_t suiteslen = 0;
-    size_t startofexts = 0;
     size_t extlens = 0;
-    size_t legacy_compress_len; /* length of legacy_compression */
-    const unsigned char *e_start = NULL;
-    int extsremaining = 0;
-    uint16_t etype = 0;
-    size_t elen = 0;
-# ifdef OSSL_ECH_SUPERVERBOSE
     size_t echlen = 0; /* length of ECH, including type & ECH-internal length */
     size_t snilen = 0;
-# endif
 
     if (s == NULL || pkt == NULL || sessid == NULL || exts == NULL
         || echoffset == NULL || echtype == NULL || inner == NULL
@@ -1862,107 +1776,17 @@ int ech_get_ch_offsets(SSL_CONNECTION *s, PACKET *pkt, size_t *sessid,
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
     }
-    /* make sure we're at least tlsv1.2 */
-    if (ch_len < 2) {
+    if (ech_helper_get_ch_offsets(ch, ch_len, sessid, exts, &extlens,
+                                  echoffset, echtype, &echlen,
+                                  snioffset, &snilen, inner) != 1) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
-    }
-    /* if we're not TLSv1.2+ then we can bail, but it's not an error */
-    if (ch[0] * 256 + ch [1] != TLS1_2_VERSION)
-        return 1;
-    /*
-     * We'll start genoffset at the start of the session ID, just
-     * before the ciphersuites
-     */
-    genoffset = CLIENT_VERSION_LEN + SSL3_RANDOM_SIZE; /* point to len sessid */
-    if (ch_len <= genoffset) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-        return 0;
-    }
-    *sessid = genoffset;
-    sessid_len = ch[genoffset];
-    /*
-     * sessid_len can be zero length in encoded inner CH but is normally 32
-     * A different length could lead to an error elsewhere.
-     */
-    if (sessid_len != 0 && sessid_len != SSL_MAX_SSL_SESSION_ID_LENGTH) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-        return 0;
-    }
-    genoffset += (1 + sessid_len);
-    if (ch_len <= (genoffset + 2)) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-        return 0;
-    }
-    suiteslen = ch[genoffset] * 256 + ch[genoffset + 1];
-    if ((genoffset + 2 + suiteslen + 2) > ch_len) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-        return 0;
-    }
-    legacy_compress_len = ch[genoffset + suiteslen + 2];
-    /*
-     * if compression is on, we're not TLSv1.3 and hence won't be doing
-     * ECH, but that's not an error per-se
-     */
-    if (legacy_compress_len != 1)
-        return 1;
-    if (ch[genoffset + suiteslen + 2 + 1] != 0x00)
-        return 1;
-
-    startofexts = genoffset + 2 + suiteslen + 2; /* the 2 for the suites len */
-    if (startofexts == ch_len)
-        return 1; /* no extensions present, which is fine, but not for ECH */
-    if (startofexts > ch_len) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-        return 0;
-    }
-    *exts = startofexts; /* set output */
-
-    extlens = ch[startofexts] * 256 + ch[startofexts + 1];
-    if (ch_len < (startofexts + 2 + extlens)) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-        return 0;
-    }
-    /* find ECH if it's there */
-    e_start = &ch[startofexts + 2];
-    extsremaining = extlens - 2;
-    while (extsremaining > 0 && (*echoffset == 0 || *snioffset == 0)) {
-        /* 4 is for 2-octet type and 2-octet length */
-        if (ch_len < (4 + (size_t)(e_start - ch))) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-            return 0;
-        }
-        etype = e_start[0] * 256 + e_start[1];
-        elen = e_start[2] * 256 + e_start[3];
-        if (etype == TLSEXT_TYPE_ech13) {
-# ifdef OSSL_ECH_SUPERVERBOSE
-            echlen = elen + 4; /* type and length included */
-# endif
-            if (ch_len < (5 + (size_t)(e_start - ch))) {
-                SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-                return 0;
-            }
-            /* set outputs */
-            *echtype = etype;
-            *echoffset = (e_start - ch); /* set output */
-            *inner = e_start[4];
-        } else if (etype == TLSEXT_TYPE_server_name) {
-# ifdef OSSL_ECH_SUPERVERBOSE
-            snilen = elen + 4; /* type and length included */
-# endif
-            /* set output */
-            *snioffset = (e_start - ch); /* set output */
-        }
-        e_start += (4 + elen);
-        extsremaining -= (4 + elen);
     }
 # ifdef OSSL_ECH_SUPERVERBOSE
     OSSL_TRACE_BEGIN(TLS) {
         BIO_printf(trc_out, "orig CH/ECH type: %4x\n", *echtype);
     } OSSL_TRACE_END(TLS);
     ech_pbuf("orig CH", (unsigned char *)ch, ch_len);
-    ech_pbuf("orig CH session_id", (unsigned char *)ch + *sessid + 1,
-             sessid_len);
     ech_pbuf("orig CH exts", (unsigned char *)ch + *exts, extlens);
     ech_pbuf("orig CH/ECH", (unsigned char *)ch + *echoffset, echlen);
     ech_pbuf("orig CH SNI", (unsigned char *)ch + *snioffset, snilen);
@@ -2584,7 +2408,9 @@ static unsigned char *hpke_decrypt_encch(SSL_CONNECTION *s, SSL_ECH *ech,
     ech_pbuf("senderpub", senderpub, senderpublen);
     ech_pbuf("cipher", cipher, cipherlen);
 # endif
-    if (ech_make_enc_info(ech->cfg->recs, info, &info_len) != 1) {
+    if (ech_helper_make_enc_info(ech->cfg->recs->encoding_start,
+                                 ech->cfg->recs->encoding_length,
+                                 info, &info_len) != 1) {
         OPENSSL_free(clear);
         return NULL;
     }
@@ -4227,7 +4053,8 @@ int ech_aad_and_encrypt(SSL_CONNECTION *s, WPACKET *pkt)
         goto err;
     lenclen = OSSL_HPKE_get_public_encap_size(hpke_suite);
     if (s->ext.ech.hpke_ctx == NULL) {
-        if (ech_make_enc_info(tc, info, &info_len) != 1) {
+        if (ech_helper_make_enc_info(tc->encoding_start, tc->encoding_length,
+                                     info, &info_len) != 1) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             goto err;
         }
@@ -4593,7 +4420,6 @@ int ech_early_decrypt(SSL_CONNECTION *s, PACKET *outerpkt, PACKET *newpkt)
         }
         /* squirrel away that value in case of future HRR */
         OPENSSL_free(s->ext.ech.pub);
-        s->ext.ech.pub_len = extval->enc_len;
         s->ext.ech.pub_len = extval->enc_len;
         s->ext.ech.pub = OPENSSL_malloc(extval->enc_len);
         if (s->ext.ech.pub == NULL)
