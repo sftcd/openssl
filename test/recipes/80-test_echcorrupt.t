@@ -7,7 +7,7 @@
 # https://www.openssl.org/source/license.html
 
 use OpenSSL::Test::Utils;
-use OpenSSL::Test qw/:DEFAULT srctop_file/;
+use OpenSSL::Test qw/:DEFAULT srctop_dir/;
 
 setup("test_echcorrupt");
 
@@ -19,5 +19,5 @@ plan skip_all => "ECH tests not supported in this build"
 
 plan tests => 1;
 
-ok(run(test(["echcorrupttest", srctop_file("apps", "server.pem"),
-             srctop_file("apps", "server.pem")])), "running echcorrupttest");
+ok(run(test(["echcorrupttest", srctop_dir("test", "certs")])));
+# ok(run(test(["ech_test", srctop_dir("test", "certs")])))
