@@ -19,6 +19,3 @@ plan skip_all => "ECH tests not supported in this build"
 plan tests => 1;
 
 ok(run(test(["ech_test", srctop_dir("test", "certs")])))
-
-    # simple_test("test_ech", "ech_test ../test/certs");
-
