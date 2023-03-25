@@ -22,8 +22,10 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
-- 20230325: pushing a commit to check if the github.com
-  SSH key rotation affects me;-)
+- 20230325: pushing a commit to check if the [github.com SSH key
+  rotation](https://www.bleepingcomputer.com/news/security/githubcom-rotates-its-exposed-private-ssh-key/)
+affects me;-) Yep, it did, had to do a bit of manual key deletion and accepting
+a new one for ``known_hosts``.
 
 - 20230323: started adding tests that involve corrupted
   encoded inner CH values (in ``test/echcorrupttest.c``
