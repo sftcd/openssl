@@ -22,6 +22,9 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
+- 20230325: pushing a commit to check if the github.com
+  SSH key rotation affects me;-)
+
 - 20230323: started adding tests that involve corrupted
   encoded inner CH values (in ``test/echcorrupttest.c``
   modelled on ``test/sslcorrupttest.c``).
