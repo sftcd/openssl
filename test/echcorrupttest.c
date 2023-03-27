@@ -25,7 +25,7 @@ static char *echkeyfile = NULL;
 static char *echconfig = NULL;
 static size_t echconfiglen = 0;
 static unsigned char *bin_echconfig;
-size_t bin_echconfiglen = 0;
+static size_t bin_echconfiglen = 0;
 static unsigned char *hpke_info = NULL;
 static size_t hpke_infolen = 0;
 
@@ -62,7 +62,7 @@ typedef struct {
 } TEST_ECHINNER;
 
 /* for now, this is just for documentation */
-const unsigned char entire_encoded_inner[] = {
+static const unsigned char entire_encoded_inner[] = {
     0x03, 0x03, 0x7b, 0xe8, 0xc1, 0x18, 0xd7, 0xd1,
     0x9c, 0x39, 0xa4, 0xfa, 0xce, 0x75, 0x72, 0x40,
     0xcf, 0x37, 0xbb, 0x4c, 0xcd, 0xa7, 0x62, 0xda,
@@ -82,7 +82,7 @@ const unsigned char entire_encoded_inner[] = {
 };
 
 /* inner prefix up as far as outer_exts */
-const unsigned char encoded_inner_pre[] = {
+static const unsigned char encoded_inner_pre[] = {
     0x03, 0x03, 0x7b, 0xe8, 0xc1, 0x18, 0xd7, 0xd1,
     0x9c, 0x39, 0xa4, 0xfa, 0xce, 0x75, 0x72, 0x40,
     0xcf, 0x37, 0xbb, 0x4c, 0xcd, 0xa7, 0x62, 0xda,
@@ -93,7 +93,7 @@ const unsigned char encoded_inner_pre[] = {
 };
 
 /* inner prefix with mad length of suites (0xDDDD) */
-const unsigned char badsuites_inner_pre[] = {
+static const unsigned char badsuites_inner_pre[] = {
     0x03, 0x03, 0x7b, 0xe8, 0xc1, 0x18, 0xd7, 0xd1,
     0x9c, 0x39, 0xa4, 0xfa, 0xce, 0x75, 0x72, 0x40,
     0xcf, 0x37, 0xbb, 0x4c, 0xcd, 0xa7, 0x62, 0xda,
@@ -104,27 +104,27 @@ const unsigned char badsuites_inner_pre[] = {
 };
 
 /* the outers - we'll play with variations of this */
-const unsigned char encoded_inner_outers[] = {
+static const unsigned char encoded_inner_outers[] = {
     0xfd, 0x00, 0x00, 0x13, 0x12, 0x00, 0x0b,
     0x00, 0x0a, 0x00, 0x23, 0x00, 0x16, 0x00, 0x17,
     0x00, 0x0d, 0x00, 0x2b, 0x00, 0x2d, 0x00, 0x33,
 };
 
 /* outers with repetition of one extension (0x0B) */
-const unsigned char borked_inner_outers1[] = {
+static const unsigned char borked_inner_outers1[] = {
     0xfd, 0x00, 0x00, 0x13, 0x12, 0x00, 0x0b,
     0x00, 0x0B, 0x00, 0x23, 0x00, 0x16, 0x00, 0x17,
     0x00, 0x0d, 0x00, 0x2b, 0x00, 0x2d, 0x00, 0x33
 };
 
 /* outers including a non-used extension (0xFFAB) */
-const unsigned char borked_inner_outers2[] = {
+static const unsigned char borked_inner_outers2[] = {
     0xfd, 0x00, 0x00, 0x13, 0x12, 0x00, 0x0b,
     0x00, 0x0a, 0x00, 0x23, 0x00, 0x16, 0x00, 0x17,
     0xFF, 0xAB, 0x00, 0x2b, 0x00, 0x2d, 0x00, 0x33
 };
 
-const unsigned char encoded_inner_post[] = {
+static const unsigned char encoded_inner_post[] = {
     0x00, 0x00, 0x00, 0x14, 0x00, 0x12, 0x00, 0x00,
     0x0f, 0x66, 0x6f, 0x6f, 0x2e, 0x65, 0x78, 0x61,
     0x6d, 0x70, 0x6c, 0x65, 0x2e, 0x63, 0x6f, 0x6d,
@@ -135,7 +135,7 @@ const unsigned char encoded_inner_post[] = {
 };
 
 /* muck up the padding by including non-zero stuff */
-const unsigned char bad_pad_encoded_inner_post[] = {
+static const unsigned char bad_pad_encoded_inner_post[] = {
     0x00, 0x00, 0x00, 0x14, 0x00, 0x12, 0x00, 0x00,
     0x0f, 0x66, 0x6f, 0x6f, 0x2e, 0x65, 0x78, 0x61,
     0x6d, 0x70, 0x6c, 0x65, 0x2e, 0x63, 0x6f, 0x6d,
@@ -146,7 +146,7 @@ const unsigned char bad_pad_encoded_inner_post[] = {
 };
 
 /* for now, this is just for documentation */
-const unsigned char short_encoded_inner[] = {
+static const unsigned char short_encoded_inner[] = {
     0x03, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -291,7 +291,7 @@ static int corrupt_or_copy(const char *ch, const int chlen,
     uint16_t echtype;
     int inner;
 
-    if (testcase >= OSSL_NELEM(test_inners))
+    if (testcase >= (int)OSSL_NELEM(test_inners))
         return 0;
     ti = &test_inners[testcase];
 
@@ -299,6 +299,12 @@ static int corrupt_or_copy(const char *ch, const int chlen,
     fblen = ti->forbork == NULL ? 0 : ti->fblen;
     postlen = ti->post == NULL ? 0 : ti->postlen;
 
+    /* check for editing error */
+    if (testcase != 0
+        && prelen + fblen + postlen != sizeof(entire_encoded_inner)) {
+        TEST_info("manual sizing error");
+        return 0;
+    }
     /* is it a ClientHello or not? */
     if (chlen > 10 && ch[0] == SSL3_RT_HANDSHAKE
         && ch[5] == SSL3_MT_CLIENT_HELLO)
@@ -311,8 +317,10 @@ static int corrupt_or_copy(const char *ch, const int chlen,
                                              &snioffset, &snilen, &inner)))
         return 0;
     /* that better be an outer ECH :-) */
-    if (echoffset > 0 && !TEST_int_eq(inner, 0))
+    if (echoffset > 0 && !TEST_int_eq(inner, 0)) {
+        TEST_info("better send inner");
         return 0;
+    }
     /* bump offsets by 9 */
     echoffset += 9;
     snioffset += 9;
@@ -352,7 +360,7 @@ static int corrupt_or_copy(const char *ch, const int chlen,
  *
  * the caller should free the returned string
  */
-static char *echconfiglist_from_PEM(const char *echkeyfile)
+static char *echconfiglist_from_PEM(const char *file)
 {
     BIO *in = NULL;
     char *ecl_string = NULL;
@@ -360,7 +368,7 @@ static char *echconfiglist_from_PEM(const char *echkeyfile)
     int readbytes = 0;
 
     if (!TEST_ptr(in = BIO_new(BIO_s_file()))
-        || !TEST_int_ge(BIO_read_filename(in, echkeyfile), 0))
+        || !TEST_int_ge(BIO_read_filename(in, file), 0))
         goto out;
     /* read 4 lines before the one we want */
     readbytes = BIO_get_line(in, lnbuf, OSSL_ECH_MAX_LINELEN);
@@ -423,8 +431,8 @@ static int tls_corrupt_write(BIO *bio, const char *in, int inl)
 {
     int ret;
     BIO *next = BIO_next(bio);
-    char *copy;
-    int copylen;
+    char *copy = NULL;
+    int copylen = 0;
 
     ret = corrupt_or_copy(in, inl, &copy, &copylen);
     if (ret == 0)

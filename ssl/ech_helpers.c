@@ -15,14 +15,16 @@
 #include <openssl/ech.h>
 #include <internal/ech_helpers.h>
 
-#ifndef CLIENT_VERSION_LEN
+#ifndef OPENSSL_NO_ECH
+
+# ifndef CLIENT_VERSION_LEN
 /*
  * This is the legacy version length, i.e. len(0x0303). The same
  * label is used in e.g. test/sslapitest.c and elsewhere but not
  * defined in a header file I could find.
  */
-# define CLIENT_VERSION_LEN 2
-#endif
+#  define CLIENT_VERSION_LEN 2
+# endif
 
 /*
  * Strings used in ECH crypto derivations (odd format for EBCDIC goodness)
@@ -228,3 +230,4 @@ err:
     *out = NULL;
     return 0;
 }
+#endif
