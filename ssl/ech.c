@@ -1773,13 +1773,13 @@ int ech_get_ch_offsets(SSL_CONNECTION *s, PACKET *pkt, size_t *sessid,
     *snioffset = 0;
     ch_len = PACKET_remaining(pkt);
     if (PACKET_peek_bytes(pkt, &ch, ch_len) != 1) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         return 0;
     }
     if (ech_helper_get_ch_offsets(ch, ch_len, sessid, exts, &extlens,
                                   echoffset, echtype, &echlen,
                                   snioffset, &snilen, inner) != 1) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         return 0;
     }
 # ifdef OSSL_ECH_SUPERVERBOSE
