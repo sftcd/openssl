@@ -11,6 +11,12 @@
  * ssl/ech.c but also by test code e.g. in test/echcorrupttest.c
  */
 
+#ifndef OPENSSL_ECH_HELPERS_H
+# define OPENSSL_ECH_HELPERS_H
+# pragma once
+
+# ifndef OPENSSL_NO_ECH
+
 /*
  * @brief Given a CH find the offsets of the session id, extensions and ECH
  * @param: ch is the encoded client hello
@@ -56,3 +62,5 @@ int ech_helper_make_enc_info(unsigned char *encoding, size_t encoding_length,
  * @return is the number of octets in |out| if successful, <=0 for failure
  */
 int ech_helper_base64_decode(char *in, size_t inlen, unsigned char **out);
+# endif
+#endif
