@@ -22,16 +22,14 @@ static char *certsdir = NULL;
 static char *cert = NULL;
 static char *privkey = NULL;
 static char *echkeyfile = NULL;
-static char *echconfig = NULL; static size_t echconfiglen = 0;
-static unsigned char *bin_echconfig; size_t bin_echconfiglen = 0;
+static char *echconfig = NULL;
+static size_t echconfiglen = 0;
+static unsigned char *bin_echconfig;
+size_t bin_echconfiglen = 0;
+static unsigned char *hpke_info = NULL;
+static size_t hpke_infolen = 0;
 
-/* we'll create HPKE vars at setup and re-use for >1 test */
-static OSSL_HPKE_SUITE hpke_suite = OSSL_HPKE_SUITE_DEFAULT;
-static OSSL_HPKE_CTX *hctx = NULL;
-static unsigned char *hpke_info = NULL; static size_t hpke_infolen = 0;
-static unsigned char *mypub = NULL; static size_t mypublen = 0;
-
-/* 
+/*
  * We use a set of test vectors for each test:
  *  - encoded inner CH prefix
  *  - encoded inner CH corrupted-or-not
@@ -42,80 +40,171 @@ static unsigned char *mypub = NULL; static size_t mypublen = 0;
  * For each test, we'll try replace the ECH ciphertext with
  * a value that's basically the HPKE seal/enc of an inner-CH
  * made up of the relevant three parts and then see if we
- * get the correct result and/or error.
+ * get the expected error.
+ *
+ * Whenever we re-seal we will get an error due to the inner
+ * client random, which we can't know. But hopefully that'll
+ * differ from errors in handling decoding after decryption.
  *
  * The inner CH is split in 3 so we can re-use the pre and
- * post values, making it easier to understand/manipulate the 
+ * post values, making it easier to understand/manipulate the
  * corrupted-or-not value.
  */
 typedef struct {
-    const unsigned char *pre; size_t prelen;
-    const unsigned char *forbork; size_t fblen;
-    const unsigned char *post; size_t postlen;
+    const unsigned char *pre;
+    size_t prelen;
+    const unsigned char *forbork;
+    size_t fblen;
+    const unsigned char *post;
+    size_t postlen;
     int rv_expected; /* expected result */
     int err_expected; /* expected error */
 } TEST_ECHINNER;
 
-const unsigned char fake[] = { 0x01 };
-
-/* an example of a full encoded inner */
 const unsigned char entire_encoded_inner[] = {
-    0x03, 0x03, 0xec, 0x2f, 0xc7, 0x7b, 0xb5, 0x10,
-    0xf6, 0x87, 0x82, 0x52, 0x64, 0x28, 0xdf, 0xb9,
-    0xf2, 0xe4, 0x54, 0x5c, 0x15, 0x21, 0xfb, 0xac,
-    0x8a, 0xb4, 0x48, 0x85, 0xbf, 0x67, 0xbf, 0xd1,
-    0x49, 0xa3, 0x00, 0x00, 0x08, 0x13, 0x02, 0x13,
+    0x03, 0x03, 0x7b, 0xe8, 0xc1, 0x18, 0xd7, 0xd1,
+    0x9c, 0x39, 0xa4, 0xfa, 0xce, 0x75, 0x72, 0x40,
+    0xcf, 0x37, 0xbb, 0x4c, 0xcd, 0xa7, 0x62, 0xda,
+    0x04, 0xd2, 0xdb, 0xe2, 0x89, 0x33, 0x36, 0x15,
+    0x96, 0xc9, 0x00, 0x00, 0x08, 0x13, 0x02, 0x13,
     0x03, 0x13, 0x01, 0x00, 0xff, 0x01, 0x00, 0x00,
-    0x56, 0xfd, 0x00, 0x00, 0x13, 0x12, 0x00, 0x0b,
+    0x34, 0xfd, 0x00, 0x00, 0x13, 0x12, 0x00, 0x0b,
     0x00, 0x0a, 0x00, 0x23, 0x00, 0x16, 0x00, 0x17,
     0x00, 0x0d, 0x00, 0x2b, 0x00, 0x2d, 0x00, 0x33,
-    0x00, 0x00, 0x00, 0x1a, 0x00, 0x18, 0x00, 0x00,
-    0x15, 0x63, 0x72, 0x79, 0x70, 0x74, 0x6f, 0x2e,
-    0x63, 0x6c, 0x6f, 0x75, 0x64, 0x66, 0x6c, 0x61,
-    0x72, 0x65, 0x2e, 0x63, 0x6f, 0x6d, 0x00, 0x10,
-    0x00, 0x18, 0x00, 0x16, 0x05, 0x69, 0x6e, 0x6e,
-    0x65, 0x72, 0x06, 0x73, 0x65, 0x63, 0x72, 0x65,
-    0x74, 0x08, 0x68, 0x74, 0x74, 0x70, 0x2f, 0x31,
-    0x2e, 0x31, 0xfe, 0x0d, 0x00, 0x01, 0x01
+    0x00, 0x00, 0x00, 0x14, 0x00, 0x12, 0x00, 0x00,
+    0x0f, 0x66, 0x6f, 0x6f, 0x2e, 0x65, 0x78, 0x61,
+    0x6d, 0x70, 0x6c, 0x65, 0x2e, 0x63, 0x6f, 0x6d,
+    0xfe, 0x0d, 0x00, 0x01, 0x01, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+};
+
+/* inner prefix up as far as outer_exts */
+const unsigned char encoded_inner_pre[] = {
+    0x03, 0x03, 0x7b, 0xe8, 0xc1, 0x18, 0xd7, 0xd1,
+    0x9c, 0x39, 0xa4, 0xfa, 0xce, 0x75, 0x72, 0x40,
+    0xcf, 0x37, 0xbb, 0x4c, 0xcd, 0xa7, 0x62, 0xda,
+    0x04, 0xd2, 0xdb, 0xe2, 0x89, 0x33, 0x36, 0x15,
+    0x96, 0xc9, 0x00, 0x00, 0x08, 0x13, 0x02, 0x13,
+    0x03, 0x13, 0x01, 0x00, 0xff, 0x01, 0x00, 0x00,
+    0x34
+};
+
+/* the outers - we'll play with variations of this */
+const unsigned char encoded_inner_outers[] = {
+    0xfd, 0x00, 0x00, 0x13, 0x12, 0x00, 0x0b,
+    0x00, 0x0a, 0x00, 0x23, 0x00, 0x16, 0x00, 0x17,
+    0x00, 0x0d, 0x00, 0x2b, 0x00, 0x2d, 0x00, 0x33,
+};
+
+/* outers with repetition of one extension (0x0B) */
+const unsigned char borked_inner_outers1[] = {
+    0xfd, 0x00, 0x00, 0x13, 0x12, 0x00, 0x0b,
+    0x00, 0x0B, 0x00, 0x23, 0x00, 0x16, 0x00, 0x17,
+    0x00, 0x0d, 0x00, 0x2b, 0x00, 0x2d, 0x00, 0x33
+};
+
+/* outers including a non-used extension (0xFFAB) */
+const unsigned char borked_inner_outers2[] = {
+    0xfd, 0x00, 0x00, 0x13, 0x12, 0x00, 0x0b,
+    0x00, 0x0a, 0x00, 0x23, 0x00, 0x16, 0x00, 0x17,
+    0xFF, 0xAB, 0x00, 0x2b, 0x00, 0x2d, 0x00, 0x33
+};
+
+const unsigned char encoded_inner_post[] = {
+    0x00, 0x00, 0x00, 0x14, 0x00, 0x12, 0x00, 0x00,
+    0x0f, 0x66, 0x6f, 0x6f, 0x2e, 0x65, 0x78, 0x61,
+    0x6d, 0x70, 0x6c, 0x65, 0x2e, 0x63, 0x6f, 0x6d,
+    0xfe, 0x0d, 0x00, 0x01, 0x01, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
 };
 
 static TEST_ECHINNER test_inners[] = {
-    { NULL, 0, NULL, 0, NULL, 0, 1, 0}, /* basic case - just copy */
-    { NULL, 0, fake, sizeof(fake), NULL, 0, 1, 0}, /* basic case - just copy */
+    /* basic case - just copy, to show we work ok */
+    { NULL, 0, NULL, 0, NULL, 0, 1, SSL_ERROR_NONE},
+    /* likely correct case - will fail 'cause of client random */
+    { encoded_inner_pre, sizeof(encoded_inner_pre),
+      encoded_inner_outers, sizeof(encoded_inner_outers),
+      encoded_inner_post, sizeof(encoded_inner_post),
+      0, /* expected result */
+      SSL_R_DECRYPTION_FAILED_OR_BAD_RECORD_MAC},
+    /* repeated codepoint inside outers */
+    { encoded_inner_pre, sizeof(encoded_inner_pre),
+      borked_inner_outers1, sizeof(borked_inner_outers1),
+      encoded_inner_post, sizeof(encoded_inner_post),
+      0, /* expected result */
+      SSL_R_BAD_EXTENSION},
+    /* non-existent codepoint inside outers */
+    { encoded_inner_pre, sizeof(encoded_inner_pre),
+      borked_inner_outers2, sizeof(borked_inner_outers2),
+      encoded_inner_post, sizeof(encoded_inner_post),
+      0, /* expected result */
+      SSL_R_BAD_EXTENSION},
+
 };
 
-/*
- * Do a HPKE seal of the encoded inner
- */
+/* Do a HPKE seal of a padded encoded inner */
 static int seal_encoded_inner(char **out, int *outlen,
                               unsigned char *ei, size_t eilen,
                               const char *ch, int chlen,
                               size_t echoffset, size_t echlen)
 {
     int res = 0;
-    unsigned char *ct = NULL; size_t ctlen = 0;
-    unsigned char *aad = NULL; size_t aadlen = 0;
+    OSSL_HPKE_SUITE hpke_suite = OSSL_HPKE_SUITE_DEFAULT;
+    OSSL_HPKE_CTX *hctx = NULL;
+    unsigned char *mypub = NULL;
+    static size_t mypublen = 0;
+    unsigned char *theirpub = NULL;
+    size_t theirpublen = 0;
+    unsigned char *ct = NULL;
+    size_t ctlen = 0;
+    unsigned char *aad = NULL;
+    size_t aadlen = 0;
+    unsigned char *chout = NULL;
+    size_t choutlen = 0;
 
+    hctx = OSSL_HPKE_CTX_new(OSSL_HPKE_MODE_BASE, hpke_suite,
+                             OSSL_HPKE_ROLE_SENDER, NULL, NULL);
+    if (!TEST_ptr(hctx))
+        goto err;
+    mypublen = OSSL_HPKE_get_public_encap_size(hpke_suite);
+    if (!TEST_ptr(mypub = OPENSSL_malloc(mypublen)))
+        goto err;
+    theirpub = bin_echconfig + 11;
+    theirpublen = 0x20;
+    if (!TEST_true(OSSL_HPKE_encap(hctx, mypub, &mypublen,
+                                   theirpub, theirpublen,
+                                   hpke_info, hpke_infolen)))
+        goto err;
     /* form up aad which is entire outer CH: zero's instead of ECH ciphertext */
+    choutlen = chlen;
+    if (!TEST_ptr(chout = OPENSSL_malloc(choutlen)))
+        goto err;
+    memcpy(chout, ch, chlen);
+    memcpy(chout + echoffset + 12, mypub, mypublen);
+    ct = chout + echoffset + 12 + mypublen + 2;
     ctlen = OSSL_HPKE_get_ciphertext_size(hpke_suite, eilen);
-    if (!TEST_ptr(aad = OPENSSL_memdup(ch, chlen)))
+    chout[echoffset + 12 + mypublen] = (ctlen >> 8) & 0xff;
+    chout[echoffset + 12 + mypublen + 1] = ctlen & 0xff;
+    /* the 9 skips the record layer header */
+    aad = chout + 9;
+    aadlen = chlen - 9;
+    if (ct + ctlen != aad + aadlen) {
+        TEST_info("length oddity");
         goto err;
-    memcpy(aad + echoffset + 4, mypub, mypublen);
-    ct = aad + echoffset + 4 + mypublen + 2;
+    }
     memset(ct, 0, ctlen);
-    if (ct == NULL)
-        goto err;
     if (!TEST_true(OSSL_HPKE_seal(hctx, ct, &ctlen, aad, aadlen, ei, eilen)))
         goto err;
-    *out = (char *)aad;
-    *outlen = chlen;
-
-    /* for now just return the ch, as-is */
-    if (!TEST_ptr(*out = OPENSSL_memdup(ch, chlen)))
-        goto err;
-    *outlen = chlen;
+    *out = (char *)chout;
+    *outlen = choutlen;
     res = 1;
 err:
+    OPENSSL_free(mypub);
+    OSSL_HPKE_CTX_free(hctx);
     return res;
 
 }
@@ -147,12 +236,19 @@ static int corrupt_or_copy(const char *ch, const int chlen,
     if (chlen > 10 && ch[0] == SSL3_RT_HANDSHAKE
         && ch[5] == SSL3_MT_CLIENT_HELLO)
         is_ch = 1;
+    /* the 9 is the offset of the start of the CH in the record layer */
     if (!TEST_true(ech_helper_get_ch_offsets((const unsigned char *)ch + 9,
                                              chlen - 9,
                                              &sessid, &exts, &extlens,
                                              &echoffset, &echtype, &echlen,
                                              &snioffset, &snilen, &inner)))
         return 0;
+    /* that better be an outer ECH :-) */
+    if (echoffset > 0 && !TEST_int_eq(inner, 0))
+        return 0;
+    /* bump offsets by 9 */
+    echoffset += 9;
+    snioffset += 9;
 
     /*
      * if it's not a ClientHello, or doesn't have an ECH, or if the
@@ -355,11 +451,12 @@ static int test_ech_corrupt(int testidx)
     int err;
     TEST_ECHINNER *ti = NULL;
     int connrv = 0;
+    int exp_err = SSL_ERROR_NONE;
 
     testcase = testidx;
     ti = &test_inners[testidx];
 
-    if (verbose) 
+    if (verbose)
         TEST_info("Starting #%d", testidx);
 
     if (!TEST_true(create_ssl_ctx_pair(NULL, TLS_server_method(),
@@ -381,24 +478,33 @@ static int test_ech_corrupt(int testidx)
     if (!TEST_true(create_ssl_objects(sctx, cctx, &server, &client, NULL,
                                       c_to_s_fbio)))
         goto end;
+    if (!TEST_true(SSL_set_tlsext_host_name(client, "foo.example.com")))
+        goto end;
 
-    connrv = create_ssl_connection(server, client, SSL_ERROR_NONE);
+    exp_err = SSL_ERROR_SSL;
+    if (ti->err_expected == 0)
+        exp_err = SSL_ERROR_NONE;
+    connrv = create_ssl_connection(server, client, exp_err);
     if (!TEST_int_eq(connrv, ti->rv_expected))
         goto end;
 
     if (connrv == 0) {
+        int err_reason = 0;
+
         do {
             err = ERR_get_error();
 
             if (err == 0) {
-                TEST_error("Decryption failed or bad record MAC not seen");
+                TEST_error("ECH corruption: Unexpected error");
                 goto end;
             }
-        } while (ERR_GET_REASON(err) != SSL_R_DECRYPTION_FAILED_OR_BAD_RECORD_MAC);
+            err_reason = ERR_GET_REASON(err);
+            if (verbose)
+                TEST_info("Error reason: %d", err_reason);
+        } while (err_reason != ti->err_expected);
     }
-    
     testresult = 1;
- end:
+end:
     SSL_free(server);
     SSL_free(client);
     SSL_CTX_free(sctx);
@@ -427,7 +533,6 @@ const OPTIONS *test_get_options(void)
 int setup_tests(void)
 {
     OPTION_CHOICE o;
-    unsigned char *theirpub = NULL; size_t theirpublen = 0;
 
     while ((o = opt_next()) != OPT_EOF) {
         switch (o) {
@@ -471,22 +576,10 @@ int setup_tests(void)
     hpke_infolen = bin_echconfiglen + 200;
     if (!TEST_ptr(hpke_info = OPENSSL_malloc(hpke_infolen)))
         goto err;
-    if (!TEST_true(ech_helper_make_enc_info((unsigned char *)bin_echconfig,
-                                            bin_echconfiglen,
+    /* +/- 2 is to drop the ECHConfigList length at the start */
+    if (!TEST_true(ech_helper_make_enc_info((unsigned char *)bin_echconfig + 2,
+                                            bin_echconfiglen - 2,
                                             hpke_info, &hpke_infolen)))
-        goto err;
-    if (!TEST_ptr(hctx = OSSL_HPKE_CTX_new(OSSL_HPKE_MODE_BASE, hpke_suite,
-                                           OSSL_HPKE_ROLE_SENDER, NULL, NULL)))
-        goto err;
-
-    mypublen = OSSL_HPKE_get_public_encap_size(hpke_suite);
-    if (!TEST_ptr(mypub = OPENSSL_malloc(mypublen)))
-        goto err;
-    theirpub = bin_echconfig + 11;
-    theirpublen = 0x20;
-    if (!TEST_true(OSSL_HPKE_encap(hctx, mypub, &mypublen,
-                                   theirpub, theirpublen, 
-                                   hpke_info, hpke_infolen)))
         goto err;
 
     ADD_ALL_TESTS(test_ech_corrupt, OSSL_NELEM(test_inners));
@@ -503,7 +596,5 @@ void cleanup_tests(void)
     OPENSSL_free(echkeyfile);
     OPENSSL_free(echconfig);
     OPENSSL_free(bin_echconfig);
-    OPENSSL_free(mypub);
     OPENSSL_free(hpke_info);
-    OSSL_HPKE_CTX_free(hctx);
 }
