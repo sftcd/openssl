@@ -13,8 +13,10 @@
 #include <openssl/ech.h>
 #include <internal/ech_helpers.h>
 
-#define OSSL_ECH_MAX_LINELEN 1000 /* for a sanity check */
-#define DEF_CERTS_DIR "test/certs"
+#ifndef OPENSSL_NO_ECH
+
+# define OSSL_ECH_MAX_LINELEN 1000 /* for a sanity check */
+# define DEF_CERTS_DIR "test/certs"
 
 static int verbose = 0;
 static int testcase = 0;
@@ -398,9 +400,12 @@ static int corrupt_or_copy(const char *ch, const int chlen,
     encoded_innerlen = prelen + fblen + postlen;
     if (!TEST_ptr(encoded_inner = OPENSSL_malloc(encoded_innerlen)))
         return 0;
-    memcpy(encoded_inner, ti->pre, prelen);
-    memcpy(encoded_inner + prelen, ti->forbork, fblen);
-    memcpy(encoded_inner + prelen + fblen, ti->post, postlen);
+    if (ti->pre != NULL) /* keep fuzz checker happy */
+        memcpy(encoded_inner, ti->pre, prelen);
+    if (ti->forbork != NULL)
+        memcpy(encoded_inner + prelen, ti->forbork, fblen);
+    if (ti->post != NULL)
+        memcpy(encoded_inner + prelen + fblen, ti->post, postlen);
     if (!TEST_true(seal_encoded_inner(chout, choutlen,
                                       encoded_inner, encoded_innerlen,
                                       ch, chlen, echoffset, echlen)))
@@ -547,7 +552,7 @@ static int tls_corrupt_free(BIO *bio)
     return 1;
 }
 
-#define BIO_TYPE_CUSTOM_FILTER (0x80 | BIO_TYPE_FILTER)
+# define BIO_TYPE_CUSTOM_FILTER (0x80 | BIO_TYPE_FILTER)
 
 static BIO_METHOD *method_tls_corrupt = NULL;
 
@@ -660,9 +665,11 @@ const OPTIONS *test_get_options(void)
     };
     return test_options;
 }
+#endif
 
 int setup_tests(void)
 {
+#ifndef OPENSSL_NO_ECH
     OPTION_CHOICE o;
 
     while ((o = opt_next()) != OPT_EOF) {
@@ -717,10 +724,14 @@ int setup_tests(void)
     return 1;
 err:
     return 0;
+#else
+    return 1;
+#endif
 }
 
 void cleanup_tests(void)
 {
+#ifndef OPENSSL_NO_ECH
     bio_f_tls_corrupt_filter_free();
     OPENSSL_free(cert);
     OPENSSL_free(privkey);
@@ -728,4 +739,5 @@ void cleanup_tests(void)
     OPENSSL_free(echconfig);
     OPENSSL_free(bin_echconfig);
     OPENSSL_free(hpke_info);
+#endif
 }
