@@ -1976,6 +1976,12 @@ static int ech_decode_inner(SSL_CONNECTION *s, const unsigned char *ob,
         return 0;
     }
 
+# ifdef OSSL_ECH_SUPERVERBOSE
+    /* fill with known values to help debugging */
+    for (i = 0; i!= OSSL_ECH_OUTERS_MAX; i++)
+        outers[i] = 0xabad;
+# endif
+
     /*
      * We'll try decode encoded_innerch into
      * innerch, modulo s->ext.outers

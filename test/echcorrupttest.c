@@ -124,6 +124,34 @@ static const unsigned char borked_inner_outers2[] = {
     0xFF, 0xAB, 0x00, 0x2b, 0x00, 0x2d, 0x00, 0x33
 };
 
+/* refer to SNI in outers! 2nd-last is 0x0000 */
+static const unsigned char borked_inner_outers3[] = {
+    0xfd, 0x00, 0x00, 0x13, 0x12, 0x00, 0x0b,
+    0x00, 0x0a, 0x00, 0x23, 0x00, 0x16, 0x00, 0x17,
+    0x00, 0x0d, 0x00, 0x2b, 0x00, 0x00, 0x00, 0x33,
+};
+
+/* refer to ECH (0xfe0d) within outers */
+static const unsigned char borked_inner_outers4[] = {
+    0xfd, 0x00, 0x00, 0x13, 0x12, 0x00, 0x0b,
+    0x00, 0x0a, 0x00, 0x23, 0x00, 0x16, 0x00, 0x17,
+    0xFE, 0x0D, 0x00, 0x2b, 0x00, 0x2d, 0x00, 0x33,
+};
+
+/* refer to outers (0xfd00) within outers */
+static const unsigned char borked_inner_outers5[] = {
+    0xfd, 0x00, 0x00, 0x13, 0x12, 0x00, 0x0b,
+    0x00, 0x0a, 0x00, 0x23, 0x00, 0x16, 0x00, 0x17,
+    0xFD, 0x00, 0x00, 0x2b, 0x00, 0x2d, 0x00, 0x33,
+};
+
+/* no outers at all! inlude unknown ext 0xff99 instead */
+static const unsigned char borked_inner_outers6[] = {
+    0xFF, 0x99, 0x00, 0x13, 0x12, 0x00, 0x0b,
+    0x00, 0x0a, 0x00, 0x23, 0x00, 0x16, 0x00, 0x17,
+    0x00, 0x0d, 0x00, 0x2b, 0x00, 0x2d, 0x00, 0x33,
+};
+
 static const unsigned char encoded_inner_post[] = {
     0x00, 0x00, 0x00, 0x14, 0x00, 0x12, 0x00, 0x00,
     0x0f, 0x66, 0x6f, 0x6f, 0x2e, 0x65, 0x78, 0x61,
@@ -145,7 +173,7 @@ static const unsigned char bad_pad_encoded_inner_post[] = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
 };
 
-/* for now, this is just for documentation */
+/* an encoded inner that's just too short */
 static const unsigned char short_encoded_inner[] = {
     0x03, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -165,13 +193,15 @@ static const unsigned char short_encoded_inner[] = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
 };
 
-/*
- * TODO: likely refactor these into more logial and explicable
- * subsets once we're happy we have good code coverage
- */
+/* A set of test vectors */
 static TEST_ECHINNER test_inners[] = {
     /* basic case - copy to show test code works with no change */
     { NULL, 0, NULL, 0, NULL, 0, 1, SSL_ERROR_NONE},
+    /* otherwise-correct case that fails only due to client random */
+    { NULL, 0, entire_encoded_inner, sizeof(entire_encoded_inner),
+      NULL, 0,
+      0, /* expected result */
+      SSL_R_DECRYPTION_FAILED_OR_BAD_RECORD_MAC},
     /* otherwise-correct case that fails only due to client random */
     { encoded_inner_pre, sizeof(encoded_inner_pre),
       encoded_inner_outers, sizeof(encoded_inner_outers),
@@ -184,6 +214,16 @@ static TEST_ECHINNER test_inners[] = {
       bad_pad_encoded_inner_post, sizeof(bad_pad_encoded_inner_post),
       0, /* expected result */
       SSL_R_DECRYPTION_FAILED_OR_BAD_RECORD_MAC},
+
+    /*
+     * unsupported extension instead of outers - resulting decoded
+     * inner is missing so much it seems to be the wrong protocol
+     */
+    { encoded_inner_pre, sizeof(encoded_inner_pre),
+      borked_inner_outers6, sizeof(borked_inner_outers6),
+      encoded_inner_post, sizeof(encoded_inner_post),
+      0, /* expected result */
+      SSL_R_UNSUPPORTED_PROTOCOL},
 
     /* madly long ciphersuites in inner */
     { badsuites_inner_pre, sizeof(badsuites_inner_pre),
@@ -207,6 +247,24 @@ static TEST_ECHINNER test_inners[] = {
     /* non-existent codepoint inside outers */
     { encoded_inner_pre, sizeof(encoded_inner_pre),
       borked_inner_outers2, sizeof(borked_inner_outers2),
+      encoded_inner_post, sizeof(encoded_inner_post),
+      0, /* expected result */
+      SSL_R_BAD_EXTENSION},
+    /* include SNI in outers as well as both inner and outer */
+    { encoded_inner_pre, sizeof(encoded_inner_pre),
+      borked_inner_outers3, sizeof(borked_inner_outers3),
+      encoded_inner_post, sizeof(encoded_inner_post),
+      0, /* expected result */
+      SSL_R_BAD_EXTENSION},
+    /* refer to ECH within outers */
+    { encoded_inner_pre, sizeof(encoded_inner_pre),
+      borked_inner_outers4, sizeof(borked_inner_outers4),
+      encoded_inner_post, sizeof(encoded_inner_post),
+      0, /* expected result */
+      SSL_R_BAD_EXTENSION},
+    /* refer to outers within outers */
+    { encoded_inner_pre, sizeof(encoded_inner_pre),
+      borked_inner_outers5, sizeof(borked_inner_outers5),
       encoded_inner_post, sizeof(encoded_inner_post),
       0, /* expected result */
       SSL_R_BAD_EXTENSION},
@@ -299,7 +357,7 @@ static int corrupt_or_copy(const char *ch, const int chlen,
     fblen = ti->forbork == NULL ? 0 : ti->fblen;
     postlen = ti->post == NULL ? 0 : ti->postlen;
 
-    /* check for editing error */
+    /* check for editing errors */
     if (testcase != 0
         && prelen + fblen + postlen != sizeof(entire_encoded_inner)) {
         TEST_info("manual sizing error");
