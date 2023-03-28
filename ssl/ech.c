@@ -2132,7 +2132,7 @@ static int ech_decode_inner(SSL_CONNECTION *s, const unsigned char *ob,
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         goto err;
     }
-    if (!ossl_assert(n_outers == slen / 2)) {
+    if (2 * n_outers != slen) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         goto err;
     }

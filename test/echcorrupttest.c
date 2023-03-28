@@ -34,23 +34,23 @@ static size_t hpke_infolen = 0;
 /*
  * We use a set of test vectors for each test:
  *  - encoded inner CH prefix
- *  - encoded inner CH corrupted-or-not
+ *  - encoded inner CH for borking (esp. outer extensions)
  *  - encoded inner CH postfix
  *  - expected result (1 for good, 0 for bad)
- *  - expected error in the case of bad
+ *  - expected error reason in the case of bad
  *
- * For each test, we'll try replace the ECH ciphertext with
- * a value that's basically the HPKE seal/enc of an inner-CH
- * made up of the relevant three parts and then see if we
- * get the expected error.
+ * For each test, we replace the ECH ciphertext with a value
+ * that's the HPKE seal/enc of an encoded inner-CH made up of
+ * the three parts above and then see if we get the expected
+ * error (reason).
  *
- * Whenever we re-seal we will get an error due to the inner
- * client random, which we can't know. But hopefully that'll
- * differ from errors in handling decoding after decryption.
+ * Whenever we re-seal we will get an error due to using the
+ * wrong inner client random, which we can't know. But that
+ * differs from errors in handling decoding after decryption.
  *
- * The inner CH is split in 3 so we can re-use the pre and
- * post values, making it easier to understand/manipulate the
- * corrupted-or-not value.
+ * The inner CH is split in 3 variables so we can re-use pre
+ * and post values, making it easier to understand/manipulate
+ * a corrupted-or-not value.
  */
 typedef struct {
     const unsigned char *pre;
@@ -63,7 +63,7 @@ typedef struct {
     int err_expected; /* expected error */
 } TEST_ECHINNER;
 
-/* for now, this is just for documentation */
+/* a full padded, encoded inner client hello */
 static const unsigned char entire_encoded_inner[] = {
     0x03, 0x03, 0x7b, 0xe8, 0xc1, 0x18, 0xd7, 0xd1,
     0x9c, 0x39, 0xa4, 0xfa, 0xce, 0x75, 0x72, 0x40,
@@ -105,7 +105,7 @@ static const unsigned char badsuites_inner_pre[] = {
     0x34
 };
 
-/* the outers - we'll play with variations of this */
+/* outer extensions - we play with variations of this */
 static const unsigned char encoded_inner_outers[] = {
     0xfd, 0x00, 0x00, 0x13, 0x12, 0x00, 0x0b,
     0x00, 0x0a, 0x00, 0x23, 0x00, 0x16, 0x00, 0x17,
@@ -113,43 +113,57 @@ static const unsigned char encoded_inner_outers[] = {
 };
 
 /* outers with repetition of one extension (0x0B) */
-static const unsigned char borked_inner_outers1[] = {
+static const unsigned char borked_outer1[] = {
     0xfd, 0x00, 0x00, 0x13, 0x12, 0x00, 0x0b,
     0x00, 0x0B, 0x00, 0x23, 0x00, 0x16, 0x00, 0x17,
     0x00, 0x0d, 0x00, 0x2b, 0x00, 0x2d, 0x00, 0x33
 };
 
 /* outers including a non-used extension (0xFFAB) */
-static const unsigned char borked_inner_outers2[] = {
+static const unsigned char borked_outer2[] = {
     0xfd, 0x00, 0x00, 0x13, 0x12, 0x00, 0x0b,
     0x00, 0x0a, 0x00, 0x23, 0x00, 0x16, 0x00, 0x17,
     0xFF, 0xAB, 0x00, 0x2b, 0x00, 0x2d, 0x00, 0x33
 };
 
 /* refer to SNI in outers! 2nd-last is 0x0000 */
-static const unsigned char borked_inner_outers3[] = {
+static const unsigned char borked_outer3[] = {
     0xfd, 0x00, 0x00, 0x13, 0x12, 0x00, 0x0b,
     0x00, 0x0a, 0x00, 0x23, 0x00, 0x16, 0x00, 0x17,
     0x00, 0x0d, 0x00, 0x2b, 0x00, 0x00, 0x00, 0x33,
 };
 
 /* refer to ECH (0xfe0d) within outers */
-static const unsigned char borked_inner_outers4[] = {
+static const unsigned char borked_outer4[] = {
     0xfd, 0x00, 0x00, 0x13, 0x12, 0x00, 0x0b,
     0x00, 0x0a, 0x00, 0x23, 0x00, 0x16, 0x00, 0x17,
     0xFE, 0x0D, 0x00, 0x2b, 0x00, 0x2d, 0x00, 0x33,
 };
 
 /* refer to outers (0xfd00) within outers */
-static const unsigned char borked_inner_outers5[] = {
+static const unsigned char borked_outer5[] = {
     0xfd, 0x00, 0x00, 0x13, 0x12, 0x00, 0x0b,
     0x00, 0x0a, 0x00, 0x23, 0x00, 0x16, 0x00, 0x17,
     0xFD, 0x00, 0x00, 0x2b, 0x00, 0x2d, 0x00, 0x33,
 };
 
 /* no outers at all! inlude unknown ext 0xff99 instead */
-static const unsigned char borked_inner_outers6[] = {
+static const unsigned char borked_outer6[] = {
     0xFF, 0x99, 0x00, 0x13, 0x12, 0x00, 0x0b,
+    0x00, 0x0a, 0x00, 0x23, 0x00, 0x16, 0x00, 0x17,
+    0x00, 0x0d, 0x00, 0x2b, 0x00, 0x2d, 0x00, 0x33,
+};
+
+/* outer with bad length (even number of octets)  */
+static const unsigned char borked_outer7[] = {
+    0xfd, 0x00, 0x00, 0x08, 0x12, 0x00, 0x0b,
+    0x00, 0x0a, 0x00, 0x23, 0x00, 0x16, 0x00, 0x17,
+    0x00, 0x0d, 0x00, 0xFF, 0xFF, 0x02, 0x00, 0x00,
+};
+
+/* outer with bad inner length (odd number of octets)  */
+static const unsigned char borked_outer8[] = {
+    0xfd, 0x00, 0x00, 0x13, 0x11, 0x00, 0x0b,
     0x00, 0x0a, 0x00, 0x23, 0x00, 0x16, 0x00, 0x17,
     0x00, 0x0d, 0x00, 0x2b, 0x00, 0x2d, 0x00, 0x33,
 };
@@ -222,7 +236,7 @@ static TEST_ECHINNER test_inners[] = {
      * inner is missing so much it seems to be the wrong protocol
      */
     { encoded_inner_pre, sizeof(encoded_inner_pre),
-      borked_inner_outers6, sizeof(borked_inner_outers6),
+      borked_outer6, sizeof(borked_outer6),
       encoded_inner_post, sizeof(encoded_inner_post),
       0, /* expected result */
       SSL_R_UNSUPPORTED_PROTOCOL},
@@ -242,31 +256,43 @@ static TEST_ECHINNER test_inners[] = {
 
     /* repeated codepoint inside outers */
     { encoded_inner_pre, sizeof(encoded_inner_pre),
-      borked_inner_outers1, sizeof(borked_inner_outers1),
+      borked_outer1, sizeof(borked_outer1),
       encoded_inner_post, sizeof(encoded_inner_post),
       0, /* expected result */
       SSL_R_BAD_EXTENSION},
     /* non-existent codepoint inside outers */
     { encoded_inner_pre, sizeof(encoded_inner_pre),
-      borked_inner_outers2, sizeof(borked_inner_outers2),
+      borked_outer2, sizeof(borked_outer2),
       encoded_inner_post, sizeof(encoded_inner_post),
       0, /* expected result */
       SSL_R_BAD_EXTENSION},
     /* include SNI in outers as well as both inner and outer */
     { encoded_inner_pre, sizeof(encoded_inner_pre),
-      borked_inner_outers3, sizeof(borked_inner_outers3),
+      borked_outer3, sizeof(borked_outer3),
       encoded_inner_post, sizeof(encoded_inner_post),
       0, /* expected result */
       SSL_R_BAD_EXTENSION},
     /* refer to ECH within outers */
     { encoded_inner_pre, sizeof(encoded_inner_pre),
-      borked_inner_outers4, sizeof(borked_inner_outers4),
+      borked_outer4, sizeof(borked_outer4),
       encoded_inner_post, sizeof(encoded_inner_post),
       0, /* expected result */
       SSL_R_BAD_EXTENSION},
     /* refer to outers within outers */
     { encoded_inner_pre, sizeof(encoded_inner_pre),
-      borked_inner_outers5, sizeof(borked_inner_outers5),
+      borked_outer5, sizeof(borked_outer5),
+      encoded_inner_post, sizeof(encoded_inner_post),
+      0, /* expected result */
+      SSL_R_BAD_EXTENSION},
+    /* bad length of outers */
+    { encoded_inner_pre, sizeof(encoded_inner_pre),
+      borked_outer7, sizeof(borked_outer7),
+      encoded_inner_post, sizeof(encoded_inner_post),
+      0, /* expected result */
+      SSL_R_BAD_EXTENSION},
+    /* bad inner length in outers */
+    { encoded_inner_pre, sizeof(encoded_inner_pre),
+      borked_outer8, sizeof(borked_outer8),
       encoded_inner_post, sizeof(encoded_inner_post),
       0, /* expected result */
       SSL_R_BAD_EXTENSION},
