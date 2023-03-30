@@ -1910,6 +1910,135 @@ static int ech_get_sh_offsets(const unsigned char *sh, size_t sh_len,
     return 1;
 }
 
+# undef EDI_PACKET
+# ifdef EDI_PACKET
+
+/*
+ * @brief find outers if any, and do initial checks
+ * @param s is the SSL connection
+ * @param ei is the encoded inner
+ * @param outers is the array of outer ext types
+ * @param n_outers is the number of outers found
+ * @return 1 for good, 0 for error
+ */
+static int ech_find_outers(SSL_CONNECTION *s, PACKET *ei,
+                           uint16_t *outers, size_t *n_outers)
+{
+    return 0;
+}
+
+/*
+ * @brief reconstitute the inner CH from encoded inner and outers
+ * @param s is the SSL connection
+ * @param di is the reconstituted nner CH
+ * @param ei is the encoded inner
+ * @param outers is the array of outer ext types
+ * @param n_outers is the number of outers found
+ * @return 1 for good, 0 for error
+ */
+static int ech_reconstitute_outer(SSL_CONNECTION *s, WPACKET *di, PACKET *ei,
+                                  uint16_t *outers, size_t n_outers)
+{
+    return 0;
+}
+
+/*
+ * @brief do final checks on reconstitured outer CH
+ * @param s is the SSL connection
+ * @param di is the outer CH
+ * @return 1 for good, 0 for error
+ */
+static int ech_final_di_checks(SSL_CONNECTION *s, WPACKET *di)
+{
+    return 0;
+}
+
+/*
+ * @brief After successful ECH decrypt, we decode, decompress etc.
+ * @param s is the SSL connection
+ * @param ob is the outer CH as a buffer
+ * @param ob_len is the size of the above
+ * @param outer_startofexts is the offset of exts in ob
+ * @return 1 for success, error otherwise
+ *
+ * We need the outer CH as a buffer (ob, below) so we can
+ * ECH-decompress.
+ * The plaintext we start from is in encoded_innerch
+ * and our final decoded, decompressed buffer will end up
+ * in innerch (which'll then be further processed).
+ * That further processing includes all existing decoding
+ * checks so we should be fine wrt fuzzing without having
+ * to make all checks here (e.g. we can assume that the
+ * protocol version, NULL compression etc are correct here -
+ * if not, those'll be caught later).
+ * Note: there are a lot of literal values here, but it's
+ * not clear that changing those to #define'd symbols will
+ * help much - a change to the length of a type or from a
+ * 2 octet length to longer would seem unlikely.
+ */
+static int ech_decode_inner_packet(SSL_CONNECTION *s, const unsigned char *ob,
+                                   size_t ob_len, size_t outer_startofexts)
+{
+    int rv = 0, i;
+    PACKET ei; /* encoded inner */
+    BUF_MEM *di_mem = NULL;
+    uint16_t outers[OSSL_ECH_OUTERS_MAX]; /* compressed extension types */
+    size_t n_outers = 0;
+    WPACKET di;
+
+    if (s->ext.ech.encoded_innerch == NULL || ob == NULL || ob_len == 0
+        || outer_startofexts == 0) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+        return 0;
+    }
+
+    /* 1. check for outers and make inital checks of those */
+    if (PACKET_buf_init(&ei, s->ext.ech.encoded_innerch,
+                        s->ext.ech.encoded_innerch_len) != 1) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+#  ifdef OSSL_ECH_SUPERVERBOSE
+    /* fill with known values to help debugging */
+    for (i = 0; i != OSSL_ECH_OUTERS_MAX; i++)
+        outers[i] = 0xabad;
+#  endif
+    if (ech_find_outers(s, &ei, outers, &n_outers) != 1)
+        goto err; /* SSLfatal called already */
+    /* 2. reconstitute outer CH */
+    if ((di_mem = BUF_MEM_new()) == NULL
+        || !BUF_MEM_grow(di_mem, SSL3_RT_MAX_PLAIN_LENGTH)
+        || !WPACKET_init(&di, di_mem)) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+    if (ech_reconstitute_outer(s, &di, &ei, outers, n_outers) != 1)
+        goto err; /* SSLfatal called already */
+    /* 3. final checks of outer for repeated exts */
+    if (ech_final_di_checks(s, &di) != 1)
+        goto err; /* SSLfatal called already */
+    /* 4. store final inner CH in connection */
+    /* handle HRR case where we (temporarily) store the old inner CH */
+    if (s->ext.ech.innerch != NULL) {
+        OPENSSL_free(s->ext.ech.innerch1);
+        s->ext.ech.innerch1 = s->ext.ech.innerch;
+        s->ext.ech.innerch1_len = s->ext.ech.innerch_len;
+    }
+    if (!WPACKET_get_length(&di, &s->ext.ech.innerch_len))
+        goto err;
+    s->ext.ech.innerch = OPENSSL_malloc(s->ext.ech.innerch_len);
+    if (s->ext.ech.innerch == NULL)
+        goto err;
+    memcpy(s->ext.ech.innerch, di_mem->data, s->ext.ech.innerch_len);
+    return 1;
+err:
+    WPACKET_cleanup(&di);
+    BUF_MEM_free(di_mem);
+    return rv;
+}
+
+# else
+
 /*
  * @brief After successful ECH decrypt, decode, decompress etc.
  * @param ssl is the SSL session
@@ -1976,11 +2105,11 @@ static int ech_decode_inner(SSL_CONNECTION *s, const unsigned char *ob,
         return 0;
     }
 
-# ifdef OSSL_ECH_SUPERVERBOSE
+#  ifdef OSSL_ECH_SUPERVERBOSE
     /* fill with known values to help debugging */
-    for (i = 0; i!= OSSL_ECH_OUTERS_MAX; i++)
+    for (i = 0; i != OSSL_ECH_OUTERS_MAX; i++)
         outers[i] = 0xabad;
-# endif
+#  endif
 
     /*
      * We'll try decode encoded_innerch into
@@ -2035,12 +2164,12 @@ static int ech_decode_inner(SSL_CONNECTION *s, const unsigned char *ob,
     memcpy(initial_decomp + offset2sessid + 1 + s->tmp_session_id_len,
            s->ext.ech.encoded_innerch + offset2sessid + 1,
            s->ext.ech.encoded_innerch_len - offset2sessid - 1);
-# ifdef OSSL_ECH_SUPERVERBOSE
+#  ifdef OSSL_ECH_SUPERVERBOSE
     ech_pbuf("Inner CH (session-id-added but no decompression)",
              initial_decomp, initial_decomp_len);
     ech_pbuf("start of exts", &initial_decomp[startofexts],
              initial_decomp_len - startofexts);
-# endif
+#  endif
     /* Now skip over exts until we do/don't see outers */
     found = 0;
     if ((startofexts + 2) >= initial_decomp_len) {
@@ -2069,7 +2198,7 @@ static int ech_decode_inner(SSL_CONNECTION *s, const unsigned char *ob,
         elen = initial_decomp[oneextstart + 2] * 256
             + initial_decomp[oneextstart + 3];
         if (oneextstart + 4 + elen > initial_decomp_len) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_R_BAD_EXTENSION);
             goto err;
         }
         if (etype == TLSEXT_TYPE_outer_extensions) {
@@ -2333,9 +2462,9 @@ static int ech_decode_inner(SSL_CONNECTION *s, const unsigned char *ob,
             }
         }
     }
-# ifdef OSSL_ECH_SUPERVERBOSE
+#  ifdef OSSL_ECH_SUPERVERBOSE
     ech_pbuf("final_decomp", final_decomp, final_decomp_len);
-# endif
+#  endif
     /* handle HRR case where we (temporarily) store the old inner CH */
     if (s->ext.ech.innerch != NULL) {
         if (s->ext.ech.innerch1 != NULL)
@@ -2353,6 +2482,8 @@ err:
     OPENSSL_free(final_decomp);
     return 0;
 }
+
+# endif /* EDI_PACKET */
 
 /*
  * @brief wrapper for hpke_dec just to save code repetition
@@ -4600,10 +4731,17 @@ int ech_early_decrypt(SSL_CONNECTION *s, PACKET *outerpkt, PACKET *newpkt)
      */
     s->ext.ech.encoded_innerch = clear;
     s->ext.ech.encoded_innerch_len = clearlen;
+# ifdef EDI_PACKET
+    if (ech_decode_inner_packet(s, ch, ch_len, startofexts) != 1) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+# else
     if (ech_decode_inner(s, ch, ch_len, startofexts) != 1) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         goto err;
     }
+# endif
 # ifdef OSSL_ECH_SUPERVERBOSE
     ech_pbuf("Inner CH (decoded)", s->ext.ech.innerch, s->ext.ech.innerch_len);
 # endif

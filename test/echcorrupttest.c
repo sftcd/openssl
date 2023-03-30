@@ -154,17 +154,35 @@ static const unsigned char borked_outer6[] = {
     0x00, 0x0d, 0x00, 0x2b, 0x00, 0x2d, 0x00, 0x33,
 };
 
-/* outer with bad length (even number of octets)  */
+/*
+ * outer with bad length (even number of octets)
+ * we add a short bogus extension (0xFFFF) after
+ * to ensure overall decode succeeds
+ */
 static const unsigned char borked_outer7[] = {
     0xfd, 0x00, 0x00, 0x08, 0x12, 0x00, 0x0b,
     0x00, 0x0a, 0x00, 0x23, 0x00, 0x16, 0x00, 0x17,
-    0x00, 0x0d, 0x00, 0xFF, 0xFF, 0x02, 0x00, 0x00,
+    0x00, 0x0d, 0x00, 0xFF, 0xFF, 0x00, 0x01, 0x00,
 };
 
 /* outer with bad inner length (odd number of octets)  */
 static const unsigned char borked_outer8[] = {
     0xfd, 0x00, 0x00, 0x13, 0x11, 0x00, 0x0b,
     0x00, 0x0a, 0x00, 0x23, 0x00, 0x16, 0x00, 0x17,
+    0x00, 0x0d, 0x00, 0x2b, 0x00, 0x2d, 0x00, 0x33,
+};
+
+/* outer with HUGE length (0xFF13) */
+static const unsigned char borked_outer9[] = {
+    0xfd, 0x00, 0xFF, 0x13, 0x12, 0x00, 0x0b,
+    0x00, 0x0a, 0x00, 0x23, 0x00, 0x16, 0x00, 0x17,
+    0x00, 0x0d, 0x00, 0x2b, 0x00, 0x2d, 0x00, 0x33,
+};
+
+/* outer with zero length, followed by bogus ext */
+static const unsigned char borked_outer10[] = {
+    0xfd, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0x00,
+    0x0F, 0x0a, 0x00, 0x23, 0x00, 0x16, 0x00, 0x17,
     0x00, 0x0d, 0x00, 0x2b, 0x00, 0x2d, 0x00, 0x33,
 };
 
@@ -233,7 +251,7 @@ static TEST_ECHINNER test_inners[] = {
 
     /*
      * unsupported extension instead of outers - resulting decoded
-     * inner is missing so much it seems to be the wrong protocol
+     * inner missing so much it seems to be the wrong protocol
      */
     { encoded_inner_pre, sizeof(encoded_inner_pre),
       borked_outer6, sizeof(borked_outer6),
@@ -293,6 +311,18 @@ static TEST_ECHINNER test_inners[] = {
     /* bad inner length in outers */
     { encoded_inner_pre, sizeof(encoded_inner_pre),
       borked_outer8, sizeof(borked_outer8),
+      encoded_inner_post, sizeof(encoded_inner_post),
+      0, /* expected result */
+      SSL_R_BAD_EXTENSION},
+    /* HUGE length in outers */
+    { encoded_inner_pre, sizeof(encoded_inner_pre),
+      borked_outer9, sizeof(borked_outer9),
+      encoded_inner_post, sizeof(encoded_inner_post),
+      0, /* expected result */
+      SSL_R_BAD_EXTENSION},
+    /* zero length in outers */
+    { encoded_inner_pre, sizeof(encoded_inner_pre),
+      borked_outer10, sizeof(borked_outer10),
       encoded_inner_post, sizeof(encoded_inner_post),
       0, /* expected result */
       SSL_R_BAD_EXTENSION},
