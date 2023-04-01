@@ -22,6 +22,8 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
+- 20230401: refactored ``ech_decode_inner()`` to only use PACKET APIs
+
 - 20230325: pushing a commit to check if the [github.com SSH key
   rotation](https://www.bleepingcomputer.com/news/security/githubcom-rotates-its-exposed-private-ssh-key/)
 affects me;-) Yep, it did, had to do a bit of manual key deletion and accepting

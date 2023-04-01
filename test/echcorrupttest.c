@@ -30,6 +30,7 @@ static unsigned char *bin_echconfig;
 static size_t bin_echconfiglen = 0;
 static unsigned char *hpke_info = NULL;
 static size_t hpke_infolen = 0;
+static int short_test = 0;
 
 /*
  * We use a set of test vectors for each test:
@@ -51,6 +52,15 @@ static size_t hpke_infolen = 0;
  * The inner CH is split in 3 variables so we can re-use pre
  * and post values, making it easier to understand/manipulate
  * a corrupted-or-not value.
+ *
+ * Note that the overall length of the encoded inner needs to
+ * be mainained as otherwise outer length fields that are not
+ * re-computed will be wrong. (We include a test of that as
+ * well.) A radical change in the content of encoded inner
+ * values (e.g. eliminating compression entirely) could break
+ * these tests, but minor changes should have no effect due to
+ * padding. (Such a radical change showing up as a fail of
+ * these tests is arguably a good outcome.)
  */
 typedef struct {
     const unsigned char *pre;
@@ -81,6 +91,43 @@ static const unsigned char entire_encoded_inner[] = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+};
+
+/* a full padded, encoded inner client hello with no extensions */
+static const unsigned char no_ext_encoded_inner[] = {
+    0x03, 0x03, 0x7b, 0xe8, 0xc1, 0x18, 0xd7, 0xd1,
+    0x9c, 0x39, 0xa4, 0xfa, 0xce, 0x75, 0x72, 0x40,
+    0xcf, 0x37, 0xbb, 0x4c, 0xcd, 0xa7, 0x62, 0xda,
+    0x04, 0xd2, 0xdb, 0xe2, 0x89, 0x33, 0x36, 0x15,
+    0x96, 0xc9, 0x00, 0x00, 0x08, 0x13, 0x02, 0x13,
+    0x03, 0x13, 0x01, 0x00, 0xff, 0x01, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+};
+
+/* a too-short, encoded inner client hello */
+static const unsigned char outer_short_encoded_inner[] = {
+    0x03, 0x03, 0x7b, 0xe8, 0xc1, 0x18, 0xd7, 0xd1,
+    0x9c, 0x39, 0xa4, 0xfa, 0xce, 0x75, 0x72, 0x40,
+    0xcf, 0x37, 0xbb, 0x4c, 0xcd, 0xa7, 0x62, 0xda,
+    0x04, 0xd2, 0xdb, 0xe2, 0x89, 0x33, 0x36, 0x15,
+    0x96, 0xc9, 0x00, 0x00, 0x08, 0x13, 0x02, 0x13,
+    0x03, 0x13, 0x01, 0x00, 0xff, 0x01, 0x00, 0x00,
+    0x34, 0xfd, 0x00, 0x00, 0x13, 0x12, 0x00, 0x0b,
+    0x00, 0x0a, 0x00, 0x23, 0x00, 0x16, 0x00, 0x17,
+    0x00, 0x0d, 0x00, 0x2b, 0x00, 0x2d, 0x00, 0x33,
+    0x00, 0x00, 0x00, 0x14, 0x00, 0x12, 0x00, 0x00,
+    0x0f, 0x66, 0x6f, 0x6f, 0x2e, 0x65, 0x78, 0x61,
+    0x6d, 0x70, 0x6c, 0x65, 0x2e, 0x63, 0x6f, 0x6d,
+    0xfe, 0x0d, 0x00, 0x01, 0x01,
 };
 
 /* inner prefix up as far as outer_exts */
@@ -231,8 +278,16 @@ static const unsigned char short_encoded_inner[] = {
 static TEST_ECHINNER test_inners[] = {
     /* basic case - copy to show test code works with no change */
     { NULL, 0, NULL, 0, NULL, 0, 1, SSL_ERROR_NONE},
+
+    /* too-short encoded inner */
+    { NULL, 0,
+      outer_short_encoded_inner, sizeof(outer_short_encoded_inner),
+      NULL, 0,
+      0, /* expected result */
+      SSL_R_DECRYPTION_FAILED_OR_BAD_RECORD_MAC},
     /* otherwise-correct case that fails only due to client random */
-    { NULL, 0, entire_encoded_inner, sizeof(entire_encoded_inner),
+    { NULL, 0,
+      entire_encoded_inner, sizeof(entire_encoded_inner),
       NULL, 0,
       0, /* expected result */
       SSL_R_DECRYPTION_FAILED_OR_BAD_RECORD_MAC},
@@ -326,6 +381,12 @@ static TEST_ECHINNER test_inners[] = {
       encoded_inner_post, sizeof(encoded_inner_post),
       0, /* expected result */
       SSL_R_BAD_EXTENSION},
+    /* case with no extensions at all */
+    { NULL, 0,
+      no_ext_encoded_inner, sizeof(no_ext_encoded_inner),
+      NULL, 0,
+      0, /* expected result */
+      SSL_R_BAD_EXTENSION},
 
 };
 
@@ -375,7 +436,7 @@ static int seal_encoded_inner(char **out, int *outlen,
     /* the 9 skips the record layer header */
     aad = chout + 9;
     aadlen = chlen - 9;
-    if (ct + ctlen != aad + aadlen) {
+    if (short_test == 0 && ct + ctlen != aad + aadlen) {
         TEST_info("length oddity");
         goto err;
     }
@@ -416,11 +477,14 @@ static int corrupt_or_copy(const char *ch, const int chlen,
     postlen = ti->post == NULL ? 0 : ti->postlen;
 
     /* check for editing errors */
-    if (testcase != 0
+    if (testcase != 0 && testcase != 1
         && prelen + fblen + postlen != sizeof(entire_encoded_inner)) {
         TEST_info("manual sizing error");
         return 0;
     }
+    if (testcase == 1) /* the only case with a short ciphertext for now */
+        short_test = 1;
+
     /* is it a ClientHello or not? */
     if (chlen > 10 && ch[0] == SSL3_RT_HANDSHAKE
         && ch[5] == SSL3_MT_CLIENT_HELLO)
