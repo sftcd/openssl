@@ -1929,7 +1929,8 @@ static int ech_find_outers(SSL_CONNECTION *s, PACKET *pkt,
 {
     const unsigned char *pp_tmp;
     unsigned int pi_tmp, extlens, etype, elen, olen;
-    int outers_found = 0, i;
+    int outers_found = 0;
+    size_t i;
     PACKET op;
 
     /* chew up the packet to extensions */
