@@ -170,7 +170,7 @@ static const unsigned char echconfig_dig_multi[] =
 
 /*
  * format used by echcli.sh test script, ascii-hex
- * grabbed using dig unknown format and the tidied
+ * grabbed using dig unknown format and tidied
  * up by removing spaces
  */
 static const unsigned char echconfig_echcli[] =
@@ -406,7 +406,7 @@ static TEST_ECHCONFIG test_echconfigs[] = {
     { echconfig_no_ech, sizeof(echconfig_no_ech) - 1, 0, 1 },
     { echconfig_bin_wrong_ver, sizeof(echconfig_bin_wrong_ver), 0, 1 },
     { echconfig_ah, sizeof(echconfig_ah) -1, 1, 1 },
-    { echconfig_ah_bad_ver, sizeof(echconfig_ah_bad_ver) -1, 0, 1 },
+    { echconfig_ah_bad_ver, sizeof(echconfig_ah_bad_ver) -1, 0, 0 },
     { echconfig_ah_zero, sizeof(echconfig_ah_zero) - 1, 1, 1 },
     { bad_echconfig_olen, sizeof(bad_echconfig_olen) -1, 0, 0 },
     { bad_echconfig_ilen, sizeof(bad_echconfig_ilen) -1, 0, 0 },
