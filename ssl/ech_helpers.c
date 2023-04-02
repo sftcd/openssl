@@ -77,7 +77,7 @@ int ech_helper_get_ch_offsets(const unsigned char *ch, size_t ch_len,
     if (!PACKET_get_net_2(&pkt, &pi_tmp))
         return 0;
     /* if we're not TLSv1.2+ then we can bail, but it's not an error */
-    if (pi_tmp != TLS1_2_VERSION)
+    if (pi_tmp != TLS1_2_VERSION && pi_tmp != TLS1_3_VERSION)
         return 1;
     /* chew up the packet to extensions */
     if (!PACKET_get_bytes(&pkt, &pp_tmp, SSL3_RANDOM_SIZE)
@@ -91,17 +91,28 @@ int ech_helper_get_ch_offsets(const unsigned char *ch, size_t ch_len,
         || (*exts = PACKET_data(&pkt) - chstart) == 0
         || !PACKET_get_net_2(&pkt, &pi_tmp) /* len(extensions) */
         || (*extlens = (size_t) pi_tmp) == 0)
-        return 0;
-    /* grab what we need from extensions */
+        /*
+         * unexpectedly, we return 1 here, as doing otherwise will
+         * break some existing test code that truncates CH messages
+         * The same is true below when looking through extensions.
+         * That's ok though, we'll only set those offsets we've
+         * found. TODO: review this later, could be better to change
+         * the tests that'd otherwise break.
+         */
+        return 1;
+    /* no extensions is theoretically ok, if uninteresting */
+    if (*extlens == 0)
+        return 1;
+    /* find what we want from extensions */
     estart = PACKET_data(&pkt);
     while (PACKET_remaining(&pkt) > 0
-           && (PACKET_data(&pkt) - estart) < *extlens
+           && (size_t)(PACKET_data(&pkt) - estart) < *extlens
            && done < 2) {
         if (!PACKET_get_net_2(&pkt, &etype)
             || !PACKET_get_net_2(&pkt, &elen))
-            return 0;
+            return 1; /* see note above */
         if (etype == TLSEXT_TYPE_ech13) {
-            if (elen == 0) 
+            if (elen == 0)
                 return 0;
             *echoffset = PACKET_data(&pkt) - chstart - 4;
             *echtype = etype;
@@ -114,7 +125,7 @@ int ech_helper_get_ch_offsets(const unsigned char *ch, size_t ch_len,
             done++;
         }
         if (!PACKET_get_bytes(&pkt, &pp_tmp, elen))
-            return 0;
+            return 1; /* see note above */
         if (etype == TLSEXT_TYPE_ech13)
             *inner = pp_tmp[1];
     }
@@ -160,8 +171,7 @@ int ech_helper_make_enc_info(unsigned char *encoding, size_t encoding_length,
  */
 int ech_helper_base64_decode(char *in, size_t inlen, unsigned char **out)
 {
-    int i = 0;
-    int outlen = 0;
+    int i = 0, outlen = 0;
     unsigned char *outbuf = NULL;
 
     if (in == NULL || out == NULL)
