@@ -14,6 +14,7 @@
 #include <openssl/ssl.h>
 #include <openssl/ech.h>
 #include <internal/ech_helpers.h>
+#include <internal/packet.h>
 
 #ifndef OPENSSL_NO_ECH
 
@@ -58,100 +59,64 @@ int ech_helper_get_ch_offsets(const unsigned char *ch, size_t ch_len,
                               size_t *echlen,
                               size_t *snioffset, size_t *snilen, int *inner)
 {
-    size_t genoffset = 0;
-    size_t sessid_len = 0;
-    size_t suiteslen = 0;
-    size_t startofexts = 0;
-    size_t legacy_compress_len; /* length of legacy_compression */
-    const unsigned char *e_start = NULL;
-    int extsremaining = 0;
-    uint16_t etype = 0;
-    size_t elen = 0;
+    unsigned int elen = 0, etype = 0, pi_tmp = 0;
+    const unsigned char *pp_tmp = NULL, *chstart = NULL, *estart = NULL;
+    PACKET pkt;
+    int done = 0;
 
     if (ch == NULL || ch_len == 0 || sessid == NULL || exts == NULL
         || echoffset == NULL || echtype == NULL || echlen == NULL
         || inner == NULL
         || snioffset == NULL)
         return 0;
-
-    *sessid = 0;
-    *exts = 0;
-    *echoffset = 0;
-    *snioffset = 0;
-    *snilen = 0;
+    *sessid = *exts = *echoffset = *snioffset = *snilen = *echlen = 0;
     *echtype = 0xffff;
-    *echlen = 0;
-    /* make sure we're at least tlsv1.2 */
-    if (ch_len < 2)
+    if (!PACKET_buf_init(&pkt, ch, ch_len))
+        return 0;
+    chstart = PACKET_data(&pkt);
+    if (!PACKET_get_net_2(&pkt, &pi_tmp))
         return 0;
     /* if we're not TLSv1.2+ then we can bail, but it's not an error */
-    if (ch[0] * 256 + ch [1] != TLS1_2_VERSION)
+    if (pi_tmp != TLS1_2_VERSION)
         return 1;
-    /*
-     * We'll start genoffset at the start of the session ID, just
-     * before the ciphersuites
-     */
-    genoffset = CLIENT_VERSION_LEN + SSL3_RANDOM_SIZE; /* point to len sessid */
-    if (ch_len <= genoffset)
+    /* chew up the packet to extensions */
+    if (!PACKET_get_bytes(&pkt, &pp_tmp, SSL3_RANDOM_SIZE)
+        || (*sessid = PACKET_data(&pkt) - chstart) == 0
+        || !PACKET_get_1(&pkt, &pi_tmp) /* sessid len */
+        || !PACKET_get_bytes(&pkt, &pp_tmp, pi_tmp) /* sessid */
+        || !PACKET_get_net_2(&pkt, &pi_tmp) /* ciphersuite len */
+        || !PACKET_get_bytes(&pkt, &pp_tmp, pi_tmp) /* suites */
+        || !PACKET_get_1(&pkt, &pi_tmp) /* compression meths */
+        || !PACKET_get_bytes(&pkt, &pp_tmp, pi_tmp) /* comp meths */
+        || (*exts = PACKET_data(&pkt) - chstart) == 0
+        || !PACKET_get_net_2(&pkt, &pi_tmp) /* len(extensions) */
+        || (*extlens = (size_t) pi_tmp) == 0)
         return 0;
-    *sessid = genoffset;
-    sessid_len = ch[genoffset];
-    /*
-     * sessid_len can be zero length in encoded inner CH but is normally 32
-     * A different length could lead to an error elsewhere.
-     */
-    if (sessid_len != 0 && sessid_len != SSL_MAX_SSL_SESSION_ID_LENGTH)
-        return 0;
-    genoffset += (1 + sessid_len);
-    if (ch_len <= (genoffset + 2))
-        return 0;
-    suiteslen = ch[genoffset] * 256 + ch[genoffset + 1];
-    if ((genoffset + 2 + suiteslen + 2) > ch_len)
-        return 0;
-    legacy_compress_len = ch[genoffset + suiteslen + 2];
-    /*
-     * if compression is on, we're not TLSv1.3 and hence won't be doing
-     * ECH, but that's not an error per-se
-     */
-    if (legacy_compress_len != 1)
-        return 1;
-    if (ch[genoffset + suiteslen + 2 + 1] != 0x00)
-        return 1;
-
-    startofexts = genoffset + 2 + suiteslen + 2; /* the 2 for the suites len */
-    if (startofexts == ch_len)
-        return 1; /* no extensions present, which is fine, but not for ECH */
-    if (startofexts > ch_len)
-        return 0;
-    *exts = startofexts; /* set output */
-
-    *extlens = ch[startofexts] * 256 + ch[startofexts + 1];
-    if (ch_len < (startofexts + 2 + *extlens))
-        return 0;
-    /* find ECH if it's there */
-    e_start = &ch[startofexts + 2];
-    extsremaining = *extlens - 2;
-    while (extsremaining > 0 && (*echoffset == 0 || *snioffset == 0)) {
-        /* 4 is for 2-octet type and 2-octet length */
-        if (ch_len < (4 + (size_t)(e_start - ch)))
+    /* grab what we need from extensions */
+    estart = PACKET_data(&pkt);
+    while (PACKET_remaining(&pkt) > 0
+           && (PACKET_data(&pkt) - estart) < *extlens
+           && done < 2) {
+        if (!PACKET_get_net_2(&pkt, &etype)
+            || !PACKET_get_net_2(&pkt, &elen))
             return 0;
-        etype = e_start[0] * 256 + e_start[1];
-        elen = e_start[2] * 256 + e_start[3];
         if (etype == TLSEXT_TYPE_ech13) {
-            *echlen = elen + 4; /* type and length included */
-            if (ch_len < (5 + (size_t)(e_start - ch)))
+            if (elen == 0) 
                 return 0;
-            /* set outputs */
+            *echoffset = PACKET_data(&pkt) - chstart - 4;
             *echtype = etype;
-            *echoffset = (e_start - ch); /* set output */
-            *inner = e_start[4];
-        } else if (etype == TLSEXT_TYPE_server_name) {
-            /* set output */
-            *snilen = elen + 4; /* type and length included */
-            *snioffset = (e_start - ch); /* set output */
+            *echlen = elen;
+            done++;
         }
-        e_start += (4 + elen);
-        extsremaining -= (4 + elen);
+        if (etype == TLSEXT_TYPE_server_name) {
+            *snioffset = PACKET_data(&pkt) - chstart - 4;
+            *snilen = elen;
+            done++;
+        }
+        if (!PACKET_get_bytes(&pkt, &pp_tmp, elen))
+            return 0;
+        if (etype == TLSEXT_TYPE_ech13)
+            *inner = pp_tmp[1];
     }
     return 1;
 }

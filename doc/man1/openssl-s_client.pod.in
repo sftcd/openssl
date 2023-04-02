@@ -146,7 +146,7 @@ B<openssl> B<s_client>
 [B<-ech_config_list> I<value>]
 [B<-sni_outer> I<value>]
 [B<-ech_select> I<config-index>]
-
+[B<-ech_custom>]
 
 =head1 DESCRIPTION
 
@@ -934,6 +934,11 @@ specified via -servername will be used in the inner ClientHello.)
 If an ECHConfigList contains more than one ECHConfig then the client will
 by default use the first. This parameter allows the caller to specify
 which ECHConfig to use (using a zero-based index).
+
+=item B<-ech_custom>
+
+Send a bogus custom extension to test ECH. This should disappear from
+the code before merging.
 
 =back
 
