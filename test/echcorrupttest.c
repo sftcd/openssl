@@ -207,7 +207,7 @@ static const unsigned char borked_outer6[] = {
  * to ensure overall decode succeeds
  */
 static const unsigned char borked_outer7[] = {
-    0xfd, 0x00, 0x00, 0x08, 0x12, 0x00, 0x0b,
+    0xfd, 0x00, 0x00, 0x0E, 0x12, 0x00, 0x0b,
     0x00, 0x0a, 0x00, 0x23, 0x00, 0x16, 0x00, 0x17,
     0x00, 0x0d, 0x00, 0xFF, 0xFF, 0x00, 0x01, 0x00,
 };
@@ -276,28 +276,28 @@ static const unsigned char short_encoded_inner[] = {
 
 /* A set of test vectors */
 static TEST_ECHINNER test_inners[] = {
-    /* basic case - copy to show test code works with no change */
+    /* 1. basic case - copy to show test code works with no change */
     { NULL, 0, NULL, 0, NULL, 0, 1, SSL_ERROR_NONE},
 
-    /* too-short encoded inner */
+    /* 2. too-short encoded inner */
     { NULL, 0,
       outer_short_encoded_inner, sizeof(outer_short_encoded_inner),
       NULL, 0,
       0, /* expected result */
       SSL_R_DECRYPTION_FAILED_OR_BAD_RECORD_MAC},
-    /* otherwise-correct case that fails only due to client random */
+    /* 3. otherwise-correct case that fails only due to client random */
     { NULL, 0,
       entire_encoded_inner, sizeof(entire_encoded_inner),
       NULL, 0,
       0, /* expected result */
       SSL_R_DECRYPTION_FAILED_OR_BAD_RECORD_MAC},
-    /* otherwise-correct case that fails only due to client random */
+    /* 4. otherwise-correct case that fails only due to client random */
     { encoded_inner_pre, sizeof(encoded_inner_pre),
       encoded_inner_outers, sizeof(encoded_inner_outers),
       encoded_inner_post, sizeof(encoded_inner_post),
       0, /* expected result */
       SSL_R_DECRYPTION_FAILED_OR_BAD_RECORD_MAC},
-    /* fails HPKE decryption due to bad padding so treated as GREASE */
+    /* 5. fails HPKE decryption due to bad padding so treated as GREASE */
     { encoded_inner_pre, sizeof(encoded_inner_pre),
       encoded_inner_outers, sizeof(encoded_inner_outers),
       bad_pad_encoded_inner_post, sizeof(bad_pad_encoded_inner_post),
@@ -305,7 +305,7 @@ static TEST_ECHINNER test_inners[] = {
       SSL_R_DECRYPTION_FAILED_OR_BAD_RECORD_MAC},
 
     /*
-     * unsupported extension instead of outers - resulting decoded
+     * 6. unsupported extension instead of outers - resulting decoded
      * inner missing so much it seems to be the wrong protocol
      */
     { encoded_inner_pre, sizeof(encoded_inner_pre),
@@ -314,79 +314,79 @@ static TEST_ECHINNER test_inners[] = {
       0, /* expected result */
       SSL_R_UNSUPPORTED_PROTOCOL},
 
-    /* madly long ciphersuites in inner */
+    /* 7. madly long ciphersuites in inner */
     { badsuites_inner_pre, sizeof(badsuites_inner_pre),
       encoded_inner_outers, sizeof(encoded_inner_outers),
       encoded_inner_post, sizeof(bad_pad_encoded_inner_post),
       0, /* expected result */
       SSL_R_TLSV1_ALERT_DECODE_ERROR},
-    /* so many padding bytes recovered clear is short */
+    /* 8. so many padding bytes recovered clear is short */
     { NULL, 0,
       short_encoded_inner, sizeof(short_encoded_inner),
       NULL, 0,
       0, /* expected result */
       SSL_R_TLSV1_ALERT_DECODE_ERROR},
 
-    /* repeated codepoint inside outers */
+    /* 9. repeated codepoint inside outers */
     { encoded_inner_pre, sizeof(encoded_inner_pre),
       borked_outer1, sizeof(borked_outer1),
       encoded_inner_post, sizeof(encoded_inner_post),
       0, /* expected result */
       SSL_R_BAD_EXTENSION},
-    /* non-existent codepoint inside outers */
+    /* 10. non-existent codepoint inside outers */
     { encoded_inner_pre, sizeof(encoded_inner_pre),
       borked_outer2, sizeof(borked_outer2),
       encoded_inner_post, sizeof(encoded_inner_post),
       0, /* expected result */
       SSL_R_BAD_EXTENSION},
-    /* include SNI in outers as well as both inner and outer */
+    /* 11. include SNI in outers as well as both inner and outer */
     { encoded_inner_pre, sizeof(encoded_inner_pre),
       borked_outer3, sizeof(borked_outer3),
       encoded_inner_post, sizeof(encoded_inner_post),
       0, /* expected result */
       SSL_R_BAD_EXTENSION},
-    /* refer to ECH within outers */
+    /* 12. refer to ECH within outers */
     { encoded_inner_pre, sizeof(encoded_inner_pre),
       borked_outer4, sizeof(borked_outer4),
       encoded_inner_post, sizeof(encoded_inner_post),
       0, /* expected result */
       SSL_R_BAD_EXTENSION},
-    /* refer to outers within outers */
+    /* 13. refer to outers within outers */
     { encoded_inner_pre, sizeof(encoded_inner_pre),
       borked_outer5, sizeof(borked_outer5),
       encoded_inner_post, sizeof(encoded_inner_post),
       0, /* expected result */
       SSL_R_BAD_EXTENSION},
-    /* bad length of outers */
+    /* 14. bad length of outers */
     { encoded_inner_pre, sizeof(encoded_inner_pre),
       borked_outer7, sizeof(borked_outer7),
       encoded_inner_post, sizeof(encoded_inner_post),
       0, /* expected result */
       SSL_R_BAD_EXTENSION},
-    /* bad inner length in outers */
+    /* 15. bad inner length in outers */
     { encoded_inner_pre, sizeof(encoded_inner_pre),
       borked_outer8, sizeof(borked_outer8),
       encoded_inner_post, sizeof(encoded_inner_post),
       0, /* expected result */
       SSL_R_BAD_EXTENSION},
-    /* HUGE length in outers */
+    /* 16. HUGE length in outers */
     { encoded_inner_pre, sizeof(encoded_inner_pre),
       borked_outer9, sizeof(borked_outer9),
       encoded_inner_post, sizeof(encoded_inner_post),
       0, /* expected result */
-      SSL_R_BAD_EXTENSION},
-    /* zero length in outers */
+      SSL_R_TLSV1_ALERT_DECODE_ERROR},
+    /* 17. zero length in outers */
     { encoded_inner_pre, sizeof(encoded_inner_pre),
       borked_outer10, sizeof(borked_outer10),
       encoded_inner_post, sizeof(encoded_inner_post),
       0, /* expected result */
       SSL_R_BAD_EXTENSION},
-    /* case with no extensions at all */
+    /* 18. case with no extensions at all */
     { NULL, 0,
       no_ext_encoded_inner, sizeof(no_ext_encoded_inner),
       NULL, 0,
       0, /* expected result */
-      SSL_R_BAD_EXTENSION},
+      SSL_R_TLSV1_ALERT_DECODE_ERROR},
 
 };
 
@@ -490,21 +490,22 @@ static int corrupt_or_copy(const char *ch, const int chlen,
         && ch[5] == SSL3_MT_CLIENT_HELLO)
         is_ch = 1;
     /* the 9 is the offset of the start of the CH in the record layer */
-    if (!TEST_true(ech_helper_get_ch_offsets((const unsigned char *)ch + 9,
-                                             chlen - 9,
-                                             &sessid, &exts, &extlens,
-                                             &echoffset, &echtype, &echlen,
-                                             &snioffset, &snilen, &inner)))
-        return 0;
-    /* that better be an outer ECH :-) */
-    if (echoffset > 0 && !TEST_int_eq(inner, 0)) {
-        TEST_info("better send inner");
-        return 0;
+    if (is_ch == 1) {
+        if (!TEST_true(ech_helper_get_ch_offsets((const unsigned char *)ch + 9,
+                                                 chlen - 9,
+                                                 &sessid, &exts, &extlens,
+                                                 &echoffset, &echtype, &echlen,
+                                                 &snioffset, &snilen, &inner)))
+            return 0;
+        /* that better be an outer ECH :-) */
+        if (echoffset > 0 && !TEST_int_eq(inner, 0)) {
+            TEST_info("better send inner");
+            return 0;
+        }
+        /* bump offsets by 9 */
+        echoffset += 9;
+        snioffset += 9;
     }
-    /* bump offsets by 9 */
-    echoffset += 9;
-    snioffset += 9;
-
     /*
      * if it's not a ClientHello, or doesn't have an ECH, or if the
      * forbork value in our test array is NULL, just copy the entire
