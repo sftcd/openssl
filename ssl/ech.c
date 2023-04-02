@@ -1899,7 +1899,6 @@ static int ech_find_outers(SSL_CONNECTION *s, PACKET *pkt,
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         goto err;
     }
-
     while (PACKET_remaining(pkt) > 0 && outers_found == 0) {
         if (!PACKET_get_net_2(pkt, &etype)) {
             SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
@@ -1919,6 +1918,7 @@ static int ech_find_outers(SSL_CONNECTION *s, PACKET *pkt,
             }
         }
     }
+
     if (outers_found == 0) { /* which is fine! */
         *n_outers = 0;
         return 1;
@@ -4243,10 +4243,7 @@ int ech_early_decrypt(SSL_CONNECTION *s, PACKET *outerpkt, PACKET *newpkt)
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         return 0;
     }
-    /*
-     * check placement of fields - when this works, the offsets are
-     * safe to use as they're checked within this function
-     */
+    /* find offsets - on success, outputs are safe to use */
     rv = ech_get_ch_offsets(s, outerpkt, &startofsessid, &startofexts,
                             &echoffset, &echtype, &innerflag, &outersnioffset);
     if (rv != 1) {
