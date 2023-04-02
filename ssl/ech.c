@@ -1118,9 +1118,8 @@ static int local_ech_add(int ekfmt, size_t len, const unsigned char *val,
             ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
             goto err;
         }
-        /* need an int to get -1 return for failure case */
         tdeclen = ech_helper_base64_decode(ekptr, eklen, &outbuf);
-        if (tdeclen <= 0) {
+        if (tdeclen <= 0) { /* need an int to get -1 return */
             ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
             goto err;
         }
@@ -1192,29 +1191,22 @@ static int ech_finder(int *num_echs, SSL_ECH **echs,
                       size_t len, const unsigned char *val)
 {
     int rv = 0, detfmt = OSSL_ECH_FMT_GUESS, origfmt;
-    int multiline = 0, linesdone = 0;
-    unsigned char *lval = (unsigned char *)val;
-    size_t llen = len;
-    unsigned char *binbuf = NULL;
-    size_t binlen = 0;
-    SSL_ECH *retech = NULL;
-    int nechs = 0;
-    char *dnsname = NULL;
-    int nonehere = 0;
+    int multiline = 0, linesdone = 0, nechs = 0, nonehere = 0, tdeclen = 0;
+    unsigned char *lval = (unsigned char *)val, *binbuf = NULL;
+    size_t llen = len, binlen = 0, linelen = 0, slen = 0, ldiff = 0;
+    SSL_ECH *retech = NULL, *tech = NULL;
+    char *dnsname = NULL, *tmp = NULL, *lstr = NULL;
 
-    /* figue out what format we're dealing with */
     if (ech_guess_fmt(len, val, &detfmt) != 1) {
         ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
-        return rv;
+        return 0;
     }
-    if (detfmt == OSSL_ECH_FMT_HTTPSSVC_NO_ECH) {
+    if (detfmt == OSSL_ECH_FMT_HTTPSSVC_NO_ECH)
         return 1;
-    }
     origfmt = detfmt;
     if (detfmt == OSSL_ECH_FMT_HTTPSSVC || detfmt == OSSL_ECH_FMT_DIG_UNK)
         multiline = 1;
-    while (linesdone == 0) {
-        /* if blank line, then skip */
+    while (linesdone == 0) { /* if blank line, then skip */
         if (multiline == 1 && strchr(OSSL_ECH_FMT_LINESEP, lval[0]) != NULL) {
             if (llen > 1) {
                 lval++;
@@ -1224,15 +1216,13 @@ static int ech_finder(int *num_echs, SSL_ECH **echs,
                 break; /* we're done */
             }
         }
-        /* sanity check */
-        if (llen >= OSSL_ECH_MAX_ECHCONFIG_LEN) {
+        if (llen >= OSSL_ECH_MAX_ECHCONFIG_LEN) { /* sanity check */
             ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
             goto err;
         }
         detfmt = origfmt; /* restore format from before loop */
-        /* if we already have a binary format then copy buffer */
         if (detfmt == OSSL_ECH_FMT_BIN || detfmt == OSSL_ECH_FMT_DNS_WIRE) {
-            binbuf = OPENSSL_malloc(len);
+            binbuf = OPENSSL_malloc(len); /* copy buffer if binary format */
             if (binbuf == NULL)
                 goto err;
             memcpy(binbuf, val, len);
@@ -1240,10 +1230,6 @@ static int ech_finder(int *num_echs, SSL_ECH **echs,
         }
         /* do decodes, some of these fall through to others */
         if (detfmt == OSSL_ECH_FMT_DIG_UNK) {
-            /* decode asii-hex and fall through to DNS wire */
-            char *tmp = NULL, *lstr = NULL;
-            size_t ldiff = 0;
-
             /* chew up header and length, e.g. "\\# 232 " */
             if (llen < strlen(unknownformat_telltale) + 3) {
                 ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
@@ -1256,12 +1242,9 @@ static int ech_finder(int *num_echs, SSL_ECH **echs,
                 goto err;
             }
             ldiff = tmp - (char *)lval;
-            if (ldiff >= llen) {
-                ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
-                goto err;
-            }
-            if (ah_decode(llen - ldiff, (char *)lval + ldiff,
-                          &binlen, &binbuf) != 1) {
+            if (ldiff >= llen
+                || ah_decode(llen - ldiff, (char *)lval + ldiff,
+                             &binlen, &binbuf) != 1) {
                 ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
                 goto err;
             }
@@ -1269,38 +1252,29 @@ static int ech_finder(int *num_echs, SSL_ECH **echs,
         }
         if (detfmt == OSSL_ECH_FMT_ASCIIHEX) {
             /* AH decode and fall throught to DNS wire or binary */
-            if (ah_decode(llen, (char *)lval, &binlen, &binbuf) != 1) {
+            if (ah_decode(llen, (char *)lval, &binlen, &binbuf) != 1
+                || binlen < 4) {
                 ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
                 goto err;
             }
             /*
-             * ECHConfigList can't be deterministically distinguished from a
-             * DNS wire format HTTPS/SVCB RR, but the former starts with a
-             * 2-octet length whereas the latter starts with a 2-octet
-             * vcPriority field. The probability that the priority is the
-             * same as the remaining length for an otherwise valid DNS wire
-             * encoding that contains an ECHConfigList should be small enough
-             * to bear, but is non-zero. (I'd guess well below 1/256, but
-             * that's still somewhat high so this deserves more consideration.)
-             * TODO: We may be able to improve once the final RFC issues with
-             * it's version set in stone - that version will be octets 3 & 4
-             * of the ECHConfigList.
+             * ECHConfigList has a 2-octet length then version. SCVB RDATA wire
+             * format starts with 2-octet vcPriority field, then encoded DNS
+             * name. Our current version field has a value of 0xfe0d, and it's
+             * extremely unlikely we deal with a DNS name label of length 0xfe
+             * (254) TODO: check still ok when RFC issues with final version
              */
-            if (binlen < 2) {
-                ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
-                goto err;
-            }
-            if ((size_t)(binbuf[0] * 256 + binbuf[1]) == (binlen - 2))
+            if ((size_t)(binbuf[0] * 256 + binbuf[1]) == (binlen - 2)
+                && binbuf[2] == ((OSSL_ECH_DRAFT_13_VERSION >> 8) & 0xff)
+                && binbuf[3] == (OSSL_ECH_DRAFT_13_VERSION & 0xff))
                 detfmt = OSSL_ECH_FMT_BIN;
             else
                 detfmt = OSSL_ECH_FMT_DNS_WIRE;
         }
-
         if (detfmt == OSSL_ECH_FMT_DNS_WIRE) {
             /* decode DNS wire and fall through to binary */
-            size_t remaining = binlen;
+            size_t remaining = binlen, eklen = 0;
             unsigned char *cp = binbuf, *ekval = NULL;
-            size_t eklen = 0;
             uint16_t pcode = 0, plen = 0;
             int done = 0;
 
@@ -1310,8 +1284,7 @@ static int ech_finder(int *num_echs, SSL_ECH **echs,
             }
             cp += 2;
             remaining -= 2;
-            rv = local_decode_rdata_name(&cp, &remaining, &dnsname);
-            if (rv != 1) {
+            if (local_decode_rdata_name(&cp, &remaining, &dnsname) != 1) {
                 ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
                 goto err;
             }
@@ -1336,28 +1309,19 @@ static int ech_finder(int *num_echs, SSL_ECH **echs,
             if (done == 0) {
                 nonehere = 1; /* not an error just didn't find an ECH here */
             } else {
-                unsigned char *tmp = NULL;
-
-                tmp = OPENSSL_malloc(eklen);
-                if (tmp == NULL) {
-                    goto err;
-                }
-                memcpy(tmp, ekval, eklen);
-                OPENSSL_free(binbuf);
-                binbuf = tmp;
+                /* binbuf is bigger, so the in-place memmove is ok */
+                memmove(binbuf, ekval, eklen);
                 binlen = eklen;
                 detfmt = OSSL_ECH_FMT_BIN;
             }
         }
         if (detfmt == OSSL_ECH_FMT_HTTPSSVC) {
-            /* find telltale and fall through to b64 */
-            char *ekstart = NULL;
+            char *ekstart = NULL; /* find telltale and fall through to b64 */
 
             ekstart = strstr((char *)lval, httpssvc_telltale1);
             if (ekstart == NULL) {
                 nonehere = 1;
             } else {
-                /* point ekstart at b64 encoded value */
                 if (strlen(ekstart) <= strlen(httpssvc_telltale1)) {
                     ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
                     goto err;
@@ -1369,12 +1333,8 @@ static int ech_finder(int *num_echs, SSL_ECH **echs,
             }
         }
         if (detfmt == OSSL_ECH_FMT_B64TXT) {
-            /* b64 decode and fall through to binary */
-            int tdeclen = 0;
-
-            /* need an int to get -1 return for failure case */
             tdeclen = ech_helper_base64_decode((char *)lval, llen, &binbuf);
-            if (tdeclen <= 0) {
+            if (tdeclen <= 0) { /* need int for -1 return in failure case */
                 ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
                 goto err;
             }
@@ -1393,15 +1353,10 @@ static int ech_finder(int *num_echs, SSL_ECH **echs,
         }
         OPENSSL_free(binbuf);
         binbuf = NULL;
-        /* check at end if more lines to do */
-        if (multiline == 0) {
+        if (multiline == 0) { /* check at end if more lines to do */
             linesdone = 1;
         } else {
-            size_t linelen = 0;
-            size_t slen = 0;
-
-            /* is there a next line? only applies for char * formats */
-            slen = strlen((char *)lval);
+            slen = strlen((char *)lval); /* is there a next line? */
             linelen = strcspn((char *)lval, OSSL_ECH_FMT_LINESEP);
             if (linelen >= slen) {
                 linesdone = 1;
@@ -1415,14 +1370,11 @@ static int ech_finder(int *num_echs, SSL_ECH **echs,
         *num_echs = nechs;
         *echs = retech;
     } else {
-        SSL_ECH *tech = NULL;
-
         tech = OPENSSL_realloc(*echs, (nechs + *num_echs) * sizeof(SSL_ECH));
-        if (tech == NULL) {
+        if (tech == NULL)
             goto err;
-        }
-        memcpy(*echs + *num_echs * sizeof(SSL_ECH),
-               retech, nechs * sizeof(SSL_ECH));
+        memcpy(*echs + *num_echs * sizeof(SSL_ECH), retech,
+               nechs * sizeof(SSL_ECH));
         *num_echs += nechs;
     }
     rv = 1;
@@ -2197,9 +2149,9 @@ static int ech_decode_inner(SSL_CONNECTION *s, const unsigned char *ob,
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         goto err;
     }
-#  ifdef OSSL_ECH_SUPERVERBOSE
+# ifdef OSSL_ECH_SUPERVERBOSE
     memset(outers, -1, sizeof(outers)); /* fill with known values for debug */
-#  endif
+# endif
 
     /* 1. check for outers and make inital checks of those */
     if (ech_find_outers(s, &ei, outers, &n_outers) != 1)
@@ -2532,6 +2484,175 @@ static size_t ech_calc_padding(SSL_CONNECTION *s, ECHConfig *tc)
                    s->ext.ech.encoded_innerch_len);
     } OSSL_TRACE_END(TLS);
     return clear_len;
+}
+
+/*
+ * @brief decode outer sni value so we can trace it
+ * @param s is the SSL connection
+ * @param osni_str is the string form of the SNI
+ * @param opd is the outer CH buffer
+ * @param opl is the length of the above
+ * @param snioffset is where we find the outer SNI
+ *
+ * The caller doesn't have to free the osni_str.
+ */
+static int ech_get_outer_sni(SSL_CONNECTION *s, char **osni_str,
+                             const unsigned char *opd, size_t opl,
+                             size_t snioffset)
+{
+    PACKET osni;
+    const unsigned char *osnibuf = &opd[snioffset + 4];
+    size_t osnilen = opd[snioffset + 2] * 256 + opd[snioffset + 3];
+
+    if (osnilen > opl - snioffset - 4
+        || PACKET_buf_init(&osni, osnibuf, osnilen) != 1
+        || tls_parse_ctos_server_name(s, &osni, 0, NULL, 0) != 1)
+        return 0;
+    OPENSSL_free(s->ext.ech.cfgs->outer_name);
+    *osni_str = s->ext.ech.cfgs->outer_name = s->ext.hostname;
+    /* clean up */
+    s->ext.hostname = NULL;
+    s->servername_done = 0;
+    return 1;
+}
+
+/*
+ * @brief decode EncryptedClientHello extension value
+ * @param s is the SSL connection
+ * @param pkt contains the ECH value as a PACKET
+ * @param extval is the returned decoded structure
+ * @return 1 for good, 0 for bad
+ *
+ * SSLfatal called from inside, as needed
+ */
+static int ech_decode_inbound_ech(SSL_CONNECTION *s, PACKET *pkt,
+                                  OSSL_ECH_ENCCH **retext)
+{
+    unsigned char innerorouter = 0xff;
+    unsigned int pval_tmp; /* tmp placeholder of value from packet */
+    OSSL_ECH_ENCCH *extval = NULL;
+
+    /*
+     * Try Decode the inbound value.
+     * For draft-13, we're only concerned with the "inner"
+     * form just here:
+     *  enum { outer(0), inner(1) } ECHClientHelloType;
+     *  struct {
+     *     ECHClientHelloType type;
+     *     select (ECHClientHello.type) {
+     *         case outer:
+     *             HpkeSymmetricCipherSuite cipher_suite;
+     *             uint8 config_id;
+     *             opaque enc<0..2^16-1>;
+     *             opaque payload<1..2^16-1>;
+     *         case inner:
+     *             Empty;
+     *     };
+     *  } ECHClientHello;
+     */
+    extval = OPENSSL_zalloc(sizeof(OSSL_ECH_ENCCH));
+    if (extval == NULL)
+        goto err;
+    if (!PACKET_copy_bytes(pkt, &innerorouter, 1)) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+    if (innerorouter != OSSL_ECH_OUTER_CH_TYPE) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+    if (!PACKET_get_net_2(pkt, &pval_tmp)) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+    extval->kdf_id = pval_tmp & 0xffff;
+    if (!PACKET_get_net_2(pkt, &pval_tmp)) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+    extval->aead_id = pval_tmp & 0xffff;
+    /* config id */
+    if (!PACKET_copy_bytes(pkt, &extval->config_id, 1)) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+# ifdef OSSL_ECH_SUPERVERBOSE
+    ech_pbuf("EARLY config id", &extval->config_id, 1);
+# endif
+    s->ext.ech.attempted_cid = extval->config_id;
+    /* enc - the client's public share */
+    if (!PACKET_get_net_2(pkt, &pval_tmp)) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+    if (pval_tmp > OSSL_ECH_MAX_GREASE_PUB) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+    if (pval_tmp > PACKET_remaining(pkt)) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+    if (pval_tmp == 0 && s->hello_retry_request != SSL_HRR_PENDING) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+        goto err;
+    } else if (pval_tmp == 0 && s->hello_retry_request == SSL_HRR_PENDING) {
+        if (s->ext.ech.pub == NULL || s->ext.ech.pub_len == 0) {
+            SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+            goto err;
+        }
+        extval->enc_len = s->ext.ech.pub_len;
+        extval->enc = OPENSSL_malloc(extval->enc_len);
+        if (extval->enc == NULL)
+            goto err;
+        memcpy(extval->enc, s->ext.ech.pub, extval->enc_len);
+    } else {
+        extval->enc_len = pval_tmp;
+        extval->enc = OPENSSL_malloc(pval_tmp);
+        if (extval->enc == NULL)
+            goto err;
+        if (!PACKET_copy_bytes(pkt, extval->enc, pval_tmp)) {
+            SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+            goto err;
+        }
+        /* squirrel away that value in case of future HRR */
+        OPENSSL_free(s->ext.ech.pub);
+        s->ext.ech.pub_len = extval->enc_len;
+        s->ext.ech.pub = OPENSSL_malloc(extval->enc_len);
+        if (s->ext.ech.pub == NULL)
+            goto err;
+        memcpy(s->ext.ech.pub, extval->enc, extval->enc_len);
+    }
+    /* payload - the encrypted CH */
+    if (!PACKET_get_net_2(pkt, &pval_tmp)) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+    if (pval_tmp > OSSL_ECH_MAX_PAYLOAD_LEN) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+    if (pval_tmp > PACKET_remaining(pkt)) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+    extval->payload_len = pval_tmp;
+    extval->payload = OPENSSL_malloc(pval_tmp);
+    if (extval->payload == NULL)
+        goto err;
+    if (!PACKET_copy_bytes(pkt, extval->payload, pval_tmp)) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+        goto err;
+    }
+    *retext = extval;
+    return 1;
+err:
+    if (extval != NULL) {
+        OSSL_ECH_ENCCH_free(extval);
+        OPENSSL_free(extval);
+        extval = NULL;
+    }
+    return 0;
 }
 
 /* SECTION: Non-public functions used elsewhere in the library */
@@ -4101,17 +4222,12 @@ int ech_early_decrypt(SSL_CONNECTION *s, PACKET *outerpkt, PACKET *newpkt)
     int rv = 0;
     OSSL_ECH_ENCCH *extval = NULL;
     PACKET echpkt;
-    PACKET *pkt = NULL;
     const unsigned char *startofech = NULL;
-    size_t echlen = 0;
-    size_t clearlen = 0;
+    size_t echlen = 0, clearlen = 0;
     unsigned char *clear = NULL;
-    unsigned int pval_tmp; /* tmp placeholder of value from packet */
     unsigned char aad[SSL3_RT_MAX_PLAIN_LENGTH];
     size_t aad_len = SSL3_RT_MAX_PLAIN_LENGTH;
-    int cfgind = -1;
-    int foundcfg = 0;
-    int forhrr = 0;
+    int cfgind = -1, foundcfg = 0, forhrr = 0;
     size_t startofsessid = 0; /* offset of session id within Ch */
     size_t startofexts = 0; /* offset of extensions within CH */
     size_t echoffset = 0; /* offset of start of ECH within CH */
@@ -4124,13 +4240,13 @@ int ech_early_decrypt(SSL_CONNECTION *s, PACKET *outerpkt, PACKET *newpkt)
     size_t lenofciphertext = 0;
     size_t enclen = 0;
     size_t offsetofencwithinech = 0;
-    unsigned char innerorouter = 0xff;
     const unsigned char *opd = NULL;
     size_t opl = 0;
+    char *osni_str = NULL;
 
     if (s == NULL || outerpkt == NULL || newpkt == NULL) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
-        return rv;
+        return 0;
     }
     /*
      * check for placement of various things - when this works, the
@@ -4141,26 +4257,24 @@ int ech_early_decrypt(SSL_CONNECTION *s, PACKET *outerpkt, PACKET *newpkt)
                             &echoffset, &echtype, &innerflag, &outersnioffset);
     if (rv != 1) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
-        return rv;
+        return 0;
     }
-    if (echoffset == 0)
-        return 1; /* ECH not present */
+    if (echoffset == 0 || echtype != OSSL_ECH_DRAFT_13_VERSION)
+        return 1; /* ECH not present or wrong version */
     if (innerflag == 1) {
         OSSL_TRACE_BEGIN(TLS) {
             BIO_printf(trc_out, "EARLY: inner ECH in outer CH - that's bad\n");
         } OSSL_TRACE_END(TLS);
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         return 0;
     }
     OSSL_TRACE_BEGIN(TLS) {
         BIO_printf(trc_out, "EARLY: found an ECH\n");
     } OSSL_TRACE_END(TLS);
-    /* Remember that we got an ECH */
-    s->ext.ech.attempted = 1;
+    s->ext.ech.attempted = 1; /* Remember that we got an ECH */
     s->ext.ech.attempted_type = echtype;
-    /* set forhrr if that's correct */
-    if (s->hello_retry_request == SSL_HRR_PENDING) {
-        forhrr = 1;
-    }
+    if (s->hello_retry_request == SSL_HRR_PENDING)
+        forhrr = 1; /* set forhrr if that's correct */
     opl = PACKET_remaining(outerpkt);
     opd = PACKET_data(outerpkt);
     /* We need to grab the session id */
@@ -4175,170 +4289,33 @@ int ech_early_decrypt(SSL_CONNECTION *s, PACKET *outerpkt, PACKET *newpkt)
     }
     memcpy(s->tmp_session_id, &opd[startofsessid + 1],
            s->tmp_session_id_len);
-    /* Grab the outer SNI for tracing.  */
-    if (outersnioffset > 0) {
-        PACKET osni;
-        const unsigned char *osnibuf = &opd[outersnioffset + 4];
-        size_t osnilen = opd[outersnioffset + 2] * 256
-            + opd[outersnioffset + 3];
-
-        if (osnilen > opl - outersnioffset - 4)
-            goto err;
-        if (PACKET_buf_init(&osni, osnibuf, osnilen) != 1) {
+    if (outersnioffset > 0) { /* Grab the outer SNI for tracing */
+        if (ech_get_outer_sni(s, &osni_str, opd, opl, outersnioffset) != 1
+            || osni_str == NULL) {
             SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
             goto err;
         }
-        if (tls_parse_ctos_server_name(s, &osni, 0, NULL, 0) != 1) {
-            SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
-            goto err;
-        }
-        if (s->ext.ech.cfgs->outer_name != NULL) {
-            /* can happen with HRR */
-            OPENSSL_free(s->ext.ech.cfgs->outer_name);
-        }
-        s->ext.ech.cfgs->outer_name = s->ext.hostname;
         OSSL_TRACE_BEGIN(TLS) {
-            BIO_printf(trc_out, "EARLY: outer SNI of %s\n", s->ext.hostname);
+            BIO_printf(trc_out, "EARLY: outer SNI of %s\n", osni_str);
         } OSSL_TRACE_END(TLS);
-        /* clean up */
-        s->ext.hostname = NULL;
-        s->servername_done = 0;
     } else {
         OSSL_TRACE_BEGIN(TLS) {
             BIO_printf(trc_out, "EARLY: no sign of an outer SNI\n");
         } OSSL_TRACE_END(TLS);
     }
-    /*
-     * 2. trial-decrypt or check if config matches one loaded
-     */
+    /* trial-decrypt or check if config matches one loaded */
     if (echoffset > opl - 4)
         goto err;
     startofech = &opd[echoffset + 4];
     echlen = opd[echoffset + 2] * 256 + opd[echoffset + 3];
     if (echlen > opl - echoffset - 4)
         goto err;
-    rv = PACKET_buf_init(&echpkt, startofech, echlen);
-    pkt = &echpkt;
-    /*
-     * Try Decode the inbound value.
-     * For draft-13, we're only concerned with the "inner"
-     * form just here:
-     *  enum { outer(0), inner(1) } ECHClientHelloType;
-     *  struct {
-     *     ECHClientHelloType type;
-     *     select (ECHClientHello.type) {
-     *         case outer:
-     *             HpkeSymmetricCipherSuite cipher_suite;
-     *             uint8 config_id;
-     *             opaque enc<0..2^16-1>;
-     *             opaque payload<1..2^16-1>;
-     *         case inner:
-     *             Empty;
-     *     };
-     *  } ECHClientHello;
-     */
-    extval = OPENSSL_zalloc(sizeof(OSSL_ECH_ENCCH));
-    if (extval == NULL)
-        goto err;
-
-    if (!PACKET_copy_bytes(pkt, &innerorouter, 1)) {
+    if (PACKET_buf_init(&echpkt, startofech, echlen) != 1) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         goto err;
     }
-    if (innerorouter != OSSL_ECH_OUTER_CH_TYPE) {
-        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
-        goto err;
-    }
-    if (!PACKET_get_net_2(pkt, &pval_tmp)) {
-        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
-        goto err;
-    }
-    extval->kdf_id = pval_tmp & 0xffff;
-    if (!PACKET_get_net_2(pkt, &pval_tmp)) {
-        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
-        goto err;
-    }
-    extval->aead_id = pval_tmp & 0xffff;
-
-    /* config id */
-    if (!PACKET_copy_bytes(pkt, &extval->config_id, 1)) {
-        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
-        goto err;
-    }
-# ifdef OSSL_ECH_SUPERVERBOSE
-    ech_pbuf("EARLY config id", &extval->config_id, 1);
-# endif
-    s->ext.ech.attempted_cid = extval->config_id;
-
-    /* enc - the client's public share */
-    if (!PACKET_get_net_2(pkt, &pval_tmp)) {
-        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
-        goto err;
-    }
-    if (pval_tmp > OSSL_ECH_MAX_GREASE_PUB) {
-        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
-        goto err;
-    }
-    if (pval_tmp > PACKET_remaining(pkt)) {
-        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
-        goto err;
-    }
-    if (pval_tmp == 0 && s->hello_retry_request != SSL_HRR_PENDING) {
-        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
-        goto err;
-    } else if (pval_tmp == 0 && s->hello_retry_request == SSL_HRR_PENDING) {
-        if (s->ext.ech.pub == NULL || s->ext.ech.pub_len == 0) {
-            SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
-            goto err;
-        }
-        extval->enc_len = s->ext.ech.pub_len;
-        extval->enc = OPENSSL_malloc(extval->enc_len);
-        if (extval->enc == NULL)
-            goto err;
-        memcpy(extval->enc, s->ext.ech.pub, extval->enc_len);
-    } else {
-        extval->enc_len = pval_tmp;
-        extval->enc = OPENSSL_malloc(pval_tmp);
-        if (extval->enc == NULL)
-            goto err;
-        if (!PACKET_copy_bytes(pkt, extval->enc, pval_tmp)) {
-            SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
-            goto err;
-        }
-        /* squirrel away that value in case of future HRR */
-        OPENSSL_free(s->ext.ech.pub);
-        s->ext.ech.pub_len = extval->enc_len;
-        s->ext.ech.pub = OPENSSL_malloc(extval->enc_len);
-        if (s->ext.ech.pub == NULL)
-            goto err;
-        memcpy(s->ext.ech.pub, extval->enc, extval->enc_len);
-    }
-
-    /* payload - the encrypted CH */
-    if (!PACKET_get_net_2(pkt, &pval_tmp)) {
-        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
-        goto err;
-    }
-    if (pval_tmp > OSSL_ECH_MAX_PAYLOAD_LEN) {
-        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
-        goto err;
-    }
-    if (pval_tmp > PACKET_remaining(pkt)) {
-        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
-        goto err;
-    }
-    extval->payload_len = pval_tmp;
-    extval->payload = OPENSSL_malloc(pval_tmp);
-    if (extval->payload == NULL)
-        goto err;
-    if (!PACKET_copy_bytes(pkt, extval->payload, pval_tmp)) {
-        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
-        goto err;
-    }
-    if (echtype != OSSL_ECH_DRAFT_13_VERSION) {
-        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
-        goto err;
-    }
+    if (ech_decode_inbound_ech(s, &echpkt, &extval) != 1)
+        goto err; /* SSLfatal already called if needed */
     ch_len = PACKET_remaining(outerpkt);
     ch = PACKET_data(outerpkt);
     /* AAD in draft-13 is rx'd packet with ciphertext zero'd */
@@ -4347,9 +4324,10 @@ int ech_early_decrypt(SSL_CONNECTION *s, PACKET *outerpkt, PACKET *newpkt)
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         goto err;
     }
+
     enclen = ch[echoffset + offsetofencwithinech] * 256
         + ch[echoffset + offsetofencwithinech + 1];
-    /* HRR enclen can be zero if we're handling HRR */
+    /* enclen can be zero if we're handling HRR */
     if (enclen == 0 && s->hello_retry_request != SSL_HRR_PENDING) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         goto err;
