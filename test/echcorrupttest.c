@@ -325,7 +325,7 @@ static TEST_ECHINNER test_inners[] = {
       short_encoded_inner, sizeof(short_encoded_inner),
       NULL, 0,
       0, /* expected result */
-      SSL_R_TLSV1_ALERT_DECODE_ERROR},
+      SSL_R_BAD_EXTENSION},
 
     /* 9. repeated codepoint inside outers */
     { encoded_inner_pre, sizeof(encoded_inner_pre),
@@ -374,7 +374,7 @@ static TEST_ECHINNER test_inners[] = {
       borked_outer9, sizeof(borked_outer9),
       encoded_inner_post, sizeof(encoded_inner_post),
       0, /* expected result */
-      SSL_R_TLSV1_ALERT_DECODE_ERROR},
+      SSL_R_BAD_EXTENSION},
     /* 17. zero length in outers */
     { encoded_inner_pre, sizeof(encoded_inner_pre),
       borked_outer10, sizeof(borked_outer10),
@@ -386,7 +386,7 @@ static TEST_ECHINNER test_inners[] = {
       no_ext_encoded_inner, sizeof(no_ext_encoded_inner),
       NULL, 0,
       0, /* expected result */
-      SSL_R_TLSV1_ALERT_DECODE_ERROR},
+      SSL_R_BAD_EXTENSION},
 
 };
 
@@ -499,7 +499,7 @@ static int corrupt_or_copy(const char *ch, const int chlen,
             return 0;
         /* that better be an outer ECH :-) */
         if (echoffset > 0 && !TEST_int_eq(inner, 0)) {
-            TEST_info("better send inner");
+            TEST_info("better send outer");
             return 0;
         }
         /* bump offsets by 9 */
