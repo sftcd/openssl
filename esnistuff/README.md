@@ -22,6 +22,8 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
+- 20230403: refactored ``ech_get_sh_offsets()``
+
 - 20230402: more refactoring, mostly in ``ech_early_decrypt()``
 
 - 20230401: refactored ``ech_decode_inner()`` to only use PACKET APIs
