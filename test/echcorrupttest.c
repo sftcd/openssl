@@ -464,7 +464,8 @@ static int corrupt_or_copy(const char *ch, const int chlen,
     unsigned char *encoded_inner = NULL;
     size_t prelen, fblen, postlen;
     size_t encoded_innerlen = 0;
-    size_t sessid, exts, extlens, echoffset, echlen, snioffset, snilen;
+    size_t sessid = 0, exts = 0, extlens = 0, echoffset = 0, echlen = 0; 
+    size_t snioffset = 0, snilen = 0;
     uint16_t echtype;
     int inner;
 
