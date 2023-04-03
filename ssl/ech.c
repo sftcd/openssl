@@ -1764,16 +1764,15 @@ static int ech_get_sh_offsets(const unsigned char *sh, size_t sh_len,
                               size_t *exts, size_t *echoffset,
                               uint16_t *echtype)
 {
-    size_t sessid_offset = 0;
-    size_t sessid_len = 0;
-    size_t startofexts = 0;
+    unsigned int elen = 0, etype = 0, pi_tmp = 0;
+    const unsigned char *pp_tmp = NULL, *shstart = NULL, *estart = NULL;
+    PACKET pkt;
     size_t extlens = 0;
-    const unsigned char *e_start = NULL;
-    int extsremaining = 0;
-    uint16_t etype = 0;
-    size_t elen = 0;
+    int done = 0;
 # ifdef OSSL_ECH_SUPERVERBOSE
     size_t echlen = 0; /* length of ECH, including type & ECH-internal length */
+    size_t sessid_offset = 0;
+    size_t sessid_len = 0;
 # endif
 
     if (sh == NULL || sh_len == 0 || exts == NULL || echoffset == NULL
@@ -1781,73 +1780,51 @@ static int ech_get_sh_offsets(const unsigned char *sh, size_t sh_len,
         ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_NULL_PARAMETER);
         return 0;
     }
-    /* make sure we're at least tlsv1.2 */
-    if (sh_len < 2) {
-        ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
+    *exts = *echoffset = *echtype = 0;
+    if (!PACKET_buf_init(&pkt, sh, sh_len))
         return 0;
-    }
+    shstart = PACKET_data(&pkt);
+    if (!PACKET_get_net_2(&pkt, &pi_tmp))
+        return 0;
     /* if we're not TLSv1.2+ then we can bail, but it's not an error */
-    if (sh[0] * 256 + sh [1] != TLS1_2_VERSION)
+    if (pi_tmp != TLS1_2_VERSION && pi_tmp != TLS1_3_VERSION)
         return 1;
-    *exts = 0;
-    *echoffset = 0;
-    *echtype = TLSEXT_TYPE_ech_unknown;
-
-    sessid_offset = CLIENT_VERSION_LEN /* version */
-        + SSL3_RANDOM_SIZE             /* random */
-        + 1;                           /* sess_id_len */
-    if (sh_len <= sessid_offset) {
-        ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
+    if (!PACKET_get_bytes(&pkt, &pp_tmp, SSL3_RANDOM_SIZE)
+# ifdef OSSL_ECH_SUPERVERBOSE
+        || (sessid_offset = PACKET_data(&pkt) - shstart) == 0
+# endif
+        || !PACKET_get_1(&pkt, &pi_tmp) /* sessid len */
+# ifdef OSSL_ECH_SUPERVERBOSE
+        || (sessid_len = (size_t)pi_tmp) == 0
+# endif
+        || !PACKET_get_bytes(&pkt, &pp_tmp, pi_tmp) /* sessid */
+        || !PACKET_get_net_2(&pkt, &pi_tmp) /* ciphersuite */
+        || !PACKET_get_1(&pkt, &pi_tmp) /* compression */
+        || (*exts = PACKET_data(&pkt) - shstart) == 0
+        || !PACKET_get_net_2(&pkt, &pi_tmp)) /* len(extensions) */
         return 0;
-    }
-    sessid_len = (size_t)sh[sessid_offset - 1];
-    /*
-     * If the session id isn't 32 octets long we might hit
-     * problems later/elsewhere
-     */
-    if (sessid_len != SSL_MAX_SSL_SESSION_ID_LENGTH) {
-        ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
-        return 0;
-    }
-    startofexts = sessid_offset /* up to & incl. sessid_len */
-        + sessid_len            /* sessid_len */
-        + 2                     /* ciphersuite */
-        + 1;                    /* legacy compression */
-    if (sh_len < startofexts) {
-        ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
-        return 0;
-    }
-    if (sh_len == startofexts)
-        return 1; /* no exts */
-    *exts = startofexts;
-    if (sh_len < (startofexts + 6)) {
-        ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
-        return 0; /* needs at least len+one-ext */
-    }
-    extlens = sh[startofexts] * 256 + sh[startofexts + 1];
-    if (sh_len < (startofexts + 2 + extlens)) {
-        ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
-        return 0;
-    }
-    /* find ECH if it's there */
-    e_start = &sh[startofexts + 2];
-    extsremaining = extlens - 2;
-    while (extsremaining > 0 && *echoffset == 0) {
-        if (sh_len < (4 + (size_t)(e_start - sh))) {
-            ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
+    extlens = (size_t)pi_tmp;
+    if (extlens == 0) /* not an error, in theory */
+        return 1;
+    estart = PACKET_data(&pkt);
+    while (PACKET_remaining(&pkt) > 0
+           && (size_t)(PACKET_data(&pkt) - estart) < extlens
+           && done < 1) {
+        if (!PACKET_get_net_2(&pkt, &etype)
+            || !PACKET_get_net_2(&pkt, &elen))
             return 0;
-        }
-        etype = e_start[0] * 256 + e_start[1];
-        elen = e_start[2] * 256 + e_start[3];
         if (etype == TLSEXT_TYPE_ech13) {
+            if (elen == 0)
+                return 0;
+            *echoffset = PACKET_data(&pkt) - shstart - 4;
+            *echtype = etype;
 # ifdef OSSL_ECH_SUPERVERBOSE
             echlen = elen + 4; /* type and length included */
 # endif
-            *echtype = etype;
-            *echoffset = (e_start - sh); /* set output */
+            done++;
         }
-        e_start += (4 + elen);
-        extsremaining -= (4 + elen);
+        if (!PACKET_get_bytes(&pkt, &pp_tmp, elen))
+            return 0;
     }
 # ifdef OSSL_ECH_SUPERVERBOSE
     OSSL_TRACE_BEGIN(TLS) {
