@@ -671,6 +671,84 @@ err:
     return res;
 }
 
+/* test a roundtrip with an ECHConfig that has extensions */
+static int extended_echconfig(int idx)
+{
+    int res = 0;
+    char *echkeyfile = NULL;
+    char *echconfig = NULL;
+    size_t echconfiglen = 0;
+    SSL_CTX *cctx = NULL, *sctx = NULL;
+    SSL *clientssl = NULL, *serverssl = NULL;
+    int clientstatus, serverstatus;
+    char *cinner, *couter, *sinner, *souter;
+
+    /*
+     * read our pre-cooked ECH PEM file that contains extensions
+     * in this case we have 3 extensions:
+     * type, len, value
+     * 0xffca, 0, 0
+     * 0xffcb, 12, "hello world"
+     * 0xffcc, 0x1c7 (455), a small PNG file
+     * total exts length: 0x1df (479)
+     *
+     * overall length of our ECHConfigList is 0x21d (541)
+     *
+     * Note that the extensions are only stored, no action is
+     * taken with 'em as they're meaningless for now (there
+     * not being any well-defined ECH extensions so far)
+     */
+    echkeyfile = test_mk_file_path(certsdir, "echwithexts.pem");
+    if (!TEST_ptr(echkeyfile))
+        goto end;
+    echconfig = echconfiglist_from_PEM(echkeyfile);
+    if (!TEST_ptr(echconfig))
+        goto end;
+    echconfiglen = strlen(echconfig);
+    if (!TEST_true(create_ssl_ctx_pair(libctx, TLS_server_method(),
+                                       TLS_client_method(),
+                                       TLS1_3_VERSION, TLS1_3_VERSION,
+                                       &sctx, &cctx, cert, privkey)))
+        goto end;
+    if (!TEST_true(SSL_CTX_ech_set1_echconfig(cctx, (unsigned char *)echconfig,
+                                              echconfiglen)))
+        goto end;
+    if (!TEST_true(SSL_CTX_ech_server_enable_file(sctx, echkeyfile)))
+        goto end;
+    if (!TEST_true(create_ssl_objects(sctx, cctx, &serverssl,
+                                      &clientssl, NULL, NULL)))
+        goto end;
+    if (!TEST_true(SSL_set_tlsext_host_name(clientssl, "server.example")))
+        goto end;
+    if (!TEST_true(create_ssl_connection(serverssl, clientssl,
+                                         SSL_ERROR_NONE)))
+        goto end;
+    serverstatus = SSL_ech_get_status(serverssl, &sinner, &souter);
+    if (verbose)
+        TEST_info("ech_roundtrip_test: server status %d, %s, %s",
+                  serverstatus, sinner, souter);
+    if (!TEST_int_eq(serverstatus, SSL_ECH_STATUS_SUCCESS))
+        goto end;
+    /* override cert verification */
+    SSL_set_verify_result(clientssl, X509_V_OK);
+    clientstatus = SSL_ech_get_status(clientssl, &cinner, &couter);
+    if (verbose)
+        TEST_info("ech_roundtrip_test: client status %d, %s, %s",
+                  clientstatus, cinner, couter);
+    if (!TEST_int_eq(clientstatus, SSL_ECH_STATUS_SUCCESS))
+        goto end;
+    /* all good */
+    res = 1;
+end:
+    OPENSSL_free(echkeyfile);
+    OPENSSL_free(echconfig);
+    SSL_free(clientssl);
+    SSL_free(serverssl);
+    SSL_CTX_free(cctx);
+    SSL_CTX_free(sctx);
+    return res;
+}
+
 /* Test a basic roundtrip with ECH, with a PEM file input */
 static int ech_roundtrip_test(int idx)
 {
@@ -1691,6 +1769,7 @@ int setup_tests(void)
      * transient failure
      */
     ADD_ALL_TESTS(basic_echconfig, 2);
+    ADD_ALL_TESTS(extended_echconfig, 1);
     ADD_ALL_TESTS(ech_roundtrip_test, 2);
 
     ADD_ALL_TESTS(test_ech_add, OSSLTEST_ECH_NTESTS);
