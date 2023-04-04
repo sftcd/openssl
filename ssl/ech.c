@@ -237,7 +237,7 @@ typedef struct {
 } ECH_EXT_HANDLING_DEF;
 
 static const ECH_EXT_HANDLING_DEF ech_ext_handling[] = {
-    { TLSEXT_TYPE_renegotiate, OSSL_ECH_HANDLING_COMPRESS },
+    { TLSEXT_TYPE_renegotiate, OSSL_ECH_HANDLING_COMPRESS},
     { TLSEXT_TYPE_server_name, OSSL_ECH_HANDLING_CALL_BOTH},
     { TLSEXT_TYPE_max_fragment_length, OSSL_ECH_HANDLING_COMPRESS},
     { TLSEXT_TYPE_srp, OSSL_ECH_HANDLING_COMPRESS},
@@ -254,6 +254,8 @@ static const ECH_EXT_HANDLING_DEF ech_ext_handling[] = {
     { TLSEXT_TYPE_extended_master_secret, OSSL_ECH_HANDLING_COMPRESS},
     { TLSEXT_TYPE_signature_algorithms_cert, OSSL_ECH_HANDLING_COMPRESS},
     { TLSEXT_TYPE_post_handshake_auth, OSSL_ECH_HANDLING_COMPRESS},
+    { TLSEXT_TYPE_client_cert_type, OSSL_ECH_HANDLING_CALL_BOTH},
+    { TLSEXT_TYPE_server_cert_type, OSSL_ECH_HANDLING_CALL_BOTH},
     { TLSEXT_TYPE_signature_algorithms, OSSL_ECH_HANDLING_COMPRESS},
     { TLSEXT_TYPE_supported_versions, OSSL_ECH_HANDLING_COMPRESS},
     { TLSEXT_TYPE_psk_kex_modes, OSSL_ECH_HANDLING_COMPRESS},
@@ -266,7 +268,7 @@ static const ECH_EXT_HANDLING_DEF ech_ext_handling[] = {
     { TLSEXT_TYPE_ech13, OSSL_ECH_HANDLING_CALL_BOTH},
     { TLSEXT_TYPE_outer_extensions, OSSL_ECH_HANDLING_CALL_BOTH},
     { TLSEXT_TYPE_padding, OSSL_ECH_HANDLING_CALL_BOTH},
-    { TLSEXT_TYPE_psk, OSSL_ECH_HANDLING_CALL_BOTH }
+    { TLSEXT_TYPE_psk, OSSL_ECH_HANDLING_CALL_BOTH}
 };
 
 /*

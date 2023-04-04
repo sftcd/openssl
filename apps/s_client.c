@@ -871,7 +871,6 @@ const OPTIONS s_client_options[] = {
      "Ignore the server-chosen ECH config ID and send a random value"},
     {"ech_custom", OPT_ECH_CUSTOM, '-', "send bogus custom CH exts to test"},
 #endif
->>>>>>> 8cddd3254a (ECH draft 13)
 #ifndef OPENSSL_NO_SRTP
     {"use_srtp", OPT_USE_SRTP, 's',
      "Offer SRTP key management with a colon-separated profile list"},
