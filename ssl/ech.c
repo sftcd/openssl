@@ -3389,7 +3389,7 @@ int ech_reset_hs_buffer(SSL_CONNECTION *s, const unsigned char *buf,
 int ech_calc_ech_confirm(SSL_CONNECTION *s, int for_hrr, unsigned char *acbuf,
                          const unsigned char *shbuf, const size_t shlen)
 {
-    int rv;
+    int rv = 0;
     EVP_MD_CTX *ctx = EVP_MD_CTX_new();
     EVP_MD *md = NULL;
     unsigned char *tbuf = NULL, *chbuf = NULL, *longtrans = NULL;
