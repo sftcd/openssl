@@ -22,6 +22,9 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
+- 20230404: added test with ECHConfig extensions present; refactored
+  ``ECHConfigList_from_binary()`` some
+
 - 20230403: refactored ``ech_get_sh_offsets()`` and ``ech_calc_ech_confirm()``
 
 - 20230402: more refactoring, mostly in ``ech_early_decrypt()``

@@ -494,6 +494,78 @@ static int ah_encode(char *out, size_t outsize,
 }
 
 /*
+ * @brief helper to decode ECHConfig extensions
+ * @param ec is the caller-allocated ECHConfig
+ * @param exts is the binary form extensions
+ * @return 1 for good, 0 for error
+ *
+ * On error, the caller will clean up ``ec`` so we don't do
+ * all that here.
+ */
+static int ech_decode_echconfig_exts(ECHConfig *ec, PACKET *exts)
+{
+    unsigned int exttype = 0;
+    unsigned int extlen = 0;
+    unsigned char *extval = NULL;
+    unsigned int *tip = NULL;
+    unsigned int *lip = NULL;
+    unsigned char **vip = NULL;
+
+    /*
+     * reminder: exts is a two-octet length prefixed list of:
+     * - two octet extension type
+     * - two octet extension length (can be zero)
+     * - length octets
+     * we've consumed the overall length before getting here
+     */
+    while (PACKET_remaining(exts) > 0) {
+        exttype = 0, extlen = 0;
+        extval = NULL;
+        tip = lip = NULL;
+        vip = NULL;
+        ec->nexts += 1;
+        if (!PACKET_get_net_2(exts, &exttype)
+            || !PACKET_get_net_2(exts, &extlen)
+            || extlen >= OSSL_ECH_MAX_ECHCONFIGEXT_LEN) {
+            ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
+            goto err;
+        }
+        if (extlen != 0) {
+            extval = (unsigned char *)OPENSSL_malloc(extlen);
+            if (extval == NULL)
+                goto err;
+            if (!PACKET_copy_bytes(exts, extval, extlen)) {
+                ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
+                goto err;
+            }
+        }
+        /* assign fields to lists, have to realloc */
+        tip = (unsigned int *)OPENSSL_realloc(ec->exttypes, ec->nexts
+                                              * sizeof(ec->exttypes[0]));
+        if (tip == NULL)
+            goto err;
+        ec->exttypes = tip;
+        ec->exttypes[ec->nexts - 1] = exttype;
+        lip = (unsigned int *)OPENSSL_realloc(ec->extlens, ec->nexts
+                                              * sizeof(ec->extlens[0]));
+        if (lip == NULL)
+            goto err;
+        ec->extlens = lip;
+        ec->extlens[ec->nexts - 1] = extlen;
+        vip = (unsigned char **)OPENSSL_realloc(ec->exts, ec->nexts
+                                                * sizeof(unsigned char *));
+        if (vip == NULL)
+            goto err;
+        ec->exts = vip;
+        ec->exts[ec->nexts - 1] = extval;
+    }
+    return 1;
+err:
+    OPENSSL_free(extval);
+    return 0;
+}
+
+/*
  * @brief Decode the first ECHConfigList from a binary buffer
  * @param binbuf is the buffer with the encoding
  * @param binblen is the length of binbunf
@@ -513,23 +585,16 @@ static int ECHConfigList_from_binary(unsigned char *binbuf, size_t binblen,
 {
     ECHConfigList *er = NULL; /* ECHConfigList record */
     ECHConfig *te = NULL; /* Array of ECHConfig to be embedded in that */
-    int rind = 0;
-    size_t remaining = 0;
+    int rind = 0, rv = 0;
+    size_t remaining = 0, not_to_consume = 0;
     PACKET pkt;
     unsigned int olen = 0;
-    size_t not_to_consume = 0;
-    int rv = 0;
+    unsigned char *skip = NULL;
 
     if (ret_er == NULL || new_echs == NULL || leftover == NULL
-        || binbuf == NULL || binblen == 0) {
-        ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
-        goto err;
-    }
-    if (binblen < OSSL_ECH_MIN_ECHCONFIG_LEN) {
-        ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
-        goto err;
-    }
-    if (binblen >= OSSL_ECH_MAX_ECHCONFIG_LEN) {
+        || binbuf == NULL || binblen == 0
+        || binblen < OSSL_ECH_MIN_ECHCONFIG_LEN
+        || binblen >= OSSL_ECH_MAX_ECHCONFIG_LEN) {
         ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
         goto err;
     }
@@ -537,21 +602,11 @@ static int ECHConfigList_from_binary(unsigned char *binbuf, size_t binblen,
      * Overall length of this ECHConfigList (olen) still could be
      * less than the input buffer length, (binblen) if the caller has been
      * given a catenated set of binary buffers, which could happen
-     * and which we will support
      */
-    if (PACKET_buf_init(&pkt, binbuf, binblen) != 1) {
-        ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
-        goto err;
-    }
-    if (!PACKET_get_net_2(&pkt, &olen)) {
-        ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
-        goto err;
-    }
-    if (olen < (OSSL_ECH_MIN_ECHCONFIG_LEN - 2)) {
-        ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
-        goto err;
-    }
-    if (olen > (binblen - 2)) {
+    if (PACKET_buf_init(&pkt, binbuf, binblen) != 1
+        || !PACKET_get_net_2(&pkt, &olen)
+        || olen < (OSSL_ECH_MIN_ECHCONFIG_LEN - 2)
+        || olen > (binblen - 2)) {
         ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
         goto err;
     }
@@ -570,110 +625,64 @@ static int ECHConfigList_from_binary(unsigned char *binbuf, size_t binblen,
         ec = &te[rind];
         memset(ec, 0, sizeof(ECHConfig));
         rind++;
-        /*
-         * note start of encoding of this ECHConfig, so we can make a copy
-         * later
-         */
+        /* note start of encoding so we can make a copy later */
         tmpeclen = PACKET_remaining(&pkt);
-        if (PACKET_peek_bytes(&pkt, &tmpecp, tmpeclen) != 1) {
-            ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
-            goto err;
-        }
-        /* Version */
-        if (!PACKET_get_net_2(&pkt, &ec->version)) {
-            ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
-            goto err;
-        }
         /*
-         * Grab length of contents, needed in case we
-         * want to skip over it, if it's a version we
-         * don't support, or if >1 ECHConfig is in the
-         * list.
+         * Grab version and length of contents, in case we
+         * need to skip, if it's a version we don't support,
+         * or if >1 ECHConfig is in the list.
          */
-        if (!PACKET_get_net_2(&pkt, &ech_content_length)) {
+        if (PACKET_peek_bytes(&pkt, &tmpecp, tmpeclen) != 1
+            || !PACKET_get_net_2(&pkt, &ec->version)
+            || !PACKET_get_net_2(&pkt, &ech_content_length)) {
             ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
             goto err;
         }
         remaining = PACKET_remaining(&pkt);
-        if ((ech_content_length - 2) > remaining) {
+        if (ech_content_length > (remaining + 2)) {
             ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
             goto err;
         }
-        /* check version, store and skip-over raw octets if not supported */
         switch (ec->version) {
         case OSSL_ECH_DRAFT_13_VERSION:
             break;
         default:
             /* skip over in case we get something we can handle later */
-            {
-                unsigned char *foo = OPENSSL_malloc(ech_content_length);
-
-                if (foo == NULL)
-                    goto err;
-                if (!PACKET_copy_bytes(&pkt, foo, ech_content_length)) {
-                    ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
-                    OPENSSL_free(foo);
-                    goto err;
-                }
-                OPENSSL_free(foo);
-                remaining = PACKET_remaining(&pkt);
-                /* unallocate that one */
-                rind--;
-                continue;
+            skip = OPENSSL_malloc(ech_content_length);
+            if (skip == NULL)
+                goto err;
+            if (!PACKET_copy_bytes(&pkt, skip, ech_content_length)) {
+                ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
+                OPENSSL_free(skip);
+                goto err;
             }
+            OPENSSL_free(skip);
+            remaining = PACKET_remaining(&pkt);
+            /* unallocate that one */
+            rind--;
+            continue;
         }
-
         /*
          * This check's a bit redundant at the moment with only one version
-         * But, when we (again) support >1 version, the indentation will end
+         * But, when we (again) support >1 version, the indentation may end
          * up like this anyway so may as well keep it.
          */
         if (ec->version == OSSL_ECH_DRAFT_13_VERSION) {
-            PACKET pub_pkt;
-            PACKET cipher_suites;
-            int suiteoctets = 0;
-            unsigned char cipher[OSSL_ECH_CIPHER_LEN];
-            int ci = 0;
-            PACKET public_name_pkt;
-            PACKET exts;
-            unsigned char max_name_len;
+            PACKET pub_pkt, cipher_suites, public_name_pkt, exts;
+            int suiteoctets = 0, ci = 0, goodsuitefound = 0;
+            unsigned char cipher[OSSL_ECH_CIPHER_LEN], max_name_len;
             OSSL_HPKE_SUITE hpke_suite;
             size_t suiteind = 0;
-            int goodsuitefound = 0;
 
-            /* read config_id - a fixed single byte */
-            if (!PACKET_copy_bytes(&pkt, &ec->config_id, 1)) {
-                ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
-                goto err;
-            }
-            /* Kem ID */
-            if (!PACKET_get_net_2(&pkt, &ec->kem_id)) {
-                ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
-                goto err;
-            }
-            /* read HPKE public key - just a blob */
-            if (!PACKET_get_length_prefixed_2(&pkt, &pub_pkt)) {
-                ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
-                goto err;
-            }
-            ec->pub_len = PACKET_remaining(&pub_pkt);
-            ec->pub = OPENSSL_malloc(ec->pub_len);
-            if (ec->pub == NULL)
-                goto err;
-            if (PACKET_copy_bytes(&pub_pkt, ec->pub, ec->pub_len) != 1) {
-                ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
-                goto err;
-            }
-            /*
-             * List of ciphersuites - 2 byte len + 2 bytes per ciphersuite
-             * Code here inspired by ssl/ssl_lib.c:bytes_to_cipher_list
-             */
-            if (!PACKET_get_length_prefixed_2(&pkt, &cipher_suites)) {
-                ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
-                goto err;
-            }
-            suiteoctets = PACKET_remaining(&cipher_suites);
-            if (suiteoctets <= 0 || (suiteoctets % 2) == 1) {
+            if (!PACKET_copy_bytes(&pkt, &ec->config_id, 1)
+                || !PACKET_get_net_2(&pkt, &ec->kem_id)
+                || !PACKET_get_length_prefixed_2(&pkt, &pub_pkt)
+                || (ec->pub_len = PACKET_remaining(&pub_pkt)) == 0
+                || (ec->pub = OPENSSL_malloc(ec->pub_len)) == NULL
+                || !PACKET_copy_bytes(&pub_pkt, ec->pub, ec->pub_len)
+                || !PACKET_get_length_prefixed_2(&pkt, &cipher_suites)
+                || (suiteoctets = PACKET_remaining(&cipher_suites)) <= 0
+                || (suiteoctets % 2) == 1) {
                 ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
                 goto err;
             }
@@ -682,22 +691,15 @@ static int ECHConfigList_from_binary(unsigned char *binbuf, size_t binblen,
                                               * sizeof(ech_ciphersuite_t));
             if (ec->ciphersuites == NULL)
                 goto err;
-
             while (PACKET_copy_bytes(&cipher_suites, cipher,
                                      OSSL_ECH_CIPHER_LEN))
                 memcpy(ec->ciphersuites[ci++], cipher, OSSL_ECH_CIPHER_LEN);
-
-            if (PACKET_remaining(&cipher_suites) > 0) {
-                ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
-                goto err;
-            }
-            /* Maximum name length */
-            if (!PACKET_copy_bytes(&pkt, &max_name_len, 1)) {
+            if (PACKET_remaining(&cipher_suites) > 0
+                || !PACKET_copy_bytes(&pkt, &max_name_len, 1)) {
                 ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
                 goto err;
             }
             ec->maximum_name_length = max_name_len;
-            /* read public_name */
             if (!PACKET_get_length_prefixed_1(&pkt, &public_name_pkt)) {
                 ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
                 goto err;
@@ -712,95 +714,25 @@ static int ECHConfigList_from_binary(unsigned char *binbuf, size_t binblen,
                 ec->public_name = OPENSSL_malloc(ec->public_name_len + 1);
                 if (ec->public_name == NULL)
                     goto err;
-                if (PACKET_copy_bytes(&public_name_pkt,
-                                      ec->public_name,
+                if (PACKET_copy_bytes(&public_name_pkt, ec->public_name,
                                       ec->public_name_len) != 1) {
                     ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
                     goto err;
                 }
                 ec->public_name[ec->public_name_len] = '\0';
             }
-            /*
-             * Extensions: we'll just store 'em for now and maybe parse any
-             * we understand later (there are no well defined extensions
-             * as of now).
-             */
             if (!PACKET_get_length_prefixed_2(&pkt, &exts)) {
                 ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
                 goto err;
             }
-            while (PACKET_remaining(&exts) > 0) {
-                unsigned int exttype = 0;
-                unsigned int extlen = 0;
-                unsigned char *extval = NULL;
-                unsigned int *tip = NULL;
-                unsigned int *lip = NULL;
-                unsigned char **vip = NULL;
-
-                ec->nexts += 1;
-                /*
-                 * a two-octet length prefixed list of:
-                 * two octet extension type
-                 * two octet extension length
-                 * length octets
-                 */
-                if (!PACKET_get_net_2(&exts, &exttype)) {
-                    ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
-                    goto err;
-                }
-                if (!PACKET_get_net_2(&exts, &extlen)) {
-                    ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
-                    goto err;
-                }
-                if (extlen >= OSSL_ECH_MAX_ECHCONFIGEXT_LEN) {
-                    ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
-                    goto err;
-                }
-                if (extlen != 0) {
-                    extval = (unsigned char *)OPENSSL_malloc(extlen);
-                    if (extval == NULL)
-                        goto err;
-                    if (!PACKET_copy_bytes(&exts, extval, extlen)) {
-                        ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
-                        OPENSSL_free(extval);
-                        goto err;
-                    }
-                }
-                /* assign fields to lists, have to realloc */
-                tip = (unsigned int *)OPENSSL_realloc(ec->exttypes,
-                                                      ec->nexts
-                                                      * sizeof(ec->exttypes[0])
-                                                      );
-                if (tip == NULL) {
-                    OPENSSL_free(extval);
-                    goto err;
-                }
-                ec->exttypes = tip;
-                ec->exttypes[ec->nexts - 1] = exttype;
-                lip = (unsigned int *)OPENSSL_realloc(ec->extlens,
-                                                      ec->nexts
-                                                      * sizeof(ec->extlens[0]));
-                if (lip == NULL) {
-                    OPENSSL_free(extval);
-                    goto err;
-                }
-                ec->extlens = lip;
-                ec->extlens[ec->nexts - 1] = extlen;
-                vip = (unsigned char **)OPENSSL_realloc(ec->exts,
-                                                        ec->nexts
-                                                        * sizeof(unsigned
-                                                                 char *));
-                if (vip == NULL) {
-                    OPENSSL_free(extval);
-                    goto err;
-                }
-                ec->exts = vip;
-                ec->exts[ec->nexts - 1] = extval;
+            if (PACKET_remaining(&exts) > 0
+                && ech_decode_echconfig_exts(ec, &exts) != 1) {
+                ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
+                goto err;
             }
             /*
-             * Make a check that the kem, aead and kdf are supported here
-             * We don't fail if not, just skip this ECHConfig same as if
-             * the version had been unsupported
+             * Check the kem, aead and kdf are supported. Don't fail if not,
+             * just skip this ECHConfig as if it's an unsupported version
              */
             hpke_suite.kem_id = ec->kem_id;
             for (suiteind = 0; suiteind != ec->nsuites; suiteind++) {
@@ -840,18 +772,12 @@ static int ECHConfigList_from_binary(unsigned char *binbuf, size_t binblen,
         tmpecstart = OPENSSL_malloc(ec->encoding_length);
         if (tmpecstart == NULL) {
             ec->encoding_start = NULL; /* don't free twice in this case */
-            ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
             goto err;
         }
         memcpy(tmpecstart, ec->encoding_start, ec->encoding_length);
         ec->encoding_start = tmpecstart;
         remaining = PACKET_remaining(&pkt);
     }
-    if (PACKET_remaining(&pkt) > binblen) {
-        ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
-        goto err;
-    }
-
     /* Success - make up return value */
     *new_echs = rind;
     *leftover = PACKET_remaining(&pkt);
@@ -1566,10 +1492,15 @@ static int ECHConfig_dup(ECHConfig *old, ECHConfig *new)
             goto err;
     }
     for (i = 0; i != old->nexts; i++) {
-        new->exts[i] = OPENSSL_malloc(old->extlens[i]);
-        if (new->exts[i] == NULL)
-            goto err;
-        memcpy(new->exts[i], old->exts[i], old->extlens[i]);
+        /* old extension might have no value */
+        if (old->extlens[i] > 0) {
+            new->exts[i] = OPENSSL_malloc(old->extlens[i]);
+            if (new->exts[i] == NULL)
+                goto err;
+            memcpy(new->exts[i], old->exts[i], old->extlens[i]);
+        } else {
+            new->exts[i] = NULL;
+        }
     }
     return 1;
 err:

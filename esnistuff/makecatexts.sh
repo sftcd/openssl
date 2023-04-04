@@ -52,14 +52,19 @@ do
     echo $file
     if [ ! -f $file ] 
     then
-        continue
+        # add empty extension
+        flen=0
+    else
+        flen=`wc -c $file | awk '{print $1}'`
     fi
-    flen=`wc -c $file | awk '{print $1}'`
     # output type, length, value to $OUTFILE
     ah_type="`printf  "%04x" $((exttype))`"
     exttype=$((exttype+1))
     echo $ah_type | xxd -p -r >>$OUTFILE
     ah_flen="`printf  "%04x" $((flen))`"
     echo $ah_flen | xxd -p -r >>$OUTFILE
-    cat $file >>$OUTFILE
+    if [ -f $file ]
+    then
+        cat $file >>$OUTFILE
+    fi
 done
