@@ -2637,6 +2637,155 @@ err:
     return 0;
 }
 
+/*
+ * @brief return the h/s hash from the connection of ServerHello
+ * @param s is the SSL connection
+ * @param rmd is the returned h/s hash
+ * @param shbuf is the ServerHello
+ * @param shlen is the length of the ServerHello
+ * @return 1 for good, 0 for error
+ */
+static int get_md_from_hs(SSL_CONNECTION *s, EVP_MD **rmd,
+                          const unsigned char *shbuf, const size_t shlen)
+{
+    int rv;
+    size_t extoffset = 0;
+    size_t echoffset = 0;
+    uint16_t echtype;
+    size_t cipheroffset = 0;
+    const SSL_CIPHER *c = NULL;
+    const unsigned char *cipherchars = NULL;
+    EVP_MD *md = NULL;
+
+    /* this branch works for the server */
+    md = (EVP_MD *)ssl_handshake_md(s);
+    if (md != NULL) {
+        *rmd = md;
+        return 1;
+    }
+    /* if we're a client we'll fallback to hash from the chosen ciphersuite */
+    OSSL_TRACE_BEGIN(TLS) {
+        BIO_printf(trc_out, "finding ECH confirm MD from ServerHello\n");
+    } OSSL_TRACE_END(TLS);
+    rv = ech_get_sh_offsets(shbuf, shlen, &extoffset, &echoffset, &echtype);
+    if (rv != 1) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+        return 0;
+    }
+    if (extoffset < 3) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+        return 0;
+    }
+    cipheroffset = extoffset - 3;
+    cipherchars = &shbuf[cipheroffset];
+    c = ssl_get_cipher_by_char(s, cipherchars, 0);
+    md = (EVP_MD *)ssl_md(s->ssl.ctx, c->algorithm2);
+    if (md == NULL) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+        return 0;
+    }
+    *rmd = md;
+    return 1;
+}
+
+/*
+ * @brief do the HKDF for ECH acceptannce checking
+ * @param s is the SSL connection
+ * @param md is the h/s hash
+ * @param for_hrr is 1 if we're doing a HRR
+ * @return 1 for good, 0 for error
+ */
+static int ech_hkdf_extract_wrap(SSL_CONNECTION *s, EVP_MD *md, int for_hrr,
+                                 unsigned char *hashval, size_t hashlen,
+                                 unsigned char *hoval)
+{
+    int rv = 0;
+    unsigned char notsecret[EVP_MAX_MD_SIZE];
+    unsigned char zeros[EVP_MAX_MD_SIZE];
+    size_t retlen = 0;
+    size_t labellen = 0;
+    EVP_PKEY_CTX *pctx = NULL;
+    const char *label = NULL;
+    unsigned char *p = NULL;
+
+    if (for_hrr == 1) {
+        label = OSSL_ECH_HRR_CONFIRM_STRING;
+    } else {
+        label = OSSL_ECH_ACCEPT_CONFIRM_STRING;
+    }
+    labellen = strlen(label);
+# ifdef OSSL_ECH_SUPERVERBOSE
+    ech_pbuf("calc conf : label", (unsigned char *)label, labellen);
+# endif
+    memset(zeros, 0, EVP_MAX_MD_SIZE);
+    /* We still don't have an hkdf-extract that's exposed by libcrypto */
+    pctx = EVP_PKEY_CTX_new_id(EVP_PKEY_HKDF, NULL);
+    if (!pctx) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+    if (EVP_PKEY_derive_init(pctx) != 1) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+    if (EVP_PKEY_CTX_hkdf_mode(pctx,
+                               EVP_PKEY_HKDEF_MODE_EXTRACT_ONLY) != 1) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+    if (EVP_PKEY_CTX_set_hkdf_md(pctx, md) != 1) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+    /* pick correct client_random */
+    if (s->server)
+        p = s->s3.client_random;
+    else
+        p = s->ext.ech.client_random;
+# ifdef OSSL_ECH_SUPERVERBOSE
+    ech_pbuf("calc conf : client_random", p, SSL3_RANDOM_SIZE);
+# endif
+    if (EVP_PKEY_CTX_set1_hkdf_key(pctx, p, SSL3_RANDOM_SIZE) != 1) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+    if (EVP_PKEY_CTX_set1_hkdf_salt(pctx, zeros, hashlen) != 1) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+    /* get the right size set first - new in latest upstream */
+    if (EVP_PKEY_derive(pctx, NULL, &retlen) != 1) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+    if (hashlen != retlen) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+    if (EVP_PKEY_derive(pctx, notsecret, &retlen) != 1) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+# ifdef OSSL_ECH_SUPERVERBOSE
+    ech_pbuf("calc conf : notsecret", notsecret, hashlen);
+# endif
+    if (hashlen < 8) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+    if (!tls13_hkdf_expand(s, md, notsecret,
+                           (const unsigned char *)label, labellen,
+                           hashval, hashlen,
+                           hoval, 8, 1)) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+    rv = 1;
+err:
+    EVP_PKEY_CTX_free(pctx);
+    return rv;
+}
+
 /* SECTION: Non-public functions used elsewhere in the library */
 
 # ifdef OSSL_ECH_SUPERVERBOSE
@@ -3237,97 +3386,32 @@ int ech_reset_hs_buffer(SSL_CONNECTION *s, const unsigned char *buf,
  * SH offsets) but we'll hold on that a bit 'till we get to
  * refactoring transcripts generally.
  */
-int ech_calc_ech_confirm(SSL_CONNECTION *s, int for_hrr,
-                         unsigned char *acbuf,
-                         const unsigned char *shbuf,
-                         const size_t shlen)
+int ech_calc_ech_confirm(SSL_CONNECTION *s, int for_hrr, unsigned char *acbuf,
+                         const unsigned char *shbuf, const size_t shlen)
 {
-    unsigned char *tbuf = NULL; /* local transcript buffer */
+    int rv;
     EVP_MD_CTX *ctx = EVP_MD_CTX_new();
-    size_t tlen = 0;
-    unsigned char *chbuf = NULL;
-    size_t chlen = 0;
-    size_t shoffset = 6 + 24; /* offset to magic bits in SH.random in shbuf */
-    const EVP_MD *md = NULL;
-    const char *label = NULL;
-    size_t labellen = 0;
-    unsigned int hashlen = 0;
-    unsigned char hashval[EVP_MAX_MD_SIZE];
-    unsigned char hoval[EVP_MAX_MD_SIZE];
-    unsigned char zeros[EVP_MAX_MD_SIZE];
-    EVP_PKEY_CTX *pctx = NULL;
-    unsigned char digestedCH[4 + EVP_MAX_MD_SIZE];
-    size_t digestedCH_len = 0;
-    unsigned char *longtrans = NULL;
+    EVP_MD *md = NULL;
+    unsigned char *tbuf = NULL, *chbuf = NULL, *longtrans = NULL;
     unsigned char *conf_loc = NULL;
-    unsigned char *p = NULL;
+    size_t tlen = 0, chlen = 0;
+    size_t shoffset = 6 + 24; /* offset to magic bits in SH.random in shbuf */
+    size_t extoffset = 0, echoffset = 0, digestedCH_len = 0;
+    uint16_t echtype;
+    unsigned int hashlen = 0;
+    unsigned char hashval[EVP_MAX_MD_SIZE], hoval[EVP_MAX_MD_SIZE];
+    unsigned char digestedCH[4 + EVP_MAX_MD_SIZE];
 
     memset(digestedCH, 0, 4 + EVP_MAX_MD_SIZE);
-    md = ssl_handshake_md(s);
-    if (md == NULL) {
-        /*
-         * this does happen, on clients at least, might be better to set
-         * the h/s md earlier perhaps rather than the rigmarole below
-         */
-        int rv;
-        size_t extoffset = 0;
-        size_t echoffset = 0;
-        uint16_t echtype;
-        size_t cipheroffset = 0;
-        /* fallback to one from the chosen ciphersuite */
-        const SSL_CIPHER *c = NULL;
-        const unsigned char *cipherchars = NULL;
-
-        if (s->server == 1) {
-            /*
-             * Not sure if this server-specific code is ever run.
-             * Doesn't seem hit even with HRR.
-             */
-            OSSL_TRACE_BEGIN(TLS) {
-                BIO_printf(trc_out, "server finding MD from SH\n");
-            } OSSL_TRACE_END(TLS);
-            rv = ech_get_sh_offsets(shbuf + 4, shlen - 4, &extoffset,
-                                    &echoffset, &echtype);
-            if (rv != 1) {
-                SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-                goto err;
-            }
-            if (extoffset < 3) {
-                SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-                goto err;
-            }
-            cipheroffset = extoffset - 3;
-            cipherchars = &shbuf[cipheroffset];
-        } else {
-            OSSL_TRACE_BEGIN(TLS) {
-                BIO_printf(trc_out, "client finding MD from SH\n");
-            } OSSL_TRACE_END(TLS);
-            rv = ech_get_sh_offsets(shbuf, shlen, &extoffset, &echoffset,
-                                    &echtype);
-            if (rv != 1) {
-                SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-                goto err;
-            }
-            if (extoffset < 3) {
-                SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-                goto err;
-            }
-            cipheroffset = extoffset - 3;
-            cipherchars = &shbuf[cipheroffset];
-        }
-        c = ssl_get_cipher_by_char(s, cipherchars, 0);
-        md = ssl_md(s->ssl.ctx, c->algorithm2);
-        if (md == NULL) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-            goto err;
-        }
+    if (get_md_from_hs(s, &md, shbuf, shlen) != 1) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+        goto err;
     }
     hashlen = EVP_MD_size(md);
     if (hashlen > EVP_MAX_MD_SIZE) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         goto err;
     }
-
     if (for_hrr == 0 && s->hello_retry_request == SSL_HRR_NONE) {
         chbuf = s->ext.ech.innerch;
         chlen = s->ext.ech.innerch_len;
@@ -3338,8 +3422,8 @@ int ech_calc_ech_confirm(SSL_CONNECTION *s, int for_hrr,
                  s->ext.ech.innerch1_len);
 # endif
         /*
-         * make up mad odd transcript manually, for now: that's
-         * hashed-inner-CH1, then (non-hashed) HRR and inner-CH2
+         * make up the transcript manually, that's hashed-inner-CH1, then
+         * (non-hashed) HRR and inner-CH2
          */
         if (EVP_DigestInit_ex(ctx, md, NULL) <= 0
             || EVP_DigestUpdate(ctx, s->ext.ech.innerch1,
@@ -3353,7 +3437,6 @@ int ech_calc_ech_confirm(SSL_CONNECTION *s, int for_hrr,
         digestedCH[2] = (hashlen >> 8) & 0xff;
         digestedCH[3] = hashlen & 0xff;
         digestedCH_len = hashlen + 4;
-
 # ifdef OSSL_ECH_SUPERVERBOSE
         ech_pbuf("calc conf : kepthrr", s->ext.ech.kepthrr,
                  s->ext.ech.kepthrr_len);
@@ -3384,8 +3467,7 @@ int ech_calc_ech_confirm(SSL_CONNECTION *s, int for_hrr,
         }
         chbuf = longtrans;
     } else {
-        /* stash HRR for later */
-        s->ext.ech.kepthrr = OPENSSL_malloc(shlen);
+        s->ext.ech.kepthrr = OPENSSL_malloc(shlen); /* stash HRR for later */
         if (s->ext.ech.kepthrr == NULL)
             goto err;
         memcpy(s->ext.ech.kepthrr, shbuf, shlen);
@@ -3414,7 +3496,6 @@ int ech_calc_ech_confirm(SSL_CONNECTION *s, int for_hrr,
         chbuf = digestedCH;
         chlen = hashlen + 4;
     }
-
 # ifdef OSSL_ECH_SUPERVERBOSE
     ech_pbuf("calc conf : digested innerch", digestedCH, digestedCH_len);
     ech_pbuf("calc conf : innerch", s->ext.ech.innerch, s->ext.ech.innerch_len);
@@ -3422,20 +3503,16 @@ int ech_calc_ech_confirm(SSL_CONNECTION *s, int for_hrr,
 # endif
     if (s->server == 1) {
         tlen = chlen + shlen;
-    } else {
-        /* need to add type + 3-octet length for client */
+    } else { /* need to add type + 3-octet length for client */
         tlen = chlen + shlen + 4;
     }
     tbuf = OPENSSL_malloc(tlen);
     if (tbuf == NULL)
         goto err;
     memcpy(tbuf, chbuf, chlen);
-
     /*
-     * For some reason the internal 3-length of the shbuf is
-     * wrong at this point. We'll fix it so, but in tbuf and
-     * not in the actual shbuf, just in case that breaks some
-     * other thing.
+     * The internal 3-length of the shbuf is wrong at this point. We fix it,
+     * but in tbuf and not in shbuf, in case that breaks something.
      */
     if (s->server == 1) {
         memcpy(tbuf + chlen, shbuf, shlen);
@@ -3450,33 +3527,18 @@ int ech_calc_ech_confirm(SSL_CONNECTION *s, int for_hrr,
         tbuf[chlen + 3] = shlen & 0xff;
         memcpy(tbuf + chlen + 4, shbuf, shlen);
     }
-
-    if (for_hrr == 0) {
-        /* zap magic octets at fixed place for SH */
+    if (for_hrr == 0) { /* zap magic octets at fixed place for SH */
         conf_loc = tbuf + chlen + shoffset;
         memset(conf_loc, 0, 8);
     } else {
-        if (s->server == 1) {
-            /* we get to say where we put ECH:-) */
+        if (s->server == 1) { /* we get to say where we put ECH:-) */
             conf_loc = tbuf + tlen - 8;
             memset(conf_loc, 0, 8);
         } else {
-            int rv;
-            size_t extoffset = 0;
-            size_t echoffset = 0;
-            uint16_t echtype;
-
             rv = ech_get_sh_offsets(shbuf, shlen, &extoffset, &echoffset,
                                     &echtype);
-            if (rv != 1) {
-                SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-                goto err;
-            }
-            if (echoffset == 0 || extoffset == 0 || echtype == 0) {
-                SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-                goto err;
-            }
-            if (tlen < (chlen + 4 + echoffset + 4 + 8)) {
+            if (rv != 1 || echoffset == 0 || extoffset == 0 || echtype == 0
+                || tlen < (chlen + 4 + echoffset + 4 + 8)) {
                 SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
                 goto err;
             }
@@ -3484,19 +3546,8 @@ int ech_calc_ech_confirm(SSL_CONNECTION *s, int for_hrr,
             memset(conf_loc, 0, 8);
         }
     }
-
 # ifdef OSSL_ECH_SUPERVERBOSE
     ech_pbuf("calc conf : tbuf", tbuf, tlen);
-# endif
-    /* Next, zap the magic bits and do the keyed hashing */
-    if (for_hrr == 1) {
-        label = OSSL_ECH_HRR_CONFIRM_STRING;
-    } else {
-        label = OSSL_ECH_ACCEPT_CONFIRM_STRING;
-    }
-    labellen = strlen(label);
-# ifdef OSSL_ECH_SUPERVERBOSE
-    ech_pbuf("calc conf : label", (unsigned char *)label, labellen);
 # endif
     hashlen = EVP_MD_size(md);
     if (EVP_DigestInit_ex(ctx, md, NULL) <= 0
@@ -3508,107 +3559,22 @@ int ech_calc_ech_confirm(SSL_CONNECTION *s, int for_hrr,
 # ifdef OSSL_ECH_SUPERVERBOSE
     ech_pbuf("calc conf : hashval", hashval, hashlen);
 # endif
-
-    if (s->ext.ech.attempted_type == OSSL_ECH_DRAFT_13_VERSION) {
-        unsigned char notsecret[EVP_MAX_MD_SIZE];
-        size_t retlen = 0;
-
-        memset(zeros, 0, EVP_MAX_MD_SIZE);
-        /*
-         * We still don't have an hkdf-extract that's exposed by
-         * libcrypto
-         */
-        pctx = EVP_PKEY_CTX_new_id(EVP_PKEY_HKDF, NULL);
-        if (!pctx) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-            goto err;
-        }
-        if (EVP_PKEY_derive_init(pctx) != 1) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-            goto err;
-        }
-        if (EVP_PKEY_CTX_hkdf_mode(pctx,
-                                   EVP_PKEY_HKDEF_MODE_EXTRACT_ONLY) != 1) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-            goto err;
-        }
-        if (EVP_PKEY_CTX_set_hkdf_md(pctx, md) != 1) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-            goto err;
-        }
-        /* pick correct client_random */
-        if (s->server)
-            p = s->s3.client_random;
-        else
-            p = s->ext.ech.client_random;
-# ifdef OSSL_ECH_SUPERVERBOSE
-        ech_pbuf("calc conf : client_random", p, SSL3_RANDOM_SIZE);
-# endif
-        if (EVP_PKEY_CTX_set1_hkdf_key(pctx, p, SSL3_RANDOM_SIZE) != 1) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-            goto err;
-        }
-        if (EVP_PKEY_CTX_set1_hkdf_salt(pctx, zeros, hashlen) != 1) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-            goto err;
-        }
-        /* get the right size set first - new in latest upstream */
-        if (EVP_PKEY_derive(pctx, NULL, &retlen) != 1) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-            goto err;
-        }
-        if (hashlen != retlen) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-            goto err;
-        }
-        if (EVP_PKEY_derive(pctx, notsecret, &retlen) != 1) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-            goto err;
-        }
-        EVP_PKEY_CTX_free(pctx);
-        pctx = NULL;
-
-# ifdef OSSL_ECH_SUPERVERBOSE
-        ech_pbuf("calc conf : notsecret", notsecret, hashlen);
-# endif
-        if (hashlen < 8) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-            goto err;
-        }
-        if (!tls13_hkdf_expand(s, md, notsecret,
-                               (const unsigned char *)label, labellen,
-                               hashval, hashlen,
-                               hoval, 8, 1)) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-            goto err;
-        }
+    if (ech_hkdf_extract_wrap(s, md, for_hrr, hashval, hashlen, hoval) != 1) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+        goto err;
     }
-
-    /* Finally, set the output */
-    memcpy(acbuf, hoval, 8);
+    memcpy(acbuf, hoval, 8); /* Finally, set the output */
 # ifdef OSSL_ECH_SUPERVERBOSE
     ech_pbuf("calc conf : result", acbuf, 8);
 # endif
-    if (s->hello_retry_request == SSL_HRR_NONE && s->ext.ech.backend != 0)
+    if (s->hello_retry_request == SSL_HRR_NONE)
         ech_reset_hs_buffer(s, s->ext.ech.innerch, s->ext.ech.innerch_len);
-
-    if (s->hello_retry_request == SSL_HRR_NONE && s->ext.ech.backend == 0)
-        ech_reset_hs_buffer(s, s->ext.ech.innerch, s->ext.ech.innerch_len);
-
-    if (for_hrr == 1) {
-        /* whack confirm value into stored version of hrr */
+    if (for_hrr == 1) { /* whack confirm value into stored version of hrr */
         memcpy(s->ext.ech.kepthrr + s->ext.ech.kepthrr_len - 8, acbuf, 8);
     }
-    /* whack result back into tbuf */
-    memcpy(conf_loc, acbuf, 8);
-    if (s->hello_retry_request == SSL_HRR_COMPLETE) {
+    memcpy(conf_loc, acbuf, 8); /* whack result back into tbuf */
+    if (s->hello_retry_request == SSL_HRR_COMPLETE)
         ech_reset_hs_buffer(s, tbuf, tlen - shlen);
-    }
-
-    OPENSSL_free(tbuf);
-    tbuf = NULL;
-    EVP_MD_CTX_free(ctx);
-    ctx = NULL;
 # ifdef OSSL_ECH_SUPERVERBOSE
     OSSL_TRACE_BEGIN(TLS) {
         if (SSL_ech_print(trc_out, &s->ssl, OSSL_ECH_SELECT_ALL) != 1) {
@@ -3617,15 +3583,12 @@ int ech_calc_ech_confirm(SSL_CONNECTION *s, int for_hrr,
         }
     } OSSL_TRACE_END(TLS);
 # endif
-    OPENSSL_free(longtrans);
-    return 1;
-
+    rv = 1;
 err:
     OPENSSL_free(longtrans);
     OPENSSL_free(tbuf);
     EVP_MD_CTX_free(ctx);
-    EVP_PKEY_CTX_free(pctx);
-    return 0;
+    return rv;
 }
 
 /*
@@ -4503,26 +4466,11 @@ int SSL_ech_set1_echconfig(SSL *ssl, const unsigned char *val, size_t len)
     SSL_ECH *echs = NULL;
     SSL_ECH *tmp = NULL;
     int num_echs = 0;
-# ifdef SUPERSTRICT
-    /*
-     * insisting that we know already that we'll support TLSv1.3
-     * is likely a bit too strict here, but probably want to check
-     * this sometime, so TODO: check that
-     */
-    int tlsver = 0;
-# endif
 
     if (s == NULL || val == NULL || len == 0) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_PASSED_NULL_PARAMETER);
         return 0;
     }
-# ifdef SUPERSTRICT
-    tlsver = SSL_get_max_proto_version(ssl);
-    if (tlsver != TLS1_3_VERSION && tlsver != TLS_ANY_VERSION) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_R_WRONG_SSL_VERSION);
-        return 0;
-    }
-# endif
     if (local_ech_add(OSSL_ECH_FMT_GUESS, len, val, &num_echs, &echs) != 1) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
@@ -4562,26 +4510,11 @@ int SSL_CTX_ech_set1_echconfig(SSL_CTX *ctx, const unsigned char *val,
     SSL_ECH *echs = NULL;
     SSL_ECH *tmp = NULL;
     int num_echs = 0;
-# ifdef SUPERSTRICT
-    /*
-     * insisting that we know already that we'll support TLSv1.3
-     * is likely a bit too strict here, but probably want to check
-     * this sometime, so TODO: check that
-     */
-    int tlsver = 0;
-# endif
 
     if (ctx == NULL || val == NULL || len == 0) {
         ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_NULL_PARAMETER);
         return 0;
     }
-# ifdef SUPERSTRICT
-    tlsver = SSL_CTX_get_max_proto_version(ctx);
-    if (tlsver != TLS1_3_VERSION && tlsver != TLS_ANY_VERSION) {
-        ERR_raise(ERR_LIB_SSL, SSL_R_WRONG_SSL_VERSION);
-        return 0;
-    }
-# endif
     if (local_ech_add(OSSL_ECH_FMT_GUESS, len, val, &num_echs, &echs) != 1) {
         ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
         return 0;
