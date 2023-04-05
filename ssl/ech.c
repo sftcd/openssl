@@ -1004,7 +1004,6 @@ static int local_ech_add(int ekfmt, size_t len, const unsigned char *val,
         ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
         return 0;
     }
-
     if (eklen >= OSSL_ECH_MAX_ECHCONFIG_LEN) {
         ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
         return 0;
@@ -1074,12 +1073,10 @@ static int local_ech_add(int ekfmt, size_t len, const unsigned char *val,
             goto err;
         memcpy(outbuf, ekptr, declen);
     }
-
     if (ech_decode_and_flatten(&nlens, &retechs, outbuf, declen) != 1) {
         ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
         goto err;
     }
-
     if (nlens > 0 && *num_echs == 0) {
         *num_echs = nlens;
         *echs = retechs;
@@ -1093,12 +1090,10 @@ static int local_ech_add(int ekfmt, size_t len, const unsigned char *val,
                retechs, nlens * sizeof(SSL_ECH));
         *num_echs += nlens;
     }
-
     OPENSSL_free(ekcpy);
     OPENSSL_free(outbuf);
     ekcpy = NULL;
     return 1;
-
 err:
     OPENSSL_free(outbuf);
     OPENSSL_free(ekcpy);
@@ -1106,6 +1101,7 @@ err:
     OPENSSL_free(retechs);
     return 0;
 }
+
 /*
  * @brief find ECH values inside various encodings
  * @param num_echs (ptr to) number of ECHConfig values found
@@ -2411,16 +2407,20 @@ static int ech_get_outer_sni(SSL_CONNECTION *s, char **osni_str,
                              size_t snioffset)
 {
     PACKET osni;
-    const unsigned char *osnibuf = &opd[snioffset + 4];
-    size_t osnilen = opd[snioffset + 2] * 256 + opd[snioffset + 3];
+    const unsigned char *osnibuf = NULL;
+    size_t osnilen = 0;
 
+    if (opl <= snioffset + 5)
+        return 0;
+    osnibuf = &opd[snioffset + 4];
+    osnilen = opd[snioffset + 2] * 256 + opd[snioffset + 3];
     if (osnilen > opl - snioffset - 4
         || PACKET_buf_init(&osni, osnibuf, osnilen) != 1
         || tls_parse_ctos_server_name(s, &osni, 0, NULL, 0) != 1)
         return 0;
     OPENSSL_free(s->ext.ech.cfgs->outer_name);
     *osni_str = s->ext.ech.cfgs->outer_name = s->ext.hostname;
-    /* clean up */
+    /* clean up what the ECH-unaware parse func above left behind */
     s->ext.hostname = NULL;
     s->servername_done = 0;
     return 1;
@@ -3056,6 +3056,12 @@ int ech_2bcompressed(int ind)
 {
     int nexts = OSSL_NELEM(ech_ext_handling);
 
+    if (!ossl_assert(TLSEXT_IDX_num_builtins == nexts)) {
+        OSSL_TRACE_BEGIN(TLS) {
+            BIO_printf(trc_out, "ECH extension table differs in size from base");
+        } OSSL_TRACE_END(TLS);
+        return -1;
+    }
 # ifdef DUPEMALL
     return 0;
 # endif
@@ -3870,24 +3876,17 @@ int ech_pick_matching_cfg(SSL_CONNECTION *s, ECHConfig **tc,
  */
 int ech_aad_and_encrypt(SSL_CONNECTION *s, WPACKET *pkt)
 {
-    int hpke_mode = OSSL_HPKE_MODE_BASE;
+    int rv = 0, hpke_mode = OSSL_HPKE_MODE_BASE;
     OSSL_HPKE_SUITE hpke_suite = OSSL_HPKE_SUITE_DEFAULT;
-    unsigned char *cipher = NULL;
-    size_t cipherlen = 0;
-    unsigned char *aad = NULL;
-    size_t aad_len = 0;
+    unsigned char *clear = NULL, *cipher = NULL, *aad = NULL;
+    size_t cipherlen = 0, aad_len = 0, lenclen = 0, mypub_len = 0;
     unsigned char config_id_to_use = 0x00;
-    size_t lenclen = 0;
     unsigned char *mypub = NULL; /* client's ephemeral public */
-    size_t mypub_len = 0;
     ECHConfig *tc = NULL; /* matching server public key (if one exists) */
     unsigned char info[SSL3_RT_MAX_PLAIN_LENGTH];
     size_t info_len = SSL3_RT_MAX_PLAIN_LENGTH;
     size_t suitesoffset = 0, suiteslen = 0, startofexts = 0;
-    size_t origextlens = 0, newextlens = 0, echlen = 0;
-    unsigned char *clear = NULL;
-    size_t clear_len = 0;
-    int rv = 0;
+    size_t origextlens = 0, newextlens = 0, echlen = 0, clear_len = 0;
 
     if (s == NULL || s->ext.ech.cfgs == NULL
         || pkt == NULL || s->ssl.ctx == NULL) {
@@ -3977,21 +3976,19 @@ int ech_aad_and_encrypt(SSL_CONNECTION *s, WPACKET *pkt)
 # ifdef OSSL_ECH_SUPERVERBOSE
     ech_pbuf("EAAE info", info, info_len);
     ech_pbuf("EAAE: mypub", mypub, mypub_len);
+    /* re-use aad_len for tracing */
+    WPACKET_get_total_written(pkt, &aad_len);
+    ech_pbuf("EAAE pkt b4", WPACKET_get_curr(pkt) - aad_len, aad_len);
 # endif
     cipherlen = OSSL_HPKE_get_ciphertext_size(hpke_suite, clear_len);
-    if (cipherlen <= clear_len) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-        goto err;
-    }
-    if (cipherlen > OSSL_ECH_MAX_PAYLOAD_LEN) {
+    if (cipherlen <= clear_len
+        || cipherlen > OSSL_ECH_MAX_PAYLOAD_LEN) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         goto err;
     }
     cipher = OPENSSL_zalloc(cipherlen);
-    if (cipher == NULL) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+    if (cipher == NULL)
         goto err;
-    }
     echlen = 1 + 4 + 1 + 2 + mypub_len + 2 + cipherlen;
     if (s->hello_retry_request == SSL_HRR_PENDING) {
         if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_ech13)
@@ -4000,14 +3997,14 @@ int ech_aad_and_encrypt(SSL_CONNECTION *s, WPACKET *pkt)
             || !WPACKET_put_bytes_u16(pkt, hpke_suite.kdf_id)
             || !WPACKET_put_bytes_u16(pkt, hpke_suite.aead_id)
             || !WPACKET_put_bytes_u8(pkt, config_id_to_use)
-            || !WPACKET_put_bytes_u16(pkt, 0x00)
+            || !WPACKET_put_bytes_u16(pkt, 0x00) /* no pub */
             || !WPACKET_sub_memcpy_u16(pkt, cipher, cipherlen)
             || !WPACKET_close(pkt)
             ) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             goto err;
         }
-        echlen -= mypub_len;
+        echlen -= mypub_len; /* don't re-tx pub in HRR case */
     } else {
         if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_ech13)
             || !WPACKET_start_sub_packet_u16(pkt)
@@ -4023,13 +4020,22 @@ int ech_aad_and_encrypt(SSL_CONNECTION *s, WPACKET *pkt)
             goto err;
         }
     }
-    aad = (unsigned char *)(pkt->buf->data) + 4;
-    aad_len = pkt->written - 4;
-    /* fix up the overall extensions length in the aad */
+    if (!WPACKET_get_total_written(pkt, &aad_len) || aad_len < 4) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+    aad_len -= 4; /* aad starts after type + 3-octet len */
+    aad = WPACKET_get_curr(pkt) - aad_len;
+    /*
+     * For some reason WPACKET_fill_lengths() doesn't fix up
+     * the overall extensions length so for now, we do that
+     * manually.
+     * TODO: find a way to do this via the PACKET APIs
+     */
     suitesoffset = CLIENT_VERSION_LEN + SSL3_RANDOM_SIZE + 1
         + s->tmp_session_id_len;
     suiteslen = aad[suitesoffset] * 256 + aad[suitesoffset + 1];
-    startofexts = suitesoffset + suiteslen + 2 + 2; /* 2 for the suites len */
+    startofexts = suitesoffset + 2 + suiteslen + 2; /* 2 for the suites len */
     origextlens = aad[startofexts] * 256 + aad[startofexts + 1];
     newextlens = origextlens + 4 + echlen;
     aad[startofexts] = (unsigned char)((newextlens & 0xffff) / 256);
@@ -4037,7 +4043,7 @@ int ech_aad_and_encrypt(SSL_CONNECTION *s, WPACKET *pkt)
 # ifdef OSSL_ECH_SUPERVERBOSE
     ech_pbuf("EAAE: aad", aad, aad_len);
 # endif
-    clear = OPENSSL_zalloc(clear_len);
+    clear = OPENSSL_zalloc(clear_len); /* zeros incl. padding */
     if (clear == NULL)
         goto err;
     memcpy(clear, s->ext.ech.encoded_innerch,
@@ -4059,9 +4065,9 @@ int ech_aad_and_encrypt(SSL_CONNECTION *s, WPACKET *pkt)
     /* splice real ciphertext back in now */
     memcpy(aad + aad_len - cipherlen, cipher, cipherlen);
 # ifdef OSSL_ECH_SUPERVERBOSE
-    ech_pbuf("EAAE pkt to startofexts+6 (startofexts is 4 offset so +2 really)",
-             (unsigned char *) pkt->buf->data, startofexts + 6);
-    ech_pbuf("EAAE pkt aftr", (unsigned char *)pkt->buf->data, pkt->written);
+    /* re-use aad_len for tracing */
+    WPACKET_get_total_written(pkt, &aad_len);
+    ech_pbuf("EAAE pkt aftr", WPACKET_get_curr(pkt) - aad_len, aad_len);
 # endif
     OPENSSL_free(cipher);
     return 1;
