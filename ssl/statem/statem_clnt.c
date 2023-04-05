@@ -1304,6 +1304,7 @@ __owur CON_FUNC_RETURN tls_construct_client_hello(SSL_CONNECTION *s,
     /*
      * Before we start on the outer, we copy details we have so far
      * unless we're in the middle of HRR handling
+     * TODO: tidy here!!
      */
     if (s->ext.ech.hrr_depth == -1) {
         /* doing 1st CH, as we've not seen an HRR */
@@ -1427,19 +1428,18 @@ __owur CON_FUNC_RETURN tls_construct_client_hello(SSL_CONNECTION *s,
     ech_pbuf("outer, session_id", s->session->session_id,
              s->session->session_id_length);
 # endif
-    /* Finally, we're ready to calculate AAD and to encrypt using HPKE */
+    /* Finally, calculate AAD and encrypt using HPKE */
     if (ech_aad_and_encrypt(s, pkt) != 1) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         goto err;
     }
-    /* Free up raw exts as needed (happens like this on real server */
+    /* Free up raw exts as needed (happens like this on real server) */
     if (s->clienthello != NULL
         && s->clienthello->pre_proc_exts != NULL) {
         OPENSSL_free(s->clienthello->pre_proc_exts);
         OPENSSL_free(s->clienthello);
         s->clienthello = NULL;
     }
-    /* free up record layer as we'll not need that */
     return 1;
 err:
     WPACKET_cleanup(&inner);
