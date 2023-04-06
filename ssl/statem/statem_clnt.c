@@ -1211,10 +1211,10 @@ __owur CON_FUNC_RETURN tls_construct_client_hello(SSL_CONNECTION *s,
     unsigned char *innerch_full = NULL, *innerch_end = NULL;
     WPACKET inner; /* "fake" pkt for inner */
     BUF_MEM *inner_mem = NULL;
+    PACKET rpkt; /* we'll decode back the inner ch to help make the outer */
     SSL_SESSION *sess = NULL;
     size_t sess_id_len = 0, innerlen = 0;
     int mt = SSL3_MT_CLIENT_HELLO, rv = 0;
-    PACKET rpkt; /* we'll decode back the inner ch to help make the outer */
     ECHConfig *tc = NULL;
     OSSL_HPKE_SUITE suite;
 
@@ -1249,7 +1249,7 @@ __owur CON_FUNC_RETURN tls_construct_client_hello(SSL_CONNECTION *s,
     if (s->ext.ech.grease == OSSL_ECH_IS_GREASE && s->ext.ech.attempted == 1)
         s->ext.ech.grease = OSSL_ECH_NOT_GREASE;
     /*
-     * Session ID is handled "oddly" by not being encoded into inner CH (an 
+     * Session ID is handled "oddly" by not being encoded into inner CH (an
      * optimisation) so is the same for both inner and outer (so that
      * ServerHello has correct value).
      */
@@ -1806,188 +1806,128 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL_CONNECTION *s, PACKET *pkt)
 
 #ifndef OPENSSL_NO_ECH
     /*
-     * If we sent an ECH then try the inner first to see if it
-     * matches/works (based on the ServerHello.random confirmation
-     * trick from the spec). If that is good then we'll swap over
-     * the inner and outer contexts and proceed with inner.
-     * The check to do differs depending on whether or not HRR happened.
+     * If we sent an ECH then check if that worked based on the
+     * ServerHello.random confirmation trick. If that is good
+     * then we'll swap over the inner and outer contexts and
+     * proceed with inner. There are some HRR wrinkles too
+     * though.
      */
     if (s->ext.ech.cfgs != NULL
         && s->ext.ech.done != 1 && s->ext.ech.ch_depth == 0
         && s->ext.ech.grease == OSSL_ECH_NOT_GREASE
         && s->ext.ech.attempted_type == TLSEXT_TYPE_ech13) {
-        unsigned char acbuf[8]; /* accept signal buffer */
+        unsigned char c_signal[8]; /* client accept signal buffer */
+        unsigned char s_signal[8]; /* server accept signal buffer */
+        unsigned char hashval[EVP_MAX_MD_SIZE];
+        unsigned int hashlen;
+        unsigned char *abuf = NULL;
+        size_t alen = 0;
+        WPACKET tp;
+        BUF_MEM *tp_mem = NULL;
 
-        if (hrr) {
-            /* check the HRR accept signal */
-            if (ech_calc_ech_confirm(s, 1, acbuf, shbuf, shlen) != 1) {
-                SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-                goto err;
-            }
-            if (memcmp(shbuf + shlen - 8, acbuf ,8) == 0) {
-                s->ext.ech.success = 1;
-                s->ext.ech.hrr_depth = 1;
-                OSSL_TRACE_BEGIN(TLS) {
-                    BIO_printf(trc_out, "ECH HRR accept check ok\n");
-                    BIO_printf(trc_out, "ECH set session hostname to %s\n",
-                               s->ext.hostname ? s->ext.hostname : "NULL");
-                } OSSL_TRACE_END(TLS);
-            } else {
-                s->ext.ech.success = 0;
+        /* caclulate the ECH accept signal */
+        if (ech_calc_confirm(s, hrr, c_signal, shbuf, shlen) != 1) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+            goto err;
+        }
+        if (ech_find_confirm(s, hrr, s_signal, shbuf, shlen) != 1
+            || memcmp(s_signal, c_signal ,8) != 0) { /* no match */
+# ifdef OSSL_ECH_SUPERVERBOSE
+            OSSL_TRACE_BEGIN(TLS) {
+                BIO_printf(trc_out, "ECH HRR accept check failed\n");
+            } OSSL_TRACE_END(TLS);
+            ech_pbuf("ECH HRR c_signal", c_signal, 8);
+            ech_pbuf("ECH HRR shval", shbuf + shlen - 8, 8);
+# endif
+            s->ext.ech.success = 0;
+            if (hrr)
                 s->ext.ech.hrr_depth = 0;
-                OSSL_TRACE_BEGIN(TLS) {
-                    BIO_printf(trc_out, "ECH HRR accept check failed\n");
-                } OSSL_TRACE_END(TLS);
-# ifdef OSSL_ECH_SUPERVERBOSE
-                ech_pbuf("ECH HRR acbuf", acbuf, 8);
-                ech_pbuf("ECH HRR shval", shbuf + shlen - 8, 8);
-# endif
-            }
-        } else {
-            size_t alen = 0;
-            unsigned char *abuf = NULL;
-
-            /* check the SH accept signal from the SH.random */
-            if (ech_calc_ech_confirm(s, 0, acbuf, shbuf ,shlen) != 1) {
+        } else { /* match, ECH worked */
+            OSSL_TRACE_BEGIN(TLS) {
+                BIO_printf(trc_out, "ECH HRR accept check ok\n");
+                BIO_printf(trc_out, "ECH set session hostname to %s\n",
+                           s->ext.hostname ? s->ext.hostname : "NULL");
+            } OSSL_TRACE_END(TLS);
+            s->ext.ech.success = 1;
+            if (hrr)
+                s->ext.ech.hrr_depth = 1;
+        }
+        if (!hrr && s->ext.ech.success == 1) {
+            if (ech_swaperoo(s) != 1) { /* swap context */
                 SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
                 goto err;
             }
-            if (memcmp(s->s3.server_random + SSL3_RANDOM_SIZE - 8,
-                       acbuf, 8) == 0) {
-                OSSL_TRACE_BEGIN(TLS) {
-                    BIO_printf(trc_out, "ECH SH accept check ok\n");
-                } OSSL_TRACE_END(TLS);
-                s->ext.ech.success = 1;
-                OSSL_TRACE_BEGIN(TLS) {
-                    BIO_printf(trc_out, "ECH set session hostname to %s\n",
-                               s->ext.hostname ? s->ext.hostname : "NULL");
-                } OSSL_TRACE_END(TLS);
-            } else {
-                OSSL_TRACE_BEGIN(TLS) {
-                    BIO_printf(trc_out, "ECH SH accept check failed\n");
-                } OSSL_TRACE_END(TLS);
-                s->ext.ech.success = 0;
-# ifdef OSSL_ECH_SUPERVERBOSE
-                ech_pbuf("ECH SH acbuf", acbuf, 8);
-                ech_pbuf("ECH SH shval",
-                         s->s3.server_random + SSL3_RANDOM_SIZE - 8, 8);
-# endif
+            /* we need to also reset transcipt */
+            if ((tp_mem = BUF_MEM_new()) == NULL
+                || !BUF_MEM_grow(tp_mem, SSL3_RT_MAX_PLAIN_LENGTH)
+                || !WPACKET_init(&tp, tp_mem)) {
+                SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+                BUF_MEM_free(tp_mem);
+                goto err;
             }
-            if (s->ext.ech.success == 1) {
-                unsigned char *aptr = NULL;
+            if (s->hello_retry_request == SSL_HRR_PENDING) {
+                /* add digested ch1 and kept hrr */
+                EVP_MD_CTX *ctx = EVP_MD_CTX_new();
+                const EVP_MD *md = NULL;
 
                 OSSL_TRACE_BEGIN(TLS) {
-                    BIO_printf(trc_out, "Accepted ECH - swap inner/outer\n");
+                    BIO_printf(trc_out,"Adding in digest of CH1/HRR\n");
                 } OSSL_TRACE_END(TLS);
-                if (ech_swaperoo(s) != 1) {
+# ifdef OSSL_ECH_SUPERVERBOSE
+                ech_pbuf("innerch1", s->ext.ech.innerch1,
+                         s->ext.ech.innerch1_len);
+# endif
+                if ((md = ssl_handshake_md(s)) == NULL
+                    || EVP_DigestInit_ex(ctx, md, NULL) <= 0
+                    || EVP_DigestUpdate(ctx, s->ext.ech.innerch1,
+                                        s->ext.ech.innerch1_len) <= 0
+                    || EVP_DigestFinal_ex(ctx, hashval, &hashlen) <= 0) {
+                        SSLfatal(s, SSL_AD_INTERNAL_ERROR,
+                                 ERR_R_INTERNAL_ERROR);
+                        WPACKET_cleanup(&tp);
+                        BUF_MEM_free(tp_mem);
+                        EVP_MD_CTX_free(ctx);
+                        goto err;
+                }
+# ifdef OSSL_ECH_SUPERVERBOSE
+                ech_pbuf("digested CH", hashval, hashlen);
+# endif
+                EVP_MD_CTX_free(ctx);
+                if (!WPACKET_put_bytes_u8(&tp, SSL3_MT_MESSAGE_HASH)
+                    || !WPACKET_put_bytes_u24(&tp, hashlen)
+                    || !WPACKET_memcpy(&tp, hashval, hashlen)
+                    || !WPACKET_put_bytes_u8(&tp, SSL3_MT_SERVER_HELLO)
+                    || !WPACKET_put_bytes_u24(&tp, s->ext.ech.kepthrr_len)
+                    || !WPACKET_memcpy(&tp, s->ext.ech.kepthrr,
+                                       s->ext.ech.kepthrr_len)) {
                     SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+                    WPACKET_cleanup(&tp);
+                    BUF_MEM_free(tp_mem);
                     goto err;
                 }
-                if (s->hello_retry_request == SSL_HRR_PENDING) {
-                    /* first add digested ch1 and kept hrr */
-                    unsigned char hashval[EVP_MAX_MD_SIZE];
-                    unsigned int hashlen;
-                    EVP_MD_CTX *ctx = EVP_MD_CTX_new();
-                    const EVP_MD *md = NULL;
-
-                    OSSL_TRACE_BEGIN(TLS) {
-                        BIO_printf(trc_out,"Adding in digest of CH1/HRR\n");
-                    } OSSL_TRACE_END(TLS);
-# ifdef OSSL_ECH_SUPERVERBOSE
-                    ech_pbuf("innerch", s->ext.ech.innerch1,
-                             s->ext.ech.innerch1_len);
-# endif
-                    md = ssl_handshake_md(s);
-                    if (!md) {
-                        /* fallback to one from the chosen ciphersuite */
-                        const SSL_CIPHER *c = NULL;
-                        const unsigned char *lcipherchars = NULL;
-                        size_t ciphercharoffset =
-                            CLIENT_VERSION_LEN + /* 2 */
-                            SSL3_RANDOM_SIZE + /* 32 */
-                            1 + /* len of session id */
-                            session_id_len; /* 32 */;
-
-                        if (s->server) {
-                            /* add the msg type + 3-octet length */
-                            ciphercharoffset += SSL3_HM_HEADER_LENGTH; /* 4 */
-                        }
-                        if ((ciphercharoffset + TLS_CIPHER_LEN) >= shlen) {
-                            SSLfatal(s, SSL_AD_INTERNAL_ERROR,
-                                     ERR_R_INTERNAL_ERROR);
-                            goto err;
-                        }
-                        lcipherchars = &shbuf[ciphercharoffset];
-                        c = ssl_get_cipher_by_char(s, lcipherchars, 0);
-                        md = ssl_md(s->ssl.ctx, c->algorithm2);
-                        if (md == NULL) {
-                            /* ultimate fallback sha266 */
-                            md = s->ssl.ctx->ssl_digest_methods
-                                    [SSL_HANDSHAKE_MAC_SHA256];
-                        }
-                    }
-                    if (EVP_DigestInit_ex(ctx, md, NULL) <= 0
-                        || EVP_DigestUpdate(ctx, s->ext.ech.innerch1,
-                            s->ext.ech.innerch1_len) <= 0
-                        || EVP_DigestFinal_ex(ctx, hashval, &hashlen) <= 0) {
-                            SSLfatal(s, SSL_AD_INTERNAL_ERROR,
-                                    ERR_R_INTERNAL_ERROR);
-                            return 0;
-                    }
-# ifdef OSSL_ECH_SUPERVERBOSE
-                    ech_pbuf("digested CH", hashval, hashlen);
-# endif
-                    EVP_MD_CTX_free(ctx);
-                    alen = SSL3_HM_HEADER_LENGTH + hashlen
-                           + SSL3_HM_HEADER_LENGTH + s->ext.ech.kepthrr_len
-                           + SSL3_HM_HEADER_LENGTH + s->ext.ech.innerch_len
-                           + shlen;
-                    abuf = OPENSSL_malloc(alen);
-                    if (abuf==NULL)
-                        goto err;
-                    aptr = abuf;
-                    aptr[0] = SSL3_MT_MESSAGE_HASH;
-                    aptr[1] = ((hashlen >> 16) & 0xff);
-                    aptr[2] = ((hashlen >> 8) & 0xff);
-                    aptr[3] = (hashlen & 0xff);
-                    aptr += 4;
-                    memcpy(aptr, hashval, hashlen);
-                    aptr += hashlen;
-                    aptr[0] = SSL3_MT_SERVER_HELLO;
-                    aptr[1] = ((s->ext.ech.kepthrr_len >> 16) & 0xff);
-                    aptr[2] = ((s->ext.ech.kepthrr_len >> 8) & 0xff);
-                    aptr[3] = (s->ext.ech.kepthrr_len & 0xff);
-                    aptr += 4;
-                    memcpy(aptr, s->ext.ech.kepthrr, s->ext.ech.kepthrr_len);
-                    aptr += s->ext.ech.kepthrr_len;
-                } else {
-                    alen = s->ext.ech.innerch_len + SSL3_HM_HEADER_LENGTH
-                           + shlen;
-                    abuf = OPENSSL_malloc(alen);
-                    if (abuf==NULL)
-                        goto err;
-                    aptr = abuf;
-                }
-                memcpy(aptr, s->ext.ech.innerch, s->ext.ech.innerch_len);
-                aptr[s->ext.ech.innerch_len] = SSL3_MT_SERVER_HELLO;
-                aptr[s->ext.ech.innerch_len+1] = ((shlen >> 16) & 0xff);
-                aptr[s->ext.ech.innerch_len+2] = ((shlen >> 8) & 0xff);
-                aptr[s->ext.ech.innerch_len+3] = (shlen & 0xff);
-                memcpy(aptr + s->ext.ech.innerch_len + 4, shbuf, shlen);
-# ifdef OSSL_ECH_SUPERVERBOSE
-                ech_pbuf("Client transcript re-init", abuf, alen);
-# endif
-                if (ech_reset_hs_buffer(s, abuf, alen) != 1) {
-                    OPENSSL_free(abuf);
-                    SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-                    goto err;
-                }
-                OPENSSL_free(abuf);
-            } else {
-                OSSL_TRACE_BEGIN(TLS) {
-                    BIO_printf(trc_out, "ECH not accepted - cleaning some\n");
-                } OSSL_TRACE_END(TLS);
             }
+            if (!WPACKET_memcpy(&tp, s->ext.ech.innerch, s->ext.ech.innerch_len)
+                || !WPACKET_put_bytes_u8(&tp, SSL3_MT_SERVER_HELLO)
+                || !WPACKET_put_bytes_u24(&tp, shlen)
+                || !WPACKET_memcpy(&tp, shbuf, shlen)
+                || !WPACKET_get_total_written(&tp, &alen)) {
+                SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+                WPACKET_cleanup(&tp);
+                BUF_MEM_free(tp_mem);
+                goto err;
+            }
+            abuf = WPACKET_get_curr(&tp) - alen;
+# ifdef OSSL_ECH_SUPERVERBOSE
+            ech_pbuf("Client transcript re-init", abuf, alen);
+# endif
+            if (ech_reset_hs_buffer(s, abuf, alen) != 1) {
+                SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+                WPACKET_cleanup(&tp);
+                BUF_MEM_free(tp_mem);
+                goto err;
+            }
+            WPACKET_cleanup(&tp);
+            BUF_MEM_free(tp_mem);
         }
     }
 #endif

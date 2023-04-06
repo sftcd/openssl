@@ -2660,7 +2660,7 @@ CON_FUNC_RETURN tls_construct_server_hello(SSL_CONNECTION *s, WPACKET *pkt)
             return CON_FUNC_ERROR;
         }
         shbuf = WPACKET_get_curr(pkt) - shlen;
-        if (ech_calc_ech_confirm(s, hrr, acbuf, shbuf, shlen) != 1) {
+        if (ech_calc_confirm(s, hrr, acbuf, shbuf, shlen) != 1) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             return CON_FUNC_ERROR;
         }

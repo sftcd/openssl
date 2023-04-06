@@ -3325,8 +3325,8 @@ int ech_reset_hs_buffer(SSL_CONNECTION *s, const unsigned char *buf,
  * SH offsets) but we'll hold on that a bit 'till we get to
  * refactoring transcripts generally.
  */
-int ech_calc_ech_confirm(SSL_CONNECTION *s, int for_hrr, unsigned char *acbuf,
-                         const unsigned char *shbuf, const size_t shlen)
+int ech_calc_confirm(SSL_CONNECTION *s, int for_hrr, unsigned char *acbuf,
+                     const unsigned char *shbuf, const size_t shlen)
 {
     int rv = 0;
     EVP_MD_CTX *ctx = EVP_MD_CTX_new();
@@ -3528,6 +3528,62 @@ err:
     OPENSSL_free(tbuf);
     EVP_MD_CTX_free(ctx);
     return rv;
+}
+
+/*
+ * @brief Find ECH acceptance signal in a SH
+ * @param s is the SSL inner context
+ * @oaram for_hrr is 1 if this is for an HRR, otherwise for SH
+ * @param ac is (preallocated) 8 octet buffer
+ * @param shbuf is a pointer to the SH buffer (incl. the type+3-octet length)
+ * @param shlen is the length of the SH buf
+ * @return: 1 for success, 0 otherwise
+ */
+int ech_find_confirm(SSL_CONNECTION *s, int hrr, unsigned char *acbuf,
+                     const unsigned char *shbuf, const size_t shlen)
+{
+    const unsigned char *acp;
+
+    if (hrr == 0) {
+        if (shlen < CLIENT_VERSION_LEN + SSL3_RANDOM_SIZE)
+            return 0;
+        acp = shbuf + CLIENT_VERSION_LEN + SSL3_RANDOM_SIZE - 8;
+        memcpy(acbuf, acp, 8);
+        return 1;
+    }
+    if (hrr == 1) {
+        PACKET pkt;
+        const unsigned char *pp_tmp;
+        unsigned int pi_tmp, etype, elen;
+        int done = 0;
+
+        if (!PACKET_buf_init(&pkt, shbuf, shlen)
+            || !PACKET_get_net_2(&pkt, &pi_tmp)
+            || !PACKET_get_bytes(&pkt, &pp_tmp, SSL3_RANDOM_SIZE)
+            || !PACKET_get_1(&pkt, &pi_tmp) /* sessid len */
+            || !PACKET_get_bytes(&pkt, &pp_tmp, pi_tmp) /* sessid */
+            || !PACKET_get_net_2(&pkt, &pi_tmp) /* ciphersuite */
+            || !PACKET_get_1(&pkt, &pi_tmp) /* compression */
+            || !PACKET_get_net_2(&pkt, &pi_tmp)) /* len(extensions) */
+            return 0;
+        while (PACKET_remaining(&pkt) > 0 && done < 1) {
+            if (!PACKET_get_net_2(&pkt, &etype)
+                || !PACKET_get_net_2(&pkt, &elen))
+                return 0;
+            if (etype == TLSEXT_TYPE_ech13) {
+                if (elen < 8)
+                    return 0;
+                PACKET_get_bytes(&pkt, &acp, 8);
+                memcpy(acbuf, acp, 8);
+                done++;
+            } else {
+                if (!PACKET_get_bytes(&pkt, &pp_tmp, elen))
+                    return 0;
+            }
+        }
+        return done;
+    }
+    return 0;
 }
 
 /*
