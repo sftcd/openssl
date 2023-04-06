@@ -3542,7 +3542,7 @@ err:
 int ech_find_confirm(SSL_CONNECTION *s, int hrr, unsigned char *acbuf,
                      const unsigned char *shbuf, const size_t shlen)
 {
-    const unsigned char *acp;
+    const unsigned char *acp = NULL;
 
     if (hrr == 0) {
         if (shlen < CLIENT_VERSION_LEN + SSL3_RANDOM_SIZE)
@@ -3573,7 +3573,8 @@ int ech_find_confirm(SSL_CONNECTION *s, int hrr, unsigned char *acbuf,
             if (etype == TLSEXT_TYPE_ech13) {
                 if (elen < 8)
                     return 0;
-                PACKET_get_bytes(&pkt, &acp, 8);
+                if (!PACKET_get_bytes(&pkt, &acp, 8))
+                    return 0;
                 memcpy(acbuf, acp, 8);
                 done++;
             } else {
