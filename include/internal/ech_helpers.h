@@ -43,6 +43,24 @@ int ech_helper_get_ch_offsets(const unsigned char *ch, size_t ch_len,
                               size_t *echlen,
                               size_t *snioffset, size_t *snilen, int *inner);
 
+/*!
+ * Given a SH (or HRR) find the offsets of the ECH (if any)
+ * @param: sh is the SH buffer
+ * @paramL sh_len is the length of the SH
+ * @param: exts points to offset of extensions
+ * @param: echoffset points to offset of ECH
+ * @param: echtype points to the ext type of the ECH
+ * @return 1 for success, other otherwise
+ *
+ * Offsets are returned to the type or length field in question.
+ * Offsets are set to zero if relevant thing not found.
+ *
+ * Note: input here is untrusted!
+ */
+int ech_helper_get_sh_offsets(const unsigned char *sh, size_t sh_len,
+                              size_t *exts, size_t *echoffset,
+                              uint16_t *echtype);
+
 /*
  * @brief make up HPKE "info" input as per spec
  * @param encoding is the ECHconfig being used

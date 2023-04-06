@@ -410,16 +410,24 @@ typedef struct {
 
 # define OSSL_ECH_BORK_NONE 0
 # define OSSL_ECH_BORK_FLIP_CONFIRM 1
-# define OSSL_ECH_BORK_SHORT_CONFIRM (1 << 1)
-# define OSSL_ECH_BORK_LONG_CONFIRM (1 << 2)
+# define OSSL_ECH_BORK_HRR (1 << 1)
+# define OSSL_ECH_BORK_SHORT_HRR_CONFIRM (1 << 2)
+# define OSSL_ECH_BORK_LONG_HRR_CONFIRM (1 << 3)
 
 static TEST_SH test_shs[] = {
     /* 1. no messing about, should succeed */
     {OSSL_ECH_BORK_NONE, NULL, 0, 1, SSL_ERROR_NONE},
-    /* 2. flip bits in ECH confirmation value */
+    /* 2. trigger HRR but no other borkage */
+    {OSSL_ECH_BORK_HRR, NULL, 0, 1, SSL_ERROR_NONE},
+
+    /* 3. flip bits in SH.random ECH confirmation value */
     {OSSL_ECH_BORK_FLIP_CONFIRM,
      NULL, 0, 0,
      SSL_R_DECRYPTION_FAILED_OR_BAD_RECORD_MAC},
+
+    /* 4. flip bits in HRR.exts ECH confirmation value */
+    {OSSL_ECH_BORK_HRR | OSSL_ECH_BORK_FLIP_CONFIRM,
+     NULL, 0, 0, 786691}, /* TODO: figure out why/what err there */
 };
 
 /* Do a HPKE seal of a padded encoded inner */
@@ -579,12 +587,28 @@ static int corrupt_or_copy(const char *ch, const int chlen,
             *choutlen = chlen;
             return 1;
         }
-        /* simple starter, flip bits in magic server random, ignore hrr */
+        /* simple starter, flip bits in ECH confirmation */
         if (ts->borkage & OSSL_ECH_BORK_FLIP_CONFIRM) {
             if (!TEST_ptr(*chout = OPENSSL_memdup(ch, chlen)))
                 return 0;
-            (*chout)[11 + SSL3_RANDOM_SIZE - 4] =
-                (*chout)[11 + SSL3_RANDOM_SIZE - 4] & 0xaa;
+            if (ts->borkage & OSSL_ECH_BORK_HRR) {
+                size_t exts, echoffset;
+                uint16_t echtype;
+                int rv = 0;
+
+                rv = ech_helper_get_sh_offsets((unsigned char *)ch + 9,
+                                               chlen -9,
+                                               &exts, &echoffset, &echtype);
+                if (!TEST_int_eq(rv, 1))
+                    return 0;
+                if (echoffset > 0) {
+                    (*chout)[9 + echoffset + 4] =
+                        (*chout)[9 + echoffset + 4] ^ 0xaa;
+                }
+            } else {
+                (*chout)[9 + 2 + SSL3_RANDOM_SIZE - 4] =
+                    (*chout)[9 + 2 + SSL3_RANDOM_SIZE - 4] ^ 0xaa;
+            }
             *choutlen = chlen;
             return 1;
         }
@@ -778,7 +802,7 @@ static int test_ch_corrupt(int testidx)
     testcase = testidx;
     ti = &test_inners[testidx];
     if (verbose)
-        TEST_info("Starting #%d", testidx);
+        TEST_info("Starting #%d", testidx + 1);
     if (!TEST_true(create_ssl_ctx_pair(NULL, TLS_server_method(),
                                        TLS_client_method(),
                                        TLS1_3_VERSION, TLS1_3_VERSION,
@@ -839,7 +863,7 @@ static int test_sh_corrupt(int testidx)
     testcase = testidx;
     ts = &test_shs[testidx];
     if (verbose)
-        TEST_info("Starting #%d", testidx);
+        TEST_info("Starting #%d", testidx + 1);
     if (!TEST_true(create_ssl_ctx_pair(NULL, TLS_server_method(),
                                        TLS_client_method(),
                                        TLS1_3_VERSION, TLS1_3_VERSION,
@@ -857,6 +881,9 @@ static int test_sh_corrupt(int testidx)
                                       s_to_c_fbio, NULL)))
         goto end;
     if (!TEST_true(SSL_set_tlsext_host_name(client, "foo.example.com")))
+        goto end;
+    if (ts->borkage & OSSL_ECH_BORK_HRR
+        && !TEST_true(SSL_set1_groups_list(server, "P-384")))
         goto end;
     exp_err = SSL_ERROR_SSL;
     if (ts->err_expected == 0)
