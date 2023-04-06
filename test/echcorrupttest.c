@@ -33,7 +33,7 @@ static size_t hpke_infolen = 0;
 static int short_test = 0;
 
 /*
- * We use a set of test vectors for each test:
+ * For client hello, we use a set of test vectors for each test:
  *  - encoded inner CH prefix
  *  - encoded inner CH for borking (esp. outer extensions)
  *  - encoded inner CH postfix
@@ -46,7 +46,7 @@ static int short_test = 0;
  * error (reason).
  *
  * Whenever we re-seal we will get an error due to using the
- * wrong inner client random, which we can't know. But that
+ * wrong inner client random, which we don't know. But that
  * differs from errors in handling decoding after decryption.
  *
  * The inner CH is split in 3 variables so we can re-use pre
@@ -390,6 +390,38 @@ static TEST_ECHINNER test_inners[] = {
 
 };
 
+/*
+ * For server hello, we use a set of test vectors for each test:
+ *
+ * - borkage encodes what we're breaking and is the XOR
+ *   of some #define'd OSSL_ECH_BORK_* values
+ * - bork is the value to use instead of the real one (or NULL)
+ * - blen is the size of bork
+ * - rv_expected is the return value expected for the connection
+ * - err_expected is the reason code we expect to see
+ */
+typedef struct {
+    int borkage; /* type of borkage */
+    unsigned char *bork; /* borked value */
+    size_t blen; /* len(bork) */
+    int rv_expected; /* expected result */
+    int err_expected; /* expected error */
+} TEST_SH;
+
+# define OSSL_ECH_BORK_NONE 0
+# define OSSL_ECH_BORK_FLIP_CONFIRM 1
+# define OSSL_ECH_BORK_SHORT_CONFIRM (1 << 1)
+# define OSSL_ECH_BORK_LONG_CONFIRM (1 << 2)
+
+static TEST_SH test_shs[] = {
+    /* 1. no messing about, should succeed */
+    {OSSL_ECH_BORK_NONE, NULL, 0, 1, SSL_ERROR_NONE},
+    /* 2. flip bits in ECH confirmation value */
+    {OSSL_ECH_BORK_FLIP_CONFIRM,
+     NULL, 0, 0,
+     SSL_R_DECRYPTION_FAILED_OR_BAD_RECORD_MAC},
+};
+
 /* Do a HPKE seal of a padded encoded inner */
 static int seal_encoded_inner(char **out, int *outlen,
                               unsigned char *ei, size_t eilen,
@@ -460,38 +492,41 @@ static int corrupt_or_copy(const char *ch, const int chlen,
                            char **chout, int *choutlen)
 {
     TEST_ECHINNER *ti = NULL;
-    int is_ch = 0;
+    TEST_SH *ts = NULL;
+    int is_ch = 0, is_sh = 0;
     unsigned char *encoded_inner = NULL;
     size_t prelen, fblen, postlen;
     size_t encoded_innerlen = 0;
-    size_t sessid = 0, exts = 0, extlens = 0, echoffset = 0, echlen = 0; 
+    size_t sessid = 0, exts = 0, extlens = 0, echoffset = 0, echlen = 0;
     size_t snioffset = 0, snilen = 0;
     uint16_t echtype;
     int inner;
-
-    if (testcase >= (int)OSSL_NELEM(test_inners))
-        return 0;
-    ti = &test_inners[testcase];
-
-    prelen = ti->pre == NULL ? 0 : ti->prelen;
-    fblen = ti->forbork == NULL ? 0 : ti->fblen;
-    postlen = ti->post == NULL ? 0 : ti->postlen;
-
-    /* check for editing errors */
-    if (testcase != 0 && testcase != 1
-        && prelen + fblen + postlen != sizeof(entire_encoded_inner)) {
-        TEST_info("manual sizing error");
-        return 0;
-    }
-    if (testcase == 1) /* the only case with a short ciphertext for now */
-        short_test = 1;
 
     /* is it a ClientHello or not? */
     if (chlen > 10 && ch[0] == SSL3_RT_HANDSHAKE
         && ch[5] == SSL3_MT_CLIENT_HELLO)
         is_ch = 1;
-    /* the 9 is the offset of the start of the CH in the record layer */
+    /* is it a ServerHello or not? */
+    if (chlen > 10 && ch[0] == SSL3_RT_HANDSHAKE
+        && ch[5] == SSL3_MT_SERVER_HELLO)
+        is_sh = 1;
+
     if (is_ch == 1) {
+        if (testcase >= (int)OSSL_NELEM(test_inners))
+            return 0;
+        ti = &test_inners[testcase];
+        prelen = ti->pre == NULL ? 0 : ti->prelen;
+        fblen = ti->forbork == NULL ? 0 : ti->fblen;
+        postlen = ti->post == NULL ? 0 : ti->postlen;
+        /* check for editing errors */
+        if (testcase != 0 && testcase != 1
+            && prelen + fblen + postlen != sizeof(entire_encoded_inner)) {
+            TEST_info("manual sizing error");
+            return 0;
+        }
+        if (testcase == 1) /* the only case with a short ciphertext for now */
+            short_test = 1;
+        /* the 9 is the offset of the start of the CH in the record layer */
         if (!TEST_true(ech_helper_get_ch_offsets((const unsigned char *)ch + 9,
                                                  chlen - 9,
                                                  &sessid, &exts, &extlens,
@@ -506,33 +541,59 @@ static int corrupt_or_copy(const char *ch, const int chlen,
         /* bump offsets by 9 */
         echoffset += 9;
         snioffset += 9;
-    }
-    /*
-     * if it's not a ClientHello, or doesn't have an ECH, or if the
-     * forbork value in our test array is NULL, just copy the entire
-     * input to output
-     **/
-    if (is_ch == 0 || echoffset == 0 || ti->forbork == NULL) {
-        if (!TEST_ptr(*chout = OPENSSL_memdup(ch, chlen)))
+        /*
+         * if it doesn't have an ECH, or if the forbork value in our test
+         * array is NULL, just copy the entire input to output
+         */
+        if (echoffset == 9 || ti->forbork == NULL) {
+            if (!TEST_ptr(*chout = OPENSSL_memdup(ch, chlen)))
+                return 0;
+            *choutlen = chlen;
+            return 1;
+        }
+        /* in this case, construct the encoded inner, then seal that */
+        encoded_innerlen = prelen + fblen + postlen;
+        if (!TEST_ptr(encoded_inner = OPENSSL_malloc(encoded_innerlen)))
             return 0;
-        *choutlen = chlen;
+        if (ti->pre != NULL) /* keep fuzz checker happy */
+            memcpy(encoded_inner, ti->pre, prelen);
+        if (ti->forbork != NULL)
+            memcpy(encoded_inner + prelen, ti->forbork, fblen);
+        if (ti->post != NULL)
+            memcpy(encoded_inner + prelen + fblen, ti->post, postlen);
+        if (!TEST_true(seal_encoded_inner(chout, choutlen,
+                                          encoded_inner, encoded_innerlen,
+                                          ch, chlen, echoffset, echlen)))
+            return 0;
+        OPENSSL_free(encoded_inner);
         return 1;
     }
-    /* in this case, construct the encoded inner, then seal that */
-    encoded_innerlen = prelen + fblen + postlen;
-    if (!TEST_ptr(encoded_inner = OPENSSL_malloc(encoded_innerlen)))
+
+    if (is_sh == 1) {
+        if (testcase >= (int)OSSL_NELEM(test_shs))
+            return 0;
+        ts = &test_shs[testcase];
+        if (ts->borkage == 0) {
+            if (!TEST_ptr(*chout = OPENSSL_memdup(ch, chlen)))
+                return 0;
+            *choutlen = chlen;
+            return 1;
+        }
+        /* simple starter, flip bits in magic server random, ignore hrr */
+        if (ts->borkage & OSSL_ECH_BORK_FLIP_CONFIRM) {
+            if (!TEST_ptr(*chout = OPENSSL_memdup(ch, chlen)))
+                return 0;
+            (*chout)[11 + SSL3_RANDOM_SIZE - 4] =
+                (*chout)[11 + SSL3_RANDOM_SIZE - 4] & 0xaa;
+            *choutlen = chlen;
+            return 1;
+        }
+    }
+
+    /* if doing nothing, do that... */
+    if (!TEST_ptr(*chout = OPENSSL_memdup(ch, chlen)))
         return 0;
-    if (ti->pre != NULL) /* keep fuzz checker happy */
-        memcpy(encoded_inner, ti->pre, prelen);
-    if (ti->forbork != NULL)
-        memcpy(encoded_inner + prelen, ti->forbork, fblen);
-    if (ti->post != NULL)
-        memcpy(encoded_inner + prelen + fblen, ti->post, postlen);
-    if (!TEST_true(seal_encoded_inner(chout, choutlen,
-                                      encoded_inner, encoded_innerlen,
-                                      ch, chlen, echoffset, echlen)))
-        return 0;
-    OPENSSL_free(encoded_inner);
+    *choutlen = chlen;
     return 1;
 }
 
@@ -702,7 +763,7 @@ static void bio_f_tls_corrupt_filter_free(void)
     BIO_meth_free(method_tls_corrupt);
 }
 
-static int test_ech_corrupt(int testidx)
+static int test_ch_corrupt(int testidx)
 {
     SSL_CTX *sctx = NULL, *cctx = NULL;
     SSL *server = NULL, *client = NULL;
@@ -716,39 +777,32 @@ static int test_ech_corrupt(int testidx)
 
     testcase = testidx;
     ti = &test_inners[testidx];
-
     if (verbose)
         TEST_info("Starting #%d", testidx);
-
     if (!TEST_true(create_ssl_ctx_pair(NULL, TLS_server_method(),
                                        TLS_client_method(),
                                        TLS1_3_VERSION, TLS1_3_VERSION,
                                        &sctx, &cctx, cert, privkey)))
         return 0;
-
     if (!TEST_true(SSL_CTX_ech_set1_echconfig(cctx, (unsigned char *)echconfig,
                                               echconfiglen)))
         goto end;
     if (!TEST_true(SSL_CTX_ech_server_enable_file(sctx, echkeyfile)))
         goto end;
-
     if (!TEST_ptr(c_to_s_fbio = BIO_new(bio_f_tls_corrupt_filter())))
         goto end;
-
     /* BIO is freed by create_ssl_connection on error */
     if (!TEST_true(create_ssl_objects(sctx, cctx, &server, &client, NULL,
                                       c_to_s_fbio)))
         goto end;
     if (!TEST_true(SSL_set_tlsext_host_name(client, "foo.example.com")))
         goto end;
-
     exp_err = SSL_ERROR_SSL;
     if (ti->err_expected == 0)
         exp_err = SSL_ERROR_NONE;
     connrv = create_ssl_connection(server, client, exp_err);
     if (!TEST_int_eq(connrv, ti->rv_expected))
         goto end;
-
     if (connrv == 0) {
         do {
             err = ERR_get_error();
@@ -760,6 +814,67 @@ static int test_ech_corrupt(int testidx)
             if (verbose)
                 TEST_info("Error reason: %d", err_reason);
         } while (err_reason != ti->err_expected);
+    }
+    testresult = 1;
+end:
+    SSL_free(server);
+    SSL_free(client);
+    SSL_CTX_free(sctx);
+    SSL_CTX_free(cctx);
+    return testresult;
+}
+
+static int test_sh_corrupt(int testidx)
+{
+    SSL_CTX *sctx = NULL, *cctx = NULL;
+    SSL *server = NULL, *client = NULL;
+    BIO *s_to_c_fbio;
+    int testresult = 0;
+    int err;
+    TEST_SH *ts = NULL;
+    int connrv = 0;
+    int err_reason = 0;
+    int exp_err = SSL_ERROR_NONE;
+
+    testcase = testidx;
+    ts = &test_shs[testidx];
+    if (verbose)
+        TEST_info("Starting #%d", testidx);
+    if (!TEST_true(create_ssl_ctx_pair(NULL, TLS_server_method(),
+                                       TLS_client_method(),
+                                       TLS1_3_VERSION, TLS1_3_VERSION,
+                                       &sctx, &cctx, cert, privkey)))
+        return 0;
+    if (!TEST_true(SSL_CTX_ech_set1_echconfig(cctx, (unsigned char *)echconfig,
+                                              echconfiglen)))
+        goto end;
+    if (!TEST_true(SSL_CTX_ech_server_enable_file(sctx, echkeyfile)))
+        goto end;
+    if (!TEST_ptr(s_to_c_fbio = BIO_new(bio_f_tls_corrupt_filter())))
+        goto end;
+    /* BIO is freed by create_ssl_connection on error */
+    if (!TEST_true(create_ssl_objects(sctx, cctx, &server, &client,
+                                      s_to_c_fbio, NULL)))
+        goto end;
+    if (!TEST_true(SSL_set_tlsext_host_name(client, "foo.example.com")))
+        goto end;
+    exp_err = SSL_ERROR_SSL;
+    if (ts->err_expected == 0)
+        exp_err = SSL_ERROR_NONE;
+    connrv = create_ssl_connection(server, client, exp_err);
+    if (!TEST_int_eq(connrv, ts->rv_expected))
+        goto end;
+    if (connrv == 0) {
+        do {
+            err = ERR_get_error();
+            if (err == 0) {
+                TEST_error("ECH corruption: Unexpected error");
+                goto end;
+            }
+            err_reason = ERR_GET_REASON(err);
+            if (verbose)
+                TEST_info("Error reason: %d", err_reason);
+        } while (err_reason != ts->err_expected);
     }
     testresult = 1;
 end:
@@ -842,7 +957,8 @@ int setup_tests(void)
                                             hpke_info, &hpke_infolen)))
         goto err;
 
-    ADD_ALL_TESTS(test_ech_corrupt, OSSL_NELEM(test_inners));
+    ADD_ALL_TESTS(test_ch_corrupt, OSSL_NELEM(test_inners));
+    ADD_ALL_TESTS(test_sh_corrupt, OSSL_NELEM(test_shs));
     return 1;
 err:
     return 0;
