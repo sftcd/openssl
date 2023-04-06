@@ -399,8 +399,20 @@ int ech_same_key_share(void);
  *                        "ech accept confirmation",
  *                        ClientHelloInner...ServerHelloECHConf)
  */
-int ech_calc_ech_confirm(SSL_CONNECTION *s, int for_hrr, unsigned char *acbuf,
-                         const unsigned char *shbuf, const size_t shlen);
+int ech_calc_confirm(SSL_CONNECTION *s, int for_hrr, unsigned char *acbuf,
+                     const unsigned char *shbuf, const size_t shlen);
+
+/*
+ * @brief Find ECH acceptance signal in a SH
+ * @param s is the SSL inner context
+ * @oaram for_hrr is 1 if this is for an HRR, otherwise for SH
+ * @param ac is (preallocated) 8 octet buffer
+ * @param shbuf is a pointer to the SH buffer (incl. the type+3-octet length)
+ * @param shlen is the length of the SH buf
+ * @return: 1 for success, 0 otherwise
+ */
+int ech_find_confirm(SSL_CONNECTION *s, int for_hrr, unsigned char *acbuf,
+                     const unsigned char *shbuf, const size_t shlen);
 
 /*
  * @brief Swap the inner and outer CH structures as needed..

@@ -22,6 +22,8 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
+- 20230406: refactored ECH bits of ``tls_process_server_hello()``
+
 - 20230404: added test with ECHConfig extensions present; refactored
   ``ECHConfigList_from_binary()`` some
 
