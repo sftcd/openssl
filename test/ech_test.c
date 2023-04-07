@@ -683,13 +683,34 @@ static int extended_echconfig(int idx)
     int clientstatus, serverstatus;
     char *cinner, *couter, *sinner, *souter;
 
+    if (idx == 0) {
+        /* check we barf on a mandatory extension */
+        echkeyfile = test_mk_file_path(certsdir, "echwithmand.pem");
+        if (!TEST_ptr(echkeyfile))
+            goto end;
+        echconfig = echconfiglist_from_PEM(echkeyfile);
+        if (!TEST_ptr(echconfig))
+            goto end;
+        echconfiglen = strlen(echconfig);
+        if (!TEST_true(create_ssl_ctx_pair(libctx, TLS_server_method(),
+                                        TLS_client_method(),
+                                        TLS1_3_VERSION, TLS1_3_VERSION,
+                                        &sctx, &cctx, cert, privkey)))
+                goto end;
+        if (!TEST_false(SSL_CTX_ech_set1_echconfig(cctx, (unsigned char *)echconfig,
+                                                echconfiglen)))
+            goto end;
+        res = 1;
+        goto end;
+    } 
+
     /*
      * read our pre-cooked ECH PEM file that contains extensions
      * in this case we have 3 extensions:
      * type, len, value
-     * 0xffca, 0, 0
-     * 0xffcb, 12, "hello world"
-     * 0xffcc, 0x1c7 (455), a small PNG file
+     * 0x0fca, 0, 0
+     * 0x0fcb, 12, "hello world"
+     * 0x0fcc, 0x1c7 (455), a small PNG file
      * total exts length: 0x1df (479)
      *
      * overall length of our ECHConfigList is 0x21d (541)
@@ -1764,12 +1785,8 @@ int setup_tests(void)
     bio_stdout = BIO_new_fp(stdout, BIO_NOCLOSE | BIO_FP_TEXT);
     bio_null = BIO_new(BIO_s_mem());
     ADD_TEST(tls_version_test);
-    /*
-     * we can iterate these two - can be handy if there's some
-     * transient failure
-     */
     ADD_ALL_TESTS(basic_echconfig, 2);
-    ADD_ALL_TESTS(extended_echconfig, 1);
+    ADD_ALL_TESTS(extended_echconfig, 2);
     ADD_ALL_TESTS(ech_roundtrip_test, 2);
 
     ADD_ALL_TESTS(test_ech_add, OSSLTEST_ECH_NTESTS);

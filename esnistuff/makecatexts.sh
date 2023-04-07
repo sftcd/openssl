@@ -9,7 +9,7 @@
 # add that anyway). Extension type is made up.
 
 OUTFILE="cat.ext" # default output
-CATPICTYPE=65482  # 0xffca is the 1st extension type - we'll incrememt after
+CATPICTYPE=4042  # 0x0fca is the 1st extension type - we'll incrememt after
 
 function usage()
 {
