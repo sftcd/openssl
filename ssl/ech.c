@@ -568,6 +568,57 @@ err:
 }
 
 /*
+ * @brief Check ECHConfig to see if locally supported
+ * @param ec is the ECHConfig to check
+ * @return 1 for yes, is supported, 0 otherwise
+ */
+static int ech_final_config_checks(ECHConfig *ec)
+{
+    OSSL_HPKE_SUITE hpke_suite;
+    size_t ind = 0;
+    int goodsuitefound = 0;
+    unsigned char *es = NULL;
+    uint16_t aead_id, kdf_id;
+
+    /* check local support for some suite */
+    hpke_suite.kem_id = ec->kem_id;
+    for (ind = 0; ind != ec->nsuites; ind++) {
+        es = (unsigned char *) &ec->ciphersuites[ind];
+        kdf_id = es[0] * 256 + es[1];
+        aead_id = es[2] * 256 + es[3];
+        /*
+         * suite_check says yes to the pseudo-aead for
+         * export, but we don't want to see it here
+         * coming from outside in an encoding
+         */
+        hpke_suite.aead_id = aead_id;
+        hpke_suite.kdf_id = kdf_id;
+        if (OSSL_HPKE_suite_check(hpke_suite) == 1
+            && aead_id != OSSL_HPKE_AEAD_ID_EXPORTONLY) {
+            goodsuitefound = 1;
+            break;
+        }
+    }
+    if (goodsuitefound == 0) {
+        OSSL_TRACE_BEGIN(TLS) {
+            BIO_printf(trc_out, "ECH: No supported suites for ECHConfig");
+        } OSSL_TRACE_END(TLS);
+        return 0;
+    }
+    /* check no mandatory exts (with high bit set in type) */
+    for (ind = 0; ind != ec->nexts; ind++) {
+        if (ec->exttypes[ind] & 0x8000) {
+            OSSL_TRACE_BEGIN(TLS) {
+                BIO_printf(trc_out, "ECH: Unsupported mandatory ECHConfig "
+                                    "extension (0x%04x)", ec->exttypes[ind]);
+            } OSSL_TRACE_END(TLS);
+            return 0;
+        }
+    }
+    return 1;
+}
+
+/*
  * @brief Decode the first ECHConfigList from a binary buffer
  * @param binbuf is the buffer with the encoding
  * @param binblen is the length of binbunf
@@ -671,10 +722,8 @@ static int ECHConfigList_from_binary(unsigned char *binbuf, size_t binblen,
          */
         if (ec->version == OSSL_ECH_DRAFT_13_VERSION) {
             PACKET pub_pkt, cipher_suites, public_name_pkt, exts;
-            int suiteoctets = 0, ci = 0, goodsuitefound = 0;
+            int suiteoctets = 0, ci = 0;
             unsigned char cipher[OSSL_ECH_CIPHER_LEN], max_name_len;
-            OSSL_HPKE_SUITE hpke_suite;
-            size_t suiteind = 0;
 
             if (!PACKET_copy_bytes(&pkt, &ec->config_id, 1)
                 || !PACKET_get_net_2(&pkt, &ec->kem_id)
@@ -732,31 +781,8 @@ static int ECHConfigList_from_binary(unsigned char *binbuf, size_t binblen,
                 ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
                 goto err;
             }
-            /*
-             * Check the kem, aead and kdf are supported. Don't fail if not,
-             * just skip this ECHConfig as if it's an unsupported version
-             */
-            hpke_suite.kem_id = ec->kem_id;
-            for (suiteind = 0; suiteind != ec->nsuites; suiteind++) {
-                unsigned char *es = (unsigned char *)
-                    &ec->ciphersuites[suiteind];
-                uint16_t kdf_id = es[0] * 256 + es[1];
-                uint16_t aead_id = es[2] * 256 + es[3];
-
-                /*
-                 * suite_check says yes to the pseudo-aead for
-                 * export, but we don't want to see it here
-                 * coming from outside in an encoding
-                 */
-                hpke_suite.aead_id = aead_id;
-                hpke_suite.kdf_id = kdf_id;
-                if (OSSL_HPKE_suite_check(hpke_suite) == 1
-                    && aead_id != OSSL_HPKE_AEAD_ID_EXPORTONLY) {
-                    goodsuitefound = 1;
-                    break;
-                }
-            }
-            if (goodsuitefound == 0) {
+            /* do final checks on suites, exts, and skip this one if issues */
+            if (ech_final_config_checks(ec) != 1) {
                 ECHConfig_free(ec);
                 rind--;
                 continue;
