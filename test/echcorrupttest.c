@@ -508,7 +508,7 @@ static int corrupt_or_copy(const char *ch, const int chlen,
     size_t sessid = 0, exts = 0, extlens = 0, echoffset = 0, echlen = 0;
     size_t snioffset = 0, snilen = 0;
     uint16_t echtype;
-    int inner;
+    int inner, rv = 0;
 
     /* is it a ClientHello or not? */
     if (chlen > 10 && ch[0] == SSL3_RT_HANDSHAKE
@@ -592,10 +592,6 @@ static int corrupt_or_copy(const char *ch, const int chlen,
             if (!TEST_ptr(*chout = OPENSSL_memdup(ch, chlen)))
                 return 0;
             if (ts->borkage & OSSL_ECH_BORK_HRR) {
-                size_t exts, echoffset;
-                uint16_t echtype;
-                int rv = 0;
-
                 rv = ech_helper_get_sh_offsets((unsigned char *)ch + 9,
                                                chlen -9,
                                                &exts, &echoffset, &echtype);
