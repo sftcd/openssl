@@ -610,7 +610,7 @@ static int ech_final_config_checks(ECHConfig *ec)
         if (ec->exttypes[ind] & 0x8000) {
             OSSL_TRACE_BEGIN(TLS) {
                 BIO_printf(trc_out, "ECH: Unsupported mandatory ECHConfig "
-                                    "extension (0x%04x)", ec->exttypes[ind]);
+                           "extension (0x%04x)", ec->exttypes[ind]);
             } OSSL_TRACE_END(TLS);
             return 0;
         }
@@ -680,11 +680,6 @@ static int ECHConfigList_from_binary(unsigned char *binbuf, size_t binblen,
         rind++;
         /* note start of encoding so we can make a copy later */
         tmpeclen = PACKET_remaining(&pkt);
-        /*
-         * Grab version and length of contents, in case we
-         * need to skip, if it's a version we don't support,
-         * or if >1 ECHConfig is in the list.
-         */
         if (PACKET_peek_bytes(&pkt, &tmpecp, tmpeclen) != 1
             || !PACKET_get_net_2(&pkt, &ec->version)
             || !PACKET_get_net_2(&pkt, &ech_content_length)) {
@@ -3954,6 +3949,9 @@ int ech_aad_and_encrypt(SSL_CONNECTION *s, WPACKET *pkt)
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             goto err;
         }
+# ifdef OSSL_ECH_SUPERVERBOSE
+        ech_pbuf("EAAE info", info, info_len);
+# endif
         s->ext.ech.hpke_ctx = OSSL_HPKE_CTX_new(hpke_mode, hpke_suite,
                                                 OSSL_HPKE_ROLE_SENDER,
                                                 NULL, NULL);
@@ -3985,7 +3983,6 @@ int ech_aad_and_encrypt(SSL_CONNECTION *s, WPACKET *pkt)
         }
     }
 # ifdef OSSL_ECH_SUPERVERBOSE
-    ech_pbuf("EAAE info", info, info_len);
     ech_pbuf("EAAE: mypub", mypub, mypub_len);
     /* re-use aad_len for tracing */
     WPACKET_get_total_written(pkt, &aad_len);
