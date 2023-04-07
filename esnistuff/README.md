@@ -22,6 +22,9 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
+- 20230407: finally added not accepting so-called "mandatory" ECHConfig
+  extensions (not a good design idea, but it's in the spec;-()
+
 - 20230406: refactored ECH bits of ``tls_process_server_hello()``
   and started to add tests that bork server hello
 
