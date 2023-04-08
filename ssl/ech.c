@@ -3425,9 +3425,19 @@ int ech_calc_confirm(SSL_CONNECTION *s, int for_hrr, unsigned char *acbuf,
         } else {
             rv = ech_get_sh_offsets(shbuf, shlen, &extoffset, &echoffset,
                                     &echtype);
-            if (rv != 1 || echoffset == 0 || extoffset == 0 || echtype == 0
-                || tlen < (chlen + 4 + echoffset + 4 + 8)) {
+            if (rv != 1) {
                 SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+                goto err;
+            }
+            if (echoffset == 0 || extoffset == 0 || echtype == 0
+                || tlen < (chlen + 4 + echoffset + 4 + 8)) {
+                /* No ECH found so we'll barf, but try via random output */
+                if (RAND_bytes_ex(s->ssl.ctx->libctx, acbuf, 8,
+                                  RAND_DRBG_STRENGTH) <= 0) {
+                    SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+                    goto err;
+                }
+                rv = 1;
                 goto err;
             }
             conf_loc = tbuf + chlen + 4 + echoffset + 4;

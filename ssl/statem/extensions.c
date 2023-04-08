@@ -1085,7 +1085,7 @@ static int final_ech(SSL_CONNECTION *s, unsigned int context, int sent)
             /* If we greased, then it's ok that ech_success didn't get set */
             return 1;
         } else if (s->ext.ech.success != 1) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+            SSLfatal(s, SSL_AD_ECH_REQUIRED, SSL_R_ECH_REQUIRED);
             return 0;
         }
     }
