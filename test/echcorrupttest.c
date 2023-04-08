@@ -427,7 +427,7 @@ static TEST_SH test_shs[] = {
 
     /* 4. flip bits in HRR.exts ECH confirmation value */
     {OSSL_ECH_BORK_HRR | OSSL_ECH_BORK_FLIP_CONFIRM,
-     NULL, 0, 0, 786691}, /* TODO: figure out why/what err there */
+     NULL, 0, 0, SSL_R_ECH_REQUIRED},
 };
 
 /* Do a HPKE seal of a padded encoded inner */

@@ -611,6 +611,9 @@ static const ERR_STRING_DATA SSL_str_reasons[] = {
     {ERR_PACK(ERR_LIB_SSL, 0, SSL_R_X509_LIB), "x509 lib"},
     {ERR_PACK(ERR_LIB_SSL, 0, SSL_R_X509_VERIFICATION_SETUP_PROBLEMS),
     "x509 verification setup problems"},
+# ifndef OPENSSL_NO_ECH
+    {ERR_PACK(ERR_LIB_SSL, 0, SSL_R_ECH_REQUIRED), "ECH required"},
+# endif
     {0, NULL}
 };
 
