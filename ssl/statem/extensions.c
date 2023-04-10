@@ -1084,7 +1084,11 @@ static int final_ech(SSL_CONNECTION *s, unsigned int context, int sent)
         if (s->ext.ech.grease == OSSL_ECH_IS_GREASE) {
             /* If we greased, then it's ok that ech_success didn't get set */
             return 1;
+# ifdef HRRWITHRETRY
+        } else if (s->ext.ech.hrr_depth != 0 && s->ext.ech.success != 1) {
+# else
         } else if (s->ext.ech.success != 1) {
+# endif
             SSLfatal(s, SSL_AD_ECH_REQUIRED, SSL_R_ECH_REQUIRED);
             return 0;
         }

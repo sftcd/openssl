@@ -2267,6 +2267,28 @@ EXT_RETURN tls_construct_stoc_ech13(SSL_CONNECTION *s, WPACKET *pkt,
         } OSSL_TRACE_END(TLS);
         return EXT_RETURN_SENT;
     }
+# ifdef HRRWITHRETRY
+    /* GREASE or error => random confirmation in HRR case */
+    if (context == SSL_EXT_TLS1_3_HELLO_RETRY_REQUEST
+        && s->ext.ech.attempted_type == TLSEXT_TYPE_ech13) {
+        unsigned char randomconf[8];
+
+        if (RAND_bytes_ex(s->ssl.ctx->libctx, randomconf, 8,
+                          RAND_DRBG_STRENGTH) <= 0) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+            return 0;
+        }
+        if (!WPACKET_put_bytes_u16(pkt, s->ext.ech.attempted_type)
+            || !WPACKET_sub_memcpy_u16(pkt, randomconf, 8)) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+            return 0;
+        }
+        OSSL_TRACE_BEGIN(TLS) {
+            BIO_printf(trc_out,"set random for ECH acccpt confirm in HRR\n");
+        } OSSL_TRACE_END(TLS);
+        return EXT_RETURN_SENT;
+    }
+# endif
     /* in other HRR circumstances: don't set */
     if (context == SSL_EXT_TLS1_3_HELLO_RETRY_REQUEST) {
         return EXT_RETURN_NOT_SENT;

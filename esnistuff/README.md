@@ -25,7 +25,7 @@ DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 - 20230408: added "ech-required" alert as per spec along with other
   related library error strings; investigating HRR+ECH in the face
   of errors (bit flip in HRR) or use of wrong public key - seems to
-  be some work to do there, maybe up to and including in spec
+  be some work to do there
 
 - 20230407: finally added not accepting so-called "mandatory" ECHConfig
   extensions (not a good design idea, but it's in the spec;-()
