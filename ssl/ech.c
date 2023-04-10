@@ -1737,6 +1737,7 @@ static int ech_find_outers(SSL_CONNECTION *s, PACKET *pkt,
     size_t i;
     PACKET op;
 
+    PACKET_null_init(&op);
     /* chew up the packet to extensions */
     if (!PACKET_get_net_2(pkt, &pi_tmp)
         || pi_tmp != TLS1_2_VERSION
@@ -1993,7 +1994,6 @@ static int ech_decode_inner(SSL_CONNECTION *s, const unsigned char *ob,
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
     }
-
     if ((di_mem = BUF_MEM_new()) == NULL
         || !BUF_MEM_grow(di_mem, SSL3_RT_MAX_PLAIN_LENGTH)
         || !WPACKET_init(&di, di_mem)
