@@ -406,7 +406,7 @@ const char *SSL_alert_desc_string_long(int value)
         return "unknown PSK identity";
     case TLS1_AD_NO_APPLICATION_PROTOCOL:
         return "no application protocol";
-# ifndef OPNESL_NO_ECH
+# ifndef OPNESSL_NO_ECH
     case TLS1_AD_ECH_REQUIRED:
         return "ECH required";
 # endif
