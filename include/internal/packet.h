@@ -634,15 +634,15 @@ __owur static ossl_inline int PACKET_get_length_prefixed_3(PACKET *pkt,
  */
 __owur static ossl_inline int PACKET_replace(PACKET *pkt, PACKET *newpkt)
 {
-    const unsigned char *data;
-
     if (pkt == NULL || newpkt == NULL)
         return 0;
     if (newpkt->remaining > pkt->remaining) {
-        data = OPENSSL_realloc((unsigned char *)pkt->curr, newpkt->remaining);
-        if (data == NULL)
-            return 0;
-        pkt->curr = data;
+        /*
+         * resize the underlying memory in such cases - we can't be
+         * sure from here whether pkt->curr is the originaly alloc'd
+         * memory or a sub-packet pointer within an enclosing packet
+         */
+        return 0;
     }
     memcpy((unsigned char *)pkt->curr, newpkt->curr, newpkt->remaining);
     pkt->remaining = newpkt -> remaining;

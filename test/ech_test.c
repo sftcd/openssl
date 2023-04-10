@@ -693,16 +693,17 @@ static int extended_echconfig(int idx)
             goto end;
         echconfiglen = strlen(echconfig);
         if (!TEST_true(create_ssl_ctx_pair(libctx, TLS_server_method(),
-                                        TLS_client_method(),
-                                        TLS1_3_VERSION, TLS1_3_VERSION,
-                                        &sctx, &cctx, cert, privkey)))
-                goto end;
-        if (!TEST_false(SSL_CTX_ech_set1_echconfig(cctx, (unsigned char *)echconfig,
-                                                echconfiglen)))
+                                           TLS_client_method(),
+                                           TLS1_3_VERSION, TLS1_3_VERSION,
+                                           &sctx, &cctx, cert, privkey)))
+            goto end;
+        if (!TEST_false(SSL_CTX_ech_set1_echconfig(cctx,
+                                                   (unsigned char *)echconfig,
+                                                   echconfiglen)))
             goto end;
         res = 1;
         goto end;
-    } 
+    }
 
     /*
      * read our pre-cooked ECH PEM file that contains extensions

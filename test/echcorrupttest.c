@@ -413,6 +413,7 @@ typedef struct {
 # define OSSL_ECH_BORK_HRR (1 << 1)
 # define OSSL_ECH_BORK_SHORT_HRR_CONFIRM (1 << 2)
 # define OSSL_ECH_BORK_LONG_HRR_CONFIRM (1 << 3)
+# define OSSL_ECH_BORK_GREASE (1 << 4)
 
 static TEST_SH test_shs[] = {
     /* 1. no messing about, should succeed */
@@ -427,7 +428,13 @@ static TEST_SH test_shs[] = {
 
     /* 4. flip bits in HRR.exts ECH confirmation value */
     {OSSL_ECH_BORK_HRR | OSSL_ECH_BORK_FLIP_CONFIRM,
-     NULL, 0, 0, SSL_R_ECH_REQUIRED},
+     NULL, 0, 0,
+     SSL_R_ECH_REQUIRED},
+
+    /* 5. GREASE and trigger HRR */
+    {OSSL_ECH_BORK_HRR | OSSL_ECH_BORK_GREASE,
+     NULL, 0, 1,
+     SSL_ERROR_NONE},
 };
 
 /* Do a HPKE seal of a padded encoded inner */
@@ -865,9 +872,15 @@ static int test_sh_corrupt(int testidx)
                                        TLS1_3_VERSION, TLS1_3_VERSION,
                                        &sctx, &cctx, cert, privkey)))
         return 0;
-    if (!TEST_true(SSL_CTX_ech_set1_echconfig(cctx, (unsigned char *)echconfig,
-                                              echconfiglen)))
-        goto end;
+    if (ts->borkage & OSSL_ECH_BORK_GREASE) {
+        if (!TEST_true(SSL_CTX_set_options(cctx, SSL_OP_ECH_GREASE)))
+            goto end;
+    } else {
+        if (!TEST_true(SSL_CTX_ech_set1_echconfig(cctx,
+                                                  (unsigned char *)echconfig,
+                                                  echconfiglen)))
+            goto end;
+    }
     if (!TEST_true(SSL_CTX_ech_server_enable_file(sctx, echkeyfile)))
         goto end;
     if (!TEST_ptr(s_to_c_fbio = BIO_new(bio_f_tls_corrupt_filter())))

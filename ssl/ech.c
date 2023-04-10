@@ -2167,7 +2167,7 @@ end:
     OSSL_HPKE_CTX_free(hctx);
     if (rv != 1) {
         OSSL_TRACE_BEGIN(TLS) {
-            BIO_printf(trc_out, "HPKE decryption failed somehow");
+            BIO_printf(trc_out, "HPKE decryption failed somehow\n");
         } OSSL_TRACE_END(TLS);
         OPENSSL_free(clear);
         return NULL;
@@ -3200,6 +3200,7 @@ int ech_encode_inner(SSL_CONNECTION *s)
         goto err;
     /* Finally ditch the type and 3-octet length */
     memcpy(innerch_full, inner_mem->data + 4, innerinnerlen - 4);
+    OPENSSL_free(s->ext.ech.encoded_innerch);
     s->ext.ech.encoded_innerch = innerch_full;
     s->ext.ech.encoded_innerch_len = innerinnerlen - 4;
     /* and clean up */
