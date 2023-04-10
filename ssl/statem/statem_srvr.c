@@ -1536,6 +1536,23 @@ MSG_PROCESS_RETURN tls_process_client_hello(SSL_CONNECTION *s, PACKET *pkt)
             }
             if (s->ext.ech.success == 1) {
                 /* Replace the outer CH with the inner */
+                if (PACKET_remaining(&newpkt) > PACKET_remaining(pkt)) {
+                    /*
+                     * need to grow the underlying buffer - this isn't common
+                     * usually just with GREASE'd HRR 2nd CH
+                     */
+                    OSSL_TRACE_BEGIN(TLS_CIPHER) {
+                        BIO_printf(trc_out, "inner is bigger! Growing buffer.");
+                        ech_pbuf("outer", pkt->curr, pkt->remaining);
+                        ech_pbuf("inner", newpkt.curr, newpkt.remaining);
+                    }
+                    OSSL_TRACE_END(TLS_CIPHER);
+                    if (BUF_MEM_grow(s->init_buf, PACKET_remaining(&newpkt) + 4)
+                        != PACKET_remaining(&newpkt) + 4) {
+                        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+                        goto err;
+                    }
+                }
                 if (PACKET_replace(pkt, &newpkt) != 1) {
                     SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
                     goto err;

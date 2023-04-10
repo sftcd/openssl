@@ -76,6 +76,7 @@ CAPATH="/etc/ssl/certs/"
 CAFILE="./cadir/oe.csr"
 REALCERT="no" # default to fake CA for localhost
 CIPHERSUITES="" # default to internal default
+HRR="no" # default to not trying to force HRR
 SELECTED=""
 IGNORE_CID="no"
 EARLY_DATA="no"
@@ -92,7 +93,7 @@ echo "Running $0 at $NOW"
 
 function usage()
 {
-    echo "$0 [-cdfgGhHPpsrnlvL] - try out encrypted client hello (ECH) via openssl s_client"
+    echo "$0 [-cdfgGhHPpsRrnlvL] - try out encrypted client hello (ECH) via openssl s_client"
 	echo "  -4 use IPv4"
 	echo "  -6 use IPv6"
 	echo "  -c [name] specifices a name that I'll send as an outer SNI (NONE is special)"
@@ -112,6 +113,7 @@ function usage()
     echo "  -p [port] specifices a port (default: 443)"
 	echo "  -P [filename] means read ECHConfigs public value from file and not DNS"
     echo "  -r (or --realcert) says to not use locally generated fake CA regardless"
+    echo "  -R try force HRR by preferring P-384 over X2519" 
 	echo "  -s [name] specifices a server to which I'll connect (localhost=>local certs, unless --realcert)"
 	echo "  -S [file] means save or resume session from <file>"
     echo "  -t [type] means to set the TLS extension type for GREASE to <type>"
@@ -139,7 +141,7 @@ then
 fi
 
 # options may be followed by one colon to indicate they have a required argument
-if ! options=$($GETOPTDIR/getopt -s bash -o 46C:c:def:gGhH:IjnNO:p:P:rs:S:t:Tv -l four,six,choose:,clear_sni:,debug,early,filepath:,grease,greasesuite,help,hidden:,ignore_cid,just,noech,noalpn,outer:,port:,echpub:,realcert,server:,session:,gtype:,test_cust,valgrind -- "$@")
+if ! options=$($GETOPTDIR/getopt -s bash -o 46C:c:def:gGhH:IjnNO:p:P:Rrs:S:t:Tv -l four,six,choose:,clear_sni:,debug,early,filepath:,grease,greasesuite,help,hidden:,ignore_cid,just,noech,noalpn,outer:,port:,echpub:,hrr,realcert,server:,session:,gtype:,test_cust,valgrind -- "$@")
 then
     # something went wrong, getopt will put out an error message for us
     exit 1
@@ -168,6 +170,7 @@ do
         -p|--port) SUPPLIEDPORT=$2; shift;;
 		-P|--echpub) SUPPLIEDECH=$2; shift;;
         -r|--realcert) REALCERT="yes" ;;
+        -R|--hrr) HRR="yes" ;;
         -s|--server) SUPPLIEDSERVER=$2; shift;;
         -S|--session) SUPPLIEDSESSION=$2; shift;;
         -t|--gtype) GTYPE=$2; shift;;
@@ -221,6 +224,12 @@ fi
 if [[ "$TESTCUST" == "yes" ]]
 then
     tcust=" -ech_custom"
+fi
+
+hrrstr=""
+if [[ "$HRR" == "yes" ]]
+then
+    hrrstr=" -groups P-384:X25519 "
 fi
 
 vgcmd=""
@@ -464,7 +473,7 @@ TMPF=`mktemp /tmp/echtestXXXX`
 
 if [[ "$DEBUG" == "yes" ]]
 then
-    echo "Running: $CODETOP/apps/openssl s_client $IP_PROTSEL $dbgstr $certsdb $force13 $target $echstr $snioutercmd $session $alpn $ciphers $earlystr"
+    echo "Running: $CODETOP/apps/openssl s_client $IP_PROTSEL $dbgstr $certsdb $force13 $target $echstr $snioutercmd $session $alpn $ciphers $earlystr $tcust $hrrstr"
 fi
 # seconds to sleep after firing up client so that tickets might arrive
 sleepaftr=2
@@ -483,9 +492,9 @@ fi
 if [[ "$EARLY_DATA" == "yes" ]]
 then
     httpreq1=${httpreq/foo.example.com/barbar.example.com}
-    ( echo -e "$httpreq1" ; sleep $sleepaftr) | $vgcmd $CODETOP/apps/openssl s_client $IP_PROTSEL $dbgstr $certsdb $force13 $target $echstr $snioutercmd $session $alpn $ciphers $earlystr $tcust >$TMPF 2>&1
+    ( echo -e "$httpreq1" ; sleep $sleepaftr) | $vgcmd $CODETOP/apps/openssl s_client $IP_PROTSEL $dbgstr $certsdb $force13 $target $echstr $snioutercmd $session $alpn $ciphers $earlystr $tcust $hrrstr >$TMPF 2>&1
 else
-    ( echo -e "$httpreq" ; sleep $sleepaftr) | $vgcmd $CODETOP/apps/openssl s_client $IP_PROTSEL $dbgstr $certsdb $force13 $target $echstr $snioutercmd $session $alpn $ciphers $tcust >$TMPF 2>&1
+    ( echo -e "$httpreq" ; sleep $sleepaftr) | $vgcmd $CODETOP/apps/openssl s_client $IP_PROTSEL $dbgstr $certsdb $force13 $target $echstr $snioutercmd $session $alpn $ciphers $tcust $hrrstr >$TMPF 2>&1
 fi
 
 c200=`grep -c "200 OK" $TMPF`

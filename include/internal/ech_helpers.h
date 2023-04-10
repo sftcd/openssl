@@ -18,6 +18,13 @@
 # ifndef OPENSSL_NO_ECH
 
 /*
+ * Turn this on to get a retry-config even if GREASEing with HRR
+ * Note: it's not clear if this is per-spec or not. TODO: figure
+ * that out.
+ */
+#  define HRRWITHRETRY
+
+/*
  * @brief Given a CH find the offsets of the session id, extensions and ECH
  * @param: ch is the encoded client hello
  * @param: ch_len is the length of ch
