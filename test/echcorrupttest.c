@@ -414,6 +414,13 @@ typedef struct {
 # define OSSL_ECH_BORK_SHORT_HRR_CONFIRM (1 << 2)
 # define OSSL_ECH_BORK_LONG_HRR_CONFIRM (1 << 3)
 # define OSSL_ECH_BORK_GREASE (1 << 4)
+# define OSSL_ECH_BORK_TRUNCATE (1 << 5)
+
+/* a truncated ECH, with another bogus ext to match overall length */
+static unsigned char shortech[] = {
+    0xfe, 0x0d, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00,
+    0xdd, 0xdd, 0x00, 0x00
+};
 
 static TEST_SH test_shs[] = {
     /* 1. no messing about, should succeed */
@@ -430,6 +437,9 @@ static TEST_SH test_shs[] = {
     /* 5. flip bits in HRR.exts ECH confirmation value */
     {OSSL_ECH_BORK_HRR | OSSL_ECH_BORK_FLIP_CONFIRM,
      NULL, 0, 0, SSL_R_BAD_EXTENSION},
+    /* 6. truncate HRR.exts ECH confirmation value */
+    {OSSL_ECH_BORK_HRR | OSSL_ECH_BORK_TRUNCATE,
+     shortech, sizeof(shortech), 0, SSL_R_BAD_EXTENSION},
 
 };
 
@@ -590,7 +600,7 @@ static int corrupt_or_copy(const char *ch, const int chlen,
             *choutlen = chlen;
             return 1;
         }
-        /* simple starter, flip bits in ECH confirmation */
+        /* flip bits in ECH confirmation */
         if (ts->borkage & OSSL_ECH_BORK_FLIP_CONFIRM) {
             if (!TEST_ptr(*chout = OPENSSL_memdup(ch, chlen)))
                 return 0;
@@ -607,6 +617,21 @@ static int corrupt_or_copy(const char *ch, const int chlen,
             } else {
                 (*chout)[9 + 2 + SSL3_RANDOM_SIZE - 4] =
                     (*chout)[9 + 2 + SSL3_RANDOM_SIZE - 4] ^ 0xaa;
+            }
+            *choutlen = chlen;
+            return 1;
+        }
+        if (ts->borkage & OSSL_ECH_BORK_TRUNCATE &&
+            ts->borkage & OSSL_ECH_BORK_HRR) {
+            if (!TEST_ptr(*chout = OPENSSL_memdup(ch, chlen)))
+                return 0;
+            rv = ech_helper_get_sh_offsets((unsigned char *)ch + 9,
+                                           chlen -9,
+                                           &exts, &echoffset, &echtype);
+            if (!TEST_int_eq(rv, 1))
+                return 0;
+            if (echoffset > 0) {
+                memcpy(&((*chout)[9 + echoffset]), ts->bork, ts->blen);
             }
             *choutlen = chlen;
             return 1;

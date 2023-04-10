@@ -2597,7 +2597,7 @@ static int ech_hkdf_extract_wrap(SSL_CONNECTION *s, EVP_MD *md, int for_hrr,
     }
     labellen = strlen(label);
 # ifdef OSSL_ECH_SUPERVERBOSE
-    ech_pbuf("calc conf : label", (unsigned char *)label, labellen);
+    ech_pbuf("cc: label", (unsigned char *)label, labellen);
 # endif
     memset(zeros, 0, EVP_MAX_MD_SIZE);
     /* We still don't have an hkdf-extract that's exposed by libcrypto */
@@ -2625,7 +2625,7 @@ static int ech_hkdf_extract_wrap(SSL_CONNECTION *s, EVP_MD *md, int for_hrr,
     else
         p = s->ext.ech.client_random;
 # ifdef OSSL_ECH_SUPERVERBOSE
-    ech_pbuf("calc conf : client_random", p, SSL3_RANDOM_SIZE);
+    ech_pbuf("cc: client_random", p, SSL3_RANDOM_SIZE);
 # endif
     if (EVP_PKEY_CTX_set1_hkdf_key(pctx, p, SSL3_RANDOM_SIZE) != 1) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
@@ -2649,7 +2649,7 @@ static int ech_hkdf_extract_wrap(SSL_CONNECTION *s, EVP_MD *md, int for_hrr,
         goto err;
     }
 # ifdef OSSL_ECH_SUPERVERBOSE
-    ech_pbuf("calc conf : notsecret", notsecret, hashlen);
+    ech_pbuf("cc: notsecret", notsecret, hashlen);
 # endif
     if (hashlen < 8) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
@@ -3283,21 +3283,16 @@ int ech_calc_confirm(SSL_CONNECTION *s, int for_hrr, unsigned char *acbuf,
     EVP_MD *md = NULL;
     unsigned char *tbuf = NULL, *chbuf = NULL, *longtrans = NULL;
     unsigned char *conf_loc = NULL;
-    size_t tlen = 0, chlen = 0;
-    size_t shoffset = 6 + 24; /* offset to magic bits in SH.random in shbuf */
-    size_t extoffset = 0, echoffset = 0, digestedCH_len = 0;
+    size_t tlen = 0, chlen = 0, extoffset = 0, echoffset = 0;
+    size_t digestedCH_len = 0, shoffset = 6 + 24;
     uint16_t echtype;
     unsigned int hashlen = 0;
     unsigned char hashval[EVP_MAX_MD_SIZE], hoval[EVP_MAX_MD_SIZE];
     unsigned char digestedCH[4 + EVP_MAX_MD_SIZE];
 
     memset(digestedCH, 0, 4 + EVP_MAX_MD_SIZE);
-    if (get_md_from_hs(s, &md, shbuf, shlen) != 1) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-        goto err;
-    }
-    hashlen = EVP_MD_size(md);
-    if (hashlen > EVP_MAX_MD_SIZE) {
+    if (get_md_from_hs(s, &md, shbuf, shlen) != 1
+        || (hashlen = EVP_MD_size(md)) > EVP_MAX_MD_SIZE) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         goto err;
     }
@@ -3307,8 +3302,7 @@ int ech_calc_confirm(SSL_CONNECTION *s, int for_hrr, unsigned char *acbuf,
     } else if (for_hrr == 0 && (s->hello_retry_request == SSL_HRR_PENDING ||
                                 s->hello_retry_request == SSL_HRR_COMPLETE)) {
 # ifdef OSSL_ECH_SUPERVERBOSE
-        ech_pbuf("calc conf : innerch1", s->ext.ech.innerch1,
-                 s->ext.ech.innerch1_len);
+        ech_pbuf("cc: innerch1", s->ext.ech.innerch1, s->ext.ech.innerch1_len);
 # endif
         /*
          * make up the transcript manually, that's hashed-inner-CH1, then
@@ -3327,8 +3321,7 @@ int ech_calc_confirm(SSL_CONNECTION *s, int for_hrr, unsigned char *acbuf,
         digestedCH[3] = hashlen & 0xff;
         digestedCH_len = hashlen + 4;
 # ifdef OSSL_ECH_SUPERVERBOSE
-        ech_pbuf("calc conf : kepthrr", s->ext.ech.kepthrr,
-                 s->ext.ech.kepthrr_len);
+        ech_pbuf("cc: kepthrr", s->ext.ech.kepthrr, s->ext.ech.kepthrr_len);
 # endif
         chlen = digestedCH_len + 4 + s->ext.ech.kepthrr_len
             + s->ext.ech.innerch_len;
@@ -3367,8 +3360,7 @@ int ech_calc_confirm(SSL_CONNECTION *s, int for_hrr, unsigned char *acbuf,
         }
         s->ext.ech.kepthrr_len = shlen;
 # ifdef OSSL_ECH_SUPERVERBOSE
-        ech_pbuf("calc conf : kepthrr", s->ext.ech.kepthrr,
-                 s->ext.ech.kepthrr_len);
+        ech_pbuf("cc: kepthrr", s->ext.ech.kepthrr, s->ext.ech.kepthrr_len);
 # endif
         if (EVP_DigestInit_ex(ctx, md, NULL) <= 0
             || EVP_DigestUpdate(ctx, s->ext.ech.innerch,
@@ -3386,9 +3378,9 @@ int ech_calc_confirm(SSL_CONNECTION *s, int for_hrr, unsigned char *acbuf,
         chlen = hashlen + 4;
     }
 # ifdef OSSL_ECH_SUPERVERBOSE
-    ech_pbuf("calc conf : digested innerch", digestedCH, digestedCH_len);
-    ech_pbuf("calc conf : innerch", s->ext.ech.innerch, s->ext.ech.innerch_len);
-    ech_pbuf("calc conf : SH", shbuf, shlen);
+    ech_pbuf("cc: digested innerch", digestedCH, digestedCH_len);
+    ech_pbuf("cc: innerch", s->ext.ech.innerch, s->ext.ech.innerch_len);
+    ech_pbuf("cc: SH", shbuf, shlen);
 # endif
     if (s->server == 1) {
         tlen = chlen + shlen;
@@ -3401,7 +3393,7 @@ int ech_calc_confirm(SSL_CONNECTION *s, int for_hrr, unsigned char *acbuf,
     memcpy(tbuf, chbuf, chlen);
     /*
      * The internal 3-length of the shbuf is wrong at this point. We fix it,
-     * but in tbuf and not in shbuf, in case that breaks something.
+     * in tbuf and not in shbuf, in case that breaks something.
      */
     if (s->server == 1) {
         memcpy(tbuf + chlen, shbuf, shlen);
@@ -3424,15 +3416,14 @@ int ech_calc_confirm(SSL_CONNECTION *s, int for_hrr, unsigned char *acbuf,
             conf_loc = tbuf + tlen - 8;
             memset(conf_loc, 0, 8);
         } else {
-            rv = ech_get_sh_offsets(shbuf, shlen, &extoffset, &echoffset,
-                                    &echtype);
-            if (rv != 1) {
+            if (ech_get_sh_offsets(shbuf, shlen, &extoffset, &echoffset,
+                                   &echtype) != 1) {
                 SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
                 goto err;
             }
             if (echoffset == 0 || extoffset == 0 || echtype == 0
                 || tlen < (chlen + 4 + echoffset + 4 + 8)) {
-                /* No ECH found so we'll barf, but try via random output */
+                /* No ECH found so we'll barf, but set random output */
                 if (RAND_bytes_ex(s->ssl.ctx->libctx, acbuf, 8,
                                   RAND_DRBG_STRENGTH) <= 0) {
                     SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
@@ -3446,7 +3437,7 @@ int ech_calc_confirm(SSL_CONNECTION *s, int for_hrr, unsigned char *acbuf,
         }
     }
 # ifdef OSSL_ECH_SUPERVERBOSE
-    ech_pbuf("calc conf : tbuf", tbuf, tlen);
+    ech_pbuf("cc: tbuf", tbuf, tlen);
 # endif
     hashlen = EVP_MD_size(md);
     if (EVP_DigestInit_ex(ctx, md, NULL) <= 0
@@ -3456,7 +3447,7 @@ int ech_calc_confirm(SSL_CONNECTION *s, int for_hrr, unsigned char *acbuf,
         goto err;
     }
 # ifdef OSSL_ECH_SUPERVERBOSE
-    ech_pbuf("calc conf : hashval", hashval, hashlen);
+    ech_pbuf("cc: hashval", hashval, hashlen);
 # endif
     if (ech_hkdf_extract_wrap(s, md, for_hrr, hashval, hashlen, hoval) != 1) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
@@ -3464,13 +3455,12 @@ int ech_calc_confirm(SSL_CONNECTION *s, int for_hrr, unsigned char *acbuf,
     }
     memcpy(acbuf, hoval, 8); /* Finally, set the output */
 # ifdef OSSL_ECH_SUPERVERBOSE
-    ech_pbuf("calc conf : result", acbuf, 8);
+    ech_pbuf("cc: result", acbuf, 8);
 # endif
     if (s->hello_retry_request == SSL_HRR_NONE)
         ech_reset_hs_buffer(s, s->ext.ech.innerch, s->ext.ech.innerch_len);
-    if (for_hrr == 1) { /* whack confirm value into stored version of hrr */
+    if (for_hrr == 1) /* whack confirm value into stored version of hrr */
         memcpy(s->ext.ech.kepthrr + s->ext.ech.kepthrr_len - 8, acbuf, 8);
-    }
     memcpy(conf_loc, acbuf, 8); /* whack result back into tbuf */
     if (s->hello_retry_request == SSL_HRR_COMPLETE)
         ech_reset_hs_buffer(s, tbuf, tlen - shlen);
@@ -3531,11 +3521,10 @@ int ech_find_confirm(SSL_CONNECTION *s, int hrr, unsigned char *acbuf,
                 || !PACKET_get_net_2(&pkt, &elen))
                 return 0;
             if (etype == TLSEXT_TYPE_ech13) {
-                if (elen < 8)
+                if (elen != 8
+                    || !PACKET_get_bytes(&pkt, &acp, elen))
                     return 0;
-                if (!PACKET_get_bytes(&pkt, &acp, 8))
-                    return 0;
-                memcpy(acbuf, acp, 8);
+                memcpy(acbuf, acp, elen);
                 done++;
             } else {
                 if (!PACKET_get_bytes(&pkt, &pp_tmp, elen))
