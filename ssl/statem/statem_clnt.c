@@ -1225,11 +1225,7 @@ __owur CON_FUNC_RETURN tls_construct_client_hello(SSL_CONNECTION *s,
         return 0;
     }
     /* If we're not really attempting ECH, just call existing code.  */
-# ifdef HRRWITHRETRY
     if (s->ext.ech.cfgs == NULL)
-# else
-    if (s->ext.ech.cfgs == NULL || s->ext.ech.hrr_depth == 0)
-# endif
         return tls_construct_client_hello_aux(s, pkt);
     /* note version we're attempting and that an attempt is being made */
     if (s->ext.ech.cfgs->cfg != NULL && s->ext.ech.cfgs->cfg->recs != NULL) {

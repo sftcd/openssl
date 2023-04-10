@@ -29,7 +29,7 @@
 # define SSL_R_BAD_CERTIFICATE                            348
 # define SSL_R_BAD_CHANGE_CIPHER_SPEC                     103
 # define SSL_R_BAD_CIPHER                                 186
-# define SSL_R_BAD_COMPRESSION_ALGORITHM                  327
+# define SSL_R_BAD_COMPRESSION_ALGORITHM                  326
 # define SSL_R_BAD_DATA                                   390
 # define SSL_R_BAD_DATA_RETURNED_BY_CALLBACK              106
 # define SSL_R_BAD_DECOMPRESSION                          107
@@ -113,6 +113,7 @@
 # define SSL_R_DUPLICATE_COMPRESSION_ID                   309
 # define SSL_R_ECC_CERT_NOT_FOR_SIGNING                   318
 # define SSL_R_ECDH_REQUIRED_FOR_SUITEB_MODE              374
+# define SSL_R_ECH_REQUIRED                               355
 # define SSL_R_EE_KEY_TOO_SMALL                           399
 # define SSL_R_EMPTY_RAW_PUBLIC_KEY                       349
 # define SSL_R_EMPTY_SRTP_PROTECTION_PROFILE_LIST         354
@@ -255,7 +256,7 @@
 # define SSL_R_REQUIRED_COMPRESSION_ALGORITHM_MISSING     342
 # define SSL_R_SCSV_RECEIVED_WHEN_RENEGOTIATING           345
 # define SSL_R_SCT_VERIFICATION_FAILED                    208
-# define SSL_R_SEQUENCE_CTR_WRAPPED                       326
+# define SSL_R_SEQUENCE_CTR_WRAPPED                       327
 # define SSL_R_SERVERHELLO_TLSEXT                         275
 # define SSL_R_SESSION_ID_CONTEXT_UNINITIALIZED           277
 # define SSL_R_SHUTDOWN_WHILE_IN_INIT                     407
@@ -373,8 +374,5 @@
 # define SSL_R_WRONG_VERSION_NUMBER                       267
 # define SSL_R_X509_LIB                                   268
 # define SSL_R_X509_VERIFICATION_SETUP_PROBLEMS           269
-# ifndef OPENSSL_NO_ECH
-#  define SSL_R_ECH_REQUIRED                              970
-# endif
 
 #endif
