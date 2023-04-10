@@ -2269,7 +2269,8 @@ EXT_RETURN tls_construct_stoc_ech13(SSL_CONNECTION *s, WPACKET *pkt,
     }
     /* GREASE or error => random confirmation in HRR case */
     if (context == SSL_EXT_TLS1_3_HELLO_RETRY_REQUEST
-        && s->ext.ech.attempted_type == TLSEXT_TYPE_ech13) {
+        && s->ext.ech.attempted_type == TLSEXT_TYPE_ech13
+        && s->ext.ech.attempted == 1) {
         unsigned char randomconf[8];
 
         if (RAND_bytes_ex(s->ssl.ctx->libctx, randomconf, 8,

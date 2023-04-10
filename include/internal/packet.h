@@ -630,22 +630,16 @@ __owur static ossl_inline int PACKET_get_length_prefixed_3(PACKET *pkt,
 # ifndef OPENSSL_NO_ECH
 /*
  * New ECH API allowing replacement of outer client hello on server
- * with inner.
+ * with inner. If newpkt is bigger, the caller has to fix that first
+ * (because pkt may be a subpacket so we don't here have a pointer to
+ * the allocated buffer)
  */
 __owur static ossl_inline int PACKET_replace(PACKET *pkt, PACKET *newpkt)
 {
     if (pkt == NULL || newpkt == NULL)
         return 0;
-    if (newpkt->remaining > pkt->remaining) {
-        /*
-         * resize the underlying memory in such cases - we can't be
-         * sure from here whether pkt->curr is the originaly alloc'd
-         * memory or a sub-packet pointer within an enclosing packet
-         */
-        return 0;
-    }
     memcpy((unsigned char *)pkt->curr, newpkt->curr, newpkt->remaining);
-    pkt->remaining = newpkt -> remaining;
+    pkt->remaining = newpkt->remaining;
     return 1;
 }
 # endif
