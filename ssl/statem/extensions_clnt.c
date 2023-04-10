@@ -2561,14 +2561,10 @@ int tls_parse_stoc_ech(SSL_CONNECTION *s, PACKET *pkt, unsigned int context,
     memcpy(srval + 2, rval, rlen);
     s->ext.ech.returned = srval;
     s->ext.ech.returned_len = rlen + 2;
-# ifdef HRRWITHRETRY
     if (s->ext.ech.cfgs == NULL && s->ext.ech.grease == OSSL_ECH_IS_GREASE) {
         return 1;
     }
     SSLfatal(s, SSL_AD_ECH_REQUIRED, SSL_R_ECH_REQUIRED);
     return 0;
-# else
-    return 1;
-# endif
 }
 #endif /* END_OPENSSL_NO_ECH */

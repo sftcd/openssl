@@ -2267,7 +2267,6 @@ EXT_RETURN tls_construct_stoc_ech13(SSL_CONNECTION *s, WPACKET *pkt,
         } OSSL_TRACE_END(TLS);
         return EXT_RETURN_SENT;
     }
-# ifdef HRRWITHRETRY
     /* GREASE or error => random confirmation in HRR case */
     if (context == SSL_EXT_TLS1_3_HELLO_RETRY_REQUEST
         && s->ext.ech.attempted_type == TLSEXT_TYPE_ech13) {
@@ -2288,7 +2287,6 @@ EXT_RETURN tls_construct_stoc_ech13(SSL_CONNECTION *s, WPACKET *pkt,
         } OSSL_TRACE_END(TLS);
         return EXT_RETURN_SENT;
     }
-# endif
     /* in other HRR circumstances: don't set */
     if (context == SSL_EXT_TLS1_3_HELLO_RETRY_REQUEST) {
         return EXT_RETURN_NOT_SENT;
