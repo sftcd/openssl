@@ -2551,11 +2551,11 @@ static int get_md_from_hs(SSL_CONNECTION *s, EVP_MD **rmd,
     } OSSL_TRACE_END(TLS);
     rv = ech_get_sh_offsets(shbuf, shlen, &extoffset, &echoffset, &echtype);
     if (rv != 1) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_R_ECH_REQUIRED);
         return 0;
     }
     if (extoffset < 3) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_R_ECH_REQUIRED);
         return 0;
     }
     cipheroffset = extoffset - 3;
@@ -3292,10 +3292,8 @@ int ech_calc_confirm(SSL_CONNECTION *s, int for_hrr, unsigned char *acbuf,
 
     memset(digestedCH, 0, 4 + EVP_MAX_MD_SIZE);
     if (get_md_from_hs(s, &md, shbuf, shlen) != 1
-        || (hashlen = EVP_MD_size(md)) > EVP_MAX_MD_SIZE) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+        || (hashlen = EVP_MD_size(md)) > EVP_MAX_MD_SIZE)
         goto err;
-    }
     if (for_hrr == 0 && s->hello_retry_request == SSL_HRR_NONE) {
         chbuf = s->ext.ech.innerch;
         chlen = s->ext.ech.innerch_len;

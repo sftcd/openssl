@@ -22,6 +22,10 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
+- 20230412: added tests with borked CH/SH (in ``echcorrupttest.c``)
+  which are fine but didn't yet find a way to do the same for the
+  retry-config
+
 - 20230408: added "ech-required" alert as per spec along with other
   related library error strings; investigating HRR+ECH in the face
   of errors (bit flip in HRR) or use of wrong public key - seems to

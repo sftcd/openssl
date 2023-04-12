@@ -2310,7 +2310,8 @@ EXT_RETURN tls_construct_stoc_ech13(SSL_CONNECTION *s, WPACKET *pkt,
         } OSSL_TRACE_END(TLS);
         return EXT_RETURN_NOT_SENT;
     }
-    for (echind = 0; echind != s->ext.ech.ncfgs; echind++) {
+    /* start @ array-end as most recent will be there if loadtimes same */
+    for (echind = s->ext.ech.ncfgs - 1; echind >= 0; echind--) {
         if (s->ext.ech.cfgs[echind].cfg->encoded == NULL
             || s->ext.ech.cfgs[echind].cfg->encoded_len == 0) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
