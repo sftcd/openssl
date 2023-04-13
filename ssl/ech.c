@@ -2355,16 +2355,15 @@ static int ech_get_outer_sni(SSL_CONNECTION *s, char **osni_str,
                              const unsigned char *opd, size_t opl,
                              size_t snioffset)
 {
-    PACKET osni;
-    const unsigned char *osnibuf = NULL;
-    size_t osnilen = 0;
+    PACKET wrap, osni;
+    unsigned int type, osnilen;
 
-    if (opl <= snioffset + 5)
-        return 0;
-    osnibuf = &opd[snioffset + 4];
-    osnilen = opd[snioffset + 2] * 256 + opd[snioffset + 3];
-    if (osnilen > opl - snioffset - 4
-        || PACKET_buf_init(&osni, osnibuf, osnilen) != 1
+    if (snioffset >= opl
+        || !PACKET_buf_init(&wrap, opd + snioffset, opl - snioffset)
+        || !PACKET_get_net_2(&wrap, &type)
+        || type != 0
+        || !PACKET_get_net_2(&wrap, &osnilen)
+        || !PACKET_get_sub_packet(&wrap, &osni, osnilen)
         || tls_parse_ctos_server_name(s, &osni, 0, NULL, 0) != 1)
         return 0;
     OPENSSL_free(s->ext.ech.cfgs->outer_name);
@@ -3421,7 +3420,7 @@ int ech_calc_confirm(SSL_CONNECTION *s, int for_hrr, unsigned char *acbuf,
             }
             if (echoffset == 0 || extoffset == 0 || echtype == 0
                 || tlen < (chlen + 4 + echoffset + 4 + 8)) {
-                /* No ECH found so we'll barf, but set random output */
+                /* No ECH found so we'll exit, but set random output */
                 if (RAND_bytes_ex(s->ssl.ctx->libctx, acbuf, 8,
                                   RAND_DRBG_STRENGTH) <= 0) {
                     SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
