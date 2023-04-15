@@ -22,6 +22,9 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
+- 20230415: refactored ``ech_calc_confirm()`` (again:-) making 
+  progress on path towards better (generic) ECH transcript handling
+
 - 20230412: added tests with borked CH/SH (in ``echcorrupttest.c``)
   which are fine but didn't yet find a way to do the same for the
   retry-config

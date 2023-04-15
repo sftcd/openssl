@@ -1897,8 +1897,11 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL_CONNECTION *s, PACKET *pkt)
                 if (!WPACKET_put_bytes_u8(&tp, SSL3_MT_MESSAGE_HASH)
                     || !WPACKET_put_bytes_u24(&tp, hashlen)
                     || !WPACKET_memcpy(&tp, hashval, hashlen)
+#if 0
+                    /* new calc conf does this */
                     || !WPACKET_put_bytes_u8(&tp, SSL3_MT_SERVER_HELLO)
                     || !WPACKET_put_bytes_u24(&tp, s->ext.ech.kepthrr_len)
+#endif
                     || !WPACKET_memcpy(&tp, s->ext.ech.kepthrr,
                                        s->ext.ech.kepthrr_len)) {
                     SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
