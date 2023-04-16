@@ -4120,7 +4120,8 @@ int ech_early_decrypt(SSL_CONNECTION *s, PACKET *outerpkt, PACKET *newpkt)
     opl = PACKET_remaining(outerpkt);
     opd = PACKET_data(outerpkt);
     s->tmp_session_id_len = opd[startofsessid]; /* grab the session id */
-    if (s->tmp_session_id_len > SSL_MAX_SSL_SESSION_ID_LENGTH) {
+    if (s->tmp_session_id_len > SSL_MAX_SSL_SESSION_ID_LENGTH
+        || startofsessid + 1 + s->tmp_session_id_len > opl) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         goto err;
     }
@@ -5088,8 +5089,8 @@ int SSL_CTX_ech_raw_decrypt(SSL_CTX *ctx,
     int innerflag = -1;
 
     if (ctx == NULL || outer_ch == NULL || outer_len == 0
-        || inner_ch == NULL || inner_len == NULL || inner_sni == NULL
-        || outer_sni == NULL || decrypted_ok == NULL) {
+        || inner_ch == NULL || inner_len == NULL || *inner_len == 0
+        || inner_sni == NULL || outer_sni == NULL || decrypted_ok == NULL) {
         ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_NULL_PARAMETER);
         return 0;
     }
@@ -5098,6 +5099,18 @@ int SSL_CTX_ech_raw_decrypt(SSL_CTX *ctx,
     if (s == NULL) {
         ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
         return 0;
+    }
+    /* sanity checks on record layer and preamble */
+    if (outer_len <= 9
+        || outer_ch[0] != SSL3_RT_HANDSHAKE
+        || outer_ch[1] != (TLS1_VERSION >> 8)
+        || outer_ch[2] != (TLS1_VERSION & 0xff)
+        || ((outer_ch[3] << 8) + outer_ch[4]) != (outer_len - 5)
+        || outer_ch[5] != SSL3_MT_CLIENT_HELLO
+        || ((outer_ch[6] << 16) + (outer_ch[7] << 8) + outer_ch[8])
+        != (outer_len - 9)) {
+        ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_INVALID_ARGUMENT);
+        goto err;
     }
     if (PACKET_buf_init(&pkt_outer, outer_ch + 9, outer_len - 9) != 1) {
         ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);

@@ -627,8 +627,7 @@ static int basic_echconfig(int idx)
                                            public_name, hpke_suite,
                                            extvals, extlen)))
         goto err;
-    if (!TEST_ptr(ctx = SSL_CTX_new_ex(testctx, testpropq,
-                                       TLS_server_method())))
+    if (!TEST_ptr(ctx = SSL_CTX_new_ex(libctx, NULL, TLS_server_method())))
         goto err;
     /* add that to ctx to start */
     if (!TEST_true(SSL_CTX_ech_set1_echconfig(ctx, echconfig, echconfiglen)))
@@ -669,6 +668,21 @@ err:
     SSL_free(ssl);
     SSL_CTX_free(ctx);
     return res;
+}
+
+static int c_test_cb_called = 0;
+static int s_test_cb_called = 0;
+
+static unsigned int c_test_cb(SSL *s, const char *str)
+{
+    c_test_cb_called = 1;
+    return 1;
+}
+
+static unsigned int s_test_cb(SSL *s, const char *str)
+{
+    s_test_cb_called = 1;
+    return 1;
 }
 
 /* test a roundtrip with an ECHConfig that has extensions */
@@ -735,6 +749,8 @@ static int extended_echconfig(int idx)
     if (!TEST_true(SSL_CTX_ech_set1_echconfig(cctx, (unsigned char *)echconfig,
                                               echconfiglen)))
         goto end;
+    SSL_CTX_ech_set_callback(sctx, s_test_cb);
+    SSL_CTX_ech_set_callback(cctx, c_test_cb);
     if (!TEST_true(SSL_CTX_ech_server_enable_file(sctx, echkeyfile)))
         goto end;
     if (!TEST_true(create_ssl_objects(sctx, cctx, &serverssl,
@@ -747,7 +763,7 @@ static int extended_echconfig(int idx)
         goto end;
     serverstatus = SSL_ech_get_status(serverssl, &sinner, &souter);
     if (verbose)
-        TEST_info("ech_roundtrip_test: server status %d, %s, %s",
+        TEST_info("extended cfg: server status %d, %s, %s",
                   serverstatus, sinner, souter);
     if (!TEST_int_eq(serverstatus, SSL_ECH_STATUS_SUCCESS))
         goto end;
@@ -755,10 +771,17 @@ static int extended_echconfig(int idx)
     SSL_set_verify_result(clientssl, X509_V_OK);
     clientstatus = SSL_ech_get_status(clientssl, &cinner, &couter);
     if (verbose)
-        TEST_info("ech_roundtrip_test: client status %d, %s, %s",
+        TEST_info("extended cfg: client status %d, %s, %s",
                   clientstatus, cinner, couter);
     if (!TEST_int_eq(clientstatus, SSL_ECH_STATUS_SUCCESS))
         goto end;
+    /* check callbacks got called */
+    if (!TEST_int_eq(c_test_cb_called, 1))
+        goto end;
+    c_test_cb_called = 0; /* in case we iterate */
+    if (!TEST_int_eq(s_test_cb_called, 1))
+        goto end;
+    s_test_cb_called = 0;
     /* all good */
     res = 1;
 end:
@@ -1298,8 +1321,7 @@ end:
 static int ech_in_out_test(int idx)
 {
     int res = 0;
-    char *echkeyfile = NULL;
-    char *echconfig = NULL;
+    char *echkeyfile = NULL, *echconfig = NULL;
     SSL_CTX *cctx = NULL, *sctx = NULL;
     SSL *clientssl = NULL, *serverssl = NULL;
     int clientstatus, serverstatus;
@@ -1309,13 +1331,12 @@ static int ech_in_out_test(int idx)
     char *public_name = "example.com"; /* we know that's inside echconfig.pem */
     /* inner, outer as provided via ECH status API */
     char *cinner = NULL, *couter = NULL, *sinner = NULL, *souter = NULL;
-    size_t echconfiglen;
     /* value below is "inner, secret, http/1.1" */
     unsigned char alpn_inner[] = {
         0x05, 0x69, 0x6e, 0x6e, 0x65, 0x72,
         0x06, 0x73, 0x65, 0x63, 0x72, 0x65, 0x74,
         0x08, 0x68, 0x74, 0x74, 0x70, 0x2f, 0x31, 0x2e, 0x31};
-    size_t alpn_inner_len = sizeof(alpn_inner);
+    size_t echconfiglen, alpn_inner_len = sizeof(alpn_inner);
     /* value below is "outer, public, h2" */
     unsigned char alpn_outer[] = {
         0x05, 0x6f, 0x75, 0x74, 0x65, 0x72,
@@ -1323,8 +1344,7 @@ static int ech_in_out_test(int idx)
         0x02, 0x68, 0x32};
     size_t alpn_outer_len = sizeof(alpn_outer);
     /* what we expect to see on bothe sides after (depends on idx) */
-    char *expected_inner = NULL;
-    char *expected_outer = NULL;
+    char *expected_inner = NULL, *expected_outer = NULL;
     int cres = 0, sres = 0;
 
     /*
@@ -1367,7 +1387,6 @@ static int ech_in_out_test(int idx)
      *       that's a bit pointless as it's more or less a NO-OP
      *       but worth checking
      */
-
     /* read our pre-cooked ECH PEM file */
     echkeyfile = test_mk_file_path(certsdir, "echconfig.pem");
     if (!TEST_ptr(echkeyfile))
@@ -1392,11 +1411,9 @@ static int ech_in_out_test(int idx)
     if (!TEST_true(SSL_CTX_ech_set_outer_alpn_protos(cctx, alpn_outer,
                                                      alpn_outer_len)))
         goto end;
-
     if (!TEST_true(create_ssl_objects(sctx, cctx, &serverssl,
                                       &clientssl, NULL, NULL)))
         goto end;
-
     /* setup specific SSL * tests as per comment above */
     if (idx == 0) {
         if (!TEST_true(SSL_set_tlsext_host_name(clientssl, non_ech_sni)))
@@ -1516,7 +1533,6 @@ static int ech_in_out_test(int idx)
     if (verbose)
         TEST_info("ech_in_out_test: expected I: %s, O: %s",
                   expected_inner, expected_outer);
-
     if (!TEST_true(create_ssl_connection(serverssl, clientssl,
                                          SSL_ERROR_NONE)))
         goto end;
@@ -1534,9 +1550,7 @@ static int ech_in_out_test(int idx)
                   clientstatus, cinner, couter);
     if (!TEST_int_eq(clientstatus, SSL_ECH_STATUS_SUCCESS))
         goto end;
-
-    /* check result vs. expected */
-    cres = sres = 0;
+    cres = sres = 0; /* check result vs. expected */
     if ((expected_inner == NULL && cinner == NULL)
         || (expected_inner != NULL && cinner != NULL
             && strlen(expected_inner) == strlen(cinner)
@@ -1566,7 +1580,6 @@ static int ech_in_out_test(int idx)
         sres = 1;
     if (!TEST_int_eq(sres, 1))
         goto end;
-
     /* all good */
     res = 1;
 end:
@@ -1770,29 +1783,23 @@ int setup_tests(void)
             return 0;
         }
     }
-
     certsdir = test_get_argument(0);
     if (certsdir == NULL)
         certsdir = DEF_CERTS_DIR;
-
     cert = test_mk_file_path(certsdir, "servercert.pem");
     if (cert == NULL)
         goto err;
-
     privkey = test_mk_file_path(certsdir, "serverkey.pem");
     if (privkey == NULL)
         goto err;
-
     bio_stdout = BIO_new_fp(stdout, BIO_NOCLOSE | BIO_FP_TEXT);
     bio_null = BIO_new(BIO_s_mem());
     ADD_TEST(tls_version_test);
     ADD_ALL_TESTS(basic_echconfig, 2);
     ADD_ALL_TESTS(extended_echconfig, 2);
     ADD_ALL_TESTS(ech_roundtrip_test, 2);
-
     ADD_ALL_TESTS(test_ech_add, OSSLTEST_ECH_NTESTS);
     ADD_ALL_TESTS(test_ech_find, OSSL_NELEM(test_echconfigs));
-
     /*
      * test a roundtrip for all suites, the test iteration
      * number is split into kem, kdf and aead string indices

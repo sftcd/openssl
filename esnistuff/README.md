@@ -22,6 +22,8 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
+- 20230416: added initial (nominal) test of ``SSL_CTX_ech_raw_decrypt()``
+
 - 20230415: refactored ``ech_calc_confirm()`` (again:-) making 
   progress on path towards better (generic) ECH transcript handling
 
