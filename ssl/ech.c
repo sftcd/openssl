@@ -5105,10 +5105,10 @@ int SSL_CTX_ech_raw_decrypt(SSL_CTX *ctx,
         || outer_ch[0] != SSL3_RT_HANDSHAKE
         || outer_ch[1] != (TLS1_VERSION >> 8)
         || outer_ch[2] != (TLS1_VERSION & 0xff)
-        || ((outer_ch[3] << 8) + outer_ch[4]) != (outer_len - 5)
+        || (size_t)((outer_ch[3] << 8) + outer_ch[4]) != (size_t)(outer_len - 5)
         || outer_ch[5] != SSL3_MT_CLIENT_HELLO
-        || ((outer_ch[6] << 16) + (outer_ch[7] << 8) + outer_ch[8])
-        != (outer_len - 9)) {
+        || (size_t)((outer_ch[6] << 16) + (outer_ch[7] << 8) + outer_ch[8])
+        != (size_t)(outer_len - 9)) {
         ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_INVALID_ARGUMENT);
         goto err;
     }
