@@ -287,16 +287,16 @@ a one second granularity). If more than one ECH configuration was loaded
 during that second, there are no guarantees as to which one will be
 selected.
 
-For servers operating in split-mode, SSL_CTX_ech_raw_decrypt() provides
-a way to only attempt the ECH decryption operation. This function
-takes the outer ClientHello in I<outer_ch> of size I<outer_len> and
-if decryption succeeds, returns the inner ClientHello in I<inner_ch>
-of size I<inner_len> (on input I<inner_len> should contain the size
-of the I<inner_ch> buffer) and sets I<decrypted_ok> to 1. Note that
-an inner ClientHello will always be smaller than an outer ClientHello.
-The encoding of both I<outer_ch> and I<inner_ch> begins with the
-TLS message type and 3-octet length (i.e. the initials octet are
-[0x16, 0x03, 0x01] followed by a 2-octet length).
+For servers operating in split-mode, SSL_CTX_ech_raw_decrypt() provides a way
+to only attempt the ECH decryption operation. This function takes the outer
+ClientHello (including the record layer header) in I<outer_ch> of size
+I<outer_len> and if decryption succeeds, returns the inner ClientHello (also
+including the record layer header) in I<inner_ch> of size I<inner_len> (on
+input I<inner_len> should contain the size of the I<inner_ch> buffer) and sets
+I<decrypted_ok> to 1. Note that an inner ClientHello will always be smaller
+than an outer ClientHello.  The encoding of both I<outer_ch> and I<inner_ch>
+begins with the TLS message type and 3-octet length (i.e. the initials octet
+are [0x16, 0x03, 0x01] followed by a 2-octet length).
 
 If decrytpion succeeds in SSL_CTX_ech_raw_decrypt() then the
 I<decrypted_ok> value will be returned as 1. If no ECH is present,

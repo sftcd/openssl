@@ -171,7 +171,8 @@ then passes on the decrypted inner CH to a back-end TLS server that negotiates
 the actual TLS session with the client, based on the inner CH content. The
 function to support this simply takes the outer CH, indicates whether
 decryption has succeeded or not, and if it has, returns the inner CH and SNI
-values (allowing routing to the correct back-end).
+values (allowing routing to the correct back-end). Both the supplied (outer)
+CH and returned (inner) CH here include the record layer header.
 
 This has been tested in a PoC implementation with haproxy, which works for
 nomimal operation but that can't handle the combination of split-mode in the
