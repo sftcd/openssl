@@ -93,11 +93,10 @@ int ech_helper_get_ch_offsets(const unsigned char *ch, size_t ch_len,
         || (*extlens = (size_t) pi_tmp) == 0)
         /*
          * unexpectedly, we return 1 here, as doing otherwise will
-         * break some existing test code that truncates CH messages
+         * break some non-ECH test code that truncates CH messages
          * The same is true below when looking through extensions.
          * That's ok though, we'll only set those offsets we've
-         * found. TODO: review this later, could be better to change
-         * the tests that'd otherwise break.
+         * found.
          */
         return 1;
     /* no extensions is theoretically ok, if uninteresting */
@@ -127,7 +126,7 @@ int ech_helper_get_ch_offsets(const unsigned char *ch, size_t ch_len,
         if (!PACKET_get_bytes(&pkt, &pp_tmp, elen))
             return 1; /* see note above */
         if (etype == TLSEXT_TYPE_ech13)
-            *inner = pp_tmp[1];
+            *inner = pp_tmp[0];
     }
     return 1;
 }
