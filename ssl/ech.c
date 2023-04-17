@@ -3440,20 +3440,6 @@ int ech_calc_confirm(SSL_CONNECTION *s, int for_hrr, unsigned char *acbuf,
     memcpy(conf_loc, acbuf, 8);
     if (s->hello_retry_request == SSL_HRR_COMPLETE)
         ech_reset_hs_buffer(s, tbuf, tlen - fixedshbuf_len);
-    /* clean up, as soon as we can */
-    if (hashin == s->ext.ech.innerch1) {
-        OPENSSL_free(s->ext.ech.innerch1);
-        s->ext.ech.innerch1 = NULL;
-        s->ext.ech.innerch1_len = 0;
-    }
-    if (hashin == s->ext.ech.innerch) {
-        OPENSSL_free(s->ext.ech.innerch);
-        s->ext.ech.innerch = NULL;
-        s->ext.ech.innerch_len = 0;
-        OPENSSL_free(s->ext.ech.kepthrr);
-        s->ext.ech.kepthrr = NULL;
-        s->ext.ech.kepthrr_len = 0;
-    }
     rv = 1;
 err:
     if (lpkt1_mem != NULL) {
