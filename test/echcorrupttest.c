@@ -468,10 +468,12 @@ static TEST_SH test_shs[] = {
      SSL_R_DECRYPTION_FAILED_OR_BAD_RECORD_MAC},
     /* 5. flip bits in HRR.exts ECH confirmation value */
     {OSSL_ECH_BORK_HRR | OSSL_ECH_BORK_FLIP,
-     NULL, 0, 0, SSL_R_BAD_EXTENSION},
+     NULL, 0, 0,
+     SSL_R_DECRYPTION_FAILED_OR_BAD_RECORD_MAC},
     /* 6. truncate HRR.exts ECH confirmation value */
     {OSSL_ECH_BORK_HRR | OSSL_ECH_BORK_REPLACE,
-     shortech, sizeof(shortech), 0, SSL_R_BAD_EXTENSION},
+     shortech, sizeof(shortech), 0,
+     SSL_R_DECRYPTION_FAILED_OR_BAD_RECORD_MAC},
     /* 7. too-long HRR.exts ECH confirmation value */
     {OSSL_ECH_BORK_HRR | OSSL_ECH_BORK_REPLACE,
      longech, sizeof(longech), 0, SSL_R_ECH_REQUIRED},

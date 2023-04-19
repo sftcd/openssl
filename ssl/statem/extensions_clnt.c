@@ -2559,12 +2559,9 @@ int tls_parse_stoc_ech(SSL_CONNECTION *s, PACKET *pkt, unsigned int context,
     srval[0] = (rlen & 0xff) >> 8;
     srval[1] = rlen & 0xff;
     memcpy(srval + 2, rval, rlen);
+    /* TODO: parse ECHConfigList as a check */
     s->ext.ech.returned = srval;
     s->ext.ech.returned_len = rlen + 2;
-    if (s->ext.ech.cfgs == NULL && s->ext.ech.grease == OSSL_ECH_IS_GREASE) {
-        return 1;
-    }
-    SSLfatal(s, SSL_AD_ECH_REQUIRED, SSL_R_ECH_REQUIRED);
-    return 0;
+    return 1;
 }
 #endif /* END_OPENSSL_NO_ECH */

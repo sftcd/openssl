@@ -279,7 +279,6 @@ typedef struct ssl_connection_ech_st {
     size_t sent_len;
     int backend; /* 1 if we're a server backend in split-mode, 0 otherwise */
     int ch_depth; /* 0 => outer, 1 => inner */
-    int hrr_depth; /* -1 => dunno yet, 0=> outer, 1 => inner */
     unsigned char *returned; /* binary ECHConfig retry value */
     size_t returned_len;
     unsigned char *pub; /* client ephemeral public kept by server in case HRR */

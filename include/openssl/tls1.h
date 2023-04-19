@@ -79,7 +79,7 @@ extern "C" {
 # define TLS1_AD_UNKNOWN_PSK_IDENTITY    115/* fatal */
 # define TLS1_AD_NO_APPLICATION_PROTOCOL 120 /* fatal */
 # ifndef OPENSSL_NO_ECH
-#  define TLS1_AD_ECH_REQUIRED           122 /* fatal */
+#  define TLS1_AD_ECH_REQUIRED           121 /* fatal */
 # endif
 
 /* ExtensionType values from RFC3546 / RFC4366 / RFC6066 */
