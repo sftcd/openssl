@@ -2850,7 +2850,6 @@ int SSL_ech_print(BIO *out, SSL *ssl, int selector)
     BIO_printf(out, "ech_grease=%d\n", s->ext.ech.grease);
 # ifdef OSSL_ECH_SUPERVERBOSE
     BIO_printf(out, "HRR=%d\n", s->hello_retry_request);
-    BIO_printf(out, "hrr_depth=%d\n", s->ext.ech.hrr_depth);
     BIO_printf(out, "ech_returned=%p\n",
                (void *)s->ext.ech.returned);
 # endif
@@ -3216,13 +3215,12 @@ err:
 int ech_reset_hs_buffer(SSL_CONNECTION *s, const unsigned char *buf,
                         size_t blen)
 {
+# ifdef OSSL_ECH_SUPERVERBOSE
     OSSL_TRACE_BEGIN(TLS) {
         BIO_printf(trc_out, "Adding this to transcript: RESET!\n");
     } OSSL_TRACE_END(TLS);
-# ifdef OSSL_ECH_SUPERVERBOSE
     ech_pbuf("Adding this to transcript", buf, blen);
 # endif
-
     if (s->s3.handshake_buffer != NULL) {
         (void)BIO_set_close(s->s3.handshake_buffer, BIO_CLOSE);
         BIO_free(s->s3.handshake_buffer);
@@ -3432,13 +3430,14 @@ int ech_calc_confirm(SSL_CONNECTION *s, int for_hrr, unsigned char *acbuf,
     ech_pbuf("cx: result", acbuf, 8);
 # endif
     /* put confirm value back into transcript vars */
-    if (s->hello_retry_request == SSL_HRR_NONE)
-        ech_reset_hs_buffer(s, s->ext.ech.innerch, s->ext.ech.innerch_len);
     if (s->hello_retry_request != SSL_HRR_NONE && s->ext.ech.kepthrr != NULL
         && for_hrr == 1 && s->server == 1)
         memcpy(s->ext.ech.kepthrr + s->ext.ech.kepthrr_len - 8, acbuf, 8);
     memcpy(conf_loc, acbuf, 8);
-    if (s->hello_retry_request == SSL_HRR_COMPLETE)
+    /* on a server, we need to reset the hs buffer now */
+    if (s->server && s->hello_retry_request == SSL_HRR_NONE)
+        ech_reset_hs_buffer(s, s->ext.ech.innerch, s->ext.ech.innerch_len);
+    if (s->server && s->hello_retry_request == SSL_HRR_COMPLETE)
         ech_reset_hs_buffer(s, tbuf, tlen - fixedshbuf_len);
     rv = 1;
 err:

@@ -858,6 +858,99 @@ end:
     return res;
 }
 
+/* Test a basic roundtrip with ECH, with a wrong public key */
+static int ech_wrong_pub_test(int idx)
+{
+    int res = 0;
+    char *echkeyfile = NULL;
+    SSL_CTX *cctx = NULL, *sctx = NULL;
+    SSL *clientssl = NULL, *serverssl = NULL;
+    int clientstatus, serverstatus;
+    char *cinner, *couter, *sinner, *souter;
+    unsigned char badconfig[400];
+    size_t badconfiglen = sizeof(badconfig);
+    unsigned char badpriv[200];
+    size_t badprivlen = sizeof(badpriv);
+    uint16_t ech_version = OSSL_ECH_DRAFT_13_VERSION;
+    OSSL_HPKE_SUITE hpke_suite = OSSL_HPKE_SUITE_DEFAULT;
+    int err = 0, connrv = 0, err_reason = 0;
+    unsigned char *retryconfig = NULL;
+    size_t retryconfiglen = 0;
+
+    /* read our pre-cooked ECH PEM file */
+    echkeyfile = test_mk_file_path(certsdir, "echconfig.pem");
+    if (!TEST_ptr(echkeyfile))
+        goto end;
+    if (!TEST_true(create_ssl_ctx_pair(libctx, TLS_server_method(),
+                                       TLS_client_method(),
+                                       TLS1_3_VERSION, TLS1_3_VERSION,
+                                       &sctx, &cctx, cert, privkey)))
+        goto end;
+
+    if (!TEST_true(ossl_ech_make_echconfig(badconfig, &badconfiglen,
+                                           badpriv, &badprivlen,
+                                           ech_version, 0, "example.com",
+                                           hpke_suite, NULL, 0)))
+        goto end;
+    if (!TEST_true(SSL_CTX_ech_set1_echconfig(cctx, badconfig,
+                                              badconfiglen)))
+        goto end;
+    if (!TEST_true(SSL_CTX_ech_server_enable_file(sctx, echkeyfile)))
+        goto end;
+    if (!TEST_true(create_ssl_objects(sctx, cctx, &serverssl,
+                                      &clientssl, NULL, NULL)))
+        goto end;
+    /* trigger HRR 2nd time */
+    if (idx == 1 && !TEST_true(SSL_set1_groups_list(serverssl, "P-384")))
+        goto end;
+    if (!TEST_true(SSL_set_tlsext_host_name(clientssl, "server.example")))
+        goto end;
+    connrv = create_ssl_connection(serverssl, clientssl, SSL_ERROR_SSL);
+    if (!TEST_int_eq(connrv, 0))
+        goto end;
+    if (connrv == 0) {
+        do {
+            err = ERR_get_error();
+            if (err == 0) {
+                TEST_error("ECH wrong pub: Unexpected error");
+                goto end;
+            }
+            err_reason = ERR_GET_REASON(err);
+            if (verbose)
+                TEST_info("Error reason: %d", err_reason);
+        } while (err_reason != SSL_R_ECH_REQUIRED);
+    }
+    if (!TEST_true(SSL_ech_get_retry_config(clientssl, &retryconfig,
+                                            &retryconfiglen))
+        || !TEST_ptr(retryconfig)
+        || !TEST_int_ne(retryconfiglen, 0))
+        goto end;
+    serverstatus = SSL_ech_get_status(serverssl, &sinner, &souter);
+    if (verbose)
+        TEST_info("ech_wrong_pub_test: server status %d, %s, %s",
+                  serverstatus, sinner, souter);
+    if (!TEST_int_eq(serverstatus, SSL_ECH_STATUS_GREASE))
+        goto end;
+    /* override cert verification */
+    SSL_set_verify_result(clientssl, X509_V_OK);
+    clientstatus = SSL_ech_get_status(clientssl, &cinner, &couter);
+    if (verbose)
+        TEST_info("ech_wrong_pub_test: client status %d, %s, %s",
+                  clientstatus, cinner, couter);
+    if (!TEST_int_eq(clientstatus, SSL_ECH_STATUS_FAILED_ECH))
+        goto end;
+    /* all good */
+    res = 1;
+end:
+    OPENSSL_free(retryconfig);
+    OPENSSL_free(echkeyfile);
+    SSL_free(clientssl);
+    SSL_free(serverssl);
+    SSL_CTX_free(cctx);
+    SSL_CTX_free(sctx);
+    return res;
+}
+
 /* Test that ECH doesn't work with a TLS1.2 connection */
 static int tls_version_test(void)
 {
@@ -1813,6 +1906,7 @@ int setup_tests(void)
     ADD_ALL_TESTS(ech_custom_test, suite_combos);
     ADD_ALL_TESTS(ech_grease_test, 2);
     ADD_ALL_TESTS(ech_in_out_test, 14);
+    ADD_ALL_TESTS(ech_wrong_pub_test, 2);
     return 1;
 err:
     return 0;

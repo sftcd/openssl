@@ -945,7 +945,6 @@ SSL *ossl_ssl_connection_new_int(SSL_CTX *ctx, const SSL_METHOD *method)
     s->ext.ech.grease = 0;
     s->ext.ech.grease_suite = NULL;
     s->ext.ech.ch_depth = 0;
-    s->ext.ech.hrr_depth = -1;
     s->ext.ech.encoded_innerch_len = 0;
     if (ctx->options & SSL_OP_ECH_GREASE) {
         s->ext.ech.grease = OSSL_ECH_IS_GREASE;
@@ -5170,7 +5169,6 @@ SSL *SSL_dup(SSL *s)
     retsc->ext.ech.success = sc->ext.ech.success;
     retsc->ext.ech.grease = sc->ext.ech.grease;
     retsc->ext.ech.ch_depth = sc->ext.ech.ch_depth;
-    retsc->ext.ech.hrr_depth = sc->ext.ech.hrr_depth;
     if (sc->ext.ech.sent != NULL) {
         retsc->ext.ech.sent = OPENSSL_malloc(sc->ext.ech.sent_len);
         if (retsc->ext.ech.sent == NULL)

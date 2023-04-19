@@ -34,8 +34,11 @@ GTYPE=$GTYPE_DEF
 
 # note that cloudflare do actually turn on h2 if we ask for that so
 # you might see binary cruft if that's selected
-DEFALPNVAL="-alpn inner,secret,http/1.1 -ech_alpn_outer outer,public,h2"
+DEFALPNOUTER="outer,public,h2"
+DEFALPNINNER="inner,secret,http/1.1"
+DEFALPNVAL=" -ech_alpn_outer $DEFALPNOUTER -alpn $DEFALPNINNER"
 DOALPN="yes"
+SUPPALPN=""
 
 # default port
 PORT="443"
@@ -96,6 +99,7 @@ function usage()
     echo "$0 [-cdfgGhHPpsRrnlvL] - try out encrypted client hello (ECH) via openssl s_client"
 	echo "  -4 use IPv4"
 	echo "  -6 use IPv6"
+    echo "  -a [alpn-str] specifies a comma-sep list of alpn values"
 	echo "  -c [name] specifices a name that I'll send as an outer SNI (NONE is special)"
     echo "  -C [number] selects the n-th ECHConfig from input RR/PEM file (0 based)"
     echo "  -d means run s_client in verbose mode"
@@ -141,7 +145,7 @@ then
 fi
 
 # options may be followed by one colon to indicate they have a required argument
-if ! options=$($GETOPTDIR/getopt -s bash -o 46C:c:def:gGhH:IjnNO:p:P:Rrs:S:t:Tv -l four,six,choose:,clear_sni:,debug,early,filepath:,grease,greasesuite,help,hidden:,ignore_cid,just,noech,noalpn,outer:,port:,echpub:,hrr,realcert,server:,session:,gtype:,test_cust,valgrind -- "$@")
+if ! options=$($GETOPTDIR/getopt -s bash -o 46a:C:c:def:gGhH:IjnNO:p:P:Rrs:S:t:Tv -l four,six,alpn,choose:,clear_sni:,debug,early,filepath:,grease,greasesuite,help,hidden:,ignore_cid,just,noech,noalpn,outer:,port:,echpub:,hrr,realcert,server:,session:,gtype:,test_cust,valgrind -- "$@")
 then
     # something went wrong, getopt will put out an error message for us
     exit 1
@@ -153,6 +157,7 @@ do
     case "$1" in
         -4|--four) IP_PROTSEL=" -4 ";;
         -6|--six) IP_PROTSEL=" -6 ";;
+        -a|--alpn) SUPPALPN=$2; shift;;
         -c|--clear_sni) SUPPLIEDPNO=$2; shift;;
         -C|--choose) SELECTED=$2; shift;;
         -d|--debug) DEBUG="yes" ;;
@@ -449,9 +454,19 @@ then
 fi
 
 alpn=""
-if [[ "$GREASE" == "no" && "$DOALPN" == "yes" && "$NOECH" == "no" ]]
+if [[ "$DOALPN" == "yes" && "$NOECH" == "no" ]]
 then
-    alpn=$DEFALPNVAL
+    if [[ "$GREASE" == "yes" ]]
+    then
+        alpn=" -alpn $DEFALPNINNER"
+    else
+        alpn=$DEFALPNVAL
+    fi
+fi
+if [[ "$SUPPALPN" != "" ]]
+then
+    # override above
+    alpn=" -alpn $SUPPALPN"
 fi
 
 earlystr=""
