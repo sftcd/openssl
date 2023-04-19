@@ -22,6 +22,9 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
+- 20230420: added wrong public key test, straight and with HRR,
+  and re-factored error handling some
+
 - 20230416: added initial (nominal) test of ``SSL_CTX_ech_raw_decrypt()``
 
 - 20230415: refactored ``ech_calc_confirm()`` (again:-) making 

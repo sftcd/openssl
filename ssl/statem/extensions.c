@@ -74,7 +74,6 @@ static int tls_parse_compress_certificate(SSL_CONNECTION *sc, PACKET *pkt,
 
 #ifndef OPENSSL_NO_ECH
 static int init_ech(SSL_CONNECTION *s, unsigned int context);
-static int final_ech(SSL_CONNECTION *s, unsigned int context, int sent);
 #endif
 
 /* Structure to define a built-in extension */
@@ -425,7 +424,7 @@ static const EXTENSION_DEFINITION ext_defs[] = {
         init_ech,
         tls_parse_ctos_ech, tls_parse_stoc_ech,
         tls_construct_stoc_ech13, tls_construct_ctos_ech13,
-        final_ech
+        NULL
     },
     { /* this is for draft-13 */
         TLSEXT_TYPE_outer_extensions,
@@ -1067,27 +1066,6 @@ static int init_ech(SSL_CONNECTION *s, unsigned int context)
 {
     if (context == SSL_EXT_CLIENT_HELLO) {
         s->ext.ech.done = 0;
-    }
-    return 1;
-}
-
-/*
- * @brief check result of ech and return error or ok
- * @param s is the SSL session
- * @param context determines when called
- * @param sent is unused
- * @return 1 for good, 0 otherwise
- */
-static int final_ech(SSL_CONNECTION *s, unsigned int context, int sent)
-{
-    if (!s->server && s->ext.ech.cfgs != NULL) {
-        if (s->ext.ech.grease == OSSL_ECH_IS_GREASE) {
-            /* If we greased, then it's ok that ech_success didn't get set */
-            return 1;
-        } else if (s->ext.ech.hrr_depth != 0 && s->ext.ech.success != 1) {
-            SSLfatal(s, SSL_AD_ECH_REQUIRED, SSL_R_ECH_REQUIRED);
-            return 0;
-        }
     }
     return 1;
 }

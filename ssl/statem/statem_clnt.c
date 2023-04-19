@@ -1286,7 +1286,7 @@ __owur CON_FUNC_RETURN tls_construct_client_hello(SSL_CONNECTION *s,
         }
     }
     /* special handling when doing HRR */
-    if (s->ext.ech.hrr_depth == 1) {
+    if (s->hello_retry_request != SSL_HRR_NONE) {
         s->ext.ech.n_outer_only = 0; /* reset count of "compressed" exts */
         OPENSSL_free(s->ext.ech.encoded_innerch);
         s->ext.ech.encoded_innerch = NULL;
@@ -1835,23 +1835,20 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL_CONNECTION *s, PACKET *pkt)
             || memcmp(s_signal, c_signal ,8) != 0) { /* no match */
 # ifdef OSSL_ECH_SUPERVERBOSE
             OSSL_TRACE_BEGIN(TLS) {
-                BIO_printf(trc_out, "ECH HRR accept check failed\n");
+                BIO_printf(trc_out, "ECH accept check failed\n");
             } OSSL_TRACE_END(TLS);
-            ech_pbuf("ECH HRR c_signal", c_signal, 8);
-            ech_pbuf("ECH HRR shval", shbuf + shlen - 8, 8);
+            ech_pbuf("ECH c_signal", c_signal, 8);
+            ech_pbuf("ECH shval", shbuf + shlen - 8, 8);
 # endif
+            /* we'll set the ech_required alert in final_ech() */
             s->ext.ech.success = 0;
-            if (hrr)
-                s->ext.ech.hrr_depth = 0;
         } else { /* match, ECH worked */
             OSSL_TRACE_BEGIN(TLS) {
-                BIO_printf(trc_out, "ECH HRR accept check ok\n");
+                BIO_printf(trc_out, "ECH accept check ok\n");
                 BIO_printf(trc_out, "ECH set session hostname to %s\n",
                            s->ext.hostname ? s->ext.hostname : "NULL");
             } OSSL_TRACE_END(TLS);
             s->ext.ech.success = 1;
-            if (hrr)
-                s->ext.ech.hrr_depth = 1;
         }
         if (!hrr && s->ext.ech.success == 1) {
             if (ech_swaperoo(s) != 1) { /* swap context */
@@ -3362,6 +3359,18 @@ int tls_process_initial_server_flight(SSL_CONNECTION *s)
         }
     }
 #endif
+
+#ifndef OPENSSL_NO_ECH
+    /* check result of ech and return error if needed */
+    if (!s->server
+        && s->ext.ech.cfgs != NULL
+        && s->ext.ech.attempted == 1
+        && s->ext.ech.success != 1
+        && s->ext.ech.grease != OSSL_ECH_IS_GREASE) {
+        SSLfatal(s, SSL_AD_ECH_REQUIRED, SSL_R_ECH_REQUIRED);
+        return 0;
+    }
+#endif /* OPENSSL_NO_ECH */
 
     return 1;
 }
