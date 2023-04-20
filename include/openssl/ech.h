@@ -70,6 +70,10 @@ typedef struct ossl_ech_info_st {
     char *echconfig; /* a JSON-like version of the associated ECHConfig */
 } OSSL_ECH_INFO;
 
+/* Values for the for_retry inputs */
+#define SSL_ECH_USE_FOR_RETRY 1
+#define SSL_ECH_NOT_FOR_RETRY 0
+
 /*
  * API calls based around SSL* values - mostly for clients
  */
@@ -101,11 +105,12 @@ int SSL_ech_get_retry_config(SSL *s, unsigned char **ec, size_t *eclen);
 int SSL_CTX_ech_set_outer_alpn_protos(SSL_CTX *s, const unsigned char *protos,
                                       const size_t protos_len);
 
-int SSL_CTX_ech_server_enable_file(SSL_CTX *ctx, const char *file);
+int SSL_CTX_ech_server_enable_file(SSL_CTX *ctx, const char *file,
+                                   int for_retry);
 int SSL_CTX_ech_server_enable_buffer(SSL_CTX *ctx, const unsigned char *buf,
-                                     const size_t blen);
+                                     const size_t blen, int for_retry);
 int SSL_CTX_ech_server_enable_dir(SSL_CTX *ctx, int *loaded,
-                                  const char *echdir);
+                                  const char *echdir, int for_retry);
 int SSL_CTX_ech_server_get_key_status(SSL_CTX *ctx, int *numkeys);
 int SSL_CTX_ech_server_flush_keys(SSL_CTX *ctx, unsigned int age);
 

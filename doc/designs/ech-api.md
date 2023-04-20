@@ -136,11 +136,12 @@ Cloudflare's test ECH service rotates published ECH public keys hourly
 so for some of our test services at defo.ie).
 
 ```c
-int SSL_CTX_ech_server_enable_file(SSL_CTX *ctx, const char *file);
+int SSL_CTX_ech_server_enable_file(SSL_CTX *ctx, const char *file,
+                                   int for_retry);
 int SSL_CTX_ech_server_enable_dir(SSL_CTX *ctx, int *loaded,
-                                  const char *echdir);
+                                  const char *echdir, int for_retry);
 int SSL_CTX_ech_server_enable_buffer(SSL_CTX *ctx, const unsigned char *buf,
-                                     const size_t blen);
+                                     const size_t blen, int for_retry);
 ```
 
 The three functions above support loading keys, the first attempts to load a
@@ -152,6 +153,10 @@ external key management process (likely managed via a cronjob).  The last
 allows the application to load keys from a buffer (that should contain the same
 content as a file) and was added for haproxy which prefers not to do disk reads
 after initial startup (for resilience reasons apparently).
+
+If the ``for_retry`` input has the value 1, then the corresponding ECHConfig
+values will be returned to clients in the ``retry-config`` that may enable a
+client to use ECH in a subsequent connection.
 
 The content of files referred to above must also match the format defined in
 [draft-farrell-tls-pemesni](https://datatracker.ietf.org/doc/draft-farrell-tls-pemesni/).

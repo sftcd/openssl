@@ -300,7 +300,8 @@ int ech_main(int argc, char **argv)
         if (con == NULL)
             goto end;
         /* Input could be key pair */
-        rv = SSL_CTX_ech_server_enable_file(con, inpemfile);
+        rv = SSL_CTX_ech_server_enable_file(con, inpemfile,
+                                            SSL_ECH_USE_FOR_RETRY);
         if (rv != 1) {
             /* Or it could be just an encoded ECHConfigList */
             pem_in = BIO_new(BIO_s_file());

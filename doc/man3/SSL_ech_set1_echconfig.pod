@@ -43,11 +43,12 @@ ossl_ech_make_echconfig, ossl_ech_find_echconfigs
                                 size_t len);
  int SSL_CTX_ech_server_get_key_status(SSL_CTX *ctx, int *numkeys);
  int SSL_CTX_ech_server_flush_keys(SSL_CTX *ctx, unsigned int age);
- int SSL_CTX_ech_server_enable_file(SSL_CTX *ctx, const char *file);
+ int SSL_CTX_ech_server_enable_file(SSL_CTX *ctx, const char *file,
+                                    int for_retry);
  int SSL_CTX_ech_server_enable_buffer(SSL_CTX *ctx, const unsigned char *buf,
-                                      const size_t blen);
+                                      const size_t blen, int for_retry);
  int SSL_CTX_ech_server_enable_dir(SSL_CTX *ctx, int *loaded,
-                                   const char *echdir);
+                                   const char *echdir, int for_retry);
  int SSL_CTX_ech_raw_decrypt(SSL_CTX *ctx,
                              int *decrypted_ok,
                              char **inner_sni, char **outer_sni,
@@ -255,7 +256,6 @@ as needed. (See also L</ECH SSL Options>.)
 SSL_CTX_ech_server_enable_file() will attempt to read an ECH key pair from
 I<file>. If opening/reading the file fails this function will return
 B<SSL_R_FILE_OPEN_FAILED>.
-
 SSL_CTX_ech_server_enable_dir() will attempt to read an ECH key pair
 from all files named "*.ech" found in the I<dir>.
 On success, I<loaded> parameter will contain the number of ECH key pairs
@@ -263,6 +263,9 @@ successfully loaded.
 SSL_CTX_ech_server_enable_buffer() allows loading one ECH key pair (still in
 our ECHConfig PEM format) from a buffer. This can be needed if a server
 instance has no access to a filesystem.
+For each of this functions, the I<for_retry> parameter specifies whether
+the corresponding ECHConfig values ought be returned to clients in a
+I<retry-config> following GREASE or decryption failure.
 
 SSL_CTX_ech_server_get_key_status() returns the number of ECH key pairs loaded
 in I<numkeys>.  Calls to the various SSL_CTX_ech_server_enable_*() APIs will
@@ -483,6 +486,16 @@ Return codes from SSL_ech_get_status
 =item B<SSL_ECH_STATUS_NOT_CONFIGURED> -103, ECH wasn't configured
 
 =item B<SSL_ECH_STATUS_FAILED_ECH> -105, We tried, failed and got an ECH
+
+=back
+
+Values for I<for_retry>
+
+=over 4
+
+=item B<SSL_ECH_USE_FOR_RETRY>  1. use corresponding ECHConfig values
+
+=item B<SSL_ECH_NOT_FOR_RETRY>  0. don't use corresponding ECHConfig values
 
 =back
 
