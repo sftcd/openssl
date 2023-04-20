@@ -22,6 +22,9 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
+- 20230420: added a flag on loading keys to say if the related ECHConfig
+  values should be included in retry-configs
+
 - 20230420: added wrong public key test, straight and with HRR,
   and re-factored error handling some
 

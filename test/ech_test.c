@@ -751,7 +751,8 @@ static int extended_echconfig(int idx)
         goto end;
     SSL_CTX_ech_set_callback(sctx, s_test_cb);
     SSL_CTX_ech_set_callback(cctx, c_test_cb);
-    if (!TEST_true(SSL_CTX_ech_server_enable_file(sctx, echkeyfile)))
+    if (!TEST_true(SSL_CTX_ech_server_enable_file(sctx, echkeyfile,
+                                                  SSL_ECH_USE_FOR_RETRY)))
         goto end;
     if (!TEST_true(create_ssl_objects(sctx, cctx, &serverssl,
                                       &clientssl, NULL, NULL)))
@@ -822,7 +823,8 @@ static int ech_roundtrip_test(int idx)
     if (!TEST_true(SSL_CTX_ech_set1_echconfig(cctx, (unsigned char *)echconfig,
                                               echconfiglen)))
         goto end;
-    if (!TEST_true(SSL_CTX_ech_server_enable_file(sctx, echkeyfile)))
+    if (!TEST_true(SSL_CTX_ech_server_enable_file(sctx, echkeyfile,
+                                                  SSL_ECH_USE_FOR_RETRY)))
         goto end;
     if (!TEST_true(create_ssl_objects(sctx, cctx, &serverssl,
                                       &clientssl, NULL, NULL)))
@@ -895,7 +897,8 @@ static int ech_wrong_pub_test(int idx)
     if (!TEST_true(SSL_CTX_ech_set1_echconfig(cctx, badconfig,
                                               badconfiglen)))
         goto end;
-    if (!TEST_true(SSL_CTX_ech_server_enable_file(sctx, echkeyfile)))
+    if (!TEST_true(SSL_CTX_ech_server_enable_file(sctx, echkeyfile,
+                                                  SSL_ECH_USE_FOR_RETRY)))
         goto end;
     if (!TEST_true(create_ssl_objects(sctx, cctx, &serverssl,
                                       &clientssl, NULL, NULL)))
@@ -1180,7 +1183,8 @@ static int test_ech_roundtrip_helper(int idx, int combo)
                   echkeybuf);
     if (!TEST_true(SSL_CTX_ech_server_enable_buffer(sctx,
                                                     (unsigned char *)echkeybuf,
-                                                    echkeybuflen)))
+                                                    echkeybuflen,
+                                                    SSL_ECH_USE_FOR_RETRY)))
         goto end;
     if (!TEST_true(create_ssl_objects(sctx, cctx, &serverssl,
                                       &clientssl, NULL, NULL)))
@@ -1316,6 +1320,16 @@ static int ech_grease_test(int idx)
     char *cinner, *couter, *sinner, *souter;
     unsigned char *retryconfig = NULL;
     size_t retryconfiglen = 0;
+    unsigned char priv[400];
+    size_t privlen = sizeof(priv);
+    unsigned char echconfig1[300];
+    size_t echconfig1len = sizeof(echconfig1);
+    unsigned char echkeybuf[1000];
+    size_t echkeybuflen = sizeof(echkeybuf);
+    OSSL_HPKE_SUITE hpke_suite = OSSL_HPKE_SUITE_DEFAULT;
+    uint16_t ech_version = OSSL_ECH_DRAFT_13_VERSION;
+    uint16_t max_name_length = 0;
+    char *public_name = "example.com";
 
     /* read our pre-cooked ECH PEM file */
     echkeyfile = test_mk_file_path(certsdir, "echconfig.pem");
@@ -1329,7 +1343,40 @@ static int ech_grease_test(int idx)
                                        TLS1_3_VERSION, TLS1_3_VERSION,
                                        &sctx, &cctx, cert, privkey)))
         goto end;
-    if (!TEST_true(SSL_CTX_ech_server_enable_file(sctx, echkeyfile)))
+    if (!TEST_true(SSL_CTX_ech_server_enable_file(sctx, echkeyfile,
+                                                  SSL_ECH_USE_FOR_RETRY)))
+        goto end;
+    /* make an extra key pair to make retry-config bigger */
+    if (!TEST_true(ossl_ech_make_echconfig(echconfig1, &echconfig1len,
+                                           priv, &privlen,
+                                           ech_version, max_name_length,
+                                           public_name, hpke_suite,
+                                           NULL, 0)))
+        goto end;
+    snprintf((char *)echkeybuf, echkeybuflen,
+             "%s-----BEGIN ECHCONFIG-----\n%s\n-----END ECHCONFIG-----\n",
+             priv, (char *)echconfig1);
+    echkeybuflen = strlen((char *)echkeybuf);
+    /* add a 2nd ECHConfig not for retry-config */
+    if (idx == 2
+        && !TEST_true(SSL_CTX_ech_server_enable_buffer(sctx,
+                                                       echkeybuf,
+                                                       echkeybuflen,
+                                                       SSL_ECH_NOT_FOR_RETRY)))
+        goto end;
+    /* a 3rd to be used - zap some bits so lib thinks its a new key */
+    if (idx == 2
+        && !TEST_true(SSL_CTX_ech_server_enable_buffer(sctx,
+                                                       echkeybuf,
+                                                       echkeybuflen,
+                                                       SSL_ECH_USE_FOR_RETRY)))
+        goto end;
+    /* and a 4th to skip - zap some bits so lib thinks its a new key */
+    if (idx == 2
+        && !TEST_true(SSL_CTX_ech_server_enable_buffer(sctx,
+                                                       echkeybuf,
+                                                       echkeybuflen,
+                                                       SSL_ECH_NOT_FOR_RETRY)))
         goto end;
     /* set the flag via SSL_CTX 1st time, and via SSL* 2nd */
     if (idx == 0 && !TEST_true(SSL_CTX_set_options(cctx, SSL_OP_ECH_GREASE)))
@@ -1340,7 +1387,7 @@ static int ech_grease_test(int idx)
     if (!TEST_true(SSL_set_tlsext_host_name(clientssl, "server.example")))
         goto end;
     /* set the flag via SSL_CTX 1st time, and via SSL* 2nd */
-    if (idx == 1 && !TEST_true(SSL_set_options(clientssl, SSL_OP_ECH_GREASE)))
+    if (idx >= 1 && !TEST_true(SSL_set_options(clientssl, SSL_OP_ECH_GREASE)))
         goto end;
     if (!TEST_true(create_ssl_connection(serverssl, clientssl,
                                          SSL_ERROR_NONE)))
@@ -1365,6 +1412,12 @@ static int ech_grease_test(int idx)
     if (!TEST_ptr(retryconfig))
         goto end;
     if (!TEST_int_ne(retryconfiglen, 0))
+        goto end;
+    if (verbose)
+        TEST_info("ech_grease_test: retryconfglen: %lu\n", retryconfiglen);
+    if (idx == 2 && !TEST_size_t_eq(retryconfiglen, 126))
+        goto end;
+    if (idx < 2 && !TEST_size_t_eq(retryconfiglen, 64))
         goto end;
     /* cleanup */
     SSL_shutdown(clientssl);
@@ -1493,7 +1546,8 @@ static int ech_in_out_test(int idx)
                                        TLS1_3_VERSION, TLS1_3_VERSION,
                                        &sctx, &cctx, cert, privkey)))
         goto end;
-    if (!TEST_true(SSL_CTX_ech_server_enable_file(sctx, echkeyfile)))
+    if (!TEST_true(SSL_CTX_ech_server_enable_file(sctx, echkeyfile,
+                                                  SSL_ECH_USE_FOR_RETRY)))
         goto end;
     if (!TEST_true(SSL_CTX_ech_set1_echconfig(cctx, (unsigned char *)echconfig,
                                               echconfiglen)))
@@ -1904,7 +1958,7 @@ int setup_tests(void)
     ADD_ALL_TESTS(test_ech_hrr, suite_combos);
     ADD_ALL_TESTS(test_ech_early, suite_combos);
     ADD_ALL_TESTS(ech_custom_test, suite_combos);
-    ADD_ALL_TESTS(ech_grease_test, 2);
+    ADD_ALL_TESTS(ech_grease_test, 3);
     ADD_ALL_TESTS(ech_in_out_test, 14);
     ADD_ALL_TESTS(ech_wrong_pub_test, 2);
     return 1;

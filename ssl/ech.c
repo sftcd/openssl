@@ -965,6 +965,7 @@ static int ech_decode_and_flatten(int *nechs_in, SSL_ECH **retech_in,
         /* next 3 fields are really only used when private key present */
         retech[nechs + cfgind].pemfname = NULL;
         retech[nechs + cfgind].loadtime = 0;
+        retech[nechs + cfgind].for_retry = SSL_ECH_NOT_FOR_RETRY;
         retech[nechs + cfgind].keyshare = NULL;
         retech[nechs + cfgind].cfg =
             OPENSSL_malloc(sizeof(ECHConfigList));
@@ -1363,7 +1364,7 @@ err:
  */
 static int ech_readpemfile(SSL_CTX *ctx, int inputIsFile, const char *pemfile,
                            const unsigned char *input, size_t inlen,
-                           SSL_ECH **sechs)
+                           SSL_ECH **sechs, int for_retry)
 {
     BIO *pem_in = NULL;
     char *pname = NULL;
@@ -1424,6 +1425,7 @@ static int ech_readpemfile(SSL_CTX *ctx, int inputIsFile, const char *pemfile,
         goto err;
     (*sechs)->pemfname = OPENSSL_strdup(pemfile);
     (*sechs)->loadtime = time(0);
+    (*sechs)->for_retry = for_retry;
     (*sechs)->keyshare = priv;
     OPENSSL_free(pheader);
     OPENSSL_free(pname);
@@ -2978,6 +2980,7 @@ SSL_ECH *SSL_ECH_dup(SSL_ECH *orig, size_t nech, int selector)
                 goto err;
         }
         new_se[i].loadtime = orig[i].loadtime;
+        new_se[i].for_retry = orig[i].for_retry;
         if (orig[i].keyshare != NULL) {
             new_se[i].keyshare = orig[i].keyshare;
             EVP_PKEY_up_ref(orig[i].keyshare);
@@ -4320,6 +4323,60 @@ int ech_copy_inner2outer(SSL_CONNECTION *s, uint16_t ext_type, WPACKET *pkt)
     return 1;
 }
 
+/*
+ * @brief assemble the set of ECHConfig values to return as a retry-config
+ * @param s is the SSL connection
+ * @param rcfgs is a list of ECHConfig's
+ * @param rcfgslen is the length of rcfgs
+ * @return 1 for success, anything else for failure
+ *
+ * The caller needs to OPENSSL_free the rcfgs.
+ * The rcfgs itself is missing the outer length to make it an ECHConfigList
+ * so that caller has to add that.
+ */
+int ech_get_retry_configs(SSL_CONNECTION *s, unsigned char **rcfgs,
+                          size_t *rcfgslen)
+{
+    unsigned char *rets = NULL;
+    size_t retslen = 0;
+    int i;
+    SSL_ECH *se = NULL;
+    unsigned char *tmp = NULL;
+    unsigned char *enci = NULL;
+    size_t encilen = 0;
+
+    for (i = 0; i != s->ext.ech.ncfgs; i++) {
+        se = &s->ext.ech.cfgs[i];
+        if (se != NULL && se->for_retry == SSL_ECH_USE_FOR_RETRY
+            && se->cfg != NULL) {
+            encilen = se->cfg->encoded_len;
+            if (encilen < 2)
+                goto err;
+            encilen -= 2;
+            enci = se->cfg->encoded + 2;
+            tmp = (unsigned char *)OPENSSL_realloc(rets, retslen + encilen);
+            if (tmp == NULL)
+                goto err;
+            rets = tmp;
+            memcpy(rets + retslen, enci, encilen);
+            retslen += encilen;
+            OSSL_TRACE_BEGIN(TLS) {
+                BIO_printf(trc_out, "retry-config: ECHConfig loaded at %lu "
+                           "from %s\n",
+                           (unsigned long)se->loadtime, se->pemfname);
+            } OSSL_TRACE_END(TLS);
+        }
+    }
+    *rcfgs = rets;
+    *rcfgslen = retslen;
+    return 1;
+err:
+    OPENSSL_free(rets);
+    *rcfgs = NULL;
+    *rcfgslen = 0;
+    return 0;
+}
+
 /* SECTION: Public APIs */
 
 /* Documentation in doc/man3/SSL_ech_set1_echconfig.pod */
@@ -4698,7 +4755,8 @@ int SSL_CTX_ech_server_flush_keys(SSL_CTX *ctx, unsigned int age)
     return 1;
 }
 
-int SSL_CTX_ech_server_enable_file(SSL_CTX *ctx, const char *pemfile)
+int SSL_CTX_ech_server_enable_file(SSL_CTX *ctx, const char *pemfile,
+                                   int for_retry)
 {
     int index = -1;
     int fnamestat = 0;
@@ -4739,7 +4797,7 @@ int SSL_CTX_ech_server_enable_file(SSL_CTX *ctx, const char *pemfile)
         return 0;
     }
     /* Load up the file content */
-    rv = ech_readpemfile(ctx, 1, pemfile, NULL, 0, &sechs);
+    rv = ech_readpemfile(ctx, 1, pemfile, NULL, 0, &sechs, for_retry);
     if (rv != 1) {
         ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_INVALID_ARGUMENT);
         return 0;
@@ -4796,7 +4854,7 @@ int SSL_CTX_ech_server_enable_file(SSL_CTX *ctx, const char *pemfile)
 }
 
 int SSL_CTX_ech_server_enable_buffer(SSL_CTX *ctx, const unsigned char *buf,
-                                     const size_t blen)
+                                     const size_t blen, int for_retry)
 {
     SSL_ECH *sechs = NULL;
     int rv = 1;
@@ -4843,7 +4901,7 @@ int SSL_CTX_ech_server_enable_buffer(SSL_CTX *ctx, const unsigned char *buf,
         }
     }
     /* Load up the buffer content */
-    rv = ech_readpemfile(ctx, 0, ah_hash, buf, blen, &sechs);
+    rv = ech_readpemfile(ctx, 0, ah_hash, buf, blen, &sechs, for_retry);
     if (rv != 1) {
         ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
         return 0;
@@ -4874,7 +4932,7 @@ int SSL_CTX_ech_server_enable_buffer(SSL_CTX *ctx, const unsigned char *buf,
 }
 
 int SSL_CTX_ech_server_enable_dir(SSL_CTX *ctx, int *number_loaded,
-                                  const char *echdir)
+                                  const char *echdir, int for_retry)
 {
     OPENSSL_DIR_CTX *d = NULL;
     const char *filename;
@@ -4929,7 +4987,7 @@ int SSL_CTX_ech_server_enable_dir(SSL_CTX *ctx, int *number_loaded,
             continue;
         }
         if (stat(echname, &thestat) == 0) {
-            if (SSL_CTX_ech_server_enable_file(ctx, echname) == 1) {
+            if (SSL_CTX_ech_server_enable_file(ctx, echname, for_retry) == 1) {
                 *number_loaded = *number_loaded + 1;
                 OSSL_TRACE_BEGIN(TLS) {
                     BIO_printf(trc_out, "Added %d-th ECH key pair from: %s\n",

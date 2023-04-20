@@ -1199,7 +1199,8 @@ static int test_ch_corrupt(int testidx)
     if (!TEST_true(SSL_CTX_ech_set1_echconfig(cctx, (unsigned char *)echconfig,
                                               echconfiglen)))
         goto end;
-    if (!TEST_true(SSL_CTX_ech_server_enable_file(sctx, echkeyfile)))
+    if (!TEST_true(SSL_CTX_ech_server_enable_file(sctx, echkeyfile,
+                                                  SSL_ECH_USE_FOR_RETRY)))
         goto end;
     if (!TEST_ptr(c_to_s_fbio = BIO_new(bio_f_tls_corrupt_filter())))
         goto end;
@@ -1266,7 +1267,8 @@ static int test_sh_corrupt(int testidx)
                                                   echconfiglen)))
             goto end;
     }
-    if (!TEST_true(SSL_CTX_ech_server_enable_file(sctx, echkeyfile)))
+    if (!TEST_true(SSL_CTX_ech_server_enable_file(sctx, echkeyfile,
+                                                  SSL_ECH_USE_FOR_RETRY)))
         goto end;
     if (!TEST_ptr(s_to_c_fbio = BIO_new(bio_f_tls_corrupt_filter())))
         goto end;
@@ -1334,7 +1336,8 @@ static int ech_raw_dec(int idx)
     sctx = SSL_CTX_new_ex(NULL, NULL, TLS_server_method());
     if (!TEST_ptr(sctx))
         goto end;
-    if (!TEST_true(SSL_CTX_ech_server_enable_file(sctx, echkeyfile)))
+    if (!TEST_true(SSL_CTX_ech_server_enable_file(sctx, echkeyfile,
+                                                  SSL_ECH_USE_FOR_RETRY)))
         goto end;
     /* figure out offsets */
     rv = ech_helper_get_ch_offsets((const unsigned char *)tr->outer + 9,

@@ -2165,7 +2165,7 @@ static int execute_test_session(int maxprot, int use_int_cache,
             return 0;
         }
         echconfig_len = strlen((char *)echconfiglist);
-        if (SSL_CTX_ech_server_enable_file(sctx, echkeyfile) != 1) {
+        if (SSL_CTX_ech_server_enable_file(sctx, echkeyfile, 1) != 1) {
             OPENSSL_free(echkeyfile);
             OPENSSL_free(echconfiglist);
             return 0;

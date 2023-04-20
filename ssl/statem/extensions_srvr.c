@@ -2248,9 +2248,8 @@ EXT_RETURN tls_construct_stoc_ech13(SSL_CONNECTION *s, WPACKET *pkt,
                                     unsigned int context, X509 *x,
                                     size_t chainidx)
 {
-    SSL_ECH *mostrecent = NULL;
-    int echind = 0;
-    time_t echloadtime = 0;
+    unsigned char *rcfgs = NULL;
+    size_t rcfgslen = 0;
 
     if (context == SSL_EXT_TLS1_3_HELLO_RETRY_REQUEST
         && (s->ext.ech.success == 1 || s->ext.ech.backend == 1)
@@ -2310,39 +2309,27 @@ EXT_RETURN tls_construct_stoc_ech13(SSL_CONNECTION *s, WPACKET *pkt,
         } OSSL_TRACE_END(TLS);
         return EXT_RETURN_NOT_SENT;
     }
-    /* start @ array-end as most recent will be there if loadtimes same */
-    for (echind = s->ext.ech.ncfgs - 1; echind >= 0; echind--) {
-        if (s->ext.ech.cfgs[echind].cfg->encoded == NULL
-            || s->ext.ech.cfgs[echind].cfg->encoded_len == 0) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-            return 0;
-        }
-        if (s->ext.ech.cfgs[echind].loadtime > echloadtime ) {
-            echloadtime = s->ext.ech.cfgs[echind].loadtime;
-            mostrecent = &s->ext.ech.cfgs[echind];
-        }
-    }
-    if (mostrecent == NULL
-        || mostrecent->cfg->encoded == NULL
-        || mostrecent->cfg->encoded_len == 0) {
+    if (ech_get_retry_configs(s, &rcfgs, &rcfgslen) != 1) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
     }
-    if (s->ext.ech.attempted_type == OSSL_ECH_DRAFT_13_VERSION) {
-        if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_ech13)
-            || !WPACKET_sub_memcpy_u16(pkt, mostrecent->cfg->encoded,
-                                       mostrecent->cfg->encoded_len)
-                ) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-            return 0;
-        }
+    if (rcfgslen == 0) {
         OSSL_TRACE_BEGIN(TLS) {
-            BIO_printf(trc_out, "sending ECHConfig back loaded at %lu"
-                       "from %s", (unsigned long)echloadtime,
-                       mostrecent->pemfname);
+            BIO_printf(trc_out, "ECH - not sending ECHConfigList to client "
+                       "even though they GREASE'd and I have configs but "
+                       "I've no configs set to be returned\n");
         } OSSL_TRACE_END(TLS);
-        return EXT_RETURN_SENT;
+        return EXT_RETURN_NOT_SENT;
     }
-    return EXT_RETURN_NOT_SENT;
+    if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_ech13)
+        || !WPACKET_start_sub_packet_u16(pkt)
+        || !WPACKET_sub_memcpy_u16(pkt, rcfgs, rcfgslen)
+        || !WPACKET_close(pkt)) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+        OPENSSL_free(rcfgs);
+        return 0;
+    }
+    OPENSSL_free(rcfgs);
+    return EXT_RETURN_SENT;
 }
 #endif /* END OPENSSL_NO_ECH */
