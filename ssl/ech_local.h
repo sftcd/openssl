@@ -29,7 +29,7 @@
  * has issued, but is very useful for interop testing so some of it might
  * be retained.
  */
-#  define OSSL_ECH_SUPERVERBOSE
+#  undef OSSL_ECH_SUPERVERBOSE
 
 #  ifndef CLIENT_VERSION_LEN
 /*
@@ -215,6 +215,7 @@ typedef struct ssl_ech_st {
      */
     char *pemfname; /* name of PEM file from which this was loaded */
     time_t loadtime; /* time public and private key were loaded from file */
+    int for_retry; /* whether to use this ECHConfigList in a retry */
     EVP_PKEY *keyshare; /* long(ish) term ECH private keyshare on a server */
 } SSL_ECH;
 
@@ -540,6 +541,18 @@ int ech_pick_matching_cfg(SSL_CONNECTION *s, ECHConfig **tc,
  * but that's ok.
  */
 int ech_copy_inner2outer(SSL_CONNECTION *s, uint16_t ext_type, WPACKET *pkt);
+
+/*
+ * @brief assemble the set of ECHConfig values to return as a retry-config
+ * @param s is the SSL connection
+ * @param rcfgs is the encoded ECHConfigList
+ * @param rcfgslen is the lenght of rcfgs
+ * @return 1 for success, anything else for failure
+ *
+ * The caller needs to OPENSSL_free the rcfgs.
+ */
+int ech_get_retry_configs(SSL_CONNECTION *s, unsigned char **rcfgs,
+                          size_t *rcfgslen);
 
 #  ifdef OSSL_ECH_SUPERVERBOSE
 /*
