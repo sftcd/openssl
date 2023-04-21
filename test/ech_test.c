@@ -1311,25 +1311,19 @@ static int ech_custom_test(int idx)
 /* Test roundtrip with GREASE'd ECH, then again with retry-config */
 static int ech_grease_test(int idx)
 {
-    int res = 0;
-    char *echkeyfile = NULL;
-    char *echconfig = NULL;
+    int res = 0, clientstatus, serverstatus;
+    char *echkeyfile = NULL, *echconfig = NULL;
     SSL_CTX *cctx = NULL, *sctx = NULL;
     SSL *clientssl = NULL, *serverssl = NULL;
-    int clientstatus, serverstatus;
-    char *cinner, *couter, *sinner, *souter;
-    unsigned char *retryconfig = NULL;
-    size_t retryconfiglen = 0;
-    unsigned char priv[400];
-    size_t privlen = sizeof(priv);
-    unsigned char echconfig1[300];
-    size_t echconfig1len = sizeof(echconfig1);
+    char *cinner, *couter, *sinner, *souter, *public_name = "example.com";
+    unsigned char *retryconfig = NULL, priv[400], echconfig1[300];
     unsigned char echkeybuf[1000];
+    size_t echconfig1len = sizeof(echconfig1);
+    size_t retryconfiglen = 0, privlen = sizeof(priv);
     size_t echkeybuflen = sizeof(echkeybuf);
     OSSL_HPKE_SUITE hpke_suite = OSSL_HPKE_SUITE_DEFAULT;
     uint16_t ech_version = OSSL_ECH_DRAFT_13_VERSION;
     uint16_t max_name_length = 0;
-    char *public_name = "example.com";
 
     /* read our pre-cooked ECH PEM file */
     echkeyfile = test_mk_file_path(certsdir, "echconfig.pem");
@@ -1357,21 +1351,21 @@ static int ech_grease_test(int idx)
              "%s-----BEGIN ECHCONFIG-----\n%s\n-----END ECHCONFIG-----\n",
              priv, (char *)echconfig1);
     echkeybuflen = strlen((char *)echkeybuf);
-    /* add a 2nd ECHConfig not for retry-config */
+    /* add a 2nd ECHConfig, but one not to be sent in retry-config */
     if (idx == 2
         && !TEST_true(SSL_CTX_ech_server_enable_buffer(sctx,
                                                        echkeybuf,
                                                        echkeybuflen,
                                                        SSL_ECH_NOT_FOR_RETRY)))
         goto end;
-    /* a 3rd to be used - zap some bits so lib thinks its a new key */
+    /* a 3rd, this time to be sent in retry-config */
     if (idx == 2
         && !TEST_true(SSL_CTX_ech_server_enable_buffer(sctx,
                                                        echkeybuf,
                                                        echkeybuflen,
                                                        SSL_ECH_USE_FOR_RETRY)))
         goto end;
-    /* and a 4th to skip - zap some bits so lib thinks its a new key */
+    /* and a 4th to skip */
     if (idx == 2
         && !TEST_true(SSL_CTX_ech_server_enable_buffer(sctx,
                                                        echkeybuf,
@@ -1415,6 +1409,7 @@ static int ech_grease_test(int idx)
         goto end;
     if (verbose)
         TEST_info("ech_grease_test: retryconfglen: %lu\n", retryconfiglen);
+    /* our ECHConfig values are 62 octets each + 2 for length */
     if (idx == 2 && !TEST_size_t_eq(retryconfiglen, 126))
         goto end;
     if (idx < 2 && !TEST_size_t_eq(retryconfiglen, 64))
