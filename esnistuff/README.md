@@ -22,6 +22,9 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
+- 20230421: bit more refactoring around transcript buffer (not fully
+  done)
+
 - 20230420: added a flag on loading keys to say if the related ECHConfig
   values should be included in retry-configs
 
