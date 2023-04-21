@@ -20,6 +20,9 @@
 #  include <openssl/ech.h>
 #  include <openssl/hpke.h>
 
+/* temp thing */
+# define NEW_HBUF
+
 /*
  * Define this to get loads more lines of tracing which is
  * very useful for interop.
@@ -553,6 +556,23 @@ int ech_copy_inner2outer(SSL_CONNECTION *s, uint16_t ext_type, WPACKET *pkt);
  */
 int ech_get_retry_configs(SSL_CONNECTION *s, unsigned char **rcfgs,
                           size_t *rcfgslen);
+
+/*
+ * @brief make up a buffer to use to reset transcript
+ * @param s is the SSL connection
+ * @param for_hrr says if the we include an HRR or not
+ * @param shbuf is the output buffer
+ * @param shlen is the length of that buffer
+ * @param tbuf is the output buffer
+ * @param tlen is the length of that buffer
+ * @param chend returns the offset of the end of the last CH in the buffer
+ * @param fixedshbuf_len returns the fixed up length of the SH
+ * @return 1 for good, 0 otherwise
+ */
+int ech_make_transcript_buffer(SSL_CONNECTION *s, int for_hrr,
+                               const unsigned char *shbuf, size_t shlen,
+                               unsigned char **tbuf, size_t *tlen,
+                               size_t *chend, size_t *fixedshbuf_len);
 
 #  ifdef OSSL_ECH_SUPERVERBOSE
 /*

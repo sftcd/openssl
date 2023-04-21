@@ -1819,12 +1819,16 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL_CONNECTION *s, PACKET *pkt)
         && s->ext.ech.attempted_type == TLSEXT_TYPE_ech13) {
         unsigned char c_signal[8]; /* client accept signal buffer */
         unsigned char s_signal[8]; /* server accept signal buffer */
+#ifndef NEW_HBUF
         unsigned char hashval[EVP_MAX_MD_SIZE];
         unsigned int hashlen;
+#endif
         unsigned char *abuf = NULL;
         size_t alen = 0;
+#ifndef NEW_HBUF
         WPACKET tp;
         BUF_MEM *tp_mem = NULL;
+#endif
 
         /* caclulate the ECH accept signal */
         if (ech_calc_confirm(s, hrr, c_signal, shbuf, shlen) != 1) {
@@ -1855,6 +1859,20 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL_CONNECTION *s, PACKET *pkt)
                 SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
                 goto err;
             }
+#ifdef NEW_HBUF
+            size_t chend, fixedshbuf_len;
+            if (ech_make_transcript_buffer(s, hrr, shbuf, shlen, &abuf, &alen,
+                                           &chend, &fixedshbuf_len) != 1) {
+                SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+                goto err;
+            }
+            if (ech_reset_hs_buffer(s, abuf, alen) != 1) {
+                OPENSSL_free(abuf);
+                SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+                goto err;
+            }
+            OPENSSL_free(abuf);
+#else
             /* we need to also reset transcipt */
             if ((tp_mem = BUF_MEM_new()) == NULL
                 || !BUF_MEM_grow(tp_mem, SSL3_RT_MAX_PLAIN_LENGTH)
@@ -1924,6 +1942,7 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL_CONNECTION *s, PACKET *pkt)
             }
             WPACKET_cleanup(&tp);
             BUF_MEM_free(tp_mem);
+#endif
         }
     }
 #endif
