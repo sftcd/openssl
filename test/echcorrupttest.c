@@ -1519,23 +1519,12 @@ end:
 static int ech_split_mode(int idx)
 {
     int res = 0;
-    char *echkeyfile = NULL;
-    char *echconfig = NULL;
-    size_t echconfiglen = 0;
     SSL_CTX *cctx = NULL, *sctx = NULL;
     SSL *clientssl = NULL, *serverssl = NULL;
     int clientstatus, serverstatus;
     char *cinner, *couter, *sinner, *souter;
     BIO *c_to_s_fbio = NULL;
 
-    /* read our pre-cooked ECH PEM file */
-    echkeyfile = test_mk_file_path(certsdir, "echconfig.pem");
-    if (!TEST_ptr(echkeyfile))
-        goto end;
-    echconfig = echconfiglist_from_PEM(echkeyfile);
-    if (!TEST_ptr(echconfig))
-        goto end;
-    echconfiglen = strlen(echconfig);
     if (!TEST_true(create_ssl_ctx_pair(libctx, TLS_server_method(),
                                        TLS_client_method(),
                                        TLS1_3_VERSION, TLS1_3_VERSION,
@@ -1571,8 +1560,6 @@ static int ech_split_mode(int idx)
     /* all good */
     res = 1;
 end:
-    OPENSSL_free(echkeyfile);
-    OPENSSL_free(echconfig);
     SSL_free(clientssl);
     SSL_free(serverssl);
     SSL_CTX_free(cctx);
@@ -1580,7 +1567,7 @@ end:
     /*
      * temporarily force success even though we're failing
      * just to cut down the noise from CI builds while I
-     * figure it out 
+     * figure it out
      */
     TEST_info("forcing ech_split_test to succeed");
     res = 1;
