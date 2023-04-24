@@ -22,7 +22,7 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
-- 20230424: added initial ECH split mode usage test (not yet working) 
+- 20230424: added nominal ECH split mode usage test
 
 - 20230421: bit more refactoring around transcript buffer (not fully
   done)
