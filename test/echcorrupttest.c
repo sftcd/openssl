@@ -23,6 +23,10 @@
 # define TESTCASE_SH 2
 # define TESTCASE_RC 3
 
+/* if this is zero, we'll try split-mode decrypt on tx otherwise rx */
+# define SPLIT_MODE 1
+
+static OSSL_LIB_CTX *libctx = NULL;
 static int verbose = 0;
 static int testcase = 0;
 static int testiter = 0;
@@ -1076,17 +1080,13 @@ static int tls_corrupt_read(BIO *bio, char *out, int outl)
     int ret;
     BIO *next = BIO_next(bio);
 
-    if (testcase == TESTCASE_RC) {
-        ret = BIO_read(next, out, outl);
-        copy_flags(bio);
-    } else {
-        ret = BIO_read(next, out, outl);
-        copy_flags(bio);
-    }
+    ret = BIO_read(next, out, outl);
+    copy_flags(bio);
 
     return ret;
 }
 
+/* filter to corrupt or copy messages */
 static int tls_corrupt_write(BIO *bio, const char *in, int inl)
 {
     int ret;
@@ -1100,7 +1100,142 @@ static int tls_corrupt_write(BIO *bio, const char *in, int inl)
     ret = BIO_write(next, copy, inl);
     OPENSSL_free(copy);
     copy_flags(bio);
+    return ret;
+}
 
+static int checku24len(unsigned char *buf, size_t val)
+{
+    if ((((size_t)buf[0] << 16) + ((size_t)buf[1] << 8) + (size_t)buf[2]) == val)
+        return 1;
+    return 0;
+}
+
+static int checku16len(unsigned char *buf, size_t val)
+{
+    if ((((size_t)buf[0] << 8) + (size_t)buf[1]) == val)
+        return 1;
+    return 0;
+}
+
+/* filter to do split-mode front-end decrypt */
+static int tls_split_mode_tx(BIO *bio, const char *in, int inl)
+{
+    int ret, is_ch = 0, dec_ok = 0;
+    size_t copylen = 0;
+    BIO *next = BIO_next(bio);
+    char *inner_sni = NULL, *outer_sni = NULL;
+    unsigned char *copy = NULL;
+    SSL_CTX *ctx = NULL;
+
+#if 0
+        if (!TEST_ptr(s_to_c_bio = BIO_new(BIO_s_dgram_mem()))
+                || !TEST_ptr(c_to_s_bio = BIO_new(BIO_s_dgram_mem())))
+#endif
+
+    if (SPLIT_MODE == 1 && inl > 10
+        && in[0] == SSL3_RT_HANDSHAKE && in[5] == SSL3_MT_CLIENT_HELLO
+        && checku16len((unsigned char *)&in[3], (size_t) (inl - 5)) == 1) {
+        if (verbose)
+            TEST_info("outer CH len incl record layer is %d long\n",inl);
+        is_ch = 1;
+    }
+    if (is_ch == 1) {
+        ctx = SSL_CTX_new_ex(NULL, NULL, TLS_server_method());
+        if (!TEST_true(SSL_CTX_ech_server_enable_file(ctx, echkeyfile,
+                                                      SSL_ECH_USE_FOR_RETRY)))
+            goto end;
+        copy = OPENSSL_malloc(inl);
+        if (copy == NULL)
+            goto end;
+        memset(copy, 0xAA, copylen);
+        copylen = inl;
+        if (!TEST_true(SSL_CTX_ech_raw_decrypt(ctx, &dec_ok,
+                                               &inner_sni, &outer_sni,
+                                               (unsigned char *)in, inl,
+                                               copy, &copylen)))
+            goto end;
+        if (dec_ok == 1) {
+            if (verbose)
+                TEST_info("inner CH len incl record layer is %d long\n", (int)copylen);
+            /* set a known pattern for debug */
+            // memset((char *)in, 0xCC, inl);
+            /*
+             * odd behaviour: receiver gets inl bytes with the first
+             * copylen of those being as expected and then it gets
+             * inl-copylen 0xBB value (seemingly)
+             */
+            ret = BIO_write(next, copy, copylen);
+            copy_flags(bio);
+            OPENSSL_free(copy);
+            OPENSSL_free(inner_sni);
+            OPENSSL_free(outer_sni);
+            SSL_CTX_free(ctx);
+            return ret;
+        }
+        OPENSSL_free(copy);
+        SSL_CTX_free(ctx);
+    }
+end:
+    ret = BIO_write(next, in, inl);
+    copy_flags(bio);
+    return ret;
+}
+
+/* filter to do split-mode front-end decrypt */
+static int tls_split_mode_rx(BIO *bio, char *out, int outl)
+{
+    int ret, is_ch = 0, dec_ok = 0;
+    size_t incopylen = 0, outcopylen = 0;
+    BIO *next = BIO_next(bio);
+    char *inner_sni = NULL, *outer_sni = NULL;
+    unsigned char *incopy = NULL, *outcopy = NULL;
+    SSL_CTX *ctx = NULL;
+
+    ret = BIO_read(next, out, outl);
+    if (SPLIT_MODE == 0 && outl > 10 && out[0] == SSL3_MT_CLIENT_HELLO
+        && checku24len((unsigned char *)&out[1], (size_t) (outl - 4)) == 1)
+        is_ch = 1;
+    if (is_ch == 1) {
+        ctx = SSL_CTX_new_ex(NULL, NULL, TLS_server_method());
+        if (!TEST_true(SSL_CTX_ech_server_enable_file(ctx, echkeyfile,
+                                                      SSL_ECH_USE_FOR_RETRY)))
+            goto end;
+        /* out here is missing the record layer, we'll add it back */
+        incopylen = outl + 5;
+        incopy = OPENSSL_malloc(incopylen);
+        if (incopy == NULL)
+            goto end;
+        incopy[0] = SSL3_RT_HANDSHAKE;
+        incopy[1] = 0x03;
+        incopy[2] = 0x01;
+        incopy[3] = (outl >> 8) & 0xff;
+        incopy[4] = outl & 0xff;
+        memcpy(incopy + 5, out, outl);
+        outcopy = OPENSSL_malloc(incopylen);
+        if (outcopy == NULL)
+            goto end;
+        outcopylen = incopylen;
+        memset(outcopy, 0xAA, outcopylen);
+        if (!TEST_true(SSL_CTX_ech_raw_decrypt(ctx, &dec_ok,
+                                               &inner_sni, &outer_sni,
+                                               incopy, incopylen,
+                                               outcopy, &outcopylen)))
+            goto end;
+        if (dec_ok == 1) {
+            /* set a known pattern for debug */
+            memset(out, 0xBB, outl);
+            memcpy(out, outcopy + 5, outcopylen - 5);
+        }
+        OPENSSL_free(incopy);
+        OPENSSL_free(outcopy);
+        OPENSSL_free(inner_sni);
+        OPENSSL_free(outer_sni);
+        SSL_CTX_free(ctx);
+        copy_flags(bio);
+        return outcopylen - 5;
+    }
+end:
+    copy_flags(bio);
     return ret;
 }
 
@@ -1150,8 +1285,10 @@ static int tls_corrupt_free(BIO *bio)
 }
 
 # define BIO_TYPE_CUSTOM_FILTER (0x80 | BIO_TYPE_FILTER)
+# define BIO_TYPE_CUSTOM_FILTER1 (0x81 | BIO_TYPE_FILTER)
 
 static BIO_METHOD *method_tls_corrupt = NULL;
+static BIO_METHOD *method_split_mode = NULL;
 
 /* Note: Not thread safe! */
 static const BIO_METHOD *bio_f_tls_corrupt_filter(void)
@@ -1175,6 +1312,31 @@ static const BIO_METHOD *bio_f_tls_corrupt_filter(void)
 static void bio_f_tls_corrupt_filter_free(void)
 {
     BIO_meth_free(method_tls_corrupt);
+}
+
+/* Note: Not thread safe! */
+static const BIO_METHOD *bio_f_tls_split_mode(void)
+{
+    if (method_split_mode == NULL) {
+        method_split_mode = BIO_meth_new(BIO_TYPE_CUSTOM_FILTER1,
+                                         "TLS ECH split-mode filter");
+        if (method_split_mode == NULL
+            || !BIO_meth_set_write(method_split_mode, tls_split_mode_tx)
+            //|| !BIO_meth_set_read(method_split_mode, tls_split_mode_rx)
+            || !BIO_meth_set_read(method_split_mode, tls_corrupt_read)
+            || !BIO_meth_set_puts(method_split_mode, tls_corrupt_puts)
+            || !BIO_meth_set_gets(method_split_mode, tls_corrupt_gets)
+            || !BIO_meth_set_ctrl(method_split_mode, tls_corrupt_ctrl)
+            || !BIO_meth_set_create(method_split_mode, tls_corrupt_new)
+            || !BIO_meth_set_destroy(method_split_mode, tls_corrupt_free))
+            return NULL;
+    }
+    return method_split_mode;
+}
+
+static void bio_f_tls_split_mode_free(void)
+{
+    BIO_meth_free(method_split_mode);
 }
 
 static int test_ch_corrupt(int testidx)
@@ -1383,13 +1545,88 @@ static int ech_raw_dec(int idx)
                 TEST_info("Error reason: %d", err_reason);
         } while (err_reason != tr->err_expected);
     }
-
     res = 1;
 end:
     OPENSSL_free(inner_sni);
     OPENSSL_free(outer_sni);
     OPENSSL_free(rec_inner);
     OPENSSL_free(chout);
+    SSL_CTX_free(sctx);
+    return res;
+}
+
+/*
+ * Split-mode test: Client sends to server but we use filters
+ * to do a raw decrypt then re-inject the decrytped inner for
+ * the server.
+ */
+static int ech_split_mode(int idx)
+{
+    int res = 0;
+    char *echkeyfile = NULL;
+    char *echconfig = NULL;
+    size_t echconfiglen = 0;
+    SSL_CTX *cctx = NULL, *sctx = NULL;
+    SSL *clientssl = NULL, *serverssl = NULL;
+    int clientstatus, serverstatus;
+    char *cinner, *couter, *sinner, *souter;
+    BIO *c_to_s_fbio = NULL, *s_to_c_fbio = NULL;
+
+    /* read our pre-cooked ECH PEM file */
+    echkeyfile = test_mk_file_path(certsdir, "echconfig.pem");
+    if (!TEST_ptr(echkeyfile))
+        goto end;
+    echconfig = echconfiglist_from_PEM(echkeyfile);
+    if (!TEST_ptr(echconfig))
+        goto end;
+    echconfiglen = strlen(echconfig);
+    if (!TEST_true(create_ssl_ctx_pair(libctx, TLS_server_method(),
+                                       TLS_client_method(),
+                                       TLS1_3_VERSION, TLS1_3_VERSION,
+                                       &sctx, &cctx, cert, privkey)))
+        goto end;
+    if (!TEST_true(SSL_CTX_ech_set1_echconfig(cctx, (unsigned char *)echconfig,
+                                              echconfiglen)))
+        goto end;
+    if (!TEST_ptr(c_to_s_fbio = BIO_new(bio_f_tls_split_mode())))
+        goto end;
+# if 0
+    if (!TEST_ptr(s_to_c_fbio = BIO_new(bio_f_tls_split_mode())))
+        goto end;
+    if (!TEST_true(create_ssl_objects(sctx, cctx, &serverssl,
+                                      &clientssl, s_to_c_fbio, c_to_s_fbio)))
+        goto end;
+#endif
+    if (!TEST_true(create_ssl_objects(sctx, cctx, &serverssl,
+                                      &clientssl, NULL, c_to_s_fbio)))
+        goto end;
+    if (!TEST_true(SSL_set_tlsext_host_name(clientssl, "server.example")))
+        goto end;
+    if (!TEST_true(create_ssl_connection(serverssl, clientssl,
+                                         SSL_ERROR_NONE)))
+        goto end;
+    serverstatus = SSL_ech_get_status(serverssl, &sinner, &souter);
+    if (verbose)
+        TEST_info("ech_roundtrip_test: server status %d, %s, %s",
+                  serverstatus, sinner, souter);
+    if (!TEST_int_eq(serverstatus, SSL_ECH_STATUS_SUCCESS))
+        goto end;
+    /* override cert verification */
+    SSL_set_verify_result(clientssl, X509_V_OK);
+    clientstatus = SSL_ech_get_status(clientssl, &cinner, &couter);
+    if (verbose)
+        TEST_info("ech_roundtrip_test: client status %d, %s, %s",
+                  clientstatus, cinner, couter);
+    if (!TEST_int_eq(clientstatus, SSL_ECH_STATUS_SUCCESS))
+        goto end;
+    /* all good */
+    res = 1;
+end:
+    OPENSSL_free(echkeyfile);
+    OPENSSL_free(echconfig);
+    SSL_free(clientssl);
+    SSL_free(serverssl);
+    SSL_CTX_free(cctx);
     SSL_CTX_free(sctx);
     return res;
 }
@@ -1463,6 +1700,7 @@ int setup_tests(void)
     ADD_ALL_TESTS(test_ch_corrupt, OSSL_NELEM(test_inners));
     ADD_ALL_TESTS(test_sh_corrupt, OSSL_NELEM(test_shs));
     ADD_ALL_TESTS(ech_raw_dec, OSSL_NELEM(raw_vectors));
+    ADD_ALL_TESTS(ech_split_mode, 1);
     return 1;
 err:
     return 0;
@@ -1475,6 +1713,7 @@ void cleanup_tests(void)
 {
 #ifndef OPENSSL_NO_ECH
     bio_f_tls_corrupt_filter_free();
+    bio_f_tls_split_mode_free();
     OPENSSL_free(cert);
     OPENSSL_free(privkey);
     OPENSSL_free(echkeyfile);

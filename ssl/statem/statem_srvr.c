@@ -1486,13 +1486,10 @@ MSG_PROCESS_RETURN tls_process_client_hello(SSL_CONNECTION *s, PACKET *pkt)
         goto err;
     }
     if (s->server == 1 && PACKET_remaining(pkt) != 0) {
-        int rv = 0;
-        size_t startofsessid = 0; /* offset of session id within Ch */
-        size_t startofexts = 0; /* offset of extensions within CH */
-        size_t echoffset = 0; /* offset of start of ECH within CH */
-        uint16_t echtype = TLSEXT_TYPE_ech_unknown; /* type of ECH seen */
+        int rv = 0, innerflag = -1;
+        size_t startofsessid = 0, startofexts = 0, echoffset = 0;
         size_t outersnioffset = 0; /* offset to SNI in outer */
-        int innerflag = -1;
+        uint16_t echtype = TLSEXT_TYPE_ech_unknown; /* type of ECH seen */
         const unsigned char *pbuf = NULL;
 
         rv = ech_get_ch_offsets(s, pkt, &startofsessid, &startofexts,
@@ -1503,6 +1500,8 @@ MSG_PROCESS_RETURN tls_process_client_hello(SSL_CONNECTION *s, PACKET *pkt)
             goto err;
         }
         if (innerflag == 1) {
+            WPACKET inner;
+
             OPENSSL_free(s->ext.ech.innerch);
             s->ext.ech.innerch = NULL;
             OSSL_TRACE_BEGIN(TLS) {
@@ -1516,17 +1515,21 @@ MSG_PROCESS_RETURN tls_process_client_hello(SSL_CONNECTION *s, PACKET *pkt)
                 SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
                 goto err;
             }
-            s->ext.ech.innerch = OPENSSL_malloc(s->ext.ech.innerch_len +
-                                                SSL3_HM_HEADER_LENGTH); /* 4 */
+            s->ext.ech.innerch_len += SSL3_HM_HEADER_LENGTH; /* 4 */
+            s->ext.ech.innerch = OPENSSL_malloc(s->ext.ech.innerch_len);
             if (s->ext.ech.innerch == NULL)
                 goto err;
-            s->ext.ech.innerch[0] = SSL3_MT_CLIENT_HELLO;
-            s->ext.ech.innerch[1] = ((s->ext.ech.innerch_len >> 16) & 0xff);
-            s->ext.ech.innerch[2] = ((s->ext.ech.innerch_len >> 8) & 0xff);
-            s->ext.ech.innerch[3] = (s->ext.ech.innerch_len & 0xff);
-            memcpy(s->ext.ech.innerch + SSL3_HM_HEADER_LENGTH, pbuf,
-                   s->ext.ech.innerch_len);
-            s->ext.ech.innerch_len += SSL3_HM_HEADER_LENGTH;
+            if (!WPACKET_init_static_len(&inner, s->ext.ech.innerch,
+                                         s->ext.ech.innerch_len, 0)
+                || !WPACKET_put_bytes_u8(&inner, SSL3_MT_CLIENT_HELLO)
+                || !WPACKET_put_bytes_u24(&inner, s->ext.ech.innerch_len
+                                          - SSL3_HM_HEADER_LENGTH)
+                || !WPACKET_memcpy(&inner, pbuf, s->ext.ech.innerch_len
+                                   - SSL3_HM_HEADER_LENGTH)
+                || !WPACKET_finish(&inner)) {
+                SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+                goto err;
+            }
         } else if (s->ext.ech.cfgs != NULL) {
             PACKET newpkt;
 
@@ -1535,27 +1538,13 @@ MSG_PROCESS_RETURN tls_process_client_hello(SSL_CONNECTION *s, PACKET *pkt)
                 goto err;
             }
             if (s->ext.ech.success == 1) {
-                /* Replace the outer CH with the inner */
-                if (PACKET_remaining(&newpkt) > PACKET_remaining(pkt)) {
-                    /*
-                     * need to grow the underlying buffer - this isn't common
-                     * usually just with GREASE'd HRR 2nd CH
-                     */
-# ifdef OSSL_ECH_SUPERVERBOSE
-                    OSSL_TRACE_BEGIN(TLS_CIPHER) {
-                        BIO_printf(trc_out, "inner is bigger! Growing buffer.");
-                        ech_pbuf("outer", pkt->curr, pkt->remaining);
-                        ech_pbuf("inner", newpkt.curr, newpkt.remaining);
-                    }
-                    OSSL_TRACE_END(TLS_CIPHER);
-# endif
-                    if (BUF_MEM_grow(s->init_buf, PACKET_remaining(&newpkt) + 4)
-                        != PACKET_remaining(&newpkt) + 4) {
-                        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-                        goto err;
-                    }
-                }
-                if (PACKET_replace(pkt, &newpkt) != 1) {
+                /*
+                 * Replace the outer CH with the inner, as long as there's
+                 * space, which there better be! (a bug triggered a bigger
+                 * inner CH once;-)
+                 */
+                if (PACKET_remaining(&newpkt) > PACKET_remaining(pkt)
+                    || PACKET_replace(pkt, &newpkt) != 1) {
                     SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
                     goto err;
                 }

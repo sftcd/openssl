@@ -20,9 +20,6 @@
 #  include <openssl/ech.h>
 #  include <openssl/hpke.h>
 
-/* temp thing */
-# define NEW_HBUF
-
 /*
  * Define this to get loads more lines of tracing which is
  * very useful for interop.

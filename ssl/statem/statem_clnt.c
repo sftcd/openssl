@@ -1742,7 +1742,10 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL_CONNECTION *s, PACKET *pkt)
 #endif
 #ifndef OPENSSL_NO_ECH
     const unsigned char *shbuf = NULL;
-    size_t shlen;
+    size_t shlen, chend, fixedshbuf_len, alen;
+    /* client and server accept signal buffers */
+    unsigned char c_signal[8], s_signal[8];
+    unsigned char *abuf = NULL;
 
     shlen = PACKET_remaining(pkt);
     if (PACKET_peek_bytes(pkt, &shbuf, shlen) != 1) {
@@ -1817,34 +1820,17 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL_CONNECTION *s, PACKET *pkt)
         && s->ext.ech.done != 1 && s->ext.ech.ch_depth == 0
         && s->ext.ech.grease == OSSL_ECH_NOT_GREASE
         && s->ext.ech.attempted_type == TLSEXT_TYPE_ech13) {
-        unsigned char c_signal[8]; /* client accept signal buffer */
-        unsigned char s_signal[8]; /* server accept signal buffer */
-#ifndef NEW_HBUF
-        unsigned char hashval[EVP_MAX_MD_SIZE];
-        unsigned int hashlen;
-#endif
-        unsigned char *abuf = NULL;
-        size_t alen = 0;
-#ifndef NEW_HBUF
-        WPACKET tp;
-        BUF_MEM *tp_mem = NULL;
-#endif
-
-        /* caclulate the ECH accept signal */
-        if (ech_calc_confirm(s, hrr, c_signal, shbuf, shlen) != 1) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-            goto err;
-        }
-        if (ech_find_confirm(s, hrr, s_signal, shbuf, shlen) != 1
-            || memcmp(s_signal, c_signal ,8) != 0) { /* no match */
-# ifdef OSSL_ECH_SUPERVERBOSE
+        /* check the ECH accept signal */
+        if (ech_calc_confirm(s, hrr, c_signal, shbuf, shlen) != 1
+            || ech_find_confirm(s, hrr, s_signal, shbuf, shlen) != 1
+            || memcmp(s_signal, c_signal, 8) != 0) {
             OSSL_TRACE_BEGIN(TLS) {
                 BIO_printf(trc_out, "ECH accept check failed\n");
             } OSSL_TRACE_END(TLS);
-            ech_pbuf("ECH c_signal", c_signal, 8);
-            ech_pbuf("ECH shval", shbuf + shlen - 8, 8);
+# ifdef OSSL_ECH_SUPERVERBOSE
+            ech_pbuf("ECH client accept val:", c_signal, 8);
+            ech_pbuf("ECH server accept val:", s_signal, 8);
 # endif
-            /* we'll set the ech_required alert in final_ech() */
             s->ext.ech.success = 0;
         } else { /* match, ECH worked */
             OSSL_TRACE_BEGIN(TLS) {
@@ -1855,94 +1841,15 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL_CONNECTION *s, PACKET *pkt)
             s->ext.ech.success = 1;
         }
         if (!hrr && s->ext.ech.success == 1) {
-            if (ech_swaperoo(s) != 1) { /* swap context */
-                SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-                goto err;
-            }
-#ifdef NEW_HBUF
-            size_t chend, fixedshbuf_len;
-            if (ech_make_transcript_buffer(s, hrr, shbuf, shlen, &abuf, &alen,
-                                           &chend, &fixedshbuf_len) != 1) {
-                SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-                goto err;
-            }
-            if (ech_reset_hs_buffer(s, abuf, alen) != 1) {
+            if (ech_swaperoo(s) != 1
+                || ech_make_transcript_buffer(s, hrr, shbuf, shlen, &abuf, &alen,
+                                              &chend, &fixedshbuf_len) != 1
+                || ech_reset_hs_buffer(s, abuf, alen) != 1) {
                 OPENSSL_free(abuf);
                 SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
                 goto err;
             }
             OPENSSL_free(abuf);
-#else
-            /* we need to also reset transcipt */
-            if ((tp_mem = BUF_MEM_new()) == NULL
-                || !BUF_MEM_grow(tp_mem, SSL3_RT_MAX_PLAIN_LENGTH)
-                || !WPACKET_init(&tp, tp_mem)) {
-                SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-                BUF_MEM_free(tp_mem);
-                goto err;
-            }
-            if (s->hello_retry_request == SSL_HRR_PENDING) {
-                /* add digested ch1 and kept hrr */
-                EVP_MD_CTX *ctx = EVP_MD_CTX_new();
-                const EVP_MD *md = NULL;
-
-                OSSL_TRACE_BEGIN(TLS) {
-                    BIO_printf(trc_out,"Adding in digest of CH1/HRR\n");
-                } OSSL_TRACE_END(TLS);
-# ifdef OSSL_ECH_SUPERVERBOSE
-                ech_pbuf("innerch1", s->ext.ech.innerch1,
-                         s->ext.ech.innerch1_len);
-# endif
-                if ((md = ssl_handshake_md(s)) == NULL
-                    || EVP_DigestInit_ex(ctx, md, NULL) <= 0
-                    || EVP_DigestUpdate(ctx, s->ext.ech.innerch1,
-                                        s->ext.ech.innerch1_len) <= 0
-                    || EVP_DigestFinal_ex(ctx, hashval, &hashlen) <= 0) {
-                        SSLfatal(s, SSL_AD_INTERNAL_ERROR,
-                                 ERR_R_INTERNAL_ERROR);
-                        WPACKET_cleanup(&tp);
-                        BUF_MEM_free(tp_mem);
-                        EVP_MD_CTX_free(ctx);
-                        goto err;
-                }
-# ifdef OSSL_ECH_SUPERVERBOSE
-                ech_pbuf("digested CH", hashval, hashlen);
-# endif
-                EVP_MD_CTX_free(ctx);
-                if (!WPACKET_put_bytes_u8(&tp, SSL3_MT_MESSAGE_HASH)
-                    || !WPACKET_put_bytes_u24(&tp, hashlen)
-                    || !WPACKET_memcpy(&tp, hashval, hashlen)
-                    || !WPACKET_memcpy(&tp, s->ext.ech.kepthrr,
-                                       s->ext.ech.kepthrr_len)) {
-                    SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-                    WPACKET_cleanup(&tp);
-                    BUF_MEM_free(tp_mem);
-                    goto err;
-                }
-            }
-            if (!WPACKET_memcpy(&tp, s->ext.ech.innerch, s->ext.ech.innerch_len)
-                || !WPACKET_put_bytes_u8(&tp, SSL3_MT_SERVER_HELLO)
-                || !WPACKET_put_bytes_u24(&tp, shlen)
-                || !WPACKET_memcpy(&tp, shbuf, shlen)
-                || !WPACKET_get_total_written(&tp, &alen)) {
-                SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-                WPACKET_cleanup(&tp);
-                BUF_MEM_free(tp_mem);
-                goto err;
-            }
-            abuf = WPACKET_get_curr(&tp) - alen;
-# ifdef OSSL_ECH_SUPERVERBOSE
-            ech_pbuf("Client transcript re-init", abuf, alen);
-# endif
-            if (ech_reset_hs_buffer(s, abuf, alen) != 1) {
-                SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-                WPACKET_cleanup(&tp);
-                BUF_MEM_free(tp_mem);
-                goto err;
-            }
-            WPACKET_cleanup(&tp);
-            BUF_MEM_free(tp_mem);
-#endif
         }
     }
 #endif
