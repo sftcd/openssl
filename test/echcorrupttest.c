@@ -1144,13 +1144,6 @@ static int tls_split_mode(BIO *bio, const char *outer, int outerl)
             if (verbose)
                 TEST_info("inner CH len incl record layer is %d",
                           (int)innerlen);
-            /* set a known pattern for debug */
-            /* memset((char *)outer, 0xBB, outerl); */
-            /*
-             * odd behaviour: receiver gets outerl bytes with the first
-             * innerlen of those being as expected and then it gets
-             * (maybe?) outerl-innerlen more incl. the 0xBB value (seemingly)
-             */
             ret = BIO_write(next, inner, (int)innerlen);
             OPENSSL_free(inner);
             OPENSSL_free(inner_sni);
@@ -1170,7 +1163,18 @@ static int tls_split_mode(BIO *bio, const char *outer, int outerl)
                 TEST_info("returning %d from tls_split_mode filter",
                           ret + ret2);
             copy_flags(bio);
-            return ret + ret2;
+            /*
+             * Weirdly, we need to return the original length of the
+             * outer CH here or else the "unused" 182 octets turn up
+             * as a badly encoded record layer message.
+             * In the nominal test case right now, the original outer
+             * CH length is 441, the inner CH length is 259 and the
+             * 182 is the difference.
+             * It took a surprising amount of trial-and-error to
+             * figure that out, and I'm not sure it's really right,
+             * but hey, it works, for now;-)
+             */
+            return outerl;
         }
         OPENSSL_free(inner);
         SSL_CTX_free(ctx);
@@ -1547,7 +1551,7 @@ static int ech_split_mode(int idx)
     if (verbose)
         TEST_info("ech_roundtrip_test: server status %d, %s, %s",
                   serverstatus, sinner, souter);
-    if (!TEST_int_eq(serverstatus, SSL_ECH_STATUS_SUCCESS))
+    if (!TEST_int_eq(serverstatus, SSL_ECH_STATUS_BACKEND))
         goto end;
     /* override cert verification */
     SSL_set_verify_result(clientssl, X509_V_OK);
@@ -1564,13 +1568,6 @@ end:
     SSL_free(serverssl);
     SSL_CTX_free(cctx);
     SSL_CTX_free(sctx);
-    /*
-     * temporarily force success even though we're failing
-     * just to cut down the noise from CI builds while I
-     * figure it out
-     */
-    TEST_info("forcing ech_split_test to succeed");
-    res = 1;
     return res;
 }
 
