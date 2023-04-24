@@ -181,7 +181,7 @@ CH and returned (inner) CH here include the record layer header.
 
 This has been tested in a PoC implementation with haproxy, which works for
 nomimal operation but that can't handle the combination of split-mode in the
-fact of HRR, as haproxy only supports examining the first (outer) CH seen,
+face of HRR, as haproxy only supports examining the first (outer) CH seen,
 whereas ECH + split-mode + HRR requires processing both outer CHs. (In other
 words, the utility of this API ought be considered unproven.)
 
