@@ -1408,7 +1408,7 @@ static int ech_grease_test(int idx)
     if (!TEST_int_ne(retryconfiglen, 0))
         goto end;
     if (verbose)
-        TEST_info("ech_grease_test: retryconfglen: %lu\n", retryconfiglen);
+        TEST_info("ech_grease_test: retryconfglen: %d\n", (int)retryconfiglen);
     /* our ECHConfig values are 62 octets each + 2 for length */
     if (idx == 2 && !TEST_size_t_eq(retryconfiglen, 126))
         goto end;

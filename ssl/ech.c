@@ -3263,41 +3263,41 @@ int ech_make_transcript_buffer(SSL_CONNECTION *s, int for_hrr,
     unsigned int hashlen = 0, hashin_len = 0;
     EVP_MD_CTX *ctx = NULL;
     EVP_MD *md = NULL;
-    WPACKET tpkt, lpkt1;
-    BUF_MEM *tpkt_mem = NULL, *lpkt1_mem = NULL;
+    WPACKET tpkt, shpkt;
+    BUF_MEM *tpkt_mem = NULL, *shpkt_mem = NULL;
 
     /*
      * store SH for later, preamble has bad length at this point on server
      * and is missing on client so we'll fix
      */
-    if ((lpkt1_mem = BUF_MEM_new()) == NULL
-        || !BUF_MEM_grow(lpkt1_mem, SSL3_RT_MAX_PLAIN_LENGTH)
-        || !WPACKET_init(&lpkt1, lpkt1_mem)) {
-        BUF_MEM_free(lpkt1_mem);
+    if ((shpkt_mem = BUF_MEM_new()) == NULL
+        || !BUF_MEM_grow(shpkt_mem, SSL3_RT_MAX_PLAIN_LENGTH)
+        || !WPACKET_init(&shpkt, shpkt_mem)) {
+        BUF_MEM_free(shpkt_mem);
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         goto err;
     }
-    if (!WPACKET_put_bytes_u8(&lpkt1, SSL3_MT_SERVER_HELLO)
-        || (s->server == 1 && !WPACKET_put_bytes_u24(&lpkt1, shlen - 4))
-        || (s->server == 1 && !WPACKET_memcpy(&lpkt1, shbuf + 4, shlen -4))
-        || (s->server == 0 && !WPACKET_put_bytes_u24(&lpkt1, shlen))
-        || (s->server == 0 && !WPACKET_memcpy(&lpkt1, shbuf, shlen))
-        || !WPACKET_get_length(&lpkt1, fixedshbuf_len)) {
-        BUF_MEM_free(lpkt1_mem);
-        WPACKET_cleanup(&lpkt1);
+    if (!WPACKET_put_bytes_u8(&shpkt, SSL3_MT_SERVER_HELLO)
+        || (s->server == 1 && !WPACKET_put_bytes_u24(&shpkt, shlen - 4))
+        || (s->server == 1 && !WPACKET_memcpy(&shpkt, shbuf + 4, shlen -4))
+        || (s->server == 0 && !WPACKET_put_bytes_u24(&shpkt, shlen))
+        || (s->server == 0 && !WPACKET_memcpy(&shpkt, shbuf, shlen))
+        || !WPACKET_get_length(&shpkt, fixedshbuf_len)) {
+        BUF_MEM_free(shpkt_mem);
+        WPACKET_cleanup(&shpkt);
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         goto err;
     }
     fixedshbuf = OPENSSL_malloc(*fixedshbuf_len);
     if (fixedshbuf == NULL) {
-        BUF_MEM_free(lpkt1_mem);
-        WPACKET_cleanup(&lpkt1);
+        BUF_MEM_free(shpkt_mem);
+        WPACKET_cleanup(&shpkt);
         goto err;
     }
-    memcpy(fixedshbuf, WPACKET_get_curr(&lpkt1) - *fixedshbuf_len,
+    memcpy(fixedshbuf, WPACKET_get_curr(&shpkt) - *fixedshbuf_len,
            *fixedshbuf_len);
-    BUF_MEM_free(lpkt1_mem);
-    WPACKET_cleanup(&lpkt1);
+    BUF_MEM_free(shpkt_mem);
+    WPACKET_cleanup(&shpkt);
 # ifdef OSSL_ECH_SUPERVERBOSE
     ech_pbuf("cx: fixed sh buf", fixedshbuf, fixedshbuf_len);
 # endif
@@ -3345,7 +3345,7 @@ int ech_make_transcript_buffer(SSL_CONNECTION *s, int for_hrr,
 # ifdef OSSL_ECH_SUPERVERBOSE
     ech_pbuf("cx: ch2hash", hashin, hashin_len);
 # endif
-    if ((ctx = EVP_MD_CTX_new()) == NULL 
+    if ((ctx = EVP_MD_CTX_new()) == NULL
         || EVP_DigestInit_ex(ctx, md, NULL) <= 0
         || EVP_DigestUpdate(ctx, hashin, hashin_len) <= 0
         || EVP_DigestFinal_ex(ctx, hashval, &hashlen) <= 0) {
@@ -3379,14 +3379,15 @@ int ech_make_transcript_buffer(SSL_CONNECTION *s, int for_hrr,
     if (*tbuf == NULL)
         goto err;
     memcpy(*tbuf, WPACKET_get_curr(&tpkt) - *tlen, *tlen);
-    if (for_hrr == 0)
+    /* don't double-free */
+    if (for_hrr == 0 && s->ext.ech.kepthrr != fixedshbuf)
         OPENSSL_free(fixedshbuf);
     WPACKET_cleanup(&tpkt);
     BUF_MEM_free(tpkt_mem);
-    EVP_MD_CTX_free(ctx);
     return 1;
 err:
-    OPENSSL_free(fixedshbuf);
+    if (s->ext.ech.kepthrr != fixedshbuf) /* don't double-free */
+        OPENSSL_free(fixedshbuf);
     WPACKET_cleanup(&tpkt);
     BUF_MEM_free(tpkt_mem);
     EVP_MD_CTX_free(ctx);
@@ -3428,138 +3429,20 @@ int ech_calc_confirm(SSL_CONNECTION *s, int for_hrr, unsigned char *acbuf,
     int rv = 0;
     EVP_MD_CTX *ctx = NULL;
     EVP_MD *md = NULL;
-#ifdef NEW_HBUF
     unsigned char *tbuf = NULL, *conf_loc = NULL;
-#else
-    unsigned char *tbuf = NULL, *conf_loc = NULL, *hashin = NULL;
-#endif
     unsigned char *fixedshbuf = NULL;
-#ifdef NEW_HBUF
     size_t fixedshbuf_len = 0, tlen = 0, chend = 0;
-#else
-    size_t hashin_len, fixedshbuf_len = 0, tlen = 0, chend = 0;
-#endif
     size_t shoffset = 6 + 24, extoffset = 0, echoffset = 0;
     uint16_t echtype;
     unsigned int hashlen = 0;
     unsigned char hashval[EVP_MAX_MD_SIZE], hoval[EVP_MAX_MD_SIZE];
-#ifndef NEW_HBUF
-    WPACKET lpkt1, tpkt;
-    BUF_MEM *lpkt1_mem = NULL, *tpkt_mem = NULL;
-#endif
 
-#ifndef NEW_HBUF
-    if ((tpkt_mem = BUF_MEM_new()) == NULL
-        || !BUF_MEM_grow(tpkt_mem, SSL3_RT_MAX_PLAIN_LENGTH)
-        || !WPACKET_init(&tpkt, tpkt_mem)) {
-        BUF_MEM_free(tpkt_mem);
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-        return 0;
-    }
-#endif
     if (get_md_from_hs(s, &md, shbuf, shlen) != 1
         || (hashlen = EVP_MD_size(md)) > EVP_MAX_MD_SIZE)
         goto err;
-
-#ifndef NEW_HBUF
-
-    /*
-     * store SH for later, preamble has bad length at this point on server
-     * and is missing on client so we'll fix
-     */
-    if ((lpkt1_mem = BUF_MEM_new()) == NULL
-        || !BUF_MEM_grow(lpkt1_mem, SSL3_RT_MAX_PLAIN_LENGTH)
-        || !WPACKET_init(&lpkt1, lpkt1_mem)
-        || !WPACKET_put_bytes_u8(&lpkt1, SSL3_MT_SERVER_HELLO)
-        || (s->server == 1 && !WPACKET_put_bytes_u24(&lpkt1, shlen - 4))
-        || (s->server == 1 && !WPACKET_memcpy(&lpkt1, shbuf + 4, shlen -4))
-        || (s->server == 0 && !WPACKET_put_bytes_u24(&lpkt1, shlen))
-        || (s->server == 0 && !WPACKET_memcpy(&lpkt1, shbuf, shlen))
-        || !WPACKET_get_length(&lpkt1, &fixedshbuf_len)) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-        goto err;
-    }
-    fixedshbuf = OPENSSL_malloc(fixedshbuf_len);
-    if (fixedshbuf == NULL)
-        goto err;
-    memcpy(fixedshbuf, WPACKET_get_curr(&lpkt1) - fixedshbuf_len,
-           fixedshbuf_len);
-# ifdef OSSL_ECH_SUPERVERBOSE
-    ech_pbuf("cx: fixed sh buf", fixedshbuf, fixedshbuf_len);
-# endif
-
-#endif
-
-    /* no HRR => transcript is CH,SH */
-#ifdef NEW_HBUF
     if (ech_make_transcript_buffer(s, for_hrr, shbuf, shlen, &tbuf, &tlen,
                                    &chend, &fixedshbuf_len) != 1)
         goto err; /* SSLfatal called already */
-#else
-    if (s->hello_retry_request == SSL_HRR_NONE) {
-        if (!WPACKET_memcpy(&tpkt, s->ext.ech.innerch,
-                            s->ext.ech.innerch_len)
-            || !WPACKET_get_length(&tpkt, &chend)
-            || !WPACKET_memcpy(&tpkt, fixedshbuf, fixedshbuf_len)
-            || !WPACKET_get_length(&tpkt, &tlen)) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-            goto err;
-        }
-    } else {
-
-        if (for_hrr == 0) {
-            hashin = s->ext.ech.innerch1;
-            hashin_len = s->ext.ech.innerch1_len;
-        } else {
-            hashin = s->ext.ech.innerch;
-            hashin_len = s->ext.ech.innerch_len;
-            /* stash this SH/HRR for later */
-            OPENSSL_free(s->ext.ech.kepthrr);
-            s->ext.ech.kepthrr = OPENSSL_malloc(fixedshbuf_len);
-            s->ext.ech.kepthrr_len = fixedshbuf_len;
-            if (!s->ext.ech.kepthrr)
-                goto err;
-            memcpy(s->ext.ech.kepthrr, fixedshbuf, fixedshbuf_len);
-        }
-# ifdef OSSL_ECH_SUPERVERBOSE
-        ech_pbuf("cx: ch2hash", hashin, hashin_len);
-# endif
-        if ((ctx = EVP_MD_CTX_new()) == NULL
-            || EVP_DigestInit_ex(ctx, md, NULL) <= 0
-            || EVP_DigestUpdate(ctx, hashin, hashin_len) <= 0
-            || EVP_DigestFinal_ex(ctx, hashval, &hashlen) <= 0) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-            goto err;
-        }
-        EVP_MD_CTX_free(ctx);
-        ctx = NULL;
-        if (!WPACKET_put_bytes_u8(&tpkt, SSL3_MT_MESSAGE_HASH)
-            || !WPACKET_put_bytes_u24(&tpkt, hashlen)
-            || !WPACKET_memcpy(&tpkt, hashval, hashlen)) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-            goto err;
-        }
-        if (for_hrr == 0) {
-            if (!WPACKET_memcpy(&tpkt, s->ext.ech.kepthrr,
-                                s->ext.ech.kepthrr_len)
-                || !WPACKET_memcpy(&tpkt, s->ext.ech.innerch,
-                                   s->ext.ech.innerch_len)) {
-                SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-                goto err;
-            }
-        }
-        if (!WPACKET_get_length(&tpkt, &chend)
-            || !WPACKET_memcpy(&tpkt, fixedshbuf, fixedshbuf_len)
-            || !WPACKET_get_length(&tpkt, &tlen)) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-            goto err;
-        }
-    }
-    tbuf = OPENSSL_malloc(tlen);
-    if (tbuf == NULL)
-        goto err;
-    memcpy(tbuf, WPACKET_get_curr(&tpkt) - tlen, tlen);
-#endif
 # ifdef OSSL_ECH_SUPERVERBOSE
     ech_pbuf("cx: tbuf b4", tbuf, tlen);
 # endif
@@ -3626,14 +3509,6 @@ int ech_calc_confirm(SSL_CONNECTION *s, int for_hrr, unsigned char *acbuf,
         ech_reset_hs_buffer(s, tbuf, tlen - fixedshbuf_len);
     rv = 1;
 err:
-#ifndef NEW_HBUF
-    if (lpkt1_mem != NULL) {
-        WPACKET_cleanup(&lpkt1);
-        BUF_MEM_free(lpkt1_mem);
-    }
-    WPACKET_cleanup(&tpkt);
-    BUF_MEM_free(tpkt_mem);
-#endif
     OPENSSL_free(fixedshbuf);
     OPENSSL_free(tbuf);
     EVP_MD_CTX_free(ctx);
