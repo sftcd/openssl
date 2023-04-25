@@ -695,7 +695,7 @@ static int extended_echconfig(int idx)
     SSL_CTX *cctx = NULL, *sctx = NULL;
     SSL *clientssl = NULL, *serverssl = NULL;
     int clientstatus, serverstatus;
-    char *cinner, *couter, *sinner, *souter;
+    char *cinner = NULL, *couter = NULL, *sinner = NULL, *souter = NULL;
 
     if (idx == 0) {
         /* check we barf on a mandatory extension */
@@ -786,6 +786,10 @@ static int extended_echconfig(int idx)
     /* all good */
     res = 1;
 end:
+    OPENSSL_free(sinner);
+    OPENSSL_free(souter);
+    OPENSSL_free(cinner);
+    OPENSSL_free(couter);
     OPENSSL_free(echkeyfile);
     OPENSSL_free(echconfig);
     SSL_free(clientssl);
@@ -805,7 +809,7 @@ static int ech_roundtrip_test(int idx)
     SSL_CTX *cctx = NULL, *sctx = NULL;
     SSL *clientssl = NULL, *serverssl = NULL;
     int clientstatus, serverstatus;
-    char *cinner, *couter, *sinner, *souter;
+    char *cinner = NULL, *couter = NULL, *sinner = NULL, *souter = NULL;
 
     /* read our pre-cooked ECH PEM file */
     echkeyfile = test_mk_file_path(certsdir, "echconfig.pem");
@@ -851,6 +855,10 @@ static int ech_roundtrip_test(int idx)
     /* all good */
     res = 1;
 end:
+    OPENSSL_free(sinner);
+    OPENSSL_free(souter);
+    OPENSSL_free(cinner);
+    OPENSSL_free(couter);
     OPENSSL_free(echkeyfile);
     OPENSSL_free(echconfig);
     SSL_free(clientssl);
@@ -868,7 +876,7 @@ static int ech_wrong_pub_test(int idx)
     SSL_CTX *cctx = NULL, *sctx = NULL;
     SSL *clientssl = NULL, *serverssl = NULL;
     int clientstatus, serverstatus;
-    char *cinner, *couter, *sinner, *souter;
+    char *cinner = NULL, *couter = NULL, *sinner = NULL, *souter = NULL;
     unsigned char badconfig[400];
     size_t badconfiglen = sizeof(badconfig);
     unsigned char badpriv[200];
@@ -945,6 +953,10 @@ static int ech_wrong_pub_test(int idx)
     /* all good */
     res = 1;
 end:
+    OPENSSL_free(sinner);
+    OPENSSL_free(souter);
+    OPENSSL_free(cinner);
+    OPENSSL_free(couter);
     OPENSSL_free(retryconfig);
     OPENSSL_free(echkeyfile);
     SSL_free(clientssl);
@@ -1077,14 +1089,10 @@ end:
  */
 static int test_ech_roundtrip_helper(int idx, int combo)
 {
-    int res = 0;
-    int kemind, kdfind, aeadind;
-    int kemsz, kdfsz, aeadsz;
+    int res = 0, kemind, kdfind, aeadind, kemsz, kdfsz, aeadsz;
     char suitestr[100];
-    unsigned char priv[400];
-    size_t privlen = sizeof(priv);
-    unsigned char echconfig[300];
-    size_t echconfiglen = sizeof(echconfig);
+    unsigned char priv[400], echconfig[300];
+    size_t privlen = sizeof(priv), echconfiglen = sizeof(echconfig);
     char echkeybuf[1000];
     size_t echkeybuflen = sizeof(echkeybuf);
     OSSL_HPKE_SUITE hpke_suite = OSSL_HPKE_SUITE_DEFAULT;
@@ -1094,15 +1102,13 @@ static int test_ech_roundtrip_helper(int idx, int combo)
     SSL_CTX *cctx = NULL, *sctx = NULL;
     SSL *clientssl = NULL, *serverssl = NULL;
     int clientstatus, serverstatus;
-    char *cinner, *couter, *sinner, *souter;
+    char *cinner = NULL, *couter = NULL, *sinner = NULL, *souter = NULL;
     SSL_SESSION *sess = NULL;
     unsigned char ed[21];
-    size_t written = 0;
-    size_t readbytes = 0;
+    size_t written = 0, readbytes = 0;
     unsigned char buf[1024];
     unsigned int context;
-    static int server = 1;
-    static int client = 0;
+    int server = 1, client = 0;
 
     /* split idx into kemind, kdfind, aeadind */
     kemsz = OSSL_NELEM(kem_str_list);
@@ -1221,6 +1227,11 @@ static int test_ech_roundtrip_helper(int idx, int combo)
         goto end;
     /* shutdown for start over */
     sess = SSL_get1_session(clientssl);
+    OPENSSL_free(sinner);
+    OPENSSL_free(souter);
+    OPENSSL_free(cinner);
+    OPENSSL_free(couter);
+    sinner = souter = cinner = couter = NULL;
     SSL_shutdown(clientssl);
     SSL_shutdown(serverssl);
     SSL_free(serverssl);
@@ -1268,6 +1279,10 @@ static int test_ech_roundtrip_helper(int idx, int combo)
     /* all good */
     res = 1;
 end:
+    OPENSSL_free(sinner);
+    OPENSSL_free(souter);
+    OPENSSL_free(cinner);
+    OPENSSL_free(couter);
     SSL_SESSION_free(sess);
     SSL_free(clientssl);
     SSL_free(serverssl);
@@ -1315,7 +1330,8 @@ static int ech_grease_test(int idx)
     char *echkeyfile = NULL, *echconfig = NULL;
     SSL_CTX *cctx = NULL, *sctx = NULL;
     SSL *clientssl = NULL, *serverssl = NULL;
-    char *cinner, *couter, *sinner, *souter, *public_name = "example.com";
+    char *public_name = "example.com";
+    char *cinner = NULL, *couter = NULL, *sinner = NULL, *souter = NULL;
     unsigned char *retryconfig = NULL, priv[400], echconfig1[300];
     unsigned char echkeybuf[1000];
     size_t echconfig1len = sizeof(echconfig1);
@@ -1415,6 +1431,11 @@ static int ech_grease_test(int idx)
     if (idx < 2 && !TEST_size_t_eq(retryconfiglen, 64))
         goto end;
     /* cleanup */
+    OPENSSL_free(sinner);
+    OPENSSL_free(souter);
+    OPENSSL_free(cinner);
+    OPENSSL_free(couter);
+    sinner = souter = cinner = couter = NULL;
     SSL_shutdown(clientssl);
     SSL_shutdown(serverssl);
     SSL_free(serverssl);
@@ -1448,6 +1469,10 @@ static int ech_grease_test(int idx)
     /* all good */
     res = 1;
 end:
+    OPENSSL_free(sinner);
+    OPENSSL_free(souter);
+    OPENSSL_free(cinner);
+    OPENSSL_free(couter);
     OPENSSL_free(echkeyfile);
     OPENSSL_free(echconfig);
     OPENSSL_free(retryconfig);
@@ -1725,6 +1750,10 @@ static int ech_in_out_test(int idx)
     /* all good */
     res = 1;
 end:
+    OPENSSL_free(sinner);
+    OPENSSL_free(souter);
+    OPENSSL_free(cinner);
+    OPENSSL_free(couter);
     OPENSSL_free(echkeyfile);
     OPENSSL_free(echconfig);
     SSL_free(clientssl);

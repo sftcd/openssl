@@ -355,8 +355,8 @@ int SSL_ech_get_status(SSL *s, char **inner_sni, char **outer_sni);
 #  define SSL_ECH_STATUS_FAILED_ECH -105 /* We tried, failed and got an ECH */
 ```
 
-The ``inner_sni`` and ``outer_sni`` values point at strings with the relevant
-values. (They aren't allocated or free'd by the caller.)
+The ``inner_sni`` and ``outer_sni`` values should be freed by callers
+via ``OPENSSL_free()``.
 
 The function returns one of the status values above.
 

@@ -22,6 +22,13 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
+- 20230425: added ``demos/echecho.c`` showing simple use of ECH and
+  changed memory management for inner/outer SNI returned from 
+  ``SSL_ech_get_status()`` so that it's the same as handling 
+  similar outputs from ``SSL_CTX_ech_raw_decrypt()``. That's 
+  probably better anyway, as we avoid returning a pointer to
+  the middle of a bigger struct.
+
 - 20230424: added nominal ECH split mode usage test
 
 - 20230421: bit more refactoring around transcript buffer (not fully

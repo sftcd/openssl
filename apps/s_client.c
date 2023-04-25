@@ -977,8 +977,7 @@ static int new_session_cb(SSL *s, SSL_SESSION *sess)
 #ifndef OPENSSL_NO_ECH
     if (nechs > 0) {
 	    const char *hn_1 = NULL;
-        char *inner = NULL;
-        char *outer = NULL;
+        char *inner = NULL, *outer = NULL;
         int rv;
 
 	    if (c_debug)
@@ -1046,6 +1045,8 @@ static int new_session_cb(SSL *s, SSL_SESSION *sess)
                 return 0;
 	    }
         SSL_SESSION_print(bio_err, sess);
+        OPENSSL_free(inner);
+        OPENSSL_free(outer);
     }
 #endif
 
@@ -4080,8 +4081,7 @@ static void print_stuff(BIO *bio, SSL *s, int full)
 
 #ifndef OPENSSL_NO_ECH
         {
-            char *inner = NULL;
-            char *outer = NULL;
+            char *inner = NULL, *outer = NULL;
             size_t eclen = 0;
             unsigned char *ec = NULL;
 
@@ -4147,6 +4147,8 @@ static void print_stuff(BIO *bio, SSL *s, int full)
                 BIO_printf(bio, "ECH: Error trying ECH\n");
                 break;
             }
+            OPENSSL_free(inner);
+            OPENSSL_free(outer);
         }
 #endif
 

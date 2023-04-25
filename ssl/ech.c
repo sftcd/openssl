@@ -5082,8 +5082,14 @@ int SSL_ech_get_status(SSL *ssl, char **inner_sni, char **outer_sni)
             return SSL_ECH_STATUS_GREASE_ECH;
         return SSL_ECH_STATUS_GREASE;
     }
-    if (s->ext.ech.backend == 1)
+    if (s->ext.ech.backend == 1) {
+        if (s->ext.hostname != NULL
+            && (*inner_sni = OPENSSL_strdup(s->ext.hostname)) == NULL) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+            return SSL_ECH_STATUS_FAILED;
+        }
         return SSL_ECH_STATUS_BACKEND;
+    }
     if (s->ext.ech.cfgs == NULL)
         return SSL_ECH_STATUS_NOT_CONFIGURED;
     /* Set output vars - note we may be pointing to NULL which is fine  */
@@ -5104,8 +5110,16 @@ int SSL_ech_get_status(SSL *ssl, char **inner_sni, char **outer_sni)
         long vr = X509_V_OK;
 
         vr = SSL_get_verify_result(ssl);
-        *inner_sni = sinner;
-        *outer_sni = souter;
+        if (sinner != NULL
+            && (*inner_sni = OPENSSL_strdup(sinner)) == NULL) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+            return SSL_ECH_STATUS_FAILED;
+        }
+        if (souter != NULL
+            && (*outer_sni = OPENSSL_strdup(souter)) == NULL) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+            return SSL_ECH_STATUS_FAILED;
+        }
         if (s->ext.ech.success == 1) {
             if (vr == X509_V_OK)
                 return SSL_ECH_STATUS_SUCCESS;
