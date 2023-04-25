@@ -51,8 +51,22 @@ the following symbol defined for this version:
 ```
 
 It remains to be seen whether support for draft-13 will still be needed once
-the RFC is published. (Most implementaions have ECH turned off except if the
+the RFC is published. (Most implementations have ECH turned off except if the
 user has changed some flag or config option.)
+
+Minimal Sample Code
+-------------------
+
+OpenSSL includes demo code for an
+[``sslecho``](https://github.com/sftcd/openssl/tree/ECH-draft-13c/demos/sslecho).
+We've added a minimal
+[``echecho``](https://github.com/sftcd/openssl/blob/ECH-draft-13c/demos/sslecho/echecho.c)
+that shows that adding one new server call
+(``SSL_CTX_ech_enable_server_buffer()``) and one new client call
+(``SSL_CTX_ech_set1_echconfig()``) is all that's needed to ECH-enable this demo.
+
+Handling Custom Extensions
+--------------------------
 
 OpenSSL supports custom extensions (via ``SSL_CTX_add_custom_ext()``) so that
 extension values are supplied and parsed by client and server applications via
@@ -180,7 +194,7 @@ values (allowing routing to the correct back-end). Both the supplied (outer)
 CH and returned (inner) CH here include the record layer header.
 
 This has been tested in a PoC implementation with haproxy, which works for
-nomimal operation but that can't handle the combination of split-mode in the
+nominal operation but that can't handle the combination of split-mode in the
 face of HRR, as haproxy only supports examining the first (outer) CH seen,
 whereas ECH + split-mode + HRR requires processing both outer CHs. (In other
 words, the utility of this API ought be considered unproven.)
@@ -194,19 +208,19 @@ int SSL_CTX_ech_raw_decrypt(SSL_CTX *ctx,
 ```
 
 The caller allocates the ``inner_ch`` buffer, on input ``inner_len`` should
-contain the size of the ``inner_ch`` buffer, on output the size of the actuall
+contain the size of the ``inner_ch`` buffer, on output the size of the actual
 inner CH. Note that, when ECH decryption succeeds, the inner CH will always be
 smaller than the outer CH.
 
 If there is no ECH present in the outer CH then this will return 1 (i.e., the
-call will succeed) but ``decrypted_ok`` will be zero. The same wll result if a
-GREASE'd ECH is present or decryption fails for some other (indistinguishable)
+call will succeed) but ``decrypted_ok`` will be zero. The same will result if a
+GREASEd ECH is present or decryption fails for some other (indistinguishable)
 reason.
 
 "GREASEing" is defined in
 [RFC8701](https://datatracker.ietf.org/doc/html/rfc8701) and is a mechanism
 intended to discourage protocol ossification that can be used for ECH.
-(GREASE'd ECH may turn out to be important as a step towards widespread
+(GREASEd ECH may turn out to be important as a step towards widespread
 deployment of ECH.)
 
 Client-side APIs
@@ -278,7 +292,7 @@ int SSL_CTX_ech_set_outer_alpn_protos(SSL *s, const unsigned char *protos,
                                       unsigned int protos_len);
 ```
 
-If a client attempts ECH but that fails, or sends an ECH-GREASE'd CH, to
+If a client attempts ECH but that fails, or sends an ECH-GREASEd CH, to
 an ECH-supporting server, then that server may return an ECH "retry-config"
 value that the client could choose to use in a subsequent connection. The
 client can detect this situation via the ``SSL_ech_get_status()`` API and

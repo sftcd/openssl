@@ -345,8 +345,8 @@ desired via the SSL_ech_reduce() function.
 Clients and servers can query the status of ECH for a TLS session using the
 SSL_ech_get_status() function. As SNI handling is core to ECH this will return
 the I<inner_sni> and I<outer_sni> values to be used or that were used as well
-as a status code as the return value. The various status values are as shown in
-L</Constants>.
+as a status code as the return value. (These must be freed by the caller.)
+The various status values are as shown in L</Constants>.
 
 =head2 ECH SSL Options
 
