@@ -18,6 +18,15 @@
 
 static const int server_port = 4433;
 
+static const char *echconfig = "AD7+DQA65wAgACA8wVN2BtscOl3vQheUzHeIkVmKIiydUhDCliA4iyQRCwAEAAEAAQALZXhhbXBsZS5jb20AAA==";
+static const char *echprivbuf =
+    "-----BEGIN PRIVATE KEY-----\n"
+    "MC4CAQAwBQYDK2VuBCIEICjd4yGRdsoP9gU7YT7My8DHx1Tjme8GYDXrOMCi8v1V\n"
+    "-----END PRIVATE KEY-----\n"
+    "-----BEGIN ECHCONFIG-----\n"
+    "AD7+DQA65wAgACA8wVN2BtscOl3vQheUzHeIkVmKIiydUhDCliA4iyQRCwAEAAEAAQALZXhhbXBsZS5jb20AAA==\n"
+    "-----END ECHCONFIG-----\n";
+
 typedef unsigned char   bool;
 #define true            1
 #define false           0
@@ -99,7 +108,9 @@ void configure_server_context(SSL_CTX *ctx)
         exit(EXIT_FAILURE);
     }
 
-    if (SSL_CTX_ech_server_enable_file(ctx, "echconfig.pem", SSL_ECH_USE_FOR_RETRY) != 1) {
+    if (SSL_CTX_ech_server_enable_buffer(ctx, (unsigned char*)echprivbuf,
+                                         strlen(echprivbuf),
+                                         SSL_ECH_USE_FOR_RETRY) != 1) {
         ERR_print_errors_fp(stderr);
         exit(EXIT_FAILURE);
     }
@@ -107,8 +118,6 @@ void configure_server_context(SSL_CTX *ctx)
 
 void configure_client_context(SSL_CTX *ctx)
 {
-    const char *echconfig = "AD7+DQA65wAgACA8wVN2BtscOl3vQheUzHeIkVmKIiydUhDCliA4iyQRCwAEAAEAAQALZXhhbXBsZS5jb20AAA==";
-
     /*
      * Configure the client to abort the handshake if certificate verification
      * fails
@@ -123,7 +132,8 @@ void configure_client_context(SSL_CTX *ctx)
         ERR_print_errors_fp(stderr);
         exit(EXIT_FAILURE);
     }
-    if (SSL_CTX_ech_set1_echconfig(ctx, (unsigned char*)echconfig, strlen(echconfig)) != 1) {
+    if (SSL_CTX_ech_set1_echconfig(ctx, (unsigned char*)echconfig,
+                                   strlen(echconfig)) != 1) {
         ERR_print_errors_fp(stderr);
         exit(EXIT_FAILURE);
     }
@@ -307,9 +317,9 @@ int main(int argc, char **argv)
             printf("SSL connection to server successful\n\n");
 
             ech_status = SSL_ech_get_status(ssl, &inner_sni, &outer_sni);
-            printf("ECH %s (inner: %s, outer: %s)\n",
-                    (ech_status == 1 ? "worked" : "failed"),
-                    inner_sni, outer_sni);
+            printf("ECH %s (status: %d, inner: %s, outer: %s)\n",
+                    (ech_status == 1 ? "worked" : "failed/not-tried"),
+                    ech_status, inner_sni, outer_sni);
             OPENSSL_free(inner_sni);
             OPENSSL_free(outer_sni);
             inner_sni = outer_sni = NULL;
