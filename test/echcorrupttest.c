@@ -1526,7 +1526,7 @@ static int ech_split_mode(int idx)
     SSL_CTX *cctx = NULL, *sctx = NULL;
     SSL *clientssl = NULL, *serverssl = NULL;
     int clientstatus, serverstatus;
-    char *cinner, *couter, *sinner, *souter;
+    char *cinner = NULL, *couter = NULL, *sinner = NULL, *souter = NULL;
     BIO *c_to_s_fbio = NULL;
 
     if (!TEST_true(create_ssl_ctx_pair(libctx, TLS_server_method(),
@@ -1564,6 +1564,10 @@ static int ech_split_mode(int idx)
     /* all good */
     res = 1;
 end:
+    OPENSSL_free(sinner);
+    OPENSSL_free(souter);
+    OPENSSL_free(cinner);
+    OPENSSL_free(couter);
     SSL_free(clientssl);
     SSL_free(serverssl);
     SSL_CTX_free(cctx);

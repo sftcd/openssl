@@ -612,8 +612,7 @@ static int ssl_ech_servername_cb(SSL *s, int *ad, void *arg)
     struct sockaddr *sa;
     char clientip[INET6_ADDRSTRLEN];
     const char *servername = NULL;
-    char *inner_sni = NULL;
-    char *outer_sni = NULL;
+    char *inner_sni = NULL, *outer_sni = NULL;
     int echrv = 0;
 
 /* apparently 26 is all we need */
@@ -704,6 +703,8 @@ static int ssl_ech_servername_cb(SSL *s, int *ad, void *arg)
             break;
         }
     }
+    OPENSSL_free(inner_sni);
+    OPENSSL_free(outer_sni);
     if (servername != NULL && p->biodebug != NULL) {
         const char *cp = servername;
         unsigned char uc;
