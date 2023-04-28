@@ -34,10 +34,11 @@ discussed above but enables ECH for the connection, based on hard-coded ECH
 configuration data. A real server would load file(s), and a real client would
 acquire an ECHConfigList from the DNS.
 
-All that's required to use ECH is for The server to enable ECH via the
-``SSL_CTX_ech_server_enable_buffer()`` API and for the client to do 
-similarly via ``SSL_CTX_ech_set1_echconfig()``. Both check and print out
-the status of ECH via ``SSL_ech_get_status()``.
+All that's required to use ECH is for the server to enable ECH via
+``SSL_CTX_ech_server_enable_buffer()`` and for the client to do 
+similarly via ``SSL_CTX_ech_set1_echconfig()``. Both client and
+server check and print out the status of ECH using ``SSL_ech_get_status()``,
+but that's optional.
 
 To run the server:
 
@@ -57,11 +58,14 @@ output:
 
             ECH failed/not-tried (status: -101, inner: (null), outer: (null))
 
-If the non-ECH demo server (also ``sslecho``) is used, the client will exit
+If the non-ECH demo server (i.e., ``sslecho``) is used, the client will exit
 with an error as ECH was attempted and failed. In a debug build, that looks
 like:
 
             80EBEE54227F0000:error:0A000163:SSL routines:tls_process_initial_server_flight:ech required:ssl/statem/statem_clnt.c:3274:
+
+A real client would likely fall back to not using ECH, but the above
+is ok for a demo.
 
 In that case, the server will also exit based on the ECH alert from the client:
 
