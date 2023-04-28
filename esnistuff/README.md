@@ -22,6 +22,9 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
+- 20230428: added ``test/ech_split_mode.c`` as (the start of) a
+  better test harness for ECH split-mode
+
 - 20230425: added ``demos/echecho.c`` showing simple use of ECH and
   changed memory management for inner/outer SNI returned from 
   ``SSL_ech_get_status()`` so that it's the same as handling 
