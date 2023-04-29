@@ -2665,6 +2665,70 @@ err:
     return rv;
 }
 
+static int ech_read_hrrtoken(SSL_CONNECTION *sc, unsigned char **hrrtok,
+                             size_t *toklen)
+{
+    PACKET pkt_hrrtok;
+    unsigned int pi_tmp;
+    const unsigned char *pp_tmp;
+
+    /*
+     * invented TLS presentation form packet format for this is:
+     *  struct {
+     *     opaque enc<0..2^16-1>;
+     *  }
+     *
+     *  Note that enc is public having been visible on the n/w
+     *  when CH1 was sent.
+     */
+    if (PACKET_buf_init(&pkt_hrrtok, *hrrtok, *toklen) != 1
+        || !PACKET_get_net_2(&pkt_hrrtok, &pi_tmp)
+        || !PACKET_get_bytes(&pkt_hrrtok, &pp_tmp, pi_tmp)
+        || PACKET_remaining(&pkt_hrrtok) > 0) {
+        ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
+        return 0;
+    }
+    sc->ext.ech.pub = OPENSSL_malloc(pi_tmp);
+    if (sc->ext.ech.pub == NULL)
+        return 0;
+    memcpy(sc->ext.ech.pub, pp_tmp, pi_tmp);
+    sc->ext.ech.pub_len = pi_tmp;
+    /* also set this to get calculations right */
+    sc->hello_retry_request = SSL_HRR_PENDING;
+    return 1;
+}
+
+static int ech_write_hrrtoken(SSL_CONNECTION *sc, unsigned char **hrrtok,
+                              size_t *toklen)
+{
+    WPACKET hpkt;
+    BUF_MEM *hpkt_mem = NULL;
+
+    /* invented TLS presentation form packet format as above */
+    if ((hpkt_mem = BUF_MEM_new()) == NULL
+        || !BUF_MEM_grow(hpkt_mem, OSSL_ECH_MAX_ECHCONFIG_LEN)) {
+        ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
+        return 0;
+    }
+    if (!WPACKET_init(&hpkt, hpkt_mem)
+        || !WPACKET_put_bytes_u16(&hpkt, sc->ext.ech.pub_len)
+        || !WPACKET_memcpy(&hpkt, sc->ext.ech.pub,
+                           sc->ext.ech.pub_len)) {
+        ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
+        WPACKET_cleanup(&hpkt);
+        BUF_MEM_free(hpkt_mem);
+        return 0;
+    }
+    WPACKET_get_total_written(&hpkt, toklen);
+    *hrrtok = OPENSSL_malloc(*toklen);
+    if (*hrrtok == NULL)
+        return 0;
+    memcpy(*hrrtok, WPACKET_get_curr(&hpkt) - *toklen, *toklen);
+    WPACKET_cleanup(&hpkt);
+    BUF_MEM_free(hpkt_mem);
+    return 1;
+}
+
 /* SECTION: Non-public functions used elsewhere in the library */
 
 # ifdef OSSL_ECH_SUPERVERBOSE
@@ -3299,7 +3363,7 @@ int ech_make_transcript_buffer(SSL_CONNECTION *s, int for_hrr,
     BUF_MEM_free(shpkt_mem);
     WPACKET_cleanup(&shpkt);
 # ifdef OSSL_ECH_SUPERVERBOSE
-    ech_pbuf("cx: fixed sh buf", fixedshbuf, fixedshbuf_len);
+    ech_pbuf("cx: fixed sh buf", fixedshbuf, *fixedshbuf_len);
 # endif
     if ((tpkt_mem = BUF_MEM_new()) == NULL
         || !BUF_MEM_grow(tpkt_mem, SSL3_RT_MAX_PLAIN_LENGTH)
@@ -5188,21 +5252,20 @@ int SSL_CTX_ech_raw_decrypt(SSL_CTX *ctx,
                             int *decrypted_ok,
                             char **inner_sni, char **outer_sni,
                             unsigned char *outer_ch, size_t outer_len,
-                            unsigned char *inner_ch, size_t *inner_len)
+                            unsigned char *inner_ch, size_t *inner_len,
+                            unsigned char **hrrtok, size_t *toklen)
 {
     SSL *s = NULL;
-    PACKET pkt_outer;
-    PACKET pkt_inner;
+    PACKET pkt_outer, pkt_inner;
     unsigned char *inner_buf = NULL;
     size_t inner_buf_len = 0;
-    int rv = 0;
+    int rv = 0, innerflag = -1;
     size_t startofsessid = 0; /* offset of session id within Ch */
     size_t startofexts = 0; /* offset of extensions within CH */
     size_t echoffset = 0; /* offset of start of ECH within CH */
     uint16_t echtype = TLSEXT_TYPE_ech_unknown; /* type of ECH seen */
     size_t innersnioffset = 0; /* offset to SNI in inner */
     SSL_CONNECTION *sc = NULL;
-    int innerflag = -1;
 
     if (ctx == NULL || outer_ch == NULL || outer_len == 0
         || inner_ch == NULL || inner_len == NULL || *inner_len == 0
@@ -5219,8 +5282,9 @@ int SSL_CTX_ech_raw_decrypt(SSL_CTX *ctx,
     /* sanity checks on record layer and preamble */
     if (outer_len <= 9
         || outer_ch[0] != SSL3_RT_HANDSHAKE
-        || outer_ch[1] != (TLS1_VERSION >> 8)
-        || outer_ch[2] != (TLS1_VERSION & 0xff)
+        || outer_ch[1] != TLS1_2_VERSION_MAJOR
+        || (outer_ch[2] != TLS1_VERSION_MINOR
+            && outer_ch[2] != TLS1_2_VERSION_MINOR)
         || (size_t)((outer_ch[3] << 8) + outer_ch[4]) != (size_t)(outer_len - 5)
         || outer_ch[5] != SSL3_MT_CLIENT_HELLO
         || (size_t)((outer_ch[6] << 16) + (outer_ch[7] << 8) + outer_ch[8])
@@ -5242,6 +5306,12 @@ int SSL_CTX_ech_raw_decrypt(SSL_CTX *ctx,
     sc = SSL_CONNECTION_FROM_SSL(s);
     if (sc == NULL) {
         ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+    if (hrrtok != NULL && toklen != NULL
+        && *hrrtok != NULL && *toklen != 0
+        && ech_read_hrrtoken(sc, hrrtok, toklen) != 1) {
+        ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_INVALID_ARGUMENT);
         goto err;
     }
     /*
@@ -5285,6 +5355,8 @@ int SSL_CTX_ech_raw_decrypt(SSL_CTX *ctx,
     }
     if (sc->ext.ech.success == 0) {
         *decrypted_ok = 0;
+        OPENSSL_free(*outer_sni);
+        *outer_sni = NULL;
     } else {
         size_t ilen = PACKET_remaining(&pkt_inner);
         const unsigned char *iptr = NULL;
@@ -5300,9 +5372,8 @@ int SSL_CTX_ech_raw_decrypt(SSL_CTX *ctx,
         }
         /* Fix up header and length of inner CH */
         inner_ch[0] = SSL3_RT_HANDSHAKE;
-        /* legacy version exception: RFC8446, 5.1 says 0x0301 is ok */
-        inner_ch[1] = (TLS1_VERSION >> 8) & 0xff;
-        inner_ch[2] = TLS1_VERSION  & 0xff;
+        inner_ch[1] = outer_ch[1];
+        inner_ch[2] = outer_ch[2];
         inner_ch[3] = ((ilen + 4) >> 8) & 0xff;
         inner_ch[4] = (ilen + 4) & 0xff;
         inner_ch[5] = SSL3_MT_CLIENT_HELLO;
@@ -5359,6 +5430,15 @@ int SSL_CTX_ech_raw_decrypt(SSL_CTX *ctx,
             }
         }
 
+        /* stash client's ephemeral ECH pub in case of HRR */
+        if (hrrtok != NULL && toklen != NULL) {
+            if (*hrrtok != NULL)
+                OPENSSL_free(*hrrtok);
+            if (ech_write_hrrtoken(sc, hrrtok, toklen) != 1) {
+                ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
+                goto err;
+            }
+        }
         /* Declare success to caller */
         *decrypted_ok = 1;
     }

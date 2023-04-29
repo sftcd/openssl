@@ -1138,7 +1138,8 @@ static int tls_split_mode(BIO *bio, const char *outer, int outerl)
         if (!TEST_true(SSL_CTX_ech_raw_decrypt(ctx, &dec_ok,
                                                &inner_sni, &outer_sni,
                                                (unsigned char *)outer, outerl,
-                                               inner, &innerlen)))
+                                               inner, &innerlen,
+                                               NULL, NULL)))
             goto end;
         if (dec_ok == 1) {
             if (verbose)
@@ -1481,7 +1482,8 @@ static int ech_raw_dec(int idx)
     rec_innerlen = choutlen;
     rv = SSL_CTX_ech_raw_decrypt(sctx, &dec_ok, &inner_sni, &outer_sni,
                                  (unsigned char *)chout, choutlen,
-                                 rec_inner, &rec_innerlen);
+                                 rec_inner, &rec_innerlen,
+                                 NULL, NULL);
     if (!TEST_int_eq(rv, tr->rv_expected))
         goto end;
     if (!TEST_int_eq(dec_ok, tr->dec_ok_expected))
