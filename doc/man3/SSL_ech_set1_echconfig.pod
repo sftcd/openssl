@@ -53,7 +53,8 @@ ossl_ech_make_echconfig, ossl_ech_find_echconfigs
                              int *decrypted_ok,
                              char **inner_sni, char **outer_sni,
                              unsigned char *outer_ch, size_t outer_len,
-                             unsigned char *inner_ch, size_t *inner_len);
+                             unsigned char *inner_ch, size_t *inner_len,
+                             unsigned char **hrrtok, size_t *toklen);
  void SSL_CTX_ech_set_callback(SSL_CTX *ctx, SSL_ech_cb_func f);
  int SSL_CTX_ech_set_outer_alpn_protos(SSL *s, const unsigned char *protos,
                                        unsigned int protos_len);
@@ -298,10 +299,15 @@ including the record layer header) in I<inner_ch> of size I<inner_len> (on
 input I<inner_len> should contain the size of the I<inner_ch> buffer) and sets
 I<decrypted_ok> to 1. Note that an inner ClientHello will always be smaller
 than an outer ClientHello.  The encoding of both I<outer_ch> and I<inner_ch>
-begins with the TLS message type and 3-octet length (i.e. the initials octet
-are [0x16, 0x03, 0x01] followed by a 2-octet length).
+begins with the record layer header.
 
-If decrytpion succeeds in SSL_CTX_ech_raw_decrypt() then the
+If the caller wishes to support HelloRetryRequest (HRR), then it must supply
+the same ``hrrtok`` and ``toklen`` pointers to each call to ``SSL_CTX_ech_raw_decrypt()``
+(for the initial and second ClientHello messages). The caller must then 
+free the ``hrrtok`` using ``OPENSSL_free()``. If the caller doesn't need
+to support HRR, then it can supply NULL values for these parameters.
+
+If decryption succeeds in SSL_CTX_ech_raw_decrypt() then the
 I<decrypted_ok> value will be returned as 1. If no ECH is present,
 SSL_CTX_ech_raw_decrypt() will return 1 but
 I<decryption_ok> will be 0. If decryption

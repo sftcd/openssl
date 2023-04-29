@@ -38,6 +38,36 @@ static size_t echconfiglen = 0;
 static unsigned char *bin_echconfig;
 static size_t bin_echconfiglen = 0;
 
+/* bit for the bitmask field */
+# define SPLIT_NOMINAL 0
+# define SPLIT_GREASE 1
+# define SPLIT_HRR (1 << 1)
+
+typedef struct SPLIT_testcase {
+    char *descrip; /* descriptor */
+    int bitmask; /* bitmask of things to do */
+    int exp_rv; /* return from create 3way */
+    int exp_err;
+    int exp_cli_status;
+    int exp_fe_status;
+    int exp_be_status;
+} SPLIT_TESTCASE;
+
+static SPLIT_TESTCASE testcases[] = {
+    { "nominal split", SPLIT_NOMINAL, 1, SSL_ERROR_NONE,
+      SSL_ECH_STATUS_SUCCESS,
+      SSL_ECH_STATUS_NOT_TRIED,
+      SSL_ECH_STATUS_BACKEND},
+    { "grease", SPLIT_GREASE, 1, SSL_ERROR_NONE,
+      SSL_ECH_STATUS_GREASE_ECH,
+      SSL_ECH_STATUS_GREASE,
+      SSL_ECH_STATUS_NOT_CONFIGURED},
+    { "hrr", SPLIT_HRR, 1, SSL_ERROR_NONE,
+      SSL_ECH_STATUS_SUCCESS,
+      SSL_ECH_STATUS_NOT_TRIED,
+      SSL_ECH_STATUS_BACKEND},
+};
+
 /*
  * return the bas64 encoded ECHConfigList from an ECH PEM file
  *
@@ -104,10 +134,12 @@ typedef enum FE_ech_mode {
 
 typedef struct {
     FE_ECH_MODE ech_mode;
+    unsigned char *hrrtok;
+    size_t toklen;
+    SSL_CTX *fe_ctx;
     SSL *cli_ssl;
     SSL *be_ssl;
     SSL *fe_ssl;
-    SSL_CTX *fe_ctx;
 } ROUTE2BE;
 
 typedef enum SPLIT_marker {
@@ -131,14 +163,13 @@ static void copy_flags(BIO *bio)
  */
 static int tls_split_write(BIO *bio, const char *outer, int outerl)
 {
-    int ret = 0, is_ch = 0, dec_ok = 0, firstmsglen = 0;
+    int ret = 0, is_ch = 0, is_ch2 = 0, dec_ok = 0, chlen = 0;
     BIO *next = BIO_next(bio), *rbio;
-    size_t innerlen = 0;
+    size_t innerlen = 0, ccslen = 0, msg2sendlen = 0, extras = 0;
     unsigned char *inner = NULL;
     char *inner_sni = NULL, *outer_sni = NULL;
     ROUTE2BE *rbe = NULL;
     unsigned char *msg2send = NULL, *tmp = NULL;
-    size_t msg2sendlen = 0, extras = 0;
     SPLIT_MARKER *position = NULL;
 
     if ((rbe = (ROUTE2BE *)BIO_get_ex_data(bio, 1)) == NULL)
@@ -146,7 +177,7 @@ static int tls_split_write(BIO *bio, const char *outer, int outerl)
     if ((position = (SPLIT_MARKER *)BIO_get_ex_data(bio, 2)) == NULL)
         goto end;
     if (verbose)
-        TEST_info("calling %s from %s", __func__,
+        TEST_info("calling tls_split_write from %s",
                   *position == SPLIT_FE ? "front-end" : "backend");
 
     if (outerl > SSL3_RT_HEADER_LENGTH
@@ -156,27 +187,60 @@ static int tls_split_write(BIO *bio, const char *outer, int outerl)
          * len of 1st record layer message (incl. header) that may be
          * a CH, but that could be followed by early data
          */
-        firstmsglen =
+        chlen =
             SSL3_RT_HEADER_LENGTH
             + ((unsigned char)outer[3] << 8)
             + (unsigned char)outer[4];
         is_ch = 1;
         if (verbose) {
             TEST_info("outer CH len incl record layer is %d", outerl);
-            TEST_info("first message is %d of that", firstmsglen);
+            TEST_info("CH is %d of that", chlen);
         }
     }
+    /* check for change-cipher-spec then CH (happens with HRR) */
+    if (outerl > SSL3_RT_HEADER_LENGTH
+        && outer[0] == SSL3_RT_CHANGE_CIPHER_SPEC
+        && outer[6] == SSL3_RT_HANDSHAKE
+        && outer[11] == SSL3_MT_CLIENT_HELLO) {
+        /*
+         * len of 1st record layer message (incl. header) that may be
+         * a CH, but that could be followed by early data
+         */
+        ccslen = 6;
+        chlen =
+            SSL3_RT_HEADER_LENGTH
+            + ((unsigned char)outer[9] << 8)
+            + (unsigned char)outer[10];
+        is_ch = 1;
+        is_ch2 = 1;
+        if (verbose) {
+            TEST_info("outer CH preceeded by CCS");
+            TEST_info("outer CH len incl record layer is %d", outerl);
+            TEST_info("CH is %d of that", chlen);
+        }
+    }
+
     if (is_ch == 1 && *position == SPLIT_FE) {
+        unsigned char *chstart = (unsigned char *)outer, *inp = NULL;
+
         /* outer has to be longer than inner, so this is safe */
         inner = OPENSSL_malloc(outerl);
         if (inner == NULL)
             goto end;
         memset(inner, 0xAA, innerlen);
+        inp = inner;
         innerlen = outerl;
+        if (is_ch2 == 1) {
+            memcpy(inner, outer, 6);
+            inp += 6;
+            innerlen -= 6;
+            chstart += 6;
+        }
         if (!TEST_true(SSL_CTX_ech_raw_decrypt(rbe->fe_ctx, &dec_ok,
                                                &inner_sni, &outer_sni,
-                                               (unsigned char *)outer, outerl,
-                                               inner, &innerlen)))
+                                               chstart, chlen,
+                                               inp, &innerlen,
+                                               &rbe->hrrtok, &rbe->toklen)))
             goto end;
         if (dec_ok == 1) {
             if (verbose)
@@ -186,11 +250,13 @@ static int tls_split_write(BIO *bio, const char *outer, int outerl)
             rbe->ech_mode = SPLIT_FWD;
             msg2send = inner;
             msg2sendlen = innerlen;
+            if (is_ch2 == 1)
+                msg2sendlen += 6;
             OPENSSL_free(inner_sni);
             OPENSSL_free(outer_sni);
-            if (firstmsglen < outerl) {
+            extras = outerl - (chlen + ccslen);
+            if (extras != 0) {
                 /* append to msg2send as needed */
-                extras = outerl - firstmsglen;
                 if (verbose)
                     TEST_info("writing additional %d octets from after CH",
                               (int)extras);
@@ -198,13 +264,15 @@ static int tls_split_write(BIO *bio, const char *outer, int outerl)
                 if (tmp == NULL)
                     goto end;
                 msg2send = tmp;
-                memcpy(msg2send + msg2sendlen, outer + firstmsglen, extras);
+                memcpy(msg2send + msg2sendlen, outer + chlen + ccslen, extras);
                 msg2sendlen += extras;
             } else {
                 if (verbose)
                     TEST_info("nothing to write after inner");
             }
         } else {
+            OPENSSL_free(inner);
+            inner = NULL;
             if (verbose)
                 TEST_info("inner CH didn't decrypt");
         }
@@ -254,9 +322,11 @@ static int tls_split_write(BIO *bio, const char *outer, int outerl)
         return outerl;
     }
 end:
-    if (inner != msg2send)
+    if (dec_ok) {
+        if (inner != msg2send)
+            OPENSSL_free(msg2send);
         OPENSSL_free(inner);
-    OPENSSL_free(msg2send);
+    }
     ret = BIO_write(next, outer, outerl);
     copy_flags(bio);
     return ret;
@@ -282,7 +352,7 @@ static int tls_split_read(BIO *bio, char *out, int outl)
     if ((position = (SPLIT_MARKER *)BIO_get_ex_data(bio, 2)) == NULL)
         goto end;
     if (verbose)
-        TEST_info("calling %s from %s (%d octets)", __func__,
+        TEST_info("calling tls_split_read from %s (%d octets)",
                   *position == SPLIT_FE ? "front-end" : "backend",
                   outl);
     if (rbe->ech_mode == SPLIT_FWD && *position == SPLIT_BE) {
@@ -331,7 +401,7 @@ static int tls_noop_read(BIO *bio, char *out, int outl)
     if ((position = (SPLIT_MARKER *)BIO_get_ex_data(bio, 2)) == NULL)
         goto end;
     if (verbose)
-        TEST_info("calling %s from %s (%d octets)", __func__,
+        TEST_info("calling tls_noop_read from %s (%d octets)",
                   *position == SPLIT_FE ? "front-end" : "backend",
                   outl);
 
@@ -512,7 +582,7 @@ static int create_3way_ssl_connection(SSL *serverssl, SSL *fe_ssl,
  */
 static int ech_split_mode(int idx)
 {
-    int res = 0;
+    int res = 0, three_rv = 0;
     SSL_CTX *cctx = NULL, *fe_ctx = NULL, *sctx = NULL, *dummy = NULL;
     SSL *clientssl = NULL, *fe_ssl = NULL, *serverssl = NULL;
     int clientstatus, fe_status, serverstatus;
@@ -522,6 +592,12 @@ static int ech_split_mode(int idx)
     BIO *c_to_s_bio = NULL, *s_to_c_bio = NULL;
     ROUTE2BE *rbe = NULL;
     SPLIT_MARKER fe_marker = SPLIT_FE, be_marker = SPLIT_BE;
+    SPLIT_TESTCASE *st = NULL;
+
+    st = &testcases[idx];
+
+    if (verbose)
+        TEST_info("Running %s", st->descrip);
 
     if (!TEST_true(create_ssl_ctx_pair(libctx, TLS_server_method(),
                                        TLS_client_method(),
@@ -539,9 +615,15 @@ static int ech_split_mode(int idx)
         goto end;
     SSL_CTX_free(dummy);
     dummy = NULL;
-    if (!TEST_true(SSL_CTX_ech_set1_echconfig(cctx, (unsigned char *)echconfig,
-                                              echconfiglen)))
-        goto end;
+    if (st->bitmask & SPLIT_GREASE) {
+        if (!TEST_true(SSL_CTX_set_options(cctx, SSL_OP_ECH_GREASE)))
+            goto end;
+    } else {
+        if (!TEST_true(SSL_CTX_ech_set1_echconfig(cctx,
+                                                  (unsigned char *)echconfig,
+                                                  echconfiglen)))
+            goto end;
+    }
     if (!TEST_ptr(c_to_s_fbio = BIO_new(bio_f_tls_split_mode())))
         goto end;
     if (!TEST_ptr(s_to_c_fbio = BIO_new(bio_f_tls_split_mode())))
@@ -573,6 +655,8 @@ static int ech_split_mode(int idx)
     rbe->be_ssl = serverssl;
     rbe->fe_ssl = fe_ssl;
     rbe->fe_ctx = fe_ctx;
+    rbe->hrrtok = NULL;
+    rbe->toklen = 0;
     if (!TEST_true(BIO_set_ex_data(c_to_s_fbio, 1, rbe)))
         goto end;
     if (!TEST_true(BIO_set_ex_data(c_to_s_fbio, 2, &fe_marker)))
@@ -581,23 +665,28 @@ static int ech_split_mode(int idx)
         goto end;
     if (!TEST_true(BIO_set_ex_data(s_to_c_fbio, 2, &be_marker)))
         goto end;
+    if (st->bitmask & SPLIT_HRR) {
+        if (!TEST_true(SSL_set1_groups_list(serverssl, "P-384")))
+            goto end;
+    }
 
-    if (!TEST_true(create_3way_ssl_connection(serverssl, fe_ssl, clientssl,
-                                              SSL_ERROR_NONE)))
+    three_rv = create_3way_ssl_connection(serverssl, fe_ssl, clientssl,
+                                          st->exp_err);
+    if (!TEST_int_eq(three_rv, st->exp_rv))
         goto end;
 
     serverstatus = SSL_ech_get_status(serverssl, &sinner, &souter);
     if (verbose)
         TEST_info("ech_roundtrip_test: server status %d, %s, %s",
                   serverstatus, sinner, souter);
-    if (!TEST_int_eq(serverstatus, SSL_ECH_STATUS_BACKEND))
+    if (!TEST_int_eq(serverstatus, st->exp_be_status))
         goto end;
 
     fe_status = SSL_ech_get_status(fe_ssl, &fe_inner, &fe_outer);
     if (verbose)
         TEST_info("ech_roundtrip_test: fe_server status %d, %s, %s",
                   fe_status, fe_inner, fe_outer);
-    if (!TEST_int_eq(fe_status, SSL_ECH_STATUS_NOT_TRIED))
+    if (!TEST_int_eq(fe_status, st->exp_fe_status))
         goto end;
 
     /* override cert verification */
@@ -606,12 +695,13 @@ static int ech_split_mode(int idx)
     if (verbose)
         TEST_info("ech_roundtrip_test: client status %d, %s, %s",
                   clientstatus, cinner, couter);
-    if (!TEST_int_eq(clientstatus, SSL_ECH_STATUS_SUCCESS))
+    if (!TEST_int_eq(clientstatus, st->exp_cli_status))
         goto end;
 
     /* all good */
     res = 1;
 end:
+    OPENSSL_free(rbe->hrrtok);
     OPENSSL_free(rbe);
     BIO_free_all(c_to_s_bio);
     BIO_free_all(s_to_c_bio);
@@ -695,7 +785,7 @@ int setup_tests(void)
     echconfiglen = strlen(echconfig);
     bin_echconfiglen = ech_helper_base64_decode(echconfig, echconfiglen,
                                                 &bin_echconfig);
-    ADD_ALL_TESTS(ech_split_mode, 1);
+    ADD_ALL_TESTS(ech_split_mode, OSSL_NELEM(testcases));
     return 1;
 err:
     return 0;
