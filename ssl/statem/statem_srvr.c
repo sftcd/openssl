@@ -1502,14 +1502,17 @@ MSG_PROCESS_RETURN tls_process_client_hello(SSL_CONNECTION *s, PACKET *pkt)
         if (innerflag == 1) {
             WPACKET inner;
 
-            OPENSSL_free(s->ext.ech.innerch);
-            s->ext.ech.innerch = NULL;
             OSSL_TRACE_BEGIN(TLS) {
                 BIO_printf(trc_out, "Got inner ECH so setting backend\n");
             } OSSL_TRACE_END(TLS);
             /* For backend, include msg type & 3 octet length */
             s->ext.ech.backend = 1;
             s->ext.ech.attempted_type = TLSEXT_TYPE_ech13;
+            if (s->ext.ech.innerch != NULL) { /* must be HRRing so stash CH1 */
+                OPENSSL_free(s->ext.ech.innerch1);
+                s->ext.ech.innerch1 = s->ext.ech.innerch;
+                s->ext.ech.innerch1_len = s->ext.ech.innerch_len;
+            }
             s->ext.ech.innerch_len = PACKET_remaining(pkt);
             if (PACKET_peek_bytes(pkt, &pbuf, s->ext.ech.innerch_len) != 1) {
                 SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);

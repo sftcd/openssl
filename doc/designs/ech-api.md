@@ -204,7 +204,8 @@ int SSL_CTX_ech_raw_decrypt(SSL_CTX *ctx,
                             int *decrypted_ok,
                             char **inner_sni, char **outer_sni,
                             unsigned char *outer_ch, size_t outer_len,
-                            unsigned char *inner_ch, size_t *inner_len);
+                            unsigned char *inner_ch, size_t *inner_len,
+                            unsigned char **hrrtok, size_t *toklen);
 ```
 
 The caller allocates the ``inner_ch`` buffer, on input ``inner_len`` should
@@ -216,6 +217,12 @@ If there is no ECH present in the outer CH then this will return 1 (i.e., the
 call will succeed) but ``decrypted_ok`` will be zero. The same will result if a
 GREASEd ECH is present or decryption fails for some other (indistinguishable)
 reason.
+
+If the caller wishes to support HelloRetryRequest (HRR), then it must supply
+the same ``hrrtok`` and ``toklen`` pointers to each call to ``SSL_CTX_ech_raw_decrypt()``
+(for the initial and second ClientHello messages). The caller must then
+free the ``hrrtok`` using ``OPENSSL_free()``. If the caller doesn't need
+to support HRR, then it can supply NULL values for these parameters.
 
 "GREASEing" is defined in
 [RFC8701](https://datatracker.ietf.org/doc/html/rfc8701) and is a mechanism
