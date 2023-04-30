@@ -22,8 +22,9 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
-- 20230429: now have a split-mode with HRR test that works (a
-  first, as haproxy can't do that), more tests to come
+- 20230430: now have a split-mode with HRR test that works (a
+  first, as haproxy can't do that), and split-mode with early
+  data, more tests to come...
 
 - 20230428: added ``test/ech_split_mode.c`` as (the start of) a
   better test harness for ECH split-mode
