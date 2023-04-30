@@ -42,6 +42,7 @@ static size_t bin_echconfiglen = 0;
 # define SPLIT_NOMINAL 0
 # define SPLIT_GREASE 1
 # define SPLIT_HRR (1 << 1)
+# define SPLIT_EARLY (1 << 2)
 
 typedef struct SPLIT_testcase {
     char *descrip; /* descriptor */
@@ -66,6 +67,25 @@ static SPLIT_TESTCASE testcases[] = {
       SSL_ECH_STATUS_SUCCESS,
       SSL_ECH_STATUS_NOT_TRIED,
       SSL_ECH_STATUS_BACKEND},
+    { "hrr and grease", SPLIT_HRR | SPLIT_GREASE, 1, SSL_ERROR_NONE,
+      SSL_ECH_STATUS_GREASE_ECH,
+      SSL_ECH_STATUS_GREASE,
+      SSL_ECH_STATUS_NOT_CONFIGURED},
+    { "early data", SPLIT_EARLY, 1, SSL_ERROR_NONE,
+      SSL_ECH_STATUS_SUCCESS,
+      SSL_ECH_STATUS_NOT_TRIED,
+      SSL_ECH_STATUS_BACKEND},
+    /*
+     * the one below doesn't actually do early data, but hey let's
+     * test what happens anyway:-)
+     * Also - I don't currently understand the behaviour, so work
+     * to be done:-)
+     * { "HRR + early data", SPLIT_HRR | SPLIT_EARLY, 1,
+     *   SSL_R_BINDER_DOES_NOT_VERIFY,
+     *   SSL_ECH_STATUS_SUCCESS,
+     *   SSL_ECH_STATUS_NOT_TRIED,
+     *   SSL_ECH_STATUS_BACKEND},
+     */
 };
 
 /*
@@ -593,6 +613,9 @@ static int ech_split_mode(int idx)
     ROUTE2BE *rbe = NULL;
     SPLIT_MARKER fe_marker = SPLIT_FE, be_marker = SPLIT_BE;
     SPLIT_TESTCASE *st = NULL;
+    size_t written = 0, readbytes = 0;
+    unsigned char ed[21], buf[1024];
+    SSL_SESSION *sess = NULL;
 
     st = &testcases[idx];
 
@@ -604,6 +627,21 @@ static int ech_split_mode(int idx)
                                        TLS1_3_VERSION, TLS1_3_VERSION,
                                        &fe_ctx, &cctx, fe_cert, fe_privkey)))
         goto end;
+
+    if (st->bitmask & SPLIT_EARLY) {
+        /* just to keep the format checker happy :-) */
+        int lrv = 0;
+
+        if (!TEST_true(SSL_CTX_set_options(fe_ctx, SSL_OP_NO_ANTI_REPLAY)))
+            goto end;
+        if (!TEST_true(SSL_CTX_set_max_early_data(fe_ctx,
+                                                  SSL3_RT_MAX_PLAIN_LENGTH)))
+            goto end;
+        lrv = SSL_CTX_set_recv_max_early_data(fe_ctx, SSL3_RT_MAX_PLAIN_LENGTH);
+        if (!TEST_true(lrv))
+            goto end;
+    }
+
     if (!TEST_true(SSL_CTX_ech_server_enable_file(fe_ctx, echkeyfile,
                                                   SSL_ECH_USE_FOR_RETRY)))
         goto end;
@@ -615,6 +653,20 @@ static int ech_split_mode(int idx)
         goto end;
     SSL_CTX_free(dummy);
     dummy = NULL;
+
+    if (st->bitmask & SPLIT_EARLY) {
+        /* just to keep the format checker happy :-) */
+        int lrv = 0;
+
+        if (!TEST_true(SSL_CTX_set_options(sctx, SSL_OP_NO_ANTI_REPLAY)))
+            goto end;
+        if (!TEST_true(SSL_CTX_set_max_early_data(sctx,
+                                                  SSL3_RT_MAX_PLAIN_LENGTH)))
+            goto end;
+        lrv = SSL_CTX_set_recv_max_early_data(sctx, SSL3_RT_MAX_PLAIN_LENGTH);
+        if (!TEST_true(lrv))
+            goto end;
+    }
     if (st->bitmask & SPLIT_GREASE) {
         if (!TEST_true(SSL_CTX_set_options(cctx, SSL_OP_ECH_GREASE)))
             goto end;
@@ -633,7 +685,6 @@ static int ech_split_mode(int idx)
         goto end;
     if (!TEST_true(SSL_set_tlsext_host_name(clientssl, "server.example")))
         goto end;
-
     /* setup backend server */
     if (!TEST_ptr(serverssl = SSL_new(sctx)))
         goto end;
@@ -647,7 +698,6 @@ static int ech_split_mode(int idx)
     SSL_set_bio(serverssl, c_to_s_bio, s_to_c_bio);
     BIO_up_ref(s_to_c_bio);
     BIO_up_ref(c_to_s_bio);
-
     if (!TEST_ptr((rbe = (ROUTE2BE *)OPENSSL_malloc(sizeof(ROUTE2BE)))))
         goto end;
     rbe->ech_mode = SPLIT_LOCAL;
@@ -674,26 +724,164 @@ static int ech_split_mode(int idx)
                                           st->exp_err);
     if (!TEST_int_eq(three_rv, st->exp_rv))
         goto end;
-
     serverstatus = SSL_ech_get_status(serverssl, &sinner, &souter);
     if (verbose)
-        TEST_info("ech_roundtrip_test: server status %d, %s, %s",
+        TEST_info("server status %d, %s, %s",
                   serverstatus, sinner, souter);
     if (!TEST_int_eq(serverstatus, st->exp_be_status))
         goto end;
-
     fe_status = SSL_ech_get_status(fe_ssl, &fe_inner, &fe_outer);
     if (verbose)
-        TEST_info("ech_roundtrip_test: fe_server status %d, %s, %s",
+        TEST_info("fe_server status %d, %s, %s",
                   fe_status, fe_inner, fe_outer);
     if (!TEST_int_eq(fe_status, st->exp_fe_status))
         goto end;
-
     /* override cert verification */
     SSL_set_verify_result(clientssl, X509_V_OK);
     clientstatus = SSL_ech_get_status(clientssl, &cinner, &couter);
     if (verbose)
-        TEST_info("ech_roundtrip_test: client status %d, %s, %s",
+        TEST_info("client status %d, %s, %s",
+                  clientstatus, cinner, couter);
+    if (!TEST_int_eq(clientstatus, st->exp_cli_status))
+        goto end;
+
+    if (!(st->bitmask & SPLIT_EARLY)) {
+        res = 1; /* we're done */
+        goto end;
+    }
+
+    /* do 2nd session with early data */
+    if (verbose)
+        TEST_info("Storing session");
+    sess = SSL_get1_session(clientssl);
+
+    OPENSSL_free(rbe->hrrtok);
+    rbe->hrrtok = NULL;
+    rbe->toklen = 0;
+    OPENSSL_free(fe_inner);
+    OPENSSL_free(fe_outer);
+    OPENSSL_free(sinner);
+    OPENSSL_free(souter);
+    OPENSSL_free(cinner);
+    OPENSSL_free(couter);
+    fe_inner = fe_outer = sinner = souter = cinner = couter = NULL;
+    SSL_shutdown(clientssl);
+    SSL_shutdown(serverssl);
+    SSL_free(clientssl);
+    SSL_free(serverssl);
+    SSL_free(fe_ssl);
+    serverssl = clientssl = fe_ssl = NULL;
+    BIO_free_all(c_to_s_bio);
+    BIO_free_all(s_to_c_bio);
+    c_to_s_bio = s_to_c_bio = NULL;
+    c_to_s_fbio = s_to_c_fbio = NULL;
+    OPENSSL_free(rbe);
+
+    memset(ed, 'A', sizeof(ed));
+
+    if (!TEST_ptr(c_to_s_fbio = BIO_new(bio_f_tls_split_mode())))
+        goto end;
+    if (!TEST_ptr(s_to_c_fbio = BIO_new(bio_f_tls_split_mode())))
+        goto end;
+    if (!TEST_true(create_ssl_objects(fe_ctx, cctx, &fe_ssl,
+                                      &clientssl, NULL, c_to_s_fbio)))
+        goto end;
+    if (!TEST_true(SSL_set_tlsext_host_name(clientssl, "server.example")))
+        goto end;
+    /* setup backend server */
+    if (!TEST_ptr(serverssl = SSL_new(sctx)))
+        goto end;
+    if (!TEST_ptr(s_to_c_bio = BIO_new(BIO_s_mem()))
+        || !TEST_ptr(s_to_c_bio = BIO_push(s_to_c_fbio, s_to_c_bio)))
+        goto end;
+    if (!TEST_ptr(c_to_s_bio = BIO_new(BIO_s_mem())))
+        goto end;
+    BIO_set_mem_eof_return(s_to_c_bio, -1);
+    BIO_set_mem_eof_return(c_to_s_bio, -1);
+    SSL_set_bio(serverssl, c_to_s_bio, s_to_c_bio);
+    BIO_up_ref(s_to_c_bio);
+    BIO_up_ref(c_to_s_bio);
+    if (!TEST_ptr((rbe = (ROUTE2BE *)OPENSSL_malloc(sizeof(ROUTE2BE)))))
+        goto end;
+    rbe->ech_mode = SPLIT_LOCAL;
+    rbe->cli_ssl = clientssl;
+    rbe->be_ssl = serverssl;
+    rbe->fe_ssl = fe_ssl;
+    rbe->fe_ctx = fe_ctx;
+    rbe->hrrtok = NULL;
+    rbe->toklen = 0;
+    if (!TEST_true(BIO_set_ex_data(c_to_s_fbio, 1, rbe)))
+        goto end;
+    if (!TEST_true(BIO_set_ex_data(c_to_s_fbio, 2, &fe_marker)))
+        goto end;
+    if (!TEST_true(BIO_set_ex_data(s_to_c_fbio, 1, rbe)))
+        goto end;
+    if (!TEST_true(BIO_set_ex_data(s_to_c_fbio, 2, &be_marker)))
+        goto end;
+    if (st->bitmask & SPLIT_HRR) {
+        if (!TEST_true(SSL_set1_groups_list(serverssl, "P-384")))
+            goto end;
+    }
+
+    if (!TEST_true(SSL_set_tlsext_host_name(clientssl, "server.example")))
+        goto end;
+    if (!TEST_true(SSL_set_session(clientssl, sess)))
+        goto end;
+    if ((st->bitmask & SPLIT_EARLY) && !(st->bitmask & SPLIT_HRR)) {
+        if (!TEST_true(SSL_write_early_data(clientssl, ed, sizeof(ed),
+                                            &written)))
+            goto end;
+        if (!TEST_size_t_eq(written, sizeof(ed)))
+            goto end;
+
+    }
+    if ((st->bitmask & SPLIT_EARLY) && !(st->bitmask & SPLIT_HRR)) {
+        if (!TEST_int_eq(SSL_read_early_data(serverssl, buf,
+                                             sizeof(buf), &readbytes),
+                         SSL_READ_EARLY_DATA_SUCCESS))
+            goto end;
+        if (!TEST_size_t_eq(written, readbytes))
+            goto end;
+        /*
+         * Server should be able to write data, and client should be able to
+         * read it.
+         */
+        if (!TEST_true(SSL_write_early_data(serverssl, ed, sizeof(ed),
+                                            &written))
+                || !TEST_size_t_eq(written, sizeof(ed))
+                || !TEST_true(SSL_read_ex(clientssl, buf, sizeof(buf),
+                                          &readbytes))
+                || !TEST_mem_eq(buf, readbytes, ed, sizeof(ed)))
+            goto end;
+    } else if ((st->bitmask & SPLIT_EARLY) && (st->bitmask & SPLIT_HRR)) {
+        if (!TEST_int_eq(SSL_read_early_data(serverssl, buf,
+                                             sizeof(buf), &readbytes),
+                         SSL_READ_EARLY_DATA_ERROR))
+            goto end;
+    }
+
+    three_rv = create_3way_ssl_connection(serverssl, fe_ssl, clientssl,
+                                          st->exp_err);
+    if (!TEST_int_eq(three_rv, st->exp_rv))
+        goto end;
+
+    serverstatus = SSL_ech_get_status(serverssl, &sinner, &souter);
+    if (verbose)
+        TEST_info("server status %d, %s, %s",
+                  serverstatus, sinner, souter);
+    if (!TEST_int_eq(serverstatus, st->exp_be_status))
+        goto end;
+    fe_status = SSL_ech_get_status(fe_ssl, &fe_inner, &fe_outer);
+    if (verbose)
+        TEST_info("fe_server status %d, %s, %s",
+                  fe_status, fe_inner, fe_outer);
+    if (!TEST_int_eq(fe_status, st->exp_fe_status))
+        goto end;
+    /* override cert verification */
+    SSL_set_verify_result(clientssl, X509_V_OK);
+    clientstatus = SSL_ech_get_status(clientssl, &cinner, &couter);
+    if (verbose)
+        TEST_info("client status %d, %s, %s",
                   clientstatus, cinner, couter);
     if (!TEST_int_eq(clientstatus, st->exp_cli_status))
         goto end;
@@ -701,6 +889,7 @@ static int ech_split_mode(int idx)
     /* all good */
     res = 1;
 end:
+    SSL_SESSION_free(sess);
     OPENSSL_free(rbe->hrrtok);
     OPENSSL_free(rbe);
     BIO_free_all(c_to_s_bio);
