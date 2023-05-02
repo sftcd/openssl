@@ -4379,6 +4379,15 @@ int ech_early_decrypt(SSL_CONNECTION *s, PACKET *outerpkt, PACKET *newpkt)
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         goto err;
     }
+    /* we may need to fix up the overall 3-octet CH length */
+    if (s->init_buf != NULL && s->init_buf->data != NULL) {
+        unsigned char *rwm = (unsigned char *)s->init_buf->data;
+        size_t olen = s->ext.ech.innerch_len - 4;
+
+        rwm[1] = (olen >> 16) % 256;
+        rwm[2] = (olen >> 8) % 256;
+        rwm[3] = olen % 256;
+    }
     return 1;
 err:
     if (extval != NULL) {

@@ -22,6 +22,9 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
+- 20230502: ECH + HRR + early data test now working (fixed 
+  some psk binder stuff when HRR happened)
+
 - 20230430: now have a split-mode with HRR test that works (a
   first, as haproxy can't do that), and split-mode with early
   data, more tests to come...
