@@ -73,7 +73,7 @@ TESTCUST="no"
 
 # default values
 HIDDEN="crypto.cloudflare.com"
-DEFFRAG="/cdn-cgi/trace" # what CF like for giving a hint as to whether ECH worked
+DEFFRAG="cdn-cgi/trace" # what CF like for giving a hint as to whether ECH worked
 PNO=""
 CAPATH="/etc/ssl/certs/"
 CAFILE="./cadir/oe.csr"
@@ -397,7 +397,7 @@ then
     echstr="$echstr -sni_outer $SUPPLIEDOUTER"
 fi
 
-if [[ "$DOECH" == "yes" && "$SUPPLIEDHIDDEN" == "" && "$HTTPPATH" == "" ]]
+if [[ "$NOECH" == "no" && "$SUPPLIEDHIDDEN" == "" && "$HTTPPATH" == "" ]]
 then
     # we're at CF, set things to work nicely
     HTTPPATH=$DEFFRAG
@@ -418,7 +418,8 @@ then
         httphost="localhost"
     fi
 fi
-httpreq="GET /$HTTPPATH HTTP/1.1\\r\\nConnection: close\\r\\nHost: $httphost\\r\\n\\r\\n"
+# httpreq="GET /$HTTPPATH HTTP/1.1\\r\\nConnection: close\\r\\nHost: $httphost\\r\\n\\r\\n"
+httpreq="GET /$HTTPPATH HTTP/1.1\\r\\nConnection: keep-alive\\r\\nHost: $httphost\\r\\n\\r\\n"
 
 # tell it where CA stuff is...
 if [[ "$server" != "localhost" ]]
@@ -488,6 +489,7 @@ TMPF=`mktemp /tmp/echtestXXXX`
 
 if [[ "$DEBUG" == "yes" ]]
 then
+    echo "HTTP REQ: $httpreq"
     echo "Running: $CODETOP/apps/openssl s_client $IP_PROTSEL $dbgstr $certsdb $force13 $target $echstr $snioutercmd $session $alpn $ciphers $earlystr $tcust $hrrstr"
 fi
 # seconds to sleep after firing up client so that tickets might arrive
