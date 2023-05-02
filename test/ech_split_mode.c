@@ -76,16 +76,14 @@ static SPLIT_TESTCASE testcases[] = {
       SSL_ECH_STATUS_NOT_TRIED,
       SSL_ECH_STATUS_BACKEND},
     /*
-     * the one below doesn't actually do early data, but hey let's
-     * test what happens anyway:-)
-     * Also - I don't currently understand the behaviour, so work
-     * to be done:-)
-     * { "HRR + early data", SPLIT_HRR | SPLIT_EARLY, 1,
-     *   SSL_R_BINDER_DOES_NOT_VERIFY,
-     *   SSL_ECH_STATUS_SUCCESS,
-     *   SSL_ECH_STATUS_NOT_TRIED,
-     *   SSL_ECH_STATUS_BACKEND},
+     * the one below doesn't actually do early data, as that's
+     * rejected due to HRR, but it'll work out in the end
      */
+    { "HRR + early data", SPLIT_HRR | SPLIT_EARLY, 1,
+      SSL_R_BINDER_DOES_NOT_VERIFY,
+      SSL_ECH_STATUS_SUCCESS,
+      SSL_ECH_STATUS_NOT_TRIED,
+      SSL_ECH_STATUS_BACKEND},
 };
 
 /*
@@ -827,7 +825,7 @@ static int ech_split_mode(int idx)
         goto end;
     if (!TEST_true(SSL_set_session(clientssl, sess)))
         goto end;
-    if ((st->bitmask & SPLIT_EARLY) && !(st->bitmask & SPLIT_HRR)) {
+    if (st->bitmask & SPLIT_EARLY) {
         if (!TEST_true(SSL_write_early_data(clientssl, ed, sizeof(ed),
                                             &written)))
             goto end;
@@ -856,7 +854,7 @@ static int ech_split_mode(int idx)
     } else if ((st->bitmask & SPLIT_EARLY) && (st->bitmask & SPLIT_HRR)) {
         if (!TEST_int_eq(SSL_read_early_data(serverssl, buf,
                                              sizeof(buf), &readbytes),
-                         SSL_READ_EARLY_DATA_ERROR))
+                         SSL_READ_EARLY_DATA_FINISH))
             goto end;
     }
 

@@ -43,8 +43,9 @@ proceed to publishing ECH as an RFC. That will likely include a change
 of version code-points which have been tracking Internet-Draft version
 numbers during the course of spec development.
 
-The current version used is 0xfe0d where the 0d reflects draft-13 with
-the following symbol defined for this version:
+The current version used is 0xfe0d where the 0d reflects the current
+interop target (draft-13) with the following symbol defined for this
+version:
 
 ```c
 #  define OSSL_ECH_DRAFT_13_VERSION 0xfe0d /* version from draft-13 */
@@ -54,16 +55,23 @@ It remains to be seen whether support for draft-13 will still be needed once
 the RFC is published. (Most implementations have ECH turned off except if the
 user has changed some flag or config option.)
 
+"GREASEing" is defined in
+[RFC8701](https://datatracker.ietf.org/doc/html/rfc8701) and is a mechanism
+intended to discourage protocol ossification that can be used for ECH.  GREASEd
+ECH may turn out to be important as an initial step towards widespread
+deployment of ECH.
+
 Minimal Sample Code
 -------------------
 
-OpenSSL includes demo code for an
-[``sslecho``](https://github.com/sftcd/openssl/tree/ECH-draft-13c/demos/sslecho).
-We've added a minimal
+OpenSSL includes code for an
+[``sslecho``](https://github.com/sftcd/openssl/tree/ECH-draft-13c/demos/sslecho)
+demo.  We've added a minimal
 [``echecho``](https://github.com/sftcd/openssl/blob/ECH-draft-13c/demos/sslecho/echecho.c)
 that shows that adding one new server call
 (``SSL_CTX_ech_enable_server_buffer()``) and one new client call
-(``SSL_CTX_ech_set1_echconfig()``) is all that's needed to ECH-enable this demo.
+(``SSL_CTX_ech_set1_echconfig()``) is all that's needed to ECH-enable this
+demo.
 
 Handling Custom Extensions
 --------------------------
@@ -91,13 +99,14 @@ inner CH to another server that does the actual TLS handshake with the client.
 
 ### Key and ECHConfigList Generation
 
-This API is for use by command line or other key management tools, for example
-the ``openssl ech`` command documented
+``ossl_edch_make_echconfig()`` is for use by command line or other key
+management tools, for example the ``openssl ech`` command documented
 [here](https://github.com/sftcd/openssl/blob/ECH-draft-13c/doc/man1/openssl-ech.pod.in).
 
-The ECHConfigList structure contains the ECH public value (an ECC public key)
-and other ECH related information, mainly the ``public_name`` that will be used
-as the SNI value in outer CH messages.
+The ECHConfigList structure that will eventually be published in the DNS
+contains the ECH public value (an ECC public key) and other ECH related
+information, mainly the ``public_name`` that will be used as the SNI value in
+outer CH messages.
 
 ```c
 int ossl_ech_make_echconfig(unsigned char *echconfig, size_t *echconfiglen,
@@ -169,8 +178,9 @@ content as a file) and was added for haproxy which prefers not to do disk reads
 after initial startup (for resilience reasons apparently).
 
 If the ``for_retry`` input has the value 1, then the corresponding ECHConfig
-values will be returned to clients in the ``retry-config`` that may enable a
-client to use ECH in a subsequent connection.
+values will be returned to clients that GREASE or use the wrong public value in
+the ``retry-config`` that may enable a client to use ECH in a subsequent
+connection.
 
 The content of files referred to above must also match the format defined in
 [draft-farrell-tls-pemesni](https://datatracker.ietf.org/doc/draft-farrell-tls-pemesni/).
@@ -196,8 +206,9 @@ CH and returned (inner) CH here include the record layer header.
 This has been tested in a PoC implementation with haproxy, which works for
 nominal operation but that can't handle the combination of split-mode in the
 face of HRR, as haproxy only supports examining the first (outer) CH seen,
-whereas ECH + split-mode + HRR requires processing both outer CHs. (In other
-words, the utility of this API ought be considered unproven.)
+whereas ECH + split-mode + HRR requires processing both outer CHs. ECH
+split-mode with HRR has so far only been tested as part of the ``make test``
+target. (In other words, the utility of this API ought be considered unproven.)
 
 ```c
 int SSL_CTX_ech_raw_decrypt(SSL_CTX *ctx,
@@ -219,16 +230,20 @@ GREASEd ECH is present or decryption fails for some other (indistinguishable)
 reason.
 
 If the caller wishes to support HelloRetryRequest (HRR), then it must supply
-the same ``hrrtok`` and ``toklen`` pointers to each call to ``SSL_CTX_ech_raw_decrypt()``
-(for the initial and second ClientHello messages). The caller must then
-free the ``hrrtok`` using ``OPENSSL_free()``. If the caller doesn't need
-to support HRR, then it can supply NULL values for these parameters.
+the same ``hrrtok`` and ``toklen`` pointers to both calls to
+``SSL_CTX_ech_raw_decrypt()`` (for the initial and second ClientHello
+messages). When done, the caller must free the ``hrrtok`` using
+``OPENSSL_free()``.  If the caller doesn't need to support HRR, then it can
+supply NULL values for these parameters. The value of the token is the client's
+ephemeral public value, which is not sensitive having being sent in clear in
+the first ClientHello.  This value is missing from the second ClientHello but
+is needed for ECH decryption.
 
-"GREASEing" is defined in
-[RFC8701](https://datatracker.ietf.org/doc/html/rfc8701) and is a mechanism
-intended to discourage protocol ossification that can be used for ECH.
-(GREASEd ECH may turn out to be important as a step towards widespread
-deployment of ECH.)
+Note that ``SSL_CTX_ech_raw_decrypt()`` only takes a ClientHello as input. If
+the flight containing the ClientHello contains other messages (e.g. a
+ChangeCipherSuite or Early data), then the caller is responsible for
+disentangling those, and for assembling a new flight containing the inner
+ClientHello.
 
 Client-side APIs
 ----------------
@@ -273,7 +288,7 @@ int ossl_ech_find_echconfigs(int *num_echs,
 ``ossl_ech_find_echconfigs()`` returns the number of ECHConfig values from the
 input (``val``/``len``) successfully decoded  in the ``num_echs`` output.  If
 no ECHConfig values values are encountered (which can happen for good HTTPS RR
-values) then ``num_echs`` will be zero but the function return 1. If the
+values) then ``num_echs`` will be zero but the function returns 1. If the
 input contains more than one (syntactically correct) ECHConfig, then only
 those that contain locally supported options (e.g. AEAD ciphers) will be
 returned. If no ECHConfig found has supported options then none will be
