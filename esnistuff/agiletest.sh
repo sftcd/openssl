@@ -2,12 +2,12 @@
 
 # set -x
 
-# to pick up correct executables and .so's  
+# to pick up correct executables and .so's
 : ${CODETOP:=$HOME/code/openssl}
 export LD_LIBRARY_PATH=$CODETOP
 # to pick up the relevant configuration
 : ${CFGTOP:=$HOME/code/openssl}
-# in case you want to re-use a tmp directory 
+# in case you want to re-use a tmp directory
 : ${SCRATCHDIR:=""}
 # in case you want to keep output from this run, set this to something
 : ${KEEP:=""}
@@ -47,6 +47,8 @@ skipsess="no"
 skiphrr="no"
 # the early-data checks
 skiped="no"
+# the HRR+early-data checks
+skiphrred="no"
 
 verbose="no"
 if [[ "$VERBOSE" != "" ]]
@@ -116,7 +118,7 @@ then
     pname="-public_name $PNAME"
 fi
 
-# 
+#
 # Stage 1 generate keys as needed
 #
 
@@ -132,7 +134,7 @@ do
         do
             suite="${KEM_IDS[$kemind]},${KDF_IDS[$kdfind]},${AEAD_IDS[$aeadind]}"
             if [ -f $suite.pem ]
-            then 
+            then
                 # if re-using a scratchdir, we'll count that a win...
                 goodcnt=$((goodcnt+1))
                 continue
@@ -358,7 +360,7 @@ fi
 
 if [[ "$skipgood" == "no" ]]
 then
-for file in *.pem 
+for file in *.pem
 do
     kem=${file:0:4}
     kdf=${file:5:4}
@@ -429,7 +431,7 @@ fi
 # TBD: test client loading various formats of public key/RR
 if [[ "$skiprrs" == "no" ]]
 then
-for file in *.pem 
+for file in *.pem
 do
     kem=${file:0:4}
     kdf=${file:5:4}
@@ -524,20 +526,20 @@ fi
 # Try out some deliberate failure cases
 if [[ "$skipbad" == "no" ]]
 then
-for file in *.pem 
+for file in *.pem
 do
     kem=${file:0:4}
     kdf=${file:5:4}
     aead=${file:10:4}
-    # setup to use the wrong file 
+    # setup to use the wrong file
     badkem=$kem
     badkdf=$(((kdf+1)%4))
-    if [[ "$badkdf" == "0" ]] 
+    if [[ "$badkdf" == "0" ]]
     then
         badkdf=1
     fi
     badaead=$(((aead+1)%4))
-    if [[ "$badaead" == "0" ]] 
+    if [[ "$badaead" == "0" ]]
     then
         badaead=1
     fi
@@ -615,7 +617,7 @@ fi
 # setups. One for later.
 if [[ "$skipsess" == "no" ]]
 then
-for file in *.pem 
+for file in *.pem
 do
     kem=${file:0:4}
     kdf=${file:5:4}
@@ -718,7 +720,7 @@ fi
 # setups. One for later.
 if [[ "$skiphrr" == "no" ]]
 then
-for file in *.pem 
+for file in *.pem
 do
     kem=${file:0:4}
     kdf=${file:5:4}
@@ -743,7 +745,7 @@ do
     # Try client...
     if [[ "$verbose" == "yes" ]]
     then
-        $CODETOP/esnistuff/echcli.sh -P `$CODETOP/esnistuff/pem2rr.sh -p $file` -s localhost -p 8443 -H foo.example.com $vparm -f index.html 
+        $CODETOP/esnistuff/echcli.sh -P `$CODETOP/esnistuff/pem2rr.sh -p $file` -s localhost -p 8443 -H foo.example.com $vparm -f index.html
     else
         $CODETOP/esnistuff/echcli.sh -P `$CODETOP/esnistuff/pem2rr.sh -p $file` -s localhost -p 8443 -H foo.example.com $vparm -f index.html  >/dev/null 2>&1
     fi
@@ -787,7 +789,7 @@ fi
 # Do some early-data checks
 if [[ "$skiped" == "no" ]]
 then
-for file in *.pem 
+for file in *.pem
 do
     kem=${file:0:4}
     kdf=${file:5:4}
@@ -806,6 +808,101 @@ do
         CFGTOP=$scratchdir $CODETOP/esnistuff/echsvr.sh -e -k $scratchdir/$file &
     else
         CFGTOP=$scratchdir $CODETOP/esnistuff/echsvr.sh -e -k $scratchdir/$file $vparm >/dev/null 2>&1 &
+    fi
+    # wait a bit
+    sleep $sleepb4
+    pids=`ps -ef | grep s_server | grep -v grep | awk '{print $2}'`
+    if [[ "$pids" == "" ]]
+    then
+        echo "No sign of s_server - exiting (before client)"
+        # exiting without cleanup
+        exit 19
+    fi
+    # Try client...
+    # first go 'round, acquire the session
+    if [[ "$verbose" == "yes" ]]
+    then
+        $CODETOP/esnistuff/echcli.sh -P `$CODETOP/esnistuff/pem2rr.sh -p $file` -s localhost -p 8443 -H foo.example.com $vparm -f index.html -S $sessfile
+    else
+        $CODETOP/esnistuff/echcli.sh -P `$CODETOP/esnistuff/pem2rr.sh -p $file` -s localhost -p 8443 -H foo.example.com $vparm -f index.html -S $sessfile >/dev/null 2>&1
+    fi
+    cret=$?
+    if [ ! -f $sessfile ]
+    then
+        echo "No sign of $sessfile - exiting"
+        exit 87
+    fi
+    if [[ "$cret" != "0" ]]
+    then
+        echo "Client failed acquiring session for $file (ret = $cret) - exiting"
+        exit 21
+    fi
+    # second go 'round, re-use the session
+    if [[ "$verbose" == "yes" ]]
+    then
+        $CODETOP/esnistuff/echcli.sh -P `$CODETOP/esnistuff/pem2rr.sh -p $file` -s localhost -p 8443 -H foo.example.com $vparm -f index.html -S $sessfile -e
+    else
+        $CODETOP/esnistuff/echcli.sh -P `$CODETOP/esnistuff/pem2rr.sh -p $file` -s localhost -p 8443 -H foo.example.com $vparm -f index.html -S $sessfile -e >/dev/null 2>&1
+    fi
+    cret=$?
+    if [[ "$cret" != "0" ]]
+    then
+        echo "Client failed sending early-data for $file (ret=$cret) - exiting"
+        exit 21
+    fi
+    # kill server
+    pids=`ps -ef | grep s_server | grep -v grep | awk '{print $2}'`
+    if [[ "$pids" == "" ]]
+    then
+        echo "No sign of s_server - exiting (after client)"
+        # exiting without cleanup
+        exit 19
+    fi
+    kill $pids
+    portpid=`netstat -anp 2>/dev/null | grep 8443 | grep openssl | awk '{print $7}' | sed -e 's#/.*##' 2>/dev/null`
+    if [[ "$portpid" != "" ]]
+    then
+        kill $portpid
+    fi
+    # sleep a bit
+    sleep $sleepaftr
+    pids=`ps -ef | grep s_server | grep -v grep | awk '{print $2}'`
+    if [[ "$pids" != "" ]]
+    then
+        echo "hmm... $pids still running - exiting"
+        # exiting without cleanup
+        exit 20
+    fi
+    # jump out after 1st time round the loop if desired
+    if [[ "$SHORTCUT" == "yes" ]]
+    then
+        break
+    fi
+done
+fi
+
+# Do some HRR + early-data checks
+if [[ "$skiphrred" == "no" ]]
+then
+for file in *.pem
+do
+    kem=${file:0:4}
+    kdf=${file:5:4}
+    aead=${file:10:4}
+    sessfile="$kem,$kdf,$aead.hrr-ed-sess"
+    if [ -f $sessfile ]
+    then
+        echo "Removing old $sessfile"
+        rm $sessfile
+    fi
+    echo "s_client/s_server HRR + early-data test for kem: $kem, kdf: $kdf, aead: $aead"
+    # start server
+    if [[ "$verbose" == "yes" ]]
+    then
+        # took vparm out here - if it's there, something times out before tickets acquired
+        CFGTOP=$scratchdir $CODETOP/esnistuff/echsvr.sh -R -e -k $scratchdir/$file &
+    else
+        CFGTOP=$scratchdir $CODETOP/esnistuff/echsvr.sh -R -e -k $scratchdir/$file $vparm >/dev/null 2>&1 &
     fi
     # wait a bit
     sleep $sleepb4
