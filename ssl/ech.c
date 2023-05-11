@@ -3990,8 +3990,7 @@ int ech_aad_and_encrypt(SSL_CONNECTION *s, WPACKET *pkt)
     ECHConfig *tc = NULL; /* matching server public key (if one exists) */
     unsigned char info[SSL3_RT_MAX_PLAIN_LENGTH];
     size_t info_len = SSL3_RT_MAX_PLAIN_LENGTH;
-    size_t suitesoffset = 0, suiteslen = 0, startofexts = 0;
-    size_t origextlens = 0, newextlens = 0, echlen = 0, clear_len = 0;
+    size_t clear_len = 0;
 
     if (s == NULL || s->ext.ech.cfgs == NULL
         || pkt == NULL || s->ssl.ctx == NULL) {
@@ -4096,8 +4095,7 @@ int ech_aad_and_encrypt(SSL_CONNECTION *s, WPACKET *pkt)
     cipher = OPENSSL_zalloc(cipherlen);
     if (cipher == NULL)
         goto err;
-    if (!WPACKET_get_total_written(pkt, &echlen)
-        || !WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_ech13)
+    if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_ech13)
         || !WPACKET_start_sub_packet_u16(pkt)
         || !WPACKET_put_bytes_u8(pkt, OSSL_ECH_OUTER_CH_TYPE)
         || !WPACKET_put_bytes_u16(pkt, hpke_suite.kdf_id)
@@ -4114,23 +4112,18 @@ int ech_aad_and_encrypt(SSL_CONNECTION *s, WPACKET *pkt)
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         goto err;
     }
-    echlen = aad_len - echlen - 4; /* len(ECH), less type */
     aad_len -= 4; /* aad starts after type + 3-octet len */
     aad = WPACKET_get_curr(pkt) - aad_len;
     /*
-     * For some reason WPACKET_fill_lengths() doesn't fix up
-     * the overall extensions length so for now, we do that
-     * manually.
-     * TODO: find a way to do this via the PACKET APIs
+     * close the extensions of the CH - we skipped doing this
+     * earler when encoding extensions, to allow for adding the
+     * ECH here (when doing ECH) - see tls_construct_extensions()
+     * towards the end
      */
-    suitesoffset = CLIENT_VERSION_LEN + SSL3_RANDOM_SIZE + 1
-        + s->tmp_session_id_len;
-    suiteslen = aad[suitesoffset] * 256 + aad[suitesoffset + 1];
-    startofexts = suitesoffset + 2 + suiteslen + 2; /* 2 for the suites len */
-    origextlens = aad[startofexts] * 256 + aad[startofexts + 1];
-    newextlens = origextlens + 4 + echlen;
-    aad[startofexts] = (unsigned char)((newextlens & 0xffff) / 256);
-    aad[startofexts + 1] = (unsigned char)((newextlens & 0xffff) % 256);
+    if (!WPACKET_close(pkt)) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
 # ifdef OSSL_ECH_SUPERVERBOSE
     ech_pbuf("EAAE: aad", aad, aad_len);
 # endif
@@ -4196,7 +4189,7 @@ int ech_early_decrypt(SSL_CONNECTION *s, PACKET *outerpkt, PACKET *newpkt)
     int rv = 0, cfgind = -1, foundcfg = 0, forhrr = 0, innerflag = -1;
     OSSL_ECH_ENCCH *extval = NULL;
     PACKET echpkt;
-    const unsigned char *startofech = NULL;
+    const unsigned char *startofech = NULL, *opd = NULL;
     size_t echlen = 0, clearlen = 0, aad_len = SSL3_RT_MAX_PLAIN_LENGTH;
     unsigned char *clear = NULL, aad[SSL3_RT_MAX_PLAIN_LENGTH];
     /* offsets of things within CH */
@@ -4204,7 +4197,6 @@ int ech_early_decrypt(SSL_CONNECTION *s, PACKET *outerpkt, PACKET *newpkt)
     size_t outersnioffset = 0, startofciphertext = 0;
     size_t lenofciphertext = 0, opl = 0;
     uint16_t echtype = TLSEXT_TYPE_ech_unknown; /* type of ECH seen */
-    const unsigned char *opd = NULL;
     char *osni_str = NULL;
 
     if (s == NULL || outerpkt == NULL || newpkt == NULL) {
@@ -4316,8 +4308,7 @@ int ech_early_decrypt(SSL_CONNECTION *s, PACKET *outerpkt, PACKET *newpkt)
         foundcfg = 0; /* reset as we're trying again */
         for (cfgind = 0; cfgind != s->ext.ech.ncfgs; cfgind++) {
             clear = hpke_decrypt_encch(s, &s->ext.ech.cfgs[cfgind], extval,
-                                       aad_len, aad,
-                                       forhrr, &clearlen);
+                                       aad_len, aad, forhrr, &clearlen);
             if (clear != NULL) {
                 foundcfg = 1;
                 s->ext.ech.grease = OSSL_ECH_NOT_GREASE;
@@ -4328,10 +4319,9 @@ int ech_early_decrypt(SSL_CONNECTION *s, PACKET *outerpkt, PACKET *newpkt)
     /* decrypting worked or not, but we're done with that now  */
     s->ext.ech.done = 1;
     /* 3. if decrypt fails tee-up GREASE */
-    if (clear == NULL) {
-        s->ext.ech.grease = OSSL_ECH_IS_GREASE;
-        s->ext.ech.success = 0;
-    } else {
+    s->ext.ech.grease = OSSL_ECH_IS_GREASE;
+    s->ext.ech.success = 0;
+    if (clear != NULL) {
         s->ext.ech.grease = OSSL_ECH_NOT_GREASE;
         s->ext.ech.success = 1;
     }
