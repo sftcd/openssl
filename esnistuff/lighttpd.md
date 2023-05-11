@@ -1,6 +1,11 @@
 
 # Playing with lighttpd for ECH
 
+## May 2023 catch up
+
+Just a couple of minor updates based on ECH API changes since last time.
+I didn't push those upstream though. That'll come soon enough.
+
 ## March 2023 catch up
 
 Goal is to rebase with upstream changes and ECH API changes.

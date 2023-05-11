@@ -3,20 +3,59 @@
 
 Notes on our proof-of-concept nginx with ECH integration.
 
+## May 2023 Testing split-mode
+
+These notes are a work-in-progress, I've yet to add a call to the nginx
+code to ``SSL_CTX_ech_raw_decrypt()`` so still figuring out the basics
+of using nginx as a front-end that doesn't terminate TLS...
+
+Starting to investigate using nginx for split-mode, based on [this
+HOWTO](https://www.cyberciti.biz/faq/configure-nginx-ssltls-passthru-with-tcp-load-balancing/).
+and these other resources:
+    - [this](https://stackoverflow.com/questions/34741571/nginx-tcp-forwarding-based-on-hostname)
+      also seems useful
+    - [this](https://gist.github.com/kekru/c09dbab5e78bf76402966b13fa72b9d2)
+      one shows a way to route based on SNI
+
+1st thing seems to be to confgure build using ``--with-stream`` - that seems to work fine:
+
+            $ ./auto/configure --with-debug --prefix=nginx --with-http_ssl_module --with-stream --with-openssl=$HOME/code/openssl-for-nginx  --with-openssl-opt="--debug"
+
+Next is to setup test front-end and back-end using the ``testnginx-split.sh``
+script.  That runs nginx listening on port 9443 as the ECH-enabled front-end
+and lighttpd listening on 9444 as the ECH-aware back-end. 
+
+ECH-enabled meaning an ECH key pair is loaded, and ECH-aware meaning able to
+calculate the right ServerHello.random ECH signal when it sees an "inner" ECH
+extension in the ClientHello as is to be expected when running as a back-end.
+As of now, there is no protection at all between the front-end and back-end.
+(Actually, we've even yet to configure the stream proxying setup on the
+front-end at all:-)
+
+To start servers:
+
+            $ ./testnginx-split.sh
+
+Initial tests without ECH:
+
+- Read index from DocRoot of front-end:
+
+            $ curl  --connect-to example.com:443:localhost:9443 https://example.com/index.html --cacert cadir/oe.csr
+
+- Read index from DocRoot of back-end:
+
+            $ curl  --connect-to foo.example.com:443:localhost:9444 https://foo.example.com/index.html --cacert cadir/oe.csr
+
+- Kill servers:
+
+            $ killall nginx lighttpd
+
 ## May 2023 update to latest APIs
 
 These are the updated notes from 20230502 for nginx with ECH.
 (Slightly) tested on ubuntu 22.10, with latest nginx code.
 
 - Just a couple of minor tweaks to ``load_echkeys()``
-- Starting to investigate using nginx for split-mode, based on
-  [this HOWTO](https://www.cyberciti.biz/faq/configure-nginx-ssltls-passthru-with-tcp-load-balancing/).
-  We'll see how that goes...
-    - 1st thing seems to be to build with ``--with-stream``
-    - [this](https://stackoverflow.com/questions/34741571/nginx-tcp-forwarding-based-on-hostname) also
-      seems useful
-    - [this](https://gist.github.com/kekru/c09dbab5e78bf76402966b13fa72b9d2) one shows a way to route
-      based on SNI
 
 ## March 2023 Clone and Build
 
