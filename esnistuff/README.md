@@ -22,6 +22,9 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
+- 20230511: I'm starting to try out split-mode with nginx,
+  but it's early days (see [nginx.md](nginx.md) for more).
+
 - 20230511: got rid of a TODO: where I wasn't properly using
   the packet APIs (maybe the last of those?)
 
