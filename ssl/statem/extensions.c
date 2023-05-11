@@ -987,11 +987,29 @@ int tls_construct_extensions(SSL_CONNECTION *s, WPACKET *pkt,
             s->ext.extflags[i] |= SSL_EXT_FLAG_SENT;
     }
 
+#ifndef OPENSSL_NO_ECH
+    /*
+     * don't close yet if client in the middle of doing ECH, we'll
+     * eventually close this in ech_aad_and_encrypt() after we add
+     * the real ECH extension value
+     */
+    if (s->server
+        || s->ext.ech.attempted == 0
+        || s->ext.ech.ch_depth == 1
+        || s->ext.ech.grease == OSSL_ECH_IS_GREASE) {
+        if (!WPACKET_close(pkt)) {
+            if (!for_comp)
+                SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+            return 0;
+        }
+    }
+# else
     if (!WPACKET_close(pkt)) {
         if (!for_comp)
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
     }
+#endif
 
     return 1;
 }

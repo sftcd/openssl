@@ -22,6 +22,9 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
+- 20230511: got rid of a TODO: where I wasn't properly using
+  the packet APIs (maybe the last of those?)
+
 - 20230502: ECH + HRR + early data test now working (fixed 
   some psk binder stuff when HRR happened)
 

@@ -3,10 +3,22 @@
 
 Notes on our proof-of-concept nginx with ECH integration.
 
-## March 2023 Clone and Build
+## May 2023 update to latest APIs
 
-These are the updated notes from 20230315 for nginx with ECH.
-(Slightly) tested on ubuntu 20.10, with latest nginx code.
+These are the updated notes from 20230502 for nginx with ECH.
+(Slightly) tested on ubuntu 22.10, with latest nginx code.
+
+- Just a couple of minor tweaks to ``load_echkeys()``
+- Starting to investigate using nginx for split-mode, based on
+  [this HOWTO](https://www.cyberciti.biz/faq/configure-nginx-ssltls-passthru-with-tcp-load-balancing/).
+  We'll see how that goes...
+    - 1st thing seems to be to build with ``--with-stream``
+    - [this](https://stackoverflow.com/questions/34741571/nginx-tcp-forwarding-based-on-hostname) also
+      seems useful
+    - [this](https://gist.github.com/kekru/c09dbab5e78bf76402966b13fa72b9d2) one shows a way to route
+      based on SNI
+
+## March 2023 Clone and Build
 
 First, you need a separate clone of our OpenSSL build (because nginx's build, in this
 instantiation, re-builds OpenSSL and links static libraries, so we put that in a new
