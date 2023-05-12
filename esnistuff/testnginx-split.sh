@@ -7,7 +7,7 @@
 # base build dir
 : ${OSSL:="$HOME/code/openssl"}
 # nginx build dir
-: ${NGINXH:=$HOME/code/nginx-draft-13}
+: ${NGINXH:=$HOME/code/nginx}
 # backend web server - lighttpd for now - can be any ECH-aware server
 : ${LIGHTY:="$HOME/code/lighttpd1.4"}
 
