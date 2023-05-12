@@ -19,11 +19,14 @@ and these other resources:
 
 1st thing seems to be to confgure build using ``--with-stream`` - that seems to work fine:
 
-            $ ./auto/configure --with-debug --prefix=nginx --with-http_ssl_module --with-stream --with-openssl=$HOME/code/openssl-for-nginx  --with-openssl-opt="--debug"
+            $ ./auto/configure --with-debug --prefix=nginx --with-http_ssl_module --with-stream --with-stream_ssl_preread_module --with-openssl=$HOME/code/openssl-for-nginx-draft-13  --with-openssl-opt="--debug"
 
 Next is to setup test front-end and back-end using the ``testnginx-split.sh``
-script.  That runs nginx listening on port 9443 as the ECH-enabled front-end
-and lighttpd listening on 9444 as the ECH-aware back-end. 
+script.
+
+This setup runs nginx listening on port 9442 for de-muxing, with nginx on 9443
+as the ECH-enabled front-end and lighttpd listening on 9444 as the ECH-aware
+back-end. 
 
 ECH-enabled meaning an ECH key pair is loaded, and ECH-aware meaning able to
 calculate the right ServerHello.random ECH signal when it sees an "inner" ECH
@@ -32,19 +35,38 @@ As of now, there is no protection at all between the front-end and back-end.
 (Actually, we've even yet to configure the stream proxying setup on the
 front-end at all:-)
 
+The front-end
+
 To start servers:
 
             $ ./testnginx-split.sh
 
 Initial tests without ECH:
 
-- Read index from DocRoot of front-end:
+- Read index direct from DocRoot of front-end:
+
+            $ curl  --connect-to example.com:443:localhost:9442 https://example.com/index.html --cacert cadir/oe.csr
+
+- Read index direct from DocRoot of back-end:
+
+            $ curl  --connect-to foo.example.com:443:localhost:9444 https://foo.example.com/index.html --cacert cadir/oe.csr
+
+- Read back-end index via front-end:
+
+            $ curl  --connect-to foo.example.com:443:localhost:9443 https://foo.example.com/index.html --cacert cadir/oe.csr
+
+- Read front-end index via front-end:
 
             $ curl  --connect-to example.com:443:localhost:9443 https://example.com/index.html --cacert cadir/oe.csr
 
-- Read index from DocRoot of back-end:
+- Run ECH against front-end as target:
 
-            $ curl  --connect-to foo.example.com:443:localhost:9444 https://foo.example.com/index.html --cacert cadir/oe.csr
+            $ ./echcli.sh -H example.com -s localhost -p 9443 -P d13.pem
+            Running ./echcli.sh at 20230512-234329
+            ./echcli.sh Summary: 
+            Looks like ECH worked ok
+            ECH: success: outer SNI: 'example.com', inner SNI: 'example.com'
+            $
 
 - Kill servers:
 
