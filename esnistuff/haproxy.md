@@ -1,5 +1,10 @@
 # Notes on building/integrating with haproxy
 
+## May 2023 rebuild...
+
+I just updated the current code (i.e. without rebasing with upstream) to
+handle recent ECH API tweaks.
+
 ## March 2023 rebase...
 
 These are the updated notes from 20230315 for haproxy with ECH.

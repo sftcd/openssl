@@ -159,7 +159,7 @@ if [[ "$doclient" == "yes" ]]
 then
     echo "Doing client calls..."
     # Uncomment for loadsa logging...
-    clilog=" -d "
+    # clilog=" -d "
     for port in 7443 7444 7445 7446 
     do
         # do GREASEy case

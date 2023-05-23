@@ -5,9 +5,9 @@ Notes on our proof-of-concept nginx with ECH integration.
 
 ## May 2023 Testing split-mode
 
-These notes are a work-in-progress, I've yet to add a call to the nginx
-code to ``SSL_CTX_ech_raw_decrypt()`` so still figuring out the basics
-of using nginx as a front-end that doesn't terminate TLS...
+These notes are a work-in-progress. ECH split-mode seems basically
+working ok, but would fail if e.g. early data were included so need
+to fix that.
 
 Starting to investigate using nginx for split-mode, based on [this
 HOWTO](https://www.cyberciti.biz/faq/configure-nginx-ssltls-passthru-with-tcp-load-balancing/).
@@ -16,10 +16,14 @@ and these other resources:
       also seems useful
     - [this](https://gist.github.com/kekru/c09dbab5e78bf76402966b13fa72b9d2)
       one shows a way to route based on SNI
+Relevant NGINX stream docs:
+- [SSL preread](https://nginx.org/en/docs/stream/ngx_stream_ssl_preread_module.html)
+- [stream proxy](https://nginx.org/en/docs/stream/ngx_stream_proxy_module.html)
+- [SSL module](https://nginx.org/en/docs/stream/ngx_stream_ssl_module.html)
 
 1st thing seems to be to confgure build using ``--with-stream`` - that seems to work fine:
 
-            $ ./auto/configure --with-debug --prefix=nginx --with-http_ssl_module --with-stream --with-stream_ssl_preread_module --with-openssl=$HOME/code/openssl-for-nginx-draft-13  --with-openssl-opt="--debug"
+            $ ./auto/configure --with-debug --prefix=nginx --with-http_ssl_module --with-stream --with-stream_ssl_module --with-stream_ssl_preread_module --with-openssl=$HOME/code/openssl-for-nginx-draft-13  --with-openssl-opt="--debug"
 
 Next is to setup test front-end and back-end using the ``testnginx-split.sh``
 script.
