@@ -11,6 +11,14 @@
 # backend web server - lighttpd for now - can be any ECH-aware server
 : ${LIGHTY:="$HOME/code/lighttpd1.4"}
 
+SERVERS="yes"
+CLIENT="no"
+
+if [[ "$1" == "client" ]]
+then
+    CLIENT="yes"
+fi
+
 export TOP=$OSSL
 export LD_LIBRARY_PATH=$OSSL
 
@@ -55,18 +63,28 @@ fi
 # VALGRIND="valgrind --leak-check=full "
 VALGRIND=""
 
-# Check if a lighttpd BE is running
-lrunning=`ps -ef | grep lighttpd | grep -v grep | grep -v tail`
-if [[ "$lrunning" == "" ]]
+if [[ "$SERVERS" == "yes" ]]
 then
-    echo "Executing: $VALGRIND $LIGHTY/src/lighttpd $FOREGROUND -f $OSSL/esnistuff/lighttpd4nginx-split.conf -m $LIGHTY/src/.libs"
-    $LIGHTY/src/lighttpd $FOREGROUND -f $OSSL/esnistuff/lighttpd4nginx-split.conf -m $LIGHTY/src/.libs
-else
-    echo "Lighttpd already running: $lrunning"
+
+    # Check if a lighttpd BE is running
+    lrunning=`ps -ef | grep lighttpd | grep -v grep | grep -v tail`
+    if [[ "$lrunning" == "" ]]
+    then
+        echo "Executing: $VALGRIND $LIGHTY/src/lighttpd $FOREGROUND -f $OSSL/esnistuff/lighttpd4nginx-split.conf -m $LIGHTY/src/.libs"
+        $LIGHTY/src/lighttpd $FOREGROUND -f $OSSL/esnistuff/lighttpd4nginx-split.conf -m $LIGHTY/src/.libs
+    else
+        echo "Lighttpd already running: $lrunning"
+    fi
+    
+    echo "Executing: $VALGRIND $NGINXH/objs/nginx -c $OSSL/esnistuff/nginx-split.conf"
+    # move over there to run code, so config file can have relative paths
+    cd $OSSL/esnistuff
+    $VALGRIND $NGINXH/objs/nginx -c $OSSL/esnistuff/nginx-split.conf
+    cd -
 fi
 
-echo "Executing: $VALGRIND $NGINXH/objs/nginx -c $OSSL/esnistuff/nginx-split.conf"
-# move over there to run code, so config file can have relative paths
-cd $OSSL/esnistuff
-$VALGRIND $NGINXH/objs/nginx -c $OSSL/esnistuff/nginx-split.conf
-cd -
+if [[ "$CLIENT" == "yes" ]]
+then
+    echo "Running: $OSSL/esnistuff/echcli.sh -H foo.example.com -s localhost -p 9443 -P d13.pem"
+    $OSSL/esnistuff/echcli.sh -H foo.example.com -s localhost -p 9443 -P d13.pem
+fi
