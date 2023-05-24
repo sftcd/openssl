@@ -6,8 +6,10 @@ Notes on our proof-of-concept nginx with ECH integration.
 ## May 2023 Testing split-mode
 
 These notes are a work-in-progress. ECH split-mode seems basically
-working ok, but would fail if e.g. early data were included so need
-to fix that.
+working sort-of, but fails if early data is included so need
+to fix that and do a bunch more testing. Also need to figure out
+how to handle case where one nginx does ECH in both split-mode 
+and shared-mode.
 
 Starting to investigate using nginx for split-mode, based on [this
 HOWTO](https://www.cyberciti.biz/faq/configure-nginx-ssltls-passthru-with-tcp-load-balancing/).
@@ -63,14 +65,17 @@ Initial tests without ECH:
 
             $ curl  --connect-to example.com:443:localhost:9443 https://example.com/index.html --cacert cadir/oe.csr
 
-- Run ECH against front-end as target:
+- Run ECH against back-end as target:
 
-            $ ./echcli.sh -H example.com -s localhost -p 9443 -P d13.pem
+            $ ./echcli.sh -H foo.example.com -s localhost -p 9443 -P d13.pem
             Running ./echcli.sh at 20230512-234329
             ./echcli.sh Summary: 
             Looks like ECH worked ok
             ECH: success: outer SNI: 'example.com', inner SNI: 'example.com'
             $
+
+But... the above doesn't quite work - ECH is ok but we're not yet getting the HTML
+expected... so more to do.
 
 - Kill servers:
 

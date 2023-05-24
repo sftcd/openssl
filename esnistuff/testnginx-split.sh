@@ -13,10 +13,16 @@
 
 SERVERS="yes"
 CLIENT="no"
+EARLY="no"
 
 if [[ "$1" == "client" ]]
 then
     CLIENT="yes"
+fi
+
+if [[ "$1" == "early" ]]
+then
+    EARLY="yes"
 fi
 
 export TOP=$OSSL
@@ -85,6 +91,17 @@ fi
 
 if [[ "$CLIENT" == "yes" ]]
 then
-    echo "Running: $OSSL/esnistuff/echcli.sh -H foo.example.com -s localhost -p 9443 -P d13.pem"
-    $OSSL/esnistuff/echcli.sh -H foo.example.com -s localhost -p 9443 -P d13.pem
+    echo "Running: $OSSL/esnistuff/echcli.sh -H foo.example.com -s localhost -p 9443 -P d13.pem -d -a h2,http/1.1 -f index.html"
+    $OSSL/esnistuff/echcli.sh -H foo.example.com -s localhost -p 9443 -P d13.pem -d -a "h2,http/1.1" -f index.html
+fi
+
+if [[ "$EARLY" == "yes" ]]
+then
+    tmpf=`mktemp`
+    rm -f $tmpf
+    echo "Running: $OSSL/esnistuff/echcli.sh -H foo.example.com -s localhost -p 9443 -P d13.pem -d -a h2,http/1.1 -f index.html -S $tmpf"
+    $OSSL/esnistuff/echcli.sh -H foo.example.com -s localhost -p 9443 -P d13.pem -d -a "h2,http/1.1" -f index.html -S $tmpf
+    echo "Running: $OSSL/esnistuff/echcli.sh -H foo.example.com -s localhost -p 9443 -P d13.pem -d -a h2,http/1.1 -f index.html -S $tmpf -e"
+    $OSSL/esnistuff/echcli.sh -H foo.example.com -s localhost -p 9443 -P d13.pem -d -a "h2,http/1.1" -f index.html -S $tmpf -e
+    rm -f $tmpf
 fi
