@@ -69,19 +69,53 @@ fi
 # VALGRIND="valgrind --leak-check=full "
 VALGRIND=""
 
+vparm=""
+# if you want echcli.sh tracing
+# vparm=" -d "
+
 if [[ "$SERVERS" == "yes" ]]
 then
 
+    # We want lighttpd for backend if not doing early data but s_server
+    # if we do want early data. And make sure just one is left running
+    # as we want to use the same port (9444).
+
     # Check if a lighttpd BE is running
-    lrunning=`ps -ef | grep lighttpd | grep -v grep | grep -v tail`
-    if [[ "$lrunning" == "" ]]
+    lrunning=`ps -ef | grep lighttpd | grep -v grep | grep -v tail | awk '{print $2}'`
+    srunning=`ps -ef | grep s_server | grep -v grep | grep -v tail | awk '{print $2}'`
+    # Kill if needed
+    if [[ "$EARLY" == "yes" && "$lrunning" != "" ]]
     then
-        echo "Executing: $VALGRIND $LIGHTY/src/lighttpd $FOREGROUND -f $OSSL/esnistuff/lighttpd4nginx-split.conf -m $LIGHTY/src/.libs"
-        $LIGHTY/src/lighttpd $FOREGROUND -f $OSSL/esnistuff/lighttpd4nginx-split.conf -m $LIGHTY/src/.libs
-    else
-        echo "Lighttpd already running: $lrunning"
+        kill $lrunning
     fi
-    
+    if [[ "$EARLY" == "no" && "$srunning" != "" ]]
+    then
+        kill $srunning
+    fi
+    if [[ "$EARLY" == "no" ]]
+    then
+       if  [[  "$lrunning" == "" ]]
+        then
+            echo "Executing: $LIGHTY/src/lighttpd $FOREGROUND -f $OSSL/esnistuff/lighttpd4nginx-split.conf -m $LIGHTY/src/.libs"
+            $LIGHTY/src/lighttpd $FOREGROUND -f $OSSL/esnistuff/lighttpd4nginx-split.conf -m $LIGHTY/src/.libs
+        else
+            echo "Lighttpd already running: $lrunning"
+        fi
+    fi
+    if [[ "$EARLY" == "yes" ]]
+    then
+        if [[ "$srunning" == "" ]]
+        then
+            # ditch or keep server tracing
+            outf="/dev/null"
+            # outf=`mktemp`
+            echo "Executing: $OSSL/esnistuff/echsvr.sh -e -k d13.pem -p 9444 $vparm >$outf 2>&1 &"
+            $OSSL/esnistuff/echsvr.sh -e -k d13.pem -p 9444 $vparm >$outf 2>&1 &
+        else
+            echo "s_server already running: $srunning"
+        fi
+    fi
+
     echo "Executing: $VALGRIND $NGINXH/objs/nginx -c $OSSL/esnistuff/nginx-split.conf"
     # move over there to run code, so config file can have relative paths
     cd $OSSL/esnistuff
@@ -91,17 +125,22 @@ fi
 
 if [[ "$CLIENT" == "yes" ]]
 then
-    echo "Running: $OSSL/esnistuff/echcli.sh -H foo.example.com -s localhost -p 9443 -P d13.pem -d -a h2,http/1.1 -f index.html"
-    $OSSL/esnistuff/echcli.sh -H foo.example.com -s localhost -p 9443 -P d13.pem -d -a "h2,http/1.1" -f index.html
+    echo "Running: $OSSL/esnistuff/echcli.sh -H foo.example.com -s localhost -p 9443 -P d13.pem $vparm -f index.html"
+    $OSSL/esnistuff/echcli.sh -H foo.example.com -s localhost -p 9443 -P d13.pem $vparm -f index.html
 fi
 
 if [[ "$EARLY" == "yes" ]]
 then
     tmpf=`mktemp`
     rm -f $tmpf
-    echo "Running: $OSSL/esnistuff/echcli.sh -H foo.example.com -s localhost -p 9443 -P d13.pem -d -a h2,http/1.1 -f index.html -S $tmpf"
-    $OSSL/esnistuff/echcli.sh -H foo.example.com -s localhost -p 9443 -P d13.pem -d -a "h2,http/1.1" -f index.html -S $tmpf
-    echo "Running: $OSSL/esnistuff/echcli.sh -H foo.example.com -s localhost -p 9443 -P d13.pem -d -a h2,http/1.1 -f index.html -S $tmpf -e"
-    $OSSL/esnistuff/echcli.sh -H foo.example.com -s localhost -p 9443 -P d13.pem -d -a "h2,http/1.1" -f index.html -S $tmpf -e
+    echo "Running: $OSSL/esnistuff/echcli.sh -H foo.example.com -s localhost -p 9443 -P d13.pem $vparm -f index.html -S $tmpf"
+    $OSSL/esnistuff/echcli.sh -H foo.example.com -s localhost -p 9443 -P d13.pem $vparm -f index.html -S $tmpf
+    if [ ! -f $tmpf ]
+    then
+        echo "No session so no early data - exiting"
+        exit 1
+    fi
+    echo "Running: $OSSL/esnistuff/echcli.sh -H foo.example.com -s localhost -p 9443 -P d13.pem $vparm -f index.html -S $tmpf -e"
+    $OSSL/esnistuff/echcli.sh -H foo.example.com -s localhost -p 9443 -P d13.pem $vparm -f index.html -S $tmpf -e
     rm -f $tmpf
 fi

@@ -5,11 +5,9 @@ Notes on our proof-of-concept nginx with ECH integration.
 
 ## May 2023 Testing split-mode
 
-These notes are a work-in-progress. ECH split-mode seems basically
-working sort-of, but fails if early data is included so need
-to fix that and do a bunch more testing. Also need to figure out
-how to handle case where one nginx does ECH in both split-mode 
-and shared-mode.
+These notes are a work-in-progress. ECH split-mode seems basically working even
+with early data.  Still need to figure out how to handle case where one nginx
+instance does ECH in both split-mode and shared-mode.
 
 Starting to investigate using nginx for split-mode, based on [this
 HOWTO](https://www.cyberciti.biz/faq/configure-nginx-ssltls-passthru-with-tcp-load-balancing/).
@@ -23,25 +21,24 @@ Relevant NGINX stream docs:
 - [stream proxy](https://nginx.org/en/docs/stream/ngx_stream_proxy_module.html)
 - [SSL module](https://nginx.org/en/docs/stream/ngx_stream_ssl_module.html)
 
+### Build
+
 1st thing seems to be to confgure build using ``--with-stream`` - that seems to work fine:
 
             $ ./auto/configure --with-debug --prefix=nginx --with-http_ssl_module --with-stream --with-stream_ssl_module --with-stream_ssl_preread_module --with-openssl=$HOME/code/openssl-for-nginx-draft-13  --with-openssl-opt="--debug"
 
+### Basic Test
+
 Next is to setup test front-end and back-end using the ``testnginx-split.sh``
 script.
 
-This setup runs nginx listening on port 9442 for de-muxing, with nginx on 9443
-as the ECH-enabled front-end and lighttpd listening on 9444 as the ECH-aware
-back-end. 
-
-ECH-enabled meaning an ECH key pair is loaded, and ECH-aware meaning able to
-calculate the right ServerHello.random ECH signal when it sees an "inner" ECH
-extension in the ClientHello as is to be expected when running as a back-end.
-As of now, there is no protection at all between the front-end and back-end.
-(Actually, we've even yet to configure the stream proxying setup on the
-front-end at all:-)
-
-The front-end
+This setup runs nginx listening on port 9443 as the ECH-enabled front-end and,
+(in the same nginx process), listening on 9442 for ECH shared-mode, and with
+lighttpd listening on 9444 as the ECH-aware back-end.  ECH-enabled means an ECH
+key pair is loaded, and ECH-aware means "able to calculate the right
+ServerHello.random ECH signal when it sees an 'inner' ECH extension in the
+ClientHello" as is to be expected when running as a back-end.  As of now, there
+is no protection at all between the front-end and back-end.
 
 To start servers:
 
@@ -67,19 +64,65 @@ Initial tests without ECH:
 
 - Run ECH against back-end as target:
 
-            $ ./echcli.sh -H foo.example.com -s localhost -p 9443 -P d13.pem
+            $ ./echcli.sh -H foo.example.com -s localhost -p 9443 -P d13.pem -f index.html
             Running ./echcli.sh at 20230512-234329
-            ./echcli.sh Summary: 
+            ./echcli.sh Summary:
             Looks like ECH worked ok
             ECH: success: outer SNI: 'example.com', inner SNI: 'example.com'
             $
 
-But... the above doesn't quite work - ECH is ok but we're not yet getting the HTML
-expected... so more to do.
-
 - Kill servers:
 
             $ killall nginx lighttpd
+
+You can also start the servers and run a cilent at once:
+
+            $ ./testnginx-split.sh client
+            Lighttpd already running: 265394
+            Executing:  /home/stephen/code/nginx/objs/nginx -c /home/stephen/code/openssl/esnistuff/nginx-split.conf
+            /home/stephen/code/openssl/esnistuff
+            Running: /home/stephen/code/openssl/esnistuff/echcli.sh -H foo.example.com -s localhost -p 9443 -P d13.pem  -f index.html
+            Running /home/stephen/code/openssl/esnistuff/echcli.sh at 20230525-130442
+            /home/stephen/code/openssl/esnistuff/echcli.sh Summary:
+            Looks like ECH worked ok
+            ECH: success: outer SNI: 'example.com', inner SNI: 'foo.example.com'
+
+### Early-data
+
+For early data, we have an almost identical setup but with ``openssl s_server`` as the back-end instead of lighttpd. That's so we can configure accepting
+early data. To run the servers and a client (twice, 2nd time with early data):
+
+            $ ./testnginx-split.sh early
+            Executing: /home/stephen/code/openssl/esnistuff/echsvr.sh -e -k d13.pem -p 9444  >/dev/null 2>&1 &
+            Executing:  /home/stephen/code/nginx/objs/nginx -c /home/stephen/code/openssl/esnistuff/nginx-split.conf
+            /home/stephen/code/openssl/esnistuff
+            Running: /home/stephen/code/openssl/esnistuff/echcli.sh -H foo.example.com -s localhost -p 9443 -P d13.pem  -f index.html -S /tmp/tmp.g6LPgj4CbM
+            Running /home/stephen/code/openssl/esnistuff/echcli.sh at 20230525-131034
+            /home/stephen/code/openssl/esnistuff/echcli.sh Summary:
+            Looks like ECH worked ok
+            ECH: success: outer SNI: 'example.com', inner SNI: 'foo.example.com'
+            Running: /home/stephen/code/openssl/esnistuff/echcli.sh -H foo.example.com -s localhost -p 9443 -P d13.pem  -f index.html -S /tmp/tmp.g6LPgj4CbM -e
+            Running /home/stephen/code/openssl/esnistuff/echcli.sh at 20230525-131036
+            /home/stephen/code/openssl/esnistuff/echcli.sh Summary:
+            Looks like ECH worked ok
+            ECH: success: outer SNI: 'example.com', inner SNI: 'foo.example.com'
+
+### Leaving servers running
+
+Whenever ``./testnginx-split.sh`` is run it will start a new instance of the
+front-end nginx process, but default to leave the backend (lighttpd or
+``s_server``) running. When swapping between lighttpd and ``s_server`` if the
+server process not wanted is still running that's killed. (So the back-end can
+listen on port 9444).
+
+``./testnginx-split.sh`` leaves the servers running, so, after you've run that
+you can run additional client tests if desired:
+
+            $ ./echcli.sh -H foo.example.com -s localhost -p 9443 -P d13.pem
+            Running ./echcli.sh at 20230525-131346
+            ./echcli.sh Summary:
+            Looks like ECH worked ok
+            ECH: success: outer SNI: 'example.com', inner SNI: 'foo.example.com'
 
 ## May 2023 update to latest APIs
 
@@ -119,15 +162,15 @@ To test, (configuration is in ``nginxmin-draft-13.con``):
             ...stuff...
             $ ./echcli.sh -p 5443 -s localhost -H foo.example.com  -P d13.pem -f index.html
             Running ./echcli.sh at 20230315-121742
-            ./echcli.sh Summary: 
+            ./echcli.sh Summary:
             Looks like ECH worked ok
             ECH: success: outer SNI: 'example.com', inner SNI: 'foo.example.com'
-            $ 
+            $
             $ killall nginx # to stop daemon
 
 Seems to work ok again.
 
-## 2021 Clone and Build 
+## 2021 Clone and Build
 
 These are the updated notes from 20210912 for ECH draft-13.
 
@@ -161,7 +204,7 @@ key files. I did the directory based approach first, as I'd used that with
 ``openssl s_server`` and [lighttpd](lighttpd.md).
 
 I added an ECH key directory configuration setting that can be within the
-``http`` stanza 
+``http`` stanza
 in the nginx config file. Then, with a bit of generic parameter handling
 and the addition of a ``load_echkeys()`` function that's pretty much as done
 for [lighttpd](./lighttpd.md).
