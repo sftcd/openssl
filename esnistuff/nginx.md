@@ -3,23 +3,17 @@
 
 Notes on our proof-of-concept nginx with ECH integration.
 
-## May 2023 Testing split-mode
+## Nginx ECH split-mode - May 2023
 
 These notes are a work-in-progress. ECH split-mode seems basically working even
 with early data.  Still need to figure out how to handle case where one nginx
 instance does ECH in both split-mode and shared-mode.
 
-Starting to investigate using nginx for split-mode, based on [this
-HOWTO](https://www.cyberciti.biz/faq/configure-nginx-ssltls-passthru-with-tcp-load-balancing/).
-and these other resources:
-    - [this](https://stackoverflow.com/questions/34741571/nginx-tcp-forwarding-based-on-hostname)
-      also seems useful
-    - [this](https://gist.github.com/kekru/c09dbab5e78bf76402966b13fa72b9d2)
-      one shows a way to route based on SNI
-Relevant NGINX stream docs:
-- [SSL preread](https://nginx.org/en/docs/stream/ngx_stream_ssl_preread_module.html)
-- [stream proxy](https://nginx.org/en/docs/stream/ngx_stream_proxy_module.html)
-- [SSL module](https://nginx.org/en/docs/stream/ngx_stream_ssl_module.html)
+Investigating nginx split-mode, based on the [SSL
+preread](https://nginx.org/en/docs/stream/ngx_stream_ssl_preread_module.html)
+stream module that allows an nginx server instance to route a connection to a
+back-end based on e.g., TLS client hello SNI, without terminating the TLS
+session.
 
 ### Build
 
@@ -87,6 +81,43 @@ You can also start the servers and run a cilent at once:
             Looks like ECH worked ok
             ECH: success: outer SNI: 'example.com', inner SNI: 'foo.example.com'
 
+### ECH to front-end
+
+The configuration here also allows ECH to be used with the front-end, i.e. in
+shared-mode, to the http server listening on port 9442, via the stream module listening on 9443, so:
+
+            $ ./echcli.sh -H example.com -s localhost -p 9443 -P d13.pem -f index.html
+            Running ./echcli.sh at 20230525-152610
+            ./echcli.sh Summary: 
+            Looks like ECH worked ok
+            ECH: success: outer SNI: 'example.com', inner SNI: 'example.com'
+
+### GREASE
+
+If we GREASE to example.com then the front-end will return a retry config as
+desired:
+
+            $ ./echcli.sh -H example.com -s localhost -p 9443 -g -f index.html
+            Running ./echcli.sh at 20230525-152839
+            ./echcli.sh Summary: 
+            Only greased
+            ECH: only greasing, and got ECH in return
+
+If, however, we GREASE to the back-end, then currently the request is
+routed to the back-end and we don't get a retry config:
+
+            $ ./echcli.sh -H foo.example.com -s localhost -p 9443 -g -f index.html
+            Running ./echcli.sh at 20230525-152938
+            ./echcli.sh Summary: 
+            Only greased
+            ECH: only greasing
+
+That's the wrong behaviour - the front-end should intercept the handshake
+and (if so configured) return a retry config. Or maybe that's wrong... ?
+
+
+
+
 ### Early-data
 
 For early data, we have an almost identical setup but with ``openssl s_server`` as the back-end instead of lighttpd. That's so we can configure accepting
@@ -107,6 +138,10 @@ early data. To run the servers and a client (twice, 2nd time with early data):
             Looks like ECH worked ok
             ECH: success: outer SNI: 'example.com', inner SNI: 'foo.example.com'
 
+### HelloRetryRequest
+
+TBD
+
 ### Leaving servers running
 
 Whenever ``./testnginx-split.sh`` is run it will start a new instance of the
@@ -124,18 +159,18 @@ you can run additional client tests if desired:
             Looks like ECH worked ok
             ECH: success: outer SNI: 'example.com', inner SNI: 'foo.example.com'
 
-## May 2023 update to latest APIs
+## May 2023 build update to latest ECH APIs
 
-These are the updated notes from 20230502 for nginx with ECH.
-(Slightly) tested on ubuntu 22.10, with latest nginx code.
+These are the updated notes from 20230502 for nginx with ECH.  (Slightly)
+tested on ubuntu 22.10, with latest nginx code.
 
 - Just a couple of minor tweaks to ``load_echkeys()``
 
 ## March 2023 Clone and Build
 
-First, you need a separate clone of our OpenSSL build (because nginx's build, in this
-instantiation, re-builds OpenSSL and links static libraries, so we put that in a new
-directory in order to avoid disturbing other builds):
+First, you need a separate clone of our OpenSSL build (because nginx's build,
+in this instantiation, re-builds OpenSSL and links static libraries, so we put
+that in a new directory in order to avoid disturbing other builds):
 
             $ cd $HOME/code
             $ git clone https://github.com/sftcd/openssl.git openssl-for-nginx
