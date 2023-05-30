@@ -14,15 +14,22 @@
 SERVERS="yes"
 CLIENT="no"
 EARLY="no"
+HRR="no"
+
+SERVER="lighty"
 
 if [[ "$1" == "client" ]]
 then
     CLIENT="yes"
 fi
-
 if [[ "$1" == "early" ]]
 then
     EARLY="yes"
+    SERVER="s_server"
+fi
+if [[ "$1" == "hrr" ]]
+then
+    HRR="yes"
 fi
 
 export TOP=$OSSL
@@ -84,15 +91,15 @@ then
     lrunning=`ps -ef | grep lighttpd | grep -v grep | grep -v tail | awk '{print $2}'`
     srunning=`ps -ef | grep s_server | grep -v grep | grep -v tail | awk '{print $2}'`
     # Kill if needed
-    if [[ "$EARLY" == "yes" && "$lrunning" != "" ]]
+    if [[ "$SERVER" == "s_server" && "$lrunning" != "" ]]
     then
         kill $lrunning
     fi
-    if [[ "$EARLY" == "no" && "$srunning" != "" ]]
+    if [[ "$SERVER" == "lighty" && "$srunning" != "" ]]
     then
         kill $srunning
     fi
-    if [[ "$EARLY" == "no" ]]
+    if [[ "$SERVER" == "lighty" ]]
     then
        if  [[  "$lrunning" == "" ]]
         then
@@ -102,15 +109,23 @@ then
             echo "Lighttpd already running: $lrunning"
         fi
     fi
-    if [[ "$EARLY" == "yes" ]]
+    if [[ "$SERVER" == "s_server" ]]
     then
         if [[ "$srunning" == "" ]]
         then
             # ditch or keep server tracing
             outf="/dev/null"
             # outf=`mktemp`
-            echo "Executing: $OSSL/esnistuff/echsvr.sh -e -k d13.pem -p 9444 $vparm >$outf 2>&1 &"
-            $OSSL/esnistuff/echsvr.sh -e -k d13.pem -p 9444 $vparm >$outf 2>&1 &
+            if [[ "$HRR" == "yes" ]]
+            then
+                # you may need to manually kill s_server if switching between
+                # HRR and non-HRR tests
+                echo "Executing: $OSSL/esnistuff/echsvr.sh -e -k d13.pem -p 9444 $vparm >$outf 2>&1 &"
+                $OSSL/esnistuff/echsvr.sh -e -k d13.pem -p 9444 $vparm -R >$outf 2>&1 &
+            else
+                echo "Executing: $OSSL/esnistuff/echsvr.sh -e -k d13.pem -p 9444 $vparm >$outf 2>&1 &"
+                $OSSL/esnistuff/echsvr.sh -e -k d13.pem -p 9444 $vparm >$outf 2>&1 &
+            fi
         else
             echo "s_server already running: $srunning"
         fi
@@ -143,4 +158,11 @@ then
     echo "Running: $OSSL/esnistuff/echcli.sh -H foo.example.com -s localhost -p 9443 -P d13.pem $vparm -f index.html -S $tmpf -e"
     $OSSL/esnistuff/echcli.sh -H foo.example.com -s localhost -p 9443 -P d13.pem $vparm -f index.html -S $tmpf -e
     rm -f $tmpf
+fi
+
+if [[ "$HRR" == "yes" ]]
+then
+    # back-end lighttpd server has P384 turned off so client using that will trigger HRR
+    echo "Running: $OSSL/esnistuff/echcli.sh -H foo.example.com -s localhost -p 9443 -P d13.pem $vparm -f index.html -R"
+    $OSSL/esnistuff/echcli.sh -H foo.example.com -s localhost -p 9443 -P d13.pem $vparm -f index.html -R
 fi
