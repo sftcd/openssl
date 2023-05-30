@@ -6,14 +6,15 @@ Notes on our proof-of-concept nginx with ECH integration.
 ## Nginx ECH split-mode - May 2023
 
 These notes are a work-in-progress. ECH split-mode seems basically working even
-with early data.  Still need to figure out how to handle case where one nginx
+with early data and HRR.  Still need to figure out how to handle case where one nginx
 instance does ECH in both split-mode and shared-mode.
 
-Investigating nginx split-mode, based on the [SSL
+We're investigating nginx split-mode, based on the [SSL
 preread](https://nginx.org/en/docs/stream/ngx_stream_ssl_preread_module.html)
 stream module that allows an nginx server instance to route a connection to a
 back-end based on e.g., TLS client hello SNI, without terminating the TLS
-session.
+session. For HRR handling we also need to modify other stream module
+code too though, not just the pre-read module.
 
 ### Build
 
