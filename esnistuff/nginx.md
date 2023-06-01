@@ -20,7 +20,9 @@ code too though, not just the pre-read module.
 
 1st thing seems to be to confgure build using ``--with-stream`` - that seems to work fine:
 
-            $ ./auto/configure --with-debug --prefix=nginx --with-http_ssl_module --with-stream --with-stream_ssl_module --with-stream_ssl_preread_module --with-openssl=$HOME/code/openssl-for-nginx-draft-13  --with-openssl-opt="--debug"
+            $ ./auto/configure --with-debug --prefix=nginx --with-http_ssl_module --with-stream --with-stream_ssl_module --with-stream_ssl_preread_module --with-openssl=$HOME/code/openssl-for-nginx-draft-13  --with-openssl-opt="--debug" --with-http_v2_module
+
+Note that the above configure options are what works in my test setup - you may want more.
 
 ### Basic Test
 
