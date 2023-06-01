@@ -3,7 +3,7 @@
 # set -x
 
 OSSL="$HOME/code/openssl"
-: ${NGINXH:=$HOME/code/nginx-draft-13}
+: ${NGINXH:=$HOME/code/nginx}
 
 # nginx build seems to statically link openssl for now (ickky)
 # export LD_LIBRARY_PATH=$OSSL
