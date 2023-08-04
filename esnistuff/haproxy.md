@@ -1,5 +1,14 @@
 # Notes on building/integrating with haproxy
 
+## June 2023
+
+Based on some interest in bringing the haproxy integration up to the same level
+as for other servers, we're currenty investigating full support for HRR.
+Rekeying to follow, as are split-mode tests with early data etc.
+
+Still at the point of figuring out how to handle the ECH state so as to have it
+available when the 2nd CH is see in the case of HRR.
+
 ## May 2023 rebuild...
 
 I just updated the current code (i.e. without rebasing with upstream) to
