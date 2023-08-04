@@ -126,9 +126,9 @@ fi
 # FOREGROUND="-D "
 
 # set to use valgrind, unset to not
-# VALGRIND="valgrind --leak-check=full --show-leak-kinds=all"
+VALGRIND="valgrind --leak-check=full --show-leak-kinds=all"
 #VALGRIND="valgrind --leak-check=full --error-limit=1 --track-origins=yes"
-VALGRIND=""
+# VALGRIND=""
 
 # Check if a lighttpd is running
 lrunning=`ps -ef | grep lighttpd | grep -v grep | grep -v tail`
