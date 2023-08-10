@@ -56,7 +56,7 @@ If the ``make upgrade`` fails then after the build has worked...
             $ sudo service nginx restart
 
 The wkech script also needs openssl binaries, so good to update those
-too:
+too, both on the web server and the zone factory:
 
             $ cd $HOME/code
             $ git clone https://github.com/sftcd/openssl
@@ -90,3 +90,8 @@ Got here, more coming...
 - I need to review the wkech-03.sh script to see it works for
   this paritcular config. (same binary, 2 ports, whatever 
   DocRoot settings I have)
+- Changes made:
+    - ``$ECHTOP`` default changed to ``$HOME/ech`` - not sure why I didn't
+      use the same everywhere:-)
+    - frontend changed to foo.ie, backends to my-own.net, my-own.net:8443
+    - backend DocRoots changed similarly (both be's use same here!)
