@@ -5537,6 +5537,12 @@ int ossl_ech_make_echconfig(unsigned char *echconfig, size_t *echconfiglen,
     /* so WPAKCET_cleanup() won't go wrong */
     memset(&epkt, 0, sizeof(epkt));
 
+    /* random config_id */
+    if (RAND_bytes((unsigned char *)&config_id, 1) <= 0) {
+        ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+
     if (OSSL_HPKE_keygen(suite, pub, &publen, &privp, NULL, 0, NULL, NULL)
         != 1) {
         ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_INVALID_ARGUMENT);
