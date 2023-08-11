@@ -85,13 +85,29 @@ Delete or comment out those lines. (But not right at 10 or 11 after the hour:-)
 
 ### Enable new scripts
 
-Got here, more coming...
+The new script is now working on my-own.net (ports 443 and 8443) with the
+public name of foo.ie. That's an nginx build.  The ``wkech-03.sh`` script
+imports vars from ``echvars.sh`` so, on my-own.net and the relevant zf I've put
+the local ``echvars.sh`` file into $HOME/bin and then I run the script from
+there via cron.
 
-- I need to review the wkech-03.sh script to see it works for
-  this paritcular config. (same binary, 2 ports, whatever 
-  DocRoot settings I have)
-- Changes made:
-    - ``$ECHTOP`` default changed to ``$HOME/ech`` - not sure why I didn't
-      use the same everywhere:-)
-    - frontend changed to foo.ie, backends to my-own.net, my-own.net:8443
-    - backend DocRoots changed similarly (both be's use same here!)
+The new crontab entries for the fe and be is now:
+
+            $ crontab -l
+            ...
+            40 * * * * (cd /home/sftcd/bin; /home/sftcd/code/wkesni/wkech-03.sh) >>/home/sftcd/logs/wkech-03.log
+
+And for the zf:
+
+            $ crontab -l
+            ...
+            42 * * * * (cd /home/sftcd/bin; /home/sftcd/code/wkesni/wkech-03.sh -r zf) >>/home/sftcd/logs/wkech-03.log
+
+That's still publishing the most recent 3 public values, which is perhaps
+not needed, but we'll keep that for the moment as it may turn up some 
+bugs. (TODO: change to just publishing one public value but also setup a
+range of HTTPS RRs that have good/bad values, i.e. revisit our DNS fuzzing
+ideas.)
+
+
+
