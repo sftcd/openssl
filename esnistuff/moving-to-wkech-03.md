@@ -109,5 +109,55 @@ bugs. (TODO: change to just publishing one public value but also setup a
 range of HTTPS RRs that have good/bad values, i.e. revisit our DNS fuzzing
 ideas.)
 
+### Starting to re-build on defo.ie
+
+2023-08-11: starting to refresh the builds on defo.ie and will then move
+to using the new script.
+
+Notes on rebuilds:
+
+- updated $HOME/code/openssl to ECH-draft-13c 
+- updated $HOME/code/openssl-for-nginx to ECH-draft-13c
+- updated $HOME/code/nginx as per the above build 
+    - both port 443 and 10413 redone ok
+- updated $HOME/code/lighttpd1.4, needed to install ``libpcre2-dev`` and mess with git a bit
+- updated $HOME/code/httpd (apache2)
+- updated $HOME/code/haproxy
+
+Notes on existing setup:
+
+- Turned off cronjobs as above
+- Be useful to document the current setup a bit (it's a bit all over the place:-)
+
+script                    | server    |   port  | name                  | cfg file                 | docroot                             | ech key dir
+--------------------------|-----------|---------|-----------------------|--------------------------|-------------------------------------|-------------------
+nginx443.sh               | nginx     |   443   | cover.defo.ie         | nginx-443.conf           | /var/www/html/cover                 | ~/.ech/echkeydir
+nginx443.sh               | nginx     |   443   | defo.ie               | nginx-443.conf           | /var/www/html/home                  | ~/.ech/echkeydir
+defoserver-draft13.sh     | s_server  |  8413   | draft-13.esni.defo.ie | n/a                      | /var/www/html/cover                 | ~/.ech/echkeydir
+defoserver-draft13-hrr.sh | s_server  |  8414   | draft-13.esni.defo.ie | n/a                      | /var/www/html/cover                 | ~/.ech/echkeydir
+lighttpdserver-draft13.sh | lighttpd  |  9413   | draft-13.esni.defo.ie | lighttpd-9413.conf       | /var/www/draft-13/lighttpd/draft-13 | ~/.ech/echkeydir
+nginx-draft-13.sh         | nginx     | 10413   | draft-13.esni.defo.ie | nginx-10413.conf         | /var/www/draft-13/nginx/draft-13    | ~/.ech/echkeydir
+apache-draft-13.sh        | httpd     | 11413   | draft-13.esni.defo.ie | apache-11413.conf        | /var/www/draft-13/apache/draft-13   | ~/.ech/echkeydir
+haproxyserver-12413.sh    | haproxy   | 12413   | draft-13.esni.defo.ie | haproxy-12413.conf       | shared, be via port 11413           | ~/.ech/echkeydir
+haproxyserver-12414.sh    | haproxy   | 12414   | draft-13.esni.defo.ie | haproxy-12414.conf       | split, be via port 11413            | ~/.ech/echkeydir
+
+- after changes made...
+
+script                    | server    |   port  | name                  | cfg file            | docroot                             | ech key dir
+--------------------------|-----------|---------|-----------------------|---------------------|-------------------------------------|-------------------
+nginx443.sh               | nginx     |   443   | cover.defo.ie         | nginx-443.conf      | /var/www/html/cover                 | ~/ech/cover.defo.ie.443
+nginx443.sh               | nginx     |   443   | defo.ie               | nginx-443.conf      | /var/www/html/home                  | ~/ech/cover.defo.ie.443
+defoserver-draft13.sh     | s_server  |  8413   | draft-13.esni.defo.ie | n/a                 | /var/www/html/s_server              | ~/ech/cover.defo.ie.443
+defoserver-draft13-hrr.sh | s_server  |  8414   | draft-13.esni.defo.ie | n/a                 | /var/www/html/s_server_hrr          | ~/ech/cover.defo.ie.443
+lighttpdserver-draft13.sh | lighttpd  |  9413   | draft-13.esni.defo.ie | lighttpd-9413.conf  | /var/www/draft-13/lighttpd/draft-13 | ~/ech/cover.defo.ie.443
+nginx-draft-13.sh         | nginx     | 10413   | draft-13.esni.defo.ie | nginx-10413.conf    | /var/www/draft-13/nginx/draft-13    | ~/ech/cover.defo.ie.443
+apache-draft-13.sh        | httpd     | 11413   | draft-13.esni.defo.ie | apache-11413.conf   | /var/www/draft-13/apache/draft-13   | ~/ech/cover.defo.ie.443
+haproxyserver-12413.sh    | haproxy   | 12413   | draft-13.esni.defo.ie | haproxy-12413.conf  | shared, be via port 11413           | ~/ech/cover.defo.ie.443
+haproxyserver-12414.sh    | haproxy   | 12414   | draft-13.esni.defo.ie | haproxy-12414.conf  | split, be via port 11413            | ~/ech/cover.defo.ie.443
+
+- Configured an ``echvars`.sh`` file on defo.ie to represent the above.
+- re-did the scripts for ports 8413, 8414, 9413, 10413 and 11413
+- TODO: haproxy (ports 12413 and 12414) needs a bit of thought, not having a DocRoot 
+- TODO: before changing 443, publish a correct HTTPS RR manually
 
 
