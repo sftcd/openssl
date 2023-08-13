@@ -157,7 +157,9 @@ haproxyserver-12414.sh    | haproxy   | 12414   | draft-13.esni.defo.ie | haprox
 
 - Configured an ``echvars`.sh`` file on defo.ie to represent the above.
 - re-did the scripts for ports 8413, 8414, 9413, 10413 and 11413
-- TODO: haproxy (ports 12413 and 12414) needs a bit of thought, not having a DocRoot 
-- TODO: before changing 443, publish a correct HTTPS RR manually
+- manually published a new HTTPS RR for defo.ie to match landing place for wkech script
+  (that should keep things working 'till we turn on new cronjobs)
+- haproxy (ports 12413 and 12414) needs new backends (due to wkech URL)
+    - added a 13413 apache as backend to 12413 and 13414 as backend to 12414
 
 
