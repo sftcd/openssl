@@ -60,6 +60,7 @@ function hostport2port()
 
 TMPD=`mktemp -d`
 allgood="yes"
+digcmd="dig https"
 
 NOW=$(whenisitagain)
 
@@ -87,6 +88,14 @@ if [ ! -f $OSSL/apps/openssl ]
 then
     allgood="no"
     echo "Can't see $OSSL/apps/openssl - exiting" >>$logfile
+fi
+
+# check if dig knows https or not
+digcmd="dig https"
+dout=`dig +short https defo.ie`
+if [[ $dout != "1 . ech="* ]]
+then
+    digcmd="dig -t TYPE65"
 fi
 
 if [[ "$allgood" == "yes" ]]
@@ -122,7 +131,7 @@ then
             echo "{ \"No .well-known for $host \"}" >$host.$port.json
         fi
         # grab DNS
-        dig https $qname >$host.$port.dig 2>&1
+        $digcmd $qname >$host.$port.dig 2>&1
         # try ECH 
         timeout $tout $echcli -H $host -p $port $pathstr -d >$host.$port.echcli.log
         eres=$?
