@@ -173,11 +173,25 @@ then
         exit 1
     fi
 fi
-# stash badness
+# stash logs of bad run and info about bad runs
 mv $TMPD $bad_dir/$NOW
-# send a mail to root (will be fwd'd)
-if [[ "$DOMAIL" == "yes" ]]
+# send a mail to root (will be fwd'd) but just once every 24 hours
+# 'cause we only really need "new" news
+itsnews="yes"
+age_of_news=0
+if [ -f $bad_dir/bad_runs ]
 then
-    echo "ECH baddness at $NOW" | mail -s "ECH badness at $NOW" root
+    age_of_news=$(fileage $bad_dir/bad_runs)
+    # only consider news "new" if we haven't mailed today
+    if $((age_of_news < 24*3600))
+    then
+        itsnews="no"
+    fi
 fi
+if [[ "$DOMAIL" == "yes" && "$itsnews" == "yes" ]]
+then
+    echo "ECH badness at $NOW" | mail -s "ECH badness at $NOW" root
+fi
+# add to list of bad runs (updating file age)
+echo "ECH badness at $NOW" >>$bad_dir/bad_runs
 exit 2
