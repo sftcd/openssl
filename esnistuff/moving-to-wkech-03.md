@@ -161,5 +161,51 @@ haproxyserver-12414.sh    | haproxy   | 12414   | draft-13.esni.defo.ie | haprox
   (that should keep things working 'till we turn on new cronjobs)
 - haproxy (ports 12413 and 12414) needs new backends (due to wkech URL)
     - added a 13413 apache as backend to 12413 and 13414 as backend to 12414
+- 'alpn="null"' entries from wkech script, cause problems, fixed that, a better fix maybe needed
+- put cron jobs in place on defo.ie and zonefactory
 
+### Interop Matrix
+
+This is a manually generated interop matrix. We'll put an automated something
+in place sometime.
+
+URLs:
+    https://my-own.net/ech-check.php
+    https://my-own.net:8443/ech-check.php
+    https://defo.ie/ech-check.php
+    https://draft-13.esni.defo.ie:8413/stats
+    https://draft-13.esni.defo.ie:8414/stats
+    https://draft-13.esni.defo.ie:9413/
+    https://draft-13.esni.defo.ie:10413/
+    https://draft-13.esni.defo.ie:11413/
+    https://draft-13.esni.defo.ie:12413/
+    https://draft-13.esni.defo.ie:12414/
+
+Clients:
+    echcli.sh
+    FF
+    Chromium
+    Brave
+    Bromite
+    Vivaldi
+
+Platform:
+    linux
+    android
+
+
+client |  origin |  status
+FF
+
+script                    | server    |   port  | name                  | cfg file            | docroot                             | ech key dir
+--------------------------|-----------|---------|-----------------------|---------------------|-------------------------------------|-------------------
+nginx443.sh               | nginx     |   443   | cover.defo.ie         | nginx-443.conf      | /var/www/html/cover                 | ~/ech/cover.defo.ie.443
+nginx443.sh               | nginx     |   443   | defo.ie               | nginx-443.conf      | /var/www/html/home                  | ~/ech/cover.defo.ie.443
+defoserver-draft13.sh     | s_server  |  8413   | draft-13.esni.defo.ie | n/a                 | /var/www/html/s_server              | ~/ech/cover.defo.ie.443
+defoserver-draft13-hrr.sh | s_server  |  8414   | draft-13.esni.defo.ie | n/a                 | /var/www/html/s_server_hrr          | ~/ech/cover.defo.ie.443
+lighttpdserver-draft13.sh | lighttpd  |  9413   | draft-13.esni.defo.ie | lighttpd-9413.conf  | /var/www/draft-13/lighttpd/draft-13 | ~/ech/cover.defo.ie.443
+nginx-draft-13.sh         | nginx     | 10413   | draft-13.esni.defo.ie | nginx-10413.conf    | /var/www/draft-13/nginx/draft-13    | ~/ech/cover.defo.ie.443
+apache-draft-13.sh        | httpd     | 11413   | draft-13.esni.defo.ie | apache-11413.conf   | /var/www/draft-13/apache/draft-13   | ~/ech/cover.defo.ie.443
+haproxyserver-12413.sh    | haproxy   | 12413   | draft-13.esni.defo.ie | haproxy-12413.conf  | shared, be via port 11413           | ~/ech/cover.defo.ie.443
+haproxyserver-12414.sh    | haproxy   | 12414   | draft-13.esni.defo.ie | haproxy-12414.conf  | split, be via port 11413            | ~/ech/cover.defo.ie.443
 
