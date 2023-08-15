@@ -28,6 +28,8 @@ declare -A targets=(
 
 : ${OSSL:="$HOME/code/openssl"}
 
+: ${DOMAIL:="no"}
+
 DEFPORT=443
 
 function whenisitagain()
@@ -173,4 +175,9 @@ then
 fi
 # stash badness
 mv $TMPD $bad_dir/$NOW
+# send a mail to root (will be fwd'd)
+if [[ "$DOMAIL" == "yes" ]]
+then
+    echo "ECH baddness at $NOW" | mail -s "ECH badness at $NOW" root
+fi
 exit 2
