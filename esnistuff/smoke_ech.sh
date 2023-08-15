@@ -114,7 +114,7 @@ then
         fi
         wkurl="https://$host:$port/.well-known/origin-svcb"
         qname=$host
-        if [[ "$port" != "$DEF_PORT" ]]
+        if [[ "$port" != "$DEFPORT" ]]
         then
             qname="_$port._https.$host"
         fi
@@ -183,7 +183,7 @@ if [ -f $bad_dir/bad_runs ]
 then
     age_of_news=$(fileage $bad_dir/bad_runs)
     # only consider news "new" if we haven't mailed today
-    if $((age_of_news < 24*3600))
+    if ((age_of_news < 24*3600))
     then
         itsnews="no"
     fi
