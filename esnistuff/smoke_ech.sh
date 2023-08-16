@@ -18,6 +18,7 @@ declare -A targets=(
     [draft-13.esni.defo.ie:12413]=""
     [draft-13.esni.defo.ie:12414]=""
     [crypto.cloudflare.com]="cdn-cgi/trace"
+    [tls-ech.dev]=""
 )
 
 # place to stash outputs when things go wrong
@@ -120,7 +121,7 @@ then
         fi
         echo "Checking $host:$port/$path and $wkurl" >>$logfile
         # get wkurl
-        if [[ "$host" != "crypto.cloudflare.com" ]]
+        if [[ "$host" != "crypto.cloudflare.com" && "$host" != "tls-ech.dev" ]]
         then
             timeout $tout curl -o $host.$port.json -s $wkurl
             cres=$?
@@ -145,7 +146,7 @@ then
         if [[ "$eres" != "0" ]] 
         then
             allgood="no"
-            echo "Errot ($eres) from echcli.sh for $host:$port/$path" >>$logfile
+            echo "Error ($eres) from echcli.sh for $host:$port/$path" >>$logfile
         fi
     done
 fi
