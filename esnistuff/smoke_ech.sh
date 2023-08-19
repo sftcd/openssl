@@ -10,6 +10,7 @@ declare -A targets=(
     [my-own.net]="ech-check.php"
     [my-own.net:8443]="ech-check.php"
     [defo.ie]="ech-check.php"
+    [cover.defo.ie]=""
     [draft-13.esni.defo.ie:8413]="stats"
     [draft-13.esni.defo.ie:8414]="stats"
     [draft-13.esni.defo.ie:9413]=""
