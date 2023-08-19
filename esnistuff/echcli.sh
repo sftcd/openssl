@@ -92,6 +92,34 @@ function whenisitagain()
 }
 NOW=$(whenisitagain)
 
+# decode an asii-hex encode wire format DNS name
+# note this is not robust! TODO: make it so (or not:-)
+function dnsdecode()
+{
+    ahstring=$1
+    name=""
+
+    nlen=${#ahstring}
+    llen=99
+    while ((llen!=0))
+    do
+        ahllen=`echo $ahstring | awk '{print substr($1,0,2)}'`
+        llen=$((0x$ahllen))
+        ahlabel=`echo $ahstring | awk '{print substr($1,3,'$((2*llen))')}'`
+        label=`echo $ahlabel | xxd -r -p`
+        if [[ "$name" == "" ]]
+        then
+            name="$label"
+        else
+            name="$name.$label"
+        fi
+        ahstring=`echo $ahstring | awk '{print substr($1,'$((2*llen+3))','$nlen')}'`
+        nlen=${#ahstring}
+    done
+
+    echo $name
+}
+
 echo "Running $0 at $NOW"
 
 function usage()
@@ -213,6 +241,9 @@ then
     echo "Can't find the dig command - exiting"
     exit 12
 fi
+# aside: latest dig versions now output TYPE64 (HTTPS) RR presentation
+# syntax, but we don't have that on all platforms yet so need to still
+# deal with TYPE65 as uknownformat. Bit of a pain but non-fatal.
 
 #dbgstr=" -verify_quiet"
 dbgstr=" "
@@ -314,12 +345,29 @@ then
             echo "Using DNS recursive: $DNSRECURSIVE"
             recursivestr=" @$DNSRECURSIVE "
         fi
-        digval="`dig +unknownformat +short $recursivestr -t TYPE65 $qname | tail -1 | cut -f 3- -d' ' | sed -e 's/ //g' `"
-        # digval used have one more sed command as per below...
-        # digval="`dig +short -t TYPE65 $qname | tail -1 | cut -f 3- -d' ' | sed -e 's/ //g' | sed -e 'N;s/\n//'`"
-        # I think that's a hangover from some other script that had to merge lines, e.g. if the RR value is 
-        # very very big - but since we're doing a tail -1 here (ignoring all but one RR value) that shouldn't
-        # be needed (and it caused a problem for someone who didn't have GNU sed)
+        # check if we're in aliasMode or serviceMode (priority 0 is the former, other the latter)
+        priority=`dig +unknownformat +short -t TYPE65 $qname | awk '{print substr($3,0,4)}'`
+        if [[ "$priority" == "0000" ]]
+        then
+            # aliasMode - we'll do one level of indirection only
+            ahstring=`dig +unknownformat +short -t TYPE65 $qname`
+            elen=${#ahstring}
+            encoded=`dig +unknownformat +short -t TYPE65 $qname | awk '{print substr($3,5,'$elen-4')}'`
+            decoded=$(dnsdecode $encoded)
+            qname=$decoded
+            if [[ "$PORT" != "" && "$PORT" != "443" ]]
+            then
+                qname="_$PORT._https.$decoded"
+            fi
+            digval="`dig +unknownformat +short $recursivestr -t TYPE65 $qname | tail -1 | cut -f 3- -d' ' | sed -e 's/ //g' `"
+        else
+            digval="`dig +unknownformat +short $recursivestr -t TYPE65 $qname | tail -1 | cut -f 3- -d' ' | sed -e 's/ //g' `"
+            # digval used have one more sed command as per below...
+            # digval="`dig +short -t TYPE65 $qname | tail -1 | cut -f 3- -d' ' | sed -e 's/ //g' | sed -e 'N;s/\n//'`"
+            # I think that's a hangover from some other script that had to merge lines, e.g. if the RR value is 
+            # very very big - but since we're doing a tail -1 here (ignoring all but one RR value) that shouldn't
+            # be needed (and it caused a problem for someone who didn't have GNU sed)
+        fi
 
         if [[ "$digval" == "" ]]
         then
