@@ -12,9 +12,6 @@ OSSL_HPKE_get_recommended_ikmelen,
 OSSL_HPKE_CTX_set1_psk, OSSL_HPKE_CTX_set1_ikme,
 OSSL_HPKE_CTX_set1_authpriv, OSSL_HPKE_CTX_set1_authpub,
 OSSL_HPKE_CTX_get_seq, OSSL_HPKE_CTX_set_seq
-OSSL_HPKE_sender_export_encap, OSSL_HPKE_recipient_export_decap,
-OSSL_HPKE_CTX_export
-OSSL_HPKE_sender_export_encap, OSSL_HPKE_recipient_export_decap
 - Hybrid Public Key Encryption (HPKE) functions
 
 =head1 SYNOPSIS
@@ -71,7 +68,8 @@ OSSL_HPKE_sender_export_encap, OSSL_HPKE_recipient_export_decap
                              const unsigned char *ikme, size_t ikmelen);
 
  int OSSL_HPKE_suite_check(OSSL_HPKE_SUITE suite);
- int OSSL_HPKE_get_grease_value(const OSSL_HPKE_SUITE *suite_in,
+ int OSSL_HPKE_get_grease_value(OSSL_LIB_CTX *libctx, const char *propq,
+                                const OSSL_HPKE_SUITE *suite_in,
                                 OSSL_HPKE_SUITE *suite,
                                 unsigned char *enc, size_t *enclen,
                                 unsigned char *ct, size_t ctlen,
@@ -134,30 +132,6 @@ OSSL_HPKE_sender_export_encap, OSSL_HPKE_recipient_export_decap
  size_t OSSL_HPKE_get_ciphertext_size(OSSL_HPKE_SUITE suite, size_t clearlen);
  size_t OSSL_HPKE_get_public_encap_size(OSSL_HPKE_SUITE suite);
  size_t OSSL_HPKE_get_recommended_ikmelen(OSSL_HPKE_SUITE suite);
-
- int OSSL_HPKE_sender_seal(OSSL_HPKE_CTX *ctx,
-                           unsigned char *enc, size_t *enclen,
-                           unsigned char *ct, size_t *ctlen,
-                           unsigned char *pub, size_t publen,
-                           const unsigned char *info, size_t infolen,
-                           const unsigned char *aad, size_t aadlen,
-                           const unsigned char *pt, size_t ptlen);
- int OSSL_HPKE_recipient_open(OSSL_HPKE_CTX *ctx,
-                              unsigned char *pt, size_t *ptlen,
-                              const unsigned char *enc, size_t enclen,
-                              EVP_PKEY *recippriv,
-                              const unsigned char *info, size_t infolen,
-                              const unsigned char *aad, size_t aadlen,
-                              const unsigned char *ct, size_t ctlen);
- int OSSL_HPKE_sender_export_encap(OSSL_HPKE_CTX *ctx,
-                                   unsigned char *enc, size_t *enclen,
-                                   unsigned char *pub, size_t publen,
-                                   const unsigned char *info, size_t infolen);
- int OSSL_HPKE_recipient_export_decap(OSSL_HPKE_CTX *ctx,
-                                      const unsigned char *enc, size_t enclen,
-                                      EVP_PKEY *recippriv,
-                                      const unsigned char *info,
-                                      size_t infolen);
 
 =head1 DESCRIPTION
 
@@ -269,7 +243,7 @@ modes> and L</Sender-authenticated HPKE Modes>.
 
 HPKE contexts have a role - either sender or receiver. This is used
 to control which functions can be called and so that senders do not
-reuse a key and nonce with different plaintexts.
+re-use a key and nonce with different plaintexts.
 
 OSSL_HPKE_CTX_free(), OSSL_HPKE_export(), OSSL_HPKE_CTX_set1_psk(),
 and OSSL_HPKE_CTX_get_seq() can be called regardless of role.
@@ -490,7 +464,7 @@ I<seq> output) that will be used in the next call to seal or open. That would
 return 0 before the first call a sender made to OSSL_HPKE_seal() and 1 after
 that first call.
 
-Note that reuse of the same nonce and key with different plaintexts would
+Note that re-use of the same nonce and key with different plaintexts would
 be very dangerous and could lead to loss of confidentiality and integrity.
 We therefore only support application control over I<seq> for decryption
 (i.e. OSSL_HPKE_open()) operations.

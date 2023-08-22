@@ -439,7 +439,7 @@ static size_t hpke_seqnonce2buf(OSSL_HPKE_CTX *ctx,
  * @brief call the underlying KEM to encap
  * @param ctx is the OSSL_HPKE_CTX
  * @param enc is a buffer for the sender's ephemeral public value
- * @param enclen is the size of enc on input, number of octets used on output
+ * @param enclen is the size of enc on input, number of octets used on ouptut
  * @param pub is the recipient's public value
  * @param publen is the length of pub
  * @return 1 for success, 0 for error
@@ -1360,11 +1360,13 @@ int OSSL_HPKE_suite_check(OSSL_HPKE_SUITE suite)
     return hpke_suite_check(suite, NULL, NULL, NULL);
 }
 
-int OSSL_HPKE_get_grease_value(const OSSL_HPKE_SUITE *suite_in,
+int OSSL_HPKE_get_grease_value(OSSL_LIB_CTX *libctx, const char *propq,
+                               const OSSL_HPKE_SUITE *suite_in,
                                OSSL_HPKE_SUITE *suite,
-                               unsigned char *enc, size_t *enclen,
-                               unsigned char *ct, size_t ctlen,
-                               OSSL_LIB_CTX *libctx, const char *propq)
+                               unsigned char *enc,
+                               size_t *enclen,
+                               unsigned char *ct,
+                               size_t ctlen)
 {
     OSSL_HPKE_SUITE chosen;
     size_t plen = 0;
