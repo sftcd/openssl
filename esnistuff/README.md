@@ -22,6 +22,19 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
+- 20230822: rebased again, may as well leave reminder recipe here:
+
+            $ cd $HOME/code
+            $ git clone git@github.com:sftcd/openssl.git openssl-rebase
+            $ cd openssl-rebase
+            $ git remote add upstream https://github.com/openssl/openssl.git
+            $ git fetch upstream
+            $ git checkout master
+            $ git reset --hard upstream/master
+            $ git push origin master --force 
+            $ git checkout HPKE-PR
+            $ git rebase -i master HPKE-PR
+
 - 20230511: I'm starting to try out split-mode with nginx,
   but it's early days (see [nginx.md](nginx.md) for more).
 
