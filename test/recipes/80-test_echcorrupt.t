@@ -15,7 +15,7 @@ plan skip_all => "No TLS protocols are supported by this OpenSSL build"
     if alldisabled(available_protocols("tls"));
 
 plan skip_all => "ECH tests not supported in this build"
-    if !disabled("fips") || disabled("ech") || disabled("tls1_3") || disabled("ec") || disabled("tls1_2");
+    if !disabled("fips") || disabled("ech") || disabled("tls1_3") || disabled("ec") || disabled("tls1_2") || disabled("ecx");
 
 plan tests => 1;
 
