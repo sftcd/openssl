@@ -419,12 +419,14 @@ static const unsigned char kExampleED25519PubKeyDER[] = {
 };
 
 # ifndef OPENSSL_NO_DEPRECATED_3_0
+#  ifndef OPENSSL_NO_ECX
 static const unsigned char kExampleX25519KeyDER[] = {
     0x30, 0x2e, 0x02, 0x01, 0x00, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x6e,
     0x04, 0x22, 0x04, 0x20, 0xa0, 0x24, 0x3a, 0x31, 0x24, 0xc3, 0x3f, 0xf6,
     0x7b, 0x96, 0x0b, 0xd4, 0x8f, 0xd1, 0xee, 0x67, 0xf2, 0x9b, 0x88, 0xac,
     0x50, 0xce, 0x97, 0x36, 0xdd, 0xaf, 0x25, 0xf6, 0x10, 0x34, 0x96, 0x6e
 };
+#  endif
 # endif
 #endif
 
@@ -650,7 +652,7 @@ static EVP_PKEY *load_example_dh_key(void)
 }
 # endif
 
-# ifndef OPENSSL_NO_EC
+# if !defined(OPENSSL_NO_EC) && !defined(OPENSSL_NO_ECX)
 static EVP_PKEY *load_example_ed25519_key(void)
 {
     return load_example_key("ED25519", kExampleED25519KeyDER,
@@ -2372,6 +2374,10 @@ static int test_set_get_raw_keys_int(int tst, int pub, int uselibctx)
     size_t inlen, len = 0, shortlen = 1;
     EVP_PKEY *pkey;
 
+#ifdef OPENSSL_NO_ECX
+    /* need ECX for this */
+    return 1;
+#endif
     /* Check if this algorithm supports public keys */
     if (pub && keys[tst].pub == NULL)
         return 1;
@@ -2487,6 +2493,9 @@ static int test_EVP_PKEY_check(int i)
     int expected_param_check = ak->param_check;
     int type = ak->type;
 
+#ifdef OPENSSL_NO_ECX
+    return 1;
+#endif
     if (!TEST_ptr(pkey = load_example_key(ak->keytype, input, input_len)))
         goto done;
     if (type == 0
@@ -4713,7 +4722,7 @@ static int test_custom_pmeth(int idx)
 # endif
     case 2:
     case 8:
-# ifndef OPENSSL_NO_EC
+# if !defined(OPENSSL_NO_EC) && !defined(OPENSSL_NO_ECX)
         id = EVP_PKEY_EC;
         pkey = load_example_ec_key();
         break;
@@ -4722,7 +4731,7 @@ static int test_custom_pmeth(int idx)
 # endif
     case 3:
     case 9:
-# ifndef OPENSSL_NO_EC
+# if !defined(OPENSSL_NO_EC) && !defined(OPENSSL_NO_ECX)
         id = EVP_PKEY_ED25519;
         md = NULL;
         pkey = load_example_ed25519_key();
@@ -4742,7 +4751,7 @@ static int test_custom_pmeth(int idx)
 # endif
     case 5:
     case 11:
-# ifndef OPENSSL_NO_EC
+# if !defined(OPENSSL_NO_EC) && !defined(OPENSSL_NO_ECX)
         id = EVP_PKEY_X25519;
         doderive = 1;
         pkey = load_example_x25519_key();
@@ -5066,6 +5075,10 @@ static int test_signatures_with_engine(int tst)
     if (tst <= 1)
         return 1;
 #  endif
+#  ifdef OPENSSL_NO_ECX
+    if (tst == 2)
+        return 1;
+#  endif
 
     if (!TEST_ptr(e = ENGINE_by_id(engine_id)))
         return 0;
@@ -5220,7 +5233,7 @@ const OPTIONS *test_get_options(void)
     return options;
 }
 
-#ifndef OPENSSL_NO_EC
+#if !defined(OPENSSL_NO_EC) && !defined(OPENSSL_NO_ECX)
 /* Test that trying to sign with a public key errors out gracefully */
 static int test_ecx_not_private_key(int tst)
 {
@@ -5752,7 +5765,7 @@ int setup_tests(void)
 #endif
     ADD_ALL_TESTS(test_ecx_short_keys, OSSL_NELEM(ecxnids));
 
-#ifndef OPENSSL_NO_EC
+#if !defined(OPENSSL_NO_EC) && !defined(OPENSSL_NO_ECX)
     ADD_ALL_TESTS(test_ecx_not_private_key, OSSL_NELEM(keys));
 #endif
 
