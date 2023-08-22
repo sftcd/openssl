@@ -5023,7 +5023,7 @@ SSL *SSL_dup(SSL *s)
     if ((!SSL_in_init(s) || !SSL_in_before(s))) {
         /* If we're not ECH and not quiescent, just up_ref! */
         if (sc->ext.ech.cfgs == NULL) {
-            CRYPTO_UP_REF(&s->references, &i, s->lock);
+            CRYPTO_UP_REF(&s->references, &i);
             return s;
         }
     }
