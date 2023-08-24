@@ -22,6 +22,10 @@ if [[ "$1" == "client" ]]
 then
     CLIENT="yes"
 fi
+if [[ "$1" == "ossl" ]]
+then
+    SERVER="s_server"
+fi
 if [[ "$1" == "early" ]]
 then
     EARLY="yes"
@@ -47,7 +51,7 @@ VALGRIND=""
 
 vparm=""
 # if you want echcli.sh tracing
-# vparm=" -d "
+vparm=" -d "
 
 if [[ "$SERVERS" == "yes" ]]
 then
@@ -83,7 +87,8 @@ then
         if [[ "$srunning" == "" ]]
         then
             # ditch or keep server tracing
-            outf="/dev/null"
+            # outf="/dev/null"
+            outf="s_server.log"
             # outf=`mktemp`
             if [[ "$HRR" == "yes" ]]
             then

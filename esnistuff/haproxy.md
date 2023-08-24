@@ -1,5 +1,9 @@
 # Notes on building/integrating with haproxy
 
+## August 2023
+
+Got HRR working, but still need to fix leaks and test early data.
+
 ## June 2023
 
 Based on some interest in bringing the haproxy integration up to the same level
