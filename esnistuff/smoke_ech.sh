@@ -20,6 +20,7 @@ declare -A targets=(
     [draft-13.esni.defo.ie:12414]=""
     [crypto.cloudflare.com]="cdn-cgi/trace"
     [tls-ech.dev]=""
+    [epochbelt.com]=""
 )
 
 # place to stash outputs when things go wrong
