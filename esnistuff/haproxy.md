@@ -2,16 +2,13 @@
 
 ## August 2023
 
-Got HRR working, but still need to fix leaks and test early data.
+Both HRR and early data working now. Switched to stderr based logging.
 
-## June 2023
-
-Based on some interest in bringing the haproxy integration up to the same level
-as for other servers, we're currenty investigating full support for HRR.
-Rekeying to follow, as are split-mode tests with early data etc.
-
-Still at the point of figuring out how to handle the ECH state so as to have it
-available when the 2nd CH is see in the case of HRR.
+Next up is to figure out how to reload ECH keys without restarting haproxy.
+TLS certificate/key reloading via socket-API/CLI is described
+[here](https://docs.haproxy.org/dev/management.html#9.3). We'll want to try
+figure out something similar for ECH keys, or to figure out an equivalent for
+the LUA interface.
 
 ## May 2023 rebuild...
 
