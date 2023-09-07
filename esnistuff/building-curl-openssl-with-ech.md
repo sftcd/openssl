@@ -2,6 +2,49 @@
 
 # Building OpenSSL and curl with ECH support
 
+## 2023 Version
+
+2023-09-07 - so far this just compiles with code that replicates the
+2021 behaviour, it's not been tested at all so DO NOT USE (well, you
+can't, if even you wanted:-) 
+
+To build our OpenSSL fork:
+
+            $ cd $HOME/code
+            $ git clone https://github.com/sftcd/openssl
+            $ git checkout ECH-draft-13c
+            $ ./config 
+            ... stuff ...
+            $ make -j8
+            ... stuff (maybe go for coffee) ...
+            $
+
+To build curl: clone the repo, checkout the branch, then run buildconf and
+configure with abtruse settings:-) These are needed so the curl configure
+script picks up our ECH-enabled OpenSSL build - configure checks that the ECH
+functions are actually usable in the OpenSSL with which it's being built at
+this stage. (Note: The ``LD_LIBRARY_PATH`` setting will be need whenever you
+run this build of curl, e.g. after a logout/login, or a new shell.)
+
+            $ cd $HOME/code
+            $ git clone https://github.com/sftcd/curl
+            $ cd curl
+            $ git checkout ECH-experimental
+            $ autoreconf -fi
+            $ export LD_LIBRARY_PATH=$HOME/code/openssl
+            $ LDFLAGS="-L$HOME/code/openssl" ./configure --with-ssl=$HOME/code/openssl --enable-ech 
+            ...lots of output...
+              WARNING: ech ECH enabled but marked EXPERIMENTAL. Use with caution!
+            $ make 
+            ...lots more output...
+ 
+If you don't get that warning at the end then ECH isn't enabled so go back some steps
+and re-do whatever needs re-doing:-)
+
+That's as far as I've gotten for now. More to come.
+
+## 2021 Version
+
 September 15th 2021.
 
 Notes on an earlier version of this with Encrypted Server Name Indication
