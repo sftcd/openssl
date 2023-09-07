@@ -4,8 +4,8 @@
 
 ## 2023 Version
 
-2023-09-07 - so far this just compiles with code that replicates the
-2021 behaviour. Of course, DO NOT USE this for anything sensitive!
+2023-09-07 - so far this just passes a basic ECH test with code that replicates
+the 2021 behaviour. Of course, DO NOT USE this for anything sensitive!
 
 To build our OpenSSL fork:
 
