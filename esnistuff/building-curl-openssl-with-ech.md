@@ -5,8 +5,7 @@
 ## 2023 Version
 
 2023-09-07 - so far this just compiles with code that replicates the
-2021 behaviour, it's not been tested at all so DO NOT USE (well, you
-can't, if even you wanted:-) 
+2021 behaviour. Of course, DO NOT USE this for anything sensitive!
 
 To build our OpenSSL fork:
 
@@ -38,8 +37,29 @@ run this build of curl, e.g. after a logout/login, or a new shell.)
             $ make 
             ...lots more output...
  
-If you don't get that warning at the end then ECH isn't enabled so go back some steps
-and re-do whatever needs re-doing:-)
+If you don't get that warning at the end then ECH isn't enabled so go back some
+steps and re-do whatever needs re-doing:-) If you want to debug curl then you
+should add ``--enable-debug`` to the ``configure`` command.
+
+To actually use ECH you need to supply the ECHConfig on the command line (for
+now), so for the moment there's a bit of cut'n'paste needed, e.g.:
+
+            $ $ dig +short https defo.ie
+            1 . ipv4hint=213.108.108.101 ech=AED+DQA8PAAgACD8WhlS7VwEt5bf3lekhHvXrQBGDrZh03n/LsNtAodbUAAEAAEAAQANY292ZXIuZGVmby5pZQAA ipv6hint=2a00:c6c0:0:116:5::10
+
+Then paste the base64 encoded ECHConfig onto the curl command line:
+
+            $ LD_LIBRARY_PATH=$HOME/code/openssl ./src/curl --ech --echconfig AED+DQA8PAAgACD8WhlS7VwEt5bf3lekhHvXrQBGDrZh03n/LsNtAodbUAAEAAEAAQANY292ZXIuZGVmby5pZQAA https://defo.ie/ech-check.php
+            ...
+            SSL_ECH_STATUS: success <img src="greentick-small.png" alt="good" /> <br/>
+            ... 
+
+The output snippet above is within the HTML for the web page.
+
+If you paste in the wrong ECHConfig (it changes hourly) you'll get an error for now:
+
+            $ LD_LIBRARY_PATH=$HOME/code/openssl ./src/curl --ech --echconfig AED+DQA8yAAgACDRMQo+qYNsNRNj+vfuQfFIkrrUFmM4vogucxKj/4nzYgAEAAEAAQANY292ZXIuZGVmby5pZQAA https://defo.ie/ech-check.php
+            curl: (35) OpenSSL/3.2.0: error:0A00054B:SSL routines::ech required
 
 That's as far as I've gotten for now. More to come.
 
