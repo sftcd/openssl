@@ -11,6 +11,7 @@ To build our OpenSSL fork:
 
             $ cd $HOME/code
             $ git clone https://github.com/sftcd/openssl
+            $ cd openssl
             $ git checkout ECH-draft-13c
             $ ./config 
             ... stuff ...
