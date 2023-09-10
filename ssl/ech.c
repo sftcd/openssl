@@ -468,8 +468,8 @@ static int ech_guess_fmt(size_t eklen, const unsigned char *rrval,
     cp = (unsigned char*)rrval;
     if (eklen > 4
         && eklen == ((size_t)(cp[0])*256+(size_t)(cp[1])) + 2
-        && cp[3] == 0xfe
-        && cp[4] == 0x0d) {
+        && cp[3] == ((OSSL_ECH_DRAFT_13_VERSION / 256) & 0xff)
+        && cp[4] == ((OSSL_ECH_DRAFT_13_VERSION % 256) & 0xff)) {
         *guessedfmt = OSSL_ECH_FMT_BIN;
         return 1;
     }
