@@ -22,6 +22,10 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
+- 20230910: made some changes/fixes to handling of DNS wire format (for
+  HTTPS RRs) in ``ossl_ech_find_echconfigs()`` as a result of work done
+  on curl
+
 - 20230822: rebased again, may as well leave reminder recipe here:
 
             $ cd $HOME/code
