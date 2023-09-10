@@ -4,8 +4,11 @@
 
 ## 2023 Version
 
-2023-09-07 - so far this just passes a basic ECH test with code that replicates
-the 2021 behaviour. Of course, DO NOT USE this for anything sensitive!
+2023-09-10 - So far, this has only even been checked via a basic test using ECH
+when curl is also using DoH.  We also replicate the 2021 behaviour allowing
+provision of ECHConfig values on the command line. (Those will be preferred to
+values from HTTPS RRs, if supplied.) Of course, DO NOT USE this for anything
+sensitive!
 
 To build our OpenSSL fork:
 
@@ -41,6 +44,21 @@ run this build of curl, e.g. after a logout/login, or a new shell.)
 If you don't get that warning at the end then ECH isn't enabled so go back some
 steps and re-do whatever needs re-doing:-) If you want to debug curl then you
 should add ``--enable-debug`` to the ``configure`` command.
+
+### Using ECH and DoH
+
+Curl has some support for using DoH for A/AAAA lookups so it was relatively easy
+to add retrieval of HTTPS RRs in that situation. To use ECH and DoH together:
+
+            $ cd $HOME/code/curl
+            $ LD_LIBRARY_PATH=$HOME/code/openssl ./src/curl -vvv https://defo.ie/ech-check.php
+            ...
+            SSL_ECH_STATUS: success <img src="greentick-small.png" alt="good" /> <br/>
+            ... 
+
+The output snippet above is within the HTML for the web page, when things work.
+
+### Supplying an ECHConfig on the command line
 
 To actually use ECH you need to supply the ECHConfig on the command line (for
 now), so for the moment there's a bit of cut'n'paste needed, e.g.:
