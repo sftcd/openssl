@@ -373,6 +373,64 @@ static int ech_check_filenames(SSL_CTX *ctx, const char *pemfname, int *index)
 }
 
 /*
+ * @brief decode the DNS name in a binary RRData
+ * @param buf points to the buffer (in/out)
+ * @param remaining points to the remaining buffer length (in/out)
+ * @param dnsname returns the string form name on success
+ * @return is 1 for success, error otherwise
+ *
+ * The encoding here is defined in
+ * https://tools.ietf.org/html/rfc1035#section-3.1
+ *
+ * The input buffer pointer will be modified so it points to
+ * just after the end of the DNS name encoding on output. (And
+ * that's why it's an "unsigned char **" :-)
+ */
+static int local_decode_rdata_name(unsigned char **buf, size_t *remaining,
+                                   char **dnsname)
+{
+    unsigned char *cp = NULL;
+    size_t rem = 0;
+    char *thename = NULL, *tp = NULL;
+    unsigned char clen = 0; /* chunk len */
+
+    if (buf == NULL || remaining == NULL || dnsname == NULL)
+        return 0;
+    rem = *remaining;
+    thename = OPENSSL_malloc(TLSEXT_MAXLEN_host_name);
+    if (thename == NULL)
+        return 0;
+    cp = *buf;
+    tp = thename;
+    clen = *cp++;
+    if (clen == 0) {
+        /* special case - return "." as name */
+        thename[0] = '.';
+        thename[1] = 0x00;
+    }
+    while (clen != 0) {
+        if (clen > rem) {
+            OPENSSL_free(thename);
+            return 0;
+        }
+        if (((tp - thename) + clen) > TLSEXT_MAXLEN_host_name) {
+            OPENSSL_free(thename);
+            return 0;
+        }
+        memcpy(tp, cp, clen);
+        tp += clen;
+        *tp++ = '.';
+        cp += clen;
+        rem -= (clen + 1);
+        clen = *cp++;
+    }
+    *buf = cp;
+    *remaining = rem - 1;
+    *dnsname = thename;
+    return 1;
+}
+
+/*
  * @brief Try figure out ECHConfig encodng by looking for telltales
  * @param eklen is the length of rrval
  * @param rrval is encoded thing
@@ -391,6 +449,9 @@ static int ech_guess_fmt(size_t eklen, const unsigned char *rrval,
                          int *guessedfmt)
 {
     size_t span = 0;
+    char *dnsname = NULL;
+    unsigned char *cp = NULL;
+    size_t remaining;
 
     /*
      * This could be more terse, but this is better for
@@ -398,6 +459,20 @@ static int ech_guess_fmt(size_t eklen, const unsigned char *rrval,
      */
     if (guessedfmt == NULL || eklen == 0 || rrval == NULL)
         return 0;
+    /*
+     * check for binary encoding of an ECHConfigList that starts with a
+     * two octet length and then our ECH extension codepoint
+     */
+    if (eklen <= 2)
+        return 0;
+    cp = (unsigned char*)rrval;
+    if (eklen > 4
+        && eklen == ((size_t)(cp[0])*256+(size_t)(cp[1])) + 2
+        && cp[3] == 0xfe
+        && cp[4] == 0x0d) {
+        *guessedfmt = OSSL_ECH_FMT_BIN;
+        return 1;
+    }
     if (eklen < strlen(unknownformat_telltale))
         return 0;
     if (!strncmp((char *)rrval, unknownformat_telltale,
@@ -423,6 +498,18 @@ static int ech_guess_fmt(size_t eklen, const unsigned char *rrval,
     span = strspn((char *)rrval, B64_alphabet);
     if (eklen <= span) {
         *guessedfmt = OSSL_ECH_FMT_B64TXT;
+        return 1;
+    }
+    /*
+     * check for HTTPS RR DNS wire format - we'll go with that if
+     * the buffer starts with a two octet priority and then a 
+     * wire-format encoded DNS name, but not if we think it's a
+     */
+    cp += 2;
+    remaining = eklen - 2;
+    if (local_decode_rdata_name(&cp, &remaining, &dnsname) == 1) {
+        *guessedfmt = OSSL_ECH_FMT_DNS_WIRE;
+        OPENSSL_free(dnsname);
         return 1;
     }
     /* fallback - try binary */
@@ -836,64 +923,6 @@ err:
 }
 
 /*
- * @brief decode the DNS name in a binary RRData
- * @param buf points to the buffer (in/out)
- * @param remaining points to the remaining buffer length (in/out)
- * @param dnsname returns the string form name on success
- * @return is 1 for success, error otherwise
- *
- * The encoding here is defined in
- * https://tools.ietf.org/html/rfc1035#section-3.1
- *
- * The input buffer pointer will be modified so it points to
- * just after the end of the DNS name encoding on output. (And
- * that's why it's an "unsigned char **" :-)
- */
-static int local_decode_rdata_name(unsigned char **buf, size_t *remaining,
-                                   char **dnsname)
-{
-    unsigned char *cp = NULL;
-    size_t rem = 0;
-    char *thename = NULL, *tp = NULL;
-    unsigned char clen = 0; /* chunk len */
-
-    if (buf == NULL || remaining == NULL || dnsname == NULL)
-        return 0;
-    rem = *remaining;
-    thename = OPENSSL_malloc(TLSEXT_MAXLEN_host_name);
-    if (thename == NULL)
-        return 0;
-    cp = *buf;
-    tp = thename;
-    clen = *cp++;
-    if (clen == 0) {
-        /* special case - return "." as name */
-        thename[0] = '.';
-        thename[1] = 0x00;
-    }
-    while (clen != 0) {
-        if (clen > rem) {
-            OPENSSL_free(thename);
-            return 0;
-        }
-        if (((tp - thename) + clen) > TLSEXT_MAXLEN_host_name) {
-            OPENSSL_free(thename);
-            return 0;
-        }
-        memcpy(tp, cp, clen);
-        tp += clen;
-        *tp++ = '.';
-        cp += clen;
-        rem -= (clen + 1);
-        clen = *cp++;
-    }
-    *buf = cp;
-    *remaining = rem - 1;
-    *dnsname = thename;
-    return 1;
-}
-
-/*
  * @brief decode and flatten a binary encoded ECHConfigList
  * @param nechs_in in/out number of ECHConfig's in play
  * @param retech_in in/out array of SSL_ECH
@@ -1030,23 +1059,26 @@ static int local_ech_add(int ekfmt, size_t len, const unsigned char *val,
         ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
         return 0;
     }
-    switch (ekfmt) {
-    case OSSL_ECH_FMT_GUESS:
+    if (ekfmt != OSSL_ECH_FMT_GUESS) {
+        detfmt = ekfmt;
+    } else {
         rv = ech_guess_fmt(eklen, ekval, &detfmt);
         if (rv == 0) {
             ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
             return 0;
         }
-        break;
+    }
+    switch (detfmt) {
     case OSSL_ECH_FMT_ASCIIHEX:
     case OSSL_ECH_FMT_B64TXT:
     case OSSL_ECH_FMT_BIN:
-        detfmt = ekfmt;
         break;
         /* not supported here */
+    case OSSL_ECH_FMT_GUESS:
     case OSSL_ECH_FMT_HTTPSSVC:
     case OSSL_ECH_FMT_HTTPSSVC_NO_ECH:
     case OSSL_ECH_FMT_DIG_UNK:
+    case OSSL_ECH_FMT_DNS_WIRE:
     default:
         ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
         return 0;
