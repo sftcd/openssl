@@ -58,22 +58,10 @@ to add retrieval of HTTPS RRs in that situation. To use ECH and DoH together:
 
 The output snippet above is within the HTML for the web page, when things work.
 
-Currently the above works for https://defo.ie/ech-check.php and
-https://draft-13.esni.defo.ie:8413/stats but fails for
-https://crypto.cloudflare.com/cdn-cgi/trace - to get that working, we also need
-to force TLSv1.3 on the command line, or else the client will e.g. send
-ciphersuites that aren't usable with TLSv1.3 - that (or something else related)
-seems to cause Cloudflare's server to send an illegal parameter alert. The same
-is also true for https://tls-ech.dev/
-
-So, to get ECH working with those for now, you need to:
-
-            $ LD_LIBRARY_PATH=$HOME/code/openssl ./src/curl --ech --doh-url https://1.1.1.1/dns-query --tlsv1.3 https://crypto.cloudflare.com/cdn-cgi/trace
-            ...
-            sni=encrypted
-            ...
-
-That "sni=encrypted" is the good news part of the answer:-)
+The above works for https://defo.ie/ech-check.php,
+https://draft-13.esni.defo.ie:8413/stats,
+https://crypto.cloudflare.com/cdn-cgi/trace and https://tls-ech.dev so we seem
+to have the basic thing functioning now.
 
 ### Supplying an ECHConfig on the command line
 
