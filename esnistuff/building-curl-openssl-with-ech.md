@@ -51,12 +51,15 @@ Curl has some support for using DoH for A/AAAA lookups so it was relatively easy
 to add retrieval of HTTPS RRs in that situation. To use ECH and DoH together:
 
             $ cd $HOME/code/curl
-            $ LD_LIBRARY_PATH=$HOME/code/openssl ./src/curl -vvv https://defo.ie/ech-check.php
+            $ LD_LIBRARY_PATH=$HOME/code/openssl ./src/curl -vvv --doh-url https://1.1.1.1/dns-query --ech https://defo.ie/ech-check.php
             ...
             SSL_ECH_STATUS: success <img src="greentick-small.png" alt="good" /> <br/>
             ... 
 
 The output snippet above is within the HTML for the web page, when things work.
+
+Currently that does work for defo.ie but does not for
+https://crypto.cloudflare.com/cdn-cgi/trace so we've more to do.
 
 ### Supplying an ECHConfig on the command line
 
