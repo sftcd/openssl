@@ -51,20 +51,34 @@ Curl has some support for using DoH for A/AAAA lookups so it was relatively easy
 to add retrieval of HTTPS RRs in that situation. To use ECH and DoH together:
 
             $ cd $HOME/code/curl
-            $ LD_LIBRARY_PATH=$HOME/code/openssl ./src/curl -vvv --doh-url https://1.1.1.1/dns-query --ech https://defo.ie/ech-check.php
+            $ LD_LIBRARY_PATH=$HOME/code/openssl ./src/curl --ech --doh-url https://1.1.1.1/dns-query https://defo.ie/ech-check.php
             ...
             SSL_ECH_STATUS: success <img src="greentick-small.png" alt="good" /> <br/>
             ... 
 
 The output snippet above is within the HTML for the web page, when things work.
 
-Currently that does work for defo.ie but does not for
-https://crypto.cloudflare.com/cdn-cgi/trace so we've more to do.
+Currently the above works for https://defo.ie/ech-check.php and
+https://draft-13.esni.defo.ie:8413/stats but fails for
+https://crypto.cloudflare.com/cdn-cgi/trace - to get that working, we also need
+to force TLSv1.3 on the command line, or else the client will e.g. send
+ciphersuites that aren't usable with TLSv1.3 - that (or something else related)
+seems to cause Cloudflare's server to send an illegal parameter alert. The same
+is also true for https://tls-ech.dev/
+
+So, to get ECH working with those for now, you need to:
+
+            $ LD_LIBRARY_PATH=$HOME/code/openssl ./src/curl --ech --doh-url https://1.1.1.1/dns-query --tlsv1.3 https://crypto.cloudflare.com/cdn-cgi/trace
+            ...
+            sni=encrypted
+            ...
+
+That "sni=encrypted" is the good news part of the answer:-)
 
 ### Supplying an ECHConfig on the command line
 
-To actually use ECH you need to supply the ECHConfig on the command line (for
-now), so for the moment there's a bit of cut'n'paste needed, e.g.:
+You can also supply the ECHConfig on the command line which may mean a bit of
+cut'n'paste, e.g.:
 
             $ $ dig +short https defo.ie
             1 . ipv4hint=213.108.108.101 ech=AED+DQA8PAAgACD8WhlS7VwEt5bf3lekhHvXrQBGDrZh03n/LsNtAodbUAAEAAEAAQANY292ZXIuZGVmby5pZQAA ipv6hint=2a00:c6c0:0:116:5::10
@@ -83,7 +97,9 @@ If you paste in the wrong ECHConfig (it changes hourly) you'll get an error for 
             $ LD_LIBRARY_PATH=$HOME/code/openssl ./src/curl --ech --echconfig AED+DQA8yAAgACDRMQo+qYNsNRNj+vfuQfFIkrrUFmM4vogucxKj/4nzYgAEAAEAAQANY292ZXIuZGVmby5pZQAA https://defo.ie/ech-check.php
             curl: (35) OpenSSL/3.2.0: error:0A00054B:SSL routines::ech required
 
-That's as far as I've gotten for now. More to come.
+There is a reason to keep this command line option - for use before publishing
+the ECHConfig in the DNS (e.g. see
+[draft-ietf-tls-wkech](https://datatracker.ietf.org/doc/draft-ietf-tls-wkech/).
 
 ## 2021 Version
 
