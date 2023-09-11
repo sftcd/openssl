@@ -96,8 +96,16 @@ one can set the DoH URL that way:
 
             $ cat ~/.curlrc
             doh-url=https://1.1.1.1/dns-query
+            silent=TRUE
             ech=TRUE
             $
+
+Note that when you use the system's curl command (rather than our ECH-enabled
+build), it'll produce a warning that ``ech`` is an unknown option. If that's
+an issue (e.g. if some script re-directs stdout and stderr somewhere) then 
+adding the ``silent=TRUE`` line above seems to fix the issue. (Though of course,
+yet another script could depend on non-silent behaviour, so you'll have to
+figure out what you prefer youself.)
 
 And if you want to always use our OpenSSL build you can set ``LD_LIBRARY_PATH`` in the environment:
 
