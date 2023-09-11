@@ -89,6 +89,43 @@ There is a reason to keep this command line option - for use before publishing
 the ECHConfig in the DNS (e.g. see
 [draft-ietf-tls-wkech](https://datatracker.ietf.org/doc/draft-ietf-tls-wkech/).
 
+### Default settings
+
+Curl has various ways to configure default settings, e.g. in ``$HOME/.curlrc``, so
+one can set the DoH URL that way:
+
+            $ cat ~/.curlrc
+            doh-url=https://1.1.1.1/dns-query
+            ech=TRUE
+            $
+
+And if you want to always use our OpenSSL build you can set ``LD_LIBRARY_PATH`` in the environment:
+
+            $ export LD_LIBRARY_PATH=$HOME/code/openssl
+            $
+
+Note that when you do that, there can be a mismatch between OpenSSL versions
+for applications that check that. A ``git push`` for example will fail so 
+you should unset ``LD_LIBRARY_PATH`` before doing that or use a different
+shell.
+
+            $ git push
+            OpenSSL version mismatch. Built against 30000080, you have 30200000
+            ...
+
+With all that the command line gets simpler:
+
+            $ ./src/curl https://defo.ie/ech-check.php
+            ...
+            SSL_ECH_STATUS: success <img src="greentick-small.png" alt="good" /> <br/>
+            ... 
+
+The ``--ech`` option is opportunistic, so will try to do ECH but won't fail if
+the client e.g. can't find any ECHConfig values.  The ``--ech-hard`` option
+hard-fails if there is no ECHConfig found in DNS, so for now, that's not a good
+option to set as a default.
+
+
 ## 2021 Version
 
 September 15th 2021.
