@@ -63,6 +63,15 @@ https://draft-13.esni.defo.ie:8413/stats,
 https://crypto.cloudflare.com/cdn-cgi/trace and https://tls-ech.dev so we seem
 to have the basic thing functioning now.
 
+We currently support the following new curl comand line arguments/options:
+
+- ``--ech``: tells client to attempt ECH if possible (opportunistic)
+- ``--ech-hard``: tells client to use ECH or fail if that's not possible
+- ``--ech-config``: supplies an ECHConfig from command line (otherwise DNS
+  HTTPS RR for the target domain is accessed via DoH)
+- ``--ech-public``: over-rides the ``public_name`` from the ECHConfig with a
+  name from the command line
+
 ### Supplying an ECHConfig on the command line
 
 You can also supply the ECHConfig on the command line which may mean a bit of
@@ -133,6 +142,100 @@ the client e.g. can't find any ECHConfig values.  The ``--ech-hard`` option
 hard-fails if there is no ECHConfig found in DNS, so for now, that's not a good
 option to set as a default.
 
+### Code changes for ECH support when using DoH
+
+All code changes are in a new ``ECH-experimental`` branch of the fork
+[here](https://github.com/sftcd/curl/tree/ECH-experimental) ``#ifdef``
+protected via ``USE_ECH`` or ``USE_HTTPSRR``.  The latter is used for HTTPS RR
+retrieval code that could be generically used should non-ECH uses for HTTPS RRs
+be identified, e.g. use of ALPN values or IP address hints. The former protects
+ECH specific code, which is likely almost all also OpenSSL-specific. (Though
+some fragments might be usable with other TLS libraries in future.) There are
+various obvious code blocks for handling the new command line arguments which
+aren't described here, but should be fairly obvious.
+
+The main functional change, as you'd expect, is in ``lib/vtls/openssl.c``
+[here](https://github.com/sftcd/curl/blob/ECH-experimental/lib/vtls/openssl.c#L3768)
+where an ECHConfig, if available from command line or DNS cache, is fed into
+the OpenSSL library via the new APIs implemented in our fork for that purpose.
+This code also implements the opportunistic (``--ech``) or hard-fail
+(``--ech-fail``) logic. (There's about 100 new LOC involved there.)
+
+Other than that, the main additions are in ``lib/doh.c``
+[here](https://github.com/sftcd/curl/blob/ECH-experimental/lib/doh.c#L418)
+where we re-use ``dohprobe()`` to retrieve an HTTPS RR value for the target
+domain.
+
+If such a value is found, that's stored using a new ``store_https()`` function
+[here](https://github.com/sftcd/curl/blob/ECH-experimental/lib/doh.c#L527) in a
+new field in the ``dohentry`` structure. (Currently, only the first HTTPS RR
+value retrieved is actually processed this way, that could be extended in
+future, though picking the "right" HTTPS RR could be non-trivial if multiple
+RRs are published - matching IP address hints versus A/AAAA values might be a
+good basis for that. Last I checked though, browsers supporting ECH didn't
+handle multiple HTTPS RRs well, though that needs re-checking as it's been a
+while.)
+
+The qname for the DoH query is modified if the port number is not 443, as
+defined in the SCVB specification.
+[here](https://github.com/sftcd/curl/blob/ECH-experimental/lib/doh.c#L418)
+
+When the DoH process has worked, ``Curl_doh_is_resolved()`` now also returns
+the relevant HTTPS RR value in the ``Curl_dns_entry`` structure.
+[here](https://github.com/sftcd/curl/blob/ECH-experimental/lib/doh.c#L1086)
+That is later accessed when the TLS session is being established, if ECH is
+enabled (from ``lib/vtls/openss.c`` as described above).
+
+A couple of things that need fixing, but that can probably be ignored for the
+moment:
+
+- As of now, memory handling for the HTTPS RR values just uses straight calls
+  to ``malloc()`` and ``free()`` - those need to be replaced with whatever are
+the right curl equivalents.
+
+- There is also a new file ``lib/ech.c`` that implements a
+  ``Curl_ech_is_ready()`` check, used from within ``lib/vtls/openssl.c`` - that
+could probably be eliminated, as the actual checks are now also effectively
+inline in ``lib/vtls/openssl.c`` (That's a bit of a hang-over from our 2021
+code, but we've left it there for now.)
+
+- We could easily add code to make use of an ``alpn=`` value found in an HTTPS
+  RR, passing that on to OpenSSL for use as the "inner" ALPN value, but have
+yet to do that.
+
+Current limitations (more interesting than the above):
+
+- It's unclear how one should handle any IP address hints found in an HTTPS RR
+  or, as noted above, how to handle multiple HTTPS RR values.  It may be that a
+bit of consideration of how "multi-CDN" deployments might emerge would provide
+good answers there, but for now, it's not clear how best curl might handle
+those values when present in an HTTPS RR.
+
+- The SVCB/HTTPS RR specification supports a new "CNAME at apex" indirection
+  ("aliasMode") - the current code takes no account of that at all. One could
+envisage implementing the equivalent of following CNAMEs in such cases, but
+it's not clear if that'd be a good plan. (As of now, chrome browsers don't seem
+to have any support for that "aliasMode".)
+
+- We have not investigated what related changes or additions might be needed
+  for applications using libcurl, as opposed to use of curl as a command line
+tool.
+
+## Supporting ECH without DoH
+
+All of the above only applies if DoH is being used. If DoH is not being used,
+it's not clear at this time how to provide support for ECH. One option would
+seem to be to extend the ``c-ares`` library to support HTTPS RRs, but in that
+case it's not now clear whether such changes would be attractive to the
+``c-ares`` maintainers, nor whether the "tag=value" extensibility inherent in
+the HTTPS/SVCB specification is a good match for the ``c-ares`` approach of
+defining structures specific to decoded answers for each supported RRtype.
+We're also not sure how many downstream curl deployments actually make use of
+the ``c-ares`` library, which would affect the utility of such changes.
+Another option might be to consider using some other generic DNS library (such
+as the getdnsapi) that does support HTTPS RRs, but it's unclear if such a
+library could be used by all or almost all curl builds and downstream releases
+of curl.
 
 ## 2021 Version
 
