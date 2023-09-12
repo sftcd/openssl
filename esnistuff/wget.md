@@ -1,6 +1,60 @@
 
 # Integrating wget
 
+## 2023 Version
+
+Now we've made progress with curl, maybe worth looking at wget again.  wget2
+seems to have developed some since we last looked and does now have an OpenSSL
+option, so we'll start there.  Not clear that this'll go anywhere yet though...
+
+I created a fork of wget2 at https://gitlab.com/sftcd/wget2
+
+So to start with:
+
+            $ cd $HOME/code
+            $ git clone https://gitlab.com/sftcd/wget2.git
+            $ cd wget2
+            $ ./bootstrap
+            ...
+            $ export CPPFLAGS="-I $HOME/code/openssl/include" 
+            $ export LDFLAGS="-L$HOME/code/openssl/" 
+            $ ./configure --with-openssl -with-debug
+            ...
+
+For some reason I need to re-run ``configure`` to avoid some
+linker errors, not sure why, but anyway...
+
+            $ ./configure
+            ...
+            $ make
+            ...
+            $ ./src/wget2 -V
+            GNU Wget2 2.1.0 - multithreaded metalink/file/website downloader
+            
+            +digest +https +ssl/openssl +ipv6 +iri +large-file +nls -ntlm -opie -psl -hsts
+            +iconv -idn +zlib -lzma +brotlidec -zstd -bzip2 -lzip -http2 -gpgme
+            
+            Copyright (C) 2012-2015 Tim Ruehsen
+            Copyright (C) 2015-2021 Free Software Foundation, Inc.
+            
+            License GPLv3+: GNU GPL version 3 or later
+            <http://www.gnu.org/licenses/gpl.html>.
+            This is free software: you are free to change and redistribute it.
+            There is NO WARRANTY, to the extent permitted by law.
+            
+            Please send bug reports and questions to <bug-wget@gnu.org>.
+            $
+
+So, now let's see what DNS support is like... There's a ``libwget/dns_cache.c``
+that looks like it'd be useful if we added HTTPS RRs to the ``cache_entry``
+type, but so far it seems to only be populated via ``getaddrinfo`` which'd be a
+bit of a gotcha for our purposes. Checking... So far it's not looking like
+there's an easy path forward to retrieve HTTPS RRs so the situation with wget
+is probably similar to that with curl when DoH is not in use (albeit with
+perhaps better caching and TLS session re-use). 
+
+## 2019 Version
+
 20190227
 
 I'm starting to play with integrating this openssl build into wget.
