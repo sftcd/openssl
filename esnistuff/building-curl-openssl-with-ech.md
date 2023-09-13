@@ -193,7 +193,7 @@ When the DoH process has worked, ``Curl_doh_is_resolved()`` now also returns
 the relevant HTTPS RR value in the ``Curl_dns_entry`` structure.
 ([here](https://github.com/sftcd/curl/blob/ECH-experimental/lib/doh.c#L1086))
 That is later accessed when the TLS session is being established, if ECH is
-enabled (from ``lib/vtls/openss.c`` as described above).
+enabled (from ``lib/vtls/openssl.c`` as described above).
 
 A couple of things that need fixing, but that can probably be ignored for the
 moment:
