@@ -4,13 +4,19 @@
 
 ## 2023 Version
 
-2023-09-10 - So far, this has only even been checked via a basic test using ECH
-when curl is also using DoH.  We also replicate the 2021 behaviour allowing
-provision of ECHConfig values on the command line. (Those will be preferred to
-values from HTTPS RRs, if supplied.) Of course, DO NOT USE this for anything
-sensitive!
+We've added support for ECH to a recent curl build. That can use HTTPS RRs
+published in the DNS, if curl is using DoH, or else can accept the relevant
+ECHConfig values from the command line.
 
-To build our OpenSSL fork:
+This has not been tested. DO NOT USE!
+
+But hopefully, this provides enough of a proof-of-concept to prompt an informed
+discussion about a good path forward for ECH support in curl, when using
+OpenSSL, or other TLS libraries, as those add ECH support.
+
+### Build
+
+To build our ECH-enabled OpenSSL fork:
 
             $ cd $HOME/code
             $ git clone https://github.com/sftcd/openssl
@@ -22,12 +28,7 @@ To build our OpenSSL fork:
             ... stuff (maybe go for coffee) ...
             $
 
-To build curl: clone the repo, checkout the branch, then run buildconf and
-configure with abtruse settings:-) These are needed so the curl configure
-script picks up our ECH-enabled OpenSSL build - configure checks that the ECH
-functions are actually usable in the OpenSSL with which it's being built at
-this stage. (Note: The ``LD_LIBRARY_PATH`` setting will be need whenever you
-run this build of curl, e.g. after a logout/login, or a new shell.)
+To build our ECH-enabled curl fork, making use of the above:
 
             $ cd $HOME/code
             $ git clone https://github.com/sftcd/curl
@@ -41,14 +42,15 @@ run this build of curl, e.g. after a logout/login, or a new shell.)
             $ make 
             ...lots more output...
  
-If you don't get that warning at the end then ECH isn't enabled so go back some
-steps and re-do whatever needs re-doing:-) If you want to debug curl then you
-should add ``--enable-debug`` to the ``configure`` command.
+If you don't get that WARNING at the end of the ``configure`` command, then ECH
+isn't enabled, so go back some steps and re-do whatever needs re-doing:-) If you
+want to debug curl then you should add ``--enable-debug`` to the ``configure``
+command.
 
 ### Using ECH and DoH
 
-Curl has some support for using DoH for A/AAAA lookups so it was relatively easy
-to add retrieval of HTTPS RRs in that situation. To use ECH and DoH together:
+Curl supports using DoH for A/AAAA lookups so it was relatively easy to add
+retrieval of HTTPS RRs in that situation. To use ECH and DoH together:
 
             $ cd $HOME/code/curl
             $ LD_LIBRARY_PATH=$HOME/code/openssl ./src/curl --ech --doh-url https://1.1.1.1/dns-query https://defo.ie/ech-check.php
@@ -65,16 +67,22 @@ to have the basic thing functioning now.
 
 We currently support the following new curl comand line arguments/options:
 
-- ``--ech``: tells client to attempt ECH if possible (opportunistic)
-- ``--ech-hard``: tells client to use ECH or fail if that's not possible
-- ``--ech-config``: supplies an ECHConfig from command line (otherwise DNS
-  HTTPS RR for the target domain is accessed via DoH)
+- ``--ech``: tells client to attempt ECH if possible (opportunistic) based on
+  an HTTPS RR value found in the DNS, accessed using DoH
+- ``--ech-hard``: tells client to attempt ECH as above or fail if that's not
+  possible
+- ``--ech-config``: supplies an ECHConfig from command line that will be used
+  in preference to a value found in the answer to a DNS query for an HTTPS RR
 - ``--ech-public``: over-rides the ``public_name`` from the ECHConfig with a
   name from the command line
 
+Note that in the above "attempt ECH" means the client emitting a TLS ClientHello
+with a "real" ECH extension, but that does not mean that the relevant server
+will succeed in decrypting, as things can fail for other reasons.
+
 ### Supplying an ECHConfig on the command line
 
-You can also supply the ECHConfig on the command line which may mean a bit of
+To supply the ECHConfig on the command line, you might need a bit of
 cut'n'paste, e.g.:
 
             $ $ dig +short https defo.ie
@@ -89,14 +97,15 @@ Then paste the base64 encoded ECHConfig onto the curl command line:
 
 The output snippet above is within the HTML for the web page.
 
-If you paste in the wrong ECHConfig (it changes hourly) you'll get an error for now:
+If you paste in the wrong ECHConfig (it changes hourly for ``defo.ie``)
+you'll get an error like this:
 
             $ LD_LIBRARY_PATH=$HOME/code/openssl ./src/curl --ech --echconfig AED+DQA8yAAgACDRMQo+qYNsNRNj+vfuQfFIkrrUFmM4vogucxKj/4nzYgAEAAEAAQANY292ZXIuZGVmby5pZQAA https://defo.ie/ech-check.php
             curl: (35) OpenSSL/3.2.0: error:0A00054B:SSL routines::ech required
 
 There is a reason to keep this command line option - for use before publishing
 the ECHConfig in the DNS (e.g. see
-[draft-ietf-tls-wkech](https://datatracker.ietf.org/doc/draft-ietf-tls-wkech/).
+[draft-ietf-tls-wkech](https://datatracker.ietf.org/doc/draft-ietf-tls-wkech/)).
 
 ### Default settings
 
@@ -145,30 +154,34 @@ option to set as a default.
 ### Code changes for ECH support when using DoH
 
 All code changes are in a new ``ECH-experimental`` branch of the fork
-[here](https://github.com/sftcd/curl/tree/ECH-experimental) ``#ifdef``
-protected via ``USE_ECH`` or ``USE_HTTPSRR``.  The latter is used for HTTPS RR
-retrieval code that could be generically used should non-ECH uses for HTTPS RRs
-be identified, e.g. use of ALPN values or IP address hints. The former protects
-ECH specific code, which is likely almost all also OpenSSL-specific. (Though
-some fragments might be usable with other TLS libraries in future.) There are
-various obvious code blocks for handling the new command line arguments which
-aren't described here, but should be fairly obvious.
+([here](https://github.com/sftcd/curl/tree/ECH-experimental)) and are
+``#ifdef`` protected via ``USE_ECH`` or ``USE_HTTPSRR``: 
+
+- ``USE_HTTPSRR`` is used for HTTPS RR retrieval code that could be generically
+used should non-ECH uses for HTTPS RRs be identified, e.g. use of ALPN values
+or IP address hints.
+
+- ``USE_ECH`` protects ECH specific code, which is likely almost all also
+OpenSSL-specific. (Though some fragments should be usable for other TLS
+libraries in future.)
+
+There are various obvious code blocks for handling the new command line
+arguments which aren't described here, but should be fairly obvious.
 
 The main functional change, as you'd expect, is in ``lib/vtls/openssl.c``
-[here](https://github.com/sftcd/curl/blob/ECH-experimental/lib/vtls/openssl.c#L3768)
+([here](https://github.com/sftcd/curl/blob/ECH-experimental/lib/vtls/openssl.c#L3768))
 where an ECHConfig, if available from command line or DNS cache, is fed into
 the OpenSSL library via the new APIs implemented in our fork for that purpose.
 This code also implements the opportunistic (``--ech``) or hard-fail
-(``--ech-fail``) logic. (There's about 100 new LOC involved there.)
+(``--ech-hard``) logic. (There's about 100 new LOC involved there.)
 
 Other than that, the main additions are in ``lib/doh.c``
-[here](https://github.com/sftcd/curl/blob/ECH-experimental/lib/doh.c#L418)
+([here](https://github.com/sftcd/curl/blob/ECH-experimental/lib/doh.c#L418))
 where we re-use ``dohprobe()`` to retrieve an HTTPS RR value for the target
-domain.
-
-If such a value is found, that's stored using a new ``store_https()`` function
-[here](https://github.com/sftcd/curl/blob/ECH-experimental/lib/doh.c#L527) in a
-new field in the ``dohentry`` structure. (Currently, only the first HTTPS RR
+domain.  If such a value is found, that's stored using a new ``store_https()``
+function
+([here](https://github.com/sftcd/curl/blob/ECH-experimental/lib/doh.c#L527)) in
+a new field in the ``dohentry`` structure. (Currently, only the first HTTPS RR
 value retrieved is actually processed this way, that could be extended in
 future, though picking the "right" HTTPS RR could be non-trivial if multiple
 RRs are published - matching IP address hints versus A/AAAA values might be a
@@ -178,11 +191,11 @@ while.)
 
 The qname for the DoH query is modified if the port number is not 443, as
 defined in the SCVB specification.
-[here](https://github.com/sftcd/curl/blob/ECH-experimental/lib/doh.c#L418)
+([here](https://github.com/sftcd/curl/blob/ECH-experimental/lib/doh.c#L418))
 
 When the DoH process has worked, ``Curl_doh_is_resolved()`` now also returns
 the relevant HTTPS RR value in the ``Curl_dns_entry`` structure.
-[here](https://github.com/sftcd/curl/blob/ECH-experimental/lib/doh.c#L1086)
+([here](https://github.com/sftcd/curl/blob/ECH-experimental/lib/doh.c#L1086))
 That is later accessed when the TLS session is being established, if ECH is
 enabled (from ``lib/vtls/openss.c`` as described above).
 
@@ -209,13 +222,14 @@ Current limitations (more interesting than the above):
   or, as noted above, how to handle multiple HTTPS RR values.  It may be that a
 bit of consideration of how "multi-CDN" deployments might emerge would provide
 good answers there, but for now, it's not clear how best curl might handle
-those values when present in an HTTPS RR.
+those values when present in the DNS.
 
 - The SVCB/HTTPS RR specification supports a new "CNAME at apex" indirection
   ("aliasMode") - the current code takes no account of that at all. One could
 envisage implementing the equivalent of following CNAMEs in such cases, but
 it's not clear if that'd be a good plan. (As of now, chrome browsers don't seem
-to have any support for that "aliasMode".)
+to have any support for that "aliasMode" and we've not checked Firefox for
+that recently.)
 
 - We have not investigated what related changes or additions might be needed
   for applications using libcurl, as opposed to use of curl as a command line
@@ -223,19 +237,29 @@ tool.
 
 ## Supporting ECH without DoH
 
-All of the above only applies if DoH is being used. If DoH is not being used,
-it's not clear at this time how to provide support for ECH. One option would
-seem to be to extend the ``c-ares`` library to support HTTPS RRs, but in that
-case it's not now clear whether such changes would be attractive to the
-``c-ares`` maintainers, nor whether the "tag=value" extensibility inherent in
-the HTTPS/SVCB specification is a good match for the ``c-ares`` approach of
-defining structures specific to decoded answers for each supported RRtype.
-We're also not sure how many downstream curl deployments actually make use of
-the ``c-ares`` library, which would affect the utility of such changes.
-Another option might be to consider using some other generic DNS library (such
-as the getdnsapi) that does support HTTPS RRs, but it's unclear if such a
-library could be used by all or almost all curl builds and downstream releases
-of curl.
+All of the above only applies if DoH is being used.
+
+There should be a use-case for this - if a system stub resolver supports DoT or
+DoH, then, considering only ECH and the network threat model, it would make
+sense for curl to support ECH without curl itself using DoH.  The author for
+example uses a combination of stubby+unbound as the system resolver listening
+on localhost:53, so would fit this use-case.  That said, it's very unclear if
+this is a niche that's worth trying to address. (The author is just as happy to
+let curl use DoH to talk to the same public recursives that stubby might use:-)
+But assuming this is a use-case we'd like to support...
+
+If DoH is not being used, it's not clear at this time how to provide support
+for ECH. One option would seem to be to extend the ``c-ares`` library to
+support HTTPS RRs, but in that case it's not now clear whether such changes
+would be attractive to the ``c-ares`` maintainers, nor whether the "tag=value"
+extensibility inherent in the HTTPS/SVCB specification is a good match for the
+``c-ares`` approach of defining structures specific to decoded answers for each
+supported RRtype.  We're also not sure how many downstream curl deployments
+actually make use of the ``c-ares`` library, which would affect the utility of
+such changes.  Another option might be to consider using some other generic DNS
+library (such as the getdnsapi) that does support HTTPS RRs, but it's unclear
+if such a library could be used by all or almost all curl builds and downstream
+releases of curl.
 
 ## 2021 Version
 
