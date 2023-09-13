@@ -71,9 +71,9 @@ We currently support the following new curl comand line arguments/options:
   an HTTPS RR value found in the DNS, accessed using DoH
 - ``--ech-hard``: tells client to attempt ECH as above or fail if that's not
   possible
-- ``--ech-config``: supplies an ECHConfig from command line that will be used
+- ``--echconfig``: supplies an ECHConfig from command line that will be used
   in preference to a value found in the answer to a DNS query for an HTTPS RR
-- ``--ech-public``: over-rides the ``public_name`` from the ECHConfig with a
+- ``--echpublic``: over-rides the ``public_name`` from the ECHConfig with a
   name from the command line
 
 Note that in the above "attempt ECH" means the client emitting a TLS ClientHello
