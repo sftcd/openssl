@@ -85,7 +85,7 @@ will succeed in decrypting, as things can fail for other reasons.
 To supply the ECHConfig on the command line, you might need a bit of
 cut'n'paste, e.g.:
 
-            $ $ dig +short https defo.ie
+            $ dig +short https defo.ie
             1 . ipv4hint=213.108.108.101 ech=AED+DQA8PAAgACD8WhlS7VwEt5bf3lekhHvXrQBGDrZh03n/LsNtAodbUAAEAAEAAQANY292ZXIuZGVmby5pZQAA ipv6hint=2a00:c6c0:0:116:5::10
 
 Then paste the base64 encoded ECHConfig onto the curl command line:
@@ -100,8 +100,10 @@ The output snippet above is within the HTML for the web page.
 If you paste in the wrong ECHConfig (it changes hourly for ``defo.ie``)
 you'll get an error like this:
 
-            $ LD_LIBRARY_PATH=$HOME/code/openssl ./src/curl --ech --echconfig AED+DQA8yAAgACDRMQo+qYNsNRNj+vfuQfFIkrrUFmM4vogucxKj/4nzYgAEAAEAAQANY292ZXIuZGVmby5pZQAA https://defo.ie/ech-check.php
-            curl: (35) OpenSSL/3.2.0: error:0A00054B:SSL routines::ech required
+            $ LD_LIBRARY_PATH=$HOME/code/openssl ./src/curl -vvv --ech --echconfig AED+DQA8yAAgACDRMQo+qYNsNRNj+vfuQfFIkrrUFmM4vogucxKj/4nzYgAEAAEAAQANY292ZXIuZGVmby5pZQAA https://defo.ie/ech-check.php
+            ...
+            * OpenSSL/3.2.0: error:0A00054B:SSL routines::ech required
+            ...
 
 There is a reason to keep this command line option - for use before publishing
 the ECHConfig in the DNS (e.g. see
@@ -110,7 +112,7 @@ the ECHConfig in the DNS (e.g. see
 ### Default settings
 
 Curl has various ways to configure default settings, e.g. in ``$HOME/.curlrc``, so
-one can set the DoH URL that way:
+one can set the DoH URL and enable ECH that way:
 
             $ cat ~/.curlrc
             doh-url=https://1.1.1.1/dns-query
@@ -139,7 +141,7 @@ shell.
             OpenSSL version mismatch. Built against 30000080, you have 30200000
             ...
 
-With all that the command line gets simpler:
+With all that setup as above the command line gets simpler:
 
             $ ./src/curl https://defo.ie/ech-check.php
             ...
@@ -153,7 +155,7 @@ option to set as a default.
 
 ### Code changes for ECH support when using DoH
 
-All code changes are in a new ``ECH-experimental`` branch of the fork
+All code changes are in a new ``ECH-experimental`` branch of our fork
 ([here](https://github.com/sftcd/curl/tree/ECH-experimental)) and are
 ``#ifdef`` protected via ``USE_ECH`` or ``USE_HTTPSRR``: 
 
@@ -166,13 +168,13 @@ OpenSSL-specific. (Though some fragments should be usable for other TLS
 libraries in future.)
 
 There are various obvious code blocks for handling the new command line
-arguments which aren't described here, but should be fairly obvious.
+arguments which aren't described here, but should be fairly clear.
 
 The main functional change, as you'd expect, is in ``lib/vtls/openssl.c``
 ([here](https://github.com/sftcd/curl/blob/ECH-experimental/lib/vtls/openssl.c#L3768))
 where an ECHConfig, if available from command line or DNS cache, is fed into
-the OpenSSL library via the new APIs implemented in our fork for that purpose.
-This code also implements the opportunistic (``--ech``) or hard-fail
+the OpenSSL library via the new APIs implemented in our OpenSSL fork for that
+purpose.  This code also implements the opportunistic (``--ech``) or hard-fail
 (``--ech-hard``) logic. (There's about 100 new LOC involved there.)
 
 Other than that, the main additions are in ``lib/doh.c``
@@ -181,13 +183,7 @@ where we re-use ``dohprobe()`` to retrieve an HTTPS RR value for the target
 domain.  If such a value is found, that's stored using a new ``store_https()``
 function
 ([here](https://github.com/sftcd/curl/blob/ECH-experimental/lib/doh.c#L527)) in
-a new field in the ``dohentry`` structure. (Currently, only the first HTTPS RR
-value retrieved is actually processed this way, that could be extended in
-future, though picking the "right" HTTPS RR could be non-trivial if multiple
-RRs are published - matching IP address hints versus A/AAAA values might be a
-good basis for that. Last I checked though, browsers supporting ECH didn't
-handle multiple HTTPS RRs well, though that needs re-checking as it's been a
-while.)
+a new field in the ``dohentry`` structure.
 
 The qname for the DoH query is modified if the port number is not 443, as
 defined in the SCVB specification.
@@ -218,11 +214,17 @@ yet to do that.
 
 Current limitations (more interesting than the above):
 
+- Only the first HTTPS RR value retrieved is actually processed as described
+  above, that could be extended in future, though picking the "right" HTTPS RR
+could be non-trivial if multiple RRs are published - matching IP address hints
+versus A/AAAA values might be a good basis for that. Last I checked though,
+browsers supporting ECH didn't handle multiple HTTPS RRs well, though that
+needs re-checking as it's been a while.
+
 - It's unclear how one should handle any IP address hints found in an HTTPS RR
-  or, as noted above, how to handle multiple HTTPS RR values.  It may be that a
-bit of consideration of how "multi-CDN" deployments might emerge would provide
-good answers there, but for now, it's not clear how best curl might handle
-those values when present in the DNS.
+  It may be that a bit of consideration of how "multi-CDN" deployments might
+emerge would provide good answers there, but for now, it's not clear how best
+curl might handle those values when present in the DNS.
 
 - The SVCB/HTTPS RR specification supports a new "CNAME at apex" indirection
   ("aliasMode") - the current code takes no account of that at all. One could
