@@ -221,7 +221,7 @@ versus A/AAAA values might be a good basis for that. Last I checked though,
 browsers supporting ECH didn't handle multiple HTTPS RRs well, though that
 needs re-checking as it's been a while.
 
-- It's unclear how one should handle any IP address hints found in an HTTPS RR
+- It's unclear how one should handle any IP address hints found in an HTTPS RR.
   It may be that a bit of consideration of how "multi-CDN" deployments might
 emerge would provide good answers there, but for now, it's not clear how best
 curl might handle those values when present in the DNS.
@@ -239,10 +239,9 @@ tool.
 
 ## Supporting ECH without DoH
 
-All of the above only applies if DoH is being used.
-
-There should be a use-case for this - if a system stub resolver supports DoT or
-DoH, then, considering only ECH and the network threat model, it would make
+All of the above only applies if DoH is being used.  There should be a use-case
+for ECH when DoH is not used by curl - if a system stub resolver supports DoT
+or DoH, then, considering only ECH and the network threat model, it would make
 sense for curl to support ECH without curl itself using DoH.  The author for
 example uses a combination of stubby+unbound as the system resolver listening
 on localhost:53, so would fit this use-case.  That said, it's very unclear if
@@ -250,9 +249,9 @@ this is a niche that's worth trying to address. (The author is just as happy to
 let curl use DoH to talk to the same public recursives that stubby might use:-)
 But assuming this is a use-case we'd like to support...
 
-If DoH is not being used, it's not clear at this time how to provide support
-for ECH. One option would seem to be to extend the ``c-ares`` library to
-support HTTPS RRs, but in that case it's not now clear whether such changes
+If DoH is not being used by curl, it's not clear at this time how to provide
+support for ECH. One option would seem to be to extend the ``c-ares`` library
+to support HTTPS RRs, but in that case it's not now clear whether such changes
 would be attractive to the ``c-ares`` maintainers, nor whether the "tag=value"
 extensibility inherent in the HTTPS/SVCB specification is a good match for the
 ``c-ares`` approach of defining structures specific to decoded answers for each
@@ -260,8 +259,8 @@ supported RRtype.  We're also not sure how many downstream curl deployments
 actually make use of the ``c-ares`` library, which would affect the utility of
 such changes.  Another option might be to consider using some other generic DNS
 library (such as the getdnsapi) that does support HTTPS RRs, but it's unclear
-if such a library could be used by all or almost all curl builds and downstream
-releases of curl.
+if such a library could or would be used by all or almost all curl builds and
+downstream releases of curl.
 
 ## 2021 Version
 
