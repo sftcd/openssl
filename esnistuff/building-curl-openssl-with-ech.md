@@ -296,7 +296,37 @@ Let's now try use that to build curl...
 
 We're not yet in a working state, but getting there. Right now, this
 works with an ECHConfig supplied on the command line for CF but not
-DEfO. So there's stuff to be done but next steps are obvious.
+DEfO, nor with tls-ech.dev. So there's stuff to be done but next steps are obvious.
+
+The client here is emitting a ClientHello containing an ECH and seems
+to get an "decode error" alert from at least the DEfO server. (Looks
+like the same thing from tls-ech.dev at least as the client reports
+it.)
+
+To run against a localhost ``s_server`` for testing:
+
+            $ cd $HOME/code/openssl/esnistuff
+            $ ./echsrv.sh -d
+            ...
+
+In another window:
+
+            $ cd $HOME/code/curl-wo/
+            $ $ ./src/curl -vvv --insecure  --connect-to foo.example.com:8443:localhost:8443  https://foo.example.com:8443 --echconfig AD7+DQA6uwAgACBix2B78sX+EQhEbxMspDOc8Z3xVS5aQpYP0Cxpc2AWPAAEAAEAAQALZXhhbXBsZS5jb20AAA==
+
+And the ``s_server`` does log an error:
+
+            ERROR
+            80DBFD88A27F0000:error:0A00006E:SSL routines:ech_reconstitute_inner:bad extension:ssl/ech.c:1934:
+            80DBFD88A27F0000:error:0A0C0103:SSL routines:ech_early_decrypt:internal error:ssl/ech.c:4388:
+            80DBFD88A27F0000:error:0A0C0103:SSL routines:tls_process_client_hello:internal error:ssl/statem/statem_srvr.c:1543:
+            shutting down SSL
+            CONNECTION CLOSED
+
+Still not clear if the issue is on our side or with WolfSSL, should be fairly
+easy to figure out. That error is being thrown after successful HPKE decrypt
+and just at the start of decoding the recovered plaintext ("encoded inner"),
+so running the server in gdb should show what's up.
 
 #### Changes to support WolfSSL
 
