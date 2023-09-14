@@ -71,14 +71,15 @@ We currently support the following new curl comand line arguments/options:
   an HTTPS RR value found in the DNS, accessed using DoH
 - ``--ech-hard``: tells client to attempt ECH as above or fail if that's not
   possible
-- ``--echconfig``: supplies an ECHConfig from command line that will be used
-  in preference to a value found in the answer to a DNS query for an HTTPS RR
+- ``--echconfig``: supplies an ECHConfig from command line that will be used in
+  preference to a value found in the answer to a DNS query for an HTTPS RR
 - ``--echpublic``: over-rides the ``public_name`` from the ECHConfig with a
   name from the command line
 
-Note that in the above "attempt ECH" means the client emitting a TLS ClientHello
-with a "real" ECH extension, but that does not mean that the relevant server
-will succeed in decrypting, as things can fail for other reasons.
+Note that in the above "attempt ECH" means the client emitting a TLS
+ClientHello with a "real" ECH extension, but that does not mean that the
+relevant server will succeed in decrypting, as things can fail for other
+reasons.
 
 ### Supplying an ECHConfig on the command line
 
@@ -97,8 +98,8 @@ Then paste the base64 encoded ECHConfig onto the curl command line:
 
 The output snippet above is within the HTML for the web page.
 
-If you paste in the wrong ECHConfig (it changes hourly for ``defo.ie``)
-you'll get an error like this:
+If you paste in the wrong ECHConfig (it changes hourly for ``defo.ie``) you'll
+get an error like this:
 
             $ LD_LIBRARY_PATH=$HOME/code/openssl ./src/curl -vvv --ech --echconfig AED+DQA8yAAgACDRMQo+qYNsNRNj+vfuQfFIkrrUFmM4vogucxKj/4nzYgAEAAEAAQANY292ZXIuZGVmby5pZQAA https://defo.ie/ech-check.php
             ...
@@ -111,8 +112,8 @@ the ECHConfig in the DNS (e.g. see
 
 ### Default settings
 
-Curl has various ways to configure default settings, e.g. in ``$HOME/.curlrc``, so
-one can set the DoH URL and enable ECH that way:
+Curl has various ways to configure default settings, e.g. in ``$HOME/.curlrc``,
+so one can set the DoH URL and enable ECH that way:
 
             $ cat ~/.curlrc
             doh-url=https://1.1.1.1/dns-query
@@ -121,21 +122,21 @@ one can set the DoH URL and enable ECH that way:
             $
 
 Note that when you use the system's curl command (rather than our ECH-enabled
-build), it'll produce a warning that ``ech`` is an unknown option. If that's
-an issue (e.g. if some script re-directs stdout and stderr somewhere) then 
-adding the ``silent=TRUE`` line above seems to fix the issue. (Though of course,
-yet another script could depend on non-silent behaviour, so you'll have to
-figure out what you prefer youself.)
+build), it'll produce a warning that ``ech`` is an unknown option. If that's an
+issue (e.g. if some script re-directs stdout and stderr somewhere) then adding
+the ``silent=TRUE`` line above seems to fix the issue. (Though of course, yet
+another script could depend on non-silent behaviour, so you'll have to figure
+out what you prefer youself.)
 
-And if you want to always use our OpenSSL build you can set ``LD_LIBRARY_PATH`` in the environment:
+And if you want to always use our OpenSSL build you can set ``LD_LIBRARY_PATH``
+in the environment:
 
             $ export LD_LIBRARY_PATH=$HOME/code/openssl
             $
 
 Note that when you do that, there can be a mismatch between OpenSSL versions
-for applications that check that. A ``git push`` for example will fail so 
-you should unset ``LD_LIBRARY_PATH`` before doing that or use a different
-shell.
+for applications that check that. A ``git push`` for example will fail so you
+should unset ``LD_LIBRARY_PATH`` before doing that or use a different shell.
 
             $ git push
             OpenSSL version mismatch. Built against 30000080, you have 30200000
@@ -160,11 +161,11 @@ All code changes are in a new ``ECH-experimental`` branch of our fork
 ``#ifdef`` protected via ``USE_ECH`` or ``USE_HTTPSRR``: 
 
 - ``USE_HTTPSRR`` is used for HTTPS RR retrieval code that could be generically
-used should non-ECH uses for HTTPS RRs be identified, e.g. use of ALPN values
+  used should non-ECH uses for HTTPS RRs be identified, e.g. use of ALPN values
 or IP address hints.
 
 - ``USE_ECH`` protects ECH specific code, which is likely almost all also
-OpenSSL-specific. (Though some fragments should be usable for other TLS
+  OpenSSL-specific. (Though some fragments should be usable for other TLS
 libraries in future.)
 
 There are various obvious code blocks for handling the new command line
@@ -230,14 +231,14 @@ curl might handle those values when present in the DNS.
   ("aliasMode") - the current code takes no account of that at all. One could
 envisage implementing the equivalent of following CNAMEs in such cases, but
 it's not clear if that'd be a good plan. (As of now, chrome browsers don't seem
-to have any support for that "aliasMode" and we've not checked Firefox for
-that recently.)
+to have any support for that "aliasMode" and we've not checked Firefox for that
+recently.)
 
 - We have not investigated what related changes or additions might be needed
   for applications using libcurl, as opposed to use of curl as a command line
 tool.
 
-## Supporting ECH without DoH
+### Supporting ECH without DoH
 
 All of the above only applies if DoH is being used.  There should be a use-case
 for ECH when DoH is not used by curl - if a system stub resolver supports DoT
@@ -261,6 +262,63 @@ such changes.  Another option might be to consider using some other generic DNS
 library (such as the getdnsapi) that does support HTTPS RRs, but it's unclear
 if such a library could or would be used by all or almost all curl builds and
 downstream releases of curl.
+
+### WolfSSL
+
+Mailing list discussion indicates that WolfSSL also supports ECH and can be
+used by curl, so we'll see if we can code up the ability to use either OpenSSL
+or WolfSSL. For now, these are notes as we explore that. We're starting by
+making a fork in case we find some changes are needed within WolfSSL:
+
+            $ cd $HOME/code
+            $ git clone https://github.com/sftcd/wolfssl
+            $ cd wolfssl
+            $ ./autogen.sh
+            $ ./configure --prefix=$HOME/code/wolfssl/inst --enable-ech --enable-debug --enable-opensslextra
+            $ make
+            $ make install
+
+The install prefix (``inst``) in the above causes WolfSSL to be installed there
+and we seem to need that for the curl configure command to work out.  The
+``--enable-opensslextra`` turns out (after much faffing about;-) to be
+important or else we get build problems with curl below.
+
+Let's now try use that to build curl...
+
+            $ cd $HOME/code
+            $ git clone https://github.com/sftcd/curl
+            $ cd curl
+            $ git checkout ECH-experimental
+            $ autoregen -fi
+            $ ./configure --with-wolfssl=$HOME/code/wolfssl/inst --enable-ech
+            $ make
+            ...
+
+We're not yet in a working state, but getting there. Right now, this
+works with an ECHConfig supplied on the command line for CF but not
+DEfO. So there's stuff to be done but next steps are obvious.
+
+#### Changes to support WolfSSL
+
+There are what seem like oddball differences:
+
+- The DoH URL in``$HOME/.curlrc`` can use "1.1.1.1" for OpenSSL but has to be
+  "one.one.one.one" for WolfSSL. The latter works for both, so ok, we'll change
+  to that.
+- There seems to be some difference in CA databases too - the WolfSSL version
+  doesn't like defo.ie, wheraas the system and OpenSSL ones do. We can ignore
+  that for our purposes though via ``--insecure`` but would need to fix for a
+  PPA setup. (Browsers do like defo.ie's cert btw:-)
+
+Then there are some functional code changes:
+
+- tweak to ``configure.ac`` to check if WolfSSL has ECH or not 
+- added code to ``lib/vtls/wolfssl.c`` mirroring what's described for the
+  OpenSSL equivalent above.
+
+And a few obvious ones:
+
+- tweak to ``src/tool_cfgable.h`` to remove include of OpenSSL ``ech.h`` (wasn't needed anyway)
 
 ## 2021 Version
 
