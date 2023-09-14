@@ -1894,7 +1894,7 @@ static int ech_reconstitute_inner(SSL_CONNECTION *s, WPACKET *di, PACKET *ei,
 {
     const unsigned char *pp_tmp, *eval, *outer_exts;
     unsigned int pi_tmp, etype, elen, outer_extslen;
-    PACKET outer;
+    PACKET outer, session_id;
     size_t i;
 
     if (PACKET_buf_init(&outer, ob, ob_len) != 1) {
@@ -1914,10 +1914,12 @@ static int ech_reconstitute_inner(SSL_CONNECTION *s, WPACKET *di, PACKET *ei,
 
         /* session ID */
         || !PACKET_get_1(ei, &pi_tmp)
-        || !PACKET_get_1(&outer, &pi_tmp)
-        || !PACKET_get_bytes(&outer, &pp_tmp, SSL_MAX_SSL_SESSION_ID_LENGTH)
-        || !WPACKET_put_bytes_u8(di, pi_tmp)
-        || !WPACKET_memcpy(di, pp_tmp, pi_tmp)
+        || !PACKET_get_length_prefixed_1(&outer, &session_id)
+        || !WPACKET_start_sub_packet_u8(di)
+        || (PACKET_remaining(&session_id) != 0
+            && !WPACKET_memcpy(di, PACKET_data(&session_id),
+               PACKET_remaining(&session_id)))
+        || !WPACKET_close(di)
 
         /* ciphersuites */
         || !PACKET_get_net_2(&outer, &pi_tmp) /* ciphersuite len */

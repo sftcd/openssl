@@ -325,8 +325,19 @@ And the ``s_server`` does log an error:
 
 Still not clear if the issue is on our side or with WolfSSL, should be fairly
 easy to figure out. That error is being thrown after successful HPKE decrypt
-and just at the start of decoding the recovered plaintext ("encoded inner"),
-so running the server in gdb should show what's up.
+and just at the start of decoding the recovered plaintext ("encoded inner"), so
+running the server in gdb should show what's up.
+
+Looks like the session ID encoding is maybe not right or not what we expect,
+around ech.c:1918 and that causes the ciphersuite length to be wrong maybe.
+
+Ah, it's looking like WolfSSL doesn't follow RFC 8446 [Appendix
+D.4](https://datatracker.ietf.org/doc/html/rfc8446#appendix-D.4) which defines
+"middlebox compatibility mode" and says to include a ``legacy_session_id``.  My
+server code however assumes that's done and doesn't like the zero-length
+session ID.  I've added some code to my OpenSSL fork to be more tolerant of
+clients that don't follow D.4. Will test that some, then deploy it onto the
+defo.ie servers next day or so.
 
 #### Changes to support WolfSSL
 
