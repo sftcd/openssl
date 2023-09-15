@@ -6,7 +6,8 @@
 
 We've added support for ECH to a recent curl build. That can use HTTPS RRs
 published in the DNS, if curl is using DoH, or else can accept the relevant
-ECHConfig values from the command line.
+ECHConfig values from the command line. That works with either OpenSSL or
+WolfSSL as it's TLS provider, depending on how you build curl.
 
 This has not been tested. DO NOT USE!
 
@@ -14,7 +15,7 @@ But hopefully, this provides enough of a proof-of-concept to prompt an informed
 discussion about a good path forward for ECH support in curl, when using
 OpenSSL, or other TLS libraries, as those add ECH support.
 
-### Build
+### OpenSSL Build
 
 To build our ECH-enabled OpenSSL fork:
 
@@ -116,17 +117,17 @@ Curl has various ways to configure default settings, e.g. in ``$HOME/.curlrc``,
 so one can set the DoH URL and enable ECH that way:
 
             $ cat ~/.curlrc
-            doh-url=https://1.1.1.1/dns-query
+            doh-url=https://one.one.one.one/dns-query
             silent=TRUE
             ech=TRUE
             $
 
 Note that when you use the system's curl command (rather than our ECH-enabled
-build), it'll produce a warning that ``ech`` is an unknown option. If that's an
+build), it's liable to warn that ``ech`` is an unknown option. If that's an
 issue (e.g. if some script re-directs stdout and stderr somewhere) then adding
-the ``silent=TRUE`` line above seems to fix the issue. (Though of course, yet
-another script could depend on non-silent behaviour, so you'll have to figure
-out what you prefer youself.)
+the ``silent=TRUE`` line above seems to be a good enough fix. (Though of
+course, yet another script could depend on non-silent behaviour, so you'll have
+to figure out what you prefer youself.)
 
 And if you want to always use our OpenSSL build you can set ``LD_LIBRARY_PATH``
 in the environment:
@@ -191,7 +192,7 @@ defined in the SCVB specification.
 ([here](https://github.com/sftcd/curl/blob/ECH-experimental/lib/doh.c#L418))
 
 When the DoH process has worked, ``Curl_doh_is_resolved()`` now also returns
-the relevant HTTPS RR value in the ``Curl_dns_entry`` structure.
+the relevant HTTPS RR value data in the ``Curl_dns_entry`` structure.
 ([here](https://github.com/sftcd/curl/blob/ECH-experimental/lib/doh.c#L1086))
 That is later accessed when the TLS session is being established, if ECH is
 enabled (from ``lib/vtls/openssl.c`` as described above).
@@ -199,19 +200,10 @@ enabled (from ``lib/vtls/openssl.c`` as described above).
 A couple of things that need fixing, but that can probably be ignored for the
 moment:
 
-- As of now, memory handling for the HTTPS RR values just uses straight calls
-  to ``malloc()`` and ``free()`` - those need to be replaced with whatever are
-the right curl equivalents.
-
-- There is also a new file ``lib/ech.c`` that implements a
-  ``Curl_ech_is_ready()`` check, used from within ``lib/vtls/openssl.c`` - that
-could probably be eliminated, as the actual checks are now also effectively
-inline in ``lib/vtls/openssl.c`` (That's a bit of a hang-over from our 2021
-code, but we've left it there for now.)
-
 - We could easily add code to make use of an ``alpn=`` value found in an HTTPS
   RR, passing that on to OpenSSL for use as the "inner" ALPN value, but have
 yet to do that.
+- Still need to properly free ``Curl_https_rrinfo`` structures in all cases.
 
 Current limitations (more interesting than the above):
 
@@ -263,12 +255,14 @@ library (such as the getdnsapi) that does support HTTPS RRs, but it's unclear
 if such a library could or would be used by all or almost all curl builds and
 downstream releases of curl.
 
-### WolfSSL
+Our current conclusion is that doing the above is likely best left until we
+have some experience with the "using DoH" stuff, so we're going to punt on
+this for now.
+
+### WolfSSL build
 
 Mailing list discussion indicates that WolfSSL also supports ECH and can be
-used by curl, so we'll see if we can code up the ability to use either OpenSSL
-or WolfSSL. For now, these are notes as we explore that. We're starting by
-making a fork in case we find some changes are needed within WolfSSL:
+used by curl, so here's how: 
 
             $ cd $HOME/code
             $ git clone https://github.com/sftcd/wolfssl
@@ -283,7 +277,11 @@ and we seem to need that for the curl configure command to work out.  The
 ``--enable-opensslextra`` turns out (after much faffing about;-) to be
 important or else we get build problems with curl below.
 
-Let's now try use that to build curl...
+Probably, a basic WolfSSL install would work fine but we made a fork just in
+case we wanted to change something, e.g. see [this
+issue](https://github.com/wolfSSL/wolfssl/issues/6774). 
+
+Let's use that to build curl...
 
             $ cd $HOME/code
             $ git clone https://github.com/sftcd/curl
@@ -294,14 +292,8 @@ Let's now try use that to build curl...
             $ make
             ...
 
-We're not yet in a working state, but getting there. Right now, this
-works with an ECHConfig supplied on the command line for CF but not
-DEfO, nor with tls-ech.dev. So there's stuff to be done but next steps are obvious.
-
-The client here is emitting a ClientHello containing an ECH and seems
-to get an "decode error" alert from at least the DEfO server. (Looks
-like the same thing from tls-ech.dev at least as the client reports
-it.)
+Right now, this works just the same as the OpenSSL variant, but not
+with tls-ech.dev. (See [same issue](https://github.com/wolfSSL/wolfssl/issues/6774).)
 
 To run against a localhost ``s_server`` for testing:
 
@@ -313,31 +305,6 @@ In another window:
 
             $ cd $HOME/code/curl-wo/
             $ $ ./src/curl -vvv --insecure  --connect-to foo.example.com:8443:localhost:8443  https://foo.example.com:8443 --echconfig AD7+DQA6uwAgACBix2B78sX+EQhEbxMspDOc8Z3xVS5aQpYP0Cxpc2AWPAAEAAEAAQALZXhhbXBsZS5jb20AAA==
-
-And the ``s_server`` does log an error:
-
-            ERROR
-            80DBFD88A27F0000:error:0A00006E:SSL routines:ech_reconstitute_inner:bad extension:ssl/ech.c:1934:
-            80DBFD88A27F0000:error:0A0C0103:SSL routines:ech_early_decrypt:internal error:ssl/ech.c:4388:
-            80DBFD88A27F0000:error:0A0C0103:SSL routines:tls_process_client_hello:internal error:ssl/statem/statem_srvr.c:1543:
-            shutting down SSL
-            CONNECTION CLOSED
-
-Still not clear if the issue is on our side or with WolfSSL, should be fairly
-easy to figure out. That error is being thrown after successful HPKE decrypt
-and just at the start of decoding the recovered plaintext ("encoded inner"), so
-running the server in gdb should show what's up.
-
-Looks like the session ID encoding is maybe not right or not what we expect,
-around ech.c:1918 and that causes the ciphersuite length to be wrong maybe.
-
-Ah, it's looking like WolfSSL doesn't follow RFC 8446 [Appendix
-D.4](https://datatracker.ietf.org/doc/html/rfc8446#appendix-D.4) which defines
-"middlebox compatibility mode" and says to include a ``legacy_session_id``.  My
-server code however assumes that's done and doesn't like the zero-length
-session ID.  I've added some code to my OpenSSL fork to be more tolerant of
-clients that don't follow D.4. Will test that some, then deploy it onto the
-defo.ie servers next day or so.
 
 #### Changes to support WolfSSL
 
@@ -360,6 +327,26 @@ Then there are some functional code changes:
 And a few obvious ones:
 
 - tweak to ``src/tool_cfgable.h`` to remove include of OpenSSL ``ech.h`` (wasn't needed anyway)
+
+### Curl plan
+
+Having played about as above I think the plan with curl now is to:
+
+- get HTTPS RR ingestion working for WolfSSL: that likely involves:
+    - implementing the DNS wire format decoding that's in ``ossl_ech_find_echconfigs()``
+      as part of curl's HTTPS RR handling
+    - including decoded HTTPS RR fields individually withiin the ``Curl_dns_entry``
+      struct, so that HTTPS RR fields (e.g. ALPN) can be handled by curl and also
+      so someone (in future) could e.g. handle aliasMode and the associated tree
+      walking (I won't be doing that)
+    - that'll simplify the changes to ``lib/vtls/openssl.c`` some and add more
+      code to ``lib/doh.c``
+    - not sure to what extent we'll want to handle multiple HTTPS RR values for
+      a given qname in this round though, we'll see
+- clean up the code generally, perhaps with better separation between ``USE_HTTPSRR``
+  and ``USE_ECH`` build options
+- consider what changes (if any) might be made to ``libcurl`` to allow other
+  applications to use HTTPS RRs or ECH.
 
 ## 2021 Version
 
