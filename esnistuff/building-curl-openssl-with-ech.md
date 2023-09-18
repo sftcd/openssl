@@ -292,8 +292,9 @@ Let's use that to build curl...
             $ make
             ...
 
-Right now, this works just the same as the OpenSSL variant, but not
-with tls-ech.dev. (See [same issue](https://github.com/wolfSSL/wolfssl/issues/6774).)
+Right now, this works almost the same as the OpenSSL variant, but not
+with tls-ech.dev, (see [same issue](https://github.com/wolfSSL/wolfssl/issues/6774),
+and for some reason ``--insecure`` is needed.
 
 To run against a localhost ``s_server`` for testing:
 
@@ -321,29 +322,25 @@ There are what seem like oddball differences:
 Then there are some functional code changes:
 
 - tweak to ``configure.ac`` to check if WolfSSL has ECH or not 
-- added code to ``lib/vtls/wolfssl.c`` mirroring what's described for the
+- added code to ``lib/vtls/wolfssl.c`` mirroring what's done in the
   OpenSSL equivalent above.
-
-And a few obvious ones:
-
-- tweak to ``src/tool_cfgable.h`` to remove include of OpenSSL ``ech.h`` (wasn't needed anyway)
 
 ### Curl plan
 
 Having played about as above I think the plan with curl now is to:
 
 - get HTTPS RR ingestion working for WolfSSL: that likely involves:
-    - implementing the DNS wire format decoding that's in ``ossl_ech_find_echconfigs()``
+    - (DONE) implementing the DNS wire format decoding that's in ``ossl_ech_find_echconfigs()``
       as part of curl's HTTPS RR handling
-    - including decoded HTTPS RR fields individually withiin the ``Curl_dns_entry``
+    - (DONE) including decoded HTTPS RR fields individually withiin the ``Curl_dns_entry``
       struct, so that HTTPS RR fields (e.g. ALPN) can be handled by curl and also
       so someone (in future) could e.g. handle aliasMode and the associated tree
       walking (I won't be doing that)
-    - that'll simplify the changes to ``lib/vtls/openssl.c`` some and add more
+    - (DONE) that'll simplify the changes to ``lib/vtls/openssl.c`` some and add more
       code to ``lib/doh.c``
     - not sure to what extent we'll want to handle multiple HTTPS RR values for
       a given qname in this round though, we'll see
-- clean up the code generally, perhaps with better separation between ``USE_HTTPSRR``
+- (PARTLY DONE) clean up the code generally, perhaps with better separation between ``USE_HTTPSRR``
   and ``USE_ECH`` build options
 - consider what changes (if any) might be made to ``libcurl`` to allow other
   applications to use HTTPS RRs or ECH.
