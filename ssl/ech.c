@@ -2494,6 +2494,9 @@ static int ech_decode_inbound_ech(SSL_CONNECTION *s, PACKET *pkt,
     if (pval_tmp == 0 && s->hello_retry_request != SSL_HRR_PENDING) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         goto err;
+    } else if (pval_tmp > 0 && s->hello_retry_request == SSL_HRR_PENDING) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+        goto err;
     } else if (pval_tmp == 0 && s->hello_retry_request == SSL_HRR_PENDING) {
         if (s->ext.ech.pub == NULL || s->ext.ech.pub_len == 0) {
             SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
