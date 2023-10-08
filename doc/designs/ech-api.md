@@ -388,7 +388,8 @@ int SSL_ech_get_status(SSL *s, char **inner_sni, char **outer_sni);
 #  define SSL_ECH_STATUS_NOT_TRIED  -101 /* ECH wasn't attempted  */
 #  define SSL_ECH_STATUS_BAD_NAME   -102 /* ECH ok but server cert bad */
 #  define SSL_ECH_STATUS_NOT_CONFIGURED -103 /* ECH wasn't configured */
-#  define SSL_ECH_STATUS_FAILED_ECH -105 /* We tried, failed and got an ECH */
+#  define SSL_ECH_STATUS_FAILED_ECH -105 /* We tried, failed and got an ECH, from a good name */
+#  define SSL_ECH_STATUS_FAILED_ECH_BAD_NAME -106 /* We tried, failed and got an ECH, from a bad name */
 ```
 
 The ``inner_sni`` and ``outer_sni`` values should be freed by callers

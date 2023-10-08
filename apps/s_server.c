@@ -730,7 +730,7 @@ static int ssl_ech_servername_cb(SSL *s, int *ad, void *arg)
         return SSL_TLSEXT_ERR_NOACK;
     if (p->scert == NULL )
         return SSL_TLSEXT_ERR_NOACK;
-    if (servername != NULL) {
+    if (echrv == SSL_ECH_STATUS_SUCCESS && servername != NULL) {
         if (ctx2 != NULL) {
             int mrv;
             X509_VERIFY_PARAM *vpm = NULL;
@@ -759,6 +759,11 @@ static int ssl_ech_servername_cb(SSL *s, int *ad, void *arg)
                                 "- no name match (%d).\n",mrv);
             }
         }
+    } else {
+        if (p->biodebug!=NULL)
+            BIO_printf(p->biodebug,
+                       "ssl_ech_servername_cb: Not switching context "\
+                       "- no ECH SUCCESS\n");
     }
 
     return SSL_TLSEXT_ERR_OK;
