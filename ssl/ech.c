@@ -4526,6 +4526,7 @@ int ech_get_retry_configs(SSL_CONNECTION *s, unsigned char **rcfgs,
             } OSSL_TRACE_END(TLS);
         }
     }
+
     *rcfgs = rets;
     *rcfgslen = retslen;
     return 1;
@@ -5178,8 +5179,9 @@ int SSL_ech_get_status(SSL *ssl, char **inner_sni, char **outer_sni)
     *outer_sni = NULL;
     *inner_sni = NULL;
     if (s->ext.ech.grease == OSSL_ECH_IS_GREASE) {
-        if (s->ext.ech.returned != NULL)
+        if (s->ext.ech.returned != NULL) {
             return SSL_ECH_STATUS_GREASE_ECH;
+        }
         return SSL_ECH_STATUS_GREASE;
     }
     if (s->ext.ech.backend == 1) {
@@ -5190,11 +5192,14 @@ int SSL_ech_get_status(SSL *ssl, char **inner_sni, char **outer_sni)
         }
         return SSL_ECH_STATUS_BACKEND;
     }
-    if (s->ext.ech.cfgs == NULL)
+    if (s->ext.ech.cfgs == NULL) {
         return SSL_ECH_STATUS_NOT_CONFIGURED;
+    }
     /* Set output vars - note we may be pointing to NULL which is fine  */
     if (s->server == 0) {
         sinner = s->ext.hostname;
+        if (s->ext.ech.attempted == 1 && s->ext.ech.success == 0)
+            sinner = s->ext.ech.former_inner;
         if (s->ext.ech.cfgs->no_outer == 0)
             souter = s->ext.ech.outer_hostname;
         else
@@ -5221,13 +5226,17 @@ int SSL_ech_get_status(SSL *ssl, char **inner_sni, char **outer_sni)
             return SSL_ECH_STATUS_FAILED;
         }
         if (s->ext.ech.success == 1) {
-            if (vr == X509_V_OK)
+            if (vr == X509_V_OK) {
                 return SSL_ECH_STATUS_SUCCESS;
-            else
+            } else {
                 return SSL_ECH_STATUS_BAD_NAME;
+            }
         } else {
-            if (s->ext.ech.returned != NULL)
+            if (vr == X509_V_OK && s->ext.ech.returned != NULL) {
                 return SSL_ECH_STATUS_FAILED_ECH;
+            } else if (vr != X509_V_OK && s->ext.ech.returned != NULL) {
+                return SSL_ECH_STATUS_FAILED_ECH_BAD_NAME;
+            }
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             return SSL_ECH_STATUS_FAILED;
         }
@@ -5513,6 +5522,19 @@ int SSL_ech_get_retry_config(SSL *ssl, unsigned char **ec, size_t *eclen)
         return 0;
     }
     if (s->ext.ech.returned != NULL) {
+        /*
+         * Before we return these, parse 'em just in case the application
+         * isn't good at that
+         */
+        ECHConfigList *ecl = NULL;
+        int n_ecls = 0, leftover = 0;
+
+        if (ECHConfigList_from_binary(s->ext.ech.returned,
+                                      s->ext.ech.returned_len,
+                                      &ecl, &n_ecls, &leftover) != 1)
+            return 0;
+        ECHConfigList_free(ecl);
+        OPENSSL_free(ecl);
         rt = OPENSSL_malloc(s->ext.ech.returned_len);
         if (rt == NULL)
             return 0;

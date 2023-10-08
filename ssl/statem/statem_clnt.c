@@ -1850,6 +1850,19 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL_CONNECTION *s, PACKET *pkt)
                 goto err;
             }
             OPENSSL_free(abuf);
+        } else if (!hrr) {
+            /*
+             * If we got retry_configs then we should be validating
+             * the outer CH, so we better set the hostname for the
+             * connection accordingly.
+             */
+            s->ext.ech.former_inner = s->ext.hostname;
+            s->ext.hostname = NULL;
+            if (s->ext.ech.outer_hostname != NULL) {
+                s->ext.hostname = OPENSSL_strdup(s->ext.ech.outer_hostname);
+                if (s->ext.hostname == NULL)
+                    return 0;
+            }
         }
     }
 #endif

@@ -491,7 +491,9 @@ Return codes from SSL_ech_get_status
 
 =item B<SSL_ECH_STATUS_NOT_CONFIGURED> -103, ECH wasn't configured
 
-=item B<SSL_ECH_STATUS_FAILED_ECH> -105, We tried, failed and got an ECH
+=item B<SSL_ECH_STATUS_FAILED_ECH> -105, We tried, failed and got an ECH, from a verified name
+
+=item B<SSL_ECH_STATUS_FAILED_ECH_BAD_NAME> -106, We tried, failed and got an ECH, from a bad name
 
 =back
 
