@@ -986,8 +986,10 @@ static int ech_wrong_pub_test(int idx)
                                       &clientssl, NULL, NULL)))
         goto end;
     /* tee up getting the right error when a bad name is used */
-    if (idx == 2)
-        SSL_add1_host(clientssl, public_name);
+    if (idx == 2) {
+        if (SSL_add1_host(clientssl, public_name) != 1)
+            goto end;
+    }
     /* trigger HRR 2nd time */
     if (idx == 1 && !TEST_true(SSL_set1_groups_list(serverssl, "P-384")))
         goto end;
