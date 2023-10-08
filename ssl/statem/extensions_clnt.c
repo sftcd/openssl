@@ -2559,7 +2559,6 @@ int tls_parse_stoc_ech(SSL_CONNECTION *s, PACKET *pkt, unsigned int context,
     srval[0] = (rlen & 0xff) >> 8;
     srval[1] = rlen & 0xff;
     memcpy(srval + 2, rval, rlen);
-    /* TODO: parse ECHConfigList as a check */
     s->ext.ech.returned = srval;
     s->ext.ech.returned_len = rlen + 2;
     return 1;

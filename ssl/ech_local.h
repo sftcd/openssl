@@ -228,6 +228,12 @@ typedef struct ssl_connection_ech_st {
      * no_outer/public_name/overrides etc.)
      */
     char *outer_hostname;
+    /*
+     * If ECH fails, then we switch to verifying the cert for the
+     * outer_hostname, meanwhile we still want to trace the former
+     * value (what we tried as the inner SNI) for debug purposes
+     */
+    char *former_inner;
     unsigned char *alpn_outer;
     size_t alpn_outer_len;
     /*

@@ -33,6 +33,7 @@ static BIO *bio_null = NULL;
 static char *certsdir = NULL;
 static char *cert = NULL;
 static char *privkey = NULL;
+static char *rootcert = NULL;
 static int verbose = 0;
 
 /*
@@ -943,9 +944,22 @@ static int ech_wrong_pub_test(int idx)
     int err = 0, connrv = 0, err_reason = 0;
     unsigned char *retryconfig = NULL;
     size_t retryconfiglen = 0;
+    char *good_public_name = "front.server.example";
+    char *bad_public_name = "bogus.example";
+    char *public_name = good_public_name;
+    X509_STORE *vfy = NULL;
+    int cver;
+    int exp_conn_err = SSL_R_ECH_REQUIRED;
+
+    /* for these tests we want to chain to our root */
+    vfy = X509_STORE_new();
+    if (vfy == NULL)
+        goto end;
+    if (rootcert != NULL && !X509_STORE_load_file(vfy, rootcert))
+        goto end;
 
     /* read our pre-cooked ECH PEM file */
-    echkeyfile = test_mk_file_path(certsdir, "echconfig.pem");
+    echkeyfile = test_mk_file_path(certsdir, "newechconfig.pem");
     if (!TEST_ptr(echkeyfile))
         goto end;
     if (!TEST_true(create_ssl_ctx_pair(libctx, TLS_server_method(),
@@ -953,10 +967,13 @@ static int ech_wrong_pub_test(int idx)
                                        TLS1_3_VERSION, TLS1_3_VERSION,
                                        &sctx, &cctx, cert, privkey)))
         goto end;
-
+    SSL_CTX_set1_verify_cert_store(cctx, vfy);
+    SSL_CTX_set_verify(cctx, SSL_VERIFY_PEER, NULL);
+    if (idx == 2)
+        public_name = bad_public_name;
     if (!TEST_true(ossl_ech_make_echconfig(badconfig, &badconfiglen,
                                            badpriv, &badprivlen,
-                                           ech_version, 0, "example.com",
+                                           ech_version, 0, public_name,
                                            hpke_suite, NULL, 0)))
         goto end;
     if (!TEST_true(SSL_CTX_ech_set1_echconfig(cctx, badconfig,
@@ -968,14 +985,19 @@ static int ech_wrong_pub_test(int idx)
     if (!TEST_true(create_ssl_objects(sctx, cctx, &serverssl,
                                       &clientssl, NULL, NULL)))
         goto end;
+    /* tee up getting the right error when a bad name is used */
+    if (idx == 2)
+        SSL_add1_host(clientssl, public_name);
     /* trigger HRR 2nd time */
     if (idx == 1 && !TEST_true(SSL_set1_groups_list(serverssl, "P-384")))
         goto end;
-    if (!TEST_true(SSL_set_tlsext_host_name(clientssl, "server.example")))
+    if (!TEST_true(SSL_set_tlsext_host_name(clientssl, "back.server.example")))
         goto end;
     connrv = create_ssl_connection(serverssl, clientssl, SSL_ERROR_SSL);
     if (!TEST_int_eq(connrv, 0))
         goto end;
+    if (idx == 2)
+        exp_conn_err = SSL_R_CERTIFICATE_VERIFY_FAILED;
     if (connrv == 0) {
         do {
             err = ERR_get_error();
@@ -986,7 +1008,7 @@ static int ech_wrong_pub_test(int idx)
             err_reason = ERR_GET_REASON(err);
             if (verbose)
                 TEST_info("Error reason: %d", err_reason);
-        } while (err_reason != SSL_R_ECH_REQUIRED);
+        } while (err_reason != exp_conn_err);
     }
     if (!TEST_true(SSL_ech_get_retry_config(clientssl, &retryconfig,
                                             &retryconfiglen))
@@ -999,17 +1021,24 @@ static int ech_wrong_pub_test(int idx)
                   serverstatus, sinner, souter);
     if (!TEST_int_eq(serverstatus, SSL_ECH_STATUS_GREASE))
         goto end;
-    /* override cert verification */
-    SSL_set_verify_result(clientssl, X509_V_OK);
+    cver = SSL_get_verify_result(clientssl);
+    if (cver != X509_V_OK) {
+        TEST_info("ech_wrong_pub_test: x509 error: %d", cver);
+    }
     clientstatus = SSL_ech_get_status(clientssl, &cinner, &couter);
     if (verbose)
         TEST_info("ech_wrong_pub_test: client status %d, %s, %s",
                   clientstatus, cinner, couter);
-    if (!TEST_int_eq(clientstatus, SSL_ECH_STATUS_FAILED_ECH))
+    if (idx != 2
+        && !TEST_int_eq(clientstatus, SSL_ECH_STATUS_FAILED_ECH))
+        goto end;
+    if (idx == 2
+        && !TEST_int_eq(clientstatus, SSL_ECH_STATUS_FAILED_ECH_BAD_NAME))
         goto end;
     /* all good */
     res = 1;
 end:
+    X509_STORE_free(vfy);
     OPENSSL_free(sinner);
     OPENSSL_free(souter);
     OPENSSL_free(cinner);
@@ -1387,7 +1416,7 @@ static int ech_grease_test(int idx)
     char *echkeyfile = NULL, *echconfig = NULL;
     SSL_CTX *cctx = NULL, *sctx = NULL;
     SSL *clientssl = NULL, *serverssl = NULL;
-    char *public_name = "example.com";
+    char *public_name = "front.server.example";
     char *cinner = NULL, *couter = NULL, *sinner = NULL, *souter = NULL;
     unsigned char *retryconfig = NULL, priv[400], echconfig1[300];
     unsigned char echkeybuf[1000];
@@ -1397,9 +1426,10 @@ static int ech_grease_test(int idx)
     OSSL_HPKE_SUITE hpke_suite = OSSL_HPKE_SUITE_DEFAULT;
     uint16_t ech_version = OSSL_ECH_DRAFT_13_VERSION;
     uint16_t max_name_length = 0;
+    X509_STORE *ch = NULL;
 
     /* read our pre-cooked ECH PEM file */
-    echkeyfile = test_mk_file_path(certsdir, "echconfig.pem");
+    echkeyfile = test_mk_file_path(certsdir, "newechconfig.pem");
     if (!TEST_ptr(echkeyfile))
         goto end;
     echconfig = echconfiglist_from_PEM(echkeyfile);
@@ -1445,15 +1475,15 @@ static int ech_grease_test(int idx)
                                                        echkeybuflen,
                                                        SSL_ECH_NOT_FOR_RETRY)))
         goto end;
-    /* set the flag via SSL_CTX 1st time, and via SSL* 2nd */
+    /* set the client GREASE flag via SSL_CTX 1st time, and via SSL* 2nd */
     if (idx == 0 && !TEST_true(SSL_CTX_set_options(cctx, SSL_OP_ECH_GREASE)))
         goto end;
     if (!TEST_true(create_ssl_objects(sctx, cctx, &serverssl,
                                       &clientssl, NULL, NULL)))
         goto end;
-    if (!TEST_true(SSL_set_tlsext_host_name(clientssl, "server.example")))
+    if (!TEST_true(SSL_set_tlsext_host_name(clientssl, "back.server.example")))
         goto end;
-    /* set the flag via SSL_CTX 1st time, and via SSL* 2nd */
+    /* set the flag via SSL_CTX 1st time, and via SSL* 2nd & 3rd */
     if (idx >= 1 && !TEST_true(SSL_set_options(clientssl, SSL_OP_ECH_GREASE)))
         goto end;
     if (!TEST_true(create_ssl_connection(serverssl, clientssl,
@@ -1483,9 +1513,9 @@ static int ech_grease_test(int idx)
     if (verbose)
         TEST_info("ech_grease_test: retryconfglen: %d\n", (int)retryconfiglen);
     /* our ECHConfig values are 62 octets each + 2 for length */
-    if (idx == 2 && !TEST_size_t_eq(retryconfiglen, 126))
+    if (idx == 2 && !TEST_size_t_eq(retryconfiglen, 144))
         goto end;
-    if (idx < 2 && !TEST_size_t_eq(retryconfiglen, 64))
+    if (idx < 2 && !TEST_size_t_eq(retryconfiglen, 73))
         goto end;
     /* cleanup */
     OPENSSL_free(sinner);
@@ -1535,6 +1565,7 @@ end:
     OPENSSL_free(retryconfig);
     SSL_free(clientssl);
     SSL_free(serverssl);
+    X509_STORE_free(ch);
     SSL_CTX_free(cctx);
     SSL_CTX_free(sctx);
     return res;
@@ -1548,10 +1579,10 @@ static int ech_in_out_test(int idx)
     SSL_CTX *cctx = NULL, *sctx = NULL;
     SSL *clientssl = NULL, *serverssl = NULL;
     int clientstatus, serverstatus;
-    char *non_ech_sni = "trad.example"; /* SNI set via non-ECH API */
-    char *supplied_inner = "inner.example"; /* inner set via ECH API */
-    char *supplied_outer = "outer.example"; /* outer set via ECH API */
-    char *public_name = "example.com"; /* we know that's inside echconfig.pem */
+    char *non_ech_sni = "trad.server.example"; /* SNI set via non-ECH API */
+    char *supplied_inner = "inner.server.example"; /* inner set via ECH API */
+    char *supplied_outer = "outer.server.example"; /* outer set via ECH API */
+    char *public_name = "front.server.example"; /* we know that's inside echconfig.pem */
     /* inner, outer as provided via ECH status API */
     char *cinner = NULL, *couter = NULL, *sinner = NULL, *souter = NULL;
     /* value below is "inner, secret, http/1.1" */
@@ -1611,7 +1642,7 @@ static int ech_in_out_test(int idx)
      *       but worth checking
      */
     /* read our pre-cooked ECH PEM file */
-    echkeyfile = test_mk_file_path(certsdir, "echconfig.pem");
+    echkeyfile = test_mk_file_path(certsdir, "newechconfig.pem");
     if (!TEST_ptr(echkeyfile))
         goto end;
     echconfig = echconfiglist_from_PEM(echkeyfile);
@@ -2014,11 +2045,14 @@ int setup_tests(void)
     certsdir = test_get_argument(0);
     if (certsdir == NULL)
         certsdir = DEF_CERTS_DIR;
-    cert = test_mk_file_path(certsdir, "servercert.pem");
+    cert = test_mk_file_path(certsdir, "echserver.pem");
     if (cert == NULL)
         goto err;
-    privkey = test_mk_file_path(certsdir, "serverkey.pem");
+    privkey = test_mk_file_path(certsdir, "echserver.key");
     if (privkey == NULL)
+        goto err;
+    rootcert = test_mk_file_path(certsdir, "rootcert.pem");
+    if (rootcert == NULL)
         goto err;
     bio_stdout = BIO_new_fp(stdout, BIO_NOCLOSE | BIO_FP_TEXT);
     bio_null = BIO_new(BIO_s_mem());
@@ -2041,7 +2075,7 @@ int setup_tests(void)
     ADD_ALL_TESTS(ech_custom_test, suite_combos);
     ADD_ALL_TESTS(ech_grease_test, 3);
     ADD_ALL_TESTS(ech_in_out_test, 14);
-    ADD_ALL_TESTS(ech_wrong_pub_test, 2);
+    ADD_ALL_TESTS(ech_wrong_pub_test, 3);
     return 1;
 err:
     return 0;
@@ -2056,5 +2090,6 @@ void cleanup_tests(void)
     BIO_free(bio_stdout);
     OPENSSL_free(cert);
     OPENSSL_free(privkey);
+    OPENSSL_free(rootcert);
 #endif
 }

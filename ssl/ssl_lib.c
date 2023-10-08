@@ -1557,6 +1557,7 @@ void ossl_ssl_connection_free(SSL *ssl)
     OPENSSL_free(s->ext.ech.kepthrr);
     OPENSSL_free(s->ext.ech.encoded_innerch);
     OPENSSL_free(s->ext.ech.outer_hostname);
+    OPENSSL_free(s->ext.ech.former_inner);
     if (s->ext.ech.ncfgs > 0 && s->ext.ech.cfgs != NULL) {
         SSL_ECH_free_arr(s->ext.ech.cfgs, s->ext.ech.ncfgs);
         memset(s->ext.ech.cfgs, 0, s->ext.ech.ncfgs * sizeof(SSL_ECH));

@@ -1896,7 +1896,7 @@ int s_client_main(int argc, char **argv)
     if (alpn_outer_in != NULL || sni_outer_name != NULL) {
         if (ech_encoded_configs == NULL) {
             BIO_printf(bio_err,
-               "%s: Can't use -sni_outer nor -ech_alpn_outer without" \
+               "%s: Can't use -sni_outer nor -ech_alpn_outer without " \
                "-ech_config_list\n", prog);
             goto opthelp;
         }
