@@ -15,6 +15,6 @@ use OpenSSL::Test::Utils;
 setup("test_hpke");
 
 plan skip_all => "This test is unsupported in a no-ec build"
-    if disabled("ec") || disabled("ecx");
+    if disabled("ec");
 
 simple_test("test_hpke", "hpke_test");
