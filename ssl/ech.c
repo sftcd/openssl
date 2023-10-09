@@ -3875,10 +3875,10 @@ int ech_send_grease(SSL_CONNECTION *s, WPACKET *pkt)
         }
         hpke_suite_in_p = &hpke_suite_in;
     }
-    if (OSSL_HPKE_get_grease_value(s->ssl.ctx->libctx, NULL,
-                                   hpke_suite_in_p, &hpke_suite,
+    if (OSSL_HPKE_get_grease_value(hpke_suite_in_p, &hpke_suite,
                                    senderpub, &senderpub_len,
-                                   cipher, cipher_len) != 1) {
+                                   cipher, cipher_len,
+                                   s->ssl.ctx->libctx, NULL) != 1) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
     }
