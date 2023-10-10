@@ -1,0 +1,7 @@
+usr/lib/*/libssl.so
+usr/lib/*/libcrypto.so
+usr/lib/*/libssl.a
+usr/lib/*/libcrypto.a
+usr/lib/*/pkgconfig
+usr/include/openssl/*
+usr/include/*/openssl

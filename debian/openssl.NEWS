@@ -1,0 +1,7 @@
+openssl (1.1.0c-3) unstable; urgency=medium
+
+  The openssl enc command changed the default digest (used to create the key
+  from passphrase) from MD5 to SHA256 since the version 1.1.0. The digest can
+  be specified with the -md option.
+
+ -- Sebastian Andrzej Siewior <sebastian@breakpoint.cc>  Tue, 27 Dec 2016 23:37:36 +0100

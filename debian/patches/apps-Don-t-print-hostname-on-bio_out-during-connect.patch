@@ -1,0 +1,29 @@
+From: Sebastian Andrzej Siewior <sebastian@breakpoint.cc>
+Date: Thu, 14 Dec 2023 20:53:35 +0100
+Subject: apps: Don't print hostname on bio_out during connect.
+
+Printing the hostname on bio_out clutters the output and breaks
+pipe like forwarding via openssl.
+
+Print the hostname via bio_err.
+
+Fixes #23013
+
+Signed-off-by: Sebastian Andrzej Siewior <sebastian@breakpoint.cc>
+---
+ apps/lib/s_socket.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/apps/lib/s_socket.c b/apps/lib/s_socket.c
+index 014c1c0bc0ec..ace51686addc 100644
+--- a/apps/lib/s_socket.c
++++ b/apps/lib/s_socket.c
+@@ -208,7 +208,7 @@ int init_client(int *sock, const char *host, const char *port,
+ 
+         hostname = BIO_ADDR_hostname_string(BIO_ADDRINFO_address(ai), 1);
+         if (hostname != NULL) {
+-            BIO_printf(bio_out, "Connecting to %s\n", hostname);
++            BIO_printf(bio_err, "Connecting to %s\n", hostname);
+             OPENSSL_free(hostname);
+         }
+         /* Remove any stale errors from previous connection attempts */

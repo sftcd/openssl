@@ -1,0 +1,8 @@
+libssl3 (3.1.4-2) unstable; urgency=medium
+
+  TLSv1.0, TLSv1.1 and DTLS 1.0 work only at security level 0 (it was
+  previously allowed at security level 0). If you are still using them, you
+  need lower security level (via CipherString = DEFAULT:@SECLEVEL=0)
+  additionally to the MinProtocol setting.
+
+ -- Sebastian Andrzej Siewior <sebastian@breakpoint.cc>  Sat, 25 Nov 2023 21:29:39 +0100
