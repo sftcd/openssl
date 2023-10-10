@@ -1,0 +1,10 @@
+etc/ssl
+usr/bin/*
+usr/lib/ssl/cert.pem
+usr/lib/ssl/certs 
+usr/lib/ssl/private
+usr/lib/ssl/misc/*
+usr/lib/ssl/openssl.cnf
+usr/share/man/man1/*
+usr/share/man/man5/*
+usr/share/man/man7/*

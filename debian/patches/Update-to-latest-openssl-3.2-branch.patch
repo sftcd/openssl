@@ -1,0 +1,3217 @@
+From: Sebastian Andrzej Siewior <sebastian@breakpoint.cc>
+Date: Thu, 14 Dec 2023 21:00:08 +0100
+Subject: Update to latest openssl-3.2 branch.
+
+Update to commit
+	f8ece385151df ("CONTRIBUTING.md: add reference to util/check-format.pl and fix several nits")
+
+Signed-off-by: Sebastian Andrzej Siewior <sebastian@breakpoint.cc>
+---
+ CHANGES.md                                         |   4 +
+ CONTRIBUTING.md                                    |  64 ++++---
+ Configurations/50-nonstop.conf                     |  55 ------
+ Configurations/descrip.mms.tmpl                    |   3 +-
+ Configurations/unix-Makefile.tmpl                  |  11 +-
+ Configurations/windows-makefile.tmpl               |   2 +
+ Configure                                          |  34 ++--
+ NEWS.md                                            |   4 +
+ NOTES-NONSTOP.md                                   |  25 +--
+ VERSION.dat                                        |   6 +-
+ apps/asn1parse.c                                   |   2 +-
+ apps/cms.c                                         |  15 +-
+ apps/errstr.c                                      |   2 +-
+ apps/lib/opt.c                                     |   7 +-
+ apps/list.c                                        |  37 ++--
+ apps/pkcs12.c                                      |   9 -
+ apps/rehash.c                                      |  17 +-
+ apps/smime.c                                       |   3 +-
+ crypto/asn1/asn_moid.c                             |   4 +
+ crypto/bio/bio_sock.c                              |   2 +-
+ crypto/bn/bn_gf2m.c                                |   8 +-
+ crypto/bn/bn_nist.c                                | 126 +++++++------
+ crypto/encode_decode/decoder_pkey.c                |   5 +-
+ crypto/http/http_lib.c                             |   2 +-
+ crypto/md5/asm/md5-aarch64.pl                      |   3 +
+ crypto/mem_sec.c                                   |  12 +-
+ crypto/param_build.c                               |   8 +-
+ crypto/perlasm/x86_64-xlate.pl                     |   7 +-
+ crypto/property/property_parse.c                   |  50 ++++--
+ crypto/provider_core.c                             |  70 ++++----
+ crypto/x509/by_file.c                              |  11 ++
+ crypto/x509/v3_asid.c                              |  17 +-
+ crypto/x509/v3_san.c                               |  13 +-
+ doc/man3/EVP_EncryptInit.pod                       |  14 +-
+ doc/man3/OSSL_PARAM_int.pod                        |   2 +-
+ doc/man3/SSL_CTX_set_tmp_dh_callback.pod           |   2 +-
+ doc/man7/EVP_MD-SHAKE.pod                          |   4 +-
+ doc/man7/EVP_PKEY-RSA.pod                          |   2 +-
+ doc/man7/EVP_RAND-SEED-SRC.pod                     |   3 +-
+ doc/man7/provider-cipher.pod                       |  10 +-
+ doc/man7/provider-storemgmt.pod                    |   4 +-
+ include/openssl/e_ostime.h                         |  10 +-
+ .../implementations/ciphers/cipher_aes_ccm_hw.c    |   4 +-
+ providers/implementations/macs/cmac_prov.c         |   6 +-
+ providers/implementations/signature/rsa_sig.c      |   1 +
+ providers/implementations/signature/sm2_sig.c      |   9 +
+ ssl/record/methods/ssl3_meth.c                     |   6 +-
+ ssl/record/methods/tls1_meth.c                     |  11 +-
+ ssl/ssl_lib.c                                      |  20 ++-
+ ssl/ssl_local.h                                    |   4 -
+ ssl/t1_enc.c                                       |  38 ----
+ test/bntest.c                                      |   8 +
+ test/build.info                                    |  22 ++-
+ test/cmp_ctx_test.c                                |   3 +
+ test/danetest.in                                   | 198 +++++++++++++++------
+ test/evp_extra_test.c                              |  13 ++
+ test/evp_test.c                                    |  23 ++-
+ test/http_test.c                                   |   3 +-
+ test/p_minimal.c                                   |  24 +++
+ test/property_test.c                               |   7 +
+ test/recipes/01-test_symbol_presence.t             |  35 +++-
+ test/recipes/04-test_asn1_parse.t                  |  26 +++
+ test/recipes/04-test_provider.t                    |   9 +-
+ test/recipes/25-test_req.t                         |   6 +-
+ test/recipes/60-test_x509_load_cert_file.t         |  15 ++
+ test/sslapitest.c                                  |  56 ++++--
+ test/test_asn1_parse.cnf                           |  12 ++
+ test/x509_load_cert_file_test.c                    |  50 ++++++
+ util/perl/OpenSSL/config.pm                        |  14 +-
+ 69 files changed, 878 insertions(+), 434 deletions(-)
+ create mode 100644 test/p_minimal.c
+ create mode 100644 test/recipes/04-test_asn1_parse.t
+ create mode 100644 test/recipes/60-test_x509_load_cert_file.t
+ create mode 100644 test/test_asn1_parse.cnf
+ create mode 100644 test/x509_load_cert_file_test.c
+
+diff --git a/CHANGES.md b/CHANGES.md
+index 2a023f6c9aff..804119fd33d3 100644
+--- a/CHANGES.md
++++ b/CHANGES.md
+@@ -25,6 +25,10 @@ OpenSSL Releases
+ OpenSSL 3.2
+ -----------
+ 
++### Changes between 3.2.0 and 3.2.1 [xx XXX xxxx]
++
++ * none yet
++
+ ### Changes between 3.1 and 3.2.0 [23 Nov 2023]
+ 
+  * The BLAKE2b hash algorithm supports a configurable output length
+diff --git a/CONTRIBUTING.md b/CONTRIBUTING.md
+index 13a5d63695fe..9773af905f5b 100644
+--- a/CONTRIBUTING.md
++++ b/CONTRIBUTING.md
+@@ -9,22 +9,36 @@ Development is done on GitHub in the [openssl/openssl] repository.
+ 
+   [openssl/openssl]: <https://github.com/openssl/openssl>
+ 
+-To request new features or report bugs, please open an issue on GitHub
++To request new a feature, ask a question, or report a bug,
++please open an [issue on GitHub](https://github.com/openssl/openssl/issues).
+ 
+-To submit a patch, please open a pull request on GitHub.  If you are thinking
+-of making a large contribution, open an issue for it before starting work,
+-to get comments from the community.  Someone may be already working on
+-the same thing, or there may be reasons why that feature isn't implemented.
++To submit a patch or implement a new feature, please open a
++[pull request on GitHub](https://github.com/openssl/openssl/pulls).
++If you are thinking of making a large contribution,
++open an issue for it before starting work, to get comments from the community.
++Someone may be already working on the same thing,
++or there may be special reasons why a feature is not implemented.
+ 
+ To make it easier to review and accept your pull request, please follow these
+ guidelines:
+ 
+  1. Anything other than a trivial contribution requires a [Contributor
+     License Agreement] (CLA), giving us permission to use your code.
+-    If your contribution is too small to require a CLA (e.g. fixing a spelling
+-    mistake), place the text "`CLA: trivial`" on a line by itself separated by
+-    an empty line from the rest of the commit message. It is not sufficient to
+-    only place the text in the GitHub pull request description.
++    If your contribution is too small to require a CLA (e.g., fixing a spelling
++    mistake), then place the text "`CLA: trivial`" on a line by itself below
++    the rest of your commit message separated by an empty line, like this:
++
++    ```
++        One-line summary of trivial change
++
++        Optional main body of commit message. It might contain a sentence
++        or two explaining the trivial change.
++
++        CLA: trivial
++    ```
++
++    It is not sufficient to only place the text "`CLA: trivial`" in the GitHub
++    pull request description.
+ 
+     [Contributor License Agreement]: <https://www.openssl.org/policies/cla.html>
+ 
+@@ -32,8 +46,8 @@ To make it easier to review and accept your pull request, please follow these
+ 
+     ```
+         git commit --amend
+-        [add the line, save and quit the editor]
+-        git push -f
++        # add the line, save and quit the editor
++        git push -f [<repository> [<branch>]]
+     ```
+ 
+  2. All source files should start with the following text (with
+@@ -53,22 +67,24 @@ To make it easier to review and accept your pull request, please follow these
+     often. We do not accept merge commits, you will have to remove them
+     (usually by rebasing) before it will be acceptable.
+ 
+- 4. Patches should follow our [coding style] and compile without warnings.
++ 4. Code provided should follow our [coding style] and compile without warnings.
++    There is a [Perl tool](util/check-format.pl) that helps
++    finding code formatting mistakes and other coding style nits.
+     Where `gcc` or `clang` is available, you should use the
+     `--strict-warnings` `Configure` option.  OpenSSL compiles on many varied
+-    platforms: try to ensure you only use portable features.  Clean builds via
+-    GitHub Actions and AppVeyor are required, and they are started automatically
+-    whenever a PR is created or updated.
++    platforms: try to ensure you only use portable features.
++    Clean builds via GitHub Actions are required. They are started automatically
++    whenever a PR is created or updated by committers.
+ 
+     [coding style]: https://www.openssl.org/policies/technical/coding-style.html
+ 
+- 5. When at all possible, patches should include tests. These can
++ 5. When at all possible, code contributions should include tests. These can
+     either be added to an existing test, or completely new.  Please see
+     [test/README.md](test/README.md) for information on the test framework.
+ 
+  6. New features or changed functionality must include
+-    documentation. Please look at the "pod" files in doc/man[1357] for
+-    examples of our style. Run "make doc-nits" to make sure that your
++    documentation. Please look at the `.pod` files in `doc/man[1357]` for
++    examples of our style. Run `make doc-nits` to make sure that your
+     documentation changes are clean.
+ 
+  7. For user visible changes (API changes, behaviour changes, ...),
+@@ -78,17 +94,9 @@ To make it easier to review and accept your pull request, please follow these
+     Have a look through existing entries for inspiration.
+     Please note that this is NOT simply a copy of git-log one-liners.
+     Also note that security fixes get an entry in [CHANGES.md](CHANGES.md).
+-    This file helps users get more in depth information of what comes
++    This file helps users get more in-depth information of what comes
+     with a specific release without having to sift through the higher
+     noise ratio in git-log.
+ 
+- 8. For larger or more important user visible changes, as well as
+-    security fixes, please add a line in [NEWS.md](NEWS.md).
+-    On exception, it might be worth adding a multi-line entry (such as
+-    the entry that announces all the types that became opaque with
+-    OpenSSL 1.1.0).
+-    This file helps users get a very quick summary of what comes with a
+-    specific release, to see if an upgrade is worth the effort.
+-
+- 9. Guidelines how to integrate error output of new crypto library modules
++ 8. Guidelines how to integrate error output of new crypto library modules
+     can be found in [crypto/err/README.md](crypto/err/README.md).
+diff --git a/Configurations/50-nonstop.conf b/Configurations/50-nonstop.conf
+index 827a13b4eec2..873e398169bb 100644
+--- a/Configurations/50-nonstop.conf
++++ b/Configurations/50-nonstop.conf
+@@ -170,24 +170,6 @@
+                              '_REENTRANT', '_THREAD_SUPPORT_FUNCTIONS'],
+         ex_libs          => '-lput',
+     },
+-    'nonstop-model-spt' => {
+-        template         => 1,
+-        cflags           => add('-Wnowarn=140'),
+-        defines          => ['_SPT_MODEL_',
+-                             'SPT_THREAD_AWARE_NONBLOCK',
+-                             '_REENTRANT'],
+-        ex_libs          => '-lspt',
+-    },
+-
+-    # Additional floss model that can be combined with any of the other models.
+-    # If used without any of the other models, the entry that does so must
+-    # disable threads.
+-    'nonstop-model-floss' => {
+-        template         => 1,
+-        defines          => ['OPENSSL_TANDEM_FLOSS', '_ENABLE_FLOSS_THREADS'],
+-        includes         => ['/usr/local/include'],
+-        ex_libs          => '-lfloss',
+-    },
+ 
+     ######################################################################
+     # Now for the entries themselves, let's combine things!
+@@ -225,25 +207,6 @@
+         multilib         => '64-put',
+         multibin         => '64-put',
+     },
+-    'nonstop-nsx_spt' => {
+-        inherit_from     => [ 'nonstop-common',
+-                              'nonstop-archenv-x86_64-oss',
+-                              'nonstop-ilp32',
+-                              'nonstop-efloat-x86_64',
+-                              'nonstop-model-spt' ],
+-        multilib         => '-spt',
+-        multibin         => '-spt',
+-    },
+-    'nonstop-nsx_spt_floss' => {
+-        inherit_from     => [ 'nonstop-common',
+-                              'nonstop-archenv-x86_64-oss',
+-                              'nonstop-ilp32',
+-                              'nonstop-efloat-x86_64',
+-                              'nonstop-model-floss',
+-                              'nonstop-model-spt'],
+-        multilib         => '-spt',
+-        multibin         => '-spt',
+-    },
+     'nonstop-nsx_g' => {
+         inherit_from     => [ 'nonstop-common',
+                               'nonstop-archenv-x86_64-guardian',
+@@ -293,24 +256,6 @@
+         multilib         => '64-put',
+         multibin         => '64-put',
+     },
+-    'nonstop-nse_spt' => {
+-        inherit_from     => [ 'nonstop-common',
+-                              'nonstop-archenv-itanium-oss',
+-                              'nonstop-ilp32',
+-                              'nonstop-efloat-itanium',
+-                              'nonstop-model-spt' ],
+-        multilib         => '-spt',
+-        multibin         => '-spt',
+-    },
+-    'nonstop-nse_spt_floss' => {
+-        inherit_from     => [ 'nonstop-common',
+-                              'nonstop-archenv-itanium-oss',
+-                              'nonstop-ilp32',
+-                              'nonstop-efloat-itanium',
+-                              'nonstop-model-floss', 'nonstop-model-spt' ],
+-        multilib         => '-spt',
+-        multibin         => '-spt',
+-    },
+     'nonstop-nse_g' => {
+         inherit_from     => [ 'nonstop-common',
+                               'nonstop-archenv-itanium-guardian',
+diff --git a/Configurations/descrip.mms.tmpl b/Configurations/descrip.mms.tmpl
+index 828e1e91fbb2..e9fb13f24fa5 100644
+--- a/Configurations/descrip.mms.tmpl
++++ b/Configurations/descrip.mms.tmpl
+@@ -516,7 +516,8 @@ build_all_generated : $(GENERATED_MANDATORY) $(GENERATED) build_docs
+ all : build_sw build_docs
+ 
+ test : tests
+-{- dependmagic('tests'); -} : build_programs_nodep, build_modules_nodep run_tests
++{- dependmagic('tests'); -} : build_programs_nodep, build_modules_nodep
++	$(MMS) $(MMSQUALIFIERS) run_tests
+ run_tests :
+         @ ! {- output_off() if $disabled{tests}; "" -}
+         DEFINE SRCTOP "$(SRCDIR)"
+diff --git a/Configurations/unix-Makefile.tmpl b/Configurations/unix-Makefile.tmpl
+index 38ae9f6f8350..3c26538e2f18 100644
+--- a/Configurations/unix-Makefile.tmpl
++++ b/Configurations/unix-Makefile.tmpl
+@@ -545,8 +545,9 @@ help: ## Show this help screen
+ 
+ ##@ Testing
+ test: tests ## Run tests (alias of "tests")
+-{- dependmagic('tests', 'Run tests'); -}: build_programs_nodep build_modules_nodep link-utils run_tests
+-run_tests:
++{- dependmagic('tests', 'Run tests'); -}: build_programs_nodep build_modules_nodep link-utils
++	$(MAKE) run_tests
++run_tests: FORCE
+ 	@ : {- output_off() if $disabled{tests}; "" -}
+ 	( SRCTOP=$(SRCDIR) \
+ 	  BLDTOP=$(BLDDIR) \
+@@ -1364,18 +1365,16 @@ renumber: build_generated
+                 --renumber \
+                 $(SSLHEADERS)
+ 
+-$(SRCDIR)/util/libcrypto.num: $(CRYPTOHEADERS) $(SRCDIR)/include/openssl/symhacks.h
++.PHONY: ordinals
++ordinals: build_generated
+ 	$(PERL) $(SRCDIR)/util/mknum.pl --version $(VERSION_NUMBER) --no-warnings \
+                 --ordinals $(SRCDIR)/util/libcrypto.num \
+                 --symhacks $(SRCDIR)/include/openssl/symhacks.h \
+                 $(CRYPTOHEADERS)
+-$(SRCDIR)/util/libssl.num: $(SSLHEADERS) $(SRCDIR)/include/openssl/symhacks.h
+ 	$(PERL) $(SRCDIR)/util/mknum.pl --version $(VERSION_NUMBER) --no-warnings \
+                 --ordinals $(SRCDIR)/util/libssl.num \
+                 --symhacks $(SRCDIR)/include/openssl/symhacks.h \
+                 $(SSLHEADERS)
+-.PHONY: ordinals
+-ordinals: build_generated $(SRCDIR)/util/libcrypto.num $(SRCDIR)/util/libssl.num
+ 
+ test_ordinals:
+ 	$(MAKE) run_tests TESTS=test_ordinals
+diff --git a/Configurations/windows-makefile.tmpl b/Configurations/windows-makefile.tmpl
+index 1f260e49d46b..d09773e71ab9 100644
+--- a/Configurations/windows-makefile.tmpl
++++ b/Configurations/windows-makefile.tmpl
+@@ -440,6 +440,8 @@ all: build_sw {- "build_docs" if !$disabled{docs}; -}
+ 
+ test: tests
+ {- dependmagic('tests'); -}: build_programs_nodep build_modules_nodep copy-utils
++	$(MAKE) /$(MAKEFLAGS) run_tests
++run_tests:
+ 	@{- output_off() if $disabled{tests}; "\@rem" -}
+ 	cmd /C "set "SRCTOP=$(SRCDIR)" & set "BLDTOP=$(BLDDIR)" & set "PERL=$(PERL)" & set "FIPSKEY=$(FIPSKEY)" & "$(PERL)" "$(SRCDIR)\test\run_tests.pl" $(TESTS)"
+ 	@{- if ($disabled{tests}) { output_on(); } else { output_off(); } "" -}
+diff --git a/Configure b/Configure
+index a69068121949..c9bbcbbed3e6 100755
+--- a/Configure
++++ b/Configure
+@@ -1891,11 +1891,12 @@ if ($builder eq "unified") {
+         my $base = shift;
+         my $dir = shift;
+         my $relativeto = shift || ".";
++        my $no_mkpath = shift // 0;
+ 
+         $dir = catdir($base,$dir) unless isabsolute($dir);
+ 
+         # Make sure the directories we're building in exists
+-        mkpath($dir);
++        mkpath($dir) unless $no_mkpath;
+ 
+         my $res = abs2rel(absolutedir($dir), rel2abs($relativeto));
+         #print STDERR "DEBUG[cleandir]: $dir , $base => $res\n";
+@@ -1906,6 +1907,7 @@ if ($builder eq "unified") {
+         my $base = shift;
+         my $file = shift;
+         my $relativeto = shift || ".";
++        my $no_mkpath = shift // 0;
+ 
+         $file = catfile($base,$file) unless isabsolute($file);
+ 
+@@ -1913,7 +1915,7 @@ if ($builder eq "unified") {
+         my $f = basename($file);
+ 
+         # Make sure the directories we're building in exists
+-        mkpath($d);
++        mkpath($d) unless $no_mkpath;
+ 
+         my $res = abs2rel(catfile(absolutedir($d), $f), rel2abs($relativeto));
+         #print STDERR "DEBUG[cleanfile]: $d , $f => $res\n";
+@@ -1943,7 +1945,7 @@ if ($builder eq "unified") {
+     }
+     # Then, look in our standard directory
+     push @build_file_templates,
+-        ( map { cleanfile($srcdir, catfile("Configurations", $_), $blddir) }
++        ( map { cleanfile($srcdir, catfile("Configurations", $_), $blddir, 1) }
+           @build_file_template_names );
+ 
+     my $build_file_template;
+@@ -1958,7 +1960,7 @@ if ($builder eq "unified") {
+     }
+     $config{build_file_templates}
+       = [ cleanfile($srcdir, catfile("Configurations", "common0.tmpl"),
+-                    $blddir),
++                    $blddir, 1),
+            $build_file_template ];
+ 
+     my @build_dirs = ( [ ] );   # current directory
+@@ -1967,7 +1969,7 @@ if ($builder eq "unified") {
+ 
+     # We want to detect configdata.pm in the source tree, so we
+     # don't use it if the build tree is different.
+-    my $src_configdata = cleanfile($srcdir, "configdata.pm", $blddir);
++    my $src_configdata = cleanfile($srcdir, "configdata.pm", $blddir, 1);
+ 
+     # Any source file that we recognise is placed in this hash table, with
+     # the list of its intended destinations as value.  When everything has
+@@ -2320,7 +2322,7 @@ EOF
+             my $dest = $_;
+             my $ddest = cleanfile($buildd, $_, $blddir);
+             foreach (@{$sources{$dest}}) {
+-                my $s = cleanfile($sourced, $_, $blddir);
++                my $s = cleanfile($sourced, $_, $blddir, 1);
+ 
+                 # If it's generated or we simply don't find it in the source
+                 # tree, we assume it's in the build tree.
+@@ -2365,7 +2367,7 @@ EOF
+             my $dest = $_;
+             my $ddest = cleanfile($buildd, $_, $blddir);
+             foreach (@{$shared_sources{$dest}}) {
+-                my $s = cleanfile($sourced, $_, $blddir);
++                my $s = cleanfile($sourced, $_, $blddir, 1);
+ 
+                 # If it's generated or we simply don't find it in the source
+                 # tree, we assume it's in the build tree.
+@@ -2420,7 +2422,7 @@ EOF
+                 if scalar @{$generate{$_}} > 1;
+             my @generator = split /\s+/, $generate{$dest}->[0];
+             my $gen = $generator[0];
+-            $generator[0] = cleanfile($sourced, $gen, $blddir);
++            $generator[0] = cleanfile($sourced, $gen, $blddir, 1);
+ 
+             # If the generator is itself generated, it's in the build tree
+             if ($generate{$gen} || ! -f $generator[0]) {
+@@ -2446,7 +2448,7 @@ EOF
+             } elsif ($dest eq '') {
+                 $ddest = '';
+             } else {
+-                $ddest = cleanfile($sourced, $dest, $blddir);
++                $ddest = cleanfile($sourced, $dest, $blddir, 1);
+ 
+                 # If the destination doesn't exist in source, it can only be
+                 # a generated file in the build tree.
+@@ -2471,12 +2473,12 @@ EOF
+                     && $f =~ m/^(.*?)\|(.*)$/) {
+                     $i = $1;
+                     $m = $2;
+-                    $i = cleanfile($sourced, $i, $blddir);
++                    $i = cleanfile($sourced, $i, $blddir, 1);
+                     $i2 = cleanfile($buildd, $i, $blddir);
+-                    $d = cleanfile($sourced, "$i/$m", $blddir);
++                    $d = cleanfile($sourced, "$i/$m", $blddir, 1);
+                     $d2 = cleanfile($buildd, "$i/$m", $blddir);
+                 } else {
+-                    $d = cleanfile($sourced, $f, $blddir);
++                    $d = cleanfile($sourced, $f, $blddir, 1);
+                     $d2 = cleanfile($buildd, $f, $blddir);
+                 }
+ 
+@@ -2507,7 +2509,7 @@ EOF
+ 
+         foreach (keys %includes) {
+             my $dest = $_;
+-            my $ddest = cleanfile($sourced, $_, $blddir);
++            my $ddest = cleanfile($sourced, $_, $blddir, 1);
+ 
+             # If the destination doesn't exist in source, it can only be
+             # a generated file in the build tree.
+@@ -2515,7 +2517,7 @@ EOF
+                 $ddest = cleanfile($buildd, $_, $blddir);
+             }
+             foreach (@{$includes{$dest}}) {
+-                my $is = cleandir($sourced, $_, $blddir);
++                my $is = cleandir($sourced, $_, $blddir, 1);
+                 my $ib = cleandir($buildd, $_, $blddir);
+                 push @{$unified_info{includes}->{$ddest}->{source}}, $is
+                     unless grep { $_ eq $is } @{$unified_info{includes}->{$ddest}->{source}};
+@@ -2528,7 +2530,7 @@ EOF
+             my $ddest;
+ 
+             if ($dest ne "") {
+-                $ddest = cleanfile($sourced, $dest, $blddir);
++                $ddest = cleanfile($sourced, $dest, $blddir, 1);
+ 
+                 # If the destination doesn't exist in source, it can only
+                 # be a generated file in the build tree.
+@@ -2912,7 +2914,7 @@ my %template_vars = (
+ my $configdata_outname = 'configdata.pm';
+ open CONFIGDATA, ">$configdata_outname.new"
+     or die "Trying to create $configdata_outname.new: $!";
+-my $configdata_tmplname = cleanfile($srcdir, "configdata.pm.in", $blddir);
++my $configdata_tmplname = cleanfile($srcdir, "configdata.pm.in", $blddir, 1);
+ my $configdata_tmpl =
+     OpenSSL::Template->new(TYPE => 'FILE', SOURCE => $configdata_tmplname);
+ $configdata_tmpl->fill_in(
+diff --git a/NEWS.md b/NEWS.md
+index 5b07e2748ab5..eca59e7d0b47 100644
+--- a/NEWS.md
++++ b/NEWS.md
+@@ -20,6 +20,10 @@ OpenSSL Releases
+ OpenSSL 3.2
+ -----------
+ 
++### Major changes between OpenSSL 3.2.0 and OpenSSL 3.2.1 [under development]
++
++  * none
++
+ ### Major changes between OpenSSL 3.1 and OpenSSL 3.2.0 [23 Nov 2023]
+ 
+ OpenSSL 3.2.0 is a feature release adding significant new functionality to
+diff --git a/NOTES-NONSTOP.md b/NOTES-NONSTOP.md
+index 68438b998884..65bfc1087dca 100644
+--- a/NOTES-NONSTOP.md
++++ b/NOTES-NONSTOP.md
+@@ -26,15 +26,16 @@ is the only FLOSS variant that has been broadly tested.
+ Threading Models
+ ----------------
+ 
+-OpenSSL can be built using unthreaded, POSIX User Threads (PUT), or Standard
+-POSIX Threads (SPT). Select the following build configuration for each on
+-the TNS/X (L-Series) platform:
++OpenSSL can be built either using the POSIX User Threads (PUT) threading model,
++or with threading support disabled. Select the following build configuration
++for each on the TNS/X (L-Series) platform:
+ 
+- * `nonstop-nsx` or default will select an unthreaded build.
++ * `nonstop-nsx` or default will select an unthreaded 32-bit build.
++ * `nonstop-nsx_64` selects an unthreaded 64-bit memory and file length build.
+  * `nonstop-nsx_put` selects the PUT build.
+- * `nonstop-nsx_64_put` selects the 64 bit file length PUT build.
+- * `nonstop-nsx_spt_floss` selects the SPT build with FLOSS. FLOSS is
+-   required for SPT builds because of a known hang when using SPT on its own.
++ * `nonstop-nsx_64_put` selects the 64-bit memory and file length PUT build.
++
++The SPT threading model is no longer supported as of OpenSSL 3.2.
+ 
+ ### TNS/E Considerations
+ 
+@@ -145,9 +146,7 @@ point or another. If you are successful in your cross-compile efforts, please
+ - nonstop-nsx_64_put
+ 
+ **Note:** Cross-compile builds for TNS/E have not been attempted, but should
+-follow the same considerations as for TNS/X above. SPT builds generally require
+-FLOSS, which is not available for workstation builds. As a result, SPT builds
+-of OpenSSL cannot be cross-compiled.
++follow the same considerations as for TNS/X above.
+ 
+ Also see the NSDEE discussion below for more historical information.
+ 
+@@ -223,9 +222,6 @@ assumes that your PWD is set according to your installation standards.
+     ./Configure nonstop-nsx_put       --prefix=${PWD} \
+         --openssldir=${PWD}/ssl threads "-D_REENTRANT" \
+         --with-rand-seed=rdcpu ${CIPHENABLES} ${DBGFLAG} ${SYSTEMLIBS}
+-    ./Configure nonstop-nsx_spt_floss --prefix=${PWD} \
+-        --openssldir=${PWD}/ssl threads "-D_REENTRANT" \
+-        --with-rand-seed=rdcpu ${CIPHENABLES} ${DBGFLAG} ${SYSTEMLIBS}
+     ./Configure nonstop-nsx_64        --prefix=${PWD} \
+         --openssldir=${PWD}/ssl no-threads \
+         --with-rand-seed=rdcpu ${CIPHENABLES} ${DBGFLAG} ${SYSTEMLIBS}
+@@ -245,9 +241,6 @@ assumes that your PWD is set according to your installation standards.
+     ./Configure nonstop-nse_put       --prefix=${PWD} \
+         --openssldir=${PWD}/ssl threads "-D_REENTRANT" \
+         --with-rand-seed=egd ${CIPHENABLES} ${DBGFLAG} ${SYSTEMLIBS}
+-    ./Configure nonstop-nse_spt_floss --prefix=${PWD} \
+-        --openssldir=${PWD}/ssl threads "-D_REENTRANT" \
+-        --with-rand-seed=egd ${CIPHENABLES} ${DBGFLAG} ${SYSTEMLIBS}
+     ./Configure nonstop-nse_64        --prefix=${PWD} \
+         --openssldir=${PWD}/ssl no-threads \
+         --with-rand-seed=egd ${CIPHENABLES} ${DBGFLAG} ${SYSTEMLIBS}
+diff --git a/VERSION.dat b/VERSION.dat
+index 9f8be5e3bc60..30d397b3cd4c 100644
+--- a/VERSION.dat
++++ b/VERSION.dat
+@@ -1,7 +1,7 @@
+ MAJOR=3
+ MINOR=2
+-PATCH=0
+-PRE_RELEASE_TAG=
++PATCH=1
++PRE_RELEASE_TAG=dev
+ BUILD_METADATA=
+-RELEASE_DATE="23 Nov 2023"
++RELEASE_DATE=""
+ SHLIB_VERSION=3
+diff --git a/apps/asn1parse.c b/apps/asn1parse.c
+index 097b0cc1eddf..bf62f8594790 100644
+--- a/apps/asn1parse.c
++++ b/apps/asn1parse.c
+@@ -178,7 +178,7 @@ int asn1parse_main(int argc, char **argv)
+ 
+     if ((buf = BUF_MEM_new()) == NULL)
+         goto end;
+-    if (informat == FORMAT_PEM) {
++    if (genconf == NULL && genstr == NULL && informat == FORMAT_PEM) {
+         if (PEM_read_bio(in, &name, &header, &str, &num) != 1) {
+             BIO_printf(bio_err, "Error reading PEM file\n");
+             ERR_print_errors(bio_err);
+diff --git a/apps/cms.c b/apps/cms.c
+index 9c4e4ee5e055..f93c98ac92c4 100644
+--- a/apps/cms.c
++++ b/apps/cms.c
+@@ -628,7 +628,8 @@ int cms_main(int argc, char **argv)
+                                  "recipient certificate file");
+                 if (cert == NULL)
+                     goto end;
+-                sk_X509_push(encerts, cert);
++                if (!sk_X509_push(encerts, cert))
++                    goto end;
+                 cert = NULL;
+             } else {
+                 recipfile = opt_arg();
+@@ -837,7 +838,8 @@ int cms_main(int argc, char **argv)
+                              "recipient certificate file");
+             if (cert == NULL)
+                 goto end;
+-            sk_X509_push(encerts, cert);
++            if (!sk_X509_push(encerts, cert))
++                goto end;
+             cert = NULL;
+         }
+     }
+@@ -1447,6 +1449,7 @@ static CMS_ReceiptRequest
+                       STACK_OF(OPENSSL_STRING) *rr_from)
+ {
+     STACK_OF(GENERAL_NAMES) *rct_to = NULL, *rct_from = NULL;
++    CMS_ReceiptRequest *rr;
+ 
+     rct_to = make_names_stack(rr_to);
+     if (rct_to == NULL)
+@@ -1458,10 +1461,14 @@ static CMS_ReceiptRequest
+     } else {
+         rct_from = NULL;
+     }
+-    return CMS_ReceiptRequest_create0_ex(NULL, -1, rr_allorfirst, rct_from,
+-                                         rct_to, app_get0_libctx());
++    rr = CMS_ReceiptRequest_create0_ex(NULL, -1, rr_allorfirst, rct_from,
++                                       rct_to, app_get0_libctx());
++    if (rr == NULL)
++        goto err;
++    return rr;
+  err:
+     sk_GENERAL_NAMES_pop_free(rct_to, GENERAL_NAMES_free);
++    sk_GENERAL_NAMES_pop_free(rct_from, GENERAL_NAMES_free);
+     return NULL;
+ }
+ 
+diff --git a/apps/errstr.c b/apps/errstr.c
+index 782705a78a33..21349d21cb42 100644
+--- a/apps/errstr.c
++++ b/apps/errstr.c
+@@ -62,7 +62,7 @@ int errstr_main(int argc, char **argv)
+     /* All remaining arg are error code. */
+     ret = 0;
+     for (argv = opt_rest(); *argv != NULL; argv++) {
+-        if (sscanf(*argv, "%lx", &l) == 0) {
++        if (sscanf(*argv, "%lx", &l) <= 0) {
+             ret++;
+         } else {
+             ERR_error_string_n(l, buf, sizeof(buf));
+diff --git a/apps/lib/opt.c b/apps/lib/opt.c
+index 2d61ac9a7865..0490c39c2516 100644
+--- a/apps/lib/opt.c
++++ b/apps/lib/opt.c
+@@ -726,7 +726,12 @@ int opt_verify(int opt, X509_VERIFY_PARAM *vpm)
+             opt_printf_stderr("%s: Invalid Policy %s\n", prog, opt_arg());
+             return 0;
+         }
+-        X509_VERIFY_PARAM_add0_policy(vpm, otmp);
++        if (!X509_VERIFY_PARAM_add0_policy(vpm, otmp)) {
++            ASN1_OBJECT_free(otmp);
++            opt_printf_stderr("%s: Internal error adding Policy %s\n",
++                              prog, opt_arg());
++            return 0;
++        }
+         break;
+     case OPT_V_PURPOSE:
+         /* purpose name -> purpose index */
+diff --git a/apps/list.c b/apps/list.c
+index 8649598df7fc..adcf6803b495 100644
+--- a/apps/list.c
++++ b/apps/list.c
+@@ -1238,6 +1238,9 @@ static void list_provider_info(void)
+     sk_OSSL_PROVIDER_sort(providers);
+     for (i = 0; i < sk_OSSL_PROVIDER_num(providers); i++) {
+         const OSSL_PROVIDER *prov = sk_OSSL_PROVIDER_value(providers, i);
++        const char *provname = OSSL_PROVIDER_get0_name(prov);
++
++        BIO_printf(bio_out, "  %s\n", provname);
+ 
+         /* Query the "known" information parameters, the order matches below */
+         params[0] = OSSL_PARAM_construct_utf8_ptr(OSSL_PROV_PARAM_NAME,
+@@ -1250,23 +1253,23 @@ static void list_provider_info(void)
+         params[4] = OSSL_PARAM_construct_end();
+         OSSL_PARAM_set_all_unmodified(params);
+         if (!OSSL_PROVIDER_get_params(prov, params)) {
+-            BIO_printf(bio_err, "ERROR: Unable to query provider parameters\n");
+-            return;
+-        }
+-
+-        /* Print out the provider information, the params order matches above */
+-        BIO_printf(bio_out, "  %s\n", OSSL_PROVIDER_get0_name(prov));
+-        if (OSSL_PARAM_modified(params))
+-            BIO_printf(bio_out, "    name: %s\n", name);
+-        if (OSSL_PARAM_modified(params + 1))
+-            BIO_printf(bio_out, "    version: %s\n", version);
+-        if (OSSL_PARAM_modified(params + 2))
+-            BIO_printf(bio_out, "    status: %sactive\n", status ? "" : "in");
+-        if (verbose) {
+-            if (OSSL_PARAM_modified(params + 3))
+-                BIO_printf(bio_out, "    build info: %s\n", buildinfo);
+-            print_param_types("gettable provider parameters",
+-                              OSSL_PROVIDER_gettable_params(prov), 4);
++            BIO_printf(bio_err,
++                       "WARNING: Unable to query provider parameters for %s\n",
++                       provname);
++        } else {
++            /* Print out the provider information, the params order matches above */
++            if (OSSL_PARAM_modified(params))
++                BIO_printf(bio_out, "    name: %s\n", name);
++            if (OSSL_PARAM_modified(params + 1))
++                BIO_printf(bio_out, "    version: %s\n", version);
++            if (OSSL_PARAM_modified(params + 2))
++                BIO_printf(bio_out, "    status: %sactive\n", status ? "" : "in");
++            if (verbose) {
++                if (OSSL_PARAM_modified(params + 3))
++                    BIO_printf(bio_out, "    build info: %s\n", buildinfo);
++                print_param_types("gettable provider parameters",
++                                  OSSL_PROVIDER_gettable_params(prov), 4);
++            }
+         }
+     }
+     sk_OSSL_PROVIDER_free(providers);
+diff --git a/apps/pkcs12.c b/apps/pkcs12.c
+index 1fa0abd3d4c6..117b6736436f 100644
+--- a/apps/pkcs12.c
++++ b/apps/pkcs12.c
+@@ -14,7 +14,6 @@
+ #include <string.h>
+ #include "apps.h"
+ #include "progs.h"
+-#include <openssl/conf.h>
+ #include <openssl/asn1.h>
+ #include <openssl/crypto.h>
+ #include <openssl/err.h>
+@@ -535,7 +534,6 @@ int pkcs12_main(int argc, char **argv)
+         EVP_MD *macmd = NULL;
+         unsigned char *catmp = NULL;
+         int i;
+-        CONF *conf = NULL;
+         ASN1_OBJECT *obj = NULL;
+ 
+         if ((options & (NOCERTS | NOKEYS)) == (NOCERTS | NOKEYS)) {
+@@ -681,12 +679,6 @@ int pkcs12_main(int argc, char **argv)
+         if (!twopass)
+             OPENSSL_strlcpy(macpass, pass, sizeof(macpass));
+ 
+-        /* Load the config file */
+-        if ((conf = app_load_config(default_config_file)) == NULL)
+-            goto export_end;
+-        if (!app_load_modules(conf))
+-            goto export_end;
+-
+         if (jdktrust != NULL) {
+             obj = OBJ_txt2obj(jdktrust, 0);
+         }
+@@ -731,7 +723,6 @@ int pkcs12_main(int argc, char **argv)
+         OSSL_STACK_OF_X509_free(certs);
+         OSSL_STACK_OF_X509_free(untrusted_certs);
+         X509_free(ee_cert);
+-        NCONF_free(conf);
+         ASN1_OBJECT_free(obj);
+         ERR_print_errors(bio_err);
+         goto end;
+diff --git a/apps/rehash.c b/apps/rehash.c
+index 1e5cf38a7fe4..56a6ccea0928 100644
+--- a/apps/rehash.c
++++ b/apps/rehash.c
+@@ -45,9 +45,6 @@
+ # ifndef PATH_MAX
+ #  define PATH_MAX 4096
+ # endif
+-# ifndef NAME_MAX
+-#  define NAME_MAX 255
+-# endif
+ # define MAX_COLLISIONS  256
+ 
+ # if defined(OPENSSL_SYS_VXWORKS)
+@@ -356,10 +353,10 @@ static int do_dir(const char *dirname, enum Hash h)
+     struct stat st;
+     unsigned char idmask[MAX_COLLISIONS / 8];
+     int n, numfiles, nextid, dirlen, buflen, errs = 0;
+-    size_t i;
++    size_t i, fname_max_len = 20; /* maximum length of "%08x.r%d" */
+     const char *pathsep = "";
+     const char *filename;
+-    char *buf, *copy = NULL;
++    char *buf = NULL, *copy = NULL;
+     STACK_OF(OPENSSL_STRING) *files = NULL;
+ 
+     if (app_access(dirname, W_OK) < 0) {
+@@ -371,8 +368,6 @@ static int do_dir(const char *dirname, enum Hash h)
+         pathsep = "/";
+         dirlen++;
+     }
+-    buflen = dirlen + NAME_MAX + 1;
+-    buf = app_malloc(buflen, "filename buffer");
+ 
+     if (verbose)
+         BIO_printf(bio_out, "Doing %s\n", dirname);
+@@ -383,17 +378,25 @@ static int do_dir(const char *dirname, enum Hash h)
+         goto err;
+     }
+     while ((filename = OPENSSL_DIR_read(&d, dirname)) != NULL) {
++        size_t fname_len = strlen(filename);
++
+         if ((copy = OPENSSL_strdup(filename)) == NULL
+                 || sk_OPENSSL_STRING_push(files, copy) == 0) {
+             OPENSSL_free(copy);
++            OPENSSL_DIR_end(&d);
+             BIO_puts(bio_err, "out of memory\n");
+             errs = 1;
+             goto err;
+         }
++        if (fname_len > fname_max_len)
++            fname_max_len = fname_len;
+     }
+     OPENSSL_DIR_end(&d);
+     sk_OPENSSL_STRING_sort(files);
+ 
++    buflen = dirlen + fname_max_len + 1;
++    buf = app_malloc(buflen, "filename buffer");
++
+     numfiles = sk_OPENSSL_STRING_num(files);
+     for (n = 0; n < numfiles; ++n) {
+         filename = sk_OPENSSL_STRING_value(files, n);
+diff --git a/apps/smime.c b/apps/smime.c
+index 88b0475d2d4f..b59e14b0b5ed 100644
+--- a/apps/smime.c
++++ b/apps/smime.c
+@@ -484,7 +484,8 @@ int smime_main(int argc, char **argv)
+                              "recipient certificate file");
+             if (cert == NULL)
+                 goto end;
+-            sk_X509_push(encerts, cert);
++            if (!sk_X509_push(encerts, cert))
++                goto end;
+             cert = NULL;
+             argv++;
+         }
+diff --git a/crypto/asn1/asn_moid.c b/crypto/asn1/asn_moid.c
+index 6f816307afd4..1e183f4f18aa 100644
+--- a/crypto/asn1/asn_moid.c
++++ b/crypto/asn1/asn_moid.c
+@@ -67,6 +67,10 @@ static int do_create(const char *value, const char *name)
+     if (p == NULL) {
+         ln = name;
+         ostr = value;
++    } else if (p == value) {
++        /* we started with a leading comma */
++        ln = name;
++        ostr = p + 1;
+     } else {
+         ln = value;
+         ostr = p + 1;
+diff --git a/crypto/bio/bio_sock.c b/crypto/bio/bio_sock.c
+index 3c8b28501ca8..ee3ee5b78fda 100644
+--- a/crypto/bio/bio_sock.c
++++ b/crypto/bio/bio_sock.c
+@@ -354,7 +354,7 @@ int BIO_socket_nbio(int s, int mode)
+     int l;
+ 
+     l = mode;
+-# if defined(FIONBIO) && !defined(OPENSSL_SYS_TANDEM)
++# ifdef FIONBIO
+     l = mode;
+ 
+     ret = BIO_socket_ioctl(s, FIONBIO, &l);
+diff --git a/crypto/bn/bn_gf2m.c b/crypto/bn/bn_gf2m.c
+index 83e1f11e181c..444c5ca7a375 100644
+--- a/crypto/bn/bn_gf2m.c
++++ b/crypto/bn/bn_gf2m.c
+@@ -730,14 +730,20 @@ int BN_GF2m_mod_inv(BIGNUM *r, const BIGNUM *a, const BIGNUM *p, BN_CTX *ctx)
+ {
+     BIGNUM *b = NULL;
+     int ret = 0;
++    int numbits;
+ 
+     BN_CTX_start(ctx);
+     if ((b = BN_CTX_get(ctx)) == NULL)
+         goto err;
+ 
++    /* Fail on a non-sensical input p value */
++    numbits = BN_num_bits(p);
++    if (numbits <= 1)
++        goto err;
++
+     /* generate blinding value */
+     do {
+-        if (!BN_priv_rand_ex(b, BN_num_bits(p) - 1,
++        if (!BN_priv_rand_ex(b, numbits - 1,
+                              BN_RAND_TOP_ANY, BN_RAND_BOTTOM_ANY, 0, ctx))
+             goto err;
+     } while (BN_is_zero(b));
+diff --git a/crypto/bn/bn_nist.c b/crypto/bn/bn_nist.c
+index c1dbed05984f..bc864346fb69 100644
+--- a/crypto/bn/bn_nist.c
++++ b/crypto/bn/bn_nist.c
+@@ -319,6 +319,28 @@ static void nist_cp_bn(BN_ULONG *dst, const BN_ULONG *src, int top)
+ # endif
+ #endif                          /* BN_BITS2 != 64 */
+ 
++#ifdef NIST_INT64
++/* Helpers to load/store a 32-bit word (uint32_t) from/into a memory
++ * location and avoid potential aliasing issue.  */
++static ossl_inline uint32_t load_u32(const void *ptr)
++{
++    uint32_t tmp;
++
++    memcpy(&tmp, ptr, sizeof(tmp));
++    return tmp;
++}
++
++static ossl_inline void store_lo32(void *ptr, NIST_INT64 val)
++{
++    /* A cast is needed for big-endian system: on a 32-bit BE system
++     * NIST_INT64 may be defined as well if the compiler supports 64-bit
++     * long long.  */
++    uint32_t tmp = (uint32_t)val;
++
++    memcpy(ptr, &tmp, sizeof(tmp));
++}
++#endif /* NIST_INT64 */
++
+ #define nist_set_192(to, from, a1, a2, a3) \
+         { \
+         bn_cp_64(to, 0, from, (a3) - 3) \
+@@ -374,42 +396,42 @@ int BN_nist_mod_192(BIGNUM *r, const BIGNUM *a, const BIGNUM *field,
+         unsigned int *rp = (unsigned int *)r_d;
+         const unsigned int *bp = (const unsigned int *)buf.ui;
+ 
+-        acc = rp[0];
++        acc = load_u32(&rp[0]);
+         acc += bp[3 * 2 - 6];
+         acc += bp[5 * 2 - 6];
+-        rp[0] = (unsigned int)acc;
++        store_lo32(&rp[0], acc);
+         acc >>= 32;
+ 
+-        acc += rp[1];
++        acc += load_u32(&rp[1]);
+         acc += bp[3 * 2 - 5];
+         acc += bp[5 * 2 - 5];
+-        rp[1] = (unsigned int)acc;
++        store_lo32(&rp[1], acc);
+         acc >>= 32;
+ 
+-        acc += rp[2];
++        acc += load_u32(&rp[2]);
+         acc += bp[3 * 2 - 6];
+         acc += bp[4 * 2 - 6];
+         acc += bp[5 * 2 - 6];
+-        rp[2] = (unsigned int)acc;
++        store_lo32(&rp[2], acc);
+         acc >>= 32;
+ 
+-        acc += rp[3];
++        acc += load_u32(&rp[3]);
+         acc += bp[3 * 2 - 5];
+         acc += bp[4 * 2 - 5];
+         acc += bp[5 * 2 - 5];
+-        rp[3] = (unsigned int)acc;
++        store_lo32(&rp[3], acc);
+         acc >>= 32;
+ 
+-        acc += rp[4];
++        acc += load_u32(&rp[4]);
+         acc += bp[4 * 2 - 6];
+         acc += bp[5 * 2 - 6];
+-        rp[4] = (unsigned int)acc;
++        store_lo32(&rp[4], acc);
+         acc >>= 32;
+ 
+-        acc += rp[5];
++        acc += load_u32(&rp[5]);
+         acc += bp[4 * 2 - 5];
+         acc += bp[5 * 2 - 5];
+-        rp[5] = (unsigned int)acc;
++        store_lo32(&rp[5], acc);
+ 
+         carry = (int)(acc >> 32);
+     }
+@@ -683,36 +705,36 @@ int BN_nist_mod_256(BIGNUM *r, const BIGNUM *a, const BIGNUM *field,
+         unsigned int *rp = (unsigned int *)r_d;
+         const unsigned int *bp = (const unsigned int *)buf.ui;
+ 
+-        acc = rp[0];
++        acc = load_u32(&rp[0]);
+         acc += bp[8 - 8];
+         acc += bp[9 - 8];
+         acc -= bp[11 - 8];
+         acc -= bp[12 - 8];
+         acc -= bp[13 - 8];
+         acc -= bp[14 - 8];
+-        rp[0] = (unsigned int)acc;
++        store_lo32(&rp[0], acc);
+         acc >>= 32;
+ 
+-        acc += rp[1];
++        acc += load_u32(&rp[1]);
+         acc += bp[9 - 8];
+         acc += bp[10 - 8];
+         acc -= bp[12 - 8];
+         acc -= bp[13 - 8];
+         acc -= bp[14 - 8];
+         acc -= bp[15 - 8];
+-        rp[1] = (unsigned int)acc;
++        store_lo32(&rp[1], acc);
+         acc >>= 32;
+ 
+-        acc += rp[2];
++        acc += load_u32(&rp[2]);
+         acc += bp[10 - 8];
+         acc += bp[11 - 8];
+         acc -= bp[13 - 8];
+         acc -= bp[14 - 8];
+         acc -= bp[15 - 8];
+-        rp[2] = (unsigned int)acc;
++        store_lo32(&rp[2], acc);
+         acc >>= 32;
+ 
+-        acc += rp[3];
++        acc += load_u32(&rp[3]);
+         acc += bp[11 - 8];
+         acc += bp[11 - 8];
+         acc += bp[12 - 8];
+@@ -721,10 +743,10 @@ int BN_nist_mod_256(BIGNUM *r, const BIGNUM *a, const BIGNUM *field,
+         acc -= bp[15 - 8];
+         acc -= bp[8 - 8];
+         acc -= bp[9 - 8];
+-        rp[3] = (unsigned int)acc;
++        store_lo32(&rp[3], acc);
+         acc >>= 32;
+ 
+-        acc += rp[4];
++        acc += load_u32(&rp[4]);
+         acc += bp[12 - 8];
+         acc += bp[12 - 8];
+         acc += bp[13 - 8];
+@@ -732,10 +754,10 @@ int BN_nist_mod_256(BIGNUM *r, const BIGNUM *a, const BIGNUM *field,
+         acc += bp[14 - 8];
+         acc -= bp[9 - 8];
+         acc -= bp[10 - 8];
+-        rp[4] = (unsigned int)acc;
++        store_lo32(&rp[4], acc);
+         acc >>= 32;
+ 
+-        acc += rp[5];
++        acc += load_u32(&rp[5]);
+         acc += bp[13 - 8];
+         acc += bp[13 - 8];
+         acc += bp[14 - 8];
+@@ -743,10 +765,10 @@ int BN_nist_mod_256(BIGNUM *r, const BIGNUM *a, const BIGNUM *field,
+         acc += bp[15 - 8];
+         acc -= bp[10 - 8];
+         acc -= bp[11 - 8];
+-        rp[5] = (unsigned int)acc;
++        store_lo32(&rp[5], acc);
+         acc >>= 32;
+ 
+-        acc += rp[6];
++        acc += load_u32(&rp[6]);
+         acc += bp[14 - 8];
+         acc += bp[14 - 8];
+         acc += bp[15 - 8];
+@@ -755,10 +777,10 @@ int BN_nist_mod_256(BIGNUM *r, const BIGNUM *a, const BIGNUM *field,
+         acc += bp[13 - 8];
+         acc -= bp[8 - 8];
+         acc -= bp[9 - 8];
+-        rp[6] = (unsigned int)acc;
++        store_lo32(&rp[6], acc);
+         acc >>= 32;
+ 
+-        acc += rp[7];
++        acc += load_u32(&rp[7]);
+         acc += bp[15 - 8];
+         acc += bp[15 - 8];
+         acc += bp[15 - 8];
+@@ -767,7 +789,7 @@ int BN_nist_mod_256(BIGNUM *r, const BIGNUM *a, const BIGNUM *field,
+         acc -= bp[11 - 8];
+         acc -= bp[12 - 8];
+         acc -= bp[13 - 8];
+-        rp[7] = (unsigned int)acc;
++        store_lo32(&rp[7], acc);
+ 
+         carry = (int)(acc >> 32);
+     }
+@@ -920,32 +942,32 @@ int BN_nist_mod_384(BIGNUM *r, const BIGNUM *a, const BIGNUM *field,
+         unsigned int *rp = (unsigned int *)r_d;
+         const unsigned int *bp = (const unsigned int *)buf.ui;
+ 
+-        acc = rp[0];
++        acc = load_u32(&rp[0]);
+         acc += bp[12 - 12];
+         acc += bp[21 - 12];
+         acc += bp[20 - 12];
+         acc -= bp[23 - 12];
+-        rp[0] = (unsigned int)acc;
++        store_lo32(&rp[0], acc);
+         acc >>= 32;
+ 
+-        acc += rp[1];
++        acc += load_u32(&rp[1]);
+         acc += bp[13 - 12];
+         acc += bp[22 - 12];
+         acc += bp[23 - 12];
+         acc -= bp[12 - 12];
+         acc -= bp[20 - 12];
+-        rp[1] = (unsigned int)acc;
++        store_lo32(&rp[1], acc);
+         acc >>= 32;
+ 
+-        acc += rp[2];
++        acc += load_u32(&rp[2]);
+         acc += bp[14 - 12];
+         acc += bp[23 - 12];
+         acc -= bp[13 - 12];
+         acc -= bp[21 - 12];
+-        rp[2] = (unsigned int)acc;
++        store_lo32(&rp[2], acc);
+         acc >>= 32;
+ 
+-        acc += rp[3];
++        acc += load_u32(&rp[3]);
+         acc += bp[15 - 12];
+         acc += bp[12 - 12];
+         acc += bp[20 - 12];
+@@ -953,10 +975,10 @@ int BN_nist_mod_384(BIGNUM *r, const BIGNUM *a, const BIGNUM *field,
+         acc -= bp[14 - 12];
+         acc -= bp[22 - 12];
+         acc -= bp[23 - 12];
+-        rp[3] = (unsigned int)acc;
++        store_lo32(&rp[3], acc);
+         acc >>= 32;
+ 
+-        acc += rp[4];
++        acc += load_u32(&rp[4]);
+         acc += bp[21 - 12];
+         acc += bp[21 - 12];
+         acc += bp[16 - 12];
+@@ -967,10 +989,10 @@ int BN_nist_mod_384(BIGNUM *r, const BIGNUM *a, const BIGNUM *field,
+         acc -= bp[15 - 12];
+         acc -= bp[23 - 12];
+         acc -= bp[23 - 12];
+-        rp[4] = (unsigned int)acc;
++        store_lo32(&rp[4], acc);
+         acc >>= 32;
+ 
+-        acc += rp[5];
++        acc += load_u32(&rp[5]);
+         acc += bp[22 - 12];
+         acc += bp[22 - 12];
+         acc += bp[17 - 12];
+@@ -979,10 +1001,10 @@ int BN_nist_mod_384(BIGNUM *r, const BIGNUM *a, const BIGNUM *field,
+         acc += bp[21 - 12];
+         acc += bp[23 - 12];
+         acc -= bp[16 - 12];
+-        rp[5] = (unsigned int)acc;
++        store_lo32(&rp[5], acc);
+         acc >>= 32;
+ 
+-        acc += rp[6];
++        acc += load_u32(&rp[6]);
+         acc += bp[23 - 12];
+         acc += bp[23 - 12];
+         acc += bp[18 - 12];
+@@ -990,48 +1012,48 @@ int BN_nist_mod_384(BIGNUM *r, const BIGNUM *a, const BIGNUM *field,
+         acc += bp[14 - 12];
+         acc += bp[22 - 12];
+         acc -= bp[17 - 12];
+-        rp[6] = (unsigned int)acc;
++        store_lo32(&rp[6], acc);
+         acc >>= 32;
+ 
+-        acc += rp[7];
++        acc += load_u32(&rp[7]);
+         acc += bp[19 - 12];
+         acc += bp[16 - 12];
+         acc += bp[15 - 12];
+         acc += bp[23 - 12];
+         acc -= bp[18 - 12];
+-        rp[7] = (unsigned int)acc;
++        store_lo32(&rp[7], acc);
+         acc >>= 32;
+ 
+-        acc += rp[8];
++        acc += load_u32(&rp[8]);
+         acc += bp[20 - 12];
+         acc += bp[17 - 12];
+         acc += bp[16 - 12];
+         acc -= bp[19 - 12];
+-        rp[8] = (unsigned int)acc;
++        store_lo32(&rp[8], acc);
+         acc >>= 32;
+ 
+-        acc += rp[9];
++        acc += load_u32(&rp[9]);
+         acc += bp[21 - 12];
+         acc += bp[18 - 12];
+         acc += bp[17 - 12];
+         acc -= bp[20 - 12];
+-        rp[9] = (unsigned int)acc;
++        store_lo32(&rp[9], acc);
+         acc >>= 32;
+ 
+-        acc += rp[10];
++        acc += load_u32(&rp[10]);
+         acc += bp[22 - 12];
+         acc += bp[19 - 12];
+         acc += bp[18 - 12];
+         acc -= bp[21 - 12];
+-        rp[10] = (unsigned int)acc;
++        store_lo32(&rp[10], acc);
+         acc >>= 32;
+ 
+-        acc += rp[11];
++        acc += load_u32(&rp[11]);
+         acc += bp[23 - 12];
+         acc += bp[20 - 12];
+         acc += bp[19 - 12];
+         acc -= bp[22 - 12];
+-        rp[11] = (unsigned int)acc;
++        store_lo32(&rp[11], acc);
+ 
+         carry = (int)(acc >> 32);
+     }
+diff --git a/crypto/encode_decode/decoder_pkey.c b/crypto/encode_decode/decoder_pkey.c
+index 24f61fbf1593..eb1be1c98054 100644
+--- a/crypto/encode_decode/decoder_pkey.c
++++ b/crypto/encode_decode/decoder_pkey.c
+@@ -721,10 +721,9 @@ int ossl_decoder_cache_flush(OSSL_LIB_CTX *libctx)
+     DECODER_CACHE *cache
+         = ossl_lib_ctx_get_data(libctx, OSSL_LIB_CTX_DECODER_CACHE_INDEX);
+ 
+-    if (cache == NULL) {
+-        ERR_raise(ERR_LIB_OSSL_DECODER, ERR_R_OSSL_DECODER_LIB);
++    if (cache == NULL)
+         return 0;
+-    }
++
+ 
+     if (!CRYPTO_THREAD_write_lock(cache->lock)) {
+         ERR_raise(ERR_LIB_OSSL_DECODER, ERR_R_OSSL_DECODER_LIB);
+diff --git a/crypto/http/http_lib.c b/crypto/http/http_lib.c
+index 3164d01d9e48..cd0e25c85e4e 100644
+--- a/crypto/http/http_lib.c
++++ b/crypto/http/http_lib.c
+@@ -118,7 +118,7 @@ int OSSL_parse_url(const char *url, char **pscheme, char **puser, char **phost,
+         port = ++p;
+     /* remaining port spec handling is also done for the default values */
+     /* make sure a decimal port number is given */
+-    if (!sscanf(port, "%u", &portnum) || portnum > 65535) {
++    if (sscanf(port, "%u", &portnum) <= 0 || portnum > 65535) {
+         ERR_raise_data(ERR_LIB_HTTP, HTTP_R_INVALID_PORT_NUMBER, "%s", port);
+         goto err;
+     }
+diff --git a/crypto/md5/asm/md5-aarch64.pl b/crypto/md5/asm/md5-aarch64.pl
+index 3200a0fa9bff..5a8608069691 100755
+--- a/crypto/md5/asm/md5-aarch64.pl
++++ b/crypto/md5/asm/md5-aarch64.pl
+@@ -28,10 +28,13 @@ open OUT,"| \"$^X\" $xlate $flavour \"$output\""
+ *STDOUT=*OUT;
+ 
+ $code .= <<EOF;
++#include "arm_arch.h"
++
+ .text
+ .globl  ossl_md5_block_asm_data_order
+ .type   ossl_md5_block_asm_data_order,\@function
+ ossl_md5_block_asm_data_order:
++        AARCH64_VALID_CALL_TARGET
+         // Save all callee-saved registers
+         stp     x19,x20,[sp,#-80]!
+         stp     x21,x22,[sp,#16]
+diff --git a/crypto/mem_sec.c b/crypto/mem_sec.c
+index 557c697c9aaf..269c7dcb6d41 100644
+--- a/crypto/mem_sec.c
++++ b/crypto/mem_sec.c
+@@ -260,11 +260,17 @@ int CRYPTO_secure_allocated(const void *ptr)
+ 
+ size_t CRYPTO_secure_used(void)
+ {
++    size_t ret = 0;
++
+ #ifndef OPENSSL_NO_SECURE_MEMORY
+-    return secure_mem_used;
+-#else
+-    return 0;
++    if (!CRYPTO_THREAD_read_lock(sec_malloc_lock))
++        return 0;
++
++    ret = secure_mem_used;
++
++    CRYPTO_THREAD_unlock(sec_malloc_lock);
+ #endif /* OPENSSL_NO_SECURE_MEMORY */
++    return ret;
+ }
+ 
+ size_t CRYPTO_secure_actual_size(void *ptr)
+diff --git a/crypto/param_build.c b/crypto/param_build.c
+index 2392e5909cf4..799094da9bd5 100644
+--- a/crypto/param_build.c
++++ b/crypto/param_build.c
+@@ -255,9 +255,9 @@ int OSSL_PARAM_BLD_push_utf8_string(OSSL_PARAM_BLD *bld, const char *key,
+     OSSL_PARAM_BLD_DEF *pd;
+     int secure;
+ 
+-    if (bsize == 0) {
++    if (bsize == 0)
+         bsize = strlen(buf);
+-    } else if (bsize > INT_MAX) {
++    if (bsize > INT_MAX) {
+         ERR_raise(ERR_LIB_CRYPTO, CRYPTO_R_STRING_TOO_LONG);
+         return 0;
+     }
+@@ -274,9 +274,9 @@ int OSSL_PARAM_BLD_push_utf8_ptr(OSSL_PARAM_BLD *bld, const char *key,
+ {
+     OSSL_PARAM_BLD_DEF *pd;
+ 
+-    if (bsize == 0) {
++    if (bsize == 0)
+         bsize = strlen(buf);
+-    } else if (bsize > INT_MAX) {
++    if (bsize > INT_MAX) {
+         ERR_raise(ERR_LIB_CRYPTO, CRYPTO_R_STRING_TOO_LONG);
+         return 0;
+     }
+diff --git a/crypto/perlasm/x86_64-xlate.pl b/crypto/perlasm/x86_64-xlate.pl
+index 359670a2da89..6b93cfb84f81 100755
+--- a/crypto/perlasm/x86_64-xlate.pl
++++ b/crypto/perlasm/x86_64-xlate.pl
+@@ -111,7 +111,12 @@ elsif (`$ENV{CC} -Wa,-v -c -o /dev/null -x assembler /dev/null 2>&1`
+     $gnuas=1;
+ }
+ elsif (`$ENV{CC} --version 2>/dev/null`
+-		=~ /clang .*/)
++		=~ /(clang .*|Intel.*oneAPI .*)/)
++{
++    $gnuas=1;
++}
++elsif (`$ENV{CC} -V 2>/dev/null`
++		=~ /nvc .*/)
+ {
+     $gnuas=1;
+ }
+diff --git a/crypto/property/property_parse.c b/crypto/property/property_parse.c
+index 8ba42a0dcb8a..f94d0d3d41db 100644
+--- a/crypto/property/property_parse.c
++++ b/crypto/property/property_parse.c
+@@ -97,9 +97,18 @@ static int parse_number(const char *t[], OSSL_PROPERTY_DEFINITION *res)
+     const char *s = *t;
+     int64_t v = 0;
+ 
+-    if (!ossl_isdigit(*s))
+-        return 0;
+     do {
++        if (!ossl_isdigit(*s)) {
++            ERR_raise_data(ERR_LIB_PROP, PROP_R_NOT_A_DECIMAL_DIGIT,
++                           "HERE-->%s", *t);
++            return 0;
++        }
++        /* overflow check */
++        if (v > ((INT64_MAX - (*s - '0')) / 10)) {
++            ERR_raise_data(ERR_LIB_PROP, PROP_R_PARSE_FAILED,
++                           "Property %s overflows", *t);
++            return 0;
++        }
+         v = v * 10 + (*s++ - '0');
+     } while (ossl_isdigit(*s));
+     if (!ossl_isspace(*s) && *s != '\0' && *s != ',') {
+@@ -117,15 +126,27 @@ static int parse_hex(const char *t[], OSSL_PROPERTY_DEFINITION *res)
+ {
+     const char *s = *t;
+     int64_t v = 0;
++    int sval;
+ 
+-    if (!ossl_isxdigit(*s))
+-        return 0;
+     do {
++        if (ossl_isdigit(*s)) {
++            sval = *s - '0';
++        } else if (ossl_isxdigit(*s)) {
++            sval = ossl_tolower(*s) - 'a' + 10;
++        } else {
++            ERR_raise_data(ERR_LIB_PROP, PROP_R_NOT_AN_HEXADECIMAL_DIGIT,
++                           "%s", *t);
++            return 0;
++        }
++
++        if (v > ((INT64_MAX - sval) / 16)) {
++            ERR_raise_data(ERR_LIB_PROP, PROP_R_PARSE_FAILED,
++                           "Property %s overflows", *t);
++            return 0;
++        }
++
+         v <<= 4;
+-        if (ossl_isdigit(*s))
+-            v += *s - '0';
+-        else
+-            v += ossl_tolower(*s) - 'a';
++        v += sval;
+     } while (ossl_isxdigit(*++s));
+     if (!ossl_isspace(*s) && *s != '\0' && *s != ',') {
+         ERR_raise_data(ERR_LIB_PROP, PROP_R_NOT_AN_HEXADECIMAL_DIGIT,
+@@ -143,9 +164,18 @@ static int parse_oct(const char *t[], OSSL_PROPERTY_DEFINITION *res)
+     const char *s = *t;
+     int64_t v = 0;
+ 
+-    if (*s == '9' || *s == '8' || !ossl_isdigit(*s))
+-        return 0;
+     do {
++        if (*s == '9' || *s == '8' || !ossl_isdigit(*s)) {
++            ERR_raise_data(ERR_LIB_PROP, PROP_R_NOT_AN_OCTAL_DIGIT,
++                           "HERE-->%s", *t);
++            return 0;
++        }
++        if (v > ((INT64_MAX - (*s - '0')) / 8)) {
++            ERR_raise_data(ERR_LIB_PROP, PROP_R_PARSE_FAILED,
++                           "Property %s overflows", *t);
++            return 0;
++        }
++
+         v = (v << 3) + (*s - '0');
+     } while (ossl_isdigit(*++s) && *s != '9' && *s != '8');
+     if (!ossl_isspace(*s) && *s != '\0' && *s != ',') {
+diff --git a/crypto/provider_core.c b/crypto/provider_core.c
+index 838bcd161c81..57dacd76f786 100644
+--- a/crypto/provider_core.c
++++ b/crypto/provider_core.c
+@@ -970,44 +970,46 @@ static int provider_init(OSSL_PROVIDER *prov)
+     prov->provctx = tmp_provctx;
+     prov->dispatch = provider_dispatch;
+ 
+-    for (; provider_dispatch->function_id != 0; provider_dispatch++) {
+-        switch (provider_dispatch->function_id) {
+-        case OSSL_FUNC_PROVIDER_TEARDOWN:
+-            prov->teardown =
+-                OSSL_FUNC_provider_teardown(provider_dispatch);
+-            break;
+-        case OSSL_FUNC_PROVIDER_GETTABLE_PARAMS:
+-            prov->gettable_params =
+-                OSSL_FUNC_provider_gettable_params(provider_dispatch);
+-            break;
+-        case OSSL_FUNC_PROVIDER_GET_PARAMS:
+-            prov->get_params =
+-                OSSL_FUNC_provider_get_params(provider_dispatch);
+-            break;
+-        case OSSL_FUNC_PROVIDER_SELF_TEST:
+-            prov->self_test =
+-                OSSL_FUNC_provider_self_test(provider_dispatch);
+-            break;
+-        case OSSL_FUNC_PROVIDER_GET_CAPABILITIES:
+-            prov->get_capabilities =
+-                OSSL_FUNC_provider_get_capabilities(provider_dispatch);
+-            break;
+-        case OSSL_FUNC_PROVIDER_QUERY_OPERATION:
+-            prov->query_operation =
+-                OSSL_FUNC_provider_query_operation(provider_dispatch);
+-            break;
+-        case OSSL_FUNC_PROVIDER_UNQUERY_OPERATION:
+-            prov->unquery_operation =
+-                OSSL_FUNC_provider_unquery_operation(provider_dispatch);
+-            break;
++    if (provider_dispatch != NULL) {
++        for (; provider_dispatch->function_id != 0; provider_dispatch++) {
++            switch (provider_dispatch->function_id) {
++            case OSSL_FUNC_PROVIDER_TEARDOWN:
++                prov->teardown =
++                    OSSL_FUNC_provider_teardown(provider_dispatch);
++                break;
++            case OSSL_FUNC_PROVIDER_GETTABLE_PARAMS:
++                prov->gettable_params =
++                    OSSL_FUNC_provider_gettable_params(provider_dispatch);
++                break;
++            case OSSL_FUNC_PROVIDER_GET_PARAMS:
++                prov->get_params =
++                    OSSL_FUNC_provider_get_params(provider_dispatch);
++                break;
++            case OSSL_FUNC_PROVIDER_SELF_TEST:
++                prov->self_test =
++                    OSSL_FUNC_provider_self_test(provider_dispatch);
++                break;
++            case OSSL_FUNC_PROVIDER_GET_CAPABILITIES:
++                prov->get_capabilities =
++                    OSSL_FUNC_provider_get_capabilities(provider_dispatch);
++                break;
++            case OSSL_FUNC_PROVIDER_QUERY_OPERATION:
++                prov->query_operation =
++                    OSSL_FUNC_provider_query_operation(provider_dispatch);
++                break;
++            case OSSL_FUNC_PROVIDER_UNQUERY_OPERATION:
++                prov->unquery_operation =
++                    OSSL_FUNC_provider_unquery_operation(provider_dispatch);
++                break;
+ #ifndef OPENSSL_NO_ERR
+ # ifndef FIPS_MODULE
+-        case OSSL_FUNC_PROVIDER_GET_REASON_STRINGS:
+-            p_get_reason_strings =
+-                OSSL_FUNC_provider_get_reason_strings(provider_dispatch);
+-            break;
++            case OSSL_FUNC_PROVIDER_GET_REASON_STRINGS:
++                p_get_reason_strings =
++                    OSSL_FUNC_provider_get_reason_strings(provider_dispatch);
++                break;
+ # endif
+ #endif
++            }
+         }
+     }
+ 
+diff --git a/crypto/x509/by_file.c b/crypto/x509/by_file.c
+index 450bbba0537b..5073c137a20b 100644
+--- a/crypto/x509/by_file.c
++++ b/crypto/x509/by_file.c
+@@ -128,6 +128,17 @@ int X509_load_cert_file_ex(X509_LOOKUP *ctx, const char *file, int type,
+                 count = 0;
+                 goto err;
+             }
++            /*
++             * X509_STORE_add_cert() added a reference rather than a copy,
++             * so we need a fresh X509 object.
++             */
++            X509_free(x);
++            x = X509_new_ex(libctx, propq);
++            if (x == NULL) {
++                ERR_raise(ERR_LIB_X509, ERR_R_ASN1_LIB);
++                count = 0;
++                goto err;
++            }
+             count++;
+         }
+     } else if (type == X509_FILETYPE_ASN1) {
+diff --git a/crypto/x509/v3_asid.c b/crypto/x509/v3_asid.c
+index d1c3dd5d9ffd..251243b72373 100644
+--- a/crypto/x509/v3_asid.c
++++ b/crypto/x509/v3_asid.c
+@@ -169,8 +169,11 @@ int X509v3_asid_add_inherit(ASIdentifiers *asid, int which)
+     if (*choice == NULL) {
+         if ((*choice = ASIdentifierChoice_new()) == NULL)
+             return 0;
+-        if (((*choice)->u.inherit = ASN1_NULL_new()) == NULL)
++        if (((*choice)->u.inherit = ASN1_NULL_new()) == NULL) {
++            ASIdentifierChoice_free(*choice);
++            *choice = NULL;
+             return 0;
++        }
+         (*choice)->type = ASIdentifierChoice_inherit;
+     }
+     return (*choice)->type == ASIdentifierChoice_inherit;
+@@ -196,18 +199,23 @@ int X509v3_asid_add_id_or_range(ASIdentifiers *asid,
+     default:
+         return 0;
+     }
+-    if (*choice != NULL && (*choice)->type == ASIdentifierChoice_inherit)
++    if (*choice != NULL && (*choice)->type != ASIdentifierChoice_asIdsOrRanges)
+         return 0;
+     if (*choice == NULL) {
+         if ((*choice = ASIdentifierChoice_new()) == NULL)
+             return 0;
+         (*choice)->u.asIdsOrRanges = sk_ASIdOrRange_new(ASIdOrRange_cmp);
+-        if ((*choice)->u.asIdsOrRanges == NULL)
++        if ((*choice)->u.asIdsOrRanges == NULL) {
++            ASIdentifierChoice_free(*choice);
++            *choice = NULL;
+             return 0;
++        }
+         (*choice)->type = ASIdentifierChoice_asIdsOrRanges;
+     }
+     if ((aor = ASIdOrRange_new()) == NULL)
+         return 0;
++    if (!sk_ASIdOrRange_reserve((*choice)->u.asIdsOrRanges, 1))
++        goto err;
+     if (max == NULL) {
+         aor->type = ASIdOrRange_id;
+         aor->u.id = min;
+@@ -220,7 +228,8 @@ int X509v3_asid_add_id_or_range(ASIdentifiers *asid,
+         ASN1_INTEGER_free(aor->u.range->max);
+         aor->u.range->max = max;
+     }
+-    if (!(sk_ASIdOrRange_push((*choice)->u.asIdsOrRanges, aor)))
++    /* Cannot fail due to the reservation above */
++    if (!ossl_assert(sk_ASIdOrRange_push((*choice)->u.asIdsOrRanges, aor)))
+         goto err;
+     return 1;
+ 
+diff --git a/crypto/x509/v3_san.c b/crypto/x509/v3_san.c
+index 7798505eec6e..9adf4947071c 100644
+--- a/crypto/x509/v3_san.c
++++ b/crypto/x509/v3_san.c
+@@ -581,6 +581,8 @@ GENERAL_NAME *a2i_GENERAL_NAME(GENERAL_NAME *out,
+         if ((gen->d.ia5 = ASN1_IA5STRING_new()) == NULL ||
+             !ASN1_STRING_set(gen->d.ia5, (unsigned char *)value,
+                              strlen(value))) {
++            ASN1_IA5STRING_free(gen->d.ia5);
++            gen->d.ia5 = NULL;
+             ERR_raise(ERR_LIB_X509V3, ERR_R_ASN1_LIB);
+             goto err;
+         }
+@@ -651,16 +653,21 @@ static int do_othername(GENERAL_NAME *gen, const char *value, X509V3_CTX *ctx)
+      */
+     ASN1_TYPE_free(gen->d.otherName->value);
+     if ((gen->d.otherName->value = ASN1_generate_v3(p + 1, ctx)) == NULL)
+-        return 0;
++        goto err;
+     objlen = p - value;
+     objtmp = OPENSSL_strndup(value, objlen);
+     if (objtmp == NULL)
+-        return 0;
++        goto err;
+     gen->d.otherName->type_id = OBJ_txt2obj(objtmp, 0);
+     OPENSSL_free(objtmp);
+     if (!gen->d.otherName->type_id)
+-        return 0;
++        goto err;
+     return 1;
++
++ err:
++    OTHERNAME_free(gen->d.otherName);
++    gen->d.otherName = NULL;
++    return 0;
+ }
+ 
+ static int do_dirname(GENERAL_NAME *gen, const char *value, X509V3_CTX *ctx)
+diff --git a/doc/man3/EVP_EncryptInit.pod b/doc/man3/EVP_EncryptInit.pod
+index a04e6d102f1a..955340b94d4a 100644
+--- a/doc/man3/EVP_EncryptInit.pod
++++ b/doc/man3/EVP_EncryptInit.pod
+@@ -373,7 +373,12 @@ exists.
+ =item EVP_EncryptUpdate()
+ 
+ Encrypts I<inl> bytes from the buffer I<in> and writes the encrypted version to
+-I<out>. This function can be called multiple times to encrypt successive blocks
++I<out>. The pointers I<out> and I<in> may point to the same location, in which
++case the encryption will be done in-place. If I<out> and I<in> point to different
++locations, the two buffers must be disjoint, otherwise the operation might fail
++or the outcome might be undefined.
++
++This function can be called multiple times to encrypt successive blocks
+ of data. The amount of data written depends on the block alignment of the
+ encrypted data.
+ For most ciphers and modes, the amount of data written can be anything
+@@ -382,10 +387,9 @@ For wrap cipher modes, the amount of data written can be anything
+ from zero bytes to (inl + cipher_block_size) bytes.
+ For stream ciphers, the amount of data written can be anything from zero
+ bytes to inl bytes.
+-Thus, I<out> should contain sufficient room for the operation being performed.
+-The actual number of bytes written is placed in I<outl>. It also
+-checks if I<in> and I<out> are partially overlapping, and if they are
+-0 is returned to indicate failure.
++Thus, the buffer pointed to by I<out> must contain sufficient room for the
++operation being performed.
++The actual number of bytes written is placed in I<outl>.
+ 
+ If padding is enabled (the default) then EVP_EncryptFinal_ex() encrypts
+ the "final" data, that is any data that remains in a partial block.
+diff --git a/doc/man3/OSSL_PARAM_int.pod b/doc/man3/OSSL_PARAM_int.pod
+index 29cefe673cc3..dae0de083a62 100644
+--- a/doc/man3/OSSL_PARAM_int.pod
++++ b/doc/man3/OSSL_PARAM_int.pod
+@@ -112,7 +112,7 @@ OSSL_PARAM_UNMODIFIED, OSSL_PARAM_modified, OSSL_PARAM_set_all_unmodified
+ A collection of utility functions that simplify and add type safety to the
+ L<OSSL_PARAM(3)> arrays.  The following B<I<TYPE>> names are supported:
+ 
+-=over 1
++=over 2
+ 
+ =item *
+ 
+diff --git a/doc/man3/SSL_CTX_set_tmp_dh_callback.pod b/doc/man3/SSL_CTX_set_tmp_dh_callback.pod
+index c0d69f6f6ae9..a14f334cfca8 100644
+--- a/doc/man3/SSL_CTX_set_tmp_dh_callback.pod
++++ b/doc/man3/SSL_CTX_set_tmp_dh_callback.pod
+@@ -55,7 +55,7 @@ As generating DH parameters is extremely time consuming, an application
+ should not generate the parameters on the fly. DH parameters can be reused, as
+ the actual key is newly generated during the negotiation.
+ 
+-Typically applications should use well know DH parameters that have built-in
++Typically applications should use well known DH parameters that have built-in
+ support in OpenSSL. The macros SSL_CTX_set_dh_auto() and SSL_set_dh_auto()
+ configure OpenSSL to use the default built-in DH parameters for the B<SSL_CTX>
+ and B<SSL> objects respectively. Passing a value of 1 in the I<onoff> parameter
+diff --git a/doc/man7/EVP_MD-SHAKE.pod b/doc/man7/EVP_MD-SHAKE.pod
+index 157d2bb28320..6adf4b7bebb1 100644
+--- a/doc/man7/EVP_MD-SHAKE.pod
++++ b/doc/man7/EVP_MD-SHAKE.pod
+@@ -25,14 +25,14 @@ This implementation is available in the FIPS provider as well as the default
+ 
+ Known names are "KECCAK-KMAC-128" and "KECCAK-KMAC128".  This is used
+ by L<EVP_MAC-KMAC128(7)>.  Using the notation from NIST FIPS 202
+-(Section 6.2), we have KECCAK-KMAC-128(M, d) = KECCAK[256](M || 00, d)
++(Section 6.2), we have S<KECCAK-KMAC-128(M, d)> = S<KECCAK[256](M || 00, d)>
+ (see the description of KMAC128 in Appendix A of NIST SP 800-185).
+ 
+ =item KECCAK-KMAC-256
+ 
+ Known names are "KECCAK-KMAC-256" and "KECCAK-KMAC256".  This is used
+ by L<EVP_MAC-KMAC256(7)>.  Using the notation from NIST FIPS 202
+-(Section 6.2), we have KECCAK-KMAC-256(M, d) = KECCAK[512](M || 00, d)
++(Section 6.2), we have S<KECCAK-KMAC-256(M, d)> = S<KECCAK[512](M || 00, d)>
+ (see the description of KMAC256 in Appendix A of NIST SP 800-185).
+ 
+ =item SHAKE-128
+diff --git a/doc/man7/EVP_PKEY-RSA.pod b/doc/man7/EVP_PKEY-RSA.pod
+index 161e9d4d71d1..dcd38fcee85b 100644
+--- a/doc/man7/EVP_PKEY-RSA.pod
++++ b/doc/man7/EVP_PKEY-RSA.pod
+@@ -80,7 +80,7 @@ Up to eight additional "r_i" prime factors are supported.
+ =item "rsa-exponent10" (B<OSSL_PKEY_PARAM_RSA_EXPONENT10>) <unsigned integer>
+ 
+ RSA CRT (Chinese Remainder Theorem) exponents. The exponents are known
+-as "dP", "dQ" and "d_i in RFC8017".
++as "dP", "dQ" and "d_i" in RFC8017.
+ Up to eight additional "d_i" exponents are supported.
+ 
+ =item "rsa-coefficient1" (B<OSSL_PKEY_PARAM_RSA_COEFFICIENT1>) <unsigned integer>
+diff --git a/doc/man7/EVP_RAND-SEED-SRC.pod b/doc/man7/EVP_RAND-SEED-SRC.pod
+index 8bbd5794720e..a00ed328d529 100644
+--- a/doc/man7/EVP_RAND-SEED-SRC.pod
++++ b/doc/man7/EVP_RAND-SEED-SRC.pod
+@@ -49,9 +49,10 @@ These parameters work as described in L<EVP_RAND(3)/PARAMETERS>.
+  OSSL_PARAM params[2], *p = params;
+  unsigned int strength = 128;
+ 
+- /* Create a seed source */
++ /* Create and instantiate a seed source */
+  rand = EVP_RAND_fetch(NULL, "SEED-SRC", NULL);
+  seed = EVP_RAND_CTX_new(rand, NULL);
++ EVP_RAND_instantiate(seed, strength, 0, NULL, 0, NULL);
+  EVP_RAND_free(rand);
+ 
+  /* Feed this into a DRBG */
+diff --git a/doc/man7/provider-cipher.pod b/doc/man7/provider-cipher.pod
+index 14ff581c72c4..eaad3cf2ff02 100644
+--- a/doc/man7/provider-cipher.pod
++++ b/doc/man7/provider-cipher.pod
+@@ -148,9 +148,13 @@ It is the responsibility of the cipher implementation to handle input lengths
+ that are not multiples of the block length.
+ In such cases a cipher implementation will typically cache partial blocks of
+ input data until a complete block is obtained.
+-I<out> may be the same location as I<in> but it should not partially overlap.
+-The same expectations apply to I<outsize> as documented for
+-L<EVP_EncryptUpdate(3)> and L<EVP_DecryptUpdate(3)>.
++The pointers I<out> and I<in> may point to the same location, in which
++case the encryption must be done in-place. If I<out> and I<in> point to different
++locations, the requirements of L<EVP_EncryptUpdate(3)> and L<EVP_DecryptUpdate(3)>
++guarantee that the two buffers are disjoint.
++Similarly, the requirements of L<EVP_EncryptUpdate(3)> and L<EVP_DecryptUpdate(3)>
++ensure that the buffer pointed to by I<out> contains sufficient room for the
++operation being performed.
+ 
+ OSSL_FUNC_cipher_final() completes an encryption or decryption started through previous
+ OSSL_FUNC_cipher_encrypt_init() or OSSL_FUNC_cipher_decrypt_init(), and OSSL_FUNC_cipher_update()
+diff --git a/doc/man7/provider-storemgmt.pod b/doc/man7/provider-storemgmt.pod
+index 81d407a4b8b9..221060021721 100644
+--- a/doc/man7/provider-storemgmt.pod
++++ b/doc/man7/provider-storemgmt.pod
+@@ -184,12 +184,12 @@ fingerprint, computed with the given digest.
+ Indicates that the caller wants to search for an object with the given
+ alias (some call it a "friendly name").
+ 
+-=item "properties" (B<OSSL_STORE_PARAM_PROPERTIES) <utf8 string>
++=item "properties" (B<OSSL_STORE_PARAM_PROPERTIES>) <utf8 string>
+ 
+ Property string to use when querying for algorithms such as the B<OSSL_DECODER>
+ decoder implementations.
+ 
+-=item "input-type" (B<OSSL_STORE_PARAM_INPUT_TYPE) <utf8 string>
++=item "input-type" (B<OSSL_STORE_PARAM_INPUT_TYPE>) <utf8 string>
+ 
+ Type of the input format as a hint to use when decoding the objects in the
+ store.
+diff --git a/include/openssl/e_ostime.h b/include/openssl/e_ostime.h
+index 8a7cc9880fa7..0e1748750499 100644
+--- a/include/openssl/e_ostime.h
++++ b/include/openssl/e_ostime.h
+@@ -22,7 +22,15 @@
+  */
+ 
+ # if defined(OPENSSL_SYS_WINDOWS)
+-#  include <winsock2.h>
++#  if !defined(_WINSOCKAPI_)
++    /*
++     * winsock2.h defines _WINSOCK2API_ and both winsock2.h and winsock.h define
++     * _WINSOCKAPI_. Both of these provide struct timeval. Don't include
++     * winsock2.h if either header has been included to avoid breakage with
++     * applications that prefer to use <winsock.h> over <winsock2.h>.
++     */
++#   include <winsock2.h>
++#  endif
+ # else
+ #  include <sys/time.h>
+ # endif
+diff --git a/providers/implementations/ciphers/cipher_aes_ccm_hw.c b/providers/implementations/ciphers/cipher_aes_ccm_hw.c
+index 575a8ba88d8e..b050cf3edd88 100644
+--- a/providers/implementations/ciphers/cipher_aes_ccm_hw.c
++++ b/providers/implementations/ciphers/cipher_aes_ccm_hw.c
+@@ -61,9 +61,9 @@ static const PROV_CCM_HW aes_ccm = {
+ # include "cipher_aes_ccm_hw_aesni.inc"
+ #elif defined(SPARC_AES_CAPABLE)
+ # include "cipher_aes_ccm_hw_t4.inc"
+-#elif defined(__riscv) && __riscv_xlen == 64
++#elif defined(OPENSSL_CPUID_OBJ) && defined(__riscv) && __riscv_xlen == 64
+ # include "cipher_aes_ccm_hw_rv64i.inc"
+-#elif defined(__riscv) && __riscv_xlen == 32
++#elif defined(OPENSSL_CPUID_OBJ) && defined(__riscv) && __riscv_xlen == 32
+ # include "cipher_aes_ccm_hw_rv32i.inc"
+ #else
+ const PROV_CCM_HW *ossl_prov_aes_hw_ccm(size_t keybits)
+diff --git a/providers/implementations/macs/cmac_prov.c b/providers/implementations/macs/cmac_prov.c
+index 1b3893598d88..fa0b576b9712 100644
+--- a/providers/implementations/macs/cmac_prov.c
++++ b/providers/implementations/macs/cmac_prov.c
+@@ -101,8 +101,12 @@ static void *cmac_dup(void *vsrc)
+ static size_t cmac_size(void *vmacctx)
+ {
+     struct cmac_data_st *macctx = vmacctx;
++    const EVP_CIPHER_CTX *cipherctx = CMAC_CTX_get0_cipher_ctx(macctx->ctx);
+ 
+-    return EVP_CIPHER_CTX_get_block_size(CMAC_CTX_get0_cipher_ctx(macctx->ctx));
++    if (EVP_CIPHER_CTX_get0_cipher(cipherctx) == NULL)
++        return 0;
++
++    return EVP_CIPHER_CTX_get_block_size(cipherctx);
+ }
+ 
+ static int cmac_setkey(struct cmac_data_st *macctx,
+diff --git a/providers/implementations/signature/rsa_sig.c b/providers/implementations/signature/rsa_sig.c
+index b8648b54bf60..76db37dd02c2 100644
+--- a/providers/implementations/signature/rsa_sig.c
++++ b/providers/implementations/signature/rsa_sig.c
+@@ -1006,6 +1006,7 @@ static void *rsa_dupctx(void *vprsactx)
+     *dstctx = *srcctx;
+     dstctx->rsa = NULL;
+     dstctx->md = NULL;
++    dstctx->mgf1_md = NULL;
+     dstctx->mdctx = NULL;
+     dstctx->tbuf = NULL;
+     dstctx->propq = NULL;
+diff --git a/providers/implementations/signature/sm2_sig.c b/providers/implementations/signature/sm2_sig.c
+index a61fd0864f14..479e4eebe8ef 100644
+--- a/providers/implementations/signature/sm2_sig.c
++++ b/providers/implementations/signature/sm2_sig.c
+@@ -329,6 +329,7 @@ static void sm2sig_freectx(void *vpsm2ctx)
+ 
+     free_md(ctx);
+     EC_KEY_free(ctx->ec);
++    OPENSSL_free(ctx->propq);
+     OPENSSL_free(ctx->id);
+     OPENSSL_free(ctx);
+ }
+@@ -344,13 +345,21 @@ static void *sm2sig_dupctx(void *vpsm2ctx)
+ 
+     *dstctx = *srcctx;
+     dstctx->ec = NULL;
++    dstctx->propq = NULL;
+     dstctx->md = NULL;
+     dstctx->mdctx = NULL;
++    dstctx->id = NULL;
+ 
+     if (srcctx->ec != NULL && !EC_KEY_up_ref(srcctx->ec))
+         goto err;
+     dstctx->ec = srcctx->ec;
+ 
++    if (srcctx->propq != NULL) {
++        dstctx->propq = OPENSSL_strdup(srcctx->propq);
++        if (dstctx->propq == NULL)
++            goto err;
++    }
++
+     if (srcctx->md != NULL && !EVP_MD_up_ref(srcctx->md))
+         goto err;
+     dstctx->md = srcctx->md;
+diff --git a/ssl/record/methods/ssl3_meth.c b/ssl/record/methods/ssl3_meth.c
+index 76a108e44328..810dc0716bc9 100644
+--- a/ssl/record/methods/ssl3_meth.c
++++ b/ssl/record/methods/ssl3_meth.c
+@@ -64,7 +64,11 @@ static int ssl3_set_crypto_state(OSSL_RECORD_LAYER *rl, int level,
+         return OSSL_RECORD_RETURN_FATAL;
+     }
+ 
+-    if (EVP_CIPHER_get0_provider(ciph) != NULL
++    /*
++     * The cipher we actually ended up using in the EVP_CIPHER_CTX may be
++     * different to that in ciph if we have an ENGINE in use
++     */
++    if (EVP_CIPHER_get0_provider(EVP_CIPHER_CTX_get0_cipher(ciph_ctx)) != NULL
+             && !ossl_set_tls_provider_parameters(rl, ciph_ctx, ciph, md)) {
+         /* ERR_raise already called */
+         return OSSL_RECORD_RETURN_FATAL;
+diff --git a/ssl/record/methods/tls1_meth.c b/ssl/record/methods/tls1_meth.c
+index 46a83ad8f42a..f13d530a05d9 100644
+--- a/ssl/record/methods/tls1_meth.c
++++ b/ssl/record/methods/tls1_meth.c
+@@ -117,9 +117,16 @@ static int tls1_set_crypto_state(OSSL_RECORD_LAYER *rl, int level,
+         ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
+         return OSSL_RECORD_RETURN_FATAL;
+     }
+-    if (EVP_CIPHER_get0_provider(ciph) != NULL
+-            && !ossl_set_tls_provider_parameters(rl, ciph_ctx, ciph, md))
++
++    /*
++     * The cipher we actually ended up using in the EVP_CIPHER_CTX may be
++     * different to that in ciph if we have an ENGINE in use
++     */
++    if (EVP_CIPHER_get0_provider(EVP_CIPHER_CTX_get0_cipher(ciph_ctx)) != NULL
++            && !ossl_set_tls_provider_parameters(rl, ciph_ctx, ciph, md)) {
++        /* ERR_raise already called */
+         return OSSL_RECORD_RETURN_FATAL;
++    }
+ 
+     /* Calculate the explicit IV length */
+     if (RLAYER_USE_EXPLICIT_IV(rl)) {
+diff --git a/ssl/ssl_lib.c b/ssl/ssl_lib.c
+index 70d3b17c19e0..0150589feae9 100644
+--- a/ssl/ssl_lib.c
++++ b/ssl/ssl_lib.c
+@@ -340,8 +340,19 @@ static int dane_tlsa_add(SSL_DANE *dane,
+             }
+ 
+             if ((DANETLS_USAGE_BIT(usage) & DANETLS_TA_MASK) == 0) {
++                /*
++                 * The Full(0) certificate decodes to a seemingly valid X.509
++                 * object with a plausible key, so the TLSA record is well
++                 * formed.  However, we don't actually need the certifiate for
++                 * usages PKIX-EE(1) or DANE-EE(3), because at least the EE
++                 * certificate is always presented by the peer.  We discard the
++                 * certificate, and just use the TLSA data as an opaque blob
++                 * for matching the raw presented DER octets.
++                 *
++                 * DO NOT FREE `t` here, it will be added to the TLSA record
++                 * list below!
++                 */
+                 X509_free(cert);
+-                tlsa_free(t);
+                 break;
+             }
+ 
+@@ -6056,6 +6067,8 @@ IMPLEMENT_OBJ_BSEARCH_GLOBAL_CMP_FN(SSL_CIPHER, SSL_CIPHER, ssl_cipher_id);
+  * If |dst| points to a NULL pointer, a new stack will be created and owned by
+  * the caller.
+  * Returns the number of SCTs moved, or a negative integer if an error occurs.
++ * The |dst| stack is created and possibly partially populated even in case
++ * of error, likewise the |src| stack may be left in an intermediate state.
+  */
+ static int ct_move_scts(STACK_OF(SCT) **dst, STACK_OF(SCT) *src,
+                         sct_source_t origin)
+@@ -6075,15 +6088,14 @@ static int ct_move_scts(STACK_OF(SCT) **dst, STACK_OF(SCT) *src,
+         if (SCT_set_source(sct, origin) != 1)
+             goto err;
+ 
+-        if (sk_SCT_push(*dst, sct) <= 0)
++        if (!sk_SCT_push(*dst, sct))
+             goto err;
+         scts_moved += 1;
+     }
+ 
+     return scts_moved;
+  err:
+-    if (sct != NULL)
+-        sk_SCT_push(src, sct);  /* Put the SCT back */
++    SCT_free(sct);
+     return -1;
+ }
+ 
+diff --git a/ssl/ssl_local.h b/ssl/ssl_local.h
+index d1ef358932e0..0d3acfbe66f3 100644
+--- a/ssl/ssl_local.h
++++ b/ssl/ssl_local.h
+@@ -2927,10 +2927,6 @@ const EVP_MD *ssl_evp_md_fetch(OSSL_LIB_CTX *libctx,
+ int ssl_evp_md_up_ref(const EVP_MD *md);
+ void ssl_evp_md_free(const EVP_MD *md);
+ 
+-int tls_provider_set_tls_params(SSL_CONNECTION *s, EVP_CIPHER_CTX *ctx,
+-                                const EVP_CIPHER *ciph,
+-                                const EVP_MD *md);
+-
+ void tls_engine_finish(ENGINE *e);
+ const EVP_CIPHER *tls_get_cipher_from_engine(int nid);
+ const EVP_MD *tls_get_digest_from_engine(int nid);
+diff --git a/ssl/t1_enc.c b/ssl/t1_enc.c
+index 673a53ad36a4..94f68eb99978 100644
+--- a/ssl/t1_enc.c
++++ b/ssl/t1_enc.c
+@@ -101,44 +101,6 @@ static int tls1_generate_key_block(SSL_CONNECTION *s, unsigned char *km,
+     return ret;
+ }
+ 
+-int tls_provider_set_tls_params(SSL_CONNECTION *s, EVP_CIPHER_CTX *ctx,
+-                                const EVP_CIPHER *ciph,
+-                                const EVP_MD *md)
+-{
+-    /*
+-     * Provided cipher, the TLS padding/MAC removal is performed provider
+-     * side so we need to tell the ctx about our TLS version and mac size
+-     */
+-    OSSL_PARAM params[3], *pprm = params;
+-    size_t macsize = 0;
+-    int imacsize = -1;
+-
+-    if ((EVP_CIPHER_get_flags(ciph) & EVP_CIPH_FLAG_AEAD_CIPHER) == 0
+-               /*
+-                * We look at s->ext.use_etm instead of SSL_READ_ETM() or
+-                * SSL_WRITE_ETM() because this test applies to both reading
+-                * and writing.
+-                */
+-            && !s->ext.use_etm)
+-        imacsize = EVP_MD_get_size(md);
+-    if (imacsize >= 0)
+-        macsize = (size_t)imacsize;
+-
+-    *pprm++ = OSSL_PARAM_construct_int(OSSL_CIPHER_PARAM_TLS_VERSION,
+-                                       &s->version);
+-    *pprm++ = OSSL_PARAM_construct_size_t(OSSL_CIPHER_PARAM_TLS_MAC_SIZE,
+-                                          &macsize);
+-    *pprm = OSSL_PARAM_construct_end();
+-
+-    if (!EVP_CIPHER_CTX_set_params(ctx, params)) {
+-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+-        return 0;
+-    }
+-
+-    return 1;
+-}
+-
+-
+ static int tls_iv_length_within_key_block(const EVP_CIPHER *c)
+ {
+     /* If GCM/CCM mode only part of IV comes from PRF */
+diff --git a/test/bntest.c b/test/bntest.c
+index 2ffff10ef1c2..20020cac42fe 100644
+--- a/test/bntest.c
++++ b/test/bntest.c
+@@ -910,6 +910,14 @@ static int test_gf2m_modinv(void)
+             || !TEST_ptr(d = BN_new()))
+         goto err;
+ 
++    /* Test that a non-sensical, too small value causes a failure */
++    if (!TEST_true(BN_one(b[0])))
++        goto err;
++    if (!TEST_true(BN_bntest_rand(a, 512, 0, 0)))
++        goto err;
++    if (!TEST_false(BN_GF2m_mod_inv(c, a, b[0], ctx)))
++        goto err;
++
+     if (!(TEST_true(BN_GF2m_arr2poly(p0, b[0]))
+             && TEST_true(BN_GF2m_arr2poly(p1, b[1]))))
+         goto err;
+diff --git a/test/build.info b/test/build.info
+index 1784a41d8d22..d96edf7d4461 100644
+--- a/test/build.info
++++ b/test/build.info
+@@ -62,7 +62,8 @@ IF[{- !$disabled{tests} -}]
+           bio_readbuffer_test user_property_test pkcs7_test upcallstest \
+           provfetchtest prov_config_test rand_test ca_internals_test \
+           bio_tfo_test membio_test bio_dgram_test list_test fips_version_test \
+-          x509_test hpke_test pairwise_fail_test nodefltctxtest
++          x509_test hpke_test pairwise_fail_test nodefltctxtest \
++          x509_load_cert_file_test
+ 
+   IF[{- !$disabled{'rpk'} -}]
+     PROGRAMS{noinst}=rpktest
+@@ -190,6 +191,14 @@ IF[{- !$disabled{tests} -}]
+   SOURCE[evp_extra_test]=evp_extra_test.c fake_rsaprov.c
+   INCLUDE[evp_extra_test]=../include ../apps/include
+   DEPEND[evp_extra_test]=../libcrypto.a libtestutil.a
++  IF[{- !$disabled{module} && !$disabled{legacy} -}]
++    DEFINE[evp_extra_test]=STATIC_LEGACY
++    SOURCE[evp_extra_test]=../providers/legacyprov.c
++    INCLUDE[evp_extra_test]=../providers/common/include \
++                            ../providers/implementations/include
++    DEPEND[evp_extra_test]=../providers/liblegacy.a \
++                           ../providers/libcommon.a
++  ENDIF
+ 
+   SOURCE[hpke_test]=hpke_test.c
+   INCLUDE[hpke_test]=../include ../apps/include
+@@ -586,6 +595,10 @@ IF[{- !$disabled{tests} -}]
+   INCLUDE[x509_dup_cert_test]=../include ../apps/include
+   DEPEND[x509_dup_cert_test]=../libcrypto libtestutil.a
+ 
++  SOURCE[x509_load_cert_file_test]=x509_load_cert_file_test.c
++  INCLUDE[x509_load_cert_file_test]=../include ../apps/include
++  DEPEND[x509_load_cert_file_test]=../libcrypto libtestutil.a
++
+   SOURCE[x509_check_cert_pkey_test]=x509_check_cert_pkey_test.c
+   INCLUDE[x509_check_cert_pkey_test]=../include ../apps/include
+   DEPEND[x509_check_cert_pkey_test]=../libcrypto libtestutil.a
+@@ -1025,6 +1038,13 @@ IF[{- !$disabled{tests} -}]
+       SOURCE[p_test]=p_test.ld
+       GENERATE[p_test.ld]=../util/providers.num
+     ENDIF
++    MODULES{noinst}=p_minimal
++    SOURCE[p_minimal]=p_minimal.c
++    INCLUDE[p_minimal]=../include ..
++    IF[{- defined $target{shared_defflag} -}]
++      SOURCE[p_minimal]=p_minimal.ld
++      GENERATE[p_minimal.ld]=../util/providers.num
++    ENDIF
+   ENDIF
+   IF[{- $disabled{module} || !$target{dso_scheme} -}]
+     DEFINE[provider_test]=NO_PROVIDER_MODULE
+diff --git a/test/cmp_ctx_test.c b/test/cmp_ctx_test.c
+index 137f67331b06..f38493b33445 100644
+--- a/test/cmp_ctx_test.c
++++ b/test/cmp_ctx_test.c
+@@ -405,6 +405,7 @@ execute_CTX_##SETN##_##GETN##_##FIELD(OSSL_CMP_CTX_TEST_FIXTURE *fixture) \
+     } else { \
+         if (DUP && val1_read == val1) { \
+             TEST_error("first set did not dup the value"); \
++            val1_read = 0; \
+             res = 0; \
+         } \
+         if (DEFAULT(val1_read)) { \
+@@ -433,6 +434,7 @@ execute_CTX_##SETN##_##GETN##_##FIELD(OSSL_CMP_CTX_TEST_FIXTURE *fixture) \
+     } else { \
+         if (DUP && val2_read == val2) { \
+             TEST_error("second set did not dup the value"); \
++            val2_read = 0; \
+             res = 0; \
+         } \
+         if (val2 == val1) { \
+@@ -462,6 +464,7 @@ execute_CTX_##SETN##_##GETN##_##FIELD(OSSL_CMP_CTX_TEST_FIXTURE *fixture) \
+     } else { \
+         if (DUP && val3_read == val2_read) { \
+             TEST_error("third get did not create a new dup"); \
++            val3_read = 0; \
+             res = 0; \
+         } \
+     } \
+diff --git a/test/danetest.in b/test/danetest.in
+index 118da21e75c3..8b51e005bf6d 100644
+--- a/test/danetest.in
++++ b/test/danetest.in
+@@ -50,7 +50,7 @@
+ 
+ # 1
+ 1 1 1 0 0
+-3 0 1 588FD5F414E3327EAFE3169DC040AE161247D1296BF38304AB9CF464850A1365
++3 0 0 3081ec308193a003020102020101300a06082a8648ce3d0403023000301e170d3135313231343030313033345a170d3135313231333030313033345a30003059301306072a8648ce3d020106082a8648ce3d03010703420004c5a4ffa008eebc0369b974799f9479cb47360544fafc02c4204fb3df31e88a1a4f18c85831e93f985c5b231094541b4316b5cb1c9c0c950886fe1143f39f6109300a06082a8648ce3d040302034800304502206ae7b7a870df21081e9a9896020aaf8560984875c812b36d671631abc879f872022100b0889ad2b3814ee64bddd5a7f6a98dea43cb435049469cb50a4404cbdeee1fd6
+ subject=
+ issuer=
+ notBefore=Dec 14 00:10:34 2015 GMT
+@@ -65,7 +65,7 @@ yBKzbWcWMavIefhyAiEAsIia0rOBTuZL3dWn9qmN6kPLQ1BJRpy1CkQEy97uH9Y=
+ 
+ # 2
+ 1 1 1 0 0
+-3 1 1 05C66146D7909EAE2379825F6D0F5284146B79598DA12E403DC29C33147CF33E
++3 1 0 3059301306072a8648ce3d020106082a8648ce3d03010703420004c5a4ffa008eebc0369b974799f9479cb47360544fafc02c4204fb3df31e88a1a4f18c85831e93f985c5b231094541b4316b5cb1c9c0c950886fe1143f39f6109
+ subject=
+ issuer=
+ notBefore=Dec 14 00:10:34 2015 GMT
+@@ -80,7 +80,7 @@ yBKzbWcWMavIefhyAiEAsIia0rOBTuZL3dWn9qmN6kPLQ1BJRpy1CkQEy97uH9Y=
+ 
+ # 3
+ 1 1 1 0 0
+-3 0 2 42BEE929852C8063A0D619B53D0DD35703BBAD2FC25F2055F737C7A14DDFEA544491F8C00F50FA083BD0AD1B5C98529994FF811BBA5E5170CC6EE9F3ED5563E1
++3 0 1 588FD5F414E3327EAFE3169DC040AE161247D1296BF38304AB9CF464850A1365
+ subject=
+ issuer=
+ notBefore=Dec 14 00:10:34 2015 GMT
+@@ -95,7 +95,7 @@ yBKzbWcWMavIefhyAiEAsIia0rOBTuZL3dWn9qmN6kPLQ1BJRpy1CkQEy97uH9Y=
+ 
+ # 4
+ 1 1 1 0 0
+-3 1 2 D91A3E5DC34879CD77AD1E989F56FA78FACADF05EF8D445EDF5652BD58EE392C87C02F84C0119D62309041F2D5128A73399DF25D1F47BCD497357EAF1A1009A3
++3 1 1 05C66146D7909EAE2379825F6D0F5284146B79598DA12E403DC29C33147CF33E
+ subject=
+ issuer=
+ notBefore=Dec 14 00:10:34 2015 GMT
+@@ -109,8 +109,8 @@ yBKzbWcWMavIefhyAiEAsIia0rOBTuZL3dWn9qmN6kPLQ1BJRpy1CkQEy97uH9Y=
+ -----END CERTIFICATE-----
+ 
+ # 5
+-1 1 1 65 -1
+-3 0 1 588FD5F414E3327EAFE3169DC040AE161247D1296BF38304AB9CF464850A1366
++1 1 1 0 0
++3 0 2 42BEE929852C8063A0D619B53D0DD35703BBAD2FC25F2055F737C7A14DDFEA544491F8C00F50FA083BD0AD1B5C98529994FF811BBA5E5170CC6EE9F3ED5563E1
+ subject=
+ issuer=
+ notBefore=Dec 14 00:10:34 2015 GMT
+@@ -124,8 +124,8 @@ yBKzbWcWMavIefhyAiEAsIia0rOBTuZL3dWn9qmN6kPLQ1BJRpy1CkQEy97uH9Y=
+ -----END CERTIFICATE-----
+ 
+ # 6
+-1 1 1 65 -1
+-3 1 1 05C66146D7909EAE2379825F6D0F5284146B79598DA12E403DC29C33147CF33F
++1 1 1 0 0
++3 1 2 D91A3E5DC34879CD77AD1E989F56FA78FACADF05EF8D445EDF5652BD58EE392C87C02F84C0119D62309041F2D5128A73399DF25D1F47BCD497357EAF1A1009A3
+ subject=
+ issuer=
+ notBefore=Dec 14 00:10:34 2015 GMT
+@@ -140,7 +140,7 @@ yBKzbWcWMavIefhyAiEAsIia0rOBTuZL3dWn9qmN6kPLQ1BJRpy1CkQEy97uH9Y=
+ 
+ # 7
+ 1 1 1 65 -1
+-3 0 2 42BEE929852C8063A0D619B53D0DD35703BBAD2FC25F2055F737C7A14DDFEA544491F8C00F50FA083BD0AD1B5C98529994FF811BBA5E5170CC6EE9F3ED5563E2
++3 0 1 588FD5F414E3327EAFE3169DC040AE161247D1296BF38304AB9CF464850A1366
+ subject=
+ issuer=
+ notBefore=Dec 14 00:10:34 2015 GMT
+@@ -155,6 +155,36 @@ yBKzbWcWMavIefhyAiEAsIia0rOBTuZL3dWn9qmN6kPLQ1BJRpy1CkQEy97uH9Y=
+ 
+ # 8
+ 1 1 1 65 -1
++3 1 1 05C66146D7909EAE2379825F6D0F5284146B79598DA12E403DC29C33147CF33F
++subject=
++issuer=
++notBefore=Dec 14 00:10:34 2015 GMT
++notAfter=Dec 13 00:10:34 2015 GMT
++-----BEGIN CERTIFICATE-----
++MIHsMIGToAMCAQICAQEwCgYIKoZIzj0EAwIwADAeFw0xNTEyMTQwMDEwMzRaFw0x
++NTEyMTMwMDEwMzRaMAAwWTATBgcqhkjOPQIBBggqhkjOPQMBBwNCAATFpP+gCO68
++A2m5dHmflHnLRzYFRPr8AsQgT7PfMeiKGk8YyFgx6T+YXFsjEJRUG0MWtcscnAyV
++CIb+EUPzn2EJMAoGCCqGSM49BAMCA0gAMEUCIGrnt6hw3yEIHpqYlgIKr4VgmEh1
++yBKzbWcWMavIefhyAiEAsIia0rOBTuZL3dWn9qmN6kPLQ1BJRpy1CkQEy97uH9Y=
++-----END CERTIFICATE-----
++
++# 9
++1 1 1 65 -1
++3 0 2 42BEE929852C8063A0D619B53D0DD35703BBAD2FC25F2055F737C7A14DDFEA544491F8C00F50FA083BD0AD1B5C98529994FF811BBA5E5170CC6EE9F3ED5563E2
++subject=
++issuer=
++notBefore=Dec 14 00:10:34 2015 GMT
++notAfter=Dec 13 00:10:34 2015 GMT
++-----BEGIN CERTIFICATE-----
++MIHsMIGToAMCAQICAQEwCgYIKoZIzj0EAwIwADAeFw0xNTEyMTQwMDEwMzRaFw0x
++NTEyMTMwMDEwMzRaMAAwWTATBgcqhkjOPQIBBggqhkjOPQMBBwNCAATFpP+gCO68
++A2m5dHmflHnLRzYFRPr8AsQgT7PfMeiKGk8YyFgx6T+YXFsjEJRUG0MWtcscnAyV
++CIb+EUPzn2EJMAoGCCqGSM49BAMCA0gAMEUCIGrnt6hw3yEIHpqYlgIKr4VgmEh1
++yBKzbWcWMavIefhyAiEAsIia0rOBTuZL3dWn9qmN6kPLQ1BJRpy1CkQEy97uH9Y=
++-----END CERTIFICATE-----
++
++# 10
++1 1 1 65 -1
+ 3 1 2 D91A3E5DC34879CD77AD1E989F56FA78FACADF05EF8D445EDF5652BD58EE392C87C02F84C0119D62309041F2D5128A73399DF25D1F47BCD497357EAF1A1009A4
+ subject=
+ issuer=
+@@ -170,7 +200,7 @@ yBKzbWcWMavIefhyAiEAsIia0rOBTuZL3dWn9qmN6kPLQ1BJRpy1CkQEy97uH9Y=
+ 
+ ## -- DANE-?? chain tests --
+ 
+-# 9
++# 11
+ 1 3 0 0 0
+ 3 0 1 BEDC04764CECAE80AEE454D332758F50847DCA424216466E4012E0DEAE1F2E5F
+ subject= /CN=example.com
+@@ -217,7 +247,7 @@ RwAwRAIgaGnmqp+bTUvzCAkaWnqyww42GbDXXlKIGUaOS7km9MkCIBfxuEWGEZZv
+ vBCcrtNYKWa/JfwFmOq6bHk8WNzDU3zF
+ -----END CERTIFICATE-----
+ 
+-# 10
++# 12
+ 1 3 0 0 0
+ 3 1 1 3111668338043DE264D0256A702248696C9484B6221A42740F920187B4C61838
+ subject= /CN=example.com
+@@ -264,7 +294,7 @@ RwAwRAIgaGnmqp+bTUvzCAkaWnqyww42GbDXXlKIGUaOS7km9MkCIBfxuEWGEZZv
+ vBCcrtNYKWa/JfwFmOq6bHk8WNzDU3zF
+ -----END CERTIFICATE-----
+ 
+-# 11
++# 13
+ 1 3 0 0 0
+ 3 0 2 F756CCD61F3CA50D017653911701CA0052AF0B29E273DD263DD23643D86D4369D03686BD1369EF54BB2DC2DAE3CE4F05AF39D54648F94D54AA86B259AEAD9923
+ subject= /CN=example.com
+@@ -311,7 +341,7 @@ RwAwRAIgaGnmqp+bTUvzCAkaWnqyww42GbDXXlKIGUaOS7km9MkCIBfxuEWGEZZv
+ vBCcrtNYKWa/JfwFmOq6bHk8WNzDU3zF
+ -----END CERTIFICATE-----
+ 
+-# 12
++# 14
+ 1 3 0 0 0
+ 3 1 2 CB861AF6DDED185EE04472A9092052CCC735120C34785E72C996C94B122EBA6F329BE630B1B4C6E2756E7A75392C21E253C6AEACC31FD45FF4595DED375FAF62
+ subject= /CN=example.com
+@@ -358,7 +388,7 @@ RwAwRAIgaGnmqp+bTUvzCAkaWnqyww42GbDXXlKIGUaOS7km9MkCIBfxuEWGEZZv
+ vBCcrtNYKWa/JfwFmOq6bHk8WNzDU3zF
+ -----END CERTIFICATE-----
+ 
+-# 13
++# 15
+ 1 3 0 0 1
+ 2 0 1 0DAA76425A1FC398C55A643D5A2485AE4CC2B64B9515A75054722B2E83C31BBD
+ subject= /CN=example.com
+@@ -405,7 +435,7 @@ RwAwRAIgaGnmqp+bTUvzCAkaWnqyww42GbDXXlKIGUaOS7km9MkCIBfxuEWGEZZv
+ vBCcrtNYKWa/JfwFmOq6bHk8WNzDU3zF
+ -----END CERTIFICATE-----
+ 
+-# 14
++# 16
+ 1 3 0 0 1
+ 2 1 1 65A457617072DA3E7F1152471EB3D406526530097D0A9AA34EB47C990A1FCDA3
+ subject= /CN=example.com
+@@ -452,7 +482,7 @@ RwAwRAIgaGnmqp+bTUvzCAkaWnqyww42GbDXXlKIGUaOS7km9MkCIBfxuEWGEZZv
+ vBCcrtNYKWa/JfwFmOq6bHk8WNzDU3zF
+ -----END CERTIFICATE-----
+ 
+-# 15
++# 17
+ 1 3 0 0 1
+ 2 0 2 6BC0C0F2500320A49392910965263A3EBDD594173D3E36CCE38A003D2EC3FAFBC315EDB776CD3139637DF494FB60359601542A4F821BF0542F926E6270C9762C
+ subject= /CN=example.com
+@@ -499,7 +529,7 @@ RwAwRAIgaGnmqp+bTUvzCAkaWnqyww42GbDXXlKIGUaOS7km9MkCIBfxuEWGEZZv
+ vBCcrtNYKWa/JfwFmOq6bHk8WNzDU3zF
+ -----END CERTIFICATE-----
+ 
+-# 16
++# 18
+ 1 3 0 0 1
+ 2 1 2 1F484106F765B6F1AC483CC509CDAD36486A83D1BA115F562516F407C1109303658408B455824DA0785A252B205DBEECB1AFB5DB869E8AAC242091B63F258F05
+ subject= /CN=example.com
+@@ -546,7 +576,7 @@ RwAwRAIgaGnmqp+bTUvzCAkaWnqyww42GbDXXlKIGUaOS7km9MkCIBfxuEWGEZZv
+ vBCcrtNYKWa/JfwFmOq6bHk8WNzDU3zF
+ -----END CERTIFICATE-----
+ 
+-# 17
++# 19
+ 1 3 0 0 2
+ 2 0 1 FE7C8E01110627A782765E468D8CB4D2CC7907EAC4BA5974CD92B540ED2AAC3C
+ subject= /CN=example.com
+@@ -593,7 +623,7 @@ RwAwRAIgaGnmqp+bTUvzCAkaWnqyww42GbDXXlKIGUaOS7km9MkCIBfxuEWGEZZv
+ vBCcrtNYKWa/JfwFmOq6bHk8WNzDU3zF
+ -----END CERTIFICATE-----
+ 
+-# 18
++# 20
+ 1 3 0 0 2
+ 2 1 1 91D942E4A2D4226DDAF28CADAA7F13018E4ED0D9A43A529247E51C965188576C
+ subject= /CN=example.com
+@@ -640,7 +670,7 @@ RwAwRAIgaGnmqp+bTUvzCAkaWnqyww42GbDXXlKIGUaOS7km9MkCIBfxuEWGEZZv
+ vBCcrtNYKWa/JfwFmOq6bHk8WNzDU3zF
+ -----END CERTIFICATE-----
+ 
+-# 19
++# 21
+ 1 3 0 0 2
+ 2 0 2 361029F20A3B59DAFAAF05D41811EFC1A9439B972BC6B9D7F13BC5469570E49ACAE0CB0C877C75D58346590EA950AC7A39AED6E8AA8004EA7F5DE3AB9462047E
+ subject= /CN=example.com
+@@ -687,7 +717,7 @@ RwAwRAIgaGnmqp+bTUvzCAkaWnqyww42GbDXXlKIGUaOS7km9MkCIBfxuEWGEZZv
+ vBCcrtNYKWa/JfwFmOq6bHk8WNzDU3zF
+ -----END CERTIFICATE-----
+ 
+-# 20
++# 22
+ 1 3 0 0 2
+ 2 1 2 5F414D4D7BFDF22E39952D9F46C51370FDD050F10C55B4CDB42E40FA98611FDE23EEE9B23315EE1ECDB198C7419E9A2D6742860E4806AF45164507799C3B452E
+ subject= /CN=example.com
+@@ -736,7 +766,73 @@ vBCcrtNYKWa/JfwFmOq6bHk8WNzDU3zF
+ 
+ ## -- PKIX-?? chain tests --
+ 
+-# 21
++# 23
++1 2 0 0 0
++1 0 0 308201943082013ba003020102020102300a06082a8648ce3d04030230143112301006035504030c094973737565722043413020170d3135313231333233323335325a180f33303135303431353233323335325a30163114301206035504030c0b6578616d706c652e636f6d3059301306072a8648ce3d020106082a8648ce3d03010703420004664995f47bde35e7b4de48b258e9e8a07adebbdb863b3d06f481a1946c83da9f56cff4d9389b855d2f364b1585b0c734fcfa263026964ff5a4308b3fc879bdb8a37a3078301d0603551d0e041604145b20ca417d9088c7a4c017cb6c0c1c739bb07d8a301f0603551d230418301680147ab75a3cd295ca5df7c5150916e18ff5cc376a1530090603551d130402300030130603551d25040c300a06082b0601050507030130160603551d11040f300d820b6578616d706c652e636f6d300a06082a8648ce3d0403020347003044021f21c9032a5c8a93872d3f4aef321a9574dd956d43bd93c369944c72d6902858022100c8b3290d7af37e571a84d704dbad339d2987d41852dc5936f212947063911181
++subject= /CN=example.com
++issuer= /CN=Issuer CA
++notBefore=Dec 13 23:23:52 2015 GMT
++notAfter=Apr 15 23:23:52 3015 GMT
++-----BEGIN CERTIFICATE-----
++MIIBlDCCATugAwIBAgIBAjAKBggqhkjOPQQDAjAUMRIwEAYDVQQDDAlJc3N1ZXIg
++Q0EwIBcNMTUxMjEzMjMyMzUyWhgPMzAxNTA0MTUyMzIzNTJaMBYxFDASBgNVBAMM
++C2V4YW1wbGUuY29tMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEZkmV9HveNee0
++3kiyWOnooHreu9uGOz0G9IGhlGyD2p9Wz/TZOJuFXS82SxWFsMc0/PomMCaWT/Wk
++MIs/yHm9uKN6MHgwHQYDVR0OBBYEFFsgykF9kIjHpMAXy2wMHHObsH2KMB8GA1Ud
++IwQYMBaAFHq3WjzSlcpd98UVCRbhj/XMN2oVMAkGA1UdEwQCMAAwEwYDVR0lBAww
++CgYIKwYBBQUHAwEwFgYDVR0RBA8wDYILZXhhbXBsZS5jb20wCgYIKoZIzj0EAwID
++RwAwRAIfIckDKlyKk4ctP0rvMhqVdN2VbUO9k8NplExy1pAoWAIhAMizKQ16835X
++GoTXBNutM50ph9QYUtxZNvISlHBjkRGB
++-----END CERTIFICATE-----
++subject= /CN=Issuer CA
++issuer= /CN=Root CA
++notBefore=Dec 13 23:20:09 2015 GMT
++notAfter=Apr 15 23:20:09 3015 GMT
++-----BEGIN CERTIFICATE-----
++MIIBaDCCAQ2gAwIBAgIBAjAKBggqhkjOPQQDAjASMRAwDgYDVQQDDAdSb290IENB
++MCAXDTE1MTIxMzIzMjAwOVoYDzMwMTUwNDE1MjMyMDA5WjAUMRIwEAYDVQQDDAlJ
++c3N1ZXIgQ0EwWTATBgcqhkjOPQIBBggqhkjOPQMBBwNCAAR9S64YtJ9dxp0KPIXG
++aj4hGd6Sz60IH61VwS1RDsl7bADhNpWo2XE1SP5g3xVXM5BDPiob2S20t6oBbsYY
++XcWvo1AwTjAdBgNVHQ4EFgQUerdaPNKVyl33xRUJFuGP9cw3ahUwHwYDVR0jBBgw
++FoAU5L1AXwUqgg3fmIP5PX0/kKrscj8wDAYDVR0TBAUwAwEB/zAKBggqhkjOPQQD
++AgNJADBGAiEAgx3NiC2oeF1Q5BAgiYwCSIed3fctcB0dwd5r4IFVtD4CIQC4Sy+1
++GcTNPLx5FgPUSI93B1l9t5gNnBc+f90OzXyjCA==
++-----END CERTIFICATE-----
++
++# 24
++1 2 0 0 0
++1 1 0 3059301306072a8648ce3d020106082a8648ce3d03010703420004664995f47bde35e7b4de48b258e9e8a07adebbdb863b3d06f481a1946c83da9f56cff4d9389b855d2f364b1585b0c734fcfa263026964ff5a4308b3fc879bdb8
++subject= /CN=example.com
++issuer= /CN=Issuer CA
++notBefore=Dec 13 23:23:52 2015 GMT
++notAfter=Apr 15 23:23:52 3015 GMT
++-----BEGIN CERTIFICATE-----
++MIIBlDCCATugAwIBAgIBAjAKBggqhkjOPQQDAjAUMRIwEAYDVQQDDAlJc3N1ZXIg
++Q0EwIBcNMTUxMjEzMjMyMzUyWhgPMzAxNTA0MTUyMzIzNTJaMBYxFDASBgNVBAMM
++C2V4YW1wbGUuY29tMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEZkmV9HveNee0
++3kiyWOnooHreu9uGOz0G9IGhlGyD2p9Wz/TZOJuFXS82SxWFsMc0/PomMCaWT/Wk
++MIs/yHm9uKN6MHgwHQYDVR0OBBYEFFsgykF9kIjHpMAXy2wMHHObsH2KMB8GA1Ud
++IwQYMBaAFHq3WjzSlcpd98UVCRbhj/XMN2oVMAkGA1UdEwQCMAAwEwYDVR0lBAww
++CgYIKwYBBQUHAwEwFgYDVR0RBA8wDYILZXhhbXBsZS5jb20wCgYIKoZIzj0EAwID
++RwAwRAIfIckDKlyKk4ctP0rvMhqVdN2VbUO9k8NplExy1pAoWAIhAMizKQ16835X
++GoTXBNutM50ph9QYUtxZNvISlHBjkRGB
++-----END CERTIFICATE-----
++subject= /CN=Issuer CA
++issuer= /CN=Root CA
++notBefore=Dec 13 23:20:09 2015 GMT
++notAfter=Apr 15 23:20:09 3015 GMT
++-----BEGIN CERTIFICATE-----
++MIIBaDCCAQ2gAwIBAgIBAjAKBggqhkjOPQQDAjASMRAwDgYDVQQDDAdSb290IENB
++MCAXDTE1MTIxMzIzMjAwOVoYDzMwMTUwNDE1MjMyMDA5WjAUMRIwEAYDVQQDDAlJ
++c3N1ZXIgQ0EwWTATBgcqhkjOPQIBBggqhkjOPQMBBwNCAAR9S64YtJ9dxp0KPIXG
++aj4hGd6Sz60IH61VwS1RDsl7bADhNpWo2XE1SP5g3xVXM5BDPiob2S20t6oBbsYY
++XcWvo1AwTjAdBgNVHQ4EFgQUerdaPNKVyl33xRUJFuGP9cw3ahUwHwYDVR0jBBgw
++FoAU5L1AXwUqgg3fmIP5PX0/kKrscj8wDAYDVR0TBAUwAwEB/zAKBggqhkjOPQQD
++AgNJADBGAiEAgx3NiC2oeF1Q5BAgiYwCSIed3fctcB0dwd5r4IFVtD4CIQC4Sy+1
++GcTNPLx5FgPUSI93B1l9t5gNnBc+f90OzXyjCA==
++-----END CERTIFICATE-----
++
++# 25
+ 1 2 0 0 0
+ 1 0 1 BEDC04764CECAE80AEE454D332758F50847DCA424216466E4012E0DEAE1F2E5F
+ subject= /CN=example.com
+@@ -769,7 +865,7 @@ AgNJADBGAiEAgx3NiC2oeF1Q5BAgiYwCSIed3fctcB0dwd5r4IFVtD4CIQC4Sy+1
+ GcTNPLx5FgPUSI93B1l9t5gNnBc+f90OzXyjCA==
+ -----END CERTIFICATE-----
+ 
+-# 22
++# 26
+ 1 2 0 0 0
+ 1 1 1 3111668338043DE264D0256A702248696C9484B6221A42740F920187B4C61838
+ subject= /CN=example.com
+@@ -802,7 +898,7 @@ AgNJADBGAiEAgx3NiC2oeF1Q5BAgiYwCSIed3fctcB0dwd5r4IFVtD4CIQC4Sy+1
+ GcTNPLx5FgPUSI93B1l9t5gNnBc+f90OzXyjCA==
+ -----END CERTIFICATE-----
+ 
+-# 23
++# 27
+ 1 3 0 0 0
+ 1 0 2 F756CCD61F3CA50D017653911701CA0052AF0B29E273DD263DD23643D86D4369D03686BD1369EF54BB2DC2DAE3CE4F05AF39D54648F94D54AA86B259AEAD9923
+ subject= /CN=example.com
+@@ -849,7 +945,7 @@ RwAwRAIgaGnmqp+bTUvzCAkaWnqyww42GbDXXlKIGUaOS7km9MkCIBfxuEWGEZZv
+ vBCcrtNYKWa/JfwFmOq6bHk8WNzDU3zF
+ -----END CERTIFICATE-----
+ 
+-# 24
++# 28
+ 1 3 0 0 0
+ 1 1 2 CB861AF6DDED185EE04472A9092052CCC735120C34785E72C996C94B122EBA6F329BE630B1B4C6E2756E7A75392C21E253C6AEACC31FD45FF4595DED375FAF62
+ subject= /CN=example.com
+@@ -896,7 +992,7 @@ RwAwRAIgaGnmqp+bTUvzCAkaWnqyww42GbDXXlKIGUaOS7km9MkCIBfxuEWGEZZv
+ vBCcrtNYKWa/JfwFmOq6bHk8WNzDU3zF
+ -----END CERTIFICATE-----
+ 
+-# 25
++# 29
+ 1 2 0 0 1
+ 0 0 1 0DAA76425A1FC398C55A643D5A2485AE4CC2B64B9515A75054722B2E83C31BBD
+ subject= /CN=example.com
+@@ -929,9 +1025,9 @@ AgNJADBGAiEAgx3NiC2oeF1Q5BAgiYwCSIed3fctcB0dwd5r4IFVtD4CIQC4Sy+1
+ GcTNPLx5FgPUSI93B1l9t5gNnBc+f90OzXyjCA==
+ -----END CERTIFICATE-----
+ 
+-# 26
++# 30
+ 1 2 0 0 1
+-0 1 1 65A457617072DA3E7F1152471EB3D406526530097D0A9AA34EB47C990A1FCDA3
++0 1 0 3059301306072a8648ce3d020106082a8648ce3d030107034200047d4bae18b49f5dc69d0a3c85c66a3e2119de92cfad081fad55c12d510ec97b6c00e13695a8d9713548fe60df15573390433e2a1bd92db4b7aa016ec6185dc5af
+ subject= /CN=example.com
+ issuer= /CN=Issuer CA
+ notBefore=Dec 13 23:23:52 2015 GMT
+@@ -962,7 +1058,7 @@ AgNJADBGAiEAgx3NiC2oeF1Q5BAgiYwCSIed3fctcB0dwd5r4IFVtD4CIQC4Sy+1
+ GcTNPLx5FgPUSI93B1l9t5gNnBc+f90OzXyjCA==
+ -----END CERTIFICATE-----
+ 
+-# 27
++# 31
+ 1 3 0 0 1
+ 0 0 2 6BC0C0F2500320A49392910965263A3EBDD594173D3E36CCE38A003D2EC3FAFBC315EDB776CD3139637DF494FB60359601542A4F821BF0542F926E6270C9762C
+ subject= /CN=example.com
+@@ -1009,7 +1105,7 @@ RwAwRAIgaGnmqp+bTUvzCAkaWnqyww42GbDXXlKIGUaOS7km9MkCIBfxuEWGEZZv
+ vBCcrtNYKWa/JfwFmOq6bHk8WNzDU3zF
+ -----END CERTIFICATE-----
+ 
+-# 28
++# 32
+ 1 3 0 0 1
+ 0 1 2 1F484106F765B6F1AC483CC509CDAD36486A83D1BA115F562516F407C1109303658408B455824DA0785A252B205DBEECB1AFB5DB869E8AAC242091B63F258F05
+ subject= /CN=example.com
+@@ -1056,7 +1152,7 @@ RwAwRAIgaGnmqp+bTUvzCAkaWnqyww42GbDXXlKIGUaOS7km9MkCIBfxuEWGEZZv
+ vBCcrtNYKWa/JfwFmOq6bHk8WNzDU3zF
+ -----END CERTIFICATE-----
+ 
+-# 29
++# 33
+ 1 2 0 0 2
+ 0 0 1 FE7C8E01110627A782765E468D8CB4D2CC7907EAC4BA5974CD92B540ED2AAC3C
+ subject= /CN=example.com
+@@ -1089,7 +1185,7 @@ AgNJADBGAiEAgx3NiC2oeF1Q5BAgiYwCSIed3fctcB0dwd5r4IFVtD4CIQC4Sy+1
+ GcTNPLx5FgPUSI93B1l9t5gNnBc+f90OzXyjCA==
+ -----END CERTIFICATE-----
+ 
+-# 30
++# 34
+ 1 2 0 0 2
+ 0 1 1 91D942E4A2D4226DDAF28CADAA7F13018E4ED0D9A43A529247E51C965188576C
+ subject= /CN=example.com
+@@ -1122,7 +1218,7 @@ AgNJADBGAiEAgx3NiC2oeF1Q5BAgiYwCSIed3fctcB0dwd5r4IFVtD4CIQC4Sy+1
+ GcTNPLx5FgPUSI93B1l9t5gNnBc+f90OzXyjCA==
+ -----END CERTIFICATE-----
+ 
+-# 31
++# 35
+ 1 3 0 0 2
+ 0 0 2 361029F20A3B59DAFAAF05D41811EFC1A9439B972BC6B9D7F13BC5469570E49ACAE0CB0C877C75D58346590EA950AC7A39AED6E8AA8004EA7F5DE3AB9462047E
+ subject= /CN=example.com
+@@ -1169,7 +1265,7 @@ RwAwRAIgaGnmqp+bTUvzCAkaWnqyww42GbDXXlKIGUaOS7km9MkCIBfxuEWGEZZv
+ vBCcrtNYKWa/JfwFmOq6bHk8WNzDU3zF
+ -----END CERTIFICATE-----
+ 
+-# 32
++# 36
+ 1 3 0 0 2
+ 0 1 2 5F414D4D7BFDF22E39952D9F46C51370FDD050F10C55B4CDB42E40FA98611FDE23EEE9B23315EE1ECDB198C7419E9A2D6742860E4806AF45164507799C3B452E
+ subject= /CN=example.com
+@@ -1218,7 +1314,7 @@ vBCcrtNYKWa/JfwFmOq6bHk8WNzDU3zF
+ 
+ ## -- PKIX-?? chain failures --
+ 
+-# 33
++# 37
+ # Missing intermediate CA
+ 1 1 0 20 0
+ 1 0 1 BEDC04764CECAE80AEE454D332758F50847DCA424216466E4012E0DEAE1F2E5F
+@@ -1238,7 +1334,7 @@ RwAwRAIfIckDKlyKk4ctP0rvMhqVdN2VbUO9k8NplExy1pAoWAIhAMizKQ16835X
+ GoTXBNutM50ph9QYUtxZNvISlHBjkRGB
+ -----END CERTIFICATE-----
+ 
+-# 34
++# 38
+ # Missing PKIX intermediate, provided via DNS
+ 2 1 0 0 0
+ 1 1 1 3111668338043DE264D0256A702248696C9484B6221A42740F920187B4C61838
+@@ -1259,7 +1355,7 @@ RwAwRAIfIckDKlyKk4ctP0rvMhqVdN2VbUO9k8NplExy1pAoWAIhAMizKQ16835X
+ GoTXBNutM50ph9QYUtxZNvISlHBjkRGB
+ -----END CERTIFICATE-----
+ 
+-# 35
++# 39
+ # Wrong leaf digest
+ 1 3 0 65 -1
+ 1 0 2 F756CCD61F3CA50D017653911701CA0052AF0B29E273DD263DD23643D86D4369D03686BD1369EF54BB2DC2DAE3CE4F05AF39D54648F94D54AA86B259AEAD9924
+@@ -1307,7 +1403,7 @@ RwAwRAIgaGnmqp+bTUvzCAkaWnqyww42GbDXXlKIGUaOS7km9MkCIBfxuEWGEZZv
+ vBCcrtNYKWa/JfwFmOq6bHk8WNzDU3zF
+ -----END CERTIFICATE-----
+ 
+-# 36
++# 40
+ # Wrong intermediate digest
+ 1 2 0 65 -1
+ 0 0 1 0DAA76425A1FC398C55A643D5A2485AE4CC2B64B9515A75054722B2E83C31BBE
+@@ -1341,7 +1437,7 @@ AgNJADBGAiEAgx3NiC2oeF1Q5BAgiYwCSIed3fctcB0dwd5r4IFVtD4CIQC4Sy+1
+ GcTNPLx5FgPUSI93B1l9t5gNnBc+f90OzXyjCA==
+ -----END CERTIFICATE-----
+ 
+-# 37
++# 41
+ # Wrong root digest
+ 1 2 0 65 -1
+ 0 0 1 FE7C8E01110627A782765E468D8CB4D2CC7907EAC4BA5974CD92B540ED2AAC3D
+@@ -1377,7 +1473,7 @@ GcTNPLx5FgPUSI93B1l9t5gNnBc+f90OzXyjCA==
+ 
+ ## -- Mixed usage cases
+ 
+-# 38
++# 42
+ # DANE-EE(3) beats DANE-TA(2)
+ 1 3 0 0 0
+ 3 1 2 CB861AF6DDED185EE04472A9092052CCC735120C34785E72C996C94B122EBA6F329BE630B1B4C6E2756E7A75392C21E253C6AEACC31FD45FF4595DED375FAF62
+@@ -1426,7 +1522,7 @@ RwAwRAIgaGnmqp+bTUvzCAkaWnqyww42GbDXXlKIGUaOS7km9MkCIBfxuEWGEZZv
+ vBCcrtNYKWa/JfwFmOq6bHk8WNzDU3zF
+ -----END CERTIFICATE-----
+ 
+-# 39
++# 43
+ # DANE-TA(2) depth 1 beats DANE-TA(2) depth 2
+ 1 3 0 0 1
+ 2 1 2 1F484106F765B6F1AC483CC509CDAD36486A83D1BA115F562516F407C1109303658408B455824DA0785A252B205DBEECB1AFB5DB869E8AAC242091B63F258F05
+@@ -1475,7 +1571,7 @@ RwAwRAIgaGnmqp+bTUvzCAkaWnqyww42GbDXXlKIGUaOS7km9MkCIBfxuEWGEZZv
+ vBCcrtNYKWa/JfwFmOq6bHk8WNzDU3zF
+ -----END CERTIFICATE-----
+ 
+-# 40
++# 44
+ # DANE-TA(2) depth 2 beats PKIX-TA(0) depth 1
+ 1 3 0 0 2
+ 2 0 1 FE7C8E01110627A782765E468D8CB4D2CC7907EAC4BA5974CD92B540ED2AAC3C
+@@ -1524,7 +1620,7 @@ RwAwRAIgaGnmqp+bTUvzCAkaWnqyww42GbDXXlKIGUaOS7km9MkCIBfxuEWGEZZv
+ vBCcrtNYKWa/JfwFmOq6bHk8WNzDU3zF
+ -----END CERTIFICATE-----
+ 
+-# 41
++# 45
+ # DANE-TA(2) depth 2 beats PKIX-EE depth 0
+ 1 3 0 0 2
+ 2 0 1 FE7C8E01110627A782765E468D8CB4D2CC7907EAC4BA5974CD92B540ED2AAC3C
+@@ -1573,7 +1669,7 @@ RwAwRAIgaGnmqp+bTUvzCAkaWnqyww42GbDXXlKIGUaOS7km9MkCIBfxuEWGEZZv
+ vBCcrtNYKWa/JfwFmOq6bHk8WNzDU3zF
+ -----END CERTIFICATE-----
+ 
+-# 42
++# 46
+ # DANE-TA(2) Full(0) root "from DNS":
+ 1 2 0 0 2
+ 2 0 0 308201643082010BA003020102020101300A06082A8648CE3D04030230123110300E06035504030C07526F6F742043413020170D3135313231333233313330385A180F33303135303431353233313330385A30123110300E06035504030C07526F6F742043413059301306072A8648CE3D020106082A8648CE3D03010703420004D1DA578FD18FB86456B0D91B5656BDD68D4DDBD250E337571127C75E0560F41D0AF91BFAF8805F80C28C026A14D4FE8C30A9673B9EC0C05A84AA810D1341B76CA350304E301D0603551D0E04160414E4BD405F052A820DDF9883F93D7D3F90AAEC723F301F0603551D23041830168014E4BD405F052A820DDF9883F93D7D3F90AAEC723F300C0603551D13040530030101FF300A06082A8648CE3D040302034700304402206869E6AA9F9B4D4BF308091A5A7AB2C30E3619B0D75E528819468E4BB926F4C9022017F1B8458611966FBC109CAED3582966BF25FC0598EABA6C793C58DCC3537CC5
+@@ -1607,7 +1703,7 @@ AgNJADBGAiEAgx3NiC2oeF1Q5BAgiYwCSIed3fctcB0dwd5r4IFVtD4CIQC4Sy+1
+ GcTNPLx5FgPUSI93B1l9t5gNnBc+f90OzXyjCA==
+ -----END CERTIFICATE-----
+ 
+-# 43
++# 47
+ # DANE-TA(2) Full(0) intermediate "from DNS":
+ 1 1 0 0 1
+ 2 0 0 308201683082010DA003020102020102300A06082A8648CE3D04030230123110300E06035504030C07526F6F742043413020170D3135313231333233323030395A180F33303135303431353233323030395A30143112301006035504030C094973737565722043413059301306072A8648CE3D020106082A8648CE3D030107034200047D4BAE18B49F5DC69D0A3C85C66A3E2119DE92CFAD081FAD55C12D510EC97B6C00E13695A8D9713548FE60DF15573390433E2A1BD92DB4B7AA016EC6185DC5AFA350304E301D0603551D0E041604147AB75A3CD295CA5DF7C5150916E18FF5CC376A15301F0603551D23041830168014E4BD405F052A820DDF9883F93D7D3F90AAEC723F300C0603551D13040530030101FF300A06082A8648CE3D0403020349003046022100831DCD882DA8785D50E41020898C0248879DDDF72D701D1DC1DE6BE08155B43E022100B84B2FB519C4CD3CBC791603D4488F7707597DB7980D9C173E7FDD0ECD7CA308
+@@ -1627,7 +1723,7 @@ RwAwRAIfIckDKlyKk4ctP0rvMhqVdN2VbUO9k8NplExy1pAoWAIhAMizKQ16835X
+ GoTXBNutM50ph9QYUtxZNvISlHBjkRGB
+ -----END CERTIFICATE-----
+ 
+-# 44
++# 48
+ # DANE-TA(2) SPKI(1) Full(0) intermediate "from DNS":
+ 1 1 0 0 0
+ 2 1 0 3059301306072A8648CE3D020106082A8648CE3D030107034200047D4BAE18B49F5DC69D0A3C85C66A3E2119DE92CFAD081FAD55C12D510EC97B6C00E13695A8D9713548FE60DF15573390433E2A1BD92DB4B7AA016EC6185DC5AF
+@@ -1647,7 +1743,7 @@ RwAwRAIfIckDKlyKk4ctP0rvMhqVdN2VbUO9k8NplExy1pAoWAIhAMizKQ16835X
+ GoTXBNutM50ph9QYUtxZNvISlHBjkRGB
+ -----END CERTIFICATE-----
+ 
+-# 45
++# 49
+ # DANE-TA(2) SPKI(1) Full(0) root "from DNS":
+ 1 2 0 0 1
+ 2 1 0 3059301306072A8648CE3D020106082A8648CE3D03010703420004D1DA578FD18FB86456B0D91B5656BDD68D4DDBD250E337571127C75E0560F41D0AF91BFAF8805F80C28C026A14D4FE8C30A9673B9EC0C05A84AA810D1341B76C
+@@ -1681,7 +1777,7 @@ AgNJADBGAiEAgx3NiC2oeF1Q5BAgiYwCSIed3fctcB0dwd5r4IFVtD4CIQC4Sy+1
+ GcTNPLx5FgPUSI93B1l9t5gNnBc+f90OzXyjCA==
+ -----END CERTIFICATE-----
+ 
+-# 46
++# 50
+ # Mismatched name "example.org", should still succeed given a
+ # DANE-EE(3) match.
+ 1 3 1 0 0
+@@ -1730,7 +1826,7 @@ AgNJADBGAiEAumhPWZ37swl10awM/amX+jv0UlUyJBf8RGA6QMG5bwICIQDbinER
+ fEevg+GOsr1P6nNMCAsQd9NwsvTQ+jm+TBArWQ==
+ -----END CERTIFICATE-----
+ 
+-# 47
++# 51
+ # Mismatched name "example.org", should fail despite a DANE-TA(2)
+ # match for the intermediate CA.
+ 1 3 0 62 1
+@@ -1779,7 +1875,7 @@ AgNJADBGAiEAumhPWZ37swl10awM/amX+jv0UlUyJBf8RGA6QMG5bwICIQDbinER
+ fEevg+GOsr1P6nNMCAsQd9NwsvTQ+jm+TBArWQ==
+ -----END CERTIFICATE-----
+ 
+-# 48
++# 52
+ # Mismatched name "example.org", should fail despite a DANE-TA(2)
+ # match for the root CA.
+ 1 3 0 62 2
+@@ -1828,7 +1924,7 @@ AgNJADBGAiEAumhPWZ37swl10awM/amX+jv0UlUyJBf8RGA6QMG5bwICIQDbinER
+ fEevg+GOsr1P6nNMCAsQd9NwsvTQ+jm+TBArWQ==
+ -----END CERTIFICATE-----
+ 
+-# 49
++# 53
+ # Mismatched name "example.org", should fail when name checks
+ # are not disabled for DANE-EE(3).
+ 1 3 0 62 0
+diff --git a/test/evp_extra_test.c b/test/evp_extra_test.c
+index 42506303274a..f3680a0fb4d9 100644
+--- a/test/evp_extra_test.c
++++ b/test/evp_extra_test.c
+@@ -38,6 +38,10 @@
+ #include "crypto/evp.h"
+ #include "fake_rsaprov.h"
+ 
++#ifdef STATIC_LEGACY
++OSSL_provider_init_fn ossl_legacy_provider_init;
++#endif
++
+ static OSSL_LIB_CTX *testctx = NULL;
+ static char *testpropq = NULL;
+ 
+@@ -5437,6 +5441,15 @@ int setup_tests(void)
+             testctx = OSSL_LIB_CTX_new();
+             if (!TEST_ptr(testctx))
+                 return 0;
++#ifdef STATIC_LEGACY
++	    /*
++	     * This test is always statically linked against libcrypto. We must not
++	     * attempt to load legacy.so that might be dynamically linked against
++	     * libcrypto. Instead we use a built-in version of the legacy provider.
++	     */
++	    if (!OSSL_PROVIDER_add_builtin(testctx, "legacy", ossl_legacy_provider_init))
++		return 0;
++#endif
+             /* Swap the libctx to test non-default context only */
+             nullprov = OSSL_PROVIDER_load(NULL, "null");
+             deflprov = OSSL_PROVIDER_load(testctx, "default");
+diff --git a/test/evp_test.c b/test/evp_test.c
+index d74da09616c5..cef7b1b9e83b 100644
+--- a/test/evp_test.c
++++ b/test/evp_test.c
+@@ -1514,6 +1514,7 @@ static int mac_test_run_mac(EVP_TEST *t)
+     EVP_MAC_CTX *ctx = NULL;
+     unsigned char *got = NULL;
+     size_t got_len = 0, size = 0;
++    size_t size_before_init, size_after_init, size_val = 0;
+     int i, block_size = -1, output_size = -1;
+     OSSL_PARAM params[21], sizes[3], *psizes = sizes;
+     size_t params_n = 0;
+@@ -1610,6 +1611,9 @@ static int mac_test_run_mac(EVP_TEST *t)
+         }
+         params_n++;
+ 
++        if (strcmp(tmpkey, "size") == 0)
++            size_val = (size_t)strtoul(tmpval, NULL, 0);
++
+         OPENSSL_free(tmpkey);
+     }
+     params[params_n] = OSSL_PARAM_construct_end();
+@@ -1618,11 +1622,28 @@ static int mac_test_run_mac(EVP_TEST *t)
+         t->err = "MAC_CREATE_ERROR";
+         goto err;
+     }
+-
++    size_before_init = EVP_MAC_CTX_get_mac_size(ctx);
+     if (!EVP_MAC_init(ctx, expected->key, expected->key_len, params)) {
+         t->err = "MAC_INIT_ERROR";
+         goto err;
+     }
++    size_after_init = EVP_MAC_CTX_get_mac_size(ctx);
++    if (!TEST_false(size_before_init == 0 && size_after_init == 0)) {
++        t->err = "MAC SIZE not set";
++        goto err;
++    }
++    if (size_before_init != 0) {
++        /* mac-size not modified by init params */
++        if (size_val == 0 && !TEST_size_t_eq(size_before_init, size_after_init)) {
++            t->err = "MAC SIZE check failed";
++            goto err;
++        }
++        /* mac-size modified by init params */
++        if (size_val != 0 && !TEST_size_t_eq(size_val, size_after_init)) {
++            t->err = "MAC SIZE check failed";
++            goto err;
++        }
++    }
+     if (expected->output_size >= 0)
+         *psizes++ = OSSL_PARAM_construct_int(OSSL_MAC_PARAM_SIZE,
+                                              &output_size);
+diff --git a/test/http_test.c b/test/http_test.c
+index 49e770cd886b..3f70f6223ac8 100644
+--- a/test/http_test.c
++++ b/test/http_test.c
+@@ -347,7 +347,8 @@ static int test_http_url_invalid_prefix(void)
+ 
+ static int test_http_url_invalid_port(void)
+ {
+-    return test_http_url_invalid("https://1.2.3.4:65536/pkix");
++    return test_http_url_invalid("https://1.2.3.4:65536/pkix")
++           && test_http_url_invalid("https://1.2.3.4:");
+ }
+ 
+ static int test_http_url_invalid_path(void)
+diff --git a/test/p_minimal.c b/test/p_minimal.c
+new file mode 100644
+index 000000000000..0bff9823f824
+--- /dev/null
++++ b/test/p_minimal.c
+@@ -0,0 +1,24 @@
++/*
++ * Copyright 2019-2023 The OpenSSL Project Authors. All Rights Reserved.
++ *
++ * Licensed under the Apache License 2.0 (the "License").  You may not use
++ * this file except in compliance with the License.  You can obtain a copy
++ * in the file LICENSE in the source distribution or at
++ * https://www.openssl.org/source/license.html
++ */
++
++/*
++ * This is the most minimal provider imaginable.  It can be loaded, and does
++ * absolutely nothing else.
++ */
++
++#include <openssl/core.h>
++
++OSSL_provider_init_fn OSSL_provider_init; /* Check the function signature */
++int OSSL_provider_init(const OSSL_CORE_HANDLE *handle,
++                       const OSSL_DISPATCH *oin,
++                       const OSSL_DISPATCH **out,
++                       void **provctx)
++{
++    return 1;
++}
+diff --git a/test/property_test.c b/test/property_test.c
+index bba96fac0a01..18f8cc8740e0 100644
+--- a/test/property_test.c
++++ b/test/property_test.c
+@@ -136,6 +136,10 @@ static const struct {
+     { "n=0x3", "n=3", 1 },
+     { "n=0x3", "n=-3", -1 },
+     { "n=0x33", "n=51", 1 },
++    { "n=0x123456789abcdef", "n=0x123456789abcdef", 1 },
++    { "n=0x7fffffffffffffff", "n=0x7fffffffffffffff", 1 },   /* INT64_MAX */
++    { "n=9223372036854775807", "n=9223372036854775807", 1 }, /* INT64_MAX */
++    { "n=0777777777777777777777", "n=0777777777777777777777", 1 }, /* INT64_MAX */
+     { "n=033", "n=27", 1 },
+     { "n=0", "n=00", 1 },
+     { "n=0x0", "n=0", 1 },
+@@ -198,6 +202,9 @@ static const struct {
+     { 1, "a=2, n=012345678" },  /* Bad octal digit */
+     { 0, "n=0x28FG, a=3" },     /* Bad hex digit */
+     { 0, "n=145d, a=2" },       /* Bad decimal digit */
++    { 0, "n=0x8000000000000000, a=3" },     /* Hex overflow */
++    { 0, "n=922337203000000000d, a=2" },    /* Decimal overflow */
++    { 0, "a=2, n=1000000000000000000000" }, /* Octal overflow */
+     { 1, "@='hello'" },         /* Invalid name */
+     { 1, "n0123456789012345678901234567890123456789"
+          "0123456789012345678901234567890123456789"
+diff --git a/test/recipes/01-test_symbol_presence.t b/test/recipes/01-test_symbol_presence.t
+index 9efa9f8d2d6e..222b1886aec0 100644
+--- a/test/recipes/01-test_symbol_presence.t
++++ b/test/recipes/01-test_symbol_presence.t
+@@ -114,17 +114,34 @@ foreach (sort keys %stlibname) {
+     my @arrays = ( \@stlib_lines );
+     push @arrays, \@shlib_lines unless disabled('shared');
+     foreach (@arrays) {
++        my %commons;
++        foreach (@$_) {
++            if (m|^(.*) C .*|) {
++                $commons{$1}++;
++            }
++        }
++        foreach (sort keys %commons) {
++            note "Common symbol: $_";
++        }
++
+         @$_ =
+             sort
+-            map {
+-                # Drop the first space and everything following it
+-                s| .*||;
+-                # Drop OpenSSL dynamic version information if there is any
+-                s|\@\@.+$||;
+-                # Return the result
+-                $_
+-            }
+-            grep(m|.* [BCDST] .*|, @$_);
++            ( map {
++                  # Drop the first space and everything following it
++                  s| .*||;
++                  # Drop OpenSSL dynamic version information if there is any
++                  s|\@\@.+$||;
++                  # Return the result
++                  $_
++              }
++              # Drop any symbol starting with a double underscore, they
++              # are reserved for the compiler / system ABI and are none
++              # of our business
++              grep !m|^__|,
++              # Only look at external definitions
++              grep m|.* [BDST] .*|,
++              @$_ ),
++            keys %commons;
+     }
+ 
+     # Massage the mkdef.pl output to only contain global symbols
+diff --git a/test/recipes/04-test_asn1_parse.t b/test/recipes/04-test_asn1_parse.t
+new file mode 100644
+index 000000000000..f3af4365920a
+--- /dev/null
++++ b/test/recipes/04-test_asn1_parse.t
+@@ -0,0 +1,26 @@
++#! /usr/bin/env perl
++# Copyright 2023 The OpenSSL Project Authors. All Rights Reserved.
++#
++# Licensed under the Apache License 2.0 (the "License").  You may not use
++# this file except in compliance with the License.  You can obtain a copy
++# in the file LICENSE in the source distribution or at
++# https://www.openssl.org/source/license.html
++
++use strict;
++use OpenSSL::Test qw(:DEFAULT srctop_file);
++use OpenSSL::Test::Utils;
++
++setup("test_asn1_parse");
++
++plan tests => 3;
++
++$ENV{OPENSSL_CONF} = srctop_file("test", "test_asn1_parse.cnf");
++
++ok(run(app(([ 'openssl', 'asn1parse',
++              '-genstr', 'OID:1.2.3.4.1']))));
++
++ok(run(app(([ 'openssl', 'asn1parse',
++              '-genstr', 'OID:1.2.3.4.2']))));
++
++ok(run(app(([ 'openssl', 'asn1parse',
++              '-genstr', 'OID:1.2.3.4.3']))));
+diff --git a/test/recipes/04-test_provider.t b/test/recipes/04-test_provider.t
+index 312def775784..1233cc4f93a1 100644
+--- a/test/recipes/04-test_provider.t
++++ b/test/recipes/04-test_provider.t
+@@ -12,10 +12,17 @@ use OpenSSL::Test::Utils;
+ 
+ setup("test_provider");
+ 
+-plan tests => 2;
++plan tests => 3;
+ 
+ ok(run(test(['provider_test'])), "provider_test");
+ 
+ $ENV{"OPENSSL_MODULES"} = bldtop_dir("test");
+ 
+ ok(run(test(['provider_test', '-loaded'])), "provider_test -loaded");
++
++ SKIP: {
++     skip "no module support", 1 if disabled("module");
++
++     ok(run(app(['openssl', 'list', '-provider', 'p_minimal',
++                 '-providers', '-verbose'])));
++}
+diff --git a/test/recipes/25-test_req.t b/test/recipes/25-test_req.t
+index 32dc4ded8c89..20e338b46f4f 100644
+--- a/test/recipes/25-test_req.t
++++ b/test/recipes/25-test_req.t
+@@ -15,7 +15,7 @@ use OpenSSL::Test qw/:DEFAULT srctop_file/;
+ 
+ setup("test_req");
+ 
+-plan tests => 104;
++plan tests => 106;
+ 
+ require_ok(srctop_file('test', 'recipes', 'tconversion.pl'));
+ 
+@@ -40,10 +40,14 @@ my @addext_args = ( "openssl", "req", "-new", "-out", "testreq.pem",
+                     "-key",  srctop_file(@certs, "ee-key.pem"),
+     "-config", srctop_file("test", "test.cnf"), @req_new );
+ my $val = "subjectAltName=DNS:example.com";
++my $val1 = "subjectAltName=otherName:1.2.3.4;UTF8:test,email:info\@example.com";
+ my $val2 = " " . $val;
+ my $val3 = $val;
+ $val3 =~ s/=/    =/;
+ ok( run(app([@addext_args, "-addext", $val])));
++ok( run(app([@addext_args, "-addext", $val1])));
++$val1 =~ s/UTF8/XXXX/; # execute the error handling in do_othername
++ok(!run(app([@addext_args, "-addext", $val1])));
+ ok(!run(app([@addext_args, "-addext", $val, "-addext", $val])));
+ ok(!run(app([@addext_args, "-addext", $val, "-addext", $val2])));
+ ok(!run(app([@addext_args, "-addext", $val, "-addext", $val3])));
+diff --git a/test/recipes/60-test_x509_load_cert_file.t b/test/recipes/60-test_x509_load_cert_file.t
+new file mode 100644
+index 000000000000..75aeac362c2c
+--- /dev/null
++++ b/test/recipes/60-test_x509_load_cert_file.t
+@@ -0,0 +1,15 @@
++#! /usr/bin/env perl
++#
++# Licensed under the Apache License 2.0 (the "License").  You may not use
++# this file except in compliance with the License.  You can obtain a copy
++# in the file LICENSE in the source distribution or at
++# https://www.openssl.org/source/license.html
++
++
++use OpenSSL::Test qw/:DEFAULT srctop_file/;
++
++setup("test_load_cert_file");
++
++plan tests => 1;
++
++ok(run(test(["x509_load_cert_file_test", srctop_file("test", "certs", "leaf-chain.pem")])));
+diff --git a/test/sslapitest.c b/test/sslapitest.c
+index 88294af16a2d..7e01b72328a4 100644
+--- a/test/sslapitest.c
++++ b/test/sslapitest.c
+@@ -10586,6 +10586,27 @@ static int test_tls13_record_padding(int idx)
+ #endif /* OSSL_NO_USABLE_TLS1_3 */
+ 
+ #if !defined(OPENSSL_NO_TLS1_2) && !defined(OPENSSL_NO_DYNAMIC_ENGINE)
++
++static ENGINE *load_dasync(void)
++{
++    ENGINE *e;
++
++    if (!TEST_ptr(e = ENGINE_by_id("dasync")))
++        return NULL;
++
++    if (!TEST_true(ENGINE_init(e))) {
++        ENGINE_free(e);
++        return NULL;
++    }
++
++    if (!TEST_true(ENGINE_register_ciphers(e))) {
++        ENGINE_free(e);
++        return NULL;
++    }
++
++    return e;
++}
++
+ /*
+  * Test TLSv1.2 with a pipeline capable cipher. TLSv1.3 and DTLS do not
+  * support this yet. The only pipeline capable cipher that we have is in the
+@@ -10601,6 +10622,8 @@ static int test_tls13_record_padding(int idx)
+  * Test 4: Client has pipelining enabled, server does not: more data than all
+  *         the available pipelines can take
+  * Test 5: Client has pipelining enabled, server does not: Maximum size pipeline
++ * Test 6: Repeat of test 0, but the engine is loaded late (after the SSL_CTX
++ *         is created)
+  */
+ static int test_pipelining(int idx)
+ {
+@@ -10613,25 +10636,28 @@ static int test_pipelining(int idx)
+     size_t written, readbytes, offset, msglen, fragsize = 10, numpipes = 5;
+     size_t expectedreads;
+     unsigned char *buf = NULL;
+-    ENGINE *e;
++    ENGINE *e = NULL;
+ 
+-    if (!TEST_ptr(e = ENGINE_by_id("dasync")))
+-        return 0;
+-
+-    if (!TEST_true(ENGINE_init(e))) {
+-        ENGINE_free(e);
+-        return 0;
++    if (idx != 6) {
++        e = load_dasync();
++        if (e == NULL)
++            return 0;
+     }
+ 
+-    if (!TEST_true(ENGINE_register_ciphers(e)))
+-        goto end;
+-
+     if (!TEST_true(create_ssl_ctx_pair(libctx, TLS_server_method(),
+                                        TLS_client_method(), 0,
+                                        TLS1_2_VERSION, &sctx, &cctx, cert,
+                                        privkey)))
+         goto end;
+ 
++    if (idx == 6) {
++        e = load_dasync();
++        if (e == NULL)
++            goto end;
++        /* Now act like test 0 */
++        idx = 0;
++    }
++
+     if (!TEST_true(create_ssl_objects(sctx, cctx, &serverssl,
+                                       &clientssl, NULL, NULL)))
+         goto end;
+@@ -10767,9 +10793,11 @@ static int test_pipelining(int idx)
+     SSL_free(clientssl);
+     SSL_CTX_free(sctx);
+     SSL_CTX_free(cctx);
+-    ENGINE_unregister_ciphers(e);
+-    ENGINE_finish(e);
+-    ENGINE_free(e);
++    if (e != NULL) {
++        ENGINE_unregister_ciphers(e);
++        ENGINE_finish(e);
++        ENGINE_free(e);
++    }
+     OPENSSL_free(buf);
+     if (fragsize == SSL3_RT_MAX_PLAIN_LENGTH)
+         OPENSSL_free(msg);
+@@ -11489,7 +11517,7 @@ int setup_tests(void)
+     ADD_ALL_TESTS(test_serverinfo_custom, 4);
+ #endif
+ #if !defined(OPENSSL_NO_TLS1_2) && !defined(OPENSSL_NO_DYNAMIC_ENGINE)
+-    ADD_ALL_TESTS(test_pipelining, 6);
++    ADD_ALL_TESTS(test_pipelining, 7);
+ #endif
+     ADD_ALL_TESTS(test_version, 6);
+     ADD_TEST(test_rstate_string);
+diff --git a/test/test_asn1_parse.cnf b/test/test_asn1_parse.cnf
+new file mode 100644
+index 000000000000..5f0305657e83
+--- /dev/null
++++ b/test/test_asn1_parse.cnf
+@@ -0,0 +1,12 @@
++openssl_conf = openssl_init
++
++# Comment out the next line to ignore configuration errors
++config_diagnostics = 1
++
++[openssl_init]
++oid_section = oids
++
++[oids]
++testoid1 = 1.2.3.4.1
++testoid2 = A Very Long OID Name, 1.2.3.4.2
++testoid3 = ,1.2.3.4.3
+diff --git a/test/x509_load_cert_file_test.c b/test/x509_load_cert_file_test.c
+new file mode 100644
+index 000000000000..4a736071ae61
+--- /dev/null
++++ b/test/x509_load_cert_file_test.c
+@@ -0,0 +1,50 @@
++/*
++ * Licensed under the Apache License 2.0 (the "License").  You may not use
++ * this file except in compliance with the License.  You can obtain a copy
++ * in the file LICENSE in the source distribution or at
++ * https://www.openssl.org/source/license.html
++ */
++
++#include <stdio.h>
++#include <openssl/err.h>
++#include <openssl/x509_vfy.h>
++
++#include "testutil.h"
++
++static const char *chain;
++
++static int test_load_cert_file(void)
++{
++    int ret = 0;
++    X509_STORE *store = NULL;
++    X509_LOOKUP *lookup = NULL;
++    STACK_OF(X509) *certs = NULL;
++
++    if (TEST_ptr(store = X509_STORE_new())
++        && TEST_ptr(lookup = X509_STORE_add_lookup(store, X509_LOOKUP_file()))
++        && TEST_true(X509_load_cert_file(lookup, chain, X509_FILETYPE_PEM))
++        && TEST_ptr(certs = X509_STORE_get1_all_certs(store))
++        && TEST_int_eq(sk_X509_num(certs), 4))
++        ret = 1;
++
++    OSSL_STACK_OF_X509_free(certs);
++    X509_STORE_free(store);
++    return ret;
++}
++
++OPT_TEST_DECLARE_USAGE("cert.pem...\n")
++
++int setup_tests(void)
++{
++    if (!test_skip_common_options()) {
++        TEST_error("Error parsing test options\n");
++        return 0;
++    }
++
++    chain = test_get_argument(0);
++    if (chain == NULL)
++        return 0;
++
++    ADD_TEST(test_load_cert_file);
++    return 1;
++}
+diff --git a/util/perl/OpenSSL/config.pm b/util/perl/OpenSSL/config.pm
+index 791b19847ad8..047902cd1f35 100755
+--- a/util/perl/OpenSSL/config.pm
++++ b/util/perl/OpenSSL/config.pm
+@@ -82,7 +82,7 @@ my $guess_patterns = [
+     [ 'HP-UX:.*',
+       sub {
+           my $HPUXVER = $RELEASE;
+-          $HPUXVER = s/[^.]*.[0B]*//;
++          $HPUXVER =~ s/[^.]*.[0B]*//;
+           # HPUX 10 and 11 targets are unified
+           return "${MACHINE}-hp-hpux1x" if $HPUXVER =~ m@1[0-9]@;
+           return "${MACHINE}-hp-hpux";
+@@ -322,6 +322,7 @@ sub determine_compiler_settings {
+ 
+             # If we got a version number, process it
+             if ($v) {
++                $v =~ s/[^.]*.0*// if $SYSTEM eq 'HP-UX';
+                 $CCVENDOR = $k;
+ 
+                 # The returned version is expected to be one of
+@@ -359,8 +360,15 @@ sub determine_compiler_settings {
+                 # However, other letters have been seen as well (for example X),
+                 # and it's documented that HP (now VSI) reserve the letter W, X,
+                 # Y and Z for their own uses.
+-                my ($vendor, $version) =
+-                    ( $v =~ m/^([A-Z]+) C [VWXYZ]([0-9\.-]+)(:? +\(.*?\))? on / );
++                my ($vendor, $arch, $version, $extra) =
++                    ( $v =~ m/^
++                              ([A-Z]+)                  # Usually VSI
++                              \s+ C
++                              (?:\s+(.*?))?             # Possible build arch
++                              \s+ [VWXYZ]([0-9\.-]+)    # Version
++                              (?:\s+\((.*?)\))?         # Possible extra data
++                              \s+ on
++                             /x );
+                 my ($major, $minor, $patch) =
+                     ( $version =~ m/^([0-9]+)\.([0-9]+)-0*?(0|[1-9][0-9]*)$/ );
+                 $CC = 'CC';

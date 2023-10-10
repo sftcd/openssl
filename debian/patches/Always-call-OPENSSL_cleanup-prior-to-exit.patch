@@ -1,0 +1,29 @@
+From: Neil Horman <nhorman@openssl.org>
+Date: Fri, 27 Oct 2023 13:39:45 -0400
+Subject: Always call OPENSSL_cleanup prior to exit
+
+If an engine is loaded during the course of operations, and if that
+engine is written in C++, the data in that library will be deleted using
+an atexit handler prior to the execution of openssl's atexit handler,
+causing memory corruption/segfaults/unpredictable behavior.  The only
+way to avoid that is to release any reference we have to that data prior
+to exit, which means calling OPENSSL_cleanup prior to exit.  This patch
+enforces that behavior for all openssl utilities
+
+Fixes #22508
+---
+ apps/openssl.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/apps/openssl.c b/apps/openssl.c
+index adf77096c7f3..8b0372673f0b 100644
+--- a/apps/openssl.c
++++ b/apps/openssl.c
+@@ -317,6 +317,7 @@ int main(int argc, char *argv[])
+     BIO_free_all(bio_out);
+     apps_shutdown();
+     BIO_free_all(bio_err);
++    OPENSSL_cleanup();
+     EXIT(ret);
+ }
+ 
