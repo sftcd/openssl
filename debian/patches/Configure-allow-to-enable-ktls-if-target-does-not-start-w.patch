@@ -1,0 +1,50 @@
+From: Sebastian Andrzej Siewior <sebastian@breakpoint.cc>
+Date: Thu, 1 Apr 2021 21:46:17 +0200
+Subject: Configure: allow to enable ktls if target does not start with Linux
+
+The Debian build system uses a `debian' target which sets CFLAGS and
+then we have for instance debian-amd64 which inherits from
+linux-x86_64 and debian. So far so good.
+
+Since the target name does not start with `linux', the build system does not
+enable ktls. So in order to get enabled, I
+added a
+        `enable           => [ "ktls" ],'
+to the generic linux config which sets it explicit). Having this set, we can
+check for it instead matching the target name.
+
+This commit is based on changes for afalgeng in commit
+   9e381e8a01859 ("Configure: allow to enable afalgeng if target does not start with Linux")
+
+Signed-off-by: Sebastian Andrzej Siewior <sebastian@breakpoint.cc>
+---
+ Configurations/10-main.conf | 2 +-
+ Configure                   | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/Configurations/10-main.conf b/Configurations/10-main.conf
+index d1a15a115274..d15d28499a21 100644
+--- a/Configurations/10-main.conf
++++ b/Configurations/10-main.conf
+@@ -693,7 +693,7 @@ my %targets = (
+         shared_target    => "linux-shared",
+         shared_cflag     => "-fPIC",
+         shared_ldflag    => sub { $disabled{pinshared} ? () : "-Wl,-znodelete" },
+-        enable           => [ "afalgeng" ],
++        enable           => [ "afalgeng", "ktls" ],
+     },
+     "linux-latomic" => {
+         inherit_from     => [ "linux-generic32" ],
+diff --git a/Configure b/Configure
+index cbba1749b5a3..a69068121949 100755
+--- a/Configure
++++ b/Configure
+@@ -1765,7 +1765,7 @@ unless ($disabled{devcryptoeng}) {
+ unless ($disabled{ktls}) {
+     $config{ktls}="";
+     my $cc = $config{CROSS_COMPILE}.$config{CC};
+-    if ($target =~ m/^linux/) {
++    if (grep { $_ eq 'afalgeng' } @{$target{enable}}) {
+         system("printf '#include <sys/types.h>\n#include <linux/tls.h>' | $cc -E - >/dev/null 2>&1");
+         if ($? != 0) {
+             disable('too-old-kernel', 'ktls');

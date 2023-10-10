@@ -1,0 +1,3 @@
+usr/lib/*/*.so.*
+usr/lib/*/engines-*/*.so
+usr/lib/*/ossl-modules/*.so

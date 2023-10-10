@@ -1,0 +1,156 @@
+#!/usr/bin/make -f
+# Sample debian.rules file - for GNU Hello (1.3).
+# Copyright 1994,1995 by Ian Jackson.
+# I hereby give you perpetual unlimited permission to copy,
+# modify and relicense this file, provided that you do not remove
+# my name from the file itself.  (I assert my moral right of
+# paternity under the Copyright, Designs and Patents Act 1988.)
+# This file may have to be extensively modified
+#
+# Modified to be a prototype for debmake by Christoph Lameter <clameter@debian.org>
+include /usr/share/dpkg/architecture.mk
+include /usr/share/dpkg/pkg-info.mk
+
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all future=+lfs
+
+SHELL=/bin/bash
+
+package=openssl
+
+# For generating the manpages
+export VERSION=$(DEB_VERSION_UPSTREAM)
+
+ifneq ($(DEB_HOST_GNU_TYPE),$(DEB_BUILD_GNU_TYPE))
+	export CROSS_COMPILE ?= $(DEB_HOST_GNU_TYPE)-
+endif
+
+ifneq (,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
+	NUMJOBS = $(patsubst parallel=%,%,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
+	MAKEFLAGS += -j$(NUMJOBS)
+endif
+
+CONFARGS  = --prefix=/usr --openssldir=/usr/lib/ssl --libdir=lib/$(DEB_HOST_MULTIARCH) no-idea no-mdc2 no-rc5 no-zlib no-ssl3 enable-unit-test no-ssl3-method enable-rfc3779 enable-cms no-capieng no-rdrand \
+	    enable-tfo enable-zstd enable-brotli-dynamic
+#OPT_alpha = ev4 ev5
+ARCHOPTS  = OPT_$(DEB_HOST_ARCH)
+OPTS      = $($(ARCHOPTS))
+
+ifeq (,$(findstring terse,$(DEB_BUILD_OPTIONS)))
+	TESTSUITE_FLAGS = HARNESS_VERBOSE=yes
+else
+	TESTSUITE_FLAGS =
+endif
+
+ifeq ($(DEB_HOST_ARCH_CPU), amd64)
+	CONFARGS += enable-ec_nistp_64_gcc_128
+endif
+
+%:
+	dh $@ --without autoreconf
+
+override_dh_auto_configure:
+	test -z "$(OPTS)" || for opt in $(OPTS); \
+	do \
+		set -xe; \
+		mkdir build_$$opt; \
+		cd build_$$opt ; \
+		../Configure shared $(CONFARGS) debian-$(DEB_HOST_ARCH)-$$opt; \
+		perl configdata.pm -d; \
+		cd .. ;\
+	done
+	mkdir build_static; cd build_static; ../Configure no-shared $(CONFARGS) debian-$(DEB_HOST_ARCH) ;perl configdata.pm -d
+	# Debian Perl policy 5.1 (Script Magic)
+	mkdir build_shared; cd build_shared; HASHBANGPERL=/usr/bin/perl ../Configure shared $(CONFARGS) debian-$(DEB_HOST_ARCH) ;perl configdata.pm -d
+
+override_dh_auto_build-indep:
+	$(MAKE) -C build_shared all
+
+override_dh_auto_build-arch:
+	$(MAKE) -C build_static all
+	test -z "$(OPTS)" || for opt in $(OPTS); \
+	do \
+		set -xe; \
+		$(MAKE) -C build_$$opt all; \
+	done
+	ln -sf apps/openssl.pod crypto/crypto.pod ssl/ssl.pod doc/
+	$(MAKE) -C build_shared all
+
+override_dh_auto_test-indep:
+
+override_dh_auto_test-arch:
+ifneq (,$(findstring nocheck,$(DEB_BUILD_OPTIONS)))
+	@echo Skipping tests
+else
+	test -z "$(OPTS)" || for opt in $(OPTS); \
+	do \
+		set -xe; \
+		$(MAKE) -C build_$$opt test $(TESTSUITE_FLAGS); \
+	done
+	$(MAKE) -C build_static test $(TESTSUITE_FLAGS)
+	$(MAKE) -C build_shared test $(TESTSUITE_FLAGS)
+endif
+
+override_dh_auto_clean:
+	rm -rf build_static build_shared
+	test -z "$(OPTS)" || for opt in $(OPTS); \
+	do \
+		set -xe; \
+		rm -rf build_$$opt; \
+	done
+	rm -f doc/openssl.pod doc/crypto.pod doc/ssl.pod
+	dh_auto_clean
+
+override_dh_auto_install-indep:
+	# Install is only required for the -indep only build, that is if
+	# -arch isn't run as well. Otherwise install will fail because
+	# usr/lib/ssl/cert is a symlink to a non existing target.
+	if [ ! -L debian/tmp/usr/lib/ssl/certs ]; then \
+		$(MAKE) -C build_shared install DESTDIR=`pwd`/debian/tmp ;\
+		mkdir -p debian/tmp/usr/include/$(DEB_HOST_MULTIARCH)/openssl ;\
+		mv debian/tmp/usr/include/openssl/opensslconf.h debian/tmp/usr/include/$(DEB_HOST_MULTIARCH)/openssl/ ;\
+		mv debian/tmp/usr/include/openssl/configuration.h debian/tmp/usr/include/$(DEB_HOST_MULTIARCH)/openssl/ ;\
+	fi
+
+override_dh_auto_install-arch:
+	$(MAKE) -C build_shared install DESTDIR=`pwd`/debian/tmp
+	# pic static libraries, nobody should need them
+	cp -pf build_static/libcrypto.a debian/tmp/usr/lib/$(DEB_HOST_MULTIARCH)/libcrypto.a
+	cp -pf build_static/libssl.a debian/tmp/usr/lib/$(DEB_HOST_MULTIARCH)/libssl.a
+	mkdir -p debian/tmp/etc/ssl
+	mv debian/tmp/usr/lib/ssl/{certs,openssl.cnf,private} debian/tmp/etc/ssl/
+	ln -s /etc/ssl/{certs,openssl.cnf,private} debian/tmp/usr/lib/ssl/
+	ln -s /etc/ssl/certs/ca-certificates.crt debian/tmp/usr/lib/ssl/cert.pem
+ifeq (,$(filter noudeb,$(DEB_BUILD_PROFILES)))
+	cp -pf debian/tmp/usr/lib/$(DEB_HOST_MULTIARCH)/libcrypto.so.* debian/libcrypto3-udeb/usr/lib/
+	cp -pf debian/tmp/usr/lib/$(DEB_HOST_MULTIARCH)/ossl-modules/*.so debian/libcrypto3-udeb/usr/lib/ossl-modules
+	cp -pf debian/tmp/etc/ssl/openssl.cnf debian/libcrypto3-udeb/usr/lib/ssl/openssl.cnf
+	cp -pf debian/tmp/usr/lib/$(DEB_HOST_MULTIARCH)/libssl.so.* debian/libssl3-udeb/usr/lib/
+endif
+	cp -auv build_shared/lib*.so* debian/tmp/usr/lib/$(DEB_HOST_MULTIARCH)/
+	for opt in $(OPTS); \
+		do set -xe; \
+		mkdir -p debian/tmp/usr/lib/$(DEB_HOST_MULTIARCH)/$$opt; \
+		cp -auv build_$$opt/lib*.so* debian/tmp/usr/lib/$(DEB_HOST_MULTIARCH)/$$opt/; \
+	done
+	mkdir -p debian/tmp/usr/include/$(DEB_HOST_MULTIARCH)/openssl
+	mv debian/tmp/usr/include/openssl/opensslconf.h debian/tmp/usr/include/$(DEB_HOST_MULTIARCH)/openssl/
+	mv debian/tmp/usr/include/openssl/configuration.h debian/tmp/usr/include/$(DEB_HOST_MULTIARCH)/openssl/
+
+override_dh_installchangelogs:
+	dh_installchangelogs CHANGES.md
+
+override_dh_fixperms:
+	if [ -d debian/openssl/etc/ssl/private ] ; then \
+		chmod 700 debian/openssl/etc/ssl/private ; \
+	fi
+	dh_fixperms -a -X etc/ssl/private
+
+override_dh_perl:
+	dh_perl -d
+
+override_dh_makeshlibs:
+	dh_makeshlibs -a -V --add-udeb="libcrypto3-udeb" -Xengines -Xossl-modules -- -c4
+
+override_dh_shlibdeps:
+	sed -i '/^udeb: libssl/s/libcrypto3-udeb/libssl3-udeb/' debian/libssl3/DEBIAN/shlibs
+	dh_shlibdeps -a -L libssl3
