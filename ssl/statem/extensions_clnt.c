@@ -2556,7 +2556,7 @@ int tls_parse_stoc_ech(SSL_CONNECTION *s, PACKET *pkt, unsigned int context,
     srval = OPENSSL_malloc(rlen + 2);
     if (srval == NULL)
         return 0;
-    srval[0] = (rlen & 0xff) >> 8;
+    srval[0] = (rlen >> 8) & 0xff;
     srval[1] = rlen & 0xff;
     memcpy(srval + 2, rval, rlen);
     s->ext.ech.returned = srval;
