@@ -26,6 +26,7 @@ HLOGFILE="$HLOGDIR/haproxy.log"
 RSCFG="/etc/rsyslog.conf"
 
 doclient="no"
+allgood="yes"
 
 if [[ "$1" == "client" ]]
 then
@@ -126,9 +127,9 @@ fi
 # FOREGROUND="-D "
 
 # set to use valgrind, unset to not
-VALGRIND="valgrind --leak-check=full --show-leak-kinds=all"
+# VALGRIND="valgrind --leak-check=full --show-leak-kinds=all"
 #VALGRIND="valgrind --leak-check=full --error-limit=1 --track-origins=yes"
-# VALGRIND=""
+VALGRIND=""
 
 # Check if a lighttpd is running
 lrunning=`ps -ef | grep lighttpd | grep -v grep | grep -v tail`
@@ -171,26 +172,24 @@ then
                 -c example.com -s localhost -f index.html"
         # do real ECH case
         echo "**** Real ECH: $OSSL/esnistuff/echcli.sh $clilog -s localhost -H foo.example.com  \
-                -p $port \
-                -P $ECHCONFIG \
-                -f index.html -N "
+                -p $port -P $ECHCONFIG -f index.html -N "
         $OSSL/esnistuff/echcli.sh $clilog -s localhost -H foo.example.com  \
-                -p $port \
-                -P $ECHCONFIG \
-                -f index.html -N
+                -p $port -P $ECHCONFIG -f index.html -N
         res=$?
         if [[ "$res" == "0" ]]
         then
             echo "**** This worked: : $OSSL/esnistuff/echcli.sh $clilog -s localhost -H foo.example.com  \
-                -p $port \
-                -P $ECHCONFIG \
-                -f index.html -N "
+                -p $port -P $ECHCONFIG -f index.html -N "
         else
             echo "**** This failed ($res): : $OSSL/esnistuff/echcli.sh $clilog -s localhost -H foo.example.com  \
-                -p $port \
-                -P $ECHCONFIG \
-                -f index.html -N "
+                -p $port -P $ECHCONFIG -f index.html -N "
+            allgood="no"
         fi
-
     done
+fi
+if [[ "$allgood" == "yes" ]]
+then
+    echo "All good."
+else
+    echo "Something failed."
 fi
