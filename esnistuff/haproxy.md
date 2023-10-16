@@ -1,5 +1,50 @@
 # Notes on building/integrating with haproxy
 
+## October 2023
+
+- 20231016 - rebased with upstream
+- 20231016 - some fixes for CI issues, changed from ``#ifdndef OPENSSL_NO_ECH`` as 
+  guard to ``#ifdef USE_ECH``
+
+You need my haproxy fork and to use the ``ECH-experimental``
+branch from that, so...
+
+            $ cd $HOME/code
+            $ git clone https://github.com/sftcd/haproxy.git
+            $ cd haproxy
+            $ git checkout ECH-experimental
+
+To build that with our ECH-enabled build of OpenSSL...
+
+            export OSSL=$HOME/code/openssl
+            export LD_LIBRARY_PATH=$OSSL
+            make V=1  SSL_INC=$OSSL/include/ SSL_LIB=$OSSL TARGET=linux-glibc USE_OPENSSL=1 \
+                DEFINE="-DOPENSSL_SUPPRESS_DEPRECATED -DDEBUG -O0 -DUSE_ECH"
+
+Testing:
+
+            $ ./testhaproxy.sh
+            ...stuff... # hit ctrl-C to exit haproxy, killall lighttpd to kill backend
+
+            $ # split-mode test
+            $ ./echcli.sh -s localhost  -H foo.example.com -p 7446 -P `./pem2rr.sh d13.pem` -f index.html
+            Running ./echcli.sh at 20230315-154634
+            Assuming supplied ECH is encoded ECHConfigList or SVCB
+            ./echcli.sh Summary: 
+            Looks like ECH worked ok
+            ECH: success: outer SNI: 'example.com', inner SNI: 'foo.example.com'
+            $ # shared-mode test
+            $ ./echcli.sh -s localhost  -H foo.example.com -p 7445 -P `./pem2rr.sh d13.pem` -f index.html
+            Running ./echcli.sh at 20230315-154900
+            Assuming supplied ECH is encoded ECHConfigList or SVCB
+            ./echcli.sh Summary: 
+            Looks like ECH worked ok
+            ECH: success: outer SNI: 'example.com', inner SNI: 'foo.example.com'
+            $
+            $ 
+
+That seems to work ok, but with very (very:-) little testing! 
+
 ## August 2023
 
 Both HRR and early data working now. Switched to stderr based logging.
