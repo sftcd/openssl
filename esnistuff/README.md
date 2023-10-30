@@ -22,6 +22,17 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
+- 20231030: rebased again and cleaned up some of the gratuituous differences
+  between this and the ``masster`` branch, including:
+    - ``crypto/err/openssl.txt`` had some gratuituous differences that are
+      probably merge hangovers
+    - repetition of ``hpke`` in ``crypto/build.info``
+    - ``ssl/record/ssl3_record_tls13.c`` no longer be needed
+    - removed ``esnistuff/Makefile`` and some other unnecessary files there
+    - moved ``esnistuff/building-curl-openssl-with-ech.md`` to the relevant
+      curl fork (at
+      [https://github.com/sftcd/curl/blob/ECH-experimental/docs/ECH.md](https://github.com/sftcd/curl/blob/ECH-experimental/docs/ECH.md)).
+
 - 20231016: rebased again
 
 - 20230910: made some changes/fixes to handling of DNS wire format (for
