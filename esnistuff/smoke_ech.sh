@@ -21,6 +21,7 @@ declare -A targets=(
     [crypto.cloudflare.com]="cdn-cgi/trace"
     [tls-ech.dev]=""
     [epochbelt.com]=""
+    [myechtest.site]=""
 )
 
 # place to stash outputs when things go wrong
