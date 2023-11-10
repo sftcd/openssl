@@ -374,6 +374,12 @@ ECH key pairs. By default, servers will only attempt decryption using
 an ECH key pair that matches the config_id in the ECH extension value
 received.
 
+=item SSL_OP_ECH_GREASE_RETRY_CONFIG
+
+If set, servers will add GREASEy ECHConfig values to those sent to the
+client after the client GREASEd or the client tried and failed to use
+ECH.
+
 =item SSL_OP_ECH_IGNORED_CID
 
 If set, TLS ClientHello messages emitted by the client will ignore the

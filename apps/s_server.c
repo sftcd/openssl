@@ -1101,7 +1101,7 @@ typedef enum OPTION_choice {
     OPT_ENABLE_CLIENT_RPK,
 #ifndef OPENSSL_NO_ECH
     OPT_ECHCONFIG, OPT_ECHDIR, OPT_ECHSPECIFICPAD,
-    OPT_ECH_TRIALDECRYPT,
+    OPT_ECH_TRIALDECRYPT, OPT_ECH_GREASE_RT,
 #endif
     OPT_R_ENUM,
     OPT_S_ENUM,
@@ -1357,6 +1357,8 @@ const OPTIONS s_server_options[] = {
         "(instead of general padding)"},
     {"ech_trialdecrypt", OPT_ECH_TRIALDECRYPT, '-',
         "Do trial decryption even if ECH record_digest matching fails"},
+    {"ech_greaseretries", OPT_ECH_GREASE_RT, '-',
+        "Set server to GREASE retry_config values"},
 #endif
 #ifndef OPENSSL_NO_KTLS
     {"ktls", OPT_KTLS, '-', "Enable Kernel TLS for sending and receiving"},
@@ -1462,6 +1464,7 @@ int s_server_main(int argc, char *argv[])
     char *echdir = NULL;
     int echspecificpad = 0; /* default to general padding (multiples of 512) */
     int echtrialdecrypt = 0; /* trial decryption off by default */
+    int echgrease_rc = 0; /* retry_config GREASEing off by default */
 #endif
     int no_ca_names = 0;
 #ifndef OPENSSL_NO_SCTP
@@ -2063,6 +2066,8 @@ int s_server_main(int argc, char *argv[])
         case OPT_ECH_TRIALDECRYPT:
             echtrialdecrypt = 1;
             break;
+        case OPT_ECH_GREASE_RT:
+            echgrease_rc = 1;
 #endif
         case OPT_HTTP_SERVER_BINMODE:
             http_server_binmode = 1;
@@ -2446,6 +2451,9 @@ int s_server_main(int argc, char *argv[])
     if (echtrialdecrypt != 0) {
         SSL_CTX_set_options(ctx, SSL_OP_ECH_TRIALDECRYPT);
     }
+    if (echgrease_rc != 0) {
+        SSL_CTX_set_options(ctx, SSL_OP_ECH_GREASE_RETRY_CONFIG);
+    }
 
     if (echkeyfile != NULL) {
         /*
@@ -2550,6 +2558,9 @@ int s_server_main(int argc, char *argv[])
 #ifndef OPENSSL_NO_ECH
         if (echtrialdecrypt != 0) {
             SSL_CTX_set_options(ctx2, SSL_OP_ECH_TRIALDECRYPT);
+        }
+        if (echgrease_rc != 0) {
+            SSL_CTX_set_options(ctx, SSL_OP_ECH_GREASE_RETRY_CONFIG);
         }
         if (echspecificpad != 0) {
             SSL_CTX_set_record_padding_callback_arg(ctx2, (void *)ech_ps);

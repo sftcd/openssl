@@ -65,6 +65,7 @@ function usage()
     echo "  -d means run s_server in verbose mode"
     echo "  -e means allow default amount of early data"
 	echo "  -F says to hard fail if ECH attempted but fails"
+	echo "  -g says to GREASE retry_configs"
     echo "  -H means serve that hidden server"
     echo "  -h means print this"
 	echo "  -K to generate server keys "
@@ -87,7 +88,7 @@ function usage()
 }
 
 # options may be followed by one colon to indicate they have a required argument
-if ! options=$(/usr/bin/getopt -s bash -o k:BTc:D:eH:p:PRKdlvN:nhw -l keyfile,badkey,trialdecrypt,dir:,early,clear_sni:,hidden:,port:,pad,hrr,keygen,debug,stale,valgrind,nreq,noech,help,web -- "$@")
+if ! options=$(/usr/bin/getopt -s bash -o k:BTc:D:eH:p:PRKdlvN:nhwg -l keyfile,badkey,trialdecrypt,dir:,early,clear_sni:,hidden:,port:,pad,hrr,keygen,debug,stale,valgrind,nreq,noech,help,web,grease -- "$@")
 then
     # something went wrong, getopt will put out an error message for us
     exit 1
@@ -102,6 +103,7 @@ do
         -D|--dir) SUPPLIEDDIR=$2; shift;;
         -d|--debug) DEBUG="yes" ;;
         -e|--early) EARLY_DATA="yes";; 
+        -g|--grease) GREASE="yes";; 
         -h|--help) usage;;
         -H|--hidden) SUPPLIEDHIDDEN=$2; shift;;
         -k|--keyfile) SUPPLIEDKEYFILE=$2; shift;;
@@ -279,6 +281,14 @@ then
     # earlystr=" -early_data "
 fi
 
+# GREASEy retry_configs
+greasestr=""
+if [[ "$GREASE" == "yes" ]]
+then
+    echo "GREASEing retry_configs"
+    greasestr=" -ech_greaseretries "
+fi
+
 # force tls13
 #force13="-no_ssl3 -no_tls1 -no_tls1_1 -no_tls1_2"
 #force13="-cipher TLS13-AES-128-GCM-SHA256 -no_ssl3 -no_tls1 -no_tls1_1 -no_tls1_2"
@@ -303,8 +313,8 @@ fi
 
 if [[ "$DEBUG" == "yes" ]]
 then
-    echo "Running: $sudocmd $vgcmd $CODETOP/apps/openssl s_server $dbgstr $keyfile1 $keyfile2 $certsdb $portstr $force13 $echstr $snicmd $trialdecrypt $alpn_cmd $echpad_cmd $hrr_cmd $nreq_cmd $WEBSERVER $earlystr"
+    echo "Running: $sudocmd $vgcmd $CODETOP/apps/openssl s_server $dbgstr $keyfile1 $keyfile2 $certsdb $portstr $force13 $echstr $snicmd $trialdecrypt $alpn_cmd $echpad_cmd $hrr_cmd $nreq_cmd $WEBSERVER $earlystr $greasestr"
 fi
-$sudocmd $vgcmd $CODETOP/apps/openssl s_server $dbgstr $keyfile1 $keyfile2 $certsdb $portstr $force13 $echstr $snicmd $trialdecrypt $alpn_cmd $echpad_cmd $hrr_cmd $nreq_cmd $WEBSERVER $earlystr
+$sudocmd $vgcmd $CODETOP/apps/openssl s_server $dbgstr $keyfile1 $keyfile2 $certsdb $portstr $force13 $echstr $snicmd $trialdecrypt $alpn_cmd $echpad_cmd $hrr_cmd $nreq_cmd $WEBSERVER $earlystr $greasestr
 
 

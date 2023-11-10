@@ -1367,6 +1367,52 @@ err:
 }
 
 /*
+ * @brief add GREASEy ECHConfig values to a set loaded by a server
+ * @param ctx is the SSL context
+ * @param num_echs is the number of SSL_ECH in the array
+ * @return 1 for good zero for error
+ */
+static int ech_grease_retry_configs(SSL_CTX *ctx, int num_echs, SSL_ECH **sechs)
+{
+    /*
+     * we'll start simple and just add a fixed bogus ECHConfig
+     * with an unknown version to the start of the encoded value
+     * of each of the real ECHConfig values.
+     */
+    SSL_ECH *se = NULL;
+    int i;
+    size_t encilen = 0;
+    unsigned char *tmp = NULL;
+    unsigned char firstcut[] = {
+        0xfe, 0x09, 0x00, 0x0c, 0x01, 0x02, 0x03, 0x04,
+        0x05, 0x0E, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c
+    };
+
+    for (i = 0; i != num_echs; i++) {
+        se = sechs[i];
+        if (se != NULL && se->cfg != NULL) {
+            encilen = se->cfg->encoded_len;
+            if (encilen < 2)
+                goto err;
+            tmp = (unsigned char *)OPENSSL_realloc(se->cfg->encoded,
+                                                   sizeof(firstcut) + encilen);
+            if (tmp == NULL)
+                goto err;
+            se->cfg->encoded = tmp;
+            memcpy(se->cfg->encoded + 2 + sizeof(firstcut),
+                   se->cfg->encoded + 2, encilen - 2);
+            memcpy(se->cfg->encoded + 2, firstcut, sizeof(firstcut));
+            se->cfg->encoded_len = encilen + sizeof(firstcut);
+            se->cfg->encoded[0] = (se->cfg->encoded_len % 0xffff) >> 8;
+            se->cfg->encoded[1] = se->cfg->encoded_len % 0xff;
+        }
+    }
+    return 1;
+err:
+    return 0;
+}
+
+/*
  * @brief read ECHConfigList (with only 1 entry) and private key from a file
  * @param pemfile is the name of the file
  * @param ctx is the SSL context
@@ -1455,6 +1501,11 @@ static int ech_readpemfile(SSL_CTX *ctx, int inputIsFile, const char *pemfile,
     /* Now decode that ECHConfigList */
     if (local_ech_add(OSSL_ECH_FMT_GUESS, plen, pdata, &num_echs, sechs) != 1)
         goto err;
+    /* if the server is set to GREASE retry_configs then we do that now */
+    if (ctx->options & SSL_OP_ECH_GREASE_RETRY_CONFIG
+        && for_retry
+        && ech_grease_retry_configs(ctx, num_echs, sechs) != 1)
+            goto err;
     (*sechs)->pemfname = OPENSSL_strdup(pemfile);
     (*sechs)->loadtime = time(0);
     (*sechs)->for_retry = for_retry;

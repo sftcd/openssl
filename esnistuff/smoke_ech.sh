@@ -22,6 +22,7 @@ declare -A targets=(
     [tls-ech.dev]=""
     [epochbelt.com]=""
     [myechtest.site]=""
+    [hidden.hoba.ie]=""
 )
 
 # place to stash outputs when things go wrong
