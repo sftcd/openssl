@@ -427,6 +427,9 @@ The following options are defined for ECH and may be set via
 /* If set, clients will ignore the supplied ECH config_id and replace
  * that with a random value */
 #define SSL_OP_ECH_IGNORE_CID                           SSL_OP_BIT(36)
+/* If set, servers will add GREASEy ECHConfig values to those sent
+ * in retry_configs */
+#define SSL_OP_ECH_GREASE_RETRY_CONFIG                  SSL_OP_BIT(37)
 ```
 
 Build Options

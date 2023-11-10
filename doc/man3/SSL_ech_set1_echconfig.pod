@@ -367,6 +367,8 @@ SSL_CTX_set_options():
 
 =item B<SSL_OP_ECH_TRIALDECRYPT> sets a server to attempt trial decryption with all loaded ECH keys
 
+=item B<SSL_OP_ECH_GREASE_RETRY_CONFIG> sets a server to include GREASEy ECHConfig values in retry_configs
+
 =back
 
 
@@ -393,6 +395,9 @@ observer to fingerprint the client. The default is "25519,hkdf-sha256,aes128gcm"
 SSL_ech_get_grease_type() allows a client to use a different TLS extension
 type codepoint (rather than the current 0xfe0d value, which is the default).
 This allows clients to GREASE with future extension type codepoints if needed.
+
+Setting the B<SSL_OP_ECH_GREASE_RETRY_CONFIG> option causes a server to add
+GREASEy values to those returned in the retry-config. This is off by default.
 
 =head2 Callback Function
 
