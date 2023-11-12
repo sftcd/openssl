@@ -2068,6 +2068,7 @@ int s_server_main(int argc, char *argv[])
             break;
         case OPT_ECH_GREASE_RT:
             echgrease_rc = 1;
+            break;
 #endif
         case OPT_HTTP_SERVER_BINMODE:
             http_server_binmode = 1;
