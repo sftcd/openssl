@@ -158,6 +158,7 @@ B<openssl> B<s_server>
 [B<-ech_key> I<filename>]
 [B<-ech_specificpad>]
 [B<-ech_trialdecrypt>]
+[B<-ech_greaseretries>]
 
 =head1 DESCRIPTION
 
@@ -927,6 +928,11 @@ When an Encrypted Client Hello (ECH) extension is seen in a ClientHello,
 attempt to decrypt with all known ECH private keys if necessary. Without
 this, the ECH "config_id" is used to match against the loaded ECH private
 keys and decryption is only attempted when there's a match.
+
+=item B<-ech_greaseretries>
+
+If set, servers will add GREASEy ECHConfig values to those sent
+in retry_configs.
 
 =back
 
