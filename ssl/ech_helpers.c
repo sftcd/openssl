@@ -12,7 +12,6 @@
  */
 
 #include <openssl/ssl.h>
-#include <openssl/ech.h>
 #include <internal/ech_helpers.h>
 #include <internal/packet.h>
 

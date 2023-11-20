@@ -14,7 +14,6 @@
 #include <arpa/inet.h>
 #include <openssl/ssl.h>
 #include <openssl/err.h>
-#include <openssl/ech.h>
 
 static const int server_port = 4433;
 

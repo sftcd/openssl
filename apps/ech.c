@@ -19,7 +19,6 @@
 #include <openssl/bn.h>
 #include <openssl/pem.h>
 #include <openssl/rand.h>
-#include <openssl/ech.h>
 #include <openssl/hpke.h>
 
 #include <openssl/objects.h>

@@ -17,10 +17,6 @@
 #include <openssl/e_os2.h>
 #include "internal/nelem.h"
 
-#ifndef OPENSSL_NO_ECH
-# include <openssl/ech.h>
-#endif
-
 #ifndef OPENSSL_NO_SOCK
 
 /*
