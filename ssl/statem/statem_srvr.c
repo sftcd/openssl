@@ -1507,7 +1507,7 @@ MSG_PROCESS_RETURN tls_process_client_hello(SSL_CONNECTION *s, PACKET *pkt)
             } OSSL_TRACE_END(TLS);
             /* For backend, include msg type & 3 octet length */
             s->ext.ech.backend = 1;
-            s->ext.ech.attempted_type = TLSEXT_TYPE_ech13;
+            s->ext.ech.attempted_type = TLSEXT_TYPE_ech;
             if (s->ext.ech.innerch != NULL) { /* must be HRRing so stash CH1 */
                 OPENSSL_free(s->ext.ech.innerch1);
                 s->ext.ech.innerch1 = s->ext.ech.innerch;
@@ -2654,7 +2654,7 @@ CON_FUNC_RETURN tls_construct_server_hello(SSL_CONNECTION *s, WPACKET *pkt)
      * Calculate the ECH-accept server random to indicate that
      * we're accepting ECH, if that's the case
      */
-    if (s->ext.ech.attempted_type == TLSEXT_TYPE_ech13
+    if (s->ext.ech.attempted_type == TLSEXT_TYPE_ech
         && (s->ext.ech.backend == 1
             || (s->ext.ech.cfgs != NULL && s->ext.ech.success == 1))) {
         unsigned char acbuf[8];

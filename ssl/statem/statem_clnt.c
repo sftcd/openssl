@@ -1233,7 +1233,12 @@ __owur CON_FUNC_RETURN tls_construct_client_hello(SSL_CONNECTION *s,
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, protverr);
             return 0;
         }
-        s->ext.ech.attempted_type = tc->version;
+        if (tc->version != OSSL_ECH_RFCXXXX_VERSION) {
+            /* we only support that version for now */
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, protverr);
+            return 0;
+        }
+        s->ext.ech.attempted_type = TLSEXT_TYPE_ech;
         s->ext.ech.attempted_cid = tc->config_id;
         s->ext.ech.attempted = 1;
         OPENSSL_free(s->ext.ech.outer_hostname);
@@ -1819,7 +1824,7 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL_CONNECTION *s, PACKET *pkt)
     if (s->ext.ech.cfgs != NULL
         && s->ext.ech.done != 1 && s->ext.ech.ch_depth == 0
         && s->ext.ech.grease == OSSL_ECH_NOT_GREASE
-        && s->ext.ech.attempted_type == TLSEXT_TYPE_ech13) {
+        && s->ext.ech.attempted_type == TLSEXT_TYPE_ech) {
         /* check the ECH accept signal */
         if (ech_calc_confirm(s, hrr, c_signal, shbuf, shlen) != 1
             || ech_find_confirm(s, hrr, s_signal, shbuf, shlen) != 1

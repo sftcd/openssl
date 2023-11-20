@@ -498,7 +498,7 @@ static const ssl_trace_tbl ssl_exts_tbl[] = {
     {TLSEXT_TYPE_next_proto_neg, "next_proto_neg"},
 # endif
 # ifndef OPENSSL_NO_ECH
-    {TLSEXT_TYPE_ech13, "encrypted_client_hello(draft-13)"},
+    {TLSEXT_TYPE_ech, "encrypted_client_hello"},
     {TLSEXT_TYPE_outer_extensions, "outer_extension"},
 # endif
 };
@@ -944,7 +944,7 @@ static int ssl_print_extension(BIO *bio, int indent, int server,
             return 0;
         return ssl_trace_list(bio, indent + 2, ext + 1, xlen, 1, ssl_cert_type_tbl);
 #ifndef OPENSSL_NO_ECH
-    case TLSEXT_TYPE_ech13:
+    case TLSEXT_TYPE_ech:
         BIO_indent(bio, indent, 80);
         if (mt == SSL3_MT_CLIENT_HELLO) {
             uint8_t type;

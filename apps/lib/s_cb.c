@@ -747,7 +747,7 @@ static STRINT_PAIR tlsext_types[] = {
     {"certificate authorities", TLSEXT_TYPE_certificate_authorities},
     {"post handshake auth", TLSEXT_TYPE_post_handshake_auth},
 #ifndef OPENSSL_NO_ECH
-    {"encrypted ClientHello (draft-13)", TLSEXT_TYPE_ech13},
+    {"encrypted ClientHello (draft-13)", TLSEXT_TYPE_ech},
     {"outer exts", TLSEXT_TYPE_outer_extensions},
     /* not an ECH change, but seems to be missing */
     {"early_data", TLSEXT_TYPE_early_data},

@@ -470,7 +470,7 @@ change at the last moment when an RFC is issued).
 
 =over 4
 
-=item B<OSSL_ECH_DRAFT_13_VERSION> 0xfe0d, version from draft-13
+=item B<OSSL_ECH_RFCXXXX_VERSION> 0xfe0d, version from ECH RFC XXXX
 
 =back
 

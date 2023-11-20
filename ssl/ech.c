@@ -265,7 +265,7 @@ static const ECH_EXT_HANDLING_DEF ech_ext_handling[] = {
     { TLSEXT_TYPE_compress_certificate, OSSL_ECH_HANDLING_COMPRESS},
     { TLSEXT_TYPE_early_data, OSSL_ECH_HANDLING_CALL_BOTH},
     { TLSEXT_TYPE_certificate_authorities, OSSL_ECH_HANDLING_COMPRESS},
-    { TLSEXT_TYPE_ech13, OSSL_ECH_HANDLING_CALL_BOTH},
+    { TLSEXT_TYPE_ech, OSSL_ECH_HANDLING_CALL_BOTH},
     { TLSEXT_TYPE_outer_extensions, OSSL_ECH_HANDLING_CALL_BOTH},
     { TLSEXT_TYPE_padding, OSSL_ECH_HANDLING_CALL_BOTH},
     { TLSEXT_TYPE_psk, OSSL_ECH_HANDLING_CALL_BOTH}
@@ -468,8 +468,8 @@ static int ech_guess_fmt(size_t eklen, const unsigned char *rrval,
     cp = (unsigned char*)rrval;
     if (eklen > 4
         && eklen == ((size_t)(cp[0])*256+(size_t)(cp[1])) + 2
-        && cp[3] == ((OSSL_ECH_DRAFT_13_VERSION / 256) & 0xff)
-        && cp[4] == ((OSSL_ECH_DRAFT_13_VERSION % 256) & 0xff)) {
+        && cp[3] == ((OSSL_ECH_RFCXXXX_VERSION / 256) & 0xff)
+        && cp[4] == ((OSSL_ECH_RFCXXXX_VERSION % 256) & 0xff)) {
         *guessedfmt = OSSL_ECH_FMT_BIN;
         return 1;
     }
@@ -779,7 +779,7 @@ static int ECHConfigList_from_binary(unsigned char *binbuf, size_t binblen,
             goto err;
         }
         switch (ec->version) {
-        case OSSL_ECH_DRAFT_13_VERSION:
+        case OSSL_ECH_RFCXXXX_VERSION:
             break;
         default:
             /* skip over in case we get something we can handle later */
@@ -802,7 +802,7 @@ static int ECHConfigList_from_binary(unsigned char *binbuf, size_t binblen,
          * But, when we (again) support >1 version, the indentation may end
          * up like this anyway so may as well keep it.
          */
-        if (ec->version == OSSL_ECH_DRAFT_13_VERSION) {
+        if (ec->version == OSSL_ECH_RFCXXXX_VERSION) {
             PACKET pub_pkt, cipher_suites, public_name_pkt, exts;
             int suiteoctets = 0, ci = 0;
             unsigned char cipher[OSSL_ECH_CIPHER_LEN], max_name_len;
@@ -1237,14 +1237,14 @@ static int ech_finder(int *num_echs, SSL_ECH **echs,
             }
             /*
              * ECHConfigList has a 2-octet length then version. SCVB RDATA wire
-             * format starts with 2-octet vcPriority field, then encoded DNS
-             * name. Our current version field has a value of 0xfe0d, and it's
+             * format starts with 2-octet svcPriority field, then encoded DNS
+             * name. Our RFC XXXX field has a value of 0xfe0d, and it's
              * extremely unlikely we deal with a DNS name label of length 0xfe
-             * (254) TODO: check still ok when RFC issues with final version
+             * (254), that being disallowed.
              */
             if ((size_t)(binbuf[0] * 256 + binbuf[1]) == (binlen - 2)
-                && binbuf[2] == ((OSSL_ECH_DRAFT_13_VERSION >> 8) & 0xff)
-                && binbuf[3] == (OSSL_ECH_DRAFT_13_VERSION & 0xff))
+                && binbuf[2] == ((OSSL_ECH_RFCXXXX_VERSION >> 8) & 0xff)
+                && binbuf[3] == (OSSL_ECH_RFCXXXX_VERSION & 0xff))
                 detfmt = OSSL_ECH_FMT_BIN;
             else
                 detfmt = OSSL_ECH_FMT_DNS_WIRE;
@@ -1690,7 +1690,7 @@ static int ECHConfigList_print(BIO *out, ECHConfigList *c)
     if (out == NULL || c == NULL || c->recs == NULL)
         return 0;
     for (i = 0; i != c->nrecs; i++) {
-        if (c->recs[i].version != OSSL_ECH_DRAFT_13_VERSION) {
+        if (c->recs[i].version != OSSL_ECH_RFCXXXX_VERSION) {
             /* just note we don't support that one today */
             BIO_printf(out, "[Unsupported version (%04x)]", c->recs[i].version);
             continue;
@@ -2264,7 +2264,7 @@ end:
 # endif
     /* we need to remove possible (actually, v. likely) padding */
     *innerlen = clearlen;
-    if (ech->cfg->recs[0].version == OSSL_ECH_DRAFT_13_VERSION) {
+    if (ech->cfg->recs[0].version == OSSL_ECH_RFCXXXX_VERSION) {
         /* draft-13 pads after the encoded CH with zeros */
         size_t extsoffset = 0;
         size_t extslen = 0;
@@ -3707,7 +3707,7 @@ int ech_find_confirm(SSL_CONNECTION *s, int hrr, unsigned char *acbuf,
             if (!PACKET_get_net_2(&pkt, &etype)
                 || !PACKET_get_net_2(&pkt, &elen))
                 return 0;
-            if (etype == TLSEXT_TYPE_ech13) {
+            if (etype == TLSEXT_TYPE_ech) {
                 if (elen != 8
                     || !PACKET_get_bytes(&pkt, &acp, elen))
                     return 0;
@@ -3933,7 +3933,7 @@ int ech_send_grease(SSL_CONNECTION *s, WPACKET *pkt)
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
     }
-    if (s->ext.ech.attempted_type == OSSL_ECH_DRAFT_13_VERSION) {
+    if (s->ext.ech.attempted_type == TLSEXT_TYPE_ech) {
         if (!WPACKET_put_bytes_u16(pkt, s->ext.ech.attempted_type)
             || !WPACKET_start_sub_packet_u16(pkt)
             || !WPACKET_put_bytes_u8(pkt, OSSL_ECH_OUTER_CH_TYPE)
@@ -4016,7 +4016,7 @@ int ech_pick_matching_cfg(SSL_CONNECTION *s, ECHConfig **tc,
          cind != cfgs->nrecs && suitematch == 0 && namematch == 0;
          cind++) {
         ltc = &cfgs->recs[cind];
-        if (ltc->version != OSSL_ECH_DRAFT_13_VERSION)
+        if (ltc->version != OSSL_ECH_RFCXXXX_VERSION)
             continue;
         if (nameoverride == 1) {
             namematch = 1;
@@ -4183,7 +4183,7 @@ int ech_aad_and_encrypt(SSL_CONNECTION *s, WPACKET *pkt)
     cipher = OPENSSL_zalloc(cipherlen);
     if (cipher == NULL)
         goto err;
-    if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_ech13)
+    if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_ech)
         || !WPACKET_start_sub_packet_u16(pkt)
         || !WPACKET_put_bytes_u8(pkt, OSSL_ECH_OUTER_CH_TYPE)
         || !WPACKET_put_bytes_u16(pkt, hpke_suite.kdf_id)
@@ -4298,7 +4298,7 @@ int ech_early_decrypt(SSL_CONNECTION *s, PACKET *outerpkt, PACKET *newpkt)
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         return 0;
     }
-    if (echoffset == 0 || echtype != OSSL_ECH_DRAFT_13_VERSION)
+    if (echoffset == 0 || echtype != TLSEXT_TYPE_ech)
         return 1; /* ECH not present or wrong version */
     if (innerflag == 1) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
@@ -5637,7 +5637,7 @@ int ossl_ech_make_echconfig(unsigned char *echconfig, size_t *echconfiglen,
 
     /* this used have more versions and will again in future */
     switch (ekversion) {
-    case OSSL_ECH_DRAFT_13_VERSION:
+    case OSSL_ECH_RFCXXXX_VERSION:
         break;
     default:
         ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_INVALID_ARGUMENT);

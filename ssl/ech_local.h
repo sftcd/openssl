@@ -101,7 +101,7 @@
     }
 
 /*
- * Reminder of what goes in DNS for draft-13
+ * Reminder of what goes in DNS for ECH RFC XXXX
  *
  *     opaque HpkePublicKey<1..2^16-1>;
  *     uint16 HpkeKemId;  // Defined in I-D.irtf-cfrg-hpke
