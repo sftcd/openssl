@@ -583,7 +583,7 @@ int SSL_extension_supported(unsigned int ext_type)
     case TLSEXT_TYPE_client_cert_type:
     case TLSEXT_TYPE_server_cert_type:
 #ifndef OPENSSL_NO_ECH
-    case TLSEXT_TYPE_ech13:
+    case TLSEXT_TYPE_ech:
     case TLSEXT_TYPE_outer_extensions:
 #endif
         return 1;

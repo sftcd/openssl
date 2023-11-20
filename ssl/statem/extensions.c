@@ -417,7 +417,7 @@ static const EXTENSION_DEFINITION ext_defs[] = {
     },
 #ifndef OPENSSL_NO_ECH
     { /* this is for draft-13 */
-        TLSEXT_TYPE_ech13,
+        TLSEXT_TYPE_ech,
         SSL_EXT_CLIENT_HELLO | SSL_EXT_TLS1_3_ONLY |
         SSL_EXT_TLS1_3_ENCRYPTED_EXTENSIONS |
         SSL_EXT_TLS1_3_HELLO_RETRY_REQUEST,
@@ -721,7 +721,7 @@ int tls_collect_extensions(SSL_CONNECTION *s, PACKET *packet,
                  * SSL_EXT_FLAG_SENT (except when GREASEing) so we
                  * make a special check to see if we attempted ECH
                  */
-                && (type == TLSEXT_TYPE_ech13 && s->ext.ech.attempted == 0)
+                && (type == TLSEXT_TYPE_ech && s->ext.ech.attempted == 0)
 #endif
                                                                 ) {
             SSLfatal(s, SSL_AD_UNSUPPORTED_EXTENSION,

@@ -2482,7 +2482,7 @@ EXT_RETURN tls_construct_ctos_ech13(SSL_CONNECTION *s, WPACKET *pkt,
                                     unsigned int context, X509 *x,
                                     size_t chainidx)
 {
-    if (s->ext.ech.attempted_type != TLSEXT_TYPE_ech13)
+    if (s->ext.ech.attempted_type != TLSEXT_TYPE_ech)
         return EXT_RETURN_NOT_SENT;
     /* don't send grease if really attempting ECH */
     if (s->ext.ech.attempted == 0) {
@@ -2514,7 +2514,7 @@ EXT_RETURN tls_construct_ctos_ech13(SSL_CONNECTION *s, WPACKET *pkt,
         return EXT_RETURN_NOT_SENT;
     /* For the inner CH - we simply include one of these saying "inner" */
     if (s->ext.ech.ch_depth == 1) {
-        if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_ech13)
+        if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_ech)
             || !WPACKET_start_sub_packet_u16(pkt)
             || !WPACKET_put_bytes_u8(pkt,  OSSL_ECH_INNER_CH_TYPE)
             || !WPACKET_close(pkt)) {

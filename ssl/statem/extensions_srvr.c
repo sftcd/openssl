@@ -2180,7 +2180,7 @@ int tls_parse_ctos_ech(SSL_CONNECTION *s, PACKET *pkt, unsigned int context,
         /* If not configured for ECH then we ignore it */
         return 1;
     }
-    if (s->ext.ech.attempted_type != OSSL_ECH_DRAFT_13_VERSION) {
+    if (s->ext.ech.attempted_type != TLSEXT_TYPE_ech) {
         /*
          * the server really only knows draft-13 for ech_early_decrypt
          * so it's an error to get here for any other version (for
@@ -2241,7 +2241,7 @@ EXT_RETURN tls_construct_stoc_ech13(SSL_CONNECTION *s, WPACKET *pkt,
 
     if (context == SSL_EXT_TLS1_3_HELLO_RETRY_REQUEST
         && (s->ext.ech.success == 1 || s->ext.ech.backend == 1)
-        && s->ext.ech.attempted_type == TLSEXT_TYPE_ech13) {
+        && s->ext.ech.attempted_type == TLSEXT_TYPE_ech) {
         unsigned char eightzeros[8] = {0, 0, 0, 0, 0, 0, 0, 0};
 
         if (!WPACKET_put_bytes_u16(pkt, s->ext.ech.attempted_type)
@@ -2256,7 +2256,7 @@ EXT_RETURN tls_construct_stoc_ech13(SSL_CONNECTION *s, WPACKET *pkt,
     }
     /* GREASE or error => random confirmation in HRR case */
     if (context == SSL_EXT_TLS1_3_HELLO_RETRY_REQUEST
-        && s->ext.ech.attempted_type == TLSEXT_TYPE_ech13
+        && s->ext.ech.attempted_type == TLSEXT_TYPE_ech
         && s->ext.ech.attempted == 1) {
         unsigned char randomconf[8];
 
@@ -2281,7 +2281,7 @@ EXT_RETURN tls_construct_stoc_ech13(SSL_CONNECTION *s, WPACKET *pkt,
     }
     /* If in some weird state we ignore and send nothing */
     if (s->ext.ech.grease != OSSL_ECH_IS_GREASE
-        || s->ext.ech.attempted_type != TLSEXT_TYPE_ech13) {
+        || s->ext.ech.attempted_type != TLSEXT_TYPE_ech) {
         return EXT_RETURN_NOT_SENT;
     }
     /*
@@ -2309,7 +2309,7 @@ EXT_RETURN tls_construct_stoc_ech13(SSL_CONNECTION *s, WPACKET *pkt,
         } OSSL_TRACE_END(TLS);
         return EXT_RETURN_NOT_SENT;
     }
-    if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_ech13)
+    if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_ech)
         || !WPACKET_start_sub_packet_u16(pkt)
         || !WPACKET_sub_memcpy_u16(pkt, rcfgs, rcfgslen)
         || !WPACKET_close(pkt)) {

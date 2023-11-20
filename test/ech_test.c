@@ -605,7 +605,7 @@ static int basic_echconfig(int idx)
     size_t echconfiglen = sizeof(echconfig);
     unsigned char priv[200];
     size_t privlen = sizeof(priv);
-    uint16_t ech_version = OSSL_ECH_DRAFT_13_VERSION;
+    uint16_t ech_version = OSSL_ECH_RFCXXXX_VERSION;
     uint16_t max_name_length = 0;
     char *public_name = "example.com";
     OSSL_HPKE_SUITE hpke_suite = OSSL_HPKE_SUITE_DEFAULT;
@@ -939,7 +939,7 @@ static int ech_wrong_pub_test(int idx)
     size_t badconfiglen = sizeof(badconfig);
     unsigned char badpriv[200];
     size_t badprivlen = sizeof(badpriv);
-    uint16_t ech_version = OSSL_ECH_DRAFT_13_VERSION;
+    uint16_t ech_version = OSSL_ECH_RFCXXXX_VERSION;
     OSSL_HPKE_SUITE hpke_suite = OSSL_HPKE_SUITE_DEFAULT;
     int err = 0, connrv = 0, err_reason = 0;
     unsigned char *retryconfig = NULL;
@@ -1062,7 +1062,7 @@ static int tls_version_test(void)
     size_t echconfiglen = sizeof(echconfig);
     unsigned char priv[200];
     size_t privlen = sizeof(priv);
-    uint16_t ech_version = OSSL_ECH_DRAFT_13_VERSION;
+    uint16_t ech_version = OSSL_ECH_RFCXXXX_VERSION;
     OSSL_HPKE_SUITE hpke_suite = OSSL_HPKE_SUITE_DEFAULT;
     SSL_CTX *cctx = NULL, *sctx = NULL;
     SSL *clientssl = NULL, *serverssl = NULL;
@@ -1184,7 +1184,7 @@ static int test_ech_roundtrip_helper(int idx, int combo)
     char echkeybuf[1000];
     size_t echkeybuflen = sizeof(echkeybuf);
     OSSL_HPKE_SUITE hpke_suite = OSSL_HPKE_SUITE_DEFAULT;
-    uint16_t ech_version = OSSL_ECH_DRAFT_13_VERSION;
+    uint16_t ech_version = OSSL_ECH_RFCXXXX_VERSION;
     uint16_t max_name_length = 0;
     char *public_name = "example.com";
     SSL_CTX *cctx = NULL, *sctx = NULL;
@@ -1426,7 +1426,7 @@ static int ech_grease_test(int idx)
     size_t retryconfiglen = 0, privlen = sizeof(priv);
     size_t echkeybuflen = sizeof(echkeybuf);
     OSSL_HPKE_SUITE hpke_suite = OSSL_HPKE_SUITE_DEFAULT;
-    uint16_t ech_version = OSSL_ECH_DRAFT_13_VERSION;
+    uint16_t ech_version = OSSL_ECH_RFCXXXX_VERSION;
     uint16_t max_name_length = 0;
     X509_STORE *ch = NULL;
 

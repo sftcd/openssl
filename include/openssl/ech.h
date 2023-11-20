@@ -36,14 +36,11 @@
 #  define OSSL_ECH_ALLEXTS_MAX 32 /* max total number of extension we allow */
 
 /*
- * ECH version. We only support draft-13 as of now.  As/if new versions
- * are added, those will be noted here.
- * This isn't directly used in APIs (but is present/checked-for in some
- * encoded values), so is only made visible here as it has changed with
- * each substantive revision of the draft specification (and will likely
- * change at the last moment when an RFC is issued).
+ * ECH version. We only support RFC XXXX as of now.  As/if new ECHConfig
+ * versions are added, those will be noted here.
+ * TODO: Replace XXXX with the actual RFC number once known.
  */
-#  define OSSL_ECH_DRAFT_13_VERSION 0xfe0d /* version from draft-13 */
+#  define OSSL_ECH_RFCXXXX_VERSION 0xfe0d /* official ECHConfig version */
 
 /* Return codes from SSL_ech_get_status */
 #  define SSL_ECH_STATUS_BACKEND    4 /* ECH backend: saw an ech_is_inner */

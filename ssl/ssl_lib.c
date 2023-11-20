@@ -913,23 +913,28 @@ SSL *ossl_ssl_connection_new_int(SSL_CTX *ctx, const SSL_METHOD *method)
 
     s->ssl_pkey_num = SSL_PKEY_NUM + ctx->sigalg_list_len;
 #ifndef OPENSSL_NO_ECH
-    s->ext.ech.attempted_type = TLSEXT_TYPE_ech13;
+    s->ext.ech.attempted_type = TLSEXT_TYPE_ech;
     s->ext.ech.ncfgs = ctx->ext.nechs;
     if (s->ext.ech.ncfgs > 0) {
-        s->ext.ech.cfgs = SSL_ECH_dup(ctx->ext.ech, s->ext.ech.ncfgs, OSSL_ECH_SELECT_ALL);
+        s->ext.ech.cfgs = SSL_ECH_dup(ctx->ext.ech, s->ext.ech.ncfgs,
+                                      OSSL_ECH_SELECT_ALL);
         if (s->ext.ech.cfgs == NULL)
             goto err;
         if (ctx->ext.ech->outer_name != NULL) {
-            s->ext.ech.cfgs->outer_name = OPENSSL_strdup(ctx->ext.ech->outer_name);
+            s->ext.ech.cfgs->outer_name =
+                OPENSSL_strdup(ctx->ext.ech->outer_name);
             if (s->ext.ech.cfgs->outer_name == NULL)
                 goto err;
         }
         if (s->ext.ech.cfgs != NULL && s->ext.ech.cfgs->cfg != NULL
             && s->ext.ech.cfgs->cfg->recs != NULL) {
-            s->ext.ech.attempted_type = s->ext.ech.cfgs->cfg->recs[0].version;
+            if (s->ext.ech.cfgs->cfg->recs[0].version
+                    != OSSL_ECH_RFCXXXX_VERSION)
+                goto err;
+            s->ext.ech.attempted_type = TLSEXT_TYPE_ech;
             s->ext.ech.attempted_cid = s->ext.ech.cfgs->cfg->recs[0].config_id;
         } else {
-            s->ext.ech.attempted_type = TLSEXT_TYPE_ech13;
+            s->ext.ech.attempted_type = TLSEXT_TYPE_ech;
             s->ext.ech.attempted_cid = 0x00;
         }
     } else {
