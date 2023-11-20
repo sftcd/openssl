@@ -110,7 +110,7 @@ int ech_helper_get_ch_offsets(const unsigned char *ch, size_t ch_len,
         if (!PACKET_get_net_2(&pkt, &etype)
             || !PACKET_get_net_2(&pkt, &elen))
             return 1; /* see note above */
-        if (etype == TLSEXT_TYPE_ech13) {
+        if (etype == TLSEXT_TYPE_ech) {
             if (elen == 0)
                 return 0;
             *echoffset = PACKET_data(&pkt) - chstart - 4;
@@ -125,7 +125,7 @@ int ech_helper_get_ch_offsets(const unsigned char *ch, size_t ch_len,
         }
         if (!PACKET_get_bytes(&pkt, &pp_tmp, elen))
             return 1; /* see note above */
-        if (etype == TLSEXT_TYPE_ech13)
+        if (etype == TLSEXT_TYPE_ech)
             *inner = pp_tmp[0];
     }
     return 1;
@@ -196,7 +196,7 @@ int ech_helper_get_sh_offsets(const unsigned char *sh, size_t sh_len,
         if (!PACKET_get_net_2(&pkt, &etype)
             || !PACKET_get_net_2(&pkt, &elen))
             return 0;
-        if (etype == TLSEXT_TYPE_ech13) {
+        if (etype == TLSEXT_TYPE_ech) {
             if (elen == 0)
                 return 0;
             *echoffset = PACKET_data(&pkt) - shstart - 4;

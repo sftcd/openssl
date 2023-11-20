@@ -100,7 +100,7 @@ int ech_main(int argc, char **argv)
     char *extfile = NULL;
     unsigned char extvals[OSSL_ECH_MAX_ECHCONFIGEXT_LEN];
     size_t extlen = OSSL_ECH_MAX_ECHCONFIGEXT_LEN;
-    uint16_t ech_version = OSSL_ECH_DRAFT_13_VERSION;
+    uint16_t ech_version = OSSL_ECH_RFCXXXX_VERSION;
     uint16_t max_name_length = 0;
     OSSL_HPKE_SUITE hpke_suite = OSSL_HPKE_SUITE_DEFAULT;
     size_t echconfig_len = OSSL_ECH_MAX_ECHCONFIG_LEN;
@@ -187,9 +187,9 @@ int ech_main(int argc, char **argv)
      * Check ECH-specific inputs
      */
     switch (ech_version) {
-    case OSSL_ECH_DRAFT_13_VERSION: /* fall through */
+    case OSSL_ECH_RFCXXXX_VERSION: /* fall through */
     case 13:
-        ech_version = OSSL_ECH_DRAFT_13_VERSION;
+        ech_version = OSSL_ECH_RFCXXXX_VERSION;
         break;
     default:
         BIO_printf(bio_err, "Un-supported version (0x%04x)\n", ech_version);
