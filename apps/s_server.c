@@ -24,7 +24,6 @@
 #include <openssl/decoder.h>
 
 #ifndef OPENSSL_NO_ECH
-# include <openssl/ech.h>
 # ifndef PATH_MAX
 #  define PATH_MAX 4096
 # endif
