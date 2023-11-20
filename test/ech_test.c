@@ -8,7 +8,6 @@
  */
 
 #include <openssl/ssl.h>
-#include <openssl/ech.h>
 #include <openssl/hpke.h>
 #include "testutil.h"
 #include "helpers/ssltestlib.h"

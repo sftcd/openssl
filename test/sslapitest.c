@@ -34,10 +34,7 @@
 #include <openssl/x509v3.h>
 #include <openssl/dh.h>
 #include <openssl/engine.h>
-#ifndef OPENSSL_NO_ECH
-# include <openssl/ech.h>
-# include <openssl/hpke.h>
-#endif
+#include <openssl/hpke.h>
 
 #include "helpers/ssltestlib.h"
 #include "testutil.h"
