@@ -2181,11 +2181,7 @@ int tls_parse_ctos_ech(SSL_CONNECTION *s, PACKET *pkt, unsigned int context,
         return 1;
     }
     if (s->ext.ech.attempted_type != TLSEXT_TYPE_ech) {
-        /*
-         * the server really only knows draft-13 for ech_early_decrypt
-         * so it's an error to get here for any other version (for
-         * now)
-         */
+        /* if/when new versions of ECH are added we'll update here */
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         return 0;
     }
@@ -2193,9 +2189,6 @@ int tls_parse_ctos_ech(SSL_CONNECTION *s, PACKET *pkt, unsigned int context,
      * we only allow "inner" which is one octet, valued 0x01
      * and only if we decrypted ok or are a backend
      */
-    OSSL_TRACE_BEGIN(TLS) {
-        BIO_printf(trc_out,"draft-13 ECH seen in inner as exptected.\n");
-    } OSSL_TRACE_END(TLS);
     if (PACKET_get_1(pkt, &echtype) != 1) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         return 0;
@@ -2213,6 +2206,9 @@ int tls_parse_ctos_ech(SSL_CONNECTION *s, PACKET *pkt, unsigned int context,
         return 0;
     }
     /* yay - we're ok with this */
+    OSSL_TRACE_BEGIN(TLS) {
+        BIO_printf(trc_out,"ECH seen in inner as exptected.\n");
+    } OSSL_TRACE_END(TLS);
     return 1;
 }
 

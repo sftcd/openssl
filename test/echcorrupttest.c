@@ -463,7 +463,7 @@ static TEST_SH test_shs[] = {
 
     /* 3. GREASE and trigger HRR */
     {OSSL_ECH_BORK_HRR | OSSL_ECH_BORK_GREASE,
-     NULL, 0, 0, SSL_R_BAD_EXTENSION},
+     NULL, 0, 1, SSL_ERROR_NONE},
 
     /* 4. flip bits in SH.random ECH confirmation value */
     {OSSL_ECH_BORK_FLIP, NULL, 0, 0,
