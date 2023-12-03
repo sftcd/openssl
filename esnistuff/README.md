@@ -22,6 +22,12 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
+- 20231203: fixed issue with GREASE+HRR, rebased apaceh, haproxy, nginx, lighttpd 
+  (in recent days), started moving ``esnistuff`` content to a new defo-project]
+[ech-dev-utils](https://github.com/defo-project/ech-dev-utils) repo, as stuff
+from here won't be part of our (soon upcoming!) ECH PR to upstream openssl.
+(Also refactoring howtos and test configs/scripts over there quite a bit.)
+
 - 20231120: changes to constants related to early IANA codepoint allocation
 
 - 20231118: rebased again
