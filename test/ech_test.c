@@ -1554,6 +1554,42 @@ static int ech_grease_test(int idx)
         TEST_info("client status %d, %s, %s", clientstatus, cinner, couter);
     if (!TEST_int_eq(clientstatus, SSL_ECH_STATUS_SUCCESS))
         goto end;
+    /* 3rd connection - this time grease+HRR which had a late fail */
+    OPENSSL_free(sinner);
+    OPENSSL_free(souter);
+    OPENSSL_free(cinner);
+    OPENSSL_free(couter);
+    sinner = souter = cinner = couter = NULL;
+    SSL_shutdown(clientssl);
+    SSL_shutdown(serverssl);
+    SSL_free(serverssl);
+    SSL_free(clientssl);
+    serverssl = clientssl = NULL;
+    if (!TEST_true(create_ssl_objects(sctx, cctx, &serverssl,
+                                      &clientssl, NULL, NULL)))
+        goto end;
+    /* force GREASE+HRR */
+    if (!TEST_true(SSL_set_options(clientssl, SSL_OP_ECH_GREASE)))
+        goto end;
+    if (!TEST_true(SSL_set1_groups_list(serverssl, "P-384")))
+        goto end;
+    if (!TEST_true(SSL_set_tlsext_host_name(clientssl, "server.example")))
+        goto end;
+    if (!TEST_true(create_ssl_connection(serverssl, clientssl,
+                                         SSL_ERROR_NONE)))
+        goto end;
+    serverstatus = SSL_ech_get_status(serverssl, &sinner, &souter);
+    if (verbose)
+        TEST_info("server status %d, %s, %s", serverstatus, sinner, souter);
+    if (!TEST_int_eq(serverstatus, SSL_ECH_STATUS_SUCCESS))
+        goto end;
+    /* override cert verification */
+    SSL_set_verify_result(clientssl, X509_V_OK);
+    clientstatus = SSL_ech_get_status(clientssl, &cinner, &couter);
+    if (verbose)
+        TEST_info("client status %d, %s, %s", clientstatus, cinner, couter);
+    if (!TEST_int_eq(clientstatus, SSL_ECH_STATUS_SUCCESS))
+        goto end;
     /* all good */
     res = 1;
 end:

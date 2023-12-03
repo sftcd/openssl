@@ -502,7 +502,7 @@ static int ech_guess_fmt(size_t eklen, const unsigned char *rrval,
     }
     /*
      * check for HTTPS RR DNS wire format - we'll go with that if
-     * the buffer starts with a two octet priority and then a 
+     * the buffer starts with a two octet priority and then a
      * wire-format encoded DNS name, but not if we think it's a
      */
     cp += 2;
@@ -2546,8 +2546,33 @@ static int ech_decode_inbound_ech(SSL_CONNECTION *s, PACKET *pkt,
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         goto err;
     } else if (pval_tmp > 0 && s->hello_retry_request == SSL_HRR_PENDING) {
-        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
-        goto err;
+        unsigned char *tmpenc = NULL;
+        /*
+         * if doing HRR, client should only send this when GREASEing
+         * and it should be the same value as 1st time, so we'll check
+         * that
+         */
+        if (s->ext.ech.pub == NULL || s->ext.ech.pub_len == 0) {
+            SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+            goto err;
+        }
+        if (pval_tmp != s->ext.ech.pub_len) {
+            SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+            goto err;
+        }
+        tmpenc = OPENSSL_malloc(pval_tmp);
+        if (tmpenc == NULL)
+            goto err;
+        if (!PACKET_copy_bytes(pkt, tmpenc, pval_tmp)) {
+            SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+            goto err;
+        }
+        if (memcmp(tmpenc, s->ext.ech.pub, pval_tmp)) {
+            OPENSSL_free(tmpenc);
+            SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+            goto err;
+        }
+        OPENSSL_free(tmpenc);
     } else if (pval_tmp == 0 && s->hello_retry_request == SSL_HRR_PENDING) {
         if (s->ext.ech.pub == NULL || s->ext.ech.pub_len == 0) {
             SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
