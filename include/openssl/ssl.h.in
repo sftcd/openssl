@@ -432,17 +432,24 @@ typedef int (*SSL_async_callback_fn)(SSL *s, void *arg);
 #define SSL_OP_PREFER_NO_DHE_KEX                         SSL_OP_BIT(35)
 
 #ifndef OPENSSL_NO_ECH
-
-/* set this to tell client to emit greased ECH values */
-#define SSL_OP_ECH_GREASE                               SSL_OP_BIT(36)
-/* If this is set then the server side will attempt trial decryption */
-/* of ECHs even if there is no matching record_digest. That's a bit  */
-/* inefficient, but more privacy friendly */
-
-#define SSL_OP_ECH_TRIALDECRYPT                         SSL_OP_BIT(37)
-/* IF set, clients will ignore the supplied ECH config_id and replace 
- * that with a random value */
-#define SSL_OP_ECH_IGNORE_CID                           SSL_OP_BIT(38)
+    /* Set this to tell client to emit greased ECH values */
+# define SSL_OP_ECH_GREASE                               SSL_OP_BIT(36)
+/*
+ * If this is set then the server side will attempt trial decryption
+ * of ECHs even if there is no matching ECH config_id. That's a bit
+ * inefficient, but more privacy friendly.
+ */
+# define SSL_OP_ECH_TRIALDECRYPT                         SSL_OP_BIT(37)
+/*
+ * If set, clients will ignore the supplied ECH config_id and replace 
+ * that with a random value.
+ */
+# define SSL_OP_ECH_IGNORE_CID                           SSL_OP_BIT(38)
+/*
+ * If set, servers will add GREASEy ECHConfig values to those sent
+ * in retry_configs.
+ */
+# define SSL_OP_ECH_GREASE_RETRY_CONFIG                  SSL_OP_BIT(39)
 #endif
 
 
