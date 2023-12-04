@@ -1,4 +1,18 @@
-# Things to do for an ECH PR
+
+# Notes after PR posted
+
+This is just a place for notes after the
+[ECH PR](https://github.com/openssl/openssl/pull/22938) was posted on
+2023-12-04.
+
+- 2023-12-04: It looks like ``test/ech_split_mode`` should be renamed e.g. to
+  ``test/ech_split_test`` or similar to match the ``test/*test`` line in
+``.gitignore``. Will do that once I have other stuff to do.
+
+# Preparation: Things to do for an ECH PR
+
+Text below was written in preparation for the ECH PR which has now been
+posted.
 
 Our current branch (ECH-draft-13c) isn't quite right for using to make a
 PR for ECH.
