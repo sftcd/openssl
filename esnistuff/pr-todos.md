@@ -9,6 +9,17 @@ This is just a place for notes after the
   ``test/ech_split_test`` or similar to match the ``test/*test`` line in
 ``.gitignore``. Will do that once I have other stuff to do.
 
+- 2023-12-05: with haproxy split-mode+HRR we end up calling 
+  ``SSL_CTX_ech_raw_decrypt()`` too many times (probably a flaw in our
+  haproxy integration where we're calling this also for the CH sent from
+  FE to BE after initial decryption - but that's a haproxy issue). The 
+  issue for OpenSSL is that before really trying decrypting, we check
+  there's no outstanding OpenSSL errors first and fail if there were.
+  (Done in ``ssl/ech.c:2220`` via a call to ``ERR_peek_erro()``.)
+  Could be that we could do better inside the library, e.g. by 
+  checking for new errors or something rather than having to clear
+  all of 'em in haproxy before attempting decryption.
+
 # Preparation: Things to do for an ECH PR
 
 Text below was written in preparation for the ECH PR which has now been
