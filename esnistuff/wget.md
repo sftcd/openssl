@@ -7,7 +7,8 @@ Now we've made progress with curl, maybe worth looking at wget again.  wget2
 seems to have developed some since we last looked and does now have an OpenSSL
 option, so we'll start there.  Not clear that this'll go anywhere yet though...
 
-I created a fork of wget2 at https://gitlab.com/sftcd/wget2
+wget2 source is at https://gitlab.com/gnuwget/wget2 and I have a fork at
+https://gitlab.com/sftcd/wget2
 
 So to start with:
 

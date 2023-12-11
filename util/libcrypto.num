@@ -5788,3 +5788,4 @@ OSSL_HPKE_CTX_set1_ikme                 ?	3_1_0	EXIST::FUNCTION:
 OSSL_HPKE_get_grease_value              ?	3_2_0	EXIST::FUNCTION:
 OSSL_HPKE_get_ciphertext_size           ?	3_2_0	EXIST::FUNCTION:
 OSSL_HPKE_get_public_encap_size         ?	3_2_0	EXIST::FUNCTION:
+EVP_DigestSqueeze                       ?	3_3_0	EXIST::FUNCTION:
