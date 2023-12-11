@@ -97,7 +97,6 @@ providers/common/include/prov/der_sm2.h
 /test/gost2814789t
 /test/ssltest_old
 /test/*test
-/test/ech_split_mode
 /test/fips_aesavs
 /test/fips_desmovs
 /test/fips_dhvs

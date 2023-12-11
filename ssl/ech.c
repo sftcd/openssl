@@ -2673,6 +2673,10 @@ static int get_md_from_hs(SSL_CONNECTION *s, EVP_MD **rmd,
     cipheroffset = extoffset - 3;
     cipherchars = &shbuf[cipheroffset];
     c = ssl_get_cipher_by_char(s, cipherchars, 0);
+    if (c == NULL) { /* fuzzer fix */
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_R_ECH_REQUIRED);
+        return 0;
+    }
     md = (EVP_MD *)ssl_md(s->ssl.ctx, c->algorithm2);
     if (md == NULL) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
