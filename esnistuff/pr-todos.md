@@ -8,7 +8,7 @@ This is just a place for notes after the
 - DONE 2023-12-11: Fuzzer (in ~/code/openssl-fuzz) finds crash caused
   [here](https://github.com/sftcd/openssl/blob/ECH-draft-13c/ssl/ech.c#L2675)
   as pointer ``c`` isn't checked for NULL before de-reference on next line.
-  Moar fuzzing to follow!
+  Moar fuzzing follows (in-work).
 
 - DONE 2023-12-06: [review
   comment](https://github.com/openssl/openssl/pull/22938#pullrequestreview-1767215068):

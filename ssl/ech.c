@@ -403,17 +403,18 @@ static int local_decode_rdata_name(unsigned char **buf, size_t *remaining,
     cp = *buf;
     tp = thename;
     clen = *cp++;
+    rem -= 1;
     if (clen == 0) {
         /* special case - return "." as name */
         thename[0] = '.';
         thename[1] = 0x00;
     }
-    while (clen != 0) {
+    while (clen != 0 && rem > 0) {
         if (clen > rem) {
             OPENSSL_free(thename);
             return 0;
         }
-        if (((tp - thename) + clen) > TLSEXT_MAXLEN_host_name) {
+        if (((tp - thename) + clen + 1) > TLSEXT_MAXLEN_host_name) {
             OPENSSL_free(thename);
             return 0;
         }
@@ -425,7 +426,7 @@ static int local_decode_rdata_name(unsigned char **buf, size_t *remaining,
         clen = *cp++;
     }
     *buf = cp;
-    *remaining = rem - 1;
+    *remaining = rem;
     *dnsname = thename;
     return 1;
 }
@@ -450,7 +451,7 @@ static int ech_guess_fmt(size_t eklen, const unsigned char *rrval,
 {
     size_t span = 0;
     char *dnsname = NULL;
-    unsigned char *cp = NULL;
+    unsigned char *cp = NULL, *rdin = NULL;
     size_t remaining;
 
     /*
@@ -465,55 +466,65 @@ static int ech_guess_fmt(size_t eklen, const unsigned char *rrval,
      */
     if (eklen <= 2)
         return 0;
-    cp = (unsigned char*)rrval;
+    cp = OPENSSL_malloc(eklen + 1);
+    if (cp == NULL)
+        return 0;
+    memcpy(cp, rrval, eklen);
+    cp[eklen] = '\0'; /* make sure string funcs have a NUL terminator */
     if (eklen > 4
         && eklen == ((size_t)(cp[0])*256+(size_t)(cp[1])) + 2
         && cp[3] == ((OSSL_ECH_RFCXXXX_VERSION / 256) & 0xff)
         && cp[4] == ((OSSL_ECH_RFCXXXX_VERSION % 256) & 0xff)) {
         *guessedfmt = OSSL_ECH_FMT_BIN;
-        return 1;
+        goto win;
     }
     if (eklen < strlen(unknownformat_telltale))
-        return 0;
-    if (!strncmp((char *)rrval, unknownformat_telltale,
+        goto err;
+    if (!strncmp((char *)cp, unknownformat_telltale,
                  strlen(unknownformat_telltale))) {
         *guessedfmt = OSSL_ECH_FMT_DIG_UNK;
-        return 1;
+        goto win;
     }
-    if (strstr((char *)rrval, httpssvc_telltale1)) {
+    if (strstr((char *)cp, httpssvc_telltale1)) {
         *guessedfmt = OSSL_ECH_FMT_HTTPSSVC;
-        return 1;
+        goto win;
     }
-    if (strstr((char *)rrval, httpssvc_telltale2)
-        || strstr((char *)rrval, httpssvc_telltale3)
-        || strstr((char *)rrval, httpssvc_telltale4)) {
+    if (strstr((char *)cp, httpssvc_telltale2)
+        || strstr((char *)cp, httpssvc_telltale3)
+        || strstr((char *)cp, httpssvc_telltale4)) {
         *guessedfmt = OSSL_ECH_FMT_HTTPSSVC_NO_ECH;
-        return 1;
+        goto win;
     }
-    span = strspn((char *)rrval, AH_alphabet);
+    span = strspn((char *)cp, AH_alphabet);
     if (eklen <= span) {
         *guessedfmt = OSSL_ECH_FMT_ASCIIHEX;
-        return 1;
+        goto win;
     }
-    span = strspn((char *)rrval, B64_alphabet);
+    span = strspn((char *)cp, B64_alphabet);
     if (eklen <= span) {
         *guessedfmt = OSSL_ECH_FMT_B64TXT;
-        return 1;
+        goto win;
     }
     /*
      * check for HTTPS RR DNS wire format - we'll go with that if
      * the buffer starts with a two octet priority and then a
-     * wire-format encoded DNS name, but not if we think it's a
+     * wire-format encoded DNS name
      */
-    cp += 2;
+    rdin = cp + 2;
     remaining = eklen - 2;
-    if (local_decode_rdata_name(&cp, &remaining, &dnsname) == 1) {
+    if (local_decode_rdata_name(&rdin, &remaining, &dnsname) == 1) {
         *guessedfmt = OSSL_ECH_FMT_DNS_WIRE;
         OPENSSL_free(dnsname);
-        return 1;
+        goto win;
     }
     /* fallback - try binary */
     *guessedfmt = OSSL_ECH_FMT_BIN;
+    goto win;
+err:
+    OPENSSL_free(cp);
+    return 0;
+win:
+    OPENSSL_free(cp);
     return 1;
 }
 
