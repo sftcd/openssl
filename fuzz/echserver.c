@@ -24,7 +24,7 @@
 #include <openssl/dh.h>
 #include <openssl/err.h>
 #include "fuzzer.h"
-#if !defined(OPENSSL_NO_ECH) && !defined(OPENSSL_NO_EC)
+#if !defined(OPENSSL_NO_ECH) && !defined(OPENSSL_NO_EC) && !defined(OPENSSL_NO_ECX)
 # include <internal/ech_helpers.h>
 #endif
 
@@ -492,7 +492,7 @@ static int idx;
 time_t time(time_t *t) TIME_IMPL(t)
 #endif
 
-#if !defined(OPENSSL_NO_ECH) && !defined(OPENSSL_NO_EC)
+#if !defined(OPENSSL_NO_ECH) && !defined(OPENSSL_NO_EC) && !defined(OPENSSL_NO_ECX)
 static unsigned char s_echconfig[400];
 static size_t s_echconfiglen = sizeof(s_echconfig);
 static unsigned char config_id = 0;
@@ -513,7 +513,7 @@ static size_t hpke_infolen = 0;
 int FuzzerInitialize(int *argc, char ***argv)
 {
     STACK_OF(SSL_COMP) *comp_methods;
-#if !defined(OPENSSL_NO_ECH) && !defined(OPENSSL_NO_EC)
+#if !defined(OPENSSL_NO_ECH) && !defined(OPENSSL_NO_EC) && !defined(OPENSSL_NO_ECX)
     static unsigned char *bin_echconfig;
     static size_t bin_echconfiglen = 0;
 #endif
@@ -528,7 +528,7 @@ int FuzzerInitialize(int *argc, char ***argv)
     if (comp_methods != NULL)
         sk_SSL_COMP_sort(comp_methods);
 
-#if !defined(OPENSSL_NO_ECH) && !defined(OPENSSL_NO_EC)
+#if !defined(OPENSSL_NO_ECH) && !defined(OPENSSL_NO_EC) && !defined(OPENSSL_NO_ECX)
     if (ossl_ech_make_echconfig(s_echconfig, &s_echconfiglen,
                                 priv, &privlen,
                                 ech_version, max_name_length,
@@ -563,7 +563,7 @@ int FuzzerInitialize(int *argc, char ***argv)
     return 1;
 }
 
-#if !defined(OPENSSL_NO_ECH) && !defined(OPENSSL_NO_EC)
+#if !defined(OPENSSL_NO_ECH) && !defined(OPENSSL_NO_EC) && !defined(OPENSSL_NO_ECX)
 /*
  * We'll use the left-half of the input buffer as the 
  * outer CH, HPKE encrypt the right-half and add that
@@ -690,7 +690,7 @@ int FuzzerTestOneInput(const uint8_t *buf, size_t len)
     DSA *dsakey = NULL;
 #endif
     uint8_t opt;
-#if !defined(OPENSSL_NO_ECH) && !defined(OPENSSL_NO_EC)
+#if !defined(OPENSSL_NO_ECH) && !defined(OPENSSL_NO_EC) && !defined(OPENSSL_NO_ECX)
     unsigned char *msgout = NULL;
     size_t msgoutlen = 0;
 #endif
@@ -709,7 +709,7 @@ int FuzzerTestOneInput(const uint8_t *buf, size_t len)
     opt = (uint8_t)buf[len-1];
     len--;
 
-#if !defined(OPENSSL_NO_ECH) && !defined(OPENSSL_NO_EC)
+#if !defined(OPENSSL_NO_ECH) && !defined(OPENSSL_NO_EC) && !defined(OPENSSL_NO_ECX)
     if ((opt & 0x02) != 0) {
         /* half the time we'll fuzz the enable_buffer call */
         ret = SSL_CTX_ech_server_enable_buffer(ctx, (unsigned char *)buf,
@@ -802,7 +802,7 @@ int FuzzerTestOneInput(const uint8_t *buf, size_t len)
     SSL_set_bio(server, in, out);
     SSL_set_accept_state(server);
 
-#if !defined(OPENSSL_NO_ECH) && !defined(OPENSSL_NO_EC)
+#if !defined(OPENSSL_NO_ECH) && !defined(OPENSSL_NO_EC) && !defined(OPENSSL_NO_ECX)
     ret = make_ch_with_ech(&msgout, &msgoutlen, buf, len);
     OPENSSL_assert(ret == 1);
     OPENSSL_assert((size_t)BIO_write(in, msgout, msgoutlen) == msgoutlen);
@@ -841,7 +841,7 @@ int FuzzerTestOneInput(const uint8_t *buf, size_t len)
 
 void FuzzerCleanup(void)
 {
-#if !defined(OPENSSL_NO_ECH) && !defined(OPENSSL_NO_EC)
+#if !defined(OPENSSL_NO_ECH) && !defined(OPENSSL_NO_EC) && !defined(OPENSSL_NO_ECX)
     OPENSSL_free(hpke_info);
 #endif
     FuzzerClearRand();
