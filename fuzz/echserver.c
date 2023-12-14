@@ -575,7 +575,6 @@ static int make_ch_with_ech(unsigned char **out, size_t *outlen,
                             const unsigned char *in, size_t inlen)
 {
     int res = 0;
-    OSSL_HPKE_SUITE hpke_suite = OSSL_HPKE_SUITE_DEFAULT;
     OSSL_HPKE_CTX *hctx = NULL;
     unsigned char *mypub = NULL;
     static size_t mypublen = 0;
