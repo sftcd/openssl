@@ -59,7 +59,7 @@ int FuzzerTestOneInput(const uint8_t *buf, size_t len)
     BIO *in;
     BIO *out;
     SSL_CTX *ctx;
-#ifndef OPENSSL_NO_ECH
+#if !defined(OPENSSL_NO_ECH) && !defined(OPENSSL_NO_EC)
     unsigned char *echconfig = (unsigned char *)buf + len / 2;
 #endif
 
@@ -77,7 +77,7 @@ int FuzzerTestOneInput(const uint8_t *buf, size_t len)
     OPENSSL_assert(SSL_set_min_proto_version(client, 0) == 1);
     OPENSSL_assert(SSL_set_cipher_list(client, "ALL:eNULL:@SECLEVEL=0") == 1);
     SSL_set_tlsext_host_name(client, "localhost");
-#ifndef OPENSSL_NO_ECH
+#if !defined(OPENSSL_NO_ECH) && !defined(OPENSSL_NO_EC)
     if (SSL_ech_set1_echconfig(client, echconfig, len / 2) != 1)
         goto end;
 #endif
