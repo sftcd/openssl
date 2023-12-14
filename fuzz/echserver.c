@@ -563,6 +563,7 @@ int FuzzerInitialize(int *argc, char ***argv)
     return 1;
 }
 
+#if !defined(OPENSSL_NO_ECH) && !defined(OPENSSL_NO_EC)
 /*
  * We'll use the left-half of the input buffer as the 
  * outer CH, HPKE encrypt the right-half and add that
@@ -659,6 +660,7 @@ err:
     OSSL_HPKE_CTX_free(hctx);
     return res;
 }
+#endif
 
 int FuzzerTestOneInput(const uint8_t *buf, size_t len)
 {
