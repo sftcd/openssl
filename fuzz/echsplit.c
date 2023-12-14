@@ -40,7 +40,7 @@ static int idx;
 time_t time(time_t *t) TIME_IMPL(t)
 #endif
 
-#if !defined(OPENSSL_NO_ECH) && !defined(OPENSSL_NO_EC)
+#if !defined(OPENSSL_NO_ECH) && !defined(OPENSSL_NO_EC) && !defined(OPENSSL_NO_ECX)
 static unsigned char s_echconfig[400];
 static size_t s_echconfiglen = sizeof(s_echconfig);
 static unsigned char priv[200];
@@ -69,7 +69,7 @@ int FuzzerInitialize(int *argc, char ***argv)
     if (comp_methods != NULL)
         sk_SSL_COMP_sort(comp_methods);
 
-#if !defined(OPENSSL_NO_ECH) && !defined(OPENSSL_NO_EC)
+#if !defined(OPENSSL_NO_ECH) && !defined(OPENSSL_NO_EC) && !defined(OPENSSL_NO_ECX)
     if (ossl_ech_make_echconfig(s_echconfig, &s_echconfiglen,
                                 priv, &privlen,
                                 ech_version, max_name_length,
@@ -89,7 +89,7 @@ int FuzzerTestOneInput(const uint8_t *buf, size_t len)
 {
     SSL_CTX *ctx;
     int ret;
-#if !defined(OPENSSL_NO_ECH) && !defined(OPENSSL_NO_EC)
+#if !defined(OPENSSL_NO_ECH) && !defined(OPENSSL_NO_EC) && !defined(OPENSSL_NO_ECX)
     unsigned char *inner = NULL;
     size_t innerlen = 0;
     char *inner_sni = NULL, *outer_sni = NULL;
@@ -107,7 +107,7 @@ int FuzzerTestOneInput(const uint8_t *buf, size_t len)
     ret = SSL_CTX_set_cipher_list(ctx, "ALL:eNULL:@SECLEVEL=0");
     OPENSSL_assert(ret == 1);
 
-#if !defined(OPENSSL_NO_ECH) && !defined(OPENSSL_NO_EC)
+#if !defined(OPENSSL_NO_ECH) && !defined(OPENSSL_NO_EC) && !defined(OPENSSL_NO_ECX)
     ret = SSL_CTX_ech_server_enable_buffer(ctx, (unsigned char *)echkeybuf,
                                            echkeybuflen, SSL_ECH_USE_FOR_RETRY);
     OPENSSL_assert(ret == 1);

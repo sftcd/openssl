@@ -59,9 +59,9 @@ int FuzzerTestOneInput(const uint8_t *buf, size_t len)
     BIO *in;
     BIO *out;
     SSL_CTX *ctx;
-#if !defined(OPENSSL_NO_ECH) && !defined(OPENSSL_NO_EC)
+#if !defined(OPENSSL_NO_ECH) && !defined(OPENSSL_NO_EC) && !defined(OPENSSL_NO_ECX)
 /*
- * This ECHConfigList has 6 entries with different versions,
+ * This ECHConfigList has 6 entries wit ,
  * [13,10,9,13,10,13] - since our runtime no longer supports
  * version 9 or 10, we should see 3 configs loaded.
  */
@@ -91,7 +91,7 @@ static const char echconfig[] =
     OPENSSL_assert(SSL_set_min_proto_version(client, 0) == 1);
     OPENSSL_assert(SSL_set_cipher_list(client, "ALL:eNULL:@SECLEVEL=0") == 1);
     SSL_set_tlsext_host_name(client, "localhost");
-#if !defined(OPENSSL_NO_ECH) && !defined(OPENSSL_NO_EC)
+#if !defined(OPENSSL_NO_ECH) && !defined(OPENSSL_NO_EC) && !defined(OPENSSL_NO_ECX)
     OPENSSL_assert(SSL_ech_set1_echconfig(client, (unsigned char *)echconfig,
                                           strlen(echconfig)) == 1);
 #endif
