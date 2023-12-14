@@ -41,18 +41,18 @@ time_t time(time_t *t) TIME_IMPL(t)
 #endif
 
 #ifndef OPENSSL_NO_ECH
-unsigned char s_echconfig[400];
-size_t s_echconfiglen = sizeof(s_echconfig);
-unsigned char priv[200];
-size_t privlen = sizeof(priv);
-uint16_t ech_version = OSSL_ECH_RFCXXXX_VERSION;
-uint16_t max_name_length = 0;
-char *public_name = "example.com";
-OSSL_HPKE_SUITE hpke_suite = OSSL_HPKE_SUITE_DEFAULT;
-unsigned char *extvals = NULL;
-size_t extlen = 0;
-char echkeybuf[1000];
-size_t echkeybuflen = sizeof(echkeybuf);
+static unsigned char s_echconfig[400];
+static size_t s_echconfiglen = sizeof(s_echconfig);
+static unsigned char priv[200];
+static size_t privlen = sizeof(priv);
+static uint16_t ech_version = OSSL_ECH_RFCXXXX_VERSION;
+static uint16_t max_name_length = 0;
+static char *public_name = "example.com";
+static OSSL_HPKE_SUITE hpke_suite = OSSL_HPKE_SUITE_DEFAULT;
+static unsigned char *extvals = NULL;
+static size_t extlen = 0;
+static char echkeybuf[1000];
+static size_t echkeybuflen = sizeof(echkeybuf);
 #endif
 
 int FuzzerInitialize(int *argc, char ***argv)
