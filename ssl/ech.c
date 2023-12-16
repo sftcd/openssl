@@ -623,7 +623,6 @@ static int ech_decode_echconfig_exts(ECHConfig *ec, PACKET *exts)
         extval = NULL;
         tip = lip = NULL;
         vip = NULL;
-        ec->nexts += 1;
         if (!PACKET_get_net_2(exts, &exttype)
             || !PACKET_get_net_2(exts, &extlen)
             || extlen >= OSSL_ECH_MAX_ECHCONFIGEXT_LEN) {
@@ -640,24 +639,25 @@ static int ech_decode_echconfig_exts(ECHConfig *ec, PACKET *exts)
             }
         }
         /* assign fields to lists, have to realloc */
-        tip = (unsigned int *)OPENSSL_realloc(ec->exttypes, ec->nexts
+        tip = (unsigned int *)OPENSSL_realloc(ec->exttypes, (ec->nexts + 1)
                                               * sizeof(ec->exttypes[0]));
         if (tip == NULL)
             goto err;
         ec->exttypes = tip;
-        ec->exttypes[ec->nexts - 1] = exttype;
-        lip = (unsigned int *)OPENSSL_realloc(ec->extlens, ec->nexts
+        ec->exttypes[ec->nexts] = exttype;
+        lip = (unsigned int *)OPENSSL_realloc(ec->extlens, (ec->nexts + 1)
                                               * sizeof(ec->extlens[0]));
         if (lip == NULL)
             goto err;
         ec->extlens = lip;
-        ec->extlens[ec->nexts - 1] = extlen;
-        vip = (unsigned char **)OPENSSL_realloc(ec->exts, ec->nexts
+        ec->extlens[ec->nexts] = extlen;
+        vip = (unsigned char **)OPENSSL_realloc(ec->exts, (ec->nexts + 1)
                                                 * sizeof(unsigned char *));
         if (vip == NULL)
             goto err;
         ec->exts = vip;
-        ec->exts[ec->nexts - 1] = extval;
+        ec->exts[ec->nexts] = extval;
+        ec->nexts += 1;
     }
     return 1;
 err:
