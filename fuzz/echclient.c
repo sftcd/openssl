@@ -91,7 +91,7 @@ int FuzzerTestOneInput(const uint8_t *buf, size_t len)
     }
     SSL_set_bio(client, in, out);
     SSL_set_connect_state(client);
-    OPENSSL_assert((size_t)BIO_write(in, buf, len / 2) == len);
+    OPENSSL_assert((size_t)BIO_write(in, buf, len / 2) == (len / 2));
     if (SSL_do_handshake(client) == 1) {
         /* Keep reading application data until error or EOF. */
         uint8_t tmp[1024];
