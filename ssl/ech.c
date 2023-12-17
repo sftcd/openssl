@@ -784,6 +784,11 @@ static int ECHConfigList_from_binary(unsigned char *binbuf, size_t binblen,
             ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
             goto err;
         }
+        /* the length of one ECHConfig can't be more than that of the list */
+        if (ech_content_length >= olen) {
+            ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
+            goto err;
+        }
         remaining = PACKET_remaining(&pkt);
         if (ech_content_length > (remaining + 2)) {
             ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
