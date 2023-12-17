@@ -713,6 +713,12 @@ static int ech_final_config_checks(ECHConfig *ec)
             return 0;
         }
     }
+    /* check public_name rules, as per draft section 4 */
+    if (ec->public_name == NULL
+        || ec->public_name_len == 0
+        || ec->public_name[0] == '.'
+        || ec->public_name[ec->public_name_len - 1] == '.')
+        return 0;
     return 1;
 }
 
@@ -1713,7 +1719,10 @@ static int ECHConfigList_print(BIO *out, ECHConfigList *c)
         }
         /* version, config_id, public_name, and kem */
         BIO_printf(out, "[%04x,%02x,%s,%04x,[", c->recs[i].version,
-                   c->recs[i].config_id, c->recs[i].public_name,
+                   c->recs[i].config_id,
+                   c->recs[i].public_name != NULL
+                       ? (char *)c->recs[i].public_name
+                       : "NULL",
                    c->recs[i].kem_id);
         /* ciphersuites */
         for (j = 0; j != c->recs[i].nsuites; j++) {
@@ -4068,7 +4077,8 @@ int ech_pick_matching_cfg(SSL_CONNECTION *s, ECHConfig **tc,
         } else {
             namematch = 0;
             if (hnlen == 0
-                || (ltc->public_name_len == hnlen
+                || (ltc->public_name != NULL
+                    && ltc->public_name_len == hnlen
                     && !OPENSSL_strncasecmp(hn, (char *)ltc->public_name,
                                             hnlen))) {
                 namematch = 1;
@@ -4667,11 +4677,11 @@ int OSSL_ECH_INFO_print(BIO *out, OSSL_ECH_INFO *se, int count)
         BIO_printf(out, "index: %d: SNI (inner:%s;outer:%s), "
                    "ALPN (inner:%s;outer:%s)\n\t%s\n",
                    i,
-                   se[i].inner_name ? se[i].inner_name : "NULL",
-                   se[i].public_name ? se[i].public_name : "NULL",
-                   se[i].inner_alpns ? se[i].inner_alpns : "NULL",
-                   se[i].outer_alpns ? se[i].outer_alpns : "NULL",
-                   se[i].echconfig ? se[i].echconfig : "NULL");
+                   se[i].inner_name != NULL ? se[i].inner_name : "NULL",
+                   se[i].public_name != NULL ? se[i].public_name : "NULL",
+                   se[i].inner_alpns != NULL ? se[i].inner_alpns : "NULL",
+                   se[i].outer_alpns != NULL ? se[i].outer_alpns : "NULL",
+                   se[i].echconfig != NULL ? se[i].echconfig : "NULL");
     }
     return 1;
 }
