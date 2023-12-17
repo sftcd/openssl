@@ -406,6 +406,15 @@ static const unsigned char echconfig_bad_then_good[] =
     "960fd02c697360163c00040001000100"
     "0b6578616d706c652e636f6d0000";
 
+/*
+ * An ECHConfigList produced by fuzzer. Unclear so far
+ * what's up.
+ */
+static const unsigned char echconfig_bad_fuzz1[] =
+    "AD7+DQA6uAAgACAogff+HZbirYdQCfXI"
+    "01GBPP8AEKYyK/D/0DoeXD84fgAQAAEA"
+    "AQgLZXhhbUNwbGUuYwYAAAAAQwA=";
+
 # ifndef __STRICT_ANSI__
 /*
  * output from ``dig +short https defo.ie``  (2 ECHConfigs)
@@ -476,6 +485,7 @@ static TEST_ECHCONFIG test_echconfigs[] = {
     { bad_echconfig_aeadid, sizeof(bad_echconfig_aeadid) -1, 0, 0 },
     { bad_echconfig_aeadid_ff, sizeof(bad_echconfig_aeadid_ff) - 1, 0, 0 },
     { echconfig_bad_then_good, sizeof(echconfig_bad_then_good) - 1, 1, 1 },
+    { echconfig_bad_fuzz1, sizeof(echconfig_bad_fuzz1) - 1, 0, 0 },
 # ifndef __STRICT_ANSI__
     { echconfig_dig_multi_3, sizeof(echconfig_dig_multi_3) - 1, 4, 1 },
 # endif
