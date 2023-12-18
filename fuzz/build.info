@@ -70,7 +70,7 @@ IF[{- !$disabled{"fuzz-afl"} || !$disabled{"fuzz-libfuzzer"} -}]
   INCLUDE[echserver]=../include {- $ex_inc -}
   DEPEND[echserver]=../libcrypto ../libssl {- $ex_lib -}
 
-  SOURCE[echsplit]=echsplit.c driver.c fuzz_rand.c
+  SOURCE[echsplit]=echsplit.c ../ssl/ech_helpers.c driver.c fuzz_rand.c
   INCLUDE[echsplit]=../include {- $ex_inc -}
   DEPEND[echsplit]=../libcrypto ../libssl {- $ex_lib -}
 
@@ -222,7 +222,7 @@ IF[{- !$disabled{tests} -}]
   INCLUDE[echserver-test]=../include
   DEPEND[echserver-test]=../libcrypto ../libssl
 
-  SOURCE[echsplit-test]=echsplit.c test-corpus.c fuzz_rand.c
+  SOURCE[echsplit-test]=echsplit.c ../ssl/ech_helpers.c test-corpus.c fuzz_rand.c
   INCLUDE[echsplit-test]=../include
   DEPEND[echsplit-test]=../libcrypto ../libssl
 
