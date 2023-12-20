@@ -242,7 +242,7 @@ int FuzzerTestOneInput(const uint8_t *buf, size_t len)
     ret = SSL_CTX_ech_raw_decrypt(ctx, &dec_ok, &inner_sni, &outer_sni,
                                   (unsigned char *)msgout, msgoutlen,
                                   inner, &innerlen, NULL, NULL);
-    OPENSSL_assert(ret == 1);
+    /* ret can be zero with bad encodings */
     OPENSSL_free(msgout);
     OPENSSL_free(inner);
 #endif
