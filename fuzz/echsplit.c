@@ -239,9 +239,10 @@ int FuzzerTestOneInput(const uint8_t *buf, size_t len)
     OPENSSL_assert(inner != NULL);
     memset(inner, 0xAA, innerlen);
     /* so far, dec_ok will never happen, fix that in a bit */
-    SSL_CTX_ech_raw_decrypt(ctx, &dec_ok, &inner_sni, &outer_sni,
-                            (unsigned char *)msgout, msgoutlen,
-                            inner, &innerlen, NULL, NULL);
+    ret = SSL_CTX_ech_raw_decrypt(ctx, &dec_ok, &inner_sni, &outer_sni,
+                                  (unsigned char *)msgout, msgoutlen,
+                                  inner, &innerlen, NULL, NULL);
+    OPENSSL_assert(ret == 1);
     OPENSSL_free(msgout);
     OPENSSL_free(inner);
 #endif
