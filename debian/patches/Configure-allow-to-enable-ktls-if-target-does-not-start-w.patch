@@ -39,7 +39,7 @@ diff --git a/Configure b/Configure
 index cbba1749b5a3..a69068121949 100755
 --- a/Configure
 +++ b/Configure
-@@ -1765,7 +1765,7 @@ unless ($disabled{devcryptoeng}) {
+@@ -1766,7 +1766,7 @@ unless ($disabled{devcryptoeng}) {
  unless ($disabled{ktls}) {
      $config{ktls}="";
      my $cc = $config{CROSS_COMPILE}.$config{CC};
