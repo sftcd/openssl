@@ -3,5 +3,6 @@ usr/lib/*/libcrypto.so
 usr/lib/*/libssl.a
 usr/lib/*/libcrypto.a
 usr/lib/*/pkgconfig
+usr/lib/*/cmake
 usr/include/openssl/*
 usr/include/*/openssl

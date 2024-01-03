@@ -1,3 +1,12 @@
+openssl (3.3.0-0~1.gbp9f532ba7fd) UNRELEASED; urgency=medium
+
+  ** SNAPSHOT build @9f532ba7fd **
+
+  * Add DEfO patches
+  * Fix Debian patches and symbols
+
+ -- Jochen Sprickerhof <jspricke@debian.org>  Tue, 10 Oct 2023 16:36:40 +0200
+
 openssl (3.2.0-2) experimental; urgency=medium
 
   * Use generic target for riscv64.
