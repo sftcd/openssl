@@ -22,11 +22,16 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
-- 20231203: fixed issue with GREASE+HRR, rebased apaceh, haproxy, nginx, lighttpd 
-  (in recent days), started moving ``esnistuff`` content to a new defo-project]
-[ech-dev-utils](https://github.com/defo-project/ech-dev-utils) repo, as stuff
-from here won't be part of our (soon upcoming!) ECH PR to upstream openssl.
-(Also refactoring howtos and test configs/scripts over there quite a bit.)
+- 20240113: Rebased curl
+
+- 20240110: Rebased nginx again.
+
+- 20231203: fixed issue with GREASE+HRR, rebased apache, haproxy, nginx,
+  lighttpd (in recent days), started moving ``esnistuff`` content to a new
+defo-project] [ech-dev-utils](https://github.com/defo-project/ech-dev-utils)
+repo, as stuff from here won't be part of our (soon upcoming!) ECH PR to
+upstream openssl.  (Also refactoring howtos and test configs/scripts over there
+quite a bit.)
 
 - 20231120: changes to constants related to early IANA codepoint allocation
 
@@ -35,7 +40,7 @@ from here won't be part of our (soon upcoming!) ECH PR to upstream openssl.
 - 20231113: rebased again
 
 - 20231030: rebased again and cleaned up some of the gratuituous differences
-  between this and the ``masster`` branch, including:
+  between this and the ``master`` branch, including:
     - ``crypto/err/openssl.txt`` had some gratuituous differences that are
       probably merge hangovers
     - repetition of ``hpke`` in ``crypto/build.info``

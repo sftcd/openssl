@@ -390,13 +390,13 @@ static int local_decode_rdata_name(unsigned char **buf, size_t *remaining,
                                    char **dnsname)
 {
     unsigned char *cp = NULL;
-    size_t rem = 0;
+    int rem = 0;
     char *thename = NULL, *tp = NULL;
     unsigned char clen = 0; /* chunk len */
 
     if (buf == NULL || remaining == NULL || dnsname == NULL)
         return 0;
-    rem = *remaining;
+    rem = (int)*remaining;
     thename = OPENSSL_malloc(TLSEXT_MAXLEN_host_name);
     if (thename == NULL)
         return 0;
@@ -423,9 +423,17 @@ static int local_decode_rdata_name(unsigned char **buf, size_t *remaining,
         *tp++ = '.';
         cp += clen;
         rem -= (clen + 1);
+        if (rem <= 0) {
+            OPENSSL_free(thename);
+            return 0;
+        }
         clen = *cp++;
     }
     *buf = cp;
+    if (rem <= 0) {
+        OPENSSL_free(thename);
+        return 0;
+    }
     *remaining = rem;
     *dnsname = thename;
     return 1;
