@@ -22,6 +22,8 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
+- 20240119: rebased openssl again
+
 - 20240113: Rebased curl
 
 - 20240110: Rebased nginx again.
@@ -66,8 +68,22 @@ quite a bit.)
             $ git checkout master
             $ git reset --hard upstream/master
             $ git push origin master --force 
-            $ git checkout HPKE-PR
-            $ git rebase -i master HPKE-PR
+            $ git checkout ECH-draft-13c
+            $ git rebase -i master ECH-draft-13c
+            ... fix things...
+            $ git status
+            ... see <to-be-fixed-thing> needs an edit...
+            $ git add <to-be-fixed-thing>
+            $ git rebase --continue
+            ... 'till done ...
+            $ cp ~/code/openssl-master-clean/util/libcrypto.num util
+            $ cp ~/code/openssl-master-clean/util/libssl.num util
+            $ ./config -d
+            ...
+            $ make update
+            ...
+            $ make
+            ...
 
 - 20230511: I'm starting to try out split-mode with nginx,
   but it's early days (see [nginx.md](nginx.md) for more).
