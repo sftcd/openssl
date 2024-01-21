@@ -22,6 +22,9 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
+- 20240121: added an external test with openssl client vs boringssl
+  server
+
 - 20240119: adding a boringssl-based external test that uses the 
   ECH-enabled bssl client to test an ECH-enabled OpenSSL server.
   Useful for interop, but also to create a server-only ECH-PR

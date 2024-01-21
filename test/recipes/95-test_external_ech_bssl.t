@@ -22,7 +22,10 @@ plan skip_all => "External ECH tests only available in a shared build"
 plan skip_all => "External ECH tests not supported in out of tree builds"
     if bldtop_dir() ne srctop_dir();
 
-plan tests => 1;
+plan tests => 2;
 
 ok(run(cmd(["sh", data_file("ech_bssl_external.sh")])),
-   "running ECH external tests");
+   "running ECH client external tests");
+
+ok(run(cmd(["sh", data_file("ech_bssl_server_external.sh")])),
+   "running ECH server external tests");
