@@ -1,7 +1,5 @@
 #!/bin/sh
 
-# set -x 
-
 #
 # Copyright 2022-2023 The OpenSSL Project Authors. All Rights Reserved.
 #
@@ -44,7 +42,7 @@ httpreq="GET /stats HTTP/1.1\\r\\nConnection: close\\r\\nHost: $httphost\\r\\n\\
 BTOOL=$SRCTOP/boringssl/.local/bin
 
 echo "------------------------------------------------------------------"
-echo "Testing OpenSSL s_server using ECH-enabled boringssl client:"
+echo "Testing ECH-enabled boringssl server using s_client:"
 echo "   CWD:                 $PWD"
 echo "   SRCTOP:              $SRCTOP"
 echo "   BLDTOP:              $BLDTOP"
@@ -72,34 +70,40 @@ fi
 
 echo "   CWD:                $PWD"
 
-# Start an openssl s_server
-$SRCTOP/apps/openssl s_server \
+bssllist=`mktemp`
+bsslech=`mktemp`
+bsslkey=`mktemp`
+bsslpem=`mktemp`
+echo "Generating ECH keys for a bssl s_server."
+$BTOOL/bssl generate-ech -out-ech-config-list $bssllist \
+    -out-ech-config $bsslech -out-private-key $bsslkey \
+    -public-name example.com -config-id 222 -max-name-length 0
+res=$?
+# the b64 form is friendlier for s_client
+cat $bssllist | base64 -w0 >$bsslpem
+
+# Start a boringssl s_server
+$BTOOL/bssl s_server \
+    -accept 8443 \
     -key $SRCTOP/test/certs/echserver.key -cert $SRCTOP/test/certs/echserver.pem \
-    -key2 $SRCTOP/test/certs/echserver.key -cert2 $SRCTOP/test/certs/echserver.pem \
-    -CAfile $SRCTOP/test/certs/rootcert.pem \
-    -ech_key $ECHCONFIGFILE \
-    -port 8443  -tls1_3 -WWW \
-    -ign_eof -servername server.example &
+    -ech-config $bsslech -ech-key $bsslkey \
+    -www -loop &
 pids=`ps -ef | grep s_server | grep -v grep | awk '{print $2}'`
 if [ -z "$pids" ]
 then
     echo "No sign of s_server - exiting (before client)"
+    rm -f $bssllist $bsslech $bsslkey $bsslpem
     exit 88
 fi
-bechfile=`mktemp`
-resfile=`mktemp`
-# to ensure we detect a fail, use the wrong ECHConfig ...
-# ECHCONFIGFILE=$SRCTOP/esnistuff/d13.pem
-cat $ECHCONFIGFILE | tail -2 | head -1 | base64 -d >$bechfile
-echo "Running bssl s_client against localhost"
+echo "Running openssl s_client against localhost"
 (echo -e $httpreq ; sleep 2) | \
-    $BTOOL/bssl s_client -connect localhost:8443 \
-        -ech-config-list $bechfile \
-        -server-name $httphost \
-        -root-certs $SRCTOP/test/certs/rootcert.pem > $resfile 2>&1
-rm -f $bechfile
-success=`grep -c "Encrypted ClientHello: yes" $resfile`
-rm -f $resfile 
+    $SRCTOP/apps/openssl s_client -connect localhost:8443 \
+        -CAfile $SRCTOP/test/certs/rootcert.pem \
+        -ech_config_list `cat $bsslpem` \
+        -servername $httphost \
+        -no_ssl3 -no_tls1 -no_tls1_1 -no_tls1_2
+success=$?
+rm -f $bssllist $bsslech $bsslkey $bsslpem
 kill $pids
 # bssl returns 1 if ok, we want to exit with 0 for a PASS
 exit $((success != 1))
