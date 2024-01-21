@@ -22,6 +22,22 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
+- 20240119: adding a boringssl-based external test that uses the 
+  ECH-enabled bssl client to test an ECH-enabled OpenSSL server.
+  Useful for interop, but also to create a server-only ECH-PR
+  that's smaller than the whole thing. To try that, you have to
+  make with external tests enabled:
+
+            ./config enable-external-tests
+
+  and then:
+
+            make test TESTS=test_external_ech_bssl V=1
+
+  Note that the overall ``make test`` with that build will fail
+  due to external test fails for gost and liboqs - at least that
+  happens for me. The ECH one works though.
+
 - 20240119: rebased openssl again
 
 - 20240113: Rebased curl
