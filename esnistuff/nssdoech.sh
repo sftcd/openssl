@@ -139,7 +139,7 @@ defo12414="draft-13.esni.defo.ie,draft-13.esni.defo.ie,12414,"
     #$defo10413 $defo11413 \
     #$defo12413 $defo12414"
 
-services="$defo8413"
+services="$defo443"
 
 # no longer needed but I'll forget HOWTO so leave it here:-)
 # items=${#services[@]}
