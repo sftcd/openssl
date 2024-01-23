@@ -11,7 +11,7 @@ use OpenSSL::Test;
 use OpenSSL::Test::Utils;
 use OpenSSL::Test qw/:DEFAULT data_file bldtop_dir srctop_dir cmdstr/;
 
-setup("test_external_ech_bssl");
+setup("test_external_ech_nss");
 
 plan skip_all => "No external tests in this configuration"
     if disabled("external-tests");
@@ -22,10 +22,11 @@ plan skip_all => "External ECH tests only available in a shared build"
 plan skip_all => "External ECH tests not supported in out of tree builds"
     if bldtop_dir() ne srctop_dir();
 
-plan tests => 2;
+plan tests => 1;
 
-ok(run(cmd(["sh", data_file("ech_bssl_external.sh")])),
-   "running ECH client external boringssl tests");
+ok(run(cmd(["sh", data_file("ech_nss_external.sh")])),
+   "running ECH client external NSS tests");
 
-ok(run(cmd(["sh", data_file("ech_bssl_server_external.sh")])),
-   "running ECH server external boringssl tests");
+#
+#ok(run(cmd(["sh", data_file("ech_nss_server_external.sh")])),
+#   "running ECH server external NSS tests");
