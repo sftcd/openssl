@@ -80,10 +80,10 @@ fi
 # use NSS' tstclnt to talk to our s_server.
 if [ -f $LDIR/certutil ]
 then
-    mkdir -p $SRCTOP/nss/nssca
+    mkdir -p $SRCTOP/nss/ca
 	LD_LIBRARY_PATH=$LDIR/lib $LDIR/certutil -A \
         -i $SRCTOP/test/certs/rootcert.pem \
-        -n "oe" -t "CT,C,C" -d $SRCTOP/nss/nssca/
+        -n "oe" -t "CT,C,C" -d $SRCTOP/nss/ca/
 fi
 
 echo "   CWD:                $PWD"
@@ -106,7 +106,7 @@ fi
 # to ensure we detect a fail, use the wrong ECHConfig ...
 # ECHCONFIGFILE=$SRCTOP/esnistuff/d13.pem
 ECH=`cat $ECHCONFIGFILE | tail -2 | head -1`
-NSSPARAMS="-Q -4 -b -d $SRCTOP/nss/nssca"
+NSSPARAMS="-Q -4 -b -d $SRCTOP/nss/ca"
 $LDIR/tstclnt $NSSPARAMS -h localhost -p 8443 -a $httphost -N $ECH 
 res=$?
 kill $pids
