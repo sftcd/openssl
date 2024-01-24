@@ -42,9 +42,10 @@ ECHCONFIGFILE=$SRCTOP/test/certs/echconfig.pem
 httphost=server.example
 httpreq="GET /stats HTTP/1.1\\r\\nConnection: close\\r\\nHost: $httphost\\r\\n\\r\\n"
 LDIR=$SRCTOP/nss/dist/Debug/bin
+LLIB=$SRCTOP/nss/dist/Debug/lib
 
 echo "------------------------------------------------------------------"
-echo "Testing OpenSSL s_server using ECH-enabled nss client:"
+echo "Testing OpenSSL s_client using ECH-enabled nss server:"
 echo "   CWD:                 $PWD"
 echo "   SRCTOP:              $SRCTOP"
 echo "   BLDTOP:              $BLDTOP"
@@ -78,36 +79,54 @@ fi
 
 # If we have an NSS build, create an NSS DB for our fake root so we can 
 # use NSS' tstclnt to talk to our s_server.
-if [ -f $LDIR/certutil ]
+if [ ! -d $SRCTOP/nss/server ]
 then
-    mkdir -p $SRCTOP/nss/nssca
-	LD_LIBRARY_PATH=$LDIR/lib $LDIR/certutil -A \
+    mkdir -p $SRCTOP/nss/server
+	LD_LIBRARY_PATH=$LLIB $LDIR/certutil -A \
         -i $SRCTOP/test/certs/rootcert.pem \
-        -n "oe" -t "CT,C,C" -d $SRCTOP/nss/nssca/
+        -n "oe" -t "CT,C,C" -d $SRCTOP/nss/server/
+    sillypass="sillypass"
+    $SRCTOP/apps/openssl pkcs12 -export -out tmp.p12 \
+        -inkey $SRCTOP/test/certs/echserver.key \
+        -in $SRCTOP/test/certs/echserver.pem \
+        -password "pass:$sillypass"
+    echo -n $sillypass >sillypassfile
+	LD_LIBRARY_PATH=$LLIB $LDIR/pk12util \
+        -i tmp.p12 -d $SRCTOP/nss/server -w sillypassfile 
+    cat sillypassfile
+    # rm -f sillypassfile tmp.p12
 fi
 
 echo "   CWD:                $PWD"
 
 # Start an NSS server
+LD_LIBRARY_PATH=$LLIB $LDIR/selfserv -p 8443 -d $SRCTOP/nss/server \
+    -n server.example &
+# TODO: find a way to encode our private-key/ECHConfig that NSS
+# likes - looks like there could be some bug(s) in their handling
+# of ECH in selfserv.c:2032
+# even trying their own "-X publicname:example.com" variant fails
+# so looks like something inside NSS isn't right
+pids=`ps -ef | grep selfserv | grep -v grep | awk '{print $2}'`
+if [ -z "$pids" ]
+then
+    echo "No sign of selfserv - exiting (before client)"
+    exit 88
+fi
 
 # to ensure we detect a fail, use the wrong ECHConfig ...
 # ECHCONFIGFILE=$SRCTOP/esnistuff/d13.pem
 ECH=`cat $ECHCONFIGFILE | tail -2 | head -1`
-NSSPARAMS="-Q -4 -b -d $SRCTOP/nss/nssca"
-$LDIR/tstclnt $NSSPARAMS -h localhost -p 8443 -a $httphost -N $ECH 
-res=$?
-kill $pids
-exit $res
-
 echo "Running openssl s_client against localhost"
 (echo -e $httpreq ; sleep 2) | \
     $SRCTOP/apps/openssl s_client -connect localhost:8443 \
         -CAfile $SRCTOP/test/certs/rootcert.pem \
-        -ech_config_list `cat $bsslpem` \
+        -ech_config_list $ECH \
         -servername $httphost \
         -no_ssl3 -no_tls1 -no_tls1_1 -no_tls1_2
+# TODO: with no ECHConfig loaded server treats as GREASE and
+# doesn't fail even if ECH failed. Maybe grep result from
+# s_client (maybe from stderr, not sure)
 success=$?
-rm -f $bssllist $bsslech $bsslkey $bsslpem
 kill $pids
-# bssl returns 1 if ok, we want to exit with 0 for a PASS
 exit $((success != 1))
