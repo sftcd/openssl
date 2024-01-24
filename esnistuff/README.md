@@ -22,6 +22,11 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
+- 20230124: extened external tests with ``s_client`` vs boringssl
+  server, NSS client vs ``s_server`` and a not-yet-working 
+  ``s_client`` vs NSS's selfserv (which may have some bugs, not
+  quite sure yet)
+
 - 20240121: added an external test with openssl client vs boringssl
   server
 
