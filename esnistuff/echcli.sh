@@ -12,6 +12,9 @@ export LD_LIBRARY_PATH=$CODETOP
 : ${GETOPTDIR:=/usr/bin}
 # DNS recursive to use (don't ask:-)
 : ${DNSRECURSIVE=""}
+# more defaults we can override
+: ${CAPATH="/etc/ssl/certs/"}
+: ${CAFILE="./cadir/oe.csr"}
 
 # variables/settings
 # use Valgrind or not
@@ -75,8 +78,6 @@ TESTCUST="no"
 HIDDEN="crypto.cloudflare.com"
 DEFFRAG="cdn-cgi/trace" # what CF like for giving a hint as to whether ECH worked
 PNO=""
-CAPATH="/etc/ssl/certs/"
-CAFILE="./cadir/oe.csr"
 REALCERT="no" # default to fake CA for localhost
 CIPHERSUITES="" # default to internal default
 HRR="no" # default to not trying to force HRR

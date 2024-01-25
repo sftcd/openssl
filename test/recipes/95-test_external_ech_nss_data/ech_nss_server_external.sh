@@ -40,7 +40,7 @@ export OPENSSL_ROOT_DIR="$O_LIB"
 OPENSSL_VERSION=`openssl version | cut -f 2 -d ' '`
 ECHCONFIGFILE=$SRCTOP/test/certs/echconfig.pem
 httphost=server.example
-httpreq="GET /stats HTTP/1.1\\r\\nConnection: close\\r\\nHost: $httphost\\r\\n\\r\\n"
+httpreq="GET / HTTP/1.1\\r\\nConnection: close\\r\\nHost: $httphost\\r\\n\\r\\n"
 LDIR=$SRCTOP/nss/dist/Debug/bin
 LLIB=$SRCTOP/nss/dist/Debug/lib
 
@@ -64,6 +64,7 @@ if [ ! -f $LDIR/tstclnt ]; then
            && git clone https://github.com/nss-dev/nss.git \
            && hg clone https://hg.mozilla.org/projects/nspr \
            && cd nss \
+           && git apply ../../test/recipes/95-test_external_ech_nss_data/nsspatch \
            && ./build.sh
    )
 fi
@@ -100,8 +101,36 @@ fi
 echo "   CWD:                $PWD"
 
 # Start an NSS server
-LD_LIBRARY_PATH=$LLIB $LDIR/selfserv -p 8443 -d $SRCTOP/nss/server \
-    -n server.example &
+# We'll let the server generate the ECH key pair for now (see 
+# below for why). Note that as of 20240124 this requires a
+# (trivial) code change to get NSS's selfserve to work in this mode. 
+# I've reported that to moz folks but just in case it doesn't get
+# fixed soon the diff is:
+#
+# diff --git a/cmd/selfserv/selfserv.c b/cmd/selfserv/selfserv.c
+# --- a/cmd/selfserv/selfserv.c
+# +++ b/cmd/selfserv/selfserv.c
+# @@ -1937,7 +1937,7 @@ configureEchWithPublicName(PRFileDesc *m
+#         goto loser;
+#     }
+#
+#-    rv = SSL_EncodeEchConfigId(configId, echParamsStr, 100,
+#+    rv = SSL_EncodeEchConfigId(configId, public_name, 100,
+#                                HpkeDhKemX25519Sha256, pubKey,
+#                                &echCipherSuite, 1,
+#                                configBuf, &len, sizeof(configBuf));
+
+# need to use ``stdbuf -o0`` so that we don't get buffering and
+# can grab echconfig immediately...
+LD_LIBRARY_PATH=$LLIB stdbuf -o0 $LDIR/selfserv -p 8443 -d $SRCTOP/nss/server \
+    -n server.example -X "publicname:example.com" >ss-echfile &
+
+if [ -s ss-echfile ]
+then
+    echo "Did you remember to patch NSS? See $0 for details"
+    exit 78
+fi
+
 # TODO: find a way to encode our private-key/ECHConfig that NSS
 # likes - looks like there could be some bug(s) in their handling
 # of ECH in selfserv.c:2032
@@ -116,7 +145,8 @@ fi
 
 # to ensure we detect a fail, use the wrong ECHConfig ...
 # ECHCONFIGFILE=$SRCTOP/esnistuff/d13.pem
-ECH=`cat $ECHCONFIGFILE | tail -2 | head -1`
+# ECH=`cat $ECHCONFIGFILE | tail -2 | head -1`
+ECH=`cat ss-echfile | tail -2 | head -1`
 echo "Running openssl s_client against localhost"
 (echo -e $httpreq ; sleep 2) | \
     $SRCTOP/apps/openssl s_client -connect localhost:8443 \
@@ -129,4 +159,4 @@ echo "Running openssl s_client against localhost"
 # s_client (maybe from stderr, not sure)
 success=$?
 kill $pids
-exit $((success != 1))
+exit $success
