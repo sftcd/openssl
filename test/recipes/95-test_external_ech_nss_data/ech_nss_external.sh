@@ -63,6 +63,7 @@ if [ ! -f $LDIR/tstclnt ]; then
            && git clone https://github.com/nss-dev/nss.git \
            && hg clone https://hg.mozilla.org/projects/nspr \
            && cd nss \
+           && git apply ../../test/recipes/95-test_external_ech_nss_data/nsspatch \
            && ./build.sh
    )
 fi
