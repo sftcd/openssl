@@ -58,6 +58,7 @@ echo "------------------------------------------------------------------"
 if [ ! -d $SRCTOP/nss ]; then
     mkdir -p $SRCTOP/nss
 fi
+# see comment below for why "git apply" is needed for now.
 if [ ! -f $LDIR/tstclnt ]; then
 (
        cd $SRCTOP/nss \
@@ -105,20 +106,9 @@ echo "   CWD:                $PWD"
 # below for why). Note that as of 20240124 this requires a
 # (trivial) code change to get NSS's selfserve to work in this mode. 
 # I've reported that to moz folks but just in case it doesn't get
-# fixed soon the diff is:
-#
-# diff --git a/cmd/selfserv/selfserv.c b/cmd/selfserv/selfserv.c
-# --- a/cmd/selfserv/selfserv.c
-# +++ b/cmd/selfserv/selfserv.c
-# @@ -1937,7 +1937,7 @@ configureEchWithPublicName(PRFileDesc *m
-#         goto loser;
-#     }
-#
-#-    rv = SSL_EncodeEchConfigId(configId, echParamsStr, 100,
-#+    rv = SSL_EncodeEchConfigId(configId, public_name, 100,
-#                                HpkeDhKemX25519Sha256, pubKey,
-#                                &echCipherSuite, 1,
-#                                configBuf, &len, sizeof(configBuf));
+# fixed soon the diff is in nsspatch (alongside this script).
+# NSS devs have said they'll land that patch at which point we won't
+# need nsspath any more.
 
 # need to use ``stdbuf -o0`` so that we don't get buffering and
 # can grab echconfig immediately...
@@ -131,11 +121,11 @@ then
     exit 78
 fi
 
-# TODO: find a way to encode our private-key/ECHConfig that NSS
-# likes - looks like there could be some bug(s) in their handling
-# of ECH in selfserv.c:2032
-# even trying their own "-X publicname:example.com" variant fails
-# so looks like something inside NSS isn't right
+# For the future, we'd like a provide our private-key/ECHConfig to
+# NSS - looks like there could be some work required to get that
+# selfserve option working.
+# https://bugzilla.mozilla.org/show_bug.cgi?id=1876732
+
 pids=`ps -ef | grep selfserv | grep -v grep | awk '{print $2}'`
 if [ -z "$pids" ]
 then
