@@ -57,6 +57,7 @@ echo "------------------------------------------------------------------"
 if [ ! -d $SRCTOP/nss ]; then
     mkdir -p $SRCTOP/nss
 fi
+# see comment in ech_nss_server_external.sh  for why "git apply" is needed for now.
 if [ ! -f $LDIR/tstclnt ]; then
 (
        cd $SRCTOP/nss \
