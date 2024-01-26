@@ -22,7 +22,14 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
-- 20230124: extened external tests with ``s_client`` vs boringssl
+- 20240126: got NSS's selfserve working with internally generated
+  ECHConfig - had to do a patch to NSS code for that (told moz folk
+  about it, so should go upstream soonish). Getting selfserve to
+  work with externally generated ECHConfig/private values needs a
+  bit more work on the NSS side. They have an [open bug](https://bugzilla.mozilla.org/show_bug.cgi?id=1876732)
+  related to that.
+
+- 20240124: extened external tests with ``s_client`` vs boringssl
   server, NSS client vs ``s_server`` and a not-yet-working 
   ``s_client`` vs NSS's selfserv (which may have some bugs, not
   quite sure yet)
