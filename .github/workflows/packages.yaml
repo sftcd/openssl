@@ -17,7 +17,7 @@ jobs:
         run: |
           git remote add upstream https://github.com/openssl/openssl.git
           git fetch upstream
-          git -c user.name=Github -c user.email=none merge upstream/master
+          #git -c user.name=Github -c user.email=none merge upstream/master
 
       - name: Cache ccache
         uses: actions/cache@v3
@@ -60,7 +60,7 @@ jobs:
 
       - name: Test packages
         run: |
-          mmdebstrap --chrooted-customize-hook="curl -L 'https://github.com/jspricke/ech-dev-utils/archive/refs/heads/fix_usr.tar.gz' | tar xz; cd ech-dev-utils-fix_usr; scripts/localhost-tests.sh" \
+          mmdebstrap --chrooted-customize-hook="curl -L 'https://github.com/defo-project/ech-dev-utils/archive/refs/heads/main.tar.gz' | tar xz; cd ech-dev-utils-main; PACKAGING=1 scripts/localhost-tests.sh" \
             --variant=essential --include=ncurses-term,ca-certificates,openssl,curl,bind9-dnsutils unstable /dev/null \
             "deb [signed-by=/usr/share/keyrings/debian-archive-keyring.gpg] http://deb.debian.org/debian unstable main" \
             "deb [trusted=yes] copy:/$HOME/apt_repo /"
@@ -68,7 +68,7 @@ jobs:
       - name: Upload apt repository
         run: |
           cd "$HOME/apt_repo"
-          BRANCH=packages
+          BRANCH=packages2
           REPOSITORY="$(printf "%s" "$GITHUB_REPOSITORY" | tr / _)"
           echo "echo \"deb [trusted=yes] $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/raw/$BRANCH/ /\" | sudo tee /etc/apt/sources.list.d/$REPOSITORY.list" >> README.md
           git init -b "$BRANCH"
