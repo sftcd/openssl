@@ -22,6 +22,8 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
+- 20240202: exploring our own defo-project CI stuff...
+
 - 20240126: got NSS's selfserve working with internally generated
   ECHConfig - had to do a patch to NSS code for that (told moz folk
   about it, so should go upstream soonish). Getting selfserve to
