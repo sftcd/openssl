@@ -22,7 +22,18 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
-- 20240202: exploring our own defo-project CI stuff...
+- 20240205: rebased 
+
+- 20240202: pushed a version of this branch (ECH-draft-13c) to
+  the defo-project organsiation on github, did that as follows:
+
+  In $HOME/code/openssl:
+
+            git remote add defoprojectupstream git@github.com:defo-project/openssl.git
+            git push defoprojectupstream -u ECH-draft-13c 
+
+  That pushed this branch to the def0-project organisation.  Then I can
+  checkout this branch in a local clone of the defo-project openssl repo.
 
 - 20240126: got NSS's selfserve working with internally generated
   ECHConfig - had to do a patch to NSS code for that (told moz folk
