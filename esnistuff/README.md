@@ -22,7 +22,7 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
-- 20240205: rebased 
+- 20240205: rebased (twice;-) 
 
 - 20240202: pushed a version of this branch (ECH-draft-13c) to
   the defo-project organsiation on github, did that as follows:
