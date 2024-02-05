@@ -28,7 +28,11 @@ jobs:
       - name: Prepare build environment
         run: |
           sudo add-apt-repository -y ppa:v-launchpad-jochen-sprickerhof-de/sbuild
-          sudo DEBIAN_FRONTEND=noninteractive apt install -y --no-install-recommends sbuild mmdebstrap debian-archive-keyring ccache uidmap procps
+          sudo DEBIAN_FRONTEND=noninteractive apt install -y --no-install-recommends sbuild mmdebstrap debian-archive-keyring ccache uidmap
+          sudo apt install -y procps
+
+          # as a test
+          ps -ef
 
           mkdir -p "$HOME/.cache/sbuild"
           mmdebstrap --variant=buildd --include=apt,ccache,ca-certificates \
