@@ -28,7 +28,8 @@ DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
   and force-push to the master branch there
 
             $ cd $HOME/code
-            $ git clone git@github.com:sftcd/openssl.git
+            $ git clone git@github.com:sftcd/openssl.git openssl-new
+            $ cd openssl-new
             $ git checkout ECH-draft-13c
             $ git remote add defoprojectupstream git@github.com:defo-project/openssl.git
             $ git push --force-with-lease -u defoprojectupstream ECH-draft-13c:master
