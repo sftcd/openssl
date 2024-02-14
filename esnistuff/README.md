@@ -22,6 +22,21 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
+- 20240214: new recipe for pushing to defo-project - basically
+  clone this to a new place (so as to not confuse the ``.git/config``
+  file in my usual dev tree), then add the defo-project remote
+  and force-push to the master branch there
+
+            $ cd $HOME/code
+            $ git clone git@github.com:sftcd/openssl.git
+            $ git checkout ECH-draft-13c
+            $ git remote add defoprojectupstream git@github.com:defo-project/openssl.git
+            $ git push --force-with-lease -u defoprojectupstream ECH-draft-13c:master
+
+  When I just did that I got an error about being "stale" which I 
+  guess is something to do with the --force-with-lease stuff, that's
+  ok for this time, so will figure it out next time.
+
 - 20240205: rebased (twice;-) 
 
 - 20240202: pushed a version of this branch (ECH-draft-13c) to
