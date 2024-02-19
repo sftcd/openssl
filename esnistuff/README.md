@@ -22,6 +22,22 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
+- 20240219: We're putting ECH-enabled clones of stuff we've done
+  below https://github.com/defo-project. In the case of Apache2,
+  as changes occur, that'd mean something like:
+
+```bash
+$ # goto local clone of https://github.com/sftcd/httpd
+$ cd $HOME/code/httpd
+$ # assuming changes made, tested, committed and pushed from here
+$ # already
+$ git format-patch -k --stdout >thisone
+$ # goto local clone of http://github.com/defo-project/apache-httpd
+$ cd $HOME/code/defo-project-org/apache-httpd
+$ git apply $HOME/code/httpd/thisone
+$ # commit/push etc from there
+```
+
 - 20240214: new recipe for pushing to defo-project - basically
   clone this to a new place (so as to not confuse the ``.git/config``
   file in my usual dev tree), then add the defo-project remote
