@@ -501,6 +501,7 @@ my @disablables = (
     "rmd160",
     "scrypt",
     "sctp",
+    "sech",
     "secure-memory",
     "seed",
     "shared",

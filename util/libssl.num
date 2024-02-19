@@ -604,3 +604,4 @@ SSL_CTX_ech_raw_decrypt                 ?	3_3_0	EXIST::FUNCTION:ECH
 SSL_CTX_ech_set_callback                ?	3_3_0	EXIST::FUNCTION:ECH
 ossl_ech_make_echconfig                 ?	3_3_0	EXIST::FUNCTION:ECH
 ossl_ech_find_echconfigs                ?	3_3_0	EXIST::FUNCTION:ECH
+SSL_CTX_sech_decode_sni                 ?	3_3_0	EXIST::FUNCTION:SECH
