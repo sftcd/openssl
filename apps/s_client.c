@@ -131,6 +131,9 @@ static size_t ech_trace_cb(const char *buf, size_t cnt,
                            int category, int cmd, void *vdata);
 # endif
 #endif
+#ifndef OPENSSL_NO_SECH
+static char* sech_symmetric_key = NULL;
+#endif//OPENSSL_NO_SECH
 
 static SSL_SESSION *psksess = NULL;
 
@@ -652,6 +655,9 @@ typedef enum OPTION_choice {
     OPT_ECH_GREASE, OPT_ECH_GREASE_SUITE, OPT_ECH_GREASE_TYPE,
     OPT_ECH_CUSTOM,
 #endif
+#ifndef OPENSSL_NO_SECH
+    OPT_SECH_SYMMETRIC_KEY,
+#endif//OPENSSL_NO_SECH
     OPT_SCTP_LABEL_BUG,
     OPT_KTLS,
     OPT_R_ENUM, OPT_PROV_ENUM
@@ -867,6 +873,9 @@ const OPTIONS s_client_options[] = {
      "Ignore the server-chosen ECH config ID and send a random value"},
     {"ech_custom", OPT_ECH_CUSTOM, '-', "send bogus custom CH exts to test"},
 #endif
+#ifndef OPENSSL_NO_SECH
+    {"sech_symmetric_key", OPT_SECH_SYMMETRIC_KEY, 's', "Hex encoding of the key to encrypt the SNI stealthily into ClientHello"},
+#endif//OPENSSL_NO_SECH
 #ifndef OPENSSL_NO_SRTP
     {"use_srtp", OPT_USE_SRTP, 's',
      "Offer SRTP key management with a colon-separated profile list"},
@@ -1774,6 +1783,11 @@ int s_client_main(int argc, char **argv)
             ech_with_custom = 1;
             break;
 #endif
+#ifndef OPENSSL_NO_SECH
+        case OPT_SECH_SYMMETRIC_KEY:
+            sech_symmetric_key = opt_arg();
+            break;
+#endif//OPENSSL_NO_SECH
 
         case OPT_NOSERVERNAME:
             noservername = 1;
