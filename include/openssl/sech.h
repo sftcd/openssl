@@ -18,5 +18,6 @@
 # include <openssl/ssl.h>
 # ifndef OPENSSL_NO_SECH
 int SSL_CTX_sech_decode_sni(SSL_CTX *ctx);
+int SSL_CTX_sech_symmetric_key(SSL_CTX *ctx, char *key);
 # endif
 #endif

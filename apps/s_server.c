@@ -86,6 +86,9 @@ typedef unsigned int u_int;
 # define ECH_CERTVERSPECIFIC_MIN 480
 # define ECH_ENCEXTSPECIFIC_MIN 32
 #endif
+#ifndef OPENSSL_NO_SECH
+static char *sech_symmetric_key = NULL;
+#endif//OPENSSL_NO_SECH
 
 static int not_resumable_sess_cb(SSL *s, int is_forward_secure);
 static int sv_body(int s, int stype, int prot, unsigned char *context);
@@ -1086,6 +1089,9 @@ typedef enum OPTION_choice {
     OPT_ECHCONFIG, OPT_ECHDIR, OPT_ECHSPECIFICPAD,
     OPT_ECH_TRIALDECRYPT, OPT_ECH_GREASE_RT,
 #endif
+#ifndef OPENSSL_NO_SECH 
+    OPT_SECH_SYMMETRIC_KEY,
+#endif//OPENSSL_NO_SECH
     OPT_R_ENUM,
     OPT_S_ENUM,
     OPT_V_ENUM,
@@ -1343,6 +1349,9 @@ const OPTIONS s_server_options[] = {
     {"ech_greaseretries", OPT_ECH_GREASE_RT, '-',
         "Set server to GREASE retry_config values"},
 #endif
+#ifndef OPENSSL_NO_SECH
+    {"sech_symmetric_key", OPT_SECH_SYMMETRIC_KEY, 's', "ASCII hex symmetric key for encrypting SNI stealthily."},
+#endif//OPENSSL_NO_SECH
 #ifndef OPENSSL_NO_KTLS
     {"ktls", OPT_KTLS, '-', "Enable Kernel TLS for sending and receiving"},
     {"sendfile", OPT_SENDFILE, '-', "Use sendfile to response file with -WWW"},
@@ -2053,6 +2062,11 @@ int s_server_main(int argc, char *argv[])
             echgrease_rc = 1;
             break;
 #endif
+#ifndef OPENSSL_NO_SECH
+        case OPT_SECH_SYMMETRIC_KEY:
+            sech_symmetric_key = opt_arg();
+            break;
+#endif//OPENSSL_NO_SECH
         case OPT_HTTP_SERVER_BINMODE:
             http_server_binmode = 1;
             break;
@@ -2306,6 +2320,9 @@ int s_server_main(int argc, char *argv[])
         ERR_print_errors(bio_err);
         goto end;
     }
+#ifndef OPENSSL_NO_SECH
+    SSL_CTX_sech_symmetric_key(ctx, sech_symmetric_key);
+#endif//OPENSSL_NO_SECH
 
     SSL_CTX_clear_mode(ctx, SSL_MODE_AUTO_RETRY);
 

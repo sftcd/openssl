@@ -27,6 +27,9 @@
 #include "internal/refcount.h"
 #include "internal/ktls.h"
 #include "quic/quic_local.h"
+#ifndef OPENSSL_NO_SECH
+# include "sech_local.h"
+#endif//OPENSSL_NO_SECH
 
 static int ssl_undefined_function_3(SSL_CONNECTION *sc, unsigned char *r,
                                     unsigned char *s, size_t t, size_t *u)
@@ -4186,6 +4189,9 @@ SSL_CTX *SSL_CTX_new_ex(OSSL_LIB_CTX *libctx, const char *propq,
     ret->ext.alpn_outer = NULL;
     ret->ext.alpn_outer_len = 0;
 #endif
+#ifndef OPENSSL_NO_SECH
+  ret->sech.symmetric_key = OPENSSL_malloc(SECH_SYMMETRIC_KEY_MAX_LENGTH);
+#endif//OPENSSL_NO_SECH
     return ret;
  err:
     SSL_CTX_free(ret);
@@ -4310,6 +4316,9 @@ void SSL_CTX_free(SSL_CTX *a)
 	}
     OPENSSL_free(a->ext.alpn_outer);
 #endif
+#ifndef OPENSSL_NO_SECH
+    OPENSSL_free(a->sech.symmetric_key);
+#endif//OPENSSL_NO_SECH
 
     CRYPTO_THREAD_lock_free(a->lock);
     CRYPTO_FREE_REF(&a->references);

@@ -37,6 +37,9 @@
 # ifndef OPENSSL_NO_ECH
 #  include "ech_local.h"
 # endif
+# ifndef OPENSSL_NO_SECH
+#  include "sech_local.h"
+# endif//OPENSSL_NO_SECH
 # include "internal/ktls.h"
 # include "internal/time.h"
 # include "internal/ssl.h"
@@ -1009,6 +1012,14 @@ struct ssl_ctx_st {
     /* ClientHello callback.  Mostly for extensions, but not entirely. */
     SSL_client_hello_cb_fn client_hello_cb;
     void *client_hello_cb_arg;
+
+
+#ifndef OPENSSL_NO_SECH
+    struct {
+        unsigned char symmetric_key_len;
+        char *symmetric_key;
+    } sech;
+#endif//OPENSSL_NO_SECH
 
     /* TLS extensions. */
     struct {
