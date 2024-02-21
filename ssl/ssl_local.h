@@ -1100,11 +1100,14 @@ struct ssl_ctx_st {
         unsigned char *alpn_outer; /* Outer ALPN (if any) */
         size_t alpn_outer_len;
 #endif
-#ifndef OPENSSL_NO_SECH
-        char *sech_symmetric_key;
-#endif
         unsigned char cookie_hmac_key[SHA256_DIGEST_LENGTH];
     } ext;
+
+#ifndef OPENSSL_NO_SECH
+    struct {
+        char *symmetric_key;
+    } sech;
+#endif
 
 # ifndef OPENSSL_NO_PSK
     SSL_psk_client_cb_func psk_client_callback;
@@ -1590,6 +1593,12 @@ struct ssl_connection_st {
     /* Up to how many pipelines should we use? If 0 then 1 is assumed */
     size_t max_pipelines;
 
+#ifndef OPENSSL_NO_SECH
+    struct {
+        char *symmetric_key;
+    } sech;
+#endif
+
     struct {
         /* Built-in extension flags */
         uint8_t extflags[TLSEXT_IDX_num_builtins];
@@ -1600,9 +1609,6 @@ struct ssl_connection_st {
         char *hostname;
 #ifndef OPENSSL_NO_ECH
         SSL_CONNECTION_ECH ech;
-#endif
-#ifndef OPENSSL_NO_SECH
-        char *sech_symmetric_key;
 #endif
         /* certificate status request info */
         /* Status type or -1 if no status type */

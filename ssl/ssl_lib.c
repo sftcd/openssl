@@ -971,7 +971,7 @@ SSL *ossl_ssl_connection_new_int(SSL_CTX *ctx, const SSL_METHOD *method)
     s->ext.ech.kepthrr = NULL;
 #endif
 #ifndef OPENSSL_NO_SECH
-    s->sech_symmetric_key = ctx->sech_symmetric_key;
+    s->sech.symmetric_key = ctx->sech.symmetric_key;
 #endif
     return ssl;
  cerr:
@@ -1576,9 +1576,9 @@ void ossl_ssl_connection_free(SSL *ssl)
         s->s3.handshake_buffer = NULL;
     }
 #endif
-#ifndef OPENSSL_NO_SECH
-    OPENSSL_free(s->sech_symmetric_key);
-#endif
+// #ifndef OPENSSL_NO_SECH
+//     OPENSSL_free(s->sech.symmetric_key);
+// #endif
 }
 
 void SSL_set0_rbio(SSL *s, BIO *rbio)
@@ -4193,7 +4193,8 @@ SSL_CTX *SSL_CTX_new_ex(OSSL_LIB_CTX *libctx, const char *propq,
     ret->ext.alpn_outer_len = 0;
 #endif
 #ifndef OPENSSL_NO_SECH
-    ret->sech_symmetric_key = NULL;
+    // probably need to do OPENSSL_malloc here
+    ret->sech.symmetric_key = OPENSSL_malloc(1024);
 #endif 
     return ret;
  err:
@@ -4320,7 +4321,7 @@ void SSL_CTX_free(SSL_CTX *a)
     OPENSSL_free(a->ext.alpn_outer);
 #endif
 #ifndef OPENSSL_NO_SECH
-    OPENSSL_free(a->sech_symmetric_key);
+    OPENSSL_free(a->sech.symmetric_key);
 #endif
 
     CRYPTO_THREAD_lock_free(a->lock);
@@ -5187,7 +5188,7 @@ SSL *SSL_dup(SSL *s)
     }
 #endif
 #ifndef OPENSSL_NO_SECH
-    retsc->sech_symmetric_key = sc->sech_symmetric_key;
+    retsc->sech.symmetric_key = sc->sech.symmetric_key;
 #endif
     return ret;
 
