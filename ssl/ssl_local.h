@@ -1100,6 +1100,9 @@ struct ssl_ctx_st {
         unsigned char *alpn_outer; /* Outer ALPN (if any) */
         size_t alpn_outer_len;
 #endif
+#ifndef OPENSSL_NO_SECH
+        char *sech_symmetric_key;
+#endif
         unsigned char cookie_hmac_key[SHA256_DIGEST_LENGTH];
     } ext;
 
@@ -1597,6 +1600,9 @@ struct ssl_connection_st {
         char *hostname;
 #ifndef OPENSSL_NO_ECH
         SSL_CONNECTION_ECH ech;
+#endif
+#ifndef OPENSSL_NO_SECH
+        char *sech_symmetric_key;
 #endif
         /* certificate status request info */
         /* Status type or -1 if no status type */
