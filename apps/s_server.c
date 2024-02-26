@@ -3033,6 +3033,9 @@ static int sv_body(int s, int stype, int prot, unsigned char *context)
         ret = -1;
         goto err;
     }
+    OSSL_TRACE_BEGIN(TLS) {
+        BIO_printf(trc_out, "con created\n");
+    } OSSL_TRACE_END(TLS);
 
     if (s_tlsextdebug) {
         SSL_set_tlsext_debug_callback(con, tlsext_cb);

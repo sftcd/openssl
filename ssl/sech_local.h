@@ -15,5 +15,6 @@
 # ifndef HEADER_SECH_LOCAL_H
 #  define HEADER_SECH_LOCAL_H
 #define SECH_SYMMETRIC_KEY_MAX_LENGTH 1024
+int sech_function_definition_to_find(void);
 # endif
 #endif
