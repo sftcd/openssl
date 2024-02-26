@@ -973,6 +973,10 @@ SSL *ossl_ssl_connection_new_int(SSL_CTX *ctx, const SSL_METHOD *method)
     s->ext.ech.encoded_innerch = NULL;
     s->ext.ech.kepthrr = NULL;
 #endif
+// #ifndef OPENSSL_NO_SECH
+//     s->sech.symmetric_key = ctx->sech.symmetric_key;
+//     s->sech.symmetric_key_len = ctx->sech.symmetric_key_len;
+// #endif//OEPNSSL_NO_SECH
     return ssl;
  cerr:
     ERR_raise(ERR_LIB_SSL, ERR_R_CRYPTO_LIB);
@@ -1629,6 +1633,7 @@ void SSL_set0_wbio(SSL *s, BIO *wbio)
 
 void SSL_set_bio(SSL *s, BIO *rbio, BIO *wbio)
 {
+    fprintf(stderr, "SECH: s->ctx: %lu", s->ctx);
     /*
      * For historical reasons, this function has many different cases in
      * ownership handling.
