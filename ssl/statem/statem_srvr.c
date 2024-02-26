@@ -1734,6 +1734,18 @@ MSG_PROCESS_RETURN tls_process_client_hello(SSL_CONNECTION *s, PACKET *pkt)
         }
     }
 
+#ifndef OPENSSL_NO_SECH
+//     fprintf(stderr, "SECH: check for sech symmetric key");
+//     if(s->sech.symmetric_key) {
+//         fprintf(stderr, "%i", s->sech.symmetric_key_len);
+//         for(int i = 0; i < s->sech.symmetric_key_len; i++) {
+//             fprintf(stderr, "%02X ", (unsigned char)s->sech.symmetric_key[i]);
+//         }
+//         fprintf(stderr, "\n");
+//     }
+//     // try to decrypt the client hello
+#endif//OPENSSL_NO_SECH
+
     if (!PACKET_copy_all(&compression, clienthello->compressions,
                          MAX_COMPRESSIONS_SIZE,
                          &clienthello->compressions_len)) {
