@@ -973,10 +973,6 @@ SSL *ossl_ssl_connection_new_int(SSL_CTX *ctx, const SSL_METHOD *method)
     s->ext.ech.encoded_innerch = NULL;
     s->ext.ech.kepthrr = NULL;
 #endif
-// #ifndef OPENSSL_NO_SECH
-//     s->sech.symmetric_key = ctx->sech.symmetric_key;
-//     s->sech.symmetric_key_len = ctx->sech.symmetric_key_len;
-// #endif//OEPNSSL_NO_SECH
     return ssl;
  cerr:
     ERR_raise(ERR_LIB_SSL, ERR_R_CRYPTO_LIB);
@@ -1580,6 +1576,9 @@ void ossl_ssl_connection_free(SSL *ssl)
         s->s3.handshake_buffer = NULL;
     }
 #endif
+// #ifndef OPENSSL_NO_SECH
+//     OPENSSL_free(s->sech.symmetric_key);
+// #endif
 }
 
 void SSL_set0_rbio(SSL *s, BIO *rbio)
@@ -4197,6 +4196,7 @@ SSL_CTX *SSL_CTX_new_ex(OSSL_LIB_CTX *libctx, const char *propq,
 #ifndef OPENSSL_NO_SECH
   ret->sech.symmetric_key = OPENSSL_malloc(SECH_SYMMETRIC_KEY_MAX_LENGTH);
 #endif//OPENSSL_NO_SECH
+
     return ret;
  err:
     SSL_CTX_free(ret);
@@ -4324,6 +4324,7 @@ void SSL_CTX_free(SSL_CTX *a)
 #ifndef OPENSSL_NO_SECH
     OPENSSL_free(a->sech.symmetric_key);
 #endif//OPENSSL_NO_SECH
+
 
     CRYPTO_THREAD_lock_free(a->lock);
     CRYPTO_FREE_REF(&a->references);
@@ -5187,6 +5188,9 @@ SSL *SSL_dup(SSL *s)
                sc->ext.ech.returned_len);
         retsc->ext.ech.returned_len = sc->ext.ech.returned_len;
     }
+#endif
+#ifndef OPENSSL_NO_SECH
+    retsc->sech.symmetric_key = sc->sech.symmetric_key;
 #endif
     return ret;
 

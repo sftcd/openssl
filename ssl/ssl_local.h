@@ -1114,6 +1114,12 @@ struct ssl_ctx_st {
         unsigned char cookie_hmac_key[SHA256_DIGEST_LENGTH];
     } ext;
 
+#ifndef OPENSSL_NO_SECH
+    struct {
+        char *symmetric_key;
+    } sech;
+#endif
+
 # ifndef OPENSSL_NO_PSK
     SSL_psk_client_cb_func psk_client_callback;
     SSL_psk_server_cb_func psk_server_callback;
@@ -1241,6 +1247,7 @@ struct ssl_st {
     /* extra application data */
     CRYPTO_EX_DATA ex_data;
 };
+
 
 #include "ssl_connection_st.h"
 
