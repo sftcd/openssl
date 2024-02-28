@@ -22,6 +22,22 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
+- 20240228: re-did this HOWTO: to pushed a version of this branch (ECH-draft-13c) to
+  the defo-project organsiation master branch on github, did that as follows:
+
+  In $HOME/code:
+
+            git clone git@github.com:sftcd/openssl.git openssl-tmp
+            cd openssl-tmp
+            git checkout ECH-draft-13c
+            git remote add defoprojectupstream git@github.com:defo-project/openssl.git
+            git push defoprojectupstream ECH-draft-13c:master
+            cd ..
+            rm -rf openssl-tmp
+
+  That pushed this branch to the def0-project organisation.  Then I can
+  checkout this branch in a local clone of the defo-project openssl repo.
+
 - 20240205: rebased (twice;-) 
 
 - 20240202: pushed a version of this branch (ECH-draft-13c) to
