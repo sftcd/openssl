@@ -3,6 +3,8 @@ name: builder
 on:
   workflow_dispatch:
   push:
+  schedule:
+    - cron: '30 5 * * *'
 
 jobs:
   build:
@@ -17,7 +19,12 @@ jobs:
         run: |
           git remote add upstream https://github.com/openssl/openssl.git
           git fetch upstream
-          #git -c user.name=Github -c user.email=none merge upstream/master
+          git -c user.name=Github -c user.email=none merge upstream/master
+          # regenerate util/libssl.num
+          sed -i '/EXIST::FUNCTION:ECH/d' util/libssl.num
+          ./config
+          make update
+          git clean -dfx
 
       - name: Cache ccache
         uses: actions/cache@v3
