@@ -11,12 +11,11 @@
  * Internal data structures and prototypes for handling
  * stealthy Encrypted ClientHello (SECH)
  */
-#ifndef OPENSSL_NO_ECH
-# ifndef HEADER_SECH_LOCAL_H
-#  define HEADER_SECH_LOCAL_H
+#ifndef OPENSSL_H_SECH_HELPERS
+#define OPENSSL_H_SECH_HELPERS
+#ifndef OPENSSL_NO_SECH
 #define SECH_SYMMETRIC_KEY_MAX_LENGTH 1024
 int sech_function_definition_to_find(void);
-
 int encrypt_symmetric(char * plain, char * key_bytes, char * cipher);
-# endif
+#endif
 #endif

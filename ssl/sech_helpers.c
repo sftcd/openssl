@@ -12,11 +12,10 @@
  * stealthy Encrypted ClientHello (SECH)
  */
 #ifndef OPENSSL_NO_ECH
-# ifndef HEADER_SECH_LOCAL_H
-#  define HEADER_SECH_LOCAL_H
 #define SECH_SYMMETRIC_KEY_MAX_LENGTH 1024
-int sech_function_definition_to_find(void);
+// int sech_function_definition_to_find(void);
 
-int encrypt_symmetric(char * plain, char * key_bytes, char * cipher);
-# endif
+int encrypt_symmetric(char * plain, char * key_bytes, char * cipher) {
+    return 0;
+}
 #endif

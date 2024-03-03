@@ -53,20 +53,26 @@ int SSL_CTX_sech_symmetric_key(SSL_CTX *ctx, char *key)
     } OSSL_TRACE_END(TLS);
     if (key == NULL) {
         OSSL_TRACE_BEGIN(TLS) {
-            BIO_printf(trc_out, "SECH: Supplied symmetric key is NULL\n");
+            BIO_printf(trc_out, "SECH: ERROR: Supplied symmetric key is NULL\n");
+        } OSSL_TRACE_END(TLS);
+        return 0;
+    }
+    if (ctx == NULL) {
+        OSSL_TRACE_BEGIN(TLS) {
+            BIO_printf(trc_out, "SECH: ERROR: call to SSL_CTX_sech_symmetric_key with ctx==NULL.\n");
         } OSSL_TRACE_END(TLS);
         return 0;
     }
     int asciilen = strlen(key);
     if (asciilen%2 == 1) {
         OSSL_TRACE_BEGIN(TLS) {
-            BIO_printf(trc_out, "SECH: Supplied symmetric odd length: %i\n", asciilen);
+            BIO_printf(trc_out, "SECH: ERROR: Supplied symmetric odd length: %i\n", asciilen);
         } OSSL_TRACE_END(TLS);
         return 0;
     }
     if((asciilen/2) >= SECH_SYMMETRIC_KEY_MAX_LENGTH - 1) {
         OSSL_TRACE_BEGIN(TLS) {
-            BIO_printf(trc_out, "SECH: Supplied symmetric key wrong length: %i > %i\n", asciilen, SECH_SYMMETRIC_KEY_MAX_LENGTH);
+            BIO_printf(trc_out, "SECH: ERROR: Supplied symmetric key wrong length: %i > %i\n", asciilen, SECH_SYMMETRIC_KEY_MAX_LENGTH);
         } OSSL_TRACE_END(TLS);
         return 0;
     }

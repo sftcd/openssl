@@ -9,6 +9,7 @@
 
 #include <openssl/ssl.h>
 #include <openssl/hpke.h>
+#include "../include/internal/sech_helpers.h"
 #include "testutil.h"
 #include "helpers/ssltestlib.h"
 
@@ -63,6 +64,7 @@ static int test_SSL_CTX_sech_symmetric_key(void)
     /* setup contexts, initially for tlsv1.3 */
     char key[5];
     strcpy(key, "abab");
+    SSL_CTX_sech_symmetric_key(cctx, (char *)(&key));
     if (!TEST_ptr(cctx = SSL_CTX_new_ex(libctx, NULL, TLS_server_method())))
         goto end;
     SSL_CTX_sech_symmetric_key(cctx, (char *)(&key));
@@ -76,6 +78,14 @@ end:
     // SSL_free(serverssl);
     SSL_CTX_free(cctx);
     SSL_CTX_free(sctx);
+    return res;
+}
+
+static int encrypt_symmetric_test(void) {
+    int res = 0;
+    encrypt_symmetric(NULL,NULL,NULL);
+    res = 1;
+end:
     return res;
 }
 
@@ -149,6 +159,7 @@ int setup_tests(void)
     bio_stdout = BIO_new_fp(stdout, BIO_NOCLOSE | BIO_FP_TEXT);
     bio_null = BIO_new(BIO_s_mem());
     ADD_TEST(test_SSL_CTX_sech_symmetric_key);
+    ADD_TEST(encrypt_symmetric_test);
     return 1;
 err:
     return 0;
