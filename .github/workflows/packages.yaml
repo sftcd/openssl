@@ -68,7 +68,7 @@ jobs:
       - name: Upload apt repository
         run: |
           cd "$HOME/apt_repo"
-          BRANCH=packages2
+          BRANCH=packages
           REPOSITORY="$(printf "%s" "$GITHUB_REPOSITORY" | tr / _)"
           echo "echo \"deb [trusted=yes] $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/raw/$BRANCH/ /\" | sudo tee /etc/apt/sources.list.d/$REPOSITORY.list" >> README.md
           git init -b "$BRANCH"
