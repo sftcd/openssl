@@ -17,5 +17,7 @@
 #define SECH_SYMMETRIC_KEY_MAX_LENGTH 1024
 int sech_function_definition_to_find(void);
 int encrypt_symmetric(char * plain, char * key_bytes, char * cipher);
+int unsafe_encrypt_aes256cbc(char * plain, char * key, char * cipher);
+int do_crypt(char *outfile);
 #endif
 #endif

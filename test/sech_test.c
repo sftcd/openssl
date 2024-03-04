@@ -83,7 +83,14 @@ end:
 
 static int encrypt_symmetric_test(void) {
     int res = 0;
-    encrypt_symmetric(NULL,NULL,NULL);
+    // encrypt_symmetric(NULL,NULL,NULL);
+
+    // char plain[] = "hello wonderful world\0";
+    // const unsigned char key[] = {0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB};
+    // char * cipher = NULL;
+    // unsafe_encrypt_aes256cbc((char *)(&plain), (char *)(&key), cipher);
+
+    do_crypt(stderr);
     res = 1;
 end:
     return res;
