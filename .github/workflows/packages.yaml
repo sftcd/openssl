@@ -67,7 +67,7 @@ jobs:
 
       - name: Test packages
         run: |
-          mmdebstrap --chrooted-customize-hook="curl -k -L 'https://github.com/defo-project/ech-dev-utils/archive/refs/heads/main.tar.gz' | tar xz; cd ech-dev-utils-main; PACKAGING=1 scripts/localhost-tests.sh" \
+          mmdebstrap --chrooted-customize-hook="curl -L 'https://github.com/defo-project/ech-dev-utils/archive/refs/heads/main.tar.gz' | tar xz; cd ech-dev-utils-main; PACKAGING=1 scripts/localhost-tests.sh" \
             --variant=essential --include=ncurses-term,openssl,curl,bind9-dnsutils unstable /dev/null \
             "deb [signed-by=/usr/share/keyrings/debian-archive-keyring.gpg] http://deb.debian.org/debian unstable main" \
             "deb [trusted=yes] copy:/$HOME/apt_repo /"
