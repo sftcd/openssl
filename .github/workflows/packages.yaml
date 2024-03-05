@@ -40,7 +40,7 @@ jobs:
           mkdir -p "$HOME/.cache/sbuild"
           mmdebstrap --variant=buildd --include=apt,ccache,ca-certificates \
             --customize-hook='chroot "$1" update-ccache-symlinks' \
-            unstable "$HOME/.cache/sbuild/unstable-amd64.tar"
+            testing "$HOME/.cache/sbuild/testing-amd64.tar"
 
           ccache --zero-stats --max-size=10.0G
           chmod a+X "$HOME" "$HOME/.cache"
@@ -59,7 +59,7 @@ jobs:
       - name: Run sbuild
         run: |
           sed -i "1 s/([^)]*)/($(git describe --tags | sed 's/^[^0-9]*//;s/-/./g;s/_/./g')-$(date -u '+%Y%m%d.%H%M%S%N'))/" debian/changelog
-          sbuild -d unstable --chroot-mode=unshare --no-clean-source --no-run-lintian \
+          sbuild -d testing --chroot-mode=unshare --no-clean-source --no-run-lintian \
             --dpkg-source-opts="-Zgzip -z1 --format=1.0 -sn" --build-dir="$HOME/apt_repo"
           cd "$HOME/apt_repo"
           apt-ftparchive packages . > Packages
@@ -68,8 +68,8 @@ jobs:
       - name: Test packages
         run: |
           mmdebstrap --chrooted-customize-hook="curl -L 'https://github.com/defo-project/ech-dev-utils/archive/refs/heads/main.tar.gz' | tar xz; cd ech-dev-utils-main; PACKAGING=1 scripts/localhost-tests.sh" \
-            --variant=essential --include=ncurses-term,ca-certificates,openssl,curl,bind9-dnsutils unstable /dev/null \
-            "deb [signed-by=/usr/share/keyrings/debian-archive-keyring.gpg] http://deb.debian.org/debian unstable main" \
+            --variant=essential --include=ncurses-term,ca-certificates,openssl,curl,bind9-dnsutils testing /dev/null \
+            "deb [signed-by=/usr/share/keyrings/debian-archive-keyring.gpg] http://deb.debian.org/debian testing main" \
             "deb [trusted=yes] copy:/$HOME/apt_repo /"
 
       - name: Upload apt repository
