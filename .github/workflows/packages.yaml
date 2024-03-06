@@ -39,6 +39,7 @@ jobs:
 
           mkdir -p "$HOME/.cache/sbuild"
           mmdebstrap --variant=buildd --include=apt,ccache,ca-certificates \
+            --keyring=/usr/share/keyrings/debian-archive-keyring.gpg \
             --customize-hook='chroot "$1" update-ccache-symlinks' \
             testing "$HOME/.cache/sbuild/testing-amd64.tar"
 
