@@ -1,5 +1,53 @@
 # Notes on building/integrating with haproxy
 
+## April 2024
+
+Considering ECH key rotation - early days but ideas for progress apparent:
+
+- haproxy mgmt socket i/f https://docs.haproxy.org/dev/management.html#9.3
+- that describes (unix) socket based way to update TLS server cert and related
+- probably want an ECH equivalent
+- might need to swap from loading an echkeydir (directory) full of ECH keys
+  to a per-file based config so that we can sensibly update without file
+  system reads
+- likely want to squash the ECH data structure from different config file
+  stanzas, so that we can update 'em in one go more easily - OTOH maybe
+  that'd be wrong, need to check TLS server cert equivalent in more complex
+  configs
+
+Might end up with something like:
+
+- connect to socket on command line:
+
+            $ socat /tmp/haproxy.sock stdio
+            prompt
+            >
+
+- list current ECH setup (speculative, no code exists yet):
+
+            show ech
+            ECH-front, priv-file: f1.pem, config-id: 0x00, ech public: 0x1234...
+            Two-TLS, priv-file: f2.pem, config-id: 0x01, ech public: 0x2234...
+            Split-mode, priv-file: f3.pem, config-id: 0x02, ech public: 0x3234...
+
+- delete one of those:
+
+            del ech ECH-front
+
+- update one of those:
+
+            set ech ECH-front <ech-pemesni-b64>
+
+- commit ech changes
+
+            commit ech
+
+Things to ponder:
+
+- echkeydir (current) vs. individual file loads at start time
+- what if same pemesni/key-pair file (e.g. f1.pem) loaded >1 time?
+- how to handle accumulate vs. replace?
+
 ## October 2023
 
 - 20231016 - rebased with upstream
