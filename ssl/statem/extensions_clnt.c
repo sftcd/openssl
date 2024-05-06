@@ -22,9 +22,6 @@ EXT_RETURN tls_construct_ctos_renegotiate(SSL_CONNECTION *s, WPACKET *pkt,
 {
     if (!s->renegotiate) {
         /* If not renegotiating, send an empty RI extension to indicate support */
-#ifndef OPENSSL_NO_ECH
-    ECH_IOSAME(s, pkt)
-#endif
 
 #if DTLS_MAX_VERSION_INTERNAL != DTLS1_2_VERSION
 # error Internal DTLS version error
@@ -41,6 +38,9 @@ EXT_RETURN tls_construct_ctos_renegotiate(SSL_CONNECTION *s, WPACKET *pkt,
             return EXT_RETURN_NOT_SENT;
         }
 
+#ifndef OPENSSL_NO_ECH
+        ECH_IOSAME(s, pkt)
+#endif
 
         if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_renegotiate)
             || !WPACKET_start_sub_packet_u16(pkt)
@@ -52,6 +52,10 @@ EXT_RETURN tls_construct_ctos_renegotiate(SSL_CONNECTION *s, WPACKET *pkt,
 
         return EXT_RETURN_SENT;
     }
+
+#ifndef OPENSSL_NO_ECH
+    ECH_IOSAME(s, pkt)
+#endif
 
     /* Add a complete RI extension if renegotiating */
     if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_renegotiate)
