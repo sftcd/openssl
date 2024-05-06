@@ -64,8 +64,7 @@ IF[{- !$disabled{tests} -}]
           ca_internals_test bio_tfo_test membio_test bio_dgram_test list_test \
           fips_version_test x509_test hpke_test pairwise_fail_test \
           nodefltctxtest evp_xof_test x509_load_cert_file_test bio_meth_test \
-          x509_acert_test 
-          ech_test ech_split_test echcorrupttest
+          x509_acert_test ech_test ech_split_test echcorrupttest
 
   IF[{- !$disabled{'rpk'} -}]
     PROGRAMS{noinst}=rpktest
