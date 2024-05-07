@@ -577,7 +577,6 @@ SSL_handle_events                       577	3_2_0	EXIST::FUNCTION:
 SSL_get_event_timeout                   578	3_2_0	EXIST::FUNCTION:
 SSL_get0_group_name                     579	3_2_0	EXIST::FUNCTION:
 SSL_is_stream_local                     580	3_2_0	EXIST::FUNCTION:
-<<<<<<< HEAD
 SSL_write_ex2                           581	3_3_0	EXIST::FUNCTION:
 SSL_get_value_uint                      582	3_3_0	EXIST::FUNCTION:
 SSL_set_value_uint                      583	3_3_0	EXIST::FUNCTION:
@@ -673,9 +672,3 @@ SSL_CTX_ech_raw_decrypt                 ?	3_4_0	EXIST::FUNCTION:ECH
 SSL_CTX_ech_set_callback                ?	3_4_0	EXIST::FUNCTION:ECH
 ossl_ech_make_echconfig                 ?	3_4_0	EXIST::FUNCTION:ECH
 ossl_ech_find_echconfigs                ?	3_4_0	EXIST::FUNCTION:ECH
-SSL_SESSION_get_time_ex                 ?	3_4_0	EXIST::FUNCTION:
-SSL_SESSION_set_time_ex                 ?	3_4_0	EXIST::FUNCTION:
-SSL_write_ex2                           ?	3_4_0	EXIST::FUNCTION:
-SSL_get_value_uint                      ?	3_4_0	EXIST::FUNCTION:
-SSL_set_value_uint                      ?	3_4_0	EXIST::FUNCTION:
-SSL_poll                                ?	3_4_0	EXIST::FUNCTION:
