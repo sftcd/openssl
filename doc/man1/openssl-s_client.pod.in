@@ -981,7 +981,6 @@ Send a key update message to the server (TLSv1.3 only)
 
 Send a key update message to the server and request one back (TLSv1.3 only)
 
-
 =back
 
 =head1 CONNECTED COMMANDS (ADVANCED)
@@ -1102,7 +1101,7 @@ L<SSL_CONF_cmd(3)>,
 L<SSL_CTX_set_max_send_fragment(3)>,
 L<SSL_CTX_set_split_send_fragment(3)>,
 L<SSL_CTX_set_max_pipelines(3)>,
-L<ossl_store-file(7)>
+L<ossl_store-file(7)>,
 L<SSL_ech_set1_echconfig(3)>
 
 =head1 HISTORY

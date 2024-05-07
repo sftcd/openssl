@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2024 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the OpenSSL license (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -10,7 +10,7 @@
 /*
  * This has the externally-visible data structures and prototypes
  * for handling Encrypted ClientHello (ECH)
- * See the documentation in SSL_ech_set1_echcofig.pod
+ * See the documentation in SSL_ech_set1_echconfig.pod
  */
 #ifndef OPENSSL_ECH_H
 # define OPENSSL_ECH_H
