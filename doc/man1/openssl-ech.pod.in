@@ -96,7 +96,7 @@ codes/numbers e.g. "-c 0x20,1,3" or a comma-separated list of strings from:
 - KDFs: hkdf-sha256, hkdf-sha384, hkdf-sha512
 - AEADs: aes128gcm, aes256gcm, chachapoly1305
 
-For example the default is: x25518, hkdf-sha256, aes128gcm
+For example the default is: x25519, hkdf-sha256, aes128gcm
 See L<OSSL_HPKE_CTX_new(3)> for details.
 
 =head1 SEE ALSO
@@ -108,7 +108,7 @@ L<SSL_ech_set1_echconfig(3)>
 
 =head1 HISTORY
 
-This functionality described here was added in OpenSSL 3.2.
+This functionality described here was added in OpenSSL 3.4.
 
 =head1 COPYRIGHT
 
