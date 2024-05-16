@@ -1,5 +1,5 @@
 Source: openssl
-Build-Depends: debhelper-compat (= 13), dpkg-dev (>= 1.15.7), libzstd-dev, libbrotli-dev
+Build-Depends: debhelper-compat (= 13), dpkg-dev (>= 1.22.5), libzstd-dev, zlib1g-dev
 Section: utils
 Priority: optional
 Maintainer: Debian OpenSSL Team <pkg-openssl-devel@alioth-lists.debian.net>
@@ -29,11 +29,13 @@ Description: Secure Sockets Layer toolkit - cryptographic utility
   * testing SSL/TLS clients and servers;
   * handling S/MIME signed or encrypted mail.
 
-Package: libssl3
+Package: libssl3t64
+Provides: ${t64:Provides}
+Replaces: libssl3
 Section: libs
 Architecture: any
 Multi-Arch: same
-Breaks: openssh-client (<< 1:9.4p1), openssh-server (<< 1:9.4p1), python3-m2crypto (<< 0.38.0-4)
+Breaks: libssl3 (<< ${source:Version}), openssh-client (<< 1:9.4p1), openssh-server (<< 1:9.4p1), python3-m2crypto (<< 0.38.0-4)
 Pre-Depends: ${misc:Pre-Depends}
 Depends: ${shlibs:Depends}, ${misc:Depends}
 Description: Secure Sockets Layer toolkit - shared libraries
@@ -73,7 +75,7 @@ Section: libdevel
 Architecture: any
 Multi-Arch: same
 Suggests: libssl-doc
-Depends: libssl3 (= ${binary:Version}), ${misc:Depends}
+Depends: libssl3t64 (= ${binary:Version}), ${misc:Depends}
 Description: Secure Sockets Layer toolkit - development files
  This package is part of the OpenSSL project's implementation of the SSL
  and TLS cryptographic protocols for secure communication over the
