@@ -2376,7 +2376,7 @@ int s_client_main(int argc, char **argv)
      */
     SSL_CTX_set_session_cache_mode(ctx, SSL_SESS_CACHE_CLIENT
                                         | SSL_SESS_CACHE_NO_INTERNAL_STORE);
-    BIO_printf(bio_err,"Setting new_session_cb\n");
+    BIO_printf(bio_err, "Setting new_session_cb\n");
     SSL_CTX_sess_set_new_cb(ctx, new_session_cb);
 
     if (set_keylog_file(ctx, keylog_file))
@@ -2527,7 +2527,7 @@ int s_client_main(int argc, char **argv)
         unsigned char **cfgs = NULL;
         size_t *cfglens = NULL;
 
-        if (ossl_ech_find_echconfigs(&nechs, &cfgs, &cfglens,
+        if (OSSL_ech_find_echconfigs(&nechs, &cfgs, &cfglens,
                                      (unsigned char*)ech_encoded_configs,
                                      strlen(ech_encoded_configs)) != 1) {
             BIO_printf(bio_err, "%s: ECHConfig decode failed.\n", prog);

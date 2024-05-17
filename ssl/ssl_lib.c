@@ -4206,8 +4206,8 @@ SSL_CTX *SSL_CTX_new_ex(OSSL_LIB_CTX *libctx, const char *propq,
     }
 
 #ifndef OPENSSL_NO_ECH
-	ret->ext.nechs = 0;
-	ret->ext.ech = NULL;
+    ret->ext.nechs = 0;
+    ret->ext.ech = NULL;
     ret->ext.ech_cb = NULL;
     ret->ext.alpn_outer = NULL;
     ret->ext.alpn_outer_len = 0;
@@ -4327,13 +4327,13 @@ void SSL_CTX_free(SSL_CTX *a)
     OPENSSL_free(a->client_cert_type);
     OPENSSL_free(a->server_cert_type);
 #ifndef OPENSSL_NO_ECH
-	if (a->ext.ech != NULL) {
+    if (a->ext.ech != NULL) {
         SSL_ECH_free_arr(a->ext.ech, a->ext.nechs);
         memset(a->ext.ech, 0, a->ext.nechs * sizeof(SSL_ECH));
         OPENSSL_free(a->ext.ech);
-		a->ext.ech = NULL;
-		a->ext.nechs = 0;
-	}
+        a->ext.ech = NULL;
+        a->ext.nechs = 0;
+    }
     OPENSSL_free(a->ext.alpn_outer);
 #endif
 

@@ -169,7 +169,7 @@ int FuzzerInitialize(int *argc, char ***argv)
         sk_SSL_COMP_sort(comp_methods);
 
 #if !defined(OPENSSL_NO_ECH) && !defined(OPENSSL_NO_EC) && !defined(OPENSSL_NO_ECX)
-    if (ossl_ech_make_echconfig(s_echconfig, &s_echconfiglen,
+    if (OSSL_ech_make_echconfig(s_echconfig, &s_echconfiglen,
                                 priv, &privlen,
                                 ech_version, max_name_length,
                                 public_name, hpke_suite,

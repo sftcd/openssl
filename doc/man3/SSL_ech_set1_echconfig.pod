@@ -13,7 +13,7 @@ SSL_CTX_ech_server_flush_keys, SSL_CTX_ech_server_enable_file,
 SSL_CTX_ech_server_enable_buffer, SSL_CTX_ech_server_enable_dir,
 SSL_CTX_ech_raw_decrypt, SSL_CTX_ech_set_callback,
 SSL_CTX_ech_set_outer_alpn_protos,
-ossl_ech_make_echconfig, ossl_ech_find_echconfigs
+OSSL_ech_make_echconfig, OSSL_ech_find_echconfigs
 - Encrypted ClientHello (ECH) functions
 
 =head1 SYNOPSIS
@@ -59,12 +59,12 @@ ossl_ech_make_echconfig, ossl_ech_find_echconfigs
  int SSL_CTX_ech_set_outer_alpn_protos(SSL *s, const unsigned char *protos,
                                        unsigned int protos_len);
 
- int ossl_ech_make_echconfig(unsigned char *echconfig, size_t *echconfiglen,
+ int OSSL_ech_make_echconfig(unsigned char *echconfig, size_t *echconfiglen,
                              unsigned char *priv, size_t *privlen,
                              uint16_t ekversion, uint16_t max_name_length,
                              const char *public_name, OSSL_HPKE_SUITE suite,
                              const unsigned char *extvals, size_t extlen);
- int ossl_ech_find_echconfigs(int *num_echs,
+ int OSSL_ech_find_echconfigs(int *num_echs,
                               unsigned char ***echconfigs, size_t **echlens,
                               const unsigned char *val, size_t len);
 
@@ -89,12 +89,12 @@ allowing the application to provide that information to the TLS stack.  The
 SVCB and HTTPS resource records are defined in
 L<https://datatracker.ietf.org/doc/draft-ietf-dnsop-svcb-https/>.
 
-If an ECH public value is associated with an I<SSL> connecction, and if TLS version
-1.3 is used for the session then the client will attempt to use ECH when a new
-TLS session is negotiated e.g. using L<SSL_connect(3)> or L<SSL_write(3)>. If
-an ECH public value is associated with an I<SSL> connection but a different TLS
-version is used for the session (e.g. TLS version 1.2) then ECH will not be
-used but the SSL session will be created as usual.
+If an ECH public value is associated with an I<SSL> connection, and if TLS
+version 1.3 is used for the session then the client will attempt to use ECH
+when a new TLS session is negotiated e.g. using L<SSL_connect(3)> or
+L<SSL_write(3)>. If an ECH public value is associated with an I<SSL> connection
+but a different TLS version is used for the session (e.g. TLS version 1.2) then
+ECH will not be used but the SSL session will be created as usual.
 
 SSL_ech_set1_echconfig() and SSL_CTX_ech_set1_echconfig() allow clients to
 provide one binary, ascii-hex or base64 encoded ECHConfigList in the I<val> (of
@@ -144,7 +144,7 @@ the ``ech=`` value if one is present.  Lastly, in some scenarios the
 application may provide a set of catenated encoded values, e.g. if there are
 multiple HTTPS resource records published for a given name.
 
-ossl_ech_find_echconfigs() attempts to find and return the (possibly empty)
+OSSL_ech_find_echconfigs() attempts to find and return the (possibly empty)
 set of ECHConfig values from a buffer containing one of the encoded forms
 described above. The number successfully found is returned in I<num_echs>,
 and a set of buffer pointers are returned in I<echconfigs>, each with a
@@ -210,7 +210,7 @@ SSL_CTX_ech_set_outer_alpn_protos() all return 1 for success and 0 for error.
 
 =head2 Generating ECH key pairs and ECHconfigs
 
-ossl_ech_make_echconfig() allows applications to generate an ECH key pair
+OSSL_ech_make_echconfig() allows applications to generate an ECH key pair
 and create a matching base64 encoded ECHConfigList in the I<echconfig> buffer.
 That buffer has size I<echconfiglen> on input. On output I<echconfiglen> has
 the length of the actual ECHConfigList. The private key will be written in
@@ -239,7 +239,7 @@ The other inputs control the ECHConfig options:
 Note that at the time of writing there are no known implementations that
 make use of ECH extensions.
 
-ossl_ech_make_echconfig() is intended for use by applications that generate
+OSSL_ech_make_echconfig() is intended for use by applications that generate
 ECH configuration data, such as L<openssl-ech(1)>.
 
 
@@ -247,9 +247,10 @@ ECH configuration data, such as L<openssl-ech(1)>.
 
 In order to enable ECH for servers it is necessary to load one or more ECH
 private keys and public values from files or buffers. The file format to be
-used is specified in L<https://datatracker.ietf.org/doc/draft-farrell-tls-pemesni/>
-and conists of one private key in PKCS#8 format and a base64 encoded ECHConfig
-containing one matching public value.
+used is specified in
+L<https://datatracker.ietf.org/doc/draft-farrell-tls-pemesni/> and consists of
+one private key in PKCS#8 format and a base64 encoded ECHConfig containing one
+matching public value.
 
 Once some ECH key pairs are loaded then the server will attempt ECH decryption
 as needed. (See also L</ECH SSL Options>.)
@@ -525,7 +526,7 @@ SSL_CTX_ech_set1_echconfig(), SSL_CTX_ech_server_get_key_status(),
 SSL_CTX_ech_server_flush_keys(),
 SSL_CTX_ech_server_enable_buffer(), SSL_CTX_ech_server_enable_dir(),
 SSL_CTX_ech_raw_decrypt(),
-ossl_ech_make_echconfig() and ossl_ech_find_echconfigs()
+OSSL_ech_make_echconfig() and OSSL_ech_find_echconfigs()
 all return 1 for success and 0 in the case of failure.
 
 SSL_CTX_ech_server_enable_file() returns 1 for success, zero

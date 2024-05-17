@@ -176,7 +176,7 @@ static char *echconfiglist_from_PEM(const char *echkeyfile)
     if (ecl_string == NULL)
         goto out;
     memcpy(ecl_string, lnbuf, readbytes);
-    /* zap the '\n' if present */
+    /* zap the ending '\n' if present */
     if (ecl_string[readbytes - 1] == '\n')
         ecl_string[readbytes - 1] = '\0';
     BIO_free_all(in);
@@ -12514,12 +12514,6 @@ int setup_tests(void)
             OSSL_PROVIDER_unload(prov);
         }
     }
-#if 0
-#ifndef OPENSSL_NO_USABLE_ECH
-    if (!is_fips && hpke_setlibctx(libctx)!=1)
-        return 0;
-#endif
-#endif
     /*
      * We add, but don't load the test "tls-provider". We'll load it when we
      * need it.

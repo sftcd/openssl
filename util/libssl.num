@@ -670,5 +670,5 @@ SSL_CTX_ech_server_get_key_status       ?	3_4_0	EXIST::FUNCTION:ECH
 SSL_CTX_ech_server_flush_keys           ?	3_4_0	EXIST::FUNCTION:ECH
 SSL_CTX_ech_raw_decrypt                 ?	3_4_0	EXIST::FUNCTION:ECH
 SSL_CTX_ech_set_callback                ?	3_4_0	EXIST::FUNCTION:ECH
-ossl_ech_make_echconfig                 ?	3_4_0	EXIST::FUNCTION:ECH
-ossl_ech_find_echconfigs                ?	3_4_0	EXIST::FUNCTION:ECH
+OSSL_ech_make_echconfig                 ?	3_4_0	EXIST::FUNCTION:ECH
+OSSL_ech_find_echconfigs                ?	3_4_0	EXIST::FUNCTION:ECH

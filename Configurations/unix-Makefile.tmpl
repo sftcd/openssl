@@ -1338,6 +1338,7 @@ errors:
            include/openssl/ebcdic.h
            include/openssl/opensslconf.h
            include/openssl/symhacks.h ) );
+   our %cryptoheaders = ();
    our %sslheaders = ();
    foreach my $d ( qw( include/openssl include/internal ) ) {
        my @header_patterns =

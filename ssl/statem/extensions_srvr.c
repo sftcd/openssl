@@ -2220,7 +2220,7 @@ int tls_parse_ctos_ech(SSL_CONNECTION *s, PACKET *pkt, unsigned int context,
 
 /*
  * @brief answer a draft-13 ECH, as needed
- * @param s is the SSL session
+ * @param s is the SSL connection
  * @param pkt is the packet
  * @param context is unused
  * @param x is unused
@@ -2252,7 +2252,7 @@ EXT_RETURN tls_construct_stoc_ech13(SSL_CONNECTION *s, WPACKET *pkt,
             return 0;
         }
         OSSL_TRACE_BEGIN(TLS) {
-            BIO_printf(trc_out,"set 8 zeros for ECH acccpt confirm in HRR\n");
+            BIO_printf(trc_out,"set 8 zeros for ECH accept confirm in HRR\n");
         } OSSL_TRACE_END(TLS);
         return EXT_RETURN_SENT;
     }
