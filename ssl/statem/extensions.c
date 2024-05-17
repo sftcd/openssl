@@ -682,6 +682,7 @@ int tls_collect_extensions(SSL_CONNECTION *s, PACKET *packet,
         }
 #ifndef OPENSSL_NO_ECH
         /*
+         * TODO: do a test to check this
          * the subtraction below seems a bit smelly as thisex will be
          * NULL for unsupported or custom extensions
          * Not sure what to do about that.
@@ -1076,7 +1077,7 @@ static int init_server_name(SSL_CONNECTION *s, unsigned int context)
 #ifndef OPENSSL_NO_ECH
 /*
  * @brief Just note that ech is not yet done
- * @param s is the SSL session
+ * @param s is the SSL connection
  * @param context determines when called
  * @return 1 for good, 0 otherwise
  */

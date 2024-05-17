@@ -68,26 +68,20 @@
 #  define OSSL_ECH_SAME_EXT_CONTINUE 2 /* generate a new value for outer CH */
 
 /*
- * During extension construction (in extensions_clnt.c
- * and surprisingly also in extensions.c), we need to
- * handle inner/outer CH cloning - ech_same_ext will
- * (depending on ech.c compile time handling options
- * from the ech_ext_handling table) copy the value
- * from CH.inner to CH.outer or else processing
- * will continue, for a 2nd call, likely generating a
- * fresh value for the outer CH. (The fresh value
- * could well be the same as in the inner.)
- * This macro should be called in each _ctos_ function
- * that doesn't explicitly have special ECH handling.
+ * During extension construction (in extensions_clnt.c and surprisingly also in
+ * extensions.c), we need to handle inner/outer CH cloning - ech_same_ext will
+ * (depending on ech.c compile time handling options from the ech_ext_handling
+ * table) copy the value from CH.inner to CH.outer or else processing will
+ * continue, for a 2nd call, likely generating a fresh value for the outer CH.
+ * (The fresh value could well be the same as in the inner.) This macro should
+ * be called in each _ctos_ function that doesn't explicitly have special ECH
+ * handling.
  *
- * Note that the placement of this macro needs a bit
- * of thought - it has to go after declarations (to
- * keep the ansi-c compile happy) and also after any
- * checks that result in the extension not being sent
- * but before any relevant state changes that would
- * affect a possible 2nd call to the constructor.
- * Luckily, that's usually not to hard, but it's
- * not mechanical.
+ * Note that the placement of this macro needs a bit of thought - it has to go
+ * after declarations (to keep the ansi-c compile happy) and also after any
+ * checks that result in the extension not being sent but before any relevant
+ * state changes that would affect a possible 2nd call to the constructor.
+ * Luckily, that's usually not to hard, but it's not mechanical.
  */
 #  define ECH_IOSAME(s, pkt) \
     if (s->ext.ech.cfgs != NULL && s->ext.ech.grease == 0) { \
@@ -134,6 +128,7 @@
  */
 typedef unsigned char ech_ciphersuite_t[OSSL_ECH_CIPHER_LEN];
 
+/* TODO: check changing int's below to e.g. uint16_t uint8-t etc */
 typedef struct ech_config_st {
     unsigned int version; /* 0xff0d for draft-13 */
     unsigned int public_name_len;
@@ -361,7 +356,7 @@ SSL_ECH *SSL_ECH_dup(SSL_ECH *orig, size_t nech, int selector);
 
 /*
  * @brief After "normal" 1st pass client CH handling, encode that
- * @param s is the SSL session
+ * @param s is the SSL connection
  * @return 1 for success, error otherwise
  *
  * Make up ClientHelloInner and EncodedClientHelloInner buffers
@@ -370,7 +365,7 @@ int ech_encode_inner(SSL_CONNECTION *s);
 
 /*
  * @brief Replicate ext value from inner ch into outer ch
- * @param s is the SSL session
+ * @param s is the SSL connection
  * @param pkt is the packet containing extensions
  * @return 0: error, 1: copied existing and done, 2: ignore existing
  *
@@ -463,8 +458,8 @@ int ech_aad_and_encrypt(SSL_CONNECTION *s, WPACKET *pkt);
 
 /*
  * @brief reset the handshake buffer for transcript after ECH is good
- * @param s is the session
- * @param buf is the data to put into the transcript (usuallhy inner CH)
+ * @param s is the SSL connection
+ * @param buf is the data to put into the transcript (usually inner CH)
  * @param blen is the length of buf
  * @return 1 for success
  */
@@ -488,7 +483,7 @@ int ech_2bcompressed(int ind);
 
 /*
  * @brief Given a CH find the offsets of the session id, extensions and ECH
- * @param: s is the SSL session
+ * @param: s is the SSL connection
  * @param: pkt is the CH
  * @param: sessid points to offset of session_id length
  * @param: exts points to offset of extensions
@@ -508,7 +503,7 @@ int ech_get_ch_offsets(SSL_CONNECTION *s, PACKET *pkt, size_t *sessid,
 /*
  * @brief Print the content of an SSL_ECH (for callback logging)
  * @param out is the BIO to use (e.g. stdout/whatever)
- * @param s is an SSL session strucutre
+ * @param s is an SSL connection structure
  * @param selector allows picking all (ECH_SELECT_ALL==-1) or just one RR value
  * @return 1 for success, anything else for failure
  */

@@ -517,7 +517,7 @@ typedef struct tlsextctx_st {
 #ifndef OPENSSL_NO_ECH
 /*
  * @brief print an ECH structure string, thread safely
- * @param s is the SSL session
+ * @param s is the SSL connection
  * @param str is the string to print
  * @return 1 for good
  */

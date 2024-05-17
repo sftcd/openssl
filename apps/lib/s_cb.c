@@ -749,9 +749,9 @@ static STRINT_PAIR tlsext_types[] = {
 #ifndef OPENSSL_NO_ECH
     {"encrypted ClientHello (draft-13)", TLSEXT_TYPE_ech},
     {"outer exts", TLSEXT_TYPE_outer_extensions},
-    /* not an ECH change, but seems to be missing */
-    {"early_data", TLSEXT_TYPE_early_data},
+    /* next is not an ECH change, but seems to be missing */
 #endif
+    {"early_data", TLSEXT_TYPE_early_data},
     {NULL}
 };
 

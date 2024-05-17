@@ -240,7 +240,7 @@ int ech_main(int argc, char **argv)
 
     if (mode == OSSL_ECH_KEYGEN_MODE) {
         /* Generate a new key/ECHConfigList and spit that out */
-        rv = ossl_ech_make_echconfig(echconfig, &echconfig_len, priv, &privlen,
+        rv = OSSL_ech_make_echconfig(echconfig, &echconfig_len, priv, &privlen,
                                      ech_version, max_name_length, public_name,
                                      hpke_suite, extvals, extlen);
         if (rv != 1) {

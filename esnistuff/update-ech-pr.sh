@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -ex
+set -e
 
 # Run this to update the ECH-PR branch from the ECH-draft-13c branch
 # while squashing the commits into something more manageable

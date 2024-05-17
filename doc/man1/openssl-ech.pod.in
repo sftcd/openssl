@@ -3,7 +3,7 @@
 
 =head1 NAME
 
-openssl-ech - ECH key generation and display programme
+openssl-ech - ECH key generation and display program
 
 =head1 SYNOPSIS
 
@@ -28,7 +28,7 @@ and public keys in the ECHConfig format. They can be converted between
 various forms and their components displayed.
 
 The "ECHConfig PEM file" format mentioned below is specified in
-L<https://datatracker.ietf.org/doc/draft-farrell-tls-pemesni/> and conists of
+L<https://datatracker.ietf.org/doc/draft-farrell-tls-pemesni/> and consists of
 one private key in PKCS#8 format and a base64 encoded ECHConfig containing one
 matching public value.
 

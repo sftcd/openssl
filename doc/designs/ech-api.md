@@ -114,7 +114,7 @@ information, mainly the ``public_name`` that will be used as the SNI value in
 outer CH messages.
 
 ```c
-int ossl_ech_make_echconfig(unsigned char *echconfig, size_t *echconfiglen,
+int OSSL_ech_make_echconfig(unsigned char *echconfig, size_t *echconfiglen,
                             unsigned char *priv, size_t *privlen,
                             uint16_t ekversion, uint16_t max_name_length,
                             const char *public_name, OSSL_HPKE_SUITE suite,
@@ -208,13 +208,6 @@ decryption has succeeded or not, and if it has, returns the inner CH and SNI
 values (allowing routing to the correct back-end). Both the supplied (outer)
 CH and returned (inner) CH here include the record layer header.
 
-This has been tested in a PoC implementation with haproxy, which works for
-nominal operation but that can't handle the combination of split-mode in the
-face of HRR, as haproxy only supports examining the first (outer) CH seen,
-whereas ECH + split-mode + HRR requires processing both outer CHs. ECH
-split-mode with HRR has so far only been tested as part of the ``make test``
-target. (In other words, the utility of this API ought be considered unproven.)
-
 ```c
 int SSL_CTX_ech_raw_decrypt(SSL_CTX *ctx,
                             int *decrypted_ok,
@@ -279,18 +272,18 @@ ascii hex or binary) each of which may suit different applications.  ECHConfig
 values may also be provided embedded in the DNS wire encoding of HTTPS or SVCB
 resource records or in the equivalent zone file presentation format.
 
-``ossl_ech_find_echconfigs()`` attempts to find and return the (possibly empty)
+``OSSL_ech_find_echconfigs()`` attempts to find and return the (possibly empty)
 set of ECHConfig values from a buffer containing one of the encoded forms
 described above. Each successfully returned ECHConfigList will have
 exactly one ECHConfig, i.e., a single public value.
 
 ```c
-int ossl_ech_find_echconfigs(int *num_echs,
+int OSSL_ech_find_echconfigs(int *num_echs,
                              unsigned char ***echconfigs, size_t **echlens,
                              const unsigned char *val, size_t len);
 ```
 
-``ossl_ech_find_echconfigs()`` returns the number of ECHConfig values from the
+``OSSL_ech_find_echconfigs()`` returns the number of ECHConfig values from the
 input (``val``/``len``) successfully decoded  in the ``num_echs`` output.  If
 no ECHConfig values values are encountered (which can happen for good HTTPS RR
 values) then ``num_echs`` will be zero but the function returns 1. If the
@@ -299,7 +292,7 @@ those that contain locally supported options (e.g. AEAD ciphers) will be
 returned. If no ECHConfig found has supported options then none will be
 returned and the function will return 0.
 
-After a call to ``ossl_ech_find_echconfigs()``, the application can make a
+After a call to ``OSSL_ech_find_echconfigs()``, the application can make a
 sequence of calls to ``SSL_ech_set1_echconfig()`` for each of the ECHConfig
 values found.  (The various output buffers must be freed by the client
 afterwards, see the example code in
@@ -513,7 +506,7 @@ OPENSSL_EXPORT int SSL_ECH_KEYS_marshal_retry_configs(const SSL_ECH_KEYS *keys,
 
 ```
 
-Collectively these are similar to ``ossl_ech_make_echconfig()``.
+Collectively these are similar to ``OSSL_ech_make_echconfig()``.
 
 ### Setting ECH keys on a server
 

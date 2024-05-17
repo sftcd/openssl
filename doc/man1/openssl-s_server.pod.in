@@ -905,9 +905,9 @@ Raw public keys are extracted from the configured certificate/private key.
 
 =item B<-ech_dir> I<dir>
 
-Load all new/modified Encrypted Client Hello (ECH) PEM files from the relevant directory.
-A file is considered modified if it's modification time is one second or more younger
-than the time a file of that same name was loaded.
+Load all new/modified Encrypted Client Hello (ECH) PEM files from the relevant
+directory.  A file is considered modified if its modification time is one
+second or more younger than the time a file of that same name was loaded.
 
 =item B<-ech_key> I<filename>
 
@@ -1046,7 +1046,7 @@ B<-no_tx_cert_comp>,
 and B<-tfo>
 options were added in OpenSSL 3.2.
 
-The B<ech> options were added in OpenSSL 3.2.
+The B<ech> options were added in OpenSSL 3.4.
 
 =head1 COPYRIGHT
 

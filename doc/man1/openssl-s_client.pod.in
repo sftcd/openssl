@@ -885,7 +885,7 @@ specified via -alpn will be used in the inner ClientHello.)
 
 When not really doing Encrypted Client Hello (ECH), one can emit a so-called
 GREASE value, which is essentially a random value in order to try ensure that
-server code doesn't ossify.
+server code is less likely to ossify.
 
 =item B<-ech_grease_suite> I<suite>
 
@@ -1117,7 +1117,7 @@ B<-no_tx_cert_comp>,
 and B<-tfo>
 options were added in OpenSSL 3.2.
 
-The B<ech> options were added in OpenSSL 3.2.
+The B<ech> options were added in OpenSSL 3.4.
 
 =head1 COPYRIGHT
 

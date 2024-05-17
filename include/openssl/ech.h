@@ -81,6 +81,8 @@ int SSL_CTX_ech_set1_echconfig(SSL_CTX *ctx, const unsigned char *val,
 
 int SSL_ech_set_server_names(SSL *s, const char *inner_name,
                              const char *outer_name, int no_outer);
+/* TODO: Add back SSL_ech_set_outer_alpn_protos() */
+
 int SSL_ech_set_outer_server_name(SSL *s, const char *outer_name, int no_outer);
 
 void OSSL_ECH_INFO_free(OSSL_ECH_INFO *info, int count);
@@ -121,13 +123,13 @@ int SSL_CTX_ech_raw_decrypt(SSL_CTX *ctx,
 void SSL_CTX_ech_set_callback(SSL_CTX *ctx, SSL_ech_cb_func f);
 
 /* Misc API calls */
-int ossl_ech_make_echconfig(unsigned char *echconfig, size_t *echconfiglen,
+int OSSL_ech_make_echconfig(unsigned char *echconfig, size_t *echconfiglen,
                             unsigned char *priv, size_t *privlen,
                             uint16_t ekversion, uint16_t max_name_length,
                             const char *public_name, OSSL_HPKE_SUITE suite,
                             const unsigned char *extvals, size_t extlen);
 
-int ossl_ech_find_echconfigs(int *num_echs,
+int OSSL_ech_find_echconfigs(int *num_echs,
                              unsigned char ***echconfigs, size_t **echlens,
                              const unsigned char *val, size_t len);
 

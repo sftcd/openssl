@@ -952,7 +952,7 @@ EXT_RETURN tls_construct_ctos_early_data(SSL_CONNECTION *s, WPACKET *pkt,
         /*
          * if we called this for inner and did send then
          * the following two things were set just before
-         * returning (i.e. at the bottom of this fucntion)
+         * returning (i.e. at the bottom of this function)
          * so we should send again in the outer CH.
          */
         if (s->ext.early_data == SSL_EARLY_DATA_REJECTED

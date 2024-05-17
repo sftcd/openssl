@@ -634,7 +634,7 @@ __owur static ossl_inline int PACKET_get_length_prefixed_3(PACKET *pkt,
  * (because pkt may be a subpacket so we don't here have a pointer to
  * the allocated buffer)
  */
-__owur static ossl_inline int PACKET_replace(PACKET *pkt, PACKET *newpkt)
+__owur static ossl_inline int PACKET_replace(PACKET *pkt, const PACKET *newpkt)
 {
     if (pkt == NULL || newpkt == NULL)
         return 0;

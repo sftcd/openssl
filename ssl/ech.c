@@ -175,7 +175,7 @@
  * Strings used in ECH crypto derivations (odd format for EBCDIC goodness)
  */
 /* "ech accept confirmation" */
-static char OSSL_ECH_ACCEPT_CONFIRM_STRING[] = "\x65\x63\x68\x20\x61\x63\x63\x65\x70\x74\x20\x63\x6f\x6e\x66\x69\x72\x6d\x61\x74\x69\x6f\x6e";
+static const char OSSL_ECH_ACCEPT_CONFIRM_STRING[] = "\x65\x63\x68\x20\x61\x63\x63\x65\x70\x74\x20\x63\x6f\x6e\x66\x69\x72\x6d\x61\x74\x69\x6f\x6e";
 /* "hrr ech accept confirmation" */
 static const char OSSL_ECH_HRR_CONFIRM_STRING[] = "\x68\x72\x72\x20\x65\x63\x68\x20\x61\x63\x63\x65\x70\x74\x20\x63\x6f\x6e\x66\x69\x72\x6d\x61\x74\x69\x6f\x6e";
 
@@ -185,7 +185,7 @@ static const char OSSL_ECH_HRR_CONFIRM_STRING[] = "\x68\x72\x72\x20\x65\x63\x68\
  *
  * If an extension constructor has side-effects then it is (in general)
  * unsafe to call twice. For others, we need to be able to call twice,
- * if we do want possibly different values in inner and outer, of if
+ * if we do want possibly different values in inner and outer, or if
  * the extension constructor is ECH-aware and handles side-effects
  * specially for inner and outer. If OTOH we want the inner to contain
  * a compressed form of the value in the outer we also need to signal
@@ -376,7 +376,7 @@ static int ech_check_filenames(SSL_CTX *ctx, const char *pemfname, int *index)
  * @brief decode the DNS name in a binary RRData
  * @param buf points to the buffer (in/out)
  * @param remaining points to the remaining buffer length (in/out)
- * @param dnsname returns the string form name on success
+ * @param dnsname returns the string-form name on success
  * @return is 1 for success, error otherwise
  *
  * The encoding here is defined in
@@ -452,7 +452,7 @@ static int local_decode_rdata_name(unsigned char **buf, size_t *remaining,
  *
  * The wrong answer could be derived with a low probability.
  * If the application can't handle that, then it ought not use
- * ossl_ech_find_echconfigs()
+ * OSSL_ech_find_echconfigs()
  */
 static int ech_guess_fmt(size_t eklen, const unsigned char *rrval,
                          int *guessedfmt)
@@ -479,8 +479,9 @@ static int ech_guess_fmt(size_t eklen, const unsigned char *rrval,
         return 0;
     memcpy(cp, rrval, eklen);
     cp[eklen] = '\0'; /* make sure string funcs have a NUL terminator */
+    /* TODO: replace * 256 with << 8 generally */
     if (eklen > 4
-        && eklen == ((size_t)(cp[0])*256+(size_t)(cp[1])) + 2
+        && eklen == ((size_t)(cp[0]) * 256 + (size_t)(cp[1])) + 2
         && cp[3] == ((OSSL_ECH_RFCXXXX_VERSION / 256) & 0xff)
         && cp[4] == ((OSSL_ECH_RFCXXXX_VERSION % 256) & 0xff)) {
         *guessedfmt = OSSL_ECH_FMT_BIN;
@@ -527,13 +528,12 @@ static int ech_guess_fmt(size_t eklen, const unsigned char *rrval,
     }
     /* fallback - try binary */
     *guessedfmt = OSSL_ECH_FMT_BIN;
-    goto win;
-err:
-    OPENSSL_free(cp);
-    return 0;
 win:
     OPENSSL_free(cp);
     return 1;
+err:
+    OPENSSL_free(cp);
+    return 0;
 }
 
 /*
@@ -1676,7 +1676,7 @@ static int ECHConfigList_dup(ECHConfigList *old, ECHConfigList *new)
  * @brief return a printable form of alpn
  * @param alpn is the buffer with alpns
  * @param len is the length of the above
- * @return buffer with string form (caller has to free)
+ * @return buffer with string-form (caller has to free)
  *
  * ALPNs are multi-valued, with lengths between, we
  * map that to a comma-sep list
@@ -1707,7 +1707,7 @@ static char *alpn_print(unsigned char *alpn, size_t len)
 }
 
 /*
- * @brief produce a printable string form of an ECHConfigList
+ * @brief produce a printable string-form of an ECHConfigList
  * @param out is where we print
  * @param c is the ECHConfigList
  * @return 1 for good, 0 for fail
@@ -1756,7 +1756,7 @@ static int ECHConfigList_print(BIO *out, ECHConfigList *c)
 
 /*!
  * @brief Given a CH find the offsets of the session id, extensions and ECH
- * @param: s is the SSL session
+ * @param: s is the SSL connection
  * @param: pkt is the CH
  * @param: sessid points to offset of session_id length
  * @param: exts points to offset of extensions
@@ -2164,7 +2164,7 @@ err:
 
 /*
  * @brief wrapper for hpke_dec just to save code repetition
- * @param s is the SSL session
+ * @param s is the SSL connection
  * @param ech is the selected ECHConfig
  * @param the_ech is the value sent by the client
  * @param aad_len is the length of the AAD to use
@@ -2464,7 +2464,7 @@ static size_t ech_calc_padding(SSL_CONNECTION *s, ECHConfig *tc)
 /*
  * @brief decode outer sni value so we can trace it
  * @param s is the SSL connection
- * @param osni_str is the string form of the SNI
+ * @param osni_str is the string-form of the SNI
  * @param opd is the outer CH buffer
  * @param opl is the length of the above
  * @param snioffset is where we find the outer SNI
@@ -2871,8 +2871,11 @@ static int ech_write_hrrtoken(SSL_CONNECTION *sc, unsigned char **hrrtok,
     }
     WPACKET_get_total_written(&hpkt, toklen);
     *hrrtok = OPENSSL_malloc(*toklen);
-    if (*hrrtok == NULL)
+    if (*hrrtok == NULL) {
+        WPACKET_cleanup(&hpkt);
+        BUF_MEM_free(hpkt_mem);
         return 0;
+    }
     memcpy(*hrrtok, WPACKET_get_curr(&hpkt) - *toklen, *toklen);
     WPACKET_cleanup(&hpkt);
     BUF_MEM_free(hpkt_mem);
@@ -2962,7 +2965,6 @@ void ECHConfig_free(ECHConfig *tbf)
         OPENSSL_free(tbf->exts[i]);
     OPENSSL_free(tbf->exts);
     OPENSSL_free(tbf->encoding_start);
-    memset(tbf, 0, sizeof(ECHConfig));
     return;
 }
 
@@ -2980,7 +2982,6 @@ void ECHConfigList_free(ECHConfigList *tbf)
     for (i = 0; i != tbf->nrecs; i++)
         ECHConfig_free(&tbf->recs[i]);
     OPENSSL_free(tbf->recs);
-    memset(tbf, 0, sizeof(ECHConfigList));
     return;
 }
 
@@ -3787,7 +3788,7 @@ int ech_find_confirm(SSL_CONNECTION *s, int hrr, unsigned char *acbuf,
 
 /*
  * @brief Swap the inner and outer
- * @param s is the SSL session to swap about
+ * @param s is the SSL connection to swap about
  * @return 0 for error, 1 for success
  *
  * The only reason to make this a function is because it's
@@ -5205,6 +5206,10 @@ int SSL_CTX_ech_server_enable_buffer(SSL_CTX *ctx, const unsigned char *buf,
     return 1;
 }
 
+/* 
+ * TODO: check there are no file-locking issues related to loading these
+ * with multi-threading or with other multi-threading environments.
+ */
 int SSL_CTX_ech_server_enable_dir(SSL_CTX *ctx, int *number_loaded,
                                   const char *echdir, int for_retry)
 {
@@ -5662,7 +5667,7 @@ int SSL_ech_get_retry_config(SSL *ssl, unsigned char **ec, size_t *eclen)
     return 1;
 }
 
-int ossl_ech_make_echconfig(unsigned char *echconfig, size_t *echconfiglen,
+int OSSL_ech_make_echconfig(unsigned char *echconfig, size_t *echconfiglen,
                             unsigned char *priv, size_t *privlen,
                             uint16_t ekversion, uint16_t max_name_length,
                             const char *public_name, OSSL_HPKE_SUITE suite,
@@ -5831,7 +5836,7 @@ err:
     return rv;
 }
 
-int ossl_ech_find_echconfigs(int *num_echs,
+int OSSL_ech_find_echconfigs(int *num_echs,
                              unsigned char ***echconfigs, size_t **echlens,
                              const unsigned char *val, size_t len)
 {

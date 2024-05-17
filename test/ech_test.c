@@ -627,7 +627,7 @@ static int basic_echconfig(int idx)
     int num_dets = 0;
 
     /* test verious dodgy key gens */
-    if (!TEST_false(ossl_ech_make_echconfig(NULL, NULL,
+    if (!TEST_false(OSSL_ech_make_echconfig(NULL, NULL,
                                             NULL, NULL,
                                             ech_version, max_name_length,
                                             public_name, hpke_suite,
@@ -635,7 +635,7 @@ static int basic_echconfig(int idx)
         goto err;
     echconfiglen = 80; /* too short */
     privlen = sizeof(priv);
-    if (!TEST_false(ossl_ech_make_echconfig(echconfig, &echconfiglen,
+    if (!TEST_false(OSSL_ech_make_echconfig(echconfig, &echconfiglen,
                                             priv, &privlen,
                                             ech_version, max_name_length,
                                             public_name, hpke_suite,
@@ -643,7 +643,7 @@ static int basic_echconfig(int idx)
         goto err;
     echconfiglen = sizeof(echconfig);
     privlen = 10; /* too short */
-    if (TEST_true(ossl_ech_make_echconfig(echconfig, &echconfiglen,
+    if (TEST_true(OSSL_ech_make_echconfig(echconfig, &echconfiglen,
                                           priv, &privlen,
                                           ech_version, max_name_length,
                                           public_name, hpke_suite,
@@ -653,7 +653,7 @@ static int basic_echconfig(int idx)
     privlen = sizeof(priv);
     /* dodgy KEM */
     hpke_suite.kem_id = 0xbad;
-    if (!TEST_false(ossl_ech_make_echconfig(echconfig, &echconfiglen,
+    if (!TEST_false(OSSL_ech_make_echconfig(echconfig, &echconfiglen,
                                             priv, &privlen,
                                             ech_version, max_name_length,
                                             public_name, hpke_suite,
@@ -663,14 +663,14 @@ static int basic_echconfig(int idx)
     privlen = sizeof(priv);
     hpke_suite.kem_id = OSSL_HPKE_KEM_ID_X25519;
     /* bad version */
-    if (!TEST_false(ossl_ech_make_echconfig(echconfig, &echconfiglen,
+    if (!TEST_false(OSSL_ech_make_echconfig(echconfig, &echconfiglen,
                                             priv, &privlen,
                                             0xbad, max_name_length,
                                             public_name, hpke_suite,
                                             extvals, extlen)))
         goto err;
     /* bad max name length */
-    if (!TEST_false(ossl_ech_make_echconfig(echconfig, &echconfiglen,
+    if (!TEST_false(OSSL_ech_make_echconfig(echconfig, &echconfiglen,
                                             priv, &privlen,
                                             ech_version, 1024,
                                             public_name, hpke_suite,
@@ -678,7 +678,7 @@ static int basic_echconfig(int idx)
         goto err;
     /* bad extensions */
     memset(badexts, 0xAA, sizeof(badexts));
-    if (!TEST_false(ossl_ech_make_echconfig(echconfig, &echconfiglen,
+    if (!TEST_false(OSSL_ech_make_echconfig(echconfig, &echconfiglen,
                                             priv, &privlen,
                                             ech_version, 1024,
                                             public_name, hpke_suite,
@@ -688,7 +688,7 @@ static int basic_echconfig(int idx)
     privlen = sizeof(priv);
 
     /* now a good key gen */
-    if (!TEST_true(ossl_ech_make_echconfig(echconfig, &echconfiglen,
+    if (!TEST_true(OSSL_ech_make_echconfig(echconfig, &echconfiglen,
                                            priv, &privlen,
                                            ech_version, max_name_length,
                                            public_name, hpke_suite,
@@ -980,7 +980,7 @@ static int ech_wrong_pub_test(int idx)
     SSL_CTX_set_verify(cctx, SSL_VERIFY_PEER, NULL);
     if (idx == 2)
         public_name = bad_public_name;
-    if (!TEST_true(ossl_ech_make_echconfig(badconfig, &badconfiglen,
+    if (!TEST_true(OSSL_ech_make_echconfig(badconfig, &badconfiglen,
                                            badpriv, &badprivlen,
                                            ech_version, 0, public_name,
                                            hpke_suite, NULL, 0)))
@@ -1076,7 +1076,7 @@ static int tls_version_test(void)
     SSL_CTX *cctx = NULL, *sctx = NULL;
     SSL *clientssl = NULL, *serverssl = NULL;
 
-    if (!TEST_true(ossl_ech_make_echconfig(echconfig, &echconfiglen,
+    if (!TEST_true(OSSL_ech_make_echconfig(echconfig, &echconfiglen,
                                            priv, &privlen,
                                            ech_version, 0, "example.com",
                                            hpke_suite, NULL, 0)))
@@ -1130,7 +1130,7 @@ static int test_ech_find(int idx)
     t = &test_echconfigs[idx];
     if (verbose)
         TEST_info("test_ech_find input: %s", (char *)t->encoded);
-    inner_rv = ossl_ech_find_echconfigs(&nechs, &cfgs, &cfglens,
+    inner_rv = OSSL_ech_find_echconfigs(&nechs, &cfgs, &cfglens,
                                         t->encoded, t->encoded_len);
     if (!TEST_int_eq(inner_rv, t->rv_expected)) {
         if (verbose)
@@ -1222,7 +1222,7 @@ static int test_ech_roundtrip_helper(int idx, int combo)
         TEST_info("Doing: iter: %d, suite: %s", idx, suitestr);
     if (!TEST_true(OSSL_HPKE_str2suite(suitestr, &hpke_suite)))
         goto end;
-    if (!TEST_true(ossl_ech_make_echconfig(echconfig, &echconfiglen,
+    if (!TEST_true(OSSL_ech_make_echconfig(echconfig, &echconfiglen,
                                            priv, &privlen,
                                            ech_version, max_name_length,
                                            public_name, hpke_suite,
@@ -1455,7 +1455,7 @@ static int ech_grease_test(int idx)
                                                   SSL_ECH_USE_FOR_RETRY)))
         goto end;
     /* make an extra key pair to make retry-config bigger */
-    if (!TEST_true(ossl_ech_make_echconfig(echconfig1, &echconfig1len,
+    if (!TEST_true(OSSL_ech_make_echconfig(echconfig1, &echconfig1len,
                                            priv, &privlen,
                                            ech_version, max_name_length,
                                            public_name, hpke_suite,
