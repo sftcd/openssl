@@ -18,10 +18,13 @@ MBRANCH="master"
 # ECH branch, expected to be up to date (i.e. rebased) and
 # with all ECH changes we want to get into the PR
 SBRANCH="ECH-draft-13c"
-# Destination branch, the one that's used for the PR
-# DBRANCH="ECH-PR"
 # newb is a test branch I pushed to github to test this before
 DBRANCH="newb"
+if [[ "$1" == "real" ]]
+then
+    # Destination branch, the one that's used for the real PR
+    DBRANCH="ECH-PR"
+fi
 # Temporary branch
 TBRANCH="temp-ECH-PR"
 # Where our OpenSSL code lives
