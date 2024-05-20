@@ -498,7 +498,7 @@ static size_t s_echconfiglen = sizeof(s_echconfig);
 static unsigned char config_id = 0;
 static unsigned char priv[200];
 static size_t privlen = sizeof(priv);
-static uint16_t ech_version = OSSL_ECH_RFCXXXX_VERSION;
+static uint16_t ech_version = OSSL_ECH_CURRENT_VERSION;
 static uint16_t max_name_length = 0;
 static char *public_name = "example.com";
 static OSSL_HPKE_SUITE hpke_suite = OSSL_HPKE_SUITE_DEFAULT;

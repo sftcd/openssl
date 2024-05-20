@@ -99,7 +99,7 @@ int ech_main(int argc, char **argv)
     char *extfile = NULL;
     unsigned char extvals[OSSL_ECH_MAX_ECHCONFIGEXT_LEN];
     size_t extlen = OSSL_ECH_MAX_ECHCONFIGEXT_LEN;
-    uint16_t ech_version = OSSL_ECH_RFCXXXX_VERSION;
+    uint16_t ech_version = OSSL_ECH_CURRENT_VERSION;
     uint16_t max_name_length = 0;
     OSSL_HPKE_SUITE hpke_suite = OSSL_HPKE_SUITE_DEFAULT;
     size_t echconfig_len = OSSL_ECH_MAX_ECHCONFIG_LEN;
