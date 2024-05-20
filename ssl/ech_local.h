@@ -128,8 +128,16 @@
  */
 typedef unsigned char ech_ciphersuite_t[OSSL_ECH_CIPHER_LEN];
 
-/* TODO: check changing int's below to e.g. uint16_t uint8-t etc */
 /* TODO: consider using STACK_OF() for handling >1 ECHConfig */
+
+/*
+ * Note that fields below use unsigned int even though the
+ * wire-format encoding may be limited to 16 bits and hence
+ * one might consider a uint16_t to be preferable. However,
+ * the PACKET_* APIs deal with unsigned int even in such
+ * cases, so making such a change would only seem to create
+ * new casts that might be more likely to lead to bugs.
+ */
 typedef struct ech_config_st {
     unsigned int version; /* 0xff0d for draft-13 */
     unsigned int public_name_len;
