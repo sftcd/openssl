@@ -129,6 +129,7 @@
 typedef unsigned char ech_ciphersuite_t[OSSL_ECH_CIPHER_LEN];
 
 /* TODO: check changing int's below to e.g. uint16_t uint8-t etc */
+/* TODO: consider using STACK_OF() for handling >1 ECHConfig */
 typedef struct ech_config_st {
     unsigned int version; /* 0xff0d for draft-13 */
     unsigned int public_name_len;
@@ -338,7 +339,7 @@ void ECHConfig_free(ECHConfig *tbf);
  * @brief Free an OSSL_ECH_ENCCH
  * @param tbf is a ptr to an SSL_ECH structure
  */
-void OSSL_ECH_ENCCH_free(OSSL_ECH_ENCCH *ev);
+void OSSL_ECH_ENCCH_free(OSSL_ECH_ENCCH *tbf);
 
 /**
  * @brief Duplicate the configuration related fields of an SSL_ECH

@@ -311,6 +311,11 @@ static const char *unknownformat_telltale = "\x5c\x23\x20";
 /* SECTION: Local functions */
 
 /*
+ * TODO: For params/variables in comments, e.g. say "ctx" below,
+ * change to |ctx| for highlighting
+ */
+
+/*
  * @brief Check if a key pair needs to be (re-)loaded or not
  * @param ctx is the SSL server context
  * @param pemfname is the PEM key filename
@@ -3215,7 +3220,7 @@ err:
  */
 int ech_2bcompressed(int ind)
 {
-    int nexts = OSSL_NELEM(ech_ext_handling);
+    const int nexts = OSSL_NELEM(ech_ext_handling);
 
     if (!ossl_assert(TLSEXT_IDX_num_builtins == nexts)) {
         OSSL_TRACE_BEGIN(TLS) {
@@ -3252,12 +3257,10 @@ int ech_same_ext(SSL_CONNECTION *s, WPACKET *pkt)
     depth = s->ext.ech.ch_depth;
     nexts = OSSL_NELEM(ech_ext_handling);
     tind = s->ext.ech.ext_ind;
+    /* If this index'd extension won't be compressed, we're done */
     if (tind < 0 || tind >= nexts)
         return OSSL_ECH_SAME_EXT_ERR;
     type = ech_ext_handling[tind].type;
-    /* If this index'd extension won't be compressed, we're done */
-    if (tind >= nexts)
-        return OSSL_ECH_SAME_EXT_ERR;
     if (depth == 1) {
         /* inner CH - just note compression as configured */
         if (ech_ext_handling[tind].handling != OSSL_ECH_HANDLING_COMPRESS)

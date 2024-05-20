@@ -41,6 +41,8 @@
  * TODO: Replace XXXX with the actual RFC number once known.
  */
 #  define OSSL_ECH_RFCXXXX_VERSION 0xfe0d /* official ECHConfig version */
+/* latest version from an RFC */
+#  define OSSL_ECH_CURRENT_VERSION OSSL_ECH_RFCXXXX_VERSION
 
 /* Return codes from SSL_ech_get_status */
 #  define SSL_ECH_STATUS_BACKEND    4 /* ECH backend: saw an ech_is_inner */
