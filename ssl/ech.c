@@ -312,7 +312,7 @@ static const char *unknownformat_telltale = "\x5c\x23\x20";
 
 /*
  * TODO: For params/variables in comments, e.g. say "ctx" below,
- * change to |ctx| for highlighting
+ * maybe change to |ctx| for highlighting.
  */
 
 /*
