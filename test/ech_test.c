@@ -2051,6 +2051,101 @@ end:
     return res;
 }
 
+/*
+ * Callback called when SNI is processed on server. The arg will
+ * be the expected inner SNI.
+ */
+static int sni_cb(SSL *ssl, int *ad, void *arg)
+{
+    const char* servername = NULL;
+    const char* expected = (char *)arg;
+
+    if (ssl == NULL)
+        return SSL_TLSEXT_ERR_NOACK;
+    servername = SSL_get_servername(ssl, TLSEXT_NAMETYPE_host_name);
+    if (verbose)
+        TEST_info("sni_cb: got: %s, expected: %s\n", servername, expected);
+    if (strlen(servername) != strlen(expected)
+        || strncmp(servername, expected, strlen(expected)))
+        return SSL_TLSEXT_ERR_NOACK;
+    return 1;
+}
+
+/* Test the SNI CB is called as expected, for the inner SNI */
+static int ech_sni_cb_test(int idx)
+{
+    int res = 0;
+    char *echkeyfile = NULL;
+    char *echconfig = NULL;
+    size_t echconfiglen = 0;
+    SSL_CTX *cctx = NULL, *sctx = NULL;
+    SSL *clientssl = NULL, *serverssl = NULL;
+    int clientstatus, serverstatus;
+    char *cinner = NULL, *couter = NULL, *sinner = NULL, *souter = NULL;
+    const char *sni = "server.example";
+
+    /* read our pre-cooked ECH PEM file */
+    echkeyfile = test_mk_file_path(certsdir, "echconfig.pem");
+    if (!TEST_ptr(echkeyfile))
+        goto end;
+    echconfig = echconfiglist_from_PEM(echkeyfile);
+    if (!TEST_ptr(echconfig))
+        goto end;
+    echconfiglen = strlen(echconfig);
+    if (!TEST_true(create_ssl_ctx_pair(libctx, TLS_server_method(),
+                                       TLS_client_method(),
+                                       TLS1_3_VERSION, TLS1_3_VERSION,
+                                       &sctx, &cctx, cert, privkey)))
+        goto end;
+    if (!TEST_true(SSL_CTX_ech_set1_echconfig(cctx, (unsigned char *)echconfig,
+                                              echconfiglen)))
+        goto end;
+    if (!TEST_true(SSL_CTX_ech_server_enable_file(sctx, echkeyfile,
+                                                  SSL_ECH_USE_FOR_RETRY)))
+        goto end;
+    /* setup callback */
+    if (!TEST_true(SSL_CTX_set_tlsext_servername_callback(sctx, sni_cb)))
+        goto end;
+    if (!TEST_true(SSL_CTX_set_tlsext_servername_arg(sctx, (void*) sni)))
+        goto end;
+    if (!TEST_true(create_ssl_objects(sctx, cctx, &serverssl,
+                                      &clientssl, NULL, NULL)))
+        goto end;
+    if (!TEST_true(SSL_set_tlsext_host_name(clientssl, sni)))
+        goto end;
+    if (!TEST_true(create_ssl_connection(serverssl, clientssl,
+                                         SSL_ERROR_NONE)))
+        goto end;
+    serverstatus = SSL_ech_get_status(serverssl, &sinner, &souter);
+    if (verbose)
+        TEST_info("ech_sni_cb_test: server status %d, %s, %s",
+                  serverstatus, sinner, souter);
+    if (!TEST_int_eq(serverstatus, SSL_ECH_STATUS_SUCCESS))
+        goto end;
+    /* override cert verification */
+    SSL_set_verify_result(clientssl, X509_V_OK);
+    clientstatus = SSL_ech_get_status(clientssl, &cinner, &couter);
+    if (verbose)
+        TEST_info("ech_sni_cb_test: client status %d, %s, %s",
+                  clientstatus, cinner, couter);
+    if (!TEST_int_eq(clientstatus, SSL_ECH_STATUS_SUCCESS))
+        goto end;
+    /* all good */
+    res = 1;
+end:
+    OPENSSL_free(sinner);
+    OPENSSL_free(souter);
+    OPENSSL_free(cinner);
+    OPENSSL_free(couter);
+    OPENSSL_free(echkeyfile);
+    OPENSSL_free(echconfig);
+    SSL_free(clientssl);
+    SSL_free(serverssl);
+    SSL_CTX_free(cctx);
+    SSL_CTX_free(sctx);
+    return res;
+}
+
 /* Shuffle to preferred order */
 enum OSSLTEST_ECH_ADD_runOrder
     {
@@ -2277,6 +2372,7 @@ int setup_tests(void)
     ADD_ALL_TESTS(ech_in_out_test, 14);
     ADD_ALL_TESTS(ech_wrong_pub_test, 3);
     ADD_ALL_TESTS(ech_tls12_with_ech_test, 1);
+    ADD_ALL_TESTS(ech_sni_cb_test,1);
     return 1;
 err:
     return 0;
