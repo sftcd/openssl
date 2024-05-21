@@ -564,6 +564,34 @@ out:
 # define TEST_EXT_TYPE1  0xffab /* custom ext type 1: has 1 octet payload */
 # define TEST_EXT_TYPE2  0xffcd /* custom ext type 2: no payload */
 
+/* A well-encoded ECH extension value */
+static const unsigned char encoded_ech_val[] = {
+0x00, 0x00, 0x01, 0x00, 0x01, 0xf7, 0x00, 0x20,
+0xc9, 0x2c, 0x12, 0xc9, 0xc0, 0x4d, 0x11, 0x5d,
+0x09, 0xe1, 0xeb, 0x7a, 0x18, 0xb2, 0x83, 0x28,
+0x35, 0x00, 0x3c, 0x8d, 0x78, 0x09, 0xfd, 0x09,
+0x84, 0xca, 0x94, 0x77, 0xcf, 0x78, 0xd0, 0x04,
+0x00, 0x90, 0x5e, 0xc7, 0xc0, 0x62, 0x84, 0x8d,
+0x4b, 0x85, 0xd5, 0x6a, 0x9a, 0xc1, 0xc6, 0xc2,
+0x28, 0xac, 0x87, 0xb9, 0x2f, 0x36, 0xa0, 0xf7,
+0x5f, 0xd0, 0x23, 0x7b, 0xf4, 0xc1, 0x62, 0x1c,
+0xf1, 0x91, 0xfd, 0x46, 0x35, 0x41, 0xc9, 0x06,
+0xd3, 0x19, 0xd6, 0x34, 0x01, 0xc3, 0xb3, 0x66,
+0x4e, 0x7a, 0x28, 0xac, 0xd4, 0xd2, 0x35, 0x2b,
+0xd0, 0xc6, 0x94, 0x34, 0xc1, 0x94, 0x62, 0x77,
+0x1b, 0x5a, 0x02, 0x3c, 0xdd, 0xa2, 0x4d, 0x33,
+0xa5, 0xd0, 0x59, 0x12, 0xf5, 0x17, 0x03, 0xe5,
+0xab, 0xbd, 0x83, 0x52, 0x40, 0x6c, 0x99, 0xac,
+0x25, 0x07, 0x63, 0x8c, 0x16, 0x5d, 0x93, 0x34,
+0x56, 0x34, 0x60, 0x86, 0x25, 0xa7, 0x0d, 0xac,
+0xb8, 0x5e, 0x87, 0xc6, 0xf7, 0x23, 0xaf, 0xf8,
+0x3e, 0x2a, 0x46, 0x75, 0xa9, 0x5f, 0xaf, 0xd2,
+0x91, 0xe6, 0x44, 0xcb, 0xe7, 0xe0, 0x85, 0x36,
+0x9d, 0xd2, 0xaf, 0xae, 0xb3, 0x0f, 0x70, 0x6a,
+0xaf, 0x42, 0xc0, 0xb3, 0xe4, 0x65, 0x53, 0x01,
+0x75, 0xbf
+};
+
 static int new_add_cb(SSL *s, unsigned int ext_type, unsigned int context,
                       const unsigned char **out, size_t *outlen, X509 *x,
                       size_t chainidx, int *al, void *add_arg)
@@ -579,7 +607,24 @@ static int new_add_cb(SSL *s, unsigned int ext_type, unsigned int context,
         *data = 1;
         *out = data;
         *outlen = sizeof(*data);
+    } else if (ext_type == OSSL_ECH_CURRENT_VERSION) {
+#undef INJECT_ECH_IS_INNER
+#ifdef INJECT_ECH_IS_INNER
+        /* inject an "inner" ECH extension into the CH */
+        *data = 1;
+        *out = data;
+        *outlen = sizeof(*data);
+#else
+        /* inject a sample ECH extension value into the CH */
+        OPENSSL_free(data);
+        if ((data = OPENSSL_malloc(sizeof(encoded_ech_val))) == NULL)
+            return -1;
+        memcpy(data, encoded_ech_val, sizeof(encoded_ech_val));
+        *out = data;
+        *outlen = sizeof(encoded_ech_val);
+#endif
     } else {
+        /* inject a TEST_EXT_TYPE2, with a zero-length payload */
         OPENSSL_free(data);
         *out = NULL;
         *outlen = 0;
@@ -933,6 +978,114 @@ end:
     SSL_CTX_free(cctx);
     SSL_CTX_free(sctx);
     return res;
+}
+
+/* Test a basic roundtrip with TLSv1.2 and a fake ECH extension */
+static int ech_tls12_with_ech_test(int idx)
+{
+#ifndef OPENSSL_ECH_ALLOW_CUST_INJECT
+    return 1;
+#else
+    int res = 0;
+    char *echkeyfile = NULL;
+    SSL_CTX *cctx = NULL, *sctx = NULL;
+    SSL *clientssl = NULL, *serverssl = NULL;
+    int clientstatus, serverstatus;
+    char *cinner = NULL, *couter = NULL, *sinner = NULL, *souter = NULL;
+    unsigned char badconfig[400];
+    size_t badconfiglen = sizeof(badconfig);
+    unsigned char badpriv[200];
+    size_t badprivlen = sizeof(badpriv);
+    uint16_t ech_version = OSSL_ECH_CURRENT_VERSION;
+    OSSL_HPKE_SUITE hpke_suite = OSSL_HPKE_SUITE_DEFAULT;
+    // int err = 0, connrv = 0, err_reason = 0;
+    char *good_public_name = "front.server.example";
+    char *public_name = good_public_name;
+    X509_STORE *vfy = NULL;
+    int cver;
+    // int exp_conn_err = SSL_R_ECH_REQUIRED;
+    int client = 0;
+
+    /* for these tests we want to chain to our root */
+    vfy = X509_STORE_new();
+    if (vfy == NULL)
+        goto end;
+    if (rootcert != NULL && !X509_STORE_load_file(vfy, rootcert))
+        goto end;
+
+    /* read our pre-cooked ECH PEM file */
+    echkeyfile = test_mk_file_path(certsdir, "newechconfig.pem");
+    if (!TEST_ptr(echkeyfile))
+        goto end;
+    /* set min version to TLSv1.2 */
+    if (!TEST_true(create_ssl_ctx_pair(libctx, TLS_server_method(),
+                                       TLS_client_method(),
+                                       TLS1_2_VERSION, TLS1_3_VERSION,
+                                       &sctx, &cctx, cert, privkey)))
+        goto end;
+    SSL_CTX_set1_verify_cert_store(cctx, vfy);
+    SSL_CTX_set_verify(cctx, SSL_VERIFY_PEER, NULL);
+    /* set client to TLSv1.2 */
+    if (!TEST_true(SSL_CTX_set_max_proto_version(cctx, TLS1_2_VERSION)))
+        goto end;
+    if (!TEST_true(OSSL_ech_make_echconfig(badconfig, &badconfiglen,
+                                           badpriv, &badprivlen,
+                                           ech_version, 0, public_name,
+                                           hpke_suite, NULL, 0)))
+        goto end;
+    if (!TEST_true(SSL_CTX_ech_server_enable_file(sctx, echkeyfile,
+                                                  SSL_ECH_USE_FOR_RETRY)))
+        goto end;
+    /* add a bogus ECH extension to TLSV1.2 CH */
+    if (!TEST_true(SSL_CTX_add_custom_ext(cctx, OSSL_ECH_CURRENT_VERSION,
+                                          SSL_EXT_CLIENT_HELLO,
+                                          new_add_cb, new_free_cb,
+                                          &client, new_parse_cb,
+                                          &client)))
+        goto end;
+    if (!TEST_true(create_ssl_objects(sctx, cctx, &serverssl,
+                                      &clientssl, NULL, NULL)))
+        goto end;
+    if (!TEST_true(create_ssl_connection(serverssl, clientssl,
+                                         SSL_ERROR_NONE)))
+        goto end;
+    serverstatus = SSL_ech_get_status(serverssl, &sinner, &souter);
+    if (verbose)
+        TEST_info("ech_tls12_with_ech_test: server status %d, %s, %s",
+                  serverstatus, sinner, souter);
+#ifndef INJECT_ECH_IS_INNER
+    if (!TEST_int_eq(serverstatus, SSL_ECH_STATUS_GREASE))
+        goto end;
+#else
+    if (!TEST_int_eq(serverstatus, SSL_ECH_STATUS_BACKEND))
+        goto end;
+#endif
+    cver = SSL_get_verify_result(clientssl);
+    if (cver != X509_V_OK) {
+        TEST_info("ech_tls12_with_ech_test: x509 error: %d", cver);
+    }
+    clientstatus = SSL_ech_get_status(clientssl, &cinner, &couter);
+    if (verbose)
+        TEST_info("ech_tls12_with_ech_test: client status %d, %s, %s",
+                  clientstatus, cinner, couter);
+    if (!TEST_int_eq(clientstatus, SSL_ECH_STATUS_NOT_CONFIGURED))
+        goto end;
+    /* all good */
+    res = 1;
+end:
+    X509_STORE_free(vfy);
+    OPENSSL_free(sinner);
+    OPENSSL_free(souter);
+    OPENSSL_free(cinner);
+    OPENSSL_free(couter);
+    //OPENSSL_free(retryconfig);
+    OPENSSL_free(echkeyfile);
+    SSL_free(clientssl);
+    SSL_free(serverssl);
+    SSL_CTX_free(cctx);
+    SSL_CTX_free(sctx);
+    return res;
+#endif
 }
 
 /* Test a basic roundtrip with ECH, with a wrong public key */
@@ -2123,6 +2276,7 @@ int setup_tests(void)
     ADD_ALL_TESTS(ech_grease_test, 3);
     ADD_ALL_TESTS(ech_in_out_test, 14);
     ADD_ALL_TESTS(ech_wrong_pub_test, 3);
+    ADD_ALL_TESTS(ech_tls12_with_ech_test, 1);
     return 1;
 err:
     return 0;
