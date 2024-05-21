@@ -429,7 +429,19 @@ int ossl_tls_add_custom_ext_intern(SSL_CTX *ctx, custom_ext_methods *exts,
      * for extension types that previously were not supported, but now are.
      */
     if (SSL_extension_supported(ext_type)
+#if !defined(OPENSSL_NO_ECH) && defined(OPENSSL_ECH_ALLOW_CUST_INJECT)
+            /*
+             * Do this conditionall so we can test an ECH in TLSv1.2 
+             * via the custom extensions API.
+             * OPENSSL_ECH_ALLOW_CUST_INJECT is defined (or not) in
+             * ssl/ech_local.h and tf defined enables a test in
+             * test/ech_test.c
+             */
+            && ext_type != TLSEXT_TYPE_ech
             && ext_type != TLSEXT_TYPE_signed_certificate_timestamp)
+#else
+            && ext_type != TLSEXT_TYPE_signed_certificate_timestamp)
+#endif
         return 0;
 
     /* Extension type must fit in 16 bits */
