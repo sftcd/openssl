@@ -5634,6 +5634,26 @@ int SSL_CTX_ech_set_outer_alpn_protos(SSL_CTX *ctx, const unsigned char *protos,
     return 1;
 }
 
+int SSL_ech_set_outer_alpn_protos(SSL *ssl, const unsigned char *protos,
+                                  const size_t protos_len)
+{
+    SSL_CONNECTION *s = SSL_CONNECTION_FROM_SSL(ssl);
+
+    if (s == NULL || protos == NULL || protos_len == 0) {
+        ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_NULL_PARAMETER);
+        return 0;
+    }
+
+    OPENSSL_free(s->ext.ech.alpn_outer);
+    s->ext.ech.alpn_outer = OPENSSL_memdup(protos, protos_len);
+    if (s->ext.ech.alpn_outer == NULL) {
+        return 0;
+    }
+    s->ext.ech.alpn_outer_len = protos_len;
+
+    return 1;
+}
+
 int SSL_ech_get_retry_config(SSL *ssl, unsigned char **ec, size_t *eclen)
 {
     SSL_CONNECTION *s = SSL_CONNECTION_FROM_SSL(ssl);
