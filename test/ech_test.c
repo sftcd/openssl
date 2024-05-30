@@ -1898,6 +1898,9 @@ static int ech_in_out_test(int idx)
         if (!TEST_true(SSL_ech_set_outer_server_name(clientssl,
                                                      supplied_outer, 0)))
             goto end;
+        if (!TEST_true(SSL_ech_set_outer_alpn_protos(clientssl, alpn_outer,
+                                                         alpn_outer_len)))
+            goto end;
         expected_inner = non_ech_sni;
         expected_outer = supplied_outer;
     }

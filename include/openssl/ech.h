@@ -99,9 +99,10 @@ int SSL_CTX_ech_set1_echconfig(SSL_CTX *ctx, const unsigned char *val,
 
 int SSL_ech_set_server_names(SSL *s, const char *inner_name,
                              const char *outer_name, int no_outer);
-/* TODO: Add back SSL_ech_set_outer_alpn_protos() */
 
 int SSL_ech_set_outer_server_name(SSL *s, const char *outer_name, int no_outer);
+int SSL_ech_set_outer_alpn_protos(SSL *s, const unsigned char *protos,
+                                  const size_t protos_len);
 
 void OSSL_ECH_INFO_free(OSSL_ECH_INFO *info, int count);
 int OSSL_ECH_INFO_print(BIO *out, OSSL_ECH_INFO *info, int count);

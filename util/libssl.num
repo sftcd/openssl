@@ -660,6 +660,7 @@ SSL_ech_set_grease_type                 ?	3_4_0	EXIST::FUNCTION:ECH
 SSL_ech_set_callback                    ?	3_4_0	EXIST::FUNCTION:ECH
 SSL_ech_get_retry_config                ?	3_4_0	EXIST::FUNCTION:ECH
 SSL_CTX_ech_set_outer_alpn_protos       ?	3_4_0	EXIST::FUNCTION:ECH
+SSL_ech_set_outer_alpn_protos           ?	3_4_0	EXIST::FUNCTION:ECH
 SSL_CTX_ech_server_enable_file          ?	3_4_0	EXIST::FUNCTION:ECH
 SSL_CTX_ech_server_enable_buffer        ?	3_4_0	EXIST::FUNCTION:ECH
 SSL_CTX_ech_server_enable_dir           ?	3_4_0	EXIST::FUNCTION:ECH

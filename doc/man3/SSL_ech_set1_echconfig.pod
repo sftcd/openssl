@@ -12,7 +12,7 @@ SSL_CTX_ech_set1_echconfig, SSL_CTX_ech_server_get_key_status,
 SSL_CTX_ech_server_flush_keys, SSL_CTX_ech_server_enable_file,
 SSL_CTX_ech_server_enable_buffer, SSL_CTX_ech_server_enable_dir,
 SSL_CTX_ech_raw_decrypt, SSL_CTX_ech_set_callback,
-SSL_CTX_ech_set_outer_alpn_protos,
+SSL_CTX_ech_set_outer_alpn_protos, SSL_ech_set_outer_alpn_protos,
 OSSL_ech_make_echconfig, OSSL_ech_find_echconfigs
 - Encrypted ClientHello (ECH) functions
 
@@ -56,8 +56,10 @@ OSSL_ech_make_echconfig, OSSL_ech_find_echconfigs
                              unsigned char *inner_ch, size_t *inner_len,
                              unsigned char **hrrtok, size_t *toklen);
  void SSL_CTX_ech_set_callback(SSL_CTX *ctx, SSL_ech_cb_func f);
- int SSL_CTX_ech_set_outer_alpn_protos(SSL *s, const unsigned char *protos,
+ int SSL_CTX_ech_set_outer_alpn_protos(SSL_CTX *s, const unsigned char *protos,
                                        unsigned int protos_len);
+ int SSL_ech_set_outer_alpn_protos(SSL *s, const unsigned char *protos,
+                                   unsigned int protos_len);
 
  int OSSL_ech_make_echconfig(unsigned char *echconfig, size_t *echconfiglen,
                              unsigned char *priv, size_t *privlen,
@@ -201,12 +203,14 @@ from the relevant ECHConfigList, HTTPS or SVCB resource record.
 Typically, applications control ALPN values via L<SSL_CTX_set_alpn_protos(3)> and
 the value input there will be used as the value for ALPN In the inner ClientHello.
 If the application wishes to use a different value for the outer ClientHello
-then it can use SSL_CTX_ech_set_outer_alpn_protos() to associated the required
+then it can use SSL_CTX_ech_set_outer_alpn_protos() or
+SSL_ech_set_outer_alpn_protos() to associate the required
 values with the I<SSL> session. The I<protos> and I<protos_len> parameters are
 handled as for L<SSL_CTX_set_alpn_protos(3)>.
 
-SSL_ech_set_server_names(), SSL_ech_set_outer_server_name() and
-SSL_CTX_ech_set_outer_alpn_protos() all return 1 for success and 0 for error.
+SSL_ech_set_server_names(), SSL_ech_set_outer_server_name(),
+SSL_CTX_ech_set_outer_alpn_protos() and SSL_ech_set_outer_alpn_protots()
+all return 1 for success and 0 for error.
 
 =head2 Generating ECH key pairs and ECHconfigs
 
@@ -517,7 +521,7 @@ Values for I<for_retry>
 
 SSL_ech_set1_echconfig(),
 SSL_ech_set_server_names(), SSL_ech_set_outer_server_name(),
-SSL_ech_set_outer_alpn_protos(),
+SSL_ech_set_outer_alpn_protos(), SSL_CTX_ech_set_outer_alpn_protos(),
 OSSL_ECH_INFO_print(),
 SSL_ech_get_info(), SSL_ech_reduce(),
 SSL_ech_set_grease_suite(), SSL_ech_set_grease_type(),
