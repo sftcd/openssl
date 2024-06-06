@@ -337,6 +337,59 @@ static int tls13_add_record_padding(OSSL_RECORD_LAYER *rl,
     }
     TLS_RL_RECORD_add_length(thiswr, 1);
 
+#ifndef OPENSSL_NO_ECH
+    /*
+     * If we are doing ECH and we want ECH specific padding then
+     * now is the time to ensure that happens.
+     * A lack of padding can expose information intended to be hidden via ECH,
+     * e.g. if only two inner CH SNI values were in live use. In that case we
+     * pad the Certificate, CertificateVerify and EncryptedExtensions handshake
+     * messages from the server. These are the  minimum lengths to which those
+     * will be padded in that case.
+     * We do this before calling any padding callback supplied by the
+     * application, so they get to see the final sizes.
+     */
+    if ((rl->options & SSL_OP_ECH_SPECIFIC_PADDING) != 0) {
+        SSL_CONNECTION *s = rl->cbarg;
+        SSL *ssl = SSL_CONNECTION_GET_SSL(s);
+        int do_pad = 0, echpad = 0, state = SSL_get_state(ssl);
+        size_t len = 0, min = 0, unit = 0;
+
+        if (!WPACKET_get_length(thispkt, &len)) {
+            RLAYERfatal(rl, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+            return 0;
+        }
+        if (s != NULL && s->server == 1 && s->ext.ech.attempted == 1
+            && s->ext.ech.success == 1) {
+            if (state == TLS_ST_SW_CERT) {
+                min = s->ext.ech.pad_sizes.cert_min;
+                unit = s->ext.ech.pad_sizes.cert_unit;
+                do_pad = 1;
+            }
+            if (state == TLS_ST_SW_CERT_VRFY) {
+                min = s->ext.ech.pad_sizes.certver_min;
+                unit = s->ext.ech.pad_sizes.certver_unit;
+                do_pad = 1;
+            }
+            if (state == TLS_ST_SW_ENCRYPTED_EXTENSIONS) {
+                min = s->ext.ech.pad_sizes.ee_min;
+                unit = s->ext.ech.pad_sizes.ee_unit;
+                do_pad = 1;
+            }
+            if (do_pad == 1) {
+               if (len < min)
+                    echpad = min - len;
+                echpad += ((len + echpad) % unit ? unit - ((len + echpad) % unit) : 0);
+                if (echpad > 0 && !WPACKET_memset(thispkt, 0, echpad)) {
+                    RLAYERfatal(rl, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+                    return 0;
+                }
+                TLS_RL_RECORD_add_length(thiswr, echpad);
+            }
+        }
+    }
+#endif
+
     /* Add TLS1.3 padding */
     rlen = TLS_RL_RECORD_get_length(thiswr);
     if (rlen < rl->max_frag_len) {

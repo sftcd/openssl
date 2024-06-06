@@ -310,6 +310,7 @@ typedef struct ssl_connection_ech_st {
     SSL_ECH *cfgs; /* array of configured ECH configurations */
     int ncfgs; /* number of elements in array */
     SSL_ech_cb_func cb; /* callback function for when ECH "done" */
+    OSSL_ECH_PAD_SIZES pad_sizes; /* padding sizes */
 } SSL_CONNECTION_ECH;
 
 /**

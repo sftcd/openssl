@@ -13,7 +13,8 @@ SSL_CTX_ech_server_flush_keys, SSL_CTX_ech_server_enable_file,
 SSL_CTX_ech_server_enable_buffer, SSL_CTX_ech_server_enable_dir,
 SSL_CTX_ech_raw_decrypt, SSL_CTX_ech_set_callback,
 SSL_CTX_ech_set_outer_alpn_protos, SSL_ech_set_outer_alpn_protos,
-OSSL_ech_make_echconfig, OSSL_ech_find_echconfigs
+OSSL_ech_make_echconfig, OSSL_ech_find_echconfigs,
+SSL_CTX_ech_set_pad_sizes,SSL_ech_set_pad_sizes
 - Encrypted ClientHello (ECH) functions
 
 =head1 SYNOPSIS
@@ -69,6 +70,8 @@ OSSL_ech_make_echconfig, OSSL_ech_find_echconfigs
  int OSSL_ech_find_echconfigs(int *num_echs,
                               unsigned char ***echconfigs, size_t **echlens,
                               const unsigned char *val, size_t len);
+ int SSL_ech_set_pad_sizes(SSL *s, OSSL_ECH_PAD_SIZES *sizes);
+ int SSL_CTX_ech_set_pad_sizes(SSL_CTX *ctx, OSSL_ECH_PAD_SIZES *sizes);
 
 =head1 DESCRIPTION
 
@@ -246,7 +249,6 @@ make use of ECH extensions.
 OSSL_ech_make_echconfig() is intended for use by applications that generate
 ECH configuration data, such as L<openssl-ech(1)>.
 
-
 =head2 Enabling ECH for servers
 
 In order to enable ECH for servers it is necessary to load one or more ECH
@@ -319,6 +321,52 @@ I<decryption_ok> will be 0. If decryption
 succeeds, the I<inner_sni> and I<outer_sni> values will be populated
 based on the values seen. (The caller must free those strings using
 OPENSSL_free() when done.)
+
+=head2 ECH-specific Padding of server messages
+
+If a web server were to host a set of web sites, one of which had a much longer
+name than the others, the size of some TLS handshake server messages could
+expose which web site was being accessed. Similarly, if the TLS server
+certificate for one web site were significantly larger or smaller than others,
+message sizes could reveal which web site was being visited.  For these
+reasons, we provide a way to enable additional ECH-specific padding of the
+Certifiate, CertificateVerify and EncryptedExtensions messages sent from the
+server to the client during the handshake.
+
+To enable ECH-specific padding, one makes a call to
+``SSL_CTX_set_options(ctx, SSL_OP_ECH_SPECIFIC_PADDING)``
+
+The default padding scheme is to ensure the following sizes for the plaintext
+form of these messages:
+
+  | ------------------- | ------------ | ------------------- |
+  | Message             | Minimum Size | Size is multiple of |
+  | ------------------- | ------------ | ------------------- |
+  | Certificate         | 1792         | 128                 |
+  | CertificateVerify   | 304          | 16                  |
+  | EncryptedExtensions | 32           | 16                  |
+  | ------------------- | ------------ | ------------------- |
+
+The ciphertext form of these messages, as seen on the network in the record
+layer protocol, will usually be 16 octets more, due to the AEAD tag that is
+added as part of encryption.
+
+If a server wishes to have finer-grained control of these sizes, then it can
+make use of the ``SSL_CTX_ech_set_pad_sizes()`` or ``SSL_ech_set_pad_sizes()``
+APIs. Both involve populating an ``OSSL_ECH_PAD_SIZES`` data structure as
+described below in the obvious manner.
+
+  /*
+   * Fine-grained ECH-spacific padding controls for a server
+   */
+  typedef struct ossl_ech_pad_sizes_st {
+      size_t cert_min; /* minimum size */
+      size_t cert_unit; /* size will be multiple of */
+      size_t certver_min; /* minimum size */
+      size_t certver_unit; /* size will be multiple of */
+      size_t ee_min; /* minimum size */
+      size_t ee_unit; /* size will be multiple of */
+  } OSSL_ECH_PAD_SIZES;
 
 =head2 Accessing ECH information
 

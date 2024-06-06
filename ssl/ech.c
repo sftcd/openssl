@@ -4698,6 +4698,40 @@ int OSSL_ECH_INFO_print(BIO *out, OSSL_ECH_INFO *se, int count)
     return 1;
 }
 
+int SSL_CTX_ech_set_pad_sizes(SSL_CTX *ctx, OSSL_ECH_PAD_SIZES *sizes)
+{
+    if (ctx == NULL || sizes == NULL) {
+        ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_NULL_PARAMETER);
+        return 0;
+    }
+    if (sizes->cert_min == 0 || sizes->certver_min == 0 || sizes->ee_min == 0
+        || sizes->cert_unit == 0 || sizes->certver_unit == 0
+        || sizes->ee_unit == 0) {
+        ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_INVALID_ARGUMENT);
+        return 0;
+    }
+    ctx->ext.pad_sizes = *sizes;
+    return 1;
+}
+
+int SSL_ech_set_pad_sizes(SSL *ssl, OSSL_ECH_PAD_SIZES *sizes)
+{
+    SSL_CONNECTION *s = SSL_CONNECTION_FROM_SSL(ssl);
+
+    if (s == NULL || sizes == NULL) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_PASSED_NULL_PARAMETER);
+        return 0;
+    }
+    if (sizes->cert_min == 0 || sizes->certver_min == 0 || sizes->ee_min == 0
+        || sizes->cert_unit == 0 || sizes->certver_unit == 0
+        || sizes->ee_unit == 0) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_R_BAD_LENGTH);
+        return 0;
+    }
+    s->ext.ech.pad_sizes = *sizes;
+    return 1;
+}
+
 int SSL_ech_set1_echconfig(SSL *ssl, const unsigned char *val, size_t len)
 {
     SSL_CONNECTION *s = SSL_CONNECTION_FROM_SSL(ssl);

@@ -1093,6 +1093,7 @@ struct ssl_ctx_st {
         SSL_ech_cb_func ech_cb; /* ECH call back */
         unsigned char *alpn_outer; /* Outer ALPN (if any) */
         size_t alpn_outer_len;
+        OSSL_ECH_PAD_SIZES pad_sizes; /* padding sizes */
 #endif
         unsigned char cookie_hmac_key[SHA256_DIGEST_LENGTH];
     } ext;

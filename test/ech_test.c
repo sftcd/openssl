@@ -911,6 +911,179 @@ end:
     return res;
 }
 
+/*
+ * Test ECH-specific padding.
+ *
+ * Make one call per entry in pad_array and compare the
+ * resulting message sizes against the expected values.
+ * We check the actual values via a padding callback.
+ *
+ * pad_array[0] is a dummy that's written to in the 1st
+ * iteration so that we can calculate the expected sizes
+ * for subsequent iterations.
+ */
+static OSSL_ECH_PAD_SIZES pad_array[] = {
+    /* dummy for 1st iteration */
+    { 0, 0, 0, 0, 0, 0},
+    /*
+     * cert min is > actual
+     * certver min is set to 1, well lower than actual
+     * ee min is close to size
+     */
+    { 1000, 16, 1, 16, 40, 16},
+};
+
+/* callback code needs to tell test code if we see unexpected values */
+static int ech_pad_cb_fail = 0;
+
+/*
+ * This is passed to SSL_CTX_set_record_padding_callback
+ * and checks padding of the Certificate, CertificateVerify and
+ * EncryptedExtensions handshake messages vs. the expected
+ * size from the argument arg.
+ */
+static size_t ech_padding_cb(SSL *s, int type, size_t len, void *arg)
+{
+    OSSL_ECH_PAD_SIZES *pl = (OSSL_ECH_PAD_SIZES *)arg;
+    int state = SSL_get_state(s), do_check = 0;
+    size_t expected = 0, unpadded = 0, min = 0, unit = 0;
+
+    /* for the first case, we remember the length in actual use
+       which depends on the pem files */
+    if (state == TLS_ST_SW_CERT && pl->cert_min == 0)
+        pad_array[0].cert_min = len;
+    else if (state == TLS_ST_SW_CERT && pl->cert_min != 0) {
+        unpadded = pad_array[0].cert_min;
+        min = pl->cert_min;
+        unit = pl->cert_unit;
+        do_check = 1;
+    }
+    if (state == TLS_ST_SW_CERT_VRFY && pl->certver_min == 0)
+        pad_array[0].certver_min = len;
+    else if (state == TLS_ST_SW_CERT_VRFY && pl->certver_min != 0) {
+        unpadded = pad_array[0].certver_min;
+        min = pl->certver_min;
+        unit = pl->certver_unit;
+        do_check = 1;
+    }
+    if (state == TLS_ST_SW_ENCRYPTED_EXTENSIONS && pl->ee_min == 0)
+        pad_array[0].ee_min = len;
+    else if (state == TLS_ST_SW_ENCRYPTED_EXTENSIONS && pl->ee_min != 0) {
+        unpadded = pad_array[0].ee_min;
+        min = pl->ee_min;
+        unit = pl->ee_unit;
+        do_check = 1;
+    }
+    if (do_check == 1) {
+        /* check if we got what we expected */
+        if (unpadded < min)
+            expected = min;
+        else
+            expected = unpadded;
+        expected += (expected % unit ? unit - (expected % unit) : 0);
+        if (len != expected) {
+            TEST_info("ech_pad_test: bad length %ld for type %d expected %ld)\n",
+                   len, type, expected);
+            ech_pad_cb_fail = 1;
+        }
+    }
+    return 0;
+}
+
+static int ech_pad_test(int idx)
+{
+    int res = 0;
+    char *echkeyfile = NULL;
+    char *echconfig = NULL;
+    size_t echconfiglen = 0;
+    SSL_CTX *cctx = NULL, *sctx = NULL;
+    SSL *clientssl = NULL, *serverssl = NULL;
+    int clientstatus, serverstatus;
+    char *cinner = NULL, *couter = NULL, *sinner = NULL, *souter = NULL;
+
+    /*
+     * Ensure 1st iteration happens in all cases - needed so that
+     * we can calculate the expected values for subsequent iterations
+     * if e.g. someone uses "-iter 2" on the command line
+     * Doing this via recursion may be odd, but is ok:-)
+     */
+    if (idx != 0 && pad_array[0].cert_min == 0)
+        ech_pad_test(0);
+
+    /* read our pre-cooked ECH PEM file */
+    echkeyfile = test_mk_file_path(certsdir, "echconfig.pem");
+    if (!TEST_ptr(echkeyfile))
+        goto end;
+    echconfig = echconfiglist_from_PEM(echkeyfile);
+    if (!TEST_ptr(echconfig))
+        goto end;
+    echconfiglen = strlen(echconfig);
+    if (!TEST_true(create_ssl_ctx_pair(libctx, TLS_server_method(),
+                                       TLS_client_method(),
+                                       TLS1_3_VERSION, TLS1_3_VERSION,
+                                       &sctx, &cctx, cert, privkey)))
+        goto end;
+    /* set padding callback */
+    SSL_CTX_set_record_padding_callback_arg(sctx, (void *)&(pad_array[idx]));
+    SSL_CTX_set_record_padding_callback(sctx, ech_padding_cb);
+    /* if not in 1st test then use the API to set fine-grained sizes */
+    if (idx == 0) {
+        /* check zeros cause a fail */
+        if (!TEST_false(SSL_CTX_ech_set_pad_sizes(sctx, &pad_array[idx])))
+            goto end;
+        /* don't pad 1st time. */
+    } else {
+        /* turn on padding */
+        SSL_CTX_set_options(sctx, SSL_OP_ECH_SPECIFIC_PADDING);
+        if (!TEST_true(SSL_CTX_ech_set_pad_sizes(sctx, &pad_array[idx])))
+            goto end;
+    }
+    if (!TEST_true(SSL_CTX_ech_set1_echconfig(cctx, (unsigned char *)echconfig,
+                                              echconfiglen)))
+        goto end;
+    if (!TEST_true(SSL_CTX_ech_server_enable_file(sctx, echkeyfile,
+                                                  SSL_ECH_USE_FOR_RETRY)))
+        goto end;
+    if (!TEST_true(create_ssl_objects(sctx, cctx, &serverssl,
+                                      &clientssl, NULL, NULL)))
+        goto end;
+    if (!TEST_true(SSL_set_tlsext_host_name(clientssl, "server.example")))
+        goto end;
+    if (!TEST_true(create_ssl_connection(serverssl, clientssl,
+                                         SSL_ERROR_NONE)))
+        goto end;
+    serverstatus = SSL_ech_get_status(serverssl, &sinner, &souter);
+    if (verbose)
+        TEST_info("ech_pad_test: server status %d, %s, %s",
+                  serverstatus, sinner, souter);
+    if (!TEST_int_eq(serverstatus, SSL_ECH_STATUS_SUCCESS))
+        goto end;
+    /* override cert verification */
+    SSL_set_verify_result(clientssl, X509_V_OK);
+    clientstatus = SSL_ech_get_status(clientssl, &cinner, &couter);
+    if (verbose)
+        TEST_info("ech_pad_test: client status %d, %s, %s",
+                  clientstatus, cinner, couter);
+    if (!TEST_int_eq(clientstatus, SSL_ECH_STATUS_SUCCESS))
+        goto end;
+    if (!TEST_int_eq(ech_pad_cb_fail,0))
+        goto end;
+    /* all good */
+    res = 1;
+end:
+    OPENSSL_free(sinner);
+    OPENSSL_free(souter);
+    OPENSSL_free(cinner);
+    OPENSSL_free(couter);
+    OPENSSL_free(echkeyfile);
+    OPENSSL_free(echconfig);
+    SSL_free(clientssl);
+    SSL_free(serverssl);
+    SSL_CTX_free(cctx);
+    SSL_CTX_free(sctx);
+    return res;
+}
+
 /* Test a basic roundtrip with ECH, with a PEM file input */
 static int ech_roundtrip_test(int idx)
 {
@@ -998,12 +1171,10 @@ static int ech_tls12_with_ech_test(int idx)
     size_t badprivlen = sizeof(badpriv);
     uint16_t ech_version = OSSL_ECH_CURRENT_VERSION;
     OSSL_HPKE_SUITE hpke_suite = OSSL_HPKE_SUITE_DEFAULT;
-    // int err = 0, connrv = 0, err_reason = 0;
     char *good_public_name = "front.server.example";
     char *public_name = good_public_name;
     X509_STORE *vfy = NULL;
     int cver;
-    // int exp_conn_err = SSL_R_ECH_REQUIRED;
     int client = 0;
 
     /* for these tests we want to chain to our root */
@@ -1078,7 +1249,6 @@ end:
     OPENSSL_free(souter);
     OPENSSL_free(cinner);
     OPENSSL_free(couter);
-    //OPENSSL_free(retryconfig);
     OPENSSL_free(echkeyfile);
     SSL_free(clientssl);
     SSL_free(serverssl);
@@ -2376,6 +2546,7 @@ int setup_tests(void)
     ADD_ALL_TESTS(ech_wrong_pub_test, 3);
     ADD_ALL_TESTS(ech_tls12_with_ech_test, 1);
     ADD_ALL_TESTS(ech_sni_cb_test,1);
+    ADD_ALL_TESTS(ech_pad_test,OSSL_NELEM(pad_array));
     return 1;
 err:
     return 0;
