@@ -86,6 +86,39 @@ typedef struct ossl_ech_info_st {
     char *echconfig; /* a JSON-like version of the associated ECHConfig */
 } OSSL_ECH_INFO;
 
+/*
+ * Default padding minima and multiples
+ * If a web server were to host a set of web sites, one of which had a much
+ * longer name than the others, the size of some TLS handshake server messages
+ * could expose which web site was being accessed. Similarly, if the TLS server
+ * certificate for one web site were significantly larger or smaller than
+ * others, message sizes could reveal which web site was being visited.  For
+ * these reasons, we provide a way to enable additional ECH-specific padding of
+ * the Certifiate, CertificateVerify and EncryptedExtensions messages sent from
+ * the server to the client during the handshake.
+ *
+ * To enable ECH-specific padding, one makes a call to:
+ *   SSL_CTX_set_options(ctx, SSL_OP_ECH_SPECIFIC_PADDING);
+ */
+#  define OSSL_ECH_CERTPAD_MIN 1792
+#  define OSSL_ECH_CERTVERPAD_MIN 304
+#  define OSSL_ECH_ENCEXTPAD_MIN 32
+#  define OSSL_ECH_CERTPAD_UNIT 128
+#  define OSSL_ECH_CERTVERPAD_UNIT 16
+#  define OSSL_ECH_ENCEXTPAD_UNIT 16
+
+/*
+ * Fine-grained ECH-spacific padding controls for a server
+ */
+typedef struct ossl_ech_pad_sizes_st {
+    size_t cert_min; /* minimum size */
+    size_t cert_unit; /* size will be multiple of */
+    size_t certver_min; /* minimum size */
+    size_t certver_unit; /* size will be multiple of */
+    size_t ee_min; /* minimum size */
+    size_t ee_unit; /* size will be multiple of */
+} OSSL_ECH_PAD_SIZES;
+
 /* Values for the for_retry inputs */
 #  define SSL_ECH_USE_FOR_RETRY 1
 #  define SSL_ECH_NOT_FOR_RETRY 0
@@ -116,6 +149,7 @@ int SSL_ech_set_grease_type(SSL *s, uint16_t type);
 
 typedef unsigned int (*SSL_ech_cb_func)(SSL *s, const char *str);
 void SSL_ech_set_callback(SSL *s, SSL_ech_cb_func f);
+int SSL_ech_set_pad_sizes(SSL *s, OSSL_ECH_PAD_SIZES *sizes);
 
 int SSL_ech_get_retry_config(SSL *s, unsigned char **ec, size_t *eclen);
 
@@ -140,6 +174,8 @@ int SSL_CTX_ech_raw_decrypt(SSL_CTX *ctx,
                             unsigned char *inner_ch, size_t *inner_len,
                             unsigned char **hrrtok, size_t *toklen);
 void SSL_CTX_ech_set_callback(SSL_CTX *ctx, SSL_ech_cb_func f);
+int SSL_CTX_ech_set_pad_sizes(SSL_CTX *ctx, OSSL_ECH_PAD_SIZES *sizes);
+
 
 /* Misc API calls */
 int OSSL_ech_make_echconfig(unsigned char *echconfig, size_t *echconfiglen,

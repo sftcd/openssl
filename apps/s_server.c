@@ -74,19 +74,6 @@ typedef unsigned int u_int;
 #endif
 #include "internal/sockets.h"
 
-#ifndef OPENSSL_NO_ECH
-/*
- * A lack of padding can expose information intended to be hidden via ECH,
- * e.g. if only two inner CH SNI values were in live use. In that case we
- * pad the Certificate, CertificateVerify and EncryptedExtensions handshake
- * messages from the server. These are the  minimum lengths to which those
- * will be padded in that case.
- */
-# define ECH_CERTSPECIFIC_MIN 1808
-# define ECH_CERTVERSPECIFIC_MIN 480
-# define ECH_ENCEXTSPECIFIC_MIN 32
-#endif
-
 static int not_resumable_sess_cb(SSL *s, int is_forward_secure);
 static int sv_body(int s, int stype, int prot, unsigned char *context);
 static int www_body(int s, int stype, int prot, unsigned char *context);
@@ -106,60 +93,6 @@ static unsigned int ech_print_cb(SSL *s, const char *str);
 static size_t ech_trace_cb(const char *buf, size_t cnt,
                            int category, int cmd, void *vdata);
 # endif
-
-/* ECH padding size info, var of this type is passed via callback */
-typedef struct {
-    /* Certificate messages to be a multiple of this size */
-    size_t certpad;
-    /* CertificateVerify messages to be a multiple of this size */
-    size_t certverifypad;
-    /* EncryptedExtensions are padded to be a multiple of this size */
-    size_t eepad;
-} ech_padding_sizes;
-
-/* passed as an argument to callback */
-static ech_padding_sizes *ech_ps=NULL;
-
-/*
- * @brief pad Certificate and CertificateVerify messages
- * @param s is the SSL connection
- * @param len is the plaintext length before padding
- * @param arg is a pointer to an esni_padding_sizes struct
- * @return is the number of bytes of padding to add to the plaintext
- *
- * This is passed to SSL_CTX_set_record_padding_callback
- * and pads the Certificate, CertificateVerify and
- * EncryptedExtensions handshake messages to a size derived
- * from the argument arg
- */
-static size_t ech_padding_cb(SSL *s, int type, size_t len, void *arg)
-{
-    ech_padding_sizes *ps = (ech_padding_sizes *)arg;
-    int state = SSL_get_state(s);
-
-    if (state == TLS_ST_SW_CERT) {
-        int newlen = ps->certpad - (len % ps->certpad) - 16;
-
-        if (newlen < 0)
-            newlen += ps->certpad;
-        return (newlen > 0 ? newlen : 0);
-    }
-    if (state == TLS_ST_SW_CERT_VRFY) {
-        int newlen = ps->certverifypad - (len % ps->certverifypad) - 16;
-
-        if (newlen < 0)
-            newlen += ps->certverifypad;
-        return (newlen > 0 ? newlen : 0);
-    }
-    if (state == TLS_ST_SW_ENCRYPTED_EXTENSIONS) {
-        int newlen = ps->eepad - (len % ps->eepad) - 16;
-
-        if (newlen < 0)
-            newlen += ps->eepad;
-        return (newlen > 0 ? newlen : 0);
-    }
-    return 0;
-}
 #endif
 
 static const int bufsize = 16 * 1024;
@@ -2538,14 +2471,8 @@ int s_server_main(int argc, char *argv[])
     /*
      * Set padding sizes
      */
-    if (echspecificpad != 0) {
-        ech_ps = OPENSSL_malloc(sizeof(ech_padding_sizes));
-        ech_ps->certpad = ECH_CERTSPECIFIC_MIN;
-        ech_ps->certverifypad = ECH_CERTVERSPECIFIC_MIN ;
-        ech_ps->eepad = ECH_ENCEXTSPECIFIC_MIN ;
-        SSL_CTX_set_record_padding_callback_arg(ctx, (void *)ech_ps);
-        SSL_CTX_set_record_padding_callback(ctx, ech_padding_cb);
-    }
+    if (echspecificpad != 0)
+        SSL_CTX_set_options(ctx, SSL_OP_ECH_SPECIFIC_PADDING);
 #endif
 
     if (s_cert2) {
@@ -2556,16 +2483,12 @@ int s_server_main(int argc, char *argv[])
         }
 
 #ifndef OPENSSL_NO_ECH
-        if (echtrialdecrypt != 0) {
+        if (echtrialdecrypt != 0)
             SSL_CTX_set_options(ctx2, SSL_OP_ECH_TRIALDECRYPT);
-        }
-        if (echgrease_rc != 0) {
+        if (echgrease_rc != 0)
             SSL_CTX_set_options(ctx, SSL_OP_ECH_GREASE_RETRY_CONFIG);
-        }
-        if (echspecificpad != 0) {
-            SSL_CTX_set_record_padding_callback_arg(ctx2, (void *)ech_ps);
-            SSL_CTX_set_record_padding_callback(ctx2, ech_padding_cb);
-        }
+        if (echspecificpad != 0)
+            SSL_CTX_set_options(ctx2, SSL_OP_ECH_SPECIFIC_PADDING);
 #endif
     }
 
@@ -2941,7 +2864,6 @@ int s_server_main(int argc, char *argv[])
     BIO_meth_free(methods_ebcdic);
 #endif
 #ifndef OPENSSL_NO_ECH
-    OPENSSL_free(ech_ps);
 #endif
     return ret;
 }
