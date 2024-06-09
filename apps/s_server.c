@@ -106,6 +106,7 @@ static int s_nbio_test = 0;
 static int s_crlf = 0;
 static SSL_CTX *ctx = NULL;
 static SSL_CTX *ctx2 = NULL;
+static X509 *s_cert2 = NULL;
 static int www = 0;
 
 static BIO *bio_s_out = NULL;
@@ -664,22 +665,8 @@ static int ssl_ech_servername_cb(SSL *s, int *ad, void *arg)
         return SSL_TLSEXT_ERR_NOACK;
     if (echrv == SSL_ECH_STATUS_SUCCESS && servername != NULL) {
         if (ctx2 != NULL) {
-            int mrv;
-            X509_VERIFY_PARAM *vpm = NULL;
-
-            BIO_printf(p->biodebug,
-                       "ssl_ech_servername_cb: TLS servername: %s.\n",
-                       servername);
-            BIO_printf(p->biodebug,
-                       "ssl_ech_servername_cb: Cert servername: %s.\n",
-                       p->servername);
-            vpm = X509_VERIFY_PARAM_new();
-            if (vpm == NULL)
-                return SSL_TLSEXT_ERR_NOACK;
-            mrv = X509_VERIFY_PARAM_set1_host(vpm, servername,
-                                              strlen(servername));
-            X509_VERIFY_PARAM_free(vpm);
-            if (mrv == 1) {
+            int check_hostrv = X509_check_host(s_cert2, servername, 0, 0, NULL);
+            if (check_hostrv == 1) {
                 if (p->biodebug != NULL)
                      BIO_printf(p->biodebug,
                                 "ssl_ech_servername_cb: Switching context.\n");
@@ -688,7 +675,7 @@ static int ssl_ech_servername_cb(SSL *s, int *ad, void *arg)
                 if (p->biodebug!=NULL)
                      BIO_printf(p->biodebug,
                                 "ssl_ech_servername_cb: Not switching context "\
-                                "- no name match (%d).\n",mrv);
+                                "- no name match (%d).\n",check_hostrv);
             }
         }
     } else {
@@ -1348,7 +1335,6 @@ int s_server_main(int argc, char *argv[])
     unsigned char *context = NULL;
     OPTION_CHOICE o;
     EVP_PKEY *s_key2 = NULL;
-    X509 *s_cert2 = NULL;
 #ifndef OPENSSL_NO_ECH
     /* again the added field isn't really ECH specific */
     tlsextctx tlsextcbp = { NULL, NULL, SSL_TLSEXT_ERR_ALERT_WARNING, NULL };
