@@ -921,7 +921,14 @@ end:
  * pad_array[0] is a dummy that's written to in the 1st
  * iteration so that we can calculate the expected sizes
  * for subsequent iterations.
+ *
+ * The ECH_PAD_TOOBIG tests cause the ECH padding to
+ * be clamped at the max. That means that we won't hit
+ * the callback at all, (pre-existing behaviour), so
+ * we won't fail due to the unexpected sizes.
  */
+#define ECH_PAD_TOOBIG (SSL3_RT_MAX_PLAIN_LENGTH+1)
+
 static OSSL_ECH_PAD_SIZES pad_array[] = {
     /* dummy for 1st iteration */
     { 0, 0, 0, 0, 0, 0},
@@ -931,6 +938,28 @@ static OSSL_ECH_PAD_SIZES pad_array[] = {
      * ee min is close to size
      */
     { 1000, 16, 1, 16, 40, 16},
+    /* set the min to 1 less than max */
+    { ECH_PAD_TOOBIG - 2, 16, 1, 16, 1, 16},
+    { 1, 16, ECH_PAD_TOOBIG - 2, 16, 1, 16},
+    { 1, 16, 1, 16, ECH_PAD_TOOBIG - 2, 16},
+    /* set the min to the max allowed */
+    { ECH_PAD_TOOBIG - 1, 16, 1, 16, 1, 16},
+    { 1, 16, ECH_PAD_TOOBIG - 1, 16, 1, 16},
+    { 1, 16, 1, 16, ECH_PAD_TOOBIG - 1, 16},
+    /* set the min to one more than the max */
+    { ECH_PAD_TOOBIG, 16, 1, 16, 1, 16},
+    { 1, 16, ECH_PAD_TOOBIG, 16, 1, 16},
+    { 1, 16, 1, 16, ECH_PAD_TOOBIG, 16},
+    /* make the unit the max */
+    { 1000, ECH_PAD_TOOBIG - 1, 1, 16, 40, 16},
+    { 1000, 16, 1, ECH_PAD_TOOBIG - 1, 40, 16},
+    { 1000, 16, 1, 16 , 40, ECH_PAD_TOOBIG - 1},
+    /* make the unit too big */
+    { 1000, ECH_PAD_TOOBIG, 1, 16, 40, 16},
+    { 1000, 16, 1, ECH_PAD_TOOBIG, 40, 16},
+    { 1000, 16, 1, 16 , 40, ECH_PAD_TOOBIG},
+    /* an odd one just as another way to hit clamping */
+    { ECH_PAD_TOOBIG - 2, 9999, 1, 16, 40, 16},
 };
 
 /* callback code needs to tell test code if we see unexpected values */

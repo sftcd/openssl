@@ -4710,7 +4710,7 @@ int SSL_CTX_ech_set_pad_sizes(SSL_CTX *ctx, OSSL_ECH_PAD_SIZES *sizes)
         ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_INVALID_ARGUMENT);
         return 0;
     }
-    ctx->ext.pad_sizes = *sizes;
+    ctx->ext.ech_pad_sizes = *sizes;
     return 1;
 }
 
