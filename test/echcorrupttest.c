@@ -260,6 +260,20 @@ static const unsigned char borked_outer10[] = {
     0x00, 0x0d, 0x00, 0x2b, 0x00, 0x2d, 0x00, 0x33,
 };
 
+/* refer to key-share 0x00 0x33 (51) twice within outers */
+static const unsigned char borked_outer11[] = {
+    0xfd, 0x00, 0x00, 0x13, 0x12, 0x00, 0x0b,
+    0x00, 0x0a, 0x00, 0x23, 0x00, 0x16, 0x00, 0x17,
+    0x00, 0x33, 0x00, 0x2b, 0x00, 0x2d, 0x00, 0x33,
+};
+
+/* refer to psk kex mode (0x00 0x2D/45) within outers */
+static const unsigned char borked_outer12[] = {
+    0xfd, 0x00, 0x00, 0x13, 0x12, 0x00, 0x0b,
+    0x00, 0x0a, 0x00, 0x23, 0x00, 0x16, 0x00, 0x17,
+    0x00, 0x2D, 0x00, 0x2b, 0x00, 0x2d, 0x00, 0x33,
+};
+
 static const unsigned char encoded_inner_post[] = {
     0x00, 0x00, 0x00, 0x14, 0x00, 0x12, 0x00, 0x00,
     0x0f, 0x66, 0x6f, 0x6f, 0x2e, 0x65, 0x78, 0x61,
@@ -412,6 +426,18 @@ static TEST_ECHINNER test_inners[] = {
     { NULL, 0,
       no_ext_encoded_inner, sizeof(no_ext_encoded_inner),
       NULL, 0,
+      0, /* expected result */
+      SSL_R_BAD_EXTENSION},
+    /* 19. include key-share twice in outers as well as both inner and outer */
+    { encoded_inner_pre, sizeof(encoded_inner_pre),
+      borked_outer11, sizeof(borked_outer11),
+      encoded_inner_post, sizeof(encoded_inner_post),
+      0, /* expected result */
+      SSL_R_BAD_EXTENSION},
+    /* 20. include psk key mode ext in outers as well as both inner and outer */
+    { encoded_inner_pre, sizeof(encoded_inner_pre),
+      borked_outer12, sizeof(borked_outer12),
+      encoded_inner_post, sizeof(encoded_inner_post),
       0, /* expected result */
       SSL_R_BAD_EXTENSION},
 
