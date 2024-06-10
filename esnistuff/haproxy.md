@@ -1,6 +1,6 @@
 # Notes on building/integrating with haproxy
 
-## April 2024
+## June 2024
 
 Considering ECH key rotation - early days but ideas for progress apparent:
 
@@ -22,10 +22,14 @@ Might end up with something like:
             $ socat /tmp/haproxy.sock stdio
             prompt
             >
+            show ssl ech
+            ECH stuff... coming soon
 
-- list current ECH setup (speculative, no code exists yet):
+  The code for the above exists and is in ``src/ssl_sock.c`` in ``cli_parse_show_ech()``
 
-            show ech
+- next step is to list current ECH setup (speculative, no code exists yet):
+
+            show ssl ech
             ECH-front, priv-file: f1.pem, config-id: 0x00, ech public: 0x1234...
             Two-TLS, priv-file: f2.pem, config-id: 0x01, ech public: 0x2234...
             Split-mode, priv-file: f3.pem, config-id: 0x02, ech public: 0x3234...

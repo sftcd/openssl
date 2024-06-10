@@ -368,10 +368,17 @@ static int tls13_add_record_padding(OSSL_RECORD_LAYER *rl,
                 unit = s->ext.ech.pad_sizes.ee_unit;
                 do_pad = 1;
             }
-            if (do_pad == 1) {
+            if (do_pad) {
                if (len < min)
                     echpad = min - len;
                 echpad += ((len + echpad) % unit ? unit - ((len + echpad) % unit) : 0);
+                /*
+                 * We don't want ECH padding too big. We clamp to the max
+                 * if needed. Note that means we will not hit the callback
+                 * below, but that was already the case.
+                 */
+                if (len + echpad > rl->max_frag_len)
+                    echpad = rl->max_frag_len - len;
                 if (echpad > 0 && !WPACKET_memset(thispkt, 0, echpad)) {
                     RLAYERfatal(rl, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
                     return 0;
