@@ -106,7 +106,6 @@ static int s_nbio_test = 0;
 static int s_crlf = 0;
 static SSL_CTX *ctx = NULL;
 static SSL_CTX *ctx2 = NULL;
-static X509 *s_cert2 = NULL;
 static int www = 0;
 
 static BIO *bio_s_out = NULL;
@@ -665,7 +664,7 @@ static int ssl_ech_servername_cb(SSL *s, int *ad, void *arg)
         return SSL_TLSEXT_ERR_NOACK;
     if (echrv == SSL_ECH_STATUS_SUCCESS && servername != NULL) {
         if (ctx2 != NULL) {
-            int check_hostrv = X509_check_host(s_cert2, servername, 0, 0, NULL);
+            int check_hostrv = X509_check_host(p->scert, servername, 0, 0, NULL);
             if (check_hostrv == 1) {
                 if (p->biodebug != NULL)
                      BIO_printf(p->biodebug,
@@ -1309,6 +1308,7 @@ int s_server_main(int argc, char *argv[])
     STACK_OF(X509) *s_chain = NULL, *s_dchain = NULL;
     STACK_OF(X509_CRL) *crls = NULL;
     X509 *s_cert = NULL, *s_dcert = NULL;
+    X509 *s_cert2 = NULL;
     X509_VERIFY_PARAM *vpm = NULL;
     const char *CApath = NULL, *CAfile = NULL, *CAstore = NULL;
     const char *chCApath = NULL, *chCAfile = NULL, *chCAstore = NULL;
