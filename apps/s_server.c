@@ -1308,7 +1308,6 @@ int s_server_main(int argc, char *argv[])
     STACK_OF(X509) *s_chain = NULL, *s_dchain = NULL;
     STACK_OF(X509_CRL) *crls = NULL;
     X509 *s_cert = NULL, *s_dcert = NULL;
-    X509 *s_cert2 = NULL;
     X509_VERIFY_PARAM *vpm = NULL;
     const char *CApath = NULL, *CAfile = NULL, *CAstore = NULL;
     const char *chCApath = NULL, *chCAfile = NULL, *chCAstore = NULL;
@@ -1335,6 +1334,7 @@ int s_server_main(int argc, char *argv[])
     unsigned char *context = NULL;
     OPTION_CHOICE o;
     EVP_PKEY *s_key2 = NULL;
+    X509 *s_cert2 = NULL;
 #ifndef OPENSSL_NO_ECH
     /* again the added field isn't really ECH specific */
     tlsextctx tlsextcbp = { NULL, NULL, SSL_TLSEXT_ERR_ALERT_WARNING, NULL };
