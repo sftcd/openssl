@@ -1,56 +1,85 @@
 # Notes on building/integrating with haproxy
 
-## June 2024
 
-Considering ECH key rotation - early days but ideas for progress apparent:
+## ECH key rotation - June 2024
 
-- haproxy mgmt socket i/f https://docs.haproxy.org/dev/management.html#9.3
-- that describes (unix) socket based way to update TLS server cert and related
-- probably want an ECH equivalent
-- might need to swap from loading an echkeydir (directory) full of ECH keys
-  to a per-file based config so that we can sensibly update without file
-  system reads
-- likely want to squash the ECH data structure from different config file
-  stanzas, so that we can update 'em in one go more easily - OTOH maybe
-  that'd be wrong, need to check TLS server cert equivalent in more complex
-  configs
+haproxy mgmt socket i/f https://docs.haproxy.org/dev/management.html#9.3
+describes (unix) socket based way to update TLS server cert and related.
+We'll extend that for ECH.
 
-Might end up with something like:
+DONE - add an ECH equivalent to "show ssl ech"
+TODO - add/set operations to update the keys
+TODO - add ``SSL_CTX_ech_get_info(ctx,&info,&count)`` to make haproxy calls faster
 
-- connect to socket on command line:
+The code for this is in ``src/ssl_sock.c`` in ``cli_parse_show_ech()`` etc.
 
-            $ socat /tmp/haproxy.sock stdio
-            prompt
-            >
-            show ssl ech
-            ECH stuff... coming soon
+## Displaying ECH configs
 
-  The code for the above exists and is in ``src/ssl_sock.c`` in ``cli_parse_show_ech()``
+- To configure stats socket include this as a general setting
 
-- next step is to list current ECH setup (speculative, no code exists yet):
+            stats socket /tmp/haproxy.sock mode 600 level admin
 
-            show ssl ech
-            ECH-front, priv-file: f1.pem, config-id: 0x00, ech public: 0x1234...
-            Two-TLS, priv-file: f2.pem, config-id: 0x01, ech public: 0x2234...
-            Split-mode, priv-file: f3.pem, config-id: 0x02, ech public: 0x3234...
+- Syntax is: ``show ssl ech [name]``
+    - if no name provided all are shown
+    - names refer to the backend or frontend with which the set of
+      ECHConfig values are associated
 
-- delete one of those:
+- [haproxymin.conf](haproxymin.conf) sets ECH configurations (via the
+  ``echkeydir`` directive) for the "3484" backend (split-mode) and the
+"Two-TLS" and "ECH-front" frontends.
 
-            del ech ECH-front
+- To display all with our test setup:
 
-- update one of those:
+            $ echo "show ssl ech" | socat /tmp/haproxy.sock stdio
+            ***
+            backend (split-mode): 3484 
+            ECH details (3 configs total)
+            index: 0: SNI (inner:NULL;outer:NULL), ALPN (inner:NULL;outer:NULL)
+                [fe0d,bb,example.com,0020,[0001,0001],62c7607bf2c5fe1108446f132ca4339cf19df1552e5a42960fd02c697360163c,00,00]
+            index: 1: SNI (inner:NULL;outer:NULL), ALPN (inner:NULL;outer:NULL)
+                [fe0d,64,example.com,0020,[0001,0001],cc12c8fb828c202d11b5adad67e15d0cccce1aaa493e1df34a770e4a5cdcd103,00,00]
+            index: 2: SNI (inner:NULL;outer:NULL), ALPN (inner:NULL;outer:NULL)
+                [fe0d,bb,example.com,0020,[0001,0001],62c7607bf2c5fe1108446f132ca4339cf19df1552e5a42960fd02c697360163c,00,00]
+            ***
+            frontend: ECH-front 
+            ECH details (3 configs total)
+            index: 0: SNI (inner:NULL;outer:NULL), ALPN (inner:NULL;outer:NULL)
+                [fe0d,bb,example.com,0020,[0001,0001],62c7607bf2c5fe1108446f132ca4339cf19df1552e5a42960fd02c697360163c,00,00]
+            index: 1: SNI (inner:NULL;outer:NULL), ALPN (inner:NULL;outer:NULL)
+                [fe0d,64,example.com,0020,[0001,0001],cc12c8fb828c202d11b5adad67e15d0cccce1aaa493e1df34a770e4a5cdcd103,00,00]
+            index: 2: SNI (inner:NULL;outer:NULL), ALPN (inner:NULL;outer:NULL)
+                [fe0d,bb,example.com,0020,[0001,0001],62c7607bf2c5fe1108446f132ca4339cf19df1552e5a42960fd02c697360163c,00,00]
+            ***
+            frontend: Two-TLS 
+            ECH details (3 configs total)
+            index: 0: SNI (inner:NULL;outer:NULL), ALPN (inner:NULL;outer:NULL)
+                [fe0d,bb,example.com,0020,[0001,0001],62c7607bf2c5fe1108446f132ca4339cf19df1552e5a42960fd02c697360163c,00,00]
+            index: 1: SNI (inner:NULL;outer:NULL), ALPN (inner:NULL;outer:NULL)
+                [fe0d,64,example.com,0020,[0001,0001],cc12c8fb828c202d11b5adad67e15d0cccce1aaa493e1df34a770e4a5cdcd103,00,00]
+            index: 2: SNI (inner:NULL;outer:NULL), ALPN (inner:NULL;outer:NULL)
+                [fe0d,bb,example.com,0020,[0001,0001],62c7607bf2c5fe1108446f132ca4339cf19df1552e5a42960fd02c697360163c,00,00]
 
-            set ech ECH-front <ech-pemesni-b64>
+The backend name in the above is "3484", the frontend names are "ECH-front" and "Two-TLS"
 
-- commit ech changes
+- Connect to socket on command line, and display the "Two-TLS" ECH configs:
 
-            commit ech
+            $ echo "show ssl ech Two-TLS" | socat /tmp/haproxy.sock stdio
+            ***
+            ECH for Two-TLS 
+            ECH details (3 configs total)
+            index: 0: SNI (inner:NULL;outer:NULL), ALPN (inner:NULL;outer:NULL)
+                [fe0d,bb,example.com,0020,[0001,0001],62c7607bf2c5fe1108446f132ca4339cf19df1552e5a42960fd02c697360163c,00,00]
+            index: 1: SNI (inner:NULL;outer:NULL), ALPN (inner:NULL;outer:NULL)
+                [fe0d,64,example.com,0020,[0001,0001],cc12c8fb828c202d11b5adad67e15d0cccce1aaa493e1df34a770e4a5cdcd103,00,00]
+            index: 2: SNI (inner:NULL;outer:NULL), ALPN (inner:NULL;outer:NULL)
+                [fe0d,bb,example.com,0020,[0001,0001],62c7607bf2c5fe1108446f132ca4339cf19df1552e5a42960fd02c697360163c,00,00]
 
-Things to ponder:
+## Additional commands (TBD):
 
-- echkeydir (current) vs. individual file loads at start time
-- what if same pemesni/key-pair file (e.g. f1.pem) loaded >1 time?
-- how to handle accumulate vs. replace?
+            add ssl ech ECH-front <b64-pemesni>
+            set ssl ech ECH-front <b64-pemesni>
+            del ssl ech ECH-front
+            commit ssl ech
 
 ## October 2023
 
