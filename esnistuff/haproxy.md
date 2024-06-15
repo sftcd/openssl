@@ -7,9 +7,9 @@ haproxy mgmt socket i/f https://docs.haproxy.org/dev/management.html#9.3
 describes (unix) socket based way to update TLS server cert and related.
 We'll extend that for ECH.
 
-DONE - add an ECH equivalent to "show ssl ech"
-DONE - add/set operations to update the keys
-TODO - add ``SSL_CTX_ech_get_info(ctx,&info,&count)`` to make haproxy calls faster
+- DONE - add an ECH equivalent to "show ssl ech"
+- DONE - add/set operations to update the keys
+- TODO - add ``SSL_CTX_ech_get_info(ctx,&info,&count)`` to make haproxy calls faster
 
 The code for this is in ``src/ssl_sock.c`` in ``cli_parse_show_ech()`` etc.
 
@@ -86,14 +86,14 @@ Providing the PEM file input is a bit non-trivial, to add another ECH config one
             $ openssl ech -public_name htest.com -pemout htest.pem
             $ echo -e "add ssl ech ECH-front <<EOF\n$(cat htest.pem)\nEOF\n" | socat /tmp/haproxy.sock -
 
-The "EOF\n$(cat htest.pem)\nEOF" is how we provide the <pemesni> value for both
+The ``EOF\n$(cat htest.pem)\nEOF`` is how we provide the <pemesni> value for both
 "add" and "set" commands..
 
-As you'd expect the "add" command adds new ECH configs to a set. The "set"
-command replaces the entire set with the new one provided and the "del" command
-removes all configs loaded more than <age-in-secs> ago. An expected model for
-updates then is to periodically add new configs and to remove ones that were
-added two cycles ago.
+As you'd expect the "add" command adds a new ECH config to a set from the
+relevant PEM file. The "set" command replaces the entire set with the new one
+provided and the "del" command removes all configs loaded more than
+``<age-in-secs>`` ago. An expected model for updates then is to periodically
+add new configs and to remove ones that were added two cycles ago.
 
 This is simpler than providing a transactional model with commits, which is how
 TLS server private keys and certificates are handled, but is considered
