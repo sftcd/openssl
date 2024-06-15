@@ -30,7 +30,6 @@ The code for this is in ``src/ssl_sock.c`` in ``cli_parse_show_ech()`` etc.
 
 - To display all with our test setup:
 
-            $ echo "show ssl ech" | socat /tmp/haproxy.sock stdio
             $ echo "show ssl ech" | socat /tmp/haproxy.sock stdio 
             ***
             backend (split-mode): 3484 
@@ -77,14 +76,34 @@ The backend name in the above is "3484", the frontend names are "ECH-front" and 
 
 ## Additional commands: add, set, del
 
-            add ssl ech ECH-front <pemesni>
-            set ssl ech ECH-front <pemesni>
-            del ssl ech ECH-front [<age-in-secs>]
+            add ssl ech <name> <pemesni>
+            set ssl ech <name> <pemesni>
+            del ssl ech <name> [<age-in-secs>]
+
+Where ``<name>`` is the name of a frontend or backend as above.
 
 Providing the PEM file input is a bit non-trivial, to add another ECH config one needs to:
 
             $ openssl ech -public_name htest.com -pemout htest.pem
             $ echo -e "add ssl ech ECH-front <<EOF\n$(cat htest.pem)\nEOF\n" | socat /tmp/haproxy.sock -
+            added a new ECH config to ECH-front
+            
+            $ echo "show ssl ech ECH-front" | socat /tmp/haproxy.sock stdio 
+            ***
+            ECH for ECH-front 
+            ECH details (4 configs total)
+            index: 0: loaded 1680 seconds, SNI (inner:NULL;outer:NULL), ALPN (inner:NULL;outer:NULL)
+                [fe0d,bb,example.com,0020,[0001,0001],62c7607bf2c5fe1108446f132ca4339cf19df1552e5a42960fd02c697360163c,00,00]
+            index: 1: loaded 1680 seconds, SNI (inner:NULL;outer:NULL), ALPN (inner:NULL;outer:NULL)
+                [fe0d,64,example.com,0020,[0001,0001],cc12c8fb828c202d11b5adad67e15d0cccce1aaa493e1df34a770e4a5cdcd103,00,00]
+            index: 2: loaded 1680 seconds, SNI (inner:NULL;outer:NULL), ALPN (inner:NULL;outer:NULL)
+                [fe0d,bb,example.com,0020,[0001,0001],62c7607bf2c5fe1108446f132ca4339cf19df1552e5a42960fd02c697360163c,00,00]
+            index: 3: loaded 33 seconds, SNI (inner:NULL;outer:NULL), ALPN (inner:NULL;outer:NULL)
+                [fe0d,ce,htest.com,0020,[0001,0001],d8e62d7e286fb6ac93a0210a8f784825f0e4cace9d302b07778d7262eaad5f4d,00,00]
+
+            $
+
+And we can see the new one added.
 
 The ``EOF\n$(cat htest.pem)\nEOF`` is how we provide the <pemesni> value for both
 "add" and "set" commands..
