@@ -4686,9 +4686,9 @@ int OSSL_ECH_INFO_print(BIO *out, OSSL_ECH_INFO *se, int count)
     }
     BIO_printf(out, "ECH details (%d configs total)\n", count);
     for (i = 0; i != count; i++) {
-        BIO_printf(out, "index: %d: loaded %ld seconds, SNI (inner:%s;outer:%s), "
+        BIO_printf(out, "index: %d: loaded %lu seconds, SNI (inner:%s;outer:%s), "
                    "ALPN (inner:%s;outer:%s)\n\t%s\n",
-                   i, se[i].seconds_in_memory,
+                   i, (unsigned long)se[i].seconds_in_memory,
                    se[i].inner_name != NULL ? se[i].inner_name : "NULL",
                    se[i].public_name != NULL ? se[i].public_name : "NULL",
                    se[i].inner_alpns != NULL ? se[i].inner_alpns : "NULL",
