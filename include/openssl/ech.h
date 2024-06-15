@@ -79,6 +79,7 @@
  */
 typedef struct ossl_ech_info_st {
     int index; /* externally re-usable reference to this value */
+    time_t seconds_in_memory; /* number of seconds since this was loaded */
     char *public_name; /* public_name from API or ECHConfig */
     char *inner_name; /* server-name (for inner CH if doing ECH) */
     char *outer_alpns; /* outer ALPN string */

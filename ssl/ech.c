@@ -4686,9 +4686,9 @@ int OSSL_ECH_INFO_print(BIO *out, OSSL_ECH_INFO *se, int count)
     }
     BIO_printf(out, "ECH details (%d configs total)\n", count);
     for (i = 0; i != count; i++) {
-        BIO_printf(out, "index: %d: SNI (inner:%s;outer:%s), "
+        BIO_printf(out, "index: %d: loaded %ld seconds, SNI (inner:%s;outer:%s), "
                    "ALPN (inner:%s;outer:%s)\n\t%s\n",
-                   i,
+                   i, se[i].seconds_in_memory,
                    se[i].inner_name != NULL ? se[i].inner_name : "NULL",
                    se[i].public_name != NULL ? se[i].public_name : "NULL",
                    se[i].inner_alpns != NULL ? se[i].inner_alpns : "NULL",
@@ -4923,14 +4923,16 @@ int SSL_ech_get_info(SSL *ssl, OSSL_ECH_INFO **out, int *nindices)
         goto err;
     for (i = 0; i != s->ext.ech.ncfgs; i++) {
         OSSL_ECH_INFO *inst = &rdiff[i];
+        time_t now = time(0);
 
-        if (s->ext.ech.cfgs->inner_name != NULL) {
-            inst->inner_name = OPENSSL_strdup(s->ext.ech.cfgs->inner_name);
+        inst->seconds_in_memory = now - s->ext.ech.cfgs[i].loadtime;
+        if (s->ext.ech.cfgs[i].inner_name != NULL) {
+            inst->inner_name = OPENSSL_strdup(s->ext.ech.cfgs[i].inner_name);
             if (inst->inner_name == NULL)
                 goto err;
         }
-        if (s->ext.ech.cfgs->outer_name != NULL) {
-            inst->public_name = OPENSSL_strdup(s->ext.ech.cfgs->outer_name);
+        if (s->ext.ech.cfgs[i].outer_name != NULL) {
+            inst->public_name = OPENSSL_strdup(s->ext.ech.cfgs[i].outer_name);
             if (inst->public_name == NULL)
                 goto err;
         }

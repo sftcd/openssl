@@ -8,7 +8,7 @@ describes (unix) socket based way to update TLS server cert and related.
 We'll extend that for ECH.
 
 DONE - add an ECH equivalent to "show ssl ech"
-TODO - add/set operations to update the keys
+DONE - add/set operations to update the keys
 TODO - add ``SSL_CTX_ech_get_info(ctx,&info,&count)`` to make haproxy calls faster
 
 The code for this is in ``src/ssl_sock.c`` in ``cli_parse_show_ech()`` etc.
@@ -31,32 +31,33 @@ The code for this is in ``src/ssl_sock.c`` in ``cli_parse_show_ech()`` etc.
 - To display all with our test setup:
 
             $ echo "show ssl ech" | socat /tmp/haproxy.sock stdio
+            $ echo "show ssl ech" | socat /tmp/haproxy.sock stdio 
             ***
             backend (split-mode): 3484 
             ECH details (3 configs total)
-            index: 0: SNI (inner:NULL;outer:NULL), ALPN (inner:NULL;outer:NULL)
+            index: 0: loaded 4 seconds, SNI (inner:NULL;outer:NULL), ALPN (inner:NULL;outer:NULL)
                 [fe0d,bb,example.com,0020,[0001,0001],62c7607bf2c5fe1108446f132ca4339cf19df1552e5a42960fd02c697360163c,00,00]
-            index: 1: SNI (inner:NULL;outer:NULL), ALPN (inner:NULL;outer:NULL)
+            index: 1: loaded 4 seconds, SNI (inner:NULL;outer:NULL), ALPN (inner:NULL;outer:NULL)
                 [fe0d,64,example.com,0020,[0001,0001],cc12c8fb828c202d11b5adad67e15d0cccce1aaa493e1df34a770e4a5cdcd103,00,00]
-            index: 2: SNI (inner:NULL;outer:NULL), ALPN (inner:NULL;outer:NULL)
+            index: 2: loaded 4 seconds, SNI (inner:NULL;outer:NULL), ALPN (inner:NULL;outer:NULL)
                 [fe0d,bb,example.com,0020,[0001,0001],62c7607bf2c5fe1108446f132ca4339cf19df1552e5a42960fd02c697360163c,00,00]
             ***
             frontend: ECH-front 
             ECH details (3 configs total)
-            index: 0: SNI (inner:NULL;outer:NULL), ALPN (inner:NULL;outer:NULL)
+            index: 0: loaded 4 seconds, SNI (inner:NULL;outer:NULL), ALPN (inner:NULL;outer:NULL)
                 [fe0d,bb,example.com,0020,[0001,0001],62c7607bf2c5fe1108446f132ca4339cf19df1552e5a42960fd02c697360163c,00,00]
-            index: 1: SNI (inner:NULL;outer:NULL), ALPN (inner:NULL;outer:NULL)
+            index: 1: loaded 4 seconds, SNI (inner:NULL;outer:NULL), ALPN (inner:NULL;outer:NULL)
                 [fe0d,64,example.com,0020,[0001,0001],cc12c8fb828c202d11b5adad67e15d0cccce1aaa493e1df34a770e4a5cdcd103,00,00]
-            index: 2: SNI (inner:NULL;outer:NULL), ALPN (inner:NULL;outer:NULL)
+            index: 2: loaded 4 seconds, SNI (inner:NULL;outer:NULL), ALPN (inner:NULL;outer:NULL)
                 [fe0d,bb,example.com,0020,[0001,0001],62c7607bf2c5fe1108446f132ca4339cf19df1552e5a42960fd02c697360163c,00,00]
             ***
             frontend: Two-TLS 
             ECH details (3 configs total)
-            index: 0: SNI (inner:NULL;outer:NULL), ALPN (inner:NULL;outer:NULL)
+            index: 0: loaded 4 seconds, SNI (inner:NULL;outer:NULL), ALPN (inner:NULL;outer:NULL)
                 [fe0d,bb,example.com,0020,[0001,0001],62c7607bf2c5fe1108446f132ca4339cf19df1552e5a42960fd02c697360163c,00,00]
-            index: 1: SNI (inner:NULL;outer:NULL), ALPN (inner:NULL;outer:NULL)
+            index: 1: loaded 4 seconds, SNI (inner:NULL;outer:NULL), ALPN (inner:NULL;outer:NULL)
                 [fe0d,64,example.com,0020,[0001,0001],cc12c8fb828c202d11b5adad67e15d0cccce1aaa493e1df34a770e4a5cdcd103,00,00]
-            index: 2: SNI (inner:NULL;outer:NULL), ALPN (inner:NULL;outer:NULL)
+            index: 2: loaded 4 seconds, SNI (inner:NULL;outer:NULL), ALPN (inner:NULL;outer:NULL)
                 [fe0d,bb,example.com,0020,[0001,0001],62c7607bf2c5fe1108446f132ca4339cf19df1552e5a42960fd02c697360163c,00,00]
 
 The backend name in the above is "3484", the frontend names are "ECH-front" and "Two-TLS"
@@ -67,19 +68,36 @@ The backend name in the above is "3484", the frontend names are "ECH-front" and 
             ***
             ECH for Two-TLS 
             ECH details (3 configs total)
-            index: 0: SNI (inner:NULL;outer:NULL), ALPN (inner:NULL;outer:NULL)
+            index: 0: loaded 60 seconds, SNI (inner:NULL;outer:NULL), ALPN (inner:NULL;outer:NULL)
                 [fe0d,bb,example.com,0020,[0001,0001],62c7607bf2c5fe1108446f132ca4339cf19df1552e5a42960fd02c697360163c,00,00]
-            index: 1: SNI (inner:NULL;outer:NULL), ALPN (inner:NULL;outer:NULL)
+            index: 1: loaded 60 seconds, SNI (inner:NULL;outer:NULL), ALPN (inner:NULL;outer:NULL)
                 [fe0d,64,example.com,0020,[0001,0001],cc12c8fb828c202d11b5adad67e15d0cccce1aaa493e1df34a770e4a5cdcd103,00,00]
-            index: 2: SNI (inner:NULL;outer:NULL), ALPN (inner:NULL;outer:NULL)
+            index: 2: loaded 60 seconds, SNI (inner:NULL;outer:NULL), ALPN (inner:NULL;outer:NULL)
                 [fe0d,bb,example.com,0020,[0001,0001],62c7607bf2c5fe1108446f132ca4339cf19df1552e5a42960fd02c697360163c,00,00]
 
-## Additional commands (TBD):
+## Additional commands: add, set, del
 
-            add ssl ech ECH-front <b64-pemesni>
-            set ssl ech ECH-front <b64-pemesni>
-            del ssl ech ECH-front
-            commit ssl ech
+            add ssl ech ECH-front <pemesni>
+            set ssl ech ECH-front <pemesni>
+            del ssl ech ECH-front [<age-in-secs>]
+
+Providing the PEM file input is a bit non-trivial, to add another ECH config one needs to:
+
+            $ openssl ech -public_name htest.com -pemout htest.pem
+            $ echo -e "add ssl ech ECH-front <<EOF\n$(cat htest.pem)\nEOF\n" | socat /tmp/haproxy.sock -
+
+The "EOF\n$(cat htest.pem)\nEOF" is how we provide the <pemesni> value for both
+"add" and "set" commands..
+
+As you'd expect the "add" command adds new ECH configs to a set. The "set"
+command replaces the entire set with the new one provided and the "del" command
+removes all configs loaded more than <age-in-secs> ago. An expected model for
+updates then is to periodically add new configs and to remove ones that were
+added two cycles ago.
+
+This is simpler than providing a transactional model with commits, which is how
+TLS server private keys and certificates are handled, but is considered
+sufficient for the moment.
 
 ## October 2023
 
