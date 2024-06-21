@@ -251,8 +251,10 @@ int ech_main(int argc, char **argv)
         if (echconfig_file != NULL) {
             BIO *ecf = BIO_new_file(echconfig_file, "w");
 
-            if (ecf == NULL)
+            if (ecf == NULL) {
+                BIO_printf(bio_err, "Error (permissions>) writing to %s\n", echconfig_file);
                 goto end;
+            }
             BIO_write(ecf, echconfig, echconfig_len);
             BIO_printf(ecf, "\n");
             BIO_free_all(ecf);
@@ -261,16 +263,20 @@ int ech_main(int argc, char **argv)
         if (keyfile != NULL) {
             BIO *kf = BIO_new_file(keyfile, "w");
 
-            if (kf == NULL)
+            if (kf == NULL) {
+                BIO_printf(bio_err, "Error (permissions>) writing to %s\n", keyfile);
                 goto end;
+            }
             BIO_write(kf, priv, privlen);
             BIO_free_all(kf);
             BIO_printf(bio_err, "Wrote ECH private key to %s\n", keyfile);
         }
         /* If we didn't write out either of the above, create a PEM file */
         if (keyfile == NULL && echconfig_file == NULL) {
-            if ((pemf = BIO_new_file(pemfile, "w")) == NULL)
+            if ((pemf = BIO_new_file(pemfile, "w")) == NULL) {
+                BIO_printf(bio_err, "Error (permissions>) writing to %s\n", pemfile);
                 goto end;
+            }
             BIO_write(pemf, priv, privlen);
             BIO_printf(pemf, "-----BEGIN ECHCONFIG-----\n");
             BIO_write(pemf, echconfig, echconfig_len);
