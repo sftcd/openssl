@@ -1,10 +1,13 @@
 Encrypted ClientHello (ECH) APIs
 ================================
 
-[This fork](https://github.com/sftcd/openssl/tree/ECH-draft-13c) has an
-implementation of Encrypted Client Hello (ECH) and these are design notes
-relating to the current APIs for that, and an analysis of how these differ from
-those currently in the boringssl library.
+TODO: replace references/links to sftcd fork with relative links as files are
+migrated into (PRs for) the feature branch.
+
+There is an [OpenSSL fork](https://github.com/sftcd/openssl/tree/ECH-draft-13c)
+that has an implementation of Encrypted Client Hello (ECH) and these are design
+notes relating to the current APIs for that, and an analysis of how these
+differ from those currently in the boringssl library.
 
 ECH involves creating an "inner" ClientHello (CH) that contains the potentially
 sensitive content of a CH, primarily the SNI and perhaps the ALPN values. That
@@ -17,17 +20,17 @@ ECH makes use of [HPKE](https://datatracker.ietf.org/doc/rfc9180/) for the
 encryption of the inner CH. HPKE code was merged to the master branch in
 November 2022.
 
-The current APIs implemented in this fork are also documented
+The ECH APIs are also documented
 [here](https://github.com/sftcd/openssl/blob/ECH-draft-13c/doc/man3/SSL_ech_set1_echconfig.pod).
 The descriptions here are less formal and provide some justification for the
 API design.
 
 Unless otherwise stated all APIs return 1 in the case of success and 0 for
-error. All APIs call ``SSLfatal`` or ``ERR_raise`` macros as appropriate before
+error. All APIs call `SSLfatal` or `ERR_raise` macros as appropriate before
 returning an error.
 
 Prototypes are mostly in
-[``include/openssl/ech.h``](https://github.com/sftcd/openssl/blob/ECH-draft-13c/include/openssl/ech.h)
+[`include/openssl/ech.h`](https://github.com/sftcd/openssl/blob/ECH-draft-13c/include/openssl/ech.h)
 for now.
 
 Specification
@@ -73,18 +76,18 @@ Minimal Sample Code
 -------------------
 
 OpenSSL includes code for an
-[``sslecho``](https://github.com/sftcd/openssl/tree/ECH-draft-13c/demos/sslecho)
+[`sslecho`](../../demos/sslecho)
 demo.  We've added a minimal
-[``echecho``](https://github.com/sftcd/openssl/blob/ECH-draft-13c/demos/sslecho/echecho.c)
+[`echecho`](../../demos/sslecho/echecho.c)
 that shows that adding one new server call
-(``SSL_CTX_ech_enable_server_buffer()``) and one new client call
-(``SSL_CTX_ech_set1_echconfig()``) is all that's needed to ECH-enable this
+(`SSL_CTX_ech_enable_server_buffer()`) and one new client call
+(`SSL_CTX_ech_set1_echconfig()`) is all that's needed to ECH-enable this
 demo.
 
 Handling Custom Extensions
 --------------------------
 
-OpenSSL supports custom extensions (via ``SSL_CTX_add_custom_ext()``) so that
+OpenSSL supports custom extensions (via `SSL_CTX_add_custom_ext()`) so that
 extension values are supplied and parsed by client and server applications via
 a callback.  The ECH specification of course doesn't deal with such
 implementation matters, but comprehensive ECH support for such custom
@@ -107,31 +110,32 @@ inner CH to another server that does the actual TLS handshake with the client.
 
 ### Key and ECHConfigList Generation
 
-``ossl_edch_make_echconfig()`` is for use by command line or other key
-management tools, for example the ``openssl ech`` command documented
+`OSSL_ECH_make_echconfig()` is for use by command line or other key
+management tools, for example the `openssl ech` command documented
 [here](https://github.com/sftcd/openssl/blob/ECH-draft-13c/doc/man1/openssl-ech.pod.in).
 
 The ECHConfigList structure that will eventually be published in the DNS
 contains the ECH public value (an ECC public key) and other ECH related
-information, mainly the ``public_name`` that will be used as the SNI value in
+information, mainly the `public_name` that will be used as the SNI value in
 outer CH messages.
 
 ```c
-int OSSL_ech_make_echconfig(unsigned char *echconfig, size_t *echconfiglen,
+int OSSL_ECH_make_echconfig(unsigned char *echconfig, size_t *echconfiglen,
                             unsigned char *priv, size_t *privlen,
-                            uint16_t ekversion, uint16_t max_name_length,
+                            uint16_t echversion, uint16_t max_name_length,
                             const char *public_name, OSSL_HPKE_SUITE suite,
-                            const unsigned char *extvals, size_t extlen);
+                            const unsigned char *extvals, size_t extlen,
+                            OSSL_LIB_CTX *libctx, const char *propq);
 ```
 
-The ``echconfig`` and ``priv`` buffer outputs are allocated by the caller
+The `echconfig` and `priv` buffer outputs are allocated by the caller
 with the allocated size on input and the used-size on output. On output,
-the ``echconfig`` contains the base64 encoded ECHConfigList and the
-``priv`` value contains the PEM encoded PKCS#8 private value.
+the `echconfig` contains the base64 encoded ECHConfigList and the
+`priv` value contains the PEM encoded PKCS#8 private value.
 
-The ``ekversion`` should be ``OSSL_ECH_CURRENT_VERSION`` for the current version.
+The `echversion` should be `OSSL_ECH_CURRENT_VERSION` for the current version.
 
-The ``max_name_length`` is an element of the ECHConfigList that is used
+The `max_name_length` is an element of the ECHConfigList that is used
 by clients as part of a padding algorithm. (That design is part of the
 spec, but isn't necessarily great - the idea is to include the longest
 value that might be the length of a DNS name included as an inner CH
@@ -139,22 +143,22 @@ SNI.) A value of 0 is perhaps most likely to be used, indicating that
 the maximum isn't known.
 
 The ECHConfigList structure is extensible, but, to date, no extensions
-have been defined. If provided, the ``extvals`` buffer should contain an
+have been defined. If provided, the `extvals` buffer should contain an
 already TLS-encoded set of extensions for inclusion in the ECHConfigList.
 
-The ``openssl ech`` command can write the private key and the ECHConfigList
+The `openssl ech` command can write the private key and the ECHConfigList
 values to a file that matches the ECH PEM file format we have proposed to the
 IETF
 ([draft-farrell-tls-pemesni](https://datatracker.ietf.org/doc/draft-farrell-tls-pemesni/)).
 Note that that file format is not an "adopted" work item for the IETF TLS WG
-(but should be:-). ``openssl ech`` also allows the two values to be output to
+(but should be:-). `openssl ech` also allows the two values to be output to
 two separate files.
 
 ### Server Key Management
 
 The APIs here are mainly designed for web servers and have been used in
 proof-of-concept (PoC) integrations with nginx, apache, lighttpd and haproxy,
-in addition to the ``openssl s_server``. (See [defo.ie](https://defo.ie) for
+in addition to the `openssl s_server`. (See [defo.ie](https://defo.ie) for
 details and code for those PoC implementations.)
 
 As ECH is essentially an ephemeral-static DH scheme, it is likely servers will
@@ -177,7 +181,7 @@ int SSL_CTX_ech_server_enable_buffer(SSL_CTX *ctx, const unsigned char *buf,
 
 The three functions above support loading keys, the first attempts to load a
 key based on an individual file name. The second attempts to load all files
-from a directory that have a ``.ech`` file extension - this allows web server
+from a directory that have a `.ech` file extension - this allows web server
 configurations to simply name that directory and then trigger a configuration
 reload periodically as keys in that directory have been updated by some
 external key management process (likely managed via a cronjob).  The last
@@ -185,20 +189,20 @@ allows the application to load keys from a buffer (that should contain the same
 content as a file) and was added for haproxy which prefers not to do disk reads
 after initial startup (for resilience reasons apparently).
 
-If the ``for_retry`` input has the value 1, then the corresponding ECHConfig
+If the `for_retry` input has the value 1, then the corresponding ECHConfig
 values will be returned to clients that GREASE or use the wrong public value in
-the ``retry-config`` that may enable a client to use ECH in a subsequent
+the `retry-config` that may enable a client to use ECH in a subsequent
 connection.
 
 The content of files referred to above must also match the format defined in
 [draft-farrell-tls-pemesni](https://datatracker.ietf.org/doc/draft-farrell-tls-pemesni/).
 
 There are also functions to allow a server to see how many keys are currently
-loaded, and one to flush keys that are older than ``age`` seconds.
+loaded, and one to flush keys that are older than `age` seconds.
 
 ```c
 int SSL_CTX_ech_server_get_key_status(SSL_CTX *ctx, int *numkeys);
-int SSL_CTX_ech_server_flush_keys(SSL_CTX *ctx, unsigned int age);
+int SSL_CTX_ech_server_flush_keys(SSL_CTX *ctx, time_t age);
 ```
 
 ### Split-mode handling
@@ -220,27 +224,27 @@ int SSL_CTX_ech_raw_decrypt(SSL_CTX *ctx,
                             unsigned char **hrrtok, size_t *toklen);
 ```
 
-The caller allocates the ``inner_ch`` buffer, on input ``inner_len`` should
-contain the size of the ``inner_ch`` buffer, on output the size of the actual
+The caller allocates the `inner_ch` buffer, on input `inner_len` should
+contain the size of the `inner_ch` buffer, on output the size of the actual
 inner CH. Note that, when ECH decryption succeeds, the inner CH will always be
 smaller than the outer CH.
 
 If there is no ECH present in the outer CH then this will return 1 (i.e., the
-call will succeed) but ``decrypted_ok`` will be zero. The same will result if a
+call will succeed) but `decrypted_ok` will be zero. The same will result if a
 GREASEd ECH is present or decryption fails for some other (indistinguishable)
 reason.
 
 If the caller wishes to support HelloRetryRequest (HRR), then it must supply
-the same ``hrrtok`` and ``toklen`` pointers to both calls to
-``SSL_CTX_ech_raw_decrypt()`` (for the initial and second ClientHello
-messages). When done, the caller must free the ``hrrtok`` using
-``OPENSSL_free()``.  If the caller doesn't need to support HRR, then it can
+the same `hrrtok` and `toklen` pointers to both calls to
+`SSL_CTX_ech_raw_decrypt()` (for the initial and second ClientHello
+messages). When done, the caller must free the `hrrtok` using
+`OPENSSL_free()`.  If the caller doesn't need to support HRR, then it can
 supply NULL values for these parameters. The value of the token is the client's
 ephemeral public value, which is not sensitive having being sent in clear in
 the first ClientHello.  This value is missing from the second ClientHello but
 is needed for ECH decryption.
 
-Note that ``SSL_CTX_ech_raw_decrypt()`` only takes a ClientHello as input. If
+Note that `SSL_CTX_ech_raw_decrypt()` only takes a ClientHello as input. If
 the flight containing the ClientHello contains other messages (e.g. a
 ChangeCipherSuite or Early data), then the caller is responsible for
 disentangling those, and for assembling a new flight containing the inner
@@ -254,7 +258,7 @@ expose which web site was being accessed. Similarly, if the TLS server
 certificate for one web site were significantly larger or smaller than others,
 message sizes could reveal which web site was being visited.  For these
 reasons, we provide a way to enable additional ECH-specific padding of the
-Certifiate, CertificateVerify and EncryptedExtensions messages sent from the
+Certificate, CertificateVerify and EncryptedExtensions messages sent from the
 server to the client during the handshake.
 
 To enable ECH-specific padding, one makes a call to:
@@ -266,21 +270,19 @@ To enable ECH-specific padding, one makes a call to:
 The default padding scheme is to ensure the following sizes for the plaintext
 form of these messages:
 
-| ------------------- | ------------ | ------------------- |
 | Message             | Minimum Size | Size is multiple of |
 | ------------------- | ------------ | ------------------- |
 | Certificate         | 1792         | 128                 |
 | CertificateVerify   | 480          | 16                  |
 | EncryptedExtensions | 32           | 16                  |
-| ------------------- | ------------ | ------------------- |
 
 The ciphertext form of these messages, as seen on the network in the record
 layer protocol, will usually be 16 octets more, due to the AEAD tag that is
 added as part of encryption.
 
 If a server wishes to have finer-grained control of these sizes, then it can
-make use of the ``SSL_CTX_ech_set_pad_sizes()`` or ``SSL_ech_set_pad_sizes()``
-APIs. Both involve populating an ``OSSL_ECH_PAD_SIZES`` data structure as
+make use of the `SSL_CTX_ech_set_pad_sizes()` or `SSL_ech_set_pad_sizes()`
+APIs. Both involve populating an `OSSL_ECH_PAD_SIZES` data structure as
 described below in the obvious manner.
 
 ```c
@@ -304,12 +306,12 @@ Client-side APIs
 ----------------
 
 ECHConfig values contain a version, algorithm parameters, the public key to use
-for HPKE encryption and the ``public_name`` that is by default used for the
+for HPKE encryption and the `public_name` that is by default used for the
 outer SNI when ECH is attempted.
 
 Clients need to provide one or more ECHConfig values in order to enable ECH for
-an SSL connection. ``SSL_ech_set1_echconfig()`` and
-``SSL_CTX_set1_echconfig()`` allow clients to provide these to the library in
+an SSL connection. `SSL_ech_set1_echconfig()` and
+`SSL_CTX_set1_echconfig()` allow clients to provide these to the library in
 binary, ascii-hex or base64 encoded format. Multiple calls to these functions
 will accumulate the set of ECHConfig values available for a connection. If the
 input value provided contains no suitable ECHConfig values (e.g. if it only
@@ -329,36 +331,36 @@ ascii hex or binary) each of which may suit different applications.  ECHConfig
 values may also be provided embedded in the DNS wire encoding of HTTPS or SVCB
 resource records or in the equivalent zone file presentation format.
 
-``OSSL_ech_find_echconfigs()`` attempts to find and return the (possibly empty)
+`OSSL_ECH_find_echconfigs()` attempts to find and return the (possibly empty)
 set of ECHConfig values from a buffer containing one of the encoded forms
 described above. Each successfully returned ECHConfigList will have
 exactly one ECHConfig, i.e., a single public value.
 
 ```c
-int OSSL_ech_find_echconfigs(int *num_echs,
+int OSSL_ECH_find_echconfigs(int *num_echs,
                              unsigned char ***echconfigs, size_t **echlens,
                              const unsigned char *val, size_t len);
 ```
 
-``OSSL_ech_find_echconfigs()`` returns the number of ECHConfig values from the
-input (``val``/``len``) successfully decoded  in the ``num_echs`` output.  If
+`OSSL_ECH_find_echconfigs()` returns the number of ECHConfig values from the
+input (`val`/`len`) successfully decoded  in the `num_echs` output.  If
 no ECHConfig values values are encountered (which can happen for good HTTPS RR
-values) then ``num_echs`` will be zero but the function returns 1. If the
+values) then `num_echs` will be zero but the function returns 1. If the
 input contains more than one (syntactically correct) ECHConfig, then only
 those that contain locally supported options (e.g. AEAD ciphers) will be
 returned. If no ECHConfig found has supported options then none will be
 returned and the function will return 0.
 
-After a call to ``OSSL_ech_find_echconfigs()``, the application can make a
-sequence of calls to ``SSL_ech_set1_echconfig()`` for each of the ECHConfig
+After a call to `OSSL_ECH_find_echconfigs()`, the application can make a
+sequence of calls to `SSL_ech_set1_echconfig()` for each of the ECHConfig
 values found.  (The various output buffers must be freed by the client
 afterwards, see the example code in
-[``test/ech_test.c``](https://github.com/sftcd/openssl/blob/ECH-draft-13c/test/ech_test.c).)
+[`test/ech_test.c`](https://github.com/sftcd/openssl/blob/ECH-draft-13c/test/ech_test.c).)
 
 Clients can additionally more directly control the values to be used for inner
 and outer SNI and ALPN values via specific APIs. This allows a client to
-override the ``public_name`` present in an ECHConfigList that will otherwise
-be used for the outer SNI. The ``no_outer`` input allows a client to emit an
+override the `public_name` present in an ECHConfigList that will otherwise
+be used for the outer SNI. The `no_outer` input allows a client to emit an
 outer CH with no SNI at all.
 
 ```c
@@ -374,7 +376,7 @@ int SSL_CTX_ech_set_outer_alpn_protos(SSL_CTX *s, const unsigned char *protos,
 If a client attempts ECH but that fails, or sends an ECH-GREASEd CH, to
 an ECH-supporting server, then that server may return an ECH "retry-config"
 value that the client could choose to use in a subsequent connection. The
-client can detect this situation via the ``SSL_ech_get_status()`` API and
+client can detect this situation via the `SSL_ech_get1_status()` API and
 can access the retry config value via:
 
 ```c
@@ -384,11 +386,11 @@ int SSL_ech_get_retry_config(SSL *s, unsigned char **ec, size_t *eclen);
 Clients that need fine control over which ECHConfig (from those available) will
 be used, can query the SSL connection, retrieving information about the set of
 ECHConfig values available, and then, if desired, down-select to one of those,
-e.g., based on the ``public_name`` that will be used. This would enable a
+e.g., based on the `public_name` that will be used. This would enable a
 client that selects the server address to use based on IP address hints that
 can also be present in an HTTPS/SCVB resource record to ensure that the correct
 matching ECHConfig is used. The information is presented to the client using
-the ``OSSL_ECH_INFO`` type, which provides a simplified view of ECHConfig data,
+the `OSSL_ECH_INFO` type, which provides a simplified view of ECHConfig data,
 but where each element of an array corresponds to exactly one ECH public value
 and set of names.
 
@@ -401,8 +403,10 @@ typedef struct ossl_ech_info_st {
     int index; /* externally re-usable reference to this value */
     char *public_name; /* public_name from API or ECHConfig */
     char *inner_name; /* server-name (for inner CH if doing ECH) */
-    char *outer_alpns; /* outer ALPN string */
-    char *inner_alpns; /* inner ALPN string */
+    unsigned char *outer_alpns; /* outer ALPN string */
+    int outer_alpns_len;
+    unsigned char *inner_alpns; /* inner ALPN string */
+    int inner_alpns_len;
     char *echconfig; /* a JSON-like version of the associated ECHConfig */
 } OSSL_ECH_INFO;
 
@@ -412,10 +416,10 @@ int SSL_ech_get_info(SSL *s, OSSL_ECH_INFO **info, int *count);
 int SSL_ech_reduce(SSL *s, int index);
 ```
 
-The ``SSL_ech_reduce()`` function allows the caller to reduce the active set of
+The `SSL_ech_reduce()` function allows the caller to reduce the active set of
 ECHConfig values down to just the one they prefer, based on the
-``OSSL_ECH_INFO`` index value and whatever criteria the caller uses to prefer
-one ECHConfig over another (e.g. the ``public_name``).
+`OSSL_ECH_INFO` index value and whatever criteria the caller uses to prefer
+one ECHConfig over another (e.g. the `public_name`).
 
 If a client wishes to GREASE ECH using a specific HPKE suite or ECH version
 (represented by the TLS extension type code-point) then it can set those values
@@ -433,9 +437,9 @@ Clients and servers can check the status of ECH processing
 on an SSL connection using this API:
 
 ```c
-int SSL_ech_get_status(SSL *s, char **inner_sni, char **outer_sni);
+int SSL_ech_get1_status(SSL *s, char **inner_sni, char **outer_sni);
 
-/* Return codes from SSL_ech_get_status */
+/* Return codes from SSL_ech_get1_status */
 #  define SSL_ECH_STATUS_BACKEND    4 /* ECH back-end: saw an ech_is_inner */
 #  define SSL_ECH_STATUS_GREASE_ECH 3 /* GREASEd and got an ECH in return */
 #  define SSL_ECH_STATUS_GREASE     2 /* ECH GREASE happened  */
@@ -449,8 +453,8 @@ int SSL_ech_get_status(SSL *s, char **inner_sni, char **outer_sni);
 #  define SSL_ECH_STATUS_FAILED_ECH_BAD_NAME -106 /* We tried, failed and got an ECH, from a bad name */
 ```
 
-The ``inner_sni`` and ``outer_sni`` values should be freed by callers
-via ``OPENSSL_free()``.
+The `inner_sni` and `outer_sni` values should be freed by callers
+via `OPENSSL_free()`.
 
 The function returns one of the status values above.
 
@@ -459,8 +463,8 @@ Call-backs and options
 
 Clients and servers can set a callback that will be triggered when ECH is
 attempted and the result of ECH processing is known. The callback function can
-access a string (``str``) that can be used for logging (but not for branching).
-Callback functions might typically call ``SSL_ech_get_status()`` if branching
+access a string (`str`) that can be used for logging (but not for branching).
+Callback functions might typically call `SSL_ech_get1_status()` if branching
 is required.
 
 ```c
@@ -471,7 +475,7 @@ void SSL_CTX_ech_set_callback(SSL_CTX *ctx, SSL_ech_cb_func f);
 ```
 
 The following options are defined for ECH and may be set via
-``SSL_set_options()``:
+`SSL_set_options()`:
 
 ```c
 /* set this to tell client to emit greased ECH values when not doing
@@ -495,8 +499,8 @@ The following options are defined for ECH and may be set via
 Build Options
 -------------
 
-All ECH code is protected via ``#ifndef OPENSSL_NO_ECH`` and there is
-a ``no-ech`` option to build without this code.
+All ECH code is protected via `#ifndef OPENSSL_NO_ECH` and there is
+a `no-ech` option to build without this code.
 
 BoringSSL APIs
 --------------
@@ -505,7 +509,7 @@ Brief descriptions of boringssl APIs are below together with initial comments
 comparing those to the above. (It may be useful to consider the extent to
 which it is useful to make OpenSSL and boring APIs resemble one another.)
 
-Just as our implementation is under development, boring's ``include/openssl/ssl.h``
+Just as our implementation is under development, boring's `include/openssl/ssl.h`
 says: "ECH support in BoringSSL is still experimental and under development."
 
 ### GREASE
@@ -532,7 +536,7 @@ This provides a subset of the equivalent client capabilities from our fork.
 ### Verifying the outer CH rather than inner
 
 Boring seems to use this API to change the DNS name being verified in order to
-validate a ``retry_config``.
+validate a `retry_config`.
 
 ```c
 OPENSSL_EXPORT void SSL_get0_ech_name_override(const SSL *ssl,
@@ -545,11 +549,11 @@ I'm not sure how this compares. Need to investigate.
 ### Create an ECHConfigList
 
 The first function below outputs an ECHConfig, the second adds one of those to
-an ``SSL_ECH_KEYS`` structure, the last emits an ECHConfigList from that
-structure. There are other APIs for managing memory for ``SSL_ECH_KEYS``
+an `SSL_ECH_KEYS` structure, the last emits an ECHConfigList from that
+structure. There are other APIs for managing memory for `SSL_ECH_KEYS`
 
-These APIs also expose HPKE to the application via ``EVP_HPKE_KEY`` which is
-defined in ``include/openssl/hpke.h``. HPKE handling differs quite a bit from
+These APIs also expose HPKE to the application via `EVP_HPKE_KEY` which is
+defined in `include/openssl/hpke.h`. HPKE handling differs quite a bit from
 the HPKE APIs merged to OpenSSL.
 
 ```c
@@ -568,18 +572,18 @@ OPENSSL_EXPORT int SSL_ECH_KEYS_marshal_retry_configs(const SSL_ECH_KEYS *keys,
 
 ```
 
-Collectively these are similar to ``OSSL_ech_make_echconfig()``.
+Collectively these are similar to `OSSL_ECH_make_echconfig()`.
 
 ### Setting ECH keys on a server
 
-Again using the ``SSL_ECH_KEYS`` type and APIs, servers can build up a set of
+Again using the `SSL_ECH_KEYS` type and APIs, servers can build up a set of
 ECH keys using:
 
 ```c
 OPENSSL_EXPORT int SSL_CTX_set1_ech_keys(SSL_CTX *ctx, SSL_ECH_KEYS *keys);
 ```
 
-This is similar to the ``SSL_CTX_ech_server_enable_*()`` APIs.
+This is similar to the `SSL_CTX_ech_server_enable_*()` APIs.
 
 ### Getting status
 
@@ -589,4 +593,4 @@ Boring has:
 OPENSSL_EXPORT int SSL_ech_accepted(const SSL *ssl);
 ```
 
-That seems to be a subset of ``SSL_ech_get_status()``.
+That seems to be a subset of `SSL_ech_get1_status()`.

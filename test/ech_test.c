@@ -676,7 +676,7 @@ static int basic_echconfig(int idx)
                                             NULL, NULL,
                                             ech_version, max_name_length,
                                             public_name, hpke_suite,
-                                            extvals, extlen)))
+                                            extvals, extlen, NULL, NULL)))
         goto err;
     echconfiglen = 80; /* too short */
     privlen = sizeof(priv);
@@ -684,7 +684,7 @@ static int basic_echconfig(int idx)
                                             priv, &privlen,
                                             ech_version, max_name_length,
                                             public_name, hpke_suite,
-                                            extvals, extlen)))
+                                            extvals, extlen, NULL, NULL)))
         goto err;
     echconfiglen = sizeof(echconfig);
     privlen = 10; /* too short */
@@ -692,7 +692,7 @@ static int basic_echconfig(int idx)
                                           priv, &privlen,
                                           ech_version, max_name_length,
                                           public_name, hpke_suite,
-                                          extvals, extlen)))
+                                          extvals, extlen, NULL, NULL)))
         goto err;
     echconfiglen = sizeof(echconfig);
     privlen = sizeof(priv);
@@ -702,7 +702,7 @@ static int basic_echconfig(int idx)
                                             priv, &privlen,
                                             ech_version, max_name_length,
                                             public_name, hpke_suite,
-                                            extvals, extlen)))
+                                            extvals, extlen, NULL, NULL)))
         goto err;
     echconfiglen = sizeof(echconfig);
     privlen = sizeof(priv);
@@ -712,14 +712,14 @@ static int basic_echconfig(int idx)
                                             priv, &privlen,
                                             0xbad, max_name_length,
                                             public_name, hpke_suite,
-                                            extvals, extlen)))
+                                            extvals, extlen, NULL, NULL)))
         goto err;
     /* bad max name length */
     if (!TEST_false(OSSL_ech_make_echconfig(echconfig, &echconfiglen,
                                             priv, &privlen,
                                             ech_version, 1024,
                                             public_name, hpke_suite,
-                                            extvals, extlen)))
+                                            extvals, extlen, NULL, NULL)))
         goto err;
     /* bad extensions */
     memset(badexts, 0xAA, sizeof(badexts));
@@ -727,7 +727,8 @@ static int basic_echconfig(int idx)
                                             priv, &privlen,
                                             ech_version, 1024,
                                             public_name, hpke_suite,
-                                            badexts, sizeof(badexts))))
+                                            badexts, sizeof(badexts),
+                                            NULL, NULL)))
         goto err;
     echconfiglen = sizeof(echconfig);
     privlen = sizeof(priv);
@@ -737,7 +738,7 @@ static int basic_echconfig(int idx)
                                            priv, &privlen,
                                            ech_version, max_name_length,
                                            public_name, hpke_suite,
-                                           extvals, extlen)))
+                                           extvals, extlen, NULL, NULL)))
         goto err;
     if (!TEST_ptr(ctx = SSL_CTX_new_ex(libctx, NULL, TLS_server_method())))
         goto err;
@@ -874,7 +875,7 @@ static int extended_echconfig(int idx)
     if (!TEST_true(create_ssl_connection(serverssl, clientssl,
                                          SSL_ERROR_NONE)))
         goto end;
-    serverstatus = SSL_ech_get_status(serverssl, &sinner, &souter);
+    serverstatus = SSL_ech_get1_status(serverssl, &sinner, &souter);
     if (verbose)
         TEST_info("extended cfg: server status %d, %s, %s",
                   serverstatus, sinner, souter);
@@ -882,7 +883,7 @@ static int extended_echconfig(int idx)
         goto end;
     /* override cert verification */
     SSL_set_verify_result(clientssl, X509_V_OK);
-    clientstatus = SSL_ech_get_status(clientssl, &cinner, &couter);
+    clientstatus = SSL_ech_get1_status(clientssl, &cinner, &couter);
     if (verbose)
         TEST_info("extended cfg: client status %d, %s, %s",
                   clientstatus, cinner, couter);
@@ -1081,7 +1082,7 @@ static int ech_pad_test(int idx)
     if (!TEST_true(create_ssl_connection(serverssl, clientssl,
                                          SSL_ERROR_NONE)))
         goto end;
-    serverstatus = SSL_ech_get_status(serverssl, &sinner, &souter);
+    serverstatus = SSL_ech_get1_status(serverssl, &sinner, &souter);
     if (verbose)
         TEST_info("ech_pad_test: server status %d, %s, %s",
                   serverstatus, sinner, souter);
@@ -1089,7 +1090,7 @@ static int ech_pad_test(int idx)
         goto end;
     /* override cert verification */
     SSL_set_verify_result(clientssl, X509_V_OK);
-    clientstatus = SSL_ech_get_status(clientssl, &cinner, &couter);
+    clientstatus = SSL_ech_get1_status(clientssl, &cinner, &couter);
     if (verbose)
         TEST_info("ech_pad_test: client status %d, %s, %s",
                   clientstatus, cinner, couter);
@@ -1152,7 +1153,7 @@ static int ech_roundtrip_test(int idx)
     if (!TEST_true(create_ssl_connection(serverssl, clientssl,
                                          SSL_ERROR_NONE)))
         goto end;
-    serverstatus = SSL_ech_get_status(serverssl, &sinner, &souter);
+    serverstatus = SSL_ech_get1_status(serverssl, &sinner, &souter);
     if (verbose)
         TEST_info("ech_roundtrip_test: server status %d, %s, %s",
                   serverstatus, sinner, souter);
@@ -1160,7 +1161,7 @@ static int ech_roundtrip_test(int idx)
         goto end;
     /* override cert verification */
     SSL_set_verify_result(clientssl, X509_V_OK);
-    clientstatus = SSL_ech_get_status(clientssl, &cinner, &couter);
+    clientstatus = SSL_ech_get1_status(clientssl, &cinner, &couter);
     if (verbose)
         TEST_info("ech_roundtrip_test: client status %d, %s, %s",
                   clientstatus, cinner, couter);
@@ -1231,7 +1232,7 @@ static int ech_tls12_with_ech_test(int idx)
     if (!TEST_true(OSSL_ech_make_echconfig(badconfig, &badconfiglen,
                                            badpriv, &badprivlen,
                                            ech_version, 0, public_name,
-                                           hpke_suite, NULL, 0)))
+                                           hpke_suite, NULL, 0, NULL, NULL)))
         goto end;
     if (!TEST_true(SSL_CTX_ech_server_enable_file(sctx, echkeyfile,
                                                   SSL_ECH_USE_FOR_RETRY)))
@@ -1249,7 +1250,7 @@ static int ech_tls12_with_ech_test(int idx)
     if (!TEST_true(create_ssl_connection(serverssl, clientssl,
                                          SSL_ERROR_NONE)))
         goto end;
-    serverstatus = SSL_ech_get_status(serverssl, &sinner, &souter);
+    serverstatus = SSL_ech_get1_status(serverssl, &sinner, &souter);
     if (verbose)
         TEST_info("ech_tls12_with_ech_test: server status %d, %s, %s",
                   serverstatus, sinner, souter);
@@ -1264,7 +1265,7 @@ static int ech_tls12_with_ech_test(int idx)
     if (cver != X509_V_OK) {
         TEST_info("ech_tls12_with_ech_test: x509 error: %d", cver);
     }
-    clientstatus = SSL_ech_get_status(clientssl, &cinner, &couter);
+    clientstatus = SSL_ech_get1_status(clientssl, &cinner, &couter);
     if (verbose)
         TEST_info("ech_tls12_with_ech_test: client status %d, %s, %s",
                   clientstatus, cinner, couter);
@@ -1335,7 +1336,7 @@ static int ech_wrong_pub_test(int idx)
     if (!TEST_true(OSSL_ech_make_echconfig(badconfig, &badconfiglen,
                                            badpriv, &badprivlen,
                                            ech_version, 0, public_name,
-                                           hpke_suite, NULL, 0)))
+                                           hpke_suite, NULL, 0, NULL, NULL)))
         goto end;
     if (!TEST_true(SSL_CTX_ech_set1_echconfig(cctx, badconfig,
                                               badconfiglen)))
@@ -1378,7 +1379,7 @@ static int ech_wrong_pub_test(int idx)
         || !TEST_ptr(retryconfig)
         || !TEST_int_ne(retryconfiglen, 0))
         goto end;
-    serverstatus = SSL_ech_get_status(serverssl, &sinner, &souter);
+    serverstatus = SSL_ech_get1_status(serverssl, &sinner, &souter);
     if (verbose)
         TEST_info("ech_wrong_pub_test: server status %d, %s, %s",
                   serverstatus, sinner, souter);
@@ -1388,7 +1389,7 @@ static int ech_wrong_pub_test(int idx)
     if (cver != X509_V_OK) {
         TEST_info("ech_wrong_pub_test: x509 error: %d", cver);
     }
-    clientstatus = SSL_ech_get_status(clientssl, &cinner, &couter);
+    clientstatus = SSL_ech_get1_status(clientssl, &cinner, &couter);
     if (verbose)
         TEST_info("ech_wrong_pub_test: client status %d, %s, %s",
                   clientstatus, cinner, couter);
@@ -1431,7 +1432,7 @@ static int tls_version_test(void)
     if (!TEST_true(OSSL_ech_make_echconfig(echconfig, &echconfiglen,
                                            priv, &privlen,
                                            ech_version, 0, "example.com",
-                                           hpke_suite, NULL, 0)))
+                                           hpke_suite, NULL, 0, NULL, NULL)))
         goto end;
     /* setup contexts, initially for tlsv1.3 */
     if (!TEST_true(create_ssl_ctx_pair(libctx, TLS_server_method(),
@@ -1578,7 +1579,7 @@ static int test_ech_roundtrip_helper(int idx, int combo)
                                            priv, &privlen,
                                            ech_version, max_name_length,
                                            public_name, hpke_suite,
-                                           NULL, 0)))
+                                           NULL, 0, NULL, NULL)))
         goto end;
     if (!TEST_ptr(echconfig))
         goto end;
@@ -1652,14 +1653,14 @@ static int test_ech_roundtrip_helper(int idx, int combo)
     if (!TEST_true(create_ssl_connection(serverssl, clientssl,
                                          SSL_ERROR_NONE)))
         goto end;
-    serverstatus = SSL_ech_get_status(serverssl, &sinner, &souter);
+    serverstatus = SSL_ech_get1_status(serverssl, &sinner, &souter);
     if (verbose)
         TEST_info("server status %d, %s, %s", serverstatus, sinner, souter);
     if (!TEST_int_eq(serverstatus, SSL_ECH_STATUS_SUCCESS))
         goto end;
     /* override cert verification */
     SSL_set_verify_result(clientssl, X509_V_OK);
-    clientstatus = SSL_ech_get_status(clientssl, &cinner, &couter);
+    clientstatus = SSL_ech_get1_status(clientssl, &cinner, &couter);
     if (verbose)
         TEST_info("client status %d, %s, %s", clientstatus, cinner, couter);
     if (!TEST_int_eq(clientstatus, SSL_ECH_STATUS_SUCCESS))
@@ -1713,14 +1714,14 @@ static int test_ech_roundtrip_helper(int idx, int combo)
             || !TEST_true(SSL_read_ex(clientssl, buf, sizeof(buf), &readbytes))
             || !TEST_mem_eq(buf, readbytes, ed, sizeof(ed)))
         goto end;
-    serverstatus = SSL_ech_get_status(serverssl, &sinner, &souter);
+    serverstatus = SSL_ech_get1_status(serverssl, &sinner, &souter);
     if (verbose)
         TEST_info("server status %d, %s, %s", serverstatus, sinner, souter);
     if (!TEST_int_eq(serverstatus, SSL_ECH_STATUS_SUCCESS))
         goto end;
     /* override cert verification */
     SSL_set_verify_result(clientssl, X509_V_OK);
-    clientstatus = SSL_ech_get_status(clientssl, &cinner, &couter);
+    clientstatus = SSL_ech_get1_status(clientssl, &cinner, &couter);
     if (verbose)
         TEST_info("client status %d, %s, %s", clientstatus, cinner, couter);
     if (!TEST_int_eq(clientstatus, SSL_ECH_STATUS_SUCCESS))
@@ -1811,7 +1812,7 @@ static int ech_grease_test(int idx)
                                            priv, &privlen,
                                            ech_version, max_name_length,
                                            public_name, hpke_suite,
-                                           NULL, 0)))
+                                           NULL, 0, NULL, NULL)))
         goto end;
     snprintf((char *)echkeybuf, echkeybuflen,
              "%s-----BEGIN ECHCONFIG-----\n%s\n-----END ECHCONFIG-----\n",
@@ -1852,7 +1853,7 @@ static int ech_grease_test(int idx)
     if (!TEST_true(create_ssl_connection(serverssl, clientssl,
                                          SSL_ERROR_NONE)))
         goto end;
-    serverstatus = SSL_ech_get_status(serverssl, &sinner, &souter);
+    serverstatus = SSL_ech_get1_status(serverssl, &sinner, &souter);
     if (verbose)
         TEST_info("ech_grease_test: server status %d, %s, %s",
                   serverstatus, sinner, souter);
@@ -1860,7 +1861,7 @@ static int ech_grease_test(int idx)
         goto end;
     /* override cert verification */
     SSL_set_verify_result(clientssl, X509_V_OK);
-    clientstatus = SSL_ech_get_status(clientssl, &cinner, &couter);
+    clientstatus = SSL_ech_get1_status(clientssl, &cinner, &couter);
     if (verbose)
         TEST_info("ech_grease_test: client status %d, %s, %s",
                   clientstatus, cinner, couter);
@@ -1904,14 +1905,14 @@ static int ech_grease_test(int idx)
     if (!TEST_true(create_ssl_connection(serverssl, clientssl,
                                          SSL_ERROR_NONE)))
         goto end;
-    serverstatus = SSL_ech_get_status(serverssl, &sinner, &souter);
+    serverstatus = SSL_ech_get1_status(serverssl, &sinner, &souter);
     if (verbose)
         TEST_info("server status %d, %s, %s", serverstatus, sinner, souter);
     if (!TEST_int_eq(serverstatus, SSL_ECH_STATUS_SUCCESS))
         goto end;
     /* override cert verification */
     SSL_set_verify_result(clientssl, X509_V_OK);
-    clientstatus = SSL_ech_get_status(clientssl, &cinner, &couter);
+    clientstatus = SSL_ech_get1_status(clientssl, &cinner, &couter);
     if (verbose)
         TEST_info("client status %d, %s, %s", clientstatus, cinner, couter);
     if (!TEST_int_eq(clientstatus, SSL_ECH_STATUS_SUCCESS))
@@ -1940,14 +1941,14 @@ static int ech_grease_test(int idx)
     if (!TEST_true(create_ssl_connection(serverssl, clientssl,
                                          SSL_ERROR_NONE)))
         goto end;
-    serverstatus = SSL_ech_get_status(serverssl, &sinner, &souter);
+    serverstatus = SSL_ech_get1_status(serverssl, &sinner, &souter);
     if (verbose)
         TEST_info("server status %d, %s, %s", serverstatus, sinner, souter);
     if (!TEST_int_eq(serverstatus, SSL_ECH_STATUS_SUCCESS))
         goto end;
     /* override cert verification */
     SSL_set_verify_result(clientssl, X509_V_OK);
-    clientstatus = SSL_ech_get_status(clientssl, &cinner, &couter);
+    clientstatus = SSL_ech_get1_status(clientssl, &cinner, &couter);
     if (verbose)
         TEST_info("client status %d, %s, %s", clientstatus, cinner, couter);
     if (!TEST_int_eq(clientstatus, SSL_ECH_STATUS_SUCCESS))
@@ -2193,7 +2194,7 @@ static int ech_in_out_test(int idx)
     if (!TEST_true(create_ssl_connection(serverssl, clientssl,
                                          SSL_ERROR_NONE)))
         goto end;
-    serverstatus = SSL_ech_get_status(serverssl, &sinner, &souter);
+    serverstatus = SSL_ech_get1_status(serverssl, &sinner, &souter);
     if (verbose)
         TEST_info("ech_in_out_test: server status %d, I: %s, O: %s",
                   serverstatus, sinner, souter);
@@ -2201,7 +2202,7 @@ static int ech_in_out_test(int idx)
         goto end;
     /* override cert verification */
     SSL_set_verify_result(clientssl, X509_V_OK);
-    clientstatus = SSL_ech_get_status(clientssl, &cinner, &couter);
+    clientstatus = SSL_ech_get1_status(clientssl, &cinner, &couter);
     if (verbose)
         TEST_info("ech_in_out_test: client status %d, I: %s, O: %s",
                   clientstatus, cinner, couter);
@@ -2318,7 +2319,7 @@ static int ech_sni_cb_test(int idx)
     if (!TEST_true(create_ssl_connection(serverssl, clientssl,
                                          SSL_ERROR_NONE)))
         goto end;
-    serverstatus = SSL_ech_get_status(serverssl, &sinner, &souter);
+    serverstatus = SSL_ech_get1_status(serverssl, &sinner, &souter);
     if (verbose)
         TEST_info("ech_sni_cb_test: server status %d, %s, %s",
                   serverstatus, sinner, souter);
@@ -2326,7 +2327,7 @@ static int ech_sni_cb_test(int idx)
         goto end;
     /* override cert verification */
     SSL_set_verify_result(clientssl, X509_V_OK);
-    clientstatus = SSL_ech_get_status(clientssl, &cinner, &couter);
+    clientstatus = SSL_ech_get1_status(clientssl, &cinner, &couter);
     if (verbose)
         TEST_info("ech_sni_cb_test: client status %d, %s, %s",
                   clientstatus, cinner, couter);

@@ -140,9 +140,9 @@ void configure_client_context(SSL_CTX *ctx)
 
 void usage()
 {
-    printf("Usage: sslecho s\n");
+    printf("Usage: echecho s\n");
     printf("       --or--\n");
-    printf("       sslecho c ip\n");
+    printf("       echecho c ip\n");
     printf("       c=client, s=server, ip=dotted ip of server\n");
     exit(1);
 }
@@ -176,7 +176,7 @@ int main(int argc, char **argv)
     int ech_status;
 
     /* Splash */
-    printf("\nsslecho : Simple Echo Client/Server (OpenSSL 3.0.1-dev) : %s : %s\n\n", __DATE__,
+    printf("\nechecho : Simple Echo Client/Server: %s : %s\n\n", __DATE__,
     __TIME__);
 
     /* Need to know if client or server */
@@ -236,7 +236,7 @@ int main(int argc, char **argv)
 
                 printf("Client SSL connection accepted\n\n");
 
-                ech_status = SSL_ech_get_status(ssl, &inner_sni, &outer_sni);
+                ech_status = SSL_ech_get1_status(ssl, &inner_sni, &outer_sni);
                 printf("ECH %s (status: %d, inner: %s, outer: %s)\n",
                         (ech_status == 1 ? "worked" : "failed/not-tried"),
                         ech_status, inner_sni, outer_sni);
@@ -315,7 +315,7 @@ int main(int argc, char **argv)
 
             printf("SSL connection to server successful\n\n");
 
-            ech_status = SSL_ech_get_status(ssl, &inner_sni, &outer_sni);
+            ech_status = SSL_ech_get1_status(ssl, &inner_sni, &outer_sni);
             printf("ECH %s (status: %d, inner: %s, outer: %s)\n",
                     (ech_status == 1 ? "worked" : "failed/not-tried"),
                     ech_status, inner_sni, outer_sni);
@@ -378,7 +378,7 @@ int main(int argc, char **argv)
     if (txbuf != NULL && txcap > 0)
         free(txbuf);
 
-    printf("sslecho exiting\n");
+    printf("echecho exiting\n");
 
     return 0;
 }

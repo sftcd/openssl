@@ -242,7 +242,7 @@ int ech_main(int argc, char **argv)
         /* Generate a new key/ECHConfigList and spit that out */
         rv = OSSL_ech_make_echconfig(echconfig, &echconfig_len, priv, &privlen,
                                      ech_version, max_name_length, public_name,
-                                     hpke_suite, extvals, extlen);
+                                     hpke_suite, extvals, extlen, NULL, NULL);
         if (rv != 1) {
             BIO_printf(bio_err, "ech_make_echconfig error: %d\n", rv);
             goto end;

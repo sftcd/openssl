@@ -173,7 +173,7 @@ int FuzzerInitialize(int *argc, char ***argv)
                                 priv, &privlen,
                                 ech_version, max_name_length,
                                 public_name, hpke_suite,
-                                extvals, extlen) != 1)
+                                extvals, extlen, NULL, NULL) != 1)
         return 0;
     snprintf(echkeybuf, echkeybuflen,
              "%s-----BEGIN ECHCONFIG-----\n%s\n-----END ECHCONFIG-----\n",

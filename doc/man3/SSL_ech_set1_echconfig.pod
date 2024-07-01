@@ -43,7 +43,7 @@ SSL_CTX_ech_set_pad_sizes,SSL_ech_set_pad_sizes
  int SSL_CTX_ech_set1_echconfig(SSL_CTX *ctx, const unsigned char *val,
                                 size_t len);
  int SSL_CTX_ech_server_get_key_status(SSL_CTX *ctx, int *numkeys);
- int SSL_CTX_ech_server_flush_keys(SSL_CTX *ctx, unsigned int age);
+ int SSL_CTX_ech_server_flush_keys(SSL_CTX *ctx, time_t age);
  int SSL_CTX_ech_server_enable_file(SSL_CTX *ctx, const char *file,
                                     int for_retry);
  int SSL_CTX_ech_server_enable_buffer(SSL_CTX *ctx, const unsigned char *buf,

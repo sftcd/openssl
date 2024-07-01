@@ -983,7 +983,7 @@ static int new_session_cb(SSL *s, SSL_SESSION *sess)
 	        BIO_printf(bio_c_out, "Existing session hostname is NULL\n");
 	    else if (c_debug)
 	        BIO_printf(bio_c_out, "Existing session hostname is %s\n",hn_1);
-        rv = SSL_ech_get_status(s, &inner, &outer);
+        rv = SSL_ech_get1_status(s, &inner, &outer);
         switch (rv) {
             case SSL_ECH_STATUS_SUCCESS:
                 if (c_debug) {
@@ -4084,7 +4084,7 @@ static void print_stuff(BIO *bio, SSL *s, int full)
             size_t eclen = 0;
             unsigned char *ec = NULL;
 
-            switch (SSL_ech_get_status(s, &inner, &outer)) {
+            switch (SSL_ech_get1_status(s, &inner, &outer)) {
             case SSL_ECH_STATUS_NOT_CONFIGURED:
                 BIO_printf(bio, "ECH: not configured\n");
                 break;

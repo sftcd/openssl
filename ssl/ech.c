@@ -1678,40 +1678,6 @@ static int ECHConfigList_dup(ECHConfigList *old, ECHConfigList *new)
 }
 
 /*
- * @brief return a printable form of alpn
- * @param alpn is the buffer with alpns
- * @param len is the length of the above
- * @return buffer with string-form (caller has to free)
- *
- * ALPNs are multi-valued, with lengths between, we
- * map that to a comma-sep list
- */
-static char *alpn_print(unsigned char *alpn, size_t len)
-{
-    size_t ind = 0;
-    char *vstr = NULL;
-
-    if (alpn == NULL || len == 0)
-        return NULL;
-    if (len > OSSL_ECH_MAX_ALPNLEN)
-        return NULL;
-    vstr = OPENSSL_malloc(len + 1);
-    if (vstr == NULL)
-        return NULL;
-    while (ind < len) {
-        size_t vlen = alpn[ind];
-
-        if (ind + vlen > (len - 1))
-            return NULL;
-        memcpy(&vstr[ind], &alpn[ind + 1], vlen);
-        vstr[ind + vlen] = ',';
-        ind += (vlen + 1);
-    }
-    vstr[len - 1] = '\0';
-    return vstr;
-}
-
-/*
  * @brief produce a printable string-form of an ECHConfigList
  * @param out is where we print
  * @param c is the ECHConfigList
@@ -4691,8 +4657,10 @@ int OSSL_ECH_INFO_print(BIO *out, OSSL_ECH_INFO *se, int count)
                    i, (unsigned long)se[i].seconds_in_memory,
                    se[i].inner_name != NULL ? se[i].inner_name : "NULL",
                    se[i].public_name != NULL ? se[i].public_name : "NULL",
-                   se[i].inner_alpns != NULL ? se[i].inner_alpns : "NULL",
-                   se[i].outer_alpns != NULL ? se[i].outer_alpns : "NULL",
+                   se[i].inner_alpns != NULL ?
+                        (char *)se[i].inner_alpns : "NULL",
+                   se[i].outer_alpns != NULL ?
+                        (char *)se[i].outer_alpns : "NULL",
                    se[i].echconfig != NULL ? se[i].echconfig : "NULL");
     }
     return 1;
@@ -4937,11 +4905,17 @@ int SSL_ech_get_info(SSL *ssl, OSSL_ECH_INFO **out, int *nindices)
                 goto err;
         }
         if (s->ext.alpn != NULL) {
-            inst->inner_alpns = alpn_print(s->ext.alpn, s->ext.alpn_len);
+            inst->inner_alpns = OPENSSL_memdup(s->ext.alpn, s->ext.alpn_len);
+            inst->inner_alpns_len = s->ext.alpn_len;
+
+            // inst->inner_alpns = alpn_print(s->ext.alpn, s->ext.alpn_len);
         }
         if (s->ext.ech.alpn_outer != NULL) {
-            inst->outer_alpns = alpn_print(s->ext.ech.alpn_outer,
-                                           s->ext.ech.alpn_outer_len);
+            inst->outer_alpns = OPENSSL_memdup(s->ext.ech.alpn_outer,
+                                               s->ext.ech.alpn_outer_len);
+            inst->outer_alpns_len = s->ext.ech.alpn_outer_len;
+            // inst->outer_alpns = alpn_print(s->ext.ech.alpn_outer,
+                                           // s->ext.ech.alpn_outer_len);
         }
         /* Now "print" the ECHConfigList */
         if (s->ext.ech.cfgs[i].cfg != NULL) {
@@ -5023,7 +4997,7 @@ int SSL_CTX_ech_server_get_key_status(SSL_CTX *s, int *numkeys)
     return 1;
 }
 
-int SSL_CTX_ech_server_flush_keys(SSL_CTX *ctx, unsigned int age)
+int SSL_CTX_ech_server_flush_keys(SSL_CTX *ctx, time_t age)
 {
     time_t now = time(0);
     int i = 0;
@@ -5053,7 +5027,7 @@ int SSL_CTX_ech_server_flush_keys(SSL_CTX *ctx, unsigned int age)
     for (i = 0; i != ctx->ext.nechs; i++) {
         SSL_ECH *ep = &ctx->ext.ech[i];
 
-        if ((ep->loadtime + (time_t) age) <= now) {
+        if ((ep->loadtime + age) <= now) {
             SSL_ECH_free(ep);
             deleted++;
             continue;
@@ -5062,9 +5036,9 @@ int SSL_CTX_ech_server_flush_keys(SSL_CTX *ctx, unsigned int age)
     }
     ctx->ext.nechs -= deleted;
     OSSL_TRACE_BEGIN(TLS) {
-        BIO_printf(trc_out, "Flushed %d (of %d) ECH keys more than %u "
-                   "seconds old at %lu\n", deleted, orig, age,
-                   (long unsigned int)now);
+        BIO_printf(trc_out, "Flushed %d (of %d) ECH keys more than %lu "
+                   "seconds old at %lu\n", deleted, orig,
+                   (long unsigned int) age, (long unsigned int)now);
     } OSSL_TRACE_END(TLS);
     return 1;
 }
@@ -5324,7 +5298,7 @@ int SSL_CTX_ech_server_enable_dir(SSL_CTX *ctx, int *number_loaded,
     return 1;
 }
 
-int SSL_ech_get_status(SSL *ssl, char **inner_sni, char **outer_sni)
+int SSL_ech_get1_status(SSL *ssl, char **inner_sni, char **outer_sni)
 {
     char *sinner = NULL;
     char *souter = NULL;
@@ -5728,9 +5702,10 @@ int SSL_ech_get_retry_config(SSL *ssl, unsigned char **ec, size_t *eclen)
 
 int OSSL_ech_make_echconfig(unsigned char *echconfig, size_t *echconfiglen,
                             unsigned char *priv, size_t *privlen,
-                            uint16_t ekversion, uint16_t max_name_length,
+                            uint16_t echversion, uint16_t max_name_length,
                             const char *public_name, OSSL_HPKE_SUITE suite,
-                            const unsigned char *extvals, size_t extlen)
+                            const unsigned char *extvals, size_t extlen,
+                            OSSL_LIB_CTX *libctx, const char *propq)
 {
     size_t pnlen = 0;
     size_t publen = OSSL_ECH_CRYPTO_VAR_SIZE;
@@ -5763,7 +5738,7 @@ int OSSL_ech_make_echconfig(unsigned char *echconfig, size_t *echconfiglen,
     }
 
     /* this used have more versions and will again in future */
-    switch (ekversion) {
+    switch (echversion) {
     case OSSL_ECH_RFCXXXX_VERSION:
         break;
     default:
@@ -5780,7 +5755,7 @@ int OSSL_ech_make_echconfig(unsigned char *echconfig, size_t *echconfiglen,
         goto err;
     }
 
-    if (OSSL_HPKE_keygen(suite, pub, &publen, &privp, NULL, 0, NULL, NULL)
+    if (OSSL_HPKE_keygen(suite, pub, &publen, &privp, NULL, 0, libctx, propq)
         != 1) {
         ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_INVALID_ARGUMENT);
         goto err;
@@ -5853,7 +5828,7 @@ int OSSL_ech_make_echconfig(unsigned char *echconfig, size_t *echconfiglen,
     if (!WPACKET_init(&epkt, epkt_mem)
         || (bp = WPACKET_get_curr(&epkt)) == NULL
         || !WPACKET_start_sub_packet_u16(&epkt)
-        || !WPACKET_put_bytes_u16(&epkt, ekversion)
+        || !WPACKET_put_bytes_u16(&epkt, echversion)
         || !WPACKET_start_sub_packet_u16(&epkt)
         || !WPACKET_put_bytes_u8(&epkt, config_id)
         || !WPACKET_put_bytes_u16(&epkt, suite.kem_id)
