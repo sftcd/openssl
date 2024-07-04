@@ -146,6 +146,8 @@ int SSL_ech_get_info(SSL *s, OSSL_ECH_INFO **info, int *count);
 int SSL_ech_reduce(SSL *s, int index);
 
 int SSL_ech_get1_status(SSL *s, char **inner_sni, char **outer_sni);
+/* A shim for the old name in case someone wants to use that */
+#define SSL_ech_get_status SSL_ech_get1_status
 
 int SSL_ech_set_grease_suite(SSL *s, const char *suite);
 int SSL_ech_set_grease_type(SSL *s, uint16_t type);

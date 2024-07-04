@@ -17,8 +17,8 @@
 
 static const int server_port = 4433;
 
-static const char *echconfig = "AD7+DQA65wAgACA8wVN2BtscOl3vQheUzHeIkVmKIiydUhDCliA4iyQRCwAEAAEAAQALZXhhbXBsZS5jb20AAA==";
-static const char *echprivbuf =
+static const char echconfig[] = "AD7+DQA65wAgACA8wVN2BtscOl3vQheUzHeIkVmKIiydUhDCliA4iyQRCwAEAAEAAQALZXhhbXBsZS5jb20AAA==";
+static const char echprivbuf[] =
     "-----BEGIN PRIVATE KEY-----\n"
     "MC4CAQAwBQYDK2VuBCIEICjd4yGRdsoP9gU7YT7My8DHx1Tjme8GYDXrOMCi8v1V\n"
     "-----END PRIVATE KEY-----\n"
@@ -40,7 +40,7 @@ int create_socket(bool isServer)
 {
     int s;
     int optval = 1;
-    struct sockaddr_in addr;
+    struct sockaddr_in addr = { 0 };
 
     s = socket(AF_INET, SOCK_STREAM, 0);
     if (s < 0) {
@@ -108,7 +108,7 @@ void configure_server_context(SSL_CTX *ctx)
     }
 
     if (SSL_CTX_ech_server_enable_buffer(ctx, (unsigned char*)echprivbuf,
-                                         strlen(echprivbuf),
+                                         sizeof(echprivbuf) - 1,
                                          SSL_ECH_USE_FOR_RETRY) != 1) {
         ERR_print_errors_fp(stderr);
         exit(EXIT_FAILURE);
@@ -132,7 +132,7 @@ void configure_client_context(SSL_CTX *ctx)
         exit(EXIT_FAILURE);
     }
     if (SSL_CTX_ech_set1_echconfig(ctx, (unsigned char*)echconfig,
-                                   strlen(echconfig)) != 1) {
+                                   sizeof(echconfig) - 1) != 1) {
         ERR_print_errors_fp(stderr);
         exit(EXIT_FAILURE);
     }
@@ -169,7 +169,7 @@ int main(int argc, char **argv)
 
     char *rem_server_ip = NULL;
 
-    struct sockaddr_in addr;
+    struct sockaddr_in addr = { 0 };
     unsigned int addr_len = sizeof(addr);
 
     char *outer_sni = NULL, *inner_sni = NULL;
@@ -216,7 +216,7 @@ int main(int argc, char **argv)
         while (server_running) {
             /* Wait for TCP connection from client */
             client_skt = accept(server_skt, (struct sockaddr*) &addr,
-                    &addr_len);
+                                &addr_len);
             if (client_skt < 0) {
                 perror("Unable to accept");
                 exit(EXIT_FAILURE);

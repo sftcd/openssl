@@ -1,7 +1,7 @@
 Encrypted ClientHello (ECH) APIs
 ================================
 
-TODO: replace references/links to sftcd fork with relative links as files are
+TODO(ECH): replace references/links to sftcd fork with relative links as files are
 migrated into (PRs for) the feature branch.
 
 There is an [OpenSSL fork](https://github.com/sftcd/openssl/tree/ECH-draft-13c)
@@ -250,58 +250,6 @@ ChangeCipherSuite or Early data), then the caller is responsible for
 disentangling those, and for assembling a new flight containing the inner
 ClientHello.
 
-### ECH-specific Padding of server messages
-
-If a web server were to host a set of web sites, one of which had a much longer
-name than the others, the size of some TLS handshake server messages could
-expose which web site was being accessed. Similarly, if the TLS server
-certificate for one web site were significantly larger or smaller than others,
-message sizes could reveal which web site was being visited.  For these
-reasons, we provide a way to enable additional ECH-specific padding of the
-Certificate, CertificateVerify and EncryptedExtensions messages sent from the
-server to the client during the handshake.
-
-To enable ECH-specific padding, one makes a call to:
-
-```c
-    SSL_CTX_set_options(ctx, SSL_OP_ECH_SPECIFIC_PADDING);
-```
-
-The default padding scheme is to ensure the following sizes for the plaintext
-form of these messages:
-
-| Message             | Minimum Size | Size is multiple of |
-| ------------------- | ------------ | ------------------- |
-| Certificate         | 1792         | 128                 |
-| CertificateVerify   | 480          | 16                  |
-| EncryptedExtensions | 32           | 16                  |
-
-The ciphertext form of these messages, as seen on the network in the record
-layer protocol, will usually be 16 octets more, due to the AEAD tag that is
-added as part of encryption.
-
-If a server wishes to have finer-grained control of these sizes, then it can
-make use of the `SSL_CTX_ech_set_pad_sizes()` or `SSL_ech_set_pad_sizes()`
-APIs. Both involve populating an `OSSL_ECH_PAD_SIZES` data structure as
-described below in the obvious manner.
-
-```c
-/*
- * Fine-grained ECH-spacific padding controls for a server
- */
-typedef struct ossl_ech_pad_sizes_st {
-    size_t cert_min; /* minimum size */
-    size_t cert_unit; /* size will be multiple of */
-    size_t certver_min; /* minimum size */
-    size_t certver_unit; /* size will be multiple of */
-    size_t ee_min; /* minimum size */
-    size_t ee_unit; /* size will be multiple of */
-} OSSL_ECH_PAD_SIZES;
-
-int SSL_CTX_ech_set_pad_sizes(SSL_CTX *ctx, OSSL_ECH_PAD_SIZES *sizes);
-int SSL_ech_set_pad_sizes(SSL *s, OSSL_ECH_PAD_SIZES *sizes);
-```
-
 Client-side APIs
 ----------------
 
@@ -491,9 +439,6 @@ The following options are defined for ECH and may be set via
 /* If set, servers will add GREASEy ECHConfig values to those sent
  * in retry_configs */
 #define SSL_OP_ECH_GREASE_RETRY_CONFIG                  SSL_OP_BIT(39)
-/* If set, servers will add ECH-specific padding to Certificate,
- * CertificateVerify and EncryptedExtensions messages */
-#define SSL_OP_ECH_SPECIFIC_PADDING                     SSL_OP_BIT(40)
 ```
 
 Build Options
