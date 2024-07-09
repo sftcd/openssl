@@ -128,8 +128,6 @@
  */
 typedef unsigned char ech_ciphersuite_t[OSSL_ECH_CIPHER_LEN];
 
-/* TODO: consider using STACK_OF() for handling >1 ECHConfig */
-
 /*
  * Note that fields below use unsigned int even though the
  * wire-format encoding may be limited to 16 bits and hence
@@ -163,6 +161,41 @@ typedef struct ech_configs_st {
     int nrecs; /* Number of records  */
     ECHConfig *recs; /* array of individual records */
 } ECHConfigList;
+
+typedef struct ech_ext_st {
+    unsigned int type;
+    unsigned int len;
+    unsigned char *val;
+} ECHExt;
+
+DEFINE_STACK_OF(ECHExt)
+
+typedef struct ech_store_entry_st {
+    unsigned int version; /* 0xff0d for draft-13 */
+    char *public_name;
+    unsigned int kem_id;
+    unsigned int pub_len;
+    unsigned char *pub;
+    unsigned int nsuites;
+    ech_ciphersuite_t *ciphersuites;
+    unsigned int max_name_length;
+    uint8_t config_id;
+    STACK_OF(ECHExt) *exts;
+    char *pemfname; /* name of PEM file from which this was loaded */
+    time_t loadtime; /* time public and private key were loaded from file */
+    EVP_PKEY *keyshare; /* long(ish) term ECH private keyshare on a server */
+    int for_retry; /* whether to use this ECHConfigList in a retry */
+    unsigned int encoded_len; /* length of overall encoded content */
+    unsigned char *encoded; /* overall encoded content */
+} ECHStore_entry;
+
+DEFINE_STACK_OF(ECHStore_entry)
+
+typedef struct ech_store_st {
+    STACK_OF(ECHStore_entry) *entries;
+    OSSL_LIB_CTX *libctx;
+    const char *propq;
+} ECHStore;
 
 /**
  * What we send in the ech CH extension:

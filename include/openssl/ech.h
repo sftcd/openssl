@@ -194,5 +194,28 @@ int OSSL_ech_find_echconfigs(int *num_echs,
                              unsigned char ***echconfigs, size_t **echlens,
                              const unsigned char *val, size_t len);
 
+/* New ECHStore APIs */
+typedef struct ech_store_st ECHStore;
+
+ECHStore *ECHStore_init(OSSL_LIB_CTX *libctx, const char *propq);
+void ECHStore_free(ECHStore *es);
+int ECHStore_new_config(ECHStore *es, uint16_t echversion, uint16_t max_name_length,
+                        const char *public_name, OSSL_HPKE_SUITE suite);
+int ECHStore_make_pemech(ECHStore *es, BIO *out);
+
+int ECHStore_set1_echconfiglist(ECHStore *es, BIO *in);
+
+int ECHStore_set1_key_and_list(ECHStore *es, EVP_PKEY *priv, BIO *in,
+                               int for_retry);
+int ECHStore_set1_pemech(ECHStore *es, BIO *in, int for_retry);
+
+int ECHStore_get_info(ECHStore *es, OSSL_ECH_INFO **info, int *count);
+int ECHStore_downselect(ECHStore *es, int index);
+
+int SSL_CTX_ech_server_enable(SSL_CTX *ctx, ECHStore *es);
+
+int SSL_CTX_set1_echstore(SSL_CTX *ctx, ECHStore *es);
+int SSL_set1_echstore(SSL *s, ECHStore *es);
+
 # endif
 #endif

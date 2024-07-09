@@ -5941,4 +5941,135 @@ err:
     return rv;
 }
 
+/* SECTION: New ECHStore APIs */
+
+/* Documentation in doc/man3/ECHStore.pod */
+
+ECHStore *ECHStore_init(OSSL_LIB_CTX *libctx, const char *propq)
+{
+    ECHStore *es = NULL;
+
+    es = OPENSSL_zalloc(sizeof(ECHStore));
+    if (es == NULL) {
+        ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
+        return 0;
+    }
+    es->libctx = libctx;
+    es->propq = propq;
+    return es;
+}
+
+static void ECHExt_free(ECHExt *e)
+{
+    OPENSSL_free(e->val);
+    return;
+}
+
+static void ECHStore_entry_free(ECHStore_entry *ee)
+{
+
+    OPENSSL_free(ee->public_name);
+    OPENSSL_free(ee->pub);
+    OPENSSL_free(ee->pemfname);
+    EVP_PKEY_free(ee->keyshare);
+    OPENSSL_free(ee->encoded);
+    OPENSSL_free(ee->ciphersuites);
+    sk_ECHExt_pop_free(ee->exts, ECHExt_free);
+    return;
+}
+
+void ECHStore_free(ECHStore *es)
+{
+    sk_ECHStore_entry_pop_free(es->entries, ECHStore_entry_free);
+    OPENSSL_free(es);
+    return;
+}
+
+int ECHStore_new_config(ECHStore *es,
+                        uint16_t echversion, uint16_t max_name_length,
+                        const char *public_name, OSSL_HPKE_SUITE suite)
+{
+    int rv = 0;
+    size_t echconfiglen;
+    unsigned char echconfig[200];
+    size_t privlen;
+    unsigned char priv[200];
+    ECHStore_entry *ee = NULL;
+
+    if (es == NULL) {
+        ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_NULL_PARAMETER);
+        return 0;
+    }
+    rv = OSSL_ech_make_echconfig(echconfig, &echconfiglen,
+                                 priv, &privlen,
+                                 echversion, max_name_length,
+                                 public_name, suite,
+                                 NULL, 0, 
+                                 es->libctx, es->propq);
+    if (rv != 1) {
+        ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
+        return rv;
+    }
+    if ((ee = OPENSSL_zalloc(sizeof(ECHStore_entry))) == NULL) {
+        ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+    ee->public_name = OPENSSL_strdup(public_name);
+    ee->max_name_length = max_name_length;
+    return 1;
+
+err:
+    /* free stuff */
+    ECHStore_entry_free(ee);
+    OPENSSL_free(ee);
+    return 0;
+}
+
+int ECHStore_make_pemech(ECHStore *es, BIO *out)
+{
+    return 0;
+}
+
+int ECHStore_set1_echconfiglist(ECHStore *es, BIO *in)
+{
+    return 0;
+}
+
+int ECHStore_set1_key_and_list(ECHStore *es, EVP_PKEY *priv, BIO *in,
+                               int for_retry)
+{
+    return 0;
+}
+
+int ECHStore_set1_pemech(ECHStore *es, BIO *in, int for_retry)
+{
+    return 0;
+}
+
+int ECHStore_get_info(ECHStore *es, OSSL_ECH_INFO **info, int *count)
+{
+    return 0;
+}
+
+int ECHStore_downselect(ECHStore *es, int index)
+{
+    return 0;
+}
+
+int SSL_CTX_ech_server_enable(SSL_CTX *ctx, ECHStore *es)
+{
+    return 0;
+}
+
+int SSL_CTX_set1_echstore(SSL_CTX *ctx, ECHStore *es)
+{
+    return 0;
+}
+
+int SSL_set1_echstore(SSL *s, ECHStore *es)
+{
+    return 0;
+}
+
+
 #endif
