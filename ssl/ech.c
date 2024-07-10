@@ -5298,7 +5298,7 @@ int SSL_CTX_ech_server_enable_dir(SSL_CTX *ctx, int *number_loaded,
     return 1;
 }
 
-int SSL_ech_get1_status(SSL *ssl, char **inner_sni, char **outer_sni)
+int SSL_ech_get_status(SSL *ssl, char **inner_sni, char **outer_sni)
 {
     char *sinner = NULL;
     char *souter = NULL;

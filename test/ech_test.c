@@ -875,7 +875,7 @@ static int extended_echconfig(int idx)
     if (!TEST_true(create_ssl_connection(serverssl, clientssl,
                                          SSL_ERROR_NONE)))
         goto end;
-    serverstatus = SSL_ech_get1_status(serverssl, &sinner, &souter);
+    serverstatus = SSL_ech_get_status(serverssl, &sinner, &souter);
     if (verbose)
         TEST_info("extended cfg: server status %d, %s, %s",
                   serverstatus, sinner, souter);
@@ -883,7 +883,7 @@ static int extended_echconfig(int idx)
         goto end;
     /* override cert verification */
     SSL_set_verify_result(clientssl, X509_V_OK);
-    clientstatus = SSL_ech_get1_status(clientssl, &cinner, &couter);
+    clientstatus = SSL_ech_get_status(clientssl, &cinner, &couter);
     if (verbose)
         TEST_info("extended cfg: client status %d, %s, %s",
                   clientstatus, cinner, couter);
@@ -1082,7 +1082,7 @@ static int ech_pad_test(int idx)
     if (!TEST_true(create_ssl_connection(serverssl, clientssl,
                                          SSL_ERROR_NONE)))
         goto end;
-    serverstatus = SSL_ech_get1_status(serverssl, &sinner, &souter);
+    serverstatus = SSL_ech_get_status(serverssl, &sinner, &souter);
     if (verbose)
         TEST_info("ech_pad_test: server status %d, %s, %s",
                   serverstatus, sinner, souter);
@@ -1090,7 +1090,7 @@ static int ech_pad_test(int idx)
         goto end;
     /* override cert verification */
     SSL_set_verify_result(clientssl, X509_V_OK);
-    clientstatus = SSL_ech_get1_status(clientssl, &cinner, &couter);
+    clientstatus = SSL_ech_get_status(clientssl, &cinner, &couter);
     if (verbose)
         TEST_info("ech_pad_test: client status %d, %s, %s",
                   clientstatus, cinner, couter);
@@ -1153,7 +1153,7 @@ static int ech_roundtrip_test(int idx)
     if (!TEST_true(create_ssl_connection(serverssl, clientssl,
                                          SSL_ERROR_NONE)))
         goto end;
-    serverstatus = SSL_ech_get1_status(serverssl, &sinner, &souter);
+    serverstatus = SSL_ech_get_status(serverssl, &sinner, &souter);
     if (verbose)
         TEST_info("ech_roundtrip_test: server status %d, %s, %s",
                   serverstatus, sinner, souter);
@@ -1161,7 +1161,7 @@ static int ech_roundtrip_test(int idx)
         goto end;
     /* override cert verification */
     SSL_set_verify_result(clientssl, X509_V_OK);
-    clientstatus = SSL_ech_get1_status(clientssl, &cinner, &couter);
+    clientstatus = SSL_ech_get_status(clientssl, &cinner, &couter);
     if (verbose)
         TEST_info("ech_roundtrip_test: client status %d, %s, %s",
                   clientstatus, cinner, couter);
@@ -1250,7 +1250,7 @@ static int ech_tls12_with_ech_test(int idx)
     if (!TEST_true(create_ssl_connection(serverssl, clientssl,
                                          SSL_ERROR_NONE)))
         goto end;
-    serverstatus = SSL_ech_get1_status(serverssl, &sinner, &souter);
+    serverstatus = SSL_ech_get_status(serverssl, &sinner, &souter);
     if (verbose)
         TEST_info("ech_tls12_with_ech_test: server status %d, %s, %s",
                   serverstatus, sinner, souter);
@@ -1265,7 +1265,7 @@ static int ech_tls12_with_ech_test(int idx)
     if (cver != X509_V_OK) {
         TEST_info("ech_tls12_with_ech_test: x509 error: %d", cver);
     }
-    clientstatus = SSL_ech_get1_status(clientssl, &cinner, &couter);
+    clientstatus = SSL_ech_get_status(clientssl, &cinner, &couter);
     if (verbose)
         TEST_info("ech_tls12_with_ech_test: client status %d, %s, %s",
                   clientstatus, cinner, couter);
@@ -1379,7 +1379,7 @@ static int ech_wrong_pub_test(int idx)
         || !TEST_ptr(retryconfig)
         || !TEST_int_ne(retryconfiglen, 0))
         goto end;
-    serverstatus = SSL_ech_get1_status(serverssl, &sinner, &souter);
+    serverstatus = SSL_ech_get_status(serverssl, &sinner, &souter);
     if (verbose)
         TEST_info("ech_wrong_pub_test: server status %d, %s, %s",
                   serverstatus, sinner, souter);
@@ -1389,7 +1389,7 @@ static int ech_wrong_pub_test(int idx)
     if (cver != X509_V_OK) {
         TEST_info("ech_wrong_pub_test: x509 error: %d", cver);
     }
-    clientstatus = SSL_ech_get1_status(clientssl, &cinner, &couter);
+    clientstatus = SSL_ech_get_status(clientssl, &cinner, &couter);
     if (verbose)
         TEST_info("ech_wrong_pub_test: client status %d, %s, %s",
                   clientstatus, cinner, couter);
@@ -1653,14 +1653,14 @@ static int test_ech_roundtrip_helper(int idx, int combo)
     if (!TEST_true(create_ssl_connection(serverssl, clientssl,
                                          SSL_ERROR_NONE)))
         goto end;
-    serverstatus = SSL_ech_get1_status(serverssl, &sinner, &souter);
+    serverstatus = SSL_ech_get_status(serverssl, &sinner, &souter);
     if (verbose)
         TEST_info("server status %d, %s, %s", serverstatus, sinner, souter);
     if (!TEST_int_eq(serverstatus, SSL_ECH_STATUS_SUCCESS))
         goto end;
     /* override cert verification */
     SSL_set_verify_result(clientssl, X509_V_OK);
-    clientstatus = SSL_ech_get1_status(clientssl, &cinner, &couter);
+    clientstatus = SSL_ech_get_status(clientssl, &cinner, &couter);
     if (verbose)
         TEST_info("client status %d, %s, %s", clientstatus, cinner, couter);
     if (!TEST_int_eq(clientstatus, SSL_ECH_STATUS_SUCCESS))
@@ -1714,14 +1714,14 @@ static int test_ech_roundtrip_helper(int idx, int combo)
             || !TEST_true(SSL_read_ex(clientssl, buf, sizeof(buf), &readbytes))
             || !TEST_mem_eq(buf, readbytes, ed, sizeof(ed)))
         goto end;
-    serverstatus = SSL_ech_get1_status(serverssl, &sinner, &souter);
+    serverstatus = SSL_ech_get_status(serverssl, &sinner, &souter);
     if (verbose)
         TEST_info("server status %d, %s, %s", serverstatus, sinner, souter);
     if (!TEST_int_eq(serverstatus, SSL_ECH_STATUS_SUCCESS))
         goto end;
     /* override cert verification */
     SSL_set_verify_result(clientssl, X509_V_OK);
-    clientstatus = SSL_ech_get1_status(clientssl, &cinner, &couter);
+    clientstatus = SSL_ech_get_status(clientssl, &cinner, &couter);
     if (verbose)
         TEST_info("client status %d, %s, %s", clientstatus, cinner, couter);
     if (!TEST_int_eq(clientstatus, SSL_ECH_STATUS_SUCCESS))
@@ -1853,7 +1853,7 @@ static int ech_grease_test(int idx)
     if (!TEST_true(create_ssl_connection(serverssl, clientssl,
                                          SSL_ERROR_NONE)))
         goto end;
-    serverstatus = SSL_ech_get1_status(serverssl, &sinner, &souter);
+    serverstatus = SSL_ech_get_status(serverssl, &sinner, &souter);
     if (verbose)
         TEST_info("ech_grease_test: server status %d, %s, %s",
                   serverstatus, sinner, souter);
@@ -1861,7 +1861,7 @@ static int ech_grease_test(int idx)
         goto end;
     /* override cert verification */
     SSL_set_verify_result(clientssl, X509_V_OK);
-    clientstatus = SSL_ech_get1_status(clientssl, &cinner, &couter);
+    clientstatus = SSL_ech_get_status(clientssl, &cinner, &couter);
     if (verbose)
         TEST_info("ech_grease_test: client status %d, %s, %s",
                   clientstatus, cinner, couter);
@@ -1905,14 +1905,14 @@ static int ech_grease_test(int idx)
     if (!TEST_true(create_ssl_connection(serverssl, clientssl,
                                          SSL_ERROR_NONE)))
         goto end;
-    serverstatus = SSL_ech_get1_status(serverssl, &sinner, &souter);
+    serverstatus = SSL_ech_get_status(serverssl, &sinner, &souter);
     if (verbose)
         TEST_info("server status %d, %s, %s", serverstatus, sinner, souter);
     if (!TEST_int_eq(serverstatus, SSL_ECH_STATUS_SUCCESS))
         goto end;
     /* override cert verification */
     SSL_set_verify_result(clientssl, X509_V_OK);
-    clientstatus = SSL_ech_get1_status(clientssl, &cinner, &couter);
+    clientstatus = SSL_ech_get_status(clientssl, &cinner, &couter);
     if (verbose)
         TEST_info("client status %d, %s, %s", clientstatus, cinner, couter);
     if (!TEST_int_eq(clientstatus, SSL_ECH_STATUS_SUCCESS))
@@ -1941,14 +1941,14 @@ static int ech_grease_test(int idx)
     if (!TEST_true(create_ssl_connection(serverssl, clientssl,
                                          SSL_ERROR_NONE)))
         goto end;
-    serverstatus = SSL_ech_get1_status(serverssl, &sinner, &souter);
+    serverstatus = SSL_ech_get_status(serverssl, &sinner, &souter);
     if (verbose)
         TEST_info("server status %d, %s, %s", serverstatus, sinner, souter);
     if (!TEST_int_eq(serverstatus, SSL_ECH_STATUS_SUCCESS))
         goto end;
     /* override cert verification */
     SSL_set_verify_result(clientssl, X509_V_OK);
-    clientstatus = SSL_ech_get1_status(clientssl, &cinner, &couter);
+    clientstatus = SSL_ech_get_status(clientssl, &cinner, &couter);
     if (verbose)
         TEST_info("client status %d, %s, %s", clientstatus, cinner, couter);
     if (!TEST_int_eq(clientstatus, SSL_ECH_STATUS_SUCCESS))
@@ -2194,7 +2194,7 @@ static int ech_in_out_test(int idx)
     if (!TEST_true(create_ssl_connection(serverssl, clientssl,
                                          SSL_ERROR_NONE)))
         goto end;
-    serverstatus = SSL_ech_get1_status(serverssl, &sinner, &souter);
+    serverstatus = SSL_ech_get_status(serverssl, &sinner, &souter);
     if (verbose)
         TEST_info("ech_in_out_test: server status %d, I: %s, O: %s",
                   serverstatus, sinner, souter);
@@ -2202,7 +2202,7 @@ static int ech_in_out_test(int idx)
         goto end;
     /* override cert verification */
     SSL_set_verify_result(clientssl, X509_V_OK);
-    clientstatus = SSL_ech_get1_status(clientssl, &cinner, &couter);
+    clientstatus = SSL_ech_get_status(clientssl, &cinner, &couter);
     if (verbose)
         TEST_info("ech_in_out_test: client status %d, I: %s, O: %s",
                   clientstatus, cinner, couter);
@@ -2319,7 +2319,7 @@ static int ech_sni_cb_test(int idx)
     if (!TEST_true(create_ssl_connection(serverssl, clientssl,
                                          SSL_ERROR_NONE)))
         goto end;
-    serverstatus = SSL_ech_get1_status(serverssl, &sinner, &souter);
+    serverstatus = SSL_ech_get_status(serverssl, &sinner, &souter);
     if (verbose)
         TEST_info("ech_sni_cb_test: server status %d, %s, %s",
                   serverstatus, sinner, souter);
@@ -2327,7 +2327,7 @@ static int ech_sni_cb_test(int idx)
         goto end;
     /* override cert verification */
     SSL_set_verify_result(clientssl, X509_V_OK);
-    clientstatus = SSL_ech_get1_status(clientssl, &cinner, &couter);
+    clientstatus = SSL_ech_get_status(clientssl, &cinner, &couter);
     if (verbose)
         TEST_info("ech_sni_cb_test: client status %d, %s, %s",
                   clientstatus, cinner, couter);

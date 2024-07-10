@@ -722,13 +722,13 @@ static int ech_split_mode(int idx)
                                           st->exp_err);
     if (!TEST_int_eq(three_rv, st->exp_rv))
         goto end;
-    serverstatus = SSL_ech_get1_status(serverssl, &sinner, &souter);
+    serverstatus = SSL_ech_get_status(serverssl, &sinner, &souter);
     if (verbose)
         TEST_info("server status %d, %s, %s",
                   serverstatus, sinner, souter);
     if (!TEST_int_eq(serverstatus, st->exp_be_status))
         goto end;
-    fe_status = SSL_ech_get1_status(fe_ssl, &fe_inner, &fe_outer);
+    fe_status = SSL_ech_get_status(fe_ssl, &fe_inner, &fe_outer);
     if (verbose)
         TEST_info("fe_server status %d, %s, %s",
                   fe_status, fe_inner, fe_outer);
@@ -736,7 +736,7 @@ static int ech_split_mode(int idx)
         goto end;
     /* override cert verification */
     SSL_set_verify_result(clientssl, X509_V_OK);
-    clientstatus = SSL_ech_get1_status(clientssl, &cinner, &couter);
+    clientstatus = SSL_ech_get_status(clientssl, &cinner, &couter);
     if (verbose)
         TEST_info("client status %d, %s, %s",
                   clientstatus, cinner, couter);
@@ -863,13 +863,13 @@ static int ech_split_mode(int idx)
     if (!TEST_int_eq(three_rv, st->exp_rv))
         goto end;
 
-    serverstatus = SSL_ech_get1_status(serverssl, &sinner, &souter);
+    serverstatus = SSL_ech_get_status(serverssl, &sinner, &souter);
     if (verbose)
         TEST_info("server status %d, %s, %s",
                   serverstatus, sinner, souter);
     if (!TEST_int_eq(serverstatus, st->exp_be_status))
         goto end;
-    fe_status = SSL_ech_get1_status(fe_ssl, &fe_inner, &fe_outer);
+    fe_status = SSL_ech_get_status(fe_ssl, &fe_inner, &fe_outer);
     if (verbose)
         TEST_info("fe_server status %d, %s, %s",
                   fe_status, fe_inner, fe_outer);
@@ -877,7 +877,7 @@ static int ech_split_mode(int idx)
         goto end;
     /* override cert verification */
     SSL_set_verify_result(clientssl, X509_V_OK);
-    clientstatus = SSL_ech_get1_status(clientssl, &cinner, &couter);
+    clientstatus = SSL_ech_get_status(clientssl, &cinner, &couter);
     if (verbose)
         TEST_info("client status %d, %s, %s",
                   clientstatus, cinner, couter);

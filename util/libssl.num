@@ -657,7 +657,6 @@ OSSL_ECH_INFO_free                      ?	3_4_0	EXIST::FUNCTION:ECH
 OSSL_ECH_INFO_print                     ?	3_4_0	EXIST::FUNCTION:ECH
 SSL_ech_get_info                        ?	3_4_0	EXIST::FUNCTION:ECH
 SSL_ech_reduce                          ?	3_4_0	EXIST::FUNCTION:ECH
-SSL_ech_get1_status                     ?	3_4_0	EXIST::FUNCTION:ECH
 SSL_ech_set_grease_suite                ?	3_4_0	EXIST::FUNCTION:ECH
 SSL_ech_set_grease_type                 ?	3_4_0	EXIST::FUNCTION:ECH
 SSL_ech_set_callback                    ?	3_4_0	EXIST::FUNCTION:ECH
@@ -675,3 +674,4 @@ OSSL_ech_make_echconfig                 ?	3_4_0	EXIST::FUNCTION:ECH
 OSSL_ech_find_echconfigs                ?	3_4_0	EXIST::FUNCTION:ECH
 SSL_CTX_ech_set_pad_sizes               ?	3_4_0	EXIST::FUNCTION:ECH
 SSL_ech_set_pad_sizes                   ?	3_4_0	EXIST::FUNCTION:ECH
+SSL_ech_get_status                      ?	3_4_0	EXIST::FUNCTION:ECH

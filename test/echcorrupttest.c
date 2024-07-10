@@ -1576,7 +1576,7 @@ static int ech_split_mode(int idx)
     if (!TEST_true(create_ssl_connection(serverssl, clientssl,
                                          SSL_ERROR_NONE)))
         goto end;
-    serverstatus = SSL_ech_get1_status(serverssl, &sinner, &souter);
+    serverstatus = SSL_ech_get_status(serverssl, &sinner, &souter);
     if (verbose)
         TEST_info("ech_roundtrip_test: server status %d, %s, %s",
                   serverstatus, sinner, souter);
@@ -1584,7 +1584,7 @@ static int ech_split_mode(int idx)
         goto end;
     /* override cert verification */
     SSL_set_verify_result(clientssl, X509_V_OK);
-    clientstatus = SSL_ech_get1_status(clientssl, &cinner, &couter);
+    clientstatus = SSL_ech_get_status(clientssl, &cinner, &couter);
     if (verbose)
         TEST_info("ech_roundtrip_test: client status %d, %s, %s",
                   clientstatus, cinner, couter);

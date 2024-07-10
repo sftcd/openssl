@@ -44,7 +44,7 @@
 /* latest version from an RFC */
 #  define OSSL_ECH_CURRENT_VERSION OSSL_ECH_RFCXXXX_VERSION
 
-/* Return codes from SSL_ech_get1_status */
+/* Return codes from SSL_ech_get_status */
 #  define SSL_ECH_STATUS_BACKEND    4 /* ECH backend: saw an ech_is_inner */
 #  define SSL_ECH_STATUS_GREASE_ECH 3 /* GREASEd and got an ECH in return */
 #  define SSL_ECH_STATUS_GREASE     2 /* ECH GREASE happened  */
@@ -145,9 +145,7 @@ int OSSL_ECH_INFO_print(BIO *out, OSSL_ECH_INFO *info, int count);
 int SSL_ech_get_info(SSL *s, OSSL_ECH_INFO **info, int *count);
 int SSL_ech_reduce(SSL *s, int index);
 
-int SSL_ech_get1_status(SSL *s, char **inner_sni, char **outer_sni);
-/* A shim for the old name in case someone wants to use that */
-#define SSL_ech_get_status SSL_ech_get1_status
+int SSL_ech_get_status(SSL *s, char **inner_sni, char **outer_sni);
 
 int SSL_ech_set_grease_suite(SSL *s, const char *suite);
 int SSL_ech_set_grease_type(SSL *s, uint16_t type);

@@ -533,7 +533,7 @@ static size_t ech_trace_cb(const char *buf, size_t cnt,
  * case.
  *
  * Note that since we attempt ECH decryption whenever configured to
- * do that, the only way to get the "outer" SNI is via SSL_ech_get1_status.
+ * do that, the only way to get the "outer" SNI is via SSL_ech_get_status.
  */
 static int ssl_ech_servername_cb(SSL *s, int *ad, void *arg)
 {
@@ -590,7 +590,7 @@ static int ssl_ech_servername_cb(SSL *s, int *ad, void *arg)
 
     /* Name that matches "main" ctx */
     servername = SSL_get_servername(s, TLSEXT_NAMETYPE_host_name);
-    echrv = SSL_ech_get1_status(s, &inner_sni, &outer_sni);
+    echrv = SSL_ech_get_status(s, &inner_sni, &outer_sni);
     if (p->biodebug != NULL ) {
         /* spit out basic logging */
         BIO_printf(p->biodebug,
@@ -3822,7 +3822,7 @@ static int www_body(int s, int stype, int prot, unsigned char *context)
             /* Customise output a bit to show ECH info at top */
             BIO_puts(io, "<h1>OpenSSL with ECH</h1>\n");
             BIO_puts(io, "<h2>\n");
-            echrv = SSL_ech_get1_status(con, &ech_inner, &ech_outer);
+            echrv = SSL_ech_get_status(con, &ech_inner, &ech_outer);
             switch (echrv) {
             case SSL_ECH_STATUS_NOT_TRIED:
                 BIO_puts(io, "ECH not attempted\n");
