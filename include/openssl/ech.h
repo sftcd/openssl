@@ -200,7 +200,8 @@ typedef struct ech_store_st ECHStore;
 ECHStore *ECHStore_init(OSSL_LIB_CTX *libctx, const char *propq);
 void ECHStore_free(ECHStore *es);
 int ECHStore_new_config(ECHStore *es, uint16_t echversion, uint16_t max_name_length,
-                        const char *public_name, OSSL_HPKE_SUITE suite);
+                        const char *public_name, OSSL_HPKE_SUITE suite,
+                        const unsigned char *extvals, size_t extlen);
 int ECHStore_make_pemech(ECHStore *es, BIO *out);
 
 int ECHStore_set1_echconfiglist(ECHStore *es, BIO *in);

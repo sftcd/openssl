@@ -607,6 +607,41 @@ static int ah_encode(char *out, size_t outsize,
 }
 
 /*
+ * @brief has a buffer as a pretend file name being ascii-hex of hashed buffer
+ * @param md is the hash function
+ * @param buf is the input buffer
+ * @param blen is the length of buf
+ * @param ah_hash is a pointer to where to the result 
+ */
+static int ech_hash_pub_as_fname(const unsigned char *buf, size_t blen,
+                                 char *ah_hash, size_t ah_len)
+{
+    EVP_MD *md = NULL;
+    EVP_MD_CTX *mdctx = NULL;
+    unsigned char hashval[EVP_MAX_MD_SIZE];
+    unsigned int hashlen;
+
+    if (((md = EVP_MD_fetch(NULL, "SHA2-256", NULL)) == NULL)
+        || ((mdctx = EVP_MD_CTX_new()) == NULL)
+        || EVP_DigestInit_ex(mdctx, md, NULL) <= 0
+        || EVP_DigestUpdate(mdctx, buf, blen) <= 0
+        || EVP_DigestFinal_ex(mdctx, hashval, &hashlen) <= 0) {
+        if (md != NULL)
+            EVP_MD_free(md);
+        if (mdctx != NULL)
+            EVP_MD_CTX_free(mdctx);
+        ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
+        return 0;
+    }
+    EVP_MD_free(md);
+    EVP_MD_CTX_free(mdctx);
+    if (ah_encode(ah_hash, ah_len, hashval, hashlen) != 1)
+        return 0;
+
+    return 1;
+}
+
+/*
  * @brief helper to decode ECHConfig extensions
  * @param ec is the caller-allocated ECHConfig
  * @param exts is the binary form extensions
@@ -5146,11 +5181,7 @@ int SSL_CTX_ech_server_enable_buffer(SSL_CTX *ctx, const unsigned char *buf,
 {
     SSL_ECH *sechs = NULL;
     int rv = 1;
-    EVP_MD_CTX *mdctx = NULL;
-    const EVP_MD *md = NULL;
     int j = 0;
-    unsigned char hashval[EVP_MAX_MD_SIZE];
-    unsigned int hashlen;
     char ah_hash[2 * EVP_MAX_MD_SIZE + 1];
     SSL_ECH *re_ec = NULL;
     SSL_ECH *new_ec = NULL;
@@ -5159,24 +5190,11 @@ int SSL_CTX_ech_server_enable_buffer(SSL_CTX *ctx, const unsigned char *buf,
         ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_NULL_PARAMETER);
         return 0;
     }
-    /* Pseudo-filename is hash of input buffer */
-    md = ctx->ssl_digest_methods[SSL_HANDSHAKE_MAC_SHA256];
-    mdctx = EVP_MD_CTX_new();
-    if (mdctx == NULL) {
+    if (ech_hash_pub_as_fname(buf, blen, ah_hash,
+                              2 * EVP_MAX_MD_SIZE + 1) != 1) {
         ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
         return 0;
     }
-    if (EVP_DigestInit_ex(mdctx, md, NULL) <= 0
-        || EVP_DigestUpdate(mdctx, buf, blen) <= 0
-        || EVP_DigestFinal_ex(mdctx, hashval, &hashlen) <= 0) {
-        EVP_MD_CTX_free(mdctx);
-        ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
-        return 0;
-    }
-    EVP_MD_CTX_free(mdctx);
-    /* AH encode hashval to be a string, as replacement for file name */
-    if (ah_encode(ah_hash, sizeof(ah_hash), hashval, hashlen) != 1)
-        return 0;
     /* Check if we have that buffer loaded already, if we did, we're done */
     for (j = 0; j != ctx->ext.nechs; j++) {
         SSL_ECH *se = &ctx->ext.ech[j];
@@ -5962,19 +5980,20 @@ ECHStore *ECHStore_init(OSSL_LIB_CTX *libctx, const char *propq)
 static void ECHExt_free(ECHExt *e)
 {
     OPENSSL_free(e->val);
+    OPENSSL_free(e);
     return;
 }
 
 static void ECHStore_entry_free(ECHStore_entry *ee)
 {
-
     OPENSSL_free(ee->public_name);
     OPENSSL_free(ee->pub);
     OPENSSL_free(ee->pemfname);
     EVP_PKEY_free(ee->keyshare);
     OPENSSL_free(ee->encoded);
-    OPENSSL_free(ee->ciphersuites);
+    OPENSSL_free(ee->suites);
     sk_ECHExt_pop_free(ee->exts, ECHExt_free);
+    OPENSSL_free(ee);
     return;
 }
 
@@ -5987,47 +6006,235 @@ void ECHStore_free(ECHStore *es)
 
 int ECHStore_new_config(ECHStore *es,
                         uint16_t echversion, uint16_t max_name_length,
-                        const char *public_name, OSSL_HPKE_SUITE suite)
+                        const char *public_name, OSSL_HPKE_SUITE suite,
+                        const unsigned char *extvals, size_t extlen)
 {
+    size_t pnlen = 0;
+    size_t publen = OSSL_ECH_CRYPTO_VAR_SIZE;
+    unsigned char pub[OSSL_ECH_CRYPTO_VAR_SIZE];
     int rv = 0;
-    size_t echconfiglen;
-    unsigned char echconfig[200];
-    size_t privlen;
-    unsigned char priv[200];
+    unsigned char *bp = NULL;
+    size_t bblen = 0;
+    EVP_PKEY *privp = NULL;
+    uint8_t config_id = 0;
+    WPACKET epkt;
+    BUF_MEM *epkt_mem = NULL;
     ECHStore_entry *ee = NULL;
+    char pembuf[2 * EVP_MAX_MD_SIZE + 1];
+    size_t pembuflen = 2 * EVP_MAX_MD_SIZE + 1;
+
+    /* basic checks */
+    if (es == NULL) {
+        ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_NULL_PARAMETER);
+        return 0;
+    }
+    pnlen = (public_name == NULL ? 0 : strlen(public_name));
+    if (pnlen > OSSL_ECH_MAX_PUBLICNAME
+        || max_name_length > OSSL_ECH_MAX_MAXNAMELEN) {
+        ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_INVALID_ARGUMENT);
+        return 0;
+    }
+    /* this used have more versions and will again in future */
+    switch (echversion) {
+    case OSSL_ECH_RFCXXXX_VERSION:
+        break;
+    default:
+        ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_INVALID_ARGUMENT);
+        return 0;
+    }
+
+    /* so WPAKCET_cleanup() won't go wrong */
+    memset(&epkt, 0, sizeof(epkt));
+    /* random config_id */
+    if (RAND_bytes((unsigned char *)&config_id, 1) <= 0) {
+        ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+    /* key pair */
+    if (OSSL_HPKE_keygen(suite, pub, &publen, &privp, NULL, 0,
+                         es->libctx, es->propq) != 1) {
+        ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+    /*
+     *   Reminder, for draft-13 we want this:
+     *
+     *   opaque HpkePublicKey<1..2^16-1>;
+     *   uint16 HpkeKemId;  // Defined in I-D.irtf-cfrg-hpke
+     *   uint16 HpkeKdfId;  // Defined in I-D.irtf-cfrg-hpke
+     *   uint16 HpkeAeadId; // Defined in I-D.irtf-cfrg-hpke
+     *   struct {
+     *       HpkeKdfId kdf_id;
+     *       HpkeAeadId aead_id;
+     *   } HpkeSymmetricCipherSuite;
+     *   struct {
+     *       uint8 config_id;
+     *       HpkeKemId kem_id;
+     *       HpkePublicKey public_key;
+     *       HpkeSymmetricCipherSuite cipher_suites<4..2^16-4>;
+     *   } HpkeKeyConfig;
+     *   struct {
+     *       HpkeKeyConfig key_config;
+     *       uint8 maximum_name_length;
+     *       opaque public_name<1..255>;
+     *       Extension extensions<0..2^16-1>;
+     *   } ECHConfigContents;
+     *   struct {
+     *       uint16 version;
+     *       uint16 length;
+     *       select (ECHConfig.version) {
+     *         case 0xfe0d: ECHConfigContents contents;
+     *       }
+     *   } ECHConfig;
+     *   ECHConfig ECHConfigList<1..2^16-1>;
+     */
+    if ((epkt_mem = BUF_MEM_new()) == NULL
+        || !BUF_MEM_grow(epkt_mem, OSSL_ECH_MAX_ECHCONFIG_LEN)) {
+        ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+    /* config id, KEM, public, KDF, AEAD, max name len, public_name, exts */
+    if (!WPACKET_init(&epkt, epkt_mem)
+        || (bp = WPACKET_get_curr(&epkt)) == NULL
+        || !WPACKET_start_sub_packet_u16(&epkt)
+        || !WPACKET_put_bytes_u16(&epkt, echversion)
+        || !WPACKET_start_sub_packet_u16(&epkt)
+        || !WPACKET_put_bytes_u8(&epkt, config_id)
+        || !WPACKET_put_bytes_u16(&epkt, suite.kem_id)
+        || !WPACKET_start_sub_packet_u16(&epkt)
+        || !WPACKET_memcpy(&epkt, pub, publen)
+        || !WPACKET_close(&epkt)
+        || !WPACKET_start_sub_packet_u16(&epkt)
+        || !WPACKET_put_bytes_u16(&epkt, suite.kdf_id)
+        || !WPACKET_put_bytes_u16(&epkt, suite.aead_id)
+        || !WPACKET_close(&epkt)
+        || !WPACKET_put_bytes_u8(&epkt, max_name_length)
+        || !WPACKET_start_sub_packet_u8(&epkt)
+        || !WPACKET_memcpy(&epkt, public_name, pnlen)
+        || !WPACKET_close(&epkt)
+        || !WPACKET_start_sub_packet_u16(&epkt)
+        || !WPACKET_memcpy(&epkt, extvals, extlen)
+        || !WPACKET_close(&epkt)
+        || !WPACKET_close(&epkt)
+        || !WPACKET_close(&epkt)) {
+        ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+    /* bp, bblen has encoding */
+    WPACKET_get_total_written(&epkt, &bblen);
+    if ((ee = OPENSSL_zalloc(sizeof(ECHStore_entry))) == NULL) {
+        ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+    ee->suites = OPENSSL_malloc(sizeof(OSSL_HPKE_SUITE));
+    if (ee->suites == NULL) {
+        ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+    if (ech_hash_pub_as_fname(pub, publen, pembuf, pembuflen) != 1) {
+        ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+    ee->version = echversion;
+    ee->pub_len = publen;
+    ee->pub = OPENSSL_memdup(pub, publen);
+    if (ee->pub == NULL) {
+        ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+    ee->nsuites = 1;
+    ee->suites[0] = suite;
+    ee->public_name = OPENSSL_strdup(public_name);
+    if (ee->public_name == NULL) {
+        ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+    ee->max_name_length = max_name_length;
+    ee->config_id = config_id;
+    ee->keyshare = privp;
+    ee->encoded = OPENSSL_memdup(bp, bblen);
+    if (ee->encoded == NULL) {
+        ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+    ee->encoded_len = bblen;
+    ee->pemfname = OPENSSL_strdup(pembuf);
+    if (ee->pemfname == NULL) {
+        ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+    ee->loadtime = time(0);
+    /* push entry into store */
+    if (es->entries == NULL)
+        es->entries = sk_ECHStore_entry_new_null();
+    if (es->entries == NULL) {
+        ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+    if (!sk_ECHStore_entry_push(es->entries, ee)) {
+        ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+    WPACKET_cleanup(&epkt);
+    BUF_MEM_free(epkt_mem);
+    return 1;
+
+err:
+    EVP_PKEY_free(privp);
+    WPACKET_cleanup(&epkt);
+    BUF_MEM_free(epkt_mem);
+    ECHStore_entry_free(ee);
+    OPENSSL_free(ee);
+    return rv;
+}
+
+int ECHStore_make_pemech(ECHStore *es, BIO *out)
+{
+    ECHStore_entry *ee = NULL;
+    char *b64val = NULL;
+    size_t b64len = 0;
+    int rv = 0;
+    int num = 0;
 
     if (es == NULL) {
         ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_NULL_PARAMETER);
         return 0;
     }
-    rv = OSSL_ech_make_echconfig(echconfig, &echconfiglen,
-                                 priv, &privlen,
-                                 echversion, max_name_length,
-                                 public_name, suite,
-                                 NULL, 0, 
-                                 es->libctx, es->propq);
-    if (rv != 1) {
-        ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
-        return rv;
+    num = sk_ECHStore_entry_num(es->entries);
+    if (num <= 0) {
+        ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_INVALID_ARGUMENT);
+        return 0;
     }
-    if ((ee = OPENSSL_zalloc(sizeof(ECHStore_entry))) == NULL) {
+    /* select the last entry, i.e. most recently loaded/created */
+    ee = sk_ECHStore_entry_value(es->entries, num - 1);
+    if (ee == NULL || ee->keyshare == NULL || ee->encoded == NULL) {
+        ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_INVALID_ARGUMENT);
+        return 0;
+    }
+    b64val = OPENSSL_zalloc(2 * ee->encoded_len);
+    if (b64val == NULL) {
         ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
         goto err;
     }
-    ee->public_name = OPENSSL_strdup(public_name);
-    ee->max_name_length = max_name_length;
-    return 1;
-
+    /* private key first */
+    if (!PEM_write_bio_PrivateKey(out, ee->keyshare, NULL, NULL, 0,
+                                  NULL, NULL)) {
+        ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+    b64len = EVP_EncodeBlock((unsigned char*)b64val,
+                             ee->encoded, ee->encoded_len);
+    if (BIO_printf(out, "-----BEGIN ECHCONFIG-----\n") <= 0
+        || BIO_write(out, b64val, b64len) != b64len
+        || BIO_printf(out, "\n") <= 0
+        || BIO_printf(out, "-----END ECHCONFIG-----\n") <= 0) {
+        ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+    rv = 1;
 err:
-    /* free stuff */
-    ECHStore_entry_free(ee);
-    OPENSSL_free(ee);
-    return 0;
-}
-
-int ECHStore_make_pemech(ECHStore *es, BIO *out)
-{
-    return 0;
+    OPENSSL_free(b64val);
+    return rv;
 }
 
 int ECHStore_set1_echconfiglist(ECHStore *es, BIO *in)

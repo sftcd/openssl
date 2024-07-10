@@ -173,11 +173,10 @@ DEFINE_STACK_OF(ECHExt)
 typedef struct ech_store_entry_st {
     unsigned int version; /* 0xff0d for draft-13 */
     char *public_name;
-    unsigned int kem_id;
     unsigned int pub_len;
     unsigned char *pub;
     unsigned int nsuites;
-    ech_ciphersuite_t *ciphersuites;
+    OSSL_HPKE_SUITE *suites;
     unsigned int max_name_length;
     uint8_t config_id;
     STACK_OF(ECHExt) *exts;

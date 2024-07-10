@@ -239,57 +239,19 @@ int ech_main(int argc, char **argv)
     }
 
     if (mode == OSSL_ECH_KEYGEN_MODE) {
-        /* Generate a new key/ECHConfigList and spit that out */
-        rv = OSSL_ech_make_echconfig(echconfig, &echconfig_len, priv, &privlen,
-                                     ech_version, max_name_length, public_name,
-                                     hpke_suite, extvals, extlen, NULL, NULL);
-        if (rv != 1) {
-            BIO_printf(bio_err, "ech_make_echconfig error: %d\n", rv);
+        ECHStore *es = NULL;
+        BIO *ecf = NULL;
+
+        if ((ecf = BIO_new_file(pemfile, "w")) == NULL 
+            || (es=ECHStore_init(NULL,NULL)) == NULL
+            || ECHStore_new_config(es, ech_version, max_name_length,
+                                   public_name, hpke_suite, NULL, 0) != 1
+            || ECHStore_make_pemech(es, ecf) != 1) {
+            BIO_printf(bio_err, "ECHStore_make_pemech error");
             goto end;
         }
-        /* Write stuff to files */
-        if (echconfig_file != NULL) {
-            BIO *ecf = BIO_new_file(echconfig_file, "w");
-
-            if (ecf == NULL) {
-                BIO_printf(bio_err, "Error (permissions>) writing to %s\n", echconfig_file);
-                goto end;
-            }
-            BIO_write(ecf, echconfig, echconfig_len);
-            BIO_printf(ecf, "\n");
-            BIO_free_all(ecf);
-            BIO_printf(bio_err, "Wrote ECHConfig to %s\n", echconfig_file);
-        }
-        if (keyfile != NULL) {
-            BIO *kf = BIO_new_file(keyfile, "w");
-
-            if (kf == NULL) {
-                BIO_printf(bio_err, "Error (permissions>) writing to %s\n", keyfile);
-                goto end;
-            }
-            BIO_write(kf, priv, privlen);
-            BIO_free_all(kf);
-            BIO_printf(bio_err, "Wrote ECH private key to %s\n", keyfile);
-        }
-        /* If we didn't write out either of the above, create a PEM file */
-        if (keyfile == NULL && echconfig_file == NULL) {
-            if ((pemf = BIO_new_file(pemfile, "w")) == NULL) {
-                BIO_printf(bio_err, "Error (permissions>) writing to %s\n", pemfile);
-                goto end;
-            }
-            BIO_write(pemf, priv, privlen);
-            BIO_printf(pemf, "-----BEGIN ECHCONFIG-----\n");
-            BIO_write(pemf, echconfig, echconfig_len);
-            BIO_printf(pemf, "\n");
-            BIO_printf(pemf, "-----END ECHCONFIG-----\n");
-            BIO_free_all(pemf);
-            BIO_printf(bio_err, "Wrote ECH key pair to %s\n", pemfile);
-        } else {
-            if (keyfile == NULL)
-                BIO_printf(bio_err, "Didn't write private key anywhere!\n");
-            if (echconfig_file == NULL)
-                BIO_printf(bio_err, "Didn't write ECHConfig anywhere!\n");
-        }
+        ECHStore_free(es);
+        BIO_free_all(ecf);
         return 1;
     }
 
