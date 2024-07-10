@@ -5959,15 +5959,15 @@ err:
     return rv;
 }
 
-/* SECTION: New ECHStore APIs */
+/* SECTION: New OSSL_ECHSTORE APIs */
 
-/* Documentation in doc/man3/ECHStore.pod */
+/* Documentation in doc/man3/OSSL_ECHSTORE.pod */
 
-ECHStore *ECHStore_init(OSSL_LIB_CTX *libctx, const char *propq)
+OSSL_ECHSTORE *OSSL_ECHSTORE_init(OSSL_LIB_CTX *libctx, const char *propq)
 {
-    ECHStore *es = NULL;
+    OSSL_ECHSTORE *es = NULL;
 
-    es = OPENSSL_zalloc(sizeof(ECHStore));
+    es = OPENSSL_zalloc(sizeof(OSSL_ECHSTORE));
     if (es == NULL) {
         ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
         return 0;
@@ -5984,7 +5984,7 @@ static void ECHExt_free(ECHExt *e)
     return;
 }
 
-static void ECHStore_entry_free(ECHStore_entry *ee)
+static void OSSL_ECHSTORE_entry_free(OSSL_ECHSTORE_entry *ee)
 {
     OPENSSL_free(ee->public_name);
     OPENSSL_free(ee->pub);
@@ -5997,17 +5997,17 @@ static void ECHStore_entry_free(ECHStore_entry *ee)
     return;
 }
 
-void ECHStore_free(ECHStore *es)
+void OSSL_ECHSTORE_free(OSSL_ECHSTORE *es)
 {
-    sk_ECHStore_entry_pop_free(es->entries, ECHStore_entry_free);
+    sk_OSSL_ECHSTORE_entry_pop_free(es->entries, OSSL_ECHSTORE_entry_free);
     OPENSSL_free(es);
     return;
 }
 
-int ECHStore_new_config(ECHStore *es,
-                        uint16_t echversion, uint16_t max_name_length,
-                        const char *public_name, OSSL_HPKE_SUITE suite,
-                        const unsigned char *extvals, size_t extlen)
+int OSSL_ECHSTORE_new_config(OSSL_ECHSTORE *es,
+                             uint16_t echversion, uint16_t max_name_length,
+                             const char *public_name, OSSL_HPKE_SUITE suite,
+                             const unsigned char *extvals, size_t extlen)
 {
     size_t pnlen = 0;
     size_t publen = OSSL_ECH_CRYPTO_VAR_SIZE;
@@ -6019,7 +6019,7 @@ int ECHStore_new_config(ECHStore *es,
     uint8_t config_id = 0;
     WPACKET epkt;
     BUF_MEM *epkt_mem = NULL;
-    ECHStore_entry *ee = NULL;
+    OSSL_ECHSTORE_entry *ee = NULL;
     char pembuf[2 * EVP_MAX_MD_SIZE + 1];
     size_t pembuflen = 2 * EVP_MAX_MD_SIZE + 1;
 
@@ -6122,7 +6122,7 @@ int ECHStore_new_config(ECHStore *es,
     }
     /* bp, bblen has encoding */
     WPACKET_get_total_written(&epkt, &bblen);
-    if ((ee = OPENSSL_zalloc(sizeof(ECHStore_entry))) == NULL) {
+    if ((ee = OPENSSL_zalloc(sizeof(OSSL_ECHSTORE_entry))) == NULL) {
         ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
         goto err;
     }
@@ -6166,12 +6166,12 @@ int ECHStore_new_config(ECHStore *es,
     ee->loadtime = time(0);
     /* push entry into store */
     if (es->entries == NULL)
-        es->entries = sk_ECHStore_entry_new_null();
+        es->entries = sk_OSSL_ECHSTORE_entry_new_null();
     if (es->entries == NULL) {
         ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
         goto err;
     }
-    if (!sk_ECHStore_entry_push(es->entries, ee)) {
+    if (!sk_OSSL_ECHSTORE_entry_push(es->entries, ee)) {
         ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
         goto err;
     }
@@ -6183,14 +6183,14 @@ err:
     EVP_PKEY_free(privp);
     WPACKET_cleanup(&epkt);
     BUF_MEM_free(epkt_mem);
-    ECHStore_entry_free(ee);
+    OSSL_ECHSTORE_entry_free(ee);
     OPENSSL_free(ee);
     return rv;
 }
 
-int ECHStore_make_pemech(ECHStore *es, BIO *out)
+int OSSL_ECHSTORE_make_pemech(OSSL_ECHSTORE *es, BIO *out)
 {
-    ECHStore_entry *ee = NULL;
+    OSSL_ECHSTORE_entry *ee = NULL;
     char *b64val = NULL;
     size_t b64len = 0;
     int rv = 0;
@@ -6200,13 +6200,13 @@ int ECHStore_make_pemech(ECHStore *es, BIO *out)
         ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_NULL_PARAMETER);
         return 0;
     }
-    num = sk_ECHStore_entry_num(es->entries);
+    num = sk_OSSL_ECHSTORE_entry_num(es->entries);
     if (num <= 0) {
         ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_INVALID_ARGUMENT);
         return 0;
     }
     /* select the last entry, i.e. most recently loaded/created */
-    ee = sk_ECHStore_entry_value(es->entries, num - 1);
+    ee = sk_OSSL_ECHSTORE_entry_value(es->entries, num - 1);
     if (ee == NULL || ee->keyshare == NULL || ee->encoded == NULL) {
         ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_INVALID_ARGUMENT);
         return 0;
@@ -6237,43 +6237,43 @@ err:
     return rv;
 }
 
-int ECHStore_set1_echconfiglist(ECHStore *es, BIO *in)
+int OSSL_ECHSTORE_set1_echconfiglist(OSSL_ECHSTORE *es, BIO *in)
 {
     return 0;
 }
 
-int ECHStore_set1_key_and_list(ECHStore *es, EVP_PKEY *priv, BIO *in,
-                               int for_retry)
+int OSSL_ECHSTORE_set1_key_and_list(OSSL_ECHSTORE *es, EVP_PKEY *priv, BIO *in,
+                                    int for_retry)
 {
     return 0;
 }
 
-int ECHStore_set1_pemech(ECHStore *es, BIO *in, int for_retry)
+int OSSL_ECHSTORE_set1_pemech(OSSL_ECHSTORE *es, BIO *in, int for_retry)
 {
     return 0;
 }
 
-int ECHStore_get_info(ECHStore *es, OSSL_ECH_INFO **info, int *count)
+int OSSL_ECHSTORE_get_info(OSSL_ECHSTORE *es, OSSL_ECH_INFO **info, int *count)
 {
     return 0;
 }
 
-int ECHStore_downselect(ECHStore *es, int index)
+int OSSL_ECHSTORE_downselect(OSSL_ECHSTORE *es, int index)
 {
     return 0;
 }
 
-int SSL_CTX_ech_server_enable(SSL_CTX *ctx, ECHStore *es)
+int SSL_CTX_ech_server_enable(SSL_CTX *ctx, OSSL_ECHSTORE *es)
 {
     return 0;
 }
 
-int SSL_CTX_set1_echstore(SSL_CTX *ctx, ECHStore *es)
+int SSL_CTX_set1_echstore(SSL_CTX *ctx, OSSL_ECHSTORE *es)
 {
     return 0;
 }
 
-int SSL_set1_echstore(SSL *s, ECHStore *es)
+int SSL_set1_echstore(SSL *s, OSSL_ECHSTORE *es)
 {
     return 0;
 }

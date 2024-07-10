@@ -239,18 +239,18 @@ int ech_main(int argc, char **argv)
     }
 
     if (mode == OSSL_ECH_KEYGEN_MODE) {
-        ECHStore *es = NULL;
+        OSSL_ECHSTORE *es = NULL;
         BIO *ecf = NULL;
 
         if ((ecf = BIO_new_file(pemfile, "w")) == NULL 
-            || (es=ECHStore_init(NULL,NULL)) == NULL
-            || ECHStore_new_config(es, ech_version, max_name_length,
-                                   public_name, hpke_suite, NULL, 0) != 1
-            || ECHStore_make_pemech(es, ecf) != 1) {
-            BIO_printf(bio_err, "ECHStore_make_pemech error");
+            || (es=OSSL_ECHSTORE_init(NULL,NULL)) == NULL
+            || OSSL_ECHSTORE_new_config(es, ech_version, max_name_length,
+                                        public_name, hpke_suite, NULL, 0) != 1
+            || OSSL_ECHSTORE_make_pemech(es, ecf) != 1) {
+            BIO_printf(bio_err, "OSSL_ECHSTORE_make_pemech error");
             goto end;
         }
-        ECHStore_free(es);
+        OSSL_ECHSTORE_free(es);
         BIO_free_all(ecf);
         return 1;
     }

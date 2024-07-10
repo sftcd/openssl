@@ -186,15 +186,15 @@ typedef struct ech_store_entry_st {
     int for_retry; /* whether to use this ECHConfigList in a retry */
     unsigned int encoded_len; /* length of overall encoded content */
     unsigned char *encoded; /* overall encoded content */
-} ECHStore_entry;
+} OSSL_ECHSTORE_entry;
 
-DEFINE_STACK_OF(ECHStore_entry)
+DEFINE_STACK_OF(OSSL_ECHSTORE_entry)
 
 typedef struct ech_store_st {
-    STACK_OF(ECHStore_entry) *entries;
+    STACK_OF(OSSL_ECHSTORE_entry) *entries;
     OSSL_LIB_CTX *libctx;
     const char *propq;
-} ECHStore;
+} OSSL_ECHSTORE;
 
 /**
  * What we send in the ech CH extension:
