@@ -5977,7 +5977,7 @@ OSSL_ECHSTORE *OSSL_ECHSTORE_init(OSSL_LIB_CTX *libctx, const char *propq)
     return es;
 }
 
-static void ECHExt_free(ECHExt *e)
+static void OSSL_ECHEXT_free(OSSL_ECHEXT *e)
 {
     OPENSSL_free(e->val);
     OPENSSL_free(e);
@@ -5992,7 +5992,7 @@ static void OSSL_ECHSTORE_entry_free(OSSL_ECHSTORE_entry *ee)
     EVP_PKEY_free(ee->keyshare);
     OPENSSL_free(ee->encoded);
     OPENSSL_free(ee->suites);
-    sk_ECHExt_pop_free(ee->exts, ECHExt_free);
+    sk_OSSL_ECHEXT_pop_free(ee->exts, OSSL_ECHEXT_free);
     OPENSSL_free(ee);
     return;
 }
@@ -6187,13 +6187,12 @@ err:
     return rv;
 }
 
-int OSSL_ECHSTORE_make_pemech(OSSL_ECHSTORE *es, BIO *out)
+int OSSL_ECHSTORE_make_pemech(OSSL_ECHSTORE *es, int index, BIO *out)
 {
     OSSL_ECHSTORE_entry *ee = NULL;
     char *b64val = NULL;
     size_t b64len = 0;
-    int rv = 0;
-    int num = 0;
+    int rv = 0, num = 0, chosen = 0;
 
     if (es == NULL) {
         ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_NULL_PARAMETER);
@@ -6204,8 +6203,15 @@ int OSSL_ECHSTORE_make_pemech(OSSL_ECHSTORE *es, BIO *out)
         ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_INVALID_ARGUMENT);
         return 0;
     }
-    /* select the last entry, i.e. most recently loaded/created */
-    ee = sk_OSSL_ECHSTORE_entry_value(es->entries, num - 1);
+    if (index >= num) {
+        ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_INVALID_ARGUMENT);
+        return 0;
+    }
+    if (index == OSSL_ECHSTORE_LAST)
+        chosen = num - 1;
+    else
+        chosen = index;
+    ee = sk_OSSL_ECHSTORE_entry_value(es->entries, chosen);
     if (ee == NULL || ee->keyshare == NULL || ee->encoded == NULL) {
         ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_INVALID_ARGUMENT);
         return 0;
@@ -6262,20 +6268,37 @@ int OSSL_ECHSTORE_downselect(OSSL_ECHSTORE *es, int index)
     return 0;
 }
 
-int SSL_CTX_ech_server_enable(SSL_CTX *ctx, OSSL_ECHSTORE *es)
+int OSSL_ECHSTORE_num_keys(OSSL_ECHSTORE *es, int *numkeys)
 {
     return 0;
 }
 
-int SSL_CTX_set1_echstore(SSL_CTX *ctx, OSSL_ECHSTORE *es)
+int OSSL_ECHSTORE_flush_keys(OSSL_ECHSTORE *es, time_t age)
 {
     return 0;
 }
 
-int SSL_set1_echstore(SSL *s, OSSL_ECHSTORE *es)
+
+int SSL_CTX_set_echstore(SSL_CTX *ctx, OSSL_ECHSTORE *es)
 {
     return 0;
 }
+
+int SSL_set_echstore(SSL *s, OSSL_ECHSTORE *es)
+{
+    return 0;
+}
+
+OSSL_ECHSTORE *SSL_CTX_get_echstore(const SSL_CTX *ctx)
+{
+    return NULL;
+}
+
+OSSL_ECHSTORE *SSL_get_echstore(const SSL_CTX *ctx)
+{
+    return NULL;
+}
+
 
 
 #endif

@@ -222,7 +222,7 @@ int ech_main(int argc, char **argv)
             || (es=OSSL_ECHSTORE_init(NULL,NULL)) == NULL
             || OSSL_ECHSTORE_new_config(es, ech_version, max_name_length,
                                         public_name, hpke_suite) != 1
-            || OSSL_ECHSTORE_make_pemech(es, ecf) != 1) {
+            || OSSL_ECHSTORE_make_pemech(es, 0, ecf) != 1) {
             BIO_printf(bio_err, "OSSL_ECHSTORE_make_pemech error");
             goto end;
         }

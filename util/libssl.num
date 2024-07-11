@@ -616,9 +616,6 @@ OSSL_ech_make_echconfig                 ?	3_4_0	EXIST::FUNCTION:ECH
 OSSL_ech_find_echconfigs                ?	3_4_0	EXIST::FUNCTION:ECH
 SSL_CTX_ech_set_pad_sizes               ?	3_4_0	EXIST::FUNCTION:ECH
 SSL_ech_set_pad_sizes                   ?	3_4_0	EXIST::FUNCTION:ECH
-SSL_CTX_ech_server_enable               ?	3_4_0	EXIST::FUNCTION:ECH
-SSL_CTX_set1_echstore                   ?	3_4_0	EXIST::FUNCTION:ECH
-SSL_set1_echstore                       ?	3_4_0	EXIST::FUNCTION:ECH
 OSSL_ECHSTORE_init                      ?	3_4_0	EXIST::FUNCTION:ECH
 OSSL_ECHSTORE_free                      ?	3_4_0	EXIST::FUNCTION:ECH
 OSSL_ECHSTORE_new_config                ?	3_4_0	EXIST::FUNCTION:ECH
@@ -628,3 +625,9 @@ OSSL_ECHSTORE_set1_key_and_list         ?	3_4_0	EXIST::FUNCTION:ECH
 OSSL_ECHSTORE_set1_pemech               ?	3_4_0	EXIST::FUNCTION:ECH
 OSSL_ECHSTORE_get_info                  ?	3_4_0	EXIST::FUNCTION:ECH
 OSSL_ECHSTORE_downselect                ?	3_4_0	EXIST::FUNCTION:ECH
+OSSL_ECHSTORE_num_keys                  ?	3_4_0	EXIST::FUNCTION:ECH
+OSSL_ECHSTORE_flush_keys                ?	3_4_0	EXIST::FUNCTION:ECH
+SSL_CTX_set_echstore                    ?	3_4_0	EXIST::FUNCTION:ECH
+SSL_set_echstore                        ?	3_4_0	EXIST::FUNCTION:ECH
+SSL_CTX_get_echstore                    ?	3_4_0	EXIST::FUNCTION:ECH
+SSL_get_echstore                        ?	3_4_0	EXIST::FUNCTION:ECH

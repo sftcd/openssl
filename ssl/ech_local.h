@@ -162,15 +162,15 @@ typedef struct ech_configs_st {
     ECHConfig *recs; /* array of individual records */
 } ECHConfigList;
 
-typedef struct ech_ext_st {
+typedef struct ossl_ech_ext_st {
     unsigned int type;
     unsigned int len;
     unsigned char *val;
-} ECHExt;
+} OSSL_ECHEXT;
 
-DEFINE_STACK_OF(ECHExt)
+DEFINE_STACK_OF(OSSL_ECHEXT)
 
-typedef struct ech_store_entry_st {
+typedef struct ossl_ech_store_entry_st {
     unsigned int version; /* 0xff0d for draft-13 */
     char *public_name;
     unsigned int pub_len;
@@ -179,7 +179,7 @@ typedef struct ech_store_entry_st {
     OSSL_HPKE_SUITE *suites;
     unsigned int max_name_length;
     uint8_t config_id;
-    STACK_OF(ECHExt) *exts;
+    STACK_OF(OSSL_ECHEXT) *exts;
     char *pemfname; /* name of PEM file from which this was loaded */
     time_t loadtime; /* time public and private key were loaded from file */
     EVP_PKEY *keyshare; /* long(ish) term ECH private keyshare on a server */
@@ -190,7 +190,7 @@ typedef struct ech_store_entry_st {
 
 DEFINE_STACK_OF(OSSL_ECHSTORE_entry)
 
-typedef struct ech_store_st {
+typedef struct ossl_ech_store_st {
     STACK_OF(OSSL_ECHSTORE_entry) *entries;
     OSSL_LIB_CTX *libctx;
     const char *propq;

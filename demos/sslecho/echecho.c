@@ -94,6 +94,30 @@ SSL_CTX* create_context(bool isServer)
     return ctx;
 }
 
+static int configure_ech(SSL_CTX *ctx, int server,
+                         unsigned char *buf, size_t len)
+{
+    OSSL_ECHSTORE *es = NULL;
+    BIO *es_in = BIO_new(BIO_s_mem());
+
+    if ((es=OSSL_ECHSTORE_init(NULL,NULL)) == NULL
+        || BIO_write(es_in, buf, len) != len)
+        goto err;
+
+    if (server && OSSL_ECHSTORE_set1_pemech(es, es_in, 1) != 1)
+        goto err;
+    if (!server && OSSL_ECHSTORE_set1_echconfiglist(es, es_in) != 1)
+        goto err;
+    if (SSL_CTX_set_echstore(ctx, es) != 1)
+        goto err;
+    BIO_free_all(es_in);
+    return 1;
+err:
+    OSSL_ECHSTORE_free(es);
+    BIO_free_all(es_in);
+    return 0;
+}
+
 void configure_server_context(SSL_CTX *ctx)
 {
     /* Set the key and cert */
@@ -107,9 +131,8 @@ void configure_server_context(SSL_CTX *ctx)
         exit(EXIT_FAILURE);
     }
 
-    if (SSL_CTX_ech_server_enable_buffer(ctx, (unsigned char*)echprivbuf,
-                                         sizeof(echprivbuf) - 1,
-                                         SSL_ECH_USE_FOR_RETRY) != 1) {
+    if (configure_ech(ctx, 1, (unsigned char*)echprivbuf,
+                      sizeof(echprivbuf) - 1) != 1) {
         ERR_print_errors_fp(stderr);
         exit(EXIT_FAILURE);
     }
@@ -131,8 +154,8 @@ void configure_client_context(SSL_CTX *ctx)
         ERR_print_errors_fp(stderr);
         exit(EXIT_FAILURE);
     }
-    if (SSL_CTX_ech_set1_echconfig(ctx, (unsigned char*)echconfig,
-                                   sizeof(echconfig) - 1) != 1) {
+    if (configure_ech(ctx, 0, (unsigned char*)echconfig,
+                      sizeof(echconfig) - 1) != 1) {
         ERR_print_errors_fp(stderr);
         exit(EXIT_FAILURE);
     }
