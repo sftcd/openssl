@@ -288,6 +288,40 @@ OSSL_ECHSTORE *SSL_get_echstore(const SSL_CTX *ctx);
 The resulting `OSSL_ECHSTORE` can be modified and then re-associated
 with an `SSL_CTX` or `SSL` connection.
 
+Finer-grained client control
+----------------------------
+
+Applications that need fine control over which ECHConfigList (from those
+available) will be used, can query an `OSSL_ECHSTORE`, retrieving information
+about the set of "singleton" ECHConfigList values available, and then, if
+desired, down-select to one of those, e.g., based on the `public_name` that
+will be used. This would enable a client that selects the server address to use
+based on IP address hints that can also be present in an HTTPS/SCVB resource
+record to ensure that the correct matching ECH public value is used. The
+information is presented to the caller using the `OSSL_ECH_INFO` type, which
+provides a simplified view of ECH data, but where each element of an array
+corresponds to exactly one ECH public value and set of names.
+
+```c
+/*
+ * Application-visible form of ECH information from the DNS, from config
+ * files, or from earlier API calls. APIs produce/process an array of these.
+ */
+typedef struct ossl_ech_info_st {
+    int index; /* externally re-usable reference to this value */
+    char *public_name; /* public_name from API or ECHConfig */
+    char *inner_name; /* server-name (for inner CH if doing ECH) */
+    unsigned char *outer_alpns; /* outer ALPN string */
+    int outer_alpns_len;
+    unsigned char *inner_alpns; /* inner ALPN string */
+    int inner_alpns_len;
+    char *echconfig; /* a JSON-like version of the associated ECHConfig */
+} OSSL_ECH_INFO;
+
+void OSSL_ECH_INFO_free(OSSL_ECH_INFO *info, int count);
+int OSSL_ECH_INFO_print(BIO *out, OSSL_ECH_INFO *info, int count);
+```
+
 ECH Store Internals
 -------------------
 
@@ -371,7 +405,8 @@ In addition to the obvious fields from each ECHCOnfig, we also store:
   the load time is the time of loading.) These values assist when servers
   periodically re-load sets of files or PEM structures from memory.
 
-### Split-mode handling
+Split-mode handling
+-------------------
 
 ECH split-mode involves a front-end server that only does ECH decryption and
 then passes on the decrypted inner CH to a back-end TLS server that negotiates
@@ -466,40 +501,6 @@ can access the retry config value via:
 
 ```c
 int SSL_ech_get_retry_config(SSL *s, unsigned char **ec, size_t *eclen);
-```
-
-Finer-grained client control
-----------------------------
-
-Clients that need fine control over which ECHConfig (from those available) will
-be used, can query the SSL connection, retrieving information about the set of
-ECHConfig values available, and then, if desired, down-select to one of those,
-e.g., based on the `public_name` that will be used. This would enable a
-client that selects the server address to use based on IP address hints that
-can also be present in an HTTPS/SCVB resource record to ensure that the correct
-matching ECHConfig is used. The information is presented to the client using
-the `OSSL_ECH_INFO` type, which provides a simplified view of ECHConfig data,
-but where each element of an array corresponds to exactly one ECH public value
-and set of names.
-
-```c
-/*
- * Application-visible form of ECH information from the DNS, from config
- * files, or from earlier API calls. APIs produce/process an array of these.
- */
-typedef struct ossl_ech_info_st {
-    int index; /* externally re-usable reference to this value */
-    char *public_name; /* public_name from API or ECHConfig */
-    char *inner_name; /* server-name (for inner CH if doing ECH) */
-    unsigned char *outer_alpns; /* outer ALPN string */
-    int outer_alpns_len;
-    unsigned char *inner_alpns; /* inner ALPN string */
-    int inner_alpns_len;
-    char *echconfig; /* a JSON-like version of the associated ECHConfig */
-} OSSL_ECH_INFO;
-
-void OSSL_ECH_INFO_free(OSSL_ECH_INFO *info, int count);
-int OSSL_ECH_INFO_print(BIO *out, OSSL_ECH_INFO *info, int count);
 ```
 
 GREASEing
