@@ -97,8 +97,6 @@ int ech_main(int argc, char **argv)
     char *public_name = NULL;
     char *suitestr = NULL;
     char *extfile = NULL;
-    unsigned char extvals[OSSL_ECH_MAX_ECHCONFIGEXT_LEN];
-    size_t extlen = OSSL_ECH_MAX_ECHCONFIGEXT_LEN;
     uint16_t ech_version = OSSL_ECH_CURRENT_VERSION;
     uint16_t max_name_length = 0;
     OSSL_HPKE_SUITE hpke_suite = OSSL_HPKE_SUITE_DEFAULT;
@@ -211,28 +209,6 @@ int ech_main(int argc, char **argv)
         }
     }
 
-    if (extfile != NULL) {
-        int bio_read_rv = 0;
-        BIO *eb = BIO_new_file(extfile, "rb");
-
-        if (eb == NULL) {
-            BIO_printf(bio_err, "Can't open ECH extensions file %s\n", extfile);
-            ERR_print_errors(bio_err);
-            goto end;
-        }
-        bio_read_rv = BIO_read(eb, extvals, extlen);
-        BIO_free(eb);
-        if (bio_read_rv <= 0) {
-            BIO_printf(bio_err, "Error reading ECH extensions file %s\n",
-                       extfile);
-            ERR_print_errors(bio_err);
-            goto end;
-        }
-        extlen = (size_t) bio_read_rv;
-    } else {
-        extlen = 0;
-    }
-
     /* Set default if needed */
     if (pemfile == NULL) {
         pemfile = "echconfig.pem";
@@ -245,7 +221,7 @@ int ech_main(int argc, char **argv)
         if ((ecf = BIO_new_file(pemfile, "w")) == NULL 
             || (es=OSSL_ECHSTORE_init(NULL,NULL)) == NULL
             || OSSL_ECHSTORE_new_config(es, ech_version, max_name_length,
-                                        public_name, hpke_suite, NULL, 0) != 1
+                                        public_name, hpke_suite) != 1
             || OSSL_ECHSTORE_make_pemech(es, ecf) != 1) {
             BIO_printf(bio_err, "OSSL_ECHSTORE_make_pemech error");
             goto end;

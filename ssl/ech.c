@@ -6006,8 +6006,7 @@ void OSSL_ECHSTORE_free(OSSL_ECHSTORE *es)
 
 int OSSL_ECHSTORE_new_config(OSSL_ECHSTORE *es,
                              uint16_t echversion, uint16_t max_name_length,
-                             const char *public_name, OSSL_HPKE_SUITE suite,
-                             const unsigned char *extvals, size_t extlen)
+                             const char *public_name, OSSL_HPKE_SUITE suite)
 {
     size_t pnlen = 0;
     size_t publen = OSSL_ECH_CRYPTO_VAR_SIZE;
@@ -6113,7 +6112,7 @@ int OSSL_ECHSTORE_new_config(OSSL_ECHSTORE *es,
         || !WPACKET_memcpy(&epkt, public_name, pnlen)
         || !WPACKET_close(&epkt)
         || !WPACKET_start_sub_packet_u16(&epkt)
-        || !WPACKET_memcpy(&epkt, extvals, extlen)
+        || !WPACKET_memcpy(&epkt, NULL, 0) /* no extensions */
         || !WPACKET_close(&epkt)
         || !WPACKET_close(&epkt)
         || !WPACKET_close(&epkt)) {
