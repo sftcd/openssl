@@ -98,12 +98,10 @@ static int configure_ech(SSL_CTX *ctx, int server,
                          unsigned char *buf, size_t len)
 {
     OSSL_ECHSTORE *es = NULL;
-    BIO *es_in = BIO_new(BIO_s_mem());
+    BIO *es_in = BIO_new_mem_buf(buf, len);
 
-    if ((es=OSSL_ECHSTORE_init(NULL,NULL)) == NULL
-        || BIO_write(es_in, buf, len) != len)
+    if (es_in == NULL || (es=OSSL_ECHSTORE_init(NULL,NULL)) == NULL)
         goto err;
-
     if (server && OSSL_ECHSTORE_set1_pemech(es, es_in, 1) != 1)
         goto err;
     if (!server && OSSL_ECHSTORE_set1_echconfiglist(es, es_in) != 1)
