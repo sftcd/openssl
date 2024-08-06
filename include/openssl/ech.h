@@ -196,32 +196,36 @@ int OSSL_ech_find_echconfigs(int *num_echs,
 
 /* New OSSL_ECHSTORE APIs */
 
-typedef struct ossl_ech_store_st OSSL_ECHSTORE;
+typedef struct ossl_echstore_st OSSL_ECHSTORE;
 
 /* if a caller wants to index the last entry in the store */
 # define OSSL_ECHSTORE_LAST -1
 
 OSSL_ECHSTORE *OSSL_ECHSTORE_init(OSSL_LIB_CTX *libctx, const char *propq);
 void OSSL_ECHSTORE_free(OSSL_ECHSTORE *es);
+
 int OSSL_ECHSTORE_new_config(OSSL_ECHSTORE *es,
                              uint16_t echversion, uint16_t max_name_length,
                              const char *public_name, OSSL_HPKE_SUITE suite);
-int OSSL_ECHSTORE_make_pemech(OSSL_ECHSTORE *es, int index, BIO *out);
+int OSSL_ECHSTORE_write_pem(OSSL_ECHSTORE *es, int index, BIO *out);
 
-int OSSL_ECHSTORE_set1_echconfiglist(OSSL_ECHSTORE *es, BIO *in);
+int OSSL_ECHSTORE_read_echconfiglist(OSSL_ECHSTORE *es, BIO *in);
 
-int OSSL_ECHSTORE_set1_key_and_list(OSSL_ECHSTORE *es, EVP_PKEY *priv, BIO *in,
-                                    int for_retry);
-int OSSL_ECHSTORE_set1_pemech(OSSL_ECHSTORE *es, BIO *in, int for_retry);
-
-int OSSL_ECHSTORE_get_info(OSSL_ECHSTORE *es, OSSL_ECH_INFO **info, int *count);
+int OSSL_ECHSTORE_get1_info(OSSL_ECHSTORE *es, OSSL_ECH_INFO **info,
+                            int *count);
 int OSSL_ECHSTORE_downselect(OSSL_ECHSTORE *es, int index);
+
+int OSSL_ECHSTORE_set1_key_and_read_pem(OSSL_ECHSTORE *es, EVP_PKEY *priv,
+                                        BIO *in, int for_retry);
+int OSSL_ECHSTORE_read_pem(OSSL_ECHSTORE *es, BIO *in, int for_retry);
 int OSSL_ECHSTORE_num_keys(OSSL_ECHSTORE *es, int *numkeys);
 int OSSL_ECHSTORE_flush_keys(OSSL_ECHSTORE *es, time_t age);
-int SSL_CTX_set_echstore(SSL_CTX *ctx, OSSL_ECHSTORE *es);
-int SSL_set_echstore(SSL *s, OSSL_ECHSTORE *es);
-OSSL_ECHSTORE *SSL_CTX_get_echstore(const SSL_CTX *ctx);
-OSSL_ECHSTORE *SSL_get_echstore(const SSL_CTX *ctx);
+
+int SSL_CTX_set1_echstore(SSL_CTX *ctx, OSSL_ECHSTORE *es);
+int SSL_set1_echstore(SSL *s, OSSL_ECHSTORE *es);
+
+OSSL_ECHSTORE *SSL_CTX_get1_echstore(const SSL_CTX *ctx);
+OSSL_ECHSTORE *SSL_get1_echstore(const SSL *s);
 
 # endif
 #endif

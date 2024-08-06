@@ -45,7 +45,7 @@ General Approach
 This ECH implementation has been prototyped via integrations with curl, apache2,
 lighttpd, nginx and haproxy. The implementation interoperates with all other
 known ECH implementations, including browsers, the libraries they use
-(NSS/boringssl), a closed-source server implementation (Cloudflare's test
+(NSS/BoringSSL), a closed-source server implementation (Cloudflare's test
 server) and with wolfssl and (reportedly) a rusttls client.
 
 To date, the approach taken has been to minimise the application layer code
@@ -201,7 +201,7 @@ to create and manage ECHConfigList values and associated meta-data. The
 external APIs using `OSSL_ECHSTORE` are:
 
 ```c
-typedef struct ossl_ech_store_st OSSL_ECHSTORE;
+typedef struct ossl_echstore_st OSSL_ECHSTORE;
 
 /* if a caller wants to index the last entry in the store */
 # define OSSL_ECHSTORE_LAST -1
@@ -211,16 +211,17 @@ void OSSL_ECHSTORE_free(OSSL_ECHSTORE *es);
 int OSSL_ECHSTORE_new_config(OSSL_ECHSTORE *es,
                              uint16_t echversion, uint16_t max_name_length,
                              const char *public_name, OSSL_HPKE_SUITE suite);
-int OSSL_ECHSTORE_make_pemech(OSSL_ECHSTORE *es, int index, BIO *out);
+int OSSL_ECHSTORE_write_pem(OSSL_ECHSTORE *es, int index, BIO *out);
 
-int OSSL_ECHSTORE_set_echconfiglist(OSSL_ECHSTORE *es, BIO *in);
+int OSSL_ECHSTORE_read_echconfiglist(OSSL_ECHSTORE *es, BIO *in);
 
-int OSSL_ECHSTORE_get1_info(OSSL_ECHSTORE *es, OSSL_ECH_INFO **info, int *count);
+int OSSL_ECHSTORE_get1_info(OSSL_ECHSTORE *es, OSSL_ECH_INFO **info,
+                            int *count);
 int OSSL_ECHSTORE_downselect(OSSL_ECHSTORE *es, int index);
 
-int OSSL_ECHSTORE_set1_key_and_list(OSSL_ECHSTORE *es, EVP_PKEY *priv, BIO *in,
-                                    int for_retry);
-int OSSL_ECHSTORE_set1_pemech(OSSL_ECHSTORE *es, BIO *in, int for_retry);
+int OSSL_ECHSTORE_set1_key_and_read_pem(OSSL_ECHSTORE *es, EVP_PKEY *priv,
+                                        BIO *in, int for_retry);
+int OSSL_ECHSTORE_read_pem(OSSL_ECHSTORE *es, BIO *in, int for_retry);
 int OSSL_ECHSTORE_num_keys(OSSL_ECHSTORE *es, int *numkeys);
 int OSSL_ECHSTORE_flush_keys(OSSL_ECHSTORE *es, time_t age);
 ```
@@ -229,16 +230,16 @@ int OSSL_ECHSTORE_flush_keys(OSSL_ECHSTORE *es, time_t age);
 
 `OSSL_ECHSTORE_new_config()` allows the caller to create a new private key
 value and the related "singleton" ECHConfigList structure.
-`OSSL_ECHSTORE_make_pemech()` allows the caller to produce a "PEM" data
+`OSSL_ECHSTORE_write_pem()` allows the caller to produce a "PEM" data
 structure (conforming to the [PEMECH
 specification](https://datatracker.ietf.org/doc/draft-farrell-tls-pemesni/))
 from the `OSSL_ECHSTORE` entry identified by the `index`. (An `index` of
 `OSSL_ECHSTORE_LAST` will select the last entry.)
 These two APIs will typically be used via the `openssl ech` command line tool.
 
-`OSSL_ECHSTORE_set1_echconfig()` will typically be used by a client to ingest
-the "ech=" SvcParamKey value found in an SVCB or HTTPS RR retrieved from the
-DNS. The resulting set of ECHConfig values can then be associated with an
+`OSSL_ECHSTORE_read_echconfiglist()` will typically be used by a client to
+ingest the "ech=" SvcParamKey value found in an SVCB or HTTPS RR retrieved from
+the DNS. The resulting set of ECHConfig values can then be associated with an
 `SSL_CTX` or `SSL` structure for TLS connections.
 
 Generally, clients will deal with "singleton" ECHConfigList values, but it is
@@ -253,7 +254,7 @@ API presents the client with the information enabling such selection, and the
 `OSSL_ECHSTORE_downselect()` API gives the client a way to select one
 particular ECHConfig value from the set stored (discarding the rest).
 
-`OSSL_ECHSTORE_set1_key_and_list()` and `OSSL_ECHSTORE_set1_pemech()` can be
+`OSSL_ECHSTORE_set1_key_and_read_pem()` and `OSSL_ECHSTORE_read_pem()` can be
 used to load a private key value and associated "singleton" ECHConfigList.
 Those can be used (by servers) to enable ECH for an `SSL_CTX` or `SSL`
 connection. In addition to loading those values, the application can also
@@ -293,6 +294,9 @@ with an `SSL_CTX` or `SSL` connection.
 Finer-grained client control
 ----------------------------
 
+TODO(ECH): revisit this later, when we hopefully have some more information
+about ECH deployments.
+
 Applications that need fine control over which ECHConfigList (from those
 available) will be used, can query an `OSSL_ECHSTORE`, retrieving information
 about the set of "singleton" ECHConfigList values available, and then, if
@@ -330,7 +334,7 @@ ECH Store Internals
 The internal structure of an ECH Store is as described below:
 
 ```c
-typedef struct ossl_ech_ext_st {
+typedef struct ossl_echext_st {
     unsigned int type;
     unsigned int len;
     unsigned char *val;
@@ -338,7 +342,7 @@ typedef struct ossl_ech_ext_st {
 
 DEFINE_STACK_OF(OSSL_ECHEXT)
 
-typedef struct ossl_ech_store_entry_st {
+typedef struct ossl_echstore_entry_st {
     unsigned int version; /* 0xff0d for draft-13 */
     char *public_name;
     unsigned int pub_len;
@@ -358,7 +362,7 @@ typedef struct ossl_ech_store_entry_st {
 
 DEFINE_STACK_OF(OSSL_ECHSTORE_entry)
 
-typedef struct ossl_ech_store_st {
+typedef struct ossl_echstore_st {
     STACK_OF(OSSL_ECHSTORE_entry) *entries;
     OSSL_LIB_CTX *libctx;
     const char *propq;
@@ -370,7 +374,7 @@ Some notes on the above ECHConfig fields:
 - `version` should be `OSSL_ECH_CURRENT_VERSION` for the current version.
 
 - `public_name` field is the name used in the SNI of the outer ClientHello, and
-that a server ought be able to authenticte if using the `retry_configs`
+that a server ought be able to authenticate if using the `retry_configs`
 fallback mechanism.
 
 - `config_id` is a one-octet value used by servers to select which private
@@ -486,16 +490,17 @@ Clients can additionally more directly control the values to be used for inner
 and outer SNI and ALPN values via specific APIs. This allows a client to
 override the `public_name` present in an ECHConfigList that will otherwise
 be used for the outer SNI. The `no_outer` input allows a client to emit an
-outer CH with no SNI at all.
+outer CH with no SNI at all. Providing a `NULL` for the `outer_name` means
+to send the `public_name` provided from the ECHConfigList.
 
 ```c
 int SSL_ech_set1_server_names(SSL *s, const char *inner_name,
                              const char *outer_name, int no_outer);
 int SSL_ech_set1_outer_server_name(SSL *s, const char *outer_name, int no_outer);
 int SSL_ech_set1_outer_alpn_protos(SSL *s, const unsigned char *protos,
-                                  unsigned int protos_len);
+                                   size_t protos_len);
 int SSL_CTX_ech_set1_outer_alpn_protos(SSL_CTX *s, const unsigned char *protos,
-                                      unsigned int protos_len);
+                                       size_t protos_len);
 ```
 
 If a client attempts ECH but that fails, or sends an ECH-GREASEd CH, to
@@ -609,7 +614,7 @@ as a check that those usages are consistent with other APIs:
 - the `_set1_` variant seems easier to handle for the application ("with ECH
   stuff, if you make it then give it to the library, you still need to free
   it") and for consistency amongst these APIs, so that is often used, e.g.
-  `OSSL_ECHSTORE_set1_key_and_list`.
+  `OSSL_ECHSTORE_set1_key_and_read_pem`.
 
 Build Options
 -------------
@@ -620,23 +625,25 @@ a `no-ech` option to build without this code.
 BoringSSL APIs
 --------------
 
-Brief descriptions of boringssl APIs are below together with initial comments
+Brief descriptions of BoringSSL APIs are below together with initial comments
 comparing those to the above. (It may be useful to consider the extent to
-which it is useful to make OpenSSL and boring APIs resemble one another.)
+which it is useful to make OpenSSL and BoringSSL APIs resemble one another.)
 
-Just as our implementation is under development, boring's `include/openssl/ssl.h`
-says: "ECH support in BoringSSL is still experimental and under development."
+Just as our implementation is under development, BoringSSL's
+`include/openssl/ssl.h` says: "ECH support in BoringSSL is still experimental
+and under development."
 
 ### GREASE
 
-Boring uses an API to enable GREASEing rather than an option.
+BoringSSL uses an API to enable GREASEing rather than an option.
 
 ```c
 OPENSSL_EXPORT void SSL_set_enable_ech_grease(SSL *ssl, int enable);
 ```
 
-This could work as well for our implementation, or boring could probably change
-to use an option, unless there's some reason to prefer not adding new options.
+This could work as well for our implementation, or BoringSSL could probably
+change to use an option, unless there's some reason to prefer not adding new
+options.
 
 ### Setting an ECHConfigList
 
@@ -650,8 +657,8 @@ This provides a subset of the equivalent client capabilities from our fork.
 
 ### Verifying the outer CH rather than inner
 
-Boring seems to use this API to change the DNS name being verified in order to
-validate a `retry_config`.
+BoringSSL seems to use this API to change the DNS name being verified in order
+to validate a `retry_config`.
 
 ```c
 OPENSSL_EXPORT void SSL_get0_ech_name_override(const SSL *ssl,
@@ -702,7 +709,7 @@ This is similar to the `SSL_CTX_ech_server_enable_*()` APIs.
 
 ### Getting status
 
-Boring has:
+BoringSSL has:
 
 ```c
 OPENSSL_EXPORT int SSL_ech_accepted(const SSL *ssl);

@@ -37,11 +37,10 @@
 typedef enum OPTION_choice {
     /* standard openssl options */
     OPT_ERR = -1, OPT_EOF = 0, OPT_HELP, OPT_VERBOSE,
-    OPT_PUBOUT, OPT_PRIVOUT, OPT_PEMOUT,
+    OPT_PEMOUT,
     /* ECHConfig specifics */
     OPT_PUBLICNAME, OPT_ECHVERSION,
     OPT_MAXNAMELENGTH, OPT_HPKESUITE,
-    OPT_EXTFILE,
     /* key print/select */
     OPT_PEMIN, OPT_SELECT
 } OPTION_CHOICE;
@@ -53,13 +52,10 @@ const OPTIONS ech_options[] = {
      "Provide additional output (though not much:-)"},
     OPT_SECTION("Key generation"),
     {"pemout", OPT_PEMOUT, '>', "Private key and ECHConfig [echconfig.pem]"},
-    {"pubout", OPT_PUBOUT, '>', "Public key output file"},
-    {"privout", OPT_PRIVOUT, '>', "Private key output file"},
     {"public_name", OPT_PUBLICNAME, 's', "public_name value"},
     {"mlen", OPT_MAXNAMELENGTH, 'n', "Maximum name length value"},
     {"suite", OPT_HPKESUITE, 's', "HPKE ciphersuite: e.g. \"0x20,1,3\""},
     {"ech_version", OPT_ECHVERSION, 'n', "ECHConfig version [0xff0d (13)]"},
-    {"extfile", OPT_EXTFILE, 's', "Input file with encoded ECH extensions\n"},
     OPT_SECTION("ECHConfig print/down-selection"),
     {"pemin", OPT_PEMIN, '>', "File with optional private key and ECHConfig"},
     {"select", OPT_SELECT, 'n', "Output only n-th ECHConfig from input file"},
@@ -84,26 +80,18 @@ static uint16_t verstr2us(char *arg)
 
 int ech_main(int argc, char **argv)
 {
-    BIO *pemf = NULL;
     char *prog = NULL;
     OPTION_CHOICE o;
     int verbose = 0;
     int filedone = 0;
-    char *echconfig_file = NULL;
-    char *keyfile = NULL;
     char *pemfile = NULL;
     char *inpemfile = NULL;
     int pemselect = PEM_SELECT_ALL;
     char *public_name = NULL;
     char *suitestr = NULL;
-    char *extfile = NULL;
     uint16_t ech_version = OSSL_ECH_CURRENT_VERSION;
     uint16_t max_name_length = 0;
     OSSL_HPKE_SUITE hpke_suite = OSSL_HPKE_SUITE_DEFAULT;
-    size_t echconfig_len = OSSL_ECH_MAX_ECHCONFIG_LEN;
-    unsigned char echconfig[OSSL_ECH_MAX_ECHCONFIG_LEN];
-    unsigned char priv[OSSL_ECH_CRYPTO_VAR_SIZE];
-    size_t privlen = OSSL_ECH_CRYPTO_VAR_SIZE;
     int rv = 0;
     int mode = OSSL_ECH_KEYGEN_MODE; /* key generation */
     SSL_CTX *con = NULL;
@@ -127,12 +115,6 @@ int ech_main(int argc, char **argv)
             goto end;
         case OPT_VERBOSE:
             verbose = 1;
-            break;
-        case OPT_PUBOUT:
-            echconfig_file = opt_arg();
-            break;
-        case OPT_PRIVOUT:
-            keyfile = opt_arg();
             break;
         case OPT_PEMOUT:
             pemfile = opt_arg();
@@ -166,9 +148,6 @@ int ech_main(int argc, char **argv)
             break;
         case OPT_HPKESUITE:
             suitestr = opt_arg();
-            break;
-        case OPT_EXTFILE:
-            extfile = opt_arg();
             break;
         }
     }
@@ -222,7 +201,7 @@ int ech_main(int argc, char **argv)
             || (es=OSSL_ECHSTORE_init(NULL,NULL)) == NULL
             || OSSL_ECHSTORE_new_config(es, ech_version, max_name_length,
                                         public_name, hpke_suite) != 1
-            || OSSL_ECHSTORE_make_pemech(es, 0, ecf) != 1) {
+            || OSSL_ECHSTORE_write_pem(es, 0, ecf) != 1) {
             BIO_printf(bio_err, "OSSL_ECHSTORE_make_pemech error");
             goto end;
         }

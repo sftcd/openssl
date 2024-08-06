@@ -162,7 +162,7 @@ typedef struct ech_configs_st {
     ECHConfig *recs; /* array of individual records */
 } ECHConfigList;
 
-typedef struct ossl_ech_ext_st {
+typedef struct ossl_echext_st {
     unsigned int type;
     unsigned int len;
     unsigned char *val;
@@ -170,7 +170,7 @@ typedef struct ossl_ech_ext_st {
 
 DEFINE_STACK_OF(OSSL_ECHEXT)
 
-typedef struct ossl_ech_store_entry_st {
+typedef struct ossl_echstore_entry_st {
     unsigned int version; /* 0xff0d for draft-13 */
     char *public_name;
     unsigned int pub_len;
@@ -190,7 +190,7 @@ typedef struct ossl_ech_store_entry_st {
 
 DEFINE_STACK_OF(OSSL_ECHSTORE_entry)
 
-typedef struct ossl_ech_store_st {
+typedef struct ossl_echstore_st {
     STACK_OF(OSSL_ECHSTORE_entry) *entries;
     OSSL_LIB_CTX *libctx;
     const char *propq;

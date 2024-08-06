@@ -6187,7 +6187,7 @@ err:
     return rv;
 }
 
-int OSSL_ECHSTORE_make_pemech(OSSL_ECHSTORE *es, int index, BIO *out)
+int OSSL_ECHSTORE_write_pem(OSSL_ECHSTORE *es, int index, BIO *out)
 {
     OSSL_ECHSTORE_entry *ee = NULL;
     char *b64val = NULL;
@@ -6242,18 +6242,18 @@ err:
     return rv;
 }
 
-int OSSL_ECHSTORE_set1_echconfiglist(OSSL_ECHSTORE *es, BIO *in)
+int OSSL_ECHSTORE_read_echconfiglist(OSSL_ECHSTORE *es, BIO *in)
 {
     return 0;
 }
 
-int OSSL_ECHSTORE_set1_key_and_list(OSSL_ECHSTORE *es, EVP_PKEY *priv, BIO *in,
-                                    int for_retry)
+int OSSL_ECHSTORE_set1_key_and_read_pem(OSSL_ECHSTORE *es, EVP_PKEY *priv, BIO *in,
+                                        int for_retry)
 {
     return 0;
 }
 
-int OSSL_ECHSTORE_set1_pemech(OSSL_ECHSTORE *es, BIO *in, int for_retry)
+int OSSL_ECHSTORE_read_pem(OSSL_ECHSTORE *es, BIO *in, int for_retry)
 {
     return 0;
 }
@@ -6279,22 +6279,22 @@ int OSSL_ECHSTORE_flush_keys(OSSL_ECHSTORE *es, time_t age)
 }
 
 
-int SSL_CTX_set_echstore(SSL_CTX *ctx, OSSL_ECHSTORE *es)
+int SSL_CTX_set1_echstore(SSL_CTX *ctx, OSSL_ECHSTORE *es)
 {
     return 0;
 }
 
-int SSL_set_echstore(SSL *s, OSSL_ECHSTORE *es)
+int SSL_set1_echstore(SSL *s, OSSL_ECHSTORE *es)
 {
     return 0;
 }
 
-OSSL_ECHSTORE *SSL_CTX_get_echstore(const SSL_CTX *ctx)
+OSSL_ECHSTORE *SSL_CTX_get1_echstore(const SSL_CTX *ctx)
 {
     return NULL;
 }
 
-OSSL_ECHSTORE *SSL_get_echstore(const SSL_CTX *ctx)
+OSSL_ECHSTORE *SSL_get1_echstore(const SSL *s)
 {
     return NULL;
 }
