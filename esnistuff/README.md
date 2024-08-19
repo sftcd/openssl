@@ -22,6 +22,11 @@ Most recent first...
 
 DON'T DEPLOY ECH YET!!! It's still work-in-progress code.
 
+- 20240816: note to self wrt fixup commits:
+
+            git add .
+            git commit --fixup <commit id of the commit you are fixing up>
+
 - 20240228: re-did this HOWTO: to pushed a version of this branch (ECH-draft-13c) to
   the defo-project organsiation master branch on github, did that as follows:
 

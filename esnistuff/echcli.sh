@@ -6,7 +6,7 @@
 # set -x
 
 
-# to pick up correct .so's - maybe note 
+# to pick up correct .so's - maybe note
 : ${CODETOP:=$HOME/code/openssl}
 export LD_LIBRARY_PATH=$CODETOP
 : ${GETOPTDIR:=/usr/bin}
@@ -146,7 +146,7 @@ function usage()
     echo "  -p [port] specifices a port (default: 443)"
 	echo "  -P [filename] means read ECHConfigs public value from file and not DNS"
     echo "  -r (or --realcert) says to not use locally generated fake CA regardless"
-    echo "  -R try force HRR by preferring P-384 over X2519" 
+    echo "  -R try force HRR by preferring P-384 over X2519"
 	echo "  -s [name] specifices a server to which I'll connect (localhost=>local certs, unless --realcert)"
 	echo "  -S [file] means save or resume session from <file>"
     echo "  -t [type] means to set the TLS extension type for GREASE to <type>"
@@ -159,7 +159,7 @@ function usage()
     exit 99
 }
 
-# check we have what looks like a good getopt (the native version on macOS 
+# check we have what looks like a good getopt (the native version on macOS
 # seems to not be good)
 if [ ! -f $GETOPTDIR/getopt ]
 then
@@ -282,17 +282,17 @@ then
 fi
 
 snioutercmd=" "
-if [[ "$SUPPLIEDPNO" != "" && "$NOECH" != "yes" ]] 
+if [[ "$SUPPLIEDPNO" != "" && "$NOECH" != "yes" ]]
 then
     snioutercmd="-sni_outer $SUPPLIEDPNO"
 fi
 
-# Set address of target 
+# Set address of target
 if [[ "$SUPPLIEDPNO" != "" && "$hidden" == "" ]]
 then
     target=" -connect $SUPPLIEDPNO:$PORT "
 else
-    # I guess we better connect to hidden 
+    # I guess we better connect to hidden
     # Note that this could leak via DNS again
     target=" -connect $hidden:$PORT "
 fi
@@ -321,12 +321,13 @@ then
             echo "Assuming supplied ECH is encoded ECHConfigList or SVCB"
             ECH=" $selstr -ech_config_list $SUPPLIEDECH "
         else
-		    # check if file suffix is .pem (base64 encoding) 
+		    # check if file suffix is .pem (base64 encoding)
 		    # and react accordingly, don't take any other file extensions
 		    ssfname=`basename $SUPPLIEDECH`
 		    if [ `basename "$ssfname" .pem` != "$ssfname" ]
 		    then
-			    ECH=" $selstr -ech_config_list `tail -2 $SUPPLIEDECH | head -1`" 
+                ECHVAL=`cat $SUPPLIEDECH | sed -n -e '/^-----BEGIN ECHCONFIG-----$/,/^-----END ECHCONFIG----$/{ /^-----BEGIN ECHCONFIG-----$/d; /^-----END ECHCONFIG-----$/d; p; }' | tr -d '\n'`
+			    ECH=" $selstr -ech_config_list $ECHVAL"
 		    else
 			    echo "Not sure of file type of $SUPPLIEDECH - try make a PEM file to help me"
 			    exit 8
@@ -334,7 +335,7 @@ then
 		fi
 	else
         # try draft-13 only for now, i.e. HTTPS
-        # kill the spaces and joing the lines if multi-valued seen 
+        # kill the spaces and joing the lines if multi-valued seen
         qname=$hidden
         if [[ "$PORT" != "" && "$PORT" != "443" ]]
         then
