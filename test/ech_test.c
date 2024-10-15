@@ -1377,6 +1377,7 @@ end:
 # define OSSL_ECH_TEST_HRR      1
 # define OSSL_ECH_TEST_EARLY    2
 # define OSSL_ECH_TEST_CUSTOM   3
+# define OSSL_ECH_TEST_ENOE     4 /* early + no-ech */
 
 /*
  * @brief ECH roundtrip test helper
@@ -1445,7 +1446,7 @@ static int test_ech_roundtrip_helper(int idx, int combo)
                                        TLS1_3_VERSION, TLS1_3_VERSION,
                                        &sctx, &cctx, cert, privkey)))
         goto end;
-    if (combo == OSSL_ECH_TEST_EARLY) {
+    if (combo == OSSL_ECH_TEST_EARLY || combo == OSSL_ECH_TEST_ENOE) {
         /* just to keep the format checker happy :-) */
         int lrv = 0;
 
@@ -1478,7 +1479,8 @@ static int test_ech_roundtrip_helper(int idx, int combo)
                                               &server, NULL, &server)))
             goto end;
     }
-    if (!TEST_true(SSL_CTX_set1_echstore(cctx, es)))
+    if (combo != OSSL_ECH_TEST_ENOE
+        && !TEST_true(SSL_CTX_set1_echstore(cctx, es)))
         goto end;
     if (!TEST_true(SSL_CTX_set1_echstore(sctx, es)))
         goto end;
@@ -1490,9 +1492,27 @@ static int test_ech_roundtrip_helper(int idx, int combo)
         goto end;
     if (!TEST_true(SSL_set_tlsext_host_name(clientssl, "server.example")))
         goto end;
+#if 0
+    /* TODO(ECH): we'll re-instate this once server-side ECH code is in */
     if (!TEST_true(create_ssl_connection(serverssl, clientssl,
                                          SSL_ERROR_NONE)))
         goto end;
+#else
+    /*
+     * For this PR, check connections fail when client does ECH
+     * and server doesn't, but work if client doesn't do ECH.
+     * Added in early data for the no-ECH case because an
+     * intermediate state of the code had an issue.
+     */
+    if (combo != OSSL_ECH_TEST_ENOE
+        && !TEST_false(create_ssl_connection(serverssl, clientssl,
+                                             SSL_ERROR_NONE)))
+        goto end;
+    if (combo == OSSL_ECH_TEST_ENOE
+        && !TEST_true(create_ssl_connection(serverssl, clientssl,
+                                            SSL_ERROR_NONE)))
+        goto end;
+#endif
     serverstatus = SSL_ech_get1_status(serverssl, &sinner, &souter);
     if (verbose)
         TEST_info("server status %d, %s, %s", serverstatus, sinner, souter);
@@ -1513,8 +1533,16 @@ static int test_ech_roundtrip_helper(int idx, int combo)
         goto end;
     }
     /* continue for EARLY test */
-    if (combo != OSSL_ECH_TEST_EARLY)
+#if 0
+    /* TODO(ECH): turn back on later */
+    if (combo != OSSL_ECH_TEST_EARLY && combo != OSSL_ECH_TEST_ENOE)
         goto end;
+#else
+    if (combo != OSSL_ECH_TEST_ENOE) {
+        res = 1;
+        goto end;
+    }
+#endif
     /* shutdown for start over */
     sess = SSL_get1_session(clientssl);
     OPENSSL_free(sinner);
@@ -1614,6 +1642,14 @@ static int ech_custom_test(int idx)
     return test_ech_roundtrip_helper(idx, OSSL_ECH_TEST_CUSTOM);
 }
 
+/* Test a roundtrip with No ECH, and early data */
+static int ech_enoe_test(int idx)
+{
+    if (verbose)
+        TEST_info("Doing: ech_no ech + early test ");
+    return test_ech_roundtrip_helper(idx, OSSL_ECH_TEST_ENOE);
+}
+
 #endif
 
 int setup_tests(void)
@@ -1656,6 +1692,7 @@ int setup_tests(void)
     ADD_ALL_TESTS(test_ech_hrr, suite_combos);
     ADD_ALL_TESTS(test_ech_early, suite_combos);
     ADD_ALL_TESTS(ech_custom_test, suite_combos);
+    ADD_ALL_TESTS(ech_enoe_test, suite_combos);
     /* TODO(ECH): add more test code as other PRs done */
     return 1;
 err:

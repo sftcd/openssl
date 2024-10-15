@@ -213,7 +213,6 @@ int SSL_ech_get1_status(SSL *ssl, char **inner_sni, char **outer_sni)
                 return SSL_ECH_STATUS_FAILED_ECH;
             else if (vr != X509_V_OK && s->ext.ech.returned != NULL)
                 return SSL_ECH_STATUS_FAILED_ECH_BAD_NAME;
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             return SSL_ECH_STATUS_FAILED;
         }
     }

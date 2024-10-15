@@ -36,12 +36,71 @@
 #  define OSSL_ECH_NOT_GREASE 0 /* when decryption worked */
 #  define OSSL_ECH_IS_GREASE 1 /* when decryption failed or GREASE wanted */
 
+#  define OSSL_ECH_MAX_GREASE_PUB 0x100 /* max peer key share we'll decode */
+#  define OSSL_ECH_MAX_GREASE_CT 0x200 /* max GREASEy ciphertext we'll emit */
+
+/*
+ * When including a different key_share in the inner CH, 256 is the
+ * size we produce for a real ECH when including padding in the inner
+ * CH with the default/current client hello padding code.
+ * This value doesn't vary with at least minor changes to inner SNI
+ * length. The 272 is 256 of padded cleartext plus a 16-octet AEAD
+ * tag.
+ *
+ * If we compress the key_share then that brings us down to 128 for
+ * the padded inner CH and 144 for the ciphertext including AEAD
+ * tag.
+ *
+ * We'll adjust the GREASE number below to match whatever
+ * key_share handling we do.
+ */
+# define OSSL_ECH_DEF_CIPHER_LEN_SMALL 144
+# define OSSL_ECH_DEF_CIPHER_LEN_LARGE 272
+
+/*
+ * We can add/subtract a few octets if jitter is desirable - if set then
+ * we'll add or subtract a random number of octets less than the max jitter
+ * setting. If the default value is set to zero, we won't bother. It is
+ * probably better for now at least to not bother with jitter at all but
+ * keeping the compile-time capability for now is probably worthwhile in
+ * case experiments indicate such jitter is useful. To turn off jitter
+ * just set the default to zero, as is currently done below.
+ */
+# define OSSL_ECH_MAX_CIPHER_LEN_JITTER 32 /* max jitter in cipher len */
+# define OSSL_ECH_DEF_CIPHER_LEN_JITTER 0 /* default jitter in cipher len */
+
 /* value for uninitialised ECH version */
 #  define TLSEXT_TYPE_ech_unknown 0xffff
 /* value for not yet set ECH config_id */
 #  define TLSEXT_TYPE_ech_config_id_unset -1
 
+#  define OSSL_ECH_OUTER_CH_TYPE 0 /* outer ECHClientHello enum */
+#  define OSSL_ECH_INNER_CH_TYPE 1 /* inner ECHClientHello enum */
+
 #  define OSSL_ECH_CIPHER_LEN 4 /* ECHCipher length (2 for kdf, 2 for aead) */
+
+#  ifndef CLIENT_VERSION_LEN
+/*
+ * This is the legacy version length, i.e. len(0x0303). The same
+ * label is used in e.g. test/sslapitest.c and elsewhere but not
+ * defined in a header file I could find.
+ */
+#   define CLIENT_VERSION_LEN 2
+#  endif
+
+/*
+ * To control the number of zeros added after a draft-13
+ * EncodedClientHello - we pad to a target number of octets
+ * or, if there are naturally more, to a number divisible by
+ * the defined increment (we also do the draft-13 recommended
+ * SNI padding thing first)
+ */
+# define OSSL_ECH_PADDING_TARGET 128 /* ECH cleartext padded to at least this */
+# define OSSL_ECH_PADDING_INCREMENT 32 /* ECH padded to a multiple of this */
+
+/* size of string buffer returned via ECH callback */
+#  define OSSL_ECH_PBUF_SIZE 8 * 1024
+
 /*
  * Reminder of what goes in DNS for ECH RFC XXXX
  *
@@ -205,6 +264,39 @@ typedef struct ossl_ech_conn_st {
     unsigned char client_random[SSL3_RANDOM_SIZE]; /* CH random */
 } OSSL_ECH_CONN;
 
+/* Return values from ech_same_ext */
+#  define OSSL_ECH_SAME_EXT_ERR 0 /* bummer something wrong */
+#  define OSSL_ECH_SAME_EXT_DONE 1 /* proceed with same value in inner/outer */
+#  define OSSL_ECH_SAME_EXT_CONTINUE 2 /* generate a new value for outer CH */
+
+/*
+ * During extension construction (in extensions_clnt.c and surprisingly also in
+ * extensions.c), we need to handle inner/outer CH cloning - ech_same_ext will
+ * (depending on compile time handling options) copy the value from CH.inner to
+ * CH.outer or else processing will continue, for a 2nd call, likely generating
+ * a fresh value for the outer CH. The fresh value could well be the same as in
+ * the inner.
+ *
+ * This macro should be called in each _ctos_ function that doesn't explicitly
+ * have special ECH handling.
+ *
+ * Note that the placement of this macro needs a bit of thought - it has to go
+ * after declarations (to keep the ansi-c compile happy) and also after any
+ * checks that result in the extension not being sent but before any relevant
+ * state changes that would affect a possible 2nd call to the constructor.
+ * Luckily, that's usually not to hard, but it's not mechanical.
+ */
+#  define ECH_IOSAME(s, pkt) \
+    if (s->ext.ech.es != NULL && s->ext.ech.grease == 0) { \
+        int __rv = ech_same_ext(s, pkt); \
+        \
+        if (__rv == OSSL_ECH_SAME_EXT_ERR) \
+            return EXT_RETURN_FAIL; \
+        if (__rv == OSSL_ECH_SAME_EXT_DONE) \
+            return EXT_RETURN_SENT; \
+        /* otherwise continue as normal */ \
+    }
+
 /* Internal ECH APIs */
 
 int ossl_echstore_dup(OSSL_ECHSTORE **new, OSSL_ECHSTORE *old);
@@ -213,6 +305,34 @@ void ossl_ctx_ech_free(OSSL_CTX_ECH *ce);
 int ossl_ech_conn_init(SSL_CONNECTION *s, SSL_CTX *ctx,
                        const SSL_METHOD *method);
 void ossl_ech_conn_free(OSSL_ECH_CONN *ec);
+int ech_get_retry_configs(SSL_CONNECTION *s, unsigned char **rcfgs,
+                          size_t *rcfgslen);
+int ech_send_grease(SSL_CONNECTION *s, WPACKET *pkt);
+int ech_pick_matching_cfg(SSL_CONNECTION *s, OSSL_ECHSTORE_ENTRY **ee,
+                          OSSL_HPKE_SUITE *suite);
+# ifdef OSSL_ECH_SUPERVERBOSE
+void ech_pbuf(const char *msg, const unsigned char *buf, const size_t blen);
+void ech_ptranscript(const char *msg, SSL_CONNECTION *s);
+# endif
+int ech_encode_inner(SSL_CONNECTION *s);
+int ech_find_confirm(SSL_CONNECTION *s, int hrr, unsigned char *acbuf,
+                     const unsigned char *shbuf, const size_t shlen);
+int ech_make_transcript_buffer(SSL_CONNECTION *s, int for_hrr,
+                               const unsigned char *shbuf, size_t shlen,
+                               unsigned char **tbuf, size_t *tlen,
+                               size_t *chend, size_t *fixedshbuf_len);
+int ech_reset_hs_buffer(SSL_CONNECTION *s, const unsigned char *buf,
+                        size_t blen);
+int ech_aad_and_encrypt(SSL_CONNECTION *s, WPACKET *pkt);
+int ech_swaperoo(SSL_CONNECTION *s);
+int ech_calc_confirm(SSL_CONNECTION *s, int for_hrr, unsigned char *acbuf,
+                     const unsigned char *shbuf, const size_t shlen);
+
+/* these are internal but located in ssl/statem/extensions.c */
+int ech_same_ext(SSL_CONNECTION *s, WPACKET *pkt);
+int ech_same_key_share(void);
+size_t ech_num_builtins(void);
+int ech_2bcompressed(int ind);
 
 # endif
 #endif
