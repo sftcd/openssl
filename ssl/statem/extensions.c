@@ -527,7 +527,7 @@ static const EXTENSION_DEFINITION ext_defs[] = {
          * tls_construct_stoc_ech, tls_construct_ctos_ech,
          */
         NULL, tls_parse_stoc_ech,
-        tls_construct_stoc_ech, NULL,
+        NULL, tls_construct_ctos_ech,
         NULL
     },
     {
