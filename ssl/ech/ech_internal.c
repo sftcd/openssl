@@ -1245,7 +1245,7 @@ static int ech_status_print(BIO *out, SSL_CONNECTION *s, int selector)
         for (j = 0; j != s->ext.ech.returned_len; j++) {
             if ((j != 0) && (j % 16 == 0))
                 BIO_printf(out, "\n    ");
-            BIO_printf(out, "%02x:", (unsigned)(s->ext.ech.returned[i]));
+            BIO_printf(out, "%02x:", (unsigned)(s->ext.ech.returned[j]));
         }
         BIO_printf(out, "\n");
     }
