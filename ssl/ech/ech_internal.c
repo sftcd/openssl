@@ -1192,6 +1192,7 @@ err:
 static int ech_status_print(BIO *out, SSL_CONNECTION *s, int selector)
 {
     int num = 0, i, has_priv, for_retry;
+    size_t j;
     time_t secs = 0;
     char *pn = NULL, *ec = NULL;
     OSSL_ECHSTORE *es = NULL;
@@ -1241,8 +1242,8 @@ static int ech_status_print(BIO *out, SSL_CONNECTION *s, int selector)
     }
     if (s->ext.ech.returned) {
         BIO_printf(out, "ret=");
-        for (i = 0; i != s->ext.ech.returned_len; i++) {
-            if ((i != 0) && (i % 16 == 0))
+        for (j = 0; j != s->ext.ech.returned_len; j++) {
+            if ((j != 0) && (j % 16 == 0))
                 BIO_printf(out, "\n    ");
             BIO_printf(out, "%02x:", (unsigned)(s->ext.ech.returned[i]));
         }

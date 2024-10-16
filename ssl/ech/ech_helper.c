@@ -11,6 +11,7 @@
 #include <openssl/ech.h>
 #include "../ssl_local.h"
 #include "ech_local.h"
+#include "internal/ech_helpers.h"
 
 /* TODO(ECH): move more code that's used by internals and test here */
 
