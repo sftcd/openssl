@@ -828,7 +828,7 @@ static int ech_ingest_test(int run)
     BIO *in = NULL, *out = NULL;
     int i, rv = 0, keysb4, keysaftr, actual_ents = 0, has_priv, for_retry;
     ingest_tv_t *tv = &ingest_tvs[run];
-    time_t now = 0, secs = 0;
+    time_t secs = 0;
     char *pn = NULL, *ec = NULL;
 
     if ((in = BIO_new(BIO_s_mem())) == NULL
@@ -933,8 +933,7 @@ static int ech_ingest_test(int run)
         TEST_info("OSSL_ECHSTORE_write_pem unexpected result");
         goto end;
     }
-    now = time(0);
-    if (!TEST_int_eq(OSSL_ECHSTORE_flush_keys(es, now), 1)) {
+    if (!TEST_int_eq(OSSL_ECHSTORE_flush_keys(es, 0), 1)) {
         TEST_info("OSSL_ECHSTORE_flush_keys unexpected fail");
         goto end;
     }
