@@ -252,7 +252,20 @@ err:
     return 0;
 }
 
-/* Send some random stuff that looks like a real ECH  */
+/*
+ * Send a random value that looks like a real ECH.
+ * We know the max sizes so simplest is to use that 
+ * knowledge, rather than query the HPKE interfaces
+ * for specific buffer sizes.
+ *
+ * TODO(ECH): the "right" thing to do here is not yet
+ * known; arguably we ought try replicate what the
+ * most popular client(s) do, in some sense. But that
+ * may require measurment campaigns after ECH has been
+ * in use for some time, which we can't yet do. The
+ * current code makes an attempt to offer compile time
+ * flexibility so we can at least take a stab at that.
+ */
 int ech_send_grease(SSL_CONNECTION *s, WPACKET *pkt)
 {
     OSSL_HPKE_SUITE hpke_suite_in = OSSL_HPKE_SUITE_DEFAULT;
@@ -270,10 +283,16 @@ int ech_send_grease(SSL_CONNECTION *s, WPACKET *pkt)
     size_t pp_at_start = 0;
     size_t pp_at_end = 0;
 
-    if (s == NULL || s->ssl.ctx == NULL) {
+    if (s == NULL)
+       return 0;
+    if (s->ssl.ctx == NULL) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
     }
+    /*
+     * if we normally send different inner/outer key shares
+     * then we should send a larger GREASE value
+     */
     if (ech_same_key_share() == 0)
         cipher_len = OSSL_ECH_DEF_CIPHER_LEN_LARGE;
     WPACKET_get_total_written(pkt, &pp_at_start);
@@ -340,7 +359,7 @@ int ech_send_grease(SSL_CONNECTION *s, WPACKET *pkt)
     memcpy(s->ext.ech.sent, pp, s->ext.ech.sent_len);
     s->ext.ech.grease = OSSL_ECH_IS_GREASE;
     OSSL_TRACE_BEGIN(TLS) {
-        BIO_printf(trc_out, "ECH - sending DRAFT-13 GREASE\n");
+        BIO_printf(trc_out, "ECH - sending GREASE\n");
     } OSSL_TRACE_END(TLS);
     return 1;
 }

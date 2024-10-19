@@ -36,6 +36,7 @@
 #  define OSSL_ECH_NOT_GREASE 0 /* when decryption worked */
 #  define OSSL_ECH_IS_GREASE 1 /* when decryption failed or GREASE wanted */
 
+/* max values used when GREASEing */
 #  define OSSL_ECH_MAX_GREASE_PUB 0x100 /* max peer key share we'll decode */
 #  define OSSL_ECH_MAX_GREASE_CT 0x200 /* max GREASEy ciphertext we'll emit */
 

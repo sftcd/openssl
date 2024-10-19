@@ -625,9 +625,9 @@ static int ech_copy_inner2outer(SSL_CONNECTION *s, uint16_t ext_type,
  */
 #undef DUPEMALL
 
-/**
- * @brief check if we're using the same/different key shares
- * @return 1 if same key share in inner and outer, 0 otherwise
+/*
+ * Check if we're using the same/different key shares
+ * return 1 if same key share in inner and outer, 0 otherwise
  */
 int ech_same_key_share(void)
 {
