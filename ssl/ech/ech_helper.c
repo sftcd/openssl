@@ -56,6 +56,12 @@ int ech_helper_get_sh_offsets(const unsigned char *sh, size_t sh_len,
     shstart = PACKET_data(&pkt);
     if (!PACKET_get_net_2(&pkt, &pi_tmp))
         return 0;
+    /*
+     * TODO(ECH): we've had a TLSv1.2 test in the past where we add an
+     * ECH to a TLSv1.2 CH to ensure server code ignores that properly.
+     * We might or might not keep that, if we don't then the test below
+     * should allow TLSv1.3 only.
+     */
     /* if we're not TLSv1.2+ then we can bail, but it's not an error */
     if (pi_tmp != TLS1_2_VERSION && pi_tmp != TLS1_3_VERSION)
         return 1;

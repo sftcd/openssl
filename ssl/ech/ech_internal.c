@@ -254,7 +254,7 @@ err:
 
 /*
  * Send a random value that looks like a real ECH.
- * We know the max sizes so simplest is to use that 
+ * We know the max sizes so simplest is to use that
  * knowledge, rather than query the HPKE interfaces
  * for specific buffer sizes.
  *
@@ -284,7 +284,7 @@ int ech_send_grease(SSL_CONNECTION *s, WPACKET *pkt)
     size_t pp_at_end = 0;
 
     if (s == NULL)
-       return 0;
+        return 0;
     if (s->ssl.ctx == NULL) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
@@ -390,9 +390,8 @@ int ech_pick_matching_cfg(SSL_CONNECTION *s, OSSL_ECHSTORE_ENTRY **ee,
     if (s == NULL || s->ext.ech.es == NULL || ee == NULL || suite == NULL)
         return 0;
     es = s->ext.ech.es;
-    if (es == NULL || es->entries == 0) {
+    if (es == NULL || es->entries == 0)
         return 0;
-    }
     num = sk_OSSL_ECHSTORE_ENTRY_num(es->entries);
     /* allow API-set pref to override */
     hn = s->ext.ech.outer_hostname;
@@ -416,9 +415,8 @@ int ech_pick_matching_cfg(SSL_CONNECTION *s, OSSL_ECHSTORE_ENTRY **ee,
                 || (lee->public_name != NULL
                     && strlen(lee->public_name) == hnlen
                     && !OPENSSL_strncasecmp(hn, (char *)lee->public_name,
-                                            hnlen))) {
+                                            hnlen)))
                 namematch = 1;
-            }
         }
         suitematch = 0;
         for (csuite = 0; csuite != lee->nsuites && suitematch == 0; csuite++) {
@@ -442,6 +440,30 @@ int ech_pick_matching_cfg(SSL_CONNECTION *s, OSSL_ECHSTORE_ENTRY **ee,
 
 # ifdef OSSL_ECH_SUPERVERBOSE
 
+/* ascii-hex print a buffer nicely for debug/interop purposes */
+void ech_pbuf(const char *msg, const unsigned char *buf, const size_t blen)
+{
+    size_t i;
+
+    OSSL_TRACE_BEGIN(TLS) {
+        if (msg == NULL) {
+            BIO_printf(trc_out, "msg is NULL\n");
+        } else if (buf == NULL || blen == 0) {
+            BIO_printf(trc_out, "%s: buf is %p\n", msg, (void *)buf);
+            BIO_printf(trc_out, "%s: blen is %lu\n", msg, (unsigned long)blen);
+        } else {
+            BIO_printf(trc_out, "%s (%lu):\n    ", msg, (unsigned long)blen);
+            for (i = 0; i < blen; i++) {
+                if ((i != 0) && (i % 16 == 0))
+                    BIO_printf(trc_out, "\n    ");
+                BIO_printf(trc_out, "%02x:", (unsigned)(buf[i]));
+            }
+            BIO_printf(trc_out, "\n");
+        }
+    } OSSL_TRACE_END(TLS);
+    return;
+}
+
 /* trace out transcript */
 void ech_ptranscript(const char *msg, SSL_CONNECTION *s)
 {
@@ -457,6 +479,8 @@ void ech_ptranscript(const char *msg, SSL_CONNECTION *s)
     if (s->s3.handshake_dgst != NULL) {
         if (ssl_handshake_hash(s, ddata, 1000, &ddatalen) == 0) {
             OSSL_TRACE_BEGIN(TLS) {
+                /* check-format doesn't like one statement here;-( */
+                BIO_printf(trc_out, "ssl_handshake_hash failed\n");
                 BIO_printf(trc_out, "ssl_handshake_hash failed\n");
             } OSSL_TRACE_END(TLS);
         }
@@ -466,30 +490,6 @@ void ech_ptranscript(const char *msg, SSL_CONNECTION *s)
             BIO_printf(trc_out, "handshake_dgst is NULL\n");
         } OSSL_TRACE_END(TLS);
     }
-    return;
-}
-
-/* ascii-hex print a buffer nicely for debug/interop purposes */
-void ech_pbuf(const char *msg, const unsigned char *buf, const size_t blen)
-{
-    OSSL_TRACE_BEGIN(TLS) {
-        if (msg == NULL) {
-            BIO_printf(trc_out, "msg is NULL\n");
-        } else if (buf == NULL || blen == 0) {
-            BIO_printf(trc_out, "%s: buf is %p\n", msg, (void *)buf);
-            BIO_printf(trc_out, "%s: blen is %lu\n", msg, (unsigned long)blen);
-        } else {
-            size_t i;
-
-            BIO_printf(trc_out, "%s (%lu):\n    ", msg, (unsigned long)blen);
-            for (i = 0; i < blen; i++) {
-                if ((i != 0) && (i % 16 == 0))
-                    BIO_printf(trc_out, "\n    ");
-                BIO_printf(trc_out, "%02x:", (unsigned)(buf[i]));
-            }
-            BIO_printf(trc_out, "\n");
-        }
-    } OSSL_TRACE_END(TLS);
     return;
 }
 # endif
@@ -915,9 +915,8 @@ int ech_reset_hs_buffer(SSL_CONNECTION *s, const unsigned char *buf,
     EVP_MD_CTX_free(s->s3.handshake_dgst);
     s->s3.handshake_dgst = NULL;
     s->s3.handshake_buffer = BIO_new(BIO_s_mem());
-    if (s->s3.handshake_buffer == NULL) {
+    if (s->s3.handshake_buffer == NULL)
         return 0;
-    }
     if (buf != NULL || blen > 0) {
         /* providing nothing at all is a real use (mid-HRR) */
         BIO_write(s->s3.handshake_buffer, (void *)buf, (int)blen);
@@ -974,6 +973,8 @@ static size_t ech_calc_padding(SSL_CONNECTION *s, OSSL_ECHSTORE_ENTRY *ee)
         } OSSL_TRACE_END(TLS);
         if (innersnipadding < 0) {
             OSSL_TRACE_BEGIN(TLS) {
+                /* check-format doesn't like one statement here;-( */
+                BIO_printf(trc_out, "EAAE: innersnipadding zero'd\n");
                 BIO_printf(trc_out, "EAAE: innersnipadding zero'd\n");
             } OSSL_TRACE_END(TLS);
             innersnipadding = 0;
@@ -1357,22 +1358,19 @@ int ech_swaperoo(SSL_CONNECTION *s)
          * adds to the transcript but doesn't actually "finish" anything
          */
         if (ssl3_init_finished_mac(s) == 0) {
-            if (other_octets > 0) {
+            if (other_octets > 0)
                 OPENSSL_free(new_buf);
-            }
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             return 0;
         }
         if (ssl3_finish_mac(s, new_buf, new_buflen) == 0) {
-            if (other_octets > 0) {
+            if (other_octets > 0)
                 OPENSSL_free(new_buf);
-            }
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             return 0;
         }
-        if (other_octets > 0) {
+        if (other_octets > 0)
             OPENSSL_free(new_buf);
-        }
     }
 # ifdef OSSL_ECH_SUPERVERBOSE
     ech_ptranscript("ech_swaperoo, after", s);
