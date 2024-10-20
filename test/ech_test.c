@@ -828,7 +828,7 @@ static int ech_ingest_test(int run)
     BIO *in = NULL, *out = NULL;
     int i, rv = 0, keysb4, keysaftr, actual_ents = 0, has_priv, for_retry;
     ingest_tv_t *tv = &ingest_tvs[run];
-    time_t secs = 0;
+    time_t secs = 0, add_time = 0, flush_time = 0;
     char *pn = NULL, *ec = NULL;
 
     if ((in = BIO_new(BIO_s_mem())) == NULL
@@ -843,6 +843,7 @@ static int ech_ingest_test(int run)
         TEST_info("Bad test vector entry");
         goto end;
     }
+    add_time = time(0);
     if (tv->pemenc == 1
         && !TEST_int_eq(OSSL_ECHSTORE_read_pem(es, in, OSSL_ECH_NO_RETRY),
                         tv->read)) {
@@ -933,7 +934,8 @@ static int ech_ingest_test(int run)
         TEST_info("OSSL_ECHSTORE_write_pem unexpected result");
         goto end;
     }
-    if (!TEST_int_eq(OSSL_ECHSTORE_flush_keys(es, 0), 1)) {
+    flush_time = time(0);
+    if (!TEST_int_eq(OSSL_ECHSTORE_flush_keys(es, flush_time - add_time), 1)) {
         TEST_info("OSSL_ECHSTORE_flush_keys unexpected fail");
         goto end;
     }
@@ -943,6 +945,8 @@ static int ech_ingest_test(int run)
     }
     if (!TEST_int_eq(keysaftr, 0)) {
         TEST_info("OSSL_ECHSTORE_flush_keys unexpected non-zero");
+        TEST_info("add_time: %d, flush_time: %d",
+                  (int)add_time, (int)flush_time);
         goto end;
     }
     rv = 1;
@@ -1402,22 +1406,19 @@ end:
 static int test_ech_roundtrip_helper(int idx, int combo)
 {
     int res = 0, kemind, kdfind, aeadind, kemsz, kdfsz, aeadsz;
-    char suitestr[100];
+    int clientstatus, serverstatus, server = 1, client = 0;
+    unsigned int context;
     OSSL_ECHSTORE *es = NULL;
     OSSL_HPKE_SUITE hpke_suite = OSSL_HPKE_SUITE_DEFAULT;
     uint16_t ech_version = OSSL_ECH_CURRENT_VERSION;
     uint8_t max_name_length = 0;
-    char *public_name = "example.com";
+    char *public_name = "example.com", suitestr[100];
     SSL_CTX *cctx = NULL, *sctx = NULL;
     SSL *clientssl = NULL, *serverssl = NULL;
-    int clientstatus, serverstatus;
     char *cinner = NULL, *couter = NULL, *sinner = NULL, *souter = NULL;
     SSL_SESSION *sess = NULL;
-    unsigned char ed[21];
     size_t written = 0, readbytes = 0;
-    unsigned char buf[1024];
-    unsigned int context;
-    int server = 1, client = 0;
+    unsigned char ed[21], buf[1024];
 
     /* split idx into kemind, kdfind, aeadind */
     kemsz = OSSL_NELEM(kem_str_list);
@@ -1446,21 +1447,17 @@ static int test_ech_roundtrip_helper(int idx, int combo)
                                        &sctx, &cctx, cert, privkey)))
         goto end;
     if (combo == OSSL_ECH_TEST_EARLY || combo == OSSL_ECH_TEST_ENOE) {
-        /* just to keep the format checker happy :-) */
-        int lrv = 0;
-
         if (!TEST_true(SSL_CTX_set_options(sctx, SSL_OP_NO_ANTI_REPLAY)))
             goto end;
         if (!TEST_true(SSL_CTX_set_max_early_data(sctx,
                                                   SSL3_RT_MAX_PLAIN_LENGTH)))
             goto end;
-        lrv = SSL_CTX_set_recv_max_early_data(sctx, SSL3_RT_MAX_PLAIN_LENGTH);
-        if (!TEST_true(lrv))
+        if (!TEST_true(SSL_CTX_set_recv_max_early_data(sctx,
+                                                       SSL3_RT_MAX_PLAIN_LENGTH)))
             goto end;
     }
     if (combo == OSSL_ECH_TEST_CUSTOM) {
-        /* add custom CH ext to client and server */
-        context = SSL_EXT_CLIENT_HELLO;
+        context = SSL_EXT_CLIENT_HELLO; /* add custom CH ext to client/server */
         if (!TEST_true(SSL_CTX_add_custom_ext(cctx, TEST_EXT_TYPE1, context,
                                               new_add_cb, new_free_cb,
                                               &client, new_parse_cb, &client)))
@@ -1491,12 +1488,13 @@ static int test_ech_roundtrip_helper(int idx, int combo)
         goto end;
     if (!TEST_true(SSL_set_tlsext_host_name(clientssl, "server.example")))
         goto end;
-#if 0
+# undef DROPFORNOW
+# ifdef DROPFORNOW
     /* TODO(ECH): we'll re-instate this once server-side ECH code is in */
     if (!TEST_true(create_ssl_connection(serverssl, clientssl,
                                          SSL_ERROR_NONE)))
         goto end;
-#else
+# else
     /*
      * For this PR, check connections fail when client does ECH
      * and server doesn't, but work if client doesn't do ECH.
@@ -1511,7 +1509,7 @@ static int test_ech_roundtrip_helper(int idx, int combo)
         && !TEST_true(create_ssl_connection(serverssl, clientssl,
                                             SSL_ERROR_NONE)))
         goto end;
-#endif
+# endif
     serverstatus = SSL_ech_get1_status(serverssl, &sinner, &souter);
     if (verbose)
         TEST_info("server status %d, %s, %s", serverstatus, sinner, souter);
@@ -1532,16 +1530,16 @@ static int test_ech_roundtrip_helper(int idx, int combo)
         goto end;
     }
     /* continue for EARLY test */
-#if 0
+# ifdef DROPFORNOW
     /* TODO(ECH): turn back on later */
     if (combo != OSSL_ECH_TEST_EARLY && combo != OSSL_ECH_TEST_ENOE)
         goto end;
-#else
+# else
     if (combo != OSSL_ECH_TEST_ENOE) {
         res = 1;
         goto end;
     }
-#endif
+# endif
     /* shutdown for start over */
     sess = SSL_get1_session(clientssl);
     OPENSSL_free(sinner);
