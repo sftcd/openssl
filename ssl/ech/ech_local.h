@@ -56,19 +56,6 @@
 #  endif
 
 /*
- * To control the number of zeros added after a draft-13
- * EncodedClientHello - we pad to a target number of octets
- * or, if there are naturally more, to a number divisible by
- * the defined increment (we also do the draft-13 recommended
- * SNI padding thing first)
- */
-# define OSSL_ECH_PADDING_TARGET 128 /* ECH cleartext padded to at least this */
-# define OSSL_ECH_PADDING_INCREMENT 32 /* ECH padded to a multiple of this */
-
-/* size of string buffer returned via ECH callback */
-#  define OSSL_ECH_PBUF_SIZE 8 * 1024
-
-/*
  * Reminder of what goes in DNS for ECH RFC XXXX
  *
  *     opaque HpkePublicKey<1..2^16-1>;
@@ -110,7 +97,7 @@ typedef struct ossl_echext_st {
 DEFINE_STACK_OF(OSSL_ECHEXT)
 
 typedef struct ossl_echstore_entry_st {
-    uint16_t version; /* 0xff0d for draft-13 */
+    uint16_t version; /* 0xfe0d for RFC XXXX */
     char *public_name;
     size_t pub_len;
     unsigned char *pub;
@@ -159,7 +146,13 @@ typedef struct ossl_ech_conn_st {
     /*
      * TODO(ECH): The next 4 buffers (and lengths) may change if a
      * better way to handle the mutiple transcripts needed is
-     * suggested/invented.
+     * suggested/invented. I suggest re-factoring transcript handling
+     * (which is probably needed) after/with the PR that includes the
+     * server side ECH code. That should be much easier as at that point
+     * the full set of tests can be run, whereas for now, we're limited
+     * to testing the client side really works via bodged s_client
+     * scripts, so there'd be a bigger risk of breaking something
+     * subtly if we try re-factor now.
      */
     /*
      * encoded inner ClientHello before/after ECH compression, which`
@@ -197,7 +190,7 @@ typedef struct ossl_ech_conn_st {
      * to avoid the need to change a couple of extension APIs.
      * TODO(ECH): check if there's another way to get that value
      */
-    size_t ext_ind;
+    int ext_ind;
     /* ECH status vars */
     int ch_depth; /* set during CH creation, 0: doing outer, 1: doing inner */
     int attempted; /* 1 if ECH was or is being attempted, 0 otherwise */
@@ -271,15 +264,15 @@ void ossl_ctx_ech_free(OSSL_CTX_ECH *ce);
 int ossl_ech_conn_init(SSL_CONNECTION *s, SSL_CTX *ctx,
                        const SSL_METHOD *method);
 void ossl_ech_conn_free(OSSL_ECH_CONN *ec);
+#  ifdef OSSL_ECH_SUPERVERBOSE
+void ech_pbuf(const char *msg, const unsigned char *buf, const size_t blen);
+void ech_ptranscript(const char *msg, SSL_CONNECTION *s);
+#  endif
 int ech_get_retry_configs(SSL_CONNECTION *s, unsigned char **rcfgs,
                           size_t *rcfgslen);
 int ech_send_grease(SSL_CONNECTION *s, WPACKET *pkt);
 int ech_pick_matching_cfg(SSL_CONNECTION *s, OSSL_ECHSTORE_ENTRY **ee,
                           OSSL_HPKE_SUITE *suite);
-# ifdef OSSL_ECH_SUPERVERBOSE
-void ech_pbuf(const char *msg, const unsigned char *buf, const size_t blen);
-void ech_ptranscript(const char *msg, SSL_CONNECTION *s);
-# endif
 int ech_encode_inner(SSL_CONNECTION *s);
 int ech_find_confirm(SSL_CONNECTION *s, int hrr, unsigned char *acbuf,
                      const unsigned char *shbuf, const size_t shlen);

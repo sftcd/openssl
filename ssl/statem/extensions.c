@@ -23,6 +23,11 @@
 # define OSSL_ECH_HANDLING_CALL_BOTH 1 /* call constructor both times */
 # define OSSL_ECH_HANDLING_COMPRESS  2 /* compress outer value into inner */
 # define OSSL_ECH_HANDLING_DUPLICATE 3 /* same value in inner and outer */
+    /*
+     * TODO(ECH): DUPLICATE isn't really useful other than to show we can
+     * and for debugging/tests/coverage so may disappear. Note this won't
+     * affect the outer CH size, due to padding.
+     */
 static int init_ech(SSL_CONNECTION *s, unsigned int context);
 #endif /* OPENSSL_NO_ECH */
 
@@ -325,7 +330,8 @@ static const EXTENSION_DEFINITION ext_defs[] = {
         SSL_EXT_CLIENT_HELLO | SSL_EXT_TLS1_2_SERVER_HELLO
         | SSL_EXT_TLS1_2_AND_BELOW_ONLY,
 #ifndef OPENSSL_NO_ECH
-        OSSL_ECH_HANDLING_COMPRESS,
+        /* TODO(ECH): to demonstrate/exercise duplicate  */
+        OSSL_ECH_HANDLING_DUPLICATE,
 #endif
         init_etm, tls_parse_ctos_etm, tls_parse_stoc_etm,
         tls_construct_stoc_etm, tls_construct_ctos_etm, NULL
@@ -522,7 +528,8 @@ static const EXTENSION_DEFINITION ext_defs[] = {
         SSL_EXT_TLS1_3_HELLO_RETRY_REQUEST,
         OSSL_ECH_HANDLING_CALL_BOTH,
         init_ech,
-        /* TODO(ECH): add server calls as per below in a bit
+        /*
+         * TODO(ECH): add server calls as per below in a bit
          * tls_parse_ctos_ech, tls_parse_stoc_ech,
          * tls_construct_stoc_ech, tls_construct_ctos_ech,
          */
@@ -570,17 +577,14 @@ static const EXTENSION_DEFINITION ext_defs[] = {
 #ifndef OPENSSL_NO_ECH
 /*
  * Copy an inner extension value to outer.
- * We assume the inner CH has been pre-decoded into
- * s->clienthello->pre_proc_exts already
- * The extension value can be empty (i.e. zero length).
+ * inner CH must have been pre-decoded into s->clienthello->pre_proc_exts
+ * already.
  */
 static int ech_copy_inner2outer(SSL_CONNECTION *s, uint16_t ext_type,
                                 WPACKET *pkt)
 {
-    size_t ind = 0;
-    RAW_EXTENSION *myext = NULL;
-    RAW_EXTENSION *raws = s->clienthello->pre_proc_exts;
-    size_t nraws = 0;
+    size_t ind = 0, nraws = 0;
+    RAW_EXTENSION *myext = NULL, *raws = NULL;
 
     if (s == NULL || s->clienthello == NULL)
         return OSSL_ECH_SAME_EXT_ERR;
@@ -599,7 +603,10 @@ static int ech_copy_inner2outer(SSL_CONNECTION *s, uint16_t ext_type,
             break;
         }
     }
-    /* This one wasn't in inner, so re-do processing */
+    /*
+     * This one wasn't in inner, so re-do processing. We don't
+     * actually do this currently, but could.
+     */
     if (myext == NULL)
         return OSSL_ECH_SAME_EXT_CONTINUE;
     /* copy inner value to outer */
@@ -638,7 +645,7 @@ int ech_same_key_share(void)
         != OSSL_ECH_HANDLING_CALL_BOTH;
 }
 
-/* 
+/*
  * say if extension at index i in ext_defs is to be ECH compressed
  * return 1 if this one is to be compressed, 0 if not, -1 for error
  */
@@ -646,12 +653,6 @@ int ech_2bcompressed(int ind)
 {
     const int nexts = OSSL_NELEM(ext_defs);
 
-    if (!ossl_assert(TLSEXT_IDX_num_builtins == nexts)) {
-        OSSL_TRACE_BEGIN(TLS) {
-            BIO_printf(trc_out, "ECH extension table differs in size from base");
-        } OSSL_TRACE_END(TLS);
-        return -1;
-    }
 # ifdef DUPEMALL
     return 0;
 # endif
@@ -664,14 +665,13 @@ int ech_2bcompressed(int ind)
 int ech_same_ext(SSL_CONNECTION *s, WPACKET *pkt)
 {
     unsigned int type = 0;
-    size_t tind = 0, nexts = 0;
+    int tind = 0, nexts = OSSL_NELEM(ext_defs);
 
 # ifdef DUPEMALL
     return OSSL_ECH_SAME_EXT_CONTINUE;
 # endif
     if (s == NULL || s->ext.ech.es == NULL)
         return OSSL_ECH_SAME_EXT_CONTINUE; /* nothing to do */
-    nexts = OSSL_NELEM(ext_defs);
     tind = s->ext.ech.ext_ind;
     /* If this index'd extension won't be compressed, we're done */
     if (tind < 0 || tind >= nexts)
@@ -692,7 +692,7 @@ int ech_same_ext(SSL_CONNECTION *s, WPACKET *pkt)
                        (int) s->ext.ech.n_outer_only);
         } OSSL_TRACE_END(TLS);
         return OSSL_ECH_SAME_EXT_CONTINUE;
-    } else { 
+    } else {
         /* Copy value from inner to outer, or indicate a new value needed */
         if (s->clienthello == NULL || pkt == NULL)
             return OSSL_ECH_SAME_EXT_ERR;
@@ -1319,6 +1319,13 @@ static int init_server_name(SSL_CONNECTION *s, unsigned int context)
  */
 static int init_ech(SSL_CONNECTION *s, unsigned int context)
 {
+    const int nexts = OSSL_NELEM(ext_defs);
+
+    /* we don't need this assert everywhere - anywhere is fine */
+    if (!ossl_assert(TLSEXT_IDX_num_builtins == nexts)) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+        return 0;
+    }
     if (context == SSL_EXT_CLIENT_HELLO) {
         s->ext.ech.done = 0;
     }

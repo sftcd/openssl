@@ -886,6 +886,15 @@ int ech_reset_hs_buffer(SSL_CONNECTION *s, const unsigned char *buf,
 }
 
 /*
+ * To control the number of zeros added after an EncodedClientHello - we pad
+ * to a target number of octets or, if there are naturally more, to a number
+ * divisible by the defined increment (we also do the spec-recommended SNI
+ * padding thing first)
+ */
+# define OSSL_ECH_PADDING_TARGET 128 /* ECH cleartext padded to at least this */
+# define OSSL_ECH_PADDING_INCREMENT 32 /* ECH padded to a multiple of this */
+
+/*
  * figure out how much padding for cleartext (on client)
  * ee is the chosen ECHConfig
  * return overall length to use including padding or zero on error
@@ -1201,6 +1210,9 @@ static void ech_status_print(BIO *out, SSL_CONNECTION *s, int selector)
     }
     return;
 }
+
+/* size of string buffer returned via ECH callback */
+#  define OSSL_ECH_PBUF_SIZE 8 * 1024
 
 /*
  * Swap the inner and outer after ECH success on the client
