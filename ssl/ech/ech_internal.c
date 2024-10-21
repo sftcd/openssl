@@ -28,6 +28,61 @@ static const char OSSL_ECH_HRR_CONFIRM_STRING[] = "\x68\x72\x72\x20\x65\x63\x68\
 
 /* ECH internal API functions */
 
+# ifdef OSSL_ECH_SUPERVERBOSE
+/* ascii-hex print a buffer nicely for debug/interop purposes */
+void ech_pbuf(const char *msg, const unsigned char *buf, const size_t blen)
+{
+    size_t i;
+
+    OSSL_TRACE_BEGIN(TLS) {
+        if (msg == NULL) {
+            BIO_printf(trc_out, "msg is NULL\n");
+        } else if (buf == NULL || blen == 0) {
+            BIO_printf(trc_out, "%s: buf is %p\n", msg, (void *)buf);
+            BIO_printf(trc_out, "%s: blen is %lu\n", msg, (unsigned long)blen);
+        } else {
+            BIO_printf(trc_out, "%s (%lu):\n    ", msg, (unsigned long)blen);
+            for (i = 0; i < blen; i++) {
+                if ((i != 0) && (i % 16 == 0))
+                    BIO_printf(trc_out, "\n    ");
+                BIO_printf(trc_out, "%02x:", (unsigned)(buf[i]));
+            }
+            BIO_printf(trc_out, "\n");
+        }
+    } OSSL_TRACE_END(TLS);
+    return;
+}
+
+/* trace out transcript */
+void ech_ptranscript(const char *msg, SSL_CONNECTION *s)
+{
+    size_t hdatalen = 0;
+    unsigned char *hdata = NULL;
+    unsigned char ddata[1000];
+    size_t ddatalen;
+
+    if (s == NULL)
+        return;
+    hdatalen = BIO_get_mem_data(s->s3.handshake_buffer, &hdata);
+    ech_pbuf(msg, hdata, hdatalen);
+    if (s->s3.handshake_dgst != NULL) {
+        if (ssl_handshake_hash(s, ddata, 1000, &ddatalen) == 0) {
+            OSSL_TRACE_BEGIN(TLS) {
+                /* check-format doesn't like one statement here;-( */
+                BIO_printf(trc_out, "ssl_handshake_hash failed\n");
+                BIO_printf(trc_out, "ssl_handshake_hash failed\n");
+            } OSSL_TRACE_END(TLS);
+        }
+        ech_pbuf(msg, ddata, ddatalen);
+    } else {
+        OSSL_TRACE_BEGIN(TLS) {
+            BIO_printf(trc_out, "handshake_dgst is NULL\n");
+        } OSSL_TRACE_END(TLS);
+    }
+    return;
+}
+# endif
+
 static OSSL_ECHSTORE_ENTRY *ossl_echstore_entry_dup(OSSL_ECHSTORE_ENTRY *orig)
 {
     OSSL_ECHSTORE_ENTRY *ret = NULL;
@@ -204,10 +259,10 @@ err:
 }
 
 /*
- * Assemble the set of ECHConfig values to return as a retry-config
- * The caller needs to OPENSSL_free the rcfgs.
+ * Assemble the set of ECHConfig values to return as retry-configs.
+ * The caller (stoc ECH extension handler) needs to OPENSSL_free the rcfgs
  * The rcfgs itself is missing the outer length to make it an ECHConfigList
- * so the caller adds that using WPACKET functions.
+ * so the caller adds that using WPACKET functions
  */
 int ech_get_retry_configs(SSL_CONNECTION *s, unsigned char **rcfgs,
                           size_t *rcfgslen)
@@ -215,11 +270,8 @@ int ech_get_retry_configs(SSL_CONNECTION *s, unsigned char **rcfgs,
     OSSL_ECHSTORE *es = NULL;
     OSSL_ECHSTORE_ENTRY *ee = NULL;
     int i, num;
-    unsigned char *rets = NULL;
-    size_t retslen = 0;
-    unsigned char *tmp = NULL;
-    unsigned char *enci = NULL;
-    size_t encilen = 0;
+    size_t retslen = 0, encilen = 0;
+    unsigned char *tmp = NULL, *enci = NULL, *rets = NULL;
 
     if (s == NULL || rcfgs == NULL || rcfgslen == NULL)
         return 0;
@@ -252,36 +304,58 @@ err:
     return 0;
 }
 
+/* GREASEy constants */
+# define OSSL_ECH_MAX_GREASE_PUB 0x100 /* buffer size for 'enc' values */
+# define OSSL_ECH_MAX_GREASE_CT 0x200 /* max GREASEy ciphertext we'll emit */
+/*
+ * When including a different key_share in the inner CH, 256 is the
+ * size we produce for a real ECH when including padding in the inner
+ * CH with the default/current client hello padding code.
+ * This value doesn't vary with at least minor changes to inner SNI
+ * length. The 272 is 256 of padded cleartext plus a 16-octet AEAD
+ * tag. If we ECH-`compress key_share's that brings us down to 128 for
+ * the padded inner CH and 144 for the ciphertext including AEAD tag.
+ * So, we'll adjust the GREASE ciphertext size to match whatever key_share
+ * handling we do.
+ */
+# define OSSL_ECH_DEF_CIPHER_LEN_SMALL 144
+# define OSSL_ECH_DEF_CIPHER_LEN_LARGE 272
+/*
+ * We can add/subtract a few octets if jitter is desirable - if set then
+ * we'll add or subtract a random number of octets less than the max jitter
+ * setting. If the default value is set to zero, we won't bother. It is
+ * probably better for now at least to not bother with jitter at all but
+ * keeping the compile-time capability for now is probably worthwhile in
+ * case experiments indicate such jitter is useful. To turn off jitter
+ * just set the default to zero, as is currently done below.
+ */
+# define OSSL_ECH_MAX_CIPHER_LEN_JITTER 32 /* max jitter in cipher len */
+# define OSSL_ECH_DEF_CIPHER_LEN_JITTER 0 /* default jitter in cipher len */
+
 /*
  * Send a random value that looks like a real ECH.
- * We know the max sizes so simplest is to use that
- * knowledge, rather than query the HPKE interfaces
- * for specific buffer sizes.
  *
- * TODO(ECH): the "right" thing to do here is not yet
- * known; arguably we ought try replicate what the
+ * TODO(ECH): the "best" thing to do here is not yet
+ * known; arguably we might try replicate what the
  * most popular client(s) do, in some sense. But that
- * may require measurment campaigns after ECH has been
+ * may require measurement campaigns after ECH has been
  * in use for some time, which we can't yet do. The
  * current code makes an attempt to offer compile time
- * flexibility so we can at least take a stab at that.
+ * flexibility so we can more easily change to whatever
+ * seems to make sense later.
  */
 int ech_send_grease(SSL_CONNECTION *s, WPACKET *pkt)
 {
     OSSL_HPKE_SUITE hpke_suite_in = OSSL_HPKE_SUITE_DEFAULT;
     OSSL_HPKE_SUITE *hpke_suite_in_p = NULL;
     OSSL_HPKE_SUITE hpke_suite = OSSL_HPKE_SUITE_DEFAULT;
-    size_t cid_len = 1;
-    unsigned char cid;
+    size_t pp_at_start = 0, pp_at_end = 0;
     size_t senderpub_len = OSSL_ECH_MAX_GREASE_PUB;
-    unsigned char senderpub[OSSL_ECH_MAX_GREASE_PUB];
     size_t cipher_len = OSSL_ECH_DEF_CIPHER_LEN_SMALL;
     size_t cipher_len_jitter = OSSL_ECH_DEF_CIPHER_LEN_JITTER;
+    unsigned char cid, senderpub[OSSL_ECH_MAX_GREASE_PUB];
     unsigned char cipher[OSSL_ECH_MAX_GREASE_CT];
-    /* stuff for copying to ech_sent */
     unsigned char *pp = WPACKET_get_curr(pkt);
-    size_t pp_at_start = 0;
-    size_t pp_at_end = 0;
 
     if (s == NULL)
         return 0;
@@ -297,7 +371,7 @@ int ech_send_grease(SSL_CONNECTION *s, WPACKET *pkt)
         cipher_len = OSSL_ECH_DEF_CIPHER_LEN_LARGE;
     WPACKET_get_total_written(pkt, &pp_at_start);
     /* generate a random (1 octet) client id */
-    if (RAND_bytes_ex(s->ssl.ctx->libctx, &cid, cid_len,
+    if (RAND_bytes_ex(s->ssl.ctx->libctx, &cid, 1,
                       RAND_DRBG_STRENGTH) <= 0) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
@@ -337,7 +411,7 @@ int ech_send_grease(SSL_CONNECTION *s, WPACKET *pkt)
             || !WPACKET_put_bytes_u8(pkt, OSSL_ECH_OUTER_CH_TYPE)
             || !WPACKET_put_bytes_u16(pkt, hpke_suite.kdf_id)
             || !WPACKET_put_bytes_u16(pkt, hpke_suite.aead_id)
-            || !WPACKET_memcpy(pkt, &cid, cid_len)
+            || !WPACKET_memcpy(pkt, &cid, 1)
             || !WPACKET_sub_memcpy_u16(pkt, senderpub, senderpub_len)
             || !WPACKET_sub_memcpy_u16(pkt, cipher, cipher_len)
             || !WPACKET_close(pkt)
@@ -365,23 +439,15 @@ int ech_send_grease(SSL_CONNECTION *s, WPACKET *pkt)
 }
 
 /*
- * Pick an ECHConfig to use
- *
- * Search through the ECH store for one that's a best
- * match in terms of outer_name vs. public_name.
- * If no outer_name was set via API then we
- * just take the 1st match where we locally support
- * the HPKE suite.
- * If OTOH, an outer_name was provided via API then
- * we prefer the first that matches that. We only try
- * for case-insensitive exact matches.
- * If no outer was provided, any will do.
+ * Search the ECH store for one that's a match. If no outer_name was set via
+ * API then we just take the 1st match where we locally support the HPKE suite.
+ * If OTOH, an outer_name was provided via API then we prefer the first that
+ * matches that. Name comparison is via case-insensitive exact matches.
  */
 int ech_pick_matching_cfg(SSL_CONNECTION *s, OSSL_ECHSTORE_ENTRY **ee,
                           OSSL_HPKE_SUITE *suite)
 {
-    int namematch = 0, nameoverride = 0, suitematch = 0;
-    int num, cind = 0;
+    int namematch = 0, nameoverride = 0, suitematch = 0, num, cind = 0;
     unsigned int csuite = 0, hnlen = 0;
     OSSL_ECHSTORE_ENTRY *lee = NULL;
     OSSL_ECHSTORE *es = NULL;
@@ -390,7 +456,7 @@ int ech_pick_matching_cfg(SSL_CONNECTION *s, OSSL_ECHSTORE_ENTRY **ee,
     if (s == NULL || s->ext.ech.es == NULL || ee == NULL || suite == NULL)
         return 0;
     es = s->ext.ech.es;
-    if (es == NULL || es->entries == 0)
+    if (es->entries == NULL)
         return 0;
     num = sk_OSSL_ECHSTORE_ENTRY_num(es->entries);
     /* allow API-set pref to override */
@@ -423,8 +489,7 @@ int ech_pick_matching_cfg(SSL_CONNECTION *s, OSSL_ECHSTORE_ENTRY **ee,
             if (OSSL_HPKE_suite_check(lee->suites[csuite]) == 1) {
                 suitematch = 1;
                 *suite = lee->suites[csuite];
-                /* pick this one if both "fit" */
-                if (namematch == 1) {
+                if (namematch == 1) { /* pick this one if both "fit" */
                     *ee = lee;
                     break;
                 }
@@ -438,81 +503,23 @@ int ech_pick_matching_cfg(SSL_CONNECTION *s, OSSL_ECHSTORE_ENTRY **ee,
     return 1;
 }
 
-# ifdef OSSL_ECH_SUPERVERBOSE
-
-/* ascii-hex print a buffer nicely for debug/interop purposes */
-void ech_pbuf(const char *msg, const unsigned char *buf, const size_t blen)
-{
-    size_t i;
-
-    OSSL_TRACE_BEGIN(TLS) {
-        if (msg == NULL) {
-            BIO_printf(trc_out, "msg is NULL\n");
-        } else if (buf == NULL || blen == 0) {
-            BIO_printf(trc_out, "%s: buf is %p\n", msg, (void *)buf);
-            BIO_printf(trc_out, "%s: blen is %lu\n", msg, (unsigned long)blen);
-        } else {
-            BIO_printf(trc_out, "%s (%lu):\n    ", msg, (unsigned long)blen);
-            for (i = 0; i < blen; i++) {
-                if ((i != 0) && (i % 16 == 0))
-                    BIO_printf(trc_out, "\n    ");
-                BIO_printf(trc_out, "%02x:", (unsigned)(buf[i]));
-            }
-            BIO_printf(trc_out, "\n");
-        }
-    } OSSL_TRACE_END(TLS);
-    return;
-}
-
-/* trace out transcript */
-void ech_ptranscript(const char *msg, SSL_CONNECTION *s)
-{
-    size_t hdatalen = 0;
-    unsigned char *hdata = NULL;
-    unsigned char ddata[1000];
-    size_t ddatalen;
-
-    if (s == NULL)
-        return;
-    hdatalen = BIO_get_mem_data(s->s3.handshake_buffer, &hdata);
-    ech_pbuf(msg, hdata, hdatalen);
-    if (s->s3.handshake_dgst != NULL) {
-        if (ssl_handshake_hash(s, ddata, 1000, &ddatalen) == 0) {
-            OSSL_TRACE_BEGIN(TLS) {
-                /* check-format doesn't like one statement here;-( */
-                BIO_printf(trc_out, "ssl_handshake_hash failed\n");
-                BIO_printf(trc_out, "ssl_handshake_hash failed\n");
-            } OSSL_TRACE_END(TLS);
-        }
-        ech_pbuf(msg, ddata, ddatalen);
-    } else {
-        OSSL_TRACE_BEGIN(TLS) {
-            BIO_printf(trc_out, "handshake_dgst is NULL\n");
-        } OSSL_TRACE_END(TLS);
-    }
-    return;
-}
-# endif
-
-/*
- * After "normal" 1st pass CH is done, fix encoding as needed
- * This will make up the ClientHelloInner and EncodedClientHelloInner buffers
- */
+/* Make up the ClientHelloInner and EncodedClientHelloInner buffers */
 int ech_encode_inner(SSL_CONNECTION *s)
 {
-    int rv = 0;
+    int rv = 0, mt = SSL3_MT_CLIENT_HELLO;
+    size_t nraws = 0, ind = 0, innerlen = 0;
     unsigned char *innerch_full = NULL;
     WPACKET inner; /* "fake" pkt for inner */
     BUF_MEM *inner_mem = NULL;
-    int mt = SSL3_MT_CLIENT_HELLO;
     RAW_EXTENSION *raws = NULL;
-    size_t nraws = 0, ind = 0, innerinnerlen = 0;
-    size_t builtins;
 
-    builtins = ech_num_builtins();
     /* basic checks */
-    if (s == NULL || s->ext.ech.es == NULL)
+    if (s == NULL)
         return 0;
+    if (s->ext.ech.es == NULL || s->clienthello == NULL) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+        return 0;
+    }
     if ((inner_mem = BUF_MEM_new()) == NULL
         || !BUF_MEM_grow(inner_mem, SSL3_RT_MAX_PLAIN_LENGTH)
         || !WPACKET_init(&inner, inner_mem)
@@ -542,7 +549,7 @@ int ech_encode_inner(SSL_CONNECTION *s)
     /* Grab a pointer to the already constructed extensions */
     raws = s->clienthello->pre_proc_exts;
     nraws = s->clienthello->pre_proc_exts_len;
-    if (nraws < builtins) {
+    if (raws == NULL || nraws < TLSEXT_IDX_num_builtins) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         goto err;
     }
@@ -564,10 +571,8 @@ int ech_encode_inner(SSL_CONNECTION *s)
         }
     }
     /* now copy the rest, as "proper" exts, into encoded inner */
-    for (ind = 0; ind < builtins; ind++) {
-        if (raws[ind].present == 0)
-            continue;
-        if (ech_2bcompressed(ind) == 1)
+    for (ind = 0; ind < TLSEXT_IDX_num_builtins; ind++) {
+        if (raws[ind].present == 0 || ech_2bcompressed(ind) == 1)
             continue;
         if (PACKET_data(&raws[ind].data) != NULL) {
             if (!WPACKET_put_bytes_u16(&inner, raws[ind].type)
@@ -576,8 +581,7 @@ int ech_encode_inner(SSL_CONNECTION *s)
                 SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
                 goto err;
             }
-        } else {
-            /* empty extension */
+        } else { /* empty extension */
             if (!WPACKET_put_bytes_u16(&inner, raws[ind].type)
                 || !WPACKET_put_bytes_u16(&inner, 0)) {
                 SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
@@ -585,25 +589,20 @@ int ech_encode_inner(SSL_CONNECTION *s)
             }
         }
     }
-    /* close the exts sub packet */
-    if (!WPACKET_close(&inner)) {
+    if (!WPACKET_close(&inner)  /* close the exts sub packet */
+        || !WPACKET_close(&inner) /* close the inner CH */
+        || !WPACKET_get_length(&inner, &innerlen)) { /* len for inner CH */
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         goto err;
     }
-    /* close the inner CH */
-    if (!WPACKET_close(&inner))
-        goto err;
-    /* Set pointer/len for inner CH */
-    if (!WPACKET_get_length(&inner, &innerinnerlen))
-        goto err;
-    innerch_full = OPENSSL_malloc(innerinnerlen);
+    innerch_full = OPENSSL_malloc(innerlen);
     if (innerch_full == NULL)
         goto err;
     /* Finally ditch the type and 3-octet length */
-    memcpy(innerch_full, inner_mem->data + 4, innerinnerlen - 4);
+    memcpy(innerch_full, inner_mem->data + 4, innerlen - 4);
     OPENSSL_free(s->ext.ech.encoded_innerch);
     s->ext.ech.encoded_innerch = innerch_full;
-    s->ext.ech.encoded_innerch_len = innerinnerlen - 4;
+    s->ext.ech.encoded_innerch_len = innerlen - 4;
     /* and clean up */
     rv = 1;
 err:
@@ -614,8 +613,8 @@ err:
 
 /*
  * Find ECH acceptance signal in a SH
- * for_hrr is 1 if this is for an HRR, otherwise for SH
- * ac is (preallocated) 8 octet buffer
+ * hrr is 1 if this is for an HRR, otherwise for SH
+ * acbuf is (a preallocated) 8 octet buffer
  * shbuf is a pointer to the SH buffer (incl. the type+3-octet length)
  * shlen is the length of the SH buf
  * return: 1 for success, 0 otherwise
@@ -623,7 +622,10 @@ err:
 int ech_find_confirm(SSL_CONNECTION *s, int hrr, unsigned char *acbuf,
                      const unsigned char *shbuf, const size_t shlen)
 {
-    const unsigned char *acp = NULL;
+    PACKET pkt;
+    const unsigned char *acp = NULL, *pp_tmp;
+    unsigned int pi_tmp, etype, elen;
+    int done = 0;
 
     if (hrr == 0) {
         if (shlen < CLIENT_VERSION_LEN + SSL3_RANDOM_SIZE)
@@ -631,13 +633,7 @@ int ech_find_confirm(SSL_CONNECTION *s, int hrr, unsigned char *acbuf,
         acp = shbuf + CLIENT_VERSION_LEN + SSL3_RANDOM_SIZE - 8;
         memcpy(acbuf, acp, 8);
         return 1;
-    }
-    if (hrr == 1) {
-        PACKET pkt;
-        const unsigned char *pp_tmp;
-        unsigned int pi_tmp, etype, elen;
-        int done = 0;
-
+    } else {
         if (!PACKET_buf_init(&pkt, shbuf, shlen)
             || !PACKET_get_net_2(&pkt, &pi_tmp)
             || !PACKET_get_bytes(&pkt, &pp_tmp, SSL3_RANDOM_SIZE)
@@ -652,8 +648,7 @@ int ech_find_confirm(SSL_CONNECTION *s, int hrr, unsigned char *acbuf,
                 || !PACKET_get_net_2(&pkt, &elen))
                 return 0;
             if (etype == TLSEXT_TYPE_ech) {
-                if (elen != 8
-                    || !PACKET_get_bytes(&pkt, &acp, elen))
+                if (elen != 8 || !PACKET_get_bytes(&pkt, &acp, elen))
                     return 0;
                 memcpy(acbuf, acp, elen);
                 done++;
@@ -668,35 +663,14 @@ int ech_find_confirm(SSL_CONNECTION *s, int hrr, unsigned char *acbuf,
 }
 
 /*
- * Given a SH (or HRR) find the offsets of the ECH (if any)
- * : sh is the SH buffer
- * sh_len is the length of the SH
- * exts points to offset of extensions
- * echoffset points to offset of ECH
- * echtype points to the ext type of the ECH
- * return 1 for success, other otherwise
- *
- * Offsets are returned to the type or length field in question.
- * Offsets are set to zero if relevant thing not found.
- *
- * Note: input here is untrusted!
- */
-static int ech_get_sh_offsets(const unsigned char *sh, size_t sh_len,
-                              size_t *exts, size_t *echoffset,
-                              uint16_t *echtype)
-{
-    return ech_helper_get_sh_offsets(sh, sh_len, exts, echoffset, echtype);
-}
-
-/*
- * return the h/s hash from the connection of ServerHello
+ * return the h/s hash from the connection or ServerHello
  * rmd is the returned h/s hash
  * shbuf is the ServerHello
  * shlen is the length of the ServerHello
  * return 1 for good, 0 for error
  */
-static int get_md_from_hs(SSL_CONNECTION *s, EVP_MD **rmd,
-                          const unsigned char *shbuf, const size_t shlen)
+static int ech_get_md_from_hs(SSL_CONNECTION *s, EVP_MD **rmd,
+                              const unsigned char *shbuf, const size_t shlen)
 {
     int rv;
     size_t extoffset = 0, echoffset = 0, cipheroffset = 0;
@@ -711,28 +685,21 @@ static int get_md_from_hs(SSL_CONNECTION *s, EVP_MD **rmd,
         *rmd = md;
         return 1;
     }
-    /* if we're a client we'll fallback to hash from the chosen ciphersuite */
-    OSSL_TRACE_BEGIN(TLS) {
-        BIO_printf(trc_out, "finding ECH confirm MD from ServerHello\n");
-    } OSSL_TRACE_END(TLS);
-    rv = ech_get_sh_offsets(shbuf, shlen, &extoffset, &echoffset, &echtype);
-    if (rv != 1) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_R_ECH_REQUIRED);
-        return 0;
-    }
-    if (extoffset < 3) {
+    /*
+     * if we're a client we'll fallback to hash from the chosen ciphersuite
+     * that means ECH acceptance depends on no bidding down, but that's ok
+     */
+    rv = ech_helper_get_sh_offsets(shbuf, shlen, &extoffset, &echoffset,
+                                   &echtype);
+    if (rv != 1 || extoffset < 3) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_R_ECH_REQUIRED);
         return 0;
     }
     cipheroffset = extoffset - 3;
     cipherchars = &shbuf[cipheroffset];
     c = ssl_get_cipher_by_char(s, cipherchars, 0);
-    if (c == NULL) { /* fuzzer fix */
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_R_ECH_REQUIRED);
-        return 0;
-    }
-    md = (EVP_MD *)ssl_md(s->ssl.ctx, c->algorithm2);
-    if (md == NULL) {
+    if (c == NULL /* fuzzer fix */
+        || (md = (EVP_MD *)ssl_md(s->ssl.ctx, c->algorithm2)) == NULL) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
     }
@@ -742,7 +709,7 @@ static int get_md_from_hs(SSL_CONNECTION *s, EVP_MD **rmd,
 
 /*
  * make up a buffer to use to reset transcript
- * for_hrr says if the we include an HRR or not
+ * for_hrr is 1 if we've just seen HRR, 0 otherwise
  * shbuf is the output buffer
  * shlen is the length of that buffer
  * tbuf is the output buffer
@@ -764,7 +731,7 @@ int ech_make_transcript_buffer(SSL_CONNECTION *s, int for_hrr,
     BUF_MEM *tpkt_mem = NULL, *shpkt_mem = NULL;
 
     /*
-     * store SH for later, preamble has bad length at this point on server
+     * SH preamble has bad length at this point on server
      * and is missing on client so we'll fix
      */
     if ((shpkt_mem = BUF_MEM_new()) == NULL
@@ -803,7 +770,7 @@ int ech_make_transcript_buffer(SSL_CONNECTION *s, int for_hrr,
         || !WPACKET_init(&tpkt, tpkt_mem)) {
         BUF_MEM_free(tpkt_mem);
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-        return 0;
+        goto err;
     }
     if (s->hello_retry_request == SSL_HRR_NONE) {
         if (!WPACKET_memcpy(&tpkt, s->ext.ech.innerch,
@@ -823,20 +790,19 @@ int ech_make_transcript_buffer(SSL_CONNECTION *s, int for_hrr,
         BUF_MEM_free(tpkt_mem);
         return 1;
     }
-    /* SH here has outer type/24-bit length */
-    if (*fixedshbuf_len <= 5
-        || get_md_from_hs(s, &md, fixedshbuf + 4, *fixedshbuf_len - 4) != 1
+    /* everything below only applies if we're at some stage in doing HRR */
+    if (*fixedshbuf_len <= 5 /* SH here has outer type/24-bit length */
+        || ech_get_md_from_hs(s, &md, fixedshbuf + 4, *fixedshbuf_len - 4) != 1
         || (hashlen = EVP_MD_size(md)) > EVP_MAX_MD_SIZE)
         goto err;
-    if (for_hrr == 0) {
+    if (for_hrr == 0) { /* after 2nd SH rx'd */
         hashin = s->ext.ech.innerch1;
         hashin_len = s->ext.ech.innerch1_len;
-    } else {
+    } else { /* after HRR rx'd */
         hashin = s->ext.ech.innerch;
         hashin_len = s->ext.ech.innerch_len;
-        /* stash this SH/HRR for later */
         OPENSSL_free(s->ext.ech.kepthrr);
-        s->ext.ech.kepthrr = fixedshbuf;
+        s->ext.ech.kepthrr = fixedshbuf; /* stash this SH/HRR for later */
         s->ext.ech.kepthrr_len = *fixedshbuf_len;
     }
 # ifdef OSSL_ECH_SUPERVERBOSE
@@ -857,7 +823,7 @@ int ech_make_transcript_buffer(SSL_CONNECTION *s, int for_hrr,
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         goto err;
     }
-    if (for_hrr == 0) {
+    if (for_hrr == 0) { /* after 2nd SH */
         if (!WPACKET_memcpy(&tpkt, s->ext.ech.kepthrr,
                             s->ext.ech.kepthrr_len)
             || !WPACKET_memcpy(&tpkt, s->ext.ech.innerch,
@@ -893,8 +859,7 @@ err:
 
 /*
  * reset the handshake buffer for transcript after ECH is good
- * ssl is the session
- * buf is the data to put into the transcript (usually inner CH)
+ * buf is the data to put into the transcript (inner CH if no HRR)
  * blen is the length of buf
  * return 1 for success
  */
@@ -902,10 +867,7 @@ int ech_reset_hs_buffer(SSL_CONNECTION *s, const unsigned char *buf,
                         size_t blen)
 {
 # ifdef OSSL_ECH_SUPERVERBOSE
-    OSSL_TRACE_BEGIN(TLS) {
-        BIO_printf(trc_out, "Adding this to transcript: RESET!\n");
-    } OSSL_TRACE_END(TLS);
-    ech_pbuf("Adding this to transcript", buf, blen);
+    ech_pbuf("RESET transcript to", buf, blen);
 # endif
     if (s->s3.handshake_buffer != NULL) {
         (void)BIO_set_close(s->s3.handshake_buffer, BIO_CLOSE);
@@ -917,20 +879,18 @@ int ech_reset_hs_buffer(SSL_CONNECTION *s, const unsigned char *buf,
     s->s3.handshake_buffer = BIO_new(BIO_s_mem());
     if (s->s3.handshake_buffer == NULL)
         return 0;
-    if (buf != NULL || blen > 0) {
-        /* providing nothing at all is a real use (mid-HRR) */
+    /* providing nothing at all is a real use (mid-HRR) */
+    if (buf != NULL || blen > 0)
         BIO_write(s->s3.handshake_buffer, (void *)buf, (int)blen);
-    }
     return 1;
 }
 
 /*
  * figure out how much padding for cleartext (on client)
- * tc is the chosen ECHConfig
- * return is the overall length to use including padding or zero on error
+ * ee is the chosen ECHConfig
+ * return overall length to use including padding or zero on error
  *
- * "Recommended" inner SNI padding scheme as per spec
- * (section 6.1.3)
+ * "Recommended" inner SNI padding scheme as per spec (section 6.1.3)
  * Might remove the mnl stuff later - overall message padding seems
  * better really, BUT... we might want to keep this if others (e.g.
  * browsers) do it so as to not stand out compared to them.
@@ -945,20 +905,13 @@ int ech_reset_hs_buffer(SSL_CONNECTION *s, const unsigned char *buf,
  */
 static size_t ech_calc_padding(SSL_CONNECTION *s, OSSL_ECHSTORE_ENTRY *ee)
 {
-    int length_of_padding = 0;
-    int length_with_snipadding = 0;
-    int length_with_padding = 0;
-    int innersnipadding = 0;
-    size_t mnl = 0;
-    size_t clear_len = 0;
-    size_t isnilen = 0;
+    int length_of_padding = 0, length_with_snipadding = 0;
+    int innersnipadding = 0, length_with_padding = 0;
+    size_t mnl = 0, clear_len = 0, isnilen = 0;
 
     if (s == NULL || ee == NULL)
         return 0;
     mnl = ee->max_name_length;
-    OSSL_TRACE_BEGIN(TLS) {
-        BIO_printf(trc_out, "EAAE: ECHConfig had max name len of %zu\n", mnl);
-    } OSSL_TRACE_END(TLS);
     if (mnl != 0) {
         /* do weirder padding if SNI present in inner */
         if (s->ext.hostname != NULL) {
@@ -967,32 +920,20 @@ static size_t ech_calc_padding(SSL_CONNECTION *s, OSSL_ECHSTORE_ENTRY *ee)
         } else {
             innersnipadding = mnl + 9;
         }
-        OSSL_TRACE_BEGIN(TLS) {
-            BIO_printf(trc_out, "EAAE: innersnipadding of %d\n",
-                       innersnipadding);
-        } OSSL_TRACE_END(TLS);
-        if (innersnipadding < 0) {
-            OSSL_TRACE_BEGIN(TLS) {
-                /* check-format doesn't like one statement here;-( */
-                BIO_printf(trc_out, "EAAE: innersnipadding zero'd\n");
-                BIO_printf(trc_out, "EAAE: innersnipadding zero'd\n");
-            } OSSL_TRACE_END(TLS);
+        if (innersnipadding < 0)
             innersnipadding = 0;
-        }
     }
-    /* draft-13 padding is after the encoded client hello */
-    length_with_snipadding = innersnipadding
-        + s->ext.ech.encoded_innerch_len;
+    /* padding is after the inner client hello has been encoded */
+    length_with_snipadding = innersnipadding + s->ext.ech.encoded_innerch_len;
     length_of_padding = 31 - ((length_with_snipadding - 1) % 32);
     length_with_padding = s->ext.ech.encoded_innerch_len
         + length_of_padding + innersnipadding;
     /*
      * Finally - make sure final result is longer than padding target
      * and a multiple of our padding increment.
-     * This is a local addition - might take it out if it makes
-     * us stick out; or if we take out the above more complicated
-     * scheme, we may only need this in the end (and that'd maybe
-     * be better overall:-)
+     * TODO(ECH): This is a local addition - we might take it out if
+     * it makes us stick out; or if we take out the above more (uselessly:-)
+     * complicated scheme, we may only need this in the end.
      */
     if (length_with_padding % OSSL_ECH_PADDING_INCREMENT)
         length_with_padding += OSSL_ECH_PADDING_INCREMENT
@@ -1011,13 +952,11 @@ static size_t ech_calc_padding(SSL_CONNECTION *s, OSSL_ECHSTORE_ENTRY *ee)
 }
 
 /*
- * Calculate AAD and then do ECH encryption
- * s is the SSL connection
+ * Calculate AAD and do ECH encryption
  * pkt is the packet to send
  * return 1 for success, other otherwise
  *
- * 1. Make up the AAD:
- *        For draft-13: the encoded outer, with ECH ciphertext octets zero'd
+ * 1. Make up the AAD: the encoded outer, with ECH ciphertext octets zero'd
  * 2. Do the encryption
  * 3. Put the ECH back into the encoding
  * 4. Encode the outer (again!)
@@ -1025,17 +964,16 @@ static size_t ech_calc_padding(SSL_CONNECTION *s, OSSL_ECHSTORE_ENTRY *ee)
 int ech_aad_and_encrypt(SSL_CONNECTION *s, WPACKET *pkt)
 {
     int rv = 0, hpke_mode = OSSL_HPKE_MODE_BASE;
+    OSSL_ECHSTORE_ENTRY *ee = NULL;
     OSSL_HPKE_SUITE hpke_suite = OSSL_HPKE_SUITE_DEFAULT;
-    unsigned char *clear = NULL, *cipher = NULL, *aad = NULL;
+    unsigned char config_id_to_use = 0x00, info[SSL3_RT_MAX_PLAIN_LENGTH];
+    unsigned char *clear = NULL, *cipher = NULL, *aad = NULL, *mypub = NULL;
     size_t cipherlen = 0, aad_len = 0, lenclen = 0, mypub_len = 0;
-    unsigned char config_id_to_use = 0x00;
-    unsigned char *mypub = NULL; /* client's ephemeral public */
-    OSSL_ECHSTORE_ENTRY *ee = NULL; /* matching public key (if one exists) */
-    unsigned char info[SSL3_RT_MAX_PLAIN_LENGTH];
-    size_t info_len = SSL3_RT_MAX_PLAIN_LENGTH;
-    size_t clear_len = 0;
+    size_t info_len = SSL3_RT_MAX_PLAIN_LENGTH, clear_len = 0;
 
-    if (s == NULL || s->ext.ech.es == NULL || s->ext.ech.es->entries == NULL
+    if (s == NULL)
+        return 0;
+    if (s->ext.ech.es == NULL || s->ext.ech.es->entries == NULL
         || pkt == NULL || s->ssl.ctx == NULL) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         goto err;
@@ -1050,8 +988,7 @@ int ech_aad_and_encrypt(SSL_CONNECTION *s, WPACKET *pkt)
         BIO_printf(trc_out, "EAAE: selected: version: %4x, config %2x\n",
                    ee->version, ee->config_id);
     } OSSL_TRACE_END(TLS);
-    config_id_to_use = ee->config_id;
-    /* if requested, use a random config_id instead */
+    config_id_to_use = ee->config_id; /* if requested, use a random config_id instead */
     if (s->ssl.ctx->options & SSL_OP_ECH_IGNORE_CID
         || s->options & SSL_OP_ECH_IGNORE_CID) {
         if (RAND_bytes_ex(s->ssl.ctx->libctx, &config_id_to_use, 1,
@@ -1071,20 +1008,19 @@ int ech_aad_and_encrypt(SSL_CONNECTION *s, WPACKET *pkt)
     ech_pbuf("EAAE: ECHConfig", ee->encoded, ee->encoded_len);
 # endif
     /*
-     * For draft-13 the AAD is the full outer client hello but
-     * with the correct number of zeros for where the ECH ciphertext
-     * octets will later be placed. So we add the ECH extension to
-     * the |pkt| but with zeros for ciphertext - that'll form up the
-     * AAD for us, then after we've encrypted, we'll splice in the
-     * actual ciphertext
-     * Watch out for the "4" offsets that remove the type
-     * and 3-octet length from the encoded CH as per the spec.
+     * The AAD is the full outer client hello but with the correct number of
+     * zeros for where the ECH ciphertext octets will later be placed. So we
+     * add the ECH extension to the |pkt| but with zeros for ciphertext, that
+     * forms up the AAD, then after we've encrypted, we'll splice in the actual
+     * ciphertext.
+     * Watch out for the "4" offsets that remove the type and 3-octet length
+     * from the encoded CH as per the spec.
      */
     clear_len = ech_calc_padding(s, ee);
     if (clear_len == 0)
         goto err;
     lenclen = OSSL_HPKE_get_public_encap_size(hpke_suite);
-    if (s->ext.ech.hpke_ctx == NULL) {
+    if (s->ext.ech.hpke_ctx == NULL) { /* 1st CH */
         if (ech_helper_make_enc_info(ee->encoded, ee->encoded_len,
                                      info, &info_len) != 1) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
@@ -1114,8 +1050,7 @@ int ech_aad_and_encrypt(SSL_CONNECTION *s, WPACKET *pkt)
         }
         s->ext.ech.pub = mypub;
         s->ext.ech.pub_len = mypub_len;
-    } else {
-        /* retrieve public */
+    } else { /* HRR - retrieve public */
         mypub = s->ext.ech.pub;
         mypub_len = s->ext.ech.pub_len;
         if (mypub == NULL || mypub_len == 0) {
@@ -1125,13 +1060,11 @@ int ech_aad_and_encrypt(SSL_CONNECTION *s, WPACKET *pkt)
     }
 # ifdef OSSL_ECH_SUPERVERBOSE
     ech_pbuf("EAAE: mypub", mypub, mypub_len);
-    /* re-use aad_len for tracing */
-    WPACKET_get_total_written(pkt, &aad_len);
+    WPACKET_get_total_written(pkt, &aad_len); /* use aad_len for tracing */
     ech_pbuf("EAAE pkt b4", WPACKET_get_curr(pkt) - aad_len, aad_len);
 # endif
     cipherlen = OSSL_HPKE_get_ciphertext_size(hpke_suite, clear_len);
-    if (cipherlen <= clear_len
-        || cipherlen > OSSL_ECH_MAX_PAYLOAD_LEN) {
+    if (cipherlen <= clear_len || cipherlen > OSSL_ECH_MAX_PAYLOAD_LEN) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         goto err;
     }
@@ -1175,7 +1108,7 @@ int ech_aad_and_encrypt(SSL_CONNECTION *s, WPACKET *pkt)
         goto err;
     memcpy(clear, s->ext.ech.encoded_innerch, s->ext.ech.encoded_innerch_len);
 # ifdef OSSL_ECH_SUPERVERBOSE
-    ech_pbuf("EAAE: draft-13 padded clear", clear, clear_len);
+    ech_pbuf("EAAE: padded clear", clear, clear_len);
 # endif
     rv = OSSL_HPKE_seal(s->ext.ech.hpke_ctx, cipher, &cipherlen,
                         aad, aad_len, clear, clear_len);
@@ -1202,14 +1135,12 @@ err:
     return 0;
 }
 
-/**
- * @brief print info about the ECH-status of an SSL connection
- * @param out is the BIO to use (e.g. stdout/whatever)
- * @param ssl is an SSL session strucutre
- * @param selector OSSL_ECH_SELECT_ALL or just one of the SSL_ECH values
- * @return 1 for success, anything else for failure
+/*
+ * print info about the ECH-status of an SSL connection
+ * out is the BIO to use (e.g. stdout/whatever)
+ * selector OSSL_ECH_SELECT_ALL or just one of the SSL_ECH values
  */
-static int ech_status_print(BIO *out, SSL_CONNECTION *s, int selector)
+void ech_status_print(BIO *out, SSL_CONNECTION *s, int selector)
 {
     int num = 0, i, has_priv, for_retry;
     size_t j;
@@ -1218,7 +1149,7 @@ static int ech_status_print(BIO *out, SSL_CONNECTION *s, int selector)
     OSSL_ECHSTORE *es = NULL;
 
 # ifdef OSSL_ECH_SUPERVERBOSE
-    BIO_printf(out, "SSL_ech_print\n");
+    BIO_printf(out, "ech_status_print\n");
     BIO_printf(out, "s=%p\n", (void *)s);
 # endif
     BIO_printf(out, "ech_attempted=%d\n", s->ext.ech.attempted);
@@ -1238,12 +1169,11 @@ static int ech_status_print(BIO *out, SSL_CONNECTION *s, int selector)
     BIO_printf(out, "ech_success=%d\n", s->ext.ech.success);
     es = s->ext.ech.es;
     if (es == NULL || es->entries == NULL) {
-        BIO_printf(out, "cfg=NONE\n");
+        BIO_printf(out, "ECH cfg=NONE\n");
     } else {
         num = sk_OSSL_ECHSTORE_ENTRY_num(es->entries);
         BIO_printf(out, "%d ECHConfig values loaded\n", num);
         for (i = 0; i != num; i++) {
-
             if (selector != OSSL_ECHSTORE_ALL && selector != i)
                 continue;
             BIO_printf(out, "cfg(%d): ", i);
@@ -1269,7 +1199,7 @@ static int ech_status_print(BIO *out, SSL_CONNECTION *s, int selector)
         }
         BIO_printf(out, "\n");
     }
-    return 1;
+    return;
 }
 
 /*
@@ -1542,7 +1472,7 @@ int ech_calc_confirm(SSL_CONNECTION *s, int for_hrr, unsigned char *acbuf,
     unsigned int hashlen = 0;
     unsigned char hashval[EVP_MAX_MD_SIZE], hoval[EVP_MAX_MD_SIZE];
 
-    if (get_md_from_hs(s, &md, shbuf, shlen) != 1
+    if (ech_get_md_from_hs(s, &md, shbuf, shlen) != 1
         || (hashlen = EVP_MD_size(md)) > EVP_MAX_MD_SIZE)
         goto err;
     if (ech_make_transcript_buffer(s, for_hrr, shbuf, shlen, &tbuf, &tlen,
@@ -1558,8 +1488,8 @@ int ech_calc_confirm(SSL_CONNECTION *s, int for_hrr, unsigned char *acbuf,
         if (s->server == 1) { /* we get to say where we put ECH:-) */
             conf_loc = tbuf + tlen - 8;
         } else {
-            if (ech_get_sh_offsets(shbuf, shlen, &extoffset,
-                                   &echoffset, &echtype) != 1) {
+            if (ech_helper_get_sh_offsets(shbuf, shlen, &extoffset,
+                                          &echoffset, &echtype) != 1) {
                 SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_R_ECH_REQUIRED);
                 goto err;
             }
@@ -1619,5 +1549,4 @@ err:
     EVP_MD_CTX_free(ctx);
     return rv;
 }
-
 #endif

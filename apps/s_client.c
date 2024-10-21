@@ -3421,7 +3421,10 @@ static void print_ech_retry_configs(BIO *bio, SSL *s)
     }
     if (OSSL_ECHSTORE_num_entries(es, &cnt) != 1)
         goto end;
-    BIO_printf(bio, "ECH: Got %d retty-configs\n", cnt);
+    if (cnt > 0)
+        BIO_printf(bio, "ECH: Got %d retty-configs\n", cnt);
+    else
+        BIO_printf(bio, "ECH: Got %d retty-configs (odd)\n", cnt);
     for (ind = 0; ind != cnt; ind++) {
         if (OSSL_ECHSTORE_get1_info(es, ind, &secs, &pn, &ec,
                                     &has_priv, &for_retry) != 1) {
@@ -3482,7 +3485,7 @@ static void print_ech_status(BIO *bio, SSL *s, int estat)
         BIO_printf(bio, "ECH: failed+retry-configs (odd): %d\n", estat);
         break;
     default:
-        BIO_printf(bio, "ECH: unexpected status: %d\n", estat);
+        BIO_printf(bio, "ECH: unexpected status (odd): %d\n", estat);
     }
     return;
 }

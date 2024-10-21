@@ -36,40 +36,6 @@
 #  define OSSL_ECH_NOT_GREASE 0 /* when decryption worked */
 #  define OSSL_ECH_IS_GREASE 1 /* when decryption failed or GREASE wanted */
 
-/* max values used when GREASEing */
-#  define OSSL_ECH_MAX_GREASE_PUB 0x100 /* max peer key share we'll decode */
-#  define OSSL_ECH_MAX_GREASE_CT 0x200 /* max GREASEy ciphertext we'll emit */
-
-/*
- * When including a different key_share in the inner CH, 256 is the
- * size we produce for a real ECH when including padding in the inner
- * CH with the default/current client hello padding code.
- * This value doesn't vary with at least minor changes to inner SNI
- * length. The 272 is 256 of padded cleartext plus a 16-octet AEAD
- * tag.
- *
- * If we compress the key_share then that brings us down to 128 for
- * the padded inner CH and 144 for the ciphertext including AEAD
- * tag.
- *
- * We'll adjust the GREASE number below to match whatever
- * key_share handling we do.
- */
-# define OSSL_ECH_DEF_CIPHER_LEN_SMALL 144
-# define OSSL_ECH_DEF_CIPHER_LEN_LARGE 272
-
-/*
- * We can add/subtract a few octets if jitter is desirable - if set then
- * we'll add or subtract a random number of octets less than the max jitter
- * setting. If the default value is set to zero, we won't bother. It is
- * probably better for now at least to not bother with jitter at all but
- * keeping the compile-time capability for now is probably worthwhile in
- * case experiments indicate such jitter is useful. To turn off jitter
- * just set the default to zero, as is currently done below.
- */
-# define OSSL_ECH_MAX_CIPHER_LEN_JITTER 32 /* max jitter in cipher len */
-# define OSSL_ECH_DEF_CIPHER_LEN_JITTER 0 /* default jitter in cipher len */
-
 /* value for uninitialised ECH version */
 #  define TLSEXT_TYPE_ech_unknown 0xffff
 /* value for not yet set ECH config_id */
@@ -191,10 +157,9 @@ typedef struct ossl_ech_conn_st {
      */
     char *former_inner;
     /*
-     * TODO(ECH): The next 4 buffers (and lengths) may change later
-     * if a better way to handle the mutiple transcripts needed is
-     * suggested/invented. I'd suggest we review these when that code
-     * is part of a PR (which won't be for a few PR's yet.)
+     * TODO(ECH): The next 4 buffers (and lengths) may change if a
+     * better way to handle the mutiple transcripts needed is
+     * suggested/invented.
      */
     /*
      * encoded inner ClientHello before/after ECH compression, which`
@@ -332,7 +297,6 @@ int ech_calc_confirm(SSL_CONNECTION *s, int for_hrr, unsigned char *acbuf,
 /* these are internal but located in ssl/statem/extensions.c */
 int ech_same_ext(SSL_CONNECTION *s, WPACKET *pkt);
 int ech_same_key_share(void);
-size_t ech_num_builtins(void);
 int ech_2bcompressed(int ind);
 
 # endif

@@ -638,12 +638,6 @@ int ech_same_key_share(void)
         != OSSL_ECH_HANDLING_CALL_BOTH;
 }
 
-/* so other code can see this number */
-size_t ech_num_builtins(void)
-{
-    return OSSL_NELEM(ext_defs);
-} 
-
 /* 
  * say if extension at index i in ext_defs is to be ECH compressed
  * return 1 if this one is to be compressed, 0 if not, -1 for error
