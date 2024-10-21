@@ -1203,32 +1203,19 @@ static void ech_status_print(BIO *out, SSL_CONNECTION *s, int selector)
 }
 
 /*
- * Swap the inner and outer
+ * Swap the inner and outer after ECH success on the client
  * return 0 for error, 1 for success
- *
- * The only reason to make this a function is because it's
- * likely very brittle - if we need any other fields to be
- * handled specially (e.g. because of some so far untested
- * combination of extensions), then this may fail, so good
- * to keep things in one place as we find that out.
  */
 int ech_swaperoo(SSL_CONNECTION *s)
 {
-    unsigned char *curr_buf = NULL;
-    size_t curr_buflen = 0;
-    unsigned char *new_buf = NULL;
-    size_t new_buflen = 0;
-    size_t outer_chlen = 0;
-    size_t other_octets = 0;
+    unsigned char *curr_buf = NULL, *new_buf = NULL;
+    size_t curr_buflen = 0, new_buflen = 0, outer_chlen = 0, other_octets = 0;
 
+    if (s == NULL)
+        return 0;
 # ifdef OSSL_ECH_SUPERVERBOSE
     ech_ptranscript("ech_swaperoo, b4", s);
 # endif
-    /* Make some checks */
-    if (s == NULL) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-        return 0;
-    }
     /* un-stash inner key share */
     if (s->ext.ech.tmp_pkey == NULL) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
@@ -1239,24 +1226,26 @@ int ech_swaperoo(SSL_CONNECTION *s)
     s->s3.group_id = s->ext.ech.group_id;
     s->ext.ech.tmp_pkey = NULL;
     /*
-     * When not doing HRR...
-     * Fix up the transcript to reflect the inner CH
-     * If there's a cilent hello at the start of the buffer, then
-     * it's likely that's the outer CH and we want to replace that
-     * with the inner. We need to be careful that there could be a
-     * server hello following and can't lose that.
-     * I don't think the outer client hello can be anwhere except
-     * at the start of the buffer.
+     * TODO(ECH): I suggest re-factoring transcript handling (which
+     * is probably needed) after/with the PR that includes the server
+     * side ECH code. That should be much easier as at that point the
+     * full set of tests can be run, whereas for now, we're limited
+     * to testing the client side really works via bodged s_client
+     * scripts, so there'd be a bigger risk of breaking something
+     * subtly if we try re-factor now.
      *
-     * For HRR... we'll try leave it alone as (I think)
-     * the HRR processing code has already fixed up the
-     * buffer.
+     * When not doing HRR... fix up the transcript to reflect the inner CH.
+     * If there's a client hello at the start of the buffer, then that's
+     * the outer CH and we want to replace that with the inner. We need to
+     * be careful that there could be a server hello following and can't
+     * lose that.
+     *
+     * For HRR... HRR processing code has already done the necessary.
      */
-    if (s->hello_retry_request == 0) {
+    if (s->hello_retry_request == SSL_HRR_NONE) {
         curr_buflen = BIO_get_mem_data(s->s3.handshake_buffer,
                                        &curr_buf);
         if (curr_buflen > 4 && curr_buf[0] == SSL3_MT_CLIENT_HELLO) {
-            /* It's a client hello, presumably the outer */
             outer_chlen = 1 + curr_buf[1] * 256 * 256
                 + curr_buf[2] * 256 + curr_buf[3];
             if (outer_chlen > curr_buflen) {
@@ -1305,16 +1294,12 @@ int ech_swaperoo(SSL_CONNECTION *s)
 # ifdef OSSL_ECH_SUPERVERBOSE
     ech_ptranscript("ech_swaperoo, after", s);
 # endif
-    /*
-     * Finally! Declare victory - in both contexts.
-     * The outer's ech_attempted will have been set already
-     * but not the rest of 'em.
-     */
+    /* Declare victory! */
     s->ext.ech.attempted = 1;
     s->ext.ech.success = 1;
     s->ext.ech.done = 1;
     s->ext.ech.grease = OSSL_ECH_NOT_GREASE;
-    /* call ECH callback */
+    /* time to call an ECH callback, if there's one */
     if (s->ext.ech.es != NULL && s->ext.ech.done == 1
         && s->hello_retry_request != SSL_HRR_PENDING
         && s->ext.ech.cb != NULL) {
@@ -1362,22 +1347,15 @@ static int ech_hkdf_extract_wrap(SSL_CONNECTION *s, EVP_MD *md, int for_hrr,
     ech_pbuf("cc: label", (unsigned char *)label, labellen);
 # endif
     memset(zeros, 0, EVP_MAX_MD_SIZE);
-    /* We still don't have an hkdf-extract that's exposed by libcrypto */
+    /* We don't seem to have an hkdf-extract that's exposed by libcrypto */
     pctx = EVP_PKEY_CTX_new_id(EVP_PKEY_HKDF, NULL);
-    if (!pctx) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-        goto err;
-    }
-    if (EVP_PKEY_derive_init(pctx) != 1) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-        goto err;
-    }
-    if (EVP_PKEY_CTX_hkdf_mode(pctx,
-                               EVP_PKEY_HKDEF_MODE_EXTRACT_ONLY) != 1) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-        goto err;
-    }
-    if (EVP_PKEY_CTX_set_hkdf_md(pctx, md) != 1) {
+    if (pctx == NULL
+        || EVP_PKEY_derive_init(pctx) != 1
+        || EVP_PKEY_CTX_hkdf_mode(pctx,
+                                  EVP_PKEY_HKDEF_MODE_EXTRACT_ONLY) != 1
+        || EVP_PKEY_CTX_hkdf_mode(pctx,
+                                  EVP_PKEY_HKDEF_MODE_EXTRACT_ONLY) != 1
+        || EVP_PKEY_CTX_set_hkdf_md(pctx, md) != 1) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         goto err;
     }
@@ -1389,38 +1367,21 @@ static int ech_hkdf_extract_wrap(SSL_CONNECTION *s, EVP_MD *md, int for_hrr,
 # ifdef OSSL_ECH_SUPERVERBOSE
     ech_pbuf("cc: client_random", p, SSL3_RANDOM_SIZE);
 # endif
-    if (EVP_PKEY_CTX_set1_hkdf_key(pctx, p, SSL3_RANDOM_SIZE) != 1) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-        goto err;
-    }
-    if (EVP_PKEY_CTX_set1_hkdf_salt(pctx, zeros, hashlen) != 1) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-        goto err;
-    }
-    /* get the right size set first - new in latest upstream */
-    if (EVP_PKEY_derive(pctx, NULL, &retlen) != 1) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-        goto err;
-    }
-    if (hashlen != retlen) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-        goto err;
-    }
-    if (EVP_PKEY_derive(pctx, notsecret, &retlen) != 1) {
+    if (EVP_PKEY_CTX_set1_hkdf_key(pctx, p, SSL3_RANDOM_SIZE) != 1
+        || EVP_PKEY_CTX_set1_hkdf_salt(pctx, zeros, hashlen) != 1
+        || EVP_PKEY_derive(pctx, NULL, &retlen) != 1
+        || hashlen != retlen
+        || EVP_PKEY_derive(pctx, notsecret, &retlen) != 1) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         goto err;
     }
 # ifdef OSSL_ECH_SUPERVERBOSE
     ech_pbuf("cc: notsecret", notsecret, hashlen);
 # endif
-    if (hashlen < 8) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-        goto err;
-    }
-    if (!tls13_hkdf_expand(s, md, notsecret,
-                           (const unsigned char *)label, labellen,
-                           hashval, hashlen,
-                           hoval, 8, 1)) {
+    if (hashlen < 8
+        || !tls13_hkdf_expand(s, md, notsecret,
+                              (const unsigned char *)label, labellen,
+                              hashval, hashlen, hoval, 8, 1)) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         goto err;
     }
@@ -1441,7 +1402,7 @@ err:
  * This is a magic value in the ServerHello.random lower 8 octets
  * that is used to signal that the inner worked.
  *
- * In draft-13:
+ * As per spec:
  *
  * accept_confirmation = HKDF-Expand-Label(
  *         HKDF-Extract(0, ClientHelloInner.random),
@@ -1453,10 +1414,6 @@ err:
  *         with last 8 octets of ServerHello.random==0x00
  *
  * and with differences due to HRR
- *
- * We can re-factor this some more (e.g. make one call for
- * SH offsets) but we'll hold on that a bit 'till we get to
- * refactoring transcripts generally.
  */
 int ech_calc_confirm(SSL_CONNECTION *s, int for_hrr, unsigned char *acbuf,
                      const unsigned char *shbuf, const size_t shlen)
