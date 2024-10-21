@@ -1140,7 +1140,7 @@ err:
  * out is the BIO to use (e.g. stdout/whatever)
  * selector OSSL_ECH_SELECT_ALL or just one of the SSL_ECH values
  */
-void ech_status_print(BIO *out, SSL_CONNECTION *s, int selector)
+static void ech_status_print(BIO *out, SSL_CONNECTION *s, int selector)
 {
     int num = 0, i, has_priv, for_retry;
     size_t j;
