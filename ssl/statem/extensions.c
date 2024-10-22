@@ -24,9 +24,26 @@
 # define OSSL_ECH_HANDLING_COMPRESS  2 /* compress outer value into inner */
 # define OSSL_ECH_HANDLING_DUPLICATE 3 /* same value in inner and outer */
     /*
-     * TODO(ECH): DUPLICATE isn't really useful other than to show we can
-     * and for debugging/tests/coverage so may disappear. Note this won't
-     * affect the outer CH size, due to padding.
+     * DUPLICATE isn't really useful other than to show we can,
+     * and for debugging/tests/coverage so may disappear. Changes mostly
+     * won't affect the outer CH size, due to padding, but might for some
+     * larger extensions.
+     *
+     * Note there is a co-dependency with test/recipies/75-test_quicapi.t:
+     * If you change an |ech_handling| value, that may well affect the order
+     * of extensions in a ClientHello, which is reflected in the test data
+     * in test/recipies/75-test_quicapi_data/\*.txt files. To fix, you need
+     * to look in test-runs/test_quicapi for the "new" files and then edit
+     * (replacing actual octets with "?" in relevant places), and copy the
+     * result back over to test/recipies/75-test_quicapi_data/. The reason
+     * this happens is the ECH COMPRESS'd extensions need to be contiguous
+     * in the ClientHello, so changes to/from COMPRESS affect extension
+     * order, in inner and outer CH. There doesn't seem to be an easy,
+     * generic, way to reconcile these compile-time changes with having
+     * fixed value test files. Likely the best option is to decide on the
+     * disposition of ECH COMPRESS or not and consider that an at least
+     * medium-term thing. (But still allow other builds to vary at
+     * compile time if they need something different.)
      */
 static int init_ech(SSL_CONNECTION *s, unsigned int context);
 #endif /* OPENSSL_NO_ECH */
@@ -330,8 +347,15 @@ static const EXTENSION_DEFINITION ext_defs[] = {
         SSL_EXT_CLIENT_HELLO | SSL_EXT_TLS1_2_SERVER_HELLO
         | SSL_EXT_TLS1_2_AND_BELOW_ONLY,
 #ifndef OPENSSL_NO_ECH
-        /* TODO(ECH): to demonstrate/exercise duplicate  */
-        OSSL_ECH_HANDLING_DUPLICATE,
+        /*
+         * If you want to demonstrate/exercise duplicate, then
+         * this does that and has no effect on sizes, but it 
+         * will break the quicapi test (see above). Probably
+         * best done in local tests and not comitted to any
+         * upstream.
+         * OSSL_ECH_HANDLING_DUPLICATE,
+         */
+        OSSL_ECH_HANDLING_COMPRESS,
 #endif
         init_etm, tls_parse_ctos_etm, tls_parse_stoc_etm,
         tls_construct_stoc_etm, tls_construct_ctos_etm, NULL
