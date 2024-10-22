@@ -13,3 +13,11 @@ make test TESTS='test_ech test_app_ech'
 genhtml ./lcov.info --output-directory $HOME/tmp/myco
 ```
 
+To clean before a commit from that build:
+```
+find . -name '*.gcda'  -exec rm {} \;
+find . -name '*.gcno'  -exec rm {} \;
+rm lcov.info
+```
+
+

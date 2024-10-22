@@ -742,7 +742,14 @@ int tls_collect_extensions(SSL_CONNECTION *s, PACKET *packet,
                                 PACKET_remaining(&thisex->data),
                                 s->ext.debug_arg);
         }
+#undef REMEMBEREDWHY
+#ifdef REMEMBEREDWHY
 #ifndef OPENSSL_NO_ECH
+        /*
+         * I can't figure out why I added this and it doesn't seem
+         * needed, but I'll leave this here for now. I'm not adding
+         * this to the feature branch PR.
+         */
         else {
             /* use callback anyway for custom ext or one we don't support */
             if (s->ext.debug_cb)
@@ -751,6 +758,7 @@ int tls_collect_extensions(SSL_CONNECTION *s, PACKET *packet,
                                 PACKET_remaining(&extension),
                                 s->ext.debug_arg);
         }
+#endif
 #endif
 
     }
