@@ -1376,8 +1376,6 @@ __owur CON_FUNC_RETURN tls_construct_client_hello(SSL_CONNECTION *s,
         goto err;
     }
 # ifdef OSSL_ECH_SUPERVERBOSE
-    ech_pbuf("encoded inner CH", s->ext.ech.encoded_innerch,
-             s->ext.ech.encoded_innerch_len);
     ech_pbuf("outer, client_random", s->s3.client_random, SSL3_RANDOM_SIZE);
     ech_pbuf("outer, session_id", s->session->session_id,
              s->session->session_id_length);
