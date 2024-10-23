@@ -616,7 +616,6 @@ static int ech_copy_inner2outer(SSL_CONNECTION *s, uint16_t ext_type,
     if (raws == NULL)
         return OSSL_ECH_SAME_EXT_ERR;
     nraws = s->clienthello->pre_proc_exts_len;
-    /* copy inner to outer */
     OSSL_TRACE_BEGIN(TLS) {
         BIO_printf(trc_out, "inner2outer: Copying ext type %d to outer\n",
                    ext_type);
@@ -997,16 +996,6 @@ int tls_collect_extensions(SSL_CONNECTION *s, PACKET *packet,
                                 PACKET_remaining(&thisex->data),
                                 s->ext.debug_arg);
         }
-#ifndef OPENSSL_NO_ECH
-        else {
-            /* use callback anyway for custom ext or one we don't support */
-            if (s->ext.debug_cb)
-                s->ext.debug_cb(SSL_CONNECTION_GET_SSL(s), !s->server,
-                                type, PACKET_data(&extension),
-                                PACKET_remaining(&extension),
-                                s->ext.debug_arg);
-        }
-#endif
     }
 
     if (init) {

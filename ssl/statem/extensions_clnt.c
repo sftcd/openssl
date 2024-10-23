@@ -74,38 +74,33 @@ EXT_RETURN tls_construct_ctos_server_name(SSL_CONNECTION *s, WPACKET *pkt,
                                           size_t chainidx)
 {
 #ifndef OPENSSL_NO_ECH
-    char *chosen = s->ext.hostname; /* legacy default */
+    char *chosen = s->ext.hostname;
     OSSL_HPKE_SUITE suite;
     OSSL_ECHSTORE_ENTRY *ee = NULL;
-    char *public_name = NULL;
 
     if (s->ext.ech.es != NULL) {
         if (ech_pick_matching_cfg(s, &ee, &suite) != 1) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             return EXT_RETURN_NOT_SENT;
         }
-        public_name = ee->public_name;
-        /* Don't send outer SNI if external API says that */
+        /* Don't send outer SNI if external API says so */
         if (s->ext.ech.ch_depth == 0 && s->ext.ech.no_outer == 1)
             return EXT_RETURN_NOT_SENT;
-        /* we may have something to send */
         if (s->ext.ech.ch_depth == 1) { /* inner */
             chosen = s->ext.hostname;
         }
         if (s->ext.ech.ch_depth == 0) { /* outer */
-            if (s->ext.ech.outer_hostname != NULL) /* prefer specific API */
+            if (s->ext.ech.outer_hostname != NULL) /* prefer API */
                 chosen = s->ext.ech.outer_hostname;
-            else if (public_name != NULL)
-                chosen = public_name;
+            else /* use name from ECHConfig */
+                chosen = ee->public_name;
         }
     }
     if (chosen == NULL)
         return EXT_RETURN_NOT_SENT;
     /* Add TLS extension servername to the Client Hello message */
     if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_server_name)
-               /* Sub-packet for server_name extension */
             || !WPACKET_start_sub_packet_u16(pkt)
-               /* Sub-packet for servername list (always 1 hostname)*/
             || !WPACKET_start_sub_packet_u16(pkt)
             || !WPACKET_put_bytes_u8(pkt, TLSEXT_NAMETYPE_host_name)
             || !WPACKET_sub_memcpy_u16(pkt, chosen, strlen(chosen))
@@ -550,7 +545,6 @@ EXT_RETURN tls_construct_ctos_alpn(SSL_CONNECTION *s, WPACKET *pkt,
     }
     if (!WPACKET_put_bytes_u16(pkt,
            TLSEXT_TYPE_application_layer_protocol_negotiation)
-               /* Sub-packet ALPN extension */
            || !WPACKET_start_sub_packet_u16(pkt)
            || !WPACKET_sub_memcpy_u16(pkt, aval, alen)
            || !WPACKET_close(pkt)) {
@@ -799,12 +793,6 @@ static int add_key_share(SSL_CONNECTION *s, WPACKET *pkt, unsigned int curve_id)
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         goto err;
     }
-
-    /*
-     * When changing to send more than one key_share we're
-     * going to need to be able to save more than one EVP_PKEY. For now
-     * we reuse the existing tmp.pkey
-     */
 #ifndef OPENSSL_NO_ECH
     if (s->ext.ech.ch_depth == 1) { /* stash inner */
         EVP_PKEY_up_ref(key_share_key);
@@ -813,7 +801,11 @@ static int add_key_share(SSL_CONNECTION *s, WPACKET *pkt, unsigned int curve_id)
         s->ext.ech.group_id = curve_id;
     }
 #endif
-
+    /*
+     * When changing to send more than one key_share we're
+     * going to need to be able to save more than one EVP_PKEY. For now
+     * we reuse the existing tmp.pkey
+     */
     s->s3.tmp.pkey = key_share_key;
     s->s3.group_id = curve_id;
     OPENSSL_free(encoded_point);
@@ -947,9 +939,8 @@ EXT_RETURN tls_construct_ctos_early_data(SSL_CONNECTION *s, WPACKET *pkt,
     if (s->ext.ech.es != NULL && s->ext.ech.ch_depth == 0) {
         /*
          * if we called this for inner and did send then
-         * the following two things were set just before
-         * returning (i.e. at the bottom of this function)
-         * so we should send again in the outer CH.
+         * the following two things should be set, if so,
+         * then send again in the outer CH.
          */
         if (s->ext.early_data == SSL_EARLY_DATA_REJECTED
             && s->ext.early_data_ok == 1) {
@@ -965,7 +956,6 @@ EXT_RETURN tls_construct_ctos_early_data(SSL_CONNECTION *s, WPACKET *pkt,
         }
     }
 #endif
-
     if (s->hello_retry_request == SSL_HRR_PENDING)
         handmd = ssl_handshake_md(s);
 
@@ -1397,27 +1387,27 @@ EXT_RETURN tls_construct_ctos_psk(SSL_CONNECTION *s, WPACKET *pkt,
             }
         }
         if (!WPACKET_close(pkt)
-                || !WPACKET_get_total_written(pkt, &binderoffset)
-                || !WPACKET_start_sub_packet_u16(pkt)
-                || (dores == 1
-                    && !WPACKET_sub_memcpy_u8(pkt,
-                                             rndbuf + s->session->ext.ticklen
-                                             + 4 + s->psksession_id_len,
-                                             reshashsize))
-                || (s->psksession != NULL
-                    && !WPACKET_sub_memcpy_u8(pkt,
-                                             rndbuf + s->session->ext.ticklen
-                                             + 4 + s->psksession_id_len
-                                             + reshashsize,
-                                             pskhashsize))
-                || !WPACKET_close(pkt)
-                || !WPACKET_close(pkt)
-                || !WPACKET_get_total_written(pkt, &msglen)
-                /*
-                 * We need to fill in all the sub-packet lengths now so we can
-                 * calculate the HMAC of the message up to the binders
-                 */
-                || !WPACKET_fill_lengths(pkt)) {
+            || !WPACKET_get_total_written(pkt, &binderoffset)
+            || !WPACKET_start_sub_packet_u16(pkt)
+            || (dores == 1
+                && !WPACKET_sub_memcpy_u8(pkt,
+                                          rndbuf + s->session->ext.ticklen
+                                          + 4 + s->psksession_id_len,
+                                          reshashsize))
+            || (s->psksession != NULL
+                && !WPACKET_sub_memcpy_u8(pkt,
+                                          rndbuf + s->session->ext.ticklen
+                                          + 4 + s->psksession_id_len
+                                          + reshashsize,
+                                          pskhashsize))
+            || !WPACKET_close(pkt)
+            || !WPACKET_close(pkt)
+            || !WPACKET_get_total_written(pkt, &msglen)
+            /*
+             * We need to fill in all the sub-packet lengths now so we can
+             * calculate the HMAC of the message up to the binders
+             */
+            || !WPACKET_fill_lengths(pkt)) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             OPENSSL_free(rndbuf);
             return EXT_RETURN_FAIL;
@@ -1426,7 +1416,6 @@ EXT_RETURN tls_construct_ctos_psk(SSL_CONNECTION *s, WPACKET *pkt,
         return EXT_RETURN_SENT;
     }
 # endif /* OPENSSL_NO_ECH */
-
     if (dores) {
         if (!WPACKET_sub_memcpy_u16(pkt, s->session->ext.tick,
                                            s->session->ext.ticklen)
