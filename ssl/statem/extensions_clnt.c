@@ -2487,40 +2487,37 @@ int tls_parse_stoc_server_cert_type(SSL_CONNECTION *sc, PACKET *pkt,
 }
 
 #ifndef OPENSSL_NO_ECH
-/*
- * @brief Create the draft-13 ECH extension for the ClientHello
- */
 EXT_RETURN tls_construct_ctos_ech(SSL_CONNECTION *s, WPACKET *pkt,
                                   unsigned int context, X509 *x,
                                   size_t chainidx)
 {
     if (s->ext.ech.attempted_type != TLSEXT_TYPE_ech)
         return EXT_RETURN_NOT_SENT;
-    /* don't send grease if really attempting ECH */
-    if (s->ext.ech.attempted == 0) {
-        if (s->ext.ech.grease == OSSL_ECH_IS_GREASE
-            || (s->options & SSL_OP_ECH_GREASE)) {
-            if (s->hello_retry_request == SSL_HRR_PENDING
-                && s->ext.ech.sent != NULL) {
-                /* re-tx already sent GREASEy ECH*/
-                if (WPACKET_memcpy(pkt, s->ext.ech.sent,
-                                   s->ext.ech.sent_len) != 1) {
-                    SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-                    return EXT_RETURN_FAIL;
-                }
-                return EXT_RETURN_SENT;
-            }
-            if (ech_send_grease(s, pkt) != 1) {
-                return EXT_RETURN_NOT_SENT;
+    /* send grease if not really attempting ECH */
+    if (s->ext.ech.attempted == 0
+        && (s->ext.ech.grease == OSSL_ECH_IS_GREASE
+            || (s->options & SSL_OP_ECH_GREASE))) {
+        if (s->hello_retry_request == SSL_HRR_PENDING
+            && s->ext.ech.sent != NULL) {
+            /* re-tx already sent GREASEy ECH*/
+            if (WPACKET_memcpy(pkt, s->ext.ech.sent,
+                               s->ext.ech.sent_len) != 1) {
+                SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+                return EXT_RETURN_FAIL;
             }
             return EXT_RETURN_SENT;
         }
+        if (ech_send_grease(s, pkt) != 1) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+            return EXT_RETURN_NOT_SENT;
+        }
+        return EXT_RETURN_SENT;
     }
     /*
-     * We fake out sending the outer value - after the entire thing has been
-     * constructed we only then finally encode and encrypt - need to do it
-     * that way as we need the rest of the outer CH as AAD input to the
-     * encryption.
+     * If not GREASEing we fake sending the outer value - after the
+     * entire thing has been constructed we only then finally encode
+     * and encrypt - need to do it that way as we need the rest of
+     * the outer CH as AAD input to the encryption.
      */
     if (s->ext.ech.ch_depth == 0)
         return EXT_RETURN_NOT_SENT;
@@ -2538,9 +2535,7 @@ EXT_RETURN tls_construct_ctos_ech(SSL_CONNECTION *s, WPACKET *pkt,
     return EXT_RETURN_FAIL;
 }
 
-/*
- * @brief if the server thinks we GREASE'd then we may get an ECHConfigList
- */
+/* if the server thinks we GREASE'd then we may get an ECHConfigList */
 int tls_parse_stoc_ech(SSL_CONNECTION *s, PACKET *pkt, unsigned int context,
                        X509 *x, size_t chainidx)
 {
@@ -2549,12 +2544,13 @@ int tls_parse_stoc_ech(SSL_CONNECTION *s, PACKET *pkt, unsigned int context,
     unsigned char *srval = NULL;
 
     /*
-     * The HRR will have an ECH extension with the
-     * 8-octet confirmation value but it's processed
+     * An HRR will have an ECH extension with the
+     * 8-octet confirmation value but that is processed
      * elsewhere, so just return ok in that case.
      */
     if (context == SSL_EXT_TLS1_3_HELLO_RETRY_REQUEST)
         return 1;
+    /* othewise we expect retry-configs */
     if (!PACKET_get_net_2(pkt, &rlen)) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_LENGTH_MISMATCH);
         return 0;
