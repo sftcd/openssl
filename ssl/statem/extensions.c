@@ -1325,10 +1325,8 @@ static int init_server_name(SSL_CONNECTION *s, unsigned int context)
 
 #ifndef OPENSSL_NO_ECH
 /*
- * @brief Just note that ech is not yet done
- * @param s is the SSL connection
- * @param context determines when called
- * @return 1 for good, 0 otherwise
+ * Just note that ech is not yet done
+ * return 1 for good, 0 otherwise
  */
 static int init_ech(SSL_CONNECTION *s, unsigned int context)
 {
