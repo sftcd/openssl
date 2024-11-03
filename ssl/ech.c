@@ -65,6 +65,17 @@
 # define OSSL_ECH_DEF_CIPHER_LEN_LARGE 272
 
 /*
+ * Do GREASEing as currently (20241102) done by chrome:
+ *   - always HKDF-SHA256
+ *   - always AES-128-GCM
+ *   - random config ID, even for requests to same server in same session
+ *   - random enc
+ *   - random looking payload, randomly 144, 176, 208, 240 bytes, no correlation with server
+ */
+# define OSSL_GREASELIKECHROME
+
+# ifndef OSSL_GREASELIKECHROME
+/*
  * We can add/subtract a few octets if jitter is desirable - if set then
  * we'll add or subtract a random number of octets less than the max jitter
  * setting. If the default value is set to zero, we won't bother. It is
@@ -73,8 +84,9 @@
  * case experiments indicate such jitter is useful. To turn off jitter
  * just set the default to zero, as is currently done below.
  */
-# define OSSL_ECH_MAX_CIPHER_LEN_JITTER 32 /* max jitter in cipher len */
-# define OSSL_ECH_DEF_CIPHER_LEN_JITTER 0 /* default jitter in cipher len */
+#  define OSSL_ECH_MAX_CIPHER_LEN_JITTER 32 /* max jitter in cipher len */
+#  define OSSL_ECH_DEF_CIPHER_LEN_JITTER 0 /* default jitter in cipher len */
+# endif
 
 # ifndef TLSEXT_MINLEN_host_name
 /*
@@ -3915,8 +3927,12 @@ int ech_send_grease(SSL_CONNECTION *s, WPACKET *pkt)
     unsigned char cid;
     size_t senderpub_len = OSSL_ECH_MAX_GREASE_PUB;
     unsigned char senderpub[OSSL_ECH_MAX_GREASE_PUB];
+#ifdef OSSL_GREASELIKECHROME
+    size_t cipher_len = 0, cipher_len_jitter = 0;
+#else
     size_t cipher_len = OSSL_ECH_DEF_CIPHER_LEN_SMALL;
     size_t cipher_len_jitter = OSSL_ECH_DEF_CIPHER_LEN_JITTER;
+#endif
     unsigned char cipher[OSSL_ECH_MAX_GREASE_CT];
     /* stuff for copying to ech_sent */
     unsigned char *pp = WPACKET_get_curr(pkt);
@@ -3927,10 +3943,23 @@ int ech_send_grease(SSL_CONNECTION *s, WPACKET *pkt)
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
     }
+#ifndef OSSL_GREASELIKECHROME
     if (ech_same_key_share() == 0)
         cipher_len = OSSL_ECH_DEF_CIPHER_LEN_LARGE;
+#endif
     WPACKET_get_total_written(pkt, &pp_at_start);
-    /* generate a random (1 octet) client id */
+#ifdef OSSL_GREASELIKECHROME
+    /* randomly select cipher_len to be one of 144, 176, 208, 244 */
+    if (RAND_bytes_ex(s->ssl.ctx->libctx, &cid, cid_len,
+                      RAND_DRBG_STRENGTH) <= 0) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+        return 0;
+    }
+    cipher_len_jitter = cid % 4;
+    cipher_len = 144;
+    cipher_len += 32 * cipher_len_jitter;
+#else
+    /* generate a new random (1 octet) client id */
     if (RAND_bytes_ex(s->ssl.ctx->libctx, &cid, cid_len,
                       RAND_DRBG_STRENGTH) <= 0) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
@@ -3951,12 +3980,15 @@ int ech_send_grease(SSL_CONNECTION *s, WPACKET *pkt)
         /* the cid is random enough */
         cipher_len += 2 * (cid % cipher_len_jitter);
     }
+#endif
     if (s->ext.ech.grease_suite != NULL) {
         if (OSSL_HPKE_str2suite(s->ext.ech.grease_suite, &hpke_suite_in) != 1) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             return 0;
         }
         hpke_suite_in_p = &hpke_suite_in;
+    } else {
+        hpke_suite_in_p = &hpke_suite;
     }
     if (OSSL_HPKE_get_grease_value(hpke_suite_in_p, &hpke_suite,
                                    senderpub, &senderpub_len,
@@ -3965,21 +3997,16 @@ int ech_send_grease(SSL_CONNECTION *s, WPACKET *pkt)
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
     }
-    if (s->ext.ech.attempted_type == TLSEXT_TYPE_ech) {
-        if (!WPACKET_put_bytes_u16(pkt, s->ext.ech.attempted_type)
-            || !WPACKET_start_sub_packet_u16(pkt)
-            || !WPACKET_put_bytes_u8(pkt, OSSL_ECH_OUTER_CH_TYPE)
-            || !WPACKET_put_bytes_u16(pkt, hpke_suite.kdf_id)
-            || !WPACKET_put_bytes_u16(pkt, hpke_suite.aead_id)
-            || !WPACKET_memcpy(pkt, &cid, cid_len)
-            || !WPACKET_sub_memcpy_u16(pkt, senderpub, senderpub_len)
-            || !WPACKET_sub_memcpy_u16(pkt, cipher, cipher_len)
-            || !WPACKET_close(pkt)
-            ) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-            return 0;
-        }
-    } else {
+    if (!WPACKET_put_bytes_u16(pkt, s->ext.ech.attempted_type)
+        || !WPACKET_start_sub_packet_u16(pkt)
+        || !WPACKET_put_bytes_u8(pkt, OSSL_ECH_OUTER_CH_TYPE)
+        || !WPACKET_put_bytes_u16(pkt, hpke_suite.kdf_id)
+        || !WPACKET_put_bytes_u16(pkt, hpke_suite.aead_id)
+        || !WPACKET_memcpy(pkt, &cid, cid_len)
+        || !WPACKET_sub_memcpy_u16(pkt, senderpub, senderpub_len)
+        || !WPACKET_sub_memcpy_u16(pkt, cipher, cipher_len)
+        || !WPACKET_close(pkt)
+        ) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
     }
