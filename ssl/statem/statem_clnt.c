@@ -1333,7 +1333,7 @@ __owur CON_FUNC_RETURN tls_construct_client_hello(SSL_CONNECTION *s,
              s->session->session_id_length);
 # endif
     /* Decode inner so that we can make up encoded inner */
-    if (!PACKET_buf_init(&rpkt, (unsigned char*)s->ext.ech.innerch + 4,
+    if (!PACKET_buf_init(&rpkt, (unsigned char *)s->ext.ech.innerch + 4,
                          s->ext.ech.innerch_len - 4)) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         goto err;
