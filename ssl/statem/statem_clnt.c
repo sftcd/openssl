@@ -1217,9 +1217,9 @@ __owur CON_FUNC_RETURN tls_construct_client_hello(SSL_CONNECTION *s,
     int mt = SSL3_MT_CLIENT_HELLO, rv = 0;
     OSSL_HPKE_SUITE suite;
     OSSL_ECHSTORE_ENTRY *ee = NULL;
-
     /* Work out what SSL/TLS/DTLS version to use */
     int protverr = ssl_set_client_hello_version(s);
+
     if (protverr != 0) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, protverr);
         return 0;
@@ -1241,10 +1241,8 @@ __owur CON_FUNC_RETURN tls_construct_client_hello(SSL_CONNECTION *s,
         s->ext.ech.attempted_type = TLSEXT_TYPE_ech;
         s->ext.ech.attempted_cid = ee->config_id;
         s->ext.ech.attempted = 1;
-        if (s->ext.ech.outer_hostname == NULL
-            && ee->public_name != NULL) {
+        if (s->ext.ech.outer_hostname == NULL && ee->public_name != NULL)
             s->ext.ech.outer_hostname = OPENSSL_strdup((char *)ee->public_name);
-        }
     }
     /* If doing real ECH and application requested GREASE too, over-ride that */
     if (s->ext.ech.grease == OSSL_ECH_IS_GREASE && s->ext.ech.attempted == 1)
@@ -1269,7 +1267,7 @@ __owur CON_FUNC_RETURN tls_construct_client_hello(SSL_CONNECTION *s,
             s->tmp_session_id_len = sess_id_len;
             if (s->hello_retry_request == SSL_HRR_NONE
                 && RAND_bytes_ex(s->ssl.ctx->libctx, s->tmp_session_id,
-                                 sess_id_len,RAND_DRBG_STRENGTH) <= 0) {
+                                 sess_id_len, RAND_DRBG_STRENGTH) <= 0) {
                 SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
                 return 0;
             }
@@ -1335,7 +1333,7 @@ __owur CON_FUNC_RETURN tls_construct_client_hello(SSL_CONNECTION *s,
              s->session->session_id_length);
 # endif
     /* Decode inner so that we can make up encoded inner */
-    if (!PACKET_buf_init(&rpkt, (unsigned char*) s->ext.ech.innerch + 4,
+    if (!PACKET_buf_init(&rpkt, (unsigned char*)s->ext.ech.innerch + 4,
                          s->ext.ech.innerch_len - 4)) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         goto err;
@@ -1370,7 +1368,7 @@ __owur CON_FUNC_RETURN tls_construct_client_hello(SSL_CONNECTION *s,
         s->s3.tmp.pkey = NULL;
     }
     /* Make second call into CH constuction for outer CH. */
-    rv=tls_construct_client_hello_aux(s, pkt);
+    rv = tls_construct_client_hello_aux(s, pkt);
     if (rv != 1) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, protverr);
         goto err;
@@ -1822,9 +1820,7 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL_CONNECTION *s, PACKET *pkt)
         if (ech_calc_confirm(s, hrr, c_signal, shbuf, shlen) != 1
             || ech_find_confirm(s, hrr, s_signal, shbuf, shlen) != 1
             || memcmp(s_signal, c_signal, 8) != 0) {
-            OSSL_TRACE_BEGIN(TLS) {
-                BIO_printf(trc_out, "ECH accept check failed\n");
-            } OSSL_TRACE_END(TLS);
+            OSSL_TRACE(TLS, "ECH accept check failed\n");
 # ifdef OSSL_ECH_SUPERVERBOSE
             ech_pbuf("ECH client accept val:", c_signal, 8);
             ech_pbuf("ECH server accept val:", s_signal, 8);

@@ -23,28 +23,28 @@
 # define OSSL_ECH_HANDLING_CALL_BOTH 1 /* call constructor both times */
 # define OSSL_ECH_HANDLING_COMPRESS  2 /* compress outer value into inner */
 # define OSSL_ECH_HANDLING_DUPLICATE 3 /* same value in inner and outer */
-    /*
-     * DUPLICATE isn't really useful other than to show we can,
-     * and for debugging/tests/coverage so may disappear. Changes mostly
-     * won't affect the outer CH size, due to padding, but might for some
-     * larger extensions.
-     *
-     * Note there is a co-dependency with test/recipies/75-test_quicapi.t:
-     * If you change an |ech_handling| value, that may well affect the order
-     * of extensions in a ClientHello, which is reflected in the test data
-     * in test/recipies/75-test_quicapi_data/\*.txt files. To fix, you need
-     * to look in test-runs/test_quicapi for the "new" files and then edit
-     * (replacing actual octets with "?" in relevant places), and copy the
-     * result back over to test/recipies/75-test_quicapi_data/. The reason
-     * this happens is the ECH COMPRESS'd extensions need to be contiguous
-     * in the ClientHello, so changes to/from COMPRESS affect extension
-     * order, in inner and outer CH. There doesn't seem to be an easy,
-     * generic, way to reconcile these compile-time changes with having
-     * fixed value test files. Likely the best option is to decide on the
-     * disposition of ECH COMPRESS or not and consider that an at least
-     * medium-term thing. (But still allow other builds to vary at
-     * compile time if they need something different.)
-     */
+/*
+ * DUPLICATE isn't really useful other than to show we can,
+ * and for debugging/tests/coverage so may disappear. Changes mostly
+ * won't affect the outer CH size, due to padding, but might for some
+ * larger extensions.
+ *
+ * Note there is a co-dependency with test/recipies/75-test_quicapi.t:
+ * If you change an |ech_handling| value, that may well affect the order
+ * of extensions in a ClientHello, which is reflected in the test data
+ * in test/recipies/75-test_quicapi_data/\*.txt files. To fix, you need
+ * to look in test-runs/test_quicapi for the "new" files and then edit
+ * (replacing actual octets with "?" in relevant places), and copy the
+ * result back over to test/recipies/75-test_quicapi_data/. The reason
+ * this happens is the ECH COMPRESS'd extensions need to be contiguous
+ * in the ClientHello, so changes to/from COMPRESS affect extension
+ * order, in inner and outer CH. There doesn't seem to be an easy,
+ * generic, way to reconcile these compile-time changes with having
+ * fixed value test files. Likely the best option is to decide on the
+ * disposition of ECH COMPRESS or not and consider that an at least
+ * medium-term thing. (But still allow other builds to vary at
+ * compile time if they need something different.)
+ */
 static int init_ech(SSL_CONNECTION *s, unsigned int context);
 #endif /* OPENSSL_NO_ECH */
 
@@ -349,7 +349,7 @@ static const EXTENSION_DEFINITION ext_defs[] = {
 #ifndef OPENSSL_NO_ECH
         /*
          * If you want to demonstrate/exercise duplicate, then
-         * this does that and has no effect on sizes, but it 
+         * this does that and has no effect on sizes, but it
          * will break the quicapi test (see above). Probably
          * best done in local tests and not comitted to any
          * upstream.
@@ -653,7 +653,7 @@ static int ech_copy_inner2outer(SSL_CONNECTION *s, uint16_t ext_type,
  * causes two calls to each extension constructor, which'd be the same
  * as making all entries in ext_tab use the CALL_BOTH value
  */
-#undef DUPEMALL
+# undef DUPEMALL
 
 /*
  * Check if we're using the same/different key shares
@@ -1254,7 +1254,7 @@ int tls_construct_extensions(SSL_CONNECTION *s, WPACKET *pkt,
             return 0;
         }
     }
-# else
+#else
     if (!WPACKET_close(pkt)) {
         if (!for_comp)
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
@@ -1337,9 +1337,8 @@ static int init_ech(SSL_CONNECTION *s, unsigned int context)
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
     }
-    if (context == SSL_EXT_CLIENT_HELLO) {
+    if (context == SSL_EXT_CLIENT_HELLO)
         s->ext.ech.done = 0;
-    }
     return 1;
 }
 #endif /* OPENSSL_NO_ECH */
@@ -2024,7 +2023,7 @@ int tls_psk_do_binder(SSL_CONNECTION *s, const EVP_MD *md,
                 || !WPACKET_put_bytes_u24(&tpkt, hashlen)
                 || !WPACKET_memcpy(&tpkt, hashval, hashlen)
                 || !WPACKET_memcpy(&tpkt, s->ext.ech.kepthrr,
-                                    s->ext.ech.kepthrr_len)
+                                   s->ext.ech.kepthrr_len)
                 || !WPACKET_get_length(&tpkt, &hdatalen)) {
                 SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
                 goto err;

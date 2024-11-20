@@ -1140,7 +1140,7 @@ static void ech_status_print(BIO *out, SSL_CONNECTION *s, int selector)
 }
 
 /* size of string buffer returned via ECH callback */
-#  define OSSL_ECH_PBUF_SIZE 8 * 1024
+# define OSSL_ECH_PBUF_SIZE 8 * 1024
 
 /*
  * Swap the inner and outer after ECH success on the client
