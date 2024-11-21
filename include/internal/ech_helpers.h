@@ -31,9 +31,9 @@
  *
  * Note: input here is untrusted!
  */
-int ech_helper_get_sh_offsets(const unsigned char *sh, size_t sh_len,
-                              size_t *exts, size_t *echoffset,
-                              uint16_t *echtype);
+int ossl_ech_get_sh_offsets(const unsigned char *sh, size_t sh_len,
+                            size_t *exts, size_t *echoffset,
+                            uint16_t *echtype);
 
 /*
  * make up HPKE "info" input as per spec
@@ -43,8 +43,8 @@ int ech_helper_get_sh_offsets(const unsigned char *sh, size_t sh_len,
  * info_len is the buffer size on input, used-length on output
  * return 1 for success, other otherwise
  */
-int ech_helper_make_enc_info(unsigned char *encoding, size_t encoding_length,
-                             unsigned char *info, size_t *info_len);
+int ossl_ech_make_enc_info(unsigned char *encoding, size_t encoding_length,
+                           unsigned char *info, size_t *info_len);
 
 # endif
 #endif

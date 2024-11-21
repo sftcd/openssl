@@ -109,7 +109,7 @@ static int c_quiet = 0;
 static char *sess_out = NULL;
 # ifndef OPENSSL_NO_ECH
 static char *ech_config_list = NULL;
-#  ifndef OPENSSL_NO_SSL_TRACE
+#  ifndef OPENSSL_NO_TRACE
 static size_t ech_trace_cb(const char *buf, size_t cnt,
                            int category, int cmd, void *vdata);
 #  endif
@@ -2328,7 +2328,7 @@ int s_client_main(int argc, char **argv)
             SSL_set_msg_callback(con, msg_cb);
         SSL_set_msg_callback_arg(con, bio_c_msg ? bio_c_msg : bio_c_out);
 # ifndef OPENSSL_NO_ECH
-#  ifndef OPENSSL_NO_SSL_TRACE
+#  ifndef OPENSSL_NO_TRACE
         if (c_msg == 2)
             OSSL_trace_set_callback(OSSL_TRACE_CATEGORY_TLS, ech_trace_cb,
                                     bio_c_msg? bio_c_msg : bio_c_out);
@@ -3405,7 +3405,7 @@ static void print_ech_retry_configs(BIO *bio, SSL *s)
     BIO *biom = NULL;
 
     if (SSL_ech_get1_retry_config(s, &rtval, &rtlen) != 1) {
-        BIO_printf(bio, "ECH: Error getting retry-configs (odd)\n");
+        BIO_printf(bio, "ECH: Error getting retry-configs\n");
         return;
     }
     /*
@@ -3416,15 +3416,12 @@ static void print_ech_retry_configs(BIO *bio, SSL *s)
         || BIO_write(biom, rtval, rtlen) <= 0
         || (es = OSSL_ECHSTORE_new(NULL, NULL)) == NULL
         || OSSL_ECHSTORE_read_echconfiglist(es, biom) != 1) {
-        BIO_printf(bio, "ECH: Error loading retry-configs (odd)\n");
+        BIO_printf(bio, "ECH: Error loading retry-configs\n");
         goto end;
     }
     if (OSSL_ECHSTORE_num_entries(es, &cnt) != 1)
         goto end;
-    if (cnt > 0)
-        BIO_printf(bio, "ECH: Got %d retty-configs\n", cnt);
-    else
-        BIO_printf(bio, "ECH: Got %d retty-configs (odd)\n", cnt);
+    BIO_printf(bio, "ECH: Got %d retry-configs\n", cnt);
     for (ind = 0; ind != cnt; ind++) {
         if (OSSL_ECHSTORE_get1_info(es, ind, &secs, &pn, &ec,
                                     &has_priv, &for_retry) != 1) {
@@ -3464,28 +3461,28 @@ static void print_ech_status(BIO *bio, SSL *s, int estat)
         BIO_printf(bio, "ECH: success, yay!: %d\n", estat);
         break;
     case SSL_ECH_STATUS_GREASE_ECH:
-        BIO_printf(bio, "ECH: GREASE+retry-configs (odd) %d\n", estat);
+        BIO_printf(bio, "ECH: GREASE+retry-configs%d\n", estat);
         break;
     case SSL_ECH_STATUS_BACKEND:
-        BIO_printf(bio, "ECH: BACKEND (odd): %d\n", estat);
+        BIO_printf(bio, "ECH: BACKEND: %d\n", estat);
         break;
     case SSL_ECH_STATUS_GREASE:
-        BIO_printf(bio, "ECH: GREASE (odd): %d\n", estat);
+        BIO_printf(bio, "ECH: GREASE: %d\n", estat);
         break;
     case SSL_ECH_STATUS_BAD_CALL:
-        BIO_printf(bio, "ECH: BAD CALL (odd): %d\n", estat);
+        BIO_printf(bio, "ECH: BAD CALL: %d\n", estat);
         break;
     case SSL_ECH_STATUS_BAD_NAME:
-        BIO_printf(bio, "ECH: BAD NAME (odd): %d\n", estat);
+        BIO_printf(bio, "ECH: BAD NAME: %d\n", estat);
         break;
     case SSL_ECH_STATUS_NOT_CONFIGURED:
-        BIO_printf(bio, "ECH: NOT CONFIGURED (odd): %d\n", estat);
+        BIO_printf(bio, "ECH: NOT CONFIGURED: %d\n", estat);
         break;
     case SSL_ECH_STATUS_FAILED_ECH_BAD_NAME:
-        BIO_printf(bio, "ECH: failed+retry-configs (odd): %d\n", estat);
+        BIO_printf(bio, "ECH: failed+retry-configs: %d\n", estat);
         break;
     default:
-        BIO_printf(bio, "ECH: unexpected status (odd): %d\n", estat);
+        BIO_printf(bio, "ECH: unexpected status: %d\n", estat);
     }
     return;
 }
@@ -3765,7 +3762,7 @@ static void print_stuff(BIO *bio, SSL *s, int full)
 }
 
 # ifndef OPENSSL_NO_ECH
-#  ifndef OPENSSL_NO_SSL_TRACE
+#  ifndef OPENSSL_NO_TRACE
 /* ECH Tracing callback */
 static size_t ech_trace_cb(const char *buf, size_t cnt, int category,
                            int cmd, void *vdata)

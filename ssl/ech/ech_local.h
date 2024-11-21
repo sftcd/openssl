@@ -225,18 +225,18 @@ typedef struct ossl_ech_conn_st {
     unsigned char client_random[SSL3_RANDOM_SIZE]; /* CH random */
 } OSSL_ECH_CONN;
 
-/* Return values from ech_same_ext */
+/* Return values from ossl_ech_same_ext */
 #  define OSSL_ECH_SAME_EXT_ERR 0 /* bummer something wrong */
 #  define OSSL_ECH_SAME_EXT_DONE 1 /* proceed with same value in inner/outer */
 #  define OSSL_ECH_SAME_EXT_CONTINUE 2 /* generate a new value for outer CH */
 
 /*
  * During extension construction (in extensions_clnt.c and surprisingly also in
- * extensions.c), we need to handle inner/outer CH cloning - ech_same_ext will
- * (depending on compile time handling options) copy the value from CH.inner to
- * CH.outer or else processing will continue, for a 2nd call, likely generating
- * a fresh value for the outer CH. The fresh value could well be the same as in
- * the inner.
+ * extensions.c), we need to handle inner/outer CH cloning - ossl_ech_same_ext
+ * will (depending on compile time handling options) copy the value from
+ * CH.inner to CH.outer or else processing will continue, for a 2nd call,
+ * likely generating a fresh value for the outer CH. The fresh value could well
+ * be the same as in the inner.
  *
  * This macro should be called in each _ctos_ function that doesn't explicitly
  * have special ECH handling.
@@ -249,11 +249,11 @@ typedef struct ossl_ech_conn_st {
  */
 #  define ECH_IOSAME(s, pkt) \
     if (s->ext.ech.es != NULL && s->ext.ech.grease == 0) { \
-        int __rv = ech_same_ext(s, pkt); \
+        int ech_iosame_rv = ossl_ech_same_ext(s, pkt); \
         \
-        if (__rv == OSSL_ECH_SAME_EXT_ERR) \
+        if (ech_iosame_rv == OSSL_ECH_SAME_EXT_ERR) \
             return EXT_RETURN_FAIL; \
-        if (__rv == OSSL_ECH_SAME_EXT_DONE) \
+        if (ech_iosame_rv == OSSL_ECH_SAME_EXT_DONE) \
             return EXT_RETURN_SENT; \
         /* otherwise continue as normal */ \
     }
@@ -269,32 +269,34 @@ void ossl_ech_conn_clear(OSSL_ECH_CONN *ec);
 void ossl_echext_free(OSSL_ECHEXT *e);
 OSSL_ECHEXT *ossl_echext_dup(const OSSL_ECHEXT *src);
 #  ifdef OSSL_ECH_SUPERVERBOSE
-void ech_pbuf(const char *msg, const unsigned char *buf, const size_t blen);
-void ech_ptranscript(const char *msg, SSL_CONNECTION *s);
+void ossl_ech_pbuf(const char *msg,
+                   const unsigned char *buf, const size_t blen);
+void ossl_ech_ptranscript(const char *msg, SSL_CONNECTION *s);
 #  endif
-int ech_get_retry_configs(SSL_CONNECTION *s, unsigned char **rcfgs,
-                          size_t *rcfgslen);
-int ech_send_grease(SSL_CONNECTION *s, WPACKET *pkt);
-int ech_pick_matching_cfg(SSL_CONNECTION *s, OSSL_ECHSTORE_ENTRY **ee,
-                          OSSL_HPKE_SUITE *suite);
-int ech_encode_inner(SSL_CONNECTION *s);
-int ech_find_confirm(SSL_CONNECTION *s, int hrr, unsigned char *acbuf,
-                     const unsigned char *shbuf, const size_t shlen);
-int ech_make_transcript_buffer(SSL_CONNECTION *s, int for_hrr,
-                               const unsigned char *shbuf, size_t shlen,
-                               unsigned char **tbuf, size_t *tlen,
-                               size_t *chend, size_t *fixedshbuf_len);
-int ech_reset_hs_buffer(SSL_CONNECTION *s, const unsigned char *buf,
-                        size_t blen);
-int ech_aad_and_encrypt(SSL_CONNECTION *s, WPACKET *pkt);
-int ech_swaperoo(SSL_CONNECTION *s);
-int ech_calc_confirm(SSL_CONNECTION *s, int for_hrr, unsigned char *acbuf,
-                     const unsigned char *shbuf, const size_t shlen);
+int ossl_ech_get_retry_configs(SSL_CONNECTION *s, unsigned char **rcfgs,
+                               size_t *rcfgslen);
+int ossl_ech_send_grease(SSL_CONNECTION *s, WPACKET *pkt);
+int ossl_ech_pick_matching_cfg(SSL_CONNECTION *s, OSSL_ECHSTORE_ENTRY **ee,
+                               OSSL_HPKE_SUITE *suite);
+int ossl_ech_encode_inner(SSL_CONNECTION *s);
+int ossl_ech_find_confirm(SSL_CONNECTION *s, int hrr, unsigned char *acbuf,
+                          const unsigned char *shbuf, const size_t shlen);
+int ossl_ech_make_transcript_buffer(SSL_CONNECTION *s, int for_hrr,
+                                    const unsigned char *shbuf, size_t shlen,
+                                    unsigned char **tbuf, size_t *tlen,
+                                    size_t *chend, size_t *fixedshbuf_len);
+int ossl_ech_reset_hs_buffer(SSL_CONNECTION *s, const unsigned char *buf,
+                             size_t blen);
+int ossl_ech_aad_and_encrypt(SSL_CONNECTION *s, WPACKET *pkt);
+int ossl_ech_swaperoo(SSL_CONNECTION *s);
+int ossl_ech_calc_confirm(SSL_CONNECTION *s, int for_hrr,
+                          unsigned char acbuf[8],
+                          const unsigned char *shbuf, const size_t shlen);
 
 /* these are internal but located in ssl/statem/extensions.c */
-int ech_same_ext(SSL_CONNECTION *s, WPACKET *pkt);
-int ech_same_key_share(void);
-int ech_2bcompressed(int ind);
+int ossl_ech_same_ext(SSL_CONNECTION *s, WPACKET *pkt);
+int ossl_ech_same_key_share(void);
+int ossl_ech_2bcompressed(int ind);
 
 # endif
 #endif

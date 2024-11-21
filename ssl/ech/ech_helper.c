@@ -33,9 +33,9 @@ static const char OSSL_ECH_CONTEXT_STRING[] = "\x74\x6c\x73\x20\x65\x63\x68";
  *
  * Note: input here is untrusted!
  */
-int ech_helper_get_sh_offsets(const unsigned char *sh, size_t sh_len,
-                              size_t *exts, size_t *echoffset,
-                              uint16_t *echtype)
+int ossl_ech_get_sh_offsets(const unsigned char *sh, size_t sh_len,
+                            size_t *exts, size_t *echoffset,
+                            uint16_t *echtype)
 {
     unsigned int elen = 0, etype = 0, pi_tmp = 0;
     const unsigned char *pp_tmp = NULL, *shstart = NULL, *estart = NULL;
@@ -106,11 +106,11 @@ int ech_helper_get_sh_offsets(const unsigned char *sh, size_t sh_len,
     OSSL_TRACE_BEGIN(TLS) {
         BIO_printf(trc_out, "orig SH/ECH type: %4x\n", *echtype);
     } OSSL_TRACE_END(TLS);
-    ech_pbuf("orig SH", (unsigned char *)sh, sh_len);
-    ech_pbuf("orig SH session_id", (unsigned char *)sh + sessid_offset,
-             sessid_len);
-    ech_pbuf("orig SH exts", (unsigned char *)sh + *exts, extlens);
-    ech_pbuf("orig SH/ECH ", (unsigned char *)sh + *echoffset, echlen);
+    ossl_ech_pbuf("orig SH", (unsigned char *)sh, sh_len);
+    ossl_ech_pbuf("orig SH session_id", (unsigned char *)sh + sessid_offset,
+                  sessid_len);
+    ossl_ech_pbuf("orig SH exts", (unsigned char *)sh + *exts, extlens);
+    ossl_ech_pbuf("orig SH/ECH ", (unsigned char *)sh + *echoffset, echlen);
 #endif
     return 1;
 }
@@ -123,8 +123,8 @@ int ech_helper_get_sh_offsets(const unsigned char *sh, size_t sh_len,
  * info_len is the buffer size on input, used-length on output
  * return 1 for success, other otherwise
  */
-int ech_helper_make_enc_info(unsigned char *encoding, size_t encoding_length,
-                             unsigned char *info, size_t *info_len)
+int ossl_ech_make_enc_info(unsigned char *encoding, size_t encoding_length,
+                           unsigned char *info, size_t *info_len)
 {
     unsigned char *ip = info;
 
@@ -134,6 +134,11 @@ int ech_helper_make_enc_info(unsigned char *encoding, size_t encoding_length,
         return 0;
     memcpy(ip, OSSL_ECH_CONTEXT_STRING, sizeof(OSSL_ECH_CONTEXT_STRING) - 1);
     ip += sizeof(OSSL_ECH_CONTEXT_STRING) - 1;
+    /*
+     * the zero valued octet is required by the spec, section 7.1 so a tiny
+     * bit better to add it explicitly rather than depend on the string being
+     * NUL terminated
+     */
     *ip++ = 0x00;
     memcpy(ip, encoding, encoding_length);
     *info_len = sizeof(OSSL_ECH_CONTEXT_STRING) + encoding_length;

@@ -79,7 +79,7 @@ EXT_RETURN tls_construct_ctos_server_name(SSL_CONNECTION *s, WPACKET *pkt,
     OSSL_ECHSTORE_ENTRY *ee = NULL;
 
     if (s->ext.ech.es != NULL) {
-        if (ech_pick_matching_cfg(s, &ee, &suite) != 1) {
+        if (ossl_ech_pick_matching_cfg(s, &ee, &suite) != 1) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             return EXT_RETURN_NOT_SENT;
         }
@@ -543,7 +543,7 @@ EXT_RETURN tls_construct_ctos_alpn(SSL_CONNECTION *s, WPACKET *pkt,
         alen = s->ext.ech.alpn_outer_len;
     }
     if (!WPACKET_put_bytes_u16(pkt,
-           TLSEXT_TYPE_application_layer_protocol_negotiation)
+                               TLSEXT_TYPE_application_layer_protocol_negotiation)
         || !WPACKET_start_sub_packet_u16(pkt)
         || !WPACKET_sub_memcpy_u16(pkt, aval, alen)
         || !WPACKET_close(pkt)) {
@@ -1357,8 +1357,10 @@ EXT_RETURN tls_construct_ctos_psk(SSL_CONNECTION *s, WPACKET *pkt,
             + reshashsize
             + pskhashsize;
         rndbuf = OPENSSL_malloc(totalrndsize);
-        if (rndbuf == NULL)
+        if (rndbuf == NULL) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             return EXT_RETURN_FAIL;
+        }
         /* outer CH allocate a similar sized random value */
         if (RAND_bytes_ex(s->ssl.ctx->libctx, rndbuf, totalrndsize,
                           RAND_DRBG_STRENGTH) <= 0) {
@@ -2512,7 +2514,7 @@ EXT_RETURN tls_construct_ctos_ech(SSL_CONNECTION *s, WPACKET *pkt,
         /* if nobody set a type, use the defaulf */
         if (s->ext.ech.attempted_type == OSSL_ECH_type_unknown)
             s->ext.ech.attempted_type = TLSEXT_TYPE_ech;
-        if (ech_send_grease(s, pkt) != 1) {
+        if (ossl_ech_send_grease(s, pkt) != 1) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             return EXT_RETURN_NOT_SENT;
         }
@@ -2567,8 +2569,10 @@ int tls_parse_stoc_ech(SSL_CONNECTION *s, PACKET *pkt, unsigned int context,
     OPENSSL_free(s->ext.ech.returned);
     s->ext.ech.returned = NULL;
     srval = OPENSSL_malloc(rlen + 2);
-    if (srval == NULL)
+    if (srval == NULL) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
+    }
     srval[0] = (rlen >> 8) & 0xff;
     srval[1] = rlen & 0xff;
     memcpy(srval + 2, rval, rlen);
