@@ -19,13 +19,13 @@
 #include "statem_local.h"
 
 /*
- * values for ext_defs ech_handling field 
+ * values for ext_defs ech_handling field
  * exceptionally, we don't conditionally compile that field to avoid a pile of
  * fndefs all over the ext_defs values
  */
-# define OSSL_ECH_HANDLING_CALL_BOTH 1 /* call constructor both times */
-# define OSSL_ECH_HANDLING_COMPRESS  2 /* compress outer value into inner */
-# define OSSL_ECH_HANDLING_DUPLICATE 3 /* same value in inner and outer */
+#define OSSL_ECH_HANDLING_CALL_BOTH 1 /* call constructor both times */
+#define OSSL_ECH_HANDLING_COMPRESS  2 /* compress outer value into inner */
+#define OSSL_ECH_HANDLING_DUPLICATE 3 /* same value in inner and outer */
 /*
  * DUPLICATE isn't really useful other than to show we can,
  * and for debugging/tests/coverage so may disappear. Changes mostly
@@ -1145,9 +1145,9 @@ int tls_construct_extensions(SSL_CONNECTION *s, WPACKET *pkt,
 
         for (i = 0, thisexd = ext_defs; i < OSSL_NELEM(ext_defs);
              i++, thisexd++) {
-            EXT_RETURN (*construct)(SSL_CONNECTION *s, WPACKET *pkt,
-                                    unsigned int context,
-                                    X509 *x, size_t chainidx);
+            EXT_RETURN(*construct)(SSL_CONNECTION *s, WPACKET *pkt,
+                                   unsigned int context,
+                                   X509 *x, size_t chainidx);
             EXT_RETURN ret;
 
 #ifndef OPENSSL_NO_ECH
@@ -1344,7 +1344,7 @@ static int final_server_name(SSL_CONNECTION *s, unsigned int context, int sent)
             && was_ticket && (SSL_get_options(ssl) & SSL_OP_NO_TICKET) != 0) {
         s->ext.ticket_expected = 0;
         if (!s->hit) {
-            SSL_SESSION* ss = SSL_get_session(ssl);
+            SSL_SESSION *ss = SSL_get_session(ssl);
 
             if (ss != NULL) {
                 OPENSSL_free(ss->ext.tick);

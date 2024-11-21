@@ -1528,9 +1528,9 @@ __owur CON_FUNC_RETURN tls_construct_client_hello(SSL_CONNECTION *s, WPACKET *pk
     session_id = s->session->session_id;
 #ifndef OPENSSL_NO_ECH
     /* same session ID is used for inner/outer when doing ECH */
-    if (s->ext.ech.es != NULL)
+    if (s->ext.ech.es != NULL) {
         sess_id_len = sizeof(s->tmp_session_id);
-    else
+    } else {
 #endif
         if (s->new_session || s->session->ssl_version == TLS1_3_VERSION) {
             if (s->version == TLS1_3_VERSION
@@ -1556,6 +1556,9 @@ __owur CON_FUNC_RETURN tls_construct_client_hello(SSL_CONNECTION *s, WPACKET *pk
                 memcpy(s->tmp_session_id, s->session->session_id, sess_id_len);
             }
         }
+#ifndef OPENSSL_NO_ECH
+    }
+#endif
 
     if (!WPACKET_start_sub_packet_u8(pkt)
             || (sess_id_len != 0 && !WPACKET_memcpy(pkt, session_id,
