@@ -1548,8 +1548,8 @@ __owur CON_FUNC_RETURN tls_construct_client_hello(SSL_CONNECTION *s, WPACKET *pk
                 sess_id_len = 0;
             }
         } else {
-            assert(s->session->session_id_length
-                   <= sizeof(s->session->session_id));
+            assert(s->session->session_id_length <=
+                   sizeof(s->session->session_id));
             sess_id_len = s->session->session_id_length;
             if (s->version == TLS1_3_VERSION) {
                 s->tmp_session_id_len = sess_id_len;
