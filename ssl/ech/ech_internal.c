@@ -541,9 +541,7 @@ int ossl_ech_encode_inner(SSL_CONNECTION *s)
     rv = 1;
 err:
     WPACKET_cleanup(&inner);
-    if (inner_mem != NULL) {
-        BUF_MEM_free(inner_mem);
-    }
+    BUF_MEM_free(inner_mem);
     return rv;
 }
 
@@ -956,7 +954,7 @@ int ossl_ech_aad_and_encrypt(SSL_CONNECTION *s, WPACKET *pkt)
 # ifdef OSSL_ECH_SUPERVERBOSE
     ossl_ech_pbuf("EAAE: peer pub", ee->pub, ee->pub_len);
     ossl_ech_pbuf("EAAE: clear", s->ext.ech.encoded_innerch,
-             s->ext.ech.encoded_innerch_len);
+                  s->ext.ech.encoded_innerch_len);
     ossl_ech_pbuf("EAAE: ECHConfig", ee->encoded, ee->encoded_len);
 # endif
     /*

@@ -1255,8 +1255,7 @@ __owur CON_FUNC_RETURN tls_construct_client_hello(SSL_CONNECTION *s,
         s->ext.ech.grease = OSSL_ECH_NOT_GREASE;
     /*
      * Session ID is handled "oddly" by not being encoded into inner CH (an
-     * optimisation) so is the same for both inner and outer (so that
-     * ServerHello has correct value).
+     * optimisation) so is the same for both inner and outer.
      */
     sess = s->session;
     if (sess == NULL
@@ -1290,7 +1289,6 @@ __owur CON_FUNC_RETURN tls_construct_client_hello(SSL_CONNECTION *s,
             memcpy(s->tmp_session_id, s->session->session_id, sess_id_len);
         }
     }
-    /* special handling when doing HRR */
     if (s->hello_retry_request != SSL_HRR_NONE) {
         s->ext.ech.n_outer_only = 0; /* reset count of "compressed" exts */
         OPENSSL_free(s->ext.ech.encoded_innerch);
@@ -1333,7 +1331,6 @@ __owur CON_FUNC_RETURN tls_construct_client_hello(SSL_CONNECTION *s,
     BUF_MEM_free(inner_mem);
     inner_mem = NULL;
 # ifdef OSSL_ECH_SUPERVERBOSE
-    /* If tracing, trace out the inner, client random & session id */
     ossl_ech_pbuf("inner CH", s->ext.ech.innerch, s->ext.ech.innerch_len);
     ossl_ech_pbuf("inner, client_random", s->ext.ech.client_random,
                   SSL3_RANDOM_SIZE);
@@ -1364,8 +1361,7 @@ __owur CON_FUNC_RETURN tls_construct_client_hello(SSL_CONNECTION *s,
     ossl_ech_pbuf("encoded inner CH", s->ext.ech.encoded_innerch,
                   s->ext.ech.encoded_innerch_len);
 # endif
-    /* set deptch for outer CH */
-    s->ext.ech.ch_depth = 0;
+    s->ext.ech.ch_depth = 0; /* set depth for outer CH */
     /*
      * If we want different key shares for inner and outer, then
      * zap the one for the inner. The inner key_share is stashed
@@ -1402,9 +1398,7 @@ __owur CON_FUNC_RETURN tls_construct_client_hello(SSL_CONNECTION *s,
     return 1;
 err:
     WPACKET_cleanup(&inner);
-    if (inner_mem != NULL) {
-        BUF_MEM_free(inner_mem);
-    }
+    BUF_MEM_free(inner_mem);
     if (s->clienthello != NULL) {
         OPENSSL_free(s->clienthello->pre_proc_exts);
         OPENSSL_free(s->clienthello);

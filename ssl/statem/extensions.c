@@ -18,8 +18,11 @@
 #include "../ssl_local.h"
 #include "statem_local.h"
 
-#ifndef OPENSSL_NO_ECH
-/* possible values for ext_defs ech_handling field */
+/*
+ * values for ext_defs ech_handling field 
+ * exceptionally, we don't conditionally compile that field to avoid a pile of
+ * fndefs all over the ext_defs values
+ */
 # define OSSL_ECH_HANDLING_CALL_BOTH 1 /* call constructor both times */
 # define OSSL_ECH_HANDLING_COMPRESS  2 /* compress outer value into inner */
 # define OSSL_ECH_HANDLING_DUPLICATE 3 /* same value in inner and outer */
@@ -45,6 +48,7 @@
  * medium-term thing. (But still allow other builds to vary at
  * compile time if they need something different.)
  */
+#ifndef OPENSSL_NO_ECH
 static int init_ech(SSL_CONNECTION *s, unsigned int context);
 #endif /* OPENSSL_NO_ECH */
 
