@@ -1145,7 +1145,7 @@ int tls_construct_extensions(SSL_CONNECTION *s, WPACKET *pkt,
 
         for (i = 0, thisexd = ext_defs; i < OSSL_NELEM(ext_defs);
              i++, thisexd++) {
-            EXT_RETURN(*construct)(SSL_CONNECTION *s, WPACKET *pkt,
+            EXT_RETURN (*construct)(SSL_CONNECTION *s, WPACKET *pkt,
                                    unsigned int context,
                                    X509 *x, size_t chainidx);
             EXT_RETURN ret;
@@ -1858,8 +1858,6 @@ int tls_psk_do_binder(SSL_CONNECTION *s, const EVP_MD *md,
     EVP_MD_CTX *ctx = NULL;
     WPACKET tpkt;
     BUF_MEM *tpkt_mem = NULL;
-
-    memset(&tpkt, 0, sizeof(tpkt));
 #endif
 
     /* Ensure cast to size_t is safe */
@@ -2052,8 +2050,10 @@ int tls_psk_do_binder(SSL_CONNECTION *s, const EVP_MD *md,
     EVP_MD_CTX_free(mctx);
 #ifndef OPENSSL_NO_ECH
     EVP_MD_CTX_free(ctx);
-    WPACKET_cleanup(&tpkt);
-    BUF_MEM_free(tpkt_mem);
+    if (tpkt_mem != NULL) {
+        WPACKET_cleanup(&tpkt);
+        BUF_MEM_free(tpkt_mem);
+    }
 #endif
 
     return ret;

@@ -1220,7 +1220,6 @@ __owur CON_FUNC_RETURN tls_construct_client_hello(SSL_CONNECTION *s,
     /* Work out what SSL/TLS/DTLS version to use */
     int protverr = ssl_set_client_hello_version(s);
 
-    memset(&inner, 0, sizeof(inner));
     if (protverr != 0) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, protverr);
         return 0;
@@ -1308,7 +1307,6 @@ __owur CON_FUNC_RETURN tls_construct_client_hello(SSL_CONNECTION *s,
      */
     s->ext.ech.ch_depth = 1;
     if ((inner_mem = BUF_MEM_new()) == NULL
-        || !BUF_MEM_grow(inner_mem, SSL3_RT_MAX_PLAIN_LENGTH)
         || !WPACKET_init(&inner, inner_mem)
         || !ssl_set_handshake_header(s, &inner, mt)
         || tls_construct_client_hello_aux(s, &inner) != 1
@@ -1397,8 +1395,10 @@ __owur CON_FUNC_RETURN tls_construct_client_hello(SSL_CONNECTION *s,
     }
     return 1;
 err:
-    WPACKET_cleanup(&inner);
-    BUF_MEM_free(inner_mem);
+    if (inner_mem != NULL) {
+        WPACKET_cleanup(&inner);
+        BUF_MEM_free(inner_mem);
+    }
     if (s->clienthello != NULL) {
         OPENSSL_free(s->clienthello->pre_proc_exts);
         OPENSSL_free(s->clienthello);
@@ -1548,8 +1548,7 @@ __owur CON_FUNC_RETURN tls_construct_client_hello(SSL_CONNECTION *s, WPACKET *pk
                 sess_id_len = 0;
             }
         } else {
-            assert(s->session->session_id_length <=
-                   sizeof(s->session->session_id));
+            assert(s->session->session_id_length <= sizeof(s->session->session_id));
             sess_id_len = s->session->session_id_length;
             if (s->version == TLS1_3_VERSION) {
                 s->tmp_session_id_len = sess_id_len;

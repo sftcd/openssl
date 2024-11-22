@@ -450,9 +450,7 @@ int ossl_ech_encode_inner(SSL_CONNECTION *s)
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
     }
-    memset(&inner, 0, sizeof(inner));
     if ((inner_mem = BUF_MEM_new()) == NULL
-        || !BUF_MEM_grow(inner_mem, SSL3_RT_MAX_PLAIN_LENGTH)
         || !WPACKET_init(&inner, inner_mem)
         || !ssl_set_handshake_header(s, &inner, mt)
         /* Add ver/rnd/sess-id/suites to buffer */
@@ -540,8 +538,10 @@ int ossl_ech_encode_inner(SSL_CONNECTION *s)
     /* and clean up */
     rv = 1;
 err:
-    WPACKET_cleanup(&inner);
-    BUF_MEM_free(inner_mem);
+    if (inner_mem != NULL) {
+        WPACKET_cleanup(&inner);
+        BUF_MEM_free(inner_mem);
+    }
     return rv;
 }
 
@@ -669,7 +669,6 @@ int ossl_ech_make_transcript_buffer(SSL_CONNECTION *s, int for_hrr,
      * and is missing on client so we'll fix
      */
     if ((shpkt_mem = BUF_MEM_new()) == NULL
-        || !BUF_MEM_grow(shpkt_mem, SSL3_RT_MAX_PLAIN_LENGTH)
         || !WPACKET_init(&shpkt, shpkt_mem)) {
         BUF_MEM_free(shpkt_mem);
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
@@ -700,9 +699,7 @@ int ossl_ech_make_transcript_buffer(SSL_CONNECTION *s, int for_hrr,
 # ifdef OSSL_ECH_SUPERVERBOSE
     ossl_ech_pbuf("cx: fixed sh buf", fixedshbuf, *fixedshbuf_len);
 # endif
-    memset(&tpkt, 0, sizeof(tpkt));
     if ((tpkt_mem = BUF_MEM_new()) == NULL
-        || !BUF_MEM_grow(tpkt_mem, SSL3_RT_MAX_PLAIN_LENGTH)
         || !WPACKET_init(&tpkt, tpkt_mem)) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         goto err;
@@ -792,8 +789,10 @@ int ossl_ech_make_transcript_buffer(SSL_CONNECTION *s, int for_hrr,
 err:
     if (s->ext.ech.kepthrr != fixedshbuf) /* don't double-free */
         OPENSSL_free(fixedshbuf);
-    WPACKET_cleanup(&tpkt);
-    BUF_MEM_free(tpkt_mem);
+    if (tpkt_mem != NULL) {
+        WPACKET_cleanup(&tpkt);
+        BUF_MEM_free(tpkt_mem);
+    }
     EVP_MD_CTX_free(ctx);
     return 0;
 }
