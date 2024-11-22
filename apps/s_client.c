@@ -722,10 +722,10 @@ const OPTIONS s_client_options[] = {
     {"ech_config_list", OPT_ECHCONFIGLIST, 's',
      "Set ECHConfigList, value is base 64 encoded ECHConfigList"},
 # endif
-# ifndef OPENSSL_NO_SRTP
+#ifndef OPENSSL_NO_SRTP
     {"use_srtp", OPT_USE_SRTP, 's',
      "Offer SRTP key management with a colon-separated profile list"},
-# endif
+#endif
 #ifndef OPENSSL_NO_SRP
     {"srpuser", OPT_SRPUSER, 's', "(deprecated) SRP authentication for 'user'"},
     {"srppass", OPT_SRPPASS, 's', "(deprecated) Password for 'user'"},
