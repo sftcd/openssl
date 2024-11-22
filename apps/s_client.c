@@ -109,10 +109,6 @@ static int c_quiet = 0;
 static char *sess_out = NULL;
 # ifndef OPENSSL_NO_ECH
 static char *ech_config_list = NULL;
-#  ifndef OPENSSL_NO_TRACE
-static size_t ech_trace_cb(const char *buf, size_t cnt,
-                           int category, int cmd, void *vdata);
-#  endif
 # endif
 static SSL_SESSION *psksess = NULL;
 
@@ -2327,13 +2323,6 @@ int s_client_main(int argc, char **argv)
 #endif
             SSL_set_msg_callback(con, msg_cb);
         SSL_set_msg_callback_arg(con, bio_c_msg ? bio_c_msg : bio_c_out);
-# ifndef OPENSSL_NO_ECH
-#  ifndef OPENSSL_NO_TRACE
-        if (c_msg == 2)
-            OSSL_trace_set_callback(OSSL_TRACE_CATEGORY_TLS, ech_trace_cb,
-                                    bio_c_msg ? bio_c_msg : bio_c_out);
-#  endif
-# endif
     }
 
     if (c_tlsextdebug) {
@@ -3760,47 +3749,6 @@ static void print_stuff(BIO *bio, SSL *s, int full)
     /* flush, or debugging output gets mixed with http response */
     (void)BIO_flush(bio);
 }
-
-# ifndef OPENSSL_NO_ECH
-#  ifndef OPENSSL_NO_TRACE
-/* ECH Tracing callback */
-static size_t ech_trace_cb(const char *buf, size_t cnt, int category,
-                           int cmd, void *vdata)
-{
-    BIO *bio = vdata;
-    const char *label = NULL;
-    size_t brv = 0;
-
-    switch (cmd) {
-    case OSSL_TRACE_CTRL_BEGIN:
-        label = "ECH TRACE BEGIN";
-        break;
-    case OSSL_TRACE_CTRL_END:
-        label = "ECH TRACE END";
-        break;
-    }
-    if (label != NULL) {
-#   if defined(OPENSSL_THREADS) && !defined(OPENSSL_SYS_WINDOWS) \
-        && !defined(OPENSSL_SYS_MSDOS)
-        union {
-            pthread_t tid;
-            unsigned long ltid;
-        } tid;
-
-        tid.tid = pthread_self();
-        BIO_printf(bio, "%s TRACE[%s]:%lx\n", label,
-                   OSSL_trace_get_category_name(category), tid.ltid);
-#   else
-        BIO_printf(bio, "%s TRACE[%s]:0\n", label,
-                   OSSL_trace_get_category_name(category));
-#   endif
-    }
-    brv = (size_t)BIO_puts(bio, buf);
-    (void)BIO_flush(bio);
-    return brv;
-}
-#  endif
-# endif
 
 # ifndef OPENSSL_NO_OCSP
 static int ocsp_resp_cb(SSL *s, void *arg)
