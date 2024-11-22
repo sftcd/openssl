@@ -36,8 +36,9 @@ static MSG_PROCESS_RETURN tls_process_encrypted_extensions(SSL_CONNECTION *s,
 
 static ossl_inline int cert_req_allowed(SSL_CONNECTION *s);
 static int key_exchange_expected(SSL_CONNECTION *s);
-#ifdef OPENSSL_NO_ECH
+#ifndef OPENSSL_NO_ECH
 /* testing moving this to ssl/ssl_ciph.c */
+#else
 static int ssl_cipher_list_to_bytes(SSL_CONNECTION *s, STACK_OF(SSL_CIPHER) *sk,
                                     WPACKET *pkt);
 #endif
@@ -4422,8 +4423,9 @@ int ssl_do_client_cert_cb(SSL_CONNECTION *s, X509 **px509, EVP_PKEY **ppkey)
     return i;
 }
 
-#ifdef OPENSSL_NO_ECH
+#ifndef OPENSSL_NO_ECH
 /* testing moving this to ssl/ssl_ciph.c */
+#else
 static int ssl_cipher_list_to_bytes(SSL_CONNECTION *s, STACK_OF(SSL_CIPHER) *sk,
                                     WPACKET *pkt)
 {

@@ -12,7 +12,6 @@
 #include "../ssl_local.h"
 #include "ech_local.h"
 #include <openssl/rand.h>
-#include "../statem/statem_local.h"
 #include <internal/ech_helpers.h>
 #include <openssl/kdf.h>
 
