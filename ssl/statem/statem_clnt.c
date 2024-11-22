@@ -36,9 +36,8 @@ static MSG_PROCESS_RETURN tls_process_encrypted_extensions(SSL_CONNECTION *s,
 
 static ossl_inline int cert_req_allowed(SSL_CONNECTION *s);
 static int key_exchange_expected(SSL_CONNECTION *s);
-#ifndef OPENSSL_NO_ECH
-/* moved this to statem_local.h as it's now also used by ech.c */
-#else
+#ifdef OPENSSL_NO_ECH
+/* testing moving this to ssl/ssl_ciph.c */
 static int ssl_cipher_list_to_bytes(SSL_CONNECTION *s, STACK_OF(SSL_CIPHER) *sk,
                                     WPACKET *pkt);
 #endif
@@ -4423,8 +4422,10 @@ int ssl_do_client_cert_cb(SSL_CONNECTION *s, X509 **px509, EVP_PKEY **ppkey)
     return i;
 }
 
-int ssl_cipher_list_to_bytes(SSL_CONNECTION *s, STACK_OF(SSL_CIPHER) *sk,
-                             WPACKET *pkt)
+#ifdef OPENSSL_NO_ECH
+/* testing moving this to ssl/ssl_ciph.c */
+static int ssl_cipher_list_to_bytes(SSL_CONNECTION *s, STACK_OF(SSL_CIPHER) *sk,
+                                    WPACKET *pkt)
 {
     int i;
     size_t totlen = 0, len, maxlen, maxverok = 0;
@@ -4526,6 +4527,7 @@ int ssl_cipher_list_to_bytes(SSL_CONNECTION *s, STACK_OF(SSL_CIPHER) *sk,
 
     return 1;
 }
+#endif
 
 CON_FUNC_RETURN tls_construct_end_of_early_data(SSL_CONNECTION *s, WPACKET *pkt)
 {
