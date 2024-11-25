@@ -712,13 +712,13 @@ int ossl_ech_make_transcript_buffer(SSL_CONNECTION *s, int for_hrr,
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             goto err;
         }
-        OPENSSL_free(fixedshbuf);
         *tbuf = OPENSSL_malloc(*tlen);
         if (*tbuf == NULL) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             goto err;
         }
         memcpy(*tbuf, WPACKET_get_curr(&tpkt) - *tlen, *tlen);
+        OPENSSL_free(fixedshbuf);
         WPACKET_cleanup(&tpkt);
         BUF_MEM_free(tpkt_mem);
         return 1;
@@ -1046,7 +1046,7 @@ int ossl_ech_aad_and_encrypt(SSL_CONNECTION *s, WPACKET *pkt)
     aad = WPACKET_get_curr(pkt) - aad_len;
     /*
      * close the extensions of the CH - we skipped doing this
-     * earler when encoding extensions, to allow for adding the
+     * earlier when encoding extensions, to allow for adding the
      * ECH here (when doing ECH) - see tls_construct_extensions()
      * towards the end
      */
@@ -1282,7 +1282,7 @@ int ossl_ech_swaperoo(SSL_CONNECTION *s)
 }
 
 /*
- * do the HKDF for ECH acceptannce checking
+ * do the HKDF for ECH acceptance checking
  * md is the h/s hash
  * for_hrr is 1 if we're doing a HRR
  * return 1 for good, 0 for error

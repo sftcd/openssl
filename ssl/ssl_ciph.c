@@ -2250,7 +2250,6 @@ const char *OSSL_default_ciphersuites(void)
            "TLS_AES_128_GCM_SHA256";
 }
 
-#ifndef OPENSSL_NO_ECH
 int ssl_cipher_list_to_bytes(SSL_CONNECTION *s, STACK_OF(SSL_CIPHER) *sk,
                              WPACKET *pkt)
 {
@@ -2354,4 +2353,3 @@ int ssl_cipher_list_to_bytes(SSL_CONNECTION *s, STACK_OF(SSL_CIPHER) *sk,
 
     return 1;
 }
-#endif
