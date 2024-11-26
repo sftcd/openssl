@@ -674,6 +674,7 @@ void app_bail_out(char *fmt, ...)
     BIO_vprintf(bio_err, fmt, args);
     va_end(args);
     ERR_print_errors(bio_err);
+    BIO_free_all(bio_err);
     exit(EXIT_FAILURE);
 }
 

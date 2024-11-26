@@ -419,8 +419,7 @@ int OSSL_trace_set_callback(int category, OSSL_trace_cb callback, void *data)
     return 1;
 
  err:
-    BIO_free(channel);
-    OPENSSL_free(trace_data);
+    BIO_free(channel); /* also frees trace_data */
 #endif
 
     return 0;

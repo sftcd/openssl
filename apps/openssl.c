@@ -187,6 +187,7 @@ static void setup_trace_category(int category)
                 OSSL_trace_get_category_name(category));
 
         OSSL_trace_set_callback(category, NULL, NULL);
+        OPENSSL_free(trace_data);
         BIO_free_all(channel);
     }
 }
@@ -274,8 +275,14 @@ int main(int argc, char *argv[])
     pname = opt_progname(argv[0]);
 
     default_config_file = CONF_get1_default_config_file();
-    if (default_config_file == NULL)
+    if (default_config_file == NULL) {
+        lh_FUNCTION_free(prog);
+        OPENSSL_free(arg.argv);
+        BIO_free(bio_in);
+        BIO_free_all(bio_out);
+        apps_shutdown();
         app_bail_out("%s: could not get default config file\n", pname);
+    }
 
     /* first check the program name */
     f.name = pname;
