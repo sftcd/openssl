@@ -1743,8 +1743,12 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL_CONNECTION *s, PACKET *pkt)
 #ifndef OPENSSL_NO_ECH
     const unsigned char *shbuf = NULL;
     size_t shlen, chend, fixedshbuf_len, alen;
-    /* client and server accept signal buffers */
-    unsigned char c_signal[8], s_signal[8];
+    /*
+     * client and server accept signal buffers, initialise in case of
+     * e.g. memory fail when calculating, only really applies when
+     * SUPERVERBOSE is defined and we trace these.
+     */
+    unsigned char c_signal[8] = { 0 }, s_signal[8] = { 0xff };
     unsigned char *abuf = NULL;
 
     shlen = PACKET_remaining(pkt);
