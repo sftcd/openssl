@@ -545,9 +545,8 @@ static const EXTENSION_DEFINITION ext_defs[] = {
  * already.
  */
 static int ech_copy_inner2outer(SSL_CONNECTION *s, uint16_t ext_type,
-                                WPACKET *pkt)
+                                int ind, WPACKET *pkt)
 {
-    size_t ind = 0, nraws = 0;
     RAW_EXTENSION *myext = NULL, *raws = NULL;
 
     if (s == NULL || s->clienthello == NULL)
@@ -555,17 +554,11 @@ static int ech_copy_inner2outer(SSL_CONNECTION *s, uint16_t ext_type,
     raws = s->clienthello->pre_proc_exts;
     if (raws == NULL)
         return OSSL_ECH_SAME_EXT_ERR;
-    nraws = s->clienthello->pre_proc_exts_len;
+    myext = &raws[ind];
     OSSL_TRACE_BEGIN(TLS) {
         BIO_printf(trc_out, "inner2outer: Copying ext type %d to outer\n",
                    ext_type);
     } OSSL_TRACE_END(TLS);
-    for (ind = 0; ind != nraws; ind++) {
-        if (raws[ind].type == ext_type) {
-            myext = &raws[ind];
-            break;
-        }
-    }
     /*
      * This one wasn't in inner, so re-do processing. We don't
      * actually do this currently, but could.
@@ -609,7 +602,7 @@ int ossl_ech_same_key_share(void)
 }
 
 /*
- * say if extension at index i in ext_defs is to be ECH compressed
+ * say if extension at index |ind| in ext_defs is to be ECH compressed
  * return 1 if this one is to be compressed, 0 if not, -1 for error
  */
 int ossl_ech_2bcompressed(int ind)
@@ -650,8 +643,8 @@ int ossl_ech_same_ext(SSL_CONNECTION *s, WPACKET *pkt)
         s->ext.ech.outer_only[s->ext.ech.n_outer_only] = type;
         s->ext.ech.n_outer_only++;
         OSSL_TRACE_BEGIN(TLS) {
-            BIO_printf(trc_out, "ech_same_ext: Marking (type %d, ind %d "
-                       "tot-comp %d) for compression\n", (int) type, (int) tind,
+            BIO_printf(trc_out, "ech_same_ext: Marking (type %u, ind %d "
+                       "tot-comp %d) for compression\n", type, tind,
                        (int) s->ext.ech.n_outer_only);
         } OSSL_TRACE_END(TLS);
         return OSSL_ECH_SAME_EXT_CONTINUE;
@@ -662,7 +655,7 @@ int ossl_ech_same_ext(SSL_CONNECTION *s, WPACKET *pkt)
         if (ext_defs[tind].ech_handling == OSSL_ECH_HANDLING_CALL_BOTH)
             return OSSL_ECH_SAME_EXT_CONTINUE;
         else
-            return ech_copy_inner2outer(s, type, pkt);
+            return ech_copy_inner2outer(s, type, tind, pkt);
     }
     /* just in case - shouldn't happen */
     return OSSL_ECH_SAME_EXT_ERR;
@@ -1134,8 +1127,8 @@ int tls_construct_extensions(SSL_CONNECTION *s, WPACKET *pkt,
 #ifndef OPENSSL_NO_ECH
     /*
      * Two passes - we first construct the to-be-ECH-compressed
-     * extensions, and then go around again doing those that
-     * aren't to be compressed. We need to ensure this ordering
+     * extensions, and then go around again constructing those that
+     * aren't to be ECH-compressed. We need to ensure this ordering
      * so that all the ECH-compressed extensions are contiguous
      * in the encoding. The actual compression happens later in
      * ech_encode_inner().
@@ -1278,7 +1271,7 @@ static int init_ech(SSL_CONNECTION *s, unsigned int context)
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
     }
-    if (context == SSL_EXT_CLIENT_HELLO)
+    if ((context & SSL_EXT_CLIENT_HELLO) != 0)
         s->ext.ech.done = 0;
     return 1;
 }
@@ -2179,6 +2172,9 @@ static EXT_RETURN tls_construct_compress_certificate(SSL_CONNECTION *sc, WPACKET
 
     if (sc->cert_comp_prefs[0] == TLSEXT_comp_cert_none)
         return EXT_RETURN_NOT_SENT;
+# ifndef OPENSSL_NO_ECH
+    ECH_SAME_EXT(sc, pkt);
+# endif
 
     if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_compress_certificate)
             || !WPACKET_start_sub_packet_u16(pkt)

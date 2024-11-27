@@ -20,7 +20,7 @@
 /*!
  * Given a SH (or HRR) find the offsets of the ECH (if any)
  * sh is the SH buffer
- * is the length of the SH
+ * sh_len is the length of the SH
  * exts points to offset of extensions
  * echoffset points to offset of ECH
  * echtype points to the ext type of the ECH

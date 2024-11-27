@@ -46,6 +46,8 @@
 
 #  define OSSL_ECH_CIPHER_LEN 4 /* ECHCipher length (2 for kdf, 2 for aead) */
 
+#  define OSSL_ECH_SIGNAL_LEN 8 /* length of ECH acceptance signal */
+
 #  ifndef CLIENT_VERSION_LEN
 /*
  * This is the legacy version length, i.e. len(0x0303). The same
@@ -150,7 +152,7 @@ typedef struct ossl_ech_conn_st {
      * better way to handle the mutiple transcripts needed is
      * suggested/invented. I suggest re-factoring transcript handling
      * (which is probably needed) after/with the PR that includes the
-     * server side ECH code. That should be much easier as at that point
+     * server-side ECH code. That should be much easier as at that point
      * the full set of tests can be run, whereas for now, we're limited
      * to testing the client side really works via bodged s_client
      * scripts, so there'd be a bigger risk of breaking something
@@ -158,7 +160,7 @@ typedef struct ossl_ech_conn_st {
      */
     /*
      * encoded inner ClientHello before/after ECH compression, which`
-     * is nitty/complex (to avoid repeating the same extenstion value
+     * is nitty/complex (to avoid repeating the same extension value
      * in outer and inner, thus saving bandwidth) but (re-)calculating
      * the compression is a pain, so we'll store those as we make them
      */
@@ -245,9 +247,9 @@ typedef struct ossl_ech_conn_st {
  * after declarations (to keep the ansi-c compile happy) and also after any
  * checks that result in the extension not being sent but before any relevant
  * state changes that would affect a possible 2nd call to the constructor.
- * Luckily, that's usually not to hard, but it's not mechanical.
+ * Luckily, that's usually not too hard, but it's not mechanical.
  */
-#  define ECH_IOSAME(s, pkt) \
+#  define ECH_SAME_EXT(s, pkt) \
     if (s->ext.ech.es != NULL && s->ext.ech.grease == 0) { \
         int ech_iosame_rv = ossl_ech_same_ext(s, pkt); \
         \
@@ -279,7 +281,8 @@ int ossl_ech_send_grease(SSL_CONNECTION *s, WPACKET *pkt);
 int ossl_ech_pick_matching_cfg(SSL_CONNECTION *s, OSSL_ECHSTORE_ENTRY **ee,
                                OSSL_HPKE_SUITE *suite);
 int ossl_ech_encode_inner(SSL_CONNECTION *s);
-int ossl_ech_find_confirm(SSL_CONNECTION *s, int hrr, unsigned char *acbuf,
+int ossl_ech_find_confirm(SSL_CONNECTION *s, int hrr,
+                          unsigned char acbuf[OSSL_ECH_SIGNAL_LEN],
                           const unsigned char *shbuf, const size_t shlen);
 int ossl_ech_make_transcript_buffer(SSL_CONNECTION *s, int for_hrr,
                                     const unsigned char *shbuf, size_t shlen,
@@ -290,7 +293,7 @@ int ossl_ech_reset_hs_buffer(SSL_CONNECTION *s, const unsigned char *buf,
 int ossl_ech_aad_and_encrypt(SSL_CONNECTION *s, WPACKET *pkt);
 int ossl_ech_swaperoo(SSL_CONNECTION *s);
 int ossl_ech_calc_confirm(SSL_CONNECTION *s, int for_hrr,
-                          unsigned char acbuf[8],
+                          unsigned char acbuf[OSSL_ECH_SIGNAL_LEN],
                           const unsigned char *shbuf, const size_t shlen);
 
 /* these are internal but located in ssl/statem/extensions.c */

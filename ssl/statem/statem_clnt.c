@@ -1748,7 +1748,8 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL_CONNECTION *s, PACKET *pkt)
      * e.g. memory fail when calculating, only really applies when
      * SUPERVERBOSE is defined and we trace these.
      */
-    unsigned char c_signal[8] = { 0 }, s_signal[8] = { 0xff };
+    unsigned char c_signal[OSSL_ECH_SIGNAL_LEN] = { 0 }; 
+    unsigned char s_signal[OSSL_ECH_SIGNAL_LEN] = { 0xff };
     unsigned char *abuf = NULL;
 
     shlen = PACKET_remaining(pkt);
@@ -1827,11 +1828,11 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL_CONNECTION *s, PACKET *pkt)
         /* check the ECH accept signal */
         if (ossl_ech_calc_confirm(s, hrr, c_signal, shbuf, shlen) != 1
             || ossl_ech_find_confirm(s, hrr, s_signal, shbuf, shlen) != 1
-            || memcmp(s_signal, c_signal, 8) != 0) {
+            || memcmp(s_signal, c_signal, sizeof(c_signal)) != 0) {
             OSSL_TRACE(TLS, "ECH accept check failed\n");
 # ifdef OSSL_ECH_SUPERVERBOSE
-            ossl_ech_pbuf("ECH client accept val:", c_signal, 8);
-            ossl_ech_pbuf("ECH server accept val:", s_signal, 8);
+            ossl_ech_pbuf("ECH client accept val:", c_signal, sizeof(c_signal));
+            ossl_ech_pbuf("ECH server accept val:", s_signal, sizeof(s_signal));
 # endif
             s->ext.ech.success = 0;
         } else { /* match, ECH worked */
