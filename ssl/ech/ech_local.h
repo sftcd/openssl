@@ -273,7 +273,7 @@ OSSL_ECHEXT *ossl_echext_dup(const OSSL_ECHEXT *src);
 #  ifdef OSSL_ECH_SUPERVERBOSE
 void ossl_ech_pbuf(const char *msg,
                    const unsigned char *buf, const size_t blen);
-void ossl_ech_ptranscript(const char *msg, SSL_CONNECTION *s);
+void ossl_ech_ptranscript(SSL_CONNECTION *s, const char *msg);
 #  endif
 int ossl_ech_get_retry_configs(SSL_CONNECTION *s, unsigned char **rcfgs,
                                size_t *rcfgslen);

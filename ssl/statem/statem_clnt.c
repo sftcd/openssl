@@ -1363,7 +1363,7 @@ __owur CON_FUNC_RETURN tls_construct_client_hello(SSL_CONNECTION *s,
         EVP_PKEY_free(s->s3.tmp.pkey);
         s->s3.tmp.pkey = NULL;
     }
-    /* Make second call into CH constuction for outer CH. */
+    /* Make second call into CH construction for outer CH. */
     rv = tls_construct_client_hello_aux(s, pkt);
     if (rv != 1) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, protverr);

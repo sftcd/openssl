@@ -31,8 +31,6 @@ static const char OSSL_ECH_HRR_CONFIRM_STRING[] = "\x68\x72\x72\x20\x65\x63\x68\
 /* ascii-hex print a buffer nicely for debug/interop purposes */
 void ossl_ech_pbuf(const char *msg, const unsigned char *buf, const size_t blen)
 {
-    size_t i;
-
     OSSL_TRACE_BEGIN(TLS) {
         if (msg == NULL) {
             BIO_printf(trc_out, "msg is NULL\n");
@@ -40,44 +38,34 @@ void ossl_ech_pbuf(const char *msg, const unsigned char *buf, const size_t blen)
             BIO_printf(trc_out, "%s: buf is %p\n", msg, (void *)buf);
             BIO_printf(trc_out, "%s: blen is %lu\n", msg, (unsigned long)blen);
         } else {
-            BIO_printf(trc_out, "%s (%lu):\n    ", msg, (unsigned long)blen);
-            for (i = 0; i < blen; i++) {
-                if (i != 0 && i % 16 == 0)
-                    BIO_printf(trc_out, "\n    ");
-                BIO_printf(trc_out, "%02x:", (unsigned)(buf[i]));
-            }
-            BIO_printf(trc_out, "\n");
+            BIO_printf(trc_out, "%s (%lu)\n", msg, (unsigned long)blen);
+            BIO_dump_indent(trc_out, buf, blen, 4);
         }
     } OSSL_TRACE_END(TLS);
     return;
 }
 
 /* trace out transcript */
-void ossl_ech_ptranscript(const char *msg, SSL_CONNECTION *s)
+void ossl_ech_ptranscript(SSL_CONNECTION *s, const char *msg)
 {
-    size_t hdatalen = 0;
-    unsigned char *hdata = NULL;
-    unsigned char ddata[1000];
-    size_t ddatalen;
+    OSSL_TRACE_BEGIN(TLS) {
+        size_t hdatalen = 0;
+        unsigned char *hdata = NULL;
+        unsigned char ddata[EVP_MAX_MD_SIZE];
+        size_t ddatalen;
 
-    if (s == NULL)
-        return;
-    hdatalen = BIO_get_mem_data(s->s3.handshake_buffer, &hdata);
-    ossl_ech_pbuf(msg, hdata, hdatalen);
-    if (s->s3.handshake_dgst != NULL) {
-        if (ssl_handshake_hash(s, ddata, 1000, &ddatalen) == 0) {
-            OSSL_TRACE_BEGIN(TLS) {
-                /* check-format doesn't like one statement here;-( */
+        if (s == NULL)
+            return;
+        hdatalen = BIO_get_mem_data(s->s3.handshake_buffer, &hdata);
+        ossl_ech_pbuf(msg, hdata, hdatalen);
+        if (s->s3.handshake_dgst != NULL) {
+            if (ssl_handshake_hash(s, ddata, sizeof(ddata), &ddatalen) == 0)
                 BIO_printf(trc_out, "ssl_handshake_hash failed\n");
-                BIO_printf(trc_out, "ssl_handshake_hash failed\n");
-            } OSSL_TRACE_END(TLS);
-        }
-        ossl_ech_pbuf(msg, ddata, ddatalen);
-    } else {
-        OSSL_TRACE_BEGIN(TLS) {
+            ossl_ech_pbuf(msg, ddata, ddatalen);
+        } else {
             BIO_printf(trc_out, "handshake_dgst is NULL\n");
-        } OSSL_TRACE_END(TLS);
-    }
+        }
+    } OSSL_TRACE_END(TLS);
     return;
 }
 # endif
@@ -342,7 +330,7 @@ int ossl_ech_send_grease(SSL_CONNECTION *s, WPACKET *pkt)
         || !WPACKET_put_bytes_u8(pkt, OSSL_ECH_OUTER_CH_TYPE)
         || !WPACKET_put_bytes_u16(pkt, hpke_suite.kdf_id)
         || !WPACKET_put_bytes_u16(pkt, hpke_suite.aead_id)
-        || !WPACKET_memcpy(pkt, &cid, 1)
+        || !WPACKET_put_bytes_u8(pkt, cid)
         || !WPACKET_sub_memcpy_u16(pkt, senderpub, senderpub_len)
         || !WPACKET_sub_memcpy_u16(pkt, cipher, cipher_len)
         || !WPACKET_close(pkt)
@@ -356,6 +344,7 @@ int ossl_ech_send_grease(SSL_CONNECTION *s, WPACKET *pkt)
     s->ext.ech.sent_len = pp_at_end - pp_at_start;
     s->ext.ech.sent = OPENSSL_malloc(s->ext.ech.sent_len);
     if (s->ext.ech.sent == NULL) {
+        s->ext.ech.sent_len = 0;
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
     }
@@ -417,8 +406,8 @@ int ossl_ech_pick_matching_cfg(SSL_CONNECTION *s, OSSL_ECHSTORE_ENTRY **ee,
         for (csuite = 0; csuite != lee->nsuites && suitematch == 0; csuite++) {
             if (OSSL_HPKE_suite_check(lee->suites[csuite]) == 1) {
                 suitematch = 1;
-                *suite = lee->suites[csuite];
                 if (namematch == 1) { /* pick this one if both "fit" */
+                    *suite = lee->suites[csuite];
                     *ee = lee;
                     break;
                 }
@@ -1174,7 +1163,7 @@ int ossl_ech_swaperoo(SSL_CONNECTION *s)
     if (s == NULL)
         return 0;
 # ifdef OSSL_ECH_SUPERVERBOSE
-    ossl_ech_ptranscript("ech_swaperoo, b4", s);
+    ossl_ech_ptranscript(s, "ech_swaperoo, b4");
 # endif
     /* un-stash inner key share */
     if (s->ext.ech.tmp_pkey == NULL) {
@@ -1251,7 +1240,7 @@ int ossl_ech_swaperoo(SSL_CONNECTION *s)
         OPENSSL_free(new_buf);
     }
 # ifdef OSSL_ECH_SUPERVERBOSE
-    ossl_ech_ptranscript("ech_swaperoo, after", s);
+    ossl_ech_ptranscript(s, "ech_swaperoo, after");
 # endif
     /* Declare victory! */
     s->ext.ech.attempted = 1;
