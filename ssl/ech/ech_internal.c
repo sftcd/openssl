@@ -366,8 +366,8 @@ int ossl_ech_pick_matching_cfg(SSL_CONNECTION *s, OSSL_ECHSTORE_ENTRY **ee,
                                OSSL_HPKE_SUITE *suite)
 {
     int namematch = 0, nameoverride = 0, suitematch = 0, num, cind = 0;
-    unsigned int csuite = 0, hnlen = 0;
-    OSSL_ECHSTORE_ENTRY *lee = NULL;
+    unsigned int csuite = 0, tsuite = 0, hnlen = 0;
+    OSSL_ECHSTORE_ENTRY *lee = NULL, *tee = NULL;
     OSSL_ECHSTORE *es = NULL;
     char *hn = NULL;
 
@@ -391,7 +391,7 @@ int ossl_ech_pick_matching_cfg(SSL_CONNECTION *s, OSSL_ECHSTORE_ENTRY **ee,
         lee = sk_OSSL_ECHSTORE_ENTRY_value(es->entries, cind);
         if (lee == NULL || lee->version != OSSL_ECH_RFCXXXX_VERSION)
             continue;
-        if (nameoverride == 1) {
+        if (nameoverride == 1 && hnlen == 0) {
             namematch = 1;
         } else {
             namematch = 0;
@@ -405,6 +405,10 @@ int ossl_ech_pick_matching_cfg(SSL_CONNECTION *s, OSSL_ECHSTORE_ENTRY **ee,
         suitematch = 0;
         for (csuite = 0; csuite != lee->nsuites && suitematch == 0; csuite++) {
             if (OSSL_HPKE_suite_check(lee->suites[csuite]) == 1) {
+                if (tee == NULL) { /* remember 1st suite match for  override */
+                    tee = lee;
+                    tsuite = csuite;
+                }
                 suitematch = 1;
                 if (namematch == 1) { /* pick this one if both "fit" */
                     *suite = lee->suites[csuite];
@@ -414,8 +418,13 @@ int ossl_ech_pick_matching_cfg(SSL_CONNECTION *s, OSSL_ECHSTORE_ENTRY **ee,
             }
         }
     }
-    if (namematch == 0 || suitematch == 0)
+    if (nameoverride == 1 && (namematch == 0 || suitematch == 0)) {
+        *suite = tee->suites[tsuite];
+        *ee = tee;
+    } else if (namematch == 0 || suitematch == 0) {
+        /* no joy */
         return 0;
+    }
     if (*ee == NULL || (*ee)->pub_len == 0 || (*ee)->pub == NULL)
         return 0;
     return 1;
@@ -445,8 +454,7 @@ int ossl_ech_encode_inner(SSL_CONNECTION *s)
         || !WPACKET_put_bytes_u16(&inner, s->client_version)
         || !WPACKET_memcpy(&inner, s->ext.ech.client_random, SSL3_RANDOM_SIZE)
         /* Session ID is forced to zero in the encoded inner */
-        || !WPACKET_start_sub_packet_u8(&inner)
-        || !WPACKET_close(&inner)
+        || !WPACKET_sub_memcpy_u8(&inner, NULL, 0)
         /* Ciphers supported */
         || !WPACKET_start_sub_packet_u16(&inner)
         || !ssl_cipher_list_to_bytes(s, SSL_get_ciphers(&s->ssl), &inner)

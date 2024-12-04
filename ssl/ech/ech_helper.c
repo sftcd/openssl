@@ -37,9 +37,9 @@ int ossl_ech_get_sh_offsets(const unsigned char *sh, size_t sh_len,
                             size_t *exts, size_t *echoffset,
                             uint16_t *echtype)
 {
-    unsigned int elen = 0, etype = 0, pi_tmp = 0;
-    const unsigned char *pp_tmp = NULL, *shstart = NULL, *estart = NULL;
-    PACKET pkt;
+    unsigned int etype = 0, pi_tmp = 0;
+    const unsigned char *pp_tmp = NULL, *shstart = NULL;
+    PACKET pkt, session_id, extpkt, oneext;
     size_t extlens = 0;
     int done = 0;
 #ifdef OSSL_ECH_SUPERVERBOSE
@@ -69,38 +69,33 @@ int ossl_ech_get_sh_offsets(const unsigned char *sh, size_t sh_len,
 #ifdef OSSL_ECH_SUPERVERBOSE
         || (sessid_offset = PACKET_data(&pkt) - shstart) == 0
 #endif
-        || !PACKET_get_1(&pkt, &pi_tmp) /* sessid len */
+        || !PACKET_get_length_prefixed_1(&pkt, &session_id)
 #ifdef OSSL_ECH_SUPERVERBOSE
-        || (sessid_len = (size_t)pi_tmp) == 0
+        || (sessid_len = PACKET_remaining(&session_id)) == 0
 #endif
-        || !PACKET_get_bytes(&pkt, &pp_tmp, pi_tmp) /* sessid */
         || !PACKET_get_net_2(&pkt, &pi_tmp) /* ciphersuite */
         || !PACKET_get_1(&pkt, &pi_tmp) /* compression */
         || (*exts = PACKET_data(&pkt) - shstart) == 0
-        || !PACKET_get_net_2(&pkt, &pi_tmp)) /* len(extensions) */
+        || !PACKET_as_length_prefixed_2(&pkt, &extpkt)
+        || PACKET_remaining(&pkt) != 0)
         return 0;
-    extlens = (size_t)pi_tmp;
+    extlens = PACKET_remaining(&extpkt);
     if (extlens == 0) /* not an error, in theory */
         return 1;
-    estart = PACKET_data(&pkt);
-    while (PACKET_remaining(&pkt) > 0
-           && (size_t)(PACKET_data(&pkt) - estart) < extlens
-           && done < 1) {
-        if (!PACKET_get_net_2(&pkt, &etype)
-            || !PACKET_get_net_2(&pkt, &elen))
+    while (PACKET_remaining(&extpkt) > 0 && done < 1) {
+        if (!PACKET_get_net_2(&extpkt, &etype)
+            || !PACKET_get_length_prefixed_2(&extpkt, &oneext))
             return 0;
         if (etype == TLSEXT_TYPE_ech) {
-            if (elen == 0)
+            if (PACKET_remaining(&oneext) != 8)
                 return 0;
-            *echoffset = PACKET_data(&pkt) - shstart - 4;
+            *echoffset = PACKET_data(&oneext) - shstart - 4;
             *echtype = etype;
 #ifdef OSSL_ECH_SUPERVERBOSE
-            echlen = elen + 4; /* type and length included */
+            echlen = PACKET_remaining(&oneext) + 4; /* type/length included */
 #endif
             done++;
         }
-        if (!PACKET_get_bytes(&pkt, &pp_tmp, elen))
-            return 0;
     }
 #ifdef OSSL_ECH_SUPERVERBOSE
     OSSL_TRACE_BEGIN(TLS) {
@@ -126,21 +121,31 @@ int ossl_ech_get_sh_offsets(const unsigned char *sh, size_t sh_len,
 int ossl_ech_make_enc_info(unsigned char *encoding, size_t encoding_length,
                            unsigned char *info, size_t *info_len)
 {
-    unsigned char *ip = info;
+    WPACKET ipkt = { 0 };
+    BUF_MEM *ipkt_mem = NULL;
 
     if (encoding == NULL || info == NULL || info_len == NULL)
         return 0;
     if (*info_len < (sizeof(OSSL_ECH_CONTEXT_STRING) + encoding_length))
         return 0;
-    memcpy(ip, OSSL_ECH_CONTEXT_STRING, sizeof(OSSL_ECH_CONTEXT_STRING) - 1);
-    ip += sizeof(OSSL_ECH_CONTEXT_STRING) - 1;
-    /*
-     * the zero valued octet is required by the spec, section 7.1 so a tiny
-     * bit better to add it explicitly rather than depend on the string being
-     * NUL terminated
-     */
-    *ip++ = 0x00;
-    memcpy(ip, encoding, encoding_length);
+    if ((ipkt_mem = BUF_MEM_new()) == NULL
+        || !WPACKET_init(&ipkt, ipkt_mem)
+        || !WPACKET_memcpy(&ipkt, OSSL_ECH_CONTEXT_STRING,
+                           sizeof(OSSL_ECH_CONTEXT_STRING) - 1)
+        /*
+         * the zero valued octet is required by the spec, section 7.1 so
+         * a tiny bit better to add it explicitly rather than depend on
+         * the context string being NUL terminated
+         */
+        || !WPACKET_put_bytes_u8(&ipkt, 0)
+        || !WPACKET_memcpy(&ipkt, encoding, encoding_length)) {
+        WPACKET_cleanup(&ipkt);
+        BUF_MEM_free(ipkt_mem);
+        return 0;
+    }
     *info_len = sizeof(OSSL_ECH_CONTEXT_STRING) + encoding_length;
+    memcpy(info, WPACKET_get_curr(&ipkt) - *info_len, *info_len);
+    WPACKET_cleanup(&ipkt);
+    BUF_MEM_free(ipkt_mem);
     return 1;
 }
