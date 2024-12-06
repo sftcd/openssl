@@ -405,7 +405,7 @@ int ossl_ech_pick_matching_cfg(SSL_CONNECTION *s, OSSL_ECHSTORE_ENTRY **ee,
         suitematch = 0;
         for (csuite = 0; csuite != lee->nsuites && suitematch == 0; csuite++) {
             if (OSSL_HPKE_suite_check(lee->suites[csuite]) == 1) {
-                if (tee == NULL) { /* remember 1st suite match for  override */
+                if (tee == NULL) { /* remember 1st suite match for override */
                     tee = lee;
                     tsuite = csuite;
                 }
@@ -433,7 +433,7 @@ int ossl_ech_pick_matching_cfg(SSL_CONNECTION *s, OSSL_ECHSTORE_ENTRY **ee,
 /* Make up the ClientHelloInner and EncodedClientHelloInner buffers */
 int ossl_ech_encode_inner(SSL_CONNECTION *s)
 {
-    int rv = 0, mt = SSL3_MT_CLIENT_HELLO;
+    int rv = 0;
     size_t nraws = 0, ind = 0, innerlen = 0;
     unsigned char *innerch_full = NULL;
     WPACKET inner = { 0 }; /* "fake" pkt for inner */
@@ -449,7 +449,7 @@ int ossl_ech_encode_inner(SSL_CONNECTION *s)
     }
     if ((inner_mem = BUF_MEM_new()) == NULL
         || !WPACKET_init(&inner, inner_mem)
-        || !ssl_set_handshake_header(s, &inner, mt)
+        /* We don't add the type and 3-octet header as usually done */
         /* Add ver/rnd/sess-id/suites to buffer */
         || !WPACKET_put_bytes_u16(&inner, s->client_version)
         || !WPACKET_memcpy(&inner, s->ext.ech.client_random, SSL3_RANDOM_SIZE)
@@ -482,9 +482,9 @@ int ossl_ech_encode_inner(SSL_CONNECTION *s)
     /*  We put ECH-compressed stuff first (if any), because we can */
     if (s->ext.ech.n_outer_only > 0) {
         if (!WPACKET_put_bytes_u16(&inner, TLSEXT_TYPE_outer_extensions)
-            || !WPACKET_put_bytes_u16(&inner, 2 * s->ext.ech.n_outer_only + 1)
+            || !WPACKET_start_sub_packet_u16(&inner)
             /* redundant encoding of more-or-less the same thing */
-            || !WPACKET_put_bytes_u8(&inner, 2 * s->ext.ech.n_outer_only)) {
+            || !WPACKET_start_sub_packet_u8(&inner)) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             goto err;
         }
@@ -495,28 +495,24 @@ int ossl_ech_encode_inner(SSL_CONNECTION *s)
                 goto err;
             }
         }
+        /* close the 2 sub-packets with the compressed types */
+        if (!WPACKET_close(&inner) || !WPACKET_close(&inner)) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+            goto err;
+        }
     }
     /* now copy the rest, as "proper" exts, into encoded inner */
     for (ind = 0; ind < TLSEXT_IDX_num_builtins; ind++) {
         if (raws[ind].present == 0 || ossl_ech_2bcompressed(ind) == 1)
             continue;
-        if (PACKET_data(&raws[ind].data) != NULL) {
-            if (!WPACKET_put_bytes_u16(&inner, raws[ind].type)
-                || !WPACKET_sub_memcpy_u16(&inner, PACKET_data(&raws[ind].data),
-                                           PACKET_remaining(&raws[ind].data))) {
-                SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-                goto err;
-            }
-        } else { /* empty extension */
-            if (!WPACKET_put_bytes_u16(&inner, raws[ind].type)
-                || !WPACKET_put_bytes_u16(&inner, 0)) {
-                SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-                goto err;
-            }
+        if (!WPACKET_put_bytes_u16(&inner, raws[ind].type)
+            || !WPACKET_sub_memcpy_u16(&inner, PACKET_data(&raws[ind].data),
+                                       PACKET_remaining(&raws[ind].data))) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+            goto err;
         }
     }
-    if (!WPACKET_close(&inner)  /* close the exts sub packet */
-        || !WPACKET_close(&inner) /* close the inner CH */
+    if (!WPACKET_close(&inner)  /* close the encoded inner packet */
         || !WPACKET_get_length(&inner, &innerlen)) { /* len for inner CH */
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         goto err;
@@ -526,11 +522,10 @@ int ossl_ech_encode_inner(SSL_CONNECTION *s)
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         goto err;
     }
-    /* Finally ditch the type and 3-octet length */
-    memcpy(innerch_full, inner_mem->data + 4, innerlen - 4);
+    memcpy(innerch_full, inner_mem->data, innerlen);
     OPENSSL_free(s->ext.ech.encoded_innerch);
     s->ext.ech.encoded_innerch = innerch_full;
-    s->ext.ech.encoded_innerch_len = innerlen - 4;
+    s->ext.ech.encoded_innerch_len = innerlen;
     /* and clean up */
     rv = 1;
 err:
@@ -543,7 +538,7 @@ err:
  * Find ECH acceptance signal in a SH
  * hrr is 1 if this is for an HRR, otherwise for SH
  * acbuf is (a preallocated) 8 octet buffer
- * shbuf is a pointer to the SH buffer (incl. the type+3-octet length)
+ * shbuf is a pointer to the SH buffer
  * shlen is the length of the SH buf
  * return: 1 for success, 0 otherwise
  */
@@ -557,10 +552,7 @@ int ossl_ech_find_confirm(SSL_CONNECTION *s, int hrr,
     int done = 0;
 
     if (hrr == 0) {
-        if (shlen < CLIENT_VERSION_LEN + SSL3_RANDOM_SIZE)
-            return 0;
-        acp = shbuf + CLIENT_VERSION_LEN + SSL3_RANDOM_SIZE
-            - OSSL_ECH_SIGNAL_LEN;
+        acp = s->s3.server_random + SSL3_RANDOM_SIZE - OSSL_ECH_SIGNAL_LEN;
         memcpy(acbuf, acp, OSSL_ECH_SIGNAL_LEN);
         return 1;
     } else {
@@ -594,51 +586,6 @@ int ossl_ech_find_confirm(SSL_CONNECTION *s, int hrr,
 }
 
 /*
- * return the h/s hash from the connection or ServerHello
- * rmd is the returned h/s hash
- * shbuf is the ServerHello
- * shlen is the length of the ServerHello
- * return 1 for good, 0 for error
- */
-static int ech_get_md_from_hs(SSL_CONNECTION *s, EVP_MD **rmd,
-                              const unsigned char *shbuf, const size_t shlen)
-{
-    int rv;
-    size_t extoffset = 0, echoffset = 0, cipheroffset = 0;
-    uint16_t echtype;
-    const SSL_CIPHER *c = NULL;
-    const unsigned char *cipherchars = NULL;
-    EVP_MD *md = NULL;
-
-    /* this branch works for the server */
-    md = (EVP_MD *)ssl_handshake_md(s);
-    if (md != NULL) {
-        *rmd = md;
-        return 1;
-    }
-    /*
-     * if we're a client we'll fallback to hash from the chosen ciphersuite
-     * that means ECH acceptance depends on no bidding down, but that's ok
-     */
-    rv = ossl_ech_get_sh_offsets(shbuf, shlen, &extoffset, &echoffset,
-                                 &echtype);
-    if (rv != 1 || extoffset < 3) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_R_ECH_REQUIRED);
-        return 0;
-    }
-    cipheroffset = extoffset - 3;
-    cipherchars = &shbuf[cipheroffset];
-    c = ssl_get_cipher_by_char(s, cipherchars, 0);
-    if (c == NULL /* fuzzer fix */
-        || (md = (EVP_MD *)ssl_md(s->ssl.ctx, c->algorithm2)) == NULL) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-        return 0;
-    }
-    *rmd = md;
-    return 1;
-}
-
-/*
  * make up a buffer to use to reset transcript
  * for_hrr is 1 if we've just seen HRR, 0 otherwise
  * shbuf is the output buffer
@@ -658,7 +605,7 @@ int ossl_ech_make_transcript_buffer(SSL_CONNECTION *s, int for_hrr,
     unsigned int hashlen = 0, hashin_len = 0;
     EVP_MD_CTX *ctx = NULL;
     EVP_MD *md = NULL;
-    WPACKET tpkt, shpkt;
+    WPACKET tpkt = { 0 }, shpkt = { 0 };
     BUF_MEM *tpkt_mem = NULL, *shpkt_mem = NULL;
 
     /*
@@ -682,16 +629,7 @@ int ossl_ech_make_transcript_buffer(SSL_CONNECTION *s, int for_hrr,
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         goto err;
     }
-    fixedshbuf = OPENSSL_malloc(*fixedshbuf_len);
-    if (fixedshbuf == NULL) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-        BUF_MEM_free(shpkt_mem);
-        WPACKET_cleanup(&shpkt);
-        goto err;
-    }
-    memcpy(fixedshbuf, WPACKET_get_curr(&shpkt) - *fixedshbuf_len,
-           *fixedshbuf_len);
-    BUF_MEM_free(shpkt_mem);
+    fixedshbuf = (unsigned char *)shpkt_mem->data;
     WPACKET_cleanup(&shpkt);
 # ifdef OSSL_ECH_SUPERVERBOSE
     ossl_ech_pbuf("cx: fixed sh buf", fixedshbuf, *fixedshbuf_len);
@@ -716,15 +654,13 @@ int ossl_ech_make_transcript_buffer(SSL_CONNECTION *s, int for_hrr,
             goto err;
         }
         memcpy(*tbuf, WPACKET_get_curr(&tpkt) - *tlen, *tlen);
-        OPENSSL_free(fixedshbuf);
+        BUF_MEM_free(shpkt_mem);
         WPACKET_cleanup(&tpkt);
         BUF_MEM_free(tpkt_mem);
         return 1;
     }
     /* everything below only applies if we're at some stage in doing HRR */
-    if (*fixedshbuf_len <= 5 /* SH here has outer type/24-bit length */
-        || ech_get_md_from_hs(s, &md, fixedshbuf + 4, *fixedshbuf_len - 4) != 1
-        || (hashlen = EVP_MD_size(md)) > EVP_MAX_MD_SIZE) {
+    if ((md = (EVP_MD *)ssl_handshake_md(s)) == NULL) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         goto err;
     }
@@ -735,7 +671,13 @@ int ossl_ech_make_transcript_buffer(SSL_CONNECTION *s, int for_hrr,
         hashin = s->ext.ech.innerch;
         hashin_len = s->ext.ech.innerch_len;
         OPENSSL_free(s->ext.ech.kepthrr);
-        s->ext.ech.kepthrr = fixedshbuf; /* stash this SH/HRR for later */
+        /* stash this SH/HRR for later */
+        s->ext.ech.kepthrr = OPENSSL_malloc(*fixedshbuf_len);
+        if (s->ext.ech.kepthrr == NULL) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+            goto err;
+        }
+        memcpy(s->ext.ech.kepthrr, fixedshbuf, *fixedshbuf_len);
         s->ext.ech.kepthrr_len = *fixedshbuf_len;
     }
 # ifdef OSSL_ECH_SUPERVERBOSE
@@ -777,19 +719,14 @@ int ossl_ech_make_transcript_buffer(SSL_CONNECTION *s, int for_hrr,
         goto err;
     }
     memcpy(*tbuf, WPACKET_get_curr(&tpkt) - *tlen, *tlen);
-    /* don't double-free */
-    if (for_hrr == 0 && s->ext.ech.kepthrr != fixedshbuf)
-        OPENSSL_free(fixedshbuf);
+    BUF_MEM_free(shpkt_mem);
     WPACKET_cleanup(&tpkt);
     BUF_MEM_free(tpkt_mem);
     return 1;
 err:
-    if (s->ext.ech.kepthrr != fixedshbuf) /* don't double-free */
-        OPENSSL_free(fixedshbuf);
-    if (tpkt_mem != NULL) {
-        WPACKET_cleanup(&tpkt);
-        BUF_MEM_free(tpkt_mem);
-    }
+    BUF_MEM_free(shpkt_mem);
+    BUF_MEM_free(tpkt_mem);
+    WPACKET_cleanup(&tpkt);
     EVP_MD_CTX_free(ctx);
     return 0;
 }
@@ -862,12 +799,10 @@ static size_t ech_calc_padding(SSL_CONNECTION *s, OSSL_ECHSTORE_ENTRY *ee)
         /* do weirder padding if SNI present in inner */
         if (s->ext.hostname != NULL) {
             isnilen = strlen(s->ext.hostname) + 9;
-            innersnipadding = mnl - isnilen;
+            innersnipadding = (mnl > isnilen) ? mnl - isnilen : 0;
         } else {
             innersnipadding = mnl + 9;
         }
-        if (innersnipadding < 0)
-            innersnipadding = 0;
     }
     /* padding is after the inner client hello has been encoded */
     length_with_snipadding = innersnipadding + s->ext.ech.encoded_innerch_len;
@@ -1392,8 +1327,7 @@ int ossl_ech_calc_confirm(SSL_CONNECTION *s, int for_hrr,
     unsigned int hashlen = 0;
     unsigned char hashval[EVP_MAX_MD_SIZE], hoval[EVP_MAX_MD_SIZE];
 
-    if (ech_get_md_from_hs(s, &md, shbuf, shlen) != 1
-        || (hashlen = EVP_MD_size(md)) > EVP_MAX_MD_SIZE)
+    if ((md = (EVP_MD *)ssl_handshake_md(s)) == NULL)
         goto err;
     if (ossl_ech_make_transcript_buffer(s, for_hrr, shbuf, shlen, &tbuf, &tlen,
                                         &chend, &fixedshbuf_len) != 1)

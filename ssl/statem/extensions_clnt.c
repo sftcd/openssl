@@ -2551,8 +2551,7 @@ int tls_parse_stoc_ech(SSL_CONNECTION *s, PACKET *pkt, unsigned int context,
 
     /*
      * An HRR will have an ECH extension with the
-     * 8-octet confirmation value but that is processed
-     * elsewhere, so just return ok in that case.
+     * 8-octet confirmation value, already handled
      */
     if (context == SSL_EXT_TLS1_3_HELLO_RETRY_REQUEST)
         return 1;

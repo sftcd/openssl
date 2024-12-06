@@ -1825,6 +1825,11 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL_CONNECTION *s, PACKET *pkt)
         && s->ext.ech.done != 1 && s->ext.ech.ch_depth == 0
         && s->ext.ech.grease == OSSL_ECH_NOT_GREASE
         && s->ext.ech.attempted_type == TLSEXT_TYPE_ech) {
+        /* try set this earlier see what happens */
+        if (!set_client_ciphersuite(s, cipherchars)) {
+            /* SSLfatal() already called */
+            goto err;
+        }
         /* check the ECH accept signal */
         if (ossl_ech_calc_confirm(s, hrr, c_signal, shbuf, shlen) != 1
             || ossl_ech_find_confirm(s, hrr, s_signal, shbuf, shlen) != 1
