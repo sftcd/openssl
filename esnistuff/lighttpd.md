@@ -37,8 +37,7 @@ If your lighttpd build is not in ``$HOME/code/lighttpd1.4`` then you can set the
 ``$LIGHTY`` environment variable to point to top of the lighttpd build tree.
 
 ``testlighthtpd.sh`` script runs the server in foreground so you'll need to ctrl-C
-out of that, when done. (Valgrind reports some seemingly fixed sized leaks on exit,
-not sure if that's my fault or not.)
+out of that, when done. 
 
 I also added example.com, foo.example.com, bar.example.com and bat.example.com to
 ``/etc/hosts`` to match the setup in [``lighthttpdmin.conf``](lighthttpdmin.conf).

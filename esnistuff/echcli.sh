@@ -75,7 +75,7 @@ REUSINGSESSION="no"
 TESTCUST="no"
 
 # default values
-HIDDEN="crypto.cloudflare.com"
+HIDDEN="cloudflare-ech.com"
 DEFFRAG="cdn-cgi/trace" # what CF like for giving a hint as to whether ECH worked
 PNO=""
 REALCERT="no" # default to fake CA for localhost
