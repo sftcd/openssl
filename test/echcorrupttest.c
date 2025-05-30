@@ -7,6 +7,12 @@
  * https://www.openssl.org/source/license.html
  */
 
+/*
+ * TODO: Add a the equivalent of the ech_tls12_with_ech_test
+ * here via a pre-cooked buffer so we no longer need the
+ * OPENSSL_ECH_ALLOW_CUST_INJECT to be defined
+ */
+
 #include <string.h>
 #include "helpers/ssltestlib.h"
 #include "testutil.h"
