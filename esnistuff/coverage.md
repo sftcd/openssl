@@ -4,9 +4,11 @@
 @slontis once told me how:
 
 ```bash
-./config --debug --coverage no-asm no-afalgeng no-shared -DPEDANTIC -DFUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+./config --debug enable-external-tests --coverage no-asm no-afalgeng no-shared -DPEDANTIC -DFUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
 make -s -j4
-make test TESTS='test_ech test_app_ech test_ech_client_server'
+# make test TESTS='test_ech test_ech_corrupt test_app_ech test_ech_client_server'
+# make test TESTS='test_ech test_ech_corrupt test_app_ech test_ech_client_server'
+make test TESTS='test_ech test_ech_corrupt test_app_ech test_ech_client_server test_external_ech_bssl test_external_ech_nss'
 # next line failed, was replaced the the one following
 # lcov -d . -c -o ./lcov.info
 /usr/bin/geninfo . --output-filename ./lcov.info --memory 0 --ignore-errors mismatch
