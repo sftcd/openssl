@@ -1783,7 +1783,7 @@ static unsigned char *hpke_decrypt_encch(SSL_CONNECTION *s,
     ERR_set_mark();
     /* Use OSSL_HPKE_* APIs */
     hctx = OSSL_HPKE_CTX_new(hpke_mode, hpke_suite, OSSL_HPKE_ROLE_RECEIVER,
-                             NULL, NULL);
+                             s->ssl.ctx->libctx, s->ssl.ctx->propq);
     if (hctx == NULL)
         goto clearerrs;
     rv = OSSL_HPKE_decap(hctx, senderpub, senderpublen, ee->keyshare,

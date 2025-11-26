@@ -2637,7 +2637,8 @@ EXT_RETURN tls_construct_ctos_ech(SSL_CONNECTION *s, WPACKET *pkt,
 # endif
         s->ext.ech.hpke_ctx = OSSL_HPKE_CTX_new(hpke_mode, hpke_suite,
                                                 OSSL_HPKE_ROLE_SENDER,
-                                                NULL, NULL);
+                                                s->ssl.ctx->libctx,
+                                                s->ssl.ctx->propq);
         if (s->ext.ech.hpke_ctx == NULL) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             goto err;
