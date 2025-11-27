@@ -28,6 +28,85 @@ static int ch_test_cb_ok = 0;
 
 /* TODO(ECH): add some testing of SSL_OP_ECH_IGNORE_CID */
 
+/* temporarily add this here so we can include propq in it */
+int create_ssl_ctx_pair_local(OSSL_LIB_CTX *libctx, char *propq,
+                        const SSL_METHOD *sm,
+                        const SSL_METHOD *cm, int min_proto_version,
+                        int max_proto_version, SSL_CTX **sctx, SSL_CTX **cctx,
+                        char *certfile, char *privkeyfile)
+{
+    SSL_CTX *serverctx = NULL;
+    SSL_CTX *clientctx = NULL;
+
+    if (sctx != NULL) {
+        if (*sctx != NULL)
+            serverctx = *sctx;
+        else if (!TEST_ptr(serverctx = SSL_CTX_new_ex(libctx, propq, sm))
+            || !TEST_true(SSL_CTX_set_options(serverctx,
+                                              SSL_OP_ALLOW_CLIENT_RENEGOTIATION)))
+            goto err;
+    }
+
+    if (cctx != NULL) {
+        if (*cctx != NULL)
+            clientctx = *cctx;
+        else if (!TEST_ptr(clientctx = SSL_CTX_new_ex(libctx, propq, cm)))
+            goto err;
+    }
+
+#if !defined(OPENSSL_NO_TLS1_3) \
+    && defined(OPENSSL_NO_EC) \
+    && defined(OPENSSL_NO_DH)
+    /*
+     * There are no usable built-in TLSv1.3 groups if ec and dh are both
+     * disabled
+     */
+    if (max_proto_version == 0
+            && (sm == TLS_server_method() || cm == TLS_client_method()))
+        max_proto_version = TLS1_2_VERSION;
+#endif
+
+    if (serverctx != NULL
+            && ((min_proto_version > 0
+                 && !TEST_true(SSL_CTX_set_min_proto_version(serverctx,
+                                                            min_proto_version)))
+                || (max_proto_version > 0
+                    && !TEST_true(SSL_CTX_set_max_proto_version(serverctx,
+                                                                max_proto_version)))))
+        goto err;
+    if (clientctx != NULL
+        && ((min_proto_version > 0
+             && !TEST_true(SSL_CTX_set_min_proto_version(clientctx,
+                                                         min_proto_version)))
+            || (max_proto_version > 0
+                && !TEST_true(SSL_CTX_set_max_proto_version(clientctx,
+                                                            max_proto_version)))))
+        goto err;
+
+    if (serverctx != NULL && certfile != NULL && privkeyfile != NULL) {
+        if (!TEST_int_eq(SSL_CTX_use_certificate_file(serverctx, certfile,
+                                                      SSL_FILETYPE_PEM), 1)
+                || !TEST_int_eq(SSL_CTX_use_PrivateKey_file(serverctx,
+                                                            privkeyfile,
+                                                            SSL_FILETYPE_PEM), 1)
+                || !TEST_int_eq(SSL_CTX_check_private_key(serverctx), 1))
+            goto err;
+    }
+
+    if (sctx != NULL)
+        *sctx = serverctx;
+    if (cctx != NULL)
+        *cctx = clientctx;
+    return 1;
+
+ err:
+    if (sctx != NULL && *sctx == NULL)
+        SSL_CTX_free(serverctx);
+    if (cctx != NULL && *cctx == NULL)
+        SSL_CTX_free(clientctx);
+    return 0;
+}
+
 /* ECH callback */
 static unsigned int ech_test_cb(SSL *s, const char *str)
 {
@@ -1190,6 +1269,7 @@ end:
 # define OSSL_ECH_TEST_CUSTOM   3
 # define OSSL_ECH_TEST_ENOE     4 /* early + no-ech */
 # define OSSL_ECH_TEST_CBS      5 /* test callbacks */
+# define OSSL_ECH_TEST_FIPS     6 /* test FIPS */
 /* note: early-data is prohibited after HRR so no tests for that */
 
 /*
@@ -1240,7 +1320,7 @@ static int test_ech_roundtrip_helper(int idx, int combo)
         || !TEST_ptr(es = OSSL_ECHSTORE_new(libctx, propq))
         || !TEST_true(OSSL_ECHSTORE_new_config(es, ech_version, max_name_length,
                                                public_name, hpke_suite))
-        || !TEST_true(create_ssl_ctx_pair(libctx, TLS_server_method(),
+        || !TEST_true(create_ssl_ctx_pair_local(libctx, propq, TLS_server_method(),
                                           TLS_client_method(),
                                           TLS1_3_VERSION, TLS1_3_VERSION,
                                           &sctx, &cctx, cert, privkey)))
@@ -1312,7 +1392,8 @@ static int test_ech_roundtrip_helper(int idx, int combo)
         goto end;
     /* all good */
     if (combo == OSSL_ECH_TEST_BASIC || combo == OSSL_ECH_TEST_HRR
-        || combo == OSSL_ECH_TEST_CUSTOM || combo == OSSL_ECH_TEST_CBS) {
+        || combo == OSSL_ECH_TEST_CUSTOM || combo == OSSL_ECH_TEST_CBS
+        || combo == OSSL_ECH_TEST_FIPS) {
         res = 1;
         goto end;
     }
@@ -1437,6 +1518,19 @@ static int ech_cb_test(int idx)
     return test_ech_roundtrip_helper(idx, OSSL_ECH_TEST_CBS);
 }
 
+/* Test a roundtrip with ECH, with FIPS enabled */
+static int ech_fips_test(int idx)
+{
+    int rv = 0;
+
+    propq = "fips=yes";
+    if (verbose)
+        TEST_info("Doing: ech + FIPS test ");
+    rv = test_ech_roundtrip_helper(idx, OSSL_ECH_TEST_FIPS);
+    propq = NULL;
+    return rv;
+}
+
 #endif
 
 int setup_tests(void)
@@ -1482,6 +1576,7 @@ int setup_tests(void)
     ADD_ALL_TESTS(ech_enoe_test, suite_combos);
     ADD_ALL_TESTS(ech_cb_test, suite_combos);
     /* TODO(ECH): add more test code as other PRs done */
+    ADD_ALL_TESTS(ech_fips_test, suite_combos);
     return 1;
 err:
     return 0;
