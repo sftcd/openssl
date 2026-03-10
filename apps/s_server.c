@@ -641,6 +641,10 @@ static int ssl_ech_servername_cb(SSL *s, int *ad, void *arg)
                 "- no ECH SUCCESS\n");
         if (servername != NULL && OPENSSL_strcasecmp(servername, p->servername))
             return p->extension_error;
+        if (ctx2 != NULL) {
+            BIO_puts(p->biodebug, "Switching server context.\n");
+            SSL_set_SSL_CTX(s, ctx2);
+        }
     }
     return SSL_TLSEXT_ERR_OK;
 }
