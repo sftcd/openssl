@@ -2034,7 +2034,7 @@ int ossl_ech_early_decrypt(SSL_CONNECTION *s, PACKET *outerpkt, PACKET *newpkt)
     es = s->ext.ech.es;
     num = (es == NULL || es->entries == NULL ? 0
                                              : sk_OSSL_ECHSTORE_ENTRY_num(es->entries));
-    for (cfgind = 0; cfgind != num; cfgind++) {
+    for (cfgind = 0; cfgind != num && foundcfg == 0; cfgind++) {
         ee = sk_OSSL_ECHSTORE_ENTRY_value(es->entries, cfgind);
         OSSL_TRACE_BEGIN(TLS)
         {
@@ -2044,8 +2044,15 @@ int ossl_ech_early_decrypt(SSL_CONNECTION *s, PACKET *outerpkt, PACKET *newpkt)
         }
         OSSL_TRACE_END(TLS);
         if (extval->config_id == ee->config_id) {
-            foundcfg = 1;
-            break;
+            int suite_id;
+
+            /* check aead and kdf match a loaded suite for the config_id */
+            for (suite_id = 0; suite_id != ee->nsuites && foundcfg == 0; suite_id++) {
+                if (ee->suites[suite_id].kdf_id == extval->kdf_id
+                        && ee->suites[suite_id].aead_id == extval->aead_id) {
+                    foundcfg = 1;
+                }
+            }
         }
     }
     if (foundcfg == 1) {
