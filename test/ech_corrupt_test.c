@@ -495,8 +495,7 @@ static TEST_ECHINNER test_inners[] = {
         encoded_inner_outers, sizeof(encoded_inner_outers),
         bad_pad_encoded_inner_post, sizeof(bad_pad_encoded_inner_post),
         0, /* expected result */
-        SSL_R_DECRYPTION_FAILED_OR_BAD_RECORD_MAC },
-
+        SSL_R_TLS_ALERT_ILLEGAL_PARAMETER },
     /*
      * 6. unsupported extension instead of outers - resulting decoded
      * inner missing so much it seems to be the wrong protocol

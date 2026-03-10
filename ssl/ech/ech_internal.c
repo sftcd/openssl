@@ -1739,7 +1739,7 @@ static unsigned char *hpke_decrypt_encch(SSL_CONNECTION *s,
     size_t aad_len, unsigned char *aad,
     int forhrr, size_t *innerlen)
 {
-    size_t cipherlen = 0;
+    size_t cipherlen = 0, zind = 0;
     unsigned char *cipher = NULL;
     size_t senderpublen = 0;
     unsigned char *senderpub = NULL;
@@ -1876,24 +1876,18 @@ end:
             SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
             goto paderr;
         }
-        /*
-         * The RFC calls for that padding to be all zeros. I'm not so
-         * keen on that being a good idea to enforce, so we'll make it
-         * easy to not do so (but check by default)
-         */
-#define CHECKZEROS
-#ifdef CHECKZEROS
-        {
-            size_t zind = 0;
+        /* The RFC calls for that padding to be all zeros */
 
-            if (*innerlen < ch_len)
+        if (*innerlen < ch_len) {
+            SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+            goto paderr;
+        }
+        for (zind = ch_len; zind != *innerlen; zind++) {
+            if (clear[zind] != 0x00) {
+                SSLfatal(s, SSL_AD_ILLEGAL_PARAMETER, SSL_R_BAD_EXTENSION);
                 goto paderr;
-            for (zind = ch_len; zind != *innerlen; zind++) {
-                if (clear[zind] != 0x00)
-                    goto paderr;
             }
         }
-#endif
         *innerlen = ch_len;
 #ifdef OSSL_ECH_SUPERVERBOSE
         ossl_ech_pbuf("unpadded clear", clear, *innerlen);
