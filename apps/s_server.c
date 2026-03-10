@@ -630,6 +630,8 @@ static int ssl_ech_servername_cb(SSL *s, int *ad, void *arg)
                         "ssl_ech_servername_cb: Not switching context "
                         "- no name match (%d).\n",
                         check_host);
+                if (OPENSSL_strcasecmp(servername, p->servername))
+                    return p->extension_error;
             }
         }
     } else {
@@ -637,6 +639,8 @@ static int ssl_ech_servername_cb(SSL *s, int *ad, void *arg)
             BIO_printf(p->biodebug,
                 "ssl_ech_servername_cb: Not switching context "
                 "- no ECH SUCCESS\n");
+        if (OPENSSL_strcasecmp(servername, p->servername))
+            return p->extension_error;
     }
     return SSL_TLSEXT_ERR_OK;
 }
