@@ -1885,12 +1885,22 @@ MSG_PROCESS_RETURN tls_process_server_hello(SSL_CONNECTION *s, PACKET *pkt)
                 SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
                 goto err;
             }
-        } else if (!hrr) {
+        } else if (hrr == 1 && s->ext.ech.success == 1) {
+            OSSL_TRACE(TLS, "ECH HRR accept ok, continuing.\n");
+        } else {
             /*
              * If we got retry_configs then we should be validating
              * the outer CH, so we better set the hostname for the
              * connection accordingly.
              */
+            if (!hrr)
+                OSSL_TRACE1(TLS, "ECH falling back to public_name: %s\n",
+                    s->ext.ech.outer_hostname != NULL ?
+                        s->ext.ech.outer_hostname : "NONE");
+            else
+                OSSL_TRACE1(TLS, "ECH HRR falling back to public_name: %s\n",
+                    s->ext.ech.outer_hostname != NULL ?
+                        s->ext.ech.outer_hostname : "NONE");
             s->ext.ech.former_inner = s->ext.hostname;
             s->ext.hostname = NULL;
             if (s->ext.ech.outer_hostname != NULL) {

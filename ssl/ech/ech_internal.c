@@ -1054,22 +1054,17 @@ int ossl_ech_calc_confirm(SSL_CONNECTION *s, int for_hrr,
     if (for_hrr == 0) { /* zap magic octets at fixed place for SH */
         conf_loc = tbuf + chend + shoffset;
     } else {
-        if (s->server == 1) { /* we get to say where we put ECH:-) */
-            conf_loc = tbuf + tlen - OSSL_ECH_SIGNAL_LEN;
-        } else {
-            if (s->ext.ech.hrrsignal_p == NULL) {
-                /* No ECH found so we'll exit, but set random output */
-                if (RAND_bytes_ex(sctx->libctx, acbuf,
-                        OSSL_ECH_SIGNAL_LEN, 0)
-                    <= 0) {
-                    SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_R_ECH_REQUIRED);
-                    goto end;
-                }
-                rv = 1;
+        if (s->server == 0 && s->ext.ech.hrrsignal_p == NULL) {
+            /* No ECH found so we'll exit, but set random output */
+            if (RAND_bytes_ex(sctx->libctx, acbuf, OSSL_ECH_SIGNAL_LEN, 0)
+                <= 0) {
+                SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_R_ECH_REQUIRED);
                 goto end;
             }
-            conf_loc = s->ext.ech.hrrsignal_p;
+            rv = 1;
+            goto end;
         }
+        conf_loc = tbuf + tlen - OSSL_ECH_SIGNAL_LEN;
     }
     memset(conf_loc, 0, OSSL_ECH_SIGNAL_LEN);
 #ifdef OSSL_ECH_SUPERVERBOSE
@@ -1096,7 +1091,11 @@ int ossl_ech_calc_confirm(SSL_CONNECTION *s, int for_hrr,
     ossl_ech_pbuf("cx: result", acbuf, OSSL_ECH_SIGNAL_LEN);
 #endif
     /* put confirm value back into transcript */
-    memcpy(conf_loc, acbuf, OSSL_ECH_SIGNAL_LEN);
+    if (s->server == 0 && for_hrr == 1) { /* put back the one we got */
+        memcpy(conf_loc, s->ext.ech.hrrsignal, OSSL_ECH_SIGNAL_LEN);
+    } else {
+        memcpy(conf_loc, acbuf, OSSL_ECH_SIGNAL_LEN);
+    }
     /* on a server, we need to reset the hs buffer now */
     if (s->server && s->hello_retry_request == SSL_HRR_NONE)
         ossl_ech_reset_hs_buffer(s, s->ext.ech.innerch, s->ext.ech.innerch_len);
